@@ -1374,7 +1374,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 		if (COM_CheckParm("--version") || COM_CheckParm("-v"))
 		{
-			printf("version " DISTRIBUTION " " __TIME__ __DATE__ "\n");
+			printf("version " DISTRIBUTION " " __TIME__ " " __DATE__ "\n");
 			return true;
 		}
 
@@ -1553,8 +1553,25 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 int __cdecl main(void)
 {
+	char *cmdline;
 	FreeConsole();
-	return WinMain(GetModuleHandle(NULL), NULL, GetCommandLine(), SW_NORMAL);
+	cmdline = GetCommandLine();
+	while (*cmdline && cmdline == ' ')
+		cmdline++;
+	if (*cmdline == '\"')
+	{
+		cmdline++;
+		while (*cmdline && cmdline != '\"')
+			cmdline++;
+		if (*cmdline == '\"')
+			cmdline++;
+	}
+	else
+	{
+		while (*cmdline && cmdline != ' ')
+			cmdline++;
+	}
+	return WinMain(GetModuleHandle(NULL), NULL, cmdline, SW_NORMAL);
 }
 #endif
 

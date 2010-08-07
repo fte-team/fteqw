@@ -206,6 +206,22 @@ static unsigned int tbl_sdltoquake[] =
 	0			//SDLK_UNDO		= 322,		/* Atari keyboard has Undo */
 };
 
+static unsigned int tbl_sdltoquakemouse[] =
+{
+	K_MOUSE1,
+	K_MOUSE3,
+	K_MOUSE2,
+	K_MWHEELUP,
+	K_MWHEELDOWN,
+	K_MOUSE4,
+	K_MOUSE5,
+	K_MOUSE6,
+	K_MOUSE7,
+	K_MOUSE8,
+	K_MOUSE9,
+	K_MOUSE10
+};
+
 int mouse_x, mouse_y;
 
 #ifdef SWQUAKE
@@ -264,9 +280,9 @@ void Sys_SendKeyEvents(void)
 		case SDL_MOUSEBUTTONDOWN:
 		case SDL_MOUSEBUTTONUP:
 			//Hmm. SDL allows for 255 buttons...
-			if (event.button.button > 10)
-				event.button.button = 10;
-			Key_Event(K_MOUSE1+event.button.button-1, 0, event.button.state);
+			if (event.button.button > sizeof(tbl_sdltoquakemouse)/sizeof(tbl_sdltoquakemouse[0]))
+				event.button.button = sizeof(tbl_sdltoquakemouse)/sizeof(tbl_sdltoquakemouse[0]);
+			Key_Event(tbl_sdltoquakemouse[event.button.button-1], 0, event.button.state);
 			break;
 
 		case SDL_QUIT:

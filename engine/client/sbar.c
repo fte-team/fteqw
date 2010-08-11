@@ -971,12 +971,9 @@ void Draw_TinyString (int x, int y, const qbyte *str)
 {
 	float xstart;
 
-#pragma message("hexen2: use a tinychar *6 font")
 	if (!font_tiny)
 	{
-//		font_tiny = Font_LoadFont(6*vid.pixelheight/vid.height, var->string);
-//		if (!font_tiny && *var->string)
-			font_tiny = Font_LoadFont(6*vid.pixelheight/vid.height, "gfx/tinyfont");
+		font_tiny = Font_LoadFont(6*vid.pixelheight/vid.height, "gfx/tinyfont");
 		if (!font_tiny)
 			return;
 	}

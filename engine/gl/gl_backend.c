@@ -2407,7 +2407,10 @@ void BE_PolyOffset(qboolean pushdepth)
 static void DrawMeshes(void)
 {
 	const shaderpass_t *p;
-	int passno,perm;
+	int passno;
+#ifdef RTLIGHTS
+	int perm;
+#endif
 	passno = 0;
 
 	GL_SelectEBO(shaderstate.sourcevbo->vboe);

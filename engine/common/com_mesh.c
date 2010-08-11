@@ -2381,13 +2381,31 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 
 	if (hdrsize == sizeof(dmdl_t))
 	{
+		/*each triangle can use one coord and one st, for each vert, that's a lot of combinations*/
+#ifdef SERVERONLY
+		/*separate st + vert lists*/
+		pinh2triangles = (dh2triangle_t *)&pinstverts[pq1inmodel->num_st];
+
+		seamremap = BZ_Malloc(sizeof(int)*pq1inmodel->numtris*3);
+
+		galias->numverts = pq1inmodel->numverts;
+		galias->numindexes = pq1inmodel->numtris*3;
+		indexes = Hunk_Alloc(galias->numindexes*sizeof(*indexes));
+		galias->ofs_indexes = (char *)indexes - (char *)galias;
+		for (i = 0; i < pq1inmodel->numverts; i++)
+			seamremap[i] = i;
+		for (i = 0; i < pq1inmodel->numtris; i++)
+		{
+			indexes[i*3+0] = LittleShort(pinh2triangles[i].vertindex[0]);
+			indexes[i*3+1] = LittleShort(pinh2triangles[i].vertindex[1]);
+			indexes[i*3+2] = LittleShort(pinh2triangles[i].vertindex[2]);
+		}
+#else
 		int t, v, k;
 		int *stremap;
 		/*separate st + vert lists*/
 		pinh2triangles = (dh2triangle_t *)&pinstverts[pq1inmodel->num_st];
 
-		/*each triangle can use one coord and one st, for each vert, that's a lot of combinations*/
-		
 		seamremap = BZ_Malloc(sizeof(int)*pq1inmodel->numtris*6);
 		stremap = seamremap + pq1inmodel->numtris*3;
 
@@ -2434,7 +2452,7 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 				st_array[k][1] = (LittleLong(pinstverts[stremap[k]].t)+0.5)/(float)pq1inmodel->skinheight;
 			}
 		}
-
+#endif
 		end = &pinh2triangles[pq1inmodel->numtris];
 
 		if (H1_LoadFrameGroup((daliasframetype_t *)end, seamremap) == NULL)

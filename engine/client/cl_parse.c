@@ -2270,6 +2270,7 @@ void CL_ParseServerData (void)
 #endif
 }
 
+#ifdef Q2CLIENT
 void CLQ2_ParseServerData (void)
 {
 	char	*str;
@@ -2364,7 +2365,7 @@ void CLQ2_ParseServerData (void)
 	if (R_PreNewMap)
 		R_PreNewMap();
 }
-
+#endif
 
 
 void CL_ParseEstablished(void)

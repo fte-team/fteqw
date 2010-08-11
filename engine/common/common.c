@@ -1304,14 +1304,11 @@ void MSG_ReadPos (vec3_t pos)
 	pos[2] = MSG_ReadCoord();
 }
 
-#if defined(Q2CLIENT) || defined(Q2SERVER)
 #define Q2NUMVERTEXNORMALS	162
 vec3_t	bytedirs[Q2NUMVERTEXNORMALS] =
 {
 #include "../client/q2anorms.h"
 };
-#endif
-#ifdef Q2CLIENT
 void MSG_ReadDir (vec3_t dir)
 {
 	int		b;
@@ -1324,7 +1321,6 @@ void MSG_ReadDir (vec3_t dir)
 	}
 	VectorCopy (bytedirs[b], dir);
 }
-#endif
 #ifdef Q2SERVER
 void MSG_WriteDir (sizebuf_t *sb, vec3_t dir)
 {

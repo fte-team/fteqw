@@ -352,6 +352,7 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 	WindowRect.bottom = info->height;
 
 
+#ifndef _SDL
 	if (sys_parentwindow)
 	{
 		SetWindowLong(sys_parentwindow, GWL_STYLE, GetWindowLong(sys_parentwindow, GWL_STYLE)|WS_OVERLAPPED);
@@ -373,6 +374,7 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 		WindowRect.bottom += WindowRect.top;
 	}
 	else
+#endif
 	{
 		WindowStyle = WS_OVERLAPPED | WS_BORDER | WS_CAPTION | WS_SYSMENU |
 					  WS_MINIMIZEBOX;

@@ -2196,11 +2196,11 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 			SDL_SysWMinfo wmInfo;
 			SDL_GetWMInfo(&wmInfo);
 			HWND sys_parentwindow = wmInfo.window;
-		#endif
 
 		if (sys_parentwindow)
 			bi.hwndOwner = sys_parentwindow; //note that this is usually still null
 		else
+		#endif
 			bi.hwndOwner = mainwindow; //note that this is usually still null
 		bi.pidlRoot = NULL;
 		bi.pszDisplayName = resultpath;

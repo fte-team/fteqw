@@ -228,11 +228,6 @@ int mouse_x, mouse_y;
 void ResetFrameBuffers(void);
 #endif
 
-#ifdef RGLQUAKE
-extern int glwidth;
-extern int glheight;
-#endif
-
 void Sys_SendKeyEvents(void)
 {
 	SDL_Event event;
@@ -251,10 +246,10 @@ void Sys_SendKeyEvents(void)
 		case SDL_VIDEORESIZE:
 			switch(qrenderer)
 			{
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 			case QR_OPENGL:
-				glwidth = event.resize.w;
-				glheight = event.resize.h;
+				vid.pixelwidth = event.resize.w;
+				vid.pixelheight = event.resize.h;
 				break;
 #endif
 #ifdef SWQUAKE

@@ -63,7 +63,6 @@ cvar_t  m_threshold_noforce = SCVAR("m_threshold_noforce", "0");
 
 cvar_t	cl_keypad = SCVAR("cl_keypad", "0");
 
-qboolean CSQC_MouseMove(float xdelta, float ydelta);
 qboolean Key_MouseShouldBeFree(void);
 
 typedef struct {

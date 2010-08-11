@@ -6909,6 +6909,11 @@ void PRH2_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc)
 		return;	//reject it (it would crash the (standard hexen2) mod)
 	if (classnum > 5)
 		return;
+
+	/*ignore it if they already have a class, this fixes some h2mp crashes*/
+	if (cl->playerclass)
+		return;
+
 	if (cl->playerclass != classnum)
 	{
 		cl->edict->xv->playerclass = classnum;

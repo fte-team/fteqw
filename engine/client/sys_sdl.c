@@ -10,6 +10,8 @@
 
 #ifndef WIN32
 #include <fcntl.h>
+#else
+#include <direct.h>
 #endif
 
 #ifndef isDedicated
@@ -126,10 +128,154 @@ void Sys_Quit (void)
 //enumerate the files in a directory (of both gpath and match - match may not contain ..)
 //calls the callback for each one until the callback returns 0
 //SDL provides no file enumeration facilities.
+#if defined(_WIN32)
+#include <windows.h>
 int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
 {
-	return 1;
+	HANDLE r;
+	WIN32_FIND_DATA fd;	
+	char apath[MAX_OSPATH];
+	char apath2[MAX_OSPATH];
+	char file[MAX_OSPATH];
+	char *s;
+	int go;
+	if (!gpath)
+		return 0;
+//	strcpy(apath, match);
+	Q_snprintfz(apath, sizeof(apath), "%s/%s", gpath, match);
+	for (s = apath+strlen(apath)-1; s> apath; s--)
+	{
+		if (*s == '/')			
+			break;
+	}
+	*s = '\0';
+
+	//this is what we ask windows for.
+	Q_snprintfz(file, sizeof(file), "%s/*.*", apath);
+
+	//we need to make apath contain the path in match but not gpath
+	Q_strncpyz(apath2, match, sizeof(apath));
+	match = s+1;
+	for (s = apath2+strlen(apath2)-1; s> apath2; s--)
+	{
+		if (*s == '/')			
+			break;
+	}
+	*s = '\0';
+	if (s != apath2)
+		strcat(apath2, "/");
+
+	r = FindFirstFile(file, &fd);
+	if (r==(HANDLE)-1)
+		return 1;
+    go = true;
+	do
+	{
+		if (*fd.cFileName == '.');	//don't ever find files with a name starting with '.'
+		else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
+		{
+			if (wildcmp(match, fd.cFileName))
+			{
+				Q_snprintfz(file, sizeof(file), "%s%s/", apath2, fd.cFileName);
+				go = func(file, fd.nFileSizeLow, parm);
+			}
+		}
+		else
+		{
+			if (wildcmp(match, fd.cFileName))
+			{
+				Q_snprintfz(file, sizeof(file), "%s%s", apath2, fd.cFileName);
+				go = func(file, fd.nFileSizeLow, parm);
+			}
+		}
+	}
+	while(FindNextFile(r, &fd) && go);
+	FindClose(r);
+
+	return go;
 }
+#elif defined(linux) || defined(__unix__)
+#include <dirent.h>
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
+{
+	DIR *dir;
+	char apath[MAX_OSPATH];
+	char file[MAX_OSPATH];
+	char truepath[MAX_OSPATH];
+	char *s;
+	struct dirent *ent;
+	struct stat st;
+
+//printf("path = %s\n", gpath);
+//printf("match = %s\n", match);
+
+	if (!gpath)
+		gpath = "";
+	*apath = '\0';
+
+	Q_strncpyz(apath, match, sizeof(apath));
+	for (s = apath+strlen(apath)-1; s >= apath; s--)
+	{
+		if (*s == '/')
+		{
+			s[1] = '\0';
+			match += s - apath+1;
+			break;
+		}
+	}
+	if (s < apath)	//didn't find a '/'
+		*apath = '\0';
+
+	Q_snprintfz(truepath, sizeof(truepath), "%s/%s", gpath, apath);
+
+
+//printf("truepath = %s\n", truepath);
+//printf("gamepath = %s\n", gpath);
+//printf("apppath = %s\n", apath);
+//printf("match = %s\n", match);
+	dir = opendir(truepath);
+	if (!dir)
+	{
+		Con_DPrintf("Failed to open dir %s\n", truepath);
+		return true;
+	}
+	do
+	{
+		ent = readdir(dir);
+		if (!ent)
+			break;
+		if (*ent->d_name != '.')
+		{
+			if (wildcmp(match, ent->d_name))
+			{
+				Q_snprintfz(file, sizeof(file), "%s/%s", truepath, ent->d_name);
+
+				if (stat(file, &st) == 0)
+				{
+					Q_snprintfz(file, sizeof(file), "%s%s%s", apath, ent->d_name, S_ISDIR(st.st_mode)?"/":"");
+
+					if (!func(file, st.st_size, parm))
+					{
+						closedir(dir);
+						return false;
+					}
+				}
+				else
+					printf("Stat failed for \"%s\"\n", file);
+			}
+		}
+	} while(1);
+	closedir(dir);
+
+	return true;
+}
+#else
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
+{
+	Con_Printf("Warning: Sys_EnumerateFiles not implemented\n");
+	return false;
+}
+#endif
 
 //blink window if possible (it's not)
 void Sys_ServerActivity(void)
@@ -177,7 +323,7 @@ void *Sys_GetGameAPI (void *parms)
 	void *(*GetGameAPI)(void *);
 	dllfunction_t funcs[] =
 	{
-		{(void**)GetGameAPI, "GetGameAPI"},
+		{(void**)&GetGameAPI, "GetGameAPI"},
 		{NULL,NULL}
 	};
 
@@ -249,7 +395,7 @@ int VARGS Sys_DebugLog(char *file, char *fmt, ...)
 	static char data[1024];
     
 	va_start(argptr, fmt);
-	_vsnprintf(data, sizeof(data)-1, fmt, argptr);
+	vsnprintf(data, sizeof(data)-1, fmt, argptr);
 	va_end(argptr);
 
 #if defined(CRAZYDEBUGGING) && CRAZYDEBUGGING > 1

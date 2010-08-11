@@ -1696,7 +1696,7 @@ void SVHL_RunEntity (hledict_t *ent)
 		SVHL_Physics_Noclip (ent);
 		break;
 	case MOVETYPE_STEP:
-	case MOVETYPE_PUSHPULL:
+	case MOVETYPE_H2PUSHPULL:
 		SVHL_Physics_Step (ent);
 		break;
 	case MOVETYPE_FOLLOW:
@@ -1707,7 +1707,7 @@ void SVHL_RunEntity (hledict_t *ent)
 	case MOVETYPE_BOUNCEMISSILE:
 	case MOVETYPE_FLY:
 	case MOVETYPE_FLYMISSILE:
-	case MOVETYPE_SWIM:
+	case MOVETYPE_H2SWIM:
 		SVHL_Physics_Toss (ent);
 		break;
 	case MOVETYPE_WALK:

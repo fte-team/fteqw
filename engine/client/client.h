@@ -1028,6 +1028,7 @@ void CSQC_WorldLoaded(void);
 qboolean CSQC_ParseTempEntity(unsigned char firstbyte);
 qboolean CSQC_ConsoleCommand(char *cmd);
 qboolean CSQC_KeyPress(int key, int unicode, qboolean down);
+qboolean CSQC_MouseMove(float xdelta, float ydelta);
 int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation);
 void CSQC_ParseEntities(void);
 qboolean CSQC_SettingListener(void);

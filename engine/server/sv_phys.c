@@ -1103,7 +1103,7 @@ static void SV_Physics_Toss (edict_t *ent)
 	if (ent->v->movetype != MOVETYPE_FLY
 		&& ent->v->movetype != MOVETYPE_FLYMISSILE
 		&& ent->v->movetype != MOVETYPE_BOUNCEMISSILE
-		&& ent->v->movetype != MOVETYPE_SWIM)
+		&& ent->v->movetype != MOVETYPE_H2SWIM)
 		SV_AddGravity (ent, 1.0);
 
 // move angles
@@ -1852,7 +1852,7 @@ void SV_RunEntity (edict_t *ent)
 		SV_Physics_Noclip (ent);
 		break;
 	case MOVETYPE_STEP:
-	case MOVETYPE_PUSHPULL:
+	case MOVETYPE_H2PUSHPULL:
 		SV_Physics_Step (ent);
 		break;
 	case MOVETYPE_FOLLOW:
@@ -1863,7 +1863,7 @@ void SV_RunEntity (edict_t *ent)
 	case MOVETYPE_BOUNCEMISSILE:
 	case MOVETYPE_FLY:
 	case MOVETYPE_FLYMISSILE:
-	case MOVETYPE_SWIM:
+	case MOVETYPE_H2SWIM:
 		SV_Physics_Toss (ent);
 		break;
 	case MOVETYPE_WALK:

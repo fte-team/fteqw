@@ -787,8 +787,8 @@ typedef struct
 #define	MOVETYPE_BOUNCE			10
 #define MOVETYPE_BOUNCEMISSILE	11		// bounce w/o gravity
 #define MOVETYPE_FOLLOW			12		// track movement of aiment
-#define MOVETYPE_PUSHPULL		13		// pushable/pullable object
-#define MOVETYPE_SWIM			14		// should keep the object in water
+#define MOVETYPE_H2PUSHPULL		13		// pushable/pullable object
+#define MOVETYPE_H2SWIM			14		// should keep the object in water
 #define MOVETYPE_PHYSICS		32
 
 // edict->solid values

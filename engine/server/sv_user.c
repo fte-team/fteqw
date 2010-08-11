@@ -1604,8 +1604,8 @@ void SV_Begin_Core(client_t *split)
 					}
 
 					oh = host_client;
-				host_client = split;
-				sv_player = host_client->edict;
+					host_client = split;
+					sv_player = host_client->edict;
 					SV_PreRunCmd();
 					{
 						usercmd_t cmd;
@@ -1619,7 +1619,7 @@ void SV_Begin_Core(client_t *split)
 					}
 					SV_PostRunCmd();
 					host_client = oh;
-				sv_player = host_client->edict;
+					sv_player = host_client->edict;
 				}
 			}
 		}
@@ -5295,19 +5295,36 @@ if (sv_player->v->health > 0 && before && !after )
 				continue;
 			n = pmove.physents[pmove.touchindex[i]].info;
 			ent = EDICT_NUM(svprogfuncs, n);
-			if (!ent->v->touch || (playertouch[n/8]&(1<<(n%8))))
+			if (playertouch[n/8]&(1<<(n%8)))
 				continue;
 
-			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
-			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv_player);
-			pr_global_struct->time = sv.time;
+			if (ent->v->touch)
+			{
+				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
+				pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv_player);
+				pr_global_struct->time = sv.time;
 #ifdef VM_Q1
-			if (svs.gametype == GT_Q1QVM)
-				Q1QVM_Touch();
-			else
+				if (svs.gametype == GT_Q1QVM)
+					Q1QVM_Touch();
+				else
 #endif
-				PR_ExecuteProgram (svprogfuncs, ent->v->touch);
+					PR_ExecuteProgram (svprogfuncs, ent->v->touch);
+			}
 			playertouch[n/8] |= 1 << (n%8);
+
+			if (sv_player->v->touch && !ent->isfree)
+			{
+				pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, ent);
+				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+				pr_global_struct->time = sv.time;
+#ifdef VM_Q1
+				if (svs.gametype == GT_Q1QVM)
+					Q1QVM_Touch();
+				else
+#endif
+					PR_ExecuteProgram (svprogfuncs, sv_player->v->touch);
+			}
+
 		}
 	}
 

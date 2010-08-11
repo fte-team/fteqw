@@ -1468,13 +1468,15 @@ static void World_ClipToEverything (world_t *w, moveclip_t *clip)
 
 		if (clip->passedict)
 		{
-			// don't clip corpse against character
-			if (clip->passedict->v->solid == SOLID_CORPSE && (touch->v->solid == SOLID_SLIDEBOX || touch->v->solid == SOLID_CORPSE))
-				continue;
-			// don't clip character against corpse
-			if (clip->passedict->v->solid == SOLID_SLIDEBOX && touch->v->solid == SOLID_CORPSE)
-				continue;
-
+			if (w->usesolidcorpse)
+			{
+				// don't clip corpse against character
+				if (clip->passedict->v->solid == SOLID_CORPSE && (touch->v->solid == SOLID_SLIDEBOX || touch->v->solid == SOLID_CORPSE))
+					continue;
+				// don't clip character against corpse
+				if (clip->passedict->v->solid == SOLID_SLIDEBOX && touch->v->solid == SOLID_CORPSE)
+					continue;
+			}
 			if (!((int)clip->passedict->xv->dimension_hit & (int)touch->xv->dimension_solid))
 				continue;
 		}
@@ -1620,13 +1622,15 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 
 		if (clip->passedict)
 		{
-			// don't clip corpse against character
-			if (clip->passedict->v->solid == SOLID_CORPSE && (touch->v->solid == SOLID_SLIDEBOX || touch->v->solid == SOLID_CORPSE))
-				continue;
-			// don't clip character against corpse
-			if (clip->passedict->v->solid == SOLID_SLIDEBOX && touch->v->solid == SOLID_CORPSE)
-				continue;
-
+			if (w->usesolidcorpse)
+			{
+				// don't clip corpse against character
+				if (clip->passedict->v->solid == SOLID_CORPSE && (touch->v->solid == SOLID_SLIDEBOX || touch->v->solid == SOLID_CORPSE))
+					continue;
+				// don't clip character against corpse
+				if (clip->passedict->v->solid == SOLID_SLIDEBOX && touch->v->solid == SOLID_CORPSE)
+					continue;
+			}
 			if (!((int)clip->passedict->xv->dimension_hit & (int)touch->xv->dimension_solid))
 				continue;
 		}
@@ -1906,13 +1910,15 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 
 				if (clip.passedict)
 				{
-					// don't clip corpse against character
-					if (clip.passedict->v->solid == SOLID_CORPSE && (touch->v->solid == SOLID_SLIDEBOX || touch->v->solid == SOLID_CORPSE))
-						continue;
-					// don't clip character against corpse
-					if (clip.passedict->v->solid == SOLID_SLIDEBOX && touch->v->solid == SOLID_CORPSE)
-						continue;
-
+					if (w->usesolidcorpse)
+					{
+						// don't clip corpse against character
+						if (clip.passedict->v->solid == SOLID_CORPSE && (touch->v->solid == SOLID_SLIDEBOX || touch->v->solid == SOLID_CORPSE))
+							continue;
+						// don't clip character against corpse
+						if (clip.passedict->v->solid == SOLID_SLIDEBOX && touch->v->solid == SOLID_CORPSE)
+							continue;
+					}
 					if (!((int)clip.passedict->xv->dimension_hit & (int)touch->xv->dimension_solid))
 						continue;
 				}

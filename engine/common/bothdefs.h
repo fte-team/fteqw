@@ -141,7 +141,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define ZYMOTICMODELS	//zymotic skeletal models.
 		#define HUFFNETWORK		//huffman network compression
 		#define HALFLIFEMODELS	//halflife model support (experimental)
-//		#define DOOMWADS		//doom wad/map/sprite support
+		//#define DOOMWADS		//doom wad/sprite support
+		//#define MAP_DOOM		//doom map support
+		//#define MAP_PROC		//doom3/quake4 map support
 		//#define WOLF3DSUPPORT	//wolfenstein3d map support (not started yet)
 		#define Q2BSPS			//quake 2 bsp support
 		#define Q3BSPS			//quake 3 bsp support
@@ -424,10 +426,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	ON_EPSILON		0.1			// point on plane side epsilon
 
-#define	MAX_NQMSGLEN	8000		// max length of a reliable message
+#define	MAX_NQMSGLEN	65536		// max length of a reliable message
 #define MAX_Q2MSGLEN	1400
 #define MAX_QWMSGLEN	1450
-#define MAX_OVERALLMSGLEN	8192	// mvdsv sends packets this big
+#define MAX_OVERALLMSGLEN	65536	// mvdsv sends packets this big
 #define	MAX_DATAGRAM	1450		// max length of unreliable message
 #define MAX_Q2DATAGRAM	MAX_Q2MSGLEN
 #define	MAX_NQDATAGRAM	1024		// max length of unreliable message

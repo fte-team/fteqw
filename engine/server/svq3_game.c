@@ -3050,7 +3050,7 @@ void SVQ3_HandleClient(void)
 	if (net_message.cursize<6)
 		return;	//urm. :/
 
-	MSG_BeginReading();
+	MSG_BeginReading(msg_nullnetprim);
 	MSG_ReadBits(32);
 	qport = (unsigned short)MSG_ReadBits(16);
 

@@ -38,6 +38,11 @@ typedef enum {false, true}	qboolean;
 #define	MAX_SERVERINFO_STRING	1024	//standard quake has 512 here.
 #define	MAX_LOCALINFO_STRING	32768
 
+struct netprim_s
+{
+	int coordsize;
+	int anglesize;
+};
 //============================================================================
 
 typedef enum {
@@ -55,6 +60,8 @@ typedef struct sizebuf_s
 	int		cursize;
 	int packing;
 	int currentbit;
+
+	struct netprim_s prim;
 } sizebuf_t;
 
 void SZ_Clear (sizebuf_t *buf);
@@ -127,8 +134,6 @@ typedef union {	//note: reading from packets can be misaligned
 	int b4;
 	float f;
 } coorddata;
-extern int sizeofcoord;
-extern int sizeofangle;
 float MSG_FromCoord(coorddata c, int bytes);
 coorddata MSG_ToCoord(float f, int bytes);
 coorddata MSG_ToAngle(float f, int bytes);
@@ -149,8 +154,10 @@ void MSG_WriteDir (sizebuf_t *sb, float *dir);
 
 extern	int			msg_readcount;
 extern	qboolean	msg_badread;		// set if a read goes beyond end of message
+struct netprim_s msg_nullnetprim;
 
-void MSG_BeginReading (void);
+void MSG_BeginReading (struct netprim_s prim);
+void MSG_ChangePrimitives(struct netprim_s prim);
 int MSG_GetReadCount(void);
 int MSG_ReadChar (void);
 int MSG_ReadBits(int bits);

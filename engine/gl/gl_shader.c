@@ -206,6 +206,55 @@ static void Shader_ReadShader(shader_t *s, char *shadersource);
 
 //===========================================================================
 
+static qboolean Shader_EvaluateCondition(char **ptr)
+{
+	char *token;
+	cvar_t *cv;
+	qboolean conditiontrue = true;
+	token = COM_ParseExt ( ptr, false );
+	if (*token == '!')
+	{
+		conditiontrue = false;
+		token++;
+	}
+	if (*token == '$')
+	{
+		extern cvar_t gl_bump;
+		token++;
+		if (!Q_stricmp(token, "lightmap"))
+			conditiontrue = conditiontrue == !r_fullbright.value;
+		else if (!Q_stricmp(token, "deluxmap") )
+			conditiontrue = conditiontrue == !!gl_bump.value;
+
+		//normalmaps are generated if they're not already known.
+		else if (!Q_stricmp(token, "normalmap") )
+			conditiontrue = conditiontrue == !!gl_bump.value;
+
+#pragma message("shader fixme")
+		else if (!Q_stricmp(token, "diffuse") )
+			conditiontrue = conditiontrue == true;
+		else if (!Q_stricmp(token, "specular") )
+			conditiontrue = conditiontrue == false;
+		else if (!Q_stricmp(token, "fullbright") )
+			conditiontrue = conditiontrue == false;
+		else if (!Q_stricmp(token, "topoverlay") )
+			conditiontrue = conditiontrue == false;
+		else if (!Q_stricmp(token, "loweroverlay") )
+			conditiontrue = conditiontrue == false;
+
+		else
+			conditiontrue = conditiontrue == false;
+	}
+	else
+	{
+		cv = Cvar_Get(token, "", 0, "Shader Conditions");
+		if (cv)
+			conditiontrue = conditiontrue == !!cv->value;
+	}
+
+	return conditiontrue;
+}
+
 static char *Shader_ParseString ( char **ptr )
 {
 	char *token;
@@ -269,6 +318,7 @@ static void Shader_ParseVector ( char **ptr, vec3_t v )
 			v[2] = 1;
 			return;
 		}
+		var->flags |= CVAR_SHADERSYSTEM;
 		ptr = &scratch;
 		scratch = var->string;
 
@@ -568,9 +618,9 @@ static void Shader_SurfaceParm ( shader_t *shader, shaderpass_t *pass, char **pt
 
 	token = Shader_ParseString ( ptr );
 	if ( !Q_stricmp( token, "nodraw" ) )
-		shader->flags = SHADER_NODRAW;
+		shader->flags |= SHADER_NODRAW;
 	else if ( !Q_stricmp( token, "nodlight" ) )
-		shader->flags = SHADER_NODLIGHT;
+		shader->flags |= SHADER_NODLIGHT;
 }
 
 static void Shader_Sort ( shader_t *shader, shaderpass_t *pass, char **ptr )
@@ -596,6 +646,8 @@ static void Shader_Sort ( shader_t *shader, shaderpass_t *pass, char **ptr )
 		shader->sort = SHADER_SORT_UNDERWATER;
 	} else if( !Q_stricmp( token, "nearest" ) ) {
 		shader->sort = SHADER_SORT_NEAREST;
+	} else if( !Q_stricmp( token, "blend" ) ) {
+		shader->sort = SHADER_SORT_BLEND;
 	} else {
 		shader->sort = atoi ( token );
 		clamp ( shader->sort, SHADER_SORT_NONE, SHADER_SORT_NEAREST );
@@ -728,6 +780,7 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 	cvar_t *cv;
 	int specialint = 0;
 	float specialfloat = 0;
+	vec3_t specialvec = {0};
 	enum shaderprogparmtype_e parmtype = SP_BAD;
 	char *token;
 	qboolean silent = false;
@@ -750,7 +803,7 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 		cv = Cvar_Get(token, "", 0, "GLSL Shader parameters");
 		if (cv)
 		{	//Cvar_Get returns null if the cvar is the name of a command
-			specialint = atoi(cv->string);
+			specialint = cv->ival;
 			specialfloat = cv->value;
 		}
 		parmtype = SP_CVARI;
@@ -761,10 +814,20 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 		cv = Cvar_Get(token, "", 0, "GLSL Shader parameters");
 		if (cv)
 		{	//Cvar_Get returns null if the cvar is the name of a command
-			specialint = atoi(cv->string);
+			specialint = cv->ival;
 			specialfloat = cv->value;
 		}
 		parmtype = SP_CVARF;
+	}
+	else if (!Q_stricmp(token, "cvar3f"))
+	{
+		token = Shader_ParseSensString(ptr);
+		cv = Cvar_Get(token, "", 0, "GLSL Shader parameters");
+		if (cv)
+		{
+			SCR_StringToRGB(cv->string, specialvec, 1);
+		}
+		parmtype = SP_CVAR3F;
 	}
 	else if (!Q_stricmp(token, "time"))
 		parmtype = SP_TIME;
@@ -816,10 +879,13 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 					break;
 				case SP_TEXTURE:
 				case SP_CVARI:
-					GLSlang_SetUniform1i(uniformloc, specialint);
+					qglUniform1iARB(uniformloc, specialint);
 					break;
 				case SP_CVARF:
-					GLSlang_SetUniform1f(uniformloc, specialfloat);
+					qglUniform1fARB(uniformloc, specialfloat);
+					break;
+				case SP_CVAR3F:
+					qglUniform3fvARB(uniformloc, 1, specialvec);
 					break;
 				default:
 					shader->progparm[shader->numprogparams].type = parmtype;
@@ -1774,6 +1840,23 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 		{
 			break;
 		}
+		else if (!Q_stricmp(token, "if"))
+		{
+			qboolean conditionistrue = Shader_EvaluateCondition(ptr);
+
+			while (*ptr)
+			{
+				token = COM_ParseExt (ptr, true);
+				if ( !token[0] )
+					continue;
+				else if (token[0] == ']')
+					break;
+				else if (conditionistrue)
+				{
+					Shader_Parsetok (shader, pass, shaderpasskeys, token, ptr);
+				}
+			}
+		}
 		else if ( Shader_Parsetok (shader, pass, shaderpasskeys, token, ptr) )
 		{
 			break;
@@ -1825,55 +1908,6 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 #pragma message("is this valid?")
 		pass->shaderbits &= ~SBITS_MISC_DEPTHWRITE;
 	}
-}
-
-static qboolean Shader_EvaluateCondition(char **ptr)
-{
-	char *token;
-	cvar_t *cv;
-	qboolean conditiontrue = true;
-	token = COM_ParseExt ( ptr, false );
-	if (*token == '!')
-	{
-		conditiontrue = false;
-		token++;
-	}
-	if (*token == '$')
-	{
-		extern cvar_t gl_bump;
-		token++;
-		if (!Q_stricmp(token, "lightmap"))
-			conditiontrue = conditiontrue == !r_fullbright.value;
-		else if (!Q_stricmp(token, "deluxmap") )
-			conditiontrue = conditiontrue == !!gl_bump.value;
-
-		//normalmaps are generated if they're not already known.
-		else if (!Q_stricmp(token, "normalmap") )
-			conditiontrue = conditiontrue == !!gl_bump.value;
-
-#pragma message("shader fixme")
-		else if (!Q_stricmp(token, "diffuse") )
-			conditiontrue = conditiontrue == true;
-		else if (!Q_stricmp(token, "specular") )
-			conditiontrue = conditiontrue == false;
-		else if (!Q_stricmp(token, "fullbright") )
-			conditiontrue = conditiontrue == false;
-		else if (!Q_stricmp(token, "topoverlay") )
-			conditiontrue = conditiontrue == false;
-		else if (!Q_stricmp(token, "loweroverlay") )
-			conditiontrue = conditiontrue == false;
-
-		else
-			conditiontrue = conditiontrue == false;
-	}
-	else
-	{
-		cv = Cvar_Get(token, "", 0, "Shader Conditions");
-		if (cv)
-			conditiontrue = conditiontrue == !!cv->value;
-	}
-
-	return conditiontrue;
 }
 
 static qboolean Shader_Parsetok (shader_t *shader, shaderpass_t *pass, shaderkey_t *keys, char *token, char **ptr)
@@ -2310,6 +2344,10 @@ done:;
 	}
 
 	Shader_SetFeatures(s);
+
+#ifdef FORCEGLSL
+	BE_GenerateProgram(s);
+#endif
 }
 /*
 void Shader_UpdateRegistration (void)
@@ -2416,7 +2454,7 @@ void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args)
 	if (!builtin)
 		builtin = (
 				"{\n"
-					"if $deluxmap\n"
+					"if gl_bump\n"
 					"[\n"
 						"{\n"
 							"map $normalmap\n"
@@ -2431,19 +2469,19 @@ void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args)
 					"{\n"
 						"map $diffuse\n"
 						"tcgen base\n"
-						"if $deluxmap\n"
+						"if gl_bump\n"
 						"[\n"
 							"blendfunc gl_one gl_zero\n"
 						"]\n"
 					"}\n"
-					"if $lightmap\n"
+					"if !r_fullbright\n"
 					"[\n"
 						"{\n"
 							"map $lightmap\n"
 							"blendfunc gl_dst_color gl_zero\n"
 						"}\n"
 					"]\n"
-					"if r_fb_bmodels\n"
+					"if gl_fb_bmodels\n"
 					"[\n"
 						"{\n"
 							"map $fullbright\n"
@@ -2590,6 +2628,7 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 								"alphagen const $r_mirroralpha\n"
 								"depthwrite\n"
 							"}\n"
+							"surfaceparm nodlight\n"
 						"}\n";
 		}
 
@@ -2602,10 +2641,12 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 		{
 			builtin = (
 				"{\n"
+					"sort seethrough\n"
 					"{\n"
 						"map $whiteimage\n"
-						"rgbgen $r_fastturbcolour\n"
+						"rgbgen const $r_fastturbcolour\n"
 					"}\n"
+					"surfaceparm nodlight\n"
 				"}\n"
 			);
 		}
@@ -2630,6 +2671,7 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 						"#ifdef FRAGMENT_SHADER\n"
 						"uniform sampler2D watertexture;\n"
 						"uniform float time;\n"
+						"uniform float wateralpha;\n"
 						"varying vec2 tc;\n"
 
 						"void main (void)\n"
@@ -2639,16 +2681,19 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 						"	ntc.t = tc.t + sin(tc.s+time)*0.125;\n"
 						"	vec3 ts = vec3(texture2D(watertexture, ntc));\n"
 
-						"	gl_FragColor.rgb = ts;\n"
+						"	gl_FragColor = vec4(ts, wateralpha);\n"
 						"}\n"
 						"#endif\n"
 					"}\n"
 					"param time time\n"
 					"param texture 0 watertexture\n"
+					"param cvarf r_wateralpha wateralpha\n"
 					"surfaceparm nodlight\n"
 					"{\n"
 						"map $diffuse\n"
+						"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
 					"}\n"
+					"sort blend\n"
 				"}\n"
 			);
 		}
@@ -2675,12 +2720,14 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 							"map $whiteimage\n"
 							"rgbgen const $r_fastskycolour\n"
 						"}\n"
+						"surfaceparm nodlight\n"
 					"}\n"
 				);
 		else if (*r_skyboxname.string)
 			builtin = (
 					"{\n"
 						"skyparms $r_skybox - -\n"
+						"surfaceparm nodlight\n"
 					"}\n"
 				);
 #ifdef GLQUAKE
@@ -2929,33 +2976,21 @@ void Shader_DefaultSkinShell(char *shortname, shader_t *s, const void *args)
 }
 void Shader_Default2D(char *shortname, shader_t *s, const void *genargs)
 {
-	shaderpass_t *pass;
-	pass = &s->passes[0];
-	pass->flags = SHADER_PASS_NOCOLORARRAY;
-	pass->shaderbits |= SBITS_SRCBLEND_SRC_ALPHA;
-	pass->shaderbits |= SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA;
-	pass->anim_frames[0] = R_LoadHiResTexture(shortname, NULL, IF_NOPICMIP|IF_NOMIPMAP);
+	Shader_DefaultScript(shortname, s, 
+		"{\n"
+			"{\n"
+				"map $diffuse\n"
+				"rgbgen vertex\n"
+				"alphagen vertex\n"
+				"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
+			"}\n"
+			"sort additive\n"
+		"}\n"
+		);
+
+	s->defaulttextures.base = R_LoadHiResTexture(shortname, NULL, IF_NOPICMIP|IF_NOMIPMAP);
 	s->width = image_width;
 	s->height = image_height;
-	pass->rgbgen = RGB_GEN_VERTEX;
-	pass->alphagen = ALPHA_GEN_VERTEX;
-	pass->numtcmods = 0;
-	pass->tcgen = TC_GEN_BASE;
-	pass->numMergedPasses = 1;
-	Shader_SetBlendmode(pass);
-
-	if (!TEXVALID(pass->anim_frames[0]))
-	{
-		Con_DPrintf (CON_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
-		pass->anim_frames[0] = missing_texture;
-	}
-
-	s->numpasses = 1;
-	s->numdeforms = 0;
-	s->flags = SHADER_NOPICMIP|SHADER_NOMIPMAPS|SHADER_BLEND;
-	s->features = MF_STCOORDS|MF_COLORS;
-	s->sort = SHADER_SORT_ADDITIVE;
-	s->uses = 1;
 }
 
 //loads a shader string into an existing shader object, and finalises it and stuff

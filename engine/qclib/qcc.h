@@ -540,6 +540,7 @@ CompilerConstant_t *QCC_PR_DefineName(char *name);
 void QCC_RemapOffsets(unsigned int firststatement, unsigned int laststatement, unsigned int min, unsigned int max, unsigned int newmin);
 
 #ifndef COMMONINLINES
+pbool QCC_PR_CheckImmediate (char *string);
 pbool QCC_PR_CheckToken (char *string);
 pbool QCC_PR_CheckName (char *string);
 void QCC_PR_Expect (char *string);

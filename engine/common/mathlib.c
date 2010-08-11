@@ -1061,6 +1061,36 @@ void Matrix4_ModelMatrixFromAxis(float *modelview, const vec3_t pn, const vec3_t
 	Matrix4_Multiply(Matrix4_NewTranslation(vieworg[0],  vieworg[1],  vieworg[2]), tempmat, modelview);	    // put Z going up
 }
 
+void Matrix4_ModelMatrix(float *modelview, vec_t x, vec_t y, vec_t z, vec_t pitch, vec_t yaw, vec_t roll, vec_t scale)
+{
+	float tempmat[16];
+	//load identity.
+	memset(modelview, 0, sizeof(*modelview)*16);
+#if FULLYGL
+	modelview[0] = 1;
+	modelview[5] = 1;
+	modelview[10] = 1;
+	modelview[15] = 1;
+
+	Matrix4_Multiply(modelview, Matrix4_NewRotation(-90,  1, 0, 0), tempmat);	    // put Z going up
+	Matrix4_Multiply(tempmat, Matrix4_NewRotation(90,  0, 0, 1), modelview);	    // put Z going up
+#else
+	//use this lame wierd and crazy identity matrix..
+	modelview[2] = -1;
+	modelview[4] = -1;
+	modelview[9] = 1;
+	modelview[15] = 1;
+#endif
+	//figure out the current modelview matrix
+
+	//I would if some of these, but then I'd still need a couple of copys
+	Matrix4_Multiply(modelview, Matrix4_NewRotation(-roll,  1, 0, 0), tempmat);
+	Matrix4_Multiply(tempmat, Matrix4_NewRotation(-pitch,  0, 1, 0), modelview);
+	Matrix4_Multiply(modelview, Matrix4_NewRotation(-yaw,  0, 0, 1), tempmat);
+
+	Matrix4_Multiply(tempmat, Matrix4_NewTranslation(x,  y,  z), modelview);
+}
+
 void Matrix4_Identity(float *outm)
 {
 	outm[ 0] = 1;

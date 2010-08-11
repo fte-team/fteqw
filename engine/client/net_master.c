@@ -902,7 +902,7 @@ int NET_CheckPollSockets(void)
 			int c;
 			char *s;
 
-			MSG_BeginReading ();
+			MSG_BeginReading (msg_nullnetprim);
 			MSG_ReadLong ();        // skip the -1
 
 			c = msg_readcount;
@@ -995,7 +995,7 @@ int NET_CheckPollSockets(void)
 
 			int control;
 
-			MSG_BeginReading ();
+			MSG_BeginReading (msg_nullnetprim);
 			control = BigLong(*((int *)net_message.data));
 			MSG_ReadLong();
 			if (control == -1)

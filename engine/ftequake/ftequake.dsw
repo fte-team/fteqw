@@ -18,6 +18,18 @@ Package=<4>
 
 ###############################################################################
 
+Project: "ftecs"=..\..\QUAKEC\ftecs\ftecs.dsp - Package Owner=<4>
+
+Package=<5>
+{{{
+}}}
+
+Package=<4>
+{{{
+}}}
+
+###############################################################################
+
 Project: "ftequake"=.\ftequake.dsp - Package Owner=<4>
 
 Package=<5>

@@ -601,7 +601,6 @@ void VQ3_RenderView(const q3refdef_t *ref)
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
-		gl_ztrickdisabled|=16;
 		qglDisable(GL_ALPHA_TEST);
 		qglDisable(GL_BLEND);
 	}
@@ -610,7 +609,6 @@ void VQ3_RenderView(const q3refdef_t *ref)
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
-		gl_ztrickdisabled&=~16;
 		GL_Set2D ();
 		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		GL_TexEnv(GL_MODULATE);

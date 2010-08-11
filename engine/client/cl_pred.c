@@ -363,7 +363,8 @@ void CL_PredictUsercmd (int pnum, player_state_t *from, player_state_t *to, user
 	extern vec3_t player_mins;
 	extern vec3_t player_maxs;
 	// split up very long moves
-	if (u->msec > 50) {
+	if (u->msec > 50)
+	{
 		player_state_t temp;
 		usercmd_t split;
 
@@ -414,10 +415,10 @@ void CL_PredictUsercmd (int pnum, player_state_t *from, player_state_t *to, user
 	}
 	else
 	{
-		VectorCopy(cl.worldmodel->hulls[pmove.hullnum].clip_mins, player_mins);
-		VectorCopy(cl.worldmodel->hulls[pmove.hullnum].clip_maxs, player_maxs);
+		VectorCopy(cl.worldmodel->hulls[pmove.hullnum&(MAX_MAP_HULLSM-1)].clip_mins, player_mins);
+		VectorCopy(cl.worldmodel->hulls[pmove.hullnum&(MAX_MAP_HULLSM-1)].clip_maxs, player_maxs);
 	}
-	if (DEFAULT_VIEWHEIGHT > player_maxs[2])
+	if (pmove.hullnum & 128)
 	{	//this hack is for hexen2.
 		player_maxs[2] -= player_mins[2];
 		player_mins[2] = 0;
@@ -457,7 +458,7 @@ void CL_CatagorizePosition (int pnum)
 }
 //Smooth out stair step ups.
 //Called before CL_EmitEntities so that the player's lightning model origin is updated properly
-void CL_CalcCrouch (int pnum)
+void CL_CalcCrouch (int pnum, float stepchange)
 {
 	qboolean teleported;
 	static vec3_t oldorigin[MAX_SPLITS];
@@ -552,14 +553,16 @@ static void CL_LerpMove (int pnum, float msgtime)
 		return;
 #endif
 
-	if (cls.netchan.outgoing_sequence < lastsequence) {
+	if (cls.netchan.outgoing_sequence < lastsequence)
+	{
 		// reset
 		lastsequence = -1;
 		lerp_times[0] = -1;
 		demo_latency = 0.01;
 	}
 
-	if (cls.netchan.outgoing_sequence > lastsequence) {
+	if (cls.netchan.outgoing_sequence > lastsequence)
+	{
 		lastsequence = cls.netchan.outgoing_sequence;
 		// move along
 		lerp_times[2] = lerp_times[1];
@@ -586,14 +589,18 @@ static void CL_LerpMove (int pnum, float msgtime)
 	simtime = realtime - demo_latency;
 
 	// adjust latency
-	if (simtime > lerp_times[0]) {
+	if (simtime > lerp_times[0])
+	{
 		// Com_DPrintf ("HIGH clamp\n");
 		demo_latency = realtime - lerp_times[0];
 	}
-	else if (simtime < lerp_times[2]) {
+	else if (simtime < lerp_times[2])
+	{
 		// Com_DPrintf ("   low clamp\n");
 		demo_latency = realtime - lerp_times[2];
-	} else {
+	}
+	else
+	{
 		// drift towards ideal latency
 		float ideal_latency = (lerp_times[0] - lerp_times[2]) * 0.6;
 		if (demo_latency > ideal_latency)
@@ -601,10 +608,13 @@ static void CL_LerpMove (int pnum, float msgtime)
 	}
 
 	// decide where to lerp from
-	if (simtime > lerp_times[1]) {
+	if (simtime > lerp_times[1])
+	{
 		from = 1;
 		to = 0;
-	} else {
+	}
+	else
+	{
 		from = 2;
 		to = 1;
 	}
@@ -727,6 +737,7 @@ void CL_PredictMovePNum (int pnum)
 	//these are to make svc_viewentity work better
 	float *vel;
 	float *org;
+	float stepheight = 0;
 
 	cl.nolocalplayer[pnum] = false;
 
@@ -796,42 +807,7 @@ void CL_PredictMovePNum (int pnum)
 			vel = vec3_origin;
 			goto fixedorg;
 		}
-
-/*		entity_state_t *CL_FindOldPacketEntity(int num);
-		entity_state_t *CL_FindPacketEntity(int num);
-		entity_state_t *state;
-		state = CL_FindPacketEntity (cl.viewentity[pnum]);
-		if (state && state->number < cl.maxlerpents)
-		{
-			float f;
-			extern cvar_t cl_nolerp;
-
-			//figure out the lerp factor
-			if (cl.lerpents[state->number].lerprate<=0)
-				f = 0;
-			else
-				f = (cl.gametime-cl.servertime)/(cl.gametime-cl.oldgametime);//f = (cl.time-cl.lerpents[state->number].lerptime)/cl.lerpents[state->number].lerprate;
-			if (f<0)
-				f=0;
-			if (f>1)
-				f=1;
-			f = 1-f;
-//			Con_Printf("%f\n", f);
-
-//			if (cl_nolerp.ival)
-//				f = 1;
-
-
-					// calculate origin
-			for (i=0 ; i<3 ; i++)
-				lrp[i] = cl.lerpents[state->number].origin[i] +
-				f * (state->origin[i] - cl.lerpents[state->number].origin[i]);
-
-			org = lrp;
-
-			goto fixedorg;
-		}
-*/	}
+	}
 #endif
 	if (!from->playerstate[cl.playernum[pnum]].messagenum)
 	{
@@ -925,6 +901,7 @@ fixedorg:
 
 			cl.onground[pnum] = pmove.onground;
 		}
+		stepheight = to->playerstate[cl.playernum[pnum]].origin[2] - from->playerstate[cl.playernum[pnum]].origin[2];
 	}
 
 	pmove.numphysent = oldphysent;
@@ -972,7 +949,7 @@ fixedorg:
 		CL_LerpMove (pnum, to->senttime);
 
 out:
-	CL_CalcCrouch (pnum);
+	CL_CalcCrouch (pnum, stepheight);
 	cl.waterlevel[pnum] = pmove.waterlevel;
 }
 

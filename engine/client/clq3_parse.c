@@ -623,7 +623,7 @@ void CLQ3_ParseServerMessage (void)
 		Con_TPrintf (TLC_LINEBREAK_MINUS);
 
 	net_message.packing = SZ_RAWBYTES;
-	MSG_BeginReading();
+	MSG_BeginReading(msg_nullnetprim);
 	ccs.serverMessageNum = MSG_ReadLong();
 	net_message.packing = SZ_HUFFMAN;	//the rest is huffman compressed.
 	net_message.currentbit = msg_readcount*8;

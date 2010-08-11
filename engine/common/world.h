@@ -126,6 +126,7 @@ struct world_s
 FTE_DEPRECATED	unsigned int	edict_size; //still used in copyentity
 	wedict_t		*edicts;			// can NOT be array indexed.
 	struct progfuncs_s *progs;
+	qboolean		usesolidcorpse;
 	model_t			*worldmodel;
 	areanode_t	areanodes[AREA_NODES];
 	int			numareanodes;

@@ -108,10 +108,10 @@ void Wads_Flush (void);
 
 void SwapPic (qpic_t *pic);
 
-
+struct model_s;
 
 void Mod_ParseWadsFromEntityLump(char *data);
 qbyte *W_ConvertWAD3Texture(miptex_t *tex, int *width, int *height, qboolean *usesalpha);
-void Mod_ParseInfoFromEntityLump(char *data, char *mapname);
+void Mod_ParseInfoFromEntityLump(struct model_s *wmodel, char *data, char *mapname);
 qboolean Wad_NextDownload (void);
 qbyte *W_GetTexture(char *name, int *width, int *height, qboolean *usesalpha);

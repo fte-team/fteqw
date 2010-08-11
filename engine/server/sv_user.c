@@ -236,7 +236,7 @@ void SV_New_f (void)
 		SZ_Clear(&host_client->netchan.message);
 	}
 */
-	if (sizeofcoord > 2 && !(host_client->fteprotocolextensions & PEXT_FLOATCOORDS))
+	if (svs.netprim.coordsize > 2 && !(host_client->fteprotocolextensions & PEXT_FLOATCOORDS))
 	{
 		SV_ClientPrintf(host_client, 2, "\n\n\n\nSorry, but your client does not appear to support FTE's bigcoords\nFTE users will need to set cl_nopext to 0 and then reconnect, or to upgrade\n");
 		Con_Printf("%s does not support bigcoords\n", host_client->name);
@@ -251,7 +251,7 @@ void SV_New_f (void)
 	if (host_client->fteprotocolextensions)//let the client know
 	{
 		ClientReliableWrite_Long (host_client, PROTOCOL_VERSION_FTE);
-		if (sizeofcoord == 2)	//we're not using float orgs on this level.
+		if (svs.netprim.coordsize == 2)	//we're not using float orgs on this level.
 			ClientReliableWrite_Long (host_client, host_client->fteprotocolextensions&~PEXT_FLOATCOORDS);
 		else
 			ClientReliableWrite_Long (host_client, host_client->fteprotocolextensions);
@@ -962,7 +962,7 @@ void SV_Modellist_f (void)
 				Q_strncpy(mname, sv.strings.vw_model_precache[i], sizeof(mname));
 
 			//strip .mdl extensions
-			if (!strcmp(COM_FileExtension(mname), ".mdl"))
+			if (!strcmp(COM_FileExtension(mname), "mdl"))
 				COM_StripExtension(mname, mname, sizeof(mname));
 
 			//add it to the vweap command, taking care of any remaining spaces in names.
@@ -1026,12 +1026,10 @@ void SV_Modellist_f (void)
 #endif
 	{
 		for (i = 1+n;
-			i < maxclientsupportedmodels && sv.strings.model_precache[i] && host_client->netchan.message.cursize < (MAX_QWMSGLEN/2);	//make sure we don't send a 0 next...
+			i < maxclientsupportedmodels && sv.strings.model_precache[i] && (((i-1)&255)==0 || host_client->netchan.message.cursize < (MAX_QWMSGLEN/2));	//make sure we don't send a 0 next...
 			i++)
 		{
 			MSG_WriteString (&host_client->netchan.message, sv.strings.model_precache[i]);
-			if (((n&255)==255) && n != i-1)
-				break;
 		}
 		n = i-1;
 
@@ -1080,7 +1078,7 @@ void SV_PreSpawn_f (void)
 	else
 #endif
 		bufs = sv.num_signon_buffers;
-	statics = sv.numextrastatics;
+	statics = sv.num_static_entities;
 	buf = atoi(Cmd_Argv(2));
 
 	if (buf >= bufs+statics+sv.world.num_edicts+255)
@@ -1140,21 +1138,29 @@ void SV_PreSpawn_f (void)
 		memset(&from, 0, sizeof(from));
 		while (host_client->netchan.message.cursize < (host_client->netchan.message.maxsize/2))	//static entities
 		{
-			if (buf - bufs >= sv.numextrastatics)
+			if (buf - bufs >= sv.num_static_entities)
 				break;
 
-			state = &sv.extendedstatics[buf - bufs];
+			state = &sv_staticentities[buf - bufs];
+			buf++;
 
 			if (host_client->fteprotocolextensions & PEXT_SPAWNSTATIC2)
 			{
-				MSG_WriteByte(&host_client->netchan.message, svc_spawnstatic2);
-				SV_WriteDelta(&from, state, &host_client->netchan.message, true, host_client->fteprotocolextensions);
+				/*if it uses some new feature, use the updated spawnstatic*/
+				if (state->hexen2flags || state->trans || state->modelindex >= 256 || state->frame > 255 || state->scale || state->abslight)
+				{
+					MSG_WriteByte(&host_client->netchan.message, svc_spawnstatic2);
+					SV_WriteDelta(&from, state, &host_client->netchan.message, true, host_client->fteprotocolextensions);
+					continue;
+				}
 			}
-			else if (state->modelindex < 256)
+			/*couldn't use protocol extensions?
+			  use the fallback, unless the model is invalid as that's silly*/
+			if (state->modelindex < 256)
 			{
 				MSG_WriteByte(&host_client->netchan.message, svc_spawnstatic);
 
-				MSG_WriteByte (&host_client->netchan.message, state->modelindex&255);
+				MSG_WriteByte (&host_client->netchan.message, state->modelindex);
 
 				MSG_WriteByte (&host_client->netchan.message, state->frame);
 				MSG_WriteByte (&host_client->netchan.message, (int)state->colormap);
@@ -1164,15 +1170,15 @@ void SV_PreSpawn_f (void)
 					MSG_WriteCoord(&host_client->netchan.message, state->origin[i]);
 					MSG_WriteAngle(&host_client->netchan.message, state->angles[i]);
 				}
+				continue;
 			}
-			buf++;
 		}
 		while (host_client->netchan.message.cursize < (host_client->netchan.message.maxsize/2))	//baselines
 		{
-			if (buf - bufs - sv.numextrastatics >= sv.world.num_edicts)
+			if (buf - bufs - sv.num_static_entities >= sv.world.num_edicts)
 				break;
 
-			ent = EDICT_NUM(svprogfuncs, buf - bufs - sv.numextrastatics);
+			ent = EDICT_NUM(svprogfuncs, buf - bufs - sv.num_static_entities);
 
 			state = &ent->baseline;
 			if (!state->number || !state->modelindex)
@@ -1185,7 +1191,7 @@ void SV_PreSpawn_f (void)
 			{
 				MSG_WriteByte(&host_client->netchan.message, svc_spawnbaseline);
 
-				MSG_WriteShort (&host_client->netchan.message, buf - bufs - sv.numextrastatics);
+				MSG_WriteShort (&host_client->netchan.message, buf - bufs - sv.num_static_entities);
 
 				MSG_WriteByte (&host_client->netchan.message, 0);
 
@@ -1207,7 +1213,7 @@ void SV_PreSpawn_f (void)
 			{
 				MSG_WriteByte(&host_client->netchan.message, svc_spawnbaseline);
 
-				MSG_WriteShort (&host_client->netchan.message, buf - bufs - sv.numextrastatics);
+				MSG_WriteShort (&host_client->netchan.message, buf - bufs - sv.num_static_entities);
 
 				MSG_WriteByte (&host_client->netchan.message, state->modelindex);
 
@@ -1225,7 +1231,7 @@ void SV_PreSpawn_f (void)
 		}
 		while (host_client->netchan.message.cursize < (host_client->netchan.message.maxsize/2))
 		{
-			i = buf - bufs - sv.numextrastatics - sv.world.num_edicts;
+			i = buf - bufs - sv.num_static_entities - sv.world.num_edicts;
 			if (i >= 255)
 				break;
 
@@ -1264,7 +1270,7 @@ void SV_PreSpawn_f (void)
 	}
 	else if (buf >= bufs)
 	{
-		buf = bufs+sv.numextrastatics+sv.world.num_edicts+255;
+		buf = bufs+sv.num_static_entities+sv.world.num_edicts+255;
 	}
 	else
 	{
@@ -1291,7 +1297,7 @@ void SV_PreSpawn_f (void)
 			}
 		}
 	}
-	if (buf == bufs+sv.numextrastatics+sv.world.num_edicts+255)
+	if (buf == bufs+sv.num_static_entities+sv.world.num_edicts+255)
 	{	// all done prespawning
 		MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
 		MSG_WriteString (&host_client->netchan.message, va("cmd spawn %i\n",svs.spawncount) );
@@ -3682,7 +3688,8 @@ void Cmd_Join_f (void)
 	// FIXME, bump the client's userid?
 
 	// call the progs to get default spawn parms for the new client
-	PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
+	if (pr_nqglobal_struct->SetNewParms)
+		PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
 	for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
 	{
 		if (spawnparamglobals[i])
@@ -3773,7 +3780,8 @@ void Cmd_Observe_f (void)
 	// FIXME, bump the client's userid?
 
 	// call the progs to get default spawn parms for the new client
-	PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
+	if (pr_nqglobal_struct->SetNewParms)
+		PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
 	for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
 	{
 		if (spawnparamglobals[i])
@@ -4283,7 +4291,7 @@ void SVNQ_Begin_f (void)
 
 		if (pmodel != sv.model_player_checksum ||
 			emodel != sv.eyes_player_checksum)
-			SV_BroadcastTPrintf (PRINT_HIGH, STL_POSSIBLEMODELCHEAT, host_client->name);
+			SV_BroadcastPrintf (PRINT_HIGH, "warning: %s eyes or player model not verified\n", host_client->name);
 	}
 
 
@@ -4332,7 +4340,7 @@ void SVNQ_PreSpawn_f (void)
 		return;
 	}
 
-	for (e = 1; e < sv.world.num_edicts; e++)
+	for (e = 1; e < sv.world.num_edicts && e < host_client->max_net_ents; e++)
 	{
 		ent = EDICT_NUM(svprogfuncs, e);
 		state = &ent->baseline;
@@ -4361,7 +4369,7 @@ void SVNQ_PreSpawn_f (void)
 		}
 		else
 		{
-			if (host_client->protocol != SCP_NETQUAKE && (state->modelindex > 255 || state->frame > 255))
+			if (ISDPCLIENT(host_client) && (state->modelindex > 255 || state->frame > 255))
 			{
 				MSG_WriteByte(&host_client->netchan.message, svcdp_spawnbaseline2);
 
@@ -4900,6 +4908,8 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	double  tmp_time;
 	qboolean jumpable;
 	char adr[MAX_ADR_SIZE];
+	vec3_t new_vel;
+	vec3_t old_vel;
 
 	// DMW copied this KK hack copied from QuakeForge anti-cheat
 	// (also extra inside parm on all SV_RunCmds that follow)
@@ -5098,7 +5108,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		if (progstype != PROG_QW)
 		{
 #define FL_JUMPRELEASED 4096
-			jumpable = (int)sv_player->v->flags & FL_JUMPRELEASED;
+			jumpable = ((int)sv_player->v->flags & FL_JUMPRELEASED) && ((int)sv_player->v->flags & FL_ONGROUND);
 
 			pmove.waterjumptime = sv_player->v->teleport_time;
 			if (pmove.waterjumptime > sv.time)
@@ -5232,17 +5242,7 @@ if (sv_player->v->health > 0 && before && !after )
 	else
 		sv_player->v->flags = (int)sv_player->v->flags & ~FL_ONGROUND;
 
-	for (i=0 ; i<3 ; i++)
-		sv_player->v->origin[i] = pmove.origin[i];// - (sv_player->v->mins[i] - player_mins[i]);
-
-#if 0
-	// truncate velocity the same way the net protocol will
-	for (i=0 ; i<3 ; i++)
-		sv_player->v->velocity[i] = (int)pmove.velocity[i];
-#else
-	VectorCopy (pmove.velocity, sv_player->v->velocity);
-#endif
-
+	VectorCopy (pmove.origin, sv_player->v->origin);
 	VectorCopy (pmove.angles, sv_player->v->v_angle);
 
 	player_mins[0] = -16;
@@ -5252,6 +5252,12 @@ if (sv_player->v->health > 0 && before && !after )
 	player_maxs[0] = 16;
 	player_maxs[1] = 16;
 	player_maxs[2] = 32;
+
+	VectorCopy(sv_player->v->velocity, old_vel);
+	VectorCopy(pmove.velocity, new_vel);
+	if (progstype == PROG_QW)
+		VectorCopy(new_vel, sv_player->v->velocity);
+
 
 	if (!host_client->spectator)
 	{
@@ -5303,6 +5309,12 @@ if (sv_player->v->health > 0 && before && !after )
 				PR_ExecuteProgram (svprogfuncs, ent->v->touch);
 			playertouch[n/8] |= 1 << (n%8);
 		}
+	}
+
+	if (progstype != PROG_QW)
+	{
+		if (VectorCompare(sv_player->v->velocity, old_vel))
+			VectorCopy(new_vel, sv_player->v->velocity);
 	}
 }
 

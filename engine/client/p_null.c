@@ -31,7 +31,7 @@ static void PNULL_RunParticleEffect4 (vec3_t org, float radius, int color, int e
 static void PNULL_ParticleTrailIndex (vec3_t start, vec3_t end, int color, int crnd, trailstate_t **tsk){}
 static void PNULL_EmitSkyEffectTris(model_t *mod, msurface_t 	*fa){}
 
-static int PNULL_InitParticles (void)
+static qboolean PNULL_InitParticles (void)
 {
 	CL_RegisterParticles();
 	return true;

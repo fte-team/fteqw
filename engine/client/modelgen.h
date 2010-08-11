@@ -68,30 +68,15 @@ typedef struct {
 	int			skinwidth;
 	int			skinheight;
 	int			numverts;
-	int			numstverts;
 	int			numtris;
 	int			numframes;
 	synctype_t	synctype;
+//qtest stops here
 	int			flags;
 	float		size;
-} mmdl_t;
-
-typedef struct {
-	int			ident;
-	int			version;
-	vec3_t		scale;
-	vec3_t		scale_origin;
-	float		boundingradius;
-	vec3_t		eyeposition;
-	int			numskins;
-	int			skinwidth;
-	int			skinheight;
-	int			numverts;
-	int			numtris;
-	int			numframes;
-	synctype_t	synctype;
-	int			flags;
-	float		size;
+//quake stops here
+	int			num_st;
+//rapo stops here
 } dmdl_t;
 
 // TODO: could be shorts
@@ -111,6 +96,12 @@ typedef struct dtriangle_s {
 	int					facesfront;
 	int					vertindex[3];
 } dtriangle_t;
+
+typedef struct dh2triangle_s {
+	int					facesfront;
+	unsigned short		vertindex[3];
+	unsigned short      stindex[3];
+} dh2triangle_t;
 
 typedef struct dmd2triangle_s {
 	short					xyz_index[3];
@@ -165,7 +156,8 @@ typedef struct {
 	aliasskintype_t	type;
 } daliasskintype_t;
 
-#define IDPOLYHEADER	(('O'<<24)+('P'<<16)+('D'<<8)+'I')
-#define MD3_IDENT		(('3'<<24)+('P'<<16)+('D'<<8)+'I')
-														// little-endian "IDPO"
+#define IDPOLYHEADER	(('O'<<24)+('P'<<16)+('D'<<8)+'I') /*little-endian "IDPO"*/
+#define RAPOLYHEADER	(('O'<<24)+('P'<<16)+('A'<<8)+'R') /*used by hexen2 mp*/
+#define MD3_IDENT		(('3'<<24)+('P'<<16)+('D'<<8)+'I') /*quake3, duh*/
+
 

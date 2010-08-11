@@ -751,6 +751,25 @@ void SV_BuildClientFrame (client_t *client)
 	}
 }
 
+void SVQ2_BuildBaselines(void)
+{
+	unsigned int e;
+	q2edict_t	*ent;
+	q2entity_state_t	*base;
+
+	if (!ge)
+		return;
+
+	for (e=1 ; e<ge->num_edicts ; e++)
+	{
+		ent = Q2EDICT_NUM(e);
+		base = &ent->s;
+
+		if (base->modelindex || base->sound || base->effects)
+			sv_baselines[e] = *base;
+	}
+}
+
 void SVQ2_Ents_Init(void)
 {
 	extern cvar_t	maxclients;

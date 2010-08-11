@@ -573,14 +573,10 @@ void CL_Skygroup_f(void)
 	}
 }
 
-//extern model_t	*loadmodel;
-
 char wads[4096];
-void Mod_ParseInfoFromEntityLump(char *data, char *mapname)	//actually, this should be in the model code.
+void Mod_ParseInfoFromEntityLump(model_t *wmodel, char *data, char *mapname)	//actually, this should be in the model code.
 {
-	extern model_t *loadmodel;
 	char key[128];
-	char skyname[64];
 	mapskys_t *msky;
 
 	cl.skyrotate = 0;
@@ -595,16 +591,16 @@ void Mod_ParseInfoFromEntityLump(char *data, char *mapname)	//actually, this sho
 
 	// this hack is necessary to ensure Quake 2 maps get their
 	// default skybox
-	if (loadmodel->fromgame == fg_quake2)
-		strcpy(skyname, "unit1_");
+	if (wmodel->fromgame == fg_quake2)
+		strcpy(cl.skyname, "unit1_");
 	else
-		skyname[0] = '\0';
+		cl.skyname[0] = '\0';
 
 	for (msky = mapskies; msky; msky = msky->next)
 	{
 		if (!strcmp(msky->mapname, mapname))
 		{
-			Q_strncpyz(skyname, msky->skyname, sizeof(skyname));
+			Q_strncpyz(cl.skyname, msky->skyname, sizeof(cl.skyname));
 			break;
 		}
 	}
@@ -626,7 +622,7 @@ void Mod_ParseInfoFromEntityLump(char *data, char *mapname)	//actually, this sho
 			break; // error		
 		if (!strcmp("wad", key)) // for HalfLife maps
 		{
-			if (loadmodel->fromgame == fg_halflife)
+			if (wmodel->fromgame == fg_halflife)
 			{
 				strncat(wads, ";", 4095);	//cache it for later (so that we don't play with any temp memory yet)
 				strncat(wads, com_token, 4095);	//cache it for later (so that we don't play with any temp memory yet)
@@ -634,11 +630,11 @@ void Mod_ParseInfoFromEntityLump(char *data, char *mapname)	//actually, this sho
 		}
 		else if (!strcmp("skyname", key)) // for HalfLife maps
 		{
-			Q_strncpyz(skyname, com_token, sizeof(skyname));
+			Q_strncpyz(cl.skyname, com_token, sizeof(cl.skyname));
 		}
 		else if (!strcmp("sky", key)) // for Quake2 maps
 		{
-			Q_strncpyz(skyname, com_token, sizeof(skyname));
+			Q_strncpyz(cl.skyname, com_token, sizeof(cl.skyname));
 		}
 		else if (!strcmp("skyrotate", key))
 		{

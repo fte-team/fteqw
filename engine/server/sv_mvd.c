@@ -1645,7 +1645,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 		gamedir = "qw";
 
 	MSG_WriteByte (&buf, svc_serverdata);
-	if (sizeofcoord == 4)	//sorry.
+	if (svs.netprim.coordsize == 4)	//sorry.
 	{
 		MSG_WriteLong (&buf, PROTOCOL_VERSION_FTE);
 		MSG_WriteLong (&buf, PEXT_FLOATCOORDS);

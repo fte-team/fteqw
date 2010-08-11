@@ -1126,12 +1126,6 @@ void	(D3D9_R_LessenStains)			(void);
 
 qboolean (D3D9_VID_Init)				(rendererstate_t *info, unsigned char *palette);
 void	 (D3D9_VID_DeInit)				(void);
-void	(D3D9_VID_LockBuffer)			(void);
-void	(D3D9_VID_UnlockBuffer)			(void);
-void	(D3D9_D_BeginDirectRect)		(int x, int y, qbyte *pbitmap, int width, int height);
-void	(D3D9_D_EndDirectRect)			(int x, int y, int width, int height);
-void	(D3D9_VID_ForceLockState)		(int lk);
-int		(D3D9_VID_ForceUnlockedAndReturnState) (void);
 void	(D3D9_VID_SetPalette)			(unsigned char *palette);
 void	(D3D9_VID_ShiftPalette)			(unsigned char *palette);
 char	*(D3D9_VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight);

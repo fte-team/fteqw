@@ -47,7 +47,7 @@ void R_AnimateLight (void)
 		f = 0;
 	i = (int)f;
 
-	if (r_lightstylesmooth.value)
+	if (r_lightstylesmooth.ival)
 		f -= i;	//this can require updates at 1000 times a second.. Depends on your framerate of course
 	else
 		f = 0;	//only update them 10 times a second
@@ -741,13 +741,6 @@ float *GLRecursiveLightPoint3C (mnode_t *node, vec3_t start, vec3_t end)
 	float	scale;
 	int			maps;
 
-	if (!cl.worldmodel->lightdata)
-	{
-		l[0]=255;l[1]=255;l[2]=255;
-		l[3]=0;l[4]=1;l[5]=1;
-		return l;
-	}
-
 	if (cl.worldmodel->fromgame == fg_quake2)
 	{
 		if (node->contents != -1)
@@ -939,6 +932,23 @@ void GLQ1BSP_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, 
 	vec3_t		end;
 	float *r;
 
+	if (!cl.worldmodel->lightdata || r_fullbright.ival)
+	{
+		res_diffuse[0] = 0;
+		res_diffuse[1] = 0;
+		res_diffuse[2] = 0;
+	
+		res_ambient[0] = 255;
+		res_ambient[1] = 255;
+		res_ambient[2] = 255;
+
+		res_dir[0] = 1;
+		res_dir[1] = 1;
+		res_dir[2] = 0.1;
+		VectorNormalize(res_dir);
+		return;
+	}
+
 	end[0] = point[0];
 	end[1] = point[1];
 	end[2] = point[2] - 2048;
@@ -964,17 +974,16 @@ void GLQ1BSP_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, 
 		res_diffuse[1] = r[1];
 		res_diffuse[2] = r[2];
 	
-		res_ambient[0] = r[0];
-		res_ambient[1] = r[1];
-		res_ambient[2] = r[2];
+		res_ambient[0] = 0;
+		res_ambient[1] = 0;
+		res_ambient[2] = 0;
 
 		res_dir[0] = r[3];
 		res_dir[1] = r[4];
 		res_dir[2] = -r[5];
-		VectorNormalize(res_dir);
-
 		if (!res_dir[0] && !res_dir[1] && !res_dir[2])
 			res_dir[1] = res_dir[2] = 1;
+		VectorNormalize(res_dir);
 	}
 }
 

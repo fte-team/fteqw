@@ -437,7 +437,7 @@ void SV_Map_f (void)
 	nextserver = 0;
 
 #ifndef SERVERONLY
-	if (!Renderer_Started())
+	if (!Renderer_Started() && !isDedicated)
 	{
 		Cbuf_AddText(va("wait;map %s\n", Cmd_Args()), Cmd_ExecLevel);
 		return;
@@ -1374,6 +1374,7 @@ void SV_Status_f (void)
 	char		adr[MAX_ADR_SIZE];
 
 	int columns = 80;
+	extern cvar_t sv_listen_qw, sv_listen_nq, sv_listen_dp, sv_listen_q3;
 
 	if (sv_redirected != RD_OBLIVION && (sv_redirected != RD_NONE
 #ifndef SERVERONLY
@@ -1414,6 +1415,7 @@ void SV_Status_f (void)
 	if (sv.csqcdebug)
 		Con_Printf("csqc debug       : true\n");
 	Con_Printf("public           : %s\n", sv_public.value?"yes":"no");
+	Con_Printf("client types     :%s%s%s%s\n", sv_listen_qw.ival?" QW":"", sv_listen_nq.ival?" NQ":"", sv_listen_dp.ival?" DP":"", sv_listen_q3.ival?" Q3":"");
 
 // min fps lat drp
 	if (columns < 80)

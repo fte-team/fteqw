@@ -759,8 +759,6 @@ void MSG_WriteString (sizebuf_t *sb, const char *s)
 		SZ_Write (sb, s, Q_strlen(s)+1);
 }
 
-int sizeofcoord=2;
-int sizeofangle=1;
 float MSG_FromCoord(coorddata c, int bytes)
 {
 	switch(bytes)
@@ -829,8 +827,8 @@ coorddata MSG_ToAngle(float f, int bytes)	//return value is NOT byteswapped.
 
 void MSG_WriteCoord (sizebuf_t *sb, float f)
 {
-	coorddata i = MSG_ToCoord(f, sizeofcoord);
-	SZ_Write (sb, (void*)&i, sizeofcoord);
+	coorddata i = MSG_ToCoord(f, sb->prim.coordsize);
+	SZ_Write (sb, (void*)&i, sb->prim.coordsize);
 }
 
 void MSG_WriteAngle16 (sizebuf_t *sb, float f)
@@ -850,8 +848,10 @@ void MSG_WriteAngle8 (sizebuf_t *sb, float f)
 
 void MSG_WriteAngle (sizebuf_t *sb, float f)
 {
-	if (sizeofangle==2)
+	if (sb->prim.anglesize==2)
 		MSG_WriteAngle16(sb, f);
+	else if (sb->prim.anglesize==4)
+		MSG_WriteFloat(sb, f);
 	else
 		MSG_WriteAngle8 (sb, f);
 }
@@ -959,13 +959,20 @@ void MSG_WriteDeltaUsercmd (sizebuf_t *buf, usercmd_t *from, usercmd_t *cmd)
 //
 int			msg_readcount;
 qboolean	msg_badread;
+struct netprim_s msg_nullnetprim;
 
-void MSG_BeginReading (void)
+void MSG_BeginReading (struct netprim_s prim)
 {
 	msg_readcount = 0;
 	msg_badread = false;
 	net_message.currentbit = 0;
 	net_message.packing = SZ_RAWBYTES;
+	net_message.prim = prim;
+}
+
+void MSG_ChangePrimitives(struct netprim_s prim)
+{
+	net_message.prim = prim;
 }
 
 int MSG_GetReadCount(void)
@@ -1286,8 +1293,8 @@ char *MSG_ReadStringLine (void)
 float MSG_ReadCoord (void)
 {
 	coorddata c = {{0}};
-	MSG_ReadData(&c, sizeofcoord);
-	return MSG_FromCoord(c, sizeofcoord);
+	MSG_ReadData(&c, net_message.prim.coordsize);
+	return MSG_FromCoord(c, net_message.prim.coordsize);
 }
 
 void MSG_ReadPos (vec3_t pos)
@@ -1297,12 +1304,14 @@ void MSG_ReadPos (vec3_t pos)
 	pos[2] = MSG_ReadCoord();
 }
 
+#if defined(Q2CLIENT) || defined(Q2SERVER)
 #define Q2NUMVERTEXNORMALS	162
 vec3_t	bytedirs[Q2NUMVERTEXNORMALS] =
 {
 #include "../client/q2anorms.h"
 };
-#ifndef SERVERONLY
+#endif
+#ifdef Q2CLIENT
 void MSG_ReadDir (vec3_t dir)
 {
 	int		b;
@@ -1316,6 +1325,7 @@ void MSG_ReadDir (vec3_t dir)
 	VectorCopy (bytedirs[b], dir);
 }
 #endif
+#ifdef Q2SERVER
 void MSG_WriteDir (sizebuf_t *sb, vec3_t dir)
 {
 	int		i, best;
@@ -1340,6 +1350,7 @@ void MSG_WriteDir (sizebuf_t *sb, vec3_t dir)
 	}
 	MSG_WriteByte (sb, best);
 }
+#endif
 
 float MSG_ReadAngle16 (void)
 {
@@ -1347,9 +1358,18 @@ float MSG_ReadAngle16 (void)
 }
 float MSG_ReadAngle (void)
 {
-	if (sizeofangle==2)
+	switch(net_message.prim.anglesize)
+	{
+	case 2:
 		return MSG_ReadAngle16();
-	return MSG_ReadChar() * (360.0/256);
+	case 4:
+		return MSG_ReadFloat();
+	case 1:
+		return MSG_ReadChar() * (360.0/256);
+	default:
+		Host_Error("Bad angle size\n");
+		return 0;
+	}
 }
 
 void MSG_ReadDeltaUsercmd (usercmd_t *from, usercmd_t *move)

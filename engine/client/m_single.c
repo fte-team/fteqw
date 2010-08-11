@@ -164,9 +164,18 @@ void M_Menu_SinglePlayer_f (void)
 	}
 	else if (mgt == MGT_HEXEN2)
 	{	//h2
+		int y;
 		cvar_t *pc;
+		qboolean havemp;
 		static char *classlist[] = {
 			"Random",
+			"Paladin",
+			"Crusader",
+			"Necromancer",
+			"Assasin",
+			NULL
+		};
+		static char *classlistmp[] = {
 			"Paladin",
 			"Crusader",
 			"Necromancer",
@@ -183,21 +192,34 @@ void M_Menu_SinglePlayer_f (void)
 			"5",
 			NULL
 		};
+		havemp = COM_FCheckExists("maps/keep1.bsp");
 		menu = M_CreateMenu(0);
 		MC_AddPicture(menu, 16, 0, 35, 176, "gfx/menu/hplaque.lmp");
 		MC_AddCenterPicture(menu, 0, 60, "gfx/menu/title1.lmp");
 
-		menu->selecteditem = (menuoption_t*)
-		MC_AddConsoleCommand	(menu, 64, 64,	"Easy",		"closemenu\nskill 0;deathmatch 0; coop 0;map demo1\n");
-		MC_AddConsoleCommand	(menu, 64, 72,	"Medium",	"closemenu\nskill 1;deathmatch 0; coop 0;map demo1\n");
-		MC_AddConsoleCommand	(menu, 64, 80,	"Hard",		"closemenu\nskill 2;deathmatch 0; coop 0;map demo1\n");
-
-		MC_AddConsoleCommand	(menu, 64, 96,	"Load Game", "menu_load\n");
-		MC_AddConsoleCommand	(menu, 64, 104,	"Save Game", "menu_save\n");
+		y = 64-8;
 
 		pc = Cvar_Get("cl_playerclass", "1", CVAR_USERINFO|CVAR_ARCHIVE, "Hexen2");
 		if (pc)
-			MC_AddCvarCombo (menu, 64, 104+16,	"Player class", pc, (const char **)classlist, (const char **)classvalues);
+			MC_AddCvarCombo (menu, 64, y+=8,	"Player class", pc, havemp?(const char **)classlistmp:(const char **)classlist, (const char **)(classvalues+havemp));
+		y+=8;
+
+		menu->selecteditem = (menuoption_t*)
+		MC_AddConsoleCommand	(menu, 64, y+=8,	"Classic: Easy",		"closemenu\nskill 0;deathmatch 0; coop 0;disconnect;wait;map demo1\n");
+		MC_AddConsoleCommand	(menu, 64, y+=8,	"Classic: Medium",	"closemenu\nskill 1;deathmatch 0; coop 0;disconnect;wait;map demo1\n");
+		MC_AddConsoleCommand	(menu, 64, y+=8,	"Classic: Hard",		"closemenu\nskill 2;deathmatch 0; coop 0;disconnect;wait;map demo1\n");
+		y+=8;
+
+		if (havemp)
+		{
+			MC_AddConsoleCommand(menu, 64, y+=8,	"Expansion: Easy",		"closemenu\nskill 0;deathmatch 0; coop 0;disconnect;wait;map keep1\n");
+			MC_AddConsoleCommand(menu, 64, y+=8,	"Expansion: Medium",	"closemenu\nskill 1;deathmatch 0; coop 0;disconnect;wait;map keep1\n");
+			MC_AddConsoleCommand(menu, 64, y+=8,	"Expansion: Hard",		"closemenu\nskill 2;deathmatch 0; coop 0;disconnect;wait;map keep1\n");
+			y+=8;
+		}
+
+		MC_AddConsoleCommand	(menu, 64, y+=8,	"Load Game", "menu_load\n");
+		MC_AddConsoleCommand	(menu, 64, y+=8,	"Save Game", "menu_save\n");
 
 		return;
 	}

@@ -137,6 +137,7 @@ void		Matrix4Q_Invert_Simple (const float *in1, float *out);
 void		Matrix4_CreateTranslate (float *out, float x, float y, float z);
 void		Matrix4Q_CreateTranslate (float *out, float x, float y, float z);
 void		Matrix4_ModelMatrixFromAxis (float *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg);
+void		Matrix4_ModelMatrix(float *modelview, vec_t x, vec_t y, vec_t z, vec_t pitch, vec_t yaw, vec_t roll, vec_t scale);
 void		Matrix4_ModelViewMatrix (float *modelview, const vec3_t viewangles, const vec3_t vieworg);
 void		Matrix4_ModelViewMatrixFromAxis (float *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg);
 void		Matrix4_CreateFromQuakeEntity (float *matrix, float x, float y, float z, float pitch, float yaw, float roll, float scale);

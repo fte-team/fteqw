@@ -85,6 +85,7 @@ qboolean CL_FilterModelindex(int modelindex, int frame)
 
 void CL_FreeDlights(void)
 {
+#pragma message("not freeing shadowmeshes")
 	rtlights_max = cl_maxdlights = 0;
 	BZ_Free(cl_dlights);
 	cl_dlights = NULL;
@@ -98,9 +99,13 @@ void CL_InitDlights(void)
 
 static void CL_ClearDlight(dlight_t *dl, int key)
 {
+	void *sm;
 	texid_t st;
 	st = dl->stexture;
+	sm = dl->worldshadowmesh;
 	memset (dl, 0, sizeof(*dl));
+	dl->rebuildcache = true;
+	dl->worldshadowmesh = sm;
 	dl->stexture = st;
 	dl->axis[0][0] = 1;
 	dl->axis[1][1] = 1;
@@ -857,7 +862,7 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 
 	cl_latestframenum = MSG_ReadLong();
 
-	if (nq_dp_protocol >=7)
+	if (cls.protocol_nq >= CPNQ_DP7)
 		cl.ackedinputsequence = MSG_ReadLong();
 
 	pack = &cl.frames[(cls.netchan.incoming_sequence)&UPDATE_MASK].packet_entities;
@@ -945,48 +950,6 @@ void CLNQ_ParseEntity(unsigned int bits)
 	entity_state_t	*base;
 	static float lasttime;
 	packet_entities_t	*pack;
-
-#define	NQU_MOREBITS	(1<<0)
-#define	NQU_ORIGIN1	(1<<1)
-#define	NQU_ORIGIN2	(1<<2)
-#define	NQU_ORIGIN3	(1<<3)
-#define	NQU_ANGLE2	(1<<4)
-#define	NQU_NOLERP	(1<<5)		// don't interpolate movement
-#define	NQU_FRAME		(1<<6)
-#define NQU_SIGNAL	(1<<7)		// just differentiates from other updates
-
-// svc_update can pass all of the fast update bits, plus more
-#define	NQU_ANGLE1	(1<<8)
-#define	NQU_ANGLE3	(1<<9)
-#define	NQU_MODEL		(1<<10)
-#define	NQU_COLORMAP	(1<<11)
-#define	NQU_SKIN		(1<<12)
-#define	NQU_EFFECTS	(1<<13)
-#define	NQU_LONGENTITY	(1<<14)
-
-
-// LordHavoc's: protocol extension
-#define DPU_EXTEND1		(1<<15)
-// LordHavoc: first extend byte
-#define DPU_DELTA			(1<<16) // no data, while this is set the entity is delta compressed (uses previous frame as a baseline, meaning only things that have changed from the previous frame are sent, except for the forced full update every half second)
-#define DPU_ALPHA			(1<<17) // 1 byte, 0.0-1.0 maps to 0-255, not sent if exactly 1, and the entity is not sent if <=0 unless it has effects (model effects are checked as well)
-#define DPU_SCALE			(1<<18) // 1 byte, scale / 16 positive, not sent if 1.0
-#define DPU_EFFECTS2		(1<<19) // 1 byte, this is .effects & 0xFF00 (second byte)
-#define DPU_GLOWSIZE		(1<<20) // 1 byte, encoding is float/4.0, unsigned, not sent if 0
-#define DPU_GLOWCOLOR		(1<<21) // 1 byte, palette index, default is 254 (white), this IS used for darklight (allowing colored darklight), however the particles from a darklight are always black, not sent if default value (even if glowsize or glowtrail is set)
-// LordHavoc: colormod feature has been removed, because no one used it
-#define DPU_COLORMOD		(1<<22) // 1 byte, 3 bit red, 3 bit green, 2 bit blue, this lets you tint an object artifically, so you could make a red rocket, or a blue fiend...
-#define DPU_EXTEND2		(1<<23) // another byte to follow
-// LordHavoc: second extend byte
-#define DPU_GLOWTRAIL		(1<<24) // leaves a trail of particles (of color .glowcolor, or black if it is a negative glowsize)
-#define DPU_VIEWMODEL		(1<<25) // attachs the model to the view (origin and angles become relative to it), only shown to owner, a more powerful alternative to .weaponmodel and such
-#define DPU_FRAME2		(1<<26) // 1 byte, this is .frame & 0xFF00 (second byte)
-#define DPU_MODEL2		(1<<27) // 1 byte, this is .modelindex & 0xFF00 (second byte)
-#define DPU_EXTERIORMODEL	(1<<28) // causes this model to not be drawn when using a first person view (third person will draw it, first person will not)
-#define DPU_UNUSED29		(1<<29) // future expansion
-#define DPU_UNUSED30		(1<<30) // future expansion
-#define DPU_EXTEND3		(1<<31) // another byte to follow, future expansion
-
 
 	if (cls.signon == 4 - 1)
 	{	// first update is the final signon stage
@@ -1093,63 +1056,81 @@ void CLNQ_ParseEntity(unsigned int bits)
 	else
 		state->angles[2] = base->angles[2];
 
-	if (bits & DPU_ALPHA)
-		i = MSG_ReadByte();
-	else
-		i = -1;
-
-#ifdef PEXT_TRANS
-	if (i == -1)
-		state->trans = base->trans;
-	else
-		state->trans = i;
-#endif
-
-	if (bits & DPU_SCALE)
-		i = MSG_ReadByte();
-	else
-		i = -1;
-
-#ifdef PEXT_SCALE
-	if (i == -1)
-		state->scale = base->scale;
-	else
-		state->scale = i;
-#endif
-
-	if (bits & DPU_EFFECTS2)
-		state->effects |= MSG_ReadByte() << 8;
-
-	if (bits & DPU_GLOWSIZE)
-		state->glowsize = MSG_ReadByte();
-	else
-		state->glowsize = base->glowsize;
-
-	if (bits & DPU_GLOWCOLOR)
-		state->glowcolour = MSG_ReadByte();
-	else
-		state->glowcolour = base->glowcolour;
-
-	if (bits & DPU_COLORMOD)
+	if (cls.protocol_nq == CPNQ_FITZ666)
 	{
-		i = MSG_ReadByte(); // follows format RRRGGGBB
-		state->colormod[0] = (qbyte)(((i >> 5) & 7) * (32.0f / 7.0f));
-		state->colormod[1] = (qbyte)(((i >> 2) & 7) * (32.0f / 7.0f));
-		state->colormod[2] = (qbyte)((i & 3) * (32.0f / 3.0f));
+		if (bits & FITZU_ALPHA)
+			state->trans = MSG_ReadByte();
+		else
+			state->trans = base->trans;
+
+		if (bits & FITZU_FRAME2)
+			state->frame |= MSG_ReadByte() << 8;
+
+		if (bits & FITZU_MODEL2)
+			state->modelindex |= MSG_ReadByte() << 8;
+
+		if (bits & FITZU_LERPFINISH)
+			MSG_ReadByte();
 	}
 	else
 	{
-		state->colormod[0] = base->colormod[0];
-		state->colormod[1] = base->colormod[1];
-		state->colormod[2] = base->colormod[2];
+		if (bits & DPU_ALPHA)
+			i = MSG_ReadByte();
+		else
+			i = -1;
+
+	#ifdef PEXT_TRANS
+		if (i == -1)
+			state->trans = base->trans;
+		else
+			state->trans = i;
+	#endif
+
+		if (bits & DPU_SCALE)
+			i = MSG_ReadByte();
+		else
+			i = -1;
+
+	#ifdef PEXT_SCALE
+		if (i == -1)
+			state->scale = base->scale;
+		else
+			state->scale = i;
+	#endif
+
+		if (bits & DPU_EFFECTS2)
+			state->effects |= MSG_ReadByte() << 8;
+
+		if (bits & DPU_GLOWSIZE)
+			state->glowsize = MSG_ReadByte();
+		else
+			state->glowsize = base->glowsize;
+
+		if (bits & DPU_GLOWCOLOR)
+			state->glowcolour = MSG_ReadByte();
+		else
+			state->glowcolour = base->glowcolour;
+
+		if (bits & DPU_COLORMOD)
+		{
+			i = MSG_ReadByte(); // follows format RRRGGGBB
+			state->colormod[0] = (qbyte)(((i >> 5) & 7) * (32.0f / 7.0f));
+			state->colormod[1] = (qbyte)(((i >> 2) & 7) * (32.0f / 7.0f));
+			state->colormod[2] = (qbyte)((i & 3) * (32.0f / 3.0f));
+		}
+		else
+		{
+			state->colormod[0] = base->colormod[0];
+			state->colormod[1] = base->colormod[1];
+			state->colormod[2] = base->colormod[2];
+		}
+
+		if (bits & DPU_FRAME2)
+			state->frame |= MSG_ReadByte() << 8;
+
+		if (bits & DPU_MODEL2)
+			state->modelindex |= MSG_ReadByte() << 8;
 	}
-
-	if (bits & DPU_FRAME2)
-		state->frame |= MSG_ReadByte() << 8;
-
-	if (bits & DPU_MODEL2)
-		state->modelindex |= MSG_ReadByte() << 8;
-
 	if (cls.demoplayback != DPB_NONE)
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
 			if (num == cl.viewentity[pnum])
@@ -1447,8 +1428,8 @@ void CL_LinkStaticEntities(void *pvs)
 	model_t		*clmodel;
 	extern cvar_t r_drawflame, gl_part_flame;
 
-//	if (!cl_staticentities.ival)
-//		return;
+	if (r_drawflame.ival < 0)
+		return;
 
 	if (!cl.worldmodel)
 		return;
@@ -1460,6 +1441,8 @@ void CL_LinkStaticEntities(void *pvs)
 		stat = &cl_static_entities[i].ent;
 
 		clmodel = stat->model;
+		if (!clmodel || clmodel->needload)
+			continue;
 
 		if ((!r_drawflame.ival) && (clmodel->engineflags & MDLF_FLAME))
 			continue;
@@ -2631,6 +2614,8 @@ void CL_AddVWeapModel(entity_t *player, model_t *model)
 {
 	entity_t	*newent;
 	vec3_t	angles;
+	if (!model)
+		return;
 	newent = CL_NewTempEntity ();
 
 	newent->keynum = player->keynum;

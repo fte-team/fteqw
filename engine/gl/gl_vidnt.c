@@ -171,6 +171,7 @@ extern cvar_t		vid_preservegamma;
 extern cvar_t		vid_gl_context_version;
 extern cvar_t		vid_gl_context_debug;
 extern cvar_t		vid_gl_context_forwardcompatible;
+extern cvar_t		vid_gl_context_compatibility;
 
 int			window_center_x, window_center_y, window_x, window_y, window_width, window_height;
 RECT		window_rect;
@@ -238,7 +239,12 @@ HGLRC (APIENTRY *qwglCreateContextAttribsARB)(HDC hDC, HGLRC hShareContext, cons
 #define WGL_CONTEXT_FLAGS_ARB				0x2094
 #define		WGL_CONTEXT_DEBUG_BIT_ARB				0x0001
 #define		WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB	0x0002
+#define WGL_CONTEXT_PROFILE_MASK_ARB		0x9126
+#define		WGL_CONTEXT_CORE_PROFILE_BIT_ARB	0x00000001
+#define		WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB 0x00000002
 #define ERROR_INVALID_VERSION_ARB			0x2095
+#define	ERROR_INVALID_PROFILE_ARB		0x2096
+
 
 
 qboolean GLInitialise (char *renderer)
@@ -857,7 +863,6 @@ qboolean VID_AttachGL (rendererstate_t *info)
 #ifdef USE_D3D
 		if (!Q_strcasecmp(info->glrenderer, "D3D"))
 		{
-			extern cvar_t gl_ztrick;
 			int zbpp = info->bpp > 16 ? 24 : 16;
 			gl_canstencil = false;
 			TRACE(("dbg: VID_AttachGL: D3DInitialize\n"));
@@ -869,16 +874,12 @@ qboolean VID_AttachGL (rendererstate_t *info)
 			TRACE(("dbg: VID_AttachGL: d3dSetMode\n"));
 			d3dSetMode(info->fullscreen, info->width, info->height, info->bpp, zbpp);	//d3d cheats to get it's dimensions and stuff... One that we can currently live with though.
 
-			gl_ztrickdisabled |= 2;	//ztrick does funny things.
-			Cvar_Set(&gl_ztrick, "0");
-
 			maindc = GetDC(mainwindow);
 
 			Con_Printf(CON_NOTICE "OpenGL to Direct3D wrapper enabled\n");	//green to make it show.
 			break;
 		}
 #endif
-		gl_ztrickdisabled &= ~2;
 		TRACE(("dbg: VID_AttachGL: GLInitialise\n"));
 		if (GLInitialise(info->glrenderer))
 		{
@@ -966,6 +967,14 @@ qboolean VID_AttachGL (rendererstate_t *info)
 			attribs[i] = WGL_CONTEXT_FLAGS_ARB;
 			i += 2;
 		}
+
+		attribs[i+1] = 0;
+		if (vid_gl_context_compatibility.value)
+			attribs[i+1] |= WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB;
+		else
+			attribs[i+1] |= WGL_CONTEXT_CORE_PROFILE_BIT_ARB;
+		attribs[i] = WGL_CONTEXT_PROFILE_MASK_ARB;
+		i+=2;
 
 		attribs[i] = 0;
 

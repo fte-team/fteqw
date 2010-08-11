@@ -141,6 +141,9 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer);
 	qboolean Mod_LoadMD5MeshModel(model_t *mod, void *buffer);
 	qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer);
 #endif
+#ifdef MAP_PROC 
+	qboolean Mod_LoadMap_Proc(model_t *mode, void *buffer);
+#endif
 
 void Mod_AccumulateTextureVectors(vecV_t *vc, vec2_t *tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, index_t *idx, int numidx);
 void Mod_AccumulateMeshTextureVectors(mesh_t *mesh);

@@ -504,7 +504,7 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 			fdef = ED_FindField (progfuncs, assignment);
 			if (!fdef)
 			{
-				int l,nl = strlen(assignment);
+				size_t l,nl = strlen(assignment);
 				strcpy(buf, "Can't find field ");
 				l = strlen(buf);
 				if (nl > sizeof(buf)-l-2)
@@ -537,7 +537,7 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 				func = ED_FindFunction (progfuncs, s, &i, progsnum);
 				if (!func)
 				{
-					int l,nl = strlen(s);
+					size_t l,nl = strlen(s);
 
 					assignment[-1] = '=';
 

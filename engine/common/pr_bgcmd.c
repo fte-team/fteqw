@@ -2833,6 +2833,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"ZQ_MOVETYPE_NOCLIP"},
 	{"ZQ_MOVETYPE_NONE"},
 //	{"ZQ_QC_PARTICLE"},	//particle builtin works in QW ( we don't mimic ZQ fully though)
+	{"ZQ_VWEP",							1,	NULL, {"precache_vwep_model"}},
 
 
 	{"ZQ_QC_STRINGS",					7, NULL, {"stof", "strlen","strcat","substring","stov","strzone","strunzone"}}	//a trimmed down FRIK_FILE.

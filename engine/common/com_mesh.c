@@ -753,29 +753,45 @@ void R_LightArrays(vecV_t *coords, avec4_t *colours, int vertcount, vec3_t *norm
 	extern cvar_t r_vertexdlights;
 	int i;
 	float l;
-#ifdef SSE_INTRINSICS
-	__m128 va, vs, vl, vr;
-	va = _mm_load_ps(ambientlight);
-	vs = _mm_load_ps(shadelight);
-	va.m128_f32[3] = 0;
-	vs.m128_f32[3] = 1;
-#endif
 
-	for (i = vertcount-1; i >= 0; i--)
+	if (VectorCompare(ambientlight, shadelight))
 	{
-		l = DotProduct(normals[i], shadevector);
+		for (i = vertcount-1; i >= 0; i--)
+		{
+			colours[i][0] = ambientlight[0];
+			colours[i][1] = ambientlight[1];
+			colours[i][2] = ambientlight[2];
+		}
+	}
+	else
+	{
+		vec3_t meanambient;
 #ifdef SSE_INTRINSICS
-		vl = _mm_load1_ps(&l);
-		vr = _mm_mul_ss(va,vl);
-		vr = _mm_add_ss(vr,vs);
-
-		_mm_storeu_ps(colours[i], vr);
-		//stomp on colour[i][3] (will be set to 1)
-#else
-		colours[i][0] = l*ambientlight[0]+shadelight[0];
-		colours[i][1] = l*ambientlight[1]+shadelight[1];
-		colours[i][2] = l*ambientlight[2]+shadelight[2];
+		__m128 va, vs, vl, vr;
+		va = _mm_load_ps(ambientlight);
+		vs = _mm_load_ps(shadelight);
+		va.m128_f32[3] = 0;
+		vs.m128_f32[3] = 1;
 #endif
+		/*dotproduct will return a value between 1 and -1, so increase the ambient to be correct for normals facing away from the light*/
+		VectorMA(ambientlight, 1, shadelight, meanambient);
+
+		for (i = vertcount-1; i >= 0; i--)
+		{
+			l = DotProduct(normals[i], shadevector);
+	#ifdef SSE_INTRINSICS
+			vl = _mm_load1_ps(&l);
+			vr = _mm_mul_ss(va,vl);
+			vr = _mm_add_ss(vr,vs);
+
+			_mm_storeu_ps(colours[i], vr);
+			//stomp on colour[i][3] (will be set to 1)
+	#else
+			colours[i][0] = l*shadelight[0]+meanambient[0];
+			colours[i][1] = l*shadelight[1]+meanambient[1];
+			colours[i][2] = l*shadelight[2]+meanambient[2];
+	#endif
+		}
 	}
 
 	if (r_vertexdlights.ival && r_dynamic.ival)
@@ -825,8 +841,6 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 	extern cvar_t r_nolerp, r_nolightdir;
 	float blerp = 1-lerp;
 	int i;
-	float l;
-	int temp;
 	vecV_t *p1v, *p2v;
 	vec3_t *p1n, *p2n;
 	vec3_t *p1s, *p2s;
@@ -847,6 +861,7 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 	mesh->normals_array = p1n;
 	mesh->snormals_array = p1s;
 	mesh->tnormals_array = p1t;
+	mesh->colors4f_array = NULL;
 
 	if (p1v == p2v || r_nolerp.value)
 	{
@@ -854,69 +869,18 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 		mesh->snormals_array = p1s;
 		mesh->tnormals_array = p1t;
 		mesh->xyz_array = p1v;
-		if (r_nolightdir.value || nolightdir)
-		{
-			mesh->colors4f_array = NULL;
-		}
-		else
-		{
-			for (i = 0; i < mesh->numvertexes; i++)
-			{
-				l = DotProduct(mesh->normals_array[i], shadevector);
-
-				temp = l*ambientlight[0]+shadelight[0];
-				mesh->colors4f_array[i][0] = temp;
-
-				temp = l*ambientlight[1]+shadelight[1];
-				mesh->colors4f_array[i][1] = temp;
-
-				temp = l*ambientlight[2]+shadelight[2];
-				mesh->colors4f_array[i][2] = temp;
-
-				mesh->colors4f_array[i][3] = alpha;
-			}
-		}
 	}
 	else
 	{
-		if (r_nolightdir.ival || nolightdir)
+		for (i = 0; i < mesh->numvertexes; i++)
 		{
-			mesh->colors4f_array = NULL;
-			for (i = 0; i < mesh->numvertexes; i++)
-			{
-				mesh->normals_array[i][0] = p1n[i][0]*lerp + p2n[i][0]*blerp;
-				mesh->normals_array[i][1] = p1n[i][1]*lerp + p2n[i][1]*blerp;
-				mesh->normals_array[i][2] = p1n[i][2]*lerp + p2n[i][2]*blerp;
+			mesh->normals_array[i][0] = p1n[i][0]*lerp + p2n[i][0]*blerp;
+			mesh->normals_array[i][1] = p1n[i][1]*lerp + p2n[i][1]*blerp;
+			mesh->normals_array[i][2] = p1n[i][2]*lerp + p2n[i][2]*blerp;
 
-				mesh->xyz_array[i][0] = p1v[i][0]*lerp + p2v[i][0]*blerp;
-				mesh->xyz_array[i][1] = p1v[i][1]*lerp + p2v[i][1]*blerp;
-				mesh->xyz_array[i][2] = p1v[i][2]*lerp + p2v[i][2]*blerp;
-			}
-		}
-		else
-		{
-			for (i = 0; i < mesh->numvertexes; i++)
-			{
-				mesh->normals_array[i][0] = p1n[i][0]*lerp + p2n[i][0]*blerp;
-				mesh->normals_array[i][1] = p1n[i][1]*lerp + p2n[i][1]*blerp;
-				mesh->normals_array[i][2] = p1n[i][2]*lerp + p2n[i][2]*blerp;
-
-				mesh->xyz_array[i][0] = p1v[i][0]*lerp + p2v[i][0]*blerp;
-				mesh->xyz_array[i][1] = p1v[i][1]*lerp + p2v[i][1]*blerp;
-				mesh->xyz_array[i][2] = p1v[i][2]*lerp + p2v[i][2]*blerp;
-
-				l = DotProduct(mesh->normals_array[i], shadevector);
-				temp = l*ambientlight[0]+shadelight[0];
-				mesh->colors4f_array[i][0] = temp;
-
-				temp = l*ambientlight[1]+shadelight[1];
-				mesh->colors4f_array[i][1] = temp;
-
-				temp = l*ambientlight[2]+shadelight[2];
-				mesh->colors4f_array[i][2] = temp;
-
-				mesh->colors4f_array[i][3] = alpha;
-			}
+			mesh->xyz_array[i][0] = p1v[i][0]*lerp + p2v[i][0]*blerp;
+			mesh->xyz_array[i][1] = p1v[i][1]*lerp + p2v[i][1]*blerp;
+			mesh->xyz_array[i][2] = p1v[i][2]*lerp + p2v[i][2]*blerp;
 		}
 	}
 	if (expand)
@@ -1906,6 +1870,132 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 	return pframetype;
 }
 
+static void *H1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
+{
+	galiaspose_t *pose;
+	galiasgroup_t *frame;
+	dtrivertx_t		*pinframe;
+	daliasframe_t *frameinfo;
+	int				i, j, k;
+	daliasgroup_t *ingroup;
+	daliasinterval_t *intervals;
+	float sinter;
+
+	vec3_t *normals, *svec, *tvec;
+	vecV_t *verts;
+
+	frame = (galiasgroup_t*)((char *)galias + galias->groupofs);
+
+	for (i = 0; i < pq1inmodel->numframes; i++)
+	{
+		switch(LittleLong(pframetype->type))
+		{
+		case ALIAS_SINGLE:
+			frameinfo = (daliasframe_t*)((char *)(pframetype+1));
+			pinframe = (dtrivertx_t*)((char*)frameinfo+sizeof(daliasframe_t));
+			pose = (galiaspose_t *)Hunk_Alloc(sizeof(galiaspose_t) + (sizeof(vecV_t)+sizeof(vec3_t)*3)*galias->numverts);
+			frame->poseofs = (char *)pose - (char *)frame;
+			frame->numposes = 1;
+			galias->groups++;
+
+			Q_strncpyz(frame->name, frameinfo->name, sizeof(frame->name));
+
+			verts = (vecV_t *)(pose+1);
+			normals = (vec3_t*)&verts[galias->numverts];
+			svec = &normals[galias->numverts];
+			tvec = &svec[galias->numverts];
+			pose->ofsverts = (char *)verts - (char *)pose;
+#ifndef SERVERONLY
+			pose->ofsnormals = (char *)normals - (char *)pose;
+			pose->ofssvector = (char *)svec - (char *)pose;
+			pose->ofstvector = (char *)tvec - (char *)pose;
+#else
+#pragma message("wasted memory")
+#endif
+
+			for (j = 0; j < galias->numverts; j++)
+			{
+				verts[j][0] = pinframe[seamremaps[j]].v[0]*pq1inmodel->scale[0]+pq1inmodel->scale_origin[0];
+				verts[j][1] = pinframe[seamremaps[j]].v[1]*pq1inmodel->scale[1]+pq1inmodel->scale_origin[1];
+				verts[j][2] = pinframe[seamremaps[j]].v[2]*pq1inmodel->scale[2]+pq1inmodel->scale_origin[2];
+#ifndef SERVERONLY
+				VectorCopy(r_avertexnormals[pinframe[seamremaps[j]].lightnormalindex], normals[j]);
+#endif
+			}
+
+//			GL_GenerateNormals((float*)verts, (float*)normals, (int *)((char *)galias + galias->ofs_indexes), galias->numindexes/3, galias->numverts);
+
+			pframetype = (daliasframetype_t *)&pinframe[pq1inmodel->numverts];
+			break;
+
+		case ALIAS_GROUP:
+		case ALIAS_GROUP_SWAPPED: // prerelease
+			ingroup = (daliasgroup_t *)(pframetype+1);
+
+			pose = (galiaspose_t *)Hunk_Alloc(LittleLong(ingroup->numframes)*(sizeof(galiaspose_t) + (sizeof(vecV_t)+sizeof(vec3_t)*3)*galias->numverts));
+			frame->poseofs = (char *)pose - (char *)frame;
+			frame->numposes = LittleLong(ingroup->numframes);
+			frame->loop = true;
+			galias->groups++;
+
+			verts = (vecV_t *)(pose+frame->numposes);
+			normals = (vec3_t*)&verts[galias->numverts];
+			svec = &normals[galias->numverts];
+			tvec = &svec[galias->numverts];
+
+			intervals = (daliasinterval_t *)(ingroup+1);
+			sinter = LittleFloat(intervals->interval);
+			if (sinter <= 0)
+				sinter = 0.1;
+			frame->rate = 1/sinter;
+
+			pinframe = (dtrivertx_t *)(intervals+frame->numposes);
+			for (k = 0; k < frame->numposes; k++)
+			{
+				pose->ofsverts = (char *)verts - (char *)pose;
+#ifndef SERVERONLY
+				pose->ofsnormals = (char *)normals - (char *)pose;
+				pose->ofssvector = (char *)svec - (char *)pose;
+				pose->ofstvector = (char *)tvec - (char *)pose;
+#endif
+
+				frameinfo = (daliasframe_t*)pinframe;
+				pinframe = (dtrivertx_t *)((char *)frameinfo + sizeof(daliasframe_t));
+
+				if (k == 0)
+					Q_strncpyz(frame->name, frameinfo->name, sizeof(frame->name));
+
+				for (j = 0; j < galias->numverts; j++)
+				{
+					verts[j][0] = pinframe[seamremaps[j]].v[0]*pq1inmodel->scale[0]+pq1inmodel->scale_origin[0];
+					verts[j][1] = pinframe[seamremaps[j]].v[1]*pq1inmodel->scale[1]+pq1inmodel->scale_origin[1];
+					verts[j][2] = pinframe[seamremaps[j]].v[2]*pq1inmodel->scale[2]+pq1inmodel->scale_origin[2];
+#ifndef SERVERONLY
+					VectorCopy(r_avertexnormals[pinframe[seamremaps[j]].lightnormalindex], normals[j]);
+#endif
+				}
+				verts = (vecV_t*)&tvec[galias->numverts];
+				normals = (vec3_t*)&verts[galias->numverts];
+				svec = &normals[galias->numverts];
+				tvec = &svec[galias->numverts];
+				pose++;
+
+				pinframe += pq1inmodel->numverts;
+			}
+
+//			GL_GenerateNormals((float*)verts, (float*)normals, (int *)((char *)galias + galias->ofs_indexes), galias->numindexes/3, galias->numverts);
+
+			pframetype = (daliasframetype_t *)pinframe;
+			break;
+		default:
+			Con_Printf(CON_ERROR "Bad frame type in %s\n", loadmodel->name);
+			return NULL;
+		}
+		frame++;
+	}
+	return pframetype;
+}
+
 //greatly reduced version of Q1_LoadSkins
 //just skips over the data
 static void *Q1_LoadSkins_SV (daliasskintype_t *pskintype, qboolean alpha)
@@ -2010,16 +2100,30 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 				if (!TEXVALID(texture))
 				{
 					snprintf(skinname, sizeof(skinname), "%s__%i", loadname, i);
-					texture = R_LoadTexture8(skinname, outskin->skinwidth, outskin->skinheight, saved, (skintranstype?0:IF_NOALPHA)|IF_NOGAMMA, skintranstype);
-					if (r_fb_models.ival)
+					switch (skintranstype)
 					{
-						snprintf(skinname, sizeof(skinname), "%s__%i_luma", loadname, i);
-						fbtexture = R_LoadTextureFB(skinname, outskin->skinwidth, outskin->skinheight, saved, IF_NOGAMMA);
-					}
-					if (gl_bump.ival)
-					{
-						snprintf(skinname, sizeof(skinname), "%s__%i_bump", loadname, i);
-						bumptexture = R_LoadTexture8BumpPal(skinname, outskin->skinwidth, outskin->skinheight, saved, IF_NOGAMMA);
+					default:
+						texture = R_LoadTexture(skinname,outskin->skinwidth,outskin->skinheight, TF_SOLID8, saved, IF_NOALPHA|IF_NOGAMMA);
+						if (r_fb_models.ival)
+						{
+							snprintf(skinname, sizeof(skinname), "%s__%i_luma", loadname, i);
+							fbtexture = R_LoadTextureFB(skinname, outskin->skinwidth, outskin->skinheight, saved, IF_NOGAMMA);
+						}
+						if (gl_bump.ival)
+						{
+							snprintf(skinname, sizeof(skinname), "%s__%i_bump", loadname, i);
+							bumptexture = R_LoadTexture8BumpPal(skinname, outskin->skinwidth, outskin->skinheight, saved, IF_NOGAMMA);
+						}
+						break;
+					case 2:
+						texture = R_LoadTexture(skinname,outskin->skinwidth,outskin->skinheight, TF_H2_T7G1, saved, IF_NOGAMMA);
+						break;
+					case 3:
+						texture = R_LoadTexture(skinname,outskin->skinwidth,outskin->skinheight, TF_H2_TRANS8_0, saved, IF_NOGAMMA);
+						break;
+					case 4:
+						texture = R_LoadTexture(skinname,outskin->skinwidth,outskin->skinheight, TF_H2_T4A4, saved, IF_NOGAMMA);
+						break;
 					}
 				}
 			}
@@ -2032,7 +2136,27 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 
 
 			sprintf(skinname, "%s_%i", loadname, i);
-			texnums->shader = R_RegisterSkin(skinname);
+			if (skintranstype == 4)
+				texnums->shader = R_RegisterShader(skinname,
+					"{\n"
+						"{\n"
+							"map $diffuse\n"
+							"blendfunc gl_one_minus_src_alpha gl_src_alpha\n"
+							"rgbgen lightingDiffuse\n"
+							"cull disable\n"
+						"}\n"
+					"}\n");
+			else if (skintranstype)
+				texnums->shader = R_RegisterShader(skinname,
+					"{\n"
+						"{\n"
+							"map $diffuse\n"
+							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
+							"rgbgen lightingDiffuse\n"
+						"}\n"
+					"}\n");
+			else
+				texnums->shader = R_RegisterSkin(skinname);
 			R_BuildDefaultTexnums(texnums, texnums->shader);
 
 			texnums->loweroverlay = r_nulltex;
@@ -2159,14 +2283,16 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 	int version;
 	int i, onseams;
 	dstvert_t *pinstverts;
-	dtriangle_t *pintriangles;
+	dtriangle_t *pinq1triangles;
+	dh2triangle_t *pinh2triangles;
 	int *seamremap;
 	index_t *indexes;
-	qboolean qtest = false;
 	daliasskintype_t *skinstart;
 	int skintranstype;
 
 	int size;
+	unsigned int hdrsize;
+	void *end;
 
 	loadmodel=mod;
 
@@ -2174,11 +2300,17 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 
 	pq1inmodel = (dmdl_t *)buffer;
 
+	hdrsize = sizeof(dmdl_t) - sizeof(int);
+
 	loadmodel->engineflags |= MDLF_NEEDOVERBRIGHT;
 
 	version = LittleLong(pq1inmodel->version);
 	if (version == QTESTALIAS_VERSION)
-		qtest = true;
+	{
+		hdrsize = sizeof(dmdl_t) - sizeof(int)*3;
+	}
+	else if (version == 50)
+		hdrsize = sizeof(dmdl_t);
 	else if (version != ALIAS_VERSION)
 	{
 		Con_Printf (CON_ERROR "%s has wrong version number (%i should be %i)\n",
@@ -2188,10 +2320,7 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 
 	seamremap = (int*)pq1inmodel;	//I like overloading locals.
 
-	if (qtest)
-		i = sizeof(dmdl_t)/4 - sizeof(int)*2 - 1;
-	else
-		i = sizeof(dmdl_t)/4 - 1;
+	i = hdrsize/4 - 1;
 
 	for (; i >= 0; i--)
 		seamremap[i] = LittleLong(seamremap[i]);
@@ -2207,7 +2336,7 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 		return false;
 	}
 
-	if (qtest)
+	if (hdrsize <= (unsigned int)&((dmdl_t*)NULL)->flags)
 		mod->flags = 0; // Qtest has no flags in header
 	else
 		mod->flags = pq1inmodel->flags;
@@ -2226,10 +2355,8 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 	galias->nextsurf = 0;
 
 //skins
-	if (qtest)
-		skinstart = (daliasskintype_t *)((char *)buffer + sizeof(dmdl_t) - sizeof(int)*2);
-	else
-		skinstart = (daliasskintype_t *)(pq1inmodel+1);
+	skinstart = (daliasskintype_t *)((char*)pq1inmodel+hdrsize);
+
 	if( mod->flags & EFH2_HOLEY )
 		skintranstype = 3;	//hexen2
 	else if( mod->flags & EFH2_TRANSPARENT )
@@ -2252,81 +2379,155 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 		break;
 	}
 
-
-
-	//count number of verts that are onseam.
-	for (onseams=0,i = 0; i < pq1inmodel->numverts; i++)
+	if (hdrsize == sizeof(dmdl_t))
 	{
-		if (pinstverts[i].onseam)
-			onseams++;
-	}
-	seamremap = BZ_Malloc(sizeof(int)*pq1inmodel->numverts);
+		int t, v, k;
+		int *stremap;
+		/*separate st + vert lists*/
+		pinh2triangles = (dh2triangle_t *)&pinstverts[pq1inmodel->num_st];
 
-	galias->numverts = pq1inmodel->numverts+onseams;
+		/*each triangle can use one coord and one st, for each vert, that's a lot of combinations*/
+		
+		seamremap = BZ_Malloc(sizeof(int)*pq1inmodel->numtris*6);
+		stremap = seamremap + pq1inmodel->numtris*3;
 
-	//st
-#ifndef SERVERONLY
-	st_array = Hunk_Alloc(sizeof(*st_array)*(pq1inmodel->numverts+onseams));
-	galias->ofs_st_array = (char *)st_array - (char *)galias;
-	for (j=pq1inmodel->numverts,i = 0; i < pq1inmodel->numverts; i++)
-	{
-		st_array[i][0] = (LittleLong(pinstverts[i].s)+0.5)/(float)pq1inmodel->skinwidth;
-		st_array[i][1] = (LittleLong(pinstverts[i].t)+0.5)/(float)pq1inmodel->skinheight;
-
-		if (pinstverts[i].onseam)
+		/*output the indicies as we figure out which verts we want*/
+		galias->numindexes = pq1inmodel->numtris*3;
+		indexes = Hunk_Alloc(galias->numindexes*sizeof(*indexes));
+		galias->ofs_indexes = (char *)indexes - (char *)galias;
+		for (i = 0; i < pq1inmodel->numtris; i++)
 		{
-			st_array[j][0] = st_array[i][0]+0.5;
-			st_array[j][1] = st_array[i][1];
-			seamremap[i] = j;
-			j++;
+			for (j = 0; j < 3; j++)
+			{
+				v = LittleShort(pinh2triangles[i].vertindex[j]);
+				t = LittleShort(pinh2triangles[i].stindex[j]);
+				if (pinstverts[t].onseam && !pinh2triangles[i].facesfront)
+					t += pq1inmodel->num_st;
+			 	for (k = 0; k < galias->numverts; k++) /*big fatoff slow loop*/
+				{
+					if (stremap[k] == t && seamremap[k] == v)
+						break;
+				}
+				if (k == galias->numverts)
+				{
+					galias->numverts++;
+					stremap[k] = t;
+					seamremap[k] = v;
+				}
+				indexes[i*3+j] = k;
+			}
 		}
-		else
-			seamremap[i] = i;
-	}
-#endif
 
-	//trianglelists;
-	pintriangles = (dtriangle_t *)&pinstverts[pq1inmodel->numverts];
-
-	galias->numindexes = pq1inmodel->numtris*3;
-	indexes = Hunk_Alloc(galias->numindexes*sizeof(*indexes));
-	galias->ofs_indexes = (char *)indexes - (char *)galias;
-	for (i=0 ; i<pq1inmodel->numtris ; i++)
-	{
-		if (!pintriangles[i].facesfront)
+		st_array = Hunk_Alloc(sizeof(*st_array)*(galias->numverts));
+		galias->ofs_st_array = (char *)st_array - (char *)galias;
+		/*generate our st_array now we know which vertexes we want*/
+		for (k = 0; k < galias->numverts; k++)
 		{
-			indexes[i*3+0] = seamremap[LittleLong(pintriangles[i].vertindex[0])];
-			indexes[i*3+1] = seamremap[LittleLong(pintriangles[i].vertindex[1])];
-			indexes[i*3+2] = seamremap[LittleLong(pintriangles[i].vertindex[2])];
+			if (stremap[k] > pq1inmodel->num_st)
+			{	/*onseam verts? shrink the index, and add half a texture width to the s coord*/
+				st_array[k][0] = 0.5+(LittleLong(pinstverts[stremap[k]-pq1inmodel->num_st].s)+0.5)/(float)pq1inmodel->skinwidth;
+				st_array[k][1] = (LittleLong(pinstverts[stremap[k]-pq1inmodel->num_st].t)+0.5)/(float)pq1inmodel->skinheight;
+			}
+			else
+			{
+				st_array[k][0] = (LittleLong(pinstverts[stremap[k]].s)+0.5)/(float)pq1inmodel->skinwidth;
+				st_array[k][1] = (LittleLong(pinstverts[stremap[k]].t)+0.5)/(float)pq1inmodel->skinheight;
+			}
 		}
-		else
-		{
-			indexes[i*3+0] = LittleLong(pintriangles[i].vertindex[0]);
-			indexes[i*3+1] = LittleLong(pintriangles[i].vertindex[1]);
-			indexes[i*3+2] = LittleLong(pintriangles[i].vertindex[2]);
-		}
-	}
 
-	//frames
-	if (qtest)
-	{
-		if (QTest_LoadFrameGroup((daliasframetype_t *)&pintriangles[pq1inmodel->numtris], seamremap) == NULL)
+		end = &pinh2triangles[pq1inmodel->numtris];
+
+		if (H1_LoadFrameGroup((daliasframetype_t *)end, seamremap) == NULL)
 		{
 			BZ_Free(seamremap);
 			Hunk_FreeToLowMark (hunkstart);
 			return false;
 		}
+
+		BZ_Free(seamremap);
 	}
 	else
 	{
-		if (Q1_LoadFrameGroup((daliasframetype_t *)&pintriangles[pq1inmodel->numtris], seamremap) == NULL)
+		/*onseam means +=skinwidth/2
+		verticies that are marked as onseam potentially generate two output verticies.
+		the triangle chooses which side based upon its 'onseam' field.
+		*/
+
+		//count number of verts that are onseam.
+		for (onseams=0,i = 0; i < pq1inmodel->numverts; i++)
 		{
-			BZ_Free(seamremap);
-			Hunk_FreeToLowMark (hunkstart);
-			return false;
+			if (pinstverts[i].onseam)
+				onseams++;
 		}
+		seamremap = BZ_Malloc(sizeof(int)*pq1inmodel->numverts);
+
+		galias->numverts = pq1inmodel->numverts+onseams;
+
+		//st
+	#ifndef SERVERONLY
+		st_array = Hunk_Alloc(sizeof(*st_array)*(pq1inmodel->numverts+onseams));
+		galias->ofs_st_array = (char *)st_array - (char *)galias;
+		for (j=pq1inmodel->numverts,i = 0; i < pq1inmodel->numverts; i++)
+		{
+			st_array[i][0] = (LittleLong(pinstverts[i].s)+0.5)/(float)pq1inmodel->skinwidth;
+			st_array[i][1] = (LittleLong(pinstverts[i].t)+0.5)/(float)pq1inmodel->skinheight;
+
+			if (pinstverts[i].onseam)
+			{
+				st_array[j][0] = st_array[i][0]+0.5;
+				st_array[j][1] = st_array[i][1];
+				seamremap[i] = j;
+				j++;
+			}
+			else
+				seamremap[i] = i;
+		}
+	#endif
+
+		//trianglelists;
+		pinq1triangles = (dtriangle_t *)&pinstverts[pq1inmodel->numverts];
+
+		galias->numindexes = pq1inmodel->numtris*3;
+		indexes = Hunk_Alloc(galias->numindexes*sizeof(*indexes));
+		galias->ofs_indexes = (char *)indexes - (char *)galias;
+		for (i=0 ; i<pq1inmodel->numtris ; i++)
+		{
+			if (!pinq1triangles[i].facesfront)
+			{
+				indexes[i*3+0] = seamremap[LittleLong(pinq1triangles[i].vertindex[0])];
+				indexes[i*3+1] = seamremap[LittleLong(pinq1triangles[i].vertindex[1])];
+				indexes[i*3+2] = seamremap[LittleLong(pinq1triangles[i].vertindex[2])];
+			}
+			else
+			{
+				indexes[i*3+0] = LittleLong(pinq1triangles[i].vertindex[0]);
+				indexes[i*3+1] = LittleLong(pinq1triangles[i].vertindex[1]);
+				indexes[i*3+2] = LittleLong(pinq1triangles[i].vertindex[2]);
+			}
+		}
+		end = &pinq1triangles[pq1inmodel->numtris];
+
+		//frames
+		if (hdrsize <= (unsigned int)&((dmdl_t*)NULL)->flags)
+		{
+			if (QTest_LoadFrameGroup((daliasframetype_t *)end, seamremap) == NULL)
+			{
+				BZ_Free(seamremap);
+				Hunk_FreeToLowMark (hunkstart);
+				return false;
+			}
+		}
+		else
+		{
+			if (Q1_LoadFrameGroup((daliasframetype_t *)end, seamremap) == NULL)
+			{
+				BZ_Free(seamremap);
+				Hunk_FreeToLowMark (hunkstart);
+				return false;
+			}
+		}
+		BZ_Free(seamremap);
 	}
-	BZ_Free(seamremap);
 
 
 	Mod_CompileTriangleNeighbours(galias);
@@ -4138,6 +4339,261 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 
 
 #endif	//ZYMOTICMODELS
+
+
+#ifdef INTERQUAKEMODELS
+#define IQM_MAGIC "INTERQUAKEMODEL"
+#define IQM_VERSION 1
+
+struct iqmheader
+{
+    char magic[16];
+    unsigned int version;
+    unsigned int filesize;
+    unsigned int flags;
+    unsigned int num_text, ofs_text;
+    unsigned int num_meshes, ofs_meshes;
+    unsigned int num_vertexarrays, num_vertexes, ofs_vertexarrays;
+    unsigned int num_triangles, ofs_triangles, ofs_adjacency;
+    unsigned int num_joints, ofs_joints;
+    unsigned int num_poses, ofs_poses;
+    unsigned int num_anims, ofs_anims;
+    unsigned int num_frames, num_framechannels, ofs_frames, ofs_bounds;
+    unsigned int num_comment, ofs_comment;
+    unsigned int num_extensions, ofs_extensions;
+};
+
+struct iqmmesh
+{
+    unsigned int name;
+    unsigned int material;
+    unsigned int first_vertex, num_vertexes;
+    unsigned int first_triangle, num_triangles;
+};
+
+enum
+{
+    IQM_POSITION     = 0,
+    IQM_TEXCOORD     = 1,
+    IQM_NORMAL       = 2,
+    IQM_TANGENT      = 3,
+    IQM_BLENDINDEXES = 4,
+    IQM_BLENDWEIGHTS = 5,
+    IQM_COLOR        = 6,
+    IQM_CUSTOM       = 0x10
+};
+
+enum
+{
+    IQM_BYTE   = 0,
+    IQM_UBYTE  = 1,
+    IQM_SHORT  = 2,
+    IQM_USHORT = 3,
+    IQM_INT    = 4,
+    IQM_UINT   = 5,
+    IQM_HALF   = 6,
+    IQM_FLOAT  = 7,
+    IQM_DOUBLE = 8,
+};
+
+struct iqmtriangle
+{
+    unsigned int vertex[3];
+};
+
+struct iqmjoint
+{
+    unsigned int name;
+    int parent;
+    float translate[3], rotate[3], scale[3];
+};
+
+struct iqmpose
+{
+    int parent;
+    unsigned int mask;
+    float channeloffset[9];
+    float channelscale[9];
+};
+
+struct iqmanim
+{
+    unsigned int name;
+    unsigned int first_frame, num_frames;
+    float framerate;
+    unsigned int flags;
+};
+
+enum
+{
+    IQM_LOOP = 1<<0
+};
+
+struct iqmvertexarray
+{
+    unsigned int type;
+    unsigned int flags;
+    unsigned int format;
+    unsigned int size;
+    unsigned int offset;
+};
+
+struct iqmbounds
+{
+    float bbmin[3], bbmax[3];
+    float xyradius, radius;
+};
+
+galisskeletaltransforms_t *IQM_ImportTransforms(int *resultcount, int inverts, float *vpos, float *tcoord, float *vnorm, float *vtang, unsigned char *vbone, unsigned char *vweight)
+{
+	galisskeletaltransforms_t *t, *r;
+	unsigned int num_t = 0;
+	unsigned int 0;
+	for (v = 0; v < inverts*4; v++)
+	{
+		if (vweight[v])
+			num_t++;
+	}
+	t = r = Hunk_Alloc(sizeof(*r)*num_t);
+	for (v = 0; v < inverts; v++)
+	{
+		for (j = 0; j < 4; j++)
+		{
+			if (vweight[v<<2+j])
+			{
+				t->boneindex = vbone[v<<2+j];
+				t->vertexindex = v;
+				VectorScale(vpos, vweight[v<<2+j]/255.0, t->org);
+				VectorScale(vnorm, vweight[v<<2+j]/255.0, t->normal);
+				t++;
+			}
+		}
+	}
+	return r;
+}
+
+galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer)
+{
+	struct iqmheader *h = (struct iqmheader *)buffer;
+	struct iqmjoint *joint;
+	struct iqmmesh *mesh;
+	struct iqmvertexarray *varray;
+
+	galiasinfo_t *gai;
+
+	if (memcmp(h->magic, IQM_MAGIC, sizeof(h->magic))
+	{
+		Con_Printf("%s: format not recognised\n", mod->name);
+		return false;
+	}
+	if (h->version != IQM_VERSION)
+	{
+		Con_Printf("%s: unsupported version\n", mod->name);
+		return false;
+	}
+	if (h->filesize != com_filesize)
+	{
+		Con_Printf("%s: size (%u != %u)\n", mod->name, h->filesize, com_filesize);
+		return false;
+	}
+
+	struct iqmjoint
+	    unsigned int name;
+    int parent;
+    float translate[3], rotate[3], scale[3];
+
+	unsigned int num_meshes, ofs_meshes;
+    unsigned int num_vertexarrays, num_vertexes, ofs_vertexarrays;
+    unsigned int num_triangles, ofs_triangles, ofs_adjacency;
+    unsigned int num_joints, ofs_joints;
+
+
+	float *vpos = NULL, *tcoord = NULL, *vnorm = NULL, *vtang = NULL;
+	unsigned char *vbone = NULL, *vweight = NULL;
+	unsigned int type, fmt, size, offset;
+	
+	varray = (struct iqmvertexarray*)(buffer + h->ofs_vertexarrays);
+	for (i = 0; i < h->num_vertexarrays; i++)
+	{
+		type = LittleLong(varray[i].type);
+		fmt = LittleLong(varray[i].format);
+		size = LittleLong(varray[i].size);
+		offset = LittleLong(varray[i].offset);
+		if (type == IQM_POSITION && fmt == IQM_FLOAT && size == 3)
+			vpos = (float*)(buffer + offset);
+		else if (type == IQM_TEXCOORD && fmt == IQM_FLOAT && size == 2)
+			tcoord = (float*)(buffer + offset);
+		else if (type == IQM_NORMAL && fmt == IQM_FLOAT && size == 3)
+			vnorm = (float*)(buffer + offset);
+		else if (type == IQM_TANGENT && fmt == IQM_FLOAT && size == 4) /*yup, 4*/
+			vtang = (float*)(buffer + offset);
+		else if (type == IQM_BLENDINDEXES && fmt == IQM_UBYTE && size == 4)
+			vbone = (unsigned char *)(buffer + offset);
+		else if (type == IQM_BLENDWEIGHTS && fmt == IQM_UBYTE && size == 4)
+			vweight = (unsigned char *)(buffer + offset);
+	}
+
+	gai = Hunk_Alloc(sizeof(*gai)*h->num_meshes);
+	for (i = 0; i < h->num_meshes; i++)
+	{
+		gai[i].nextsurf = (i == (h->num_meshes-1))?0:sizeof(*gai);
+		gai[i].sharesverts = false;	//used with models with two shaders using the same vertex - use last mesh's verts
+		gai[i].sharesbones = i != 0;
+		gai[i].numverts = LittleLong(mesh[i].num_vertexes);
+		offset = LittleLong(mesh[i].first_vertex);
+
+		/*generate transforms for each vertex*/
+		gai[i].ofstransforms = (char*)IQM_ImportTransforms(&gai[i].numtransforms, gai[i].numverts, vpos+offset*3, tcoord+offset*2, vnorm+offset*3, vtang+offset*4, vbone+offset*4, vweight+offset*4) - (char*)gai;
+	}
+galiasinfo_t
+	    unsigned int name;
+    unsigned int material;
+    unsigned int first_vertex, num_vertexes;
+    unsigned int first_triangle, num_triangles;
+
+}
+
+qboolean Mod_ParseIQMAnim(char *buffer, galiasinfo_t *prototype, void**poseofs, galiasgroup_t *gat)
+{
+}
+
+
+
+qboolean Mod_LoadInterQuakeModel(model_t *mod, void *buffer)
+{
+	galiasinfo_t *root;
+	struct iqmheader *h = (struct iqmheader *)buffer;
+
+	hunkstart = Hunk_LowMark();
+	root = Mod_ParseMD5MeshModel(buffer);
+	if (!root)
+		return false;
+	hunkend = Hunk_LowMark();
+
+	mod->flags = h->flags;
+
+	Mod_ClampModelSize(mod);
+
+	Hunk_Alloc(0);
+	hunktotal = hunkend - hunkstart;
+
+	Cache_Alloc (&mod->cache, hunktotal, loadname);
+	mod->type = mod_alias;
+	if (!mod->cache.data)
+	{
+		Hunk_FreeToLowMark (hunkstart);
+		return false;
+	}
+	memcpy (mod->cache.data, root, hunktotal);
+
+	Hunk_FreeToLowMark (hunkstart);
+	return true;
+}
+#endif
+
+
+
+
 
 #ifdef MD5MODELS
 

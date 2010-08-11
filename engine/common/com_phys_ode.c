@@ -1883,8 +1883,7 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			ed->ode.ode_geom = (void *)dCreateSphere(world->ode.ode_space, geomsize[0] * 0.5f);
 			dMassSetSphereTotal(&mass, massval, geomsize[0] * 0.5f);
 			break;
-#pragma message("SOLID_PHYSICS_CAPSULE not supported")
-/*		case SOLID_PHYSICS_CAPSULE:
+		case SOLID_PHYSICS_CAPSULE:
 			axisindex = 0;
 			if (geomsize[axisindex] < geomsize[1])
 				axisindex = 1;
@@ -1896,11 +1895,11 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			// transform to it
 			memset(capsulerot, 0, sizeof(capsulerot));
 			if (axisindex == 0)
-				Matrix4_CreateFromQuakeEntity(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 0, 0, 90, 1);
+				Matrix4_ModelMatrix(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 0, 0, 90, 1);
 			else if (axisindex == 1)
-				Matrix4_CreateFromQuakeEntity(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 90, 0, 0, 1);
+				Matrix4_ModelMatrix(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 90, 0, 0, 1);
 			else
-				Matrix4_CreateFromQuakeEntity(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 0, 0, 0, 1);
+				Matrix4_ModelMatrix(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 0, 0, 0, 1);
 			radius = geomsize[!axisindex] * 0.5f; // any other axis is the radius
 			length = geomsize[axisindex] - radius*2;
 			// because we want to support more than one axisindex, we have to
@@ -1909,7 +1908,6 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			ed->ode.ode_geom = (void *)dCreateCapsule(world->ode.ode_space, radius, length);
 			dMassSetCapsuleTotal(&mass, massval, axisindex+1, radius, length);
 			break;
-*/
 		default:
 			Sys_Error("World_Physics_BodyFromEntity: unrecognized solid value %i was accepted by filter\n", solid);
 		}

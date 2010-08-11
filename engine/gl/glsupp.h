@@ -40,8 +40,12 @@ extern qlpMTex2FUNC		qglMultiTexCoord2fARB;
 ./gl/gl_draw.c:3251: error: for each function it appears in.)
 */
 #ifndef GL_EXT_bgra
-#define GL_BGR_EXT                        0x80E0
+#define GL_BGR_EXT                        0x80E0	/*core in opengl 1.2*/
 #define GL_BGRA_EXT                       0x80E1
+#endif
+
+#ifndef GL_UNSIGNED_INT_8_8_8_8_REV
+#define GL_UNSIGNED_INT_8_8_8_8_REV       0x8367	/*opengl 1.2*/
 #endif
 
 #ifndef GL_ARB_multitexture

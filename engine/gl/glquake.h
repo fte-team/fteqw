@@ -222,8 +222,6 @@ extern	int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 
 extern	texid_t	netgraphtexture;	// netgraph texture
 
-extern	int		gl_lightmap_format;
-
 extern	int			mirrortexturenum;	// quake texturenum, not gltexturenum
 extern	qboolean	mirror;
 extern	mplane_t	*mirror_plane;

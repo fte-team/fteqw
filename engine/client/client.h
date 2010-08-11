@@ -263,6 +263,7 @@ typedef struct dlight_s
 	unsigned int flags;
 
 	//the following are used for rendering (client code should clear on create)
+	qboolean rebuildcache;
 	struct	shadowmesh_s *worldshadowmesh;
 	texid_t stexture;
 	struct {
@@ -315,6 +316,7 @@ typedef struct
 // connection information
 	cactive_t	state;
 
+	/*Specifies which protocol family we're speaking*/
 	enum {
 		CP_UNKNOWN,
 		CP_QUAKEWORLD,
@@ -323,6 +325,25 @@ typedef struct
 		CP_QUAKE3,
 		CP_PLUGIN
 	} protocol;
+
+	/*QuakeWorld protocol flags*/
+#ifdef PROTOCOLEXTENSIONS
+	unsigned long fteprotocolextensions;
+	unsigned long fteprotocolextensions2;
+#endif
+	unsigned long z_ext;
+
+	/*NQ Protocol flags*/
+	enum
+	{
+		CPNQ_ID,
+		CPNQ_FITZ666,
+		CPNQ_DP5,
+		CPNQ_DP6,
+		CPNQ_DP7
+	} protocol_nq;
+	#define CPNQ_IS_DP (cls.protocol_nq >= CPNQ_DP5)
+
 
 	qboolean resendinfo;
 	qboolean findtrack;
@@ -397,11 +418,6 @@ typedef struct
 	float		maxfps;	//server capped
 	enum {GAME_DEATHMATCH, GAME_COOP} gamemode;
 
-#ifdef PROTOCOLEXTENSIONS
-	unsigned long fteprotocolextensions;
-	unsigned long fteprotocolextensions2;
-#endif
-	unsigned long z_ext;
 #ifdef NQPROT
 	int signon;
 #endif
@@ -411,8 +427,6 @@ typedef struct
 } client_static_t;
 
 extern client_static_t	cls;
-
-extern int nq_dp_protocol;
 
 typedef struct downloadlist_s {
 	char rname[128];
@@ -695,20 +709,20 @@ extern cvar_t ruleset_allow_sensative_texture_replacements;
 extern cvar_t ruleset_allow_localvolume;
 extern cvar_t ruleset_allow_shaders;
 
-#define	MAX_STATIC_ENTITIES	256			// torches, etc
-
 extern	client_state_t	cl;
 
 typedef struct
 {
 	entity_t		ent;
 	trailstate_t   *emit;
+	int	mdlidx;	/*negative are csqc indexes*/
 	pvscache_t		pvscache;
 } static_entity_t;
 
 // FIXME, allocate dynamically
 extern	entity_state_t *cl_baselines;
-extern	static_entity_t		cl_static_entities[MAX_STATIC_ENTITIES];
+extern	static_entity_t		*cl_static_entities;
+extern  unsigned int    cl_max_static_entities;
 extern	lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 extern	dlight_t		*cl_dlights;
 extern	unsigned int	cl_maxdlights;
@@ -820,6 +834,7 @@ void CL_UpdateTEnts (void);
 void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end);
 
 void CL_ClearState (void);
+void CLQ2_ClearState(void);
 
 void CL_ReadPackets (void);
 void CL_ClampPitch (int pnum);

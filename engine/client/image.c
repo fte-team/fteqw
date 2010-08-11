@@ -1951,6 +1951,44 @@ qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, char *fn
 	return NULL;
 }
 
+static struct
+{
+	char *name;
+	int enabled;
+} tex_extensions[] =
+{//reverse order of preference - (match commas with optional file types)
+	{".pcx", 1},	//pcxes are the original gamedata of q2. So we don't want them to override pngs.
+#ifdef AVAIL_JPEGLIB
+	{".jpg", 1},	//q3 uses some jpegs, for some reason
+#endif
+	{".bmp", 0},	//wtf? at least not lossy
+#ifdef AVAIL_PNGLIB
+	{".png", 1},	//pngs, fairly common, but slow
+#endif
+	{".tga", 1},	//fairly fast to load
+#ifdef DDS
+	{".dds", 1},	//compressed or something
+#endif
+	{"", 1}			//someone forgot an extension
+};
+
+static struct 
+{
+	int args;
+	char *path;
+
+	int enabled;
+} tex_path[] =
+{
+	/*if three args, first is the subpath*/
+	/*the last two args are texturename then extension*/
+	{2, "%s%s", 1},				/*directly named texture*/
+	{3, "textures/%s/%s%s", 1},	/*fuhquake compatibility*/
+	{3, "%s/%s%s", 1},			/*fuhquake compatibility*/
+	{2, "textures/%s%s", 1},	/*directly named texture with textures/ prefix*/
+	{2, "override/%s%s", 1}		/*tenebrae compatibility*/
+};
+
 int image_width, image_height;
 qbyte *COM_LoadFile (char *path, int usehunk);
 //fixme: should probably get rid of the 'Mod' prefix, and use something more suitable.
@@ -1961,31 +1999,6 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 	texid_t tex;
 //	int h;
 	char fname[MAX_QPATH], nicename[MAX_QPATH];
-
-	static char *extensions[] =
-	{//reverse order of preference - (match commas with optional file types)
-		".pcx",	//pcxes are the original gamedata of q2. So we don't want them to override pngs.
-#ifdef AVAIL_JPEGLIB
-		".jpg",
-#endif
-		".bmp",
-#ifdef AVAIL_PNGLIB
-		".png",
-#endif
-		".tga",
-		""
-	};
-
-	static char *path[] =
-	{
-		/*if three args, first is the subpath*/
-		/*the last two args are texturename then extension*/
-		"2%s%s",
-		"3textures/%s/%s%s",
-		"3%s/%s%s",
-		"2textures/%s%s",
-		"2override/%s%s"
-	};
 
 	int i, e;
 
@@ -2020,39 +2033,34 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 		i = 1;
 
 	//should write this nicer.
-	for (; i < sizeof(path)/sizeof(char *); i++)
+	for (; i < sizeof(tex_path)/sizeof(tex_path[0]); i++)
 	{
-#ifdef DDS
-		if (path[i][0] >= '3')
+		if (!tex_path[i].enabled)
+			continue;
+		for (e = sizeof(tex_extensions)/sizeof(tex_extensions[0])-1; e >=0 ; e--)
 		{
-			if (!subpath)
-					continue;
-			snprintf(fname, sizeof(fname)-1, path[i]+1, subpath, /*COM_SkipPath*/(nicename), ".dds");
-		}
-		else
-			snprintf(fname, sizeof(fname)-1, path[i]+1, nicename, ".dds");
-		if ((buf = COM_LoadFile (fname, 5)))
-		{
-			tex = GL_LoadTextureDDS(buf, com_filesize);
-			BZ_Free(buf);
-			if (TEXVALID(tex))
-				return tex;
-		}
-#endif
+			if (!tex_extensions[e].enabled)
+				continue;
 
-		for (e = sizeof(extensions)/sizeof(char *)-1; e >=0 ; e--)
-		{
-			if (path[i][0] >= '3')
+			if (tex_path[i].args >= 3)
 			{
 				if (!subpath)
 					continue;
-				snprintf(fname, sizeof(fname)-1, path[i]+1, subpath, /*COM_SkipPath*/(nicename), extensions[e]);
+				snprintf(fname, sizeof(fname)-1, tex_path[i].path, subpath, nicename, tex_extensions[e].name);
 			}
 			else
-				snprintf(fname, sizeof(fname)-1, path[i]+1, nicename, extensions[e]);
+				snprintf(fname, sizeof(fname)-1, tex_path[i].path, nicename, tex_extensions[e].name);
 			TRACE(("dbg: Mod_LoadHiResTexture: trying %s\n", fname));
 			if ((buf = COM_LoadFile (fname, 5)))
 			{
+#ifdef DDS
+				tex = GL_LoadTextureDDS(buf, com_filesize);
+				if (TEXVALID(tex))
+				{
+					BZ_Free(buf);
+					return tex;
+				}
+#endif
 				if ((data = Read32BitImageFile(buf, com_filesize, &image_width, &image_height, fname)))
 				{
 					extern cvar_t vid_hardwaregamma;
@@ -2132,14 +2140,6 @@ texid_t R_LoadBumpmapTexture(char *name, char *subpath)
 		""
 	};
 
-	static char *path[] =
-	{
-		"%s%s",
-		"textures/%s/%s%s",	//this is special... It's special name is Mr Ben Ian Graham Hacksworth.
-		"textures/%s%s",
-		"override/%s%s"
-	};
-
 	int i, e;
 
 	TRACE(("dbg: Mod_LoadBumpmapTexture: texture %s\n", name));
@@ -2160,23 +2160,20 @@ texid_t R_LoadBumpmapTexture(char *name, char *subpath)
 		i = 1;
 
 	//should write this nicer.
-	for (; i < sizeof(path)/sizeof(char *); i++)
+	for (; i < sizeof(tex_path)/sizeof(tex_path[0]); i++)
 	{
+		if (!tex_path[i].enabled)
+			continue;
 		for (e = sizeof(extensions)/sizeof(char *)-1; e >=0 ; e--)
 		{
-			if (i == 1)
+			if (tex_path[i].args >= 3)
 			{
-				char map [MAX_QPATH*2];
-#ifndef CLIENTONLY
-				if (*sv.name)	//server loads before the client knows what's happening. I suppose we could have some sort of param...
-					Q_strncpyz(map, sv.name, sizeof(map));
-				else
-#endif
-					COM_FileBase(cl.model_name[1], map, sizeof(map));
-				snprintf(fname, sizeof(fname)-1, path[i], map, nicename, extensions[e]);
+				if (!subpath)
+					continue;
+				snprintf(fname, sizeof(fname)-1, tex_path[i].path, subpath, nicename, extensions[e]);
 			}
 			else
-				snprintf(fname, sizeof(fname)-1, path[i], nicename, extensions[e]);
+				snprintf(fname, sizeof(fname)-1, tex_path[i].path, nicename, extensions[e]);
 
 			TRACE(("dbg: Mod_LoadBumpmapTexture: opening %s\n", fname));
 

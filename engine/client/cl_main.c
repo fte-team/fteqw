@@ -135,7 +135,7 @@ cvar_t  cl_gunanglex = SCVAR("cl_gunanglex", "0");
 cvar_t  cl_gunangley = SCVAR("cl_gunangley", "0");
 cvar_t  cl_gunanglez = SCVAR("cl_gunanglez", "0");
 
-cvar_t	allow_download_csprogs = SCVARF("allow_download_csprogs", "0", CVAR_NOTFROMSERVER);
+cvar_t	allow_download_csprogs = SCVARF("allow_download_csprogs", "1", CVAR_NOTFROMSERVER);
 cvar_t	allow_download_redirection = SCVARF("allow_download_redirection", "0", CVAR_NOTFROMSERVER);
 cvar_t	requiredownloads = SCVARF("requiredownloads","1", CVAR_ARCHIVE);
 
@@ -182,7 +182,8 @@ client_state_t	cl;
 
 // alot of this should probably be dynamically allocated
 entity_state_t	*cl_baselines;
-static_entity_t cl_static_entities[MAX_STATIC_ENTITIES];
+static_entity_t *cl_static_entities;
+unsigned int    cl_max_static_entities;
 lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 //lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 dlight_t		*cl_dlights;
@@ -1054,6 +1055,8 @@ void CL_ClearState (void)
 // clear other arrays
 //	memset (cl_dlights, 0, sizeof(cl_dlights));
 	memset (cl_lightstyle, 0, sizeof(cl_lightstyle));
+	for (i = 0; i < MAX_LIGHTSTYLES; i++)
+		cl_lightstyle[i].colour = 7;
 
 	rtlights_first = rtlights_max = RTL_FIRST;
 
@@ -2018,7 +2021,7 @@ void CL_ConnectionlessPacket (void)
 	int		c;
 	char	adr[MAX_ADR_SIZE];
 
-    MSG_BeginReading ();
+    MSG_BeginReading (msg_nullnetprim);
     MSG_ReadLong ();        // skip the -1
 
 	Cmd_TokenizeString(net_message.data+4, false, false);
@@ -2410,7 +2413,7 @@ void CLNQ_ConnectionlessPacket(void)
 	char *s;
 	int length;
 
-	MSG_BeginReading ();
+	MSG_BeginReading (msg_nullnetprim);
 	length = LongSwap(MSG_ReadLong ());
 	if (!(length & NETFLAG_CTL))
 		return;	//not an nq control packet.
@@ -2522,7 +2525,7 @@ void CL_ReadPackets (void)
 #ifdef NQPROT
 		if (cls.demoplayback == DPB_NETQUAKE)
 		{
-			MSG_BeginReading ();
+			MSG_BeginReading (cls.netchan.netprim);
 			cls.netchan.last_received = realtime;
 			CLNQ_ParseServerMessage ();
 
@@ -2534,7 +2537,7 @@ void CL_ReadPackets (void)
 #ifdef Q2CLIENT
 		if (cls.demoplayback == DPB_QUAKE2)
 		{
-			MSG_BeginReading ();
+			MSG_BeginReading (cls.netchan.netprim);
 			cls.netchan.last_received = realtime;
 			CLQ2_ParseServerMessage ();
 			continue;
@@ -2585,6 +2588,7 @@ void CL_ReadPackets (void)
 			case NQP_DATAGRAM://datagram
 				cls.netchan.incoming_sequence = cls.netchan.outgoing_sequence - 3;
 			case NQP_RELIABLE://reliable
+				MSG_ChangePrimitives(cls.netchan.netprim);
 				CLNQ_ParseServerMessage ();
 				break;
 			}
@@ -2597,6 +2601,7 @@ void CL_ReadPackets (void)
 			if (!Netchan_Process(&cls.netchan))
 				continue;		// wasn't accepted for some reason
 			CLQ2_ParseServerMessage ();
+			break;
 #endif
 		case CP_QUAKE3:
 #ifdef Q3CLIENT
@@ -2606,7 +2611,7 @@ void CL_ReadPackets (void)
 		case CP_QUAKEWORLD:
 			if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 			{
-				MSG_BeginReading();
+				MSG_BeginReading(cls.netchan.netprim);
 				cls.netchan.last_received = realtime;
 				cls.netchan.outgoing_sequence = cls.netchan.incoming_sequence;
 			}
@@ -2618,6 +2623,7 @@ void CL_ReadPackets (void)
 				Con_Printf("Server is from the future! (%i packets)\n", cls.netchan.incoming_sequence - cls.netchan.outgoing_sequence);
 				cls.netchan.outgoing_sequence = cls.netchan.incoming_sequence;
 			}
+			MSG_ChangePrimitives(cls.netchan.netprim);
 			CL_ParseServerMessage ();
 			break;
 		case CP_UNKNOWN:
@@ -3616,7 +3622,7 @@ void Host_Init (quakeparms_t *parms)
 #endif
 
 	//	Con_Printf ("Exe: "__TIME__" "__DATE__"\n");
-	Con_TPrintf (TL_HEAPSIZE, parms->memsize/ (1024*1024.0));
+	//Con_TPrintf (TL_HEAPSIZE, parms->memsize/ (1024*1024.0));
 
 	Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
 	host_hunklevel = Hunk_LowMark ();

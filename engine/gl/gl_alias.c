@@ -728,7 +728,14 @@ static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel, unsigned int 
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 	{
 		if (e->flags & Q2RF_WEAPONMODEL)
+		{
 			cl.worldmodel->funcs.LightPointValues(cl.worldmodel, r_refdef.vieworg, shadelight, ambientlight, lightdir);
+			for (i = 0; i < 3; i++)
+			{	/*viewmodels may not be pure black*/
+				if (ambientlight[i] < 24)
+					ambientlight[i] = 24;
+			}
+		}
 		else
 			cl.worldmodel->funcs.LightPointValues(cl.worldmodel, e->origin, shadelight, ambientlight, lightdir);
 	}
@@ -770,17 +777,8 @@ static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel, unsigned int 
 	{
 		if (ambientlight[i] > 128)
 			ambientlight[i] = 128;
-		if (ambientlight[i] + shadelight[i] > 192)
-			shadelight[i] = 192 - ambientlight[i];
-	}
-
-	if (e->flags & Q2RF_WEAPONMODEL)
-	{
-		for (i = 0; i < 3; i++)
-		{
-			if (ambientlight[i] < 24)
-				ambientlight[i] = shadelight[i] = 24;
-		}
+		if (shadelight[i] > 192)
+			shadelight[i] = 192;
 	}
 
 //MORE HUGE HACKS! WHEN WILL THEY CEASE!
@@ -850,7 +848,7 @@ static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel, unsigned int 
 		{
 			vec3_t temp;
 			temp[0] = DotProduct(shadevector, vpn);
-			temp[1] = DotProduct(shadevector, vright);
+			temp[1] = -DotProduct(shadevector, vright);
 			temp[2] = DotProduct(shadevector, vup);
 
 			VectorCopy(temp, shadevector);
@@ -945,7 +943,7 @@ void R_DrawGAliasModel (entity_t *e, unsigned int rmode)
 	{
 		bef |= BEF_FORCEADDITIVE;
 	}
-	else if (e->drawflags & DRF_TRANSLUCENT)
+	else if (e->drawflags & DRF_TRANSLUCENT)	//hexen2
 	{
 		bef |= BEF_FORCETRANSPARENT;
 		e->shaderRGBAf[3] = r_wateralpha.value;
@@ -964,7 +962,7 @@ void R_DrawGAliasModel (entity_t *e, unsigned int rmode)
 		//BEFIXME: this needs to generate the right sort of default instead
 		//(alpha test)
 	}
-	else if (e->shaderRGBAf[3] < 1)
+	else if (e->shaderRGBAf[3] < 1 && cls.protocol != CP_QUAKE3)
 		bef |= BEF_FORCETRANSPARENT;
 	BE_SelectMode(rmode, bef);
 

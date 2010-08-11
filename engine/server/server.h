@@ -103,6 +103,9 @@ typedef struct
 	char	fatness;
 } mvdentity_state_t;
 
+extern entity_state_t *sv_staticentities;
+extern int sv_max_staticentities;
+
 typedef struct
 {
 	qboolean	active;				// false when server is going down
@@ -160,7 +163,7 @@ typedef struct
 
 	// the multicast buffer is used to send a message to a set of clients
 	sizebuf_t	multicast;
-	qbyte		multicast_buf[MAX_NQMSGLEN];
+	qbyte		multicast_buf[MAX_QWMSGLEN];
 
 #ifdef NQPROT
 	sizebuf_t	nqdatagram;
@@ -264,8 +267,7 @@ typedef struct
 #endif
 //====================================================
 
-	entity_state_t extendedstatics[MAX_STATIC_ENTITIES];
-	int numextrastatics;
+	int num_static_entities;
 //	movevars_t	demomovevars;	//FIXME:!
 //end this lot... (demo playback)
 
@@ -499,6 +501,7 @@ typedef struct client_s
 	unsigned long	fteprotocolextensions2;
 #endif
 	unsigned long	zquake_extensions;
+	unsigned int    max_net_ents;
 
 	enum {
 		SCP_BAD,	//don't send (a bot)
@@ -756,6 +759,7 @@ typedef struct
 	unsigned long fteprotocolextensions;
 	unsigned long fteprotocolextensions2;
 #endif
+	struct netprim_s netprim;
 
 	qboolean demoplayback;
 	qboolean demorecording;
@@ -892,6 +896,7 @@ extern	netadr_t	master_adr[MAX_MASTERS];	// address of the master server
 extern	cvar_t	spawn;
 extern	cvar_t	teamplay;
 extern	cvar_t	deathmatch;
+extern	cvar_t	coop;
 extern	cvar_t	fraglimit;
 extern	cvar_t	timelimit;
 
@@ -971,6 +976,7 @@ void SV_BuildClientFrame (client_t *client);
 void SV_WriteFrameToClient (client_t *client, sizebuf_t *msg);
 #ifdef Q2SERVER
 void MSGQ2_WriteDeltaEntity (q2entity_state_t *from, q2entity_state_t *to, sizebuf_t *msg, qboolean force, qboolean newentity);
+void SVQ2_BuildBaselines(void);
 #endif
 
 //q3 stuff

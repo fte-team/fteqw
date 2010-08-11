@@ -134,6 +134,7 @@ typedef struct {
 
 	float scalefactor;
 	float invscalefactor;
+	float stretch;
 } plooks_t;
 
 //these could be deltas or absolutes depending on ramping mode.
@@ -360,7 +361,8 @@ static part_type_t *P_GetParticleType(char *name)
 	ptype = &part_type[numparticletypes++];
 	memset(ptype, 0, sizeof(*ptype));
 	strcpy(ptype->name, name);
-	ptype->assoc=P_INVALID;
+	ptype->assoc = P_INVALID;
+	ptype->inwater = P_INVALID;
 	ptype->cliptype = P_INVALID;
 	ptype->emit = P_INVALID;
 
@@ -470,8 +472,13 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 	if (qrenderer == QR_NONE)
 		return;
 
-	/*try and load the shader, fail if we would need to generate one*/
-	ptype->looks.shader = R_RegisterCustom(ptype->texname, NULL, NULL);
+	if (*ptype->texname)
+	{
+		/*try and load the shader, fail if we would need to generate one*/
+		ptype->looks.shader = R_RegisterCustom(ptype->texname, NULL, NULL);
+	}
+	else
+		ptype->looks.shader = NULL;
 	
 	if (!ptype->looks.shader)
 	{
@@ -1410,6 +1417,8 @@ void FinishParticleType(part_type_t *ptype)
 		/*too lazy to go through ramps*/
 		ptype->looks.scalefactor = 1;
 	}
+	if (ptype->looks.type == PT_TEXTUREDSPARK)
+		ptype->looks.stretch *= 0.04;
 }
 
 static void P_ImportEffectInfo_f(void)
@@ -1499,6 +1508,7 @@ static void P_ImportEffectInfo_f(void)
 			ptype->looks.invscalefactor = 0;
 			ptype->looks.type = PT_NORMAL;
 			ptype->looks.blendmode = BM_BLEND;
+			ptype->looks.stretch = 1;
 		}
 		else if (!ptype)
 		{
@@ -1565,7 +1575,7 @@ static void P_ImportEffectInfo_f(void)
 			ptype->t1 = 1/8.0 * (mini>>3);
 			ptype->t2 = 1/8.0 * (1+(mini>>3));
 			ptype->texsstride = 1/8.0;
-			ptype->randsmax = (maxi - mini)+1;
+			ptype->randsmax = (maxi - mini);
 			if (ptype->randsmax < 1)
 				ptype->randsmax = 1;
 		}
@@ -1647,6 +1657,8 @@ static void P_ImportEffectInfo_f(void)
 				ptype->randdie = atof(arg[1]) - ptype->die;
 			}
 		}
+		else if (!strcmp(arg[0], "stretchfactor") && args == 2)
+			ptype->looks.stretch = atof(arg[1]);
 #if 0
 		else if (!strcmp(arg[0], "blend") && args == 2)
 			; /*overrides blendmode*/
@@ -1655,8 +1667,6 @@ static void P_ImportEffectInfo_f(void)
 		else if (!strcmp(arg[0], "lightshadow") && args == 2)
 			;
 		else if (!strcmp(arg[0], "lightcubemapnum") && args == 2)
-			;
-		else if (!strcmp(arg[0], "stretchfactor") && args == 2)
 			;
 		else if (!strcmp(arg[0], "staincolor") && args == 2)
 			;
@@ -3340,6 +3350,13 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 			offs = ptype->texsstride * (rand()%ptype->randsmax);
 			p->s1 += offs;
 			p->s2 += offs;
+			while (p->s1 >= 1)
+			{
+				p->s1 -= 1;
+				p->s2 -= 1;
+				p->t1 += ptype->texsstride;
+				p->t2 += ptype->texsstride;
+			}
 		}
 
 		if (len < nrfirst || len >= nrlast)
@@ -3613,7 +3630,7 @@ static void GL_DrawTexturedParticle(int count, particle_t **plist, plooks_t *typ
 		}
 
 		if (type->scalefactor == 1)
-			scale = p->scale;
+			scale = p->scale*0.25;
 		else
 		{
 			scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
@@ -3783,16 +3800,23 @@ static void GL_DrawTexturedSparkParticle(int count, particle_t **plist, plooks_t
 		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+3], p->s2, p->t1);
 
 		
+		if (type->stretch)
+		{
+			VectorMA(p->org, type->stretch, p->vel, o2);
+			VectorMA(p->org, -type->stretch, p->vel, v);
+			VectorSubtract(r_refdef.vieworg, v, v);
+		}
+		else
+		{
+			VectorMA(p->org, 0.1, p->vel, o2);
+			VectorSubtract(r_refdef.vieworg, p->org, v);
+		}
 
-		VectorSubtract(r_refdef.vieworg, p->org, v);
 		CrossProduct(v, p->vel, cr);
 		VectorNormalize(cr);
 
 		VectorMA(p->org, -p->scale/2, cr, pscriptverts[pscriptmesh.numvertexes+0]);
 		VectorMA(p->org, p->scale/2, cr, pscriptverts[pscriptmesh.numvertexes+1]);
-
-
-		VectorMA(p->org, 0.1, p->vel, o2);
 
 		VectorSubtract(r_refdef.vieworg, o2, v);
 		CrossProduct(v, p->vel, cr);

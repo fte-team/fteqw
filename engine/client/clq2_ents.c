@@ -113,6 +113,11 @@ entity_state_t	cl_parse_entities[MAX_PARSE_ENTITIES];
 void Q2S_StartSound(vec3_t origin, int entnum, int entchannel, sfx_t *sfx, float fvol, float attenuation, float timeofs);
 void CL_SmokeAndFlash(vec3_t origin);
 
+void CLQ2_ClearState(void)
+{
+	memset(cl_entities, 0, sizeof(cl_entities));
+}
+
 //extern	struct model_s	*cl_mod_powerscreen;
 
 //PGM
@@ -894,7 +899,7 @@ void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 
 		while (oldnum < newnum)
 		{	// one or more entities from the old packet are unchanged
-			if (cl_shownet.value == 3)
+			if (cl_shownet.ival == 3)
 				Con_Printf ("   unchanged: %i\n", oldnum);
 			CLQ2_DeltaEntity (newframe, oldnum, oldstate, 0);
 			
@@ -911,7 +916,7 @@ void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 
 		if (bits & Q2U_REMOVE)
 		{	// the entity present in oldframe is not in the current frame
-			if (cl_shownet.value == 3)
+			if (cl_shownet.ival == 3)
 				Con_Printf ("   remove: %i\n", newnum);
 			if (oldnum != newnum)
 				Con_Printf ("U_REMOVE: oldnum != newnum\n");
@@ -930,7 +935,7 @@ void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 
 		if (oldnum == newnum)
 		{	// delta from previous state
-			if (cl_shownet.value == 3)
+			if (cl_shownet.ival == 3)
 				Con_Printf ("   delta: %i\n", newnum);
 			CLQ2_DeltaEntity (newframe, newnum, oldstate, bits);
 
@@ -948,7 +953,7 @@ void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 
 		if (oldnum > newnum)
 		{	// delta from baseline
-			if (cl_shownet.value == 3)
+			if (cl_shownet.ival == 3)
 				Con_Printf ("   baseline: %i\n", newnum);
 			CLQ2_DeltaEntity (newframe, newnum, &cl_entities[newnum].baseline, bits);
 			continue;
@@ -959,7 +964,7 @@ void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 	// any remaining entities in the old frame are copied over
 	while (oldnum != 99999)
 	{	// one or more entities from the old packet are unchanged
-		if (cl_shownet.value == 3)
+		if (cl_shownet.ival == 3)
 			Con_Printf ("   unchanged: %i\n", oldnum);
 		CLQ2_DeltaEntity (newframe, oldnum, oldstate, 0);
 		
@@ -2070,25 +2075,12 @@ void CLQ2_AddEntities (void)
 	else
 		cl.lerpfrac = 1.0 - (cl.q2frame.servertime - cl.time*1000) * 0.01;
 
-//	if (cl_timedemo.value)
-//		cl.lerpfrac = 1.0;
-
-//	CLQ2_AddPacketEntities (&cl.qwframe);
-//	CLQ2_AddTEnts ();
-//	CLQ2_AddParticles ();
-//	CLQ2_AddDLights ();
-//	CLQ2_AddLightStyles ();
-
 	CLQ2_CalcViewValues ();
-	// PMM - moved this here so the heat beam has the right values for the vieworg, and can lock the beam to the gun
 	CLQ2_AddPacketEntities (&cl.q2frame);
 #if 0
 	CLQ2_AddProjectiles ();
 #endif
 	CL_UpdateTEnts ();
-//	CLQ2_AddParticles ();
-//	CLQ2_AddDLights ();
-//	CLQ2_AddLightStyles ();
 }
 
 void CL_GetNumberedEntityInfo (int num, float *org, float *ang)

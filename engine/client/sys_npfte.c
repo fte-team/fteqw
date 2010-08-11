@@ -11,6 +11,7 @@
 #include "npapi/npupp.h"
 #include "sys_plugfte.h"
 
+/*work around absolute crapness in the npapi headers*/
 #define Q_STRINGZ_TO_NPVARIANT(_val, _v)                                        \
 NP_BEGIN_MACRO                                                                \
 	NPString str = { _val, strlen(_val) };                                    \
@@ -19,6 +20,15 @@ NP_BEGIN_MACRO                                                                \
 NP_END_MACRO
 #undef STRINGZ_TO_NPVARIANT
 #define STRINGZ_TO_NPVARIANT Q_STRINGZ_TO_NPVARIANT
+
+#define Q_STRINGN_TO_NPVARIANT(_val, _len, _v)                                        \
+NP_BEGIN_MACRO                                                                \
+	NPString str = { _val, _len };                                    \
+    (_v).type = NPVariantType_String;                                         \
+    (_v).value.stringValue = str;                                             \
+NP_END_MACRO
+#undef STRINGN_TO_NPVARIANT
+#define STRINGN_TO_NPVARIANT Q_STRINGN_TO_NPVARIANT
 
 #define FIREFOX_BUGS_OVER_25MB
 
@@ -502,12 +512,20 @@ bool npscript_getProperty(NPObject *npobj, NPIdentifier name, NPVariant *result)
 			char *ns;
 			int len;
 			len = strlen(strval);
-			ns = browserfuncs->memalloc(len);
-			if (ns)
+			if (!len)
 			{
-				memcpy(ns, strval, len);
-				STRINGZ_TO_NPVARIANT(ns, *result);
+				STRINGN_TO_NPVARIANT(NULL, 0, *result);
 				success = true;
+			}
+			else
+			{
+				ns = browserfuncs->memalloc(len);
+				if (ns)
+				{
+					memcpy(ns, strval, len);
+					STRINGZ_TO_NPVARIANT(ns, *result);
+					success = true;
+				}
 			}
 			Plug_GotString(strval);
 		}
@@ -646,10 +664,10 @@ NPError OSCALL NP_GetValue(void *instance, NPPVariable variable, void *value)
 	switch(variable)
 	{
 	case NPPVpluginNameString:
-		*(char**)value = "QTV Viewer";
+		*(char**)value = "FTE QuakeWorld";
 		break;
 	case NPPVpluginDescriptionString:
-		*(char**)value = "QTV Viewer";
+		*(char**)value = "FTE QuakeWorld";
 		break;
 	default:
 		return NPERR_INVALID_PARAM;

@@ -137,7 +137,7 @@ cvar_t r_replacemodels						= CVARF ("r_replacemodels", IFMINIMAL("","md3 md2"),
 //otherwise it would defeat the point.
 cvar_t scr_allowsnap						= CVARF ("scr_allowsnap", "1",
 												CVAR_NOTFROMSERVER);
-cvar_t scr_centersbar						= CVAR  ("scr_centersbar", "0");
+cvar_t scr_centersbar						= CVAR  ("scr_centersbar", "2");
 cvar_t scr_centertime						= CVAR  ("scr_centertime", "2");
 cvar_t scr_chatmodecvar						= CVAR  ("scr_chatmode", "0");
 cvar_t scr_conalpha							= CVARC ("scr_conalpha", "0.7",
@@ -234,7 +234,8 @@ rendererstate_t currentrendererstate;
 
 #if defined(GLQUAKE)
 cvar_t	vid_gl_context_version				= SCVAR  ("vid_gl_context_version", "");
-cvar_t	vid_gl_context_forwardcompatible	= SCVAR  ("vid_gl_context_breakeverything", "0");	//not useful, yet, hence the name
+cvar_t	vid_gl_context_forwardcompatible	= SCVAR  ("vid_gl_context_forwardcompatible", "0");
+cvar_t	vid_gl_context_compatibility		= SCVAR  ("vid_gl_context_compatibility", "1");
 cvar_t	vid_gl_context_debug				= SCVAR  ("vid_gl_context_debug", "0");	//for my ati drivers, debug 1 only works if version >= 3
 #endif
 
@@ -308,7 +309,6 @@ cvar_t gl_texturemode2d						= CVARFC("gl_texturemode2d", "GL_LINEAR",
 
 cvar_t gl_triplebuffer						= SCVARF ("gl_triplebuffer", "1",
 												CVAR_ARCHIVE);
-cvar_t gl_ztrick							= SCVAR  ("gl_ztrick", "0");
 
 cvar_t r_noportals							= SCVAR  ("r_noportals", "0");
 cvar_t r_noaliasshadows						= SCVARF ("r_noaliasshadows", "0",
@@ -358,6 +358,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&vid_gl_context_version, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_gl_context_debug, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_gl_context_forwardcompatible, GLRENDEREROPTIONS);
+	Cvar_Register (&vid_gl_context_compatibility, GLRENDEREROPTIONS);
 
 	//screen
 	Cvar_Register (&gl_triplebuffer, GLRENDEREROPTIONS);
@@ -396,8 +397,6 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&gl_keeptjunctions, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_reporttjunctions, GLRENDEREROPTIONS);
-
-	Cvar_Register (&gl_ztrick, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_motionblur, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_motionblurscale, GLRENDEREROPTIONS);
@@ -1650,19 +1649,6 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 	if (cl.worldmodel)
 	{
-		int staticmodelindex[MAX_STATIC_ENTITIES];
-
-		for (i = 0; i < cl.num_statics; i++)	//static entities contain pointers to the model index.
-		{
-			staticmodelindex[i] = 0;
-			for (j = 1; j < MAX_MODELS; j++)
-				if (cl_static_entities[i].ent.model == cl.model_precache[j])
-				{
-					staticmodelindex[i] = j;
-					break;
-				}
-		}
-
 		cl.worldmodel = NULL;
 		cl_numvisedicts = 0;
 		cl_numstrisidx = 0;
@@ -1745,11 +1731,20 @@ TRACE(("dbg: R_ApplyRenderer: R_NewMap\n"));
 TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 		for (i = 0; i < cl.num_statics; i++)	//make the static entities reappear.
 		{
-			cl_static_entities[i].ent.model = cl.model_precache[staticmodelindex[i]];
-			if (cl_static_entities[i].ent.model)
-				cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &cl_static_entities[i].pvscache, NULL, NULL);
-#pragma message("STATIC ENTITITES --- relink")
+			cl_static_entities[i].ent.model = NULL;
+			if (cl_static_entities[i].mdlidx < 0)
+			{
+				if (cl_static_entities[i].mdlidx > -MAX_CSQCMODELS)
+					cl_static_entities[i].ent.model = cl.model_csqcprecache[-cl_static_entities[i].mdlidx];
+			}
+			else
+			{
+				if (cl_static_entities[i].mdlidx < MAX_MODELS)
+					cl_static_entities[i].ent.model = cl.model_precache[cl_static_entities[i].mdlidx];
+			}
 		}
+
+		Skin_FlushPlayers();
 	}
 #ifdef VM_UI
 	else
@@ -2437,6 +2432,24 @@ qboolean R_CullEntityBox(entity_t *e, vec3_t modmins, vec3_t modmaxs)
 {
 	int i;
 	vec3_t wmin, wmax;
+
+#if 1
+	float mrad = 0, v;
+	for (i = 0; i < 3; i++)
+	{
+		v = fabs(modmins[i]);
+		if (mrad < v)
+			mrad = v;
+		v = fabs(modmaxs[i]);
+		if (mrad < v)
+			mrad = v;
+	}
+	for (i = 0; i < 3; i++)
+	{
+		wmin[i] = e->origin[i]-mrad;
+		wmax[i] = e->origin[i]+mrad;
+	}
+#else
 	float fmin, fmax;
 
 	//convert the model's bbox to the expanded maximum size of the entity, as drawn with this model.
@@ -2463,7 +2476,7 @@ qboolean R_CullEntityBox(entity_t *e, vec3_t modmins, vec3_t modmaxs)
 			wmax[i] = e->origin[i]+fmin;
 		}
 	}
-
+#endif
 
 	return R_CullBox(wmin, wmax);
 }

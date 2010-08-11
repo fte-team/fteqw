@@ -633,7 +633,10 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		case MULTICAST_PHS_R:
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_PHS:
-			mask = sv.phs + leafnum * 4*((sv.world.worldmodel->numleafs+31)>>5);
+			if (!sv.phs)	/*broadcast if no pvs*/
+				mask = sv.pvs;
+			else
+				mask = sv.phs + leafnum * 4*((sv.world.worldmodel->numleafs+31)>>5);
 			break;
 
 		case MULTICAST_PVS_R:
@@ -1639,6 +1642,7 @@ qboolean SV_SendClientDatagram (client_t *client)
 	msg.cursize = 0;
 	msg.allowoverflow = true;
 	msg.overflowed = false;
+	msg.prim = client->datagram.prim;
 
 	if (sv.world.worldmodel && !client->controller)
 	{

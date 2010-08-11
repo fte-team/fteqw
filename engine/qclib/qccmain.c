@@ -3121,7 +3121,6 @@ newstyle:
 		{
 			while (pr_file_p=QCC_COM_Parse(pr_file_p))
 			{
-				struct stat s;
 				if (stat(qcc_token, &s) == -1 || s.st_mtime > os.st_mtime)
 				{
 					printf("%s changed\n", qcc_token);

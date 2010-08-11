@@ -920,7 +920,7 @@ void M_Menu_Textures_f (void)
 
 	extern cvar_t r_bloom_sample_size, r_bloom_darken, r_bloom_intensity, r_bloom_diamond_size, r_bloom_alpha, r_bloom_fast_sample;
 #endif
-	extern cvar_t r_bloom, gl_load24bit, gl_specular, r_waterlayers, gl_bump, gl_detail, gl_detailscale, gl_compress, gl_savecompressedtex, gl_ztrick, gl_triplebuffer, gl_picmip, gl_picmip2d, gl_playermip, gl_max_size, r_stains, r_bloodstains, r_stainfadetime, r_stainfadeammount, gl_skyboxdist, r_drawflat, gl_schematics, gl_texturemode, gl_texture_anisotropic_filtering;
+	extern cvar_t r_bloom, gl_load24bit, gl_specular, r_waterlayers, gl_bump, gl_detail, gl_detailscale, gl_compress, gl_savecompressedtex, gl_triplebuffer, gl_picmip, gl_picmip2d, gl_playermip, gl_max_size, r_stains, r_bloodstains, r_stainfadetime, r_stainfadeammount, gl_skyboxdist, r_drawflat, gl_schematics, gl_texturemode, gl_texture_anisotropic_filtering;
 	int y;
 	menu_t *menu = M_Options_Title(&y, sizeof(*info));
 	info = menu->data;
@@ -1029,7 +1029,6 @@ void M_Menu_Textures_f (void)
 		MC_AddSlider(menu,	16, y,							"    Texture Detail Scale", &gl_detailscale,0,10,1);	y+=8;
 		MC_AddCheckBox(menu,	16, y,						"     Texture Compression", &gl_compress,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,						"Save Compressed Textures", &gl_savecompressedtex,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"                 Z Trick", &gl_ztrick,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,						"        Triple Buffering", &gl_triplebuffer,0);	y+=8;
 		MC_AddSlider(menu,	16, y,							"       3D Texture Picmip", &gl_picmip,0,16,1);	y+=8;
 		MC_AddSlider(menu,	16, y,							"       2D Texture Picmip", &gl_picmip2d,0,16,1);	y+=8;

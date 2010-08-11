@@ -314,6 +314,7 @@ int Plug_PluginThread(void *ctxptr)
 		while(host_initialized && !ctx->shutdown && ctx->packagelist)
 		{
 			int total=0, done=0;
+			ctx->resetvideo = false;
 			Sys_LockMutex(ctx->mutex);
 			for (dl = ctx->packagelist; dl; dl = dl->next)
 			{
@@ -367,10 +368,12 @@ int Plug_PluginThread(void *ctxptr)
 			}
 			else if (ctx->resetvideo)
 			{
-				ctx->resetvideo = false;
 				sys_parentwindow = ctx->windowhnd;
 				sys_parentwidth = ctx->windowwidth;
 				sys_parentheight = ctx->windowheight;
+				if (ctx->resetvideo == 2)
+					SetParent(mainwindow, sys_parentwindow);
+				ctx->resetvideo = false;
 				Cbuf_AddText("vid_recenter\n", RESTRICT_LOCAL);
 			}
 			else
@@ -479,35 +482,27 @@ qboolean Plug_ChangeWindow(struct context *ctx, void *whnd, int width, int heigh
 {
 	qboolean result = false;
 
+	Plug_LockPlugin(ctx, true);
+
 	//if the window changed
 	if (ctx->windowhnd != whnd)
 	{
 		result = true;
-
-#ifdef _WIN32
-		if (ctx->pub.running)
-		{
-			Plug_LockPlugin(ctx, true);
-			if (mainwindow && ctx->windowhnd == sys_parentwindow)
-			{
-				sys_parentwindow = ctx->windowhnd;
-				SetParent(mainwindow, ctx->windowhnd);
-			}
-			Plug_LockPlugin(ctx, false);
-		}
-#endif
 		ctx->windowhnd = whnd;
+		ctx->resetvideo = 2;
 	}
 	if (ctx->windowwidth != width && ctx->windowheight != height)
 	{
 		ctx->windowwidth = width;
 		ctx->windowheight = height;
 
-		Plug_LockPlugin(ctx, true);
-		if (ctx->pub.running)
+		if (ctx->pub.running && !ctx->resetvideo)
 			ctx->resetvideo = true;
-		Plug_LockPlugin(ctx, false);
 	}
+	Plug_LockPlugin(ctx, false);
+
+	while(ctx->pub.running && ctx->resetvideo)
+		Sleep(10);
 
 	return result;
 }
@@ -617,12 +612,14 @@ static void UnpackAndExtractPakFiles_Complete(struct dl_download *dl)
 
 	Plug_LockPlugin(dl->user_ctx, true);
 
-	zip = zipfilefuncs.OpenNew(dl->file, dl->url);
+	if (dl->status == DL_FINISHED)
+		zip = zipfilefuncs.OpenNew(dl->file, dl->url);
+	else
+		zip = NULL;
+	/*the zip code will have eaten the file handle*/
+	dl->file = NULL;
 	if (zip)
 	{
-		/*the zip code will eat the file handle*/
-		dl->file = NULL;
-
 		/*scan it to extract its contents*/
 		zipfilefuncs.EnumerateFiles(zip, "*.pk3", ExtractDataFile, zip);
 		zipfilefuncs.EnumerateFiles(zip, "*.pak", ExtractDataFile, zip);
@@ -762,22 +759,34 @@ void pscript_property_running_setb(struct context *ctx, int i)
 
 char *pscript_property_startserver_gets(struct context *ctx)
 {
-	return ctx->qtvf.server;
+	return strdup(ctx->qtvf.server);
 }
 void pscript_property_startserver_sets(struct context *ctx, const char *val)
 {
+	if (strchr(val, '$') || strchr(val, ';') || strchr(val, '\n'))
+		return;
+
 	ctx->qtvf.connectiontype = QTVCT_JOIN;
 	Q_strncpyz(ctx->qtvf.server, val, sizeof(ctx->qtvf.server));
 }
 char *pscript_property_curserver_gets(struct context *ctx)
 {
+	extern char lastdemoname[];
 	if (!pscript_property_running_getb(ctx))
 		return pscript_property_startserver_gets(ctx);
 
-	return cls.servername;
+	if (cls.demoplayback)
+		return strdup(va("demo:%s",lastdemoname));
+	else if (cls.state != ca_disconnected)
+		return strdup(cls.servername);
+	else
+		return strdup("");
 }
 void pscript_property_curserver_sets(struct context *ctx, const char *val)
 {
+	if (strchr(val, '$') || strchr(val, ';') || strchr(val, '\n'))
+		return;
+
 	if (!pscript_property_running_getb(ctx))
 	{
 		pscript_property_startserver_sets(ctx, val);
@@ -790,6 +799,9 @@ void pscript_property_curserver_sets(struct context *ctx, const char *val)
 
 void pscript_property_stream_sets(struct context *ctx, const char *val)
 {
+	if (strchr(val, '$') || strchr(val, ';') || strchr(val, '\n'))
+		return;
+
 	ctx->qtvf.connectiontype = QTVCT_STREAM;
 	Q_strncpyz(ctx->qtvf.server, val, sizeof(ctx->qtvf.server));
 
@@ -798,8 +810,9 @@ void pscript_property_stream_sets(struct context *ctx, const char *val)
 }
 void pscript_property_map_sets(struct context *ctx, const char *val)
 {
+	if (strchr(val, '$') || strchr(val, ';') || strchr(val, '\n'))
+		return;
 	ctx->qtvf.connectiontype = QTVCT_MAP;
-	FILTER(val)
 	Q_strncpyz(ctx->qtvf.server, val, sizeof(ctx->qtvf.server));
 
 	if (pscript_property_running_getb(ctx))
@@ -826,6 +839,9 @@ void pscript_property_datadownload_sets(struct context *ctx, const char *val)
 
 void pscript_property_game_sets(struct context *ctx, const char *val)
 {
+	if (strchr(val, '$') || strchr(val, ';') || strchr(val, '\n'))
+		return;
+
 	if (!strstr(val, "."))
 		if (!strstr(val, "/"))
 			if (!strstr(val, "\\"))
@@ -854,6 +870,15 @@ void pscript_property_splash_sets(struct context *ctx, const char *val)
 	}
 }
 
+char *pscript_property_build_gets(struct context *ctx)
+{
+	return strdup(DISTRIBUTION " " __DATE__ " " __TIME__
+#if defined(DEBUG) || defined(_DEBUG)
+		" (debug)"
+#endif
+		);
+}
+
 extern cvar_t skin, team, topcolor, bottomcolor, vid_fullscreen, cl_download_mapsrc;
 static struct pscript_property pscript_properties[] =
 {
@@ -874,12 +899,14 @@ static struct pscript_property pscript_properties[] =
 	
 	{"game",		false,	NULL,	NULL, pscript_property_game_sets},
 	{"availver",	false,	NULL,	NULL, NULL,	NULL, NULL,	NULL, pscript_property_availver_setf},
+	{"plugver",		false,	NULL,	NULL, NULL,	NULL, NULL,	pscript_property_curver_getf},
 	
 	{"splash",		false,	NULL,	NULL, pscript_property_splash_sets},
 
 	{"stream",		false,	NULL,	NULL, pscript_property_stream_sets},
 	{"map",			false,	NULL,	NULL, pscript_property_map_sets},
 
+	{"build",		false,	NULL,	pscript_property_build_gets},
 /*
 		else if (!stricmp(argn[i], "connType"))
 		{
@@ -1044,9 +1071,13 @@ qboolean Plug_SetFloat(struct context *ctx, struct pscript_property *field, floa
 	return true;
 }
 
-#pragma message("Plug_Get* not implemented yet")
 qboolean Plug_GetString(struct context *ctx, struct pscript_property *field, const char **value)
 {
+	if (field->getstring)
+	{
+		*value = field->getstring(ctx);
+		return true;
+	}
 	return false;
 }
 void Plug_GotString(const char *value)
@@ -1055,10 +1086,20 @@ void Plug_GotString(const char *value)
 }
 qboolean Plug_GetInteger(struct context *ctx, struct pscript_property *field, int *value)
 {
+	if (field->getint)
+	{
+		*value = field->getint(ctx);
+		return true;
+	}
 	return false;
 }
 qboolean Plug_GetFloat(struct context *ctx, struct pscript_property *field, float *value)
 {
+	if (field->getfloat)
+	{
+		*value = field->getfloat(ctx);
+		return true;
+	}
 	return false;
 }
 

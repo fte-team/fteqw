@@ -68,120 +68,114 @@ static int sh_vertnum;		//vertex number (set to 0 at SH_Begin)
 static shadowmesh_t *sh_shmesh, sh_tempshmesh;
 
 /* functions to add geometry to the shadow mesh */
-static void SHM_Begin (GLenum e)
+static void SHM_BeginQuads (void)
 {
-	sh_type = e;
 	sh_firstindex = sh_shmesh->numverts;
 }
 static void SHM_End (void)
 {
 	int i;
-	int v1, v2;
-	switch(sh_type)
+	i = (sh_shmesh->numindicies+(sh_vertnum/4)*6+inc+5)&~(inc-1);	//and a bit of padding
+	if (sh_shmesh->maxindicies != i)
 	{
-	case GL_POLYGON:
-		i = (sh_shmesh->numindicies+(sh_vertnum-2)*3+inc+5)&~(inc-1);	//and a bit of padding
-		if (sh_shmesh->maxindicies != i)
-		{
-			sh_shmesh->maxindicies = i;
-			sh_shmesh->indicies = BZ_Realloc(sh_shmesh->indicies, i * sizeof(*sh_shmesh->indicies));
-		}
-		//decompose the poly into a triangle fan.
-		v1 = sh_firstindex + 0;
-		v2 = sh_firstindex + 1;
-		for (i = 2; i < sh_vertnum; i++)
-		{
-			sh_shmesh->indicies[sh_shmesh->numindicies++] = v1;
-			sh_shmesh->indicies[sh_shmesh->numindicies++] = v2;
-			sh_shmesh->indicies[sh_shmesh->numindicies++] = v2 = sh_firstindex + i;
-		}
-		sh_vertnum = 0;
-		break;
-	case GL_TRIANGLES:
-		i = (sh_shmesh->numindicies+(sh_vertnum)+inc+5)&~(inc-1);	//and a bit of padding
-		if (sh_shmesh->maxindicies != i)
-		{
-			sh_shmesh->maxindicies = i;
-			sh_shmesh->indicies = BZ_Realloc(sh_shmesh->indicies, i * sizeof(*sh_shmesh->indicies));
-		}
-		//add the extra triangles
-		for (i = 0; i < sh_vertnum; i+=3)
-		{
-			sh_shmesh->indicies[sh_shmesh->numindicies++] = sh_firstindex + i+0;
-			sh_shmesh->indicies[sh_shmesh->numindicies++] = sh_firstindex + i+1;
-			sh_shmesh->indicies[sh_shmesh->numindicies++] = sh_firstindex + i+2;
-		}
-		sh_vertnum = 0;
-		break;
-	case GL_QUADS:
-		i = (sh_shmesh->numindicies+(sh_vertnum/4)*6+inc+5)&~(inc-1);	//and a bit of padding
-		if (sh_shmesh->maxindicies != i)
-		{
-			sh_shmesh->maxindicies = i;
-			sh_shmesh->indicies = BZ_Realloc(sh_shmesh->indicies, i * sizeof(*sh_shmesh->indicies)); 
-		}
-		//add the extra triangles
-		for (i = 0; i < sh_vertnum; i+=4)
-		{
-			sh_shmesh->indicies[sh_shmesh->numindicies++] = sh_firstindex + i+0;
-			sh_shmesh->indicies[sh_shmesh->numindicies++] = sh_firstindex + i+1;
-			sh_shmesh->indicies[sh_shmesh->numindicies++] = sh_firstindex + i+2;
-
-			sh_shmesh->indicies[sh_shmesh->numindicies++] = sh_firstindex + i+0;
-			sh_shmesh->indicies[sh_shmesh->numindicies++] = sh_firstindex + i+2;
-			sh_shmesh->indicies[sh_shmesh->numindicies++] = sh_firstindex + i+3;
-		}
-		sh_vertnum = 0;
-		break;
-	default:
-		if (sh_vertnum)
-			Sys_Error("SH_End: verticies were left");
+		sh_shmesh->maxindicies = i;
+		sh_shmesh->indicies = BZ_Realloc(sh_shmesh->indicies, i * sizeof(*sh_shmesh->indicies)); 
 	}
+	//add the extra triangles
+	for (i = 0; i < sh_vertnum; i+=4)
+	{
+		sh_shmesh->indicies[sh_shmesh->numindicies++] = sh_firstindex + i+0;
+		sh_shmesh->indicies[sh_shmesh->numindicies++] = sh_firstindex + i+1;
+		sh_shmesh->indicies[sh_shmesh->numindicies++] = sh_firstindex + i+2;
+
+		sh_shmesh->indicies[sh_shmesh->numindicies++] = sh_firstindex + i+0;
+		sh_shmesh->indicies[sh_shmesh->numindicies++] = sh_firstindex + i+2;
+		sh_shmesh->indicies[sh_shmesh->numindicies++] = sh_firstindex + i+3;
+	}
+	sh_vertnum = 0;
 }
-static void SHM_Vertex3f (GLfloat x, GLfloat y, GLfloat z)
+static void SHM_Vertex3fv (const GLfloat *v)
 {
 	int i;
 
 //add the verts as we go
 	i = (sh_shmesh->numverts+inc+5)&~(inc-1);	//and a bit of padding
-	if (sh_shmesh->maxverts != i)
+	if (sh_shmesh->maxverts < i)
 	{
 		sh_shmesh->maxverts = i;
 		sh_shmesh->verts = BZ_Realloc(sh_shmesh->verts, i * sizeof(*sh_shmesh->verts));
 	}
 
-	sh_shmesh->verts[sh_shmesh->numverts][0] = x;
-	sh_shmesh->verts[sh_shmesh->numverts][1] = y;
-	sh_shmesh->verts[sh_shmesh->numverts][2] = z;
+	sh_shmesh->verts[sh_shmesh->numverts][0] = v[0];
+	sh_shmesh->verts[sh_shmesh->numverts][1] = v[1];
+	sh_shmesh->verts[sh_shmesh->numverts][2] = v[2];
 
 	sh_vertnum++;
 	sh_shmesh->numverts++;
 
-	switch(sh_type)
+
+	if (sh_vertnum == 4)
 	{
-	case GL_POLYGON:
-		break;
-	case GL_TRIANGLES:
-		if (sh_vertnum == 3)
-		{
-			SHM_End();
-			sh_firstindex = sh_shmesh->numverts;
-		}
-		break;
-	case GL_QUADS:
-		if (sh_vertnum == 4)
-		{
-			SHM_End();
-			sh_firstindex = sh_shmesh->numverts;
-		}
-		break;
-	default:
-		Sys_Error("SH_Vertex3f: bad type");
+		SHM_End();
+		sh_firstindex = sh_shmesh->numverts;
 	}
 }
-static void APIENTRY SHM_Vertex3fv (const GLfloat *v)
+
+void SHM_TriangleFan(int numverts, vecV_t *verts, vec3_t lightorg, float pd)
 {
-	SHM_Vertex3f(v[0], v[1], v[2]);
+	int v, i, idxs;
+	float *v1;
+	vec3_t v3;
+	vecV_t *outv;
+	index_t *outi;
+
+	/*make sure there's space*/
+	v = (sh_shmesh->numverts+numverts*2 + inc)&~(inc-1);	//and a bit of padding
+	if (sh_shmesh->maxverts < v)
+	{
+		sh_shmesh->maxverts = v;
+		sh_shmesh->verts = BZ_Realloc(sh_shmesh->verts, v * sizeof(*sh_shmesh->verts));
+	}
+	outv = sh_shmesh->verts + sh_shmesh->numverts;
+
+	for (v = 0; v < numverts; v++)
+	{
+		v1 = verts[v];
+		VectorCopy(v1, outv[v]);
+
+		v3[0] = ( v1[0]-lightorg[0] )*pd;
+		v3[1] = ( v1[1]-lightorg[1] )*pd;
+		v3[2] = ( v1[2]-lightorg[2] )*pd;
+
+		outv[v+numverts][0] = v1[0]+v3[0];
+		outv[v+numverts][1] = v1[1]+v3[1];
+		outv[v+numverts][2] = v1[2]+v3[2];
+	}
+
+	idxs = (numverts-2)*3;
+	/*now add the verts in a fan*/
+	v = (sh_shmesh->numindicies+idxs*2+inc)&~(inc-1);	//and a bit of padding
+	if (sh_shmesh->maxindicies < v)
+	{
+		sh_shmesh->maxindicies = v;
+		sh_shmesh->indicies = BZ_Realloc(sh_shmesh->indicies, v * sizeof(*sh_shmesh->indicies));
+	}
+	outi = sh_shmesh->indicies + sh_shmesh->numindicies;
+
+	for (v = 2, i = 0; v < numverts; v++, i+=3)
+	{
+		outi[i+0] = sh_shmesh->numverts;
+		outi[i+1] = sh_shmesh->numverts+v-1;
+		outi[i+2] = sh_shmesh->numverts+v;
+
+		outi[i+0+idxs] = sh_shmesh->numverts+numverts+v;
+		outi[i+1+idxs] = sh_shmesh->numverts+numverts+v-1;
+		outi[i+2+idxs] = sh_shmesh->numverts+numverts;
+	}
+
+	/*we added this many*/
+	sh_shmesh->numverts += numverts*2;
+	sh_shmesh->numindicies += i*2;
 }
 
 static void SHM_Shadow_Cache_Surface(msurface_t *surf)
@@ -209,27 +203,50 @@ static void SHM_Shadow_Cache_Leaf(mleaf_t *leaf)
 	sh_shmesh->litleaves[i>>3] |= 1<<(i&7);
 }
 
+void SH_FreeShadowMesh(shadowmesh_t *sm)
+{
+	unsigned int i;
+	for (i = 0; i < sm->numsurftextures; i++)
+		Z_Free(sm->litsurfs[i].s);
+	Z_Free(sm->litsurfs);
+	Z_Free(sm->indicies);
+	Z_Free(sm->verts);
+	Z_Free(sm);
+}
+
 static void SHM_BeginShadowMesh(dlight_t *dl)
 {
 	unsigned int i;
+	unsigned int lb;
 	sh_vertnum = 0;
 
-	if (!dl->die)
+	lb = (cl.worldmodel->numleafs+7)/8;
+	if (!dl->die || !dl->key)
 	{
-		sh_shmesh = Z_Malloc(sizeof(*sh_shmesh) + (cl.worldmodel->numleafs+7)/8);
-		sh_shmesh->leafbytes = (cl.worldmodel->numleafs+7)/8;
-		sh_shmesh->litleaves = (unsigned char*)(sh_shmesh+1);
+		sh_shmesh = dl->worldshadowmesh;
+		if (!sh_shmesh || sh_shmesh->leafbytes != lb)
+		{
+			/*this shouldn't happen too often*/
+			if (sh_shmesh)
+			{
+				SH_FreeShadowMesh(sh_shmesh);
+			}
 
-		dl->worldshadowmesh = sh_shmesh;
+			/*Create a new shadowmesh for this light*/
+			sh_shmesh = Z_Malloc(sizeof(*sh_shmesh) + lb);
+			sh_shmesh->leafbytes = lb;
+			sh_shmesh->litleaves = (unsigned char*)(sh_shmesh+1);
+
+			dl->worldshadowmesh = sh_shmesh;
+		}
+		dl->rebuildcache = false;
 	}
 	else
 	{
-		unsigned int lb;
-//FIXME: many dynamic lights are static. cache for a frame and see if it can be reused.
 		sh_shmesh = &sh_tempshmesh;
-		lb = (cl.worldmodel->numleafs+7)/8;
 		if (sh_shmesh->leafbytes != lb)
 		{
+			/*this happens on map changes*/
 			sh_shmesh->leafbytes = lb;
 			Z_Free(sh_shmesh->litleaves);
 			sh_shmesh->litleaves = Z_Malloc(lb);
@@ -240,7 +257,7 @@ static void SHM_BeginShadowMesh(dlight_t *dl)
 	sh_shmesh->maxindicies = 0;
 	sh_shmesh->numindicies = 0;
 
-	if (sh_shmesh->numsurftextures < cl.worldmodel->numtextures)
+	if (sh_shmesh->numsurftextures != cl.worldmodel->numtextures)
 	{
 		if (sh_shmesh->litsurfs)
 		{
@@ -280,9 +297,6 @@ static void SHM_RecursiveWorldNodeQ1_r (dlight_t *dl, mnode_t *node)
 	mleaf_t		*pleaf;
 	double		dot;
 	int v;
-
-	float *v1;
-	vec3_t v3;
 
 	float		l, maxdist;
 	int			j, s, t;
@@ -407,9 +421,7 @@ static void SHM_RecursiveWorldNodeQ1_r (dlight_t *dl, mnode_t *node)
 				{
 					SHM_Shadow_Cache_Surface(surf);
 
-
-
-	#define PROJECTION_DISTANCE (float)(dl->radius*2)//0x7fffffff
+					#define PROJECTION_DISTANCE (float)(dl->radius*2)//0x7fffffff
 
 					//build a list of the edges that are to be drawn.
 					for (v = 0; v < surf->numedges; v++)
@@ -454,26 +466,7 @@ static void SHM_RecursiveWorldNodeQ1_r (dlight_t *dl, mnode_t *node)
 						}
 					}
 
-					//fixme:this only works becuse q1bsps don't have combined meshes yet...
-					SHM_Begin(GL_POLYGON);
-					for (v = 0; v < surf->mesh->numvertexes; v++)
-					{
-						SHM_Vertex3fv(surf->mesh->xyz_array[v]);
-					}
-					SHM_End();
-
-					//back (depth precision doesn't matter)
-					SHM_Begin(GL_POLYGON);
-					for (v = surf->mesh->numvertexes-1; v >=0; v--)
-					{
-						v1 = surf->mesh->xyz_array[v];
-						v3[0] = ( v1[0]-dl->origin[0] )*PROJECTION_DISTANCE;
-						v3[1] = ( v1[1]-dl->origin[1] )*PROJECTION_DISTANCE;
-						v3[2] = ( v1[2]-dl->origin[2] )*PROJECTION_DISTANCE;
-
-						SHM_Vertex3f( v1[0]+v3[0], v1[1]+v3[1], v1[2]+v3[2] );
-					}
-					SHM_End();
+					SHM_TriangleFan(surf->mesh->numvertexes, surf->mesh->xyz_array, dl->origin, PROJECTION_DISTANCE);
 				}
 			}
 		}
@@ -491,9 +484,6 @@ static void SHM_RecursiveWorldNodeQ2_r (dlight_t *dl, mnode_t *node)
 	mleaf_t		*pleaf;
 	double		dot;
 	int v;
-
-	float *v1;
-	vec3_t v3;
 
 	float		l, maxdist;
 	int			j, s, t;
@@ -665,25 +655,7 @@ static void SHM_RecursiveWorldNodeQ2_r (dlight_t *dl, mnode_t *node)
 						}
 					}
 
-					SHM_Begin(GL_POLYGON);
-					for (v = 0; v < surf->mesh->numvertexes; v++)
-					{
-						SHM_Vertex3fv(surf->mesh->xyz_array[v]);
-					}
-					SHM_End();
-
-					//back (depth precision doesn't matter)
-					SHM_Begin(GL_POLYGON);
-					for (v = surf->mesh->numvertexes-1; v >=0; v--)
-					{
-						v1 = surf->mesh->xyz_array[v];
-						v3[0] = ( v1[0]-dl->origin[0] )*PROJECTION_DISTANCE;
-						v3[1] = ( v1[1]-dl->origin[1] )*PROJECTION_DISTANCE;
-						v3[2] = ( v1[2]-dl->origin[2] )*PROJECTION_DISTANCE;
-
-						SHM_Vertex3f( v1[0]+v3[0], v1[1]+v3[1], v1[2]+v3[2] );
-					}
-					SHM_End();
+					SHM_TriangleFan(surf->mesh->numvertexes, surf->mesh->xyz_array, dl->origin, PROJECTION_DISTANCE);
 				}
 			}
 		}
@@ -851,8 +823,6 @@ static void SHM_ComposeVolume_BruteForce(dlight_t *dl)
 	unsigned int sno;
 	unsigned int vno, vno2;
 	unsigned int fvert, lvert;
-	float *v1;
-	vec3_t v3;
 	mesh_t *sm;
 	for (tno = 0; tno < sh_shmesh->numsurftextures; tno++)
 	{
@@ -870,27 +840,7 @@ static void SHM_ComposeVolume_BruteForce(dlight_t *dl)
 //continue;
 				fvert = sh_shmesh->numverts;
 
-				//front
-				SHM_Begin(GL_POLYGON);
-				for (vno = 0; vno < sm->numvertexes; vno++)
-				{
-					SHM_Vertex3fv(sm->xyz_array[vno]);
-				}
-				SHM_End();
-
-				//back (depth precision doesn't matter)
-				SHM_Begin(GL_POLYGON);
-				for (vno = sm->numvertexes; vno > 0; )
-				{
-					vno--;
-					v1 = sm->xyz_array[vno];
-					v3[0] = (v1[0]-dl->origin[0])*PROJECTION_DISTANCE;
-					v3[1] = (v1[1]-dl->origin[1])*PROJECTION_DISTANCE;
-					v3[2] = (v1[2]-dl->origin[2])*PROJECTION_DISTANCE;
-
-					SHM_Vertex3f(v1[0]+v3[0], v1[1]+v3[1], v1[2]+v3[2]);
-				}
-				SHM_End();
+				SHM_TriangleFan(sm->numvertexes, sm->xyz_array, dl->origin, PROJECTION_DISTANCE);
 
 				vno = (sh_shmesh->numindicies+sm->numvertexes*6);	//and a bit of padding
 				if (sh_shmesh->maxindicies < vno)
@@ -944,7 +894,7 @@ static struct shadowmesh_s *SHM_BuildShadowVolumeMesh(dlight_t *dl, unsigned cha
 	float *v1, *v2;
 	vec3_t v3, v4;
 
-	if (dl->worldshadowmesh)
+	if (dl->worldshadowmesh && !dl->rebuildcache)
 		return dl->worldshadowmesh;
 
 	if (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife)
@@ -981,7 +931,7 @@ static struct shadowmesh_s *SHM_BuildShadowVolumeMesh(dlight_t *dl, unsigned cha
 	else
 		return NULL;
 
-	SHM_Begin(GL_QUADS);
+	SHM_BeginQuads();
 	while(firstedge)
 	{
 		//border
@@ -1461,12 +1411,7 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 		checkerror();
 	}
 
-	if (l->worldshadowmesh)
-		smesh = l->worldshadowmesh;
-	else
-	{
-		smesh = SHM_BuildShadowVolumeMesh(l, lvis, NULL);
-	}
+	smesh = SHM_BuildShadowVolumeMesh(l, lvis, NULL);
 
 	/*polygon offsets. urgh.*/
 	qglEnable(GL_POLYGON_OFFSET_FILL);
@@ -1678,6 +1623,8 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 
 	currententity = &r_worldentity;
 	sm = light->worldshadowmesh;
+	if (light->rebuildcache)
+		sm = &sh_tempshmesh;
 	if (sm)
 	{
 		for (tno = 0; tno < sm->numsurftextures; tno++)
@@ -1690,16 +1637,12 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 
 		BE_BaseEntTextures();
 	}
-	else
-	{
-#pragma message("FIXME: For dynamic lights, the entire view is redrawn! Bad!")
-		BE_SubmitMeshes();
-	}
 }
 
 
 #define PROJECTION_DISTANCE (float)(dl->radius*2)//0x7fffffff
 /*Fixme: this is brute forced*/
+#pragma message("brush shadows are bruteforced")
 static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 {
 	int v;
@@ -1902,7 +1845,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	maxs[1] = dl->origin[1] + dl->radius;
 	maxs[2] = dl->origin[2] + dl->radius;
 
-	if (dl->worldshadowmesh)
+	if (!dl->rebuildcache)
 	{
 		//fixme: check head node first?
 		if (!Sh_LeafInView(dl->worldshadowmesh->litleaves, vvis))
@@ -2091,7 +2034,7 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 		return;	//this should be the more common case
 	}
 
-	if (dl->worldshadowmesh)
+	if (!dl->rebuildcache)
 	{
 		//fixme: check head node first?
 		if (!Sh_LeafInView(dl->worldshadowmesh->litleaves, vvis))

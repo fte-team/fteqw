@@ -26,6 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "renderque.h"
 #include <math.h>
 
+extern cvar_t r_ambient;
 extern cvar_t gl_bump;
 
 static vec3_t			modelorg;	/*set before recursively entering the visible surface finder*/
@@ -42,11 +43,7 @@ texid_t	*deluxmap_textures;
 #define MAX_LIGHTMAP_SIZE LMBLOCK_WIDTH
 
 vec3_t			blocknormals[MAX_LIGHTMAP_SIZE*MAX_LIGHTMAP_SIZE];
-unsigned		blocklights[MAX_LIGHTMAP_SIZE*MAX_LIGHTMAP_SIZE];
-#ifdef PEXT_LIGHTSTYLECOL
-unsigned		greenblklights[MAX_LIGHTMAP_SIZE*MAX_LIGHTMAP_SIZE];
-unsigned		blueblklights[MAX_LIGHTMAP_SIZE*MAX_LIGHTMAP_SIZE];
-#endif
+unsigned		blocklights[3*MAX_LIGHTMAP_SIZE*MAX_LIGHTMAP_SIZE];
 
 lightmapinfo_t **lightmap;
 int numlightmaps;
@@ -324,6 +321,7 @@ static void Surf_AddDynamicLights (msurface_t *surf)
 	int			smax, tmax;
 	mtexinfo_t	*tex;
 	float a;
+	unsigned	*bl;
 
 	smax = (surf->extents[0]>>4)+1;
 	tmax = (surf->extents[1]>>4)+1;
@@ -360,6 +358,7 @@ static void Surf_AddDynamicLights (msurface_t *surf)
 
 		a = 256*(cl_dlights[lnum].color[0]*1.5 + cl_dlights[lnum].color[1]*2.95 + cl_dlights[lnum].color[2]*0.55);
 
+		bl = blocklights;
 		for (t = 0 ; t<tmax ; t++)
 		{
 			td = local[1] - t*16;
@@ -375,7 +374,8 @@ static void Surf_AddDynamicLights (msurface_t *surf)
 				else
 					dist = td + (sd>>1);
 				if (dist < minlight)
-					blocklights[t*smax + s] += (rad - dist)*a;
+					bl[0] += (rad - dist)*a;
+				bl++;
 			}
 		}
 	}
@@ -466,6 +466,7 @@ static void Surf_AddDynamicLightsColours (msurface_t *surf)
 	mtexinfo_t	*tex;
 //	float temp;
 	float r, g, b;
+	unsigned	*bl;
 
 	smax = (surf->extents[0]>>4)+1;
 	tmax = (surf->extents[1]>>4)+1;
@@ -527,8 +528,9 @@ static void Surf_AddDynamicLightsColours (msurface_t *surf)
 			}
 		}
 		else
-		{
-*/			for (t = 0 ; t<tmax ; t++)
+*/		{
+			bl = blocklights;
+			for (t = 0 ; t<tmax ; t++)
 			{
 				td = local[1] - t*16;
 				if (td < 0)
@@ -544,13 +546,14 @@ static void Surf_AddDynamicLightsColours (msurface_t *surf)
 						dist = td + (sd>>1);
 					if (dist < minlight)
 					{					
-						blocklights[t*smax + s]		+= (rad - dist)*r;					
-						greenblklights[t*smax + s]	+= (rad - dist)*g;
-						blueblklights[t*smax + s]	+= (rad - dist)*b;
+						bl[0]		+= (rad - dist)*r;					
+						bl[1]	+= (rad - dist)*g;
+						bl[2]	+= (rad - dist)*b;
 					}
+					bl += 3;
 				}
 			}
-//		}
+		}
 	}
 }
 #endif
@@ -673,6 +676,251 @@ store:
 	}		
 }
 
+enum lm_mode
+{
+	bgra4_os,
+	bgra4,
+	rgb3_os,
+	lum
+};
+/*any sane compiler will inline and split this, removing the stainsrc stuff
+just unpacks the internal lightmap block into texture info ready for upload
+merges stains and oversaturates overbrights.
+*/
+static void Surf_StoreLightmap(qbyte *dest, int smax, int tmax, unsigned int shift, enum lm_mode lm_mode, stmap *stainsrc)
+{
+	int r, g, b, t;
+	int cr, cg, cb;
+	unsigned int i, j;
+	unsigned int *bl;
+	int stride;
+	switch (lm_mode)
+	{
+	case bgra4_os:
+		stride = LMBLOCK_WIDTH*4 - (smax<<2);
+
+		bl = blocklights;
+
+		for (i=0 ; i<tmax ; i++, dest += stride)
+		{
+			for (j=0 ; j<smax ; j++)
+			{
+				r = *bl++ >> shift;
+				g = *bl++ >> shift;
+				b = *bl++ >> shift;
+
+				if (stainsrc)	// merge in stain
+				{
+					r = (127+r*(*stainsrc++)) >> 8;
+					g = (127+g*(*stainsrc++)) >> 8;
+					b = (127+b*(*stainsrc++)) >> 8;
+				}
+
+				cr = 0;
+				cg = 0;
+				cb = 0;
+
+				if (r > 255)	//ak too much red
+				{
+					cr -= (255-r)/2;
+					cg += (255-r)/4;	//reduce it, and indicate to drop the others too.
+					cb += (255-r)/4;
+					r = 255;
+				}			
+
+				if (g > 255)
+				{					
+					cr += (255-g)/4;
+					cg -= (255-g)/2;
+					cb += (255-g)/4;
+					g = 255;
+				}				
+
+				if (b > 255)
+				{
+					cr += (255-b)/4;
+					cg += (255-b)/4;
+					cb -= (255-b)/2;
+					b = 255;
+				}
+
+				r+=cr;
+				if (r > 255)
+					dest[2] = 255;
+				else if (r < 0)
+					dest[2] = 0;
+				else
+					dest[2] = r;
+
+				g+=cg;
+				if (g > 255)
+					dest[1] = 255;
+				else if (g < 0)
+					dest[1] = 0;
+				else
+					dest[1] = g;
+
+				b+=cb;
+				if (b > 255)
+					dest[0] = 255;
+				else if (b < 0)
+					dest[0] = 0;
+				else
+					dest[0] = b;
+
+				dest[3] = 255;
+				dest += 4;					
+			}
+			if (stainsrc)
+				stainsrc += (LMBLOCK_WIDTH - smax)*3;
+		}	
+		break;
+
+	case bgra4:
+		stride = LMBLOCK_WIDTH*4 - (smax<<2);
+
+		bl = blocklights;
+
+		for (i=0 ; i<tmax ; i++, dest += stride)
+		{
+			for (j=0 ; j<smax ; j++)
+			{
+				r = *bl++ >> shift;
+				g = *bl++ >> shift;
+				b = *bl++ >> shift;
+
+				if (stainsrc)	// merge in stain
+				{
+					r = (127+r*(*stainsrc++)) >> 8;
+					g = (127+g*(*stainsrc++)) >> 8;
+					b = (127+b*(*stainsrc++)) >> 8;
+				}
+
+				if (r > 255)
+					dest[2] = 255;
+				else if (r < 0)
+					dest[2] = 0;
+				else
+					dest[2] = r;
+
+				if (g > 255)
+					dest[1] = 255;
+				else if (g < 0)
+					dest[1] = 0;
+				else
+					dest[1] = g;
+
+				if (b > 255)
+					dest[0] = 255;
+				else if (b < 0)
+					dest[0] = 0;
+				else
+					dest[0] = b;
+
+				dest[3] = 255;
+				dest += 4;					
+			}
+			if (stainsrc)
+				stainsrc += (LMBLOCK_WIDTH - smax)*3;
+		}	
+		break;
+
+	case rgb3_os:
+		stride = LMBLOCK_WIDTH*3 - (smax*3);
+		bl = blocklights;
+	
+		for (i=0 ; i<tmax ; i++, dest += stride)
+		{
+			for (j=0 ; j<smax ; j++)
+			{
+				r = *bl++ >> shift;
+				g = *bl++ >> shift;
+				b = *bl++ >> shift;	
+
+				if (stainsrc)	// merge in stain
+				{
+					r = (127+r*(*stainsrc++)) >> 8;
+					g = (127+g*(*stainsrc++)) >> 8;
+					b = (127+b*(*stainsrc++)) >> 8;
+				}
+
+				cr = 0;
+				cg = 0;
+				cb = 0;
+
+				if (r > 255)	//ak too much red
+				{
+					cr -= (255-r)/2;
+					cg += (255-r)/4;	//reduce it, and indicate to drop the others too.
+					cb += (255-r)/4;
+					r = 255;
+				}			
+				
+				if (g > 255)
+				{					
+					cr += (255-g)/4;
+					cg -= (255-g)/2;
+					cb += (255-g)/4;
+					g = 255;
+				}				
+
+				if (b > 255)
+				{
+					cr += (255-b)/4;
+					cg += (255-b)/4;
+					cb -= (255-b)/2;
+					b = 255;
+				}
+
+				r+=cr;
+				if (r > 255)
+					dest[0] = 255;
+				else if (r < 0)
+					dest[0] = 0;
+				else
+					dest[0] = (r+cr);
+
+				g+=cg;
+				if (g > 255)
+					dest[1] = 255;
+				else if (g < 0)
+					dest[1] = 0;
+				else
+					dest[1] = g;
+
+				b+=cb;
+				if (b > 255)
+					dest[2] = 255;
+				else if (b < 0)
+					dest[2] = 0;
+				else
+					dest[2] = b;
+				dest += 3;	
+			}
+			if (stainsrc)
+				stainsrc += (LMBLOCK_WIDTH - smax)*3;
+		}		
+		break;
+	case lum:
+		stride = LMBLOCK_WIDTH;
+		bl = blocklights;
+		for (i=0 ; i<tmax ; i++, dest += stride)
+		{
+			for (j=0 ; j<smax ; j++)
+			{
+				t = *bl++;
+				t >>= shift;
+				if (t > 255)
+					t = 255;
+				dest[j] = t;
+			}
+		}
+		break;
+	default:
+		Sys_Error ("Bad lightmap format");
+	}
+}
+
 /*
 ===============
 R_BuildLightMap
@@ -680,7 +928,7 @@ R_BuildLightMap
 Combine and scale multiple lightmaps into the 8.8 format in blocklights
 ===============
 */
-static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *stainsrc, int shift)
+static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest, stmap *stainsrc, int shift, int ambient)
 {
 	int			smax, tmax;
 	int			t;
@@ -689,19 +937,11 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 	unsigned	scale;
 	int			maps;
 	unsigned	*bl;
-	qboolean isstained;
-	extern cvar_t r_ambient;
 	extern cvar_t gl_lightmap_shift;
-#ifdef PEXT_LIGHTSTYLECOL
-	unsigned	*blg;
-	unsigned	*blb;
 
-	int r, g, b;
-	int cr, cg, cb;
-#endif
 	int stride = LMBLOCK_WIDTH*lightmap_bytes;
 
-	if (!surf->samples && currentmodel->lightdata)
+	if (!surf->samples && currentmodel->lightdata && ambient >= 0)
 		return;
 
 	shift += 7; // increase to base value
@@ -721,928 +961,239 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 	if (currentmodel->deluxdata)
 		Surf_BuildDeluxMap(surf, deluxdest);
 
-
 #ifdef PEXT_LIGHTSTYLECOL
 	if (lightmap_bytes == 4 || lightmap_bytes == 3)
 	{
 		// set to full bright if no light data
-		if (r_fullbright.value>0)	//not qw
+		if (ambient < 0)
 		{
-			for (i=0 ; i<size ; i++)
+			t = (-1-ambient)*255;
+			for (i=0 ; i<size*3 ; i++)
+			{
+				blocklights[i] = t;
+			}
+
+			for (maps = 0 ; maps < MAXLIGHTMAPS ; maps++)
+			{
+				surf->cached_light[maps] = -1-ambient;
+				surf->cached_colour[maps] = 0xff;
+			}
+		}
+		else if (r_fullbright.value>0)	//not qw
+		{
+			for (i=0 ; i<size*3 ; i++)
 			{
 				blocklights[i] = r_fullbright.value*255*256;
-				greenblklights[i] = r_fullbright.value*255*256;
-				blueblklights[i] = r_fullbright.value*255*256;
 			}
-//			if (r_fullbright.value < 1)
-			{
-				if (surf->dlightframe == r_framecount)
-					Surf_AddDynamicLightsColours (surf);
-			}
-			goto store;
 		}
-		if (!currentmodel->lightdata)
+		else if (!currentmodel->lightdata)
 		{
-			for (i=0 ; i<size ; i++)
+			for (i=0 ; i<size*3 ; i++)
 			{
 				blocklights[i] = 255*256;
-				greenblklights[i] = 255*256;
-				blueblklights[i] = 255*256;
 			}
-				if (surf->dlightframe == r_framecount)
-					Surf_AddDynamicLightsColours (surf);
-			goto store;
 		}
-
-// clear to no light
-		t = r_ambient.value*255;
-		for (i=0 ; i<size ; i++)
+		else
 		{
-			blocklights[i] = t;
-			greenblklights[i] = t;
-			blueblklights[i] = t;
-		}
+// clear to no light
+			t = ambient;
+			if (t == 0)
+				memset(blocklights, 0, size*3*sizeof(*bl));
+			else
+			{
+				for (i=0 ; i<size*3 ; i++)
+				{
+					blocklights[i] = t;
+				}
+			}
 
 // add all the lightmaps
-		if (lightmap)
-		{
-			if (currentmodel->fromgame == fg_quake3)	//rgb
+			if (lightmap)
 			{
-				if (lightmap_bgra)
+				if (currentmodel->fromgame == fg_quake3)	//rgb
 				{
-					for (i = 0; i < tmax; i++)	//q3 maps store their light in a block fashion, q1/q2/hl store it in a linear fashion.
+					/*q3 lightmaps are meant to be pre-built
+					this code is misguided, and ought never be executed anyway.
+					*/
+					bl = blocklights;
+					for (i = 0; i < tmax; i++)
 					{
 						for (j = 0; j < smax; j++)
 						{
-							blocklights[i*smax+j]		= 255*lightmap[(i*LMBLOCK_WIDTH+j)*3+2];
-							greenblklights[i*smax+j]	= 255*lightmap[(i*LMBLOCK_WIDTH+j)*3+1];
-							blueblklights[i*smax+j]		= 255*lightmap[(i*LMBLOCK_WIDTH+j)*3  ];
+							bl[0]		= 255*lightmap[(i*LMBLOCK_WIDTH+j)*3];
+							bl[1]		= 255*lightmap[(i*LMBLOCK_WIDTH+j)*3+1];
+							bl[2]		= 255*lightmap[(i*LMBLOCK_WIDTH+j)*3+2];
+							bl+=3;
 						}
+					}
+				}
+				else if (currentmodel->engineflags & MDLF_RGBLIGHTING)	//rgb
+				{				
+					for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
+						 maps++)
+					{
+						scale = d_lightstylevalue[surf->styles[maps]];
+						surf->cached_light[maps] = scale;	// 8.8 fraction
+						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colour;
+
+						if (scale)
+						{
+							if (cl_lightstyle[surf->styles[maps]].colour == 7)	//hopefully a faster alternative.
+							{
+								bl = blocklights;
+								for (i=0 ; i<size*3 ; i++)
+								{
+									*bl++		+=   *lightmap++ * scale;
+								}
+							}
+							else
+							{
+								if (cl_lightstyle[surf->styles[maps]].colour & 1)
+									for (i=0 ; i<size ; i++)
+										blocklights[i+0]	+= lightmap[i*3+0] * scale;
+								if (cl_lightstyle[surf->styles[maps]].colour & 2)
+									for (i=0 ; i<size ; i++)
+										blocklights[i+1]	+= lightmap[i*3+1] * scale;
+								if (cl_lightstyle[surf->styles[maps]].colour & 4)
+									for (i=0 ; i<size ; i++)
+										blocklights[i+2]	+= lightmap[i*3+2] * scale;
+								lightmap += size*3;	// skip to next lightmap
+							}
+						}
+						else
+							lightmap += size*3;	// skip to next lightmap
 					}
 				}
 				else
-				{
-					for (i = 0; i < tmax; i++)	//q3 maps store their light in a block fashion, q1/q2/hl store it in a linear fashion.
+					for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
+						 maps++)
 					{
-						for (j = 0; j < smax; j++)
-						{
-							blocklights[i*smax+j]		= 255*lightmap[(i*LMBLOCK_WIDTH+j)*3];
-							greenblklights[i*smax+j]	= 255*lightmap[(i*LMBLOCK_WIDTH+j)*3+1];
-							blueblklights[i*smax+j]		= 255*lightmap[(i*LMBLOCK_WIDTH+j)*3+2];
-						}
-					}
-				}
-			}
-			else if (currentmodel->engineflags & MDLF_RGBLIGHTING)	//rgb
-			{				
-				for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
-					 maps++)
-				{
-					scale = d_lightstylevalue[surf->styles[maps]];
-					surf->cached_light[maps] = scale;	// 8.8 fraction
-					surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colour;
+						scale = d_lightstylevalue[surf->styles[maps]];
+						surf->cached_light[maps] = scale;	// 8.8 fraction
+						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colour;
 
-					if (lightmap_bgra)
-					{
 						if (cl_lightstyle[surf->styles[maps]].colour == 7)	//hopefully a faster alternative.
 						{
+							bl = blocklights;
 							for (i=0 ; i<size ; i++)
 							{
-								blocklights[i]		+= lightmap[i*3+2] * scale;
-								greenblklights[i]	+= lightmap[i*3+1] * scale;
-								blueblklights[i]	+= lightmap[i*3  ] * scale;
+								*bl++		+= *lightmap * scale;
+								*bl++		+= *lightmap * scale;
+								*bl++		+= *lightmap * scale;
+								lightmap++;
 							}
 						}
 						else
 						{
 							if (cl_lightstyle[surf->styles[maps]].colour & 1)
-								for (i=0 ; i<size ; i++)
-									blocklights[i]		+= lightmap[i*3+2] * scale;
+								for (i=0, bl = blocklights; i<size; i++, bl+=3)
+									*bl += lightmap[i] * scale;
 							if (cl_lightstyle[surf->styles[maps]].colour & 2)
-								for (i=0 ; i<size ; i++)
-									greenblklights[i]	+= lightmap[i*3+1] * scale;
+								for (i=0, bl = blocklights+1; i<size; i++, bl+=3)
+									*bl += lightmap[i] * scale;
 							if (cl_lightstyle[surf->styles[maps]].colour & 4)
-								for (i=0 ; i<size ; i++)
-									blueblklights[i]	+= lightmap[i*3  ] * scale;
+								for (i=0, bl = blocklights+2; i<size; i++, bl+=3)
+									*bl += lightmap[i] * scale;
+							lightmap += size;	// skip to next lightmap
 						}
 					}
-					else
-					{
-						if (cl_lightstyle[surf->styles[maps]].colour == 7)	//hopefully a faster alternative.
-						{
-							for (i=0 ; i<size ; i++)
-							{
-								blocklights[i]		+= lightmap[i*3  ] * scale;
-								greenblklights[i]	+= lightmap[i*3+1] * scale;
-								blueblklights[i]	+= lightmap[i*3+2] * scale;
-							}
-						}
-						else
-						{
-							if (cl_lightstyle[surf->styles[maps]].colour & 1)
-								for (i=0 ; i<size ; i++)
-									blocklights[i]		+= lightmap[i*3  ] * scale;
-							if (cl_lightstyle[surf->styles[maps]].colour & 2)
-								for (i=0 ; i<size ; i++)
-									greenblklights[i]	+= lightmap[i*3+1] * scale;
-							if (cl_lightstyle[surf->styles[maps]].colour & 4)
-								for (i=0 ; i<size ; i++)
-									blueblklights[i]	+= lightmap[i*3+2] * scale;
-						}
-					}
-					lightmap += size*3;	// skip to next lightmap
-				}
 			}
-			else
-				for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
-					 maps++)
-				{
-					scale = d_lightstylevalue[surf->styles[maps]];
-					surf->cached_light[maps] = scale;	// 8.8 fraction
-					surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colour;
-
-					if (cl_lightstyle[surf->styles[maps]].colour == 7)	//hopefully a faster alternative.
-					{
-						for (i=0 ; i<size ; i++)
-						{
-							blocklights[i]		+= lightmap[i] * scale;
-							greenblklights[i]	+= lightmap[i] * scale;
-							blueblklights[i]	+= lightmap[i] * scale;
-						}
-					}
-					else
-					{
-						if (cl_lightstyle[surf->styles[maps]].colour & 1)
-							for (i=0 ; i<size ; i++)
-								blocklights[i] += lightmap[i] * scale;
-						if (cl_lightstyle[surf->styles[maps]].colour & 2)
-							for (i=0 ; i<size ; i++)
-								greenblklights[i] += lightmap[i] * scale;
-						if (cl_lightstyle[surf->styles[maps]].colour & 4)
-							for (i=0 ; i<size ; i++)
-								blueblklights[i] += lightmap[i] * scale;
-					}
-					lightmap += size;	// skip to next lightmap
-				}
 		}
 
-// add all the dynamic lights
+		// add all the dynamic lights
 		if (surf->dlightframe == r_framecount)
 			Surf_AddDynamicLightsColours (surf);
+
+		if (lightmap_bytes == 4)
+		{
+			if (lightmap_bgra)
+			{
+				if (!r_stains.value || !surf->stained)
+					Surf_StoreLightmap(dest, smax, tmax, shift, bgra4_os, NULL);
+				else
+					Surf_StoreLightmap(dest, smax, tmax, shift, bgra4_os, stainsrc);
+			}
+			else
+			{
+				/*if (!r_stains.value || !surf->stained)
+					Surf_StoreLightmap(dest, smax, tmax, shift, rgba4, NULL);
+				else
+					Surf_StoreLightmap(dest, smax, tmax, shift, rgba4, stainsrc);
+				*/
+			}
+		}
+		else if (lightmap_bytes == 3)
+		{
+			if (lightmap_bgra)
+			{
+				/*
+				if (!r_stains.value || !surf->stained)
+					Surf_StoreLightmap(dest, smax, tmax, shift, bgr3, NULL);
+				else
+					Surf_StoreLightmap(dest, smax, tmax, shift, bgr3, stainsrc);
+				*/
+			}
+			else 
+			{
+				if (!r_stains.value || !surf->stained)
+					Surf_StoreLightmap(dest, smax, tmax, shift, rgb3_os, NULL);
+				else
+					Surf_StoreLightmap(dest, smax, tmax, shift, rgb3_os, stainsrc);
+			}
+		}
 	}
 	else
-	{
 #endif
+	{
 	// set to full bright if no light data
-		if (r_fullbright.value || !currentmodel->lightdata)
+		if (r_fullbright.ival || !currentmodel->lightdata)
 		{
 			for (i=0 ; i<size ; i++)
 				blocklights[i] = 255*256;
-			goto store;
 		}
-
-	// clear to no light
-		for (i=0 ; i<size ; i++)
-			blocklights[i] = 0;
-
-	// add all the lightmaps
-		if (lightmap)
+		else
 		{
-			if (currentmodel->engineflags & MDLF_RGBLIGHTING)	//rgb
-				for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
-					 maps++)
-				{
-					scale = d_lightstylevalue[surf->styles[maps]]/3;
-					surf->cached_light[maps] = scale;	// 8.8 fraction
-					surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colour;
-					for (i=0 ; i<size ; i++)
-						blocklights[i] += (lightmap[i*3]+lightmap[i*3+1]+lightmap[i*3+2]) * scale;
-					lightmap += size*3;	// skip to next lightmap
-				}
+// clear to no light
+			for (i=0 ; i<size ; i++)
+				blocklights[i] = 0;
 
-			else
-				for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
-					 maps++)
-				{
-					scale = d_lightstylevalue[surf->styles[maps]];
-					surf->cached_light[maps] = scale;	// 8.8 fraction
-					surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colour;
-					for (i=0 ; i<size ; i++)
-						blocklights[i] += lightmap[i] * scale;
-					lightmap += size;	// skip to next lightmap
-				}
+// add all the lightmaps
+			if (lightmap)
+			{
+				if (currentmodel->engineflags & MDLF_RGBLIGHTING)	//rgb
+					for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
+						 maps++)
+					{
+						scale = d_lightstylevalue[surf->styles[maps]]/3;
+						surf->cached_light[maps] = scale;	// 8.8 fraction
+						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colour;
+						for (i=0 ; i<size ; i++)
+							blocklights[i] += (lightmap[i*3]+lightmap[i*3+1]+lightmap[i*3+2]) * scale;
+						lightmap += size*3;	// skip to next lightmap
+					}
+
+				else
+					for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
+						 maps++)
+					{
+						scale = d_lightstylevalue[surf->styles[maps]];
+						surf->cached_light[maps] = scale;	// 8.8 fraction
+						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colour;
+						for (i=0 ; i<size ; i++)
+							blocklights[i] += lightmap[i] * scale;
+						lightmap += size;	// skip to next lightmap
+					}
+			}
+// add all the dynamic lights
+			if (surf->dlightframe == r_framecount)
+				Surf_AddDynamicLights (surf);
 		}
 
-	// add all the dynamic lights
-		if (surf->dlightframe == r_framecount)
-			Surf_AddDynamicLights (surf);
-#ifdef PEXT_LIGHTSTYLECOL
+		if (!r_stains.value || !surf->stained)
+			Surf_StoreLightmap(dest, smax, tmax, shift, lum, NULL);
+		else
+			Surf_StoreLightmap(dest, smax, tmax, shift, lum, stainsrc);
 	}
-#endif
-
-// bound, invert, and shift
-store:
-#ifdef INVERTLIGHTMAPS
-	switch (gl_lightmap_format)
-	{
-#ifdef PEXT_LIGHTSTYLECOL
-	case GL_RGBA:
-		stride -= (smax<<2);
-		bl = blocklights;
-		blg = greenblklights;
-		blb = blueblklights;
-
-		if (!r_stains.value)
-			isstained = false;
-		else
-			isstained = surf->stained;
-
-/*		if (!gl_lightcomponantreduction.value)
-		{
-			for (i=0 ; i<tmax ; i++, dest += stride)
-			{
-				for (j=0 ; j<smax ; j++)
-				{
-					t = *bl++;
-					t >>= 7;
-					if (t > 255)
-						dest[0] = 0;
-					else if (t < 0)
-						dest[0] = 256;
-					else
-						dest[0] = (255-t);				
-
-					t = *blg++;
-					t >>= 7;
-					if (t > 255)
-						dest[1] = 0;
-					else if (t < 0)
-						dest[1] = 256;
-					else
-						dest[1] = (255-t);
-
-					t = *blb++;
-					t >>= 7;
-					if (t > 255)
-						dest[2] = 0;
-					else if (t < 0)
-						dest[2] = 256;
-					else
-						dest[2] = (255-t);
-
-					dest[3] = 0;//(dest[0]+dest[1]+dest[2])/3;
-					dest += 4;
-				}
-			}
-		}
-		else
-*/		{
-		stmap *stain;		
-			for (i=0 ; i<tmax ; i++, dest += stride)
-			{
-				stain = stainsrc + i*LMBLOCK_WIDTH*3;
-				for (j=0 ; j<smax ; j++)
-				{
-					r = *bl++;
-					g = *blg++;
-					b = *blb++;
-
-					r >>= shift;
-					g >>= shift;
-					b >>= shift;	
-
-					if (isstained)	// merge in stain
-					{
-						r = (127+r*(*stain++)) >> 8;
-						g = (127+g*(*stain++)) >> 8;
-						b = (127+b*(*stain++)) >> 8;
-					}
-
-					cr = 0;
-					cg = 0;
-					cb = 0;
-
-					if (r > 255)	//ak too much red
-					{
-						cr -= (255-r)/2;
-						cg += (255-r)/4;	//reduce it, and indicate to drop the others too.
-						cb += (255-r)/4;
-						r = 255;
-					}
-//					else if (r < 0)					
-//						r = 0;				
-					
-					if (g > 255)
-					{					
-						cr += (255-g)/4;
-						cg -= (255-g)/2;
-						cb += (255-g)/4;
-						g = 255;
-					}
-//					else if (g < 0)				
-//						g = 0;					
-
-					if (b > 255)
-					{
-						cr += (255-b)/4;
-						cg += (255-b)/4;
-						cb -= (255-b)/2;
-						b = 255;
-					}
-//					else if (b < 0)
-//						b = 0;
-				//*
-					if ((r+cr) > 255)
-						dest[0] = 0;	//inverse lighting
-					else if ((r+cr) < 0)
-						dest[0] = 255;
-					else
-						dest[0] = 255-(r+cr);
-
-					if ((g+cg) > 255)
-						dest[1] = 0;
-					else if ((g+cg) < 0)
-						dest[1] = 255;
-					else
-						dest[1] = 255-(g+cg);
-
-					if ((b+cb) > 255)
-						dest[2] = 0;
-					else if ((b+cb) < 0)
-						dest[2] = 255;
-					else
-						dest[2] = 255-(b+cb);
-/*/
-					if ((r+cr) > 255)
-						dest[0] = 255;	//non-inverse lighting
-					else if ((r+cr) < 0)
-						dest[0] = 0;
-					else
-						dest[0] = (r+cr);
-
-					if ((g+cg) > 255)
-						dest[1] = 255;
-					else if ((g+cg) < 0)
-						dest[1] = 0;
-					else
-						dest[1] = (g+cg);
-
-					if ((b+cb) > 255)
-						dest[2] = 255;
-					else if ((b+cb) < 0)
-						dest[2] = 0;
-					else
-						dest[2] = (b+cb);
-*/
-
-
-
-					dest[3] = (dest[0]+dest[1]+dest[2])/3;	//alpha?!?!
-					dest += 4;					
-				}
-			}
-		}		
-		break;
-
-	case GL_RGB:
-		stride -= smax*3;
-		bl = blocklights;
-		blg = greenblklights;
-		blb = blueblklights;
-
-		if (!r_stains.value)
-			isstained = false;
-		else
-			isstained = surf->stained;
-
-/*		if (!gl_lightcomponantreduction.value)
-		{
-			for (i=0 ; i<tmax ; i++, dest += stride)
-			{
-				for (j=0 ; j<smax ; j++)
-				{
-					t = *bl++;
-					t >>= 7;
-					if (t > 255)
-						dest[0] = 0;
-					else if (t < 0)
-						dest[0] = 256;
-					else
-						dest[0] = (255-t);				
-
-					t = *blg++;
-					t >>= 7;
-					if (t > 255)
-						dest[1] = 0;
-					else if (t < 0)
-						dest[1] = 256;
-					else
-						dest[1] = (255-t);
-
-					t = *blb++;
-					t >>= 7;
-					if (t > 255)
-						dest[2] = 0;
-					else if (t < 0)
-						dest[2] = 256;
-					else
-						dest[2] = (255-t);
-
-					dest += 3;
-				}
-			}
-		}
-		else
-*/		{
-		stmap *stain;		
-			for (i=0 ; i<tmax ; i++, dest += stride)
-			{
-				stain = stainsrc + i*LMBLOCK_WIDTH*3;
-				for (j=0 ; j<smax ; j++)
-				{
-					r = *bl++;
-					g = *blg++;
-					b = *blb++;
-
-					r >>= shift;
-					g >>= shift;
-					b >>= shift;	
-					
-					if (isstained)	// merge in stain
-					{
-						r = (127+r*(*stain++)) >> 8;
-						g = (127+g*(*stain++)) >> 8;
-						b = (127+b*(*stain++)) >> 8;
-					}
-
-					cr = 0;
-					cg = 0;
-					cb = 0;
-
-					if (r > 255)	//ak too much red
-					{
-						cr -= (255-r)/2;
-						cg += (255-r)/4;	//reduce it, and indicate to drop the others too.
-						cb += (255-r)/4;
-						r = 255;
-					}
-//					else if (r < 0)					
-//						r = 0;				
-					
-					if (g > 255)
-					{					
-						cr += (255-g)/4;
-						cg -= (255-g)/2;
-						cb += (255-g)/4;
-						g = 255;
-					}
-//					else if (g < 0)				
-//						g = 0;					
-
-					if (b > 255)
-					{
-						cr += (255-b)/4;
-						cg += (255-b)/4;
-						cb -= (255-b)/2;
-						b = 255;
-					}
-//					else if (b < 0)
-//						b = 0;
-				//*
-					if ((r+cr) > 255)
-						dest[0] = 0;	//inverse lighting
-					else if ((r+cr) < 0)
-						dest[0] = 255;
-					else
-						dest[0] = 255-(r+cr);
-
-					if ((g+cg) > 255)
-						dest[1] = 0;
-					else if ((g+cg) < 0)
-						dest[1] = 255;
-					else
-						dest[1] = 255-(g+cg);
-
-					if ((b+cb) > 255)
-						dest[2] = 0;
-					else if ((b+cb) < 0)
-						dest[2] = 255;
-					else
-						dest[2] = 255-(b+cb);
-/*/
-					if ((r+cr) > 255)
-						dest[0] = 255;	//non-inverse lighting
-					else if ((r+cr) < 0)
-						dest[0] = 0;
-					else
-						dest[0] = (r+cr);
-
-					if ((g+cg) > 255)
-						dest[1] = 255;
-					else if ((g+cg) < 0)
-						dest[1] = 0;
-					else
-						dest[1] = (g+cg);
-
-					if ((b+cb) > 255)
-						dest[2] = 255;
-					else if ((b+cb) < 0)
-						dest[2] = 0;
-					else
-						dest[2] = (b+cb);
-// */
-					dest += 3;	
-				}
-			}
-		}		
-		break;
-#else
-	case GL_RGBA:
-		stride -= (smax<<2);
-		bl = blocklights;
-		for (i=0 ; i<tmax ; i++, dest += stride)
-		{
-			for (j=0 ; j<smax ; j++)
-			{
-				t = *bl++;
-				t >>= shift;
-				if (t > 255)
-					t = 255;
-				dest[3] = 255-t;
-				dest += 4;
-			}
-		}
-		break;
-#endif
-	case GL_ALPHA:
-	case GL_LUMINANCE:
-	case GL_INTENSITY:
-		bl = blocklights;
-		for (i=0 ; i<tmax ; i++, dest += stride)
-		{
-			for (j=0 ; j<smax ; j++)
-			{
-				t = *bl++;
-				t >>= shift;
-				if (t > 255)
-					t = 255;
-				dest[j] = 255-t;
-			}
-		}
-		break;
-	default:
-		Sys_Error ("Bad lightmap format");
-	}
-#else
-	switch (lightmap_bytes)
-	{
-#ifdef PEXT_LIGHTSTYLECOL
-	case 4:
-		stride -= (smax<<2);
-		bl = blocklights;
-		blg = greenblklights;
-		blb = blueblklights;
-
-		if (!r_stains.value)
-			isstained = false;
-		else
-			isstained = surf->stained;
-
-/*		if (!gl_lightcomponantreduction.value)
-		{
-			for (i=0 ; i<tmax ; i++, dest += stride)
-			{
-				for (j=0 ; j<smax ; j++)
-				{
-					t = *bl++;
-					t >>= 7;
-					if (t > 255)
-						dest[0] = 0;
-					else if (t < 0)
-						dest[0] = 256;
-					else
-						dest[0] = (255-t);				
-
-					t = *blg++;
-					t >>= 7;
-					if (t > 255)
-						dest[1] = 0;
-					else if (t < 0)
-						dest[1] = 256;
-					else
-						dest[1] = (255-t);
-
-					t = *blb++;
-					t >>= 7;
-					if (t > 255)
-						dest[2] = 0;
-					else if (t < 0)
-						dest[2] = 256;
-					else
-						dest[2] = (255-t);
-
-					dest[3] = 0;//(dest[0]+dest[1]+dest[2])/3;
-					dest += 4;
-				}
-			}
-		}
-		else
-*/		{
-		stmap *stain;		
-			for (i=0 ; i<tmax ; i++, dest += stride)
-			{
-				stain = stainsrc + i*LMBLOCK_WIDTH*3;
-				for (j=0 ; j<smax ; j++)
-				{
-					r = *bl++;
-					g = *blg++;
-					b = *blb++;
-
-					r >>= shift;
-					g >>= shift;
-					b >>= shift;	
-
-					if (isstained)	// merge in stain
-					{
-						r = (127+r*(*stain++)) >> 8;
-						g = (127+g*(*stain++)) >> 8;
-						b = (127+b*(*stain++)) >> 8;
-					}
-
-					cr = 0;
-					cg = 0;
-					cb = 0;
-
-					if (r > 255)	//ak too much red
-					{
-						cr -= (255-r)/2;
-						cg += (255-r)/4;	//reduce it, and indicate to drop the others too.
-						cb += (255-r)/4;
-						r = 255;
-					}
-//					else if (r < 0)					
-//						r = 0;				
-					
-					if (g > 255)
-					{					
-						cr += (255-g)/4;
-						cg -= (255-g)/2;
-						cb += (255-g)/4;
-						g = 255;
-					}
-//					else if (g < 0)				
-//						g = 0;					
-
-					if (b > 255)
-					{
-						cr += (255-b)/4;
-						cg += (255-b)/4;
-						cb -= (255-b)/2;
-						b = 255;
-					}
-//					else if (b < 0)
-//						b = 0;
-				/*
-					if ((r+cr) > 255)
-						dest[0] = 0;	//inverse lighting
-					else if ((r+cr) < 0)
-						dest[0] = 255;
-					else
-						dest[0] = 255-(r+cr);
-
-					if ((g+cg) > 255)
-						dest[1] = 0;
-					else if ((g+cg) < 0)
-						dest[1] = 255;
-					else
-						dest[1] = 255-(g+cg);
-
-					if ((b+cb) > 255)
-						dest[2] = 0;
-					else if ((b+cb) < 0)
-						dest[2] = 255;
-					else
-						dest[2] = 255-(b+cb);
-/*/
-					if ((r+cr) > 255)
-						dest[0] = 255;	//non-inverse lighting
-					else if ((r+cr) < 0)
-						dest[0] = 0;
-					else
-						dest[0] = (r+cr);
-
-					if ((g+cg) > 255)
-						dest[1] = 255;
-					else if ((g+cg) < 0)
-						dest[1] = 0;
-					else
-						dest[1] = (g+cg);
-
-					if ((b+cb) > 255)
-						dest[2] = 255;
-					else if ((b+cb) < 0)
-						dest[2] = 0;
-					else
-						dest[2] = (b+cb);
-//*/
-
-
-
-					dest[3] = (dest[0]+dest[1]+dest[2])/3;	//alpha?!?!
-					dest += 4;					
-				}
-			}
-		}		
-		break;
-
-	case 3:
-		stride -= smax*3;
-		bl = blocklights;
-		blg = greenblklights;
-		blb = blueblklights;
-
-		if (!r_stains.value)
-			isstained = false;
-		else
-			isstained = surf->stained;
-
-/*		if (!gl_lightcomponantreduction.value)
-		{
-			for (i=0 ; i<tmax ; i++, dest += stride)
-			{
-				for (j=0 ; j<smax ; j++)
-				{
-					t = *bl++;
-					t >>= 7;
-					if (t > 255)
-						dest[0] = 255;
-					else if (t < 0)
-						dest[0] = 0;
-					else
-						dest[0] = t;				
-
-					t = *blg++;
-					t >>= 7;
-					if (t > 255)
-						dest[1] = 255;
-					else if (t < 0)
-						dest[1] = 0;
-					else
-						dest[1] = t;
-
-					t = *blb++;
-					t >>= 7;
-					if (t > 255)
-						dest[2] = 255;
-					else if (t < 0)
-						dest[2] = 0;
-					else
-						dest[2] = t;
-
-					dest += 3;
-				}
-			}
-		}
-		else
-*/		{
-		stmap *stain;		
-			for (i=0 ; i<tmax ; i++, dest += stride)
-			{
-				stain = stainsrc + i*LMBLOCK_WIDTH*3;
-				for (j=0 ; j<smax ; j++)
-				{
-					r = *bl++;
-					g = *blg++;
-					b = *blb++;
-
-					r >>= shift;
-					g >>= shift;
-					b >>= shift;	
-
-					if (isstained)	// merge in stain
-					{
-						r = (127+r*(*stain++)) >> 8;
-						g = (127+g*(*stain++)) >> 8;
-						b = (127+b*(*stain++)) >> 8;
-					}
-
-					cr = 0;
-					cg = 0;
-					cb = 0;
-
-					if (r > 255)	//ak too much red
-					{
-						cr -= (255-r)/2;
-						cg += (255-r)/4;	//reduce it, and indicate to drop the others too.
-						cb += (255-r)/4;
-						r = 255;
-					}
-//					else if (r < 0)					
-//						r = 0;				
-					
-					if (g > 255)
-					{					
-						cr += (255-g)/4;
-						cg -= (255-g)/2;
-						cb += (255-g)/4;
-						g = 255;
-					}
-//					else if (g < 0)				
-//						g = 0;					
-
-					if (b > 255)
-					{
-						cr += (255-b)/4;
-						cg += (255-b)/4;
-						cb -= (255-b)/2;
-						b = 255;
-					}
-//					else if (b < 0)
-//						b = 0;
-				//*
-					if ((r+cr) > 255)
-						dest[0] = 255;	//inverse lighting
-					else if ((r+cr) < 0)
-						dest[0] = 0;
-					else
-						dest[0] = (r+cr);
-
-					if ((g+cg) > 255)
-						dest[1] = 255;
-					else if ((g+cg) < 0)
-						dest[1] = 0;
-					else
-						dest[1] = (g+cg);
-
-					if ((b+cb) > 255)
-						dest[2] = 255;
-					else if ((b+cb) < 0)
-						dest[2] = 0;
-					else
-						dest[2] = (b+cb);
-/*/
-					if ((r+cr) > 255)
-						dest[0] = 255;	//non-inverse lighting
-					else if ((r+cr) < 0)
-						dest[0] = 0;
-					else
-						dest[0] = (r+cr);
-
-					if ((g+cg) > 255)
-						dest[1] = 255;
-					else if ((g+cg) < 0)
-						dest[1] = 0;
-					else
-						dest[1] = (g+cg);
-
-					if ((b+cb) > 255)
-						dest[2] = 255;
-					else if ((b+cb) < 0)
-						dest[2] = 0;
-					else
-						dest[2] = (b+cb);
-// */
-					dest += 3;	
-				}
-			}
-		}		
-		break;
-#else
-	case 4:
-		stride -= (smax<<2);
-		bl = blocklights;
-		for (i=0 ; i<tmax ; i++, dest += stride)
-		{
-			for (j=0 ; j<smax ; j++)
-			{
-				t = *bl++;
-				t >>= shift;
-				if (t > 255)
-					t = 255;
-				dest[3] = t;
-				dest += 4;
-			}
-		}
-		break;
-#endif
-	case 1:
-		bl = blocklights;
-		for (i=0 ; i<tmax ; i++, dest += stride)
-		{
-			for (j=0 ; j<smax ; j++)
-			{
-				t = *bl++;
-				t >>= shift;
-				if (t > 255)
-					t = 255;
-				dest[j] = t;
-			}
-		}
-		break;
-	default:
-		Sys_Error ("Bad lightmap format");
-	}
-#endif
 }
 
 
@@ -1751,7 +1302,93 @@ dynamic:
 		base += fa->light_t * LMBLOCK_WIDTH * lightmap_bytes + fa->light_s * lightmap_bytes;
 		stainbase = lightmap[fa->lightmaptexturenum]->stainmaps;
 		stainbase += (fa->light_t * LMBLOCK_WIDTH + fa->light_s) * 3;
-		Surf_BuildLightMap (fa, base, luxbase, stainbase, shift);
+		Surf_BuildLightMap (fa, base, luxbase, stainbase, shift, r_ambient.value*255);
+
+		RSpeedEnd(RSPEED_DYNAMIC);
+	}
+}
+
+void Surf_RenderAmbientLightmaps (msurface_t *fa, int shift, int ambient)
+{
+	qbyte		*base, *luxbase;
+	stmap *stainbase;
+	glRect_t    *theRect;
+	int smax, tmax;
+
+	if (!fa->mesh)
+		return;
+
+	//surfaces without lightmaps
+	if (fa->lightmaptexturenum<0)
+		return;
+
+	//surfaces with lightmaps that do not animate, supposedly
+	if (fa->texinfo->flags & (TI_SKY|TI_TRANS33|TI_TRANS66|TI_WARP))
+		return;
+
+	if (fa->cached_light[0] != ambient || fa->cached_colour[0] != 0xff)
+		goto dynamic;
+
+	if (fa->dlightframe == r_framecount	// dynamic this frame
+		|| fa->cached_dlight)			// dynamic previously
+	{
+		RSpeedLocals();
+dynamic:
+		RSpeedRemark();
+
+		lightmap[fa->lightmaptexturenum]->modified = true;
+
+		smax = (fa->extents[0]>>4)+1;
+		tmax = (fa->extents[1]>>4)+1;
+
+		theRect = &lightmap[fa->lightmaptexturenum]->rectchange;
+		if (fa->light_t < theRect->t) {
+			if (theRect->h)
+				theRect->h += theRect->t - fa->light_t;
+			theRect->t = fa->light_t;
+		}
+		if (fa->light_s < theRect->l) {
+			if (theRect->w)
+				theRect->w += theRect->l - fa->light_s;
+			theRect->l = fa->light_s;
+		}
+		if ((theRect->w + theRect->l) < (fa->light_s + smax))
+			theRect->w = (fa->light_s-theRect->l)+smax;
+		if ((theRect->h + theRect->t) < (fa->light_t + tmax))
+			theRect->h = (fa->light_t-theRect->t)+tmax;
+
+		if (gl_bump.ival)
+		{
+			lightmap[fa->lightmaptexturenum]->deluxmodified = true;
+			theRect = &lightmap[fa->lightmaptexturenum]->deluxrectchange;
+			if (fa->light_t < theRect->t) {
+				if (theRect->h)
+					theRect->h += theRect->t - fa->light_t;
+				theRect->t = fa->light_t;
+			}
+			if (fa->light_s < theRect->l) {
+				if (theRect->w)
+					theRect->w += theRect->l - fa->light_s;
+				theRect->l = fa->light_s;
+			}
+
+			if ((theRect->w + theRect->l) < (fa->light_s + smax))
+				theRect->w = (fa->light_s-theRect->l)+smax;
+			if ((theRect->h + theRect->t) < (fa->light_t + tmax))
+				theRect->h = (fa->light_t-theRect->t)+tmax;
+
+			luxbase = lightmap[fa->lightmaptexturenum]->deluxmaps;
+			luxbase += fa->light_t * LMBLOCK_WIDTH * 3 + fa->light_s * 3;
+		}
+		else
+			luxbase = NULL;
+
+
+		base = lightmap[fa->lightmaptexturenum]->lightmaps;
+		base += fa->light_t * LMBLOCK_WIDTH * lightmap_bytes + fa->light_s * lightmap_bytes;
+		stainbase = lightmap[fa->lightmaptexturenum]->stainmaps;
+		stainbase += (fa->light_t * LMBLOCK_WIDTH + fa->light_s) * 3;
+		Surf_BuildLightMap (fa, base, luxbase, stainbase, shift, -1-ambient);
 
 		RSpeedEnd(RSPEED_DYNAMIC);
 	}
@@ -2254,7 +1891,6 @@ R_DrawWorld
 
 void Surf_DrawWorld (void)
 {
-	int tmp;
 	qbyte *vis;
 	RSpeedLocals();
 
@@ -2263,6 +1899,11 @@ void Surf_DrawWorld (void)
 	currentmodel = cl.worldmodel;
 	currententity = &r_worldentity;
 
+#ifdef MAP_DOOM
+	if (currentmodel->fromgame = fg_doom)
+		GLR_DoomWorld();
+	else
+#endif
 #ifdef TERRAIN
 	if (currentmodel->type == mod_heightmap)
 		GL_DrawHeightmapModel(currententity);
@@ -2314,13 +1955,11 @@ void Surf_DrawWorld (void)
 			}
 		}
 
-		tmp = cl_numvisedicts;
 		CL_LinkStaticEntities(vis);
 
 		RSpeedEnd(RSPEED_WORLDNODE);
 		TRACE(("dbg: calling BE_DrawWorld\n"));
 		BE_DrawWorld(vis);
-		cl_numvisedicts = tmp;
 
 
 		/*FIXME: move this away*/
@@ -2643,7 +2282,7 @@ static void Surf_CreateSurfaceLightmap (msurface_t *surf, int shift)
 	stainbase = lightmap[surf->lightmaptexturenum]->stainmaps;
 	stainbase += (surf->light_t * LMBLOCK_WIDTH + surf->light_s) * 3;
 
-	Surf_BuildLightMap (surf, base, luxbase, stainbase, shift);
+	Surf_BuildLightMap (surf, base, luxbase, stainbase, shift, r_ambient.value*255);
 }
 
 
@@ -2720,14 +2359,23 @@ void Surf_BuildLightmaps (void)
 	lightmap_bgra = (qrenderer == QR_DIRECT3D);
 
 	if (qrenderer == QR_DIRECT3D)
+	{
 		lightmap_bytes = 4;
-	else if ((cl.worldmodel->engineflags & MDLF_RGBLIGHTING) || cl.worldmodel->deluxdata || r_loadlits.value)
+		lightmap_bgra = true;
+	}
+	else if (cl.worldmodel->fromgame == fg_quake3 || (cl.worldmodel->engineflags & MDLF_RGBLIGHTING) || cl.worldmodel->deluxdata || r_loadlits.value)
+	{
+		lightmap_bgra = false;
 		lightmap_bytes = 3;
+	}
 	else
 		lightmap_bytes = 1;
 
 	if (cl.worldmodel->fromgame == fg_quake3 && lightmap_bytes != 3 && lightmap_bytes != 4)
 		lightmap_bytes = 3;
+
+	lightmap_bgra = true;
+	lightmap_bytes = 4;
 
 	for (j=1 ; j<MAX_MODELS ; j++)
 	{
@@ -2754,6 +2402,7 @@ void Surf_BuildLightmaps (void)
 					P_EmitSkyEffectTris(m, surf);
 					Surf_CreateSurfaceLightmap (surf, shift);
 
+					/*the excessive logic is to give portals separate batches for separate planes*/
 					if (m->textures[t]->shader->sort == SHADER_SORT_PORTAL)
 					{
 						if (surf->flags & SURF_PLANEBACK)

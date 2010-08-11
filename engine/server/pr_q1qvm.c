@@ -458,7 +458,7 @@ static eval_t *Q1QVMPF_GetEdictFieldValue(progfuncs_t *pf, edict_t *e, char *fie
 {
 	if (!strcmp(fieldname, "message"))
 	{
-		return (eval_t*)&e->v->message;
+		return (eval_t*)&e->v->_message;
 	}
 	return NULL;
 }
@@ -1452,6 +1452,7 @@ qboolean PR_LoadQ1QVM(void)
 
 	sv.world.progs = &q1qvmprogfuncs;
 	sv.world.edicts = (wedict_t*)EDICT_NUM(svprogfuncs, 0);
+	sv.world.usesolidcorpse = true;
 	return true;
 }
 

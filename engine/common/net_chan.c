@@ -244,7 +244,7 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 	int sequence;
 	int drop;
 
-	MSG_BeginReading ();
+	MSG_BeginReading (chan->netprim);
 
 	header = LongSwap(MSG_ReadLong());
 	if (net_message.cursize != (header & NETFLAG_LENGTH_MASK))
@@ -326,7 +326,7 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 				SZ_Clear(&net_message);
 				SZ_Write(&net_message, chan->in_fragment_buf, chan->in_fragment_length);
 				chan->in_fragment_length = 0;
-				MSG_BeginReading();
+				MSG_BeginReading(chan->netprim);
 				return NQP_RELIABLE;	//we can read it now
 			}
 		}
@@ -548,7 +548,7 @@ qboolean Netchan_Process (netchan_t *chan)
 		return false;
 
 // get sequence numbers		
-	MSG_BeginReading ();
+	MSG_BeginReading (chan->netprim);
 	sequence = MSG_ReadLong ();
 	sequence_ack = MSG_ReadLong ();
 

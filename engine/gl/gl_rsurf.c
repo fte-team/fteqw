@@ -298,10 +298,24 @@ void BE_UploadAllLightmaps(void)
 		GL_Bind(lightmap_textures[i]);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		qglTexImage2D (GL_TEXTURE_2D, 0, lightmap_bytes
-				, LMBLOCK_WIDTH, LMBLOCK_HEIGHT, 0, 
-				((lightmap_bytes==3)?GL_RGB:GL_LUMINANCE), GL_UNSIGNED_BYTE, lightmap[i]->lightmaps);
-
+		switch (lightmap_bytes)
+		{
+		case 4:
+			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 
+				LMBLOCK_WIDTH, LMBLOCK_WIDTH, 0, (lightmap_bgra?GL_BGRA_EXT:GL_RGBA), GL_UNSIGNED_INT_8_8_8_8_REV,
+				lightmap[i]->lightmaps);
+			break;
+		case 3:
+			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, 
+				LMBLOCK_WIDTH, LMBLOCK_WIDTH, 0, (lightmap_bgra?GL_BGR_EXT:GL_RGB), GL_UNSIGNED_BYTE,
+				lightmap[i]->lightmaps);
+			break;
+		case 1:
+			qglTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE,
+				LMBLOCK_WIDTH, LMBLOCK_WIDTH, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE,
+				lightmap[i]->lightmaps);
+			break;
+		}
 		if (gl_bump.ival)
 		{
 			lightmap[i]->deluxmodified = false;

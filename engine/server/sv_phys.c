@@ -22,6 +22,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "qwsvdef.h"
 #ifndef CLIENTONLY
 
+#include "pr_common.h"
+
 #pragma message("fixme, fix this up before adding to csqc")
 extern nqglobalvars_t realpr_nqglobal_struct;
 
@@ -928,6 +930,7 @@ if (l > 1.0/64)
 {
 //	Con_Printf ("**** snap: %f\n", Length (l));
 	VectorCopy (oldorg, ent->v->origin);
+	VectorCopy (oldang, ent->v->angles);
 	SV_Push (ent, move, amove);
 }
 
@@ -1125,11 +1128,17 @@ static void SV_Physics_Toss (edict_t *ent)
 	if (ent->v->movetype == MOVETYPE_BOUNCE)
 		backoff = 1.5;
 	else if (ent->v->movetype == MOVETYPE_BOUNCEMISSILE)
-		backoff = 2;
+	{
+//		if (progstype == PROG_H2 && ent->v->solid == SOLID_PHASEH2 && ((int)((wedict_t*)trace.ent)->v->flags & (FL_MONSTER|FL_CLIENT)))
+//			backoff = 0;
+//		else
+			backoff = 2;
+	}
 	else
 		backoff = 1;
 
-	ClipVelocity (ent->v->velocity, trace.plane.normal, ent->v->velocity, backoff);
+	if (backoff)
+		ClipVelocity (ent->v->velocity, trace.plane.normal, ent->v->velocity, backoff);
 
 
 // stop if on ground
@@ -2092,7 +2101,7 @@ qboolean SV_Physics (void)
 			break;
 		if (host_frametime > sv_maxtic.value)
 		{
-			if (--maxtics == 0)
+			if (maxtics-- <= 0)
 			{
 				//timewarp, as we're running too slowly
 				sv.world.physicstime = sv.time;

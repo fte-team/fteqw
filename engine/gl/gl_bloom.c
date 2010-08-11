@@ -45,9 +45,9 @@ cvar_t		r_bloom_fast_sample = CVARF("r_bloom_fast_sample", "0", CVAR_RENDERERLAT
 
 typedef struct {
 	//texture numbers
-	texid_t	tx_screen;
-	texid_t tx_effect;
-	texid_t tx_backup;
+	texid_t	tx_screen;	/*a copy of the screen*/
+	texid_t tx_effect;	/*blured copy of bright pixels*/
+	texid_t tx_backup;	/*a copy of the screen to replace the pixels that we'll clobber. FIXME: use a FBO instead*/
 	texid_t tx_downsample;
 
 	//the viewport dimensions
@@ -506,8 +506,8 @@ void R_BloomBlend (void)
 		bs.scr_h < bs.size_sample)
 		return;
 
-#pragma message("backend fixme")
-	Con_Printf("bloom is not updated for the backend\n");
+	PPL_RevertToKnownState();
+#pragma message("Note: Bloom doesn't use the backend.")
 
 	//set up full screen workspace
 	qglViewport(0, 0, vid.pixelwidth, vid.pixelheight);
@@ -578,6 +578,8 @@ void R_BloomBlend (void)
 
 	if (qglGetError())
 		Con_Printf("GL Error whilst rendering bloom\n");
+
+	PPL_RevertToKnownState();
 }
 
 #endif

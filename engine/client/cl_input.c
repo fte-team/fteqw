@@ -757,19 +757,24 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 
 	MSG_WriteByte (buf, clc_move);
 
-	if (nq_dp_protocol>=7)
+	if (cls.protocol_nq >= CPNQ_DP7)
 		MSG_WriteLong(buf, cls.netchan.outgoing_sequence);
 
 	MSG_WriteFloat (buf, cl.gametime);	// so server can get ping times
 
 	for (i=0 ; i<3 ; i++)
-		MSG_WriteAngle (buf, cl.viewangles[pnum][i]);
+	{
+		if (cls.protocol_nq == CPNQ_FITZ666)
+			MSG_WriteAngle16 (buf, cl.viewangles[pnum][i]);
+		else
+			MSG_WriteAngle (buf, cl.viewangles[pnum][i]);
+	}
 	
 	MSG_WriteShort (buf, cmd->forwardmove);
 	MSG_WriteShort (buf, cmd->sidemove);
 	MSG_WriteShort (buf, cmd->upmove);
 
-	if (nq_dp_protocol >= 6)
+	if (cls.protocol_nq >= CPNQ_DP6)
 	{
 		CL_UpdatePrydonCursor(cmd, cursor_screen, cursor_start, cursor_impact, &cursor_entitynumber);
 		MSG_WriteLong (buf, cmd->buttons);
@@ -781,7 +786,7 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 	MSG_WriteByte (buf, cmd->impulse);
 
 
-	if (nq_dp_protocol >= 6)
+	if (cls.protocol_nq >= CPNQ_DP6)
 	{
 		MSG_WriteShort (buf, cursor_screen[0] * 32767.0f);
 		MSG_WriteShort (buf, cursor_screen[1] * 32767.0f);
@@ -808,7 +813,7 @@ void Name_Callback(struct cvar_s *var, char *oldvalue)
 
 void CLNQ_SendCmd(sizebuf_t *buf)
 {
-	extern int cl_latestframenum, nq_dp_protocol;
+	extern int cl_latestframenum;
 
 	if (cls.signon == 4)
 	{
@@ -819,7 +824,7 @@ void CLNQ_SendCmd(sizebuf_t *buf)
 			CLNQ_SendMove (&independantphysics[0], 0, buf);
 	}
 
-	if (nq_dp_protocol > 0 && cls.signon == 4)
+	if (CPNQ_IS_DP && cls.signon == 4)
 	{
 		MSG_WriteByte(buf, clcdp_ackframe);
 		MSG_WriteLong(buf, cl_latestframenum);
@@ -1498,6 +1503,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	buf.maxsize = sizeof(data);
 	buf.cursize = 0;
 	buf.data = data;
+	buf.prim = cls.netchan.message.prim;
 
 #ifdef IRCCONNECT
 	if (cls.netchan.remote_address.type != NA_IRC)

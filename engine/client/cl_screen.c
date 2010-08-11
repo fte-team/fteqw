@@ -445,17 +445,19 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p)
 
 	p->erase_center = 0;
 
+	if (p->flags & CPRINT_BACKGROUND)
+	{	//hexen2 style plaque.
+		int lines, len;
+		if (rect->width > 320)
+		{
+			rect->x = (rect->x + rect->width/2) - 160;
+			rect->width = 320;
+		}
+	}
+
 	Font_BeginString(font_conchar, rect->x, rect->y, &left, &top);
 	Font_BeginString(font_conchar, rect->x+rect->width, rect->y+rect->height, &right, &bottom);
 	linecount = Font_LineBreaks(p->string, p->string + p->charcount, right - left, MAX_CPRINT_LINES, line_start, line_end);
-
-	if (p->flags & CPRINT_BACKGROUND)
-	{	//hexen2 style plaque.
-//		int lines, len;
-//		SCR_CenterPrintBreaks(start, &lines, &len);
-//		x = rect.x+(rect.width-len*8)/2;
-//		Draw_TextBox(x-6, y-8, len-1, lines);
-	}
 
 	if (p->flags & CPRINT_TALIGN)
 		y = top;
@@ -479,6 +481,13 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p)
 			y = (bottom-top - Font_CharHeight()*linecount) * 0.5 + top;
 		}
 	}
+	
+	if (p->flags & CPRINT_BACKGROUND)
+	{	//hexen2 style plaque.
+		x = rect->x+(rect->width-320)/2;
+		Draw_TextBox(x-6, y-8, 320/8-1, linecount);
+	}
+
 	for (l = 0; l < linecount; l++, y += Font_CharHeight())
 	{
 		if (p->flags & CPRINT_RALIGN)
@@ -1060,7 +1069,10 @@ Keybinding command
 */
 void SCR_SizeUp_f (void)
 {
-	Cvar_SetValue (&scr_viewsize,scr_viewsize.value+10);
+	if (Cmd_FromGamecode())
+		Cvar_ForceSet(&scr_viewsize,va("%i", scr_viewsize.ival+10));
+	else
+		Cvar_SetValue (&scr_viewsize,scr_viewsize.value+10);
 }
 
 
@@ -1073,7 +1085,10 @@ Keybinding command
 */
 void SCR_SizeDown_f (void)
 {
-	Cvar_SetValue (&scr_viewsize,scr_viewsize.value-10);
+	if (Cmd_FromGamecode())
+		Cvar_ForceSet(&scr_viewsize,va("%i", scr_viewsize.ival-10));
+	else
+		Cvar_SetValue (&scr_viewsize,scr_viewsize.value-10);
 }
 
 //============================================================================
@@ -1228,7 +1243,11 @@ void SCR_DrawFPS (void)
 #ifdef GLQUAKE
 	case 5:
 		if (qrenderer == QR_OPENGL)
-			GLR_FrameTimeGraph((int)(1000.0*1.5*host_frametime));
+			GLR_FrameTimeGraph((int)(1000.0*2*host_frametime));
+		break;
+	case 7:
+		if (qrenderer == QR_OPENGL)
+			GLR_FrameTimeGraph((int)(1000.0*1*host_frametime));
 		break;
 #endif
 	case 6:

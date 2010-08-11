@@ -162,6 +162,7 @@ void CloseEditor(void)
 
 	key_dest = key_console;
 	editoractive = false;
+	editprogfuncs = NULL;
 
 	if (!firstblock)
 		return;

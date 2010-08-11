@@ -571,6 +571,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 		switch (LittleLong(*(unsigned *)buf))
 		{
 //The binary 3d mesh model formats
+		case RAPOLYHEADER:
 		case IDPOLYHEADER:
 			if (!Mod_LoadQ1Model(mod, buf))
 				continue;
@@ -931,8 +932,11 @@ void Mod_FinishTexture(texture_t *tx, texnums_t tn)
 	extern cvar_t gl_shadeq1_name;
 	char altname[MAX_QPATH];
 	char *star;
+	/*skies? just replace with the override sky*/
+	if (!strncmp(tx->name, "sky", 3) && *cl.skyname)
+		tx->shader = R_RegisterCustom (va("skybox_%s", cl.skyname), Shader_DefaultSkybox, NULL);	//just load the regular name.
 	//find the *
-	if (!*gl_shadeq1_name.string || !strcmp(gl_shadeq1_name.string, "*"))
+	else if (!*gl_shadeq1_name.string || !strcmp(gl_shadeq1_name.string, "*"))
 		tx->shader = R_RegisterCustom (tx->name, Shader_DefaultBSPQ1, NULL);	//just load the regular name.
 	else if (!(star = strchr(gl_shadeq1_name.string, '*')) || (strlen(gl_shadeq1_name.string)+strlen(tx->name)+1>=sizeof(altname)))	//it's got to fit.
 		tx->shader = R_RegisterCustom (gl_shadeq1_name.string, Shader_DefaultBSPQ1, NULL);
@@ -2889,6 +2893,19 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 
 	crouchhullfile = NULL;
 
+#ifndef CLIENTONLY
+	if (sv.state)	//if the server is running
+	{
+		if (!strcmp(loadmodel->name, va("maps/%s.bsp", sv.name)))
+			Mod_ParseInfoFromEntityLump(loadmodel, mod_base + header->lumps[LUMP_ENTITIES].fileofs, loadname);
+	}
+	else
+#endif
+	{
+		if (!cl.model_precache[1])	//not copied across yet
+			Mod_ParseInfoFromEntityLump(loadmodel, mod_base + header->lumps[LUMP_ENTITIES].fileofs, loadname);
+	}
+
 // load into heap
 	if (!isDedicated || ode)
 	{
@@ -2939,19 +2956,6 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 		return false;
 	}
 
-#ifndef CLIENTONLY
-	if (sv.state)	//if the server is running
-	{
-		if (!strcmp(loadmodel->name, va("maps/%s.bsp", sv.name)))
-			Mod_ParseInfoFromEntityLump(mod_base + header->lumps[LUMP_ENTITIES].fileofs, loadname);
-	}
-	else
-#endif
-	{
-		if (!cl.model_precache[1])	//not copied across yet
-			Mod_ParseInfoFromEntityLump(mod_base + header->lumps[LUMP_ENTITIES].fileofs, loadname);
-	}
-
 	Q1BSP_SetModelFuncs(mod);
 	mod->funcs.LightPointValues		= GLQ1BSP_LightPointValues;
 	mod->funcs.StainNode			= Q1BSP_StainNode;
@@ -2983,7 +2987,7 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 			mod->hulls[j].firstclipnode = bm->headnode[j];
 			mod->hulls[j].lastclipnode = mod->numclipnodes-1;
 
-			mod->hulls[j].available = bm->hullavailable[j];
+			mod->hulls[j].available &= bm->hullavailable[j];
 			if (mod->hulls[j].firstclipnode > mod->hulls[j].lastclipnode)
 				mod->hulls[j].available = false;
 
@@ -3184,14 +3188,11 @@ void * RMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum,
 		if (!TEXVALID(texnum))
 			texnum = R_LoadTexture32 (name, width, height, (unsigned *)(pinframe + 1), IF_NOGAMMA);
 	}
-#pragma message("no hl sprites")
-#ifdef R_LoadTexture8Pal32
 	else if (version == SPRITEHL_VERSION)
 	{
 		if (!TEXVALID(texnum))
 			texnum = R_LoadTexture8Pal32 (name, width, height, (qbyte *)(pinframe + 1), (qbyte*)palette, IF_NOGAMMA);
 	}
-#endif
 	else
 	{
 		if (!TEXVALID(texnum))

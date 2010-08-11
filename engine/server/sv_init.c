@@ -28,6 +28,9 @@ char *T_GetString(int num);
 server_static_t	svs;				// persistant server info
 server_t		sv;					// local server
 
+entity_state_t *sv_staticentities;
+int sv_max_staticentities;
+
 char	localmodels[MAX_MODELS][5];	// inline model names for precache
 
 char localinfo[MAX_LOCALINFO_STRING+1]; // local game info
@@ -39,6 +42,7 @@ extern cvar_t	sv_gamespeed;
 extern cvar_t	sv_csqcdebug;
 extern cvar_t	sv_csqc_progname;
 extern qboolean	sv_allow_cheats;
+extern cvar_t	sv_calcphs;
 
 /*
 ================
@@ -107,6 +111,7 @@ void SV_FlushSignon (void)
 	sv.signon.data = sv.signon_buffers[sv.num_signon_buffers];
 	sv.num_signon_buffers++;
 	sv.signon.cursize = 0;
+	sv.signon.prim = svs.netprim;
 }
 #ifdef SERVER_DEMO_PLAYBACK
 void SV_FlushDemoSignon (void)
@@ -471,6 +476,13 @@ void SV_CalcPHS (void)
 		}
 	}
 
+	if (!sv_calcphs.ival || (sv_calcphs.ival == 2 && (rowbytes*num >= 0x100000 || (!deathmatch.ival && !coop.ival))))
+	{
+		Con_DPrintf("Skipping PHS\n");
+		sv.phs = NULL;
+		return;
+	}
+
 	/*this routine takes an exponential amount of time, so cache it if its too big*/
 	if (rowbytes*num >= 0x100000)
 	{
@@ -665,8 +677,21 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		T_FreeStrings();
 	}
 
+	if (sv_bigcoords.value)
+	{
+		svs.netprim.coordsize = 4;
+		svs.netprim.anglesize = 2;
+	}
+	else
+	{
+		svs.netprim.coordsize = 2;
+		svs.netprim.anglesize = 1;
+	}
+
 	for (i = 0; i < MAX_CLIENTS; i++)
 	{
+		svs.clients[i].datagram.prim = svs.netprim;
+		svs.clients[i].netchan.message.prim = svs.netprim;
 		svs.clients[i].nextservertimeupdate = 0;
 		if (!svs.clients[i].state)	//bots with the net_preparse module.
 			svs.clients[i].userinfo[0] = '\0';	//clear the userinfo to clear the name
@@ -677,17 +702,6 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			svs.clients[i].datagram.cursize = 0;
 		}
 		svs.clients[i].csqcactive = false;
-	}
-
-	if (sv_bigcoords.value)
-	{
-		sizeofcoord = 4;
-		sizeofangle = 2;
-	}
-	else
-	{
-		sizeofcoord = 2;
-		sizeofangle = 1;
 	}
 
 	VoteFlushAll();
@@ -728,43 +742,54 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	sv.datagram.maxsize = sizeof(sv.datagram_buf);
 	sv.datagram.data = sv.datagram_buf;
 	sv.datagram.allowoverflow = true;
-
+	sv.datagram.prim = svs.netprim;
 
 	sv.reliable_datagram.maxsize = sizeof(sv.reliable_datagram_buf);
 	sv.reliable_datagram.data = sv.reliable_datagram_buf;
+	sv.reliable_datagram.prim = svs.netprim;
 
 	sv.multicast.maxsize = sizeof(sv.multicast_buf);
 	sv.multicast.data = sv.multicast_buf;
+	sv.multicast.prim = svs.netprim;
 
 #ifdef NQPROT
 	sv.nqdatagram.maxsize = sizeof(sv.nqdatagram_buf);
 	sv.nqdatagram.data = sv.nqdatagram_buf;
 	sv.nqdatagram.allowoverflow = true;
+	sv.nqdatagram.prim = svs.netprim;
 
 	sv.nqreliable_datagram.maxsize = sizeof(sv.nqreliable_datagram_buf);
 	sv.nqreliable_datagram.data = sv.nqreliable_datagram_buf;
+	sv.nqreliable_datagram.prim = svs.netprim;
 
 	sv.nqmulticast.maxsize = sizeof(sv.nqmulticast_buf);
 	sv.nqmulticast.data = sv.nqmulticast_buf;
+	sv.nqmulticast.prim = svs.netprim;
 #endif
 
+#ifdef Q2SERVER
 	sv.q2datagram.maxsize = sizeof(sv.q2datagram_buf);
 	sv.q2datagram.data = sv.q2datagram_buf;
 	sv.q2datagram.allowoverflow = true;
+	sv.q2datagram.prim = svs.netprim;
 
 	sv.q2reliable_datagram.maxsize = sizeof(sv.q2reliable_datagram_buf);
 	sv.q2reliable_datagram.data = sv.q2reliable_datagram_buf;
+	sv.q2reliable_datagram.prim = svs.netprim;
 
 	sv.q2multicast.maxsize = sizeof(sv.q2multicast_buf);
 	sv.q2multicast.data = sv.q2multicast_buf;
+	sv.q2multicast.prim = svs.netprim;
+#endif
 
 	sv.master.maxsize = sizeof(sv.master_buf);
 	sv.master.data = sv.master_buf;
+	sv.master.prim = msg_nullnetprim;
 
 	sv.signon.maxsize = sizeof(sv.signon_buffers[0]);
 	sv.signon.data = sv.signon_buffers[0];
+	sv.signon.prim = svs.netprim;
 	sv.num_signon_buffers = 1;
-	sv.numextrastatics = 0;
 
 	strcpy (sv.name, server);
 #ifndef SERVERONLY
@@ -1370,6 +1395,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 //	SV_CreateBaseline ();
 	if (svprogfuncs)
 		SVNQ_CreateBaseline();
+#ifdef Q2SERVER
+	SVQ2_BuildBaselines();
+#endif
 	sv.signon_buffer_size[sv.num_signon_buffers-1] = sv.signon.cursize;
 
 	// all spawning is completed, any further precache statements

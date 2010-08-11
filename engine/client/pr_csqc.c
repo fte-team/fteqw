@@ -763,19 +763,17 @@ static void PF_cs_makestatic (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	csqcedict_t *in = (void*)G_EDICT(prinst, OFS_PARM0);
 	entity_t *ent;
 
-	if (cl.num_statics >= MAX_STATIC_ENTITIES)
+	if (cl.num_statics == cl_max_static_entities)
 	{
-		Con_Printf ("Too many static entities");
-
-		PF_cs_remove(prinst, pr_globals);
-		return;
+		cl_max_static_entities += 16;
+		cl_static_entities = BZ_Realloc(cl_static_entities, sizeof(*cl_static_entities) * cl_max_static_entities);
 	}
 
 	ent = &cl_static_entities[cl.num_statics].ent;
 	if (CopyCSQCEdictToEntity(in, ent))
 	{
-		#pragma message("Link static entity")
 		cl.num_statics++;
+		cl_static_entities[cl.num_statics].mdlidx = in->v->modelindex;
 	}
 
 	PF_cs_remove(prinst, pr_globals);
@@ -1370,13 +1368,6 @@ static void PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s *pr_global
 	if (cl.worldmodel)
 		R_PushDlights ();
 
-#ifdef GLQUAKE
-	if (qrenderer == QR_OPENGL)
-	{
-		gl_ztrickdisabled|=16;
-	}
-#endif
-
 	r_refdef.currentplayernum = csqc_lplayernum;
 
 	VectorCopy (r_refdef.vieworg, cl.viewent[csqc_lplayernum].origin);
@@ -1387,7 +1378,6 @@ static void PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s *pr_global
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
-		gl_ztrickdisabled&=~16;
 		GL_Set2D ();
 	}
 #endif
@@ -2281,18 +2271,18 @@ static void PF_cs_serverkey (progfuncs_t *prinst, struct globalvars_s *pr_global
 				ret = "QuakeWorld";
 			break;
 		case CP_NETQUAKE:
-			switch (nq_dp_protocol)
+			switch (cls.protocol_nq)
 			{
 			default:
 				ret = "NetQuake";
 				break;
-			case 5:
+			case CPNQ_DP5:
 				ret = "NetQuake DarkPlaces 5";
 				break;
-			case 6:
+			case CPNQ_DP6:
 				ret = "NetQuake DarkPlaces 6";
 				break;
-			case 7:
+			case CPNQ_DP7:
 				ret = "NetQuake DarkPlaces 7";
 				break;
 			}
@@ -5461,6 +5451,7 @@ qboolean CSQC_Init (unsigned int checksum)
 		csqcmapentitydataloaded = true;
 		csqcprogs = InitProgs(&csqcprogparms);
 		csqc_world.progs = csqcprogs;
+		csqc_world.usesolidcorpse = true;
 		PR_Configure(csqcprogs, -1, 16);
 		csqc_world.worldmodel = cl.worldmodel;
 		csqc_world.Event_Touch = CSQC_Event_Touch;

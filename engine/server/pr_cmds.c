@@ -62,7 +62,7 @@ cvar_t	pr_maxedicts = SCVARF("pr_maxedicts", "2048", CVAR_LATCH);
 
 cvar_t	pr_no_playerphysics = SCVARF("pr_no_playerphysics", "0", CVAR_LATCH);
 
-cvar_t	progs = SCVARF("progs", "", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_NOTFROMSERVER);
+cvar_t	progs = CVARAF("progs", "", "sv_progs", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_NOTFROMSERVER);
 cvar_t	qc_nonetaccess = SCVAR("qc_nonetaccess", "0");	//prevent write_... builtins from doing anything. This means we can run any mod, specific to any engine, on the condition that it also has a qw or nq crc.
 
 cvar_t pr_overridebuiltins = SCVAR("pr_overridebuiltins", "1");
@@ -764,7 +764,7 @@ progsnum_t AddProgs(char *name)
 				}
 			}
 		}
-
+		sv.world.usesolidcorpse = (progstype != PROG_H2);
 		if (num != -1)
 		{
 			PR_LoadGlabalStruct();
@@ -1725,7 +1725,55 @@ char *Translate(char *message);
 */
 
 
+static void SV_Effect(vec3_t org, int mdlidx, int startframe, int endframe, int framerate)
+{
+	if (startframe>255 || mdlidx>255)
+	{
+		MSG_WriteByte (&sv.multicast, svcfte_effect2);
+		MSG_WriteCoord (&sv.multicast, org[0]);
+		MSG_WriteCoord (&sv.multicast, org[1]);
+		MSG_WriteCoord (&sv.multicast, org[2]);
+		MSG_WriteShort (&sv.multicast, mdlidx);
+		MSG_WriteShort (&sv.multicast, startframe);
+		MSG_WriteByte (&sv.multicast, endframe);
+		MSG_WriteByte (&sv.multicast, framerate);
 
+#ifdef NQPROT
+		MSG_WriteByte (&sv.nqmulticast, svcnq_effect2);
+		MSG_WriteCoord (&sv.nqmulticast, org[0]);
+		MSG_WriteCoord (&sv.nqmulticast, org[1]);
+		MSG_WriteCoord (&sv.nqmulticast, org[2]);
+		MSG_WriteShort (&sv.nqmulticast, mdlidx);
+		MSG_WriteShort (&sv.nqmulticast, startframe);
+		MSG_WriteByte (&sv.nqmulticast, endframe);
+		MSG_WriteByte (&sv.nqmulticast, framerate);
+#endif
+	}
+	else
+	{
+		MSG_WriteByte (&sv.multicast, svcfte_effect);
+		MSG_WriteCoord (&sv.multicast, org[0]);
+		MSG_WriteCoord (&sv.multicast, org[1]);
+		MSG_WriteCoord (&sv.multicast, org[2]);
+		MSG_WriteByte (&sv.multicast, mdlidx);
+		MSG_WriteByte (&sv.multicast, startframe);
+		MSG_WriteByte (&sv.multicast, endframe);
+		MSG_WriteByte (&sv.multicast, framerate);
+
+#ifdef NQPROT
+		MSG_WriteByte (&sv.nqmulticast, svcnq_effect);
+		MSG_WriteCoord (&sv.nqmulticast, org[0]);
+		MSG_WriteCoord (&sv.nqmulticast, org[1]);
+		MSG_WriteCoord (&sv.nqmulticast, org[2]);
+		MSG_WriteByte (&sv.nqmulticast, mdlidx);
+		MSG_WriteByte (&sv.nqmulticast, startframe);
+		MSG_WriteByte (&sv.nqmulticast, endframe);
+		MSG_WriteByte (&sv.nqmulticast, framerate);
+#endif
+	}
+
+	SV_Multicast(org, MULTICAST_PVS);
+}
 
 
 
@@ -1792,11 +1840,21 @@ static void PF_objerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		(*prinst->pr_trace) = 2;
 	else
 	{
-		ED_Free (prinst, ed);
-
-		prinst->AbortStack(prinst);
-
-		PR_BIError (prinst, "Program error: %s", s);
+		Con_Printf("Program error: %s\n", s);
+		if (developer.value)
+		{
+			struct globalvars_s *pr_globals = PR_globals(prinst, PR_CURRENT);
+			*prinst->pr_trace = 1;
+			G_INT(OFS_RETURN)=0;	//just in case it was a float and should be an ent...
+			G_INT(OFS_RETURN+1)=0;
+			G_INT(OFS_RETURN+2)=0;
+		}
+		else
+		{
+			ED_Free (prinst, ed);
+			PR_StackTrace(prinst);
+			PR_AbortStack(prinst);
+		}
 
 		if (sv.time > 10)
 			Cbuf_AddText("restart\n", RESTRICT_LOCAL);
@@ -2691,7 +2749,7 @@ void PF_svtraceline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	ent->xv->hull = savedhull;
 
 	if (trace.startsolid)
-		if (!sv_gameplayfix_honest_tracelines.value)
+		if (!sv_gameplayfix_honest_tracelines.ival)
 			trace.fraction = 1;
 
 	pr_global_struct->trace_allsolid = trace.allsolid;
@@ -2734,7 +2792,7 @@ static void PF_traceboxh2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	ent->xv->hull = savedhull;
 
 	if (trace.startsolid)
-		if (!sv_gameplayfix_honest_tracelines.value)
+		if (!sv_gameplayfix_honest_tracelines.ival)
 			trace.fraction = 1;
 
 	pr_global_struct->trace_allsolid = trace.allsolid;
@@ -2774,7 +2832,7 @@ static void PF_traceboxdp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	ent->xv->hull = savedhull;
 
 	if (trace.startsolid)
-		if (!sv_gameplayfix_honest_tracelines.value)
+		if (!sv_gameplayfix_honest_tracelines.ival)
 			trace.fraction = 1;
 
 	pr_global_struct->trace_allsolid = trace.allsolid;
@@ -4645,59 +4703,42 @@ int SV_ModelIndex (char *name);
 void PF_makestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*ent;
-	int		mdlindex, i;
+	int		mdlindex;
 	entity_state_t *state;
 
 	ent = G_EDICT(prinst, OFS_PARM0);
 
-	SV_FlushSignon ();
-
 	mdlindex = SV_ModelIndex(PR_GetString(prinst, ent->v->model));
 
-	if (ent->xv->drawflags || ent->xv->alpha || mdlindex > 255 || ent->v->frame > 255 || ent->xv->scale || ent->xv->abslight)
+	if (sv.num_static_entities == sv_max_staticentities)
 	{
-		if (sv.numextrastatics==sizeof(sv.extendedstatics)/sizeof(sv.extendedstatics[0]))
-			return;	//fail the whole makestatic thing.
-
-		state = &sv.extendedstatics[sv.numextrastatics++];
-		memset(state, 0, sizeof(*state));
-		state->number = sv.numextrastatics;
-		state->flags = 0;
-		VectorCopy (ent->v->origin, state->origin);
-		VectorCopy (ent->v->angles, state->angles);
-		state->modelindex = mdlindex;//ent->v->modelindex;
-		state->frame = ent->v->frame;
-		state->colormap = ent->v->colormap;
-		state->skinnum = ent->v->skin;
-		state->effects = ent->v->effects;
-		state->hexen2flags = ent->xv->drawflags;
-		state->abslight = (int)(ent->xv->abslight*255) & 255;
-		state->trans = ent->xv->alpha*255;
-		if (!ent->xv->alpha)
-			state->trans = 255;
-		state->fatness = ent->xv->fatness;
-		state->scale = ent->xv->scale*16.0;
-		if (!ent->xv->scale)
-			state->scale = 1*16;
-
-		if (progstype != PROG_QW)	//don't send extra nq effects to a qw client.
-			state->effects &= EF_BRIGHTLIGHT | EF_DIMLIGHT;
+		sv_max_staticentities += 16;
+		sv_staticentities = BZ_Realloc(sv_staticentities, sizeof(*sv_staticentities) * sv_max_staticentities);
 	}
-	else
-	{
-		MSG_WriteByte (&sv.signon,svc_spawnstatic);
 
-		MSG_WriteByte (&sv.signon, mdlindex&255);
+	state = &sv_staticentities[sv.num_static_entities++];
+	memset(state, 0, sizeof(*state));
+	state->number = sv.num_static_entities;
+	state->flags = 0;
+	VectorCopy (ent->v->origin, state->origin);
+	VectorCopy (ent->v->angles, state->angles);
+	state->modelindex = mdlindex;//ent->v->modelindex;
+	state->frame = ent->v->frame;
+	state->colormap = ent->v->colormap;
+	state->skinnum = ent->v->skin;
+	state->effects = ent->v->effects;
+	state->hexen2flags = ent->xv->drawflags;
+	state->abslight = (int)(ent->xv->abslight*255) & 255;
+	state->trans = ent->xv->alpha*255;
+	if (!ent->xv->alpha)
+		state->trans = 255;
+	state->fatness = ent->xv->fatness;
+	state->scale = ent->xv->scale*16.0;
+	if (!ent->xv->scale)
+		state->scale = 1*16;
 
-		MSG_WriteByte (&sv.signon, ent->v->frame);
-		MSG_WriteByte (&sv.signon, (int)ent->v->colormap);
-		MSG_WriteByte (&sv.signon, (int)ent->v->skin);
-		for (i=0 ; i<3 ; i++)
-		{
-			MSG_WriteCoord(&sv.signon, ent->v->origin[i]);
-			MSG_WriteAngle(&sv.signon, ent->v->angles[i]);
-		}
-	}
+	if (progstype != PROG_QW)	//don't send extra nq effects to a qw client.
+		state->effects &= EF_BRIGHTLIGHT | EF_DIMLIGHT;
 
 // throw the entity away now
 	ED_Free (svprogfuncs, ent);
@@ -7096,7 +7137,91 @@ void PF_h2matchAngleToSlope(progfuncs_t *prinst, struct globalvars_s *pr_globals
 
 void PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	Con_DPrintf("Start effect %i\n", (int)G_FLOAT(OFS_PARM0));
+	switch((int)G_FLOAT(OFS_PARM0))
+	{
+	case 4:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/whtsmk1.spr"), 0, 5, 20);
+		break;
+	case 6:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/spark.spr"), 0, 10, 20);
+		break;
+	case 7:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/fcircle.spr"), 0, 6, 20);
+		break;
+	case 9:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/sm_white.spr"), 0, 3, 20);
+		break;
+	case 11:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/yr_flash.spr"), 0, 21, 20);
+		break;
+	case 13:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/bluflash.spr"), 0, 5, 20);
+		break;
+	case 14:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/redspt.spr"), 0, 5, 20);
+		break;
+	case 15:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/sm_expld.spr"), 0, 12, 20);
+		break;
+	case 16:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/bg_expld.spr"), 0, 12, 20);
+		break;
+	case 17:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/fl_expld.spr"), 0, 20, 20);
+		break;
+	case 24:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/rspark.spr"), 0, 10, 20);
+		break;
+	case 25:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/gspark.spr"), 0, 10, 20);
+		break;
+	case 26:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/telesmk1.spr"), 0, 4, 20);
+		break;
+	case 28:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/icehit.spr"), 0, 6, 20);
+		break;
+	case 33:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/gen_expl.spr"), 0, 14, 20);
+		break;
+	case 34:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/mm_explod.spr"), 0, 50, 20);
+		break;
+	case 42:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/flamestr.spr"), 0, 12, 20);
+		break;
+	case 45:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/xplsn_1.spr"), 0, 7, 20);
+		break;
+	case 47:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/axplsn_2.spr"), 0, 14, 20);
+		break;
+	case 48:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/firewal1.spr"), 0, 18, 20);
+		break;
+	case 49:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/firewal5.spr"), 0, 30, 20);
+		break;
+	case 50:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/firewal4.spr"), 0, 29, 20);
+		break;
+	case 56:
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/pow.spr"), 0, 6, 20);
+		break;
+	case 40:
+//		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/boneshot.mdl"), 0, 50, 20);
+//		break;
+
+	case 2:
+	case 55:
+		Con_DPrintf("Start unsupported effect %i\n", (int)G_FLOAT(OFS_PARM0));
+		break;
+
+
+	default:
+		Con_Printf("Start effect %i\n", (int)G_FLOAT(OFS_PARM0));
+		break;
+	}
 }
 
 void PF_h2endeffect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -7109,6 +7234,10 @@ void PF_h2rain_go(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 void PF_h2StopSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+
+void PF_h2updatesoundpos(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 }
 
@@ -7916,52 +8045,7 @@ static void PF_effect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float framerate = G_FLOAT(OFS_PARM4);
 	int index = SV_ModelIndex(name);
 
-	if (startframe>255 || index>255)
-	{
-		MSG_WriteByte (&sv.multicast, svcfte_effect2);
-		MSG_WriteCoord (&sv.multicast, org[0]);
-		MSG_WriteCoord (&sv.multicast, org[1]);
-		MSG_WriteCoord (&sv.multicast, org[2]);
-		MSG_WriteShort (&sv.multicast, index);
-		MSG_WriteShort (&sv.multicast, startframe);
-		MSG_WriteByte (&sv.multicast, endframe);
-		MSG_WriteByte (&sv.multicast, framerate);
-
-#ifdef NQPROT
-		MSG_WriteByte (&sv.nqmulticast, svcnq_effect2);
-		MSG_WriteCoord (&sv.nqmulticast, org[0]);
-		MSG_WriteCoord (&sv.nqmulticast, org[1]);
-		MSG_WriteCoord (&sv.nqmulticast, org[2]);
-		MSG_WriteShort (&sv.nqmulticast, index);
-		MSG_WriteShort (&sv.nqmulticast, startframe);
-		MSG_WriteByte (&sv.nqmulticast, endframe);
-		MSG_WriteByte (&sv.nqmulticast, framerate);
-#endif
-	}
-	else
-	{
-		MSG_WriteByte (&sv.multicast, svcfte_effect);
-		MSG_WriteCoord (&sv.multicast, org[0]);
-		MSG_WriteCoord (&sv.multicast, org[1]);
-		MSG_WriteCoord (&sv.multicast, org[2]);
-		MSG_WriteByte (&sv.multicast, index);
-		MSG_WriteByte (&sv.multicast, startframe);
-		MSG_WriteByte (&sv.multicast, endframe);
-		MSG_WriteByte (&sv.multicast, framerate);
-
-#ifdef NQPROT
-		MSG_WriteByte (&sv.nqmulticast, svcnq_effect);
-		MSG_WriteCoord (&sv.nqmulticast, org[0]);
-		MSG_WriteCoord (&sv.nqmulticast, org[1]);
-		MSG_WriteCoord (&sv.nqmulticast, org[2]);
-		MSG_WriteByte (&sv.nqmulticast, index);
-		MSG_WriteByte (&sv.nqmulticast, startframe);
-		MSG_WriteByte (&sv.nqmulticast, endframe);
-		MSG_WriteByte (&sv.nqmulticast, framerate);
-#endif
-	}
-
-	SV_Multicast(org, MULTICAST_PVS);
+	SV_Effect(org, index, startframe, endframe, framerate);
 }
 
 //DP_TE_PLASMABURN
@@ -8475,7 +8559,12 @@ void PF_sv_gettaginfo(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-#pragma message("This function doesn't honour attachments")
+	if (ent->xv->tag_entity)
+	{
+		#pragma message("PF_sv_gettaginfo: This function doesn't honour attachments")
+		Con_Printf("PF_sv_gettaginfo doesn't support attachments\n");
+	}
+
 	EdictToTransform(ent, transent);
 	R_ConcatTransforms((void*)transent, (void*)transtag, (void*)result);
 
@@ -9194,6 +9283,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"precache_sound4",	PF_precache_sound,	0,		0,		101,	0},
 	{"precache_model4",	PF_precache_model,	0,		0,		102,	0},
 	{"precache_file4",	PF_precache_file,	0,		0,		103,	0},
+	{"dowhiteflash",	PF_Fixme,			0,		0,		104,	0},
+	{"updatesoundpos",	PF_h2updatesoundpos,0,		0,		105,	0},
 	{"stopsound",		PF_h2StopSound,		0,		0,		106,	0},
 
 	{"precache_model4",	PF_precache_model,	0,		0,		116,	0},//please don't use...

@@ -292,12 +292,12 @@ void COM_Locate_f (void)
 	{
 		if (!*loc.rawname)
 		{
-			Con_Printf("File is compressed inside ");
+			Con_Printf("File is %i bytes compressed inside ", loc.len);
 			loc.search->funcs->PrintPath(loc.search->handle);
 		}
 		else
 		{
-			Con_Printf("Inside %s\n", loc.rawname);
+			Con_Printf("Inside %s (%i bytes)\n", loc.rawname, loc.len);
 			loc.search->funcs->PrintPath(loc.search->handle);
 		}
 	}
@@ -1803,6 +1803,7 @@ void COM_Gamedir (const char *dir)
 #define DPCOMPAT "set dpcompat_set 1\nset dpcompat_trailparticles 1\n"
 #define NEXCFG DPCOMPAT "set sv_maxairspeed \"400\"\nset sv_jumpvelocity 270\nset sv_mintic \"0.01\"\ncl_nolerp 0\nset r_particlesdesc effectinfo\n"
 #define DMFCFG "set com_parseutf8 1\npm_airstep 1\n"
+#define HEX2CFG "set sv_maxspeed 640\nset watervis 1\nset r_wateralpha 0.5\n"
 
 typedef struct {
 	const char *protocolname;	//sent to the master server when this is the current gamemode.
@@ -1828,9 +1829,11 @@ const gamemode_info_t gamemode_info[] = {
 	{"DMF",					"dmf",			"-dmf",			"base/src/progs.src",DMFCFG,{"base",						         },		"DMF"},
 
 	//supported commercial mods (some are currently only partially supported)
-	{"FTE-Hexen2",			"hexen",		"-hexen2",		"data1/pak0.pak",	NULL,	{"data1",						"fteh2"},		"Hexen II"},
+	{"FTE-H2MP",			"h2mp",			"-portals",		"portals/hexen.rc",	HEX2CFG,{"data1",	"portals",			"fteh2"},		"Hexen II MP"},
+	{"FTE-Hexen2",			"hexen",		"-hexen2",		"data1/pak0.pak",	HEX2CFG,{"data1",						"fteh2"},		"Hexen II"},
 	{"FTE-Quake2",			"q2",			"-q2",			"baseq2/pak0.pak",	NULL,	{"baseq2",						"fteq2"},	"Quake II"},
 	{"FTE-Quake3",			"q3",			"-q3",			"baseq3/pak0.pk3",	NULL,	{"baseq3",						"fteq3"},	"Quake III Arena"},
+	{"FTE-Quake4",			"q4",			"-q4",			"q4base/pak00.pk4",	NULL,	{"q4base",						"fteq4"},	"Quake 4"},
 
 	{"FTE-JK2",				"jk2",			"-jk2",			"base/assets0.pk3",	NULL,	{"base",						"fte"},		"Jedi Knight II: Jedi Outcast"},
 

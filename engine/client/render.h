@@ -177,6 +177,7 @@ void Surf_Clear(struct model_s *mod);
 void Surf_BuildLightmaps(void);
 void Surf_BuildSurfaceDisplayList (struct model_s *mod, struct msurface_s *fa);
 void Surf_RenderDynamicLightmaps (struct msurface_s *fa, int shift);
+void Surf_RenderAmbientLightmaps (struct msurface_s *fa, int shift, int ambient);
 int Surf_LightmapShift (struct model_s *model);
 #ifndef LMBLOCK_WIDTH
 #define	LMBLOCK_WIDTH		128
@@ -201,7 +202,8 @@ extern lightmapinfo_t **lightmap;
 extern int numlightmaps;
 extern texid_t		*lightmap_textures;
 extern texid_t		*deluxmap_textures;
-extern int			lightmap_bytes;		// 1, 3(, or 4)
+extern int			lightmap_bytes;		// 1, 3, or 4
+extern qboolean		lightmap_bgra;		/*true=bgra, false=rgba*/
 #endif
 
 

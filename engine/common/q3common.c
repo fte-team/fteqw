@@ -545,7 +545,7 @@ qboolean Netchan_ProcessQ3 (netchan_t *chan)
 	char		adr[MAX_ADR_SIZE];
 
 	// Get sequence number
-	MSG_BeginReading();
+	MSG_BeginReading(msg_nullnetprim);
 	sequence = MSG_ReadBits(32);
 
 	// Read the qport if we are a server
@@ -657,7 +657,7 @@ qboolean Netchan_ProcessQ3 (netchan_t *chan)
 	MSG_WriteLong(&net_message, sequence);
 	SZ_Write(&net_message, chan->in_fragment_buf, chan->in_fragment_length);
 
-	MSG_BeginReading();
+	MSG_BeginReading(msg_nullnetprim);
 	MSG_ReadLong();
 
 	// No more fragments

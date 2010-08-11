@@ -3886,7 +3886,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 	}
 
 #ifndef SERVERONLY
-	Mod_ParseInfoFromEntityLump(loadmodel->entities, loadname);	//only done for client's world model (or server if the server is loading it for client)
+	Mod_ParseInfoFromEntityLump(loadmodel, loadmodel->entities, loadname);	//only done for client's world model (or server if the server is loading it for client)
 #endif
 
 	CM_InitBoxHull ();

@@ -596,10 +596,13 @@ void	Skin_Skins_f (void)
 	Skin_NextDownload ();
 
 
-	SCR_SetLoadingStage(LS_NONE);
+//	if (Cmd_FromServer())
+	{
+		SCR_SetLoadingStage(LS_NONE);
 
-	CL_SendClientCommand(true, "begin %i", cl.servercount);
-	Cache_Report ();		// print remaining memory
+		CL_SendClientCommand(true, "begin %i", cl.servercount);
+		Cache_Report ();		// print remaining memory
+	}
 }
 
 

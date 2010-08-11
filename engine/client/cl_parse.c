@@ -27,7 +27,6 @@ void CLNQ_ParseDarkPlaces5Entities(void);
 void CL_SetStatInt (int pnum, int stat, int value);
 static qboolean CL_CheckModelResources (char *name);
 
-int nq_dp_protocol;
 int msgflags;
 
 char cl_dp_csqc_progsname[128];
@@ -1767,14 +1766,14 @@ void CLDP_ParseDownloadData(void)
 	{
 		VFS_SEEK(cls.downloadqw, start);
 		VFS_WRITE(cls.downloadqw, buffer, size);
+
+		cls.downloadpercent = start / (float)VFS_GETLEN(cls.downloadqw) * 100;
 	}
 
 	//this is only reliable because I'm lazy
 	MSG_WriteByte(&cls.netchan.message, clcdp_ackdownloaddata);
 	MSG_WriteLong(&cls.netchan.message, start);
 	MSG_WriteShort(&cls.netchan.message, size);
-
-	cls.downloadpercent = start / (float)VFS_GETLEN(cls.downloadqw) * 100;
 }
 
 void CLDP_ParseDownloadBegin(char *s)
@@ -2096,14 +2095,16 @@ void CL_ParseServerData (void)
 
 	if (cls.fteprotocolextensions & PEXT_FLOATCOORDS)
 	{
-		sizeofcoord = 4;
-		sizeofangle = 2;
+		cls.netchan.netprim.coordsize = 4;
+		cls.netchan.netprim.anglesize = 2;
 	}
 	else
 	{
-		sizeofcoord = 2;
-		sizeofangle = 1;
+		cls.netchan.netprim.coordsize = 2;
+		cls.netchan.netprim.anglesize = 1;
 	}
+	cls.netchan.message.prim = cls.netchan.netprim;
+	MSG_ChangePrimitives(cls.netchan.netprim);
 
 	svcnt = MSG_ReadLong ();
 
@@ -2276,8 +2277,9 @@ void CLQ2_ParseServerData (void)
 	int svcnt;
 //	int cflag;
 
-	sizeofcoord = 2;
-	sizeofangle = 1;
+	cls.netchan.netprim.coordsize = 2;
+	cls.netchan.netprim.anglesize = 1;
+	MSG_ChangePrimitives(cls.netchan.netprim);
 
 	Con_DPrintf ("Serverdata packet received.\n");
 //
@@ -2316,6 +2318,7 @@ void CLQ2_ParseServerData (void)
 													//I can't really blame q2admin for rejecting engines that don't have this cvar, as it could have been renamed via a hex-edit.
 
 	CL_ClearState ();
+	CLQ2_ClearState ();
 	cl.minpitch = -89;
 	cl.maxpitch = 89;
 	cl.servercount = svcnt;
@@ -2382,6 +2385,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	char	*str;
 	int gametype;
 	int protover;
+	struct netprim_s netprim;
 	if (developer.ival)
 		Con_TPrintf (TLC_GOTSVDATAPACKET);
 	SCR_SetLoadingStage(LS_CLIENT);
@@ -2391,29 +2395,35 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 
 	protover = MSG_ReadLong ();
 
-	sizeofcoord = 2;
-	sizeofangle = 1;
+	netprim.coordsize = 2;
+	netprim.anglesize = 1;
 
-	nq_dp_protocol = 0;
+	cls.protocol_nq = 0;
 	cls.z_ext = 0;
 
 	if (protover == 250)
 		Host_EndGame ("Nehahra demo net protocol is not supported\n");
+	else if (protover == 666)
+	{
+		//fitzquake 0.85
+		cls.protocol_nq = CPNQ_FITZ666;
+		Con_DPrintf("FitzQuake 666 protocol\n");
+	}
 	else if (protover == 3502)
 	{
 		//darkplaces5
-		nq_dp_protocol = 5;
-		sizeofcoord = 4;
-		sizeofangle = 2;
+		cls.protocol_nq = CPNQ_DP5;
+		netprim.coordsize = 4;
+		netprim.anglesize = 2;
 
 		Con_DPrintf("DP5 protocols\n");
 	}
 	else if (protover == DP6_PROTOCOL_VERSION)
 	{
 		//darkplaces6 (it's a small difference from dp5)
-		nq_dp_protocol = 6;
-		sizeofcoord = 4;
-		sizeofangle = 2;
+		cls.protocol_nq = CPNQ_DP6;
+		netprim.coordsize = 4;
+		netprim.anglesize = 2;
 
 		cls.z_ext = Z_EXT_VIEWHEIGHT;
 
@@ -2422,9 +2432,9 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	else if (protover == DP7_PROTOCOL_VERSION)
 	{
 		//darkplaces7 (it's a small difference from dp5)
-		nq_dp_protocol = 7;
-		sizeofcoord = 4;
-		sizeofangle = 2;
+		cls.protocol_nq = CPNQ_DP7;
+		netprim.coordsize = 4;
+		netprim.anglesize = 2;
 
 		cls.z_ext = Z_EXT_VIEWHEIGHT;
 
@@ -2438,6 +2448,8 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	{
 		Con_DPrintf("Standard NQ protocols\n");
 	}
+	cls.netchan.message.prim = cls.netchan.netprim = netprim;
+	MSG_ChangePrimitives(netprim);
 
 	if (MSG_ReadByte() > MAX_CLIENTS)
 	{
@@ -2491,7 +2503,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 		}
 		strcpy (cl.sound_name[numsounds], str);
 
-#pragma message("the logic that we should have here is rather long")
+#pragma message("CLNQ_ParseServerData: no sound autodownloads")
 		//CL_CheckOrEnqueDownloadFile(str, NULL, 0);
 
 		S_TouchSound (str);
@@ -2522,8 +2534,8 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 		Info_SetValueForStarKey(cl.serverinfo, "deathmatch", "0", sizeof(cl.serverinfo));
 	Info_SetValueForStarKey(cl.serverinfo, "teamplay", "0", sizeof(cl.serverinfo));
 
-	//allow shaders
-	Info_SetValueForStarKey(cl.serverinfo, "allow_shaders", "1", sizeof(cl.serverinfo));
+	//allow some things by default that quakeworld bans by default
+	Info_SetValueForStarKey(cl.serverinfo, "watervis", "1", sizeof(cl.serverinfo));
 
 	//pretend it came from the server, and update cheat/permissions/etc
 	CL_CheckServerInfo();
@@ -2557,7 +2569,7 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 
 		CL_SendClientCommand(true, "spawn %s", "");
 
-		if (nq_dp_protocol)	//dp needs a couple of extras to work properly.
+		if (CPNQ_IS_DP)	//dp needs a couple of extras to work properly.
 		{
 			CL_SendClientCommand(true, "rate %s", rate.string);
 
@@ -2644,7 +2656,7 @@ void CLNQ_ParseClientdata (void)
 
 	if (bits & SU_VIEWHEIGHT)
 		CL_SetStatInt(0, STAT_VIEWHEIGHT, MSG_ReadChar ());
-	else if (nq_dp_protocol < 6)
+	else if (CPNQ_IS_DP || cls.protocol_nq == CPNQ_DP5)
 		CL_SetStatInt(0, STAT_VIEWHEIGHT, DEFAULT_VIEWHEIGHT);
 
 	if (bits & SU_IDEALPITCH)
@@ -2656,7 +2668,7 @@ void CLNQ_ParseClientdata (void)
 	for (i=0 ; i<3 ; i++)
 	{
 		if (bits & (SU_PUNCH1<<i) )
-			/*cl.punchangle[i] =*/ nq_dp_protocol?MSG_ReadAngle16():MSG_ReadChar();
+			/*cl.punchangle[i] =*/ CPNQ_IS_DP?MSG_ReadAngle16():MSG_ReadChar();
 //		else
 //			cl.punchangle[i] = 0;
 
@@ -2669,7 +2681,7 @@ void CLNQ_ParseClientdata (void)
 
 		if (bits & (SU_VELOCITY1<<i) )
 		{
-			if (nq_dp_protocol >= 5)
+			if (CPNQ_IS_DP)
 				/*cl.simvel[0][i] =*/ MSG_ReadFloat();
 			else
 			/*cl.mvelocity[0][i] =*/ MSG_ReadChar()/**16*/;
@@ -2684,10 +2696,7 @@ void CLNQ_ParseClientdata (void)
 //	cl.onground = (bits & SU_ONGROUND) != 0;
 //	cl.inwater = (bits & SU_INWATER) != 0;
 
-	if (nq_dp_protocol >= 6)
-	{
-	}
-	else if (nq_dp_protocol == 5)
+	if (cls.protocol_nq == CPNQ_DP5)
 	{
 		CL_SetStatInt(0, STAT_WEAPONFRAME, (bits & SU_WEAPONFRAME)?(unsigned short)MSG_ReadShort():0);
 		CL_SetStatInt(0, STAT_ARMOR, (bits & SU_ARMOR)?MSG_ReadShort():0);
@@ -2703,6 +2712,10 @@ void CLNQ_ParseClientdata (void)
 		CL_SetStatInt(0, STAT_CELLS, MSG_ReadShort());
 
 		CL_SetStatInt(0, STAT_ACTIVEWEAPON, (unsigned short)MSG_ReadShort());
+	}
+	else if (CPNQ_IS_DP)
+	{
+		/*nothing*/
 	}
 	else
 	{
@@ -2720,20 +2733,54 @@ void CLNQ_ParseClientdata (void)
 		CL_SetStatInt(0, STAT_CELLS, MSG_ReadByte());
 
 		CL_SetStatInt(0, STAT_ACTIVEWEAPON, MSG_ReadByte());
+
+		if (cls.protocol_nq == CPNQ_FITZ666)
+		{
+#define FITZSU_WEAPON2		(1<<16) // 1 byte, this is .weaponmodel & 0xFF00 (second byte)
+#define FITZSU_ARMOR2		(1<<17) // 1 byte, this is .armorvalue & 0xFF00 (second byte)
+#define FITZSU_AMMO2		(1<<18) // 1 byte, this is .currentammo & 0xFF00 (second byte)
+#define FITZSU_SHELLS2		(1<<19) // 1 byte, this is .ammo_shells & 0xFF00 (second byte)
+#define FITZSU_NAILS2		(1<<20) // 1 byte, this is .ammo_nails & 0xFF00 (second byte)
+#define FITZSU_ROCKETS2		(1<<21) // 1 byte, this is .ammo_rockets & 0xFF00 (second byte)
+#define FITZSU_CELLS2		(1<<22) // 1 byte, this is .ammo_cells & 0xFF00 (second byte)
+#define FITZSU_WEAPONFRAME2	(1<<24) // 1 byte, this is .weaponframe & 0xFF00 (second byte)
+#define FITZSU_WEAPONALPHA	(1<<25) // 1 byte, this is alpha for weaponmodel, uses ENTALPHA_ENCODE, not sent if ENTALPHA_DEFAULT
+			if (bits & FITZSU_WEAPON2)
+				MSG_ReadByte();
+			if (bits & FITZSU_ARMOR2)
+				MSG_ReadByte();
+			if (bits & FITZSU_AMMO2)
+				MSG_ReadByte();
+			if (bits & FITZSU_SHELLS2)
+				MSG_ReadByte();
+			if (bits & FITZSU_NAILS2)
+				MSG_ReadByte();
+			if (bits & FITZSU_ROCKETS2)
+				MSG_ReadByte();
+			if (bits & FITZSU_CELLS2)
+				MSG_ReadByte();
+			if (bits & FITZSU_WEAPONFRAME2)
+				MSG_ReadByte();
+			if (bits & FITZSU_WEAPONALPHA)
+				MSG_ReadByte();
+		}
 	}
 
-	if (bits & DPSU_VIEWZOOM)
+	if (CPNQ_IS_DP || cls.protocol_nq == CPNQ_DP5)
 	{
-		if (nq_dp_protocol >= 5)
-			i = (unsigned short) MSG_ReadShort();
+		if (bits & DPSU_VIEWZOOM)
+		{
+			if (cls.protocol_nq)
+				i = (unsigned short) MSG_ReadShort();
+			else
+				i = MSG_ReadByte();
+			if (i < 2)
+				i = 2;
+			CL_SetStatInt(0, STAT_VIEWZOOM, i);
+		}
 		else
-			i = MSG_ReadByte();
-		if (i < 2)
-			i = 2;
-		CL_SetStatInt(0, STAT_VIEWZOOM, i);
+			CL_SetStatInt(0, STAT_VIEWZOOM, 255);
 	}
-	else if (nq_dp_protocol < 6)
-		CL_SetStatInt(0, STAT_VIEWZOOM, 255);
 }
 #endif
 /*
@@ -3105,6 +3152,28 @@ void CL_ParseBaseline2 (void)
 	memcpy(cl_baselines + es.number, &es, sizeof(es));
 }
 
+void CLFitz_ParseBaseline2 (entity_state_t *es)
+{
+	int			i;
+	int			bits;
+
+	memcpy(es, &nullentitystate, sizeof(entity_state_t));
+
+	bits = MSG_ReadByte();
+	es->modelindex = (bits & FITZB_LARGEMODEL) ? MSG_ReadShort() : MSG_ReadByte();
+	es->frame = (bits & FITZB_LARGEFRAME) ? MSG_ReadShort() : MSG_ReadByte();
+	es->colormap = MSG_ReadByte();
+	es->skinnum = MSG_ReadByte();
+
+	for (i=0 ; i<3 ; i++)
+	{
+		es->origin[i] = MSG_ReadCoord ();
+		es->angles[i] = MSG_ReadAngle ();
+	}
+
+	es->trans = (bits & FITZB_ALPHA) ? MSG_ReadByte() : 255;
+}
+
 void CLQ2_Precache_f (void)
 {
 	Model_CheckDownloads();
@@ -3157,15 +3226,17 @@ void CL_ParseStatic (int version)
 			cl.num_statics++;
 	}
 
-	if (i >= MAX_STATIC_ENTITIES)
+	if (i == cl_max_static_entities)
 	{
-		cl.num_statics--;
-		Con_Printf ("Too many static entities");
-		return;
+		cl_max_static_entities += 16;
+		cl_static_entities = BZ_Realloc(cl_static_entities, sizeof(*cl_static_entities)*cl_max_static_entities);
 	}
+
+	cl_static_entities[i].mdlidx = es.modelindex;
+	cl_static_entities[i].emit = NULL;
+
 	ent = &cl_static_entities[i].ent;
 	memset(ent, 0, sizeof(*ent));
-	cl_static_entities[i].emit = NULL;
 
 	ent->keynum = es.number;
 
@@ -3192,13 +3263,14 @@ void CL_ParseStatic (int version)
 	AngleVectors(es.angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 	VectorInverse(ent->axis[1]);
 
-	if (!cl.worldmodel)
+	if (!cl.worldmodel || cl.worldmodel->needload)
 	{
 		Con_TPrintf (TLC_PARSESTATICWITHNOMAP);
 		return;
 	}
 	if (ent->model)
 	{
+		/*FIXME: compensate for angle*/
 		VectorAdd(es.origin, ent->model->mins, mins);
 		VectorAdd(es.origin, ent->model->maxs, maxs);
 		cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &cl_static_entities[i].pvscache, mins, maxs);
@@ -3366,11 +3438,6 @@ void CLQ2_ParseStartSoundPacket(void)
 #endif
 
 #if defined(NQPROT) || defined(PEXT_SOUNDDBL)
-#define	NQSND_VOLUME		(1<<0)		// a qbyte
-#define	NQSND_ATTENUATION	(1<<1)		// a qbyte
-#define DPSND_LOOPING		(1<<2)		// a long, supposedly
-#define DPSND_LARGEENTITY	(1<<3)
-#define DPSND_LARGESOUND	(1<<4)
 void CLNQ_ParseStartSoundPacket(void)
 {
     vec3_t  pos;
@@ -4519,12 +4586,16 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 				Cmd_TokenizeString(stufftext+7, false, false);
 				for (i = 0; i < Cmd_Argc(); i++)
 				{
-					mname = va("progs/%s.mdl", Cmd_Argv(i));
-					Q_strncpyz(cl.model_name_vwep[i], mname, sizeof(cl.model_name_vwep[i]));
-					if (cls.state == ca_active)
+					mname = Cmd_Argv(i);
+					if (strcmp(mname, "-"))
 					{
-						CL_CheckOrEnqueDownloadFile(mname, NULL, 0);
-						cl.model_precache_vwep[i] = Mod_ForName(mname, false);
+						mname = va("progs/%s.mdl", Cmd_Argv(i));
+						Q_strncpyz(cl.model_name_vwep[i], mname, sizeof(cl.model_name_vwep[i]));
+						if (cls.state == ca_active)
+						{
+							CL_CheckOrEnqueDownloadFile(mname, NULL, 0);
+							cl.model_precache_vwep[i] = Mod_ForName(mname, false);
+						}
 					}
 				}
 			}
@@ -5640,7 +5711,7 @@ void CLNQ_ParseServerMessage (void)
 			cl.gametime = MSG_ReadFloat();
 			cl.gametimemark = realtime;
 
-			if (nq_dp_protocol<5)
+			if (!CPNQ_IS_DP)
 			{
 //				cl.frames[(cls.netchan.incoming_sequence-1)&UPDATE_MASK].packet_entities = cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;
 				cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities.num_entities=0;
@@ -5777,6 +5848,34 @@ void CLNQ_ParseServerMessage (void)
 		case svc_damage:
 			V_ParseDamage (0);
 			break;
+
+		case svcfitz_skybox:
+			{
+				extern cvar_t r_skyboxname;
+				Cvar_Set(&r_skyboxname, MSG_ReadString());
+			}
+			break;
+		case svcfitz_bf:
+			Cmd_ExecuteString("bf", RESTRICT_RCON);
+			break;
+		case svcfitz_fog:
+			/*density =*/ MSG_ReadByte();
+			/*red =*/ MSG_ReadByte();
+			/*green =*/ MSG_ReadByte();
+			/*blue =*/ MSG_ReadByte();
+			/*time =*/ MSG_ReadShort();
+			break;
+		case svcfitz_spawnbaseline2:
+			i = MSG_ReadShort ();
+			if (!CL_CheckBaselines(i))
+				Host_EndGame("CLNQ_ParseServerMessage: svcfitz_spawnbaseline2 failed with ent %i", i);
+			CLFitz_ParseBaseline2 (cl_baselines + i);
+			break;
+//		case svcfitz_spawnstatic2:
+//			break;
+//		case svcfitz_spawnstaticsound2:
+//			break;
+
 
 		case svcnq_effect:
 			CL_ParseEffect(false);

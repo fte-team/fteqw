@@ -108,6 +108,13 @@ texid_t GL_LoadTextureFmt (char *name, int width, int height, enum uploadfmt fmt
 	case TF_SOLID8:
 		return GL_LoadTexture(name, width, height, data, flags, 0);
 
+	case TF_H2_T7G1:
+		return GL_LoadTexture(name, width, height, data, flags, 2);
+	case TF_H2_TRANS8_0:
+		return GL_LoadTexture(name, width, height, data, flags, 3);
+	case TF_H2_T4A4:
+		return GL_LoadTexture(name, width, height, data, flags, 4);
+
 	case TF_HEIGHT8PAL:
 	case TF_HEIGHT8:
 		return GL_LoadTexture8Bump(name, width, height, data, flags, r_shadow_bumpscale_basetexture.value);
@@ -160,8 +167,6 @@ mpic_t		*conback;
 #include "hash.h"
 hashtable_t gltexturetable;
 bucket_t *gltexturetablebuckets[256];
-
-int		gl_lightmap_format = 4;
 
 int		gl_filter_min = GL_LINEAR_MIPMAP_NEAREST;
 int		gl_filter_max = GL_LINEAR;
@@ -739,107 +744,12 @@ void GLDraw_FadeScreen (void)
 	extern cvar_t gl_menutint_shader;
 	extern texid_t scenepp_texture;
 	extern int scenepp_mt_program, scenepp_mt_parm_colorf, scenepp_mt_parm_inverti;
+	extern shader_t *scenepp_mt_shader;
 
 	if (!faderender)
 		return;
-#pragma message("Warning: This doesn't use the backend")
-	if (scenepp_mt_program && gl_menutint_shader.ival)
-	{
-		float vwidth = 1, vheight = 1;
-		float vs, vt;
 
-		// get the powers of 2 for the size of the texture that will hold the scene
-		while (vwidth < vid.pixelwidth)
-			vwidth *= 2;
-		while (vheight < vid.pixelheight)
-			vheight *= 2;
-
-		// get the maxtexcoords while we're at it (cache this or just use largest?)
-		vs = vid.pixelwidth / vwidth;
-		vt = vid.pixelheight / vheight;
-
-		// 2d mode, but upside down to quake's normal 2d drawing
-		// this makes grabbing the sreen a lot easier
-		qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
-
-		qglMatrixMode(GL_PROJECTION);
-		// Push the matrices to go into 2d mode, that matches opengl's mode
-		qglPushMatrix();
-		qglLoadIdentity ();
-		// TODO: use actual window width and height
-		qglOrtho  (0, vid.pixelwidth, 0, vid.pixelheight, -99999, 99999);
-
-		qglMatrixMode(GL_MODELVIEW);
-		qglPushMatrix();
-		qglLoadIdentity ();
-
-		GL_Bind(scenepp_texture);
-		qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 0, 0, vwidth, vheight, 0);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-		if (qglGetError())
-			Con_Printf(CON_ERROR "GL Error after qglCopyTexImage2D\n");
-
-		GLSlang_UseProgram(scenepp_mt_program);
-		qglUniform3fvARB(scenepp_mt_parm_colorf, 1, fadecolor);
-		if (faderender == GL_ONE_MINUS_DST_COLOR)
-			qglUniform1iARB(scenepp_mt_parm_inverti, 1);
-		else
-			qglUniform1iARB(scenepp_mt_parm_inverti, 0);
-
-		if (qglGetError())
-			Con_Printf(CON_ERROR "GL Error after GLSlang_UseProgram\n");
-
-		qglEnable(GL_TEXTURE_2D);
-		GL_Bind(scenepp_texture);
-
-		qglBegin(GL_QUADS);
-
-		qglTexCoord2f (0, 0);
-		qglVertex2f(0, 0);
-		qglTexCoord2f (vs, 0);
-		qglVertex2f(vid.pixelwidth, 0);
-		qglTexCoord2f (vs, vt);
-		qglVertex2f(vid.pixelwidth, vid.pixelheight);
-		qglTexCoord2f (0, vt);
-		qglVertex2f(0, vid.pixelheight);
-	
-		qglEnd();
-
-		GLSlang_UseProgram(0);
-
-		// After all the post processing, pop the matrices
-		qglMatrixMode(GL_PROJECTION);
-		qglPopMatrix();
-		qglMatrixMode(GL_MODELVIEW);
-		qglPopMatrix();
-
-		if (qglGetError())
-			Con_Printf(CON_ERROR "GL Error after drawing with shaderobjects\n");
-	}
-	else
-	{
-		// shaderless way
-		qglEnable (GL_BLEND);
-		qglBlendFunc(faderender, GL_ZERO);
-		qglDisable(GL_ALPHA_TEST);
-		qglDisable (GL_TEXTURE_2D);
-		qglColor4f (fadecolor[0], fadecolor[1], fadecolor[2], 1);
-		qglBegin (GL_QUADS);
-
-		qglVertex2f (0,0);
-		qglVertex2f (vid.width, 0);
-		qglVertex2f (vid.width, vid.height);
-		qglVertex2f (0, vid.height);
-
-		qglEnd ();
-		qglColor4f (1,1,1,1);
-		qglEnable (GL_TEXTURE_2D);
-		qglDisable (GL_BLEND);
-		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		qglEnable(GL_ALPHA_TEST);
-	}
+	R2D_ScalePic(0, 0, vid.width, vid.height, scenepp_mt_shader);
 
 	Sbar_Changed();
 }

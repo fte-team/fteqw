@@ -24,7 +24,6 @@ extern	cvar_t		lcd_x;
 extern float sw_blend[4];
 extern float hw_blend[4];
 
-extern int gl_ztrickdisabled;
 extern qboolean r_secondaryview;
 
 void V_Init (void);

@@ -270,6 +270,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svcfte_cgamepacket	83
 
 
+//fitz svcs
+#define svcfitz_skybox				37
+#define svcfitz_bf					40
+#define svcfitz_fog					41
+#define svcfitz_spawnbaseline2		42
+#define svcfitz_spawnstatic2		43
+#define svcfitz_spawnstaticsound2	44
+
 //DP extended svcs
 #define svcdp_downloaddata	50
 #define svcdp_updatestatbyte	51
@@ -497,6 +505,55 @@ enum clcq2_ops_e
 #endif
 
 
+#ifdef NQPROT
+
+#define	NQU_MOREBITS	(1<<0)
+#define	NQU_ORIGIN1	(1<<1)
+#define	NQU_ORIGIN2	(1<<2)
+#define	NQU_ORIGIN3	(1<<3)
+#define	NQU_ANGLE2	(1<<4)
+#define	NQU_NOLERP	(1<<5)		// don't interpolate movement
+#define	NQU_FRAME		(1<<6)
+#define NQU_SIGNAL	(1<<7)		// just differentiates from other updates
+
+// svc_update can pass all of the fast update bits, plus more
+#define	NQU_ANGLE1	(1<<8)
+#define	NQU_ANGLE3	(1<<9)
+#define	NQU_MODEL		(1<<10)
+#define	NQU_COLORMAP	(1<<11)
+#define	NQU_SKIN		(1<<12)
+#define	NQU_EFFECTS	(1<<13)
+#define	NQU_LONGENTITY	(1<<14)
+
+
+// LordHavoc's: protocol extension
+#define DPU_EXTEND1		(1<<15)
+// LordHavoc: first extend byte
+#define DPU_DELTA			(1<<16) // no data, while this is set the entity is delta compressed (uses previous frame as a baseline, meaning only things that have changed from the previous frame are sent, except for the forced full update every half second)
+#define DPU_ALPHA			(1<<17) // 1 byte, 0.0-1.0 maps to 0-255, not sent if exactly 1, and the entity is not sent if <=0 unless it has effects (model effects are checked as well)
+#define DPU_SCALE			(1<<18) // 1 byte, scale / 16 positive, not sent if 1.0
+#define DPU_EFFECTS2		(1<<19) // 1 byte, this is .effects & 0xFF00 (second byte)
+#define DPU_GLOWSIZE		(1<<20) // 1 byte, encoding is float/4.0, unsigned, not sent if 0
+#define DPU_GLOWCOLOR		(1<<21) // 1 byte, palette index, default is 254 (white), this IS used for darklight (allowing colored darklight), however the particles from a darklight are always black, not sent if default value (even if glowsize or glowtrail is set)
+// LordHavoc: colormod feature has been removed, because no one used it
+#define DPU_COLORMOD		(1<<22) // 1 byte, 3 bit red, 3 bit green, 2 bit blue, this lets you tint an object artifically, so you could make a red rocket, or a blue fiend...
+#define DPU_EXTEND2		(1<<23) // another byte to follow
+// LordHavoc: second extend byte
+#define DPU_GLOWTRAIL		(1<<24) // leaves a trail of particles (of color .glowcolor, or black if it is a negative glowsize)
+#define DPU_VIEWMODEL		(1<<25) // attachs the model to the view (origin and angles become relative to it), only shown to owner, a more powerful alternative to .weaponmodel and such
+#define DPU_FRAME2		(1<<26) // 1 byte, this is .frame & 0xFF00 (second byte)
+#define DPU_MODEL2		(1<<27) // 1 byte, this is .modelindex & 0xFF00 (second byte)
+#define DPU_EXTERIORMODEL	(1<<28) // causes this model to not be drawn when using a first person view (third person will draw it, first person will not)
+#define DPU_UNUSED29		(1<<29) // future expansion
+#define DPU_UNUSED30		(1<<30) // future expansion
+#define DPU_EXTEND3		(1<<31) // another byte to follow, future expansion
+
+#define FITZU_ALPHA (1<<16)
+#define FITZU_FRAME2 (1<<17)
+#define FITZU_MODEL2 (1<<18)
+#define FITZU_LERPFINISH (1<<19)
+
+#endif
 
 
 
@@ -1285,3 +1342,7 @@ typedef struct q1usercmd_s
 #define E5_EXTEND4 (1<<31)
 
 #define E5_ALLUNUSED (E5_UNUSED24|E5_UNUSED25|E5_UNUSED26|E5_UNUSED27|E5_UNUSED28|E5_UNUSED29|E5_UNUSED30)
+
+#define FITZB_LARGEMODEL	(1<<0)	// modelindex is short instead of byte
+#define FITZB_LARGEFRAME	(1<<1)	// frame is short instead of byte
+#define FITZB_ALPHA			(1<<2)	// 1 byte, uses ENTALPHA_ENCODE, not sent if ENTALPHA_DEFAULT

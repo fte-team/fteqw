@@ -117,6 +117,7 @@ typedef struct
 
 #ifdef NQPROT
 	qboolean	isnqprotocol;
+	struct netprim_s netprim;
 #endif
 
 	float		last_received;		// for timeouts

@@ -969,6 +969,9 @@ void GLR_NewMap (void)
 	r_viewcluster = -1;
 	r_oldviewcluster = 0;
 	r_viewcluster2 = -1;
+
+	Mod_ParseInfoFromEntityLump(cl.worldmodel, cl.worldmodel->entities, cl.worldmodel->name);
+
 TRACE(("dbg: GLR_NewMap: clear particles\n"));
 	P_ClearParticles ();
 TRACE(("dbg: GLR_NewMap: wiping them stains (getting the cloth out)\n"));

@@ -657,6 +657,8 @@ static void RevertToKnownState(void)
 	qglEnableClientState(GL_VERTEX_ARRAY);
 	checkerror();
 
+	GL_TexEnv(GL_REPLACE);
+
 	qglColor3f(1,1,1);
 
 	shaderstate.shaderbits &= ~(SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY);
@@ -2585,6 +2587,9 @@ static void BaseBrushTextures(entity_t *ent)
 
 	model = ent->model;
 
+	if (R_CullEntityBox (ent, model->mins, model->maxs))
+		return;
+
 #ifdef RTLIGHTS
 	if (BE_LightCullModel(ent->origin, model))
 		return;
@@ -2617,10 +2622,18 @@ static void BaseBrushTextures(entity_t *ent)
 		}
 
 		shift = Surf_LightmapShift(model);
-
-//update lightmaps.
-		for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
-			Surf_RenderDynamicLightmaps (s, shift);
+		if ((ent->drawflags & MLS_MASKIN) == MLS_ABSLIGHT)
+		{
+			//update lightmaps.
+			for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
+				Surf_RenderAmbientLightmaps (s, shift, ent->abslight);
+		}
+		else
+		{
+			//update lightmaps.
+			for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
+				Surf_RenderDynamicLightmaps (s, shift);
+		}
 	}
 
 	memset(&batch, 0, sizeof(batch));
@@ -2699,10 +2712,17 @@ void BE_BaseEntTextures(void)
 		switch(currententity->model->type)
 		{
 		case mod_brush:
+			if (r_drawentities.ival == 2)
+				continue;
 			bef = BEF_PUSHDEPTH;
 			if (currententity->flags & Q2RF_ADDITIVE)
 				bef |= BEF_FORCEADDITIVE;
-			else if (currententity->shaderRGBAf[3] < 1)
+			else if (currententity->drawflags & DRF_TRANSLUCENT && r_wateralpha.value != 1)
+			{
+				bef |= BEF_FORCETRANSPARENT;
+				currententity->shaderRGBAf[3] = r_wateralpha.value;
+			}
+			else if (currententity->shaderRGBAf[3] < 1 && cls.protocol != CP_QUAKE3)
 				bef |= BEF_FORCETRANSPARENT;
 			if (currententity->flags & RF_NODEPTHTEST)
 				bef |= BEF_FORCENODEPTH;
@@ -2710,6 +2730,8 @@ void BE_BaseEntTextures(void)
 			BaseBrushTextures(currententity);
 			break;
 		case mod_alias:
+			if (r_drawentities.ival == 3)
+				continue;
 			R_DrawGAliasModel (currententity, shaderstate.mode);
 			break;
 		}
@@ -2752,37 +2774,6 @@ static void BE_SubmitBatch(batch_t *batch)
 	}
 	else
 	{
-		if (lightmap[lm]->modified)
-		{
-			glRect_t *theRect;
-			lightmap[lm]->modified = false;
-			theRect = &lightmap[lm]->rectchange;
-			GL_Bind(lightmap_textures[lm]);
-			qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
-				LMBLOCK_WIDTH, theRect->h, ((lightmap_bytes==3)?GL_RGB:GL_LUMINANCE), GL_UNSIGNED_BYTE,
-				lightmap[lm]->lightmaps+(theRect->t) *LMBLOCK_WIDTH*lightmap_bytes);
-			theRect->l = LMBLOCK_WIDTH;
-			theRect->t = LMBLOCK_HEIGHT;
-			theRect->h = 0;
-			theRect->w = 0;
-			checkerror();
-
-			if (lightmap[lm]->deluxmodified)
-			{
-				lightmap[lm]->deluxmodified = false;
-				theRect = &lightmap[lm]->deluxrectchange;
-				GL_Bind(deluxmap_textures[lm]);
-				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
-					LMBLOCK_WIDTH, theRect->h, GL_RGB, GL_UNSIGNED_BYTE,
-					lightmap[lm]->deluxmaps+(theRect->t) *LMBLOCK_WIDTH*3);
-				theRect->l = LMBLOCK_WIDTH;
-				theRect->t = LMBLOCK_HEIGHT;
-				theRect->h = 0;
-				theRect->w = 0;
-				checkerror();
-			}
-		}
-
 		shaderstate.curlightmap = lightmap_textures[lm];
 		shaderstate.curdeluxmap = deluxmap_textures[lm];
 	}
@@ -2888,11 +2879,69 @@ void BE_SubmitMeshes (void)
 	currententity = &r_worldentity;
 }
 
+static void BE_UpdateLightmaps(void)
+{
+	int lm;
+	for (lm = 0; lm < numlightmaps; lm++)
+	{
+		if (!lightmap[lm])
+			continue;
+		if (lightmap[lm]->modified)
+		{
+			extern cvar_t temp1;
+			glRect_t *theRect;
+			lightmap[lm]->modified = false;
+			theRect = &lightmap[lm]->rectchange;
+			GL_Bind(lightmap_textures[lm]);
+			switch (lightmap_bytes)
+			{
+			case 4:
+				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
+					LMBLOCK_WIDTH, theRect->h, (lightmap_bgra?GL_BGRA_EXT:GL_RGBA), GL_UNSIGNED_INT_8_8_8_8_REV,
+					lightmap[lm]->lightmaps+(theRect->t) *LMBLOCK_WIDTH*4);
+				break;
+			case 3:
+				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
+					LMBLOCK_WIDTH, theRect->h, (lightmap_bgra?GL_BGR_EXT:GL_RGB), GL_UNSIGNED_BYTE,
+					lightmap[lm]->lightmaps+(theRect->t) *LMBLOCK_WIDTH*3);
+				break;
+			case 1:
+				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
+					LMBLOCK_WIDTH, theRect->h, GL_LUMINANCE, GL_UNSIGNED_BYTE,
+					lightmap[lm]->lightmaps+(theRect->t) *LMBLOCK_WIDTH);
+				break;
+			}
+			theRect->l = LMBLOCK_WIDTH;
+			theRect->t = LMBLOCK_HEIGHT;
+			theRect->h = 0;
+			theRect->w = 0;
+			checkerror();
+
+			if (lightmap[lm]->deluxmodified)
+			{
+				lightmap[lm]->deluxmodified = false;
+				theRect = &lightmap[lm]->deluxrectchange;
+				GL_Bind(deluxmap_textures[lm]);
+				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
+					LMBLOCK_WIDTH, theRect->h, GL_RGB, GL_UNSIGNED_BYTE,
+					lightmap[lm]->deluxmaps+(theRect->t) *LMBLOCK_WIDTH*3);
+				theRect->l = LMBLOCK_WIDTH;
+				theRect->t = LMBLOCK_HEIGHT;
+				theRect->h = 0;
+				theRect->w = 0;
+				checkerror();
+			}
+		}
+	}
+}
+
 void BE_DrawWorld (qbyte *vis)
 {
 	extern cvar_t r_shadow_realtime_world, r_shadow_realtime_world_lightmaps;
 	RSpeedLocals();
 	GL_DoSwap();
+
+	BE_UpdateLightmaps();
 
 	//make sure the world draws correctly
 	r_worldentity.shaderRGBAf[0] = 1;

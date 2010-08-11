@@ -106,7 +106,7 @@ void Draw_Hexen2BigFontString(int x, int y, const char *text)
 			sy=-1;
 		}
 		if(sx>=0)
-			Draw_SubPic(x, y, 20, 20, p, sx, sy, 20*8, 20*8);
+			Draw_SubPic(x, y, 20, 20, p, sx, sy, 20*8, 20*4);
 		x+=20;
 		text++;
 	}

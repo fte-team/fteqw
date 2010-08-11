@@ -264,6 +264,7 @@ typedef struct {
 		SP_FIRSTIMMEDIATE,	//never set
 		SP_CVARI,
 		SP_CVARF,
+		SP_CVAR3F,
 		SP_TEXTURE
 	} type;
 	unsigned int handle;
@@ -405,6 +406,8 @@ void BE_GenBrushModelVBO(model_t *mod);
 void BE_ClearVBO(vbo_t *vbo);
 //Uploads all modified lightmaps
 void BE_UploadAllLightmaps(void);
+//Builds a hardware shader from the software representation
+void BE_GenerateProgram(shader_t *shader);
 
 #ifdef RTLIGHTS
 void BE_PushOffsetShadow(qboolean foobar);

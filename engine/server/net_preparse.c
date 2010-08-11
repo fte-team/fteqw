@@ -1,6 +1,564 @@
 #include "qwsvdef.h"
 
 #ifndef CLIENTONLY
+/*Testing this code should typically be done with the three following mods:
+Prydon gate
+Nexuiz
+FrikBots (both NQ+QW).
+
+If those 3 mods work, then pretty much everything else will
+*/
+
+//#define NEWPREPARSE
+
+/*I want to rewrite this
+to use something like
+*/
+
+#ifdef NEWPREPARSE
+enum protocol_type
+{
+	PPT_FLOAT,
+	PPT_ENT,
+	PPT_COORD,
+	PPT_ANGLE,
+	PPT_BYTE,
+	PPT_SHORT,
+	PPT_LONG,
+	PPT_STRING
+};
+
+#define PPT_POS PPT_COORD,PPT_COORD,PPT_COORD
+
+union protocol_data
+{
+	float	fd;
+	int		id;
+	unsigned char	*str;
+};
+
+static union protocol_data pp_data[1024];
+static enum protocol_type pp_temptypes[1024], *pp_types;
+static unsigned char pp_sdata[4096];
+static unsigned int pp_sdata_offset;
+static int pp_dest;
+static qboolean pp_fault;
+
+static unsigned int pp_expectedelements;
+static unsigned int pp_receivedelements;
+static qboolean (*pp_curdecision) (enum protocol_type *pt, union protocol_data *pd);
+
+static enum protocol_type pp_root[] = {PPT_BYTE};
+static qboolean pp_root_decide(enum protocol_type *pt, union protocol_data *pd);
+
+static void decide(enum protocol_type *types, unsigned int numtypes, qboolean (*newdecision) (enum protocol_type *pt, union protocol_data *pd))
+{
+	pp_types = types;
+	pp_expectedelements = numtypes;
+	pp_curdecision = newdecision;
+}
+
+static void pp_flush(multicast_t to, vec3_t origin, void (*flushfunc)(client_t *cl, sizebuf_t *msg, enum protocol_type *pt, union protocol_data *pd), enum protocol_type *pt, union protocol_data *pd)
+{
+	
+	client_t	*client;
+	qbyte		*mask;
+	int			leafnum;
+	int			j;
+	qboolean	reliable;
+
+	decide(pp_root, 1, pp_root_decide);
+
+
+
+	{
+		reliable = false;
+
+		switch (to)
+		{
+		case MULTICAST_ALL_R:
+			reliable = true;	// intentional fallthrough
+		case MULTICAST_ALL:
+			mask = sv.pvs;		// leaf 0 is everything;
+			break;
+
+		case MULTICAST_PHS_R:
+			reliable = true;	// intentional fallthrough
+		case MULTICAST_PHS:
+			if (!sv.phs)
+				mask = sv.pvs;
+			else
+			{
+				leafnum = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, origin);
+				mask = sv.phs + leafnum * 4*((sv.world.worldmodel->numleafs+31)>>5);
+			}
+			break;
+
+		case MULTICAST_PVS_R:
+			reliable = true;	// intentional fallthrough
+		case MULTICAST_PVS:
+			leafnum = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, origin);
+			mask = sv.pvs + leafnum * 4*((sv.world.worldmodel->numleafs+31)>>5);
+			break;
+
+		default:
+			return;
+		}
+
+		// send the data to all relevent clients
+		for (j = 0, client = svs.clients; j < MAX_CLIENTS; j++, client++)
+		{
+			if (client->state != cs_spawned)
+				continue;
+
+			if (client->controller)
+				continue;	//FIXME: send if at least one of the players is near enough.
+
+			if (!((int)client->edict->xv->dimension_see & (int)pr_global_struct->dimension_send))
+				continue;
+
+			if (to == MULTICAST_PHS_R || to == MULTICAST_PHS)
+			{
+				vec3_t delta;
+				VectorSubtract(origin, client->edict->v->origin, delta);
+				if (Length(delta) <= 1024)
+					goto inrange;
+			}
+
+			// -1 is because pvs rows are 1 based, not 0 based like leafs
+			if (mask != sv.pvs)
+			{
+				leafnum = sv.world.worldmodel->funcs.LeafnumForPoint (sv.world.worldmodel, client->edict->v->origin)-1;
+				if ( !(mask[leafnum>>3] & (1<<(leafnum&7)) ) )
+				{
+					continue;
+				}
+			}
+
+inrange:
+			if (client->protocol == SCP_BAD)
+			{
+				/*bot*/
+				continue;
+			}
+			if (reliable)
+				flushfunc(client, &client->netchan.message, pt, pd);
+			else
+				flushfunc(client, &client->datagram, pt, pd);
+		}
+	}
+/*
+	if (sv.mvdrecording && !with)	//mvds don't get the pext stuff
+	{
+		flushfunc(&dem.recorder, 
+		if (reliable)
+		{
+			MVDWrite_Begin(dem_all, 0, sv.multicast.cursize);
+			SZ_Write((sizebuf_t*)demo.dbuf, sv.multicast.data, sv.multicast.cursize);
+		} else
+			SZ_Write(&demo.datagram, sv.multicast.data, sv.multicast.cursize);
+	}*/
+
+	pp_sdata_offset = 0;
+	pp_receivedelements = 0;
+}
+
+#define DECIDE(t) decide(t, sizeof(t)/sizeof(*t), t##_decide)
+#define DECIDE2(t,f) decide(t, sizeof(t)/sizeof(*t), f)
+
+static void pp_identity_flush(client_t *cl, sizebuf_t *msg, enum protocol_type *pt, union protocol_data *pd)
+{
+	unsigned int i;
+	for (i = 0; i < pp_receivedelements; i++)
+	{
+		switch(pt[i])
+		{
+		case PPT_BYTE:
+			MSG_WriteByte(msg, pd[i].id);
+			break;
+		case PPT_ENT:
+		case PPT_SHORT:
+			MSG_WriteShort(msg, pd[i].id);
+			break;
+		case PPT_COORD:
+			MSG_WriteCoord(msg, pd[i].fd);
+			break;
+		case PPT_ANGLE:
+			MSG_WriteAngle(msg, pd[i].fd);
+			break;
+		case PPT_STRING:
+			MSG_WriteString(msg, pd[i].str);
+			break;
+		}
+	}
+}
+
+/*flush is our last attempt to cope with unrecognised/invalid messages, it will send stuff though as it was, and most likely get things wrong*/
+void NPP_Flush(void)
+{
+	pp_fault = false;
+	pp_flush(MULTICAST_ALL_R, NULL, pp_identity_flush, pp_types, pp_data);
+}
+
+static void pp_entry(int dest, enum protocol_type pt, union protocol_data pd)
+{
+	if (pp_receivedelements)
+	{
+		if (pp_dest != dest)
+		{
+			if (!pp_fault)
+				Con_Printf("Preparse: MSG destination changed in the middle of a packet 0x%x.\n", pp_data[0].id);
+			NPP_Flush();
+		}
+	}
+	pp_dest = dest;
+
+	if (pp_fault)
+	{
+		pp_types[pp_receivedelements] = pt;
+		pp_data[pp_receivedelements] = pd;
+		pp_receivedelements++;
+	}
+	else if (pp_types[pp_receivedelements] != pt)
+	{
+		Con_Printf("Preparse: Unmatched expectation at entry %i in svc 0x%x.\n", pp_receivedelements+1, pp_data[0].id);
+
+		pp_types[pp_receivedelements] = pt;
+		pp_data[pp_receivedelements] = pd;
+		pp_receivedelements++;
+
+faulted:
+		pp_fault = true;
+		if (pp_temptypes != pp_types)
+		{
+			memcpy(pp_temptypes, pp_types, sizeof(*pp_temptypes)*pp_receivedelements);
+			pp_types = pp_temptypes;
+		}
+	}
+	else
+	{
+		pp_data[pp_receivedelements++] = pd;
+
+		if (pp_expectedelements == pp_receivedelements)
+		{
+			if (!pp_curdecision(pp_types, pp_data))
+			{
+				if (pp_types[pp_receivedelements-1] == PPT_BYTE)
+					Con_Printf("Preparse: Unhandled byte %i@%i in svc%i.\n", pd.id, pp_receivedelements, pp_data[0].id);
+				else
+					Con_Printf("Preparse: Unhandled data @%i in svc%i.\n", pp_receivedelements, pp_data[0].id);
+				goto faulted;
+			}
+		}
+	}
+}
+
+void NPP_NQWriteByte(int dest, qbyte data)
+{
+	union protocol_data pd;
+	pd.id = data;
+	pp_entry(dest, PPT_BYTE, pd);
+}
+void NPP_NQWriteChar(int dest, char data)
+{
+	union protocol_data pd;
+	pd.id = (unsigned char)data;
+	pp_entry(dest, PPT_BYTE, pd);
+}
+void NPP_NQWriteShort(int dest, short data)
+{
+	union protocol_data pd;
+	pd.id = (unsigned char)data;
+	pp_entry(dest, PPT_SHORT, pd);
+}
+void NPP_NQWriteLong(int dest, long data)
+{
+	union protocol_data pd;
+	pd.id = data;
+	pp_entry(dest, PPT_LONG, pd);
+}
+void NPP_NQWriteAngle(int dest, float data)
+{
+	union protocol_data pd;
+	pd.fd = data;
+	pp_entry(dest, PPT_ANGLE, pd);
+}
+void NPP_NQWriteCoord(int dest, float data)
+{
+	union protocol_data pd;
+	pd.fd = data;
+	pp_entry(dest, PPT_COORD, pd);
+}
+void NPP_NQWriteString(int dest, char *data)
+{
+	unsigned int l;
+	union protocol_data pd;
+	l = strlen(data)+1;
+	if (pp_sdata_offset + l > sizeof(pp_sdata))
+		SV_Error("preparse string overflow\n");
+	pd.str = pp_sdata + pp_sdata_offset;
+	memcpy(pd.str, data, l);
+	pp_entry(dest, PPT_STRING, pd);
+}
+void NPP_NQWriteEntity(int dest, short data)
+{
+	union protocol_data pd;
+	pd.id = (unsigned short)data;
+	pp_entry(dest, PPT_COORD, pd);
+}
+
+void NPP_QWWriteByte(int dest, qbyte data)
+{
+	NPP_NQWriteByte(dest, data);
+}
+void NPP_QWWriteChar(int dest, char data)
+{
+	NPP_NQWriteChar(dest, data);
+}
+void NPP_QWWriteShort(int dest, short data)
+{
+	NPP_NQWriteShort(dest, data);
+}
+void NPP_QWWriteLong(int dest, long data)
+{
+	NPP_NQWriteLong(dest, data);
+}
+void NPP_QWWriteAngle(int dest, float data)
+{
+	NPP_NQWriteAngle(dest, data);
+}
+void NPP_QWWriteCoord(int dest, float data)
+{
+	NPP_NQWriteCoord(dest, data);
+}
+void NPP_QWWriteString(int dest, char *data)
+{
+	NPP_NQWriteString(dest, data);
+}
+void NPP_QWWriteEntity(int dest, short data)
+{
+	NPP_NQWriteEntity(dest, data);
+}
+
+
+
+
+
+
+
+
+
+
+
+static enum protocol_type pp_svc_temp_entity_beam[] = {PPT_BYTE, PPT_BYTE, PPT_ENT, PPT_POS, PPT_POS};
+static void pp_svc_temp_entity_beam_flush(client_t *cl, sizebuf_t *msg, enum protocol_type *pt, union protocol_data *pd)
+{
+	MSG_WriteByte(msg, pd[0].id);
+	MSG_WriteByte(msg, pd[1].id);
+	MSG_WriteShort(msg, pd[2].id);
+	MSG_WriteCoord(msg, pd[3].fd);
+	MSG_WriteCoord(msg, pd[4].fd);
+	MSG_WriteCoord(msg, pd[5].fd);
+	MSG_WriteCoord(msg, pd[6].fd);
+	MSG_WriteCoord(msg, pd[7].fd);
+	MSG_WriteCoord(msg, pd[8].fd);
+}
+static qboolean pp_svc_temp_entity_beam_decide(enum protocol_type *pt, union protocol_data *pd)
+{
+	vec3_t org;
+	org[0] = pd[3].fd;
+	org[1] = pd[4].fd;
+	org[2] = pd[5].fd;
+	pp_flush(MULTICAST_PHS, org, pp_svc_temp_entity_beam_flush, pt, pd);
+	return true;
+}
+
+static void pp_svc_temp_entity_gunshot_flush(client_t *cl, sizebuf_t *msg, enum protocol_type *pt, union protocol_data *pd)
+{
+	int offset = (progstype == PROG_QW)?3:2;
+	int count = (offset == 3)?pd[2].id:1;
+
+	while (count > 0)
+	{
+		MSG_WriteByte(msg, pd[0].id);
+		MSG_WriteByte(msg, pd[1].id);
+		if (cl->protocol == SCP_QUAKEWORLD)
+		{
+			if (count > 255)
+			{
+				MSG_WriteByte(msg, 255);
+				count-=255;
+			}
+			else
+			{
+				MSG_WriteByte(msg, count);
+				count = 0;
+			}
+		}
+		else
+			count--;
+		MSG_WriteCoord(msg, pd[offset+0].fd);
+		MSG_WriteCoord(msg, pd[offset+1].fd);
+		MSG_WriteCoord(msg, pd[offset+2].fd);
+	}
+}
+static qboolean pp_svc_temp_entity_gunshot(enum protocol_type *pt, union protocol_data *pd)
+{
+	vec3_t org;
+	int offset = (progstype == PROG_QW)?3:2;
+	org[0] = pd[offset+0].fd;
+	org[1] = pd[offset+1].fd;
+	org[2] = pd[offset+2].fd;
+	pp_flush(MULTICAST_PHS, org, pp_svc_temp_entity_gunshot_flush, pt, pd);
+	return true;
+}
+
+static qboolean pp_decide_pvs_2(enum protocol_type *pt, union protocol_data *pd)
+{
+	vec3_t org;
+	org[0] = pd[2].fd;
+	org[1] = pd[3].fd;
+	org[2] = pd[4].fd;
+	pp_flush(MULTICAST_PVS, org, pp_identity_flush, pt, pd);
+	return true;
+}
+static qboolean pp_decide_phs_2(enum protocol_type *pt, union protocol_data *pd)
+{
+	vec3_t org;
+	org[0] = pd[2].fd;
+	org[1] = pd[3].fd;
+	org[2] = pd[4].fd;
+	pp_flush(MULTICAST_PHS, org, pp_identity_flush, pt, pd);
+	return true;
+}
+
+static enum protocol_type pp_svc_temp_entity[] = {PPT_BYTE, PPT_BYTE};
+static qboolean pp_svc_temp_entity_decide(enum protocol_type *pt, union protocol_data *pd)
+{
+	switch(pd[1].id)
+	{
+	case TE_LIGHTNING1:
+	case TE_LIGHTNING2:
+	case TE_LIGHTNING3:
+		DECIDE(pp_svc_temp_entity_beam);
+		return true;
+	case TE_EXPLOSION:
+	case TEDP_EXPLOSIONQUAD:
+	case TE_SPIKE:
+	case TE_SUPERSPIKE:
+	case TEDP_SPIKEQUAD:
+	case TEDP_SUPERSPIKEQUAD:
+	case TEDP_SMALLFLASH:
+		{
+			static enum protocol_type fmt[] = {PPT_BYTE, PPT_BYTE, PPT_POS};
+			DECIDE2(fmt, pp_decide_phs_2);
+		}
+		return true;
+
+	case TEDP_GUNSHOTQUAD:
+	case TE_TAREXPLOSION:
+	case TE_WIZSPIKE:
+	case TE_KNIGHTSPIKE:
+	case TE_LAVASPLASH:
+	case TE_TELEPORT:
+		{
+			static enum protocol_type fmt[] = {PPT_BYTE, PPT_BYTE, PPT_POS};
+			DECIDE2(fmt, pp_decide_pvs_2);
+		}
+		return true;
+
+	case TE_GUNSHOT:
+		if (progstype == PROG_QW)
+		{
+			static enum protocol_type fmt[] = {PPT_BYTE, PPT_BYTE, PPT_BYTE, PPT_POS};
+			DECIDE2(fmt, pp_svc_temp_entity_gunshot);
+		}
+		else
+		{
+			static enum protocol_type fmt[] = {PPT_BYTE, PPT_BYTE, PPT_POS};
+			DECIDE2(fmt, pp_svc_temp_entity_gunshot);
+		}
+		return true;
+
+	case 12:
+		if (progstype == PROG_QW)
+		{
+			/*TEQW_BLOOD*/
+		}
+		else
+		{
+			/*TENQ_EXPLOSION2*/
+		}
+		return false;
+
+	case 13:
+		if (progstype == PROG_QW)
+		{
+			/*TEQW_LIGHTNINGBLOOD*/
+		}
+		else
+		{
+			/*TENQ_BEAM*/
+		}
+		return false;
+
+	case TEDP_BLOOD:
+	case TEDP_SPARK:
+		{
+			static enum protocol_type fmt[] = {PPT_BYTE, PPT_BYTE, PPT_POS, PPT_BYTE,PPT_BYTE,PPT_BYTE, PPT_BYTE};
+			DECIDE2(fmt, pp_decide_pvs_2);
+		}
+		return true;
+
+	case TE_BULLET:
+	case TE_SUPERBULLET:
+
+	case TE_RAILTRAIL:
+
+		// hexen 2
+	case TEH2_STREAM_CHAIN:
+	case TEH2_STREAM_SUNSTAFF1:
+	case TEH2_STREAM_SUNSTAFF2:
+	case TEH2_STREAM_LIGHTNING:
+	case TEH2_STREAM_COLORBEAM:
+	case TEH2_STREAM_ICECHUNKS:
+	case TEH2_STREAM_GAZE:
+	case TEH2_STREAM_FAMINE:
+
+	case TEDP_BLOODSHOWER:
+	case TEDP_EXPLOSIONRGB:
+	case TEDP_PARTICLECUBE:
+	case TEDP_PARTICLERAIN: // [vector] min [vector] max [vector] dir [short] count [byte] color
+	case TEDP_PARTICLESNOW: // [vector] min [vector] max [vector] dir [short] count [byte] color
+	case TEDP_CUSTOMFLASH:
+	case TEDP_FLAMEJET:
+	case TEDP_PLASMABURN:
+	case TEDP_TEI_G3:
+	case TEDP_SMOKE:
+	case TEDP_TEI_BIGEXPLOSION:
+	case TEDP_TEI_PLASMAHIT:
+	default:
+		return false;
+	}
+}
+
+qboolean pp_root_decide(enum protocol_type *pt, union protocol_data *pd)
+{
+	switch (pd[0].id)
+	{
+	case svc_temp_entity:
+		DECIDE(pp_svc_temp_entity);
+		return true;
+	default:
+		return false;
+	}
+}
+
+
+
+
+
+#else
 
 static sizebuf_t	*writedest;
 static client_t		*cldest;
@@ -194,12 +752,12 @@ void NPP_NQFlush(void)
 			vec3_t org;
 			coorddata cd;
 
-			memcpy(&cd, &buffer[multicastpos+sizeofcoord*0], sizeofcoord);
-			org[0] = MSG_FromCoord(cd, sizeofcoord);
-			memcpy(&cd, &buffer[multicastpos+sizeofcoord*1], sizeofcoord);
-			org[1] = MSG_FromCoord(cd, sizeofcoord);
-			memcpy(&cd, &buffer[multicastpos+sizeofcoord*2], sizeofcoord);
-			org[2] = MSG_FromCoord(cd, sizeofcoord);
+			memcpy(&cd, &buffer[multicastpos+writedest->prim.coordsize*0], writedest->prim.coordsize);
+			org[0] = MSG_FromCoord(cd, writedest->prim.coordsize);
+			memcpy(&cd, &buffer[multicastpos+writedest->prim.coordsize*1], writedest->prim.coordsize);
+			org[1] = MSG_FromCoord(cd, writedest->prim.coordsize);
+			memcpy(&cd, &buffer[multicastpos+writedest->prim.coordsize*2], writedest->prim.coordsize);
+			org[2] = MSG_FromCoord(cd, writedest->prim.coordsize);
 
 			SV_MulticastProtExt(org, multicasttype, pr_global_struct->dimension_send, requireextension, 0);
 		}
@@ -360,7 +918,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 		switch(majortype)
 		{
 		case svc_sound:
-			protocollen = 5+sizeofcoord*3;
+			protocollen = 5+writedest->prim.coordsize*3;
 			if (data & NQSND_VOLUME)
 				protocollen++;
 			if (data & NQSND_ATTENUATION)
@@ -383,7 +941,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			case TE_LIGHTNING3:
 				multicastpos=4;
 				multicasttype=MULTICAST_PHS;
-				protocollen = sizeofcoord*6+sizeof(short)+sizeof(qbyte)*2;
+				protocollen = writedest->prim.coordsize*6+sizeof(short)+sizeof(qbyte)*2;
 				break;
 			case TE_GUNSHOT:
 				multicastpos=3;
@@ -392,14 +950,14 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				//emit it here and we don't need to remember to play with temp_entity later
 				NPP_AddData(&data, sizeof(qbyte));
 				data = 1;
-				protocollen = sizeofcoord*3+sizeof(qbyte)*3;
+				protocollen = writedest->prim.coordsize*3+sizeof(qbyte)*3;
 				break;
 			case TE_EXPLOSION:
 			case TE_SPIKE:
 			case TE_SUPERSPIKE:
 				multicastpos=2;
 				multicasttype=MULTICAST_PHS_R;
-				protocollen = sizeofcoord*3+sizeof(qbyte)*2;
+				protocollen = writedest->prim.coordsize*3+sizeof(qbyte)*2;
 				break;
 			case TE_TAREXPLOSION:
 			case TE_WIZSPIKE:
@@ -408,25 +966,25 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			case TE_TELEPORT:
 				multicastpos=2;
 				multicasttype=MULTICAST_PVS;
-				protocollen = sizeofcoord*3+sizeof(qbyte)*2;
+				protocollen = writedest->prim.coordsize*3+sizeof(qbyte)*2;
 				break;
 			case TE_EXPLOSION3_NEH:
-				protocollen = sizeof(qbyte) + sizeofcoord*6;
+				protocollen = sizeof(qbyte) + writedest->prim.coordsize*6;
 				ignoreprotocol = true;
 				break;
 			case TENQ_EXPLOSION2:
-				protocollen = sizeof(qbyte)*4 + sizeofcoord*3;
+				protocollen = sizeof(qbyte)*4 + writedest->prim.coordsize*3;
 				multicastpos=2;
 				multicasttype=MULTICAST_PHS_R;
 				break;
 			case TE_EXPLOSIONSMALL2:
 				data = TE_EXPLOSION;
-				protocollen = sizeof(qbyte)*2 + sizeofcoord*3;
+				protocollen = sizeof(qbyte)*2 + writedest->prim.coordsize*3;
 				multicastpos=2;
 				multicasttype=MULTICAST_PHS;
 				break;
 			case TE_RAILTRAIL:
-				protocollen = sizeofcoord*6+sizeof(qbyte)*1;
+				protocollen = writedest->prim.coordsize*6+sizeof(qbyte)*1;
 				multicastpos=2;
 				multicasttype=MULTICAST_PHS;
 				break;
@@ -437,42 +995,42 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			case TEH2_STREAM_ICECHUNKS:
 			case TEH2_STREAM_GAZE:
 			case TEH2_STREAM_FAMINE:
-				protocollen = sizeofcoord*6+sizeof(short)+sizeof(qbyte)*(2+2);
+				protocollen = writedest->prim.coordsize*6+sizeof(short)+sizeof(qbyte)*(2+2);
 				multicastpos = 8;
 				multicasttype=MULTICAST_PHS;
 				break;
 			case TEH2_STREAM_COLORBEAM:
-				protocollen = sizeofcoord*6+sizeof(short)+sizeof(qbyte)*(3+2);
+				protocollen = writedest->prim.coordsize*6+sizeof(short)+sizeof(qbyte)*(3+2);
 				multicastpos = 8;
 				multicasttype=MULTICAST_PHS;
 				break;
 
 			case TEDP_FLAMEJET:	//TE_FLAMEJET
-				protocollen = sizeofcoord*6 +sizeof(qbyte)*3;
+				protocollen = writedest->prim.coordsize*6 +sizeof(qbyte)*3;
 				multicastpos = 2;
 				multicasttype=MULTICAST_PVS;
 				break;
 
 			case TEDP_TEI_G3:
-				protocollen = sizeofcoord*9+sizeof(qbyte)*2;
+				protocollen = writedest->prim.coordsize*9+sizeof(qbyte)*2;
 				multicastpos = 2;
 				multicasttype=MULTICAST_PHS;
 				break;
 
 			case TEDP_SMOKE:
-				protocollen = sizeofcoord*6+sizeof(qbyte)*3;
+				protocollen = writedest->prim.coordsize*6+sizeof(qbyte)*3;
 				multicastpos = 2;
 				multicasttype=MULTICAST_PHS;
 				break;
 
 			case TEDP_TEI_BIGEXPLOSION:
-				protocollen = sizeofcoord*3+sizeof(qbyte)*2;
+				protocollen = writedest->prim.coordsize*3+sizeof(qbyte)*2;
 				multicastpos = 2;
 				multicasttype=MULTICAST_PHS;
 				break;
 
 			case TEDP_TEI_PLASMAHIT:
-				protocollen = sizeofcoord*6+sizeof(qbyte)*3;
+				protocollen = writedest->prim.coordsize*6+sizeof(qbyte)*3;
 				multicastpos = 2;
 				multicasttype=MULTICAST_PHS;
 				break;
@@ -647,7 +1205,7 @@ void NPP_NQWriteCoord(int dest, float in)	//replacement write func (nq to qw)
 		MSG_WriteCoord (NQWriteDest(dest), in);
 #endif
 
-	if (sizeofcoord==4)
+	if (writedest->prim.coordsize==4)
 	{
 		dataf = LittleFloat(dataf);
 		NPP_AddData(&dataf, sizeof(float));
@@ -933,7 +1491,7 @@ void NPP_QWFlush(void)
 				NPP_AddData(&svc, sizeof(qbyte));
 				for (i = 0; i < 3; i++)
 				{
-					if (sizeofcoord == 4)
+					if (writedest->prim.coordsize == 4)
 						NPP_AddData(&org[i], sizeof(float));
 					else
 					{
@@ -991,12 +1549,12 @@ void NPP_QWFlush(void)
 			vec3_t org;
 			coorddata cd;
 
-			memcpy(&cd, &buffer[multicastpos+sizeofcoord*0], sizeofcoord);
-			org[0] = MSG_FromCoord(cd, sizeofcoord);
-			memcpy(&cd, &buffer[multicastpos+sizeofcoord*1], sizeofcoord);
-			org[1] = MSG_FromCoord(cd, sizeofcoord);
-			memcpy(&cd, &buffer[multicastpos+sizeofcoord*2], sizeofcoord);
-			org[2] = MSG_FromCoord(cd, sizeofcoord);
+			memcpy(&cd, &buffer[multicastpos+writedest->prim.coordsize*0], writedest->prim.coordsize);
+			org[0] = MSG_FromCoord(cd, writedest->prim.coordsize);
+			memcpy(&cd, &buffer[multicastpos+writedest->prim.coordsize*1], writedest->prim.coordsize);
+			org[1] = MSG_FromCoord(cd, writedest->prim.coordsize);
+			memcpy(&cd, &buffer[multicastpos+writedest->prim.coordsize*2], writedest->prim.coordsize);
+			org[2] = MSG_FromCoord(cd, writedest->prim.coordsize);
 
 			qwsize = sv.multicast.cursize;
 			sv.multicast.cursize = 0;
@@ -1167,13 +1725,13 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			case TE_LIGHTNING3:
 				multicastpos=4;
 				multicasttype=MULTICAST_PHS;
-				protocollen = sizeofcoord*6+sizeof(short)+sizeof(qbyte)*2;
+				protocollen = writedest->prim.coordsize*6+sizeof(short)+sizeof(qbyte)*2;
 				break;
 			case TEQW_BLOOD:		//needs to be converted to a particle
 			case TE_GUNSHOT:	//needs qbyte 2 removed
 				multicastpos=3;
 				multicasttype=MULTICAST_PVS;
-				protocollen = sizeofcoord*3+sizeof(qbyte)*3;
+				protocollen = writedest->prim.coordsize*3+sizeof(qbyte)*3;
 				break;
 			case TEQW_LIGHTNINGBLOOD:
 			case TE_EXPLOSION:
@@ -1181,7 +1739,7 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			case TE_SUPERSPIKE:
 				multicastpos=2;
 				multicasttype=MULTICAST_PHS_R;
-				protocollen = sizeofcoord*3+sizeof(qbyte)*2;
+				protocollen = writedest->prim.coordsize*3+sizeof(qbyte)*2;
 				break;
 			case TE_TAREXPLOSION:
 			case TE_WIZSPIKE:
@@ -1190,12 +1748,12 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			case TE_TELEPORT:
 				multicastpos=2;
 				multicasttype=MULTICAST_PVS;
-				protocollen = sizeofcoord*3+sizeof(qbyte)*2;
+				protocollen = writedest->prim.coordsize*3+sizeof(qbyte)*2;
 				break;
 			case TE_RAILTRAIL:
 				multicastpos=1;
 				multicasttype=MULTICAST_PVS;
-				protocollen = sizeofcoord*3+sizeof(qbyte)*1;
+				protocollen = writedest->prim.coordsize*3+sizeof(qbyte)*1;
 				break;
 			default:
 				protocollen = sizeof(buffer);
@@ -1260,7 +1818,7 @@ void NPP_QWWriteLong(int dest, long data)	//replacement write func (nq to qw)
 }
 void NPP_QWWriteAngle(int dest, float in)	//replacement write func (nq to qw)
 {
-	if (sizeofangle==1)
+	if (writedest->prim.anglesize==1)
 	{
 		char data = (int)(in*256/360) & 255;
 		NPP_QWWriteChar(dest, data);
@@ -1273,7 +1831,7 @@ void NPP_QWWriteAngle(int dest, float in)	//replacement write func (nq to qw)
 }
 void NPP_QWWriteCoord(int dest, float in)	//replacement write func (nq to qw)
 {
-	if (sizeofcoord==4)
+	if (writedest->prim.coordsize==4)
 	{
 		NPP_QWWriteFloat(dest, in);
 	}
@@ -2317,4 +2875,5 @@ void NPP_Flush(void)
 		NPP_QWFlush();
 #endif
 }
+#endif
 #endif

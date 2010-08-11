@@ -973,7 +973,13 @@ void Draw_TinyString (int x, int y, const qbyte *str)
 
 #pragma message("hexen2: use a tinychar *6 font")
 	if (!font_tiny)
-		return;
+	{
+//		font_tiny = Font_LoadFont(6*vid.pixelheight/vid.height, var->string);
+//		if (!font_tiny && *var->string)
+			font_tiny = Font_LoadFont(6*vid.pixelheight/vid.height, "gfx/tinyfont");
+		if (!font_tiny)
+			return;
+	}
 
 	Font_BeginString(font_tiny, x, y, &x, &y);
 	xstart = x;
@@ -987,7 +993,7 @@ void Draw_TinyString (int x, int y, const qbyte *str)
 			str++;
 			continue;
 		}
-		x = Font_DrawChar(x, y, *str++);
+		x = Font_DrawChar(x, y, CON_WHITEMASK|*str++);
 	}
 	Font_EndString(font_tiny);
 }
@@ -1132,7 +1138,7 @@ void Sbar_Hexen2DrawNum (int x, int y, int num, int digits)
 		else
 			frame = *ptr -'0';
 
-		Sbar_DrawPic (x, y, FINDOUT, FINDOUT, sb_nums[0][frame]);
+		Sbar_DrawPic (x, y, 12, 16, sb_nums[0][frame]);
 		x += 13;
 		ptr++;
 	}
@@ -1791,14 +1797,14 @@ void Sbar_DrawScoreboard (void)
 void Sbar_Hexen2DrawItem(int pnum, int x, int y, int itemnum)
 {
 	int num;
-	Sbar_DrawPic(x, y, FINDOUT, FINDOUT, Draw_SafeCachePic(va("gfx/arti%02d.lmp", itemnum)));
+	Sbar_DrawPic(x, y, 29, 28, Draw_SafeCachePic(va("gfx/arti%02d.lmp", itemnum)));
 
 	num = cl.stats[pnum][STAT_H2_CNT_TORCH+itemnum];
 	if(num > 0)
 	{
 		if (num >= 10)
-			Sbar_DrawPic(x+20, y+21, FINDOUT, FINDOUT, Draw_SafeCachePic(va("gfx/artinum%d.lmp", num/10)));
-		Sbar_DrawPic(x+20+4, y+21, FINDOUT, FINDOUT, Draw_SafeCachePic(va("gfx/artinum%d.lmp", num%10)));
+			Sbar_DrawPic(x+20, y+21, 4, 6, Draw_SafeCachePic(va("gfx/artinum%d.lmp", num/10)));
+		Sbar_DrawPic(x+20+4, y+21, 4, 6, Draw_SafeCachePic(va("gfx/artinum%d.lmp", num%10)));
 	}
 }
 
@@ -1814,7 +1820,7 @@ void Sbar_Hexen2DrawInventory(int pnum)
 	for (i = 0, x=320/2-114; i < 7; i++, x+=33)
 	{
 		if ((sb_hexen2_cur_item-3+i+30)%15 == sb_hexen2_cur_item)
-			Sbar_DrawPic(x+9, y-12, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/artisel.lmp"));
+			Sbar_DrawPic(x+9, y-12, 11, 11, Draw_SafeCachePic("gfx/artisel.lmp"));
 		Sbar_Hexen2DrawItem(pnum, x, y, (sb_hexen2_cur_item-3+i+30)%15);
 	}
 #else
@@ -1859,8 +1865,8 @@ void Sbar_Hexen2DrawExtra (int pnum)
 	//adjust it so there's space
 	sbar_rect.y -= 46+98-SBAR_HEIGHT;
 
-	Sbar_DrawPic(0, 46, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/btmbar1.lmp"));
-	Sbar_DrawPic(160, 46, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/btmbar2.lmp"));
+	Sbar_DrawPic(0, 46, 160, 98, Draw_SafeCachePic("gfx/btmbar1.lmp"));
+	Sbar_DrawPic(160, 46, 160, 98, Draw_SafeCachePic("gfx/btmbar2.lmp"));
 
 	Sbar_DrawTinyString (11, 48, pclassname[pclass]);
 
@@ -1893,7 +1899,7 @@ void Sbar_Hexen2DrawExtra (int pnum)
 	{
 		if (cl.stats[pnum][STAT_H2_ARMOUR1+i] > 0)
 		{
-			Sbar_DrawPic (164+i*40, 115, FINDOUT, FINDOUT, Draw_SafeCachePic(va("gfx/armor%d.lmp", i+1)));
+			Sbar_DrawPic (164+i*40, 115, 28, 19, Draw_SafeCachePic(va("gfx/armor%d.lmp", i+1)));
 			Sbar_DrawTinyString (168+i*40, 136, va("+%d", cl.stats[pnum][STAT_H2_ARMOUR1+i]));
 		}
 	}
@@ -1901,14 +1907,14 @@ void Sbar_Hexen2DrawExtra (int pnum)
 	{
 		if (cl.stats[pnum][STAT_H2_FLIGHT_T+i] > 0)
 		{
-			Sbar_DrawPic (ringpos[i], 119, FINDOUT, FINDOUT, Draw_SafeCachePic(va("gfx/ring_f.lmp")));
+			Sbar_DrawPic (ringpos[i], 119, 32, 22, Draw_SafeCachePic(va("gfx/ring_f.lmp")));
 			val = cl.stats[pnum][STAT_H2_FLIGHT_T+i];
 			if (val > 100)
 				val = 100;
 			if (val < 0)
 				val = 0;
-			Sbar_DrawPic(ringpos[i]+29 - (int)(26 * (val/(float)100)),142, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/ringhlth.lmp"));
-			Sbar_DrawPic(ringpos[i]+29, 142, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/rhlthcvr.lmp"));
+			Sbar_DrawPic(ringpos[i]+29 - (int)(26 * (val/(float)100)),142, 26, 1, Draw_SafeCachePic("gfx/ringhlth.lmp"));
+			Sbar_DrawPic(ringpos[i]+29, 142, 26, 1, Draw_SafeCachePic("gfx/rhlthcvr.lmp"));
 		}
 	}
 
@@ -1917,23 +1923,23 @@ void Sbar_Hexen2DrawExtra (int pnum)
 	{
 		if (cl.statsstr[pnum][STAT_H2_PUZZLE1+i])
 		{
-			Sbar_DrawPic (194+(slot%4)*31, slot<4?51:82, FINDOUT, FINDOUT, Draw_SafeCachePic(va("gfx/puzzle/%s.lmp", cl.statsstr[pnum][STAT_H2_PUZZLE1+i])));
+			Sbar_DrawPic (194+(slot%4)*31, slot<4?51:82, 26, 26, Draw_SafeCachePic(va("gfx/puzzle/%s.lmp", cl.statsstr[pnum][STAT_H2_PUZZLE1+i])));
 			slot++;
 		}
 	}
 
-	Sbar_DrawPic(134, 50, FINDOUT, FINDOUT, Draw_SafeCachePic(va("gfx/cport%d.lmp", pclass)));
+	Sbar_DrawPic(134, 50, 49, 56, Draw_SafeCachePic(va("gfx/cport%d.lmp", pclass)));
 }
 
 void Sbar_Hexen2DrawBasic(int pnum)
 {
 	int chainpos;
 	int val, maxval;
-	Sbar_DrawPic(0, 0, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/topbar1.lmp"));
-	Sbar_DrawPic(160, 0, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/topbar2.lmp"));
-	Sbar_DrawPic(0, -23, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/topbumpl.lmp"));
-	Sbar_DrawPic(138, -8, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/topbumpm.lmp"));
-	Sbar_DrawPic(269, -23, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/topbumpr.lmp"));
+	Sbar_DrawPic(0, 0, 160, 46, Draw_SafeCachePic("gfx/topbar1.lmp"));
+	Sbar_DrawPic(160, 0, 160, 46, Draw_SafeCachePic("gfx/topbar2.lmp"));
+	Sbar_DrawPic(0, -23, 51, 23, Draw_SafeCachePic("gfx/topbumpl.lmp"));
+	Sbar_DrawPic(138, -8, 39, 8, Draw_SafeCachePic("gfx/topbumpm.lmp"));
+	Sbar_DrawPic(269, -23, 51, 23, Draw_SafeCachePic("gfx/topbumpr.lmp"));
 
 	//mana1
 	maxval = cl.stats[pnum][STAT_H2_MAXMANA];
@@ -1942,8 +1948,8 @@ void Sbar_Hexen2DrawBasic(int pnum)
 	Sbar_DrawTinyString(201, 22, va("%03d", val));
 	if(val)
 	{
-		Sbar_DrawPic(190, 26-(int)((val*18.0)/(float)maxval+0.5), FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/bmana.lmp"));
-		Sbar_DrawPic(190, 27, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/bmanacov.lmp"));
+		Sbar_DrawPic(190, 26-(int)((val*18.0)/(float)maxval+0.5), 3, 19, Draw_SafeCachePic("gfx/bmana.lmp"));
+		Sbar_DrawPic(190, 27, 3, 19, Draw_SafeCachePic("gfx/bmanacov.lmp"));
 	}
 
 	//mana2
@@ -1953,8 +1959,8 @@ void Sbar_Hexen2DrawBasic(int pnum)
 	Sbar_DrawTinyString(243, 22, va("%03d", val));
 	if(val)
 	{
-		Sbar_DrawPic(232, 26-(int)((val*18.0)/(float)maxval+0.5), FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/gmana.lmp"));
-		Sbar_DrawPic(232, 27, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/gmanacov.lmp"));
+		Sbar_DrawPic(232, 26-(int)((val*18.0)/(float)maxval+0.5), 3, 19, Draw_SafeCachePic("gfx/gmana.lmp"));
+		Sbar_DrawPic(232, 27, 3, 19, Draw_SafeCachePic("gfx/gmanacov.lmp"));
 	}
 
 
@@ -1972,10 +1978,10 @@ void Sbar_Hexen2DrawBasic(int pnum)
 	chainpos = (195.0f*cl.stats[pnum][STAT_HEALTH]) / cl.stats[pnum][STAT_H2_MAXHEALTH];
 	if (chainpos < 0)
 		chainpos = 0;
-	Sbar_DrawPic(45+((int)chainpos&7), 38, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/hpchain.lmp"));
-	Sbar_DrawPic(45+(int)chainpos, 36,	FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/hpgem.lmp"));
-	Sbar_DrawPic(43, 36, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/chnlcov.lmp"));
-	Sbar_DrawPic(267, 36, FINDOUT, FINDOUT, Draw_SafeCachePic("gfx/chnrcov.lmp"));
+	Sbar_DrawPic(45+((int)chainpos&7), 38, 222, 5, Draw_SafeCachePic("gfx/hpchain.lmp"));
+	Sbar_DrawPic(45+(int)chainpos, 36,	35, 9, Draw_SafeCachePic("gfx/hpgem.lmp"));
+	Sbar_DrawPic(43, 36, 10, 10, Draw_SafeCachePic("gfx/chnlcov.lmp"));
+	Sbar_DrawPic(267, 36, 10, 10, Draw_SafeCachePic("gfx/chnrcov.lmp"));
 
 
 	Sbar_Hexen2DrawItem(pnum, 144, 3, sb_hexen2_cur_item);
@@ -2156,7 +2162,7 @@ void Sbar_Draw (void)
 			sbar_rect.x = 0;
 			sbar_rect.y = 0;
 
-			if (scr_centersbar.ival)
+			if (scr_centersbar.ival || (scr_centersbar.ival == 2 && !cl.deathmatch))
 			{
 				sbar_rect.x = (vid.width - 320)/2;
 				sbar_rect.width -= sbar_rect.x;

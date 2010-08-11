@@ -633,6 +633,8 @@ sfxcache_t *S_LoadDoomSpeakerSound (sfx_t *s, qbyte *data, int datalen, int snds
 	inaccum = inrate;
 	if (*data)
 		timerfreq = DSPK_BASE * pow((double)2.0, DSPK_EXP * (*data));
+	else
+		timerfreq = 0;
 
 	while (len > 0)
 	{
@@ -920,7 +922,7 @@ WAV loading
 ===============================================================================
 */
 
-
+char	*wavname;
 qbyte	*data_p;
 qbyte 	*iff_end;
 qbyte 	*last_chunk;
@@ -972,7 +974,7 @@ unsigned int FindNextChunk(char *name)
 		}
 		if (iff_chunk_len > dataleft)
 		{
-			Con_Printf ("Sound file seems truncated by %i bytes\n", iff_chunk_len-dataleft);
+			Con_DPrintf ("\"%s\" seems truncated by %i bytes\n", wavname, iff_chunk_len-dataleft);
 #if 1
 			iff_chunk_len = dataleft;
 #else
@@ -1038,6 +1040,7 @@ wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 		
 	iff_data = wav;
 	iff_end = wav + wavlength;
+	wavname = name;
 
 // find "RIFF" chunk
 	chunklen = FindChunk("RIFF");

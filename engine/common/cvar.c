@@ -148,6 +148,8 @@ char *Cvar_FlagToName(int flag)
 		return "nounsafeexpand";
 	case CVAR_RULESETLATCH:
 		return "rulesetlatch";
+	case CVAR_SHADERSYSTEM:
+		return "shadersystem";
 	}
 
 	return NULL;

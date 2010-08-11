@@ -363,18 +363,24 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end)
 		if (pe->nonsolid)
 			continue;
 
-		if (!pe->model)
+		if (!pe->model || pe->model->needload)
 		{
 			vec3_t mins, maxs;
 
 			VectorSubtract (pe->mins, player_maxs, mins);
 			VectorSubtract (pe->maxs, player_mins, maxs);
 			PM_HullForBox (mins, maxs);
-		}
 
-	// trace a line through the apropriate clipping hull
-		if (!PM_TransformedHullCheck (pe->model, start, end, &trace, pe->origin, pe->angles))
-			continue;
+			// trace a line through the apropriate clipping hull
+			if (!PM_TransformedHullCheck (NULL, start, end, &trace, pe->origin, pe->angles))
+				continue;
+		}
+		else
+		{
+			// trace a line through the apropriate clipping hull
+			if (!PM_TransformedHullCheck (pe->model, start, end, &trace, pe->origin, pe->angles))
+				continue;
+		}
 
 		if (trace.allsolid)
 			trace.startsolid = true;

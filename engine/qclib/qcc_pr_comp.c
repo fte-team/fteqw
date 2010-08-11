@@ -7931,7 +7931,7 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_def_t *scope, int a
 	{
 		if (!pHash_Get(&globalstable, "end_sys_fields"))
 			first->references++;	//anything above needs to be left in, and so warning about not using it is just going to pee people off.
-		if (arraysize <= 1)
+		if (arraysize <= 1 && first->type->type != ev_field)
 			first->constant = false;
 		if (scope)
 			pHash_Add(&localstable, first->name, first, qccHunkAlloc(sizeof(bucket_t)));
@@ -9044,13 +9044,14 @@ void QCC_PR_ParseDefs (char *classname)
 				continue;
 			}
 
-#pragma message("this is experimental")
 			if (pr_scope)
 			{
 				d = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+				if (typecmp(def->type, d->type))
+					QCC_PR_ParseError (ERR_BADIMMEDIATETYPE, "wrong immediate type for %s", name);
 				if (d->constant)
 				{
-					for (i = 0; i < d->type->size; i++)
+					for (i = 0; (unsigned)i < def->type->size; i++)
 						G_INT(def->ofs+i) = G_INT(d->ofs+i);
 					def->constant = !isvar;
 					def->initialized = 1;
@@ -9599,8 +9600,15 @@ void QCC_PR_ParseDefs (char *classname)
 				def->initialized = 1;
 			}
 
-			if (isconstant && type->type == ev_field)
-				def->constant = 2;	//special flag on fields, 2, makes the pointer obtained from them also constant.
+			if (type->type == ev_field)
+			{
+				if (isconstant)
+					def->constant = 2;	//special flag on fields, 2, makes the pointer obtained from them also constant.
+				else if (isvar)
+					def->constant = 0;
+				else
+					def->constant = 1;
+			}
 			else
 				def->constant = isconstant;
 		}

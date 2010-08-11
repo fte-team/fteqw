@@ -108,22 +108,15 @@ extern cvar_t gl_blendsprites;
 cvar_t	r_xflip = SCVAR("leftisright", "0");
 #endif
 
-extern	cvar_t	gl_ztrick;
 extern	cvar_t	scr_fov;
 
 shader_t *scenepp_waterwarp;
+shader_t *scenepp_mt_shader;
 
 // post processing stuff
 texid_t sceneblur_texture;
-texid_t scenepp_texture;
 texid_t scenepp_texture_warp;
 texid_t scenepp_texture_edge;
-
-int scenepp_ww_program;
-int scenepp_ww_parm_texture0i;
-int scenepp_ww_parm_texture1i;
-int scenepp_ww_parm_texture2i;
-int scenepp_ww_parm_ampscalef;
 
 int scenepp_mt_program;
 int scenepp_mt_parm_texture0i;
@@ -141,7 +134,6 @@ int scenepp_panorama_parm_fov;
 // processing shaders
 void GL_InitSceneProcessingShaders_WaterWarp (void)
 {
-#if 1
 	/*
 	inputs:
 	texcoords: edge points
@@ -221,70 +213,6 @@ void GL_InitSceneProcessingShaders_WaterWarp (void)
 		scenepp_waterwarp->defaulttextures.upperoverlay = scenepp_texture_warp;
 		scenepp_waterwarp->defaulttextures.loweroverlay = scenepp_texture_edge;
 	}
-#else
-	char *genericvert = "\
-		varying vec2 v_texCoord0;\
-		varying vec2 v_texCoord1;\
-		varying vec2 v_texCoord2;\
-		void main (void)\
-		{\
-			vec4 v = vec4( gl_Vertex.x, gl_Vertex.y, gl_Vertex.z, 1.0 );\
-			gl_Position = gl_ModelViewProjectionMatrix * v;\
-			v_texCoord0 = gl_MultiTexCoord0.xy;\
-			v_texCoord1 = gl_MultiTexCoord1.xy;\
-			v_texCoord2 = gl_MultiTexCoord2.xy;\
-		}\
-		";
-
-	char *wwfrag = "\
-		varying vec2 v_texCoord0;\
-		varying vec2 v_texCoord1;\
-		varying vec2 v_texCoord2;\
-		uniform sampler2D theTexture0;\
-		uniform sampler2D theTexture1;\
-		uniform sampler2D theTexture2;\
-		uniform float ampscale;\
-		void main (void)\
-		{\
-			float amptemp;\
-			vec3 edge;\
-			edge = texture2D( theTexture2, v_texCoord2 ).rgb;\
-			amptemp = ampscale * edge.x;\
-			vec3 offset;\
-			offset = texture2D( theTexture1, v_texCoord1 ).rgb;\
-			offset.x = (offset.x - 0.5) * 2.0;\
-			offset.y = (offset.y - 0.5) * 2.0;\
-			vec2 temp;\
-			temp.x = v_texCoord0.x + offset.x * amptemp;\
-			temp.y = v_texCoord0.y + offset.y * amptemp;\
-			gl_FragColor = texture2D( theTexture0, temp );\
-		}\
-		";
-
-	if (qglGetError())
-		Con_Printf("GL Error before initing shader object\n");
-
-	scenepp_ww_program = GLSlang_CreateProgram(NULL, genericvert, wwfrag);
-
-	if (!scenepp_ww_program)
-		return;
-
-	scenepp_ww_parm_texture0i	= GLSlang_GetUniformLocation(scenepp_ww_program, "theTexture0");
-	scenepp_ww_parm_texture1i	= GLSlang_GetUniformLocation(scenepp_ww_program, "theTexture1");
-	scenepp_ww_parm_texture2i	= GLSlang_GetUniformLocation(scenepp_ww_program, "theTexture2");
-	scenepp_ww_parm_ampscalef	= GLSlang_GetUniformLocation(scenepp_ww_program, "ampscale");
-
-	GLSlang_UseProgram(scenepp_ww_program);
-
-	GLSlang_SetUniform1i(scenepp_ww_parm_texture0i, 0);
-	GLSlang_SetUniform1i(scenepp_ww_parm_texture1i, 1);
-	GLSlang_SetUniform1i(scenepp_ww_parm_texture2i, 2);
-
-	GLSlang_UseProgram(0);
-
-	if (qglGetError())
-		Con_Printf(CON_ERROR "GL Error initing shader object\n");
-#endif
 }
 
 void GL_InitFisheyeFov(void)
@@ -350,49 +278,66 @@ void GL_InitFisheyeFov(void)
 
 void GL_InitSceneProcessingShaders_MenuTint(void)
 {
-	char *vshader = "\
-		varying vec2 texcoord;\
-		void main(void)\
-		{\
-			texcoord = gl_MultiTexCoord0.xy;\
-			gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;\
-		}";
-	char *fshader = "\
-		varying vec2 texcoord;\
-		uniform vec3 colorparam;\
-		uniform sampler2D source;\
-		uniform int invert;\
-		const vec3 lumfactors = vec3(0.299, 0.587, 0.114);\
-		const vec3 invertvec = vec3(1.0, 1.0, 1.0);\
-		void main(void)\
-		{\
-			vec3 texcolor = texture2D(source, texcoord).rgb;\
-			float luminance = dot(lumfactors, texcolor);\
-			texcolor = vec3(luminance, luminance, luminance);\
-			texcolor *= colorparam;\
-			texcolor = invert > 0 ? (invertvec - texcolor) : texcolor;\
-			gl_FragColor = vec4(texcolor, 1.0);\
-		}";
+	extern cvar_t gl_menutint_shader;
+	if (gl_config.arb_shader_objects && gl_menutint_shader.ival)
+	{
+	scenepp_mt_shader = R_RegisterShader("menutint",
+			"{\n"
+				"glslprogram\n"
+				"{\n"
+			"#ifdef VERTEX_SHADER\n"
+			"\
+					varying vec2 texcoord;\
+					uniform vec3 rendertexturescale;\
+					void main(void)\
+					{\
+						texcoord.x = gl_MultiTexCoord0.x*rendertexturescale.x;\
+						texcoord.y = (1-gl_MultiTexCoord0.y)*rendertexturescale.y;\
+						gl_Position = ftransform();\
+					}\
+			\n"
+			"#endif\n"
+			"#ifdef FRAGMENT_SHADER\n"
+			"\
+					varying vec2 texcoord;\
+					uniform vec3 colorparam;\
+					uniform sampler2D source;\
+					uniform int invert;\
+					const vec3 lumfactors = vec3(0.299, 0.587, 0.114);\
+					const vec3 invertvec = vec3(1.0, 1.0, 1.0);\
+					void main(void)\
+					{\
+						vec3 texcolor = texture2D(source, texcoord).rgb;\
+						float luminance = dot(lumfactors, texcolor);\
+						texcolor = vec3(luminance, luminance, luminance);\
+						texcolor *= colorparam;\
+						texcolor = invert > 0 ? (invertvec - texcolor) : texcolor;\
+						gl_FragColor = vec4(texcolor, 1.0);\
+					}\n"
+			"#endif\n"
+				"}\n"
+				"param cvari r_menutint_inverse invert\n"
+				"param cvar3f r_menutint colorparam\n"
+				"param texture 0 source\n"
 
-	if (qglGetError())
-		Con_Printf("GL Error before initing shader object\n");
-
-	scenepp_mt_program = GLSlang_CreateProgram(NULL, vshader, fshader);
-
-	if (!scenepp_mt_program)
-		return;
-
-	scenepp_mt_parm_texture0i	= GLSlang_GetUniformLocation(scenepp_mt_program, "source");
-	scenepp_mt_parm_colorf		= GLSlang_GetUniformLocation(scenepp_mt_program, "colorparam");
-	scenepp_mt_parm_inverti		= GLSlang_GetUniformLocation(scenepp_mt_program, "invert");
-
-	GLSlang_UseProgram(scenepp_mt_program);
-	GLSlang_SetUniform1i(scenepp_mt_parm_texture0i, 0);
-
-	GLSlang_UseProgram(0);
-
-	if (qglGetError())
-		Con_Printf(CON_ERROR "GL Error initing shader object\n");
+				"{\n"
+					"map $currentrender\n"
+				"}\n"
+				"param rendertexturescale rendertexturescale\n"
+			"}");
+	}
+	if (!scenepp_mt_shader)
+	{
+		scenepp_mt_shader = R_RegisterShader("menutint",
+			"{\n"
+			"{\n"
+				"map $whitetexture\n"
+				"blendfunc gl_dst_color gl_zero\n"
+				"rgbgen const $r_menutint\n"
+			"}\n"
+			"}\n"
+			);
+	}
 }
 
 void GL_InitSceneProcessingShaders (void)
@@ -421,7 +366,6 @@ void GL_SetupSceneProcessingTextures (void)
 	if (!gl_config.arb_shader_objects)
 		return;
 
-	scenepp_texture = GL_AllocNewTexture();
 	scenepp_texture_warp = GL_AllocNewTexture();
 	scenepp_texture_edge = GL_AllocNewTexture();
 
@@ -664,7 +608,7 @@ void R_DrawSpriteModel (entity_t *e)
 	unsigned int fl;
 	unsigned int sprtype;
 
-	static vec2_t texcoords[4]={{0, 0},{0,1},{1,1},{1,0}};
+	static vec2_t texcoords[4]={{0, 1},{0,0},{1,0},{1,1}};
 	static index_t indexes[6] = {0, 1, 2, 0, 2, 3};
 	vecV_t vertcoords[4];
 	avec4_t colours[4];
@@ -1227,6 +1171,7 @@ r_refdef must be set before the first call
 */
 void R_RenderScene (void)
 {
+	int tmpvisents = cl_numvisedicts;	/*world rendering is allowed to add additional ents, but we don't want to keep them for recursive views*/
 	if (!cl.worldmodel || (!cl.worldmodel->nodes && cl.worldmodel->type != mod_heightmap))
 		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
 
@@ -1260,6 +1205,8 @@ void R_RenderScene (void)
 		P_DrawParticles ();
 	}
 	RQ_RenderBatchClear();
+
+	cl_numvisedicts = tmpvisents;
 }
 /*generates a new modelview matrix, as well as vpn vectors*/
 static void R_MirrorMatrix(plane_t *plane)
@@ -1514,32 +1461,6 @@ void R_Clear (void)
 {
 	/*tbh, this entire function should be in the backend*/
 	GL_ForceDepthWritable();
-#ifdef SIDEVIEWS
-	if (gl_ztrick.value && !gl_ztrickdisabled)
-#else
-	if (gl_ztrick.value)
-#endif
-	{
-		static int trickframe;
-
-		if (gl_clear.value && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
-			qglClear (GL_COLOR_BUFFER_BIT);
-
-		trickframe++;
-		if (trickframe & 1)
-		{
-			gldepthmin = 0;
-			gldepthmax = 0.49999;
-			gldepthfunc=GL_LEQUAL;
-		}
-		else
-		{
-			gldepthmin = 1;
-			gldepthmax = 0.5;
-			gldepthfunc=GL_GEQUAL;
-		}
-	}
-	else
 	{
 		if (gl_clear.value && !r_secondaryview && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 			qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1678,148 +1599,6 @@ static void R_RenderMotionBlur(void)
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	PPL_RevertToKnownState();
-}
-
-static void R_RenderWaterWarp(void)
-{
-	float vwidth = 1, vheight = 1;
-	float vs, vt;
-
-	PPL_RevertToKnownState();
-
-#pragma message("backend fixme")
-	Con_Printf("waterwarp is not updated for the backend\n");
-
-	// get the powers of 2 for the size of the texture that will hold the scene
-
-	if (gl_config.arb_texture_non_power_of_two)
-	{
-		vwidth = vid.pixelwidth;
-		vheight = vid.pixelheight;
-	}
-	else
-	{
-		while (vwidth < vid.pixelwidth)
-		{
-			vwidth *= 2;
-		}
-		while (vheight < vid.pixelheight)
-		{
-			vheight *= 2;
-		}
-	}
-
-	// get the maxtexcoords while we're at it
-	vs = vid.pixelwidth / vwidth;
-	vt = vid.pixelheight / vheight;
-
-	// 2d mode, but upside down to quake's normal 2d drawing
-	// this makes grabbing the sreen a lot easier
-	qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
-
-	qglMatrixMode(GL_PROJECTION);
-	// Push the matrices to go into 2d mode, that matches opengl's mode
-	qglPushMatrix();
-	qglLoadIdentity ();
-	// TODO: use actual window width and height
-	qglOrtho  (0, vid.pixelwidth, 0, vid.pixelheight, -99999, 99999);
-
-	qglMatrixMode(GL_MODELVIEW);
-	qglPushMatrix();
-	qglLoadIdentity ();
-
-	qglDisable (GL_DEPTH_TEST);
-	GL_CullFace(0);
-	qglDisable (GL_BLEND);
-	qglEnable (GL_ALPHA_TEST);
-
-	// copy the scene to texture
-	GL_Bind(scenepp_texture);
-	qglEnable(GL_TEXTURE_2D);
-	qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 0, 0, vwidth, vheight, 0);
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	if (qglGetError())
-		Con_Printf(CON_ERROR "GL Error after qglCopyTexImage2D\n");
-
-	// Here we apply the shaders - currently just waterwarp
-	GLSlang_UseProgram(scenepp_ww_program);
-	//keep the amp proportional to the size of the scene in texture coords
-	// WARNING - waterwarp can change the amplitude, but if it's too big it'll exceed
-	// the size determined by the edge texture, after which black bits will be shown.
-	// Suggest clamping to a suitable range.
-	if (r_waterwarp.value<0)
-	{
-		GLSlang_SetUniform1f(scenepp_ww_parm_ampscalef, (0.005 / 0.625) * vs*(-r_waterwarp.value));
-	}
-	else
-	{
-		GLSlang_SetUniform1f(scenepp_ww_parm_ampscalef, (0.005 / 0.625) * vs*r_waterwarp.value);
-	}
-
-	if (qglGetError())
-		Con_Printf("GL Error after GLSlang_UseProgram\n");
-
-	{
-		float xmin, xmax, ymin, ymax;
-
-		xmin = cl.time * 0.25;
-		ymin = cl.time * 0.25;
-		xmax = xmin + 1;
-		ymax = ymin + 1/vt*vs;
-
-		GL_SelectTexture(1);
-		qglEnable(GL_TEXTURE_2D);
-		GL_Bind (scenepp_texture_warp);
-
-		GL_SelectTexture(2);
-		qglEnable(GL_TEXTURE_2D);
-		GL_Bind(scenepp_texture_edge);
-
-		qglBegin(GL_QUADS);
-
-		qglMTexCoord2fSGIS (mtexid0, 0, 0);
-		qglMTexCoord2fSGIS (mtexid1, xmin, ymin);
-		qglMTexCoord2fSGIS (mtexid1+1, 0, 0);
-		qglVertex2f(0, 0);
-
-		qglMTexCoord2fSGIS (mtexid0, vs, 0);
-		qglMTexCoord2fSGIS (mtexid1, xmax, ymin);
-		qglMTexCoord2fSGIS (mtexid1+1, 1, 0);
-		qglVertex2f(vid.pixelwidth, 0);
-
-		qglMTexCoord2fSGIS (mtexid0, vs, vt);
-		qglMTexCoord2fSGIS (mtexid1, xmax, ymax);
-		qglMTexCoord2fSGIS (mtexid1+1, 1, 1);
-		qglVertex2f(vid.pixelwidth, vid.pixelheight);
-
-		qglMTexCoord2fSGIS (mtexid0, 0, vt);
-		qglMTexCoord2fSGIS (mtexid1, xmin, ymax);
-		qglMTexCoord2fSGIS (mtexid1+1, 0, 1);
-		qglVertex2f(0, vid.pixelheight);
-
-		qglEnd();
-
-		qglDisable(GL_TEXTURE_2D);
-		GL_SelectTexture(1);
-		qglDisable(GL_TEXTURE_2D);
-		GL_SelectTexture(0);
-	}
-
-	// Disable shaders
-	GLSlang_UseProgram(0);
-
-	// After all the post processing, pop the matrices
-	qglMatrixMode(GL_PROJECTION);
-	qglPopMatrix();
-	qglMatrixMode(GL_MODELVIEW);
-	qglPopMatrix();
-
-	PPL_RevertToKnownState();
-
-	if (qglGetError())
-		Con_Printf("GL Error after drawing with shaderobjects\n");
 }
 
 #ifdef FISH
@@ -2128,8 +1907,6 @@ void GLR_RenderView (void)
 		GL_Set2D();
 		if (scenepp_waterwarp)
 			R2D_ScalePic(0, 0, vid.width, vid.height, scenepp_waterwarp);
-		else if (scenepp_ww_program)
-			R_RenderWaterWarp();
 	}
 
 

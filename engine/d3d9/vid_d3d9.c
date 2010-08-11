@@ -871,25 +871,6 @@ void	 (D3D9_VID_DeInit)				(void)
 		mainwindow = NULL;
 	}
 }
-void	(D3D9_VID_LockBuffer)			(void)
-{
-}
-void	(D3D9_VID_UnlockBuffer)			(void)
-{
-}
-void	(D3D9_D_BeginDirectRect)		(int x, int y, qbyte *pbitmap, int width, int height)
-{
-}
-void	(D3D9_D_EndDirectRect)			(int x, int y, int width, int height)
-{
-}
-void	(D3D9_VID_ForceLockState)		(int lk)
-{
-}
-int		(D3D9_VID_ForceUnlockedAndReturnState) (void)
-{
-	return 0;
-}
 
 void	(D3D9_VID_SetPalette)			(unsigned char *palette)
 {

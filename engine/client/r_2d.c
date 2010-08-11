@@ -339,6 +339,12 @@ void R2D_TileClear (int x, int y, int w, int h)
 
 void R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 {
+	if (qrenderer == QR_NONE)
+	{
+		conback = NULL;
+		return;
+	}
+		
 	if (*var->string)
 		conback = R_RegisterPic(var->string);
 	if (!conback || !conback->width)
@@ -346,7 +352,9 @@ void R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 		conback = R_RegisterCustom("console", NULL, NULL);
 		if (!conback)
 		{
-			if (M_GameType() == MGT_QUAKE2)
+			if (M_GameType() == MGT_HEXEN2)
+				conback = R_RegisterPic("gfx/menu/conback.lmp");
+			else if (M_GameType() == MGT_QUAKE2)
 				conback = R_RegisterPic("pics/conback.pcx");
 			else
 				conback = R_RegisterPic("gfx/conback.lmp");
@@ -358,6 +366,13 @@ void R2D_Font_Callback(struct cvar_s *var, char *oldvalue)
 {
 	if (font_conchar)
 		Font_Free(font_conchar);
+
+	if (qrenderer == QR_NONE)
+	{
+		font_conchar = NULL;
+		return;
+	}
+
 	font_conchar = Font_LoadFont(8*vid.pixelheight/vid.height, var->string);
 	if (!font_conchar && *var->string)
 		font_conchar = Font_LoadFont(8*vid.pixelheight/vid.height, "");

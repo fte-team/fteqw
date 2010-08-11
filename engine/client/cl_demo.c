@@ -203,11 +203,11 @@ int demo_preparsedemo(unsigned char *buffer, int bytes)
 		{
 			return parsed; //not got it all
 		}
-		if ((buffer[1]&dem_mask) == dem_all && (buffer[1] & ~dem_mask) && length < MAX_NQMSGLEN)
+		if ((buffer[1]&dem_mask) == dem_all && (buffer[1] & ~dem_mask) && length < MAX_OVERALLMSGLEN)
 		{
 			net_message.cursize = length;
 			memcpy(net_message.data, buffer+ofs, length);
-			MSG_BeginReading();
+			MSG_BeginReading(cls.netchan.netprim);
 			CL_ParseServerMessage();
 		}
 
@@ -1969,6 +1969,8 @@ void CL_QTVPlay_f (void)
 		CL_ParseQTVDescriptor(VFSOS_Open(connrequest+1, "rt"), connrequest+1);
 		return;
 	}
+	strcpy(cls.servername, "qtv:");
+	Q_strncpyz(cls.servername+4, connrequest, sizeof(cls.servername)-4);
 
 	SCR_SetLoadingStage(LS_CONNECTION);
 
@@ -2135,6 +2137,8 @@ void CL_FinishTimeDemo (void)
 	Con_Printf ("%i frames %5.1f seconds %5.1f fps\n", frames, time, frames/time);
 
 	cls.td_startframe = 0;
+
+	TP_ExecTrigger ("f_timedemoend");
 }
 
 /*

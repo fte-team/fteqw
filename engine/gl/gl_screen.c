@@ -99,6 +99,9 @@ void GLVID_Console_Resize(void)
 
 	vid.recalc_refdef = true;
 
+	if (font_tiny)
+		Font_Free(font_tiny);
+	font_tiny = NULL;
 	if (font_conchar)
 		Font_Free(font_conchar);
 	font_conchar = Font_LoadFont(8*vid.pixelheight/vid.height, gl_font.string);

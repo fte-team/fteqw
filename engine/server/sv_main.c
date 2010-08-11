@@ -142,6 +142,7 @@ cvar_t sv_maxdrate = CVARAF("sv_maxdrate", "10000",
 cvar_t sv_minping = CVARF("sv_minping", "0", CVAR_SERVERINFO);
 
 cvar_t sv_bigcoords = CVARF("sv_bigcoords", "", CVAR_SERVERINFO);
+cvar_t sv_calcphs = CVAR("sv_calcphs", "2");
 
 cvar_t sv_cullplayers_trace = CVARF("sv_cullplayers_trace", "", CVAR_SERVERINFO);
 cvar_t sv_cullentities_trace = CVARF("sv_cullentities_trace", "", CVAR_SERVERINFO);
@@ -1700,7 +1701,7 @@ client_t *SVC_DirectConnect(void)
 		//it's a darkplaces client.
 
 		s = Info_ValueForKey(userinfo[0], "protocols");
-		if (sizeofcoord != 4)
+		if (svs.netprim.coordsize != 4)
 		{	//we allow nq with sv_listen_nq 0...
 			//reason: dp is too similar for concerns about unsupported code, while the main reason why we disable nq is because of the lack of challenges
 			//(and no, this isn't a way to bypass invalid challenges)
@@ -1878,6 +1879,19 @@ client_t *SVC_DirectConnect(void)
 	newcl->fteprotocolextensions = protextsupported;
 	newcl->fteprotocolextensions2 = protextsupported2;
 	newcl->protocol = protocol;
+
+	if (protocol == SCP_QUAKEWORLD)	//readd?
+	{
+		newcl->max_net_ents = 512;
+		if (newcl->fteprotocolextensions & PEXT_ENTITYDBL)
+			newcl->max_net_ents += 512;
+		if (newcl->fteprotocolextensions & PEXT_ENTITYDBL2)
+			newcl->max_net_ents += 1024;
+	}
+	else if (ISDPCLIENT(newcl))
+		newcl->max_net_ents = 32767;
+	else
+		newcl->max_net_ents = 600;
 
 	if (sv.msgfromdemo)
 		newcl->wasrecorded = true;
@@ -2174,7 +2188,7 @@ client_t *SVC_DirectConnect(void)
 	}
 	newcl->zquake_extensions &= SUPPORTED_Z_EXTENSIONS;
 
-	Netchan_Setup (NS_SERVER, &newcl->netchan , adr, qport);
+	Netchan_Setup (NS_SERVER, &newcl->netchan, adr, qport);
 
 	if (huffcrc)
 		newcl->netchan.compress = true;
@@ -2194,6 +2208,10 @@ client_t *SVC_DirectConnect(void)
 	newcl->datagram.allowoverflow = true;
 	newcl->datagram.data = newcl->datagram_buf;
 	newcl->datagram.maxsize = sizeof(newcl->datagram_buf);
+
+	newcl->netchan.netprim = svs.netprim;
+	newcl->datagram.prim = svs.netprim;
+	newcl->netchan.message.prim = svs.netprim;
 
 	// spectator mode can ONLY be set at join time
 	newcl->spectator = spectator;
@@ -2632,7 +2650,7 @@ qboolean SV_ConnectionlessPacket (void)
 	char	*c;
 	char	adr[MAX_ADR_SIZE];
 
-	MSG_BeginReading ();
+	MSG_BeginReading (svs.netprim);
 
 	if (net_message.cursize >= MAX_QWMSGLEN)	//add a null term in message space
 	{
@@ -2676,7 +2694,7 @@ qboolean SV_ConnectionlessPacket (void)
 			{	//if name isn't in the string, assume they're q3
 				//this isn't quite true though, hence the listen check. but users shouldn't be connecting with an empty name anyway. more fool them.
 				Huff_DecryptPacket(&net_message, 12);
-				MSG_BeginReading();
+				MSG_BeginReading(svs.netprim);
 				MSG_ReadLong();
 				s = MSG_ReadStringLine();
 				Cmd_TokenizeString(s, false, false);
@@ -2734,7 +2752,7 @@ void SVNQ_ConnectionlessPacket(void)
 	if (sv_bigcoords.value)
 		return;	//no, start using dp7 instead.
 
-	MSG_BeginReading();
+	MSG_BeginReading(svs.netprim);
 	header = LongSwap(MSG_ReadLong());
 	if (!(header & NETFLAG_CTL))
 		return;	//no idea what it is.
@@ -2966,7 +2984,7 @@ qboolean SV_ReadPackets (void)
 
 		// read the qport out of the message so we can fix up
 		// stupid address translating routers
-		MSG_BeginReading ();
+		MSG_BeginReading (svs.netprim);
 		MSG_ReadLong ();		// sequence number
 		MSG_ReadLong ();		// sequence number
 		qport = MSG_ReadShort () & 0xffff;
@@ -3653,7 +3671,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&secure,	cvargroup_serverpermissions);
 
 	Cvar_Register (&sv_highchars,	cvargroup_servercontrol);
-
+	Cvar_Register (&sv_calcphs,	cvargroup_servercontrol);
 	Cvar_Register (&sv_phs,	cvargroup_servercontrol);
 	Cvar_Register (&sv_cullplayers_trace, cvargroup_servercontrol);
 	Cvar_Register (&sv_cullentities_trace, cvargroup_servercontrol);

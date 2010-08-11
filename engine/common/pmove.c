@@ -952,18 +952,18 @@ void PM_NudgePosition (void)
 	vec3_t	base;
 	int		x, y, z;
 	int		i;
-	static int	sign[3] = {0, -1, 1};
+	static int	sign[5] = {0, -1, 1, -2, 2};
 
 	VectorCopy (pmove.origin, base);
 
 	for (i=0 ; i<3 ; i++)
 		pmove.origin[i] = ((int)(pmove.origin[i]*8)) * 0.125;
 
-	for (z=0 ; z<=2 ; z++)
+	for (z=0 ; z<=4 ; z++)
 	{
-		for (x=0 ; x<=2 ; x++)
+		for (x=0 ; x<=4 ; x++)
 		{
-			for (y=0 ; y<=2 ; y++)
+			for (y=0 ; y<=4 ; y++)
 			{
 				pmove.origin[0] = base[0] + (sign[x] * 1.0/8);
 				pmove.origin[1] = base[1] + (sign[y] * 1.0/8);

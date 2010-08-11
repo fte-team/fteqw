@@ -181,7 +181,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldentity(dmg_inflictor,_dmg_inflictor,_dmg_inflictor);\
 	comfieldentity(owner,owner,owner);\
 	comfieldvector(movedir,movedir,movedir);\
-	comfieldstring(message,_message,_message);	/*not used directly, hexen2 uses floats, so we go via qclib for message*/\
+	comfieldstring(_message,_message,_message);	/*not used directly, hexen2 uses floats, so we go via qclib for message*/\
 	comfieldfloat(sounds,_sounds,_sounds);\
 	comfieldstring(_noise,_noise,_noise);\
 	comfieldstring(_noise1,_noise1,_noise1);\

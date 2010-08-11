@@ -802,6 +802,63 @@ struct font_s *Font_LoadFont(int height, char *fontfilename)
 	f = Z_Malloc(sizeof(*f));
 	f->charheight = height;
 
+	if (!strcmp(fontfilename, "gfx/tinyfont"))
+	{
+		unsigned int *img;
+		int x, y;
+		unsigned char *w = W_SafeGetLumpName(fontfilename+4);
+		if (!w)
+		{
+			Z_Free(f);
+			return NULL;
+		}
+		img = Z_Malloc(PLANEWIDTH*PLANEWIDTH*4);
+		for (y = 0; y < 32; y++)
+			for (x = 0; x < 128; x++)
+				img[x + y*PLANEWIDTH] = w[x + y*128]?d_8to24rgbtable[w[x + y*128]]:0;
+
+		f->singletexture = R_LoadTexture(fontfilename,PLANEWIDTH,PLANEWIDTH,TF_RGBA32,img,IF_NOPICMIP|IF_NOMIPMAP);
+		Z_Free(img);
+
+		for (i = 0x00; i <= 0xff; i++)
+		{
+			f->chars[i].advance = height;
+			f->chars[i].left = 0;
+			f->chars[i].top = 0;
+			f->chars[i].nextchar = 0;	//these chars are not linked in
+			f->chars[i].pad = 0;
+			f->chars[i].texplane = BITMAPPLANE;	/*if its a 'raster' font, don't use the default chars, always use the raster images*/
+
+
+			if (i >= 'a' && i <= 'z')
+			{
+				f->chars[i].bmx = ((i - 64)&15)*8;
+				f->chars[i].bmy = ((i - 64)/16)*8;
+				f->chars[i].bmh = 8;
+				f->chars[i].bmw = 8;
+			}
+			else if (i >= 32 && i < 96)
+			{
+				f->chars[i].bmx = ((i - 32)&15)*8;
+				f->chars[i].bmy = ((i - 32)/16)*8;
+				f->chars[i].bmh = 8;
+				f->chars[i].bmw = 8;
+			}
+			else
+			{
+				f->chars[i].bmh = 0;
+				f->chars[i].bmw = 0;
+				f->chars[i].bmx = 0;
+				f->chars[i].bmy = 0;
+			}
+		}
+		for (i = 0xe000; i <= 0xe0ff; i++)
+		{
+			f->chars[i] = f->chars[i&0xff];
+		}
+		return f;
+	}
+
 	if (!Font_LoadFreeTypeFont(f, height, fontfilename))
 	{
 		if (*fontfilename)

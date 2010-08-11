@@ -1093,7 +1093,6 @@ the entity origin, so any view position inside that will be valid
 */
 extern vrect_t scr_vrect;
 
-int gl_ztrickdisabled;
 qboolean r_secondaryview;
 #ifdef SIDEVIEWS
 
@@ -1270,7 +1269,6 @@ void V_RenderPlayerViews(int plnum)
 		vec3_t dir;
 		extern void vectoangles(vec3_t vec, vec3_t ang);
 
-		gl_ztrickdisabled|=16;
 		r_refdef.vrect.y -= r_refdef.vrect.height;
 		vid.recalc_refdef=true;
 		r_secondaryview = 2;
@@ -1284,8 +1282,6 @@ void V_RenderPlayerViews(int plnum)
 		R_RenderView ();
 		vid.recalc_refdef=true;
 	}
-	else
-		gl_ztrickdisabled&=~16;
 
 
 #ifdef SIDEVIEWS
@@ -1296,9 +1292,6 @@ void V_RenderPlayerViews(int plnum)
 		r_refdef.vrect.height += vsecheight;
 	}
 */
-#ifdef GLQUAKE
-	gl_ztrickdisabled&=~1;
-#endif
 	for (viewnum = 0; viewnum < SIDEVIEWS; viewnum++)
 	if (vsec_scalex[viewnum].value>0&&vsec_scaley[viewnum].value>0
 		&& ((vsec_enabled[viewnum].value && vsec_enabled[viewnum].value != 2 && cls.allow_rearview) 	//rearview if v2_enabled = 1 and not 2
@@ -1312,7 +1305,6 @@ void V_RenderPlayerViews(int plnum)
 		float ofx;
 		float ofy;
 
-		gl_ztrickdisabled|=1;
 		vid.recalc_refdef=true;
 
 		r_secondaryview = true;
@@ -1415,7 +1407,7 @@ void V_RenderView (void)
 		//work out which packet entities are solid
 		CL_SetSolidEntities ();
 
-		CL_EmitEntities();
+//		CL_EmitEntities();
 
 		// Set up prediction for other players
 		CL_SetUpPlayerPrediction(false);
@@ -1427,7 +1419,7 @@ void V_RenderView (void)
 		CL_SetUpPlayerPrediction(true);
 
 		// build a refresh entity list
-//		CL_EmitEntities ();
+		CL_EmitEntities ();
 
 		CL_AllowIndependantSendCmd(true);
 
@@ -1444,11 +1436,6 @@ void V_RenderView (void)
 		R_SetupBulleten ();
 	alreadyrendering=true;
 #endif
-
-	if (cl.splitclients>1)
-		gl_ztrickdisabled|=8;
-	else
-		gl_ztrickdisabled&=~8;
 
 	r_secondaryview = 0;
 	for (viewnum = 0; viewnum < cl.splitclients; viewnum++)

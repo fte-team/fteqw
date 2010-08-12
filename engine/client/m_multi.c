@@ -113,12 +113,14 @@ typedef struct {
 	menuedit_t *nameedit;
 	menuedit_t *teamedit;
 	menuedit_t *skinedit;
+	menucombo_t *classedit;
 	menucombo_t *modeledit;
 	int topcolour;
 	int lowercolour;
 
+	int ticlass;
 	int tiwidth, tiheight;
-	qbyte translationimage[64*64];
+	qbyte translationimage[128*128];
 } setupmenu_t;
 qboolean ApplySetupMenu (union menuoption_s *option,struct menu_s *menu, int key)
 {
@@ -127,7 +129,10 @@ qboolean ApplySetupMenu (union menuoption_s *option,struct menu_s *menu, int key
 		return false;
 	Cvar_Set(&name, info->nameedit->text);
 	Cvar_Set(&team, info->teamedit->text);
-	Cvar_Set(&skin, info->skinedit->text);
+	if (info->skinedit)
+		Cvar_Set(&skin, info->skinedit->text);
+	if (info->classedit)
+		Cvar_SetValue(Cvar_FindVar("cl_playerclass"), info->classedit->selectedoption+1);
 	Cbuf_AddText(va("color %i %i\n", info->lowercolour, info->topcolour), RESTRICT_LOCAL);
 	S_LocalSound ("misc/menu2.wav");
 	M_RemoveMenu(menu);
@@ -270,19 +275,38 @@ void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 	setupmenu_t *info = menu->data;
 	mpic_t	*p;
 	void *f;
+	qboolean reloadtimage = false;
 
-	if (info->skinedit->modified)
+	if (info->skinedit && info->skinedit->modified)
 	{
 		info->skinedit->modified = false;
+		reloadtimage = true;
+	}
+	if (info->classedit && info->classedit->selectedoption != info->ticlass)
+	{
+		info->ticlass = info->classedit->selectedoption;
+		reloadtimage = true;
+	}
 
-		FS_LoadFile(va("gfx/player/%s.lmp", info->skinedit->text), &f);
-		if (!f)
-			FS_LoadFile("gfx/menuplyr.lmp", &f);
+	if (reloadtimage)
+	{
+		if (info->classedit)	//quake2 main menu.
+		{
+			FS_LoadFile(va("gfx/menu/netp%i.lmp", info->ticlass+1), &f);
+		}
+		else
+		{
+			FS_LoadFile(va("gfx/player/%s.lmp", info->skinedit->text), &f);
+			if (!f)
+				FS_LoadFile("gfx/menuplyr.lmp", &f);
+		}
 
 		if (f)
 		{
 			info->tiwidth = ((int*)f)[0];
 			info->tiheight = ((int*)f)[1];
+			if (info->tiwidth * info->tiheight > sizeof(info->translationimage))
+				info->tiwidth = info->tiheight = 0;
 			memcpy(info->translationimage, (char*)f+8, info->tiwidth*info->tiheight);
 			FS_FreeFile(f);
 		}
@@ -300,7 +324,17 @@ void M_Menu_Setup_f (void)
 {
 	int mgt;
 	setupmenu_t *info;
-	menu_t *menu;	
+	menu_t *menu;
+	menucustom_t *ci;
+	char *classnames[] =
+	{
+		"1",
+		"2",
+		"3",
+		"Assasin",
+		"Demoness",
+		NULL
+	};
 
 	mgt = M_GameType();
 	if (mgt == MGT_QUAKE2)	//quake2 main menu.
@@ -379,9 +413,17 @@ void M_Menu_Setup_f (void)
 	menu->selecteditem = (menuoption_t*)
 	(info->nameedit = MC_AddEdit(menu, 64, 40, "Your name", name.string));
 	(info->teamedit = MC_AddEdit(menu, 64, 56, "Your team", team.string));
-	(info->skinedit = MC_AddEdit(menu, 64, 72, "Your skin", skin.string));
+	if (mgt == MGT_HEXEN2)
+	{
+		cvar_t *pc = Cvar_Get("cl_playerclass", "1", CVAR_USERINFO|CVAR_ARCHIVE, "Hexen2");
+		(info->classedit = MC_AddCombo(menu, 64, 72, "Your class", classnames, pc->ival-1));
+	}
+	else
+		(info->skinedit = MC_AddEdit(menu, 64, 72, "Your skin", skin.string));
 
-	MC_AddCustom(menu, 172, 88, NULL)->draw = MSetup_TransDraw;
+	ci = MC_AddCustom(menu, 172+32, 88, NULL);
+	ci->draw = MSetup_TransDraw;
+	ci->key = NULL;
 
 	MC_AddCommand(menu, 64, 96, "Top colour", SetupMenuColour);
 	MC_AddCommand(menu, 64, 120, "Lower colour", SetupMenuColour);
@@ -393,7 +435,9 @@ void M_Menu_Setup_f (void)
 
 	info->lowercolour = bottomcolor.value;
 	info->topcolour = topcolor.value;
-	info->skinedit->modified = true;
+	if (info->skinedit)
+		info->skinedit->modified = true;
+	info->ticlass = -1;
 }
 
 

@@ -86,7 +86,11 @@ void Draw_Hexen2BigFontString(int x, int y, const char *text)
 {
 	int sx, sy;
 	mpic_t *p;
+	unsigned int hack;
+	hack = d_8to24rgbtable[0];
+	d_8to24rgbtable[0] = 0;
 	p = Draw_SafeCachePic ("gfx/menu/bigfont.lmp");
+	d_8to24rgbtable[0] = hack;
 
 	while(*text)
 	{
@@ -797,7 +801,7 @@ menupicture_t *MC_AddCursor(menu_t *menu, int x, int y)
 		menudotstyle = "gfx/menu/menudot%i.lmp";
 		mindot = 1;
 		maxdots = 8;
-		dotofs=-5;
+		dotofs=-2;
 	}
 	else
 	{	//QUAKE 1 WINS BY DEFAULT!
@@ -1536,12 +1540,12 @@ menuoption_t *M_NextSelectableItem(menu_t *m, menuoption_t *old)
 
 		if (op == old)
 		{
-			if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_hexen2buttonbigfont || op->common.type == mt_qbuttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind || op->common.type == mt_custom)
+			if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_hexen2buttonbigfont || op->common.type == mt_qbuttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind || (op->common.type == mt_custom && op->custom.key))
 				return op;
 			return NULL;	//whoops.
 		}
 
-		if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_hexen2buttonbigfont || op->common.type == mt_qbuttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind || op->common.type == mt_custom)
+		if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_hexen2buttonbigfont || op->common.type == mt_qbuttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind || (op->common.type == mt_custom && op->custom.key))
 			if (!op->common.ishidden)
 				return op;
 	}
@@ -1568,7 +1572,7 @@ menuoption_t *M_PrevSelectableItem(menu_t *m, menuoption_t *old)
 		if (op == old)
 			return old;	//whoops.
 
-		if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_hexen2buttonbigfont || op->common.type == mt_qbuttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind || op->common.type == mt_custom)
+		if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_hexen2buttonbigfont || op->common.type == mt_qbuttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind || (op->common.type == mt_custom && op->custom.key))
 			if (!op->common.ishidden)
 				return op;
 	}
@@ -1919,10 +1923,16 @@ void M_Menu_Main_f (void)
 			return;
 		MC_AddCenterPicture(mainm, 0, 60, "gfx/menu/title0.lmp");
 
+#ifndef CLIENTONLY
 		b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64,	"Single Player", "menu_single\n");
+		mainm->selecteditem = (menuoption_t *)b;
 		b->common.width = 12*20;
 		b->common.height = 20;
+#endif
 		b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64+20,	"MultiPlayer", "menu_multi\n");
+#ifdef CLIENTONLY
+		mainm->selecteditem = (menuoption_t *)b;
+#endif
 		b->common.width = 12*20;
 		b->common.height = 20;
 		b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64+40,	"Options", "menu_options\n");
@@ -1938,7 +1948,7 @@ void M_Menu_Main_f (void)
 		b->common.width = 12*20;
 		b->common.height = 20;
 
-		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, 48, 64);
+		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, 56, mainm->selecteditem->common.posy);
 	}
 	else if (QBigFontWorks())
 	{

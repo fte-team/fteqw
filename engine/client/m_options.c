@@ -126,7 +126,7 @@ void M_Menu_Options_f (void)
 		MC_AddCheckBox(menu, 16, y,	"             Use Mouse", &_windowed_mouse,0); y+=8;
 	}
 
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 225, 32, NULL, false);
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 225, menu->selecteditem->common.posy, NULL, false);
 }
 
 #ifndef __CYGWIN__

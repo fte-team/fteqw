@@ -1491,7 +1491,7 @@ void SV_Begin_Core(client_t *split)
 	client_t	*oh;
 	int		i;
 	if (progstype == PROG_H2 && split->playerclass)
-		split->edict->xv->playerclass = host_client->playerclass;	//make sure it's set the same as the userinfo
+		split->edict->xv->playerclass = split->playerclass;	//make sure it's set the same as the userinfo
 
 #ifdef Q2SERVER
 	if (ge)

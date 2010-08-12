@@ -40,6 +40,7 @@ void IN_Accumulate (void);
 extern cvar_t in_xflip;
 #endif
 
-/*semi-common, so lets prototype on all*/
+#ifdef _SDL
 void IN_ActivateMouse(void);
 void IN_DeactivateMouse(void);
+#endif

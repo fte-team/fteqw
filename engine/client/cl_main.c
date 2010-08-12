@@ -1264,6 +1264,7 @@ void CL_User_f (void)
 {
 	int		uid;
 	int		i;
+	qboolean found = false;
 
 #ifndef CLIENTONLY
 	if (sv.state)
@@ -1292,10 +1293,11 @@ void CL_User_f (void)
 				Con_Printf("name: %s\ncolour %i %i\nping: %i\n", cl.players[i].name, cl.players[i].rbottomcolor, cl.players[i].rtopcolor, cl.players[i].ping);
 			else
 				Info_Print (cl.players[i].userinfo);
-			return;
+			found = true;
 		}
 	}
-	Con_TPrintf (TLC_USER_NOUSER);
+	if (!found)
+		Con_TPrintf (TLC_USER_NOUSER);
 }
 
 /*

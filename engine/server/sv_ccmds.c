@@ -1766,16 +1766,22 @@ Examine a users info strings
 */
 void SV_User_f (void)
 {
+	client_t	*cl;
+	int clnum=-1;
+
 	if (Cmd_Argc() != 2)
 	{
 		Con_TPrintf (STL_USERINFOSYNTAX);
 		return;
 	}
 
-	if (!SV_SetPlayer ())
-		return;
+	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
+	{
+		Info_Print (cl->userinfo);
+	}
 
-	Info_Print (host_client->userinfo);
+	if (clnum == -1)
+		Con_TPrintf (STL_USERIDNOTONSERVER, atoi(Cmd_Argv(1)));
 }
 
 /*

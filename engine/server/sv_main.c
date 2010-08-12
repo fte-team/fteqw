@@ -2370,6 +2370,13 @@ client_t *SVC_DirectConnect(void)
 		temp.frameunion.frames = cl->frameunion.frames;	//don't touch these.
 		temp.edict = cl->edict;
 		memcpy(cl, newcl, sizeof(client_t));
+		cl->name = cl->namebuf;
+		cl->team = cl->teambuf;
+
+		nextuserid++;	// so every client gets a unique id
+		cl->userid = nextuserid;
+
+		cl->playerclass = 0;
 		cl->frameunion.frames = temp.frameunion.frames;
 		cl->edict = temp.edict;
 

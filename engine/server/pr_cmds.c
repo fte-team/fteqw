@@ -6959,7 +6959,7 @@ void PF_h2setclass (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	client->playerclass = NewClass;
 
 	sprintf(temp,"%d",(int)NewClass);
-	Info_SetValueForKey (client->userinfo, "playerclass", temp, sizeof(client->userinfo));
+	Info_SetValueForKey (client->userinfo, "cl_playerclass", temp, sizeof(client->userinfo));
 	client->sendinfo = true;
 }
 

@@ -906,6 +906,10 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 		case svc_cutscene:
 			ignoreprotocol = true;
 			break;
+		case 51:
+			protocollen = 2;
+			ignoreprotocol = true;
+			break;
 		default:
 			Con_Printf("NQWriteByte: bad protocol %i\n", (int)data);
 			protocollen = sizeof(buffer);

@@ -1372,7 +1372,7 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 		if (plnum)
 			MSG_WriteByte (buf, clc_move);
 
-		dontdrop = dontdrop || CL_WriteDeltas(plnum, buf);
+		dontdrop = CL_WriteDeltas(plnum, buf) || dontdrop;
 
 		if (!firstsize)
 			firstsize = buf->cursize;

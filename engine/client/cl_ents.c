@@ -2430,13 +2430,13 @@ void CL_ParsePlayerinfo (void)
 		state->hullnum = 1;
 	else
 		state->hullnum = 56;
-	state->scale = 1*16;
+	state->scale = 1;
 	state->alpha = 255;
 	state->fatness = 0;
 
 #ifdef PEXT_SCALE
 	if (flags & PF_SCALE_Z && cls.fteprotocolextensions & PEXT_SCALE)
-		state->scale = (float)MSG_ReadByte() / 100;
+		state->scale = (float)MSG_ReadByte()/50;
 #endif
 #ifdef PEXT_TRANS
 	if (flags & PF_TRANS_Z && cls.fteprotocolextensions & PEXT_TRANS)
@@ -2776,7 +2776,7 @@ void CL_LinkPlayers (void)
 			ent->scoreboard = NULL;
 
 #ifdef PEXT_SCALE
-		ent->scale = state->scale/16.0f;
+		ent->scale = state->scale;
 #endif
 		ent->shaderRGBAf[0] = state->colourmod[0]/32;
 		ent->shaderRGBAf[1] = state->colourmod[1]/32;

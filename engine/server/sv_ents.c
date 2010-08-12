@@ -1217,7 +1217,7 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 #ifdef PEXT_SCALE	//this is graphics, not physics
 			if (ent->fteext & PEXT_SCALE)
 			{
-				if (ent->scale) pflags |= PF_SCALE_Z;
+				if (ent->scale && ent->scale != 1) pflags |= PF_SCALE_Z;
 			}
 #endif
 #ifdef PEXT_TRANS

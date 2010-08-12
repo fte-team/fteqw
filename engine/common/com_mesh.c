@@ -2144,6 +2144,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 							"blendfunc gl_one_minus_src_alpha gl_src_alpha\n"
 							"rgbgen lightingDiffuse\n"
 							"cull disable\n"
+							"depthwrite\n"
 						"}\n"
 					"}\n");
 			else if (skintranstype)
@@ -2153,6 +2154,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 							"map $diffuse\n"
 							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
 							"rgbgen lightingDiffuse\n"
+							"depthwrite\n"
 						"}\n"
 					"}\n");
 			else

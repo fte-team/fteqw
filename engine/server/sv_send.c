@@ -2172,6 +2172,10 @@ void SV_SendClientMessages (void)
 		if (!c->send_message)
 			continue;
 		c->send_message = false;	// try putting this after choke?
+
+		if (c->controller)
+			continue;	/*shouldn't have been set*/
+
 		if (!sv.paused && !Netchan_CanPacket (&c->netchan, SV_RateForClient(c)))
 		{
 			c->chokecount++;

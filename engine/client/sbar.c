@@ -1928,6 +1928,40 @@ void Sbar_Hexen2DrawExtra (int pnum)
 	Sbar_DrawPic(134, 50, 49, 56, Draw_SafeCachePic(va("gfx/cport%d.lmp", pclass)));
 }
 
+int Sbar_Hexen2ArmourValue(int pnum)
+{
+	int i;
+	float ac = 0;
+	/*
+	WARNING: these values match the engine - NOT the gamecode!
+	Even the gamecode's values are misleading due to an indexing bug.
+	*/
+	static int acv[5][4] =
+	{
+		{8, 6, 2, 4},
+		{4, 8, 6, 2},
+		{2, 4, 8, 6},
+		{6, 2, 4, 8},
+		{6, 2, 4, 8}
+	};
+
+	int classno;
+	classno = cl.stats[pnum][STAT_H2_PLAYERCLASS];
+	if (classno >= 1 && classno <= 5)
+	{
+		classno--;
+		for (i = 0; i < 4; i++)
+		{
+			if (cl.stats[pnum][STAT_H2_ARMOUR1+i])
+			{
+				ac += acv[classno][i];
+				ac += cl.stats[pnum][STAT_H2_ARMOUR1+i]/5.0;
+			}
+		}
+	}
+	return ac;
+}
+
 void Sbar_Hexen2DrawBasic(int pnum)
 {
 	int chainpos;
@@ -1968,7 +2002,7 @@ void Sbar_Hexen2DrawBasic(int pnum)
 	Sbar_Hexen2DrawNum(58, 14, val, 3);
 
 	//armour
-	val = 0;
+	val = Sbar_Hexen2ArmourValue(pnum);
 	Sbar_Hexen2DrawNum(105, 14, val, 2);
 
 //	SetChainPosition(cl.v.health, cl.v.max_health);

@@ -358,7 +358,7 @@ typedef struct
 	float lastarbiatarypackettime;	//used to mark when packets were sent to prevent mvdsv servers from causing us to disconnect.
 
 // private userinfo for sending to masterless servers
-	char		userinfo[EXTENDED_INFO_STRING];
+	char		userinfo[MAX_SPLITS][EXTENDED_INFO_STRING];
 
 	char		servername[MAX_OSPATH];	// name of server from original connect
 
@@ -768,7 +768,7 @@ void CL_Reconnect_f (void);
 void CL_ConnectionlessPacket (void);
 qboolean CL_DemoBehind(void);
 void CL_SaveInfo(vfsfile_t *f);
-void CL_SetInfo (char *key, char *value);
+void CL_SetInfo (int pnum, char *key, char *value);
 
 void CL_BeginServerConnect(void);
 void CLNQ_BeginServerConnect(void);

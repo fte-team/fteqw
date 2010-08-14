@@ -48,12 +48,18 @@ vec3_t mousemovements[MAX_SPLITS];
 
 /*kinda a hack...*/
 int		con_splitmodifier;
-cvar_t	cl_defaultsplitclient = CVAR("cl_defaultsplitclient", "0");
-int CL_TargettedSplit(void)
+cvar_t	cl_forcesplitclient = CVAR("cl_forcesplitclient", "0");
+extern cvar_t cl_splitscreen;
+int CL_TargettedSplit(qboolean nowrap)
 {
 	char *c;
 	int pnum;
-	if (!cl.splitclients)
+	int mod;
+	if (nowrap)
+		mod = MAX_SPLITS;
+	else
+		mod = cl.splitclients;
+	if (mod < 1)
 		return 0;
 	c = Cmd_Argv(0);
 	pnum = atoi(c+strlen(c)-1);
@@ -64,9 +70,9 @@ int CL_TargettedSplit(void)
 	}
 
 	if (con_splitmodifier > 0)
-		return (con_splitmodifier - 1)% cl.splitclients;
-	else if (cl_defaultsplitclient.ival > 0)
-		return cl_defaultsplitclient.ival % cl.splitclients;
+		return (con_splitmodifier - 1) % mod;
+	else if (cl_forcesplitclient.ival > 0)
+		return (cl_forcesplitclient.ival-1) % mod;
 	else
 		return 0;
 }
@@ -137,7 +143,7 @@ void KeyDown (kbutton_t *b)
 	int		k;
 	char	*c;
 
-	int pnum = CL_TargettedSplit();
+	int pnum = CL_TargettedSplit(false);
 	
 	c = Cmd_Argv(1);
 	if (c[0])
@@ -168,7 +174,7 @@ void KeyUp (kbutton_t *b)
 	int		k;
 	char	*c;
 
-	int pnum = CL_TargettedSplit();
+	int pnum = CL_TargettedSplit(false);
 	
 	c = Cmd_Argv(1);
 	if (c[0])
@@ -200,7 +206,7 @@ void IN_KLookUp (void) {KeyUp(&in_klook);}
 void IN_MLookDown (void) {KeyDown(&in_mlook);}
 void IN_MLookUp (void)
 {
-	int pnum = CL_TargettedSplit();
+	int pnum = CL_TargettedSplit(false);
 	KeyUp(&in_mlook);
 	if ( !(in_mlook.state[pnum]&1) &&  lookspring.ival)
 		V_StartPitchDrift(pnum);
@@ -241,7 +247,7 @@ void IN_JumpDown (void)
 	qboolean condition;
 
 
-	int pnum = CL_TargettedSplit();
+	int pnum = CL_TargettedSplit(false);
 	
 
 
@@ -293,14 +299,7 @@ void IN_Impulse (void)
 {
 	int newimp;
 	int best, i, imp, items;
-
-
-
-	char	*c;
-	int pnum;
-	c = Cmd_Argv(0);
-	pnum = atoi(c+strlen(c)-1);
-	if (pnum)pnum--;
+	int pnum = CL_TargettedSplit(false);
 
 	newimp = Q_atoi(Cmd_Argv(1));
 
@@ -1278,7 +1277,7 @@ qboolean CL_SendCmdQ2 (sizebuf_t *buf)
 	if (cls.resendinfo)
 	{
 		MSG_WriteByte (&cls.netchan.message, clcq2_userinfo);
-		MSG_WriteString (&cls.netchan.message, cls.userinfo);
+		MSG_WriteString (&cls.netchan.message, cls.userinfo[0]);
 
 		cls.resendinfo = false;
 	}
@@ -1841,7 +1840,7 @@ void CL_InitInput (void)
 
 	Cvar_Register (&cl_prydoncursor, inputnetworkcvargroup);
 	Cvar_Register (&cl_instantrotate, inputnetworkcvargroup);
-	Cvar_Register (&cl_defaultsplitclient, inputnetworkcvargroup);
+	Cvar_Register (&cl_forcesplitclient, inputnetworkcvargroup);
 
 	for (sp = 0; sp < MAX_SPLITS; sp++)
 	{

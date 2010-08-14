@@ -3397,11 +3397,9 @@ void SV_Vote_f (void)
 	}
 }
 
-extern qboolean	sv_allow_cheats;
-
 void Cmd_Notarget_f (void)
 {
-	if (!sv_allow_cheats)
+	if (!SV_MayCheat())
 	{
 		SV_PrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
 		return;
@@ -3417,7 +3415,7 @@ void Cmd_Notarget_f (void)
 //Sets client to godmode
 void Cmd_God_f (void)
 {
-	if (!sv_allow_cheats)
+	if (!SV_MayCheat())
 	{
 		SV_PrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
 		return;
@@ -3444,7 +3442,7 @@ void Cmd_Give_f (void)
 	}
 #endif
 
-	if (!sv_allow_cheats)
+	if (!SV_MayCheat())
 	{
 		SV_PrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
 		return;
@@ -3499,7 +3497,7 @@ void Cmd_Give_f (void)
 
 void Cmd_Noclip_f (void)
 {
-	if (!sv_allow_cheats)
+	if (!SV_MayCheat())
 	{
 		SV_PrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
 		return;
@@ -3525,7 +3523,7 @@ void Cmd_Noclip_f (void)
 
 void Cmd_Fly_f (void)
 {
-	if (!sv_allow_cheats)
+	if (!SV_MayCheat())
 	{
 		SV_PrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
 		return;
@@ -3556,7 +3554,7 @@ By Alex Shadowalker (and added to fte because he kept winging)
 */
 void Cmd_SetPos_f(void)
 {
-	if (!sv_allow_cheats)
+	if (!SV_MayCheat())
 	{
 		SV_PrintToClient(host_client, PRINT_HIGH, "Cheats are not allowed on this server\n");
 		return;

@@ -415,7 +415,7 @@ qintptr_t VARGS Plug_SetUserInfo(void *offset, quintptr_t mask, const qintptr_t 
 	char *key = VM_POINTER(arg[0]);
 	char *value = VM_POINTER(arg[1]);
 
-	CL_SetInfo(key, value);
+	CL_SetInfo(0, key, value);
 
 	return true;
 }

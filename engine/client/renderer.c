@@ -549,6 +549,7 @@ void Renderer_Init(void)
 	Cvar_Register (&vid_desktopsettings, VIDCOMMANDGROUP);
 
 	Cvar_Register (&r_skyboxname, GRAPHICALNICETIES);
+	Cbuf_AddText("alias sky r_skybox\n", RESTRICT_LOCAL);	/*alternative name for users*/
 
 	Cvar_Register(&r_dodgytgafiles, "Bug fixes");
 	Cvar_Register(&r_dodgypcxfiles, "Bug fixes");

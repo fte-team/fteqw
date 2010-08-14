@@ -41,7 +41,6 @@ extern cvar_t	sv_bigcoords;
 extern cvar_t	sv_gamespeed;
 extern cvar_t	sv_csqcdebug;
 extern cvar_t	sv_csqc_progname;
-extern qboolean	sv_allow_cheats;
 extern cvar_t	sv_calcphs;
 
 /*
@@ -624,6 +623,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #endif
 	int			i, j;
 	int spawnflagmask;
+	extern int sv_allow_cheats;
 
 #ifndef SERVERONLY
 	if (!isDedicated && qrenderer == QR_NONE)
@@ -817,20 +817,19 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	COM_FlushTempoaryPacks();
 
-
-	//This fixes a bug where the server advertises cheats, the internal client connects, and doesn't think cheats are allowed.
-	//this applies to a few other things too, but cheats is the only special one (because of the *)
-	if (sv_cheats.value)
+	if (sv_cheats.ival)
 	{
 		sv_allow_cheats = true;
 		Info_SetValueForStarKey(svs.info, "*cheats", "ON", MAX_SERVERINFO_STRING);
 	}
 	else
 	{
-		sv_allow_cheats = false;
+		sv_allow_cheats = 2;
 		Info_SetValueForStarKey(svs.info, "*cheats", "", MAX_SERVERINFO_STRING);
 	}
 #ifndef SERVERONLY
+	//This fixes a bug where the server advertises cheats, the internal client connects, and doesn't think cheats are allowed.
+	//this applies to a few other things too, but cheats is the only special one (because of the *)
 	Q_strncpyz(cl.serverinfo, svs.info, sizeof(cl.serverinfo));
 	CL_CheckServerInfo();
 #endif
@@ -1078,9 +1077,20 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		ent = EDICT_NUM(svprogfuncs, 0);
 		ent->isfree = false;
 
+		/*force coop 1 if splitscreen and not deathmatch*/
+		{
+		extern cvar_t cl_splitscreen;
+		if (cl_splitscreen.value && !deathmatch.value && !coop.value)
+			Cvar_Set(&coop, "1");
+		}
+		/*only make one slot for single-player*/
+		if (!isDedicated && !deathmatch.value && !coop.value)
+			sv.allocated_client_slots = 1;
+		else
+			sv.allocated_client_slots = MAX_CLIENTS;
+
 		// leave slots at start for clients only
-	//	sv.num_edicts = MAX_CLIENTS+1;
-		for (i=0 ; i<MAX_CLIENTS ; i++)
+		for (i=0 ; i<sv.allocated_client_slots ; i++)
 		{
 			svs.clients[i].viewent = 0;
 
@@ -1111,8 +1121,12 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			memset(svs.clients[i].csqcentversions, 0, sizeof(svs.clients[i].csqcentversions));
 #endif
 		}
-		sv.allocated_client_slots = i;
-
+		for (; i < MAX_CLIENTS; i++)
+		{
+			if (svs.clients[i].state)
+				SV_DropClient(&svs.clients[i]);
+			svs.clients[i].namebuf[0] = '\0';						//kill all bots
+		}
 #ifdef PEXT_CSQC
 		for (i=0 ; i<MAX_EDICTS ; i++)
 			sv.csqcentversion[i] = 1;	//force all csqc edicts to start off as version 1

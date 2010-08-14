@@ -27,7 +27,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 
-qboolean	sv_allow_cheats;
+int	sv_allow_cheats;
+qboolean SV_MayCheat(void)
+{
+	if (sv_allow_cheats == 2)
+		return sv.allocated_client_slots == 1;
+	return sv_allow_cheats!=0;
+}
 
 extern cvar_t cl_warncmd;
 cvar_t sv_cheats = SCVARF("sv_cheats", "0", CVAR_LATCH);
@@ -273,7 +279,7 @@ Sets client to godmode
 */
 void SV_God_f (void)
 {
-	if (!sv_allow_cheats)
+	if (!SV_MayCheat())
 	{
 		Con_TPrintf (STL_NEEDCHEATPARM);
 		return;
@@ -293,7 +299,7 @@ void SV_God_f (void)
 
 void SV_Noclip_f (void)
 {
-	if (!sv_allow_cheats)
+	if (!SV_MayCheat())
 	{
 		Con_TPrintf (STL_NEEDCHEATPARM);
 		return;
@@ -326,7 +332,7 @@ void SV_Give_f (void)
 	char	*t;
 	int		v;
 
-	if (!sv_allow_cheats)
+	if (!SV_MayCheat())
 	{
 		Con_TPrintf (STL_NEEDCHEATPARM);
 		return;

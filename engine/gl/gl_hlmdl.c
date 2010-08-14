@@ -107,9 +107,9 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 			QCRC_ProcessByte(&crc, *p);
 	
 		sprintf(st, "%d", (int) crc);
-		Info_SetValueForKey (cls.userinfo, 
+		Info_SetValueForKey (cls.userinfo[0], 
 			(mod->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
-			st, sizeof(cls.userinfo));
+			st, sizeof(cls.userinfo[0]));
 
 		if (cls.state >= ca_connected)
 		{

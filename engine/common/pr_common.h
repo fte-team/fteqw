@@ -359,7 +359,7 @@ void PF_precache_sound_Internal (progfuncs_t *prinst, char *s);
 int PF_precache_model_Internal (progfuncs_t *prinst, char *s);
 void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m);
 char *PF_infokey_Internal (int entnum, char *value);
-void PF_centerprint_Internal (int entnum, char *s);
+void PF_centerprint_Internal (int entnum, qboolean plaque, char *s);
 void PF_WriteString_Internal (int target, char *str);
 pbool ED_CanFree (edict_t *ed);
 #endif

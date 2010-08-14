@@ -625,7 +625,7 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case G_CENTERPRINT:
-		PF_centerprint_Internal(VM_LONG(arg[0]), VM_POINTER(arg[1]));
+		PF_centerprint_Internal(VM_LONG(arg[0]), false, VM_POINTER(arg[1]));
 		break;
 
 	case G_AMBIENTSOUND:

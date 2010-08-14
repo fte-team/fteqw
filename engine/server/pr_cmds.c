@@ -2252,7 +2252,7 @@ single print to a specific client
 centerprint(clientent, value)
 =================
 */
-void PF_centerprint_Internal (int entnum, char *s)
+void PF_centerprint_Internal (int entnum, qboolean plaque, char *s)
 {
 	client_t	*cl, *sp;
 	int			slen;
@@ -2268,8 +2268,13 @@ void PF_centerprint_Internal (int entnum, char *s)
 		return;
 	}
 
+	if (!*s)
+		plaque = false;
+
 	cl = &svs.clients[entnum-1];
 	slen = strlen(s);
+	if (plaque)
+		slen += 2;
 
 	if (cl->controller)
 	{	//this is a slave client.
@@ -2281,18 +2286,22 @@ void PF_centerprint_Internal (int entnum, char *s)
 				break;
 			pnum++;
 		}
-		sp = cl->controller;
+		cl = cl->controller;
 
-		ClientReliableWrite_Begin (sp, svcfte_choosesplitclient, 4 + slen);
-		ClientReliableWrite_Byte (sp, pnum);
-		ClientReliableWrite_Byte (sp, svc_centerprint);
-		ClientReliableWrite_String (sp, s);
+		ClientReliableWrite_Begin (cl, svcfte_choosesplitclient, 4 + slen);
+		ClientReliableWrite_Byte (cl, pnum);
+		ClientReliableWrite_Byte (cl, svc_centerprint);
 	}
 	else
 	{
 		ClientReliableWrite_Begin (cl, svc_centerprint, 2 + slen);
-		ClientReliableWrite_String (cl, s);
 	}
+	if (plaque)
+	{
+		ClientReliableWrite_Char (cl, '/');
+		ClientReliableWrite_Char (cl, 'P');
+	}
+	ClientReliableWrite_String (cl, s);
 
 	if (sv.mvdrecording)
 	{
@@ -2309,7 +2318,7 @@ void PF_centerprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	entnum = G_EDICTNUM(prinst, OFS_PARM0);
 	s = PF_VarString(prinst, 1, pr_globals);
-	PF_centerprint_Internal(entnum, s);
+	PF_centerprint_Internal(entnum, false, s);
 }
 
 /*
@@ -7034,16 +7043,9 @@ void PF_h2plaque_draw(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	if (G_FLOAT(OFS_PARM0) == MSG_ONE)
 	{
-		client_t *cl = Write_GetClient();
-		if (!cl)
-			return;
-		ClientReliableWrite_Begin (cl, svc_centerprint, 4 + strlen(s));
-		if (*s)
-		{
-			ClientReliableWrite_Byte (cl, '/');
-			ClientReliableWrite_Byte (cl, 'P');
-		}
-		ClientReliableWrite_String (cl, s);
+		edict_t *ent;
+		ent = PROG_TO_EDICT(svprogfuncs, pr_global_struct->msg_entity);
+		PF_centerprint_Internal(NUM_FOR_EDICT(svprogfuncs, ent), true, s);
 	}
 	else
 	{

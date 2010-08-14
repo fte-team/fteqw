@@ -425,7 +425,6 @@ void CL_SendConnectPacket (
 	extern cvar_t qport;
 	netadr_t	adr;
 	char	data[2048];
-	char playerinfo2[MAX_INFO_STRING];
 	double t1, t2;
 #ifdef PROTOCOL_VERSION_FTE
 	int fteprotextsupported=0;
@@ -493,9 +492,6 @@ void CL_SendConnectPacket (
 
 //	Info_SetValueForStarKey (cls.userinfo, "*ip", NET_AdrToString(adr), MAX_INFO_STRING);
 
-	Q_strncpyz(playerinfo2, cls.userinfo, sizeof(playerinfo2)-1);
-	Info_SetValueForStarKey (playerinfo2, "name", "Second player", MAX_INFO_STRING);
-
 	clients = 1;
 	if (cl_splitscreen.value && (fteprotextsupported & PEXT_SPLITSCREEN))
 	{
@@ -542,11 +538,10 @@ void CL_SendConnectPacket (
 	if (cls.protocol == CP_QUAKEWORLD)
 		Q_strncatz(data, va(" \"%s\\*z_ext\\%i\"", cls.userinfo, SUPPORTED_Z_EXTENSIONS), sizeof(data));
 	else
-		Q_strncatz(data, va(" \"%s\"", cls.userinfo), sizeof(data));
+		Q_strncatz(data, va(" \"%s\"", cls.userinfo[0]), sizeof(data));
 	for (c = 1; c < clients; c++)
 	{
-		Info_SetValueForStarKey (playerinfo2, "name", va("%s%i", name.string, c+1), MAX_INFO_STRING);
-		Q_strncatz(data, va(" \"%s\"", playerinfo2), sizeof(data));
+		Q_strncatz(data, va(" \"%s\"", cls.userinfo[c]), sizeof(data));
 	}
 
 	Q_strncatz(data, "\n", sizeof(data));
@@ -1331,14 +1326,15 @@ void CL_Color_f (void)
 	// just for quake compatability...
 	int		top, bottom;
 	char	num[16];
+	int  pnum = CL_TargettedSplit(true);
 
 	qboolean server_owns_colour;
 
 	if (Cmd_Argc() == 1)
 	{
 		Con_TPrintf (TLC_COLOURCURRENT,
-			Info_ValueForKey (cls.userinfo, "topcolor"),
-			Info_ValueForKey (cls.userinfo, "bottomcolor") );
+			Info_ValueForKey (cls.userinfo[pnum], "topcolor"),
+			Info_ValueForKey (cls.userinfo[pnum], "bottomcolor") );
 		Con_TPrintf (TLC_SYNTAX_COLOUR);
 		return;
 	}
@@ -1603,6 +1599,7 @@ void CL_FullInfo_f (void)
 	char	value[512];
 	char	*o;
 	char	*s;
+	int pnum = CL_TargettedSplit(true);
 
 	if (Cmd_Argc() != 2)
 	{
@@ -1638,29 +1635,37 @@ void CL_FullInfo_f (void)
 		if (!stricmp(key, pmodel_name) || !stricmp(key, emodel_name))
 			continue;
 
-		Info_SetValueForKey (cls.userinfo, key, value, sizeof(cls.userinfo));
+		Info_SetValueForKey (cls.userinfo[pnum], key, value, sizeof(cls.userinfo[pnum]));
 	}
 }
 
-void CL_SetInfo (char *key, char *value)
+void CL_SetInfo (int pnum, char *key, char *value)
 {
 	cvar_t *var;
-	var = Cvar_FindVar(key);
-	if (var && (var->flags & CVAR_USERINFO))
-	{	//get the cvar code to set it. the server might have locked it.
-		Cvar_Set(var, value);
-		return;
+	if (!pnum)
+	{
+		var = Cvar_FindVar(key);
+		if (var && (var->flags & CVAR_USERINFO))
+		{	//get the cvar code to set it. the server might have locked it.
+			Cvar_Set(var, value);
+			return;
+		}
 	}
 
-	Info_SetValueForStarKey (cls.userinfo, key, value, sizeof(cls.userinfo));
-	if (cls.state >= ca_connected)
+	Info_SetValueForStarKey (cls.userinfo[pnum], key, value, sizeof(cls.userinfo[pnum]));
+	if (cls.state >= ca_connected && !cls.demoplayback)
 	{
 #ifdef Q2CLIENT
 		if (cls.protocol == CP_QUAKE2 || cls.protocol == CP_QUAKE3)
 			cls.resendinfo = true;
 		else
 #endif
-			Cmd_ForwardToServer ();
+		{
+			if (pnum)
+				CL_SendClientCommand(true, "%i setinfo %s %s", pnum+1, key, value);
+			else
+				CL_SendClientCommand(true, "setinfo %s %s", key, value);
+		}
 	}
 }
 /*
@@ -1673,9 +1678,10 @@ Allow clients to change userinfo
 void CL_SetInfo_f (void)
 {
 	cvar_t *var;
+	int pnum = CL_TargettedSplit(true);
 	if (Cmd_Argc() == 1)
 	{
-		Info_Print (cls.userinfo);
+		Info_Print (cls.userinfo[pnum]);
 		return;
 	}
 	if (Cmd_Argc() != 3)
@@ -1695,7 +1701,7 @@ void CL_SetInfo_f (void)
 				char *k;
 				for(i=0;;)
 				{
-					k = Info_KeyForNumber(cls.userinfo, i);
+					k = Info_KeyForNumber(cls.userinfo[pnum], i);
 					if (!*k)
 						break;	//no more.
 					else if (*k == '*')
@@ -1703,7 +1709,7 @@ void CL_SetInfo_f (void)
 					else if ((var = Cvar_FindVar(k)) && var->flags&CVAR_USERINFO)
 						i++;	//this one is a cvar.
 					else
-						Info_RemoveKey(cls.userinfo, k);	//we can remove this one though, so yay.
+						Info_RemoveKey(cls.userinfo[pnum], k);	//we can remove this one though, so yay.
 				}
 
 				return;
@@ -1713,14 +1719,21 @@ void CL_SetInfo_f (void)
 	}
 
 
-	CL_SetInfo(Cmd_Argv(1), Cmd_Argv(2));
+	CL_SetInfo(pnum, Cmd_Argv(1), Cmd_Argv(2));
 }
 
 void CL_SaveInfo(vfsfile_t *f)
 {
+	int i;
 	VFS_WRITE(f, "\n", 1);
-	VFS_WRITE(f, "setinfo * \"\"\n", 13);
-	Info_WriteToFile(f, cls.userinfo, "setinfo", CVAR_USERINFO);
+	for (i = 0; i < MAX_SPLITS; i++)
+	{
+		if (i)
+			VFS_WRITE(f, va("p%i setinfo * \"\"\n", i+1), 16);
+		else
+			VFS_WRITE(f, "setinfo * \"\"\n", 13);
+		Info_WriteToFile(f, cls.userinfo[i], "setinfo", CVAR_USERINFO);
+	}
 }
 
 /*
@@ -2888,7 +2901,10 @@ void CL_Init (void)
 	cls.state = ca_disconnected;
 
 	sprintf (st, "%s %i", DISTRIBUTION, build_number());
-	Info_SetValueForStarKey (cls.userinfo, "*ver", st, sizeof(cls.userinfo));
+	Info_SetValueForStarKey (cls.userinfo[0], "*ver", st, sizeof(cls.userinfo[0]));
+	Info_SetValueForStarKey (cls.userinfo[1], "*ss", "1", sizeof(cls.userinfo[1]));
+	Info_SetValueForStarKey (cls.userinfo[2], "*ss", "1", sizeof(cls.userinfo[2]));
+	Info_SetValueForStarKey (cls.userinfo[3], "*ss", "1", sizeof(cls.userinfo[3]));
 
 	InitValidation();
 

@@ -2028,6 +2028,10 @@ client_t *SVC_DirectConnect(void)
 
 	if (!newcl)	//client has no slot. It's possible to bipass this if server is loading a game. (or a duplicated qsocket)
 	{
+		if (sv.allocated_client_slots == 1 && net_from.type == NA_LOOPBACK)
+			if (svs.clients[0].state)
+				SV_DropClient(svs.clients);
+
 		// if at server limits, refuse connection
 		if ( maxclients.ival > MAX_CLIENTS )
 			Cvar_SetValue (&maxclients, MAX_CLIENTS);

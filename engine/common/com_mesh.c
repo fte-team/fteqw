@@ -22,9 +22,9 @@ void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
 			QCRC_ProcessByte(&crc, *p);
 
 		sprintf(st, "%d", (int) crc);
-		Info_SetValueForKey (cls.userinfo,
+		Info_SetValueForKey (cls.userinfo[0],
 			(loadmodel->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
-			st, sizeof(cls.userinfo));
+			st, sizeof(cls.userinfo[0]));
 
 		if (cls.state >= ca_connected)
 		{

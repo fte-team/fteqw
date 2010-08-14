@@ -44,3 +44,5 @@ extern cvar_t in_xflip;
 void IN_ActivateMouse(void);
 void IN_DeactivateMouse(void);
 #endif
+
+int CL_TargettedSplit(qboolean nowrap);

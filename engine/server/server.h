@@ -1163,6 +1163,7 @@ extern cvar_t rank_needlogin;
 
 
 client_t *SV_GetClientForString(char *name, int *id);
+qboolean    SV_MayCheat(void);
 
 
 qboolean ReloadRanking(client_t *cl, char *newname);

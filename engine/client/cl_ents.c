@@ -2660,7 +2660,6 @@ void CL_LinkPlayers (void)
 	frame_t			*fromf;
 	int				oldphysent;
 	vec3_t			angles;
-	float			*org;
 	qboolean		predictplayers;
 	model_t			*model;
 
@@ -2748,7 +2747,6 @@ void CL_LinkPlayers (void)
 			if (radius)
 			{
 				vec3_t org;
-				int i;
 				VectorCopy(state->origin, org);
 				for (pnum = 0; pnum < cl.splitclients; pnum++)
 					VectorCopy(cl.simorg[pnum], org);

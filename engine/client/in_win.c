@@ -62,6 +62,7 @@ cvar_t	m_accel_noforce = SCVAR("m_accel_noforce", "0");
 cvar_t  m_threshold_noforce = SCVAR("m_threshold_noforce", "0");
 
 cvar_t	cl_keypad = SCVAR("cl_keypad", "0");
+extern cvar_t cl_forcesplitclient;
 
 qboolean Key_MouseShouldBeFree(void);
 
@@ -1424,7 +1425,10 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 	wpnum = cl.splitclients;
 	if (wpnum < 1)
 		wpnum = 1;
-	wpnum = mouse->playerid % wpnum;
+	if (cl_forcesplitclient.ival)
+		wpnum = (cl_forcesplitclient.ival-1) % wpnum;
+	else
+		wpnum = mouse->playerid % wpnum;
 	if (wpnum != pnum)
 		return;
 
@@ -1857,7 +1861,10 @@ void IN_RawInput_MouseRead(HANDLE in_device_handle)
 	pnum = cl.splitclients;
 	if (pnum < 1)
 		pnum = 1;
-	pnum = rawmice[i].playerid % pnum;
+	if (cl_forcesplitclient.ival)
+		pnum = (cl_forcesplitclient.ival-1) % pnum;
+	else
+		pnum = rawmice[i].playerid % pnum;
 
 	// movement
 	if (raw->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE)

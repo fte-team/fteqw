@@ -428,19 +428,19 @@ LRESULT CALLBACK LowLevelKeyboardProc (INT nCode, WPARAM wParam, LPARAM lParam)
 		//Trap the Left Windowskey
 			if (pkbhs->vkCode == VK_LWIN)
 			{
-				Key_Event (K_LWIN, 0, !(pkbhs->flags & LLKHF_UP));
+				Key_Event (0, K_LWIN, 0, !(pkbhs->flags & LLKHF_UP));
 				return 1;
 			}
 		//Trap the Right Windowskey
 			if (pkbhs->vkCode == VK_RWIN)
 			{
-				Key_Event (K_RWIN, 0, !(pkbhs->flags & LLKHF_UP));
+				Key_Event (0, K_RWIN, 0, !(pkbhs->flags & LLKHF_UP));
 				return 1;
 			}
 		//Trap the Application Key (what a pointless key)
 			if (pkbhs->vkCode == VK_APPS)
 			{
-				Key_Event (K_APP, 0, !(pkbhs->flags & LLKHF_UP));
+				Key_Event (0, K_APP, 0, !(pkbhs->flags & LLKHF_UP));
 				return 1;
 			}
 

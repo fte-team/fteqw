@@ -106,6 +106,7 @@ typedef struct entity_s
 
 	framestate_t			framestate;
 
+	unsigned int			externalmodelview;
 	int flags;
 
 	refEntityType_t rtype;

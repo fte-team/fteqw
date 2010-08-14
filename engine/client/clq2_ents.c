@@ -1497,6 +1497,9 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		else
 			ent.flags = renderfx;
 
+		if (renderfx & Q2RF_EXTERNALMODEL)
+			ent.externalmodelview = ~0;
+
 		// calculate angles
 		if (effects & Q2EF_ROTATE)
 		{	// some bonus items auto-rotate

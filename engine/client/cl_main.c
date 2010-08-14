@@ -573,7 +573,6 @@ void CL_SendConnectPacket (
 	NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
 
 	cl.splitclients = 0;
-	CL_RegisterSplitCommands();
 }
 
 char *CL_TryingToConnect(void)
@@ -3643,8 +3642,6 @@ void Host_FinishInit(void)
 #endif
 
 	Cbuf_AddText ("cl_warncmd 0\n", RESTRICT_LOCAL);
-
-	Cbuf_AddText ("+mlook\n", RESTRICT_LOCAL);		//fixme: this is bulky, only exec one of these.
 
 	//who should we imitate?
 	qrc = COM_FDepthFile("quake.rc", true);	//q1

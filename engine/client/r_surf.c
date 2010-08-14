@@ -941,9 +941,6 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 
 	int stride = LMBLOCK_WIDTH*lightmap_bytes;
 
-	if (!surf->samples && currentmodel->lightdata && ambient >= 0)
-		return;
-
 	shift += 7; // increase to base value
 	surf->cached_dlight = (surf->dlightframe == r_framecount);
 
@@ -988,10 +985,21 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 		}
 		else if (!currentmodel->lightdata)
 		{
+			/*fullbright if map is not lit*/
 			for (i=0 ; i<size*3 ; i++)
 			{
 				blocklights[i] = 255*256;
 			}
+		}
+		else if (!surf->samples)
+		{
+			/*no samples, but map is otherwise lit = pure black*/
+			for (i=0 ; i<size*3 ; i++)
+			{
+				blocklights[i] = 0;
+			}
+			surf->cached_light[0] = 0;
+			surf->cached_colour[0] = 0;
 		}
 		else
 		{
@@ -1146,7 +1154,16 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 #endif
 	{
 	// set to full bright if no light data
-		if (r_fullbright.ival || !currentmodel->lightdata)
+		if (!surf->samples || !currentmodel->lightdata)
+		{
+			for (i=0 ; i<size*3 ; i++)
+			{
+				blocklights[i] = 255*256;
+			}
+			surf->cached_light[0] = d_lightstylevalue[0];
+			surf->cached_colour[0] = cl_lightstyle[0].colour;
+		}
+		else if (r_fullbright.ival)
 		{
 			for (i=0 ; i<size ; i++)
 				blocklights[i] = 255*256;
@@ -1231,15 +1248,18 @@ void Surf_RenderDynamicLightmaps (msurface_t *fa, int shift)
 		return;
 	
 	// check for lightmap modification
-//	if (cl.worldmodel->fromgame != fg_quake3)	//no lightstyles on q3 maps
+	if (!fa->samples)
+	{
+		if (d_lightstylevalue[0] != fa->cached_light[0]
+			|| cl_lightstyle[0].colour != fa->cached_colour[0])
+			goto dynamic;
+	}
+	else
 	{
 		for (maps = 0 ; maps < MAXLIGHTMAPS && fa->styles[maps] != 255 ;
 			 maps++)
 			if (d_lightstylevalue[fa->styles[maps]] != fa->cached_light[maps]
-	#ifdef PEXT_LIGHTSTYLECOL
-				|| cl_lightstyle[fa->styles[maps]].colour != fa->cached_colour[maps]
-	#endif
-				)
+				|| cl_lightstyle[fa->styles[maps]].colour != fa->cached_colour[maps])
 				goto dynamic;
 	}
 

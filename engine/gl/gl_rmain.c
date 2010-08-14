@@ -947,7 +947,7 @@ This is where they're filtered (based on which view is currently being drawn).
 */
 qboolean R_ShouldDraw(entity_t *e)
 {
-	if (e->flags & Q2RF_EXTERNALMODEL && !r_refdef.externalview)
+	if (!r_refdef.externalview && (e->externalmodelview & (1<<r_refdef.currentplayernum)))
 		return false;
 	if (!Cam_DrawPlayer(r_refdef.currentplayernum, e->keynum-1))
 		return false;

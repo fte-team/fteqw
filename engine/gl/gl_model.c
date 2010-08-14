@@ -1088,9 +1088,9 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 				tn.base = R_LoadReplacementTexture(mt->name, loadname, IF_NOALPHA);
 				if (!TEXVALID(tn.base))
 				{
-					tn.base = R_LoadReplacementTexture(mt->name, "bmodels", IF_NOALPHA);
+					tn.base = R_LoadReplacementTexture(mt->name, "bmodels", (*mt->name == '{')?0:IF_NOALPHA);
 					if (!TEXVALID(tn.base))
-						tn.base = R_LoadTexture8 (mt->name, mipwidth, mipheight, mipbase, IF_NOALPHA, 1);
+						tn.base = R_LoadTexture8 (mt->name, mipwidth, mipheight, mipbase, (*mt->name == '{')?0:IF_NOALPHA, 1);
 				}
 
 				if (r_fb_bmodels.value)
@@ -1098,11 +1098,11 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 					snprintf(altname, sizeof(altname)-1, "%s_luma", mt->name);
 					if (gl_load24bit.value)
 					{
-						tn.fullbright = R_LoadReplacementTexture(altname, loadname, IF_NOALPHA);
+						tn.fullbright = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA);
 						if (!TEXVALID(tn.fullbright))
-							tn.fullbright = R_LoadReplacementTexture(altname, "bmodels", IF_NOALPHA);
+							tn.fullbright = R_LoadReplacementTexture(altname, "bmodels", IF_NOGAMMA);
 					}
-					if (!TEXVALID(tn.fullbright))	//generate one (if possible).
+					if ((*mt->name != '{') && !TEXVALID(tn.fullbright))	//generate one (if possible).
 						tn.fullbright = R_LoadTextureFB(altname, mipwidth, mipheight, mipbase, IF_NOGAMMA);
 				}
 			}
@@ -2670,7 +2670,7 @@ static void Q1BSP_StainNode (mnode_t *node, float *parms)
 	surf = cl.worldmodel->surfaces + node->firstsurface;
 	for (i=0 ; i<node->numsurfaces ; i++, surf++)
 	{
-		if (surf->flags&~(SURF_DONTWARP|SURF_PLANEBACK))
+		if (surf->flags&~(SURF_DRAWALPHA|SURF_DONTWARP|SURF_PLANEBACK))
 			continue;
 		Surf_StainSurf(surf, parms);
 	}

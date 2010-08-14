@@ -221,6 +221,17 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum,
 	unsigned int tc, bc;
 	qboolean forced;
 
+	if (e->skinnum >= 100 && e->skinnum < 110)
+	{
+		shader_t *s;
+		s = R_RegisterSkin(va("gfx/skin%d.lmp", e->skinnum));
+		if (!TEXVALID(s->defaulttextures.base))
+			s->defaulttextures.base = R_LoadHiResTexture(va("gfx/skin%d.lmp", e->skinnum), NULL, 0);
+		s->defaulttextures.shader = s;
+		return &s->defaulttextures;
+	}
+
+
 	if ((e->model->engineflags & MDLF_NOTREPLACEMENTS) && !ruleset_allow_sensative_texture_replacements.ival)
 		forced = true;
 	else

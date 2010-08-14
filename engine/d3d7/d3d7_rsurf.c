@@ -1172,9 +1172,7 @@ void D3DR_RenderDynamicLightmaps (msurface_t *fa, int shift)
 		for (maps = 0 ; maps < MAXLIGHTMAPS && fa->styles[maps] != 255 ;
 			 maps++)
 			if (d_lightstylevalue[fa->styles[maps]] != fa->cached_light[maps]
-	#ifdef PEXT_LIGHTSTYLECOL
 				|| cl_lightstyle[fa->styles[maps]].colour != fa->cached_colour[maps]
-	#endif
 				)
 			{
 				goto dynamic;

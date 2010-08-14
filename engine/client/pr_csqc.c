@@ -688,7 +688,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 		if (rflags & CSQCRF_VIEWMODEL)
 			out->flags |= Q2RF_DEPTHHACK|Q2RF_WEAPONMODEL;
 		if (rflags & CSQCRF_EXTERNALMODEL)
-			out->flags |= Q2RF_EXTERNALMODEL;
+			out->externalmodelview = ~0;
 		if (rflags & CSQCRF_DEPTHHACK)
 			out->flags |= Q2RF_DEPTHHACK;
 		if (rflags & CSQCRF_ADDITIVE)

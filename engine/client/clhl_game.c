@@ -755,7 +755,7 @@ int QDECL CLGHL_checkparm(char *str, const char **next)
 int QDECL CLGHL_keyevent(int key, int down)
 {
 	if (key >= 241 && key <= 241+5)
-		Key_Event(K_MOUSE1+key-241, 0, down);
+		Key_Event(0, K_MOUSE1+key-241, 0, down);
 	else
 		Con_Printf("CLGHL_keyevent: Unrecognised HL key code\n");
 	return true;	//fixme: check the return type

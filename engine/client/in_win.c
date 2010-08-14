@@ -76,6 +76,7 @@ typedef struct {
 	} handles;
 
 	int numbuttons;
+	int playerid;
 
 	volatile int buttons;
 	volatile int oldbuttons;
@@ -274,7 +275,6 @@ RAWINPUT *raw;
 int ribuffersize;
 
 cvar_t in_rawinput = SCVAR("in_rawinput", "0");
-cvar_t in_rawinput_combine = SCVAR("in_rawinput_combine", "0");
 cvar_t in_rawinput_rdp = SCVAR("in_rawinput_rdp", "0");
 
 void IN_RawInput_DeRegister(void);
@@ -376,11 +376,11 @@ void MW_Hook_Message (long buttons)
 	buttons &= 0xFFFF;
 	switch (buttons ^ old_buttons)
 	{
-		case 8:		Key_Event(K_MOUSE4, 0, buttons > old_buttons ? true : false); break;
-		case 16:	Key_Event(K_MOUSE5, 0, buttons > old_buttons ? true : false); break;
-		case 32:	Key_Event(K_MOUSE6, 0, buttons > old_buttons ? true : false); break;
-		case 64:	Key_Event(K_MOUSE7, 0, buttons > old_buttons ? true : false); break;
-		case 128:	Key_Event(K_MOUSE8, 0, buttons > old_buttons ? true : false); break;
+		case 8:		Key_Event(0, K_MOUSE4, 0, buttons > old_buttons ? true : false); break;
+		case 16:	Key_Event(0, K_MOUSE5, 0, buttons > old_buttons ? true : false); break;
+		case 32:	Key_Event(0, K_MOUSE6, 0, buttons > old_buttons ? true : false); break;
+		case 64:	Key_Event(0, K_MOUSE7, 0, buttons > old_buttons ? true : false); break;
+		case 128:	Key_Event(0, K_MOUSE8, 0, buttons > old_buttons ? true : false); break;
 		default:	break;
 	}
 
@@ -1008,7 +1008,7 @@ int IN_RawInput_Register(void)
 
 int IN_RawInput_IsRDPMouse(char *cDeviceString)
 {
-	char cRDPString[] = "\\??\\Root#RDP_MOU#";
+	char cRDPString[] = "\\\\?\\Root#RDP_MOU#";
 	int i;
 
 	if (strlen(cDeviceString) < strlen(cRDPString)) {
@@ -1142,6 +1142,7 @@ void IN_RawInput_Init(void)
 			rawmice[rawmicecount].handles.rawinputhandle = pRawInputDeviceList[i].hDevice;
 			rawmice[rawmicecount].numbuttons = 10;
 			rawmice[rawmicecount].pos[0] = RI_INVALID_POS;
+			rawmice[rawmicecount].playerid = rawmicecount;
 			rawmicecount++;
 		}
 	}
@@ -1342,7 +1343,6 @@ void IN_Init (void)
 
 #ifdef USINGRAWINPUT
 	Cvar_Register (&in_rawinput, "Input Controls");
-	Cvar_Register (&in_rawinput_combine, "Input Controls");
 	Cvar_Register (&in_rawinput_rdp, "Input Controls");
 #endif
 }
@@ -1395,13 +1395,13 @@ void IN_MouseEvent (int mstate)
 			if ( (mstate & (1<<i)) &&
 				!(sysmouse.oldbuttons & (1<<i)) )
 			{
-				Key_Event (K_MOUSE1 + i, 0, true);
+				Key_Event (0, K_MOUSE1 + i, 0, true);
 			}
 
 			if ( !(mstate & (1<<i)) &&
 				(sysmouse.oldbuttons & (1<<i)) )
 			{
-				Key_Event (K_MOUSE1 + i, 0, false);
+				Key_Event (0, K_MOUSE1 + i, 0, false);
 			}
 		}	
 			
@@ -1420,19 +1420,27 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 
 	int i;
 
+	int wpnum;
+	wpnum = cl.splitclients;
+	if (wpnum < 1)
+		wpnum = 1;
+	wpnum = mouse->playerid % wpnum;
+	if (wpnum != pnum)
+		return;
+
 	// perform button actions
 	for (i=0 ; i<mouse->numbuttons ; i++)
 	{
 		if ( (mouse->buttons & (1<<i)) &&
 			!(mouse->oldbuttons & (1<<i)) )
 		{
-			Key_Event (K_MOUSE1 + i, 0, true);
+			Key_Event (pnum, K_MOUSE1 + i, 0, true);
 		}
 
 		if ( !(mouse->buttons & (1<<i)) &&
 			(mouse->oldbuttons & (1<<i)) )
 		{
-			Key_Event (K_MOUSE1 + i, 0, false);
+			Key_Event (pnum, K_MOUSE1 + i, 0, false);
 		}
 	}
 	mouse->oldbuttons = mouse->buttons;
@@ -1444,15 +1452,15 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 		{
 			while(mouse->wheeldelta <= -mfwt)
 			{
-				Key_Event (K_MWHEELUP, 0, true);
-				Key_Event (K_MWHEELUP, 0, false);
+				Key_Event (pnum, K_MWHEELUP, 0, true);
+				Key_Event (pnum, K_MWHEELUP, 0, false);
 				mouse->wheeldelta += mfwt;
 			}
 
 			while(mouse->wheeldelta >= mfwt)
 			{
-				Key_Event (K_MWHEELDOWN, 0, true);
-				Key_Event (K_MWHEELDOWN, 0, false);
+				Key_Event (pnum, K_MWHEELDOWN, 0, true);
+				Key_Event (pnum, K_MWHEELDOWN, 0, false);
 				mouse->wheeldelta -= mfwt;
 			}
 		}
@@ -1749,29 +1757,18 @@ void IN_MouseMove (float *movements, int pnum)
 #ifdef USINGRAWINPUT
 	if (rawmicecount)
 	{
-		if ((in_rawinput_combine.value && pnum == 0) || cl.splitclients <= 1)
+		int x;
+		for (x = 0; x < rawmicecount; x++)
 		{
-			// not the right way to do this but it'll work for now
-			int x;
-
-			for (x = 0; x < rawmicecount; x++)
-			{
-				ProcessMouse(rawmice + x, movements, 0);
-			}
-		}
-		else if (pnum < rawmicecount)
-		{
-			ProcessMouse(rawmice + pnum, movements, pnum);
+			ProcessMouse(rawmice + x, movements, pnum);
 		}
 	}
 #endif
 
-	if (pnum == 0)
-		ProcessMouse(&sysmouse,		movements, pnum);
+	ProcessMouse(&sysmouse,		movements, pnum);
 
 #ifdef SERIALMOUSE
-	if (pnum == 1 || cl.splitclients<2)
-		ProcessMouse(&serialmouse,	movements, pnum);
+	ProcessMouse(&serialmouse,	movements, pnum);
 #endif
 }
 
@@ -1827,6 +1824,7 @@ void IN_RawInput_MouseRead(HANDLE in_device_handle)
 {
 	int i = 0, tbuttons, j;
 	int dwSize;
+	int pnum;
 
 	// get raw input
 	if ((*_GRID)((HRAWINPUT)in_device_handle, RID_INPUT, NULL, &dwSize, sizeof(RAWINPUTHEADER)) == -1) 
@@ -1844,7 +1842,7 @@ void IN_RawInput_MouseRead(HANDLE in_device_handle)
 	if ((*_GRID)((HRAWINPUT)in_device_handle, RID_INPUT, raw, &dwSize, sizeof(RAWINPUTHEADER)) != dwSize ) {
 		Con_Printf("Raw input: unable to add to get raw input header.\n");
 		return;
-	} 
+	}
 
 	// find mouse in our mouse list
 	for (; i < rawmicecount; i++)
@@ -1855,6 +1853,11 @@ void IN_RawInput_MouseRead(HANDLE in_device_handle)
 
 	if (i == rawmicecount) // we're not tracking this mouse
 		return;
+
+	pnum = cl.splitclients;
+	if (pnum < 1)
+		pnum = 1;
+	pnum = rawmice[i].playerid % pnum;
 
 	// movement
 	if (raw->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE)
@@ -1876,38 +1879,38 @@ void IN_RawInput_MouseRead(HANDLE in_device_handle)
 
 	// buttons
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN) 
-		Key_Event(K_MOUSE1, 0, true);
+		Key_Event(pnum, K_MOUSE1, 0, true);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_UP)   
-		Key_Event(K_MOUSE1, 0, false);
+		Key_Event(pnum, K_MOUSE1, 0, false);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN) 
-		Key_Event(K_MOUSE2, 0, true);
+		Key_Event(pnum, K_MOUSE2, 0, true);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_UP)   
-		Key_Event(K_MOUSE2, 0, false);
+		Key_Event(pnum, K_MOUSE2, 0, false);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_DOWN) 
-		Key_Event(K_MOUSE3, 0, true);
+		Key_Event(pnum, K_MOUSE3, 0, true);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_UP)   
-		Key_Event(K_MOUSE3, 0, false);
+		Key_Event(pnum, K_MOUSE3, 0, false);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_4_DOWN) 
-		Key_Event(K_MOUSE4, 0, true);
+		Key_Event(pnum, K_MOUSE4, 0, true);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_4_UP)   
-		Key_Event(K_MOUSE4, 0, false);
+		Key_Event(pnum, K_MOUSE4, 0, false);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_5_DOWN) 
-		Key_Event(K_MOUSE5, 0, true);
+		Key_Event(pnum, K_MOUSE5, 0, true);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_5_UP)   
-		Key_Event(K_MOUSE5, 0, false);
+		Key_Event(pnum, K_MOUSE5, 0, false);
 
 	// mouse wheel
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_WHEEL)
 	{      // If the current message has a mouse_wheel message
 		if ((SHORT)raw->data.mouse.usButtonData > 0) 
 		{
-			Key_Event(K_MWHEELUP, 0, true);
-			Key_Event(K_MWHEELUP, 0, false);
+			Key_Event(pnum, K_MWHEELUP, 0, true);
+			Key_Event(pnum, K_MWHEELUP, 0, false);
 		}
 		if ((SHORT)raw->data.mouse.usButtonData < 0)
 		{
-			Key_Event(K_MWHEELDOWN, 0, true);
-			Key_Event(K_MWHEELDOWN, 0, false);
+			Key_Event(pnum, K_MWHEELDOWN, 0, true);
+			Key_Event(pnum, K_MWHEELDOWN, 0, false);
 		}
 	}
 
@@ -1917,12 +1920,12 @@ void IN_RawInput_MouseRead(HANDLE in_device_handle)
 	{
 		if ( (tbuttons & (1<<j)) && !(rawmice[i].buttons & (1<<j)) )
 		{
-			Key_Event (K_MOUSE1 + j, 0, true);
+			Key_Event (pnum, K_MOUSE1 + j, 0, true);
 		}
 
 		if ( !(tbuttons & (1<<j)) && (rawmice[i].buttons & (1<<j)) )
 		{
-			Key_Event (K_MOUSE1 + j, 0, false);
+			Key_Event (pnum, K_MOUSE1 + j, 0, false);
 		}
 
 	}
@@ -2145,13 +2148,13 @@ void IN_Commands (void)
 		if ( (buttonstate & (1<<i)) && !(joy_oldbuttonstate & (1<<i)) )
 		{
 			key_index = (i < 4) ? K_JOY1 : K_AUX1;
-			Key_Event (key_index + i, 0, true);
+			Key_Event (0, key_index + i, 0, true);
 		}
 
 		if ( !(buttonstate & (1<<i)) && (joy_oldbuttonstate & (1<<i)) )
 		{
 			key_index = (i < 4) ? K_JOY1 : K_AUX1;
-			Key_Event (key_index + i, 0, false);
+			Key_Event (0, key_index + i, 0, false);
 		}
 	}
 	joy_oldbuttonstate = buttonstate;
@@ -2178,12 +2181,12 @@ void IN_Commands (void)
 		{
 			if ( (povstate & (1<<i)) && !(joy_oldpovstate & (1<<i)) )
 			{
-				Key_Event (K_AUX29 + i, 0, true);
+				Key_Event (0, K_AUX29 + i, 0, true);
 			}
 
 			if ( !(povstate & (1<<i)) && (joy_oldpovstate & (1<<i)) )
 			{
-				Key_Event (K_AUX29 + i, 0, false);
+				Key_Event (0, K_AUX29 + i, 0, false);
 			}
 		}
 		joy_oldpovstate = povstate;
@@ -2554,5 +2557,5 @@ void IN_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down)
 		}
 	}
 	
-	Key_Event (qcode, unicode, down);
+	Key_Event (0, qcode, unicode, down);
 }

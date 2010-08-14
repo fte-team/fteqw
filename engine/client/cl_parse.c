@@ -2156,7 +2156,6 @@ void CL_ParseServerData (void)
 			cl.frames[i].playerstate[cl.playernum[0]].pm_type = PM_SPECTATOR;
 
 		cl.splitclients = 1;
-		CL_RegisterSplitCommands();
 	}
 	else
 	{
@@ -2183,7 +2182,6 @@ void CL_ParseServerData (void)
 				Host_EndGame("Server sent us too many alternate clients\n");
 		}
 		cl.splitclients = clnum+1;
-		CL_RegisterSplitCommands();
 	}
 
 	// get the full level name
@@ -2330,7 +2328,6 @@ void CLQ2_ParseServerData (void)
 	// parse player entity number
 	cl.playernum[0] = MSG_ReadShort ();
 	cl.splitclients = 1;
-	CL_RegisterSplitCommands();
 	cl.spectator = false;
 
 	cl.numq2visibleweapons = 1;	//give it a default.
@@ -2458,7 +2455,6 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	}
 
 	cl.splitclients = 1;
-	CL_RegisterSplitCommands();
 
 	gametype = MSG_ReadByte ();
 
@@ -3032,9 +3028,7 @@ void CLQ2_ParseConfigString (void)
 	}
 	else if (i >= Q2CS_LIGHTS && i < Q2CS_LIGHTS+Q2MAX_LIGHTSTYLES)
 	{
-#ifdef PEXT_LIGHTSTYLECOL
 		cl_lightstyle[i - Q2CS_LIGHTS].colour = 7;	//white
-#endif
 		Q_strncpyz (cl_lightstyle[i - Q2CS_LIGHTS].map,  s, sizeof(cl_lightstyle[i-Q2CS_LIGHTS].map));
 		cl_lightstyle[i - Q2CS_LIGHTS].length = Q_strlen(cl_lightstyle[i - Q2CS_LIGHTS].map);
 
@@ -3899,6 +3893,8 @@ void CL_MuzzleFlash (int destsplit)
 
 			dl = CL_AllocDlight (-i);
 			VectorCopy (pl->origin,  dl->origin);	//set it's origin
+			if (pl->hullnum & 0x80)	/*hull is 0-based, so origin is bottom of model, move the light up slightly*/
+				dl->origin[2] += 24;
 			AngleVectors(pl->viewangles, dl->axis[0], dl->axis[1], dl->axis[2]);
 
 			AngleVectors (pl->viewangles, fv, rv, uv);	//shift it up a little
@@ -4901,9 +4897,7 @@ void CL_ParseServerMessage (void)
 			i = MSG_ReadByte ();
 			if (i >= MAX_LIGHTSTYLES)
 				Host_EndGame ("svc_lightstyle > MAX_LIGHTSTYLES");
-#ifdef PEXT_LIGHTSTYLECOL
 			cl_lightstyle[i].colour = 7;	//white
-#endif
 			Q_strncpyz (cl_lightstyle[i].map,  MSG_ReadString(), sizeof(cl_lightstyle[i].map));
 			cl_lightstyle[i].length = Q_strlen(cl_lightstyle[i].map);
 			break;
@@ -5771,9 +5765,7 @@ void CLNQ_ParseServerMessage (void)
 				MSG_ReadString();
 				break;
 			}
-#ifdef PEXT_LIGHTSTYLECOL
 			cl_lightstyle[i].colour = 7;	//white
-#endif
 			Q_strncpyz (cl_lightstyle[i].map,  MSG_ReadString(), sizeof(cl_lightstyle[i].map));
 			cl_lightstyle[i].length = Q_strlen(cl_lightstyle[i].map);
 			break;

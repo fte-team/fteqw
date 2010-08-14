@@ -990,10 +990,15 @@ void V_CalcRefdef (int pnum)
 	V_CalcViewRoll (pnum);
 	V_AddIdle (pnum);
 
-	if (view_message && view_message->flags & PF_GIB)
-		r_refdef.vieworg[2] += 8;	// gib view height
-	else if (view_message && view_message->flags & PF_DEAD)
-		r_refdef.vieworg[2] -= 16;	// corpse view height
+	if (cl.viewheight[pnum] == DEFAULT_VIEWHEIGHT)
+	{
+		if (view_message && view_message->flags & PF_GIB)
+			r_refdef.vieworg[2] += 8;	// gib view height
+		else if (view_message && view_message->flags & PF_DEAD)
+			r_refdef.vieworg[2] -= 16;	// corpse view height
+		else
+			r_refdef.vieworg[2] += DEFAULT_VIEWHEIGHT;
+	}
 	else
 		r_refdef.vieworg[2] += cl.viewheight[pnum];
 

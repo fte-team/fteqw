@@ -1468,9 +1468,6 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 					if (needcleanup < (j+1))
 					{
 						needcleanup = (j+1);
-						MSG_WriteByte(&sv.multicast, svc_muzzleflash);
-						MSG_WriteShort(&sv.multicast, (j+1));
-						SV_Multicast(ent->v->origin, MULTICAST_PVS);
 					}
 				}
 			}
@@ -1691,9 +1688,6 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 				if (needcleanup < (j+1))
 				{
 					needcleanup = (j+1);
-					MSG_WriteByte(&sv.multicast, svc_muzzleflash);
-					MSG_WriteShort(&sv.multicast, (j+1));
-					SV_Multicast(ent->v->origin, MULTICAST_PVS);
 				}
 			}
 		}
@@ -2418,9 +2412,6 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 				if (needcleanup < e)
 				{
 					needcleanup = e;
-					MSG_WriteByte(&sv.multicast, svc_muzzleflash);
-					MSG_WriteShort(&sv.multicast, e);
-					SV_Multicast(ent->v->origin, MULTICAST_PVS);
 				}
 			}
 		}
@@ -2759,6 +2750,7 @@ void SV_CleanupEnts(void)
 {
 	int		e;
 	edict_t	*ent;
+	vec3_t org;
 
 	if (!needcleanup)
 		return;
@@ -2767,7 +2759,16 @@ void SV_CleanupEnts(void)
 	{
 		ent = EDICT_NUM(svprogfuncs, e);
 		if ((int)ent->v->effects & EF_MUZZLEFLASH)
+		{
 			ent->v->effects = (int)ent->v->effects & ~EF_MUZZLEFLASH;
+
+			MSG_WriteByte(&sv.multicast, svc_muzzleflash);
+			MSG_WriteShort(&sv.multicast, e);
+			VectorCopy(ent->v->origin, org);
+			if (progstype == PROG_H2)
+				org[2] += 24;
+			SV_Multicast(org, MULTICAST_PVS);
+		}
 	}
 	needcleanup=0;
 }

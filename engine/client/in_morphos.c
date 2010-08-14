@@ -168,17 +168,17 @@ void IN_Commands(void)
 
 				if (imsgs[i].ie_Code == NM_BUTTON_FOURTH)
 				{
-					Key_Event(K_MOUSE4, 0, true);
+					Key_Event(0, K_MOUSE4, 0, true);
 				}
 				else if (imsgs[i].ie_Code == (NM_BUTTON_FOURTH|IECODE_UP_PREFIX))
 				{
-					Key_Event(K_MOUSE4, 0, false);
+					Key_Event(0, K_MOUSE4, 0, false);
 				}
 
 				if (key)
 				{
-					Key_Event(key, 0, 1);
-					Key_Event(key, 0, 0);
+					Key_Event(0, key, 0, 1);
+					Key_Event(0, key, 0, 0);
 				}
 
 			}
@@ -194,7 +194,7 @@ void IN_Commands(void)
 					key = keyconv[imsgs[i].ie_Code];
 
 				if (key)
-					Key_Event(key, key, down);
+					Key_Event(0, key, key, down);
 				else
 				{
 					if (developer.value)
@@ -205,17 +205,17 @@ void IN_Commands(void)
 			else if (imsgs[i].ie_Class == IECLASS_RAWMOUSE)
 			{
 				if (imsgs[i].ie_Code == IECODE_LBUTTON)
-					Key_Event(K_MOUSE1, 0, true);
+					Key_Event(0, K_MOUSE1, 0, true);
 				else if (imsgs[i].ie_Code == (IECODE_LBUTTON|IECODE_UP_PREFIX))
-					Key_Event(K_MOUSE1, 0, false);
+					Key_Event(0, K_MOUSE1, 0, false);
 				else if (imsgs[i].ie_Code == IECODE_RBUTTON)
-					Key_Event(K_MOUSE2, 0, true);
+					Key_Event(0, K_MOUSE2, 0, true);
 				else if (imsgs[i].ie_Code == (IECODE_RBUTTON|IECODE_UP_PREFIX))
-					Key_Event(K_MOUSE2, 0, false);
+					Key_Event(0, K_MOUSE2, 0, false);
 				else if (imsgs[i].ie_Code == IECODE_MBUTTON)
-					Key_Event(K_MOUSE3, 0, true);
+					Key_Event(0, K_MOUSE3, 0, true);
 				else if (imsgs[i].ie_Code == (IECODE_MBUTTON|IECODE_UP_PREFIX))
-					Key_Event(K_MOUSE3, 0, false);
+					Key_Event(0, K_MOUSE3, 0, false);
 
 				mouse_x+= imsgs[i].ie_position.ie_xy.ie_x;
 				mouse_y+= imsgs[i].ie_position.ie_xy.ie_y;

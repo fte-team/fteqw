@@ -322,9 +322,7 @@ typedef struct msurface_s
 	qbyte		styles[MAXLIGHTMAPS];
 	int			cached_light[MAXLIGHTMAPS];	// values currently used in lightmap
 	qboolean	cached_dlight;				// true if dynamic light in cache
-#ifdef PEXT_LIGHTSTYLECOL
 	qbyte		cached_colour[MAXLIGHTMAPS];
-#endif
 #ifndef NOSTAINS
 	qboolean stained;
 #endif

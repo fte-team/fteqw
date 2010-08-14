@@ -1942,17 +1942,18 @@ void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 #ifdef GLQUAKE
 	if (((pass->flags & SHADER_PASS_DETAIL) && !r_detailtextures.value) ||
 		((pass2->flags & SHADER_PASS_DETAIL) && !r_detailtextures.value) ||
-		 (pass->flags & SHADER_PASS_VIDEOMAP) || (pass2->flags & SHADER_PASS_VIDEOMAP) || 
-		 ((pass->shaderbits & SBITS_ATEST_BITS) && !(pass2->shaderbits & SBITS_MISC_DEPTHEQUALONLY)))
+		 (pass->flags & SHADER_PASS_VIDEOMAP) || (pass2->flags & SHADER_PASS_VIDEOMAP))
 	{
 		return;
 	}
 
 	if (pass2->rgbgen != RGB_GEN_IDENTITY || pass2->alphagen != ALPHA_GEN_IDENTITY)
-	{
 		return;
-	}
 	if (pass->rgbgen != RGB_GEN_IDENTITY || pass->alphagen != ALPHA_GEN_IDENTITY) 
+		return;
+
+	/*if its alphatest, don't merge with anything other than lightmap*/
+	if ((pass->shaderbits & SBITS_ATEST_BITS) && (!(pass2->shaderbits & SBITS_MISC_DEPTHEQUALONLY) || pass2->texgen != T_GEN_LIGHTMAP))
 		return;
 
 	// check if we can use multiple passes

@@ -1471,7 +1471,7 @@ void ClearAllStates (void)
 // send an up event for each key, to make sure the server clears them all
 	for (i=0 ; i<256 ; i++)
 	{
-		Key_Event (i, 0, false);
+		Key_Event (0, i, 0, false);
 	}
 
 	Key_ClearStates ();
@@ -1682,13 +1682,13 @@ LONG WINAPI GLMainWndProc (
 			{
 				if ((short) HIWORD(wParam) > 0)
 				{
-					Key_Event(K_MWHEELUP, 0, true);
-					Key_Event(K_MWHEELUP, 0, false);
+					Key_Event(0, K_MWHEELUP, 0, true);
+					Key_Event(0, K_MWHEELUP, 0, false);
 				}
 				else
 				{
-					Key_Event(K_MWHEELDOWN, 0, true);
-					Key_Event(K_MWHEELDOWN, 0, false);
+					Key_Event(0, K_MWHEELDOWN, 0, true);
+					Key_Event(0, K_MWHEELDOWN, 0, false);
 				}
 			}
 			break;

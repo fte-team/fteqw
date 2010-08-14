@@ -596,7 +596,6 @@ void CLQ3_ParseGameState(void)
 	CL_MakeActive("Quake3Arena");
 
 	cl.splitclients = 1;
-	CL_RegisterSplitCommands();
 
 	{
 		char buffer[2048];
@@ -1020,7 +1019,6 @@ void CLQ3_SendConnectPacket(netadr_t to)
 	memset(&ccs, 0, sizeof(ccs));
 
 	cl.splitclients = 1;
-	CL_RegisterSplitCommands();
 	msg.data = data;
 	msg.cursize = 0;
 	msg.overflowed = msg.allowoverflow = 0;

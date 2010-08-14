@@ -755,7 +755,7 @@ void DP5_ParseDelta(entity_state_t *s)
 		s->flags = 0;
 		if (i & RENDER_VIEWMODEL)
 			s->flags |= Q2RF_WEAPONMODEL|Q2RF_MINLIGHT|Q2RF_DEPTHHACK;
-		if  (i & RENDER_EXTERIORMODEL)
+		if (i & RENDER_EXTERIORMODEL)
 			s->flags |= Q2RF_EXTERNALMODEL;
 	}
 	if (bits & E5_ORIGIN)
@@ -1882,6 +1882,10 @@ void CL_LinkPacketEntities (void)
 		if (state->effects & EF_NODEPTHTEST)
 			ent->flags |= RF_NODEPTHTEST;
 
+		/*FIXME: pay attention to tags instead, so nexuiz can work with splitscreen*/
+		if (ent->flags & Q2RF_EXTERNALMODEL)
+			ent->externalmodelview = ~0;
+
 		// set colormap
 		if (state->colormap && (state->colormap <= MAX_CLIENTS)
 			&& (gl_nocolors.value == -1 || (ent->model/* && state->modelindex == cl_playerindex*/)))
@@ -2658,6 +2662,7 @@ void CL_LinkPlayers (void)
 	vec3_t			angles;
 	float			*org;
 	qboolean		predictplayers;
+	model_t			*model;
 
 	if (!cl.worldmodel || cl.worldmodel->needload)
 		return;
@@ -2694,13 +2699,18 @@ void CL_LinkPlayers (void)
 		if (info->spectator)
 			continue;
 
+		//the extra modelindex check is to stop lame mods from using vweps with rings
+		if (state->command.impulse && cl.model_precache_vwep[0] && state->modelindex == cl_playerindex)
+			model = cl.model_precache_vwep[0];
+		else
+			model = cl.model_precache[state->modelindex];
+
 		// spawn light flashes, even ones coming from invisible objects
 		if (r_powerupglow.value && !(r_powerupglow.value == 2 && j == cl.playernum[0])
 			&& (state->effects & (EF_BLUE|EF_RED|EF_BRIGHTLIGHT|EF_DIMLIGHT)))
 		{
 			vec3_t colour;
 			float radius;
-			org = (j == cl.playernum[0]) ? cl.simorg[0] : state->origin;
 			colour[0] = 0;
 			colour[1] = 0;
 			colour[2] = 0;
@@ -2737,6 +2747,13 @@ void CL_LinkPlayers (void)
 
 			if (radius)
 			{
+				vec3_t org;
+				int i;
+				VectorCopy(state->origin, org);
+				for (pnum = 0; pnum < cl.splitclients; pnum++)
+					VectorCopy(cl.simorg[pnum], org);
+				org[2] -= model->mins[2];
+				org[2] += 24;
 				radius += r_lightflicker.value?(rand()&31):0;
 				CL_NewDlightRGB(j+1, org, radius, 0.1, colour[0], colour[1], colour[2])->flags &= ~LFLAG_ALLOW_FLASH;
 			}
@@ -2758,13 +2775,9 @@ void CL_LinkPlayers (void)
 		cl_numvisedicts++;
 		ent->keynum = j+1;
 		ent->flags = 0;
+		ent->model = model;
 		ent->forcedshader = NULL;
 
-		//the extra modelindex check is to stop lame mods from using vweps with rings
-		if (state->command.impulse && cl.model_precache_vwep[0] && state->modelindex == cl_playerindex)
-			ent->model = cl.model_precache_vwep[0];
-		else
-			ent->model = cl.model_precache[state->modelindex];
 		ent->skinnum = state->skinnum;
 
 		CL_UpdateNetFrameLerpState(false, state->frame, &cl.lerpplayers[j]);
@@ -2809,6 +2822,7 @@ void CL_LinkPlayers (void)
 				ent->origin[1] = cl.simorg[pnum][1];
 				ent->origin[2] = cl.simorg[pnum][2]+cl.crouch[pnum];
 				ent->flags |= Q2RF_EXTERNALMODEL;
+				ent->externalmodelview = (1<<pnum);
 				break;
 			}
 		}

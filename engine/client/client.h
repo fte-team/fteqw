@@ -821,7 +821,6 @@ extern	float in_sensitivityscale;
 
 void CL_MakeActive(char *gamename);
 
-void CL_RegisterSplitCommands(void);
 void CL_InitInput (void);
 void CL_SendCmd (double frametime, qboolean mainloop);
 void CL_SendMove (usercmd_t *cmd);

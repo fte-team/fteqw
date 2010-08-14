@@ -1336,7 +1336,7 @@ Called by the system between frames for both key up and key down events
 Should NOT be called during an interrupt!
 ===================
 */
-void Key_Event (int key, unsigned int unicode, qboolean down)
+void Key_Event (int pnum, int key, unsigned int unicode, qboolean down)
 {
 	char	*kb;
 	char	cmd[1024];
@@ -1567,18 +1567,38 @@ void Key_Event (int key, unsigned int unicode, qboolean down)
 		deltaused[key][keystate] = false;
 
 		kb = keybindings[key][keystate];
-		if (kb && kb[0] == '+')
+		if (pnum)
 		{
-			sprintf (cmd, "-%s %i\n", kb+1, key+oldstate*256);
-			Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
+			if (kb && kb[0] == '+')
+			{
+				sprintf (cmd, "-p%i %s %i\n", pnum+1, kb+1, key+oldstate*256);
+				Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
+			}
+			if (keyshift[key] != key)
+			{
+				kb = keybindings[keyshift[key]][keystate];
+				if (kb && kb[0] == '+')
+				{
+					sprintf (cmd, "-p%i %s %i\n", pnum+1, kb+1, key+oldstate*256);
+					Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
+				}
+			}
 		}
-		if (keyshift[key] != key)
+		else
 		{
-			kb = keybindings[keyshift[key]][keystate];
 			if (kb && kb[0] == '+')
 			{
 				sprintf (cmd, "-%s %i\n", kb+1, key+oldstate*256);
 				Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
+			}
+			if (keyshift[key] != key)
+			{
+				kb = keybindings[keyshift[key]][keystate];
+				if (kb && kb[0] == '+')
+				{
+					sprintf (cmd, "-%s %i\n", kb+1, key+oldstate*256);
+					Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
+				}
 			}
 		}
 		return;
@@ -1612,17 +1632,36 @@ void Key_Event (int key, unsigned int unicode, qboolean down)
 	{
 		deltaused[key][keystate] = true;
 		kb = keybindings[key][keystate];
-		if (kb)
+		if (pnum)
 		{
-			if (kb[0] == '+')
-			{	// button commands add keynum as a parm
-				sprintf (cmd, "%s %i\n", kb, key+oldstate*256);
-				Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
-			}
-			else
+			if (kb)
 			{
-				Cbuf_AddText (kb, bindcmdlevel[key][keystate]);
-				Cbuf_AddText ("\n", bindcmdlevel[key][keystate]);
+				if (kb[0] == '+')
+				{	// button commands add keynum as a parm
+					sprintf (cmd, "+p%i %s %i\n", pnum+1, kb+1, key+oldstate*256);
+					Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
+				}
+				else
+				{
+					sprintf (cmd, "+p%i %s\n", pnum+1, kb+1, key+oldstate*256);
+					Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
+				}
+			}
+		}
+		else
+		{
+			if (kb)
+			{
+				if (kb[0] == '+')
+				{	// button commands add keynum as a parm
+					sprintf (cmd, "%s %i\n", kb, key+oldstate*256);
+					Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
+				}
+				else
+				{
+					Cbuf_AddText (kb, bindcmdlevel[key][keystate]);
+					Cbuf_AddText ("\n", bindcmdlevel[key][keystate]);
+				}
 			}
 		}
 

@@ -419,7 +419,7 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 	if (q3->renderfx & Q3RF_DEPTHHACK)
 		ent.flags |= Q2RF_DEPTHHACK;
 	if (q3->renderfx & Q3RF_THIRD_PERSON)
-		ent.flags |= Q2RF_EXTERNALMODEL;
+		ent.externalmodelview = ~0;
 	if (q3->renderfx & Q3RF_NOSHADOW)
 		ent.flags |= RF_NOSHADOW;
 

@@ -176,7 +176,7 @@ extern char chat_buffer[];
 extern	int chat_bufferlen;
 extern	qboolean	chat_team;
 
-void Key_Event (int key, unsigned int unicode, qboolean down);
+void Key_Event (int pnum, int key, unsigned int unicode, qboolean down);
 void Key_Init (void);
 void Key_WriteBindings (vfsfile_t *f);
 void Key_SetBinding (int keynum, int modifier, char *binding, int cmdlevel);

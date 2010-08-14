@@ -1814,7 +1814,8 @@ client_t *SVC_DirectConnect(void)
 	else
 		maxpacketentities = MAX_STANDARD_PACKET_ENTITIES;
 
-	if (!sv_allow_splitscreen.ival)
+	/*allow_splitscreen applies only to non-local clients, so that clients have only one enabler*/
+	if (!sv_allow_splitscreen.ival && net_from.type != NA_LOOPBACK)
 		numssclients = 1;
 
 	if (!(protextsupported & PEXT_SPLITSCREEN))

@@ -2012,17 +2012,21 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 		*data = '#';
 	}
 
-	tex = R_FindTexture(name);
+	snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name);
+	tex = R_FindTexture(fname);
 	if (TEXVALID(tex))	//don't bother if it already exists.
 		return tex;
 	if (subpath && *subpath)
 	{
-		snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name);
-		tex = R_FindTexture(fname);
+		tex = R_FindTexture(name);
 		if (TEXVALID(tex))	//don't bother if it already exists.
 			return tex;
 	}
 
+
+	tex = R_LoadCompressed(fname);
+	if (TEXVALID(tex))
+		return tex;
 	tex = R_LoadCompressed(name);
 	if (TEXVALID(tex))
 		return tex;
@@ -2067,7 +2071,7 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 					if (!(flags&IF_NOGAMMA) && !vid_hardwaregamma.value)
 						BoostGamma(data, image_width, image_height);
 					TRACE(("dbg: Mod_LoadHiResTexture: %s loaded\n", name));
-					if (i == 1)
+					if (tex_path[i].args >= 3)
 					{	//if it came from a special subpath (eg: map specific), upload it using the subpath prefix
 						snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name);
 						tex = R_LoadTexture32 (fname, image_width, image_height, data, flags);

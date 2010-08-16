@@ -757,12 +757,13 @@ void TL_InitLanguages(void)
 
 
 
+#ifndef CLIENTONLY
 //this stuff is for hexen2 translation strings.
 //(hexen2 is uuuuggllyyyy...)
-char *strings_list;
-char **strings_table;
-int strings_count;
-qboolean strings_loaded;
+static char *strings_list;
+static char **strings_table;
+static int strings_count;
+static qboolean strings_loaded;
 void T_FreeStrings(void)
 {	//on map change, following gamedir change
 	if (strings_loaded)
@@ -822,4 +823,70 @@ char *T_GetString(int num)
 
 	return strings_table[num];
 }
+#endif
 
+#ifndef SERVERONLY
+static char *info_strings_list;
+static char **info_strings_table;
+static int info_strings_count;
+static qboolean info_strings_loaded;
+void T_FreeInfoStrings(void)
+{	//on map change, following gamedir change
+	if (info_strings_loaded)
+	{
+		BZ_Free(info_strings_list);
+		BZ_Free(info_strings_table);
+		info_strings_count = 0;
+		info_strings_loaded = false;
+	}
+}
+void T_LoadInfoString(void)
+{
+	int i;
+	char *s, *s2;
+	//count new lines
+	info_strings_loaded = true;
+	info_strings_count = 0;
+	info_strings_list = FS_LoadMallocFile("infolist.txt");
+	if (!info_strings_list)
+		return;
+
+	for (s = info_strings_list; *s; s++)
+	{
+		if (*s == '\n')
+			info_strings_count++;
+	}
+	info_strings_table = BZ_Malloc(sizeof(char*)*info_strings_count);
+
+	s = info_strings_list;
+	for (i = 0; i < info_strings_count; i++)
+	{
+		info_strings_table[i] = s;
+		s2 = strchr(s, '\n');
+		if (!s2)
+			break;
+
+		while (s < s2)
+		{
+			if (*s == '\r')
+				*s = '\0';
+			else if (*s == '^' || *s == '@')	//becomes new line
+				*s = '\n';
+			s++;
+		}
+		s = s2+1;
+		*s2 = '\0';
+	}
+}
+char *T_GetInfoString(int num)
+{
+	if (!info_strings_loaded)
+	{
+		T_LoadInfoString();
+	}
+	if (num<0 || num >= info_strings_count)
+		return "BAD STRING";
+
+	return info_strings_table[num];
+}
+#endif

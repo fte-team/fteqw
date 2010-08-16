@@ -221,7 +221,7 @@ void PF_cl_findkeysforcommand (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	int keynums[2];
 	char keyname[512];
 
-	M_FindKeysForCommand(cmdname, keynums);
+	M_FindKeysForCommand(0, cmdname, keynums);
 
 	keyname[0] = '\0';
 

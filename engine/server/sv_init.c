@@ -1077,12 +1077,14 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		ent = EDICT_NUM(svprogfuncs, 0);
 		ent->isfree = false;
 
+#ifndef SERVERONLY
 		/*force coop 1 if splitscreen and not deathmatch*/
 		{
 		extern cvar_t cl_splitscreen;
 		if (cl_splitscreen.value && !deathmatch.value && !coop.value)
 			Cvar_Set(&coop, "1");
 		}
+#endif
 		/*only make one slot for single-player*/
 		if (!isDedicated && !deathmatch.value && !coop.value)
 			sv.allocated_client_slots = 1;
@@ -1454,6 +1456,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	SCR_ImageName(server);
 #endif
 
+	/*DP_BOTCLIENT bots should move over to the new map too*/
 	if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
 	{
 		for (i = 0; i < sv.allocated_client_slots; i++)

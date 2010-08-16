@@ -3321,6 +3321,23 @@ void SV_Impulse_f (void)
 	svs.clients[i].state = cs_free;
 }
 
+static void SV_PauseChanged(void)
+{
+	int i;
+	client_t *cl;
+	// send notification to all clients
+	for (i=0, cl = svs.clients ; i<MAX_CLIENTS ; i++, cl++)
+	{
+		if (!cl->state)
+			continue;
+		if ((ISQWCLIENT(cl) || ISNQCLIENT(cl)) && !cl->controller)
+		{
+			ClientReliableWrite_Begin (cl, svc_setpause, 2);
+			ClientReliableWrite_Byte (cl, sv.paused!=0);
+		}
+	}
+}
+
 /*
 ==================
 SV_Frame
@@ -3333,6 +3350,7 @@ void SV_Frame (void)
 	static double	start, end;
 	float oldtime;
 	qboolean isidle;
+	static int oldpaused;
 
 	start = Sys_DoubleTime ();
 	svs.stats.idle += start - end;
@@ -3344,6 +3362,16 @@ void SV_Frame (void)
 
 	if (!sv.gamespeed)
 		sv.gamespeed = 1;
+
+#ifndef SERVERONLY
+	sv.paused = (sv.paused & ~4) | ((!isDedicated && sv.allocated_client_slots == 1 && key_dest != key_game)?4:0);
+#endif
+
+	if (oldpaused != sv.paused)
+	{
+		SV_PauseChanged();
+		oldpaused = sv.paused;
+	}
 
 // decide the simulation time
 	{
@@ -3358,9 +3386,7 @@ void SV_Frame (void)
 			sv.time = oldtime;	//and keep time as it was.
 		}
 
-#ifndef SERVERONLY
 		if (isDedicated)
-#endif
 			realtime += sv.time - oldtime;
 
 	}

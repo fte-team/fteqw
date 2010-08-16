@@ -540,9 +540,10 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 					Draw_FunString(x, y, option->bind.caption);
 				x += strlen(option->bind.caption)*8+28;
 				{
+					extern cvar_t cl_forcesplitclient;
 					l = strlen (option->bind.command);
 
-					M_FindKeysForCommand (option->bind.command, keys);
+					M_FindKeysForCommand (cl_forcesplitclient.ival, option->bind.command, keys);
 
 					if (bindingactive && menu->selecteditem == option)
 					{

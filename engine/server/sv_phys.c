@@ -1180,12 +1180,23 @@ FIXME: is this true?
 static void SV_Physics_Step (edict_t *ent)
 {
 	qboolean	hitsound;
+	qboolean	freefall;
+	int fl = ent->v->flags;
 
-	if (ent->v->velocity[2] >= (1.0 / 32.0) && ((int)ent->v->flags & FL_ONGROUND))
-		ent->v->flags = (int)ent->v->flags & ~FL_ONGROUND;
+	if (ent->v->velocity[2] >= (1.0 / 32.0) && (fl & FL_ONGROUND))
+	{
+		fl &= ~FL_ONGROUND;
+		ent->v->flags = fl;
+	}
 
 // frefall if not onground
-	if ( ! ((int)ent->v->flags & (FL_ONGROUND | FL_FLY | FL_SWIM) ) )
+	if (fl & (FL_ONGROUND | FL_FLY))
+		freefall = false;
+	else
+		freefall = true;
+	if (fl & FL_SWIM)
+		freefall = ent->v->waterlevel > 0;
+	if (freefall)
 	{
 		hitsound = ent->v->velocity[2] < movevars.gravity*-0.1;
 
@@ -1858,12 +1869,12 @@ void SV_RunEntity (edict_t *ent)
 	case MOVETYPE_FOLLOW:
 		SV_Physics_Follow (ent);
 		break;
+	case MOVETYPE_FLY:
+	case MOVETYPE_H2SWIM:
 	case MOVETYPE_TOSS:
 	case MOVETYPE_BOUNCE:
 	case MOVETYPE_BOUNCEMISSILE:
-	case MOVETYPE_FLY:
 	case MOVETYPE_FLYMISSILE:
-	case MOVETYPE_H2SWIM:
 		SV_Physics_Toss (ent);
 		break;
 	case MOVETYPE_WALK:

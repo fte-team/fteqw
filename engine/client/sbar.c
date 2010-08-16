@@ -80,6 +80,7 @@ cvar_t sbar_teamstatus = SCVAR("sbar_teamstatus", "1");
 int			sb_updates;		// if >= vid.numpages, no update needed
 int			sb_hexen2_cur_item;//hexen2 hud
 qboolean	sb_hexen2_extra_info;//show the extra stuff
+qboolean	sb_hexen2_infoplaque;
 float		sb_hexen2_item_time;
 
 qboolean	sbar_parsingteamstatuses;	//so we don't eat it if its not displayed
@@ -688,15 +689,21 @@ void Sbar_Hexen2InvUse_f(void)
 {
 	Cbuf_AddText(va("impulse %d\n", 100+sb_hexen2_cur_item), Cmd_ExecLevel);
 }
-
 void Sbar_Hexen2ShowInfo_f(void)
 {
 	sb_hexen2_extra_info = true;
 }
-
 void Sbar_Hexen2DontShowInfo_f(void)
 {
 	sb_hexen2_extra_info = false;
+}
+void Sbar_Hexen2PInfoPlaque_f(void)
+{
+	sb_hexen2_infoplaque = true;
+}
+void Sbar_Hexen2MInfoPlaque_f(void)
+{
+	sb_hexen2_infoplaque = false;
 }
 
 /*
@@ -913,6 +920,8 @@ void Sbar_Init (void)
 	Cmd_AddCommand ("invuse", Sbar_Hexen2InvUse_f);
 	Cmd_AddCommand ("+showinfo", Sbar_Hexen2ShowInfo_f);
 	Cmd_AddCommand ("-showinfo", Sbar_Hexen2DontShowInfo_f);
+	Cmd_AddCommand ("+infoplaque", Sbar_Hexen2PInfoPlaque_f);
+	Cmd_AddCommand ("-infoplaque", Sbar_Hexen2MInfoPlaque_f);
 	Cbuf_AddText("alias +crouch \"impulse 22\"\n", RESTRICT_LOCAL);
 	Cbuf_AddText("alias -crouch \"impulse 22\"\n", RESTRICT_LOCAL);
 }
@@ -1848,6 +1857,18 @@ void Sbar_Hexen2DrawExtra (int pnum)
 		"Demoness"
 	};
 
+	if (sb_hexen2_infoplaque)
+	{
+		int i;
+		Con_Printf("Objectives:\n");
+		for (i = 0; i < 64; i++)
+		{
+			if (cl.stats[pnum][STAT_H2_OBJECTIVE1 + i/32] & (1<<(i&31)))
+				Con_Printf("%s\n", T_GetInfoString(i));
+		}
+		sb_hexen2_infoplaque = false;
+	}
+
 	if (!sb_hexen2_extra_info)
 	{
 		sbar_rect.y -= 46-SBAR_HEIGHT;
@@ -2556,10 +2577,18 @@ void Sbar_DeathmatchOverlay (int start)
 		skip = 8;
 
 // request new ping times every two second
-	if (realtime - cl.last_ping_request > 2	&& cls.protocol == CP_QUAKEWORLD && cls.demoplayback != DPB_EZTV)
+	if (realtime - cl.last_ping_request > 2	&& cls.demoplayback != DPB_EZTV)
 	{
-		cl.last_ping_request = realtime;
-		CL_SendClientCommand(true, "pings");
+		if (cls.protocol == CP_QUAKEWORLD)
+		{
+			cl.last_ping_request = realtime;
+			CL_SendClientCommand(true, "pings");
+		}
+		else if (cls.protocol == CP_NETQUAKE)
+		{
+			cl.last_ping_request = realtime;
+			CL_SendClientCommand(true, "ping");
+		}
 	}
 
 	if (start)
@@ -2604,8 +2633,11 @@ void Sbar_DeathmatchOverlay (int start)
 //columns are listed here in priority order (if the screen is too narrow, later ones will be hidden)
 	COLUMN_NAME
 	COLUMN_PING
-	COLUMN_PL
-	COLUMN_TIME
+	if (cls.protocol == CP_QUAKEWORLD)
+	{
+		COLUMN_PL
+		COLUMN_TIME
+	}
 	COLUMN_FRAGS
 	if (cl.teamplay)
 	{

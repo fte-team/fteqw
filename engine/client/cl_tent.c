@@ -170,19 +170,6 @@ typedef enum
 #define Q2SPLASH_BLOOD		6
 #endif
 
-
-
-	// hexen 2
-#define TE_STREAM_CHAIN			25
-#define TE_STREAM_SUNSTAFF1		26
-#define TE_STREAM_SUNSTAFF2		27
-#define TE_STREAM_LIGHTNING		28
-#define TE_STREAM_COLORBEAM		29
-#define TE_STREAM_ICECHUNKS		30
-#define TE_STREAM_GAZE			31
-#define TE_STREAM_FAMINE		32
-
-
 #define	MAX_BEAMS	64
 typedef struct
 {
@@ -620,7 +607,7 @@ void CL_ParseStream (int type)
 	flags-=tag;
 	duration = (float)MSG_ReadByte()*0.05;
 	skin = 0;
-	if(type == TE_STREAM_COLORBEAM)
+	if(type == TEH2_STREAM_COLORBEAM)
 	{
 		skin = MSG_ReadByte();
 	}
@@ -649,13 +636,23 @@ void CL_ParseStream (int type)
 
 	switch(type)
 	{
-	case TE_STREAM_ICECHUNKS:
+	case TEH2_STREAM_LIGHTNING_SMALL:
+		b->model = 	Mod_ForName("models/stltng2.mdl", true);
+		b->flags |= 2;
+		b->particleeffect = P_FindParticleType("te_stream_lightning_small");
+		break;
+	case TEH2_STREAM_LIGHTNING:
+		b->model = 	Mod_ForName("models/stlghtng.mdl", true);
+		b->flags |= 2;
+		b->particleeffect = P_FindParticleType("te_stream_lightning");
+		break;
+	case TEH2_STREAM_ICECHUNKS:
 		b->model = 	Mod_ForName("models/stice.mdl", true);
 		b->flags |= 2;
 		b->particleeffect = P_FindParticleType("te_stream_icechunks");
 		R_AddStain(end, -10, -10, 0, 20);
 		break;
-	case TE_STREAM_SUNSTAFF1:
+	case TEH2_STREAM_SUNSTAFF1:
 		b->model = Mod_ForName("models/stsunsf1.mdl", true);
 		b->particleeffect = P_FindParticleType("te_stream_sunstaff1");
 		if (b->particleeffect < 0)
@@ -669,10 +666,13 @@ void CL_ParseStream (int type)
 			}
 		}
 		break;
-	case TE_STREAM_SUNSTAFF2:
+	case TEH2_STREAM_SUNSTAFF2:
 		b->model = 	Mod_ForName("models/stsunsf1.mdl", true);
 		b->particleeffect = P_FindParticleType("te_stream_sunstaff2");
 		R_AddStain(end, -10, -10, -10, 20);
+		break;
+	default:
+		Con_Printf("Oh noes! type %i\n", type);
 		break;
 	}
 }
@@ -1142,14 +1142,15 @@ void CL_ParseTEnt (void)
 				P_ParticleTrailIndex(pos, pos2, 208, 8, NULL);
 		break;
 
-	case TE_STREAM_CHAIN:
-	case TE_STREAM_SUNSTAFF1:
-	case TE_STREAM_SUNSTAFF2:
-	case TE_STREAM_LIGHTNING:
-	case TE_STREAM_COLORBEAM:
-	case TE_STREAM_ICECHUNKS:
-	case TE_STREAM_GAZE:
-	case TE_STREAM_FAMINE:
+	case TEH2_STREAM_LIGHTNING_SMALL:
+	case TEH2_STREAM_CHAIN:
+	case TEH2_STREAM_SUNSTAFF1:
+	case TEH2_STREAM_SUNSTAFF2:
+	case TEH2_STREAM_LIGHTNING:
+	case TEH2_STREAM_COLORBEAM:
+	case TEH2_STREAM_ICECHUNKS:
+	case TEH2_STREAM_GAZE:
+	case TEH2_STREAM_FAMINE:
 		CL_ParseStream (type);
 		break;
 

@@ -2139,8 +2139,6 @@ void CL_ParseServerData (void)
 		if (!sv.state)
 #endif
 			Wads_Flush();
-
-		T_FreeStrings();
 	}
 
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
@@ -2399,15 +2397,15 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	cls.protocol_nq = 0;
 	cls.z_ext = 0;
 
-	if (protover == 250)
+	if (protover == NEHD_PROTOCOL_VERSION)
 		Host_EndGame ("Nehahra demo net protocol is not supported\n");
-	else if (protover == 666)
+	else if (protover == FITZ_PROTOCOL_VERSION)
 	{
 		//fitzquake 0.85
 		cls.protocol_nq = CPNQ_FITZ666;
 		Con_DPrintf("FitzQuake 666 protocol\n");
 	}
-	else if (protover == 3502)
+	else if (protover == DP5_PROTOCOL_VERSION)
 	{
 		//darkplaces5
 		cls.protocol_nq = CPNQ_DP5;
@@ -2437,6 +2435,10 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 		cls.z_ext = Z_EXT_VIEWHEIGHT;
 
 		Con_DPrintf("DP7 protocols\n");
+	}
+	else if (protover == H2_PROTOCOL_VERSION)
+	{
+		Host_EndGame ("\nUnable to connect to Hexen2 servers.\n");
 	}
 	else if (protover != NQ_PROTOCOL_VERSION)
 	{
@@ -4692,7 +4694,7 @@ void CL_DumpPacket(void)
 		for (i = 0; i < 16; i++)
 		{
 			if (pos >= net_message.cursize)
-				Con_Printf(" X ");
+				Con_Printf(" - ");
 			else
 				Con_Printf("%2x ", (unsigned char)packet[pos]);
 			pos++;
@@ -5490,6 +5492,65 @@ void CLNQ_ParseProQuakeMessage (char *s)
 	}
 }
 
+static enum {
+	CLNQPP_NONE,
+	CLNQPP_PINGS
+} cl_nqparseprint;
+qboolean CLNQ_ParseNQPrints(char *s)
+{
+	int i;
+	char *start = s;
+	if (cl_nqparseprint == CLNQPP_PINGS)
+	{
+		char *pingstart;
+		cl_nqparseprint = CLNQPP_NONE;
+		while(*s == ' ')
+			s++;
+		pingstart = s;
+		if (*s == '-')
+			s++;
+		if (*s >= '0' && *s <= '9')
+		{			
+			while(*s >= '0' && *s <= '9')
+				s++;
+			if (*s == ' ' && s-start >= 4)
+			{
+				s++;
+				start = s;
+				s = strchr(s, '\n');
+				if (!s)
+					return false;
+				*s = 0;
+
+				for (i = 0; i < MAX_CLIENTS; i++)
+				{
+					if (!strcmp(start, cl.players[i].name))
+						break;
+				}
+				if (i == MAX_CLIENTS)
+				{
+
+				}
+				if (i != MAX_CLIENTS)
+				{
+					cl.players[i].ping = atoi(pingstart);
+				}
+				cl_nqparseprint = CLNQPP_PINGS;
+				return true;
+			}
+		}
+
+		s = start;
+	}
+
+	if (!strcmp(s, "Client ping times:\n"))
+	{
+		cl_nqparseprint = CLNQPP_PINGS;
+		return true;
+	}
+
+	return false;
+}
 
 void CLNQ_ParseServerMessage (void)
 {
@@ -5572,6 +5633,8 @@ void CLNQ_ParseServerMessage (void)
 			}
 			else
 			{
+				if (CLNQ_ParseNQPrints(s))
+					break;
 #ifdef PLUGINS
 				if (Plug_ServerMessage(s, PRINT_HIGH))
 #endif

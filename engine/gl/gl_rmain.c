@@ -1616,22 +1616,28 @@ qboolean R_RenderScene_Fish(void)
 	vec3_t saveang;
 	int rot45 = 0;
 
-#pragma message("backend fixme")
-	Con_Printf("fisheye/panorama is not updated for the backend\n");
+	vrect_t vrect;
+	vrect_t prect;
+
+	SCR_VRectForPlayer(&vrect, r_refdef.currentplayernum);
+	prect.x = (vrect.x * vid.pixelwidth)/vid.width;
+	prect.width = (vrect.width * vid.pixelwidth)/vid.width;
+	prect.y = (vrect.y * vid.pixelheight)/vid.height;
+	prect.height = (vrect.height * vid.pixelheight)/vid.height;
 
 	if (!scenepp_panorama_program)
 		return false;
 
 	if (gl_config.arb_texture_non_power_of_two)
 	{
-		if (vid.pixelwidth < vid.pixelheight)
-			cmapsize = vid.pixelwidth;
+		if (prect.width < prect.height)
+			cmapsize = prect.width;
 		else
-			cmapsize = vid.pixelheight;
+			cmapsize = prect.height;
 	}
 	else
 	{
-		while (cmapsize > vid.pixelwidth || cmapsize > vid.pixelheight)
+		while (cmapsize > prect.width || cmapsize > prect.height)
 		{
 			cmapsize /= 2;
 		}
@@ -1684,8 +1690,6 @@ qboolean R_RenderScene_Fish(void)
 		order[5] = 5;
 	}
 
-	qglViewport (0, vid.pixelheight - cmapsize, cmapsize, cmapsize);
-
 	if (!TEXVALID(scenepp_fisheye_texture))
 	{
 		scenepp_fisheye_texture = GL_AllocNewTexture();
@@ -1705,10 +1709,10 @@ qboolean R_RenderScene_Fish(void)
 		qglDisable(GL_TEXTURE_CUBE_MAP_ARB);
 	}
 
-	r_refdef.vrect.width = (cmapsize+0.99)*vid.width/vid.pixelwidth;
-	r_refdef.vrect.height = (cmapsize+0.99)*vid.height/vid.pixelheight;
+	r_refdef.vrect.width = cmapsize;
+	r_refdef.vrect.height = cmapsize;
 	r_refdef.vrect.x = 0;
-	r_refdef.vrect.y = vid.height - r_refdef.vrect.height;
+	r_refdef.vrect.y = prect.y;
 
 	ang[0][0] = -saveang[0];
 	ang[0][1] = -90;
@@ -1738,13 +1742,13 @@ qboolean R_RenderScene_Fish(void)
 		qglDisable(GL_TEXTURE_2D);
 		qglEnable(GL_TEXTURE_CUBE_MAP_ARB);
 		GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture);
-		qglCopyTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + order[i], 0, 0, 0, 0, 0, cmapsize, cmapsize);
+		qglCopyTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + order[i], 0, 0, 0, 0, vid.pixelheight - (prect.y + cmapsize), cmapsize, cmapsize);
 		qglEnable(GL_TEXTURE_2D);
 		qglDisable(GL_TEXTURE_CUBE_MAP_ARB);
 	}
 
 //qglClear (GL_COLOR_BUFFER_BIT);
-	qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
+	qglViewport (prect.x, vid.pixelheight - (prect.y+prect.height), prect.width, prect.height);
 
 	qglDisable(GL_TEXTURE_2D);
 	GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture);
@@ -1766,7 +1770,7 @@ qboolean R_RenderScene_Fish(void)
 	qglMatrixMode(GL_PROJECTION);
 	qglPushMatrix();
 	qglLoadIdentity ();
-	qglOrtho  (0, vid.pixelwidth, 0, vid.pixelheight, -99999, 99999);
+	qglOrtho  (0, vid.width, vid.height, 0, -99999, 99999);
 	qglMatrixMode(GL_MODELVIEW);
 	qglPushMatrix();
 	qglLoadIdentity ();
@@ -1776,14 +1780,14 @@ qboolean R_RenderScene_Fish(void)
 	qglDisable (GL_ALPHA_TEST);
 	qglDisable(GL_BLEND);
 	qglBegin(GL_QUADS);
-	qglTexCoord2f(-0.5, -0.5);
-	qglVertex2f(0, 0);
-	qglTexCoord2f(0.5, -0.5);
-	qglVertex2f(vid.pixelwidth, 0);
-	qglTexCoord2f(0.5, 0.5);
-	qglVertex2f(vid.pixelwidth, vid.pixelheight);
 	qglTexCoord2f(-0.5, 0.5);
-	qglVertex2f(0, vid.pixelheight);
+	qglVertex2f(0, 0);
+	qglTexCoord2f(0.5, 0.5);
+	qglVertex2f(vid.width, 0);
+	qglTexCoord2f(0.5, -0.5);
+	qglVertex2f(vid.width, vid.height);
+	qglTexCoord2f(-0.5, -0.5);
+	qglVertex2f(0, vid.height);
 	qglEnd();
 
 	qglMatrixMode(GL_PROJECTION);
@@ -1795,6 +1799,9 @@ qboolean R_RenderScene_Fish(void)
 	qglEnable(GL_TEXTURE_2D);
 
 	GLSlang_UseProgram(0);
+
+	qglEnable (GL_DEPTH_TEST);
+	PPL_RevertToKnownState();
 
 	return true;
 }

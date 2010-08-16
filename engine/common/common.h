@@ -434,6 +434,8 @@ int build_number( void );
 void TL_InitLanguages(void);
 void T_FreeStrings(void);
 char *T_GetString(int num);
+void T_FreeInfoStrings(void);
+char *T_GetInfoString(int num);
 
 //
 // log.c

@@ -31,7 +31,7 @@ sizebuf_t	net_message;
 
 //#define	MAX_UDP_PACKET	(MAX_MSGLEN*2)	// one more than msg + header
 #define	MAX_UDP_PACKET	8192	// one more than msg + header
-qbyte		net_message_buffer[MAX_UDP_PACKET];
+qbyte		net_message_buffer[MAX_OVERALLMSGLEN];
 #ifdef _WIN32
 WSADATA		winsockdata;
 #endif

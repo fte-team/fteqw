@@ -1024,7 +1024,7 @@ void SVHL_Physics_Toss (hledict_t *ent)
 	if (ent->v.movetype != MOVETYPE_FLY
 		&& ent->v.movetype != MOVETYPE_FLYMISSILE
 		&& ent->v.movetype != MOVETYPE_BOUNCEMISSILE
-		&& ent->v.movetype != MOVETYPE_SWIM)
+		&& ent->v.movetype != MOVETYPE_H2SWIM)
 		SVHL_AddGravity (ent, 1.0);
 
 // move angles

@@ -1834,6 +1834,7 @@ const gamemode_info_t gamemode_info[] = {
 	{"FTE-Quake2",			"q2",			"-q2",			"baseq2/pak0.pak",	NULL,	{"baseq2",						"fteq2"},	"Quake II"},
 	{"FTE-Quake3",			"q3",			"-q3",			"baseq3/pak0.pk3",	NULL,	{"baseq3",						"fteq3"},	"Quake III Arena"},
 	{"FTE-Quake4",			"q4",			"-q4",			"q4base/pak00.pk4",	NULL,	{"q4base",						"fteq4"},	"Quake 4"},
+	{"FTE-EnemyTerritory",	"et",			"-et",			"etmain/pak0.pk3",	NULL,	{"etmain",						"fteet"},	"Wolfenstein - Enemy Territory"},
 
 	{"FTE-JK2",				"jk2",			"-jk2",			"base/assets0.pk3",	NULL,	{"base",						"fte"},		"Jedi Knight II: Jedi Outcast"},
 
@@ -2039,6 +2040,29 @@ void FS_ReloadPackFiles_f(void)
 #define byte BYTE	//some versions of mingw headers are broken slightly. this lets it compile.
 #endif
 #include <shlobj.h>
+static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir, char *fname)
+{
+	/*
+	Find where Valve's Steam distribution platform is installed.
+	Then take a look at that location for the relevent installed app.
+	*/
+	FILE *f;
+	DWORD resultlen;
+	HKEY key = NULL;
+	if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Valve\\Steam", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
+	{
+		resultlen = basepathlen;
+		RegQueryValueEx(key, "InstallPath", NULL, NULL, basepath, &resultlen);
+		RegCloseKey(key);
+		Q_strncatz(basepath, va("/SteamApps/common/%s", steamdir), basepathlen);
+		if (f = fopen(va("%s/%s", basepath, fname), "rb"))
+		{
+			fclose(f);
+			return true;
+		}
+	}
+	return false;
+}
 qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen)
 {
 	DWORD resultlen;
@@ -2067,23 +2091,14 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 
 	if (!strcmp(gamename, "q1"))
 	{
+		FILE *f;
+
 		//try and find it via steam
 		//reads HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam\InstallPath
 		//append SteamApps\common\quake
 		//use it if we find winquake.exe there
-		FILE *f;
-		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Valve\\Steam", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
-		{
-			resultlen = basepathlen;
-			RegQueryValueEx(key, "InstallPath", NULL, NULL, basepath, &resultlen);
-			RegCloseKey(key);
-			Q_strncatz(basepath, "/SteamApps/common/quake", basepathlen);
-			if (f = fopen(va("%s/Winquake.exe", basepath), "rb"))
-			{
-				fclose(f);
-				return true;
-			}
-		}
+		if (Sys_SteamHasFile(basepath, basepathlen, "quake", "Winquake.exe"))
+			return true;
 		//well, okay, so they don't have quake installed from steam.
 
 		//quite a lot of people have it in c:\quake, as that's the default install location from the quake cd.
@@ -2098,26 +2113,9 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 
 	if (!strcmp(gamename, "q2"))
 	{
-		//try and find it via steam
-		//reads HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam\InstallPath
-		//append SteamApps\common\quake 2
-		//use it if we find quake2.exe there
 		FILE *f;
 		DWORD resultlen;
 		HKEY key = NULL;
-		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Valve\\Steam", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
-		{
-			resultlen = basepathlen;
-			RegQueryValueEx(key, "InstallPath", NULL, NULL, basepath, &resultlen);
-			RegCloseKey(key);
-			Q_strncatz(basepath, "/SteamApps/common/quake 2", basepathlen);
-			if (f = fopen(va("%s/quake2.exe", basepath), "rb"))
-			{
-				fclose(f);
-				return true;
-			}
-		}
-		//well, okay, so they don't have quake2 installed from steam.
 
 		//look for HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Quake2_exe\Path
 		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Quake2_exe", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
@@ -2131,20 +2129,54 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 				return true;
 			}
 		}
+
+		if (Sys_SteamHasFile(basepath, basepathlen, "quake 2", "quake2.exe"))
+			return true;
+	}
+
+	if (!strcmp(gamename, "et"))
+	{
+		FILE *f;
+		DWORD resultlen;
+		HKEY key = NULL;
+		//reads HKEY_LOCAL_MACHINE\SOFTWARE\Activision\Wolfenstein - Enemy Territory
+		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Activision\\Wolfenstein - Enemy Territory", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
+		{
+			resultlen = basepathlen;
+			RegQueryValueEx(key, "InstallPath", NULL, NULL, basepath, &resultlen);
+			RegCloseKey(key);
+
+			if (f = fopen(va("%s/ET.exe", basepath), "rb"))
+			{
+				fclose(f);
+				return true;
+			}
+			return true;
+		}
 	}
 
 	if (!strcmp(gamename, "q3"))
 	{
+		FILE *f;
 		DWORD resultlen;
 		HKEY key = NULL;
+
 		//reads HKEY_LOCAL_MACHINE\SOFTWARE\id\Quake III Arena\InstallPath
 		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\id\\Quake III Arena", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
 		{
 			resultlen = basepathlen;
 			RegQueryValueEx(key, "InstallPath", NULL, NULL, basepath, &resultlen);
 			RegCloseKey(key);
-			return true;
+
+			if (f = fopen(va("%s/quake3.exe", basepath), "rb"))
+			{
+				fclose(f);
+				return true;
+			}
 		}
+
+		if (Sys_SteamHasFile(basepath, basepathlen, "quake 3 arena", "quake3.exe"))
+			return true;
 	}
 
 	if (!strcmp(gamename, "wop"))
@@ -2179,9 +2211,9 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 
 	if (!strcmp(gamename, "h2"))
 	{
-		//try and find it via steam
-		//reads HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam\InstallPath
 		//append SteamApps\common\hexen 2
+		if (Sys_SteamHasFile(basepath, basepathlen, "hexen 2", "h2.exe"))
+			return true;
 	}
 
 #if !defined(NPQTV) && !defined(SERVERONLY) //this is *really* unfortunate, but doing this crashes the browser
@@ -2263,6 +2295,77 @@ void FS_Shutdown(void)
 
 	com_fschanged = true;
 
+}
+
+void FS_StartupWithGame(int gamenum)
+{
+	int i;
+
+	Cvar_Set(&com_gamename, gamemode_info[gamenum].protocolname);
+
+//
+// start up with id1 by default
+//
+	i = COM_CheckParm ("-basegame");
+	if (i && i < com_argc-1)
+	{
+		do	//use multiple -basegames
+		{
+			FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_quakedir, com_argv[i+1]), ~0);
+			if (*com_homedir)
+				FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_homedir, com_argv[i+1]), ~0);
+
+			i = COM_CheckNextParm ("-basegame", i);
+		}
+		while (i && i < com_argc-1);
+	}
+	else
+	{
+		for (i = 0; i < sizeof(gamemode_info[gamenum].dir)/sizeof(gamemode_info[gamenum].dir[0]); i++)
+		{
+			if (gamemode_info[gamenum].dir[i])
+			{
+				FS_AddGameDirectory (gamemode_info[gamenum].dir[i], va("%s%s", com_quakedir, gamemode_info[gamenum].dir[i]), ~0);
+				if (*com_homedir)
+					FS_AddGameDirectory (gamemode_info[gamenum].dir[i], va("%s%s", com_homedir, gamemode_info[gamenum].dir[i]), ~0);
+			}
+		}
+	}
+
+	i = COM_CheckParm ("-addbasegame");
+	while (i && i < com_argc-1)	//use multiple -addbasegames (this is so the basic dirs don't die)
+	{
+		FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_quakedir, com_argv[i+1]), ~0);
+		if (*com_homedir)
+			FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_homedir, com_argv[i+1]), ~0);
+
+		i = COM_CheckNextParm ("-addbasegame", i);
+	}
+
+	// any set gamedirs will be freed up to here
+	com_base_searchpaths = com_searchpaths;
+
+	//-game specifies the mod gamedir to use in NQ
+	i = COM_CheckParm ("-game");	//effectivly replace with +gamedir x (But overridable)
+	if (i && i < com_argc-1)
+	{
+		COM_Gamedir(com_argv[i+1]);
+	}
+
+	//+gamedir specifies the mod gamedir to use in QW
+	//hack - we parse the commandline after the config so commandline always overrides
+	//but this means ktpro/server.cfg (for example) is not found
+	//so if they specify a gamedir on the commandline, let the default configs be loaded from that gamedir
+	//note that -game +gamedir will result in both being loaded. but hey, who cares
+	i = COM_CheckParm ("+gamedir");	//effectivly replace with +gamedir x (But overridable)
+	if (i && i < com_argc-1)
+	{
+		COM_Gamedir(com_argv[i+1]);
+	}
+
+
+	if (gamemode_info[gamenum].customexec)
+		Cbuf_AddText(gamemode_info[gamenum].customexec, RESTRICT_LOCAL);
 }
 
 /*
@@ -2375,11 +2478,6 @@ void COM_InitFilesystem (void)
 		}
 	}
 
-	Cvar_Set(&com_gamename, gamemode_info[gamenum].protocolname);
-
-	if (gamemode_info[gamenum].customexec)
-		Cbuf_AddText(gamemode_info[gamenum].customexec, RESTRICT_LOCAL);
-
 	usehome = false;
 
 #ifdef _WIN32
@@ -2414,6 +2512,7 @@ void COM_InitFilesystem (void)
 		//as a browser plugin, always use their home directory
 		usehome = true;
 #else
+		/*would it not be better to just check to see if we have write permission to the basedir?*/
 		if (winver >= 0x6) // Windows Vista and above
 			usehome = true; // always use home directory by default, as Vista+ mimics this behavior anyway
 		else if (winver >= 0x5) // Windows 2000/XP/2003
@@ -2488,67 +2587,8 @@ void COM_InitFilesystem (void)
 	if (*com_homedir)
 		Con_Printf("Using home directory \"%s\"\n", com_homedir);
 
-//
-// start up with id1 by default
-//
-	i = COM_CheckParm ("-basegame");
-	if (i && i < com_argc-1)
-	{
-		do	//use multiple -basegames
-		{
-			FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_quakedir, com_argv[i+1]), ~0);
-			if (*com_homedir)
-				FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_homedir, com_argv[i+1]), ~0);
 
-			i = COM_CheckNextParm ("-basegame", i);
-		}
-		while (i && i < com_argc-1);
-	}
-	else
-	{
-		for (i = 0; i < sizeof(gamemode_info[gamenum].dir)/sizeof(gamemode_info[gamenum].dir[0]); i++)
-		{
-			if (gamemode_info[gamenum].dir[i])
-			{
-				FS_AddGameDirectory (gamemode_info[gamenum].dir[i], va("%s%s", com_quakedir, gamemode_info[gamenum].dir[i]), ~0);
-				if (*com_homedir)
-					FS_AddGameDirectory (gamemode_info[gamenum].dir[i], va("%s%s", com_homedir, gamemode_info[gamenum].dir[i]), ~0);
-			}
-		}
-	}
-
-
-	i = COM_CheckParm ("-addbasegame");
-	while (i && i < com_argc-1)	//use multiple -addbasegames (this is so the basic dirs don't die)
-	{
-		FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_quakedir, com_argv[i+1]), ~0);
-		if (*com_homedir)
-			FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_homedir, com_argv[i+1]), ~0);
-
-		i = COM_CheckNextParm ("-addbasegame", i);
-	}
-
-
-	// any set gamedirs will be freed up to here
-	com_base_searchpaths = com_searchpaths;
-
-	//-game specifies the mod gamedir to use in NQ
-	i = COM_CheckParm ("-game");	//effectivly replace with +gamedir x (But overridable)
-	if (i && i < com_argc-1)
-	{
-		COM_Gamedir(com_argv[i+1]);
-	}
-
-	//+gamedir specifies the mod gamedir to use in QW
-	//hack - we parse the commandline after the config so commandline always overrides
-	//but this means ktpro/server.cfg (for example) is not found
-	//so if they specify a gamedir on the commandline, let the default configs be loaded from that gamedir
-	//note that -game +gamedir will result in both being loaded. but hey, who cares
-	i = COM_CheckParm ("+gamedir");	//effectivly replace with +gamedir x (But overridable)
-	if (i && i < com_argc-1)
-	{
-		COM_Gamedir(com_argv[i+1]);
-	}
+	FS_StartupWithGame(gamenum);
 }
 
 

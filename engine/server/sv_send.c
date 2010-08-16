@@ -689,7 +689,9 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				// -1 is because pvs rows are 1 based, not 0 based like leafs
 				if (mask != sv.pvs)
 				{
-					leafnum = sv.world.worldmodel->funcs.LeafnumForPoint (sv.world.worldmodel, client->edict->v->origin)-1;
+					vec3_t pos;
+					VectorAdd(client->edict->v->origin, client->edict->v->view_ofs, pos);
+					leafnum = sv.world.worldmodel->funcs.LeafnumForPoint (sv.world.worldmodel, pos)-1;
 					if ( !(mask[leafnum>>3] & (1<<(leafnum&7)) ) )
 					{
 		//				Con_Printf ("PVS supressed multicast\n");
@@ -1280,13 +1282,21 @@ void SV_QCStatGlobal(int type, char *globalname, int statnum)
 {
 	eval_t *glob;
 
+	if (type < 0)
+		return;
+
 	glob = svprogfuncs->FindGlobal(svprogfuncs, globalname, PR_ANY);
 	if (!glob)
 	{
 		Con_Printf("couldn't find named global for csqc stat (%s)\n", globalname);
 		return;
 	}
-	SV_QCStatEval(type, globalname, NULL, glob, statnum);
+	SV_QCStatEval(-type, globalname, NULL, glob, statnum);
+}
+
+void SV_QCStatPtr(int type, void *ptr, int statnum)
+{
+	SV_QCStatEval(-type, "", NULL, ptr, statnum);
 }
 
 void SV_QCStatName(int type, char *name, int statnum)

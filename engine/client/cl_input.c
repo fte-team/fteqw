@@ -674,7 +674,7 @@ void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 	for (i=0 ; i<3 ; i++)
 		cmd->angles[i] = ((int)(cl.viewangles[pnum][i]*65536.0/360)&65535);
 
-	if (in_impulsespending[pnum])
+	if (in_impulsespending[pnum] && !cl.paused)
 	{
 		in_nextimpulse[pnum]++;
 		in_impulsespending[pnum]--;

@@ -65,7 +65,7 @@ extern	netadr_t	net_from;		// address of who sent the packet
 extern	sizebuf_t	net_message;
 //#define	MAX_UDP_PACKET	(MAX_MSGLEN*2)	// one more than msg + header
 #define	MAX_UDP_PACKET	8192	// one more than msg + header
-extern	qbyte		net_message_buffer[MAX_UDP_PACKET];
+extern	qbyte		net_message_buffer[MAX_OVERALLMSGLEN];
 
 extern	cvar_t	hostname;
 
@@ -228,6 +228,9 @@ void Huff_EmitByte(int ch, qbyte *buffer, int *count);
 
 //server->client protocol info
 #define NQ_PROTOCOL_VERSION 15
+#define H2_PROTOCOL_VERSION 19
+#define NEHD_PROTOCOL_VERSION 250
+#define FITZ_PROTOCOL_VERSION 666
 #define DP5_PROTOCOL_VERSION 3502
 #define DP6_PROTOCOL_VERSION 3503
 #define DP7_PROTOCOL_VERSION 3504

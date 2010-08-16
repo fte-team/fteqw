@@ -93,6 +93,7 @@ cvar_t sql_defaultdb = SCVARF("sv_sql_defaultdb", "", CVAR_NOUNSAFEEXPAND);
 evalc_t evalc_idealpitch, evalc_pitch_speed;
 
 int pr_teamfield;
+unsigned int h2infoplaque[2];	/*hexen2 stat*/
 
 void PR_ClearThreads(void);
 void PR_fclose_progs(progfuncs_t*);
@@ -700,6 +701,9 @@ void PR_LoadGlabalStruct(void)
 		SV_QCStatName(ev_float, "max_mana", STAT_H2_MAXMANA);
 		SV_QCStatName(ev_float, "flags", STAT_H2_FLAGS);
 		SV_QCStatName(ev_float, "playerclass", STAT_H2_PLAYERCLASS);
+
+		SV_QCStatPtr(ev_integer, &h2infoplaque[0], STAT_H2_OBJECTIVE1);
+		SV_QCStatPtr(ev_integer, &h2infoplaque[1], STAT_H2_OBJECTIVE2);
 	}
 }
 
@@ -7141,86 +7145,116 @@ void PF_h2matchAngleToSlope(progfuncs_t *prinst, struct globalvars_s *pr_globals
 	actor->v->angles[0] = dot*pitch;
 	actor->v->angles[2] = (1-fabs(dot))*pitch*mod;
 }
+void PF_h2updateinfoplaque(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int idx = G_FLOAT(OFS_PARM0);
+	int mode = G_FLOAT(OFS_PARM1);	/*0=toggle, 1=force, 2=clear*/
 
+	if (idx >= sizeof(h2infoplaque)*8)
+		return;
+
+	if ((mode & 3) == 3)
+		/*idiot*/;
+	else if (mode & 1)
+		h2infoplaque[idx/32] |= 1<<(idx&31);
+	else if (mode & 2)
+		h2infoplaque[idx/32] &=~(1<<(idx&31));
+	else
+		h2infoplaque[idx/32] ^= 1<<(idx&31);
+}
 void PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	switch((int)G_FLOAT(OFS_PARM0))
 	{
-	case 4:
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/whtsmk1.spr"), 0, 5, 20);
+	case 4:	//white_smoke
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/whtsmk1.spr"), 0, 5, 1/G_FLOAT(OFS_PARM3));
 		break;
-	case 6:
+	case 6:	//yellowspark
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/spark.spr"), 0, 10, 20);
 		break;
-	case 7:
+	case 7:	//sm_circle
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/fcircle.spr"), 0, 6, 20);
 		break;
-	case 9:
+	case 9:	//sm_white_flash
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/sm_white.spr"), 0, 3, 20);
 		break;
-	case 11:
+	case 11:	//yellowred_flash
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/yr_flash.spr"), 0, 21, 20);
 		break;
-	case 13:
+	case 13:	//sm_blue_flash
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/bluflash.spr"), 0, 5, 20);
 		break;
-	case 14:
+	case 14:	//red_flash
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/redspt.spr"), 0, 5, 20);
 		break;
-	case 15:
+	case 15:	//sm_explosion
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/sm_expld.spr"), 0, 12, 20);
 		break;
-	case 16:
+	case 16:	//lg_explosion
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/bg_expld.spr"), 0, 12, 20);
 		break;
-	case 17:
+	case 17:	//floor_explosion
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/fl_expld.spr"), 0, 20, 20);
 		break;
-	case 24:
+	case 20:	//green_smoke
+		//parm1 = vel
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/grnsmk1.spr"), 0, 8, 1/G_FLOAT(OFS_PARM3));
+		break;
+	case 24:	//redspark
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/rspark.spr"), 0, 10, 20);
 		break;
-	case 25:
+	case 25:	//greenspark
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/gspark.spr"), 0, 10, 20);
 		break;
-	case 26:
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/telesmk1.spr"), 0, 4, 20);
+	case 26:	//telesmk1
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/telesmk1.spr"), 0, 4, 1/G_FLOAT(OFS_PARM3));
 		break;
-	case 28:
+	case 28:	//icehit
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/icehit.spr"), 0, 6, 20);
 		break;
-	case 33:
+	case 33:	//new_explosion
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/gen_expl.spr"), 0, 14, 20);
 		break;
-	case 34:
+	case 34:	//magic_missile_explosion
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/mm_explod.spr"), 0, 50, 20);
 		break;
-	case 42:
+	case 42:	//flamestream
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/flamestr.spr"), 0, 12, 20);
 		break;
-	case 45:
+	case 45:	//bldrn_expl
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/xplsn_1.spr"), 0, 7, 20);
 		break;
-	case 47:
+	case 47:	//acid_hit
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/axplsn_2.spr"), 0, 14, 20);
 		break;
-	case 48:
+	case 48:	//firewall_small
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/firewal1.spr"), 0, 18, 20);
 		break;
-	case 49:
+	case 49:	//firewall_medium
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/firewal5.spr"), 0, 30, 20);
 		break;
-	case 50:
+	case 50:	//firewall_large
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/firewal4.spr"), 0, 29, 20);
 		break;
-	case 56:
+	case 54:	//fboom
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/fboom.spr"), 0, 14, 20);
+		break;
+	case 56:	//bomb
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/pow.spr"), 0, 6, 20);
 		break;
-	case 40:
+	case 46:	
+	case 52:
+	case 53:
+	case 57:
+		break;
+
+
+	case 40:	//boneshard
 //		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/boneshot.mdl"), 0, 50, 20);
 //		break;
 
-	case 2:
-	case 55:
+	case 2:		//fountain
+	case 55:	//chunk
 		Con_DPrintf("Start unsupported effect %i\n", (int)G_FLOAT(OFS_PARM0));
 		break;
 
@@ -7245,6 +7279,10 @@ void PF_h2StopSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 void PF_h2updatesoundpos(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+
+void PF_h2whiteflash(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 }
 
@@ -9286,11 +9324,11 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"precache_sound3",	PF_precache_sound,	0,		0,		96,		0},
 	{"precache_model3",	PF_precache_model,	0,		0,		97,		0},//please don't use...
 	{"matchangletoslope",PF_h2matchAngleToSlope,0,	0,		99,		0},
-
+	{"updateinfoplaque",PF_h2updateinfoplaque,0,	0,		100,	0},
 	{"precache_sound4",	PF_precache_sound,	0,		0,		101,	0},
 	{"precache_model4",	PF_precache_model,	0,		0,		102,	0},
 	{"precache_file4",	PF_precache_file,	0,		0,		103,	0},
-	{"dowhiteflash",	PF_Fixme,			0,		0,		104,	0},
+	{"dowhiteflash",	PF_h2whiteflash,	0,		0,		104,	0},
 	{"updatesoundpos",	PF_h2updatesoundpos,0,		0,		105,	0},
 	{"stopsound",		PF_h2StopSound,		0,		0,		106,	0},
 

@@ -879,7 +879,7 @@ static qintptr_t CG_SystemCallsEx(void *offset, quintptr_t mask, qintptr_t fn, c
 	case CG_KEY_GETKEY:
 		{
 			int ret[2];
-			M_FindKeysForCommand (VM_POINTER(arg[0]), ret);
+			M_FindKeysForCommand (0, VM_POINTER(arg[0]), ret);
 			return ret[0];
 		}
 		break;

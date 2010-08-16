@@ -395,6 +395,7 @@ void R2D_PolyBlend (void)
 
 	R2D_ImageColours (sw_blend[0], sw_blend[1], sw_blend[2], sw_blend[3]);
 	R2D_ScalePic(0, 0, vid.width, vid.height, shader_polyblend);
+	R2D_ImageColours (1, 1, 1, 1);
 }
 
 //for lack of hardware gamma
@@ -422,6 +423,7 @@ void R2D_BrightenScreen (void)
 		R2D_ScalePic(0, 0, vid.width, vid.height, shader_brighten);
 		f *= 0.5;
 	}
+	R2D_ImageColours (1, 1, 1, 1);
 
 	RSpeedEnd(RSPEED_PALETTEFLASHES);
 }

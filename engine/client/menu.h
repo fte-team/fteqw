@@ -388,7 +388,7 @@ void M_PrintWhite (int cx, int cy, qbyte *str);
 void M_DrawScalePic (int x, int y, int w, int h, mpic_t *pic);
 
 
-void M_FindKeysForCommand (char *command, int *twokeys);
+void M_FindKeysForCommand (int pnum, char *command, int *twokeys);
 void M_UnbindCommand (char *command);
 
 qboolean MP_Init (void);

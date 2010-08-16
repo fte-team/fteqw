@@ -664,6 +664,9 @@ static void RevertToKnownState(void)
 	shaderstate.shaderbits &= ~(SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY);
 	shaderstate.shaderbits |= SBITS_MISC_DEPTHWRITE;
 
+	shaderstate.shaderbits &= ~(SBITS_BLEND_BITS);
+	qglDisable(GL_BLEND);
+
 	qglDepthFunc(GL_LEQUAL);
 	qglDepthMask(GL_TRUE);
 
@@ -2630,6 +2633,12 @@ static void BaseBrushTextures(entity_t *ent)
 			//update lightmaps.
 			for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
 				Surf_RenderAmbientLightmaps (s, shift, ent->abslight);
+		}
+		else if (ent->drawflags & DRF_TRANSLUCENT)
+		{
+			//update lightmaps.
+			for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
+				Surf_RenderAmbientLightmaps (s, shift, 255);
 		}
 		else
 		{

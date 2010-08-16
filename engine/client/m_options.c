@@ -64,7 +64,7 @@ qboolean M_Options_InvertMouse (menucheck_t *option, struct menu_s *menu, chk_se
 //options menu.
 void M_Menu_Options_f (void)
 {
-	extern cvar_t cl_standardchat;
+	extern cvar_t cl_standardchat, cl_splitscreen;
 	extern cvar_t cl_standardmsg, crosshair;
 #ifdef _WIN32
 	extern qboolean vid_isfullscreen;
@@ -77,6 +77,7 @@ void M_Menu_Options_f (void)
 	MC_AddConsoleCommand(menu, 16, y,	"        Customize controls", "menu_keys\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, y,	"             Go to console", "toggleconsole\nplay misc/menu2.wav\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, y,	"         Reset to defaults", "exec default.cfg\nplay misc/menu2.wav\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"         Save all settings", "cfg_save\n"); y+=8;
 
 	MC_AddSlider(menu, 16, y,			"               Mouse Speed", &sensitivity,		1,		10, 0.5); y+=8;
 	MC_AddSlider(menu, 16, y,			"                 Crosshair", &crosshair,		0,		22, 1); y+=8;
@@ -85,6 +86,7 @@ void M_Menu_Options_f (void)
 	MC_AddCheckBox(menu, 16, y,			"              Invert Mouse", NULL,0)->func = M_Options_InvertMouse; y+=8;
 	MC_AddCheckBox(menu, 16, y,			"                Lookspring", &lookspring,0); y+=8;
 	MC_AddCheckBox(menu, 16, y,			"                Lookstrafe", &lookstrafe,0); y+=8;
+	MC_AddCheckBox(menu, 16, y,			"               Splitscreen", &cl_splitscreen,0); y+=8;
 	MC_AddCheckBox(menu, 16, y,			"        Use old status bar", &cl_sbar,0); y+=8;
 	MC_AddCheckBox(menu, 16, y,			"          HUD on left side", &cl_hudswap,0); y+=8;
 	MC_AddCheckBox(menu, 16, y,			"        Old-style chatting", &cl_standardchat,0);y+=8;

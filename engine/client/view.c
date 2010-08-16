@@ -1139,7 +1139,7 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 	case 2:	//horizontal bands
 	case 3:
 #ifdef GLQUAKE
-		if (qrenderer == QR_OPENGL && vid.pixelwidth > vid.pixelheight * 2)
+		if (qrenderer == QR_OPENGL && vid.pixelwidth > vid.pixelheight * 2 && ffov.value >= 0)
 		{	//over twice as wide as high, assume duel moniter, horizontal.
 			vrect->width = vid.width/cl.splitclients;
 			vrect->height = vid.height;
@@ -1261,10 +1261,8 @@ void V_RenderPlayerViews(int plnum)
 	CL_LinkViewModel ();
 
 	Cam_SelfTrack(plnum);
-	{
-		R_RenderView ();
-		R_DrawNameTags();
-	}
+	R_RenderView ();
+	R_DrawNameTags();
 
 	cl_numvisedicts = oldnuments;
 

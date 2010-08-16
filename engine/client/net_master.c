@@ -848,8 +848,6 @@ void NET_SendPollPacket(int len, void *data, netadr_t to)
 
 int NET_CheckPollSockets(void)
 {
-	#define	MAX_UDP_PACKET	8192	// one more than msg + header
-	extern qbyte		net_message_buffer[MAX_UDP_PACKET];
 	int sock;
 	SOCKET usesocket;
 	char adr[MAX_ADR_SIZE];

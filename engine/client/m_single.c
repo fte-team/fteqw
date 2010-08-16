@@ -165,40 +165,121 @@ void M_Menu_SinglePlayer_f (void)
 	else if (mgt == MGT_HEXEN2)
 	{	//h2
 		int y;
+		int i;
 		cvar_t *pc;
 		qboolean havemp;
-		static char *classlist[] = {
-			"Random",
-			"Paladin",
-			"Crusader",
-			"Necromancer",
-			"Assasin",
-			NULL
-		};
 		static char *classlistmp[] = {
 			"Paladin",
 			"Crusader",
 			"Necromancer",
 			"Assasin",
-			"Demoness",
-			NULL
+			"Demoness"
 		};
-		static char *classvalues[] = {
-			"",
-			"1",
-			"2",
-			"3",
-			"4",
-			"5",
-			NULL
-		};
+		menubutton_t *b;
 		havemp = COM_FCheckExists("maps/keep1.bsp");
 		menu = M_CreateMenu(0);
 		MC_AddPicture(menu, 16, 0, 35, 176, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, 60, "gfx/menu/title1.lmp");
 
-		y = 64-8;
+		y = 64-20;
 
+		if (!strncmp(Cmd_Argv(1), "class", 5))
+		{
+			int pnum;
+			extern cvar_t cl_splitscreen;
+			pnum = atoi(Cmd_Argv(1)+5);
+			if (!pnum)
+				pnum = 1;
+
+			MC_AddCenterPicture(menu, 0, 60, "gfx/menu/title2.lmp");
+
+			if (cl_splitscreen.ival)
+				MC_AddBufferedText(menu, 80, (y+=8)+12, va("Player %i\n", pnum), false, true); 
+
+			for (i = 0; i < 4+havemp; i++)
+			{
+				b = MC_AddConsoleCommandHexen2BigFont(menu, 80, y+=20,		classlistmp[i],
+						va("p%i setinfo cl_playerclass %i; menu_single %s %s\n",
+							pnum,
+							i+1,
+							((pnum+1 > cl_splitscreen.ival+1)?"skill":va("class%i",pnum+1)),
+							Cmd_Argv(2)));
+				if (!menu->selecteditem)
+					menu->selecteditem = (menuoption_t*)b;
+			}
+		}
+		else if (!strncmp(Cmd_Argv(1), "skill", 5))
+		{
+			static char *skillnames[6][4] =
+			{
+				{
+					"Easy",
+					"Medium",
+					"Hard",
+					"Nightmare"
+				},
+				{
+					"Apprentice",
+					"Squire",
+					"Adept",
+					"Lord"
+				},
+				{
+					"Gallant",
+					"Holy Avenger",
+					"Divine Hero",
+					"Legend"
+				},
+				{
+					"Sorcerer",
+					"Dark Servant",
+					"Warlock",
+					"Lich King"
+				},
+				{
+					"Rogue",
+					"Cutthroat",
+					"Executioner",
+					"Widow Maker"
+				},
+				{
+					"Larva",
+					"Spawn",
+					"Fiend",
+					"She Bitch"
+				}
+			};
+			char **sn = skillnames[0];
+			pc = Cvar_Get("cl_playerclass", "1", CVAR_USERINFO|CVAR_ARCHIVE, "Hexen2");
+			if (pc && (unsigned)pc->ival <= 5)
+				sn = skillnames[pc->ival];
+
+			MC_AddCenterPicture(menu, 0, 60, "gfx/menu/title5.lmp");
+			for (i = 0; i < 4; i++)
+			{
+				b = MC_AddConsoleCommandHexen2BigFont(menu, 80, y+=20,	sn[i],	va("skill %i; closemenu; disconnect; deathmatch 0; coop 0;wait;map %s\n", i, Cmd_Argv(2)));
+				if (!menu->selecteditem)
+					menu->selecteditem = (menuoption_t*)b;
+			}
+		}
+		else
+		{
+			MC_AddCenterPicture(menu, 0, 60, "gfx/menu/title1.lmp");
+			if (havemp)
+			{
+				menu->selecteditem = (menuoption_t*)
+				MC_AddConsoleCommandHexen2BigFont(menu, 80, y+=20,	"New Mission",	"menu_single class keep1\n");
+				MC_AddConsoleCommandHexen2BigFont(menu, 80, y+=20,	"Old Mission",	"menu_single class demo1\n");
+			}
+			else
+			{
+				menu->selecteditem = (menuoption_t*)
+				MC_AddConsoleCommandHexen2BigFont(menu, 80, y+=20,	"New Game",		"menu_single class demo1\n");
+			}
+			MC_AddConsoleCommandHexen2BigFont(menu, 80, y+=20,		"Save Game",	"menu_save\n");
+			MC_AddConsoleCommandHexen2BigFont(menu, 80, y+=20,		"Load Game",	"menu_load\n");
+		}
+
+		/*
 		pc = Cvar_Get("cl_playerclass", "1", CVAR_USERINFO|CVAR_ARCHIVE, "Hexen2");
 		if (pc)
 			MC_AddCvarCombo (menu, 64, y+=8,	"Player class", pc, havemp?(const char **)classlistmp:(const char **)classlist, (const char **)(classvalues+havemp));
@@ -220,6 +301,9 @@ void M_Menu_SinglePlayer_f (void)
 
 		MC_AddConsoleCommand	(menu, 64, y+=8,	"Load Game", "menu_load\n");
 		MC_AddConsoleCommand	(menu, 64, y+=8,	"Save Game", "menu_save\n");
+		*/
+
+		menu->cursoritem = (menuoption_t *)MC_AddCursor(menu, 56, menu->selecteditem?menu->selecteditem->common.posy:0);
 
 		return;
 	}

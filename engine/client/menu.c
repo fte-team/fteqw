@@ -309,7 +309,7 @@ bindnames_t h2bindnames[] =
 {"+showinfo",		"full inventory"},
 {"+showdm",			"info / frags  "},
 //{"toggle_dm",		"toggle frags  "},
-//{"+infoplaque",		"objectives    "},	//requires pulling info out of the mod... on the client.
+{"+infoplaque",		"objectives    "},	//requires pulling info out of the mod... on the client.
 {"invleft",			"inv move left "},
 {"invright",		"inv move right"},
 {"impulse 100",		"inv:torch     "},
@@ -341,26 +341,58 @@ void M_Menu_Keys_f (void)
 	int y;
 	menu_t *menu;
 	int mgt;
+	extern cvar_t cl_splitscreen, cl_forcesplitclient;
 
 	key_dest = key_menu;
 	m_state = m_complex;
 
 	menu = M_CreateMenu(0);
-
-	MC_AddCenterPicture(menu, 4, 24, "gfx/ttl_cstm.lmp");
-
 	mgt = M_GameType();
 #ifdef Q2CLIENT
 	if (mgt == MGT_QUAKE2)	//quake2 main menu.
+	{
+		y = 48;
 		bindnames = q2bindnames;
+	}
 	else
 #endif
 	if (mgt == MGT_HEXEN2)
+	{
+		MC_AddCenterPicture(menu, 0, 60, "gfx/menu/title6.lmp");
+		y = 64;
 		bindnames = h2bindnames;
+	}
 	else
-		bindnames = qwbindnames;
+	{
+		MC_AddCenterPicture(menu, 4, 24, "gfx/ttl_cstm.lmp");
+		y = 48;
 
-	y = 48;
+		bindnames = qwbindnames;
+	}
+
+	if (cl_splitscreen.ival)
+	{
+		static char *texts[MAX_SPLITS+2] =
+		{
+			"Depends on device",
+			"Player 1",
+			"Player 2",
+			"Player 3",
+			"Player 4",
+			NULL
+		};
+		static char *values[MAX_SPLITS+1] =
+		{
+			"0",
+			"1",
+			"2",
+			"3",
+			"4"
+		};
+		MC_AddCvarCombo(menu, 16, y, "Force client", &cl_forcesplitclient, texts, values);
+		y+=8;
+	}
+
 	while (bindnames->name)
 	{
 		MC_AddBind(menu, 16, y, bindnames->name, bindnames->command);
@@ -370,15 +402,15 @@ void M_Menu_Keys_f (void)
 	}
 }
 
-
-void M_FindKeysForCommand (char *command, int *twokeys)
+int M_FindKeysForBind (char *command, int *keylist, int total)
 {
 	int		count;
 	int		j;
 	int		l;
 	char	*b;
 
-	twokeys[0] = twokeys[1] = -1;
+	for (count = 0; count < total; count++)
+		keylist[count] = -1;
 	l = strlen(command);
 	count = 0;
 
@@ -389,12 +421,44 @@ void M_FindKeysForCommand (char *command, int *twokeys)
 			continue;
 		if (!strncmp (b, command, l) )
 		{
-			twokeys[count] = j;
+			keylist[count] = j;
 			count++;
-			if (count == 2)
+			if (count == total)
 				break;
 		}
 	}
+	return count;
+}
+
+void M_FindKeysForCommand (int pnum, char *command, int *twokeys)
+{
+	char prefix[5];
+
+	if (*command == '+' || *command == '-')
+	{
+		prefix[0] = *command;
+		prefix[1] = 0;
+		if (pnum != 0)
+		{
+			prefix[1] = 'p';
+			prefix[2] = '0'+pnum;
+			prefix[3] = ' ';
+			prefix[4] = 0;
+		}
+		command++;
+	}
+	else
+	{
+		prefix[0] = 0;
+		if (pnum != 0)
+		{
+			prefix[0] = 'p';
+			prefix[1] = '0'+pnum;
+			prefix[2] = ' ';
+			prefix[3] = 0;
+		}
+	}
+	M_FindKeysForBind(va("%s%s", prefix, command), twokeys, 2);
 }
 
 void M_UnbindCommand (char *command)

@@ -992,6 +992,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				multicastpos=2;
 				multicasttype=MULTICAST_PHS;
 				break;
+			case TEH2_STREAM_LIGHTNING_SMALL:
 			case TEH2_STREAM_CHAIN:
 			case TEH2_STREAM_SUNSTAFF1:
 			case TEH2_STREAM_SUNSTAFF2:

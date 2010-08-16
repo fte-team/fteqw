@@ -1224,18 +1224,6 @@ Con_DPrintf("PF_readcmd: %s\n%s", s, output);
 				break;	//nothing changed, ignore it.
 			sv.paused = pause;
 			sv.pausedstart = Sys_DoubleTime();
-
-			// send out notifications
-			for (i=0, cl = svs.clients ; i<MAX_CLIENTS ; i++, cl++)
-			{
-				if (!cl->state)
-					continue;
-				if ((ISQWCLIENT(cl) || ISNQCLIENT(cl)) && !cl->controller)
-				{
-					ClientReliableWrite_Begin (cl, svc_setpause, 2);
-					ClientReliableWrite_Byte (cl, sv.paused);
-				}
-			}
 		}
 		break;
 

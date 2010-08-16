@@ -1004,6 +1004,7 @@ void CL_ClearState (void)
 	CL_ClearParseState();
 	CL_ClearTEnts();
 	CL_ClearCustomTEnts();
+	T_FreeInfoStrings();
 	SCR_ShowPic_Clear();
 
 	if (cl.playernum[0] == -1)

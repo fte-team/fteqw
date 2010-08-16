@@ -1866,6 +1866,7 @@ void CL_LinkPacketEntities (void)
 
 		cl_numvisedicts++;
 
+		ent->externalmodelview = 0;
 		ent->forcedshader = NULL;
 		ent->visframe = 0;
 
@@ -2051,6 +2052,8 @@ void CL_LinkPacketEntities (void)
 			else if (model->flags & EFH2_ACIDBALL)
 			{
 				rad = 120 - (rand() % 20);
+				dclr[0] = 0.1;
+				dclr[1] = 0.2;
 			}
 			else if (model->flags & EFH2_SPIT)
 			{
@@ -2750,8 +2753,11 @@ void CL_LinkPlayers (void)
 				VectorCopy(state->origin, org);
 				for (pnum = 0; pnum < cl.splitclients; pnum++)
 					VectorCopy(cl.simorg[pnum], org);
-				org[2] -= model->mins[2];
-				org[2] += 24;
+				if (model)
+				{
+					org[2] -= model->mins[2];
+					org[2] += 24;
+				}
 				radius += r_lightflicker.value?(rand()&31):0;
 				CL_NewDlightRGB(j+1, org, radius, 0.1, colour[0], colour[1], colour[2])->flags &= ~LFLAG_ALLOW_FLASH;
 			}
@@ -2803,6 +2809,7 @@ void CL_LinkPlayers (void)
 		angles[ROLL] = 0;
 		angles[ROLL] = V_CalcRoll (angles, state->velocity)*4;
 
+		ent->externalmodelview = 0;
 		// the player object gets added with flags | 2
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
 		{
@@ -2819,9 +2826,11 @@ void CL_LinkPlayers (void)
 				ent->origin[0] = cl.simorg[pnum][0];
 				ent->origin[1] = cl.simorg[pnum][1];
 				ent->origin[2] = cl.simorg[pnum][2]+cl.crouch[pnum];
+			}
+			if (j == (cl.viewentity[pnum]?cl.viewentity[pnum]:cl.playernum[pnum]))
+			{
 				ent->flags |= Q2RF_EXTERNALMODEL;
-				ent->externalmodelview = (1<<pnum);
-				break;
+				ent->externalmodelview |= (1<<pnum);
 			}
 		}
 

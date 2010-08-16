@@ -1382,6 +1382,9 @@ void SCR_DrawPause (void)
 	if (!cl.paused)
 		return;
 
+	if (key_dest == key_menu)
+		return;
+
 	pic = Draw_SafeCachePic ("gfx/pause.lmp");
 	if (pic)
 	{

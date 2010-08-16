@@ -1423,9 +1423,9 @@ void SV_Spawn_f (void)
 		//
 		// force stats to be updated
 		//
-			memset (host_client->statsi, 0, sizeof(host_client->statsi));
-			memset (host_client->statsf, 0, sizeof(host_client->statsf));
-			memset (host_client->statss, 0, sizeof(host_client->statss));
+			memset (split->statsi, 0, sizeof(split->statsi));
+			memset (split->statsf, 0, sizeof(split->statsf));
+			memset (split->statss, 0, sizeof(split->statss));
 		}
 
 		secret_total = pr_global_struct->total_secrets;
@@ -1693,7 +1693,7 @@ void SV_Begin_f (void)
 		if (!ISQ2CLIENT(host_client))
 		{
 			ClientReliableWrite_Begin (host_client, svc_setpause, 2);
-			ClientReliableWrite_Byte (host_client, sv.paused);
+			ClientReliableWrite_Byte (host_client, sv.paused!=0);
 		}
 		SV_ClientTPrintf(host_client, PRINT_HIGH, STL_SERVERPAUSED);
 	}
@@ -2893,8 +2893,6 @@ SV_TogglePause
 */
 qboolean SV_TogglePause (client_t *initiator)
 {
-	int i;
-	client_t *cl;
 	int newv;
 
 	newv = sv.paused^1;
@@ -2905,18 +2903,6 @@ qboolean SV_TogglePause (client_t *initiator)
 	sv.paused = newv;
 
 	sv.pausedstart = Sys_DoubleTime();
-
-	// send notification to all clients
-	for (i=0, cl = svs.clients ; i<MAX_CLIENTS ; i++, cl++)
-	{
-		if (!cl->state)
-			continue;
-		if (!ISQ2CLIENT(cl) && !cl->controller)
-		{
-			ClientReliableWrite_Begin (cl, svc_setpause, 2);
-			ClientReliableWrite_Byte (cl, sv.paused);
-		}
-	}
 
 	return true;
 }
@@ -4299,9 +4285,9 @@ void SVNQ_Begin_f (void)
 		if (!ISQ2CLIENT(host_client))
 		{
 			ClientReliableWrite_Begin (host_client, svc_setpause, 2);
-			ClientReliableWrite_Byte (host_client, sv.paused);
+			ClientReliableWrite_Byte (host_client, sv.paused!=0);
 		}
-		SV_ClientTPrintf(host_client, PRINT_HIGH, STL_SERVERPAUSED);
+		SV_ClientTPrintf(host_client, PRINT_HIGH, STL_SERVERPAUSED!=0);
 	}
 
 	if (sendangles)
@@ -5777,6 +5763,11 @@ haveannothergo:
 						if (!SV_PlayerPhysicsQC || host_client->spectator)
 							SV_PostRunCmd();
 
+					}
+					else
+					{
+						if (newcmd.impulse)// && SV_FiltureImpulse(newcmd.impulse, host_client->trustlevel))
+							sv_player->v->impulse = newcmd.impulse;
 					}
 
 					cl->lastcmd = newcmd;

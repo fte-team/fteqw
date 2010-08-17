@@ -26,6 +26,8 @@ int qcchunksize;
 char *qcchunk;
 void *qccHunkAlloc(size_t mem)
 {
+	mem = (mem + 7)&~7;
+
 	qccalloced+=mem;
 	if (qccalloced > qcchunksize)
 		QCC_Error(ERR_INTERNAL, "Compile hunk was filled");

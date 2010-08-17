@@ -467,6 +467,7 @@ void GLVID_Conwidth_Callback(struct cvar_s *var, char *oldvalue);
 void GLVID_Conautoscale_Callback(struct cvar_s *var, char *oldvalue);
 void GLVID_Conheight_Callback(struct cvar_s *var, char *oldvalue);
 void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue);
+void GL_Font_Callback(struct cvar_s *var, char *oldvalue);
 
 void GLR_DeInit (void)
 {
@@ -525,6 +526,7 @@ void GLR_Init (void)
 //	Cvar_Hook(&r_drawflat, GLR_Drawflat_Callback);
 	Cvar_Hook(&v_gamma, GLV_Gamma_Callback);
 	Cvar_Hook(&v_contrast, GLV_Gamma_Callback);
+	Cvar_Hook(&gl_font, GL_Font_Callback);
 
 	R_InitBubble();
 

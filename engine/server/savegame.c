@@ -995,6 +995,8 @@ void SV_Savegame_f (void)
 	VFS_PRINTF (f, "set nextserver		\"%s\"\n",	Cvar_Get("nextserver", "", 0, "")->string);
 	VFS_PRINTF (f, "}\n");
 
+	SV_SaveLevelCache(savename, true);	//add the current level.
+
 	cache = svs.levcache;	//state from previous levels - just copy it all accross.
 	VFS_PRINTF(f, "{\n");
 	while(cache)
@@ -1007,8 +1009,6 @@ void SV_Savegame_f (void)
 		cache = cache->next;
 	}
 	VFS_PRINTF(f, "}\n");
-
-	SV_SaveLevelCache(savename, true);	//add the current level.
 
 	VFS_PRINTF (f, "%s\n", sv.name);
 

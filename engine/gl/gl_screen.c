@@ -45,7 +45,6 @@ extern cvar_t scr_chatmodecvar;
 extern cvar_t vid_conautoscale;
 extern qboolean		scr_con_forcedraw;
 
-
 // console size manipulation callbacks
 void GLVID_Console_Resize(void)
 {
@@ -104,13 +103,22 @@ void GLVID_Console_Resize(void)
 	font_tiny = NULL;
 	if (font_conchar)
 		Font_Free(font_conchar);
-	font_conchar = Font_LoadFont(8*vid.pixelheight/vid.height, gl_font.string);
-	if (!font_conchar && *gl_font.string)
-		font_conchar = Font_LoadFont(8*vid.pixelheight/vid.height, "");
+	font_conchar = NULL;
+
+	Cvar_ForceCallback(&gl_font);
 
 #ifdef PLUGINS
 	Plug_ResChanged();
 #endif
+}
+
+void GL_Font_Callback(struct cvar_s *var, char *oldvalue)
+{
+	if (font_conchar)
+		Font_Free(font_conchar);
+	font_conchar = Font_LoadFont(8*vid.pixelheight/vid.height, var->string);
+	if (!font_conchar && *var->string)
+		font_conchar = Font_LoadFont(8*vid.pixelheight/vid.height, "");
 }
 
 void GLVID_Conheight_Callback(struct cvar_s *var, char *oldvalue)

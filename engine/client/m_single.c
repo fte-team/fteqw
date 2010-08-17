@@ -180,6 +180,8 @@ void M_Menu_SinglePlayer_f (void)
 		menu = M_CreateMenu(0);
 		MC_AddPicture(menu, 16, 0, 35, 176, "gfx/menu/hplaque.lmp");
 
+		Cvar_Get("cl_playerclass", "1", CVAR_USERINFO|CVAR_ARCHIVE, "Hexen2");
+
 		y = 64-20;
 
 		if (!strncmp(Cmd_Argv(1), "class", 5))

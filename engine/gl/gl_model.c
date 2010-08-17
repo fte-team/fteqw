@@ -1085,7 +1085,7 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 					mipheight = tx->height;
 				}
 
-				tn.base = R_LoadReplacementTexture(mt->name, loadname, IF_NOALPHA);
+				tn.base = R_LoadReplacementTexture(mt->name, loadname, IF_NOALPHA|IF_SUBDIRONLY);
 				if (!TEXVALID(tn.base))
 				{
 					tn.base = R_LoadReplacementTexture(mt->name, "bmodels", (*mt->name == '{')?0:IF_NOALPHA);
@@ -1098,7 +1098,7 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 					snprintf(altname, sizeof(altname)-1, "%s_luma", mt->name);
 					if (gl_load24bit.value)
 					{
-						tn.fullbright = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA);
+						tn.fullbright = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA|IF_SUBDIRONLY);
 						if (!TEXVALID(tn.fullbright))
 							tn.fullbright = R_LoadReplacementTexture(altname, "bmodels", IF_NOGAMMA);
 					}
@@ -1114,7 +1114,7 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 				if (gl_bump.ival<2)	//set to 2 to have faster loading.
 				{
 					snprintf(altname, sizeof(altname)-1, "%s_norm", mt->name);
-					tn.bump = R_LoadReplacementTexture(altname, loadname, IF_NOALPHA|IF_NOGAMMA);
+					tn.bump = R_LoadReplacementTexture(altname, loadname, IF_NOALPHA|IF_NOGAMMA|IF_SUBDIRONLY);
 					if (!TEXVALID(tn.bump))
 						tn.bump = R_LoadReplacementTexture(altname, "bmodels", IF_NOALPHA|IF_NOGAMMA);
 				}
@@ -1145,7 +1145,7 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 				if (gl_specular.value && gl_load24bit.value)
 				{
 					snprintf(altname, sizeof(altname)-1, "%s_gloss", mt->name);
-					tn.specular = R_LoadHiResTexture(altname, loadname, IF_NOALPHA|IF_NOGAMMA);
+					tn.specular = R_LoadHiResTexture(altname, loadname, IF_NOALPHA|IF_NOGAMMA|IF_SUBDIRONLY);
 					if (!TEXVALID(tn.specular))
 						tn.specular = R_LoadHiResTexture(altname, "bmodels", IF_NOALPHA|IF_NOGAMMA);
 				}

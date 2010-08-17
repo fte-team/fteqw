@@ -148,6 +148,7 @@ cvar_t sv_cullplayers_trace = CVARF("sv_cullplayers_trace", "", CVAR_SERVERINFO)
 cvar_t sv_cullentities_trace = CVARF("sv_cullentities_trace", "", CVAR_SERVERINFO);
 cvar_t sv_phs = CVAR("sv_phs", "1");
 cvar_t sv_resetparms = CVAR("sv_resetparms", "0");
+cvar_t sv_pupglow = CVARF("sv_pupglow", "", CVAR_SERVERINFO);
 
 cvar_t sv_master = CVAR("sv_master", "0");
 cvar_t sv_masterport = CVAR("sv_masterport", "0");
@@ -3623,6 +3624,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&timeout,	cvargroup_servercontrol);
 	Cvar_Register (&zombietime,	cvargroup_servercontrol);
 
+	Cvar_Register (&sv_pupglow,	cvargroup_serverinfo);
 	Cvar_Register (&sv_loadentfiles,	cvargroup_servercontrol);
 
 	Cvar_Register (&sv_maxvelocity,			cvargroup_serverphysics);

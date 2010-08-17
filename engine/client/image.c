@@ -2012,11 +2012,14 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 		*data = '#';
 	}
 
-	snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name);
-	tex = R_FindTexture(fname);
-	if (TEXVALID(tex))	//don't bother if it already exists.
-		return tex;
+	snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name); /*should be safe if its null*/
 	if (subpath && *subpath)
+	{
+		tex = R_FindTexture(fname);
+		if (TEXVALID(tex))	//don't bother if it already exists.
+			return tex;
+	}
+	if (!(flags & IF_SUBDIRONLY))
 	{
 		tex = R_FindTexture(name);
 		if (TEXVALID(tex))	//don't bother if it already exists.
@@ -2024,12 +2027,18 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 	}
 
 
-	tex = R_LoadCompressed(fname);
-	if (TEXVALID(tex))
-		return tex;
-	tex = R_LoadCompressed(name);
-	if (TEXVALID(tex))
-		return tex;
+	if (subpath && *subpath)
+	{
+		tex = R_LoadCompressed(fname);
+		if (TEXVALID(tex))
+			return tex;
+	}
+	if (!(flags & IF_SUBDIRONLY))
+	{
+		tex = R_LoadCompressed(name);
+		if (TEXVALID(tex))
+			return tex;
+	}
 
 	if (strchr(name, '/'))	//never look in a root dir for the pic
 		i = 0;
@@ -2053,7 +2062,11 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 				snprintf(fname, sizeof(fname)-1, tex_path[i].path, subpath, nicename, tex_extensions[e].name);
 			}
 			else
+			{
+				if (flags & IF_SUBDIRONLY)
+					continue;
 				snprintf(fname, sizeof(fname)-1, tex_path[i].path, nicename, tex_extensions[e].name);
+			}
 			TRACE(("dbg: Mod_LoadHiResTexture: trying %s\n", fname));
 			if ((buf = COM_LoadFile (fname, 5)))
 			{
@@ -2094,32 +2107,35 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 		}
 	}
 
-	/*still failed? attempt to load quake lmp files, which have no real format id*/
-	snprintf(fname, sizeof(fname)-1, "%s%s", nicename, ".lmp");
-	if ((buf = COM_LoadFile (fname, 5)))
+	if (!(flags & IF_SUBDIRONLY))
 	{
-		extern cvar_t vid_hardwaregamma;
-		tex = r_nulltex;
-		if (com_filesize >= 8)
+		/*still failed? attempt to load quake lmp files, which have no real format id*/
+		snprintf(fname, sizeof(fname)-1, "%s%s", nicename, ".lmp");
+		if ((buf = COM_LoadFile (fname, 5)))
 		{
-			image_width = LittleLong(((int*)buf)[0]);
-			image_height = LittleLong(((int*)buf)[1]);
-			if (image_width*image_height+8 == com_filesize)
+			extern cvar_t vid_hardwaregamma;
+			tex = r_nulltex;
+			if (com_filesize >= 8)
 			{
-				tex = R_LoadTexture8(name, image_width, image_height, buf+8, flags, 1);
+				image_width = LittleLong(((int*)buf)[0]);
+				image_height = LittleLong(((int*)buf)[1]);
+				if (image_width*image_height+8 == com_filesize)
+				{
+					tex = R_LoadTexture8(name, image_width, image_height, buf+8, flags, 1);
+				}
 			}
+			BZ_Free(buf);
+			return tex;
 		}
-		BZ_Free(buf);
-		return tex;
-	}
 
-	//now look in wad files. (halflife compatability)
-	data = W_GetTexture(name, &image_width, &image_height, &alphaed);
-	if (data)
-	{
-		tex = R_LoadTexture32 (name, image_width, image_height, (unsigned*)data, flags);
-		BZ_Free(data);
-		return tex;
+		//now look in wad files. (halflife compatability)
+		data = W_GetTexture(name, &image_width, &image_height, &alphaed);
+		if (data)
+		{
+			tex = R_LoadTexture32 (name, image_width, image_height, (unsigned*)data, flags);
+			BZ_Free(data);
+			return tex;
+		}
 	}
 	return r_nulltex;
 }

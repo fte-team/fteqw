@@ -1217,8 +1217,6 @@ Con_DPrintf("PF_readcmd: %s\n%s", s, output);
 
 	case G_SETPAUSE:
 		{
-			int i;
-			client_t *cl;
 			int pause = VM_LONG(arg[0]);
 			if ((sv.paused&1) == (pause&1))
 				break;	//nothing changed, ignore it.

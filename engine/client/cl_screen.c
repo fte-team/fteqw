@@ -447,12 +447,15 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p)
 
 	if (p->flags & CPRINT_BACKGROUND)
 	{	//hexen2 style plaque.
-		int lines, len;
 		if (rect->width > 320)
 		{
-			rect->x = (rect->x + rect->width/2) - 160;
+			rect->x = (rect->x + rect->width/2) - (160);
 			rect->width = 320;
 		}
+		if (rect->width < 32)
+			return;
+		rect->x += 16;
+		rect->width -= 32;
 	}
 
 	Font_BeginString(font_conchar, rect->x, rect->y, &left, &top);
@@ -484,8 +487,11 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p)
 	
 	if (p->flags & CPRINT_BACKGROUND)
 	{	//hexen2 style plaque.
-		x = rect->x+(rect->width-320)/2;
-		Draw_TextBox(x-6, y-8, 320/8-1, linecount);
+		int px, py, pw;
+		px = rect->x;
+		py = (     y * vid.height) / (float)vid.pixelheight;
+		pw = rect->width+8;
+		Draw_TextBox(px-16, py-8-8, pw/8, linecount+2);
 	}
 
 	for (l = 0; l < linecount; l++, y += Font_CharHeight())

@@ -245,7 +245,9 @@ enum imageflags
 	IF_NOPICMIP = 1<<1,
 	IF_NOMIPMAP = 1<<2,
 	IF_NOALPHA = 1<<3,
-	IF_NOGAMMA = 1<<4
+	IF_NOGAMMA = 1<<4,
+
+	IF_SUBDIRONLY = 1<<31
 };
 
 enum uploadfmt

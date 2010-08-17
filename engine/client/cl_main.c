@@ -1492,6 +1492,8 @@ void CL_CheckServerInfo(void)
 		cl.minpitch = -89.9;
 	}
 
+	cl.hexen2pickups = atoi(Info_ValueForKey(cl.serverinfo, "sv_pupglow"));
+
 	allowed = atoi(Info_ValueForKey(cl.serverinfo, "allow"));
 	if (allowed & 1)
 		cls.allow_watervis = true;

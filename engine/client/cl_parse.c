@@ -991,11 +991,6 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 //				Host_EndGame("Worldmodel wasn't loaded\n");
 		}
 
-		if (cl.worldmodel && cl.worldmodel->fromgame == fg_quake)
-			cl.hexen2pickups = cl.worldmodel->hulls[MAX_MAP_HULLSDH2-1].available;
-		else
-			cl.hexen2pickups = false;
-
 #ifdef CSQC_DAT
 		CSQC_WorldLoaded();
 #endif

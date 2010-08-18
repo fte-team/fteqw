@@ -1957,8 +1957,8 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 			World_ClipToLinks (w, w->areanodes, &clip );
 	}
 
-	if (clip.trace.startsolid)
-		clip.trace.fraction = 0;
+//	if (clip.trace.startsolid)
+//		clip.trace.fraction = 0;
 
 	if (!clip.trace.ent)
 		return clip.trace;

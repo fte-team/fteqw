@@ -393,6 +393,8 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, 
 
 			if (size[0] < 3) // Point
 				hull = &model->hulls[0];
+			else if (size[0] <= 8 && model->hulls[4].available)
+				hull = &model->hulls[4];	//Pentacles
 			else if (size[0] <= 32 && size[2] <= 28)  // Half Player
 				hull = &model->hulls[3];
 			else if (size[0] <= 32)  // Full Player

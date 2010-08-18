@@ -2304,17 +2304,22 @@ qboolean RMod_LoadClipnodes (lump_t *l)
 		hull->clip_maxs[2] = 16;
 		hull->available = true;
 
+		/*
+		There is some mission-pack weirdness here
+		in the missionpack, hull 4 is meant to be '-8 -8 -8' '8 8 8'
+		in the original game, hull 4 is '-40 -40 -42' '40 40 42'
+		*/
 		hull = &loadmodel->hulls[4];
 		hull->clipnodes = out;
 		hull->firstclipnode = 0;
 		hull->lastclipnode = count-1;
 		hull->planes = loadmodel->planes;
-		hull->clip_mins[0] = -40;
-		hull->clip_mins[1] = -40;
-		hull->clip_mins[2] = -42;
-		hull->clip_maxs[0] = 40;
-		hull->clip_maxs[1] = 40;
-		hull->clip_maxs[2] = 42;
+		hull->clip_mins[0] = -8;
+		hull->clip_mins[1] = -8;
+		hull->clip_mins[2] = -8;
+		hull->clip_maxs[0] = 8;
+		hull->clip_maxs[1] = 8;
+		hull->clip_maxs[2] = 8;
 		hull->available = true;
 
 		hull = &loadmodel->hulls[5];
@@ -2324,7 +2329,7 @@ qboolean RMod_LoadClipnodes (lump_t *l)
 		hull->planes = loadmodel->planes;
 		hull->clip_mins[0] = -48;
 		hull->clip_mins[1] = -48;
-		hull->clip_mins[2] = -50 - 24;
+		hull->clip_mins[2] = -50;
 		hull->clip_maxs[0] = 48;
 		hull->clip_maxs[1] = 48;
 		hull->clip_maxs[2] = 50;

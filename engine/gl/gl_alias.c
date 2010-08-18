@@ -748,7 +748,17 @@ static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel, unsigned int 
 			}
 		}
 		else
-			cl.worldmodel->funcs.LightPointValues(cl.worldmodel, e->origin, shadelight, ambientlight, lightdir);
+		{
+			vec3_t center;
+			#if 0 /*hexen2*/
+			VectorAvg(clmodel->mins, clmodel->maxs, center);
+			VectorAdd(e->origin, center, center);
+			#else
+			VectorCopy(e->origin, center);
+			center[2] += 8;
+			#endif
+			cl.worldmodel->funcs.LightPointValues(cl.worldmodel, center, shadelight, ambientlight, lightdir);
+		}
 	}
 	else
 	{

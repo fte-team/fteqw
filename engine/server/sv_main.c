@@ -3159,7 +3159,7 @@ void SV_CheckTimeouts (void)
 			}
 		}
 	}
-	if (sv.paused && !nclients)
+	if ((sv.paused&1) && !nclients)
 	{
 		// nobody left, unpause the server
 		if (SV_TogglePause(NULL))
@@ -3365,7 +3365,8 @@ void SV_Frame (void)
 		sv.gamespeed = 1;
 
 #ifndef SERVERONLY
-	sv.paused = (sv.paused & ~4) | ((!isDedicated && sv.allocated_client_slots == 1 && key_dest != key_game)?4:0);
+	if ((sv.paused & 4) != ((!isDedicated && sv.allocated_client_slots == 1 && key_dest != key_game)?4:0))
+		sv.paused ^= 4;
 #endif
 
 	if (oldpaused != sv.paused)

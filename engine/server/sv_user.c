@@ -1695,7 +1695,8 @@ void SV_Begin_f (void)
 			ClientReliableWrite_Begin (host_client, svc_setpause, 2);
 			ClientReliableWrite_Byte (host_client, sv.paused!=0);
 		}
-		SV_ClientTPrintf(host_client, PRINT_HIGH, STL_SERVERPAUSED);
+		if (sv.paused&~4)
+			SV_ClientTPrintf(host_client, PRINT_HIGH, STL_SERVERPAUSED);
 	}
 
 	if (sendangles)
@@ -4287,7 +4288,8 @@ void SVNQ_Begin_f (void)
 			ClientReliableWrite_Begin (host_client, svc_setpause, 2);
 			ClientReliableWrite_Byte (host_client, sv.paused!=0);
 		}
-		SV_ClientTPrintf(host_client, PRINT_HIGH, STL_SERVERPAUSED!=0);
+		if (sv.paused&~4)
+			SV_ClientTPrintf(host_client, PRINT_HIGH, STL_SERVERPAUSED!=0);
 	}
 
 	if (sendangles)

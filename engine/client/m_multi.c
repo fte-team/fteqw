@@ -328,9 +328,9 @@ void M_Menu_Setup_f (void)
 	menucustom_t *ci;
 	char *classnames[] =
 	{
-		"1",
-		"2",
-		"3",
+		"Paladin",
+		"Crusader",
+		"Necromancer",
 		"Assasin",
 		"Demoness",
 		NULL

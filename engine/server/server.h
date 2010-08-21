@@ -417,6 +417,7 @@ typedef struct client_s
 	int				statsi[MAX_CL_STATS];
 	float			statsf[MAX_CL_STATS];
 	char			*statss[MAX_CL_STATS];
+	char			*centerprintstring;
 
 	union{	//save space
 		client_frame_t	*frames;	// updates can be deltad from here

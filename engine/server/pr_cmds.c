@@ -2272,46 +2272,23 @@ void PF_centerprint_Internal (int entnum, qboolean plaque, char *s)
 		return;
 	}
 
-	if (!*s)
-		plaque = false;
-
 	cl = &svs.clients[entnum-1];
+	if (cl->centerprintstring)
+		Z_Free(cl->centerprintstring);
+	cl->centerprintstring = NULL;
+
 	slen = strlen(s);
-	if (plaque)
-		slen += 2;
-
-	if (cl->controller)
-	{	//this is a slave client.
-		//find the right number and send.
-		int pnum = 0;
-		for (sp = cl->controller; sp; sp = sp->controlled)
-		{
-			if (sp == cl)
-				break;
-			pnum++;
-		}
-		cl = cl->controller;
-
-		ClientReliableWrite_Begin (cl, svcfte_choosesplitclient, 4 + slen);
-		ClientReliableWrite_Byte (cl, pnum);
-		ClientReliableWrite_Byte (cl, svc_centerprint);
+	if (plaque && *s)
+	{
+		cl->centerprintstring = Z_Malloc(slen+3);
+		cl->centerprintstring[0] = '/';
+		cl->centerprintstring[1] = 'P';
+		strcpy(cl->centerprintstring+2, s);
 	}
 	else
 	{
-		ClientReliableWrite_Begin (cl, svc_centerprint, 2 + slen);
-	}
-	if (plaque)
-	{
-		ClientReliableWrite_Char (cl, '/');
-		ClientReliableWrite_Char (cl, 'P');
-	}
-	ClientReliableWrite_String (cl, s);
-
-	if (sv.mvdrecording)
-	{
-		MVDWrite_Begin (dem_single, entnum - 1, 2 + slen);
-		MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_centerprint);
-		MSG_WriteString ((sizebuf_t*)demo.dbuf, s);
+		cl->centerprintstring = Z_Malloc(slen+1);
+		strcpy(cl->centerprintstring, s);
 	}
 }
 
@@ -7043,7 +7020,9 @@ void PF_h2plaque_draw(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (G_FLOAT(OFS_PARM1) == 0)
 		s = "";
 	else
+	{
 		s = T_GetString(G_FLOAT(OFS_PARM1)-1);
+	}
 
 	if (G_FLOAT(OFS_PARM0) == MSG_ONE)
 	{

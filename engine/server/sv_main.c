@@ -521,6 +521,10 @@ void SV_DropClient (client_t *drop)
 		break;
 	}
 
+	if (drop->centerprintstring)
+		Z_Free(drop->centerprintstring);
+	drop->centerprintstring = NULL;
+
 	if (drop->spectator)
 		Con_Printf ("Spectator %s removed\n",drop->name);
 	else
@@ -3382,7 +3386,7 @@ void SV_Frame (void)
 		if (sv.time < oldtime)
 			sv.time = oldtime;	//urm
 
-		if (sv.paused)
+		if (sv.paused && sv.time > 1.5)
 		{
 			sv.starttime += sv.time - oldtime;	//move the offset
 			sv.time = oldtime;	//and keep time as it was.
@@ -3453,7 +3457,7 @@ void SV_MVDStream_Poll(void);
 	}
 
 	// move autonomous things around if enough time has passed
-	if (!sv.paused)
+	if (!sv.paused || sv.time < 1.5)
 	{
 #ifdef Q2SERVER
 		//q2 is idle even if clients sent packets.

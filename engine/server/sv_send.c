@@ -1034,6 +1034,40 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 	}
 }
 
+/*sends the a centerprint string directly to the client*/
+void SV_WriteCenterPrint(client_t *cl, char *s)
+{
+	if (cl->controller)
+	{	//this is a slave client.
+		//find the right number and send.
+		int pnum = 0;
+		client_t *sp;
+		for (sp = cl->controller; sp; sp = sp->controlled)
+		{
+			if (sp == cl)
+				break;
+			pnum++;
+		}
+		cl = cl->controller;
+
+		ClientReliableWrite_Begin (cl, svcfte_choosesplitclient, 4 + strlen(s));
+		ClientReliableWrite_Byte (cl, pnum);
+		ClientReliableWrite_Byte (cl, svc_centerprint);
+	}
+	else
+	{
+		ClientReliableWrite_Begin (cl, svc_centerprint, 2 + strlen(s));
+	}
+	ClientReliableWrite_String (cl, s);
+
+	if (sv.mvdrecording)
+	{
+		MVDWrite_Begin (dem_single, cl - svs.clients, 2 + strlen(s));
+		MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_centerprint);
+		MSG_WriteString ((sizebuf_t*)demo.dbuf, s);
+	}
+}
+
 /*
 ==================
 SV_WriteClientdataToMessage
@@ -1050,7 +1084,12 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	client_t *split;
 	int pnum=0;
 
-
+	if (client->centerprintstring && ! client->num_backbuf)
+	{
+		SV_WriteCenterPrint(client, client->centerprintstring);
+		Z_Free(client->centerprintstring);
+		client->centerprintstring = NULL;
+	}
 
 	// send the chokecount for r_netgraph
 	if (ISQWCLIENT(client))

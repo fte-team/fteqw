@@ -819,10 +819,15 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 	}
 
 // find precache number for sound
-    for (sound_num=1 ; sound_num<MAX_SOUNDS
-        && sv.strings.sound_precache[sound_num] ; sound_num++)
-        if (!strcmp(sample, sv.strings.sound_precache[sound_num]))
-            break;
+	if (!*sample)
+		sound_num = 0;
+	else
+	{
+		for (sound_num=1 ; sound_num<MAX_SOUNDS
+			&& sv.strings.sound_precache[sound_num] ; sound_num++)
+			if (!strcmp(sample, sv.strings.sound_precache[sound_num]))
+				break;
+	}
 
     if ( sound_num == MAX_SOUNDS || !sv.strings.sound_precache[sound_num] )
     {
@@ -838,7 +843,7 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 		channel &= 7;
 	}
 	else
-		use_phs = true;
+		use_phs = attenuation!=0;
 
 //	if (channel == CHAN_BODY || channel == CHAN_VOICE)
 //		reliable = true;

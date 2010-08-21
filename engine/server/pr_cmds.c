@@ -7145,6 +7145,7 @@ void PF_h2matchAngleToSlope(progfuncs_t *prinst, struct globalvars_s *pr_globals
 	actor->v->angles[0] = dot*pitch;
 	actor->v->angles[2] = (1-fabs(dot))*pitch*mod;
 }
+/*objective type stuff, this goes into a stat*/
 void PF_h2updateinfoplaque(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	unsigned int idx = G_FLOAT(OFS_PARM0);
@@ -7179,7 +7180,7 @@ void PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/sm_white.spr"), 0, 3, 20);
 		break;
 	case 11:	//yellowred_flash
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/yr_flash.spr"), 0, 21, 20);
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/yr_flsh.spr"), 0, 21, 20);
 		break;
 	case 13:	//sm_blue_flash
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/bluflash.spr"), 0, 5, 20);
@@ -7242,10 +7243,17 @@ void PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	case 56:	//bomb
 		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/pow.spr"), 0, 6, 20);
 		break;
-	case 46:	
-	case 52:
-	case 53:
-	case 57:
+	case 5:		//bluespark
+	case 43:	//snow
+	case 46:	//acid_muzzfl
+	case 51:	//lball_expl
+	case 52:	//acid_splat
+	case 53:	//acid_expl
+	case 57:	//brn_bounce
+	case 58:	//lshock
+	case 38:	//teleporterpuffs
+	case 39:	//teleporterbody
+	case 62:	//onfire
 		break;
 
 
@@ -7272,18 +7280,40 @@ void PF_h2endeffect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_h2rain_go(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	/*
+	float *min = G_VECTOR(OFS_PARM0);
+	float *max = G_VECTOR(OFS_PMAR1);
+	float *size = G_VECTOR(OFS_PARM2);
+	float *dir = G_VECTOR(OFS_PARM3);
+	float colour = G_FLOAT(OFS_PARM4);
+	float count = G_FLOAT(OFS_PARM5);
+	*/
+	Con_DPrintf("rain go\n", (int)G_FLOAT(OFS_PARM0));
 }
 
 void PF_h2StopSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	int			channel;
+	edict_t		*entity;
+
+	entity = G_EDICT(prinst, OFS_PARM0);
+	channel = G_FLOAT(OFS_PARM1);
+
+	SVQ1_StartSound (entity, channel, "", 1, 0);
 }
 
 void PF_h2updatesoundpos(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	Con_DPrintf("updatesoundpos\n");
 }
 
 void PF_h2whiteflash(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	/*
+	broadcast a stuffcmd, I guess, to flash the screen white
+	Only seen this occur once: after killing pravus.
+	*/
+	Con_DPrintf("white flash\n", (int)G_FLOAT(OFS_PARM0));
 }
 
 void PF_h2getstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)

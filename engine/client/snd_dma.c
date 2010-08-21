@@ -1020,11 +1020,12 @@ void S_StopSoundCard(soundcardinfo_t *sc, int entnum, int entchannel)
 	for (i=0 ; i<sc->total_chans ; i++)
 	{
 		if (sc->channel[i].entnum == entnum
-			&& sc->channel[i].entchannel == entchannel)
+			&& (!entchannel || sc->channel[i].entchannel == entchannel))
 		{
 			sc->channel[i].end = 0;
 			sc->channel[i].sfx = NULL;
-			return;
+			if (entchannel)
+				return;
 		}
 	}
 }

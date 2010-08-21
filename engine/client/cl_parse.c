@@ -3344,7 +3344,12 @@ void CL_ParseStartSoundPacket(void)
 #ifdef PEXT_CSQC
 	if (!CSQC_StartSound(ent, channel, cl.sound_name[sound_num], pos, volume/255.0, attenuation))
 #endif
-		S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation);
+	{
+		if (!sound_num)
+			S_StopSound(ent, channel);
+		else
+			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation);
+	}
 
 
 	if (ent == cl.playernum[0]+1)
@@ -3475,7 +3480,15 @@ void CLNQ_ParseStartSoundPacket(void)
 	for (i=0 ; i<3 ; i++)
 		pos[i] = MSG_ReadCoord ();
 
-    S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation);
+#ifdef PEXT_CSQC
+	if (!CSQC_StartSound(ent, channel, cl.sound_name[sound_num], pos, volume/255.0, attenuation))
+#endif
+	{
+		if (!sound_num)
+			S_StopSound(ent, channel);
+		else
+			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation);
+	}
 
 	if (ent == cl.playernum[0]+1)
 		TP_CheckPickupSound(cl.sound_name[sound_num], pos);

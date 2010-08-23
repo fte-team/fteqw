@@ -421,12 +421,6 @@ static LRESULT WINAPI D3D7_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 		case MM_MCINOTIFY:
             lRet = CDAudio_MessageHandler (hWnd, uMsg, wParam, lParam);
 			break;
-
-			
-		case WM_MWHOOK:
-			if (!vid_initializing)
-				MW_Hook_Message (lParam);
-			break;
 		
     	default:
             /* pass all unhandled messages to DefWindowProc */

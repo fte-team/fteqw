@@ -54,7 +54,6 @@ cvar_t	m_filter = SCVAR("m_filter","0");
 cvar_t  m_accel = SCVAR("m_accel", "0");
 cvar_t	m_forcewheel = SCVAR("m_forcewheel", "1");
 cvar_t	m_forcewheel_threshold = SCVAR("m_forcewheel_threshold", "32");
-cvar_t	in_mwhook = SCVARF("in_mwhook","0", CVAR_ARCHIVE);
 cvar_t	in_dinput = SCVARF("in_dinput","0", CVAR_ARCHIVE);
 cvar_t	in_builtinkeymap = SCVARF("in_builtinkeymap", "1", CVAR_ARCHIVE);
 
@@ -76,11 +75,6 @@ typedef struct {
 
 typedef struct {
 	union {
-		struct { // serial mouse
-			HANDLE comhandle;
-			HANDLE threadhandle;
-			DWORD threadid;
-		};
 		HANDLE rawinputhandle; // raw input
 	} handles;
 
@@ -99,13 +93,6 @@ typedef struct {
 } mouse_t;
 
 mouse_t sysmouse;
-#ifdef SERIALMOUSE
-mouse_t serialmouse;
-#endif
-
-//int			mouse_buttons;
-//int			mouse_oldbuttonstate;
-//int			mouse_x, mouse_y, old_mouse_x, old_mouse_y, mx_accum, my_accum;
 
 static qboolean	restore_spi;
 static int		originalmouseparms[3], newmouseparms[3] = {0, 0, 0};
@@ -310,95 +297,6 @@ void Force_CenterView_f (void)
 	cl.viewangles[0][PITCH] = 0;
 }
 
-typedef void (*MW_DllFunc1)(void);
-typedef int (*MW_DllFunc2)(HWND);
-
-MW_DllFunc1 DLL_MW_RemoveHook = NULL;
-MW_DllFunc2 DLL_MW_SetHook = NULL;
-qboolean MW_Hook_enabled = false;
-HINSTANCE mw_hDLL;
-qboolean MW_Hook_allowed;
-
-static void MW_Set_Hook (void)
-{
-	if (!mainwindow)
-		return;
-	if (!MW_Hook_allowed && !in_mwhook.value)
-		return;
-
-	if (MW_Hook_enabled)
-	{
-		Con_Printf("MouseWare hook already loaded\n");
-		return;
-	}
-
-	if (!(mw_hDLL = LoadLibrary("mw_hook.dll")))
-	{
-		Con_Printf("Couldn't find mw_hook.dll\n");
-		in_mwhook.value = 0;
-		MW_Hook_allowed=0;
-		return;
-	}
-	DLL_MW_RemoveHook = (MW_DllFunc1) GetProcAddress(mw_hDLL, "MW_RemoveHook");
-	DLL_MW_SetHook = (MW_DllFunc2) GetProcAddress(mw_hDLL, "MW_SetHook");
-	if (!DLL_MW_SetHook || !DLL_MW_RemoveHook)
-	{
-		Con_Printf("Error initializing MouseWare hook\n");
-		FreeLibrary(mw_hDLL);
-		in_mwhook.value = 0;
-		MW_Hook_allowed=0;
-		return;
-	}
-	if (!DLL_MW_SetHook(mainwindow))
-	{
-		Con_Printf("Couldn't initialize MouseWare hook\n");
-		FreeLibrary(mw_hDLL);
-		in_mwhook.value = 0;
-		MW_Hook_allowed=0;
-		return;
-	}
-	MW_Hook_enabled = true;
-//	Con_Printf("MouseWare hook initialized\n");
-}
-
-static void MW_Remove_Hook (void)
-{
-	if (MW_Hook_enabled)
-	{
-		DLL_MW_RemoveHook();
-		FreeLibrary(mw_hDLL);
-		MW_Hook_enabled = false;
-//		Con_Printf("MouseWare hook removed\n");
-		return;
-	}
-	Con_Printf("MouseWare hook not loaded\n");
-}
-
-static void MW_Shutdown(void)
-{
-	if (!MW_Hook_enabled)
-		return;
-	MW_Remove_Hook();
-}
-
-void MW_Hook_Message (long buttons)
-{
-	static long old_buttons = 0;
-
-	buttons &= 0xFFFF;
-	switch (buttons ^ old_buttons)
-	{
-		case 8:		Key_Event(0, K_MOUSE4, 0, buttons > old_buttons ? true : false); break;
-		case 16:	Key_Event(0, K_MOUSE5, 0, buttons > old_buttons ? true : false); break;
-		case 32:	Key_Event(0, K_MOUSE6, 0, buttons > old_buttons ? true : false); break;
-		case 64:	Key_Event(0, K_MOUSE7, 0, buttons > old_buttons ? true : false); break;
-		case 128:	Key_Event(0, K_MOUSE8, 0, buttons > old_buttons ? true : false); break;
-		default:	break;
-	}
-
-	old_buttons = buttons;
-}
-
 /*
 ===========
 IN_UpdateClipCursor
@@ -513,8 +411,6 @@ static void IN_ActivateMouse (void)
 			ClipCursor (&window_rect);
 		}
 
-		MW_Set_Hook();
-
 		mouseactive = true;
 	}
 }
@@ -576,8 +472,6 @@ static void IN_DeactivateMouse (void)
 			ClipCursor (NULL);
 			ReleaseCapture ();
 		}
-
-		MW_Shutdown();
 
 		mouseactive = false;
 	}
@@ -899,121 +793,6 @@ void IN_RawInput_DeInit(void)
 }
 #endif
 
-void IN_SetSerialBoad(HANDLE port, int boadrate)
-{
-	DCB dcb;
-	memset(&dcb, 0, sizeof(dcb));
-
-	dcb.DCBlength = sizeof(dcb);
-	GetCommState(port, &dcb);
-
-	dcb.fBinary = TRUE;
-	dcb.fParity = FALSE;
-	dcb.fOutxCtsFlow = 0;
-	dcb.fOutxDsrFlow = 0;
-	dcb.fDtrControl = DTR_CONTROL_DISABLE;
-	dcb.fDsrSensitivity = 0;
-	dcb.fTXContinueOnXoff = FALSE;
-	dcb.fOutX = 0; 
-	dcb.fInX = 0;
-	dcb.fErrorChar = 0;
-	dcb.fNull = 0;
-	dcb.fRtsControl = RTS_CONTROL_DISABLE;
-	dcb.fAbortOnError = 0;
-	dcb.ByteSize = 7;
-	dcb.StopBits = ONESTOPBIT;
-	dcb.Parity = NOPARITY;
-	dcb.ErrorChar = 0;
-	dcb.EvtChar = 0;
-	dcb.EofChar = 0;
-
-	dcb.BaudRate = boadrate;     // set the baud rate
-	SetCommState(port, &dcb);
-
-	//now get the com port to electricute the mouse... powering up...
-	EscapeCommFunction(port, SETDTR);
-	EscapeCommFunction(port, SETRTS);
-}
-
-//microsoft's 2 button mouse protocol
-unsigned int _stdcall IN_SerialMSRun(void *param)
-{
-	mouse_t *mouse = param;
-	char code[3];
-	DWORD read;
-	int total=0;
-	IN_SetSerialBoad(mouse->handles.comhandle, 1200);
-	total=0;
-	while(1)
-	{
-		ReadFile(mouse->handles.comhandle, code, sizeof(code)-total, &read, NULL);
-		total+=read;
-		if (total == 3)
-		{
-			mouse->buttons = 0; /* No button - should only happen on an error */
-			if ((code[0] & 0x20) != 0)
-				mouse->buttons |= 1;
-			else if ((code[0] & 0x10) != 0)
-				mouse->buttons |= 2;
-			mouse->delta[0] = (code[0] & 0x03) * 64 + (code[1] & 0x3F);
-			if (mouse->delta[0] > 127)
-				mouse->delta[0] = mouse->delta[0] - 256;
-			mouse->delta[1] = (code[0] & 0x0C) * 16 + (code[2] & 0x3F);
-			if (mouse->delta[1] > 127)
-				mouse->delta[1] = mouse->delta[1] - 256;
-
-//			Con_Printf("%i %i %i\n", serialmousexmove, serialmouseymove, serialmousebuttons);
-			total=0;
-		}
-	}
-	return true;
-}
-
-//microsofts's intellimouse protocol
-//used by most wheel mice.
-unsigned long __stdcall IN_SerialMSIntelliRun(void *param)
-{
-	mouse_t *mouse = param;
-	unsigned char code[80];
-	DWORD read, total=0;
-	IN_SetSerialBoad(mouse->handles.comhandle, 1200);
-
-	ReadFile(mouse->handles.comhandle, code, 11*4+2, &read, NULL);	//header info which we choose to ignore
-
-	mouse->numbuttons = 3;
-
-	while(1)
-	{
-		ReadFile(mouse->handles.comhandle, code+total, 4-total, &read, NULL);
-		total+=read;
-		if (total >= 4)
-		{
-//			if (mouse->oldbuttons == mouse->buttons)
-//				mouse->buttons=0;	//don't clear prematurly.
-			mouse->buttons =	((code[0] & 0x20) >> 5)	/* left */
-								| ((code[3] & 0x10) >> 2)	/* middle */
-								| ((code[0] & 0x10) >> 3);	/* right */
-			mouse->delta[0] +=	(signed char)(((code[0] & 0x03) << 6) | (code[1]/* & 0x3F*/));
-			mouse->delta[1] +=	(signed char)(((code[0] & 0x0C) << 4) | (code[2]/* & 0x3F*/));
-
-			if (m_forcewheel.value)
-			{
-				int wdv;
-				wdv = (signed char)((code[3] & 0x0f)<<4)/16;
-				mouse->wheeldelta += wdv * m_forcewheel_threshold.value;
-			}
-
-			total=0;
-		}
-		else		//an else shouldn't happen...
-		{
-			Sleep(4);
-	//		return false;
-		}
-	}
-	return true;
-}
-
 #ifdef USINGRAWINPUT
 // raw input registration functions
 int IN_RawInput_MouseRegister(void)
@@ -1284,47 +1063,12 @@ void IN_StartupMouse (void)
 		}
 	}
 
-	if (COM_CheckParm("-m_mwhook"))
-		MW_Hook_allowed = true;
-
 	sysmouse.numbuttons = 10;
 
 // if a fullscreen video mode was set before the mouse was initialized,
 // set the mouse state appropriately
 	if (mouseactivatetoggle)
 		IN_ActivateMouse ();
-
-#ifdef SERIALMOUSE
-	if (serialmouse.handles.comhandle)
-	{
-		TerminateThread(serialmouse.handles.threadhandle, 0);
-		CloseHandle(serialmouse.handles.threadhandle);
-		CloseHandle(serialmouse.handles.comhandle);
-	}
-	serialmouse.numbuttons = 0;
-
-	if (COM_CheckParm("-mouse2"))
-	{
-		serialmouse.handles.comhandle = CreateFile("\\\\.\\COM2",
-				GENERIC_READ,
-				0,           // share for reading 
-                NULL,                      // default security 
-                OPEN_EXISTING,             // existing file only 
-                FILE_ATTRIBUTE_NORMAL,     // normal file 
-                NULL);                     // no attr. template 
-
-		if (serialmouse.handles.comhandle == INVALID_HANDLE_VALUE)
-		{
-			serialmouse.handles.comhandle = NULL;
-			return;
-		}
-		serialmouse.handles.threadhandle = CreateThread(NULL, 1024, IN_SerialMSIntelliRun, (void *)&serialmouse, CREATE_SUSPENDED, &serialmouse.handles.threadid);
-		SetThreadPriority(serialmouse.handles.threadhandle, THREAD_PRIORITY_HIGHEST);
-		ResumeThread(serialmouse.handles.threadhandle);
-	}
-	else
-		serialmouse.handles.comhandle = NULL;
-#endif
 }
 
 
@@ -1357,7 +1101,6 @@ void IN_Init (void)
 	Cvar_Register (&m_accel, "Input Controls");
 	Cvar_Register (&m_forcewheel, "Input Controls");
 	Cvar_Register (&m_forcewheel_threshold, "Input Controls");
-	Cvar_Register (&in_mwhook, "Input Controls");
 
 	Cvar_Register (&in_dinput, "Input Controls");
 	Cvar_Register (&in_builtinkeymap, "Input Controls");
@@ -1842,10 +1585,6 @@ void IN_MouseMove (float *movements, int pnum)
 #endif
 
 	ProcessMouse(&sysmouse,		movements, pnum);
-
-#ifdef SERIALMOUSE
-	ProcessMouse(&serialmouse,	movements, pnum);
-#endif
 }
 
 

@@ -45,8 +45,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define WM_MOUSEWHEEL                   0x020A
 #endif
 
-#define WM_MWHOOK (WM_USER + 1)
-
 #ifndef SERVERONLY
 #ifdef AVAIL_DDRAW
 #include <ddraw.h>
@@ -161,7 +159,6 @@ extern HWND		hwnd_dialog;
 void IN_UpdateClipCursor (void);
 void CenterWindow(HWND hWndCenter, int width, int height, BOOL lefttopjustify);
 void IN_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int pnum);
-void MW_Hook_Message (long buttons);
 
 void S_BlockSound (void);
 void S_UnblockSound (void);

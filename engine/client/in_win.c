@@ -68,6 +68,14 @@ qboolean Key_MouseShouldBeFree(void);
 
 typedef struct {
 	union {
+		HANDLE rawinputhandle;
+	} handles;
+
+	int playerid;
+} keyboard_t;
+
+typedef struct {
+	union {
 		struct { // serial mouse
 			HANDLE comhandle;
 			HANDLE threadhandle;
@@ -270,16 +278,19 @@ pGetRawInputData _GRID;
 pGetRawInputDeviceInfoA _GRIDIA;
 pRegisterRawInputDevices _RRID;
 
+keyboard_t *rawkbd;
 mouse_t *rawmice;
 int rawmicecount;
+int rawkbdcount;
 RAWINPUT *raw;
 int ribuffersize;
 
 cvar_t in_rawinput = SCVAR("in_rawinput", "0");
+cvar_t in_rawinput_keyboard = SCVAR("in_rawinput_keyboard", "0");
 cvar_t in_rawinput_rdp = SCVAR("in_rawinput_rdp", "0");
 
-void IN_RawInput_DeRegister(void);
-int IN_RawInput_Register(void);
+void IN_RawInput_MouseDeRegister(void);
+int IN_RawInput_MouseRegister(void);
 void IN_RawInput_DeInit(void);
 
 #endif
@@ -487,9 +498,9 @@ static void IN_ActivateMouse (void)
 #ifdef USINGRAWINPUT
 			if (rawmicecount > 0)
 			{
-				if (IN_RawInput_Register()) {
-					Con_SafePrintf("Raw input: unable to register raw input, deinitializing\n");
-					IN_RawInput_DeInit();
+				if (IN_RawInput_MouseRegister()) {
+					Con_SafePrintf("Raw input: unable to register raw input for mice, deinitializing\n");
+					IN_RawInput_MouseDeRegister();
 				}
 			}
 #endif
@@ -556,7 +567,7 @@ static void IN_DeactivateMouse (void)
 		{
 #ifdef USINGRAWINPUT
 			if (rawmicecount > 0)
-				IN_RawInput_DeRegister();
+				IN_RawInput_MouseDeRegister();
 #endif
 
 			if (restore_spi)
@@ -845,7 +856,20 @@ void IN_CloseDInput (void)
 #endif
 
 #ifdef USINGRAWINPUT
-void IN_RawInput_DeRegister(void)
+void IN_RawInput_MouseDeRegister(void)
+{
+	RAWINPUTDEVICE Rid;
+
+	// deregister raw input
+	Rid.usUsagePage = 0x01; 
+	Rid.usUsage = 0x02; 
+	Rid.dwFlags = RIDEV_REMOVE;
+	Rid.hwndTarget = NULL;
+
+	(*_RRID)(&Rid, 1, sizeof(Rid));
+}
+
+void IN_RawInput_KeyboardDeRegister(void)
 {
 	RAWINPUTDEVICE Rid;
 
@@ -860,15 +884,18 @@ void IN_RawInput_DeRegister(void)
 
 void IN_RawInput_DeInit(void)
 {
-	if (rawmicecount < 1)
-		return;
-
-	IN_RawInput_DeRegister();
-
-	Z_Free(rawmice);
-
-	// dealloc mouse structure
-	rawmicecount = 0;
+	if (rawmicecount > 0)
+	{
+		IN_RawInput_MouseDeRegister();
+		Z_Free(rawmice);
+		rawmicecount = 0;
+	}
+	if (rawkbdcount > 0)
+	{
+		IN_RawInput_KeyboardDeRegister();
+		Z_Free(rawkbd);
+		rawkbdcount = 0;
+	}
 }
 #endif
 
@@ -989,7 +1016,7 @@ unsigned long __stdcall IN_SerialMSIntelliRun(void *param)
 
 #ifdef USINGRAWINPUT
 // raw input registration functions
-int IN_RawInput_Register(void)
+int IN_RawInput_MouseRegister(void)
 {
 	// This function registers to receive the WM_INPUT messages
 	RAWINPUTDEVICE Rid; // Register only for mouse messages from wm_input.  
@@ -1007,9 +1034,32 @@ int IN_RawInput_Register(void)
 	return 0;
 }
 
-int IN_RawInput_IsRDPMouse(char *cDeviceString)
+int IN_RawInput_KeyboardRegister(void)
 {
-	char cRDPString[] = "\\\\?\\Root#RDP_MOU#";
+	RAWINPUTDEVICE Rid;
+
+	Rid.usUsagePage = 0x01; 
+	Rid.usUsage = 0x00; 
+	Rid.dwFlags = RIDEV_NOLEGACY | RIDEV_APPKEYS | RIDEV_NOHOTKEYS; // fetch everything, disable hotkey behavior (should cvar?)
+	Rid.hwndTarget = NULL;
+
+	if (!(*_RRID)(&Rid, 1, sizeof(Rid)))
+		return 1;
+
+	return 0;
+}
+
+int IN_RawInput_Register(void)
+{
+	if (IN_RawInput_MouseRegister())
+		return !in_rawinput_keyboard.ival || IN_RawInput_KeyboardRegister();
+	return 0;
+}
+
+int IN_RawInput_IsRDPDevice(char *cDeviceString)
+{
+	// mouse is \\?\Root#RDP_MOU#, keyboard is \\?\Root#RDP_KBD#"
+	char cRDPString[] = "\\\\?\\Root#RDP_";
 	int i;
 
 	if (strlen(cDeviceString) < strlen(cRDPString)) {
@@ -1022,14 +1072,14 @@ int IN_RawInput_IsRDPMouse(char *cDeviceString)
 			return 0;
 	}
 
-	return 1; // is RDP mouse
+	return 1;
 }
 
 void IN_RawInput_Init(void)
 {
 	  // "0" to exclude, "1" to include
 	PRAWINPUTDEVICELIST pRawInputDeviceList;
-	int inputdevices, i, j, mtemp;
+	int inputdevices, i, j, mtemp, ktemp;
 	char dname[MAX_RI_DEVICE_SIZE];
 
 	// Return 0 if rawinput is not available
@@ -1087,65 +1137,86 @@ void IN_RawInput_Init(void)
 	}
 
 	// Loop through all devices and count the mice
-	for (i = 0, mtemp = 0; i < inputdevices; i++)
+	for (i = 0, mtemp = 0, ktemp = 0; i < inputdevices; i++)
 	{
-		if (pRawInputDeviceList[i].dwType == RIM_TYPEMOUSE) 
+		j = MAX_RI_DEVICE_SIZE;
+
+		// Get the device name and use it to determine if it's the RDP Terminal Services virtual device.
+		if ((*_GRIDIA)(pRawInputDeviceList[i].hDevice, RIDI_DEVICENAME, dname, &j) < 0)
+			dname[0] = 0;
+
+		if (!(in_rawinput_rdp.value) && IN_RawInput_IsRDPDevice(dname)) // use rdp (cvar)
+			continue;
+
+		switch (pRawInputDeviceList[i].dwType)
 		{
-			j = MAX_RI_DEVICE_SIZE;
-
-			// Get the device name and use it to determine if it's the RDP Terminal Services virtual device.
-			if ((*_GRIDIA)(pRawInputDeviceList[i].hDevice, RIDI_DEVICENAME, dname, &j) < 0)
-				dname[0] = 0;
-
-			if (!(in_rawinput_rdp.value) && IN_RawInput_IsRDPMouse(dname)) // use rdp mouse (cvar)
+		case RIM_TYPEMOUSE:
+			mtemp++;
+			break;
+		case RIM_TYPEKEYBOARD:
+			if (!in_rawinput_keyboard.ival)
 				continue;
 
-			// advance temp device count
-			mtemp++;
+			ktemp++;
+			break;
+		default: // (RIM_TYPEHID) support joysticks?
+			break;
 		}
 	}
 
 	// exit out if no devices found
-	if (!mtemp)
+	if (!mtemp && !ktemp)
 	{
 		Con_SafePrintf("Raw input: no usable device found\n");
 		return;
 	}
 
 	// Loop again and bind devices
-	rawmice = Z_Malloc(sizeof(mouse_t) * mtemp);
+	rawmice = (mouse_t *)Z_Malloc(sizeof(mouse_t) * mtemp);
+	rawkbd = (keyboard_t *)Z_Malloc(sizeof(keyboard_t) * ktemp);
 	for (i = 0; i < inputdevices; i++)
 	{
-		if (pRawInputDeviceList[i].dwType == RIM_TYPEMOUSE)
-		{
-			j = MAX_RI_DEVICE_SIZE;
+		j = MAX_RI_DEVICE_SIZE;
 
-			// Get the device name and use it to determine if it's the RDP Terminal Services virtual device.
-			if ((*_GRIDIA)(pRawInputDeviceList[i].hDevice, RIDI_DEVICENAME, dname, &j) < 0)
-				dname[0] = 0;
+		// Get the device name and use it to determine if it's the RDP Terminal Services virtual device.
+		if ((*_GRIDIA)(pRawInputDeviceList[i].hDevice, RIDI_DEVICENAME, dname, &j) < 0)
+			dname[0] = 0;
 
-			if (!(in_rawinput_rdp.value) && IN_RawInput_IsRDPMouse(dname)) // use rdp mouse (cvar)
-				continue;
+		if (!(in_rawinput_rdp.value) && IN_RawInput_IsRDPDevice(dname)) // use rdp (cvar)
+			continue;
 
-			// print pretty message about the mouse
-			dname[MAX_RI_DEVICE_SIZE - 1] = 0;
-			for (mtemp = strlen(dname); mtemp >= 0; mtemp--)
-			{
-				if (dname[mtemp] == '#')
-				{
-					dname[mtemp + 1] = 0;
-					break;
-				}
-			}
-			Con_SafePrintf("Raw input: [%i] %s\n", i, dname);
-
+		switch (pRawInputDeviceList[i].dwType)
+		{ 
+		case RIM_TYPEMOUSE:
 			// set handle
 			rawmice[rawmicecount].handles.rawinputhandle = pRawInputDeviceList[i].hDevice;
 			rawmice[rawmicecount].numbuttons = 10;
 			rawmice[rawmicecount].pos[0] = RI_INVALID_POS;
 			rawmice[rawmicecount].playerid = rawmicecount;
 			rawmicecount++;
+			break;
+		case RIM_TYPEKEYBOARD:
+			if (!in_rawinput_keyboard.ival)
+				continue;
+
+			rawkbd[rawkbdcount].handles.rawinputhandle = pRawInputDeviceList[i].hDevice;
+			rawkbdcount++;
+			break;
+		default:
+			continue;
 		}
+
+		// print pretty message about device
+		dname[MAX_RI_DEVICE_SIZE - 1] = 0;
+		for (mtemp = strlen(dname); mtemp >= 0; mtemp--)
+		{
+			if (dname[mtemp] == '#')
+			{
+				dname[mtemp + 1] = 0;
+				break;
+			}
+		}
+		Con_SafePrintf("Raw input type %i: [%i] %s\n", pRawInputDeviceList[i].dwType, i, dname);
 	}
 
    
@@ -1156,7 +1227,7 @@ void IN_RawInput_Init(void)
 	raw = BZ_Malloc(INIT_RIBUFFER_SIZE);
 	ribuffersize = INIT_RIBUFFER_SIZE;
 
-	Con_SafePrintf("Raw input: initialized with %i mice\n", rawmicecount);
+	Con_SafePrintf("Raw input: initialized with %i mice and %i keyboards\n", rawmicecount, rawkbdcount);
 
 	return; // success
 }
@@ -1211,13 +1282,6 @@ void IN_StartupMouse (void)
 				newmouseparms[1] = originalmouseparms[1];
 			}
 		}
-
-#ifdef USINGRAWINPUT
-		if (in_rawinput.value)
-		{
-			IN_RawInput_Init();
-		}
-#endif
 	}
 
 	if (COM_CheckParm("-m_mwhook"))
@@ -1271,6 +1335,13 @@ IN_Init
 */
 void IN_ReInit (void)
 {
+#ifdef USINGRAWINPUT
+	if (in_rawinput.value)
+	{
+		IN_RawInput_Init();
+	}
+#endif
+
 	IN_StartupMouse ();
 	IN_StartupJoystick ();
 //	IN_ActivateMouse();
@@ -1344,6 +1415,7 @@ void IN_Init (void)
 
 #ifdef USINGRAWINPUT
 	Cvar_Register (&in_rawinput, "Input Controls");
+	Cvar_Register (&in_rawinput_keyboard, "Input Controls");
 	Cvar_Register (&in_rawinput_rdp, "Input Controls");
 #endif
 }
@@ -1824,38 +1896,19 @@ void IN_Accumulate (void)
 }
 
 #ifdef USINGRAWINPUT
-void IN_RawInput_MouseRead(HANDLE in_device_handle)
+void IN_RawInput_MouseRead(void)
 {
-	int i = 0, tbuttons, j;
-	int dwSize;
 	int pnum;
-
-	// get raw input
-	if ((*_GRID)((HRAWINPUT)in_device_handle, RID_INPUT, NULL, &dwSize, sizeof(RAWINPUTHEADER)) == -1) 
-	{
-		Con_Printf("Raw input: unable to add to get size of raw input header.\n");
-		return;
-	}
-
-	if (dwSize > ribuffersize)
-	{
-		ribuffersize = dwSize;
-		raw = BZ_Realloc(raw, dwSize);
-	}
-		
-	if ((*_GRID)((HRAWINPUT)in_device_handle, RID_INPUT, raw, &dwSize, sizeof(RAWINPUTHEADER)) != dwSize ) {
-		Con_Printf("Raw input: unable to add to get raw input header.\n");
-		return;
-	}
+	int i, tbuttons, j;
 
 	// find mouse in our mouse list
-	for (; i < rawmicecount; i++)
+	for (i = 0; i < rawmicecount; i++)
 	{
 		if (rawmice[i].handles.rawinputhandle == raw->header.hDevice)
 			break;
 	}
 
-	if (i == rawmicecount) // we're not tracking this mouse
+	if (i == rawmicecount) // we're not tracking this device
 		return;
 
 	pnum = cl.splitclients;
@@ -1940,8 +1993,66 @@ void IN_RawInput_MouseRead(HANDLE in_device_handle)
 	rawmice[i].buttons &= ~RI_RAWBUTTON_MASK;
 	rawmice[i].buttons |= tbuttons;
 }
+
+void IN_RawInput_KeyboardRead(void)
+{
+	int i;
+	int pnum;
+	qboolean down;
+	WPARAM wParam;
+	LPARAM lParam;
+
+	for (i = 0; i < rawkbdcount; i++)
+	{
+		if (rawkbd[i].handles.rawinputhandle == raw->header.hDevice)
+			break;
+	}
+
+	if (i == rawkbdcount) // not tracking this device
+		return;
+
+	down = !(raw->data.keyboard.Flags & RI_KEY_BREAK);
+	wParam = raw->data.keyboard.VKey;
+	lParam = (-down) & 0xC0000000;
+
+	pnum = cl.splitclients;
+	if (pnum < 1)
+		pnum = 1;
+	if (cl_forcesplitclient.ival)
+		pnum = (cl_forcesplitclient.ival-1) % pnum;
+	else
+		pnum = rawkbd[i].playerid % pnum;
+
+	IN_TranslateKeyEvent(wParam, lParam, down, pnum);
+}
+
+void IN_RawInput_Read(HANDLE in_device_handle)
+{
+	int dwSize;
+
+	// get raw input
+	if ((*_GRID)((HRAWINPUT)in_device_handle, RID_INPUT, NULL, &dwSize, sizeof(RAWINPUTHEADER)) == -1) 
+	{
+		Con_Printf("Raw input: unable to add to get size of raw input header.\n");
+		return;
+	}
+
+	if (dwSize > ribuffersize)
+	{
+		ribuffersize = dwSize;
+		raw = (RAWINPUT *)BZ_Realloc(raw, dwSize);
+	}
+		
+	if ((*_GRID)((HRAWINPUT)in_device_handle, RID_INPUT, raw, &dwSize, sizeof(RAWINPUTHEADER)) != dwSize ) {
+		Con_Printf("Raw input: unable to add to get raw input header.\n");
+		return;
+	}
+
+	IN_RawInput_MouseRead();
+	IN_RawInput_KeyboardRead();
+}
 #else
-void IN_RawInput_MouseRead(HANDLE in_device_handle)
+void IN_RawInput_Read(HANDLE in_device_handle)
 {
 }
 #endif
@@ -2542,7 +2653,7 @@ static int MapKey (int vkey)
 	return scantokey[key];
 }
 
-void IN_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down)
+void IN_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int pnum)
 {
 	extern cvar_t in_builtinkeymap;
 	int qcode;
@@ -2564,5 +2675,5 @@ void IN_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down)
 		}
 	}
 	
-	Key_Event (0, qcode, unicode, down);
+	Key_Event (pnum, qcode, unicode, down);
 }

@@ -1599,9 +1599,7 @@ LONG WINAPI GLMainWndProc (
 		case WM_KEYDOWN:
 		case WM_SYSKEYDOWN:
 			if (!vid_initializing)
-			{
-				IN_TranslateKeyEvent(wParam, lParam, true);
-			}
+				IN_TranslateKeyEvent(wParam, lParam, true, 0);
 			break;
 
 //		case WM_UNICHAR:
@@ -1616,9 +1614,7 @@ LONG WINAPI GLMainWndProc (
 		case WM_KEYUP:
 		case WM_SYSKEYUP:
 			if (!vid_initializing)
-			{
-				IN_TranslateKeyEvent(wParam, lParam, false);
-			}
+				IN_TranslateKeyEvent(wParam, lParam, false, 0);
 			break;
 
 	// this is complicated because Win32 seems to pack multiple mouse events into
@@ -1695,7 +1691,8 @@ LONG WINAPI GLMainWndProc (
 
 		case WM_INPUT:
 			// raw input handling
-			IN_RawInput_MouseRead((HANDLE)lParam);
+			if (!vid_initializing)
+				IN_RawInput_Read((HANDLE)lParam);
 			break;
 
     	case WM_SIZE:

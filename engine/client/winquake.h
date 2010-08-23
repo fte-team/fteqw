@@ -37,6 +37,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <windows.h>
 #include <winsock2.h>
 #include <mmsystem.h>
+#include <mmreg.h>
 #define _LPCWAVEFORMATEX_DEFINED
 
 
@@ -145,7 +146,7 @@ void IN_UpdateGrabs(int fullscreen, int activeapp);
 void IN_RestoreOriginalMouseState (void);
 void IN_SetQuakeMouseState (void);
 void IN_MouseEvent (int mstate);
-void IN_RawInput_MouseRead(HANDLE in_device_handle);
+void IN_RawInput_Read(HANDLE in_device_handle);
 
 extern qboolean	winsock_lib_initialized;
 
@@ -159,7 +160,7 @@ extern HWND		hwnd_dialog;
 
 void IN_UpdateClipCursor (void);
 void CenterWindow(HWND hWndCenter, int width, int height, BOOL lefttopjustify);
-void IN_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down);
+void IN_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int pnum);
 void MW_Hook_Message (long buttons);
 
 void S_BlockSound (void);

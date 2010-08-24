@@ -278,6 +278,8 @@ cvar_t in_rawinput_rdp = SCVAR("in_rawinput_rdp", "0");
 
 void IN_RawInput_MouseDeRegister(void);
 int IN_RawInput_MouseRegister(void);
+void IN_RawInput_KeyboardDeRegister(void);
+int IN_RawInput_KeyboardRegister(void);
 void IN_RawInput_DeInit(void);
 
 #endif
@@ -396,9 +398,18 @@ static void IN_ActivateMouse (void)
 #ifdef USINGRAWINPUT
 			if (rawmicecount > 0)
 			{
-				if (IN_RawInput_MouseRegister()) {
+				if (IN_RawInput_MouseRegister())
+				{
 					Con_SafePrintf("Raw input: unable to register raw input for mice, deinitializing\n");
 					IN_RawInput_MouseDeRegister();
+				}
+			}
+			if (rawkbdcount > 0)
+			{
+				if (IN_RawInput_KeyboardRegister())
+				{
+					Con_SafePrintf("Raw input: unable to register raw input for keyboard, deinitializing\n");
+					IN_RawInput_KeyboardDeRegister();
 				}
 			}
 #endif
@@ -818,7 +829,7 @@ int IN_RawInput_KeyboardRegister(void)
 	RAWINPUTDEVICE Rid;
 
 	Rid.usUsagePage = 0x01; 
-	Rid.usUsage = 0x00; 
+	Rid.usUsage = 0x06; 
 	Rid.dwFlags = RIDEV_NOLEGACY | RIDEV_APPKEYS | RIDEV_NOHOTKEYS; // fetch everything, disable hotkey behavior (should cvar?)
 	Rid.hwndTarget = NULL;
 
@@ -979,6 +990,7 @@ void IN_RawInput_Init(void)
 				continue;
 
 			rawkbd[rawkbdcount].handles.rawinputhandle = pRawInputDeviceList[i].hDevice;
+			rawkbd[rawkbdcount].playerid = rawmicecount;
 			rawkbdcount++;
 			break;
 		default:
@@ -1751,8 +1763,8 @@ void IN_RawInput_KeyboardRead(void)
 		return;
 
 	down = !(raw->data.keyboard.Flags & RI_KEY_BREAK);
-	wParam = raw->data.keyboard.VKey;
-	lParam = (-down) & 0xC0000000;
+	wParam = (-down) & 0xC0000000;
+	lParam = MapVirtualKey(raw->data.keyboard.VKey, 0)<<16;
 
 	pnum = cl.splitclients;
 	if (pnum < 1)
@@ -1762,7 +1774,7 @@ void IN_RawInput_KeyboardRead(void)
 	else
 		pnum = rawkbd[i].playerid % pnum;
 
-	IN_TranslateKeyEvent(wParam, lParam, down, pnum);
+ 	IN_TranslateKeyEvent(wParam, lParam, down, pnum);
 }
 
 void IN_RawInput_Read(HANDLE in_device_handle)

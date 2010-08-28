@@ -678,6 +678,15 @@ enum {
 	TEDP_TEI_PLASMAHIT	= 79,
 };
 
+
+#define CTE_CUSTOMCOUNT		1
+#define CTE_CUSTOMDIRECTION	2
+#define CTE_STAINS			4
+#define CTE_GLOWS			8
+#define CTE_CHANNELFADE		16
+#define CTE_CUSTOMVELOCITY	32
+#define CTE_ISBEAM			128
+
 //FTE's version of TEI_SHOWLMP2
 #define SL_ORG_NW	0
 #define SL_ORG_NE	1

@@ -1437,13 +1437,6 @@ typedef struct {
 	vec3_t dlightcfade;
 } clcustomtents_t;
 
-#define CTE_CUSTOMCOUNT		1
-#define CTE_CUSTOMDIRECTION	2
-#define CTE_STAINS			4
-#define CTE_GLOWS			8
-#define CTE_CHANNELFADE		16
-#define CTE_ISBEAM			128
-
 clcustomtents_t customtenttype[255];	//network based.
 void CL_ParseCustomTEnt(void)
 {

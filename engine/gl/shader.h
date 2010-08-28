@@ -429,9 +429,8 @@ void Sh_Shutdown(void);
 void BE_BaseEntShadowDepth(void);
 //Sets the given light+colour to be the current one that everything is to be lit/culled by.
 void BE_SelectDLight(dlight_t *dl, vec3_t colour);
-
-void BE_SelectEntity(entity_t *ent);
 //Returns true if the mesh is not lit by the current light
 qboolean BE_LightCullModel(vec3_t org, model_t *model);
 #endif
+void BE_SelectEntity(entity_t *ent);
 #endif

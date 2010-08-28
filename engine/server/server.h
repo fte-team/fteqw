@@ -73,14 +73,6 @@ typedef struct {
 	qbyte dlighttime;
 	qbyte dlightcfade[3];
 } svcustomtents_t;
-#define CTE_CUSTOMCOUNT		1
-#define CTE_CUSTOMDIRECTION	2
-#define CTE_STAINS			4
-#define CTE_GLOWS			8
-#define CTE_CHANNELFADE     16
-#define CTE_CUSTOMVELOCITY	32
-#define CTE_UNUSED2			64
-#define CTE_ISBEAM			128
 
 typedef struct laggedpacket_s
 {

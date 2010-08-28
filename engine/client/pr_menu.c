@@ -557,6 +557,8 @@ void PF_CL_drawrawstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 
 	Font_BeginScaledString(font_conchar, pos[0], pos[1], &x, &y);
+	x = pos[0];
+	y = pos[1];
 	Font_ForceColour(rgb[0], rgb[1], rgb[2], alpha);
 	while(*text)
 	{

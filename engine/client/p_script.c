@@ -45,6 +45,17 @@ extern void *d3dballtexture;
 
 #include "r_partset.h"
 
+struct
+{
+	char *name;
+	char **data;
+} partset_list[] =
+{
+	{"none", NULL},
+	R_PARTSET_BUILTINS
+	{NULL}
+};
+
 extern qbyte *host_basepal;
 
 static int pt_pointfile = P_INVALID;
@@ -148,6 +159,14 @@ typedef struct {
 typedef struct part_type_s {
 	char name[MAX_QPATH];
 	char texname[MAX_QPATH];
+	char modelname[MAX_QPATH];
+
+	model_t *model;
+	float modelframestart;
+	float modelframeend;
+	float modelframerate;
+	float modelalpha;
+
 	vec3_t rgb;	//initial colour
 	float alpha;
 	vec3_t rgbchange;	//colour delta (per second)
@@ -218,7 +237,14 @@ typedef struct part_type_s {
 	float gravity;
 	vec3_t friction;
 	float clipbounce;
-	int stains;
+	int stainonimpact;
+
+	vec3_t dl_rgb;
+	float dl_radius;
+	float dl_time;
+	vec3_t dl_decay;
+	vec3_t stain_rgb;
+	float stain_radius;
 
 	enum {RAMP_NONE, RAMP_DELTA, RAMP_ABSOLUTE} rampmode;
 	int rampindexes;
@@ -471,6 +497,8 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 	char *namepostfix;
 	if (qrenderer == QR_NONE)
 		return;
+
+	ptype->model = NULL;
 
 	if (*ptype->texname)
 	{
@@ -867,6 +895,14 @@ static void P_ParticleEffect_f(void)
 			ptype = &part_type[pnum];
 			ptype->inwater = assoc;
 		}
+		else if (!strcmp(var, "model"))
+		{
+			Q_strncpyz(ptype->modelname, Cmd_Argv(1), sizeof(ptype->modelname));
+			ptype->modelframestart = atof(Cmd_Argv(2));
+			ptype->modelframeend = atof(Cmd_Argv(3));
+			ptype->modelframerate = atof(Cmd_Argv(4));
+			ptype->modelalpha = atof(Cmd_Argv(5));
+		}
 		else if (!strcmp(var, "colorindex"))
 		{
 			if (Cmd_Argc()>2)
@@ -959,7 +995,7 @@ static void P_ParticleEffect_f(void)
 			ptype->rgbrandsync[2] = atof(value);
 
 		else if (!strcmp(var, "stains"))
-			ptype->stains = atoi(value);
+			ptype->stainonimpact = atoi(value);
 		else if (!strcmp(var, "blend"))
 		{
 			if (!strcmp(value, "add"))
@@ -1864,77 +1900,73 @@ static void PScript_ClearParticles (void)
 static void P_ExportBuiltinSet_f(void)
 {
 	char *efname = Cmd_Argv(1);
-	char *file;
+	char *file = NULL;
+	int i;
 
 	if (!*efname)
 	{
 		Con_Printf("Please name the built in effect (faithful, spikeset, tsshaft, minimal or highfps)\n");
 		return;
 	}
-	else if (!stricmp(efname, "faithful"))
-		file = particle_set_faithful;
-	else if (!stricmp(efname, "spikeset"))
-		file = particle_set_spikeset;
-	else if (!stricmp(efname, "highfps"))
-		file = particle_set_highfps;
-	else if (!stricmp(efname, "minimal"))
-		file = particle_set_minimal;
-	else if (!stricmp(efname, "tsshaft"))
-		file = particle_set_tsshaft;
-	else
+
+	for (i = 0; partset_list[i].name; i++)
 	{
-		if (!stricmp(efname, "none"))
+		if (!stricmp(efname, partset_list[i].name))
 		{
-			Con_Printf("nothing to export\n");
+			file = *partset_list[i].data;
+			if (file)
+			{
+				COM_WriteFile(va("particles/%s.cfg", efname), file, strlen(file));
+				Con_Printf("Written particles/%s.cfg\n", efname);
+			}
+			else
+				Con_Printf("nothing to export\n");
 			return;
 		}
-		Con_Printf("'%s' is not a built in particle set\n", efname);
-		return;
 	}
 
-	COM_WriteFile(va("particles/%s.cfg", efname), file, strlen(file));
-	Con_Printf("Written particles/%s.cfg\n", efname);
+	Con_Printf("'%s' is not a built in particle set\n", efname);
 }
 
 static void P_LoadParticleSet(char *name, qboolean first)
 {
+	char *file;
+	int i;
 	int restrictlevel = Cmd_FromGamecode() ? RESTRICT_SERVER : RESTRICT_LOCAL; 
 
-	//particle descriptions submitted by the server are deemed to not be cheats but game configs.
-	if (!stricmp(name, "none"))
-		return;
-	else if (!stricmp(name, "effectinfo"))
-		Cbuf_AddText("r_importeffectinfo\n", RESTRICT_LOCAL);
-	else if (!stricmp(name, "faithful") || (first && !*name))
-		Cbuf_AddText(particle_set_faithful, RESTRICT_LOCAL);
-	else if (!stricmp(name, "spikeset"))
-		Cbuf_AddText(particle_set_spikeset, RESTRICT_LOCAL);
-	else if (!stricmp(name, "highfps"))
-		Cbuf_AddText(particle_set_highfps, RESTRICT_LOCAL);
-	else if (!stricmp(name, "minimal"))
-		Cbuf_AddText(particle_set_minimal, RESTRICT_LOCAL);
-	else if (!stricmp(name, "tsshaft"))
-		Cbuf_AddText(particle_set_tsshaft, RESTRICT_LOCAL);
-	else
+	/*set up a default*/
+	if (first && !*name)
+		name = "faithful";
+
+	for (i = 0; partset_list[i].name; i++)
 	{
-		char *file;
-		FS_LoadFile(va("particles/%s.cfg", name), (void**)&file);
-		if (!file)
-			FS_LoadFile(va("%s.cfg", name), (void**)&file);
-		if (file)
+		if (!stricmp(name, partset_list[i].name))
 		{
-			Cbuf_AddText(file, restrictlevel);
-			Cbuf_AddText("\n", restrictlevel);
-			FS_FreeFile(file);
+			if (partset_list[i].data)
+			{
+				Cbuf_AddText(*partset_list[i].data, RESTRICT_LOCAL);
+			}
+			return;
 		}
-		else if (first)
-		{
-			Con_Printf(CON_WARNING "Couldn't find particle description %s, using spikeset\n", name);
-			Cbuf_AddText(particle_set_spikeset, RESTRICT_LOCAL);
-		}
-		else
-			Con_Printf(CON_WARNING "Couldn't find particle description %s\n", name);
 	}
+
+
+	FS_LoadFile(va("particles/%s.cfg", name), (void**)&file);
+	if (!file)
+		FS_LoadFile(va("%s.cfg", name), (void**)&file);
+	if (file)
+	{
+		Cbuf_AddText(file, restrictlevel);
+		Cbuf_AddText("\n", restrictlevel);
+		FS_FreeFile(file);
+	}
+	else if (first)
+	{
+		Con_Printf(CON_WARNING "Couldn't find particle description %s, using spikeset\n", name);
+		Cbuf_AddText(particle_set_spikeset, RESTRICT_LOCAL);
+	}
+	else
+		Con_Printf(CON_WARNING "Couldn't find particle description %s\n", name);
 }
 
 static void R_Particles_KillAllEffects(void)
@@ -2120,7 +2152,7 @@ static void P_AddRainParticles(void)
 				else
 					VectorMA(org, 0.5, st->face->plane->normal, org);
 
-				if (!(cl.worldmodel->funcs.PointContents(cl.worldmodel, org) & FTECONTENTS_SOLID))
+				if (!(cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, org) & FTECONTENTS_SOLID))
 				{
 					if (st->face->flags & SURF_PLANEBACK)
 					{
@@ -2293,6 +2325,27 @@ static vec2_t	avelocities[NUMVERTEXNORMALS];
 // float	partstep = 0.01;
 // float	timescale = 0.01;
 
+
+static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t dir)
+{
+	if (*ptype->modelname)
+	{
+		if (!ptype->model)
+			ptype->model = Mod_ForName(ptype->modelname, false);
+		if (ptype->model && !ptype->model->needload)
+			CL_SpawnSpriteEffect(org, dir, ptype->model, ptype->modelframestart, (ptype->modelframeend?ptype->modelframeend:(ptype->model->numframes - ptype->modelframestart)), ptype->modelframerate?ptype->modelframerate:10, ptype->modelalpha?ptype->modelalpha:1);
+	}
+	if (ptype->dl_radius)
+	{
+		dlight_t *dl = CL_NewDlightRGB(0, org, ptype->dl_radius, ptype->dl_time, ptype->dl_rgb[0], ptype->dl_rgb[1], ptype->dl_rgb[2]);
+		dl->channelfade[0] = ptype->dl_decay[0];
+		dl->channelfade[1] = ptype->dl_decay[1];
+		dl->channelfade[2] = ptype->dl_decay[2];
+	}
+	if (ptype->stain_radius)
+		R_AddStain(org, ptype->stain_rgb[0], ptype->stain_rgb[1], ptype->stain_rgb[2], ptype->stain_radius); 
+}
+
 int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent, vec3_t tangent2, float size, float **out);
 static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, trailstate_t **tsk)
 {
@@ -2314,7 +2367,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 	if (r_part_contentswitch.ival && ptype->inwater >= 0 && cl.worldmodel)
 	{
 		int cont;
-		cont = cl.worldmodel->funcs.PointContents(cl.worldmodel, org);
+		cont = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, org);
 
 		if (cont & FTECONTENTS_WATER)
 			ptype = &part_type[ptype->inwater];
@@ -2353,6 +2406,8 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 
 	while(ptype)
 	{
+		PScript_EffectSpawned(ptype, org, dir);
+
 		if (ptype->looks.type == PT_DECAL)
 		{
 			clippeddecal_t *d;
@@ -2393,7 +2448,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 					VectorSubtract(org, t2, tangent);
 					VectorAdd(org, t2, t2);
 
-					if (cl.worldmodel->funcs.Trace (cl.worldmodel, 0, 0,tangent, t2, vec3_origin, vec3_origin, &tr))
+					if (cl.worldmodel->funcs.Trace (cl.worldmodel, 0, 0, NULL, tangent, t2, vec3_origin, vec3_origin, &tr))
 					{
 						if (tr.fraction < dist)
 						{
@@ -3159,6 +3214,8 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 	else
 		ts = NULL;
 
+	PScript_EffectSpawned(ptype, start, vec3_origin);
+
 	if (ptype->assoc>=0)
 	{
 		if (ts)
@@ -3592,7 +3649,7 @@ static int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailst
 	if (r_part_contentswitch.ival && ptype->inwater >= 0)
 	{
 		int cont;
-		cont = cl.worldmodel->funcs.PointContents(cl.worldmodel, startpos);
+		cont = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, startpos);
 
 		if (cont & FTECONTENTS_WATER)
 			ptype = &part_type[ptype->inwater];
@@ -4116,14 +4173,14 @@ static void PScript_DrawParticleTypes (void (*texturedparticles)(int count, part
 					P_RunParticleEffectType(p->org, p->vel, 1, type->emit);
 
 				// make sure stain effect runs
-				if (type->stains && r_bloodstains.ival)
+				if (type->stainonimpact && r_bloodstains.ival)
 				{
 					if (traces-->0&&tr(oldorg, p->org, stop, normal))
 					{
 						R_AddStain(stop,	(p->rgba[1]*-10+p->rgba[2]*-10),
 											(p->rgba[0]*-10+p->rgba[2]*-10),
 											(p->rgba[0]*-10+p->rgba[1]*-10),
-											30*p->rgba[3]*type->stains);
+											30*p->rgba[3]*type->stainonimpact);
 					}
 				}
 
@@ -4331,7 +4388,7 @@ static void PScript_DrawParticleTypes (void (*texturedparticles)(int count, part
 			{
 				if (traces-->0&&tr(oldorg, p->org, stop, normal))
 				{
-					if (type->stains && r_bloodstains.ival)
+					if (type->stainonimpact && r_bloodstains.ival)
 						R_AddStain(stop,	p->rgba[1]*-10+p->rgba[2]*-10,
 											p->rgba[0]*-10+p->rgba[2]*-10,
 											p->rgba[0]*-10+p->rgba[1]*-10,
@@ -4360,14 +4417,14 @@ static void PScript_DrawParticleTypes (void (*texturedparticles)(int count, part
 					continue;
 				}
 			}
-			else if (type->stains && r_bloodstains.ival)
+			else if (type->stainonimpact && r_bloodstains.ival)
 			{
 				if (traces-->0&&tr(oldorg, p->org, stop, normal))
 				{
 					R_AddStain(stop,	(p->rgba[1]*-10+p->rgba[2]*-10),
 										(p->rgba[0]*-10+p->rgba[2]*-10),
 										(p->rgba[0]*-10+p->rgba[1]*-10),
-										30*p->rgba[3]*type->stains);
+										30*p->rgba[3]*type->stainonimpact);
 					p->die = -1;
 					continue;
 				}

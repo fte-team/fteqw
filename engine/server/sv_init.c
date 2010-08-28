@@ -1269,8 +1269,21 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		else if (coop.value)
 			spawnflagmask |= SPAWNFLAG_NOT_H2COOP;
 		else
+		{
+			cvar_t *cl_playerclass = Cvar_Get("cl_playerclass", "0", CVAR_USERINFO, 0);
 			spawnflagmask |= SPAWNFLAG_NOT_H2SINGLE;
 
+			if (cl_playerclass && cl_playerclass->ival == 1)
+				spawnflagmask |= SPAWNFLAG_NOT_H2PALADIN;
+			else if (cl_playerclass && cl_playerclass->ival == 2)
+				spawnflagmask |= SPAWNFLAG_NOT_H2CLERIC;
+			else if (cl_playerclass && cl_playerclass->ival == 3)
+				spawnflagmask |= SPAWNFLAG_NOT_H2NECROMANCER;
+			else if (cl_playerclass && cl_playerclass->ival == 4)
+				spawnflagmask |= SPAWNFLAG_NOT_H2THEIF;
+			else if (cl_playerclass && cl_playerclass->ival == 5)
+				spawnflagmask |= SPAWNFLAG_NOT_H2NECROMANCER;	/*yes, I know.,. makes no sense*/
+		}
 		if (skill.value < 0.5)
 			spawnflagmask |= SPAWNFLAG_NOT_H2EASY;
 		else if (skill.value > 1.5)

@@ -671,6 +671,35 @@ static void Shader_EntityMergable ( shader_t *shader, shaderpass_t *pass, char *
 	shader->flags |= SHADER_ENTITY_MERGABLE;
 }
 
+static void Shader_LoadProgram(shader_t *shader, char *vert, char *frag, int qrtype)
+{
+	static char *permutationdefines[PERMUTATIONS] = {
+		"",
+		"#define BUMP\n",
+		"#define SPECULAR\n",
+		"#define SPECULAR\n#define BUMP\n",
+		"#define USEOFFSETMAPPING\n",
+		"#define USEOFFSETMAPPING\n#define BUMP\n",
+		"#define USEOFFSETMAPPING\n#define SPECULAR\n",
+		"#define USEOFFSETMAPPING\n#define SPECULAR\n#define BUMP\n"
+	};
+	int p;
+
+	if (!frag)
+		frag = vert;
+
+	for (p = 0; p < PERMUTATIONS; p++)
+	{
+		if (qrenderer != qrtype)
+		{
+		}
+	#ifdef GLQUAKE
+		else if (qrenderer == QR_OPENGL)
+			shader->programhandle[p].glsl = GLSlang_CreateProgram(permutationdefines[p], (char *)vert, (char *)frag);
+	#endif
+	}
+}
+
 static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **ptr, int qrtype)
 {
 	/*accepts:
@@ -685,13 +714,6 @@ static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **p
 	*/
 	void *vert, *frag;
 	char *token;
-	if (shader->programhandle.glsl)
-	{	//this allows fallbacks
-		token = Shader_ParseString ( ptr );
-		token = Shader_ParseString ( ptr );
-		return;
-	}
-
 
 	token = *ptr;
 	while (*token == ' ' || *token == '\t' || *token == '\r')
@@ -709,7 +731,7 @@ static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **p
 		else
 		{
 			token++;
-			vert = frag = token;
+			frag = token;
 			for (count = 1; *token; token++)
 			{
 				if (*token == '}')
@@ -721,47 +743,39 @@ static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **p
 				else if (*token == '{')
 					count++;
 			}
-			frag = BZ_Malloc(token - (char*)vert + 1);
-			memcpy(frag, vert, token-(char*)vert);
-			((char*)frag)[token-(char*)vert] = 0;
-			vert = frag;
+			vert = BZ_Malloc(token - (char*)frag + 1);
+			memcpy(vert, frag, token-(char*)frag);
+			((char*)vert)[token-(char*)frag] = 0;
+			frag = NULL;
 			*ptr = token+1;
 
-			if (qrenderer != qrtype)
-			{
-			}
-#ifdef GLQUAKE
-			else if (qrenderer == QR_OPENGL)
-				shader->programhandle.glsl = GLSlang_CreateProgram("", (char *)vert, (char *)frag);
-#endif
+			Shader_LoadProgram(shader, vert, frag, qrtype);
+
 			BZ_Free(vert);
-			frag = NULL;
-			vert = NULL;
 
 			return;
 		}
 	}
-	token = Shader_ParseString ( ptr );
-	FS_LoadFile(token, &vert);
-	token = Shader_ParseString ( ptr );
-	if (!*token)
-		frag = vert;
-	else
-		FS_LoadFile(token, &frag);
 
-	if (qrenderer != qrtype)
+	vert = Shader_ParseString(ptr);
+	if (!strcmp(vert, "default"))
 	{
+		extern char *defaultglsl2program;
+		frag = Shader_ParseString(ptr);
+		Shader_LoadProgram(shader, defaultglsl2program, defaultglsl2program, qrtype);
+		return;
 	}
-#ifdef GLQUAKE
-	else if (vert && frag)
-		shader->programhandle.glsl = GLSlang_CreateProgram("", (char *)vert, (char *)frag);
-#endif
+	FS_LoadFile(vert, &vert);
+
+	frag = Shader_ParseString(ptr);
+	if (!frag)
+		frag = NULL;
+	else
+		FS_LoadFile(frag, &frag);
+
+	Shader_LoadProgram(shader, vert, frag, qrtype);
 	if (vert)
-	{
-		if (frag == vert)
-			frag = NULL;
 		FS_FreeFile(vert);
-	}
 	if (frag)
 		FS_FreeFile(frag);
 }
@@ -777,13 +791,15 @@ static void Shader_HLSLProgramName (shader_t *shader, shaderpass_t *pass, char *
 
 static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **ptr )
 {
-	cvar_t *cv;
+	cvar_t *cv = NULL;
 	int specialint = 0;
 	float specialfloat = 0;
 	vec3_t specialvec = {0};
 	enum shaderprogparmtype_e parmtype = SP_BAD;
 	char *token;
 	qboolean silent = false;
+	int p;
+	qboolean foundone;
 
 	token = Shader_ParseString(ptr);
 	if (!Q_stricmp(token, "opt"))
@@ -801,32 +817,24 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 	{
 		token = Shader_ParseSensString(ptr);
 		cv = Cvar_Get(token, "", 0, "GLSL Shader parameters");
-		if (cv)
-		{	//Cvar_Get returns null if the cvar is the name of a command
-			specialint = cv->ival;
-			specialfloat = cv->value;
-		}
+		if (!cv)
+			return;
 		parmtype = SP_CVARI;
 	}
 	else if (!Q_stricmp(token, "cvarf"))
 	{
 		token = Shader_ParseSensString(ptr);
 		cv = Cvar_Get(token, "", 0, "GLSL Shader parameters");
-		if (cv)
-		{	//Cvar_Get returns null if the cvar is the name of a command
-			specialint = cv->ival;
-			specialfloat = cv->value;
-		}
+		if (!cv)
+			return;
 		parmtype = SP_CVARF;
 	}
 	else if (!Q_stricmp(token, "cvar3f"))
 	{
 		token = Shader_ParseSensString(ptr);
 		cv = Cvar_Get(token, "", 0, "GLSL Shader parameters");
-		if (cv)
-		{
-			SCR_StringToRGB(cv->string, specialvec, 1);
-		}
+		if (!cv)
+			return;
 		parmtype = SP_CVAR3F;
 	}
 	else if (!Q_stricmp(token, "time"))
@@ -858,42 +866,52 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 	if (qrenderer == QR_OPENGL)
 	{
 		unsigned int uniformloc;
-		if (!shader->programhandle.glsl)
+		if (!shader->programhandle[0].glsl)
 		{
 			Con_Printf("shader %s: param without program set\n", shader->name);
 		}
+		else if (shader->numprogparams == SHADER_PROGPARMS_MAX)
+			Con_Printf("shader %s: too many parms\n", shader->name);
 		else
 		{
-			GLSlang_UseProgram(shader->programhandle.glsl);
-			uniformloc = qglGetUniformLocationARB(shader->programhandle.glsl, token);
-			if (uniformloc == -1)
+			foundone = false;
+			shader->progparm[shader->numprogparams].type = parmtype;
+			for (p = 0; p < PERMUTATIONS; p++)
 			{
-				if (!silent)
-					Con_Printf("shader %s: param without uniform \"%s\"\n", shader->name, token);
-			}
-			else
-			{
-				switch(parmtype)
+				if (!shader->programhandle[p].glsl)
+					continue;
+				GLSlang_UseProgram(shader->programhandle[p].glsl);
+				uniformloc = qglGetUniformLocationARB(shader->programhandle[p].glsl, token);
+				shader->progparm[shader->numprogparams].handle[p] = uniformloc;
+				if (uniformloc != -1)
 				{
-				case SP_BAD:
-					break;
-				case SP_TEXTURE:
-				case SP_CVARI:
-					qglUniform1iARB(uniformloc, specialint);
-					break;
-				case SP_CVARF:
-					qglUniform1fARB(uniformloc, specialfloat);
-					break;
-				case SP_CVAR3F:
-					qglUniform3fvARB(uniformloc, 1, specialvec);
-					break;
-				default:
-					shader->progparm[shader->numprogparams].type = parmtype;
-					shader->progparm[shader->numprogparams].handle = uniformloc;
-					shader->numprogparams++;
-					break;
+					foundone = true;
+					switch(parmtype)
+					{
+					case SP_BAD:
+						foundone = false;
+						break;
+					case SP_TEXTURE:
+						shader->progparm[shader->numprogparams].ival = specialint;
+						break;
+					case SP_CVARF:
+					case SP_CVARI:
+						shader->progparm[shader->numprogparams].pval = cv;
+						break;
+					case SP_CVAR3F:
+						shader->progparm[shader->numprogparams].pval = cv;
+						qglUniform3fvARB(uniformloc, 1, specialvec);
+						break;
+					default:
+						break;
+					}
 				}
 			}
+			if (!foundone && !silent)
+				Con_Printf("shader %s: param without uniform \"%s\"\n", shader->name, token);
+			else
+				shader->numprogparams++;
+
 			GLSlang_UseProgram(0);
 		}
 	}
@@ -1689,8 +1707,14 @@ void Shader_Free (shader_t *shader)
 
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
-		if (shader->programhandle.glsl)
-			qglDeleteObjectARB(shader->programhandle.glsl);
+	{
+		int p;
+		for (p = 0; p < PERMUTATIONS; p++)
+		{
+			if (shader->programhandle[p].glsl)
+				GLSlang_DeleteObject(shader->programhandle[p].glsl);
+		}
+	}
 #endif
 	memset(&shader->programhandle, 0, sizeof(shader->programhandle));
 
@@ -2153,7 +2177,7 @@ void Shader_Finish (shader_t *s)
 		s->sort = SHADER_SORT_DECAL;
 	}
 
-	if (r_vertexlight.value && !s->programhandle.glsl)
+	if (r_vertexlight.value && !s->programhandle[0].glsl)
 	{
 		// do we have a lightmap pass?
 		pass = s->passes;
@@ -2337,7 +2361,7 @@ done:;
 		s->flags &= ~SHADER_DEPTHWRITE;
 	}
 
-	if (s->programhandle.glsl)
+	if (s->programhandle[0].glsl)
 	{
 		if (!s->numpasses)
 			s->numpasses = 1;
@@ -2451,6 +2475,37 @@ void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args)
 					"}\n"
 				"}\n"
 			);
+
+	if (0&&!builtin && gl_config.arb_shader_objects)
+	{
+			builtin = (
+				"{\n"
+					"program default\n"
+					"param texture 0 tex_diffuse\n"
+					"param texture 1 tex_lightmap\n"
+					"param texture 2 tex_normalmap\n"
+					"param texture 3 tex_deluxmap\n"
+					"param texture 4 tex_fullbright\n"
+					"{\n"
+						"map $diffuse\n"
+						"tcgen base\n"
+					"}\n"
+					"{\n"
+						"map $lightmap\n"
+						"tcgen lightmap\n"
+					"}\n"
+					"{\n"
+						"map $normalmap\n"
+					"}\n"
+					"{\n"
+						"map $deluxmap\n"
+					"}\n"
+					"{\n"
+						"map $fullbright\n"
+					"}\n"
+				"}\n"
+			);
+	}
 
 	if (!builtin)
 		builtin = (

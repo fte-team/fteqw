@@ -1347,7 +1347,8 @@ checkerror();
 		BE_DrawMesh_List(tex->shader, smesh->litsurfs[tno].count, smesh->litsurfs[tno].s, &tex->vbo, &tex->shader->defaulttextures);
 	}
 
-	BE_BaseEntShadowDepth();
+	BE_SelectMode(BEM_DEPTHONLY, 0);
+	BE_BaseEntTextures();
 
 	if (0)
 	{
@@ -1621,7 +1622,6 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 	texture_t *tex;
 	shadowmesh_t *sm;
 
-	currententity = &r_worldentity;
 	sm = light->worldshadowmesh;
 	if (light->rebuildcache)
 		sm = &sh_tempshmesh;
@@ -1659,8 +1659,7 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 
 	RotateLightVector(e->axis, e->origin, dl->origin, lightorg);
 
-	qglPushMatrix();
-	R_RotateForEntity(e, e->model);
+	BE_SelectEntity(e);
 
 	GL_SelectVBO(0);
 	GL_SelectEBO(0);
@@ -1736,7 +1735,6 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 		}
 		qglEnd();
 	}
-	qglPopMatrix();
 
 	BE_PushOffsetShadow(false);
 }
@@ -1750,6 +1748,7 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 	extern cvar_t gl_part_flame;
 	int		i;
 	struct shadowmesh_s *sm;
+	entity_t *ent;
 
 	BE_PushOffsetShadow(false);
 
@@ -1758,8 +1757,6 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 		Sh_DrawBrushModelShadow(dl, &r_worldentity);
 	else
 	{
-		currententity = &r_worldentity;
-
 //qglEnable(GL_POLYGON_OFFSET_FILL);
 //qglPolygonOffset(shaderstate.curpolyoffset.factor, shaderstate.curpolyoffset.unit);
 
@@ -1780,41 +1777,42 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 	// draw sprites seperately, because of alpha blending
 	for (i=0 ; i<cl_numvisedicts ; i++)
 	{
-		currententity = &cl_visedicts[i];
+		ent = &cl_visedicts[i];
 
-		if (currententity->flags & (RF_NOSHADOW|Q2RF_BEAM))
+		if (ent->flags & (RF_NOSHADOW|Q2RF_BEAM))
 			continue;
 
 		{
-			if (currententity->keynum == dl->key && currententity->keynum)
+			if (ent->keynum == dl->key && ent->keynum)
 				continue;
 		}
-		if (!currententity->model)
+		if (!ent->model)
 			continue;
 
-		if (cls.allow_anyparticles || currententity->visframe)	//allowed or static
+		if (cls.allow_anyparticles || ent->visframe)	//allowed or static
 		{
-			if (currententity->model->engineflags & MDLF_ENGULPHS)
+			if (ent->model->engineflags & MDLF_ENGULPHS)
 			{
 				if (gl_part_flame.value)
 					continue;
 			}
 		}
 
-		switch (currententity->model->type)
+		switch (ent->model->type)
 		{
 		case mod_alias:
-			R_DrawGAliasShadowVolume (currententity, dl->origin, dl->radius);
+			R_DrawGAliasShadowVolume (ent, dl->origin, dl->radius);
 			break;
 
 		case mod_brush:
-			Sh_DrawBrushModelShadow (dl, currententity);
+			Sh_DrawBrushModelShadow (dl, ent);
 			break;
 
 		default:
 			break;
 		}
 	}
+	BE_SelectEntity(&r_worldentity);
 }
 
 //draws a light using stencil shadows.
@@ -1881,7 +1879,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	BE_SelectMode(BEM_STENCIL, 0);
 
 	//The backend doesn't maintain scissor state.
-	qglEnable(GL_SCISSOR_TEST);
+//	qglEnable(GL_SCISSOR_TEST);
 	//The backend doesn't maintain stencil test state either - it needs to be active for more than just stencils, or disabled. its awkward.
 	qglEnable(GL_STENCIL_TEST);
 

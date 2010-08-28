@@ -1801,9 +1801,9 @@ void COM_Gamedir (const char *dir)
 }
 
 #define DPCOMPAT "set dpcompat_set 1\nset dpcompat_trailparticles 1\n"
-#define NEXCFG DPCOMPAT "set sv_maxairspeed \"400\"\nset sv_jumpvelocity 270\nset sv_mintic \"0.01\"\ncl_nolerp 0\nset r_particlesdesc effectinfo\n"
+#define NEXCFG DPCOMPAT "set r_particlesdesc effectinfo\nset sv_maxairspeed \"400\"\nset sv_jumpvelocity 270\nset sv_mintic \"0.01\"\ncl_nolerp 0\nset r_particlesdesc effectinfo\n"
 #define DMFCFG "set com_parseutf8 1\npm_airstep 1\n"
-#define HEX2CFG "set sv_maxspeed 640\nset watervis 1\nset r_wateralpha 0.5\nset sv_pupglow 1\n"
+#define HEX2CFG "set r_particlesdesc \"spikeset tsshaft h2part\"\nset sv_maxspeed 640\nset watervis 1\nset r_wateralpha 0.5\nset sv_pupglow 1\nset cl_model_bobbing 1\n"
 
 typedef struct {
 	const char *protocolname;	//sent to the master server when this is the current gamemode.

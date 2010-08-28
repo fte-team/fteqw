@@ -886,7 +886,7 @@ SV_PointContents
 */
 int World_PointContents (world_t *w, vec3_t p)
 {
-	return w->worldmodel->funcs.PointContents(w->worldmodel, p);
+	return w->worldmodel->funcs.PointContents(w->worldmodel, NULL, p);
 }
 
 //===========================================================================
@@ -917,11 +917,8 @@ qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 //qboolean TransformedHullCheck (hull_t *hull, vec3_t start, vec3_t end, trace_t *trace, vec3_t angles)
 qboolean TransformedTrace (struct model_s *model, int hulloverride, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, struct trace_s *trace, vec3_t origin, vec3_t angles)
 {
-	qboolean rotated;
 	vec3_t		start_l, end_l;
-	vec3_t		a;
-	vec3_t		forward, right, up;
-	vec3_t		temp;
+	vec3_t		axis[3];
 	qboolean	result;
 
 	memset (trace, 0, sizeof(trace_t));
@@ -934,53 +931,21 @@ qboolean TransformedTrace (struct model_s *model, int hulloverride, int frame, v
 	// don't rotate non bsp ents. Too small to bother.
 	if (model)
 	{
-		rotated = (angles[0] || angles[1] || angles[2]);
-		if (rotated)
+		VectorSubtract (start, origin, start_l);
+		VectorSubtract (end, origin, end_l);
+
+		if (angles[0] || angles[1] || angles[2])
 		{
-			AngleVectors (angles, forward, right, up);
-
-			VectorSubtract (start, origin, temp);
-			start_l[0] = DotProduct (temp, forward);
-			start_l[1] = -DotProduct (temp, right);
-			start_l[2] = DotProduct (temp, up);
-
-			VectorSubtract (end, origin, temp);
-			end_l[0] = DotProduct (temp, forward);
-			end_l[1] = -DotProduct (temp, right);
-			end_l[2] = DotProduct (temp, up);
+			AngleVectors (angles, axis[0], axis[1], axis[2]);
+			VectorNegate(axis[1], axis[1]);
+			result = model->funcs.Trace (model, hulloverride, frame, axis, start_l, end_l, mins, maxs, trace);
 		}
 		else
 		{
-			VectorSubtract (start, origin, start_l);
-			VectorSubtract (end, origin, end_l);
+			result = model->funcs.Trace (model, hulloverride, frame, NULL, start_l, end_l, mins, maxs, trace);
 		}
-		result = model->funcs.Trace (model, hulloverride, frame, start_l, end_l, mins, maxs, trace);
-		if (rotated)
-		{
-			// FIXME: figure out how to do this with existing angles
 
-			if (trace->fraction != 1)
-			{
-				VectorNegate (angles, a);
-				AngleVectors (a, forward, right, up);
-
-				VectorCopy (trace->plane.normal, temp);
-				trace->plane.normal[0] = DotProduct (temp, forward);
-				trace->plane.normal[1] = -DotProduct (temp, right);
-				trace->plane.normal[2] = DotProduct (temp, up);
-
-
-				trace->endpos[0] = start[0] + trace->fraction * (end[0] - start[0]);
-				trace->endpos[1] = start[1] + trace->fraction * (end[1] - start[1]);
-				trace->endpos[2] = start[2] + trace->fraction * (end[2] - start[2]);
-			}
-			else
-			{
-				VectorCopy (end, trace->endpos);
-			}
-		}
-		else
-			VectorAdd (trace->endpos, origin, trace->endpos);
+		VectorAdd (trace->endpos, origin, trace->endpos);
 	}
 	else
 	{
@@ -1002,11 +967,8 @@ qboolean TransformedTrace (struct model_s *model, int hulloverride, int frame, v
 
 qboolean TransformedNativeTrace (struct model_s *model, int hulloverride, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int against, struct trace_s *trace, vec3_t origin, vec3_t angles)
 {
-	qboolean rotated;
 	vec3_t		start_l, end_l;
-	vec3_t		a;
-	vec3_t		forward, right, up;
-	vec3_t		temp;
+	vec3_t		axis[3];
 	qboolean	result;
 
 	memset (trace, 0, sizeof(trace_t));
@@ -1019,44 +981,17 @@ qboolean TransformedNativeTrace (struct model_s *model, int hulloverride, int fr
 	// don't rotate non bsp ents. Too small to bother.
 	if (model)
 	{
-		rotated = (angles[0] || angles[1] || angles[2]);
-		if (rotated)
+		VectorSubtract (start, origin, start_l);
+		VectorSubtract (end, origin, end_l);
+		if (angles[0] || angles[1] || angles[2])
 		{
-			AngleVectors (angles, forward, right, up);
-
-			VectorSubtract (start, origin, temp);
-			start_l[0] = DotProduct (temp, forward);
-			start_l[1] = -DotProduct (temp, right);
-			start_l[2] = DotProduct (temp, up);
-
-			VectorSubtract (end, origin, temp);
-			end_l[0] = DotProduct (temp, forward);
-			end_l[1] = -DotProduct (temp, right);
-			end_l[2] = DotProduct (temp, up);
+			AngleVectors (angles, axis[0], axis[1], axis[2]);
+			VectorNegate(axis[1], axis[1]);
+			result = model->funcs.NativeTrace (model, hulloverride, frame, axis, start_l, end_l, mins, maxs, against, trace);
 		}
 		else
 		{
-			VectorSubtract (start, origin, start_l);
-			VectorSubtract (end, origin, end_l);
-		}
-		result = model->funcs.NativeTrace (model, hulloverride, frame, start_l, end_l, mins, maxs, against, trace);
-		if (rotated)
-		{
-			// FIXME: figure out how to do this with existing angles
-	//		VectorNegate (angles, a);
-			a[0] = -angles[0];
-			a[1] = -angles[1];
-			a[2] = -angles[2];
-			AngleVectors (a, forward, right, up);
-
-			VectorCopy (trace->plane.normal, temp);
-			trace->plane.normal[0] = DotProduct (temp, forward);
-			trace->plane.normal[1] = -DotProduct (temp, right);
-			trace->plane.normal[2] = DotProduct (temp, up);
-
-			trace->endpos[0] = start[0] + trace->fraction * (end[0] - start[0]);
-			trace->endpos[1] = start[1] + trace->fraction * (end[1] - start[1]);
-			trace->endpos[2] = start[2] + trace->fraction * (end[2] - start[2]);
+			result = model->funcs.NativeTrace (model, hulloverride, frame, NULL, start_l, end_l, mins, maxs, against, trace);
 		}
 		VectorAdd (trace->endpos, origin, trace->endpos);
 	}

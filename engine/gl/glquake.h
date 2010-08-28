@@ -62,9 +62,6 @@ void GLR_FrameTimeGraph (int frametime);
 void GL_FlushSkinCache(void);
 void GL_GAliasFlushSkinCache(void);
 
-void PPL_CreateShaderObjects(void);
-void PPL_BaseBModelTextures(entity_t *e);
-
 // Function prototypes for the Texture Object Extension routines
 typedef GLboolean (APIENTRY *ARETEXRESFUNCPTR)(GLsizei, const GLuint *,
                     const GLboolean *);
@@ -314,7 +311,7 @@ qboolean R_CullBox (vec3_t mins, vec3_t maxs);
 #ifdef GLQUAKE
 qboolean R_CullSphere (vec3_t origin, float radius);
 qboolean R_CullEntityBox(entity_t *e, vec3_t modmins, vec3_t modmaxs);
-void R_RotateForEntity (entity_t *e, model_t *mod);
+void R_RotateForEntity (const entity_t *e, const model_t *mod);
 
 void GL_InitSceneProcessingShaders (void);
 void GL_SetupSceneProcessingTextures (void);

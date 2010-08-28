@@ -1131,7 +1131,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf,
 
 	R_LerpFrames(mesh,	(galiaspose_t *)((char *)g1 + g1->poseofs + sizeof(galiaspose_t)*frame1),
 						(galiaspose_t *)((char *)g2 + g2->poseofs + sizeof(galiaspose_t)*frame2),
-						1-lerp, (qbyte)(alpha*255), currententity->fatness, nolightdir);
+						1-lerp, (qbyte)(alpha*255), e->fatness, nolightdir);
 
 	return true;	//to allow the mesh to be dlighted.
 }
@@ -1149,7 +1149,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf,
 
 
 //The whole reason why model loading is supported in the server.
-qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
+qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
 {
 	galiasinfo_t *mod = Mod_Extradata(model);
 	galiasgroup_t *group;

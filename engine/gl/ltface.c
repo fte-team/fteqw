@@ -61,7 +61,7 @@ vec_t CastRay (vec3_t p1, vec3_t p2)
 	trace_t	trace;
 	vec3_t move;
 
-	lightmodel->funcs.Trace (lightmodel, 0, 0, p1, p2, vec3_origin, vec3_origin, &trace);
+	lightmodel->funcs.Trace (lightmodel, 0, 0, NULL, p1, p2, vec3_origin, vec3_origin, &trace);
 	if (trace.fraction < 1)
 		return -1;	
 
@@ -158,7 +158,7 @@ void LightLoadEntities(char *entstring)
 			for (i = 0; i < 256; i+=16)
 			{
 				v[2] = mapent->origin[2]-i;
-				cont = lightmodel->funcs.PointContents (lightmodel, v);
+				cont = lightmodel->funcs.PointContents (lightmodel, NULL, v);
 				if (cont & (FTECONTENTS_LAVA | FTECONTENTS_SLIME | FTECONTENTS_SOLID))
 					break;
 			}			

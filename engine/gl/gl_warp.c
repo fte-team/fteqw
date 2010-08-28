@@ -467,6 +467,7 @@ static void GL_DrawSkySphere (batch_t *batch, shader_t *shader)
 		skydist=gl_skyboxdist.value;
 	skydist/=16;
 
+	BE_SelectEntity(&r_worldentity);
 	//scale sky sphere and place around view origin.
 	qglPushMatrix();
 	qglTranslatef(r_refdef.vieworg[0], r_refdef.vieworg[1], r_refdef.vieworg[2]);

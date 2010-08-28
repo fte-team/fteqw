@@ -579,7 +579,6 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 #endif
 }
 
-
 // glslang helper api function definitions
 // type should be GL_FRAGMENT_SHADER_ARB or GL_VERTEX_SHADER_ARB
 GLhandleARB GLSlang_CreateShader (char *precompilerconstants, char *shadersource, GLenum shadertype)
@@ -588,34 +587,33 @@ GLhandleARB GLSlang_CreateShader (char *precompilerconstants, char *shadersource
 	GLint       compiled;
 	char        str[1024];
 	int loglen;
+	char *prstrings[4];
 
-	char *prstrings[3];
-	if (!precompilerconstants)
-		precompilerconstants = "";
+	prstrings[0] = "#define ENGINE_"DISTRIBUTION"\n";
 	switch (shadertype)
 	{
 	case GL_FRAGMENT_SHADER_ARB:
-		prstrings[0] = "#define FRAGMENT_SHADER\n";
+		prstrings[1] = "#define FRAGMENT_SHADER\n";
 		break;
 	case GL_VERTEX_SHADER_ARB:
-		prstrings[0] = "#define VERTEX_SHADER\n";
+		prstrings[1] = "#define VERTEX_SHADER\n";
 		break;
 	default:
-		prstrings[0] = "#define UNKNOWN_SHADER\n";
+		prstrings[1] = "#define UNKNOWN_SHADER\n";
 		break;
 	}
-	prstrings[1] = precompilerconstants;
-	prstrings[2] = shadersource;
+	prstrings[2] = precompilerconstants;
+	prstrings[3] = shadersource;
 
 	shader = qglCreateShaderObjectARB(shadertype);
 
-	qglShaderSourceARB(shader, 3, (const GLcharARB**)prstrings, NULL);
+	qglShaderSourceARB(shader, 4, (const GLcharARB**)prstrings, NULL);
 	qglCompileShaderARB(shader);
 
 	qglGetObjectParameterivARB(shader, GL_OBJECT_COMPILE_STATUS_ARB, &compiled);
 	if(!compiled)
 	{
-		Con_DPrintf("Shader source:\n%s%s%s\n", prstrings[0], prstrings[1], prstrings[2]);
+		Con_DPrintf("Shader source:\n%s%s%s\n", prstrings[0], prstrings[1], prstrings[2], prstrings[3]);
 		qglGetInfoLogARB(shader, sizeof(str), NULL, str);
 		qglDeleteObjectARB(shader);
 		switch (shadertype)
@@ -641,7 +639,7 @@ GLhandleARB GLSlang_CreateShader (char *precompilerconstants, char *shadersource
 			qglGetInfoLogARB(shader, sizeof(str), NULL, str);
 			if (strstr(str, "WARNING"))
 			{
-				Con_Printf("Shader source:\n%s%s%s\n", prstrings[0], prstrings[1], prstrings[2]);
+				Con_Printf("Shader source:\n%s%s%s\n", prstrings[0], prstrings[1], prstrings[2], prstrings[3]);
 				Con_Printf("%s\n", str);
 			}
 		}
@@ -678,24 +676,78 @@ GLhandleARB GLSlang_CreateProgramObject (GLhandleARB vert, GLhandleARB frag)
 	return program;
 }
 
+#if HASHPROGRAMS
+struct compiledshaders_s
+{
+	int uses;
+	char *consts;
+	char *vert;
+	char *frag;
+	GLhandleARB handle;
+	bucket_t buck;
+};
+
+bucket_t *compiledshadersbuckets[64];
+static hashtable_t compiledshaderstable;
+#endif
+
 GLhandleARB GLSlang_CreateProgram(char *precompilerconstants, char *vert, char *frag)
 {
+	GLhandleARB handle;
 	GLhandleARB vs;
 	GLhandleARB fs;
+#if HASHPROGRAMS
+	unsigned int hashkey;
+	struct compiledshaders_s *cs;
+#endif
 
 	if (!gl_config.arb_shader_objects)
 		return 0;
 
+	if (!precompilerconstants)
+		precompilerconstants = "";
+
+#if HASHPROGRAMS
+	hashkey = Hash_Key(precompilerconstants, ~0) ^ Hash_Key(frag, ~0);
+
+	cs = Hash_GetKey(&compiledshaderstable, hashkey);
+	while(cs)
+	{
+		if (!strcmp(cs->consts, precompilerconstants))
+		if (!strcmp(cs->vert, vert))
+		if (!strcmp(cs->frag, frag))
+		{
+			cs->uses++;
+			return cs->handle;
+		}
+		cs = Hash_GetNextKey(&compiledshaderstable, hashkey, cs);
+	}
+#endif
+
 	vs = GLSlang_CreateShader(precompilerconstants, vert, GL_VERTEX_SHADER_ARB);
 	fs = GLSlang_CreateShader(precompilerconstants, frag, GL_FRAGMENT_SHADER_ARB);
 	if (!vs || !fs)
-	{
-		//delete ignores 0s.
-		qglDeleteObjectARB(vs);
-		qglDeleteObjectARB(fs);
-		return 0;
-	}
-	return GLSlang_CreateProgramObject(vs, fs);
+		handle = 0;
+	else
+		handle = GLSlang_CreateProgramObject(vs, fs);
+	//delete ignores 0s.
+	qglDeleteObjectARB(vs);
+	qglDeleteObjectARB(fs);
+
+#if HASHPROGRAMS
+	cs = Z_Malloc(sizeof(*cs) + strlen(precompilerconstants)+1+strlen(vert)+1+strlen(frag)+1);
+	cs->consts = (char*)(cs + 1);
+	cs->vert = cs->consts + strlen(precompilerconstants)+1;
+	cs->frag = cs->vert + strlen(vert)+1;
+	cs->handle = handle;
+	cs->uses = 1;
+	strcpy(cs->consts, precompilerconstants);
+	strcpy(cs->vert, vert);
+	strcpy(cs->frag, frag);
+	Hash_AddKey(&compiledshaderstable, hashkey, cs, &cs->buck);
+#endif
+
+	return handle;
 }
 
 GLint GLSlang_GetUniformLocation (int prog, char *name)
@@ -889,6 +941,10 @@ void GL_Init(void *(*getglfunction) (char *name))
 		qglDebugMessageEnableAMD(0, 0, 0, NULL, true);
 	if (qglDebugMessageCallbackAMD)
 		qglDebugMessageCallbackAMD(myGLDEBUGPROCAMD, NULL);
+#endif
+
+#if HASHPROGRAMS
+	Hash_InitTable(&compiledshaderstable, sizeof(compiledshadersbuckets)/Hash_BytesForBuckets(1), compiledshadersbuckets);
 #endif
 }
 

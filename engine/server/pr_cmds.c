@@ -674,8 +674,8 @@ void PR_LoadGlabalStruct(void)
 		SV_QCStatName(ev_float, "cnt_invincibility", STAT_H2_CNT_INVINCIBILITY);
 		SV_QCStatName(ev_float, "artifact_active", STAT_H2_ARTIFACT_ACTIVE);
 		SV_QCStatName(ev_float, "artifact_low", STAT_H2_ARTIFACT_LOW);
-		SV_QCStatName(ev_float, "movetype", STAT_H2_MOVETYPE);
-		SV_QCStatName(ev_entity, "cameramode", STAT_H2_CAMERAMODE);
+		SV_QCStatName(ev_float, "movetype", STAT_H2_MOVETYPE);		/*normally used to change the roll when flying*/
+		SV_QCStatName(ev_entity, "cameramode", STAT_H2_CAMERAMODE);	/*locks view in place when set*/
 		SV_QCStatName(ev_float, "hasted", STAT_H2_HASTED);
 		SV_QCStatName(ev_float, "inventory", STAT_H2_INVENTORY);
 		SV_QCStatName(ev_float, "rings_active", STAT_H2_RINGS_ACTIVE);
@@ -699,8 +699,7 @@ void PR_LoadGlabalStruct(void)
 		SV_QCStatName(ev_string, "puzzle_inv8", STAT_H2_PUZZLE8);
 		SV_QCStatName(ev_float, "max_health", STAT_H2_MAXHEALTH);
 		SV_QCStatName(ev_float, "max_mana", STAT_H2_MAXMANA);
-		SV_QCStatName(ev_float, "flags", STAT_H2_FLAGS);
-		SV_QCStatName(ev_float, "playerclass", STAT_H2_PLAYERCLASS);
+		SV_QCStatName(ev_float, "flags", STAT_H2_FLAGS);				/*to show the special abilities on the sbar*/
 
 		SV_QCStatPtr(ev_integer, &h2infoplaque[0], STAT_H2_OBJECTIVE1);
 		SV_QCStatPtr(ev_integer, &h2infoplaque[1], STAT_H2_OBJECTIVE2);
@@ -1073,6 +1072,7 @@ void PR_Init(void)
 #endif
 }
 
+void SV_RegisterH2CustomTents(void);
 void Q_InitProgs(void)
 {
 	int i, i2;
@@ -1430,6 +1430,8 @@ void Q_InitProgs(void)
 	sv.world.edict_size = PR_InitEnts(svprogfuncs, sv.world.max_edicts);
 
 
+	SV_RegisterH2CustomTents();
+
 #ifdef USEODE
 	World_Physics_Start(&sv.world);
 #endif
@@ -1778,6 +1780,92 @@ static void SV_Effect(vec3_t org, int mdlidx, int startframe, int endframe, int 
 
 	SV_Multicast(org, MULTICAST_PVS);
 }
+
+
+static int SV_CustomTEnt_Register(char *effectname, int nettype, float *stain_rgb, float stain_radius, float *dl_rgb, float dl_radius, float dl_time, float *dl_fade)
+{
+	int i;
+	for (i = 0; i < 255; i++)
+	{
+		if (!*sv.customtents[i].particleeffecttype)
+			break;
+		if (!strcmp(effectname, sv.customtents[i].particleeffecttype))
+			break;
+	}
+	if (i == 255)
+	{
+		Con_Printf("Too many custom effects\n");
+		return -1;
+	}
+
+	Q_strncpyz(sv.customtents[i].particleeffecttype, effectname, sizeof(sv.customtents[i].particleeffecttype));
+	sv.customtents[i].netstyle = nettype;
+
+	if (nettype & CTE_STAINS)
+	{
+		VectorCopy(stain_rgb, sv.customtents[i].stain);
+		sv.customtents[i].radius = stain_radius;
+	}
+	if (nettype & CTE_GLOWS)
+	{
+		sv.customtents[i].dlightrgb[0] = dl_rgb[0]*255;
+		sv.customtents[i].dlightrgb[1] = dl_rgb[1]*255;
+		sv.customtents[i].dlightrgb[2] = dl_rgb[2]*255;
+		sv.customtents[i].dlightradius = dl_radius/4;
+		sv.customtents[i].dlighttime = dl_time*16;
+		if (nettype & CTE_CHANNELFADE)
+		{
+			sv.customtents[i].dlightcfade[0] = dl_fade[0]*64;
+			sv.customtents[i].dlightcfade[1] = dl_fade[1]*64;
+			sv.customtents[i].dlightcfade[2] = dl_fade[2]*64;
+		}
+	}
+
+	return i;
+}
+
+static void SV_CustomTEnt_Spawn(int index, float *org, float *org2, int count, float *dir)
+{
+	int type;
+	if (index < 0 || index >= 255)
+		return;
+
+	MSG_WriteByte(&sv.multicast, svcfte_customtempent);
+	MSG_WriteByte(&sv.multicast, index);
+	MSG_WriteCoord(&sv.multicast, org[0]);
+	MSG_WriteCoord(&sv.multicast, org[1]);
+	MSG_WriteCoord(&sv.multicast, org[2]);
+
+	type = sv.customtents[index].netstyle;
+	if (type & CTE_ISBEAM)
+	{
+		MSG_WriteCoord(&sv.multicast, org2[0]);
+		MSG_WriteCoord(&sv.multicast, org2[1]);
+		MSG_WriteCoord(&sv.multicast, org2[2]);
+	}
+	else
+	{
+		if (type & CTE_CUSTOMCOUNT)
+		{
+			MSG_WriteByte(&sv.multicast, count);
+		}
+		if (type & CTE_CUSTOMVELOCITY)
+		{
+			MSG_WriteCoord(&sv.multicast, dir[0]);
+			MSG_WriteCoord(&sv.multicast, dir[1]);
+			MSG_WriteCoord(&sv.multicast, dir[2]);
+		}
+		else if (type & CTE_CUSTOMDIRECTION)
+		{
+			vec3_t norm;
+			VectorNormalize2(dir, norm);
+			MSG_WriteDir(&sv.multicast, norm);
+		}
+	}
+
+	SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, PEXT_CUSTOMTEMPEFFECTS, 0);	//now send the new multicast to all that will.
+}
+
 
 
 
@@ -2258,7 +2346,7 @@ centerprint(clientent, value)
 */
 void PF_centerprint_Internal (int entnum, qboolean plaque, char *s)
 {
-	client_t	*cl, *sp;
+	client_t	*cl;
 	int			slen;
 
 #ifdef SERVER_DEMO_PLAYBACK
@@ -7142,8 +7230,414 @@ void PF_h2updateinfoplaque(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	else
 		h2infoplaque[idx/32] ^= 1<<(idx&31);
 }
+
+enum
+{
+	ce_none,
+	ce_rain,
+	ce_fountain,
+	ce_quake,
+	ce_white_smoke,
+	ce_bluespark,
+	ce_yellowspark,
+	ce_sm_circle_exp,
+	ce_bg_circle_exp,
+	ce_sm_white_flash,
+	ce_white_flash		= 10,
+	ce_yellowred_flash,
+	ce_blue_flash,
+	ce_sm_blue_flash,
+	ce_red_flash,
+	ce_sm_explosion,
+	ce_lg_explosion,
+	ce_floor_explosion,
+	ce_rider_death,
+	ce_blue_explosion,
+	ce_green_smoke		= 20,
+	ce_grey_smoke,
+	ce_red_smoke,
+	ce_slow_white_smoke,
+	ce_redspark,
+	ce_greenspark,
+	ce_telesmk1,
+	ce_telesmk2,
+	ce_icehit,
+	ce_medusa_hit,
+	ce_mezzo_reflect	= 30,
+	ce_floor_explosion2,
+	ce_xbow_explosion,
+	ce_new_explosion,
+	ce_magic_missile_explosion,
+	ce_ghost,
+	ce_bone_explosion,
+	ce_redcloud,
+	ce_teleporterpuffs,
+	ce_teleporterbody,
+	ce_boneshard		= 40,
+	ce_boneshrapnel,
+	ce_flamestream,
+	ce_snow,
+	ce_gravitywell,
+	ce_bldrn_expl,
+	ce_acid_muzzfl,
+	ce_acid_hit,
+	ce_firewall_small,
+	ce_firewall_medium,
+	ce_firewall_large	= 50,
+	ce_lball_expl,
+	ce_acid_splat,
+	ce_acid_expl,
+	ce_fboom,
+	ce_chunk,
+	ce_bomb,
+	ce_brn_bounce,
+	ce_lshock,
+	ce_flamewall,
+	ce_flamewall2		= 60,
+	ce_floor_explosion3,
+	ce_onfire,
+
+
+	/*internal effects, here for indexes*/
+	
+	ce_teleporterbody_1,	/*de-sheeped*/
+	ce_white_smoke_05,
+	ce_white_smoke_10,
+	ce_white_smoke_15,
+	ce_white_smoke_20,
+	ce_white_smoke_50,
+	ce_green_smoke_05,
+	ce_green_smoke_10,
+	ce_green_smoke_15,
+	ce_green_smoke_20,
+	ce_grey_smoke_15,
+	ce_grey_smoke_100,
+
+	ce_max
+};
+int h2customtents[ce_max];
+void SV_RegisterH2CustomTents(void)
+{
+	int i;
+	for (i = 0; i < ce_max; i++)
+		h2customtents[i] = -1;
+
+	if (progstype == PROG_H2)
+	{
+
+//	ce_rain
+//	ce_fountain
+		h2customtents[ce_quake]				= SV_CustomTEnt_Register("ce_quake",			0, NULL, 0, NULL, 0, 0, NULL);
+//	ce_white_smoke
+		h2customtents[ce_bluespark]			= SV_CustomTEnt_Register("ce_bluespark",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_yellowspark]		= SV_CustomTEnt_Register("ce_yellowspark",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_sm_circle_exp]		= SV_CustomTEnt_Register("ce_sm_circle_exp",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_bg_circle_exp]		= SV_CustomTEnt_Register("ce_bg_circle_exp",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_sm_white_flash]	= SV_CustomTEnt_Register("ce_sm_white_flash",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_white_flash]		= SV_CustomTEnt_Register("ce_white_flash",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_yellowred_flash]	= SV_CustomTEnt_Register("ce_yellowred_flash",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_blue_flash]		= SV_CustomTEnt_Register("ce_blue_flash",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_sm_blue_flash]		= SV_CustomTEnt_Register("ce_sm_blue_flash",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_red_flash]			= SV_CustomTEnt_Register("ce_red_flash",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_sm_explosion]		= SV_CustomTEnt_Register("ce_sm_explosion",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_lg_explosion]		= SV_CustomTEnt_Register("ce_lg_explosion",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_floor_explosion]	= SV_CustomTEnt_Register("ce_floor_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_rider_death]		= SV_CustomTEnt_Register("ce_rider_death",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_blue_explosion]	= SV_CustomTEnt_Register("ce_blue_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
+//	ce_green_smoke
+//	ce_grey_smoke
+		h2customtents[ce_red_smoke]			= SV_CustomTEnt_Register("ce_red_smoke",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_slow_white_smoke]	= SV_CustomTEnt_Register("ce_slow_white_smoke",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_redspark]			= SV_CustomTEnt_Register("ce_redspark",			0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_greenspark]		= SV_CustomTEnt_Register("ce_greenspark",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_telesmk1]			= SV_CustomTEnt_Register("ce_telesmk1",			CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_telesmk2]			= SV_CustomTEnt_Register("ce_telesmk2",			CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_icehit]			= SV_CustomTEnt_Register("ce_icehit",			0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_medusa_hit]		= SV_CustomTEnt_Register("ce_medusa_hit",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_mezzo_reflect]		= SV_CustomTEnt_Register("ce_mezzo_reflect",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_floor_explosion2]	= SV_CustomTEnt_Register("ce_floor_explosion2",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_xbow_explosion]	= SV_CustomTEnt_Register("ce_xbow_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_new_explosion]		= SV_CustomTEnt_Register("ce_new_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_magic_missile_explosion]	= SV_CustomTEnt_Register("ce_magic_missile_explosion", 0, NULL, 0, NULL, 0, 0, NULL);
+//	ce_ghost
+		h2customtents[ce_bone_explosion]	= SV_CustomTEnt_Register("ce_bone_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
+//	ce_redcloud
+		h2customtents[ce_teleporterpuffs]	= SV_CustomTEnt_Register("ce_teleporterpuffs",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_teleporterbody]	= SV_CustomTEnt_Register("ce_teleporterbody",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+//	ce_boneshard
+//	ce_boneshrapnel
+		h2customtents[ce_flamestream]		= SV_CustomTEnt_Register("ce_flamestream",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+//	ce_snow,
+		h2customtents[ce_gravitywell]		= SV_CustomTEnt_Register("ce_gravitywell",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_bldrn_expl]		= SV_CustomTEnt_Register("ce_bldrn_expl",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_acid_muzzfl]		= SV_CustomTEnt_Register("ce_acid_muzzfl",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_acid_hit]			= SV_CustomTEnt_Register("ce_acid_hit",			0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_firewall_small]	= SV_CustomTEnt_Register("ce_firewall_small",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_firewall_medium]	= SV_CustomTEnt_Register("ce_firewall_medium",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_firewall_large]	= SV_CustomTEnt_Register("ce_firewall_large",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_lball_expl]		= SV_CustomTEnt_Register("ce_lball_expl",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_acid_splat]		= SV_CustomTEnt_Register("ce_acid_splat",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_acid_expl]			= SV_CustomTEnt_Register("ce_acid_expl",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_fboom]				= SV_CustomTEnt_Register("ce_fboom",			0, NULL, 0, NULL, 0, 0, NULL);
+//	ce_chunk
+		h2customtents[ce_bomb]				= SV_CustomTEnt_Register("ce_bomb",				0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_brn_bounce]		= SV_CustomTEnt_Register("ce_brn_bounce",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_lshock]			= SV_CustomTEnt_Register("ce_lshock",			0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_flamewall]			= SV_CustomTEnt_Register("ce_flamewall",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_flamewall2]		= SV_CustomTEnt_Register("ce_flamewall2",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_floor_explosion3]	= SV_CustomTEnt_Register("ce_floor_explosion3",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_onfire]			= SV_CustomTEnt_Register("ce_onfire",			CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+
+
+
+		h2customtents[ce_teleporterbody_1]	= SV_CustomTEnt_Register("ce_teleporterbody_1",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_white_smoke_05]	= SV_CustomTEnt_Register("ce_white_smoke_05",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_white_smoke_10]	= SV_CustomTEnt_Register("ce_white_smoke_10",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_white_smoke_15]	= SV_CustomTEnt_Register("ce_white_smoke_15",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_white_smoke_20]	= SV_CustomTEnt_Register("ce_white_smoke_20",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_white_smoke_50]	= SV_CustomTEnt_Register("ce_white_smoke_50",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_green_smoke_05]	= SV_CustomTEnt_Register("ce_green_smoke_05",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_green_smoke_10]	= SV_CustomTEnt_Register("ce_green_smoke_10",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_green_smoke_15]	= SV_CustomTEnt_Register("ce_green_smoke_15",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_green_smoke_20]	= SV_CustomTEnt_Register("ce_green_smoke_20",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_grey_smoke_15]		= SV_CustomTEnt_Register("ce_grey_smoke_15",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_grey_smoke_100]	= SV_CustomTEnt_Register("ce_grey_smoke_100",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+	}
+}
 void PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+//	float *min, *max, *angle, *size;
+//	float colour, wait, radius, frame, framelength, duration;
+//	int flags, type, skin;
+	float *org, *dir;
+	int count;
+
+	int efnum = G_FLOAT(OFS_PARM0);
+	G_FLOAT(OFS_RETURN) = 0;
+	switch(efnum)
+	{
+	case ce_rain:
+		//min = G_VECTOR(OFS_PARM1);
+		//max = G_VECTOR(OFS_PARM2);
+		//size = G_VECTOR(OFS_PARM3);
+		//dir = G_VECTOR(OFS_PARM4);
+		//colour = G_FLOAT(OFS_PARM5);
+		//count = G_FLOAT(OFS_PARM6);
+		//wait = G_FLOAT(OFS_PARM7);
+		/*FIXME: not spawned - this persistant effect is created by a map object, all attributes are custom.*/
+
+		Con_Printf("FTE-H2 FIXME: ce_rain not supported!\n", efnum);
+		return;
+		break;
+	case ce_snow:
+		//min = G_VECTOR(OFS_PARM1);
+		//max = G_VECTOR(OFS_PARM2);
+		//flags = G_FLOAT(OFS_PARM3);
+		//dir = G_VECTOR(OFS_PARM4);
+		//count = G_FLOAT(OFS_PARM5);
+		/*FIXME: not spawned - this persistant effect is created by a map object (might be delay-spawned), all attributes are custom.*/
+		Con_Printf("FTE-H2 FIXME: ce_snow not supported!\n", efnum);
+		return;
+		break;
+	case ce_fountain:
+		//org = G_VECTOR(OFS_PARM1);
+		//angle = G_VECTOR(OFS_PARM2);
+		//dir = G_VECTOR(OFS_PARM3);
+		//colour = G_FLOAT(OFS_PARM4);
+		//count = G_FLOAT(OFS_PARM5);
+		/*FIXME: not spawned - this persistant effect is created by a map object, all attributes are custom.*/
+		Con_Printf("FTE-H2 FIXME: ce_fountain not supported!\n", efnum);
+		return;
+		break;
+	case ce_quake:
+		org = G_VECTOR(OFS_PARM1);
+		//radius = G_FLOAT(OFS_PARM2);	/*discard: always 500/3 */
+
+		if (h2customtents[efnum] != -1)
+		{
+			SV_CustomTEnt_Spawn(h2customtents[efnum], org, NULL, 1, NULL);
+			return;
+		}
+		break;
+	case ce_white_smoke:		//(1,2,3,4,10)*0.05
+	case ce_green_smoke:		//(1,2,3,4)*0.05
+	case ce_grey_smoke:			//(3,20)*0.05
+		/*transform them to the correct durations*/
+		if (efnum == ce_white_smoke)
+		{
+			int ifl = G_FLOAT(OFS_PARM3) * 100;
+			if (ifl == 5)
+				efnum = ce_white_smoke_05;
+			else if (ifl == 10)
+				efnum = ce_white_smoke_10;
+			else if (ifl == 15)
+				efnum = ce_white_smoke_15;
+			else if (ifl == 20)
+				efnum = ce_white_smoke_20;
+			else if (ifl == 50)
+				efnum = ce_white_smoke_50;
+		}
+		else if (efnum == ce_green_smoke)
+		{
+			int ifl = G_FLOAT(OFS_PARM3) * 100;
+			if (ifl == 05)
+				efnum = ce_green_smoke_05;
+			else if (ifl == 10)
+				efnum = ce_green_smoke_10;
+			else if (ifl == 15)
+				efnum = ce_green_smoke_15;
+			else if (ifl == 20)
+				efnum = ce_green_smoke_20;
+		}
+		else
+		{
+			int ifl = G_FLOAT(OFS_PARM3) * 100;
+			if (ifl == 15)
+				efnum = ce_grey_smoke_15;
+			if (ifl == 100)
+				efnum = ce_grey_smoke_100;
+		}
+		/*fallthrough*/
+	case ce_red_smoke:			//0.15
+	case ce_slow_white_smoke:	//0
+	case ce_telesmk1:			//0.15
+	case ce_telesmk2:			//not used
+	case ce_ghost:				//0.1
+	case ce_redcloud:			//0.05
+		org = G_VECTOR(OFS_PARM1);
+		dir = G_VECTOR(OFS_PARM2);
+		//framelength = G_FLOAT(OFS_PARM3);	/*FIXME: validate for the other effects?*/
+
+		if (h2customtents[efnum] != -1)
+		{
+			SV_CustomTEnt_Spawn(h2customtents[efnum], org, NULL, 1, dir);
+			return;
+		}
+		break;
+	case ce_acid_muzzfl:
+	case ce_flamestream:
+	case ce_flamewall:
+	case ce_flamewall2:
+	case ce_onfire:
+		org = G_VECTOR(OFS_PARM1);
+		dir = G_VECTOR(OFS_PARM2);
+		//frame = G_FLOAT(OFS_PARM3);			/*discard: h2 uses a fixed value for each effect (0, except for acid_muzzfl which is 0.05)*/
+
+		if (h2customtents[efnum] != -1)
+		{
+			SV_CustomTEnt_Spawn(h2customtents[efnum], org, NULL, 1, dir);
+			return;
+		}
+		break;
+	case ce_sm_white_flash:
+	case ce_yellowred_flash:
+	case ce_bluespark:
+	case ce_yellowspark:
+	case ce_sm_circle_exp:
+	case ce_bg_circle_exp:
+	case ce_sm_explosion:
+	case ce_lg_explosion:
+	case ce_floor_explosion:
+	case ce_floor_explosion3:
+	case ce_blue_explosion:
+	case ce_redspark:
+	case ce_greenspark:
+	case ce_icehit:
+	case ce_medusa_hit:
+	case ce_mezzo_reflect:
+	case ce_floor_explosion2:
+	case ce_xbow_explosion:
+	case ce_new_explosion:
+	case ce_magic_missile_explosion:
+	case ce_bone_explosion:
+	case ce_bldrn_expl:
+	case ce_acid_hit:
+	case ce_acid_splat:
+	case ce_acid_expl:
+	case ce_lball_expl:
+	case ce_firewall_small:
+	case ce_firewall_medium:
+	case ce_firewall_large:
+	case ce_fboom:
+	case ce_bomb:
+	case ce_brn_bounce:
+	case ce_lshock:
+	case ce_white_flash:
+	case ce_blue_flash:
+	case ce_sm_blue_flash:
+	case ce_red_flash:
+	case ce_rider_death:
+	case ce_teleporterpuffs:
+		org = G_VECTOR(OFS_PARM1);
+		if (h2customtents[efnum] != -1)
+		{
+			SV_CustomTEnt_Spawn(h2customtents[efnum], org, NULL, 1, NULL);
+			return;
+		}
+		break;
+	case ce_gravitywell:
+		org = G_VECTOR(OFS_PARM1);
+		//colour = G_FLOAT(OFS_PARM2);		/*discard: h2 uses a fixed random range*/
+		//duration = G_FLOAT(OFS_PARM3);	/*discard: h2 uses a fixed time limit*/
+
+		if (h2customtents[efnum] != -1)
+		{
+			SV_CustomTEnt_Spawn(h2customtents[efnum], org, NULL, 1, NULL);
+			return;
+		}
+		break;
+	case ce_teleporterbody:
+		org = G_VECTOR(OFS_PARM1);
+		dir = G_VECTOR(OFS_PARM2);
+		if (G_FLOAT(OFS_PARM3))	/*alternate*/
+			efnum = ce_teleporterbody_1;
+
+		if (h2customtents[efnum] != -1)
+		{
+			SV_CustomTEnt_Spawn(h2customtents[efnum], org, NULL, 1, dir);
+			return;
+		}
+		break;
+	case ce_boneshard:
+	case ce_boneshrapnel:
+		org = G_VECTOR(OFS_PARM1);
+		dir = G_VECTOR(OFS_PARM2);
+		//angle = G_VECTOR(OFS_PARM3);	/*discard: angle is a function of the dir*/
+		//avelocity = G_VECTOR(OFS_PARM4);/*discard: avelocity is a function of the dir*/
+
+		/*FIXME: persistant until removed*/
+		if (h2customtents[efnum] != -1)
+		{
+			SV_CustomTEnt_Spawn(h2customtents[efnum], org, NULL, 1, dir);
+			return;
+		}
+		break;
+	case ce_chunk:
+		org = G_VECTOR(OFS_PARM1);
+		//type = G_FLOAT(OFS_PARM2);	/*FIXME: discarded*/
+		dir = G_VECTOR(OFS_PARM3);
+		count = G_FLOAT(OFS_PARM4);
+
+		if (h2customtents[efnum] != -1)
+		{
+			SV_CustomTEnt_Spawn(h2customtents[efnum], org, NULL, count, dir);
+			return;
+		}
+
+		Con_Printf("FTE-H2 FIXME: ce_chunk not supported!\n", efnum);
+		return;
+
+
+		break;
+	default:
+		PR_BIError (prinst, "PF_h2starteffect: bad effect");
+		break;
+	}
+
+	Con_Printf("FTE-H2 FIXME: Effect %i doesn't have an effect registered\nTell Spike!\n", efnum);
+	
+#if 0
+
 	switch((int)G_FLOAT(OFS_PARM0))
 	{
 	case 4:	//white_smoke
@@ -7250,6 +7744,7 @@ void PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		Con_Printf("Start effect %i\n", (int)G_FLOAT(OFS_PARM0));
 		break;
 	}
+#endif
 }
 
 void PF_h2endeffect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -7397,9 +7892,19 @@ void PF_CustomTEnt(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			MSG_WriteByte(&sv.multicast, G_FLOAT(OFS_PARM0+arg*3));
 			arg++;
 		}
-		if (type & CTE_CUSTOMDIRECTION)
+		if (type & CTE_CUSTOMVELOCITY)
 		{
-			MSG_WriteDir(&sv.multicast, G_VECTOR(OFS_PARM0+arg*3));
+			float *vel = G_VECTOR(OFS_PARM0+arg*3);
+			MSG_WriteCoord(&sv.multicast, vel[0]);
+			MSG_WriteCoord(&sv.multicast, vel[1]);
+			MSG_WriteCoord(&sv.multicast, vel[2]);
+			arg++;
+		}
+		else if (type & CTE_CUSTOMDIRECTION)
+		{
+			vec3_t norm;
+			VectorNormalize2(G_VECTOR(OFS_PARM0+arg*3), norm);
+			MSG_WriteDir(&sv.multicast, norm);
 			arg++;
 		}
 	}
@@ -8390,71 +8895,8 @@ void PF_ChangePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 
 
-#if 0
-typedef struct {
-	int			ident;
-	int			version;
-
-	char		name[MAX_QPATH];
-
-	int			flags;	//Does anyone know what these are?
-
-	int			numFrames;
-	int			numTags;
-	int			numSurfaces;
-
-	int			numSkins;
-
-	int			ofsFrames;
-	int			ofsTags;
-	int			ofsSurfaces;
-	int			ofsEnd;
-} md3Header_t;
-typedef struct {
-	char name[MAX_QPATH];
-	vec3_t org;
-	float ang[3][3];
-} md3tag_t;
-
-typedef struct zymlump_s
-{
-	int start;
-	int length;
-} zymlump_t;
-typedef struct zymtype1header_s
-{
-	char id[12]; // "ZYMOTICMODEL", length 12, no termination
-	int type; // 0 (vertex morph) 1 (skeletal pose) or 2 (skeletal scripted)
-	int filesize; // size of entire model file
-	float mins[3], maxs[3], radius; // for clipping uses
-	int numverts;
-	int numtris;
-	int numsurfaces;
-	int numbones; // this may be zero in the vertex morph format (undecided)
-	int numscenes; // 0 in skeletal scripted models
-
-// skeletal pose header
-	// lump offsets are relative to the file
-	zymlump_t lump_scenes; // zymscene_t scene[numscenes]; // name and other information for each scene (see zymscene struct)
-	zymlump_t lump_poses; // float pose[numposes][numbones][6]; // animation data
-	zymlump_t lump_bones; // zymbone_t bone[numbones];
-	zymlump_t lump_vertbonecounts; // int vertbonecounts[numvertices]; // how many bones influence each vertex (separate mainly to make this compress better)
-	zymlump_t lump_verts; // zymvertex_t vert[numvertices]; // see vertex struct
-	zymlump_t lump_texcoords; // float texcoords[numvertices][2];
-	zymlump_t lump_render; // int renderlist[rendersize]; // sorted by shader with run lengths (int count), shaders are sequentially used, each run can be used with glDrawElements (each triangle is 3 int indices)
-	zymlump_t lump_surfnames; // char shadername[numsurfaces][32]; // shaders used on this model
-	zymlump_t lump_trizone; // byte trizone[numtris]; // see trizone explanation
-} zymtype1header_t;
-typedef struct zymbone_s
-{
-	char name[32];
-	int flags;
-	int parent; // parent bone number
-} zymbone_t;
-#endif
 int SV_TagForName(int modelindex, char *tagname)
 {
-#if 1
 	model_t *model = sv.models[modelindex];
 	if (!model)
 		model = Mod_ForName(sv.strings.model_precache[modelindex], false);
@@ -8462,51 +8904,6 @@ int SV_TagForName(int modelindex, char *tagname)
 		return 0;
 
 	return Mod_TagNumForName(model, tagname);
-#else
-	int i;
-	unsigned int *file;
-
-	file = (void*)COM_LoadTempFile(sv.model_precache[modelindex]);
-	if (!file)
-	{
-		Con_Printf("setattachment: \"%s\" is missing\n", sv.model_precache[modelindex]);
-		return 0;
-	}
-
-	if (*file == MD3_IDENT)
-	{
-		md3Header_t *md3 = (md3Header_t*)file;
-		md3tag_t *tag;
-
-		tag = (md3tag_t*)((char*)md3 + md3->ofsTags);
-
-		for (i = 0;i < md3->numTags;i++)
-		{
-			if (!strcmp(tagname, tag[i].name))
-			{
-				return i + 1;
-			}
-		}
-	}
-	else if (!strncmp((char*)file, "ZYMOTICMODEL", 12) && BigLong(file[3]) == 1)
-	{
-		zymtype1header_t *zym = (zymtype1header_t*)file;
-		zymbone_t *tag;
-
-		tag = (zymbone_t*)((char*)zym + BigLong(zym->lump_bones.start));
-
-		for (i = BigLong(zym->numbones)-1;i >=0;i--)
-		{
-			if (!strcmp(tagname, tag[i].name))
-			{
-				return i + 1;
-			}
-		}
-	}
-	else
-		Con_DPrintf("setattachment: %s not supported\n", sv.model_precache[modelindex]);
-	return 0;
-#endif
 }
 
 void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)

@@ -28,6 +28,7 @@ void *Hash_GetInsensative(hashtable_t *table, const char *name);
 void *Hash_GetKey(hashtable_t *table, unsigned int key);
 void *Hash_GetNext(hashtable_t *table, const char *name, void *old);
 void *Hash_GetNextInsensative(hashtable_t *table, const char *name, void *old);
+void *Hash_GetNextKey(hashtable_t *table, unsigned int key, void *old);
 void *Hash_Add(hashtable_t *table, const char *name, void *data, bucket_t *buck);
 void *Hash_AddInsensative(hashtable_t *table, const char *name, void *data, bucket_t *buck);
 void Hash_Remove(hashtable_t *table, const char *name);

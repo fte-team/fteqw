@@ -78,10 +78,10 @@ cvar_t sbar_teamstatus = SCVAR("sbar_teamstatus", "1");
 
 
 int			sb_updates;		// if >= vid.numpages, no update needed
-int			sb_hexen2_cur_item;//hexen2 hud
-qboolean	sb_hexen2_extra_info;//show the extra stuff
-qboolean	sb_hexen2_infoplaque;
-float		sb_hexen2_item_time;
+int			sb_hexen2_cur_item[MAX_SPLITS];//hexen2 hud
+qboolean	sb_hexen2_extra_info[MAX_SPLITS];//show the extra stuff
+qboolean	sb_hexen2_infoplaque[MAX_SPLITS];
+float		sb_hexen2_item_time[MAX_SPLITS];
 
 qboolean	sbar_parsingteamstatuses;	//so we don't eat it if its not displayed
 
@@ -673,37 +673,58 @@ void Sbar_ShowScores (void)
 
 void Sbar_Hexen2InvLeft_f(void)
 {
-	sb_hexen2_item_time = realtime;
-	sb_hexen2_cur_item--;
-	if (sb_hexen2_cur_item < 0)
-		sb_hexen2_cur_item = 14;
+	int tries = 15;
+	int pnum = CL_TargettedSplit(false);
+	sb_hexen2_item_time[pnum] = realtime;
+	while (tries-- > 0)
+	{
+		sb_hexen2_cur_item[pnum]--;
+		if (sb_hexen2_cur_item[pnum] < 0)
+			sb_hexen2_cur_item[pnum] = 14;
+
+		if (cl.stats[pnum][STAT_H2_CNT_TORCH+sb_hexen2_cur_item[pnum]] > 0)
+			break;
+	}
 }
 void Sbar_Hexen2InvRight_f(void)
 {
-	sb_hexen2_item_time = realtime;
-	sb_hexen2_cur_item++;
-	if (sb_hexen2_cur_item > 14)
-		sb_hexen2_cur_item = 0;
+	int tries = 15;
+	int pnum = CL_TargettedSplit(false);
+	sb_hexen2_item_time[pnum] = realtime;
+	while (tries-- > 0)
+	{
+		sb_hexen2_cur_item[pnum]++;
+		if (sb_hexen2_cur_item[pnum] > 14)
+			sb_hexen2_cur_item[pnum] = 0;
+
+		if (cl.stats[pnum][STAT_H2_CNT_TORCH+sb_hexen2_cur_item[pnum]] > 0)
+			break;
+	}
 }
 void Sbar_Hexen2InvUse_f(void)
 {
-	Cbuf_AddText(va("impulse %d\n", 100+sb_hexen2_cur_item), Cmd_ExecLevel);
+	int pnum = CL_TargettedSplit(false);
+	Cmd_ExecuteString(va("impulse %d\n", 100+sb_hexen2_cur_item[pnum]), Cmd_ExecLevel);
 }
 void Sbar_Hexen2ShowInfo_f(void)
 {
-	sb_hexen2_extra_info = true;
+	int pnum = CL_TargettedSplit(false);
+	sb_hexen2_extra_info[pnum] = true;
 }
 void Sbar_Hexen2DontShowInfo_f(void)
 {
-	sb_hexen2_extra_info = false;
+	int pnum = CL_TargettedSplit(false);
+	sb_hexen2_extra_info[pnum] = false;
 }
 void Sbar_Hexen2PInfoPlaque_f(void)
 {
-	sb_hexen2_infoplaque = true;
+	int pnum = CL_TargettedSplit(false);
+	sb_hexen2_infoplaque[pnum] = true;
 }
 void Sbar_Hexen2MInfoPlaque_f(void)
 {
-	sb_hexen2_infoplaque = false;
+	int pnum = CL_TargettedSplit(false);
+	sb_hexen2_infoplaque[pnum] = false;
 }
 
 /*
@@ -974,6 +995,11 @@ Sbar_DrawString
 void Sbar_DrawString (int x, int y, char *str)
 {
 	Draw_FunString (sbar_rect.x + x /*+ ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y+ sbar_rect.height-SBAR_HEIGHT, str);
+}
+
+void Sbar_DrawExpandedString (int x, int y, conchar_t *str)
+{
+	Draw_ExpandedString (sbar_rect.x + x /*+ ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y+ sbar_rect.height-SBAR_HEIGHT, str);
 }
 
 void Draw_TinyString (int x, int y, const qbyte *str)
@@ -1354,7 +1380,8 @@ Sbar_DrawInventory
 void Sbar_DrawInventory (int pnum)
 {
 	int		i;
-	char	num[6];
+	char	  num[6];
+	conchar_t numc[6];
 	float	time;
 	int		flashon;
 	qboolean	headsup;
@@ -1368,9 +1395,9 @@ void Sbar_DrawInventory (int pnum)
 		if (sbar_rogue)
 		{
 			if ( cl.stats[pnum][STAT_ACTIVEWEAPON] >= RIT_LAVA_NAILGUN )
-				Sbar_DrawPic (0, -24, FINDOUT, FINDOUT, rsb_invbar[0]);
+				Sbar_DrawPic (0, -24, 320, 24, rsb_invbar[0]);
 			else
-				Sbar_DrawPic (0, -24, FINDOUT, FINDOUT, rsb_invbar[1]);
+				Sbar_DrawPic (0, -24, 320, 24, rsb_invbar[1]);
 		}
 		else
 			Sbar_DrawPic (0, -24, 320, 24, sb_ibar);
@@ -1401,7 +1428,7 @@ void Sbar_DrawInventory (int pnum)
 			}
 			else
 			{
-				Sbar_DrawPic (i*24, -16, 24, 16, sb_weapons[flashon][i]);
+				Sbar_DrawPic (i*24, -16, (i==6)?48:24, 16, sb_weapons[flashon][i]);
 			}
 
 			if (flashon > 1)
@@ -1421,11 +1448,11 @@ void Sbar_DrawInventory (int pnum)
 					if (headsup)
 					{
 						if (sbar_rect.height>200)
-							Sbar_DrawSubPic ((hudswap) ? 0 : (sbar_rect.width-24),-68-(5-i)*16, FINDOUT, FINDOUT, rsb_weapons[i],0,0,FINDOUT,FINDOUT);
+							Sbar_DrawSubPic ((hudswap) ? 0 : (sbar_rect.width-24),-68-(5-i)*16, 24, 16, rsb_weapons[i],0,0,((i==4)?48:24),16);
 
 					}
 					else
-						Sbar_DrawPic ((i+2)*24, -16, 24, 16, rsb_weapons[i]);
+						Sbar_DrawPic ((i+2)*24, -16, (i==4)?48:24, 16, rsb_weapons[i]);
 				}
 			}
 		}
@@ -1435,34 +1462,18 @@ void Sbar_DrawInventory (int pnum)
 	for (i=0 ; i<4 ; i++)
 	{
 		snprintf (num, sizeof(num), "%3i",cl.stats[pnum][STAT_SHELLS+i] );
-		if (num[0] != ' ')
-			num[0] += 18-'0';
-		if (num[1] != ' ')
-			num[1] += 18-'0';
-		if (num[2] != ' ')
-			num[2] += 18-'0';
+		numc[0] = CON_WHITEMASK|0xe000|((num[0]!=' ')?(num[0] + 18-'0'):' ');
+		numc[1] = CON_WHITEMASK|0xe000|((num[1]!=' ')?(num[1] + 18-'0'):' ');
+		numc[2] = CON_WHITEMASK|0xe000|((num[2]!=' ')?(num[2] + 18-'0'):' ');
+		numc[3] = 0;
 		if (headsup)
 		{
-//			Sbar_DrawSubPic(3, -24, sb_ibar, 3, 0, 42,11);
 			Sbar_DrawSubPic((hudswap) ? 0 : (sbar_rect.width-42), -24 - (4-i)*11, 42, 11, sb_ibar, 3+(i*48), 0, 320, 24);
-/*
-			if (num[0] != ' ')
-				Sbar_DrawCharacter ( (hudswap) ? 3 : (sbar_rect.width-39), -24 - (4-i)*11, 18 + num[0] - '0');
-			if (num[1] != ' ')
-				Sbar_DrawCharacter ( (hudswap) ? 11 : (sbar_rect.width-31), -24 - (4-i)*11, 18 + num[1] - '0');
-			if (num[2] != ' ')
-				Sbar_DrawCharacter ( (hudswap) ? 19 : (sbar_rect.width-23), -24 - (4-i)*11, 18 + num[2] - '0');
-*/
-			Sbar_DrawString((hudswap) ? 3 : (sbar_rect.width-39), -24 - (4-i)*11, num);
+			Sbar_DrawExpandedString((hudswap) ? 3 : (sbar_rect.width-39), -24 - (4-i)*11, numc);
 		}
 		else
 		{
-			if (num[0] != ' ')
-				Sbar_DrawCharacter ( (6*i+1)*8 - 2, -24, 18 + num[0] - '0');
-			if (num[1] != ' ')
-				Sbar_DrawCharacter ( (6*i+2)*8 - 2, -24, 18 + num[1] - '0');
-			if (num[2] != ' ')
-				Sbar_DrawCharacter ( (6*i+3)*8 - 2, -24, 18 + num[2] - '0');
+			Sbar_DrawExpandedString((6*i+1)*8 - 2, -24, numc);
 		}
 	}
 
@@ -1818,25 +1829,69 @@ void Sbar_Hexen2DrawInventory(int pnum)
 {
 	int i;
 	int x, y=-37;
+	int activeleft = 0;
+	int activeright = 0;
 
-	if (sb_hexen2_item_time+3 < realtime)
+	/*always select an artifact that we actually have whether we are drawing the full bar or not.*/
+	for (i = 0; i < 15; i++)
+	{
+		if (cl.stats[pnum][STAT_H2_CNT_TORCH+(i+sb_hexen2_cur_item[pnum])%15])
+		{
+			sb_hexen2_cur_item[pnum] = (sb_hexen2_cur_item[pnum] + i)%15;
+			break;
+		}
+	}
+
+	if (sb_hexen2_item_time[pnum]+3 < realtime)
 		return;
 
 #if 1
+	for (i = sb_hexen2_cur_item[pnum]; i < 15; i++)
+		if (sb_hexen2_cur_item[pnum] == i || cl.stats[pnum][STAT_H2_CNT_TORCH+i] > 0)
+			activeright++;
+	for (i = sb_hexen2_cur_item[pnum]-1; i >= 0; i--)
+		if (sb_hexen2_cur_item[pnum] == i || cl.stats[pnum][STAT_H2_CNT_TORCH+i] > 0)
+			activeleft++;
+
+	if (activeleft > 3 + (activeright<=3?(4-activeright):0))
+		activeleft = 3 + (activeright<=3?(4-activeright):0);
+	x=320/2-114 + (activeleft-1)*33;
+	for (i = sb_hexen2_cur_item[pnum]-1; x>=320/2-114; i--)
+	{
+		if (!cl.stats[pnum][STAT_H2_CNT_TORCH+i])
+			continue;
+
+		if (i == sb_hexen2_cur_item[pnum])
+			Sbar_DrawPic(x+9, y-12, 11, 11, Draw_SafeCachePic("gfx/artisel.lmp"));
+		Sbar_Hexen2DrawItem(pnum, x, y, i);
+		x -= 33;
+	}
+
+	x=320/2-114 + activeleft*33;
+	for (i = sb_hexen2_cur_item[pnum]; i < 15 && x < 320/2-114+7*33; i++)
+	{
+		if (i != sb_hexen2_cur_item[pnum] && !cl.stats[pnum][STAT_H2_CNT_TORCH+i])
+			continue;
+		if (i == sb_hexen2_cur_item[pnum])
+			Sbar_DrawPic(x+9, y-12, 11, 11, Draw_SafeCachePic("gfx/artisel.lmp"));
+		Sbar_Hexen2DrawItem(pnum, x, y, i);
+		x+=33;
+	}
+#elif 1
 	for (i = 0, x=320/2-114; i < 7; i++, x+=33)
 	{
-		if ((sb_hexen2_cur_item-3+i+30)%15 == sb_hexen2_cur_item)
+		if ((sb_hexen2_cur_item[pnum]-3+i+30)%15 == sb_hexen2_cur_item[pnum])
 			Sbar_DrawPic(x+9, y-12, 11, 11, Draw_SafeCachePic("gfx/artisel.lmp"));
-		Sbar_Hexen2DrawItem(pnum, x, y, (sb_hexen2_cur_item-3+i+30)%15);
+		Sbar_Hexen2DrawItem(pnum, x, y, (sb_hexen2_cur_item[pnum]-3+i+30)%15);
 	}
 #else
 	for (i = 0, x=320/2; i < 3; i++, x+=33)
 	{
-		Sbar_Hexen2DrawItem(pnum, x, y, (sb_hexen2_cur_item+1+i)%15);
+		Sbar_Hexen2DrawItem(pnum, x, y, (sb_hexen2_cur_item[pnum]+1+i)%15);
 	}
 	for (i = 0, x=320/2-33; i < 3; i++, x-=33)
 	{
-		Sbar_Hexen2DrawItem(pnum, x, y, (sb_hexen2_cur_item-1-i+45)%15);
+		Sbar_Hexen2DrawItem(pnum, x, y, (sb_hexen2_cur_item[pnum]-1-i+45)%15);
 	}
 #endif
 }
@@ -1857,7 +1912,7 @@ void Sbar_Hexen2DrawExtra (int pnum)
 		"Demoness"
 	};
 
-	if (sb_hexen2_infoplaque)
+	if (sb_hexen2_infoplaque[pnum])
 	{
 		int i;
 		Con_Printf("Objectives:\n");
@@ -1866,16 +1921,16 @@ void Sbar_Hexen2DrawExtra (int pnum)
 			if (cl.stats[pnum][STAT_H2_OBJECTIVE1 + i/32] & (1<<(i&31)))
 				Con_Printf("%s\n", T_GetInfoString(i));
 		}
-		sb_hexen2_infoplaque = false;
+		sb_hexen2_infoplaque[pnum] = false;
 	}
 
-	if (!sb_hexen2_extra_info)
+	if (!sb_hexen2_extra_info[pnum])
 	{
 		sbar_rect.y -= 46-SBAR_HEIGHT;
 		return;
 	}
 
-	pclass = cl.stats[pnum][STAT_H2_PLAYERCLASS];
+	pclass = cl.players[cl.playernum[pnum]].h2playerclass;
 	if (pclass >= sizeof(pclassname)/sizeof(pclassname[0]))
 		pclass = sizeof(pclassname)/sizeof(pclassname[0]) - 1;
 
@@ -1967,7 +2022,7 @@ int Sbar_Hexen2ArmourValue(int pnum)
 	};
 
 	int classno;
-	classno = cl.stats[pnum][STAT_H2_PLAYERCLASS];
+	classno = cl.players[cl.playernum[pnum]].h2playerclass;
 	if (classno >= 1 && classno <= 5)
 	{
 		classno--;
@@ -2036,9 +2091,21 @@ void Sbar_Hexen2DrawBasic(int pnum)
 	Sbar_DrawPic(267, 36, 10, 10, Draw_SafeCachePic("gfx/chnrcov.lmp"));
 
 
-	Sbar_Hexen2DrawItem(pnum, 144, 3, sb_hexen2_cur_item);
+	Sbar_Hexen2DrawItem(pnum, 144, 3, sb_hexen2_cur_item[pnum]);
 }
 
+void Sbar_Hexen2DrawMinimal(int pnum)
+{
+	int y;
+	y = -16;
+	Sbar_DrawPic(3, y, 31, 17, Draw_SafeCachePic("gfx/bmmana.lmp"));
+	Sbar_DrawPic(3, y+18, 31, 17, Draw_SafeCachePic("gfx/gmmana.lmp"));
+
+	Sbar_DrawTinyString(10, y+6, va("%03d", cl.stats[pnum][STAT_H2_BLUEMANA]));
+	Sbar_DrawTinyString(10, y+18+6, va("%03d", cl.stats[pnum][STAT_H2_GREENMANA]));
+
+	Sbar_Hexen2DrawNum(38, y+18, cl.stats[pnum][STAT_HEALTH], 3);
+}
 
 
 void Sbar_DrawTeamStatus(void)
@@ -2223,9 +2290,14 @@ void Sbar_Draw (void)
 
 		if (sbar_hexen2)
 		{
-			Sbar_Hexen2DrawExtra(pnum);
-			Sbar_Hexen2DrawBasic(pnum);
-			Sbar_Hexen2DrawInventory(pnum);
+			if (sb_lines > 0)
+			{
+				Sbar_Hexen2DrawExtra(pnum);
+				Sbar_Hexen2DrawBasic(pnum);
+				Sbar_Hexen2DrawInventory(pnum);
+			}
+			else
+				Sbar_Hexen2DrawMinimal(pnum);
 
 			if (cl.deathmatch)
 				Sbar_MiniDeathmatchOverlay ();

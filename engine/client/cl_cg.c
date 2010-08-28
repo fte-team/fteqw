@@ -566,7 +566,7 @@ static qintptr_t CG_SystemCallsEx(void *offset, quintptr_t mask, qintptr_t fn, c
 			if (!mod)
 				mod = cl.worldmodel;
 			if (mod)
-				pc = cl.worldmodel->funcs.NativeContents(mod, 0, 0, VM_POINTER(arg[0]), vec3_origin, vec3_origin);
+				pc = cl.worldmodel->funcs.NativeContents(mod, 0, 0, NULL, VM_POINTER(arg[0]), vec3_origin, vec3_origin);
 			else
 				pc = 1;//FTECONTENTS_SOLID;
 			VM_LONG(ret) = pc;//Contents_To_Q3(pc);
@@ -584,10 +584,10 @@ static qintptr_t CG_SystemCallsEx(void *offset, quintptr_t mask, qintptr_t fn, c
 			if (!mod)
 				mod = cl.worldmodel;
 
+			if (mod)
 			{
 				vec3_t		p_l;
-				vec3_t		temp;
-				vec3_t		forward, right, up;
+				vec3_t		axis[3];
 
 				// subtract origin offset
 				VectorSubtract (p, origin, p_l);
@@ -595,20 +595,16 @@ static qintptr_t CG_SystemCallsEx(void *offset, quintptr_t mask, qintptr_t fn, c
 				// rotate start and end into the models frame of reference
 				if (angles[0] || angles[1] || angles[2])
 				{
-					AngleVectors (angles, forward, right, up);
-
-					VectorCopy (p_l, temp);
-					p_l[0] = DotProduct (temp, forward);
-					p_l[1] = -DotProduct (temp, right);
-					p_l[2] = DotProduct (temp, up);
+					AngleVectors (angles, axis[0], axis[1], axis[2]);
+					VectorNegate(axis[1], axis[1]);
+					pc = mod->funcs.NativeContents(mod, 0, 0, axis, p_l, vec3_origin, vec3_origin);
 				}
-
-				if (mod)
-					pc = mod->funcs.NativeContents(mod, 0, 0, VM_POINTER(arg[0]), vec3_origin, vec3_origin);
 				else
-					pc = 1;//FTECONTENTS_SOLID;
+					pc = mod->funcs.NativeContents(mod, 0, 0, NULL, p_l, vec3_origin, vec3_origin);
 			}
-			VM_LONG(ret) = pc;//Contents_To_Q3(pc);
+			else
+				pc = Q3CONTENTS_SOLID;
+			VM_LONG(ret) = pc;
 		}
 		break;
 
@@ -687,7 +683,7 @@ static qintptr_t CG_SystemCallsEx(void *offset, quintptr_t mask, qintptr_t fn, c
 				maxs = vec3_origin;
 			if (mod)
 			{
-				mod->funcs.NativeTrace(mod, 0, 0, start, end, mins, maxs, brushmask, &tr);
+				mod->funcs.NativeTrace(mod, 0, 0, NULL, start, end, mins, maxs, brushmask, &tr);
 			}
 			else
 			{

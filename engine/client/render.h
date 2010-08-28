@@ -163,7 +163,8 @@ extern	entity_t	r_worldentity;
 
 
 //gl_alias.c
-void R_DrawGAliasModel (entity_t *e, unsigned int rmode);
+void R_GAlias_DrawBatch(struct batch_s *batch);
+void R_GAlias_GenerateBatches(entity_t *e, struct batch_s **batches);
 
 //r_surf.c
 struct model_s;
@@ -389,7 +390,7 @@ qbyte *R_MarkLeaves_Q3 (void);
 void R_SetFrustum (float projmat[16], float viewmat[16]);
 void R_SetRenderer(rendererinfo_t *ri);
 void R_AnimateLight (void);
-struct texture_s *R_TextureAnimation (struct texture_s *base);
+struct texture_s *R_TextureAnimation (int frame, struct texture_s *base);
 void RQ_Init(void);
 
 void CLQ2_EntityEvent(entity_state_t *es);

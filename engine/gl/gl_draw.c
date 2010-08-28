@@ -412,7 +412,6 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	qglClearColor (1,0,0,0);
 
 	TRACE(("dbg: GLDraw_ReInit: PPL_LoadSpecularFragmentProgram\n"));
-	PPL_CreateShaderObjects();
 	GL_InitSceneProcessingShaders();
 
 #ifdef PLUGINS

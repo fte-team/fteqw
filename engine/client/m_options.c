@@ -1091,7 +1091,7 @@ void M_Menu_Shadow_Lighting_f (void)
 #ifndef MINIMAL
 	extern cvar_t r_vertexlight;
 #endif
-	extern cvar_t r_noaliasshadows, r_shadows, r_shadow_realtime_world, r_loadlits, gl_maxshadowlights, r_lightmap_saturation, r_dynamic, r_vertexdlights, r_lightstylesmooth, r_lightstylespeed, r_nolightdir, r_shadow_realtime_world_lightmaps, r_shadow_glsl_offsetmapping, r_shadow_glsl_offsetmapping_bias, r_shadow_glsl_offsetmapping_scale, r_shadow_bumpscale_basetexture, r_shadow_bumpscale_bumpmap, r_fb_bmodels, r_fb_models, gl_overbright, r_rocketlight, r_powerupglow, v_powerupshell, r_lightflicker, r_explosionlight;
+	extern cvar_t r_noaliasshadows, r_shadows, r_shadow_realtime_world, r_loadlits, gl_maxshadowlights, r_lightmap_saturation, r_dynamic, r_vertexdlights, r_lightstylesmooth, r_lightstylespeed, r_nolightdir, r_shadow_realtime_world_lightmaps, r_glsl_offsetmapping, r_glsl_offsetmapping_scale, r_shadow_bumpscale_basetexture, r_shadow_bumpscale_bumpmap, r_fb_bmodels, r_fb_models, gl_overbright, r_rocketlight, r_powerupglow, v_powerupshell, r_lightflicker, r_explosionlight;
 
 	static const char *loadlitoptions[] =
 	{
@@ -1139,9 +1139,8 @@ void M_Menu_Shadow_Lighting_f (void)
 		MC_AddCheckBox(menu,	16, y,						"         Realtime World Lightmaps", &r_shadow_realtime_world_lightmaps,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,						"          Realtime Dynamic Lights", &r_shadow_realtime_dlight,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,						"   Realtime Dynamic Light Shadows", &r_shadow_realtime_dlight_shadows,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"        GLSL Shadow Offsetmapping", &r_shadow_glsl_offsetmapping,0);	y+=8;
-		MC_AddSlider(menu,	16, y,							"   GLSL Shadow Offsetmapping Bias", &r_shadow_glsl_offsetmapping_bias,0,1,0.01);	y+=8;
-		MC_AddSlider(menu,	16, y,							"  GLSL Shadow Offsetmapping Scale", &r_shadow_glsl_offsetmapping_scale,0,-1,0.01);	y+=8;
+		MC_AddCheckBox(menu,	16, y,						"               GLSL Offsetmapping", &r_glsl_offsetmapping,0);	y+=8;
+		MC_AddSlider(menu,	16, y,							"         GLSL Offsetmapping Scale", &r_glsl_offsetmapping_scale,0,-1,0.01);	y+=8;
 		MC_AddSlider(menu,	16, y,							"     Shadow Bumpscale Basetexture", &r_shadow_bumpscale_basetexture,0,10,1);	y+=8;
 		MC_AddSlider(menu,	16, y,							"         Shadow Bumpscale Bumpmap", &r_shadow_bumpscale_bumpmap,0,50,1);	y+=8;
 		info->loadlitcombo = MC_AddCombo(menu,16, y,		"                      LIT Loading", loadlitoptions, currentloadlit);	y+=8;

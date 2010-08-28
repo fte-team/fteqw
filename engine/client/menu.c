@@ -69,23 +69,48 @@ void M_BuildTranslationTable(int top, int bottom)
 	int		j;
 	qbyte	*dest, *source;
 
-	for (j = 0; j < 256; j++)
-		identityTable[j] = j;
-	dest = translationTable;
-	source = identityTable;
-	memcpy (dest, source, 256);
-
-	if (top < 128)	// the artists made some backwards ranges.  sigh.
-		memcpy (dest + TOP_RANGE, source + top, 16);
+	int pc = Cvar_Get("cl_playerclass", "1", 0, "foo")->value;
+	if (h2playertranslations && pc)
+	{
+		int i;
+		unsigned int color_offsets[5] = {2*14*256,0,1*14*256,2*14*256,2*14*256};
+		unsigned char *colorA, *colorB, *sourceA, *sourceB;
+		colorA = h2playertranslations + 256 + color_offsets[pc-1];
+		colorB = colorA + 256;
+		sourceA = colorB + (top * 256);
+		sourceB = colorB + (bottom * 256);
+		for(i=0;i<256;i++)
+		{
+			if (bottom > 0 && (colorB[i] != 255)) 
+				translationTable[i] = sourceB[i];
+			else if (top > 0 && (colorA[i] != 255)) 
+				translationTable[i] = sourceA[i];
+			else
+				translationTable[i] = i;
+		}
+	}
 	else
-		for (j=0 ; j<16 ; j++)
-			dest[TOP_RANGE+j] = source[top+15-j];
+	{
+		top *= 16;
+		bottom *= 16;
+		for (j = 0; j < 256; j++)
+			identityTable[j] = j;
+		dest = translationTable;
+		source = identityTable;
+		memcpy (dest, source, 256);
 
-	if (bottom < 128)
-		memcpy (dest + BOTTOM_RANGE, source + bottom, 16);
-	else
-		for (j=0 ; j<16 ; j++)
-			dest[BOTTOM_RANGE+j] = source[bottom+15-j];
+		if (top < 128)	// the artists made some backwards ranges.  sigh.
+			memcpy (dest + TOP_RANGE, source + top, 16);
+		else
+			for (j=0 ; j<16 ; j++)
+				dest[TOP_RANGE+j] = source[top+15-j];
+
+		if (bottom < 128)
+			memcpy (dest + BOTTOM_RANGE, source + bottom, 16);
+		else
+			for (j=0 ; j<16 ; j++)
+				dest[BOTTOM_RANGE+j] = source[bottom+15-j];
+	}
 }
 
 /*

@@ -467,6 +467,7 @@ static void Surf_AddDynamicLightsColours (msurface_t *surf)
 //	float temp;
 	float r, g, b;
 	unsigned	*bl;
+	vec3_t lightofs;
 
 	smax = (surf->extents[0]>>4)+1;
 	tmax = (surf->extents[1]>>4)+1;
@@ -478,7 +479,8 @@ static void Surf_AddDynamicLightsColours (msurface_t *surf)
 			continue;		// not lit by this light
 
 		rad = cl_dlights[lnum].radius;
-		dist = DotProduct (cl_dlights[lnum].origin, surf->plane->normal) -
+		VectorSubtract(cl_dlights[lnum].origin, currententity->origin, lightofs);
+		dist = DotProduct (lightofs, surf->plane->normal) -
 				surf->plane->dist;
 		rad -= fabs(dist);
 		minlight = cl_dlights[lnum].minlight;
@@ -488,7 +490,7 @@ static void Surf_AddDynamicLightsColours (msurface_t *surf)
 
 		for (i=0 ; i<3 ; i++)
 		{
-			impact[i] = cl_dlights[lnum].origin[i] -
+			impact[i] = lightofs[i] -
 					surf->plane->normal[i]*dist;
 		}
 
@@ -1250,8 +1252,8 @@ void Surf_RenderDynamicLightmaps (msurface_t *fa, int shift)
 	// check for lightmap modification
 	if (!fa->samples)
 	{
-		if (d_lightstylevalue[0] != fa->cached_light[0]
-			|| cl_lightstyle[0].colour != fa->cached_colour[0])
+		if (fa->cached_light[0] != 0
+			|| fa->cached_colour[0] != 0)
 			goto dynamic;
 	}
 	else
@@ -1793,17 +1795,20 @@ static void Surf_CleanChains(void)
 {
 	model_t *model = cl.worldmodel;
 	batch_t *batch;
+	int i;
 
 	if (r_refdef.recurse)
 	{
-		for (batch = model->batches; batch; batch = batch->next)
+		for (i = 0; i < SHADER_SORT_COUNT; i++)
+		for (batch = model->batches[i]; batch; batch = batch->next)
 		{
 			batch->meshes = batch->firstmesh;
 		}
 	}
 	else
 	{
-		for (batch = model->batches; batch; batch = batch->next)
+		for (i = 0; i < SHADER_SORT_COUNT; i++)
+		for (batch = model->batches[i]; batch; batch = batch->next)
 		{
 			batch->meshes = batch->firstmesh;
 		}
@@ -2336,12 +2341,16 @@ void Surf_DeInit(void)
 void Surf_Clear(model_t *mod)
 {
 	batch_t *b;
-	while ((b = mod->batches))
+	int i;
+	for (i = 0; i < SHADER_SORT_COUNT; i++)
 	{
-		mod->batches = b->next;
+		while ((b = mod->batches[i]))
+		{
+			mod->batches[i] = b->next;
 
-		BZ_Free(b->mesh);
-		Z_Free(b);
+			BZ_Free(b->mesh);
+			Z_Free(b);
+		}
 	}
 }
 
@@ -2362,6 +2371,7 @@ void Surf_BuildLightmaps (void)
 	msurface_t *surf;
 	batch_t *batch, *bstop;
 	vec3_t sn;
+	int sortid;
 
 	r_framecount = 1;		// no dlightcache
 
@@ -2412,7 +2422,8 @@ void Surf_BuildLightmaps (void)
 		{
 			m->textures[t]->wtexno = t;
 
-			bstop = m->batches;
+			sortid = m->textures[t]->shader->sort;
+			bstop = m->batches[sortid];
 			batch = NULL;
 			for (i=0 ; i<m->numsurfaces ; i++)
 			{//extra texture loop so we get slightly less texture switches
@@ -2423,7 +2434,7 @@ void Surf_BuildLightmaps (void)
 					Surf_CreateSurfaceLightmap (surf, shift);
 
 					/*the excessive logic is to give portals separate batches for separate planes*/
-					if (m->textures[t]->shader->sort == SHADER_SORT_PORTAL)
+					if (sortid == SHADER_SORT_PORTAL)
 					{
 						if (surf->flags & SURF_PLANEBACK)
 							VectorNegate(surf->plane->normal, sn);
@@ -2432,11 +2443,11 @@ void Surf_BuildLightmaps (void)
 					}
 					else
 						VectorClear(sn);
-					if (!batch || batch->lightmap != surf->lightmaptexturenum || (m->textures[t]->shader->sort == SHADER_SORT_PORTAL && !VectorCompare(sn, batch->normal)))
+					if (!batch || batch->lightmap != surf->lightmaptexturenum || (sortid == SHADER_SORT_PORTAL && !VectorCompare(sn, batch->normal)))
 					{
-						if (m->textures[t]->shader->sort == SHADER_SORT_PORTAL)
+						if (sortid == SHADER_SORT_PORTAL)
 						{
-							for (batch = m->batches; batch != bstop; batch = batch->next)
+							for (batch = m->batches[sortid]; batch != bstop; batch = batch->next)
 							{
 								if (batch->lightmap == surf->lightmaptexturenum && VectorCompare(sn, batch->normal))
 									break;
@@ -2444,7 +2455,7 @@ void Surf_BuildLightmaps (void)
 						}
 						else
 						{
-							for (batch = m->batches; batch != bstop; batch = batch->next)
+							for (batch = m->batches[sortid]; batch != bstop; batch = batch->next)
 							{
 								if (batch->lightmap == surf->lightmaptexturenum)
 									break;
@@ -2455,9 +2466,10 @@ void Surf_BuildLightmaps (void)
 							batch = Z_Malloc(sizeof(*batch));
 							batch->lightmap = surf->lightmaptexturenum;
 							batch->texture = m->textures[t];
-							batch->next = m->batches;
+							batch->next = m->batches[sortid];
+							batch->ent = &r_worldentity;
 							VectorCopy(sn, batch->normal);
-							m->batches = batch;
+							m->batches[sortid] = batch;
 						}
 					}
 					surf->sbatch = batch;
@@ -2469,7 +2481,8 @@ void Surf_BuildLightmaps (void)
 				}
 			}
 		}
-		for (batch = m->batches; batch != NULL; batch = batch->next)
+		for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
+		for (batch = m->batches[sortid]; batch != NULL; batch = batch->next)
 		{
 			batch->mesh = BZ_Malloc(sizeof(*batch->mesh)*batch->maxmeshes*2);
 		}

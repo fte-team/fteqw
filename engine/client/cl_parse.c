@@ -1172,6 +1172,7 @@ void CL_RequestNextDownload (void)
 		if (cl.downloadlist)
 		{
 			downloadlist_t *dl;
+			unsigned int fl;
 
 			//download required downloads first
 			for (dl = cl.downloadlist; dl; dl = dl->next)
@@ -1181,21 +1182,22 @@ void CL_RequestNextDownload (void)
 			}
 			if (!dl)
 				dl = cl.downloadlist;
-
-			if ((dl->flags & DLLF_OVERWRITE) || !COM_FCheckExists (dl->localname))
-				CL_SendDownloadStartRequest(dl->rname, dl->localname);
-			else
+			fl = dl->flags;
+			
+			if (cls.state == ca_active || requiredownloads.value || (fl & DLLF_REQUIRED))
 			{
-				Con_Printf("Already have %s\n", dl->localname);
-				CL_DisenqueDownload(dl->rname);
+				if ((fl & DLLF_OVERWRITE) || !COM_FCheckExists (dl->localname))
+					CL_SendDownloadStartRequest(dl->rname, dl->localname);
+				else
+				{
+					Con_Printf("Already have %s\n", dl->localname);
+					CL_DisenqueDownload(dl->rname);
 
-				//recurse a bit.
-				CL_RequestNextDownload();
-				return;
+					//recurse a bit.
+					CL_RequestNextDownload();
+					return;
+				}
 			}
-
-			if (requiredownloads.value || (dl->flags & DLLF_REQUIRED))
-				return;
 		}
 
 	if (cl.sendprespawn)
@@ -3647,6 +3649,13 @@ void CL_ProcessUserInfo (int slot, player_info_t *player)
 		player->rbottomcolor = 13;
 */
 	player->model = NULL;
+
+	/*if we're running hexen2, they have to be some class...*/
+	player->h2playerclass = atoi(Info_ValueForKey (player->userinfo, "cl_playerclass"));
+	if (player->h2playerclass > 5)
+		player->h2playerclass = 5;
+	if (player->h2playerclass < 1)
+		player->h2playerclass = 1;
 
 	player->colourised = TP_FindColours(player->name);
 

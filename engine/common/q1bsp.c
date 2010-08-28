@@ -367,12 +367,20 @@ int Q1BSP_HullPointContents(hull_t *hull, vec3_t p)
 	}
 }
 
-unsigned int Q1BSP_PointContents(model_t *model, vec3_t point)
+unsigned int Q1BSP_PointContents(model_t *model, vec3_t axis[3], vec3_t point)
 {
+	if (axis)
+	{
+		vec3_t transformed;
+		transformed[0] = DotProduct(point, axis[0]);
+		transformed[1] = DotProduct(point, axis[1]);
+		transformed[2] = DotProduct(point, axis[2]);
+		return Q1BSP_HullPointContents(&model->hulls[0], transformed);
+	}
 	return Q1BSP_HullPointContents(&model->hulls[0], point);
 }
 
-qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
+qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
 {
 	hull_t *hull;
 	vec3_t size;
@@ -420,16 +428,51 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, 
 
 // calculate an offset value to center the origin
 	VectorSubtract (hull->clip_mins, mins, offset);
-	VectorSubtract(start, offset, start_l);
-	VectorSubtract(end, offset, end_l);
-	Q1BSP_RecursiveHullCheck(hull, hull->firstclipnode, 0, 1, start_l, end_l, trace);
-	if (trace->fraction == 1)
+	if (axis)
 	{
-		VectorCopy (end, trace->endpos);
+		vec3_t tmp;
+		VectorSubtract(start, offset, tmp);
+		start_l[0] = DotProduct(tmp, axis[0]);
+		start_l[1] = DotProduct(tmp, axis[1]);
+		start_l[2] = DotProduct(tmp, axis[2]);
+		VectorSubtract(end, offset, tmp);
+		end_l[0] = DotProduct(tmp, axis[0]);
+		end_l[1] = DotProduct(tmp, axis[1]);
+		end_l[2] = DotProduct(tmp, axis[2]);
+		Q1BSP_RecursiveHullCheck(hull, hull->firstclipnode, 0, 1, start_l, end_l, trace);
+
+		if (trace->fraction == 1)
+		{
+			VectorCopy (end, trace->endpos);
+		}
+		else
+		{
+			vec3_t iaxis[3];
+			vec3_t norm;
+			Matrix3_Invert_Simple(axis, iaxis);
+			VectorCopy(trace->plane.normal, norm);
+			trace->plane.normal[0] = DotProduct(norm, iaxis[0]);
+			trace->plane.normal[1] = DotProduct(norm, iaxis[1]);
+			trace->plane.normal[2] = DotProduct(norm, iaxis[2]);
+
+			/*just interpolate it, its easier than inverse matrix rotations*/
+			VectorInterpolate(start, trace->fraction, end, trace->endpos);
+		}
 	}
 	else
 	{
-		VectorAdd (trace->endpos, offset, trace->endpos);
+		VectorSubtract(start, offset, start_l);
+		VectorSubtract(end, offset, end_l);
+		Q1BSP_RecursiveHullCheck(hull, hull->firstclipnode, 0, 1, start_l, end_l, trace);
+	
+		if (trace->fraction == 1)
+		{
+			VectorCopy (end, trace->endpos);
+		}
+		else
+		{
+			VectorAdd (trace->endpos, offset, trace->endpos);
+		}
 	}
 
 	return trace->fraction != 1;

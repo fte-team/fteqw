@@ -2,7 +2,6 @@
 
 //#define FORCESTATE
 
-
 #ifdef GLQUAKE
 
 #include "glquake.h"
@@ -43,7 +42,7 @@ void main (void)\n\
 #if defined(SPECULAR)||defined(USEOFFSETMAPPING)\n\
 	vec3 eyeminusvertex = eyeposition - gl_Vertex.xyz;\n\
 	eyevector.x = dot(eyeminusvertex, gl_MultiTexCoord2.xyz);\n\
-	eyevector.y = dot(eyeminusvertex, gl_MultiTexCoord3.xyz);\n\
+	eyevector.y = -dot(eyeminusvertex, gl_MultiTexCoord3.xyz);\n\
 	eyevector.z = dot(eyeminusvertex, gl_MultiTexCoord1.xyz);\n\
 #endif\n\
 #if defined(PCF) || defined(SPOT) || defined(PROJECTION)\n\
@@ -146,19 +145,20 @@ uniform vec3 lightcolour;\n\
 \
 #ifdef USEOFFSETMAPPING\n\
 uniform float offsetmapping_scale;\n\
-uniform float offsetmapping_bias;\n\
 #endif\n\
 \
 \
 void main (void)\n\
 {\n\
 #ifdef USEOFFSETMAPPING\n\
-	// this is 3 sample because of ATI Radeon 9500-9800/X300 limits\n\
-	vec2 OffsetVector = normalize(eyevector).xy * vec2(-0.333, 0.333);\n\
-	vec2 TexCoordOffset = tcbase + OffsetVector * (offsetmapping_bias + offsetmapping_scale * texture2D(bumpt, tcbase).w);\n\
-	TexCoordOffset += OffsetVector * (offsetmapping_bias + offsetmapping_scale * texture2D(bumpt, TexCoordOffset).w);\n\
-	TexCoordOffset += OffsetVector * (offsetmapping_bias + offsetmapping_scale * texture2D(bumpt, TexCoordOffset).w);\n\
-#define tcbase TexCoordOffset\n\
+	vec2 OffsetVector = normalize(eyevector).xy * offsetmapping_scale * vec2(1, -1);\n\
+	vec2 foo = tcbase;\n\
+#define tcbase foo\n\
+	tcbase += OffsetVector;\n\
+	OffsetVector *= 0.333;\n\
+	tcbase -= OffsetVector * texture2D(bumpt, tcbase).w;\n\
+	tcbase -= OffsetVector * texture2D(bumpt, tcbase).w;\n\
+	tcbase -= OffsetVector * texture2D(bumpt, tcbase).w;\n\
 #endif\n\
 \
 \
@@ -219,11 +219,17 @@ vec2 spot = ((shadowcoord.st)/shadowcoord.w - 0.5)*2.0;colorscale*=1.0-(dot(spot
 \
 #endif\n\
 "
+
+char *defaultglsl2program =
+	LIGHTPASS_GLSL_SHARED LIGHTPASS_GLSL_VERTEX LIGHTPASS_GLSL_FRAGMENT
+	;
+
 static const char LIGHTPASS_SHADER[] = "\
 {\n\
 	program\n\
 	{\n\
-	%s%s\n\
+	#define LIGHTPASS\n\
+	%s\n\
 	}\n\
 \
 	//incoming fragment\n\
@@ -236,11 +242,11 @@ static const char LIGHTPASS_SHADER[] = "\
 	param lightradius lightradius\n\
 	param lightcolour lightcolour\n\
 \
-	param opt cvarf r_shadow_glsl_offsetmapping_bias offsetmapping_bias\n\
-	param opt cvarf r_shadow_glsl_offsetmapping_scale offsetmapping_scale\n\
+	param opt cvarf r_glsl_offsetmapping_bias offsetmapping_bias\n\
+	param opt cvarf r_glsl_offsetmapping_scale offsetmapping_scale\n\
 \
 	//eye pos\n\
-	param opt eyepos EyePosition\n\
+	param opt eyepos eyeposition\n\
 \
 	{\n\
 		map $diffuse\n\
@@ -263,9 +269,10 @@ static const char PCFPASS_SHADER[] = "\
 {\n\
 	program\n\
 	{\n\
+	#define LIGHTPASS\n\
 	//#define CUBE\n\
 	#define PCF\n\
-	%s%s%s\n\
+	%s%s\n\
 	}\n\
 \
 	//incoming fragment\n\
@@ -279,8 +286,7 @@ static const char PCFPASS_SHADER[] = "\
 	param lightradius lightradius\n\
 	param lightcolour lightcolour\n\
 \
-	param opt cvarf r_shadow_glsl_offsetmapping_bias offsetmapping_bias\n\
-	param opt cvarf r_shadow_glsl_offsetmapping_scale offsetmapping_scale\n\
+	param opt cvarf r_glsl_offsetmapping_scale offsetmapping_scale\n\
 \
 	//eye pos\n\
 	param opt eyepos EyePosition\n\
@@ -306,7 +312,8 @@ static const char PCFPASS_SHADER[] = "\
 }";
 
 
-extern cvar_t r_shadow_glsl_offsetmapping, r_noportals;
+
+extern cvar_t r_glsl_offsetmapping, r_noportals;
 
 #if 0//def _DEBUG
 #define checkerror() if (qglGetError()) Con_Printf("Error detected at line %s:%i\n", __FILE__, __LINE__)
@@ -317,65 +324,6 @@ extern cvar_t r_shadow_glsl_offsetmapping, r_noportals;
 static void BE_SendPassBlendAndDepth(unsigned int sbits);
 static void BE_SubmitBatch(batch_t *batch);
 
-void PPL_CreateShaderObjects(void){}
-void PPL_BaseBModelTextures(entity_t *e){}
-
-enum{
-PERMUTATION_GENERIC = 0,
-PERMUTATION_BUMPMAP = 1,
-PERMUTATION_SPECULAR = 2,
-PERMUTATION_BUMP_SPEC,
-PERMUTATION_OFFSET = 4,
-PERMUTATION_OFFSET_BUMP,
-PERMUTATION_OFFSET_SPEC,
-PERMUTATION_OFFSET_BUMP_SPEC,
-
-PERMUTATIONS
-};
-static char *lightpassname[PERMUTATIONS] =
-{
-	"lightpass_flat",
-	"lightpass_bump",
-	"lightpass_spec",
-	"lightpass_bump_spec",
-	"lightpass_offset",
-	"lightpass_offset_bump",
-	"lightpass_offset_spec",
-	"lightpass_offset_bump_spec"
-};
-static char *pcfpassname[PERMUTATIONS] =
-{
-	"lightpass_pcf",
-	"lightpass_pcf_bump",
-	"lightpass_pcf_spec",
-	"lightpass_pcf_bump_spec",
-	"lightpass_pcf_offset",
-	"lightpass_pcf_offset_bump",
-	"lightpass_pcf_offset_spec",
-	"lightpass_pcf_offset_bump_spec"
-};
-static char *spotpassname[PERMUTATIONS] =
-{
-	"lightpass_spot",
-	"lightpass_spot_bump",
-	"lightpass_spot_spec",
-	"lightpass_spot_bump_spec",
-	"lightpass_spot_offset",
-	"lightpass_spot_offset_bump",
-	"lightpass_spot_offset_spec",
-	"lightpass_spot_offset_bump_spec"
-};
-static char *permutationdefines[PERMUTATIONS] = {
-	"",
-	"#define BUMP\n",
-	"#define SPECULAR\n",
-	"#define SPECULAR\n#define BUMP\n",
-	"#define USEOFFSETMAPPING\n",
-	"#define USEOFFSETMAPPING\n#define BUMP\n",
-	"#define USEOFFSETMAPPING\n#define SPECULAR\n",
-	"#define USEOFFSETMAPPING\n#define SPECULAR\n#define BUMP\n"
-};
-
 struct {
 	//internal state
 	struct {
@@ -385,11 +333,11 @@ struct {
 		int vbo_deforms;	//holds verticies... in case you didn't realise.
 
 		qboolean initedlightpasses;
-		const shader_t *lightpassshader[PERMUTATIONS];
+		const shader_t *lightpassshader;
 		qboolean initedpcfpasses;
-		const shader_t *pcfpassshader[PERMUTATIONS];
+		const shader_t *pcfpassshader;
 		qboolean initedspotpasses;
-		const shader_t *spotpassshader[PERMUTATIONS];
+		const shader_t *spotpassshader;
 
 		qboolean force2d;
 		int currenttmu;
@@ -432,12 +380,20 @@ struct {
 		texid_t curdeluxmap;
 
 		float curtime;
+		float updatetime;
 
 		vec3_t lightorg;
 		vec3_t lightcolours;
 		float lightradius;
 		texid_t lighttexture;
 	};
+
+	int wmesh;
+	int maxwmesh;
+	int wbatch;
+	int maxwbatches;
+	batch_t *wbatches;
+	mesh_t **wmeshes;
 } shaderstate;
 
 struct {
@@ -468,6 +424,7 @@ void GL_ForceDepthWritable(void)
 
 void GL_SetShaderState2D(qboolean is2d)
 {
+	shaderstate.updatetime = realtime;
 	shaderstate.force2d = is2d;
 	BE_SelectMode(BEM_STANDARD, 0);
 }
@@ -582,9 +539,9 @@ void R_FetchTopColour(int *retred, int *retgreen, int *retblue)
 {
 	int i;
 
-	if (currententity->scoreboard)
+	if (shaderstate.curentity->scoreboard)
 	{
-		i = currententity->scoreboard->ttopcolor;
+		i = shaderstate.curentity->scoreboard->ttopcolor;
 	}
 	else
 		i = TOP_RANGE>>4;
@@ -612,9 +569,9 @@ void R_FetchBottomColour(int *retred, int *retgreen, int *retblue)
 {
 	int i;
 
-	if (currententity->scoreboard)
+	if (shaderstate.curentity->scoreboard)
 	{
-		i = currententity->scoreboard->tbottomcolor;
+		i = shaderstate.curentity->scoreboard->tbottomcolor;
 	}
 	else
 		i = BOTTOM_RANGE>>4;
@@ -861,19 +818,20 @@ static float *FTableForFunc ( unsigned int func )
 void Shader_LightPass_Std(char *shortname, shader_t *s, const void *args)
 {
 	char shadertext[8192*2];
-	sprintf(shadertext, LIGHTPASS_SHADER, (char*)args, LIGHTPASS_GLSL_SHARED LIGHTPASS_GLSL_VERTEX LIGHTPASS_GLSL_FRAGMENT);
+	sprintf(shadertext, LIGHTPASS_SHADER, defaultglsl2program);
+	FS_WriteFile("shader/lightpass.shader.builtin", shadertext, strlen(shadertext), FS_GAMEONLY);
 	Shader_DefaultScript(shortname, s, shadertext);
 }
 void Shader_LightPass_PCF(char *shortname, shader_t *s, const void *args)
 {
 	char shadertext[8192*2];
-	sprintf(shadertext, PCFPASS_SHADER, (char*)args, "", LIGHTPASS_GLSL_SHARED LIGHTPASS_GLSL_VERTEX LIGHTPASS_GLSL_FRAGMENT);
+	sprintf(shadertext, PCFPASS_SHADER, "", defaultglsl2program);
 	Shader_DefaultScript(shortname, s, shadertext);
 }
 void Shader_LightPass_Spot(char *shortname, shader_t *s, const void *args)
 {
 	char shadertext[8192*2];
-	sprintf(shadertext, PCFPASS_SHADER, (char*)args, "#define SPOT\n", LIGHTPASS_GLSL_SHARED LIGHTPASS_GLSL_VERTEX LIGHTPASS_GLSL_FRAGMENT);
+	sprintf(shadertext, PCFPASS_SHADER, "#define SPOT\n", defaultglsl2program);
 	Shader_DefaultScript(shortname, s, shadertext);
 }
 
@@ -911,12 +869,8 @@ void BE_Init(void)
 	/*normally we load these lazily, but if they're probably going to be used anyway, load them now to avoid stalls.*/
 	if (r_shadow_realtime_dlight.ival && !shaderstate.initedlightpasses && gl_config.arb_shader_objects)
 	{
-		int i;
 		shaderstate.initedlightpasses = true;
-		for (i = 0; i < PERMUTATIONS; i++)
-		{
-			shaderstate.lightpassshader[i] = R_RegisterCustom(lightpassname[i], Shader_LightPass_Std, permutationdefines[i]);
-		}
+		shaderstate.lightpassshader = R_RegisterCustom("lightpass", Shader_LightPass_Std, NULL);
 	}
 
 	shaderstate.shaderbits = ~0;
@@ -1688,17 +1642,40 @@ static void GenerateColourMods(const shaderpass_t *pass)
 	else
 	{
 		extern cvar_t r_nolightdir;
-		if (pass->rgbgen == RGB_GEN_LIGHTING_DIFFUSE && r_nolightdir.ival)
+		if (pass->rgbgen == RGB_GEN_LIGHTING_DIFFUSE)
 		{
-			extern avec3_t ambientlight, shadelight;
-			qglDisableClientState(GL_COLOR_ARRAY);
-			qglColor4f(	ambientlight[0]*0.5+shadelight[0],
-						ambientlight[1]*0.5+shadelight[1],
-						ambientlight[2]*0.5+shadelight[2],
-						shaderstate.curentity->shaderRGBAf[3]);
-			qglShadeModel(GL_FLAT);
-			checkerror();
-			return;
+			if (shaderstate.mode == BEM_DEPTHDARK || shaderstate.mode == BEM_DEPTHONLY)
+			{
+				avec4_t scol;
+				scol[0] = scol[1] = scol[2] = 0;
+				alphagen(pass, 1, meshlist->colors4f_array, &scol, meshlist);
+				qglDisableClientState(GL_COLOR_ARRAY);
+				qglColor4fv(scol);
+				qglShadeModel(GL_FLAT);
+				return;
+			}
+			if (shaderstate.mode == BEM_LIGHT)
+			{
+				avec4_t scol;
+				scol[0] = scol[1] = scol[2] = 1;
+				alphagen(pass, 1, meshlist->colors4f_array, &scol, meshlist);
+				qglDisableClientState(GL_COLOR_ARRAY);
+				qglColor4fv(scol);
+				qglShadeModel(GL_FLAT);
+				return;
+			}
+			if (r_nolightdir.ival)
+			{
+				extern avec3_t ambientlight, shadelight;
+				qglDisableClientState(GL_COLOR_ARRAY);
+				qglColor4f(	ambientlight[0]*0.5+shadelight[0],
+							ambientlight[1]*0.5+shadelight[1],
+							ambientlight[2]*0.5+shadelight[2],
+							shaderstate.curentity->shaderRGBAf[3]);
+				qglShadeModel(GL_FLAT);
+				checkerror();
+				return;
+			}
 		}
 
 		qglShadeModel(GL_SMOOTH);
@@ -2055,6 +2032,18 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 	float m16[16];
 	int r, g, b;
 
+	int perm;
+
+	perm = 0;
+	if (TEXVALID(shaderstate.curtexnums->bump) && s->programhandle[perm|PERMUTATION_BUMPMAP].glsl)
+		perm |= PERMUTATION_BUMPMAP;
+	if (TEXVALID(shaderstate.curtexnums->specular) && s->programhandle[perm|PERMUTATION_SPECULAR].glsl)
+		perm |= PERMUTATION_SPECULAR;
+	if (r_glsl_offsetmapping.ival && TEXVALID(shaderstate.curtexnums->bump) && s->programhandle[perm|PERMUTATION_OFFSET].glsl)
+		perm |= PERMUTATION_OFFSET;
+
+	GLSlang_UseProgram(s->programhandle[perm].glsl);
+
 	BE_SendPassBlendAndDepth(pass->shaderbits);
 	GenerateColourMods(pass);
 
@@ -2076,43 +2065,45 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 	}
 	shaderstate.lastpasstmus = pass->numMergedPasses;
 
-	GLSlang_UseProgram(s->programhandle.glsl);
 	for (i = 0; i < s->numprogparams; i++)
 	{
+		if (s->progparm[i].handle[perm] == -1)
+			continue;	/*not in this permutation*/
+
 		switch(s->progparm[i].type)
 		{
 		case SP_TIME:
-			qglUniform1fARB(s->progparm[i].handle, shaderstate.curtime);
+			qglUniform1fARB(s->progparm[i].handle[perm], shaderstate.curtime);
 			break;
 		case SP_ENTMATRIX:
-			Matrix4_ModelMatrixFromAxis(m16, currententity->axis[0], currententity->axis[1], currententity->axis[2], currententity->origin);
-/*			VectorCopy(currententity->axis[0], m16+0);
+			Matrix4_ModelMatrixFromAxis(m16, shaderstate.curentity->axis[0], shaderstate.curentity->axis[1], shaderstate.curentity->axis[2], shaderstate.curentity->origin);
+/*			VectorCopy(shaderstate.curentity->axis[0], m16+0);
 			m16[3] = 0;
-			VectorCopy(currententity->axis[1], m16+1);
+			VectorCopy(shaderstate.curentity->axis[1], m16+1);
 			m16[7] = 0;
-			VectorCopy(currententity->axis[2], m16+2);
+			VectorCopy(shaderstate.curentity->axis[2], m16+2);
 			m16[11] = 0;
-			VectorCopy(currententity->origin, m16+3);
+			VectorCopy(shaderstate.curentity->origin, m16+3);
 			m16[15] = 1;
 			*/
-			qglUniformMatrix4fvARB(s->progparm[i].handle, 1, false, m16);
+			qglUniformMatrix4fvARB(s->progparm[i].handle[perm], 1, false, m16);
 			break;
 		case SP_ENTCOLOURS:
-			qglUniform4fvARB(s->progparm[i].handle, 1, currententity->shaderRGBAf);
+			qglUniform4fvARB(s->progparm[i].handle[perm], 1, (GLfloat*)shaderstate.curentity->shaderRGBAf);
 			break;
 		case SP_TOPCOLOURS:
 			R_FetchTopColour(&r, &g, &b);
 			param3[0] = r/255.0f;
 			param3[1] = g/255.0f;
 			param3[2] = b/255.0f;
-			qglUniform3fvARB(s->progparm[i].handle, 1, param3);
+			qglUniform3fvARB(s->progparm[i].handle[perm], 1, param3);
 			break;
 		case SP_BOTTOMCOLOURS:
 			R_FetchBottomColour(&r, &g, &b);
 			param3[0] = r/255.0f;
 			param3[1] = g/255.0f;
 			param3[2] = b/255.0f;
-			qglUniform3fvARB(s->progparm[i].handle, 1, param3);
+			qglUniform3fvARB(s->progparm[i].handle[perm], 1, param3);
 			break;
 
 		case SP_RENDERTEXTURESCALE:
@@ -2133,25 +2124,25 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 				param3[1] = vid.pixelheight/(float)g;
 			}
 			param3[2] = 1;
-			qglUniform3fvARB(s->progparm[i].handle, 1, param3);
+			qglUniform3fvARB(s->progparm[i].handle[perm], 1, param3);
 			break;
 
 		case SP_LIGHTRADIUS:
-			qglUniform1fARB(s->progparm[i].handle, shaderstate.lightradius);
+			qglUniform1fARB(s->progparm[i].handle[perm], shaderstate.lightradius);
 			break;
 		case SP_LIGHTCOLOUR:
-			qglUniform3fvARB(s->progparm[i].handle, 1, shaderstate.lightcolours);
+			qglUniform3fvARB(s->progparm[i].handle[perm], 1, shaderstate.lightcolours);
 			break;
 		case SP_EYEPOS:
 			{
 #pragma message("is this correct?")
 //				vec3_t t1;
 				vec3_t t2;
-				Matrix4_ModelMatrixFromAxis(m16, currententity->axis[0], currententity->axis[1], currententity->axis[2], currententity->origin);
+				Matrix4_ModelMatrixFromAxis(m16, shaderstate.curentity->axis[0], shaderstate.curentity->axis[1], shaderstate.curentity->axis[2], shaderstate.curentity->origin);
 				Matrix4_Transform3(m16, r_origin, t2);
-//				VectorSubtract(r_origin, currententity->origin, t1);
-//				Matrix3_Multiply_Vec3(currententity->axis, t1, t2);
-				qglUniform3fvARB(s->progparm[i].handle, 1, t2);
+//				VectorSubtract(r_origin, shaderstate.curentity->origin, t1);
+//				Matrix3_Multiply_Vec3(shaderstate.curentity->axis, t1, t2);
+				qglUniform3fvARB(s->progparm[i].handle[perm], 1, t2);
 			}
 			break;
 		case SP_LIGHTPOSITION:
@@ -2162,13 +2153,26 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 				vec3_t t2;
 				qboolean Matrix4_Invert(const float *m, float *out);
 
-				Matrix4_ModelMatrixFromAxis(m16, currententity->axis[0], currententity->axis[1], currententity->axis[2], currententity->origin);
+				Matrix4_ModelMatrixFromAxis(m16, shaderstate.curentity->axis[0], shaderstate.curentity->axis[1], shaderstate.curentity->axis[2], shaderstate.curentity->origin);
 				Matrix4_Invert(m16, inv);
 				Matrix4_Transform3(inv, shaderstate.lightorg, t2);
-//				VectorSubtract(shaderstate.lightorg, currententity->origin, t1);
-//				Matrix3_Multiply_Vec3(currententity->axis, t1, t2);
-				qglUniform3fvARB(s->progparm[i].handle, 1, t2);
+//				VectorSubtract(shaderstate.lightorg, shaderstate.curentity->origin, t1);
+//				Matrix3_Multiply_Vec3(shaderstate.curentity->axis, t1, t2);
+				qglUniform3fvARB(s->progparm[i].handle[perm], 1, t2);
 			}
+			break;
+
+		case SP_TEXTURE:
+			qglUniform1iARB(s->progparm[i].handle[perm], s->progparm[i].ival);
+			break;
+		case SP_CVARI:
+			qglUniform1iARB(s->progparm[i].handle[perm], ((cvar_t*)s->progparm[i].pval)->ival);
+			break;
+		case SP_CVARF:
+			qglUniform1fARB(s->progparm[i].handle[perm], ((cvar_t*)s->progparm[i].pval)->value);
+			break;
+		case SP_CVAR3F:
+//			qglUniform3fvARB(uniformloc, 1, specialvec);
 			break;
 
 		default:
@@ -2184,7 +2188,7 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 #ifdef RTLIGHTS
 qboolean BE_LightCullModel(vec3_t org, model_t *model)
 {
-	if (shaderstate.mode == BEM_LIGHT || shaderstate.mode == BEM_STENCIL)
+	if ((shaderstate.mode == BEM_LIGHT || shaderstate.mode == BEM_STENCIL))
 	{
 		float dist;
 		vec3_t disp;
@@ -2273,42 +2277,41 @@ void BE_SelectMode(backendmode_t mode, unsigned int flags)
 		{
 			if (!shaderstate.initedpcfpasses)
 			{
-				int i;
 				shaderstate.initedpcfpasses = true;
-				for (i = 0; i < PERMUTATIONS; i++)
-				{
-					shaderstate.pcfpassshader[i] = R_RegisterCustom(pcfpassname[i], Shader_LightPass_PCF, permutationdefines[i]);
-				}
+				shaderstate.pcfpassshader = R_RegisterCustom("lightpass_pcf", Shader_LightPass_PCF, NULL);
 			}
 		}
 		if (mode == BEM_SMAPLIGHTSPOT)
 		{
 			if (!shaderstate.initedspotpasses)
 			{
-				int i;
 				shaderstate.initedspotpasses = true;
-				for (i = 0; i < PERMUTATIONS; i++)
-				{
-					shaderstate.spotpassshader[i] = R_RegisterCustom(spotpassname[i], Shader_LightPass_Spot, permutationdefines[i]);
-				}
+				shaderstate.spotpassshader = R_RegisterCustom("lightpass_spot", Shader_LightPass_Spot, NULL);
 			}
 		}
 		if (mode == BEM_LIGHT)
 		{
 			if (!shaderstate.initedlightpasses)
 			{
-				int i;
 				shaderstate.initedlightpasses = true;
-				for (i = 0; i < PERMUTATIONS; i++)
-				{
-					shaderstate.lightpassshader[i] = R_RegisterCustom(lightpassname[i], Shader_LightPass_Std, permutationdefines[i]);
-				}
+				shaderstate.lightpassshader = R_RegisterCustom("lightpass", Shader_LightPass_Std, NULL);
 			}
 		}
 #endif
 	}
 	shaderstate.mode = mode;
 	shaderstate.flags = flags;
+}
+
+void BE_SelectEntity(entity_t *ent)
+{
+	if (shaderstate.curentity && shaderstate.curentity->flags & Q2RF_DEPTHHACK)
+		qglDepthRange (gldepthmin, gldepthmax);
+	shaderstate.curentity = ent;
+	currententity = ent;
+	R_RotateForEntity(shaderstate.curentity, shaderstate.curentity->model);
+	if (shaderstate.curentity->flags & Q2RF_DEPTHHACK)
+		qglDepthRange (gldepthmin, gldepthmin + 0.3*(gldepthmax-gldepthmin));
 }
 
 #ifdef RTLIGHTS
@@ -2411,9 +2414,6 @@ static void DrawMeshes(void)
 {
 	const shaderpass_t *p;
 	int passno;
-#ifdef RTLIGHTS
-	int perm;
-#endif
 	passno = 0;
 
 	GL_SelectEBO(shaderstate.sourcevbo->vboe);
@@ -2456,34 +2456,13 @@ static void DrawMeshes(void)
 		break;
 #ifdef RTLIGHTS
 	case BEM_SMAPLIGHTSPOT:
-		perm = 0;
-		if (TEXVALID(shaderstate.curtexnums->bump) && shaderstate.spotpassshader[perm|PERMUTATION_BUMPMAP])
-			perm |= PERMUTATION_BUMPMAP;
-		if (TEXVALID(shaderstate.curtexnums->specular) && shaderstate.spotpassshader[perm|PERMUTATION_SPECULAR])
-			perm |= PERMUTATION_SPECULAR;
-		if (r_shadow_glsl_offsetmapping.ival && TEXVALID(shaderstate.curtexnums->bump) && shaderstate.spotpassshader[perm|PERMUTATION_OFFSET])
-			perm |= PERMUTATION_OFFSET;
-		BE_RenderMeshProgram(shaderstate.spotpassshader[perm], shaderstate.spotpassshader[perm]->passes);
+		BE_RenderMeshProgram(shaderstate.spotpassshader, shaderstate.spotpassshader->passes);
 		break;
 	case BEM_SMAPLIGHT:
-		perm = 0;
-		if (TEXVALID(shaderstate.curtexnums->bump) && shaderstate.pcfpassshader[perm|PERMUTATION_BUMPMAP])
-			perm |= PERMUTATION_BUMPMAP;
-		if (TEXVALID(shaderstate.curtexnums->specular) && shaderstate.pcfpassshader[perm|PERMUTATION_SPECULAR])
-			perm |= PERMUTATION_SPECULAR;
-		if (r_shadow_glsl_offsetmapping.ival && TEXVALID(shaderstate.curtexnums->bump) && shaderstate.pcfpassshader[perm|PERMUTATION_OFFSET])
-			perm |= PERMUTATION_OFFSET;
-		BE_RenderMeshProgram(shaderstate.pcfpassshader[perm], shaderstate.pcfpassshader[perm]->passes);
+		BE_RenderMeshProgram(shaderstate.pcfpassshader, shaderstate.pcfpassshader->passes);
 		break;
 	case BEM_LIGHT:
-		perm = 0;
-		if (TEXVALID(shaderstate.curtexnums->bump) && shaderstate.lightpassshader[perm|PERMUTATION_BUMPMAP])
-			perm |= PERMUTATION_BUMPMAP;
-		if (TEXVALID(shaderstate.curtexnums->specular) && shaderstate.lightpassshader[perm|PERMUTATION_SPECULAR])
-			perm |= PERMUTATION_SPECULAR;
-		if (r_shadow_glsl_offsetmapping.ival && TEXVALID(shaderstate.curtexnums->bump) && shaderstate.lightpassshader[perm|PERMUTATION_OFFSET])
-			perm |= PERMUTATION_OFFSET;
-		BE_RenderMeshProgram(shaderstate.lightpassshader[perm], shaderstate.lightpassshader[perm]->passes);
+		BE_RenderMeshProgram(shaderstate.lightpassshader, shaderstate.lightpassshader->passes);
 		break;
 #endif
 	case BEM_DEPTHONLY:
@@ -2513,7 +2492,7 @@ static void DrawMeshes(void)
 		//fallthrough
 	case BEM_STANDARD:
 	default:
-		if (shaderstate.curshader->programhandle.glsl)
+		if (shaderstate.curshader->programhandle[0].glsl)
 			BE_RenderMeshProgram(shaderstate.curshader, shaderstate.curshader->passes);
 		else
 		{
@@ -2538,11 +2517,12 @@ void BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_t 
 		mesh_t *m;
 		shaderstate.sourcevbo = &shaderstate.dummyvbo;
 		shaderstate.curshader = shader;
-		shaderstate.curentity = currententity;
+		if (shaderstate.curentity != &r_worldentity)
+			BE_SelectEntity(&r_worldentity);
 		shaderstate.curtexnums = texnums;
 		shaderstate.curlightmap = r_nulltex;
 		shaderstate.curdeluxmap = r_nulltex;
-		shaderstate.curtime = cl.servertime - currententity->shaderTime;
+		shaderstate.curtime = shaderstate.updatetime - shaderstate.curentity->shaderTime;
 
 		while (nummeshes--)
 		{
@@ -2565,7 +2545,8 @@ void BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_t 
 	{
 		shaderstate.sourcevbo = vbo;
 		shaderstate.curshader = shader;
-		shaderstate.curentity = currententity;
+		if (shaderstate.curentity != &r_worldentity)
+			BE_SelectEntity(&r_worldentity);
 		shaderstate.curtexnums = texnums;
 		shaderstate.curlightmap = r_nulltex;
 		shaderstate.curdeluxmap = r_nulltex;
@@ -2582,6 +2563,7 @@ void BE_DrawMesh_Single(shader_t *shader, mesh_t *mesh, vbo_t *vbo, texnums_t *t
 	BE_DrawMesh_List(shader, 1, &mesh, NULL, texnums);
 }
 
+#if 0
 static void BaseBrushTextures(entity_t *ent)
 {
 	int i;
@@ -2653,6 +2635,7 @@ static void BaseBrushTextures(entity_t *ent)
 	batch.mesh = batchmeshes;
 	batch.lightmap = -1;
 	batch.texture = NULL;
+	batch.ent = ent;
 	for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
 	{
 		if (batch.meshes == batch.maxmeshes || batch.lightmap != s->lightmaptexturenum || batch.texture != s->texinfo->texture)
@@ -2672,10 +2655,10 @@ static void BaseBrushTextures(entity_t *ent)
 	qglPopMatrix();
 }
 
-#ifdef RTLIGHTS
 void BE_BaseEntShadowDepth(void)
 {
 	int		i;
+	entity_t *ent;
 
 	if (!r_drawentities.value)
 		return;
@@ -2683,27 +2666,26 @@ void BE_BaseEntShadowDepth(void)
 	// draw sprites seperately, because of alpha blending
 	for (i=0 ; i<cl_numvisedicts ; i++)
 	{
-		currententity = &cl_visedicts[i];
-		if (!currententity->model)
+		ent = &cl_visedicts[i];
+		if (!ent->model)
 			continue;
-		if (currententity->model->needload)
+		if (ent->model->needload)
 			continue;
-		if (currententity->flags & Q2RF_WEAPONMODEL)
+		if (ent->flags & Q2RF_WEAPONMODEL)
 			continue;
-		switch(currententity->model->type)
+		switch(ent->model->type)
 		{
 		case mod_brush:
-			BaseBrushTextures(currententity);
+			BaseBrushTextures(ent);
 			break;
 		case mod_alias:
-			R_DrawGAliasModel (currententity, BEM_DEPTHONLY);
+			R_DrawGAliasModel (ent, BEM_DEPTHONLY);
 			break;
 		}
 	}
 }
-#endif
 
-void BE_BaseEntTextures(void)
+/*void BE_BaseEntTextures(void)
 {
 	int		i;
 	unsigned int bef;
@@ -2748,7 +2730,8 @@ void BE_BaseEntTextures(void)
 			break;
 		}
 	}
-}
+}*/
+#endif
 
 void BE_DrawPolys(qboolean decalsset)
 {
@@ -2778,7 +2761,24 @@ static void BE_SubmitBatch(batch_t *batch)
 	model_t *model = cl.worldmodel;
 	int lm;
 
-	lm = batch->lightmap;
+	if (batch->texture)
+	{
+		shaderstate.sourcevbo = &batch->texture->vbo;
+		lm = batch->lightmap;
+	}
+	else
+	{
+		shaderstate.dummyvbo.coord = batch->mesh[0]->xyz_array;
+		shaderstate.dummyvbo.texcoord = batch->mesh[0]->st_array;
+		shaderstate.dummyvbo.indicies = batch->mesh[0]->indexes;
+		shaderstate.dummyvbo.normals = batch->mesh[0]->normals_array;
+		shaderstate.dummyvbo.svector = batch->mesh[0]->snormals_array;
+		shaderstate.dummyvbo.tvector = batch->mesh[0]->tnormals_array;
+		shaderstate.dummyvbo.colours4f = batch->mesh[0]->colors4f_array;
+		shaderstate.sourcevbo = &shaderstate.dummyvbo;
+		lm = -1;
+	}
+
 	if (lm < 0)
 	{
 		shaderstate.curlightmap = r_nulltex;
@@ -2790,12 +2790,15 @@ static void BE_SubmitBatch(batch_t *batch)
 		shaderstate.curdeluxmap = deluxmap_textures[lm];
 	}
 
-	shaderstate.sourcevbo = &batch->texture->vbo;
 	shaderstate.curshader = batch->shader;
-	shaderstate.curentity = currententity;
+	if (shaderstate.curentity != batch->ent)
+		BE_SelectEntity(batch->ent);
+	shaderstate.flags = batch->flags;
 	shaderstate.curtime = realtime;
-
-	shaderstate.curtexnums = &shaderstate.curshader->defaulttextures;
+	if (batch->skin)
+		shaderstate.curtexnums = batch->skin;
+	else
+		shaderstate.curtexnums = &shaderstate.curshader->defaulttextures;
 
 	if (0)
 	{
@@ -2815,37 +2818,42 @@ static void BE_SubmitBatch(batch_t *batch)
 	}
 }
 
-void BE_SubmitMeshes (void)
+static void BE_SubmitMeshesPortals(batch_t *worldlist, batch_t *dynamiclist)
 {
-	model_t *model = cl.worldmodel;
 	batch_t *batch, *old;
-	currententity = &r_worldentity;
-
-	/*find all the portal shaders and try to draw them*/
-	if (!r_noportals.ival && !r_refdef.recurse)
+	int i;
+	/*attempt to draw portal shaders*/
+	if (shaderstate.mode == BEM_STANDARD)
 	{
-		if (shaderstate.mode == BEM_STANDARD)
+		for (i = 0; i < 2; i++)
 		{
-			for (batch = model->batches; batch; batch = batch->next)
+			for (batch = i?dynamiclist:worldlist; batch; batch = batch->next)
 			{
-				batch->shader = R_TextureAnimation (batch->texture)->shader;
-				if (batch->shader->sort > SHADER_SORT_PORTAL)
-					break;
-
 				if (batch->meshes == batch->firstmesh)
 					continue;
 
+				/*draw already-drawn portals as depth-only, to ensure that their contents are not harmed*/
 				BE_SelectMode(BEM_DEPTHONLY, 0);
-				for (old = model->batches; old != batch; old = old->next)
+				for (old = worldlist; old && old != batch; old = old->next)
 				{
 					if (old->meshes == old->firstmesh)
 						continue;
 					BE_SubmitBatch(old);
 				}
+				if (!old)
+				{
+					for (old = dynamiclist; old != batch; old = old->next)
+					{
+						if (old->meshes == old->firstmesh)
+							continue;
+						BE_SubmitBatch(old);
+					}
+				}
 				BE_SelectMode(BEM_STANDARD, 0);
 
-
+	#if 0
 				R_DrawPortal(batch);
+	#endif
 
 				/*clear depth again*/
 				GL_ForceDepthWritable();
@@ -2854,19 +2862,20 @@ void BE_SubmitMeshes (void)
 			}
 		}
 	}
+}
 
-	for (batch = model->batches; batch; batch = batch->next)
+static void BE_SubmitMeshesSortList(batch_t *sortlist)
+{
+	batch_t *batch;
+	for (batch = sortlist; batch; batch = batch->next)
 	{
 		if (batch->meshes == batch->firstmesh)
 			continue;
 
-		batch->shader = R_TextureAnimation (batch->texture)->shader;
-
-		if (batch->shader->sort == SHADER_SORT_PORTAL)
-		{
-			if (shaderstate.mode != BEM_STANDARD)
-				continue;
-		}
+		if (batch->buildmeshes)
+			batch->buildmeshes(batch);
+		else
+			batch->shader = R_TextureAnimation(batch->ent->framestate.g[FS_REG].frame[0], batch->texture)->shader;
 
 		if (batch->shader->flags & SHADER_NODLIGHT)
 			if (shaderstate.mode == BEM_LIGHT || shaderstate.mode == BEM_SMAPLIGHT)
@@ -2881,14 +2890,26 @@ void BE_SubmitMeshes (void)
 
 		BE_SubmitBatch(batch);
 	}
+}
 
-	if (shaderstate.mode == BEM_STANDARD)
-		BE_DrawPolys(true);
+void BE_SubmitMeshes (qboolean drawworld, batch_t **blist)
+{
+	model_t *model = cl.worldmodel;
+	int i;
+
+	for (i = SHADER_SORT_PORTAL; i < SHADER_SORT_COUNT; i++)
+	{
+		if (drawworld)
+		{
+			if (i == SHADER_SORT_PORTAL && !r_noportals.ival && !r_refdef.recurse)
+				BE_SubmitMeshesPortals(model->batches[i], blist[i]);
+
+			BE_SubmitMeshesSortList(model->batches[i]);
+		}
+		BE_SubmitMeshesSortList(blist[i]);
+	}
 
 	checkerror();
-	BE_BaseEntTextures();
-	checkerror();
-	currententity = &r_worldentity;
 }
 
 static void BE_UpdateLightmaps(void)
@@ -2947,11 +2968,220 @@ static void BE_UpdateLightmaps(void)
 	}
 }
 
+static void BE_GenBrushBatches(batch_t **batches, entity_t *ent)
+{
+	int i;
+	msurface_t *s;
+	model_t *model;
+	batch_t *b;
+	unsigned int bef;
+
+	model = ent->model;
+
+	if (R_CullEntityBox (ent, model->mins, model->maxs))
+		return;
+
+#ifdef RTLIGHTS
+	if (BE_LightCullModel(ent->origin, model))
+		return;
+#endif
+
+// calculate dynamic lighting for bmodel if it's not an
+// instanced model
+	if (model->fromgame != fg_quake3)
+	{
+		int k;
+		int shift;
+
+		currententity = ent;
+		currentmodel = ent->model;
+		if (model->nummodelsurfaces != 0 && r_dynamic.value)
+		{
+			for (k=rtlights_first; k<RTL_FIRST; k++)
+			{
+				if (!cl_dlights[k].radius)
+					continue;
+				if (!(cl_dlights[k].flags & LFLAG_ALLOW_LMHACK))
+					continue;
+
+				model->funcs.MarkLights (&cl_dlights[k], 1<<k,
+					model->nodes + model->hulls[0].firstclipnode);
+			}
+		}
+
+		shift = Surf_LightmapShift(model);
+		if ((ent->drawflags & MLS_MASKIN) == MLS_ABSLIGHT)
+		{
+			//update lightmaps.
+			for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
+				Surf_RenderAmbientLightmaps (s, shift, ent->abslight);
+		}
+		else if (ent->drawflags & DRF_TRANSLUCENT)
+		{
+			//update lightmaps.
+			for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
+				Surf_RenderAmbientLightmaps (s, shift, 255);
+		}
+		else
+		{
+			//update lightmaps.
+			for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
+				Surf_RenderDynamicLightmaps (s, shift);
+		}
+		currententity = NULL;
+	}
+
+	bef = BEF_PUSHDEPTH;
+	if (ent->flags & Q2RF_ADDITIVE)
+		bef |= BEF_FORCEADDITIVE;
+	else if (ent->drawflags & DRF_TRANSLUCENT && r_wateralpha.value != 1)
+	{
+		bef |= BEF_FORCETRANSPARENT;
+		ent->shaderRGBAf[3] = r_wateralpha.value;
+	}
+	else if (ent->shaderRGBAf[3] < 1 && cls.protocol != CP_QUAKE3)
+		bef |= BEF_FORCETRANSPARENT;
+	if (ent->flags & RF_NODEPTHTEST)
+		bef |= BEF_FORCENODEPTH;
+
+	b = NULL;
+	for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
+	{
+		if (!b || b->lightmap != s->lightmaptexturenum || b->texture != s->texinfo->texture)
+		{
+			if (shaderstate.wbatch >= shaderstate.maxwbatches)
+			{
+				shaderstate.wbatch++;
+				break;	/*can't allocate any new ones!*/
+			}
+			b = &shaderstate.wbatches[shaderstate.wbatch++];
+			b->buildmeshes = NULL;
+			b->ent = ent;
+			b->texture = s->texinfo->texture;
+			b->shader = R_TextureAnimation(ent->framestate.g[FS_REG].frame[0], b->texture)->shader;
+			b->skin = &b->shader->defaulttextures;
+			b->flags = bef;
+			if (bef & BEF_FORCEADDITIVE)
+			{
+				b->next = batches[SHADER_SORT_ADDITIVE];
+				batches[SHADER_SORT_ADDITIVE] = b;
+			}
+			else if (bef & BEF_FORCETRANSPARENT)
+			{
+				b->next = batches[SHADER_SORT_BLEND];
+				batches[SHADER_SORT_BLEND] = b;
+			}
+			else
+			{
+				b->next = batches[b->shader->sort];
+				batches[b->shader->sort] = b;
+			}
+			b->mesh = shaderstate.wmeshes+shaderstate.wmesh;
+			b->meshes = 0;
+			b->lightmap = s->lightmaptexturenum;
+		}
+
+		shaderstate.wmesh++;
+		if (shaderstate.wmesh >= shaderstate.maxwmesh)
+			continue;
+		b->mesh[b->meshes++] = s->mesh;
+	}
+}
+
+batch_t *BE_GetTempBatch(void)
+{
+	if (shaderstate.wbatch >= shaderstate.maxwbatches)
+	{
+		shaderstate.wbatch++;
+		return NULL;
+	}
+	return &shaderstate.wbatches[shaderstate.wbatch++];
+}
+
+void BE_GenModelBatches(batch_t **batches)
+{
+	int		i;
+	entity_t *ent;
+
+	/*clear the batch list*/
+	for (i = 0; i < SHADER_SORT_COUNT; i++)
+		batches[i] = NULL;
+
+	if (!r_drawentities.ival)
+		return;
+
+	// draw sprites seperately, because of alpha blending
+	for (i=0 ; i<cl_numvisedicts ; i++)
+	{
+		ent = &cl_visedicts[i];
+		if (!ent->model)
+			continue;
+		if (ent->model->needload)
+			continue;
+		if (!R_ShouldDraw(ent))
+			continue;
+		switch(ent->model->type)
+		{
+		case mod_brush:
+			if (r_drawentities.ival == 2)
+				continue;
+			BE_GenBrushBatches(batches, ent);
+			break;
+		case mod_alias:
+			if (r_drawentities.ival == 3)
+				continue;
+			R_GAlias_GenerateBatches(ent, batches);
+			break;
+		}
+	}
+}
+
+/*called from shadowmapping code*/
+#ifdef RTLIGHTS
+void BE_BaseEntTextures(void)
+{
+	batch_t *batches[SHADER_SORT_COUNT];
+	BE_GenModelBatches(batches);
+	BE_SubmitMeshes(false, batches);
+	BE_SelectEntity(&r_worldentity);
+}
+#endif
+
 void BE_DrawWorld (qbyte *vis)
 {
 	extern cvar_t r_shadow_realtime_world, r_shadow_realtime_world_lightmaps;
+	batch_t *batches[SHADER_SORT_COUNT];
 	RSpeedLocals();
 	GL_DoSwap();
+
+	if (shaderstate.wmesh > shaderstate.maxwmesh)
+	{
+		int newm = shaderstate.wmesh;
+		shaderstate.wmeshes = BZ_Realloc(shaderstate.wmeshes, newm * sizeof(*shaderstate.wmeshes));
+		memset(shaderstate.wmeshes + shaderstate.maxwmesh, 0, (newm - shaderstate.maxwmesh) * sizeof(*shaderstate.wmeshes));
+		shaderstate.maxwmesh = newm;
+	}
+	if (shaderstate.wbatch > shaderstate.maxwbatches)
+	{
+		int newm = shaderstate.wbatch;
+		shaderstate.wbatches = BZ_Realloc(shaderstate.wbatches, newm * sizeof(*shaderstate.wbatches));
+		memset(shaderstate.wbatches + shaderstate.maxwbatches, 0, (newm - shaderstate.maxwbatches) * sizeof(*shaderstate.wbatches));
+		shaderstate.maxwbatches = newm;
+	}
+
+	shaderstate.wmesh = 0;
+	shaderstate.wbatch = 0;
+	BE_GenModelBatches(batches);
+
+	shaderstate.curentity = NULL;
+	shaderstate.updatetime = cl.servertime;
+
+#if 0
+	{int i;
+		for (i = 0; i < SHADER_SORT_COUNT; i++)
+		batches[i] = NULL;
+	}
+#endif
 
 	BE_UpdateLightmaps();
 
@@ -2979,16 +3209,52 @@ void BE_DrawWorld (qbyte *vis)
 	checkerror();
 
 	RSpeedRemark();
-	BE_SubmitMeshes();
+	BE_SubmitMeshes(true, batches);
 	RSpeedEnd(RSPEED_WORLD);
 
 #ifdef RTLIGHTS
 	RSpeedRemark();
+	BE_SelectEntity(&r_worldentity);
 	Sh_DrawLights(vis);
 	RSpeedEnd(RSPEED_STENCILSHADOWS);
 #endif
 	checkerror();
 
 	BE_DrawPolys(false);
+
+	BE_SelectEntity(&r_worldentity);
+	shaderstate.updatetime = realtime;
 }
+
+void BE_DrawNonWorld (void)
+{
+	batch_t *batches[SHADER_SORT_COUNT];
+	if (shaderstate.wmesh > shaderstate.maxwmesh)
+	{
+		int newm = shaderstate.wmesh;
+		shaderstate.wmeshes = BZ_Realloc(shaderstate.wmeshes, newm * sizeof(*shaderstate.wmeshes));
+		memset(shaderstate.wmeshes + shaderstate.maxwmesh, 0, (newm - shaderstate.maxwmesh) * sizeof(*shaderstate.wmeshes));
+		shaderstate.maxwmesh = newm;
+	}
+	if (shaderstate.wbatch > shaderstate.maxwbatches)
+	{
+		int newm = shaderstate.wbatch;
+		shaderstate.wbatches = BZ_Realloc(shaderstate.wbatches, newm * sizeof(*shaderstate.wbatches));
+		memset(shaderstate.wbatches + shaderstate.maxwbatches, 0, (newm - shaderstate.maxwbatches) * sizeof(*shaderstate.wbatches));
+		shaderstate.maxwbatches = newm;
+	}
+
+	shaderstate.wmesh = 0;
+	shaderstate.wbatch = 0;
+	BE_GenModelBatches(batches);
+
+	shaderstate.curentity = NULL;
+	shaderstate.updatetime = cl.servertime;
+
+	BE_SubmitMeshes(false, batches);
+
+	BE_SelectEntity(&r_worldentity);
+	shaderstate.updatetime = realtime;
+}
+
 #endif

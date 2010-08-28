@@ -530,6 +530,9 @@ extern qboolean sb_showscores;
 	{
 		p = &scr_centerprint[pnum];
 
+		if (p->time_off <= 0 && !cl.intermission && !(p->flags & CPRINT_PERSIST))
+			continue;	//'/P' prefix doesn't time out
+
 		p->time_off -= host_frametime;
 
 		if (key_dest != key_game)	//don't let progs guis/centerprints interfere with the game menu
@@ -537,9 +540,6 @@ extern qboolean sb_showscores;
 
 		if (sb_showscores)	//this was annoying
 			continue;
-
-		if (p->time_off <= 0 && !cl.intermission && !(p->flags & CPRINT_PERSIST))
-			continue;	//'/P' prefix doesn't time out
 
 		SCR_VRectForPlayer(&rect, pnum);
 		SCR_DrawCenterString(&rect, p);
@@ -689,7 +689,10 @@ void SCR_ShowPic_Clear(void)
 	int pnum;
 
 	for (pnum = 0; pnum < MAX_SPLITS; pnum++)
+	{
+		scr_centerprint[pnum].flags = 0;
 		scr_centerprint[pnum].charcount = 0;
+	}
 
 	while((sp = showpics))
 	{
@@ -994,8 +997,8 @@ void SCR_CalcRefdef (void)
 	if (cl.stats[0][STAT_VIEWZOOM])
 		r_refdef.fov_x *= cl.stats[0][STAT_VIEWZOOM]/255.0f;
 
-	if (r_refdef.fov_x < 10)
-		r_refdef.fov_x = 10;
+	if (r_refdef.fov_x < 1)
+		r_refdef.fov_x = 1;
 	else if (r_refdef.fov_x > 170)
 		r_refdef.fov_x = 170;
 
@@ -1033,7 +1036,7 @@ void SCR_CrosshairPosition(int pnum, int *x, int *y)
 
 		memset(&tr, 0, sizeof(tr));
 		tr.fraction = 1;
-		cl.worldmodel->funcs.Trace(cl.worldmodel, 0, 0, start, end, vec3_origin, vec3_origin, &tr);
+		cl.worldmodel->funcs.Trace(cl.worldmodel, 0, 0, NULL, start, end, vec3_origin, vec3_origin, &tr);
 		start[2]-=16;
 		if (tr.fraction == 1)
 		{

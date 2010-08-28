@@ -127,7 +127,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldstring(model,model,model);\
 	comfieldfloat(frame,frame,frame);\
 	comfieldfloat(skin,skin,skin);\
-	comfieldfloat(effects,_effects,_effects);\
+	comfieldfloat(effects,effects,effects);\
 	comfieldvector(mins,mins,mins);\
 	comfieldvector(maxs,maxs,maxs);\
 	comfieldvector(size,size,size);\

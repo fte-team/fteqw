@@ -97,7 +97,7 @@ static int SDL_InitCard(soundcardinfo_t *sc, int cardnum)
 	desired.channels = sc->sn.numchannels;	//fixme!
 	desired.samples = 0x0100;
 	desired.format = AUDIO_S16SYS;
-	desired.callback = SSDL_Paint;
+	desired.callback = (void*)SSDL_Paint;
 	desired.userdata = sc;
 	memcpy(&obtained, &desired, sizeof(obtained));
 

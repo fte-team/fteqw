@@ -469,27 +469,30 @@ typedef struct
 
 // remaining contents are non-visible, and don't eat brushes
 
-#define	Q2CONTENTS_AREAPORTAL		0x8000
+#define	Q2CONTENTS_AREAPORTAL	0x8000
 
-#define	Q2CONTENTS_PLAYERCLIP		0x10000
+#define	Q2CONTENTS_PLAYERCLIP	0x10000
 #define	Q2CONTENTS_MONSTERCLIP	0x20000
 
 // currents can be added to any other contents, and may be mixed
-#define	Q2CONTENTS_CURRENT_0		0x40000
-#define	Q2CONTENTS_CURRENT_90		0x80000
+#define	Q2CONTENTS_CURRENT_0	0x40000
+#define	Q2CONTENTS_CURRENT_90	0x80000
 #define	Q2CONTENTS_CURRENT_180	0x100000
 #define	Q2CONTENTS_CURRENT_270	0x200000
-#define	Q2CONTENTS_CURRENT_UP		0x400000
+#define	Q2CONTENTS_CURRENT_UP	0x400000
 #define	Q2CONTENTS_CURRENT_DOWN	0x800000
 
-#define	Q2CONTENTS_ORIGIN			0x1000000	// removed before bsping an entity
+#define	Q2CONTENTS_ORIGIN		0x1000000	// removed before bsping an entity
 
 #define	Q2CONTENTS_MONSTER		0x2000000	// should never be on a brush, only in game
 #define	Q2CONTENTS_DEADMONSTER	0x4000000
-#define	Q2CONTENTS_DETAIL			0x8000000	// brushes to be added after vis leafs
+#define	Q2CONTENTS_DETAIL		0x8000000	// brushes to be added after vis leafs
 #define	Q2CONTENTS_TRANSLUCENT	0x10000000	// auto set if any surface has trans
+#define	Q2CONTENTS_LADDER		0x20000000
+
+#define	Q3CONTENTS_SOLID		Q2CONTENTS_SOLID	// should never be on a brush, only in game
+#define	Q3CONTENTS_BODY			0x2000000	// should never be on a brush, only in game
 #define Q3CONTENTS_TRANSLUCENT	0x20000000
-#define	Q2CONTENTS_LADDER			0x20000000
 
 
 //Texinfo flags - warning: these mix with q3 surface flags

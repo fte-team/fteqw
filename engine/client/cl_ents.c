@@ -1794,7 +1794,7 @@ void CL_LinkPacketEntities (void)
 
 		//bots or powerup glows. items always glow, bots can be disabled
 		if (state->modelindex != cl_playerindex || r_powerupglow.ival)
-		if (state->effects & (EF_BLUE | EF_RED | EF_BRIGHTLIGHT | EF_DIMLIGHT) || state->light[3])
+		if (state->effects & (EF_BLUE | EF_RED | EF_BRIGHTLIGHT | EF_DIMLIGHT))
 		{
 			vec3_t colour;
 			float radius;
@@ -1831,19 +1831,27 @@ void CL_LinkPacketEntities (void)
 				colour[1] += 0.05;
 				colour[2] += 0.05;
 			}
-			if (state->light[3])
-			{
-				radius = max(radius,state->light[3]);
-				colour[0] += state->light[0]/1024.0f;
-				colour[1] += state->light[1]/1024.0f;
-				colour[2] += state->light[2]/1024.0f;
-			}
 
 			if (radius)
 			{
 				radius += r_lightflicker.value?(rand()&31):0;
 				CL_NewDlightRGB(state->number, state->origin, radius, 0.1, colour[0], colour[1], colour[2]);
 			}
+		}
+		if (state->lightpflags & PFLAGS_FULLDYNAMIC)
+		{
+			vec3_t colour;
+			if (!colour[0] && !colour[1] && !colour[2])
+			{
+				colour[0] = colour[1] = colour[2] = 1;
+			}
+			else
+			{
+				colour[0] = state->light[0]/1024.0f;
+				colour[1] = state->light[1]/1024.0f;
+				colour[2] = state->light[2]/1024.0f;
+			}
+			CL_NewDlightRGB(state->number, state->origin, state->light[3]?state->light[3]:350, 0.1, colour[0], colour[1], colour[2]);
 		}
 
 		// if set to invisible, skip
@@ -1953,7 +1961,7 @@ void CL_LinkPacketEntities (void)
 			angles[2] = 0;
 
 			if (cl_item_bobbing.value)
-				ent->origin[2] += 5+sin(cl.time*3)*5;	//don't let it into the ground
+				ent->origin[2] += 5+sin(cl.time*3+(state->origin[0]+state->origin[1]+state->origin[2]))*5.5;	//don't let it into the ground
 		}
 		else
 		{
@@ -2755,8 +2763,8 @@ void CL_LinkPlayers (void)
 					VectorCopy(cl.simorg[pnum], org);
 				if (model)
 				{
-					org[2] -= model->mins[2];
-					org[2] += 24;
+					org[2] += model->mins[2];
+					org[2] += 32;
 				}
 				radius += r_lightflicker.value?(rand()&31):0;
 				CL_NewDlightRGB(j+1, org, radius, 0.1, colour[0], colour[1], colour[2])->flags &= ~LFLAG_ALLOW_FLASH;
@@ -2787,10 +2795,10 @@ void CL_LinkPlayers (void)
 		CL_UpdateNetFrameLerpState(false, state->frame, &cl.lerpplayers[j]);
 		CL_LerpNetFrameState(FS_REG, &ent->framestate,	&cl.lerpplayers[j]);
 
-		if (state->modelindex == cl_playerindex)
+//		if (state->modelindex == cl_playerindex)
 			ent->scoreboard = info;		// use custom skin
-		else
-			ent->scoreboard = NULL;
+//		else
+//			ent->scoreboard = NULL;
 
 #ifdef PEXT_SCALE
 		ent->scale = state->scale;

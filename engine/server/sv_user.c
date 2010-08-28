@@ -4684,7 +4684,9 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 			continue;		// player's own missile
 		if (check->v->solid == SOLID_BSP
 			|| check->v->solid == SOLID_BBOX
-			|| check->v->solid == SOLID_SLIDEBOX)
+			|| check->v->solid == SOLID_SLIDEBOX
+			//|| (check->v->solid == SOLID_PHASEH2 && progstype == PROG_H2) //logically matches hexen2, but I hate it
+			)
 		{
 			if (check == player)
 				continue;
@@ -4744,9 +4746,14 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 
 			model = sv.models[(int)check->v->modelindex];
 			if (model)
+			{
+				vec3_t axis[3];
+				AngleVectors(check->v->angles, axis[0], axis[1], axis[2]);
+				VectorNegate(axis[1], axis[1]);
 	// test the point
-			if (model->funcs.PointContents (model, player->v->origin) == FTECONTENTS_SOLID)
-				player->xv->pmove_flags = (int)player->xv->pmove_flags | PMF_LADDER;	//touch that ladder!
+				if (model->funcs.PointContents (model, axis, player->v->origin) == FTECONTENTS_SOLID)
+					player->xv->pmove_flags = (int)player->xv->pmove_flags | PMF_LADDER;	//touch that ladder!
+			}
 		}
 	}
 

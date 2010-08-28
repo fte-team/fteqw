@@ -270,12 +270,12 @@ unsigned int Heightmap_PointContentsHM(heightmap_t *hm, float clipmipsz, vec3_t 
 	return FTECONTENTS_EMPTY;
 }
 
-unsigned int Heightmap_PointContents(model_t *model, vec3_t org)
+unsigned int Heightmap_PointContents(model_t *model, vec3_t axis[3], vec3_t org)
 {
 	heightmap_t *hm = model->terrain;
 	return Heightmap_PointContentsHM(hm, 0, org);
 }
-unsigned int Heightmap_NativeBoxContents(model_t *model, int hulloverride, int frame, vec3_t org, vec3_t mins, vec3_t maxs)
+unsigned int Heightmap_NativeBoxContents(model_t *model, int hulloverride, int frame, vec3_t axis[3], vec3_t org, vec3_t mins, vec3_t maxs)
 {
 	heightmap_t *hm = model->terrain;
 	return Heightmap_PointContentsHM(hm, mins[2], org);
@@ -514,7 +514,7 @@ Heightmap_Trace
 Traces a line through a heightmap, sampling the terrain at various different positions.
 This is inprecise, only supports points (or vertical lines), and can often travel though sticky out bits of terrain.
 */
-qboolean Heightmap_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
+qboolean Heightmap_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
 {
 	vec3_t org;
 	vec3_t dir;
@@ -575,9 +575,9 @@ qboolean Heightmap_Trace(model_t *model, int forcehullnum, int frame, vec3_t sta
 
 	return trace->fraction != 1;
 }
-qboolean Heightmap_NativeTrace(struct model_s *model, int hulloverride, int frame, vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, unsigned int against, struct trace_s *trace)
+qboolean Heightmap_NativeTrace(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, unsigned int against, struct trace_s *trace)
 {
-	return Heightmap_Trace(model, hulloverride, frame, p1, p2, mins, maxs, trace);
+	return Heightmap_Trace(model, hulloverride, frame, axis, p1, p2, mins, maxs, trace);
 }
 
 #endif

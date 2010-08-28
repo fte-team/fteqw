@@ -172,6 +172,7 @@ typedef struct player_info_s
 	struct model_s	*model;
 
 	unsigned short vweapindex;
+	unsigned char h2playerclass;
 
 	int prevcount;
 
@@ -968,6 +969,7 @@ void CL_ParseParticleEffect4 (void);
 
 void CLDP_ParseTrailParticles(void);
 void CLDP_ParsePointParticles(qboolean compact);
+void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, struct model_s *model, int startframe, int framecount, int framerate, float alpha);	/*called from the particlesystem*/
 
 //
 // cl_ents.c

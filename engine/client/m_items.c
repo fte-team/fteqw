@@ -1144,8 +1144,8 @@ menubutton_t *MC_AddConsoleCommandHexen2BigFont(menu_t *menu, int x, int y, cons
 	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
-	n->common.height = 8;
-	n->common.width = strlen(text)*8;
+	n->common.height = 20;
+	n->common.width = strlen(text)*20;
 	n->text = (char *)(n+1);
 	strcpy((char *)(n+1), text);
 	n->command = n->text + strlen(n->text)+1;

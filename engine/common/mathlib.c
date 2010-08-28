@@ -1449,6 +1449,37 @@ qboolean Matrix4_Invert(const float *m, float *out)
 #undef SWAP_ROWS
 }
 
+void Matrix3_Invert_Simple (const vec3_t in1[3], vec3_t out[3])
+{
+	// we only support uniform scaling, so assume the first row is enough
+	// (note the lack of sqrt here, because we're trying to undo the scaling,
+	// this means multiplying by the inverse scale twice - squaring it, which
+	// makes the sqrt a waste of time)
+#if 1
+	double scale = 1.0 / (in1[0][0] * in1[0][0] + in1[0][1] * in1[0][1] + in1[0][2] * in1[0][2]);
+#else
+	double scale = 3.0 / sqrt
+		 (in1->m[0][0] * in1->m[0][0] + in1->m[0][1] * in1->m[0][1] + in1->m[0][2] * in1->m[0][2]
+		+ in1->m[1][0] * in1->m[1][0] + in1->m[1][1] * in1->m[1][1] + in1->m[1][2] * in1->m[1][2]
+		+ in1->m[2][0] * in1->m[2][0] + in1->m[2][1] * in1->m[2][1] + in1->m[2][2] * in1->m[2][2]);
+	scale *= scale;
+#endif
+
+	// invert the rotation by transposing and multiplying by the squared
+	// recipricol of the input matrix scale as described above
+	out[0][0] = in1[0][0] * scale;
+	out[0][1] = in1[1][0] * scale;
+	out[0][2] = in1[2][0] * scale;
+
+	out[1][0] = in1[0][1] * scale;
+	out[1][1] = in1[1][1] * scale;
+	out[1][2] = in1[2][1] * scale;
+
+	out[2][0] = in1[0][2] * scale;
+	out[2][1] = in1[1][2] * scale;
+	out[2][2] = in1[2][2] * scale;
+}
+
 void Matrix4Q_Invert_Simple (const float *in1, float *out)
 {
 	// we only support uniform scaling, so assume the first row is enough

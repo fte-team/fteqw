@@ -85,6 +85,34 @@ void *Hash_GetKey(hashtable_t *table, unsigned int key)
 	}
 	return NULL;
 }
+/*Does _NOT_ support items that are added with two names*/
+void *Hash_GetNextKey(hashtable_t *table, unsigned int key, void *old)
+{
+	unsigned int bucknum = key%table->numbuckets;
+	bucket_t *buck;
+
+	buck = table->bucket[bucknum];
+
+	while(buck)
+	{
+		if (buck->data == old)	//found the old one
+			break;
+		buck = buck->next;
+	}
+	if (!buck)
+		return NULL;
+
+	buck = buck->next;//don't return old
+	while(buck)
+	{
+		if (buck->key.value == key)
+			return buck->data;
+
+		buck = buck->next;
+	}
+	return NULL;
+}
+/*Does _NOT_ support items that are added with two names*/
 void *Hash_GetNext(hashtable_t *table, const char *name, void *old)
 {
 	unsigned int bucknum = Hash_Key(name, table->numbuckets);
@@ -94,12 +122,9 @@ void *Hash_GetNext(hashtable_t *table, const char *name, void *old)
 
 	while(buck)
 	{
-		if (!STRCMP(name, buck->key.string))
-		{
-			if (buck->data == old)	//found the old one
+		if (buck->data == old)	//found the old one
+//			if (!STRCMP(name, buck->key.string))
 				break;
-		}
-
 		buck = buck->next;
 	}
 	if (!buck)
@@ -115,6 +140,7 @@ void *Hash_GetNext(hashtable_t *table, const char *name, void *old)
 	}
 	return NULL;
 }
+/*Does _NOT_ support items that are added with two names*/
 void *Hash_GetNextInsensative(hashtable_t *table, const char *name, void *old)
 {
 	unsigned int bucknum = Hash_KeyInsensative(name, table->numbuckets);
@@ -124,9 +150,9 @@ void *Hash_GetNextInsensative(hashtable_t *table, const char *name, void *old)
 
 	while(buck)
 	{
-		if (!STRCMP(name, buck->key.string))
+		if (buck->data == old)	//found the old one
 		{
-			if (buck->data == old)	//found the old one
+//			if (!stricmp(name, buck->key.string))
 				break;
 		}
 
@@ -138,7 +164,7 @@ void *Hash_GetNextInsensative(hashtable_t *table, const char *name, void *old)
 	buck = buck->next;//don't return old
 	while(buck)
 	{
-		if (!STRCMP(name, buck->key.string))
+		if (!stricmp(name, buck->key.string))
 			return buck->data;
 
 		buck = buck->next;

@@ -775,7 +775,7 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 			v[0] = VM_FLOAT(arg[0]);
 			v[1] = VM_FLOAT(arg[1]);
 			v[2] = VM_FLOAT(arg[2]);
-			return sv.world.worldmodel->funcs.PointContents(sv.world.worldmodel, v);
+			return sv.world.worldmodel->funcs.PointContents(sv.world.worldmodel, NULL, v);
 		}
 		break;
 	

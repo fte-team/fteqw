@@ -317,9 +317,8 @@ cvar_t r_noaliasshadows						= SCVARF ("r_noaliasshadows", "0",
 cvar_t r_shadow_bumpscale_basetexture		= SCVAR  ("r_shadow_bumpscale_basetexture", "4");
 cvar_t r_shadow_bumpscale_bumpmap			= SCVAR  ("r_shadow_bumpscale_bumpmap", "10");
 
-cvar_t r_shadow_glsl_offsetmapping			= SCVAR  ("r_shadow_glsl_offsetmapping", "0");
-cvar_t r_shadow_glsl_offsetmapping_bias		= SCVAR  ("r_shadow_glsl_offsetmapping_bias", "0.04");
-cvar_t r_shadow_glsl_offsetmapping_scale	= SCVAR  ("r_shadow_glsl_offsetmapping_scale", "-0.04");
+cvar_t r_glsl_offsetmapping					= SCVAR  ("r_glsl_offsetmapping", "0");
+cvar_t r_glsl_offsetmapping_scale			= SCVAR  ("r_glsl_offsetmapping_scale", "0.04");
 
 cvar_t r_shadow_realtime_world				= SCVARF ("r_shadow_realtime_world", "0", CVAR_ARCHIVE);
 cvar_t r_shadow_realtime_world_shadows		= SCVARF ("r_shadow_realtime_world_shadows", "1", CVAR_ARCHIVE);
@@ -407,9 +406,8 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_smoothcrosshair, GRAPHICALNICETIES);
 
 	Cvar_Register (&gl_bump, GRAPHICALNICETIES);
-	Cvar_Register (&r_shadow_glsl_offsetmapping, GRAPHICALNICETIES);
-	Cvar_Register (&r_shadow_glsl_offsetmapping_scale, GRAPHICALNICETIES);
-	Cvar_Register (&r_shadow_glsl_offsetmapping_bias, GRAPHICALNICETIES);
+	Cvar_Register (&r_glsl_offsetmapping, GRAPHICALNICETIES);
+	Cvar_Register (&r_glsl_offsetmapping_scale, GRAPHICALNICETIES);
 
 	Cvar_Register (&gl_contrast, GLRENDEREROPTIONS);
 #ifdef R_XFLIP
@@ -1490,6 +1488,10 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 			}
 		}
 
+		if (h2playertranslations)
+			BZ_Free(h2playertranslations);
+		h2playertranslations = FS_LoadMallocFile ("gfx/player.lmp");
+
 		if (vid.fullbright < 2)
 			vid.fullbright = 0;	//transparent colour doesn't count.
 
@@ -2140,13 +2142,12 @@ R_TextureAnimation
 Returns the proper texture for a given time and base texture
 ===============
 */
-extern entity_t *currententity;
-texture_t *R_TextureAnimation (texture_t *base)
+texture_t *R_TextureAnimation (int frame, texture_t *base)
 {
 	int		reletive;
 	int		count;
 
-	if (currententity->framestate.g[FS_REG].frame[0])
+	if (frame)
 	{
 		if (base->alternate_anims)
 			base = base->alternate_anims;

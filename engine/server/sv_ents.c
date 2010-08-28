@@ -1401,7 +1401,7 @@ qboolean Cull_Traceline(edict_t *viewer, edict_t *seen)
 	//stage 1: check against their origin
 	VectorAdd(viewer->v->origin, viewer->v->view_ofs, start);
 	tr.fraction = 1;
-	if (!sv.world.worldmodel->funcs.Trace (sv.world.worldmodel, 1, 0, start, seen->v->origin, vec3_origin, vec3_origin, &tr))
+	if (!sv.world.worldmodel->funcs.Trace (sv.world.worldmodel, 1, 0, NULL, start, seen->v->origin, vec3_origin, vec3_origin, &tr))
 		return false;	//wasn't blocked
 
 	//stage 2: check against their bbox
@@ -1412,7 +1412,7 @@ qboolean Cull_Traceline(edict_t *viewer, edict_t *seen)
 		end[2] = seen->v->origin[2] + ((i&4)?seen->v->mins[2]+0.1:seen->v->maxs[2]);
 
 		tr.fraction = 1;
-		if (!sv.world.worldmodel->funcs.Trace (sv.world.worldmodel, 1, 0, start, end, vec3_origin, vec3_origin, &tr))
+		if (!sv.world.worldmodel->funcs.Trace (sv.world.worldmodel, 1, 0, NULL, start, end, vec3_origin, vec3_origin, &tr))
 			return false;	//this trace went through, so don't cull
 	}
 
@@ -2227,6 +2227,7 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	state->light[1] = ent->xv->color[1]*255;
 	state->light[2] = ent->xv->color[2]*255;
 	state->light[3] = ent->xv->light_lev;
+	state->lightstyle = ent->xv->style;
 	state->lightstyle = ent->xv->style;
 	state->lightpflags = ent->xv->pflags;
 

@@ -134,6 +134,7 @@ void		Matrix3_Multiply (vec3_t *in1, vec3_t *in2, vec3_t *out);
 void		Matrix4_Identity(float *outm);
 qboolean	Matrix4_Invert(const float *m, float *out);
 void		Matrix4Q_Invert_Simple (const float *in1, float *out);
+void		Matrix3_Invert_Simple(const vec3_t in[3], vec3_t out[3]);
 void		Matrix4_CreateTranslate (float *out, float x, float y, float z);
 void		Matrix4Q_CreateTranslate (float *out, float x, float y, float z);
 void		Matrix4_ModelMatrixFromAxis (float *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg);

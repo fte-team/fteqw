@@ -40,31 +40,6 @@ typedef struct
 
 
 
-// entity_state_t->renderfx flags
-#define	Q2RF_MINLIGHT			1		// always have some light (viewmodel)
-#define	Q2RF_VIEWERMODEL		2		// don't draw through eyes, only mirrors
-#define	Q2RF_WEAPONMODEL		4		// only draw through eyes
-#define	Q2RF_FULLBRIGHT			8		// always draw full intensity
-#define	Q2RF_DEPTHHACK			16		// for view weapon Z crunching
-#define	Q2RF_TRANSLUCENT		32
-#define	Q2RF_FRAMELERP			64
-#define Q2RF_BEAM				128
-#define	Q2RF_CUSTOMSKIN			256		// skin is an index in image_precache
-#define	Q2RF_GLOW				512		// pulse lighting for bonus items
-#define Q2RF_SHELL_RED			1024
-#define	Q2RF_SHELL_GREEN		2048
-#define Q2RF_SHELL_BLUE			4096
-
-//ROGUE
-#define Q2RF_IR_VISIBLE			0x00008000		// 32768
-#define	Q2RF_SHELL_DOUBLE		0x00010000		// 65536
-#define	Q2RF_SHELL_HALF_DAM		0x00020000
-#define Q2RF_USE_DISGUISE		0x00040000
-//ROGUE
-
-
-
-
 extern cvar_t gl_part_flame, r_fullbrightSkins, r_fb_models;
 extern cvar_t r_noaliasshadows;
 void R_TorchEffect (vec3_t pos, int type);
@@ -218,7 +193,7 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum,
 	int frame;
 	unsigned int subframe;
 
-	unsigned int tc, bc;
+	unsigned int tc, bc, pc;
 	qboolean forced;
 
 	if (e->skinnum >= 100 && e->skinnum < 110)
@@ -245,11 +220,13 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum,
 				Skin_Find(e->scoreboard);
 			tc = e->scoreboard->ttopcolor;
 			bc = e->scoreboard->tbottomcolor;
+			pc = e->scoreboard->h2playerclass;
 		}
 		else
 		{
 			tc = 1;
 			bc = 1;
+			pc = 0;
 		}
 
 		if (forced || tc != 1 || bc != 1 || (e->scoreboard && e->scoreboard->skin))
@@ -323,7 +300,7 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum,
 
 			for (cm = Hash_Get(&skincolourmapped, skinname); cm; cm = Hash_GetNext(&skincolourmapped, skinname, cm))
 			{
-				if (cm->tcolour == tc && cm->bcolour == bc && cm->skinnum == e->skinnum && cm->subframe == subframe)
+				if (cm->tcolour == tc && cm->bcolour == bc && cm->skinnum == e->skinnum && cm->subframe == subframe && cm->pclass == pc)
 				{
 					return &cm->texnum;
 				}
@@ -335,6 +312,7 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum,
 			Hash_Add(&skincolourmapped, cm->name, cm, &cm->bucket);
 			cm->tcolour = tc;
 			cm->bcolour = bc;
+			cm->pclass = pc;
 			cm->skinnum = e->skinnum;
 			cm->subframe = subframe;
 			cm->texnum.fullbright = r_nulltex;
@@ -469,6 +447,25 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum,
 				if (scaled_height > gl_max_size.value)
 					scaled_height = gl_max_size.value;	//whoops, we made it too big
 
+				if (h2playertranslations && pc)
+				{
+					unsigned int color_offsets[5] = {2*14*256,0,1*14*256,2*14*256,2*14*256};
+					unsigned char *colorA, *colorB, *sourceA, *sourceB;
+					colorA = h2playertranslations + 256 + color_offsets[pc-1];
+					colorB = colorA + 256;
+					sourceA = colorB + (tc * 256);
+					sourceB = colorB + (bc * 256);
+					for(i=0;i<256;i++)
+					{
+						translate32[i] = d_8to24rgbtable[i];
+						if (tc > 0 && (colorA[i] != 255)) 
+							translate32[i] = d_8to24rgbtable[sourceA[i]];
+						if (bc > 0 && (colorB[i] != 255)) 
+							translate32[i] = d_8to24rgbtable[sourceB[i]];
+					}
+					translate32[0] = 0;
+				}
+				else
 				{
 					for (i=0 ; i<256 ; i++)
 						translate32[i] = d_8to24rgbtable[i];
@@ -526,24 +523,27 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum,
 					}
 				}
 				texnums->base = R_AllocNewTexture(scaled_width, scaled_height);
-				R_Upload(texnums->base, "", TF_RGBX32, pixels, NULL, scaled_width, scaled_height, IF_NOMIPMAP);
+				R_Upload(texnums->base, "", h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, NULL, scaled_width, scaled_height, IF_NOMIPMAP);
 
-				//now do the fullbrights.
-				out = pixels;
-				fracstep = tinwidth*0x10000/scaled_width;
-				for (i=0 ; i<scaled_height ; i++, out += scaled_width)
+				if (!h2playertranslations)
 				{
-					inrow = original + inwidth*(i*inheight/scaled_height);
-					frac = fracstep >> 1;
-					for (j=0 ; j<scaled_width ; j+=1)
+					//now do the fullbrights.
+					out = pixels;
+					fracstep = tinwidth*0x10000/scaled_width;
+					for (i=0 ; i<scaled_height ; i++, out += scaled_width)
 					{
-						if (inrow[frac>>16] < 255-vid.fullbright)
-							((char *) (&out[j]))[3] = 0;	//alpha 0
-						frac += fracstep;
+						inrow = original + inwidth*(i*inheight/scaled_height);
+						frac = fracstep >> 1;
+						for (j=0 ; j<scaled_width ; j+=1)
+						{
+							if (inrow[frac>>16] < 255-vid.fullbright)
+								((char *) (&out[j]))[3] = 0;	//alpha 0
+							frac += fracstep;
+						}
 					}
+					texnums->fullbright = R_AllocNewTexture(scaled_width, scaled_height);
+					R_Upload(texnums->fullbright, "", TF_RGBA32, pixels, NULL, scaled_width, scaled_height, IF_NOMIPMAP);
 				}
-				texnums->fullbright = R_AllocNewTexture(scaled_width, scaled_height);
-				R_Upload(texnums->fullbright, "", TF_RGBA32, pixels, NULL, scaled_width, scaled_height, IF_NOMIPMAP);
 			}
 			else
 			{
@@ -708,7 +708,7 @@ static void R_DrawShadowVolume(mesh_t *mesh)
 #endif
 
 //true if no shading is to be used.
-static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel, unsigned int rmode)
+static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 {
 	vec3_t lightdir;
 	int i;
@@ -724,14 +724,6 @@ static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel, unsigned int 
 	if ((e->drawflags & MLS_MASKIN) == MLS_FULLBRIGHT || (e->flags & Q2RF_FULLBRIGHT))
 	{
 		shadelight[0] = shadelight[1] = shadelight[2] = 255;
-		ambientlight[0] = ambientlight[1] = ambientlight[2] = 0;
-		return true;
-	}
-
-	//shortcut here, no need to test bsp lights or world lights when there's realtime lighting going on.
-	if (rmode == BEM_DEPTHDARK || rmode == BEM_DEPTHONLY)
-	{
-		shadelight[0] = shadelight[1] = shadelight[2] = 0;
 		ambientlight[0] = ambientlight[1] = ambientlight[2] = 0;
 		return true;
 	}
@@ -895,46 +887,63 @@ static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel, unsigned int 
 	return false;
 }
 
-static shader_t reskinnedmodelshader;
-void R_DrawGAliasModel (entity_t *e, unsigned int rmode)
+void R_GAlias_DrawBatch(batch_t *batch)
 {
-	model_t *clmodel;
-	galiasinfo_t *inf;
-	mesh_t mesh;
-	texnums_t *skin;
+	entity_t *e;
 
-	vec3_t saveorg;
+	galiasinfo_t *inf;
+	model_t *clmodel;
 	int surfnum;
-	int bef;
+
+	static mesh_t mesh;
+	static mesh_t *meshl = &mesh;
 
 	qboolean needrecolour;
 	qboolean nolightdir;
 
-	shader_t *shader;
+	e = batch->ent;
+	clmodel = e->model;
 
-//	if (e->flags & Q2RF_VIEWERMODEL && e->keynum == cl.playernum[r_refdef.currentplayernum]+1)
-//		return;
+	currententity = e;
+	nolightdir = R_CalcModelLighting(e, clmodel);
+
+	inf = RMod_Extradata (clmodel);
+	memset(&mesh, 0, sizeof(mesh));
+	for(surfnum=0; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)), surfnum++)
+	{
+		if (batch->lightmap == surfnum)
+		{
+			needrecolour = Alias_GAliasBuildMesh(&mesh, inf, e, e->shaderRGBAf[3], nolightdir);
+			batch->mesh = &meshl;
+		}
+	}
+}
+
+void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
+{
+	galiasinfo_t *inf;
+	model_t *clmodel;
+	shader_t *shader;
+	batch_t *b;
+	int surfnum;
+
+	texnums_t *skin;
 
 	if (r_refdef.externalview && e->flags & Q2RF_WEAPONMODEL)
 		return;
 
+	/*switch model if we're the player model, and the player skin says a new model*/
 	{
 		extern int cl_playerindex;
 		if (e->scoreboard && e->model == cl.model_precache[cl_playerindex])
 		{
 			clmodel = e->scoreboard->model;
-			if (!clmodel || clmodel->type != mod_alias)
-				clmodel = e->model;
+			if (clmodel && clmodel->type == mod_alias)
+				e->model = clmodel;
 		}
-		else
-			clmodel = e->model;
 	}
 
-	if (clmodel->tainted)
-	{
-		if (!ruleset_allow_modified_eyes.ival && !strcmp(clmodel->name, "progs/eyes.mdl"))
-			return;
-	}
+	clmodel = e->model;
 
 	if (!(e->flags & Q2RF_WEAPONMODEL))
 	{
@@ -951,116 +960,37 @@ void R_DrawGAliasModel (entity_t *e, unsigned int rmode)
 #endif
 	}
 
-	nolightdir = R_CalcModelLighting(e, clmodel, rmode);
-
-	if (gl_affinemodels.ival)
-		qglHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
-
-	if (e->flags & Q2RF_DEPTHHACK)
-		qglDepthRange (gldepthmin, gldepthmin + 0.3*(gldepthmax-gldepthmin));
-
-	bef = BEF_FORCEDEPTHTEST;
-	if (e->flags & Q2RF_ADDITIVE)
+	if (clmodel->tainted)
 	{
-		bef |= BEF_FORCEADDITIVE;
+		if (!ruleset_allow_modified_eyes.ival && !strcmp(clmodel->name, "progs/eyes.mdl"))
+			return;
 	}
-	else if (e->drawflags & DRF_TRANSLUCENT)	//hexen2
-	{
-		bef |= BEF_FORCETRANSPARENT;
-		e->shaderRGBAf[3] = r_wateralpha.value;
-	}
-	else if ((e->model->flags & EFH2_SPECIAL_TRANS))	//hexen2 flags.
-	{
-		//BEFIXME: this needs to generate the right sort of default instead
-		//(alpha blend+disable cull)
-	}
-	else if ((e->model->flags & EFH2_TRANSPARENT))
-	{
-		//BEFIXME: make sure the shader generator works
-	}
-	else if ((e->model->flags & EFH2_HOLEY))
-	{
-		//BEFIXME: this needs to generate the right sort of default instead
-		//(alpha test)
-	}
-	else if (e->shaderRGBAf[3] < 1 && cls.protocol != CP_QUAKE3)
-		bef |= BEF_FORCETRANSPARENT;
-	BE_SelectMode(rmode, bef);
-
-
-	qglPushMatrix();
-	R_RotateForEntity(e, clmodel);
 
 	inf = RMod_Extradata (clmodel);
-	if (qglPNTrianglesfATI && gl_ati_truform.ival)
-		qglEnable(GL_PN_TRIANGLES_ATI);
 
-	if (clmodel == cl.model_precache_vwep[0])
-	{
-		extern int cl_playerindex;
-		clmodel = cl.model_precache[cl_playerindex];
-	}
-
-	if (e->flags & Q2RF_WEAPONMODEL)
-	{
-		VectorCopy(currententity->origin, saveorg);
-		VectorCopy(r_refdef.vieworg, currententity->origin);
-	}
-
-	memset(&mesh, 0, sizeof(mesh));
 	for(surfnum=0; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)), surfnum++)
 	{
-		needrecolour = Alias_GAliasBuildMesh(&mesh, inf, e, e->shaderRGBAf[3], nolightdir);
-
-		shader = currententity->forcedshader;
 		skin = GL_ChooseSkin(inf, clmodel->name, surfnum, e);
-
-		if (!shader)
+		shader = e->forcedshader?e->forcedshader:skin->shader;
+		if (shader)
 		{
-			if (skin && skin->shader)
-				shader = skin->shader;
-			else
-			{
-				shader = &reskinnedmodelshader;
-				skin = &shader->defaulttextures;
-				reskinnedmodelshader.numpasses = 1;
-				reskinnedmodelshader.passes[0].flags = 0;
-				reskinnedmodelshader.passes[0].numMergedPasses = 1;
-				reskinnedmodelshader.passes[0].anim_frames[0] = skin->base;
-				if (nolightdir || !mesh.normals_array || !mesh.colors4f_array)
-				{
-					reskinnedmodelshader.passes[0].rgbgen = RGB_GEN_IDENTITY_LIGHTING;
-					reskinnedmodelshader.passes[0].flags |= SHADER_PASS_NOCOLORARRAY;
-				}
-				else
-					reskinnedmodelshader.passes[0].rgbgen = RGB_GEN_LIGHTING_DIFFUSE;
-				reskinnedmodelshader.passes[0].alphagen = (e->shaderRGBAf[3]<1)?ALPHA_GEN_ENTITY:ALPHA_GEN_IDENTITY;
-				reskinnedmodelshader.passes[0].shaderbits |= SBITS_MISC_DEPTHWRITE;
-				reskinnedmodelshader.passes[0].blendmode = GL_MODULATE;
-				reskinnedmodelshader.passes[0].texgen = T_GEN_DIFFUSE;
+			b = BE_GetTempBatch();
+			if (!b)
+				break;
 
-				reskinnedmodelshader.flags = SHADER_CULL_FRONT;
-			}
+			b->buildmeshes = R_GAlias_DrawBatch;
+			b->ent = e;
+			b->mesh = NULL;
+			b->firstmesh = 0;
+			b->meshes = 1;
+			b->skin = skin;
+			b->texture = NULL;
+			b->shader = shader;
+			b->lightmap = surfnum;
+			b->next = batches[shader->sort];
+			batches[shader->sort] = b;
 		}
-
-		BE_DrawMesh_Single(shader, &mesh, NULL, skin);
 	}
-
-	if (e->flags & Q2RF_WEAPONMODEL)
-		VectorCopy(saveorg, currententity->origin);
-
-	if (qglPNTrianglesfATI && gl_ati_truform.ival)
-		qglDisable(GL_PN_TRIANGLES_ATI);
-
-	qglPopMatrix();
-
-	if (gl_affinemodels.value)
-		qglHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
-
-	if (e->flags & Q2RF_DEPTHHACK)
-		qglDepthRange (gldepthmin, gldepthmax);
-
-	BE_SelectMode(rmode, 0);
 }
 
 //returns the rotated offset of the two points in result
@@ -1275,9 +1205,7 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 	if (Length(lightorg) > radius + clmodel->radius)
 		return;
 
-	qglPushMatrix();
-	R_RotateForEntity(e, clmodel);
-
+	BE_SelectEntity(e);
 
 	inf = RMod_Extradata (clmodel);
 	while(inf)
@@ -1295,8 +1223,6 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 		else
 			inf = NULL;
 	}
-
-	qglPopMatrix();
 }
 #endif
 

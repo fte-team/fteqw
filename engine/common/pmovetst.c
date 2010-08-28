@@ -88,21 +88,18 @@ hull_t	*PM_HullForBox (vec3_t mins, vec3_t maxs)
 
 int PM_TransformedModelPointContents (model_t *mod, vec3_t p, vec3_t origin, vec3_t angles)
 {
-	vec3_t p_l, forward, up, right, temp;
+	vec3_t p_l, axis[3];
 	VectorSubtract (p, origin, p_l);
 
 	// rotate start and end into the models frame of reference
 	if (angles[0] || angles[1] || angles[2])
 	{
-		AngleVectors (angles, forward, right, up);
-
-		VectorCopy (p_l, temp);
-		p_l[0] = DotProduct (temp, forward);
-		p_l[1] = -DotProduct (temp, right);
-		p_l[2] = DotProduct (temp, up);
+		AngleVectors (angles, axis[0], axis[1], axis[2]);
+		VectorNegate(axis[1], axis[1]);
+		return mod->funcs.PointContents(mod, axis, p_l);
 	}
 
-	return mod->funcs.PointContents(mod, p_l);
+	return mod->funcs.PointContents(mod, NULL, p_l);
 }
 
 
@@ -123,7 +120,7 @@ int PM_PointContents (vec3_t p)
 	pm = pmove.physents[0].model;
 	if (!pm)
 		return FTECONTENTS_EMPTY;
-	pc = pm->funcs.PointContents(pm, p);
+	pc = pm->funcs.PointContents(pm, NULL, p);
 	//we need this for e2m2 - waterjumping on to plats wouldn't work otherwise.
 	for (num = 1; num < pmove.numphysent; num++)
 	{
@@ -206,50 +203,24 @@ static vec3_t trace_extents;
 static qboolean PM_TransformedHullCheck (model_t *model, vec3_t start, vec3_t end, trace_t *trace, vec3_t origin, vec3_t angles)
 {
 	vec3_t		start_l, end_l;
-	vec3_t		a;
-	vec3_t		forward, right, up;
-	vec3_t		temp;
-	qboolean	rotated;
 	int i;
+	vec3_t		axis[3];
 
 	// subtract origin offset
 	VectorSubtract (start, origin, start_l);
 	VectorSubtract (end, origin, end_l);
 
-	// rotate start and end into the models frame of reference
-	if (model && 
-	(angles[0] || angles[1] || angles[2]) )
-		rotated = true;
-	else
-		rotated = false;
-
-	if (rotated)
-	{
-		AngleVectors (angles, forward, right, up);
-
-		VectorCopy (start_l, temp);
-		start_l[0] = DotProduct (temp, forward);
-		start_l[1] = -DotProduct (temp, right);
-		start_l[2] = DotProduct (temp, up);
-
-		VectorCopy (end_l, temp);
-		end_l[0] = DotProduct (temp, forward);
-		end_l[1] = -DotProduct (temp, right);
-		end_l[2] = DotProduct (temp, up);
-	}
 	// sweep the box through the model
-
 	if (model)
 	{
-		for (i = 0; i < 3; i++)
+		if (angles[0] || angles[1] || angles[2])
 		{
-			if (start_l[i]+player_mins[i] > model->maxs[i] && end_l[i] + player_mins[i] > model->maxs[i])
-				return false;
-			if (start_l[i]+player_maxs[i] < model->mins[i] && end_l[i] + player_maxs[i] < model->mins[i])
-				return false;
+			AngleVectors (angles, axis[0], axis[1], axis[2]);
+			VectorNegate(axis[1], axis[1]);
+			model->funcs.Trace(model, 0, 0, axis, start_l, end_l, player_mins, player_maxs, trace);
 		}
-
-		model->funcs.Trace(model, 0, 0, start_l, end_l, player_mins, player_maxs, trace);
+		else
+			model->funcs.Trace(model, 0, 0, NULL, start_l, end_l, player_mins, player_maxs, trace);
 	}
 	else
 	{
@@ -264,33 +235,9 @@ static qboolean PM_TransformedHullCheck (model_t *model, vec3_t start, vec3_t en
 		Q1BSP_RecursiveHullCheck (&box_hull, box_hull.firstclipnode, 0, 1, start_l, end_l, trace);
 	}
 
-	if (rotated)
-	{
-		// FIXME: figure out how to do this with existing angles
-//		VectorNegate (angles, a);
-
-		if (trace->fraction != 1.0)
-		{
-			a[0] = -angles[0];
-			a[1] = -angles[1];
-			a[2] = -angles[2];
-			AngleVectors (a, forward, right, up);
-
-			VectorCopy (trace->plane.normal, temp);
-			trace->plane.normal[0] = DotProduct (temp, forward);
-			trace->plane.normal[1] = -DotProduct (temp, right);
-			trace->plane.normal[2] = DotProduct (temp, up);
-		}
-		trace->endpos[0] = start[0] + trace->fraction * (end[0] - start[0]);
-		trace->endpos[1] = start[1] + trace->fraction * (end[1] - start[1]);
-		trace->endpos[2] = start[2] + trace->fraction * (end[2] - start[2]);
-	}
-	else
-	{
-		trace->endpos[0] += origin[0];
-		trace->endpos[1] += origin[1];
-		trace->endpos[2] += origin[2];
-	}
+	trace->endpos[0] += origin[0];
+	trace->endpos[1] += origin[1];
+	trace->endpos[2] += origin[2];
 	return true;
 }
 

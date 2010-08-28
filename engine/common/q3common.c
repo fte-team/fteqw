@@ -358,7 +358,7 @@ int VMQ3_Cvar_Update(vmcvar_t *v)
 	if (!c)
 		return 0;	//that slot isn't active yet
 
-	v->integer = c->value;
+	v->integer = c->ival;
 	v->value = c->value;
 	v->modificationCount = c->modified;
 	Q_strncpyz(v->string, c->string, sizeof(v->string));

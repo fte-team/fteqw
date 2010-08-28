@@ -33,10 +33,10 @@ qboolean RMod_LoadSurfedges (lump_t *l);
 void RMod_LoadLighting (lump_t *l);
 
 
-qboolean CM_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace);
-qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace);
-unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t p, vec3_t mins, vec3_t maxs);
-unsigned int Q2BSP_PointContents(model_t *mod, vec3_t p);
+qboolean CM_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace);
+qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace);
+unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
+unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p);
 
 
 
@@ -3691,6 +3691,13 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 				else
 					noerrors = noerrors && CModQ3_LoadRFaces	(&header.lumps[Q3LUMP_SURFACES]);
 				noerrors = noerrors && CModQ3_LoadMarksurfaces (&header.lumps[Q3LUMP_LEAFSURFACES]);	//fixme: duplicated loading.
+
+				/*make sure all textures have a shader*/
+				for (i=0; i<loadmodel->numtextures; i++)
+				{
+					if (!loadmodel->textures[i]->shader)
+						loadmodel->textures[i]->shader = R_RegisterShader_Lightmap(loadmodel->textures[i]->name);
+				}
 			}
 #endif
 			noerrors = noerrors && CModQ3_LoadLeafFaces	(&header.lumps[Q3LUMP_LEAFSURFACES]);
@@ -3929,7 +3936,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 
 
 			mod->hulls[0].firstclipnode = bm->headnode;
-			mod->hulls[j].available = true;
+			mod->hulls[0].available = true;
 			mod->nummodelsurfaces = bm->numsurfaces;
 			mod->firstmodelsurface = bm->firstsurface;
 			for (j=1 ; j<MAX_MAP_HULLSM ; j++)
@@ -4313,7 +4320,7 @@ int CM_PointContents (model_t *mod, vec3_t p)
 	return contents;
 }
 
-unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t p, vec3_t mins, vec3_t maxs)
+unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs)
 {
 	int	contents;
 	if (!DotProduct(mins, mins) && !DotProduct(maxs, maxs))
@@ -5154,12 +5161,12 @@ trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 	return trace_trace;
 }
 
-qboolean CM_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
+qboolean CM_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
 {
 	*trace = CM_BoxTrace(model, start, end, mins, maxs, MASK_PLAYERSOLID);
 	return trace->fraction != 1;
 }
-qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace)
+qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace)
 {
 	*trace = CM_BoxTrace(model, start, end, mins, maxs, contents);
 	return trace->fraction != 1;
@@ -5668,7 +5675,7 @@ qboolean Q2BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 		return true;
 	return false;
 }*/
-unsigned int Q2BSP_PointContents(model_t *mod, vec3_t p)
+unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p)
 {
 	int pc, ret = FTECONTENTS_EMPTY;
 	pc = CM_PointContents (mod, p);

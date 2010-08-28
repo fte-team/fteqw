@@ -37,9 +37,6 @@ extern int		gl_canstencil;
 FTEPFNGLCOMPRESSEDTEXIMAGE2DARBPROC qglCompressedTexImage2DARB;
 FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImageARB;
 
-#define	Q2RF_WEAPONMODEL		4		// only draw through eyes
-#define Q2RF_DEPTHHACK 16
-
 entity_t	r_worldentity;
 
 vec3_t		modelorg, r_entorigin;
@@ -437,33 +434,10 @@ void GL_SetupSceneProcessingTextures (void)
 	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, pp_edge_tex);
 }
 
-void R_RotateForEntity (entity_t *e, model_t *mod)
+void R_RotateForEntity (const entity_t *e, const model_t *mod)
 {
+	float mv[16];
 	float m[16];
-	if (e->flags & Q2RF_WEAPONMODEL && r_refdef.currentplayernum>=0)
-	{	//rotate to view first
-		m[0] = cl.viewent[r_refdef.currentplayernum].axis[0][0];
-		m[1] = cl.viewent[r_refdef.currentplayernum].axis[0][1];
-		m[2] = cl.viewent[r_refdef.currentplayernum].axis[0][2];
-		m[3] = 0;
-
-		m[4] = cl.viewent[r_refdef.currentplayernum].axis[1][0];
-		m[5] = cl.viewent[r_refdef.currentplayernum].axis[1][1];
-		m[6] = cl.viewent[r_refdef.currentplayernum].axis[1][2];
-		m[7] = 0;
-
-		m[8] = cl.viewent[r_refdef.currentplayernum].axis[2][0];
-		m[9] = cl.viewent[r_refdef.currentplayernum].axis[2][1];
-		m[10] = cl.viewent[r_refdef.currentplayernum].axis[2][2];
-		m[11] = 0;
-
-		m[12] = cl.viewent[r_refdef.currentplayernum].origin[0];
-		m[13] = cl.viewent[r_refdef.currentplayernum].origin[1];
-		m[14] = cl.viewent[r_refdef.currentplayernum].origin[2];
-		m[15] = 1;
-
-		qglMultMatrixf(m);
-	}
 
 	m[0] = e->axis[0][0];
 	m[1] = e->axis[0][1];
@@ -485,101 +459,72 @@ void R_RotateForEntity (entity_t *e, model_t *mod)
 	m[14] = e->origin[2];
 	m[15] = 1;
 
-	qglMultMatrixf(m);
-
-	if (!mod)
-		return;
-
 	if (e->scale != 1 && e->scale != 0)	//hexen 2 stuff
 	{
-		float tmatrix[3][4];
-		vec3_t scale;
-		vec3_t scale_origin;
-		float xyfact, zfact, entScale;
-		scale[0] = (mod->maxs[0]-mod->mins[0])/255;
-		scale[1] = (mod->maxs[1]-mod->mins[1])/255;
-		scale[2] = (mod->maxs[2]-mod->mins[2])/255;
-		scale_origin[0] = mod->mins[0];
-		scale_origin[1] = mod->mins[1];
-		scale_origin[2] = mod->mins[2];
-
-
-		entScale = (float)e->scale;
+		float z;
+		float escale;
+		escale = e->scale;
 		switch(e->drawflags&SCALE_TYPE_MASKIN)
 		{
 		default:
 		case SCALE_TYPE_UNIFORM:
-			tmatrix[0][0] = scale[0]*entScale;
-			tmatrix[1][1] = scale[1]*entScale;
-			tmatrix[2][2] = scale[2]*entScale;
-			xyfact = zfact = (entScale-1.0)*127.95;
+			VectorScale((m+0), escale, (m+0));
+			VectorScale((m+4), escale, (m+4));
+			VectorScale((m+8), escale, (m+8));
 			break;
 		case SCALE_TYPE_XYONLY:
-			tmatrix[0][0] = scale[0]*entScale;
-			tmatrix[1][1] = scale[1]*entScale;
-			tmatrix[2][2] = scale[2];
-			xyfact = (entScale-1.0)*127.95;
-			zfact = 1.0;
+			VectorScale((m+0), escale, (m+0));
+			VectorScale((m+4), escale, (m+4));
 			break;
 		case SCALE_TYPE_ZONLY:
-			tmatrix[0][0] = scale[0];
-			tmatrix[1][1] = scale[1];
-			tmatrix[2][2] = scale[2]*entScale;
-			xyfact = 1.0;
-			zfact = (entScale-1.0)*127.95;
+			VectorScale((m+8), escale, (m+8));
 			break;
 		}
-		switch(currententity->drawflags&SCALE_ORIGIN_MASKIN)
+		if (mod && (e->drawflags&SCALE_TYPE_MASKIN) != SCALE_TYPE_XYONLY)
 		{
-		default:
-		case SCALE_ORIGIN_CENTER:
-			tmatrix[0][3] = scale_origin[0]-scale[0]*xyfact;
-			tmatrix[1][3] = scale_origin[1]-scale[1]*xyfact;
-			tmatrix[2][3] = scale_origin[2]-scale[2]*zfact;
-			break;
-		case SCALE_ORIGIN_BOTTOM:
-			tmatrix[0][3] = scale_origin[0]-scale[0]*xyfact;
-			tmatrix[1][3] = scale_origin[1]-scale[1]*xyfact;
-			tmatrix[2][3] = scale_origin[2];
-			break;
-		case SCALE_ORIGIN_TOP:
-			tmatrix[0][3] = scale_origin[0]-scale[0]*xyfact;
-			tmatrix[1][3] = scale_origin[1]-scale[1]*xyfact;
-			tmatrix[2][3] = scale_origin[2]-scale[2]*zfact*2.0;
-			break;
+			switch(e->drawflags&SCALE_ORIGIN_MASKIN)
+			{
+			case SCALE_ORIGIN_CENTER:
+				z = ((mod->maxs[2] + mod->mins[2]) * (1-escale))/2;
+				VectorMA((m+12), z, e->axis[2], (m+12));
+				break;
+			case SCALE_ORIGIN_BOTTOM:
+				VectorMA((m+12), mod->mins[2]*(1-escale), e->axis[2], (m+12));
+				break;
+			case SCALE_ORIGIN_TOP:
+				VectorMA((m+12), -mod->maxs[2], e->axis[2], (m+12));
+				break;
+			}
 		}
-		/*
-		{
-			tmatrix[0][0] = scale[0];
-			tmatrix[1][1] = scale[1];
-			tmatrix[2][2] = scale[2];
-			tmatrix[0][3] = scale_origin[0];
-			tmatrix[1][3] = scale_origin[1];
-			tmatrix[2][3] = scale_origin[2];
-		}
-		*/
-
-		qglTranslatef (tmatrix[0][3],tmatrix[1][3],tmatrix[2][3]);
-		qglScalef (tmatrix[0][0],tmatrix[1][1],tmatrix[2][2]);
-
-		qglScalef(	1/scale[0],
-					1/scale[1],
-					1/scale[2]);
-		qglTranslatef (	-scale_origin[0],
-						-scale_origin[1],
-						-scale_origin[2]);
 	}
-	else if (!strcmp(mod->name, "progs/eyes.mdl"))
+	else if (mod && !strcmp(mod->name, "progs/eyes.mdl"))
 	{
-		// double size of eyes, since they are really hard to see in gl
-		qglTranslatef (0, 0, 0 - (22 + 8));
-		qglScalef (2, 2, 2);
+		/*resize eyes, to make them easier to see*/
+		m[14] -= (22 + 8);
+		VectorScale((m+0), 2, (m+0));
+		VectorScale((m+4), 2, (m+4));
+		VectorScale((m+8), 2, (m+8));
 	}
-
-	if (!ruleset_allow_larger_models.ival && mod->clampscale != 1)
+	if (mod && !ruleset_allow_larger_models.ival && mod->clampscale != 1)
 	{	//possibly this should be on a per-frame basis, but that's a real pain to do
 		Con_DPrintf("Rescaling %s by %f\n", mod->name, mod->clampscale);
-		qglScalef(mod->clampscale, mod->clampscale, mod->clampscale);
+		VectorScale((m+0), mod->clampscale, (m+0));
+		VectorScale((m+4), mod->clampscale, (m+4));
+		VectorScale((m+8), mod->clampscale, (m+8));
+	}
+
+	if (e->flags & Q2RF_WEAPONMODEL && r_refdef.currentplayernum>=0)
+	{
+		/*FIXME: no bob*/
+		float simpleview[16];
+		Matrix4_ModelViewMatrix(simpleview, vec3_origin, vec3_origin);
+		Matrix4_Multiply(simpleview, m, mv);
+		qglLoadMatrixf(mv);
+	}
+	else
+	{
+		Matrix4_Multiply(r_refdef.m_view, m, mv);
+		qglLoadMatrixf(mv);
 	}
 }
 
@@ -1027,8 +972,6 @@ void GLR_DrawEntitiesOnList (void)
 		switch (currententity->model->type)
 		{
 		case mod_alias:
-			if (r_refdef.flags & Q2RDF_NOWORLDMODEL || !cl.worldmodel || cl.worldmodel->type != mod_brush || cl.worldmodel->fromgame == fg_doom)
-				R_DrawGAliasModel (currententity, BEM_STANDARD);
 			break;
 
 #ifdef HALFLIFEMODELS
@@ -1038,8 +981,6 @@ void GLR_DrawEntitiesOnList (void)
 #endif
 
 		case mod_brush:
-			if (!cl.worldmodel || cl.worldmodel->type != mod_brush || cl.worldmodel->fromgame == fg_doom)
-				PPL_BaseBModelTextures (currententity);
 			break;
 
 		case mod_sprite:
@@ -1081,7 +1022,7 @@ void R_SetupGL (void)
 		x = r_refdef.vrect.x * vid.pixelwidth/(int)vid.width;
 		x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * vid.pixelwidth/(int)vid.width;
 		y = (vid.height-r_refdef.vrect.y) * vid.pixelheight/(int)vid.height;
-		y2 = ((int)vid.height - (r_refdef.vrect.y + r_refdef.vrect.height)) * vid.pixelheight/(int)vid.height;
+		y2 = ((int)vid.height - (r_refdef.vrect.y + r_refdef.vrect.height)) * (int)vid.pixelheight/(int)vid.height;
 
 		// fudge around because of frac screen scale
 		if (x > 0)
@@ -1186,6 +1127,8 @@ void R_RenderScene (void)
 		TRACE(("dbg: calling R_DrawWorld\n"));
 		Surf_DrawWorld ();		// adds static entities to the list
 	}
+	else
+		BE_DrawNonWorld();
 
 	S_ExtraUpdate ();	// don't let sound get messed up if going slow
 
@@ -1333,7 +1276,7 @@ static void TransformDir(vec3_t in, vec3_t planea[3], vec3_t viewa[3], vec3_t re
 		VectorMA(result, d, viewa[i], result);
 	}
 }
-void R_DrawPortal(batch_t *batch)
+void R_DrawPortal(batch_t *batch, batch_t *blist)
 {
 	entity_t *view;
 	GLdouble glplane[4];
@@ -1409,7 +1352,7 @@ void R_DrawPortal(batch_t *batch)
 /*FIXME: the batch stuff should be done in renderscene*/
 
 	/*fixup the first mesh index*/
-	for (batch = cl.worldmodel->batches; batch; batch = batch->next)
+	for (batch = blist; batch; batch = batch->next)
 	{
 		batch->firstmesh = batch->meshes;
 	}
@@ -1427,7 +1370,7 @@ void R_DrawPortal(batch_t *batch)
 	R_RenderScene();
 	qglDisable(GL_CLIP_PLANE0);
 
-	for (batch = cl.worldmodel->batches; batch; batch = batch->next)
+	for (batch = blist; batch; batch = batch->next)
 	{
 		batch->firstmesh = 0;
 	}

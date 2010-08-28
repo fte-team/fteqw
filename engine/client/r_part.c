@@ -187,6 +187,7 @@ qboolean TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 	vec3_t delta, ts, te;
 	physent_t *pe;
 	qboolean clipped=false;
+	vec3_t axis[3];
 
 	memset (&trace, 0, sizeof(trace));
 
@@ -204,7 +205,14 @@ qboolean TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 		{
 			VectorSubtract(start, pe->origin, ts);
 			VectorSubtract(end, pe->origin, te);
-			pe->model->funcs.Trace(pe->model, 0, 0, ts, te, vec3_origin, vec3_origin, &trace);
+			if (pe->angles[0] || pe->angles[1] || pe->angles[2])
+			{
+				AngleVectors(pe->angles, axis[0], axis[1], axis[2]);
+				VectorNegate(axis[1], axis[1]);
+				pe->model->funcs.Trace(pe->model, 0, 0, axis, ts, te, vec3_origin, vec3_origin, &trace);
+			}
+			else
+				pe->model->funcs.Trace(pe->model, 0, 0, NULL, ts, te, vec3_origin, vec3_origin, &trace);
 			if (trace.fraction<1)
 			{
 				VectorSubtract(trace.endpos, ts, delta);

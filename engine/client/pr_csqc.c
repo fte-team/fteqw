@@ -701,6 +701,9 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	else
 		rflags = 0;
 
+	if ((int)in->v->effects & EF_NODEPTHTEST)
+		out->flags |= RF_NODEPTHTEST;
+
 	cs_getframestate(in, rflags, &out->framestate);
 
 	VectorCopy(in->v->origin, out->origin);
@@ -804,10 +807,22 @@ static void PF_R_DynamicLight_Set(progfuncs_t *prinst, struct globalvars_s *pr_g
 	switch (field)
 	{
 	case 0:
-		VectorCopy(G_VECTOR(OFS_PARM1), l->origin);
+		VectorCopy(G_VECTOR(OFS_PARM2), l->origin);
+		l->rebuildcache = true;
 		break;
 	case 1:
 		VectorCopy(G_VECTOR(OFS_PARM2), l->color);
+		break;
+	case 2:
+		l->radius = G_FLOAT(OFS_PARM2);
+		l->rebuildcache = true;
+		break;
+	case 3:
+		l->flags = G_FLOAT(OFS_PARM2);
+		l->rebuildcache = true;
+		break;
+	case 4:
+		l->style = G_FLOAT(OFS_PARM2);
 		break;
 	default:
 		break;
@@ -818,10 +833,10 @@ static void PF_R_DynamicLight_Get(progfuncs_t *prinst, struct globalvars_s *pr_g
 	dlight_t *l;
 	unsigned int lno = G_FLOAT(OFS_PARM0);
 	int field = G_FLOAT(OFS_PARM1);
-	if (lno >= cl_maxdlights)
+	if (lno >= rtlights_max)
 	{
 		if (field == -1)
-			G_FLOAT(OFS_RETURN) = cl_maxdlights;
+			G_FLOAT(OFS_RETURN) = rtlights_max;
 		else
 			G_INT(OFS_RETURN) = 0;
 		return;
@@ -834,6 +849,15 @@ static void PF_R_DynamicLight_Get(progfuncs_t *prinst, struct globalvars_s *pr_g
 		break;
 	case 1:
 		VectorCopy(l->color, G_VECTOR(OFS_RETURN));
+		break;
+	case 2:
+		G_FLOAT(OFS_RETURN) = l->radius;
+		break;
+	case 3:
+		G_FLOAT(OFS_RETURN) = l->flags;
+		break;
+	case 4:
+		G_FLOAT(OFS_RETURN) = l->style;
 		break;
 	default:
 		G_INT(OFS_RETURN) = 0;
@@ -1625,7 +1649,7 @@ static int CS_PointContents(vec3_t org)
 {
 	if (!cl.worldmodel)
 		return FTECONTENTS_EMPTY;
-	return cl.worldmodel->funcs.PointContents(cl.worldmodel, org);
+	return cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, org);
 }
 static void PF_cs_pointcontents(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -2494,7 +2518,6 @@ static void PF_cs_particle4(progfuncs_t *prinst, struct globalvars_s *pr_globals
 }
 
 
-void CL_SpawnSpriteEffect(vec3_t org, model_t *model, int startframe, int framecount, int framerate);
 void PF_cl_effect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *org = G_VECTOR(OFS_PARM0);
@@ -2506,7 +2529,7 @@ void PF_cl_effect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	mdl = Mod_ForName(name, false);
 	if (mdl)
-		CL_SpawnSpriteEffect(org, mdl, startframe, endframe, framerate);
+		CL_SpawnSpriteEffect(org, NULL, mdl, startframe, endframe, framerate, 1);
 	else
 		Con_Printf("PF_cl_effect: Couldn't load model %s\n", name);
 }

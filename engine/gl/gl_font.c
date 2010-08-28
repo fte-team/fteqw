@@ -1251,10 +1251,10 @@ float Font_DrawScaleChar(float px, float py, float cw, float ch, unsigned int ch
 
 	if (c->texplane >= DEFAULTPLANE)
 	{
-		sx = ((px+c->left)*(int)vid.width) / (float)vid.pixelwidth;
-		sy = ((py+c->top)*(int)vid.height) / (float)vid.pixelheight;
-		sw = ((curfont->charheight*cw)*vid.width) / (float)vid.pixelwidth;
-		sh = ((curfont->charheight*ch)*vid.height) / (float)vid.pixelheight;
+		sx = ((px+c->left));//*(int)vid.width) / (float)vid.pixelwidth;
+		sy = ((py+c->top));//*(int)vid.height) / (float)vid.pixelheight;
+		sw = ((curfont->charheight*cw));//*vid.width) / (float)vid.pixelwidth;
+		sh = ((curfont->charheight*ch));//*vid.height) / (float)vid.pixelheight;
 
 		if (c->texplane == DEFAULTPLANE)
 			v = Font_BeginChar(fontplanes.defaultfont);
@@ -1263,10 +1263,10 @@ float Font_DrawScaleChar(float px, float py, float cw, float ch, unsigned int ch
 	}
 	else
 	{
-		sx = ((px+c->left)*(int)vid.width) / (float)vid.pixelwidth;
-		sy = ((py+c->top)*(int)vid.height) / (float)vid.pixelheight;
-		sw = ((c->bmw*cw)*vid.width) / (float)vid.pixelwidth;
-		sh = ((c->bmh*ch)*vid.height) / (float)vid.pixelheight;
+		sx = ((px+c->left));//*(int)vid.width) / (float)vid.pixelwidth;
+		sy = ((py+c->top));//*(int)vid.height) / (float)vid.pixelheight;
+		sw = ((c->bmw*cw));//*vid.width) / (float)vid.pixelwidth;
+		sh = ((c->bmh*ch));//*vid.height) / (float)vid.pixelheight;
 		v = Font_BeginChar(fontplanes.texnum[c->texplane]);
 	}
 

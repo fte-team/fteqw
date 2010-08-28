@@ -110,6 +110,7 @@ typedef struct {
 	texnums_t texnum;
 	unsigned int tcolour;
 	unsigned int bcolour;
+	unsigned int pclass;
 	int skinnum;
 	unsigned int subframe;
 	bucket_t bucket;

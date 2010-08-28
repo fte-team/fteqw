@@ -30,29 +30,22 @@ struct wedict_s;
 struct model_s;
 struct world_s;
 
-typedef struct {
-	//deals with FTECONTENTS (assumes against solid)
-	void (*PurgeModel) (struct model_s *mod);
+typedef enum {
+	SHADER_SORT_NONE,
+	SHADER_SORT_PORTAL,
+	SHADER_SORT_SKY,
+	SHADER_SORT_OPAQUE,
+	SHADER_SORT_DECAL,
+	SHADER_SORT_SEETHROUGH,
+	SHADER_SORT_BANNER,
+	SHADER_SORT_UNDERWATER,
+	SHADER_SORT_BLEND,
+	SHADER_SORT_ADDITIVE,
+	SHADER_SORT_NEAREST,
 
-	qboolean (*Trace)			(struct model_s *model, int hulloverride, int frame, vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, struct trace_s *trace);
-	unsigned int (*PointContents)	(struct model_s *model, vec3_t p);
-	unsigned int (*BoxContents)		(struct model_s *model, int hulloverride, int frame, vec3_t p, vec3_t mins, vec3_t maxs);
 
-	//deals with whatever is native for the bsp (gamecode is expected to distinguish this).
-	qboolean (*NativeTrace)		(struct model_s *model, int hulloverride, int frame, vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, unsigned int against, struct trace_s *trace);
-	unsigned int (*NativeContents)(struct model_s *model, int hulloverride, int frame, vec3_t p, vec3_t mins, vec3_t maxs);
-
-	unsigned int (*FatPVS)		(struct model_s *model, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean merge);
-	qboolean (*EdictInFatPVS)	(struct model_s *model, struct pvscache_s *edict, qbyte *pvsbuffer);
-	void (*FindTouchedLeafs)	(struct model_s *model, struct pvscache_s *ent, vec3_t cullmins, vec3_t cullmaxs);	//edict system as opposed to q2 game dll system.
-
-	void (*LightPointValues)	(struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
-	void (*StainNode)			(struct mnode_s *node, float *parms);
-	void (*MarkLights)			(struct dlight_s *light, int bit, struct mnode_s *node);
-
-	qbyte *(*LeafPVS)			(struct model_s *model, int num, qbyte *buffer, unsigned int buffersize);
-	int	(*LeafnumForPoint)		(struct model_s *model, vec3_t point);
-} modelfuncs_t;
+	SHADER_SORT_COUNT
+} shadersort_t;
 
 typedef struct mesh_s
 {
@@ -93,11 +86,17 @@ typedef struct batch_s
 	struct batch_s *next;
 
 	shader_t *shader;
-	struct texture_s *texture;
 	struct vbo_s *vbo;
 	int lightmap;
+	entity_t *ent;
+
+	struct texture_s *texture;
+	struct texnums_s *skin;
 	unsigned int maxmeshes;
-	vec3_t normal;
+	unsigned int flags;
+
+	void (*buildmeshes)(struct batch_s *b);
+	vec3_t normal;	/*used only at load (for portal surfaces, so multiple planes are not part of the same batch)*/
 } batch_t;
 /*
 
@@ -131,6 +130,32 @@ BRUSH MODELS
 ==============================================================================
 */
 
+typedef struct {
+	//deals with FTECONTENTS (assumes against solid)
+	void (*PurgeModel) (struct model_s *mod);
+
+	qboolean (*Trace)			(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, struct trace_s *trace);
+	unsigned int (*PointContents)	(struct model_s *model, vec3_t axis[3], vec3_t p);
+	unsigned int (*BoxContents)		(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
+
+	//deals with whatever is native for the bsp (gamecode is expected to distinguish this).
+	qboolean (*NativeTrace)		(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, unsigned int against, struct trace_s *trace);
+	unsigned int (*NativeContents)(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
+
+	unsigned int (*FatPVS)		(struct model_s *model, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean merge);
+	qboolean (*EdictInFatPVS)	(struct model_s *model, struct pvscache_s *edict, qbyte *pvsbuffer);
+	void (*FindTouchedLeafs)	(struct model_s *model, struct pvscache_s *ent, vec3_t cullmins, vec3_t cullmaxs);	//edict system as opposed to q2 game dll system.
+
+	void (*LightPointValues)	(struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
+	void (*StainNode)			(struct mnode_s *node, float *parms);
+	void (*MarkLights)			(struct dlight_s *light, int bit, struct mnode_s *node);
+
+	qbyte *(*LeafPVS)			(struct model_s *model, int num, qbyte *buffer, unsigned int buffersize);
+	int	(*LeafnumForPoint)		(struct model_s *model, vec3_t point);
+} modelfuncs_t;
+
+
+
 
 //
 // in memory representation
@@ -157,7 +182,7 @@ typedef struct mplane_s
 	qbyte	pad[2];
 } mplane_t;
 
-typedef struct {
+typedef struct texnums_s {
 	texid_t base;
 	texid_t bump;
 	texid_t upperoverlay;
@@ -423,7 +448,9 @@ void Q1BSP_Init(void);
 
 int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, float **out);
 
-qboolean Q1BSP_Trace(struct model_s *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, struct trace_s *trace);
+void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node);
+void GLQ1BSP_LightPointValues(struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
+qboolean Q1BSP_Trace(struct model_s *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, struct trace_s *trace);
 qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, struct trace_s *trace);
 unsigned int Q1BSP_FatPVS (struct model_s *mod, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean add);
 qboolean Q1BSP_EdictInFatPVS(struct model_s *mod, struct pvscache_s *ent, qbyte *pvs);
@@ -826,7 +853,7 @@ typedef struct model_s
 	char		*entities;
 
 	void *terrain;
-	batch_t *batches;
+	batch_t *batches[SHADER_SORT_COUNT];
 
 	unsigned	checksum;
 	unsigned	checksum2;

@@ -864,11 +864,11 @@ static void R_LoadRTLights(void)
 			VectorCopy(rgb, dl->color);
 			dl->die = 0;
 			dl->flags = flags|LFLAG_ALLOW_PPL;
-			if (*cubename)
+			/*if (*cubename)
 			{
 				dl->fov = 90;
 				dl->flags |= LFLAG_SHADOWMAP;
-			}
+			}*/
 			AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
 
 			dl->style = style+1;

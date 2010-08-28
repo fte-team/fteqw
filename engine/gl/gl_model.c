@@ -497,7 +497,10 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 	if (!strcmp(mod->name, "progs/player.mdl"))
 		mod->engineflags |= MDLF_PLAYER | MDLF_DOCRC;
 	else if (!strcmp(mod->name, "progs/flame.mdl") || 
-		!strcmp(mod->name, "progs/flame2.mdl"))
+		!strcmp(mod->name, "progs/flame2.mdl") ||
+		!strcmp(mod->name, "models/flame1.mdl") ||	//hexen2 small standing flame
+		!strcmp(mod->name, "models/flame2.mdl") ||	//hexen2 large standing flame
+		!strcmp(mod->name, "models/cflmtrch.mdl"))	//hexen2 wall torch
 		mod->engineflags |= MDLF_FLAME;
 	else if (!strcmp(mod->name, "progs/bolt.mdl") ||
 		!strcmp(mod->name, "progs/bolt2.mdl") ||
@@ -1114,9 +1117,9 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 				if (gl_bump.ival<2)	//set to 2 to have faster loading.
 				{
 					snprintf(altname, sizeof(altname)-1, "%s_norm", mt->name);
-					tn.bump = R_LoadReplacementTexture(altname, loadname, IF_NOALPHA|IF_NOGAMMA|IF_SUBDIRONLY);
+					tn.bump = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA|IF_SUBDIRONLY);
 					if (!TEXVALID(tn.bump))
-						tn.bump = R_LoadReplacementTexture(altname, "bmodels", IF_NOALPHA|IF_NOGAMMA);
+						tn.bump = R_LoadReplacementTexture(altname, "bmodels", IF_NOGAMMA);
 				}
 				if (!TEXVALID(tn.bump))
 				{
@@ -2685,12 +2688,6 @@ static void Q1BSP_StainNode (mnode_t *node, float *parms)
 #endif
 }
 
-
-void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node);
-qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace);
-void GLQ1BSP_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
-
-
 void RMod_FixupNodeMinsMaxs (mnode_t *node, mnode_t *parent)
 {
 	if (!node)
@@ -3191,17 +3188,17 @@ void * RMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum,
 	{
 		size *= 4;
 		if (!TEXVALID(texnum))
-			texnum = R_LoadTexture32 (name, width, height, (unsigned *)(pinframe + 1), IF_NOGAMMA);
+			texnum = R_LoadTexture32 (name, width, height, (unsigned *)(pinframe + 1), IF_NOGAMMA|IF_CLAMP);
 	}
 	else if (version == SPRITEHL_VERSION)
 	{
 		if (!TEXVALID(texnum))
-			texnum = R_LoadTexture8Pal32 (name, width, height, (qbyte *)(pinframe + 1), (qbyte*)palette, IF_NOGAMMA);
+			texnum = R_LoadTexture8Pal32 (name, width, height, (qbyte *)(pinframe + 1), (qbyte*)palette, IF_NOGAMMA|IF_CLAMP);
 	}
 	else
 	{
 		if (!TEXVALID(texnum))
-			texnum = R_LoadTexture8 (name, width, height, (qbyte *)(pinframe + 1), IF_NOMIPMAP|IF_NOGAMMA, 1);
+			texnum = R_LoadTexture8 (name, width, height, (qbyte *)(pinframe + 1), IF_NOMIPMAP|IF_NOGAMMA|IF_CLAMP, 1);
 	}
 
 	Q_strncpyz(name, loadmodel->name, sizeof(name));

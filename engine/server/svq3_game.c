@@ -86,9 +86,6 @@ char *mapentspointer;
 
 #define	Q3SOLID_BMODEL	0xffffff
 
-#define	Q3CONTENTS_SOLID		Q2CONTENTS_SOLID	// should never be on a brush, only in game
-#define	Q3CONTENTS_BODY			0x2000000	// should never be on a brush, only in game
-
 #define PS_FOR_NUM(n) ((q3playerState_t *)((qbyte *)q3playerstates + sizeofGameClient*(n)))
 
 #define clamp(v,min,max) v = (v>max)?max:((v < min)?min:v)
@@ -402,7 +399,7 @@ static void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs
 	if (!maxs)
 		maxs = vec3_origin;
 
-	sv.world.worldmodel->funcs.NativeTrace(sv.world.worldmodel, 0, 0, start, end, mins, maxs, contentmask, &tr);
+	sv.world.worldmodel->funcs.NativeTrace(sv.world.worldmodel, 0, 0, NULL, start, end, mins, maxs, contentmask, &tr);
 	result->allsolid = tr.allsolid;
 	result->contents = tr.contents;
 	VectorCopy(tr.endpos, result->endpos);
@@ -504,7 +501,7 @@ static int SVQ3_PointContents(vec3_t pos, int entnum)
 
 //	sv.worldmodel->funcs.Trace(sv.worldmodel, 0, 0, pos, pos, vec3_origin, vec3_origin, &tr);
 //	tr = CM_BoxTrace(sv.worldmodel, pos, pos, vec3_origin, vec3_origin, 0);
-	cont = sv.world.worldmodel->funcs.NativeContents (sv.world.worldmodel, 0, 0, pos, vec3_origin, vec3_origin);
+	cont = sv.world.worldmodel->funcs.NativeContents (sv.world.worldmodel, 0, 0, NULL, pos, vec3_origin, vec3_origin);
 
 	if ((unsigned)entnum >= MAX_GENTITIES)
 		ourowner = -1;
@@ -566,7 +563,7 @@ static int SVQ3_Contact(vec3_t mins, vec3_t maxs, q3sharedEntity_t *ent)
 	if (mod->needload || !mod->funcs.Trace)
 		return false;
 
-	mod->funcs.Trace(mod, 0, 0, vec3_origin, vec3_origin, mins, maxs, &tr);
+	mod->funcs.Trace(mod, 0, 0, NULL, vec3_origin, vec3_origin, mins, maxs, &tr);
 
 	if (tr.startsolid)
 		return true;
@@ -2822,7 +2819,6 @@ void SVQ3_ParseUsercmd(client_t *client, qboolean delta)
 		{
 			if(to->servertime <= client->lastcmd.servertime)
 			{
-				Con_Printf("%i vs %i\n", to->servertime, client->lastcmd.servertime);
 				continue;
 			}
 			if (to->servertime-10 > sv.time*1000)	//10 ms allows some server latency...

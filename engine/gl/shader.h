@@ -19,20 +19,6 @@ typedef enum {
 } shadertype_t;
 
 typedef enum {
-	SHADER_SORT_NONE,
-	SHADER_SORT_PORTAL,
-	SHADER_SORT_SKY,
-	SHADER_SORT_OPAQUE,
-	SHADER_SORT_DECAL,
-	SHADER_SORT_SEETHROUGH,
-	SHADER_SORT_BANNER,
-	SHADER_SORT_UNDERWATER,
-	SHADER_SORT_BLEND,
-	SHADER_SORT_ADDITIVE,
-	SHADER_SORT_NEAREST
-} shadersort_t;
-
-typedef enum {
 	MF_NONE			= 1<<0,
 	MF_NORMALS		= 1<<1,
 	MF_TRNORMALS	= 1<<2,
@@ -243,6 +229,19 @@ typedef struct
 	texid_t			nearbox_textures[6];
 } skydome_t;
 
+enum{
+	PERMUTATION_GENERIC = 0,
+	PERMUTATION_BUMPMAP = 1,
+	PERMUTATION_SPECULAR = 2,
+	PERMUTATION_BUMP_SPEC,
+	PERMUTATION_OFFSET = 4,
+	PERMUTATION_OFFSET_BUMP,
+	PERMUTATION_OFFSET_SPEC,
+	PERMUTATION_OFFSET_BUMP_SPEC,
+
+	PERMUTATIONS
+};
+
 typedef struct {
 	enum shaderprogparmtype_e {
 		SP_BAD,
@@ -267,8 +266,14 @@ typedef struct {
 		SP_CVAR3F,
 		SP_TEXTURE
 	} type;
-	unsigned int handle;
+	unsigned int handle[PERMUTATIONS];
+	union
+	{
+		int ival;
+		void *pval;
+	};
 } shaderprogparm_t;
+
 
 typedef struct {
 	float factor;
@@ -318,7 +323,7 @@ struct shader_s
 
 	union {
 		int glsl;
-	} programhandle;
+	} programhandle[PERMUTATIONS];
 	int numprogparams;
 	shaderprogparm_t progparm[SHADER_PROGPARMS_MAX];
 
@@ -393,9 +398,11 @@ void BE_SelectMode(backendmode_t mode, unsigned int flags);
   Rules for using a list: Every mesh must be part of the same VBO, shader, lightmap, and must have the same pointers set*/
 void BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **mesh, vbo_t *vbo, texnums_t *texnums);
 void BE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums);
+batch_t *BE_GetTempBatch(void);
 
 //Asks the backend to invoke DrawMeshChain for each surface, and to upload lightmaps as required
 void BE_DrawWorld (qbyte *vis);
+void BE_DrawNonWorld (void);
 
 //called at init, force the display to the right defaults etc
 void BE_Init(void);
@@ -411,8 +418,6 @@ void BE_GenerateProgram(shader_t *shader);
 
 #ifdef RTLIGHTS
 void BE_PushOffsetShadow(qboolean foobar);
-//submits the world and ents... used only by gl_shadows.c
-void BE_SubmitMeshes (void);
 //sets up gl for depth-only FIXME
 void BE_SetupForShadowMap(void);
 //Called from shadowmapping code into backend
@@ -424,6 +429,8 @@ void Sh_Shutdown(void);
 void BE_BaseEntShadowDepth(void);
 //Sets the given light+colour to be the current one that everything is to be lit/culled by.
 void BE_SelectDLight(dlight_t *dl, vec3_t colour);
+
+void BE_SelectEntity(entity_t *ent);
 //Returns true if the mesh is not lit by the current light
 qboolean BE_LightCullModel(vec3_t org, model_t *model);
 #endif

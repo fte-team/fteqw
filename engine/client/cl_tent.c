@@ -189,11 +189,12 @@ typedef struct
 
 beam_t		cl_beams[MAX_BEAMS];
 
-#define	MAX_EXPLOSIONS	32
+#define	MAX_EXPLOSIONS	256
 typedef struct
 {
 	vec3_t	origin;
 	vec3_t	oldorigin;
+	vec3_t	velocity;
 
 	int firstframe;
 	int numframes;
@@ -631,6 +632,7 @@ void CL_ParseStream (int type)
 	b->model = NULL;
 	b->endtime = cl.time + duration;
 	b->alpha = 1;
+	b->skin = skin;
 	VectorCopy (start, b->start);
 	VectorCopy (end, b->end);
 
@@ -671,8 +673,12 @@ void CL_ParseStream (int type)
 		b->particleeffect = P_FindParticleType("te_stream_sunstaff2");
 		R_AddStain(end, -10, -10, -10, 20);
 		break;
+	case TEH2_STREAM_COLORBEAM:
+		b->model = Mod_ForName("models/stclrbm.mdl", true);
+		b->particleeffect = P_FindParticleType("te_stream_colorbeam");
+		break;
 	default:
-		Con_Printf("Oh noes! type %i\n", type);
+		Con_Printf("CL_ParseStream: type %i\n", type);
 		break;
 	}
 }
@@ -1420,6 +1426,7 @@ void CL_ParseTEnt (void)
 void MSG_ReadPos (vec3_t pos);
 void MSG_ReadDir (vec3_t dir);
 typedef struct {
+	char name[64];
 	int netstyle;
 	int particleeffecttype;
 	char stain[3];
@@ -1447,6 +1454,7 @@ void CL_ParseCustomTEnt(void)
 	char *str;
 	clcustomtents_t *t;
 	int type = MSG_ReadByte();
+	qboolean failed;
 
 	if (type == 255)	//255 is register
 	{
@@ -1457,6 +1465,7 @@ void CL_ParseCustomTEnt(void)
 
 		t->netstyle = MSG_ReadByte();
 		str = MSG_ReadString();
+		Q_strncpyz(t->name, str, sizeof(t->name));
 		t->particleeffecttype = P_ParticleTypeForName(str);
 
 		if (t->netstyle & CTE_STAINS)
@@ -1495,7 +1504,7 @@ void CL_ParseCustomTEnt(void)
 	{
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		P_ParticleTrail(pos, pos2, t->particleeffecttype, NULL);
+		failed = P_ParticleTrail(pos, pos2, t->particleeffecttype, NULL);
 	}
 	else
 	{
@@ -1507,13 +1516,23 @@ void CL_ParseCustomTEnt(void)
 		MSG_ReadPos (pos);
 		VectorCopy(pos, pos2);
 
-		if (t->netstyle & CTE_CUSTOMDIRECTION)
+		if (t->netstyle & CTE_CUSTOMVELOCITY)
+		{
+			dir[0] = MSG_ReadCoord();
+			dir[1] = MSG_ReadCoord();
+			dir[2] = MSG_ReadCoord();
+			failed = P_RunParticleEffectType(pos, dir, count, t->particleeffecttype);
+		}
+		else if (t->netstyle & CTE_CUSTOMDIRECTION)
 		{
 			MSG_ReadDir (dir);
-			P_RunParticleEffectType(pos, dir, 1, t->particleeffecttype);
+			failed = P_RunParticleEffectType(pos, dir, count, t->particleeffecttype);
 		}
-		else P_RunParticleEffectType(pos, NULL, 1, t->particleeffecttype);
+		else failed = P_RunParticleEffectType(pos, NULL, count, t->particleeffecttype);
 	}
+
+	if (failed)
+		Con_Printf("Failed to create effect %s\n", t->name);
 
 	if (t->netstyle & CTE_STAINS)
 	{	//added at pos2 - end of trail
@@ -1685,7 +1704,7 @@ void CL_ParseParticleEffect4 (void)
 	P_RunParticleEffect4 (org, radius, color, effect, msgcount);
 }
 
-void CL_SpawnSpriteEffect(vec3_t org, model_t *model, int startframe, int framecount, int framerate)
+void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, model_t *model, int startframe, int framecount, int framerate, float alpha)
 {
 	explosion_t	*ex;
 
@@ -1696,10 +1715,16 @@ void CL_SpawnSpriteEffect(vec3_t org, model_t *model, int startframe, int framec
 	ex->firstframe = startframe;
 	ex->numframes = framecount;
 	ex->framerate = framerate;
+	ex->alpha = alpha;
 
 	ex->angles[0] = 0;
 	ex->angles[1] = 0;
 	ex->angles[2] = 0;
+
+	if (dir)
+		VectorCopy(dir, ex->velocity);
+	else
+		VectorClear(ex->velocity);
 }
 
 // [vector] org [byte] modelindex [byte] startframe [byte] framecount [byte] framerate
@@ -1730,7 +1755,7 @@ void CL_ParseEffect (qboolean effect2)
 	framerate = MSG_ReadByte();
 
 
-	CL_SpawnSpriteEffect(org, cl.model_precache[modelindex], startframe, framecount, framerate);
+	CL_SpawnSpriteEffect(org, vec3_origin, cl.model_precache[modelindex], startframe, framecount, framerate, 1);
 }
 
 #ifdef Q2CLIENT
@@ -2854,7 +2879,7 @@ void CL_UpdateExplosions (void)
 		ent = CL_NewTempEntity ();
 		if (!ent)
 			return;
-		VectorCopy (ex->origin, ent->origin);
+		VectorMA (ex->origin, f, ex->velocity, ent->origin);
 		VectorCopy (ex->oldorigin, ent->oldorigin);
 		VectorCopy (ex->angles, ent->angles);
 		ent->skinnum = ex->skinnum;
@@ -2866,9 +2891,9 @@ void CL_UpdateExplosions (void)
 		ent->framestate.g[FS_REG].frame[0] = of+firstframe;
 		ent->framestate.g[FS_REG].lerpfrac = (f - (int)f);
 		if (ent->model->type == mod_sprite)
-			ent->shaderRGBAf[3] = 1;
+			ent->shaderRGBAf[3] = ex->alpha;	/*sprites don't fade over time, the animation should do it*/
 		else
-			ent->shaderRGBAf[3] = 1.0 - f/(numframes);
+			ent->shaderRGBAf[3] = (1.0 - f/(numframes))*ex->alpha;
 		ent->flags = ex->flags;
 	}
 

@@ -1276,13 +1276,14 @@ static void TransformDir(vec3_t in, vec3_t planea[3], vec3_t viewa[3], vec3_t re
 		VectorMA(result, d, viewa[i], result);
 	}
 }
-void R_DrawPortal(batch_t *batch, batch_t *blist)
+void R_DrawPortal(batch_t *batch, batch_t **blist)
 {
 	entity_t *view;
 	GLdouble glplane[4];
 	plane_t plane;
 	refdef_t oldrefdef;
 	mesh_t *mesh = batch->mesh[batch->firstmesh];
+	int sort;
 
 	if (r_refdef.recurse)
 		return;
@@ -1323,7 +1324,7 @@ void R_DrawPortal(batch_t *batch, batch_t *blist)
 
 		/*calculate where the surface is meant to be*/
 		VectorCopy(mesh->normals_array[0], paxis[0]);
-		PerpendicularVector(paxis[1], paxis[1]);
+		PerpendicularVector(paxis[1], paxis[0]);
 		CrossProduct(paxis[0], paxis[1], paxis[2]);
 		d = DotProduct(view->origin, plane.normal) - plane.dist;
 		VectorMA(view->origin, -d, paxis[0], porigin);
@@ -1352,7 +1353,8 @@ void R_DrawPortal(batch_t *batch, batch_t *blist)
 /*FIXME: the batch stuff should be done in renderscene*/
 
 	/*fixup the first mesh index*/
-	for (batch = blist; batch; batch = batch->next)
+	for (sort = 0; sort < SHADER_SORT_COUNT; sort++)
+	for (batch = blist[sort]; batch; batch = batch->next)
 	{
 		batch->firstmesh = batch->meshes;
 	}
@@ -1370,7 +1372,8 @@ void R_DrawPortal(batch_t *batch, batch_t *blist)
 	R_RenderScene();
 	qglDisable(GL_CLIP_PLANE0);
 
-	for (batch = blist; batch; batch = batch->next)
+	for (sort = 0; sort < SHADER_SORT_COUNT; sort++)
+	for (batch = blist[sort]; batch; batch = batch->next)
 	{
 		batch->firstmesh = 0;
 	}
@@ -1827,9 +1830,6 @@ void GLR_RenderView (void)
 		R_RenderScene ();
 	}
 
-	if (r_bloom.ival)
-		R_BloomBlend();
-
 //	qglDisable(GL_FOG);
 
 	if (r_speeds.ival)
@@ -1850,6 +1850,9 @@ void GLR_RenderView (void)
 	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
 		return;
 
+	if (r_bloom.ival)
+		R_BloomBlend();
+
 	// SCENE POST PROCESSING
 	// we check if we need to use any shaders - currently it's just waterwarp
 	if ((r_waterwarp.value>0 && r_viewleaf && r_viewleaf->contents <= Q1CONTENTS_WATER))
@@ -1863,6 +1866,9 @@ void GLR_RenderView (void)
 
 	if (gl_motionblur.value>0 && gl_motionblur.value < 1 && qglCopyTexImage2D)
 		R_RenderMotionBlur();
+
+	if (qglGetError())
+		Con_Printf("GL Error drawing post processing\n");
 }
 
 #endif

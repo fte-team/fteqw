@@ -1839,7 +1839,10 @@ void Surf_SetupFrame(void)
 
 		r_oldviewcluster = r_viewcluster;
 		r_oldviewcluster2 = r_viewcluster2;
-		leaf = RMod_PointInLeaf (cl.worldmodel, r_origin);
+		if (r_refdef.recurse)
+			leaf = RMod_PointInLeaf (cl.worldmodel, r_refdef.pvsorigin);
+		else
+			leaf = RMod_PointInLeaf (cl.worldmodel, r_origin);
 		r_viewcluster = r_viewcluster2 = leaf->cluster;
 
 		// check above and below so crossing solid water doesn't draw wrong

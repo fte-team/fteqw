@@ -219,7 +219,7 @@ void GLR_InitTextures (void);
 void GLR_InitEfrags (void);
 void GLR_RenderView (void);		// must set r_refdef first
 								// called whenever r_refdef or vid change
-void R_DrawPortal(struct batch_s *batch);
+void R_DrawPortal(struct batch_s *batch, struct batch_s **blist);
 
 void GLR_PreNewMap(void);
 void GLR_NewMap (void);

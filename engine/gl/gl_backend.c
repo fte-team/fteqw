@@ -2818,7 +2818,7 @@ static void BE_SubmitBatch(batch_t *batch)
 	}
 }
 
-static void BE_SubmitMeshesPortals(batch_t *worldlist, batch_t *dynamiclist)
+static void BE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 {
 	batch_t *batch, *old;
 	int i;
@@ -2827,14 +2827,20 @@ static void BE_SubmitMeshesPortals(batch_t *worldlist, batch_t *dynamiclist)
 	{
 		for (i = 0; i < 2; i++)
 		{
-			for (batch = i?dynamiclist:worldlist; batch; batch = batch->next)
+			for (batch = i?dynamiclist:worldlist[SHADER_SORT_PORTAL]; batch; batch = batch->next)
 			{
 				if (batch->meshes == batch->firstmesh)
 					continue;
 
+				if (batch->buildmeshes)
+					batch->buildmeshes(batch);
+				else
+					batch->shader = R_TextureAnimation(batch->ent->framestate.g[FS_REG].frame[0], batch->texture)->shader;
+
+
 				/*draw already-drawn portals as depth-only, to ensure that their contents are not harmed*/
 				BE_SelectMode(BEM_DEPTHONLY, 0);
-				for (old = worldlist; old && old != batch; old = old->next)
+				for (old = worldlist[SHADER_SORT_PORTAL]; old && old != batch; old = old->next)
 				{
 					if (old->meshes == old->firstmesh)
 						continue;
@@ -2851,9 +2857,7 @@ static void BE_SubmitMeshesPortals(batch_t *worldlist, batch_t *dynamiclist)
 				}
 				BE_SelectMode(BEM_STANDARD, 0);
 
-	#if 0
-				R_DrawPortal(batch);
-	#endif
+				R_DrawPortal(batch, worldlist);
 
 				/*clear depth again*/
 				GL_ForceDepthWritable();
@@ -2902,7 +2906,7 @@ void BE_SubmitMeshes (qboolean drawworld, batch_t **blist)
 		if (drawworld)
 		{
 			if (i == SHADER_SORT_PORTAL && !r_noportals.ival && !r_refdef.recurse)
-				BE_SubmitMeshesPortals(model->batches[i], blist[i]);
+				BE_SubmitMeshesPortals(model->batches, blist[i]);
 
 			BE_SubmitMeshesSortList(model->batches[i]);
 		}
@@ -3154,23 +3158,26 @@ void BE_DrawWorld (qbyte *vis)
 	RSpeedLocals();
 	GL_DoSwap();
 
-	if (shaderstate.wmesh > shaderstate.maxwmesh)
+	if (!r_refdef.recurse)
 	{
-		int newm = shaderstate.wmesh;
-		shaderstate.wmeshes = BZ_Realloc(shaderstate.wmeshes, newm * sizeof(*shaderstate.wmeshes));
-		memset(shaderstate.wmeshes + shaderstate.maxwmesh, 0, (newm - shaderstate.maxwmesh) * sizeof(*shaderstate.wmeshes));
-		shaderstate.maxwmesh = newm;
-	}
-	if (shaderstate.wbatch > shaderstate.maxwbatches)
-	{
-		int newm = shaderstate.wbatch;
-		shaderstate.wbatches = BZ_Realloc(shaderstate.wbatches, newm * sizeof(*shaderstate.wbatches));
-		memset(shaderstate.wbatches + shaderstate.maxwbatches, 0, (newm - shaderstate.maxwbatches) * sizeof(*shaderstate.wbatches));
-		shaderstate.maxwbatches = newm;
-	}
+		if (shaderstate.wmesh > shaderstate.maxwmesh)
+		{
+			int newm = shaderstate.wmesh;
+			shaderstate.wmeshes = BZ_Realloc(shaderstate.wmeshes, newm * sizeof(*shaderstate.wmeshes));
+			memset(shaderstate.wmeshes + shaderstate.maxwmesh, 0, (newm - shaderstate.maxwmesh) * sizeof(*shaderstate.wmeshes));
+			shaderstate.maxwmesh = newm;
+		}
+		if (shaderstate.wbatch > shaderstate.maxwbatches)
+		{
+			int newm = shaderstate.wbatch;
+			shaderstate.wbatches = BZ_Realloc(shaderstate.wbatches, newm * sizeof(*shaderstate.wbatches));
+			memset(shaderstate.wbatches + shaderstate.maxwbatches, 0, (newm - shaderstate.maxwbatches) * sizeof(*shaderstate.wbatches));
+			shaderstate.maxwbatches = newm;
+		}
 
-	shaderstate.wmesh = 0;
-	shaderstate.wbatch = 0;
+		shaderstate.wmesh = 0;
+		shaderstate.wbatch = 0;
+	}
 	BE_GenModelBatches(batches);
 
 	shaderstate.curentity = NULL;

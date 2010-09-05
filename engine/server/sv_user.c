@@ -378,7 +378,9 @@ void SV_New_f (void)
 	ClientReliableCheckBlock(host_client, 2);
 
 	ClientReliableWrite_Byte (host_client, svc_cdtrack);
-	if (svprogfuncs)
+	if (progstype == PROG_H2)
+		ClientReliableWrite_Byte (host_client, sv.h2cdtrack);
+	else if (svprogfuncs)
 		ClientReliableWrite_Byte (host_client, ((edict_t*)sv.world.edicts)->v->sounds);
 	else
 		ClientReliableWrite_Byte (host_client, 0);
@@ -470,8 +472,16 @@ void SVNQ_New_f (void)
 
 // send music
 	MSG_WriteByte (&host_client->netchan.message, svc_cdtrack);
-	MSG_WriteByte (&host_client->netchan.message, ((edict_t*)sv.world.edicts)->v->sounds);
-	MSG_WriteByte (&host_client->netchan.message, ((edict_t*)sv.world.edicts)->v->sounds);
+	if (progstype == PROG_H2)
+	{
+		MSG_WriteByte (&host_client->netchan.message, sv.h2cdtrack);
+		MSG_WriteByte (&host_client->netchan.message, sv.h2cdtrack);
+	}
+	else
+	{
+		MSG_WriteByte (&host_client->netchan.message, ((edict_t*)sv.world.edicts)->v->sounds);
+		MSG_WriteByte (&host_client->netchan.message, ((edict_t*)sv.world.edicts)->v->sounds);
+	}
 
 // set view
 	MSG_WriteByte (&host_client->netchan.message, svc_setview);

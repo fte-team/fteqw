@@ -196,7 +196,10 @@ static void *FSZIP_LoadZipFile (vfsfile_t *packhandle, const char *desc)
 		if (unzGetCurrentFileInfo (zip->handle, &file_info, newfiles[i].name, sizeof(newfiles[i].name), NULL, 0, NULL, 0) != UNZ_OK)
 			Con_Printf("Zip Error\n");
 		Q_strlwr(newfiles[i].name);
-		newfiles[i].filelen = file_info.uncompressed_size;
+		if (!*newfiles[i].name || newfiles[i].name[strlen(newfiles[i].name)-1] == '/')
+			newfiles[i].filelen = -1;
+		else
+			newfiles[i].filelen = file_info.uncompressed_size;
 		newfiles[i].filepos = file_info.c_offset;
 
 		nextfileziphandle = unzGoToNextFile (zip->handle);

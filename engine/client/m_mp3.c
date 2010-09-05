@@ -216,7 +216,7 @@ void Media_Clear (void)
 }
 
 qboolean fakecdactive;
-void Media_FakeTrack(int i, qboolean loop)
+qboolean Media_FakeTrack(int i, qboolean loop)
 {
 	char trackname[512];
 
@@ -234,9 +234,11 @@ void Media_FakeTrack(int i, qboolean loop)
 
 		fakecdactive = true;
 		media_playing = true;
+		return true;
 	}
 	else
 		fakecdactive = false;
+	return false;
 }
 
 //actually, this func just flushes and states that it should be playing. the ambientsound func actually changes the track.

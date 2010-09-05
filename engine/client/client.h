@@ -1220,6 +1220,7 @@ typedef struct cin_s cin_t;
 struct cin_s *Media_StartCin(char *name);
 texid_t Media_UpdateForShader(cin_t *cin);
 void Media_ShutdownCin(cin_t *cin);
+qboolean Media_FakeTrack(int i, qboolean loop);
 
 //these accept NULL for cin to mean the current fullscreen video
 void Media_Send_Command(cin_t *cin, char *command);

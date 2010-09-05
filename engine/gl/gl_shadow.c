@@ -2096,7 +2096,12 @@ void Sh_DrawLights(qbyte *vis)
 		return;
 
 	if (!gl_config.arb_shader_objects)
+	{
+		Con_Printf("Missing GL extensions: switching off realtime lighting.\n");
+		r_shadow_realtime_world.ival = 0;
+		r_shadow_realtime_dlight.ival = 0;
 		return;
+	}
 
 	ignoreflags = (r_shadow_realtime_world.value?LFLAG_REALTIMEMODE:LFLAG_NORMALMODE);
 

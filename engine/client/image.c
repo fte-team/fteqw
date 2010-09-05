@@ -2002,6 +2002,9 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 
 	int i, e;
 
+	if (!*name)
+		return r_nulltex;
+
 	image_width = 0;
 	image_height = 0;
 

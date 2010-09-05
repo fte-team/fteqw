@@ -104,21 +104,23 @@ static int CDAudio_GetAudioDiskInfo(void)
 	return 0;
 }
 
-#ifndef NOMEDIA
-void Media_FakeTrack(int i, qboolean loop);
-#endif
-
 void CDAudio_Play(int track, qboolean looping)
 {
 	DWORD				dwReturn;
     MCI_PLAY_PARMS		mciPlayParms;
 	MCI_STATUS_PARMS	mciStatusParms;
 
+#ifndef NOMEDIA
+	if (Media_FakeTrack(track, looping))
+	{
+		if (playing)
+			CDAudio_Stop();
+		return;
+	}
+#endif
+
 	if (!enabled)
 	{
-#ifndef NOMEDIA
-		Media_FakeTrack(track, looping);
-#endif
 		return;
 	}
 	

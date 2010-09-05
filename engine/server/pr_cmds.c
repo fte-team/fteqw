@@ -331,10 +331,25 @@ void CWStateOp (progfuncs_t *prinst, float startFrame, float endFrame, func_t cu
 void ThinkTimeOp (progfuncs_t *prinst, edict_t *ed, float var)
 {
 	stdentvars_t *vars = ed->v;
-#ifdef PARANOID
-	NUM_FOR_EDICT(ed); // Make sure it's in range
-#endif
 	vars->nextthink = pr_global_struct->time+var;
+}
+
+pbool SV_BadField(progfuncs_t *inst, edict_t *foo, const char *keyname, const char *value)
+{
+	/*Worldspawn only fields...*/
+	if (NUM_FOR_EDICT(inst, foo) == 0)
+	{
+		/*hexen2 midi - just mute it, we don't support it*/
+		if (!stricmp(keyname, "MIDI"))
+			return true;
+		/*hexen2 does cd tracks slightly differently too*/
+		if (!stricmp(keyname, "CD"))
+		{
+			sv.h2cdtrack = atoi(value);
+			return true;
+		}
+	}
+	return false;
 }
 
 //int QCEditor (char *filename, int line, int nump, char **parms);
@@ -448,6 +463,7 @@ void Q_SetProgsParms(qboolean forcompiler)
 	//used when loading a game
 	svprogparms.builtinsfor = NULL;//builtin_t *(*builtinsfor) (int num);	//must return a pointer to the builtins that were used before the state was saved.
 	svprogparms.loadcompleate = NULL;//void (*loadcompleate) (int edictsize);	//notification to reset any pointers.
+	svprogparms.badfield = SV_BadField;
 
 	svprogparms.memalloc = PR_CB_Malloc;//void *(*memalloc) (int size);	//small string allocation	malloced and freed randomly
 	svprogparms.memfree = PR_CB_Free;//void (*memfree) (void * mem);

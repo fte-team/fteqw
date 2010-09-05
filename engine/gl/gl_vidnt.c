@@ -935,7 +935,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 	if (qwglCreateContextAttribsARB)
 	{
 		HGLRC opengl3;
-		int attribs[7];
+		int attribs[9];
 		char *mv;
 		int i = 0;
 
@@ -959,9 +959,9 @@ qboolean VID_AttachGL (rendererstate_t *info)
 
 		//flags
 		attribs[i+1] = 0;
-		if (vid_gl_context_debug.value)
+		if (vid_gl_context_debug.ival)
 			attribs[i+1] |= WGL_CONTEXT_DEBUG_BIT_ARB;
-		if (vid_gl_context_forwardcompatible.value)
+		if (vid_gl_context_forwardcompatible.ival)
 			attribs[i+1] |= WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB;
 
 		if (attribs[i+1])
@@ -970,39 +970,39 @@ qboolean VID_AttachGL (rendererstate_t *info)
 			i += 2;
 		}
 
-		attribs[i+1] = 0;
-		if (vid_gl_context_compatibility.value)
-			attribs[i+1] |= WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB;
-		else
-			attribs[i+1] |= WGL_CONTEXT_CORE_PROFILE_BIT_ARB;
-		attribs[i] = WGL_CONTEXT_PROFILE_MASK_ARB;
-		i+=2;
-
-		attribs[i] = 0;
-
-		if (!i)
+		/*only switch contexts if there's actually a point*/
+		if (i || !vid_gl_context_compatibility.ival)
 		{
-			//just use the default (ie: max = opengl 2.1 or so)
-		}
-		else if ((opengl3 = qwglCreateContextAttribsARB(maindc, NULL, attribs)))
-		{
-			qwglMakeCurrent(NULL, NULL);
-			qwglDeleteContext(baseRC);
-
-			baseRC = opengl3;
-			if (!qwglMakeCurrent( maindc, baseRC ))
-			{
-				Con_SafePrintf(CON_ERROR "wglMakeCurrent failed\n");	//green to make it show.
-				return false;
-			}
-		}
-		else
-		{
-			DWORD error = GetLastError();
-			if (error == ERROR_INVALID_VERSION_ARB)
-				Con_Printf("Unsupported OpenGL context version (%s).\n", vid_gl_context_version.string);
+			attribs[i+1] = 0;
+			if (vid_gl_context_compatibility.ival)
+				attribs[i+1] |= WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB;
 			else
-				Con_Printf("Unknown error creating an OpenGL (%s) Context.\n", vid_gl_context_version.string);
+				attribs[i+1] |= WGL_CONTEXT_CORE_PROFILE_BIT_ARB;
+			attribs[i] = WGL_CONTEXT_PROFILE_MASK_ARB;
+			i+=2;
+
+			attribs[i] = 0;
+
+			if ((opengl3 = qwglCreateContextAttribsARB(maindc, NULL, attribs)))
+			{
+				qwglMakeCurrent(NULL, NULL);
+				qwglDeleteContext(baseRC);
+
+				baseRC = opengl3;
+				if (!qwglMakeCurrent( maindc, baseRC ))
+				{
+					Con_SafePrintf(CON_ERROR "wglMakeCurrent failed\n");	//green to make it show.
+					return false;
+				}
+			}
+			else
+			{
+				DWORD error = GetLastError();
+				if (error == ERROR_INVALID_VERSION_ARB)
+					Con_Printf("Unsupported OpenGL context version (%s).\n", vid_gl_context_version.string);
+				else
+					Con_Printf("Unknown error creating an OpenGL (%s) Context.\n", vid_gl_context_version.string);
+			}
 		}
 	}
 #endif

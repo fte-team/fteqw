@@ -677,6 +677,7 @@ progexterns_t defexterns = {
 	//used when loading a game
 	NULL, //builtin_t *(*builtinsfor) (int num);	//must return a pointer to the builtins that were used before the state was saved.
 	NULL, //void (*loadcompleate) (int edictsize);	//notification to reset any pointers.
+	NULL,
 
 	(void*)malloc, //void *(*memalloc) (int size);	//small string allocation	malloced and freed randomly by the executor. (use memalloc if you want)
 	free, //void (*memfree) (void * mem);

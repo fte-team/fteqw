@@ -141,6 +141,7 @@ typedef struct
 			char		lightstylecolours[MAX_LIGHTSTYLES];
 		};
 	} strings;
+	qbyte		h2cdtrack;
 
 	int			allocated_client_slots;	//number of slots available. (used mostly to stop single player saved games cacking up)
 
@@ -260,10 +261,10 @@ typedef struct
 	char		*demolightstyles[MAX_LIGHTSTYLES];
 #endif
 //====================================================
-
-	int num_static_entities;
 //	movevars_t	demomovevars;	//FIXME:!
 //end this lot... (demo playback)
+
+	int num_static_entities;
 
 	svcustomtents_t customtents[255];
 

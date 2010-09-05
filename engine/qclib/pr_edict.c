@@ -1224,6 +1224,8 @@ char *ED_ParseEdict (progfuncs_t *progfuncs, char *data, edictrun_t *ent)
 			if (!strcmp(keyname, "light"))	//Quake lighthack - allows a field name and a classname to go by the same thing in the level editor
 				if ((key = ED_FindField (progfuncs, "light_lev")))
 					goto cont;
+			if (externs->badfield && externs->badfield(progfuncs, (struct edict_s*)ent, keyname, qcc_token))
+				continue;
 			printf ("'%s' is not a field\n", keyname);
 			continue;
 		}

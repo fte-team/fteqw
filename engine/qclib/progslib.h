@@ -150,6 +150,7 @@ typedef struct progexterns_s {
 	//used when loading a game
 	builtin_t *(*builtinsfor) (int num, int headercrc);	//must return a pointer to the builtins that were used before the state was saved.
 	void (*loadcompleate) (int edictsize);	//notification to reset any pointers.
+	pbool (*badfield)(progfuncs_t *prinst, struct edict_s *ent, const char *keyname, const char *value);	//called for any fields that are not registered
 
 	void *(VARGS *memalloc) (int size);	//small string allocation	malloced and freed randomly by the executor. (use malloc if you want)
 	void (VARGS *memfree) (void * mem);

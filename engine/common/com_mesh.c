@@ -211,6 +211,98 @@ void Mod_NormaliseTextureVectors(vec3_t *n, vec3_t *s, vec3_t *t, int v)
 
 #ifdef SKELETALMODELS
 
+static void GenMatrix(float x, float y, float z, float qx, float qy, float qz, float result[12])
+{
+	float qw;
+	{	//figure out qw
+		float term = 1 - (qx*qx) - (qy*qy) - (qz*qz);
+		if (term < 0)
+			qw = 0;
+		else
+			qw = - (float) sqrt(term);
+	}
+
+	{	//generate the matrix
+		/*
+		float xx      = qx * qx;
+		float xy      = qx * qy;
+		float xz      = qx * qz;
+		float xw      = qx * qw;
+		float yy      = qy * qy;
+		float yz      = qy * qz;
+		float yw      = qy * qw;
+		float zz      = qz * qz;
+		float zw      = qz * qw;
+		result[0*4+0]  = 1 - 2 * ( yy + zz );
+		result[0*4+1]  =     2 * ( xy - zw );
+		result[0*4+2]  =     2 * ( xz + yw );
+		result[0*4+3]  =     x;
+		result[1*4+0]  =     2 * ( xy + zw );
+		result[1*4+1]  = 1 - 2 * ( xx + zz );
+		result[1*4+2]  =     2 * ( yz - xw );
+		result[1*4+3]  =     y;
+		result[2*4+0]  =     2 * ( xz - yw );
+		result[2*4+1]  =     2 * ( yz + xw );
+		result[2*4+2] = 1 - 2 * ( xx + yy );
+		result[2*4+3]  =     z;
+		*/
+
+		   float xx, xy, xz, xw, yy, yz, yw, zz, zw;
+		   float x2, y2, z2;
+		   x2 = qx + qx;
+		   y2 = qy + qy;
+		   z2 = qz + qz;
+
+		   xx = qx * x2;   xy = qx * y2;   xz = qx * z2;
+		   yy = qy * y2;   yz = qy * z2;   zz = qz * z2;
+		   xw = qw * x2;   yw = qw * y2;   zw = qw * z2;
+
+		   result[0*4+0] = 1.0f - (yy + zz);
+		   result[1*4+0] = xy + zw;
+		   result[2*4+0] = xz - yw;
+
+		   result[0*4+1] = xy - zw;
+		   result[1*4+1] = 1.0f - (xx + zz);
+		   result[2*4+1] = yz + xw;
+
+		   result[0*4+2] = xz + yw;
+		   result[1*4+2] = yz - xw;
+		   result[2*4+2] = 1.0f - (xx + yy);
+
+		   result[0*4+3]  =     x;
+		   result[1*4+3]  =     y;
+		   result[2*4+3]  =     z;
+	}
+}
+
+static void PSKGenMatrix(float x, float y, float z, float qx, float qy, float qz, float qw, float result[12])
+{
+	float xx, xy, xz, xw, yy, yz, yw, zz, zw;
+	float x2, y2, z2;
+	x2 = qx + qx;
+	y2 = qy + qy;
+	z2 = qz + qz;
+
+	xx = qx * x2;   xy = qx * y2;   xz = qx * z2;
+	yy = qy * y2;   yz = qy * z2;   zz = qz * z2;
+	xw = qw * x2;   yw = qw * y2;   zw = qw * z2;
+
+	result[0*4+0] = 1.0f - (yy + zz);
+	result[1*4+0] = xy + zw;
+	result[2*4+0] = xz - yw;
+
+	result[0*4+1] = xy - zw;
+	result[1*4+1] = 1.0f - (xx + zz);
+	result[2*4+1] = yz + xw;
+
+	result[0*4+2] = xz + yw;
+	result[1*4+2] = yz - xw;
+	result[2*4+2] = 1.0f - (xx + yy);
+
+	result[0*4+3]  =     x;
+	result[1*4+3]  =     y;
+	result[2*4+3]  =     z;
+}
 
 void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, vecV_t *xyzout, vec3_t *normout)
 {
@@ -254,7 +346,7 @@ void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weight
 	}
 }
 
-static void Alias_CalculateSkeletalNormals(galiasinfo_t *model)
+static float Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 {
 #ifndef SERVERONLY
 	//servers don't need normals. except maybe for tracing... but hey. The normal is calculated on a per-triangle basis.
@@ -275,6 +367,9 @@ static void Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 	index_t *idx;
 	float *bonepose = NULL;
 	float angle;
+	float maxvdist = 0, d, maxbdist = 0;
+	float absmatrix[MAX_BONES*12];
+	float bonedist[MAX_BONES];
 
 	while (model)
 	{
@@ -296,14 +391,62 @@ static void Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 		if (!model->sharesbones || !bonepose)
 		{
 			galiasgroup_t *g;
-			if (!model->groups)
-				return;
-			g = (galiasgroup_t*)((char*)model+model->groupofs);
-			if (g->numposes < 1)
-				return;
-			bonepose = (float*)((char*)g+g->poseofs);
+			galiasbone_t *bones = (galiasbone_t *)((char*)model + model->ofsbones);
+			if (model->baseframeofs)
+				bonepose = (float*)((char*)model + model->baseframeofs);
+			else
+			{
+				if (!model->groups)
+					return 0;
+				g = (galiasgroup_t*)((char*)model+model->groupofs);
+				if (g->numposes < 1)
+					return 0;
+				bonepose = (float*)((char*)g+g->poseofs);
+				if (g->isheirachical)
+				{
+					/*needs to be an absolute skeleton*/
+					for (i = 0; i < model->numbones; i++)
+					{
+						if (bones[i].parent >= 0)
+							R_ConcatTransforms((void*)(absmatrix + bones[i].parent*12), (void*)(bonepose+i*12), (void*)(absmatrix+i*12));
+						else
+							for (j = 0;j < 12;j++)	//parentless
+								absmatrix[i*12+j] = (bonepose)[i*12+j];
+					}
+					bonepose = absmatrix;
+				}
+			}
+			/*calculate the bone sizes (assuming the bones are strung up and hanging or such)*/
+			for (i = 0; i < model->numbones; i++)
+			{
+				vec3_t d;
+				float *b;
+				b = bonepose + i*12;
+				d[0] = b[3];
+				d[1] = b[7];
+				d[2] = b[11];
+				if (bones[i].parent >= 0)
+				{
+					b = bonepose + bones[i].parent*12;
+					d[0] -= b[3];
+					d[1] -= b[7];
+					d[2] -= b[11];
+				}
+				bonedist[i] = Length(d);
+				if (bones[i].parent >= 0)
+					bonedist[i] += bonedist[bones[i].parent];
+				if (maxbdist < bonedist[i])
+					maxbdist = bonedist[i];
+			}
 			for (i = 0; i < numbones; i++)
 				Matrix3x4_InvertTo3x3(bonepose+i*12, inversepose+i*9);
+		}
+
+		for (i = 0; i < numweights; i++)
+		{
+			d = Length(v[i].org);
+			if (maxvdist < d)
+				maxvdist = d;
 		}
 
 		//build the actual base pose positions
@@ -389,6 +532,8 @@ static void Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 		model = next;
 	}
 #endif
+
+	return maxvdist+maxbdist;
 }
 
 static int Alias_BuildLerps(float plerp[4], float *pose[4], int numbones, galiasgroup_t *g1, galiasgroup_t *g2, float lerpfrac, float fg1time, float fg2time)
@@ -397,6 +542,8 @@ static int Alias_BuildLerps(float plerp[4], float *pose[4], int numbones, galias
 	int frame2;
 	float mlerp;	//minor lerp, poses within a group.
 	int l = 0;
+	if (g1 == g2)
+		lerpfrac = 0;
 	if (fg1time < 0)
 		fg1time = 0;
 	mlerp = (fg1time)*g1->rate;
@@ -413,7 +560,8 @@ static int Alias_BuildLerps(float plerp[4], float *pose[4], int numbones, galias
 		frame1=(frame1>g1->numposes-1)?g1->numposes-1:frame1;
 		frame2=(frame2>g1->numposes-1)?g1->numposes-1:frame2;
 	}
-
+	if (frame1 == frame2)
+		mlerp = 0;
 	plerp[l] = (1-mlerp)*(1-lerpfrac);
 	if (plerp[l]>0)
 		pose[l++] = (float *)((char *)g1 + g1->poseofs + sizeof(float)*numbones*12*frame1);
@@ -439,7 +587,8 @@ static int Alias_BuildLerps(float plerp[4], float *pose[4], int numbones, galias
 			frame1=(frame1>g2->numposes-1)?g2->numposes-1:frame1;
 			frame2=(frame2>g2->numposes-1)?g2->numposes-1:frame2;
 		}
-
+		if (frame1 == frame2)
+			mlerp = 0;
 		plerp[l] = (1-mlerp)*(lerpfrac);
 		if (plerp[l]>0)
 			pose[l++] = (float *)((char *)g2 + g2->poseofs + sizeof(float)*numbones*12*frame1);
@@ -567,7 +716,7 @@ int Alias_GetBoneRelations(galiasinfo_t *inf, framestate_t *fstate, float *resul
 	return 0;
 }
 
-//_may_ into bonepose, return value is the real result
+//_may_ write into bonepose, return value is the real result
 float *Alias_GetBonePositions(galiasinfo_t *inf, framestate_t *fstate, float *buffer, int buffersize)
 {
 #ifdef SKELETALMODELS
@@ -920,6 +1069,8 @@ static void Alias_BuildSkeletalMesh(mesh_t *mesh, float *bonepose, galisskeletal
 #ifdef GLQUAKE
 static void Alias_GLDrawSkeletalBones(galiasbone_t *bones, float *bonepose, int bonecount)
 {
+	PPL_RevertToKnownState();
+	BE_SelectEntity(currententity);
 	qglColor3f(1, 0, 0);
 	{
 		int i;
@@ -1060,8 +1211,8 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf,
 		}
 #endif
 #ifdef GLQUAKE
-		if (!mesh->numindexes && qrenderer == QR_OPENGL)
-			Alias_GLDrawSkeletalBones((galiasbone_t*)((char*)inf + inf->ofsbones), (float *)bonepose, inf->numbones);
+		if (!inf->numtransforms && qrenderer == QR_OPENGL)
+			Alias_GLDrawSkeletalBones((galiasbone_t*)((char*)inf + inf->ofsbones), (float *)usebonepose, inf->numbones);
 #endif
 
 		if (mesh->colors4f_array)
@@ -3992,10 +4143,614 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 
 	return true;
 }
+#endif //ZYMOTICMODELS
 
 
+///////////////////////////////////////////////////////////////
+//psk
+#ifdef PSKMODELS
+/*Typedefs copied from DarkPlaces*/
+
+typedef struct pskchunk_s
+{
+	// id is one of the following:
+	// .psk:
+	// ACTRHEAD (recordsize = 0, numrecords = 0)
+	// PNTS0000 (recordsize = 12, pskpnts_t)
+	// VTXW0000 (recordsize = 16, pskvtxw_t)
+	// FACE0000 (recordsize = 12, pskface_t)
+	// MATT0000 (recordsize = 88, pskmatt_t)
+	// REFSKELT (recordsize = 120, pskboneinfo_t)
+	// RAWWEIGHTS (recordsize = 12, pskrawweights_t)
+	// .psa:
+	// ANIMHEAD (recordsize = 0, numrecords = 0)
+	// BONENAMES (recordsize = 120, pskboneinfo_t)
+	// ANIMINFO (recordsize = 168, pskaniminfo_t)
+	// ANIMKEYS (recordsize = 32, pskanimkeys_t)
+	char id[20];
+	// in .psk always 0x1e83b9
+	// in .psa always 0x2e
+	int version;
+	int recordsize;
+	int numrecords;
+} pskchunk_t;
+
+typedef struct pskpnts_s
+{
+	float origin[3];
+} pskpnts_t;
+
+typedef struct pskvtxw_s
+{
+	unsigned short pntsindex; // index into PNTS0000 chunk
+	unsigned char unknown1[2]; // seems to be garbage
+	float texcoord[2];
+	unsigned char mattindex; // index into MATT0000 chunk
+	unsigned char unknown2; // always 0?
+	unsigned char unknown3[2]; // seems to be garbage
+} pskvtxw_t;
+
+typedef struct pskface_s
+{
+	unsigned short vtxwindex[3]; // triangle
+	unsigned char mattindex; // index into MATT0000 chunk
+	unsigned char unknown; // seems to be garbage
+	unsigned int group; // faces seem to be grouped, possibly for smoothing?
+} pskface_t;
+
+typedef struct pskmatt_s
+{
+	char name[64];
+	int unknown[6]; // observed 0 0 0 0 5 0
+} pskmatt_t;
+
+typedef struct pskpose_s
+{
+	float quat[4];
+	float origin[3];
+	float unknown; // probably a float, always seems to be 0
+	float size[3];
+} pskpose_t;
+
+typedef struct pskboneinfo_s
+{
+	char name[64];
+	int unknown1;
+	int numchildren;
+	int parent; // root bones have 0 here
+	pskpose_t basepose;
+} pskboneinfo_t;
+
+typedef struct pskrawweights_s
+{
+	float weight;
+	int pntsindex;
+	int boneindex;
+} pskrawweights_t;
+
+typedef struct pskaniminfo_s
+{
+	char name[64];
+	char group[64];
+	int numbones;
+	int unknown1;
+	int unknown2;
+	int unknown3;
+	float unknown4;
+	float playtime; // not really needed
+	float fps; // frames per second
+	int unknown5;
+	int firstframe;
+	int numframes;
+	// firstanimkeys = (firstframe + frameindex) * numbones
+} pskaniminfo_t;
+
+typedef struct pskanimkeys_s
+{
+	float origin[3];
+	float quat[4];
+	float frametime;
+} pskanimkeys_t;
 
 
+qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
+{
+	pskchunk_t *chunk;
+	unsigned int pos = 0;
+	unsigned int i, j;
+	qboolean fail = false;
+	char basename[MAX_QPATH];
+
+	float *stcoord;
+	galiasinfo_t *gmdl;
+	galiasskin_t *skin;
+	texnums_t *gtexnums;
+	galisskeletaltransforms_t *trans;
+	galiasbone_t *bones;
+	galiasgroup_t *group;
+	float *animmatrix, *basematrix, *basematrix_inverse;
+	unsigned int num_trans;
+	index_t *indexes;
+	float vrad;
+
+	pskpnts_t *pnts = NULL;
+	pskvtxw_t *vtxw = NULL;
+	pskface_t *face = NULL;
+	pskmatt_t *matt = NULL;
+	pskboneinfo_t *boneinfo = NULL;
+	pskrawweights_t *rawweights = NULL;
+	unsigned int num_pnts, num_vtxw=0, num_face=0, num_matt = 0, num_boneinfo=0, num_rawweights=0;
+
+	pskaniminfo_t *animinfo = NULL;
+	pskanimkeys_t *animkeys = NULL;
+	unsigned int num_animinfo=0, num_animkeys=0;
+
+	int hunkstart, hunkend, hunktotal;
+	extern cvar_t temp1;
+
+	/*load the psk*/
+	while (pos < com_filesize && !fail)
+	{
+		chunk = (pskchunk_t*)((char*)buffer + pos);
+		chunk->version = LittleLong(chunk->version);
+		chunk->recordsize = LittleLong(chunk->recordsize);
+		chunk->numrecords = LittleLong(chunk->numrecords);
+
+		pos += sizeof(*chunk);
+
+		if (!strcmp("ACTRHEAD", chunk->id) && chunk->recordsize == 0 && chunk->numrecords == 0)
+		{
+		}
+		else if (!strcmp("PNTS0000", chunk->id) && chunk->recordsize == sizeof(pskpnts_t))
+		{
+			num_pnts = chunk->numrecords;
+			pnts = (pskpnts_t*)((char*)buffer + pos);
+			pos += chunk->recordsize * chunk->numrecords;
+
+			for (i = 0; i < num_pnts; i++)
+			{
+				pnts[i].origin[0] = LittleFloat(pnts[i].origin[0]);
+				pnts[i].origin[1] = LittleFloat(pnts[i].origin[1]);
+				pnts[i].origin[2] = LittleFloat(pnts[i].origin[2]);
+			}
+		}
+		else if (!strcmp("VTXW0000", chunk->id) && chunk->recordsize == sizeof(pskvtxw_t))
+		{
+			num_vtxw = chunk->numrecords;
+			vtxw = (pskvtxw_t*)((char*)buffer + pos);
+			pos += chunk->recordsize * chunk->numrecords;
+
+			for (i = 0; i < num_vtxw; i++)
+			{
+				vtxw[i].pntsindex = LittleShort(vtxw[i].pntsindex);
+				vtxw[i].texcoord[0] = LittleFloat(vtxw[i].texcoord[0]);
+				vtxw[i].texcoord[1] = LittleFloat(vtxw[i].texcoord[1]);
+			}
+		}
+		else if (!strcmp("FACE0000", chunk->id) && chunk->recordsize == sizeof(pskface_t))
+		{
+			num_face = chunk->numrecords;
+			face = (pskface_t*)((char*)buffer + pos);
+			pos += chunk->recordsize * chunk->numrecords;
+
+			for (i = 0; i < num_face; i++)
+			{
+				face[i].vtxwindex[0] = LittleShort(face[i].vtxwindex[0]);
+				face[i].vtxwindex[1] = LittleShort(face[i].vtxwindex[1]);
+				face[i].vtxwindex[2] = LittleShort(face[i].vtxwindex[2]);
+			}
+		}
+		else if (!strcmp("MATT0000", chunk->id) && chunk->recordsize == sizeof(pskmatt_t))
+		{
+			num_matt = chunk->numrecords;
+			matt = (pskmatt_t*)((char*)buffer + pos);
+			pos += chunk->recordsize * chunk->numrecords;
+		}
+		else if (!strcmp("REFSKELT", chunk->id) && chunk->recordsize == sizeof(pskboneinfo_t))
+		{
+			num_boneinfo = chunk->numrecords;
+			boneinfo = (pskboneinfo_t*)((char*)buffer + pos);
+			pos += chunk->recordsize * chunk->numrecords;
+
+			for (i = 0; i < num_boneinfo; i++)
+			{
+				boneinfo[i].parent = LittleLong(boneinfo[i].parent);
+				boneinfo[i].basepose.origin[0] = LittleFloat(boneinfo[i].basepose.origin[0]);
+				boneinfo[i].basepose.origin[1] = LittleFloat(boneinfo[i].basepose.origin[1]);
+				boneinfo[i].basepose.origin[2] = LittleFloat(boneinfo[i].basepose.origin[2]);
+				boneinfo[i].basepose.quat[0] = LittleFloat(boneinfo[i].basepose.quat[0]);
+				boneinfo[i].basepose.quat[1] = LittleFloat(boneinfo[i].basepose.quat[1]);
+				boneinfo[i].basepose.quat[2] = LittleFloat(boneinfo[i].basepose.quat[2]);
+				boneinfo[i].basepose.quat[3] = LittleFloat(boneinfo[i].basepose.quat[3]);
+				boneinfo[i].basepose.size[0] = LittleFloat(boneinfo[i].basepose.size[0]);
+				boneinfo[i].basepose.size[1] = LittleFloat(boneinfo[i].basepose.size[1]);
+				boneinfo[i].basepose.size[2] = LittleFloat(boneinfo[i].basepose.size[2]);
+
+				/*not sure if this is needed, but mimic DP*/
+				if (i)
+				{
+					boneinfo[i].basepose.quat[0] *= -1;
+					boneinfo[i].basepose.quat[2] *= -1;
+				}
+				boneinfo[i].basepose.quat[1] *= -1;
+			}
+		}
+		else if (!strcmp("RAWWEIGHTS", chunk->id) && chunk->recordsize == sizeof(pskrawweights_t))
+		{
+			num_rawweights = chunk->numrecords;
+			rawweights = (pskrawweights_t*)((char*)buffer + pos);
+			pos += chunk->recordsize * chunk->numrecords;
+
+			for (i = 0; i < num_rawweights; i++)
+			{
+				rawweights[i].boneindex = LittleLong(rawweights[i].boneindex);
+				rawweights[i].pntsindex = LittleLong(rawweights[i].pntsindex);
+				rawweights[i].weight = LittleFloat(rawweights[i].weight);
+			}
+		}
+		else
+		{
+			Con_Printf(CON_ERROR "%s has unsupported chunk %s of %i size with version %i.\n", mod->name, chunk->id, chunk->recordsize, chunk->version);
+			fail = true;
+		}
+	}
+
+	if (!num_matt)
+		fail = true;
+
+	if (!pnts || !vtxw || !face || !matt || !boneinfo || !rawweights)
+		fail = true;
+
+	/*attempt to load a psa file. don't die if we can't find one*/
+	COM_StripExtension(mod->name, basename, sizeof(basename));
+	buffer = COM_LoadTempFile2(va("%s.psa", basename));
+	if (buffer)
+	{
+		pos = 0;
+		while (pos < com_filesize && !fail)
+		{
+			chunk = (pskchunk_t*)((char*)buffer + pos);
+			chunk->version = LittleLong(chunk->version);
+			chunk->recordsize = LittleLong(chunk->recordsize);
+			chunk->numrecords = LittleLong(chunk->numrecords);
+
+			pos += sizeof(*chunk);
+
+			if (!strcmp("ANIMHEAD", chunk->id) && chunk->recordsize == 0 && chunk->numrecords == 0)
+			{
+			}
+			else if (!strcmp("BONENAMES", chunk->id) && chunk->recordsize == sizeof(pskboneinfo_t))
+			{
+				/*parsed purely to ensure that the bones match the main model*/
+				pskboneinfo_t *animbones = (pskboneinfo_t*)((char*)buffer + pos);
+				pos += chunk->recordsize * chunk->numrecords;
+				if (num_boneinfo != chunk->numrecords)
+				{
+					fail = true;
+					Con_Printf("PSK/PSA bone counts do not match\n");
+				}
+				else
+				{
+					for (i = 0; i < num_boneinfo; i++)
+					{
+						animbones[i].parent = LittleLong(animbones[i].parent);
+
+						if (strcmp(boneinfo[i].name, animbones[i].name))
+						{
+							fail = true;
+							Con_Printf("PSK/PSA bone names do not match\n");
+							break;
+						}
+						if (boneinfo[i].parent != animbones[i].parent)
+						{
+							fail = true;
+							Con_Printf("PSK/PSA bone parents do not match\n");
+							break;
+						}
+					}
+				}
+			}
+			else if (!strcmp("ANIMINFO", chunk->id) && chunk->recordsize == sizeof(pskaniminfo_t))
+			{
+				num_animinfo = chunk->numrecords;
+				animinfo = (pskaniminfo_t*)((char*)buffer + pos);
+				pos += chunk->recordsize * chunk->numrecords;
+
+				for (i = 0; i < num_animinfo; i++)
+				{
+					animinfo[i].firstframe = LittleLong(animinfo[i].firstframe);
+					animinfo[i].numframes = LittleLong(animinfo[i].numframes);
+					animinfo[i].numbones = LittleLong(animinfo[i].numbones);
+					animinfo[i].fps = LittleFloat(animinfo[i].fps);
+					animinfo[i].playtime = LittleFloat(animinfo[i].playtime);
+				}
+			}
+			else if (!strcmp("ANIMKEYS", chunk->id) && chunk->recordsize == sizeof(pskanimkeys_t))
+			{
+				num_animkeys = chunk->numrecords;
+				animkeys = (pskanimkeys_t*)((char*)buffer + pos);
+				pos += chunk->recordsize * chunk->numrecords;
+
+				for (i = 0; i < num_animkeys; i++)
+				{
+					animkeys[i].origin[0] = LittleFloat(animkeys[i].origin[0]);
+					animkeys[i].origin[1] = LittleFloat(animkeys[i].origin[1]);
+					animkeys[i].origin[2] = LittleFloat(animkeys[i].origin[2]);
+					animkeys[i].quat[0] = LittleFloat(animkeys[i].quat[0]);
+					animkeys[i].quat[1] = LittleFloat(animkeys[i].quat[1]);
+					animkeys[i].quat[2] = LittleFloat(animkeys[i].quat[2]);
+					animkeys[i].quat[3] = LittleFloat(animkeys[i].quat[3]);
+
+					/*not sure if this is needed, but mimic DP*/
+					if (i%num_boneinfo)
+					{
+						animkeys[i].quat[0] *= -1;
+						animkeys[i].quat[2] *= -1;
+					}
+					animkeys[i].quat[1] *= -1;
+				}
+			}
+			else if (!strcmp("SCALEKEYS", chunk->id) && chunk->recordsize == 16)
+			{
+				pos += chunk->recordsize * chunk->numrecords;
+			}
+			else
+			{
+				Con_Printf(CON_ERROR "%s has unsupported chunk %s of %i size with version %i.\n", va("%s.psa", basename), chunk->id, chunk->recordsize, chunk->version);
+				fail = true;
+			}
+		}
+		if (fail)
+		{
+			animinfo = NULL;
+			num_animinfo = 0;
+			animkeys = NULL;
+			num_animkeys = 0;
+			fail = false;
+		}
+	}
+
+	if (fail)
+	{
+		return false;
+	}
+
+	hunkstart = Hunk_LowMark ();
+	
+	gmdl = Hunk_Alloc(sizeof(*gmdl)*num_matt);
+
+	/*bones!*/
+	bones = Hunk_Alloc(sizeof(galiasbone_t) * num_boneinfo);
+	for (i = 0; i < num_boneinfo; i++)
+	{
+		Q_strncpyz(bones[i].name, boneinfo[i].name, sizeof(bones[i].name));
+		bones[i].parent = boneinfo[i].parent;
+		if (i == 0 && bones[i].parent == 0)
+			bones[i].parent = -1;
+		else if (bones[i].parent >= i || bones[i].parent < -1)
+		{
+			Con_Printf("Invalid bones\n");
+			break;
+		}
+	}
+
+	basematrix = Hunk_Alloc(num_boneinfo*sizeof(float)*12);
+	for (i = 0; i < num_boneinfo; i++)
+	{
+		float tmp[12];
+		PSKGenMatrix(
+			boneinfo[i].basepose.origin[0], boneinfo[i].basepose.origin[1], boneinfo[i].basepose.origin[2],
+			boneinfo[i].basepose.quat[0],   boneinfo[i].basepose.quat[1],   boneinfo[i].basepose.quat[2], boneinfo[i].basepose.quat[3],
+			tmp);
+		if (bones[i].parent < 0)
+			memcpy(basematrix + i*12, tmp, sizeof(float)*12);
+		else
+			R_ConcatTransforms((void*)(basematrix + bones[i].parent*12), (void*)tmp, (void*)(basematrix+i*12));
+	}
+
+	basematrix_inverse = Hunk_TempAllocMore(num_boneinfo*sizeof(float)*16);
+	for (i = 0; i < num_boneinfo; i++)
+	{
+		Matrix4Q_Invert_Simple(basematrix+i*12, basematrix_inverse+i*16);
+	}
+
+	/*expand the translations*/
+	num_trans = 0;
+	for (i = 0; i < num_vtxw; i++)
+	{
+		for (j = 0; j < num_rawweights; j++)
+		{
+			if (rawweights[j].pntsindex == vtxw[i].pntsindex)
+			{
+				num_trans++;
+			}
+		}
+	}
+	trans = Hunk_Alloc(sizeof(*trans)*num_trans);
+	num_trans = 0;
+	for (i = 0; i < num_vtxw; i++)
+	{
+//		first_trans = num_trans;
+		for (j = 0; j < num_rawweights; j++)
+		{
+			if (rawweights[j].pntsindex == vtxw[i].pntsindex)
+			{
+				vec3_t tmp;
+				trans[num_trans].vertexindex = i;
+				trans[num_trans].boneindex = rawweights[j].boneindex;
+				VectorTransform(pnts[rawweights[j].pntsindex].origin, (void*)(basematrix_inverse + rawweights[j].boneindex*16), tmp);
+				VectorScale(tmp, rawweights[j].weight, trans[num_trans].org);
+				trans[num_trans].org[3] = rawweights[j].weight;
+				num_trans++;
+			}
+		}
+//		for (j = 0; j < num_trans-first_trans; j++)
+//		{
+//			VectorScale(pnts[rawweights[j].pntsindex].origin, rawweights[j].weight, trans[num_trans].org);
+//		}
+	}
+
+	/*st coords, all share the same list*/
+	stcoord = Hunk_Alloc(sizeof(vec2_t)*num_vtxw);
+	for (i = 0; i < num_vtxw; i++)
+	{
+		stcoord[i*2+0] = vtxw[i].texcoord[0];
+		stcoord[i*2+1] = vtxw[i].texcoord[1];
+	}
+
+	/*allocate faces in a single block, as we at least know an upper bound*/
+	indexes = Hunk_Alloc(sizeof(index_t)*num_face*3);
+
+	if (animinfo && animkeys)
+	{
+		if (1/*dpcompat_psa_ungroup.ival*/)
+		{
+			/*unpack each frame of each animation to be a separate framegroup*/
+			unsigned int iframe;	/*individual frame count*/
+			iframe = 0;
+			for (i = 0; i < num_animinfo; i++)
+				iframe += animinfo[i].numframes;
+			group = Hunk_Alloc(sizeof(galiasgroup_t)*iframe + num_animkeys*sizeof(float)*12);
+			animmatrix = (float*)(group+iframe);
+			iframe = 0;
+			for (j = 0; j < num_animinfo; j++)
+			{
+				for (i = 0; i < animinfo[j].numframes; i++)
+				{
+					group[iframe].poseofs = ((char*)animmatrix - (char*)&group[iframe]) + sizeof(float)*12*num_boneinfo*(animinfo[j].firstframe+i);
+					group[iframe].numposes = 1;
+					snprintf(group[iframe].name, sizeof(group[iframe].name), "%s_%i", animinfo[j].name, i);
+					group[iframe].loop = true;
+					group[iframe].rate = animinfo[j].fps;
+					group[iframe].isheirachical = true;
+					iframe++;
+				}
+			}
+			num_animinfo = iframe;
+		}
+		else
+		{
+			/*keep each framegroup as a group*/
+			group = Hunk_Alloc(sizeof(galiasgroup_t)*num_animinfo + num_animkeys*sizeof(float)*12);
+			animmatrix = (float*)(group+num_animinfo);
+			for (i = 0; i < num_animinfo; i++)
+			{
+				group[i].poseofs = (char*)animmatrix - (char*)&group[i] + sizeof(float)*12*num_boneinfo*animinfo[i].firstframe;
+				group[i].numposes = animinfo[i].numframes;
+				Q_strncpyz(group[i].name, animinfo[i].name, sizeof(group[i].name));
+				group[i].loop = true;
+				group[i].rate = animinfo[i].fps;
+				group[i].isheirachical = false;
+			}
+		}
+		for (i = 0; i < num_animkeys; i++)
+		{
+			PSKGenMatrix(
+				animkeys[i].origin[0], animkeys[i].origin[1], animkeys[i].origin[2],
+				animkeys[i].quat[0],   animkeys[i].quat[1],   animkeys[i].quat[2], animkeys[i].quat[3],
+				animmatrix + i*12);
+		}
+	}
+	else
+	{
+		num_animinfo = 1;
+		/*build a base pose*/
+		group = Hunk_Alloc(sizeof(galiasgroup_t) + num_boneinfo*sizeof(float)*12);
+		animmatrix = basematrix;
+		group->poseofs = (char*)animmatrix - (char*)group;
+		group->numposes = 1;
+		strcpy(group->name, "base");
+		group->loop = true;
+		group->rate = 10;
+		group->isheirachical = false;
+	}
+
+	for (i = 0; i < num_matt; i++)
+	{
+		skin = Hunk_Alloc(sizeof(galiasskin_t) + sizeof(texnums_t));
+		gtexnums = (texnums_t*)(skin+1);
+		skin->ofstexnums = sizeof(*skin);
+		skin->texnums = 1;
+		skin->skinspeed = 10;
+		Q_strncpyz(skin->name, matt[i].name, sizeof(skin->name));
+		gtexnums->shader = R_RegisterSkin(matt[i].name);
+		R_BuildDefaultTexnums(gtexnums, gtexnums->shader);
+
+		gmdl[i].groupofs = (char*)group - (char*)&gmdl[i];
+		gmdl[i].groups = num_animinfo;
+		gmdl[i].baseframeofs = (char*)basematrix - (char*)&gmdl[i];
+
+		gmdl[i].ofsskins = (char*)skin - (char*)&gmdl[i];
+		gmdl[i].numskins = 1;
+
+		gmdl[i].numindexes = 0;
+		for (j = 0; j < num_face; j++)
+		{
+			if (face[j].mattindex == i)
+			{
+				indexes[gmdl[i].numindexes+0] = face[j].vtxwindex[0];
+				indexes[gmdl[i].numindexes+1] = face[j].vtxwindex[1];
+				indexes[gmdl[i].numindexes+2] = face[j].vtxwindex[2];
+				gmdl[i].numindexes += 3;
+			}
+		}
+		gmdl[i].ofs_indexes = (char*)indexes - (char*)&gmdl[i];
+		indexes += gmdl[i].numindexes;
+
+		gmdl[i].ofs_st_array = (char*)stcoord - (char*)&gmdl[i];
+		gmdl[i].numverts = num_vtxw;
+
+		gmdl[i].ofsbones = (char*)bones - (char*)&gmdl[i];
+		gmdl[i].numbones = num_boneinfo;
+
+		gmdl[i].ofstransforms = (char*)trans - (char*)&gmdl[i];
+		gmdl[i].numtransforms = num_trans;
+
+		gmdl[i].sharesverts = i!=0;
+		gmdl[i].sharesbones = i!=0;
+		gmdl[i].nextsurf = (i != num_matt-1)?sizeof(*gmdl):0;
+	}
+
+	if (fail)
+	{
+		return false;
+	}
+
+
+	vrad = Alias_CalculateSkeletalNormals(gmdl);
+
+	mod->mins[0] = mod->mins[1] = mod->mins[2] = -vrad;
+	mod->maxs[0] = mod->maxs[1] = mod->maxs[2] = vrad;
+	mod->radius = vrad;
+//
+// move the complete, relocatable alias model to the cache
+//
+	hunkend = Hunk_LowMark ();
+
+	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
+
+	Mod_ClampModelSize(mod);
+
+	Hunk_Alloc(0);
+	hunktotal = hunkend - hunkstart;
+
+	Cache_Alloc (&mod->cache, hunktotal, loadname);
+	mod->type = mod_alias;
+	if (!mod->cache.data)
+	{
+		Hunk_FreeToLowMark (hunkstart);
+		return false;
+	}
+	memcpy (mod->cache.data, gmdl, hunktotal);
+
+	Hunk_FreeToLowMark (hunkstart);
+
+
+	mod->funcs.Trace = Mod_Trace;
+	return true;
+}
+
+#endif
 
 
 
@@ -4003,7 +4758,7 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 
 //////////////////////////////////////////////////////////////
 //dpm
-
+#ifdef DPMMODELS
 
 // header for the entire file
 typedef struct dpmheader_s
@@ -4351,14 +5106,9 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 
 	return true;
 }
+#endif	//DPMMODELS
 
 
-
-
-
-
-
-#endif	//ZYMOTICMODELS
 
 
 #ifdef INTERQUAKEMODELS
@@ -4616,70 +5366,6 @@ qboolean Mod_LoadInterQuakeModel(model_t *mod, void *buffer)
 
 
 #ifdef MD5MODELS
-
-static void GenMatrix(float x, float y, float z, float qx, float qy, float qz, float result[12])
-{
-	float qw;
-	{	//figure out qw
-		float term = 1 - (qx*qx) - (qy*qy) - (qz*qz);
-		if (term < 0)
-			qw = 0;
-		else
-			qw = - (float) sqrt(term);
-	}
-
-	{	//generate the matrix
-		/*
-		float xx      = qx * qx;
-		float xy      = qx * qy;
-		float xz      = qx * qz;
-		float xw      = qx * qw;
-		float yy      = qy * qy;
-		float yz      = qy * qz;
-		float yw      = qy * qw;
-		float zz      = qz * qz;
-		float zw      = qz * qw;
-		result[0*4+0]  = 1 - 2 * ( yy + zz );
-		result[0*4+1]  =     2 * ( xy - zw );
-		result[0*4+2]  =     2 * ( xz + yw );
-		result[0*4+3]  =     x;
-		result[1*4+0]  =     2 * ( xy + zw );
-		result[1*4+1]  = 1 - 2 * ( xx + zz );
-		result[1*4+2]  =     2 * ( yz - xw );
-		result[1*4+3]  =     y;
-		result[2*4+0]  =     2 * ( xz - yw );
-		result[2*4+1]  =     2 * ( yz + xw );
-		result[2*4+2] = 1 - 2 * ( xx + yy );
-		result[2*4+3]  =     z;
-		*/
-
-		   float xx, xy, xz, xw, yy, yz, yw, zz, zw;
-		   float x2, y2, z2;
-		   x2 = qx + qx;
-		   y2 = qy + qy;
-		   z2 = qz + qz;
-
-		   xx = qx * x2;   xy = qx * y2;   xz = qx * z2;
-		   yy = qy * y2;   yz = qy * z2;   zz = qz * z2;
-		   xw = qw * x2;   yw = qw * y2;   zw = qw * z2;
-
-		   result[0*4+0] = 1.0f - (yy + zz);
-		   result[1*4+0] = xy + zw;
-		   result[2*4+0] = xz - yw;
-
-		   result[0*4+1] = xy - zw;
-		   result[1*4+1] = 1.0f - (xx + zz);
-		   result[2*4+1] = yz + xw;
-
-		   result[0*4+2] = xz + yw;
-		   result[1*4+2] = yz - xw;
-		   result[2*4+2] = 1.0f - (xx + yy);
-
-		   result[0*4+3]  =     x;
-		   result[1*4+3]  =     y;
-		   result[2*4+3]  =     z;
-	}
-}
 
 qboolean Mod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**poseofs, galiasgroup_t *gat)
 {
@@ -5063,6 +5749,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer)
 			inf->numbones = numjoints;
 			inf->groups = 1;
 			inf->groupofs = (char*)pose - (char*)inf;
+			inf->baseframeofs = inf->groupofs + pose->poseofs;
 
 #ifndef SERVERONLY
 			skin = Hunk_Alloc(sizeof(*skin));

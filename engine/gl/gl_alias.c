@@ -971,6 +971,8 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 	for(surfnum=0; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)), surfnum++)
 	{
 		skin = GL_ChooseSkin(inf, clmodel->name, surfnum, e);
+		if (!skin)
+			continue;
 		shader = e->forcedshader?e->forcedshader:skin->shader;
 		if (shader)
 		{

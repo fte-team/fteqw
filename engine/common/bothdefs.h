@@ -134,13 +134,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#endif
 	#else
 		#define SIDEVIEWS	4	//enable secondary/reverse views.
+
 		#define SP2MODELS		//quake2 sprite models
 		#define MD2MODELS		//quake2 alias models
 		#define MD3MODELS		//quake3 alias models
 		#define MD5MODELS		//doom3 models
 		#define ZYMOTICMODELS	//zymotic skeletal models.
-		#define HUFFNETWORK		//huffman network compression
+		#define DPMMODELS		//darkplaces model format (which I've never seen anyone use)
+		#define PSKMODELS		//PSK model format (ActorX stuff from UT, though not the format the game itself uses)
 		#define HALFLIFEMODELS	//halflife model support (experimental)
+
+		#define HUFFNETWORK		//huffman network compression
 		//#define DOOMWADS		//doom wad/sprite support
 		//#define MAP_DOOM		//doom map support
 		//#define MAP_PROC		//doom3/quake4 map support

@@ -220,24 +220,21 @@ qboolean Media_FakeTrack(int i, qboolean loop)
 {
 	char trackname[512];
 
-	if (i > 999 || i < 0)
+	if (i > 0 && i <= 999)
 	{
-		fakecdactive = false;
-		return;
-	}
+		sprintf(trackname, "sound/cdtracks/track%03i.ogg", i);
+		if (COM_FCheckExists(trackname))
+		{
+			Media_Clear();
+			strcpy(currenttrack.filename, trackname+6);
 
-	sprintf(trackname, "sound/cdtracks/track%03i.ogg", i);
-	if (COM_FCheckExists(trackname))
-	{
-		Media_Clear();
-		strcpy(currenttrack.filename, trackname+6);
-
-		fakecdactive = true;
-		media_playing = true;
-		return true;
+			fakecdactive = true;
+			media_playing = true;
+			return true;
+		}
 	}
-	else
-		fakecdactive = false;
+	
+	fakecdactive = false;
 	return false;
 }
 

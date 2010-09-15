@@ -34,6 +34,7 @@ typedef struct {
 
 	int groups;
 	int groupofs;
+	int baseframeofs;	/*non-heirachical*/
 
 	int nextsurf;
 
@@ -136,7 +137,12 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer);
 #endif
 #ifdef ZYMOTICMODELS
 	qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer);
+#endif
+#ifdef DPMMODELS
 	qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer);
+#endif
+#ifdef PSKMODELS
+	qboolean Mod_LoadPSKModel(model_t *mod, void *buffer);
 #endif
 #ifdef MD5MODELS
 	qboolean Mod_LoadMD5MeshModel(model_t *mod, void *buffer);

@@ -607,8 +607,17 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 			if (!Mod_LoadZymoticModel(mod, buf))
 				continue;
 			break;
+#endif
+#ifdef DPMMODELS
 		case (('K'<<24)+('R'<<16)+('A'<<8)+'D'):
 			if (!Mod_LoadDarkPlacesModel(mod, buf))
+				continue;
+			break;
+#endif
+
+#ifdef PSKMODELS
+		case ('A'<<0)+('C'<<8)+('T'<<16)+('R'<<24):
+			if (!Mod_LoadPSKModel (mod, buf))
 				continue;
 			break;
 #endif

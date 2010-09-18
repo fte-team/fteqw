@@ -531,9 +531,10 @@ static float Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 
 		model = next;
 	}
-#endif
-
 	return maxvdist+maxbdist;
+#else
+	return 0;
+#endif
 }
 
 static int Alias_BuildLerps(float plerp[4], float *pose[4], int numbones, galiasgroup_t *g1, galiasgroup_t *g2, float lerpfrac, float fg1time, float fg2time)
@@ -4261,10 +4262,12 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 	qboolean fail = false;
 	char basename[MAX_QPATH];
 
-	float *stcoord;
 	galiasinfo_t *gmdl;
+#ifndef SERVERONLY
+	float *stcoord;
 	galiasskin_t *skin;
 	texnums_t *gtexnums;
+#endif
 	galisskeletaltransforms_t *trans;
 	galiasbone_t *bones;
 	galiasgroup_t *group;
@@ -4590,6 +4593,7 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 //		}
 	}
 
+#ifndef SERVERONLY
 	/*st coords, all share the same list*/
 	stcoord = Hunk_Alloc(sizeof(vec2_t)*num_vtxw);
 	for (i = 0; i < num_vtxw; i++)
@@ -4597,6 +4601,7 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 		stcoord[i*2+0] = vtxw[i].texcoord[0];
 		stcoord[i*2+1] = vtxw[i].texcoord[1];
 	}
+#endif
 
 	/*allocate faces in a single block, as we at least know an upper bound*/
 	indexes = Hunk_Alloc(sizeof(index_t)*num_face*3);
@@ -4667,6 +4672,7 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 
 	for (i = 0; i < num_matt; i++)
 	{
+#ifndef SERVERONLY
 		skin = Hunk_Alloc(sizeof(galiasskin_t) + sizeof(texnums_t));
 		gtexnums = (texnums_t*)(skin+1);
 		skin->ofstexnums = sizeof(*skin);
@@ -4676,12 +4682,16 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 		gtexnums->shader = R_RegisterSkin(matt[i].name);
 		R_BuildDefaultTexnums(gtexnums, gtexnums->shader);
 
+		gmdl[i].ofsskins = (char*)skin - (char*)&gmdl[i];
+		gmdl[i].numskins = 1;
+
+		gmdl[i].ofs_st_array = (char*)stcoord - (char*)&gmdl[i];
+		gmdl[i].numverts = num_vtxw;
+#endif
+
 		gmdl[i].groupofs = (char*)group - (char*)&gmdl[i];
 		gmdl[i].groups = num_animinfo;
 		gmdl[i].baseframeofs = (char*)basematrix - (char*)&gmdl[i];
-
-		gmdl[i].ofsskins = (char*)skin - (char*)&gmdl[i];
-		gmdl[i].numskins = 1;
 
 		gmdl[i].numindexes = 0;
 		for (j = 0; j < num_face; j++)
@@ -4696,9 +4706,6 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 		}
 		gmdl[i].ofs_indexes = (char*)indexes - (char*)&gmdl[i];
 		indexes += gmdl[i].numindexes;
-
-		gmdl[i].ofs_st_array = (char*)stcoord - (char*)&gmdl[i];
-		gmdl[i].numverts = num_vtxw;
 
 		gmdl[i].ofsbones = (char*)bones - (char*)&gmdl[i];
 		gmdl[i].numbones = num_boneinfo;

@@ -1395,7 +1395,7 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 
 	if (!TEXVALID(l->stexture))
 	{
-		l->stexture = GL_AllocNewTexture();
+		l->stexture = GL_AllocNewTexture(smsize, smsize);
 		
 		checkerror();
 

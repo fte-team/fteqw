@@ -3361,6 +3361,8 @@ void SV_Frame (void)
 	svs.stats.idle += start - end;
 	end = start;
 	svs.framenum++;
+	if (svs.framenum > 0x10000)
+		svs.framenum = 0;
 
 // keep the random time dependent
 	rand ();

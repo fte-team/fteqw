@@ -1782,6 +1782,7 @@ void Shader_Shutdown (void)
 
 void Shader_SetBlendmode (shaderpass_t *pass)
 {
+#ifdef GLQUAKE /*FIXME: move to backnd*/
 	if (pass->texgen == T_GEN_DELUXMAP)
 	{
 		pass->blendmode = GL_DOT3_RGB_ARB;
@@ -1820,6 +1821,7 @@ void Shader_SetBlendmode (shaderpass_t *pass)
 		pass->blendmode = GL_DECAL;
 	else
 		pass->blendmode = GL_MODULATE;
+#endif
 }
 
 void Shader_Readpass (shader_t *shader, char **ptr)

@@ -80,6 +80,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #pragma warning( error : 4020)
 
 #pragma warning(error:4013)
+
+//msvc... shut the fuck up.
+#define _CRT_SECURE_NO_DEPRECATE
+#define _CRT_NONSTDC_NO_DEPRECATE
 #endif
 
 

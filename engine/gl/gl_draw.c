@@ -381,7 +381,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	GL_EndRendering ();
 	GL_DoSwap();
 
-	cs_texture = GL_AllocNewTexture();
+	cs_texture = GL_AllocNewTexture(16, 16);
 
 	crosshair_shader = R_RegisterShader("crosshairshader",
 		"{\n"
@@ -397,7 +397,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	GL_SetupSceneProcessingTextures();
 
 	// save a texture slot for translated picture
-	translate_texture = GL_AllocNewTexture();
+	translate_texture = GL_AllocNewTexture(0, 0);
 
 	//
 	// get the other pics we need
@@ -2406,7 +2406,7 @@ TRACE(("dbg: GL_LoadTexture: new %s\n", identifier));
 	gltextures = glt;
 
 	strcpy (glt->identifier, identifier);
-	glt->texnum = GL_AllocNewTexture();
+	glt->texnum = GL_AllocNewTexture(width, height);
 	glt->width = width;
 	glt->height = height;
 	glt->bpp = 8;
@@ -2446,7 +2446,7 @@ texid_t GL_LoadTextureFB (char *identifier, int width, int height, qbyte *data, 
 	gltextures = glt;
 
 	strcpy (glt->identifier, identifier);
-	glt->texnum = GL_AllocNewTexture();
+	glt->texnum = GL_AllocNewTexture(width, height);
 	glt->width = width;
 	glt->height = height;
 	glt->bpp = 8;
@@ -2479,7 +2479,7 @@ texid_t GL_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *da
 
 
 	strcpy (glt->identifier, identifier);
-	glt->texnum = GL_AllocNewTexture();
+	glt->texnum = GL_AllocNewTexture(width, height);
 	glt->width = width;
 	glt->height = height;
 	glt->bpp = 24;
@@ -2511,7 +2511,7 @@ texid_t GL_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *da
 
 
 	strcpy (glt->identifier, identifier);
-	glt->texnum = GL_AllocNewTexture();
+	glt->texnum = GL_AllocNewTexture(width, height);
 	glt->width = width;
 	glt->height = height;
 	glt->bpp = 32;
@@ -2545,7 +2545,7 @@ texid_t GL_LoadTexture32 (char *identifier, int width, int height, void *data, u
 	gltextures = glt;
 
 	strcpy (glt->identifier, identifier);
-	glt->texnum = GL_AllocNewTexture();
+	glt->texnum = GL_AllocNewTexture(width, height);
 	glt->width = width;
 	glt->height = height;
 	glt->bpp = 32;
@@ -2579,7 +2579,7 @@ texid_t GL_LoadTexture32_BGRA (char *identifier, int width, int height, unsigned
 	gltextures = glt;
 
 	strcpy (glt->identifier, identifier);
-	glt->texnum = GL_AllocNewTexture();
+	glt->texnum = GL_AllocNewTexture(width, height);
 	glt->width = width;
 	glt->height = height;
 	glt->bpp = 32;
@@ -2626,7 +2626,7 @@ texid_t GL_LoadCompressed(char *name)
 	gltextures = glt;
 
 	strcpy (glt->identifier, name);
-	glt->texnum = GL_AllocNewTexture();
+	glt->texnum = GL_AllocNewTexture(0, 0);
 	glt->bpp = 32;
 	glt->flags = 0;
 
@@ -2661,7 +2661,7 @@ texid_t GL_LoadTexture8Grey (char *identifier, int width, int height, unsigned c
 	gltextures = glt;
 
 	strcpy (glt->identifier, identifier);
-	glt->texnum = GL_AllocNewTexture();
+	glt->texnum = GL_AllocNewTexture(width, height);
 	glt->width = width;
 	glt->height = height;
 	glt->bpp = 8;
@@ -2700,7 +2700,7 @@ texid_t GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned c
 	gltextures = glt;
 
 	strcpy (glt->identifier, identifier);
-	glt->texnum = GL_AllocNewTexture();
+	glt->texnum = GL_AllocNewTexture(width, height);
 	glt->width = width;
 	glt->height = height;
 	glt->bpp = 8;

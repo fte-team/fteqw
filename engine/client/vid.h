@@ -38,6 +38,7 @@ typedef struct {
 	char glrenderer[MAX_QPATH];
 	struct rendererinfo_s *renderer;
 } rendererstate_t;
+extern rendererstate_t currentrendererstate;
 
 typedef struct vrect_s
 {

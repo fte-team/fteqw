@@ -358,13 +358,13 @@ void GL_SetupSceneProcessingTextures (void)
 
 	scenepp_fisheye_texture = r_nulltex;
 
-	sceneblur_texture = GL_AllocNewTexture();
+	sceneblur_texture = GL_AllocNewTexture(0, 0);
 
 	if (!gl_config.arb_shader_objects)
 		return;
 
-	scenepp_texture_warp = GL_AllocNewTexture();
-	scenepp_texture_edge = GL_AllocNewTexture();
+	scenepp_texture_warp = GL_AllocNewTexture(0, 0);
+	scenepp_texture_edge = GL_AllocNewTexture(0, 0);
 
 	// init warp texture - this specifies offset in
 	for (y=0; y<PP_WARP_TEX_SIZE; y++)
@@ -1638,7 +1638,7 @@ qboolean R_RenderScene_Fish(void)
 
 	if (!TEXVALID(scenepp_fisheye_texture))
 	{
-		scenepp_fisheye_texture = GL_AllocNewTexture();
+		scenepp_fisheye_texture = GL_AllocNewTexture(cmapsize, cmapsize);
 
 		qglDisable(GL_TEXTURE_2D);
 		qglEnable(GL_TEXTURE_CUBE_MAP_ARB);

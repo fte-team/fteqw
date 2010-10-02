@@ -192,7 +192,7 @@ void R_Bloom_InitTextures(void)
 	data = Z_Malloc(size);
 	memset(data, 255, size);
 	if (!TEXVALID(bs.tx_screen))
-		bs.tx_screen = GL_AllocNewTexture();
+		bs.tx_screen = GL_AllocNewTexture(bs.scr_w, bs.scr_h);
 	GL_Bind(bs.tx_screen);
 	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGB, bs.scr_w, bs.scr_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);

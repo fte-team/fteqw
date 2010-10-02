@@ -1841,7 +1841,7 @@ void CL_LinkPacketEntities (void)
 		if (state->lightpflags & PFLAGS_FULLDYNAMIC)
 		{
 			vec3_t colour;
-			if (!colour[0] && !colour[1] && !colour[2])
+			if (!state->light[0] && !state->light[1] && !state->light[2])
 			{
 				colour[0] = colour[1] = colour[2] = 1;
 			}

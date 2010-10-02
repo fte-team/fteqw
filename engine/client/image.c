@@ -1869,7 +1869,7 @@ texid_t GL_LoadTextureDDS(unsigned char *buffer, int filesize)
 	if (!qglCompressedTexImage2DARB)
 		return r_nulltex;
 
-	texnum = GL_AllocNewTexture();
+	texnum = GL_AllocNewTexture(fmtheader.dwWidth, fmtheader.dwHeight);
 	GL_Bind(texnum);
 
 	datasize = fmtheader.dwPitchOrLinearSize;

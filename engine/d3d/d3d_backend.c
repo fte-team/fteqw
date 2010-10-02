@@ -90,6 +90,9 @@ typedef struct
 	unsigned int shaderbits;
 	unsigned int lastpasscount;
 
+	mesh_t		**meshlist;
+	unsigned int nummeshes;
+
 	D3DCOLOR	passcolour;
 
 	IDirect3DVertexBuffer9 *dynxyz_buff;
@@ -641,11 +644,13 @@ static void alphagenbyte(const shaderpass_t *pass, int cnt, const byte_vec4_t *s
 	}
 }
 
-static unsigned int BE_GenerateColourMods(unsigned int vertcount, const shaderpass_t *pass, const mesh_t *meshlist)
+static unsigned int BE_GenerateColourMods(unsigned int vertcount, const shaderpass_t *pass)
 {
+	/*
 	unsigned int ret = 0;
 	unsigned char *map;
 	const mesh_t *m;
+	unsigned int mno;
 	qboolean usearray;
 
 	if (pass->flags & SHADER_PASS_NOCOLORARRAY)
@@ -659,8 +664,12 @@ static unsigned int BE_GenerateColourMods(unsigned int vertcount, const shaderpa
 
 		ret |= D3D_VDEC_COL4B;
 		allocvertexbuffer(shaderstate.dyncol_buff, &shaderstate.dyncol_offs, (void**)&map, vertcount*sizeof(D3DCOLOR));
-		for (m = meshlist, vertcount = 0; m; vertcount += m->numvertexes, m = m->next)
+		for (vertcount = 0, mno = 0; mno < shaderstate.nummeshes; mno++)
+		{
+			m = shaderstate.meshlist[mno];
 			memcpy((char*)map+vertcount*sizeof(D3DCOLOR), m->colors4b_array, m->numvertexes*sizeof(D3DCOLOR));
+			vertcount += m->numvertexes;
+		}
 		IDirect3DVertexBuffer9_Unlock(shaderstate.dyncol_buff);
 		IDirect3DDevice9_SetStreamSource(pD3DDev9, 1, shaderstate.dyncol_buff, shaderstate.dyncol_offs - vertcount*sizeof(D3DCOLOR), sizeof(D3DCOLOR));
 	}
@@ -699,6 +708,7 @@ static unsigned int BE_GenerateColourMods(unsigned int vertcount, const shaderpa
 		IDirect3DDevice9_SetStreamSource(pD3DDev9, 1, NULL, 0, 0);
 	}
 	return ret;
+	*/
 }
 /*********************************************************************************************************/
 /*========================================== texture coord generation =====================================*/
@@ -856,6 +866,7 @@ static void tcmod(const tcmod_t *tcmod, int cnt, const float *src, float *dst, c
 
 static void GenerateTCMods(const shaderpass_t *pass, float *dest, const mesh_t *meshlist)
 {
+	/*
 	unsigned int fvertex = 0;
 	for (; meshlist; meshlist = meshlist->next)
 	{
@@ -877,6 +888,7 @@ static void GenerateTCMods(const shaderpass_t *pass, float *dest, const mesh_t *
 		}
 		dest += meshlist->numvertexes*2;
 	}
+	*/
 }
 
 //end texture coords
@@ -912,7 +924,7 @@ static void BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vertcoun
 	vdec = 0;
 
 	/*we only use one colour, generated from the first pass*/
-	vdec |= BE_GenerateColourMods(vertcount, pass, meshchain);
+	vdec |= BE_GenerateColourMods(vertcount, pass);
 
 	for (; passno < lastpass; passno++)
 	{
@@ -945,8 +957,9 @@ static void BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vertcoun
 	D3DBE_ApplyShaderBits(pass->shaderbits);
 }
 
-static void BE_DrawMeshChain_Internal(mesh_t *meshchain)
+static void BE_DrawMeshChain_Internal(void)
 {
+#ifdef FIXME
 	unsigned int vertcount, idxcount, idxfirst;
 	mesh_t *m;
 	void *map;
@@ -987,15 +1000,17 @@ static void BE_DrawMeshChain_Internal(mesh_t *meshchain)
 		BE_DrawMeshChain_SetupPass(pass+passno, vertcount, meshchain);
 		IDirect3DDevice9_DrawIndexedPrimitive(pD3DDev9, D3DPT_TRIANGLELIST, 0, 0, vertcount, idxfirst, idxcount/3);
 	}
+#endif
 }
-
+/*
 void BE_DrawMeshChain(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums)
 {
 	shaderstate.curshader = shader;
 	shaderstate.curtexnums = texnums;
-
-	BE_DrawMeshChain_Internal(meshchain);
-}
+	shaderstate.meshlist = meshchain;
+	shaderstate.nummeshes = 1;
+	BE_DrawMeshChain_Internal();
+}*/
 
 void BE_SelectMode(backendmode_t mode, unsigned int flags)
 {
@@ -1174,6 +1189,7 @@ void BE_UploadAllLightmaps(void)
 
 static void DrawSurfaceChain(msurface_t *s, shader_t *shader, vbo_t *vbo)
 {	//doesn't merge surfaces, but tells gl to do each vertex arrayed surface individually, which means no vertex copying.
+#ifdef FIXME
 	int i;
 	mesh_t *ml, *m;
 
@@ -1270,6 +1286,7 @@ static void DrawSurfaceChain(msurface_t *s, shader_t *shader, vbo_t *vbo)
 		BE_DrawMeshChain_Internal(lightmap[i]->meshchain);
 		lightmap[i]->meshchain = NULL;
 	}
+#endif
 }
 
 static void BE_BaseTextureChain(msurface_t *first)

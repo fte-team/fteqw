@@ -197,7 +197,9 @@ static BOOL (CALLBACK  DSEnumCallback)(GUID FAR *guid, LPCSTR str1, LPCSTR str2,
 */
 
 /* new formatTag:*/
+#ifndef WAVE_FORMAT_EXTENSIBLE
 # define WAVE_FORMAT_EXTENSIBLE (0xfffe)
+#endif
 
 /* Speaker Positions:*/
 # define SPEAKER_FRONT_LEFT              0x1

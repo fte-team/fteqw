@@ -304,7 +304,7 @@ qboolean GL_CheckExtension(char *extname)
 	return !!strstr(gl_extensions, extname);
 }
 
-texid_t GL_AllocNewTexture(void)
+texid_t GL_AllocNewTexture(int w, int h)
 {
 	texid_t r;
 	qglGenTextures(1, &r.num);
@@ -983,6 +983,15 @@ rendererinfo_t openglrendererinfo = {
 
 	R2D_Image,
 	R2D_ImageColours,
+
+	GL_LoadTextureFmt,
+	GL_LoadTexture8Pal24,
+	GL_LoadTexture8Pal32,
+	GL_LoadCompressed,
+	GL_FindTexture,
+	GL_AllocNewTexture,
+	GL_UploadFmt,
+	GL_DestroyTexture,
 
 	GLR_Init,
 	GLR_DeInit,

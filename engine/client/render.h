@@ -32,12 +32,6 @@ extern int		r_framecount;
 struct msurface_s;
 struct batch_s;
 
-typedef union {
-	unsigned int num;
-#ifdef D3DQUAKE
-	void *ptr;
-#endif
-} texid_t;
 static const texid_t r_nulltex = {0};
 #define TEXVALID(t) ((t).num!=0)
 
@@ -274,46 +268,15 @@ enum uploadfmt
 	TF_8PAL32
 };
 
-
-#if defined(GLQUAKE) && defined(D3DQUAKE)
-	#define R_LoadTexture8Pal32(skinname,width,height,data,palette,usemips,alpha) ((qrenderer == QR_DIRECT3D)?D3D_LoadTexture8Pal32(skinname, width, height, data, palette, usemips, alpha):GL_LoadTexture8Pal32(skinname, width, height, data, palette, usemips, alpha))
-	#define R_LoadTexture8Pal24(skinname,width,height,data,palette,usemips,alpha) ((qrenderer == QR_DIRECT3D)?D3D_LoadTexture8Pal24(skinname, width, height, data, palette, usemips, alpha):GL_LoadTexture8Pal24(skinname, width, height, data, palette, usemips, alpha))
-	
-	#define R_FindTexture(name)  ((qrenderer == QR_DIRECT3D)?D3D_FindTexture(name):GL_FindTexture(name))
-	#define R_LoadCompressed(name)  ((qrenderer == QR_DIRECT3D)?D3D_LoadCompressed(name):GL_LoadCompressed(name))
-#elif defined(D3DQUAKE)
-	#define R_LoadTexture8Pal32 D3D_LoadTexture8Pal32
-	#define R_LoadTexture8Pal24 D3D_LoadTexture8Pal24
-
-	#define R_FindTexture		D3D_FindTexture
-	#define R_LoadCompressed	D3D_LoadCompressed
-
-	#define R_AllocNewTexture	D3D_AllocNewTexture
-	#define R_Upload			D3D_UploadFmt
-	#define R_LoadTexture		D3D_LoadTextureFmt
-	#define R_DestroyTexture(tno)	0
-#elif defined(GLQUAKE)
-	#define R_LoadTexture8Pal32	GL_LoadTexture8Pal32
-	#define R_LoadTexture8Pal24	GL_LoadTexture8Pal24
-
-	#define R_FindTexture		GL_FindTexture
-	#define R_LoadCompressed	GL_LoadCompressed
-
-	#define R_AllocNewTexture(w,h) GL_AllocNewTexture()
-	#define R_Upload			GL_UploadFmt
-	#define R_LoadTexture		GL_LoadTextureFmt
-	#define R_DestroyTexture	GL_DestroyTexture
-#endif
-
 #define R_LoadTexture8(id,w,h,d,f,t)		R_LoadTexture(id,w,h,t?TF_TRANS8:TF_SOLID8,d,f)
-#define R_LoadTexture32(id,w,h,d,f)		R_LoadTexture(id,w,h,TF_RGBA32,d,f)
-#define R_LoadTextureFB(id,w,h,d,f)		R_LoadTexture(id,w,h,TF_TRANS8_FULLBRIGHT,d,f)
+#define R_LoadTexture32(id,w,h,d,f)			R_LoadTexture(id,w,h,TF_RGBA32,d,f)
+#define R_LoadTextureFB(id,w,h,d,f)			R_LoadTexture(id,w,h,TF_TRANS8_FULLBRIGHT,d,f)
 #define R_LoadTexture8BumpPal(id,w,h,d,f)	R_LoadTexture(id,w,h,TF_HEIGHT8PAL,d,f)
-#define R_LoadTexture8Bump(id,w,h,d,f)	R_LoadTexture(id,w,h,TF_HEIGHT8,d,f)
+#define R_LoadTexture8Bump(id,w,h,d,f)		R_LoadTexture(id,w,h,TF_HEIGHT8,d,f)
 
 /*it seems a little excessive to have to include glquake (and windows headers), just to load some textures/shaders for the backend*/
 #ifdef GLQUAKE
-texid_t GL_AllocNewTexture(void);
+texid_t GL_AllocNewTexture(int w, int h);
 void GL_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
 texid_t GL_LoadTextureFmt (char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
 void GL_DestroyTexture(texid_t tex);

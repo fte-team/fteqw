@@ -292,13 +292,13 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 			{
 				if ((short) HIWORD(wParam) > 0)
 				{
-					Key_Event(K_MWHEELUP, 0, true);
-					Key_Event(K_MWHEELUP, 0, false);
+					Key_Event(0, K_MWHEELUP, 0, true);
+					Key_Event(0, K_MWHEELUP, 0, false);
 				}
 				else
 				{
-					Key_Event(K_MWHEELDOWN, 0, true);
-					Key_Event(K_MWHEELDOWN, 0, false);
+					Key_Event(0, K_MWHEELDOWN, 0, true);
+					Key_Event(0, K_MWHEELDOWN, 0, false);
 				}
 			}
 			break;
@@ -595,8 +595,8 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 	vid.pixelheight = height;
 	vid.recalc_refdef = true;
 
-	vid.width = vid.conwidth = width;
-	vid.height = vid.conheight = height;
+	vid.width = width;
+	vid.height = height;
 
 //	pDD->lpVtbl->QueryInterface ((void*)pDD, &IID_IDirectDrawGammaControl, (void**)&pGammaControl);
 /*	if (pGammaControl)
@@ -656,20 +656,12 @@ resetD3D9();
 /*a new model has been loaded*/
 static void	(D3D9_R_NewMap)					(void)
 {
-	int i;
 	r_worldentity.model = cl.worldmodel;
 	R_AnimateLight();
 	Surf_BuildLightmaps();
 
 	/*wipe any lingering particles*/
 	P_ClearParticles();
-
-	for (i=0 ; i<cl.worldmodel->numtextures ; i++)
-	{
-		if (!cl.worldmodel->textures[i])
-			continue;
- 		cl.worldmodel->textures[i]->texturechain = NULL;
-	}
 }
 
 extern mleaf_t		*r_viewleaf, *r_oldviewleaf;
@@ -848,27 +840,26 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 
 #pragma message("Fixme: remove the code from here...")
 	{
+		unsigned int ow = vid.width, oh = vid.height;
 		extern cvar_t vid_conwidth, vid_conheight, vid_conautoscale;
 		if (vid_conautoscale.value)
 		{
-			vid.conwidth = vid.pixelwidth*vid_conautoscale.value;
-			vid.conheight = vid.pixelheight*vid_conautoscale.value;
+			vid.width = vid.pixelwidth*vid_conautoscale.value;
+			vid.height = vid.pixelheight*vid_conautoscale.value;
 		}
 		else
 		{
-			vid.conwidth = vid_conwidth.value;
-			vid.conheight = vid_conheight.value;
+			vid.width = vid_conwidth.value;
+			vid.height = vid_conheight.value;
 		}
 
-		if (!vid.conwidth)
-			vid.conwidth = vid.pixelwidth;
-		if (!vid.conheight)
-			vid.conheight = vid.pixelheight;
+		if (!vid.width)
+			vid.width = vid.pixelwidth;
+		if (!vid.height)
+			vid.height = vid.pixelheight;
 
-		if (vid.width != vid.conwidth || vid.height != vid.conheight)
+		if (vid.width != ow || vid.height != oh)
 			vid.recalc_refdef = true;
-		vid.width = vid.conwidth;
-		vid.height = vid.conheight;
 	}
 
 
@@ -1094,18 +1085,18 @@ static void D3D9_SetupViewPort(void)
 	screenaspect = (float)r_refdef.vrect.width/r_refdef.vrect.height;
 	GL_InfinatePerspective(fov_x, fov_y, gl_mindist.value);
 
-	Matrix4_ModelViewMatrixFromAxis(r_view_matrix, vpn, vright, vup, r_refdef.vieworg);
+	Matrix4_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
 
 
-	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)r_projection_matrix);
-	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)r_view_matrix);
+	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)r_refdef.m_projection);
+	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)r_refdef.m_view);
 }
 
 static void	(D3D9_R_RenderView)				(void)
 {
 	D3D9_SetupViewPort();
 	d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1, 0));
-	R_SetFrustum (r_projection_matrix, r_view_matrix);
+	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 		Surf_DrawWorld();
 	P_DrawParticles ();
@@ -1175,10 +1166,6 @@ rendererinfo_t d3drendererinfo =
 	D3D9_R_AddStain,
 	D3D9_R_LessenStains,
 
-	NULL,
-	NULL,
-	NULL,
-
 	RMod_Init,
 	RMod_ClearAll,
 	RMod_ForName,
@@ -1197,12 +1184,6 @@ rendererinfo_t d3drendererinfo =
 
 	D3D9_VID_Init,
 	D3D9_VID_DeInit,
-	D3D9_VID_LockBuffer,
-	D3D9_VID_UnlockBuffer,
-	D3D9_D_BeginDirectRect,
-	D3D9_D_EndDirectRect,
-	D3D9_VID_ForceLockState,
-	D3D9_VID_ForceUnlockedAndReturnState,
 	D3D9_VID_SetPalette,
 	D3D9_VID_ShiftPalette,
 	D3D9_VID_GetRGBInfo,

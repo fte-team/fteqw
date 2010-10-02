@@ -150,7 +150,12 @@ void Draw_FunStringWidth(int x, int y, const void *str, int width);
 // qbyte *Mod_LeafPVS (struct mleaf_s *leaf, struct model_s *model, qbyte *buffer);
 #endif
 
-
+typedef union {
+	unsigned int num;
+#ifdef D3DQUAKE
+	void *ptr;
+#endif
+} texid_t;
 
 typedef struct rendererinfo_s {
 	char *description;
@@ -176,6 +181,15 @@ typedef struct rendererinfo_s {
 
 	void	(*Draw_Image)				(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);	//gl-style scaled/coloured/subpic
 	void	(*Draw_ImageColours)		(float r, float g, float b, float a);
+
+	texid_t (*IMG_LoadTexture)			(char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
+	texid_t (*IMG_LoadTexture8Pal24)	(char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
+	texid_t (*IMG_LoadTexture8Pal32)	(char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
+	texid_t (*IMG_LoadCompressed)		(char *name);
+	texid_t (*IMG_FindTexture)			(char *identifier);
+	texid_t (*IMG_AllocNewTexture)		(int w, int h);
+	void    (*IMG_Upload)				(texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
+	void    (*IMG_DestroyTexture)		(texid_t tex);
 
 	void	(*R_Init)					(void);
 	void	(*R_DeInit)					(void);
@@ -216,3 +230,14 @@ typedef struct rendererinfo_s {
 
 	char *alignment;
 } rendererinfo_t;
+
+#define rf currentrendererstate.renderer
+
+#define R_LoadTexture		rf->IMG_LoadTexture
+#define R_LoadTexture8Pal24	rf->IMG_LoadTexture8Pal24
+#define R_LoadTexture8Pal32	rf->IMG_LoadTexture8Pal32
+#define R_LoadCompressed	rf->IMG_LoadCompressed
+#define R_FindTexture		rf->IMG_FindTexture
+#define R_AllocNewTexture	rf->IMG_AllocNewTexture
+#define R_Upload			rf->IMG_Upload
+#define R_DestroyTexture	rf->IMG_DestroyTexture

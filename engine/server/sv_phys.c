@@ -1836,7 +1836,7 @@ void SV_RunEntity (edict_t *ent)
 	}
 	else
 	{
-		if (ent->v->lastruntime == svs.framenum)
+		if ((unsigned int)ent->v->lastruntime == svs.framenum)
 			return;
 		ent->v->lastruntime = svs.framenum;
 	}

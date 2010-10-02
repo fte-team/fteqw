@@ -245,7 +245,7 @@ void GLR_ReInit (void)
 	extern int gl_bumpmappingpossible;
 
 
-	netgraphtexture = GL_AllocNewTexture();
+	netgraphtexture = GL_AllocNewTexture(0, 0);
 
 #if 0
 	if (gl_bumpmappingpossible)

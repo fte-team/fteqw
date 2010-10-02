@@ -730,8 +730,6 @@ int (*Mod_SkinForName)				(struct model_s *model, char *name);
 int (*Mod_FrameForName)				(struct model_s *model, char *name);
 float (*Mod_GetFrameDuration)		(struct model_s *model, int framenum);
 
-
-
 qboolean (*VID_Init)				(rendererstate_t *info, unsigned char *palette);
 void	 (*VID_DeInit)				(void);
 void	(*VID_SetPalette)			(unsigned char *palette);
@@ -776,6 +774,15 @@ rendererinfo_t dedicatedrendererinfo = {
 
 	NULL,	//Draw_Image
 	NULL,	//Draw_ImageColours
+
+	NULL,	//R_LoadTexture
+	NULL,	//R_LoadTexture8Pal24
+	NULL,	//R_LoadTexture8Pal32
+	NULL,	//R_LoadCompressed
+	NULL,	//R_FindTexture
+	NULL,	//R_AllocNewTexture
+	NULL,	//R_Upload
+	NULL,	//R_DestroyTexture
 
 	NULL,	//R_Init;
 	NULL,	//R_DeInit;

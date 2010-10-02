@@ -6,6 +6,11 @@
 
 #include "glquake.h"
 #include "shader.h"
+#ifdef _WIN32
+#include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 
 #define LIGHTPASS_GLSL_SHARED	"\
 varying vec2 tcbase;\n\
@@ -453,6 +458,10 @@ void GL_SelectVBO(int vbo)
 }
 void GL_SelectEBO(int vbo)
 {
+	extern cvar_t temp1;
+	if (temp1.ival && shaderstate.meshcount != 1)
+		vbo = 0;
+
 #ifndef FORCESTATE
 	if (shaderstate.currentebo != vbo)
 #endif
@@ -698,7 +707,7 @@ static texid_t T_Gen_CurrentRender(void)
 	}
 	// copy the scene to texture
 	if (!TEXVALID(shaderstate.temptexture))
-		shaderstate.temptexture = GL_AllocNewTexture();
+		shaderstate.temptexture = GL_AllocNewTexture(vwidth, vheight);
 	GL_Bind(shaderstate.temptexture);
 	qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 0, 0, vwidth, vheight, 0);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -1887,6 +1896,48 @@ static void BE_SubmitMeshChain(void)
 	int m;
 	mesh_t *mesh;
 
+	if (!shaderstate.currentebo)
+	{
+	if (shaderstate.meshcount == 1)
+	{
+		mesh = shaderstate.meshes[0];
+		qglDrawRangeElements(GL_TRIANGLES, mesh->vbofirstvert, mesh->vbofirstvert+mesh->numvertexes, mesh->numindexes, GL_INDEX_TYPE, shaderstate.sourcevbo->indicies + mesh->vbofirstelement);
+		return;
+	}
+	else
+	{
+		index_t *ilst;
+		mesh = shaderstate.meshes[0];
+		startv = mesh->vbofirstvert;
+		endv = startv + mesh->numvertexes;
+		endi = mesh->numindexes;
+		for (m = 1; m < shaderstate.meshcount; m++)
+		{
+			mesh = shaderstate.meshes[m];
+			endi += mesh->numindexes;
+
+			if (startv > mesh->vbofirstvert)
+				startv = mesh->vbofirstvert;
+			if (endv < mesh->vbofirstvert+mesh->numvertexes)
+				endv = mesh->vbofirstvert+mesh->numvertexes;
+		}
+
+
+		ilst = alloca(endi*sizeof(index_t));
+		endi = 0;
+		for (m = 0; m < shaderstate.meshcount; m++)
+		{
+			mesh = shaderstate.meshes[m];
+			for (starti = 0; starti < mesh->numindexes; )
+				ilst[endi++] = mesh->vbofirstvert + mesh->indexes[starti++];
+		}
+		qglDrawRangeElements(GL_TRIANGLES, startv, endv, endi, GL_INDEX_TYPE, ilst);
+	}
+
+
+	return;
+	}
+
 /*
 	if (qglLockArraysEXT)
 	{
@@ -2925,7 +2976,6 @@ static void BE_UpdateLightmaps(void)
 			continue;
 		if (lightmap[lm]->modified)
 		{
-			extern cvar_t temp1;
 			glRect_t *theRect;
 			lightmap[lm]->modified = false;
 			theRect = &lightmap[lm]->rectchange;

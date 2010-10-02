@@ -458,10 +458,6 @@ void GL_SelectVBO(int vbo)
 }
 void GL_SelectEBO(int vbo)
 {
-	extern cvar_t temp1;
-	if (temp1.ival && shaderstate.meshcount != 1)
-		vbo = 0;
-
 #ifndef FORCESTATE
 	if (shaderstate.currentebo != vbo)
 #endif
@@ -1896,6 +1892,7 @@ static void BE_SubmitMeshChain(void)
 	int m;
 	mesh_t *mesh;
 
+#if 0
 	if (!shaderstate.currentebo)
 	{
 	if (shaderstate.meshcount == 1)
@@ -1937,6 +1934,7 @@ static void BE_SubmitMeshChain(void)
 
 	return;
 	}
+#endif
 
 /*
 	if (qglLockArraysEXT)

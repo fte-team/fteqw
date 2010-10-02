@@ -156,13 +156,14 @@ typedef union {
 	void *ptr;
 #endif
 } texid_t;
+enum uploadfmt;
 
 typedef struct rendererinfo_s {
 	char *description;
 	char *name[4];
 	r_qrenderer_t rtype;
 
-	mpic_t	*(*Draw_SafePicFromWad)			(char *name);
+	mpic_t	*(*Draw_SafePicFromWad)		(char *name);
 	mpic_t	*(*Draw_SafeCachePic)		(char *path);
 	void	(*Draw_Init)				(void);
 	void	(*Draw_Shutdown)			(void);

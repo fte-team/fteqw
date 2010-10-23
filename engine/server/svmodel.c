@@ -439,7 +439,7 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 			goto couldntload;
 		break;
 
-
+	case RAPOLYHEADER:
 	case IDPOLYHEADER:
 		if (!Mod_LoadQ1Model(mod, buf))
 			goto couldntload;

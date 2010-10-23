@@ -1917,11 +1917,11 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 			Q_strncpyz(frame->name, frameinfo->name, sizeof(frame->name));
 
 			verts = (vecV_t *)(pose+1);
-			normals = (vec3_t*)&verts[galias->numverts];
 			svec = &normals[galias->numverts];
 			tvec = &svec[galias->numverts];
 			pose->ofsverts = (char *)verts - (char *)pose;
 #ifndef SERVERONLY
+			normals = (vec3_t*)&verts[galias->numverts];
 			pose->ofsnormals = (char *)normals - (char *)pose;
 			pose->ofssvector = (char *)svec - (char *)pose;
 			pose->ofstvector = (char *)tvec - (char *)pose;
@@ -1940,7 +1940,9 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 				if (seamremaps[j] != j)
 				{
 					VectorCopy(verts[j], verts[seamremaps[j]]);
+#ifndef SERVERONLY
 					VectorCopy(normals[j], normals[seamremaps[j]]);
+#endif
 				}
 			}
 
@@ -1953,16 +1955,21 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 		case ALIAS_GROUP_SWAPPED: // prerelease
 			ingroup = (daliasgroup_t *)(pframetype+1);
 
-			pose = (galiaspose_t *)Hunk_Alloc(LittleLong(ingroup->numframes)*(sizeof(galiaspose_t) + (sizeof(vecV_t)+sizeof(vec3_t)*3)*galias->numverts));
-			frame->poseofs = (char *)pose - (char *)frame;
 			frame->numposes = LittleLong(ingroup->numframes);
-			frame->loop = true;
-			galias->groups++;
-
+#ifdef SERVERONLY
+			pose = (galiaspose_t *)Hunk_Alloc(frame->numposes*(sizeof(galiaspose_t) + sizeof(vecV_t)*galias->numverts));
+			verts = (vecV_t *)(pose+frame->numposes);
+#else
+			pose = (galiaspose_t *)Hunk_Alloc(frame->numposes*(sizeof(galiaspose_t) + (sizeof(vecV_t)+sizeof(vec3_t)*3)*galias->numverts));
 			verts = (vecV_t *)(pose+frame->numposes);
 			normals = (vec3_t*)&verts[galias->numverts];
 			svec = &normals[galias->numverts];
 			tvec = &svec[galias->numverts];
+#endif
+
+			frame->poseofs = (char *)pose - (char *)frame;
+			frame->loop = true;
+			galias->groups++;
 
 			intervals = (daliasinterval_t *)(ingroup+1);
 			sinter = LittleFloat(intervals->interval);
@@ -1997,13 +2004,19 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 					if (seamremaps[j] != j)
 					{
 						VectorCopy(verts[j], verts[seamremaps[j]]);
+#ifndef SERVERONLY
 						VectorCopy(normals[j], normals[seamremaps[j]]);
+#endif
 					}
 				}
+#ifndef SERVERONLY
 				verts = (vecV_t*)&tvec[galias->numverts];
 				normals = (vec3_t*)&verts[galias->numverts];
 				svec = &normals[galias->numverts];
 				tvec = &svec[galias->numverts];
+#else
+				verts = &verts[galias->numverts];
+#endif
 				pose++;
 
 				pinframe += pq1inmodel->numverts;
@@ -2022,7 +2035,7 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 	return pframetype;
 }
 
-static void *H1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
+static void *H2_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 {
 	galiaspose_t *pose;
 	galiasgroup_t *frame;
@@ -2540,7 +2553,7 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 		/*separate st + vert lists*/
 		pinh2triangles = (dh2triangle_t *)&pinstverts[pq1inmodel->num_st];
 
-		seamremap = BZ_Malloc(sizeof(int)*pq1inmodel->numtris*3);
+		seamremap = BZ_Malloc(sizeof(*seamremap)*pq1inmodel->numtris*3);
 
 		galias->numverts = pq1inmodel->numverts;
 		galias->numindexes = pq1inmodel->numtris*3;
@@ -2609,7 +2622,7 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 #endif
 		end = &pinh2triangles[pq1inmodel->numtris];
 
-		if (H1_LoadFrameGroup((daliasframetype_t *)end, seamremap) == NULL)
+		if (H2_LoadFrameGroup((daliasframetype_t *)end, seamremap) == NULL)
 		{
 			BZ_Free(seamremap);
 			Hunk_FreeToLowMark (hunkstart);
@@ -2631,12 +2644,12 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 			if (pinstverts[i].onseam)
 				onseams++;
 		}
-		seamremap = BZ_Malloc(sizeof(int)*pq1inmodel->numverts);
+		seamremap = BZ_Malloc(sizeof(*seamremap)*pq1inmodel->numverts);
 
 		galias->numverts = pq1inmodel->numverts+onseams;
 
 		//st
-	#ifndef SERVERONLY
+#ifndef SERVERONLY
 		st_array = Hunk_Alloc(sizeof(*st_array)*(pq1inmodel->numverts+onseams));
 		galias->ofs_st_array = (char *)st_array - (char *)galias;
 		for (j=pq1inmodel->numverts,i = 0; i < pq1inmodel->numverts; i++)
@@ -2654,7 +2667,12 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 			else
 				seamremap[i] = i;
 		}
-	#endif
+#else
+		for (i = 0; i < pq1inmodel->numverts; i++)
+		{
+			seamremap[i] = i;
+		}
+#endif
 
 		//trianglelists;
 		pinq1triangles = (dtriangle_t *)&pinstverts[pq1inmodel->numverts];

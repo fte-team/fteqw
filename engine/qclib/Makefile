@@ -14,16 +14,19 @@ USEGUI_CFLAGS=
 # set to -DUSEGUI when compiling the GUI
 BASE_CFLAGS=-ggdb $(USEGUI_CFLAGS)
 
+BASE_LDFLAGS=-s
+# set to "" for debugging
+
 DO_CC=$(CC) $(BASE_CFLAGS) -o $@ -c $< $(CFLAGS)
 
 lib: 
 
 R_win_nocyg: $(QCC_OBJS) $(COMMON_OBJS) $(WIN32GUI_OBJS)
-	$(CC) $(BASE_CFLAGS) -o fteqcc.exe -O3 -s $(QCC_OBJS) $(COMMON_OBJS) $(WIN32GUI_OBJS) -mno-cygwin -mwindows -lcomctl32
+	$(CC) $(BASE_CFLAGS) -o fteqcc.exe -O3 $(BASE_LDFLAGS) $(QCC_OBJS) $(COMMON_OBJS) $(WIN32GUI_OBJS) -mno-cygwin -mwindows -lcomctl32
 R_nocyg: $(QCC_OBJS) $(COMMON_OBJS) $(WIN32GUI_OBJS)
-	$(CC) $(BASE_CFLAGS) -o fteqcc.exe -O3 -s $(QCC_OBJS) $(COMMON_OBJS) $(WIN32GUI_OBJS) -mno-cygwin -lcomctl32
+	$(CC) $(BASE_CFLAGS) -o fteqcc.exe -O3 $(BASE_LDFLAGS) $(QCC_OBJS) $(COMMON_OBJS) $(WIN32GUI_OBJS) -mno-cygwin -lcomctl32
 R_win: $(QCC_OBJS) $(COMMON_OBJS) $(WIN32GUI_OBJS)
-	$(CC) $(BASE_CFLAGS) -o fteqcc.exe -O3 -s $(QCC_OBJS) $(COMMON_OBJS) $(WIN32GUI_OBJS) -mwindows -lcomctl32
+	$(CC) $(BASE_CFLAGS) -o fteqcc.exe -O3 $(BASE_LDFLAGS) $(QCC_OBJS) $(COMMON_OBJS) $(WIN32GUI_OBJS) -mwindows -lcomctl32
 
 win_nocyg:
 	$(MAKE) USEGUI_CFLAGS="-DUSEGUI -DQCCONLY" R_win_nocyg
@@ -33,7 +36,7 @@ win:
 	$(MAKE) USEGUI_CFLAGS="-DUSEGUI -DQCCONLY" R_win
 
 R_qcc: $(QCC_OBJS) $(COMMON_OBJS) $(TUI_OBJS)
-	$(CC) $(BASE_CFLAGS) -o fteqcc.bin -O3 -s $(QCC_OBJS) $(TUI_OBJS) $(COMMON_OBJS)
+	$(CC) $(BASE_CFLAGS) -o fteqcc.bin -O3 $(BASE_LDFLAGS) $(QCC_OBJS) $(TUI_OBJS) $(COMMON_OBJS)
 qcc:
 	$(MAKE) USEGUI_CFLAGS="" R_qcc
 
@@ -73,14 +76,14 @@ clean:
 	$(RM) fteqcc.bin fteqcc.exe $(QCC_OBJS) $(COMMON_OBJS) $(VM_OBJS) $(GTKGUI_OBJS) $(WIN32GUI_OBJS) $(TUI_OBJS)
 
 qcvm.so: $(QCC_OBJS) $(VM_OBJS) $(COMMON_OBJS)
-	$(CC) $(BASE_CFLAGS) -o $@ -O3 -s $(QCC_OBJS) $(VM_OBJS) $(COMMON_OBJS) -shared
+	$(CC) $(BASE_CFLAGS) -o $@ -O3 $(BASE_LDFLAGS) $(QCC_OBJS) $(VM_OBJS) $(COMMON_OBJS) -shared
 
 
 test.o: test.c
 	$(DO_CC)
 
 testapp.bin: qcvm.so test.o
-	$(CC) $(BASE_CFLAGS) -o testapp.bin -O3 -s qcvm.so test.o
+	$(CC) $(BASE_CFLAGS) -o testapp.bin -O3 $(BASE_LDFLAGS) qcvm.so test.o
 
 regressiontest: testapp.bin
 	./testapp.bin regression.dat -srcfile regression.src

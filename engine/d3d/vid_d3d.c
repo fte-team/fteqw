@@ -1,10 +1,11 @@
 #include "quakedef.h"
 #include "gl_draw.h"
 #include "shader.h"
+#include "renderque.h"
 
 #ifdef D3DQUAKE
 #include "winquake.h"
-//#include "d3d9quake.h"
+#include "d3d9quake.h"
 
 #include    "d3d9.h"
 
@@ -438,7 +439,7 @@ static void initD3D9(HWND hWnd, rendererstate_t *info)
 		d3dpp.BackBufferWidth = info->width;
 		d3dpp.BackBufferHeight = info->height;
 		d3dpp.MultiSampleType = info->multisample;
-		d3dpp.BackBufferCount = 3;
+		d3dpp.BackBufferCount = 1;
 		d3dpp.FullScreen_RefreshRateInHz = info->fullscreen?info->rate:0;	//don't pass a rate if not fullscreen, d3d doesn't like it.
 		d3dpp.Windowed = !info->fullscreen;
 
@@ -465,12 +466,13 @@ static void initD3D9(HWND hWnd, rendererstate_t *info)
 		memset(&inf, 0, sizeof(inf));
 		err = IDirect3D9_GetAdapterIdentifier(pD3D, i, 0, &inf);
 
+		pD3DDev9 = NULL;
 		// create a device class using this information and information from the d3dpp stuct
-		IDirect3D9_CreateDevice(pD3D, 
+		err = IDirect3D9_CreateDevice(pD3D, 
 				i,
 				D3DDEVTYPE_HAL,
 				hWnd,
-				D3DCREATE_HARDWARE_VERTEXPROCESSING,
+				D3DCREATE_HARDWARE_VERTEXPROCESSING | D3DCREATE_FPU_PRESERVE,
 				&d3dpp,
 				&pD3DDev9);
 
@@ -510,12 +512,20 @@ static void initD3D9(HWND hWnd, rendererstate_t *info)
 			}
 			return;	//successful
 		}
+		else
+		{
+			char *s;
+			switch(err)
+			{
+			default: s = "Unkown error"; break;
+			case D3DERR_DEVICELOST: s = "Device lost"; break;
+			case D3DERR_INVALIDCALL: s = "Invalid call"; break;
+			case D3DERR_NOTAVAILABLE: s = "Not available"; break;
+			case D3DERR_OUTOFVIDEOMEMORY: s = "Out of video memory"; break;
+			}
+			Con_Printf("IDirect3D9_CreateDevice failed: %s.\n", s);
+		}
 	}
-
-
-	Con_Printf("IDirect3D9_CreateDevice failed\n");
-
-
 	return;
 }
 
@@ -735,7 +745,7 @@ void D3D9_Set2D (void)
 	D3DVIEWPORT9 vport;
 //	IDirect3DDevice9_EndScene(pD3DDev9);
 
-	Matrix4_OrthographicD3D(m, 0 + (0.5*vid.width/vid.pixelwidth), vid.width + (0.5*vid.width/vid.pixelwidth), 0 + (0.5*vid.height/vid.pixelheight), vid.height + (0.5*vid.height/vid.pixelheight), -100, 100);
+	Matrix4_OrthographicD3D(m, 0 + (0.5*vid.width/vid.pixelwidth), vid.width + (0.5*vid.width/vid.pixelwidth), 0 + (0.5*vid.height/vid.pixelheight), vid.height + (0.5*vid.height/vid.pixelheight), 0, 100);
 	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)m);
 
 	Matrix4_Identity(m);
@@ -804,8 +814,8 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 
 	if (keydown['k'])
 	{
-		d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET, D3DCOLOR_XRGB(rand()&255, rand()&255, rand()&255), 1.0f, 0));
 		d3d9error(IDirect3DDevice9_BeginScene(pD3DDev9));
+		d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET, D3DCOLOR_XRGB(rand()&255, rand()&255, rand()&255), 1.0f, 0));
 		d3d9error(IDirect3DDevice9_EndScene(pD3DDev9));
 		d3d9error(IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL));
 
@@ -1083,10 +1093,9 @@ static void D3D9_SetupViewPort(void)
 	}
 
 	screenaspect = (float)r_refdef.vrect.width/r_refdef.vrect.height;
-	GL_InfinatePerspective(fov_x, fov_y, gl_mindist.value);
 
+	Matrix4_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value);
 	Matrix4_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
-
 
 	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)r_refdef.m_projection);
 	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)r_refdef.m_view);
@@ -1100,6 +1109,7 @@ static void	(D3D9_R_RenderView)				(void)
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 		Surf_DrawWorld();
 	P_DrawParticles ();
+	RQ_RenderBatchClear();
 }
 
 void	(D3D9_R_NewMap)					(void);
@@ -1153,6 +1163,15 @@ rendererinfo_t d3drendererinfo =
 
 	R2D_Image,
 	R2D_ImageColours,
+
+	D3D9_LoadTexture,
+	D3D9_LoadTexture8Pal24,
+	D3D9_LoadTexture8Pal32,
+	D3D9_LoadCompressed,
+	D3D9_FindTexture,
+	D3D9_AllocNewTexture,
+	D3D9_Upload,
+	D3D9_DestroyTexture,
 
 	D3D9_R_Init,
 	D3D9_R_DeInit,

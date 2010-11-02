@@ -23,7 +23,7 @@ extern cvar_t gl_conback;
 extern cvar_t gl_font;
 extern cvar_t gl_contrast;
 extern cvar_t vid_conautoscale;
-
+void R2D_Font_Callback(struct cvar_s *var, char *oldvalue);
 
 //We need this for minor things though, so we'll just use the slow accurate method.
 //this is unlikly to be called too often.			
@@ -120,6 +120,8 @@ void R2D_Init(void)
 			"}\n"
 		"}\n"
 	);
+
+	Cvar_Hook(&gl_font, R2D_Font_Callback);
 
 	Cvar_ForceCallback(&gl_conback);
 	Cvar_ForceCallback(&vid_conautoscale);

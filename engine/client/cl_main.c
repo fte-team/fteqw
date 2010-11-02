@@ -2750,8 +2750,11 @@ void CL_DownloadSize_f(void)
 	}
 	else if (!strcmp(size, "p"))
 	{
-		Con_Printf("Download of \"%s\" failed. Not allowed.\n", rname);
-		CL_DownloadFailed(rname);
+		if (stricmp(cls.downloadremotename, rname))
+		{
+			Con_Printf("Download of \"%s\" failed. Not allowed.\n", rname);
+			CL_DownloadFailed(rname);
+		}
 	}
 	else if (!strcmp(size, "r"))
 	{
@@ -2774,6 +2777,7 @@ void CL_DownloadSize_f(void)
 			if (!strcmp(dl->rname, rname))
 			{
 				dl->size = strtoul(size, NULL, 0);
+				dl->flags &= ~DLLF_SIZEUNKNOWN;
 				return;
 			}
 		}
@@ -2997,6 +3001,7 @@ void CL_Init (void)
 	Cvar_Register (&r_drawflame, "Item effects");
 
 	Cvar_Register (&allow_download_csprogs, cl_controlgroup);
+	Cvar_Register (&allow_download_redirection, cl_controlgroup);
 
 	//
 	// info mirrors

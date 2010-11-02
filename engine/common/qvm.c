@@ -337,7 +337,7 @@ qvm_t *QVM_LoadVM(const char *name, sys_callqvm_t syscall)
 	qvm_t *qvm;
 	qbyte *raw;
 	int n;
-	int i;
+	unsigned int i;
 
 	sprintf(path, "%s.qvm", name);
 	FS_LoadFile(path, &raw);
@@ -379,7 +379,7 @@ qvm_t *QVM_LoadVM(const char *name, sys_callqvm_t syscall)
 	qvm->ds_mask = qvm->len_ds*sizeof(qbyte)+(qvm->len_ss+16*4)*sizeof(qbyte);//+4 for a stack check decrease
 	for (i = 0; i < sizeof(qvm->ds_mask)*8-1; i++)
 	{
-		if ((1<<(unsigned int)i) >= qvm->ds_mask)	//is this bit greater than our minimum?
+		if ((1<<i) >= qvm->ds_mask)	//is this bit greater than our minimum?
 			break;
 	}
 	qvm->len_ss = (1<<i) - qvm->len_ds*sizeof(qbyte) - 4;	//expand the stack space to fill it.

@@ -210,6 +210,7 @@ typedef struct shaderpass_s {
 	} texgen;
 
 	enum {
+		SHADER_PASS_NOMIPMAP    = 1<<1,
 		SHADER_PASS_NOCOLORARRAY = 1<< 3,
 
 		//FIXME: remove these

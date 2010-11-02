@@ -112,15 +112,6 @@ void GLVID_Console_Resize(void)
 #endif
 }
 
-void GL_Font_Callback(struct cvar_s *var, char *oldvalue)
-{
-	if (font_conchar)
-		Font_Free(font_conchar);
-	font_conchar = Font_LoadFont(8*vid.pixelheight/vid.height, var->string);
-	if (!font_conchar && *var->string)
-		font_conchar = Font_LoadFont(8*vid.pixelheight/vid.height, "");
-}
-
 void GLVID_Conheight_Callback(struct cvar_s *var, char *oldvalue)
 {
 	if (var->value > 1536)	//anything higher is unreadable.

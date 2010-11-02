@@ -78,6 +78,10 @@ extern mesh_t nullmesh;
 
 extern int gl_canbumpmap;
 
+/*
+batches are generated for each shader/ent as required.
+once a batch is known to the backend for that frame, its shader, vbo, ent, lightmap, textures may not be changed until the frame has finished rendering. This is to potentially permit caching.
+*/
 typedef struct batch_s
 {
 	mesh_t **mesh; /*list must be long enough for all surfaces that will form part of this batch times two, for mirrors/portals*/
@@ -87,16 +91,25 @@ typedef struct batch_s
 
 	shader_t *shader;
 	struct vbo_s *vbo;
-	int lightmap;
-	entity_t *ent;
+	int lightmap;	/*used for shader lightmap textures*/
+	entity_t *ent;	/*used for shader properties*/
 
-	struct texture_s *texture;
+	struct texture_s *texture; /*is this used by the backend?*/
 	struct texnums_s *skin;
-	unsigned int maxmeshes;
-	unsigned int flags;
+	unsigned int maxmeshes;	/*not used by backend*/
+	unsigned int flags;	/*backend flags (force transparency etc)*/
 
 	void (*buildmeshes)(struct batch_s *b);
-	vec3_t normal;	/*used only at load (for portal surfaces, so multiple planes are not part of the same batch)*/
+	/*caller-use, not interpreted by backend*/
+	union
+	{
+		struct 
+		{
+			unsigned int surf_first;
+			unsigned int surf_count;
+		};
+		vec3_t normal;	/*used only at load (for portal surfaces, so multiple planes are not part of the same batch)*/
+	};
 } batch_t;
 /*
 

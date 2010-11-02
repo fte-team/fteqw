@@ -640,6 +640,12 @@ pbool QCC_WriteData (int crc)
 		if (compressoutput)		progs.blockscompressed |=128;	//types
 		//include a type block?
 		types = debugtarget;//!!QCC_PR_CheckCompConstDefined("TYPES");	//useful for debugging and saving (maybe, anyway...).
+		if (sizeof(char *) != sizeof(string_t))
+		{
+			//qcc_typeinfo_t has a char* inside it, which changes size
+			printf("AMD64 builds cannot write typeinfo structures\n");
+			types = false;
+		}
 
 		if (verbose)
 		{
@@ -1127,7 +1133,7 @@ strofs = (strofs+3)&~3;
 			qcc_typeinfo[i].aux_type = (QCC_type_t*)(qcc_typeinfo[i].aux_type - qcc_typeinfo);
 		if (qcc_typeinfo[i].next)
 			qcc_typeinfo[i].next = (QCC_type_t*)(qcc_typeinfo[i].next - qcc_typeinfo);
-		qcc_typeinfo[i].name = QCC_CopyDupBackString(qcc_typeinfo[i].name);
+		qcc_typeinfo[i].name = (char*)QCC_CopyDupBackString(qcc_typeinfo[i].name);
 	}
 
 	progs.ofsfiles = 0;

@@ -3086,6 +3086,13 @@ void COM_Version_f (void)
 	#endif
 #endif
 
+#ifdef _WIN64
+		Con_Printf("Compiled for 64bit windows\n");
+#endif
+#ifdef _M_AMD64
+		Con_Printf("Compiled for AMD64 compatible cpus\n");
+#endif
+
 #ifdef _M_IX86
 	Con_Printf("x86 optimized for: ");
 

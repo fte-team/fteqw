@@ -680,10 +680,7 @@ void UI_RegisterFont(char *fontName, int pointSize, fontInfo_t *font)
 
 #define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) Host_EndGame("Call to ui trap %i passes invalid pointer\n", fn);	//out of bounds.
 
-#ifndef _DEBUG
-static
-#endif
-int UI_SystemCallsEx(void *offset, quintptr_t mask, int fn, const int *arg)
+static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, const qintptr_t *arg)
 {
 	int ret=0;
 	char adrbuf[MAX_ADR_SIZE];
@@ -1321,17 +1318,33 @@ int UI_SystemCallsEx(void *offset, quintptr_t mask, int fn, const int *arg)
 	return ret;
 }
 
-#ifdef _DEBUG
-static int UI_SystemCallsExWrapper(void *offset, unsigned int mask, int fn, const int *arg)
+static int UI_SystemCallsVM(void *offset, quintptr_t mask, int fn, const int *arg)
 {	//this is so we can use edit and continue properly (vc doesn't like function pointers for edit+continue)
-	return UI_SystemCallsEx(offset, mask, fn, arg);
+	if (sizeof(int) == sizeof(qintptr_t))
+	{
+			return UI_SystemCalls(offset, mask, fn, arg);
+	}
+	else
+	{
+		qintptr_t args[9];
+
+		args[0]=arg[0];
+		args[1]=arg[1];
+		args[2]=arg[2];
+		args[3]=arg[3];
+		args[4]=arg[4];
+		args[5]=arg[5];
+		args[6]=arg[6];
+		args[7]=arg[7];
+		args[8]=arg[8];
+
+		return UI_SystemCalls(offset, mask, fn, args);
+	}
 }
-#define UI_SystemCallsEx UI_SystemCallsExWrapper
-#endif
 
 //I'm not keen on this.
 //but dlls call it without saying what sort of vm it comes from, so I've got to have them as specifics
-static qintptr_t EXPORT_FN UI_SystemCalls(qintptr_t arg, ...)
+static qintptr_t EXPORT_FN UI_SystemCallsNative(qintptr_t arg, ...)
 {
 	qintptr_t args[9];
 	va_list argptr;
@@ -1348,7 +1361,7 @@ static qintptr_t EXPORT_FN UI_SystemCalls(qintptr_t arg, ...)
 	args[8]=va_arg(argptr, qintptr_t);
 	va_end(argptr);
 
-	return UI_SystemCallsEx(NULL, ~0, arg, args);
+	return UI_SystemCalls(NULL, ~(quintptr_t)0, arg, args);
 }
 
 qboolean UI_DrawStatusBar(int scores)
@@ -1522,7 +1535,7 @@ void UI_Start (void)
 	if (qrenderer != QR_OPENGL && qrenderer != QR_DIRECT3D)
 		return;
 
-	uivm = VM_Create(NULL, "vm/ui", UI_SystemCalls, UI_SystemCallsEx);
+	uivm = VM_Create(NULL, "vm/ui", UI_SystemCallsNative, UI_SystemCallsVM);
 	if (uivm)
 	{
 		apiversion = VM_Call(uivm, UI_GETAPIVERSION, 6);

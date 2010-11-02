@@ -27,11 +27,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 static void R_ReloadRTLights_f(void);
 static void R_SaveRTLights_f(void);
 
-
-#ifdef WATERLAYERS
-cvar_t	r_waterlayers = SCVAR("r_waterlayers","");
-#endif
-
 extern void R_InitBubble();
 
 /*
@@ -483,7 +478,6 @@ void GLR_DeInit (void)
 	Cvar_Unhook(&crosshaircolor);
 	Cvar_Unhook(&r_skyboxname);
 	Cvar_Unhook(&r_menutint);
-	Cvar_Unhook(&gl_font);
 	Cvar_Unhook(&vid_conautoscale);
 	Cvar_Unhook(&vid_conheight);
 	Cvar_Unhook(&vid_conwidth);
@@ -526,7 +520,6 @@ void GLR_Init (void)
 //	Cvar_Hook(&r_drawflat, GLR_Drawflat_Callback);
 	Cvar_Hook(&v_gamma, GLV_Gamma_Callback);
 	Cvar_Hook(&v_contrast, GLV_Gamma_Callback);
-	Cvar_Hook(&gl_font, GL_Font_Callback);
 
 	R_InitBubble();
 
@@ -903,17 +896,17 @@ static void R_SaveRTLights_f(void)
 			"%s%f %f %f "
 			"%f %f %f %f "
 			"%i "
-			/*"\"%s\" %f "
+			"\"%s\" %f "
 			"%f %f %f "
-			"%f %f %f %i "*/
+			"%f %f %f %i "
 			"\n"
 			,
 			(light->flags & LFLAG_NOSHADOWS)?"!":"", light->origin[0], light->origin[1], light->origin[2],
 			light->radius, light->color[0], light->color[1], light->color[2], 
-			light->style-1
-			/*, "", 0,
+			light->style-1,
+			"", 0,
 			0, 0, 0,
-			0, 0, 0, light->flags&(LFLAG_NORMALMODE|LFLAG_REALTIMEMODE*/
+			0, 0, 0, light->flags&(LFLAG_NORMALMODE|LFLAG_REALTIMEMODE)
 			));
 	}
 	VFS_CLOSE(f);
@@ -1015,21 +1008,46 @@ void GLR_TimeRefresh_f (void)
 {
 	int			i;
 	float		start, stop, time;
+	qboolean	finish;
+	int			frames = 128;
 
-	qglDrawBuffer  (GL_FRONT);
-	qglFinish ();
+	finish = atoi(Cmd_Argv(1));
+	frames = atoi(Cmd_Argv(2));
+	if (frames < 1)
+		frames = 128;
 
-	start = Sys_DoubleTime ();
-	for (i=0 ; i<128 ; i++)
+#ifdef _WIN32
+	if (finish == 2)
 	{
-		r_refdef.viewangles[1] = i/128.0*360.0;
-		R_RenderView ();
+		extern HDC		maindc;
+		qglFinish ();
+		start = Sys_DoubleTime ();
+		for (i=0 ; i<frames ; i++)
+		{
+			r_refdef.viewangles[1] = i/(float)frames*360.0;
+			R_RenderView ();
+			qSwapBuffers(maindc);
+		}
 	}
+	else
+#endif
+	{
+		qglDrawBuffer  (GL_FRONT);
+		qglFinish ();
 
+		start = Sys_DoubleTime ();
+		for (i=0 ; i<frames ; i++)
+		{
+			r_refdef.viewangles[1] = i/(float)frames*360.0;
+			R_RenderView ();
+			if (finish)
+				qglFinish ();
+		}
+	}
 	qglFinish ();
 	stop = Sys_DoubleTime ();
 	time = stop-start;
-	Con_Printf ("%f seconds (%f fps)\n", time, 128/time);
+	Con_Printf ("%f seconds (%f fps)\n", time, frames/time);
 
 	qglDrawBuffer  (GL_BACK);
 	GL_EndRendering ();

@@ -824,7 +824,7 @@ void Shader_LightPass_Std(char *shortname, shader_t *s, const void *args)
 {
 	char shadertext[8192*2];
 	sprintf(shadertext, LIGHTPASS_SHADER, defaultglsl2program);
-	FS_WriteFile("shader/lightpass.shader.builtin", shadertext, strlen(shadertext), FS_GAMEONLY);
+//	FS_WriteFile("shader/lightpass.shader.builtin", shadertext, strlen(shadertext), FS_GAMEONLY);
 	Shader_DefaultScript(shortname, s, shadertext);
 }
 void Shader_LightPass_PCF(char *shortname, shader_t *s, const void *args)
@@ -939,6 +939,8 @@ static float *tcgen(const shaderpass_t *pass, int cnt, float *dst, const mesh_t 
 	case TC_GEN_TVECTOR:
 		return (float*)mesh->tnormals_array;
 	case TC_GEN_ENVIRONMENT:
+		if (!mesh->normals_array)
+			return (float*)mesh->st_array;
 		tcgen_environment(dst, cnt, (float*)mesh->xyz_array, (float*)mesh->normals_array);
 		return dst;
 
@@ -2612,176 +2614,6 @@ void BE_DrawMesh_Single(shader_t *shader, mesh_t *mesh, vbo_t *vbo, texnums_t *t
 	BE_DrawMesh_List(shader, 1, &mesh, NULL, texnums);
 }
 
-#if 0
-static void BaseBrushTextures(entity_t *ent)
-{
-	int i;
-	msurface_t *s, *chain;
-	model_t *model;
-
-	batch_t batch;
-	mesh_t *batchmeshes[64];
-
-	model = ent->model;
-
-	if (R_CullEntityBox (ent, model->mins, model->maxs))
-		return;
-
-#ifdef RTLIGHTS
-	if (BE_LightCullModel(ent->origin, model))
-		return;
-#endif
-
-	qglPushMatrix();
-	R_RotateForEntity(ent, model);
-
-	chain = NULL;
-
-// calculate dynamic lighting for bmodel if it's not an
-// instanced model
-	if (model->fromgame != fg_quake3)
-	{
-		int k;
-		int shift;
-
-		if (model->nummodelsurfaces != 0 && r_dynamic.value)
-		{
-			for (k=rtlights_first; k<RTL_FIRST; k++)
-			{
-				if (!cl_dlights[k].radius)
-					continue;
-				if (!(cl_dlights[k].flags & LFLAG_ALLOW_LMHACK))
-					continue;
-
-				model->funcs.MarkLights (&cl_dlights[k], 1<<k,
-					model->nodes + model->hulls[0].firstclipnode);
-			}
-		}
-
-		shift = Surf_LightmapShift(model);
-		if ((ent->drawflags & MLS_MASKIN) == MLS_ABSLIGHT)
-		{
-			//update lightmaps.
-			for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
-				Surf_RenderAmbientLightmaps (s, shift, ent->abslight);
-		}
-		else if (ent->drawflags & DRF_TRANSLUCENT)
-		{
-			//update lightmaps.
-			for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
-				Surf_RenderAmbientLightmaps (s, shift, 255);
-		}
-		else
-		{
-			//update lightmaps.
-			for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
-				Surf_RenderDynamicLightmaps (s, shift);
-		}
-	}
-
-	memset(&batch, 0, sizeof(batch));
-	batch.maxmeshes = sizeof(batchmeshes)/sizeof(batchmeshes[0]);
-	batch.mesh = batchmeshes;
-	batch.lightmap = -1;
-	batch.texture = NULL;
-	batch.ent = ent;
-	for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
-	{
-		if (batch.meshes == batch.maxmeshes || batch.lightmap != s->lightmaptexturenum || batch.texture != s->texinfo->texture)
-		{
-			if (batch.texture)
-				BE_SubmitBatch(&batch);
-			batch.texture = s->texinfo->texture;
-			batch.shader = R_TextureAnimation (batch.texture)->shader;
-			batch.lightmap = s->lightmaptexturenum;
-			batch.meshes = 0;
-		}
-		batch.mesh[batch.meshes++] = s->mesh;
-	}
-	if (batch.texture)
-		BE_SubmitBatch(&batch);
-
-	qglPopMatrix();
-}
-
-void BE_BaseEntShadowDepth(void)
-{
-	int		i;
-	entity_t *ent;
-
-	if (!r_drawentities.value)
-		return;
-
-	// draw sprites seperately, because of alpha blending
-	for (i=0 ; i<cl_numvisedicts ; i++)
-	{
-		ent = &cl_visedicts[i];
-		if (!ent->model)
-			continue;
-		if (ent->model->needload)
-			continue;
-		if (ent->flags & Q2RF_WEAPONMODEL)
-			continue;
-		switch(ent->model->type)
-		{
-		case mod_brush:
-			BaseBrushTextures(ent);
-			break;
-		case mod_alias:
-			R_DrawGAliasModel (ent, BEM_DEPTHONLY);
-			break;
-		}
-	}
-}
-
-/*void BE_BaseEntTextures(void)
-{
-	int		i;
-	unsigned int bef;
-
-	if (!r_drawentities.ival)
-		return;
-
-	// draw sprites seperately, because of alpha blending
-	for (i=0 ; i<cl_numvisedicts ; i++)
-	{
-		currententity = &cl_visedicts[i];
-		if (!currententity->model)
-			continue;
-		if (currententity->model->needload)
-			continue;
-		if (!R_ShouldDraw(currententity))
-			continue;
-		switch(currententity->model->type)
-		{
-		case mod_brush:
-			if (r_drawentities.ival == 2)
-				continue;
-			bef = BEF_PUSHDEPTH;
-			if (currententity->flags & Q2RF_ADDITIVE)
-				bef |= BEF_FORCEADDITIVE;
-			else if (currententity->drawflags & DRF_TRANSLUCENT && r_wateralpha.value != 1)
-			{
-				bef |= BEF_FORCETRANSPARENT;
-				currententity->shaderRGBAf[3] = r_wateralpha.value;
-			}
-			else if (currententity->shaderRGBAf[3] < 1 && cls.protocol != CP_QUAKE3)
-				bef |= BEF_FORCETRANSPARENT;
-			if (currententity->flags & RF_NODEPTHTEST)
-				bef |= BEF_FORCENODEPTH;
-			BE_SelectMode(shaderstate.mode, bef);
-			BaseBrushTextures(currententity);
-			break;
-		case mod_alias:
-			if (r_drawentities.ival == 3)
-				continue;
-			R_DrawGAliasModel (currententity, shaderstate.mode);
-			break;
-		}
-	}
-}*/
-#endif
-
 void BE_DrawPolys(qboolean decalsset)
 {
 	unsigned int i;
@@ -3020,126 +2852,6 @@ static void BE_UpdateLightmaps(void)
 	}
 }
 
-static void BE_GenBrushBatches(batch_t **batches, entity_t *ent)
-{
-	int i;
-	msurface_t *s;
-	model_t *model;
-	batch_t *b;
-	unsigned int bef;
-
-	model = ent->model;
-
-	if (R_CullEntityBox (ent, model->mins, model->maxs))
-		return;
-
-#ifdef RTLIGHTS
-	if (BE_LightCullModel(ent->origin, model))
-		return;
-#endif
-
-// calculate dynamic lighting for bmodel if it's not an
-// instanced model
-	if (model->fromgame != fg_quake3)
-	{
-		int k;
-		int shift;
-
-		currententity = ent;
-		currentmodel = ent->model;
-		if (model->nummodelsurfaces != 0 && r_dynamic.value)
-		{
-			for (k=rtlights_first; k<RTL_FIRST; k++)
-			{
-				if (!cl_dlights[k].radius)
-					continue;
-				if (!(cl_dlights[k].flags & LFLAG_ALLOW_LMHACK))
-					continue;
-
-				model->funcs.MarkLights (&cl_dlights[k], 1<<k,
-					model->nodes + model->hulls[0].firstclipnode);
-			}
-		}
-
-		shift = Surf_LightmapShift(model);
-		if ((ent->drawflags & MLS_MASKIN) == MLS_ABSLIGHT)
-		{
-			//update lightmaps.
-			for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
-				Surf_RenderAmbientLightmaps (s, shift, ent->abslight);
-		}
-		else if (ent->drawflags & DRF_TRANSLUCENT)
-		{
-			//update lightmaps.
-			for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
-				Surf_RenderAmbientLightmaps (s, shift, 255);
-		}
-		else
-		{
-			//update lightmaps.
-			for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
-				Surf_RenderDynamicLightmaps (s, shift);
-		}
-		currententity = NULL;
-	}
-
-	bef = BEF_PUSHDEPTH;
-	if (ent->flags & Q2RF_ADDITIVE)
-		bef |= BEF_FORCEADDITIVE;
-	else if (ent->drawflags & DRF_TRANSLUCENT && r_wateralpha.value != 1)
-	{
-		bef |= BEF_FORCETRANSPARENT;
-		ent->shaderRGBAf[3] = r_wateralpha.value;
-	}
-	else if (ent->shaderRGBAf[3] < 1 && cls.protocol != CP_QUAKE3)
-		bef |= BEF_FORCETRANSPARENT;
-	if (ent->flags & RF_NODEPTHTEST)
-		bef |= BEF_FORCENODEPTH;
-
-	b = NULL;
-	for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
-	{
-		if (!b || b->lightmap != s->lightmaptexturenum || b->texture != s->texinfo->texture)
-		{
-			if (shaderstate.wbatch >= shaderstate.maxwbatches)
-			{
-				shaderstate.wbatch++;
-				break;	/*can't allocate any new ones!*/
-			}
-			b = &shaderstate.wbatches[shaderstate.wbatch++];
-			b->buildmeshes = NULL;
-			b->ent = ent;
-			b->texture = s->texinfo->texture;
-			b->shader = R_TextureAnimation(ent->framestate.g[FS_REG].frame[0], b->texture)->shader;
-			b->skin = &b->shader->defaulttextures;
-			b->flags = bef;
-			if (bef & BEF_FORCEADDITIVE)
-			{
-				b->next = batches[SHADER_SORT_ADDITIVE];
-				batches[SHADER_SORT_ADDITIVE] = b;
-			}
-			else if (bef & BEF_FORCETRANSPARENT)
-			{
-				b->next = batches[SHADER_SORT_BLEND];
-				batches[SHADER_SORT_BLEND] = b;
-			}
-			else
-			{
-				b->next = batches[b->shader->sort];
-				batches[b->shader->sort] = b;
-			}
-			b->mesh = shaderstate.wmeshes+shaderstate.wmesh;
-			b->meshes = 0;
-			b->lightmap = s->lightmaptexturenum;
-		}
-
-		shaderstate.wmesh++;
-		if (shaderstate.wmesh >= shaderstate.maxwmesh)
-			continue;
-		b->mesh[b->meshes++] = s->mesh;
-	}
-}
-
 batch_t *BE_GetTempBatch(void)
 {
 	if (shaderstate.wbatch >= shaderstate.maxwbatches)
@@ -3177,7 +2889,7 @@ void BE_GenModelBatches(batch_t **batches)
 		case mod_brush:
 			if (r_drawentities.ival == 2)
 				continue;
-			BE_GenBrushBatches(batches, ent);
+			Surf_GenBrushBatches(batches, ent);
 			break;
 		case mod_alias:
 			if (r_drawentities.ival == 3)

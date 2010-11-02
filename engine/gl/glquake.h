@@ -229,6 +229,10 @@ extern	const char *gl_version;
 
 FTE_DEPRECATED void PPL_RevertToKnownState(void);
 
+qboolean R_CullBox (vec3_t mins, vec3_t maxs);
+qboolean R_CullEntityBox(entity_t *e, vec3_t modmins, vec3_t modmaxs);
+qboolean R_CullSphere (vec3_t origin, float radius);
+
 #ifdef GLQUAKE
 void R_TranslatePlayerSkin (int playernum);
 void GL_Bind (texid_t texnum);
@@ -307,10 +311,7 @@ void GL_Set2D (void);
 // gl_rmain.c
 //
 qboolean R_ShouldDraw(entity_t *e);
-qboolean R_CullBox (vec3_t mins, vec3_t maxs);
 #ifdef GLQUAKE
-qboolean R_CullSphere (vec3_t origin, float radius);
-qboolean R_CullEntityBox(entity_t *e, vec3_t modmins, vec3_t modmaxs);
 void R_RotateForEntity (const entity_t *e, const model_t *mod);
 
 void GL_InitSceneProcessingShaders (void);
@@ -322,7 +323,6 @@ void GL_SetupSceneProcessingTextures (void);
 //
 #ifdef GLQUAKE
 void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius);
-void R_LightArrays(vecV_t *coords, vec4_t *colours, int vertcount, vec3_t *normals);
 
 //misc model formats
 void R_DrawHLModel(entity_t	*curent);

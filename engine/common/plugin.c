@@ -241,7 +241,7 @@ qintptr_t VARGS Plug_FindBuiltin(void *offset, quintptr_t mask, const qintptr_t 
 	return 0;
 }
 
-int Plug_SystemCallsEx(void *offset, quintptr_t mask, int fn, const int *arg)
+int Plug_SystemCallsVM(void *offset, quintptr_t mask, int fn, const int *arg)
 {
 #if FTE_WORDSIZE == 32
 	#define args arg
@@ -270,7 +270,7 @@ int Plug_SystemCallsEx(void *offset, quintptr_t mask, int fn, const int *arg)
 
 //I'm not keen on this.
 //but dlls call it without saying what sort of vm it comes from, so I've got to have them as specifics
-static qintptr_t EXPORT_FN Plug_SystemCalls(qintptr_t arg, ...)
+static qintptr_t EXPORT_FN Plug_SystemCallsNative(qintptr_t arg, ...)
 {
 	qintptr_t args[9];
 	va_list argptr;
@@ -300,7 +300,7 @@ static qintptr_t EXPORT_FN Plug_SystemCalls(qintptr_t arg, ...)
 plugin_t *Plug_Load(char *file)
 {
 	plugin_t *newplug;
-	int argarray;
+	qintptr_t argarray;
 
 	for (newplug = plugs; newplug; newplug = newplug->next)
 	{
@@ -312,7 +312,7 @@ plugin_t *Plug_Load(char *file)
 	newplug->name = (char*)(newplug+1);
 	strcpy(newplug->name, file);
 
-	newplug->vm = VM_Create(NULL, file, Plug_SystemCalls, Plug_SystemCallsEx);
+	newplug->vm = VM_Create(NULL, file, Plug_SystemCallsNative, Plug_SystemCallsVM);
 	currentplug = newplug;
 	if (newplug->vm)
 	{

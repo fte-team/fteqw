@@ -762,7 +762,10 @@ static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **p
 	{
 		extern char *defaultglsl2program;
 		frag = Shader_ParseString(ptr);
-		Shader_LoadProgram(shader, defaultglsl2program, defaultglsl2program, qrtype);
+#ifdef GLQUAKE
+		if (qrenderer == QR_OPENGL)
+			Shader_LoadProgram(shader, defaultglsl2program, defaultglsl2program, qrtype);
+#endif
 		return;
 	}
 	FS_LoadFile(vert, &vert);
@@ -798,8 +801,6 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 	enum shaderprogparmtype_e parmtype = SP_BAD;
 	char *token;
 	qboolean silent = false;
-	int p;
-	qboolean foundone;
 
 	token = Shader_ParseString(ptr);
 	if (!Q_stricmp(token, "opt"))
@@ -865,6 +866,8 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
+		int p;
+		qboolean foundone;
 		unsigned int uniformloc;
 		if (!shader->programhandle[0].glsl)
 		{
@@ -953,14 +956,14 @@ static void Shaderpass_Map (shader_t *shader, shaderpass_t *pass, char **ptr)
 	if (!Q_stricmp (token, "$lightmap"))
 	{
 		pass->tcgen = TC_GEN_LIGHTMAP;
-		pass->flags |= SHADER_PASS_LIGHTMAP;
+		pass->flags |= SHADER_PASS_LIGHTMAP | SHADER_PASS_NOMIPMAP;
 		pass->texgen = T_GEN_LIGHTMAP;
 		shader->flags |= SHADER_HASLIGHTMAP;
 	}
 	else if (!Q_stricmp (token, "$deluxmap"))
 	{
 		pass->tcgen = TC_GEN_LIGHTMAP;
-		pass->flags |= SHADER_PASS_DELUXMAP;
+		pass->flags |= SHADER_PASS_DELUXMAP | SHADER_PASS_NOMIPMAP;
 		pass->texgen = T_GEN_DELUXMAP;
 	}
 	else if (!Q_stricmp (token, "$diffuse"))
@@ -1854,6 +1857,9 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 	pass->numtcmods = 0;
 	pass->numMergedPasses = 1;
 
+	if (shader->flags & SHADER_NOMIPMAPS)
+		pass->flags |= SHADER_PASS_NOMIPMAP;
+
 	while ( *ptr )
 	{
 		token = COM_ParseExt (ptr, true);
@@ -2478,7 +2484,7 @@ void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args)
 				"}\n"
 			);
 
-	if (0&&!builtin && gl_config.arb_shader_objects)
+/*	if (0&&!builtin && gl_config.arb_shader_objects)
 	{
 			builtin = (
 				"{\n"
@@ -2508,7 +2514,7 @@ void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args)
 				"}\n"
 			);
 	}
-
+*/
 	if (!builtin)
 		builtin = (
 				"{\n"
@@ -3036,6 +3042,7 @@ void Shader_Default2D(char *shortname, shader_t *s, const void *genargs)
 {
 	Shader_DefaultScript(shortname, s, 
 		"{\n"
+			"nomipmaps\n"
 			"{\n"
 				"map $diffuse\n"
 				"rgbgen vertex\n"
@@ -3047,6 +3054,11 @@ void Shader_Default2D(char *shortname, shader_t *s, const void *genargs)
 		);
 
 	s->defaulttextures.base = R_LoadHiResTexture(shortname, NULL, IF_NOPICMIP|IF_NOMIPMAP);
+	if (!TEXVALID(s->defaulttextures.base))
+	{
+		unsigned char data[4*4] = {0};
+		s->defaulttextures.base = R_LoadTexture8("black", 4, 4, data, 0, 0);
+	}
 	s->width = image_width;
 	s->height = image_height;
 }

@@ -453,7 +453,7 @@ int VM_LerpTag(void *out, model_t *model, int f1, int f2, float l2, char *tagnam
 
 #define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) Host_EndGame("Call to cgame trap %i passes invalid pointer\n", fn);	//out of bounds.
 
-static qintptr_t CG_SystemCallsEx(void *offset, quintptr_t mask, qintptr_t fn, const qintptr_t *arg)
+static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, const qintptr_t *arg)
 {
 	int ret=0;
 
@@ -1043,35 +1043,51 @@ static qintptr_t CG_SystemCallsEx(void *offset, quintptr_t mask, qintptr_t fn, c
 
 	return ret;
 }
-#ifdef _DEBUG
-static qintptr_t CG_SystemCallsExWrapper(void *offset, quintptr_t mask, qintptr_t fn, const qintptr_t *arg)
-{	//this is so we can use edit and continue properly (vc doesn't like function pointers for edit+continue)
-	return CG_SystemCallsEx(offset, mask, fn, arg);
+
+static int CG_SystemCallsVM(void *offset, quintptr_t mask, int fn, const int *arg)
+{
+	if (sizeof(qintptr_t) == sizeof(int))
+		return CG_SystemCalls(offset, mask, fn, (qintptr_t*)arg);
+	else
+	{
+		qintptr_t args[10];
+
+		args[0]=arg[0];
+		args[1]=arg[1];
+		args[2]=arg[2];
+		args[3]=arg[3];
+		args[4]=arg[4];
+		args[5]=arg[5];
+		args[6]=arg[6];
+		args[7]=arg[7];
+		args[8]=arg[8];
+		args[9]=arg[9];
+
+		return CG_SystemCalls(offset, mask, fn, args);
+	}
 }
-#define CG_SystemCallsEx CG_SystemCallsExWrapper
-#endif
 
 //I'm not keen on this.
 //but dlls call it without saying what sort of vm it comes from, so I've got to have them as specifics
-static int EXPORT_FN CG_SystemCalls(int arg, ...)
+static qintptr_t EXPORT_FN CG_SystemCallsNative(qintptr_t arg, ...)
 {
-	int args[10];
+	qintptr_t args[10];
 	va_list argptr;
 
 	va_start(argptr, arg);
-	args[0]=va_arg(argptr, int);
-	args[1]=va_arg(argptr, int);
-	args[2]=va_arg(argptr, int);
-	args[3]=va_arg(argptr, int);
-	args[4]=va_arg(argptr, int);
-	args[5]=va_arg(argptr, int);
-	args[6]=va_arg(argptr, int);
-	args[7]=va_arg(argptr, int);
-	args[8]=va_arg(argptr, int);
-	args[9]=va_arg(argptr, int);
+	args[0]=va_arg(argptr, qintptr_t);
+	args[1]=va_arg(argptr, qintptr_t);
+	args[2]=va_arg(argptr, qintptr_t);
+	args[3]=va_arg(argptr, qintptr_t);
+	args[4]=va_arg(argptr, qintptr_t);
+	args[5]=va_arg(argptr, qintptr_t);
+	args[6]=va_arg(argptr, qintptr_t);
+	args[7]=va_arg(argptr, qintptr_t);
+	args[8]=va_arg(argptr, qintptr_t);
+	args[9]=va_arg(argptr, qintptr_t);
 	va_end(argptr);
 
-	return CG_SystemCallsEx(NULL, (unsigned)~0, arg, args);
+	return CG_SystemCalls(NULL, (unsigned)~0, arg, args);
 }
 
 int CG_Refresh(void)
@@ -1127,7 +1143,7 @@ void CG_Start (void)
 	Z_FreeTags(CGTAGNUM);
 	SCR_BeginLoadingPlaque();
 
-	cgvm = VM_Create(NULL, "vm/cgame", CG_SystemCalls, CG_SystemCallsEx);
+	cgvm = VM_Create(NULL, "vm/cgame", CG_SystemCallsNative, CG_SystemCallsVM);
 	if (cgvm)
 	{	//hu... cgame doesn't appear to have a query version call!
 		SCR_EndLoadingPlaque();

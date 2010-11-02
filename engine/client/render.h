@@ -159,11 +159,14 @@ extern	entity_t	r_worldentity;
 //gl_alias.c
 void R_GAlias_DrawBatch(struct batch_s *batch);
 void R_GAlias_GenerateBatches(entity_t *e, struct batch_s **batches);
+void R_LightArraysByte(vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3_t *normals);
+void R_LightArrays(vecV_t *coords, vec4_t *colours, int vertcount, vec3_t *normals);
 
 //r_surf.c
 struct model_s;
 struct msurface_s;
 void Surf_DrawWorld(void);
+void Surf_GenBrushBatches(struct batch_s **batches, entity_t *ent);
 void Surf_StainSurf(struct msurface_s *surf, float *parms);
 void Surf_AddStain(vec3_t org, float red, float green, float blue, float radius);
 void Surf_LessenStains(void);
@@ -305,9 +308,6 @@ extern	texid_t balltexture;
 extern	texid_t beamtexture;
 extern	texid_t ptritexture;
 
-void GL_ParallelPerspective(double xmin, double xmax, double ymax, double ymin, double znear, double zfar);
-void GL_InfinatePerspective(double fovx, double fovy, double zNear);
-
 #if defined(GLQUAKE) || defined(D3DQUAKE)
 
 void	RMod_Init (void);
@@ -410,12 +410,11 @@ extern	cvar_t	r_netgraph;
 extern cvar_t	r_xflip;
 #endif
 
+extern cvar_t gl_maxdist;
 extern	cvar_t	gl_clear;
 extern	cvar_t	gl_poly;
-extern	cvar_t	gl_smoothmodels;
 extern	cvar_t	gl_affinemodels;
 extern	cvar_t	gl_nohwblend;
-extern	cvar_t	gl_keeptjunctions;
 extern	cvar_t	gl_reporttjunctions;
 extern	cvar_t	r_flashblend;
 extern	cvar_t	r_lightstylesmooth;

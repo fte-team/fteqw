@@ -691,7 +691,7 @@ static void SVQ3_Adjust_Area_Portal_State(q3sharedEntity_t *ge, qboolean open)
 }
 
 #define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) SV_Error("Call to game trap %i passes invalid pointer\n", fn);	//out of bounds.
-static int Q3G_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
+static qintptr_t Q3G_SystemCalls(void *offset, unsigned int mask, qintptr_t fn, const qintptr_t *arg)
 {
 	int ret = 0;
 	switch(fn)
@@ -1392,29 +1392,49 @@ static int Q3G_SystemCallsEx(void *offset, unsigned int mask, int fn, const int 
 	return ret;
 }
 
-
-static int EXPORT_FN Q3G_SystemCalls(int arg, ...)
+static int Q3G_SystemCallsVM(void *offset, unsigned int mask, int fn, const int *arg)
 {
-	int args[13];
+	qintptr_t args[13];
+
+	args[0]=arg[0];
+	args[1]=arg[1];
+	args[2]=arg[2];
+	args[3]=arg[3];
+	args[4]=arg[4];
+	args[5]=arg[5];
+	args[6]=arg[6];
+	args[7]=arg[7];
+	args[8]=arg[8];
+	args[9]=arg[9];
+	args[10]=arg[10];
+	args[11]=arg[11];
+	args[12]=arg[12];
+
+	return Q3G_SystemCalls(NULL, ~0, fn, args);
+}
+
+static qintptr_t EXPORT_FN Q3G_SystemCallsNative(qintptr_t arg, ...)
+{
+	qintptr_t args[13];
 	va_list argptr;
 
 	va_start(argptr, arg);
-	args[0]=va_arg(argptr, int);
-	args[1]=va_arg(argptr, int);
-	args[2]=va_arg(argptr, int);
-	args[3]=va_arg(argptr, int);
-	args[4]=va_arg(argptr, int);
-	args[5]=va_arg(argptr, int);
-	args[6]=va_arg(argptr, int);
-	args[7]=va_arg(argptr, int);
-	args[8]=va_arg(argptr, int);
-	args[9]=va_arg(argptr, int);
-	args[10]=va_arg(argptr, int);
-	args[11]=va_arg(argptr, int);
-	args[12]=va_arg(argptr, int);
+	args[0]=va_arg(argptr, qintptr_t);
+	args[1]=va_arg(argptr, qintptr_t);
+	args[2]=va_arg(argptr, qintptr_t);
+	args[3]=va_arg(argptr, qintptr_t);
+	args[4]=va_arg(argptr, qintptr_t);
+	args[5]=va_arg(argptr, qintptr_t);
+	args[6]=va_arg(argptr, qintptr_t);
+	args[7]=va_arg(argptr, qintptr_t);
+	args[8]=va_arg(argptr, qintptr_t);
+	args[9]=va_arg(argptr, qintptr_t);
+	args[10]=va_arg(argptr, qintptr_t);
+	args[11]=va_arg(argptr, qintptr_t);
+	args[12]=va_arg(argptr, qintptr_t);
 	va_end(argptr);
 
-	return Q3G_SystemCallsEx(NULL, ~0, arg, args);
+	return Q3G_SystemCalls(NULL, ~0, arg, args);
 }
 
 void SVQ3_ShutdownGame(void)
@@ -1675,7 +1695,7 @@ qboolean SVQ3_InitGame(void)
 
 	SVQ3_ShutdownGame();
 
-	q3gamevm = VM_Create(NULL, "vm/qagame", Q3G_SystemCalls, Q3G_SystemCallsEx);
+	q3gamevm = VM_Create(NULL, "vm/qagame", Q3G_SystemCallsNative, Q3G_SystemCallsVM);
 
 	if (!q3gamevm)
 		return false;

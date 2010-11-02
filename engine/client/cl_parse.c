@@ -1187,7 +1187,10 @@ void CL_RequestNextDownload (void)
 			if (cls.state == ca_active || requiredownloads.value || (fl & DLLF_REQUIRED))
 			{
 				if ((fl & DLLF_OVERWRITE) || !COM_FCheckExists (dl->localname))
+				{
 					CL_SendDownloadStartRequest(dl->rname, dl->localname);
+					return;
+				}
 				else
 				{
 					Con_Printf("Already have %s\n", dl->localname);
@@ -1441,7 +1444,7 @@ void CL_ParseChunkedDownload(void)
 			else
 				Con_Printf("Couldn't find file \"%s\" on the server\n", svname);
 
-			cls.downloadmethod = 0;
+			cls.downloadmethod = DL_NONE;
 			CL_DownloadFailed(svname);
 
 			CL_RequestNextDownload();

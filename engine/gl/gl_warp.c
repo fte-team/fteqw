@@ -65,7 +65,6 @@ void R_SetSky(char *skyname)
 GL_DrawSkyChain
 =================
 */
-#ifdef GLQUAKE
 void R_DrawSkyChain (batch_t *batch)
 {
 	shader_t *skyshader;
@@ -76,6 +75,7 @@ void R_DrawSkyChain (batch_t *batch)
 	else
 		skyshader = batch->shader;
 
+#ifdef GLQUAKE
 	if (skyshader->skydome)
 		skyboxtex = skyshader->skydome->farbox_textures;
 	else
@@ -101,12 +101,12 @@ void R_DrawSkyChain (batch_t *batch)
 		GL_SkyForceDepth(batch);
 	}
 	else
+#endif
 	{
 		GL_DrawSkySphere(batch, skyshader);
 		GL_SkyForceDepth(batch);
 	}
 }
-#endif
 
 /*
 =================================================================
@@ -370,7 +370,6 @@ static int skymade;
 static index_t skysphere_element3i[skysphere_numtriangles * 3];
 static float skysphere_texcoord2f[skysphere_numverts * 2];
 
-#ifdef GLQUAKE
 static vecV_t skysphere_vertex3f[skysphere_numverts];
 static mesh_t skymesh;
 
@@ -459,7 +458,6 @@ static void GL_SkyForceDepth(batch_t *batch)
 
 static void GL_DrawSkySphere (batch_t *batch, shader_t *shader)
 {
-	extern cvar_t gl_maxdist;
 	float time = cl.gametime+realtime-cl.gametimemark;
 
 	float skydist = gl_maxdist.value;
@@ -467,6 +465,7 @@ static void GL_DrawSkySphere (batch_t *batch, shader_t *shader)
 		skydist=gl_skyboxdist.value;
 	skydist/=16;
 
+	#ifdef GLQUAKE
 	BE_SelectEntity(&r_worldentity);
 	//scale sky sphere and place around view origin.
 	qglPushMatrix();
@@ -477,8 +476,8 @@ static void GL_DrawSkySphere (batch_t *batch, shader_t *shader)
 	gl_skyspherecalc(2);
 	BE_DrawMesh_Single(shader, &skymesh, NULL, &batch->shader->defaulttextures);
 	qglPopMatrix();
+	#endif
 }
-#endif
 
 
 

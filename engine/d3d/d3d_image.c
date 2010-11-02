@@ -40,13 +40,19 @@ static d3dtexture_t *d3d_lookup_texture(char *ident)
 extern cvar_t gl_picmip;
 extern cvar_t gl_picmip2d;
 
-texid_t D3D_AllocNewTexture(int width, int height)
+texid_t D3D9_AllocNewTexture(int width, int height)
 {
 	IDirect3DTexture9 *tx;
 	texid_t ret = r_nulltex;
 	if (!FAILED(IDirect3DDevice9_CreateTexture(pD3DDev9, width, height, 0, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &tx, NULL)))
 		ret.ptr = tx;
 	return ret;
+}
+
+void    D3D9_DestroyTexture (texid_t tex)
+{
+	IDirect3DTexture9 *tx = tex.ptr;
+	IDirect3DTexture9_Release(tx);
 }
 
 static void D3D9_RoundDimensions(int *scaled_width, int *scaled_height, qboolean mipmap)
@@ -295,7 +301,7 @@ static LPDIRECT3DBASETEXTURE9 D3D9_LoadTexture_8(d3dtexture_t *tex, unsigned cha
 	return D3D9_LoadTexture_32(tex, trans, width, height, flags);
 }
 
-void D3D_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, int width, int height, unsigned int flags)
+void    D3D9_Upload (texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags)
 {
 	switch (fmt)
 	{
@@ -308,7 +314,7 @@ void D3D_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, int 
 	}
 }
 
-texid_t D3D_LoadTextureFmt (char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags)
+texid_t D3D9_LoadTexture (char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags)
 {
 	texid_t tid;
 	d3dtexture_t *tex;
@@ -333,23 +339,24 @@ texid_t D3D_LoadTextureFmt (char *identifier, int width, int height, enum upload
 	}
 }
 
-texid_t D3D_LoadCompressed(char *name)
+texid_t D3D9_LoadCompressed (char *name)
 {
 	return r_nulltex;
 }
 
-texid_t D3D_FindTexture (char *identifier)
+texid_t D3D9_FindTexture (char *identifier)
 {
 	d3dtexture_t *tex = d3d_lookup_texture(identifier);
 	return tex->tex;
 }
 
-texid_t D3D_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags)
+texid_t D3D9_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags)
 {
 	return r_nulltex;
 }
-texid_t D3D_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags)
+texid_t D3D9_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags)
 {
 	return r_nulltex;
 }
+
 #endif

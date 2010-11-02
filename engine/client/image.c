@@ -775,6 +775,7 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 
 #ifdef _MSC_VER
 	#pragma comment(lib, MSVCLIBSPATH "jpeg.lib")
+	#pragma comment(lib, MSVCLIBSPATH "libjpeg64.lib")
 #endif
 
 #ifndef JPEG_FALSE

@@ -418,7 +418,6 @@ presetinfo_t preset[] =
 	{"gl_specular",			{"0",		"0",		"0",				"1",				"1"}},
 	{"r_loadlit",			{"0",		"1",		"1",				"2",				"2"}},
 	{"r_fastsky",			{"1",		"0",		"0",				"-1",				"-1"}},
-	{"r_waterlayers",		{"0",		"2",		"",					"4",				"4"}},
 {"r_shadow_realtime_dlight",{"0",		"0",		"0",				"1",				"1"}},
 {"r_shadow_realtime_world",	{"0",		"0",		"0",				"0",				"1"}},
 	{"gl_detail",			{"0",		"0",		"0",				"1",				"1"}},
@@ -592,7 +591,7 @@ void M_Menu_3D_f (void)
 #ifndef MINIMAL
 	extern cvar_t r_xflip;
 #endif
-	extern cvar_t r_novis, gl_dither, cl_item_bobbing, r_waterwarp, r_nolerp, r_fastsky, gl_nocolors, gl_lerpimages, gl_keeptjunctions, gl_lateswap, r_mirroralpha, r_wateralpha, r_drawviewmodel, gl_maxdist, gl_motionblur, gl_motionblurscale, gl_blend2d, gl_blendsprites, r_flashblend, gl_cshiftenabled, vid_multisample;
+	extern cvar_t r_novis, gl_dither, cl_item_bobbing, r_waterwarp, r_nolerp, r_fastsky, gl_nocolors, gl_lerpimages, gl_lateswap, r_mirroralpha, r_wateralpha, r_drawviewmodel, gl_motionblur, gl_motionblurscale, gl_blend2d, gl_blendsprites, r_flashblend, gl_cshiftenabled, vid_multisample;
 
 	int y;
 	menu = M_Options_Title(&y, sizeof(threeDmenuinfo_t));
@@ -627,20 +626,21 @@ void M_Menu_3D_f (void)
 		MC_AddSlider(menu,	16, y,								"          Maximum Distance", &gl_maxdist,1,8192,128);	y+=8;
 		MC_AddCheckBox(menu,	16, y,							"       GL Swapbuffer Delay", &gl_lateswap,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,							"        Mirror Reflections", &r_mirroralpha,0);	y+=8;
-		#ifndef MINIMAL
+		#if !defined(MINIMAL) && defined(GLQUAKE)
 		MC_AddCheckBox(menu,	16, y,							"      Flip Horizontal View", &r_xflip,0);	y+=8;
 		#endif
 		MC_AddCheckBox(menu,	16, y,							"        Water Transparency", &r_wateralpha,0);	y+=8;
 		MC_AddSlider(menu,	16, y,								"   View Model Transparency", &r_drawviewmodel,0,1,0.1);	y+=8;
 		MC_AddCheckBox(menu,	16, y,							"Ignore Player Model Colors", &gl_nocolors,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,							"  Toggle Colinear Vertexes", &gl_keeptjunctions,0);	y+=8;
 		MC_AddSlider(menu,	16, y,								"               Motion Blur", &gl_motionblur,0,1,0.5);	y+=8;
 		MC_AddSlider(menu,	16, y,								"         Motion Blur Scale", &gl_motionblurscale,0,1,0.5);	y+=8;
 		MC_AddCheckBox(menu,	16, y,							"               2D Blending", &gl_blend2d,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,							"           Sprite Blending", &gl_blendsprites,0);	y+=8;
 		MC_AddSlider(menu,	16, y,								"            Flash Blending", &r_flashblend,0,2,1);	y+=8;
 		MC_AddCheckBox(menu,	16, y,							"             Poly Blending", &gl_cshiftenabled,0);	y+=8;
+		#ifdef GLQUAKE
 		MC_AddCheckBox(menu,	16, y,							"     16bit Color Dithering", &gl_dither,0);	y+=8;
+		#endif
 		MC_AddCheckBox(menu,	16, y,							"             Model Bobbing", &cl_item_bobbing,0);	y+=8;
 		info->multisamplingcombo = MC_AddCombo(menu, 16, y,		" Multisample Anti-Aliasing", msaalevels, currentmsaalevel); y+=8;
 		y+=8;
@@ -661,7 +661,7 @@ typedef struct {
 qboolean M_VideoApplyTextures (union menuoption_s *op,struct menu_s *menu,int key)
 {
 	texturemenuinfo_t *info = menu->data;
-#ifndef MINIMAL
+#if !defined(MINIMAL) && defined(GLQUAKE)
 	int currentbloomdiamond;
 	int currentbloomsamplesize;
 
@@ -737,7 +737,7 @@ qboolean M_VideoApplyTextures (union menuoption_s *op,struct menu_s *menu,int ke
 		break;
 	}
 
-#ifndef MINIMAL
+#if !defined(MINIMAL) && defined(GLQUAKE)
 	if (r_bloom_sample_size.value >= 512)
 		currentbloomsamplesize = 7;
 	else if (r_bloom_sample_size.value == 384)
@@ -916,20 +916,23 @@ void M_Menu_Textures_f (void)
 	int currenttexturefilter;
 	int currentanisotropylevel;
 	int currentmaxtexturesize;
-#ifndef MINIMAL
+#if !defined(MINIMAL) && defined(GLQUAKE)
 	int currentbloomsamplesize;
 	int currentbloomdiamond;
 
-	extern cvar_t r_bloom_sample_size, r_bloom_darken, r_bloom_intensity, r_bloom_diamond_size, r_bloom_alpha, r_bloom_fast_sample;
+	extern cvar_t r_bloom, r_bloom_sample_size, r_bloom_darken, r_bloom_intensity, r_bloom_diamond_size, r_bloom_alpha, r_bloom_fast_sample;
 #endif
-	extern cvar_t r_bloom, gl_load24bit, gl_specular, r_waterlayers, gl_bump, gl_detail, gl_detailscale, gl_compress, gl_savecompressedtex, gl_triplebuffer, gl_picmip, gl_picmip2d, gl_playermip, gl_max_size, r_stains, r_bloodstains, r_stainfadetime, r_stainfadeammount, gl_skyboxdist, r_drawflat, gl_schematics, gl_texturemode, gl_texture_anisotropic_filtering;
+	extern cvar_t gl_load24bit, gl_specular, gl_bump, gl_detail, gl_detailscale, gl_compress, gl_savecompressedtex, gl_triplebuffer, gl_picmip, gl_picmip2d, gl_max_size, r_stains, r_bloodstains, r_stainfadetime, r_stainfadeammount, gl_skyboxdist, r_drawflat, gl_schematics;
+#if defined(GLQUAKE)
+	extern cvar_t gl_texture_anisotropic_filtering, gl_texturemode, gl_playermip;
+#endif
 	int y;
 	menu_t *menu = M_Options_Title(&y, sizeof(*info));
 	info = menu->data;
 
 	cursorpositionY = (y + 24);
 
-#ifndef MINIMAL
+#if !defined(MINIMAL) && defined(GLQUAKE)
 
 	if (r_bloom_sample_size.value >= 512)
 		currentbloomsamplesize = 7;
@@ -964,6 +967,7 @@ void M_Menu_Textures_f (void)
 		currentbloomdiamond = 0;
 #endif
 
+#if defined(GLQUAKE)
 	if (!Q_strcasecmp(gl_texturemode.string, "gl_nearest_mipmap_nearest"))
 		currenttexturefilter = 0;
 	else if (!Q_strcasecmp(gl_texturemode.string, "gl_linear_mipmap_linear"))
@@ -985,6 +989,10 @@ void M_Menu_Textures_f (void)
 		currentanisotropylevel = 0;
 	else
 		currentanisotropylevel = 0;
+#else
+	currenttexturefilter = 0;
+	currentanisotropylevel = 0;
+#endif
 
 	if (gl_max_size.value >= 8192)
 		currentmaxtexturesize = 9;
@@ -1016,8 +1024,8 @@ void M_Menu_Textures_f (void)
 		info->texturefiltercombo = MC_AddCombo(menu, 16, y,	"          Texture Filter", texturefilternames, currenttexturefilter); y+=8;
 		info->anisotropycombo =	MC_AddCombo(menu, 16, y,    "        Anisotropy Level", anisotropylevels, currentanisotropylevel); y+=8;
 		MC_AddCheckBox(menu,	16, y,						"          32bit Textures", &gl_load24bit,0);	y+=8;
+#if !defined(MINIMAL) && defined(GLQUAKE)
 		MC_AddCheckBox(menu,	16, y,						"                   Bloom", &r_bloom,0);	y+=8;
-#ifndef MINIMAL
 		MC_AddCheckBox(menu,	16, y,						"       Bloom Fast Sample", &r_bloom_fast_sample,0);	y+=8;
 		info->bloomsamplesizecombo = MC_AddCombo(menu,16, y,"       Bloom Sample Size", bloomsamplesizeoptions, currentbloomsamplesize);	y+=8;
 		MC_AddSlider(menu,	16, y,							"            Bloom Darken", &r_bloom_darken,0,5,0.25);	y+=8;
@@ -1034,7 +1042,9 @@ void M_Menu_Textures_f (void)
 		MC_AddCheckBox(menu,	16, y,						"        Triple Buffering", &gl_triplebuffer,0);	y+=8;
 		MC_AddSlider(menu,	16, y,							"       3D Texture Picmip", &gl_picmip,0,16,1);	y+=8;
 		MC_AddSlider(menu,	16, y,							"       2D Texture Picmip", &gl_picmip2d,0,16,1);	y+=8;
+#ifdef GLQUAKE
 		MC_AddSlider(menu,	16, y,							"    Model Texture Picmip", &gl_playermip,0,16,1);	y+=8;
+#endif
 		info->maxtexturesizecombo = MC_AddCombo(menu,16, y,	"    Maximum Texture Size", texturesizeoptions, currentmaxtexturesize);	y+=8;
 		MC_AddCheckBox(menu,	16, y,						"              Stain Maps", &r_stains,0);	y+=8;
 		MC_AddCheckBox(menu,	16, y,						"            Blood Stains", &r_bloodstains,0);	y+=8;
@@ -1043,8 +1053,6 @@ void M_Menu_Textures_f (void)
 		MC_AddSlider(menu,	16, y,							"         Skybox Distance", &gl_skyboxdist,0,10000,100);	y+=8;
 		MC_AddSlider(menu,	16, y,							"      Draw Flat Surfaces", &r_drawflat,0,2,1);	y+=8;
 		MC_AddCheckBox(menu,	16, y,						"          Map Schematics", &gl_schematics,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"           Smooth Models", &gl_smoothmodels,0);	y+=8;
-		MC_AddSlider(menu,	16, y,							"            Water Layers", &r_waterlayers,0,10,1);	y+=8;
 		y+=8;
 		MC_AddCommand(menu,	16, y,								"           Apply", M_VideoApplyTextures);	y+=8;
 

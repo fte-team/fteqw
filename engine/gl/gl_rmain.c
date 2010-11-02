@@ -70,20 +70,16 @@ int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;
 texture_t	*r_notexture_mip;
 
 cvar_t	r_norefresh = SCVAR("r_norefresh","0");
-cvar_t	r_mirroralpha = SCVARF("r_mirroralpha","1", CVAR_CHEAT);
 
 extern cvar_t	gl_part_flame;
 extern cvar_t	r_bloom;
 
 cvar_t	gl_clear = SCVAR("gl_clear","0");
-cvar_t	gl_smoothmodels = SCVAR("gl_smoothmodels","1");
 cvar_t	gl_affinemodels = SCVAR("gl_affinemodels","0");
 cvar_t	gl_playermip = SCVAR("gl_playermip","0");
-cvar_t	gl_keeptjunctions = SCVAR("gl_keeptjunctions","1");
 cvar_t	gl_reporttjunctions = SCVAR("gl_reporttjunctions","0");
 cvar_t	gl_finish = SCVAR("gl_finish","0");
 cvar_t	gl_dither = SCVAR("gl_dither", "1");
-cvar_t	gl_maxdist = SCVAR("gl_maxdist", "8192");
 
 cvar_t	r_polygonoffset_submodel_factor = SCVAR("r_polygonoffset_submodel_factor", "0.05");
 cvar_t	r_polygonoffset_submodel_offset = SCVAR("r_polygonoffset_submodel_offset", "25");

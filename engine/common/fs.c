@@ -463,7 +463,7 @@ void FS_RebuildFSHash(void)
 
 	com_fschanged = false;
 
-	Con_Printf("%i unique files, %i duplicates\n", fs_hash_files, fs_hash_dups);
+	Con_DPrintf("%i unique files, %i duplicates\n", fs_hash_files, fs_hash_dups);
 }
 
 /*
@@ -1809,7 +1809,7 @@ typedef struct {
 	const char *protocolname;	//sent to the master server when this is the current gamemode.
 	const char *exename;	//used if the exe name contains this
 	const char *argname;	//used if this was used as a parameter.
-	const char *auniquefile;	//used if this file is relative from the gamedir
+	const char *auniquefile[4];	//used if this file is relative from the gamedir
 
 	const char *customexec;
 
@@ -1822,23 +1822,24 @@ const gamemode_info_t gamemode_info[] = {
 
 //rogue/hipnotic have no special files - the detection conflicts and stops us from running regular quake
 	//protocol name(dpmaster) exename        cmdline switch   identifying file   exec     dir1       dir2    dir3       dir(fte)     full name
-	{"Darkplaces-Quake",	"darkplaces",	"-quake",		"id1/pak0.pak",		NULL,	{"id1",		"qw",				"fte"},		"Quake"},
-	{"Darkplaces-Hipnotic",	"hipnotic",		"-hipnotic",	NULL,				NULL,	{"id1",		"qw",	"hipnotic",	"fte"},		"Quake: Scourge of Armagon"},
-	{"Darkplaces-Rogue",	"rogue",		"-rogue",		NULL,				NULL,	{"id1",		"qw",	"rogue",	"fte"},		"Quake: Dissolution of Eternity"},
-	{"Nexuiz",				"nexuiz",		"-nexuiz",		"nexuiz.exe",		NEXCFG,	{"data",						"ftedata"},	"Nexuiz"},
-	{"DMF",					"dmf",			"-dmf",			"base/src/progs.src",DMFCFG,{"base",						         },		"DMF"},
+	{"Darkplaces-Quake",	"darkplaces",	"-quake",		{"id1/pak0.pak"},		NULL,	{"id1",		"qw",				"fte"},		"Quake"},
+	{"Darkplaces-Hipnotic",	"hipnotic",		"-hipnotic",	{NULL},					NULL,	{"id1",		"qw",	"hipnotic",	"fte"},		"Quake: Scourge of Armagon"},
+	{"Darkplaces-Rogue",	"rogue",		"-rogue",		{NULL},					NULL,	{"id1",		"qw",	"rogue",	"fte"},		"Quake: Dissolution of Eternity"},
+	{"Nexuiz",				"nexuiz",		"-nexuiz",		{"nexuiz.exe"},			NEXCFG,	{"data",						"ftedata"},	"Nexuiz"},
+	{"DMF",					"dmf",			"-dmf",			{"base/src/progs.src"},	DMFCFG,	{"base",						         },		"DMF"},
 
 	//supported commercial mods (some are currently only partially supported)
-	{"FTE-H2MP",			"h2mp",			"-portals",		"portals/hexen.rc",	HEX2CFG,{"data1",	"portals",			"fteh2"},		"Hexen II MP"},
-	{"FTE-Hexen2",			"hexen",		"-hexen2",		"data1/pak0.pak",	HEX2CFG,{"data1",						"fteh2"},		"Hexen II"},
-	{"FTE-Quake2",			"q2",			"-q2",			"baseq2/pak0.pak",	NULL,	{"baseq2",						"fteq2"},	"Quake II"},
-	{"FTE-Quake3",			"q3",			"-q3",			"baseq3/pak0.pk3",	NULL,	{"baseq3",						"fteq3"},	"Quake III Arena"},
-	{"FTE-Quake4",			"q4",			"-q4",			"q4base/pak00.pk4",	NULL,	{"q4base",						"fteq4"},	"Quake 4"},
-	{"FTE-EnemyTerritory",	"et",			"-et",			"etmain/pak0.pk3",	NULL,	{"etmain",						"fteet"},	"Wolfenstein - Enemy Territory"},
+	{"FTE-H2MP",			"h2mp",			"-portals",		{"portals/hexen.rc",
+															 "portals/pak3.pak"},	HEX2CFG,{"data1",	"portals",			"fteh2"},		"Hexen II MP"},
+	{"FTE-Hexen2",			"hexen",		"-hexen2",		{"data1/pak0.pak"},		HEX2CFG,{"data1",						"fteh2"},		"Hexen II"},
+	{"FTE-Quake2",			"q2",			"-q2",			{"baseq2/pak0.pak"},	NULL,	{"baseq2",						"fteq2"},	"Quake II"},
+	{"FTE-Quake3",			"q3",			"-q3",			{"baseq3/pak0.pk3"},	NULL,	{"baseq3",						"fteq3"},	"Quake III Arena"},
+	{"FTE-Quake4",			"q4",			"-q4",			{"q4base/pak00.pk4"},	NULL,	{"q4base",						"fteq4"},	"Quake 4"},
+	{"FTE-EnemyTerritory",	"et",			"-et",			{"etmain/pak0.pk3"},	NULL,	{"etmain",						"fteet"},	"Wolfenstein - Enemy Territory"},
 
-	{"FTE-JK2",				"jk2",			"-jk2",			"base/assets0.pk3",	NULL,	{"base",						"fte"},		"Jedi Knight II: Jedi Outcast"},
+	{"FTE-JK2",				"jk2",			"-jk2",			{"base/assets0.pk3"},	NULL,	{"base",						"fte"},		"Jedi Knight II: Jedi Outcast"},
 
-	{"FTE-HalfLife",		"hl",			"-halflife",	"valve/liblist.gam",NULL,	{"valve",						"ftehl"},	"Half-Life"},
+	{"FTE-HalfLife",		"hl",			"-halflife",	{"valve/liblist.gam"}	,NULL,	{"valve",						"ftehl"},	"Half-Life"},
 
 	{NULL}
 };
@@ -2376,7 +2377,7 @@ COM_InitFilesystem
 void COM_InitFilesystem (void)
 {
 	FILE *f;
-	int		i;
+	int		i, j;
 
 	char *ev;
 	qboolean usehome;
@@ -2413,16 +2414,19 @@ void COM_InitFilesystem (void)
 	Cvar_Register(&com_gamename, "evil hacks");
 	Cvar_Register(&com_modname, "evil hacks");
 	//identify the game from a telling file
-	for (i = 0; gamemode_info[i].argname; i++)
+	for (i = 0; gamemode_info[i].argname && gamenum==-1; i++)
 	{
-		if (!gamemode_info[i].auniquefile)
-			continue;	//no more
-		f = fopen(va("%s%s", com_quakedir, gamemode_info[i].auniquefile), "rb");
-		if (f)
+		for (j = 0; j < 4; j++)
 		{
-			fclose(f);
-			gamenum = i;
-			break;
+			if (!gamemode_info[i].auniquefile[j])
+				continue;	//no more
+			f = fopen(va("%s%s", com_quakedir, gamemode_info[i].auniquefile[j]), "rb");
+			if (f)
+			{
+				fclose(f);
+				gamenum = i;
+				break;
+			}
 		}
 	}
 	//use the game based on an exe name over the filesystem one (could easily have multiple fs path matches).
@@ -2438,30 +2442,34 @@ void COM_InitFilesystem (void)
 		{
 			gamenum = i;
 
-			if (gamemode_info[gamenum].auniquefile)
+			for (j = 0; j < 4; j++)
 			{
-				f = fopen(va("%s%s", com_quakedir, gamemode_info[i].auniquefile), "rb");
-				if (f)
+				if (gamemode_info[gamenum].auniquefile[j])
 				{
-					//we found it, its all okay
-					fclose(f);
-					break;
-				}
-#ifdef _WIN32
-				if (Sys_FindGameData(gamemode_info[i].poshname, gamemode_info[i].exename, com_quakedir, sizeof(com_quakedir)))
-				{
-					if (com_quakedir[strlen(com_quakedir)-1] == '\\')
-						com_quakedir[strlen(com_quakedir)-1] = '/';
-					else if (com_quakedir[strlen(com_quakedir)-1] != '/')
+					f = fopen(va("%s%s", com_quakedir, gamemode_info[i].auniquefile[j]), "rb");
+					if (f)
 					{
-						com_quakedir[strlen(com_quakedir)+1] = '\0';
-						com_quakedir[strlen(com_quakedir)] = '/';
+						//we found it, its all okay
+						fclose(f);
+						break;
 					}
-				}
-				else
+#ifdef _WIN32
+					if (Sys_FindGameData(gamemode_info[i].poshname, gamemode_info[i].exename, com_quakedir, sizeof(com_quakedir)))
+					{
+						if (com_quakedir[strlen(com_quakedir)-1] == '\\')
+							com_quakedir[strlen(com_quakedir)-1] = '/';
+						else if (com_quakedir[strlen(com_quakedir)-1] != '/')
+						{
+							com_quakedir[strlen(com_quakedir)+1] = '\0';
+							com_quakedir[strlen(com_quakedir)] = '/';
+						}
+					}
+					else
 #endif
-				{
-					Con_Printf("Couldn't find the gamedata for this game mode!\n");
+					{
+						Con_Printf("Couldn't find the gamedata for this game mode!\n");
+					}
+					break;
 				}
 			}
 			break;

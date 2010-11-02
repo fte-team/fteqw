@@ -898,6 +898,43 @@ avec3_t shadelight;
 #include <xmmintrin.h>
 #endif
 
+void R_LightArraysByte(vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3_t *normals)
+{
+	extern cvar_t r_vertexdlights;
+	int i;
+	float l;
+
+	byte_vec4_t ambientlightb;
+	byte_vec4_t shadelightb;
+
+	VectorScale(ambientlight, 255, ambientlightb); 
+	VectorScale(shadelight, 255, shadelightb); 
+
+	if (ambientlightb[0] == shadelightb[0] && ambientlightb[1] == shadelightb[1] && ambientlightb[2] == shadelightb[2])
+	{
+		for (i = vertcount-1; i >= 0; i--)
+		{
+			colours[i][0] = ambientlightb[0];
+			colours[i][1] = ambientlightb[1];
+			colours[i][2] = ambientlightb[2];
+		}
+	}
+	else
+	{
+		vec3_t meanambient;
+		/*dotproduct will return a value between 1 and -1, so increase the ambient to be correct for normals facing away from the light*/
+		VectorMA(ambientlightb, 1, shadelightb, meanambient);
+
+		for (i = vertcount-1; i >= 0; i--)
+		{
+			l = DotProduct(normals[i], shadevector);
+			colours[i][0] = l*shadelightb[0]+meanambient[0];
+			colours[i][1] = l*shadelightb[1]+meanambient[1];
+			colours[i][2] = l*shadelightb[2]+meanambient[2];
+		}
+	}
+}
+
 void R_LightArrays(vecV_t *coords, avec4_t *colours, int vertcount, vec3_t *normals)
 {
 	extern cvar_t r_vertexdlights;
@@ -1917,11 +1954,11 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 			Q_strncpyz(frame->name, frameinfo->name, sizeof(frame->name));
 
 			verts = (vecV_t *)(pose+1);
-			svec = &normals[galias->numverts];
-			tvec = &svec[galias->numverts];
 			pose->ofsverts = (char *)verts - (char *)pose;
 #ifndef SERVERONLY
 			normals = (vec3_t*)&verts[galias->numverts];
+			svec = &normals[galias->numverts];
+			tvec = &svec[galias->numverts];
 			pose->ofsnormals = (char *)normals - (char *)pose;
 			pose->ofssvector = (char *)svec - (char *)pose;
 			pose->ofstvector = (char *)tvec - (char *)pose;

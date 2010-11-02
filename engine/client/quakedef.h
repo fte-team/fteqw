@@ -90,8 +90,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define QUAKEDEF_H__
 
-#define WATERLAYERS
-
 #ifdef SERVERONLY
 #define isDedicated true
 #endif

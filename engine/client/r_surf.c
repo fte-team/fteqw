@@ -1911,6 +1911,140 @@ void Surf_SetupFrame(void)
 	}
 }
 
+
+static mesh_t *surfbatchmeshes[128];
+static void Surf_BuildBrushBatch(batch_t *batch)
+{
+	model_t *model = batch->ent->model;
+	unsigned int i;
+	batch->mesh = surfbatchmeshes;
+	batch->meshes = batch->surf_count;
+	for (i = 0; i < batch->surf_count; i++)
+	{
+		surfbatchmeshes[i] = model->surfaces[batch->surf_first + i].mesh;
+	}
+}
+
+void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
+{
+	int i;
+	msurface_t *s;
+	model_t *model;
+	batch_t *b;
+	unsigned int bef;
+
+	model = ent->model;
+
+	if (R_CullEntityBox (ent, model->mins, model->maxs))
+		return;
+
+#ifdef RTLIGHTS
+	if (BE_LightCullModel(ent->origin, model))
+		return;
+#endif
+
+// calculate dynamic lighting for bmodel if it's not an
+// instanced model
+	if (model->fromgame != fg_quake3)
+	{
+		int k;
+		int shift;
+
+		currententity = ent;
+		currentmodel = ent->model;
+		if (model->nummodelsurfaces != 0 && r_dynamic.value)
+		{
+			for (k=rtlights_first; k<RTL_FIRST; k++)
+			{
+				if (!cl_dlights[k].radius)
+					continue;
+				if (!(cl_dlights[k].flags & LFLAG_ALLOW_LMHACK))
+					continue;
+
+				model->funcs.MarkLights (&cl_dlights[k], 1<<k,
+					model->nodes + model->hulls[0].firstclipnode);
+			}
+		}
+
+		shift = Surf_LightmapShift(model);
+		if ((ent->drawflags & MLS_MASKIN) == MLS_ABSLIGHT)
+		{
+			//update lightmaps.
+			for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
+				Surf_RenderAmbientLightmaps (s, shift, ent->abslight);
+		}
+		else if (ent->drawflags & DRF_TRANSLUCENT)
+		{
+			//update lightmaps.
+			for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
+				Surf_RenderAmbientLightmaps (s, shift, 255);
+		}
+		else
+		{
+			//update lightmaps.
+			for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
+				Surf_RenderDynamicLightmaps (s, shift);
+		}
+		currententity = NULL;
+	}
+
+	bef = BEF_PUSHDEPTH;
+	if (ent->flags & Q2RF_ADDITIVE)
+		bef |= BEF_FORCEADDITIVE;
+	else if (ent->drawflags & DRF_TRANSLUCENT && r_wateralpha.value != 1)
+	{
+		bef |= BEF_FORCETRANSPARENT;
+		ent->shaderRGBAf[3] = r_wateralpha.value;
+	}
+	else if (ent->shaderRGBAf[3] < 1 && cls.protocol != CP_QUAKE3)
+		bef |= BEF_FORCETRANSPARENT;
+	if (ent->flags & RF_NODEPTHTEST)
+		bef |= BEF_FORCENODEPTH;
+
+	b = NULL;
+	for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
+	{
+		if (!b || b->lightmap != s->lightmaptexturenum || b->texture != s->texinfo->texture || b->surf_count >= sizeof(surfbatchmeshes)/sizeof(surfbatchmeshes[0]))
+		{
+			b = BE_GetTempBatch();
+			if (!b)
+				break;
+			b->buildmeshes = NULL;
+			b->ent = ent;
+			b->texture = s->texinfo->texture;
+			b->shader = R_TextureAnimation(ent->framestate.g[FS_REG].frame[0], b->texture)->shader;
+			b->skin = &b->shader->defaulttextures;
+			b->flags = bef;
+			if (bef & BEF_FORCEADDITIVE)
+			{
+				b->next = batches[SHADER_SORT_ADDITIVE];
+				batches[SHADER_SORT_ADDITIVE] = b;
+			}
+			else if (bef & BEF_FORCETRANSPARENT)
+			{
+				b->next = batches[SHADER_SORT_BLEND];
+				batches[SHADER_SORT_BLEND] = b;
+			}
+			else
+			{
+				b->next = batches[b->shader->sort];
+				batches[b->shader->sort] = b;
+			}
+			b->surf_first = s - model->surfaces;
+			b->surf_count = 0;
+			b->buildmeshes = Surf_BuildBrushBatch;
+			b->meshes = 0;
+			b->firstmesh = 0;
+			b->lightmap = s->lightmaptexturenum;
+			b->mesh = NULL;
+			b->vbo = NULL;
+		}
+
+		b->surf_count++;
+		b->meshes++;
+	}
+}
+
 /*
 =============
 R_DrawWorld

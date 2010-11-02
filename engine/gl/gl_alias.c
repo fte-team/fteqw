@@ -14,9 +14,7 @@
 
 
 #include "quakedef.h"
-#ifdef GLQUAKE
-	#include "glquake.h"
-#endif
+#include "glquake.h"
 #if defined(GLQUAKE) || defined(D3DQUAKE)
 
 #ifdef _WIN32
@@ -446,6 +444,11 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum,
 				}
 				if (scaled_height > gl_max_size.value)
 					scaled_height = gl_max_size.value;	//whoops, we made it too big
+
+				if (scaled_width < 4)
+					scaled_width = 4;
+				if (scaled_height < 4)
+					scaled_height = 4;
 
 				if (h2playertranslations && pc)
 				{
@@ -908,15 +911,22 @@ void R_GAlias_DrawBatch(batch_t *batch)
 	nolightdir = R_CalcModelLighting(e, clmodel);
 
 	inf = RMod_Extradata (clmodel);
-	memset(&mesh, 0, sizeof(mesh));
-	for(surfnum=0; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)), surfnum++)
+	if (inf)
 	{
-		if (batch->lightmap == surfnum)
+		memset(&mesh, 0, sizeof(mesh));
+		for(surfnum=0; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)), surfnum++)
 		{
-			needrecolour = Alias_GAliasBuildMesh(&mesh, inf, e, e->shaderRGBAf[3], nolightdir);
-			batch->mesh = &meshl;
+			if (batch->surf_first == surfnum)
+			{
+				needrecolour = Alias_GAliasBuildMesh(&mesh, inf, e, e->shaderRGBAf[3], nolightdir);
+				batch->mesh = &meshl;
+				return;
+			}
 		}
 	}
+	batch->meshes = 0;
+	Con_Printf("Broken model surfaces mid-frame\n");
+	return;
 }
 
 void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
@@ -988,7 +998,10 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 			b->skin = skin;
 			b->texture = NULL;
 			b->shader = shader;
-			b->lightmap = surfnum;
+			b->lightmap = -1;
+			b->surf_first = surfnum;
+			b->flags = 0;
+			b->vbo = 0;
 			b->next = batches[shader->sort];
 			batches[shader->sort] = b;
 		}

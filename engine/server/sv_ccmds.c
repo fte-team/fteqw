@@ -1206,7 +1206,6 @@ void SV_Cuff_f (void)
 			cl->iscuffed = false;
 			SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUARNTCUFFED);
 		}
-		return;
 	}
 
 	if (clnum == -1)

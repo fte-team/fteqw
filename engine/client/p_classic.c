@@ -225,6 +225,7 @@ static qboolean PClassic_InitParticles (void)
 	classicmesh.indexes = classicindexes;
 	classicshader = R_RegisterShader("particles_classic",
 		"{\n"
+			"nomipmaps\n"
 			"{\n"
 				"map $diffuse\n"
 				"rgbgen vertex\n"

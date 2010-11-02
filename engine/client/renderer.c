@@ -217,7 +217,7 @@ extern cvar_t r_drawentities;
 extern cvar_t r_drawviewmodel;
 extern cvar_t r_drawworld;
 extern cvar_t r_fullbright;
-extern cvar_t r_mirroralpha;
+cvar_t	r_mirroralpha = SCVARF("r_mirroralpha","1", CVAR_CHEAT);
 extern cvar_t r_netgraph;
 extern cvar_t r_norefresh;
 extern cvar_t r_novis;
@@ -289,6 +289,7 @@ cvar_t gl_savecompressedtex					= SCVAR  ("gl_savecompressedtex", "0");
 cvar_t gl_schematics						= SCVAR  ("gl_schematics", "0");
 cvar_t gl_skyboxdist						= SCVAR  ("gl_skyboxdist", "0");	//0 = guess.
 cvar_t gl_smoothcrosshair					= SCVAR  ("gl_smoothcrosshair", "1");
+cvar_t	gl_maxdist = SCVAR("gl_maxdist", "8192");
 
 #ifdef SPECULAR
 cvar_t gl_specular							= SCVAR  ("gl_specular", "0");
@@ -335,8 +336,6 @@ cvar_t vid_desktopgamma						= SCVARF ("vid_desktopgamma", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 
 extern cvar_t gl_dither;
-extern cvar_t gl_maxdist;
-extern cvar_t r_waterlayers;
 
 #endif
 
@@ -373,7 +372,6 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&gl_clear, GLRENDEREROPTIONS);
 
-	Cvar_Register (&gl_smoothmodels, GRAPHICALNICETIES);
 	Cvar_Register (&gl_affinemodels, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_nohwblend, GLRENDEREROPTIONS);
 	Cvar_Register (&r_flashblend, GLRENDEREROPTIONS);
@@ -394,13 +392,10 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_shadow_realtime_dlight_shadows, GLRENDEREROPTIONS);
 	Cvar_Register (&r_shadow_realtime_world_lightmaps, GLRENDEREROPTIONS);
 
-	Cvar_Register (&gl_keeptjunctions, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_reporttjunctions, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_motionblur, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_motionblurscale, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_max_size, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_maxdist, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_multisample, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_smoothcrosshair, GRAPHICALNICETIES);
@@ -416,10 +411,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_specular, GRAPHICALNICETIES);
 
 //	Cvar_Register (&gl_lightmapmode, GLRENDEREROPTIONS);
-
-#ifdef WATERLAYERS
-	Cvar_Register (&r_waterlayers, GRAPHICALNICETIES);
-#endif
 
 	Cvar_Register (&r_polygonoffset_submodel_factor, GLRENDEREROPTIONS);
 	Cvar_Register (&r_polygonoffset_submodel_offset, GLRENDEREROPTIONS);
@@ -611,6 +602,8 @@ void Renderer_Init(void)
 	Cvar_Register (&r_fastskycolour, GRAPHICALNICETIES);
 	Cvar_Register (&r_wateralpha, GRAPHICALNICETIES);
 
+	Cvar_Register (&gl_max_size, GLRENDEREROPTIONS);
+	Cvar_Register (&gl_maxdist, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_miptexLevel, GRAPHICALNICETIES);
 	Cvar_Register (&r_drawflat, GRAPHICALNICETIES);
 	Cvar_Register (&r_menutint, GRAPHICALNICETIES);
@@ -1844,7 +1837,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 #if defined(GLQUAKE)
 		Cmd_ExecuteString("setrenderer gl\n", RESTRICT_LOCAL);
 #elif defined(D3DQUAKE)
-		Cmd_ExecuteString("setrenderer d3d9\n", RESTRICT_LOCAL);
+		Cmd_ExecuteString("setrenderer d3d\n", RESTRICT_LOCAL);
 #endif
 		return;
 	}

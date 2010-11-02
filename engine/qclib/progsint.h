@@ -45,6 +45,9 @@ extern int hunksize;
 #include "progtype.h"
 #include "progslib.h"
 
+#pragma warning(disable : 4244)
+#pragma warning(disable : 4267)
+
 //extern progfuncs_t *progfuncs;
 
 #define prinst progfuncs->prinst

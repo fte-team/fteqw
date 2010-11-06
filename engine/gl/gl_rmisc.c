@@ -1016,7 +1016,7 @@ void GLR_TimeRefresh_f (void)
 	if (frames < 1)
 		frames = 128;
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(_SDL)
 	if (finish == 2)
 	{
 		extern HDC		maindc;

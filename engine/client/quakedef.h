@@ -171,6 +171,7 @@ extern "C" {
 #endif
 #include "world.h"
 #include "q2game.h"
+#include "../http/iweb.h"
 #ifndef CLIENTONLY
 #include "server.h"
 #endif

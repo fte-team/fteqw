@@ -21,9 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	QW_SERVER
 
-#include "../http/iweb.h"
-
-
 #define	MAX_MASTERS	8				// max recipients for heartbeat packets
 
 #define	MAX_SIGNON_BUFFERS	16

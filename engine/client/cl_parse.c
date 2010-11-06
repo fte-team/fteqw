@@ -3464,9 +3464,9 @@ void CLNQ_ParseStartSoundPacket(void)
 		attenuation = DEFAULT_SOUND_PACKET_ATTENUATION;
 
 	if (field_mask & FTESND_PITCHADJ)
-		pitchadj = MSG_ReadChar();
+		pitchadj = MSG_ReadByte();
 	else
-		pitchadj = 0;
+		pitchadj = 100;
 
 	if (field_mask & DPSND_LARGEENTITY)
 	{

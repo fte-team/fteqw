@@ -857,7 +857,7 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 		extfield_mask |= DPSND_LARGEENTITY;
 	if (sound_num > 0xff)
 		extfield_mask |= DPSND_LARGESOUND;
-	if (pitchadj)
+	if (pitchadj && (pitchadj != 100))
 		extfield_mask |= FTESND_PITCHADJ;
 
 #ifdef PEXT_SOUNDDBL
@@ -871,7 +871,7 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 		if (extfield_mask & NQSND_ATTENUATION)
 			MSG_WriteByte (&sv.multicast, attenuation*64);
 		if (extfield_mask & FTESND_PITCHADJ)
-			MSG_WriteChar (&sv.multicast, pitchadj);
+			MSG_WriteByte (&sv.multicast, pitchadj);
 		if (extfield_mask & DPSND_LARGEENTITY)
 		{
 			MSG_WriteShort (&sv.multicast, ent);
@@ -926,7 +926,7 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 	if (extfield_mask & NQSND_ATTENUATION)
 		MSG_WriteByte (&sv.nqmulticast, attenuation*64);
 	if (extfield_mask & FTESND_PITCHADJ)
-		MSG_WriteChar (&sv.nqmulticast, pitchadj);
+		MSG_WriteByte (&sv.nqmulticast, pitchadj);
 	if (extfield_mask & DPSND_LARGEENTITY)
 	{
 		MSG_WriteShort (&sv.nqmulticast, ent);

@@ -880,6 +880,8 @@ void S_StartSoundCard(soundcardinfo_t *sc, int entnum, int entchannel, sfx_t *sf
 #endif
 
 	vol = fvol*255;
+	if (!pitchadj)
+		pitchadj = 100;
 
 // pick a channel to play on
 	target_chan = SND_PickChannel(sc, entnum, entchannel);
@@ -919,7 +921,7 @@ void S_StartSoundCard(soundcardinfo_t *sc, int entnum, int entchannel, sfx_t *sf
 		startpos = scache->length - snd_speed*10;
 	}
 	target_chan->sfx = sfx;
-	target_chan->rate = (1<<PITCHSHIFT) + pitchadj;
+	target_chan->rate = ((1<<PITCHSHIFT) * pitchadj) / 100;
 	target_chan->pos = startpos*target_chan->rate;
 	target_chan->end = sc->paintedtime + ((scache->length - startpos)<<PITCHSHIFT)/target_chan->rate;
 	target_chan->looping = false;

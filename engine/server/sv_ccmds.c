@@ -2102,6 +2102,7 @@ void SV_InitOperatorCommands (void)
 		Cmd_AddCommand ("quit", SV_Quit_f);
 		Cmd_AddCommand ("say", SV_ConSay_f);
 		Cmd_AddCommand ("sayone", SV_ConSayOne_f);
+		Cmd_AddCommand ("tell", SV_ConSayOne_f);
 		Cmd_AddCommand ("serverinfo", SV_Serverinfo_f);	//commands that conflict with client commands.
 		Cmd_AddCommand ("user", SV_User_f);
 

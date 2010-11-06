@@ -777,7 +777,7 @@ void CL_PredictMovePNum (int pnum)
 	{
 		return;
 	}
-
+	CL_ClampPitch(pnum);
 	if (cls.netchan.outgoing_sequence - cl.ackedinputsequence >= UPDATE_BACKUP-1)
 	{	//lagging like poo.
 		if (!cl.intermission)	//keep the angles working though.

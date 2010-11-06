@@ -180,7 +180,7 @@ qboolean M_Audio_Key (int key, struct menu_s *menu)
 		i = key - '0';
 		x = info->testsoundsource->common.posx - 320/2;
 		y = info->testsoundsource->common.posy - 200/2;
-		sc->yaw[i] = (-atan2 (y,x)*180/M_PI) - 90;
+//		sc->yaw[i] = (-atan2 (y,x)*180/M_PI) - 90;
 
 		sc->dist[i] = 50/sqrt(x*x+y*y);
 	}
@@ -213,8 +213,8 @@ void M_Audio_StartSound (struct menu_s *menu)
 
 	for (i = 0; i < sc->sn.numchannels; i++)
 	{
-		info->speaker[i]->common.posx = 320/2 - sin(sc->yaw[i]*M_PI/180) * 50/sc->dist[i];
-		info->speaker[i]->common.posy = 200/2 - cos(sc->yaw[i]*M_PI/180) * 50/sc->dist[i];
+//		info->speaker[i]->common.posx = 320/2 - sin(sc->yaw[i]*M_PI/180) * 50/sc->dist[i];
+//		info->speaker[i]->common.posy = 200/2 - cos(sc->yaw[i]*M_PI/180) * 50/sc->dist[i];
 	}
 	for (; i < 6; i++)
 		info->speaker[i]->common.posy = -100;
@@ -227,7 +227,7 @@ void M_Audio_StartSound (struct menu_s *menu)
 		org[0] = mat[0][0] + 2*(mat[1][0]*(info->testsoundsource->common.posx-320/2) + mat[1][0]*(info->testsoundsource->common.posy-200/2));
 		org[1] = mat[0][1] + 2*(mat[1][1]*(info->testsoundsource->common.posx-320/2) + mat[1][1]*(info->testsoundsource->common.posy-200/2));
 		org[2] = mat[0][2] + 2*(mat[1][2]*(info->testsoundsource->common.posx-320/2) + mat[1][2]*(info->testsoundsource->common.posy-200/2));
-		S_StartSound(-2, 0, S_PrecacheSound("player/pain3.wav"), org, 1, 4);
+		S_StartSound(-2, 0, S_PrecacheSound("player/pain3.wav"), org, 1, 4, 0);
 	}
 }
 

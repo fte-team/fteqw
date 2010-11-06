@@ -48,10 +48,10 @@
 int gl_bumpmappingpossible;
 
 static void D3D9_GetBufferSize(int *width, int *height);
+static void resetD3D9(void);
 static LPDIRECT3D9 pD3D;
 LPDIRECT3DDEVICE9 pD3DDev9;
-//static LPDIRECTDRAWGAMMACONTROL pGammaControl;
-
+static D3DPRESENT_PARAMETERS d3dpp;
 
 static qboolean vid_initializing;
 
@@ -145,6 +145,40 @@ static void	D3D9_VID_GenPaletteTables (unsigned char *palette)
 typedef enum {MS_WINDOWED, MS_FULLSCREEN, MS_FULLDIB, MS_UNINIT} modestate_t;
 static modestate_t modestate;
 
+
+static void D3DVID_UpdateWindowStatus (HWND hWnd)
+{
+	POINT p;
+	RECT nr;
+	int window_width, window_height;
+	GetClientRect(hWnd, &nr);
+
+	//if its bad then we're probably minimised
+	if (nr.right <= nr.left)
+		return;
+	if (nr.bottom <= nr.top)
+		return;
+
+	p.x = 0;
+	p.y = 0;
+	ClientToScreen(hWnd, &p);
+	window_x = p.x;
+	window_y = p.y;
+	window_width = nr.right - nr.left;
+	window_height = nr.bottom - nr.top;
+//	vid.pixelwidth = window_width;
+//	vid.pixelheight = window_height;
+
+	window_rect.left = window_x;
+	window_rect.top = window_y;
+	window_rect.right = window_x + window_width;
+	window_rect.bottom = window_y + window_height;
+	window_center_x = (window_rect.left + window_rect.right) / 2;
+	window_center_y = (window_rect.top + window_rect.bottom) / 2;
+
+	IN_UpdateClipCursor ();
+}
+
 static qboolean D3D9AppActivate(BOOL fActive, BOOL minimize)
 /****************************************************************************
 *
@@ -215,10 +249,7 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 			break;
 
 		case WM_MOVE:
-			GetWindowRect(mainwindow, &window_rect);
-			//window_x = (int) LOWORD(lParam);
-			//window_y = (int) HIWORD(lParam);
-//			VID_UpdateWindowStatus ();
+			D3DVID_UpdateWindowStatus (hWnd);
 			break;
 
 		case WM_KEYDOWN:
@@ -313,12 +344,18 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
     	case WM_SIZE:
 			if (!vid_initializing)
 			{
-				GetClientRect(mainwindow, &window_rect);
 				// force width/height to be updated
 				//vid.pixelwidth = window_rect.right - window_rect.left;
 				//vid.pixelheight = window_rect.bottom - window_rect.top;
 //				Cvar_ForceCallback(&vid_conautoscale);
 //				Cvar_ForceCallback(&vid_conwidth);
+				D3DVID_UpdateWindowStatus(hWnd);
+
+				BE_D3D_Reset(true);
+				vid.pixelwidth = d3dpp.BackBufferWidth = window_rect.right - window_rect.left;
+				vid.pixelheight = d3dpp.BackBufferHeight = window_rect.bottom - window_rect.top;
+				resetD3D9();
+				BE_D3D_Reset(false);
 			}
             break;
 
@@ -366,10 +403,12 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
     return lRet;
 }
 
-static D3DPRESENT_PARAMETERS d3dpp;
 static void resetD3D9(void)
 {
-	IDirect3DDevice9_Reset(pD3DDev9, &d3dpp);
+	HRESULT res;
+	res = IDirect3DDevice9_Reset(pD3DDev9, &d3dpp);
+	if (FAILED(res))
+		return;
 
 
 	/*clear the screen to black as soon as we start up, so there's no lingering framebuffer state*/
@@ -407,7 +446,8 @@ static void initD3D9(HWND hWnd, rendererstate_t *info)
 	int err;
 	RECT rect;
 	D3DADAPTER_IDENTIFIER9 inf;
-	extern cvar_t _vid_wait_override;
+	D3DCAPS9 caps;
+	unsigned int cflags;
 
 	static HMODULE d3d9dll;
 	LPDIRECT3D9 (WINAPI *pDirect3DCreate9) (int version);
@@ -433,6 +473,10 @@ static void initD3D9(HWND hWnd, rendererstate_t *info)
 	numadaptors = IDirect3D9_GetAdapterCount(pD3D);
 	for (i = 0; i < numadaptors; i++)
 	{	//try each adaptor in turn until we get one that actually works
+
+		if (FAILED(IDirect3D9_GetDeviceCaps(pD3D, i, D3DDEVTYPE_HAL, &caps)))
+			continue;
+
 		memset(&d3dpp, 0, sizeof(d3dpp));    // clear out the struct for use
 		d3dpp.SwapEffect = D3DSWAPEFFECT_DISCARD;    // discard old frames
 		d3dpp.hDeviceWindow = hWnd;    // set the window to be used by Direct3D
@@ -445,23 +489,43 @@ static void initD3D9(HWND hWnd, rendererstate_t *info)
 
 		d3dpp.EnableAutoDepthStencil = true;
 		d3dpp.AutoDepthStencilFormat = D3DFMT_D16;
-		d3dpp.BackBufferFormat = info->fullscreen?D3DFMT_X8R8G8B8:D3DFMT_UNKNOWN;
-
-		if (!*_vid_wait_override.string)
-			d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
-		else
+		d3dpp.BackBufferFormat = D3DFMT_UNKNOWN;
+		if (info->fullscreen)
 		{
-			if (_vid_wait_override.value == 1)
-				d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_ONE;
-			else if (_vid_wait_override.value == 2)
-				d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_TWO;
-			else if (_vid_wait_override.value == 3)
-				d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_THREE;
-			else if (_vid_wait_override.value == 4)
-				d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_FOUR;
+			if (info->bpp == 16)
+				d3dpp.BackBufferFormat = D3DFMT_R5G6B5;
 			else
-				d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
+				d3dpp.BackBufferFormat = D3DFMT_X8R8G8B8;
 		}
+
+		switch(info->wait)
+		{
+		default:
+			d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
+			break;
+		case 0:
+			d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
+			break;
+		case 1:
+			d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_ONE;
+			break;
+		case 2:
+			d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_TWO;
+			break;
+		case 3:
+			d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_THREE;
+			break;
+		case 4:
+			d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_FOUR;
+			break;
+		}
+
+		cflags = D3DCREATE_FPU_PRESERVE;
+		if ((caps.DevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT) && (caps.DevCaps & D3DDEVCAPS_PUREDEVICE))
+			cflags |= D3DCREATE_HARDWARE_VERTEXPROCESSING;
+		else
+			cflags |= D3DCREATE_SOFTWARE_VERTEXPROCESSING;
+		//cflags |= D3DCREATE_DISABLE_DRIVER_MANAGEMENT;
 
 		memset(&inf, 0, sizeof(inf));
 		err = IDirect3D9_GetAdapterIdentifier(pD3D, i, 0, &inf);
@@ -472,7 +536,7 @@ static void initD3D9(HWND hWnd, rendererstate_t *info)
 				i,
 				D3DDEVTYPE_HAL,
 				hWnd,
-				D3DCREATE_HARDWARE_VERTEXPROCESSING | D3DCREATE_FPU_PRESERVE,
+				cflags,
 				&d3dpp,
 				&pD3DDev9);
 
@@ -560,6 +624,8 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 		CLASSNAME
 	};
 
+	wc.hCursor       = LoadCursor (NULL,IDC_ARROW);
+
 	vid_initializing = true;
 
 	RegisterClass(&wc);
@@ -608,38 +674,12 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 	vid.width = width;
 	vid.height = height;
 
-//	pDD->lpVtbl->QueryInterface ((void*)pDD, &IID_IDirectDrawGammaControl, (void**)&pGammaControl);
-/*	if (pGammaControl)
-	{
-		for (i = 0; i < 256; i++)
-			gammaramp.red[i] = i*2;
-		pGammaControl->lpVtbl->SetGammaRamp(pGammaControl, 0, &gammaramp);
-	}
-	else*/
-		Con_Printf("Couldn't get gamma controls\n");
-
 	vid_initializing = false;
-
-
-resetD3D9();
-
-
-	
-	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_ALPHAFUNC, D3DCMP_GREATER );
-	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_ALPHAREF, 0.666*256 );
-
-	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_ALPHATESTENABLE, TRUE );
-
 
 	//IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRENDERSTATE_DITHERENABLE, FALSE);
 	//IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRENDERSTATE_SPECULARENABLE, FALSE);
 	//IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRENDERSTATE_TEXTUREPERSPECTIVE, TRUE);
 	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_LIGHTING, FALSE);
-
-	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_ZWRITEENABLE, TRUE);
-
-	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_ZFUNC, D3DCMP_LESSEQUAL);
-
 
 	GetWindowRect(mainwindow, &window_rect);
 
@@ -796,30 +836,23 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 	switch (IDirect3DDevice9_TestCooperativeLevel(pD3DDev9))
 	{
 	case D3DERR_DEVICELOST:
-		//the user has task switched away from us or something
+		//the user has task switched away from us or something, don't do anything.
 		return;
 	case D3DERR_DEVICENOTRESET:
+		BE_D3D_Reset(true);
 		resetD3D9();
 		if (FAILED(IDirect3DDevice9_TestCooperativeLevel(pD3DDev9)))
-			Sys_Error("D3D9 Device lost. Additionally restoration failed.\n");
-	//	D3DSucks();
-	//	scr_disabled_for_loading = false;
+		{
+			Con_Printf("Device lost, restarting video\n");
+			Cmd_ExecuteString("vid_restart", RESTRICT_LOCAL);
+			return;
+		}
+		BE_D3D_Reset(false);
 
 		VID_ShiftPalette (NULL);
 		break;
 	default:
 		break;
-	}
-
-
-	if (keydown['k'])
-	{
-		d3d9error(IDirect3DDevice9_BeginScene(pD3DDev9));
-		d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET, D3DCOLOR_XRGB(rand()&255, rand()&255, rand()&255), 1.0f, 0));
-		d3d9error(IDirect3DDevice9_EndScene(pD3DDev9));
-		d3d9error(IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL));
-
-		VID_ShiftPalette (NULL);
 	}
 
 	if (scr_disabled_for_loading)
@@ -960,6 +993,9 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 	scr_con_forcedraw = false;
 	if (noworld)
 	{
+		if ((key_dest == key_console || key_dest == key_game) && SCR_GetLoadingStage() == LS_NONE)
+			scr_con_current = vid.height;
+
 		if (scr_con_current != vid.height)
 			Draw_ConsoleBackground(0, vid.height, true);
 		else

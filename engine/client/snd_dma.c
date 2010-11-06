@@ -273,50 +273,33 @@ static int SNDDMA_Init(soundcardinfo_t *sc, int *cardnum, int *drivernum)
 
 void S_DefaultSpeakerConfiguration(soundcardinfo_t *sc)
 {
+	sc->dist[0] = 1;
+	sc->dist[1] = 1;
+	sc->dist[2] = 1;
+	sc->dist[3] = 1;
+	sc->dist[4] = 1;
+	sc->dist[5] = 1;
+
 	if (sc->sn.numchannels < 3)
 	{
-		sc->pitch[0] = 0;
-		sc->pitch[1] = 0;
-		sc->dist[0] = 1;
-		sc->dist[1] = 1;
-		sc->yaw[0] = 270;
-		sc->yaw[1] = 90;
+		VectorSet(sc->speakerdir[0], 0, 1, 0);
+		VectorSet(sc->speakerdir[1], 0, -1, 0);
 	}
 	else if (sc->sn.numchannels < 5)
 	{
-		sc->pitch[0] = 0;
-		sc->pitch[1] = 0;
-		sc->pitch[2] = 0;
-		sc->pitch[3] = 0;
-		sc->dist[0] = 1;
-		sc->dist[1] = 1;
-		sc->dist[2] = 1;
-		sc->dist[3] = 1;
-		sc->yaw[0] = 315;
-		sc->yaw[1] = 45;
-		sc->yaw[2] = 225;
-		sc->yaw[3] = 135;
+		VectorSet(sc->speakerdir[0], 0.7, -0.7, 0);
+		VectorSet(sc->speakerdir[1], 0.7, 0.7, 0);
+		VectorSet(sc->speakerdir[2], -0.7, -0.7, 0);
+		VectorSet(sc->speakerdir[3], -0.7, 0.7, 0);
 	}
 	else
 	{
-		sc->pitch[0] = 0;
-		sc->pitch[1] = 0;
-		sc->pitch[2] = 0;
-		sc->pitch[3] = 0;
-		sc->pitch[4] = 0;
-		sc->pitch[5] = 0;
-		sc->dist[0] = 1;
-		sc->dist[1] = 1;
-		sc->dist[2] = 1;
-		sc->dist[3] = 1;
-		sc->dist[4] = 1;
-		sc->dist[5] = 1;
-		sc->yaw[0] = 315;
-		sc->yaw[1] = 45;
-		sc->yaw[2] = 0;
-		sc->yaw[3] = 0;
-		sc->yaw[4] = 225;
-		sc->yaw[5] = 135;
+		VectorSet(sc->speakerdir[0], 0.7, -0.7, 0);
+		VectorSet(sc->speakerdir[1], 0.7, 0.7, 0);
+		VectorSet(sc->speakerdir[2], 0, 0, 0);
+		VectorSet(sc->speakerdir[3], 0, 0, 0);
+		VectorSet(sc->speakerdir[4], -0.7, -0.7, 0);
+		VectorSet(sc->speakerdir[5], -0.7, 0.7, 0);
 	}
 }
 
@@ -431,8 +414,6 @@ void S_Control_f (void)
 {
 	int i;
 	char *command;
-	if (Cmd_Argc() < 2)
-		return;
 
 	command = Cmd_Argv (1);
 
@@ -501,8 +482,7 @@ void S_Control_f (void)
 		{
 			for (i = 0; i < MAXSOUNDCHANNELS; i++)
 			{
-				sc->yaw[i] = 0;
-				sc->pitch[i] = 0;	//point forwards
+				VectorSet(sc->speakerdir[i], 0, 0, 0);
 				sc->dist[i] = 1;
 			}
 		}
@@ -510,11 +490,7 @@ void S_Control_f (void)
 		{
 			for (i = 0; i < MAXSOUNDCHANNELS; i++)
 			{
-				if (i & 1)
-					sc->yaw[i] = 90;	//right
-				else
-					sc->yaw[i] = 270;	//left
-				sc->pitch[i] = 0;
+				VectorSet(sc->speakerdir[i], 0, (i&1)?-1:1, 0);
 				sc->dist[i] = 1;
 			}
 		}
@@ -522,23 +498,14 @@ void S_Control_f (void)
 		{
 			for (i = 0; i < MAXSOUNDCHANNELS; i++)
 			{
-				if (i & 1)
-					sc->yaw[i] = 270;	//left
-				else
-					sc->yaw[i] = 90;	//right
-				sc->pitch[i] = 0;
-				sc->dist[i] = 1;
+				sc->speakerdir[i][1] *= -1;
 			}
 		}
 		else if (!Q_strcasecmp(command, "front"))
 		{
 			for (i = 0; i < MAXSOUNDCHANNELS; i++)
 			{
-				if (i & 1)
-					sc->yaw[i] = 45;	//front right
-				else
-					sc->yaw[i] = 315;	//front left
-				sc->pitch[i] = 0;
+				VectorSet(sc->speakerdir[i], 0.7, (i&1)?-0.7:0.7, 0);
 				sc->dist[i] = 1;
 			}
 		}
@@ -546,16 +513,14 @@ void S_Control_f (void)
 		{
 			for (i = 0; i < MAXSOUNDCHANNELS; i++)
 			{
-				if (i & 1)
-					sc->yaw[i] = 180-45;	//behind right
-				else
-					sc->yaw[i] = 180+45;	//behind left
-				sc->pitch[i] = 0;
+				VectorSet(sc->speakerdir[i], -0.7, (i&1)?-0.7:0.7, 0);
 				sc->dist[i] = 1;
 			}
 		}
 		return;
 	}
+	else
+		Con_Printf("valid commands are: off, single, multi, cardX mono, cardX stereo, cardX front, cardX back\n");
 }
 
 /*
@@ -807,7 +772,7 @@ channel_t *SND_PickChannel(soundcardinfo_t *sc, int entnum, int entchannel)
 // Check for replacement sound, or find the best one to replace
     first_to_die = -1;
     life_left = 0x7fffffff;
-    for (ch_idx=NUM_AMBIENTS + NUM_MUSICS; ch_idx < NUM_AMBIENTS + NUM_MUSICS + MAX_DYNAMIC_CHANNELS ; ch_idx++)
+    for (ch_idx=DYNAMIC_FIRST; ch_idx < DYNAMIC_STOP ; ch_idx++)
     {
 		if (entchannel != 0		// channel 0 never overrides
 		&& sc->channel[ch_idx].entnum == entnum
@@ -846,10 +811,10 @@ SND_Spatialize
 */
 void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 {
-    vec_t dotright, dotforward, dotup;
+	vec3_t listener_vec;
     vec_t dist;
     vec_t scale;
-    vec3_t source_vec;
+    vec3_t world_vec;
 	sfx_t *snd;
 	int i;
 
@@ -859,33 +824,32 @@ void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 		for (i = 0; i < sc->sn.numchannels; i++)
 		{
 			ch->vol[i] = ch->master_vol * (ruleset_allow_localvolume.value ? snd_playersoundvolume.value : 1);
-			ch->delay[i] = 0;
 		}
 		return;
 	}
 
 // calculate stereo seperation and distance attenuation
 	snd = ch->sfx;
-	VectorSubtract(ch->origin, listener_origin, source_vec);
+	VectorSubtract(ch->origin, listener_origin, world_vec);
 
-	dist = VectorNormalize(source_vec) * ch->dist_mult;
+	dist = VectorNormalize(world_vec) * ch->dist_mult;
 
-	dotright = DotProduct(listener_right, source_vec);
-	dotforward = DotProduct(listener_forward, source_vec);
-	dotup = DotProduct(listener_up, source_vec);
+	listener_vec[1] = DotProduct(listener_right, world_vec);
+	listener_vec[0] = DotProduct(listener_forward, world_vec);
+	listener_vec[2] = DotProduct(listener_up, world_vec);
 
 	if (snd_leftisright.ival)
-		dotright = -dotright;
+		listener_vec[1] = -listener_vec[1];
 
 	for (i = 0; i < sc->sn.numchannels; i++)
 	{
-		scale = 1 + (dotright*sin(sc->yaw[i]*M_PI/180) + dotforward*cos(sc->yaw[i]*M_PI/180));// - dotup*cos(sc->pitch[0])*2;
+		scale = (1 + DotProduct(listener_vec, sc->speakerdir[i])) / 2;
+		if (scale > 1)
+			scale = 1;
 		scale = (1.0 - dist) * scale * sc->dist[i];
 		ch->vol[i] = (int) (ch->master_vol * scale);
 		if (ch->vol[i] < 0)
 			ch->vol[i] = 0;
-
-		ch->delay[i] = 0;//(scale[0]-1)*1024;
 	}
 }
 
@@ -893,7 +857,7 @@ void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 // Start a sound effect
 // =======================================================================
 
-void S_StartSoundCard(soundcardinfo_t *sc, int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, int startpos)
+void S_StartSoundCard(soundcardinfo_t *sc, int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, int startpos, int pitchadj)
 {
 	channel_t *target_chan, *check;
 	sfxcache_t	*scache;
@@ -955,14 +919,15 @@ void S_StartSoundCard(soundcardinfo_t *sc, int entnum, int entchannel, sfx_t *sf
 		startpos = scache->length - snd_speed*10;
 	}
 	target_chan->sfx = sfx;
-	target_chan->pos = startpos;
-	target_chan->end = sc->paintedtime + scache->length - startpos;
+	target_chan->rate = (1<<PITCHSHIFT) + pitchadj;
+	target_chan->pos = startpos*target_chan->rate;
+	target_chan->end = sc->paintedtime + ((scache->length - startpos)<<PITCHSHIFT)/target_chan->rate;
 	target_chan->looping = false;
 
 // if an identical sound has also been started this frame, offset the pos
 // a bit to keep it from just making the first one louder
-	check = &sc->channel[NUM_AMBIENTS];
-	for (ch_idx=NUM_AMBIENTS + NUM_MUSICS; ch_idx < NUM_AMBIENTS + NUM_MUSICS + MAX_DYNAMIC_CHANNELS; ch_idx++, check++)
+	check = &sc->channel[DYNAMIC_FIRST];
+	for (ch_idx=DYNAMIC_FIRST; ch_idx < DYNAMIC_STOP; ch_idx++, check++)
 	{
 		if (check == target_chan)
 			continue;
@@ -971,7 +936,7 @@ void S_StartSoundCard(soundcardinfo_t *sc, int entnum, int entchannel, sfx_t *sf
 			skip = rand () % (int)(0.1*sc->sn.speed);
 			if (skip >= target_chan->end)
 				skip = target_chan->end - 1;
-			target_chan->pos += skip;
+			target_chan->pos += skip*target_chan->rate;
 			target_chan->end -= skip;
 			break;
 		}
@@ -986,10 +951,10 @@ void S_StartSoundDelayed(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, 
 		return;
 
 	for (sc = sndcardinfo; sc; sc = sc->next)
-		S_StartSoundCard(sc, entnum, entchannel, sfx, origin, fvol, attenuation, -(int)(timeofs * sc->sn.speed));
+		S_StartSoundCard(sc, entnum, entchannel, sfx, origin, fvol, attenuation, -(int)(timeofs * sc->sn.speed), 0);
 }
 
-void S_StartSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation)
+void S_StartSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, int pitchadj)
 {
 	soundcardinfo_t *sc;
 
@@ -997,7 +962,7 @@ void S_StartSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float f
 		return;
 
 	for (sc = sndcardinfo; sc; sc = sc->next)
-		S_StartSoundCard(sc, entnum, entchannel, sfx, origin, fvol, attenuation, 0);
+		S_StartSoundCard(sc, entnum, entchannel, sfx, origin, fvol, attenuation, 0, pitchadj);
 }
 
 qboolean S_IsPlayingSomewhere(sfx_t *s)
@@ -1134,10 +1099,11 @@ void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation)
 		}
 
 		ss->sfx = sfx;
+		ss->rate = 1<<PITCHSHIFT;
 		VectorCopy (origin, ss->origin);
 		ss->master_vol = vol;
 		ss->dist_mult = (attenuation/64) / sound_nominal_clip_dist;
-		ss->end = scard->paintedtime + scache->length;
+		ss->end = scard->paintedtime + (scache->length<<PITCHSHIFT)/ss->rate;
 		ss->looping = true;
 
 		SND_Spatialize (scard, ss);
@@ -1154,7 +1120,7 @@ void S_Music_Clear(sfx_t *onlyifsample)
 	sfx_t *s;
 	soundcardinfo_t *sc;
 	int i;
-	for (i = NUM_AMBIENTS; i < NUM_AMBIENTS + NUM_MUSICS; i++)
+	for (i = MUSIC_FIRST; i < MUSIC_STOP; i++)
 	{
 		for (sc = sndcardinfo; sc; sc=sc->next)
 		{
@@ -1182,11 +1148,11 @@ void S_Music_Seek(float time)
 {
 	soundcardinfo_t *sc;
 	int i;
-	for (i = NUM_AMBIENTS; i < NUM_AMBIENTS + NUM_MUSICS; i++)
+	for (i = MUSIC_FIRST; i < MUSIC_STOP; i++)
 	{
 		for (sc = sndcardinfo; sc; sc=sc->next)
 		{
-			sc->channel[i].pos += sc->sn.speed*time;
+			sc->channel[i].pos += sc->sn.speed*time * sc->channel[i].rate;
 			sc->channel[i].end += sc->sn.speed*time;
 
 			if (sc->channel[i].pos < 0)
@@ -1217,12 +1183,12 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 	if (!snd_ambient)
 		return;
 
-	for (i = NUM_AMBIENTS; i < NUM_AMBIENTS + NUM_MUSICS; i++)
+	for (i = MUSIC_FIRST; i < MUSIC_STOP; i++)
 	{
 		chan = &sc->channel[i];
 		if (!chan->sfx)
 		{
-			char *nexttrack = Media_NextTrack(i-NUM_AMBIENTS);
+			char *nexttrack = Media_NextTrack(i-MUSIC_FIRST);
 			sfxcache_t *scache;
 			sfx_t *newmusic;
 
@@ -1235,8 +1201,9 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 				if (scache)
 				{
 					chan->sfx = newmusic;
+					chan->rate = 1<<PITCHSHIFT;
 					chan->pos = 0;
-					chan->end = sc->paintedtime + scache->length+1000;
+					chan->end = sc->paintedtime + ((scache->length+1000)<<PITCHSHIFT)/chan->rate;
 					chan->vol[0] = chan->vol[1] = chan->vol[2] = chan->vol[3] = chan->vol[4] = chan->vol[5] = chan->master_vol = 100;
 				}
 			}
@@ -1254,14 +1221,15 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 	if (!l || !ambient_level.value)
 	{
 		for (ambient_channel = 0 ; ambient_channel< NUM_AMBIENTS ; ambient_channel++)
-			sc->channel[ambient_channel].sfx = NULL;
+			sc->channel[AMBIENT_FIRST+ambient_channel].sfx = NULL;
 		return;
 	}
 
 	for (ambient_channel = 0 ; ambient_channel< NUM_AMBIENTS ; ambient_channel++)
 	{
-		chan = &sc->channel[ambient_channel];
-		chan->sfx = ambient_sfx[ambient_channel];
+		chan = &sc->channel[AMBIENT_FIRST+ambient_channel];
+		chan->sfx = ambient_sfx[AMBIENT_FIRST+ambient_channel];
+		chan->rate = 1<<PITCHSHIFT;
 
 		VectorCopy(listener_origin, chan->origin);
 
@@ -1294,23 +1262,12 @@ S_Update
 Called once each time through the main loop
 ============
 */
-void S_UpdateListener(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, qboolean dontmix)
+void S_UpdateListener(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up)
 {
-	soundcardinfo_t *sc;
-
 	VectorCopy(origin, listener_origin);
 	VectorCopy(forward, listener_forward);
 	VectorCopy(right, listener_right);
 	VectorCopy(up, listener_up);
-
-	if (!dontmix)
-	{
-		S_RunCapture();
-
-		for (sc = sndcardinfo; sc; sc = sc->next)
-			S_UpdateCard(sc);
-	}
-
 }
 
 void S_GetListenerInfo(float *origin, float *forward, float *right, float *up)
@@ -1350,8 +1307,8 @@ void S_UpdateCard(soundcardinfo_t *sc)
 	combine = NULL;
 
 // update spatialization for static and dynamic sounds
-	ch = sc->channel+NUM_AMBIENTS+NUM_MUSICS;
-	for (i=NUM_AMBIENTS+ NUM_MUSICS ; i<sc->total_chans; i++, ch++)
+	ch = sc->channel+DYNAMIC_FIRST;
+	for (i=DYNAMIC_FIRST ; i<sc->total_chans; i++, ch++)
 	{
 		if (!ch->sfx)
 			continue;
@@ -1363,7 +1320,7 @@ void S_UpdateCard(soundcardinfo_t *sc)
 	// try to combine static sounds with a previous channel of the same
 	// sound effect so we don't mix five torches every frame
 
-		if (i > MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS + NUM_MUSICS)
+		if (i >= DYNAMIC_STOP)
 		{
 		// see if it can just use the last one
 			if (combine && combine->sfx == ch->sfx)
@@ -1378,8 +1335,8 @@ void S_UpdateCard(soundcardinfo_t *sc)
 				continue;
 			}
 		// search for one
-			combine = sc->channel+MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS + NUM_MUSICS;
-			for (j=MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS+ NUM_MUSICS ; j<i; j++, combine++)
+			combine = sc->channel+DYNAMIC_FIRST;
+			for (j=DYNAMIC_FIRST ; j<i; j++, combine++)
 				if (combine->sfx == ch->sfx)
 					break;
 
@@ -1402,8 +1359,6 @@ void S_UpdateCard(soundcardinfo_t *sc)
 				continue;
 			}
 		}
-
-
 	}
 
 //
@@ -1454,6 +1409,16 @@ void GetSoundtime(soundcardinfo_t *sc)
 	soundtime = sc->buffers*fullsamples + samplepos/sc->sn.numchannels;
 }
 
+void S_Update (void)
+{
+	soundcardinfo_t *sc;
+
+	S_RunCapture();
+
+	for (sc = sndcardinfo; sc; sc = sc->next)
+		S_UpdateCard(sc);
+}
+
 void S_ExtraUpdate (void)
 {
 	soundcardinfo_t *sc;
@@ -1480,7 +1445,6 @@ void S_Update_(soundcardinfo_t *sc)
 {
 	unsigned        endtime;
 	int				samps;
-
 
 	if (sc->selfpainting)
 		return;
@@ -1542,7 +1506,7 @@ void S_Play(void)
 		else
 			Q_strncpyz(name, Cmd_Argv(i), sizeof(name));
 		sfx = S_PrecacheSound(name);
-		S_StartSound(cl.playernum[0]+1, -1, sfx, vec3_origin, 1.0, 0.0);
+		S_StartSound(cl.playernum[0]+1, -1, sfx, vec3_origin, 1.0, 0.0, 0);
 //		hash++;
 		i++;
 	}
@@ -1568,7 +1532,7 @@ void S_PlayVol(void)
 			Q_strncpy(name, Cmd_Argv(i), sizeof(name));
 		sfx = S_PrecacheSound(name);
 		vol = Q_atof(Cmd_Argv(i+1));
-		S_StartSound(cl.playernum[0]+1, -1, sfx, vec3_origin, vol, 0.0);
+		S_StartSound(cl.playernum[0]+1, -1, sfx, vec3_origin, vol, 0.0, 0);
 //		hash;
 		i+=2;
 	}
@@ -1614,7 +1578,7 @@ void S_LocalSound (char *sound)
 		Con_Printf ("S_LocalSound: can't cache %s\n", sound);
 		return;
 	}
-	S_StartSound (-1, -1, sfx, vec3_origin, 1, 1);
+	S_StartSound (-1, -1, sfx, vec3_origin, 1, 1, 0);
 }
 
 
@@ -1815,7 +1779,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		for (i = 0; i < si->total_chans; i++)
 			if (si->channel[i].sfx == &s->sfx)
 			{
-				si->channel[i].pos -= prepadl;
+				si->channel[i].pos -= prepadl*si->channel[i].rate;
 //				si->channel[i].end -= prepadl;
 				si->channel[i].end += outsamples;
 
@@ -1828,7 +1792,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 			}
 		if (i == si->total_chans)	//this one wasn't playing.
 		{
-			S_StartSoundCard(si, -1, 0, &s->sfx, r_origin, 1, 32767, 500);
+			S_StartSoundCard(si, -1, 0, &s->sfx, r_origin, 1, 32767, 500, 0);
 //			Con_Printf("Restarted\n");
 		}
 	}

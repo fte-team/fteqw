@@ -32,7 +32,6 @@ float V_CalcRoll (vec3_t angles, vec3_t velocity);
 void GLV_UpdatePalette (qboolean force, double ftime);
 void SWV_UpdatePalette (qboolean force, double ftime);
 void V_ClearCShifts (void);
-qboolean V_CheckGamma (void);
 void V_AddEntity(entity_t *in);
 void VQ2_AddLerpEntity(entity_t *in);
 void V_AddAxisEntity(entity_t *in);

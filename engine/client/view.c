@@ -372,13 +372,6 @@ void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue)
 }
 #endif
 
-qboolean V_CheckGamma (void)
-{
-	return false;
-}
-
-
-
 /*
 ===============
 V_ParseDamage
@@ -986,7 +979,15 @@ void V_CalcRefdef (int pnum)
 	r_refdef.vieworg[1] += 1.0/16;
 	r_refdef.vieworg[2] += 1.0/16;
 
-	VectorCopy (cl.simangles[pnum], r_refdef.viewangles);
+	if (cl.fixangle[pnum])
+	{
+		VectorCopy (cl.fixangles[pnum], r_refdef.viewangles);
+	}
+	else
+	{
+		VectorCopy (cl.simangles[pnum], r_refdef.viewangles);
+	}
+	VectorCopy (r_refdef.viewangles, view->angles); //copy before it gets manipulatd
 	V_CalcViewRoll (pnum);
 	V_AddIdle (pnum);
 
@@ -1014,13 +1015,9 @@ void V_CalcRefdef (int pnum)
 		// v_viewheight only affects the view if the player is alive
 		r_refdef.vieworg[2] += bob;
 	}
-
-// offsets
-	AngleVectors (cl.simangles[pnum], forward, right, up);
 	
 // set up gun position
-	VectorCopy (cl.simangles[pnum], view->angles);
-	
+	AngleVectors (view->angles, forward, right, up);
 	CalcGunAngle (pnum);
 
 	VectorCopy (r_refdef.vieworg, view->origin);

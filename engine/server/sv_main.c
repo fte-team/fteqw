@@ -2007,7 +2007,10 @@ client_t *SVC_DirectConnect(void)
 	spectators = 0;
 	newcl = NULL;
 	if (!sv.allocated_client_slots)
+	{
 		Con_Printf("Apparently, there are no client slots allocated. This shouldn't be happening\n");
+		return NULL;
+	}
 	for (i=0,cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++)
 	{
 		if (cl->state == cs_free)
@@ -2033,6 +2036,7 @@ client_t *SVC_DirectConnect(void)
 
 	if (!newcl)	//client has no slot. It's possible to bipass this if server is loading a game. (or a duplicated qsocket)
 	{
+		/*single player logic*/
 		if (sv.allocated_client_slots == 1 && net_from.type == NA_LOOPBACK)
 			if (svs.clients[0].state)
 				SV_DropClient(svs.clients);
@@ -2042,18 +2046,8 @@ client_t *SVC_DirectConnect(void)
 			Cvar_SetValue (&maxclients, MAX_CLIENTS);
 		if (maxspectators.ival > MAX_CLIENTS)
 			Cvar_SetValue (&maxspectators, MAX_CLIENTS);
-//		if (maxspectators.ival + maxclients.value > MAX_CLIENTS)	//maybe a server wishes to allow this sort of thing?
-//			Cvar_SetValue ("maxspectators", MAX_CLIENTS - maxspectators.ival + maxclients.ival);
-		if (svprogfuncs && ((spectator && spectators >= maxspectators.ival)
-			|| (!spectator && clients >= maxclients.ival)
-			|| (clients + spectators >= sv.allocated_client_slots) ))
-		{
-			Con_Printf ("%s:full connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), adr));
-			SV_RejectMessage (protocol, "\nserver is full\n\n");
-			return NULL;
-		}
 
-	// find a client slot
+		// find a free client slot
 		for (i=0,cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++)
 		{
 			if (cl->state == cs_free)
@@ -2062,14 +2056,34 @@ client_t *SVC_DirectConnect(void)
 				break;
 			}
 		}
+
+		/*only q1/h2 has maxclients/maxspectators limits. q2 or q3 the gamecode does this*/
+		if (svprogfuncs)
+		{
+			if (spectator && spectators >= maxspectators.ival)
+				newcl = NULL;
+			if (!spectator && clients >= maxclients.ival)
+				newcl = NULL;
+		}
+
 		if (!newcl)
 		{
-			if (svprogfuncs)
-				Con_Printf ("WARNING: miscounted available clients\n");
+			if (!svprogfuncs)
+			{
+				SV_RejectMessage (protocol, "\nserver is full\n\n");
+				Con_Printf ("%s:full connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), adr));
+			}
 			else
 			{
-				Con_Printf ("%s:full connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), adr));
-				SV_RejectMessage (protocol, "server is full\n\n");
+				if (spectator && spectators >= maxspectators.ival)
+				{
+					SV_RejectMessage (protocol, "\nserver is full (%i of %i spectators)\n\n", spectators, maxspectators.ival);
+					Con_Printf ("%s:full connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), adr));
+				}
+				else if (!spectator && clients >= maxclients.ival)
+					SV_RejectMessage (protocol, "\nserver is full (%i of %i players)\n\n", clients, maxclients.ival);
+				else
+					SV_RejectMessage (protocol, "\nserver is full (%i of %i connections)\n\n", clients+spectators, sv.allocated_client_slots);
 			}
 			return NULL;
 		}

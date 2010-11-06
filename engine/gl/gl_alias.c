@@ -720,14 +720,14 @@ static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 
 	if (clmodel->engineflags & MDLF_FLAME)
 	{
-		shadelight[0] = shadelight[1] = shadelight[2] = 4096;
-		ambientlight[0] = ambientlight[1] = ambientlight[2] = 4096;
+		shadelight[0] = shadelight[1] = shadelight[2] = 1;
+		ambientlight[0] = ambientlight[1] = ambientlight[2] = 1;
 		return true;
 	}
 	if ((e->drawflags & MLS_MASKIN) == MLS_FULLBRIGHT || (e->flags & Q2RF_FULLBRIGHT))
 	{
-		shadelight[0] = shadelight[1] = shadelight[2] = 255;
-		ambientlight[0] = ambientlight[1] = ambientlight[2] = 0;
+		shadelight[0] = shadelight[1] = shadelight[2] = 1;
+		ambientlight[0] = ambientlight[1] = ambientlight[2] = 1;
 		return true;
 	}
 

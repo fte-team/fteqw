@@ -410,7 +410,7 @@ void QDECL GHL_SetOrigin(hledict_t *ed, float *neworg)
 }
 void QDECL GHL_EmitSound(hledict_t *ed, int chan, char *soundname, float vol, float atten, int flags, int pitch)
 {
-	SV_StartSound(ed-SVHL_Edict, ed->v.origin, ~0, chan, soundname, vol*255, atten);
+	SV_StartSound(ed-SVHL_Edict, ed->v.origin, ~0, chan, soundname, vol*255, atten, pitch);
 }
 void QDECL GHL_EmitAmbientSound(hledict_t *ed, float *org, char *soundname, float vol, float atten, unsigned int flags, int pitch)
 {

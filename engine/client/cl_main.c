@@ -3490,13 +3490,13 @@ void Host_Frame (double time)
 		if (cls.state == ca_active)
 		{
 			if (cls.protocol != CP_QUAKE3)
-				S_UpdateListener (r_origin, vpn, vright, vup, false);
+				S_UpdateListener (r_origin, vpn, vright, vup);
 		}
 		else
-			S_UpdateListener (vec3_origin, vec3_origin, vec3_origin, vec3_origin, false);
-	}
+			S_UpdateListener (vec3_origin, vec3_origin, vec3_origin, vec3_origin);
 
-	S_ExtraUpdate ();
+		S_Update ();
+	}
 
 	CDAudio_Update();
 

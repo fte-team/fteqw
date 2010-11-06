@@ -297,7 +297,7 @@ void FTE_DEPRECATED R_IBrokeTheArrays(void);
 // gl_warp.c
 //
 void R_DrawSkyChain (batch_t *batch); /*called from the backend, and calls back into it*/
-texnums_t R_InitSky (texture_t *mt); /*generate q1 sky texnums*/
+texnums_t R_InitSky (texture_t *mt, qbyte *src); /*generate q1 sky texnums*/
 
 //
 // gl_draw.c

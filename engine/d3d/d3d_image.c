@@ -30,6 +30,7 @@ static d3dtexture_t *d3d_lookup_texture(char *ident)
 		tex = malloc(sizeof(*tex));
 		tex->name[0] = '\0';
 	}
+	tex->loaded = false;
 	tex->tex.ptr = NULL;
 	tex->next = d3dtextures;
 	d3dtextures = tex;
@@ -109,7 +110,7 @@ static void Upload_Texture_32(LPDIRECT3DTEXTURE9 tex, unsigned int *data, int wi
 	D3DSURFACE_DESC desc;
 	IDirect3DTexture9_GetLevelDesc(tex, 0, &desc);
 
-	IDirect3DTexture9_LockRect(tex, 0, &lock, NULL, DDLOCK_NOSYSLOCK|D3DLOCK_READONLY);
+	IDirect3DTexture9_LockRect(tex, 0, &lock, NULL, D3DLOCK_NOSYSLOCK|D3DLOCK_READONLY);
 
 	if (width == desc.Width && height == desc.Height)
 	{
@@ -191,6 +192,8 @@ static LPDIRECT3DBASETEXTURE9 D3D9_LoadTexture_32(d3dtexture_t *tex, unsigned in
 		return NULL;
 
 	Upload_Texture_32(newsurf, data, width, height, flags);
+
+	tex->loaded = true;
 
 	return (LPDIRECT3DBASETEXTURE9)newsurf;
 }
@@ -318,6 +321,23 @@ texid_t D3D9_LoadTexture (char *identifier, int width, int height, enum uploadfm
 {
 	texid_t tid;
 	d3dtexture_t *tex;
+	switch (fmt)
+	{
+	case TF_TRANS8_FULLBRIGHT:
+		{
+			qbyte *d = data;
+			unsigned int c = width * height;
+			while (c)
+			{
+				if (d[--c] > 255 - vid.fullbright)
+					break;
+			}
+			/*reject it if there's no fullbrights*/
+			if (!c)
+				return r_nulltex;
+		}
+		break;
+	}
 	tex = d3d_lookup_texture(identifier);
 
 	switch (fmt)

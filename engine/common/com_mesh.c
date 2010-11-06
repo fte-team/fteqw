@@ -902,6 +902,7 @@ void R_LightArraysByte(vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3
 {
 	extern cvar_t r_vertexdlights;
 	int i;
+	int c;
 	float l;
 
 	byte_vec4_t ambientlightb;
@@ -921,16 +922,22 @@ void R_LightArraysByte(vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3
 	}
 	else
 	{
-		vec3_t meanambient;
+		byte_vec4_t meanambient;
 		/*dotproduct will return a value between 1 and -1, so increase the ambient to be correct for normals facing away from the light*/
 		VectorMA(ambientlightb, 1, shadelightb, meanambient);
 
 		for (i = vertcount-1; i >= 0; i--)
 		{
 			l = DotProduct(normals[i], shadevector);
-			colours[i][0] = l*shadelightb[0]+meanambient[0];
-			colours[i][1] = l*shadelightb[1]+meanambient[1];
-			colours[i][2] = l*shadelightb[2]+meanambient[2];
+			c = l*shadelightb[0];
+			c += meanambient[0];
+			colours[i][0] = bound(0, c, 255);
+			c = l*shadelightb[1];
+			c += meanambient[1];
+			colours[i][1] = bound(0, c, 255);
+			c = l*shadelightb[2];
+			c += meanambient[2];
+			colours[i][2] = bound(0, c, 255);
 		}
 	}
 }

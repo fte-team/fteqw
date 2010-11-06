@@ -1812,6 +1812,11 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 	newr.fullscreen = vid_fullscreen.value;
 	newr.rate = vid_refreshrate.value;
 
+	if (!*_vid_wait_override.string || _vid_wait_override.value < 0)
+		newr.wait = -1;
+	else 
+		newr.wait = _vid_wait_override.value;
+
 	Q_strncpyz(newr.glrenderer, gl_driver.string, sizeof(newr.glrenderer));
 
 	newr.renderer = NULL;

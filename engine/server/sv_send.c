@@ -790,7 +790,7 @@ Larger attenuations will drop off.  (max 4 attenuation)
 
 ==================
 */
-void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sample, int volume, float attenuation)
+void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sample, int volume, float attenuation, int pitchadj)
 {
     int         sound_num;
     int			extfield_mask;
@@ -857,9 +857,11 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 		extfield_mask |= DPSND_LARGEENTITY;
 	if (sound_num > 0xff)
 		extfield_mask |= DPSND_LARGESOUND;
+	if (pitchadj)
+		extfield_mask |= FTESND_PITCHADJ;
 
 #ifdef PEXT_SOUNDDBL
-	if (channel >= 8 || ent >= 2048 || sound_num > 0xff)
+	if (channel >= 8 || ent >= 2048 || sound_num > 0xff || pitchadj)
 	{
 		//if any of the above conditions evaluates to true, then we can't use standard qw protocols
 		MSG_WriteByte (&sv.multicast, svcfte_soundextended);
@@ -868,6 +870,8 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 			MSG_WriteByte (&sv.multicast, volume);
 		if (extfield_mask & NQSND_ATTENUATION)
 			MSG_WriteByte (&sv.multicast, attenuation*64);
+		if (extfield_mask & FTESND_PITCHADJ)
+			MSG_WriteChar (&sv.multicast, pitchadj);
 		if (extfield_mask & DPSND_LARGEENTITY)
 		{
 			MSG_WriteShort (&sv.multicast, ent);
@@ -921,6 +925,8 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 		MSG_WriteByte (&sv.nqmulticast, volume);
 	if (extfield_mask & NQSND_ATTENUATION)
 		MSG_WriteByte (&sv.nqmulticast, attenuation*64);
+	if (extfield_mask & FTESND_PITCHADJ)
+		MSG_WriteChar (&sv.nqmulticast, pitchadj);
 	if (extfield_mask & DPSND_LARGEENTITY)
 	{
 		MSG_WriteShort (&sv.nqmulticast, ent);
@@ -941,7 +947,7 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 		SV_MulticastProtExt(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, seenmask, requiredextensions, 0);
 }
 
-void SVQ1_StartSound (edict_t *entity, int channel, char *sample, int volume, float attenuation)
+void SVQ1_StartSound (edict_t *entity, int channel, char *sample, int volume, float attenuation, int pitchadj)
 {
 	int i;
 	vec3_t origin;
@@ -955,7 +961,7 @@ void SVQ1_StartSound (edict_t *entity, int channel, char *sample, int volume, fl
 		VectorCopy (entity->v->origin, origin);
 	}
 
-	SV_StartSound(NUM_FOR_EDICT(svprogfuncs, entity), origin, entity->xv->dimension_seen, channel, sample, volume, attenuation);
+	SV_StartSound(NUM_FOR_EDICT(svprogfuncs, entity), origin, entity->xv->dimension_seen, channel, sample, volume, attenuation, pitchadj);
 }
 
 /*

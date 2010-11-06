@@ -1293,7 +1293,7 @@ static void Shaderpass_BlendFunc (shader_t *shader, shaderpass_t *pass, char **p
 	}
 	else if (!Q_stricmp (token, "add"))
 	{
-		pass->shaderbits |= SBITS_SRCBLEND_ONE | SBITS_DSTBLEND_ONE;
+		pass->shaderbits |= SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE;
 	}
 	else if (!Q_stricmp (token, "replace"))
 	{

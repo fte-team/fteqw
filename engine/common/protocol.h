@@ -603,6 +603,7 @@ enum clcq2_ops_e
 #define DPSND_LOOPING		(1<<2)		// a long, supposedly
 #define DPSND_LARGEENTITY	(1<<3)
 #define DPSND_LARGESOUND	(1<<4)
+#define FTESND_PITCHADJ		(1<<7)		//a char (final rate is (1<<8)+pitch as 24.8 fixed point)
 
 #define DEFAULT_SOUND_PACKET_VOLUME 255
 #define DEFAULT_SOUND_PACKET_ATTENUATION 1.0

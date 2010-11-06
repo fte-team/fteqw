@@ -2755,6 +2755,7 @@ already running on that entity/channel pair.
 
 An attenuation of 0 will play full volume everywhere in the level.
 Larger attenuations will drop off.
+pitchadj is a number between -128 and 127. values greater than 0 will result in a higher pitch, less than 0 gives lower pitch.
 
 =================
 */
@@ -2765,12 +2766,17 @@ void PF_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	edict_t		*entity;
 	int 		volume;
 	float attenuation;
+	int			pitchadj;
 
 	entity = G_EDICT(prinst, OFS_PARM0);
 	channel = G_FLOAT(OFS_PARM1);
 	sample = PR_GetStringOfs(prinst, OFS_PARM2);
 	volume = G_FLOAT(OFS_PARM3) * 255;
 	attenuation = G_FLOAT(OFS_PARM4);
+	if (*svprogfuncs->callargc > 5)
+		pitchadj = G_FLOAT(OFS_PARM5);
+	else
+		pitchadj = 0;
 
 	if (volume < 0)	//erm...
 		return;
@@ -2778,7 +2784,7 @@ void PF_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (volume > 255)
 		volume = 255;
 
-	SVQ1_StartSound (entity, channel, sample, volume, attenuation);
+	SVQ1_StartSound (entity, channel, sample, volume, attenuation, pitchadj);
 }
 
 //an evil one from telejano.
@@ -2794,7 +2800,7 @@ void PF_LocalSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (!isDedicated)
 	{
 		if ((sfx = S_PrecacheSound(s)))
-			S_StartSound(cl.playernum[0], chan, sfx, cl.simorg[0], vol, 0.0);
+			S_StartSound(cl.playernum[0], chan, sfx, cl.simorg[0], vol, 0.0, 0);
 	}
 #endif
 };
@@ -7789,7 +7795,7 @@ void PF_h2StopSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	entity = G_EDICT(prinst, OFS_PARM0);
 	channel = G_FLOAT(OFS_PARM1);
 
-	SVQ1_StartSound (entity, channel, "", 1, 0);
+	SVQ1_StartSound (entity, channel, "", 1, 0, 0);
 }
 
 void PF_h2updatesoundpos(progfuncs_t *prinst, struct globalvars_s *pr_globals)

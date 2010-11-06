@@ -2436,7 +2436,7 @@ static void PF_cs_sound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	sfx = S_PrecacheSound(sample);
 	if (sfx)
-		S_StartSound(-entity->entnum, channel, sfx, entity->v->origin, volume, attenuation);
+		S_StartSound(-entity->entnum, channel, sfx, entity->v->origin, volume, attenuation, 0);
 };
 
 void PF_cs_pointsound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2455,7 +2455,7 @@ void PF_cs_pointsound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	sfx = S_PrecacheSound(sample);
 	if (sfx)
-		S_StartSound(0, 0, sfx, origin, volume, attenuation);
+		S_StartSound(0, 0, sfx, origin, volume, attenuation, 0);
 }
 
 static void PF_cs_particle(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2841,14 +2841,14 @@ static void PF_cl_te_explosion (progfuncs_t *prinst, struct globalvars_s *pr_glo
 
 	R_AddStain(pos, -1, -1, -1, 100);
 
-	S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
+	S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1, 0);
 }
 static void PF_cl_te_tarexplosion (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	P_RunParticleEffectType(pos, NULL, 1, pt_tarexplosion);
 
-	S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
+	S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1, 0);
 }
 static void PF_cl_te_wizspike (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -2856,7 +2856,7 @@ static void PF_cl_te_wizspike (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	if (P_RunParticleEffectType(pos, NULL, 1, pt_wizspike))
 		P_RunParticleEffect (pos, vec3_origin, 20, 30);
 
-	S_StartSound (-2, 0, cl_sfx_knighthit, pos, 1, 1);
+	S_StartSound (-2, 0, cl_sfx_knighthit, pos, 1, 1, 0);
 }
 static void PF_cl_te_knightspike (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -2864,7 +2864,7 @@ static void PF_cl_te_knightspike (progfuncs_t *prinst, struct globalvars_s *pr_g
 	if (P_RunParticleEffectType(pos, NULL, 1, pt_knightspike))
 		P_RunParticleEffect (pos, vec3_origin, 226, 20);
 
-	S_StartSound (-2, 0, cl_sfx_knighthit, pos, 1, 1);
+	S_StartSound (-2, 0, cl_sfx_knighthit, pos, 1, 1, 0);
 }
 static void PF_cl_te_lavasplash (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -2927,7 +2927,7 @@ static void PF_cl_te_explosionquad (progfuncs_t *prinst, struct globalvars_s *pr
 		dl->channelfade[2] = 0.12;
 	}
 
-	S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
+	S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1, 0);
 }
 
 //void(vector org, float radius, float lifetime, vector color) te_customflash
@@ -3038,7 +3038,7 @@ static void PF_cl_te_explosionrgb (progfuncs_t *prinst, struct globalvars_s *pr_
 		dl->channelfade[2] = 0;
 	}
 
-	S_StartSound (-2, 0, cl_sfx_r_exp3, org, 1, 1);
+	S_StartSound (-2, 0, cl_sfx_r_exp3, org, 1, 1, 0);
 }
 static void PF_cl_te_particlerain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -4158,7 +4158,8 @@ static void PF_cs_setlistener (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	float *right = G_VECTOR(OFS_PARM2);
 	float *up = G_VECTOR(OFS_PARM3);
 	csqc_usinglistener = true;
-	S_UpdateListener(origin, forward, right, up, false);
+	S_UpdateListener(origin, forward, right, up);
+	S_Update();
 }
 
 #define RSES_NOLERP 1

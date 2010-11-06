@@ -1912,7 +1912,7 @@ void Surf_SetupFrame(void)
 }
 
 
-static mesh_t *surfbatchmeshes[128];
+static mesh_t *surfbatchmeshes[256];
 static void Surf_BuildBrushBatch(batch_t *batch)
 {
 	model_t *model = batch->ent->model;

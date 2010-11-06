@@ -737,10 +737,9 @@ R_InitSky
 A sky texture is 256*128, with the right side being a masked overlay
 ==============
 */
-texnums_t R_InitSky (texture_t *mt)
+texnums_t R_InitSky (texture_t *mt, qbyte *src)
 {
 	int			i, j, p;
-	qbyte		*src;
 	unsigned	trans[128*128];
 	unsigned	transpix, alphamask;
 	int			r, g, b;
@@ -749,8 +748,6 @@ texnums_t R_InitSky (texture_t *mt)
 	texnums_t	tn;
 
 	memset(&tn, 0, sizeof(tn));
-
-	src = (qbyte *)mt + mt->offsets[0];
 
 	// make an average value for the back to avoid
 	// a fringe on the top level

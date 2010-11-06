@@ -81,13 +81,16 @@ typedef struct
 	unsigned char	*buffer;
 } dma_t;
 
+#define PITCHSHIFT 8
+
 typedef struct
 {
 	sfx_t	*sfx;			// sfx number
 	int		vol[MAXSOUNDCHANNELS];		// 0-255 volume
-	int		delay[MAXSOUNDCHANNELS];
+//	int		delay[MAXSOUNDCHANNELS];
 	int		end;			// end time in global paintsamples
-	int 	pos;			// sample position in sfx, <0 means delay sound start
+	int 	pos;			// sample position in sfx, <0 means delay sound start (shifted up by 8)
+	int     rate;			// 24.8 fixed point rate scaling
 	int		looping;		// where to loop, -1 = no looping
 	int		entnum;			// to allow overriding a specific sound
 	int		entchannel;		//int audio_fd
@@ -112,13 +115,14 @@ typedef struct soundcardinfo_s soundcardinfo_t;
 void S_Init (void);
 void S_Startup (void);
 void S_Shutdown (void);
-void S_StartSound (int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation);
+void S_StartSound (int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, int pitchadj);
 void S_StartSoundDelayed(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float timeofs);
 void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation);
 void S_StopSound (int entnum, int entchannel);
 void S_StopAllSounds(qboolean clear);
-void S_UpdateListener(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, qboolean dontmix);
+void S_UpdateListener(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up);
 void S_GetListenerInfo(float *origin, float *forward, float *right, float *up);
+void S_Update (void);
 void S_ExtraUpdate (void);
 
 qboolean S_HaveOutput(void);
@@ -180,9 +184,18 @@ void OpenAL_CvarInit(void);
 // User-setable variables
 // ====================================================================
 
-#define	MAX_CHANNELS			256
-#define	MAX_DYNAMIC_CHANNELS	8
+#define	MAX_CHANNELS			256	/*tracked sounds (including statics)*/
+#define	MAX_DYNAMIC_CHANNELS	8	/*playing sounds (identical ones merge)*/
 
+
+#define NUM_MUSICS				1
+
+#define AMBIENT_FIRST 0
+#define AMBIENT_STOP NUM_AMBIENTS
+#define MUSIC_FIRST AMBIENT_STOP
+#define MUSIC_STOP (MUSIC_FIRST + NUM_MUSICS)
+#define DYNAMIC_FIRST MUSIC_STOP
+#define DYNAMIC_STOP (DYNAMIC_FIRST + MAX_DYNAMIC_CHANNELS)
 
 //
 // Fake dma is a synchronous faking of the DMA progress used for
@@ -235,9 +248,9 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 	struct soundcardinfo_s *next;
 
 //speaker orientations for spacialisation.
-	float dist[MAX_CHANNELS];
-	float pitch[MAX_CHANNELS];
-	float yaw[MAX_CHANNELS];
+	float dist[MAXSOUNDCHANNELS];
+
+	vec3_t speakerdir[MAXSOUNDCHANNELS];
 
 //info on which sound effects are playing
 	channel_t   channel[MAX_CHANNELS];

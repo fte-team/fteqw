@@ -3353,7 +3353,7 @@ void CL_ParseStartSoundPacket(void)
 		if (!sound_num)
 			S_StopSound(ent, channel);
 		else
-			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation);
+			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation, 0);
 	}
 
 
@@ -3431,11 +3431,11 @@ void CLQ2_ParseStartSoundPacket(void)
 			*skin = '\0';
 		if (*model)
 		{
-			S_StartSound (ent, channel, S_PrecacheSound(va("players/%s/%s", model, cl.sound_precache[sound_num]->name+1)), pos, volume, attenuation);
+			S_StartSound (ent, channel, S_PrecacheSound(va("players/%s/%s", model, cl.sound_precache[sound_num]->name+1)), pos, volume, attenuation, 0);
 			return;
 		}
 	}
-	S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume, attenuation);
+	S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume, attenuation, 0);
 }
 #endif
 
@@ -3449,6 +3449,7 @@ void CLNQ_ParseStartSoundPacket(void)
     int 	field_mask;
     float 	attenuation;
  	int		i;
+	int		pitchadj;
 
     field_mask = MSG_ReadByte();
 
@@ -3461,6 +3462,11 @@ void CLNQ_ParseStartSoundPacket(void)
 		attenuation = MSG_ReadByte () / 64.0;
 	else
 		attenuation = DEFAULT_SOUND_PACKET_ATTENUATION;
+
+	if (field_mask & FTESND_PITCHADJ)
+		pitchadj = MSG_ReadChar();
+	else
+		pitchadj = 0;
 
 	if (field_mask & DPSND_LARGEENTITY)
 	{
@@ -3492,7 +3498,7 @@ void CLNQ_ParseStartSoundPacket(void)
 		if (!sound_num)
 			S_StopSound(ent, channel);
 		else
-			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation);
+			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation, pitchadj);
 	}
 
 	if (ent == cl.playernum[0]+1)
@@ -4753,7 +4759,8 @@ void CL_ParseServerMessage (void)
 	received_framecount = host_framecount;
 	cl.last_servermessage = realtime;
 	CL_ClearProjectiles ();
-	cl.fixangle = false;
+	for (i = 0; i < MAX_SPLITS; i++)
+		cl.fixangle[i] = false;
 
 //
 // if recording demos, copy the message out
@@ -4897,21 +4904,25 @@ void CL_ParseServerMessage (void)
 		case svc_setangle:
 			if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 			{
+				vec3_t ang;
 				i = MSG_ReadByte();
-				if (i != spec_track[0] || !autocam[0])
-				{	//this wasn't for us.
-					for (i=0 ; i<3 ; i++)
-						MSG_ReadAngle ();
-					break;
-				}
-				cl.fixangle=true;
 				for (i=0 ; i<3 ; i++)
-					cl.simangles[destsplit][i] = cl.viewangles[destsplit][i] = MSG_ReadAngle ();
+					ang[i] = MSG_ReadAngle();
+				for (j = 0; j < cl.splitclients; j++)
+				{
+					if (Cam_TrackNum(j) == i)
+					{
+						cl.fixangle[j]=true;
+						VectorCopy(ang, cl.simangles[j]);
+						VectorCopy(ang, cl.viewangles[j]);
+						VectorCopy(ang, cl.fixangles[j]);
+					}
+				}
 				break;
 			}
-			cl.fixangle=true;
+			cl.fixangle[destsplit]=true;
 			for (i=0 ; i<3 ; i++)
-				cl.viewangles[destsplit][i] = MSG_ReadAngle ();
+				cl.viewangles[destsplit][i] = cl.fixangles[destsplit][i] = MSG_ReadAngle ();
 //			cl.viewangles[PITCH] = cl.viewangles[ROLL] = 0;
 			break;
 
@@ -5581,7 +5592,7 @@ void CLNQ_ParseServerMessage (void)
 //	received_framecount = host_framecount;
 //	cl.last_servermessage = realtime;
 	CL_ClearProjectiles ();
-	cl.fixangle = false;
+	cl.fixangle[0] = false;
 
 	cl.allowsendpacket = true;
 
@@ -5866,8 +5877,9 @@ void CLNQ_ParseServerMessage (void)
 			CL_SetStatFloat (0, i, j);
 			break;
 		case svc_setangle:
+			cl.fixangle[0]=true;
 			for (i=0 ; i<3 ; i++)
-				cl.viewangles[0][i] = MSG_ReadAngle ();
+				cl.viewangles[0][i] = cl.fixangles[0][i] = MSG_ReadAngle ();
 //			cl.viewangles[PITCH] = cl.viewangles[ROLL] = 0;
 			break;
 

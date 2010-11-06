@@ -216,7 +216,6 @@ typedef struct
 #define	AMBIENT_LAVA	3
 
 #define	NUM_AMBIENTS			4		// automatic ambient sounds
-#define NUM_MUSICS				1
 
 // leaf 0 is the generic CONTENTS_SOLID leaf, used for all solid areas
 // all other leafs need visibility info

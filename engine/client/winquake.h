@@ -45,12 +45,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define WM_MOUSEWHEEL                   0x020A
 #endif
 
-#ifndef SERVERONLY
-#ifdef AVAIL_DDRAW
-#include <ddraw.h>
-#endif
-#endif
-
 #undef byte
 
 extern	HINSTANCE	global_hInstance;

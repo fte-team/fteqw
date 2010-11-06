@@ -640,7 +640,7 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 
 	case G_SOUND:
 //		( int edn, int channel, char *samp, float vol, float att )
-		SVQ1_StartSound (Q1QVMPF_EdictNum(svprogfuncs, VM_LONG(arg[0])), VM_LONG(arg[1]), VM_POINTER(arg[2]), VM_FLOAT(arg[3])*255, VM_FLOAT(arg[4]));
+		SVQ1_StartSound (Q1QVMPF_EdictNum(svprogfuncs, VM_LONG(arg[0])), VM_LONG(arg[1]), VM_POINTER(arg[2]), VM_FLOAT(arg[3])*255, VM_FLOAT(arg[4]), 0);
 		break;
 
 	case G_TRACELINE:

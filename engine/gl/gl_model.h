@@ -470,7 +470,6 @@ qboolean Q1BSP_EdictInFatPVS(struct model_s *mod, struct pvscache_s *ent, qbyte 
 void Q1BSP_FindTouchedLeafs(struct model_s *mod, struct pvscache_s *ent, float *mins, float *maxs);
 qbyte *Q1BSP_LeafPVS (struct model_s *model, mleaf_t *leaf, qbyte *buffer, unsigned int buffersize);
 
-texnums_t R_InitSky (struct texture_s *mt);
 /*
 ==============================================================================
 

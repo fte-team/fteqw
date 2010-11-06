@@ -408,6 +408,8 @@ void BE_DrawNonWorld (void);
 //called at init, force the display to the right defaults etc
 void BE_Init(void);
 
+void BE_D3D_Reset(qboolean before);
+
 //Generates an optimised VBO, one for each texture on the map
 void BE_GenBrushModelVBO(model_t *mod);
 //Destroys the given vbo

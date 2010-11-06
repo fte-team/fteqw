@@ -1043,7 +1043,7 @@ static void SV_CheckWaterTransition (edict_t *ent)
 	{
 		if (ent->v->watertype == Q1CONTENTS_EMPTY)
 		{	// just crossed into water
-			SVQ1_StartSound (ent, 0, "misc/h2ohit1.wav", 255, 1);
+			SVQ1_StartSound (ent, 0, "misc/h2ohit1.wav", 255, 1, 0);
 		}
 		ent->v->watertype = cont;
 		ent->v->waterlevel = 1;
@@ -1052,7 +1052,7 @@ static void SV_CheckWaterTransition (edict_t *ent)
 	{
 		if (ent->v->watertype != Q1CONTENTS_EMPTY)
 		{	// just crossed into open
-			SVQ1_StartSound (ent, 0, "misc/h2ohit1.wav", 255, 1);
+			SVQ1_StartSound (ent, 0, "misc/h2ohit1.wav", 255, 1, 0);
 		}
 		ent->v->watertype = Q1CONTENTS_EMPTY;
 		ent->v->waterlevel = cont;
@@ -1210,9 +1210,9 @@ static void SV_Physics_Step (edict_t *ent)
 			if (hitsound)
 			{
 				if (progstype == PROG_H2)
-					SVQ1_StartSound (ent, 0, "fx/thngland.wav", 255, 1);
+					SVQ1_StartSound (ent, 0, "fx/thngland.wav", 255, 1, 0);
 				else
-					SVQ1_StartSound (ent, 0, "demon/dland2.wav", 255, 1);
+					SVQ1_StartSound (ent, 0, "demon/dland2.wav", 255, 1, 0);
 			}
 		}
 	}

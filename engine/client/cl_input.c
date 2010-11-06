@@ -626,6 +626,8 @@ void CL_ClampPitch (int pnum)
 	else
 #endif
 	{
+		if (cl.fixangle[pnum])
+			return;
 		if (cl.viewangles[pnum][PITCH] > cl.maxpitch)
 			cl.viewangles[pnum][PITCH] = cl.maxpitch;
 		if (cl.viewangles[pnum][PITCH] < cl.minpitch)

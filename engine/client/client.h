@@ -632,7 +632,8 @@ typedef struct
 	float		entgravity[MAX_SPLITS];
 	float		maxspeed[MAX_SPLITS];
 	float		bunnyspeedcap;
-	qboolean	fixangle;	//received a fixangle - so disable prediction till the next packet.
+	qboolean	fixangle[MAX_SPLITS];	//received a fixangle - so disable prediction till the next packet.
+	vec3_t		fixangles[MAX_SPLITS];	//received a fixangle - so disable prediction till the next packet.
 
 	int teamplay;
 	int deathmatch;

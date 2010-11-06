@@ -2141,6 +2141,7 @@ void Shader_Finish (shader_t *s)
 							"map $whiteimage\n"
 							"rgbgen const $r_fastskycolour\n"
 						"}\n"
+						"surfaceparm nodlight\n"
 					"}\n"
 				);
 		return;

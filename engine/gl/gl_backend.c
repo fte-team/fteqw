@@ -2962,7 +2962,7 @@ void BE_DrawWorld (qbyte *vis)
 	r_worldentity.axis[2][2] = 1;
 
 #ifdef RTLIGHTS
-	if (r_shadow_realtime_world.value)
+	if (r_shadow_realtime_world.value && gl_config.arb_shader_objects)
 		shaderstate.identitylighting = r_shadow_realtime_world_lightmaps.value;
 	else
 #endif

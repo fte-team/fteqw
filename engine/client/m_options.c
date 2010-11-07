@@ -1838,7 +1838,7 @@ void M_Menu_Singleplayer_Cheats_Quake2_f (void)
 
 	singleplayerq2info_t *info;
 	int cursorpositionY;
-	#ifndef MINIMAL
+	#ifndef CLIENTONLY
 	int currentskill;
 	int currentmap;
 	extern cvar_t sv_gravity, sv_cheats, sv_maxspeed, skill;
@@ -1850,7 +1850,7 @@ void M_Menu_Singleplayer_Cheats_Quake2_f (void)
 
 	cursorpositionY = (y + 24);
 
-	#ifndef MINIMAL
+	#ifndef CLIENTONLY
 	currentskill = skill.value;
 
 	if ( !currentskill )

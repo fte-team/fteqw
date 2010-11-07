@@ -707,10 +707,6 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	cs_getframestate(in, rflags, &out->framestate);
 
 	VectorCopy(in->v->origin, out->origin);
-	{
-		extern cvar_t temp1;
-	out->origin[2] += temp1.value;
-	}
 	if (rflags & CSQCRF_USEAXIS)
 	{
 		VectorCopy(csqcg.forward, out->axis[0]);

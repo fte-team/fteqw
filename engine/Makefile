@@ -243,7 +243,7 @@ ifeq ($(FTE_TARGET),vc)
 	WARNINGFLAGS=-W3 -D_CRT_SECURE_NO_WARNINGS
 	GNUC_FUNCS=
 else
-	WARNINGFLAGS=-Wall -Wno-pointer-sign
+	WARNINGFLAGS=-Wall
 
 	GNUC_FUNCS= -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp -D_vsnprintf=vsnprintf -D_snprintf=snprintf
 endif
@@ -411,7 +411,6 @@ SERVER_OBJS = 		\
 	sv_nchan.o 		\
 	sv_ents.o 		\
 	sv_send.o 		\
-	sv_move.o 		\
 	sv_phys.o 		\
 	sv_user.o		\
 	sv_mvd.o		\
@@ -468,6 +467,7 @@ COMMON_OBJS = $(COMMON_ASM_OBJS) \
 	glmod_doom.o 	\
 	q3common.o	\
 	world.o 		\
+	sv_move.o 		\
 	pmove.o		\
 	pmovetst.o		\
 	iwebiface.o		\

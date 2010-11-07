@@ -419,7 +419,6 @@ SERVER_OBJS = 		\
 	sv_rankin.o 	\
 	sv_chat.o 		\
 	sv_demo.o		\
-	world.o 		\
 	net_preparse.o 	\
 	savegame.o		\
 	svq2_ents.o 	\
@@ -468,6 +467,7 @@ COMMON_OBJS = $(COMMON_ASM_OBJS) \
 	gl_q2bsp.o		\
 	glmod_doom.o 	\
 	q3common.o	\
+	world.o 		\
 	pmove.o		\
 	pmovetst.o		\
 	iwebiface.o		\
@@ -612,9 +612,9 @@ endif
 	GLCL_DIR=glcl_mgw
 
 ifeq ($(USEASM),true)
-	NPQTVCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o npplug.o sys_npqtv.o ../../ftequake/npapi.def
+	NPQTVCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o npplug.o sys_npqtv.o sys_plugfte.o ../../ftequake/npapi.def
 else
-	NPQTVCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o npplug.o sys_npqtv.o ../../ftequake/npapi.def
+	NPQTVCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o npplug.o sys_npqtv.o sys_plugfte.o ../../ftequake/npapi.def
 endif
 	NPQTV_DLL_NAME=../npqtv.dll
 	NPQTVCL_DLL_NAME=../npqtvcl.dll

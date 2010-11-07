@@ -553,7 +553,11 @@ return NULL;
 	#endif
 
 	#ifdef _MSC_VER
-		#pragma comment(lib, MSVCLIBSPATH "libpng.lib")
+		#ifdef _WIN64
+			#pragma comment(lib, MSVCLIBSPATH "libpng64.lib")
+		#else
+			#pragma comment(lib, MSVCLIBSPATH "libpng.lib")
+		#endif
 	#endif
 
 
@@ -644,7 +648,13 @@ error:
 	}
 
 	if (colortype == PNG_COLOR_TYPE_GRAY && bitdepth < 8)
-		png_set_gray_1_2_4_to_8(png);
+	{
+		#if PNG_LIBPNG_VER > 10400
+			png_set_expand_gray_1_2_4_to_8(png);
+		#else
+			png_set_gray_1_2_4_to_8(png);
+		#endif
+	}
 
 	if (png_get_valid( png, pnginfo, PNG_INFO_tRNS))
 		png_set_tRNS_to_alpha(png);

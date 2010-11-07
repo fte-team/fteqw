@@ -3342,6 +3342,11 @@ qboolean RMod_LoadSpriteModel (model_t *mod, void *buffer)
 	mod->maxs[0] = mod->maxs[1] = psprite->maxwidth/2;
 	mod->mins[2] = -psprite->maxheight/2;
 	mod->maxs[2] = psprite->maxheight/2;
+	if (qrenderer == QR_NONE)
+	{
+		mod->type = mod_dummy;
+		return true;
+	}
 
 	if (version == SPRITEHL_VERSION)
 	{

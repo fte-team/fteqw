@@ -594,7 +594,7 @@ ifeq ($(FTE_TARGET),win32)
 
 	LIBS_DIR = $(BASE_DIR)/libs
 	SV_EXE_NAME=../fteqwsv.exe
-	SV_LDFLAGS=libs/zlib.lib -lws2_32 -lwinmm
+	SV_LDFLAGS=$(LIBS_DIR)/mingw-libs/zlib.lib -lws2_32 -lwinmm
 	SV_DIR=sv_mingw
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) fs_win32.o resources.o
 

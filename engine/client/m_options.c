@@ -2123,7 +2123,7 @@ void M_Menu_Singleplayer_Cheats_Hexen2_f (void)
 	singleplayerh2info_t *info;
 	int cursorpositionY;
 	int currentmap;
-	#ifndef MINIMAL
+	#ifndef CLIENTONLY
 		int currentskill;
 		extern cvar_t sv_gravity, sv_cheats, sv_maxspeed, skill;
 	#endif
@@ -2134,7 +2134,7 @@ void M_Menu_Singleplayer_Cheats_Hexen2_f (void)
 
 	cursorpositionY = (y + 24);
 
-	#ifndef MINIMAL
+	#ifndef CLIENTONLY
 	currentskill = skill.value;
 
 	if ( !currentskill )
@@ -2223,23 +2223,23 @@ void M_Menu_Singleplayer_Cheats_Hexen2_f (void)
 		MC_AddRedText(menu, 16, y, 			"     Hexen2 Singleplayer Cheats", false); y+=8;
 		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
 		y+=8;
-#ifndef MINIMAL
-info->skillcombo = MC_AddCombo(menu,16, y,	"                   Difficulty", skilloptions, currentskill);	y+=8;
-#endif
-info->mapcombo = MC_AddCombo(menu,16, y,	"                          Map", mapoptions, currentmap);	y+=8;
-		#ifndef MINIMAL
+		#ifndef CLIENTONLY
+		info->skillcombo = MC_AddCombo(menu,16, y,	"                   Difficulty", skilloptions, currentskill);	y+=8;
+		#endif
+		info->mapcombo = MC_AddCombo(menu,16, y,	"                          Map", mapoptions, currentmap);	y+=8;
+		#ifndef CLIENTONLY
 		MC_AddCheckBox(menu,	16, y,		"                       Cheats", &sv_cheats,0);	y+=8;
 		#endif
 		MC_AddConsoleCommand(menu, 16, y,	"               Toggle Godmode", "god\n"); y+=8;
 		MC_AddConsoleCommand(menu, 16, y,	"               Toggle Flymode", "fly\n"); y+=8;
 		MC_AddConsoleCommand(menu, 16, y,	"                Toggle Noclip", "noclip\n"); y+=8;
-		#ifndef MINIMAL
+		#ifndef CLIENTONLY
 		MC_AddSlider(menu,	16, y,			"                      Gravity", &sv_gravity,0,800,25);	y+=8;
 		#endif
 		MC_AddSlider(menu,	16, y,			"                Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
 		MC_AddSlider(menu,	16, y,			"                   Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
 		MC_AddSlider(menu,	16, y,			"                   Back Speed", &cl_backspeed,0,1000,50);	y+=8;
-		#ifndef MINIMAL
+		#ifndef CLIENTONLY
 		MC_AddSlider(menu,	16, y,			"           Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
 		#endif
 		MC_AddConsoleCommand(menu, 16, y,	"         Sheep Transformation", "impulse 14\n"); y+=8;

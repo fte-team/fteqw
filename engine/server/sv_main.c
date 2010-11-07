@@ -2751,6 +2751,7 @@ qboolean SV_ConnectionlessPacket (void)
 		SVC_GetChallenge ();
 	}
 #ifdef NQPROT
+	/*for DP*/
 	else if (!strcmp(c, "getstatus"))
 		SVC_GetInfo(Cmd_Args(), true);
 	else if (!strcmp(c, "getinfo"))
@@ -2773,14 +2774,16 @@ void SVNQ_ConnectionlessPacket(void)
 	sizebuf_t sb;
 	int header;
 	int length;
+	int active, i;
 	char *str;
-	char buffer[256];
+	char buffer[256], buffer2[256];
+	netadr_t localaddr;
 	if (net_from.type == NA_LOOPBACK)
 		return;
 
 	if (!sv_listen_nq.value)
 		return;
-	if (sv_bigcoords.value)
+	if (svs.netprim.coordsize != 2)
 		return;	//no, start using dp7 instead.
 
 	MSG_BeginReading(svs.netprim);
@@ -2821,6 +2824,32 @@ void SVNQ_ConnectionlessPacket(void)
 		Cmd_TokenizeString (str, false, false);
 
 		SVC_DirectConnect();
+		break;
+	case CCREQ_SERVER_INFO:
+		if (Q_strcmp (MSG_ReadString(), NET_GAMENAME_NQ) != 0)
+			break;
+
+		sb.maxsize = sizeof(buffer);
+		sb.data = buffer;
+		SZ_Clear (&sb);
+		// save space for the header, filled in later
+		MSG_WriteLong (&sb, 0);
+		MSG_WriteByte (&sb, CCREP_SERVER_INFO);
+		if (NET_LocalAddressForRemote(svs.sockets, &net_from, &localaddr, 0))
+			MSG_WriteString (&sb, NET_AdrToString (buffer2, sizeof(buffer2), localaddr));
+		else
+			MSG_WriteString (&sb, "unknown");
+		active = 0;
+		for (i = 0; i < sv.allocated_client_slots; i++)
+			if (svs.clients[i].state)
+				active++;
+		MSG_WriteString (&sb, hostname.string);
+		MSG_WriteString (&sb, sv.name);
+		MSG_WriteByte (&sb, active);
+		MSG_WriteByte (&sb, maxclients.value);
+		MSG_WriteByte (&sb, NET_PROTOCOL_VERSION);
+		*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
+		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
 		break;
 	}
 }

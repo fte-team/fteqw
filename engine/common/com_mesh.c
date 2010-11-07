@@ -1464,11 +1464,12 @@ static void Mod_ClampModelSize(model_t *mod)
 	axis = (mod->maxs[2] - mod->mins[2]);
 	rad += axis*axis;
 
-	if (loadmodel->engineflags & MDLF_DOCRC)
+	mod->tainted = false;
+	if (mod->engineflags & MDLF_DOCRC)
 	{
 		if (!strcmp(mod->name, "progs/eyes.mdl"))
 		{       //this is checked elsewhere to make sure the crc matches (this is to make sure the crc check was actually called)
-			if (mod->type != mod_alias || mod->fromgame != fg_quake)
+			if (mod->type != mod_alias || mod->fromgame != fg_quake || mod->flags)
 				mod->tainted = true;
 		}
 	}
@@ -2770,6 +2771,7 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 	VectorCopy (pq1inmodel->scale_origin, mod->mins);
 	VectorMA (mod->mins, 255, pq1inmodel->scale, mod->maxs);
 
+	mod->type = mod_alias;
 	Mod_ClampModelSize(mod);
 //
 // move the complete, relocatable alias model to the cache
@@ -2779,7 +2781,6 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 	hunktotal = hunkend - hunkstart;
 
 	Cache_Alloc (&mod->cache, hunktotal, loadname);
-	mod->type = mod_alias;
 	if (!mod->cache.data)
 	{
 		Hunk_FreeToLowMark (hunkstart);

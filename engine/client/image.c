@@ -789,7 +789,7 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 #endif
 
 #ifndef JPEG_FALSE
-#define JPEG_BOOL boolean
+#define JPEG_boolean boolean
 #endif
 
 
@@ -840,7 +840,7 @@ typedef struct {
   int currentpos;
   int maxlen;
   JOCTET * buffer;		/* start of buffer */
-  JPEG_BOOL start_of_file;	/* have we gotten any data yet? */
+  JPEG_boolean start_of_file;	/* have we gotten any data yet? */
 } my_source_mgr;
 
 typedef my_source_mgr * my_src_ptr;
@@ -856,7 +856,7 @@ init_source (j_decompress_ptr cinfo)
   src->start_of_file = TRUE;
 }
 
-METHODDEF(JPEG_BOOL)
+METHODDEF(JPEG_boolean)
 fill_input_buffer (j_decompress_ptr cinfo)
 {
 	my_source_mgr *src = (my_source_mgr*) cinfo->src;
@@ -1056,7 +1056,7 @@ METHODDEF(void) init_destination (j_compress_ptr cinfo)
 	dest->pub.next_output_byte = dest->buffer;
 	dest->pub.free_in_buffer = OUTPUT_BUF_SIZE;
 }
-METHODDEF(JPEG_BOOL) empty_output_buffer (j_compress_ptr cinfo)
+METHODDEF(JPEG_boolean) empty_output_buffer (j_compress_ptr cinfo)
 {
 	my_destination_mgr *dest = (my_destination_mgr*) cinfo->dest;
 
@@ -1983,7 +1983,7 @@ static struct
 	{"", 1}			//someone forgot an extension
 };
 
-static struct 
+static struct
 {
 	int args;
 	char *path;

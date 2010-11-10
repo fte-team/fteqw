@@ -1650,8 +1650,6 @@ void CL_ParseDownload (void)
 		}
 
 		CL_DownloadFailed(cls.downloadremotename);
-
-		CL_RequestNextDownload ();
 		return;
 	}
 

@@ -1774,6 +1774,14 @@ void Sbar_DrawScoreboard (void)
 	if (cls.protocol == CP_QUAKE2)
 		return;
 
+#ifndef CLIENTONLY
+	/*no scoreboard in single player (if you want bots, set deathmatch)*/
+	if (sv.state && cls.gamemode == GAME_COOP && sv.allocated_client_slots == 1)
+	{
+		return;
+	}
+#endif
+
 	for (pnum = 0; pnum < cl.splitclients; pnum++)
 	{
 		if (cl.stats[pnum][STAT_HEALTH] <= 0)
@@ -1782,19 +1790,6 @@ void Sbar_DrawScoreboard (void)
 
 	if (deadcount == cl.splitclients && !cl.spectator)
 	{
-#ifndef CLIENTONLY
-		if (sv.state && cls.gamemode == GAME_COOP)
-		{
-			for (pnum = 0; pnum < sv.allocated_client_slots; pnum++)
-			{
-				if (svs.clients[pnum].state)
-					if (svs.clients[pnum].netchan.remote_address.type != NA_LOOPBACK)
-						break;
-			}
-			if (pnum == sv.allocated_client_slots)
-				return;
-		}
-#endif
 		if (cl.teamplay > 0 && !sb_showscores)
 			Sbar_TeamOverlay();
 		else
@@ -1845,7 +1840,6 @@ void Sbar_Hexen2DrawInventory(int pnum)
 	if (sb_hexen2_item_time[pnum]+3 < realtime)
 		return;
 
-#if 1
 	for (i = sb_hexen2_cur_item[pnum]; i < 15; i++)
 		if (sb_hexen2_cur_item[pnum] == i || cl.stats[pnum][STAT_H2_CNT_TORCH+i] > 0)
 			activeright++;
@@ -1877,23 +1871,6 @@ void Sbar_Hexen2DrawInventory(int pnum)
 		Sbar_Hexen2DrawItem(pnum, x, y, i);
 		x+=33;
 	}
-#elif 1
-	for (i = 0, x=320/2-114; i < 7; i++, x+=33)
-	{
-		if ((sb_hexen2_cur_item[pnum]-3+i+30)%15 == sb_hexen2_cur_item[pnum])
-			Sbar_DrawPic(x+9, y-12, 11, 11, Draw_SafeCachePic("gfx/artisel.lmp"));
-		Sbar_Hexen2DrawItem(pnum, x, y, (sb_hexen2_cur_item[pnum]-3+i+30)%15);
-	}
-#else
-	for (i = 0, x=320/2; i < 3; i++, x+=33)
-	{
-		Sbar_Hexen2DrawItem(pnum, x, y, (sb_hexen2_cur_item[pnum]+1+i)%15);
-	}
-	for (i = 0, x=320/2-33; i < 3; i++, x-=33)
-	{
-		Sbar_Hexen2DrawItem(pnum, x, y, (sb_hexen2_cur_item[pnum]-1-i+45)%15);
-	}
-#endif
 }
 
 void Sbar_Hexen2DrawExtra (int pnum)
@@ -2314,12 +2291,6 @@ void Sbar_Draw (void)
 
 			Sbar_DrawString (0, -8, va("Health: %i", cl.stats[pnum][STAT_HEALTH]));
 			Sbar_DrawString (0, -16, va(" Armor: %i", cl.stats[pnum][STAT_ARMOR]));
-
-			if (cl.stats[pnum][STAT_H2_BLUEMANA])
-				Sbar_DrawString (0, -24, va("  Blue: %i", cl.stats[pnum][STAT_H2_BLUEMANA]));
-			if (cl.stats[pnum][STAT_H2_GREENMANA])
-				Sbar_DrawString (0, -32, va(" Green: %i", cl.stats[pnum][STAT_H2_GREENMANA]));
-
 			continue;
 		}
 
@@ -2347,7 +2318,7 @@ void Sbar_Draw (void)
 				}
 				else
 				{
-					if (sb_showscores || cl.stats[pnum][STAT_HEALTH] <= 0)
+					if (sb_showscores || sb_showteamscores || cl.stats[pnum][STAT_HEALTH] <= 0)
 						Sbar_SoloScoreboard ();
 					else if (cls.gamemode != GAME_DEATHMATCH)
 						Sbar_CoopScoreboard ();
@@ -2362,7 +2333,7 @@ void Sbar_Draw (void)
 					}
 				}
 			}
-			else if (sb_showscores || (cl.stats[pnum][STAT_HEALTH] <= 0 && cl.splitclients == 1))
+			else if (sb_showscores || sb_showteamscores || (cl.stats[pnum][STAT_HEALTH] <= 0 && cl.splitclients == 1))
 			{
 				if (!pnum)
 				{

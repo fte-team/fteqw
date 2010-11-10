@@ -262,6 +262,8 @@ typedef struct {
 
 		//things that are set immediatly
 		SP_FIRSTIMMEDIATE,	//never set
+		SP_CONSTI,
+		SP_CONSTF,
 		SP_CVARI,
 		SP_CVARF,
 		SP_CVAR3F,
@@ -271,6 +273,7 @@ typedef struct {
 	union
 	{
 		int ival;
+		float fval;
 		void *pval;
 	};
 } shaderprogparm_t;

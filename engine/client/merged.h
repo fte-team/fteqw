@@ -82,7 +82,6 @@ extern void	(*R_NewMap)								(void);
 extern void	(*R_PreNewMap)							(void);
 extern int	(*R_LightPoint)							(vec3_t point);
 
-extern void	(*R_PushDlights)						(void);
 extern void	(*R_AddStain)							(vec3_t org, float red, float green, float blue, float radius);
 extern void	(*R_LessenStains)						(void);
 
@@ -200,7 +199,6 @@ typedef struct rendererinfo_s {
 	void	(*R_PreNewMap)				(void);
 	int		(*R_LightPoint)				(vec3_t point);
 
-	void	(*R_PushDlights)			(void);
 	void	(*R_AddStain)				(vec3_t org, float red, float green, float blue, float radius);
 	void	(*R_LessenStains)			(void);
 

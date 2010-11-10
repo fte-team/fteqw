@@ -31,6 +31,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <ctype.h>
 
+#include <GL/gl.h>
+#include "glsupp.h"
 
 
 extern texid_t missing_texture;
@@ -248,8 +250,34 @@ static qboolean Shader_EvaluateCondition(char **ptr)
 	else
 	{
 		cv = Cvar_Get(token, "", 0, "Shader Conditions");
-		if (cv)
-			conditiontrue = conditiontrue == !!cv->value;
+		token = COM_ParseExt ( ptr, false );
+		if (*token)
+		{
+			float rhs;
+			char cmp[4];
+			memcpy(cmp, token, 4);
+			token = COM_ParseExt ( ptr, false );
+			rhs = atof(token);
+			if (!strcmp(cmp, "!="))
+				conditiontrue = cv->value != rhs;
+			else if (!strcmp(cmp, "=="))
+				conditiontrue = cv->value == rhs;
+			else if (!strcmp(cmp, "<"))
+				conditiontrue = cv->value < rhs;
+			else if (!strcmp(cmp, "<="))
+				conditiontrue = cv->value <= rhs;
+			else if (!strcmp(cmp, ">"))
+				conditiontrue = cv->value > rhs;
+			else if (!strcmp(cmp, ">="))
+				conditiontrue = cv->value >= rhs;
+			else
+				conditiontrue = false;
+		}
+		else
+		{
+			if (cv)
+				conditiontrue = conditiontrue == !!cv->value;
+		}
 	}
 
 	return conditiontrue;
@@ -814,6 +842,18 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 		specialint = atoi(token);
 		parmtype = SP_TEXTURE;
 	}
+	else if (!Q_stricmp(token, "consti"))
+	{
+		token = Shader_ParseSensString(ptr);
+		specialint = atoi(token);
+		parmtype = SP_CONSTI;
+	}
+	else if (!Q_stricmp(token, "constf"))
+	{
+		token = Shader_ParseSensString(ptr);
+		specialfloat = atof(token);
+		parmtype = SP_CONSTF;
+	}
 	else if (!Q_stricmp(token, "cvari"))
 	{
 		token = Shader_ParseSensString(ptr);
@@ -895,7 +935,11 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 						foundone = false;
 						break;
 					case SP_TEXTURE:
+					case SP_CONSTI:
 						shader->progparm[shader->numprogparams].ival = specialint;
+						break;
+					case SP_CONSTF:
+						shader->progparm[shader->numprogparams].fval = specialfloat;
 						break;
 					case SP_CVARF:
 					case SP_CVARI:
@@ -1785,7 +1829,6 @@ void Shader_Shutdown (void)
 
 void Shader_SetBlendmode (shaderpass_t *pass)
 {
-#ifdef GLQUAKE /*FIXME: move to backnd*/
 	if (pass->texgen == T_GEN_DELUXMAP)
 	{
 		pass->blendmode = GL_DOT3_RGB_ARB;
@@ -1824,7 +1867,6 @@ void Shader_SetBlendmode (shaderpass_t *pass)
 		pass->blendmode = GL_DECAL;
 	else
 		pass->blendmode = GL_MODULATE;
-#endif
 }
 
 void Shader_Readpass (shader_t *shader, char **ptr)
@@ -1971,7 +2013,11 @@ static qboolean Shader_Parsetok (shader_t *shader, shaderpass_t *pass, shaderkey
 
 void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 {
-#ifdef GLQUAKE
+	qboolean config_tex_env_combine = 1;//0;
+	qboolean config_nv_tex_env_combine4 = 1;//0;
+	qboolean config_multitexure = be_maxpasses > 1;//0;
+	qboolean config_env_add = 1;//0;
+
 	if (((pass->flags & SHADER_PASS_DETAIL) && !r_detailtextures.value) ||
 		((pass2->flags & SHADER_PASS_DETAIL) && !r_detailtextures.value) ||
 		 (pass->flags & SHADER_PASS_VIDEOMAP) || (pass2->flags & SHADER_PASS_VIDEOMAP))
@@ -1993,19 +2039,19 @@ void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 	{
 		pass->numMergedPasses++;
 	}
-	else if (gl_config.tex_env_combine || gl_config.nv_tex_env_combine4)
+	else if (config_tex_env_combine || config_nv_tex_env_combine4)
 	{
 		if ( pass->blendmode == GL_REPLACE )
 		{
-			if ((pass2->blendmode == GL_DECAL && gl_config.tex_env_combine) ||
-				(pass2->blendmode == GL_ADD && gl_config.env_add) ||
-				(pass2->blendmode && pass2->blendmode != GL_ADD) ||	gl_config.nv_tex_env_combine4)
+			if ((pass2->blendmode == GL_DECAL && config_tex_env_combine) ||
+				(pass2->blendmode == GL_ADD && config_env_add) ||
+				(pass2->blendmode && pass2->blendmode != GL_ADD) ||	config_nv_tex_env_combine4)
 			{
 				pass->numMergedPasses++;
 			}
 		}
 		else if (pass->blendmode == GL_ADD && 
-			pass2->blendmode == GL_ADD && gl_config.env_add)
+			pass2->blendmode == GL_ADD && config_env_add)
 		{
 			pass->numMergedPasses++;
 		}
@@ -2014,7 +2060,7 @@ void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 			pass->numMergedPasses++;
 		}
 	}
-	else if ( qglMTexCoord2fSGIS )
+	else if (config_multitexure)
 	{
 		//don't merge more than 2 tmus.
 		if (pass->numMergedPasses != 1)
@@ -2023,7 +2069,7 @@ void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 		// check if we can use R_RenderMeshMultitextured
 		if ( pass->blendmode == GL_REPLACE )
 		{
-			if ( pass2->blendmode == GL_ADD && gl_config.env_add )
+			if ( pass2->blendmode == GL_ADD && config_env_add )
 			{
 				pass->numMergedPasses = 2;
 			}
@@ -2036,12 +2082,11 @@ void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 		{
 			pass->numMergedPasses = 2;
 		}
-		else if (pass->blendmode == GL_ADD && pass2->blendmode == GL_ADD && gl_config.env_add)
+		else if (pass->blendmode == GL_ADD && pass2->blendmode == GL_ADD && config_env_add)
 		{
 			pass->numMergedPasses = 2;
 		}
 	}
-#endif
 }
 
 void Shader_SetFeatures ( shader_t *s )
@@ -2752,13 +2797,24 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 					"}\n"
 					"param time time\n"
 					"param texture 0 watertexture\n"
-					"param cvarf r_wateralpha wateralpha\n"
+					"if r_wateralpha != 1\n"
+					"[\n"
+						"param cvarf r_wateralpha wateralpha\n"
+						"sort blend\n"
+						"{\n"
+							"map $diffuse\n"
+							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
+						"}\n"
+					"]\n"
+					"if r_wateralpha == 1\n"
+					"[\n"
+						"param constf 1 wateralpha\n"
+						"sort opaque\n"
+						"{\n"
+							"map $diffuse\n"
+						"}\n"
+					"]\n"
 					"surfaceparm nodlight\n"
-					"{\n"
-						"map $diffuse\n"
-						"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
-					"}\n"
-					"sort blend\n"
 				"}\n"
 			);
 		}

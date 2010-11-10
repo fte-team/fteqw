@@ -813,8 +813,8 @@ static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 
 			if (fb >= 1 && r_fb_models.value)
 			{
-				ambientlight[0] = ambientlight[1] = ambientlight[2] = 4096;
-				shadelight[0] = shadelight[1] = shadelight[2] = 4096;
+				ambientlight[0] = ambientlight[1] = ambientlight[2] = 1;
+				shadelight[0] = shadelight[1] = shadelight[2] = 1;
 				return true;
 			}
 			else

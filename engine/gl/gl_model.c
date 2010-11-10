@@ -2659,7 +2659,6 @@ float RadiusFromBounds (vec3_t mins, vec3_t maxs);
 //combination of R_AddDynamicLights and R_MarkLights
 static void Q1BSP_StainNode (mnode_t *node, float *parms)
 {
-#ifdef GLQUAKE
 	mplane_t	*splitplane;
 	float		dist;
 	msurface_t	*surf;
@@ -2693,7 +2692,6 @@ static void Q1BSP_StainNode (mnode_t *node, float *parms)
 
 	Q1BSP_StainNode (node->children[0], parms);
 	Q1BSP_StainNode (node->children[1], parms);
-#endif
 }
 
 void RMod_FixupNodeMinsMaxs (mnode_t *node, mnode_t *parent)

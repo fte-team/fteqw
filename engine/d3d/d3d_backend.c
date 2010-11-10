@@ -75,6 +75,37 @@ static void FTable_Init(void)
 		r_inversesawtoothtable[i] = 1.0 - t;
 	}
 }
+
+typedef vec3_t mat3_t[3];
+static mat3_t axisDefault={{1, 0, 0},
+					{0, 1, 0},
+					{0, 0, 1}};
+
+static void Matrix3_Transpose (mat3_t in, mat3_t out)
+{
+	out[0][0] = in[0][0];
+	out[1][1] = in[1][1];
+	out[2][2] = in[2][2];
+
+	out[0][1] = in[1][0];
+	out[0][2] = in[2][0];
+	out[1][0] = in[0][1];
+	out[1][2] = in[2][1];
+	out[2][0] = in[0][2];
+	out[2][1] = in[1][2];
+}
+static void Matrix3_Multiply_Vec3 (mat3_t a, vec3_t b, vec3_t product)
+{
+	product[0] = a[0][0]*b[0] + a[0][1]*b[1] + a[0][2]*b[2];
+	product[1] = a[1][0]*b[0] + a[1][1]*b[1] + a[1][2]*b[2];
+	product[2] = a[2][0]*b[0] + a[2][1]*b[1] + a[2][2]*b[2];
+}
+
+static int Matrix3_Compare(mat3_t in, mat3_t out)
+{
+	return !memcmp(in, out, sizeof(mat3_t));
+}
+
 /*================================================*/
 
 typedef struct
@@ -90,7 +121,10 @@ typedef struct
 	texid_t		curdeluxmap;
 	int			curvertdecl;
 	unsigned int shaderbits;
+	unsigned int curcull;
 	unsigned int lastpasscount;
+
+	texid_t		curtex[MAX_TMUS];
 
 	mesh_t		**meshlist;
 	unsigned int nummeshes;
@@ -130,12 +164,12 @@ extern int be_maxpasses;
 enum 
 {
 	D3D_VDEC_COL4B = 1<<0,
-	D3D_VDEC_NORMS = 1<<1,
-	D3D_VDEC_ST0 = 1<<2,
-	D3D_VDEC_ST1 = 1<<3,
+	//D3D_VDEC_NORMS = 1<<1,
+	D3D_VDEC_ST0 = 1<<1,
+	D3D_VDEC_ST1 = 1<<2,
 	D3D_VDEC_ST2 = 1<<3,
-	D3D_VDEC_ST3 = 1<<3,
-	D3D_VDEC_MAX = 16
+	D3D_VDEC_ST3 = 1<<4,
+	D3D_VDEC_MAX = 1<<5
 };
 IDirect3DVertexDeclaration9 *vertexdecls[D3D_VDEC_MAX];
 
@@ -201,7 +235,7 @@ void BE_D3D_Reset(qboolean before)
 				elements++;
 			}
 
-			if (i & D3D_VDEC_NORMS)
+/*			if (i & D3D_VDEC_NORMS)
 			{
 				decl[elements].Stream = 2;
 				decl[elements].Offset = 0;
@@ -227,7 +261,7 @@ void BE_D3D_Reset(qboolean before)
 				decl[elements].UsageIndex = 1;
 				elements++;
 			}
-
+*/
 			for (tmu = 0; tmu < MAX_TMUS; tmu++)
 			{
 				if (i & (D3D_VDEC_ST0<<tmu))
@@ -259,7 +293,8 @@ void BE_D3D_Reset(qboolean before)
 static void D3DBE_ApplyShaderBits(unsigned int bits);
 void BE_Init(void)
 {
-	be_maxpasses = 1;
+	be_maxpasses = MAX_TMUS;
+	memset(&shaderstate, 0, sizeof(shaderstate));
 	shaderstate.curvertdecl = -1;
 
 	FTable_Init();
@@ -421,48 +456,57 @@ static unsigned int allocindexbuffer(void **dest, unsigned int entries)
 	return offset/sizeof(index_t);
 }
 
+static void BindTexture(unsigned int tu, void *id)
+{
+	if (shaderstate.curtex[tu].ptr != id)
+	{
+		shaderstate.curtex[tu].ptr = id;
+		IDirect3DDevice9_SetTexture (pD3DDev9, tu, id);
+	}
+}
+
 static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 {
 	switch(pass->texgen)
 	{
 	default:
 	case T_GEN_DIFFUSE:
-		IDirect3DDevice9_SetTexture (pD3DDev9, tu, shaderstate.curtexnums->base.ptr);
+		BindTexture(tu, shaderstate.curtexnums->base.ptr);
 		break;
 	case T_GEN_NORMALMAP:
-		IDirect3DDevice9_SetTexture (pD3DDev9, tu, shaderstate.curtexnums->bump.ptr);
+		BindTexture( tu, shaderstate.curtexnums->bump.ptr);
 		break;
 	case T_GEN_SPECULAR:
-		IDirect3DDevice9_SetTexture (pD3DDev9, tu, shaderstate.curtexnums->specular.ptr);
+		BindTexture(tu, shaderstate.curtexnums->specular.ptr);
 		break;
 	case T_GEN_UPPEROVERLAY:
-		IDirect3DDevice9_SetTexture (pD3DDev9, tu, shaderstate.curtexnums->upperoverlay.ptr);
+		BindTexture(tu, shaderstate.curtexnums->upperoverlay.ptr);
 		break;
 	case T_GEN_LOWEROVERLAY:
-		IDirect3DDevice9_SetTexture (pD3DDev9, tu, shaderstate.curtexnums->loweroverlay.ptr);
+		BindTexture(tu, shaderstate.curtexnums->loweroverlay.ptr);
 		break;
 	case T_GEN_FULLBRIGHT:
-		IDirect3DDevice9_SetTexture (pD3DDev9, tu, shaderstate.curtexnums->fullbright.ptr);
+		BindTexture(tu, shaderstate.curtexnums->fullbright.ptr);
 		break;
 	case T_GEN_ANIMMAP:
-		IDirect3DDevice9_SetTexture (pD3DDev9, tu, pass->anim_frames[(int)(pass->anim_fps * shaderstate.curtime) % pass->anim_numframes].ptr);
+		BindTexture(tu, pass->anim_frames[(int)(pass->anim_fps * shaderstate.curtime) % pass->anim_numframes].ptr);
 		break;
 		/*fixme*/
 	case T_GEN_SINGLEMAP:
-		IDirect3DDevice9_SetTexture (pD3DDev9, tu, pass->anim_frames[0].ptr);
+		BindTexture(tu, pass->anim_frames[0].ptr);
 		break;
 	case T_GEN_DELUXMAP:
-		IDirect3DDevice9_SetTexture (pD3DDev9, tu, shaderstate.curdeluxmap.ptr);
+		BindTexture(tu, shaderstate.curdeluxmap.ptr);
 		break;
 	case T_GEN_LIGHTMAP:
-		IDirect3DDevice9_SetTexture (pD3DDev9, tu, shaderstate.curlightmap.ptr);
+		BindTexture(tu, shaderstate.curlightmap.ptr);
 		break;
 
 	/*case T_GEN_CURRENTRENDER:
 		FIXME: no code to grab the current screen and convert to a texture
 		break;*/
 	case T_GEN_VIDEOMAP:
-		IDirect3DDevice9_SetTexture (pD3DDev9, tu, Media_UpdateForShader(pass->cin).ptr);
+		BindTexture(tu, Media_UpdateForShader(pass->cin).ptr);
 		break;
 	}
 
@@ -486,43 +530,66 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG1, D3DTA_TEXTURE);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG2, D3DTA_CURRENT);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLOROP, D3DTOP_DOTPRODUCT3);
+
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
 		break;
 	case GL_REPLACE:
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG1, D3DTA_TEXTURE);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+//		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
 		break;
 	case GL_ADD:
+		if (!tu)
+			goto forcemod;
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG1, D3DTA_TEXTURE);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG2, D3DTA_CURRENT);
-		if (tu)
-			IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLOROP, D3DTOP_ADD);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLOROP, D3DTOP_ADD);
+
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAOP, D3DTOP_ADD);
 		break;
 	case GL_DECAL:
+		if (!tu)
+			goto forcemod;
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG1, D3DTA_TEXTURE);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG2, D3DTA_CURRENT);
-		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLOROP, D3DTOP_MODULATE);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLOROP, D3DTOP_BLENDTEXTUREALPHA);
+
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG2, D3DTA_CURRENT);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
 		break;
 	default:
 	case GL_MODULATE:
+	forcemod:
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG1, D3DTA_TEXTURE);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG2, D3DTA_CURRENT);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLOROP, D3DTOP_MODULATE);
+
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG2, D3DTA_CURRENT);
+		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
 		break;
 	}
-	IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-	IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
-	IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
 
 	if (tu == 0)
 	{
 		if (shaderstate.passsinglecolour)
 		{
 			IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG2, D3DTA_CONSTANT);
+			IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG2, D3DTA_CONSTANT);
 			IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_CONSTANT, shaderstate.passcolour);
 		}
 		else
 		{
 			IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG2, D3DTA_DIFFUSE);
+			IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
 		}
 	}
 }
@@ -548,15 +615,27 @@ static void colourgenbyte(const shaderpass_t *pass, int cnt, const byte_vec4_t *
 		break;
 	case RGB_GEN_VERTEX:
 	case RGB_GEN_EXACT_VERTEX:
-		while((cnt)--)
+		if (!src)
 		{
-			qbyte r, g, b;
-			r=src[cnt][0];
-			g=src[cnt][1];
-			b=src[cnt][2];
-			dst[cnt][0] = b;
-			dst[cnt][1] = g;
-			dst[cnt][2] = r;
+			while((cnt)--)
+			{
+				dst[cnt][0] = 255;//shaderstate.identitylighting;
+				dst[cnt][1] = 255;//shaderstate.identitylighting;
+				dst[cnt][2] = 255;//shaderstate.identitylighting;
+			}
+		}
+		else
+		{
+			while((cnt)--)
+			{
+				qbyte r, g, b;
+				r=src[cnt][0];
+				g=src[cnt][1];
+				b=src[cnt][2];
+				dst[cnt][0] = b;
+				dst[cnt][1] = g;
+				dst[cnt][2] = r;
+			}
 		}
 		break;
 	case RGB_GEN_ONE_MINUS_VERTEX:
@@ -707,16 +786,14 @@ static void alphagenbyte(const shaderpass_t *pass, int cnt, const byte_vec4_t *s
 		}
 		break;
 
-	/*FIXME: specular not supported (most noticable on q3dm0)*/
-	/*case ALPHA_GEN_SPECULAR:
+	case ALPHA_GEN_SPECULAR:
 		{
-			mat3_t axis;
-			AngleVectors(shaderstate.curentity->angles, axis[0], axis[1], axis[2]);
+			int i;
 			VectorSubtract(r_origin, shaderstate.curentity->origin, v1);
 
-			if (!Matrix3_Compare(axis, axisDefault))
+			if (!Matrix3_Compare(shaderstate.curentity->axis, axisDefault))
 			{
-				Matrix3_Multiply_Vec3(axis, v2, v2);
+				Matrix3_Multiply_Vec3(shaderstate.curentity->axis, v2, v2);
 			}
 			else
 			{
@@ -728,10 +805,10 @@ static void alphagenbyte(const shaderpass_t *pass, int cnt, const byte_vec4_t *s
 				VectorSubtract(v2, mesh->xyz_array[i], v1);
 				f = DotProduct(v1, mesh->normals_array[i] ) * Q_rsqrt(DotProduct(v1,v1));
 				f = f * f * f * f * f;
-				dst[i][3] = bound (0.0f, f, 1.0f);
+				dst[i][3] = bound (0.0f, (int)(f*255), 255);
 			}
 		}
-		break;*/
+		break;
 	}
 }
 
@@ -825,13 +902,11 @@ static unsigned int BE_GenerateColourMods(unsigned int vertcount, const shaderpa
 
 static void tcgen_environment(float *st, unsigned int numverts, float *xyz, float *normal) 
 {
-	/*
 	int			i;
 	vec3_t		viewer, reflected;
 	float		d;
 
 	vec3_t		rorg;
-
 
 	RotateLightVector(shaderstate.curentity->axis, shaderstate.curentity->origin, r_origin, rorg);
 
@@ -849,7 +924,6 @@ static void tcgen_environment(float *st, unsigned int numverts, float *xyz, floa
 		st[0] = 0.5 + reflected[1] * 0.5;
 		st[1] = 0.5 - reflected[2] * 0.5;
 	}
-	*/
 }
 
 static float *tcgen(const shaderpass_t *pass, int cnt, float *dst, const mesh_t *mesh)
@@ -873,8 +947,8 @@ static float *tcgen(const shaderpass_t *pass, int cnt, float *dst, const mesh_t 
 		tcgen_environment(dst, cnt, (float*)mesh->xyz_array, (float*)mesh->normals_array);
 		return dst;
 
-//	case TC_GEN_DOTPRODUCT:
-//		return mesh->st_array[0];
+	case TC_GEN_DOTPRODUCT:
+		return dst;//mesh->st_array[0];
 	case TC_GEN_VECTOR:
 		src = mesh->xyz_array;
 		for (i = 0; i < cnt; i++, dst += 2)
@@ -1004,6 +1078,246 @@ static void GenerateTCMods(const shaderpass_t *pass, float *dest)
 //end texture coords
 /*******************************************************************************************************************/
 
+static void deformgen(const deformv_t *deformv, int cnt, const vecV_t *src, vecV_t *dst, const mesh_t *mesh)
+{
+	float *table;
+	int j, k;
+	float args[4];
+	float deflect;
+	switch (deformv->type)
+	{
+	default:
+	case DEFORMV_NONE:
+		if (src != (const avec4_t*)dst)
+			memcpy(dst, src, sizeof(*src)*cnt);
+		break;
+
+	case DEFORMV_WAVE:
+		if (!mesh->normals_array)
+		{
+			if (src != (const avec4_t*)dst)
+				memcpy(dst, src, sizeof(*src)*cnt);
+			return;
+		}
+		args[0] = deformv->func.args[0];
+		args[1] = deformv->func.args[1];
+		args[3] = deformv->func.args[2] + deformv->func.args[3] * shaderstate.curtime;
+		table = FTableForFunc(deformv->func.type);
+
+		for ( j = 0; j < cnt; j++ )
+		{
+			deflect = deformv->args[0] * (src[j][0]+src[j][1]+src[j][2]) + args[3];
+			deflect = FTABLE_EVALUATE(table, deflect) * args[1] + args[0];
+
+			// Deflect vertex along its normal by wave amount
+			VectorMA(src[j], deflect, mesh->normals_array[j], dst[j]);
+		}
+		break;
+
+	case DEFORMV_NORMAL:
+		//normal does not actually move the verts, but it does change the normals array
+		//we don't currently support that.
+		if (src != (const avec4_t*)dst)
+			memcpy(dst, src, sizeof(*src)*cnt);
+/*
+		args[0] = deformv->args[1] * shaderstate.curtime;
+
+		for ( j = 0; j < cnt; j++ )
+		{
+			args[1] = normalsArray[j][2] * args[0];
+
+			deflect = deformv->args[0] * R_FastSin(args[1]);
+			normalsArray[j][0] *= deflect;
+			deflect = deformv->args[0] * R_FastSin(args[1] + 0.25);
+			normalsArray[j][1] *= deflect;
+			VectorNormalizeFast(normalsArray[j]);
+		}
+*/		break;
+
+	case DEFORMV_MOVE:
+		table = FTableForFunc(deformv->func.type);
+		deflect = deformv->func.args[2] + shaderstate.curtime * deformv->func.args[3];
+		deflect = FTABLE_EVALUATE(table, deflect) * deformv->func.args[1] + deformv->func.args[0];
+
+		for ( j = 0; j < cnt; j++ )
+			VectorMA(src[j], deflect, deformv->args, dst[j]);
+		break;
+
+	case DEFORMV_BULGE:
+		args[0] = deformv->args[0]/(2*M_PI);
+		args[1] = deformv->args[1];
+		args[2] = shaderstate.curtime * deformv->args[2]/(2*M_PI);
+
+		for (j = 0; j < cnt; j++)
+		{
+			deflect = R_FastSin(mesh->st_array[j][0]*args[0] + args[2])*args[1];
+			dst[j][0] = src[j][0]+deflect*mesh->normals_array[j][0];
+			dst[j][1] = src[j][1]+deflect*mesh->normals_array[j][1];
+			dst[j][2] = src[j][2]+deflect*mesh->normals_array[j][2];
+		}
+		break;
+
+	case DEFORMV_AUTOSPRITE:
+		if (mesh->numindexes < 6)
+			break;
+
+		for (j = 0; j < cnt-3; j+=4, src+=4, dst+=4)
+		{
+			vec3_t mid, d;
+			float radius;
+			mid[0] = 0.25*(src[0][0] + src[1][0] + src[2][0] + src[3][0]);
+			mid[1] = 0.25*(src[0][1] + src[1][1] + src[2][1] + src[3][1]);
+			mid[2] = 0.25*(src[0][2] + src[1][2] + src[2][2] + src[3][2]);
+			VectorSubtract(src[0], mid, d);
+			radius = 2*VectorLength(d);
+
+			for (k = 0; k < 4; k++)
+			{
+				dst[k][0] = mid[0] + radius*((mesh->st_array[k][0]-0.5)*r_refdef.m_view[0+0]-(mesh->st_array[k][1]-0.5)*r_refdef.m_view[0+1]);
+				dst[k][1] = mid[1] + radius*((mesh->st_array[k][0]-0.5)*r_refdef.m_view[4+0]-(mesh->st_array[k][1]-0.5)*r_refdef.m_view[4+1]);
+				dst[k][2] = mid[2] + radius*((mesh->st_array[k][0]-0.5)*r_refdef.m_view[8+0]-(mesh->st_array[k][1]-0.5)*r_refdef.m_view[8+1]);
+			}
+		}
+		break;
+
+	case DEFORMV_AUTOSPRITE2:
+		if (mesh->numindexes < 6)
+			break;
+
+		for (k = 0; k < mesh->numindexes; k += 6)
+		{
+			int long_axis, short_axis;
+			vec3_t axis;
+			float len[3];
+			mat3_t m0, m1, m2, result;
+			float *quad[4];
+			vec3_t rot_centre, tv;
+
+			quad[0] = (float *)(dst + mesh->indexes[k+0]);
+			quad[1] = (float *)(dst + mesh->indexes[k+1]);
+			quad[2] = (float *)(dst + mesh->indexes[k+2]);
+
+			for (j = 2; j >= 0; j--)
+			{
+				quad[3] = (float *)(dst + mesh->indexes[k+3+j]);
+				if (!VectorEquals (quad[3], quad[0]) && 
+					!VectorEquals (quad[3], quad[1]) &&
+					!VectorEquals (quad[3], quad[2]))
+				{
+					break;
+				}
+			}
+
+			// build a matrix were the longest axis of the billboard is the Y-Axis
+			VectorSubtract(quad[1], quad[0], m0[0]);
+			VectorSubtract(quad[2], quad[0], m0[1]);
+			VectorSubtract(quad[2], quad[1], m0[2]);
+			len[0] = DotProduct(m0[0], m0[0]);
+			len[1] = DotProduct(m0[1], m0[1]);
+			len[2] = DotProduct(m0[2], m0[2]);
+
+			if ((len[2] > len[1]) && (len[2] > len[0]))
+			{
+				if (len[1] > len[0])
+				{
+					long_axis = 1;
+					short_axis = 0;
+				}
+				else
+				{
+					long_axis = 0;
+					short_axis = 1;
+				}
+			}
+			else if ((len[1] > len[2]) && (len[1] > len[0]))
+			{
+				if (len[2] > len[0])
+				{
+					long_axis = 2;
+					short_axis = 0;
+				}
+				else
+				{
+					long_axis = 0;
+					short_axis = 2;
+				}
+			}
+			else //if ( (len[0] > len[1]) && (len[0] > len[2]) )
+			{
+				if (len[2] > len[1])
+				{
+					long_axis = 2;
+					short_axis = 1;
+				}
+				else
+				{
+					long_axis = 1;
+					short_axis = 2;
+				}
+			}
+
+			if (DotProduct(m0[long_axis], m0[short_axis]))
+			{
+				VectorNormalize2(m0[long_axis], axis);
+				VectorCopy(axis, m0[1]);
+
+				if (axis[0] || axis[1])
+				{
+					VectorVectors(m0[1], m0[2], m0[0]);
+				}
+				else
+				{
+					VectorVectors(m0[1], m0[0], m0[2]);
+				}
+			}
+			else
+			{
+				VectorNormalize2(m0[long_axis], axis);
+				VectorNormalize2(m0[short_axis], m0[0]);
+				VectorCopy(axis, m0[1]);
+				CrossProduct(m0[0], m0[1], m0[2]);
+			}
+
+			for (j = 0; j < 3; j++)
+				rot_centre[j] = (quad[0][j] + quad[1][j] + quad[2][j] + quad[3][j]) * 0.25;
+
+			if (shaderstate.curentity)
+			{
+				VectorAdd(shaderstate.curentity->origin, rot_centre, tv);
+			}
+			else
+			{
+				VectorCopy(rot_centre, tv);
+			}
+			VectorSubtract(r_origin, tv, tv);
+
+			// filter any longest-axis-parts off the camera-direction
+			deflect = -DotProduct(tv, axis);
+
+			VectorMA(tv, deflect, axis, m1[2]);
+			VectorNormalizeFast(m1[2]);
+			VectorCopy(axis, m1[1]);
+			CrossProduct(m1[1], m1[2], m1[0]);
+
+			Matrix3_Transpose(m1, m2);
+			Matrix3_Multiply(m2, m0, result);
+
+			for (j = 0; j < 4; j++)
+			{
+				VectorSubtract(quad[j], rot_centre, tv);
+				Matrix3_Multiply_Vec3(result, tv, quad[j]);
+				VectorAdd(rot_centre, quad[j], quad[j]);
+			}
+		}
+		break;
+
+//	case DEFORMV_PROJECTION_SHADOW:
+//		break;
+	}
+}
+
+
+
 /*does not do the draw call, does not consider indicies (except for billboard generation) */
 static qboolean BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vertcount)
 {
@@ -1025,7 +1339,7 @@ static qboolean BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vert
 		break;
 	}
 	if (i == lastpass)
-		return lastpass;
+		return false;
 
 	/*all meshes in a chain must have the same features*/
 
@@ -1054,13 +1368,13 @@ static qboolean BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vert
 		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, 5+tmu, shaderstate.dynst_buff[tmu], shaderstate.dynst_offs[tmu] - vertcount*sizeof(vec2_t), sizeof(vec2_t)));
 		tmu++;
 	}
-	if (!tmu)
-		return false;
 	/*deactivate any extras*/
-	for (; tmu < shaderstate.lastpasscount; tmu++)
+	for (; tmu < shaderstate.lastpasscount; )
 	{
 		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, 5+tmu, NULL, 0, 0));
+		BindTexture(tmu, NULL);
 		d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, tmu, D3DTSS_COLOROP, D3DTOP_DISABLE));
+		tmu++;
 	}
 	shaderstate.lastpasscount = tmu;
 
@@ -1089,6 +1403,17 @@ static void BE_DrawMeshChain_Internal(void)
 	unsigned int passno = 0;
 	shaderpass_t *pass = shaderstate.curshader->passes;
 
+	if (shaderstate.curcull != (shaderstate.curshader->flags & (SHADER_CULL_FRONT | SHADER_CULL_BACK)))
+	{
+		shaderstate.curcull = shaderstate.curshader->flags & (SHADER_CULL_FRONT | SHADER_CULL_BACK);
+		if (shaderstate.curcull & SHADER_CULL_FRONT)
+			IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CULLMODE, D3DCULL_CCW);
+		else if (shaderstate.curcull & SHADER_CULL_BACK)
+			IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CULLMODE, D3DCULL_CW);
+		else
+			IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CULLMODE, D3DCULL_NONE);
+	}
+
 	for (mno = 0, vertcount = 0, idxcount = 0; mno < shaderstate.nummeshes; mno++)
 	{
 		m = shaderstate.meshlist[mno];
@@ -1100,9 +1425,13 @@ static void BE_DrawMeshChain_Internal(void)
 	allocvertexbuffer(shaderstate.dynxyz_buff, shaderstate.dynxyz_size, &shaderstate.dynxyz_offs, &map, vertcount*sizeof(vecV_t));
 	for (mno = 0, vertcount = 0; mno < shaderstate.nummeshes; mno++)
 	{
+		vecV_t *dest = (vecV_t*)((char*)map+vertcount*sizeof(vecV_t));
 		m = shaderstate.meshlist[mno];
-		/*fixme: no tcgen*/
-		memcpy((char*)map+vertcount*sizeof(vecV_t), m->xyz_array, m->numvertexes*sizeof(vecV_t));
+		deformgen(&shaderstate.curshader->deforms[0], m->numvertexes, m->xyz_array, dest, m);
+		for (i = 1; i < shaderstate.curshader->numdeforms; i++)
+		{
+			deformgen(&shaderstate.curshader->deforms[i], m->numvertexes, dest, dest, m);
+		}
 		vertcount += m->numvertexes;
 	}
 	d3dcheck(IDirect3DVertexBuffer9_Unlock(shaderstate.dynxyz_buff));
@@ -1476,6 +1805,9 @@ static void BE_SubmitBatch(batch_t *batch)
 	shaderstate.nummeshes = batch->meshes - batch->firstmesh;
 	if (!shaderstate.nummeshes)
 		return;
+	//FIXME: Why does this seem to work in GL?
+	if (batch->shader->flags & SHADER_FLARE)
+		return;
 	if (shaderstate.curentity != batch->ent)
 	{
 		shaderstate.curentity = batch->ent;
@@ -1523,6 +1855,127 @@ qboolean BE_ShouldDraw(entity_t *e)
 	return true;
 }
 
+
+
+#ifdef Q3CLIENT
+
+//q3 lightning gun
+static void R_DrawLightning(entity_t *e)
+{
+	vec3_t v;
+	vec3_t dir, cr;
+	float scale = e->scale;
+	float length;
+
+	vecV_t points[4];
+	vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
+	static index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
+
+	mesh_t mesh;
+
+	if (!e->forcedshader)
+		return;
+
+	if (!scale)
+		scale = 10;
+
+
+	VectorSubtract(e->origin, e->oldorigin, dir);
+	length = Length(dir);
+
+	//this seems to be about right.
+	texcoords[2][0] = length/128;
+	texcoords[3][0] = length/128;
+
+	VectorSubtract(r_refdef.vieworg, e->origin, v);
+	CrossProduct(v, dir, cr);
+	VectorNormalize(cr);
+
+	VectorMA(e->origin, -scale/2, cr, points[0]);
+	VectorMA(e->origin, scale/2, cr, points[1]);
+
+	VectorSubtract(r_refdef.vieworg, e->oldorigin, v);
+	CrossProduct(v, dir, cr);
+	VectorNormalize(cr);
+
+	VectorMA(e->oldorigin, scale/2, cr, points[2]);
+	VectorMA(e->oldorigin, -scale/2, cr, points[3]);
+
+	memset(&mesh, 0, sizeof(mesh));
+	mesh.vbofirstelement = 0;
+	mesh.vbofirstvert = 0;
+	mesh.xyz_array = points;
+	mesh.indexes = indexarray;
+	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
+	mesh.colors4f_array = NULL;
+	mesh.lmst_array = NULL;
+	mesh.normals_array = NULL;
+	mesh.numvertexes = 4;
+	mesh.st_array = texcoords;
+	BE_DrawMesh_Single(e->forcedshader, &mesh, NULL, NULL);
+}
+//q3 railgun beam
+static void R_DrawRailCore(entity_t *e)
+{
+	vec3_t v;
+	vec3_t dir, cr;
+	float scale = e->scale;
+	float length;
+
+	mesh_t mesh;
+	vecV_t points[4];
+	vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
+	static index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
+	vec4_t colors[4];
+
+	if (!e->forcedshader)
+		return;
+
+	if (!scale)
+		scale = 10;
+
+
+	VectorSubtract(e->origin, e->oldorigin, dir);
+	length = Length(dir);
+
+	//this seems to be about right.
+	texcoords[2][0] = length/128;
+	texcoords[3][0] = length/128;
+
+	VectorSubtract(r_refdef.vieworg, e->origin, v);
+	CrossProduct(v, dir, cr);
+	VectorNormalize(cr);
+
+	VectorMA(e->origin, -scale/2, cr, points[0]);
+	VectorMA(e->origin, scale/2, cr, points[1]);
+
+	VectorSubtract(r_refdef.vieworg, e->oldorigin, v);
+	CrossProduct(v, dir, cr);
+	VectorNormalize(cr);
+
+	VectorMA(e->oldorigin, scale/2, cr, points[2]);
+	VectorMA(e->oldorigin, -scale/2, cr, points[3]);
+
+	Vector4Copy(e->shaderRGBAf, colors[0]);
+	Vector4Copy(e->shaderRGBAf, colors[1]);
+	Vector4Copy(e->shaderRGBAf, colors[2]);
+	Vector4Copy(e->shaderRGBAf, colors[3]);
+
+	memset(&mesh, 0, sizeof(mesh));
+	mesh.vbofirstelement = 0;
+	mesh.vbofirstvert = 0;
+	mesh.xyz_array = points;
+	mesh.indexes = indexarray;
+	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
+	mesh.colors4f_array = (vec4_t*)colors;
+	mesh.lmst_array = NULL;
+	mesh.normals_array = NULL;
+	mesh.numvertexes = 4;
+	mesh.st_array = texcoords;
+
+	BE_DrawMesh_Single(e->forcedshader, &mesh, NULL, NULL);
+}
+#endif
 static void BE_GenModelBatches(batch_t **batches)
 {
 	int		i;
@@ -1539,23 +1992,52 @@ static void BE_GenModelBatches(batch_t **batches)
 	for (i=0 ; i<cl_numvisedicts ; i++)
 	{
 		ent = &cl_visedicts[i];
-		if (!ent->model)
-			continue;
-		if (ent->model->needload)
-			continue;
+
 		if (!BE_ShouldDraw(ent))
 			continue;
-		switch(ent->model->type)
+
+		switch(ent->rtype)
 		{
-		case mod_brush:
-			if (r_drawentities.ival == 2)
+		case RT_MODEL:
+		default:
+			if (!ent->model)
 				continue;
-			Surf_GenBrushBatches(batches, ent);
+			if (ent->model->needload)
+				continue;
+			switch(ent->model->type)
+			{
+			case mod_brush:
+				if (r_drawentities.ival == 2)
+					continue;
+				Surf_GenBrushBatches(batches, ent);
+				break;
+			case mod_alias:
+				if (r_drawentities.ival == 3)
+					continue;
+				R_GAlias_GenerateBatches(ent, batches);
+				break;
+			}
 			break;
-		case mod_alias:
-			if (r_drawentities.ival == 3)
-				continue;
-			R_GAlias_GenerateBatches(ent, batches);
+		case RT_SPRITE:
+			//RQ_AddDistReorder(GLR_DrawSprite, currententity, NULL, currententity->origin);
+			break;
+
+#ifdef Q3CLIENT
+		case RT_BEAM:
+		case RT_RAIL_RINGS:
+		case RT_LIGHTNING:
+			R_DrawLightning(ent);
+			continue;
+		case RT_RAIL_CORE:
+			R_DrawRailCore(ent);
+			continue;
+#endif
+
+		case RT_POLY:
+			/*not implemented*/
+			break;
+		case RT_PORTALSURFACE:
+			/*nothing*/
 			break;
 		}
 	}
@@ -1631,22 +2113,31 @@ void BE_DrawWorld (qbyte *vis)
 
 	shaderstate.curtime = realtime;
 
-	BE_UploadLightmaps(false);
+	if (vis)
+	{
+		BE_UploadLightmaps(false);
 
-	//make sure the world draws correctly
-	r_worldentity.shaderRGBAf[0] = 1;
-	r_worldentity.shaderRGBAf[1] = 1;
-	r_worldentity.shaderRGBAf[2] = 1;
-	r_worldentity.shaderRGBAf[3] = 1;
-	r_worldentity.axis[0][0] = 1;
-	r_worldentity.axis[1][1] = 1;
-	r_worldentity.axis[2][2] = 1;
+		//make sure the world draws correctly
+		r_worldentity.shaderRGBAf[0] = 1;
+		r_worldentity.shaderRGBAf[1] = 1;
+		r_worldentity.shaderRGBAf[2] = 1;
+		r_worldentity.shaderRGBAf[3] = 1;
+		r_worldentity.axis[0][0] = 1;
+		r_worldentity.axis[1][1] = 1;
+		r_worldentity.axis[2][2] = 1;
 
-	BE_SelectMode(BEM_STANDARD, 0);
+		BE_SelectMode(BEM_STANDARD, 0);
 
-	RSpeedRemark();
-	BE_SubmitMeshes(true, batches);
-	RSpeedEnd(RSPEED_WORLD);
+		RSpeedRemark();
+		BE_SubmitMeshes(true, batches);
+		RSpeedEnd(RSPEED_WORLD);
+	}
+	else
+	{
+		RSpeedRemark();
+		BE_SubmitMeshes(false, batches);
+		RSpeedEnd(RSPEED_DRAWENTITIES);
+	}
 
 	BE_RotateForEntity(&r_worldentity, NULL);
 }

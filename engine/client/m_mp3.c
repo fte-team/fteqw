@@ -1064,7 +1064,7 @@ qboolean Media_Roq_DecodeFrame (cin_t *cin, qboolean nosound)
 {
 	float curtime = Sys_DoubleTime();
 
-	if ((int)(cin->filmlasttime*30) == (int)((float)realtime*30))
+	if ((int)(cin->filmlasttime*30) == (int)((float)realtime*30) && cin->outtype != TF_INVALID)
 	{
 		cin->outunchanged = !!cin->outtype;
 		return true;

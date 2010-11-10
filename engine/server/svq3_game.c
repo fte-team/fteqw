@@ -1410,7 +1410,7 @@ static int Q3G_SystemCallsVM(void *offset, unsigned int mask, int fn, const int 
 	args[11]=arg[11];
 	args[12]=arg[12];
 
-	return Q3G_SystemCalls(NULL, ~0, fn, args);
+	return Q3G_SystemCalls(offset, mask, fn, args);
 }
 
 static qintptr_t EXPORT_FN Q3G_SystemCallsNative(qintptr_t arg, ...)

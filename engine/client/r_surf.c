@@ -1952,7 +1952,7 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 
 		currententity = ent;
 		currentmodel = ent->model;
-		if (model->nummodelsurfaces != 0 && r_dynamic.value)
+		if (model->nummodelsurfaces != 0 && r_dynamic.ival)
 		{
 			for (k=rtlights_first; k<RTL_FIRST; k++)
 			{
@@ -2055,6 +2055,13 @@ void Surf_DrawWorld (void)
 {
 	qbyte *vis;
 	RSpeedLocals();
+
+	if (r_refdef.flags & Q2RDF_NOWORLDMODEL || !cl.worldmodel)
+	{
+		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
+		BE_DrawWorld(NULL);
+		return;
+	}
 
 	Surf_SetupFrame();
 

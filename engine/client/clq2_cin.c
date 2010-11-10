@@ -489,7 +489,6 @@ cinematics_t *CIN_PlayCinematic (char *arg)
 	}
 	else
 	{
-		cin->cinematictime = 0;	// done
 		Con_Printf(CON_WARNING "Cinematic %s not found.\n", name);
 	}
 	return cin;

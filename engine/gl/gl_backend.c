@@ -2213,8 +2213,12 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 			}
 			break;
 
+		case SP_CONSTI:
 		case SP_TEXTURE:
 			qglUniform1iARB(s->progparm[i].handle[perm], s->progparm[i].ival);
+			break;
+		case SP_CONSTF:
+			qglUniform1fARB(s->progparm[i].handle[perm], s->progparm[i].fval);
 			break;
 		case SP_CVARI:
 			qglUniform1iARB(s->progparm[i].handle[perm], ((cvar_t*)s->progparm[i].pval)->ival);

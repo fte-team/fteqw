@@ -248,6 +248,7 @@ void Font_Init(void)
 
 	fontplanes.shader = R_RegisterShader("ftefont",
 		"{\n"
+			"nomipmaps\n"
 			"{\n"
 				"map $diffuse\n"
 				"rgbgen const\n"
@@ -259,6 +260,7 @@ void Font_Init(void)
 
 	fontplanes.backshader = R_RegisterShader("ftefontback",
 		"{\n"
+			"nomipmaps\n"
 			"{\n"
 				"map $whiteimage\n"
 				"rgbgen const\n"

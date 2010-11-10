@@ -1118,6 +1118,8 @@ void R_RenderScene (void)
 	TRACE(("dbg: calling R_SetFrustrum\n"));
 	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
 
+	RQ_BeginFrame();
+
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 	{
 		TRACE(("dbg: calling R_DrawWorld\n"));
@@ -1127,8 +1129,6 @@ void R_RenderScene (void)
 		BE_DrawNonWorld();
 
 	S_ExtraUpdate ();	// don't let sound get messed up if going slow
-
-	RQ_BeginFrame();
 
 	TRACE(("dbg: calling GLR_DrawEntitiesOnList\n"));
 	GLR_DrawEntitiesOnList ();

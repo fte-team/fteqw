@@ -418,7 +418,7 @@ void GLR_MarkQ3Lights (dlight_t *light, int bit, mnode_t *node)
 R_PushDlights
 =============
 */
-void GLR_PushDlights (void)
+void R_PushDlights (void)
 {
 	int		i;
 	dlight_t	*l;

@@ -538,7 +538,31 @@ void Skin_NextDownload (void)
 		if (!*sc->skin->name)
 			continue;
 
-		CL_CheckOrEnqueDownloadFile(va("skins/%s.pcx", sc->skin->name), NULL, 0);
+		if (cls.protocol == CP_QUAKE2)
+		{
+			int j;
+			char *slash;
+			slash = strchr(sc->skin->name, '/');
+			if (slash)
+			{
+				*slash = 0;
+				CL_CheckOrEnqueDownloadFile(va("players/%s/tris.md2", sc->skin->name), NULL, 0);
+				for (j = 0; j < MAX_MODELS; j++)
+				{
+					if (cl.model_name[j][0] == '#')
+						CL_CheckOrEnqueDownloadFile(va("players/%s/%s", sc->skin->name, cl.model_name[j]+1), NULL, 0);
+				}
+				for (j = 0; j < MAX_SOUNDS; j++)
+				{
+					if (cl.sound_name[j][0] == '*')
+						CL_CheckOrEnqueDownloadFile(va("players/%s/%s", sc->skin->name, cl.sound_name[j]+1), NULL, 0);
+				}
+				*slash = '/';
+				CL_CheckOrEnqueDownloadFile(va("players/%s.pcx", sc->skin->name), NULL, 0);
+			}
+		}
+		else
+			CL_CheckOrEnqueDownloadFile(va("skins/%s.pcx", sc->skin->name), NULL, 0);
 	}
 
 	// now load them in for real

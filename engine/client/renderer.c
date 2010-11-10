@@ -86,8 +86,8 @@ cvar_t r_fastsky							= CVARF ("r_fastsky", "0",
 												CVAR_SHADERSYSTEM);
 cvar_t r_fastskycolour						= CVARF ("r_fastskycolour", "0",
 												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
-cvar_t r_fb_bmodels							= CVARF("gl_fb_bmodels", "1",
-												CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
+cvar_t r_fb_bmodels							= CVARAF("r_fb_bmodels", "1",
+													"gl_fb_bmodels", CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
 cvar_t r_fb_models							= CVARAF  ("r_fb_models", "1",
 													"gl_fb_models", CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
 cvar_t r_skin_overlays						= SCVARF  ("r_skin_overlays", "1",
@@ -429,7 +429,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_overbright, GRAPHICALNICETIES);
 	Cvar_Register (&gl_overbright_all, GRAPHICALNICETIES);
 	Cvar_Register (&gl_dither, GRAPHICALNICETIES);
-	Cvar_Register (&r_fb_bmodels, GRAPHICALNICETIES);
 
 	Cvar_Register (&gl_ati_truform, GRAPHICALNICETIES);
 	Cvar_Register (&gl_ati_truform_type, GRAPHICALNICETIES);
@@ -608,6 +607,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_drawflat, GRAPHICALNICETIES);
 	Cvar_Register (&r_menutint, GRAPHICALNICETIES);
 
+	Cvar_Register (&r_fb_bmodels, GRAPHICALNICETIES);
 	Cvar_Register (&r_fb_models, GRAPHICALNICETIES);
 	Cvar_Register (&r_skin_overlays, GRAPHICALNICETIES);
 
@@ -704,7 +704,6 @@ void	(*R_NewMap)					(void);
 void	(*R_PreNewMap)				(void);
 int		(*R_LightPoint)				(vec3_t point);
 
-void	(*R_PushDlights)			(void);
 void	(*R_AddStain)				(vec3_t org, float red, float green, float blue, float radius);
 void	(*R_LessenStains)			(void);
 
@@ -784,7 +783,6 @@ rendererinfo_t dedicatedrendererinfo = {
 	NULL,	//R_NewMap;
 	NULL,	//R_PreNewMap
 	NULL,	//R_LightPoint;
-	NULL,	//R_PushDlights;
 
 
 	NULL,	//R_AddStain;
@@ -1323,7 +1321,6 @@ void R_SetRenderer(rendererinfo_t *ri)
 	R_NewMap				= ri->R_NewMap;
 	R_PreNewMap				= ri->R_PreNewMap;
 	R_LightPoint			= ri->R_LightPoint;
-	R_PushDlights			= ri->R_PushDlights;
 
 	R_AddStain				= ri->R_AddStain;
 	R_LessenStains			= ri->R_LessenStains;

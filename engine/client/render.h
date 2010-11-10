@@ -346,6 +346,7 @@ double Media_TweekCaptureFrameTime(double time);
 
 void MYgluPerspective(double fovx, double fovy, double zNear, double zFar);
 
+void	R_PushDlights				(void);
 qbyte *R_MarkLeaves_Q1 (void);
 qbyte *R_CalcVis_Q1 (void);
 qbyte *R_MarkLeaves_Q2 (void);

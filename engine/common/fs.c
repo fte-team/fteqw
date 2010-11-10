@@ -14,7 +14,11 @@
 #endif
 
 #ifdef _MSC_VER
-#pragma comment(lib, MSVCLIBSPATH "zlib.lib")
+# ifdef _WIN64
+#  pragma comment (lib, "../libs/zlib64.lib") 
+# else
+#  pragma comment (lib, "../libs/zlib.lib") 
+# endif
 #endif
 
 hashtable_t filesystemhash;
@@ -613,6 +617,7 @@ char *FS_GetPackHashes(char *buffer, int buffersize, qboolean referencedonly)
 }
 char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly)
 {
+	char temp[MAX_OSPATH];
 	searchpath_t	*search;
 	buffersize--;
 	*buffer = 0;
@@ -621,7 +626,8 @@ char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly)
 	{
 		for (search = com_purepaths ; search ; search = search->nextpure)
 		{
-			Q_strncatz(buffer, va("%s ", search->purepath), buffersize);
+			COM_StripExtension(search->purepath, temp, sizeof(temp));
+			Q_strncatz(buffer, va("%s ", temp), buffersize);
 		}
 		return buffer;
 	}
@@ -633,7 +639,8 @@ char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly)
 				search->crc_check = search->funcs->GeneratePureCRC(search->handle, 0, 0);
 			if (search->crc_check)
 			{
-				Q_strncatz(buffer, va("%s ", search->purepath), buffersize);
+				COM_StripExtension(search->purepath, temp, sizeof(temp));
+				Q_strncatz(buffer, va("%s ", temp), buffersize);
 			}
 		}
 		return buffer;

@@ -439,15 +439,139 @@ typedef struct tagMONITORINFO
 } MONITORINFO, *LPMONITORINFO;
 #endif
 
-static void initD3D9(HWND hWnd, rendererstate_t *info)
+static qboolean initD3D9Device(HWND hWnd, rendererstate_t *info, unsigned int devno, unsigned int devtype)
 {
-	int i;
-	int numadaptors;
 	int err;
 	RECT rect;
 	D3DADAPTER_IDENTIFIER9 inf;
 	D3DCAPS9 caps;
 	unsigned int cflags;
+
+	memset(&inf, 0, sizeof(inf));
+	if (FAILED(IDirect3D9_GetAdapterIdentifier(pD3D, devno, 0, &inf)))
+		return false;
+
+	if (FAILED(IDirect3D9_GetDeviceCaps(pD3D, devno, devtype, &caps)))
+		return false;
+
+	memset(&d3dpp, 0, sizeof(d3dpp));    // clear out the struct for use
+	d3dpp.SwapEffect = D3DSWAPEFFECT_DISCARD;    // discard old frames
+	d3dpp.hDeviceWindow = hWnd;    // set the window to be used by Direct3D
+	d3dpp.BackBufferWidth = info->width;
+	d3dpp.BackBufferHeight = info->height;
+	d3dpp.MultiSampleType = info->multisample;
+	d3dpp.BackBufferCount = 1;
+	d3dpp.FullScreen_RefreshRateInHz = info->fullscreen?info->rate:0;	//don't pass a rate if not fullscreen, d3d doesn't like it.
+	d3dpp.Windowed = !info->fullscreen;
+
+	d3dpp.EnableAutoDepthStencil = true;
+	d3dpp.AutoDepthStencilFormat = D3DFMT_D16;
+	d3dpp.BackBufferFormat = D3DFMT_UNKNOWN;
+	if (info->fullscreen)
+	{
+		if (info->bpp == 16)
+			d3dpp.BackBufferFormat = D3DFMT_R5G6B5;
+		else
+			d3dpp.BackBufferFormat = D3DFMT_X8R8G8B8;
+	}
+
+	switch(info->wait)
+	{
+	default:
+		d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
+		break;
+	case 0:
+		d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
+		break;
+	case 1:
+		d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_ONE;
+		break;
+	case 2:
+		d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_TWO;
+		break;
+	case 3:
+		d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_THREE;
+		break;
+	case 4:
+		d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_FOUR;
+		break;
+	}
+
+	cflags = D3DCREATE_FPU_PRESERVE;
+	if ((caps.DevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT) && (caps.DevCaps & D3DDEVCAPS_PUREDEVICE))
+		cflags |= D3DCREATE_HARDWARE_VERTEXPROCESSING;
+	else
+		cflags |= D3DCREATE_SOFTWARE_VERTEXPROCESSING;
+	//cflags |= D3DCREATE_DISABLE_DRIVER_MANAGEMENT;
+
+	pD3DDev9 = NULL;
+	// create a device class using this information and information from the d3dpp stuct
+	err = IDirect3D9_CreateDevice(pD3D, 
+			devno,
+			devtype,
+			hWnd,
+			cflags,
+			&d3dpp,
+			&pD3DDev9);
+
+	if (pD3DDev9)
+	{
+		HMONITOR hm;
+		MONITORINFO mi;
+		char *s;
+		for (s = inf.Description + strlen(inf.Description)-1; s >= inf.Description && *s <= ' '; s--)
+			*s = 0;
+		Con_Printf("D3D9: Using device %s\n", inf.Description);
+
+		vid.numpages = d3dpp.BackBufferCount;
+
+		if (d3dpp.Windowed)	//fullscreen we get positioned automagically.
+		{					//windowed, we get positioned at 0,0... which is often going to be on the wrong screen
+							//the user can figure it out from here
+			static HANDLE huser32;
+			BOOL (WINAPI *pGetMonitorInfoA)(HMONITOR hMonitor, LPMONITORINFO lpmi);
+			if (!huser32)
+				huser32 = LoadLibrary("user32.dll");
+			if (!huser32)
+				return false;
+			pGetMonitorInfoA = (void*)GetProcAddress(huser32, "GetMonitorInfoA");
+			if (!pGetMonitorInfoA)
+				return false;
+
+			hm = IDirect3D9_GetAdapterMonitor(pD3D, devno);
+			memset(&mi, 0, sizeof(mi));
+			mi.cbSize = sizeof(mi);
+			pGetMonitorInfoA(hm, &mi);
+			rect.left = rect.top = 0;
+			rect.right = d3dpp.BackBufferWidth;
+			rect.bottom = d3dpp.BackBufferHeight;
+			AdjustWindowRectEx(&rect, WS_OVERLAPPEDWINDOW, FALSE, 0);
+			MoveWindow(d3dpp.hDeviceWindow, mi.rcWork.left, mi.rcWork.top, rect.right-rect.left, rect.bottom-rect.top, false);
+		}
+		return true;	//successful
+	}
+	else
+	{
+		char *s;
+		switch(err)
+		{
+		default: s = "Unkown error"; break;
+		case D3DERR_DEVICELOST: s = "Device lost"; break;
+		case D3DERR_INVALIDCALL: s = "Invalid call"; break;
+		case D3DERR_NOTAVAILABLE: s = "Not available"; break;
+		case D3DERR_OUTOFVIDEOMEMORY: s = "Out of video memory"; break;
+		}
+		Con_Printf("IDirect3D9_CreateDevice failed: %s.\n", s);
+	}
+	return false;
+}
+
+static void initD3D9(HWND hWnd, rendererstate_t *info)
+{
+	int i;
+	int numadaptors;
+	int err;
+	D3DADAPTER_IDENTIFIER9 inf;
 
 	static HMODULE d3d9dll;
 	LPDIRECT3D9 (WINAPI *pDirect3DCreate9) (int version);
@@ -473,124 +597,17 @@ static void initD3D9(HWND hWnd, rendererstate_t *info)
 	numadaptors = IDirect3D9_GetAdapterCount(pD3D);
 	for (i = 0; i < numadaptors; i++)
 	{	//try each adaptor in turn until we get one that actually works
-
-		if (FAILED(IDirect3D9_GetDeviceCaps(pD3D, i, D3DDEVTYPE_HAL, &caps)))
-			continue;
-
-		memset(&d3dpp, 0, sizeof(d3dpp));    // clear out the struct for use
-		d3dpp.SwapEffect = D3DSWAPEFFECT_DISCARD;    // discard old frames
-		d3dpp.hDeviceWindow = hWnd;    // set the window to be used by Direct3D
-		d3dpp.BackBufferWidth = info->width;
-		d3dpp.BackBufferHeight = info->height;
-		d3dpp.MultiSampleType = info->multisample;
-		d3dpp.BackBufferCount = 1;
-		d3dpp.FullScreen_RefreshRateInHz = info->fullscreen?info->rate:0;	//don't pass a rate if not fullscreen, d3d doesn't like it.
-		d3dpp.Windowed = !info->fullscreen;
-
-		d3dpp.EnableAutoDepthStencil = true;
-		d3dpp.AutoDepthStencilFormat = D3DFMT_D16;
-		d3dpp.BackBufferFormat = D3DFMT_UNKNOWN;
-		if (info->fullscreen)
-		{
-			if (info->bpp == 16)
-				d3dpp.BackBufferFormat = D3DFMT_R5G6B5;
-			else
-				d3dpp.BackBufferFormat = D3DFMT_X8R8G8B8;
-		}
-
-		switch(info->wait)
-		{
-		default:
-			d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
-			break;
-		case 0:
-			d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
-			break;
-		case 1:
-			d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_ONE;
-			break;
-		case 2:
-			d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_TWO;
-			break;
-		case 3:
-			d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_THREE;
-			break;
-		case 4:
-			d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_FOUR;
-			break;
-		}
-
-		cflags = D3DCREATE_FPU_PRESERVE;
-		if ((caps.DevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT) && (caps.DevCaps & D3DDEVCAPS_PUREDEVICE))
-			cflags |= D3DCREATE_HARDWARE_VERTEXPROCESSING;
-		else
-			cflags |= D3DCREATE_SOFTWARE_VERTEXPROCESSING;
-		//cflags |= D3DCREATE_DISABLE_DRIVER_MANAGEMENT;
-
 		memset(&inf, 0, sizeof(inf));
 		err = IDirect3D9_GetAdapterIdentifier(pD3D, i, 0, &inf);
-
-		pD3DDev9 = NULL;
-		// create a device class using this information and information from the d3dpp stuct
-		err = IDirect3D9_CreateDevice(pD3D, 
-				i,
-				D3DDEVTYPE_HAL,
-				hWnd,
-				cflags,
-				&d3dpp,
-				&pD3DDev9);
-
-		if (pD3DDev9)
-		{
-			HMONITOR hm;
-			MONITORINFO mi;
-			char *s;
-			for (s = inf.Description + strlen(inf.Description)-1; s >= inf.Description && *s <= ' '; s--)
-				*s = 0;
-			Con_Printf("D3D9: Using device %s\n", inf.Description);
-
-			vid.numpages = d3dpp.BackBufferCount;
-
-			if (d3dpp.Windowed)	//fullscreen we get positioned automagically.
-			{					//windowed, we get positioned at 0,0... which is often going to be on the wrong screen
-								//the user can figure it out from here
-				static HANDLE huser32;
-				BOOL (WINAPI *pGetMonitorInfoA)(HMONITOR hMonitor, LPMONITORINFO lpmi);
-				if (!huser32)
-					huser32 = LoadLibrary("user32.dll");
-				if (!huser32)
-					return;
-				pGetMonitorInfoA = (void*)GetProcAddress(huser32, "GetMonitorInfoA");
-				if (!pGetMonitorInfoA)
-					return;
-
-				hm = IDirect3D9_GetAdapterMonitor(pD3D, i);
-				memset(&mi, 0, sizeof(mi));
-				mi.cbSize = sizeof(mi);
-				pGetMonitorInfoA(hm, &mi);
-				rect.left = rect.top = 0;
-				rect.right = d3dpp.BackBufferWidth;
-				rect.bottom = d3dpp.BackBufferHeight;
-				AdjustWindowRectEx(&rect, WS_OVERLAPPEDWINDOW, FALSE, 0);
-				MoveWindow(d3dpp.hDeviceWindow, mi.rcWork.left, mi.rcWork.top, rect.right-rect.left, rect.bottom-rect.top, false);
-			}
-			return;	//successful
-		}
-		else
-		{
-			char *s;
-			switch(err)
-			{
-			default: s = "Unkown error"; break;
-			case D3DERR_DEVICELOST: s = "Device lost"; break;
-			case D3DERR_INVALIDCALL: s = "Invalid call"; break;
-			case D3DERR_NOTAVAILABLE: s = "Not available"; break;
-			case D3DERR_OUTOFVIDEOMEMORY: s = "Out of video memory"; break;
-			}
-			Con_Printf("IDirect3D9_CreateDevice failed: %s.\n", s);
-		}
+		if (strstr(inf.Description, "PerfHUD"))
+			if (initD3D9Device(hWnd, info, i, D3DDEVTYPE_REF))
+				return;
 	}
-	return;
+	for (i = 0; i < numadaptors; i++)
+	{	//try each adaptor in turn until we get one that actually works
+		if (initD3D9Device(hWnd, info, i, D3DDEVTYPE_HAL))
+			return;
+	}
 }
 
 static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
@@ -728,16 +745,6 @@ static int		(D3D9_R_LightPoint)				(vec3_t point)
 	return 0;
 }
 
-static void	(D3D9_R_PushDlights)			(void)
-{
-}
-static void	(D3D9_R_AddStain)				(vec3_t org, float red, float green, float blue, float radius)
-{
-}
-static void	(D3D9_R_LessenStains)			(void)
-{
-}
-
 static void	 (D3D9_VID_DeInit)				(void)
 {
 	/*final shutdown, kill the video stuff*/
@@ -793,18 +800,6 @@ void D3D9_Set2D (void)
 
 	Matrix4_Identity(m);
 	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)m);
-
-
-	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CULLMODE, D3DCULL_CCW);
-
-	IDirect3DDevice9_SetSamplerState(pD3DDev9, 0, D3DSAMP_MAGFILTER,  D3DTEXF_LINEAR);
-	IDirect3DDevice9_SetSamplerState(pD3DDev9, 1, D3DSAMP_MAGFILTER,  D3DTEXF_LINEAR);
-
-	IDirect3DDevice9_SetSamplerState(pD3DDev9, 0, D3DSAMP_MIPFILTER,  D3DTEXF_NONE);
-	IDirect3DDevice9_SetSamplerState(pD3DDev9, 1, D3DSAMP_MIPFILTER,  D3DTEXF_NONE);
-
-	IDirect3DDevice9_SetSamplerState(pD3DDev9, 0, D3DSAMP_MINFILTER,  D3DTEXF_LINEAR);
-	IDirect3DDevice9_SetSamplerState(pD3DDev9, 1, D3DSAMP_MINFILTER,  D3DTEXF_LINEAR);
 
 	vport.X = 0;
 	vport.Y = 0;
@@ -944,9 +939,6 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 //		R2D_BrightenScreen();
 		IDirect3DDevice9_EndScene(pD3DDev9);
 		IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL);
-
-//		pD3DDev->lpVtbl->BeginScene(pD3DDev);
-
 		RSpeedEnd(RSPEED_TOTALREFRESH);
 		return;
 	}
@@ -1142,9 +1134,13 @@ static void	(D3D9_R_RenderView)				(void)
 	D3D9_SetupViewPort();
 	d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1, 0));
 	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+	RQ_BeginFrame();
+	Surf_DrawWorld();
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
-		Surf_DrawWorld();
-	P_DrawParticles ();
+	{
+		if (cl.worldmodel)
+			P_DrawParticles ();
+	}
 	RQ_RenderBatchClear();
 }
 
@@ -1217,9 +1213,8 @@ rendererinfo_t d3drendererinfo =
 	D3D9_R_PreNewMap,
 	D3D9_R_LightPoint,
 
-	D3D9_R_PushDlights,
-	D3D9_R_AddStain,
-	D3D9_R_LessenStains,
+	Surf_AddStain,
+	Surf_LessenStains,
 
 	RMod_Init,
 	RMod_ClearAll,

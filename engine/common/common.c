@@ -1994,7 +1994,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 						ext = ((str[3] - ('A' - 10)) << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
 					else
 						ext = ((str[3] - '0') << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
-					
+
 					if (!keepmarkup)
 					{
 						str += 4;
@@ -3131,6 +3131,7 @@ void COM_Version_f (void)
 	else if (_MSC_VER == 1310) { Con_Printf("Visual C++ 2003, version 7.1\n"); }
 	else if (_MSC_VER == 1400) { Con_Printf("Visual C++ 2005, version 8.0\n"); }
 	else if (_MSC_VER == 1500) { Con_Printf("Visual C++ 2008, version 9.0\n"); }
+	else if (_MSC_VER == 1600) { Con_Printf("Visual C++ 2010, version 10.0\n"); }
 	else
 	{
 #ifdef _MSC_BUILD
@@ -3426,12 +3427,12 @@ unsigned int COM_RemapMapChecksum(unsigned int checksum)
 		unsigned int gpl2;
 		unsigned int id11;
 		unsigned int id12;
-	} sums[] = 
+	} sums[] =
 	{
 		{"maps/start.bsp", -603735309, 714749795, 493454459},
 
 		{"maps/e1m1.bsp", -1213097692, 523840258, -1391994750},
-		{"maps/e1m2.bsp", -2134038629, 1561595172, 1729102119}, 
+		{"maps/e1m2.bsp", -2134038629, 1561595172, 1729102119},
 		{"maps/e1m3.bsp", 526593427, 1008794158, 893792842},
 		{"maps/e1m4.bsp", -1218723400, -442162482, -304478603},
 		{"maps/e1m5.bsp", 1709090059, 1856217547, -1473504118},

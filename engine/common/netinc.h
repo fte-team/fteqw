@@ -16,9 +16,9 @@
 	#ifdef USEIPX
 		#include "wsipx.h"
 	#endif
-	#ifdef IPPROTO_IPV6
-		#include <ws2tcpip.h>
-	#else
+	#include <ws2tcpip.h>
+	#ifndef IPPROTO_IPV6
+		/*for msvc6*/
 		#define	IPPROTO_IPV6
 		#define EAI_NONAME 8
 		struct ip6_scope_id

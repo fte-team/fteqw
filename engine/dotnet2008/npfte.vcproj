@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="8.00"
-	Name="npqtv"
+	Version="9.00"
+	Name="npfte"
 	ProjectGUID="{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1365}"
-	RootNamespace="npqtv"
+	RootNamespace="npfte"
+	TargetFrameworkVersion="131072"
 	>
 	<Platforms>
 		<Platform
@@ -20,7 +21,7 @@
 		<Configuration
 			Name="GLDebug|Win32"
 			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="npqtv_$(ConfigurationName)"
+			IntermediateDirectory="npfte_$(ConfigurationName)"
 			ConfigurationType="2"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
 			UseOfMFC="0"
@@ -44,7 +45,7 @@
 				MkTypLibCompatible="true"
 				SuppressStartupBanner="true"
 				TargetEnvironment="1"
-				TypeLibraryName=".\GLDebug/npqtv.tlb"
+				TypeLibraryName=".\GLDebug/npfte.tlb"
 				HeaderFileName=""
 			/>
 			<Tool
@@ -77,7 +78,7 @@
 				Name="VCLinkerTool"
 				IgnoreImportLibrary="true"
 				AdditionalDependencies="comctl32.lib wsock32.lib winmm.lib odbc32.lib odbccp32.lib"
-				OutputFile="../../npqtv_dbg.dll"
+				OutputFile="../../npfte_dbg.dll"
 				LinkIncremental="2"
 				SuppressStartupBanner="true"
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
@@ -87,6 +88,8 @@
 				GenerateDebugInformation="true"
 				GenerateMapFile="true"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -102,7 +105,7 @@
 			<Tool
 				Name="VCBscMakeTool"
 				SuppressStartupBanner="true"
-				OutputFile=".\GLDebug/npqtv.bsc"
+				OutputFile=".\GLDebug/npfte.bsc"
 			/>
 			<Tool
 				Name="VCFxCopTool"
@@ -111,11 +114,8 @@
 				Name="VCAppVerifierTool"
 			/>
 			<Tool
-				Name="VCWebDeploymentTool"
-			/>
-			<Tool
 				Name="VCPostBuildEventTool"
-				CommandLine="cd &quot;$(ProjectDir)../npqtv&quot; &amp;&amp; copy &quot;$(TargetPath)&quot; &quot;plugins/npqtv.dll&quot; &amp;&amp; zip -r &quot;../../$(TargetName).xpi&quot; ."
+				CommandLine="cd &quot;$(ProjectDir)../npfte&quot; &amp;&amp; copy &quot;$(TargetPath)&quot; &quot;plugins/npfte.dll&quot; &amp;&amp; zip &quot;../../$(TargetName).xpi&quot; install.rdf plugins/*.dll&#x0D;&#x0A;"
 			/>
 		</Configuration>
 		<Configuration
@@ -145,7 +145,7 @@
 				MkTypLibCompatible="true"
 				SuppressStartupBanner="true"
 				TargetEnvironment="3"
-				TypeLibraryName=".\GLDebug/npqtv.tlb"
+				TypeLibraryName=".\GLDebug/npfte.tlb"
 				HeaderFileName=""
 			/>
 			<Tool
@@ -191,6 +191,8 @@
 				GenerateMapFile="true"
 				MapFileName=".\GLDebug/fteglqw_dbg.map"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="17"
 			/>
 			<Tool
@@ -206,7 +208,7 @@
 			<Tool
 				Name="VCBscMakeTool"
 				SuppressStartupBanner="true"
-				OutputFile=".\GLDebug/npqtv.bsc"
+				OutputFile=".\GLDebug/npfte.bsc"
 			/>
 			<Tool
 				Name="VCFxCopTool"
@@ -215,21 +217,19 @@
 				Name="VCAppVerifierTool"
 			/>
 			<Tool
-				Name="VCWebDeploymentTool"
-			/>
-			<Tool
 				Name="VCPostBuildEventTool"
 			/>
 		</Configuration>
 		<Configuration
 			Name="GLRelease|Win32"
 			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="npqtv_$(ConfigurationName)"
+			IntermediateDirectory="npfte_$(ConfigurationName)"
 			ConfigurationType="2"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
 			UseOfMFC="0"
 			ATLMinimizesCRunTimeLibraryUsage="false"
 			CharacterSet="2"
+			WholeProgramOptimization="1"
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
@@ -249,18 +249,21 @@
 				MkTypLibCompatible="true"
 				SuppressStartupBanner="true"
 				TargetEnvironment="1"
-				TypeLibraryName=".\npqtv___Win32_GLRelease/npqtv.tlb"
+				TypeLibraryName=".\npfte___Win32_GLRelease/npfte.tlb"
 				HeaderFileName=""
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				InlineFunctionExpansion="2"
+				OmitFramePointers="true"
+				WholeProgramOptimization="true"
 				AdditionalIncludeDirectories="..\client,../common,../server,../gl,../sw,../qclib,../libs,../libs/dxsdk7/include,../libs/freetype2/include"
 				PreprocessorDefinitions="NDEBUG;GLQUAKE;WIN32;_WINDOWS;NPQTV;MULTITHREAD"
 				StringPooling="true"
+				ExceptionHandling="0"
 				RuntimeLibrary="0"
-				EnableFunctionLevelLinking="true"
+				BufferSecurityCheck="false"
 				FloatingPointModel="2"
 				UsePrecompiledHeader="2"
 				PrecompiledHeaderThrough="quakedef.h"
@@ -284,7 +287,7 @@
 				Name="VCLinkerTool"
 				IgnoreImportLibrary="true"
 				AdditionalDependencies="comctl32.lib wsock32.lib winmm.lib odbc32.lib odbccp32.lib"
-				OutputFile="../../npqtv.dll"
+				OutputFile="../../npfte.dll"
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
@@ -293,6 +296,8 @@
 				ModuleDefinitionFile="../ftequake/npapi.def"
 				GenerateMapFile="true"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -307,7 +312,7 @@
 			<Tool
 				Name="VCBscMakeTool"
 				SuppressStartupBanner="true"
-				OutputFile=".\npqtv___Win32_GLRelease/npqtv.bsc"
+				OutputFile=".\npfte___Win32_GLRelease/npfte.bsc"
 			/>
 			<Tool
 				Name="VCFxCopTool"
@@ -316,11 +321,8 @@
 				Name="VCAppVerifierTool"
 			/>
 			<Tool
-				Name="VCWebDeploymentTool"
-			/>
-			<Tool
 				Name="VCPostBuildEventTool"
-				CommandLine="cd $(ProjectDir)../npqtv &amp;&amp; copy $(TargetPath) plugins/npqtv.dll &amp;&amp; zip -r ../../$(TargetName).xpi ."
+				CommandLine="cd &quot;$(ProjectDir)../npfte&quot; &amp;&amp; copy &quot;$(TargetPath)&quot; &quot;plugins/npfte.dll&quot; &amp;&amp; zip &quot;../../$(TargetName).xpi&quot; install.rdf plugins/*.dll&#x0D;&#x0A;"
 			/>
 		</Configuration>
 		<Configuration
@@ -351,7 +353,7 @@
 				MkTypLibCompatible="true"
 				SuppressStartupBanner="true"
 				TargetEnvironment="3"
-				TypeLibraryName=".\npqtv___Win32_GLRelease/npqtv.tlb"
+				TypeLibraryName=".\npfte___Win32_GLRelease/npfte.tlb"
 				HeaderFileName=""
 			/>
 			<Tool
@@ -366,10 +368,10 @@
 				FloatingPointModel="2"
 				UsePrecompiledHeader="2"
 				PrecompiledHeaderThrough="quakedef.h"
-				PrecompiledHeaderFile=".\npqtv___Win32_GLRelease/npqtv.pch"
-				AssemblerListingLocation=".\npqtv___Win32_GLRelease/"
-				ObjectFile=".\npqtv___Win32_GLRelease/"
-				ProgramDataBaseFileName=".\npqtv___Win32_GLRelease/"
+				PrecompiledHeaderFile=".\npfte___Win32_GLRelease/npfte.pch"
+				AssemblerListingLocation=".\npfte___Win32_GLRelease/"
+				ObjectFile=".\npfte___Win32_GLRelease/"
+				ProgramDataBaseFileName=".\npfte___Win32_GLRelease/"
 				BrowseInformation="1"
 				WarningLevel="3"
 				SuppressStartupBanner="true"
@@ -395,8 +397,10 @@
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
 				IgnoreDefaultLibraryNames="libc.lib;msvcrt.lib"
 				GenerateMapFile="true"
-				MapFileName=".\npqtv___Win32_GLRelease/fteglqw.map"
+				MapFileName=".\npfte___Win32_GLRelease/fteglqw.map"
 				SubSystem="2"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="17"
 			/>
 			<Tool
@@ -411,16 +415,13 @@
 			<Tool
 				Name="VCBscMakeTool"
 				SuppressStartupBanner="true"
-				OutputFile=".\npqtv___Win32_GLRelease/npqtv.bsc"
+				OutputFile=".\npfte___Win32_GLRelease/npfte.bsc"
 			/>
 			<Tool
 				Name="VCFxCopTool"
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -443,7 +444,7 @@
 				>
 			</File>
 			<File
-				RelativePath="..\client\sys_npqtv.c"
+				RelativePath="..\client\sys_npfte.c"
 				>
 			</File>
 			<File
@@ -11271,194 +11272,6 @@
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="..\client\r_efrag.c"
-					>
-					<FileConfiguration
-						Name="GLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="GLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinSW|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="D3DDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinSW|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MinGLRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release Dedicated Server|x64"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MRelease|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug Dedicated Server|x64"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="MDebug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-				</File>
-				<File
 					RelativePath="..\client\r_part.c"
 					>
 					<FileConfiguration
@@ -16412,6 +16225,10 @@
 				</File>
 				<File
 					RelativePath="..\gl\gl_font.c"
+					>
+				</File>
+				<File
+					RelativePath="..\gl\gl_glsl.c"
 					>
 				</File>
 				<File

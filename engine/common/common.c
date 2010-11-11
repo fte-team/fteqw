@@ -34,7 +34,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 	#if defined(AVAIL_JPEGLIB) && !defined(SERVERONLY)
 		#define JPEG_API VARGS
-		#include "./mingw-libs/jversion.h"
+		//#include "./mingw-libs/jversion.h"
 		#include "./mingw-libs/jpeglib.h"
 	#endif
 #elif defined(_WIN32)
@@ -46,7 +46,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 	#if defined(AVAIL_JPEGLIB) && !defined(SERVERONLY)
 		#define JPEG_API VARGS
-		#include "jversion.h"
+		//#include "jversion.h"
 		#include "jpeglib.h"
 	#endif
 #else
@@ -57,7 +57,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#include <zlib.h>
 	#endif
 	#if defined(AVAIL_JPEGLIB) && !defined(SERVERONLY)
-		#include <jversion.h>
+		//#include <jversion.h>
 		#include <jpeglib.h>
 	#endif
 #endif
@@ -3195,8 +3195,7 @@ void COM_Version_f (void)
 #ifndef AVAIL_JPEGLIB
 	Con_Printf("libjpeg disabled\n");
 #else
-	//Con_Printf("libjpeg: %i series (%s)\n", ( JPEG_LIB_VERSION / 10 ), JVERSION );
-	Con_Printf("libjpeg: %s\n", JVERSION );
+	Con_Printf("libjpeg: %i (%d series)\n", JPEG_LIB_VERSION, ( JPEG_LIB_VERSION / 10 ) );
 #endif
 #ifndef AVAIL_OGGVORBIS
 	Con_Printf("libvorbis disabled\n");

@@ -568,6 +568,12 @@ return NULL;
 		#endif
 	#endif
 
+#ifndef PNG_NORETURN
+#define PNG_NORETURN
+#endif
+#ifndef PNG_ALLOCATED
+#define PNG_ALLOCATED
+#endif
 
 
 void (PNGAPI *qpng_error) PNGARG((png_structp png_ptr, png_const_charp error_message)) PNG_NORETURN PSTATIC(png_error);

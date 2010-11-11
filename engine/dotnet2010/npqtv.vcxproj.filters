@@ -1,0 +1,1148 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{acff2911-7664-487e-929d-7a8cc54d5a63}</UniqueIdentifier>
+      <Extensions>cpp;c;cxx;rc;def;r;odl;idl;hpj;bat</Extensions>
+    </Filter>
+    <Filter Include="Source Files\server">
+      <UniqueIdentifier>{4b4d3082-c6c0-41ee-aa34-e4e26e5b7aae}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\client">
+      <UniqueIdentifier>{8417bd74-317c-494b-b221-a0280db48e22}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\gl">
+      <UniqueIdentifier>{be8829e6-eb9a-474e-9096-7ba104f6120d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\sw">
+      <UniqueIdentifier>{8617e589-cdbf-4001-bbf2-acfec19df333}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\common">
+      <UniqueIdentifier>{85953518-9b0f-4c05-bfb2-0d0b39e92ff5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\QCLIB">
+      <UniqueIdentifier>{adee2972-57d7-45c9-a5d5-eecfa30175ab}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\asm">
+      <UniqueIdentifier>{e5f2ad4b-f4fe-4469-b76c-ad7e205e6fe3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\http">
+      <UniqueIdentifier>{dac1a5ea-6355-4aa9-affb-4911b46460d6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\vc">
+      <UniqueIdentifier>{7e980011-7602-420c-b329-5cd0b531cdfd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\dedicated">
+      <UniqueIdentifier>{6583f10b-0144-48ee-9f1f-93d63ea1772f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{c693575a-d90b-49ac-a910-1c2b43b24001}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{7bde44e6-511d-4523-9471-59aff3f82a5b}</UniqueIdentifier>
+      <Extensions>ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe</Extensions>
+    </Filter>
+    <Filter Include="libmad">
+      <UniqueIdentifier>{135e341a-25ea-4e78-806b-a029da8f1dc6}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\ftequake\npapi.def">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="..\client\cl_plugin.inc">
+      <Filter>Source Files\common</Filter>
+    </None>
+    <None Include="..\client\bymorphed.ico">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="..\client\q2.ico">
+      <Filter>Resource Files</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="..\ftequake\npplug.rc">
+      <Filter>Source Files</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\client\sys_npqtv.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\sys_plugfte.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\net_preparse.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\pr_cmds.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\pr_q1qvm.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\savegame.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\sv_ccmds.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\sv_chat.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\sv_demo.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\sv_ents.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\sv_init.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\sv_main.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\sv_master.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\sv_move.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\sv_mvd.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\sv_nchan.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\sv_phys.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\sv_rankin.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\sv_send.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\sv_user.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\svhl_game.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\svhl_phys.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\svhl_world.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\svq2_ents.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\svq2_game.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\svq3_game.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\world.c">
+      <Filter>Source Files\server</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\cd_win.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\cl_cam.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\cl_cg.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\cl_demo.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\cl_ents.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\cl_ignore.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\cl_input.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\cl_main.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\cl_parse.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\cl_pred.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\cl_screen.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\cl_tent.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\cl_ui.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\clhl_game.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\clq2_cin.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\clq2_ents.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\clq3_parse.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\console.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\fragstats.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\image.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\in_win.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\keys.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\m_download.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\m_items.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\m_master.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\m_mp3.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\m_multi.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\m_options.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\m_script.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\m_single.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\menu.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\net_master.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\p_classic.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\p_null.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\p_script.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\pr_csqc.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\pr_menu.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\r_bulleten.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\r_efrag.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\r_part.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\r_partset.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\renderer.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\renderque.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\roq_read.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\sbar.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\skin.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\snd_directx.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\snd_dma.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\snd_mem.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\snd_mix.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\snd_ov.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\snd_win.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\sys_win.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\teamplay.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\textedit.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\valid.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\view.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\wad.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\zqtp.c">
+      <Filter>Source Files\client</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\doomclip.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\gl_alias.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\gl_backend.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\gl_bloom.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\gl_draw.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\gltod3d\gl_fakegl.cpp">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\gl_font.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\gl_heightmap.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\gl_hlmdl.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\gl_model.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\gl_ngraph.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\gl_q2bsp.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\gl_rlight.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\gl_rmain.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\gl_rmisc.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\gl_rsurf.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\gl_screen.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\gl_shader.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\gl_shadow.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\gl_vidcommon.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\gl_vidnt.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\gl_warp.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\glmod_doom.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\gl\LTFACE.C">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\r_2d.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\r_surf.c">
+      <Filter>Source Files\gl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\d_edge.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\d_fill.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\d_init.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\d_modech.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\d_part.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\d_polyse.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\d_scan.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\d_sky.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\d_sprite.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\d_surf.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\d_trans.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\d_vars.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\d_zpoint.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\nonintel.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\r_aclip.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\r_alias.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\r_bsp.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\r_draw.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\r_edge.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\r_light.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\r_main.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\r_misc.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\r_sky.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\r_sprite.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\r_surf.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\r_vars.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\sw_draw.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\sw_model.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\sw_screen.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\vid_ddraw.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\vid_dib.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sw\vid_win2.c">
+      <Filter>Source Files\sw</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\cmd.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\com_mesh.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\com_phys_ode.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\common.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\crc.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\cvar.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\fs.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\fs_pak.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\fs_stdio.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\fs_win32.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\fs_zip.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\huff.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\log.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\mathlib.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\md4.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\net_chan.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\net_wins.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\plugin.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\pmove.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\pmovetst.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\pr_bgcmd.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\q1bsp.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\q2pmove.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\q3common.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\qvm.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\translate.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\common\zone.c">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\QCLIB\Comprout.c">
+      <Filter>Source Files\QCLIB</Filter>
+    </ClCompile>
+    <ClCompile Include="..\QCLIB\hash.c">
+      <Filter>Source Files\QCLIB</Filter>
+    </ClCompile>
+    <ClCompile Include="..\QCLIB\initlib.c">
+      <Filter>Source Files\QCLIB</Filter>
+    </ClCompile>
+    <ClCompile Include="..\QCLIB\pr_edict.c">
+      <Filter>Source Files\QCLIB</Filter>
+    </ClCompile>
+    <ClCompile Include="..\QCLIB\Pr_exec.c">
+      <Filter>Source Files\QCLIB</Filter>
+    </ClCompile>
+    <ClCompile Include="..\QCLIB\pr_multi.c">
+      <Filter>Source Files\QCLIB</Filter>
+    </ClCompile>
+    <ClCompile Include="..\qclib\pr_x86.c">
+      <Filter>Source Files\QCLIB</Filter>
+    </ClCompile>
+    <ClCompile Include="..\QCLIB\qcc_cmdlib.c">
+      <Filter>Source Files\QCLIB</Filter>
+    </ClCompile>
+    <ClCompile Include="..\QCLIB\qcc_pr_comp.c">
+      <Filter>Source Files\QCLIB</Filter>
+    </ClCompile>
+    <ClCompile Include="..\QCLIB\qcc_pr_lex.c">
+      <Filter>Source Files\QCLIB</Filter>
+    </ClCompile>
+    <ClCompile Include="..\QCLIB\QccMain.c">
+      <Filter>Source Files\QCLIB</Filter>
+    </ClCompile>
+    <ClCompile Include="..\QCLIB\qcd_main.c">
+      <Filter>Source Files\QCLIB</Filter>
+    </ClCompile>
+    <ClCompile Include="..\QCLIB\qcdecomp.c">
+      <Filter>Source Files\QCLIB</Filter>
+    </ClCompile>
+    <ClCompile Include="..\http\ftpclient.c">
+      <Filter>Source Files\http</Filter>
+    </ClCompile>
+    <ClCompile Include="..\http\ftpserver.c">
+      <Filter>Source Files\http</Filter>
+    </ClCompile>
+    <ClCompile Include="..\http\httpclient.c">
+      <Filter>Source Files\http</Filter>
+    </ClCompile>
+    <ClCompile Include="..\http\httpserver.c">
+      <Filter>Source Files\http</Filter>
+    </ClCompile>
+    <ClCompile Include="..\http\iwebiface.c">
+      <Filter>Source Files\http</Filter>
+    </ClCompile>
+    <ClCompile Include="..\http\webgen.c">
+      <Filter>Source Files\http</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sndcodec\g711.c">
+      <Filter>Source Files\vc</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sndcodec\g721.c">
+      <Filter>Source Files\vc</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sndcodec\g723_24.c">
+      <Filter>Source Files\vc</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sndcodec\g723_40.c">
+      <Filter>Source Files\vc</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sndcodec\g72x.c">
+      <Filter>Source Files\vc</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sndcodec\snd_vc.c">
+      <Filter>Source Files\vc</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sndcodec\snd_voicecodecs.c">
+      <Filter>Source Files\vc</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\sv_sys_win.c">
+      <Filter>Source Files\dedicated</Filter>
+    </ClCompile>
+    <ClCompile Include="..\server\svmodel.c">
+      <Filter>Source Files\dedicated</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\mp3\libmad\bit.c">
+      <Filter>libmad</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\mp3\libmad\decoder.c">
+      <Filter>libmad</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\mp3\libmad\fixed.c">
+      <Filter>libmad</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\mp3\libmad\frame.c">
+      <Filter>libmad</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\mp3\libmad\huffman.c">
+      <Filter>libmad</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\mp3\libmad\layer12.c">
+      <Filter>libmad</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\mp3\libmad\layer3.c">
+      <Filter>libmad</Filter>
+    </ClCompile>
+    <ClCompile Include="..\client\mymad.c">
+      <Filter>libmad</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\mp3\libmad\stream.c">
+      <Filter>libmad</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\mp3\libmad\synth.c">
+      <Filter>libmad</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\mp3\libmad\timer.c">
+      <Filter>libmad</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\mp3\libmad\version.c">
+      <Filter>libmad</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\client\sys_plugfte.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sw\adivtab.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\anorms.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sw\asm_draw.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\asm_i386.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sw\block16.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\bothdefs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\server\botlib.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\bspfile.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\bymorphed.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\cdaudio.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\cl_ignore.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\cl_master.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\client.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\clq3defs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\cmd.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\qclib\cmdlib.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\vorbis\codec.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\com_mesh.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\common.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\console.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\crc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\cvar.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\dxsdk7\include\d3d.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\dxsdk9\include\d3d9.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\dxsdk9\include\d3d9caps.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\d3d9\d3d9quake.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\dxsdk9\include\d3d9types.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\dxsdk7\include\d3dcaps.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\d3d\d3dquake.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\dxsdk7\include\d3dtypes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\dxsdk7\include\d3dx.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\dxsdk7\include\d3dxcore.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\dxsdk7\include\d3dxerr.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\dxsdk7\include\d3dxmath.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\dxsdk7\include\d3dxshapes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\dxsdk7\include\d3dxsprite.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sw\d_iface.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sw\d_ifacea.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sw\d_local.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\dxsdk7\include\ddraw.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\dxsdk7\include\dinput.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\gl\doommap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\dxsdk7\include\dsound.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\qclib\execloop.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\qclib\execloop16d.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\qclib\execloop32.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\qclib\execloop32d.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sndcodec\g72x.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\gl\gl_draw.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\gl\gl_model.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\gl\gl_warp_sin.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\gl\glquake.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\gl\glsupp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\qclib\gui.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\qclib\hash.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\in_morphos.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\in_raw.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\input.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\http\iweb.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\jconfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\jerror.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\jmorecfg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\jpeglib.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\keys.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\lhfont.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\mathlib.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\menu.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\merged.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\gl\model_hl.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\modelgen.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\net.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\nqnet\net_dgrm.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\netinc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\ogg\ogg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\ogg\os_types.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\particles.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\pmove.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\png.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\pngconf.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\pr_common.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\qclib\pr_comp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\server\progdefs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\server\progs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\qclib\progsint.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\qclib\progslib.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\QCLIB\progtype.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\protocol.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\q2anorms.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\server\q2game.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\server\q3g_public.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\qclib\qcc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\qclib\qcd.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\quakeasm.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\quakedef.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\server\qwsvdef.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\r_bulleten.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sw\r_local.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\r_partset.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sw\r_shared.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\render.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\renderque.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ftequake\resource.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\roq.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\sbar.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\screen.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\server\server.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\gl\shader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\sound.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\spritegn.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sw\sw_draw.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\sys.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\tlout.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\translate.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\ui_public.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\unzip.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\vid.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\view.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\vm.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\vorbis\vorbisfile.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\wad.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\winamp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\client\winquake.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\world.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\zconf.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\libs\zlib.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\common\zone.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuildStep Include="..\sw\d_draw.s">
+      <Filter>Source Files\asm</Filter>
+    </CustomBuildStep>
+    <CustomBuildStep Include="..\sw\d_draw16.s">
+      <Filter>Source Files\asm</Filter>
+    </CustomBuildStep>
+    <CustomBuildStep Include="..\sw\d_parta.s">
+      <Filter>Source Files\asm</Filter>
+    </CustomBuildStep>
+    <CustomBuildStep Include="..\sw\d_polysa.s">
+      <Filter>Source Files\asm</Filter>
+    </CustomBuildStep>
+    <CustomBuildStep Include="..\sw\d_scana.s">
+      <Filter>Source Files\asm</Filter>
+    </CustomBuildStep>
+    <CustomBuildStep Include="..\sw\d_spr8.s">
+      <Filter>Source Files\asm</Filter>
+    </CustomBuildStep>
+    <CustomBuildStep Include="..\sw\d_varsa.s">
+      <Filter>Source Files\asm</Filter>
+    </CustomBuildStep>
+    <CustomBuildStep Include="..\sw\r_aclipa.s">
+      <Filter>Source Files\asm</Filter>
+    </CustomBuildStep>
+    <CustomBuildStep Include="..\sw\r_aliasa.s">
+      <Filter>Source Files\asm</Filter>
+    </CustomBuildStep>
+    <CustomBuildStep Include="..\sw\r_drawa.s">
+      <Filter>Source Files\asm</Filter>
+    </CustomBuildStep>
+    <CustomBuildStep Include="..\sw\r_edgea.s">
+      <Filter>Source Files\asm</Filter>
+    </CustomBuildStep>
+    <CustomBuildStep Include="..\sw\r_varsa.s">
+      <Filter>Source Files\asm</Filter>
+    </CustomBuildStep>
+    <CustomBuildStep Include="..\sw\surf16.s">
+      <Filter>Source Files\asm</Filter>
+    </CustomBuildStep>
+    <CustomBuildStep Include="..\sw\surf8.s">
+      <Filter>Source Files\asm</Filter>
+    </CustomBuildStep>
+    <CustomBuildStep Include="..\sndcodec\voicechat.h">
+      <Filter>Source Files\vc</Filter>
+    </CustomBuildStep>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\common\math.s">
+      <Filter>Source Files\asm</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\client\snd_mixa.s">
+      <Filter>Source Files\asm</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\client\sys_wina.s">
+      <Filter>Source Files\asm</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\server\worlda.s">
+      <Filter>Source Files\asm</Filter>
+    </CustomBuild>
+  </ItemGroup>
+</Project>

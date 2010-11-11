@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -25,8 +25,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define FORCE_DEFINE_GUID(name, l, w1, w2, b1, b2, b3, b4, b5, b6, b7, b8) \
         EXTERN_C const GUID DECLSPEC_SELECTANY name \
                 = { l, w1, w2, { b1, b2,  b3,  b4,  b5,  b6,  b7,  b8 } }
-FORCE_DEFINE_GUID(IID_IDirectSound, 0x279AFA83, 0x4981, 0x11CE, 0xA5, 0x21, 0x00, 0x20, 0xAF, 0x0B, 0xE5, 0x60);
-FORCE_DEFINE_GUID(IID_IKsPropertySet, 0x31efac30, 0x515c, 0x11d0, 0xa9, 0xaa, 0x00, 0xaa, 0x00, 0x61, 0xbe, 0x93);
+// SDL fix, seems SDL builds complain about multiple definitions of those 2
+#ifndef _SDL
+	FORCE_DEFINE_GUID(IID_IDirectSound, 0x279AFA83, 0x4981, 0x11CE, 0xA5, 0x21, 0x00, 0x20, 0xAF, 0x0B, 0xE5, 0x60);
+	FORCE_DEFINE_GUID(IID_IKsPropertySet, 0x31efac30, 0x515c, 0x11d0, 0xa9, 0xaa, 0x00, 0xaa, 0x00, 0x61, 0xbe, 0x93);
+#endif
 
 #define SND_ERROR 0
 #define SND_LOADED 1
@@ -92,7 +95,7 @@ static void *DSOUND_Lock(soundcardinfo_t *sc)
 
 	reps = 0;
 
-	while ((hresult = dh->pDSBuf->lpVtbl->Lock(dh->pDSBuf, 0, dh->gSndBufSize, (void**)&ret, &dwSize, 
+	while ((hresult = dh->pDSBuf->lpVtbl->Lock(dh->pDSBuf, 0, dh->gSndBufSize, (void**)&ret, &dwSize,
 								   (void**)&pbuf2, &dwSize2, 0)) != DS_OK)
 	{
 		if (hresult != DSERR_BUFFERLOST)
@@ -245,7 +248,7 @@ static BOOL (CALLBACK  DSEnumCallback)(GUID FAR *guid, LPCSTR str1, LPCSTR str2,
                                          SPEAKER_FRONT_LEFT_OF_CENTER | SPEAKER_FRONT_RIGHT_OF_CENTER)
 
 typedef struct {
-	WAVEFORMATEX    Format;	
+	WAVEFORMATEX    Format;
 	union {
 		WORD wValidBitsPerSample;       /* bits of precision  */
 		WORD wSamplesPerBlock;          /* valid if wBitsPerSample==0 */
@@ -270,7 +273,7 @@ const static GUID  KSDATAFORMAT_SUBTYPE_PCM = {0x00000001,0x0000,0x0010,
 #ifdef _IKsPropertySet_
 const static GUID  CLSID_EAXDIRECTSOUND = {0x4ff53b81, 0x1ce0, 0x11d3,
 {0xaa, 0xb8, 0x0, 0xa0, 0xc9, 0x59, 0x49, 0xd5}};
-const static GUID  DSPROPSETID_EAX20_LISTENERPROPERTIES = {0x306a6a8, 0xb224, 0x11d2, 
+const static GUID  DSPROPSETID_EAX20_LISTENERPROPERTIES = {0x306a6a8, 0xb224, 0x11d2,
 {0x99, 0xe5, 0x0, 0x0, 0xe8, 0xd8, 0xc7, 0x22}};
 
 typedef struct _EAXLISTENERPROPERTIES
@@ -342,14 +345,14 @@ typedef enum
 } DSPROPERTY_EAX_LISTENERPROPERTY;
 
 const static GUID DSPROPSETID_EAX20_BUFFERPROPERTIES ={
-    0x306a6a7, 
-    0xb224, 
-    0x11d2, 
+    0x306a6a7,
+    0xb224,
+    0x11d2,
     {0x99, 0xe5, 0x0, 0x0, 0xe8, 0xd8, 0xc7, 0x22}};
 
 const static GUID CLSID_EAXDirectSound ={
-		0x4ff53b81, 
-		0x1ce0, 
+		0x4ff53b81,
+		0x1ce0,
 		0x11d3,
 		{0xaa, 0xb8, 0x0, 0xa0, 0xc9, 0x59, 0x49, 0xd5}};
 
@@ -360,7 +363,7 @@ typedef struct _EAXBUFFERPROPERTIES
     long lRoom;                  // room effect level
     long lRoomHF;                // room effect level at high frequencies
     float flRoomRolloffFactor;   // like DS3D flRolloffFactor but for room effect
-    long lObstruction;           // main obstruction control (attenuation at high frequencies) 
+    long lObstruction;           // main obstruction control (attenuation at high frequencies)
     float flObstructionLFRatio;  // obstruction low-frequency level re. main control
     long lOcclusion;             // main occlusion control (attenuation at high frequencies)
     float flOcclusionLFRatio;    // occlusion low-frequency level re. main control
@@ -377,17 +380,17 @@ typedef enum
     DSPROPERTY_EAXBUFFER_DIRECT,
     DSPROPERTY_EAXBUFFER_DIRECTHF,
     DSPROPERTY_EAXBUFFER_ROOM,
-    DSPROPERTY_EAXBUFFER_ROOMHF, 
+    DSPROPERTY_EAXBUFFER_ROOMHF,
     DSPROPERTY_EAXBUFFER_ROOMROLLOFFFACTOR,
     DSPROPERTY_EAXBUFFER_OBSTRUCTION,
     DSPROPERTY_EAXBUFFER_OBSTRUCTIONLFRATIO,
-    DSPROPERTY_EAXBUFFER_OCCLUSION, 
+    DSPROPERTY_EAXBUFFER_OCCLUSION,
     DSPROPERTY_EAXBUFFER_OCCLUSIONLFRATIO,
     DSPROPERTY_EAXBUFFER_OCCLUSIONROOMRATIO,
     DSPROPERTY_EAXBUFFER_OUTSIDEVOLUMEHF,
     DSPROPERTY_EAXBUFFER_AIRABSORPTIONFACTOR,
     DSPROPERTY_EAXBUFFER_FLAGS
-} DSPROPERTY_EAX_BUFFERPROPERTY; 
+} DSPROPERTY_EAX_BUFFERPROPERTY;
 #endif
 
 static void DSOUND_SetUnderWater(soundcardinfo_t *sc, qboolean underwater)
@@ -525,7 +528,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	DSBCAPS			dsbcaps;
 	DWORD			dwSize, dwWrite;
 	DSCAPS			dscaps;
-	QWAVEFORMATEX	format, pformat; 
+	QWAVEFORMATEX	format, pformat;
 	HRESULT			hresult;
 	int				reps;
 	qboolean		primary_format_set;
@@ -567,7 +570,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 		format.Format.cbSize = 0;
 		sc->sn.numchannels = 1;
 	}
- 
+
 	format.Format.nChannels = sc->sn.numchannels;
     format.Format.wBitsPerSample = sc->sn.samplebits;
     format.Format.nSamplesPerSec = sc->sn.speed;
@@ -579,7 +582,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	if (!hInstDS)
 	{
 		hInstDS = LoadLibrary("dsound.dll");
-		
+
 		if (hInstDS == NULL)
 		{
 			Con_SafePrintf ("Couldn't load dsound.dll\n");
@@ -593,7 +596,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 			Con_SafePrintf ("Couldn't get DS proc addr\n");
 			return SND_ERROR;
 		}
-				
+
 		pDirectSoundEnumerate = (void *)GetProcAddress(hInstDS,"DirectSoundEnumerateA");
 	}
 
@@ -934,7 +937,7 @@ int SNDDMA_InitCapture (void)
 	if (!hInstDS)
 	{
 		hInstDS = LoadLibrary("dsound.dll");
-		
+
 		if (hInstDS == NULL)
 		{
 			Con_SafePrintf ("Couldn't load dsound.dll\n");
@@ -1052,7 +1055,7 @@ void DSOUND_UpdateCapture(void)
 		return;
 	}
 
-	SNDVC_MicInput(pBuffer, filled, wfxFormat.nSamplesPerSec, inputwidth); 
+	SNDVC_MicInput(pBuffer, filled, wfxFormat.nSamplesPerSec, inputwidth);
 	BZ_Free(pBuffer);
 }
 void (*pDSOUND_UpdateCapture) (void) = &DSOUND_UpdateCapture;

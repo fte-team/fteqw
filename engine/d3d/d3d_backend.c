@@ -128,6 +128,7 @@ typedef struct
 	unsigned int lastpasscount;
 
 	texid_t		curtex[MAX_TMUS];
+	unsigned int tmuflags[MAX_TMUS];
 
 	mesh_t		**meshlist;
 	unsigned int nummeshes;
@@ -494,7 +495,6 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 	case T_GEN_ANIMMAP:
 		BindTexture(tu, pass->anim_frames[(int)(pass->anim_fps * shaderstate.curtime) % pass->anim_numframes].ptr);
 		break;
-		/*fixme*/
 	case T_GEN_SINGLEMAP:
 		BindTexture(tu, pass->anim_frames[0].ptr);
 		break;
@@ -513,18 +513,39 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 		break;
 	}
 
-	/*lightmaps don't use mipmaps*/
-	if (pass->flags & SHADER_PASS_NOMIPMAP)
+	
+	if ((pass->flags ^ shaderstate.tmuflags[tu]) & SHADER_PASS_CLAMP)
 	{
-		IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
-		IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
-		IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+		shaderstate.tmuflags[tu] ^= SHADER_PASS_CLAMP;
+		if (pass->flags & SHADER_PASS_CLAMP)
+		{
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_ADDRESSW, D3DTADDRESS_CLAMP);
+		}
+		else
+		{
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_ADDRESSU, D3DTADDRESS_WRAP);
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_ADDRESSV, D3DTADDRESS_WRAP);
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_ADDRESSW, D3DTADDRESS_WRAP);
+		}
 	}
-	else
+	if ((pass->flags ^ shaderstate.tmuflags[tu]) & SHADER_PASS_NOMIPMAP)
 	{
-		IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
-		IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR);
-		IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+		shaderstate.tmuflags[tu] ^= SHADER_PASS_NOMIPMAP;
+		/*lightmaps don't use mipmaps*/
+		if (pass->flags & SHADER_PASS_NOMIPMAP)
+		{
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+		}
+		else
+		{
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR);
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+		}
 	}
 
 	switch (pass->blendmode)
@@ -689,7 +710,7 @@ static void colourgenbyte(const shaderpass_t *pass, int cnt, const byte_vec4_t *
 		}
 		else
 		{
-			R_LightArraysByte(mesh->xyz_array, dst, cnt, mesh->normals_array);
+			R_LightArraysByte_BGR(mesh->xyz_array, dst, cnt, mesh->normals_array);
 		}
 		break;
 	case RGB_GEN_WAVE:
@@ -855,10 +876,10 @@ static unsigned int BE_GenerateColourMods(unsigned int vertcount, const shaderpa
 			}
 		}
 		else if (m->colors4f_array &&
-						(pass->rgbgen == RGB_GEN_VERTEX) ||
+						((pass->rgbgen == RGB_GEN_VERTEX) ||
 						(pass->rgbgen == RGB_GEN_EXACT_VERTEX) ||
 						(pass->rgbgen == RGB_GEN_ONE_MINUS_VERTEX) ||
-						(pass->alphagen == ALPHA_GEN_VERTEX))
+						(pass->alphagen == ALPHA_GEN_VERTEX)))
 		{
 			for (vertcount = 0, mno = 0; mno < shaderstate.nummeshes; mno++)
 			{
@@ -1396,6 +1417,33 @@ static qboolean BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vert
 	return true;
 }
 
+static void BE_Cull(unsigned int cullflags)
+{
+	cullflags |= r_refdef.flipcull;
+	if (shaderstate.curcull != cullflags)
+	{
+		shaderstate.curcull = cullflags;
+		if (shaderstate.curcull & 1)
+		{
+			if (shaderstate.curcull & SHADER_CULL_FRONT)
+				IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CULLMODE, D3DCULL_CW);
+			else if (shaderstate.curcull & SHADER_CULL_BACK)
+				IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CULLMODE, D3DCULL_CCW);
+			else
+				IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CULLMODE, D3DCULL_NONE);
+		}
+		else
+		{
+			if (shaderstate.curcull & SHADER_CULL_FRONT)
+				IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CULLMODE, D3DCULL_CCW);
+			else if (shaderstate.curcull & SHADER_CULL_BACK)
+				IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CULLMODE, D3DCULL_CW);
+			else
+				IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CULLMODE, D3DCULL_NONE);
+		}
+	}
+}
+
 static void BE_DrawMeshChain_Internal(void)
 {
 	unsigned int vertcount, idxcount, idxfirst;
@@ -1406,16 +1454,7 @@ static void BE_DrawMeshChain_Internal(void)
 	unsigned int passno = 0;
 	shaderpass_t *pass = shaderstate.curshader->passes;
 
-	if (shaderstate.curcull != (shaderstate.curshader->flags & (SHADER_CULL_FRONT | SHADER_CULL_BACK)))
-	{
-		shaderstate.curcull = shaderstate.curshader->flags & (SHADER_CULL_FRONT | SHADER_CULL_BACK);
-		if (shaderstate.curcull & SHADER_CULL_FRONT)
-			IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CULLMODE, D3DCULL_CCW);
-		else if (shaderstate.curcull & SHADER_CULL_BACK)
-			IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CULLMODE, D3DCULL_CW);
-		else
-			IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CULLMODE, D3DCULL_NONE);
-	}
+	BE_Cull(shaderstate.curshader->flags & (SHADER_CULL_FRONT | SHADER_CULL_BACK));
 
 	for (mno = 0, vertcount = 0, idxcount = 0; mno < shaderstate.nummeshes; mno++)
 	{
@@ -1452,18 +1491,36 @@ static void BE_DrawMeshChain_Internal(void)
 	}
 	d3dcheck(IDirect3DIndexBuffer9_Unlock(shaderstate.dynidx_buff));
 	d3dcheck(IDirect3DDevice9_SetIndices(pD3DDev9, shaderstate.dynidx_buff));
-	
-	/*now go through and flush each pass*/
-	for (passno = 0; passno < shaderstate.curshader->numpasses; passno += pass->numMergedPasses)
+
+	if (shaderstate.mode == BEM_DEPTHONLY)
 	{
-		if (!BE_DrawMeshChain_SetupPass(pass+passno, vertcount))
-			continue;
-#ifdef BENCH
-		shaderstate.bench.draws++;
-		if (shaderstate.bench.clamp && shaderstate.bench.clamp < shaderstate.bench.draws)
-			continue;
-#endif
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_COLORWRITEENABLE, 0);
+		/*deactivate any extras*/
+		for (passno = 0; passno < shaderstate.lastpasscount; )
+		{
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, 5+passno, NULL, 0, 0));
+			BindTexture(passno, NULL);
+			d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_COLOROP, D3DTOP_DISABLE));
+			passno++;
+		}
+		shaderstate.lastpasscount = 0;
 		d3dcheck(IDirect3DDevice9_DrawIndexedPrimitive(pD3DDev9, D3DPT_TRIANGLELIST, 0, 0, vertcount, idxfirst, idxcount/3));
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_COLORWRITEENABLE, D3DCOLORWRITEENABLE_RED|D3DCOLORWRITEENABLE_GREEN|D3DCOLORWRITEENABLE_BLUE|D3DCOLORWRITEENABLE_ALPHA);
+	}
+	else
+	{
+		/*now go through and flush each pass*/
+		for (passno = 0; passno < shaderstate.curshader->numpasses; passno += pass->numMergedPasses)
+		{
+			if (!BE_DrawMeshChain_SetupPass(pass+passno, vertcount))
+				continue;
+	#ifdef BENCH
+			shaderstate.bench.draws++;
+			if (shaderstate.bench.clamp && shaderstate.bench.clamp < shaderstate.bench.draws)
+				continue;
+	#endif
+			d3dcheck(IDirect3DDevice9_DrawIndexedPrimitive(pD3DDev9, D3DPT_TRIANGLELIST, 0, 0, vertcount, idxfirst, idxcount/3));
+		}
 	}
 }
 
@@ -1712,6 +1769,8 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 	float mv[16];
 	float m[16];
 
+	shaderstate.curentity = e;
+
 	m[0] = e->axis[0][0];
 	m[1] = e->axis[0][1];
 	m[2] = e->axis[0][2];
@@ -1808,7 +1867,7 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 	}
 }
 
-static void BE_SubmitBatch(batch_t *batch)
+void BE_SubmitBatch(batch_t *batch)
 {
 	shaderstate.nummeshes = batch->meshes - batch->firstmesh;
 	if (!shaderstate.nummeshes)
@@ -1818,8 +1877,8 @@ static void BE_SubmitBatch(batch_t *batch)
 		return;
 	if (shaderstate.curentity != batch->ent)
 	{
-		shaderstate.curentity = batch->ent;
 		BE_RotateForEntity(batch->ent, batch->ent->model);
+		shaderstate.curtime = r_refdef.time - shaderstate.curentity->shaderTime;
 	}
 	shaderstate.meshlist = batch->mesh + batch->firstmesh;
 	shaderstate.curshader = batch->shader;
@@ -1845,6 +1904,7 @@ void BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_t 
 
 void BE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums)
 {
+	shaderstate.curtime = realtime;
 	shaderstate.curshader = shader;
 	shaderstate.curtexnums = texnums?texnums:&shader->defaulttextures;
 	shaderstate.curlightmap = r_nulltex;
@@ -2073,12 +2133,304 @@ static void BE_SubmitMeshesSortList(batch_t *sortlist)
 
 		if (batch->shader->flags & SHADER_SKY)
 		{
-//			if (shaderstate.mode == BEM_STANDARD)
-//				R_DrawSkyChain (batch);
+			if (shaderstate.mode == BEM_STANDARD)
+				R_DrawSkyChain (batch);
 			continue;
 		}
 
 		BE_SubmitBatch(batch);
+	}
+}
+
+
+/*generates a new modelview matrix, as well as vpn vectors*/
+static void R_MirrorMatrix(plane_t *plane)
+{
+	float mirror[16];
+	float view[16];
+	float result[16];
+
+	vec3_t pnorm;
+	VectorNegate(plane->normal, pnorm);
+
+	mirror[0] = 1-2*pnorm[0]*pnorm[0];
+	mirror[1] = -2*pnorm[0]*pnorm[1];
+	mirror[2] = -2*pnorm[0]*pnorm[2];
+	mirror[3] = 0;
+
+	mirror[4] = -2*pnorm[1]*pnorm[0];
+	mirror[5] = 1-2*pnorm[1]*pnorm[1];
+	mirror[6] = -2*pnorm[1]*pnorm[2] ;
+	mirror[7] = 0;
+
+	mirror[8]  = -2*pnorm[2]*pnorm[0];
+	mirror[9]  = -2*pnorm[2]*pnorm[1];
+	mirror[10] = 1-2*pnorm[2]*pnorm[2];
+	mirror[11] = 0;
+
+	mirror[12] = -2*pnorm[0]*plane->dist;
+	mirror[13] = -2*pnorm[1]*plane->dist;
+	mirror[14] = -2*pnorm[2]*plane->dist;
+	mirror[15] = 1;
+
+	view[0] = vpn[0];
+	view[1] = vpn[1];
+	view[2] = vpn[2];
+	view[3] = 0;
+
+	view[4] = -vright[0];
+	view[5] = -vright[1];
+	view[6] = -vright[2];
+	view[7] = 0;
+
+	view[8]  = vup[0];
+	view[9]  = vup[1];
+	view[10] = vup[2];
+	view[11] = 0;
+
+	view[12] = r_refdef.vieworg[0];
+	view[13] = r_refdef.vieworg[1];
+	view[14] = r_refdef.vieworg[2];
+	view[15] = 1;
+
+	VectorMA(r_refdef.vieworg, 0.25, plane->normal, r_refdef.pvsorigin);
+
+	Matrix4_Multiply(mirror, view, result);
+
+	vpn[0] = result[0];
+	vpn[1] = result[1];
+	vpn[2] = result[2];
+
+	vright[0] = -result[4];
+	vright[1] = -result[5];
+	vright[2] = -result[6];
+
+	vup[0] = result[8];
+	vup[1] = result[9];
+	vup[2] = result[10];
+
+	r_refdef.vieworg[0] = result[12];
+	r_refdef.vieworg[1] = result[13];
+	r_refdef.vieworg[2] = result[14];
+}
+static entity_t *R_NearestPortal(plane_t *plane)
+{
+	int i;
+	entity_t *best = NULL;
+	float dist, bestd = 0;
+	for (i = 0; i < cl_numvisedicts; i++)
+	{
+		if (cl_visedicts[i].rtype == RT_PORTALSURFACE)
+		{
+			dist = DotProduct(cl_visedicts[i].origin, plane->normal)-plane->dist;
+			dist = fabs(dist);
+			if (dist < 64 && (!best || dist < bestd))
+				best = &cl_visedicts[i];
+		}
+	}
+	return best;
+}
+
+static void TransformCoord(vec3_t in, vec3_t planea[3], vec3_t planeo, vec3_t viewa[3], vec3_t viewo, vec3_t result)
+{
+	int		i;
+	vec3_t	local;
+	vec3_t	transformed;
+	float	d;
+
+	local[0] = in[0] - planeo[0];
+	local[1] = in[1] - planeo[1];
+	local[2] = in[2] - planeo[2];
+
+	VectorClear(transformed);
+	for ( i = 0 ; i < 3 ; i++ )
+	{
+		d = DotProduct(local, planea[i]);
+		VectorMA(transformed, d, viewa[i], transformed);
+	}
+
+	result[0] = transformed[0] + viewo[0];
+	result[1] = transformed[1] + viewo[1];
+	result[2] = transformed[2] + viewo[2];
+}
+static void TransformDir(vec3_t in, vec3_t planea[3], vec3_t viewa[3], vec3_t result)
+{
+	int		i;
+	float	d;
+	vec3_t tmp;
+
+	VectorCopy(in, tmp);
+
+	VectorClear(result);
+	for ( i = 0 ; i < 3 ; i++ )
+	{
+		d = DotProduct(tmp, planea[i]);
+		VectorMA(result, d, viewa[i], result);
+	}
+}
+static R_RenderScene(void)
+{
+	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)r_refdef.m_projection);
+	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)r_refdef.m_view);
+	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+	Surf_DrawWorld();
+}
+
+static void R_DrawPortal(batch_t *batch, batch_t **blist)
+{
+	entity_t *view;
+	float glplane[4];
+	plane_t plane;
+	refdef_t oldrefdef;
+	mesh_t *mesh = batch->mesh[batch->firstmesh];
+	int sort;
+
+	if (r_refdef.recurse)
+		return;
+
+	VectorCopy(mesh->normals_array[0], plane.normal);
+	plane.dist = DotProduct(mesh->xyz_array[0], plane.normal);
+
+	//if we're too far away from the surface, don't draw anything
+	if (batch->shader->flags & SHADER_AGEN_PORTAL)
+	{
+		/*there's a portal alpha blend on that surface, that fades out after this distance*/
+		if (DotProduct(r_refdef.vieworg, plane.normal)-plane.dist > batch->shader->portaldist)
+			return;
+	}
+	//if we're behind it, then also don't draw anything.
+	if (DotProduct(r_refdef.vieworg, plane.normal)-plane.dist < 0)
+		return;
+
+	view = R_NearestPortal(&plane);
+	//if (!view)
+	//	return;
+
+	oldrefdef = r_refdef;
+	r_refdef.recurse = true;
+
+	r_refdef.externalview = true;
+
+	if (!view || VectorCompare(view->origin, view->oldorigin))
+	{
+		r_refdef.flipcull ^= true;
+		R_MirrorMatrix(&plane);
+	}
+	else
+	{
+		float d;
+		vec3_t paxis[3], porigin, vaxis[3], vorg;
+		void PerpendicularVector( vec3_t dst, const vec3_t src );
+
+		/*calculate where the surface is meant to be*/
+		VectorCopy(mesh->normals_array[0], paxis[0]);
+		PerpendicularVector(paxis[1], paxis[0]);
+		CrossProduct(paxis[0], paxis[1], paxis[2]);
+		d = DotProduct(view->origin, plane.normal) - plane.dist;
+		VectorMA(view->origin, -d, paxis[0], porigin);
+
+		/*grab the camera origin*/
+		VectorNegate(view->axis[0], vaxis[0]);
+		VectorNegate(view->axis[1], vaxis[1]);
+		VectorCopy(view->axis[2], vaxis[2]);
+		VectorCopy(view->oldorigin, vorg);
+
+		VectorCopy(vorg, r_refdef.pvsorigin);
+
+		/*rotate it a bit*/
+		RotatePointAroundVector(vaxis[1], vaxis[0], view->axis[1], sin(realtime)*4);
+		CrossProduct(vaxis[0], vaxis[1], vaxis[2]);
+
+		TransformCoord(oldrefdef.vieworg, paxis, porigin, vaxis, vorg, r_refdef.vieworg);
+		TransformDir(vpn, paxis, vaxis, vpn);
+		TransformDir(vright, paxis, vaxis, vright);
+		TransformDir(vup, paxis, vaxis, vup);
+	}
+	Matrix4_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
+	VectorAngles(vpn, vup, r_refdef.viewangles);
+	VectorCopy(r_refdef.vieworg, r_origin);
+
+/*FIXME: the batch stuff should be done in renderscene*/
+
+	/*fixup the first mesh index*/
+	for (sort = 0; sort < SHADER_SORT_COUNT; sort++)
+	for (batch = blist[sort]; batch; batch = batch->next)
+	{
+		batch->firstmesh = batch->meshes;
+	}
+
+	/*FIXME: can we get away with stenciling the screen?*/
+	/*Add to frustum culling instead of clip planes?*/
+	glplane[0] = plane.normal[0];
+	glplane[1] = plane.normal[1];
+	glplane[2] = plane.normal[2];
+	glplane[3] = -plane.dist;
+	IDirect3DDevice9_SetClipPlane(pD3DDev9, 0, glplane);
+	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CLIPPLANEENABLE, D3DCLIPPLANE0);
+	R_RenderScene();
+	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CLIPPLANEENABLE, 0);
+
+	for (sort = 0; sort < SHADER_SORT_COUNT; sort++)
+	for (batch = blist[sort]; batch; batch = batch->next)
+	{
+		batch->firstmesh = 0;
+	}
+	r_refdef = oldrefdef;
+
+	/*broken stuff*/
+	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
+	VectorCopy (r_refdef.vieworg, r_origin);
+
+	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)r_refdef.m_projection);
+	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)r_refdef.m_view);
+	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+}
+
+static void BE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
+{
+	batch_t *batch, *old;
+	int i;
+	/*attempt to draw portal shaders*/
+	if (shaderstate.mode == BEM_STANDARD)
+	{
+		for (i = 0; i < 2; i++)
+		{
+			for (batch = i?dynamiclist:worldlist[SHADER_SORT_PORTAL]; batch; batch = batch->next)
+			{
+				if (batch->meshes == batch->firstmesh)
+					continue;
+
+				if (batch->buildmeshes)
+					batch->buildmeshes(batch);
+				else
+					batch->shader = R_TextureAnimation(batch->ent->framestate.g[FS_REG].frame[0], batch->texture)->shader;
+
+
+				/*draw already-drawn portals as depth-only, to ensure that their contents are not harmed*/
+				BE_SelectMode(BEM_DEPTHONLY, 0);
+				for (old = worldlist[SHADER_SORT_PORTAL]; old && old != batch; old = old->next)
+				{
+					if (old->meshes == old->firstmesh)
+						continue;
+					BE_SubmitBatch(old);
+				}
+				if (!old)
+				{
+					for (old = dynamiclist; old != batch; old = old->next)
+					{
+						if (old->meshes == old->firstmesh)
+							continue;
+						BE_SubmitBatch(old);
+					}
+				}
+				BE_SelectMode(BEM_STANDARD, 0);
+
+				R_DrawPortal(batch, worldlist);
+
+				/*clear depth again*/
+				IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1, 0);
+			}
+		}
 	}
 }
 
@@ -2091,8 +2443,8 @@ void BE_SubmitMeshes (qboolean drawworld, batch_t **blist)
 	{
 		if (drawworld)
 		{
-//			if (i == SHADER_SORT_PORTAL && !r_noportals.ival && !r_refdef.recurse)
-//				BE_SubmitMeshesPortals(model->batches, blist[i]);
+			if (i == SHADER_SORT_PORTAL /*&& !r_noportals.ival*/ && !r_refdef.recurse)
+				BE_SubmitMeshesPortals(model->batches, blist[i]);
 
 			BE_SubmitMeshesSortList(model->batches[i]);
 		}
@@ -2104,6 +2456,8 @@ void BE_DrawWorld (qbyte *vis)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
 	RSpeedLocals();
+
+	shaderstate.curentity = NULL;
 
 	if (!r_refdef.recurse)
 	{
@@ -2118,8 +2472,6 @@ void BE_DrawWorld (qbyte *vis)
 	}
 
 	BE_GenModelBatches(batches);
-
-	shaderstate.curtime = realtime;
 
 	if (vis)
 	{

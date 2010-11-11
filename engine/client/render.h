@@ -31,6 +31,9 @@ extern int		r_framecount;
 
 struct msurface_s;
 struct batch_s;
+struct model_s;
+struct texnums_s;
+struct texture_s;
 
 static const texid_t r_nulltex = {0};
 #define TEXVALID(t) ((t).num!=0)
@@ -155,16 +158,16 @@ extern	struct texture_s	*r_notexture_mip;
 
 extern	entity_t	r_worldentity;
 
-
 //gl_alias.c
 void R_GAlias_DrawBatch(struct batch_s *batch);
 void R_GAlias_GenerateBatches(entity_t *e, struct batch_s **batches);
-void R_LightArraysByte(vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3_t *normals);
+void R_LightArraysByte_BGR(vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3_t *normals);
 void R_LightArrays(vecV_t *coords, vec4_t *colours, int vertcount, vec3_t *normals);
 
+void R_DrawSkyChain (struct batch_s *batch); /*called from the backend, and calls back into it*/
+struct texnums_s R_InitSky (struct texture_s *mt, qbyte *src); /*generate q1 sky texnums*/
+
 //r_surf.c
-struct model_s;
-struct msurface_s;
 void Surf_DrawWorld(void);
 void Surf_GenBrushBatches(struct batch_s **batches, entity_t *ent);
 void Surf_StainSurf(struct msurface_s *surf, float *parms);
@@ -412,7 +415,7 @@ extern cvar_t	r_xflip;
 #endif
 
 extern cvar_t gl_maxdist;
-extern	cvar_t	gl_clear;
+extern	cvar_t	r_clear;
 extern	cvar_t	gl_poly;
 extern	cvar_t	gl_affinemodels;
 extern	cvar_t	gl_nohwblend;

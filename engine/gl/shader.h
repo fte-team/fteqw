@@ -211,6 +211,7 @@ typedef struct shaderpass_s {
 
 	enum {
 		SHADER_PASS_NOMIPMAP    = 1<<1,
+		SHADER_PASS_CLAMP		= 1<<2,
 		SHADER_PASS_NOCOLORARRAY = 1<< 3,
 
 		//FIXME: remove these
@@ -402,6 +403,7 @@ void BE_SelectMode(backendmode_t mode, unsigned int flags);
   Rules for using a list: Every mesh must be part of the same VBO, shader, lightmap, and must have the same pointers set*/
 void BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **mesh, vbo_t *vbo, texnums_t *texnums);
 void BE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums);
+void BE_SubmitBatch(batch_t *batch);
 batch_t *BE_GetTempBatch(void);
 
 //Asks the backend to invoke DrawMeshChain for each surface, and to upload lightmaps as required

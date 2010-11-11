@@ -327,7 +327,7 @@ extern cvar_t r_glsl_offsetmapping, r_noportals;
 #endif
 
 static void BE_SendPassBlendAndDepth(unsigned int sbits);
-static void BE_SubmitBatch(batch_t *batch);
+void BE_SubmitBatch(batch_t *batch);
 
 struct {
 	//internal state
@@ -2641,7 +2641,7 @@ void BE_DrawPolys(qboolean decalsset)
 		BE_DrawMesh_Single(cl_stris[i].shader, &m, NULL, &cl_stris[i].shader->defaulttextures);
 	}
 }
-static void BE_SubmitBatch(batch_t *batch)
+void BE_SubmitBatch(batch_t *batch)
 {
 	model_t *model = cl.worldmodel;
 	int lm;

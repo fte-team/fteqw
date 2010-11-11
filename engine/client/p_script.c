@@ -518,6 +518,7 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 			namepostfix = "_blend";
 			defaultshader =
 				"{\n"
+					"nomipmaps\n"
 					"{\n"
 						"map $diffuse\n"
 						"blendfunc blend\n"
@@ -532,6 +533,7 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 			namepostfix = "_bc";
 			defaultshader =
 				"{\n"
+					"nomipmaps\n"
 					"{\n"
 						"map $diffuse\n"
 						"blendfunc GL_SRC_COLOR GL_ONE_MINUS_SRC_COLOR\n"
@@ -546,6 +548,7 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 			namepostfix = "_add";
 			defaultshader =
 				"{\n"
+					"nomipmaps\n"
 					"{\n"
 						"map $diffuse\n"
 						"blendfunc GL_SRC_ALPHA GL_ONE\n"
@@ -560,6 +563,7 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 			namepostfix = "_invmod";
 			defaultshader =
 				"{\n"
+					"nomipmaps\n"
 					"{\n"
 						"map $diffuse\n"
 						"blendfunc GL_ZERO GL_ONE_MINUS_SRC_COLOR\n"
@@ -574,6 +578,7 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 			namepostfix = "_sub";
 			defaultshader =
 				"{\n"
+					"nomipmaps\n"
 					"{\n"
 						"map $diffuse\n"
 						"blendfunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_COLOR\n"

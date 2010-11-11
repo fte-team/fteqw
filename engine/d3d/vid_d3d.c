@@ -1122,17 +1122,24 @@ static void D3D9_SetupViewPort(void)
 
 	screenaspect = (float)r_refdef.vrect.width/r_refdef.vrect.height;
 
-	Matrix4_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value);
+	/*view matrix*/
 	Matrix4_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
+	d3d9error(IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)r_refdef.m_view));
 
-	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)r_refdef.m_projection);
-	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)r_refdef.m_view);
+	/*d3d projection matricies scale depth to 0 to 1*/
+	Matrix4_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value/2);
+	d3d9error(IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)r_refdef.m_projection));
+	/*ogl projection matricies scale depth to -1 to 1, and I would rather my code used consistant culling*/
+	Matrix4_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value);
 }
 
 static void	(D3D9_R_RenderView)				(void)
 {
 	D3D9_SetupViewPort();
-	d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET| D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1, 0));
+	if (r_clear.ival && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+		d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1, 0));
+	else
+		d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1, 0));
 	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
 	RQ_BeginFrame();
 	Surf_DrawWorld();

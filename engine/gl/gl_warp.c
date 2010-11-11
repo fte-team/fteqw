@@ -458,6 +458,9 @@ static void GL_SkyForceDepth(batch_t *batch)
 
 static void GL_DrawSkySphere (batch_t *batch, shader_t *shader)
 {
+	static entity_t skyent;
+	batch_t b;
+	mesh_t *m;
 	float time = cl.gametime+realtime-cl.gametimemark;
 
 	float skydist = gl_maxdist.value;
@@ -465,18 +468,28 @@ static void GL_DrawSkySphere (batch_t *batch, shader_t *shader)
 		skydist=gl_skyboxdist.value;
 	skydist/=16;
 
-	#ifdef GLQUAKE
-	BE_SelectEntity(&r_worldentity);
-	//scale sky sphere and place around view origin.
-	qglPushMatrix();
-	qglTranslatef(r_refdef.vieworg[0], r_refdef.vieworg[1], r_refdef.vieworg[2]);
-	qglScalef(skydist, skydist, skydist);
+	VectorCopy(r_refdef.vieworg, skyent.origin);
+	skyent.axis[0][0] = skydist;
+	skyent.axis[0][1] = 0;
+	skyent.axis[0][3] = 0;
+	skyent.axis[1][0] = 0;
+	skyent.axis[1][1] = skydist;
+	skyent.axis[1][2] = 0;
+	skyent.axis[2][0] = 0;
+	skyent.axis[2][1] = 0;
+	skyent.axis[2][2] = skydist;
+	skyent.scale = 1;
 
 //FIXME: We should use the skybox clipping code and split the sphere into 6 sides.
 	gl_skyspherecalc(2);
-	BE_DrawMesh_Single(shader, &skymesh, NULL, &batch->shader->defaulttextures);
-	qglPopMatrix();
-	#endif
+	b = *batch;
+	b.meshes = 1;
+	b.firstmesh = 0;
+	m = &skymesh;
+	b.mesh = &m;
+	b.ent = &skyent;
+	b.shader = shader;
+	BE_SubmitBatch(&b);
 }
 
 

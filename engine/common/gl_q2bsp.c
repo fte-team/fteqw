@@ -1364,7 +1364,7 @@ qboolean CMod_LoadFaces (lump_t *l)
 		i = LittleLong(in->lightofs);
 		if (i == -1)
 			out->samples = NULL;
-#ifdef GLQUAKE
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 		else if (qrenderer == QR_OPENGL || qrenderer == QR_DIRECT3D)
 			out->samples = loadmodel->lightdata + i;
 #endif
@@ -3835,7 +3835,8 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 			loadmodel->funcs.NativeContents			= CM_NativeContents;
 
 			break;
-#if defined(GLQUAKE)
+#if defined(GLQUAKE) || defined(D3DQUAKE)
+		case QR_DIRECT3D:
 		case QR_OPENGL:
 		// load into heap
 		#ifndef SERVERONLY

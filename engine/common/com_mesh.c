@@ -898,7 +898,7 @@ avec3_t shadelight;
 #include <xmmintrin.h>
 #endif
 
-void R_LightArraysByte(vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3_t *normals)
+void R_LightArraysByte_BGR(vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3_t *normals)
 {
 	extern cvar_t r_vertexdlights;
 	int i;
@@ -908,8 +908,13 @@ void R_LightArraysByte(vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3
 	byte_vec4_t ambientlightb;
 	byte_vec4_t shadelightb;
 
-	VectorScale(ambientlight, 255, ambientlightb); 
-	VectorScale(shadelight, 255, shadelightb); 
+	for (i = 0; i < 3; i++)
+	{
+		l = ambientlight[2-i]*255;
+		ambientlightb[i] = bound(0, l, 255);
+		l = shadelight[2-i]*255;
+		shadelightb[i] = bound(0, l, 255);
+	}
 
 	if (ambientlightb[0] == shadelightb[0] && ambientlightb[1] == shadelightb[1] && ambientlightb[2] == shadelightb[2])
 	{

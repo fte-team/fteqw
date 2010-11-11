@@ -132,7 +132,6 @@ extern "C" {
 #include "net.h"
 #include "protocol.h"
 #include "cmd.h"
-#if 1//ndef SERVERONLY
 #include "wad.h"
 #include "screen.h"
 #include "sbar.h"
@@ -140,16 +139,9 @@ extern "C" {
 #include "merged.h"
 #include "render.h"
 #include "client.h"
-#endif
+#include "gl_model.h"
 
 #include "vm.h"
-
-
-//#if defined(GLQUAKE)
-#include "gl_model.h"
-//#else
-//#include "model.h"
-//#endif
 
 #ifdef PEXT_BULLETENS
 #include "r_bulleten.h"

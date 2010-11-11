@@ -198,7 +198,7 @@ static LPDIRECT3DBASETEXTURE9 D3D9_LoadTexture_32(d3dtexture_t *tex, unsigned in
 	return (LPDIRECT3DBASETEXTURE9)newsurf;
 }
 
-static LPDIRECT3DBASETEXTURE9 D3D9_LoadTexture_8(d3dtexture_t *tex, unsigned char *data, int width, int height, int flags, enum uploadfmt fmt)
+static LPDIRECT3DBASETEXTURE9 D3D9_LoadTexture_8(d3dtexture_t *tex, unsigned char *data, unsigned int *pal32, int width, int height, int flags, enum uploadfmt fmt)
 {
 	static unsigned	trans[1024*1024];
 	int			i, s;
@@ -218,11 +218,11 @@ static LPDIRECT3DBASETEXTURE9 D3D9_LoadTexture_8(d3dtexture_t *tex, unsigned cha
 			p = data[i];
 			noalpha = true;
 			if (p > 255-vid.fullbright)
-				trans[i] = d_8to24rgbtable[p];
+				trans[i] = pal32[p];
 			else
 			{
 				noalpha = false;
-				trans[i] = d_8to24rgbtable[p] & 0x00ffffff;
+				trans[i] = pal32[p] & 0x00ffffff;
 			}
 		}
 	}
@@ -238,7 +238,7 @@ static LPDIRECT3DBASETEXTURE9 D3D9_LoadTexture_8(d3dtexture_t *tex, unsigned cha
 				trans[i] = 0;
 			}
 			else
-				trans[i] = d_8to24rgbtable[p];
+				trans[i] = pal32[p];
 		}
 
 		switch(fmt)
@@ -291,14 +291,14 @@ static LPDIRECT3DBASETEXTURE9 D3D9_LoadTexture_8(d3dtexture_t *tex, unsigned cha
 	{
 		for (i=(s&~3)-4 ; i>=0 ; i-=4)
 		{
-			trans[i] = d_8to24rgbtable[data[i]];
-			trans[i+1] = d_8to24rgbtable[data[i+1]];
-			trans[i+2] = d_8to24rgbtable[data[i+2]];
-			trans[i+3] = d_8to24rgbtable[data[i+3]];
+			trans[i] = pal32[data[i]];
+			trans[i+1] = pal32[data[i+1]];
+			trans[i+2] = pal32[data[i+2]];
+			trans[i+3] = pal32[data[i+3]];
 		}
 		for (i=s&~3 ; i<s ; i++)	//wow, funky
 		{
-			trans[i] = d_8to24rgbtable[data[i]];
+			trans[i] = pal32[data[i]];
 		}
 	}
 	return D3D9_LoadTexture_32(tex, trans, width, height, flags);
@@ -348,7 +348,7 @@ texid_t D3D9_LoadTexture (char *identifier, int width, int height, enum uploadfm
 	case TF_H2_TRANS8_0:
 	case TF_H2_T4A4:
 	case TF_TRANS8_FULLBRIGHT:
-		tid.ptr = D3D9_LoadTexture_8(tex, data, width, height, flags, fmt);
+		tid.ptr = D3D9_LoadTexture_8(tex, data, d_8to24rgbtable, width, height, flags, fmt);
 		return tid;
 	case TF_RGBA32:
 		tid.ptr = D3D9_LoadTexture_32(tex, data, width, height, flags);
@@ -372,11 +372,22 @@ texid_t D3D9_FindTexture (char *identifier)
 
 texid_t D3D9_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags)
 {
-	return r_nulltex;
+	d3dtexture_t *tex = d3d_lookup_texture(identifier);
+	tex->tex.ptr = D3D9_LoadTexture_8(tex, data, (unsigned int *)palette32, width, height, flags, TF_SOLID8);
+	return tex->tex;
 }
 texid_t D3D9_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags)
 {
-	return r_nulltex;
+	unsigned int pal32[256];
+	int i;
+	for (i = 0; i < 256; i++)
+	{
+		pal32[i] = 0x00000000 |
+				(palette24[i*3+2]<<24) |
+				(palette24[i*3+1]<<8) |
+				(palette24[i*3+0]<<0);
+	}
+	return D3D9_LoadTexture8Pal32(identifier, width, height, data, pal32, flags);
 }
 
 #endif

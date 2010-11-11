@@ -2082,7 +2082,7 @@ void Surf_DrawWorld (void)
 		RSpeedRemark();
 
 #ifdef Q2BSPS
-		if (currententity->model->fromgame == fg_quake2 || currententity->model->fromgame == fg_quake3)
+		if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
 		{
 			int leafnum;
 			int clientarea;
@@ -2132,7 +2132,8 @@ void Surf_DrawWorld (void)
 
 
 		/*FIXME: move this away*/
-		Surf_LessenStains();
+		if (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife)
+			Surf_LessenStains();
 
 		Surf_CleanChains();
 	}

@@ -74,7 +74,6 @@ cvar_t	r_norefresh = SCVAR("r_norefresh","0");
 extern cvar_t	gl_part_flame;
 extern cvar_t	r_bloom;
 
-cvar_t	gl_clear = SCVAR("gl_clear","0");
 cvar_t	gl_affinemodels = SCVAR("gl_affinemodels","0");
 cvar_t	gl_playermip = SCVAR("gl_playermip","0");
 cvar_t	gl_reporttjunctions = SCVAR("gl_reporttjunctions","0");
@@ -1404,7 +1403,7 @@ void R_Clear (void)
 	/*tbh, this entire function should be in the backend*/
 	GL_ForceDepthWritable();
 	{
-		if (gl_clear.value && !r_secondaryview && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+		if (r_clear.ival && !r_secondaryview && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 			qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		else
 			qglClear (GL_DEPTH_BUFFER_BIT);

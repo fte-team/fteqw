@@ -266,6 +266,8 @@ cvar_t gl_lightmap_shift					= SCVARF ("gl_lightmap_shift", "0",
 cvar_t gl_load24bit							= SCVARF ("gl_load24bit", "1",
 												CVAR_ARCHIVE);
 
+cvar_t	r_clear								= CVARAF("r_clear","0",
+													 "gl_clear", 0);
 cvar_t gl_max_size							= SCVARF  ("gl_max_size", "1024", CVAR_RENDERERLATCH);
 cvar_t gl_maxshadowlights					= SCVARF ("gl_maxshadowlights", "2",
 												CVAR_ARCHIVE);
@@ -368,9 +370,6 @@ void GLRenderer_Init(void)
 //renderer
 	Cvar_Register (&r_mirroralpha, GLRENDEREROPTIONS);
 	Cvar_Register (&r_norefresh, GLRENDEREROPTIONS);
-
-
-	Cvar_Register (&gl_clear, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_affinemodels, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_nohwblend, GLRENDEREROPTIONS);
@@ -604,6 +603,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_fastskycolour, GRAPHICALNICETIES);
 	Cvar_Register (&r_wateralpha, GRAPHICALNICETIES);
 
+	Cvar_Register (&r_clear, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_max_size, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_maxdist, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_miptexLevel, GRAPHICALNICETIES);

@@ -1122,6 +1122,7 @@ static void Shaderpass_ClampMap (shader_t *shader, shaderpass_t *pass, char **pt
 	pass->tcgen = TC_GEN_BASE;
 	pass->anim_frames[0] = Shader_FindImage (token, flags | IF_CLAMP);
 	pass->texgen = T_GEN_SINGLEMAP;
+	pass->flags |= SHADER_PASS_CLAMP;
 
 	if (!TEXVALID(pass->anim_frames[0]))
 	{

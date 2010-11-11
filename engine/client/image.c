@@ -558,12 +558,12 @@ return NULL;
 		#define LIBPNG_LOADED() (libpng_handle != NULL)
 	#else
 		#define LIBPNG_LOADED() 1
+		#define PSTATIC(n) = &n
 		#ifdef _MSC_VER
 			#ifdef _WIN64
 				#pragma comment(lib, MSVCLIBSPATH "libpng64.lib")
 			#else
 				#pragma comment(lib, MSVCLIBSPATH "libpng.lib")
-				#define PSTATIC(n) = &n
 			#endif
 		#endif
 	#endif

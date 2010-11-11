@@ -188,13 +188,13 @@ typedef unsigned int JDIMENSION;
  */
 
 /* a function called through method pointers: */
-#define METHODDEF(type)		static type
+#define METHODDEF(type)		static type JPEG_API
 /* a function used only in its module: */
 #define LOCAL(type)		static type
 /* a function referenced thru EXTERNs: */
-#define GLOBAL(type)		type
+#define GLOBAL(type)		type JPEG_API
 /* a reference to a GLOBAL function: */
-#define EXTERN(type)		extern type
+#define EXTERN(type)		extern type JPEG_API
 
 
 /* This macro is used to declare a "method", that is, a function pointer.
@@ -204,9 +204,9 @@ typedef unsigned int JDIMENSION;
  */
 
 #ifdef HAVE_PROTOTYPES
-#define JMETHOD(type,methodname,arglist)  type (*methodname) arglist
+#define JMETHOD(type,methodname,arglist)  type (JPEG_API *methodname) arglist
 #else
-#define JMETHOD(type,methodname,arglist)  type (*methodname) ()
+#define JMETHOD(type,methodname,arglist)  type (JPEG_API *methodname) ()
 #endif
 
 

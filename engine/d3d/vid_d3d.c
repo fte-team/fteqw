@@ -1132,7 +1132,7 @@ static void D3D9_SetupViewPort(void)
 static void	(D3D9_R_RenderView)				(void)
 {
 	D3D9_SetupViewPort();
-	d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1, 0));
+	d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET| D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1, 0));
 	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
 	RQ_BeginFrame();
 	Surf_DrawWorld();

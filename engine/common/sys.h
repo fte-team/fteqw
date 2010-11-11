@@ -56,6 +56,10 @@ void Sys_CloseLibrary(dllhandle_t *lib);
 void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname);
 char *Sys_GetNameForAddress(dllhandle_t *module, void *address);
 
+qboolean LibZ_Init(void);
+qboolean LibJPEG_Init(void);
+qboolean LibPNG_Init(void);
+
 unsigned int Sys_Milliseconds (void);
 double Sys_DoubleTime (void);
 

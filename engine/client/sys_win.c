@@ -59,7 +59,15 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 
 	lib = LoadLibrary(name);
 	if (!lib)
-		return NULL;
+	{
+#ifdef _WIN64
+		lib = LoadLibrary(va("%s_64", name));
+#elif defined(_WIN32)
+		lib = LoadLibrary(va("%s_32", name));
+#endif
+		if (!lib)
+			return NULL;
+	}
 
 	if (funcs)
 	{

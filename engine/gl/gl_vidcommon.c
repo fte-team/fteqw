@@ -1001,7 +1001,6 @@ rendererinfo_t openglrendererinfo = {
 	GLR_NewMap,
 	GLR_PreNewMap,
 	GLR_LightPoint,
-	GLR_PushDlights,
 
 
 	Surf_AddStain,

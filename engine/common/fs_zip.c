@@ -2,8 +2,202 @@
 #include "fs.h"
 
 #ifdef AVAIL_ZLIB
-
+#define ZEXPORT VARGS
 #include <zlib.h>
+
+typedef struct {
+	unsigned char ident1;
+	unsigned char ident2;
+	unsigned char cm;
+	unsigned char flags;
+	unsigned int mtime;
+	unsigned char xflags;
+	unsigned char os;
+} gzheader_t;
+#define sizeofgzheader_t 10
+
+#define	GZ_FTEXT	1
+#define	GZ_FHCRC	2
+#define GZ_FEXTRA	4
+#define GZ_FNAME	8
+#define GZ_FCOMMENT	16
+#define GZ_RESERVED (32|64|128)
+
+#ifdef DYNAMIC_ZLIB
+#define ZLIB_LOADED() (zlib_handle!=NULL)
+void *zlib_handle;
+#define ZSTATIC(n)
+#else
+#define ZLIB_LOADED() 1
+#define ZSTATIC(n) = &n
+
+#ifdef _MSC_VER
+# ifdef _WIN64
+#  pragma comment (lib, "../libs/zlib64.lib") 
+# else
+#  pragma comment (lib, "../libs/zlib.lib") 
+# endif
+#endif
+#endif
+
+static int (ZEXPORT *qinflateEnd) OF((z_streamp strm)) ZSTATIC(inflateEnd);
+static int (ZEXPORT *qinflate) OF((z_streamp strm, int flush)) ZSTATIC(inflate);
+static int (ZEXPORT *qinflateInit2_) OF((z_streamp strm, int  windowBits,
+                                      const char *version, int stream_size)) ZSTATIC(inflateInit2_);
+static uLong (ZEXPORT *qcrc32)   OF((uLong crc, const Bytef *buf, uInt len)) ZSTATIC(crc32); 
+
+#define qinflateInit2(strm, windowBits) \
+        qinflateInit2_((strm), (windowBits), ZLIB_VERSION, sizeof(z_stream))
+
+qboolean LibZ_Init(void)
+{
+	#ifdef DYNAMIC_ZLIB
+	static dllfunction_t funcs[] =
+	{
+		{(void*)&qinflateEnd,		"inflateEnd"},
+		{(void*)&qinflate,			"inflate"},
+		{(void*)&qinflateInit2_,	"inflateInit2_"},
+		{(void*)&qcrc32,			"crc32"},
+		{NULL, NULL}
+	};
+	if (!ZLIB_LOADED())
+		zlib_handle = Sys_LoadLibrary("zlib1", funcs);
+	#endif
+	return ZLIB_LOADED();
+}
+
+vfsfile_t *FS_DecompressGZip(vfsfile_t *infile)
+{
+	char inchar;
+	unsigned short inshort;
+	vfsfile_t *temp;
+	gzheader_t header;
+
+	if (VFS_READ(infile, &header, sizeofgzheader_t) == sizeofgzheader_t)
+	{
+		if (header.ident1 != 0x1f || header.ident2 != 0x8b || header.cm != 8 || header.flags & GZ_RESERVED)
+		{
+			VFS_SEEK(infile, 0);
+			return infile;
+		}
+	}
+	if (header.flags & GZ_FEXTRA)
+	{
+		VFS_READ(infile, &inshort, sizeof(inshort));
+		inshort = LittleShort(inshort);
+		VFS_SEEK(infile, VFS_TELL(infile) + inshort);
+	}
+
+	if (header.flags & GZ_FNAME)
+	{
+		Con_Printf("gzipped file name: ");
+		do {
+			if (VFS_READ(infile, &inchar, sizeof(inchar)) != 1)
+				break;
+			Con_Printf("%c", inchar);
+		} while(inchar);
+		Con_Printf("\n");
+	}
+
+	if (header.flags & GZ_FCOMMENT)
+	{
+		Con_Printf("gzipped file comment: ");
+		do {
+			if (VFS_READ(infile, &inchar, sizeof(inchar)) != 1)
+				break;
+			Con_Printf("%c", inchar);
+		} while(inchar);
+		Con_Printf("\n");
+	}
+
+	if (header.flags & GZ_FHCRC)
+	{
+		VFS_READ(infile, &inshort, sizeof(inshort));
+	}
+
+
+
+	temp = FS_OpenTemp();
+	if (!temp)
+	{
+		VFS_SEEK(infile, 0);	//doh
+		return infile;
+	}
+
+
+	{
+		unsigned char inbuffer[16384];
+		unsigned char outbuffer[16384];
+		int ret;
+
+		z_stream strm = {
+			inbuffer,
+			0,
+			0,
+
+			outbuffer,
+			sizeof(outbuffer),
+			0,
+
+			NULL,
+			NULL,
+
+			NULL,
+			NULL,
+			NULL,
+
+			Z_UNKNOWN,
+			0,
+			0
+		};
+
+		strm.avail_in = VFS_READ(infile, inbuffer, sizeof(inbuffer));
+		strm.next_in = inbuffer;
+
+		qinflateInit2(&strm, -MAX_WBITS);
+
+		while ((ret=qinflate(&strm, Z_SYNC_FLUSH)) != Z_STREAM_END)
+		{
+			if (strm.avail_in == 0 || strm.avail_out == 0)
+			{
+				if (strm.avail_in == 0)
+				{
+					strm.avail_in = VFS_READ(infile, inbuffer, sizeof(inbuffer));
+					strm.next_in = inbuffer;
+				}
+
+				if (strm.avail_out == 0)
+				{
+					strm.next_out = outbuffer;
+					VFS_WRITE(temp, outbuffer, strm.total_out);
+					strm.total_out = 0;
+					strm.avail_out = sizeof(outbuffer);
+				}
+				continue;
+			}
+
+			//doh, it terminated for no reason
+			qinflateEnd(&strm);
+			if (ret != Z_STREAM_END)
+			{
+				Con_Printf("Couldn't decompress gz file\n");
+				VFS_CLOSE(temp);
+				VFS_CLOSE(infile);
+				return NULL;
+			}
+		}
+		//we got to the end
+		VFS_WRITE(temp, outbuffer, strm.total_out);
+
+		qinflateEnd(&strm);
+
+		VFS_SEEK(temp, 0);
+	}
+	VFS_CLOSE(infile);
+
+	return temp;
+}
+
 #include "unzip.c"
 
 typedef struct
@@ -434,6 +628,11 @@ vfsfile_t *FSZIP_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 		vfsz->startpos = rawofs;
 		VFS_SEEK(zip->raw, vfsz->startpos);
 		vfsz->parent->currentfile = (vfsfile_t*)vfsz;
+	}
+	else if (!ZLIB_LOADED())
+	{
+		Z_Free(vfsz);
+		return NULL;
 	}
 
 	zip->references++;

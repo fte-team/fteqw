@@ -3,8 +3,11 @@
 #include "shader.h"
 #include <d3d9.h>
 
+#ifndef GLQUAKE
+/*shaders have a few GL_FOO constants in them. they shouldn't, but they do.*/
 #include <GL/gl.h>
 #include "glsupp.h"
+#endif
 
 extern LPDIRECT3DDEVICE9 pD3DDev9;
 
@@ -1455,6 +1458,11 @@ static void BE_DrawMeshChain_Internal(void)
 	{
 		if (!BE_DrawMeshChain_SetupPass(pass+passno, vertcount))
 			continue;
+#ifdef BENCH
+		shaderstate.bench.draws++;
+		if (shaderstate.bench.clamp && shaderstate.bench.clamp < shaderstate.bench.draws)
+			continue;
+#endif
 		d3dcheck(IDirect3DDevice9_DrawIndexedPrimitive(pD3DDev9, D3DPT_TRIANGLELIST, 0, 0, vertcount, idxfirst, idxcount/3));
 	}
 }

@@ -1,5 +1,5 @@
 /* jconfig.vc --- jconfig.h for Microsoft Visual C++ on Windows 95 or NT. */
-/* see jconfig.txt for explanations */
+/* see jconfig.doc for explanations */
 
 #define HAVE_PROTOTYPES
 #define HAVE_UNSIGNED_CHAR
@@ -20,7 +20,6 @@
 typedef unsigned char boolean;
 #endif
 #define HAVE_BOOLEAN		/* prevent jmorecfg.h from redefining it */
-
 
 #ifdef JPEG_INTERNALS
 

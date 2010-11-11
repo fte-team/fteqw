@@ -495,6 +495,9 @@ void R_SetRenderer_f (void);
 
 void Renderer_Init(void)
 {
+	LibJPEG_Init();
+	LibPNG_Init();
+
 	currentrendererstate.renderer = NULL;
 	qrenderer = QR_NONE;
 

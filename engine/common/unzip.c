@@ -661,7 +661,7 @@ extern int ZEXPORT unzOpenCurrentFile (unzFile file) {
 	  pfile_in_zip_read_info->stream.zfree = (free_func)0;
 	  pfile_in_zip_read_info->stream.opaque = (voidpf)0; 
       
-	  err=inflateInit2(&pfile_in_zip_read_info->stream, -MAX_WBITS);
+	  err=qinflateInit2(&pfile_in_zip_read_info->stream, -MAX_WBITS);
 	  if (err == Z_OK) pfile_in_zip_read_info->stream_initialised=1;
         /* windowBits is passed < 0 to tell that there is no zlib header.
          * Note that in this case inflate *requires* an extra "dummy" byte
@@ -811,7 +811,7 @@ extern int ZEXPORT unzReadCurrentFile  (unzFile file, voidp buf, unsigned len) {
 			for (i=0;i<uDoCopy;i++)
 				*(pfile_in_zip_read_info->stream.next_out+i) = *(pfile_in_zip_read_info->stream.next_in+i);
 					
-			pfile_in_zip_read_info->crc32 = crc32(pfile_in_zip_read_info->crc32, pfile_in_zip_read_info->stream.next_out, uDoCopy);
+			pfile_in_zip_read_info->crc32 = qcrc32(pfile_in_zip_read_info->crc32, pfile_in_zip_read_info->stream.next_out, uDoCopy);
 			pfile_in_zip_read_info->rest_read_uncompressed-=uDoCopy;
 			pfile_in_zip_read_info->stream.avail_in -= uDoCopy;
 			pfile_in_zip_read_info->stream.avail_out -= uDoCopy;
@@ -828,12 +828,12 @@ extern int ZEXPORT unzReadCurrentFile  (unzFile file, voidp buf, unsigned len) {
 			uTotalOutBefore = pfile_in_zip_read_info->stream.total_out;
 			bufBefore = pfile_in_zip_read_info->stream.next_out;
 
-			err=inflate(&pfile_in_zip_read_info->stream,flush);
+			err=qinflate(&pfile_in_zip_read_info->stream,flush);
 
 			uTotalOutAfter = pfile_in_zip_read_info->stream.total_out;
 			uOutThis = uTotalOutAfter-uTotalOutBefore;
 			
-			pfile_in_zip_read_info->crc32 = crc32(pfile_in_zip_read_info->crc32,bufBefore, (unsigned int)(uOutThis));
+			pfile_in_zip_read_info->crc32 = qcrc32(pfile_in_zip_read_info->crc32,bufBefore, (unsigned int)(uOutThis));
 
 			pfile_in_zip_read_info->rest_read_uncompressed -= uOutThis;
 
@@ -948,7 +948,7 @@ extern int ZEXPORT unzCloseCurrentFile (unzFile file) {
 
 	TRYFREE(pfile_in_zip_read_info->read_buffer);
 	pfile_in_zip_read_info->read_buffer = NULL;
-	if (pfile_in_zip_read_info->stream_initialised)	inflateEnd(&pfile_in_zip_read_info->stream);
+	if (pfile_in_zip_read_info->stream_initialised)	qinflateEnd(&pfile_in_zip_read_info->stream);
 
 	pfile_in_zip_read_info->stream_initialised = 0;
 	TRYFREE(pfile_in_zip_read_info);

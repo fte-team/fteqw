@@ -72,6 +72,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define AVAIL_D3D
 #endif
 
+//#define DYNAMIC_ZLIB
+//#define DYNAMIC_LIBPNG
+//#define DYNAMIC_LIBJPEG
+
 #ifdef _WIN32
 //needs testing on other platforms
 #define AVAIL_FREETYPE

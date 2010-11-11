@@ -13,14 +13,6 @@
 #include "./mingw-libs/SDL_syswm.h" // mingw sdl cross binary complains off sys_parentwindow
 #endif
 
-#ifdef _MSC_VER
-# ifdef _WIN64
-#  pragma comment (lib, "../libs/zlib64.lib") 
-# else
-#  pragma comment (lib, "../libs/zlib.lib") 
-# endif
-#endif
-
 hashtable_t filesystemhash;
 qboolean com_fschanged = true;
 static unsigned int fs_restarts;
@@ -761,158 +753,6 @@ static const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen
 	return NULL;
 }
 
-#ifdef AVAIL_ZLIB
-typedef struct {
-	unsigned char ident1;
-	unsigned char ident2;
-	unsigned char cm;
-	unsigned char flags;
-	unsigned int mtime;
-	unsigned char xflags;
-	unsigned char os;
-} gzheader_t;
-#define sizeofgzheader_t 10
-
-#define	GZ_FTEXT	1
-#define	GZ_FHCRC	2
-#define GZ_FEXTRA	4
-#define GZ_FNAME	8
-#define GZ_FCOMMENT	16
-#define GZ_RESERVED (32|64|128)
-
-#include <zlib.h>
-
-vfsfile_t *FS_DecompressGZip(vfsfile_t *infile, gzheader_t *header)
-{
-	char inchar;
-	unsigned short inshort;
-	vfsfile_t *temp;
-
-	if (header->flags & GZ_RESERVED)
-	{	//reserved bits should be 0
-		//this is probably static, so it's not a gz. doh.
-		VFS_SEEK(infile, 0);
-		return infile;
-	}
-
-	if (header->flags & GZ_FEXTRA)
-	{
-		VFS_READ(infile, &inshort, sizeof(inshort));
-		inshort = LittleShort(inshort);
-		VFS_SEEK(infile, VFS_TELL(infile) + inshort);
-	}
-
-	if (header->flags & GZ_FNAME)
-	{
-		Con_Printf("gzipped file name: ");
-		do {
-			if (VFS_READ(infile, &inchar, sizeof(inchar)) != 1)
-				break;
-			Con_Printf("%c", inchar);
-		} while(inchar);
-		Con_Printf("\n");
-	}
-
-	if (header->flags & GZ_FCOMMENT)
-	{
-		Con_Printf("gzipped file comment: ");
-		do {
-			if (VFS_READ(infile, &inchar, sizeof(inchar)) != 1)
-				break;
-			Con_Printf("%c", inchar);
-		} while(inchar);
-		Con_Printf("\n");
-	}
-
-	if (header->flags & GZ_FHCRC)
-	{
-		VFS_READ(infile, &inshort, sizeof(inshort));
-	}
-
-
-
-	temp = FS_OpenTemp();
-	if (!temp)
-	{
-		VFS_SEEK(infile, 0);	//doh
-		return infile;
-	}
-
-
-	{
-		unsigned char inbuffer[16384];
-		unsigned char outbuffer[16384];
-		int ret;
-
-		z_stream strm = {
-			inbuffer,
-			0,
-			0,
-
-			outbuffer,
-			sizeof(outbuffer),
-			0,
-
-			NULL,
-			NULL,
-
-			NULL,
-			NULL,
-			NULL,
-
-			Z_UNKNOWN,
-			0,
-			0
-		};
-
-		strm.avail_in = VFS_READ(infile, inbuffer, sizeof(inbuffer));
-		strm.next_in = inbuffer;
-
-		inflateInit2(&strm, -MAX_WBITS);
-
-		while ((ret=inflate(&strm, Z_SYNC_FLUSH)) != Z_STREAM_END)
-		{
-			if (strm.avail_in == 0 || strm.avail_out == 0)
-			{
-				if (strm.avail_in == 0)
-				{
-					strm.avail_in = VFS_READ(infile, inbuffer, sizeof(inbuffer));
-					strm.next_in = inbuffer;
-				}
-
-				if (strm.avail_out == 0)
-				{
-					strm.next_out = outbuffer;
-					VFS_WRITE(temp, outbuffer, strm.total_out);
-					strm.total_out = 0;
-					strm.avail_out = sizeof(outbuffer);
-				}
-				continue;
-			}
-
-			//doh, it terminated for no reason
-			inflateEnd(&strm);
-			if (ret != Z_STREAM_END)
-			{
-				Con_Printf("Couldn't decompress gz file\n");
-				VFS_CLOSE(temp);
-				VFS_CLOSE(infile);
-				return NULL;
-			}
-		}
-		//we got to the end
-		VFS_WRITE(temp, outbuffer, strm.total_out);
-
-		inflateEnd(&strm);
-
-		VFS_SEEK(temp, 0);
-	}
-	VFS_CLOSE(infile);
-
-	return temp;
-}
-#endif
-
 vfsfile_t *VFS_Filter(const char *filename, vfsfile_t *handle)
 {
 //	char *ext;
@@ -923,15 +763,7 @@ vfsfile_t *VFS_Filter(const char *filename, vfsfile_t *handle)
 #ifdef AVAIL_ZLIB
 //	if (!stricmp(ext, ".gz"))
 	{
-		gzheader_t gzh;
-		if (VFS_READ(handle, &gzh, sizeofgzheader_t) == sizeofgzheader_t)
-		{
-			if (gzh.ident1 == 0x1f && gzh.ident2 == 0x8b && gzh.cm == 8)
-			{	//it'll do
-				return FS_DecompressGZip(handle, &gzh);
-			}
-		}
-		VFS_SEEK(handle, 0);
+		return FS_DecompressGZip(handle);
 	}
 #endif
 	return handle;
@@ -2308,6 +2140,8 @@ void FS_Shutdown(void)
 void FS_StartupWithGame(int gamenum)
 {
 	int i;
+
+	LibZ_Init();
 
 	Cvar_Set(&com_gamename, gamemode_info[gamenum].protocolname);
 

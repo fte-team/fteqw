@@ -31,8 +31,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <ctype.h>
 
+#ifndef GLQUAKE
+/*the shaders have a few GL_FOO constants in them. they shouldn't, but they do.*/
 #include <GL/gl.h>
 #include "glsupp.h"
+#endif
 
 
 extern texid_t missing_texture;

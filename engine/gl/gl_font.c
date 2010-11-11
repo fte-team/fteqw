@@ -206,7 +206,7 @@ typedef struct {
 
 static fontplanes_t fontplanes;
 	
-#define FONT_CHAR_BUFFER 64
+#define FONT_CHAR_BUFFER 512
 static index_t font_indicies[FONT_CHAR_BUFFER*6];
 static vecV_t font_coord[FONT_CHAR_BUFFER*4];
 static vec2_t font_texcoord[FONT_CHAR_BUFFER*4];

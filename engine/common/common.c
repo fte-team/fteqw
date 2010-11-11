@@ -23,10 +23,44 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <ctype.h>
 
+// These 4 libraries required for the version command
 
-
-
-
+#if defined(MINGW)
+	#if defined(AVAIL_PNGLIB)  && !defined(SERVERONLY)
+		#include "./mingw-libs/png.h"
+	#endif
+	#ifdef AVAIL_ZLIB
+		#include "./mingw-libs/zlib.h"
+	#endif
+	#if defined(AVAIL_JPEGLIB) && !defined(SERVERONLY)
+		#define JPEG_API VARGS
+		#include "./mingw-libs/jversion.h"
+		#include "./mingw-libs/jpeglib.h"
+	#endif
+#elif defined(_WIN32)
+	#if defined(AVAIL_PNGLIB)  && !defined(SERVERONLY)
+		#include "png.h"
+	#endif
+	#ifdef AVAIL_ZLIB
+		#include "zlib.h"
+	#endif
+	#if defined(AVAIL_JPEGLIB) && !defined(SERVERONLY)
+		#define JPEG_API VARGS
+		#include "jversion.h"
+		#include "jpeglib.h"
+	#endif
+#else
+	#if defined(AVAIL_PNGLIB) && !defined(SERVERONLY)
+		#include <png.h>
+	#endif
+	#ifdef AVAIL_ZLIB
+		#include <zlib.h>
+	#endif
+	#if defined(AVAIL_JPEGLIB) && !defined(SERVERONLY)
+		#include <jversion.h>
+		#include <jpeglib.h>
+	#endif
+#endif
 
 #undef malloc
 #undef free
@@ -3145,15 +3179,24 @@ void COM_Version_f (void)
 	//print out which libraries are disabled
 #ifndef AVAIL_ZLIB
 	Con_Printf("zlib disabled\n");
+#else
+	Con_Printf("zlib: %s\n", ZLIB_VERSION);
 #endif
+
+
 
 	//but print client ones only if we're not dedicated
 #ifndef SERVERONLY
 #ifndef AVAIL_PNGLIB
 	Con_Printf("libpng disabled\n");
+#else
+	Con_Printf("libPNG %s -%s", PNG_LIBPNG_VER_STRING, PNG_HEADER_VERSION_STRING);
 #endif
 #ifndef AVAIL_JPEGLIB
 	Con_Printf("libjpeg disabled\n");
+#else
+	//Con_Printf("libjpeg: %i series (%s)\n", ( JPEG_LIB_VERSION / 10 ), JVERSION );
+	Con_Printf("libjpeg: %s\n", JVERSION );
 #endif
 #ifndef AVAIL_OGGVORBIS
 	Con_Printf("libvorbis disabled\n");

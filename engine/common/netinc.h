@@ -20,7 +20,11 @@
 	#ifndef IPPROTO_IPV6
 		/*for msvc6*/
 		#define	IPPROTO_IPV6
-		#define EAI_NONAME 8
+		
+		#ifndef EAI_NONAME		
+			#define EAI_NONAME 8
+		#endif
+
 		struct ip6_scope_id
 		{
 			union
@@ -33,6 +37,8 @@
 				u_long  Value;
 			};
 		};
+
+		#if !(_MSC_VER >= 1500)
 		struct in6_addr
 		{
 			u_char	s6_addr[16];	/* IPv6 address */
@@ -49,7 +55,6 @@
 				struct ip6_scope_id  sin6_scope_struct; 
 			};
 		};
-
 		struct addrinfo
 		{
 		  int ai_flags;
@@ -61,6 +66,7 @@
 		  struct sockaddr * ai_addr;
 		  struct addrinfo * ai_next;
 		};
+		#endif
 	#endif
 
 #else

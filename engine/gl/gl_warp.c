@@ -75,13 +75,12 @@ void R_DrawSkyChain (batch_t *batch)
 	else
 		skyshader = batch->shader;
 
-#ifdef GLQUAKE
 	if (skyshader->skydome)
 		skyboxtex = skyshader->skydome->farbox_textures;
 	else
 		skyboxtex = NULL;
 
-	if (qrenderer == QR_OPENGL && skyboxtex && TEXVALID(*skyboxtex))
+	if (skyboxtex && TEXVALID(*skyboxtex))
 	{
 		R_CalcSkyChainBounds(batch);
 		GL_DrawSkyBox (skyboxtex, batch);
@@ -89,7 +88,7 @@ void R_DrawSkyChain (batch_t *batch)
 		GL_SkyForceDepth(batch);
 		return;
 	}
-
+#ifdef GLQUAKE
 	if (*r_fastsky.string)
 	{
 		R_CalcSkyChainBounds(batch);
@@ -338,8 +337,8 @@ static void R_CalcSkyChainBounds (batch_t *batch)
 
 	for (i=0 ; i<6 ; i++)
 	{
-		skymins[0][i] = skymins[1][i] = 9999;
-		skymaxs[0][i] = skymaxs[1][i] = -9999;
+		skymins[0][i] = skymins[1][i] = -1;//9999;
+		skymaxs[0][i] = skymaxs[1][i] = 1;//9999;
 	}
 
 	// calculate vertex values for sky box
@@ -456,11 +455,10 @@ static void GL_SkyForceDepth(batch_t *batch)
 	}
 }
 
-static void GL_DrawSkySphere (batch_t *batch, shader_t *shader)
+static void R_DrawSkyMesh(batch_t *batch, mesh_t *m, shader_t *shader)
 {
 	static entity_t skyent;
 	batch_t b;
-	mesh_t *m;
 	float time = cl.gametime+realtime-cl.gametimemark;
 
 	float skydist = gl_maxdist.value;
@@ -481,35 +479,31 @@ static void GL_DrawSkySphere (batch_t *batch, shader_t *shader)
 	skyent.scale = 1;
 
 //FIXME: We should use the skybox clipping code and split the sphere into 6 sides.
-	gl_skyspherecalc(2);
 	b = *batch;
 	b.meshes = 1;
 	b.firstmesh = 0;
-	m = &skymesh;
 	b.mesh = &m;
 	b.ent = &skyent;
 	b.shader = shader;
+	b.skin = &shader->defaulttextures;
 	BE_SubmitBatch(&b);
 }
 
+static void GL_DrawSkySphere (batch_t *batch, shader_t *shader)
+{
+	//FIXME: We should use the skybox clipping code and split the sphere into 6 sides.
+	gl_skyspherecalc(2);
+	R_DrawSkyMesh(batch, &skymesh, shader);
+}
 
-
-#ifdef GLQUAKE
 static void GL_MakeSkyVec (float s, float t, int axis, float *vc, float *tc)
 {
 	vec3_t		b;
 	int			j, k;
-	float skydist = gl_skyboxdist.value;
-	extern cvar_t gl_maxdist;
 
-	if (!skydist)
-	{
-		skydist = gl_maxdist.value * 0.577;
-	}
-
-	b[0] = s*skydist;
-	b[1] = t*skydist;
-	b[2] = skydist;
+	b[0] = s;
+	b[1] = t;
+	b[2] = 1;
 
 	for (j=0 ; j<3 ; j++)
 	{
@@ -538,7 +532,7 @@ static void GL_MakeSkyVec (float s, float t, int axis, float *vc, float *tc)
 }
 
 
-
+#ifdef GLQUAKE
 
 
 
@@ -675,7 +669,6 @@ R_DrawSkyBox
 ==============
 */
 static int	skytexorder[6] = {0,2,1,3,4,5};
-#ifdef GLQUAKE
 static void GL_DrawSkyBox (texid_t *texnums, batch_t *s)
 {
 	int i;
@@ -709,11 +702,6 @@ static void GL_DrawSkyBox (texid_t *texnums, batch_t *s)
 		}
 	}
 
-	qglPushMatrix ();	
-	qglTranslatef (r_origin[0], r_origin[1], r_origin[2]);
-	if (cl.skyrotate)
-		qglRotatef (cl.time * cl.skyrotate, cl.skyaxis[0], cl.skyaxis[1], cl.skyaxis[2]);
-
 	skyfacemesh.indexes = skyface_index;
 	skyfacemesh.st_array = skyface_texcoord;
 	skyfacemesh.xyz_array = skyface_vertex;
@@ -732,14 +720,9 @@ static void GL_DrawSkyBox (texid_t *texnums, batch_t *s)
 		GL_MakeSkyVec (skymaxs[0][i], skymins[1][i], i, skyface_vertex[3], skyface_texcoord[3]);
 
 		skyboxface->defaulttextures.base = texnums[skytexorder[i]];
-		BE_DrawMesh_Single(skyboxface, &skyfacemesh, NULL, &skyboxface->defaulttextures);
+		R_DrawSkyMesh(s, &skyfacemesh, skyboxface);
 	}
-	
-	qglPopMatrix ();
 }
-#endif
-
-
 
 //===============================================================
 

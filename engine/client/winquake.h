@@ -60,69 +60,6 @@ extern unsigned int sys_parentheight;
 LONG CDAudio_MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 #endif
 
-/*
-struct soundcardinfo_s {
-	int snd_linear_count;	//change in asm_i386.h. MUST be first
-
-	float pitch[MAXSOUNDCHANNELS];
-	float yaw[MAXSOUNDCHANNELS];
-	float dist[MAXSOUNDCHANNELS];
-
-	void *handle;
-	void *(*Lock) (soundcardinfo_t *sc);
-	void (*Unlock) (soundcardinfo_t *sc, void *buffer);
-	void (*Submit) (soundcardinfo_t *sc);
-	void (*Shutdown) (soundcardinfo_t *sc);
-	unsigned int (*GetDMAPos) (soundcardinfo_t *sc);
-	void (*SetWaterDistortion) (soundcardinfo_t *sc, qboolean underwater);
-
-#ifdef AVAIL_DSOUND
-	LPDIRECTSOUND pDS;
-	LPDIRECTSOUNDBUFFER pDSBuf;
-	LPDIRECTSOUNDBUFFER pDSPBuf;
-#endif
-	HWAVEOUT hWaveOut;
-	HANDLE hData;
-	HGLOBAL hWaveHdr;
-	HPSTR lpData;
-	LPWAVEHDR lpWaveHdr;
-	DWORD		mmstarttime;
-	DWORD gSndBufSize;
-
-	qboolean selfpainting;
-
-	qboolean inactive_sound;
-
-
-	int   		paintedtime;
-	int			oldpaintedtime;
-	int	oldsamplepos;
-	int buffers;
-
-	dma_t sn;
-
-
-	char name[128];
-
-	int snd_sent;
-	int snd_completed;
-
-channel_t   channel[MAX_CHANNELS];
-int			total_chans;
-
-#ifdef AVAIL_DSOUND
-#ifdef _IKsPropertySet_
-	LPKSPROPERTYSET	EaxKsPropertiesSet;
-#endif
-#endif
-
-	int rawstart;
-	int rawend;
-
-	struct soundcardinfo_s *next;
-};
-*/
-
 
 //void	VID_LockBuffer (void);
 //void	VID_UnlockBuffer (void);

@@ -2337,9 +2337,11 @@ void CLQ2_ParseServerData (void)
 	{	// playing a cinematic or showing a pic, not a level
 		SCR_EndLoadingPlaque();
 		if (!Media_PlayFilm(str))
-			Con_TPrintf (TLC_NOQ2CINEMATICSSUPPORT, cl.servercount);
-		else
-			CL_MakeActive("Quake2");
+		{
+			CL_SendClientCommand(true, "nextserver %i", cl.servercount);
+		}
+
+		CL_MakeActive("Quake2");
 	}
 	else
 	{

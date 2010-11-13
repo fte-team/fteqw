@@ -1626,7 +1626,7 @@ qboolean S_IsPlayingSomewhere(sfx_t *s)
 	int i;
 	for (si = sndcardinfo; si; si=si->next)
 	{
-		for (i = 0; i < MAX_CHANNELS; i++)
+		for (i = 0; i < scard->total_chans; i++)
 		if (si->channel[i].sfx == s)
 			return true;
 	}
@@ -1669,7 +1669,7 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		s->inuse = false;
 
 		for (si = sndcardinfo; si; si=si->next)
-		for (i = 0; i < MAX_CHANNELS; i++)
+		for (i = 0; i < si->total_chans; i++)
 			if (si->channel[i].sfx == &s->sfx)
 			{
 				si->channel[i].sfx = NULL;

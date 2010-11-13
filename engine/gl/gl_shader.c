@@ -2043,7 +2043,7 @@ void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 	{
 		pass->numMergedPasses++;
 	}
-	else if (config_tex_env_combine || config_nv_tex_env_combine4)
+	else if (pass->numMergedPasses < be_maxpasses)
 	{
 		if ( pass->blendmode == GL_REPLACE )
 		{
@@ -2062,33 +2062,6 @@ void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 		else if (pass->blendmode == GL_MODULATE && pass2->blendmode == GL_MODULATE)
 		{
 			pass->numMergedPasses++;
-		}
-	}
-	else if (config_multitexure)
-	{
-		//don't merge more than 2 tmus.
-		if (pass->numMergedPasses != 1)
-			return;
-
-		// check if we can use R_RenderMeshMultitextured
-		if ( pass->blendmode == GL_REPLACE )
-		{
-			if ( pass2->blendmode == GL_ADD && config_env_add )
-			{
-				pass->numMergedPasses = 2;
-			}
-			else if ( pass2->blendmode && pass2->blendmode != GL_DECAL )
-			{
-				pass->numMergedPasses = 2;
-			}
-		}
-		else if (pass->blendmode == GL_MODULATE && pass2->blendmode == GL_MODULATE)
-		{
-			pass->numMergedPasses = 2;
-		}
-		else if (pass->blendmode == GL_ADD && pass2->blendmode == GL_ADD && config_env_add)
-		{
-			pass->numMergedPasses = 2;
 		}
 	}
 }

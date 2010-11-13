@@ -1459,6 +1459,13 @@ void Sbar_DrawInventory (int pnum)
 	}
 
 // ammo counts
+	if (headsup)
+	{
+		for (i=0 ; i<4 ; i++)
+		{
+			Sbar_DrawSubPic((hudswap) ? 0 : (sbar_rect.width-42), -24 - (4-i)*11, 42, 11, sb_ibar, 3+(i*48), 0, 320, 24);
+		}
+	}
 	for (i=0 ; i<4 ; i++)
 	{
 		snprintf (num, sizeof(num), "%3i",cl.stats[pnum][STAT_SHELLS+i] );
@@ -1468,7 +1475,6 @@ void Sbar_DrawInventory (int pnum)
 		numc[3] = 0;
 		if (headsup)
 		{
-			Sbar_DrawSubPic((hudswap) ? 0 : (sbar_rect.width-42), -24 - (4-i)*11, 42, 11, sb_ibar, 3+(i*48), 0, 320, 24);
 			Sbar_DrawExpandedString((hudswap) ? 3 : (sbar_rect.width-39), -24 - (4-i)*11, numc);
 		}
 		else

@@ -572,6 +572,9 @@ void VQ3_RenderView(const q3refdef_t *ref)
 	r_refdef.viewangles[0] = -(atan2(ref->viewaxis[0][2], sqrt(ref->viewaxis[0][1]*ref->viewaxis[0][1]+ref->viewaxis[0][0]*ref->viewaxis[0][0])) * 180 / M_PI);
 	r_refdef.viewangles[1] = (atan2(ref->viewaxis[0][1], ref->viewaxis[0][0]) * 180 / M_PI);
 	r_refdef.viewangles[2] = 0;
+	VectorCopy(ref->viewaxis[0], r_refdef.viewaxis[0]);
+	VectorCopy(ref->viewaxis[1], r_refdef.viewaxis[1]);
+	VectorCopy(ref->viewaxis[2], r_refdef.viewaxis[2]);
 	if (ref->rdflags & 1)
 		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
 	else

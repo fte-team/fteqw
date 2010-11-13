@@ -184,7 +184,7 @@ void OpenAL_CvarInit(void);
 // User-setable variables
 // ====================================================================
 
-#define	MAX_CHANNELS			256	/*tracked sounds (including statics)*/
+#define	MAX_CHANNELS			1024/*tracked sounds (including statics)*/
 #define	MAX_DYNAMIC_CHANNELS	8	/*playing sounds (identical ones merge)*/
 
 

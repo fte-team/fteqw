@@ -920,9 +920,10 @@ void R_LightArraysByte_BGR(vecV_t *coords, byte_vec4_t *colours, int vertcount, 
 	{
 		for (i = vertcount-1; i >= 0; i--)
 		{
-			colours[i][0] = ambientlightb[0];
-			colours[i][1] = ambientlightb[1];
-			colours[i][2] = ambientlightb[2];
+			*(int*)colours[i] = *(int*)ambientlightb;
+//			colours[i][0] = ambientlightb[0];
+//			colours[i][1] = ambientlightb[1];
+//			colours[i][2] = ambientlightb[2];
 		}
 	}
 	else

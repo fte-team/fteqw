@@ -1706,6 +1706,11 @@ qboolean Media_PlayFilm(char *name)
 			if (cin->rewind)
 				cin->rewind(cin);
 		}
+		else
+		{
+			R_UnloadShader(videoshader);
+			videoshader = NULL;
+		}
 	}
 
 //	Media_ShutdownCin(fullscreenvid);

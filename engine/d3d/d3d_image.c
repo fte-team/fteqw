@@ -308,6 +308,9 @@ void    D3D9_Upload (texid_t tex, char *name, enum uploadfmt fmt, void *data, vo
 {
 	switch (fmt)
 	{
+	case TF_RGBX32:
+		flags |= IF_NOALPHA;
+		//fall through
 	case TF_RGBA32:
 		Upload_Texture_32(tex.ptr, data, width, height, flags);
 		break;
@@ -387,7 +390,7 @@ texid_t D3D9_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *
 				(palette24[i*3+1]<<8) |
 				(palette24[i*3+0]<<0);
 	}
-	return D3D9_LoadTexture8Pal32(identifier, width, height, data, pal32, flags);
+	return D3D9_LoadTexture8Pal32(identifier, width, height, data, (qbyte*)pal32, flags);
 }
 
 #endif

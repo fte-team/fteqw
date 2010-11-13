@@ -2056,10 +2056,15 @@ void Surf_DrawWorld (void)
 	qbyte *vis;
 	RSpeedLocals();
 
-	if (r_refdef.flags & Q2RDF_NOWORLDMODEL || !cl.worldmodel)
+	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
 	{
 		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
 		BE_DrawWorld(NULL);
+		return;
+	}
+	if (!cl.worldmodel || cl.worldmodel->needload)
+	{
+		/*Don't act as a wallhack*/
 		return;
 	}
 

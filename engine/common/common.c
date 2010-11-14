@@ -37,6 +37,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		//#include "./mingw-libs/jversion.h"
 		#include "./mingw-libs/jpeglib.h"
 	#endif
+	#ifdef _SDL
+		#include "./mingw-libs/SDL_version.h"
+	#endif
 #elif defined(_WIN32)
 	#if defined(AVAIL_PNGLIB)  && !defined(SERVERONLY)
 		#include "png.h"
@@ -49,6 +52,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		//#include "jversion.h"
 		#include "jpeglib.h"
 	#endif
+	#ifdef _SDL
+		#include "SDL_version.h"
+	#endif
 #else
 	#if defined(AVAIL_PNGLIB) && !defined(SERVERONLY)
 		#include <png.h>
@@ -59,6 +65,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#if defined(AVAIL_JPEGLIB) && !defined(SERVERONLY)
 		//#include <jversion.h>
 		#include <jpeglib.h>
+	#endif
+	#ifdef _SDL
+		#include <SDL_version.h>
 	#endif
 #endif
 
@@ -3088,6 +3097,10 @@ void COM_Version_f (void)
 #endif
 #ifdef SERVERONLY
 	Con_Printf("dedicated server build\n");
+#endif
+
+#ifdef _SDL
+	Con_Printf("SDL version: %d.%d.%d\n", SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_PATCHLEVEL);
 #endif
 
 #ifdef __MINGW32__

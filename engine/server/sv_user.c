@@ -3615,6 +3615,9 @@ void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 	ent->xv->gravity = cl->entgravity = 1.0;
 	ent->xv->maxspeed = cl->maxspeed = sv_maxspeed.value;
 	ent->v->movetype = MOVETYPE_NOCLIP;
+
+	cl->old_frags = ent->v->frags = 0;
+	cl->connection_started = realtime;
 }
 /*
 ==================
@@ -3672,7 +3675,6 @@ void Cmd_Join_f (void)
 	if (SpectatorDisconnect)
 		PR_ExecuteProgram (svprogfuncs, SpectatorDisconnect);
 
-	host_client->old_frags = 0;
 	SV_SetUpClientEdict (host_client, host_client->edict);
 
 	// turn the spectator into a player
@@ -3764,7 +3766,6 @@ void Cmd_Observe_f (void)
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
 
-	host_client->old_frags = 0;
 	SV_SetUpClientEdict (host_client, host_client->edict);
 
 	// turn the player into a spectator

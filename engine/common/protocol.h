@@ -55,7 +55,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define PEXT_NEVERUSED		0x02000000	//Client is able to cope with 64 players. Wow.
 #define PEXT_SHOWPIC			0x04000000
 #define PEXT_SETATTACHMENT		0x08000000	//md3 tags (needs networking, they need to lerp).
-//#define PEXT2_NEVERUSED		0x10000000	//retrieve a list of pk3s/pk3s/paks for downloading (with optional URL and crcs)
+//#define PEXT_NEVERUSED		0x10000000	//retrieve a list of pk3s/pk3s/paks for downloading (with optional URL and crcs)
 #define PEXT_CHUNKEDDOWNLOADS	0x20000000	//alternate file download method. Hopefully it'll give quadroupled download speed, especially on higher pings.
 
 #ifdef CSQC_DAT
@@ -71,6 +71,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif		
 
 #define PEXT2_PRYDONCURSOR			0x00000001
+#ifdef VOICECHAT
+#define PEXT2_VOICECHAT				0x00000002
+#endif
 //#define PEXT2_64PLAYERS			0x02000000	//Client is able to cope with 64 players. Wow.
 //#define PEXT2_PK3DOWNLOADS		0x10000000	//retrieve a list of pk3s/pk3s/paks for downloading (with optional URL and crcs)
 
@@ -268,6 +271,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svcfte_pointparticles1	82		// [short] effectnum [vector] start, same as svc_pointparticles except velocity is zero and count is 1
 
 #define svcfte_cgamepacket	83
+#define svcfte_voicechat	84
 
 
 //fitz svcs
@@ -341,20 +345,21 @@ enum clcq2_ops_e
 //
 // client to server
 //
-#define	clc_bad			0
-#define	clc_nop 		1
-#define	clc_disconnect	2	//nq only
-#define	clc_move		3		// [[usercmd_t]
-#define	clc_stringcmd	4		// [string] message
-#define	clc_delta		5		// [qbyte] sequence number, requests delta compression of message
-#define clc_tmove		6		// teleport request, spectator only
-#define clc_upload		7		// teleport request, spectator only
+#define	clc_bad				0
+#define	clc_nop 			1
+#define	clc_disconnect		2	//nq only
+#define	clc_move			3	// [[usercmd_t]
+#define	clc_stringcmd		4	// [string] message
+#define	clc_delta			5	// [qbyte] sequence number, requests delta compression of message
+#define clc_tmove			6	// teleport request, spectator only
+#define clc_upload			7	// teleport request, spectator only
 
-#define clcdp_ackframe	50
-#define clcdp_ackdownloaddata 51
+#define clcdp_ackframe			50
+#define clcdp_ackdownloaddata	51
 
-#define clc_qcrequest 81
-#define clc_prydoncursor 82
+#define clc_qcrequest		81
+#define clc_prydoncursor	82
+#define clc_voicechat		83
 
 
 //==============================================

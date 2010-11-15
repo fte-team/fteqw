@@ -4961,6 +4961,12 @@ void CL_ParseServerMessage (void)
 			S_StopSound(i>>3, i&7);
 			break;
 
+#ifdef PEXT2_VOICECHAT
+		case svcfte_voicechat:
+			S_ParseVoiceChat();
+			break;
+#endif
+
 		case svc_updatefrags:
 			Sbar_Changed ();
 			i = MSG_ReadByte ();

@@ -8,6 +8,7 @@ float RadiusFromBounds (vec3_t mins, vec3_t maxs);
 
 
 #define USEBOTLIB
+#define BOTLIB_STATIC
 
 #ifdef USEBOTLIB
 
@@ -27,6 +28,9 @@ float RadiusFromBounds (vec3_t mins, vec3_t maxs);
 
 botlib_export_t *FTE_GetBotLibAPI(int apiVersion, botlib_import_t *import)
 {	//a stub that will prevent botlib from loading.
+#ifdef BOTLIB_STATIC
+	return GetBotLibAPI(apiVersion, import);
+#else
 	static void *botlib;
 	static botlib_export_t *(QDECL *pGetBotLibAPI)(int apiVersion, botlib_import_t *import);
 
@@ -40,6 +44,7 @@ botlib_export_t *FTE_GetBotLibAPI(int apiVersion, botlib_import_t *import)
 	if (!botlib)
 		return NULL;
 	return pGetBotLibAPI(apiVersion, import);
+#endif
 }
 
 botlib_export_t *botlib;

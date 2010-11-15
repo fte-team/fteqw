@@ -1438,7 +1438,7 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 void CL_SendCmd (double frametime, qboolean mainloop)
 {
 	sizebuf_t	buf;
-	qbyte		data[512];
+	qbyte		data[1024];
 	int			i, plnum;
 	usercmd_t	*cmd;
 	float wantfps;
@@ -1767,6 +1767,11 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		pps_balance = 0;
 		dropcount = 0;
 	}
+
+#ifdef PEXT2_VOICECHAT
+	if (cls.fteprotocolextensions2 & PEXT2_VOICECHAT)
+		S_TransmitVoiceChat(clc_voicechat, &buf);
+#endif
 
 //
 // deliver the message

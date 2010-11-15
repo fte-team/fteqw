@@ -394,6 +394,9 @@ void CL_SupportedFTEExtensions(int *pext1, int *pext2)
 #endif
 
 	fteprotextsupported2 |= PEXT2_PRYDONCURSOR;
+#ifdef PEXT2_VOICECHAT
+	fteprotextsupported2 |= PEXT2_VOICECHAT;
+#endif
 
 	fteprotextsupported &= strtoul(cl_pext_mask.string, NULL, 16);
 //	fteprotextsupported2 &= strtoul(cl_pext2_mask.string, NULL, 16);
@@ -3357,11 +3360,6 @@ void Host_Frame (double time)
 
 	if (cl.paused)
 		cl.gametimemark += time;
-
-
-#ifdef VOICECHAT
-	CLVC_Poll();
-#endif
 
 /*
 	if (cl_maxfps.value)

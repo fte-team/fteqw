@@ -2557,6 +2557,12 @@ void Surf_BuildLightmaps (void)
 	lightmap_bgra = true;
 	lightmap_bytes = 4;
 
+	if (atof(qglGetString(GL_VERSION)) < 1.2)
+	{
+		lightmap_bgra = false;
+		lightmap_bytes = 3;
+	}
+
 	for (j=1 ; j<MAX_MODELS ; j++)
 	{
 		m = cl.model_precache[j];

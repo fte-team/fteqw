@@ -430,7 +430,7 @@ typedef struct botlib_export_s
 } botlib_export_t;
 
 //linking of bot library
-botlib_export_t *GetBotLibAPI( int apiVersion, botlib_import_t *import );
+botlib_export_t *QDECL GetBotLibAPI( int apiVersion, botlib_import_t *import );
 
 /* Library variables:
 

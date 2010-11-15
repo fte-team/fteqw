@@ -903,7 +903,7 @@ long inputwidth = 2;
 
 static WAVEFORMATEX  wfxFormat;
 
-int SNDDMA_InitCapture (void)
+qboolean SNDDMA_InitCapture (void)
 {
 	DSCBUFFERDESC bufdesc;
 
@@ -941,7 +941,7 @@ int SNDDMA_InitCapture (void)
 		if (hInstDS == NULL)
 		{
 			Con_SafePrintf ("Couldn't load dsound.dll\n");
-			return SIS_FAILURE;
+			return false;
 		}
 
 	}
@@ -952,7 +952,7 @@ int SNDDMA_InitCapture (void)
 		if (!pDirectSoundCaptureCreate)
 		{
 			Con_SafePrintf ("Couldn't get DS proc addr\n");
-			return SIS_FAILURE;
+			return false;
 		}
 
 //		pDirectSoundCaptureEnumerate = (void *)GetProcAddress(hInstDS,"DirectSoundCaptureEnumerateA");
@@ -964,18 +964,18 @@ int SNDDMA_InitCapture (void)
 		Con_SafePrintf ("Couldn't create a capture buffer\n");
 		IDirectSoundCapture_Release(DSCapture);
 		DSCapture=NULL;
-		return SIS_FAILURE;
+		return false;
 	}
 
 	IDirectSoundCaptureBuffer_Start(DSCaptureBuffer, DSBPLAY_LOOPING);
 
 	lastreadpos = 0;
 
-	return SIS_SUCCESS;
+	return true;
 }
 
-void SNDVC_Submit(qbyte *buffer, int samples, int freq, int width);
-void DSOUND_UpdateCapture(void)
+/*minsamples is a hint*/
+unsigned int DSOUND_UpdateCapture(unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes)
 {
 	HRESULT hr;
 	LPBYTE lpbuf1 = NULL;
@@ -986,12 +986,6 @@ void DSOUND_UpdateCapture(void)
 	DWORD capturePos;
 	DWORD readPos;
 	long  filled;
-	static int update;
-
-	char *pBuffer;
-
-
-//	return;
 
 	if (!snd_capture.ival)
 	{
@@ -1006,57 +1000,50 @@ void DSOUND_UpdateCapture(void)
 			IDirectSoundCapture_Release(DSCapture);
 			DSCapture=NULL;
 		}
-		return;
+		return 0;
 	}
 	else if (!DSCaptureBuffer)
 	{
 		SNDDMA_InitCapture();
-		return;
+		return 0;
 	}
 
 // Query to see how much data is in buffer.
 	hr = IDirectSoundCaptureBuffer_GetCurrentPosition( DSCaptureBuffer, &capturePos, &readPos );
 	if( hr != DS_OK )
 	{
-		return;
+		return 0;
 	}
 	filled = readPos - lastreadpos;
 	if( filled < 0 ) filled += bufferbytes; // unwrap offset
 
-	if (filled > 1400)	//figure out how much we need to empty it by, and if that's enough to be worthwhile.
-		filled = 1400;
-	else if (filled < 1400)
-		return;
+	if (filled > maxbytes)	//figure out how much we need to empty it by, and if that's enough to be worthwhile.
+		filled = maxbytes;
+	else if (filled < minbytes)
+		return 0;
 
-	if ((filled/inputwidth) & 1)	//force even numbers of samples
-		filled -= inputwidth;
-
-	pBuffer = BZ_Malloc(filled*inputwidth);
-
+//	filled /= inputwidth;
+//	filled *= inputwidth;
 
 	// Lock free space in the DS
-	hr = IDirectSoundCaptureBuffer_Lock ( DSCaptureBuffer, lastreadpos, filled, (void **) &lpbuf1, &dwsize1,
-		(void **) &lpbuf2, &dwsize2, 0);
+	hr = IDirectSoundCaptureBuffer_Lock(DSCaptureBuffer, lastreadpos, filled, (void **) &lpbuf1, &dwsize1, (void **) &lpbuf2, &dwsize2, 0);
 	if (hr == DS_OK)
 	{
 		// Copy from DS to the buffer
-		memcpy( pBuffer, lpbuf1, dwsize1);
+		memcpy(buffer, lpbuf1, dwsize1);
 		if(lpbuf2 != NULL)
 		{
-			memcpy( pBuffer+dwsize1, lpbuf2, dwsize2);
+			memcpy(buffer+dwsize1, lpbuf2, dwsize2);
 		}
 		// Update our buffer offset and unlock sound buffer
  		lastreadpos = (lastreadpos + dwsize1 + dwsize2) % bufferbytes;
-		IDirectSoundCaptureBuffer_Unlock ( DSCaptureBuffer, lpbuf1, dwsize1, lpbuf2, dwsize2);
+		IDirectSoundCaptureBuffer_Unlock(DSCaptureBuffer, lpbuf1, dwsize1, lpbuf2, dwsize2);
 	}
 	else
 	{
-		BZ_Free(pBuffer);
-		return;
+		return 0;
 	}
-
-	SNDVC_MicInput(pBuffer, filled, wfxFormat.nSamplesPerSec, inputwidth);
-	BZ_Free(pBuffer);
+	return filled;
 }
-void (*pDSOUND_UpdateCapture) (void) = &DSOUND_UpdateCapture;
+unsigned int (*pDSOUND_UpdateCapture) (unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes) = &DSOUND_UpdateCapture;
 #endif

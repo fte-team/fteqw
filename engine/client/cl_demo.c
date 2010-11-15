@@ -427,9 +427,9 @@ qboolean CL_GetDemoMessage (void)
 				olddemotime = 0;
 				return 0;
 			}
-			if (demtime<= cl.gametime && cl.gametime)// > dem_lasttime+demtime)
+			if ((cls.timedemo && cls.netchan.last_received == (float)realtime) || (!cls.timedemo && demtime<= cl.gametime && cl.gametime))// > dem_lasttime+demtime)
 			{
-				if (demtime <= cl.gametime-1||cls.timedemo)
+				if (demtime <= cl.gametime-1)
 				{
 					demtime = cl.gametime;
 					cls.netchan.last_received = realtime;

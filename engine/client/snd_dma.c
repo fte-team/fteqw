@@ -152,16 +152,232 @@ void S_SoundInfo_f(void)
 	}
 }
 
-void (*pDSOUND_UpdateCapture) (void);
-void S_RunCapture(void)
+#ifdef VOICECHAT
+#include "speex/speex.h"
+#include "speex/speex_preprocess.h"
+struct
 {
+	qboolean inited;
+	qboolean loaded;
+	dllhandle_t *speexlib;
+	dllhandle_t *speexdsplib;
+
+	SpeexBits encbits;
+	void *encoder;
+	SpeexPreprocessState *preproc;
+	unsigned int framesize;
+	unsigned int samplerate;
+
+	SpeexBits decbits[MAX_CLIENTS];
+	void *decoder[MAX_CLIENTS];
+	unsigned char decseq[MAX_CLIENTS];
+} s_speex;
+
+const SpeexMode *(VARGS *qspeex_lib_get_mode)(int mode);
+void (VARGS *qspeex_bits_init)(SpeexBits *bits);
+void (VARGS *qspeex_bits_reset)(SpeexBits *bits);
+int (VARGS *qspeex_bits_write)(SpeexBits *bits, char *bytes, int max_len);
+
+SpeexPreprocessState *(VARGS *qspeex_preprocess_state_init)(int frame_size, int sampling_rate);
+int (VARGS *qspeex_preprocess_ctl)(SpeexPreprocessState *st, int request, void *ptr);
+int (VARGS *qspeex_preprocess_run)(SpeexPreprocessState *st, spx_int16_t *x);
+
+void * (VARGS *qspeex_encoder_init)(const SpeexMode *mode);
+int (VARGS *qspeex_encoder_ctl)(void *state, int request, void *ptr);
+int (VARGS *qspeex_encode_int)(void *state, spx_int16_t *in, SpeexBits *bits);
+
+void *(VARGS *qspeex_decoder_init)(const SpeexMode *mode);
+int (VARGS *qspeex_decode_int)(void *state, SpeexBits *bits, spx_int16_t *out);
+void (VARGS *qspeex_bits_read_from)(SpeexBits *bits, char *bytes, int len);
+
+dllfunction_t qspeexfuncs[] =
+{
+	{(void*)&qspeex_lib_get_mode, "speex_lib_get_mode"},
+	{(void*)&qspeex_bits_init, "speex_bits_init"},
+	{(void*)&qspeex_bits_reset, "speex_bits_reset"},
+	{(void*)&qspeex_bits_write, "speex_bits_write"},
+
+	{(void*)&qspeex_encoder_init, "speex_encoder_init"},
+	{(void*)&qspeex_encoder_ctl, "speex_encoder_ctl"},
+	{(void*)&qspeex_encode_int, "speex_encode_int"},
+
+	{(void*)&qspeex_decoder_init, "speex_decoder_init"},
+	{(void*)&qspeex_decode_int, "speex_decode_int"},
+	{(void*)&qspeex_bits_read_from, "speex_bits_read_from"},
+
+	{NULL}
+};
+dllfunction_t qspeexdspfuncs[] =
+{
+	{(void*)&qspeex_preprocess_state_init, "speex_preprocess_state_init"},
+	{(void*)&qspeex_preprocess_ctl, "speex_preprocess_ctl"},
+	{(void*)&qspeex_preprocess_run, "speex_preprocess_run"},
+
+	{NULL}
+};
+
+qboolean S_Speex_Init(void)
+{
+	int i;
+	const SpeexMode *mode;
+	if (s_speex.inited)
+		return s_speex.loaded;
+	s_speex.inited = true;
+
+	s_speex.speexlib = Sys_LoadLibrary("libspeex", qspeexfuncs);
+	if (!s_speex.speexlib)
+	{
+		Con_Printf("libspeex not found. Voice chat not available.\n");
+		return false;
+	}
+
+	s_speex.speexdsplib = Sys_LoadLibrary("libspeexdsp", qspeexdspfuncs);
+	if (!s_speex.speexdsplib)
+	{
+		Con_Printf("libspeexdsp not found. Voice chat not available.\n");
+		return false;
+	}
+
+	mode = qspeex_lib_get_mode(SPEEX_MODEID_NB);
+
+
+	qspeex_bits_init(&s_speex.encbits);
+	qspeex_bits_reset(&s_speex.encbits);
+
+	s_speex.encoder = qspeex_encoder_init(mode);
+
+	qspeex_encoder_ctl(s_speex.encoder, SPEEX_GET_FRAME_SIZE, &s_speex.framesize);
+	qspeex_encoder_ctl(s_speex.encoder, SPEEX_GET_SAMPLING_RATE, &s_speex.samplerate);
+
+	s_speex.preproc = qspeex_preprocess_state_init(s_speex.framesize, s_speex.samplerate);
+
+	i = 1;
+	qspeex_preprocess_ctl(s_speex.preproc, SPEEX_PREPROCESS_SET_DENOISE, &i);
+
+	i = 1;
+	qspeex_preprocess_ctl(s_speex.preproc, SPEEX_PREPROCESS_SET_AGC, &i);
+
+	for (i = 0; i < MAX_CLIENTS; i++)
+	{
+		qspeex_bits_init(&s_speex.decbits[i]);
+		qspeex_bits_reset(&s_speex.decbits[i]);
+		s_speex.decoder[i] = qspeex_decoder_init(mode);
+	}
+	s_speex.loaded = true;
+	return s_speex.loaded;
+}
+
+void S_ParseVoiceChat(void)
+{
+	unsigned int sender = MSG_ReadByte();
+	int bytes;
+	unsigned char data[1024], *start;
+	short decodebuf[1024];
+	unsigned int decodesamps, len, newseq, drops;
+	unsigned char seq;
+	seq = MSG_ReadByte();
+	bytes = MSG_ReadShort();
+	if (bytes > sizeof(data))
+	{
+		MSG_ReadSkip(bytes);
+		return;
+	}
+	MSG_ReadData(data, bytes);
+
+	sender &= MAX_CLIENTS-1;
+
+	decodesamps = 0;
+	newseq = 0;
+	drops = 0;
+	start = data;
+	while (bytes > 0)
+	{
+		if (decodesamps + s_speex.framesize > sizeof(decodebuf)/sizeof(decodebuf[0]))
+		{
+			S_RawAudio(sender, (qbyte*)decodebuf, 11025, decodesamps, 1, 2);
+			decodesamps = 0;
+		}
+
+		if (s_speex.decseq[sender] != seq)
+		{
+			qspeex_decode_int(s_speex.decoder[sender], NULL, decodebuf + decodesamps);
+			s_speex.decseq[sender]++;
+			drops++;
+		}
+		else
+		{
+			bytes--;
+			len = *start++;
+			qspeex_bits_read_from(&s_speex.decbits[sender], start, len);
+			bytes -= len;
+			start += len;
+			qspeex_decode_int(s_speex.decoder[sender], &s_speex.decbits[sender], decodebuf + decodesamps);
+			newseq++;
+		}
+		decodesamps += s_speex.framesize;
+	}
+	s_speex.decseq[sender] += newseq;
+
+	if (drops)
+		Con_Printf("%i dropped audio frames\n", drops);
+
+	if (decodesamps > 0)
+		S_RawAudio(sender, (qbyte*)decodebuf, 11025, decodesamps, 1, 2);
+}
+
+unsigned int (*pDSOUND_UpdateCapture) (unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes);
+void S_TransmitVoiceChat(unsigned char clc, sizebuf_t *buf)
+{
+	static unsigned char capturebuf[32768];
+	static unsigned int capturepos;//in bytes
+	static unsigned int encsequence;//in frames
+	unsigned char outbuf[1024];
+	unsigned int outpos;//in bytes
+	unsigned int encpos;//in bytes
+	unsigned short *start;
+	unsigned char initseq;//in frames
+
 	//add new drivers in order or desirability.
 	if (pDSOUND_UpdateCapture)
 	{
-		pDSOUND_UpdateCapture();
+		capturepos += pDSOUND_UpdateCapture((unsigned char*)capturebuf + capturepos, 64, sizeof(capturebuf) - capturepos);
+	}
+	else
+	{
 		return;
 	}
+
+	if (!S_Speex_Init())
+		return;
+
+	initseq = encsequence;
+	for (encpos = 0, outpos = 0; capturepos-encpos >= s_speex.framesize*2 && sizeof(outbuf)-outpos > 64; )
+	{
+		start = (short*)(capturebuf + encpos);
+
+		qspeex_preprocess_run(s_speex.preproc, start);
+
+		qspeex_bits_reset(&s_speex.encbits);
+		qspeex_encode_int(s_speex.encoder, start, &s_speex.encbits);
+		outbuf[outpos] = qspeex_bits_write(&s_speex.encbits, outbuf+outpos+1, sizeof(outbuf) - (outpos+1));
+		outpos += 1+outbuf[outpos];
+		encpos += s_speex.framesize*2;
+		encsequence++;
+	}
+
+	if (outpos && buf->maxsize - buf->cursize >= outpos+4)
+	{
+		MSG_WriteByte(buf, clc);
+		MSG_WriteByte(buf, initseq);
+		MSG_WriteShort(buf, outpos);
+		SZ_Write(buf, outbuf, outpos);
+	}
+
+	/*remove sent data*/
+	memmove(capturebuf, capturebuf + encpos, capturepos-encpos);
+	capturepos -= encpos;
 }
+#endif
 
 
 sounddriver pOPENAL_InitCard;
@@ -1415,8 +1631,6 @@ void S_Update (void)
 {
 	soundcardinfo_t *sc;
 
-	S_RunCapture();
-
 	for (sc = sndcardinfo; sc; sc = sc->next)
 		S_UpdateCard(sc);
 }
@@ -1434,8 +1648,6 @@ void S_ExtraUpdate (void)
 
 	if (snd_noextraupdate.ival)
 		return;		// don't pollute timings
-
-	S_RunCapture();
 
 	for (sc = sndcardinfo; sc; sc = sc->next)
 		S_Update_(sc);
@@ -1655,7 +1867,8 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 	{
 		if (!s->inuse)
 		{
-			free = s;
+			if (!free)
+				free = s;
 			continue;
 		}
 		if (s->id == sourceid)
@@ -1719,8 +1932,8 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 		for (i = 0; i < si->total_chans; i++)
 			if (si->channel[i].sfx == &s->sfx)
 			{
-				if (prepadl > si->channel[i].pos)
-					prepadl = si->channel[i].pos;
+				if (prepadl > (si->channel[i].pos>>8))
+					prepadl = (si->channel[i].pos>>8);
 				break;
 			}
 	}

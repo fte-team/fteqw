@@ -1008,6 +1008,82 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 	}
 }
 
+#if 0
+void R_Sprite_GenerateBatches(entity_t *e, batch_t **batches)
+{
+	galiasinfo_t *inf;
+	model_t *clmodel;
+	shader_t *shader;
+	batch_t *b;
+	int surfnum;
+
+	texnums_t *skin;
+
+	if (r_refdef.externalview && e->flags & Q2RF_WEAPONMODEL)
+		return;
+
+	clmodel = e->model;
+
+	if (!(e->flags & Q2RF_WEAPONMODEL))
+	{
+		if (R_CullEntityBox (e, clmodel->mins, clmodel->maxs))
+			return;
+#ifdef RTLIGHTS
+		if (BE_LightCullModel(e->origin, clmodel))
+			return;
+	}
+	else
+	{
+		if (BE_LightCullModel(r_origin, clmodel))
+			return;
+#endif
+	}
+
+	if (clmodel->tainted)
+	{
+		if (!ruleset_allow_modified_eyes.ival && !strcmp(clmodel->name, "progs/eyes.mdl"))
+			return;
+	}
+
+	inf = RMod_Extradata (clmodel);
+
+	if (!e->model || e->forcedshader)
+	{
+		//fixme
+		return;
+	}
+	else
+	{
+		frame = R_GetSpriteFrame (e);
+		psprite = e->model->cache.data;
+		sprtype = psprite->type;
+		shader = frame->shader;
+	}
+
+	if (shader)
+	{
+		b = BE_GetTempBatch();
+		if (!b)
+			break;
+
+		b->buildmeshes = R_Sprite_DrawBatch;
+		b->ent = e;
+		b->mesh = NULL;
+		b->firstmesh = 0;
+		b->meshes = 1;
+		b->skin = frame-;
+		b->texture = NULL;
+		b->shader = frame->shader;
+		b->lightmap = -1;
+		b->surf_first = surfnum;
+		b->flags = 0;
+		b->vbo = 0;
+		b->next = batches[shader->sort];
+		batches[shader->sort] = b;
+	}
+}
+#endif
+
 //returns the rotated offset of the two points in result
 void RotateLightVector(const vec3_t *axis, const vec3_t origin, const vec3_t lightpoint, vec3_t result)
 {

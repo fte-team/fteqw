@@ -2085,8 +2085,147 @@ void SV_NextUpload (void)
 				host_client->uploadfn, p);
 		}
 	}
-
 }
+
+#ifdef VOICECHAT
+#define VOICE_RING_SIZE 512
+struct
+{
+	struct voice_ring_s
+	{
+			unsigned int sender;
+			unsigned char receiver[MAX_CLIENTS/8];
+			unsigned char seq;
+			unsigned int datalen;
+			unsigned char data[1024];
+	} ring[VOICE_RING_SIZE];
+	unsigned int write;
+} voice;
+void SV_VoiceReadPacket(void)
+{
+	unsigned int j, cln;
+	struct voice_ring_s *ring;
+	unsigned short bytes;
+	client_t *cl;
+	unsigned char seq = MSG_ReadByte();
+	/*read the data from the client*/
+	bytes = MSG_ReadShort();
+	ring = &voice.ring[voice.write & (VOICE_RING_SIZE-1)];
+	if (bytes > sizeof(ring->data) || host_client->ismuted)
+	{
+		MSG_ReadSkip(bytes);
+		return;
+	}
+	else
+	{
+		voice.write++;
+		MSG_ReadData(ring->data, bytes);
+	}
+	ring->datalen = bytes;
+	ring->sender = host_client - svs.clients;
+	ring->seq = seq;
+
+	/*figure out which team members are meant to receive it*/
+	for (j = 0; j < MAX_CLIENTS/8; j++)
+		ring->receiver[j] = 0;
+	for (j = 0, cl = svs.clients; j < sv.allocated_client_slots; j++, cl++)
+	{
+//		if (cl == host_client)
+//			continue;
+
+		if (cl->state != cs_spawned && cl->state != cs_connected)
+			continue;
+		if (host_client->spectator && !sv_spectalk.ival)
+			if (!cl->spectator)
+				continue;
+
+		if (teamplay.ival)
+		{
+			// the spectator team
+			if (host_client->spectator)
+			{
+				if (!cl->spectator)
+					continue;
+			}
+			else
+			{
+				if (strcmp(cl->team, host_client->team) || cl->spectator)
+					continue;	// on different teams
+			}
+		}
+
+		//make sure we don't send the say to the same client 20 times due to splitscreen
+		if (cl->controller)
+			cln = cl->controller - svs.clients;
+		else
+			cln = j;
+
+		ring->receiver[cln>>3] |= 1<<(cln&3);
+	}
+}
+void SV_VoiceInitClient(client_t *client)
+{
+	client->voice_active = true;
+	client->voice_read = voice.write;
+	memset(client->voice_mute, 0, sizeof(client->voice_mute));
+}
+void SV_VoiceSendPacket(client_t *client, sizebuf_t *buf)
+{
+	unsigned int clno = client - svs.clients;
+	qboolean send;
+	struct voice_ring_s *ring;
+
+	if (!(client->fteprotocolextensions2 & PEXT2_VOICECHAT))
+		return;
+	if (!client->voice_active || client->num_backbuf)
+	{
+		client->voice_read = voice.write;
+		return;
+	}
+
+	while(client->voice_read < voice.write)
+	{
+		/*they might be too far behind*/
+		if (client->voice_read+VOICE_RING_SIZE < voice.write)
+			client->voice_read = voice.write - VOICE_RING_SIZE;
+
+		ring = &voice.ring[(client->voice_read) & (VOICE_RING_SIZE-1)];
+
+		/*figure out if it was for us*/
+		if (ring->receiver[clno>>3] & (1<<(clno&3)))
+			send = true;
+		else
+			send = false;
+
+		if (client->voice_mute[ring->sender>>3] & (1<<(ring->sender&3)))
+			send = false;
+
+		/*additional ways to block it*/
+		if (client->download)
+			send = false;
+
+		client->voice_read++;
+
+		if (send)
+		{
+			MSG_WriteByte(buf, svcfte_voicechat);
+			MSG_WriteByte(buf, ring->sender);
+			MSG_WriteByte(buf, ring->seq);
+			MSG_WriteShort(buf, ring->datalen);
+			SZ_Write(buf, ring->data, ring->datalen);
+		}
+	}
+}
+
+void SV_Voice_MuteAll(void)
+{
+	host_client->voice_active = false;
+}
+void SV_Voice_UnmuteAll(void)
+{
+	host_client->voice_active = true;
+}
+#endif
 
 //Use of this function is on name only.
 //Be aware that the maps directory should be restricted based on weather the file was from a pack file
@@ -3616,7 +3755,7 @@ void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 	ent->xv->maxspeed = cl->maxspeed = sv_maxspeed.value;
 	ent->v->movetype = MOVETYPE_NOCLIP;
 
-	cl->old_frags = ent->v->frags = 0;
+	ent->v->frags = 0;
 	cl->connection_started = realtime;
 }
 /*
@@ -3706,6 +3845,7 @@ void Cmd_Join_f (void)
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
 
 	// send notification to all clients
+	host_client->old_frags = host_client->edict->v->frags;
 	host_client->sendinfo = true;
 
 	SV_LogPlayer(host_client, "joined");
@@ -3799,6 +3939,7 @@ void Cmd_Observe_f (void)
 		sv_player->v->movetype = MOVETYPE_NOCLIP;
 
 	// send notification to all clients
+	host_client->old_frags = host_client->edict->v->frags;
 	host_client->sendinfo = true;
 
 	SV_LogPlayer(host_client, "observing");
@@ -3962,6 +4103,11 @@ ucmd_t ucmds[] =
 	{"stopdownload", SV_StopDownload_f},
 	{"demolist", SV_UserCmdMVDList_f},
 	{"demoinfo", SV_MVDInfo_f},
+
+#ifdef VOICECHAT
+	{"muteall", SV_Voice_MuteAll},
+	{"unmuteall", SV_Voice_UnmuteAll},
+#endif
 
 	{NULL, NULL}
 };
@@ -5511,7 +5657,6 @@ SV_ExecuteClientMessage
 The current net_message is parsed for the given client
 ===================
 */
-void SV_ClientThink (void);
 void SV_ExecuteClientMessage (client_t *cl)
 {
 	client_t *split;
@@ -5850,7 +5995,11 @@ haveannothergo:
 		case clc_upload:
 			SV_NextUpload();
 			break;
-
+#ifdef PEXT2_VOICECHAT
+		case clc_voicechat:
+			SV_VoiceReadPacket();
+			break;
+#endif
 		}
 	}
 
@@ -6325,7 +6474,7 @@ SV_UserFriction
 
 ==================
 */
-void SV_UserFriction (void)
+static void SV_UserFriction (void)
 {
 	extern cvar_t sv_stopspeed;
 	float	*vel;
@@ -6370,7 +6519,7 @@ void SV_UserFriction (void)
 	vel[2] = vel[2] * newspeed;
 }
 
-void SV_Accelerate (void)
+static void SV_Accelerate (void)
 {
 	int			i;
 	float		addspeed, accelspeed, currentspeed;
@@ -6387,7 +6536,7 @@ void SV_Accelerate (void)
 		velocity[i] += accelspeed*wishdir[i];
 }
 
-void SV_AirAccelerate (vec3_t wishveloc)
+static void SV_AirAccelerate (vec3_t wishveloc)
 {
 	int			i;
 	float		addspeed, wishspd, accelspeed, currentspeed;
@@ -6414,7 +6563,7 @@ SV_AirMove
 
 ===================
 */
-void SV_AirMove (void)
+static void SV_AirMove (void)
 {
 	int			i;
 	vec3_t		wishvel;
@@ -6471,7 +6620,7 @@ void SV_AirMove (void)
 	}
 }
 
-void SV_WaterMove (void)
+static void SV_WaterMove (void)
 {
 	int		i;
 	vec3_t	wishvel;
@@ -6548,7 +6697,7 @@ void SV_WaterMove (void)
 		velocity[i] += accelspeed * wishvel[i];
 }
 
-void SV_WaterJump (void)
+static void SV_WaterJump (void)
 {
 	if (sv.time > sv_player->v->teleport_time
 	|| !sv_player->v->waterlevel)

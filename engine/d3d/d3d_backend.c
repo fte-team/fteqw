@@ -2093,6 +2093,8 @@ static void BE_GenModelBatches(batch_t **batches)
 					continue;
 				R_GAlias_GenerateBatches(ent, batches);
 				break;
+			case mod_sprite:
+				break;
 			}
 			break;
 		case RT_SPRITE:

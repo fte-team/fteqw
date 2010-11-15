@@ -169,7 +169,7 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 			if ((ch->pos>>PITCHSHIFT) > scache->length)	//cache was flushed and gamedir changed.
 			{
 				ch->pos = scache->length*ch->rate;
-				ch->end = scache->length*ch->rate;
+				ch->end = scache->length;
 			}
 
 

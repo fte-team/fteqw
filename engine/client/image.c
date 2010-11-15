@@ -897,6 +897,10 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 	#define LIBJPEG_LOADED() (1)
 #endif
 
+#ifndef JPEG_FALSE
+#define JPEG_boolean boolean
+#endif
+
 #define qjpeg_create_compress(cinfo) \
     qjpeg_CreateCompress((cinfo), JPEG_LIB_VERSION, \
 			(size_t) sizeof(struct jpeg_compress_struct))
@@ -954,10 +958,6 @@ qboolean LibJPEG_Init(void)
 
 	return LIBJPEG_LOADED();
 }
-
-#ifndef JPEG_FALSE
-#define JPEG_boolean boolean
-#endif
 
 /*begin jpeg read*/
 

@@ -324,13 +324,6 @@ typedef struct	//merge?
 } q3client_frame_t;
 #endif
 
-#define MAXCACHEDSOUNDBUFFERS 8
-typedef struct {
-	int socket;
-	qboolean floodingbuffers;	//not enough sound causes this. Sound is then only mixed when full.
-	qbyte *buffer[MAXCACHEDSOUNDBUFFERS];
-} svvoicechat_t;
-
 #define MAX_BACK_BUFFERS 16
 
 typedef struct client_s
@@ -474,7 +467,9 @@ typedef struct client_s
 
 	int				lastsequence_acknoledged;
 
-	svvoicechat_t voicechat;
+	unsigned int voice_read;
+	unsigned char voice_mute[MAX_CLIENTS/8];
+	qboolean voice_active;
 
 #ifdef SVCHAT
 	svchat_t chat;
@@ -1039,6 +1034,11 @@ void SVQ2_ExecuteClientMessage (client_t *cl);
 int SV_PMTypeForClient (client_t *cl);
 void SV_UserInit (void);
 qboolean SV_TogglePause (client_t *cl);
+
+#ifdef PEXT2_VOICECHAT
+void SV_VoiceInitClient(client_t *client);
+void SV_VoiceSendPacket(client_t *client, sizebuf_t *buf);
+#endif
 
 void SV_ClientThink (void);
 void SV_Begin_Core(client_t *split);

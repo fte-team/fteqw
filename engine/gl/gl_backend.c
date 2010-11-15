@@ -442,7 +442,7 @@ void GL_SelectTexture(int target)
 		qglClientActiveTextureARB(target + mtexid0);
 		qglActiveTextureARB(target + mtexid0);
 	}
-	else
+	else if (qglSelectTextureSGIS)
 		qglSelectTextureSGIS(target + mtexid0);
 }
 

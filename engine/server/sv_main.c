@@ -2376,6 +2376,10 @@ client_t *SVC_DirectConnect(void)
 			SV_ClientPrintf(newcl, PRINT_CHAT, "%s\n", sv_motd[i].string);
 	}
 
+#ifdef PEXT2_VOICECHAT
+	SV_VoiceInitClient(newcl);
+#endif
+
 	newcl->fteprotocolextensions &= ~PEXT_SPLITSCREEN;
 	for (clients = 1; clients < numssclients; clients++)
 	{
@@ -3473,10 +3477,6 @@ void SV_MVDStream_Poll(void);
 		return;
 	}
 
-#ifdef VOICECHAT
-	SVVC_Frame(sv_voicechat.value);
-#endif
-
 // check timeouts
 	SV_CheckTimeouts ();
 
@@ -3872,6 +3872,9 @@ void SV_InitLocal (void)
 #endif
 
 	svs.fteprotocolextensions2 |= PEXT2_PRYDONCURSOR;
+#ifdef PEXT2_VOICECHAT
+	svs.fteprotocolextensions2 |= PEXT2_VOICECHAT;
+#endif
 
 //	if (svs.protocolextensions)
 //		Info_SetValueForStarKey (svs.info, "*"DISTRIBUTION"_ext", va("%x", svs.protocolextensions), MAX_SERVERINFO_STRING);

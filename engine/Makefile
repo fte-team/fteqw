@@ -243,7 +243,7 @@ ifeq ($(FTE_TARGET),vc)
 	WARNINGFLAGS=-W3 -D_CRT_SECURE_NO_WARNINGS
 	GNUC_FUNCS=
 else
-	WARNINGFLAGS=-Wall
+	WARNINGFLAGS=-Wall -Wno-pointer-sign
 
 	GNUC_FUNCS= -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp -D_vsnprintf=vsnprintf -D_snprintf=snprintf
 endif
@@ -423,13 +423,6 @@ SERVER_OBJS = 		\
 	svq2_ents.o 	\
 	svq2_game.o 	\
 	svq3_game.o	\
-	snd_vc.o		\
-	snd_voicecodecs.o	\
-	g711.o		\
-	g721.o		\
-	g723_24.o		\
-	g723_40.o		\
-	g72x.o		\
 	webgen.o		\
 	ftpserver.o		\
 	httpserver.o
@@ -686,13 +679,13 @@ ifneq ($(shell echo $(FTE_TARGET)|grep linux),)
 	SV_LDFLAGS=-lz
 	SV_EXE_NAME=../fteqw.sv$(BITS)
 
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o snd_alsa.oo cd_linux.o sys_linux.o
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_sdl.o snd_alsa.oo cd_linux.o sys_linux.o
 ifeq ($(USEASM),true)
 	GLCL_OBJS+= sys_dosa.o
 endif
 	GL_EXE_NAME=../fteqw.gl$(BITS)
 	GLCL_EXE_NAME=../fteqwcl.gl$(BITS)
-	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)  -lXxf86vm -lXxf86dga
+	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)  -lXxf86vm -lXxf86dga -lSDL
 	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include -DUSE_DGA
 	GLB_DIR=gl_linux$(BITS)
 	GLCL_DIR=glcl_linux$(BITS)

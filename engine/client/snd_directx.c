@@ -975,7 +975,7 @@ qboolean SNDDMA_InitCapture (void)
 }
 
 /*minsamples is a hint*/
-unsigned int DSOUND_UpdateCapture(unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes)
+unsigned int DSOUND_UpdateCapture(qboolean enable, unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes)
 {
 	HRESULT hr;
 	LPBYTE lpbuf1 = NULL;
@@ -987,7 +987,7 @@ unsigned int DSOUND_UpdateCapture(unsigned char *buffer, unsigned int minbytes, 
 	DWORD readPos;
 	long  filled;
 
-	if (!snd_capture.ival)
+	if (!enable)
 	{
 		if (DSCaptureBuffer)
 		{
@@ -1045,5 +1045,5 @@ unsigned int DSOUND_UpdateCapture(unsigned char *buffer, unsigned int minbytes, 
 	}
 	return filled;
 }
-unsigned int (*pDSOUND_UpdateCapture) (unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes) = &DSOUND_UpdateCapture;
+unsigned int (*pDSOUND_UpdateCapture) (qboolean enable, unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes) = &DSOUND_UpdateCapture;
 #endif

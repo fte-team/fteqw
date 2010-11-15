@@ -94,6 +94,10 @@ cvar_t sv_realiphostname_ipv4 = SCVAR("sv_realiphostname_ipv4", "");
 cvar_t sv_realiphostname_ipv6 = SCVAR("sv_realiphostname_ipv6", "");
 cvar_t sv_realip_timeout = SCVAR("sv_realip_timeout", "10");
 
+#ifdef VOICECHAT
+cvar_t sv_voip = CVAR("sv_voip", "1");
+#endif
+
 char sv_votinggroup[] = "server voting";
 
 
@@ -2111,7 +2115,7 @@ void SV_VoiceReadPacket(void)
 	/*read the data from the client*/
 	bytes = MSG_ReadShort();
 	ring = &voice.ring[voice.write & (VOICE_RING_SIZE-1)];
-	if (bytes > sizeof(ring->data) || host_client->ismuted)
+	if (bytes > sizeof(ring->data) || host_client->ismuted || !sv_voip.ival)
 	{
 		MSG_ReadSkip(bytes);
 		return;
@@ -6358,6 +6362,9 @@ SV_UserInit
 */
 void SV_UserInit (void)
 {
+#ifdef VOICECHAT
+	Cvar_Register (&sv_voip, cvargroup_serverpermissions);
+#endif
 #ifdef SERVERONLY
 	Cvar_Register (&cl_rollspeed, "Prediction stuff");
 	Cvar_Register (&cl_rollangle, "Prediction stuff");

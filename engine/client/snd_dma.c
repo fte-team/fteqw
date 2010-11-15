@@ -97,8 +97,6 @@ cvar_t snd_samplebits			= CVARAF(	"s_bits", "16",
 cvar_t snd_playersoundvolume	= CVARAF(	"s_localvolume", "1",
 											"snd_localvolume", 0);	//sugested by crunch
 
-cvar_t snd_capture				= CVARAF(	"s_capture", "0",
-											"snd_capture", 0);
 cvar_t snd_linearresample		= CVARAF(	"s_linearresample", "1",
 											"snd_linearresample", 0);
 cvar_t snd_linearresample_stream = CVARAF(	"s_linearresample_stream", "0",
@@ -106,6 +104,12 @@ cvar_t snd_linearresample_stream = CVARAF(	"s_linearresample_stream", "0",
 
 cvar_t snd_usemultipledevices	= CVARAF(	"s_multipledevices", "0",
 											"snd_multipledevices", 0);
+
+#ifdef VOICECHAT
+cvar_t cl_voip_send = CVAR("cl_voip_send", "0");
+cvar_t cl_voip_play = CVAR("cl_voip_play", "1");
+cvar_t cl_voip_micamp = CVAR("cl_voip_micamp", "2");
+#endif
 
 extern vfsfile_t *rawwritefile;
 
@@ -277,7 +281,7 @@ void S_ParseVoiceChat(void)
 	unsigned char seq;
 	seq = MSG_ReadByte();
 	bytes = MSG_ReadShort();
-	if (bytes > sizeof(data))
+	if (bytes > sizeof(data) || !cl_voip_play.ival)
 	{
 		MSG_ReadSkip(bytes);
 		return;
@@ -319,13 +323,13 @@ void S_ParseVoiceChat(void)
 	s_speex.decseq[sender] += newseq;
 
 	if (drops)
-		Con_Printf("%i dropped audio frames\n", drops);
+		Con_DPrintf("%i dropped audio frames\n", drops);
 
 	if (decodesamps > 0)
 		S_RawAudio(sender, (qbyte*)decodebuf, 11025, decodesamps, 1, 2);
 }
 
-unsigned int (*pDSOUND_UpdateCapture) (unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes);
+unsigned int (*pDSOUND_UpdateCapture) (qboolean enable, unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes);
 void S_TransmitVoiceChat(unsigned char clc, sizebuf_t *buf)
 {
 	static unsigned char capturebuf[32768];
@@ -336,11 +340,13 @@ void S_TransmitVoiceChat(unsigned char clc, sizebuf_t *buf)
 	unsigned int encpos;//in bytes
 	unsigned short *start;
 	unsigned char initseq;//in frames
+	unsigned int i;
+	float micamp = cl_voip_micamp.value;
 
 	//add new drivers in order or desirability.
 	if (pDSOUND_UpdateCapture)
 	{
-		capturepos += pDSOUND_UpdateCapture((unsigned char*)capturebuf + capturepos, 64, sizeof(capturebuf) - capturepos);
+		capturepos += pDSOUND_UpdateCapture(cl_voip_send.ival, (unsigned char*)capturebuf + capturepos, 64, sizeof(capturebuf) - capturepos);
 	}
 	else
 	{
@@ -356,6 +362,14 @@ void S_TransmitVoiceChat(unsigned char clc, sizebuf_t *buf)
 		start = (short*)(capturebuf + encpos);
 
 		qspeex_preprocess_run(s_speex.preproc, start);
+
+		if (micamp != 1)
+		{
+			for (i = 0; i < s_speex.framesize; i++)
+			{
+				start[i] *= micamp;
+			}
+		}
 
 		qspeex_bits_reset(&s_speex.encbits);
 		qspeex_encode_int(s_speex.encoder, start, &s_speex.encbits);
@@ -376,6 +390,15 @@ void S_TransmitVoiceChat(unsigned char clc, sizebuf_t *buf)
 	/*remove sent data*/
 	memmove(capturebuf, capturebuf + encpos, capturepos-encpos);
 	capturepos -= encpos;
+}
+
+void S_Voip_Enable_f(void)
+{
+	Cvar_Set(&cl_voip_send, "1");
+}
+void S_Voip_Disable_f(void)
+{
+	Cvar_Set(&cl_voip_send, "0");
 }
 #endif
 
@@ -779,7 +802,13 @@ void S_Init (void)
 	Cvar_Register(&snd_buffersize,		"Sound controls");
 	Cvar_Register(&snd_samplebits,		"Sound controls");
 
-	Cvar_Register(&snd_capture,			"Sound controls");
+#ifdef VOICECHAT
+	Cvar_Register(&cl_voip_send,		"Voice Chat");
+	Cvar_Register(&cl_voip_play,		"Voice Chat");
+	Cvar_Register(&cl_voip_micamp,		"Voice Chat");
+	Cmd_AddCommand("+voip", S_Voip_Enable_f);
+	Cmd_AddCommand("-voip", S_Voip_Disable_f);
+#endif
 
 	Cvar_Register(&snd_inactive,		"Sound controls");
 

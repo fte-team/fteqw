@@ -905,6 +905,7 @@ static WAVEFORMATEX  wfxFormat;
 
 qboolean SNDDMA_InitCapture (void)
 {
+	DWORD capturePos;
 	DSCBUFFERDESC bufdesc;
 
 	wfxFormat.wFormatTag = WAVE_FORMAT_PCM;
@@ -970,7 +971,7 @@ qboolean SNDDMA_InitCapture (void)
 	IDirectSoundCaptureBuffer_Start(DSCaptureBuffer, DSBPLAY_LOOPING);
 
 	lastreadpos = 0;
-
+	IDirectSoundCaptureBuffer_GetCurrentPosition(DSCaptureBuffer, &capturePos, &lastreadpos);
 	return true;
 }
 

@@ -44,17 +44,17 @@ cvar_t	sv_spectalk	= SCVAR("sv_spectalk", "1");
 
 cvar_t	sv_mapcheck	= SCVAR("sv_mapcheck", "1");
 
-cvar_t	sv_antilag			= SCVARF("sv_antilag", "0", CVAR_SERVERINFO);
-cvar_t	sv_antilag_frac		= SCVARF("sv_antilag_frac", "1", CVAR_SERVERINFO);
-cvar_t	sv_cheatpc				= SCVAR("sv_cheatpc", "125");
-cvar_t	sv_cheatspeedchecktime	= SCVAR("sv_cheatspeedchecktime", "30");
-cvar_t	sv_playermodelchecks	= SCVAR("sv_playermodelchecks", "1");
+cvar_t	sv_antilag			= CVARFD("sv_antilag", "0", CVAR_SERVERINFO, "Attempt to backdate impacts to compensate for lag.");
+cvar_t	sv_antilag_frac		= CVARF("sv_antilag_frac", "1", CVAR_SERVERINFO);
+cvar_t	sv_cheatpc				= CVAR("sv_cheatpc", "125");
+cvar_t	sv_cheatspeedchecktime	= CVAR("sv_cheatspeedchecktime", "30");
+cvar_t	sv_playermodelchecks	= CVAR("sv_playermodelchecks", "1");
 
 cvar_t	sv_cmdlikercon	= SCVAR("sv_cmdlikercon", "0");	//set to 1 to allow a password of username:password instead of the correct rcon password.
 cvar_t cmd_allowaccess	= SCVAR("cmd_allowaccess", "0");	//set to 1 to allow cmd to execute console commands on the server.
 cvar_t cmd_gamecodelevel	= SCVAR("cmd_gamecodelevel", "50");	//execution level which gamecode is told about (for unrecognised commands)
 
-cvar_t	sv_nomsec	= SCVAR("sv_nomsec", "0");
+cvar_t	sv_nomsec	= CVARD("sv_nomsec", "0", "Ignore client msec times, runs using NQ physics instead.");
 cvar_t	sv_edgefriction	= CVARAF("sv_edgefriction", "2",
 								 "edgefriction", 0);
 
@@ -88,14 +88,15 @@ extern cvar_t	pm_walljump;
 cvar_t sv_pushplayers = SCVAR("sv_pushplayers", "0");
 
 //yes, realip cvars need to be fully initialised or realip will be disabled
-cvar_t sv_getrealip = SCVAR("sv_getrealip", "0");
+cvar_t sv_getrealip = CVARD("sv_getrealip", "0", "Attempt to obtain a more reliable IP for clients, rather than just their proxy.");
 cvar_t sv_realip_kick = SCVAR("sv_realip_kick", "0");
 cvar_t sv_realiphostname_ipv4 = SCVAR("sv_realiphostname_ipv4", "");
 cvar_t sv_realiphostname_ipv6 = SCVAR("sv_realiphostname_ipv6", "");
 cvar_t sv_realip_timeout = SCVAR("sv_realip_timeout", "10");
 
 #ifdef VOICECHAT
-cvar_t sv_voip = CVAR("sv_voip", "1");
+cvar_t sv_voip = CVARD("sv_voip", "1", "Enable reception of voice packets.");
+cvar_t sv_voip_echo = CVARD("sv_voip_echo", "0", "Echo voice packets back to their sender, a debug/test setting.");
 #endif
 
 char sv_votinggroup[] = "server voting";
@@ -2134,8 +2135,8 @@ void SV_VoiceReadPacket(void)
 		ring->receiver[j] = 0;
 	for (j = 0, cl = svs.clients; j < sv.allocated_client_slots; j++, cl++)
 	{
-//		if (cl == host_client)
-//			continue;
+		if (cl == host_client && !sv_voip_echo.ival)
+			continue;
 
 		if (cl->state != cs_spawned && cl->state != cs_connected)
 			continue;
@@ -2208,16 +2209,17 @@ void SV_VoiceSendPacket(client_t *client, sizebuf_t *buf)
 		if (client->download)
 			send = false;
 
-		client->voice_read++;
-
 		if (send)
 		{
+			if (buf->maxsize - buf->cursize < ring->datalen+5)
+				break;
 			MSG_WriteByte(buf, svcfte_voicechat);
 			MSG_WriteByte(buf, ring->sender);
 			MSG_WriteByte(buf, ring->seq);
 			MSG_WriteShort(buf, ring->datalen);
 			SZ_Write(buf, ring->data, ring->datalen);
 		}
+		client->voice_read++;
 	}
 }
 
@@ -6364,6 +6366,7 @@ void SV_UserInit (void)
 {
 #ifdef VOICECHAT
 	Cvar_Register (&sv_voip, cvargroup_serverpermissions);
+	Cvar_Register (&sv_voip_echo, cvargroup_serverpermissions);
 #endif
 #ifdef SERVERONLY
 	Cvar_Register (&cl_rollspeed, "Prediction stuff");

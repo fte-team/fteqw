@@ -2256,6 +2256,10 @@ void CL_ParseServerData (void)
 
 	cl.sendprespawn = false;
 
+#ifdef VOICECHAT
+	S_Voip_MapChange();
+#endif
+
 #ifdef VM_CG
 	CG_Stop();
 #endif

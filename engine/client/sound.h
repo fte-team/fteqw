@@ -150,6 +150,7 @@ void S_ResetFailedLoad(void);
 #ifdef VOICECHAT
 void S_ParseVoiceChat(void);
 void S_TransmitVoiceChat(unsigned char clc, sizebuf_t *buf);
+void S_Voip_MapChange(void);
 #endif
 
 qboolean S_IsPlayingSomewhere(sfx_t *s);

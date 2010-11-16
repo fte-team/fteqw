@@ -106,8 +106,9 @@ cvar_t snd_usemultipledevices	= CVARAF(	"s_multipledevices", "0",
 											"snd_multipledevices", 0);
 
 #ifdef VOICECHAT
+static void S_Voip_Play_Callback(cvar_t *var, char *oldval);
 cvar_t cl_voip_send = CVAR("cl_voip_send", "0");
-cvar_t cl_voip_play = CVAR("cl_voip_play", "1");
+cvar_t cl_voip_play = CVARC("cl_voip_play", "1", S_Voip_Play_Callback);
 cvar_t cl_voip_micamp = CVAR("cl_voip_micamp", "2");
 #endif
 
@@ -159,7 +160,7 @@ void S_SoundInfo_f(void)
 #ifdef VOICECHAT
 #include "speex/speex.h"
 #include "speex/speex_preprocess.h"
-struct
+static struct
 {
 	qboolean inited;
 	qboolean loaded;
@@ -175,26 +176,27 @@ struct
 	SpeexBits decbits[MAX_CLIENTS];
 	void *decoder[MAX_CLIENTS];
 	unsigned char decseq[MAX_CLIENTS];
+	float decamp[MAX_CLIENTS];
 } s_speex;
 
-const SpeexMode *(VARGS *qspeex_lib_get_mode)(int mode);
-void (VARGS *qspeex_bits_init)(SpeexBits *bits);
-void (VARGS *qspeex_bits_reset)(SpeexBits *bits);
-int (VARGS *qspeex_bits_write)(SpeexBits *bits, char *bytes, int max_len);
+static const SpeexMode *(VARGS *qspeex_lib_get_mode)(int mode);
+static void (VARGS *qspeex_bits_init)(SpeexBits *bits);
+static void (VARGS *qspeex_bits_reset)(SpeexBits *bits);
+static int (VARGS *qspeex_bits_write)(SpeexBits *bits, char *bytes, int max_len);
 
-SpeexPreprocessState *(VARGS *qspeex_preprocess_state_init)(int frame_size, int sampling_rate);
-int (VARGS *qspeex_preprocess_ctl)(SpeexPreprocessState *st, int request, void *ptr);
-int (VARGS *qspeex_preprocess_run)(SpeexPreprocessState *st, spx_int16_t *x);
+static SpeexPreprocessState *(VARGS *qspeex_preprocess_state_init)(int frame_size, int sampling_rate);
+static int (VARGS *qspeex_preprocess_ctl)(SpeexPreprocessState *st, int request, void *ptr);
+static int (VARGS *qspeex_preprocess_run)(SpeexPreprocessState *st, spx_int16_t *x);
 
-void * (VARGS *qspeex_encoder_init)(const SpeexMode *mode);
-int (VARGS *qspeex_encoder_ctl)(void *state, int request, void *ptr);
-int (VARGS *qspeex_encode_int)(void *state, spx_int16_t *in, SpeexBits *bits);
+static void * (VARGS *qspeex_encoder_init)(const SpeexMode *mode);
+static int (VARGS *qspeex_encoder_ctl)(void *state, int request, void *ptr);
+static int (VARGS *qspeex_encode_int)(void *state, spx_int16_t *in, SpeexBits *bits);
 
-void *(VARGS *qspeex_decoder_init)(const SpeexMode *mode);
-int (VARGS *qspeex_decode_int)(void *state, SpeexBits *bits, spx_int16_t *out);
-void (VARGS *qspeex_bits_read_from)(SpeexBits *bits, char *bytes, int len);
+static void *(VARGS *qspeex_decoder_init)(const SpeexMode *mode);
+static int (VARGS *qspeex_decode_int)(void *state, SpeexBits *bits, spx_int16_t *out);
+static void (VARGS *qspeex_bits_read_from)(SpeexBits *bits, char *bytes, int len);
 
-dllfunction_t qspeexfuncs[] =
+static dllfunction_t qspeexfuncs[] =
 {
 	{(void*)&qspeex_lib_get_mode, "speex_lib_get_mode"},
 	{(void*)&qspeex_bits_init, "speex_bits_init"},
@@ -211,7 +213,7 @@ dllfunction_t qspeexfuncs[] =
 
 	{NULL}
 };
-dllfunction_t qspeexdspfuncs[] =
+static dllfunction_t qspeexdspfuncs[] =
 {
 	{(void*)&qspeex_preprocess_state_init, "speex_preprocess_state_init"},
 	{(void*)&qspeex_preprocess_ctl, "speex_preprocess_ctl"},
@@ -220,7 +222,7 @@ dllfunction_t qspeexdspfuncs[] =
 	{NULL}
 };
 
-qboolean S_Speex_Init(void)
+static qboolean S_Speex_Init(void)
 {
 	int i;
 	const SpeexMode *mode;
@@ -266,6 +268,7 @@ qboolean S_Speex_Init(void)
 		qspeex_bits_init(&s_speex.decbits[i]);
 		qspeex_bits_reset(&s_speex.decbits[i]);
 		s_speex.decoder[i] = qspeex_decoder_init(mode);
+		s_speex.decamp[i] = 1;
 	}
 	s_speex.loaded = true;
 	return s_speex.loaded;
@@ -279,6 +282,8 @@ void S_ParseVoiceChat(void)
 	short decodebuf[1024];
 	unsigned int decodesamps, len, newseq, drops;
 	unsigned char seq;
+	float amp = 1;
+	unsigned int i;
 	seq = MSG_ReadByte();
 	bytes = MSG_ReadShort();
 	if (bytes > sizeof(data) || !cl_voip_play.ival)
@@ -289,6 +294,8 @@ void S_ParseVoiceChat(void)
 	MSG_ReadData(data, bytes);
 
 	sender &= MAX_CLIENTS-1;
+
+	amp = s_speex.decamp[sender];
 
 	decodesamps = 0;
 	newseq = 0;
@@ -318,6 +325,11 @@ void S_ParseVoiceChat(void)
 			qspeex_decode_int(s_speex.decoder[sender], &s_speex.decbits[sender], decodebuf + decodesamps);
 			newseq++;
 		}
+		if (amp != 1)
+		{
+			for (i = decodesamps; i < decodesamps+s_speex.framesize; i++)
+				decodebuf[i] *= amp;
+		}
 		decodesamps += s_speex.framesize;
 	}
 	s_speex.decseq[sender] += newseq;
@@ -346,10 +358,16 @@ void S_TransmitVoiceChat(unsigned char clc, sizebuf_t *buf)
 	//add new drivers in order or desirability.
 	if (pDSOUND_UpdateCapture)
 	{
-		capturepos += pDSOUND_UpdateCapture(cl_voip_send.ival, (unsigned char*)capturebuf + capturepos, 64, sizeof(capturebuf) - capturepos);
+		capturepos += pDSOUND_UpdateCapture(1, (unsigned char*)capturebuf + capturepos, 64, sizeof(capturebuf) - capturepos);
 	}
 	else
 	{
+		return;
+	}
+
+	if (!cl_voip_send.ival)
+	{
+		capturepos = 0;
 		return;
 	}
 
@@ -392,13 +410,30 @@ void S_TransmitVoiceChat(unsigned char clc, sizebuf_t *buf)
 	capturepos -= encpos;
 }
 
-void S_Voip_Enable_f(void)
+static void S_Voip_Enable_f(void)
 {
 	Cvar_Set(&cl_voip_send, "1");
 }
-void S_Voip_Disable_f(void)
+static void S_Voip_Disable_f(void)
 {
 	Cvar_Set(&cl_voip_send, "0");
+}
+static void S_Voip_f(void)
+{
+}
+static void S_Voip_Play_Callback(cvar_t *var, char *oldval)
+{
+	if (cls.fteprotocolextensions2 & PEXT2_VOICECHAT)
+	{
+		if (var->ival)
+			CL_SendClientCommand(true, "unmuteall");
+		else
+			CL_SendClientCommand(true, "muteall");
+	}
+}
+void S_Voip_MapChange(void)
+{
+	Cvar_ForceCallback(&cl_voip_play);
 }
 #endif
 

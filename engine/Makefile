@@ -679,18 +679,18 @@ ifneq ($(shell echo $(FTE_TARGET)|grep linux),)
 	SV_LDFLAGS=-lz
 	SV_EXE_NAME=../fteqw.sv$(BITS)
 
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_sdl.o snd_alsa.oo cd_linux.o sys_linux.o
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_alsa.o cd_linux.o sys_linux.o
 ifeq ($(USEASM),true)
 	GLCL_OBJS+= sys_dosa.o
 endif
 	GL_EXE_NAME=../fteqw.gl$(BITS)
 	GLCL_EXE_NAME=../fteqwcl.gl$(BITS)
-	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)  -lXxf86vm -lXxf86dga -lSDL
+	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)  -lXxf86vm -lXxf86dga
 	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include -DUSE_DGA
 	GLB_DIR=gl_linux$(BITS)
 	GLCL_DIR=glcl_linux$(BITS)
 
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o snd_linux.o snd_alsa.oo cd_linux.o sys_linux.o
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o snd_linux.o snd_alsa.o cd_linux.o sys_linux.o
 ifeq ($(USEASM),true)
 	MCL_OBJS+= sys_dosa.o
 endif
@@ -732,6 +732,8 @@ ifneq ($(shell echo $(FTE_TARGET)|grep macosx),)
 	STRIPFLAGS=
 endif
 ifeq ($(FTE_TARGET),morphos)
+	#-Wno-pointer-sign unrecognised 
+	WARNINGFLAGS=-Wall
 
 	SV_DIR=sv_morphos
 	SV_LDFLAGS=-lz

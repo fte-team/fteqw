@@ -312,7 +312,7 @@ void S_Voip_Parse(void)
 	gen = MSG_ReadByte();
 	seq = MSG_ReadByte();
 	bytes = MSG_ReadShort();
-	if (bytes > sizeof(data) || !cl_voip_play.ival || !S_Speex_Init() || (sender & 0xc0))
+	if (bytes > sizeof(data) || !cl_voip_play.ival || !S_Speex_Init() || (gen & 0xf0))
 	{
 		MSG_ReadSkip(bytes);
 		return;
@@ -531,7 +531,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 	if (outpos && buf->maxsize - buf->cursize >= outpos+4)
 	{
 		MSG_WriteByte(buf, clc);
-		MSG_WriteByte(buf, (s_speex.generation & 0x3f)); /*gonna leave two bits clear here...*/
+		MSG_WriteByte(buf, (s_speex.generation & 0x0f)); /*gonna leave that nibble clear here... in this version, the client will ignore packets with those bits set. can use them for codec or something*/
 		MSG_WriteByte(buf, initseq);
 		MSG_WriteShort(buf, outpos);
 		SZ_Write(buf, outbuf, outpos);

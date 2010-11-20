@@ -5259,7 +5259,6 @@ void CSQC_Shutdown(void)
 	{
 		CSQC_ForgetThreads();
 		CloseProgs(csqcprogs);
-		Con_Printf("Closed csqc\n");
 	}
 	csqcprogs = NULL;
 

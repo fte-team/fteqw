@@ -96,6 +96,7 @@ cvar_t sv_realip_timeout = SCVAR("sv_realip_timeout", "10");
 
 #ifdef VOICECHAT
 cvar_t sv_voip = CVARD("sv_voip", "1", "Enable reception of voice packets.");
+cvar_t sv_voip_record = CVARD("sv_voip_record", "0", "Record voicechat into mvds. Requires player support.");
 cvar_t sv_voip_echo = CVARD("sv_voip_echo", "0", "Echo voice packets back to their sender, a debug/test setting.");
 #endif
 
@@ -2100,6 +2101,7 @@ struct
 	{
 			unsigned int sender;
 			unsigned char receiver[MAX_CLIENTS/8];
+			unsigned char gen;
 			unsigned char seq;
 			unsigned int datalen;
 			unsigned char data[1024];
@@ -2112,6 +2114,7 @@ void SV_VoiceReadPacket(void)
 	struct voice_ring_s *ring;
 	unsigned short bytes;
 	client_t *cl;
+	unsigned char gen = MSG_ReadByte();
 	unsigned char seq = MSG_ReadByte();
 	/*read the data from the client*/
 	bytes = MSG_ReadShort();
@@ -2126,8 +2129,10 @@ void SV_VoiceReadPacket(void)
 		voice.write++;
 		MSG_ReadData(ring->data, bytes);
 	}
+
 	ring->datalen = bytes;
 	ring->sender = host_client - svs.clients;
+	ring->gen = gen;
 	ring->seq = seq;
 
 	/*figure out which team members are meant to receive it*/
@@ -2166,6 +2171,31 @@ void SV_VoiceReadPacket(void)
 			cln = j;
 
 		ring->receiver[cln>>3] |= 1<<(cln&3);
+	}
+
+	if (sv.mvdrecording  && sv_voip_record.ival)
+	{
+		// non-team messages should be seen always, even if not tracking any player
+		if (!teamplay.ival)
+		{
+			MVDWrite_Begin (dem_all, 0, ring->datalen+6);
+		}
+		else
+		{
+			unsigned int cls;
+			cls = ring->receiver[0] |
+				(ring->receiver[1]<<8) |
+				(ring->receiver[2]<<16) |
+				(ring->receiver[3]<<24);
+			MVDWrite_Begin (dem_multiple, cls, ring->datalen+6);
+		}
+
+		MSG_WriteByte( &demo.dbuf->sb, svcfte_voicechat);
+		MSG_WriteByte( &demo.dbuf->sb, ring->sender);
+		MSG_WriteByte( &demo.dbuf->sb, ring->gen);
+		MSG_WriteByte( &demo.dbuf->sb, ring->seq);
+		MSG_WriteShort(&demo.dbuf->sb, ring->datalen);
+		SZ_Write(      &demo.dbuf->sb, ring->data, ring->datalen);
 	}
 }
 void SV_VoiceInitClient(client_t *client)
@@ -2215,6 +2245,7 @@ void SV_VoiceSendPacket(client_t *client, sizebuf_t *buf)
 				break;
 			MSG_WriteByte(buf, svcfte_voicechat);
 			MSG_WriteByte(buf, ring->sender);
+			MSG_WriteByte(buf, ring->gen);
 			MSG_WriteByte(buf, ring->seq);
 			MSG_WriteShort(buf, ring->datalen);
 			SZ_Write(buf, ring->data, ring->datalen);
@@ -2899,9 +2930,9 @@ void SV_Say (qboolean team)
 	else
 		MVDWrite_Begin (dem_multiple, cls, strlen(text)+3);
 
-	MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_print);
-	MSG_WriteByte ((sizebuf_t*)demo.dbuf, PRINT_CHAT);
-	MSG_WriteString ((sizebuf_t*)demo.dbuf, text);
+	MSG_WriteByte (&demo.dbuf->sb, svc_print);
+	MSG_WriteByte (&demo.dbuf->sb, PRINT_CHAT);
+	MSG_WriteString (&demo.dbuf->sb, text);
 }
 
 
@@ -3324,10 +3355,10 @@ void SV_SetInfo_f (void)
 		if (sv.mvdrecording)
 		{
 			MVDWrite_Begin (dem_all, 0, strlen(key)+strlen(val)+4);
-			MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_setinfo);
-			MSG_WriteByte ((sizebuf_t*)demo.dbuf, i);
-			MSG_WriteString ((sizebuf_t*)demo.dbuf, key);
-			MSG_WriteString ((sizebuf_t*)demo.dbuf, val);
+			MSG_WriteByte (&demo.dbuf->sb, svc_setinfo);
+			MSG_WriteByte (&demo.dbuf->sb, i);
+			MSG_WriteString (&demo.dbuf->sb, key);
+			MSG_WriteString (&demo.dbuf->sb, val);
 		}
 	}
 

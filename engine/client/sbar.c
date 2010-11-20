@@ -2204,6 +2204,49 @@ qboolean Sbar_UpdateTeamStatus(player_info_t *player, char *status)
 	return false;
 }
 
+
+static void Sbar_Voice(int y)
+{
+#ifdef VOICECHAT
+	char st[64];
+	int loudness;
+	if (!cl_voip_showmeter.ival)
+		return;
+	loudness = S_Voip_Loudness(cl_voip_showmeter.ival==2);
+	if (loudness >= 0)
+	{
+		int x=0,t;
+		int s, i;
+		float range = loudness/100.0f;
+		Font_BeginString(font_conchar, x, y, &t, &t);
+		x = vid.width;
+		x -= Font_CharWidth(0xe080 | CON_WHITEMASK);
+		x -= Font_CharWidth(0xe081 | CON_WHITEMASK)*16;
+		x -= Font_CharWidth(0xe082 | CON_WHITEMASK);
+		x /= 2;
+		x -= Font_CharWidth('M' | CON_WHITEMASK);
+		x -= Font_CharWidth('i' | CON_WHITEMASK);
+		x -= Font_CharWidth('c' | CON_WHITEMASK);
+		x -= Font_CharWidth(' ' | CON_WHITEMASK);
+
+		y = sbar_rect.y + y+ sbar_rect.height-SBAR_HEIGHT;
+		Font_BeginString(font_conchar, x, y, &x, &y);
+		x = Font_DrawChar(x, y, 'M' | CON_WHITEMASK);
+		x = Font_DrawChar(x, y, 'i' | CON_WHITEMASK);
+		x = Font_DrawChar(x, y, 'c' | CON_WHITEMASK);
+		x = Font_DrawChar(x, y, ' ' | CON_WHITEMASK);
+		x = Font_DrawChar(x, y, 0xe080 | CON_WHITEMASK);
+		s = x;
+		for (i=0 ; i<16 ; i++)
+			x = Font_DrawChar(x, y, 0xe081 | CON_WHITEMASK);
+		Font_DrawChar(x, y, 0xe082 | CON_WHITEMASK);
+		Font_DrawChar(s + (x-s) * range - Font_CharWidth(0xe083 | CON_WHITEMASK)/2, y, 0xe083 | CON_WHITEMASK);
+		Font_EndString(font_conchar);
+	}
+#endif
+}
+
+
 /*
 ===============
 Sbar_Draw
@@ -2297,6 +2340,8 @@ void Sbar_Draw (void)
 
 			Sbar_DrawString (0, -8, va("Health: %i", cl.stats[pnum][STAT_HEALTH]));
 			Sbar_DrawString (0, -16, va(" Armor: %i", cl.stats[pnum][STAT_ARMOR]));
+
+			Sbar_Voice(-24);
 			continue;
 		}
 
@@ -2352,6 +2397,13 @@ void Sbar_Draw (void)
 			else
 				Sbar_DrawNormal (pnum);
 		}
+
+		if (sb_lines > 24)
+			Sbar_Voice(-32);
+		else if (sb_lines > 0)
+			Sbar_Voice(-8);
+		else
+			Sbar_Voice(16);
 	}
 
 #ifdef GLQUAKE
@@ -2790,7 +2842,9 @@ if (showcolumns & (1<<COLUMN##title)) \
 				// Electro's scoreboard eyecandy: red vs blue are common teams, force the colours
 				Q_strncpyz (team, Info_ValueForKey(s->userinfo, "team"), sizeof(team));
 
-				if (!(strcmp("red", team)))
+				if (S_Voip_Speaking(k))
+					background_color = 0x00ff00;
+				else if (!(strcmp("red", team)))
 					background_color = 4; // forced red
 				else if (!(strcmp("blue", team)))
 					background_color = 13; // forced blue
@@ -2799,6 +2853,8 @@ if (showcolumns & (1<<COLUMN##title)) \
 
 				Sbar_FillPCDark (startx - 2, y, rank_width - 3, skip, background_color);
 			}
+			else if (S_Voip_Speaking(k))
+				Sbar_FillPCDark (startx - 2, y, rank_width - 3, skip, 0x00ff00);
 			else
 				Draw_Fill (startx - 2, y, rank_width - 3, skip, 2);
 

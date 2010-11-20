@@ -27,6 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	PAINTBUFFER_SIZE	2048
 
+float voicevolumemod = 1;
 portable_samplegroup_t paintbuffer[PAINTBUFFER_SIZE];
 
 int 	*snd_p, snd_vol;
@@ -70,7 +71,7 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 	count = (endtime - sc->paintedtime) * sc->sn.numchannels;
 	outlimit = sc->sn.samples; 
 	startidx = out_idx = (sc->paintedtime * sc->sn.numchannels) % outlimit;
-	snd_vol = volume.value*256;
+	snd_vol = (volume.value*voicevolumemod)*256;
 
 	pbuf = sc->Lock(sc);
 	if (!pbuf)
@@ -169,7 +170,7 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 			if ((ch->pos>>PITCHSHIFT) > scache->length)	//cache was flushed and gamedir changed.
 			{
 				ch->pos = scache->length*ch->rate;
-				ch->end = scache->length;
+				ch->end = sc->paintedtime;
 			}
 
 

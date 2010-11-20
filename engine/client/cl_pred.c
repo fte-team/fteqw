@@ -823,7 +823,7 @@ void CL_PredictMovePNum (int pnum)
 	}
 
 
-	if (((cl_nopred.value && cls.demoplayback!=DPB_MVD && cls.demoplayback != DPB_EZTV)|| cl.fixangle))
+	if (((cl_nopred.value && cls.demoplayback!=DPB_MVD && cls.demoplayback != DPB_EZTV)|| cl.fixangle[pnum]))
 	{
 fixedorg:
 		VectorCopy (vel, cl.simvel[pnum]);

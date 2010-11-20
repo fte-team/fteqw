@@ -1336,6 +1336,8 @@ char *MSG_ReadStringLine (void)
 float MSG_ReadCoord (void)
 {
 	coorddata c = {{0}};
+	if (!net_message.prim.coordsize)
+		net_message.prim.coordsize = 2;
 	MSG_ReadData(&c, net_message.prim.coordsize);
 	return MSG_FromCoord(c, net_message.prim.coordsize);
 }
@@ -1401,6 +1403,9 @@ float MSG_ReadAngle16 (void)
 }
 float MSG_ReadAngle (void)
 {
+	if (!net_message.prim.anglesize)
+		net_message.prim.anglesize = 1;
+
 	switch(net_message.prim.anglesize)
 	{
 	case 2:

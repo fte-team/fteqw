@@ -292,9 +292,9 @@ void VARGS SV_ClientPrintf (client_t *cl, int level, char *fmt, ...)
 	if (sv.mvdrecording)
 	{
 		MVDWrite_Begin (dem_single, cl - svs.clients, strlen(string)+3);
-		MSG_WriteByte ((sizebuf_t *)demo.dbuf, svc_print);
-		MSG_WriteByte ((sizebuf_t *)demo.dbuf, level);
-		MSG_WriteString ((sizebuf_t *)demo.dbuf, string);
+		MSG_WriteByte (&demo.dbuf->sb, svc_print);
+		MSG_WriteByte (&demo.dbuf->sb, level);
+		MSG_WriteString (&demo.dbuf->sb, string);
 	}
 
 	if (cl->controller)
@@ -322,9 +322,9 @@ void VARGS SV_ClientTPrintf (client_t *cl, int level, translation_t stringnum, .
 	if (sv.mvdrecording)
 	{
 		MVDWrite_Begin (dem_single, cl - svs.clients, strlen(string)+3);
-		MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_print);
-		MSG_WriteByte ((sizebuf_t*)demo.dbuf, level);
-		MSG_WriteString ((sizebuf_t*)demo.dbuf, string);
+		MSG_WriteByte (&demo.dbuf->sb, svc_print);
+		MSG_WriteByte (&demo.dbuf->sb, level);
+		MSG_WriteString (&demo.dbuf->sb, string);
 	}
 
 	SV_PrintToClient(cl, level, string);
@@ -371,9 +371,9 @@ void VARGS SV_BroadcastPrintf (int level, char *fmt, ...)
 	if (sv.mvdrecording)
 	{
 		MVDWrite_Begin (dem_all, 0, strlen(string)+3);
-		MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_print);
-		MSG_WriteByte ((sizebuf_t*)demo.dbuf, level);
-		MSG_WriteString ((sizebuf_t*)demo.dbuf, string);
+		MSG_WriteByte (&demo.dbuf->sb, svc_print);
+		MSG_WriteByte (&demo.dbuf->sb, level);
+		MSG_WriteString (&demo.dbuf->sb, string);
 	}
 }
 
@@ -755,7 +755,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		if (reliable)
 		{
 			MVDWrite_Begin(dem_all, 0, sv.multicast.cursize);
-			SZ_Write((sizebuf_t*)demo.dbuf, sv.multicast.data, sv.multicast.cursize);
+			SZ_Write(&demo.dbuf->sb, sv.multicast.data, sv.multicast.cursize);
 		} else
 			SZ_Write(&demo.datagram, sv.multicast.data, sv.multicast.cursize);
 	}
@@ -1069,8 +1069,8 @@ void SV_WriteCenterPrint(client_t *cl, char *s)
 	if (sv.mvdrecording)
 	{
 		MVDWrite_Begin (dem_single, cl - svs.clients, 2 + strlen(s));
-		MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_centerprint);
-		MSG_WriteString ((sizebuf_t*)demo.dbuf, s);
+		MSG_WriteByte (&demo.dbuf->sb, svc_centerprint);
+		MSG_WriteString (&demo.dbuf->sb, s);
 	}
 }
 
@@ -1871,9 +1871,9 @@ void SV_UpdateToReliableMessages (void)
 					if (sv.mvdrecording)
 					{
 						MVDWrite_Begin(dem_all, 0, 4);
-						MSG_WriteByte((sizebuf_t*)demo.dbuf, svc_updatefrags);
-						MSG_WriteByte((sizebuf_t*)demo.dbuf, i);
-						MSG_WriteShort((sizebuf_t*)demo.dbuf, host_client->edict->v->frags);
+						MSG_WriteByte(&demo.dbuf->sb, svc_updatefrags);
+						MSG_WriteByte(&demo.dbuf->sb, i);
+						MSG_WriteShort(&demo.dbuf->sb, host_client->edict->v->frags);
 					}
 
 					host_client->old_frags = host_client->edict->v->frags;
@@ -1932,9 +1932,9 @@ void SV_UpdateToReliableMessages (void)
 				if (sv.mvdrecording)
 				{
 					MVDWrite_Begin(dem_all, 0, 4);
-					MSG_WriteByte((sizebuf_t*)demo.dbuf, svc_updatefrags);
-					MSG_WriteByte((sizebuf_t*)demo.dbuf, i);
-					MSG_WriteShort((sizebuf_t*)demo.dbuf, curfrags);
+					MSG_WriteByte(&demo.dbuf->sb, svc_updatefrags);
+					MSG_WriteByte(&demo.dbuf->sb, i);
+					MSG_WriteShort(&demo.dbuf->sb, curfrags);
 				}
 
 				host_client->old_frags = curfrags;
@@ -2363,16 +2363,16 @@ void SV_SendMVDMessage(void)
 				if (stats[j] >=0 && stats[j] <= 255)
 				{
 					MVDWrite_Begin(dem_stats, i, 3);
-					MSG_WriteByte((sizebuf_t*)demo.dbuf, svc_updatestat);
-					MSG_WriteByte((sizebuf_t*)demo.dbuf, j);
-					MSG_WriteByte((sizebuf_t*)demo.dbuf, stats[j]);
+					MSG_WriteByte(&demo.dbuf->sb, svc_updatestat);
+					MSG_WriteByte(&demo.dbuf->sb, j);
+					MSG_WriteByte(&demo.dbuf->sb, stats[j]);
 				}
 				else
 				{
 					MVDWrite_Begin(dem_stats, i, 6);
-					MSG_WriteByte((sizebuf_t*)demo.dbuf, svc_updatestatlong);
-					MSG_WriteByte((sizebuf_t*)demo.dbuf, j);
-					MSG_WriteLong((sizebuf_t*)demo.dbuf, stats[j]);
+					MSG_WriteByte(&demo.dbuf->sb, svc_updatestatlong);
+					MSG_WriteByte(&demo.dbuf->sb, j);
+					MSG_WriteLong(&demo.dbuf->sb, stats[j]);
 				}
 			}
 	}
@@ -2381,6 +2381,7 @@ void SV_SendMVDMessage(void)
 	// this will include clients, a packetentities, and
 	// possibly a nails update
 	msg.cursize = 0;
+	msg.prim = demo.recorder.netchan.netprim;
 	if (!demo.recorder.delta_sequence)
 		demo.recorder.delta_sequence = -1;
 
@@ -2389,12 +2390,12 @@ void SV_SendMVDMessage(void)
 	if (!MVDWrite_Begin(dem_all, 0, msg.cursize))
 		return;
 
-	SZ_Write ((sizebuf_t*)demo.dbuf, msg.data, msg.cursize);
+	SZ_Write (&demo.dbuf->sb, msg.data, msg.cursize);
 	// copy the accumulated multicast datagram
 	// for this client out to the message
 	if (demo.datagram.cursize) {
 		MVDWrite_Begin(dem_all, 0, demo.datagram.cursize);
-		SZ_Write ((sizebuf_t*)demo.dbuf, demo.datagram.data, demo.datagram.cursize);
+		SZ_Write (&demo.dbuf->sb, demo.datagram.data, demo.datagram.cursize);
 		SZ_Clear (&demo.datagram);
 	}
 

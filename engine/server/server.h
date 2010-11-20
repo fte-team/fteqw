@@ -593,11 +593,7 @@ typedef struct {
 
 typedef struct
 {
-	qboolean	allowoverflow;	// if false, do a Sys_Error
-	qboolean	overflowed;		// set to true if the buffer size failed
-	qbyte	*data;
-	int		maxsize;
-	int		cursize;
+	sizebuf_t sb;
 	int		bufsize;
 	header_t *h;
 } demobuf_t;
@@ -607,7 +603,6 @@ typedef struct
 	demo_client_t clients[MAX_CLIENTS];
 	double		time;
 	demobuf_t	buf;
-
 } demo_frame_t;
 
 typedef struct {

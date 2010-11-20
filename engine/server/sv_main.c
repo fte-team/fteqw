@@ -153,7 +153,6 @@ cvar_t sv_pupglow = CVARF("sv_pupglow", "", CVAR_SERVERINFO);
 cvar_t sv_master = CVAR("sv_master", "0");
 cvar_t sv_masterport = CVAR("sv_masterport", "0");
 
-cvar_t	sv_voicechat = CVAR("sv_voicechat", "0");	//still development.
 cvar_t	sv_gamespeed = CVAR("sv_gamespeed", "1");
 cvar_t	sv_csqcdebug = CVAR("sv_csqcdebug", "0");
 cvar_t	sv_csqc_progname = CVAR("sv_csqc_progname", "csprogs.dat");
@@ -3774,7 +3773,6 @@ void SV_InitLocal (void)
 
 	Cvar_Register (&pausable,	cvargroup_servercontrol);
 
-	Cvar_Register (&sv_voicechat,	cvargroup_servercontrol);
 	Cvar_Register (&sv_maxrate, cvargroup_servercontrol);
 	Cvar_Register (&sv_maxdrate, cvargroup_servercontrol);
 	Cvar_Register (&sv_minping, cvargroup_servercontrol);

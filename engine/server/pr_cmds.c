@@ -3209,8 +3209,8 @@ void PF_stuffcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (sv.mvdrecording)
 	{
 		MVDWrite_Begin (dem_single, entnum - 1, 2 + slen);
-		MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_stufftext);
-		MSG_WriteString ((sizebuf_t*)demo.dbuf, str);
+		MSG_WriteByte (&demo.dbuf->sb, svc_stufftext);
+		MSG_WriteString (&demo.dbuf->sb, str);
 	}
 }
 

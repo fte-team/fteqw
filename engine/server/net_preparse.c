@@ -154,7 +154,7 @@ inrange:
 		if (reliable)
 		{
 			MVDWrite_Begin(dem_all, 0, sv.multicast.cursize);
-			SZ_Write((sizebuf_t*)demo.dbuf, sv.multicast.data, sv.multicast.cursize);
+			SZ_Write(&demo.dbuf->sb, sv.multicast.data, sv.multicast.cursize);
 		} else
 			SZ_Write(&demo.datagram, sv.multicast.data, sv.multicast.cursize);
 	}*/

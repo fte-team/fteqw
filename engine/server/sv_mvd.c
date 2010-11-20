@@ -766,12 +766,12 @@ void SV_MVDPings (void)
 			continue;
 
 		MVDWrite_Begin (dem_all, 0, 7);
-		MSG_WriteByte((sizebuf_t*)demo.dbuf, svc_updateping);
-		MSG_WriteByte((sizebuf_t*)demo.dbuf,  j);
-		MSG_WriteShort((sizebuf_t*)demo.dbuf,  SV_CalcPing(client, false));
-		MSG_WriteByte((sizebuf_t*)demo.dbuf, svc_updatepl);
-		MSG_WriteByte ((sizebuf_t*)demo.dbuf, j);
-		MSG_WriteByte ((sizebuf_t*)demo.dbuf, client->lossage);
+		MSG_WriteByte(&demo.dbuf->sb, svc_updateping);
+		MSG_WriteByte(&demo.dbuf->sb,  j);
+		MSG_WriteShort(&demo.dbuf->sb,  SV_CalcPing(client, false));
+		MSG_WriteByte(&demo.dbuf->sb, svc_updatepl);
+		MSG_WriteByte (&demo.dbuf->sb, j);
+		MSG_WriteByte (&demo.dbuf->sb, client->lossage);
 	}
 }
 
@@ -799,13 +799,14 @@ void MVDSetMsgBuf(demobuf_t *prev,demobuf_t *cur)
 	// fix the maxsize of previous msg buffer,
 	// we won't be able to write there anymore
 	if (prev != NULL)
-		prev->maxsize = prev->bufsize;
+		prev->sb.maxsize = prev->bufsize;
 
 	demo.dbuf = cur;
 	memset(demo.dbuf, 0, sizeof(*demo.dbuf));
 
-	demo.dbuf->data = demobuffer->data + demobuffer->end;
-	demo.dbuf->maxsize = MAXSIZE;
+	demo.dbuf->sb.data = demobuffer->data + demobuffer->end;
+	demo.dbuf->sb.maxsize = MAXSIZE;
+	demo.dbuf->sb.prim = demo.recorder.netchan.netprim;
 }
 
 /*
@@ -825,7 +826,7 @@ void SV_MVDWriteToDisk(int type, int to, float time)
 	int	size;
 	sizebuf_t msg;
 
-	p = (header_t *)demo.dbuf->data;
+	p = (header_t *)demo.dbuf->sb.data;
 	demo.dbuf->h = NULL;
 
 	oldm = demo.dbuf->bufsize;
@@ -847,13 +848,13 @@ void SV_MVDWriteToDisk(int type, int to, float time)
 			}
 
 			// data is written so it need to be cleard from demobuf
-			if (demo.dbuf->data != (qbyte*)p)
-				memmove(demo.dbuf->data + size + header, demo.dbuf->data, (qbyte*)p - demo.dbuf->data);
+			if (demo.dbuf->sb.data != (qbyte*)p)
+				memmove(demo.dbuf->sb.data + size + header, demo.dbuf->sb.data, (qbyte*)p - demo.dbuf->sb.data);
 
 			demo.dbuf->bufsize -= size + header;
-			demo.dbuf->data += size + header;
+			demo.dbuf->sb.data += size + header;
 			pos -= size + header;
-			demo.dbuf->maxsize -= size + header;
+			demo.dbuf->sb.maxsize -= size + header;
 			demobuffer->start += size + header;
 		}
 		// move along
@@ -865,7 +866,7 @@ void SV_MVDWriteToDisk(int type, int to, float time)
 		if (demobuffer->start == demobuffer->end)
 		{
 			demobuffer->end = 0; // demobuffer is empty
-			demo.dbuf->data = demobuffer->data;
+			demo.dbuf->sb.data = demobuffer->data;
 		}
 
 		// go back to begining of the buffer
@@ -887,7 +888,7 @@ static void MVDSetBuf(qbyte type, int to)
 	header_t *p;
 	int pos = 0;
 
-	p = (header_t *)demo.dbuf->data;
+	p = (header_t *)demo.dbuf->sb.data;
 
 	while (pos < demo.dbuf->bufsize)
 	{
@@ -895,7 +896,7 @@ static void MVDSetBuf(qbyte type, int to)
 
 		if (type == p->type && to == p->to && !p->full)
 		{
-			demo.dbuf->cursize = pos;
+			demo.dbuf->sb.cursize = pos;
 			demo.dbuf->h = p;
 			return;
 		}
@@ -910,7 +911,7 @@ static void MVDSetBuf(qbyte type, int to)
 	p->full = 0;
 
 	demo.dbuf->bufsize += header;
-	demo.dbuf->cursize = demo.dbuf->bufsize;
+	demo.dbuf->sb.cursize = demo.dbuf->bufsize;
 	demobuffer->end += header;
 	demo.dbuf->h = p;
 }
@@ -921,11 +922,11 @@ void MVDMoveBuf(void)
 	demobuffer->last = demobuffer->end - demo.dbuf->bufsize;
 
 	// move buffer to the begining of demo buffer
-	memmove(demobuffer->data, demo.dbuf->data, demo.dbuf->bufsize);
-	demo.dbuf->data = demobuffer->data;
+	memmove(demobuffer->data, demo.dbuf->sb.data, demo.dbuf->bufsize);
+	demo.dbuf->sb.data = demobuffer->data;
 	demobuffer->end = demo.dbuf->bufsize;
 	demo.dbuf->h = NULL; // it will be setup again
-	demo.dbuf->maxsize = MAXSIZE + demo.dbuf->bufsize;
+	demo.dbuf->sb.maxsize = MAXSIZE + demo.dbuf->bufsize;
 }
 
 qboolean MVDWrite_Begin(qbyte type, int to, int size)
@@ -934,7 +935,7 @@ qboolean MVDWrite_Begin(qbyte type, int to, int size)
 	qboolean move = false;
 
 	// will it fit?
-	while (demo.dbuf->bufsize + size + header > demo.dbuf->maxsize)
+	while (demo.dbuf->bufsize + size + header > demo.dbuf->sb.maxsize)
 	{
 		// if we reached the end of buffer move msgbuf to the begining
 		if (!move && demobuffer->end > demobuffer->start)
@@ -958,9 +959,9 @@ qboolean MVDWrite_Begin(qbyte type, int to, int size)
 	}
 
 	// we have to make room for new data
-	if (demo.dbuf->cursize != demo.dbuf->bufsize) {
-		p = demo.dbuf->data + demo.dbuf->cursize;
-		memmove(p+size, p, demo.dbuf->bufsize - demo.dbuf->cursize);
+	if (demo.dbuf->sb.cursize != demo.dbuf->bufsize) {
+		p = demo.dbuf->sb.data + demo.dbuf->sb.cursize;
+		memmove(p+size, p, demo.dbuf->bufsize - demo.dbuf->sb.cursize);
 	}
 
 	demo.dbuf->bufsize += size;
@@ -1092,6 +1093,7 @@ qboolean SV_MVDWritePackets (int num)
 	if (!sv.mvdrecording)
 		return false;
 
+	msg.prim = svs.netprim;
 	msg.data = msg_buf;
 	msg.maxsize = sizeof(msg_buf);
 
@@ -1228,7 +1230,7 @@ qboolean SV_MVDWritePackets (int num)
 		demo.lastwritten = demo.parsecount;
 
 	demo.dbuf = &demo.frames[demo.parsecount&DEMO_FRAMES_MASK].buf;
-	demo.dbuf->maxsize = MAXSIZE + demo.dbuf->bufsize;
+	demo.dbuf->sb.maxsize = MAXSIZE + demo.dbuf->bufsize;
 
 	return true;
 }
@@ -1384,6 +1386,7 @@ mvddest_t *SV_InitRecordFile (char *name)
 	else
 		FS_Remove(path, FS_GAMEONLY);
 
+	FS_FlushFSHash();
 
 	return dst;
 }
@@ -1458,12 +1461,12 @@ void SV_MVDStop (int reason, qboolean mvdonly)
 // write a disconnect message to the demo file
 
 	// clearup to be sure message will fit
-	demo.dbuf->cursize = 0;
+	demo.dbuf->sb.cursize = 0;
 	demo.dbuf->h = NULL;
 	demo.dbuf->bufsize = 0;
 	MVDWrite_Begin(dem_all, 0, 2+strlen("EndOfDemo"));
-	MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_disconnect);
-	MSG_WriteString ((sizebuf_t*)demo.dbuf, "EndOfDemo");
+	MSG_WriteByte (&demo.dbuf->sb, svc_disconnect);
+	MSG_WriteString (&demo.dbuf->sb, "EndOfDemo");
 
 	SV_MVDWritePackets(demo.parsecount - demo.lastwritten + 1);
 // finish up
@@ -1587,17 +1590,20 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 		memset(&demo, 0, sizeof(demo));
 		demo.recorder.frameunion.frames = demo_frames;
 		demo.recorder.protocol = SCP_QUAKEWORLD;
+		demo.recorder.netchan.netprim = sv.datagram.prim;
 		for (i = 0; i < UPDATE_BACKUP; i++)
 		{
 			demo.recorder.frameunion.frames[i].entities.max_entities = MAX_MVDPACKET_ENTITIES;
 			demo.recorder.frameunion.frames[i].entities.entities = demo_entities[i];
 		}
+		demo.recorder.max_net_ents = MAX_MVDPACKET_ENTITIES;
 
 		MVDBuffer_Init(&demo.dbuffer, demo.buffer, sizeof(demo.buffer));
 		MVDSetMsgBuf(NULL, &demo.frames[0].buf);
 
 		demo.datagram.maxsize = sizeof(demo.datagram_data);
 		demo.datagram.data = demo.datagram_data;
+		demo.datagram.prim = demo.recorder.netchan.netprim;
 	}
 //	else
 //		SV_WriteRecordMVDMessage(&buf, dem_read);
@@ -1637,6 +1643,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	memset(&buf, 0, sizeof(buf));
 	buf.data = buf_data;
 	buf.maxsize = sizeof(buf_data);
+	buf.prim = svs.netprim;
 
 // send the serverdata
 
@@ -1645,7 +1652,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 		gamedir = "qw";
 
 	MSG_WriteByte (&buf, svc_serverdata);
-	if (svs.netprim.coordsize == 4)	//sorry.
+	if (buf.prim.coordsize == 4)	//sorry.
 	{
 		MSG_WriteLong (&buf, PROTOCOL_VERSION_FTE);
 		MSG_WriteLong (&buf, PEXT_FLOATCOORDS);

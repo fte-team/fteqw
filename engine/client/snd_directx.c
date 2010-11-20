@@ -893,24 +893,26 @@ int (*pDSOUND_InitCard) (soundcardinfo_t *sc, int cardnum) = &DSOUND_InitCard;
 #if defined(VOICECHAT) && defined(AVAIL_DSOUND) && !defined(__MINGW32__)
 
 
-
-LPDIRECTSOUNDCAPTURE DSCapture;
-LPDIRECTSOUNDCAPTUREBUFFER DSCaptureBuffer;
-long lastreadpos;
-long bufferbytes = 1024*1024;
-
-long inputwidth = 2;
-
-static WAVEFORMATEX  wfxFormat;
-
-qboolean SNDDMA_InitCapture (void)
+typedef struct
 {
-	DWORD capturePos;
+	LPDIRECTSOUNDCAPTURE DSCapture;
+	LPDIRECTSOUNDCAPTUREBUFFER DSCaptureBuffer;
+	long lastreadpos;
+} dsndcapture_t;
+const long bufferbytes = 1024*1024;
+
+const long inputwidth = 2;
+
+void *DSOUND_Capture_Init (int rate)
+{
+	dsndcapture_t *result;
 	DSCBUFFERDESC bufdesc;
+
+	WAVEFORMATEX  wfxFormat;
 
 	wfxFormat.wFormatTag = WAVE_FORMAT_PCM;
     wfxFormat.nChannels = 1;
-    wfxFormat.nSamplesPerSec = 11025;
+    wfxFormat.nSamplesPerSec = rate;
 	wfxFormat.wBitsPerSample = 8*inputwidth;
     wfxFormat.nBlockAlign = wfxFormat.nChannels * (wfxFormat.wBitsPerSample / 8);
 	wfxFormat.nAvgBytesPerSec = wfxFormat.nSamplesPerSec * wfxFormat.nBlockAlign;
@@ -922,19 +924,7 @@ qboolean SNDDMA_InitCapture (void)
 	bufdesc.dwReserved = 0;
 	bufdesc.lpwfxFormat = &wfxFormat;
 
-	if (DSCaptureBuffer)
-	{
-		IDirectSoundCaptureBuffer_Stop(DSCaptureBuffer);
-		IDirectSoundCaptureBuffer_Release(DSCaptureBuffer);
-		DSCaptureBuffer=NULL;
-	}
-	if (DSCapture)
-	{
-		IDirectSoundCapture_Release(DSCapture);
-		DSCapture=NULL;
-	}
-
-
+	/*probably already inited*/
 	if (!hInstDS)
 	{
 		hInstDS = LoadLibrary("dsound.dll");
@@ -942,10 +932,10 @@ qboolean SNDDMA_InitCapture (void)
 		if (hInstDS == NULL)
 		{
 			Con_SafePrintf ("Couldn't load dsound.dll\n");
-			return false;
+			return NULL;
 		}
-
 	}
+	/*global pointer, used only in this function*/
 	if (!pDirectSoundCaptureCreate)
 	{
 		pDirectSoundCaptureCreate = (void *)GetProcAddress(hInstDS,"DirectSoundCaptureCreate");
@@ -953,31 +943,61 @@ qboolean SNDDMA_InitCapture (void)
 		if (!pDirectSoundCaptureCreate)
 		{
 			Con_SafePrintf ("Couldn't get DS proc addr\n");
-			return false;
+			return NULL;
 		}
 
 //		pDirectSoundCaptureEnumerate = (void *)GetProcAddress(hInstDS,"DirectSoundCaptureEnumerateA");
 	}
-	pDirectSoundCaptureCreate(NULL, &DSCapture, NULL);
 
-	if (FAILED(IDirectSoundCapture_CreateCaptureBuffer(DSCapture, &bufdesc, &DSCaptureBuffer, NULL)))
+	result = Z_Malloc(sizeof(*result));
+	if (!FAILED(pDirectSoundCaptureCreate(NULL, &result->DSCapture, NULL)))
 	{
+		if (!FAILED(IDirectSoundCapture_CreateCaptureBuffer(result->DSCapture, &bufdesc, &result->DSCaptureBuffer, NULL)))
+		{
+			return result;
+		}
+		IDirectSoundCapture_Release(result->DSCapture);
 		Con_SafePrintf ("Couldn't create a capture buffer\n");
-		IDirectSoundCapture_Release(DSCapture);
-		DSCapture=NULL;
-		return false;
 	}
+	Z_Free(result);
+	return NULL;
+}
 
-	IDirectSoundCaptureBuffer_Start(DSCaptureBuffer, DSBPLAY_LOOPING);
+void DSOUND_Capture_Start(void *ctx)
+{
+	DWORD capturePos;
+	dsndcapture_t *c = ctx;
+	IDirectSoundCaptureBuffer_Start(c->DSCaptureBuffer, DSBPLAY_LOOPING);
 
-	lastreadpos = 0;
-	IDirectSoundCaptureBuffer_GetCurrentPosition(DSCaptureBuffer, &capturePos, &lastreadpos);
-	return true;
+	c->lastreadpos = 0;
+	IDirectSoundCaptureBuffer_GetCurrentPosition(c->DSCaptureBuffer, &capturePos, &c->lastreadpos);
+}
+
+void DSOUND_Capture_Stop(void *ctx)
+{
+	dsndcapture_t *c = ctx;
+	IDirectSoundCaptureBuffer_Stop(c->DSCaptureBuffer);
+}
+
+void DSOUND_Capture_Shutdown(void *ctx)
+{
+	dsndcapture_t *c = ctx;
+	if (c->DSCaptureBuffer)
+	{
+		IDirectSoundCaptureBuffer_Stop(c->DSCaptureBuffer);
+		IDirectSoundCaptureBuffer_Release(c->DSCaptureBuffer);
+	}
+	if (c->DSCapture)
+	{
+		IDirectSoundCapture_Release(c->DSCapture);
+	}
+	Z_Free(ctx);
 }
 
 /*minsamples is a hint*/
-unsigned int DSOUND_UpdateCapture(qboolean enable, unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes)
+unsigned int DSOUND_Capture_Update(void *ctx, unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes)
 {
+	dsndcapture_t *c = ctx;
 	HRESULT hr;
 	LPBYTE lpbuf1 = NULL;
 	LPBYTE lpbuf2 = NULL;
@@ -988,35 +1008,15 @@ unsigned int DSOUND_UpdateCapture(qboolean enable, unsigned char *buffer, unsign
 	DWORD readPos;
 	long  filled;
 
-	if (!enable)
-	{
-		if (DSCaptureBuffer)
-		{
-			IDirectSoundCaptureBuffer_Stop(DSCaptureBuffer);
-			IDirectSoundCaptureBuffer_Release(DSCaptureBuffer);
-			DSCaptureBuffer=NULL;
-		}
-		if (DSCapture)
-		{
-			IDirectSoundCapture_Release(DSCapture);
-			DSCapture=NULL;
-		}
-		return 0;
-	}
-	else if (!DSCaptureBuffer)
-	{
-		SNDDMA_InitCapture();
-		return 0;
-	}
-
 // Query to see how much data is in buffer.
-	hr = IDirectSoundCaptureBuffer_GetCurrentPosition( DSCaptureBuffer, &capturePos, &readPos );
-	if( hr != DS_OK )
+	hr = IDirectSoundCaptureBuffer_GetCurrentPosition(c->DSCaptureBuffer, &capturePos, &readPos);
+	if (hr != DS_OK)
 	{
 		return 0;
 	}
-	filled = readPos - lastreadpos;
-	if( filled < 0 ) filled += bufferbytes; // unwrap offset
+	filled = readPos - c->lastreadpos;
+	if (filled < 0)
+		filled += bufferbytes; // unwrap offset
 
 	if (filled > maxbytes)	//figure out how much we need to empty it by, and if that's enough to be worthwhile.
 		filled = maxbytes;
@@ -1027,7 +1027,7 @@ unsigned int DSOUND_UpdateCapture(qboolean enable, unsigned char *buffer, unsign
 //	filled *= inputwidth;
 
 	// Lock free space in the DS
-	hr = IDirectSoundCaptureBuffer_Lock(DSCaptureBuffer, lastreadpos, filled, (void **) &lpbuf1, &dwsize1, (void **) &lpbuf2, &dwsize2, 0);
+	hr = IDirectSoundCaptureBuffer_Lock(c->DSCaptureBuffer, c->lastreadpos, filled, (void **) &lpbuf1, &dwsize1, (void **) &lpbuf2, &dwsize2, 0);
 	if (hr == DS_OK)
 	{
 		// Copy from DS to the buffer
@@ -1037,8 +1037,8 @@ unsigned int DSOUND_UpdateCapture(qboolean enable, unsigned char *buffer, unsign
 			memcpy(buffer+dwsize1, lpbuf2, dwsize2);
 		}
 		// Update our buffer offset and unlock sound buffer
- 		lastreadpos = (lastreadpos + dwsize1 + dwsize2) % bufferbytes;
-		IDirectSoundCaptureBuffer_Unlock(DSCaptureBuffer, lpbuf1, dwsize1, lpbuf2, dwsize2);
+ 		c->lastreadpos = (c->lastreadpos + dwsize1 + dwsize2) % bufferbytes;
+		IDirectSoundCaptureBuffer_Unlock(c->DSCaptureBuffer, lpbuf1, dwsize1, lpbuf2, dwsize2);
 	}
 	else
 	{
@@ -1046,5 +1046,12 @@ unsigned int DSOUND_UpdateCapture(qboolean enable, unsigned char *buffer, unsign
 	}
 	return filled;
 }
-unsigned int (*pDSOUND_UpdateCapture) (qboolean enable, unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes) = &DSOUND_UpdateCapture;
+snd_capture_driver_t DSOUND_Capture =
+{
+	DSOUND_Capture_Init,
+	DSOUND_Capture_Start,
+	DSOUND_Capture_Update,
+	DSOUND_Capture_Stop,
+	DSOUND_Capture_Shutdown
+};
 #endif

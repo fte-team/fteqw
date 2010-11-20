@@ -2330,7 +2330,7 @@ void CL_ParsePlayerinfo (void)
 			state->weaponframe = MSG_ReadByte ();
 
 		state->hullnum = 1;
-		state->scale = 1*16;
+		state->scale = 1;
 		state->alpha = 255;
 		state->fatness = 0;
 

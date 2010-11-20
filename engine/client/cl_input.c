@@ -1460,14 +1460,6 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		curtime = Sys_DoubleTime();
 		frametime = curtime - lasttime;
 		lasttime = curtime;
-
-/*		for (plnum = 0; plnum < cl.splitclients; plnum++)
-		{
-			CL_AdjustAngles(plnum, frametime);
-			IN_Move(mousemovements[plnum], plnum);
-		}
-		return;
-*/
 	}
 
 	CL_ProxyMenuHooks();
@@ -1492,7 +1484,11 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 				cmd = &cl.frames[i].cmd[0];
 
 				memset(cmd, 0, sizeof(*cmd));
-				cmd->msec = frametime*1000;
+				msecs += frametime*1000;
+				if (msecs > 50)
+					msecs = 50;
+				cmd->msec = msecs;
+				msecs -= cmd->msec;
 				independantphysics[0].msec = 0;
 
 				CL_AdjustAngles (plnum, frametime);
@@ -1510,7 +1506,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 				if (cl.spectator)
 					Cam_Track(plnum, cmd);
 
-				CL_FinishMove(cmd, (int)(frametime*1000), plnum);
+				CL_FinishMove(cmd, cmd->msec, plnum);
 
 				Cam_FinishMove(plnum, cmd);
 			}
@@ -1770,7 +1766,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 
 #ifdef PEXT2_VOICECHAT
 	if (cls.fteprotocolextensions2 & PEXT2_VOICECHAT)
-		S_TransmitVoiceChat(clc_voicechat, &buf);
+		S_Voip_Transmit(clc_voicechat, &buf);
 #endif
 
 //

@@ -148,9 +148,15 @@ void S_DefaultSpeakerConfiguration(soundcardinfo_t *sc);
 void S_ResetFailedLoad(void);
 
 #ifdef VOICECHAT
-void S_ParseVoiceChat(void);
-void S_TransmitVoiceChat(unsigned char clc, sizebuf_t *buf);
+extern cvar_t cl_voip_showmeter;
+void S_Voip_Parse(void);
+void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf);
 void S_Voip_MapChange(void);
+int S_Voip_Loudness(qboolean ignorevad);	//-1 for not capturing, otherwise between 0 and 100
+qboolean S_Voip_Speaking(unsigned int plno);
+#else
+#define S_Voip_Loudness() -1
+#define S_Voip_Speaking(p) false
 #endif
 
 qboolean S_IsPlayingSomewhere(sfx_t *s);
@@ -221,6 +227,8 @@ extern	cvar_t loadas8bit;
 extern	cvar_t bgmvolume;
 extern	cvar_t volume;
 extern	cvar_t snd_capture;
+
+extern float voicevolumemod;
 
 extern qboolean	snd_initialized;
 extern cvar_t snd_usemultipledevices;
@@ -294,6 +302,13 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 
 extern soundcardinfo_t *sndcardinfo;
 
-
+typedef struct
+{
+	void *(*Init) (int samplerate);			/*create a new context*/
+	void (*Start) (void *ctx);		/*begin grabbing new data, old data is potentially flushed*/
+	unsigned int (*Update) (void *ctx, unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes);	/*grab the data into a different buffer*/
+	void (*Stop) (void *ctx);		/*stop grabbing new data, old data may remain*/
+	void (*Shutdown) (void *ctx);	/*destroy everything*/
+} snd_capture_driver_t;
 
 #endif

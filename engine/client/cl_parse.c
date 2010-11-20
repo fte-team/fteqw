@@ -4967,7 +4967,7 @@ void CL_ParseServerMessage (void)
 
 #ifdef PEXT2_VOICECHAT
 		case svcfte_voicechat:
-			S_ParseVoiceChat();
+			S_Voip_Parse();
 			break;
 #endif
 

@@ -2759,7 +2759,7 @@ pitchadj is a number between -128 and 127. values greater than 0 will result in 
 
 =================
 */
-void PF_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char		*sample;
 	int			channel;
@@ -2788,7 +2788,7 @@ void PF_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //an evil one from telejano.
-void PF_LocalSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_LocalSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 #ifndef SERVERONLY
 	sfx_t	*sfx;
@@ -2804,6 +2804,31 @@ void PF_LocalSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 #endif
 };
+
+static void set_trace_globals(trace_t *trace, struct globalvars_s *pr_globals)
+{
+	pr_global_struct->trace_allsolid = trace->allsolid;
+	pr_global_struct->trace_startsolid = trace->startsolid;
+	pr_global_struct->trace_fraction = trace->fraction;
+	pr_global_struct->trace_inwater = trace->inwater;
+	pr_global_struct->trace_inopen = trace->inopen;
+	pr_global_struct->trace_surfaceflags = trace->surface?trace->surface->flags:0;
+	pr_global_struct->trace_endcontents = trace->contents;
+//	if (trace.fraction != 1)
+//		VectorMA (trace->endpos, 4, trace->plane.normal, P_VEC(trace_endpos));
+//	else
+		VectorCopy (trace->endpos, P_VEC(trace_endpos));
+	VectorCopy (trace->plane.normal, P_VEC(trace_plane_normal));
+	pr_global_struct->trace_plane_dist =  trace->plane.dist;
+	if (trace->ent)
+		pr_global_struct->trace_ent = EDICT_TO_PROG(svprogfuncs, trace->ent);
+	else
+		pr_global_struct->trace_ent = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
+
+	if (trace->startsolid)
+		if (!sv_gameplayfix_honest_tracelines.ival)
+			pr_global_struct->trace_fraction = 1;
+}
 
 /*
 =================
@@ -2848,27 +2873,7 @@ void PF_svtraceline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
 	ent->xv->hull = savedhull;
 
-	if (trace.startsolid)
-		if (!sv_gameplayfix_honest_tracelines.ival)
-			trace.fraction = 1;
-
-	pr_global_struct->trace_allsolid = trace.allsolid;
-	pr_global_struct->trace_startsolid = trace.startsolid;
-	pr_global_struct->trace_fraction = trace.fraction;
-	pr_global_struct->trace_inwater = trace.inwater;
-	pr_global_struct->trace_inopen = trace.inopen;
-	pr_global_struct->trace_surfaceflags = trace.surface?trace.surface->flags:0;
-	pr_global_struct->trace_endcontents = trace.contents;
-//	if (trace.fraction != 1)
-//		VectorMA (trace.endpos, 4, trace.plane.normal, P_VEC(trace_endpos));
-//	else
-		VectorCopy (trace.endpos, P_VEC(trace_endpos));
-	VectorCopy (trace.plane.normal, P_VEC(trace_plane_normal));
-	pr_global_struct->trace_plane_dist =  trace.plane.dist;
-	if (trace.ent)
-		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, trace.ent);
-	else
-		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, sv.world.edicts);
+	set_trace_globals(&trace, pr_globals);
 }
 
 static void PF_traceboxh2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2891,24 +2896,7 @@ static void PF_traceboxh2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
 	ent->xv->hull = savedhull;
 
-	if (trace.startsolid)
-		if (!sv_gameplayfix_honest_tracelines.ival)
-			trace.fraction = 1;
-
-	pr_global_struct->trace_allsolid = trace.allsolid;
-	pr_global_struct->trace_startsolid = trace.startsolid;
-	pr_global_struct->trace_fraction = trace.fraction;
-	pr_global_struct->trace_inwater = trace.inwater;
-	pr_global_struct->trace_inopen = trace.inopen;
-	pr_global_struct->trace_surfaceflags = trace.surface?trace.surface->flags:0;
-	pr_global_struct->trace_endcontents = trace.contents;
-	VectorCopy (trace.endpos, P_VEC(trace_endpos));
-	VectorCopy (trace.plane.normal, P_VEC(trace_plane_normal));
-	pr_global_struct->trace_plane_dist =  trace.plane.dist;
-	if (trace.ent)
-		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, trace.ent);
-	else
-		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, sv.world.edicts);
+	set_trace_globals(&trace, pr_globals);
 }
 
 static void PF_traceboxdp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2931,27 +2919,7 @@ static void PF_traceboxdp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
 	ent->xv->hull = savedhull;
 
-	if (trace.startsolid)
-		if (!sv_gameplayfix_honest_tracelines.ival)
-			trace.fraction = 1;
-
-	pr_global_struct->trace_allsolid = trace.allsolid;
-	pr_global_struct->trace_startsolid = trace.startsolid;
-	pr_global_struct->trace_fraction = trace.fraction;
-	pr_global_struct->trace_inwater = trace.inwater;
-	pr_global_struct->trace_inopen = trace.inopen;
-	pr_global_struct->trace_surfaceflags = trace.surface?trace.surface->flags:0;
-	pr_global_struct->trace_endcontents = trace.contents;
-//	if (trace.fraction != 1)
-//		VectorMA (trace.endpos, 4, trace.plane.normal, P_VEC(trace_endpos));
-//	else
-		VectorCopy (trace.endpos, P_VEC(trace_endpos));
-	VectorCopy (trace.plane.normal, P_VEC(trace_plane_normal));
-	pr_global_struct->trace_plane_dist =  trace.plane.dist;
-	if (trace.ent)
-		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, trace.ent);
-	else
-		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, sv.world.edicts);
+	set_trace_globals(&trace, pr_globals);
 }
 
 extern trace_t SV_Trace_Toss (edict_t *ent, edict_t *ignore);
@@ -2968,20 +2936,7 @@ static void PF_TraceToss (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	trace = SV_Trace_Toss (ent, ignore);
 
-	pr_global_struct->trace_allsolid = trace.allsolid;
-	pr_global_struct->trace_startsolid = trace.startsolid;
-	pr_global_struct->trace_fraction = trace.fraction;
-	pr_global_struct->trace_inwater = trace.inwater;
-	pr_global_struct->trace_inopen = trace.inopen;
-	pr_global_struct->trace_surfaceflags = trace.surface?trace.surface->flags:0;
-	pr_global_struct->trace_endcontents = trace.contents;
-	VectorCopy (trace.endpos, pr_global_struct->V_trace_endpos);
-	VectorCopy (trace.plane.normal, pr_global_struct->V_trace_plane_normal);
-	pr_global_struct->trace_plane_dist =  trace.plane.dist;
-	if (trace.ent)
-		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, trace.ent);
-	else
-		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, sv.world.edicts);
+	set_trace_globals(&trace, pr_globals);
 }
 
 /*
@@ -3105,7 +3060,7 @@ c_invis++;
 	return w->lastcheck;
 }
 
-void PF_checkclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_checkclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	RETURN_EDICT(prinst, EDICT_NUM(prinst, PF_checkclient_Internal(prinst)));
 }
@@ -3215,7 +3170,7 @@ void PF_stuffcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //DP_QC_DROPCLIENT
-void PF_dropclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_dropclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int		entnum;
 	client_t	*cl;
@@ -3237,7 +3192,7 @@ void PF_dropclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //DP_SV_BOTCLIENT
 //entity() spawnclient = #454;
-void PF_spawnclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_spawnclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i;
 	for (i = 0; i < sv.allocated_client_slots; i++)
@@ -3262,7 +3217,7 @@ void PF_spawnclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //DP_SV_BOTCLIENT
 //float(entity client) clienttype = #455;
-void PF_clienttype (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_clienttype (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int entnum = G_EDICTNUM(prinst, OFS_PARM0);
 	if (entnum < 1 || entnum > sv.allocated_client_slots)
@@ -3390,13 +3345,13 @@ void PF_findradius (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 PF_conprint
 =========
 */
-void PF_conprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_conprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	Sys_Printf ("%s",PF_VarString(prinst, 0, pr_globals));
 }
 
 
-void PF_h2printf (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_h2printf (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char temp[256];
 	float	v;
@@ -3411,7 +3366,7 @@ void PF_h2printf (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	Con_Printf (PR_GetStringOfs(prinst, OFS_PARM0),temp);
 }
 
-void PF_h2printv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_h2printv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char temp[256];
 
@@ -3420,7 +3375,7 @@ void PF_h2printv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	Con_Printf (PR_GetStringOfs(prinst, OFS_PARM0),temp);
 }
 
-void PF_h2spawn_temp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_h2spawn_temp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*ed;
 	ed = ED_Alloc(prinst);
@@ -3569,7 +3524,7 @@ void PF_precache_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	PF_precache_model_Internal(prinst, s);
 }
 
-void PF_h2precache_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_h2precache_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//qc/hc lacks string manipulation.
 	char *shortname;
 	char fullname[MAX_QPATH];
@@ -3579,7 +3534,7 @@ void PF_h2precache_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_gl
 	PF_precache_model_Internal(prinst, fullname);
 }
 
-void PF_getmodelindex (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_getmodelindex (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*s;
 
@@ -3628,7 +3583,7 @@ void PF_precache_vwep_model (progfuncs_t *prinst, struct globalvars_s *pr_global
 	}
 }
 
-void PF_svcoredump (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_svcoredump (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int size = 1024*1024*8;
 	char *buffer = BZ_Malloc(size);
@@ -3660,15 +3615,15 @@ static void PF_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	vec3_t	move;
 //	dfunction_t	*oldf;
 	int 	oldself;
-	struct globalvars_s *settrace;
+	qboolean settrace;
 
 	ent = PROG_TO_EDICT(prinst, pr_global_struct->self);
 	yaw = G_FLOAT(OFS_PARM0);
 	dist = G_FLOAT(OFS_PARM1);
 	if (*svprogfuncs->callargc >= 3 && G_FLOAT(OFS_PARM2))
-		settrace = pr_globals;
+		settrace = true;
 	else
-		settrace = NULL;
+		settrace = false;
 
 	if ( !( (int)ent->v->flags & (FL_ONGROUND|FL_FLY|FL_SWIM) ) )
 	{
@@ -3692,7 +3647,7 @@ static void PF_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //	}
 //	else if (!SV_TestEntityPosition(ent))
 //	{
-		G_FLOAT(OFS_RETURN) = World_movestep(&sv.world, (wedict_t*)ent, move, true, false, settrace);
+		G_FLOAT(OFS_RETURN) = World_movestep(&sv.world, (wedict_t*)ent, move, true, false, settrace?set_trace_globals:NULL, pr_globals);
 //		if (SV_TestEntityPosition(ent))
 //			Con_Printf("Entity became stuck\n");
 //	}
@@ -7178,7 +7133,7 @@ static void PF_h2movestep (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 // save program state, because SV_movestep may call other progs
 	oldself = pr_global_struct->self;
 
-	G_INT(OFS_RETURN) = World_movestep (&sv.world, (wedict_t*)ent, v, false, true, set_trace?pr_globals:NULL);
+	G_INT(OFS_RETURN) = World_movestep (&sv.world, (wedict_t*)ent, v, false, true, set_trace?set_trace_globals:NULL, pr_globals);
 
 // restore program state
 	pr_global_struct->self = oldself;
@@ -7939,9 +7894,13 @@ void PF_CustomTEnt(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //float(string effectname) particleeffectnum (EXT_CSQC)
 void PF_sv_particleeffectnum(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+#ifdef PEXT_CSQC
 #pragma message("PF_sv_particleeffectnum: which effect index values to use?")
 	char *efname = PR_GetStringOfs(prinst, OFS_PARM0);
 	G_FLOAT(OFS_RETURN) = COM_Effectinfo_ForName(efname);
+#else
+	G_FLOAT(OFS_RETURN) = -1;
+#endif
 }
 //void(float effectnum, entity ent, vector start, vector end) trailparticles (EXT_CSQC),
 void PF_sv_trailparticles(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -9681,7 +9640,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"precache_file2",	PF_precache_file,	77,		77,		0},	//77
 
 	{"setspawnparms",	PF_setspawnparms,	78,		78,		78},	//78
-	{"plaque_draw",		PF_h2plaque_draw,		0,		0,		79},	//79
+	{"plaque_draw",		PF_h2plaque_draw,	0,		0,		79},	//79
 	{"logfrag",			PF_logfrag,			0,		79,		0,		79},	//79
 
 // Tomaz - QuakeC String Manipulation Begin

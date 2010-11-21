@@ -1356,7 +1356,7 @@ void SCR_DrawGameClock(void)
 	else
 		timelimit = 0;
 
-	showtime = timelimit - cl.ktprogametime;
+	showtime = timelimit - cl.matchgametime;
 
 	if (showtime < 0)
 	{

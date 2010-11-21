@@ -5460,7 +5460,7 @@ void CLNQ_ParseProQuakeMessage (char *s)
 {
 	int cmd;
 	int ping;
-//	int team, shirt, frags, i, j;
+	int team, shirt, frags;
 
 	s++;
 	cmd = *s++;
@@ -5470,58 +5470,36 @@ void CLNQ_ParseProQuakeMessage (char *s)
 	default:
 		Con_DPrintf("Unrecognised ProQuake Message %i\n", cmd);
 		break;
-/*	case pqc_new_team:
-		Sbar_Changed ();
-		team = MSG_ReadByte() - 16;
-		if (team < 0 || team > 13)
-			Host_Error ("CL_ParseProQuakeMessage: pqc_new_team invalid team");
-		shirt = MSG_ReadByte() - 16;
-		cl.teamgame = true;
-		// cl.teamscores[team].frags = 0;	// JPG 3.20 - removed this
-		cl.teamscores[team].colors = 16 * shirt + team;
-		//Con_Printf("pqc_new_team %d %d\n", team, shirt);
+	case pqc_new_team:
+		cl.teamplay = true;
+		team = MSG_ReadBytePQ(&s) - 16;
+		shirt = MSG_ReadBytePQ(&s) - 16;
+		Sbar_PQ_Team_New(team, shirt);
 		break;
 
 	case pqc_erase_team:
-		Sbar_Changed ();
-		team = MSG_ReadByte() - 16;
-		if (team < 0 || team > 13)
-			Host_Error ("CL_ParseProQuakeMessage: pqc_erase_team invalid team");
-		cl.teamscores[team].colors = 0;
-		cl.teamscores[team].frags = 0;		// JPG 3.20 - added this
-		//Con_Printf("pqc_erase_team %d\n", team);
+		team = MSG_ReadBytePQ(&s) - 16;
+		Sbar_PQ_Team_New(team, 0);
+		Sbar_PQ_Team_Frags(team, 0);
 		break;
 
 	case pqc_team_frags:
-		Sbar_Changed ();
-		team = MSG_ReadByte() - 16;
-		if (team < 0 || team > 13)
-			Host_Error ("CL_ParseProQuakeMessage: pqc_team_frags invalid team");
-		frags = MSG_ReadShortPQ();;
+		team = MSG_ReadBytePQ(&s) - 16;
+		frags = MSG_ReadShortPQ(&s);
 		if (frags & 32768)
 			frags = frags - 65536;
-		cl.teamscores[team].frags = frags;
-		//Con_Printf("pqc_team_frags %d %d\n", team, frags);
+		Sbar_PQ_Team_Frags(team, frags);
 		break;
 
 	case pqc_match_time:
-		Sbar_Changed ();
-		cl.minutes = MSG_ReadBytePQ();
-		cl.seconds = MSG_ReadBytePQ();
-		cl.last_match_time = cl.time;
-		//Con_Printf("pqc_match_time %d %d\n", cl.minutes, cl.seconds);
+		cl.matchgametime = MSG_ReadBytePQ(&s)*60;
+		cl.matchgametime += MSG_ReadBytePQ(&s);
 		break;
 
 	case pqc_match_reset:
-		Sbar_Changed ();
-		for (i = 0 ; i < 14 ; i++)
-		{
-			cl.teamscores[i].colors = 0;
-			cl.teamscores[i].frags = 0;		// JPG 3.20 - added this
-		}
-		//Con_Printf("pqc_match_reset\n");
+		Sbar_PQ_Team_Reset();
 		break;
-*/
+
 	case pqc_ping_times:
 		while ((ping = MSG_ReadShortPQ(&s)))
 		{
@@ -5602,7 +5580,6 @@ void CLNQ_ParseServerMessage (void)
 //	received_framecount = host_framecount;
 //	cl.last_servermessage = realtime;
 	CL_ClearProjectiles ();
-	cl.fixangle[0] = false;
 
 	cl.allowsendpacket = true;
 
@@ -5797,6 +5774,9 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_time:
+			cl.oldfixangle[0] = cl.fixangle[0];
+			VectorCopy(cl.fixangles[0], cl.oldfixangles[0]);
+			cl.fixangle[0] = false;
 
 			cls.netchan.outgoing_sequence++;
 			cls.netchan.incoming_sequence = cls.netchan.outgoing_sequence-1;

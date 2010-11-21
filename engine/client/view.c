@@ -981,7 +981,30 @@ void V_CalcRefdef (int pnum)
 
 	if (cl.fixangle[pnum])
 	{
-		VectorCopy (cl.fixangles[pnum], r_refdef.viewangles);
+		if (cl.oldfixangle[pnum])
+		{
+			float frac, move;
+			if (cl.gametime <= cl.oldgametime)
+				frac = 1;
+			else
+			{
+				frac = (realtime - cl.gametimemark) / (cl.gametime - cl.oldgametime);
+				frac = bound(0, frac, 1);
+			}
+			for (i = 0; i < 3; i++)
+			{
+				move = cl.fixangles[pnum][i] - cl.oldfixangles[pnum][i];
+				if (move >= 180)
+					move -= 360;
+				if (move <= -180)
+					move += 360;
+				r_refdef.viewangles[i] = cl.oldfixangles[pnum][i] + frac * move;
+			}
+		}
+		else
+		{
+			VectorCopy (cl.fixangles[pnum], r_refdef.viewangles);
+		}
 	}
 	else
 	{

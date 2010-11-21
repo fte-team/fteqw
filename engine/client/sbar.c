@@ -1179,6 +1179,7 @@ void Sbar_Hexen2DrawNum (int x, int y, int num, int digits)
 //=============================================================================
 
 int		fragsort[MAX_CLIENTS];
+int		playerteam[MAX_CLIENTS];
 int		scoreboardlines;
 typedef struct {
 	char team[16+1];
@@ -1192,14 +1193,39 @@ team_t teams[MAX_CLIENTS];
 int teamsort[MAX_CLIENTS];
 int scoreboardteams;
 
+struct
+{
+	unsigned char upper;
+	short frags;
+} nqteam[14];
+void Sbar_PQ_Team_New(unsigned int lower, unsigned int upper)
+{
+	if (lower >= 14)
+		return;
+	nqteam[lower].upper = upper;
+}
+void Sbar_PQ_Team_Frags(unsigned int lower, int frags)
+{
+	if (lower >= 14)
+		return;
+	nqteam[lower].frags = frags;
+}
+void Sbar_PQ_Team_Reset(void)
+{
+	memset(nqteam, 0, sizeof(nqteam));
+}
+
 /*
 ===============
 Sbar_SortFrags
 ===============
 */
-void Sbar_SortFrags (qboolean includespec)
+void Sbar_SortFrags (qboolean includespec, qboolean teamsort)
 {
 	int		i, j, k;
+
+	if (!cl.teamplay)
+		teamsort = false;
 
 // sort by frags
 	scoreboardlines = 0;
@@ -1217,12 +1243,32 @@ void Sbar_SortFrags (qboolean includespec)
 
 	for (i=0 ; i<scoreboardlines ; i++)
 		for (j=0 ; j<scoreboardlines-1-i ; j++)
-			if (cl.players[fragsort[j]].frags < cl.players[fragsort[j+1]].frags)
+		{
+			int t1 = playerteam[fragsort[j]];
+			int t2 = playerteam[fragsort[j+1]];
+			if (!teamsort || t1 == t2)
 			{
-				k = fragsort[j];
-				fragsort[j] = fragsort[j+1];
-				fragsort[j+1] = k;
+				if (cl.players[fragsort[j]].frags < cl.players[fragsort[j+1]].frags)
+				{
+					k = fragsort[j];
+					fragsort[j] = fragsort[j+1];
+					fragsort[j+1] = k;
+				}
 			}
+			else
+			{
+				if (t1 == -1)
+					t1 = MAX_CLIENTS;
+				if (t2 == -1)
+					t2 = MAX_CLIENTS;
+				if (t1 > t2)
+				{
+					k = fragsort[j];
+					fragsort[j] = fragsort[j+1];
+					fragsort[j+1] = k;
+				}
+			}
+		}
 }
 
 void Sbar_SortTeams (void)
@@ -1238,8 +1284,8 @@ void Sbar_SortTeams (void)
 	if (!cl.teamplay)
 		return;
 
-// sort the teams
 	memset(teams, 0, sizeof(teams));
+// sort the teams
 	for (i = 0; i < MAX_CLIENTS; i++)
 		teams[i].plow = 999;
 
@@ -1247,6 +1293,7 @@ void Sbar_SortTeams (void)
 
 	for (i = 0; i < MAX_CLIENTS; i++)
 	{
+		playerteam[i] = -1;
 		s = &cl.players[i];
 		if (!s->name[0] || s->spectator)
 			continue;
@@ -1255,11 +1302,25 @@ void Sbar_SortTeams (void)
 		Q_strncpyz(t, s->team, sizeof(t));
 		if (!t[0])
 			continue; // not on team
-		for (j = 0; j < scoreboardteams; j++)
-			if (!strcmp(teams[j].team, t))
-			{
-				break;
-			}
+		if (cls.protocol == CP_NETQUAKE)
+		{
+			k = Sbar_BottomColour(s);
+			if (!k)	//team 0 = spectator
+				continue;
+			for (j = 0; j < scoreboardteams; j++)
+				if (teams[j].bottomcolour == k)
+				{
+					break;
+				}
+		}
+		else
+		{
+			for (j = 0; j < scoreboardteams; j++)
+				if (!strcmp(teams[j].team, t))
+				{
+					break;
+				}
+		}
 
 		/*if (cl.teamfortress)
 		{
@@ -1277,6 +1338,7 @@ void Sbar_SortTeams (void)
 			strcpy(teams[j].team, t);
 		}
 
+		playerteam[i] = j;
 		teams[j].frags += s->frags;
 		teams[j].players++;
 
@@ -1285,7 +1347,6 @@ void Sbar_SortTeams (void)
 		if (teams[j].phigh < s->ping)
 			teams[j].phigh = s->ping;
 		teams[j].ptotal += s->ping;
-		
 	}
 
 	// sort
@@ -1561,7 +1622,7 @@ void Sbar_DrawFrags (void)
 	char			num[12];
 	player_info_t	*s;
 
-	Sbar_SortFrags (false);
+	Sbar_SortFrags (false, false);
 
 	ownnum = Sbar_PlayerNum();
 
@@ -2485,7 +2546,8 @@ void Sbar_TeamOverlay (void)
 	int plow, phigh, pavg;
 
 // request new ping times every two second
-	if (!cl.teamplay) {
+	if (!cl.teamplay)
+	{
 		Sbar_DeathmatchOverlay(0);
 		return;
 	}
@@ -2710,7 +2772,7 @@ void Sbar_DeathmatchOverlay (int start)
 	}
 
 // scores
-	Sbar_SortFrags(true);
+	Sbar_SortFrags(true, true);
 
 // draw the text
 	l = scoreboardlines;
@@ -2901,7 +2963,7 @@ void Sbar_ChatModeOverlay(void)
 	}
 
 // scores
-	Sbar_SortFrags (true);
+	Sbar_SortFrags (true, false);
 
 	if (Cam_TrackNum(0)>=0)
 		Q_strncpyz (team, cl.players[Cam_TrackNum(0)].team, sizeof(team));
@@ -2998,7 +3060,7 @@ void Sbar_MiniDeathmatchOverlay (void)
 		return; // not enuff room
 
 // scores
-	Sbar_SortFrags (false);
+	Sbar_SortFrags (false, false);
 	if (sbar_rect.width >= 640)
 		Sbar_SortTeams();
 

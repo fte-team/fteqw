@@ -590,68 +590,6 @@ static void PF_cs_makevectors (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	AngleVectors (G_VECTOR(OFS_PARM0), csqcg.forward, csqcg.right, csqcg.up);
 }
 
-/*
-void QuaternainToAngleMatrix(float *quat, vec3_t *mat)
-{
-	float xx      = quat[0] * quat[0];
-    float xy      = quat[0] * quat[1];
-    float xz      = quat[0] * quat[2];
-    float xw      = quat[0] * quat[3];
-    float yy      = quat[1] * quat[1];
-    float yz      = quat[1] * quat[2];
-    float yw      = quat[1] * quat[3];
-    float zz      = quat[2] * quat[2];
-    float zw      = quat[2] * quat[3];
-    mat[0][0]  = 1 - 2 * ( yy + zz );
-    mat[0][1]  =     2 * ( xy - zw );
-    mat[0][2]  =     2 * ( xz + yw );
-    mat[1][0]  =     2 * ( xy + zw );
-    mat[1][1]  = 1 - 2 * ( xx + zz );
-    mat[1][2]  =     2 * ( yz - xw );
-    mat[2][0]  =     2 * ( xz - yw );
-    mat[2][1]  =     2 * ( yz + xw );
-    mat[2][2] = 1 - 2 * ( xx + yy );
-}
-
-void quaternion_multiply(float *a, float *b, float *c)
-{
-#define x1 a[0]
-#define y1 a[1]
-#define z1 a[2]
-#define w1 a[3]
-#define x2 b[0]
-#define y2 b[1]
-#define z2 b[2]
-#define w2 b[3]
-	c[0] = w1*x2 + x1*w2 + y1*z2 - z1*y2;
-	c[1] = w1*y2 + y1*w2 + z1*x2 - x1*z2;
-	c[2] = w1*z2 + z1*w2 + x1*y2 - y1*x2;
-	c[3] = w1*w2 - x1*x2 - y1*y2 - z1*z2;
-}
-
-void quaternion_rotation(float pitch, float roll, float yaw, float angle, float *quat)
-{
-	float sin_a, cos_a;
-
-	sin_a = sin( angle / 360 );
-    cos_a = cos( angle / 360 );
-    quat[0]    = pitch	* sin_a;
-    quat[1]    = yaw	* sin_a;
-    quat[2]    = roll	* sin_a;
-    quat[3]    = cos_a;
-}
-
-void EularToQuaternian(vec3_t angles, float *quat)
-{
-  float x[4] = {sin(angles[2]/360), 0, 0, cos(angles[2]/360)};
-  float y[4] = {0, sin(angles[1]/360), 0, cos(angles[1]/360)};
-  float z[4] = {0, 0, sin(angles[0]/360), cos(angles[0]/360)};
-  float t[4];
-  quaternion_multiply(x, y, t);
-  quaternion_multiply(t, z, quat);
-}
-*/
-
 static model_t *CSQC_GetModelForIndex(int index)
 {
 	if (index == 0)
@@ -1129,19 +1067,6 @@ static void PF_R_ClearScene (progfuncs_t *prinst, struct globalvars_s *pr_global
 		view_message->weaponframe = cl.stats[csqc_lplayernum][STAT_WEAPONFRAME];
 #endif
 	V_CalcRefdef(csqc_lplayernum);	//set up the defaults (for player 0)
-	/*
-	VectorCopy(cl.simangles[csqc_lplayernum], r_refdef.viewangles);
-	VectorCopy(cl.simorg[csqc_lplayernum], r_refdef.vieworg);
-	r_refdef.flags = 0;
-
-	r_refdef.vrect.x = 0;
-	r_refdef.vrect.y = 0;
-	r_refdef.vrect.width = vid.width;
-	r_refdef.vrect.height = vid.height;
-
-	r_refdef.fov_x = scr_fov.value;
-	r_refdef.fov_y = CalcFov (r_refdef.fov_x, r_refdef.vrect.width, r_refdef.vrect.height);
-	*/
 
 	csqc_addcrosshair = false;
 	csqc_drawsbar = false;
@@ -2103,57 +2028,6 @@ static void PF_cs_runplayerphysics (progfuncs_t *prinst, struct globalvars_s *pr
 
 	if (!cl.worldmodel)
 		return;	//urm..
-/*
-	int			sequence;	// just for debugging prints
-
-	// player state
-	vec3_t		origin;
-	vec3_t		angles;
-	vec3_t		velocity;
-	qboolean		jump_held;
-	int			jump_msec;	// msec since last jump
-	float		waterjumptime;
-	int			pm_type;
-	int			hullnum;
-
-	// world state
-	int			numphysent;
-	physent_t	physents[MAX_PHYSENTS];	// 0 should be the world
-
-	// input
-	usercmd_t	cmd;
-
-	qboolean onladder;
-
-	// results
-	int			numtouch;
-	int			touchindex[MAX_PHYSENTS];
-	qboolean		onground;
-	int			groundent;		// index in physents array, only valid
-								// when onground is true
-	int			waterlevel;
-	int			watertype;
-} playermove_t;
-
-typedef struct {
-	float	gravity;
-	float	stopspeed;
-	float	maxspeed;
-	float	spectatormaxspeed;
-	float	accelerate;
-	float	airaccelerate;
-	float	wateraccelerate;
-	float	friction;
-	float	waterfriction;
-	float	entgravity;
-	float	bunnyspeedcap;
-	float	ktjump;
-	qboolean	slidefix;
-	qboolean	airstep;
-	qboolean	walljump;
-
-
-	*/
 
 	//debugging field
 	pmove.sequence = *csqcg.clientcommandframe;
@@ -2340,7 +2214,7 @@ static void PF_cs_getplayerkey (progfuncs_t *prinst, struct globalvars_s *pr_glo
 	{
 		if (csqc_resortfrags)
 		{
-			Sbar_SortFrags(false);
+			Sbar_SortFrags(false, false);
 			csqc_resortfrags = false;
 		}
 		if (pnum >= -scoreboardlines)
@@ -2382,6 +2256,21 @@ static void PF_cs_getplayerkey (progfuncs_t *prinst, struct globalvars_s *pr_glo
 		ret = buffer;
 		sprintf(ret, "%i", pnum+1);
 	}
+#ifdef VOICECHAT
+	else if (!strcmp(keyname, "voipspeaking"))
+	{
+		ret = buffer;
+		sprintf(ret, "%i", S_Voip_Speaking(pnum));
+	}
+	else if (!strcmp(keyname, "voiploudness"))
+	{
+		ret = buffer;
+		if (pnum == cl.playernum[0])
+			sprintf(ret, "%i", S_Voip_Loudness(false));
+		else
+			*ret = 0;
+	}
+#endif
 	else
 	{
 		ret = Info_ValueForKey(cl.players[pnum].userinfo, keyname);
@@ -3956,125 +3845,6 @@ static void PF_cs_break (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 #endif
 }
 
-static qboolean CS_movestep (csqcedict_t *ent, vec3_t move, qboolean relink, qboolean noenemy, qboolean set_trace)
-{
-	float		dz;
-	vec3_t		oldorg, neworg, end;
-	trace_t		trace;
-	int			i;
-	csqcedict_t		*enemy = (csqcedict_t*)csqc_world.edicts;
-
-// try the move
-	VectorCopy (ent->v->origin, oldorg);
-	VectorAdd (ent->v->origin, move, neworg);
-
-// flying monsters don't step up
-	if ( (int)ent->v->flags & (FL_SWIM | FL_FLY) )
-	{
-	// try one move with vertical motion, then one without
-		for (i=0 ; i<2 ; i++)
-		{
-			VectorAdd (ent->v->origin, move, neworg);
-			if (!noenemy)
-			{
-				enemy = (csqcedict_t*)PROG_TO_EDICT(csqcprogs, ent->v->enemy);
-				if (i == 0 && enemy != (csqcedict_t*)csqc_world.edicts)
-				{
-					dz = ent->v->origin[2] - ((csqcedict_t*)PROG_TO_EDICT(csqcprogs, ent->v->enemy))->v->origin[2];
-					if (dz > 40)
-						neworg[2] -= 8;
-					if (dz < 30)
-						neworg[2] += 8;
-				}
-			}
-			trace = World_Move (&csqc_world, ent->v->origin, ent->v->mins, ent->v->maxs, neworg, false, (wedict_t*)ent);
-			if (set_trace)
-				cs_settracevars(&trace);
-
-			if (trace.fraction == 1)
-			{
-				if ( ((int)ent->v->flags & FL_SWIM) && !(CS_PointContents(trace.endpos) & FTECONTENTS_FLUID))
-					return false;	// swim monster left water
-
-				VectorCopy (trace.endpos, ent->v->origin);
-				if (relink)
-					World_LinkEdict (&csqc_world, (wedict_t*)ent, true);
-				return true;
-			}
-
-			if (noenemy || enemy == (csqcedict_t*)csqc_world.edicts)
-				break;
-		}
-
-		return false;
-	}
-
-// push down from a step height above the wished position
-	neworg[2] += movevars.stepheight;
-	VectorCopy (neworg, end);
-	end[2] -= movevars.stepheight*2;
-
-	trace = World_Move (&csqc_world, neworg, ent->v->mins, ent->v->maxs, end, false, (wedict_t*)ent);
-	if (set_trace)
-		cs_settracevars(&trace);
-
-	if (trace.allsolid)
-		return false;
-
-	if (trace.startsolid)
-	{
-		neworg[2] -= movevars.stepheight;
-		trace = World_Move (&csqc_world, neworg, ent->v->mins, ent->v->maxs, end, false, (wedict_t*)ent);
-		if (set_trace)
-			cs_settracevars(&trace);
-		if (trace.allsolid || trace.startsolid)
-			return false;
-	}
-	if (trace.fraction == 1)
-	{
-	// if monster had the ground pulled out, go ahead and fall
-		if ( (int)ent->v->flags & FL_PARTIALGROUND )
-		{
-			VectorAdd (ent->v->origin, move, ent->v->origin);
-			if (relink)
-				World_LinkEdict (&csqc_world, (wedict_t*)ent, true);
-			ent->v->flags = (int)ent->v->flags & ~FL_ONGROUND;
-//	Con_Printf ("fall down\n");
-			return true;
-		}
-
-		return false;		// walked off an edge
-	}
-
-// check point traces down for dangling corners
-	VectorCopy (trace.endpos, ent->v->origin);
-
-	if (!World_CheckBottom (&csqc_world, (wedict_t*)ent))
-	{
-		if ( (int)ent->v->flags & FL_PARTIALGROUND )
-		{	// entity had floor mostly pulled out from underneath it
-			// and is trying to correct
-			if (relink)
-				World_LinkEdict (&csqc_world, (wedict_t*)ent, true);
-			return true;
-		}
-		VectorCopy (oldorg, ent->v->origin);
-		return false;
-	}
-
-	if ( (int)ent->v->flags & FL_PARTIALGROUND )
-	{
-//		Con_Printf ("back on ground\n");
-		ent->v->flags = (int)ent->v->flags & ~FL_PARTIALGROUND;
-	}
-	ent->v->groundentity = EDICT_TO_PROG(csqcprogs, trace.ent);
-
-// the move is ok
-	if (relink)
-		World_LinkEdict (&csqc_world, (wedict_t*)ent, true);
-	return true;
-}
-
 static void PF_cs_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t	*ent;
@@ -4107,7 +3877,7 @@ static void PF_cs_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals
 // save program state, because CS_movestep may call other progs
 	oldself = *csqcg.self;
 
-	G_FLOAT(OFS_RETURN) = CS_movestep(ent, move, true, false, settrace);
+	G_FLOAT(OFS_RETURN) = World_movestep(&csqc_world, (wedict_t*)ent, move, true, false, NULL, pr_globals);
 
 // restore program state
 	*csqcg.self = oldself;

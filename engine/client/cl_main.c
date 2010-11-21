@@ -1534,15 +1534,15 @@ void CL_CheckServerInfo(void)
 
 
 	s = Info_ValueForKey(cl.serverinfo, "status");
-	oldstate = cl.ktprostate;
+	oldstate = cl.matchstate;
 	if (!stricmp(s, "standby"))
-		cl.ktprostate = KTPRO_STANDBY;
+		cl.matchstate = MATCH_STANDBY;
 	else if (!stricmp(s, "countdown"))
-		cl.ktprostate = KTPRO_COUNTDOWN;
+		cl.matchstate = MATCH_COUNTDOWN;
 	else
-		cl.ktprostate = KTPRO_DONTKNOW;
-	if (oldstate != cl.ktprostate)
-		cl.ktprogametime = 0;
+		cl.matchstate = MATCH_DONTKNOW;
+	if (oldstate != cl.matchstate)
+		cl.matchgametime = 0;
 
 	Cvar_ForceCheatVars(cls.allow_semicheats, cls.allow_cheats);
 	Validation_Apply_Ruleset();
@@ -3395,7 +3395,7 @@ void Host_Frame (double time)
 	host_frametime = (realtime - oldrealtime)*cl.gamespeed;
 	if (!cl.paused)
 	{
-		cl.ktprogametime += host_frametime;
+		cl.matchgametime += host_frametime;
 	}
 	oldrealtime = realtime;
 

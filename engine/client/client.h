@@ -632,8 +632,10 @@ typedef struct
 	float		entgravity[MAX_SPLITS];
 	float		maxspeed[MAX_SPLITS];
 	float		bunnyspeedcap;
-	qboolean	fixangle[MAX_SPLITS];	//received a fixangle - so disable prediction till the next packet.
-	vec3_t		fixangles[MAX_SPLITS];	//received a fixangle - so disable prediction till the next packet.
+	qboolean	fixangle[MAX_SPLITS];		//received a fixangle - so disable prediction till the next packet.
+	qboolean	oldfixangle[MAX_SPLITS];	//received a fixangle - so disable prediction till the next packet.
+	vec3_t		fixangles[MAX_SPLITS];		//received a fixangle - so disable prediction till the next packet.
+	vec3_t		oldfixangles[MAX_SPLITS];	//received a fixangle - so disable prediction till the next packet.
 
 	int teamplay;
 	int deathmatch;
@@ -644,12 +646,13 @@ typedef struct
 	qboolean sendprespawn;
 	int contentstage;
 
-	double ktprogametime;
+	double matchgametime;
 	enum {
-		KTPRO_DONTKNOW,
-		KTPRO_COUNTDOWN,
-		KTPRO_STANDBY
-	} ktprostate;
+		MATCH_DONTKNOW,
+		MATCH_COUNTDOWN,
+		MATCH_STANDBY,
+		MATCH_INPROGRESS
+	} matchstate;
 } client_state_t;
 
 extern unsigned int		cl_teamtopcolor;

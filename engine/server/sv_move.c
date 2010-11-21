@@ -104,28 +104,6 @@ realcheck:
 	return true;
 }
 
-
-void set_move_trace(trace_t *trace, struct globalvars_s *pr_globals)
-{
-#pragma message("set_move_trace: fixme")
-#ifdef CLIENTONLY
-	Sys_Error("set_move_trace: not fixed\n");
-#else
-	pr_global_struct->trace_allsolid = trace->allsolid;
-	pr_global_struct->trace_startsolid = trace->startsolid;
-	pr_global_struct->trace_fraction = trace->fraction;
-	pr_global_struct->trace_inwater = trace->inwater;
-	pr_global_struct->trace_inopen = trace->inopen;
-	VectorCopy (trace->endpos, P_VEC(trace_endpos));
-	VectorCopy (trace->plane.normal, P_VEC(trace_plane_normal));
-	pr_global_struct->trace_plane_dist =  trace->plane.dist;	
-	if (trace->ent)
-		pr_global_struct->trace_ent = EDICT_TO_PROG(svprogfuncs, trace->ent);
-	else
-		pr_global_struct->trace_ent = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
-#endif
-}
-
 /*
 =============
 SV_movestep
@@ -136,7 +114,7 @@ possible, no move is done, false is returned, and
 pr_global_struct->trace_normal is set to the normal of the blocking wall
 =============
 */
-qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, qboolean relink, qboolean noenemy, struct globalvars_s *set_trace)
+qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, qboolean relink, qboolean noenemy, void (*set_move_trace)(trace_t *trace, struct globalvars_s *pr_globals), struct globalvars_s *set_trace_globs)
 {
 	float		dz;
 	vec3_t		oldorg, neworg, end;
@@ -168,8 +146,8 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, qboolean re
 				}
 			}
 			trace = World_Move (world, ent->v->origin, ent->v->mins, ent->v->maxs, neworg, false, ent);
-			if (set_trace)
-				set_move_trace(&trace, set_trace);
+			if (set_move_trace)
+				set_move_trace(&trace, set_trace_globs);
 	
 			if (trace.fraction == 1)
 			{
@@ -195,8 +173,8 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, qboolean re
 	end[2] -= movevars.stepheight*2;
 
 	trace = World_Move (world, neworg, ent->v->mins, ent->v->maxs, end, false, ent);
-	if (set_trace)
-		set_move_trace(&trace, set_trace);
+	if (set_move_trace)
+		set_move_trace(&trace, set_trace_globs);
 
 	if (trace.allsolid)
 		return false;
@@ -205,8 +183,8 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, qboolean re
 	{
 		neworg[2] -= movevars.stepheight;
 		trace = World_Move (world, neworg, ent->v->mins, ent->v->maxs, end, false, ent);
-		if (set_trace)
-			set_move_trace(&trace, set_trace);
+		if (set_move_trace)
+			set_move_trace(&trace, set_trace_globs);
 		if (trace.allsolid || trace.startsolid)
 			return false;
 	}
@@ -324,7 +302,7 @@ qboolean World_StepDirection (world_t *world, wedict_t *ent, float yaw, float di
 	move[2] = 0;
 
 	VectorCopy (ent->v->origin, oldorigin);
-	if (World_movestep (world, ent, move, false, false, NULL))
+	if (World_movestep (world, ent, move, false, false, NULL, NULL))
 	{
 		delta = ent->v->angles[YAW] - ent->v->ideal_yaw;
 		if (delta > 45 && delta < 315)

@@ -44,7 +44,11 @@ void Sbar_IntermissionOverlay (void);
 // called each frame after the level has been completed
 
 void Sbar_FinaleOverlay (void);
-void Sbar_SortFrags (qboolean includespec);
+void Sbar_SortFrags (qboolean includespec, qboolean teamsort);
+
+void Sbar_PQ_Team_New(unsigned int team, unsigned int shirt);
+void Sbar_PQ_Team_Frags(unsigned int team, int frags);
+void Sbar_PQ_Team_Reset(void);
 
 void Sbar_Start (void);
 void Sbar_Flush (void);

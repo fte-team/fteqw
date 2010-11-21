@@ -1586,8 +1586,8 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 	{
 		if (atoi(Info_ValueForKey(msg, "sv_punkbuster")))
 			return false;	//never add servers that require punkbuster. :(
-		if (atoi(Info_ValueForKey(msg, "sv_pure")))
-			return false;	//we don't support the filesystem hashing. :(
+//		if (atoi(Info_ValueForKey(msg, "sv_pure")))
+//			return false;	//we don't support the filesystem hashing. :(
 
 		info = Z_Malloc(sizeof(serverinfo_t));
 

@@ -731,7 +731,7 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 			move[1] = sin(yaw)*dist;
 			move[2] = 0;
 
-			return World_movestep(&sv.world, (wedict_t*)ed, move, true, false, NULL);
+			return World_movestep(&sv.world, (wedict_t*)ed, move, true, false, NULL, NULL);
 		}
 
 	case G_DROPTOFLOOR:

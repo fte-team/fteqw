@@ -33,7 +33,7 @@ cvar_t	cl_nodelta = CVAR("cl_nodelta","0");
 
 cvar_t	cl_c2spps = CVAR("cl_c2spps", "0");
 cvar_t	cl_c2sImpulseBackup = SCVAR("cl_c2sImpulseBackup","3");
-cvar_t	cl_netfps = CVAR("cl_netfps", "0");
+cvar_t	cl_netfps = CVAR("cl_netfps", "100");
 cvar_t	cl_sparemsec = CVARC("cl_sparemsec", "10", CL_SpareMsec_Callback);
 cvar_t  cl_queueimpulses = CVAR("cl_queueimpulses", "0");
 cvar_t	cl_smartjump = CVAR("cl_smartjump", "1");
@@ -899,7 +899,7 @@ float CL_FilterTime (double time, float wantfps)	//now returns the extra time no
 	}
 
 	if (time < 1000 / fps)
-		return false;
+		return 0;
 
 	return time - (1000 / fps);
 }

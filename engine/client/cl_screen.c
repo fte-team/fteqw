@@ -1199,7 +1199,8 @@ void SCR_StringXY(char *str, float x, float y)
 void SCR_DrawFPS (void)
 {
 	extern cvar_t show_fps;
-	static double lastframetime;
+	static double lastupdatetime;
+	static double lastsystemtime;
 	double t;
 	extern int fps_count;
 	static float lastfps;
@@ -1209,16 +1210,20 @@ void SCR_DrawFPS (void)
 	int sfps, frame;
 	qboolean usemsecs = false;
 
+	float frametime;
+
 	if (!show_fps.ival)
 		return;
 
 	t = Sys_DoubleTime();
-	if ((t - lastframetime) >= 1.0)
+	if ((t - lastupdatetime) >= 1.0)
 	{
-		lastfps = fps_count/(t - lastframetime);
+		lastfps = fps_count/(t - lastupdatetime);
 		fps_count = 0;
-		lastframetime = t;
+		lastupdatetime = t;
 	}
+	frametime = t - lastsystemtime;
+	lastsystemtime = t;
 
 	sfps = show_fps.ival;
 	if (sfps < 0)
@@ -1230,39 +1235,39 @@ void SCR_DrawFPS (void)
 	switch (sfps)
 	{
 	case 2: // lowest FPS, highest MS encountered
-		if (lastfps > 1/host_frametime)
+		if (lastfps > 1/frametime)
 		{
-			lastfps = 1/host_frametime;
+			lastfps = 1/frametime;
 			fps_count = 0;
-			lastframetime = t;
+			lastupdatetime = t;
 		}
 		break;
 	case 3: // highest FPS, lowest MS encountered
-		if (lastfps < 1/host_frametime)
+		if (lastfps < 1/frametime)
 		{
-			lastfps = 1/host_frametime;
+			lastfps = 1/frametime;
 			fps_count = 0;
-			lastframetime = t;
+			lastupdatetime = t;
 		}
 		break;
 	case 4: // immediate FPS/MS
-		lastfps = 1/host_frametime;
-		lastframetime = t;
+		lastfps = 1/frametime;
+		lastupdatetime = t;
 		break;
 #ifdef GLQUAKE
 	case 5:
 		if (qrenderer == QR_OPENGL)
-			GLR_FrameTimeGraph((int)(1000.0*2*host_frametime));
+			GLR_FrameTimeGraph((int)(1000.0*2*frametime));
 		break;
 	case 7:
 		if (qrenderer == QR_OPENGL)
-			GLR_FrameTimeGraph((int)(1000.0*1*host_frametime));
+			GLR_FrameTimeGraph((int)(1000.0*1*frametime));
 		break;
 #endif
 	case 6:
 		{
 			float mean, deviation;
-			deviationtimes[deviationframe++&63] = host_frametime*1000;
+			deviationtimes[deviationframe++&63] = frametime*1000;
 			mean = 0;
 			for (frame = 0; frame < 64; frame++)
 			{

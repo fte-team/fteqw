@@ -262,9 +262,6 @@ void *Sys_GetGameAPI (void *parms)
 #define MINIMUM_WIN_MEMORY	0x0800000
 #define MAXIMUM_WIN_MEMORY	0x8000000
 
-#define PAUSE_SLEEP		50				// sleep time on pause or minimization
-#define NOT_FOCUS_SLEEP	20				// sleep time when not focus
-
 int		starttime;
 qboolean ActiveApp, Minimized;
 qboolean	WinNT;
@@ -1523,25 +1520,17 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			else
 			{
 	#ifndef SERVERONLY
-		// yield the CPU for a little while when paused, minimized, or not the focus
-	/*			if (cl.paused && !Media_PlayingFullScreen())
-				{
-					SleepUntilInput (PAUSE_SLEEP);
-					scr_skipupdate = 1;		// no point in bothering to draw
-				}
-				else if (!ActiveApp && !Media_PlayingFullScreen())
-				{
-					SleepUntilInput (NOT_FOCUS_SLEEP);
-				}
-	*/
+				int sleeptime;
 				newtime = Sys_DoubleTime ();
 				time = newtime - oldtime;
-				Host_Frame (time);
+				sleeptime = Host_Frame (time);
 				oldtime = newtime;
 
 				SetHookState(sys_disableWinKeys.ival);
 
-	//			Sleep(0);
+				/*sleep if its not yet time for a frame*/
+				if (sleeptime > 0)
+					Sleep(sleeptime);
 	#else
 				Sys_Error("wut?");
 	#endif

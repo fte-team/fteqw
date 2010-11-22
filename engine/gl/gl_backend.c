@@ -2227,7 +2227,17 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 			qglUniform1fARB(s->progparm[i].handle[perm], ((cvar_t*)s->progparm[i].pval)->value);
 			break;
 		case SP_CVAR3F:
-//			qglUniform3fvARB(uniformloc, 1, specialvec);
+			{
+				cvar_t *var = (cvar_t*)s->progparm[i].pval;
+				char *vs = var->string;
+				vs = COM_Parse(vs);
+				param3[0] = atof(com_token);
+				vs = COM_Parse(vs);
+				param3[1] = atof(com_token);
+				vs = COM_Parse(vs);
+				param3[2] = atof(com_token);
+				qglUniform3fvARB(s->progparm[i].handle[perm], 1, param3);
+			}
 			break;
 
 		default:

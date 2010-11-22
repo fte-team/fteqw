@@ -112,6 +112,7 @@ extern	FTEPFNGLPNTRIANGLESFATIPROC qglPNTrianglesfATI;
 qboolean GL_CheckExtension(char *extname);
 
 typedef struct {
+	float glversion;
 	qboolean tex_env_combine;
 	qboolean nv_tex_env_combine4;
 	qboolean env_add;

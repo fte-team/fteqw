@@ -271,9 +271,10 @@ void GL_InitFisheyeFov(void)
 void GL_InitSceneProcessingShaders_MenuTint(void)
 {
 	extern cvar_t gl_menutint_shader;
+
 	if (gl_config.arb_shader_objects && gl_menutint_shader.ival)
 	{
-	scenepp_mt_shader = R_RegisterShader("menutint",
+		scenepp_mt_shader = R_RegisterShader("menutint",
 			"{\n"
 				"glslprogram\n"
 				"{\n"
@@ -303,7 +304,7 @@ void GL_InitSceneProcessingShaders_MenuTint(void)
 						float luminance = dot(lumfactors, texcolor);\
 						texcolor = vec3(luminance, luminance, luminance);\
 						texcolor *= colorparam;\
-						texcolor = invert > 0 ? (invertvec - texcolor) : texcolor;\
+						texcolor = (invert > 0) ? (invertvec - texcolor) : texcolor;\
 						gl_FragColor = vec4(texcolor, 1.0);\
 					}\n"
 			"#endif\n"
@@ -318,7 +319,7 @@ void GL_InitSceneProcessingShaders_MenuTint(void)
 				"param rendertexturescale rendertexturescale\n"
 			"}");
 	}
-	if (!scenepp_mt_shader)
+	else
 	{
 		scenepp_mt_shader = R_RegisterShader("menutint",
 			"{\n"

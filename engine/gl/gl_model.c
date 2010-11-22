@@ -181,17 +181,24 @@ void RMod_BlockTextureColour_f (void)
 
 
 #if defined(RUNTIMELIGHTING) && defined(MULTITHREAD)
-void *relightthread;
+void *relightthread[8];
+unsigned int relightthreads;
 volatile qboolean wantrelight;
 
 int RelightThread(void *arg)
 {
-	while (wantrelight && relitsurface < lightmodel->numsurfaces)
+	int surf;
+	while (wantrelight)
 	{
-		LightFace(relitsurface);
-		lightmodel->surfaces[relitsurface].cached_dlight = -1;
-
-		relitsurface++;
+#ifdef _WIN32
+		surf = InterlockedIncrement(&relitsurface);
+#else
+		surf = relightthreads++;
+#endif
+		if (surf >= lightmodel->numsurfaces)
+			break;
+		LightFace(surf);
+		lightmodel->surfaces[surf].cached_dlight = -1;
 	}
 	return 0;
 }
@@ -207,10 +214,33 @@ void RMod_Think (void)
 			return;
 		}
 #ifdef MULTITHREAD
-		if (!relightthread)
+		if (!relightthreads)
 		{
+			int i;
+#ifdef _WIN32
+			HANDLE me = GetCurrentProcess();
+			DWORD_PTR proc, sys;
+			int t;
+			/*count cpus*/
+			GetProcessAffinityMask(me, &proc, &sys);
+			relightthreads = 0;
+			for (i = 0; i < sizeof(proc)*8; i++)
+				if (proc & (1u<<i))
+					relightthreads++;
+			/*subtract 1*/
+			if (relightthreads <= 1)
+				relightthreads = 1;
+			else
+				relightthreads--;
+#else
+			/*can't do atomics*/
+			relightthreads = 1;
+#endif
+			if (relightthreads > sizeof(relightthread)/sizeof(relightthread[0]))
+				relightthreads = sizeof(relightthread)/sizeof(relightthread[0]);
 			wantrelight = true;
-			relightthread = Sys_CreateThread(RelightThread, lightmodel, 0);
+			for (i = 0; i < relightthreads; i++)
+				relightthread[i] = Sys_CreateThread(RelightThread, lightmodel, 0);
 		}
 #else
 		LightFace(relitsurface);
@@ -226,9 +256,14 @@ void RMod_Think (void)
 #ifdef MULTITHREAD
 			if (relightthread)
 			{
+				int i;
 				wantrelight = false;
-				Sys_WaitOnThread(relightthread);
-				relightthread = NULL;
+				for (i = 0; i < relightthreads; i++)
+				{
+					Sys_WaitOnThread(relightthread[i]);
+					relightthread[i] = NULL;
+				}
+				relightthreads = 0;
 			}
 #endif
 
@@ -267,8 +302,12 @@ void RMod_ClearAll (void)
 	if (relightthread)
 	{
 		wantrelight = false;
-		Sys_WaitOnThread(relightthread);
-		relightthread = NULL;
+		for (i = 0; i < relightthreads; i++)
+		{
+			Sys_WaitOnThread(relightthread[i]);
+			relightthread[i] = NULL;
+		}
+		relightthreads = 0;
 	}
 #endif
 	lightmodel = NULL;

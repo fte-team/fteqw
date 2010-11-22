@@ -47,7 +47,7 @@ cvar_t	cl_shownet = SCVAR("cl_shownet","0");	// can be 0, 1, or 2
 
 cvar_t	cl_sbar		= CVARFC("cl_sbar", "0", CVAR_ARCHIVE, CL_Sbar_Callback);
 cvar_t	cl_hudswap	= CVARF("cl_hudswap", "0", CVAR_ARCHIVE);
-cvar_t	cl_maxfps	= CVARF("cl_maxfps", "1000", CVAR_ARCHIVE);
+cvar_t	cl_maxfps	= CVARF("cl_maxfps", "500", CVAR_ARCHIVE);
 cvar_t	cl_nopext	= CVARF("cl_nopext", "0", CVAR_ARCHIVE);
 cvar_t	cl_pext_mask = CVAR("cl_pext_mask", "0xffffffff");
 cvar_t	cl_nolerp	= CVAR("cl_nolerp", "2");
@@ -3311,7 +3311,7 @@ extern cvar_t cl_sparemsec;
 int		nopacketcount;
 void SNDDMA_SetUnderWater(qboolean underwater);
 float CL_FilterTime (double time, float wantfps);
-void Host_Frame (double time)
+float Host_Frame (double time)
 {
 	static double		time1 = 0;
 	static double		time2 = 0;
@@ -3324,7 +3324,7 @@ void Host_Frame (double time)
 	RSpeedLocals();
 
 	if (setjmp (host_abort) )
-		return;			// something bad happened, or the server disconnected
+		return 0;			// something bad happened, or the server disconnected
 
 	realframetime = time = Media_TweekCaptureFrameTime(time);
 
@@ -3375,15 +3375,22 @@ void Host_Frame (double time)
 	if ((cl_netfps.value>0 || cls.demoplayback || cl_indepphysics.ival))
 	{	//limit the fps freely, and expect the netfps to cope.
 		if (cl_maxfps.ival > 0)
-			if ((realtime - oldrealtime) < 1/cl_maxfps.value)
-				return;
+		{
+//			realtime += spare/1000;	//don't use it all!
+			spare = CL_FilterTime((realtime - oldrealtime)*1000, cl_maxfps.value);
+			if (!spare)
+				return 1;
+
+//			realtime -= spare/1000;	//don't use it all!
+		}
 	}
 	else
 	{
+		float maxfps = (cl_maxfps.ival>0||cls.protocol!=CP_QUAKEWORLD)?cl_maxfps.value:cl_netfps.value;
 		realtime += spare/1000;	//don't use it all!
-		spare = CL_FilterTime((realtime - oldrealtime)*1000, (cl_maxfps.ival>0||cls.protocol!=CP_QUAKEWORLD)?cl_maxfps.value:cl_netfps.value);
+		spare = CL_FilterTime((realtime - oldrealtime)*1000, maxfps);
 		if (!spare)
-			return;
+			return 1;
 		if (spare < 0 || cls.state < ca_onserver)
 			spare = 0;	//uncapped.
 		if (spare > cl_sparemsec.ival)
@@ -3422,7 +3429,7 @@ void Host_Frame (double time)
 
 #ifndef CLIENTONLY
 	if (isDedicated)	//someone changed it.
-		return;
+		return true;
 #endif
 
 	cls.framecount++;
@@ -3522,6 +3529,8 @@ void Host_Frame (double time)
 	CL_QTVPoll();
 
 	TP_UpdateAutoStatus();
+
+	return 0;
 }
 
 static void simple_crypt(char *buf, int len)

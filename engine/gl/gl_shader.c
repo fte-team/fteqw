@@ -319,16 +319,27 @@ static char *Shader_ParseSensString ( char **ptr )
 	return token;
 }
 
-static float Shader_ParseFloat ( char **ptr )
+static float Shader_ParseFloat(char **ptr)
 {
-	if ( !ptr || !(*ptr) ) {
+	char *token;
+	if (!ptr || !(*ptr))
+	{
 		return 0;
 	}
-	if ( !**ptr || **ptr == '}' ) {
+	if (!**ptr || **ptr == '}')
+	{
 		return 0;
 	}
 
-	return atof ( COM_ParseExt ( ptr, false ) );
+	token = COM_ParseExt(ptr, false);
+	if (*token == '$')
+	{
+		cvar_t *var;
+		var = Cvar_FindVar(token+1);
+		if (var)
+			return var->value;
+	}
+	return atof(token);
 }
 
 static void Shader_ParseVector ( char **ptr, vec3_t v )
@@ -992,6 +1003,68 @@ static shaderkey_t shaderkeys[] =
 
 // ===============================================================
 
+static qboolean ShaderPass_MapGen (shader_t *shader, shaderpass_t *pass, char *tname)
+{
+	if (!Q_stricmp (tname, "$lightmap"))
+	{
+		pass->tcgen = TC_GEN_LIGHTMAP;
+		pass->flags |= SHADER_PASS_LIGHTMAP | SHADER_PASS_NOMIPMAP;
+		pass->texgen = T_GEN_LIGHTMAP;
+		shader->flags |= SHADER_HASLIGHTMAP;
+	}
+	else if (!Q_stricmp (tname, "$deluxmap"))
+	{
+		pass->tcgen = TC_GEN_LIGHTMAP;
+		pass->flags |= SHADER_PASS_DELUXMAP | SHADER_PASS_NOMIPMAP;
+		pass->texgen = T_GEN_DELUXMAP;
+	}
+	else if (!Q_stricmp (tname, "$diffuse"))
+	{
+		pass->texgen = T_GEN_DIFFUSE;
+		pass->tcgen = TC_GEN_BASE;
+	}
+	else if (!Q_stricmp (tname, "$normalmap"))
+	{
+		pass->texgen = T_GEN_NORMALMAP;
+		pass->tcgen = TC_GEN_BASE;
+	}
+	else if (!Q_stricmp (tname, "$specular"))
+	{
+		pass->texgen = T_GEN_SPECULAR;
+		pass->tcgen = TC_GEN_BASE;
+	}
+	else if (!Q_stricmp (tname, "$fullbright"))
+	{
+		pass->texgen = T_GEN_FULLBRIGHT;
+		pass->tcgen = TC_GEN_BASE;
+	}
+	else if (!Q_stricmp (tname, "$upperoverlay"))
+	{
+		shader->flags |= SHADER_HASTOPBOTTOM;
+		pass->texgen = T_GEN_UPPEROVERLAY;
+		pass->tcgen = TC_GEN_BASE;
+	}
+	else if (!Q_stricmp (tname, "$loweroverlay"))
+	{
+		shader->flags |= SHADER_HASTOPBOTTOM;
+		pass->texgen = T_GEN_LOWEROVERLAY;
+		pass->tcgen = TC_GEN_BASE;
+	}
+	else if (!Q_stricmp (tname, "$shadowmap"))
+	{
+		pass->texgen = T_GEN_SHADOWMAP;
+		pass->tcgen = TC_GEN_BASE;	//FIXME: moo!
+	}
+	else if (!Q_stricmp (tname, "$currentrender"))
+	{
+		pass->texgen = T_GEN_CURRENTRENDER;
+		pass->tcgen = TC_GEN_BASE;	//FIXME: moo!
+	}
+	else
+		return false;
+	return true;
+}
+
 static void Shaderpass_Map (shader_t *shader, shaderpass_t *pass, char **ptr)
 {
 	int flags;
@@ -1000,75 +1073,13 @@ static void Shaderpass_Map (shader_t *shader, shaderpass_t *pass, char **ptr)
 	pass->anim_frames[0] = r_nulltex;
 
 	token = Shader_ParseString (ptr);
-	if (!Q_stricmp (token, "$lightmap"))
+	if (!ShaderPass_MapGen(shader, pass, token))
 	{
-		pass->tcgen = TC_GEN_LIGHTMAP;
-		pass->flags |= SHADER_PASS_LIGHTMAP | SHADER_PASS_NOMIPMAP;
-		pass->texgen = T_GEN_LIGHTMAP;
-		shader->flags |= SHADER_HASLIGHTMAP;
-	}
-	else if (!Q_stricmp (token, "$deluxmap"))
-	{
-		pass->tcgen = TC_GEN_LIGHTMAP;
-		pass->flags |= SHADER_PASS_DELUXMAP | SHADER_PASS_NOMIPMAP;
-		pass->texgen = T_GEN_DELUXMAP;
-	}
-	else if (!Q_stricmp (token, "$diffuse"))
-	{
-		pass->texgen = T_GEN_DIFFUSE;
-		pass->tcgen = TC_GEN_BASE;
-	}
-	else if (!Q_stricmp (token, "$normalmap"))
-	{
-		pass->texgen = T_GEN_NORMALMAP;
-		pass->tcgen = TC_GEN_BASE;
-	}
-	else if (!Q_stricmp (token, "$specular"))
-	{
-		pass->texgen = T_GEN_SPECULAR;
-		pass->tcgen = TC_GEN_BASE;
-	}
-	else if (!Q_stricmp (token, "$fullbright"))
-	{
-		pass->texgen = T_GEN_FULLBRIGHT;
-		pass->tcgen = TC_GEN_BASE;
-	}
-	else if (!Q_stricmp (token, "$upperoverlay"))
-	{
-		shader->flags |= SHADER_HASTOPBOTTOM;
-		pass->texgen = T_GEN_UPPEROVERLAY;
-		pass->tcgen = TC_GEN_BASE;
-	}
-	else if (!Q_stricmp (token, "$loweroverlay"))
-	{
-		shader->flags |= SHADER_HASTOPBOTTOM;
-		pass->texgen = T_GEN_LOWEROVERLAY;
-		pass->tcgen = TC_GEN_BASE;
-	}
-	else if (!Q_stricmp (token, "$shadowmap"))
-	{
-		pass->texgen = T_GEN_SHADOWMAP;
-		pass->tcgen = TC_GEN_BASE;	//FIXME: moo!
-	}
-	else if (!Q_stricmp (token, "$currentrender"))
-	{
-		pass->texgen = T_GEN_CURRENTRENDER;
-		pass->tcgen = TC_GEN_BASE;	//FIXME: moo!
-	}
-	else
-	{
+		pass->texgen = T_GEN_SINGLEMAP;
 		flags = Shader_SetImageFlags (shader);
 
 		pass->tcgen = TC_GEN_BASE;
 		pass->anim_frames[0] = Shader_FindImage (token, flags);
-
-		/*
-		if (!pass->anim_frames[0])
-		{
-			pass->anim_frames[0] = missing_texture;
-			Con_DPrintf (CON_WARNING "Shader %s has a stage with no image: %s.\n", shader->name, token );
-		}
-		*/
     }
 }
 
@@ -1117,18 +1128,22 @@ static void Shaderpass_ClampMap (shader_t *shader, shaderpass_t *pass, char **pt
 	char *token;
 
 	token = Shader_ParseString (ptr);
-	flags = Shader_SetImageFlags (shader);
 
-	pass->tcgen = TC_GEN_BASE;
-	pass->anim_frames[0] = Shader_FindImage (token, flags | IF_CLAMP);
-	pass->texgen = T_GEN_SINGLEMAP;
-	pass->flags |= SHADER_PASS_CLAMP;
-
-	if (!TEXVALID(pass->anim_frames[0]))
+	if (!ShaderPass_MapGen(shader, pass, token))
 	{
-		pass->anim_frames[0] = missing_texture;
-		Con_DPrintf (CON_WARNING "Shader %s has a stage with no image: %s.\n", shader->name, token);
-    }
+		flags = Shader_SetImageFlags (shader);
+
+		pass->tcgen = TC_GEN_BASE;
+		pass->anim_frames[0] = Shader_FindImage (token, flags | IF_CLAMP);
+		pass->texgen = T_GEN_SINGLEMAP;
+
+		if (!TEXVALID(pass->anim_frames[0]))
+		{
+			pass->anim_frames[0] = missing_texture;
+			Con_DPrintf (CON_WARNING "Shader %s has a stage with no image: %s.\n", shader->name, token);
+		}
+	}
+	pass->flags |= SHADER_PASS_CLAMP;
 }
 
 static void Shaderpass_VideoMap (shader_t *shader, shaderpass_t *pass, char **ptr)
@@ -2191,6 +2206,7 @@ void Shader_Finish (shader_t *s)
 	if (!Q_stricmp (s->name, "flareShader"))
 	{
 		s->flags |= SHADER_FLARE;
+		s->flags |= SHADER_NODRAW;
 	}
 
 	if (!s->numpasses && !s->sort)
@@ -2724,7 +2740,17 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 	if (!builtin && (*shortname == '*'))
 	{
 		//q1 water
-		if (r_fastturb.ival)
+		if (r_wateralpha.value == 0)
+		{
+			builtin = (
+				"{\n"
+					"sort seethrough\n"
+					"surfaceparm nodraw\n"
+					"surfaceparm nodlight\n"
+				"}\n"
+			);
+		}
+		else if (r_fastturb.ival)
 		{
 			builtin = (
 				"{\n"
@@ -2796,14 +2822,29 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 			);
 		}
 #endif
+		else if (r_wateralpha.value < 1)
+		{
+			builtin = (
+				"{\n"
+					"{\n"
+						"map $diffuse\n"
+						"tcmod turb 0 0 3 0.1\n"
+						"alphagen const $r_wateralpha\n"
+						"blendfunc blend\n"
+					"}\n"
+					"surfaceparm nodlight\n"
+				"}\n"
+			);
+		}
 		else
 		{
 			builtin = (
 				"{\n"
 					"{\n"
 						"map $diffuse\n"
-						"tcmod turb 0 0.01 0.5 0\n"
+						"tcmod turb 0 0 3 0.1\n"
 					"}\n"
+					"surfaceparm nodlight\n"
 				"}\n"
 			);
 		}
@@ -3016,6 +3057,8 @@ void Shader_DefaultBSPFlare(char *shortname, shader_t *s, const void *args)
 	s->features = MF_STCOORDS|MF_COLORS;
 	s->sort = SHADER_SORT_ADDITIVE;
 	s->uses = 1;
+
+	s->flags |= SHADER_NODRAW;
 }
 void Shader_DefaultSkin(char *shortname, shader_t *s, const void *args)
 {
@@ -3078,7 +3121,7 @@ void Shader_Default2D(char *shortname, shader_t *s, const void *genargs)
 		"{\n"
 			"nomipmaps\n"
 			"{\n"
-				"map $diffuse\n"
+				"clampmap $diffuse\n"
 				"rgbgen vertex\n"
 				"alphagen vertex\n"
 				"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
@@ -3087,7 +3130,7 @@ void Shader_Default2D(char *shortname, shader_t *s, const void *genargs)
 		"}\n"
 		);
 
-	s->defaulttextures.base = R_LoadHiResTexture(shortname, NULL, IF_NOPICMIP|IF_NOMIPMAP);
+	s->defaulttextures.base = R_LoadHiResTexture(shortname, NULL, IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP);
 	if (!TEXVALID(s->defaulttextures.base))
 	{
 		unsigned char data[4*4] = {0};

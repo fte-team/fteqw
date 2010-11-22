@@ -199,7 +199,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define PSET_CLASSIC
 		//#define PSET_DARKPLACES
 
-		//#define VOICECHAT	//not added yet.
+		#define VOICECHAT	//not added yet.
 
 //these things were moved to plugins.
 	#endif

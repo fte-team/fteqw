@@ -334,6 +334,27 @@ static void BE_ApplyTMUState(unsigned int tu, unsigned int flags)
 static void D3DBE_ApplyShaderBits(unsigned int bits)
 {
 	unsigned int delta;
+
+	if (shaderstate.flags & ~BEF_PUSHDEPTH)
+	{
+		if (shaderstate.flags & BEF_FORCEADDITIVE)
+			bits = (bits & ~(SBITS_MISC_DEPTHWRITE|SBITS_BLEND_BITS|SBITS_ATEST_BITS))
+						| (SBITS_SRCBLEND_ONE | SBITS_DSTBLEND_ONE);
+		else if ((shaderstate.flags & BEF_FORCETRANSPARENT) && !(bits & SBITS_BLEND_BITS)) 	/*if transparency is forced, clear alpha test bits*/
+			bits = (bits & ~(SBITS_MISC_DEPTHWRITE|SBITS_BLEND_BITS|SBITS_ATEST_BITS))
+						| (SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA);
+
+		if (shaderstate.flags & BEF_FORCENODEPTH) 	/*EF_NODEPTHTEST dp extension*/
+			bits |= SBITS_MISC_NODEPTHTEST;
+		else
+		{
+			if (shaderstate.flags & BEF_FORCEDEPTHTEST)
+				bits &= ~SBITS_MISC_NODEPTHTEST;
+			if (shaderstate.flags & BEF_FORCEDEPTHWRITE)
+				bits |= SBITS_MISC_DEPTHWRITE;
+		}
+	}
+
 	delta = bits ^ shaderstate.shaderbits;
 	if (!delta)
 		return;
@@ -573,9 +594,18 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG1, D3DTA_TEXTURE);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
 
-		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
-//		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
-		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+		if (shaderstate.flags & (BEF_FORCETRANSPARENT | BEF_FORCEADDITIVE))
+		{
+			IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+			IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG2, D3DTA_CURRENT);
+			IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
+		}
+		else
+		{
+			IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
+	//		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
+			IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+		}
 		break;
 	case GL_ADD:
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG1, D3DTA_TEXTURE);
@@ -765,8 +795,23 @@ static void alphagenbyte(const shaderpass_t *pass, int cnt, const byte_vec4_t *s
 	{
 	default:
 	case ALPHA_GEN_IDENTITY:
-		while(cnt--)
-			dst[cnt][3] = 255;
+		if (shaderstate.flags & BEF_FORCETRANSPARENT)
+		{
+			f = shaderstate.curentity->shaderRGBAf[3];
+			if (f < 0)
+				t = 0;
+			else if (f >= 1)
+				t = 255;
+			else
+				t = f*255;
+			while(cnt--)
+				dst[cnt][3] = t;
+		}
+		else
+		{
+			while(cnt--)
+				dst[cnt][3] = 255;
+		}
 		break;
 
 	case ALPHA_GEN_CONST:
@@ -1865,14 +1910,18 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 		Matrix4_Multiply(mv, Matrix4_NewRotation(-90, 1, 0, 0), iv);
 		Matrix4_Multiply(iv, Matrix4_NewRotation(90, 0, 0, 1), mv);
 
-	m[2] *= 0.1;
-	m[6] *= 0.1;
-	m[10] *= 0.1;
 		IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_WORLD, (D3DMATRIX*)mv);
 	}
 	else
 	{
 		IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_WORLD, (D3DMATRIX*)m);
+	}
+
+	{
+	D3DVIEWPORT9 vport;
+	IDirect3DDevice9_GetViewport(pD3DDev9, &vport);
+	vport.MaxZ = (e->flags & Q2RF_DEPTHHACK)?0.333:1;
+	IDirect3DDevice9_SetViewport(pD3DDev9, &vport);
 	}
 }
 
@@ -1880,9 +1929,6 @@ void BE_SubmitBatch(batch_t *batch)
 {
 	shaderstate.nummeshes = batch->meshes - batch->firstmesh;
 	if (!shaderstate.nummeshes)
-		return;
-	//FIXME: Why does this seem to work in GL?
-	if (batch->shader->flags & SHADER_FLARE)
 		return;
 	if (shaderstate.curentity != batch->ent)
 	{
@@ -1892,6 +1938,7 @@ void BE_SubmitBatch(batch_t *batch)
 	shaderstate.meshlist = batch->mesh + batch->firstmesh;
 	shaderstate.curshader = batch->shader;
 	shaderstate.curtexnums = batch->skin;
+	shaderstate.flags = batch->flags;
 	if (batch->lightmap < 0)
 		shaderstate.curlightmap = r_nulltex;
 	else

@@ -250,7 +250,7 @@ void Host_Shutdown(void);
 NORETURN void VARGS Host_Error (char *error, ...) LIKEPRINTF(1);
 NORETURN void VARGS Host_EndGame (char *message, ...) LIKEPRINTF(1);
 qboolean Host_SimulationTime(float time);
-void Host_Frame (double time);
+float Host_Frame (double time);
 void Host_Quit_f (void);
 void VARGS Host_ClientCommands (char *fmt, ...) LIKEPRINTF(1);
 void Host_ShutdownServer (qboolean crash);

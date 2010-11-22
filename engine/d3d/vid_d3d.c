@@ -344,11 +344,10 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
     	case WM_SIZE:
 			if (!vid_initializing)
 			{
+				extern cvar_t vid_conautoscale, vid_conwidth;
 				// force width/height to be updated
 				//vid.pixelwidth = window_rect.right - window_rect.left;
 				//vid.pixelheight = window_rect.bottom - window_rect.top;
-//				Cvar_ForceCallback(&vid_conautoscale);
-//				Cvar_ForceCallback(&vid_conwidth);
 				D3DVID_UpdateWindowStatus(hWnd);
 
 				BE_D3D_Reset(true);
@@ -356,6 +355,9 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 				vid.pixelheight = d3dpp.BackBufferHeight = window_rect.bottom - window_rect.top;
 				resetD3D9();
 				BE_D3D_Reset(false);
+
+				Cvar_ForceCallback(&vid_conautoscale);
+				Cvar_ForceCallback(&vid_conwidth);
 			}
             break;
 
@@ -876,30 +878,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 		return;                         // not initialized yet
 	}
 
-#pragma message("Fixme: remove the code from here...")
-	{
-		unsigned int ow = vid.width, oh = vid.height;
-		extern cvar_t vid_conwidth, vid_conheight, vid_conautoscale;
-		if (vid_conautoscale.value)
-		{
-			vid.width = vid.pixelwidth*vid_conautoscale.value;
-			vid.height = vid.pixelheight*vid_conautoscale.value;
-		}
-		else
-		{
-			vid.width = vid_conwidth.value;
-			vid.height = vid_conheight.value;
-		}
-
-		if (!vid.width)
-			vid.width = vid.pixelwidth;
-		if (!vid.height)
-			vid.height = vid.pixelheight;
-
-		if (vid.width != ow || vid.height != oh)
-			vid.recalc_refdef = true;
-	}
-
+	Shader_DoReload();
 
 #ifdef VM_UI
 	uimenu = UI_MenuState();

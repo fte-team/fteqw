@@ -23,7 +23,12 @@ extern cvar_t gl_conback;
 extern cvar_t gl_font;
 extern cvar_t gl_contrast;
 extern cvar_t vid_conautoscale;
+extern cvar_t vid_conheight;
+extern cvar_t vid_conwidth;
 void R2D_Font_Callback(struct cvar_s *var, char *oldvalue);
+void R2D_Conautoscale_Callback(struct cvar_s *var, char *oldvalue);
+void R2D_Conheight_Callback(struct cvar_s *var, char *oldvalue);
+void R2D_Conwidth_Callback(struct cvar_s *var, char *oldvalue);
 
 //We need this for minor things though, so we'll just use the slow accurate method.
 //this is unlikly to be called too often.			
@@ -122,6 +127,9 @@ void R2D_Init(void)
 	);
 
 	Cvar_Hook(&gl_font, R2D_Font_Callback);
+	Cvar_Hook(&vid_conautoscale, R2D_Conautoscale_Callback);
+	Cvar_Hook(&vid_conheight, R2D_Conheight_Callback);
+	Cvar_Hook(&vid_conwidth, R2D_Conwidth_Callback);
 
 	Cvar_ForceCallback(&gl_conback);
 	Cvar_ForceCallback(&vid_conautoscale);
@@ -378,6 +386,111 @@ void R2D_Font_Callback(struct cvar_s *var, char *oldvalue)
 	font_conchar = Font_LoadFont(8*vid.pixelheight/vid.height, var->string);
 	if (!font_conchar && *var->string)
 		font_conchar = Font_LoadFont(8*vid.pixelheight/vid.height, "");
+}
+
+// console size manipulation callbacks
+void R2D_Console_Resize(void)
+{
+	extern cvar_t gl_font;
+	extern cvar_t vid_conwidth, vid_conheight;
+	int cwidth, cheight;
+	float xratio;
+	float yratio=0;
+	cwidth = vid_conwidth.value;
+	cheight = vid_conheight.value;
+
+	xratio = vid_conautoscale.value;
+	if (xratio > 0)
+	{
+		char *s = strchr(vid_conautoscale.string, ' ');
+		if (s)
+			yratio = atof(s + 1);
+		
+		if (yratio <= 0)
+			yratio = xratio;
+
+		xratio = 1 / xratio;
+		yratio = 1 / yratio;
+
+		//autoscale overrides conwidth/height (without actually changing them)
+		cwidth = vid.pixelwidth;
+		cheight = vid.pixelheight;
+	}
+	else
+	{
+		xratio = 1;
+		yratio = 1;
+	}
+
+
+	if (!cwidth)
+		cwidth = vid.pixelwidth;
+	if (!cheight)
+		cheight = vid.pixelheight;
+
+	cwidth*=xratio;
+	cheight*=yratio;
+
+	if (cwidth < 320)
+		cwidth = 320;
+	if (cheight < 200)
+		cheight = 200;
+
+	vid.width = cwidth;
+	vid.height = cheight;
+
+	vid.recalc_refdef = true;
+
+	if (font_tiny)
+		Font_Free(font_tiny);
+	font_tiny = NULL;
+	if (font_conchar)
+		Font_Free(font_conchar);
+	font_conchar = NULL;
+
+	Cvar_ForceCallback(&gl_font);
+
+#ifdef PLUGINS
+	Plug_ResChanged();
+#endif
+}
+
+void R2D_Conheight_Callback(struct cvar_s *var, char *oldvalue)
+{
+	if (var->value > 1536)	//anything higher is unreadable.
+	{
+		Cvar_ForceSet(var, "1536");
+		return;
+	}
+	if (var->value < 200 && var->value)	//lower would be wrong
+	{
+		Cvar_ForceSet(var, "200");
+		return;
+	}
+
+	R2D_Console_Resize();
+}
+
+void R2D_Conwidth_Callback(struct cvar_s *var, char *oldvalue)
+{
+	//let let the user be too crazy
+	if (var->value > 2048)	//anything higher is unreadable.
+	{
+		Cvar_ForceSet(var, "2048");
+		return;
+	}
+	if (var->value < 320 && var->value)	//lower would be wrong
+	{
+		Cvar_ForceSet(var, "320");
+		return;
+	}
+
+	R2D_Console_Resize();
+}
+
+void R2D_Conautoscale_Callback(struct cvar_s *var, char *oldvalue)
+{
+	R2D_Console_Resize();
 }
 
 

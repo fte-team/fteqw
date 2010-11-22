@@ -2536,31 +2536,36 @@ void Surf_BuildLightmaps (void)
 	if (cl.worldmodel->fromgame == fg_doom)
 		return;	//no lightmaps.
 
-	lightmap_bgra = (qrenderer == QR_DIRECT3D);
+	lightmap_bgra = true;
 
-	if (qrenderer == QR_DIRECT3D)
+	switch(qrenderer)
 	{
+#ifdef D3DQUAKE
+	case QR_DIRECT3D:
+		/*always bgra, hope your card supports it*/
 		lightmap_bytes = 4;
 		lightmap_bgra = true;
-	}
-	else if (cl.worldmodel->fromgame == fg_quake3 || (cl.worldmodel->engineflags & MDLF_RGBLIGHTING) || cl.worldmodel->deluxdata || r_loadlits.value)
-	{
+		break;
+#endif
+#ifdef GLQUAKE
+	case QR_OPENGL:
+		/*favour bgra if the gpu supports it, otherwise use rgb only if it'll be used*/
 		lightmap_bgra = false;
-		lightmap_bytes = 3;
-	}
-	else
-		lightmap_bytes = 1;
-
-	if (cl.worldmodel->fromgame == fg_quake3 && lightmap_bytes != 3 && lightmap_bytes != 4)
-		lightmap_bytes = 3;
-
-	lightmap_bgra = true;
-	lightmap_bytes = 4;
-
-	if (atof(qglGetString(GL_VERSION)) < 1.2)
-	{
-		lightmap_bgra = false;
-		lightmap_bytes = 3;
+		if (gl_config.glversion >= 1.2)
+		{
+			/*the more common case*/
+			lightmap_bytes = 4;
+			lightmap_bgra = true;
+		}
+		else if (cl.worldmodel->fromgame == fg_quake3 || (cl.worldmodel->engineflags & MDLF_RGBLIGHTING) || cl.worldmodel->deluxdata || r_loadlits.value)
+		{
+			lightmap_bgra = false;
+			lightmap_bytes = 3;
+		}
+		else
+			lightmap_bytes = 1;
+		break;
+#endif
 	}
 
 	for (j=1 ; j<MAX_MODELS ; j++)

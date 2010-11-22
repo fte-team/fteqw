@@ -509,9 +509,6 @@ void GLR_Init (void)
 	Cvar_Hook(&crosshairimage, GLCrosshairimage_Callback);
 	Cvar_Hook(&crosshaircolor, GLCrosshaircolor_Callback);
 	Cvar_Hook(&r_menutint, GLR_Menutint_Callback);
-	Cvar_Hook(&vid_conautoscale, GLVID_Conautoscale_Callback);
-	Cvar_Hook(&vid_conheight, GLVID_Conheight_Callback);
-	Cvar_Hook(&vid_conwidth, GLVID_Conwidth_Callback);
 //	Cvar_Hook(&r_floorcolour, GLR_Floorcolour_Callback);
 //	Cvar_Hook(&r_fastskycolour, GLR_Fastskycolour_Callback);
 //	Cvar_Hook(&r_wallcolour, GLR_Wallcolour_Callback);

@@ -278,8 +278,6 @@ const char *gl_renderer;
 const char *gl_version;
 static const char *gl_extensions;
 
-unsigned int gl_major_version;
-unsigned int gl_minor_version;
 static unsigned int gl_num_extensions;
 
 
@@ -763,6 +761,9 @@ GLint GLSlang_GetUniformLocation (int prog, char *name)
 //the vid routines have initialised a window, and now they are giving us a reference to some of of GetProcAddress to get pointers to the funcs.
 void GL_Init(void *(*getglfunction) (char *name))
 {
+	unsigned int gl_major_version;
+	unsigned int gl_minor_version;
+
 	qglAlphaFunc		= (void *)getglcore("glAlphaFunc");
 	qglBegin			= (void *)getglcore("glBegin");
 	qglBlendFunc		= (void *)getglcore("glBlendFunc");
@@ -895,8 +896,13 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglGetIntegerv(GL_MINOR_VERSION, &gl_minor_version);
 	if (qglGetError())
 	{
+		gl_config.glversion = atof(gl_version);
 		gl_major_version = 1;
 		gl_minor_version = 1;
+	}
+	else
+	{
+		gl_config.glversion = gl_major_version + (gl_minor_version/10.f);
 	}
 	qglGetIntegerv(GL_NUM_EXTENSIONS, &gl_num_extensions);
 	if (!qglGetError() && gl_num_extensions)

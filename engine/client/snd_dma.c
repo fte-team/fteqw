@@ -163,8 +163,8 @@ void S_SoundInfo_f(void)
 }
 
 #ifdef VOICECHAT
-#include "speex/speex.h"
-#include "speex/speex_preprocess.h"
+#include <speex.h>
+#include <speex_preprocess.h>
 static struct
 {
 	qboolean inited;
@@ -518,7 +518,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 				s_speex.keeps = 0;
 			}
 		}
-		else 
+		else
 			s_speex.keeps = s_speex.samplerate * cl_voip_vad_delay.value;
 		if (outpos)
 		{
@@ -2183,15 +2183,15 @@ void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels,
 	{
 		extern cvar_t snd_linearresample_stream;
 		short *outpos = (short *)(newcache->data + spare * (s->sfxcache->numchannels) * s->sfxcache->width);
-		SND_ResampleStream(data, 
-			speed, 
-			width, 
+		SND_ResampleStream(data,
+			speed,
+			width,
 			channels,
 			samples,
-			outpos, 
-			snd_speed, 
-			s->sfxcache->width, 
-			s->sfxcache->numchannels, 
+			outpos,
+			snd_speed,
+			s->sfxcache->width,
+			s->sfxcache->numchannels,
 			snd_linearresample_stream.ival);
 	}
 

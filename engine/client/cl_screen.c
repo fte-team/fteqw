@@ -292,7 +292,7 @@ void SCR_StringToRGB (char *rgbstring, float *rgb, float rgbinputscale)
 	} // i contains the crosshair color
 }
 
-// SCR_StringToPalIndex: takes in "<index>" or "<r> <g> <b>" and converts to a 
+// SCR_StringToPalIndex: takes in "<index>" or "<r> <g> <b>" and converts to a
 // Quake palette index
 int SCR_StringToPalIndex (char *rgbstring, float rgbinputscale)
 {
@@ -474,7 +474,7 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p)
 	else
 	{
 		if (linecount <= 4)
-		{	
+		{
 			//small messages appear above and away from the crosshair
 			y = (bottom-top - Font_CharHeight()*linecount) * 0.35 + top;
 		}
@@ -484,7 +484,7 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p)
 			y = (bottom-top - Font_CharHeight()*linecount) * 0.5 + top;
 		}
 	}
-	
+
 	if (p->flags & CPRINT_BACKGROUND)
 	{	//hexen2 style plaque.
 		int px, py, pw;
@@ -945,7 +945,7 @@ void SCR_CalcRefdef (void)
 	{
 		full = true;
 		size = 100.0;
-	} 
+	}
 	else
 		size = scr_viewsize.value;
 
@@ -974,7 +974,7 @@ void SCR_CalcRefdef (void)
 	{
   		if (r_refdef.vrect.height > vid.height - sb_lines)
   			r_refdef.vrect.height = vid.height - sb_lines;
-	} 
+	}
 	else if (r_refdef.vrect.height > vid.height)
 			r_refdef.vrect.height = vid.height;
 
@@ -1002,7 +1002,7 @@ void SCR_CalcRefdef (void)
 	else if (r_refdef.fov_x > 170)
 		r_refdef.fov_x = 170;
 
-	
+
 	r_refdef.fov_y = CalcFov (r_refdef.fov_x, r_refdef.vrect.width, r_refdef.vrect.height);
 
 
@@ -1356,7 +1356,7 @@ void SCR_DrawGameClock(void)
 		return;
 
 	flags = (show_gameclock.value-1);
-	if (flags & 1) 
+	if (flags & 1)
 		timelimit = 60 * atof(Info_ValueForKey(cl.serverinfo, "timelimit"));
 	else
 		timelimit = 0;
@@ -1478,7 +1478,7 @@ void SCR_DrawLoading (void)
 				Draw_FillRGB(x+sizex, y, 192-sizex, 16, 1.0, 0.0, 0.0);
 			}
 
-			Draw_FunString(x+8, y+4, va("Loading %s... %i%%", 
+			Draw_FunString(x+8, y+4, va("Loading %s... %i%%",
 				(loading_stage == LS_SERVER) ? "server" : "client",
 				current_loading_size * 100 / total_loading_size));
 
@@ -1533,19 +1533,19 @@ void SCR_DrawLoading (void)
 		unsigned int fcount;
 		unsigned int tsize;
 		qboolean sizeextra;
-		
+
 		x = vid.width/2 - 160;
 
 		CL_GetDownloadSizes(&fcount, &tsize, &sizeextra);
 		//downloading files?
 		if (cls.downloadmethod)
-			Draw_FunString(x+8, y+4, va("Downloading %s... %i%%", 
+			Draw_FunString(x+8, y+4, va("Downloading %s... %i%%",
 				cls.downloadlocalname,
 				cls.downloadpercent));
 
 		if (tsize > 1024*1024*16)
 		{
-			Draw_FunString(x+8, y+8+4, va("%5ukbps %8umb%s remaining (%i files)", 
+			Draw_FunString(x+8, y+8+4, va("%5ukbps %8umb%s remaining (%i files)",
 				(unsigned int)(CL_DownloadRate()/1000.0f),
 				tsize/(1024*1024),
 				sizeextra?"+":"",
@@ -1553,7 +1553,7 @@ void SCR_DrawLoading (void)
 		}
 		else
 		{
-			Draw_FunString(x+8, y+8+4, va("%5ukbps %8ukb%s remaining (%i files)", 
+			Draw_FunString(x+8, y+8+4, va("%5ukbps %8ukb%s remaining (%i files)",
 				(unsigned int)(CL_DownloadRate()/1000.0f),
 				tsize/1024,
 				sizeextra?"+":"",
@@ -1572,7 +1572,7 @@ void SCR_DrawLoading (void)
 		dots[1] = '.';
 		dots[2] = '.';
 		dots[(int)realtime & 3] = 0;
-		Draw_FunString(x, y+4, va("Connecting to: %s%s", s, dots)); 
+		Draw_FunString(x, y+4, va("Connecting to: %s%s", s, dots));
 	}
 }
 
@@ -1742,8 +1742,8 @@ typedef struct _TargaHeader {
 } TargaHeader;
 
 
-#ifdef AVAIL_JPEGLIB
-void screenshotJPEG(char *filename, int compression, qbyte *screendata, int screenwidth, int screenheight);
+#if defined(AVAIL_JPEGLIB) && !defined(NO_JPEG)
+	void screenshotJPEG(char *filename, int compression, qbyte *screendata, int screenwidth, int screenheight);
 #endif
 #ifdef AVAIL_PNGLIB
 int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, int height);
@@ -2261,7 +2261,7 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 #ifdef MENU_DAT
 	MP_Draw();
 #endif
-	
+
 	if (key_dest == key_console)
 		SCR_DrawConsole (false);
 

@@ -111,7 +111,9 @@ typedef enum
 	VF_CL_VIEWANGLES_Y = 35,
 	VF_CL_VIEWANGLES_Z = 36,
 
+#ifndef MINGW
 #pragma message("FIXME: add cshift")
+#endif
 
 	//33-36 used by DP...
 	VF_PERSPECTIVE = 200,
@@ -1216,7 +1218,9 @@ static void PF_R_GetViewFlag(progfuncs_t *prinst, struct globalvars_s *pr_global
 		*r = r_refdef.fov_y;
 		break;
 
+#ifndef MINGW
 #pragma message("fixme: AFOV not retrievable")
+#endif
 	case VF_AFOV:
 		*r = r_refdef.fov_x;
 		break;

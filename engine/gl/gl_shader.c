@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -90,13 +90,13 @@ char *COM_ParseExt (char **data_p, qboolean nl)
 	data = *data_p;
 	len = 0;
 	com_token[0] = 0;
-	
+
 	if (!data)
 	{
 		*data_p = NULL;
 		return "";
 	}
-		
+
 // skip whitespace
 skipwhite:
 	while ((c = *data) <= ' ')
@@ -235,7 +235,9 @@ static qboolean Shader_EvaluateCondition(char **ptr)
 		else if (!Q_stricmp(token, "normalmap") )
 			conditiontrue = conditiontrue == !!gl_bump.value;
 
+#ifndef MINGW
 #pragma message("shader fixme")
+#endif
 		else if (!Q_stricmp(token, "diffuse") )
 			conditiontrue = conditiontrue == true;
 		else if (!Q_stricmp(token, "specular") )
@@ -299,7 +301,7 @@ static char *Shader_ParseString ( char **ptr )
 
 	token = COM_ParseExt ( ptr, false );
 	Q_strlwr ( token );
-	
+
 	return token;
 }
 
@@ -315,7 +317,7 @@ static char *Shader_ParseSensString ( char **ptr )
 	}
 
 	token = COM_ParseExt ( ptr, false );
-	
+
 	return token;
 }
 
@@ -645,7 +647,7 @@ static void Shader_FogParms ( shader_t *shader, shaderpass_t *pass, char **ptr )
 	shader->fog_color[0] = FloatToByte ( fcolor[0] );
 	shader->fog_color[1] = FloatToByte ( fcolor[1] );
 	shader->fog_color[2] = FloatToByte ( fcolor[2] );
-	shader->fog_color[3] = 255;	
+	shader->fog_color[3] = 255;
 	shader->fog_dist = Shader_ParseFloat ( ptr );
 
 	if ( shader->fog_dist <= 0.0f ) {
@@ -1697,7 +1699,7 @@ static void Shader_MakeCache ( char *path )
 }
 
 char *Shader_Skip ( char *ptr )
-{	
+{
 	char *tok;
     int brace_count;
 
@@ -1706,7 +1708,7 @@ char *Shader_Skip ( char *ptr )
 
 	if (!ptr)
 		return NULL;
-    
+
 	if ( tok[0] != '{' )
 	{
 		tok = COM_ParseExt ( &ptr, true );
@@ -1907,7 +1909,7 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 		ignore = false;
 		pass = &shader->passes[shader->numpasses++];
 	}
-	
+
     // Set defaults
     pass->flags = 0;
     pass->anim_frames[0] = r_nulltex;
@@ -1956,7 +1958,7 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 		}
 	}
 
-	// check some things 
+	// check some things
 	if ( ignore )
 	{
 		Shader_Free ( shader );
@@ -2046,7 +2048,7 @@ void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 
 	if (pass2->rgbgen != RGB_GEN_IDENTITY || pass2->alphagen != ALPHA_GEN_IDENTITY)
 		return;
-	if (pass->rgbgen != RGB_GEN_IDENTITY || pass->alphagen != ALPHA_GEN_IDENTITY) 
+	if (pass->rgbgen != RGB_GEN_IDENTITY || pass->alphagen != ALPHA_GEN_IDENTITY)
 		return;
 
 	/*if its alphatest, don't merge with anything other than lightmap*/
@@ -2069,7 +2071,7 @@ void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 				pass->numMergedPasses++;
 			}
 		}
-		else if (pass->blendmode == GL_ADD && 
+		else if (pass->blendmode == GL_ADD &&
 			pass2->blendmode == GL_ADD && config_env_add)
 		{
 			pass->numMergedPasses++;
@@ -2088,7 +2090,7 @@ void Shader_SetFeatures ( shader_t *s )
 	shaderpass_t *pass;
 
 	s->features = MF_NONE;
-	
+
 	for (i = 0, trnormals = true; i < s->numdeforms; i++)
 	{
 		switch (s->deforms[i].type)
@@ -2269,7 +2271,7 @@ void Shader_Finish (shader_t *s)
 				if (pass->flags & SHADER_PASS_LIGHTMAP)
 					break;
 			}
-			
+
 			if ( i == s->numpasses -1 )
 			{
 				s->numpasses--;
@@ -2282,7 +2284,7 @@ void Shader_Finish (shader_t *s)
 				}
 				s->numpasses--;
 			}
-			
+
 			if ( s->passes[0].numtcmods )
 			{
 				pass = s->passes;
@@ -2291,10 +2293,10 @@ void Shader_Finish (shader_t *s)
 					if ( !pass->numtcmods )
 						break;
 				}
-				
+
 				memcpy ( &s->passes[0], pass, sizeof(shaderpass_t) );
 			}
-			
+
 			s->passes[0].rgbgen = RGB_GEN_VERTEX;
 			s->passes[0].alphagen = ALPHA_GEN_IDENTITY;
 			s->passes[0].blendmode = 0;
@@ -2332,8 +2334,8 @@ done:;
 			}
 
 			if (pass->rgbgen == RGB_GEN_UNKNOWN)
-			{ 
-				if (!s->fog_dist && !(pass->flags & SHADER_PASS_LIGHTMAP)) 
+			{
+				if (!s->fog_dist && !(pass->flags & SHADER_PASS_LIGHTMAP))
 					pass->rgbgen = RGB_GEN_IDENTITY_LIGHTING;
 				else
 					pass->rgbgen = RGB_GEN_IDENTITY;
@@ -2359,7 +2361,7 @@ done:;
 		for (j = 0; j < s->numpasses; j++, sp++)
 		{
 			if (sp->rgbgen == RGB_GEN_UNKNOWN)
-			{ 
+			{
 				sp->rgbgen = RGB_GEN_IDENTITY;
 			}
 
@@ -2445,7 +2447,7 @@ void Shader_UpdateRegistration (void)
 		{
 			if (pass->flags & SHADER_PASS_ANIMMAP)
 			{
-				for (l = 0; l < pass->anim_numframes; l++) 
+				for (l = 0; l < pass->anim_numframes; l++)
 				{
 					if (pass->anim_frames[l])
 						pass->anim_frames[l]->registration_sequence = registration_sequence;
@@ -2460,7 +2462,7 @@ void Shader_UpdateRegistration (void)
 			{
 				if ( pass->anim_frames[0] )
 					pass->anim_frames[0]->registration_sequence = registration_sequence;
-			} 
+			}
 		}
 	}
 }
@@ -3062,7 +3064,7 @@ void Shader_DefaultBSPFlare(char *shortname, shader_t *s, const void *args)
 }
 void Shader_DefaultSkin(char *shortname, shader_t *s, const void *args)
 {
-	Shader_DefaultScript(shortname, s, 
+	Shader_DefaultScript(shortname, s,
 		"{\n"
 			"{\n"
 				"map $diffuse\n"
@@ -3117,7 +3119,7 @@ void Shader_DefaultSkinShell(char *shortname, shader_t *s, const void *args)
 }
 void Shader_Default2D(char *shortname, shader_t *s, const void *genargs)
 {
-	Shader_DefaultScript(shortname, s, 
+	Shader_DefaultScript(shortname, s,
 		"{\n"
 			"nomipmaps\n"
 			"{\n"
@@ -3435,7 +3437,7 @@ cin_t *R_ShaderFindCinematic(char *name)
 #endif
 }
 
-shader_t *R_RegisterPic (char *name) 
+shader_t *R_RegisterPic (char *name)
 {
 	return &r_shaders[R_LoadShader (name, Shader_Default2D, NULL)];
 }

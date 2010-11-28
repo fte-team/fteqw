@@ -2746,7 +2746,7 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 		{
 			builtin = (
 				"{\n"
-					"sort seethrough\n"
+					"sort blend\n"
 					"surfaceparm nodraw\n"
 					"surfaceparm nodlight\n"
 				"}\n"
@@ -2756,7 +2756,7 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 		{
 			builtin = (
 				"{\n"
-					"sort seethrough\n"
+					"sort blend\n"
 					"{\n"
 						"map $whiteimage\n"
 						"rgbgen const $r_fastturbcolour\n"
@@ -2770,6 +2770,7 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 		{
 			builtin = (
 				"{\n"
+					"sort blend\n"
 					"program\n"
 					"{\n"
 						"#ifdef VERTEX_SHADER\n"
@@ -2805,7 +2806,6 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 					"if r_wateralpha != 1\n"
 					"[\n"
 						"param cvarf r_wateralpha wateralpha\n"
-						"sort blend\n"
 						"{\n"
 							"map $diffuse\n"
 							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
@@ -2814,7 +2814,6 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 					"if r_wateralpha == 1\n"
 					"[\n"
 						"param constf 1 wateralpha\n"
-						"sort opaque\n"
 						"{\n"
 							"map $diffuse\n"
 						"}\n"
@@ -2834,6 +2833,7 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 						"alphagen const $r_wateralpha\n"
 						"blendfunc blend\n"
 					"}\n"
+					"sort blend\n"
 					"surfaceparm nodlight\n"
 				"}\n"
 			);
@@ -2846,6 +2846,7 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 						"map $diffuse\n"
 						"tcmod turb 0 0 3 0.1\n"
 					"}\n"
+					"sort blend\n"
 					"surfaceparm nodlight\n"
 				"}\n"
 			);
@@ -2857,6 +2858,7 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 		if (r_fastsky.ival)
 			builtin = (
 					"{\n"
+						"sort sky\n"
 						"{\n"
 							"map $whiteimage\n"
 							"rgbgen const $r_fastskycolour\n"
@@ -2867,6 +2869,7 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 		else if (*r_skyboxname.string)
 			builtin = (
 					"{\n"
+						"sort sky\n"
 						"skyparms $r_skybox - -\n"
 						"surfaceparm nodlight\n"
 					"}\n"
@@ -2875,6 +2878,7 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 		else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects)
 			builtin = (
 				"{\n"
+					"sort sky\n"
 					"program\n"
 					"{\n"
 						"#ifdef VERTEX_SHADER\n"
@@ -2933,6 +2937,7 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 		else
 			builtin = (
 				"{\n"
+					"sort sky\n"
 					"skyparms - 512 -\n"
 					/*WARNING: these values are not authentic quake, only close aproximations*/
 					"{\n"

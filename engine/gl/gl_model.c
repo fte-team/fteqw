@@ -220,7 +220,6 @@ void RMod_Think (void)
 #ifdef _WIN32
 			HANDLE me = GetCurrentProcess();
 			DWORD_PTR proc, sys;
-			int t;
 			/*count cpus*/
 			GetProcessAffinityMask(me, &proc, &sys);
 			relightthreads = 0;

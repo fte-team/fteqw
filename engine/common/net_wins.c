@@ -358,12 +358,23 @@ char	*NET_AdrToString (char *s, int len, netadr_t a)
 #endif
 	case NA_BROADCAST_IP:
 	case NA_IP:
-		snprintf (s, len, "%i.%i.%i.%i:%i", 
-			a.address.ip[0], 
-			a.address.ip[1], 
-			a.address.ip[2], 
-			a.address.ip[3], 
-			ntohs(a.port));
+		if (a.port)
+		{
+			snprintf (s, len, "%i.%i.%i.%i:%i", 
+				a.address.ip[0], 
+				a.address.ip[1], 
+				a.address.ip[2], 
+				a.address.ip[3], 
+				ntohs(a.port));
+		}
+		else
+		{
+			snprintf (s, len, "%i.%i.%i.%i", 
+				a.address.ip[0], 
+				a.address.ip[1], 
+				a.address.ip[2], 
+				a.address.ip[3]);
+		}
 		break;
 #ifdef TCPCONNECT
 	case NA_TCPV6:

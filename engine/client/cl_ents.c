@@ -1004,6 +1004,8 @@ void CLNQ_ParseEntity(unsigned int bits)
 
 	state->number = num;
 
+	state->dpflags = (bits & NQU_NOLERP)?RENDER_STEP:0;
+
 	if (bits & NQU_MODEL)
 		state->modelindex = MSG_ReadByte ();
 	else
@@ -1746,9 +1748,6 @@ void CL_LinkPacketEntities (void)
 			servertime = realtime;
 
 		nolerp = !CL_MayLerp() && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV;
-	#ifdef NQPROT
-		nolerp = nolerp && cls.demoplayback != DPB_NETQUAKE;
-	#endif
 	}
 	pack = CL_ProcessPacketEntities(&servertime, nolerp);
 	if (!pack)

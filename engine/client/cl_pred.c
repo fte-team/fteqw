@@ -760,7 +760,7 @@ void CL_PredictMovePNum (int pnum)
 
 	CL_CalcClientTime();
 
-	if (cl.intermission && cl.intermission != 3)
+	if (cl.intermission && cl.intermission != 3 && cls.protocol == CP_QUAKEWORLD)
 	{
 		cl.crouch[pnum] = 0;
 		return;
@@ -823,7 +823,7 @@ void CL_PredictMovePNum (int pnum)
 	}
 
 
-	if (((cl_nopred.value && cls.demoplayback!=DPB_MVD && cls.demoplayback != DPB_EZTV)|| cl.fixangle[pnum]))
+	if (((cl_nopred.value && cls.demoplayback!=DPB_MVD && cls.demoplayback != DPB_EZTV)|| cl.fixangle[pnum] || cl.paused))
 	{
 fixedorg:
 		VectorCopy (vel, cl.simvel[pnum]);

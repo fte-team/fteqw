@@ -1207,6 +1207,7 @@ void CL_Disconnect (void)
 	cl.spectator = 0;
 	cl.sendprespawn = false;
 	cl.intermission = 0;
+	cl.oldgametime = 0;
 
 #ifdef NQPROT
 	cls.signon=0;
@@ -2004,7 +2005,7 @@ void CL_Reconnect_f (void)
 	if (cls.downloadqw)  // don't change when downloading
 		return;
 #ifdef NQPROT
-	if (cls.protocol == CP_NETQUAKE)
+	if (cls.protocol == CP_NETQUAKE && Cmd_FromGamecode())
 	{
 		CL_Changing_f();
 		return;

@@ -42,9 +42,9 @@ qboolean		snd_initialized = false;
 int				snd_speed;
 
 vec3_t		listener_origin;
-vec3_t		listener_forward;
-vec3_t		listener_right;
-vec3_t		listener_up;
+vec3_t		listener_forward = {1, 0, 0};
+vec3_t		listener_right = {0, 1, 0};
+vec3_t		listener_up = {0, 0, 1};
 vec_t		sound_nominal_clip_dist=1000.0;
 
 int			soundtime;		// sample PAIRS
@@ -605,7 +605,7 @@ typedef struct {
 } sdriver_t;
 sdriver_t drivers[] = {
 //in order of preference
-	{"OpenAL", &pOPENAL_InitCard},	//yay, get someone else to sort out sound support, woot
+
 	{"DSound", &pDSOUND_InitCard},	//prefered on windows
 	{"MacOS", &pMacOS_InitCard},	//prefered on mac
 	{"AHI", &pAHI_InitCard},		//prefered on morphos
@@ -614,6 +614,7 @@ sdriver_t drivers[] = {
 	{"ALSA", &pALSA_InitCard},		//pure shite
 	{"OSS", &pOSS_InitCard},		//good, but not likely to work any more
 
+	{"OpenAL", &pOPENAL_InitCard},	//yay, get someone else to sort out sound support, woot
 	{"WaveOut", &pWAV_InitCard},	//doesn't work properly in vista, etc.
 	{NULL, NULL}
 };
@@ -1045,7 +1046,8 @@ void S_Init (void)
 
 	snd_initialized = true;
 
-	known_sfx = Hunk_AllocName (MAX_SFX*sizeof(sfx_t), "sfx_t");
+	if (!known_sfx)
+		known_sfx = Hunk_AllocName (MAX_SFX*sizeof(sfx_t), "sfx_t");
 	num_sfx = 0;
 
 // create a piece of DMA memory
@@ -1311,14 +1313,18 @@ void S_StartSoundCard(soundcardinfo_t *sc, int entnum, int entchannel, sfx_t *sf
 	if (nosound.ival)
 		return;
 
+	if (!pitchadj)
+		pitchadj = 100;
+
 #ifdef AVAIL_OPENAL
 	if (sc->openal)
-		OpenAL_StartSound(entnum, entchannel, sfx, origin, fvol, attenuation);
+	{
+		OpenAL_StartSound(entnum, entchannel, sfx, origin, fvol, attenuation, pitchadj / 100.0f);
+		return;
+	}
 #endif
 
 	vol = fvol*255;
-	if (!pitchadj)
-		pitchadj = 100;
 
 // pick a channel to play on
 	target_chan = SND_PickChannel(sc, entnum, entchannel);

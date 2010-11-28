@@ -542,34 +542,44 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 ResampleSfx
 ================
 */
-void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, qbyte *data)
+void ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth, int insamps, int inloopstart, qbyte *data)
 {
 	extern cvar_t snd_linearresample;
 	double scale;
 	sfxcache_t	*sc;
-	int insamps, outsamps;
+	int outsamps;
+	int len;
+	int outwidth;
 
-	sc = Cache_Check (&sfx->cache);
-	if (!sc)
-		return;
-
-	insamps = sc->length;
 	scale = snd_speed / (double)inrate;
 	outsamps = insamps * scale;
-	sc->length = outsamps;
-	if (sc->loopstart != -1)
-		sc->loopstart = sc->loopstart * scale;
-
-	sc->speed = snd_speed;
-	if (loadas8bit.ival)
-		sc->width = 1;
+	if (loadas8bit.ival < 0)
+		outwidth = 2;
+	else if (loadas8bit.ival)
+		outwidth = 1;
 	else
-		sc->width = inwidth;
+		outwidth = inwidth;
+	len = outsamps * outwidth * inchannels;
+
+	sc = Cache_Alloc (&sfx->cache, len + sizeof(sfxcache_t), sfx->name);
+	if (!sc)
+	{
+		return;
+	}
+
+	sc->numchannels = inchannels;
+	sc->width = outwidth;
+	sc->speed = snd_speed;
+	sc->length = outsamps;
+	if (inloopstart == -1)
+		sc->loopstart = inloopstart;
+	else
+		sc->loopstart = inloopstart * scale;
 
 	SND_ResampleStream (data, 
 		inrate, 
 		inwidth, 
-		sc->numchannels, 
+		inchannels, 
 		insamps, 
 		sc->data, 
 		sc->speed, 
@@ -663,8 +673,6 @@ sfxcache_t *S_LoadDoomSpeakerSound (sfx_t *s, qbyte *data, int datalen, int snds
 
 sfxcache_t *S_LoadDoomSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
-	sfxcache_t	*sc;
-
 	// format data from Unofficial Doom Specs v1.6
 	unsigned short *dataus;
 	int samples, rate, len;
@@ -686,36 +694,17 @@ sfxcache_t *S_LoadDoomSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	if (datalen != samples)
 		return NULL;
 
-	len = (int)((double)samples * (double)snd_speed / (double)rate);
+	COM_CharBias(data, sc->length);
 
-	sc = Cache_Alloc (&s->cache, len + sizeof(sfxcache_t), s->name);
-	if (!sc)
-	{
-		return NULL;
-	}
+	ResampleSfx (s, rate, 1, 1, samples, -1, data);
 
-	sc->length = samples;
-	sc->loopstart = -1;
-	sc->numchannels = 1;
-	sc->width = 1;
-	sc->speed = rate;
-
-	if (sc->width == 1)
-		COM_CharBias(data, sc->length);
-	else if (sc->width == 2)
-		COM_SwapLittleShortBlock((short *)data, sc->length);
-
-	ResampleSfx (s, sc->speed, sc->width, data);
-
-	return sc;
+	return Cache_Check(&s->cache);
 }
 #endif
 
 sfxcache_t *S_LoadWavSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
 	wavinfo_t	info;
-	int		len;
-	sfxcache_t	*sc;
 
 	if (datalen < 4 || strncmp(data, "RIFF", 4))
 		return NULL;
@@ -728,29 +717,14 @@ sfxcache_t *S_LoadWavSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 		return NULL;
 	}
 
-	len = (int) ((double) info.samples * (double) snd_speed / (double) info.rate);
-	len = len * info.width * info.numchannels;
+	if (info.width == 1)
+		COM_CharBias(data + info.dataofs, info.samples*info.numchannels);
+	else if (info.width == 2)
+		COM_SwapLittleShortBlock((short *)(data + info.dataofs), info.samples*info.numchannels);
 
-	sc = Cache_Alloc ( &s->cache, len + sizeof(sfxcache_t), s->name);
-	if (!sc)
-	{
-		return NULL;
-	}
-	
-	sc->length = info.samples;
-	sc->loopstart = info.loopstart;
-	sc->speed = info.rate;
-	sc->width = info.width;
-	sc->numchannels = info.numchannels;
+	ResampleSfx (s, info.rate, info.numchannels, info.width, info.samples, info.loopstart, data + info.dataofs);
 
-	if (sc->width == 1)
-		COM_CharBias(data + info.dataofs, sc->length*sc->numchannels);
-	else if (sc->width == 2)
-		COM_SwapLittleShortBlock((short *)(data + info.dataofs), sc->length*sc->numchannels);
-
-	ResampleSfx (s, sc->speed, sc->width, data + info.dataofs);
-
-	return sc;
+	return Cache_Check(&s->cache);
 }
 
 sfxcache_t *S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed);
@@ -890,9 +864,6 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 
 	s->failedload = false;
 
-#ifdef AVAIL_OPENAL
-	OpenAL_LoadSound(s, sc, com_filesize, data);
-#endif
 	for (i = sizeof(AudioInputPlugins)/sizeof(AudioInputPlugins[0])-1; i >= 0; i--)
 	{
 		if (AudioInputPlugins[i])

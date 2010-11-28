@@ -160,7 +160,7 @@ qboolean S_Voip_Speaking(unsigned int plno);
 #endif
 
 qboolean S_IsPlayingSomewhere(sfx_t *s);
-void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, qbyte *data);
+void ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth, int insamps, int inloopstart, qbyte *data);
 
 // picks a channel based on priorities, empty slots, number of channels
 channel_t *SND_PickChannel(soundcardinfo_t *sc, int entnum, int entchannel);
@@ -185,8 +185,8 @@ void SNDVC_MicInput(qbyte *buffer, int samples, int freq, int width);
 
 
 #ifdef AVAIL_OPENAL
-void OpenAL_LoadSound (sfx_t *s, sfxcache_t *sc, size_t size, void *data);
-void OpenAL_StartSound(int entnum, int entchannel, sfx_t * sfx, vec3_t origin, float fvol, float attenuation);
+void OpenAL_LoadCache(sfx_t *s, sfxcache_t *sc);
+void OpenAL_StartSound(int entnum, int entchannel, sfx_t * sfx, vec3_t origin, float fvol, float attenuation, float pitchscale);
 void OpenAL_Update_Listener(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up);
 void OpenAL_CvarInit(void);
 #endif

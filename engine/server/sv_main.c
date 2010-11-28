@@ -2854,6 +2854,74 @@ void SVNQ_ConnectionlessPacket(void)
 		*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
 		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
 		break;
+	case CCREQ_PLAYER_INFO:
+		/*one request per player, ouch ouch ouch, what will it make of 32 players, I wonder*/
+		sb.maxsize = sizeof(buffer);
+		sb.data = buffer;
+		// save space for the header, filled in later
+		SZ_Clear (&sb);
+		MSG_WriteLong (&sb, 0);
+		{
+			unsigned int pno;
+			client_t *cl;
+			pno = MSG_ReadByte();
+			if (pno >= sv.allocated_client_slots)
+				break;
+			cl = &svs.clients[pno];
+			if (cl->state <= cs_zombie)
+				break;
+
+			MSG_WriteByte (&sb, CCREP_PLAYER_INFO);
+			MSG_WriteByte (&sb, pno);
+			MSG_WriteString (&sb, cl->name);
+			MSG_WriteLong (&sb, cl->playercolor);
+			MSG_WriteLong (&sb, cl->old_frags);
+			MSG_WriteLong (&sb, realtime - cl->connection_started);
+			MSG_WriteString (&sb, "");	/*player's address, leave blank, don't spam that info as it can result in personal attacks exploits*/
+		}
+		*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
+		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
+		break;
+	case CCREQ_RULE_INFO:
+		/*lol, nq is evil*/
+		sb.maxsize = sizeof(buffer);
+		sb.data = buffer;
+		// save space for the header, filled in later
+		SZ_Clear (&sb);
+		MSG_WriteLong (&sb, 0);
+		{
+			char *rname, *rval, *kname;
+			rname = MSG_ReadString();
+
+			if (!*rname)
+				rname = Info_KeyForNumber(svs.info, 0);
+			else
+			{
+				int i = 0;
+				for(;;)
+				{
+					kname = Info_KeyForNumber(svs.info, i);
+					if (!*kname)
+					{
+						rname = NULL;
+						break;
+					}
+					i++;
+					if (!strcmp(kname, rname))
+					{
+						rname = Info_KeyForNumber(svs.info, i);
+						break;
+					}
+				}
+			}
+			rval = Info_ValueForKey(svs.info, rname);
+			MSG_WriteByte (&sb, CCREP_RULE_INFO);
+			MSG_WriteString (&sb, rname);
+			MSG_WriteString (&sb, rval);
+		}
+		*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
+		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
+		break;
 	}
 }
 #endif

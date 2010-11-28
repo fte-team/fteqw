@@ -441,7 +441,7 @@ void SVNQ_New_f (void)
 	case SCP_NETQUAKE:
 		SV_LogPlayer(host_client, "new (NQ)");
 		MSG_WriteLong (&host_client->netchan.message, NQ_PROTOCOL_VERSION);
-		MSG_WriteByte (&host_client->netchan.message, 16);
+		MSG_WriteByte (&host_client->netchan.message, (sv.allocated_client_slots>16)?16:sv.allocated_client_slots);
 		break;
 	case SCP_DARKPLACES6:
 		SV_LogPlayer(host_client, "new (DP6)");

@@ -50,7 +50,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="..\client,../common,../server,../gl,../sw,../qclib,../libs,../libs/dxsdk7/include,../libs/freetype2/include"
+				AdditionalIncludeDirectories="..\client;../common;../server;../gl;../sw;../qclib;../libs;../libs/dxsdk7/include;../libs/freetype2/include;../libs/speex"
 				PreprocessorDefinitions="_DEBUG;GLQUAKE;WIN32;_WINDOWS;NPQTV;MULTITHREAD"
 				RuntimeLibrary="1"
 				FloatingPointModel="2"
@@ -151,7 +151,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="..\client,../common,../server,../gl,../sw,../qclib,../libs,../libs/dxsdk7/include,../libs/freetype2/include"
+				AdditionalIncludeDirectories="..\client;../common;../server;../gl;../sw;../qclib;../libs;../libs/dxsdk7/include;../libs/freetype2/include;../libs/speex"
 				PreprocessorDefinitions="_DEBUG;GLQUAKE;WIN32;_WINDOWS"
 				RuntimeLibrary="1"
 				FloatingPointModel="2"
@@ -259,7 +259,7 @@
 				InlineFunctionExpansion="2"
 				OmitFramePointers="true"
 				WholeProgramOptimization="true"
-				AdditionalIncludeDirectories="..\client,../common,../server,../gl,../sw,../qclib,../libs,../libs/dxsdk7/include,../libs/freetype2/include"
+				AdditionalIncludeDirectories="..\client;../common;../server;../gl;../sw;../qclib;../libs;../libs/dxsdk7/include;../libs/freetype2/include;../libs/speex"
 				PreprocessorDefinitions="NDEBUG;GLQUAKE;WIN32;_WINDOWS;NPQTV;MULTITHREAD"
 				StringPooling="true"
 				ExceptionHandling="0"
@@ -362,7 +362,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				InlineFunctionExpansion="2"
-				AdditionalIncludeDirectories="..\client,../common,../server,../gl,../sw,../qclib,../libs,../libs/dxsdk7/include,../libs/freetype2/include"
+				AdditionalIncludeDirectories="..\client;../common;../server;../gl;../sw;../qclib;../libs;../libs/dxsdk7/include;../libs/freetype2/include;../libs/speex"
 				PreprocessorDefinitions="NDEBUG;GLQUAKE;WIN32;_WINDOWS"
 				StringPooling="true"
 				RuntimeLibrary="0"
@@ -12611,6 +12611,10 @@
 					</FileConfiguration>
 				</File>
 				<File
+					RelativePath="..\client\snd_al.c"
+					>
+				</File>
+				<File
 					RelativePath="..\client\snd_directx.c"
 					>
 					<FileConfiguration
@@ -16228,10 +16232,6 @@
 				</File>
 				<File
 					RelativePath="..\gl\gl_font.c"
-					>
-				</File>
-				<File
-					RelativePath="..\gl\gl_glsl.c"
 					>
 				</File>
 				<File

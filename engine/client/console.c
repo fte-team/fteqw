@@ -570,7 +570,7 @@ void Con_PrintCon (console_t *con, char *txt)
 			break;
 		case '\n':
 			cr = false;
-			while (con->linecount >= con_maxlines.value)
+			while (con->linecount >= con_maxlines.ival)
 			{
 				if (con->oldest == con->current)
 					break;

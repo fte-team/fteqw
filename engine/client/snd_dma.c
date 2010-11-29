@@ -709,8 +709,8 @@ void S_DefaultSpeakerConfiguration(soundcardinfo_t *sc)
 
 	if (sc->sn.numchannels < 3)
 	{
-		VectorSet(sc->speakerdir[0], 0, 1, 0);
-		VectorSet(sc->speakerdir[1], 0, -1, 0);
+		VectorSet(sc->speakerdir[0], 0, -1, 0);
+		VectorSet(sc->speakerdir[1], 0, 1, 0);
 	}
 	else if (sc->sn.numchannels < 5)
 	{
@@ -917,7 +917,7 @@ void S_Control_f (void)
 		{
 			for (i = 0; i < MAXSOUNDCHANNELS; i++)
 			{
-				VectorSet(sc->speakerdir[i], 0, (i&1)?-1:1, 0);
+				VectorSet(sc->speakerdir[i], 0, (i&1)?1:-1, 0);
 				sc->dist[i] = 1;
 			}
 		}

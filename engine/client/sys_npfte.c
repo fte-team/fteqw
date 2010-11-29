@@ -49,6 +49,12 @@ NPNetscapeFuncs *browserfuncs;
 #define SetWindowLongPtr SetWindowLong
 #define LONG_PTR LONG
 #endif
+#ifndef GWLP_WNDPROC
+#define GWLP_WNDPROC GWL_WNDPROC
+#endif
+#ifndef GWLP_USERDATA
+#define GWLP_USERDATA GWL_USERDATA
+#endif
 #endif
 
 
@@ -92,7 +98,7 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 {
 	struct context *ctx;
 	struct contextpublic *pub;
-	ctx = (struct context *)GetWindowLongPtr(hWnd, GWL_USERDATA);
+	ctx = (struct context *)GetWindowLongPtr(hWnd, GWLP_USERDATA);
 	if (!ctx)
 		return DefWindowProc(hWnd, msg, wParam, lParam);
 	pub = (struct contextpublic*)ctx;
@@ -235,8 +241,8 @@ NPError NP_LOADDS NPP_Destroy(NPP instance, NPSavedData** save)
 	if (pub->oldwnd)
 	{
 		if (pub->oldproc)
-			SetWindowLongPtr(pub->oldwnd, GWL_WNDPROC, (LONG_PTR)pub->oldproc);
-		SetWindowLongPtr(pub->oldwnd, GWL_USERDATA, (LONG_PTR)NULL);
+			SetWindowLongPtr(pub->oldwnd, GWLP_WNDPROC, (LONG_PTR)pub->oldproc);
+		SetWindowLongPtr(pub->oldwnd, GWLP_USERDATA, (LONG_PTR)NULL);
 	}
 #endif
 
@@ -263,17 +269,17 @@ NPError NP_LOADDS NPP_SetWindow(NPP instance, NPWindow* window)
 		//we switched window?
 		if (pub->oldwnd && pub->oldproc)
 		{
-			SetWindowLongPtr(pub->oldwnd, GWL_WNDPROC, (LONG_PTR)pub->oldproc);
+			SetWindowLongPtr(pub->oldwnd, GWLP_WNDPROC, (LONG_PTR)pub->oldproc);
 		}
 		pub->oldproc = NULL;
 
-		p = (WNDPROC)GetWindowLongPtr(window->window, GWL_WNDPROC);
+		p = (WNDPROC)GetWindowLongPtr(window->window, GWLP_WNDPROC);
 		if (p != MyPluginWndProc)
 			pub->oldproc = p;
 		pub->oldwnd = window->window;
 
-		SetWindowLongPtr(window->window, GWL_WNDPROC, (LONG_PTR)MyPluginWndProc);
-		SetWindowLongPtr(window->window, GWL_USERDATA, (LONG_PTR)ctx);
+		SetWindowLongPtr(window->window, GWLP_WNDPROC, (LONG_PTR)MyPluginWndProc);
+		SetWindowLongPtr(window->window, GWLP_USERDATA, (LONG_PTR)ctx);
 	}
 
 	InvalidateRgn(window->window, NULL, FALSE);
@@ -677,6 +683,7 @@ NPError OSCALL NP_GetValue(void *instance, NPPVariable variable, void *value)
 
 NPError OSCALL NP_GetEntryPoints (NPPluginFuncs* pFuncs)
 {
+	MessageBox(NULL, "Foo", "Foo", 0);
 	if (pFuncs->size < sizeof(NPPluginFuncs))
 		return NPERR_INVALID_FUNCTABLE_ERROR;
 	pFuncs->size = sizeof(NPPluginFuncs);

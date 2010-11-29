@@ -359,16 +359,21 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 		WindowStyle = WS_CHILDWINDOW|WS_OVERLAPPED;
 		ExWindowStyle = 0;
 
-		if (info->width > sys_parentwidth)
+		//if (vid_fullscreen.ival < 0)
+		{
 			WindowRect.right = sys_parentwidth;
-		else if (info->width < sys_parentwidth)
-			WindowRect.left = (sys_parentwidth - info->width)/2;
-
-		if (info->height > sys_parentheight)
 			WindowRect.bottom = sys_parentheight;
-		else if (info->height < sys_parentheight)
-			WindowRect.top = (sys_parentheight - info->height)/2;
+		}
 
+		if (WindowRect.right > sys_parentwidth)
+			WindowRect.right = sys_parentwidth;
+		else if (WindowRect.right < sys_parentwidth)
+			WindowRect.left = (sys_parentwidth - WindowRect.right)/2;
+
+		if (WindowRect.bottom > sys_parentheight)
+			WindowRect.bottom = sys_parentheight;
+		else if (WindowRect.bottom < sys_parentheight)
+			WindowRect.top = (sys_parentheight - WindowRect.bottom)/2;
 
 		WindowRect.right += WindowRect.left;
 		WindowRect.bottom += WindowRect.top;

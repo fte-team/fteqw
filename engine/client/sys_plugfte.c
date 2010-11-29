@@ -252,15 +252,15 @@ int Plug_GenCommandline(struct context *ctx, char **argv, int maxargs)
 	return argc;
 }
 
-#ifdef _DEBUG
 #if _MSC_VER >= 1300
 #define CATCHCRASH
 #endif
-#endif
 
 #ifdef CATCHCRASH
+#ifdef _DEBUG
 #include "dbghelp.h"
 DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exceptionInfo);
+#endif
 #endif
 
 int Plug_PluginThread(void *ctxptr)
@@ -382,10 +382,18 @@ int Plug_PluginThread(void *ctxptr)
 		}
 	}
 #ifdef CATCHCRASH
+#ifdef _DEBUG
 	__except (CrashExceptionHandler(GetExceptionCode(), GetExceptionInformation()))
 	{
 
 	}
+#else
+	__except (EXCEPTION_EXECUTE_HANDLER)
+	{
+		NPQTV_Sys_Shutdown();
+		MessageBox(sys_parentwindow, "Sorry, FTE plugin crashed.\nYou probably should restart your browser", "FTE crashed", 0);
+	}
+#endif
 #endif
 
 	Sys_LockMutex(ctx->mutex);
@@ -885,6 +893,7 @@ static struct pscript_property pscript_properties[] =
 	{"running",		false,	NULL,	NULL, NULL, pscript_property_running_getb, pscript_property_running_setb},
 	{"startserver",	false,	NULL,	pscript_property_startserver_gets, pscript_property_startserver_sets},
 	{"server",		false,	NULL,	pscript_property_curserver_gets, pscript_property_curserver_sets},
+	{"join",		false,	NULL,	NULL, pscript_property_curserver_sets},
 	{"playername",	true,	&name},
 	{NULL,			true,	&skin},
 	{NULL,			true,	&team},

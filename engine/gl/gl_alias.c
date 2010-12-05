@@ -184,12 +184,13 @@ void GL_GAliasFlushSkinCache(void)
 	skincolourmapped.numbuckets = 0;
 }
 
-static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum, entity_t *e)
+static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, entity_t *e)
 {
 	galiasskin_t *skins;
 	texnums_t *texnums;
 	int frame;
 	unsigned int subframe;
+	extern int cl_playerindex;	//so I don't have to strcmp
 
 	unsigned int tc, bc, pc;
 	qboolean forced;
@@ -250,16 +251,16 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum,
 			{
 				if (e->scoreboard && e->scoreboard->skin)
 				{
-					snprintf(hashname, sizeof(hashname), "%s$%s$%i", modelname, e->scoreboard->skin->name, surfnum);
+					snprintf(hashname, sizeof(hashname), "%s$%s$%i", model->name, e->scoreboard->skin->name, surfnum);
 					skinname = hashname;
 				}
 				else if (surfnum)
 				{
-					snprintf(hashname, sizeof(hashname), "%s$%i", modelname, surfnum);
+					snprintf(hashname, sizeof(hashname), "%s$%i", model->name, surfnum);
 					skinname = hashname;
 				}
 				else
-					skinname = modelname;
+					skinname = model->name;
 			}
 
 			if (!skincolourmapped.numbuckets)
@@ -362,7 +363,7 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum,
 			}
 
 			cm->texnum.bump = texnums[cm->skinnum].bump;	//can't colour bumpmapping
-			if (cls.protocol != CP_QUAKE2 && ((!texnums || !strcmp(modelname, "progs/player.mdl")) && e->scoreboard && e->scoreboard->skin))
+			if (cls.protocol != CP_QUAKE2 && ((!texnums || (model==cl.model_precache[cl_playerindex] || model==cl.model_precache_vwep[0])) && e->scoreboard && e->scoreboard->skin))
 			{
 				original = Skin_Cache8(e->scoreboard->skin);
 				inwidth = e->scoreboard->skin->width;
@@ -980,7 +981,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 
 	for(surfnum=0; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)), surfnum++)
 	{
-		skin = GL_ChooseSkin(inf, clmodel->name, surfnum, e);
+		skin = GL_ChooseSkin(inf, clmodel, surfnum, e);
 		if (!skin)
 			continue;
 		shader = e->forcedshader?e->forcedshader:skin->shader;

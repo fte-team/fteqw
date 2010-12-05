@@ -542,7 +542,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 	memmove(s_speex.capturebuf, s_speex.capturebuf + encpos, s_speex.capturepos-encpos);
 	s_speex.capturepos -= encpos;
 }
-void S_Voip_Ignore(int slot, qboolean ignore)
+void S_Voip_Ignore(unsigned int slot, qboolean ignore)
 {
 	CL_SendClientCommand(true, "vignore %i %i", slot, ignore);
 }

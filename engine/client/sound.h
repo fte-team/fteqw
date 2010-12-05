@@ -158,7 +158,7 @@ void S_Voip_Ignore(unsigned int plno, qboolean ignore);
 #else
 #define S_Voip_Loudness() -1
 #define S_Voip_Speaking(p) false
-#define S_Voip_Ignore(p)
+#define S_Voip_Ignore(p,s)
 #endif
 
 qboolean S_IsPlayingSomewhere(sfx_t *s);

@@ -243,6 +243,74 @@ tentsfx_t tentsfx[] =
 };
 
 vec3_t playerbeam_end[MAX_SPLITS];
+
+struct associatedeffect
+{
+	struct associatedeffect *next;
+	char mname[MAX_QPATH];
+	char pname[MAX_QPATH];
+	enum
+	{
+		AE_TRAIL,
+		AE_EMIT,
+		AE_REPLACE
+	} type;
+} *associatedeffect;
+void CL_AssociateEffect_f(void)
+{
+	char *modelname = Cmd_Argv(1);
+	char *effectname = Cmd_Argv(2);
+	int type = atoi(Cmd_Argv(3));
+	struct associatedeffect *ae;
+	if (!strcmp(Cmd_Argv(0), "r_trail"))
+		type = AE_TRAIL;
+	else
+	{
+		if (type)
+			type = AE_REPLACE;
+		else
+			type = AE_EMIT;
+	}
+
+	if (
+		strstr(modelname, "player") ||
+		strstr(modelname, "eyes") ||
+		strstr(modelname, "flag") ||
+		strstr(modelname, "tf_stan") ||
+		strstr(modelname, ".bsp") ||
+		strstr(modelname, "turr"))
+	{
+		Con_Printf("Sorry: Not allowed to attach effects to model \"%s\"\n", modelname);
+		return;
+	}
+
+	if (strlen (modelname) >= MAX_QPATH || strlen(effectname) >= MAX_QPATH)
+		return;
+
+	/*replace the old one if it exists*/
+	for(ae = associatedeffect; ae; ae = ae->next)
+	{
+		if (!strcmp(ae->mname, modelname))
+			if ((ae->type==AE_TRAIL) == (type==AE_TRAIL))
+			{
+				strcpy(ae->pname, effectname);
+				break;
+			}
+	}
+	if (!ae)
+	{
+		ae = Z_Malloc(sizeof(*ae));
+		ae->type = type;
+		strcpy(ae->mname, modelname);
+		strcpy(ae->pname, effectname);
+		ae->next = associatedeffect;
+		associatedeffect = ae;
+	}
+
+	//FIXME: overkill
+	CL_RegisterParticles();
+}
+
 /*
 =================
 CL_ParseTEnts
@@ -259,71 +327,135 @@ void CL_InitTEnts (void)
 			*tentsfx[i].sfx = NULL;
 	}
 
+	Cmd_AddRemCommand("r_effect", CL_AssociateEffect_f);
+	Cmd_AddRemCommand("r_trail", CL_AssociateEffect_f);
+
 	Cvar_Register (&cl_expsprite, "Temporary entity control");
 	Cvar_Register (&cl_truelightning, "Temporary entity control");
 	Cvar_Register (&cl_beam_trace, "Temporary entity control");
 	Cvar_Register (&r_explosionlight, "Temporary entity control");
 }
 
+void CL_ShutdownTEnts (void)
+{
+	struct associatedeffect *ae;
+	while(associatedeffect)
+	{
+		ae = associatedeffect;
+		associatedeffect = ae->next;
+		BZ_Free(ae);
+	}
+}
+void P_LoadedModel(model_t *mod)
+{
+	struct associatedeffect *ae;
+	int j;
+
+	mod->particleeffect = P_INVALID;
+	mod->particletrail = P_INVALID;
+	mod->engineflags &= ~(MDLF_NODEFAULTTRAIL | MDLF_ENGULPHS);
+
+	if (mod->type == mod_brush)
+	{
+		if (*mod->name != '*')
+			for (j = 0; j < mod->numtextures; j++)
+				mod->textures[j]->parttype = P_FindParticleType(va("tex_%s", mod->textures[j]->name));
+	}
+	for(ae = associatedeffect; ae; ae = ae->next)
+	{
+		if (!strcmp(ae->mname, mod->name))
+		{
+			switch(ae->type)
+			{
+			case AE_TRAIL:
+				mod->particletrail = P_FindParticleType(ae->pname);
+				break;
+			case AE_EMIT:
+				mod->particleeffect = P_FindParticleType(ae->pname);
+				mod->engineflags &= ~MDLF_ENGULPHS;
+				break;
+			case AE_REPLACE:
+				mod->particleeffect = P_FindParticleType(ae->pname);
+				mod->engineflags |= MDLF_ENGULPHS;
+				break;
+			}
+		}
+	}
+	if (mod->particletrail == P_INVALID)
+		P_DefaultTrail(mod);
+}
+
 void CL_RegisterParticles(void)
 {
-	pt_gunshot				= P_ParticleTypeForName("TE_GUNSHOT");	/*shotgun*/
-	ptdp_gunshotquad		= P_ParticleTypeForName("TE_GUNSHOTQUAD");	/*DP: quadded shotgun*/
-	pt_spike				= P_ParticleTypeForName("TE_SPIKE");	/*nailgun*/
-	ptdp_spikequad			= P_ParticleTypeForName("TE_SPIKEQUAD");	/*DP: quadded nailgun*/
-	pt_superspike			= P_ParticleTypeForName("TE_SUPERSPIKE");	/*nailgun*/
-	ptdp_superspikequad		= P_ParticleTypeForName("TE_SUPERSPIKEQUAD");	/*DP: quadded nailgun*/
-	pt_wizspike				= P_ParticleTypeForName("TE_WIZSPIKE");	//scrag missile impact
-	pt_knightspike			= P_ParticleTypeForName("TE_KNIGHTSPIKE"); //hellknight missile impact
-	pt_explosion			= P_ParticleTypeForName("TE_EXPLOSION");/*rocket/grenade launcher impacts/far too many things*/
-	ptdp_explosionquad		= P_ParticleTypeForName("TE_EXPLOSIONQUAD");	/*nailgun*/
-	pt_tarexplosion			= P_ParticleTypeForName("TE_TAREXPLOSION");//tarbaby/spawn dying.
-	pt_teleportsplash		= P_ParticleTypeForName("TE_TELEPORT");/*teleporters*/
-	pt_lavasplash			= P_ParticleTypeForName("TE_LAVASPLASH");	//e1m7 boss dying.
-	ptdp_smallflash			= P_ParticleTypeForName("TE_SMALLFLASH");	//DP:
-	ptdp_flamejet			= P_ParticleTypeForName("TE_FLAMEJET");	//DP:
-	ptdp_flame				= P_ParticleTypeForName("EF_FLAME");	//DP:
-	ptdp_blood				= P_ParticleTypeForName("TE_BLOOD"); /*when you hit something with the shotgun/axe/nailgun - nq uses the general particle builtin*/
-	ptdp_spark				= P_ParticleTypeForName("TE_SPARK");//DPTE_SPARK
-	ptdp_plasmaburn			= P_ParticleTypeForName("TE_PLASMABURN");
-	ptdp_tei_g3				= P_ParticleTypeForName("TE_TEI_G3");
-	ptdp_tei_smoke			= P_ParticleTypeForName("TE_TEI_SMOKE");
-	ptdp_tei_bigexplosion	= P_ParticleTypeForName("TE_TEI_BIGEXPLOSION");
-	ptdp_tei_plasmahit		= P_ParticleTypeForName("TE_TEI_PLASMAHIT");
-	ptdp_stardust			= P_ParticleTypeForName("EF_STARDUST");
-	rt_rocket				= P_ParticleTypeForName("TR_ROCKET");	/*rocket trail*/
-	rt_grenade				= P_ParticleTypeForName("TR_GRENADE");	/*grenade trail*/
-	rt_blood				= P_ParticleTypeForName("TR_BLOOD");	/*blood trail*/
-	rt_wizspike				= P_ParticleTypeForName("TR_WIZSPIKE");
-	rt_slightblood			= P_ParticleTypeForName("TR_SLIGHTBLOOD");
-	rt_knightspike			= P_ParticleTypeForName("TR_KNIGHTSPIKE");
-	rt_vorespike			= P_ParticleTypeForName("TR_VORESPIKE");
-	rtdp_neharasmoke		= P_ParticleTypeForName("TR_NEHAHRASMOKE");
-	rtdp_nexuizplasma		= P_ParticleTypeForName("TR_NEXUIZPLASMA");
-	rtdp_glowtrail			= P_ParticleTypeForName("TR_GLOWTRAIL");
-	/*internal to psystem*/   P_ParticleTypeForName("SVC_PARTICLE");
+	model_t *mod;
+	extern model_t	mod_known[];
+	extern int		mod_numknown;
+	int i;
+	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
+	{
+		if (!mod->needload)
+		{
+			P_LoadedModel(mod);
+		}
+	}
 
-	ptqw_blood				= P_ParticleTypeForName("TE_BLOOD");
-	ptqw_lightningblood		= P_ParticleTypeForName("TE_LIGHTNINGBLOOD");
+	pt_gunshot				= P_FindParticleType("TE_GUNSHOT");	/*shotgun*/
+	ptdp_gunshotquad		= P_FindParticleType("TE_GUNSHOTQUAD");	/*DP: quadded shotgun*/
+	pt_spike				= P_FindParticleType("TE_SPIKE");	/*nailgun*/
+	ptdp_spikequad			= P_FindParticleType("TE_SPIKEQUAD");	/*DP: quadded nailgun*/
+	pt_superspike			= P_FindParticleType("TE_SUPERSPIKE");	/*nailgun*/
+	ptdp_superspikequad		= P_FindParticleType("TE_SUPERSPIKEQUAD");	/*DP: quadded nailgun*/
+	pt_wizspike				= P_FindParticleType("TE_WIZSPIKE");	//scrag missile impact
+	pt_knightspike			= P_FindParticleType("TE_KNIGHTSPIKE"); //hellknight missile impact
+	pt_explosion			= P_FindParticleType("TE_EXPLOSION");/*rocket/grenade launcher impacts/far too many things*/
+	ptdp_explosionquad		= P_FindParticleType("TE_EXPLOSIONQUAD");	/*nailgun*/
+	pt_tarexplosion			= P_FindParticleType("TE_TAREXPLOSION");//tarbaby/spawn dying.
+	pt_teleportsplash		= P_FindParticleType("TE_TELEPORT");/*teleporters*/
+	pt_lavasplash			= P_FindParticleType("TE_LAVASPLASH");	//e1m7 boss dying.
+	ptdp_smallflash			= P_FindParticleType("TE_SMALLFLASH");	//DP:
+	ptdp_flamejet			= P_FindParticleType("TE_FLAMEJET");	//DP:
+	ptdp_flame				= P_FindParticleType("EF_FLAME");	//DP:
+	ptdp_blood				= P_FindParticleType("TE_BLOOD"); /*when you hit something with the shotgun/axe/nailgun - nq uses the general particle builtin*/
+	ptdp_spark				= P_FindParticleType("TE_SPARK");//DPTE_SPARK
+	ptdp_plasmaburn			= P_FindParticleType("TE_PLASMABURN");
+	ptdp_tei_g3				= P_FindParticleType("TE_TEI_G3");
+	ptdp_tei_smoke			= P_FindParticleType("TE_TEI_SMOKE");
+	ptdp_tei_bigexplosion	= P_FindParticleType("TE_TEI_BIGEXPLOSION");
+	ptdp_tei_plasmahit		= P_FindParticleType("TE_TEI_PLASMAHIT");
+	ptdp_stardust			= P_FindParticleType("EF_STARDUST");
+	rt_rocket				= P_FindParticleType("TR_ROCKET");	/*rocket trail*/
+	rt_grenade				= P_FindParticleType("TR_GRENADE");	/*grenade trail*/
+	rt_blood				= P_FindParticleType("TR_BLOOD");	/*blood trail*/
+	rt_wizspike				= P_FindParticleType("TR_WIZSPIKE");
+	rt_slightblood			= P_FindParticleType("TR_SLIGHTBLOOD");
+	rt_knightspike			= P_FindParticleType("TR_KNIGHTSPIKE");
+	rt_vorespike			= P_FindParticleType("TR_VORESPIKE");
+	rtdp_neharasmoke		= P_FindParticleType("TR_NEHAHRASMOKE");
+	rtdp_nexuizplasma		= P_FindParticleType("TR_NEXUIZPLASMA");
+	rtdp_glowtrail			= P_FindParticleType("TR_GLOWTRAIL");
+	/*internal to psystem*/   P_FindParticleType("SVC_PARTICLE");
+
+	ptqw_blood				= P_FindParticleType("TE_BLOOD");
+	ptqw_lightningblood		= P_FindParticleType("TE_LIGHTNINGBLOOD");
 	
-	ptq2_blood				= P_ParticleTypeForName("TE_BLOOD");
-	rtq2_railtrail			= P_ParticleTypeForName("TR_RAILTRAIL");
-	rtq2_blastertrail		= P_ParticleTypeForName("TR_BLASTERTRAIL");
-	ptq2_blasterparticles	= P_ParticleTypeForName("TE_BLASTERPARTICLES");
-	rtq2_bubbletrail		= P_ParticleTypeForName("TE_BUBBLETRAIL");
-	rtq2_gib				= P_ParticleTypeForName("TR_GIB");
-	rtq2_rocket				= P_ParticleTypeForName("TR_ROCKET");
-	rtq2_grenade			= P_ParticleTypeForName("TR_GRENADE");
+	ptq2_blood				= P_FindParticleType("TE_BLOOD");
+	rtq2_railtrail			= P_FindParticleType("TR_RAILTRAIL");
+	rtq2_blastertrail		= P_FindParticleType("TR_BLASTERTRAIL");
+	ptq2_blasterparticles	= P_FindParticleType("TE_BLASTERPARTICLES");
+	rtq2_bubbletrail		= P_FindParticleType("TE_BUBBLETRAIL");
+	rtq2_gib				= P_FindParticleType("TR_GIB");
+	rtq2_rocket				= P_FindParticleType("TR_ROCKET");
+	rtq2_grenade			= P_FindParticleType("TR_GRENADE");
 
-	rtqw_railtrail			= P_ParticleTypeForName("TE_RAILTRAIL");
-	rtfte_lightning1		= P_ParticleTypeForName("TE_LIGHTNING1");
-	ptfte_lightning1_end	= P_ParticleTypeForName("TE_LIGHTNING1_END");
-	rtfte_lightning2		= P_ParticleTypeForName("TE_LIGHTNING2");
-	ptfte_lightning2_end	= P_ParticleTypeForName("TE_LIGHTNING2_END");
-	rtfte_lightning3		= P_ParticleTypeForName("TE_LIGHTNING3");
-	ptfte_lightning3_end	= P_ParticleTypeForName("TE_LIGHTNING3_END");
-	ptfte_bullet			= P_ParticleTypeForName("TE_BULLET");
-	ptfte_superbullet		= P_ParticleTypeForName("TE_SUPERBULLET");
+	rtqw_railtrail			= P_FindParticleType("TE_RAILTRAIL");
+	rtfte_lightning1		= P_FindParticleType("TE_LIGHTNING1");
+	ptfte_lightning1_end	= P_FindParticleType("TE_LIGHTNING1_END");
+	rtfte_lightning2		= P_FindParticleType("TE_LIGHTNING2");
+	ptfte_lightning2_end	= P_FindParticleType("TE_LIGHTNING2_END");
+	rtfte_lightning3		= P_FindParticleType("TE_LIGHTNING3");
+	ptfte_lightning3_end	= P_FindParticleType("TE_LIGHTNING3_END");
+	ptfte_bullet			= P_FindParticleType("TE_BULLET");
+	ptfte_superbullet		= P_FindParticleType("TE_SUPERBULLET");
 }
 
 #ifdef Q2CLIENT
@@ -1459,7 +1591,7 @@ void CL_ParseCustomTEnt(void)
 		t->netstyle = MSG_ReadByte();
 		str = MSG_ReadString();
 		Q_strncpyz(t->name, str, sizeof(t->name));
-		t->particleeffecttype = P_ParticleTypeForName(str);
+		t->particleeffecttype = P_FindParticleType(str);
 
 		if (t->netstyle & CTE_STAINS)
 		{
@@ -1598,7 +1730,7 @@ void CLDP_ParseTrailParticles(void)
 	else
 		ts = NULL;
 
-	effectindex = P_ParticleTypeForName(COM_Effectinfo_ForNumber(effectindex));
+	effectindex = P_FindParticleType(COM_Effectinfo_ForNumber(effectindex));
 	if (P_ParticleTrail(start, end, effectindex, ts))
 		P_ParticleTrail(start, end, rt_blood, ts);
 }
@@ -1625,7 +1757,7 @@ void CLDP_ParsePointParticles(qboolean compact)
 		count = (unsigned short)MSG_ReadShort();
 	}
 
-	effectindex = P_ParticleTypeForName(COM_Effectinfo_ForNumber(effectindex));
+	effectindex = P_FindParticleType(COM_Effectinfo_ForNumber(effectindex));
 	if (P_RunParticleEffectType(org, dir, count, effectindex))
 		P_RunParticleEffect (org, dir, 15, 15);
 }

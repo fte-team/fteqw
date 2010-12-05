@@ -832,6 +832,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	//this applies to a few other things too, but cheats is the only special one (because of the *)
 	Q_strncpyz(cl.serverinfo, svs.info, sizeof(cl.serverinfo));
 	CL_CheckServerInfo();
+	Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
 #endif
 
 

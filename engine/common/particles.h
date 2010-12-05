@@ -95,10 +95,10 @@ struct model_s;
 struct msurface_s;
 
 void P_InitParticleSystem(void);
+void P_LoadedModel(struct model_s *mod);	/*checks a model's various effects*/
 void P_DefaultTrail (struct model_s *model);
 void P_EmitEffect (vec3_t pos, int type, trailstate_t **tsk);//this is just a wrapper
 
-#define P_ParticleTypeForName pe->ParticleTypeForName
 #define P_FindParticleType pe->FindParticleType
 
 #define P_RunParticleEffectTypeString pe->RunParticleEffectTypeString

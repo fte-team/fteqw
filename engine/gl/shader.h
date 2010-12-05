@@ -225,8 +225,6 @@ typedef struct shaderpass_s {
 
 typedef struct
 {
-	mesh_t			meshes[5];
-
 	texid_t			farbox_textures[6];
 	texid_t			nearbox_textures[6];
 } skydome_t;

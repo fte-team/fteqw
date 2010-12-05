@@ -816,7 +816,10 @@ void VID_UnSetMode (void)
 	}
 	if (hInstGL)
 	{
+#ifndef NPQTV
+		//FIXME: not cleaning up after myself because nvidia drivers crash the second time around
 		FreeLibrary(hInstGL);
+#endif
 		hInstGL = NULL;
 	}
 }
@@ -894,6 +897,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 			TRACE(("dbg: VID_AttachGL: bSetupPixelFormat\n"));
 			if (bSetupPixelFormat(maindc))
 				break;
+			ReleaseDC(mainwindow, maindc);
 		}
 
 		if (!*info->glrenderer || !stricmp(info->glrenderer, "opengl32.dll") || !stricmp(info->glrenderer, "opengl32"))	//go for windows system dir if we failed with the default. Should help to avoid the 3dfx problem.
@@ -912,6 +916,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 				TRACE(("dbg: VID_AttachGL: bSetupPixelFormat\n"));
 				if (bSetupPixelFormat(maindc))
 					break;
+				ReleaseDC(mainwindow, maindc);
 			}
 		}
 
@@ -921,14 +926,14 @@ qboolean VID_AttachGL (rendererstate_t *info)
 	
 	TRACE(("dbg: VID_AttachGL: qwglCreateContext\n"));
 
-    baseRC = qwglCreateContext( maindc );
+    baseRC = qwglCreateContext(maindc);
 	if (!baseRC)
 	{
 		Con_SafePrintf(CON_ERROR "Could not initialize GL (wglCreateContext failed).\n\nMake sure you in are 65535 color mode, and try running -window.\n");	//green to make it show.
 		return false;
 	}
 	TRACE(("dbg: VID_AttachGL: qwglMakeCurrent\n"));
-    if (!qwglMakeCurrent( maindc, baseRC ))
+    if (!qwglMakeCurrent(maindc, baseRC))
 	{
 		Con_SafePrintf(CON_ERROR "wglMakeCurrent failed\n");	//green to make it show.
 		return false;

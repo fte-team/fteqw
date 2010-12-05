@@ -2269,7 +2269,6 @@ qboolean Sbar_UpdateTeamStatus(player_info_t *player, char *status)
 static void Sbar_Voice(int y)
 {
 #ifdef VOICECHAT
-	char st[64];
 	int loudness;
 	if (!cl_voip_showmeter.ival)
 		return;

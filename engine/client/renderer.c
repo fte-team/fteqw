@@ -1753,10 +1753,13 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 
 		Skin_FlushPlayers();
 	}
-#ifdef VM_UI
 	else
+	{
+		Cvar_ForceCallback(&r_particlesystem);
+#ifdef VM_UI
 		UI_Reset();
 #endif
+	}
 
 	switch (qrenderer)
 	{
@@ -2741,7 +2744,5 @@ void R_InitParticleTexture (void)
 		}
 	}
 	ptritexture = R_LoadTexture32("", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP);
-
-	Cvar_ForceCallback(&r_particlesystem);
 }
 

@@ -37,8 +37,9 @@ void R_Rockettrail_Callback(struct cvar_s *var, char *oldvalue)
 
 	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
 	{
-		if (mod->flags & EF_ROCKET)
-			P_DefaultTrail(mod);
+		if (!mod->needload)
+			if (mod->flags & EF_ROCKET)
+				P_DefaultTrail(mod);
 	}
 }
 
@@ -54,8 +55,9 @@ void R_Grenadetrail_Callback(struct cvar_s *var, char *oldvalue)
 
 	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
 	{
-		if (mod->flags & EF_GRENADE)
-			P_DefaultTrail(mod);
+		if (!mod->needload)
+			if (mod->flags & EF_GRENADE)
+				P_DefaultTrail(mod);
 	}
 }
 
@@ -119,7 +121,7 @@ void R_ParticleSystem_Callback(struct cvar_s *var, char *oldvalue)
 cvar_t r_rockettrail = CVARFC("r_rockettrail", "1", CVAR_SEMICHEAT, R_Rockettrail_Callback);
 cvar_t r_grenadetrail = CVARFC("r_grenadetrail", "1", CVAR_SEMICHEAT, R_Grenadetrail_Callback);
 cvar_t r_particlesystem = CVARFC("r_particlesystem", IFMINIMAL("classic", "script"), CVAR_SEMICHEAT, R_ParticleSystem_Callback);
-cvar_t r_particlesdesc = CVARF("r_particlesdesc", "spikeset tsshaft", CVAR_SEMICHEAT);
+cvar_t r_particledesc = CVARAF("r_particledesc", "classic", "r_particlesdesc", CVAR_SEMICHEAT);
 extern cvar_t r_bouncysparks;
 extern cvar_t r_part_rain;
 extern cvar_t r_bloodstains;
@@ -146,7 +148,7 @@ void P_InitParticleSystem(void)
 
 
 	//particles
-	Cvar_Register(&r_particlesdesc, particlecvargroupname);
+	Cvar_Register(&r_particledesc, particlecvargroupname);
 	Cvar_Register(&r_bouncysparks, particlecvargroupname);
 	Cvar_Register(&r_part_rain, particlecvargroupname);
 
@@ -308,31 +310,31 @@ void P_SelectableTrail(model_t *model, cvar_t *selection, int mdleffect, int mdl
 		model->traildefaultindex= oppcidx;
 		break;
 	case 3: // alt rocket effect
-		model->particletrail = P_ParticleTypeForName("TR_ALTROCKET");
+		model->particletrail = P_FindParticleType("TR_ALTROCKET");
 		model->traildefaultindex = 107;
 		break;
 	case 4: // gib
-		model->particletrail = P_ParticleTypeForName("TR_BLOOD");
+		model->particletrail = P_FindParticleType("TR_BLOOD");
 		model->traildefaultindex = 70;
 		break;
 	case 5: // zombie gib
-		model->particletrail = P_ParticleTypeForName("TR_SLIGHTBLOOD");
+		model->particletrail = P_FindParticleType("TR_SLIGHTBLOOD");
 		model->traildefaultindex = 70;
 		break;
 	case 6: // Scrag tracer
-		model->particletrail = P_ParticleTypeForName("TR_WIZSPIKE");
+		model->particletrail = P_FindParticleType("TR_WIZSPIKE");
 		model->traildefaultindex = 60;
 		break;
 	case 7: // Knight tracer
-		model->particletrail = P_ParticleTypeForName("TR_KNIGHTSPIKE");
+		model->particletrail = P_FindParticleType("TR_KNIGHTSPIKE");
 		model->traildefaultindex = 238;
 		break;
 	case 8: // Vore tracer
-		model->particletrail = P_ParticleTypeForName("TR_VORESPIKE");
+		model->particletrail = P_FindParticleType("TR_VORESPIKE");
 		model->traildefaultindex = 154;
 		break;
 	case 9: // rail trail
-		model->particletrail = P_ParticleTypeForName("TR_RAILTRAIL");
+		model->particletrail = P_FindParticleType("TR_RAILTRAIL");
 		model->traildefaultindex = 15;
 		break;
 	}
@@ -349,87 +351,87 @@ void P_DefaultTrail (model_t *model)
 		return;
 
 	if (model->flags & EF_ROCKET)
-		P_SelectableTrail(model, &r_rockettrail, P_ParticleTypeForName("TR_ROCKET"), 109, P_ParticleTypeForName("TR_GRENADE"), 6);
+		P_SelectableTrail(model, &r_rockettrail, P_FindParticleType("TR_ROCKET"), 109, P_FindParticleType("TR_GRENADE"), 6);
 	else if (model->flags & EF_GRENADE)
-		P_SelectableTrail(model, &r_grenadetrail, P_ParticleTypeForName("TR_GRENADE"), 6, P_ParticleTypeForName("TR_ROCKET"), 109);
+		P_SelectableTrail(model, &r_grenadetrail, P_FindParticleType("TR_GRENADE"), 6, P_FindParticleType("TR_ROCKET"), 109);
 	else if (model->flags & EF_GIB)
 	{
-		model->particletrail = P_ParticleTypeForName("TR_BLOOD");
+		model->particletrail = P_FindParticleType("TR_BLOOD");
 		model->traildefaultindex = 70;
 	}
 	else if (model->flags & EF_TRACER)
 	{
-		model->particletrail = P_ParticleTypeForName("TR_WIZSPIKE");
+		model->particletrail = P_FindParticleType("TR_WIZSPIKE");
 		model->traildefaultindex = 60;
 	}
 	else if (model->flags & EF_ZOMGIB)
 	{
-		model->particletrail = P_ParticleTypeForName("TR_SLIGHTBLOOD");
+		model->particletrail = P_FindParticleType("TR_SLIGHTBLOOD");
 		model->traildefaultindex = 70;
 	}
 	else if (model->flags & EF_TRACER2)
 	{
-		model->particletrail = P_ParticleTypeForName("TR_KNIGHTSPIKE");
+		model->particletrail = P_FindParticleType("TR_KNIGHTSPIKE");
 		model->traildefaultindex = 238;
 	}
 	else if (model->flags & EF_TRACER3)
 	{
-		model->particletrail = P_ParticleTypeForName("TR_VORESPIKE");
+		model->particletrail = P_FindParticleType("TR_VORESPIKE");
 		model->traildefaultindex = 154;
 	}
 	else if (model->flags & EFH2_BLOODSHOT)	//these are the hexen2 ones.
 	{
-		model->particletrail = P_ParticleTypeForName("t_bloodshot");
+		model->particletrail = P_FindParticleType("t_bloodshot");
 		model->traildefaultindex = 136;
 	}
 	else if (model->flags & EFH2_FIREBALL)
 	{
-		model->particletrail = P_ParticleTypeForName("t_fireball");
+		model->particletrail = P_FindParticleType("t_fireball");
 		model->traildefaultindex = 424;
 	}
 	else if (model->flags & EFH2_ACIDBALL)
 	{
-		model->particletrail = P_ParticleTypeForName("t_acidball");
+		model->particletrail = P_FindParticleType("t_acidball");
 		model->traildefaultindex = 440;
 	}
 	else if (model->flags & EFH2_ICE)
 	{
-		model->particletrail = P_ParticleTypeForName("t_ice");
+		model->particletrail = P_FindParticleType("t_ice");
 		model->traildefaultindex = 408;
 	}
 	else if (model->flags & EFH2_SPIT)
 	{
-		model->particletrail = P_ParticleTypeForName("t_spit");
+		model->particletrail = P_FindParticleType("t_spit");
 		model->traildefaultindex = 260;
 	}
 	else if (model->flags & EFH2_SPELL)
 	{
-		model->particletrail = P_ParticleTypeForName("t_spell");
+		model->particletrail = P_FindParticleType("t_spell");
 		model->traildefaultindex = 260;
 	}
 	else if (model->flags & EFH2_VORP_MISSILE)
 	{
-		model->particletrail = P_ParticleTypeForName("t_vorpmissile");
+		model->particletrail = P_FindParticleType("t_vorpmissile");
 		model->traildefaultindex = 302;
 	}
 	else if (model->flags & EFH2_SET_STAFF)
 	{
-		model->particletrail = P_ParticleTypeForName("t_setstaff");
+		model->particletrail = P_FindParticleType("t_setstaff");
 		model->traildefaultindex = 424;
 	}
 	else if (model->flags & EFH2_MAGICMISSILE)
 	{
-		model->particletrail = P_ParticleTypeForName("t_magicmissile");
+		model->particletrail = P_FindParticleType("t_magicmissile");
 		model->traildefaultindex = 149;
 	}
 	else if (model->flags & EFH2_BONESHARD)
 	{
-		model->particletrail = P_ParticleTypeForName("t_boneshard");
+		model->particletrail = P_FindParticleType("t_boneshard");
 		model->traildefaultindex = 384;
 	}
 	else if (model->flags & EFH2_SCARAB)
 	{
-		model->particletrail = P_ParticleTypeForName("t_scarab");
+		model->particletrail = P_FindParticleType("t_scarab");
 		model->traildefaultindex = 254;
 	}
 	else

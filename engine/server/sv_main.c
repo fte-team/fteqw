@@ -3941,6 +3941,7 @@ void SV_InitLocal (void)
 #ifdef PEXT2_VOICECHAT
 	svs.fteprotocolextensions2 |= PEXT2_VOICECHAT;
 #endif
+	svs.fteprotocolextensions2 |= PEXT2_SETANGLEDELTA;
 
 //	if (svs.protocolextensions)
 //		Info_SetValueForStarKey (svs.info, "*"DISTRIBUTION"_ext", va("%x", svs.protocolextensions), MAX_SERVERINFO_STRING);

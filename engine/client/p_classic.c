@@ -98,7 +98,7 @@ static shader_t *classicshader;
 
 //obtains an index for the name, even if it is unknown (one can be loaded after. will only fail if the effect limit is reached)
 //technically this function is not meant to fail often, but thats fine so long as the other functions are meant to safely reject invalid effect numbers.
-static int PClassic_ParticleTypeForName(char *name)
+static int PClassic_FindParticleType(char *name)
 {
 	if (!stricmp("tr_rocket", name))
 		return ROCKET_TRAIL;
@@ -132,9 +132,9 @@ static int PClassic_ParticleTypeForName(char *name)
 }
 
 //returns a valid effect if both its existance is known, and it is fully functional
-static int PClassic_FindParticleType(char *name)
+static int PClassic_ParticleTypeForName(char *name)
 {
-	return P_ParticleTypeForName(name);
+	return P_FindParticleType(name);
 }
 
 //a convienience function.
@@ -183,9 +183,6 @@ static void PClassic_EmitSkyEffectTris(model_t *mod, msurface_t 	*fa)
 static qboolean PClassic_InitParticles (void)
 {
 	int i;
-	model_t *mod;
-	extern model_t	mod_known[];
-	extern int		mod_numknown;
 
 	if ((i = COM_CheckParm ("-particles")) && i + 1 < com_argc)
 	{
@@ -198,17 +195,6 @@ static qboolean PClassic_InitParticles (void)
 	}
 
 	particles = (cparticle_t *) BZ_Malloc (r_numparticles * sizeof(cparticle_t));
-
-	CL_RegisterParticles();
-
-	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
-	{
-		mod->particleeffect = P_INVALID;
-		mod->particletrail = P_INVALID;
-		mod->engineflags &= ~(MDLF_NODEFAULTTRAIL | MDLF_ENGULPHS);
-
-		P_DefaultTrail(mod);
-	}
 
 	for (i = 0; i < BUFFERVERTS; i += 3)
 	{

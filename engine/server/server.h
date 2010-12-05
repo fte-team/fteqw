@@ -467,9 +467,22 @@ typedef struct client_s
 
 	int				lastsequence_acknoledged;
 
-	unsigned int voice_read;
+#ifdef VOICECHAT
+	unsigned int voice_read;	/*place in ring*/
 	unsigned char voice_mute[MAX_CLIENTS/8];
 	qboolean voice_active;
+	enum
+	{
+		/*note - when recording an mvd, only 'all' will be received by non-spectating viewers. all other chat will only be heard when spectating the receiver(or sender) of said chat*/
+
+		/*should we add one to respond to the last speaker? or should that be an automagic +voip_reply instead?*/
+		VT_TEAM,
+		VT_ALL,
+		VT_NONMUTED,	/*cheap, but allows custom private channels with no external pesters*/
+		VT_PLAYERSLOT0
+		/*player0+...*/
+	} voice_target;
+#endif
 
 #ifdef SVCHAT
 	svchat_t chat;

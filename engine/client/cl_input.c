@@ -871,14 +871,15 @@ void Name_Callback(struct cvar_s *var, char *oldvalue)
 }
 #endif
 
-float CL_FilterTime (double time, float wantfps)	//now returns the extra time not taken in this slot. Note that negative 1 means uncapped.
+float CL_FilterTime (double time, float wantfps, qboolean ignoreserver)	//now returns the extra time not taken in this slot. Note that negative 1 means uncapped.
 {
 	float fps, fpscap;
 
 	if (cls.timedemo || cls.protocol == CP_QUAKE3)
 		return -1;
 
-	if (cls.demoplayback != DPB_NONE || cls.protocol != CP_QUAKEWORLD)
+	/*ignore the server if we're playing demos, sending to the server only as replies, or if its meant to be disabled (netfps depending on where its called from)*/
+	if (cls.demoplayback != DPB_NONE || cls.protocol != CP_QUAKEWORLD || ignoreserver)
 	{
 		if (!wantfps)
 			return -1;
@@ -1040,7 +1041,7 @@ unsigned long _stdcall CL_IndepPhysicsThread(void *param)
 	while(1)
 	{
 		time = Sys_Milliseconds();
-		spare = CL_FilterTime((time - lasttime), cl_netfps.value);
+		spare = CL_FilterTime((time - lasttime), cl_netfps.value, false);
 		if (spare)
 		{
 			//don't let them bank too much and get sudden bursts
@@ -1568,16 +1569,19 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	if (!runningindepphys)
 	{
 		// while we're not playing send a slow keepalive fullsend to stop mvdsv from screwing up
-		if (cls.state < ca_active && CL_FilterTime(msecstouse, 
-#ifdef IRCCONNECT	//don't spam irc.
-			cls.netchan.remote_address.type == NA_IRC?0.5:
-#endif
-			12.5) == false)
-			fullsend = false; 
-		else if (cl_netfps.value > 0)
+		if (cls.state < ca_active)
+		{
+			#ifdef IRCCONNECT	//don't spam irc.
+			if (cls.netchan.remote_address.type == NA_IRC)
+				wantfps = 0.5;
+			else
+			#endif
+				wantfps = 12.5;
+		}
+		if (cl_netfps.value > 0 || !fullsend)
 		{
 			int spare;
-			spare = CL_FilterTime(msecstouse, cl_netfps.value);
+			spare = CL_FilterTime(msecstouse, wantfps, false);
 			if (!spare && (msecstouse < 200
 #ifdef IRCCONNECT
 				|| cls.netchan.remote_address.type == NA_IRC

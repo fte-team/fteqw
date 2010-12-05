@@ -651,7 +651,6 @@ short LerpAngles16(short to, short from, float frac)
 
 void CL_CalcClientTime(void)
 {
-
 	{
 		float want;
 		float oldst = realtime;
@@ -664,8 +663,6 @@ void CL_CalcClientTime(void)
 			f = bound(0, f, 1);
 			cl.time = cl.servertime = cl.gametime*f + cl.oldgametime*(1-f);
 		}
-		else if (!(cls.fteprotocolextensions & PEXT_ACCURATETIMINGS) && cls.protocol == CP_QUAKEWORLD)
-			cl.servertime = cl.time;
 		else
 		{
 			want = cl.oldgametime + (realtime - cl.gametimemark);

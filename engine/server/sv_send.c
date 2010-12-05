@@ -1000,6 +1000,7 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 	edict_t	*other;
 	edict_t	*ent;
 	int i;
+	float newa;
 
 	ent = client->edict;
 
@@ -1026,16 +1027,29 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 	}
 
 	// a fixangle might get lost in a dropped packet.  Oh well.
-	if ( ent->v->fixangle )
+	if (ent->v->fixangle)
 	{
 		if (pnum)
 		{
 			MSG_WriteByte(msg, svcfte_choosesplitclient);
 			MSG_WriteByte(msg, pnum);
 		}
-		MSG_WriteByte (msg, svc_setangle);
-		for (i=0 ; i < 3 ; i++)
-			MSG_WriteAngle (msg, ent->v->angles[i] );
+		if (client->fteprotocolextensions2 & PEXT2_SETANGLEDELTA && client->delta_sequence != -1)
+		{
+			MSG_WriteByte (msg, svcfte_setangledelta);
+			for (i=0 ; i < 3 ; i++)
+			{
+				newa = ent->v->angles[i] - SHORT2ANGLE(client->lastcmd.angles[i]);
+				MSG_WriteAngle16 (msg, newa);
+				client->lastcmd.angles[i] = ANGLE2SHORT(ent->v->angles[i]);
+			}
+		}
+		else
+		{
+			MSG_WriteByte (msg, svc_setangle);
+			for (i=0 ; i < 3 ; i++)
+				MSG_WriteAngle (msg, ent->v->angles[i]);
+		}
 		ent->v->fixangle = 0;
 	}
 }

@@ -1170,7 +1170,7 @@ void World_Physics_Init(void)
 # if defined(WIN64)
 		"libode1_64.dll"
 # elif defined(WIN32)
-		"libode1.dll"
+		"ode_double"
 # elif defined(MACOSX)
 		"libode.1.dylib"
 # else

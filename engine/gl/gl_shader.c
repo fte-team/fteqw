@@ -594,20 +594,12 @@ static void Shader_DeformVertexes ( shader_t *shader, shaderpass_t *pass, char *
 
 static void Shader_SkyParms(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
-	int	i;
 	skydome_t *skydome;
 	float skyheight;
 	char *boxname;
 
 	if (shader->skydome)
 	{
-		for (i = 0; i < 5; i++)
-		{
-			Z_Free(shader->skydome->meshes[i].xyz_array);
-			Z_Free(shader->skydome->meshes[i].normals_array);
-			Z_Free(shader->skydome->meshes[i].st_array);
-		}
-
 		Z_Free(shader->skydome);
 	}
 
@@ -1788,16 +1780,6 @@ void Shader_Free (shader_t *shader)
 
 	if (shader->skydome)
 	{
-		for (i = 0; i < 5; i++)
-		{
-			if (shader->skydome->meshes[i].xyz_array)
-			{
-				Z_Free ( shader->skydome->meshes[i].xyz_array );
-				Z_Free ( shader->skydome->meshes[i].normals_array );
-				Z_Free ( shader->skydome->meshes[i].st_array );
-			}
-		}
-
 		Z_Free (shader->skydome);
 	}
 
@@ -2167,23 +2149,33 @@ void Shader_Finish (shader_t *s)
 	int i;
 	shaderpass_t *pass;
 
-	if (s->flags & SHADER_SKY && r_fastsky.ival)
+	if (s->flags & SHADER_SKY)
 	{
-		s->flags = 0;
-		s->numdeforms = 0;
-		s->numpasses = 0;
-		s->numprogparams = 0;
+		/*skies go all black if fastsky is set*/
+		if (r_fastsky.ival)
+			s->flags = 0;
+		/*or if its purely a skybox and has missing textures*/
+		if (!s->numpasses)
+			for (i = 0; i < 6; i++)
+				if (missing_texture.num == s->skydome->farbox_textures[i].num)
+					s->flags = 0;
+		if (!(s->flags & SHADER_SKY))
+		{
+			Shader_Free(s);
+			memset(s, 0, sizeof(*s));
 
-		Shader_DefaultScript(s->name, s,
-					"{\n"
+			Shader_DefaultScript(s->name, s,
 						"{\n"
-							"map $whiteimage\n"
-							"rgbgen const $r_fastskycolour\n"
+							"sort sky\n"
+							"{\n"
+								"map $whiteimage\n"
+								"rgbgen const $r_fastskycolour\n"
+							"}\n"
+							"surfaceparm nodlight\n"
 						"}\n"
-						"surfaceparm nodlight\n"
-					"}\n"
-				);
-		return;
+					);
+			return;
+		}
 	}
 
 	if (!s->numpasses && !(s->flags & (SHADER_NODRAW|SHADER_SKY)) && !s->fog_dist)
@@ -2856,6 +2848,7 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 	{
 		//q1 sky
 		if (r_fastsky.ival)
+		{
 			builtin = (
 					"{\n"
 						"sort sky\n"
@@ -2866,7 +2859,9 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 						"surfaceparm nodlight\n"
 					"}\n"
 				);
+		}
 		else if (*r_skyboxname.string)
+		{
 			builtin = (
 					"{\n"
 						"sort sky\n"
@@ -2874,8 +2869,16 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 						"surfaceparm nodlight\n"
 					"}\n"
 				);
+			Shader_DefaultScript(shortname, s, builtin);
+			if (s->flags & SHADER_SKY)
+				return;
+			builtin = NULL;
+			/*if the r_skybox failed to load or whatever, reset and fall through and just use the regular sky*/
+			Shader_Free(s);
+			memset (s, 0, sizeof(*s));
+		}
 #ifdef GLQUAKE
-		else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects)
+		if (!builtin && qrenderer == QR_OPENGL && gl_config.arb_shader_objects)
 			builtin = (
 				"{\n"
 					"sort sky\n"
@@ -2934,7 +2937,7 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 				"}\n"
 			);
 #endif
-		else
+		if (!builtin)
 			builtin = (
 				"{\n"
 					"sort sky\n"
@@ -3310,11 +3313,11 @@ static int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *gena
 	if (defaultgen)
 	{
 		memset ( s, 0, sizeof( shader_t ) );
-		s->generator = defaultgen;
-		s->genargs = genargs;
+		defaultgen(shortname, s, genargs);
 		Com_sprintf ( s->name, MAX_QPATH, shortname );
 		Hash_Add(&shader_active_hash, s->name, s, &s->bucket);
-		defaultgen(shortname, s, genargs);
+		s->generator = defaultgen;
+		s->genargs = genargs;
 
 		return f;
 	}
@@ -3384,11 +3387,13 @@ void Shader_DoReload(void)
 		{
 			Shader_Free(s);
 			memset ( s, 0, sizeof( shader_t ) );
+
+			defaultgen(shortname, s, genargs);
+
 			s->generator = defaultgen;
 			s->genargs = genargs;
 			Com_sprintf ( s->name, MAX_QPATH, shortname );
 			Hash_Add(&shader_active_hash, s->name, s, &s->bucket);
-			s->generator(shortname, s, s->genargs);
 			R_BuildDefaultTexnums(&oldtn, s);
 		}
 	}

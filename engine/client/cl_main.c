@@ -397,6 +397,7 @@ void CL_SupportedFTEExtensions(int *pext1, int *pext2)
 #ifdef PEXT2_VOICECHAT
 	fteprotextsupported2 |= PEXT2_VOICECHAT;
 #endif
+	fteprotextsupported2 |= PEXT2_SETANGLEDELTA;
 
 	fteprotextsupported &= strtoul(cl_pext_mask.string, NULL, 16);
 //	fteprotextsupported2 &= strtoul(cl_pext2_mask.string, NULL, 16);
@@ -1074,8 +1075,6 @@ void CL_ClearState (void)
 	cl.oldgametime = 0;
 	cl.gametime = 0;
 	cl.gametimemark = 0;
-
-	CL_RegisterParticles();
 }
 
 /*
@@ -3311,7 +3310,6 @@ extern cvar_t cl_sparemsec;
 
 int		nopacketcount;
 void SNDDMA_SetUnderWater(qboolean underwater);
-float CL_FilterTime (double time, float wantfps);
 float Host_Frame (double time)
 {
 	static double		time1 = 0;
@@ -3377,19 +3375,19 @@ float Host_Frame (double time)
 	{	//limit the fps freely, and expect the netfps to cope.
 		if (cl_maxfps.ival > 0)
 		{
-//			realtime += spare/1000;	//don't use it all!
-			spare = CL_FilterTime((realtime - oldrealtime)*1000, cl_maxfps.value);
+			realtime += spare/1000;	//don't use it all!
+			spare = CL_FilterTime((realtime - oldrealtime)*1000, cl_maxfps.value, true);
 			if (!spare)
 				return 1;
 
-//			realtime -= spare/1000;	//don't use it all!
+			//realtime -= spare/1000;	//don't use it all!
 		}
 	}
 	else
 	{
 		float maxfps = (cl_maxfps.ival>0||cls.protocol!=CP_QUAKEWORLD)?cl_maxfps.value:cl_netfps.value;
 		realtime += spare/1000;	//don't use it all!
-		spare = CL_FilterTime((realtime - oldrealtime)*1000, maxfps);
+		spare = CL_FilterTime((realtime - oldrealtime)*1000, maxfps, false);
 		if (!spare)
 			return 1;
 		if (spare < 0 || cls.state < ca_onserver)
@@ -3784,6 +3782,8 @@ Con_TPrintf (TL_NL);
 				"\n"
 				"See the GNU General Public License for more details.\n");
 
+	realtime+=1;
+	Cbuf_Execute ();	//server may have been waiting for the renderer
 
 	if (!cls.demoinfile && !*cls.servername)
 	{

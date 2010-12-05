@@ -9058,7 +9058,6 @@ void PF_runclientphys(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //set up the movement command
 	msecs = pr_global_struct->input_timelength*1000 + 0.5f;
 	//precision inaccuracies. :(
-#define ANGLE2SHORT(x) (x) * (65536/360.0)
 	pmove.cmd.angles[0] = ANGLE2SHORT((pr_global_struct->input_angles)[0]);
 	pmove.cmd.angles[1] = ANGLE2SHORT((pr_global_struct->input_angles)[1]);
 	pmove.cmd.angles[2] = ANGLE2SHORT((pr_global_struct->input_angles)[2]);

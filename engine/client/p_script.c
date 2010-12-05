@@ -58,6 +58,10 @@ struct
 
 extern qbyte *host_basepal;
 
+extern particleengine_t pe_classic;
+extern particleengine_t *fallback = NULL;
+#define FALLBACKBIAS 0x1000000
+
 static int pt_pointfile = P_INVALID;
 static int pe_default = P_INVALID;
 static int pe_size2 = P_INVALID;
@@ -319,9 +323,9 @@ extern cvar_t r_bloodstains;
 extern cvar_t gl_part_flame;
 
 // callbacks
-static void R_ParticlesDesc_Callback(struct cvar_s *var, char *oldvalue);
+static void R_ParticleDesc_Callback(struct cvar_s *var, char *oldvalue);
 
-extern cvar_t r_particlesdesc;
+extern cvar_t r_particledesc;
 extern cvar_t r_part_rain_quantity;
 extern cvar_t r_particle_tracelimit;
 extern cvar_t r_part_sparks;
@@ -452,10 +456,19 @@ static int PScript_FindParticleType(char *name)
 			break;
 		}
 	}
-	if (!ptype)
+	if (!ptype || !ptype->loaded)
+	{
+		if (fallback)
+		{
+			if (!strncmp(name, "classic_", 8))
+				i = fallback->FindParticleType(name+8);
+			else
+				i = fallback->FindParticleType(name);
+			if (i != P_INVALID)
+				return i+FALLBACKBIAS;
+		}
 		return P_INVALID;
-	if (!ptype->loaded)
-		return P_INVALID;
+	}
 	return i;
 }
 
@@ -1069,7 +1082,7 @@ static void P_ParticleEffect_f(void)
 			ptype->spawnchance = atof(value);
 		else if (!strcmp(var, "cliptype"))
 		{
-			assoc = P_ParticleTypeForName(value);//careful - this can realloc all the particle types
+			assoc = PScript_ParticleTypeForName(value);//careful - this can realloc all the particle types
 			ptype = &part_type[pnum];
 			ptype->cliptype = assoc;
 		}
@@ -1078,7 +1091,7 @@ static void P_ParticleEffect_f(void)
 
 		else if (!strcmp(var, "emit"))
 		{
-			assoc = P_ParticleTypeForName(value);//careful - this can realloc all the particle types
+			assoc = PScript_ParticleTypeForName(value);//careful - this can realloc all the particle types
 			ptype = &part_type[pnum];
 			ptype->emit = assoc;
 		}
@@ -1286,73 +1299,6 @@ static void P_ParticleEffect_f(void)
 	P_LoadTexture(ptype, true);
 
 	r_plooksdirty = true;
-}
-
-//assosiate a point effect with a model.
-//the effect will be spawned every frame with count*frametime
-//has the capability to hide models.
-static void P_AssosiateEffect_f (void)
-{
-	char *modelname = Cmd_Argv(1);
-	char *effectname = Cmd_Argv(2);
-	int effectnum;
-	model_t *model;
-
-	if (!cls.demoplayback && (
-		strstr(modelname, "player") ||
-		strstr(modelname, "eyes") ||
-		strstr(modelname, "flag") ||
-		strstr(modelname, "tf_stan") ||
-		strstr(modelname, ".bsp") ||
-		strstr(modelname, "turr")))
-	{
-		Con_Printf("Sorry: Not allowed to attach effects to model \"%s\"\n", modelname);
-		return;
-	}
-
-	model = Mod_FindName(modelname);
-	if (!model)
-		return;
-	if (!cls.demoplayback && (model->flags & EF_ROTATE))
-	{
-		Con_Printf("Sorry: You may not assosiate effects with item model \"%s\"\n", modelname);
-		return;
-	}
-	effectnum = P_AllocateParticleType(effectname);
-	model->particleeffect = effectnum;
-	if (atoi(Cmd_Argv(3)))
-		model->engineflags |= MDLF_ENGULPHS;
-
-	P_SetModified();	//make it appear in f_modified.
-}
-
-//assosiate a particle trail with a model.
-//the effect will be spawned between two points when an entity with the model moves.
-static void P_AssosiateTrail_f (void)
-{
-	char *modelname = Cmd_Argv(1);
-	char *effectname = Cmd_Argv(2);
-	int effectnum;
-	model_t *model;
-
-	if (!cls.demoplayback && (
-		strstr(modelname, "player") ||
-		strstr(modelname, "eyes") ||
-		strstr(modelname, "flag") ||
-		strstr(modelname, "tf_stan")))
-	{
-		Con_Printf("Sorry, you can't assosiate trails with model \"%s\"\n", modelname);
-		return;
-	}
-
-	model = Mod_FindName(modelname);
-	if (!model)
-		return;
-	effectnum = P_AllocateParticleType(effectname);
-	model->particletrail = effectnum;
-	model->engineflags |= MDLF_NODEFAULTTRAIL;	//we could have assigned the trail to a model that wasn't loaded.
-
-	P_SetModified();	//make it appear in f_modified.
 }
 
 #if _DEBUG
@@ -1784,8 +1730,6 @@ static qboolean PScript_InitParticles (void)
 	Cmd_AddRemCommand("pointfile", P_ReadPointFile_f);	//load the leak info produced from qbsp into the particle system to show a line. :)
 
 	Cmd_AddRemCommand("r_part", P_ParticleEffect_f);
-	Cmd_AddRemCommand("r_effect", P_AssosiateEffect_f);
-	Cmd_AddRemCommand("r_trail", P_AssosiateTrail_f);
 
 	Cmd_AddRemCommand("r_exportbuiltinparticles", P_ExportBuiltinSet_f);
 	Cmd_AddRemCommand("r_importeffectinfo", P_ImportEffectInfo_f);
@@ -1795,7 +1739,6 @@ static qboolean PScript_InitParticles (void)
 	Cmd_AddRemCommand("r_beaminfo", P_BeamInfo_f);
 #endif
 
-	CL_RegisterParticles();
 
 	pt_pointfile		= P_AllocateParticleType("PT_POINTFILE");
 	pe_default			= P_AllocateParticleType("PE_DEFAULT");
@@ -1803,8 +1746,8 @@ static qboolean PScript_InitParticles (void)
 	pe_size3			= P_AllocateParticleType("PE_SIZE3");
 	pe_defaulttrail		= P_AllocateParticleType("PE_DEFAULTTRAIL");
 
-	Cvar_Hook(&r_particlesdesc, R_ParticlesDesc_Callback);
-	Cvar_ForceCallback(&r_particlesdesc);
+	Cvar_Hook(&r_particledesc, R_ParticleDesc_Callback);
+	Cvar_ForceCallback(&r_particledesc);
 
 
 	for (i = 0; i < (BUFFERVERTS>>2)*6; i += 6)
@@ -1828,18 +1771,22 @@ static qboolean PScript_InitParticles (void)
 	pscripttmesh.st_array = pscripttexcoords;
 	pscripttmesh.colors4f_array = pscriptcolours;
 	pscripttmesh.indexes = pscripttriindexes;
+
+	if (fallback)
+		fallback->InitParticles();
 	return true;
 }
 
 static void PScript_Shutdown (void)
 {
-	Cvar_Unhook(&r_particlesdesc);
+	if (fallback)
+		fallback->ShutdownParticles();
+
+	Cvar_Unhook(&r_particledesc);
 
 	Cmd_RemoveCommand("pointfile");	//load the leak info produced from qbsp into the particle system to show a line. :)
 
 	Cmd_RemoveCommand("r_part");
-	Cmd_RemoveCommand("r_effect");
-	Cmd_RemoveCommand("r_trail");
 
 	Cmd_RemoveCommand("r_exportbuiltinparticles");
 	Cmd_RemoveCommand("r_importeffectinfo");
@@ -1866,6 +1813,9 @@ P_ClearParticles
 static void PScript_ClearParticles (void)
 {
 	int		i;
+
+	if (fallback)
+		fallback->ClearParticles();
 
 	free_particles = &particles[0];
 	for (i=0 ;i<r_numparticles ; i++)
@@ -1943,6 +1893,16 @@ static void P_LoadParticleSet(char *name, qboolean first)
 	if (first && !*name)
 		name = "faithful";
 
+	if (!strcmp(name, "classic"))
+	{
+		if (fallback)
+			fallback->ShutdownParticles();
+		fallback = &pe_classic;
+		if (fallback)
+			fallback->InitParticles();
+		return;
+	}
+
 	for (i = 0; partset_list[i].name; i++)
 	{
 		if (!stricmp(name, partset_list[i].name))
@@ -1977,10 +1937,6 @@ static void P_LoadParticleSet(char *name, qboolean first)
 static void R_Particles_KillAllEffects(void)
 {
 	int i;
-	
-	model_t *mod;
-	extern model_t	mod_known[];
-	extern int		mod_numknown;
 
 	for (i = 0; i < numparticletypes; i++)
 	{
@@ -1995,26 +1951,23 @@ static void R_Particles_KillAllEffects(void)
 //	BZ_Free(part_type);
 //	part_type = NULL;
 
-	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
-	{
-		mod->particleeffect = P_INVALID;
-		mod->particletrail = P_INVALID;
-		mod->engineflags &= ~(MDLF_NODEFAULTTRAIL | MDLF_ENGULPHS);
-
-		P_DefaultTrail(mod);
-	}
-
 	f_modified_particles = false;
+
+	if (fallback)
+	{
+		fallback->ShutdownParticles();
+		fallback = NULL;
+	}
 }
 
-static void R_ParticlesDesc_Callback(struct cvar_s *var, char *oldvalue)
+static void R_ParticleDesc_Callback(struct cvar_s *var, char *oldvalue)
 {
 	qboolean		first;
 
 	char *c;
 
-	if (cls.state == ca_disconnected)
-		return; // don't bother parsing while disconnected
+	if (qrenderer == QR_NONE)
+		return; // don't bother parsing early
 
 	R_Particles_KillAllEffects();
 
@@ -2024,6 +1977,9 @@ static void R_ParticlesDesc_Callback(struct cvar_s *var, char *oldvalue)
 		P_LoadParticleSet(com_token, first);
 		first = false;
 	}
+
+	Cbuf_AddText("r_effect\n", RESTRICT_LOCAL);
+	CL_RegisterParticles();
 }
 
 static void P_ReadPointFile_f (void)
@@ -2361,6 +2317,9 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 	beamseg_t *b, *bfirst;
 	vec3_t ofsvec, arsvec; // offsetspread vec, areaspread vec
 	trailstate_t *ts;
+
+	if (typenum >= FALLBACKBIAS && fallback)
+		return fallback->RunParticleEffectState(org, dir, count, typenum-FALLBACKBIAS, tsk);
 
 	if (typenum < 0 || typenum >= numparticletypes)
 		return 1;
@@ -2962,25 +2921,26 @@ static void PScript_RunParticleEffect (vec3_t org, vec3_t dir, int color, int co
 	ptype = P_FindParticleType(va("pe_%i", color));
 	if (P_RunParticleEffectType(org, dir, count, ptype))
 	{
-		color &= ~0x7;
 		if (count > 130 && part_type[pe_size3].loaded)
 		{
-			part_type[pe_size3].colorindex = color;
+			part_type[pe_size3].colorindex = color & ~0x7;
 			part_type[pe_size3].colorrand = 8;
 			P_RunParticleEffectType(org, dir, count, pe_size3);
-			return;
 		}
-		if (count > 20 && part_type[pe_size2].loaded)
+		else if (count > 20 && part_type[pe_size2].loaded)
 		{
-			part_type[pe_size2].colorindex = color;
+			part_type[pe_size2].colorindex = color & ~0x7;
 			part_type[pe_size2].colorrand = 8;
 			P_RunParticleEffectType(org, dir, count, pe_size2);
-			return;
 		}
-		part_type[pe_default].colorindex = color;
-		part_type[pe_default].colorrand = 8;
-		P_RunParticleEffectType(org, dir, count, pe_default);
-		return;
+		else if (part_type[pe_default].loaded || !fallback)
+		{
+			part_type[pe_default].colorindex = color & ~0x7;
+			part_type[pe_default].colorrand = 8;
+			P_RunParticleEffectType(org, dir, count, pe_default);
+		}
+		else
+			fallback->RunParticleEffect(org, dir, color, count);
 	}
 }
 
@@ -3643,6 +3603,9 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 static int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t **tsk)
 {
 	part_type_t *ptype = &part_type[type];
+
+	if (type >= FALLBACKBIAS && fallback)
+		return fallback->ParticleTrail(startpos, end, type-FALLBACKBIAS, tsk);
 
 	if (type < 0 || type >= numparticletypes)
 		return 1;	//bad value
@@ -4554,6 +4517,9 @@ static void PScript_DrawParticles (void)
 	P_AddRainParticles();
 
 	PScript_DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawLineSparkParticle, GL_DrawTrifanParticle, GL_DrawTexturedSparkParticle, GL_DrawParticleBeam, GL_DrawClippedDecal);
+
+	if (fallback)
+		fallback->DrawParticles();
 }
 
 

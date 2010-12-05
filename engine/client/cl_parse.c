@@ -2121,10 +2121,10 @@ void CL_ParseServerData (void)
 		Info_SetValueForStarKey (svs.info, "*gamedir", str, MAX_SERVERINFO_STRING);
 #endif
 		COM_FlushFSCache();
+		Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
 	}
 
 	CL_ClearState ();
-	Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
 	Stats_NewMap();
 	cl.servercount = svcnt;
 
@@ -2542,6 +2542,8 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 
 	//pretend it came from the server, and update cheat/permissions/etc
 	CL_CheckServerInfo();
+
+	Sys_RecentServer("+nqconnect", cls.servername, cls.servername, "Join NQ Server");
 
 #ifdef PEXT_CSQC
 	CSQC_Shutdown();
@@ -4595,7 +4597,11 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 		*msg = '\0';
 		Con_DPrintf("stufftext: %s\n", stufftext);
 		if (!strncmp(stufftext, "fullserverinfo ", 15))
+		{
 			Cmd_ExecuteString(stufftext, RESTRICT_SERVER+destsplit);	//do this NOW so that it's done before any models or anything are loaded
+			if (cls.netchan.remote_address.type != NA_LOOPBACK)
+				Sys_RecentServer("+connect", cls.servername, va("%s (%s)", Info_ValueForKey(cl.serverinfo, "hostname"), cls.servername), "Join QW Server");
+		}
 		else
 		{
 			if (!strncmp(stufftext, "//querycmd ", 11))
@@ -4905,6 +4911,10 @@ void CL_ParseServerMessage (void)
 				cl.viewentity[destsplit] = 0;
 			break;
 #endif
+		case svcfte_setangledelta:
+			for (i=0 ; i<3 ; i++)
+				cl.viewangles[destsplit][i] += MSG_ReadAngle16 ();
+			break;
 		case svc_setangle:
 			if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 			{

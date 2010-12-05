@@ -156,6 +156,7 @@ typedef struct player_info_s
 	qbyte	pl;
 
 	qboolean ignored;
+	qboolean vignored;
 
 	colourised_t *colourised;
 
@@ -857,6 +858,7 @@ void CL_UseIndepPhysics(qboolean allow);
 
 void CL_FlushClientCommands(void);
 void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...) LIKEPRINTF(2);
+float CL_FilterTime (double time, float wantfps, qboolean ignoreserver);
 int CL_RemoveClientCommands(char *command);
 void CL_AllowIndependantSendCmd(qboolean allow);
 

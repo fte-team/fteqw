@@ -1250,6 +1250,7 @@ void NPQTV_Sys_Shutdown(void)
 }
 
 #else
+
 /*
 ==================
 WinMain
@@ -1260,6 +1261,134 @@ int			global_nCmdShow;
 char		*argv[MAX_NUM_ARGVS];
 static char	exename[256];
 HWND		hwnd_dialog;
+
+
+
+#define COBJMACROS
+#include <Shobjidl.h>
+#include <shlguid.h>
+#include <Shlobj.h>
+//#include <Propsys.h>
+
+#ifndef SHARD_APPIDINFOLINK 
+typedef struct SHARDAPPIDINFOLINK {
+  IShellLinkW *psl;
+  PCWSTR     pszAppID;
+} SHARDAPPIDINFOLINK;
+
+#define SHARD_APPIDINFOLINK 0x00000007
+
+typedef struct {
+  GUID  fmtid;
+  DWORD pid;
+} PROPERTYKEY;
+typedef struct IPropertyStore IPropertyStore;
+;
+typedef struct IPropertyStore
+{
+    CONST_VTBL struct
+	{
+		/*IUnknown*/
+		HRESULT ( STDMETHODCALLTYPE *QueryInterface )( 
+				IPropertyStore * This,
+				REFIID riid,
+				void **ppvObject);
+		ULONG ( STDMETHODCALLTYPE *AddRef )( 
+				IPropertyStore * This);
+		ULONG ( STDMETHODCALLTYPE *Release )( 
+				IPropertyStore * This);
+
+		/*property store stuff*/
+		HRESULT ( STDMETHODCALLTYPE *GetCount)( 
+				IPropertyStore * This,
+				ULONG *count);
+
+		HRESULT  ( STDMETHODCALLTYPE *GetAt)( 
+				IPropertyStore * This,
+				DWORD prop,
+				PROPERTYKEY * key);
+
+		HRESULT  ( STDMETHODCALLTYPE *GetValue)( 
+				IPropertyStore * This,
+				PROPERTYKEY * key,
+				PROPVARIANT * val);
+
+		HRESULT  ( STDMETHODCALLTYPE *SetValue)( 
+				IPropertyStore * This,
+				PROPERTYKEY * key,
+				PROPVARIANT * val);
+
+		HRESULT  ( STDMETHODCALLTYPE *Commit)( 
+				IPropertyStore * This);
+	} *lpVtbl;
+} IPropertyStore;
+static const IID IID_IPropertyStore = {0x886d8eeb, 0x8cf2, 0x4446, {0x8d, 0x02, 0xcd, 0xba, 0x1d, 0xbd, 0xcf, 0x99}};
+#endif
+
+#define WIN7_APPNAME L"FTEQuake"
+void Sys_RecentServer(char *command, char *target, char *title, char *desc)
+{
+	HRESULT hr;
+	IShellLinkW *link;
+	IPropertyStore *prop_store;
+	SHARDAPPIDINFOLINK appinfo;
+
+	WCHAR buf[1024];
+	char tmp[1024], *s;
+
+	// Get a pointer to the IShellLink interface.
+	hr = CoCreateInstance(&CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER, &IID_IShellLinkW, &link);
+	if (FAILED(hr))
+		return;
+	swprintf(buf, sizeof(buf), L"%S", exename);
+	IShellLinkW_SetPath(link, buf); /*program to run*/
+	Q_strncpyz(tmp, com_quakedir, sizeof(tmp));
+	/*normalize the gamedir, so we don't end up with the same thing multiple times*/
+	for(s = tmp; *s; s++)
+	{
+		if (*s == '\\')
+			*s = '/';
+		else
+			*s = tolower(*s);
+	}
+	swprintf(buf, sizeof(buf), L"%S \"%S\" -basedir \"%S\"", command, target, tmp);
+	IShellLinkW_SetArguments(link, buf); /*args*/
+	swprintf(buf, sizeof(buf), L"%S", desc);
+	IShellLinkW_SetDescription(link, buf);  /*tooltip*/
+	
+	hr = IShellLinkW_QueryInterface(link, &IID_IPropertyStore, &prop_store);
+	if(SUCCEEDED(hr))
+	{
+		PROPVARIANT pv;
+		PROPERTYKEY PKEY_Title;
+		pv.vt=VT_LPSTR;
+		pv.pszVal=title; /*item text*/
+		CLSIDFromString(L"{F29F85E0-4FF9-1068-AB91-08002B27B3D9}", &(PKEY_Title.fmtid));
+		PKEY_Title.pid=2;
+		hr = prop_store->lpVtbl->SetValue(prop_store, &PKEY_Title, &pv);
+		hr = prop_store->lpVtbl->Commit(prop_store);
+		prop_store->lpVtbl->Release(prop_store);
+	}
+
+	appinfo.pszAppID=WIN7_APPNAME;
+	appinfo.psl=link;
+	SHAddToRecentDocs(SHARD_APPIDINFOLINK, &appinfo);
+	IShellLinkW_Release(link);
+}
+void Win7_Init(void)
+{
+	HANDLE h;
+	HRESULT (WINAPI *pSetCurrentProcessExplicitAppUserModelID)(PCWSTR AppID);
+
+
+	h = LoadLibrary("shell32.dll");
+	if (h)
+	{
+		pSetCurrentProcessExplicitAppUserModelID = (void*)GetProcAddress(h, "SetCurrentProcessExplicitAppUserModelID");
+		if (pSetCurrentProcessExplicitAppUserModelID)
+			pSetCurrentProcessExplicitAppUserModelID(WIN7_APPNAME);
+	}
+}
 
 /*
 #ifdef _MSC_VER
@@ -1284,6 +1413,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	/* previous instances do not exist in Win32 */
     if (hPrevInstance)
         return 0;
+
+	Win7_Init();
 
 #ifdef _MSC_VER
 #if _M_IX86_FP >= 1
@@ -1499,6 +1630,22 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 	//client console should now be initialized.
 
+		switch(M_GameType())
+		{
+		case MGT_QUAKE1:
+			Sys_RecentServer("+menu_servers", "", "Server List", "Pick a server to play on");
+			Sys_RecentServer("+map start", "", "Start New Game (Quake)", "Begin a new game");
+			break;
+		case MGT_QUAKE2:
+			Sys_RecentServer("+menu_servers", "", "Server List", "Pick a server to play on");
+			Sys_RecentServer("+map unit1", "", "Start New Game (Quake2)", "Begin a new game");
+			break;
+		case MGT_HEXEN2:
+			Sys_RecentServer("+menu_servers", "", "Server List", "Pick a server to play on");
+			Sys_RecentServer("+map demo1", "", "Start New Game (Hexen2)", "Begin a new game");
+			break;
+		}
+
 		/* main window message loop */
 		while (1)
 		{
@@ -1529,8 +1676,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				SetHookState(sys_disableWinKeys.ival);
 
 				/*sleep if its not yet time for a frame*/
-				if (sleeptime > 0)
-					Sleep(sleeptime);
+				//if (sleeptime > 0)
+				//	Sleep(sleeptime);
 	#else
 				Sys_Error("wut?");
 	#endif

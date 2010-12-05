@@ -115,7 +115,7 @@ typedef struct soundcardinfo_s soundcardinfo_t;
 void S_Init (void);
 void S_Startup (void);
 void S_Shutdown (void);
-void S_StartSound (int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, int pitchadj);
+void S_StartSound (int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float pitchadj);
 void S_StartSoundDelayed(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float timeofs);
 void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation);
 void S_StopSound (int entnum, int entchannel);
@@ -154,9 +154,11 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf);
 void S_Voip_MapChange(void);
 int S_Voip_Loudness(qboolean ignorevad);	//-1 for not capturing, otherwise between 0 and 100
 qboolean S_Voip_Speaking(unsigned int plno);
+void S_Voip_Ignore(unsigned int plno, qboolean ignore);
 #else
 #define S_Voip_Loudness() -1
 #define S_Voip_Speaking(p) false
+#define S_Voip_Ignore(p)
 #endif
 
 qboolean S_IsPlayingSomewhere(sfx_t *s);
@@ -187,7 +189,7 @@ void SNDVC_MicInput(qbyte *buffer, int samples, int freq, int width);
 #ifdef AVAIL_OPENAL
 void OpenAL_LoadCache(sfx_t *s, sfxcache_t *sc);
 void OpenAL_StartSound(int entnum, int entchannel, sfx_t * sfx, vec3_t origin, float fvol, float attenuation, float pitchscale);
-void OpenAL_Update_Listener(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up);
+void OpenAL_Update_Listener(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, vec3_t velocity);
 void OpenAL_CvarInit(void);
 #endif
 
@@ -287,6 +289,7 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 	unsigned int (*GetDMAPos) (soundcardinfo_t *sc);
 	void (*SetWaterDistortion) (soundcardinfo_t *sc, qboolean underwater);
 	void (*Restore) (soundcardinfo_t *sc);
+	void (*ChannelUpdate) (soundcardinfo_t *sc, channel_t *channel, unsigned int schanged);
 
 //driver -specific
 	void *handle;

@@ -392,8 +392,6 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 		"}\n"
 		);
 
-	missing_texture = GL_LoadTexture("no_texture", 16, 16, (unsigned char*)r_notexture_mip + r_notexture_mip->offsets[0], IF_NOALPHA|IF_NOGAMMA, 0);
-
 	GL_SetupSceneProcessingTextures();
 
 	// save a texture slot for translated picture
@@ -2228,10 +2226,10 @@ void GL_Upload8 (char *name, qbyte *data, int width, int height, unsigned int fl
 	{
 		for (i=(s&~3)-4 ; i>=0 ; i-=4)
 		{
-			trans[i] = d_8to24rgbtable[data[i]];
-			trans[i+1] = d_8to24rgbtable[data[i+1]];
-			trans[i+2] = d_8to24rgbtable[data[i+2]];
-			trans[i+3] = d_8to24rgbtable[data[i+3]];
+			trans[i] = d_8to24rgbtable[data[i]]|0xff000000;
+			trans[i+1] = d_8to24rgbtable[data[i+1]]|0xff000000;
+			trans[i+2] = d_8to24rgbtable[data[i+2]]|0xff000000;
+			trans[i+3] = d_8to24rgbtable[data[i+3]]|0xff000000;
 		}
 		for (i=s&~3 ; i<s ; i++)	//wow, funky
 		{

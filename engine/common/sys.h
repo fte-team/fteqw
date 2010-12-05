@@ -45,6 +45,7 @@ void VARGS Sys_Printf (char *fmt, ...) LIKEPRINTF(1);
 // send text to the console
 
 void Sys_Quit (void);
+void Sys_RecentServer(char *command, char *target, char *title, char *desc);
 
 typedef struct {
 	void **funcptr;

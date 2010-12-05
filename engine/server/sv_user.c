@@ -2094,7 +2094,7 @@ void SV_NextUpload (void)
 }
 
 #ifdef VOICECHAT
-#define VOICE_RING_SIZE 512
+#define VOICE_RING_SIZE 512 /*POT*/
 struct
 {
 	struct voice_ring_s
@@ -2110,6 +2110,7 @@ struct
 } voice;
 void SV_VoiceReadPacket(void)
 {
+	unsigned int vt = host_client->voice_target;
 	unsigned int j, cln;
 	struct voice_ring_s *ring;
 	unsigned short bytes;
@@ -2135,6 +2136,10 @@ void SV_VoiceReadPacket(void)
 	ring->gen = gen;
 	ring->seq = seq;
 
+	/*broadcast it its to their team, and its not teamplay*/
+	if (vt == VT_TEAM && !teamplay.ival)
+		vt = VT_ALL;
+
 	/*figure out which team members are meant to receive it*/
 	for (j = 0; j < MAX_CLIENTS/8; j++)
 		ring->receiver[j] = 0;
@@ -2145,11 +2150,12 @@ void SV_VoiceReadPacket(void)
 
 		if (cl->state != cs_spawned && cl->state != cs_connected)
 			continue;
+		/*spectators may only talk to spectators*/
 		if (host_client->spectator && !sv_spectalk.ival)
 			if (!cl->spectator)
 				continue;
 
-		if (teamplay.ival)
+		if (vt == VT_TEAM)
 		{
 			// the spectator team
 			if (host_client->spectator)
@@ -2163,6 +2169,16 @@ void SV_VoiceReadPacket(void)
 					continue;	// on different teams
 			}
 		}
+		else if (vt == VT_NONMUTED)
+		{
+			if (host_client->voice_mute[j>>3] & (1<<(j&3)))
+				continue;
+		}
+		else if (vt >= VT_PLAYERSLOT0)
+		{
+			if (j != vt - VT_PLAYERSLOT0)
+				continue;
+		}
 
 		//make sure we don't send the say to the same client 20 times due to splitscreen
 		if (cl->controller)
@@ -2173,10 +2189,10 @@ void SV_VoiceReadPacket(void)
 		ring->receiver[cln>>3] |= 1<<(cln&3);
 	}
 
-	if (sv.mvdrecording  && sv_voip_record.ival)
+	if (sv.mvdrecording && sv_voip_record.ival)
 	{
 		// non-team messages should be seen always, even if not tracking any player
-		if (!teamplay.ival)
+		if (vt == VT_ALL && (!host_client->spectator || sv_spectalk.ival))
 		{
 			MVDWrite_Begin (dem_all, 0, ring->datalen+6);
 		}
@@ -2200,7 +2216,8 @@ void SV_VoiceReadPacket(void)
 }
 void SV_VoiceInitClient(client_t *client)
 {
-	client->voice_active = true;
+	client->voice_target = VT_TEAM;
+	client->voice_active = false;
 	client->voice_read = voice.write;
 	memset(client->voice_mute, 0, sizeof(client->voice_mute));
 }
@@ -2235,7 +2252,7 @@ void SV_VoiceSendPacket(client_t *client, sizebuf_t *buf)
 		if (client->voice_mute[ring->sender>>3] & (1<<(ring->sender&3)))
 			send = false;
 
-		/*additional ways to block it*/
+		/*additional ways to block voice*/
 		if (client->download)
 			send = false;
 
@@ -2254,11 +2271,68 @@ void SV_VoiceSendPacket(client_t *client, sizebuf_t *buf)
 	}
 }
 
-void SV_Voice_MuteAll(void)
+void SV_Voice_Ignore_f(void)
+{
+	unsigned int other;
+	int type = 0;
+
+	if (Cmd_Argc() < 2)
+	{
+		/*only a name = toggle*/
+		type = 0;
+	}
+	else
+	{
+		/*mute if 1, unmute if 0*/
+		if (atoi(Cmd_Argv(2)))
+			type = 1;
+		else
+			type = -1;
+	}
+	other = atoi(Cmd_Argv(1));
+	if (other >= MAX_CLIENTS)
+		return;
+
+	switch(type)
+	{
+	case -1:
+		host_client->voice_mute[other>>3] &= ~(1<<(other&3));
+		break;
+	case 0:	
+		host_client->voice_mute[other>>3] ^= (1<<(other&3));
+		break;
+	case 1:
+		host_client->voice_mute[other>>3] |= (1<<(other&3));
+	}
+}
+void SV_Voice_Target_f(void)
+{
+	unsigned int other;
+	char *t = Cmd_Argv(1);
+	if (!strcmp(t, "team"))
+		host_client->voice_target = VT_TEAM;
+	else if (!strcmp(t, "all"))
+		host_client->voice_target = VT_ALL;
+	else if (!strcmp(t, "nonmuted"))
+		host_client->voice_target = VT_NONMUTED;
+	else if (*t >= '0' && *t <= '9')
+	{
+		other = atoi(t);
+		if (other >= MAX_CLIENTS)
+			return;
+		host_client->voice_target = VT_PLAYERSLOT0 + other;
+	}
+	else
+	{
+		/*don't know who you mean, futureproofing*/
+		host_client->voice_target = VT_TEAM;
+	}
+}
+void SV_Voice_MuteAll_f(void)
 {
 	host_client->voice_active = false;
 }
-void SV_Voice_UnmuteAll(void)
+void SV_Voice_UnmuteAll_f(void)
 {
 	host_client->voice_active = true;
 }
@@ -4142,8 +4216,10 @@ ucmd_t ucmds[] =
 	{"demoinfo", SV_MVDInfo_f},
 
 #ifdef VOICECHAT
-	{"muteall", SV_Voice_MuteAll},
-	{"unmuteall", SV_Voice_UnmuteAll},
+	{"voicetarg", SV_Voice_Target_f},
+	{"vignore", SV_Voice_Ignore_f},	/*ignore/mute specific player*/
+	{"muteall", SV_Voice_MuteAll_f},	/*disables*/
+	{"unmuteall", SV_Voice_UnmuteAll_f}, /*reenables*/
 #endif
 
 	{NULL, NULL}

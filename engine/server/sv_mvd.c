@@ -1157,7 +1157,8 @@ qboolean SV_MVDWritePackets (int num)
 			// now write it to buf
 			flags = cl->flags;
 
-			if (cl->fixangle) {
+			if (cl->fixangle)
+			{
 				demo.fixangletime[i] = cl->cmdtime;
 			}
 

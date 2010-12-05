@@ -74,6 +74,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef VOICECHAT
 #define PEXT2_VOICECHAT				0x00000002
 #endif
+#define PEXT2_SETANGLEDELTA			0x00000004
 //#define PEXT2_64PLAYERS			0x02000000	//Client is able to cope with 64 players. Wow.
 //#define PEXT2_PK3DOWNLOADS		0x10000000	//retrieve a list of pk3s/pk3s/paks for downloading (with optional URL and crcs)
 
@@ -272,6 +273,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define svcfte_cgamepacket	83
 #define svcfte_voicechat	84
+#define	svcfte_setangledelta		85	// [angle3] add this to the current viewangles
 
 
 //fitz svcs
@@ -828,6 +830,7 @@ typedef struct q1usercmd_s
 	qbyte	impulse;
 } q1usercmd_t;
 #define SHORT2ANGLE(x) (x) * (360.0/65536)
+#define ANGLE2SHORT(x) (x) * (65536/360.0)
 
 
 

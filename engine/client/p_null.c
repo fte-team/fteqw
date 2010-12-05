@@ -33,7 +33,6 @@ static void PNULL_EmitSkyEffectTris(model_t *mod, msurface_t 	*fa){}
 
 static qboolean PNULL_InitParticles (void)
 {
-	CL_RegisterParticles();
 	return true;
 }
 

@@ -491,13 +491,11 @@ void CL_ParsePacketEntities (qboolean delta)
 
 	if (cls.protocol == CP_QUAKEWORLD && cls.demoplayback == DPB_MVD)
 	{
-		extern float nextdemotime, olddemotime, demtime;
+		extern float nextdemotime;
 		cl.oldgametime = cl.gametime;
 		cl.oldgametimemark = cl.gametimemark;
 		cl.gametime = nextdemotime;
 		cl.gametimemark = realtime;
-
-		newp->servertime = cl.gametime;
 	}
 	else if (!(cls.fteprotocolextensions & PEXT_ACCURATETIMINGS) && cls.protocol == CP_QUAKEWORLD)
 	{
@@ -505,11 +503,9 @@ void CL_ParsePacketEntities (qboolean delta)
 		cl.oldgametimemark = cl.gametimemark;
 		cl.gametime = realtime;
 		cl.gametimemark = realtime;
-
-		newp->servertime = realtime;
 	}
-	else
-		newp->servertime = cl.gametime;
+
+	newp->servertime = cl.gametime;
 
 	if (delta)
 	{
@@ -1742,11 +1738,7 @@ void CL_LinkPacketEntities (void)
 	}
 	else
 	{
-		if ((cls.fteprotocolextensions & PEXT_ACCURATETIMINGS) || cls.protocol != CP_QUAKEWORLD)
-			servertime = cl.servertime;
-		else
-			servertime = realtime;
-
+		servertime = cl.servertime;
 		nolerp = !CL_MayLerp() && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV;
 	}
 	pack = CL_ProcessPacketEntities(&servertime, nolerp);
@@ -2027,7 +2019,7 @@ void CL_LinkPacketEntities (void)
 
 		{
 			extern cvar_t gl_part_flame;
-			if (cls.allow_anyparticles && gl_part_flame.ival)
+			if (model->particleeffect != P_INVALID && cls.allow_anyparticles && gl_part_flame.ival)
 			{
 				P_EmitEffect (ent->origin, model->particleeffect, &(le->emitstate));
 			}

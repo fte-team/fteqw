@@ -45,6 +45,7 @@ vec3_t		listener_origin;
 vec3_t		listener_forward = {1, 0, 0};
 vec3_t		listener_right = {0, 1, 0};
 vec3_t		listener_up = {0, 0, 1};
+vec3_t		listener_velocity;
 vec_t		sound_nominal_clip_dist=1000.0;
 
 int			soundtime;		// sample PAIRS
@@ -541,7 +542,10 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 	memmove(s_speex.capturebuf, s_speex.capturebuf + encpos, s_speex.capturepos-encpos);
 	s_speex.capturepos -= encpos;
 }
-
+void S_Voip_Ignore(int slot, qboolean ignore)
+{
+	CL_SendClientCommand(true, "vignore %i %i", slot, ignore);
+}
 static void S_Voip_Enable_f(void)
 {
 	Cvar_SetValue(&cl_voip_send, cl_voip_send.ival | 2);
@@ -605,6 +609,7 @@ typedef struct {
 } sdriver_t;
 sdriver_t drivers[] = {
 //in order of preference
+	{"OpenAL", &pOPENAL_InitCard},	//yay, get someone else to sort out sound support, woot
 
 	{"DSound", &pDSOUND_InitCard},	//prefered on windows
 	{"MacOS", &pMacOS_InitCard},	//prefered on mac
@@ -614,7 +619,6 @@ sdriver_t drivers[] = {
 	{"ALSA", &pALSA_InitCard},		//pure shite
 	{"OSS", &pOSS_InitCard},		//good, but not likely to work any more
 
-	{"OpenAL", &pOPENAL_InitCard},	//yay, get someone else to sort out sound support, woot
 	{"WaveOut", &pWAV_InitCard},	//doesn't work properly in vista, etc.
 	{NULL, NULL}
 };
@@ -1296,7 +1300,7 @@ void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 // Start a sound effect
 // =======================================================================
 
-void S_StartSoundCard(soundcardinfo_t *sc, int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, int startpos, int pitchadj)
+void S_StartSoundCard(soundcardinfo_t *sc, int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, int startpos, float pitchadj)
 {
 	channel_t *target_chan, *check;
 	sfxcache_t	*scache;
@@ -1313,16 +1317,8 @@ void S_StartSoundCard(soundcardinfo_t *sc, int entnum, int entchannel, sfx_t *sf
 	if (nosound.ival)
 		return;
 
-	if (!pitchadj)
+	if (pitchadj <= 0)
 		pitchadj = 100;
-
-#ifdef AVAIL_OPENAL
-	if (sc->openal)
-	{
-		OpenAL_StartSound(entnum, entchannel, sfx, origin, fvol, attenuation, pitchadj / 100.0f);
-		return;
-	}
-#endif
 
 	vol = fvol*255;
 
@@ -1386,6 +1382,9 @@ void S_StartSoundCard(soundcardinfo_t *sc, int entnum, int entchannel, sfx_t *sf
 			break;
 		}
 	}
+
+	if (sc->ChannelUpdate)
+		sc->ChannelUpdate(sc, target_chan, true);
 }
 
 void S_StartSoundDelayed(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float timeofs)
@@ -1399,7 +1398,7 @@ void S_StartSoundDelayed(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, 
 		S_StartSoundCard(sc, entnum, entchannel, sfx, origin, fvol, attenuation, -(int)(timeofs * sc->sn.speed), 0);
 }
 
-void S_StartSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, int pitchadj)
+void S_StartSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float pitchadj)
 {
 	soundcardinfo_t *sc;
 
@@ -1434,6 +1433,8 @@ void S_StopSoundCard(soundcardinfo_t *sc, int entnum, int entchannel)
 		{
 			sc->channel[i].end = 0;
 			sc->channel[i].sfx = NULL;
+			if (sc->ChannelUpdate)
+				sc->ChannelUpdate(sc, &sc->channel[i], true);
 			if (entchannel)
 				return;
 		}
@@ -1470,6 +1471,8 @@ void S_StopAllSounds(qboolean clear)
 				{
 					s->decoder->abort(s);
 				}
+				if (sc->ChannelUpdate)
+					sc->ChannelUpdate(sc, &sc->channel[i], true);
 			}
 
 		sc->total_chans = MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS + NUM_MUSICS;	// no statics
@@ -1543,6 +1546,7 @@ void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation)
 			scache->loopstart = 0;
 		}
 
+		ss->entnum = -2;
 		ss->sfx = sfx;
 		ss->rate = 1<<PITCHSHIFT;
 		VectorCopy (origin, ss->origin);
@@ -1552,6 +1556,9 @@ void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation)
 		ss->looping = true;
 
 		SND_Spatialize (scard, ss);
+
+		if (scard->ChannelUpdate)
+			scard->ChannelUpdate(scard, ss, true);
 	}
 }
 
@@ -1620,7 +1627,7 @@ mleaf_t *Q1BSP_LeafForPoint (model_t *model, vec3_t p);
 void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 {
 	mleaf_t		*l;
-	float		vol;
+	float		vol, oldvol;
 	int			ambient_channel;
 	channel_t	*chan;
 	int i;
@@ -1666,14 +1673,22 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 	if (!l || !ambient_level.value)
 	{
 		for (ambient_channel = 0 ; ambient_channel< NUM_AMBIENTS ; ambient_channel++)
-			sc->channel[AMBIENT_FIRST+ambient_channel].sfx = NULL;
+		{
+			chan = &sc->channel[AMBIENT_FIRST+ambient_channel];
+			chan->sfx = NULL;
+			if (sc->ChannelUpdate)
+				sc->ChannelUpdate(sc, chan, true);
+		}
 		return;
 	}
 
 	for (ambient_channel = 0 ; ambient_channel< NUM_AMBIENTS ; ambient_channel++)
 	{
+		static float level[NUM_AMBIENTS];
 		chan = &sc->channel[AMBIENT_FIRST+ambient_channel];
 		chan->sfx = ambient_sfx[AMBIENT_FIRST+ambient_channel];
+		chan->entnum = -1;
+		chan->looping = true;
 		chan->rate = 1<<PITCHSHIFT;
 
 		VectorCopy(listener_origin, chan->origin);
@@ -1682,21 +1697,27 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 		if (vol < 8)
 			vol = 0;
 
+		oldvol = level[ambient_channel];
+
 	// don't adjust volume too fast
-		if (chan->master_vol < vol)
+		if (level[ambient_channel] < vol)
 		{
-			chan->master_vol += host_frametime * ambient_fade.value;
-			if (chan->master_vol > vol)
-				chan->master_vol = vol;
+			level[ambient_channel] += host_frametime * ambient_fade.value;
+			if (level[ambient_channel] > vol)
+				level[ambient_channel] = vol;
 		}
 		else if (chan->master_vol > vol)
 		{
-			chan->master_vol -= host_frametime * ambient_fade.value;
-			if (chan->master_vol < vol)
-				chan->master_vol = vol;
+			level[ambient_channel] -= host_frametime * ambient_fade.value;
+			if (level[ambient_channel] < vol)
+				level[ambient_channel] = vol;
 		}
 
+		chan->master_vol = level[ambient_channel];
 		chan->vol[0] = chan->vol[1] = chan->vol[2] = chan->vol[3] = chan->vol[4] = chan->vol[5] = chan->master_vol;
+
+		if (sc->ChannelUpdate)
+			sc->ChannelUpdate(sc, chan, (oldvol == 0) ^ (level[ambient_channel] == 0));
 	}
 }
 
@@ -1741,8 +1762,7 @@ void S_UpdateCard(soundcardinfo_t *sc)
 #ifdef AVAIL_OPENAL
 	if (sc->openal == 1)
 	{
-		OpenAL_Update_Listener(listener_origin, listener_forward, listener_right, listener_up);
-		return;
+		OpenAL_Update_Listener(listener_origin, listener_forward, listener_right, listener_up, listener_velocity);
 	}
 #endif
 

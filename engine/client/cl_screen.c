@@ -2245,7 +2245,10 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 			CL_DrawPrydonCursor();
 		}
 		else
+		{
 			SCR_DrawFPS ();
+			SCR_DrawUPS ();
+		}
 		SCR_CheckDrawCenterString ();
 	}
 

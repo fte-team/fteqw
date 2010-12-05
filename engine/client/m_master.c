@@ -1413,6 +1413,12 @@ void M_Menu_ServerList2_f(void)
 	menucustom_t *cust;
 	serverlist_t *info;
 
+	if (!qrenderer)
+	{
+		Cbuf_AddText("wait; menu_servers\n", Cmd_ExecLevel);
+		return;
+	}
+
 	key_dest = key_menu;
 	m_state = m_complex;
 

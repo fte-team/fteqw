@@ -615,25 +615,31 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, char *fontfilename)
 #ifdef _WIN32
 	if (error)
 	{
-		char fontdir[MAX_OSPATH];
-		HMODULE shfolder = LoadLibrary("shfolder.dll");
-		DWORD winver = (DWORD)LOBYTE(LOWORD(GetVersion()));
+		static qboolean firsttime = true;
+		static char fontdir[MAX_OSPATH];
 
-		if (shfolder)
+		if (firsttime)
 		{
-			HRESULT (WINAPI *dSHGetFolderPath) (HWND hwndOwner, int nFolder, HANDLE hToken, DWORD dwFlags, LPTSTR pszPath);
-			dSHGetFolderPath = (void *)GetProcAddress(shfolder, "SHGetFolderPathA");
-			if (dSHGetFolderPath)
+			HMODULE shfolder = LoadLibrary("shfolder.dll");
+			firsttime = false;
+			if (shfolder)
 			{
-				// 0x14 == CSIDL_FONTS
-				if (dSHGetFolderPath(NULL, 0x14, NULL, 0, fontdir) == S_OK)
+				HRESULT (WINAPI *dSHGetFolderPath) (HWND hwndOwner, int nFolder, HANDLE hToken, DWORD dwFlags, LPTSTR pszPath);
+				dSHGetFolderPath = (void *)GetProcAddress(shfolder, "SHGetFolderPathA");
+				if (dSHGetFolderPath)
 				{
-					error = pFT_New_Face(fontlib, va("%s/%s.ttf", fontdir, fontfilename), 0, &face);
-					if (error)
-						error = pFT_New_Face(fontlib, va("%s/%s", fontdir, fontfilename), 0, &face);
+					// 0x14 == CSIDL_FONTS
+					if (dSHGetFolderPath(NULL, 0x14, NULL, 0, fontdir) != S_OK)
+						*fontdir = 0;
 				}
+				FreeLibrary(shfolder);
 			}
-			FreeLibrary(shfolder);
+		}
+		if (*fontdir)
+		{
+			error = pFT_New_Face(fontlib, va("%s/%s.ttf", fontdir, fontfilename), 0, &face);
+			if (error)
+				error = pFT_New_Face(fontlib, va("%s/%s", fontdir, fontfilename), 0, &face);
 		}
 	}
 #endif

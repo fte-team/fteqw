@@ -155,6 +155,7 @@ static void S_Info(void);
 
 static void S_Shutdown_f(void);
 */
+static cvar_t s_al_enable = CVAR("s_al_enable", "0");
 static cvar_t s_al_debug = CVAR("s_al_debug", "0");
 static cvar_t s_al_max_distance = CVARFC("s_al_max_distance", "1000",0,OnChangeALMaxDistance);
 static cvar_t s_al_speedofsound = CVARFC("s_al_speedofsound", "343.3",0,OnChangeALSpeedOfSound);
@@ -164,12 +165,8 @@ static cvar_t s_al_rolloff_factor = CVAR("s_al_rolloff_factor", "1");
 static cvar_t s_al_reference_distance = CVAR("s_al_reference_distance", "120");static cvar_t s_al_velocityscale = CVAR("s_al_velocityscale", "1");
 static cvar_t s_al_static_listener = CVAR("s_al_static_listener", "0");	//cheat
 
-#define NUM_SOURCES 96
+#define NUM_SOURCES MAX_CHANNELS
 static ALuint source[NUM_SOURCES];
-
-
-static ALuint static_source[NUM_SOURCES];
-static int num_static_source;
 
 static ALCdevice *OpenAL_Device;
 static ALCcontext *OpenAL_Context;
@@ -273,6 +270,7 @@ void OpenAL_LoadCache(sfx_t *s, sfxcache_t *sc)
 
 void OpenAL_CvarInit(void)
 {
+	Cvar_Register(&s_al_enable, SOUNDVARS);
 	Cvar_Register(&s_al_debug, SOUNDVARS);
 	Cvar_Register(&s_al_max_distance, SOUNDVARS);
 	Cvar_Register(&s_al_dopplerfactor, SOUNDVARS);
@@ -284,26 +282,11 @@ void OpenAL_CvarInit(void)
 	Cvar_Register(&s_al_speedofsound, SOUNDVARS);
 }
 
-void OpenAL_Update_Listener(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up)
+extern float voicevolumemod;
+void OpenAL_Update_Listener(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, vec3_t velocity)
 {
-	static vec3_t oldpos;
-	vec3_t	velocity;
-	vec3_t	temp;
-
-	VectorSubtract(origin,oldpos,velocity);
-
-
-	VectorCopy(origin, oldpos);
-
-
-	temp[0]	= velocity[0];
-	temp[1]	= velocity[1];
-	temp[2]	= velocity[2];
-	ListenPos[0] = origin[0];
-	ListenPos[1] = origin[1];
-	ListenPos[2] = origin[2];
-	
-
+	VectorScale(velocity, s_al_velocityscale.value, ListenVel);
+	VectorCopy(origin, ListenPos);
 
 	ListenOri[0] = forward[0];
 	ListenOri[1] = forward[1];
@@ -311,17 +294,13 @@ void OpenAL_Update_Listener(vec3_t origin, vec3_t forward, vec3_t right, vec3_t 
 	ListenOri[3] = up[0];
 	ListenOri[4] = up[1];
 	ListenOri[5] = up[2];
-	
+
 
 	if (!s_al_static_listener.value)
 	{
-		palListenerf(AL_GAIN, volume.value);
-
+		palListenerf(AL_GAIN, volume.value*voicevolumemod);
 		palListenerfv(AL_POSITION, ListenPos);
-
-		VectorScale(velocity,s_al_velocityscale.value, velocity);
-		palListenerfv(AL_VELOCITY, velocity);
-
+		palListenerfv(AL_VELOCITY, ListenVel);
 		palListenerfv(AL_ORIENTATION, ListenOri);
 	}
 }
@@ -339,7 +318,7 @@ static void OpenAL_StopAllSounds(qboolean clear)
 	}
 }
 */
-
+/*
 void OpenAL_StartSound(int entnum, int entchannel, sfx_t * sfx, vec3_t origin, float fvol, float attenuation, float pitch)
 {
 	vec3_t	tmp;
@@ -391,6 +370,81 @@ void OpenAL_StartSound(int entnum, int entchannel, sfx_t * sfx, vec3_t origin, f
 	num_sfx++;
 	if (num_sfx >= NUM_SOURCES)
 		num_sfx =0;
+
+	PrintALError("post start sound");
+}*/
+
+static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, unsigned int schanged)
+{
+	ALuint src;
+	sfx_t *sfx = chan->sfx;
+	float pitch;
+
+	src = source[chan - sc->channel];
+	if (!src)
+	{
+		if (!sfx || chan->master_vol == 0)
+			return;
+		palGenSources(1, &src);
+		source[chan - sc->channel] = src;
+		schanged = true;
+	}
+
+	PrintALError("pre start sound");
+
+	if (schanged && src)
+		palSourceStop(src);
+
+	/*just wanted to stop it?*/
+	if (!sfx || chan->master_vol == 0)
+	{
+		if (src)
+		{
+			palDeleteBuffers(1, &src);
+			source[chan - sc->channel] = 0;
+		}
+		return;
+	}
+
+	if (schanged)
+	{
+		if (!sfx->openal_buffer)
+		{
+			sfxcache_t *sc = S_LoadSound(sfx);
+			if (!sc)	/*ack! can't start it if its not loaded!*/
+				return;
+			OpenAL_LoadCache(sfx, sc);
+		}
+
+		palSourcei(src, AL_BUFFER, sfx->openal_buffer);
+	}
+	palSourcef(src, AL_GAIN, chan->master_vol/255.0f);
+//	palSourcef(src, AL_MAX_DISTANCE, s_al_max_distance.value);
+//	palSourcef(src, AL_ROLLOFF_FACTOR, s_al_rolloff_factor.value);
+	palSourcefv(src, AL_POSITION, chan->origin);
+	palSourcefv(src, AL_VELOCITY, vec3_origin);
+
+	if (schanged)
+	{
+		pitch = (float)chan->rate/(1<<PITCHSHIFT);
+		palSourcef(src, AL_PITCH, pitch);
+
+		palSourcef(src, AL_REFERENCE_DISTANCE, s_al_reference_distance.value);
+		palSourcei(src, AL_LOOPING, chan->looping?AL_TRUE:AL_FALSE);
+		if (chan->entnum == -1 || chan->entnum == cl.playernum[0]+1)
+		{
+			palSourcei(src, AL_SOURCE_RELATIVE, AL_TRUE);
+			palSourcef(src, AL_ROLLOFF_FACTOR, 0.0f);
+		}
+		else
+		{
+			palSourcei(src, AL_SOURCE_RELATIVE, AL_FALSE);
+			palSourcef(src, AL_ROLLOFF_FACTOR, s_al_rolloff_factor.value*chan->dist_mult);
+		}
+
+	/*and start it up again*/
+		palSourcePlay(src);
+	}
 
 	PrintALError("post start sound");
 }
@@ -455,8 +509,6 @@ static qboolean OpenAL_Init(void)
 		return false;
 	}
 
-	num_static_source = 0;
-
 	OpenAL_Device = palcOpenDevice(NULL);
 	if (OpenAL_Device == NULL)
 	{
@@ -473,8 +525,6 @@ static qboolean OpenAL_Init(void)
 
 	palGenSources(NUM_SOURCES, source);
 	PrintALError("alGensources for normal sources");
-	palGenSources(NUM_SOURCES, static_source);
-	PrintALError("alGensources for static sources");
 
 
 	palListenerfv(AL_POSITION, ListenPos);
@@ -566,7 +616,6 @@ static void OpenAL_Shutdown (soundcardinfo_t *sc)
 	int i;
 
 	palDeleteSources(NUM_SOURCES, source);
-	palDeleteSources(NUM_SOURCES, static_source);
 
 	/*make sure the buffers are cleared from the sound effects*/
 	for (i=0;i<num_sfx;i++)
@@ -590,6 +639,9 @@ static int OpenAL_InitCard(soundcardinfo_t *sc, int cardnum)
 	if (cardnum != 0)
 		return 2;
 
+	if (!s_al_enable.ival)
+		return 2;
+
 	Con_Printf("Initiating OpenAL sound device.\n");
 
 	if (OpenAL_Init() == false)
@@ -604,11 +656,13 @@ static int OpenAL_InitCard(soundcardinfo_t *sc, int cardnum)
 	sc->Submit = OpenAL_Submit;
 	sc->Shutdown = OpenAL_Shutdown;
 	sc->GetDMAPos = OpenAL_GetDMAPos;
+	sc->ChannelUpdate = OpenAL_ChannelUpdate;
 
 	snprintf(sc->name, sizeof(sc->name), "OpenAL device");
 
 	sc->openal = 1;
 	sc->inactive_sound = true;
+	sc->selfpainting = true;
 
 	Cvar_ForceCallback(&s_al_distancemodel);
 	Cvar_ForceCallback(&s_al_speedofsound);

@@ -30,9 +30,6 @@
 #define QCEditor NULL
 #endif
 
-
-#define ANGLE2SHORT(x) ((x/360.0)*65535)
-
 static progfuncs_t *csqcprogs;
 
 typedef struct csqctreadstate_s {
@@ -2314,6 +2311,7 @@ static void PF_cs_sound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	csqcedict_t		*entity;
 	float volume;
 	float attenuation;
+	float pitchpct;
 
 	sfx_t *sfx;
 
@@ -2322,10 +2320,14 @@ static void PF_cs_sound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	sample = PR_GetStringOfs(prinst, OFS_PARM2);
 	volume = G_FLOAT(OFS_PARM3);
 	attenuation = G_FLOAT(OFS_PARM4);
+	if (*prinst->callargc >= 6)
+		pitchpct = G_FLOAT(OFS_PARM5);
+	else
+		pitchpct = 0;
 
 	sfx = S_PrecacheSound(sample);
 	if (sfx)
-		S_StartSound(-entity->entnum, channel, sfx, entity->v->origin, volume, attenuation, 0);
+		S_StartSound(-entity->entnum, channel, sfx, entity->v->origin, volume, attenuation, pitchpct);
 };
 
 void PF_cs_pointsound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2334,6 +2336,7 @@ void PF_cs_pointsound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float *origin;
 	float volume;
 	float attenuation;
+	float pitchpct;
 
 	sfx_t *sfx;
 
@@ -2341,10 +2344,14 @@ void PF_cs_pointsound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	sample = PR_GetStringOfs(prinst, OFS_PARM1);
 	volume = G_FLOAT(OFS_PARM2);
 	attenuation = G_FLOAT(OFS_PARM3);
+	if (*prinst->callargc >= 5)
+		pitchpct = G_FLOAT(OFS_PARM4);
+	else
+		pitchpct = 0;
 
 	sfx = S_PrecacheSound(sample);
 	if (sfx)
-		S_StartSound(0, 0, sfx, origin, volume, attenuation, 0);
+		S_StartSound(0, 0, sfx, origin, volume, attenuation, pitchpct);
 }
 
 static void PF_cs_particle(progfuncs_t *prinst, struct globalvars_s *pr_globals)

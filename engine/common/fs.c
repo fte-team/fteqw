@@ -2222,6 +2222,7 @@ void COM_InitFilesystem (void)
 
 	char *ev;
 	qboolean usehome;
+	qboolean autobasedir = true;
 
 	int gamenum=-1;
 
@@ -2235,7 +2236,10 @@ void COM_InitFilesystem (void)
 //
 	i = COM_CheckParm ("-basedir");
 	if (i && i < com_argc-1)
+	{
 		strcpy (com_quakedir, com_argv[i+1]);
+		autobasedir = false;
+	}
 	else
 		strcpy (com_quakedir, host_parms.basedir);
 
@@ -2323,7 +2327,24 @@ void COM_InitFilesystem (void)
 		for (i = 0; gamemode_info[i].argname; i++)
 		{
 			if (!strcmp(gamemode_info[i].argname, "-quake"))
+			{
 				gamenum = i;
+
+				if (autobasedir)
+				{
+					if (Sys_FindGameData(gamemode_info[i].poshname, gamemode_info[i].exename, com_quakedir, sizeof(com_quakedir)))
+					{
+						if (com_quakedir[strlen(com_quakedir)-1] == '\\')
+							com_quakedir[strlen(com_quakedir)-1] = '/';
+						else if (com_quakedir[strlen(com_quakedir)-1] != '/')
+						{
+							com_quakedir[strlen(com_quakedir)+1] = '\0';
+							com_quakedir[strlen(com_quakedir)] = '/';
+						}
+					}
+				}
+				break;
+			}
 		}
 	}
 

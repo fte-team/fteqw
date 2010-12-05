@@ -39,6 +39,10 @@ void Sys_Error (const char *error, ...)
 	exit (1);
 }
 
+void Sys_RecentServer(char *command, char *target, char *title, char *desc)
+{
+}
+
 //print into stdout
 void Sys_Printf (char *fmt, ...)
 {

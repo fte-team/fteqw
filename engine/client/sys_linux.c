@@ -67,6 +67,9 @@ void Sys_CloseTerminal (void)
 {
 }
 
+void Sys_RecentServer(char *command, char *target, char *title, char *desc)
+{
+}
 
 #ifndef CLIENTONLY
 qboolean isDedicated;

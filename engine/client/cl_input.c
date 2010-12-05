@@ -1141,7 +1141,7 @@ void *CL_IndepPhysicsThread(void *param)
 	while(runningindepphys)
 	{
 		time = Sys_DoubleTime();
-		spare = CL_FilterTime((time - lasttime)*1000, cl_netfps.value);
+		spare = CL_FilterTime((time - lasttime)*1000, cl_netfps.value, false);
 		if (spare)
 		{
 			//don't let them bank too much and get sudden bursts

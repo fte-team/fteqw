@@ -3113,7 +3113,7 @@ void COM_Version_f (void)
 #endif
 
 #ifdef __MINGW64__
-	Con_Printf("Compiled with MinGW64 version: %i.%i\n",__MINGW64_MAJOR_VERSION, __MINGW64_MINOR_VERSION);
+	Con_Printf("Compiled with MinGW64 version: %i.%i\n",__MINGW32_MAJOR_VERSION, __MINGW32_MINOR_VERSION);
 #endif
 
 #ifdef __CYGWIN__

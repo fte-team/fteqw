@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -120,7 +120,7 @@ char *Sys_GetNameForAddress(dllhandle_t *module, void *address)
 
 
 	datadir = &ntheader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
-	
+
 	block = (IMAGE_EXPORT_DIRECTORY *)(base + datadir->VirtualAddress);
 	funclist = (DWORD*)(base+block->AddressOfFunctions);
 	namelist = (DWORD*)(base+block->AddressOfNames);
@@ -250,7 +250,7 @@ void *Sys_GetGameAPI (void *parms)
 	GetGameAPI = (void *)GetProcAddress (game_library, "GetGameAPI");
 	if (!GetGameAPI)
 	{
-		Sys_UnloadGame ();		
+		Sys_UnloadGame ();
 		return NULL;
 	}
 
@@ -283,9 +283,9 @@ void Sys_PushFPCW_SetHigh (void);
 int VARGS Sys_DebugLog(char *file, char *fmt, ...)
 {
 	FILE *fd;
-	va_list argptr; 
+	va_list argptr;
 	static char data[1024];
-    
+
 	va_start(argptr, fmt);
 	vsnprintf(data, sizeof(data)-1, fmt, argptr);
 	va_end(argptr);
@@ -510,7 +510,7 @@ qboolean Sys_remove (char *path)
 int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
 {
 	HANDLE r;
-	WIN32_FIND_DATA fd;	
+	WIN32_FIND_DATA fd;
 	char apath[MAX_OSPATH];
 	char apath2[MAX_OSPATH];
 	char file[MAX_OSPATH];
@@ -522,7 +522,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 	Q_snprintfz(apath, sizeof(apath), "%s/%s", gpath, match);
 	for (s = apath+strlen(apath)-1; s> apath; s--)
 	{
-		if (*s == '/')			
+		if (*s == '/')
 			break;
 	}
 	*s = '\0';
@@ -535,7 +535,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 	match = s+1;
 	for (s = apath2+strlen(apath2)-1; s> apath2; s--)
 	{
-		if (*s == '/')			
+		if (*s == '/')
 			break;
 	}
 	*s = '\0';
@@ -632,18 +632,18 @@ void Sys_Init (void)
 
 		// mutex will fail if semephore already exists
 		qwclsemaphore = CreateMutex(
-			NULL,         // Security attributes 
-			0,            // owner       
-			"qwcl"); // Semaphore name      
+			NULL,         // Security attributes
+			0,            // owner
+			"qwcl"); // Semaphore name
 	//	if (!qwclsemaphore)
 	//		Sys_Error ("QWCL is already running on this system");
 		CloseHandle (qwclsemaphore);
 
 		qwclsemaphore = CreateSemaphore(
-			NULL,         // Security attributes 
-			0,            // Initial count       
-			1,            // Maximum count       
-			"qwcl"); // Semaphore name      
+			NULL,         // Security attributes
+			0,            // Initial count
+			1,            // Maximum count
+			"qwcl"); // Semaphore name
 	}
 #endif
 
@@ -690,7 +690,7 @@ void Sys_Init (void)
 	{
 		Sys_Error ("QuakeWorld requires at least Win95 or NT 4.0");
 	}
-	
+
 	if (vinfo.dwPlatformId == VER_PLATFORM_WIN32_NT)
 		WinNT = true;
 	else
@@ -703,7 +703,7 @@ void VARGS Sys_Error (const char *error, ...)
 	va_list		argptr;
 	char		text[1024];
 	//, text2[1024];
-//	DWORD		dummy;	
+//	DWORD		dummy;
 
  	va_start (argptr, error);
 	vsnprintf (text, sizeof(text), error, argptr);
@@ -953,7 +953,7 @@ char *Sys_ConsoleInput (void)
 				switch (ch)
 				{
 					case '\r':
-						WriteFile(houtput, "\r\n", 2, &dummy, NULL);	
+						WriteFile(houtput, "\r\n", 2, &dummy, NULL);
 
 						if (len)
 						{
@@ -972,8 +972,8 @@ char *Sys_ConsoleInput (void)
 						break;
 
 					default:
-						if (((ch=='V' || ch=='v') && (recs[0].Event.KeyEvent.dwControlKeyState & 
-							(LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED))) || ((recs[0].Event.KeyEvent.dwControlKeyState 
+						if (((ch=='V' || ch=='v') && (recs[0].Event.KeyEvent.dwControlKeyState &
+							(LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED))) || ((recs[0].Event.KeyEvent.dwControlKeyState
 							& SHIFT_PRESSED) && (recs[0].Event.KeyEvent.wVirtualKeyCode
 							==VK_INSERT))) {
 							if (OpenClipboard(NULL)) {
@@ -1002,7 +1002,7 @@ char *Sys_ConsoleInput (void)
 							}
 						} else if (ch >= ' ')
 						{
-							WriteFile(houtput, &ch, 1, &dummy, NULL);	
+							WriteFile(houtput, &ch, 1, &dummy, NULL);
 							text[len] = ch;
 							len = (len + 1) & 0xff;
 						}
@@ -1021,7 +1021,7 @@ BOOL WINAPI HandlerRoutine (DWORD dwCtrlType)
 {
 	switch (dwCtrlType)
 	{
-		case CTRL_C_EVENT:		
+		case CTRL_C_EVENT:
 		case CTRL_BREAK_EVENT:
 		case CTRL_CLOSE_EVENT:
 		case CTRL_LOGOFF_EVENT:
@@ -1217,7 +1217,7 @@ void NPQTV_Sys_MainLoop(void)
 		newtime = Sys_DoubleTime ();
 		duratrion = newtime - lastlooptime;
 		lastlooptime = newtime;
-		
+
 		SV_Frame ();
 #else
 		Sys_Error("wut?");
@@ -1265,12 +1265,15 @@ HWND		hwnd_dialog;
 
 
 #define COBJMACROS
-#include <Shobjidl.h>
+
+#ifndef MINGW
+	#include <shobjidl.h>
+#endif
 #include <shlguid.h>
-#include <Shlobj.h>
+#include <shlobj.h>
 //#include <Propsys.h>
 
-#ifndef SHARD_APPIDINFOLINK 
+#ifndef SHARD_APPIDINFOLINK
 typedef struct SHARDAPPIDINFOLINK {
   IShellLinkW *psl;
   PCWSTR     pszAppID;
@@ -1284,44 +1287,46 @@ typedef struct {
 } PROPERTYKEY;
 typedef struct IPropertyStore IPropertyStore;
 ;
+#ifndef MINGW
 typedef struct IPropertyStore
 {
     CONST_VTBL struct
 	{
 		/*IUnknown*/
-		HRESULT ( STDMETHODCALLTYPE *QueryInterface )( 
+		HRESULT ( STDMETHODCALLTYPE *QueryInterface )(
 				IPropertyStore * This,
 				REFIID riid,
 				void **ppvObject);
-		ULONG ( STDMETHODCALLTYPE *AddRef )( 
+		ULONG ( STDMETHODCALLTYPE *AddRef )(
 				IPropertyStore * This);
-		ULONG ( STDMETHODCALLTYPE *Release )( 
+		ULONG ( STDMETHODCALLTYPE *Release )(
 				IPropertyStore * This);
 
 		/*property store stuff*/
-		HRESULT ( STDMETHODCALLTYPE *GetCount)( 
+		HRESULT ( STDMETHODCALLTYPE *GetCount)(
 				IPropertyStore * This,
 				ULONG *count);
 
-		HRESULT  ( STDMETHODCALLTYPE *GetAt)( 
+		HRESULT  ( STDMETHODCALLTYPE *GetAt)(
 				IPropertyStore * This,
 				DWORD prop,
 				PROPERTYKEY * key);
 
-		HRESULT  ( STDMETHODCALLTYPE *GetValue)( 
+		HRESULT  ( STDMETHODCALLTYPE *GetValue)(
 				IPropertyStore * This,
 				PROPERTYKEY * key,
 				PROPVARIANT * val);
 
-		HRESULT  ( STDMETHODCALLTYPE *SetValue)( 
+		HRESULT  ( STDMETHODCALLTYPE *SetValue)(
 				IPropertyStore * This,
 				PROPERTYKEY * key,
 				PROPVARIANT * val);
 
-		HRESULT  ( STDMETHODCALLTYPE *Commit)( 
+		HRESULT  ( STDMETHODCALLTYPE *Commit)(
 				IPropertyStore * This);
 	} *lpVtbl;
 } IPropertyStore;
+#endif
 static const IID IID_IPropertyStore = {0x886d8eeb, 0x8cf2, 0x4446, {0x8d, 0x02, 0xcd, 0xba, 0x1d, 0xbd, 0xcf, 0x99}};
 #endif
 
@@ -1355,8 +1360,10 @@ void Sys_RecentServer(char *command, char *target, char *title, char *desc)
 	IShellLinkW_SetArguments(link, buf); /*args*/
 	swprintf(buf, sizeof(buf), L"%S", desc);
 	IShellLinkW_SetDescription(link, buf);  /*tooltip*/
-	
+
 	hr = IShellLinkW_QueryInterface(link, &IID_IPropertyStore, &prop_store);
+
+	#ifndef MINGW
 	if(SUCCEEDED(hr))
 	{
 		PROPVARIANT pv;
@@ -1369,6 +1376,7 @@ void Sys_RecentServer(char *command, char *target, char *title, char *desc)
 		hr = prop_store->lpVtbl->Commit(prop_store);
 		prop_store->lpVtbl->Release(prop_store);
 	}
+	#endif
 
 	appinfo.pszAppID=WIN7_APPNAME;
 	appinfo.psl=link;
@@ -1409,12 +1417,14 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	double			time, oldtime, newtime;
 	char	cwd[1024];
 	const char *qtvfile = NULL;
-	
+
 	/* previous instances do not exist in Win32 */
     if (hPrevInstance)
         return 0;
 
-	Win7_Init();
+	#ifndef MINGW
+		Win7_Init();
+	#endif
 
 #ifdef _MSC_VER
 #if _M_IX86_FP >= 1
@@ -1554,7 +1564,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		{
 	#if !defined(CLIENTONLY)
 			hwnd_dialog=NULL;
-			
+
 			if (!Sys_InitTerminal())
 				Sys_Error ("Couldn't allocate dedicated server console");
 	#endif
@@ -1598,7 +1608,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			{
 				if (!isDedicated)
 					Sys_Error("Dedicated was cleared");
-				NET_Sleep(100, false);				
+				NET_Sleep(100, false);
 				SV_Frame ();
 			}
 			return TRUE;
@@ -1630,6 +1640,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 	//client console should now be initialized.
 
+		#ifndef MINGW
 		switch(M_GameType())
 		{
 		case MGT_QUAKE1:
@@ -1645,6 +1656,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			Sys_RecentServer("+map demo1", "", "Start New Game (Hexen2)", "Begin a new game");
 			break;
 		}
+		#endif
 
 		/* main window message loop */
 		while (1)
@@ -1658,7 +1670,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				newtime = Sys_DoubleTime ();
 				time = newtime - oldtime;
 				oldtime = newtime;
-				
+
 				SV_Frame ();
 	#else
 				Sys_Error("wut?");
@@ -1776,7 +1788,7 @@ DWORD WINAPI threadwrapper(void *args)
 	tw.args = ((threadwrap_t *)args)->args;
 
 	free(args);
-	tw.func(tw.args);	
+	tw.func(tw.args);
 
 #ifndef WIN32CRTDLL
 	_endthreadex(0);
@@ -1788,7 +1800,7 @@ void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
 {
 	threadwrap_t *tw = (threadwrap_t *)malloc(sizeof(threadwrap_t));
 	HANDLE handle;
-	
+
 	if (!tw)
 		return NULL;
 
@@ -1811,7 +1823,7 @@ void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
 }
 
 void Sys_WaitOnThread(void *thread)
-{	
+{
 	while (WaitForSingleObject((HANDLE)thread, 10) == WAIT_TIMEOUT)
 	{
 		/*keep responding to window messages*/
@@ -1877,8 +1889,8 @@ typedef struct condvar_s
     HANDLE wait_done;
 } condvar_t;
 
-void *Sys_CreateConditional(void) 
-{ 
+void *Sys_CreateConditional(void)
+{
 	condvar_t *cv;
 
 	cv = (condvar_t *)malloc(sizeof(condvar_t));
@@ -1907,16 +1919,16 @@ void *Sys_CreateConditional(void)
 	return NULL;
 }
 
-qboolean Sys_LockConditional(void *condv) 
-{ 
+qboolean Sys_LockConditional(void *condv)
+{
 	EnterCriticalSection(&((condvar_t *)condv)->mainlock);
-	return true; 
+	return true;
 }
 
-qboolean Sys_UnlockConditional(void *condv) 
-{ 
+qboolean Sys_UnlockConditional(void *condv)
+{
 	LeaveCriticalSection(&((condvar_t *)condv)->mainlock);
-	return true; 
+	return true;
 }
 
 qboolean Sys_ConditionWait(void *condv)
@@ -1936,7 +1948,7 @@ qboolean Sys_ConditionWait(void *condv)
 
 	// update waiting count and alert signaling thread that we're done to avoid the deadlock condition
 	EnterCriticalSection(&cv->countlock);
-	if (cv->signals > 0) 
+	if (cv->signals > 0)
 	{
 		ReleaseSemaphore(cv->wait_done, cv->signals, NULL);
 		cv->signals = 0;
@@ -1949,7 +1961,7 @@ qboolean Sys_ConditionWait(void *condv)
 	return success;
 }
 
-qboolean Sys_ConditionSignal(void *condv) 
+qboolean Sys_ConditionSignal(void *condv)
 {
 	condvar_t *cv = (condvar_t *)condv;
 
@@ -1968,24 +1980,24 @@ qboolean Sys_ConditionSignal(void *condv)
     return true;
 }
 
-qboolean Sys_ConditionBroadcast(void *condv) 
+qboolean Sys_ConditionBroadcast(void *condv)
 {
 	condvar_t *cv = (condvar_t *)condv;
 
 	// if there are non-signaled waiting threads, we signal all of them and wait on all the responses back
 	EnterCriticalSection(&cv->countlock);
-	if (cv->waiting > cv->signals) 
+	if (cv->waiting > cv->signals)
 	{
 		int i, num_waiting;
 
 		num_waiting = (cv->waiting - cv->signals);
 		cv->signals = cv->waiting;
-		
+
 		ReleaseSemaphore(cv->wait_sem, num_waiting, NULL);
 		LeaveCriticalSection(&cv->countlock);
 		// there's no call to wait for the same object multiple times so we need to loop through
 		// and burn up the semaphore count
-		for (i = 0; i < num_waiting; i++) 
+		for (i = 0; i < num_waiting; i++)
 			WaitForSingleObject(cv->wait_done, INFINITE);
 	}
 	else

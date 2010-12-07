@@ -659,7 +659,7 @@ qboolean LibPNG_Init(void)
 
 
 
-#if defined(MINGW)	//hehehe... add annother symbol so the statically linked cygwin libpng can link
+#if defined(MING)	//hehehe... add annother symbol so the statically linked cygwin libpng can link
 #undef setjmp
 int setjmp (jmp_buf jb)
 {
@@ -908,6 +908,7 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
     qjpeg_CreateDecompress((cinfo), JPEG_LIB_VERSION, \
 			  (size_t) sizeof(struct jpeg_decompress_struct))
 
+#ifdef DYNAMIC_LIBJPEG
 boolean (VARGS *qjpeg_resync_to_restart) JPP((j_decompress_ptr cinfo, int desired))										JSTATIC(jpeg_resync_to_restart);
 boolean (VARGS *qjpeg_finish_decompress) JPP((j_decompress_ptr cinfo))												JSTATIC(jpeg_finish_decompress);
 JDIMENSION (VARGS *qjpeg_read_scanlines) JPP((j_decompress_ptr cinfo, JSAMPARRAY scanlines, JDIMENSION max_lines))	JSTATIC(jpeg_read_scanlines);
@@ -925,6 +926,7 @@ void (VARGS *qjpeg_set_quality) JPP((j_compress_ptr cinfo, int quality, boolean 
 void (VARGS *qjpeg_set_defaults) JPP((j_compress_ptr cinfo))															JSTATIC(jpeg_set_defaults);
 void (VARGS *qjpeg_CreateCompress) JPP((j_compress_ptr cinfo, int version, size_t structsize))						JSTATIC(jpeg_CreateCompress);
 void (VARGS *qjpeg_destroy_compress) JPP((j_compress_ptr cinfo))														JSTATIC(jpeg_destroy_compress);
+#endif
 
 qboolean LibJPEG_Init(void)
 {
@@ -1096,7 +1098,11 @@ ftejpeg_mem_src (j_decompress_ptr cinfo, qbyte * infile, int maxlen)
   src->pub.init_source = init_source;
   src->pub.fill_input_buffer = fill_input_buffer;
   src->pub.skip_input_data = skip_input_data;
-  src->pub.resync_to_restart = qjpeg_resync_to_restart; /* use default method */
+  #ifdef DYNAMIC_LIBJPEG
+  	src->pub.resync_to_restart = qjpeg_resync_to_restart; /* use default method */
+  #else
+  	src->pub.resync_to_restart = jpeg_resync_to_restart; /* use default method */
+  #endif
   src->pub.term_source = term_source;
   src->infile = infile;
   src->pub.bytes_in_buffer = 0; /* forces fill_input_buffer on first read */
@@ -1130,26 +1136,46 @@ qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height)
 	/* Step 1: allocate and initialize JPEG decompression object */
 
 	/* We set up the normal JPEG error routines, then override error_exit. */
-	cinfo.err = qjpeg_std_error(&jerr.pub);
+	#ifdef DYNAMIC_LIBJPEG
+		cinfo.err = qjpeg_std_error(&jerr.pub);
+	#else
+		cinfo.err = jpeg_std_error(&jerr.pub);
+	#endif
 	jerr.pub.error_exit = my_error_exit;
 	/* Establish the setjmp return context for my_error_exit to use. */
 	if (setjmp(jerr.setjmp_buffer))
 	{
 		// If we get here, the JPEG code has signaled an error.
 badjpeg:
-		qjpeg_destroy_decompress(&cinfo);
+		#ifdef DYNAMIC_LIBJPEG
+			qjpeg_destroy_decompress(&cinfo);
+		#else
+			jpeg_destroy_decompress(&cinfo);
+		#endif
 
 		if (mem)
 			BZ_Free(mem);
 		return 0;
 	}
-	qjpeg_create_decompress(&cinfo);
+	#ifdef DYNAMIC_LIBJPEG
+		qjpeg_create_decompress(&cinfo);
+	#else
+		jpeg_create_decompress(&cinfo);
+	#endif
 
 	ftejpeg_mem_src(&cinfo, infile, length);
 
-	(void) qjpeg_read_header(&cinfo, TRUE);
+	#ifdef DYNAMIC_LIBJPEG
+		(void) qjpeg_read_header(&cinfo, TRUE);
+	#else
+		(void) jpeg_read_header(&cinfo, TRUE);
+	#endif
 
-	(void) qjpeg_start_decompress(&cinfo);
+	#ifdef DYNAMIC_LIBJPEG
+		(void) qjpeg_start_decompress(&cinfo);
+	#else
+		(void) jpeg_start_decompress(&cinfo);
+	#endif
 
 
 	if (cinfo.output_components == 0)
@@ -1175,7 +1201,11 @@ badjpeg:
 
 	while (cinfo.output_scanline < cinfo.output_height)
 	{
-		(void) qjpeg_read_scanlines(&cinfo, buffer, 1);
+		#ifdef DYNAMIC_LIBJPEG
+			(void) qjpeg_read_scanlines(&cinfo, buffer, 1);
+		#else
+			(void) jpeg_read_scanlines(&cinfo, buffer, 1);
+		#endif
 
 		in = buffer[0];
 		for (i = 0; i < cinfo.output_width; i++)
@@ -1187,9 +1217,17 @@ badjpeg:
 		}
 	}
 
-	(void) qjpeg_finish_decompress(&cinfo);
+	#ifdef DYNAMIC_LIBJPEG
+		(void) qjpeg_finish_decompress(&cinfo);
+	#else
+		(void) jpeg_finish_decompress(&cinfo);
+	#endif
 
-	qjpeg_destroy_decompress(&cinfo);
+	#ifdef DYNAMIC_LIBJPEG
+		qjpeg_destroy_decompress(&cinfo);
+	#else
+		jpeg_destroy_decompress(&cinfo);
+	#endif
 
 	*width = cinfo.output_width;
 	*height = cinfo.output_height;
@@ -1278,7 +1316,7 @@ void screenshotJPEG(char *filename, int compression, qbyte *screendata, int scre
 	jpeg_error_mgr_wrapper jerr;
 	struct jpeg_compress_struct cinfo;
 	JSAMPROW row_pointer[1];
-		
+
 	if (!LIBJPEG_LOADED())
 		return;
 
@@ -1292,17 +1330,29 @@ void screenshotJPEG(char *filename, int compression, qbyte *screendata, int scre
 		}
 	}
 
-	cinfo.err = qjpeg_std_error(&jerr.pub);
+	#ifdef DYNAMIC_LIBJPEG
+		cinfo.err = qjpeg_std_error(&jerr.pub);
+	#else
+		cinfo.err = jpeg_std_error(&jerr.pub);
+	#endif
 	jerr.pub.error_exit = jpeg_error_exit;
 	if (setjmp(jerr.setjmp_buffer))
 	{
-		qjpeg_destroy_compress(&cinfo);
+		#ifdef DYNAMIC_LIBJPEG
+			qjpeg_destroy_compress(&cinfo);
+		#else
+			jpeg_destroy_compress(&cinfo);
+		#endif
 		VFS_CLOSE(outfile);
 		FS_Remove(filename, FS_GAME);
 		Con_Printf("Failed to create jpeg\n");
 		return;
 	}
-	qjpeg_create_compress(&cinfo);
+	#ifdef DYNAMIC_LIBJPEG
+		qjpeg_create_compress(&cinfo);
+	#else
+		jpeg_create_compress(&cinfo);
+	#endif
 
 	buffer = screendata;
 
@@ -1311,19 +1361,42 @@ void screenshotJPEG(char *filename, int compression, qbyte *screendata, int scre
 	cinfo.image_height = screenheight;
 	cinfo.input_components = 3;
 	cinfo.in_color_space = JCS_RGB;
-	qjpeg_set_defaults(&cinfo);
-	qjpeg_set_quality (&cinfo, bound(0, compression, 100), true);
-	qjpeg_start_compress(&cinfo, true);
+	#ifdef DYNAMIC_LIBJPEG
+		qjpeg_set_defaults(&cinfo);
+	#else
+		jpeg_set_defaults(&cinfo);
+	#endif
+	#ifdef DYNAMIC_LIBJPEG
+		qjpeg_set_quality (&cinfo, bound(0, compression, 100), true);
+	#else
+		jpeg_set_quality (&cinfo, bound(0, compression, 100), true);
+	#endif
+	#ifdef DYNAMIC_LIBJPEG
+		qjpeg_start_compress(&cinfo, true);
+	#else
+		jpeg_start_compress(&cinfo, true);
+	#endif
 
 	while (cinfo.next_scanline < cinfo.image_height)
 	{
 	    *row_pointer = &buffer[(cinfo.image_height - cinfo.next_scanline - 1) * cinfo.image_width * 3];
-	    qjpeg_write_scanlines(&cinfo, row_pointer, 1);
+	    #ifdef DYNAMIC_LIBJPEG
+	    	qjpeg_write_scanlines(&cinfo, row_pointer, 1);
+	    #else
+	    	jpeg_write_scanlines(&cinfo, row_pointer, 1);
+	    #endif
 	}
-
-	qjpeg_finish_compress(&cinfo);
+	#ifdef DYNAMIC_LIBJPEG
+		qjpeg_finish_compress(&cinfo);
+	#else
+		jpeg_finish_compress(&cinfo);
+	#endif
 	VFS_CLOSE(outfile);
-	qjpeg_destroy_compress(&cinfo);
+	#ifdef DYNAMIC_LIBJPEG
+		qjpeg_destroy_compress(&cinfo);
+	#else
+		jpeg_destroy_compress(&cinfo);
+	#endif
 }
 #endif
 

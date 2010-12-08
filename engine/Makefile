@@ -34,6 +34,20 @@ ifeq ($(FTE_TARGET),win32)
 endif
 
 #correct the gcc build when cross compiling
+ifeq ($(FTE_TARGET),win64)
+	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
+		#CC didn't state that it was mingw... so try fixing that up
+		ifneq ($(shell which amd64-mingw32msvc-gcc 2> /dev/null),)
+			#yup, the alternative exists (this matches the one debian has)
+			CC=amd64-mingw32msvc-gcc -m64
+			WINDRES=amd64-mingw32msvc-windres
+			STRIP=amd64-mingw32msvc-strip
+#			BITS?=64
+		endif
+	endif
+endif
+
+#correct the gcc build when cross compiling
 ifeq ($(FTE_TARGET),win32_SDL)
 	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
 		#CC didn't state that it was mingw... so try fixing that up
@@ -183,6 +197,9 @@ endif
 ifeq ($(FTE_TARGET),win32)
 	BASELDFLAGS=-lm
 endif
+ifeq ($(FTE_TARGET),win64)
+	BASELDFLAGS=-lm
+endif
 ifeq ($(FTE_TARGET),win32_SDL)
 	BASELDFLAGS=-lm
 endif
@@ -199,6 +216,9 @@ BASELDFLAGS ?= -lm -ldl -lpthread
 
 ifeq ($(FTE_TARGET),win32)
 	IMAGELDFLAGS=$(LIBS_DIR)/mingw-libs/libpng.a $(LIBS_DIR)/mingw-libs/libz.a $(LIBS_DIR)/mingw-libs/libjpeg.a
+endif
+ifeq ($(FTE_TARGET),win64)
+	IMAGELDFLAGS=$(LIBS_DIR)/mingw64-libs/libpng.a $(LIBS_DIR)/mingw64-libs/libz.a $(LIBS_DIR)/mingw64-libs/libjpeg.a
 endif
 ifeq ($(FTE_TARGET),win32_SDL)
 	IMAGELDFLAGS=./libs/mingw-libs/libpng.a ./libs/mingw-libs/libz.a ./libs/mingw-libs/libjpeg.a
@@ -260,6 +280,11 @@ ifeq ($(FTE_TARGET),win32)
 	#RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS)
 	RELEASE_CFLAGS=$(CPUOPTIMIZATIONS)
 endif
+ifeq ($(FTE_TARGET),win64)
+	# Let's make sure we're not chasing our tails with MinGW32 compiler bugs
+	#RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS)
+	RELEASE_CFLAGS=$(CPUOPTIMIZATIONS)
+endif
 ifeq ($(FTE_TARGET),win32_SDL)
 	# Let's make sure we're not chasing our tails with MinGW32 compiler bugs
 	#RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS) -D_SDL
@@ -272,6 +297,10 @@ ifneq ($(FTE_TARGET),win32)
 		RELEASE_CFLAGS ?= -O2 -fno-strict-aliasing $(CPUOPTIMIZATIONS)
 		#RELEASE_CFLAGS=-O6 -fno-strict-aliasing -ffast-math -funroll-loops -fexpensive-optimizations $(CPUOPTIMIZATIONS)
 	endif
+endif
+ifneq ($(FTE_TARGET),win64)
+	RELEASE_CFLAGS ?= -O2 -fno-strict-aliasing $(CPUOPTIMIZATIONS)
+	#RELEASE_CFLAGS=-O6 -fno-strict-aliasing -ffast-math -funroll-loops -fexpensive-optimizations $(CPUOPTIMIZATIONS)
 endif
 
 GLCFLAGS=-DGLQUAKE
@@ -640,6 +669,73 @@ endif
 	MINGL_EXE_NAME=../fteminglqw.exe
 	MINGL_DIR=mingl_mgw
 endif
+
+ifeq ($(FTE_TARGET),win64)
+	# The extra object file called resources.o is specific for MinGW to link the icon in
+
+	#cygwin's gcc requires an extra command to use mingw instead of cygwin (default paths, etc).
+	ifneq ($(shell $(CC) -v 2>&1 | grep cygwin),)
+		W32_CFLAGS=-mno-cygwin
+	endif
+
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)
+
+
+	LIBS_DIR = $(BASE_DIR)/libs
+	SV_EXE_NAME=../fteqwsv64.exe
+	SV_LDFLAGS=$(LIBS_DIR)/mingw64-libs/libz.a -lws2_32 -lwinmm 
+	SV_DIR=sv_mingw64
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) fs_win32.o resources.o
+
+
+ifeq ($(USEASM),true)
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o resources.o
+else
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o resources.o
+endif
+	GL_EXE_NAME=../fteglqw64.exe
+	GLCL_EXE_NAME=../fteglqwcl64.exe
+	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
+	GL_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS)
+	GLB_DIR=gl_mgw64
+	GLCL_DIR=glcl_mgw64
+
+ifeq ($(USEASM),true)
+	NPQTVCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o npplug.o sys_npqtv.o sys_plugfte.o ../../ftequake/npapi.def
+else
+	NPQTVCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o npplug.o sys_npqtv.o sys_plugfte.o ../../ftequake/npapi.def
+endif
+	NPQTV_DLL_NAME=../npqtv64.dll
+	NPQTVCL_DLL_NAME=../npqtvcl64.dll
+	NPQTV_LDFLAGS=--enable-stdcall-fixup $(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -shared
+	NPQTV_CFLAGS=$(NPQTVCFLAGS) $(GLCFLAGS) $(W32_CFLAGS)
+	NPQTVB_DIR=npqtv_mgw64
+	NPQTVCL_DIR=npqtvcl_mgw64
+
+ifeq ($(USEASM),true)
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) fs_win32.o gl_vidnt.o vid_ddraw.o vid_dib.o vid_win2.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o resources.o
+else
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) fs_win32.o gl_vidnt.o vid_ddraw.o vid_dib.o vid_win2.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o resources.o
+endif
+	M_EXE_NAME=../fteqw64.exe
+	MCL_EXE_NAME=../fteqwcl64.exe
+	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
+	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS)
+	MB_DIR=m_mgw64
+	MCL_DIR=mcl_mgw64
+
+	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o resources.o
+	D3D_EXE_NAME=../fted3dqw64.exe
+	D3DCL_EXE_NAME=../fted3dclqw64.exe
+	D3D_LDFLAGS= -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
+	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS) -DMINIMAL
+	D3DB_DIR=d3d_mgw64
+	D3DCL_DIR=d3dcl_mgw64
+
+	MINGL_EXE_NAME=../fteminglqw64.exe
+	MINGL_DIR=mingl_mgw64
+endif
+
 ifeq ($(FTE_TARGET),bsd)
 	#mostly uses the linux stuff.
 	#oss, X, etc.

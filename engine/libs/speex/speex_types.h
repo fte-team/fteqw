@@ -65,7 +65,6 @@
    typedef u_int32_t spx_uint32_t;
 
 #elif defined(__BEOS__)
-
    /* Be */
 #  include <inttypes.h>
    typedef int16_t spx_int16_t;
@@ -87,6 +86,14 @@
    typedef short spx_int16_t;
    typedef int spx_int32_t;
    typedef unsigned int spx_uint32_t;
+
+#elif defined(__MORPHOS__)
+
+#  include <sys/types.h>
+   typedef int16_t spx_int16_t;
+   typedef u_int16_t spx_uint16_t;
+   typedef int32_t spx_int32_t;
+   typedef u_int32_t spx_uint32_t;
 
 #elif defined(R5900)
 

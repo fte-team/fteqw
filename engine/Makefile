@@ -839,7 +839,7 @@ ifeq ($(FTE_TARGET),morphos)
 	GL_EXE_NAME=../morphos_fteqw.gl
 	GLCL_EXE_NAME=../morphos_fteqwcl.gl
 	GL_LDFLAGS=$(GLLDFLAGS) -ldl $(IMAGELDFLAGS) -lz
-	GL_CFLAGS=$(GLCFLAGS) -noixemul -I./libs/speex
+	GL_CFLAGS=$(GLCFLAGS) -noixemul -I./libs/speex -I./
 	GLB_DIR=gl_morphos
 	GLCL_DIR=glcl_morphos
 

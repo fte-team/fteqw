@@ -43,7 +43,11 @@
  *  @{
  */
 
-#include "speex/speex_types.h"
+#ifndef __MORPHOS__
+	#include "speex/speex_types.h"
+#else
+	#include <speex_types.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {

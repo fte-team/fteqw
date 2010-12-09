@@ -235,7 +235,8 @@ static qboolean Shader_EvaluateCondition(char **ptr)
 		else if (!Q_stricmp(token, "normalmap") )
 			conditiontrue = conditiontrue == !!gl_bump.value;
 
-#ifndef MINGW
+// GCC hates these within if statements "error: expected '}' before 'else'"
+#ifdef _MSC_VER
 #pragma message("shader fixme")
 #endif
 		else if (!Q_stricmp(token, "diffuse") )

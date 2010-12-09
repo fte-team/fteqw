@@ -108,7 +108,8 @@ typedef enum
 	VF_CL_VIEWANGLES_Y = 35,
 	VF_CL_VIEWANGLES_Z = 36,
 
-#ifndef MINGW
+// GCC hates these within if statements
+#ifdef _MSC_VER
 #pragma message("FIXME: add cshift")
 #endif
 

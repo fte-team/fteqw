@@ -833,7 +833,7 @@ ifeq ($(FTE_TARGET),morphos)
 	WARNINGFLAGS=-Wall
 
 	SV_DIR=sv_morphos
-	SV_LDFLAGS=-lz
+	SV_LDFLAGS=-ldl -lz
 
 	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidmorphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
 	GL_EXE_NAME=../morphos_fteqw.gl
@@ -855,9 +855,9 @@ ifeq ($(FTE_TARGET),morphos)
 	MINGL_DIR=mingl_morphos
 	
 	#morphos dedicated server doesnt compile: alloca.h: No such file or directory
-	#SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
-	#SV_EXE_NAME=../morphos_fteqw.sv$(BITS)
-	#SV_CFLAGS=$(SERVER_ONLY_CFLAGS)	
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
+	SV_EXE_NAME=../morphos_fteqw.sv$(BITS)
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)	
 endif
 
 

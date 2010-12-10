@@ -1273,21 +1273,32 @@ HWND		hwnd_dialog;
 #include <shlobj.h>
 //#include <Propsys.h>
 
+#ifdef _MSC_VER
+	#include "ntverp.h"
+#endif
+
 #ifndef SHARD_APPIDINFOLINK
+
+// SDK version 7600 = v7.0a & v7.1
+#if !defined(VER_PRODUCTBUILD) || VER_PRODUCTBUILD < 7600
 typedef struct SHARDAPPIDINFOLINK {
   IShellLinkW *psl;
   PCWSTR     pszAppID;
 } SHARDAPPIDINFOLINK;
+#endif
 
 #define SHARD_APPIDINFOLINK 0x00000007
 
+#if !defined(VER_PRODUCTBUILD) || VER_PRODUCTBUILD < 7600
 typedef struct {
   GUID  fmtid;
   DWORD pid;
 } PROPERTYKEY;
+#endif
 typedef struct IPropertyStore IPropertyStore;
 ;
 #ifndef MINGW
+#if !defined(VER_PRODUCTBUILD) || VER_PRODUCTBUILD < 7600
 typedef struct IPropertyStore
 {
     CONST_VTBL struct
@@ -1326,6 +1337,7 @@ typedef struct IPropertyStore
 				IPropertyStore * This);
 	} *lpVtbl;
 } IPropertyStore;
+#endif
 #endif
 static const IID IID_IPropertyStore = {0x886d8eeb, 0x8cf2, 0x4446, {0x8d, 0x02, 0xcd, 0xba, 0x1d, 0xbd, 0xcf, 0x99}};
 #endif

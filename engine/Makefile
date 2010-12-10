@@ -61,6 +61,20 @@ ifeq ($(FTE_TARGET),win32_SDL)
 	endif
 endif
 
+#correct the gcc build when cross compiling
+ifeq ($(FTE_TARGET),win64_SDL)
+	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
+		#CC didn't state that it was mingw... so try fixing that up
+		ifneq ($(shell which amd64-mingw32msvc-gcc 2> /dev/null),)
+			#yup, the alternative exists (this matches the one debian has)
+			CC=amd64-mingw32msvc-gcc -m64
+			WINDRES=amd64-mingw32msvc-windres
+			STRIP=amd64-mingw32msvc-strip
+#			BITS?=64
+		endif
+	endif
+endif
+
 #crosscompile macosx from linux, default target ppc 32bit
 ifeq ($(FTE_TARGET),macosx)
 	ifeq ($(shell $(CC) -v 2>&1 | grep apple),)
@@ -203,6 +217,9 @@ endif
 ifeq ($(FTE_TARGET),win32_SDL)
 	BASELDFLAGS=-lm
 endif
+ifeq ($(FTE_TARGET),win64_SDL)
+	BASELDFLAGS=-lm
+endif
 ifeq ($(FTE_TARGET),cygwin)
 	BASELDFLAGS=-lm
 endif
@@ -222,6 +239,9 @@ ifeq ($(FTE_TARGET),win64)
 endif
 ifeq ($(FTE_TARGET),win32_SDL)
 	IMAGELDFLAGS=./libs/mingw-libs/libpng.a ./libs/mingw-libs/libz.a ./libs/mingw-libs/libjpeg.a
+endif
+ifeq ($(FTE_TARGET),win64_SDL)
+	IMAGELDFLAGS=./libs/mingw64-libs/libpng.a ./libs/mingw64-libs/libz.a ./libs/mingw64-libs/libjpeg.a
 endif
 IMAGELDFLAGS ?= -lpng -ljpeg
 
@@ -290,6 +310,11 @@ ifeq ($(FTE_TARGET),win32_SDL)
 	#RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS) -D_SDL
 	RELEASE_CFLAGS=$(CPUOPTIMIZATIONS) -D_SDL
 endif
+ifeq ($(FTE_TARGET),win64_SDL)
+	# Let's make sure we're not chasing our tails with MinGW32 compiler bugs
+	#RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS) -D_SDL
+	RELEASE_CFLAGS=$(CPUOPTIMIZATIONS) -D_SDL
+endif
 
 # Make sure the Win32 targets don't get these added on
 ifneq ($(FTE_TARGET),win32)
@@ -299,8 +324,10 @@ ifneq ($(FTE_TARGET),win32)
 	endif
 endif
 ifneq ($(FTE_TARGET),win64)
-	RELEASE_CFLAGS ?= -O2 -fno-strict-aliasing $(CPUOPTIMIZATIONS)
-	#RELEASE_CFLAGS=-O6 -fno-strict-aliasing -ffast-math -funroll-loops -fexpensive-optimizations $(CPUOPTIMIZATIONS)
+	ifneq ($(FTE_TARGET),win64_SDL)
+		RELEASE_CFLAGS ?= -O2 -fno-strict-aliasing $(CPUOPTIMIZATIONS)
+		#RELEASE_CFLAGS=-O6 -fno-strict-aliasing -ffast-math -funroll-loops -fexpensive-optimizations $(CPUOPTIMIZATIONS)
+	endif
 endif
 
 GLCFLAGS=-DGLQUAKE
@@ -572,6 +599,43 @@ ifeq ($(FTE_TARGET),win32_SDL)
 	else
 		#pthread is needed because of SDL.
 		M_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 ./libs/mingw-libs/libSDL.a ./libs/mingw-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS)
+	endif
+endif
+ifeq ($(FTE_TARGET),win64_SDL)
+	LIBS_DIR=./libs/
+	
+	#the defaults for sdl come first
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o resources.o
+	GL_EXE_NAME=../fteqw_sdl_gl64.exe
+	GLCL_EXE_NAME=../fteqwcl_sdl64.exe
+	ifdef windir
+		GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `sdl-config --libs`
+	else
+		GL_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 ./libs/mingw64-libs/libSDL.a ./libs/mingw64-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `sdl-config --libs` 
+	endif
+	GL_CFLAGS=-D_SDL -I./libs/ -I./libs/mingw64-libs/  -I./libs/dxsdk7/include/ -I./libs/mingw64-libs $(GLCFLAGS) `sdl-config --cflags`
+	GLB_DIR=gl_mgw_sdl$(BITS)
+	GLCL_DIR=glcl_mgw_sdl$(BITS)
+	
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) resources.o
+	SV_EXE_NAME=../fteqw_sdl_sv64.exe
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -D_SDL
+	SV_LDFLAGS=./libs/mingw64-libs/libz.a -lm -lmingw32 -lws2_32 -lwinmm
+
+	MINGL_DIR=mingl_sdl$(BITS)
+	MINGL_EXE_NAME=../fteqw_sdl_mingl64.exe
+
+	MB_DIR=m_mgw_sdl$(BITS)
+	M_EXE_NAME=../fteqw_sdl64.exe
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o resources.o
+	M_CFLAGS=-D_MINGW_VFPRINTF -D_SDL -I./libs/ -I./libs/mingw64-libs/  -I./libs/dxsdk7/include/ -I./libs/mingw64-libs $(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL
+	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS)
+	
+	ifdef windir
+		M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 -lSDLmain -lSDL
+	else
+		#pthread is needed because of SDL.
+		M_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 ./libs/mingw64-libs/libSDL.a ./libs/mingw64-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS)
 	endif
 endif
 
@@ -911,6 +975,11 @@ releases:
 	-$(MAKE) FTE_TARGET=linux32 rel
 	-$(MAKE) FTE_TARGET=linux64 rel
 	-$(MAKE) FTE_TARGET=win32 rel
+	-$(MAKE) FTE_TARGET=win64 rel
+	-$(MAKE) FTE_TARGET=win32_SDL rel
+	-$(MAKE) FTE_TARGET=win64_SDL rel
+	-$(MAKE) FTE_TARGET=morphos rel
+	-$(MAKE) FTE_TARGET=macosx rel
 #	-$(MAKE) FTE_TARGET=linux32 relcl
 #	-$(MAKE) FTE_TARGET=linux64 relcl
 #	-$(MAKE) FTE_TARGET=win32 relcl

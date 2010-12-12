@@ -3096,7 +3096,9 @@ void COM_Version_f (void)
 #ifdef _DEBUG
 	Con_Printf("debug build\n");
 #endif
-
+#ifdef MINIMAL
+	Con_Printf("minimal build\n");
+#endif
 #ifdef CLIENTONLY
 	Con_Printf("client-only build\n");
 #endif
@@ -3104,11 +3106,16 @@ void COM_Version_f (void)
 	Con_Printf("dedicated server build\n");
 #endif
 
+#ifdef GLQUAKE
+	Con_Printf("OpenGL available\n");
+#endif
+
 #ifdef _SDL
 	Con_Printf("SDL version: %d.%d.%d\n", SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_PATCHLEVEL);
 #endif
 
-#ifdef __MINGW32__
+// Don't print both as a 64bit MinGW built client
+#ifdef __MINGW32__ && !defined(__MINGW64__)
 	Con_Printf("Compiled with MinGW32 version: %i.%i\n",__MINGW32_MAJOR_VERSION, __MINGW32_MINOR_VERSION);
 #endif
 
@@ -3148,7 +3155,7 @@ void COM_Version_f (void)
 #ifdef _M_IX86
 	Con_Printf("x86 optimized for: ");
 
-	if (_M_IX86 == 600) { Con_Printf("Pentium Pro, Pentium II and Pentium III"); }
+	if (_M_IX86 == 600) { Con_Printf("Blend or Pentium Pro, Pentium II and Pentium III"); }
 	else if (_M_IX86 == 500) { Con_Printf("Pentium"); }
 	else if (_M_IX86 == 400) { Con_Printf("486"); }
 	else if (_M_IX86 == 300) { Con_Printf("386"); }
@@ -3221,12 +3228,22 @@ void COM_Version_f (void)
 #ifndef AVAIL_FREETYPE
 	Con_Printf("freetype2 disabled\n");
 #endif
+#ifndef AVAIL_OPENAL
+	Con_Printf("openal disabled\n");
+#endif
+
 #ifdef _WIN32
 	#ifndef AVAIL_DINPUT
-		Con_Printf("dinput disabled\n");
+		Con_Printf("DirectInput disabled\n");
 	#endif
 	#ifndef AVAIL_DSOUND
-		Con_Printf("dsound disabled\n");
+		Con_Printf("DirectSound disabled\n");
+	#endif
+	#ifndef AVAIL_D3D
+		Con_Printf("Direct3D disabled\n");
+	#endif
+	#ifndef AVAIL_DDRAW
+		Con_Printf("DirectDraw disabled\n");
 	#endif
 #endif
 #endif

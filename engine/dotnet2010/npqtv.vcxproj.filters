@@ -2,49 +2,49 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="Source Files">
-      <UniqueIdentifier>{acff2911-7664-487e-929d-7a8cc54d5a63}</UniqueIdentifier>
+      <UniqueIdentifier>{245730af-c31c-4e37-86ac-227cf2a55cd8}</UniqueIdentifier>
       <Extensions>cpp;c;cxx;rc;def;r;odl;idl;hpj;bat</Extensions>
     </Filter>
     <Filter Include="Source Files\server">
-      <UniqueIdentifier>{4b4d3082-c6c0-41ee-aa34-e4e26e5b7aae}</UniqueIdentifier>
+      <UniqueIdentifier>{165565b2-51d8-460b-a460-f3d5c31cb894}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\client">
-      <UniqueIdentifier>{8417bd74-317c-494b-b221-a0280db48e22}</UniqueIdentifier>
+      <UniqueIdentifier>{655e82cc-e023-4416-91b9-7a29c37bf411}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\gl">
-      <UniqueIdentifier>{be8829e6-eb9a-474e-9096-7ba104f6120d}</UniqueIdentifier>
+      <UniqueIdentifier>{80f903b0-0a91-412a-9b91-7ce911ffa22c}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\sw">
-      <UniqueIdentifier>{8617e589-cdbf-4001-bbf2-acfec19df333}</UniqueIdentifier>
+      <UniqueIdentifier>{948a85a1-e631-4e9a-b573-db5eca1df958}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\common">
-      <UniqueIdentifier>{85953518-9b0f-4c05-bfb2-0d0b39e92ff5}</UniqueIdentifier>
+      <UniqueIdentifier>{882282be-745d-4190-929f-0e996d56a3f2}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\QCLIB">
-      <UniqueIdentifier>{adee2972-57d7-45c9-a5d5-eecfa30175ab}</UniqueIdentifier>
+      <UniqueIdentifier>{773f3fd7-73e0-4cf5-9ab6-31692d05a744}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\asm">
-      <UniqueIdentifier>{e5f2ad4b-f4fe-4469-b76c-ad7e205e6fe3}</UniqueIdentifier>
+      <UniqueIdentifier>{e5bd39da-04a4-4fa9-97d8-786e5fe79207}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\http">
-      <UniqueIdentifier>{dac1a5ea-6355-4aa9-affb-4911b46460d6}</UniqueIdentifier>
+      <UniqueIdentifier>{ce3a9cfe-9574-42d8-bddf-13b3d1242cfe}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\vc">
-      <UniqueIdentifier>{7e980011-7602-420c-b329-5cd0b531cdfd}</UniqueIdentifier>
+      <UniqueIdentifier>{bc48a09d-6d47-4c24-bf73-23d4ef6713d7}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\dedicated">
-      <UniqueIdentifier>{6583f10b-0144-48ee-9f1f-93d63ea1772f}</UniqueIdentifier>
+      <UniqueIdentifier>{f78bf676-f54a-4d9d-b5c2-70360ac25b95}</UniqueIdentifier>
     </Filter>
     <Filter Include="Header Files">
-      <UniqueIdentifier>{c693575a-d90b-49ac-a910-1c2b43b24001}</UniqueIdentifier>
+      <UniqueIdentifier>{e0bdeeb3-6934-4875-bc17-70aafba3e0b8}</UniqueIdentifier>
       <Extensions>h;hpp;hxx;hm;inl</Extensions>
     </Filter>
     <Filter Include="Resource Files">
-      <UniqueIdentifier>{7bde44e6-511d-4523-9471-59aff3f82a5b}</UniqueIdentifier>
+      <UniqueIdentifier>{ce9b3ab4-9285-40bc-9f7c-dc6cf0e765e1}</UniqueIdentifier>
       <Extensions>ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe</Extensions>
     </Filter>
     <Filter Include="libmad">
-      <UniqueIdentifier>{135e341a-25ea-4e78-806b-a029da8f1dc6}</UniqueIdentifier>
+      <UniqueIdentifier>{39355fd8-fa4a-4291-8ff1-85e52a1b11fd}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

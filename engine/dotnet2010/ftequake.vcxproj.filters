@@ -2,57 +2,54 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="Source Files">
-      <UniqueIdentifier>{58910ed6-1d90-449d-ba85-b837e359f8b7}</UniqueIdentifier>
+      <UniqueIdentifier>{75842d86-5c10-45e1-bf1a-1cbff85ff47d}</UniqueIdentifier>
       <Extensions>cpp;c;cxx;rc;def;r;odl;idl;hpj;bat</Extensions>
     </Filter>
     <Filter Include="Source Files\server">
-      <UniqueIdentifier>{d5ffe365-1e0b-402c-99e3-8078d13c71c7}</UniqueIdentifier>
+      <UniqueIdentifier>{a103857d-227f-4b12-b44b-fabe0adffe4f}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\client">
-      <UniqueIdentifier>{41edc274-e768-4464-969a-7cd9f6bf6879}</UniqueIdentifier>
+      <UniqueIdentifier>{f20116cc-8d03-4489-aab2-a75426a0dfd5}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\client\sound">
-      <UniqueIdentifier>{18095c8e-70b3-46a1-b77b-73c05407fd28}</UniqueIdentifier>
+      <UniqueIdentifier>{56fe551d-a906-4dab-86db-e4fcb898558f}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\common">
-      <UniqueIdentifier>{7149c8d2-cc12-4518-bb7c-2642f3875847}</UniqueIdentifier>
+      <UniqueIdentifier>{9e22231b-d88a-41b2-a09c-62710d1272e0}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\QCLIB">
-      <UniqueIdentifier>{ba2e40a1-60f2-4e4d-b059-3beb3e97c48c}</UniqueIdentifier>
+      <UniqueIdentifier>{bf8c823d-8eff-46c5-a355-b9406f7e8692}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\asm">
-      <UniqueIdentifier>{d5ccb317-f93a-48ba-b61f-3e6affae7eff}</UniqueIdentifier>
+      <UniqueIdentifier>{8a550921-3a3b-4db7-b8c6-c9c66282f7fc}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\http">
-      <UniqueIdentifier>{e57d2e70-3b94-43ea-82ee-ddc8009d0d87}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\vc">
-      <UniqueIdentifier>{15ca1276-1fa0-4c5f-9687-147b2da6e4e3}</UniqueIdentifier>
+      <UniqueIdentifier>{f6c0ca12-5ce4-46f0-8a26-01fecf567934}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\dedicated">
-      <UniqueIdentifier>{c39ae087-d336-450e-ad62-d668a2426224}</UniqueIdentifier>
+      <UniqueIdentifier>{3551b596-1fbc-43a1-90b6-f231baeb5528}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\nonwin">
-      <UniqueIdentifier>{293c354b-2e35-4e6b-afdb-3eca99f6ac6f}</UniqueIdentifier>
+      <UniqueIdentifier>{d36f234b-a9fc-4b45-a87a-41c95f170919}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\renderer">
-      <UniqueIdentifier>{be59df3b-689c-4997-a2ce-04598ba538b1}</UniqueIdentifier>
+      <UniqueIdentifier>{d0bd3ce2-b533-4801-baca-e9922798a563}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\renderer\gl">
-      <UniqueIdentifier>{c26486cb-574c-48b3-bd5c-6c904d09ad9c}</UniqueIdentifier>
+      <UniqueIdentifier>{569fbcaa-a4a0-46ca-8fda-8be6d7f462be}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\renderer\d3d">
-      <UniqueIdentifier>{e9a8e4ae-744b-4557-b4bd-b2b6057429c0}</UniqueIdentifier>
+      <UniqueIdentifier>{042ac2d4-5992-4f53-a0e9-2a34b32db426}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\libmad">
-      <UniqueIdentifier>{72b16804-284b-4dcd-84f6-707c861b0faa}</UniqueIdentifier>
+      <UniqueIdentifier>{1e1d9e14-038d-47a7-8632-78bb57353581}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\libmad\Header Files">
-      <UniqueIdentifier>{782be9f1-21dd-4211-b2a2-993def6e469e}</UniqueIdentifier>
+      <UniqueIdentifier>{e10ced12-94c2-4384-b014-74446a4f7fd4}</UniqueIdentifier>
       <Extensions>h;hpp;hxx;hm;inl</Extensions>
     </Filter>
     <Filter Include="Resource Files">
-      <UniqueIdentifier>{6afd9969-ca72-4ba7-b1ce-7c9ce4a58b0d}</UniqueIdentifier>
+      <UniqueIdentifier>{f9526ecc-06b4-4e0a-b448-419d1f94a0b8}</UniqueIdentifier>
       <Extensions>ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe</Extensions>
     </Filter>
   </ItemGroup>
@@ -447,27 +444,6 @@
     <ClCompile Include="..\http\webgen.c">
       <Filter>Source Files\http</Filter>
     </ClCompile>
-    <ClCompile Include="..\sndcodec\g711.c">
-      <Filter>Source Files\vc</Filter>
-    </ClCompile>
-    <ClCompile Include="..\sndcodec\g721.c">
-      <Filter>Source Files\vc</Filter>
-    </ClCompile>
-    <ClCompile Include="..\sndcodec\g723_24.c">
-      <Filter>Source Files\vc</Filter>
-    </ClCompile>
-    <ClCompile Include="..\sndcodec\g723_40.c">
-      <Filter>Source Files\vc</Filter>
-    </ClCompile>
-    <ClCompile Include="..\sndcodec\g72x.c">
-      <Filter>Source Files\vc</Filter>
-    </ClCompile>
-    <ClCompile Include="..\sndcodec\snd_vc.c">
-      <Filter>Source Files\vc</Filter>
-    </ClCompile>
-    <ClCompile Include="..\sndcodec\snd_voicecodecs.c">
-      <Filter>Source Files\vc</Filter>
-    </ClCompile>
     <ClCompile Include="..\server\sv_sys_win.c">
       <Filter>Source Files\dedicated</Filter>
     </ClCompile>
@@ -525,6 +501,9 @@
     <ClCompile Include="..\gl\gl_shader.c">
       <Filter>Source Files\renderer</Filter>
     </ClCompile>
+    <ClCompile Include="..\gl\gl_warp.c">
+      <Filter>Source Files\renderer</Filter>
+    </ClCompile>
     <ClCompile Include="..\gl\LTFACE.C">
       <Filter>Source Files\renderer</Filter>
     </ClCompile>
@@ -580,9 +559,6 @@
       <Filter>Source Files\renderer\gl</Filter>
     </ClCompile>
     <ClCompile Include="..\gl\gl_vidnt.c">
-      <Filter>Source Files\renderer\gl</Filter>
-    </ClCompile>
-    <ClCompile Include="..\gl\gl_warp.c">
       <Filter>Source Files\renderer\gl</Filter>
     </ClCompile>
     <ClCompile Include="..\gl\glmod_doom.c">
@@ -1029,11 +1005,6 @@
     <ResourceCompile Include="..\client\winquake.rc">
       <Filter>Resource Files</Filter>
     </ResourceCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuildStep Include="..\sndcodec\voicechat.h">
-      <Filter>Source Files\vc</Filter>
-    </CustomBuildStep>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\common\math.s">

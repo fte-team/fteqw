@@ -44,6 +44,7 @@ static void VARGS SSDL_Paint(void *userdata, qbyte *stream, int len)
 	{	//buffer will wrap, fill in the rest
 		memcpy(stream, (char*)sc->sn.buffer + (sc->snd_sent%buffersize), buffersize - (sc->snd_sent%buffersize));
 		stream += buffersize - sc->snd_sent%buffersize;
+		sc->snd_sent += buffersize - sc->snd_sent%buffersize;
 		len -= buffersize - (sc->snd_sent%buffersize);
 		if (len < 0)
 			return;

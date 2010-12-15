@@ -5719,7 +5719,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release Dedicated Server|x64"
-						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -5760,7 +5759,6 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Debug Dedicated Server|x64"
-						ExcludedFromBuild="true"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -10958,7 +10956,25 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
+						Name="Release Dedicated Server|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
 						Name="Debug Dedicated Server|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug Dedicated Server|x64"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -14073,22 +14089,6 @@
 						RelativePath="..\client\snd_al.c"
 						>
 						<FileConfiguration
-							Name="MinGLDebug|Win32"
-							ExcludedFromBuild="true"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="MinGLDebug|x64"
-							ExcludedFromBuild="true"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
 							Name="D3DDebug|Win32"
 							ExcludedFromBuild="true"
 							>
@@ -14098,22 +14098,6 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="D3DDebug|x64"
-							ExcludedFromBuild="true"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="MinGLRelease|Win32"
-							ExcludedFromBuild="true"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="MinGLRelease|x64"
 							ExcludedFromBuild="true"
 							>
 							<Tool
@@ -14186,14 +14170,6 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="MDebug|x64"
-							ExcludedFromBuild="true"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="GLRelease|x64"
 							ExcludedFromBuild="true"
 							>
 							<Tool

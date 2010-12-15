@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -189,7 +189,7 @@ char *Sys_GetNameForAddress(dllhandle_t *module, void *address)
 
 
 	datadir = &ntheader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
-	
+
 	block = (IMAGE_EXPORT_DIRECTORY *)(base + datadir->VirtualAddress);
 	funclist = (DWORD*)(base+block->AddressOfFunctions);
 	namelist = (DWORD*)(base+block->AddressOfNames);
@@ -242,7 +242,8 @@ void *Sys_GetGameAPI (void *parms)
 	char	name[MAX_OSPATH];
 	char	*path;
 	char	cwd[MAX_OSPATH];
-#if defined _M_IX86
+// _M_X64 should be really loading gamex64.dll
+#if defined _M_IX86 || defined _M_X64
 	const char *gamename = "gamex86.dll";
 
 #ifdef NDEBUG
@@ -321,7 +322,7 @@ void *Sys_GetGameAPI (void *parms)
 	GetGameAPI = (void *)GetProcAddress (game_library, "GetGameAPI");
 	if (!GetGameAPI)
 	{
-		Sys_UnloadGame ();		
+		Sys_UnloadGame ();
 		return NULL;
 	}
 
@@ -341,8 +342,8 @@ void *Sys_GetGameAPI (void *parms)
 
 #ifdef USESERVICE
 qboolean asservice;
-SERVICE_STATUS_HANDLE   ServerServiceStatusHandle; 
-SERVICE_STATUS          MyServiceStatus; 
+SERVICE_STATUS_HANDLE   ServerServiceStatusHandle;
+SERVICE_STATUS          MyServiceStatus;
 void CreateSampleService(qboolean create);
 #endif
 
@@ -357,10 +358,10 @@ HWND hiddenwindowhandler;
 
 int Sys_DebugLog(char *file, char *fmt, ...)
 {
-    va_list argptr; 
+    va_list argptr;
     static char data[1024];
     int fd;
-    
+
     va_start(argptr, fmt);
     vsnprintf(data, sizeof(data)-1, fmt, argptr);
     va_end(argptr);
@@ -382,14 +383,14 @@ Sys_FileTime
 int	Sys_FileTime (char *path)
 {
 	FILE	*f;
-	
+
 	f = fopen(path, "rb");
 	if (f)
 	{
 		fclose(f);
 		return 1;
 	}
-	
+
 	return -1;
 }
 
@@ -414,7 +415,7 @@ qboolean Sys_remove (char *path)
 int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
 {
 	HANDLE r;
-	WIN32_FIND_DATA fd;	
+	WIN32_FIND_DATA fd;
 	char apath[MAX_OSPATH];
 	char file[MAX_OSPATH];
 	char *s;
@@ -423,12 +424,12 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 //	sprintf(apath, "%s%s", gpath, match);
 	for (s = apath+strlen(apath)-1; s>= apath; s--)
 	{
-		if (*s == '/')			
+		if (*s == '/')
 			break;
 	}
 	s++;
-	*s = '\0';	
-	
+	*s = '\0';
+
 
 
 	Q_snprintfz(file, sizeof(file), "%s/%s", gpath, match);
@@ -584,7 +585,7 @@ double Sys_DoubleTime (void)
 	if (!starttime)
 		starttime = tstruct.time;
 	t = (tstruct.time-starttime) + tstruct.millitm*0.001;
-	
+
 	return t;
 }
 
@@ -681,7 +682,7 @@ void ApplyColour(unsigned int chr)
 	{
 		unsigned short val = 0;
 
-		// bits 28-31 of the console chars match up to the attributes for 
+		// bits 28-31 of the console chars match up to the attributes for
 		// the CHAR_INFO struct exactly
 		if (chr & CON_NONCLEARBG)
 			val = ((chr & (CON_FGMASK|CON_BGMASK)) >> CON_FGSHIFT);
@@ -728,7 +729,7 @@ Sys_Printf
 #define	MAXPRINTMSG	4096
 void Sys_Printf (char *fmt, ...)
 {
-	va_list		argptr;	
+	va_list		argptr;
 
 	if (sys_nostdout.value)
 		return;
@@ -744,7 +745,7 @@ void Sys_Printf (char *fmt, ...)
 
 		{
 			int i;
-			
+
 			for (i = 0; i < coninput_len; i++)
 				putch('\b');
 			putch('\b');
@@ -902,13 +903,13 @@ void Sys_Quit (void)
 #ifdef USESERVICE
 	if (asservice)
 	{
-		MyServiceStatus.dwCurrentState       = SERVICE_STOPPED; 
-		MyServiceStatus.dwCheckPoint         = 0; 
-		MyServiceStatus.dwWaitHint           = 0; 
-		MyServiceStatus.dwWin32ExitCode      = 0; 
-		MyServiceStatus.dwServiceSpecificExitCode = 0; 
+		MyServiceStatus.dwCurrentState       = SERVICE_STOPPED;
+		MyServiceStatus.dwCheckPoint         = 0;
+		MyServiceStatus.dwWaitHint           = 0;
+		MyServiceStatus.dwWin32ExitCode      = 0;
+		MyServiceStatus.dwServiceSpecificExitCode = 0;
 
-		SetServiceStatus (ServerServiceStatusHandle, &MyServiceStatus); 
+		SetServiceStatus (ServerServiceStatusHandle, &MyServiceStatus);
 	}
 #endif
 	exit (0);
@@ -1121,7 +1122,7 @@ void StartQuakeServer(void)
 	SV_Init (&parms);
 
 // run one frame immediately for first heartbeat
-	SV_Frame ();		
+	SV_Frame ();
 }
 
 
@@ -1150,19 +1151,19 @@ void ServerMainLoop(void)
 		switch(servicecontrol)
 		{
 		case SERVICE_CONTROL_PAUSE:
-			// Initialization complete - report running status. 
-			MyServiceStatus.dwCurrentState       = SERVICE_PAUSED; 
-			MyServiceStatus.dwCheckPoint         = 0; 
-			MyServiceStatus.dwWaitHint           = 0; 
+			// Initialization complete - report running status.
+			MyServiceStatus.dwCurrentState       = SERVICE_PAUSED;
+			MyServiceStatus.dwCheckPoint         = 0;
+			MyServiceStatus.dwWaitHint           = 0;
 
 			SetServiceStatus (ServerServiceStatusHandle, &MyServiceStatus);
 			sv.paused |= 2;
 			break;
 		case SERVICE_CONTROL_CONTINUE:
-			// Initialization complete - report running status. 
-			MyServiceStatus.dwCurrentState       = SERVICE_RUNNING; 
-			MyServiceStatus.dwCheckPoint         = 0; 
-			MyServiceStatus.dwWaitHint           = 0; 
+			// Initialization complete - report running status.
+			MyServiceStatus.dwCurrentState       = SERVICE_RUNNING;
+			MyServiceStatus.dwCheckPoint         = 0;
+			MyServiceStatus.dwWaitHint           = 0;
 
 			SetServiceStatus (ServerServiceStatusHandle, &MyServiceStatus);
 
@@ -1192,23 +1193,23 @@ void WINAPI StartQuakeServerService	(DWORD argc, LPTSTR *argv)
 
 	asservice = true;
 
-	MyServiceStatus.dwServiceType        = SERVICE_WIN32|SERVICE_INTERACTIVE_PROCESS; 
-	MyServiceStatus.dwCurrentState       = SERVICE_START_PENDING; 
-	MyServiceStatus.dwControlsAccepted   = SERVICE_ACCEPT_STOP | 
-		SERVICE_ACCEPT_PAUSE_CONTINUE; 
-	MyServiceStatus.dwWin32ExitCode      = 0; 
-	MyServiceStatus.dwServiceSpecificExitCode = 0; 
-	MyServiceStatus.dwCheckPoint         = 0; 
-	MyServiceStatus.dwWaitHint           = 0; 
+	MyServiceStatus.dwServiceType        = SERVICE_WIN32|SERVICE_INTERACTIVE_PROCESS;
+	MyServiceStatus.dwCurrentState       = SERVICE_START_PENDING;
+	MyServiceStatus.dwControlsAccepted   = SERVICE_ACCEPT_STOP |
+		SERVICE_ACCEPT_PAUSE_CONTINUE;
+	MyServiceStatus.dwWin32ExitCode      = 0;
+	MyServiceStatus.dwServiceSpecificExitCode = 0;
+	MyServiceStatus.dwCheckPoint         = 0;
+	MyServiceStatus.dwWaitHint           = 0;
 
-	ServerServiceStatusHandle = RegisterServiceCtrlHandler( 
-		SERVICENAME, 
-		MyServiceCtrlHandler); 
+	ServerServiceStatusHandle = RegisterServiceCtrlHandler(
+		SERVICENAME,
+		MyServiceCtrlHandler);
 
-	if (ServerServiceStatusHandle == (SERVICE_STATUS_HANDLE)0) 
-	{ 
-		printf(" [MY_SERVICE] RegisterServiceCtrlHandler failed %d\n", GetLastError()); 
-		return; 
+	if (ServerServiceStatusHandle == (SERVICE_STATUS_HANDLE)0)
+	{
+		printf(" [MY_SERVICE] RegisterServiceCtrlHandler failed %d\n", GetLastError());
+		return;
 	}
 
 
@@ -1225,55 +1226,55 @@ void WINAPI StartQuakeServerService	(DWORD argc, LPTSTR *argv)
 	StartQuakeServer();
 
 
-	// Handle error condition 
+	// Handle error condition
 	if (!sv.state)
-	{ 
-		MyServiceStatus.dwCurrentState       = SERVICE_STOPPED; 
-		MyServiceStatus.dwCheckPoint         = 0; 
-		MyServiceStatus.dwWaitHint           = 0; 
-		MyServiceStatus.dwWin32ExitCode      = 0; 
-		MyServiceStatus.dwServiceSpecificExitCode = 0; 
+	{
+		MyServiceStatus.dwCurrentState       = SERVICE_STOPPED;
+		MyServiceStatus.dwCheckPoint         = 0;
+		MyServiceStatus.dwWaitHint           = 0;
+		MyServiceStatus.dwWin32ExitCode      = 0;
+		MyServiceStatus.dwServiceSpecificExitCode = 0;
 
-		SetServiceStatus (ServerServiceStatusHandle, &MyServiceStatus); 
-		return; 
-	} 
+		SetServiceStatus (ServerServiceStatusHandle, &MyServiceStatus);
+		return;
+	}
 
-	// Initialization complete - report running status. 
-	MyServiceStatus.dwCurrentState       = SERVICE_RUNNING; 
-	MyServiceStatus.dwCheckPoint         = 0; 
-	MyServiceStatus.dwWaitHint           = 0; 
+	// Initialization complete - report running status.
+	MyServiceStatus.dwCurrentState       = SERVICE_RUNNING;
+	MyServiceStatus.dwCheckPoint         = 0;
+	MyServiceStatus.dwWaitHint           = 0;
 
-	if (!SetServiceStatus (ServerServiceStatusHandle, &MyServiceStatus)) 
-	{ 
-		printf(" [MY_SERVICE] SetServiceStatus error %ld\n",GetLastError()); 
-	} 
+	if (!SetServiceStatus (ServerServiceStatusHandle, &MyServiceStatus))
+	{
+		printf(" [MY_SERVICE] SetServiceStatus error %ld\n",GetLastError());
+	}
 
 	ServerMainLoop();
 
-	MyServiceStatus.dwCurrentState       = SERVICE_STOPPED; 
-	MyServiceStatus.dwCheckPoint         = 0; 
-	MyServiceStatus.dwWaitHint           = 0; 
-	MyServiceStatus.dwWin32ExitCode      = 0; 
-	MyServiceStatus.dwServiceSpecificExitCode = 0; 
+	MyServiceStatus.dwCurrentState       = SERVICE_STOPPED;
+	MyServiceStatus.dwCheckPoint         = 0;
+	MyServiceStatus.dwWaitHint           = 0;
+	MyServiceStatus.dwWin32ExitCode      = 0;
+	MyServiceStatus.dwServiceSpecificExitCode = 0;
 
-	SetServiceStatus (ServerServiceStatusHandle, &MyServiceStatus); 
+	SetServiceStatus (ServerServiceStatusHandle, &MyServiceStatus);
 
-	return; 
+	return;
 }
 
-SERVICE_TABLE_ENTRY   DispatchTable[] = 
-{ 
-{ SERVICENAME, StartQuakeServerService      }, 
-{ NULL,              NULL          } 
-}; 
+SERVICE_TABLE_ENTRY   DispatchTable[] =
+{
+{ SERVICENAME, StartQuakeServerService      },
+{ NULL,              NULL          }
+};
 #endif
 
 qboolean NET_Sleep(int msec, qboolean stdinissocket);
 int main (int argc, char **argv)
 {
 #ifdef USESERVICE
-	if (StartServiceCtrlDispatcher( DispatchTable)) 
-	{ 
+	if (StartServiceCtrlDispatcher( DispatchTable))
+	{
 		return true;
 	}
 #endif
@@ -1319,8 +1320,8 @@ int main (int argc, char **argv)
 }
 
 #ifdef USESERVICE
-void CreateSampleService(qboolean create) 
-{ 
+void CreateSampleService(qboolean create)
+{
 	BOOL deleted;
 	char path[MAX_OSPATH];
 	char exe[MAX_OSPATH];
@@ -1328,13 +1329,13 @@ void CreateSampleService(qboolean create)
 
 	SC_HANDLE schSCManager;
 
-// Open a handle to the SC Manager database. 
-	schSCManager = OpenSCManager( 
-		NULL,                    // local machine 
-		NULL,                    // ServicesActive database 
-		SC_MANAGER_ALL_ACCESS);  // full access rights 
- 
-	if (NULL == schSCManager) 
+// Open a handle to the SC Manager database.
+	schSCManager = OpenSCManager(
+		NULL,                    // local machine
+		NULL,                    // ServicesActive database
+		SC_MANAGER_ALL_ACCESS);  // full access rights
+
+	if (NULL == schSCManager)
 	{
 		Con_Printf("Failed to open SCManager (%d)\n", GetLastError());
 		return;
@@ -1366,30 +1367,30 @@ void CreateSampleService(qboolean create)
 		RegSetValueEx(hk, "servicepath", 0, REG_SZ, path, strlen(path));
 		RegCloseKey(hk);
 
-		schService = CreateService( 
-			schSCManager,				// SCManager database 
-			SERVICENAME,				// name of service 
-			FULLENGINENAME" Server",	// service name to display 
-			SERVICE_ALL_ACCESS,			// desired access 
-			SERVICE_WIN32_OWN_PROCESS|SERVICE_INTERACTIVE_PROCESS,	// service type 
-			SERVICE_AUTO_START,			// start type 
-			SERVICE_ERROR_NORMAL,		// error control type 
-			exe,						// service's binary 
-			NULL,						// no load ordering group 
-			NULL,						// no tag identifier 
-			NULL,						// no dependencies 
-			NULL,						// LocalSystem account 
-			NULL);						// no password 
+		schService = CreateService(
+			schSCManager,				// SCManager database
+			SERVICENAME,				// name of service
+			FULLENGINENAME" Server",	// service name to display
+			SERVICE_ALL_ACCESS,			// desired access
+			SERVICE_WIN32_OWN_PROCESS|SERVICE_INTERACTIVE_PROCESS,	// service type
+			SERVICE_AUTO_START,			// start type
+			SERVICE_ERROR_NORMAL,		// error control type
+			exe,						// service's binary
+			NULL,						// no load ordering group
+			NULL,						// no tag identifier
+			NULL,						// no dependencies
+			NULL,						// LocalSystem account
+			NULL);						// no password
 	}
- 
-    if (schService == NULL) 
+
+    if (schService == NULL)
     {
-        Con_Printf("CreateService failed.\n"); 
+        Con_Printf("CreateService failed.\n");
         return;
     }
     else
     {
-        CloseServiceHandle(schService); 
+        CloseServiceHandle(schService);
         return;
     }
 }
@@ -1411,7 +1412,7 @@ DWORD WINAPI threadwrapper(void *args)
 	tw.args = ((threadwrap_t *)args)->args;
 
 	free(args);
-	tw.func(tw.args);	
+	tw.func(tw.args);
 
 #ifndef WIN32CRTDLL
 	_endthreadex(0);
@@ -1423,7 +1424,7 @@ void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
 {
 	threadwrap_t *tw = (threadwrap_t *)malloc(sizeof(threadwrap_t));
 	HANDLE handle;
-	
+
 	if (!tw)
 		return NULL;
 
@@ -1445,7 +1446,7 @@ void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
 }
 
 void Sys_WaitOnThread(void *thread)
-{	
+{
 	WaitForSingleObject((HANDLE)thread, INFINITE);
 	CloseHandle((HANDLE)thread);
 }
@@ -1498,8 +1499,8 @@ typedef struct condvar_s
     HANDLE wait_done;
 } condvar_t;
 
-void *Sys_CreateConditional(void) 
-{ 
+void *Sys_CreateConditional(void)
+{
 	condvar_t *cv;
 
 	cv = (condvar_t *)malloc(sizeof(condvar_t));
@@ -1528,16 +1529,16 @@ void *Sys_CreateConditional(void)
 	return NULL;
 }
 
-qboolean Sys_LockConditional(void *condv) 
-{ 
+qboolean Sys_LockConditional(void *condv)
+{
 	EnterCriticalSection(&((condvar_t *)condv)->mainlock);
-	return true; 
+	return true;
 }
 
-qboolean Sys_UnlockConditional(void *condv) 
-{ 
+qboolean Sys_UnlockConditional(void *condv)
+{
 	LeaveCriticalSection(&((condvar_t *)condv)->mainlock);
-	return true; 
+	return true;
 }
 
 qboolean Sys_ConditionWait(void *condv)
@@ -1557,7 +1558,7 @@ qboolean Sys_ConditionWait(void *condv)
 
 	// update waiting count and alert signaling thread that we're done to avoid the deadlock condition
 	EnterCriticalSection(&cv->countlock);
-	if (cv->signals > 0) 
+	if (cv->signals > 0)
 	{
 		ReleaseSemaphore(cv->wait_done, cv->signals, NULL);
 		cv->signals = 0;
@@ -1570,7 +1571,7 @@ qboolean Sys_ConditionWait(void *condv)
 	return success;
 }
 
-qboolean Sys_ConditionSignal(void *condv) 
+qboolean Sys_ConditionSignal(void *condv)
 {
 	condvar_t *cv = (condvar_t *)condv;
 
@@ -1589,24 +1590,24 @@ qboolean Sys_ConditionSignal(void *condv)
     return true;
 }
 
-qboolean Sys_ConditionBroadcast(void *condv) 
+qboolean Sys_ConditionBroadcast(void *condv)
 {
 	condvar_t *cv = (condvar_t *)condv;
 
 	// if there are non-signaled waiting threads, we signal all of them and wait on all the responses back
 	EnterCriticalSection(&cv->countlock);
-	if (cv->waiting > cv->signals) 
+	if (cv->waiting > cv->signals)
 	{
 		int i, num_waiting;
 
 		num_waiting = (cv->waiting - cv->signals);
 		cv->signals = cv->waiting;
-		
+
 		ReleaseSemaphore(cv->wait_sem, num_waiting, NULL);
 		LeaveCriticalSection(&cv->countlock);
 		// there's no call to wait for the same object multiple times so we need to loop through
 		// and burn up the semaphore count
-		for (i = 0; i < num_waiting; i++) 
+		for (i = 0; i < num_waiting; i++)
 			WaitForSingleObject(cv->wait_done, INFINITE);
 	}
 	else

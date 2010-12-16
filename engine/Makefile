@@ -873,7 +873,11 @@ ifneq ($(shell echo $(FTE_TARGET)|grep macosx),)
 	GLCL_DIR=glcl_macosx$(EXTENSION)$(BITS)
 	MINGL_DIR=mingl_macosx$(EXTENSION)$(BITS)
 
-	GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include
+	GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I/home/moodles/mac/include/ -L/home/moodles/mac/lib -I./libs/
+	ifeq ($(FTE_TARGET),macosx_x86)
+		GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I/home/moodles/mac/x86/include/ -L/home/moodles/mac/x86/lib -I./libs/
+	endif
+
 	GL_LDFLAGS=-framework AGL -framework OpenGL -framework Cocoa -framework AudioUnit -lz -lpng -ljpeg
 	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidcocoa.mo gl_vidmacos.o sys_linux.o in_macos.o cd_null.o snd_macos.o
 
@@ -921,7 +925,7 @@ ifeq ($(FTE_TARGET),morphos)
 	#morphos dedicated server doesnt compile: alloca.h: No such file or directory
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
 	SV_EXE_NAME=../morphos_fteqw.sv$(BITS)
-	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)	
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)	-I/home/moodles/zlib/zlib-1.2.5 -L/home/moodles/zlib/zlib-1.2.5 -I/home/moodles/wip/wip/engine/libs
 endif
 
 

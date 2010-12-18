@@ -137,7 +137,7 @@ typedef struct {
 	void (*RunParticleEffect4) (vec3_t org, float radius, int color, int effect, int count);
 
 	void (*ParticleTrailIndex) (vec3_t start, vec3_t end, int color, int crnd, trailstate_t **tsk);
-	void (*EmitSkyEffectTris) (struct model_s *mod, struct msurface_s 	*fa);
+	void (*EmitSkyEffectTris) (struct model_s *mod, struct msurface_s *fa, int ptype);
 	qboolean (*InitParticles) (void);
 	void (*ShutdownParticles) (void);
 	void (*DelinkTrailstate) (trailstate_t **tsk);

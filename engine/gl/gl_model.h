@@ -245,8 +245,6 @@ typedef struct texture_s
 	qbyte	pixbytes;
 	qbyte	alphaed;	//gl_blend needed on this surface.
 
-	int parttype;
-
 	struct shader_s	*shader;
 	int wtexno;
 

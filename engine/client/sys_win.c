@@ -1249,6 +1249,10 @@ void NPQTV_Sys_Shutdown(void)
 	Host_Shutdown();
 }
 
+void Sys_RecentServer(char *command, char *target, char *title, char *desc)
+{
+}
+
 #else
 
 /*

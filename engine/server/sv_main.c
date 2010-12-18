@@ -1802,7 +1802,7 @@ client_t *SVC_DirectConnect(void)
 				break;
 			case PROTOCOL_VERSION_FTE2:
 				protextsupported2 = Q_atoi(Cmd_Argv(1));
-				Con_DPrintf("Client supports 0x%x fte2 extensions\n", protextsupported);
+				Con_DPrintf("Client supports 0x%x fte2 extensions\n", protextsupported2);
 				break;
 			case PROTOCOL_VERSION_HUFFMAN:
 				huffcrc = Q_atoi(Cmd_Argv(1));
@@ -3684,6 +3684,7 @@ void SV_InitLocal (void)
 	extern	cvar_t	sv_wateraccelerate;
 	extern	cvar_t	sv_friction;
 	extern	cvar_t	sv_waterfriction;
+	extern	cvar_t sv_sound_watersplash;
 	extern	cvar_t	pr_allowbutton1;
 
 	extern	cvar_t	pm_bunnyspeedcap;
@@ -3754,6 +3755,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_wateraccelerate,		cvargroup_serverphysics);
 	Cvar_Register (&sv_friction,			cvargroup_serverphysics);
 	Cvar_Register (&sv_waterfriction,		cvargroup_serverphysics);
+	Cvar_Register (&sv_sound_watersplash,		cvargroup_serverphysics);
 
 	Cvar_Register (&sv_bigcoords,			cvargroup_serverphysics);
 

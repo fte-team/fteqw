@@ -2583,29 +2583,38 @@ qboolean CModQ3_LoadRFaces (lump_t *l)
 		else
 		{
 			//flare
-
-//			int r, g, b;
+			int r, g, b;
 			extern index_t r_quad_indexes[6];
+			static vec2_t	st[4] = {0,0,0,1,1,1,1,0};
 
-			mesh = out->mesh = (mesh_t *)Hunk_Alloc ( sizeof(mesh_t));
-			mesh->xyz_array = (vecV_t *)Hunk_Alloc ( sizeof(vecV_t));
-			mesh->numvertexes = 1;
+			mesh = out->mesh = (mesh_t *)Hunk_Alloc(sizeof(mesh_t));
+			mesh->xyz_array = (vecV_t *)Hunk_Alloc(sizeof(vecV_t)*4);
+			mesh->colors4b_array = (byte_vec4_t *)Hunk_Alloc(sizeof(byte_vec4_t)*4);
+			mesh->numvertexes = 4;
 			mesh->indexes = r_quad_indexes;
+			mesh->st_array = st;
 			mesh->numindexes = 6;
 
-			VectorCopy ( in->lightmap_origin, mesh->xyz_array[0] );
+			VectorCopy (in->lightmap_origin, mesh->xyz_array[0]);
+			VectorCopy (in->lightmap_origin, mesh->xyz_array[1]);
+			VectorCopy (in->lightmap_origin, mesh->xyz_array[2]);
+			VectorCopy (in->lightmap_origin, mesh->xyz_array[3]);
 
-/*			r = LittleFloat ( in->lightmapVecs[0][0] ) * 255.0f;
-			r = bound ( 0, r, 255 );
+			r = LittleFloat(in->lightmap_vecs[0][0]) * 255.0f;
+			r = bound (0, r, 255);
+			g = LittleFloat(in->lightmap_vecs[0][1]) * 255.0f;
+			g = bound (0, g, 255);
+			b = LittleFloat(in->lightmap_vecs[0][2]) * 255.0f;
+			b = bound (0, b, 255);
 
-			g = LittleFloat ( in->lightmapVecs[0][1] ) * 255.0f;
-			g = bound ( 0, g, 255 );
-
-			b = LittleFloat ( in->lightmapVecs[0][2] ) * 255.0f;
-			b = bound ( 0, b, 255 );
-
-			out->dlightbits = (unsigned int)COLOR_RGB ( r, g, b );
-*/		}
+			mesh->colors4b_array[0][0] = r;
+			mesh->colors4b_array[0][1] = g;
+			mesh->colors4b_array[0][2] = b;
+			mesh->colors4b_array[0][3] = 255;
+			Vector4Copy(mesh->colors4b_array[0], mesh->colors4b_array[1]);
+			Vector4Copy(mesh->colors4b_array[0], mesh->colors4b_array[2]);
+			Vector4Copy(mesh->colors4b_array[0], mesh->colors4b_array[3]);
+		}
 	}
 
 	Mod_NormaliseTextureVectors(map_normals_array, map_svector_array, map_tvector_array, numvertexes);
@@ -2732,11 +2741,13 @@ qboolean CModRBSP_LoadRFaces (lump_t *l)
 		{
 //			int r, g, b;
 			extern index_t r_quad_indexes[6];
+			static vec2_t	st[4] = {0,0,0,1,1,1,1,0};
 
 			mesh = out->mesh = (mesh_t *)Hunk_Alloc ( sizeof(mesh_t));
 			mesh->xyz_array = (vecV_t *)Hunk_Alloc ( sizeof(vecV_t));
 			mesh->numvertexes = 1;
 			mesh->indexes = r_quad_indexes;
+			mesh->st_array = st;
 			mesh->numindexes = 6;
 		//	VectorCopy ( out->origin, mesh->xyz_array[0] );
 

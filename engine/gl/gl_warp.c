@@ -461,10 +461,11 @@ static void R_DrawSkyMesh(batch_t *batch, mesh_t *m, shader_t *shader)
 	batch_t b;
 	float time = cl.gametime+realtime-cl.gametimemark;
 
-	float skydist = gl_maxdist.value;
+	float skydist = gl_skyboxdist.value;
 	if (skydist<1)
-		skydist=gl_skyboxdist.value;
-	skydist/=16;
+		skydist=gl_maxdist.value * 0.577;
+	if (skydist<1)
+		skydist = 10000000;
 
 	VectorCopy(r_refdef.vieworg, skyent.origin);
 	skyent.axis[0][0] = skydist;
@@ -486,6 +487,7 @@ static void R_DrawSkyMesh(batch_t *batch, mesh_t *m, shader_t *shader)
 	b.ent = &skyent;
 	b.shader = shader;
 	b.skin = &shader->defaulttextures;
+	b.texture = NULL;
 	BE_SubmitBatch(&b);
 }
 

@@ -724,11 +724,13 @@ static const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen
 	if (strstr(pattern, "//"))
 	{
 		//amiga uses // as equivelent to /../
+		//so strip those out
+		//any other system ignores the extras
 
 		Q_strncpyz(outbuf, pattern, outlen);
 		pattern = outbuf;
 
-		Con_Printf("Warning: // characters in filename %s\n", pattern);
+		Con_DPrintf("Warning: // characters in filename %s\n", pattern);
 		while ((s=strstr(pattern, "//")))
 		{
 			s++;
@@ -739,11 +741,15 @@ static const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen
 			}
 		}
 	}
+	if (*pattern == '/')
+	{
+		/*'fix up' and ignore, compat with q3*/
+		Con_DPrintf("Error: absolute path in filename %s\n", pattern);
+		pattern++;
+	}
 
 	if (strstr(pattern, ".."))
 		Con_Printf("Error: '..' characters in filename %s\n", pattern);
-	else if (pattern[0] == '/')
-		Con_Printf("Error: absolute path in filename %s\n", pattern);
 	else if (strstr(pattern, ":")) //win32 drive seperator (or mac path seperator, but / works there and they're used to it) (or amiga device separator)
 		Con_Printf("Error: absolute path in filename %s\n", pattern);
 	else

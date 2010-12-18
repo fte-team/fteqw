@@ -175,7 +175,7 @@ static void PClassic_ParticleTrailIndex (vec3_t start, vec3_t end, int color, in
 }
 
 //this function is called to tell the particle system about surfaces that might emit particles at map startup.
-static void PClassic_EmitSkyEffectTris(model_t *mod, msurface_t 	*fa)
+static void PClassic_EmitSkyEffectTris(model_t *mod, msurface_t *fa, int ptype)
 {
 }
 
@@ -228,6 +228,7 @@ static qboolean PClassic_InitParticles (void)
 static void PClassic_ShutdownParticles(void)
 {
 	BZ_Free(particles);
+	particles = NULL;
 }
 
 //called when an entity is removed from the world, taking its trailstate with it.

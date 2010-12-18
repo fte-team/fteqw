@@ -463,7 +463,7 @@ char *PR_RemoveProgsString				(progfuncs_t *progfuncs, string_t str)
 	return NULL;
 }
 
-char *PR_StringToNative				(progfuncs_t *progfuncs, string_t str)
+char *ASMCALL PR_StringToNative				(progfuncs_t *progfuncs, string_t str)
 {
 	if ((unsigned int)str & 0xc0000000)
 	{

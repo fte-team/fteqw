@@ -41,7 +41,7 @@ qboolean PR_KrimzonParseCommand(char *s);
 qboolean PR_UserCmd(char *cmd);
 qboolean PR_ConsoleCmd(void);
 
-void PR_RunThreads(void);
+void PRSV_RunThreads(void);
 
 
 #define PR_MAINPROGS 0	//this is a constant that should really be phased out. But seeing as QCLIB requires some sort of master progs due to extern funcs...

@@ -14,13 +14,24 @@
 	#define VARGS
 #endif
 
+#if defined(_M_IX86) || defined(__i386__)
+//#define QCJIT
+#endif
+
+#ifdef QCJIT
+#define ASMCALL VARGS
+#else
+#define ASMCALL
+#endif
+#define QCBUILTIN ASMCALL
+
 
 struct edict_s;
 struct entvars_s;
 struct globalvars_s;
 struct qcthread_s;
 typedef struct progfuncs_s progfuncs_t;
-typedef void (*builtin_t) (progfuncs_t *prinst, struct globalvars_s *gvars);
+typedef void (ASMCALL *builtin_t) (progfuncs_t *prinst, struct globalvars_s *gvars);
 
 //used by progs engine. All nulls is reset.
 typedef struct {
@@ -120,7 +131,7 @@ struct progfuncs_s {
 	string_t (*TempString)				(progfuncs_t *prinst, char *str);
 
 	string_t (*StringToProgs)			(progfuncs_t *prinst, char *str);
-	char *(*StringToNative)				(progfuncs_t *prinst, string_t str);
+	char *(ASMCALL *StringToNative)				(progfuncs_t *prinst, string_t str);
 	int stringtablesize;
 
 	int (*QueryField)					(progfuncs_t *prinst, unsigned int fieldoffset, etype_t *type, char **name, evalc_t *fieldcache);	//find info on a field definition at an offset
@@ -141,10 +152,10 @@ typedef struct progexterns_s {
 
 	void (*entspawn) (struct edict_s *ent, int loading);	//ent has been spawned, but may not have all the extra variables (that may need to be set) set
 	pbool (*entcanfree) (struct edict_s *ent);	//return true to stop ent from being freed
-	void (*stateop) (progfuncs_t *prinst, float var, func_t func);	//what to do on qc's state opcode.
-	void (*cstateop) (progfuncs_t *prinst, float vara, float varb, func_t currentfunc);		//a hexen2 opcode.
-	void (*cwstateop) (progfuncs_t *prinst, float vara, float varb, func_t currentfunc);	//a hexen2 opcode.
-	void (*thinktimeop) (progfuncs_t *prinst, struct edict_s *ent, float varb);			//a hexen2 opcode.
+	void (ASMCALL *stateop) (progfuncs_t *prinst, float var, func_t func);	//what to do on qc's state opcode.
+	void (ASMCALL *cstateop) (progfuncs_t *prinst, float vara, float varb, func_t currentfunc);		//a hexen2 opcode.
+	void (ASMCALL *cwstateop) (progfuncs_t *prinst, float vara, float varb, func_t currentfunc);	//a hexen2 opcode.
+	void (ASMCALL *thinktimeop) (progfuncs_t *prinst, struct edict_s *ent, float varb);			//a hexen2 opcode.
 
 
 	//used when loading a game

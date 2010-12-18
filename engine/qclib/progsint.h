@@ -29,10 +29,6 @@
 typedef unsigned char qbyte;
 #include <stdio.h>
 
-#if defined(_M_IX86) || defined(__i386__)
-//#define QCJIT
-#endif
-
 #define DLL_PROG
 #ifndef PROGSUSED
 #define PROGSUSED
@@ -464,7 +460,7 @@ ddef32_t *ED_FindGlobal32 (progfuncs_t *progfuncs, char *name);
 ddef32_t *ED_GlobalAtOfs32 (progfuncs_t *progfuncs, unsigned int ofs);
 
 string_t PR_StringToProgs			(progfuncs_t *inst, char *str);
-char *PR_StringToNative				(progfuncs_t *inst, string_t str);
+char *ASMCALL PR_StringToNative				(progfuncs_t *inst, string_t str);
 
 void PR_FreeTemps			(progfuncs_t *progfuncs, int depth);
 

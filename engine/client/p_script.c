@@ -2130,7 +2130,7 @@ static void P_AddRainParticles(void)
 	}
 }
 
-static void R_Part_SkyTri(float *v1, float *v2, float *v3, msurface_t *surf)
+static void R_Part_SkyTri(float *v1, float *v2, float *v3, msurface_t *surf, int ptype)
 {
 	float dot;
 	float xm;
@@ -2142,7 +2142,7 @@ static void R_Part_SkyTri(float *v1, float *v2, float *v3, msurface_t *surf)
 	skytris_t *st;
 
 	st = Hunk_Alloc(sizeof(skytris_t));
-	st->next = part_type[surf->texinfo->texture->parttype].skytris;
+	st->next = part_type[ptype].skytris;
 	VectorCopy(v1, st->org);
 	VectorSubtract(v2, st->org, st->x);
 	VectorSubtract(v3, st->org, st->y);
@@ -2165,12 +2165,12 @@ static void R_Part_SkyTri(float *v1, float *v2, float *v3, msurface_t *surf)
 	if (st->area<=0)
 		return;//bummer.
 
-	part_type[surf->texinfo->texture->parttype].skytris = st;
+	part_type[ptype].skytris = st;
 }
 
 
 
-static void PScript_EmitSkyEffectTris(model_t *mod, msurface_t 	*fa)
+static void PScript_EmitSkyEffectTris(model_t *mod, msurface_t 	*fa, int ptype)
 {
 	vec3_t		verts[64];
 	int v1;
@@ -2179,6 +2179,9 @@ static void PScript_EmitSkyEffectTris(model_t *mod, msurface_t 	*fa)
 	int numverts;
 	int i, lindex;
 	float *vec;
+
+	if (ptype < 0 || ptype >= numparticletypes)
+		return;
 
 	//
 	// convert edges back to a normal polygon
@@ -2206,7 +2209,7 @@ static void PScript_EmitSkyEffectTris(model_t *mod, msurface_t 	*fa)
 	v2 = 1;
 	for (v3 = 2; v3 < numverts; v3++)
 	{
-		R_Part_SkyTri(verts[v1], verts[v2], verts[v3], fa);
+		R_Part_SkyTri(verts[v1], verts[v2], verts[v3], fa, ptype);
 
 		v2 = v3;
 	}
@@ -4210,7 +4213,7 @@ static void PScript_DrawParticleTypes (void (*texturedparticles)(int count, part
 				b = b->next;
 			}
 
-			continue;
+			goto endtype;
 		}
 
 		//kill off early ones.
@@ -4463,8 +4466,8 @@ static void PScript_DrawParticleTypes (void (*texturedparticles)(int count, part
 							}
 						}
 
-	//					if (b->p->die < particletime)
-	//						b->flags |= BS_DEAD;
+						if (b->p->die < particletime)
+							b->flags |= BS_DEAD;
 					}
 				}
 				else
@@ -4481,6 +4484,8 @@ static void PScript_DrawParticleTypes (void (*texturedparticles)(int count, part
 				b = b->next;
 			}
 		}
+
+endtype:
 
 		// delete from run list if necessary
 		if (!type->particles && !type->beams && !type->clippeddecals)

@@ -57,6 +57,7 @@ cvar_t	sv_wateraccelerate	 = SCVAR( "sv_wateraccelerate", "10");
 cvar_t	sv_friction			 = SCVAR( "sv_friction", "4");
 cvar_t	sv_waterfriction	 = SCVAR( "sv_waterfriction", "4");
 cvar_t	sv_gameplayfix_noairborncorpse = SCVAR( "sv_gameplayfix_noairborncorpse", "0");
+cvar_t	sv_sound_watersplash = CVAR( "sv_sound_watersplash", "misc/h2ohit1.wav");
 
 cvar_t	pm_ktjump			 = SCVARF("pm_ktjump", "0", CVAR_SERVERINFO);
 cvar_t	pm_bunnyspeedcap	 = SCVARF("pm_bunnyspeedcap", "0", CVAR_SERVERINFO);
@@ -1041,18 +1042,18 @@ static void SV_CheckWaterTransition (edict_t *ent)
 
 	if (cont <= Q1CONTENTS_WATER)
 	{
-		if (ent->v->watertype == Q1CONTENTS_EMPTY)
+		if (ent->v->watertype == Q1CONTENTS_EMPTY && *sv_sound_watersplash.string)
 		{	// just crossed into water
-			SVQ1_StartSound (ent, 0, "misc/h2ohit1.wav", 255, 1, 0);
+			SVQ1_StartSound (ent, 0, sv_sound_watersplash.string, 255, 1, 0);
 		}
 		ent->v->watertype = cont;
 		ent->v->waterlevel = 1;
 	}
 	else
 	{
-		if (ent->v->watertype != Q1CONTENTS_EMPTY)
+		if (ent->v->watertype != Q1CONTENTS_EMPTY && *sv_sound_watersplash.string)
 		{	// just crossed into open
-			SVQ1_StartSound (ent, 0, "misc/h2ohit1.wav", 255, 1, 0);
+			SVQ1_StartSound (ent, 0, sv_sound_watersplash.string, 255, 1, 0);
 		}
 		ent->v->watertype = Q1CONTENTS_EMPTY;
 		ent->v->waterlevel = cont;
@@ -1195,7 +1196,7 @@ static void SV_Physics_Step (edict_t *ent)
 	else
 		freefall = true;
 	if (fl & FL_SWIM)
-		freefall = ent->v->waterlevel > 0;
+		freefall = ent->v->waterlevel <= 0;
 	if (freefall)
 	{
 		hitsound = ent->v->velocity[2] < movevars.gravity*-0.1;
@@ -2142,7 +2143,7 @@ qboolean SV_Physics (void)
 		World_Physics_Frame(&sv.world, host_frametime, sv_gravity.value);
 #endif
 
-		PR_RunThreads();
+		PRSV_RunThreads();
 
 
 		retouch = (pr_nqglobal_struct->force_retouch && *pr_nqglobal_struct->force_retouch);

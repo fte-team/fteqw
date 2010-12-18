@@ -2583,11 +2583,13 @@ void BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_t 
 		shaderstate.sourcevbo = &shaderstate.dummyvbo;
 		shaderstate.curshader = shader;
 		if (shaderstate.curentity != &r_worldentity)
+		{
 			BE_SelectEntity(&r_worldentity);
+			shaderstate.curtime = shaderstate.updatetime - shaderstate.curentity->shaderTime;
+		}
 		shaderstate.curtexnums = texnums;
 		shaderstate.curlightmap = r_nulltex;
 		shaderstate.curdeluxmap = r_nulltex;
-		shaderstate.curtime = shaderstate.updatetime - shaderstate.curentity->shaderTime;
 
 		while (nummeshes--)
 		{
@@ -2611,11 +2613,13 @@ void BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_t 
 		shaderstate.sourcevbo = vbo;
 		shaderstate.curshader = shader;
 		if (shaderstate.curentity != &r_worldentity)
+		{
 			BE_SelectEntity(&r_worldentity);
+			shaderstate.curtime = shaderstate.updatetime - shaderstate.curentity->shaderTime;
+		}
 		shaderstate.curtexnums = texnums;
 		shaderstate.curlightmap = r_nulltex;
 		shaderstate.curdeluxmap = r_nulltex;
-		shaderstate.curtime = realtime;
 
 		shaderstate.meshcount = nummeshes;
 		shaderstate.meshes = meshlist;
@@ -2687,9 +2691,11 @@ void BE_SubmitBatch(batch_t *batch)
 
 	shaderstate.curshader = batch->shader;
 	if (shaderstate.curentity != batch->ent)
+	{
 		BE_SelectEntity(batch->ent);
+		shaderstate.curtime = r_refdef.time - shaderstate.curentity->shaderTime;
+	}
 	shaderstate.flags = batch->flags;
-	shaderstate.curtime = realtime;
 	if (batch->skin)
 		shaderstate.curtexnums = batch->skin;
 	else

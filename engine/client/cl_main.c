@@ -3380,7 +3380,7 @@ float Host_Frame (double time)
 			if (!spare)
 				return 1;
 
-			//realtime -= spare/1000;	//don't use it all!
+			realtime -= spare/1000;	//don't use it all!
 		}
 	}
 	else

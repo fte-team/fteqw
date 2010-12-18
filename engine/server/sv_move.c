@@ -152,7 +152,7 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, qboolean re
 			if (trace.fraction == 1)
 			{
 				if ( ((int)ent->v->flags & FL_SWIM) && !(World_PointContents(world, trace.endpos) & FTECONTENTS_FLUID))
-					return false;	// swim monster left water
+					continue;	// swim monster left water
 	
 				VectorCopy (trace.endpos, ent->v->origin);
 				if (relink)

@@ -478,7 +478,7 @@ static string_t Q1QVMPF_StringToProgs(progfuncs_t *prinst, char *str)
 	return (string_t)(str - (char*)VM_MemoryBase(q1qvm));
 }
 
-static char *Q1QVMPF_StringToNative(progfuncs_t *prinst, string_t str)
+static char *ASMCALL Q1QVMPF_StringToNative(progfuncs_t *prinst, string_t str)
 {
 	return (char*)VM_MemoryBase(q1qvm) + str;
 }

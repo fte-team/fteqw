@@ -2522,6 +2522,7 @@ void Surf_BuildLightmaps (void)
 	batch_t *batch, *bstop;
 	vec3_t sn;
 	int sortid;
+	int ptype;
 
 	r_framecount = 1;		// no dlightcache
 
@@ -2581,6 +2582,10 @@ void Surf_BuildLightmaps (void)
 
 		for (t = m->numtextures-1; t >= 0; t--)
 		{
+			if (m == cl.worldmodel)
+				ptype = P_FindParticleType(va("tex_%s", m->textures[t]->name));
+			else
+				ptype = P_INVALID;
 			m->textures[t]->wtexno = t;
 
 			sortid = m->textures[t]->shader->sort;
@@ -2591,7 +2596,7 @@ void Surf_BuildLightmaps (void)
 				surf = m->surfaces + i;
 				if (surf->texinfo->texture == m->textures[t])
 				{
-					P_EmitSkyEffectTris(m, surf);
+					P_EmitSkyEffectTris(m, surf, ptype);
 					Surf_CreateSurfaceLightmap (surf, shift);
 
 					/*the excessive logic is to give portals separate batches for separate planes*/

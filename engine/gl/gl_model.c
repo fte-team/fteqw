@@ -1042,7 +1042,6 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 		{
 			tx = Hunk_AllocName (sizeof(texture_t), loadname );
 			memcpy(tx, r_notexture_mip, sizeof(texture_t));
-			tx->parttype = -1;
 			sprintf(tx->name, "unnamed%i", i);
 			loadmodel->textures[i] = tx;
 			continue;
@@ -1073,8 +1072,6 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 		memcpy (tx->name, mt->name, sizeof(tx->name));
 		tx->width = mt->width;
 		tx->height = mt->height;
-
-		tx->parttype = P_INVALID;
 
 		if (!mt->offsets[0])	//this is a hl external style texture, load it a little later (from a wad)
 		{

@@ -14,7 +14,7 @@ shader_t *shader_polyblend;
 
 static mesh_t	draw_mesh;
 static vecV_t	draw_mesh_xyz[4];
-static vec2_t	draw_mesh_st[4];
+vec2_t	draw_mesh_st[4];
 static avec4_t	draw_mesh_colors[4];
 index_t r_quad_indexes[6] = {0, 1, 2, 2, 3, 0};
 

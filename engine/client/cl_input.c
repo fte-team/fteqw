@@ -1769,8 +1769,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	}
 
 #ifdef PEXT2_VOICECHAT
-	if (cls.fteprotocolextensions2 & PEXT2_VOICECHAT)
-		S_Voip_Transmit(clc_voicechat, &buf);
+	S_Voip_Transmit(clc_voicechat, &buf);
 #endif
 
 //

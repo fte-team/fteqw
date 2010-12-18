@@ -96,7 +96,7 @@ cvar_t sv_realip_timeout = SCVAR("sv_realip_timeout", "10");
 
 #ifdef VOICECHAT
 cvar_t sv_voip = CVARD("sv_voip", "1", "Enable reception of voice packets.");
-cvar_t sv_voip_record = CVARD("sv_voip_record", "0", "Record voicechat into mvds. Requires player support.");
+cvar_t sv_voip_record = CVARD("sv_voip_record", "0", "Record voicechat into mvds. Requires player support. 0=noone, 1=everyone, 2=spectators only");
 cvar_t sv_voip_echo = CVARD("sv_voip_echo", "0", "Echo voice packets back to their sender, a debug/test setting.");
 #endif
 
@@ -2094,6 +2094,16 @@ void SV_NextUpload (void)
 }
 
 #ifdef VOICECHAT
+/*
+Pivicy issues:
+By sending voice chat to a server, you are unsure who might be listening.
+Voice can be recorded to an mvd, potentially including voice.
+Spectators tracvking you are able to hear team chat of your team.
+You're never quite sure if anyone might join the server and your team before you finish saying a sentance.
+You run the risk of sounds around you being recorded by quake, including but not limited to: TV channels, loved ones, phones, YouTube videos featuring certain moans.
+Default on non-team games is to broadcast.
+*/
+
 #define VOICE_RING_SIZE 512 /*POT*/
 struct
 {
@@ -2145,9 +2155,6 @@ void SV_VoiceReadPacket(void)
 		ring->receiver[j] = 0;
 	for (j = 0, cl = svs.clients; j < sv.allocated_client_slots; j++, cl++)
 	{
-		if (cl == host_client && !sv_voip_echo.ival)
-			continue;
-
 		if (cl->state != cs_spawned && cl->state != cs_connected)
 			continue;
 		/*spectators may only talk to spectators*/
@@ -2189,7 +2196,7 @@ void SV_VoiceReadPacket(void)
 		ring->receiver[cln>>3] |= 1<<(cln&3);
 	}
 
-	if (sv.mvdrecording && sv_voip_record.ival)
+	if (sv.mvdrecording && sv_voip_record.ival && !(sv_voip_record.ival == 2 && !host_client->spectator))
 	{
 		// non-team messages should be seen always, even if not tracking any player
 		if (vt == VT_ALL && (!host_client->spectator || sv_spectalk.ival))
@@ -2244,12 +2251,21 @@ void SV_VoiceSendPacket(client_t *client, sizebuf_t *buf)
 		ring = &voice.ring[(client->voice_read) & (VOICE_RING_SIZE-1)];
 
 		/*figure out if it was for us*/
+		send = false;
 		if (ring->receiver[clno>>3] & (1<<(clno&3)))
 			send = true;
 		else
-			send = false;
+		{
+			/*if you're spectating, you can hear whatever your tracked player can hear*/
+			if (host_client->spectator && host_client->spec_track)
+				if (ring->receiver[(host_client->spec_track-1)>>3] & (1<<((host_client->spec_track-1)&3)))
+					send = true;
+		}
 
 		if (client->voice_mute[ring->sender>>3] & (1<<(ring->sender&3)))
+			send = false;
+
+		if (ring->sender == clno && !sv_voip_echo.ival)
 			send = false;
 
 		/*additional ways to block voice*/
@@ -6474,6 +6490,7 @@ void SV_UserInit (void)
 #ifdef VOICECHAT
 	Cvar_Register (&sv_voip, cvargroup_serverpermissions);
 	Cvar_Register (&sv_voip_echo, cvargroup_serverpermissions);
+	Cvar_Register (&sv_voip_record, cvargroup_serverpermissions);
 #endif
 #ifdef SERVERONLY
 	Cvar_Register (&cl_rollspeed, "Prediction stuff");

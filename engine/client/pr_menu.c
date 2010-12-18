@@ -215,7 +215,7 @@ int MP_TranslateDPtoFTECodes(int code)
 }
 
 //string	findkeysforcommand(string command) = #610;
-void PF_cl_findkeysforcommand (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cl_findkeysforcommand (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *cmdname = PR_GetStringOfs(prinst, OFS_PARM0);
 	int keynums[2];
@@ -231,13 +231,13 @@ void PF_cl_findkeysforcommand (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	RETURN_TSTRING(keyname);
 }
 
-void PF_cl_getkeybind (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cl_getkeybind (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *binding = Key_GetBinding(G_FLOAT(OFS_PARM0));
 	RETURN_TSTRING(binding);
 }
 
-void PF_cl_stringtokeynum(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cl_stringtokeynum(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i;
 	int modifier;
@@ -255,7 +255,7 @@ void PF_cl_stringtokeynum(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //string	keynumtostring(float keynum) = #609;
-void PF_cl_keynumtostring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cl_keynumtostring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int code = G_FLOAT(OFS_PARM0);
 
@@ -272,7 +272,7 @@ void PF_cl_keynumtostring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 
 //float	drawfill(vector position, vector size, vector rgb, float alpha, float flag) = #457;
-void PF_CL_drawfill (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_CL_drawfill (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	float *size = G_VECTOR(OFS_PARM1);
@@ -285,7 +285,7 @@ void PF_CL_drawfill (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = 1;
 }
 //void	drawsetcliparea(float x, float y, float width, float height) = #458;
-void PF_CL_drawsetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_CL_drawsetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float x = G_FLOAT(OFS_PARM0), y = G_FLOAT(OFS_PARM1), w = G_FLOAT(OFS_PARM2), h = G_FLOAT(OFS_PARM3);
 
@@ -315,7 +315,7 @@ void PF_CL_drawsetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals
 	G_FLOAT(OFS_RETURN) = 0;
 }
 //void	drawresetcliparea(void) = #459;
-void PF_CL_drawresetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_CL_drawresetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
@@ -328,7 +328,7 @@ void PF_CL_drawresetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	G_FLOAT(OFS_RETURN) = 0;
 }
 
-void PF_CL_DrawTextField (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_CL_DrawTextField (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	float *size = G_VECTOR(OFS_PARM1);
@@ -338,7 +338,7 @@ void PF_CL_DrawTextField (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //float	drawstring(vector position, string text, vector scale, float alpha, float flag) = #455;
-void PF_CL_drawcolouredstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_CL_drawcolouredstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	char *text = PR_GetStringOfs(prinst, OFS_PARM1);
@@ -368,7 +368,7 @@ void PF_CL_drawcolouredstring (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	Font_EndString(font_conchar);
 }
 
-void PF_CL_stringwidth(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_CL_stringwidth(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *text = PR_GetStringOfs(prinst, OFS_PARM0);
 	qboolean usecolours = G_FLOAT(OFS_PARM1);
@@ -406,7 +406,7 @@ static void PF_SelectDPDrawFlag(int flag)
 }
 
 //float	drawpic(vector position, string pic, vector size, vector rgb, float alpha, float flag) = #456;
-void PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	char *picname = PR_GetStringOfs(prinst, OFS_PARM1);
@@ -429,7 +429,7 @@ void PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = 1;
 }
 
-void PF_CL_drawsubpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_CL_drawsubpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	float *size = G_VECTOR(OFS_PARM1);
@@ -459,7 +459,7 @@ void PF_CL_drawsubpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 
 
-void PF_CL_is_cached_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_CL_is_cached_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*str;
 	
@@ -471,7 +471,7 @@ void PF_CL_is_cached_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		G_FLOAT(OFS_RETURN) = 1;
 }
 
-void PF_CL_precache_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_CL_precache_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*str;
 	mpic_t	*pic;
@@ -503,7 +503,7 @@ void PF_CL_precache_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		G_INT(OFS_RETURN) = 0;
 }
 
-void PF_CL_free_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_CL_free_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*str;
 	
@@ -514,7 +514,7 @@ void PF_CL_free_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 
 //float	drawcharacter(vector position, float character, vector scale, vector rgb, float alpha, float flag) = #454;
-void PF_CL_drawcharacter (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_CL_drawcharacter (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	int chara = G_FLOAT(OFS_PARM1);
@@ -540,7 +540,7 @@ void PF_CL_drawcharacter (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = 1;
 }
 //float	drawrawstring(vector position, string text, vector scale, vector rgb, float alpha, float flag) = #455;
-void PF_CL_drawrawstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_CL_drawrawstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	char *text = PR_GetStringOfs(prinst, OFS_PARM1);
@@ -569,7 +569,7 @@ void PF_CL_drawrawstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //void (float width, vector rgb, float alpha, float flags, vector pos1, ...) drawline;
-void PF_CL_drawline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_CL_drawline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *rgb = G_VECTOR(OFS_PARM1);
 	float alpha = G_FLOAT(OFS_PARM2);
@@ -594,7 +594,7 @@ void PF_CL_drawline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //vector  drawgetimagesize(string pic) = #460;
-void PF_CL_drawgetimagesize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_CL_drawgetimagesize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *picname = PR_GetStringOfs(prinst, OFS_PARM0);
 	mpic_t *p = Draw_SafeCachePic(picname);
@@ -652,14 +652,14 @@ cvar_t pr_menuqc_coreonerror = SCVAR("pr_menuqc_coreonerror", "1");
 //new generic functions.
 
 //float	isfunction(string function_name) = #607;
-void PF_isfunction (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_isfunction (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*name = PR_GetStringOfs(prinst, OFS_PARM0);
 	G_FLOAT(OFS_RETURN) = !!PR_FindFunction(prinst, name, PR_CURRENT);
 }
 
 //void	callfunction(...) = #605;
-void PF_callfunction (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_callfunction (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*name;
 	func_t f;
@@ -672,7 +672,7 @@ void PF_callfunction (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //void	loadfromfile(string file) = #69;
-void PF_loadfromfile (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_loadfromfile (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*filename = PR_GetStringOfs(prinst, OFS_PARM0);
 	char *file = COM_LoadTempFile(filename);
@@ -693,7 +693,7 @@ void PF_loadfromfile (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = 0;
 }
 
-void PF_loadfromdata (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_loadfromdata (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*file = PR_GetStringOfs(prinst, OFS_PARM0);
 
@@ -713,7 +713,7 @@ void PF_loadfromdata (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = 0;
 }
 
-void PF_parseentitydata(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_parseentitydata(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	void	*ed = G_EDICT(prinst, OFS_PARM0);
 	char	*file = PR_GetStringOfs(prinst, OFS_PARM1);
@@ -740,7 +740,7 @@ void PF_parseentitydata(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = 0;
 }
 
-void PF_mod (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_mod (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_FLOAT(OFS_RETURN) = (float)(((int)G_FLOAT(OFS_PARM0))%((int)G_FLOAT(OFS_PARM1)));
 }
@@ -770,7 +770,7 @@ char *RemapCvarNameFromDPToFTE(char *name)
 	return name;
 }
 
-static void PF_menu_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_menu_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	cvar_t	*var;
 	char	*str;
@@ -787,7 +787,7 @@ static void PF_menu_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	else
 		G_FLOAT(OFS_RETURN) = 0;
 }
-static void PF_menu_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_menu_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*var_name, *val;
 	cvar_t *var;
@@ -799,7 +799,7 @@ static void PF_menu_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	var = Cvar_Get(var_name, val, 0, "QC variables");
 	Cvar_Set (var, val);
 }
-static void PF_menu_cvar_string (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_menu_cvar_string (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
 	cvar_t *cv = Cvar_Get(RemapCvarNameFromDPToFTE(str), "", 0, "QC variables");
@@ -808,7 +808,7 @@ static void PF_menu_cvar_string (progfuncs_t *prinst, struct globalvars_s *pr_gl
 
 qboolean M_Vid_GetMode(int num, int *w, int *h);
 //a bit pointless really
-void PF_cl_getresolution (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cl_getresolution (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float mode = G_FLOAT(OFS_PARM0);
 	float *ret = G_VECTOR(OFS_RETURN);
@@ -825,7 +825,7 @@ void PF_cl_getresolution (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 
 
-void PF_nonfatalobjerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_nonfatalobjerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*s;
 	struct edict_s	*ed;
@@ -860,7 +860,7 @@ void PF_nonfatalobjerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 
 //float	isserver(void)  = #60;
-void PF_isserver (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_isserver (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 #ifdef CLIENTONLY
 	G_FLOAT(OFS_RETURN) = false;
@@ -870,13 +870,13 @@ void PF_isserver (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //float	clientstate(void)  = #62;
-void PF_clientstate (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_clientstate (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_FLOAT(OFS_RETURN) = cls.state >= ca_connected ? 2 : 1;	//fit in with netquake	 (we never run a menu.dat dedicated)
 }
 
 //too specific to the prinst's builtins.
-static void PF_Fixme (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_Fixme (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	Con_Printf("\n");
 
@@ -886,7 +886,7 @@ static void PF_Fixme (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 
 
-void PF_CL_precache_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_CL_precache_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*str;
 	
@@ -899,7 +899,7 @@ void PF_CL_precache_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //void	setkeydest(float dest) 	= #601;
-void PF_cl_setkeydest (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cl_setkeydest (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	switch((int)G_FLOAT(OFS_PARM0))
 	{
@@ -922,7 +922,7 @@ void PF_cl_setkeydest (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 }
 //float	getkeydest(void)	= #602;
-void PF_cl_getkeydest (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cl_getkeydest (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	switch(key_dest)
 	{
@@ -945,7 +945,7 @@ void PF_cl_getkeydest (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //void	setmousetarget(float trg) = #603;
-void PF_cl_setmousetarget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cl_setmousetarget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	extern int mouseusedforgui;
 	switch ((int)G_FLOAT(OFS_PARM0))
@@ -962,14 +962,14 @@ void PF_cl_setmousetarget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //float	getmousetarget(void)	  = #604;
-void PF_cl_getmousetarget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cl_getmousetarget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	extern int mouseusedforgui;
 	G_FLOAT(OFS_RETURN) = mouseusedforgui?1:2;
 }
 
 //vector	getmousepos(void)  	= #66;
-void PF_cl_getmousepos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN QCBUILTIN PF_cl_getmousepos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *ret = G_VECTOR(OFS_RETURN);
 	extern int mousemove_x, mousemove_y;
@@ -987,7 +987,7 @@ void PF_cl_getmousepos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 
-static void PF_Remove_ (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_Remove_ (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	menuedict_t *ed;
 	
@@ -1002,7 +1002,7 @@ static void PF_Remove_ (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	ED_Free (prinst, (void*)ed);
 }
 
-static void PF_CopyEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_CopyEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	menuedict_t *in, *out;
 
@@ -1026,7 +1026,7 @@ typedef enum{
 	SLIST_SORTDESCENDING
 } hostcacheglobal_t;
 
-void PF_M_gethostcachevalue (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_gethostcachevalue (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	hostcacheglobal_t hcg = G_FLOAT(OFS_PARM0);
 	G_FLOAT(OFS_RETURN) = 0;
@@ -1062,12 +1062,12 @@ void PF_M_gethostcachevalue (progfuncs_t *prinst, struct globalvars_s *pr_global
 }
 
 //void 	resethostcachemasks(void) = #615;
-void PF_M_resethostcachemasks(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_resethostcachemasks(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	Master_ClearMasks();
 }
 //void 	sethostcachemaskstring(float mask, float fld, string str, float op) = #616;
-void PF_M_sethostcachemaskstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_sethostcachemaskstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int mask = G_FLOAT(OFS_PARM0);
 	int field = G_FLOAT(OFS_PARM1);
@@ -1077,7 +1077,7 @@ void PF_M_sethostcachemaskstring(progfuncs_t *prinst, struct globalvars_s *pr_gl
 	Master_SetMaskString(mask, field, str, op);
 }
 //void	sethostcachemasknumber(float mask, float fld, float num, float op) = #617;
-void PF_M_sethostcachemasknumber(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_sethostcachemasknumber(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int mask = G_FLOAT(OFS_PARM0);
 	int field = G_FLOAT(OFS_PARM1);
@@ -1087,22 +1087,22 @@ void PF_M_sethostcachemasknumber(progfuncs_t *prinst, struct globalvars_s *pr_gl
 	Master_SetMaskInteger(mask, field, str, op);
 }
 //void 	resorthostcache(void) = #618;
-void PF_M_resorthostcache(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_resorthostcache(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	Master_SortServers();
 }
 //void	sethostcachesort(float fld, float descending) = #619;
-void PF_M_sethostcachesort(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_sethostcachesort(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	Master_SetSortField(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
 }
 //void	refreshhostcache(void) = #620;
-void PF_M_refreshhostcache(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_refreshhostcache(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	MasterInfo_Begin();
 }
 //float	gethostcachenumber(float fld, float hostnr) = #621;
-void PF_M_gethostcachenumber(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_gethostcachenumber(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float ret = 0;
 	int keynum = G_FLOAT(OFS_PARM0);
@@ -1114,7 +1114,7 @@ void PF_M_gethostcachenumber(progfuncs_t *prinst, struct globalvars_s *pr_global
 
 	G_FLOAT(OFS_RETURN) = ret;
 }
-void PF_M_gethostcachestring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_gethostcachestring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *ret;
 	int keynum = G_FLOAT(OFS_PARM0);
@@ -1128,25 +1128,25 @@ void PF_M_gethostcachestring (progfuncs_t *prinst, struct globalvars_s *pr_globa
 }
 
 //float	gethostcacheindexforkey(string key) = #622;
-void PF_M_gethostcacheindexforkey(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_gethostcacheindexforkey(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *keyname = PR_GetStringOfs(prinst, OFS_PARM0);
 
 	G_FLOAT(OFS_RETURN) = Master_KeyForName(keyname);
 }
 //void	addwantedhostcachekey(string key) = #623;
-void PF_M_addwantedhostcachekey(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_addwantedhostcachekey(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	PF_M_gethostcacheindexforkey(prinst, pr_globals);
 }
 
-void PF_M_getextresponse(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_getextresponse(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	//this does something weird
 	G_INT(OFS_RETURN) = 0;
 }
 
-void PF_netaddress_resolve(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_netaddress_resolve(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *address = PR_GetStringOfs(prinst, OFS_PARM0);
 	netadr_t adr;
@@ -1181,7 +1181,7 @@ void PF_M_addwantedhostcachekey(progfuncs_t *prinst, struct globalvars_s *pr_glo
 #endif
 
 
-void PF_localsound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_localsound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *soundname = PR_GetStringOfs(prinst, OFS_PARM0);
 	S_LocalSound (soundname);
@@ -1193,24 +1193,24 @@ void PF_localsound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 #define skip50 skip10 skip10 skip10 skip10 skip10
 #define skip100 skip50 skip50
 
-void PF_menu_checkextension (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_menu_checkextension (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	//yeah, this is a stub... not sure what form extex
 	G_FLOAT(OFS_RETURN) = 0;
 }
 
-void PF_gettime (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_gettime (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_FLOAT(OFS_RETURN) = *prinst->parms->gametime;
 }
 
-void PF_CL_precache_file (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_CL_precache_file (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
 }
 
 //entity	findchainstring(.string _field, string match) = #26;
-void PF_menu_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_menu_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i, f;
 	char *s;
@@ -1243,7 +1243,7 @@ void PF_menu_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_EDICT(prinst, (void*)chain);
 }
 //entity	findchainfloat(.float _field, float match) = #27;
-void PF_menu_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_menu_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i, f;
 	float s;
@@ -1272,18 +1272,18 @@ void PF_menu_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_global
 	RETURN_EDICT(prinst, (void*)chain);
 }
 
-void PF_etof(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_etof(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_FLOAT(OFS_RETURN) = G_EDICTNUM(prinst, OFS_PARM0);
 }
-void PF_ftoe(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_ftoe(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int entnum = G_FLOAT(OFS_PARM0);
 
 	RETURN_EDICT(prinst, EDICT_NUM(prinst, entnum));
 }
 
-void PF_IsNotNull(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_IsNotNull(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int str = G_INT(OFS_PARM0);
 	G_FLOAT(OFS_RETURN) = !!str;
@@ -1291,7 +1291,7 @@ void PF_IsNotNull(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //float 	altstr_count(string str) = #82;
 //returns number of single quoted strings in the string.
-void PF_altstr_count(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_altstr_count(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *s;
 	int count = 0;
@@ -1309,7 +1309,7 @@ void PF_altstr_count(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = count/2;
 }
 //string  altstr_prepare(string str) = #83;
-void PF_altstr_prepare(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_altstr_prepare(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char outstr[8192], *out;
 	char *instr, *in;
@@ -1336,7 +1336,7 @@ void PF_altstr_prepare(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_INT( OFS_RETURN ) = (int)PR_TempString( prinst, outstr );
 }
 //string  altstr_get(string str, float num) = #84;
-void PF_altstr_get(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_altstr_get(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *altstr, *pos, outstr[8192], *out;
 	int count, size;
@@ -1382,7 +1382,7 @@ void PF_altstr_get(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_INT( OFS_RETURN ) = (int)PR_SetString( prinst, outstr );
 }
 //string  altstr_set(string str, float num, string set) = #85
-void PF_altstr_set(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_altstr_set(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int num;
 	char *altstr, *str;

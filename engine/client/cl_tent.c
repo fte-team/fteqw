@@ -354,13 +354,6 @@ void P_LoadedModel(model_t *mod)
 	mod->particleeffect = P_INVALID;
 	mod->particletrail = P_INVALID;
 	mod->engineflags &= ~(MDLF_NODEFAULTTRAIL | MDLF_ENGULPHS);
-
-	if (mod->type == mod_brush)
-	{
-		if (*mod->name != '*')
-			for (j = 0; j < mod->numtextures; j++)
-				mod->textures[j]->parttype = P_FindParticleType(va("tex_%s", mod->textures[j]->name));
-	}
 	for(ae = associatedeffect; ae; ae = ae->next)
 	{
 		if (!strcmp(ae->mname, mod->name))

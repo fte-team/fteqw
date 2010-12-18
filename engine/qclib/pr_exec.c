@@ -255,7 +255,7 @@ Returns the new program statement counter
 ====================
 */
 void	PR_AbortStack			(progfuncs_t *progfuncs);
-int PR_EnterFunction (progfuncs_t *progfuncs, dfunction_t *f, int progsnum)
+int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, dfunction_t *f, int progsnum)
 {
 	int		i, j, c, o;
 
@@ -312,7 +312,7 @@ int PR_EnterFunction (progfuncs_t *progfuncs, dfunction_t *f, int progsnum)
 PR_LeaveFunction
 ====================
 */
-int PR_LeaveFunction (progfuncs_t *progfuncs)
+int ASMCALL PR_LeaveFunction (progfuncs_t *progfuncs)
 {
 	int		i, c;
 

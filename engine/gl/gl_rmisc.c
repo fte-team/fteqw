@@ -968,10 +968,10 @@ TRACE(("dbg: GLR_NewMap: clear particles\n"));
 	P_ClearParticles ();
 TRACE(("dbg: GLR_NewMap: wiping them stains (getting the cloth out)\n"));
 	Surf_WipeStains();
+	CL_RegisterParticles();
 TRACE(("dbg: GLR_NewMap: building lightmaps\n"));
 	Surf_BuildLightmaps ();
 
-	CL_RegisterParticles();
 
 TRACE(("dbg: GLR_NewMap: ui\n"));
 #ifdef VM_UI

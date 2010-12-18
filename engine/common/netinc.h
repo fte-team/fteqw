@@ -1,14 +1,6 @@
 
 #ifdef _WIN32
 
-	#define EWOULDBLOCK	WSAEWOULDBLOCK
-	#define EMSGSIZE	WSAEMSGSIZE
-	#define ECONNRESET	WSAECONNRESET
-	#define ECONNABORTED	WSAECONNABORTED
-	#define ECONNREFUSED	WSAECONNREFUSED
-	#define EADDRNOTAVAIL	WSAEADDRNOTAVAIL
-	#define EAFNOSUPPORT	WSAEAFNOSUPPORT
-
 	#ifdef _MSC_VER
 		#define USEIPX
 	#endif
@@ -17,6 +9,7 @@
 		#include "wsipx.h"
 	#endif
 	#include <ws2tcpip.h>
+	#include <errno.h>
 	#ifndef IPPROTO_IPV6
 		/*for msvc6*/
 		#define	IPPROTO_IPV6
@@ -68,6 +61,24 @@
 		};
 		#endif
 	#endif
+
+	#if (_MSC_VER >= 1600)
+		#undef EADDRNOTAVAIL
+		#undef EAFNOSUPPORT
+		#undef ECONNABORTED
+		#undef ECONNREFUSED
+		#undef ECONNRESET
+		#undef EMSGSIZE
+		#undef EWOULDBLOCK
+	#endif
+
+	#define EWOULDBLOCK	WSAEWOULDBLOCK
+	#define EMSGSIZE	WSAEMSGSIZE
+	#define ECONNRESET	WSAECONNRESET
+	#define ECONNABORTED	WSAECONNABORTED
+	#define ECONNREFUSED	WSAECONNREFUSED
+	#define EADDRNOTAVAIL	WSAEADDRNOTAVAIL
+	#define EAFNOSUPPORT	WSAEAFNOSUPPORT
 
 #else
 	#include <sys/types.h>

@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "qwsvdef.h"
 
 #ifdef SQL
-#include "win_mysql.h"
+#include "sv_sql.h"
 #endif
 
 #define G_PROG G_FLOAT
@@ -80,16 +80,6 @@ extern cvar_t sv_gameplayfix_noairborncorpse;
 cvar_t sv_addon[MAXADDONS];
 char cvargroup_progs[] = "Progs variables";
 
-#ifdef SQL
-cvar_t sql_driver = SCVARF("sv_sql_driver", "mysql", CVAR_NOUNSAFEEXPAND);
-cvar_t sql_host = SCVARF("sv_sql_host", "127.0.0.1", CVAR_NOUNSAFEEXPAND);
-cvar_t sql_username = SCVARF("sv_sql_username", "", CVAR_NOUNSAFEEXPAND);
-cvar_t sql_password = SCVARF("sv_sql_password", "", CVAR_NOUNSAFEEXPAND);
-cvar_t sql_defaultdb = SCVARF("sv_sql_defaultdb", "", CVAR_NOUNSAFEEXPAND);
-
-#define SQLCVAROPTIONS "SQL Defaults"
-#endif
-
 evalc_t evalc_idealpitch, evalc_pitch_speed;
 
 int pr_teamfield;
@@ -98,13 +88,6 @@ unsigned int h2infoplaque[2];	/*hexen2 stat*/
 static void PRSV_ClearThreads(void);
 void PR_fclose_progs(progfuncs_t*);
 void PF_InitTempStrings(progfuncs_t *prinst);
-
-#ifdef SQL
-// SQL prototypes
-void SQL_Init(void);
-void SQL_KillServers(void);
-void SQL_DeInit(void);
-#endif
 
 typedef struct {
 	//for func finding and swapping.
@@ -5109,302 +5092,15 @@ static void QCBUILTIN PF_chat (progfuncs_t *prinst, struct globalvars_s *pr_glob
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-// FTE SQL functions
+/* FTE_SQL builtins */
 #ifdef SQL
-#define SQL_CONNECT_STRUCTPARAMS 2
-#define SQL_CONNECT_PARAMS 4
-
-typedef enum 
-{
-	SQLDRV_MYSQL,
-//	SQLDRV_SQLITE, NOT IN YET
-	SQLDRV_INVALID
-} sqldrv_t;
-
-typedef struct queryrequest_s
-{
-	int num; // query number reference
-	qboolean persistant; // persistant query
-	struct queryrequest_s *next; // next request in queue
-	int callback; // callback function reference
-	int selfent; // self entity on call
-	float selfid; // self entity id on call
-	int otherent; // other entity on call
-	float otherid; // other entity id on call
-	char query[1]; // query to run (struct hack)
-} queryrequest_t;
-
-typedef struct queryresult_s
-{
-	struct queryrequest_s *request; // corresponding request
-	struct queryresult_s *next; // next result in queue
-	int rows; // rows contained in single result set
-	int columns; // fields
-	qboolean eof; // end of query reached
-	MYSQL_RES *result; // result set from mysql
-//	char **resultset; // stored result set from partial fetch
-	char error[1]; // error string, "" if none (struct hack)
-} queryresult_t;
-
-typedef struct sqlserver_s
-{
-	void *thread; // worker thread for server
-	MYSQL *mysql; // mysql server
-	volatile qboolean active; // set to false to kill thread
-	void *requestcondv; // lock and conditional variable for queue read/write
-	void *resultlock; // mutex for queue read/write
-	int querynum; // next reference number for queries
-	queryrequest_t *requests; // query requests queue
-	queryrequest_t *requestslast; // query requests queue last link
-	queryresult_t *results; // query results queue
-	queryresult_t *resultslast; // query results queue last link
-	queryresult_t *currentresult; // current called result
-	queryresult_t *persistresults; // list of persistant results
-	queryresult_t *serverresult; // server error results
-	char **connectparams; // connect parameters (0 = host, 1 = user, 2 = pass, 3 = defaultdb)
-} sqlserver_t;
-
-void SQL_PushResult(sqlserver_t *server, queryresult_t *qres)
-{
-	Sys_LockMutex(server->resultlock);
-	qres->next = NULL;
-	if (!server->resultslast)
-		server->results = server->resultslast = qres;
-	else
-		server->resultslast = server->resultslast->next = qres;
-	Sys_UnlockMutex(server->resultlock);
-}
-
-queryresult_t *SQL_PullResult(sqlserver_t *server)
-{
-	queryresult_t *qres;
-	Sys_LockMutex(server->resultlock);
-	qres = server->results;
-	if (qres)
-	{
-		server->results = qres->next;
-		if (!server->results)
-			server->resultslast = NULL;
-	}
-	Sys_UnlockMutex(server->resultlock);
-
-	return qres;
-}
-
-void SQL_PushRequest(sqlserver_t *server, queryrequest_t *qreq)
-{
-	Sys_LockConditional(server->requestcondv);
-	qreq->next = NULL;
-	if (!server->requestslast)
-		server->requests = server->requestslast = qreq;
-	else
-		server->requestslast = server->requestslast->next = qreq;
-	Sys_UnlockConditional(server->requestcondv);
-}
-
-queryrequest_t *SQL_PullRequest(sqlserver_t *server, qboolean lock)
-{
-	queryrequest_t *qreq;
-	if (lock)
-		Sys_LockConditional(server->requestcondv);
-	qreq = server->requests;
-	if (qreq)
-	{
-		server->requests = qreq->next;
-		if (!server->requests)
-			server->requestslast = NULL;
-	}
-	Sys_UnlockConditional(server->requestcondv);
-
-	return qreq;
-}
-
-sqlserver_t **sqlservers;
-int sqlservercount;
-qboolean sqlavailable;
-
-int sql_serverworker(void *sref)
-{
-	sqlserver_t *server = (sqlserver_t *)sref;
-	char *error = NULL;
-	my_bool reconnect = 1;
-	int tinit, i;
-	qboolean needlock = false;
-
-	if (tinit = mysql_thread_init())
-		error = "MYSQL thread init failed";
-	else if (!(server->mysql = mysql_init(NULL)))
-		error = "MYSQL init failed";
-	else if (mysql_options(server->mysql, MYSQL_OPT_RECONNECT, &reconnect))
-		error = "MYSQL reconnect options set failed";
-	else
-	{	
-		int port = 0;
-		char *colon;
-
-		colon = strchr(server->connectparams[0], ':');
-		if (colon)
-		{
-			*colon = '\0';
-			port = atoi(colon + 1);
-		}
-
-		if (!(server->mysql = mysql_real_connect(server->mysql, server->connectparams[0], server->connectparams[1], server->connectparams[2], server->connectparams[3], port, 0, 0)))
-		error = "MYSQL initial connect attempt failed";
-
-		if (colon)
-			*colon = ':';
-	}
-
-	for (i = SQL_CONNECT_STRUCTPARAMS; i < SQL_CONNECT_PARAMS; i++)
-		Z_Free(server->connectparams[i]);
-
-	BZ_Realloc(server->connectparams, sizeof(char *) * SQL_CONNECT_STRUCTPARAMS);
-
-	if (error)
-		server->active = false;
-
-	while (server->active)
-	{	
-		Sys_LockConditional(server->requestcondv);
-		if (!server->requests) // this is needed for thread startup and to catch any "lost" changes
-		Sys_ConditionWait(server->requestcondv);
-		needlock = false; // so we don't try to relock first round
-
-		while (1)
-		{
-			queryrequest_t *qreq = NULL;
-			queryresult_t *qres;
-			const char *qerror = NULL;
-			MYSQL_RES *mysqlres = NULL;
-			int rows = -1;
-			int columns = -1;
-			int qesize = 0;
-
-			if (!(qreq = SQL_PullRequest(server, needlock)))
-				break;
-
-			// pullrequest makes sure our condition is unlocked but we'll need
-			// a lock next round
-			needlock = true;
-
-			// perform the query and fill out the result structure
-			if (mysql_query(server->mysql, qreq->query))
-				qerror = mysql_error(server->mysql);
-			else // query succeeded
-			{
-				mysqlres = mysql_store_result(server->mysql);
-				if (mysqlres) // result set returned
-				{
-					rows = mysql_num_rows(mysqlres);
-					columns = mysql_num_fields(mysqlres);
-				}
-				else if (mysql_field_count(server->mysql) == 0) // no result set
-				{
-					rows = mysql_affected_rows(server->mysql);
-					if (rows < 0)
-						rows = 0;
-					columns = 0;
-				}
-				else // error
-					qerror = mysql_error(server->mysql);
-			}
-
-			if (qerror)
-				qesize = Q_strlen(qerror);
-			qres = (queryresult_t *)ZF_Malloc(sizeof(queryresult_t) + qesize);
-			if (qres)
-			{
-				if (qerror)
-					Q_strncpy(qres->error, qerror, qesize);
-				qres->result = mysqlres;
-				qres->rows = rows;
-				qres->columns = columns;
-				qres->request = qreq;
-				qres->eof = true; // store result has no more rows to read afterwards
-				qreq->next = NULL;
-
-				SQL_PushResult(server, qres);
-			}
-			else // we're screwed here so bomb out
-			{
-				server->active = false;
-				error = "MALLOC ERROR! Unable to allocate query result!";
-				break;
-			}
-		}
-	}
-
-	if (server->mysql)
-		mysql_close(server->mysql);
-
-	// if we have a server error we still need to put it on the queue
-	if (error)
-	{ 
-		int esize = Q_strlen(error);
-		queryresult_t *qres = (queryresult_t *)Z_Malloc(sizeof(queryresult_t) + esize);
-		if (qres)
-		{ // hopefully the mysql_close gained us some memory otherwise we're pretty screwed
-			qres->rows = qres->columns = -1;
-			Q_strncpy(qres->error, error, esize);
-
-			SQL_PushResult(server, qres);
-		}
-	}
-
-	if (!tinit)
-		mysql_thread_end();
-
-	return 0;
-}
-
-sqlserver_t *SQL_GetServer (int serveridx, qboolean inactives)
-{
-	if (serveridx < 0 || serveridx >= sqlservercount)
-		return NULL;
-	if (!inactives && sqlservers[serveridx]->active == false)
-		return NULL;
-	return sqlservers[serveridx];
-}
-
-queryresult_t *SQL_GetQueryResult (sqlserver_t *server, int queryidx)
-{
-	queryresult_t *qres;
-
-	qres = server->currentresult;
-	if (qres && qres->request && qres->request->num == queryidx)
-		return qres;
-
-	for (qres = server->persistresults; qres; qres = qres->next)
-		if (qres->request && qres->request->num == queryidx)
-			return qres;
-
-	return NULL;
-}
-
 void PF_sqlconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int serverref;
 	char *paramstr[SQL_CONNECT_PARAMS];
-	int paramsize[SQL_CONNECT_PARAMS];
-	sqlserver_t *server;
-	int i, tsize;
 	char *driver;
-	int drvchoice;
+	int i;
 
-	if (!sqlavailable)
+	if (!SQL_Available())
 	{
 		G_FLOAT(OFS_RETURN) = -1;
 		return;
@@ -5428,9 +5124,6 @@ void PF_sqlconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (!paramstr[3][0])
 		paramstr[3] = sql_defaultdb.string;
 
-	for (i = 0; i < SQL_CONNECT_PARAMS; i++)
-		paramsize[i] = Q_strlen(paramstr[i]);
-
 	// verify/switch driver choice
 	if (*svprogfuncs->callargc > (SQL_CONNECT_PARAMS + 1))
 		driver = PR_GetStringOfs(prinst, OFS_PARM0 + SQL_CONNECT_PARAMS * 3);
@@ -5439,97 +5132,20 @@ void PF_sqlconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	if (!driver[0])
 		driver = sql_driver.string;
-
-	if (Q_strcasecmp(driver, "mysql") == 0)
-		drvchoice = SQLDRV_MYSQL;
-	else // invalid driver choice so we bomb out
-	{ 
-		G_FLOAT(OFS_RETURN) = -1;
-		return;
-	}
-
-	// alloc or realloc sql servers array
-	if (sqlservers == NULL)
-	{
-		serverref = 0;
-		sqlservercount = 1;
-		sqlservers = (sqlserver_t **)BZ_Malloc(sizeof(sqlserver_t *));
-	}
-	else
-	{
-		serverref = sqlservercount;
-		sqlservercount++;
-		sqlservers = (sqlserver_t **)BZ_Realloc(sqlservers, sizeof(sqlserver_t *) * sqlservercount);
-	}
-
-	// assemble server structure
-	tsize = 0;
-	for (i = 0; i < SQL_CONNECT_STRUCTPARAMS; i++)
-		tsize += paramsize[i] + 1;	// allocate extra space for host and user only
-
-	server = (sqlserver_t *)Z_Malloc(sizeof(sqlserver_t) + tsize);
-	server->connectparams = BZ_Malloc(sizeof(char *) * SQL_CONNECT_PARAMS);
-
-	tsize = 0;
-	for (i = 0; i < SQL_CONNECT_STRUCTPARAMS; i++)
-	{
-		server->connectparams[i] = ((char *)(server + 1)) + tsize;
-		Q_strncpy(server->connectparams[i], paramstr[i], paramsize[i]);
-		// string should be null-terminated due to Z_Malloc
-		tsize += paramsize[i] + 1;
-	}
-	for (i = SQL_CONNECT_STRUCTPARAMS; i < SQL_CONNECT_PARAMS; i++)
-	{
-		server->connectparams[i] = Z_Malloc(sizeof(char) * (paramsize[i] + 1));
-		Q_strncpy(server->connectparams[i], paramstr[i], paramsize[i]);
-		// string should be null-terminated due to Z_Malloc
-	}
-
-	sqlservers[serverref] = server;
-
-	server->querynum = 1;
-	server->active = true;
-	server->requestcondv = Sys_CreateConditional();
-	server->resultlock = Sys_CreateMutex();
-
-	if (!server->requestcondv || !server->resultlock)
-	{
-		if (server->requestcondv)
-			Sys_DestroyConditional(server->requestcondv);
-		if (server->resultlock)
-			Sys_DestroyMutex(server->resultlock);
-		Z_Free(server);
-		sqlservercount--;
-		G_FLOAT(OFS_RETURN) = -1;
-		return;
-	}
-
-	server->thread = Sys_CreateThread(sql_serverworker, (void *)server, 1024);
 	
-	if (!server->thread)
-	{
-		Z_Free(server);
-		sqlservercount--;
-		G_FLOAT(OFS_RETURN) = -1;
-		return;
-	}
-	
-	G_FLOAT(OFS_RETURN) = serverref;
+	G_FLOAT(OFS_RETURN) = SQL_NewServer(driver, paramstr);
 }
 
 void PF_sqldisconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	sqlserver_t *server;
 
-	if (sqlavailable)
+	if (SQL_Available())
 	{
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
-			server->active = false;
-
-			// force the threads to reiterate requests and hopefully terminate
-			Sys_ConditionBroadcast(server->requestcondv);
+			SQL_Disconnect(server);
 			return;
 		}
 	}
@@ -5537,137 +5153,36 @@ void PF_sqldisconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_sqlopenquery (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	sqlserver_t *server;
 	int callfunc = G_INT(OFS_PARM1);
 	int querytype = G_FLOAT(OFS_PARM2);
 	char *querystr = PF_VarString(prinst, 3, pr_globals);
-	int qsize = Q_strlen(querystr);
-	queryrequest_t *qreq;
-	sqlserver_t *server;
-	int querynum;
+	int qself, qother;
+	float qselfid, qotherid;
 
-	if (sqlavailable)
+	if (SQL_Available())
 	{
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
-			qreq = (queryrequest_t *)ZF_Malloc(sizeof(queryrequest_t) + qsize);
-			if (qreq)
-			{
-				qreq->persistant = (querytype == 1);
-				qreq->callback = callfunc;
+			// save self and other references
+			if (PROG_TO_EDICT(prinst, pr_global_struct->self)->isfree)
+				qself = pr_global_struct->world;
+			else
+				qself = pr_global_struct->self;
+			qselfid = PROG_TO_EDICT(prinst, qself)->xv->uniquespawnid;
+			if (PROG_TO_EDICT(prinst, pr_global_struct->other)->isfree)
+				qother = pr_global_struct->world;
+			else
+				qother = pr_global_struct->other;
+			qotherid = PROG_TO_EDICT(prinst, qother)->xv->uniquespawnid;
 
-				// save self and other references
-				if (PROG_TO_EDICT(prinst, pr_global_struct->self)->isfree)
-					qreq->selfent = pr_global_struct->world;
-				else
-					qreq->selfent = pr_global_struct->self;
-				qreq->selfid = PROG_TO_EDICT(prinst, qreq->selfent)->xv->uniquespawnid;
-				if (PROG_TO_EDICT(prinst, pr_global_struct->other)->isfree)
-					qreq->otherent = pr_global_struct->world;
-				else
-					qreq->otherent = pr_global_struct->other;
-				qreq->otherid = PROG_TO_EDICT(prinst, qreq->otherent)->xv->uniquespawnid;
-
-				querynum = qreq->num = server->querynum;
-				// prevent the reference num from getting too big to prevent FP problems
-				if (++server->querynum > 1000000)
-					server->querynum = 1; 
-				
-				Q_strncpy(qreq->query, querystr, qsize);
-
-				SQL_PushRequest(server, qreq);
-				Sys_ConditionSignal(server->requestcondv);
-
-				G_FLOAT(OFS_RETURN) = querynum;
-				return;
-			}
+			G_FLOAT(OFS_RETURN) = SQL_NewQuery(server, callfunc, querytype, qself, qselfid, qother, qotherid, querystr);
+			return;
 		}
 	}
 	// else we failed so return the error
 	G_FLOAT(OFS_RETURN) = -1;
-}
-
-void SQL_DeallocResult(queryresult_t *qres)
-{
-	// deallocate current result
-	if (qres->result)
-		mysql_free_result(qres->result);
-	if (qres->request)
-		Z_Free(qres->request);
-
-	Z_Free(qres);
-}
-
-void SQL_ClosePersistantResult(sqlserver_t *server, queryresult_t *qres)
-{
-	queryresult_t *prev, *cur;
-
-	prev = server->persistresults;
-	if (prev == qres)
-	{
-		server->persistresults = prev->next;
-		SQL_DeallocResult(prev);
-		return;
-	}
-
-	for (cur = prev->next; cur; prev = cur, cur = prev->next)
-	{
-		if (cur == qres)
-		{
-			prev = cur->next;
-			SQL_DeallocResult(cur);
-			return;
-		}
-	}
-}
-
-void SQL_CloseResult(sqlserver_t *server, queryresult_t *qres)
-{
-	if (!qres)
-		return;
-	if (qres == server->currentresult)
-	{
-		SQL_DeallocResult(server->currentresult);
-		server->currentresult = NULL;
-		return;
-	}
-	// else we have a persistant query
-	SQL_ClosePersistantResult(server, qres);
-}
-
-void SQL_CloseAllResults(sqlserver_t *server)
-{
-	queryresult_t *oldqres, *qres;
-
-	// close orphaned results (we assume the lock is active or non-existant at this point)
-	qres = server->results;
-	while (qres)
-	{
-		oldqres = qres;
-		qres = qres->next;
-		SQL_DeallocResult(oldqres);
-	}
-	// close current
-	if (server->currentresult)
-	{
-		SQL_DeallocResult(server->currentresult);
-		server->currentresult = NULL;
-	}
-	// close persistant results
-	qres = server->persistresults;
-	while (qres)
-	{
-		oldqres = qres;
-		qres = qres->next;
-		SQL_DeallocResult(oldqres);
-	}
-	server->persistresults = NULL;
-	// close server result
-	if (server->serverresult)
-	{
-		SQL_DeallocResult(server->serverresult);
-		server->serverresult = NULL;
-	}
 }
 
 void PF_sqlclosequery (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -5675,7 +5190,7 @@ void PF_sqlclosequery (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	sqlserver_t *server;
 	queryresult_t *qres;
 	
-	if (sqlavailable)
+	if (SQL_Available())
 	{
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
 		if (server)
@@ -5692,52 +5207,13 @@ void PF_sqlclosequery (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	// else nothing to close
 }
 
-char *SQL_ReadField (sqlserver_t *server, queryresult_t *qres, int row, int col, qboolean fields)
-{
-	if (!qres->result) // TODO: partial resultset logic not implemented yet
-		return NULL;
-	else
-	{ // store_result query
-		if (qres->rows < row || qres->columns < col || col < 0)
-			return NULL;
-
-		if (row < 0)
-		{ // fetch field name
-			if (fields) // but only if we asked for them
-			{
-				MYSQL_FIELD *field;
-
-				field = mysql_fetch_field_direct(qres->result, col);
-
-				if (!field)
-					return NULL;
-				else
-					return field->name;
-			}
-			else
-				return NULL;
-		}
-		else
-		{ // fetch data
-			MYSQL_ROW sqlrow;
-
-			mysql_data_seek(qres->result, row);
-			sqlrow = mysql_fetch_row(qres->result);
-			if (!sqlrow || !sqlrow[col])
-				return NULL;
-			else
-				return sqlrow[col];
-		}
-	}
-}
-
 void PF_sqlreadfield (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	sqlserver_t *server;
 	queryresult_t *qres;
 	char *data;
 
-	if (sqlavailable)
+	if (SQL_Available())
 	{	
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
 		if (server)
@@ -5764,7 +5240,7 @@ void PF_sqlreadfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	queryresult_t *qres;
 	char *data;
 
-	if (sqlavailable)
+	if (SQL_Available())
 	{	
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
 		if (server)
@@ -5785,13 +5261,12 @@ void PF_sqlreadfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = 0;
 }
 
-
 void PF_sqlerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	sqlserver_t *server;
 	int serverref = G_FLOAT(OFS_PARM0);
 
-	if (sqlavailable)
+	if (SQL_Available())
 	{
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), true);
 		if (server)
@@ -5825,7 +5300,7 @@ void PF_sqlescape (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char *toescape;
 	char escaped[4096];
 
-	if (sqlavailable)
+	if (SQL_Available())
 	{
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
 		if (server)
@@ -5833,8 +5308,7 @@ void PF_sqlescape (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			toescape = PR_GetStringOfs(prinst, OFS_PARM1);
 			if (toescape)
 			{
-				mysql_real_escape_string(server->mysql, escaped, toescape, strlen(toescape));
-
+				SQL_Escape(server, toescape, escaped, sizeof(escaped));
 				RETURN_TSTRING(escaped);
 				return;
 			}
@@ -5848,12 +5322,12 @@ void PF_sqlversion (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	sqlserver_t *server;
 	
-	if (sqlavailable)
+	if (SQL_Available())
 	{
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
-			RETURN_TSTRING(va("mysql: %s", mysql_get_client_info()));
+			RETURN_TSTRING(SQL_Info(server));
 			return;
 		}
 	}
@@ -5861,269 +5335,18 @@ void PF_sqlversion (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_TSTRING("");
 }
 
-// SQL related commands
-void SQL_Status_f(void)
-{
-	int i;
-
-	Con_Printf("%i connections\n", sqlservercount);
-	for (i = 0; i < sqlservercount; i++)
-	{
-		int reqnum = 0;
-		int resnum = 0;
-		queryrequest_t *qreq;
-		queryresult_t *qres;
-
-		sqlserver_t *server = sqlservers[i];
-
-		Sys_LockMutex(server->resultlock);
-		Sys_LockConditional(server->requestcondv);
-		for (qreq = server->requests; qreq; qreq = qreq->next)
-			reqnum++;
-		for (qres = server->results; qres; qres = qres->next)
-			resnum++;
-
-		Con_Printf("#%i %s@%s: %s\n",
-			i,
-			server->connectparams[1],
-			server->connectparams[0],
-			server->active ? "active" : "inactive");
-
-		if (reqnum)
-		{
-			Con_Printf ("- %i requests\n");
-			for (qreq = server->requests; qreq; qreq = qreq->next)
-			{
-				Con_Printf ("  query #%i: %s\n",
-					qreq->num,
-					qreq->query);
-				// TODO: function lookup?
-			}
-		}
-
-		if (resnum)
-		{
-			Con_Printf ("- %i results\n");
-			for (qres = server->results; qres; qres = qres->next)
-			{
-				Con_Printf ("  * %i rows, %i columns", 
-					qres->rows,
-					qres->columns);
-				if (qres->error[0])
-					Con_Printf(", error %s\n", qres->error);
-				else
-					Con_Printf("\n");
-				// TODO: request info?
-			}
-		}
-
-		if (server->serverresult)
-			Con_Printf ("server result: error %s\n", server->serverresult->error);
-
-		// TODO: list all requests, results here
-		Sys_UnlockMutex(server->resultlock);
-		Sys_UnlockConditional(server->requestcondv);
-	}
-}
-
-void SQL_Kill_f (void)
-{
-	sqlserver_t *server;
-
-	if (Cmd_Argc() < 2)
-	{
-		Con_Printf ("Syntax: %s serverid\n", Cmd_Argv(0));
-		return;
-	}
-
-	server = SQL_GetServer(atoi(Cmd_Argv(1)), false);
-	if (server)
-	{
-		server->active = false;
-		Sys_ConditionBroadcast(server->requestcondv);
-		return;
-	}
-}
-
-void SQL_Killall_f (void)
-{
-	SQL_KillServers();
-}
-
-// SQL cycle logic
-void SQL_Cycle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int i;
-
-	for (i = 0; i < sqlservercount; i++)
-	{
-		sqlserver_t *server = sqlservers[i];
-		queryresult_t *qres;
-
-		while (qres = SQL_PullResult(server))
-		{
-			qres->next = NULL;
-			if (qres->request && qres->request->callback)
-			{
-				if (server->active)
-				{ // only process results to callback if server is active
-					edict_t *ent;
-
-					server->currentresult = qres;
-					G_FLOAT(OFS_PARM0) = i;
-					G_FLOAT(OFS_PARM1) = qres->request->num;
-					G_FLOAT(OFS_PARM2) = qres->rows;
-					G_FLOAT(OFS_PARM3) = qres->columns;
-					G_FLOAT(OFS_PARM4) = qres->eof;
-
-					// recall self and other references
-					ent = PROG_TO_EDICT(prinst, qres->request->selfent);
-					if (ent->isfree || ent->xv->uniquespawnid != qres->request->selfid)
-						pr_global_struct->self = pr_global_struct->world;
-					else
-						pr_global_struct->self = qres->request->selfent;
-					ent = PROG_TO_EDICT(prinst, qres->request->otherent);
-					if (ent->isfree || ent->xv->uniquespawnid != qres->request->otherid)
-						pr_global_struct->other = pr_global_struct->world;
-					else
-						pr_global_struct->other = qres->request->otherent;
-
-					PR_ExecuteProgram(prinst, qres->request->callback);
-
-					if (qres->eof)
-					{
-						if (server->currentresult)
-						{
-							if (server->currentresult->request && server->currentresult->request->persistant)
-							{
-								// move into persistant list
-								server->currentresult->next = server->persistresults;
-								server->persistresults = server->currentresult;
-							}
-							else // just close the query
-								SQL_CloseResult(server, server->currentresult);
-						}
-					}
-					// TODO: else we move a request back into the queue?
-				}
-			}
-			else // error or server-only result
-			{
-				if (server->serverresult)
-					Z_Free(server->serverresult);
-				server->serverresult = qres;
-			}
-		}
-		server->currentresult = NULL;
-	}
-}
-
 void PR_SQLCycle(void)
 {
 	globalvars_t *pr_globals;
 
-	if (!sqlavailable || !svprogfuncs)
+	if (!SQL_Available() || !svprogfuncs)
 		return;
 
 	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 
-	SQL_Cycle(svprogfuncs, pr_globals);
-}
-
-void SQL_MYSQLInit(void)
-{
-#ifdef WIN32
-	if (!mysql_dll_init())
-	{
-		Con_Printf("mysqlclient.dll didn't load\n");
-		return;
-	}
-#endif
-
-	if (mysql_thread_safe())
-	{
-		if (!mysql_library_init(0, NULL, NULL))
-		{
-			Con_Printf("MYSQL backend loaded\n");
-			sqlavailable = true;
-			return;
-		}
-		else
-			Con_Printf("MYSQL library init failed!\n");
-	}
-	else
-		Con_Printf("MYSQL client is not thread safe!\n");
-
-	mysql_dll_close();
-	sqlavailable = false;
-}
-
-void SQL_Init(void)
-{
-	Cmd_AddCommand ("sqlstatus", SQL_Status_f);
-	Cmd_AddCommand ("sqlkill", SQL_Kill_f);
-	Cmd_AddCommand ("sqlkillall", SQL_Killall_f);
-
-	Cvar_Register(&sql_driver, SQLCVAROPTIONS);
-	Cvar_Register(&sql_host, SQLCVAROPTIONS);
-	Cvar_Register(&sql_username, SQLCVAROPTIONS);
-	Cvar_Register(&sql_password, SQLCVAROPTIONS);
-	Cvar_Register(&sql_defaultdb, SQLCVAROPTIONS);
-
-	SQL_MYSQLInit();
-}
-
-void SQL_KillServers(void)
-{
-	int i;
-	for (i = 0; i < sqlservercount; i++)
-	{
-		sqlserver_t *server = sqlservers[i];
-		queryrequest_t *qreq, *oldqreq;
-
-		server->active = false; // set thread to kill itself
-		Sys_ConditionBroadcast(server->requestcondv); // force condition check
-		Sys_WaitOnThread(server->thread); // wait on thread to die
-
-		// server resource deallocation (TODO: should this be done in the thread itself?)
-		Sys_DestroyConditional(server->requestcondv);
-		Sys_DestroyMutex(server->resultlock);
-		
-		// close orphaned requests
-		qreq = server->requests;
-		while (qreq)
-		{
-			oldqreq = qreq;
-			qreq = qreq->next;
-			Z_Free(oldqreq);
-		}
-
-		SQL_CloseAllResults(server);
-
-		// the alloc'ed connect params should get deallocated by the thread
-		if (server->connectparams)
-			BZ_Free(server->connectparams);
-
-		Z_Free(server);
-	}
-	if (sqlservers)
-		Z_Free(sqlservers);
-	sqlservers = NULL;
-	sqlservercount = 0;
-}
-
-void SQL_DeInit(void)
-{
-	sqlavailable = false;
-
-	SQL_KillServers();
-
-	mysql_library_end();
-
-	mysql_dll_close();
+	SQL_ServerCycle(svprogfuncs, pr_globals);
 }
 #endif
-
 
 
 
@@ -6801,11 +6024,6 @@ static void QCBUILTIN PF_clientcommand (progfuncs_t *prinst, struct globalvars_s
 	if (host_client)
 		sv_player = host_client->edict;
 }
-
-
-
-
-
 
 
 static void QCBUILTIN PF_h2AdvanceFrame(progfuncs_t *prinst, struct globalvars_s *pr_globals)

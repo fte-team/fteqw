@@ -11,7 +11,8 @@ extern jmp_buf qcccompileerror;
 #endif
 
 // I put the following here to resolve "undefined reference to `__imp__vsnprintf'" with MinGW64 ~ Moodles
-#ifdef _WIN32
+#ifdef __MINGW64__
+#ifndef QCCONLY
 	#if (_MSC_VER >= 1400)
 		//with MSVC 8, use MS extensions
 		#define snprintf linuxlike_snprintf_vc8
@@ -24,6 +25,7 @@ extern jmp_buf qcccompileerror;
 		#define vsnprintf linuxlike_vsnprintf
 		int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_list argptr);
 	#endif
+#endif
 #endif
 
 // set these before calling CheckParm

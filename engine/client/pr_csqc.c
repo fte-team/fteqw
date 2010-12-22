@@ -108,11 +108,6 @@ typedef enum
 	VF_CL_VIEWANGLES_Y = 35,
 	VF_CL_VIEWANGLES_Z = 36,
 
-// GCC hates these within if statements
-#ifdef _MSC_VER
-#pragma message("FIXME: add cshift")
-#endif
-
 	//33-36 used by DP...
 	VF_PERSPECTIVE = 200,
 	//201 used by DP... WTF? CLEARSCREEN

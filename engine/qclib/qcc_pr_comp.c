@@ -5538,9 +5538,13 @@ void QCC_PR_ParseStatement (void)
 
 		if (pr_subscopedlocals)
 		{
-			for	(e2 = pr.localvars; e2 != e; e2 = e2->nextlocal)
+			for (e2 = pr.localvars; e2 != e; e2 = e2->nextlocal)
 			{
-				Hash_RemoveData(&localstable, e2->name, e2);
+				if (!e2->subscoped_away)
+				{
+					Hash_RemoveData(&localstable, e2->name, e2);
+					e2->subscoped_away = true;
+				}
 			}
 		}
 		return;

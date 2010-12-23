@@ -36,7 +36,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#include "config.h"
 #else
 	#ifndef MSVCLIBSPATH
+	#if _MSC_VER == 1200
+		#define MSVCLIBSPATH "../libs/vc6-libs/"
+	#else
 		#define MSVCLIBSPATH "../libs/"
+	#endif
 	#endif
 
 	#ifdef NO_LIBRARIES

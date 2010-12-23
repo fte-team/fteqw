@@ -1271,9 +1271,13 @@ HWND		hwnd_dialog;
 #define COBJMACROS
 
 #ifndef MINGW
+#if _MSC_VER > 1200
 	#include <shobjidl.h>
 #endif
-#include <shlguid.h>
+#endif
+#if _MSC_VER > 1200
+	#include <shlguid.h>
+#endif
 #include <shlobj.h>
 //#include <Propsys.h>
 
@@ -1346,6 +1350,7 @@ typedef struct IPropertyStore
 static const IID IID_IPropertyStore = {0x886d8eeb, 0x8cf2, 0x4446, {0x8d, 0x02, 0xcd, 0xba, 0x1d, 0xbd, 0xcf, 0x99}};
 #endif
 
+#if _MSC_VER > 1200
 #define WIN7_APPNAME L"FTEQuake"
 void Sys_RecentServer(char *command, char *target, char *title, char *desc)
 {
@@ -1413,6 +1418,8 @@ void Win7_Init(void)
 			pSetCurrentProcessExplicitAppUserModelID(WIN7_APPNAME);
 	}
 }
+#endif
+
 
 /*
 #ifdef _MSC_VER
@@ -1439,7 +1446,9 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
         return 0;
 
 	#ifndef MINGW
+	#if _MSC_VER > 1200
 		Win7_Init();
+	#endif
 	#endif
 
 #ifdef _MSC_VER
@@ -1657,6 +1666,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	//client console should now be initialized.
 
 		#ifndef MINGW
+		#if _MSC_VER > 1200
 		switch(M_GameType())
 		{
 		case MGT_QUAKE1:
@@ -1672,6 +1682,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			Sys_RecentServer("+map demo1", "", "Start New Game (Hexen2)", "Begin a new game");
 			break;
 		}
+		#endif
 		#endif
 
 		/* main window message loop */

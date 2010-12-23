@@ -2,7 +2,7 @@
 #include "winquake.h"
 
 #include <SDL.h>
-#pragma comment(lib, "sdl.lib")
+#pragma comment(lib, MSVCLIBSPATH "sdl.lib")
 
 //SDL calls a callback each time it needs to repaint the 'hardware' buffers
 //This results in extra latency.

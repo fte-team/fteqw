@@ -33,18 +33,20 @@ void *zlib_handle;
 
 #ifdef _MSC_VER
 # ifdef _WIN64
-#  pragma comment (lib, "../libs/zlib64.lib") 
+# pragma comment(lib, MSVCLIBSPATH "zlib64.lib")
 # else
-#  pragma comment (lib, "../libs/zlib.lib") 
+# pragma comment(lib, MSVCLIBSPATH "zlib.lib")
 # endif
 #endif
 #endif
+
+#pragma comment(lib, MSVCLIBSPATH "zlib.lib")
 
 static int (ZEXPORT *qinflateEnd) OF((z_streamp strm)) ZSTATIC(inflateEnd);
 static int (ZEXPORT *qinflate) OF((z_streamp strm, int flush)) ZSTATIC(inflate);
 static int (ZEXPORT *qinflateInit2_) OF((z_streamp strm, int  windowBits,
                                       const char *version, int stream_size)) ZSTATIC(inflateInit2_);
-static uLong (ZEXPORT *qcrc32)   OF((uLong crc, const Bytef *buf, uInt len)) ZSTATIC(crc32); 
+static uLong (ZEXPORT *qcrc32)   OF((uLong crc, const Bytef *buf, uInt len)) ZSTATIC(crc32);
 
 #define qinflateInit2(strm, windowBits) \
         qinflateInit2_((strm), (windowBits), ZLIB_VERSION, sizeof(z_stream))

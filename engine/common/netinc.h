@@ -36,6 +36,7 @@
 		{
 			u_char	s6_addr[16];	/* IPv6 address */
 		};
+#if _MSC_VER > 1200
 		typedef struct sockaddr_in6
 		{
 			short  sin6_family;
@@ -48,6 +49,7 @@
 				struct ip6_scope_id  sin6_scope_struct; 
 			};
 		};
+#endif
 		struct addrinfo
 		{
 		  int ai_flags;

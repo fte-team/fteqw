@@ -512,7 +512,7 @@ void CL_DownloadFinished(void)
 
 	ext = COM_FileExtension(filename);
 
-	
+
 
 	if (!strcmp(ext, "pk3") || !strcmp(ext, "pak"))
 		FS_ReloadPackFiles();
@@ -675,7 +675,7 @@ qboolean CL_CheckHLBspWads(char *file)
 
 	lump.fileofs = LittleLong(dh->lumps[LUMP_ENTITIES].fileofs);
 	lump.filelen = LittleLong(dh->lumps[LUMP_ENTITIES].filelen);
-	
+
 	s = file + lump.fileofs;
 
 	s = COM_Parse(s);
@@ -1163,7 +1163,7 @@ CL_RequestNextDownload
 */
 void CL_RequestNextDownload (void)
 {
-	
+
 	int stage;
 	if (cls.downloadmethod)
 		return;
@@ -1183,7 +1183,7 @@ void CL_RequestNextDownload (void)
 			if (!dl)
 				dl = cl.downloadlist;
 			fl = dl->flags;
-			
+
 			if (cls.state == ca_active || requiredownloads.value || (fl & DLLF_REQUIRED))
 			{
 				if ((fl & DLLF_OVERWRITE) || !COM_FCheckExists (dl->localname))
@@ -1757,7 +1757,7 @@ void CLDP_ParseDownloadData(void)
 	int size;
 	start = MSG_ReadLong();
 	size = (unsigned short)MSG_ReadShort();
-	
+
 	MSG_ReadData(buffer, size);
 
 	if (cls.downloadqw)
@@ -1797,7 +1797,7 @@ void CLDP_ParseDownloadBegin(char *s)
 	FS_CreatePath (cls.downloadtempname, FS_GAME);
 	cls.downloadqw = FS_OpenVFS (cls.downloadtempname, "wb", FS_GAME);
 	cls.downloadmethod = DL_DARKPLACES;
-	
+
 	if (cls.downloadqw)
 	{
 		//fill the file with 0 bytes
@@ -1847,7 +1847,7 @@ void CLDP_ParseDownloadFinished(char *s)
 	{
 		Con_Printf("Download failed: unable to check CRC of download\n");
 		CL_DownloadFailed(cls.downloadremotename);
-		return;		
+		return;
 	}
 
 	Cmd_TokenizeString(s+1, false, false);
@@ -2543,7 +2543,9 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	//pretend it came from the server, and update cheat/permissions/etc
 	CL_CheckServerInfo();
 
+	#if _MSC_VER > 1200
 	Sys_RecentServer("+nqconnect", cls.servername, cls.servername, "Join NQ Server");
+	#endif
 
 #ifdef PEXT_CSQC
 	CSQC_Shutdown();
@@ -3112,7 +3114,7 @@ qboolean CL_CheckBaselines (int size)
 	if (size <= cl_baselines_count)
 		return true;
 
-	cl_baselines = BZ_Realloc(cl_baselines, sizeof(*cl_baselines)*size); 
+	cl_baselines = BZ_Realloc(cl_baselines, sizeof(*cl_baselines)*size);
 	for (i = cl_baselines_count; i < size; i++)
 	{
 		memcpy(cl_baselines + i, &nullentitystate, sizeof(*cl_baselines));
@@ -4385,7 +4387,7 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 	extern cvar_t cl_parsewhitetext;
 	qboolean memessage = false;
 	char fullchatmessage[2048];
-	
+
 	fullchatmessage[0] = 0;
 	if (plrflags & TPM_FAKED)
 	{
@@ -4599,8 +4601,10 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 		if (!strncmp(stufftext, "fullserverinfo ", 15))
 		{
 			Cmd_ExecuteString(stufftext, RESTRICT_SERVER+destsplit);	//do this NOW so that it's done before any models or anything are loaded
+			#if _MSC_VER > 1200
 			if (cls.netchan.remote_address.type != NA_LOOPBACK)
 				Sys_RecentServer("+connect", cls.servername, va("%s (%s)", Info_ValueForKey(cl.serverinfo, "hostname"), cls.servername), "Join QW Server");
+			#endif
 		}
 		else
 		{
@@ -5539,7 +5543,7 @@ qboolean CLNQ_ParseNQPrints(char *s)
 		if (*s == '-')
 			s++;
 		if (*s >= '0' && *s <= '9')
-		{			
+		{
 			while(*s >= '0' && *s <= '9')
 				s++;
 			if (*s == ' ' && s-start >= 4)
@@ -5779,7 +5783,7 @@ void CLNQ_ParseServerMessage (void)
 		case svc_spawnbaseline:
 			i = MSG_ReadShort ();
 			if (!CL_CheckBaselines(i))
-				Host_EndGame("CLNQ_ParseServerMessage: svc_spawnbaseline failed with size %i", i);		
+				Host_EndGame("CLNQ_ParseServerMessage: svc_spawnbaseline failed with size %i", i);
 			CL_ParseBaseline (cl_baselines + i);
 			break;
 

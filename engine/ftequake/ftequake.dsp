@@ -56,7 +56,7 @@ RSC=rc.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /D "_MBCS" /YX /FD /c
-# ADD CPP /nologo /G6 /MT /W3 /GX /O2 /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "NDEBUG" /D "_MBCS" /D "WIN32" /D "_WINDOWS" /D "GLQUAKE" /D "NEWBACKEND" /FR /Yu"quakedef.h" /FD /c
+# ADD CPP /nologo /G6 /MT /W3 /GX /O2 /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "NDEBUG" /D "_MBCS" /D "WIN32" /D "_WINDOWS" /D "GLQUAKE" /D "NEWBACKEND" /FR /Yu"quakedef.h" /FD /c
 # ADD BASE MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "NDEBUG"
@@ -82,7 +82,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /YX /FD /GZ /c
-# ADD CPP /nologo /G6 /MT /W3 /Gm /GX /ZI /Od /I "../client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "GLQUAKE" /D "NEWBACKEND" /FR".\Debug/" /Fp".\Debug/qwcl.pch" /Yu"quakedef.h" /Fo".\Debug/" /Fd".\Debug/" /FD /c
+# ADD CPP /nologo /G6 /MT /W3 /Gm /GX /ZI /Od /I "../client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "GLQUAKE" /D "NEWBACKEND" /FR".\Debug/" /Fp".\Debug/qwcl.pch" /Yu"quakedef.h" /Fo".\Debug/" /Fd".\Debug/" /FD /c
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "_DEBUG"
@@ -109,7 +109,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /YX /FD /GZ /c
-# ADD CPP /nologo /G5 /MT /W3 /GX /ZI /Od /I "..\client" /I "../libs/freetype2/include" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
+# ADD CPP /nologo /G5 /MT /W3 /GX /ZI /Od /I "..\client" /I "../libs/freetype2/include" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
 # SUBTRACT CPP /X
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
@@ -138,7 +138,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /I "..\client" /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /D "_MBCS" /YX /FD /c
-# ADD CPP /nologo /G6 /Gr /MT /W3 /GX /O2 /Ob2 /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "NDEBUG" /D "_MBCS" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR /Yu"quakedef.h" /FD /c
+# ADD CPP /nologo /G6 /Gr /MT /W3 /GX /O2 /Ob2 /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "NDEBUG" /D "_MBCS" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR /Yu"quakedef.h" /FD /c
 # ADD BASE MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "NDEBUG"
@@ -166,7 +166,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client\gltod3d\sdk7\include" /I "..\client\gltod3d\D3DFrame" /I "..\dxsdk\sdk\inc" /I "..\scitech\include" /I "..\client" /D "NQPROT" /D "_DEBUG" /D "GLQUAKE" /D "SERVERDLL" /D "WIN32" /D "_WINDOWS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
-# ADD CPP /nologo /G5 /W3 /Gi /GX /ZI /Od /I "..\client" /I "../libs/dxsdk9/include" /I "../d3d" /I "../d3d9" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "GLQUAKE" /D "SWQUAKE" /D "USE_D3D" /D "D3DQUAKE" /Fr /Fp".\MDebug/qwcl.pch" /Yu"quakedef.h" /FD /c
+# ADD CPP /nologo /G5 /W3 /Gi /GX /ZI /Od /I "..\client" /I "../libs/dxsdk9/include" /I "../d3d" /I "../d3d9" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "GLQUAKE" /D "SWQUAKE" /D "USE_D3D" /D "D3DQUAKE" /Fr /Fp".\MDebug/qwcl.pch" /Yu"quakedef.h" /FD /c
 # SUBTRACT CPP /WX
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
@@ -196,7 +196,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /I "..\client\gltod3d\sdk7\include" /I "..\client\gltod3d\D3DFrame" /I "..\dxsdk\sdk\inc" /I "..\scitech\include" /I "..\client" /D "NOSOUNDASM" /D "NDEBUG" /D "_MBCS" /D "GLQUAKE" /D "SERVERDLL" /D "NQPROT" /D "WIN32" /D "_WINDOWS" /FR /YX /FD /c
-# ADD CPP /nologo /G6 /GX /O2 /I "..\client" /I "../libs/dxsdk9/include" /I "../d3d" /I "../d3d9" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "NDEBUG" /D "_MBCS" /D "WIN32" /D "_WINDOWS" /D "GLQUAKE" /D "SWQUAKE" /D "USE_D3D" /D "D3DQUAKE" /Fr /Yu"quakedef.h" /FD /c
+# ADD CPP /nologo /G6 /GX /O2 /I "..\client" /I "../libs/dxsdk9/include" /I "../d3d" /I "../d3d9" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "NDEBUG" /D "_MBCS" /D "WIN32" /D "_WINDOWS" /D "GLQUAKE" /D "SWQUAKE" /D "USE_D3D" /D "D3DQUAKE" /Fr /Yu"quakedef.h" /FD /c
 # ADD BASE MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "NDEBUG"
@@ -223,7 +223,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client\gltod3d\sdk7\include" /I "..\client\gltod3d\D3DFrame" /I "..\dxsdk\sdk\inc" /I "..\scitech\include" /I "..\client" /D "NQPROT" /D "_DEBUG" /D "GLQUAKE" /D "SERVERDLL" /D "WIN32" /D "_WINDOWS" /D "Q2SERVER" /D "DYNAMIC_ENTS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
-# ADD CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "MINIMAL" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR".\GLMinDebug/" /Fp".\GLMinDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLMinDebug/" /Fd".\GLMinDebug/" /FD /c
+# ADD CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "MINIMAL" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR".\GLMinDebug/" /Fp".\GLMinDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLMinDebug/" /Fd".\GLMinDebug/" /FD /c
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "_DEBUG"
@@ -251,7 +251,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /G6 /Gr /W3 /GX /O2 /Ob2 /I "..\client\gltod3d\sdk7\include" /I "..\client\gltod3d\D3DFrame" /I "..\dxsdk\sdk\inc" /I "..\scitech\include" /I "..\client" /D "NOSOUNDASM" /D "NDEBUG" /D "_MBCS" /D "GLQUAKE" /D "SERVERDLL" /D "NQPROT" /D "WIN32" /D "_WINDOWS" /D "Q2SERVER" /D "DYNAMIC_ENTS" /FR /YX /FD /c
-# ADD CPP /nologo /G6 /Gr /W3 /GX /O2 /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "MINIMAL" /D "NDEBUG" /D "_MBCS" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR"MinGLRelease/" /Fp"MinGLRelease/ftequake.pch" /Yu"quakedef.h" /Fo"MinGLRelease/" /Fd"MinGLRelease/" /FD /c
+# ADD CPP /nologo /G6 /Gr /W3 /GX /O2 /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "MINIMAL" /D "NDEBUG" /D "_MBCS" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR"MinGLRelease/" /Fp"MinGLRelease/ftequake.pch" /Yu"quakedef.h" /Fo"MinGLRelease/" /Fd"MinGLRelease/" /FD /c
 # ADD BASE MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "NDEBUG"
@@ -277,8 +277,8 @@ LINK32=link.exe
 # PROP Intermediate_Dir "DebugServer"
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
-# ADD BASE CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /D "MINIMAL" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
-# ADD CPP /nologo /G6 /ML /W3 /Gm /Gi /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "SERVERONLY" /FR".\DebugServer/" /Fp".\DebugServer/qwcl.pch" /Yu"quakedef.h" /Fo".\DebugServer/" /Fd".\DebugServer/" /FD /c
+# ADD BASE CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /D "MINIMAL" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
+# ADD CPP /nologo /G6 /ML /W3 /Gm /Gi /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "SERVERONLY" /FR".\DebugServer/" /Fp".\DebugServer/qwcl.pch" /Yu"quakedef.h" /Fo".\DebugServer/" /Fd".\DebugServer/" /FD /c
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "_DEBUG"
@@ -306,8 +306,8 @@ LINK32=link.exe
 # PROP Intermediate_Dir "ftequake___Win32_Release_Dedicated_Server"
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
-# ADD BASE CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /D "MINIMAL" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /D "SERVERONLY" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
-# ADD CPP /nologo /G6 /ML /W3 /GX /O1 /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "NDEBUG" /D "WIN32" /D "_WINDOWS" /D "SERVERONLY" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
+# ADD BASE CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /D "MINIMAL" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /D "SERVERONLY" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
+# ADD CPP /nologo /G6 /ML /W3 /GX /O1 /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "NDEBUG" /D "WIN32" /D "_WINDOWS" /D "SERVERONLY" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "_DEBUG"
@@ -335,8 +335,8 @@ LINK32=link.exe
 # PROP Intermediate_Dir "ftequake___Win32_MinSW"
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
-# ADD BASE CPP /nologo /G6 /W3 /Gm /GX /ZI /Od /I "../client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "SWQUAKE" /FR".\Debug/" /Fp".\Debug/qwcl.pch" /YX /Fo".\Debug/" /Fd".\Debug/" /FD /c
-# ADD CPP /nologo /G6 /W3 /Gm /GX /ZI /Od /I "../client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "SWQUAKE" /D "MINIMAL" /FR".\Debug/" /Fp".\Debug/qwcl.pch" /Yu"quakedef.h" /Fo".\Debug/" /Fd".\Debug/" /FD /c
+# ADD BASE CPP /nologo /G6 /W3 /Gm /GX /ZI /Od /I "../client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "SWQUAKE" /FR".\Debug/" /Fp".\Debug/qwcl.pch" /YX /Fo".\Debug/" /Fd".\Debug/" /FD /c
+# ADD CPP /nologo /G6 /W3 /Gm /GX /ZI /Od /I "../client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "SWQUAKE" /D "MINIMAL" /FR".\Debug/" /Fp".\Debug/qwcl.pch" /Yu"quakedef.h" /Fo".\Debug/" /Fd".\Debug/" /FD /c
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "_DEBUG"
@@ -362,9 +362,9 @@ LINK32=link.exe
 # PROP Intermediate_Dir "ftequake___Win32_GLDebugQ3"
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
-# ADD BASE CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /D "AVAIL_OGGVORBIS" /D "Q3CLIENT" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
+# ADD BASE CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /D "AVAIL_OGGVORBIS" /D "Q3CLIENT" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
 # SUBTRACT BASE CPP /X
-# ADD CPP /nologo /G5 /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR /Fp".\GLDebugQ3/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebugQ3/" /Fd".\GLDebugQ3/" /FD /c
+# ADD CPP /nologo /G5 /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR /Fp".\GLDebugQ3/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebugQ3/" /Fd".\GLDebugQ3/" /FD /c
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "_DEBUG"
@@ -392,8 +392,8 @@ LINK32=link.exe
 # PROP Intermediate_Dir "ftequake___Win32_Debug_Dedicated_ServerQ3"
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
-# ADD BASE CPP /nologo /G6 /ML /W3 /Gm /Gi /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "SERVERONLY" /FR".\DebugServer/" /Fp".\DebugServer/qwcl.pch" /Yu"quakedef.h" /Fo".\DebugServer/" /Fd".\DebugServer/" /FD /c
-# ADD CPP /nologo /G6 /ML /W3 /Gm /Gi /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "SERVERONLY" /D "Q3SERVER" /FR".\DebugServer/" /Fp".\DebugServer/qwcl.pch" /Yu"quakedef.h" /Fo".\DebugServer/" /Fd".\DebugServer/" /FD /c
+# ADD BASE CPP /nologo /G6 /ML /W3 /Gm /Gi /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "SERVERONLY" /FR".\DebugServer/" /Fp".\DebugServer/qwcl.pch" /Yu"quakedef.h" /Fo".\DebugServer/" /Fd".\DebugServer/" /FD /c
+# ADD CPP /nologo /G6 /ML /W3 /Gm /Gi /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "SERVERONLY" /D "Q3SERVER" /FR".\DebugServer/" /Fp".\DebugServer/qwcl.pch" /Yu"quakedef.h" /Fo".\DebugServer/" /Fd".\DebugServer/" /FD /c
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "_DEBUG"
@@ -419,9 +419,9 @@ LINK32=link.exe
 # PROP Intermediate_Dir "D3DDebug"
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
-# ADD BASE CPP /nologo /G5 /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
+# ADD BASE CPP /nologo /G5 /W3 /GX /ZI /Od /I "..\client" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
 # SUBTRACT BASE CPP /X
-# ADD CPP /nologo /G5 /W3 /GX /ZI /Od /I "..\client" /I "../d3d" /I "../libs/dxsdk9/include" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "_DEBUG" /D "D3DQUAKE" /D "WIN32" /D "_WINDOWS" /FR".\D3DDebug/" /Fp".\D3DDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\D3DDebug/" /Fd".\D3DDebug/" /FD /c
+# ADD CPP /nologo /G5 /W3 /GX /ZI /Od /I "..\client" /I "../d3d" /I "../libs/dxsdk9/include" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "_DEBUG" /D "D3DQUAKE" /D "WIN32" /D "_WINDOWS" /FR".\D3DDebug/" /Fp".\D3DDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\D3DDebug/" /Fd".\D3DDebug/" /FD /c
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x809 /d "_DEBUG"
@@ -449,9 +449,9 @@ LINK32=link.exe
 # PROP Intermediate_Dir "ftequake___Win32_GLSDLDebug"
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
-# ADD BASE CPP /nologo /G5 /MT /W3 /GX /ZI /Od /I "..\client" /I "../libs/freetype2/include" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
+# ADD BASE CPP /nologo /G5 /MT /W3 /GX /ZI /Od /I "..\client" /I " ../libs/sdl/include" /I "../libs/freetype2/include" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
 # SUBTRACT BASE CPP /X
-# ADD CPP /nologo /G5 /MD /W3 /GX /ZI /Od /I "..\client" /I "../libs/freetype2/include" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /D "_SDL" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
+# ADD CPP /nologo /G5 /MD /W3 /GX /ZI /Od /I "..\client" /I " ../libs/sdl/include" /I "../libs/freetype2/include" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /D "_SDL" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
 # SUBTRACT CPP /X
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
@@ -463,7 +463,7 @@ BSC32=bscmake.exe
 LINK32=link.exe
 # ADD BASE LINK32 comctl32.lib wsock32.lib winmm.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:windows /map /debug /machine:I386 /nodefaultlib:"msvcrt.lib" /out:"../../fteglqwvc6.exe" /libpath:"../libs/dxsdk7/lib"
 # SUBTRACT BASE LINK32 /pdb:none
-# ADD LINK32 comctl32.lib wsock32.lib winmm.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib sdl.lib sdlmain.lib /nologo /subsystem:windows /map /debug /machine:I386 /nodefaultlib:"libcmt" /out:"../../fteglqw_sdl.exe" /libpath:"../libs/dxsdk7/lib"
+# ADD LINK32 comctl32.lib wsock32.lib winmm.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib sdl.lib sdlmain.lib /nologo /subsystem:windows /map /debug /machine:I386 /nodefaultlib:"libcmt" /out:"../../fteglqw_sdl.exe" /libpath:"../libs/dxsdk7/lib,../libs/vc6-libs"
 # SUBTRACT LINK32 /pdb:none
 
 !ENDIF 
@@ -1697,6 +1697,8 @@ SOURCE=..\client\in_win.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLSDLDebug"
 
+# PROP Exclude_From_Build 1
+
 !ENDIF 
 
 # End Source File
@@ -2286,47 +2288,6 @@ SOURCE=..\client\p_null.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\client\p_qmb.c
-
-!IF  "$(CFG)" == "ftequake - Win32 Release"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
-
-# PROP Exclude_From_Build 1
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
-
-# PROP Exclude_From_Build 1
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated ServerQ3"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 D3DDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLSDLDebug"
-
-!ENDIF 
-
-# End Source File
-# Begin Source File
-
 SOURCE=..\client\p_script.c
 
 !IF  "$(CFG)" == "ftequake - Win32 Release"
@@ -2896,6 +2857,50 @@ SOURCE=..\client\snd_directx.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLSDLDebug"
 
+!ENDIF
+
+# End Source File
+# Begin Source File
+
+SOURCE=..\client\snd_al.c
+
+!IF  "$(CFG)" == "ftequake - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated ServerQ3"
+
+# PROP BASE Exclude_From_Build 1
+# PROP Exclude_From_Build 1
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 D3DDebug"
+
+!ELSEIF  "$(CFG)" == "ftequake - Win32 GLSDLDebug"
+
 !ENDIF 
 
 # End Source File
@@ -3093,17 +3098,27 @@ SOURCE=..\client\snd_sdl.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
 
+# PROP Exclude_From_Build 1
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
 
+# PROP Exclude_From_Build 1
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
+
+# PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
+# PROP Exclude_From_Build 1
+
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
+
+# PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
 
@@ -3112,6 +3127,8 @@ SOURCE=..\client\snd_sdl.c
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated ServerQ3"
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 D3DDebug"
+
+# PROP Exclude_From_Build 1
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLSDLDebug"
 
@@ -4024,10 +4041,6 @@ SOURCE=..\gl\gltod3d\gl_fakegl.cpp
 # Begin Source File
 
 SOURCE=..\gl\gl_font.c
-# End Source File
-# Begin Source File
-
-SOURCE=..\gl\gl_glsl.c
 # End Source File
 # Begin Source File
 

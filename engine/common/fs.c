@@ -2147,7 +2147,9 @@ void FS_StartupWithGame(int gamenum)
 {
 	int i;
 
+#ifdef AVAIL_ZLIB
 	LibZ_Init();
+#endif
 
 	Cvar_Set(&com_gamename, gamemode_info[gamenum].protocolname);
 
@@ -2372,7 +2374,7 @@ void COM_InitFilesystem (void)
 				if (dSHGetFolderPath(NULL, 0x5, NULL, 0, folder) == S_OK)
 					Q_snprintfz(com_homedir, sizeof(com_homedir), "%s/My Games/%s/", folder, FULLENGINENAME);
 			}
-			FreeLibrary(shfolder);
+//			FreeLibrary(shfolder);
 		}
 
 		if (!*com_homedir)

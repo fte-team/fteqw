@@ -406,6 +406,9 @@ int wildcmp(const char *wild, const char *string)
 		{
 			if (!*++wild)	//a * at the end of the wild string matches anything the checked string has
 			{
+				string = strchr(string, '/');
+				if (string && string[1])	/*don't match it if there's a / with something after it*/
+					return 0;
 				return 1;
 			}
 			mp = wild;

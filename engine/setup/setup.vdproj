@@ -39,6 +39,12 @@
         }
         "Entry"
         {
+        "MsmKey" = "8:_3BDB7011AA4B3758AF86E84F0C1DAF60"
+        "OwnerKey" = "8:_3D8125FEDA5B43DFAE7E3CF1642F05A8"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_3D8125FEDA5B43DFAE7E3CF1642F05A8"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
@@ -65,6 +71,12 @@
         {
         "MsmKey" = "8:_71CBEB9164DF59638557E9DDA2701375"
         "OwnerKey" = "8:_59B5273419A741098C2F6C4D3D48B5F9"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_71CBEB9164DF59638557E9DDA2701375"
+        "OwnerKey" = "8:_3D8125FEDA5B43DFAE7E3CF1642F05A8"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
@@ -430,14 +442,14 @@
         {
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:FTEQuake"
-        "ProductCode" = "8:{8DBC0030-CAE5-498F-BCE4-6E0BAB189EE7}"
-        "PackageCode" = "8:{02F08071-FD7D-46B8-B530-FFA7DBD2505A}"
+        "ProductCode" = "8:{1E2732CA-B825-4859-B5F7-41749C2BCBA3}"
+        "PackageCode" = "8:{C7794AE3-06F3-4BEB-BEDD-18434AE7855A}"
         "UpgradeCode" = "8:{ED40A57B-C477-465A-8F0E-02E662BD739A}"
         "RestartWWWService" = "11:FALSE"
         "RemovePreviousVersions" = "11:TRUE"
         "DetectNewerInstalledVersion" = "11:TRUE"
         "InstallAllUsers" = "11:TRUE"
-        "ProductVersion" = "8:1.0.0"
+        "ProductVersion" = "8:1.0.1"
         "Manufacturer" = "8:Forethought Entertainment"
         "ARPHELPTELEPHONE" = "8:"
         "ARPHELPLINK" = "8:"

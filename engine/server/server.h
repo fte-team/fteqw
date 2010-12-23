@@ -536,8 +536,8 @@ typedef struct client_s
 		qbyte vweap;
 	} otherclientsknown[MAX_CLIENTS];	//updated as needed. Flag at a time, or all flags.
 
-	struct client_s *controller;
-	struct client_s *controlled;
+	struct client_s *controller;	/*first in splitscreen chain, NULL=nosplitscreen*/
+	struct client_s *controlled;	/*next in splitscreen chain*/
 
 
 	int rate;

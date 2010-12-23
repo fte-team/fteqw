@@ -398,6 +398,14 @@ or crashing.
 void SV_DropClient (client_t *drop)
 {
 	laggedpacket_t *lp;
+
+	/*drop the first in the chain first*/
+	if (drop->controller && drop->controller != drop)
+	{
+		SV_DropClient(drop->controller);
+		return;
+	}
+
 	if (!drop->controller)
 	{
 		// add the disconnect
@@ -596,6 +604,7 @@ void SV_DropClient (client_t *drop)
 	{
 		drop->controlled->controller = NULL;
 		SV_DropClient(drop->controlled);
+		drop->controlled = NULL;
 	}
 }
 

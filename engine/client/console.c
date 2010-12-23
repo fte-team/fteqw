@@ -560,10 +560,7 @@ void Con_PrintCon (console_t *con, char *txt)
 	{
 		conchar_t *o;
 
-		/*if ((*c&CON_CHARMASK)=='\t')
-			*c = (*c&~CON_CHARMASK)|' ';
-*/
-		switch (*c & (CON_CHARMASK&~CON_HIGHCHARSMASK))
+		switch (*c & (CON_CHARMASK))
 		{
 		case '\r':
 			cr = true;

@@ -2187,13 +2187,7 @@ void SV_VoiceReadPacket(void)
 				continue;
 		}
 
-		//make sure we don't send the say to the same client 20 times due to splitscreen
-		if (cl->controller)
-			cln = cl->controller - svs.clients;
-		else
-			cln = j;
-
-		ring->receiver[cln>>3] |= 1<<(cln&3);
+		ring->receiver[j>>3] |= 1<<(j&3);
 	}
 
 	if (sv.mvdrecording && sv_voip_record.ival && !(sv_voip_record.ival == 2 && !host_client->spectator))
@@ -2230,9 +2224,14 @@ void SV_VoiceInitClient(client_t *client)
 }
 void SV_VoiceSendPacket(client_t *client, sizebuf_t *buf)
 {
-	unsigned int clno = client - svs.clients;
+	unsigned int clno;
 	qboolean send;
 	struct voice_ring_s *ring;
+	client_t *split;
+
+	if (client->controller)
+		client = client->controller;
+	clno = client - svs.clients;
 
 	if (!(client->fteprotocolextensions2 & PEXT2_VOICECHAT))
 		return;
@@ -2254,13 +2253,12 @@ void SV_VoiceSendPacket(client_t *client, sizebuf_t *buf)
 		send = false;
 		if (ring->receiver[clno>>3] & (1<<(clno&3)))
 			send = true;
-		else
-		{
-			/*if you're spectating, you can hear whatever your tracked player can hear*/
-			if (host_client->spectator && host_client->spec_track)
-				if (ring->receiver[(host_client->spec_track-1)>>3] & (1<<((host_client->spec_track-1)&3)))
-					send = true;
-		}
+		
+		/*if you're spectating, you can hear whatever your tracked player can hear*/
+		if (host_client->spectator && host_client->spec_track)
+			if (ring->receiver[(host_client->spec_track-1)>>3] & (1<<((host_client->spec_track-1)&3)))
+				send = true;
+
 
 		if (client->voice_mute[ring->sender>>3] & (1<<(ring->sender&3)))
 			send = false;

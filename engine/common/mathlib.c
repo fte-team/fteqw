@@ -1583,14 +1583,18 @@ void Matrix4_UnProject(const vec3_t in, vec3_t out, const vec3_t viewangles, con
 		float v[4], tempv[4];
 		v[0] = in[0]*2-1;
 		v[1] = in[1]*2-1;
-		v[2] = in[2]*2-1;
+		v[2] = in[2];
 		v[3] = 1;
+
+		//don't use 1, because the far clip plane really is an infinite distance away
+		if (v[2] >= 1)
+			v[2] = 0.999999;
 
 		Matrix4_Transform4(proj, v, tempv); 
 
-		out[0] = tempv[0];
-		out[1] = tempv[1];
-		out[2] = tempv[2];
+		out[0] = tempv[0]/tempv[3];
+		out[1] = tempv[1]/tempv[3];
+		out[2] = tempv[2]/tempv[3];
 	}
 }
 

@@ -756,17 +756,13 @@ void CL_UpdatePrydonCursor(usercmd_t *from, float cursor_screen[2], vec3_t curso
 
 	VectorCopy(r_origin, cursor_start);
 	Matrix4_UnProject(temp, cursor_end, cl.viewangles[0], cursor_start, r_refdef.fov_x, r_refdef.fov_y);
-	VectorScale(cursor_end, 100000, cursor_end);
 
 	CL_SetSolidEntities();
 	//don't bother with players, they don't exist in NQ...
 
 	TraceLineN(cursor_start, cursor_end, cursor_impact, cursor_impact_normal);
-//	CL_SelectTraceLine(cursor_start, cursor_end, cursor_impact, entnum);
-	// makes sparks where cursor is
-	//CL_SparkShower(cl.cmd.cursor_impact, cl.cmd.cursor_normal, 5, 0);
-//	P_RunParticleEffectType(cursor_impact, vec3_origin, 1, pt_gunshot);
-//P_ParticleTrail(cursor_start, cursor_impact, 0, NULL);
+
+//	P_RunParticleEffect(cursor_impact, vec3_origin, 15, 16);
 }
 
 #ifdef NQPROT

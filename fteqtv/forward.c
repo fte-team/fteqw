@@ -239,8 +239,11 @@ void Net_ProxySend(cluster_t *cluster, oproxy_t *prox, void *buffer, int length)
 		Net_TryFlushProxyBuffer(cluster, prox);	//try flushing
 		if (prox->buffersize-prox->bufferpos + length > MAX_PROXY_BUFFER)	//damn, still too big.
 		{	//they're too slow. hopefully it was just momentary lag
-			printf("QTV client is too lagged\n");
-			prox->flushing = true;
+			if (!prox->flushing)
+			{
+				printf("QTV client is too lagged\n");
+				prox->flushing = true;
+			}
 			return;
 		}
 	}
@@ -648,11 +651,27 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 
 	if (pend->flushing)
 	{
-		if (pend->bufferpos == pend->buffersize)
+		if (pend->srcfile)
 		{
-			if (pend->srcfile)
+#if 0
+			//bufferend = transmit point
+			//buffersize = write point
+			if (bufferend < buffersize)
+				space = (MAX_PROXY_BUFFER - pend->buffersize) + pend->bufferend;
+			else
+				space = pend->bufferend - pend->buffersize;
+
+			if (space < 256)	/*don't bother reading if we're dribbling*/
+				return false;
+			if (space > 0)	/*never fully saturate so as to not confuse the ring*/
+				space--;
+
+			if (space > MAX_PROXY_BUFFER - 
+			fread(prox->buffer + pend->buffersize, 1, space, pend->srcfile);
+#else
+			if (pend->bufferpos == pend->buffersize)
 			{
-				char buffer[4096];
+				char buffer[MAX_PROXY_BUFFER/2];
 				len = fread(buffer, 1, sizeof(buffer), pend->srcfile);
 				if (!len)
 				{
@@ -660,13 +679,15 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 					pend->srcfile = NULL;
 				}
 				Net_ProxySend(cluster, pend, buffer, len);
-				return false;	//don't try reading anything yet
 			}
-			else
-			{
-				pend->drop = true;
-				return false;
-			}
+#endif
+			return false;	//don't try reading anything yet
+		}
+
+		if (pend->bufferpos == pend->buffersize)
+		{
+			pend->drop = true;
+			return false;
 		}
 		else
 			return false;

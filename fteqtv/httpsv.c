@@ -1,5 +1,6 @@
 #include "qtv.h"
 
+#define MINPLUGVER "4239"
 //main reason to use connection close is because we're lazy and don't want to give sizes in advance (yes, we could use chunks..)
 
 
@@ -166,6 +167,30 @@ static void HTTPSV_SendHTMLHeader(cluster_t *cluster, oproxy_t *dest, char *titl
 		);
 
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
+
+	if (plugin)
+	{
+		s =
+			"<script>"
+			"if (!parent.getplug || parent.getplug().plugver == undefined || parent.getplug().plugver < "MINPLUGVER")"
+			"{"
+				"if (!parent.getplug || parent.getplug().plugver == undefined)"
+				"{"
+					"document.write(\"You need a plugin! Get one here!\");"
+				"}"
+				"else"
+				"{"
+					"document.write(\"Update your plugin!\");"
+				"}"
+				"document.write(\"<br/>"
+								"<a href=\\\"npfte.xpi\\\">Firefox (open with firefox itself)</a><br/>"
+								"<a href=\\\"iefte.exe\\\">Internet Explorer</a><br/>"
+								"<a href=\\\"npfte.exe\\\">Others</a><br/>"
+								"\");"
+			"}"
+			"</script>";
+		Net_ProxySend(cluster, dest, s, strlen(s));
+	}
 }
 
 static void HTTPSV_SendHTMLFooter(cluster_t *cluster, oproxy_t *dest)
@@ -173,9 +198,15 @@ static void HTTPSV_SendHTMLFooter(cluster_t *cluster, oproxy_t *dest)
 	char *s;
 	char buffer[2048];
 
-	snprintf(buffer, sizeof(buffer), "<br/>QTV Version: %i <a href=\"http://www.fteqw.com\" target=\"_blank\">www.fteqw.com</a><br />", cluster->buildnumber);
+	/*Proxy version*/
+	snprintf(buffer, sizeof(buffer), "<br/>Server Version: %i <a href=\"http://www.fteqw.com\" target=\"_blank\">www.fteqw.com</a>", cluster->buildnumber);
 	Net_ProxySend(cluster, dest, buffer, strlen(buffer));
 
+	/*Plugin version*/
+	s = "<script>if (parent.getplug != null) document.write(\"<br/>Plugin Version: \" + parent.getplug().build + parent.getplug().server);</script>";
+	Net_ProxySend(cluster, dest, s, strlen(s));
+
+	/*terminate html page*/
 	s = "</body>\n"
 		"</html>\n";
 	Net_ProxySend(cluster, dest, s, strlen(s));
@@ -289,8 +320,6 @@ static void HTTPSV_GenerateCSSFile(cluster_t *cluster, oproxy_t *dest)
     HTMLPRINT("dl.nowplaying ul { margin: 0 0 0 1em; padding: 0; }");
     HTMLPRINT("#navigation { background-color: #eef; }");
     HTMLPRINT("#navigation li { display: inline; list-style: none; margin: 0 3em; }");
-	HTMLPRINT("div.optdiv { margin: 0px 0px 0px 0px; position: fixed; left: 0%; width: 50%; top: 0%; height: 100%; }");
-	HTMLPRINT("div.plugdiv { margin: 0px 0px 0px 0px; position: fixed; left: 50%; width: 50%; top: 0%; height: 100%; }");
 }
 
 static qboolean HTTPSV_GetHeaderField(char *s, char *field, char *buffer, int buffersize)
@@ -721,12 +750,12 @@ static void HTTPSV_GeneratePlugin(cluster_t *cluster, oproxy_t *dest)
 		"<HTML><HEAD><TITLE>QuakeTV With Plugin</TITLE>"
 				"  <link rel=\"StyleSheet\" href=\"/style.css\" type=\"text/css\" />\n"
 				"</HEAD><body>"
-	"<div class=\"optdiv\">"
+	"<div id=optdiv style='position:fixed; left:0%; width:50%; top:0%; height:100%;'>"
 				"<iframe frameborder=0 src=\"nowplaying.html?p\" width=\"100%\" height=\"100%\">"
 				"oh dear. your browser doesn't support this site"
 				"</iframe>"
 	"</div>"
-	"<div class=\"plugdiv\">"
+	"<div id=plugdiv style='position:fixed; left:50%; width:50%; top:0%; height:100%;'>"
 		/*once for IE*/
 		"<object	name=\"ieplug\""
 		" type=\"text/x-quaketvident\""
@@ -741,8 +770,13 @@ static void HTTPSV_GeneratePlugin(cluster_t *cluster, oproxy_t *dest)
 				Net_ProxySend(cluster, dest, hostname, strlen(hostname));
 				html =
 					"/qtvsplash.jpg\">"
+		"<param name=\"availver\" value=\""MINPLUGVER"\">"
 		"<param name=\"game\" value=\"q1\">"
-		"<param name=\"dataDownload\" value=\"id1/pak0.pak:http://random.nquake.com/qsw106.zip\">"
+		"<param name=\"dataDownload\" value='";
+	Net_ProxySend(cluster, dest, html, strlen(html));
+	Net_ProxySend(cluster, dest, cluster->plugindatasource, strlen(cluster->plugindatasource));
+	html = 
+		"'>"
 		/*once again for firefox and similar friends*/
 		"<object	name=\"npplug\""
 		" type=\"text/x-quaketvident\""
@@ -755,20 +789,26 @@ static void HTTPSV_GeneratePlugin(cluster_t *cluster, oproxy_t *dest)
 				Net_ProxySend(cluster, dest, hostname, strlen(hostname));
 				html =
 					"/qtvsplash.jpg\">"
+		"<param name=\"availver\" value=\""MINPLUGVER"\">"
 		"<param name=\"game\" value=\"q1\">"
-		"<param name=\"dataDownload\" value=\"id1/pak0.pak:http://random.nquake.com/qsw106.zip\">"
-		"It looks like you either don't have the required plugin or its not supported by your browser.<br/>"
-		"<a href=\"npfte.xpi\">You can download one for firefox here (open with firefox itself).</a><br/>"
-		"<a href=\"iefte.exe\">You can download one for internet explorer here.</a><br/>"
-		"<a href=\"npfte.exe\">You can download one for other browsers here.</a><br/>"
+		"<param name=\"dataDownload\" value='";
+	Net_ProxySend(cluster, dest, html, strlen(html));
+	Net_ProxySend(cluster, dest, cluster->plugindatasource, strlen(cluster->plugindatasource));
+	html = 
+		"'>"
+		"Plugin failed to load"
 		"</object>"
 		"</object>"
 	"</div>"
 
 	"<script>"
-	"function getplug(d)\n"
+	"function getplugnp(d)\n"
 	"{\n"
 		"return document.npplug;\n"
+	"}\n"
+	"function getplugie(d)\n"
+	"{\n"
+		"return document.ieplug;\n"
 	"}\n"
 	"parent.host = \""
 					;
@@ -780,7 +820,12 @@ static void HTTPSV_GeneratePlugin(cluster_t *cluster, oproxy_t *dest)
 
 	"function joinserver(d)\n"
 	"{\n"
-		"getplug().mapsrc = \"http://bigfoot.morphos-team.net/misc/quakemaps/\";\n"
+		"getplug().mapsrc = \""
+					;
+			Net_ProxySend(cluster, dest, html, strlen(html));
+			Net_ProxySend(cluster, dest, cluster->plugindatasource, strlen(cluster->plugindatasource));
+			html = 
+			"\";\n"
 		"getplug().server = d;\n"
 		"getplug().running = 1;\n"
 	"}\n"
@@ -800,6 +845,18 @@ static void HTTPSV_GeneratePlugin(cluster_t *cluster, oproxy_t *dest)
 	"parent.joinserver = joinserver;\n"
 	"parent.playdemo = playdemo;\n"
 
+	"if (getplugie() != undefined && getplugie().plugver != undefined)\n"
+		"{\nparent.getplug = getplugie;\n}\n"
+	"else\n"
+		"{\nparent.getplug = getplugnp;\n}\n"
+/*	"if (getplug().plugver == undefined)"
+	"{"
+			"document.getElementById('plugdiv').style.left = '75%';"
+			"document.getElementById('optdiv').style.width = '25%';"
+			"document.getElementById('plugdiv').style.width = '0';"
+			"parent.getplug = null;"
+	"}"
+*/
 	"</script>"
 
 	"</body></HTML>";
@@ -1065,11 +1122,17 @@ void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend)
 	{
 		HTTPSV_GenerateAdmin(cluster, pend, 0, NULL, args);
 	}
+#if defined(_DEBUG) || defined(DEBUG)
 	else REDIRECTIF("/", "/plugin.html")
+#endif
 	else REDIRECTIF("/", "/nowplaying.html")
 	else REDIRECTIF("/about.html", "http://www.fteqw.com/")
 	else REDIRECTIF("/qtvsplash.jpg", "/file/qtvsplash.jpg")	/*lame, very lame*/
+#if defined(_DEBUG) || defined(DEBUG)
+	else REDIRECTIF("/npfte.xpi", "/file/npfte_dbg.xpi")	/*lame, very lame*/
+#else
 	else REDIRECTIF("/npfte.xpi", "/file/npfte.xpi")	/*lame, very lame*/
+#endif
 	else REDIRECTIF("/npfte.exe", "/file/npfte.exe")	/*lame, very lame*/
 	else REDIRECTIF("/iefte.exe", "/file/iefte.exe")	/*lame, very lame*/
 	else if (uriargmatch(uri, "/demos.html", urilen, &args))

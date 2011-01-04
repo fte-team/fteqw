@@ -349,7 +349,6 @@ void CL_ShutdownTEnts (void)
 void P_LoadedModel(model_t *mod)
 {
 	struct associatedeffect *ae;
-	int j;
 
 	mod->particleeffect = P_INVALID;
 	mod->particletrail = P_INVALID;

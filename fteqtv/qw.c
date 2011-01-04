@@ -2574,7 +2574,7 @@ void QTV_SayCommand(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *fullcomman
 			QW_StuffcmdToViewer(v, "bind pause \"say proxy:menu\"\n");
 			QW_StuffcmdToViewer(v, "bind backspace \"say proxy:menu back\"\n");
 
-			QW_PrintfToViewer(v, "All keys bound not recognised\n");
+			QW_PrintfToViewer(v, "All keys bound\n");
 		}
 		else if (!*command)
 		{

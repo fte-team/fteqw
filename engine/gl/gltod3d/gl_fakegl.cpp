@@ -4060,7 +4060,7 @@ d3dglfunc_t glfuncs[] = {
 };
 
 
-qboolean D3DVID_Init(rendererstate_t *info, unsigned char *palette)
+static qboolean D3DVID_Init(rendererstate_t *info, unsigned char *palette)
 {
 	strcpy(info->glrenderer, "D3D");
 	return GLVID_Init(info, palette);
@@ -4070,98 +4070,104 @@ extern "C" {
 #include "gl_draw.h"
 }
 
-rendererinfo_t d3drendererinfo = {
-		"Direct3D",
+rendererinfo_t d3dfglrendererinfo = {
+		"Direct3D Wrapper",
 		{
 			"faked3d",
 			"crap"
 		},
-		QR_OPENGL,
+	QR_OPENGL,
 
 
-		GLDraw_SafePicFromWad,
-		GLDraw_CachePic,
-		GLDraw_SafeCachePic,
-		GLDraw_Init,
-		GLDraw_ReInit,
-		GLDraw_Character,
-		GLDraw_ColouredCharacter,
-		GLDraw_TinyCharacter,
-		GLDraw_String,
-		GLDraw_Alt_String,
-		GLDraw_Crosshair,
-		GLDraw_DebugChar,
-		GLDraw_Pic,
-		GLDraw_ScalePic,
-		GLDraw_SubPic,
-		GLDraw_TransPic,
-		GLDraw_TransPicTranslate,
-		GLDraw_ConsoleBackground,
-		GLDraw_EditorBackground,
-		GLDraw_TileClear,
-		GLDraw_Fill,
-		GLDraw_FillRGB,
-		GLDraw_FadeScreen,
-		GLDraw_BeginDisc,
-		GLDraw_EndDisc,
+	R2D_SafePicFromWad,
+	R2D_SafeCachePic,
+	GLDraw_Init,
+	GLDraw_ReInit,
+	GLDraw_Crosshair,
+	R2D_ScalePic,
+	R2D_SubPic,
+	GLDraw_TransPicTranslate,
+	R2D_ConsoleBackground,
+	R2D_EditorBackground,
+	R2D_TileClear,
+	GLDraw_Fill,
+	GLDraw_FillRGB,
+	GLDraw_FadeScreen,
+	GLDraw_BeginDisc,
+	GLDraw_EndDisc,
 
-		GLDraw_Image,
-		GLDraw_ImageColours,
+	R2D_Image,
+	R2D_ImageColours,
 
-		GLR_Init,
-		GLR_DeInit,
-		GLR_ReInit,
-		GLR_RenderView,
+	GL_LoadTextureFmt,
+	GL_LoadTexture8Pal24,
+	GL_LoadTexture8Pal32,
+	GL_LoadCompressed,
+	GL_FindTexture,
+	GL_AllocNewTexture,
+	GL_UploadFmt,
+	GL_DestroyTexture,
 
-
-		NULL,
-		NULL,
-
-		GLR_NewMap,
-		GLR_PreNewMap,
-		GLR_LightPoint,
-		GLR_PushDlights,
+	GLR_Init,
+	GLR_DeInit,
+	GLR_RenderView,
 
 
-		Surf_AddStain,
-		Surf_LessenStains,
-
-		MediaGL_ShowFrameBGR_24_Flip,
-		MediaGL_ShowFrameRGBA_32,
-		MediaGL_ShowFrame8bit,
+	GLR_NewMap,
+	GLR_PreNewMap,
+	GLR_LightPoint,
 
 
-		GLMod_Init,
-		GLMod_ClearAll,
-		GLMod_ForName,
-		GLMod_FindName,
-		GLMod_Extradata,
-		GLMod_TouchModel,
+	Surf_AddStain,
+	Surf_LessenStains,
 
-		GLMod_NowLoadExternal,
-		GLMod_Think,
+	RMod_Init,
+	RMod_ClearAll,
+	RMod_ForName,
+	RMod_FindName,
+	RMod_Extradata,
+	RMod_TouchModel,
 
-		Mod_GetTag,
-		Mod_TagNumForName,
-		Mod_SkinForName,
-		Mod_FrameForName,
-		Mod_GetFrameDuration,
+	RMod_NowLoadExternal,
+	RMod_Think,
 
-		D3DVID_Init,
-		GLVID_DeInit,
-		GLVID_SetPalette,
-		GLVID_ShiftPalette,
-		GLVID_GetRGBInfo,
+	Mod_GetTag,
+	Mod_TagNumForName,
+	Mod_SkinNumForName,
+	Mod_FrameNumForName,
+	Mod_FrameDuration,
 
-		NULL,	//setcaption
+	D3DVID_Init,
+	GLVID_DeInit,
+	GLVID_SetPalette,
+	GLVID_ShiftPalette,
+	GLVID_GetRGBInfo,
+
+	GLVID_SetCaption,	//setcaption
 
 
-		GLSCR_UpdateScreen,
+	GLSCR_UpdateScreen,
 
-		""
+		/*backend*/
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+
+	""
 };
 extern "C" {
-rendererinfo_t *pd3drendererinfo = &d3drendererinfo;
+rendererinfo_t *pd3dfglrendererinfo = &d3dfglrendererinfo;
 }
 
 #endif

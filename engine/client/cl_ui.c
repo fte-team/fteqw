@@ -620,10 +620,6 @@ void VQ3_RenderView(const q3refdef_t *ref)
 		qglEnable(GL_BLEND);
 	}
 #endif
-#ifdef D3DQUAKE
-	if (qrenderer == QR_DIRECT3D)
-		D3D9_Set2D();
-#endif
 
 	vid.recalc_refdef = 1;
 	r_refdef.time = 0;

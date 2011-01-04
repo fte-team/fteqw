@@ -320,14 +320,14 @@ static const char PCFPASS_SHADER[] = "\
 
 extern cvar_t r_glsl_offsetmapping, r_noportals;
 
-#if 0//def _DEBUG
+#ifdef _DEBUG
 #define checkerror() if (qglGetError()) Con_Printf("Error detected at line %s:%i\n", __FILE__, __LINE__)
 #else
 #define checkerror()
 #endif
 
 static void BE_SendPassBlendAndDepth(unsigned int sbits);
-void BE_SubmitBatch(batch_t *batch);
+void GLBE_SubmitBatch(batch_t *batch);
 
 struct {
 	//internal state
@@ -840,10 +840,12 @@ void Shader_LightPass_Spot(char *shortname, shader_t *s, const void *args)
 	Shader_DefaultScript(shortname, s, shadertext);
 }
 
-void BE_Init(void)
+void GLBE_Init(void)
 {
 	int i;
 	double t;
+
+	checkerror();
 
 	be_maxpasses = gl_mtexarbable;
 
@@ -2251,7 +2253,7 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 }
 
 #ifdef RTLIGHTS
-qboolean BE_LightCullModel(vec3_t org, model_t *model)
+qboolean GLBE_LightCullModel(vec3_t org, model_t *model)
 {
 	if ((shaderstate.mode == BEM_LIGHT || shaderstate.mode == BEM_STENCIL))
 	{
@@ -2282,7 +2284,7 @@ qboolean BE_LightCullModel(vec3_t org, model_t *model)
 #endif
 
 //Note: Be cautious about using BEM_LIGHT here.
-void BE_SelectMode(backendmode_t mode, unsigned int flags)
+void GLBE_SelectMode(backendmode_t mode, unsigned int flags)
 {
 	extern int gldepthfunc;
 
@@ -2368,7 +2370,7 @@ void BE_SelectMode(backendmode_t mode, unsigned int flags)
 	shaderstate.flags = flags;
 }
 
-void BE_SelectEntity(entity_t *ent)
+void GLBE_SelectEntity(entity_t *ent)
 {
 	if (shaderstate.curentity && shaderstate.curentity->flags & Q2RF_DEPTHHACK)
 		qglDepthRange (gldepthmin, gldepthmax);
@@ -2575,7 +2577,7 @@ static void DrawMeshes(void)
 	}
 }
 
-void BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_t *vbo, texnums_t *texnums)
+void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_t *vbo, texnums_t *texnums)
 {
 	if (!vbo)
 	{
@@ -2626,7 +2628,7 @@ void BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_t 
 		DrawMeshes();
 	}
 }
-void BE_DrawMesh_Single(shader_t *shader, mesh_t *mesh, vbo_t *vbo, texnums_t *texnums)
+void GLBE_DrawMesh_Single(shader_t *shader, mesh_t *mesh, vbo_t *vbo, texnums_t *texnums)
 {
 	shader->next = NULL;
 	BE_DrawMesh_List(shader, 1, &mesh, NULL, texnums);
@@ -2655,7 +2657,7 @@ void BE_DrawPolys(qboolean decalsset)
 		BE_DrawMesh_Single(cl_stris[i].shader, &m, NULL, &cl_stris[i].shader->defaulttextures);
 	}
 }
-void BE_SubmitBatch(batch_t *batch)
+void GLBE_SubmitBatch(batch_t *batch)
 {
 	model_t *model = cl.worldmodel;
 	int lm;
@@ -2758,7 +2760,7 @@ static void BE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 				}
 				BE_SelectMode(BEM_STANDARD, 0);
 
-				R_DrawPortal(batch, worldlist);
+				GLR_DrawPortal(batch, worldlist);
 
 				/*clear depth again*/
 				GL_ForceDepthWritable();
@@ -2797,7 +2799,7 @@ static void BE_SubmitMeshesSortList(batch_t *sortlist)
 	}
 }
 
-void BE_SubmitMeshes (qboolean drawworld, batch_t **blist)
+void GLBE_SubmitMeshes (qboolean drawworld, batch_t **blist)
 {
 	model_t *model = cl.worldmodel;
 	int i;
@@ -2872,7 +2874,7 @@ static void BE_UpdateLightmaps(void)
 	}
 }
 
-batch_t *BE_GetTempBatch(void)
+batch_t *GLBE_GetTempBatch(void)
 {
 	if (shaderstate.wbatch >= shaderstate.maxwbatches)
 	{
@@ -2926,12 +2928,12 @@ void BE_BaseEntTextures(void)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
 	BE_GenModelBatches(batches);
-	BE_SubmitMeshes(false, batches);
+	GLBE_SubmitMeshes(false, batches);
 	BE_SelectEntity(&r_worldentity);
 }
 #endif
 
-void BE_DrawWorld (qbyte *vis)
+void GLBE_DrawWorld (qbyte *vis)
 {
 	extern cvar_t r_shadow_realtime_world, r_shadow_realtime_world_lightmaps;
 	batch_t *batches[SHADER_SORT_COUNT];
@@ -2996,7 +2998,7 @@ void BE_DrawWorld (qbyte *vis)
 	checkerror();
 
 	RSpeedRemark();
-	BE_SubmitMeshes(true, batches);
+	GLBE_SubmitMeshes(true, batches);
 	RSpeedEnd(RSPEED_WORLD);
 
 #ifdef RTLIGHTS
@@ -3038,7 +3040,7 @@ void BE_DrawNonWorld (void)
 	shaderstate.curentity = NULL;
 	shaderstate.updatetime = cl.servertime;
 
-	BE_SubmitMeshes(false, batches);
+	GLBE_SubmitMeshes(false, batches);
 
 	BE_SelectEntity(&r_worldentity);
 	shaderstate.updatetime = realtime;

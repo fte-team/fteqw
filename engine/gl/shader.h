@@ -376,7 +376,7 @@ void Shader_NeedReload(void);
 mfog_t *CM_FogForOrigin(vec3_t org);
 
 //not all modes accept meshes - STENCIL(intentional) and DEPTHONLY(not implemented)
-typedef enum
+enum backendmode_e
 {
 	BEM_STANDARD,		//regular mode to draw surfaces akin to q3 (aka: legacy mode). lightmaps+delux+ambient
 	BEM_DEPTHONLY,		//just a quick depth pass. textures used only for alpha test (shadowmaps).
@@ -385,7 +385,7 @@ typedef enum
 	BEM_LIGHT,			//we have a valid light
 	BEM_SMAPLIGHTSPOT,	//we have a spot light using a shadowmap
 	BEM_SMAPLIGHT		//we have a light using a shadowmap
-} backendmode_t;
+};
 
 #define BEF_FORCEDEPTHWRITE		1
 #define BEF_FORCEDEPTHTEST		2
@@ -394,31 +394,40 @@ typedef enum
 #define BEF_FORCENODEPTH		16	//disables any and all depth.
 #define BEF_PUSHDEPTH			32	//additional polygon offset
 
-//Select the current render mode and modifier flags
-void BE_SelectMode(backendmode_t mode, unsigned int flags);
-
-/*Draws an entire mesh list from a VBO. vbo can be null, in which case the chain may be drawn without batching.
-  Rules for using a list: Every mesh must be part of the same VBO, shader, lightmap, and must have the same pointers set*/
-void BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **mesh, vbo_t *vbo, texnums_t *texnums);
-void BE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums);
-void BE_SubmitBatch(batch_t *batch);
-batch_t *BE_GetTempBatch(void);
+#ifdef GLQUAKE
+void GLBE_Init(void);
+void GLBE_SelectMode(backendmode_t mode, unsigned int flags);
+void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **mesh, vbo_t *vbo, texnums_t *texnums);
+void GLBE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums);
+void GLBE_SubmitBatch(batch_t *batch);
+batch_t *GLBE_GetTempBatch(void);
+void GLBE_GenBrushModelVBO(model_t *mod);
+void GLBE_ClearVBO(vbo_t *vbo);
+void GLBE_UploadAllLightmaps(void);
+void GLBE_DrawWorld (qbyte *vis);
+qboolean GLBE_LightCullModel(vec3_t org, model_t *model);
+void GLBE_SelectEntity(entity_t *ent);
+#endif
+#ifdef D3DQUAKE
+void D3DBE_Init(void);
+void D3DBE_SelectMode(backendmode_t mode, unsigned int flags);
+void D3DBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **mesh, vbo_t *vbo, texnums_t *texnums);
+void D3DBE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums);
+void D3DBE_SubmitBatch(batch_t *batch);
+batch_t *D3DBE_GetTempBatch(void);
+void D3DBE_GenBrushModelVBO(model_t *mod);
+void D3DBE_ClearVBO(vbo_t *vbo);
+void D3DBE_UploadAllLightmaps(void);
+void D3DBE_DrawWorld (qbyte *vis);
+qboolean D3DBE_LightCullModel(vec3_t org, model_t *model);
+void D3DBE_SelectEntity(entity_t *ent);
+#endif
 
 //Asks the backend to invoke DrawMeshChain for each surface, and to upload lightmaps as required
-void BE_DrawWorld (qbyte *vis);
 void BE_DrawNonWorld (void);
 
-//called at init, force the display to the right defaults etc
-void BE_Init(void);
+void D3DBE_Reset(qboolean before);
 
-void BE_D3D_Reset(qboolean before);
-
-//Generates an optimised VBO, one for each texture on the map
-void BE_GenBrushModelVBO(model_t *mod);
-//Destroys the given vbo
-void BE_ClearVBO(vbo_t *vbo);
-//Uploads all modified lightmaps
-void BE_UploadAllLightmaps(void);
 //Builds a hardware shader from the software representation
 void BE_GenerateProgram(shader_t *shader);
 
@@ -435,8 +444,5 @@ void Sh_Shutdown(void);
 void BE_BaseEntShadowDepth(void);
 //Sets the given light+colour to be the current one that everything is to be lit/culled by.
 void BE_SelectDLight(dlight_t *dl, vec3_t colour);
-//Returns true if the mesh is not lit by the current light
-qboolean BE_LightCullModel(vec3_t org, model_t *model);
 #endif
-void BE_SelectEntity(entity_t *ent);
 #endif

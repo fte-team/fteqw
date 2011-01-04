@@ -165,7 +165,7 @@ void R_LightArraysByte_BGR(vecV_t *coords, byte_vec4_t *colours, int vertcount, 
 void R_LightArrays(vecV_t *coords, vec4_t *colours, int vertcount, vec3_t *normals);
 
 void R_DrawSkyChain (struct batch_s *batch); /*called from the backend, and calls back into it*/
-struct texnums_s R_InitSky (struct texture_s *mt, qbyte *src); /*generate q1 sky texnums*/
+void R_InitSky (struct texnums_s *ret, struct texture_s *mt, qbyte *src); /*generate q1 sky texnums*/
 
 //r_surf.c
 void Surf_DrawWorld(void);
@@ -219,7 +219,7 @@ void GLR_InitTextures (void);
 void GLR_InitEfrags (void);
 void GLR_RenderView (void);		// must set r_refdef first
 								// called whenever r_refdef or vid change
-void R_DrawPortal(struct batch_s *batch, struct batch_s **blist);
+void GLR_DrawPortal(struct batch_s *batch, struct batch_s **blist);
 
 void GLR_PreNewMap(void);
 void GLR_NewMap (void);
@@ -288,15 +288,14 @@ texid_t GL_LoadTextureFmt (char *identifier, int width, int height, enum uploadf
 void GL_DestroyTexture(texid_t tex);
 #endif
 #ifdef D3DQUAKE
-texid_t D3D_AllocNewTexture(int width, int height);
-void D3D_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, int width, int height, unsigned int flags);
-texid_t D3D_LoadTextureFmt (char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
-
-texid_t D3D_LoadCompressed(char *name);
-texid_t D3D_FindTexture (char *identifier);
-
-texid_t D3D_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
-texid_t D3D_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
+texid_t D3D9_LoadTexture (char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
+texid_t D3D9_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
+texid_t D3D9_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
+texid_t D3D9_LoadCompressed (char *name);
+texid_t D3D9_FindTexture (char *identifier);
+texid_t D3D9_AllocNewTexture(int width, int height);
+void    D3D9_Upload (texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
+void    D3D9_DestroyTexture (texid_t tex);
 #endif
 
 extern int image_width, image_height;

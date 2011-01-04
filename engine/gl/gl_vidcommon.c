@@ -2,6 +2,13 @@
 #ifdef GLQUAKE
 #include "glquake.h"
 #include "gl_draw.h"
+#include "shader.h"
+
+#ifdef _DEBUG
+#define checkerror() if (qglGetError()) Con_Printf("Error detected at line %s:%i\n", __FILE__, __LINE__)
+#else
+#define checkerror()
+#endif
 
 //standard 1.1 opengl calls
 void (APIENTRY *qglAlphaFunc) (GLenum func, GLclampf ref);
@@ -912,7 +919,11 @@ void GL_Init(void *(*getglfunction) (char *name))
 		{
 			Con_Printf ("GL_EXTENSIONS:");
 			for (i = 0; i < gl_num_extensions; i++)
+			{
 				Con_Printf (" %s", qglGetStringi(GL_EXTENSIONS, i));
+				if ((i & 15) == 15)
+					Con_Printf("\n");
+			}
 			Con_Printf ("\n");
 		}
 		else
@@ -942,16 +953,20 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
+	checkerror();
 #ifdef DEBUG
 	if (qglDebugMessageEnableAMD)
 		qglDebugMessageEnableAMD(0, 0, 0, NULL, true);
 	if (qglDebugMessageCallbackAMD)
 		qglDebugMessageCallbackAMD(myGLDEBUGPROCAMD, NULL);
+	qglGetError();	/*suck up the invalid operation error for non-debug contexts*/
 #endif
 
 #if HASHPROGRAMS
 	Hash_InitTable(&compiledshaderstable, sizeof(compiledshadersbuckets)/Hash_BytesForBuckets(1), compiledshadersbuckets);
 #endif
+
+	checkerror();
 }
 
 unsigned int	d_8to24rgbtable[256];
@@ -1038,6 +1053,19 @@ rendererinfo_t openglrendererinfo = {
 
 
 	GLSCR_UpdateScreen,
+
+	GLBE_SelectMode,
+	GLBE_DrawMesh_List,
+	GLBE_DrawMesh_Single,
+	GLBE_SubmitBatch,
+	GLBE_GetTempBatch,
+	GLBE_DrawWorld,
+	GLBE_Init,
+	GLBE_GenBrushModelVBO,
+	GLBE_ClearVBO,
+	GLBE_UploadAllLightmaps,
+	GLBE_SelectEntity,
+	GLBE_LightCullModel,
 
 	""
 };

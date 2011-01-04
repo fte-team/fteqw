@@ -112,7 +112,7 @@ cvar_t cl_voip_send = CVARD("cl_voip_send", "0", "Sends voice-over-ip data to th
 cvar_t cl_voip_vad_threshhold = CVARD("cl_voip_vad_threshhold", "15", "This is the threshhold for voice-activation-detection when sending voip data");
 cvar_t cl_voip_vad_delay = CVARD("cl_voip_vad_delay", "0.3", "Keeps sending voice data for this many seconds after voice activation would normally stop");
 cvar_t cl_voip_capturingvol = CVARD("cl_voip_capturingvol", "0.5", "Volume multiplier applied while capturing, to avoid your audio from being heard by others");
-cvar_t cl_voip_showmeter = CVARD("cl_voip_showmeter", "1", "Shows your speach volume above the hud. 0=hide, 1=show when transmitting, 2=ignore voice-activation disable");
+cvar_t cl_voip_showmeter = CVARD("cl_voip_showmeter", "1", "Shows your speech volume above the hud. 0=hide, 1=show when transmitting, 2=ignore voice-activation disable");
 
 cvar_t cl_voip_play = CVARCD("cl_voip_play", "1", S_Voip_Play_Callback, "Enables voip playback.");
 cvar_t cl_voip_micamp = CVARD("cl_voip_micamp", "2", "Amplifies your microphone when using voip.");

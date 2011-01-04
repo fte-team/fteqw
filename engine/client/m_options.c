@@ -261,6 +261,7 @@ void M_Menu_Audio_f (void)
 	menu_t *menu;
 	int cursorpositionY;
 	extern cvar_t nosound, precache, snd_leftisright, snd_khz, snd_eax, snd_speakers, ambient_level, bgmvolume, snd_playersoundvolume, ambient_fade, cl_staticsounds, snd_inactive, _snd_mixahead, snd_usemultipledevices, snd_noextraupdate, snd_show, bgmbuffer;
+	extern cvar_t cl_voip_play, cl_voip_send;
 
 	static const char *soundqualityoptions[] = {
 		"11025 Hz",
@@ -303,6 +304,10 @@ void M_Menu_Audio_f (void)
 	MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
 	y+=8;
 
+#ifdef VOICECHAT
+	MC_AddCheckBox(menu, 16, y,			"               Voice Chat", &cl_voip_play,0);y+=8;
+	MC_AddCheckBox(menu, 16, y,			"    VOIP Voice Activation", &cl_voip_send,0);y+=8;
+#endif
 	MC_AddSlider(menu, 16, y,			"          CD Music Volume", &bgmvolume,		0,		1, 0.1);y+=8;
 	MC_AddSlider(menu, 16, y,			"          CD Music Buffer", &bgmbuffer,		0,		10240, 1024);y+=8;
 	MC_AddSlider(menu, 16, y,			"             Sound Volume", &volume,			0,		1, 0.1);y+=8;

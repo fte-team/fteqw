@@ -155,7 +155,8 @@ typedef union {
 	void *ptr;
 #endif
 } texid_t;
-enum uploadfmt;
+typedef enum uploadfmt uploadfmt_t;
+typedef enum backendmode_e backendmode_t;
 
 typedef struct rendererinfo_s {
 	char *description;
@@ -182,13 +183,13 @@ typedef struct rendererinfo_s {
 	void	(*Draw_Image)				(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);	//gl-style scaled/coloured/subpic
 	void	(*Draw_ImageColours)		(float r, float g, float b, float a);
 
-	texid_t (*IMG_LoadTexture)			(char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
+	texid_t (*IMG_LoadTexture)			(char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);
 	texid_t (*IMG_LoadTexture8Pal24)	(char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
 	texid_t (*IMG_LoadTexture8Pal32)	(char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
 	texid_t (*IMG_LoadCompressed)		(char *name);
 	texid_t (*IMG_FindTexture)			(char *identifier);
 	texid_t (*IMG_AllocNewTexture)		(int w, int h);
-	void    (*IMG_Upload)				(texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
+	void    (*IMG_Upload)				(texid_t tex, char *name, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags);
 	void    (*IMG_DestroyTexture)		(texid_t tex);
 
 	void	(*R_Init)					(void);
@@ -227,6 +228,29 @@ typedef struct rendererinfo_s {
 
 	void	(*SCR_UpdateScreen)			(void);
 
+	
+	//Select the current render mode and modifier flags
+	void	(*BE_SelectMode)(backendmode_t mode, unsigned int flags);
+	/*Draws an entire mesh list from a VBO. vbo can be null, in which case the chain may be drawn without batching.
+	  Rules for using a list: Every mesh must be part of the same VBO, shader, lightmap, and must have the same pointers set*/
+	void	(*BE_DrawMesh_List)(shader_t *shader, int nummeshes, struct mesh_s **mesh, struct vbo_s *vbo, struct texnums_s *texnums);
+	void	(*BE_DrawMesh_Single)(shader_t *shader, struct mesh_s *meshchain, struct vbo_s *vbo, struct texnums_s *texnums);
+	void	(*BE_SubmitBatch)(struct batch_s *batch);
+	struct batch_s *(*BE_GetTempBatch)(void);
+	//Asks the backend to invoke DrawMeshChain for each surface, and to upload lightmaps as required
+	void	(*BE_DrawWorld) (qbyte *vis);
+	//called at init, force the display to the right defaults etc
+	void	(*BE_Init)(void);
+	//Generates an optimised VBO, one for each texture on the map
+	void (*BE_GenBrushModelVBO)(struct model_s *mod);
+	//Destroys the given vbo
+	void (*BE_ClearVBO)(struct vbo_s *vbo);
+	//Uploads all modified lightmaps
+	void (*BE_UploadAllLightmaps)(void);
+	void (*BE_SelectEntity)(struct entity_s *ent);
+	/*check to see if an ent should be drawn for the selected light*/
+	qboolean (*BE_LightCullModel)(vec3_t org, struct model_s *model);
+
 	char *alignment;
 } rendererinfo_t;
 
@@ -240,3 +264,17 @@ typedef struct rendererinfo_s {
 #define R_AllocNewTexture	rf->IMG_AllocNewTexture
 #define R_Upload			rf->IMG_Upload
 #define R_DestroyTexture	rf->IMG_DestroyTexture
+
+#define BE_Init					rf->BE_Init
+#define BE_SelectMode			rf->BE_SelectMode
+#define BE_GenBrushModelVBO		rf->BE_GenBrushModelVBO
+#define BE_ClearVBO				rf->BE_ClearVBO
+#define BE_UploadAllLightmaps	rf->BE_UploadAllLightmaps
+#define BE_LightCullModel		rf->BE_LightCullModel
+#define BE_SelectEntity			rf->BE_SelectEntity
+#define BE_GetTempBatch			rf->BE_GetTempBatch
+#define BE_SubmitBatch			rf->BE_SubmitBatch
+#define BE_DrawMesh_List		rf->BE_DrawMesh_List
+#define BE_DrawMesh_Single		rf->BE_DrawMesh_Single
+#define BE_SubimtMeshes			rf->BE_SubimtMeshes
+#define BE_DrawWorld			rf->BE_DrawWorld

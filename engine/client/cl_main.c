@@ -3319,6 +3319,8 @@ float Host_Frame (double time)
 //	float fps;
 	double realframetime;
 	static double spare;
+	float maxfps;
+	qboolean maxfpsignoreserver;
 
 	RSpeedLocals();
 
@@ -3371,23 +3373,25 @@ float Host_Frame (double time)
 
 	*/
 	Mod_Think();	//think even on idle (which means small walls and a fast cpu can get more surfaces done.
+
 	if ((cl_netfps.value>0 || cls.demoplayback || cl_indepphysics.ival))
 	{	//limit the fps freely, and expect the netfps to cope.
-		if (cl_maxfps.ival > 0)
-		{
-			realtime += spare/1000;	//don't use it all!
-			spare = CL_FilterTime((realtime - oldrealtime)*1000, cl_maxfps.value, true);
-			if (!spare)
-				return 1;
-
-			realtime -= spare/1000;	//don't use it all!
-		}
+		maxfpsignoreserver = true;
+		maxfps = cl_maxfps.ival;
 	}
 	else
 	{
-		float maxfps = (cl_maxfps.ival>0||cls.protocol!=CP_QUAKEWORLD)?cl_maxfps.value:cl_netfps.value;
+		maxfpsignoreserver = false;
+		maxfps = (cl_maxfps.ival>0||cls.protocol!=CP_QUAKEWORLD)?cl_maxfps.value:cl_netfps.value;
+		/*gets buggy at times longer than 250ms (and 0/negative, obviously)*/
+		if (maxfps < 4)
+			maxfps = 4;
+	}
+
+	if (maxfps > 0)
+	{
 		realtime += spare/1000;	//don't use it all!
-		spare = CL_FilterTime((realtime - oldrealtime)*1000, maxfps, false);
+		spare = CL_FilterTime((realtime - oldrealtime)*1000, maxfps, maxfpsignoreserver);
 		if (!spare)
 			return 1;
 		if (spare < 0 || cls.state < ca_onserver)
@@ -3397,6 +3401,8 @@ float Host_Frame (double time)
 
 		realtime -= spare/1000;	//don't use it all!
 	}
+	else
+		spare = 0;
 
 	host_frametime = (realtime - oldrealtime)*cl.gamespeed;
 	if (!cl.paused)

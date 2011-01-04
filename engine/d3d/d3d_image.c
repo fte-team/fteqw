@@ -1,5 +1,9 @@
 #include "quakedef.h"
 #ifdef D3DQUAKE
+#if !defined(HMONITOR_DECLARED) && (WINVER < 0x0500)
+    #define HMONITOR_DECLARED
+    DECLARE_HANDLE(HMONITOR);
+#endif
 #include <d3d9.h>
 LPDIRECT3DDEVICE9 pD3DDev9;
 

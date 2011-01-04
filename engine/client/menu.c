@@ -271,6 +271,9 @@ bindnames_t qwbindnames[] =
 {"+klook", 			"keyboard look "},
 {"+moveup",			"swim up       "},
 {"+movedown",		"swim down     "},
+#ifdef VOICECHAT
+{"+voip",			"voice chat    "},
+#endif
 {NULL}
 };
 
@@ -352,6 +355,9 @@ bindnames_t h2bindnames[] =
 {"impulse 112",		"inv:flight    "},
 {"impulse 113",		"inv:force cube"},
 {"impulse 114",		"inv:icon defn "},
+#ifdef VOICECHAT
+{"+voip",			"voice chat    "},
+#endif
 {NULL}
 };
 

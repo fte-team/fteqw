@@ -1,13 +1,15 @@
 #include "quakedef.h"
 #ifdef D3DQUAKE
 #include "shader.h"
+#if !defined(HMONITOR_DECLARED) && (WINVER < 0x0500)
+    #define HMONITOR_DECLARED
+    DECLARE_HANDLE(HMONITOR);
+#endif
 #include <d3d9.h>
 
-#ifndef GLQUAKE
 /*shaders have a few GL_FOO constants in them. they shouldn't, but they do.*/
 #include <GL/gl.h>
 #include "glsupp.h"
-#endif
 
 extern LPDIRECT3DDEVICE9 pD3DDev9;
 
@@ -178,7 +180,7 @@ enum
 IDirect3DVertexDeclaration9 *vertexdecls[D3D_VDEC_MAX];
 
 
-void BE_D3D_Reset(qboolean before)
+void D3DBE_Reset(qboolean before)
 {
 	int i, tmu;
 	if (before)
@@ -461,7 +463,7 @@ static void D3DBE_ApplyShaderBits(unsigned int bits)
 	}
 }
 
-void BE_Init(void)
+void D3DBE_Init(void)
 {
 	unsigned int i;
 	be_maxpasses = MAX_TMUS;
@@ -475,7 +477,7 @@ void BE_Init(void)
 	shaderstate.dynst_size = sizeof(vec2_t) * DYNVBUFFSIZE;
 	shaderstate.dynidx_size = sizeof(index_t) * DYNIBUFFSIZE;
 
-	BE_D3D_Reset(false);
+	D3DBE_Reset(false);
 
 	/*force all state to change, thus setting a known state*/
 	shaderstate.shaderbits = ~0;
@@ -1578,16 +1580,14 @@ static void BE_DrawMeshChain_Internal(void)
 	}
 }
 
-void BE_SelectMode(backendmode_t mode, unsigned int flags)
+void D3DBE_SelectMode(backendmode_t mode, unsigned int flags)
 {
 	shaderstate.mode = mode;
 	shaderstate.flags = flags;
 }
 
-void _CrtCheckMemory(void);
-
 /*Generates an optimised vbo for each of the given model's textures*/
-void BE_GenBrushModelVBO(model_t *mod)
+void D3DBE_GenBrushModelVBO(model_t *mod)
 {
 	unsigned int maxvboverts;
 	unsigned int maxvboelements;
@@ -1737,7 +1737,7 @@ void BE_GenBrushModelVBO(model_t *mod)
 	//}
 }
 /*Wipes a vbo*/
-void BE_ClearVBO(vbo_t *vbo)
+void D3DBE_ClearVBO(vbo_t *vbo)
 {
 }
 
@@ -1791,12 +1791,12 @@ void BE_UploadLightmaps(qboolean force)
 	}
 }
 
-void BE_UploadAllLightmaps(void)
+void D3DBE_UploadAllLightmaps(void)
 {
 	BE_UploadLightmaps(true);
 }
 
-qboolean BE_LightCullModel(vec3_t org, model_t *model)
+qboolean D3DBE_LightCullModel(vec3_t org, model_t *model)
 {
 #ifdef RTLIGHTS
 	if ((shaderstate.mode == BEM_LIGHT || shaderstate.mode == BEM_STENCIL))
@@ -1808,7 +1808,7 @@ qboolean BE_LightCullModel(vec3_t org, model_t *model)
 	return false;
 }
 
-batch_t *BE_GetTempBatch(void)
+batch_t *D3DBE_GetTempBatch(void)
 {
 	if (shaderstate.wbatch >= shaderstate.maxwbatches)
 	{
@@ -1925,7 +1925,7 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 	}
 }
 
-void BE_SubmitBatch(batch_t *batch)
+void D3DBE_SubmitBatch(batch_t *batch)
 {
 	shaderstate.nummeshes = batch->meshes - batch->firstmesh;
 	if (!shaderstate.nummeshes)
@@ -1947,7 +1947,7 @@ void BE_SubmitBatch(batch_t *batch)
 	BE_DrawMeshChain_Internal();
 }
 
-void BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_t *vbo, texnums_t *texnums)
+void D3DBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_t *vbo, texnums_t *texnums)
 {
 	shaderstate.curshader = shader;
 	shaderstate.curtexnums = texnums;
@@ -1958,7 +1958,7 @@ void BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_t 
 	BE_DrawMeshChain_Internal();
 }
 
-void BE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums)
+void D3DBE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums)
 {
 	shaderstate.curtime = realtime;
 	shaderstate.curshader = shader;
@@ -2510,7 +2510,7 @@ void BE_SubmitMeshes (qboolean drawworld, batch_t **blist)
 	}
 }
 
-void BE_DrawWorld (qbyte *vis)
+void D3DBE_DrawWorld (qbyte *vis)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
 	RSpeedLocals();

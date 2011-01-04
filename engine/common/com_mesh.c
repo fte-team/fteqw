@@ -1500,7 +1500,7 @@ static void Mod_ClampModelSize(model_t *mod)
 }
 
 #ifdef GLQUAKE
-static int R_FindTriangleWithEdge ( int *indexes, int numtris, int start, int end, int ignore)
+static int R_FindTriangleWithEdge (index_t *indexes, int numtris, int start, int end, int ignore)
 {
 	int i;
 	int match, count;
@@ -1532,7 +1532,7 @@ static int R_FindTriangleWithEdge ( int *indexes, int numtris, int start, int en
 static void Mod_BuildTriangleNeighbours ( int *neighbours, index_t *indexes, int numtris )
 {
 	int i, *n;
-	int *index;
+	index_t *index;
 
 	for (i = 0, index = indexes, n = neighbours; i < numtris; i++, index += 3, n += 3)
 	{

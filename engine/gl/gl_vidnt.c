@@ -152,6 +152,12 @@ void ClearAllStates (void);
 void VID_UpdateWindowStatus (HWND hWnd);
 void GL_Init(void *(*getglfunction) (char *name));
 
+#ifdef _DEBUG
+#define checkerror() if (qglGetError()) Con_Printf("Error detected at line %s:%i\n", __FILE__, __LINE__)
+#else
+#define checkerror()
+#endif
+
 typedef void (APIENTRY *lp3DFXFUNC) (int, int, int, int, int, const void*);
 lp3DFXFUNC qglColorTableEXT;
 qboolean is8bit = false;
@@ -170,6 +176,7 @@ extern cvar_t		vid_preservegamma;
 
 extern cvar_t		vid_gl_context_version;
 extern cvar_t		vid_gl_context_debug;
+extern cvar_t		vid_gl_context_es2;
 extern cvar_t		vid_gl_context_forwardcompatible;
 extern cvar_t		vid_gl_context_compatibility;
 
@@ -237,11 +244,12 @@ HGLRC (APIENTRY *qwglCreateContextAttribsARB)(HDC hDC, HGLRC hShareContext, cons
 #define WGL_CONTEXT_MINOR_VERSION_ARB		0x2092
 #define WGL_CONTEXT_LAYER_PLANE_ARB			0x2093
 #define WGL_CONTEXT_FLAGS_ARB				0x2094
-#define		WGL_CONTEXT_DEBUG_BIT_ARB				0x0001
-#define		WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB	0x0002
+#define		WGL_CONTEXT_DEBUG_BIT_ARB					0x0001
+#define		WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB		0x0002
 #define WGL_CONTEXT_PROFILE_MASK_ARB		0x9126
-#define		WGL_CONTEXT_CORE_PROFILE_BIT_ARB	0x00000001
-#define		WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB 0x00000002
+#define		WGL_CONTEXT_CORE_PROFILE_BIT_ARB			0x00000001
+#define		WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB	0x00000002
+#define		WGL_CONTEXT_ES2_PROFILE_BIT_EXT				0x00000004	/*WGL_CONTEXT_ES2_PROFILE_BIT_EXT*/
 #define ERROR_INVALID_VERSION_ARB			0x2095
 #define	ERROR_INVALID_PROFILE_ARB		0x2096
 
@@ -938,7 +946,20 @@ qboolean VID_AttachGL (rendererstate_t *info)
 		Con_SafePrintf(CON_ERROR "wglMakeCurrent failed\n");	//green to make it show.
 		return false;
 	}
-
+/*
+	if (developer.ival)
+	{
+		char *(WINAPI *wglGetExtensionsString)(void) = NULL;
+		if (!wglGetExtensionsString)
+			wglGetExtensionsString = getglfunc("wglGetExtensionsString");
+		if (!wglGetExtensionsString)
+			wglGetExtensionsString = getglfunc("wglGetExtensionsStringARB");
+		if (!wglGetExtensionsString)
+			wglGetExtensionsString = getglfunc("wglGetExtensionsStringEXT");
+		if (wglGetExtensionsString)
+			Con_SafePrintf("WGL extensions: %s\n", wglGetExtensionsString());
+	}
+*/
 	qwglCreateContextAttribsARB = getglfunc("wglCreateContextAttribsARB");
 #ifdef _DEBUG
 	//attempt to promote that to opengl3.
@@ -981,10 +1002,12 @@ qboolean VID_AttachGL (rendererstate_t *info)
 		}
 
 		/*only switch contexts if there's actually a point*/
-		if (i || !vid_gl_context_compatibility.ival)
+		if (i || !vid_gl_context_compatibility.ival || vid_gl_context_es2.ival)
 		{
 			attribs[i+1] = 0;
-			if (vid_gl_context_compatibility.ival)
+			if (vid_gl_context_es2.ival)
+				attribs[i+1] |= WGL_CONTEXT_ES2_PROFILE_BIT_EXT;
+			else if (vid_gl_context_compatibility.ival)
 				attribs[i+1] |= WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB;
 			else
 				attribs[i+1] |= WGL_CONTEXT_CORE_PROFILE_BIT_ARB;
@@ -1020,6 +1043,8 @@ qboolean VID_AttachGL (rendererstate_t *info)
 	TRACE(("dbg: VID_AttachGL: GL_Init\n"));
 	GL_Init(getglfunc);
 
+	checkerror();
+
 	qwglChoosePixelFormatARB	= getglfunc("wglChoosePixelFormatARB");
 
 	qwglSwapIntervalEXT		= getglfunc("wglSwapIntervalEXT");
@@ -1035,6 +1060,8 @@ qboolean VID_AttachGL (rendererstate_t *info)
 
 	if (!qGetDeviceGammaRamp) qGetDeviceGammaRamp = (void*)GetDeviceGammaRamp;
 	if (!qSetDeviceGammaRamp) qSetDeviceGammaRamp = (void*)SetDeviceGammaRamp;
+
+	checkerror();
 
 	return true;
 }

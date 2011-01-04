@@ -27,6 +27,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "shader.h"
 #include "gl_draw.h"
 
+#ifdef _DEBUG
+#define checkerror() if (qglGetError()) Con_Printf("Error detected at line %s:%i\n", __FILE__, __LINE__)
+#else
+#define checkerror()
+#endif
+
 void R_RenderBrushPoly (msurface_t *fa);
 
 #define PROJECTION_DISTANCE			200
@@ -1272,7 +1278,7 @@ static void TransformDir(vec3_t in, vec3_t planea[3], vec3_t viewa[3], vec3_t re
 		VectorMA(result, d, viewa[i], result);
 	}
 }
-void R_DrawPortal(batch_t *batch, batch_t **blist)
+void GLR_DrawPortal(batch_t *batch, batch_t **blist)
 {
 	entity_t *view;
 	GLdouble glplane[4];

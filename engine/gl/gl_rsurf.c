@@ -29,7 +29,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern cvar_t gl_bump;
 
 
-void BE_ClearVBO(vbo_t *vbo)
+void GLBE_ClearVBO(vbo_t *vbo)
 {
 	int vboh[7];
 	int i, j;
@@ -128,7 +128,7 @@ static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int
 	return true;
 }
 
-void BE_GenBrushModelVBO(model_t *mod)
+void GLBE_GenBrushModelVBO(model_t *mod)
 {
 	unsigned int maxvboverts;
 	unsigned int maxvboelements;
@@ -278,7 +278,7 @@ void BE_GenBrushModelVBO(model_t *mod)
 	}*/
 }
 
-void BE_UploadAllLightmaps(void)
+void GLBE_UploadAllLightmaps(void)
 {
 	int i;
 	//

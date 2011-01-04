@@ -3118,7 +3118,7 @@ void COM_Version_f (void)
 #endif
 
 // Don't print both as a 64bit MinGW built client
-#ifdef __MINGW32__ && !defined(__MINGW64__)
+#if defined(__MINGW32__) && !defined(__MINGW64__)
 	Con_Printf("Compiled with MinGW32 version: %i.%i\n",__MINGW32_MAJOR_VERSION, __MINGW32_MINOR_VERSION);
 #endif
 

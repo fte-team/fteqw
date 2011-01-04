@@ -693,6 +693,8 @@ struct cluster_s {
 	char master[MAX_QPATH];
 	char demodir[MAX_QPATH];
 	char downloaddir[MAX_QPATH];	//must be slash terminated, or empty.
+	char plugindatasource[256];	//sued by the http server for use with npfte
+	char mapsource[256];	//sued by the http server for use with npfte
 	qboolean chokeonnotupdated;
 	qboolean lateforward;
 	qboolean notalking;

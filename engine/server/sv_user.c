@@ -2121,7 +2121,7 @@ struct
 void SV_VoiceReadPacket(void)
 {
 	unsigned int vt = host_client->voice_target;
-	unsigned int j, cln;
+	unsigned int j;
 	struct voice_ring_s *ring;
 	unsigned short bytes;
 	client_t *cl;
@@ -2227,7 +2227,6 @@ void SV_VoiceSendPacket(client_t *client, sizebuf_t *buf)
 	unsigned int clno;
 	qboolean send;
 	struct voice_ring_s *ring;
-	client_t *split;
 
 	if (client->controller)
 		client = client->controller;

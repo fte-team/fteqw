@@ -237,6 +237,7 @@ cvar_t	vid_gl_context_version				= SCVAR  ("vid_gl_context_version", "");
 cvar_t	vid_gl_context_forwardcompatible	= SCVAR  ("vid_gl_context_forwardcompatible", "0");
 cvar_t	vid_gl_context_compatibility		= SCVAR  ("vid_gl_context_compatibility", "1");
 cvar_t	vid_gl_context_debug				= SCVAR  ("vid_gl_context_debug", "0");	//for my ati drivers, debug 1 only works if version >= 3
+cvar_t	vid_gl_context_es2					= SCVAR  ("vid_gl_context_es2", "0"); //requires version set correctly, no debug, no compat
 #endif
 
 #if defined(GLQUAKE) || defined(D3DQUAKE)
@@ -359,6 +360,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&vid_gl_context_debug, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_gl_context_forwardcompatible, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_gl_context_compatibility, GLRENDEREROPTIONS);
+	Cvar_Register (&vid_gl_context_es2, GLRENDEREROPTIONS);
 
 	//screen
 	Cvar_Register (&gl_triplebuffer, GLRENDEREROPTIONS);
@@ -827,14 +829,28 @@ rendererinfo_t dedicatedrendererinfo = {
 
 	NULL,	//SCR_UpdateScreen;
 
+	/*backend*/
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+
 	""
 };
 rendererinfo_t *pdedicatedrendererinfo = &dedicatedrendererinfo;
 
 rendererinfo_t openglrendererinfo;
+rendererinfo_t d3dfglrendererinfo;
+
 rendererinfo_t d3drendererinfo;
-rendererinfo_t d3d7rendererinfo;
-rendererinfo_t d3d9rendererinfo;
 
 rendererinfo_t *rendererinfo[] =
 {
@@ -843,12 +859,10 @@ rendererinfo_t *rendererinfo[] =
 #endif
 #ifdef GLQUAKE
 	&openglrendererinfo,
-	&d3drendererinfo,
+	&d3dfglrendererinfo,
 #endif
 #ifdef D3DQUAKE
 	&d3drendererinfo,
-	&d3d7rendererinfo,
-	&d3d9rendererinfo,
 #endif
 };
 

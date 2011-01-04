@@ -5,9 +5,13 @@
 
 #ifdef D3DQUAKE
 #include "winquake.h"
-#include "d3d9quake.h"
 
-#include    "d3d9.h"
+#if !defined(HMONITOR_DECLARED) && (WINVER < 0x0500)
+    #define HMONITOR_DECLARED
+    DECLARE_HANDLE(HMONITOR);
+#endif
+
+#include    <d3d9.h>
 
 //#pragma comment(lib, "../libs/dxsdk9/lib/d3d9.lib")
 
@@ -350,11 +354,11 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 				//vid.pixelheight = window_rect.bottom - window_rect.top;
 				D3DVID_UpdateWindowStatus(hWnd);
 
-				BE_D3D_Reset(true);
+				D3DBE_Reset(true);
 				vid.pixelwidth = d3dpp.BackBufferWidth = window_rect.right - window_rect.left;
 				vid.pixelheight = d3dpp.BackBufferHeight = window_rect.bottom - window_rect.top;
 				resetD3D9();
-				BE_D3D_Reset(false);
+				D3DBE_Reset(false);
 
 				Cvar_ForceCallback(&vid_conautoscale);
 				Cvar_ForceCallback(&vid_conwidth);
@@ -836,7 +840,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 		//the user has task switched away from us or something, don't do anything.
 		return;
 	case D3DERR_DEVICENOTRESET:
-		BE_D3D_Reset(true);
+		D3DBE_Reset(true);
 		resetD3D9();
 		if (FAILED(IDirect3DDevice9_TestCooperativeLevel(pD3DDev9)))
 		{
@@ -844,7 +848,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 			Cmd_ExecuteString("vid_restart", RESTRICT_LOCAL);
 			return;
 		}
-		BE_D3D_Reset(false);
+		D3DBE_Reset(false);
 
 		VID_ShiftPalette (NULL);
 		break;

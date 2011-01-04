@@ -857,6 +857,8 @@ void Cmd_Streams(cmdctxt_t *ctx)
 		case ERR_NONE:
 			if (qtv->controller)
 				status = " (player controlled)";
+			else if (qtv->autodisconnect == AD_STATUSPOLL)
+				status = " (polling)";
 			else if (qtv->parsingconnectiondata)
 				status = " (connecting)";
 			else
@@ -1150,6 +1152,56 @@ void Cmd_DLDir(cmdctxt_t *ctx)
 	}
 }
 
+void Cmd_PluginDataSource(cmdctxt_t *ctx)
+{
+	char *val;
+	val = Cmd_Argv(ctx, 1);
+
+	if (!Cmd_IsLocal(ctx))
+	{
+		Cmd_Printf(ctx, "plugindatasource may not be used remotely\n");
+		return;
+	}
+
+	if (*val)
+	{
+		while (*val > 0 &&*val <= ' ')
+			val++;
+
+		strlcpy(ctx->cluster->plugindatasource, val, sizeof(ctx->cluster->plugindatasource));
+		Cmd_Printf(ctx, "Changed plugindatasource to \"%s\"\n", ctx->cluster->plugindatasource);
+	}
+	else
+	{
+		Cmd_Printf(ctx, "Current plugindatasource is \"%s\"\n", ctx->cluster->plugindatasource);
+	}
+}
+
+void Cmd_MapSource(cmdctxt_t *ctx)
+{
+	char *val;
+	val = Cmd_Argv(ctx, 1);
+
+	if (!Cmd_IsLocal(ctx))
+	{
+		Cmd_Printf(ctx, "mapsource may not be used remotely\n");
+		return;
+	}
+
+	if (*val)
+	{
+		while (*val > 0 &&*val <= ' ')
+			val++;
+
+		strlcpy(ctx->cluster->mapsource, val, sizeof(ctx->cluster->mapsource));
+		Cmd_Printf(ctx, "Changed mapsource url to \"%s\"\n", ctx->cluster->mapsource);
+	}
+	else
+	{
+		Cmd_Printf(ctx, "Current mapsource url is \"%s\"\n", ctx->cluster->mapsource);
+	}
+}
+
 void Cmd_MuteStream(cmdctxt_t *ctx)
 {
 	char *val;
@@ -1245,7 +1297,6 @@ const rconcommands_t rconcommands[] =
 	{"maxproxies",		0, 1, Cmd_MaxProxies,	"sets a limit on tcp/qtv client connections"},
 	{"demodir",		0, 1, Cmd_DemoDir,	"specifies where to get the demo list from"},
 	{"basedir",		0, 1, Cmd_BaseDir,	"specifies where to get any files required by the game. this is prefixed to the server-specified game dir."},
-	{"dldir",		0, 1, Cmd_DLDir,	"specifies the path to download stuff from (http://server/file/ maps here)"},
 	{"ping",		0, 1, Cmd_Ping,		"sends a udp ping to a qtv proxy or server"},
 	{"reconnect",		0, 1, Cmd_Reconnect,	"forces a stream to reconnect to its server (restarts demos)"},
 	{"echo",		0, 1, Cmd_Echo,		"a useless command that echos a string"},
@@ -1268,6 +1319,10 @@ const rconcommands_t rconcommands[] =
 	{"demospeed",		1, 0, Cmd_DemoSpeed,	"changes the rate the demo is played at"},
 	{"tcpport",		0, 1, Cmd_MVDPort,	"specifies which port to listen on for tcp/qtv connections"},
 	 {"mvdport",		0, 1, Cmd_MVDPort},
+
+	{"dldir",		0, 1, Cmd_DLDir,	"specifies the path to download stuff from (http://server/file/ maps to this native path)"},
+	{"plugindatasource",0,1,Cmd_PluginDataSource, "Specifies the dataDownload property for plugins in the web server"},
+	{"mapsource",	0, 1, Cmd_MapSource,"Public URL for where to download missing maps from"},
 
 #ifdef VIEWER
 	{"watch",		1, 0, Cmd_Watch,	"specifies to watch that stream in the built-in viewer"},

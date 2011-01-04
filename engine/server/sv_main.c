@@ -3475,10 +3475,11 @@ SV_Frame
 void SV_Frame (void)
 {
 	extern cvar_t pr_imitatemvdsv;
-	static double	start, end;
+	static double	start, end, idletime;
 	float oldtime;
 	qboolean isidle;
 	static int oldpaused;
+	float timedelta;
 
 	start = Sys_DoubleTime ();
 	svs.stats.idle += start - end;
@@ -3508,8 +3509,12 @@ void SV_Frame (void)
 	{
 		oldtime = sv.time;
 		sv.time = (Sys_DoubleTime() - sv.starttime)*sv.gamespeed;
+		timedelta = sv.time - oldtime;
 		if (sv.time < oldtime)
+		{
 			sv.time = oldtime;	//urm
+			timedelta = 0;
+		}
 
 		if (sv.paused && sv.time > 1.5)
 		{
@@ -3602,7 +3607,7 @@ void SV_MVDStream_Poll(void);
 		}
 	}
 
-	if (!isidle)
+	if (!isidle || idletime > 0.1)
 	{
 
 #ifdef SQL
@@ -3656,7 +3661,9 @@ void SV_MVDStream_Poll(void);
 		if (ge && ge->edicts)
 			SVQ2_ClearEvents();
 #endif
+		idletime = 0;
 	}
+	idletime += timedelta;
 
 // collect timing statistics
 	end = Sys_DoubleTime ();

@@ -735,7 +735,7 @@ R_InitSky
 A sky texture is 256*128, with the right side being a masked overlay
 ==============
 */
-texnums_t R_InitSky (texture_t *mt, qbyte *src)
+void R_InitSky (struct texnums_s *tn, texture_t *mt, qbyte *src)
 {
 	int			i, j, p;
 	unsigned	trans[128*128];
@@ -743,9 +743,8 @@ texnums_t R_InitSky (texture_t *mt, qbyte *src)
 	int			r, g, b;
 	unsigned	*rgba;
 	char name[MAX_QPATH];
-	texnums_t	tn;
 
-	memset(&tn, 0, sizeof(tn));
+	memset(tn, 0, sizeof(*tn));
 
 	// make an average value for the back to avoid
 	// a fringe on the top level
@@ -769,9 +768,9 @@ texnums_t R_InitSky (texture_t *mt, qbyte *src)
 
 	Q_snprintfz(name, sizeof(name), "%s_solid", mt->name);
 	Q_strlwr(name);
-	tn.base = R_LoadReplacementTexture(name, NULL, IF_NOALPHA);
-	if (!TEXVALID(tn.base))
-		tn.base = R_LoadTexture32(name, 128, 128, trans, IF_NOALPHA|IF_NOGAMMA);
+	tn->base = R_LoadReplacementTexture(name, NULL, IF_NOALPHA);
+	if (!TEXVALID(tn->base))
+		tn->base = R_LoadTexture32(name, 128, 128, trans, IF_NOALPHA|IF_NOGAMMA);
 
 	alphamask = LittleLong(0x7fffffff);
 	for (i=0 ; i<128 ; i++)
@@ -786,10 +785,8 @@ texnums_t R_InitSky (texture_t *mt, qbyte *src)
 
 	Q_snprintfz(name, sizeof(name), "%s_trans", mt->name);
 	Q_strlwr(name);
-	tn.fullbright = R_LoadReplacementTexture(name, NULL, 0);
-	if (!TEXVALID(tn.fullbright))
-		tn.fullbright = R_LoadTexture32(name, 128, 128, trans, IF_NOGAMMA);
-
-	return tn;
+	tn->fullbright = R_LoadReplacementTexture(name, NULL, 0);
+	if (!TEXVALID(tn->fullbright))
+		tn->fullbright = R_LoadTexture32(name, 128, 128, trans, IF_NOGAMMA);
 }
 #endif

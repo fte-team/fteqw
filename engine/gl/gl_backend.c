@@ -2375,9 +2375,9 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 	qglEnableClientState(GL_VERTEX_ARRAY);
 }
 
-#ifdef RTLIGHTS
 qboolean GLBE_LightCullModel(vec3_t org, model_t *model)
 {
+#ifdef RTLIGHTS
 	if ((shaderstate.mode == BEM_LIGHT || shaderstate.mode == BEM_STENCIL))
 	{
 		float dist;
@@ -2402,9 +2402,9 @@ qboolean GLBE_LightCullModel(vec3_t org, model_t *model)
 			}
 		}
 	}
+#endif
 	return false;
 }
-#endif
 
 //Note: Be cautious about using BEM_LIGHT here.
 void GLBE_SelectMode(backendmode_t mode, unsigned int flags)

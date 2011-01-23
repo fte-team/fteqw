@@ -4,12 +4,6 @@
 #include "gl_draw.h"
 #include "shader.h"
 
-#ifdef _DEBUG
-#define checkerror() if (qglGetError()) Con_Printf("Error detected at line %s:%i\n", __FILE__, __LINE__)
-#else
-#define checkerror()
-#endif
-
 //standard 1.1 opengl calls
 void (APIENTRY *qglAlphaFunc) (GLenum func, GLclampf ref);
 void (APIENTRY *qglBegin) (GLenum mode);
@@ -138,17 +132,27 @@ PFNGLGENPROGRAMSARBPROC qglGenProgramsARB;
 FTEPFNGLLOCKARRAYSEXTPROC qglLockArraysEXT;
 FTEPFNGLUNLOCKARRAYSEXTPROC qglUnlockArraysEXT;
 
-//glslang - arb_shader_objects
+/*glslang - arb_shader_objects
+gl core uses different names/distinctions from the extension
+*/
 FTEPFNGLCREATEPROGRAMOBJECTARBPROC  qglCreateProgramObjectARB;
-FTEPFNGLDELETEOBJECTARBPROC         qglDeleteObjectARB;
+FTEPFNGLDELETEOBJECTARBPROC         qglDeleteProgramObject_;
+FTEPFNGLDELETEOBJECTARBPROC         qglDeleteShaderObject_;
 FTEPFNGLUSEPROGRAMOBJECTARBPROC     qglUseProgramObjectARB;
 FTEPFNGLCREATESHADEROBJECTARBPROC   qglCreateShaderObjectARB;
 FTEPFNGLSHADERSOURCEARBPROC         qglShaderSourceARB;
 FTEPFNGLCOMPILESHADERARBPROC        qglCompileShaderARB;
-FTEPFNGLGETOBJECTPARAMETERIVARBPROC qglGetObjectParameterivARB;
+FTEPFNGLGETOBJECTPARAMETERIVARBPROC qglGetShaderParameteriv_;
+FTEPFNGLGETOBJECTPARAMETERIVARBPROC qglGetProgramParameteriv_;
 FTEPFNGLATTACHOBJECTARBPROC         qglAttachObjectARB;
-FTEPFNGLGETINFOLOGARBPROC           qglGetInfoLogARB;
+FTEPFNGLGETINFOLOGARBPROC           qglGetShaderInfoLog_;
+FTEPFNGLGETINFOLOGARBPROC           qglGetProgramInfoLog_;
 FTEPFNGLLINKPROGRAMARBPROC          qglLinkProgramARB;
+FTEPFNGLBINDATTRIBLOCATIONARBPROC   qglBindAttribLocationARB;
+FTEPFNGLGETATTRIBLOCATIONARBPROC	qglGetAttribLocationARB;
+FTEPFNGLVERTEXATTRIBPOINTER			qglVertexAttribPointer;
+FTEPFNGLENABLEVERTEXATTRIBARRAY		qglEnableVertexAttribArray;
+FTEPFNGLDISABLEVERTEXATTRIBARRAY	qglDisableVertexAttribArray;
 FTEPFNGLGETUNIFORMLOCATIONARBPROC   qglGetUniformLocationARB;
 FTEPFNGLUNIFORMMATRIX4FVARBPROC		qglUniformMatrix4fvARB;
 FTEPFNGLUNIFORM4FARBPROC            qglUniform4fARB;
@@ -331,11 +335,21 @@ void APIENTRY GL_BindBufferARBStub(GLenum target, GLuint id)
 
 #define getglcore getglfunction
 #define getglext(name) getglfunction(name)
-void GL_CheckExtensions (void *(*getglfunction) (char *name))
+void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 {
 	extern cvar_t gl_bump;
 
 	memset(&gl_config, 0, sizeof(gl_config));
+
+	gl_config.glversion = ver;
+
+	if (!strncmp(gl_version, "OpenGL ES", 9))
+		gl_config.gles = true;
+	else
+		gl_config.gles = false;
+
+	gl_config.nofixedfunc = (gl_config.gles && gl_config.glversion >= 2) /*||
+							(!gl_config.gles && gl_config.glversion >= 3 && noncompat)*/;
 
 	//multitexture
 	gl_mtexable = false;
@@ -406,7 +420,14 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 //	if (GL_CheckExtension("GL_SGIS_generate_mipmap"))	//a suprising number of implementations have this broken.
 //		gl_config.sgis_generate_mipmap = true;
 
-	if (GL_CheckExtension("GL_ARB_multitexture") && !COM_CheckParm("-noamtex"))
+	if (gl_config.gles)
+	{
+		qglActiveTextureARB = (void *) getglext("glActiveTexture");
+		qglSelectTextureSGIS = qglActiveTextureARB;
+		mtexid0 = GL_TEXTURE0_ARB;
+		mtexid1 = GL_TEXTURE1_ARB;
+	}
+	else if (GL_CheckExtension("GL_ARB_multitexture") && !COM_CheckParm("-noamtex"))
 	{	//ARB multitexture is the popular choice.
 		qglActiveTextureARB = (void *) getglext("glActiveTextureARB");
 		qglClientActiveTextureARB = (void *) getglext("glClientActiveTextureARB");
@@ -534,15 +555,23 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 	{
 		gl_config.arb_shader_objects = true;
 		qglCreateProgramObjectARB	= (void *)getglext("glCreateProgramObjectARB");
-		qglDeleteObjectARB			= (void *)getglext("glDeleteObjectARB");
+		qglDeleteProgramObject_		= (void *)getglext("glDeleteObjectARB");
+		qglDeleteShaderObject_		= (void *)getglext("glDeleteObjectARB");
 		qglUseProgramObjectARB		= (void *)getglext("glUseProgramObjectARB");
 		qglCreateShaderObjectARB	= (void *)getglext("glCreateShaderObjectARB");
 		qglShaderSourceARB			= (void *)getglext("glShaderSourceARB");
 		qglCompileShaderARB			= (void *)getglext("glCompileShaderARB");
-		qglGetObjectParameterivARB	= (void *)getglext("glGetObjectParameterivARB");
+		qglGetProgramParameteriv_	= (void *)getglext("glGetObjectParameterivARB");
+		qglGetShaderParameteriv_	= (void *)getglext("glGetObjectParameterivARB");
 		qglAttachObjectARB			= (void *)getglext("glAttachObjectARB");
-		qglGetInfoLogARB			= (void *)getglext("glGetInfoLogARB");
+		qglGetProgramInfoLog_		= (void *)getglext("glGetInfoLogARB");
+		qglGetShaderInfoLog_		= (void *)getglext("glGetInfoLogARB");
 		qglLinkProgramARB			= (void *)getglext("glLinkProgramARB");
+		qglBindAttribLocationARB	= (void *)getglext("glBindAttribLocationARB");
+		qglGetAttribLocationARB		= (void *)getglext("glGetAttribLocationARB");
+		qglVertexAttribPointer		= (void *)getglext("glVertexAttribPointerARB");
+		qglEnableVertexAttribArray	= (void *)getglext("glEnableVertexAttribArrayARB");
+		qglDisableVertexAttribArray	= (void *)getglext("glDisableVertexAttribArrayARB");
 		qglGetUniformLocationARB	= (void *)getglext("glGetUniformLocationARB");
 		qglUniformMatrix4fvARB		= (void *)getglext("glUniformMatrix4fvARB");
 		qglUniform4fARB				= (void *)getglext("glUniform4fARB");
@@ -551,6 +580,36 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglUniform3fvARB			= (void *)getglext("glUniform3fvARB");
 		qglUniform1iARB				= (void *)getglext("glUniform1iARB");
 		qglUniform1fARB				= (void *)getglext("glUniform1fARB");
+	}
+	else if (gl_config.gles && gl_config.glversion >= 2)
+	{
+		gl_config.arb_shader_objects = true;
+		qglCreateProgramObjectARB	= (void *)getglext( "glCreateProgram");
+		qglDeleteProgramObject_		= (void *)getglext( "glDeleteProgram");
+		qglDeleteShaderObject_		= (void *)getglext( "glDeleteShader");
+		qglUseProgramObjectARB		= (void *)getglext( "glUseProgram");
+		qglCreateShaderObjectARB	= (void *)getglext( "glCreateShader");
+		qglGetProgramParameteriv_	= (void *)getglext( "glGetProgramiv");
+		qglGetShaderParameteriv_	= (void *)getglext( "glGetShaderiv");
+		qglAttachObjectARB			= (void *)getglext( "glAttachShader");
+		qglGetProgramInfoLog_		= (void *)getglext( "glGetProgramInfoLog");
+		qglGetShaderInfoLog_		= (void *)getglext( "glGetShaderInfoLog");
+		qglShaderSourceARB			= (void *)getglext("glShaderSource");
+		qglCompileShaderARB			= (void *)getglext("glCompileShader");
+		qglLinkProgramARB			= (void *)getglext("glLinkProgram");
+		qglBindAttribLocationARB	= (void *)getglext("glBindAttribLocation");
+		qglGetAttribLocationARB		= (void *)getglext("glGetAttribLocation");
+		qglVertexAttribPointer		= (void *)getglext("glVertexAttribPointer");
+		qglEnableVertexAttribArray	= (void *)getglext("glEnableVertexAttribArray");
+		qglDisableVertexAttribArray	= (void *)getglext("glDisableVertexAttribArray");
+		qglGetUniformLocationARB	= (void *)getglext("glGetUniformLocation");
+		qglUniformMatrix4fvARB		= (void *)getglext("glUniformMatrix4fv");
+		qglUniform4fARB				= (void *)getglext("glUniform4f");
+		qglUniform4fvARB			= (void *)getglext("glUniform4fv");
+		qglUniform3fARB				= (void *)getglext("glUniform3f");
+		qglUniform3fvARB			= (void *)getglext("glUniform3fv");
+		qglUniform1iARB				= (void *)getglext("glUniform1i");
+		qglUniform1fARB				= (void *)getglext("glUniform1f");
 	}
 
 	if (GL_CheckExtension("GL_EXT_framebuffer_object"))
@@ -586,41 +645,43 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 // glslang helper api function definitions
 // type should be GL_FRAGMENT_SHADER_ARB or GL_VERTEX_SHADER_ARB
-GLhandleARB GLSlang_CreateShader (char *precompilerconstants, char *shadersource, GLenum shadertype)
+GLhandleARB GLSlang_CreateShader (char **precompilerconstants, char *shadersource, GLenum shadertype)
 {
 	GLhandleARB shader;
 	GLint       compiled;
 	char        str[1024];
 	int loglen;
-	char *prstrings[4];
+	char *prstrings[3+16];
+	int strings = 0;
 
-	prstrings[0] = "#define ENGINE_"DISTRIBUTION"\n";
+	prstrings[strings++] = "#define ENGINE_"DISTRIBUTION"\n";
 	switch (shadertype)
 	{
 	case GL_FRAGMENT_SHADER_ARB:
-		prstrings[1] = "#define FRAGMENT_SHADER\n";
+		prstrings[strings++] = "#define FRAGMENT_SHADER\n";
 		break;
 	case GL_VERTEX_SHADER_ARB:
-		prstrings[1] = "#define VERTEX_SHADER\n";
+		prstrings[strings++] = "#define VERTEX_SHADER\n";
 		break;
 	default:
-		prstrings[1] = "#define UNKNOWN_SHADER\n";
+		prstrings[strings++] = "#define UNKNOWN_SHADER\n";
 		break;
 	}
-	prstrings[2] = precompilerconstants;
-	prstrings[3] = shadersource;
+	while(*precompilerconstants)
+		prstrings[strings++] = *precompilerconstants++;
+	prstrings[strings++] = shadersource;
 
 	shader = qglCreateShaderObjectARB(shadertype);
 
-	qglShaderSourceARB(shader, 4, (const GLcharARB**)prstrings, NULL);
+	qglShaderSourceARB(shader, strings, (const GLcharARB**)prstrings, NULL);
 	qglCompileShaderARB(shader);
 
-	qglGetObjectParameterivARB(shader, GL_OBJECT_COMPILE_STATUS_ARB, &compiled);
+	qglGetShaderParameteriv_(shader, GL_OBJECT_COMPILE_STATUS_ARB, &compiled);
 	if(!compiled)
 	{
 		Con_DPrintf("Shader source:\n%s%s%s\n", prstrings[0], prstrings[1], prstrings[2], prstrings[3]);
-		qglGetInfoLogARB(shader, sizeof(str), NULL, str);
-		qglDeleteObjectARB(shader);
+		qglGetShaderInfoLog_(shader, sizeof(str), NULL, str);
+		qglDeleteShaderObject_(shader);
 		switch (shadertype)
 		{
 		case GL_FRAGMENT_SHADER_ARB:
@@ -638,10 +699,10 @@ GLhandleARB GLSlang_CreateShader (char *precompilerconstants, char *shadersource
 
 	if (developer.ival)
 	{
-		qglGetObjectParameterivARB(shader, GL_OBJECT_INFO_LOG_LENGTH_ARB, &loglen);
+		qglGetShaderParameteriv_(shader, GL_OBJECT_INFO_LOG_LENGTH_ARB, &loglen);
 		if (loglen)
 		{
-			qglGetInfoLogARB(shader, sizeof(str), NULL, str);
+			qglGetShaderInfoLog_(shader, sizeof(str), NULL, str);
 			if (strstr(str, "WARNING"))
 			{
 				Con_Printf("Shader source:\n%s%s%s\n", prstrings[0], prstrings[1], prstrings[2], prstrings[3]);
@@ -663,21 +724,25 @@ GLhandleARB GLSlang_CreateProgramObject (GLhandleARB vert, GLhandleARB frag)
 	qglAttachObjectARB(program, vert);
 	qglAttachObjectARB(program, frag);
 
+	qglBindAttribLocationARB(program, 0, "v_position");
+	qglBindAttribLocationARB(program, 1, "v_colour");
+	qglBindAttribLocationARB(program, 2, "v_texcoord");
+	qglBindAttribLocationARB(program, 3, "v_lmcoord");
+	qglBindAttribLocationARB(program, 4, "v_normal");
+	qglBindAttribLocationARB(program, 5, "v_snormal");
+	qglBindAttribLocationARB(program, 6, "v_tnormal");
+
 	qglLinkProgramARB(program);
 
-	//flag the source objects for deletion, they'll only be deleted when they're no longer attached to anything
-	qglDeleteObjectARB(vert);
-	qglDeleteObjectARB(frag);
-
-	qglGetObjectParameterivARB(program, GL_OBJECT_LINK_STATUS_ARB, &linked);
+	qglGetProgramParameteriv_(program, GL_OBJECT_LINK_STATUS_ARB, &linked);
 
 	if(!linked)
 	{
-		qglGetInfoLogARB(program, sizeof(str), NULL, str);
+		qglGetProgramInfoLog_(program, sizeof(str), NULL, str);
 		Con_Printf("Program link error: %s\n", str);
+
 		return (GLhandleARB)0;
 	}
-
 	return program;
 }
 
@@ -696,7 +761,7 @@ bucket_t *compiledshadersbuckets[64];
 static hashtable_t compiledshaderstable;
 #endif
 
-GLhandleARB GLSlang_CreateProgram(char *precompilerconstants, char *vert, char *frag)
+GLhandleARB GLSlang_CreateProgram(char **precompilerconstants, char *vert, char *frag)
 {
 	GLhandleARB handle;
 	GLhandleARB vs;
@@ -705,12 +770,13 @@ GLhandleARB GLSlang_CreateProgram(char *precompilerconstants, char *vert, char *
 	unsigned int hashkey;
 	struct compiledshaders_s *cs;
 #endif
+	char *nullconstants = NULL;
 
 	if (!gl_config.arb_shader_objects)
 		return 0;
 
 	if (!precompilerconstants)
-		precompilerconstants = "";
+		precompilerconstants = &nullconstants;
 
 #if HASHPROGRAMS
 	hashkey = Hash_Key(precompilerconstants, ~0) ^ Hash_Key(frag, ~0);
@@ -731,13 +797,14 @@ GLhandleARB GLSlang_CreateProgram(char *precompilerconstants, char *vert, char *
 
 	vs = GLSlang_CreateShader(precompilerconstants, vert, GL_VERTEX_SHADER_ARB);
 	fs = GLSlang_CreateShader(precompilerconstants, frag, GL_FRAGMENT_SHADER_ARB);
+
 	if (!vs || !fs)
 		handle = 0;
 	else
 		handle = GLSlang_CreateProgramObject(vs, fs);
 	//delete ignores 0s.
-	qglDeleteObjectARB(vs);
-	qglDeleteObjectARB(fs);
+	qglDeleteShaderObject_(vs);
+	qglDeleteShaderObject_(fs);
 
 #if HASHPROGRAMS
 	cs = Z_Malloc(sizeof(*cs) + strlen(precompilerconstants)+1+strlen(vert)+1+strlen(frag)+1);
@@ -903,13 +970,16 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglGetIntegerv(GL_MINOR_VERSION, &gl_minor_version);
 	if (qglGetError())
 	{
-		gl_config.glversion = atof(gl_version);
-		gl_major_version = 1;
-		gl_minor_version = 1;
-	}
-	else
-	{
-		gl_config.glversion = gl_major_version + (gl_minor_version/10.f);
+		/*GL_MAJOR_VERSION not supported? try and parse (es-aware)*/
+		const char *s;
+		for (s = gl_version; *s && (*s < '0' || *s > '9'); s++)
+			;
+		gl_major_version = atoi(s);
+		while(*s >= '0' && *s <= '9')
+			s++;
+		if (*s == '.')
+			s++;
+		gl_minor_version = atoi(s);
 	}
 	qglGetIntegerv(GL_NUM_EXTENSIONS, &gl_num_extensions);
 	if (!qglGetError() && gl_num_extensions)
@@ -917,14 +987,13 @@ void GL_Init(void *(*getglfunction) (char *name))
 		int i;
 		if (developer.value)
 		{
-			Con_Printf ("GL_EXTENSIONS:");
+			Con_Printf ("GL_EXTENSIONS:\n");
 			for (i = 0; i < gl_num_extensions; i++)
 			{
 				Con_Printf (" %s", qglGetStringi(GL_EXTENSIONS, i));
-				if ((i & 15) == 15)
-					Con_Printf("\n");
+				Con_Printf("\n");
 			}
-			Con_Printf ("\n");
+			Con_Printf ("end of list\n");
 		}
 		else
 			Con_Printf ("GL_EXTENSIONS: %i extensions\n", gl_num_extensions);
@@ -940,20 +1009,35 @@ void GL_Init(void *(*getglfunction) (char *name))
 			Sys_Error("no extensions\n");
 	}
 
-	GL_CheckExtensions (getglfunction);
+	GL_CheckExtensions (getglfunction, gl_major_version + (gl_minor_version/10.f));
+
+	if (gl_config.gles && gl_config.glversion >= 2)
+	{
+		/*no matricies in gles, so don't try!*/
+		qglLoadMatrixf = NULL;
+		qglPolygonMode = NULL;
+		qglShadeModel = NULL;
+		qglDepthRange = NULL;
+
+		qglEnableClientState = NULL;
+		qglDisableClientState = NULL;
+
+		qglDrawRangeElements = GL_DrawRangeElementsEmul;
+	}
 
 	qglClearColor (0,0,0,0);	//clear to black so that it looks a little nicer on start.
 	qglClear(GL_COLOR_BUFFER_BIT);
 
-	qglPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
-	qglShadeModel (GL_FLAT);
+	if (qglPolygonMode)
+		qglPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
+	if (qglShadeModel)
+		qglShadeModel (GL_FLAT);
 
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-	checkerror();
 #ifdef DEBUG
 	if (qglDebugMessageEnableAMD)
 		qglDebugMessageEnableAMD(0, 0, 0, NULL, true);
@@ -965,8 +1049,6 @@ void GL_Init(void *(*getglfunction) (char *name))
 #if HASHPROGRAMS
 	Hash_InitTable(&compiledshaderstable, sizeof(compiledshadersbuckets)/Hash_BytesForBuckets(1), compiledshadersbuckets);
 #endif
-
-	checkerror();
 }
 
 unsigned int	d_8to24rgbtable[256];
@@ -1071,3 +1153,4 @@ rendererinfo_t openglrendererinfo = {
 };
 
 #endif
+

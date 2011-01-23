@@ -233,6 +233,7 @@ typedef struct vbo_s
 
 	int vbocolours;
 	vec4_t	*colours4f;
+	byte_vec4_t	*colours4ub;
 } vbo_t;
 void GL_SelectVBO(int vbo);
 void GL_SelectEBO(int vbo);

@@ -628,7 +628,7 @@ void GLV_CalcBlend (float *hw_blend)
 		}
 		else
 		{
-			if (/*j == CSHIFT_BONUS || j == CSHIFT_DAMAGE ||*/ gl_nohwblend.ival)
+			if (j == CSHIFT_BONUS || j == CSHIFT_DAMAGE || gl_nohwblend.ival)
 				blend = sw_blend;
 			else	//powerup or contents?
 				blend = hw_blend;

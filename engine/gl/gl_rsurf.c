@@ -306,7 +306,7 @@ void GLBE_UploadAllLightmaps(void)
 				lightmap[i]->lightmaps);
 			break;
 		case 3:
-			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, 
+			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 
 				LMBLOCK_WIDTH, LMBLOCK_WIDTH, 0, (lightmap_bgra?GL_BGR_EXT:GL_RGB), GL_UNSIGNED_BYTE,
 				lightmap[i]->lightmaps);
 			break;

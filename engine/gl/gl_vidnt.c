@@ -152,12 +152,6 @@ void ClearAllStates (void);
 void VID_UpdateWindowStatus (HWND hWnd);
 void GL_Init(void *(*getglfunction) (char *name));
 
-#ifdef _DEBUG
-#define checkerror() if (qglGetError()) Con_Printf("Error detected at line %s:%i\n", __FILE__, __LINE__)
-#else
-#define checkerror()
-#endif
-
 typedef void (APIENTRY *lp3DFXFUNC) (int, int, int, int, int, const void*);
 lp3DFXFUNC qglColorTableEXT;
 qboolean is8bit = false;
@@ -946,10 +940,10 @@ qboolean VID_AttachGL (rendererstate_t *info)
 		Con_SafePrintf(CON_ERROR "wglMakeCurrent failed\n");	//green to make it show.
 		return false;
 	}
-/*
+
 	if (developer.ival)
 	{
-		char *(WINAPI *wglGetExtensionsString)(void) = NULL;
+		char *(WINAPI *wglGetExtensionsString)(HDC hdc) = NULL;
 		if (!wglGetExtensionsString)
 			wglGetExtensionsString = getglfunc("wglGetExtensionsString");
 		if (!wglGetExtensionsString)
@@ -957,9 +951,9 @@ qboolean VID_AttachGL (rendererstate_t *info)
 		if (!wglGetExtensionsString)
 			wglGetExtensionsString = getglfunc("wglGetExtensionsStringEXT");
 		if (wglGetExtensionsString)
-			Con_SafePrintf("WGL extensions: %s\n", wglGetExtensionsString());
+			Con_SafePrintf("WGL extensions: %s\n", wglGetExtensionsString(maindc));
 	}
-*/
+
 	qwglCreateContextAttribsARB = getglfunc("wglCreateContextAttribsARB");
 #ifdef _DEBUG
 	//attempt to promote that to opengl3.
@@ -969,18 +963,23 @@ qboolean VID_AttachGL (rendererstate_t *info)
 		int attribs[9];
 		char *mv;
 		int i = 0;
+		char *ver;
 
-		mv = vid_gl_context_version.string;
+		ver = vid_gl_context_version.string;
+		if (!*ver && vid_gl_context_es2.ival)
+			ver = "2.0";
+
+		mv = ver;
 		while (*mv)
 		{
 			if (*mv++ == '.')
 				break;
 		}
 
-		if (*vid_gl_context_version.string)
+		if (*ver)
 		{
 			attribs[i++] = WGL_CONTEXT_MAJOR_VERSION_ARB;
-			attribs[i++] = (int)vid_gl_context_version.value;
+			attribs[i++] = atoi(ver);
 		}
 		if (*mv)
 		{
@@ -1031,8 +1030,10 @@ qboolean VID_AttachGL (rendererstate_t *info)
 			else
 			{
 				DWORD error = GetLastError();
-				if (error == ERROR_INVALID_VERSION_ARB)
+				if (error == (0xc0070000 | ERROR_INVALID_VERSION_ARB))
 					Con_Printf("Unsupported OpenGL context version (%s).\n", vid_gl_context_version.string);
+				else if (error == (0xc0070000 | ERROR_INVALID_PROFILE_ARB))
+					Con_Printf("Unsupported OpenGL profile (%s).\n", vid_gl_context_es2.ival?"gles":(vid_gl_context_compatibility.ival?"compat":"core"));
 				else
 					Con_Printf("Unknown error creating an OpenGL (%s) Context.\n", vid_gl_context_version.string);
 			}
@@ -1042,8 +1043,6 @@ qboolean VID_AttachGL (rendererstate_t *info)
 
 	TRACE(("dbg: VID_AttachGL: GL_Init\n"));
 	GL_Init(getglfunc);
-
-	checkerror();
 
 	qwglChoosePixelFormatARB	= getglfunc("wglChoosePixelFormatARB");
 
@@ -1060,8 +1059,6 @@ qboolean VID_AttachGL (rendererstate_t *info)
 
 	if (!qGetDeviceGammaRamp) qGetDeviceGammaRamp = (void*)GetDeviceGammaRamp;
 	if (!qSetDeviceGammaRamp) qSetDeviceGammaRamp = (void*)SetDeviceGammaRamp;
-
-	checkerror();
 
 	return true;
 }

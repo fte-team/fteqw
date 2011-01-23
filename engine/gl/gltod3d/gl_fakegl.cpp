@@ -4148,9 +4148,7 @@ rendererinfo_t d3dfglrendererinfo = {
 
 	GLSCR_UpdateScreen,
 
-		/*backend*/
-	NULL,
-	NULL,
+	/*backend*/
 	NULL,
 	NULL,
 	NULL,

@@ -88,6 +88,11 @@ typedef void        (APIENTRYP FTEPFNGLGETOBJECTPARAMETERIVARBPROC) (GLhandleARB
 typedef void		(APIENTRYP FTEPFNGLATTACHOBJECTARBPROC)		(GLhandleARB containerObj, GLhandleARB obj);
 typedef void		(APIENTRYP FTEPFNGLGETINFOLOGARBPROC)			(GLhandleARB obj, GLsizei maxLength, GLsizei *length, GLcharARB *infoLog);
 typedef void		(APIENTRYP FTEPFNGLLINKPROGRAMARBPROC)			(GLhandleARB programObj);
+typedef void        (APIENTRYP FTEPFNGLBINDATTRIBLOCATIONARBPROC)   (GLhandleARB programObj, GLuint index, GLcharARB *name);
+typedef GLint		(APIENTRYP FTEPFNGLGETATTRIBLOCATIONARBPROC)	(GLhandleARB programObj, const GLcharARB *name);
+typedef void		(APIENTRYP FTEPFNGLVERTEXATTRIBPOINTER)			(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const GLvoid *pointer);
+typedef void		(APIENTRYP FTEPFNGLENABLEVERTEXATTRIBARRAY)		(GLuint index);
+typedef void		(APIENTRYP FTEPFNGLDISABLEVERTEXATTRIBARRAY)	(GLuint index);
 typedef GLint		(APIENTRYP FTEPFNGLGETUNIFORMLOCATIONARBPROC)	(GLhandleARB programObj, const GLcharARB *name);
 typedef void		(APIENTRYP FTEPFNGLUNIFORM4FARBPROC)			(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
 typedef void		(APIENTRYP FTEPFNGLUNIFORMMATRIX4FVARBPROC)		(GLint location, GLsizei count, GLboolean transpose, GLfloat *value);
@@ -113,6 +118,8 @@ qboolean GL_CheckExtension(char *extname);
 
 typedef struct {
 	float glversion;
+	qboolean nofixedfunc;
+	qboolean gles;
 	qboolean tex_env_combine;
 	qboolean nv_tex_env_combine4;
 	qboolean env_add;
@@ -305,7 +312,7 @@ void GL_Set2D (void);
 //
 qboolean R_ShouldDraw(entity_t *e);
 #ifdef GLQUAKE
-void R_RotateForEntity (const entity_t *e, const model_t *mod);
+void R_RotateForEntity (float *modelviewmatrix, const entity_t *e, const model_t *mod);
 
 void GL_InitSceneProcessingShaders (void);
 void GL_SetupSceneProcessingTextures (void);
@@ -752,15 +759,23 @@ extern PFNGLGENPROGRAMSARBPROC qglGenProgramsARB;
 
 //glslang - arb_shader_objects
 extern FTEPFNGLCREATEPROGRAMOBJECTARBPROC	qglCreateProgramObjectARB;
-extern FTEPFNGLDELETEOBJECTARBPROC			qglDeleteObjectARB;
+extern FTEPFNGLDELETEOBJECTARBPROC         qglDeleteProgramObject_;
+extern FTEPFNGLDELETEOBJECTARBPROC         qglDeleteShaderObject_;
 extern FTEPFNGLUSEPROGRAMOBJECTARBPROC		qglUseProgramObjectARB;
 extern FTEPFNGLCREATESHADEROBJECTARBPROC	qglCreateShaderObjectARB;
 extern FTEPFNGLSHADERSOURCEARBPROC			qglShaderSourceARB;
 extern FTEPFNGLCOMPILESHADERARBPROC		qglCompileShaderARB;
-extern FTEPFNGLGETOBJECTPARAMETERIVARBPROC	qglGetObjectParameterivARB;
+extern FTEPFNGLGETOBJECTPARAMETERIVARBPROC	qglGetProgramParameteriv_;
+extern FTEPFNGLGETOBJECTPARAMETERIVARBPROC	qglGetShaderParameteriv_;
 extern FTEPFNGLATTACHOBJECTARBPROC			qglAttachObjectARB;
-extern FTEPFNGLGETINFOLOGARBPROC			qglGetInfoLogARB;
+extern FTEPFNGLGETINFOLOGARBPROC			qglGetProgramInfoLog_;
+extern FTEPFNGLGETINFOLOGARBPROC			qglGetShaderInfoLog_;
 extern FTEPFNGLLINKPROGRAMARBPROC			qglLinkProgramARB;
+extern FTEPFNGLBINDATTRIBLOCATIONARBPROC   qglBindAttribLocationARB;
+extern FTEPFNGLGETATTRIBLOCATIONARBPROC		qglGetAttribLocationARB;
+extern FTEPFNGLVERTEXATTRIBPOINTER			qglVertexAttribPointer;
+extern FTEPFNGLENABLEVERTEXATTRIBARRAY		qglEnableVertexAttribArray;
+extern FTEPFNGLDISABLEVERTEXATTRIBARRAY	qglDisableVertexAttribArray;
 extern FTEPFNGLGETUNIFORMLOCATIONARBPROC	qglGetUniformLocationARB;
 extern FTEPFNGLUNIFORMMATRIX4FVARBPROC		qglUniformMatrix4fvARB;
 extern FTEPFNGLUNIFORM4FARBPROC			qglUniform4fARB;
@@ -771,12 +786,19 @@ extern FTEPFNGLUNIFORM1IARBPROC			qglUniform1iARB;
 extern FTEPFNGLUNIFORM1FARBPROC			qglUniform1fARB;
 
 //glslang helper api
-GLhandleARB GLSlang_CreateProgram (char *precompilerconstants, char *vert, char *frag);
+GLhandleARB GLSlang_CreateProgram (char **precompilerconstants, char *vert, char *frag);
 GLint GLSlang_GetUniformLocation (int prog, char *name);
-#define GLSlang_UseProgram(prog) qglUseProgramObjectARB(prog);
-#define GLSlang_SetUniform1i(uni, parm0) qglUniform1iARB(uni, parm0);
-#define GLSlang_SetUniform1f(uni, parm0) qglUniform1fARB(uni, parm0);
-#define GLSlang_DeleteObject(object) qglDeleteObjectARB(object);
+void GL_SelectProgram(int program);
+#define GLSlang_UseProgram(prog) GL_SelectProgram(prog)
+#define GLSlang_SetUniform1i(uni, parm0) qglUniform1iARB(uni, parm0)
+#define GLSlang_SetUniform1f(uni, parm0) qglUniform1fARB(uni, parm0)
+
+
+#ifdef _DEBUG
+#define checkglerror() do {int i=qglGetError(); if (i) Con_Printf("GL Error %i detected at line %s:%i\n", i, __FILE__, __LINE__);}while(0)
+#else
+#define checkglerror()
+#endif
 
 
 extern FTEPFNGLLOCKARRAYSEXTPROC qglLockArraysEXT;

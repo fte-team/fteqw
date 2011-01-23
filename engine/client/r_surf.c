@@ -2552,7 +2552,12 @@ void Surf_BuildLightmaps (void)
 	case QR_OPENGL:
 		/*favour bgra if the gpu supports it, otherwise use rgb only if it'll be used*/
 		lightmap_bgra = false;
-		if (gl_config.glversion >= 1.2)
+		if (gl_config.gles)
+		{
+			lightmap_bytes = 3;
+			lightmap_bgra = false;
+		}
+		else if (gl_config.glversion >= 1.2)
 		{
 			/*the more common case*/
 			lightmap_bytes = 4;

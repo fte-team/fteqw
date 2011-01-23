@@ -10,12 +10,6 @@
 
 #define nearplane	(16)
 
-#if 1//def _DEBUG
-#define checkerror() if (qglGetError()) Con_Printf("Error detected at line %s:%i\n", __FILE__, __LINE__)
-#else
-#define checkerror()
-#endif
-
 static int shadow_fbo_id;
 
 static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour);
@@ -1288,8 +1282,6 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, float p
 
 //	qglDepthRange(0, 1);
 
-
-checkerror();
 	if (l->fov)
 		qglViewport (0, 0, smsize, smsize);
 	else
@@ -1335,8 +1327,6 @@ checkerror();
 
 	R_SetFrustum(proj, mvm);
 
-	checkerror();
-
 	if (smesh)
 	for (tno = 0; tno < smesh->numsurftextures; tno++)
 	{
@@ -1372,8 +1362,6 @@ checkerror();
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 	}
-
-	checkerror();
 }
 
 void Sh_Shutdown(void)
@@ -1396,20 +1384,14 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 	if (!TEXVALID(l->stexture))
 	{
 		l->stexture = GL_AllocNewTexture(smsize, smsize);
-		
-		checkerror();
 
 		GL_Bind(l->stexture);
-		checkerror();
 		qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32_ARB, smsize, smsize, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
 	//	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, smsize, smsize, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-		checkerror();
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-
-		checkerror();
 	}
 
 	smesh = SHM_BuildShadowVolumeMesh(l, lvis, NULL);
@@ -1550,7 +1532,6 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 	t[13] = bp[7];
 	t[14] = bp[11];
 	t[15] = bp[15];
-checkerror();
 
 	bench.numlights++;
 
@@ -1565,7 +1546,6 @@ checkerror();
 
 	GL_SelectTexture(0);
 
-	checkerror();
 	ve = 0;
 
 	BE_SelectDLight(l, colour);
@@ -1577,9 +1557,6 @@ checkerror();
 	qglMatrixMode(GL_TEXTURE);
 	qglLoadIdentity();
 	qglMatrixMode(GL_MODELVIEW);
-
-
-	checkerror();
 }
 
 
@@ -1873,8 +1850,6 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	}
 	bench.numlights++;
 
-	checkerror();
-
 	BE_SelectDLight(dl, colour);
 	BE_SelectMode(BEM_STENCIL, 0);
 
@@ -2008,8 +1983,6 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	qglPopMatrix();
 #endif
 
-	checkerror();
-
 	PPL_RevertToKnownState();
 
 	BE_SelectMode(BEM_LIGHT, 0);
@@ -2018,7 +1991,6 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	qglDisable(GL_STENCIL_TEST);
 	qglStencilFunc( GL_ALWAYS, 0, ~0 );
 
-	checkerror();
 	return true;
 }
 

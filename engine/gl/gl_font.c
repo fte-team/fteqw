@@ -210,10 +210,14 @@ static fontplanes_t fontplanes;
 static index_t font_indicies[FONT_CHAR_BUFFER*6];
 static vecV_t font_coord[FONT_CHAR_BUFFER*4];
 static vec2_t font_texcoord[FONT_CHAR_BUFFER*4];
-static vbo_t font_buffer;
-static mesh_t font_mesh;
+static byte_vec4_t font_forecoloura[FONT_CHAR_BUFFER*4];
+static byte_vec4_t font_backcoloura[FONT_CHAR_BUFFER*4];
+static mesh_t font_foremesh;
+static mesh_t font_backmesh;
 static texid_t font_texture;
 static int font_colourmask;
+static byte_vec4_t font_forecolour;
+static byte_vec4_t font_backcolour;
 
 static struct font_s *curfont;
 
@@ -223,13 +227,15 @@ void Font_Init(void)
 	int i;
 	fontplanes.defaultfont = r_nulltex;
 
-	font_buffer.indicies = font_indicies;
-	font_buffer.coord = font_coord;
-	font_buffer.texcoord = font_texcoord;
+	font_foremesh.indexes = font_indicies;
+	font_foremesh.xyz_array = font_coord;
+	font_foremesh.st_array = font_texcoord;
+	font_foremesh.colors4b_array = font_forecoloura;
 
-	font_mesh.indexes = font_buffer.indicies;
-	font_mesh.xyz_array = font_buffer.coord;
-	font_mesh.st_array = font_buffer.texcoord;
+	font_backmesh.indexes = font_indicies;
+	font_backmesh.xyz_array = font_coord;
+	font_backmesh.st_array = font_texcoord;
+	font_backmesh.colors4b_array = font_backcoloura;
 
 	for (i = 0; i < FONT_CHAR_BUFFER; i++)
 	{
@@ -248,11 +254,12 @@ void Font_Init(void)
 
 	fontplanes.shader = R_RegisterShader("ftefont",
 		"{\n"
+//			"program default2d\n"
 			"nomipmaps\n"
 			"{\n"
 				"map $diffuse\n"
-				"rgbgen const\n"
-				"alphagen const\n"
+				"rgbgen vertex\n"
+				"alphagen vertex\n"
 				"blendfunc blend\n"
 			"}\n"
 		"}\n"
@@ -263,8 +270,8 @@ void Font_Init(void)
 			"nomipmaps\n"
 			"{\n"
 				"map $whiteimage\n"
-				"rgbgen const\n"
-				"alphagen const\n"
+				"rgbgen vertex\n"
+				"alphagen vertex\n"
 				"blendfunc blend\n"
 			"}\n"
 		"}\n"
@@ -276,48 +283,43 @@ void Font_Init(void)
 //flush the font buffer, by drawing it to the screen
 static void Font_Flush(void)
 {
-	if (!font_mesh.numindexes)
+	if (!font_foremesh.numindexes)
 		return;
-
 	if (fontplanes.planechanged)
 	{
 		R_Upload(fontplanes.texnum[fontplanes.activeplane], NULL, TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA);
 
 		fontplanes.planechanged = false;
 	}
-	font_mesh.istrifan = (font_mesh.numvertexes == 4);
+	font_foremesh.istrifan = (font_foremesh.numvertexes == 4);
 	if (font_colourmask & CON_NONCLEARBG)
 	{
-		fontplanes.backshader->defaulttextures.base = r_nulltex;
-		BE_DrawMesh_Single(fontplanes.backshader, &font_mesh, NULL, &fontplanes.backshader->defaulttextures);
+		font_backmesh.numindexes = font_foremesh.numindexes;
+		font_backmesh.numvertexes = font_foremesh.numvertexes;
+		font_backmesh.istrifan = font_foremesh.istrifan;
 
-		fontplanes.shader->defaulttextures.base = font_texture;
-		BE_DrawMesh_Single(fontplanes.shader, &font_mesh, NULL, &fontplanes.shader->defaulttextures);
+		BE_DrawMesh_Single(fontplanes.backshader, &font_backmesh, NULL, &fontplanes.backshader->defaulttextures);
 	}
-	else
-	{
-		fontplanes.shader->defaulttextures.base = font_texture;
-		BE_DrawMesh_Single(fontplanes.shader, &font_mesh, NULL, &fontplanes.shader->defaulttextures);
-	}
-
-	font_mesh.numindexes = 0;
-	font_mesh.numvertexes = 0;
+	fontplanes.shader->defaulttextures.base = font_texture;
+	BE_DrawMesh_Single(fontplanes.shader, &font_foremesh, NULL, &fontplanes.shader->defaulttextures);
+	font_foremesh.numindexes = 0;
+	font_foremesh.numvertexes = 0;
 }
 
 static int Font_BeginChar(texid_t tex)
 {
 	int fvert;
 
-	if (font_mesh.numindexes == FONT_CHAR_BUFFER*6 || memcmp(&font_texture,&tex, sizeof(texid_t)))
+	if (font_foremesh.numindexes == FONT_CHAR_BUFFER*6 || memcmp(&font_texture,&tex, sizeof(texid_t)))
 	{
 		Font_Flush();
 		font_texture = tex;
 	}
 
-	fvert = font_mesh.numvertexes;
+	fvert = font_foremesh.numvertexes;
 	
-	font_mesh.numindexes += 6;
-	font_mesh.numvertexes += 4;
+	font_foremesh.numindexes += 6;
+	font_foremesh.numvertexes += 4;
 
 	return fvert;
 }
@@ -1077,17 +1079,16 @@ void Font_LineDraw(int x, int y, conchar_t *start, conchar_t *end)
 correct usage of this function thus requires calling this with 1111 before Font_EndString*/
 void Font_ForceColour(float r, float g, float b, float a)
 {
-	Font_Flush();
+	if (font_colourmask & CON_NONCLEARBG)
+		Font_Flush();
 	font_colourmask = CON_WHITEMASK;
 
-	/*force the colour to the requested one*/
-	fontplanes.shader->passes[0].rgbgen_func.args[0] = r;
-	fontplanes.shader->passes[0].rgbgen_func.args[1] = g;
-	fontplanes.shader->passes[0].rgbgen_func.args[2] = b;
-	fontplanes.shader->passes[0].alphagen_func.args[0] = a;
+	font_forecolour[0] = r*255;
+	font_forecolour[1] = g*255;
+	font_forecolour[2] = b*255;
+	font_forecolour[3] = a*255;
 
-	/*no background*/
-	fontplanes.backshader->passes[0].alphagen_func.args[0] = 0;
+	font_backcolour[3] = 0;
 
 	/*Any drawchars that are now drawn will get the forced colour*/
 }
@@ -1134,20 +1135,21 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 	col = charcode & (CON_NONCLEARBG|CON_BGMASK|CON_FGMASK|CON_HALFALPHA);
 	if (col != font_colourmask)
 	{
-		Font_Flush();
+		if ((col ^ font_colourmask) & CON_NONCLEARBG)
+			Font_Flush();
 		font_colourmask = col;
 
 		col = (charcode&CON_FGMASK)>>CON_FGSHIFT;
-		fontplanes.shader->passes[0].rgbgen_func.args[0] = consolecolours[col].fr;
-		fontplanes.shader->passes[0].rgbgen_func.args[1] = consolecolours[col].fg;
-		fontplanes.shader->passes[0].rgbgen_func.args[2] = consolecolours[col].fb;
-		fontplanes.shader->passes[0].alphagen_func.args[0] = (charcode & CON_HALFALPHA)?0.5:1;
+		font_forecolour[0] = consolecolours[col].fr*255;
+		font_forecolour[1] = consolecolours[col].fg*255;
+		font_forecolour[2] = consolecolours[col].fb*255;
+		font_forecolour[3] = (charcode & CON_HALFALPHA)?127:255;
 
 		col = (charcode&CON_BGMASK)>>CON_BGSHIFT;
-		fontplanes.backshader->passes[0].rgbgen_func.args[0] = consolecolours[col].fr;
-		fontplanes.backshader->passes[0].rgbgen_func.args[1] = consolecolours[col].fg;
-		fontplanes.backshader->passes[0].rgbgen_func.args[2] = consolecolours[col].fb;
-		fontplanes.backshader->passes[0].alphagen_func.args[0] = (charcode & CON_NONCLEARBG)?0.5:0;
+		font_backcolour[0] = consolecolours[col].fr*255;
+		font_backcolour[1] = consolecolours[col].fg*255;
+		font_backcolour[2] = consolecolours[col].fb*255;
+		font_backcolour[3] = (charcode & CON_NONCLEARBG)?127:0;
 	}
 
 	s0 = (float)c->bmx/PLANEWIDTH;
@@ -1194,6 +1196,15 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 	font_coord[v+3][0] = sx;
 	font_coord[v+3][1] = sy+sh;
 
+	*(int*)font_forecoloura[v+0] = *(int*)font_forecolour;
+	*(int*)font_forecoloura[v+1] = *(int*)font_forecolour;
+	*(int*)font_forecoloura[v+2] = *(int*)font_forecolour;
+	*(int*)font_forecoloura[v+3] = *(int*)font_forecolour;
+	*(int*)font_backcoloura[v+0] = *(int*)font_backcolour;
+	*(int*)font_backcoloura[v+1] = *(int*)font_backcolour;
+	*(int*)font_backcoloura[v+2] = *(int*)font_backcolour;
+	*(int*)font_backcoloura[v+3] = *(int*)font_backcolour;
+
 	return nextx;
 }
 
@@ -1236,20 +1247,21 @@ float Font_DrawScaleChar(float px, float py, float cw, float ch, unsigned int ch
 	col = charcode & (CON_NONCLEARBG|CON_BGMASK|CON_FGMASK|CON_HALFALPHA);
 	if (col != font_colourmask)
 	{
-		Font_Flush();
+		if ((col ^ font_colourmask) & CON_NONCLEARBG)
+			Font_Flush();
 		font_colourmask = col;
 
 		col = (charcode&CON_FGMASK)>>CON_FGSHIFT;
-		fontplanes.shader->passes[0].rgbgen_func.args[0] = consolecolours[col].fr;
-		fontplanes.shader->passes[0].rgbgen_func.args[1] = consolecolours[col].fg;
-		fontplanes.shader->passes[0].rgbgen_func.args[2] = consolecolours[col].fb;
-		fontplanes.shader->passes[0].alphagen_func.args[0] = (charcode & CON_HALFALPHA)?0.5:1;
+		font_forecolour[0] = consolecolours[col].fr*255;
+		font_forecolour[1] = consolecolours[col].fg*255;
+		font_forecolour[2] = consolecolours[col].fb*255;
+		font_forecolour[3] = (charcode & CON_HALFALPHA)?127:255;
 
 		col = (charcode&CON_BGMASK)>>CON_BGSHIFT;
-		fontplanes.backshader->passes[0].rgbgen_func.args[0] = consolecolours[col].fr;
-		fontplanes.backshader->passes[0].rgbgen_func.args[1] = consolecolours[col].fg;
-		fontplanes.backshader->passes[0].rgbgen_func.args[2] = consolecolours[col].fb;
-		fontplanes.backshader->passes[0].alphagen_func.args[0] = (charcode & CON_NONCLEARBG)?0.5:0;
+		font_backcolour[0] = consolecolours[col].fr*255;
+		font_backcolour[1] = consolecolours[col].fg*255;
+		font_backcolour[2] = consolecolours[col].fb*255;
+		font_backcolour[3] = (charcode & CON_NONCLEARBG)?127:0;
 	}
 
 	s0 = (float)c->bmx/PLANEWIDTH;
@@ -1295,6 +1307,15 @@ float Font_DrawScaleChar(float px, float py, float cw, float ch, unsigned int ch
 	font_coord[v+2][1] = sy+sh;
 	font_coord[v+3][0] = sx;
 	font_coord[v+3][1] = sy+sh;
+
+	*(int*)font_forecoloura[v+0] = *(int*)font_forecolour;
+	*(int*)font_forecoloura[v+1] = *(int*)font_forecolour;
+	*(int*)font_forecoloura[v+2] = *(int*)font_forecolour;
+	*(int*)font_forecoloura[v+3] = *(int*)font_forecolour;
+	*(int*)font_backcoloura[v+0] = *(int*)font_backcolour;
+	*(int*)font_backcoloura[v+1] = *(int*)font_backcolour;
+	*(int*)font_backcoloura[v+2] = *(int*)font_backcolour;
+	*(int*)font_backcoloura[v+3] = *(int*)font_backcolour;
 
 	return nextx;
 }

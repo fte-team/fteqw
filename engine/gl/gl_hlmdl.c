@@ -570,6 +570,7 @@ void R_DrawHLModel(entity_t	*curent)
     int						b, m, v;
     short					*skins;
 	int bgroup, cbone, lastbone;
+	float mat[16];
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 	//general model
@@ -613,7 +614,8 @@ void R_DrawHLModel(entity_t	*curent)
 		qglColor4f(difuse[0]/255+ambient[0]/255, difuse[1]/255+ambient[1]/255, difuse[2]/255+ambient[2]/255, curent->shaderRGBAf[3]);
 	}
 
-    R_RotateForEntity (curent, curent->model);
+    R_RotateForEntity (mat, curent, curent->model);
+	qglLoadMatrixf(mat);
 
 	cbone = 0;
 	for (bgroup = 0; bgroup < FS_COUNT; bgroup++)

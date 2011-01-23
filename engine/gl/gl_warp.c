@@ -89,7 +89,7 @@ void R_DrawSkyChain (batch_t *batch)
 		return;
 	}
 #ifdef GLQUAKE
-	if (*r_fastsky.string)
+	if (*r_fastsky.string && qrenderer == QR_OPENGL)
 	{
 		R_CalcSkyChainBounds(batch);
 

@@ -27,12 +27,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "shader.h"
 #include "gl_draw.h"
 
-#ifdef _DEBUG
-#define checkerror() if (qglGetError()) Con_Printf("Error detected at line %s:%i\n", __FILE__, __LINE__)
-#else
-#define checkerror()
-#endif
-
 void R_RenderBrushPoly (msurface_t *fa);
 
 #define PROJECTION_DISTANCE			200
@@ -389,7 +383,7 @@ void GL_SetupSceneProcessingTextures (void)
 	GL_Bind(scenepp_texture_warp);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	qglTexImage2D(GL_TEXTURE_2D, 0, 3, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, pp_warp_tex);
+	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, pp_warp_tex);
 
 	// TODO: init edge texture - this is ampscale * 2, with ampscale calculated
 	// init warp texture - this specifies offset in
@@ -436,9 +430,8 @@ void GL_SetupSceneProcessingTextures (void)
 	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, pp_edge_tex);
 }
 
-void R_RotateForEntity (const entity_t *e, const model_t *mod)
+void R_RotateForEntity (float *modelview, const entity_t *e, const model_t *mod)
 {
-	float mv[16];
 	float m[16];
 
 	m[0] = e->axis[0][0];
@@ -520,13 +513,11 @@ void R_RotateForEntity (const entity_t *e, const model_t *mod)
 		/*FIXME: no bob*/
 		float simpleview[16];
 		Matrix4_ModelViewMatrix(simpleview, vec3_origin, vec3_origin);
-		Matrix4_Multiply(simpleview, m, mv);
-		qglLoadMatrixf(mv);
+		Matrix4_Multiply(simpleview, m, modelview);
 	}
 	else
 	{
-		Matrix4_Multiply(r_refdef.m_view, m, mv);
-		qglLoadMatrixf(mv);
+		Matrix4_Multiply(r_refdef.m_view, m, modelview);
 	}
 }
 
@@ -1089,19 +1080,25 @@ void R_SetupGL (void)
 		Matrix4_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
 	}
 
-	qglMatrixMode(GL_PROJECTION);
-	qglLoadMatrixf(r_refdef.m_projection);
-
-	qglMatrixMode(GL_MODELVIEW);
-	qglLoadMatrixf(r_refdef.m_view);
-
-	if (gl_dither.ival)
+	if (qglLoadMatrixf)
 	{
-		qglEnable(GL_DITHER);
+		qglMatrixMode(GL_PROJECTION);
+		qglLoadMatrixf(r_refdef.m_projection);
+
+		qglMatrixMode(GL_MODELVIEW);
+		qglLoadMatrixf(r_refdef.m_view);
 	}
-	else
+
+	if (!gl_config.gles)
 	{
-		qglDisable(GL_DITHER);
+		if (gl_dither.ival)
+		{
+			qglEnable(GL_DITHER);
+		}
+		else
+		{
+			qglDisable(GL_DITHER);
+		}
 	}
 }
 
@@ -1418,7 +1415,8 @@ void R_Clear (void)
 		gldepthmax = 1;
 		gldepthfunc=GL_LEQUAL;
 	}
-	qglDepthRange (gldepthmin, gldepthmax);
+	if (qglDepthRange)
+		qglDepthRange (gldepthmin, gldepthmax);
 }
 
 #if 0

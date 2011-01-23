@@ -1231,6 +1231,19 @@ rendererinfo_t d3drendererinfo =
 
 	D3D9_SCR_UpdateScreen,
 
+	D3DBE_SelectMode,
+	D3DBE_DrawMesh_List,
+	D3DBE_DrawMesh_Single,
+	D3DBE_SubmitBatch,
+	D3DBE_GetTempBatch,
+	D3DBE_DrawWorld,
+	D3DBE_Init,
+	D3DBE_GenBrushModelVBO,
+	D3DBE_ClearVBO,
+	D3DBE_UploadAllLightmaps,
+	NULL,
+	D3DBE_LightCullModel,
+
 	"no more"
 };
 

@@ -708,23 +708,48 @@ static void Shader_EntityMergable ( shader_t *shader, shaderpass_t *pass, char *
 	shader->flags |= SHADER_ENTITY_MERGABLE;
 }
 
-static void Shader_LoadProgram(shader_t *shader, char *vert, char *frag, int qrtype)
+/*program text is already loaded, this function parses the 'header' of it to see which permutations it provides, and how many times we need to recompile it*/
+static void Shader_LoadPermutations(union programhandle_u *handle, char *script, int qrtype)
 {
-	static char *permutationdefines[PERMUTATIONS] = {
-		"",
+	char *permutationdefines[PERMUTATIONS];
+	static char *permutationname[] =
+	{
 		"#define BUMP\n",
 		"#define SPECULAR\n",
-		"#define SPECULAR\n#define BUMP\n",
-		"#define USEOFFSETMAPPING\n",
-		"#define USEOFFSETMAPPING\n#define BUMP\n",
-		"#define USEOFFSETMAPPING\n#define SPECULAR\n",
-		"#define USEOFFSETMAPPING\n#define SPECULAR\n#define BUMP\n"
+		"#define FULLBRIGHT\n",
+		"#define LOWER\n",
+		"#define UPPER\n",
+		"#define OFFSETMAPPING\n",
+		NULL
 	};
-	int p;
+	unsigned int nopermutation = ~0u;
+	int p, n, pn;
+	char *end;
 
-	if (!frag)
-		frag = vert;
+	for(;;)
+	{
+		while (*script == ' ' || *script == '\r' || *script == '\n' || *script == '\t')
+			script++;
+		if (!strncmp(script, "!!permu", 7))
+		{
+			script += 7;
+			while (*script == ' ' || *script == '\r' || *script == '\n' || *script == '\t')
+				script++;
+			end = script;
+			while ((*end >= 'A' && *end <= 'Z') || (*end >= 'a' && *end <= 'z') || (*end >= '0' && *end <= '9') || *end == '_')
+				end++;
+			for (p = 0; permutationname[p]; p++)
+			{
+				if (!strncmp(permutationname[p]+8, script, end - script) && permutationname[p][8+end-script] == '\n')
+					nopermutation &= ~(1u<<p);
+			}
+			script = end;
+		}
+		else
+			break;
+	};
 
+	memset(handle, 0, sizeof(*handle)*PERMUTATIONS);
 	for (p = 0; p < PERMUTATIONS; p++)
 	{
 		if (qrenderer != qrtype)
@@ -732,9 +757,518 @@ static void Shader_LoadProgram(shader_t *shader, char *vert, char *frag, int qrt
 		}
 	#ifdef GLQUAKE
 		else if (qrenderer == QR_OPENGL)
-			shader->programhandle[p].glsl = GLSlang_CreateProgram(permutationdefines[p], (char *)vert, (char *)frag);
+		{
+			if (nopermutation & p)
+			{
+				continue;
+			}
+			pn = 0;
+			for (n = 0; permutationname[n]; n++)
+			{
+				if (p & (1u<<n))
+					permutationdefines[pn++] = permutationname[n];
+			}
+			permutationdefines[pn++] = NULL;
+			handle[p].glsl = GLSlang_CreateProgram(permutationdefines, script, script);
+		}
 	#endif
 	}
+}
+typedef struct sgeneric_s
+{
+	struct sgeneric_s *next;
+	char name[MAX_QPATH];
+	union programhandle_u handle[PERMUTATIONS];
+} sgeneric_t;
+static sgeneric_t *sgenerics;
+struct sbuiltin_s
+{
+	int qrtype;
+	int apiver;
+	char name[MAX_QPATH];
+	char *body;
+} sbuiltins[] = 
+{
+	{QR_OPENGL/*ES*/, 100, "default2d",
+		"#version 100\n"
+		"#ifdef VERTEX_SHADER\n"
+			"uniform mat4 m_view;\n"
+			"uniform mat4 m_projection;\n"
+			"attribute vec3 v_position;\n"
+			"attribute vec2 v_texcoord;\n"
+			"attribute vec4 v_colour;\n"
+			"varying vec2 tc;\n"
+			"varying vec4 vc;\n"
+
+			"void main (void)\n"
+			"{\n"
+			"	tc = v_texcoord;\n"
+			"	vc = v_colour;\n"
+			"	gl_Position = m_projection * m_view * vec4(v_position, 1.0);\n"
+			"}\n"
+		"#endif\n"
+
+		"#ifdef FRAGMENT_SHADER\n"
+			"uniform sampler2D s_t0;\n"
+			"in vec2 tc;\n"
+			"varying vec4 vc;\n"
+
+			"void main (void)\n"
+			"{\n"
+			"	gl_FragColor = texture2D(s_t0, tc) * vc;\n"
+			"}\n"
+		"#endif\n"
+	},
+	{QR_OPENGL, 110, "default2d",
+		"#version 110\n"
+		"#ifdef VERTEX_SHADER\n"
+			"uniform mat4 m_view;\n"
+			"uniform mat4 m_projection;\n"
+			"attribute vec3 v_position;\n"
+			"attribute vec2 v_texcoord;\n"
+			"attribute vec4 v_colour;\n"
+			"varying vec2 tc;\n"
+			"varying vec4 vc;\n"
+
+			"void main (void)\n"
+			"{\n"
+			"	tc = v_texcoord;\n"
+			"	vc = v_colour;\n"
+			"	gl_Position = m_projection * m_view * vec4(v_position, 1.0);\n"
+			"}\n"
+		"#endif\n"
+
+		"#ifdef FRAGMENT_SHADER\n"
+			"uniform sampler2D s_t0;\n"
+			"in vec2 tc;\n"
+			"varying vec4 vc;\n"
+
+			"void main (void)\n"
+			"{\n"
+			"	gl_FragColor = texture2D(s_t0, tc) * vc;\n"
+			"}\n"
+		"#endif\n"
+	},
+	{QR_OPENGL, 130, "defaultwall",
+		"#version 130\n"
+		"#ifdef VERTEX_SHADER\n"
+			"uniform mat4 m_modelview;\n"
+			"uniform mat4 m_projection;\n"
+			"in vec3 v_position;\n"
+			"in vec2 v_texcoord;\n"
+			"in vec2 v_lmcoord;\n"
+			"out vec2 tc, lm;\n"
+
+			"void main (void)\n"
+			"{\n"
+			"	tc = v_texcoord;\n"
+			"	lm = v_lmcoord;\n"
+			"	gl_Position = m_projection * m_modelview * vec4(v_position, 1.0);\n"
+			"}\n"
+		"#endif\n"
+
+		"#ifdef FRAGMENT_SHADER\n"
+			"uniform sampler2D s_t0;\n" /*tex_diffuse*/
+			"uniform sampler2D s_t1;\n" /*tex_lightmap*/
+			//"uniform sampler2D s_t2;\n" /*tex_normalmap*/
+			//"uniform sampler2D s_t3;\n" /*tex_deluxmap*/
+			//"uniform sampler2D s_t4;\n" /*tex_fullbright*/
+			"in vec2 tc, lm;\n"
+
+			"void main (void)\n"
+			"{\n"
+			"	gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm);\n"
+			"}\n"
+		"#endif\n"
+	},
+	{QR_OPENGL/*ES*/, 100, "defaultwall",
+		"!!permu FULLBRIGHT\n"
+		"#version 100\n"
+		"#ifdef VERTEX_SHADER\n"
+			"uniform mat4 m_modelview;\n"
+			"uniform mat4 m_projection;\n"
+			"attribute vec3 v_position;\n"
+			"attribute vec2 v_texcoord;\n"
+			"attribute vec2 v_lmcoord;\n"
+			"varying vec2 tc, lm;\n"
+
+			"void main (void)\n"
+			"{\n"
+			"	tc = v_texcoord;\n"
+			"	lm = v_lmcoord;\n"
+			"	gl_Position = m_projection * m_modelview * vec4(v_position, 1.0);\n"
+			"}\n"
+		"#endif\n"
+
+		"#ifdef FRAGMENT_SHADER\n"
+			"uniform sampler2D s_t0;\n" /*tex_diffuse*/
+			"uniform sampler2D s_t1;\n" /*tex_lightmap*/
+			//"uniform sampler2D s_t2;\n" /*tex_normalmap*/
+			//"uniform sampler2D s_t3;\n" /*tex_deluxmap*/
+			"#ifdef FULLBRIGHT\n"
+			"uniform sampler2D s_t4;\n" /*tex_fullbright*/
+			"#endif\n"
+			"varying vec2 tc, lm;\n"
+
+			"void main (void)\n"
+			"{\n"
+			"	gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm);\n"
+			"#ifdef FULLBRIGHT\n"
+			"	gl_FragColor += texture2D(s_t4, tc);\n"
+			"#endif\n"
+			"}\n"
+		"#endif\n"
+	},
+	{QR_OPENGL/*ES*/, 100, "defaultwarp",
+		"#version 100\n"
+		"varying vec2 tc;\n"
+		"#ifdef VERTEX_SHADER\n"
+			"uniform mat4 m_modelview;\n"
+			"uniform mat4 m_projection;\n"
+			"attribute vec3 v_position;\n"
+			"attribute vec2 v_texcoord;\n"
+			"void main (void)\n"
+			"{\n"
+			"	tc = v_texcoord;\n"
+			"	gl_Position = m_projection * m_modelview * vec4(v_position, 1.0);\n"
+			"}\n"
+		"#endif\n"
+
+		"#ifdef FRAGMENT_SHADER\n"
+			"uniform sampler2D watertexture;\n"
+			"uniform float e_time;\n"
+			"uniform float wateralpha;\n"
+
+			"void main (void)\n"
+			"{\n"
+			"	vec2 ntc;\n"
+			"	ntc.s = tc.s + sin(tc.t+e_time)*0.125;\n"
+			"	ntc.t = tc.t + sin(tc.s+e_time)*0.125;\n"
+			"	vec3 ts = vec3(texture2D(watertexture, ntc));\n"
+
+			"	gl_FragColor = vec4(ts, wateralpha);\n"
+			"}\n"
+		"#endif\n"
+	},
+	{QR_OPENGL, 110, "defaultwarp",
+		"#version 110\n"
+		"varying vec2 tc;\n"
+		"#ifdef VERTEX_SHADER\n"
+			"void main (void)\n"
+			"{\n"
+			"	tc = gl_MultiTexCoord0.st;\n"
+			"	gl_Position = ftransform();\n"
+			"}\n"
+		"#endif\n"
+
+		"#ifdef FRAGMENT_SHADER\n"
+			"uniform sampler2D s_t0;\n"
+			"uniform float e_time;\n"
+			"uniform float wateralpha;\n"
+
+			"void main (void)\n"
+			"{\n"
+			"	vec2 ntc;\n"
+			"	ntc.s = tc.s + sin(tc.t+e_time)*0.125;\n"
+			"	ntc.t = tc.t + sin(tc.s+e_time)*0.125;\n"
+			"	vec3 ts = vec3(texture2D(s_t0, ntc));\n"
+
+			"	gl_FragColor = vec4(ts, wateralpha);\n"
+			"}\n"
+		"#endif\n"
+	},
+	{QR_OPENGL/*ES*/, 100, "defaultsky",
+		"#version 100\n"
+		"#ifdef VERTEX_SHADER\n"
+			"uniform mat4 m_modelview;\n"
+			"uniform mat4 m_projection;\n"
+			"attribute vec3 v_position;\n"
+			"varying vec3 pos;\n"
+
+			"void main (void)\n"
+			"{\n"
+			"	pos = v_position.xyz;\n"
+			"	gl_Position = m_projection * m_modelview * vec4(v_position, 1.0);\n"
+			"}\n"
+		"#endif\n"
+
+		"#ifdef FRAGMENT_SHADER\n"
+			"uniform sampler2D s_t0;\n"
+			"uniform sampler2D s_t1;\n"
+
+			"uniform float e_time;\n"
+			"uniform vec3 eyepos;\n"
+			"varying vec3 pos;\n"
+
+			"void main (void)\n"
+			"{\n"
+			"	vec2 tccoord;\n"
+
+			"	vec3 dir = pos - eyepos;\n"
+
+			"	dir.z *= 3.0;\n"
+			"	dir.xy /= 0.5*length(dir);\n"
+
+			"	tccoord = (dir.xy + e_time*0.03125);\n"
+			"	vec3 solid = vec3(texture2D(s_t0, tccoord));\n"
+
+			"	tccoord = (dir.xy + e_time*0.0625);\n"
+			"	vec4 clouds = texture2D(s_t1, tccoord);\n"
+
+			"	gl_FragColor.rgb = (solid.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb);\n"
+//			"	gl_FragColor.rgb = solid.rgb;/*gl_FragColor.g = clouds.r;*/gl_FragColor.b = clouds.a;\n"
+			"}\n"
+		"#endif\n"
+	},
+	{QR_OPENGL, 110, "defaultsky",
+		"#version 110\n"
+		"#ifdef VERTEX_SHADER\n"
+			"varying vec3 pos;\n"
+
+			"void main (void)\n"
+			"{\n"
+			"	pos = gl_Vertex.xyz;\n"
+			"	gl_Position = ftransform();\n"
+			"}\n"
+		"#endif\n"
+
+		"#ifdef FRAGMENT_SHADER\n"
+			"uniform float e_time;\n"
+			"uniform vec3 eyepos;\n"
+			"varying vec3 pos;\n"
+			"uniform sampler2D s_t0;\n"
+			"uniform sampler2D s_t1;\n"
+
+			"void main (void)\n"
+			"{\n"
+			"	vec2 tccoord;\n"
+
+			"	vec3 dir = pos - eyepos;\n"
+
+			"	dir.z *= 3.0;\n"
+			"	dir.xy /= 0.5*length(dir);\n"
+
+			"	tccoord = (dir.xy + e_time*0.03125);\n"
+			"	vec3 solid = vec3(texture2D(s_t0, tccoord));\n"
+
+			"	tccoord = (dir.xy + e_time*0.0625);\n"
+			"	vec4 clouds = texture2D(s_t1, tccoord);\n"
+
+			"	gl_FragColor.rgb = (solid.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb);\n"
+//			"	gl_FragColor.rgb = solid.rgb;/*gl_FragColor.g = clouds.r;*/gl_FragColor.b = clouds.a;\n"
+			"}\n"
+		"#endif\n"
+	},
+	{QR_OPENGL/*ES*/, 100, "defaultskin",
+		"!!permu FULLBRIGHT\n"
+		"!!permu LOWER\n"
+		"!!permu UPPER\n"
+		"#version 100\n"
+		"#ifdef VERTEX_SHADER\n"
+			"uniform mat4 m_modelview;\n"
+			"uniform mat4 m_projection;\n"
+			"attribute vec3 v_position;\n"
+			"attribute vec2 v_texcoord;\n"
+			"varying vec2 tc;\n"
+
+			"attribute vec3 v_normal;\n"
+			"uniform vec3 e_light_dir;\n"
+			"uniform vec3 e_light_mul;\n"
+			"uniform vec3 e_light_ambient;\n"
+			"varying vec3 light;\n"
+
+			"void main (void)\n"
+			"{\n"
+			"	light = e_light_ambient + (dot(v_normal,e_light_dir)*e_light_mul);\n"
+			"	tc = v_texcoord;\n"
+			"	gl_Position = m_projection * m_modelview * vec4(v_position, 1.0);\n"
+			"}\n"
+		"#endif\n"
+
+		"#ifdef FRAGMENT_SHADER\n"
+			"uniform sampler2D s_t0;\n" /*tex_diffuse*/
+			"#ifdef LOWER\n"
+			"uniform sampler2D s_t1;\n" /*tex_lower*/
+			"uniform vec3 e_lowercolour;\n"
+			"#endif\n"
+			"#ifdef UPPER\n"
+			"uniform sampler2D s_t2;\n" /*tex_upper*/
+			"uniform vec3 e_uppercolour;\n"
+			"#endif\n"
+			"#ifdef FULLBRIGHT\n"
+			"uniform sampler2D s_t3;\n" /*tex_fullbright*/
+			"#endif\n"
+			"varying vec2 tc;\n"
+			"varying vec3 light;\n"
+
+			"void main (void)\n"
+			"{\n"
+			"	gl_FragColor = texture2D(s_t0, tc);\n"
+			"#ifdef UPPER\n"
+			"	gl_FragColor.rgb += texture2D(s_t2, tc).rgb*e_uppercolour;\n"
+			"#endif\n"
+			"#ifdef LOWER\n"
+			"	gl_FragColor.rgb += texture2D(s_t1, tc).rgb*e_lowercolour;\n"
+			"#endif\n"
+			"	gl_FragColor.rgb *= light;\n"
+			"#ifdef FULLBRIGHT\n"
+			"	gl_FragColor += texture2D(s_t3, tc);\n"
+			"#endif\n"
+			"}\n"
+		"#endif\n"
+	},
+	{QR_NONE}
+};
+static sgeneric_t *sgenerics;
+static void Shader_FlushGenerics(void)
+{
+	sgeneric_t *g;
+	while (sgenerics)
+	{
+		g = sgenerics;
+		sgenerics = g->next;
+		free(g);
+	}
+}
+static void Shader_LoadGeneric(union programhandle_u *shader, char *name, int qrtype)
+{
+	unsigned int i;
+	void *file;
+	sgeneric_t *g;
+	for (g = sgenerics; g; g = g->next)
+	{
+		if (!strcmp(name, g->name))
+		{
+			memcpy(shader, g->handle, sizeof(g->handle));
+			return;
+		}
+	}
+
+	if (strlen(name) >= sizeof(g->name))
+		return; /*name overflow*/
+	g = malloc(sizeof(*g));
+	strcpy(g->name, name);
+	g->next = sgenerics;
+	sgenerics = g;
+
+	FS_LoadFile(name, &file);
+	if (file)
+	{
+		Shader_LoadPermutations(g->handle, file, qrtype);
+		FS_FreeFile(file);
+	}
+	else
+	{
+		memset(g->handle, 0, sizeof(g->handle));
+		for (i = 0; *sbuiltins[i].name; i++)
+		{
+			if (sbuiltins[i].qrtype == qrenderer && !strcmp(sbuiltins[i].name, name))
+			{
+#ifdef GLQUAKE
+				if (gl_config.gles)
+				{
+					if (sbuiltins[i].apiver != 100)
+						continue;
+				}
+				else
+				{
+					if (sbuiltins[i].apiver == 100)
+						continue;
+				}
+#endif
+				Shader_LoadPermutations(g->handle, sbuiltins[i].body, sbuiltins[i].qrtype);
+				break;
+			}
+		}
+	}
+
+	memcpy(shader, g->handle, sizeof(g->handle));
+}
+
+static void Shader_ProgAutoFields(shader_t *shader)
+{
+	unsigned int i, p;
+	qboolean found;
+	int uniformloc;
+	static struct
+	{
+		char *name;
+		enum shaderprogparmtype_e ptype;
+	} u[] =
+	{
+		/*vertex attributes*/
+		{"v_position",				SP_ATTR_VERTEX},
+		{"v_colour",				SP_ATTR_COLOUR},
+		{"v_texcoord",				SP_ATTR_TEXCOORD},
+		{"v_lmcoord",				SP_ATTR_LMCOORD},
+		{"v_normal",				SP_ATTR_NORMALS},
+		{"v_svector",				SP_ATTR_SNORMALS},
+		{"v_tvector",				SP_ATTR_TNORMALS},
+
+		/*matricies*/
+		{"m_model",					SP_MODELMATRIX},
+		{"m_view",					SP_VIEWMATRIX},
+		{"m_modelview",				SP_MODELVIEWMATRIX},
+		{"m_projection",			SP_PROJECTIONMATRIX},
+		{"m_modelviewprojection",	SP_MODELVIEWPROJECTIONMATRIX},
+
+		/*ent properties*/
+		{"e_time",					SP_TIME},
+		{"e_colour",				SP_ENTCOLOURS},
+		{"e_topcolour",				SP_TOPCOLOURS},
+		{"e_bottomcolour",			SP_BOTTOMCOLOURS},
+		{"e_light_dir",				SP_E_L_DIR},
+		{"e_light_mul",				SP_E_L_MUL},
+		{"e_light_ambient",			SP_E_L_AMBIENT},
+		{NULL}
+	};
+	shader->numprogparams = 0;
+#ifdef GLQUAKE
+	if (qrenderer == QR_OPENGL)
+	{
+		if (gl_config.nofixedfunc)
+			shader->flags |= SHADER_NOBUILTINATTR;
+
+		for (p = 0; p < PERMUTATIONS; p++)
+		{
+			if (!shader->programhandle[p].glsl)
+				continue;
+			GLSlang_UseProgram(shader->programhandle[p].glsl);
+			for (i = 0; i < 8; i++)
+			{
+				uniformloc = qglGetUniformLocationARB(shader->programhandle[p].glsl, va("s_t%i", i));
+				if (uniformloc != -1)
+					qglUniform1iARB(uniformloc, i);
+			}
+		}
+		for (i = 0; u[i].name; i++)
+		{
+			found = false;
+			for (p = 0; p < PERMUTATIONS; p++)
+			{
+				if (!shader->programhandle[p].glsl)
+					continue;
+				GLSlang_UseProgram(shader->programhandle[p].glsl);
+				if (u[i].ptype >= SP_FIRSTUNIFORM)
+					uniformloc = qglGetUniformLocationARB(shader->programhandle[p].glsl, u[i].name);
+				else
+					uniformloc = qglGetAttribLocationARB(shader->programhandle[p].glsl, u[i].name);
+				if (uniformloc != -1)
+					found = true;
+				shader->progparm[shader->numprogparams].handle[p] = uniformloc;
+			}
+			if (found)
+			{
+				shader->progparm[shader->numprogparams].type = u[i].ptype;
+				shader->numprogparams++;
+
+				if (u[i].ptype < SP_FIRSTUNIFORM)
+					shader->flags |= SHADER_NOBUILTINATTR;
+			}
+		}
+		GLSlang_UseProgram(0);
+	}
+#endif
 }
 
 static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **ptr, int qrtype)
@@ -746,78 +1280,55 @@ static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **p
 	}
 	where BLAH is both vertex+frag with #ifdefs
 	or
-	program vert frag
+	program fname
 	on one line.
 	*/
-	void *vert, *frag;
-	char *token;
+	char *programbody;
+	char *start, *end;
 
-	token = *ptr;
-	while (*token == ' ' || *token == '\t' || *token == '\r')
-		token++;
-	if (*token == '\n')
+	end = *ptr;
+	while (*end == ' ' || *end == '\t' || *end == '\r')
+		end++;
+	if (*end == '\n')
 	{
 		int count;
-		token++;
-		while (*token == ' ' || *token == '\t')
-			token++;
-		if (*token != '{')
+		end++;
+		while (*end == ' ' || *end == '\t')
+			end++;
+		if (*end != '{')
 		{
 			Con_Printf("shader \"%s\" missing program string\n", shader->name);
 		}
 		else
 		{
-			token++;
-			frag = token;
-			for (count = 1; *token; token++)
+			end++;
+			start = end;
+			for (count = 1; *end; end++)
 			{
-				if (*token == '}')
+				if (*end == '}')
 				{
 					count--;
 					if (!count)
 						break;
 				}
-				else if (*token == '{')
+				else if (*end == '{')
 					count++;
 			}
-			vert = BZ_Malloc(token - (char*)frag + 1);
-			memcpy(vert, frag, token-(char*)frag);
-			((char*)vert)[token-(char*)frag] = 0;
-			frag = NULL;
-			*ptr = token+1;
+			programbody = BZ_Malloc(end - start + 1);
+			memcpy(programbody, start, end-start);
+			programbody[end-start] = 0;
+			*ptr = end+1;/*skip over it all*/
 
-			Shader_LoadProgram(shader, vert, frag, qrtype);
+			Shader_LoadPermutations(shader->programhandle, programbody, qrtype);
+			Shader_ProgAutoFields(shader);
 
-			BZ_Free(vert);
-
-			return;
+			BZ_Free(programbody);
 		}
-	}
-
-	vert = Shader_ParseString(ptr);
-	if (!strcmp(vert, "default"))
-	{
-		extern char *defaultglsl2program;
-		frag = Shader_ParseString(ptr);
-#ifdef GLQUAKE
-		if (qrenderer == QR_OPENGL)
-			Shader_LoadProgram(shader, defaultglsl2program, defaultglsl2program, qrtype);
-#endif
 		return;
 	}
-	FS_LoadFile(vert, &vert);
 
-	frag = Shader_ParseString(ptr);
-	if (!frag)
-		frag = NULL;
-	else
-		FS_LoadFile(frag, &frag);
-
-	Shader_LoadProgram(shader, vert, frag, qrtype);
-	if (vert)
-		FS_FreeFile(vert);
-	if (frag)
-		FS_FreeFile(frag);
+	Shader_LoadGeneric(shader->programhandle, Shader_ParseString(ptr), qrtype);
+	Shader_ProgAutoFields(shader);
 }
 
 static void Shader_GLSLProgramName (shader_t *shader, shaderpass_t *pass, char **ptr)
@@ -838,6 +1349,7 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 	enum shaderprogparmtype_e parmtype = SP_BAD;
 	char *token;
 	qboolean silent = false;
+	char *forcename = NULL;
 
 	token = Shader_ParseString(ptr);
 	if (!Q_stricmp(token, "opt"))
@@ -910,7 +1422,10 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 	else
 		Con_Printf("shader %s: parameter type \"%s\" not known\n", shader->name, token);
 
-	token = Shader_ParseSensString(ptr);
+	if (forcename)
+		token = forcename;
+	else
+		token = Shader_ParseSensString(ptr);
 
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
@@ -933,7 +1448,10 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 				if (!shader->programhandle[p].glsl)
 					continue;
 				GLSlang_UseProgram(shader->programhandle[p].glsl);
-				uniformloc = qglGetUniformLocationARB(shader->programhandle[p].glsl, token);
+				if (parmtype >= SP_FIRSTUNIFORM)
+					uniformloc = qglGetUniformLocationARB(shader->programhandle[p].glsl, token);
+				else
+					uniformloc = qglGetAttribLocationARB(shader->programhandle[p].glsl, token);
 				shader->progparm[shader->numprogparams].handle[p] = uniformloc;
 				if (uniformloc != -1)
 				{
@@ -964,7 +1482,7 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 				}
 			}
 			if (!foundone && !silent)
-				Con_Printf("shader %s: param without uniform \"%s\"\n", shader->name, token);
+				Con_Printf("shader %s: param \"%s\" not found\n", shader->name, token);
 			else
 				shader->numprogparams++;
 
@@ -1633,6 +2151,7 @@ qboolean Shader_Init (void)
 	memset(shader_active_hash_mem, 0, Hash_BytesForBuckets(1024));
 	Hash_InitTable(&shader_active_hash, 1024, shader_active_hash_mem);
 
+	Shader_FlushGenerics();
 	shader_rescan_needed = true;
 	Shader_NeedReload();
 	Shader_DoReload();
@@ -1773,7 +2292,7 @@ void Shader_Free (shader_t *shader)
 		for (p = 0; p < PERMUTATIONS; p++)
 		{
 			if (shader->programhandle[p].glsl)
-				GLSlang_DeleteObject(shader->programhandle[p].glsl);
+				qglDeleteProgramObject_(shader->programhandle[p].glsl);
 		}
 	}
 #endif
@@ -2517,24 +3036,22 @@ void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args)
 					"}\n"
 				"}\n"
 			);
-
-/*	if (0&&!builtin && gl_config.arb_shader_objects)
+#ifdef GLQUAKE
+	if (!builtin && gl_config.arb_shader_objects && gl_config.nofixedfunc)
 	{
 			builtin = (
 				"{\n"
-					"program default\n"
-					"param texture 0 tex_diffuse\n"
+					"program defaultwall\n"
+					/*"param texture 0 tex_diffuse\n"
 					"param texture 1 tex_lightmap\n"
 					"param texture 2 tex_normalmap\n"
 					"param texture 3 tex_deluxmap\n"
-					"param texture 4 tex_fullbright\n"
+					"param texture 4 tex_fullbright\n"*/
 					"{\n"
 						"map $diffuse\n"
-						"tcgen base\n"
 					"}\n"
 					"{\n"
 						"map $lightmap\n"
-						"tcgen lightmap\n"
 					"}\n"
 					"{\n"
 						"map $normalmap\n"
@@ -2548,7 +3065,7 @@ void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args)
 				"}\n"
 			);
 	}
-*/
+#endif
 	if (!builtin)
 		builtin = (
 				"{\n"
@@ -2763,44 +3280,14 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 		{
 			builtin = (
 				"{\n"
-					"sort blend\n"
-					"program\n"
-					"{\n"
-						"#ifdef VERTEX_SHADER\n"
-						"varying vec3 pos;\n"
-						"varying vec2 tc;\n"
-
-						"void main (void)\n"
-						"{\n"
-						"	tc = gl_MultiTexCoord0.st;\n"
-						"	gl_Position = ftransform();\n"
-						"}\n"
-						"#endif\n"
-
-						"#ifdef FRAGMENT_SHADER\n"
-						"uniform sampler2D watertexture;\n"
-						"uniform float time;\n"
-						"uniform float wateralpha;\n"
-						"varying vec2 tc;\n"
-
-						"void main (void)\n"
-						"{\n"
-						"	vec2 ntc;\n"
-						"	ntc.s = tc.s + sin(tc.t+time)*0.125;\n"
-						"	ntc.t = tc.t + sin(tc.s+time)*0.125;\n"
-						"	vec3 ts = vec3(texture2D(watertexture, ntc));\n"
-
-						"	gl_FragColor = vec4(ts, wateralpha);\n"
-						"}\n"
-						"#endif\n"
-					"}\n"
-					"param time time\n"
-					"param texture 0 watertexture\n"
+					"sort blend\n" /*make sure it always has the same sort order, so switching on/off wateralpha doesn't break stuff*/
+					"program defaultwarp\n"
 					"if r_wateralpha != 1\n"
 					"[\n"
 						"param cvarf r_wateralpha wateralpha\n"
 						"{\n"
 							"map $diffuse\n"
+							"tcmod turb 0 0 3 0.1\n"
 							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
 						"}\n"
 					"]\n"
@@ -2809,6 +3296,7 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 						"param constf 1 wateralpha\n"
 						"{\n"
 							"map $diffuse\n"
+							"tcmod turb 0 0 3 0.1\n"
 						"}\n"
 					"]\n"
 					"surfaceparm nodlight\n"
@@ -2883,50 +3371,8 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 			builtin = (
 				"{\n"
 					"sort sky\n"
-					"program\n"
-					"{\n"
-						"#ifdef VERTEX_SHADER\n"
-						"varying vec3 pos;\n"
-
-						"void main (void)\n"
-						"{\n"
-						"	pos = gl_Vertex.xyz;\n"
-						"	gl_Position = ftransform();\n"
-						"}\n"
-						"#endif\n"
-
-						"#ifdef FRAGMENT_SHADER\n"
-						"uniform sampler2D solidt;\n"
-						"uniform sampler2D transt;\n"
-
-						"uniform float time;\n"
-						"uniform vec3 eyepos;\n"
-						"varying vec3 pos;\n"
-
-						"void main (void)\n"
-						"{\n"
-						"	vec2 tccoord;\n"
-
-						"	vec3 dir = pos - eyepos;\n"
-
-						"	dir.z *= 3.0;\n"
-						"	dir.xy /= 0.5*length(dir);\n"
-
-						"	tccoord = (dir.xy + time*0.03125);\n"
-						"	vec3 solid = vec3(texture2D(solidt, tccoord));\n"
-
-						"	tccoord = (dir.xy + time*0.0625);\n"
-						"	vec4 clouds = texture2D(transt, tccoord);\n"
-
-						"	gl_FragColor.rgb = (solid.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb);\n"
-	//					"	gl_FragColor.rgb = solid.rgb;/*gl_FragColor.g = clouds.r;*/gl_FragColor.b = clouds.a;\n"
-						"}\n"
-						"#endif\n"
-					"}\n"
-					"param time time\n"
+					"program defaultsky\n"
 					"param eyepos eyepos\n"
-					"param texture 0 solidt\n"
-					"param texture 1 transt\n"
 					"surfaceparm nodlight\n"
 					//"skyparms - 512 -\n"
 					"{\n"
@@ -3075,6 +3521,7 @@ void Shader_DefaultSkin(char *shortname, shader_t *s, const void *args)
 {
 	Shader_DefaultScript(shortname, s,
 		"{\n"
+			"program defaultskin\n"
 			"{\n"
 				"map $diffuse\n"
 				"rgbgen lightingDiffuse\n"
@@ -3130,6 +3577,7 @@ void Shader_Default2D(char *shortname, shader_t *s, const void *genargs)
 {
 	Shader_DefaultScript(shortname, s,
 		"{\n"
+//			"program default2d\n"
 			"nomipmaps\n"
 			"{\n"
 				"clampmap $diffuse\n"
@@ -3291,13 +3739,47 @@ static int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *gena
 	if (ruleset_allow_shaders.ival)
 	{
 #ifdef GLQUAKE
-		if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects)
+		if (qrenderer == QR_OPENGL)
 		{
-			if (Shader_ParseShader(va("%s_glsl", shortname), shortname, s))
+			if (gl_config.gles && gl_config.glversion >= 2)
 			{
-				s->generator = defaultgen;
-				s->genargs = genargs;
-				return f;
+				if (Shader_ParseShader(va("%s_gles2", shortname), shortname, s))
+				{
+					s->generator = defaultgen;
+					s->genargs = genargs;
+					return f;
+				}
+			}
+			if (gl_config.glversion >= 3)
+			{
+				if (Shader_ParseShader(va("%s_glsl3", shortname), shortname, s))
+				{
+					s->generator = defaultgen;
+					s->genargs = genargs;
+					return f;
+				}
+			}
+			if (gl_config.arb_shader_objects)
+			{
+				if (Shader_ParseShader(va("%s_glsl", shortname), shortname, s))
+				{
+					s->generator = defaultgen;
+					s->genargs = genargs;
+					return f;
+				}
+			}
+		}
+#endif
+#ifdef D3DQUAKE
+		if (qrenderer == QR_DIRECT3D)
+		{
+			{
+				if (Shader_ParseShader(va("%s_hlsl", shortname), shortname, s))
+				{
+					s->generator = defaultgen;
+					s->genargs = genargs;
+					return f;
+				}
 			}
 		}
 #endif

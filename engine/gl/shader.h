@@ -233,29 +233,48 @@ enum{
 	PERMUTATION_GENERIC = 0,
 	PERMUTATION_BUMPMAP = 1,
 	PERMUTATION_SPECULAR = 2,
-	PERMUTATION_BUMP_SPEC,
-	PERMUTATION_OFFSET = 4,
-	PERMUTATION_OFFSET_BUMP,
-	PERMUTATION_OFFSET_SPEC,
-	PERMUTATION_OFFSET_BUMP_SPEC,
+	PERMUTATION_FULLBRIGHT = 4,
+	PERMUTATION_LOWER = 8,
+	PERMUTATION_UPPER = 16,
+	PERMUTATION_OFFSET = 32,
 
-	PERMUTATIONS
+	PERMUTATIONS = 64
 };
 
 typedef struct {
 	enum shaderprogparmtype_e {
-		SP_BAD,
+		SP_BAD,	//never set (hopefully)
 
+		SP_ATTR_VERTEX,
+		SP_ATTR_COLOUR,
+		SP_ATTR_TEXCOORD,
+		SP_ATTR_LMCOORD,
+		SP_ATTR_NORMALS,
+		SP_ATTR_SNORMALS,
+		SP_ATTR_TNORMALS,
+
+		SP_FIRSTUNIFORM,	//never set
+
+		/*entity properties*/
 		SP_ENTCOLOURS,
 		SP_TOPCOLOURS,
 		SP_BOTTOMCOLOURS,
 		SP_TIME,
+		SP_E_L_DIR, /*these light values are non-dynamic light as in classic quake*/
+		SP_E_L_MUL,
+		SP_E_L_AMBIENT,
+
 		SP_EYEPOS,
 		SP_ENTMATRIX,
+		SP_VIEWMATRIX,
+		SP_MODELMATRIX,
+		SP_MODELVIEWMATRIX,
+		SP_PROJECTIONMATRIX,
+		SP_MODELVIEWPROJECTIONMATRIX,
 
 		SP_RENDERTEXTURESCALE,	/*multiplier for currentrender->texcoord*/
 
-		SP_LIGHTRADIUS,
+		SP_LIGHTRADIUS, /*these light values are realtime lighting*/
 		SP_LIGHTCOLOUR,
 		SP_LIGHTPOSITION,
 
@@ -277,7 +296,10 @@ typedef struct {
 	};
 } shaderprogparm_t;
 
-
+union programhandle_u
+{
+	int glsl;
+};
 typedef struct {
 	float factor;
 	float unit;
@@ -321,12 +343,11 @@ struct shader_s
 
 		SHADER_NODLIGHT			= 1 << 15,	//from surfaceflags
 		SHADER_HASLIGHTMAP		= 1 << 16,
-		SHADER_HASTOPBOTTOM		= 1 << 17
+		SHADER_HASTOPBOTTOM		= 1 << 17,
+		SHADER_NOBUILTINATTR    = 1 << 18	/*using custom glsl attributes so don't feed it builtins*/
 	} flags;
 
-	union {
-		int glsl;
-	} programhandle[PERMUTATIONS];
+	union programhandle_u programhandle[PERMUTATIONS];
 	int numprogparams;
 	shaderprogparm_t progparm[SHADER_PROGPARMS_MAX];
 

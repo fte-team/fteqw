@@ -788,17 +788,21 @@ Setup as if the screen was 320*200
 void GL_Set2D (void)
 {
 	GL_SetShaderState2D(true);
+	Matrix4_Orthographic(r_refdef.m_projection, 0, vid.width, vid.height, 0, -99999, 99999);
+	Matrix4_Identity(r_refdef.m_view);
+	r_refdef.time = realtime;
 
+	/*flush that gl state*/
 	qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
 
-	qglMatrixMode(GL_PROJECTION);
-	qglLoadIdentity ();
-	qglOrtho  (0, vid.width, vid.height, 0, -99999, 99999);
+	if (qglLoadMatrixf)
+	{
+		qglMatrixMode(GL_PROJECTION);
+		qglLoadMatrixf(r_refdef.m_projection);
 
-	qglMatrixMode(GL_MODELVIEW);
-	qglLoadIdentity ();
-
-	r_refdef.time = realtime;
+		qglMatrixMode(GL_MODELVIEW);
+		qglLoadMatrixf(r_refdef.m_view);
+	}
 }
 
 

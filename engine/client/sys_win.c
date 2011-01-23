@@ -43,6 +43,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if !defined(CLIENTONLY) && !defined(SERVERONLY)
 qboolean isDedicated = false;
 #endif
+qboolean debugout;
 
 HWND sys_parentwindow;
 unsigned int sys_parentwidth;	//valid if sys_parentwindow is set
@@ -732,14 +733,19 @@ void VARGS Sys_Printf (char *fmt, ...)
 	char		text[1024];
 	DWORD		dummy;
 
-	if (!houtput)
+	if (!houtput && !debugout)
 		return;
 
 	va_start (argptr,fmt);
 	vsnprintf (text, sizeof(text), fmt, argptr);
 	va_end (argptr);
 
-	WriteFile (houtput, text, strlen(text), &dummy, NULL);
+#ifdef _DEBUG
+	if (debugout)
+		OutputDebugString(text);	//msvc debug output
+#endif
+	if (houtput)
+		WriteFile (houtput, text, strlen(text), &dummy, NULL);
 }
 
 void Sys_Quit (void)
@@ -1548,6 +1554,8 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			printf("version " DISTRIBUTION " " __TIME__ " " __DATE__ "\n");
 			return true;
 		}
+		if (COM_CheckParm("-outputdebugstring"))
+			debugout = true;
 
 		if (!GetCurrentDirectory (sizeof(cwd), cwd))
 			Sys_Error ("Couldn't determine current directory");

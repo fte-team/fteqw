@@ -711,7 +711,6 @@ static void Shader_EntityMergable ( shader_t *shader, shaderpass_t *pass, char *
 /*program text is already loaded, this function parses the 'header' of it to see which permutations it provides, and how many times we need to recompile it*/
 static void Shader_LoadPermutations(union programhandle_u *handle, char *script, int qrtype)
 {
-	char *permutationdefines[PERMUTATIONS];
 	static char *permutationname[] =
 	{
 		"#define BUMP\n",
@@ -722,6 +721,7 @@ static void Shader_LoadPermutations(union programhandle_u *handle, char *script,
 		"#define OFFSETMAPPING\n",
 		NULL
 	};
+	char *permutationdefines[sizeof(permutationname)/sizeof(permutationname[0])];
 	unsigned int nopermutation = ~0u;
 	int p, n, pn;
 	char *end;
@@ -789,6 +789,12 @@ struct sbuiltin_s
 	char *body;
 } sbuiltins[] = 
 {
+#ifdef GLQUAKE
+	/*a quick note on glsl versions:
+	  gl versioning started with 110
+	  gles versioning started at 100 and only had a single one defined
+	  with gl3's combined support, gl3 supports 130+ and 100, but 110 requries compat extension
+	  with gl4, versions are meant to match the gl version more closely, so gl4.0 uses 400.*/
 	{QR_OPENGL/*ES*/, 100, "default2d",
 		"#version 100\n"
 		"#ifdef VERTEX_SHADER\n"
@@ -1117,6 +1123,7 @@ struct sbuiltin_s
 			"}\n"
 		"#endif\n"
 	},
+#endif
 	{QR_NONE}
 };
 static sgeneric_t *sgenerics;

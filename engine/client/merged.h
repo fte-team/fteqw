@@ -2,6 +2,11 @@
 struct progfuncs_s;
 struct globalvars_s;
 struct texture_s;
+struct texnums_s;
+struct vbo_s;
+struct mesh_s;
+struct batch_s;
+struct entity_s;
 
 
 

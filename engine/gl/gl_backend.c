@@ -2308,7 +2308,7 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 	int perm;
 
 	perm = 0;
-/*	if (TEXVALID(shaderstate.curtexnums->bump) && s->programhandle[perm|PERMUTATION_BUMPMAP].glsl)
+	if (TEXVALID(shaderstate.curtexnums->bump) && s->programhandle[perm|PERMUTATION_BUMPMAP].glsl)
 		perm |= PERMUTATION_BUMPMAP;
 	if (TEXVALID(shaderstate.curtexnums->specular) && s->programhandle[perm|PERMUTATION_SPECULAR].glsl)
 		perm |= PERMUTATION_SPECULAR;
@@ -2319,7 +2319,7 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 	if (TEXVALID(shaderstate.curtexnums->upperoverlay) && s->programhandle[perm|PERMUTATION_UPPER].glsl)
 		perm |= PERMUTATION_UPPER;
 	if (r_glsl_offsetmapping.ival && TEXVALID(shaderstate.curtexnums->bump) && s->programhandle[perm|PERMUTATION_OFFSET].glsl)
-		perm |= PERMUTATION_OFFSET;*/
+		perm |= PERMUTATION_OFFSET;
 	GL_SelectProgram(s->programhandle[perm].glsl);
 
 	BE_SendPassBlendAndDepth(pass->shaderbits);

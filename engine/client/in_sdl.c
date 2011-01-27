@@ -224,10 +224,6 @@ static unsigned int tbl_sdltoquakemouse[] =
 
 int mouse_x, mouse_y;
 
-#ifdef SWQUAKE
-void ResetFrameBuffers(void);
-#endif
-
 void Sys_SendKeyEvents(void)
 {
 	SDL_Event event;
@@ -250,13 +246,6 @@ void Sys_SendKeyEvents(void)
 			case QR_OPENGL:
 				vid.pixelwidth = event.resize.w;
 				vid.pixelheight = event.resize.h;
-				break;
-#endif
-#ifdef SWQUAKE
-			case QR_SOFTWARE:
-				vid.width = event.resize.w;
-				vid.height = event.resize.h;
-				ResetFrameBuffers();
 				break;
 #endif
 			}

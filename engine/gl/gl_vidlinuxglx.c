@@ -52,11 +52,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define WARP_WIDTH              320
 #define WARP_HEIGHT             200
 
-#ifdef SWQUAKE
-Display *vid_dpy = NULL;
-#else
 static Display *vid_dpy = NULL;
-#endif
 static Window vid_window;
 static GLXContext ctx = NULL;
 int scrnum;
@@ -90,7 +86,6 @@ qboolean originalapplied;	//states that the origionalramps arrays are valid, and
 extern cvar_t	_windowed_mouse;
 
 
-#ifndef SWQUAKE
 cvar_t	m_filter = {"m_filter", "0"};
 cvar_t  m_accel = {"m_accel", "0"};
 
@@ -100,12 +95,6 @@ cvar_t	in_xflip = {"in_xflip", "0"};
 
 static float   mouse_x, mouse_y;
 static float	old_mouse_x, old_mouse_y;
-
-#else
-
-extern float   mouse_x, mouse_y;
-extern float	old_mouse_x, old_mouse_y;
-#endif
 
 /*-----------------------------------------------------------------------*/
 
@@ -348,8 +337,11 @@ static void install_grabs(void)
 static void uninstall_grabs(void)
 {
 #ifdef USE_DGA
-	XF86DGADirectVideo(vid_dpy, DefaultScreen(vid_dpy), 0);
-	dgamouse = 0;
+	if (dgamouse)
+	{
+		XF86DGADirectVideo(vid_dpy, DefaultScreen(vid_dpy), 0);
+		dgamouse = 0;
+	}
 #endif
 
 	XUngrabPointer(vid_dpy, CurrentTime);
@@ -968,11 +960,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	return true;
 }
 
-#ifdef SWQUAKE
-void GLSys_SendKeyEvents(void)
-#else
 void Sys_SendKeyEvents(void)
-#endif
 {
 	if (vid_dpy && vid_window) {
 		while (XPending(vid_dpy))
@@ -985,7 +973,6 @@ void Force_CenterView_f (void)
 	cl.viewangles[0][PITCH] = 0;
 }
 
-#ifndef SWQUAKE
 void IN_ReInit(void)
 {
 }
@@ -1109,7 +1096,6 @@ void IN_Move (float *movements, int pnum)
 {
 	IN_MouseMove(movements, pnum);
 }
-#endif
 
 void GL_DoSwap(void) {}
 

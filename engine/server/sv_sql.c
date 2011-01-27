@@ -166,7 +166,7 @@ int sql_serverworker(void *sref)
 	{	
 		Sys_LockConditional(server->requestcondv);
 		if (!server->requests) // this is needed for thread startup and to catch any "lost" changes
-		Sys_ConditionWait(server->requestcondv);
+			Sys_ConditionWait(server->requestcondv);
 		needlock = false; // so we don't try to relock first round
 
 		while (1)

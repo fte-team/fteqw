@@ -980,10 +980,10 @@ SV_DIR?=sv_sdl
 
 .default: help
 all: rel
-rel: sv-rel gl-rel mingl-rel m-rel
-dbg: sv-dbg gl-dbg mingl-dbg m-dbg
+rel: sv-rel gl-rel mingl-rel
+dbg: sv-dbg gl-dbg mingl-dbg
 relcl: glcl-rel mcl-rel
-profile: sv-profile gl-profile mingl-profile m-profile
+profile: sv-profile gl-profile mingl-profile
 
 releases:
 	#this is for releasing things from a linux box

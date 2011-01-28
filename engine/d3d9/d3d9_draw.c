@@ -24,6 +24,21 @@ typedef struct d3dcachepic_s
 d3dcachepic_t	d3dmenu_cachepics[MAX_CACHED_PICS];
 int			d3dmenu_numcachepics;
 
+#ifdef MINGW // these are undefined in MinGW
+	const unsigned int TF_COLOR = 1;
+	const unsigned int TF_ALPHA = 2;
+	const unsigned int TF_MASKED = 4;
+	const unsigned int TF_MIPMAP = 8;
+	const unsigned int TF_CLAMP = 16;
+	const unsigned int TF_ANISOTROPIC = 32;
+	const unsigned int TF_SPHEREMAP = 64;
+	const unsigned int TF_CUBEMAP = 128;
+	const unsigned int TF_NORMALCUBE = 512;
+	const unsigned int TF_NOTBUMPMAP = 0; //made this up
+	const unsigned int TF_NOMIPMAP = 0; //made this up
+	const unsigned int TF_NOALPHA = 0; //made this up
+#endif
+
 
 
 typedef struct {

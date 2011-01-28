@@ -1,4 +1,6 @@
-//#include    "ddraw.h"
+#ifdef MINGW
+	#include    "ddraw.h" // resolve DDLOCK_NOSYSLOCK
+#endif
 
 #ifndef D3D9QUAKE_H
 #define D3D9QUAKE_H

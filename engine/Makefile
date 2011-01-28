@@ -419,10 +419,8 @@ GLQUAKE_OBJS =		\
 	gl_hlmdl.o
 
 D3DQUAKE_OBJS =		\
-	d3d_draw.o	\
-	d3d_mesh.o	\
-	d3d_rmain.o	\
-	d3d_rsurf.o	\
+	d3d_backend.o \
+	d3d_image.o	\
 	vid_d3d.o	\
 	d3d9_draw.o	\
 	d3d9_mesh.o	\
@@ -590,7 +588,7 @@ ifeq ($(FTE_TARGET),win32_SDL)
 
 	MB_DIR=m_mgw_sdl$(BITS)
 	M_EXE_NAME=../fteqw_sdl.exe
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o resources.o
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o resources.o
 	M_CFLAGS=-D_MINGW_VFPRINTF -D_SDL -I./libs/ -I./libs/mingw-libs/  -I./libs/dxsdk7/include/ -I./libs/mingw-libs $(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL
 	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS)
 	
@@ -627,7 +625,7 @@ ifeq ($(FTE_TARGET),win64_SDL)
 
 	MB_DIR=m_mgw_sdl$(BITS)
 	M_EXE_NAME=../fteqw_sdl64.exe
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o resources.o
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o resources.o
 	M_CFLAGS=-D_MINGW_VFPRINTF -D_SDL -I./libs/ -I./libs/mingw64-libs/  -I./libs/dxsdk7/include/ -I./libs/mingw64-libs $(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL
 	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS)
 	
@@ -711,9 +709,9 @@ endif
 	NPQTVCL_DIR=npqtvcl_mgw
 
 ifeq ($(USEASM),true)
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) fs_win32.o gl_vidnt.o vid_ddraw.o vid_dib.o vid_win2.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o resources.o
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o resources.o
 else
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) fs_win32.o gl_vidnt.o vid_ddraw.o vid_dib.o vid_win2.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o resources.o
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o resources.o
 endif
 	M_EXE_NAME=../fteqw.exe
 	MCL_EXE_NAME=../fteqwcl.exe
@@ -777,9 +775,9 @@ endif
 	NPQTVCL_DIR=npqtvcl_mgw64
 
 ifeq ($(USEASM),true)
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) fs_win32.o gl_vidnt.o vid_ddraw.o vid_dib.o vid_win2.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o resources.o
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o resources.o
 else
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) fs_win32.o gl_vidnt.o vid_ddraw.o vid_dib.o vid_win2.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o resources.o
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o resources.o
 endif
 	M_EXE_NAME=../fteqw64.exe
 	MCL_EXE_NAME=../fteqwcl64.exe
@@ -968,10 +966,10 @@ SV_DIR?=sv_sdl
 
 .default: help
 all: rel
-rel: sv-rel gl-rel mingl-rel
-dbg: sv-dbg gl-dbg mingl-dbg
+rel: sv-rel gl-rel mingl-rel m-rel
+dbg: sv-dbg gl-dbg mingl-dbg m-dbg
 relcl: glcl-rel mcl-rel
-profile: sv-profile gl-profile mingl-profile
+profile: sv-profile gl-profile mingl-profile m-profile
 
 releases:
 	#this is for releasing things from a linux box

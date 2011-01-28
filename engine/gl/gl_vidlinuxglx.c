@@ -731,6 +731,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		GLX_BLUE_SIZE, 1,
 		GLX_DOUBLEBUFFER,
 		GLX_DEPTH_SIZE, 1,
+		GLX_STENCIL_SIZE, 8,
 		None
 	};
 	XSetWindowAttributes attr;

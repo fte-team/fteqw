@@ -182,7 +182,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //		#define QTERM			//qterm... adds a console command that allows running programs from within quake - bit like xterm.
 		#define CL_MASTER		//query master servers and stuff for a dynamic server listing.
 		#define R_XFLIP			//allow view to be flipped horizontally
+#ifndef NO_XFLIP
 		#define IN_XFLIP		//allow input to be flipped horizontally.
+#endif
 		#define TEXTEDITOR
 		#define PPL				//per pixel lighting (stencil shadowing)
 		#define DDS				//a sort of image file format.

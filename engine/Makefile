@@ -288,7 +288,7 @@ else
 	GNUC_FUNCS= -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp -D_vsnprintf=vsnprintf -D_snprintf=snprintf
 endif
 
-BASE_CFLAGS=$(BASE_ASM_CFLAGS) $(WARNINGFLAGS) $(GNUC_FUNCS) -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(GL_DIR) -I$(D3D9_DIR) -I$(D3D7_DIR) -I$(PROGS_DIR) -I$(LIBS_DIR) -I$(LIBS_DIR)/dxsdk7/include -I$(LIBS_DIR)/sdl/include -I/usr/include/SDL -I$(LIBS_DIR)/sdl/include/SDL -I./libs/freetype2/include -I./libs/freetype2/include/freetype -I./libs/speex $(SVNREVISION)
+BASE_CFLAGS=$(BASE_ASM_CFLAGS) $(WARNINGFLAGS) $(GNUC_FUNCS) -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(GL_DIR) -I$(D3D9_DIR) -I$(D3D7_DIR) -I$(PROGS_DIR) -I$(LIBS_DIR) -I$(LIBS_DIR)/dxsdk7/include -I$(LIBS_DIR)/dxsdk9/include -I$(LIBS_DIR)/sdl/include -I/usr/include/SDL -I$(LIBS_DIR)/sdl/include/SDL -I./libs/freetype2/include -I./libs/freetype2/include/freetype -I./libs/speex $(SVNREVISION)
 CLIENT_ONLY_CFLAGS=-DCLIENTONLY
 SERVER_ONLY_CFLAGS=-DSERVERONLY
 JOINT_CFLAGS=
@@ -422,6 +422,17 @@ D3DQUAKE_OBJS =		\
 	d3d_backend.o \
 	d3d_image.o	\
 	vid_d3d.o
+	
+D3DONLY_OBJS =		\
+	gl_font.o \
+	gl_model.o	\
+	gl_shader.o	\
+	gl_rlight.o	\
+	gl_alias.o	\
+	gl_warp.o	\
+	ltface.o	\
+	r_surf.o	\
+	r_2d.o
 
 MP3_OBJS =			\
 	fixed.o		\
@@ -519,7 +530,6 @@ COMMON_OBJS = $(COMMON_ASM_OBJS) \
 	q1bsp.o		\
 	q2pmove.o
 
-
 #the defaults for sdl come first
 GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o
 GL_EXE_NAME=../fteqw_sdl.gl$(BITS)
@@ -593,6 +603,15 @@ ifeq ($(FTE_TARGET),win32_SDL)
 		#pthread is needed because of SDL.
 		M_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 ./libs/mingw-libs/libSDL.a ./libs/mingw-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS)
 	endif
+
+	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o resources.o $(D3DONLY_OBJS)
+	D3D_EXE_NAME=../fted3dqw.exe
+	D3DCL_EXE_NAME=../fted3dclqw.exe
+	D3D_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 ./libs/mingw-libs/libSDL.a ./libs/mingw-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32
+	D3D_CFLAGS=$(D3DCFLAGS) -D_MINGW_VFPRINTF -D_SDL -DNO_XFLIP -I./libs/ -I./libs/mingw-libs/  -I./libs/dxsdk7/include/ -I./libs/mingw-libs `sdl-config --cflags`
+	D3DB_DIR=d3d_mgw
+	D3DCL_DIR=d3dcl_mgw
+	
 endif
 ifeq ($(FTE_TARGET),win64_SDL)
 	LIBS_DIR=./libs/
@@ -715,11 +734,11 @@ endif
 	MB_DIR=m_mgw
 	MCL_DIR=mcl_mgw
 
-	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o resources.o
+	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o resources.o $(D3DONLY_OBJS) fs_win32.o
 	D3D_EXE_NAME=../fted3dqw.exe
 	D3DCL_EXE_NAME=../fted3dclqw.exe
-	D3D_LDFLAGS= -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
-	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS) -DMINIMAL
+	D3D_LDFLAGS=$(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
+	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS)
 	D3DB_DIR=d3d_mgw
 	D3DCL_DIR=d3dcl_mgw
 
@@ -781,11 +800,11 @@ endif
 	MB_DIR=m_mgw64
 	MCL_DIR=mcl_mgw64
 
-	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o resources.o
+	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o resources.o $(D3DONLY_OBJS) fs_win32.o
 	D3D_EXE_NAME=../fted3dqw64.exe
 	D3DCL_EXE_NAME=../fted3dclqw64.exe
-	D3D_LDFLAGS= -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
-	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS) -DMINIMAL
+	D3D_LDFLAGS=$(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
+	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS)
 	D3DB_DIR=d3d_mgw64
 	D3DCL_DIR=d3dcl_mgw64
 

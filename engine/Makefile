@@ -421,12 +421,7 @@ GLQUAKE_OBJS =		\
 D3DQUAKE_OBJS =		\
 	d3d_backend.o \
 	d3d_image.o	\
-	vid_d3d.o	\
-	d3d9_draw.o	\
-	d3d9_mesh.o	\
-	d3d9_rmain.o	\
-	d3d9_rsurf.o	\
-	vid_d3d9.o
+	vid_d3d.o
 
 MP3_OBJS =			\
 	fixed.o		\
@@ -589,7 +584,7 @@ ifeq ($(FTE_TARGET),win32_SDL)
 	MB_DIR=m_mgw_sdl$(BITS)
 	M_EXE_NAME=../fteqw_sdl.exe
 	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o resources.o
-	M_CFLAGS=-D_MINGW_VFPRINTF -D_SDL -I./libs/ -I./libs/mingw-libs/  -I./libs/dxsdk7/include/ -I./libs/mingw-libs $(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL
+	M_CFLAGS=$(D3DCFLAGS) -D_MINGW_VFPRINTF -D_SDL -I./libs/ -I./libs/mingw-libs/  -I./libs/dxsdk7/include/ -I./libs/mingw-libs $(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL
 	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS)
 	
 	ifdef windir
@@ -626,7 +621,7 @@ ifeq ($(FTE_TARGET),win64_SDL)
 	MB_DIR=m_mgw_sdl$(BITS)
 	M_EXE_NAME=../fteqw_sdl64.exe
 	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o resources.o
-	M_CFLAGS=-D_MINGW_VFPRINTF -D_SDL -I./libs/ -I./libs/mingw64-libs/  -I./libs/dxsdk7/include/ -I./libs/mingw64-libs $(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL
+	M_CFLAGS= $(D3DCFLAGS) -D_MINGW_VFPRINTF -D_SDL -I./libs/ -I./libs/mingw64-libs/  -I./libs/dxsdk7/include/ -I./libs/mingw64-libs $(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL
 	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS)
 	
 	ifdef windir
@@ -661,7 +656,7 @@ ifeq ($(FTE_TARGET),vc)
 	
 	M_EXE_NAME=../fteqw.exe
 	MCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o resources.o
-	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS)
+	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS)
 	MB_DIR=m_vc
 	M_LDFLAGS=$(GLLDFLAGS) libs/jpeg.lib libs/libpng.lib libs/zlib.lib uuid.lib gdi32.lib ole32.lib libs/dxsdk7/lib/dxguid.lib /subsystem:windows
 endif
@@ -716,7 +711,7 @@ endif
 	M_EXE_NAME=../fteqw.exe
 	MCL_EXE_NAME=../fteqwcl.exe
 	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
-	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS)
+	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS)
 	MB_DIR=m_mgw
 	MCL_DIR=mcl_mgw
 
@@ -782,7 +777,7 @@ endif
 	M_EXE_NAME=../fteqw64.exe
 	MCL_EXE_NAME=../fteqwcl64.exe
 	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
-	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS)
+	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS)
 	MB_DIR=m_mgw64
 	MCL_DIR=mcl_mgw64
 

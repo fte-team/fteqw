@@ -60,7 +60,7 @@ cvar_t gl_nocolors							= CVAR  ("gl_nocolors", "0");
 cvar_t gl_part_flame						= CVAR  ("gl_part_flame", "1");
 
 //opengl library, blank means try default.
-static cvar_t gl_driver						= CVARF ("gl_driver", "", 
+static cvar_t gl_driver						= CVARF ("gl_driver", "",
 													 CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 cvar_t gl_shadeq1_name						= CVAR  ("gl_shadeq1_name", "*");
 extern cvar_t r_vertexlight;
@@ -1057,7 +1057,7 @@ qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 #endif
 #ifdef D3DQUAKE
 	case 1:
-        Cbuf_AddText("setrenderer d3d9\n", RESTRICT_LOCAL);
+        Cbuf_AddText("setrenderer d3d\n", RESTRICT_LOCAL);
         break;
 #endif
 	}
@@ -1835,7 +1835,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 
 	if (!*_vid_wait_override.string || _vid_wait_override.value < 0)
 		newr.wait = -1;
-	else 
+	else
 		newr.wait = _vid_wait_override.value;
 
 	Q_strncpyz(newr.glrenderer, gl_driver.string, sizeof(newr.glrenderer));

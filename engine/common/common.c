@@ -3112,18 +3112,20 @@ void COM_Version_f (void)
 #ifdef GLQUAKE
 	Con_Printf("OpenGL available\n");
 #endif
+#ifdef D3DQUAKE
+	Con_Printf("Direct3D available\n");
+#endif
+#ifdef USE_D3D
+	Con_Printf("FakeGL available\n");
+#endif
 
 #ifdef _SDL
 	Con_Printf("SDL version: %d.%d.%d\n", SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_PATCHLEVEL);
 #endif
 
 // Don't print both as a 64bit MinGW built client
-#if defined(__MINGW32__) && !defined(__MINGW64__)
-	Con_Printf("Compiled with MinGW32 version: %i.%i\n",__MINGW32_MAJOR_VERSION, __MINGW32_MINOR_VERSION);
-#endif
-
-#ifdef __MINGW64__
-	Con_Printf("Compiled with MinGW64 version: %i.%i\n",__MINGW32_MAJOR_VERSION, __MINGW32_MINOR_VERSION);
+#if defined(__MINGW32__)
+	Con_Printf("Compiled with MinGW32/64 version: %i.%i\n",__MINGW32_MAJOR_VERSION, __MINGW32_MINOR_VERSION);
 #endif
 
 #ifdef __CYGWIN__

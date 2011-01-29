@@ -84,6 +84,9 @@ qboolean GenerateNormalisationCubeMap()
 	unsigned char * bytePtr;
 
 	int i, j;
+	
+	normalisationCubeMap = GL_AllocNewTexture();
+	GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, normalisationCubeMap);
 
 	//positive x
 	bytePtr=data;
@@ -222,6 +225,13 @@ qboolean GenerateNormalisationCubeMap()
 	}
 	qglTexImage2D(	GL_TEXTURE_CUBE_MAP_NEGATIVE_Z_ARB,
 					0, GL_RGBA8, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);	
+		
+
+	qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
 	return true;
 }
@@ -237,27 +247,14 @@ R_Init
 */
 void GLR_ReInit (void)
 {		
-	extern int gl_bumpmappingpossible;
-
-
-	netgraphtexture = GL_AllocNewTexture(0, 0);
-
 #if 0
+	extern int gl_bumpmappingpossible;
 	if (gl_bumpmappingpossible)
-	{
-		//Create normalisation cube map
-		normalisationCubeMap = GL_AllocNewTexture();
-		GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, normalisationCubeMap);
 		GenerateNormalisationCubeMap();
-		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	}
 	else
 		normalisationCubeMap = 0;
 #endif
+	netgraphtexture = GL_AllocNewTexture(0, 0);
 
 	R_InitBloomTextures();
 	R_InitFlashblends();

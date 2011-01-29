@@ -197,8 +197,6 @@ LINE TESTING IN HULLS
 ===============================================================================
 */
 
-static vec3_t trace_extents;
-
 /*returns if it actually did a trace*/
 static qboolean PM_TransformedHullCheck (model_t *model, vec3_t start, vec3_t end, trace_t *trace, vec3_t origin, vec3_t angles)
 {

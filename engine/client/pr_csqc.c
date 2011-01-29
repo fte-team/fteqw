@@ -367,11 +367,11 @@ typedef struct csqcedict_s
 
 static void CSQC_InitFields(void)
 {	//CHANGING THIS FUNCTION REQUIRES CHANGES TO csqcentvars_t
-#define comfieldfloat(ssqcname,wname,name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (int)&((csqcentvars_t*)0)->name, -1)
-#define comfieldvector(ssqcname,wname,name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (int)&((csqcentvars_t*)0)->name, -1)
-#define comfieldentity(ssqcname,wname,name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (int)&((csqcentvars_t*)0)->name, -1)
-#define comfieldstring(ssqcname,wname,name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (int)&((csqcentvars_t*)0)->name, -1)
-#define comfieldfunction(ssqcname,wname,name) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (int)&((csqcentvars_t*)0)->name, -1)
+#define comfieldfloat(ssqcname,wname,name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (size_t)&((csqcentvars_t*)0)->name, -1)
+#define comfieldvector(ssqcname,wname,name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (size_t)&((csqcentvars_t*)0)->name, -1)
+#define comfieldentity(ssqcname,wname,name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (size_t)&((csqcentvars_t*)0)->name, -1)
+#define comfieldstring(ssqcname,wname,name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (size_t)&((csqcentvars_t*)0)->name, -1)
+#define comfieldfunction(ssqcname,wname,name) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (size_t)&((csqcentvars_t*)0)->name, -1)
 comqcfields
 #undef comfieldfloat
 #undef comfieldvector
@@ -380,17 +380,17 @@ comqcfields
 #undef comfieldfunction
 
 #ifdef VM_Q1
-#define comfieldfloat(name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, sizeof(csqcentvars_t) + (int)&((csqcextentvars_t*)0)->name, -1)
-#define comfieldvector(name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, sizeof(csqcentvars_t) + (int)&((csqcextentvars_t*)0)->name, -1)
-#define comfieldentity(name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, sizeof(csqcentvars_t) + (int)&((csqcextentvars_t*)0)->name, -1)
-#define comfieldstring(name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, sizeof(csqcentvars_t) + (int)&((csqcextentvars_t*)0)->name, -1)
-#define comfieldfunction(name) PR_RegisterFieldVar(csqcprogs, ev_function, #name, sizeof(csqcentvars_t) + (int)&((csqcextentvars_t*)0)->name, -1)
+#define comfieldfloat(name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1)
+#define comfieldvector(name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1)
+#define comfieldentity(name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1)
+#define comfieldstring(name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1)
+#define comfieldfunction(name) PR_RegisterFieldVar(csqcprogs, ev_function, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1)
 #else
-#define comfieldfloat(name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (int)&((csqcentvars_t*)0)->name, -1)
-#define comfieldvector(name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (int)&((csqcentvars_t*)0)->name, -1)
-#define comfieldentity(name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (int)&((csqcentvars_t*)0)->name, -1)
-#define comfieldstring(name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (int)&((csqcentvars_t*)0)->name, -1)
-#define comfieldfunction(name) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (int)&((csqcentvars_t*)0)->name, -1)
+#define comfieldfloat(name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (size_t)&((csqcentvars_t*)0)->name, -1)
+#define comfieldvector(name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (size_t)&((csqcentvars_t*)0)->name, -1)
+#define comfieldentity(name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (size_t)&((csqcentvars_t*)0)->name, -1)
+#define comfieldstring(name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (size_t)&((csqcentvars_t*)0)->name, -1)
+#define comfieldfunction(name) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (size_t)&((csqcentvars_t*)0)->name, -1)
 #endif
 comextqcfields
 csqcextfields
@@ -5060,7 +5060,7 @@ void CSQC_Shutdown(void)
 }
 
 //when the qclib needs a file, it calls out to this function.
-qbyte *CSQC_PRLoadFile (char *path, void *buffer, int bufsize)
+qbyte *CSQC_PRLoadFile (const char *path, void *buffer, int bufsize)
 {
 	qbyte *file;
 
@@ -5115,7 +5115,7 @@ qbyte *CSQC_PRLoadFile (char *path, void *buffer, int bufsize)
 	return COM_LoadStackFile(path, buffer, bufsize);
 }
 
-int CSQC_PRFileSize (char *path)
+int CSQC_PRFileSize (const char *path)
 {
 	qbyte *file;
 

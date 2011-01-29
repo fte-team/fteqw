@@ -251,8 +251,6 @@ qboolean Cmd_IsCommand (char *line)
 
 int PaddedPrint (char *s, int x)
 {
-	int	nextcolx = 0;
-
 	Con_Printf ("%s\t", s);
 	x+=strlen(s);
 
@@ -1305,7 +1303,7 @@ qboolean Key_MouseShouldBeFree(void)
 
 	//if true, the input code is expected to return mouse cursor positions rather than deltas
 	extern cvar_t cl_prydoncursor;
-	extern int mouseusedforgui;
+//	extern int mouseusedforgui;
 //	if (mouseusedforgui)	//I don't like this
 //		return true;
 

@@ -222,23 +222,26 @@ static void Plug_RegisterBuiltinIndex(char *name, Plug_Builtin_t bi, int flags, 
 }
 */
 
-qintptr_t VARGS Plug_FindBuiltin(void *offset, quintptr_t mask, const qintptr_t *args)
+static qintptr_t Plug_FindBuiltin(qboolean native, char *p)
 {
 	int i;
-	char *p = (char *)VM_POINTER(args[0]);
-
 	for (i = 0; i < numplugbuiltins; i++)
 		if (plugbuiltins[i].name)
 			if (p && !strcmp(plugbuiltins[i].name, p))
 			{
-				if (offset && plugbuiltins[i].flags & PLUG_BIF_DLLONLY)
+				if (!native && plugbuiltins[i].flags & PLUG_BIF_DLLONLY)
 					return 0;	//block it, if not native
-				if (!offset && plugbuiltins[i].flags & PLUG_BIF_QVMONLY)
+				if (native && plugbuiltins[i].flags & PLUG_BIF_QVMONLY)
 					return 0;	//block it, if not native
 				return -i;
 			}
 
 	return 0;
+}
+qintptr_t VARGS Plug_GetBuiltin(void *offset, quintptr_t mask, const qintptr_t *args)
+{
+	char *p = (char *)VM_POINTER(args[0]);
+	return Plug_FindBuiltin(!offset, p);
 }
 
 int Plug_SystemCallsVM(void *offset, quintptr_t mask, int fn, const int *arg)
@@ -300,7 +303,6 @@ static qintptr_t EXPORT_FN Plug_SystemCallsNative(qintptr_t arg, ...)
 plugin_t *Plug_Load(char *file)
 {
 	plugin_t *newplug;
-	qintptr_t argarray;
 
 	for (newplug = plugs; newplug; newplug = newplug->next)
 	{
@@ -321,8 +323,7 @@ plugin_t *Plug_Load(char *file)
 		newplug->next = plugs;
 		plugs = newplug;
 
-		argarray = 4;
-		if (!VM_Call(newplug->vm, 0, Plug_FindBuiltin("Plug_GetEngineFunction"-4, ~0, &argarray)))
+		if (!VM_Call(newplug->vm, 0, Plug_FindBuiltin(true, "Plug_GetEngineFunction")))
 		{
 			Plug_Close(newplug);
 			return NULL;
@@ -1429,7 +1430,7 @@ void Plug_Init(void)
 	Cmd_AddCommand("plug_load", Plug_Load_f);
 	Cmd_AddCommand("plug_list", Plug_List_f);
 
-	Plug_RegisterBuiltin("Plug_GetEngineFunction",	Plug_FindBuiltin, 0);//plugin wishes to find a builtin number.
+	Plug_RegisterBuiltin("Plug_GetEngineFunction",	Plug_GetBuiltin, 0);//plugin wishes to find a builtin number.
 	Plug_RegisterBuiltin("Plug_ExportToEngine",		Plug_ExportToEngine, 0);	//plugin has a call back that we might be interested in.
 	Plug_RegisterBuiltin("Plug_ExportNative",		Plug_ExportNative, PLUG_BIF_DLLONLY);
 	Plug_RegisterBuiltin("Con_Print",				Plug_Con_Print, 0);	//printf is not possible - qvm floats are never doubles, vararg floats in a cdecl call are always converted to doubles.

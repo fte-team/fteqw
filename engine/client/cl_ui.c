@@ -723,24 +723,27 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 	case UI_CVAR_SET:
 		{
 			cvar_t *var;
-			if (!strcmp(VM_POINTER(arg[0]), "fs_game"))
+			char *vname = VM_POINTER(arg[0]);
+			char *vval = VM_POINTER(arg[1]);
+			if (!strcmp(vname, "fs_game"))
 			{
-				Cbuf_AddText(va("gamedir %s\nui_restart\n", (char*)VM_POINTER(arg[1])), RESTRICT_SERVER);
+				Cbuf_AddText(va("gamedir %s\nui_restart\n", (char*)vval), RESTRICT_SERVER);
 			}
 			else
 			{
-				var = Cvar_FindVar(VM_POINTER(arg[0]));
+				var = Cvar_FindVar(vname);
 				if (var)
-					Cvar_Set(var, VM_POINTER(arg[1]));	//set it
+					Cvar_Set(var, vval);	//set it
 				else
-					Cvar_Get(VM_POINTER(arg[0]), VM_POINTER(arg[1]), 0, "UI created");	//create one
+					Cvar_Get(vname, vval, 0, "UI created");	//create one
 			}
 		}
 		break;
 	case UI_CVAR_VARIABLEVALUE:
 		{
 			cvar_t *var;
-			var = Cvar_FindVar(VM_POINTER(arg[0]));
+			char *vname = VM_POINTER(arg[0]);
+			var = Cvar_FindVar(vname);
 			if (var)
 				VM_FLOAT(ret) = var->value;
 			else
@@ -750,7 +753,8 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 	case UI_CVAR_VARIABLESTRINGBUFFER:
 		{
 			cvar_t *var;
-			var = Cvar_FindVar(VM_POINTER(arg[0]));
+			char *vname = VM_POINTER(arg[0]);
+			var = Cvar_FindVar(vname);
 			if (!VM_LONG(arg[2]))
 				VM_LONG(ret) = 0;
 			else if (!var)
@@ -775,40 +779,44 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 	case UI_CVAR_RESET:	//cvar reset
 		{
 			cvar_t *var;
-			var = Cvar_FindVar((char *)VM_POINTER(arg[0]));
+			char *vname = VM_POINTER(arg[0]);
+			var = Cvar_FindVar(vname);
 			if (var)
 				Cvar_Set(var, var->defaultstr);
 		}
 		break;
 
 	case UI_CMD_EXECUTETEXT:
-		if (!strncmp((char*)VM_POINTER(arg[1]), "ping ", 5))
 		{
-			int i;
-			for (i = 0; i < MAX_PINGREQUESTS; i++)
-				if (ui_pings[i].type == NA_INVALID)
-				{
-					serverinfo_t *info;
-					NET_StringToAdr((char *)VM_POINTER(arg[1]) + 5, &ui_pings[i]);
-					info = Master_InfoForServer(ui_pings[i]);
-					if (info)
+			char *cmdtext = VM_POINTER(arg[1]);
+			if (!strncmp(cmdtext, "ping ", 5))
+			{
+				int i;
+				for (i = 0; i < MAX_PINGREQUESTS; i++)
+					if (ui_pings[i].type == NA_INVALID)
 					{
-						info->special |= SS_KEEPINFO;
-						Master_QueryServer(info);
+						serverinfo_t *info;
+						NET_StringToAdr(cmdtext + 5, &ui_pings[i]);
+						info = Master_InfoForServer(ui_pings[i]);
+						if (info)
+						{
+							info->special |= SS_KEEPINFO;
+							Master_QueryServer(info);
+						}
+						break;
 					}
-					break;
-				}
+			}
+			else if (!strncmp(cmdtext, "localservers", 12))
+			{
+				MasterInfo_Begin();
+			}
+	/*		else if (!strncmp(cmdtext, "r_vidmode", 12))
+			{
+				MasterInfo_Begin();
+			}
+	*/		else
+				Cbuf_AddText(cmdtext, RESTRICT_SERVER);
 		}
-		else if (!strncmp(VM_POINTER(arg[1]), "localservers", 12))
-		{
-			MasterInfo_Begin();
-		}
-/*		else if (!strncmp(VM_POINTER(arg[1]), "r_vidmode", 12))
-		{
-			MasterInfo_Begin();
-		}
-*/		else
-			Cbuf_AddText(VM_POINTER(arg[1]), RESTRICT_SERVER);
 		break;
 
 	case UI_FS_FOPENFILE: //fopen
@@ -973,15 +981,20 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case UI_GETGLCONFIG:	//get glconfig
-		if ((int)arg[0] + 11332/*sizeof(glconfig_t)*/ >= mask || VM_POINTER(arg[0]) < offset)
-			break;	//out of bounds.
+		{
+			char *cfg;
+			if ((int)arg[0] + 11332/*sizeof(glconfig_t)*/ >= mask || VM_POINTER(arg[0]) < offset)
+				break;	//out of bounds.
+			cfg = VM_POINTER(arg[0]);
+		
 
 		//do any needed work
-		memset(VM_POINTER(arg[0]), 0, 11304);
-		*(int *)VM_POINTER(arg[0]+11304) = vid.width;
-		*(int *)VM_POINTER(arg[0]+11308) = vid.height;
-		*(float *)VM_POINTER(arg[0]+11312) = (float)vid.width/vid.height;
-		memset(VM_POINTER(arg[0]+11316), 0, 11332-11316);
+		memset(cfg, 0, 11304);
+		*(int *)(cfg+11304) = vid.width;
+		*(int *)(cfg+11308) = vid.height;
+		*(float *)(cfg+11312) = (float)vid.width/vid.height;
+		memset(cfg+11316, 0, 11332-11316);
+		}
 		break;
 
 	case UI_GETCLIENTSTATE:	//get client state
@@ -1091,17 +1104,21 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case UI_GET_CDKEY:	//get cd key
-		if ((int)arg[0] + VM_LONG(arg[1]) >= mask || VM_POINTER(arg[0]) < offset)
-			break;	//out of bounds.
-		strncpy(VM_POINTER(arg[0]), Cvar_VariableString("cl_cdkey"), VM_LONG(arg[1]));
+		{
+			char *keydest = VM_POINTER(arg[0]);
+			if ((int)arg[0] + VM_LONG(arg[1]) >= mask || VM_POINTER(arg[0]) < offset)
+				break;	//out of bounds.
+			strncpy(keydest, Cvar_VariableString("cl_cdkey"), VM_LONG(arg[1]));
+		}
 		break;
 	case UI_SET_CDKEY:	//set cd key
-		if ((int)arg[0] + strlen(VM_POINTER(arg[0])) >= mask || VM_POINTER(arg[0]) < offset)
-			break;	//out of bounds.
 		{
+			char *keysrc = VM_POINTER(arg[0]);
 			cvar_t *cvar;
+			if ((int)arg[0] + strlen(keysrc) >= mask || VM_POINTER(arg[0]) < offset)
+				break;	//out of bounds.
 			cvar = Cvar_Get("cl_cdkey", "", 0, "Quake3 auth");
-			Cvar_Set(cvar, VM_POINTER(arg[0]));
+			Cvar_Set(cvar, keysrc);
 		}
 		break;
 
@@ -1155,19 +1172,30 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 
 // standard Q3
 	case UI_MEMSET:
-		if ((int)arg[0] + arg[2] >= mask || VM_POINTER(arg[0]) < offset)
-			break;	//out of bounds.
-		memset(VM_POINTER(arg[0]), arg[1], arg[2]);
+		{
+			void *dest = VM_POINTER(arg[0]);
+			if ((int)arg[0] + arg[2] >= mask || dest < offset)
+				break;	//out of bounds.
+			memset(dest, arg[1], arg[2]);
+		}
 		break;
 	case UI_MEMCPY:
-		if ((int)arg[0] + arg[2] >= mask || VM_POINTER(arg[0]) < offset)
-			break;	//out of bounds.
-		memcpy(VM_POINTER(arg[0]), VM_POINTER(arg[1]), arg[2]);
+		{
+			void *dest = VM_POINTER(arg[0]);
+			void *src = VM_POINTER(arg[1]);
+			if ((int)arg[0] + arg[2] >= mask || VM_POINTER(arg[0]) < offset)
+				break;	//out of bounds.
+			memcpy(dest, src, arg[2]);
+		}
 		break;
 	case UI_STRNCPY:
-		if (arg[0] + arg[2] >= mask || VM_POINTER(arg[0]) < offset)
-			break;	//out of bounds.
-		Q_strncpyS(VM_POINTER(arg[0]), VM_POINTER(arg[1]), arg[2]);
+		{
+			void *dest = VM_POINTER(arg[0]);
+			void *src = VM_POINTER(arg[1]);
+			if (arg[0] + arg[2] >= mask || VM_POINTER(arg[0]) < offset)
+				break;	//out of bounds.
+			Q_strncpyS(dest, src, arg[2]);
+		}
 		break;
 	case UI_SIN:
 		VM_FLOAT(ret)=(float)sin(VM_FLOAT(arg[0]));
@@ -1319,26 +1347,23 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 
 static int UI_SystemCallsVM(void *offset, quintptr_t mask, int fn, const int *arg)
 {	//this is so we can use edit and continue properly (vc doesn't like function pointers for edit+continue)
-	if (sizeof(int) == sizeof(qintptr_t))
-	{
-			return UI_SystemCalls(offset, mask, fn, arg);
-	}
-	else
-	{
-		qintptr_t args[9];
+#if __WORDSIZE == 32
+	return UI_SystemCalls(offset, mask, fn, (qintptr_t*)arg);
+#else
+	qintptr_t args[9];
 
-		args[0]=arg[0];
-		args[1]=arg[1];
-		args[2]=arg[2];
-		args[3]=arg[3];
-		args[4]=arg[4];
-		args[5]=arg[5];
-		args[6]=arg[6];
-		args[7]=arg[7];
-		args[8]=arg[8];
+	args[0]=arg[0];
+	args[1]=arg[1];
+	args[2]=arg[2];
+	args[3]=arg[3];
+	args[4]=arg[4];
+	args[5]=arg[5];
+	args[6]=arg[6];
+	args[7]=arg[7];
+	args[8]=arg[8];
 
-		return UI_SystemCalls(offset, mask, fn, args);
-	}
+	return UI_SystemCalls(offset, mask, fn, args);
+#endif
 }
 
 //I'm not keen on this.

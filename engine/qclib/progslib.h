@@ -142,9 +142,9 @@ struct progfuncs_s {
 typedef struct progexterns_s {
 	int progsversion;	//PROGSTRUCT_VERSION
 
-	unsigned char *(*ReadFile) (char *fname, void *buffer, int len);
-	int (*FileSize) (char *fname);	//-1 if file does not exist
-	pbool (*WriteFile) (char *name, void *data, int len);
+	unsigned char *(*ReadFile) (const char *fname, void *buffer, int len);
+	int (*FileSize) (const char *fname);	//-1 if file does not exist
+	pbool (*WriteFile) (const char *name, void *data, int len);
 	int (VARGS *printf) (const char *, ...) LIKEPRINTF(1);
 	void (VARGS *Sys_Error) (const char *, ...) LIKEPRINTF(1);
 	void (VARGS *Abort) (char *, ...) LIKEPRINTF(1);

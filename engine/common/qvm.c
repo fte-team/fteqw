@@ -573,10 +573,10 @@ static void inline QVM_Return(qvm_t *vm, int size)
 		Sys_Error("VM run time error: freed too much stack\n");
 
 	if(fp[1]>=vm->len_cs*2)
-		if ((int)(vm->cs+fp[1]) != (int)RETURNOFFSETMARKER)	//this being false causes the program to quit.
+		if ((size_t)(vm->cs+fp[1]) != (size_t)RETURNOFFSETMARKER)	//this being false causes the program to quit.
 			Sys_Error("VM run time error: program returned to hyperspace (%p, %p)\n", (char*)vm->cs, (char*)fp[1]);
 	if(fp[1]<0)
-		if ((int)(vm->cs+fp[1]) != (int)RETURNOFFSETMARKER)
+		if ((size_t)(vm->cs+fp[1]) != (size_t)RETURNOFFSETMARKER)
 			Sys_Error("VM run time error: program returned to negative hyperspace\n");
 
 	if (vm->sp-vm->max_sp != fp[0])
@@ -657,7 +657,7 @@ int QVM_ExecVM(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, i
 		case OP_LEAVE:
 			QVM_Return(qvm, param);
 
-			if ((int)qvm->pc == (int)RETURNOFFSETMARKER)
+			if ((size_t)qvm->pc == (size_t)RETURNOFFSETMARKER)
 			{
 				// pick return value from stack
 				qvm->pc = oldpc;

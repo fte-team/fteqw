@@ -855,11 +855,11 @@ typedef struct {
 
 // field declarations
 #ifdef MSG_SHOWNET
-#	define PS_FIELD(n,b)	{ #n, ((int)&(((q3playerState_t *)0)->n)), b }
-#	define ES_FIELD(n,b)	{ #n, ((int)&(((q3entityState_t *)0)->n)), b }
+#	define PS_FIELD(n,b)	{ #n, ((size_t)&(((q3playerState_t *)0)->n)), b }
+#	define ES_FIELD(n,b)	{ #n, ((size_t)&(((q3entityState_t *)0)->n)), b }
 #else
-#	define PS_FIELD(n,b)	{ ((int)&(((q3playerState_t *)0)->n)), b }
-#	define ES_FIELD(n,b)	{ ((int)&(((q3entityState_t *)0)->n)), b }
+#	define PS_FIELD(n,b)	{ ((size_t)&(((q3playerState_t *)0)->n)), b }
+#	define ES_FIELD(n,b)	{ ((size_t)&(((q3entityState_t *)0)->n)), b }
 #endif
 
 // field data accessing

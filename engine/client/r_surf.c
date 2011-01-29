@@ -2307,8 +2307,6 @@ static int Surf_LM_FillBlock (int texnum, int w, int h, int x, int y)
 	return texnum;
 }
 
-static int	nColinElim;
-
 /*
 ================
 BuildSurfaceDisplayList

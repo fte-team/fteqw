@@ -59,7 +59,9 @@ static Security_Supported_Binaries_t Security_Supported_Binaries;
 static Security_Shutdown_t Security_Shutdown;
 
 
+#ifdef _WIN32
 static void *secmodule;
+#endif
 
 static void Validation_Version(void)
 {

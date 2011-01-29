@@ -130,8 +130,6 @@ int					sizeofuploadmemorybuffer;
 qbyte				*uploadmemorybufferintermediate;
 int					sizeofuploadmemorybufferintermediate;
 
-static index_t r_quad_indexes[6] = {0, 1, 2, 0, 2, 3};
-
 extern qbyte		gammatable[256];
 
 #ifdef GL_USE8BITTEX
@@ -738,9 +736,6 @@ void GLR_Menutint_Callback (struct cvar_s *var, char *oldvalue)
 
 void GLDraw_FadeScreen (void)
 {
-	extern cvar_t gl_menutint_shader;
-	extern texid_t scenepp_texture;
-	extern int scenepp_mt_program, scenepp_mt_parm_colorf, scenepp_mt_parm_inverti;
 	extern shader_t *scenepp_mt_shader;
 
 	if (!faderender)

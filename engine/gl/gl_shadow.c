@@ -56,7 +56,6 @@ typedef struct shadowmesh_s {
 /*state of the current shadow mesh*/
 #define inc 128
 int sh_shadowframe;
-static int sh_type;
 static int sh_firstindex;
 static int sh_vertnum;		//vertex number (set to 0 at SH_Begin)
 static shadowmesh_t *sh_shmesh, sh_tempshmesh;
@@ -1130,7 +1129,18 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs)
 		// clipped by nearclip plane
 		// this is nasty and crude...
 		// create viewspace bbox
-		for (i = 0;i < 8;i++)
+		i = 0;
+		/*unrolled the first iteration to avoid warnings*/
+		v[0] = ((i & 1) ? mins[0] : maxs[0]) - r_refdef.vieworg[0];
+		v[1] = ((i & 2) ? mins[1] : maxs[1]) - r_refdef.vieworg[1];
+		v[2] = ((i & 4) ? mins[2] : maxs[2]) - r_refdef.vieworg[2];
+		v2[0] = DotProduct(v, vright);
+		v2[1] = DotProduct(v, vup);
+		v2[2] = DotProduct(v, vpn);
+		smins[0] = smaxs[0] = v2[0];
+		smins[1] = smaxs[1] = v2[1];
+		smins[2] = smaxs[2] = v2[2];
+		for (i = 1;i < 8;i++)
 		{
 			v[0] = ((i & 1) ? mins[0] : maxs[0]) - r_refdef.vieworg[0];
 			v[1] = ((i & 2) ? mins[1] : maxs[1]) - r_refdef.vieworg[1];
@@ -1138,21 +1148,12 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs)
 			v2[0] = DotProduct(v, vright);
 			v2[1] = DotProduct(v, vup);
 			v2[2] = DotProduct(v, vpn);
-			if (i)
-			{
-				if (smins[0] > v2[0]) smins[0] = v2[0];
-				if (smaxs[0] < v2[0]) smaxs[0] = v2[0];
-				if (smins[1] > v2[1]) smins[1] = v2[1];
-				if (smaxs[1] < v2[1]) smaxs[1] = v2[1];
-				if (smins[2] > v2[2]) smins[2] = v2[2];
-				if (smaxs[2] < v2[2]) smaxs[2] = v2[2];
-			}
-			else
-			{
-				smins[0] = smaxs[0] = v2[0];
-				smins[1] = smaxs[1] = v2[1];
-				smins[2] = smaxs[2] = v2[2];
-			}
+			if (smins[0] > v2[0]) smins[0] = v2[0];
+			if (smaxs[0] < v2[0]) smaxs[0] = v2[0];
+			if (smins[1] > v2[1]) smins[1] = v2[1];
+			if (smaxs[1] < v2[1]) smaxs[1] = v2[1];
+			if (smins[2] > v2[2]) smins[2] = v2[2];
+			if (smaxs[2] < v2[2]) smaxs[2] = v2[2];
 		}
 		// now we have a bbox in viewspace
 		// clip it to the view plane

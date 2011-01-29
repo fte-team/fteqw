@@ -1143,7 +1143,7 @@ static void GenerateTCMods(const shaderpass_t *pass, int passnum)
 
 //source is always packed
 //dest is packed too
-static void colourgen(const shaderpass_t *pass, int cnt, const vec4_t *src, vec4_t *dst, const mesh_t *mesh)
+static void colourgen(const shaderpass_t *pass, int cnt, vec4_t *src, vec4_t *dst, const mesh_t *mesh)
 {
 	switch (pass->rgbgen)
 	{
@@ -1287,7 +1287,7 @@ static void colourgen(const shaderpass_t *pass, int cnt, const vec4_t *src, vec4
 	}
 }
 
-static void deformgen(const deformv_t *deformv, int cnt, const vecV_t *src, vecV_t *dst, const mesh_t *mesh)
+static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *dst, const mesh_t *mesh)
 {
 	float *table;
 	int j, k;
@@ -1297,14 +1297,14 @@ static void deformgen(const deformv_t *deformv, int cnt, const vecV_t *src, vecV
 	{
 	default:
 	case DEFORMV_NONE:
-		if (src != (const avec4_t*)dst)
+		if (src != dst)
 			memcpy(dst, src, sizeof(*src)*cnt);
 		break;
 
 	case DEFORMV_WAVE:
 		if (!mesh->normals_array)
 		{
-			if (src != (const avec4_t*)dst)
+			if (src != dst)
 				memcpy(dst, src, sizeof(*src)*cnt);
 			return;
 		}
@@ -1326,7 +1326,7 @@ static void deformgen(const deformv_t *deformv, int cnt, const vecV_t *src, vecV
 	case DEFORMV_NORMAL:
 		//normal does not actually move the verts, but it does change the normals array
 		//we don't currently support that.
-		if (src != (const avec4_t*)dst)
+		if (src != dst)
 			memcpy(dst, src, sizeof(*src)*cnt);
 /*
 		args[0] = deformv->args[1] * shaderstate.curtime;
@@ -1546,7 +1546,7 @@ static void GenerateVertexDeforms(const shader_t *shader)
 
 /*======================================alpha ===============================*/
 
-static void alphagen(const shaderpass_t *pass, int cnt, const avec4_t *src, avec4_t *dst, const mesh_t *mesh)
+static void alphagen(const shaderpass_t *pass, int cnt, avec4_t *const src, avec4_t *dst, const mesh_t *mesh)
 {
 	float *table;
 	float t;
@@ -2790,7 +2790,6 @@ void BE_DrawPolys(qboolean decalsset)
 }
 void GLBE_SubmitBatch(batch_t *batch)
 {
-	model_t *model = cl.worldmodel;
 	int lm;
 
 	if (batch->texture)
@@ -3046,6 +3045,8 @@ void BE_GenModelBatches(batch_t **batches)
 			if (r_drawentities.ival == 3)
 				continue;
 			R_GAlias_GenerateBatches(ent, batches);
+			break;
+		default:
 			break;
 		}
 	}

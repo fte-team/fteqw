@@ -1038,12 +1038,12 @@ qboolean NET_CompareAdrMasked(netadr_t a, netadr_t b, netadr_t mask)
 		if (a.type == NA_IPV6 && b.type == NA_IP)
 		{
 			for (i = 0; i < 10; i++)
-				if (a.address.ip[i] != 0)
+				if (a.address.ip6[i] != 0)
 					return false;	//only matches if they're 0s, otherwise its not an ipv4 address there
 
 			for (; i < 12; i++)
-				if (a.address.ip[i] != 0xff && a.address.ip[i] != 0x00)	//0x00 is depricated
-					return false;	//only matches if they're 0s, otherwise its not an ipv4 address there
+				if (a.address.ip6[i] != 0xff && a.address.ip6[i] != 0x00)	//0x00 is depricated
+					return false;	//only matches if they're 0s or ffs, otherwise its not an ipv4 address there
 
 			for (i = 0; i < 4; i++)
 			{

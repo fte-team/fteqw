@@ -2585,7 +2585,7 @@ qboolean CModQ3_LoadRFaces (lump_t *l)
 			//flare
 			int r, g, b;
 			extern index_t r_quad_indexes[6];
-			static vec2_t	st[4] = {0,0,0,1,1,1,1,0};
+			static vec2_t	st[4] = {{0,0},{0,1},{1,1},{1,0}};
 
 			mesh = out->mesh = (mesh_t *)Hunk_Alloc(sizeof(mesh_t));
 			mesh->xyz_array = (vecV_t *)Hunk_Alloc(sizeof(vecV_t)*4);
@@ -2741,7 +2741,7 @@ qboolean CModRBSP_LoadRFaces (lump_t *l)
 		{
 //			int r, g, b;
 			extern index_t r_quad_indexes[6];
-			static vec2_t	st[4] = {0,0,0,1,1,1,1,0};
+			static vec2_t	st[4] = {{0,0},{0,1},{1,1},{1,0}};
 
 			mesh = out->mesh = (mesh_t *)Hunk_Alloc ( sizeof(mesh_t));
 			mesh->xyz_array = (vecV_t *)Hunk_Alloc ( sizeof(vecV_t));
@@ -3277,7 +3277,7 @@ qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
 int CM_GetQ2Palette (void)
 {
 	char *f;
-	FS_LoadFile("pics/colormap.pcx", &f);
+	FS_LoadFile("pics/colormap.pcx", (void**)&f);
 	if (!f)
 	{
 		Con_Printf (CON_WARNING "Couldn't find pics/colormap.pcx\n");

@@ -81,7 +81,7 @@ typedef struct lh_extension_s {
 extern lh_extension_t QSG_Extensions[];
 extern unsigned int QSG_Extensions_count;
 
-pbool QC_WriteFile(char *name, void *data, int len);
+pbool QC_WriteFile(const char *name, void *data, int len);
 void *VARGS PR_CB_Malloc(int size);	//these functions should be tracked by the library reliably, so there should be no need to track them ourselves.
 void VARGS PR_CB_Free(void *mem);
 

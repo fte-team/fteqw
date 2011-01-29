@@ -973,7 +973,6 @@ void QCBUILTIN QCBUILTIN PF_cl_getmousepos (progfuncs_t *prinst, struct globalva
 {
 	float *ret = G_VECTOR(OFS_RETURN);
 	extern int mousemove_x, mousemove_y;
-	extern int mousecursor_x, mousecursor_y;
 
 	ret[0] = mousemove_x;
 	ret[1] = mousemove_y;
@@ -981,6 +980,7 @@ void QCBUILTIN QCBUILTIN PF_cl_getmousepos (progfuncs_t *prinst, struct globalva
 	mousemove_x=0;
 	mousemove_y=0;
 
+//	extern int mousecursor_x, mousecursor_y;
 //	ret[0] = mousecursor_x;
 //	ret[1] = mousecursor_y;
 	ret[2] = 0;
@@ -1770,7 +1770,7 @@ void MP_Shutdown (void)
 	}
 }
 
-pbool QC_WriteFile(char *name, void *data, int len);
+pbool QC_WriteFile(const char *name, void *data, int len);
 void *VARGS PR_CB_Malloc(int size);	//these functions should be tracked by the library reliably, so there should be no need to track them ourselves.
 void VARGS PR_CB_Free(void *mem);
 

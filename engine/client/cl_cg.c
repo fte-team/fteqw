@@ -451,7 +451,7 @@ void GLDraw_Image(float x, float y, float w, float h, float s1, float t1, float 
 int VM_LerpTag(void *out, model_t *model, int f1, int f2, float l2, char *tagname);
 
 
-#define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) Host_EndGame("Call to cgame trap %i passes invalid pointer\n", fn);	//out of bounds.
+#define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) Host_EndGame("Call to cgame trap %u passes invalid pointer\n", (unsigned int)fn);	//out of bounds.
 
 static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, const qintptr_t *arg)
 {
@@ -1038,7 +1038,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		pe->DelinkTrailstate(VM_POINTER(arg[0]));
 		break;
 	default:
-		Con_Printf("Q3CG: Bad system trap: %d\n", fn);
+		Con_Printf("Q3CG: Bad system trap: %i\n", (int)fn);
 	}
 
 	return ret;

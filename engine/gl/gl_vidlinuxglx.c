@@ -535,6 +535,26 @@ static void GetEvent(void)
 		ClearAllStates();
 
 		break;
+	case ClientMessage:
+		{
+			char *name = XGetAtomName(vid_dpy, event.xclient.message_type);
+			if (!strcmp(name, "WM_PROTOCOLS") && event.xclient.format == 32)
+			{
+				char *protname = XGetAtomName(vid_dpy, event.xclient.data.l[0]);
+				if (!strcmp(protname, "WM_DELETE_WINDOW"))
+					Cmd_ExecuteString("menu_quit", RESTRICT_LOCAL);
+				else
+					Con_Printf("Got message %s\n", protname);
+				XFree(protname);
+			}
+			else
+				Con_Printf("Got message %s\n", name);
+			XFree(name);
+		}
+		break;
+	default:
+//		Con_Printf("%x\n", event.type);
+		break;
 	}
 
 	wantwindowed = !!_windowed_mouse.value;
@@ -739,6 +759,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	Window root;
 	XVisualInfo *visinfo;
 	qboolean fullscreen = false;
+	Atom prots[1];
 
 #ifdef WITH_VMODE
 	int MajorVersion, MinorVersion;
@@ -876,9 +897,16 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	vid_window = XCreateWindow(vid_dpy, root, 0, 0, info->width, info->height,
 						0, visinfo->depth, InputOutput,
 						visinfo->visual, mask, &attr);
+	/*ask the window manager to stop triggering bugs in Xlib*/
+	prots[0] = XInternAtom(vid_dpy, "WM_DELETE_WINDOW", False);
+	XSetWMProtocols(vid_dpy, vid_window, prots, sizeof(prots)/sizeof(prots[0]));
+	/*set caption*/
+	XStoreName(vid_dpy, vid_window, "FTE QuakeWorld");
+	/*make it visibl*/
 	XMapWindow(vid_dpy, vid_window);
-
+	/*put it somewhere*/
 	XMoveWindow(vid_dpy, vid_window, 0, 0);
+
 #ifdef WITH_VMODE
 	if (vidmode_active) {
 		XRaiseWindow(vid_dpy, vid_window);
@@ -888,7 +916,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		XF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
 	}
 #endif
-	XStoreName(vid_dpy, vid_window, "FTE QuakeWorld");
 
 //hide the cursor.
 	XDefineCursor(vid_dpy, vid_window, CreateNullCursor(vid_dpy, vid_window));

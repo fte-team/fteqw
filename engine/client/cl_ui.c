@@ -677,7 +677,7 @@ void UI_RegisterFont(char *fontName, int pointSize, fontInfo_t *font)
 
 
 
-#define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) Host_EndGame("Call to ui trap %i passes invalid pointer\n", fn);	//out of bounds.
+#define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) Host_EndGame("Call to ui trap %i passes invalid pointer\n", (int)fn);	//out of bounds.
 
 static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, const qintptr_t *arg)
 {
@@ -1310,7 +1310,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	default:
-		Con_Printf("Q3UI: Not implemented system trap: %d\n", fn);
+		Con_Printf("Q3UI: Not implemented system trap: %i\n", (int)fn);
 		return 0;
 	}
 

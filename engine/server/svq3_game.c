@@ -695,7 +695,7 @@ static void SVQ3_Adjust_Area_Portal_State(q3sharedEntity_t *ge, qboolean open)
 	CMQ3_SetAreaPortalState(se->areanum, se->areanum2, open);
 }
 
-#define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) SV_Error("Call to game trap %i passes invalid pointer\n", fn);	//out of bounds.
+#define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) SV_Error("Call to game trap %u passes invalid pointer\n", (unsigned int)fn);	//out of bounds.
 static qintptr_t Q3G_SystemCalls(void *offset, unsigned int mask, qintptr_t fn, const qintptr_t *arg)
 {
 	int ret = 0;
@@ -1392,7 +1392,7 @@ static qintptr_t Q3G_SystemCalls(void *offset, unsigned int mask, qintptr_t fn, 
 
 //	notimplemented:
 	default:
-		Con_Printf("builtin %i is not implemented\n", fn);
+		Con_Printf("builtin %i is not implemented\n", (int)fn);
 	}
 	return ret;
 }

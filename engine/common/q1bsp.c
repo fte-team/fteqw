@@ -1174,6 +1174,7 @@ unsigned int Q1BSP_FatPVS (model_t *mod, vec3_t org, qbyte *pvsbuffer, unsigned 
 	return fatbytes;
 }
 
+#endif
 qboolean Q1BSP_EdictInFatPVS(model_t *mod, struct pvscache_s *ent, qbyte *pvs)
 {
 	int i;
@@ -1242,7 +1243,6 @@ void Q1BSP_FindTouchedLeafs(model_t *mod, struct pvscache_s *ent, float *mins, f
 		Q1BSP_RFindTouchedLeafs (mod, ent, mod->nodes, mins, maxs);
 }
 
-#endif
 
 /*
 Server only functions
@@ -1384,9 +1384,9 @@ void Q1BSP_SetModelFuncs(model_t *mod)
 {
 #ifndef CLIENTONLY
 	mod->funcs.FatPVS				= Q1BSP_FatPVS;
+#endif
 	mod->funcs.EdictInFatPVS		= Q1BSP_EdictInFatPVS;
 	mod->funcs.FindTouchedLeafs		= Q1BSP_FindTouchedLeafs;
-#endif
 	mod->funcs.LightPointValues		= NULL;
 	mod->funcs.StainNode			= NULL;
 	mod->funcs.MarkLights			= NULL;

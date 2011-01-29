@@ -2012,7 +2012,7 @@ void CL_QTVPlay_f (void)
 	{
 		connrequest =	"QTV_EZQUAKE_EXT: 3\n";
 		VFS_WRITE(newf, connrequest, strlen(connrequest));
-		connrequest =	va("USERINFO: %s\n", cls.userinfo);
+		connrequest =	va("USERINFO: %s\n", cls.userinfo[0]);
 		VFS_WRITE(newf, connrequest, strlen(connrequest));
 	}
 	else if (raw)

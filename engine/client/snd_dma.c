@@ -48,9 +48,6 @@ vec3_t		listener_up = {0, 0, 1};
 vec3_t		listener_velocity;
 vec_t		sound_nominal_clip_dist=1000.0;
 
-int			soundtime;		// sample PAIRS
-
-
 #define	MAX_SFX		512
 sfx_t		*known_sfx;		// hunk allocated [MAX_SFX]
 int			num_sfx;
@@ -105,6 +102,8 @@ cvar_t snd_linearresample_stream = CVARAF(	"s_linearresample_stream", "0",
 
 cvar_t snd_usemultipledevices	= CVARAF(	"s_multipledevices", "0",
 											"snd_multipledevices", 0);
+cvar_t snd_driver		= CVARAF(	"s_driver", "",
+											"snd_driver", 0);
 
 #ifdef VOICECHAT
 static void S_Voip_Play_Callback(cvar_t *var, char *oldval);
@@ -243,6 +242,7 @@ static dllfunction_t qspeexdspfuncs[] =
 };
 
 snd_capture_driver_t DSOUND_Capture;
+snd_capture_driver_t OSS_Capture;
 
 static qboolean S_Speex_Init(void)
 {
@@ -419,8 +419,10 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			return;
 
 		/*Add new drivers in order of priority*/
-		if (!s_speex.driver)
+		if (!s_speex.driver || !s_speex.driver->Init)
 			s_speex.driver = &DSOUND_Capture;
+		if (!s_speex.driver || !s_speex.driver->Init)
+			s_speex.driver = &OSS_Capture;
 
 		/*no way to capture audio, give up*/
 		if (!s_speex.driver)
@@ -670,7 +672,16 @@ static int SNDDMA_Init(soundcardinfo_t *sc, int *cardnum, int *drivernum)
 	else
 		sc->sn.samples = 0;
 
-	sd = &drivers[*drivernum];
+	if (*snd_driver.string)
+	{
+		if (*drivernum)
+			return 2;
+		for (sd = drivers; sd->name; sd++)
+			if (!Q_strcasecmp(sd->name, snd_driver.string))
+				break;
+	}
+	else
+		sd = &drivers[*drivernum];
 	if (!sd->ptr)
 		return 2;	//no more cards.
 	if (!*sd->ptr)	//driver not loaded
@@ -1011,6 +1022,7 @@ void S_Init (void)
 
 	Cvar_Register(&snd_playersoundvolume,		"Sound controls");
 	Cvar_Register(&snd_usemultipledevices,		"Sound controls");
+	Cvar_Register(&snd_driver,		"Sound controls");
 
 	Cvar_Register(&snd_linearresample, "Sound controls");
 	Cvar_Register(&snd_linearresample_stream, "Sound controls");
@@ -1847,7 +1859,7 @@ void S_UpdateCard(soundcardinfo_t *sc)
 	S_Update_(sc);
 }
 
-void GetSoundtime(soundcardinfo_t *sc)
+int GetSoundtime(soundcardinfo_t *sc)
 {
 	int		samplepos;
 	int		fullsamples;
@@ -1858,6 +1870,12 @@ void GetSoundtime(soundcardinfo_t *sc)
 // calls to S_Update.  Oh well.
 	samplepos = sc->GetDMAPos(sc);
 
+	samplepos -= sc->samplequeue;
+
+	if (samplepos < 0)
+	{
+		samplepos = 0;
+	}
 	if (samplepos < sc->oldsamplepos)
 	{
 		sc->buffers++;					// buffer wrapped
@@ -1871,7 +1889,7 @@ void GetSoundtime(soundcardinfo_t *sc)
 	}
 	sc->oldsamplepos = samplepos;
 
-	soundtime = sc->buffers*fullsamples + samplepos/sc->sn.numchannels;
+	return sc->buffers*fullsamples + samplepos/sc->sn.numchannels;
 }
 
 void S_Update (void)
@@ -1904,41 +1922,55 @@ void S_ExtraUpdate (void)
 
 void S_Update_(soundcardinfo_t *sc)
 {
+	int soundtime; /*in pairs*/
 	unsigned        endtime;
 	int				samps;
 
 	if (sc->selfpainting)
 		return;
 
-	if ((snd_blocked > 0))
+	if (snd_blocked > 0)
 	{
 		if (!sc->inactive_sound)
 			return;
 	}
 
 // Updates DMA time
-	GetSoundtime(sc);
+	soundtime = GetSoundtime(sc);
 
-// check to make sure that we haven't overshot
-	if (sc->paintedtime < soundtime)
+	if (sc->samplequeue)
 	{
-		//Con_Printf ("S_Update_ : overflow\n");
-		sc->paintedtime = soundtime;
+		/*device uses a write-once queue*/
+		endtime = soundtime + sc->samplequeue/sc->sn.numchannels;
+		soundtime = sc->paintedtime;
+		samps = sc->samplequeue / sc->sn.numchannels;
+	}
+	else
+	{
+		/*device uses memory-mapped output*/
+		// check to make sure that we haven't overshot
+		if (sc->paintedtime < soundtime)
+		{
+			//Con_Printf ("S_Update_ : overflow\n");
+			sc->paintedtime = soundtime;
+		}
+
+		// mix ahead of current position
+		endtime = soundtime + (int)(_snd_mixahead.value * sc->sn.speed);	
+		samps = sc->sn.samples / sc->sn.numchannels;
+	}
+	if (endtime - soundtime > samps)
+	{
+		endtime = soundtime + samps;
 	}
 
-// mix ahead of current position
-	endtime = soundtime + (int)(_snd_mixahead.value * sc->sn.speed);
-//	samps = shm->samples >> (shm->numchannels-1);
-	samps = sc->sn.samples / sc->sn.numchannels;
-	if (endtime - soundtime > samps)
-		endtime = soundtime + samps;
-
+	/*DirectSound may have killed us to give priority to another app, ask to restore it*/
 	if (sc->Restore)
 		sc->Restore(sc);
 
 	S_PaintChannels (sc, endtime);
 
-	sc->Submit(sc);
+	sc->Submit(sc, soundtime, endtime);
 }
 
 /*

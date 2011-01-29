@@ -688,7 +688,7 @@ void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 
 void CL_DrawPrydonCursor(void)
 {
-	if (cursor_active && cl_prydoncursor.ival)
+	if (cursor_active && cl_prydoncursor.ival > 0)
 	{
 		SCR_DrawCursor(cl_prydoncursor.ival);
 		V_StopPitchDrift (0);
@@ -1362,7 +1362,7 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 	cl.frames[curframe].receivedtime = -1;		// we haven't gotten a reply yet
 
 
-	if ((cls.fteprotocolextensions2 & PEXT2_PRYDONCURSOR) && *cl_prydoncursor.string && cls.state == ca_active)
+	if ((cls.fteprotocolextensions2 & PEXT2_PRYDONCURSOR) && (*cl_prydoncursor.string && cl_prydoncursor.ival >= 0) && cls.state == ca_active)
 	{
 		vec3_t cursor_start, cursor_impact;
 		int cursor_entitynumber = 0;

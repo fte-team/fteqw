@@ -78,6 +78,119 @@ qboolean isDedicated;
 // General routines
 // =======================================================================
 
+#if 1
+static int ansiremap[8] = {0, 4, 2, 6, 1, 5, 3, 7};
+static void ApplyColour(unsigned int chr)
+{
+	static int oldchar = CON_WHITEMASK;
+	int bg, fg;
+	chr &= CON_FLAGSMASK;
+
+	if (oldchar == chr)
+		return;
+	oldchar = chr;
+
+	printf("\e[0;"); // reset
+
+	if (chr & CON_BLINKTEXT)
+		printf("5;"); // set blink
+
+	bg = (chr & CON_BGMASK) >> CON_BGSHIFT;
+	fg = (chr & CON_FGMASK) >> CON_FGSHIFT;
+
+	// don't handle intensive bit for background
+	// as terminals differ too much in displaying \e[1;7;3?m
+	bg &= 0x7;
+
+	if (chr & CON_NONCLEARBG)
+	{
+		if (fg & 0x8) // intensive bit set for foreground
+		{
+			printf("1;"); // set bold/intensity ansi flag
+			fg &= 0x7; // strip intensive bit
+		}
+
+		// set foreground and background colors
+		printf("3%i;4%im", ansiremap[fg], ansiremap[bg]);
+	}
+	else
+	{
+		switch(fg)
+		{
+		//to get around wierd defaults (like a white background) we have these special hacks for colours 0 and 7
+		case COLOR_BLACK:
+			printf("7m"); // set inverse
+			break;
+		case COLOR_GREY:
+			printf("1;30m"); // treat as dark grey
+			break;
+		case COLOR_WHITE:
+			printf("m"); // set nothing else
+			break;
+		default:
+			if (fg & 0x8) // intensive bit set for foreground
+			{
+				printf("1;"); // set bold/intensity ansi flag
+				fg &= 0x7; // strip intensive bit
+			}
+
+			printf("3%im", ansiremap[fg]); // set foreground
+			break;
+		}
+	}
+}
+
+#include <wchar.h>
+void Sys_Printf (char *fmt, ...)
+{
+	va_list		argptr;
+	char		text[2048];
+	conchar_t	ctext[2048];
+	conchar_t       *c, *e;
+	wchar_t		w;
+
+	if (nostdout)
+		return;
+
+	va_start (argptr,fmt);
+	_vsnprintf (text,sizeof(text)-1, fmt,argptr);
+	va_end (argptr);
+
+	if (strlen(text) > sizeof(text))
+		Sys_Error("memory overwrite in Sys_Printf");
+
+	e = COM_ParseFunString(CON_WHITEMASK, text, ctext, sizeof(ctext), false);
+
+	for (c = ctext; c < e; c++)
+	{
+		ApplyColour(*c);
+		w = *c & 0x0ffff;
+		if (w >= 0xe000 && w < 0xe100)
+		{
+			putc(w&0x7f, stdout);
+		}
+		else
+		{
+			/*putwc doesn't like me. force it in utf8*/
+			if (w >= 0x80)
+			{
+				if (w > 0x800)
+				{
+					putc(0xe0 | ((w>>12)&0x0f), stdout);
+					putc(0x80 | ((w>>6)&0x3f), stdout);
+				}
+				else
+					putc(0xc0 | ((w>>6)&0x1f), stdout);
+				putc(0x80 | (w&0x3f), stdout);
+			}
+			else
+				putc(w, stdout);
+		}
+	}
+
+	ApplyColour(CON_WHITEMASK);
+}
+#else
 void Sys_Printf (char *fmt, ...)
 {
 	va_list		argptr;
@@ -100,6 +213,7 @@ void Sys_Printf (char *fmt, ...)
 		else
 			putc(*p, stdout);
 }
+#endif
 
 void Sys_Quit (void)
 {
@@ -405,7 +519,11 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 	int i;
 	dllhandle_t lib;
 
-	lib = dlopen (name, RTLD_LAZY);
+	lib = NULL;
+	if (!lib)
+		lib = dlopen (name, RTLD_LAZY);
+	if (!lib)
+		lib = dlopen (va("%s.so", name), RTLD_LAZY);
 	if (!lib)
 		return NULL;
 

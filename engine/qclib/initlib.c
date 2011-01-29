@@ -308,12 +308,9 @@ char *PR_VarString (progfuncs_t *progfuncs, int	first)
 		if (G_STRING(OFS_PARM0+i*3))
 		{
 			s=G_STRING((OFS_PARM0+i*3)) + progfuncs->stringtable;
+			if (strlen(out) + strlen(s) + 1 >= sizeof(out))
+				return out;
 			strcat (out, s);
-
-//#ifdef PARANOID
-			if (strlen(out)+1 >= sizeof(out))
-				Sys_Error("VarString (builtin call ending with strings) exceeded maximum string length of %i chars", sizeof(out));
-//#endif
 		}
 	}
 	return out;

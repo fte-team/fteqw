@@ -1666,6 +1666,7 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 #ifdef PLUGINS
 	Plug_ResChanged();
 #endif
+	Cvar_ForceCallback(&r_particlesystem);
 
 TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 	if (cl.worldmodel)
@@ -1769,7 +1770,6 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 	}
 	else
 	{
-		Cvar_ForceCallback(&r_particlesystem);
 #ifdef VM_UI
 		UI_Reset();
 #endif

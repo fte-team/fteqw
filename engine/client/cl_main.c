@@ -541,7 +541,7 @@ void CL_SendConnectPacket (
 
 	//userinfo 0 + zquake extension info.
 	if (cls.protocol == CP_QUAKEWORLD)
-		Q_strncatz(data, va(" \"%s\\*z_ext\\%i\"", cls.userinfo, SUPPORTED_Z_EXTENSIONS), sizeof(data));
+		Q_strncatz(data, va(" \"%s\\*z_ext\\%i\"", cls.userinfo[0], SUPPORTED_Z_EXTENSIONS), sizeof(data));
 	else
 		Q_strncatz(data, va(" \"%s\"", cls.userinfo[0]), sizeof(data));
 	for (c = 1; c < clients; c++)

@@ -901,9 +901,9 @@ static void R_SaveRTLights_f(void)
 			(light->flags & LFLAG_NOSHADOWS)?"!":"", light->origin[0], light->origin[1], light->origin[2],
 			light->radius, light->color[0], light->color[1], light->color[2], 
 			light->style-1,
-			"", 0,
-			0, 0, 0,
-			0, 0, 0, light->flags&(LFLAG_NORMALMODE|LFLAG_REALTIMEMODE)
+			"", 0.0f,
+			0.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, 0.0f, light->flags&(LFLAG_NORMALMODE|LFLAG_REALTIMEMODE)
 			));
 	}
 	VFS_CLOSE(f);

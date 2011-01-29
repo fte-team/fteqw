@@ -80,9 +80,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define DYNAMIC_LIBPNG
 //#define DYNAMIC_LIBJPEG
 
+#define AVAIL_FREETYPE
 #ifdef _WIN32
 //needs testing on other platforms
-#define AVAIL_FREETYPE
 #define AVAIL_OPENAL
 #endif
 

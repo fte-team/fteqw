@@ -412,7 +412,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 	{
 		qglGetIntegerv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &gl_config.ext_texture_filter_anisotropic);
 
-		Con_SafePrintf("Anisotropic filter extension found (%dx max).\n",gl_config.ext_texture_filter_anisotropic);
+		Con_DPrintf("Anisotropic filter extension found (%dx max).\n",gl_config.ext_texture_filter_anisotropic);
 	}
 
 	if (GL_CheckExtension("GL_ARB_texture_non_power_of_two"))
@@ -455,7 +455,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 		}
 		else
 		{
-			Con_SafePrintf("ARB Multitexture extensions found. Use -noamtex to disable.\n");
+			Con_DPrintf("ARB Multitexture extensions found. Use -noamtex to disable.\n");
 		}
 
 	}
@@ -535,17 +535,6 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 		qglUnmapBufferARB = (void *)getglext("glUnmapBufferARB");
 	}
 
-/*
-	if (GL_CheckExtension("GL_ARB_fragment_program"))
-	{
-		gl_config.arb_fragment_program = true;
-		qglProgramStringARB = (void *)getglext("glProgramStringARB");
-		qglGetProgramivARB = (void *)getglext("glGetProgramivARB");
-		qglBindProgramARB = (void *)getglext("glBindProgramARB");
-		qglGenProgramsARB = (void *)getglext("glGenProgramsARB");
-	}
-*/
-
 	// glslang
 	//the gf2 to gf4 cards emulate vertex_shader and thus supports shader_objects.
 	//but our code kinda requires both for clean workings.
@@ -580,9 +569,12 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 		qglUniform3fvARB			= (void *)getglext("glUniform3fvARB");
 		qglUniform1iARB				= (void *)getglext("glUniform1iARB");
 		qglUniform1fARB				= (void *)getglext("glUniform1fARB");
+
+		Con_DPrintf("GLSL available\n");
 	}
 	else if (gl_config.gles && gl_config.glversion >= 2)
 	{
+		/*core names are different from extension names (more functions too)*/
 		gl_config.arb_shader_objects = true;
 		qglCreateProgramObjectARB	= (void *)getglext( "glCreateProgram");
 		qglDeleteProgramObject_		= (void *)getglext( "glDeleteProgram");
@@ -610,6 +602,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 		qglUniform3fvARB			= (void *)getglext("glUniform3fv");
 		qglUniform1iARB				= (void *)getglext("glUniform1i");
 		qglUniform1fARB				= (void *)getglext("glUniform1f");
+		Con_DPrintf("GLSL available\n");
 	}
 
 	if (GL_CheckExtension("GL_EXT_framebuffer_object"))
@@ -650,7 +643,7 @@ GLhandleARB GLSlang_CreateShader (char **precompilerconstants, char *shadersourc
 	GLhandleARB shader;
 	GLint       compiled;
 	char        str[1024];
-	int loglen;
+	int loglen, i;
 	char *prstrings[3+16];
 	int strings = 0;
 
@@ -679,7 +672,6 @@ GLhandleARB GLSlang_CreateShader (char **precompilerconstants, char *shadersourc
 	qglGetShaderParameteriv_(shader, GL_OBJECT_COMPILE_STATUS_ARB, &compiled);
 	if(!compiled)
 	{
-		Con_DPrintf("Shader source:\n%s%s%s\n", prstrings[0], prstrings[1], prstrings[2], prstrings[3]);
 		qglGetShaderInfoLog_(shader, sizeof(str), NULL, str);
 		qglDeleteShaderObject_(shader);
 		switch (shadertype)
@@ -705,7 +697,9 @@ GLhandleARB GLSlang_CreateShader (char **precompilerconstants, char *shadersourc
 			qglGetShaderInfoLog_(shader, sizeof(str), NULL, str);
 			if (strstr(str, "WARNING"))
 			{
-				Con_Printf("Shader source:\n%s%s%s\n", prstrings[0], prstrings[1], prstrings[2], prstrings[3]);
+				Con_Printf("Shader source:\n");
+				for (i = 0; i < strings; i++)
+					Con_Printf("%s", prstrings[i]);
 				Con_Printf("%s\n", str);
 			}
 		}

@@ -277,14 +277,15 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 	qboolean inactive_sound;	//continue mixing for this card even when the window isn't active.
 	qboolean selfpainting;	//allow the sound code to call the right functions when it feels the need (not properly supported).
 
-	int	paintedtime;	//used in the mixer
+	int	paintedtime;	//used in the mixer as last-written pos (in sample pairs)
 	int	oldsamplepos;	//this is used to track buffer wraps
 	int	buffers;	//used to keep track of how many buffer wraps for consistant sound
+	int	samplequeue;	//this is the number of samples the device can enqueue. if set, DMAPos returns the write point (rather than hardware read point) (in samplepairs).
 
 //callbacks
 	void *(*Lock) (soundcardinfo_t *sc);
 	void (*Unlock) (soundcardinfo_t *sc, void *buffer);
-	void (*Submit) (soundcardinfo_t *sc);
+	void (*Submit) (soundcardinfo_t *sc, int start, int end);
 	void (*Shutdown) (soundcardinfo_t *sc);
 	unsigned int (*GetDMAPos) (soundcardinfo_t *sc);
 	void (*SetWaterDistortion) (soundcardinfo_t *sc, qboolean underwater);

@@ -396,18 +396,6 @@ void Shader_NeedReload(void);
 
 mfog_t *CM_FogForOrigin(vec3_t org);
 
-//not all modes accept meshes - STENCIL(intentional) and DEPTHONLY(not implemented)
-enum backendmode_e
-{
-	BEM_STANDARD,		//regular mode to draw surfaces akin to q3 (aka: legacy mode). lightmaps+delux+ambient
-	BEM_DEPTHONLY,		//just a quick depth pass. textures used only for alpha test (shadowmaps).
-	BEM_STENCIL,		//used for drawing shadow volumes to the stencil buffer.
-	BEM_DEPTHDARK,		//a quick depth pass. textures used only for alpha test. additive textures still shown as normal.
-	BEM_LIGHT,			//we have a valid light
-	BEM_SMAPLIGHTSPOT,	//we have a spot light using a shadowmap
-	BEM_SMAPLIGHT		//we have a light using a shadowmap
-};
-
 #define BEF_FORCEDEPTHWRITE		1
 #define BEF_FORCEDEPTHTEST		2
 #define BEF_FORCEADDITIVE		4	//blend dest = GL_ONE

@@ -273,7 +273,7 @@ static cblock_t Huff1Decompress (cinematics_t *cin, cblock_t in)
 
 	if (input - in.data != in.count && input - in.data != in.count+1)
 	{
-		Con_Printf ("Decompression overread by %i", (input - in.data) - in.count);
+		Con_Printf ("Decompression overread by %i\n", (int)(input - in.data) - in.count);
 	}
 	out.count = out_p - out.data;
 

@@ -6588,7 +6588,7 @@ static void QCBUILTIN PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s 
 		//wait = G_FLOAT(OFS_PARM7);
 		/*FIXME: not spawned - this persistant effect is created by a map object, all attributes are custom.*/
 
-		Con_Printf("FTE-H2 FIXME: ce_rain not supported!\n", efnum);
+		Con_Printf("FTE-H2 FIXME: ce_rain not supported!\n");
 		return;
 		break;
 	case ce_snow:
@@ -6598,7 +6598,7 @@ static void QCBUILTIN PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s 
 		//dir = G_VECTOR(OFS_PARM4);
 		//count = G_FLOAT(OFS_PARM5);
 		/*FIXME: not spawned - this persistant effect is created by a map object (might be delay-spawned), all attributes are custom.*/
-		Con_Printf("FTE-H2 FIXME: ce_snow not supported!\n", efnum);
+		Con_Printf("FTE-H2 FIXME: ce_snow not supported!\n");
 		return;
 		break;
 	case ce_fountain:
@@ -6608,7 +6608,7 @@ static void QCBUILTIN PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s 
 		//colour = G_FLOAT(OFS_PARM4);
 		//count = G_FLOAT(OFS_PARM5);
 		/*FIXME: not spawned - this persistant effect is created by a map object, all attributes are custom.*/
-		Con_Printf("FTE-H2 FIXME: ce_fountain not supported!\n", efnum);
+		Con_Printf("FTE-H2 FIXME: ce_fountain not supported!\n");
 		return;
 		break;
 	case ce_quake:
@@ -6786,7 +6786,7 @@ static void QCBUILTIN PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s 
 			return;
 		}
 
-		Con_Printf("FTE-H2 FIXME: ce_chunk not supported!\n", efnum);
+		Con_Printf("FTE-H2 FIXME: ce_chunk not supported!\n");
 		return;
 
 
@@ -6924,7 +6924,7 @@ static void QCBUILTIN PF_h2rain_go(progfuncs_t *prinst, struct globalvars_s *pr_
 	float colour = G_FLOAT(OFS_PARM4);
 	float count = G_FLOAT(OFS_PARM5);
 	*/
-	Con_DPrintf("rain go\n", (int)G_FLOAT(OFS_PARM0));
+	Con_DPrintf("rain go\n");
 }
 
 static void QCBUILTIN PF_h2StopSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -6949,7 +6949,7 @@ static void QCBUILTIN PF_h2whiteflash(progfuncs_t *prinst, struct globalvars_s *
 	broadcast a stuffcmd, I guess, to flash the screen white
 	Only seen this occur once: after killing pravus.
 	*/
-	Con_DPrintf("white flash\n", (int)G_FLOAT(OFS_PARM0));
+	Con_DPrintf("white flash\n");
 }
 
 static void QCBUILTIN PF_h2getstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)

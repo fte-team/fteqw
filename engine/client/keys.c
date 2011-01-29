@@ -1643,7 +1643,7 @@ void Key_Event (int pnum, int key, unsigned int unicode, qboolean down)
 				}
 				else
 				{
-					sprintf (cmd, "p%i %s\n", pnum+1, kb, key+oldstate*256);
+					sprintf (cmd, "p%i %s\n", pnum+1, kb);
 					Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
 				}
 			}

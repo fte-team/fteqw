@@ -372,7 +372,7 @@ static void PClassic_DrawParticles(void)
 				p->color = ramp1[(int) p->ramp];
 			for (i = 0; i < 3; i++)
 				p->vel[i] += p->vel[i] * dvel;
-			p->vel[2] -= grav * 30;
+			p->vel[2] -= grav*10;
 			break;
 		case pt_explode2:
 			p->ramp += time3;
@@ -382,7 +382,7 @@ static void PClassic_DrawParticles(void)
 				p->color = ramp2[(int) p->ramp];
 			for (i = 0; i < 3; i++)
 				p->vel[i] -= p->vel[i] * frametime;
-			p->vel[2] -= grav * 30;
+			p->vel[2] -= grav*10;
 			break;
 		case pt_blob:
 			for (i = 0; i < 3; i++)

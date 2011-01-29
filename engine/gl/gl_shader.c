@@ -3126,7 +3126,7 @@ void Shader_DefaultCinematic(char *shortname, shader_t *s, const void *args)
 					"videomap %s\n"
 				"}\n"
 			"}\n"
-		, args)
+		, (const char*)args)
 	);
 }
 

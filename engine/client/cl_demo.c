@@ -534,21 +534,26 @@ readnext:
 // decide if it is time to grab the next message		
 	if (cls.timedemo)
 	{
-		if (cls.td_lastframe < 0)
-			cls.td_lastframe = demotime;
-		else if (demotime > cls.td_lastframe)
+		if (cls.state == ca_active)
 		{
-			cls.td_lastframe = demotime;
-			return 0;		// already read this frame's message
-		}
-		if (cls.td_startframe == -1 && cls.state == ca_active)
-		{	//start the timer only once we are connected.
-			cls.td_starttime = Sys_DoubleTime();
-			cls.td_startframe = host_framecount;
+			if (cls.td_lastframe < 0)
+				cls.td_lastframe = host_framecount;
+			else if (host_framecount == cls.td_lastframe)
+			{
+				cls.td_lastframe = host_framecount;
+				return 0;		// already read this frame's message
+			}
+			if (cls.td_startframe == -1) 
+			{	//start the timer only once we are connected.
+				cls.td_starttime = Sys_DoubleTime();
+				cls.td_startframe = host_framecount;
 
-			//force the console up, we're done loading.
-			key_dest = key_game;
-			scr_con_current = 0;
+				//force the console up, we're done loading.
+				key_dest = key_game;
+				scr_con_current = 0;
+			}
+			if (cls.td_startframe == host_framecount+1)
+				cls.td_starttime = Sys_DoubleTime();
 		}
 		demtime = demotime; // warp
 	}

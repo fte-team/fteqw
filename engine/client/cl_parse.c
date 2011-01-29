@@ -2567,6 +2567,7 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 	{
 	case 1:
 		cl.sendprespawn = true;
+		CL_RequestNextDownload();
 		break;
 
 	case 2:

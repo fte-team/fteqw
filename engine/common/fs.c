@@ -479,7 +479,6 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 	char cleanpath[MAX_QPATH];
 
 	void *pf;
-//Con_Printf("Finding %s: ", filename);
 
 	filename = FS_GetCleanPath(filename, cleanpath, sizeof(cleanpath));
 	if (!filename)

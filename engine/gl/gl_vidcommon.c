@@ -975,10 +975,11 @@ void GL_Init(void *(*getglfunction) (char *name))
 			s++;
 		gl_minor_version = atoi(s);
 	}
-	qglGetIntegerv(GL_NUM_EXTENSIONS, &gl_num_extensions);
-	if (!qglGetError() && gl_num_extensions)
+	/*gl3 adds glGetStringi instead, as core, with the old form require GL_ARB_compatibility*/
+	if (gl_major_version >= 3 && qglGetStringi) /*warning: wine fails to export qglGetStringi*/
 	{
 		int i;
+		qglGetIntegerv(GL_NUM_EXTENSIONS, &gl_num_extensions);
 		if (developer.value)
 		{
 			Con_Printf ("GL_EXTENSIONS:\n");

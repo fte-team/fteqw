@@ -1400,6 +1400,9 @@ void R_ShutdownRenderer(void)
 
 	CL_AllowIndependantSendCmd(false);	//FIXME: figure out exactly which parts are going to affect the model loading.
 
+	P_Shutdown();
+	RMod_Shutdown();
+
 	IN_Shutdown();
 
 	if (R_DeInit)

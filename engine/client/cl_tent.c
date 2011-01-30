@@ -327,8 +327,8 @@ void CL_InitTEnts (void)
 			*tentsfx[i].sfx = NULL;
 	}
 
-	Cmd_AddRemCommand("r_effect", CL_AssociateEffect_f);
-	Cmd_AddRemCommand("r_trail", CL_AssociateEffect_f);
+	Cmd_AddCommand("r_effect", CL_AssociateEffect_f);
+	Cmd_AddCommand("r_trail", CL_AssociateEffect_f);
 
 	Cvar_Register (&cl_expsprite, "Temporary entity control");
 	Cvar_Register (&cl_truelightning, "Temporary entity control");
@@ -800,6 +800,10 @@ void CL_ParseStream (int type)
 	case TEH2_STREAM_COLORBEAM:
 		b->model = Mod_ForName("models/stclrbm.mdl", true);
 		b->particleeffect = P_FindParticleType("te_stream_colorbeam");
+		break;
+	case TEH2_STREAM_GAZE:
+		b->model = Mod_ForName("stmedgaz.mdl", true);
+		b->particleeffect = P_FindParticleType("te_stream_gaze");
 		break;
 	default:
 		Con_Printf("CL_ParseStream: type %i\n", type);
@@ -1614,8 +1618,6 @@ void CL_ParseCustomTEnt(void)
 	}
 
 	t = &customtenttype[type];
-	if (t->particleeffecttype < 0)
-		Host_EndGame("Custom Temporary entity %i was not registered\n", type);
 
 	if (t->netstyle & CTE_ISBEAM)
 	{
@@ -1649,7 +1651,7 @@ void CL_ParseCustomTEnt(void)
 	}
 
 	if (failed)
-		Con_Printf("Failed to create effect %s\n", t->name);
+		Con_DPrintf("Failed to create effect %s\n", t->name);
 
 	if (t->netstyle & CTE_STAINS)
 	{	//added at pos2 - end of trail

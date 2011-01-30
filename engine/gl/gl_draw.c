@@ -318,14 +318,10 @@ void GLDraw_ReInit (void)
 
 	int maxtexsize;
 
-	gltexture_t *glt;
-
-	TRACE(("dbg: GLDraw_ReInit: Closing old\n"));
-	while(gltextures)
+	if (gltextures)
 	{
-		glt = gltextures;
-		gltextures = gltextures->next;
-		BZ_Free(glt);
+		Con_Printf("gl_draw didn't shut down cleanly\n");
+		gltextures = NULL;
 	}
 
 	memset(gltexturetablebuckets, 0, sizeof(gltexturetablebuckets));
@@ -448,6 +444,15 @@ void GLDraw_DeInit (void)
 	Sh_Shutdown();
 #endif
 	Shader_Shutdown();
+	
+	while(gltextures)
+	{
+		gltexture_t *glt;
+		glt = gltextures;
+		gltextures = gltextures->next;
+		BZ_Free(glt);
+	}
+
 }
 
 #include "crosshairs.dat"

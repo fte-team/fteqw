@@ -1846,9 +1846,9 @@ void CL_InitInput (void)
 
 	for (sp = 0; sp < MAX_SPLITS; sp++)
 	{
-		Cmd_AddRemCommand (vahunk("p%i",		sp+1),	CL_Split_f);
-		Cmd_AddRemCommand (vahunk("+p%i",		sp+1),	CL_Split_f);
-		Cmd_AddRemCommand (vahunk("-p%i",		sp+1),	CL_Split_f);
+		Cmd_AddCommand (vahunk("p%i",		sp+1),	CL_Split_f);
+		Cmd_AddCommand (vahunk("+p%i",		sp+1),	CL_Split_f);
+		Cmd_AddCommand (vahunk("-p%i",		sp+1),	CL_Split_f);
 		in_mlook.state[sp] = 1;
 	}
 	

@@ -165,6 +165,9 @@ static void ALSA_RW_Submit (soundcardinfo_t *sc, int start, int end)
 static void ALSA_Shutdown (soundcardinfo_t *sc)
 {
 	psnd_pcm_close (sc->handle);
+
+	if (sc->Submit == ALSA_RW_Submit);
+                free(sc->sn.buffer);
 }
 
 static void *ALSA_LockBuffer(soundcardinfo_t *sc)

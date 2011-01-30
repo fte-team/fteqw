@@ -464,9 +464,8 @@ void GL_Font_Callback(struct cvar_s *var, char *oldvalue);
 void GLR_DeInit (void)
 {
 	Cmd_RemoveCommand ("timerefresh");
-	Cmd_RemoveCommand ("envmap");
 	Cmd_RemoveCommand ("r_editlights_reload");
-	Cmd_RemoveCommand ("pointfile");
+	Cmd_RemoveCommand ("r_editlights_save");
 
 	Cmd_RemoveCommand ("makewad");
 

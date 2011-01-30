@@ -310,7 +310,7 @@ start:
 	{
 		i++;
 		cmd_text[level].buf.cursize -= i;
-		Q_memcpy (text, text+i, cmd_text[level].buf.cursize);
+		memmove (text, text+i, cmd_text[level].buf.cursize);
 	}
 
 //	Con_Printf("Found \"%s\"\n", line);
@@ -2851,13 +2851,20 @@ void Cmd_Condump_f(void)
 
 void Cmd_Shutdown(void)
 {
+	cmdalias_t *a;
 	//make sure we get no other execution
 	int level;
 	for (level = 0; level < sizeof(cmd_text)/sizeof(cmd_text[0]); level++)
 		SZ_Clear (&cmd_text[level].buf);
 
 	cmd_functions = NULL;
-	cmd_alias = NULL;
+	while(cmd_alias)
+	{
+		a = cmd_alias;
+		cmd_alias = a->next;
+		Z_Free(a->value);
+		Z_Free(a);
+	}
 }
 
 /*

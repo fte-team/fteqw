@@ -910,7 +910,7 @@ void M_DeInit_Internal (void)
 
 #ifdef CL_MASTER
 	Cmd_RemoveCommand ("menu_servers");
-	Cmd_RemoveCommand ("menu_servers2");
+	Cmd_RemoveCommand ("menu_serversold");
 	Cmd_RemoveCommand ("menu_slist");
 #endif
 	Cmd_RemoveCommand ("menu_setup");

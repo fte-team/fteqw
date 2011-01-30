@@ -3767,7 +3767,7 @@ static void QCBUILTIN PF_lightstylevalue (progfuncs_t *prinst, struct globalvars
 static void QCBUILTIN PF_lightstylestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int		style;
-	float	num;
+	int	num;
 	char	*val;
 
 	static char *styleDefs[] =
@@ -3795,7 +3795,7 @@ static void QCBUILTIN PF_lightstylestatic (progfuncs_t *prinst, struct globalvar
 		num = 0;
 	else if (num >= 'z'-'a')
 		num = 'z'-'a'-1;
-	val = styleDefs[(int)num];
+	val = styleDefs[num];
 
 	PF_applylightstyle(style, val, col);
 }

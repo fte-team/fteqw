@@ -608,6 +608,11 @@ void GLVID_Shutdown(void)
 		if (vidmode_active)
 			XF86VidModeSwitchToMode(vid_dpy, scrnum, vidmodes[0]);
 		vidmode_active = false;
+
+		if (vidmodes)
+			XFree(vidmodes);
+		vidmodes = NULL;
+		num_vidmodes = 0;
 	}
 #endif
 	XCloseDisplay(vid_dpy);
@@ -906,6 +911,8 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	XMapWindow(vid_dpy, vid_window);
 	/*put it somewhere*/
 	XMoveWindow(vid_dpy, vid_window, 0, 0);
+	
+	//XFree(visinfo);
 
 #ifdef WITH_VMODE
 	if (vidmode_active) {

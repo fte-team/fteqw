@@ -3650,6 +3650,9 @@ void Host_Init (quakeparms_t *parms)
 #ifdef PLUGINS
 	Plug_Init();
 #endif
+#ifdef VM_UI
+	UI_Init();
+#endif
 
 #ifdef CL_MASTER
 	Master_SetupSockets();
@@ -3748,7 +3751,7 @@ void Host_FinishInit(void)
 	Renderer_Start();
 
 #ifdef VM_UI
-	UI_Init();
+	UI_Start();
 #endif
 
 #ifndef NOMEDIA

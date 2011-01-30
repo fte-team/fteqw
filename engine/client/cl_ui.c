@@ -1614,8 +1614,7 @@ qboolean UI_Command(void)
 
 void UI_Init (void)
 {
-	Cmd_AddRemCommand("ui_restart", UI_Restart_f);
-	UI_Start();
+	Cmd_AddCommand("ui_restart", UI_Restart_f);
 }
 #endif
 

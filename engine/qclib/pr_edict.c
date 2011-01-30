@@ -1099,9 +1099,17 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s,
 		{
 			while (*v && *v != ' ')
 				v++;
-			*v = 0;
-			((float *)d)[i] = (float)atof (w);
-			w = v = v+1;
+			if (!*v)
+			{
+				((float *)d)[i] = (float)atof (w);
+				w = v;
+			}
+			else
+			{
+				*v = 0;
+				((float *)d)[i] = (float)atof (w);
+				w = v = v+1;
+			}
 		}
 		break;
 

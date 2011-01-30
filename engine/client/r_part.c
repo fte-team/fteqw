@@ -144,9 +144,6 @@ void P_InitParticleSystem(void)
 
 	Cvar_Register(&r_particlesystem, "Particles");
 
-
-
-
 	//particles
 	Cvar_Register(&r_particledesc, particlecvargroupname);
 	Cvar_Register(&r_bouncysparks, particlecvargroupname);
@@ -163,6 +160,15 @@ void P_InitParticleSystem(void)
 	Cvar_Register(&r_part_contentswitch, particlecvargroupname);
 
 	Cvar_Register (&gl_part_flame, particlecvargroupname);
+}
+
+void P_Shutdown(void)
+{
+	if (pe)
+	{
+		pe->ShutdownParticles();
+	}
+	pe = NULL;
 }
 
 #ifdef Q2BSPS

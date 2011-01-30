@@ -248,7 +248,6 @@ int readdemobytes(int *readpos, void *data, int len)
 	}
 	else if (i < 0)
 	{	//0 means no data available yet
-		printf("VFS_READ failed\n");
 		endofdemo = true;
 		return 0;
 	}

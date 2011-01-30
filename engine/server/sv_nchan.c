@@ -44,9 +44,10 @@ void ClientReliableCheckBlock(client_t *cl, int maxsize)
 		{
 			if (cl->num_backbuf == MAX_BACK_BUFFERS)
 			{
-				Con_Printf ("WARNING: MAX_BACK_BUFFERS for %s\n", cl->name);
 				cl->backbuf.cursize = 0; // don't overflow without allowoverflow set
 				cl->netchan.message.overflowed = true; // this will drop the client
+				if (!cl->drop)
+					Con_Printf ("WARNING: MAX_BACK_BUFFERS for %s\n", cl->name);
 				cl->drop = true;
 				return;
 			}
@@ -77,7 +78,8 @@ void ClientReliable_FinishWrite(client_t *cl)
 
 		if (cl->backbuf.overflowed)
 		{
-			Con_TPrintf (STL_MESSAGEOVERFLOW,cl->num_backbuf,cl->name);
+			if (!cl->netchan.message.overflowed)
+				Con_TPrintf (STL_MESSAGEOVERFLOW,cl->num_backbuf,cl->name);
 			cl->netchan.message.overflowed = true; // this will drop the client
 		}
 	}

@@ -26,7 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	WAV_BUFFER_SIZE			0x0400
 #define SECONDARY_BUFFER_SIZE	0x10000
 
-static void WAV_Submit(soundcardinfo_t *sc);
+static void WAV_Submit(soundcardinfo_t *sc, int start, int end);
 
 typedef struct {
 	HWAVEOUT hWaveOut;
@@ -166,7 +166,7 @@ WAV_Submit
 Send sound to device if buffer isn't really the dma buffer
 ===============
 */
-static void WAV_Submit(soundcardinfo_t *sc)
+static void WAV_Submit(soundcardinfo_t *sc, int start, int end)
 {
 	LPWAVEHDR	h;
 	int			wResult;

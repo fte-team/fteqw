@@ -599,7 +599,7 @@ static void OpenAL_SetUnderWater (soundcardinfo_t *sc, qboolean underwater)
 }
 
 /*stub should not be called*/
-static void OpenAL_Submit (soundcardinfo_t *sc)
+static void OpenAL_Submit (soundcardinfo_t *sc, int start, int end)
 {
 	//Con_Printf("OpenAL: Submit\n");
 }

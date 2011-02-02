@@ -717,6 +717,7 @@ void	(*R_AddStain)				(vec3_t org, float red, float green, float blue, float rad
 void	(*R_LessenStains)			(void);
 
 void	(*Mod_Init)					(void);
+void	(*Mod_Shutdown)				(void);
 void	(*Mod_ClearAll)				(void);
 struct model_s *(*Mod_ForName)		(char *name, qboolean crash);
 struct model_s *(*Mod_FindName)		(char *name);
@@ -799,6 +800,7 @@ rendererinfo_t dedicatedrendererinfo = {
 
 #if defined(GLQUAKE) || defined(D3DQUAKE)
 	RMod_Init,
+	RMod_Shutdown,
 	RMod_ClearAll,
 	RMod_ForName,
 	RMod_FindName,
@@ -1354,6 +1356,7 @@ void R_SetRenderer(rendererinfo_t *ri)
 	VID_SetWindowCaption	= ri->VID_SetWindowCaption;
 
 	Mod_Init				= ri->Mod_Init;
+	Mod_Shutdown			= ri->Mod_Shutdown;
 	Mod_Think				= ri->Mod_Think;
 	Mod_ClearAll			= ri->Mod_ClearAll;
 	Mod_ForName				= ri->Mod_ForName;
@@ -1401,7 +1404,8 @@ void R_ShutdownRenderer(void)
 	CL_AllowIndependantSendCmd(false);	//FIXME: figure out exactly which parts are going to affect the model loading.
 
 	P_Shutdown();
-	RMod_Shutdown();
+	if (Mod_Shutdown)
+		Mod_Shutdown();
 
 	IN_Shutdown();
 

@@ -219,6 +219,7 @@ typedef struct rendererinfo_s {
 	void	(*R_LessenStains)			(void);
 
 	void	(*Mod_Init)					(void);
+	void	(*Mod_Shutdown)				(void);
 	void	(*Mod_ClearAll)				(void);
 	struct model_s *(*Mod_ForName)		(char *name, qboolean crash);
 	struct model_s *(*Mod_FindName)		(char *name);

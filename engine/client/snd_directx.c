@@ -512,7 +512,7 @@ SNDDMA_Submit
 Send sound to device if buffer isn't really the dma buffer
 ===============
 */
-static void DSOUND_Submit(soundcardinfo_t *sc)
+static void DSOUND_Submit(soundcardinfo_t *sc, int start, int end)
 {
 }
 

@@ -313,6 +313,7 @@ extern	texid_t ptritexture;
 #if defined(GLQUAKE) || defined(D3DQUAKE)
 
 void	RMod_Init (void);
+void RMod_Shutdown (void);
 int Mod_TagNumForName(struct model_s *model, char *name);
 int Mod_SkinNumForName(struct model_s *model, char *name);
 int Mod_FrameNumForName(struct model_s *model, char *name);

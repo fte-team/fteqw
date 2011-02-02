@@ -1105,6 +1105,7 @@ rendererinfo_t openglrendererinfo = {
 	Surf_LessenStains,
 
 	RMod_Init,
+	RMod_Shutdown,
 	RMod_ClearAll,
 	RMod_ForName,
 	RMod_FindName,

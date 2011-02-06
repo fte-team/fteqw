@@ -254,7 +254,9 @@ void Font_Init(void)
 
 	fontplanes.shader = R_RegisterShader("ftefont",
 		"{\n"
-//			"program default2d\n"
+#ifdef USE_EGL
+			"program default2d\n"
+#endif
 			"nomipmaps\n"
 			"{\n"
 				"map $diffuse\n"

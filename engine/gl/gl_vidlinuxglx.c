@@ -33,12 +33,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "glquake.h"
 
 #include <GL/glx.h>
+#ifdef USE_EGL
+#include "gl_vidgles.h"
+#endif
 
 #include <X11/keysym.h>
 #include <X11/cursorfont.h>
 
 #ifdef USE_DGA
-#include <X11/extensions/xf86dga.h>
+#include <X11/extensions/Xxf86dga.h>
 #endif
 
 #ifdef __linux__
@@ -147,7 +150,6 @@ qboolean GLX_InitLibrary(char *driver)
 	qglXSwapBuffers = dlsym(gllibrary, "glXSwapBuffers");
 	qglXMakeCurrent = dlsym(gllibrary, "glXMakeCurrent");
 	qglXCreateContext = dlsym(gllibrary, "glXCreateContext");
-	qglXDestroyContext = dlsym(gllibrary, "glXDestroyContext");
 	qglXDestroyContext = dlsym(gllibrary, "glXDestroyContext");
 	qglXGetProcAddress = dlsym(gllibrary, "glXGetProcAddress");
 	if (!qglXGetProcAddress)
@@ -585,6 +587,9 @@ static void GetEvent(void)
 
 void GLVID_Shutdown(void)
 {
+#ifdef USE_EGL
+	EGL_Shutdown();
+#else
 	printf("GLVID_Shutdown\n");
 	if (!ctx)
 		return;
@@ -618,6 +623,7 @@ void GLVID_Shutdown(void)
 	XCloseDisplay(vid_dpy);
 	vid_dpy = NULL;
 	vid_window = (Window)NULL;
+#endif
 }
 
 void GLVID_DeInit(void)	//FIXME:....
@@ -730,15 +736,22 @@ GL_BeginRendering
 */
 void GL_BeginRendering (void)
 {
+#ifdef USE_EGL
+	EGL_BeginRendering();
+#endif
 }
 
 
 void GL_EndRendering (void)
 {
+#ifdef USE_EGL
+	EGL_EndRendering();
+#else
 //return;
 //we don't need the flush, XSawpBuffers does it for us.
 //chances are, it's version is more suitable anyway. At least there's the chance that it might be.
 	qglXSwapBuffers(vid_dpy, vid_window);
+#endif
 }
 
 qboolean GLVID_Is8bit(void)
@@ -762,6 +775,9 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	XSetWindowAttributes attr;
 	unsigned long mask;
 	Window root;
+#ifdef USE_EGL
+	XVisualInfo vinfodef;
+#endif
 	XVisualInfo *visinfo;
 	qboolean fullscreen = false;
 	Atom prots[1];
@@ -776,11 +792,19 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	S_Startup();
 
+#ifdef USE_EGL
+	if (!EGL_LoadLibrary(info->glrenderer))
+	{
+		Con_Printf("couldn't load EGL library\n");
+		return false;
+	}
+#else
 	if (!GLX_InitLibrary(info->glrenderer))
 	{
 		Con_Printf("Couldn't intialise GLX\nEither your drivers are not installed or you need to specify the library name with the gl_driver cvar\n");
 		return false;
 	}
+#endif
 
 	vid.colormap = host_colormap;
 
@@ -828,12 +852,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	}
 #endif
 
-	visinfo = qglXChooseVisual(vid_dpy, scrnum, attrib);
-	if (!visinfo)
-	{
-		Sys_Error("qkHack: Error couldn't get an RGB, Double-buffered, Depth visual\n");
-	}
-
 #ifdef WITH_VMODE
 	vidmode_usemode = -1;
 	if (vidmode_ext)
@@ -880,6 +898,21 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	vidglx_fullscreen = fullscreen;
 
+#ifdef USE_EGL
+	visinfo = &vinfodef;
+	if (!XMatchVisualInfo(vid_dpy, scrnum, info->bpp, TrueColor, visinfo))
+//	if (!XMatchVisualInfo(vid_dpy, scrnum, DefaultDepth(vid_dpy, scrnum), TrueColor, &visinfo))
+	{
+		Sys_Error("Couldn't choose visual for EGL\n");
+	}
+#else
+	visinfo = qglXChooseVisual(vid_dpy, scrnum, attrib);
+	if (!visinfo)
+	{
+		Sys_Error("qkHack: Error couldn't get an RGB, Double-buffered, Depth visual\n");
+	}
+#endif
+
 	/* window attributes */
 	attr.background_pixel = 0;
 	attr.border_pixel = 0;
@@ -898,10 +931,11 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	}
 #endif
 
-	ActiveApp = false;
 	vid_window = XCreateWindow(vid_dpy, root, 0, 0, info->width, info->height,
 						0, visinfo->depth, InputOutput,
 						visinfo->visual, mask, &attr);
+
+	ActiveApp = false;
 	/*ask the window manager to stop triggering bugs in Xlib*/
 	prots[0] = XInternAtom(vid_dpy, "WM_DELETE_WINDOW", False);
 	XSetWMProtocols(vid_dpy, vid_window, prots, sizeof(prots)/sizeof(prots[0]));
@@ -911,7 +945,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	XMapWindow(vid_dpy, vid_window);
 	/*put it somewhere*/
 	XMoveWindow(vid_dpy, vid_window, 0, 0);
-	
+
 	//XFree(visinfo);
 
 #ifdef WITH_VMODE
@@ -929,6 +963,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	XFlush(vid_dpy);
 
+#ifndef USE_EGL
 #ifdef WITH_VMODE
 	if (vidmode_ext >= 2)
 	{
@@ -961,6 +996,20 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		return false;
 	}
 
+	GL_Init(&GLX_GetSymbol);
+
+#else
+	EGL_Init(info, palette, vid_window);
+	GL_Init(&EGL_Proc);
+#endif
+
+	GLVID_SetPalette(palette);
+	GLVID_ShiftPalette(palette);
+
+	qglGetIntegerv(GL_STENCIL_BITS, &gl_canstencil);
+
+	InitSig(); // trap evil signals
+
 	vid.pixelwidth = info->width;
 	vid.pixelheight = info->height;
 
@@ -970,14 +1019,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		vid.width = info->width;
 
 	vid.numpages = 2;
-
-	InitSig(); // trap evil signals
-
-	GL_Init(&GLX_GetSymbol);
-	qglGetIntegerv(GL_STENCIL_BITS, &gl_canstencil);
-
-	GLVID_SetPalette(palette);
-	GLVID_ShiftPalette(palette);
 
 	Con_SafePrintf ("Video mode %dx%d initialized.\n", info->width, info->height);
 

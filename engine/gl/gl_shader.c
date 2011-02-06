@@ -795,8 +795,11 @@ struct sbuiltin_s
 	  gles versioning started at 100 and only had a single one defined
 	  with gl3's combined support, gl3 supports 130+ and 100, but 110 requries compat extension
 	  with gl4, versions are meant to match the gl version more closely, so gl4.0 uses 400.*/
+	/*glsl es shaders require precisions to be defined for fragment shader variables
+	  more precision for shaders would be a good candidate for a cvar */
 	{QR_OPENGL/*ES*/, 100, "default2d",
-		"#version 100\n"
+		//SGX requires #version to come before defines
+		//"#version 100\n"
 		"#ifdef VERTEX_SHADER\n"
 			"uniform mat4 m_view;\n"
 			"uniform mat4 m_projection;\n"
@@ -816,8 +819,8 @@ struct sbuiltin_s
 
 		"#ifdef FRAGMENT_SHADER\n"
 			"uniform sampler2D s_t0;\n"
-			"in vec2 tc;\n"
-			"varying vec4 vc;\n"
+			"varying mediump vec2 tc;\n"
+			"varying lowp vec4 vc;\n"
 
 			"void main (void)\n"
 			"{\n"
@@ -889,7 +892,7 @@ struct sbuiltin_s
 	},
 	{QR_OPENGL/*ES*/, 100, "defaultwall",
 		"!!permu FULLBRIGHT\n"
-		"#version 100\n"
+		//"#version 100\n"
 		"#ifdef VERTEX_SHADER\n"
 			"uniform mat4 m_modelview;\n"
 			"uniform mat4 m_projection;\n"
@@ -914,7 +917,7 @@ struct sbuiltin_s
 			"#ifdef FULLBRIGHT\n"
 			"uniform sampler2D s_t4;\n" /*tex_fullbright*/
 			"#endif\n"
-			"varying vec2 tc, lm;\n"
+			"varying mediump vec2 tc, lm;\n"
 
 			"void main (void)\n"
 			"{\n"
@@ -926,8 +929,8 @@ struct sbuiltin_s
 		"#endif\n"
 	},
 	{QR_OPENGL/*ES*/, 100, "defaultwarp",
-		"#version 100\n"
-		"varying vec2 tc;\n"
+		//"#version 100\n"
+		"varying mediump vec2 tc;\n"
 		"#ifdef VERTEX_SHADER\n"
 			"uniform mat4 m_modelview;\n"
 			"uniform mat4 m_projection;\n"
@@ -942,15 +945,15 @@ struct sbuiltin_s
 
 		"#ifdef FRAGMENT_SHADER\n"
 			"uniform sampler2D watertexture;\n"
-			"uniform float e_time;\n"
-			"uniform float wateralpha;\n"
+			"uniform mediump float e_time;\n"
+			"uniform lowp float wateralpha;\n"
 
 			"void main (void)\n"
 			"{\n"
-			"	vec2 ntc;\n"
+			"	mediump vec2 ntc;\n"
 			"	ntc.s = tc.s + sin(tc.t+e_time)*0.125;\n"
 			"	ntc.t = tc.t + sin(tc.s+e_time)*0.125;\n"
-			"	vec3 ts = vec3(texture2D(watertexture, ntc));\n"
+			"	lowp vec3 ts = vec3(texture2D(watertexture, ntc));\n"
 
 			"	gl_FragColor = vec4(ts, wateralpha);\n"
 			"}\n"
@@ -984,7 +987,7 @@ struct sbuiltin_s
 		"#endif\n"
 	},
 	{QR_OPENGL/*ES*/, 100, "defaultsky",
-		"#version 100\n"
+		//"#version 100\n"
 		"#ifdef VERTEX_SHADER\n"
 			"uniform mat4 m_modelview;\n"
 			"uniform mat4 m_projection;\n"
@@ -1002,24 +1005,24 @@ struct sbuiltin_s
 			"uniform sampler2D s_t0;\n"
 			"uniform sampler2D s_t1;\n"
 
-			"uniform float e_time;\n"
-			"uniform vec3 eyepos;\n"
-			"varying vec3 pos;\n"
+			"uniform mediump float e_time;\n"
+			"uniform mediump vec3 eyepos;\n"
+			"varying mediump vec3 pos;\n"
 
 			"void main (void)\n"
 			"{\n"
-			"	vec2 tccoord;\n"
+			"	mediump vec2 tccoord;\n"
 
-			"	vec3 dir = pos - eyepos;\n"
+			"	mediump vec3 dir = pos - eyepos;\n"
 
 			"	dir.z *= 3.0;\n"
 			"	dir.xy /= 0.5*length(dir);\n"
 
 			"	tccoord = (dir.xy + e_time*0.03125);\n"
-			"	vec3 solid = vec3(texture2D(s_t0, tccoord));\n"
+			"	lowp vec3 solid = vec3(texture2D(s_t0, tccoord));\n"
 
 			"	tccoord = (dir.xy + e_time*0.0625);\n"
-			"	vec4 clouds = texture2D(s_t1, tccoord);\n"
+			"	lowp vec4 clouds = texture2D(s_t1, tccoord);\n"
 
 			"	gl_FragColor.rgb = (solid.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb);\n"
 //			"	gl_FragColor.rgb = solid.rgb;/*gl_FragColor.g = clouds.r;*/gl_FragColor.b = clouds.a;\n"
@@ -1069,7 +1072,7 @@ struct sbuiltin_s
 		"!!permu FULLBRIGHT\n"
 		"!!permu LOWER\n"
 		"!!permu UPPER\n"
-		"#version 100\n"
+		//"#version 100\n"
 		"#ifdef VERTEX_SHADER\n"
 			"uniform mat4 m_modelview;\n"
 			"uniform mat4 m_projection;\n"
@@ -1095,17 +1098,17 @@ struct sbuiltin_s
 			"uniform sampler2D s_t0;\n" /*tex_diffuse*/
 			"#ifdef LOWER\n"
 			"uniform sampler2D s_t1;\n" /*tex_lower*/
-			"uniform vec3 e_lowercolour;\n"
+			"uniform lowp vec3 e_lowercolour;\n"
 			"#endif\n"
 			"#ifdef UPPER\n"
 			"uniform sampler2D s_t2;\n" /*tex_upper*/
-			"uniform vec3 e_uppercolour;\n"
+			"uniform lowp vec3 e_uppercolour;\n"
 			"#endif\n"
 			"#ifdef FULLBRIGHT\n"
 			"uniform sampler2D s_t3;\n" /*tex_fullbright*/
 			"#endif\n"
-			"varying vec2 tc;\n"
-			"varying vec3 light;\n"
+			"varying mediump vec2 tc;\n"
+			"varying lowp vec3 light;\n"
 
 			"void main (void)\n"
 			"{\n"
@@ -1141,6 +1144,7 @@ static void Shader_LoadGeneric(union programhandle_u *shader, char *name, int qr
 {
 	unsigned int i;
 	void *file;
+
 	sgeneric_t *g;
 	for (g = sgenerics; g; g = g->next)
 	{
@@ -3584,7 +3588,9 @@ void Shader_Default2D(char *shortname, shader_t *s, const void *genargs)
 {
 	Shader_DefaultScript(shortname, s,
 		"{\n"
-//			"program default2d\n"
+#ifdef USE_EGL
+			"program default2d\n"
+#endif
 			"nomipmaps\n"
 			"{\n"
 				"clampmap $diffuse\n"

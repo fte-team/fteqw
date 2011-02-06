@@ -333,6 +333,10 @@ void APIENTRY GL_BindBufferARBStub(GLenum target, GLuint id)
 {
 }
 
+void APIENTRY GL_ClientStateStub(GLenum array)
+{
+}
+
 #define getglcore getglfunction
 #define getglext(name) getglfunction(name)
 void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
@@ -943,12 +947,11 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglEndList		= (void*)getglcore("glEndList");
 	qglCallList		= (void*)getglcore("glCallList");
 
-	qglBindBufferARB		= (void *)getglext("qglBindBufferARB");
+	qglBindBufferARB		= (void *)getglext("glBindBufferARB");
 	if (!qglBindBufferARB)
-		qglBindBufferARB	= (void *)getglext("qglBindBuffer");
+		qglBindBufferARB	= (void *)getglext("glBindBuffer");
 	if (!qglBindBufferARB)
 		qglBindBufferARB	= GL_BindBufferARBStub;
-
 
 	gl_vendor = qglGetString (GL_VENDOR);
 	Con_SafePrintf ("GL_VENDOR: %s\n", gl_vendor);
@@ -1014,8 +1017,8 @@ void GL_Init(void *(*getglfunction) (char *name))
 		qglShadeModel = NULL;
 		qglDepthRange = NULL;
 
-		qglEnableClientState = NULL;
-		qglDisableClientState = NULL;
+		qglEnableClientState = GL_ClientStateStub;
+		qglDisableClientState = GL_ClientStateStub;
 
 		qglDrawRangeElements = GL_DrawRangeElementsEmul;
 	}

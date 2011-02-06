@@ -616,6 +616,9 @@ void GLDraw_TransPicTranslate (int x, int y, int width, int height, qbyte *pic, 
 	qbyte			*src;
 	int				p;
 
+	if (gl_config.gles)
+		return; // TODO: NOT FIXED YET
+	
 	GL_Bind (translate_texture);
 
 	c = width * height;
@@ -654,6 +657,9 @@ void GLDraw_TransPicTranslate (int x, int y, int width, int height, qbyte *pic, 
 
 void GLDraw_FillRGB (int x, int y, int w, int h, float r, float g, float b)
 {
+	if (gl_config.gles)
+		return; //TODO: DRAW FILL NOT FIXED YET
+
 	qglDisable (GL_TEXTURE_2D);
 	qglColor3f (r, g, b);
 
@@ -1514,7 +1520,11 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 	if (scaled_width * scaled_height > sizeofuploadmemorybuffer/4)
 		Sys_Error ("GL_LoadTexture: too big");
 
-	samples = (flags&IF_NOALPHA) ? GL_RGB : GL_RGBA;
+	if (gl_config.gles)
+		samples = GL_RGBA; /* GL ES doesn't allow for format conversion */
+	else
+		samples = (flags&IF_NOALPHA) ? GL_RGB : GL_RGBA;
+
 	if (gl_config.arb_texture_compression && gl_compress.value && name && !(flags&IF_NOMIPMAP))
 		samples = (flags&IF_NOALPHA) ? GL_COMPRESSED_RGB_ARB : GL_COMPRESSED_RGBA_ARB;
 

@@ -22,11 +22,13 @@ extern cvar_t scr_conalpha;
 extern cvar_t gl_conback;
 extern cvar_t gl_font;
 extern cvar_t gl_contrast;
+extern cvar_t gl_screenangle;
 extern cvar_t vid_conautoscale;
 extern cvar_t vid_conheight;
 extern cvar_t vid_conwidth;
 void R2D_Font_Callback(struct cvar_s *var, char *oldvalue);
 void R2D_Conautoscale_Callback(struct cvar_s *var, char *oldvalue);
+void R2D_ScreenAngle_Callback(struct cvar_s *var, char *oldvalue);
 void R2D_Conheight_Callback(struct cvar_s *var, char *oldvalue);
 void R2D_Conwidth_Callback(struct cvar_s *var, char *oldvalue);
 
@@ -128,6 +130,7 @@ void R2D_Init(void)
 
 	Cvar_Hook(&gl_font, R2D_Font_Callback);
 	Cvar_Hook(&vid_conautoscale, R2D_Conautoscale_Callback);
+	Cvar_Hook(&gl_screenangle, R2D_ScreenAngle_Callback);
 	Cvar_Hook(&vid_conheight, R2D_Conheight_Callback);
 	Cvar_Hook(&vid_conwidth, R2D_Conwidth_Callback);
 
@@ -383,9 +386,9 @@ void R2D_Font_Callback(struct cvar_s *var, char *oldvalue)
 		return;
 	}
 
-	font_conchar = Font_LoadFont(8*vid.pixelheight/vid.height, var->string);
+	font_conchar = Font_LoadFont(8*vid.rotpixelheight/vid.height, var->string);
 	if (!font_conchar && *var->string)
-		font_conchar = Font_LoadFont(8*vid.pixelheight/vid.height, "");
+		font_conchar = Font_LoadFont(8*vid.rotpixelheight/vid.height, "");
 }
 
 // console size manipulation callbacks
@@ -396,6 +399,23 @@ void R2D_Console_Resize(void)
 	int cwidth, cheight;
 	float xratio;
 	float yratio=0;
+	float ang, rad;
+	extern cvar_t gl_screenangle;
+
+	ang = (gl_screenangle.value>0?(gl_screenangle.value+45):(gl_screenangle.value-45))/90;
+	ang = (int)ang * 90;
+	if (ang)
+	{
+		rad = (ang * M_PI) / 180;
+		vid.rotpixelwidth = fabs(cos(rad)) * (vid.pixelwidth) + fabs(sin(rad)) * (vid.pixelheight);
+		vid.rotpixelheight = fabs(sin(rad)) * (vid.pixelwidth) + fabs(cos(rad)) * (vid.pixelheight);
+	}
+	else
+	{
+		vid.rotpixelwidth = vid.pixelwidth;
+		vid.rotpixelheight = vid.pixelheight;
+	}
+
 	cwidth = vid_conwidth.value;
 	cheight = vid_conheight.value;
 
@@ -413,8 +433,8 @@ void R2D_Console_Resize(void)
 		yratio = 1 / yratio;
 
 		//autoscale overrides conwidth/height (without actually changing them)
-		cwidth = vid.pixelwidth;
-		cheight = vid.pixelheight;
+		cwidth = vid.rotpixelwidth;
+		cheight = vid.rotpixelheight;
 	}
 	else
 	{
@@ -424,9 +444,9 @@ void R2D_Console_Resize(void)
 
 
 	if (!cwidth)
-		cwidth = vid.pixelwidth;
+		cwidth = vid.rotpixelwidth;
 	if (!cheight)
-		cheight = vid.pixelheight;
+		cheight = vid.rotpixelheight;
 
 	cwidth*=xratio;
 	cheight*=yratio;
@@ -489,6 +509,11 @@ void R2D_Conwidth_Callback(struct cvar_s *var, char *oldvalue)
 }
 
 void R2D_Conautoscale_Callback(struct cvar_s *var, char *oldvalue)
+{
+	R2D_Console_Resize();
+}
+
+void R2D_ScreenAngle_Callback(struct cvar_s *var, char *oldvalue)
 {
 	R2D_Console_Resize();
 }

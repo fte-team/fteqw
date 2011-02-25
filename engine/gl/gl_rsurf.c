@@ -53,10 +53,8 @@ void GLBE_ClearVBO(vbo_t *vbo)
 		if (j == 7)
 			qglDeleteBuffersARB(1, &vboh[i]);
 	}
-	if (!vbo->vbocoord)
-		BZ_Free(vbo->coord);
-	if (!vbo->vboe)
-		BZ_Free(vbo->indicies);
+	if (vbo->vertdata)
+		BZ_Free(vbo->vertdata);
 	BZ_Free(vbo->meshlist);
 	memset(vbo, 0, sizeof(*vbo));
 }
@@ -128,6 +126,16 @@ static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int
 	return true;
 }
 
+void *allocbuf(char **p, int elements, int elementsize)
+{
+	void *ret;
+	*p += elementsize - 1;
+	*p -= (unsigned int)*p & (elementsize-1);
+	ret = *p;
+	*p += elements*elementsize;
+	return ret;
+}
+
 void GLBE_GenBrushModelVBO(model_t *mod)
 {
 	unsigned int maxvboverts;
@@ -141,9 +149,8 @@ void GLBE_GenBrushModelVBO(model_t *mod)
 	unsigned int meshes;
 
 	vbo_t *vbo;
-	char *vboedata;
 	mesh_t *m;
-	char *vbovdata;
+	char *p;
 
 	if (!mod->numsurfaces)
 		return;
@@ -189,17 +196,18 @@ void GLBE_GenBrushModelVBO(model_t *mod)
 					sizeof(vec3_t)+	//tdir
 					sizeof(vec4_t);	//colours
 
-		vbovdata = BZ_Malloc(maxvboverts*pervertsize);
-		vboedata = BZ_Malloc(maxvboelements*sizeof(index_t));
+		vbo->vertdata = BZ_Malloc((maxvboverts+1)*pervertsize + (maxvboelements+1)*sizeof(index_t));
 
-		vbo->coord = (vecV_t*)(vbovdata);
-		vbo->texcoord = (vec2_t*)((char*)vbo->coord+maxvboverts*sizeof(*vbo->coord));
-		vbo->lmcoord = (vec2_t*)((char*)vbo->texcoord+maxvboverts*sizeof(*vbo->texcoord));
-		vbo->normals = (vec3_t*)((char*)vbo->lmcoord+maxvboverts*sizeof(*vbo->lmcoord));
-		vbo->svector = (vec3_t*)((char*)vbo->normals+maxvboverts*sizeof(*vbo->normals));
-		vbo->tvector = (vec3_t*)((char*)vbo->svector+maxvboverts*sizeof(*vbo->svector));
-		vbo->colours4f = (vec4_t*)((char*)vbo->tvector+maxvboverts*sizeof(*vbo->tvector));
-		vbo->indicies = (index_t*)vboedata;
+		p = vbo->vertdata;
+
+		vbo->coord = allocbuf(&p, maxvboverts, sizeof(*vbo->coord));
+		vbo->texcoord = allocbuf(&p, maxvboverts, sizeof(*vbo->texcoord));
+		vbo->lmcoord = allocbuf(&p, maxvboverts, sizeof(*vbo->lmcoord));
+		vbo->normals = allocbuf(&p, maxvboverts, sizeof(*vbo->normals));
+		vbo->svector = allocbuf(&p, maxvboverts, sizeof(*vbo->svector));
+		vbo->tvector = allocbuf(&p, maxvboverts, sizeof(*vbo->tvector));
+		vbo->colours4f = allocbuf(&p, maxvboverts, sizeof(*vbo->colours4f));
+		vbo->indicies = allocbuf(&p, maxvboelements, sizeof(index_t));
 
 		vbo->meshcount = meshes;
 		vbo->meshlist = BZ_Malloc(meshes*sizeof(*vbo->meshlist));
@@ -265,10 +273,10 @@ void GLBE_GenBrushModelVBO(model_t *mod)
 			vcount += v;
 		}
 
-		if (GL_BuildVBO(vbo, vbovdata, vcount*pervertsize, vboedata, ecount*sizeof(index_t)))
+		if (GL_BuildVBO(vbo, vbo->coord, vcount*pervertsize, vbo->indicies, ecount*sizeof(index_t)))
 		{
-			BZ_Free(vbovdata);
-			BZ_Free(vboedata);
+			BZ_Free(vbo->vertdata);
+			vbo->vertdata = NULL;
 		}
 	}
 /*	for (i=0 ; i<mod->numsurfaces ; i++)
@@ -295,7 +303,7 @@ void GLBE_UploadAllLightmaps(void)
 		if (!lightmap[i]->modified)
 			continue;
 		lightmap[i]->modified = false;
-		GL_Bind(lightmap_textures[i]);
+		GL_MTBind(0, GL_TEXTURE_2D, lightmap_textures[i]);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		switch (lightmap_bytes)
@@ -323,7 +331,7 @@ void GLBE_UploadAllLightmaps(void)
 			lightmap[i]->deluxrectchange.t = LMBLOCK_HEIGHT;
 			lightmap[i]->deluxrectchange.w = 0;
 			lightmap[i]->deluxrectchange.h = 0;
-			GL_Bind(deluxmap_textures[i]);
+			GL_MTBind(0, GL_TEXTURE_2D, deluxmap_textures[i]);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 			qglTexImage2D (GL_TEXTURE_2D, 0, 3

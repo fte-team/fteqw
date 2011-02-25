@@ -216,6 +216,7 @@ typedef struct vbo_s
 
 	int		vboe;
 	index_t	*indicies;
+	void *vertdata; /*internal use*/
 
 	int vbocoord;
 	vecV_t	*coord;
@@ -744,7 +745,7 @@ typedef struct {
 //
 
 typedef enum {mod_brush, mod_sprite, mod_alias, mod_dummy, mod_halflife, mod_heightmap} modtype_t;
-typedef enum {fg_quake, fg_quake2, fg_quake3, fg_halflife, fg_new, fg_doom} fromgame_t;	//useful when we have very similar model types. (eg quake/halflife bsps)
+typedef enum {fg_quake, fg_quake2, fg_quake3, fg_halflife, fg_new, fg_doom, fg_doom3} fromgame_t;	//useful when we have very similar model types. (eg quake/halflife bsps)
 
 #define	EF_ROCKET	1			// leave a trail
 #define	EF_GRENADE	2			// leave a trail
@@ -780,6 +781,18 @@ typedef union {
 		int numsectors;
 	} doom;
 } specificmodeltype_t;
+
+typedef struct
+{
+	int walkno;
+	int area[2];
+	vec3_t plane;
+	float dist;
+	vec3_t min;
+	vec3_t max;
+	int numpoints;
+	vec4_t *points;
+} portal_t;
 
 typedef struct model_s
 {
@@ -869,6 +882,8 @@ typedef struct model_s
 	unsigned	checksum;
 	unsigned	checksum2;
 
+	portal_t *portal;
+	unsigned int numportals;
 
 	modelfuncs_t	funcs;
 //

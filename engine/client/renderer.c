@@ -339,6 +339,7 @@ cvar_t vid_desktopgamma						= SCVARF ("vid_desktopgamma", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 
 extern cvar_t gl_dither;
+cvar_t	gl_screenangle = SCVAR("gl_screenangle", "0");
 
 #endif
 
@@ -434,6 +435,8 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_ati_truform, GRAPHICALNICETIES);
 	Cvar_Register (&gl_ati_truform_type, GRAPHICALNICETIES);
 	Cvar_Register (&gl_ati_truform_tesselation, GRAPHICALNICETIES);
+
+	Cvar_Register (&gl_screenangle, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_skyboxdist, GLRENDEREROPTIONS);
 

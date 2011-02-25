@@ -2039,7 +2039,7 @@ static int MSD_GetDMAPos(soundcardinfo_t *sc)
 	return s;
 }
 
-static void MSD_Submit(soundcardinfo_t *sc)
+static void MSD_Submit(soundcardinfo_t *sc, int start, int end)
 {
 	//Fixme: support outputting to wav
 	//http://www.borg.com/~jglatt/tech/wave.htm

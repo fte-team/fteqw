@@ -714,9 +714,9 @@ void Netchan_TransmitNextFragment( netchan_t *chan )
 	NET_SendPacket( chan->sock, send.cursize, send.data, chan->remote_address );
 
 //	if( net_showpackets->integer )
-	{
-		Con_Printf( "%s send %4i : s=%i fragment=%i,%i\n", (chan->sock == NS_CLIENT) ? "client" : "server", send.cursize, chan->outgoing_sequence, chan->reliable_start, fragmentLength );
-	}
+//	{
+//		Con_Printf( "%s send %4i : s=%i fragment=%i,%i\n", (chan->sock == NS_CLIENT) ? "client" : "server", send.cursize, chan->outgoing_sequence, chan->reliable_start, fragmentLength );
+//	}
 
 	// Even if we have sent the whole message,
 	// but if fragmentLength == FRAGMENTATION_TRESHOLD we have to write empty

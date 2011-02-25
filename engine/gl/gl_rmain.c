@@ -80,6 +80,8 @@ cvar_t	gl_reporttjunctions = SCVAR("gl_reporttjunctions","0");
 cvar_t	gl_finish = SCVAR("gl_finish","0");
 cvar_t	gl_dither = SCVAR("gl_dither", "1");
 
+extern cvar_t	gl_screenangle;
+
 cvar_t	r_polygonoffset_submodel_factor = SCVAR("r_polygonoffset_submodel_factor", "0.05");
 cvar_t	r_polygonoffset_submodel_offset = SCVAR("r_polygonoffset_submodel_offset", "25");
 
@@ -380,7 +382,7 @@ void GL_SetupSceneProcessingTextures (void)
 		}
 	}
 
-	GL_Bind(scenepp_texture_warp);
+	GL_MTBind(0, GL_TEXTURE_2D, scenepp_texture_warp);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, pp_warp_tex);
@@ -424,7 +426,7 @@ void GL_SetupSceneProcessingTextures (void)
 		}
 	}
 
-	GL_Bind(scenepp_texture_edge);
+	GL_MTBind(0, GL_TEXTURE_2D, scenepp_texture_edge);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, pp_edge_tex);
@@ -512,7 +514,11 @@ void R_RotateForEntity (float *modelview, const entity_t *e, const model_t *mod)
 	{
 		/*FIXME: no bob*/
 		float simpleview[16];
-		Matrix4_ModelViewMatrix(simpleview, vec3_origin, vec3_origin);
+		vec3_t ang, f, r, u;
+		ang[0] = 0;
+		ang[1] = 0;
+		ang[2] = gl_screenangle.value;
+		Matrix4_ModelViewMatrix(simpleview, ang, vec3_origin);
 		Matrix4_Multiply(simpleview, m, modelview);
 	}
 	else
@@ -1001,6 +1007,7 @@ void R_SetupGL (void)
 {
 	float	screenaspect;
 	int		x, x2, y2, y, w, h;
+	vec3_t newa;
 
 	float fov_x, fov_y;
 
@@ -1077,7 +1084,11 @@ void R_SetupGL (void)
 				Matrix4_Orthographic(r_refdef.m_projection, 0, r_refdef.vrect.width, 0, r_refdef.vrect.height, -9999, 9999);
 		}
 
-		Matrix4_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
+		VectorCopy(r_refdef.viewangles, newa);
+		newa[0] = r_refdef.viewangles[0];
+		newa[1] = r_refdef.viewangles[1];
+		newa[2] = r_refdef.viewangles[2] + gl_screenangle.value;
+		Matrix4_ModelViewMatrix(r_refdef.m_view, newa, r_refdef.vieworg);
 	}
 
 	if (qglLoadMatrixf)
@@ -1499,7 +1510,7 @@ static void R_RenderMotionBlur(void)
 
 	PPL_RevertToKnownState();
 
-	GL_Bind(sceneblur_texture);
+	GL_LazyBind(0, GL_TEXTURE_2D, sceneblur_texture, false);
 
 	// go 2d
 	qglMatrixMode(GL_PROJECTION);
@@ -1643,7 +1654,7 @@ qboolean R_RenderScene_Fish(void)
 		qglDisable(GL_TEXTURE_2D);
 		qglEnable(GL_TEXTURE_CUBE_MAP_ARB);
 
-		GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture);
+		GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture);
 		for (i = 0; i < 6; i++)
 			qglCopyTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + i, 0, GL_RGB, 0, 0, cmapsize, cmapsize, 0);
 		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -1685,20 +1696,14 @@ qboolean R_RenderScene_Fish(void)
 		// render normal view
 		R_RenderScene ();
 
-		qglDisable(GL_TEXTURE_2D);
-		qglEnable(GL_TEXTURE_CUBE_MAP_ARB);
-		GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture);
+		GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture);
 		qglCopyTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + order[i], 0, 0, 0, 0, vid.pixelheight - (prect.y + cmapsize), cmapsize, cmapsize);
-		qglEnable(GL_TEXTURE_2D);
-		qglDisable(GL_TEXTURE_CUBE_MAP_ARB);
 	}
 
 //qglClear (GL_COLOR_BUFFER_BIT);
 	qglViewport (prect.x, vid.pixelheight - (prect.y+prect.height), prect.width, prect.height);
 
-	qglDisable(GL_TEXTURE_2D);
-	GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture);
-	qglEnable(GL_TEXTURE_CUBE_MAP_ARB);
+	GL_LazyBind(0, GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture, false);
 
 	if (scenepp_panorama_program && ffov.value < 0)
 	{

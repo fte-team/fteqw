@@ -193,7 +193,7 @@ void R_Bloom_InitTextures(void)
 	memset(data, 255, size);
 	if (!TEXVALID(bs.tx_screen))
 		bs.tx_screen = GL_AllocNewTexture(bs.scr_w, bs.scr_h);
-	GL_Bind(bs.tx_screen);
+	GL_MTBind(0, GL_TEXTURE_2D, bs.tx_screen);
 	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGB, bs.scr_w, bs.scr_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -255,7 +255,7 @@ R_Bloom_DrawEffect
 */
 void R_Bloom_DrawEffect(void)
 {
-	GL_Bind(bs.tx_effect);
+	GL_MTBind(0, GL_TEXTURE_2D, bs.tx_effect);
 	qglEnable(GL_BLEND);
 	qglBlendFunc(GL_ONE, GL_ONE);
 	qglColor4f(r_bloom_alpha.value, r_bloom_alpha.value, r_bloom_alpha.value, 1.0f);
@@ -386,7 +386,7 @@ void R_Bloom_GeneratexDiamonds(void)
     qglLoadIdentity();
 
 	//copy small scene into bs.tx_effect
-	GL_Bind(bs.tx_effect);
+	GL_MTBind(0, GL_TEXTURE_2D, bs.tx_effect);
 	qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, bs.smp_w, bs.smp_h);
 
 	//start modifying the small scene corner
@@ -459,13 +459,13 @@ void R_Bloom_DownsampleView( void )
 		int		midsample_height = bs.size_downsample * bs.smp_t;
 
 		//copy the screen and draw resized
-		GL_Bind(bs.tx_screen);
+		GL_MTBind(0, GL_TEXTURE_2D, bs.tx_screen);
 		qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, bs.vp_x, vid.pixelheight - (bs.vp_y + bs.vp_h), bs.vp_w, bs.vp_h);
 
 		R_Bloom_Quad(0, vid.pixelheight-midsample_height, midsample_width, midsample_height, bs.scr_s, bs.scr_t);
 
 		//now copy into Downsampling (mid-sized) texture
-		GL_Bind(bs.tx_downsample);
+		GL_MTBind(0, GL_TEXTURE_2D, bs.tx_downsample);
 		qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, midsample_width, midsample_height);
 
 		//now draw again in bloom size
@@ -476,15 +476,14 @@ void R_Bloom_DownsampleView( void )
 		qglEnable(GL_BLEND);
 		qglBlendFunc(GL_ONE, GL_ONE);
 		qglColor4f(0.5f, 0.5f, 0.5f, 1.0f);
-		GL_Bind(bs.tx_screen);
+		GL_MTBind(0, GL_TEXTURE_2D, bs.tx_screen);
 		R_Bloom_Quad(0,  vid.pixelheight-bs.smp_h, bs.smp_w, bs.smp_h, bs.scr_s, bs.scr_t);
 		qglColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 		qglDisable(GL_BLEND);
 	}
 	else
 	{	//downsample simple
-
-		GL_Bind(bs.tx_screen);
+		GL_MTBind(0, GL_TEXTURE_2D, bs.tx_screen);
 		qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, bs.vp_x, vid.pixelheight - (bs.vp_y + bs.vp_h), bs.vp_w, bs.vp_h);
 		R_Bloom_Quad(0, vid.pixelheight-bs.smp_h, bs.smp_w, bs.smp_h, bs.scr_s, bs.scr_t);
 	}
@@ -551,7 +550,7 @@ void R_BloomBlend (void)
 	buh = bs.size_backup * bs.smp_t;
 
 	//copy the screen space we'll use to work into the backup texture
-	GL_Bind(bs.tx_backup);
+	GL_MTBind(0, GL_TEXTURE_2D, bs.tx_backup);
 	qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, buw, buh);
 
 	//create the bloom image
@@ -562,7 +561,7 @@ void R_BloomBlend (void)
 
 	//restore the screen-backup to the screen
 	qglDisable(GL_BLEND);
-	GL_Bind(bs.tx_backup);
+	GL_MTBind(0, GL_TEXTURE_2D, bs.tx_backup);
 	qglColor4f(1, 1, 1, 1);
 	R_Bloom_Quad(0,
 		vid.pixelheight - (buh),

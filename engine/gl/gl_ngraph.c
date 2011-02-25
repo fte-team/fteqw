@@ -118,7 +118,7 @@ void GLR_NetGraph (void)
 	Draw_FunString(8, y, st);
 	y += 8;
 	
-    GL_Bind(netgraphtexture);
+    GL_MTBind(0, GL_TEXTURE_2D, netgraphtexture);
 
 	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 
 		NET_TIMINGS, NET_GRAPHHEIGHT, 0, GL_RGBA, 
@@ -178,7 +178,7 @@ void GLR_FrameTimeGraph (int frametime)
 	Draw_FunString(8, y, st);
 	y += 8;
 	
-    GL_Bind(netgraphtexture);
+    GL_MTBind(0, GL_TEXTURE_2D, netgraphtexture);
 
 	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 
 		NET_TIMINGS, NET_GRAPHHEIGHT, 0, GL_RGBA, 

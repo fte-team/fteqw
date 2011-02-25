@@ -1164,6 +1164,7 @@ char *ED_ParseEdict (progfuncs_t *progfuncs, char *data, edictrun_t *ent)
 	pbool	init;
 	char		keyname[256];
 	int			n;
+	int			nest = 1;
 
 //	eval_t		*val;
 
@@ -1179,12 +1180,20 @@ char *ED_ParseEdict (progfuncs_t *progfuncs, char *data, edictrun_t *ent)
 	// parse key
 		data = QCC_COM_Parse (data);
 		if (qcc_token[0] == '}')
+		{
+			if (--nest)
+				continue;
 			break;
+		}
+		if (qcc_token[0] == '{' && !qcc_token[1])
+			nest++;
 		if (!data)
 		{
 			printf ("ED_ParseEntity: EOF without closing brace\n");
 			return NULL;
 		}
+		if (nest > 1)
+			continue;
 
 		strncpy (keyname, qcc_token, sizeof(keyname)-1);
 		keyname[sizeof(keyname)-1] = 0;
@@ -1714,6 +1723,11 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 		file = QCC_COM_Parse(file);
 		if (file == NULL)
 			break;	//finished reading file
+		else if (!strcmp(qcc_token, "Version"))
+		{
+			file = QCC_COM_Parse(file);
+			//qcc_token is a version number
+		}
 		else if (!strcmp(qcc_token, "entity"))
 		{
 			if (entsize == 0 && resethunk)	//edicts have not yet been initialized, and this is a compleate load (memsize has been set)

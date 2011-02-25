@@ -2179,7 +2179,7 @@ static void BE_SubmitMeshesSortList(batch_t *sortlist)
 
 		if (batch->buildmeshes)
 			batch->buildmeshes(batch);
-		else
+		else if (batch->texture)
 		{
 			batch->shader = R_TextureAnimation(batch->ent->framestate.g[FS_REG].frame[0], batch->texture)->shader;
 			batch->skin = &batch->shader->defaulttextures;

@@ -52,13 +52,15 @@ typedef struct
 	pixel_t			*colormap;		// 256 * VID_GRADES size
 	int				fullbright;		// index of first fullbright color
 
-	unsigned		width;		
-	unsigned		height;
+	unsigned		width; /*virtual 2d width*/
+	unsigned		height; /*virtual 2d height*/
 	int				numpages;
 	int				recalc_refdef;	// if true, recalc vid-based stuff
 
-	unsigned		pixelwidth;
-	unsigned		pixelheight;
+	unsigned		rotpixelwidth; /*width after rotation in pixels*/
+	unsigned		rotpixelheight; /*pixel after rotation in pixels*/
+	unsigned		pixelwidth; /*true height in pixels*/
+	unsigned		pixelheight; /*true width in pixels*/
 } viddef_t;
 
 extern	viddef_t	vid;				// global video state

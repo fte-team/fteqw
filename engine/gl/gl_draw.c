@@ -41,7 +41,7 @@ static void GL_Upload8Pal32 (qbyte *data, qbyte *pal, int width, int height, uns
 
 void GL_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags)
 {
-	GL_Bind(tex);
+	GL_MTBind(0, GL_TEXTURE_2D, tex);
 	switch(fmt)
 	{
 	case TF_INVALID:
@@ -220,7 +220,7 @@ void GL_Texture_Anisotropic_Filtering_Callback (struct cvar_s *var, char *oldval
 	{
 		if (!(glt->flags & IF_NOMIPMAP))
 		{
-			GL_Bind (glt->texnum);
+			GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 			qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, anfactor);
 		}
 	}
@@ -265,7 +265,7 @@ void GL_Texturemode_Callback (struct cvar_s *var, char *oldvalue)
 	{
 		if (!(glt->flags & IF_NOMIPMAP))
 		{
-			GL_Bind (glt->texnum);
+			GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
 		}
@@ -300,7 +300,7 @@ void GL_Texturemode2d_Callback (struct cvar_s *var, char *oldvalue)
 	{
 		if (glt->flags & IF_NOMIPMAP)
 		{
-			GL_Bind (glt->texnum);
+			GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
 		}
@@ -575,28 +575,28 @@ void GLDraw_Crosshair(void)
 	}
 	else
 	{
-		sizex = (size*vid.pixelwidth) / (float)vid.width;
-		sizey = (size*vid.pixelheight) / (float)vid.height;
+		sizex = (size*vid.rotpixelwidth) / (float)vid.width;
+		sizey = (size*vid.rotpixelheight) / (float)vid.height;
 		chc = size * chc;
 	}
 
 	sizex = (int)sizex;
-	sizex = ((sizex)*(int)vid.width) / (float)vid.pixelwidth;
+	sizex = ((sizex)*(int)vid.width) / (float)vid.rotpixelwidth;
 
 	sizey = (int)sizey;
-	sizey = ((sizey)*(int)vid.height) / (float)vid.pixelheight;
+	sizey = ((sizey)*(int)vid.height) / (float)vid.rotpixelheight;
 
 	for (sc = 0; sc < cl.splitclients; sc++)
 	{
 		SCR_CrosshairPosition(sc, &x, &y);
 
 		//translate to pixel coord, for rounding
-		x = ((x-sizex-chc)*vid.pixelwidth) / (float)vid.width;
-		y = ((y-sizey-chc)*vid.pixelheight) / (float)vid.height;
+		x = ((x-sizex-chc)*vid.rotpixelwidth) / (float)vid.width;
+		y = ((y-sizey-chc)*vid.rotpixelheight) / (float)vid.height;
 
 		//translate to screen coords
-		sx = ((x)*(int)vid.width) / (float)vid.pixelwidth;
-		sy = ((y)*(int)vid.height) / (float)vid.pixelheight;
+		sx = ((x)*(int)vid.width) / (float)vid.rotpixelwidth;
+		sy = ((y)*(int)vid.height) / (float)vid.rotpixelheight;
 
 		R2D_Image(sx, sy, sizex*2, sizey*2, 0, 0, 1, 1, shader);
 	}
@@ -619,7 +619,7 @@ void GLDraw_TransPicTranslate (int x, int y, int width, int height, qbyte *pic, 
 	if (gl_config.gles)
 		return; // TODO: NOT FIXED YET
 	
-	GL_Bind (translate_texture);
+	GL_MTBind(0, GL_TEXTURE_2D, translate_texture);
 
 	c = width * height;
 
@@ -793,11 +793,36 @@ Setup as if the screen was 320*200
 */
 void GL_Set2D (void)
 {
-	GL_SetShaderState2D(true);
-	Matrix4_Orthographic(r_refdef.m_projection, 0, vid.width, vid.height, 0, -99999, 99999);
-	Matrix4_Identity(r_refdef.m_view);
-	r_refdef.time = realtime;
+	extern cvar_t gl_screenangle;
+	float rad, ang;
+	float tmp[16], tmp2[16];
+	float *Matrix4_NewRotation(float a, float x, float y, float z);
+	float *Matrix4_NewTranslation(float x, float y, float z);
+	float w = vid.width, h = vid.height;
 
+	GL_SetShaderState2D(true);
+
+	ang = (gl_screenangle.value>0?(gl_screenangle.value+45):(gl_screenangle.value-45))/90;
+	ang = (int)ang * 90;
+	if (ang)
+	{ /*more expensive maths*/
+		rad = (ang * M_PI) / 180;
+
+		w = fabs(cos(rad)) * (vid.width) + fabs(sin(rad)) * (vid.height);
+		h = fabs(sin(rad)) * (vid.width) + fabs(cos(rad)) * (vid.height);
+
+		Matrix4_Orthographic(r_refdef.m_projection, w/-2.0f, w/2.0f, h/2.0f, h/-2.0f, -99999, 99999);
+
+		Matrix4_Identity(tmp);
+		Matrix4_Multiply(Matrix4_NewTranslation((vid.width/-2.0f), (vid.height/-2.0f), 0), tmp, tmp2);
+		Matrix4_Multiply(Matrix4_NewRotation(-ang,  0, 0, 1), tmp2, r_refdef.m_view);
+	}
+	else
+	{
+		Matrix4_Orthographic(r_refdef.m_projection, 0, vid.width, vid.height, 0, -99999, 99999);
+		Matrix4_Identity(r_refdef.m_view);
+	}
+	r_refdef.time = realtime;
 	/*flush that gl state*/
 	qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
 
@@ -1638,8 +1663,8 @@ done:
 
 	if (flags&IF_CLAMP)
 	{
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	}
 }
 
@@ -2259,8 +2284,9 @@ void GL_Upload8 (char *name, qbyte *data, int width, int height, unsigned int fl
 	}
 #endif
 #endif
-
+checkglerror();
 	GL_Upload32 (name, trans, width, height, flags);
+checkglerror();
 }
 
 void GL_Upload8FB (qbyte *data, int width, int height, unsigned flags)
@@ -2425,11 +2451,11 @@ TRACE(("dbg: GL_LoadTexture: new %s\n", identifier));
 	glt->flags = flags;
 
 	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
-
-	GL_Bind(glt->texnum);
+checkglerror();
+	GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 
 	GL_Upload8 ("8bit", data, width, height, flags, transtype);
-
+checkglerror();
 	return glt->texnum;
 }
 
@@ -2466,7 +2492,7 @@ texid_t GL_LoadTextureFB (char *identifier, int width, int height, qbyte *data, 
 
 	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
-	GL_Bind(glt->texnum);
+	GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 
 	GL_Upload8FB (data, width, height, flags);
 
@@ -2499,7 +2525,7 @@ texid_t GL_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *da
 
 	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
-	GL_Bind(glt->texnum);
+	GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 
 	GL_Upload8Pal24 (data, palette24, width, height, flags);
 
@@ -2531,7 +2557,7 @@ texid_t GL_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *da
 
 	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
-	GL_Bind(glt->texnum);
+	GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 
 	GL_Upload8Pal32 (data, palette32, width, height, flags);
 
@@ -2565,7 +2591,7 @@ texid_t GL_LoadTexture32 (char *identifier, int width, int height, void *data, u
 
 	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
-	GL_Bind(glt->texnum);
+	GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 
 	GL_Upload32 (identifier, data, width, height, flags);
 
@@ -2599,7 +2625,7 @@ texid_t GL_LoadTexture32_BGRA (char *identifier, int width, int height, unsigned
 
 	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
-	GL_Bind(glt->texnum);
+	GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 
 	GL_Upload32_BGRA (identifier, data, width, height, flags);
 
@@ -2644,7 +2670,7 @@ texid_t GL_LoadCompressed(char *name)
 
 	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
-	GL_Bind(glt->texnum);
+	GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 
 	if (!GL_UploadCompressed(file, &glt->width, &glt->height, (unsigned int *)&glt->flags))
 		return r_nulltex;
@@ -2681,7 +2707,7 @@ texid_t GL_LoadTexture8Grey (char *identifier, int width, int height, unsigned c
 
 	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
-	GL_Bind(glt->texnum);
+	GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 
 	GL_Upload8Grey (data, width, height, flags);
 
@@ -2720,7 +2746,7 @@ texid_t GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned c
 
 	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
-	GL_Bind(glt->texnum);
+	GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 
 	GL_UploadBump (data, width, height, flags, bumpscale);
 

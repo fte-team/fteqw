@@ -1433,7 +1433,7 @@ static void P_ImportEffectInfo_f(void)
 			Con_Printf("Too many args!\n");
 			args--;
 		}
-		line = COM_StringParse(line, false, false);
+		line = COM_StringParse(line, com_token, sizeof(com_token), false, false);
 		Q_strncpyz(arg[args], com_token, sizeof(arg[args]));
 		args++;
 		if (*com_token == '\n')

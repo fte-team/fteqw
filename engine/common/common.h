@@ -249,7 +249,7 @@ extern	qboolean	com_eof;
 char *COM_ParseOut (const char *data, char *out, int outlen);
 char *COM_ParseStringSet (const char *data);
 char *COM_ParseCString (const char *data);
-char *COM_StringParse (const char *data, qboolean expandmacros, qboolean qctokenize);
+char *COM_StringParse (const char *data, char *token, unsigned int tokenlen, qboolean expandmacros, qboolean qctokenize);
 char *COM_ParseToken (const char *data, const char *punctuation);
 char *COM_TrimString(char *str);
 

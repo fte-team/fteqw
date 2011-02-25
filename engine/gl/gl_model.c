@@ -224,7 +224,7 @@ void RMod_Think (void)
 			GetProcessAffinityMask(me, &proc, &sys);
 			relightthreads = 0;
 			for (i = 0; i < sizeof(proc)*8; i++)
-				if (proc & (1u<<i))
+				if (proc & ((size_t)1u<<i))
 					relightthreads++;
 			/*subtract 1*/
 			if (relightthreads <= 1)
@@ -716,9 +716,9 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 			}
 #endif
 #ifdef MAP_PROC
-			if (!strcmp(com_token, "PROC"))	//custom format, text based, specifies skeletal models to load and which md5anim files to use.
+			if (!strcmp(com_token, "CM"))	//doom3 map.
 			{
-				if (!Mod_LoadMap_Proc (mod, buf))
+				if (!D3_LoadMap_CollisionMap (mod, (char*)buf))
 					continue;
 				break;
 			}

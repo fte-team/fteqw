@@ -2425,6 +2425,21 @@ skipwhite:
 		}
 	}
 
+//skip / * comments
+	if (c == '/' && data[1] == '*')
+	{
+		data+=2;
+		while(*data)
+		{
+			if (*data == '*' && data[1] == '/')
+			{
+				data+=2;
+				goto skipwhite;
+			}
+			data++;
+		}
+		goto skipwhite;
+	}
 
 // handle quoted strings specially
 	if (c == '\"')
@@ -2469,14 +2484,14 @@ skipwhite:
 }
 
 //same as COM_Parse, but parses two quotes next to each other as a single quote as part of the string
-char *COM_StringParse (const char *data, qboolean expandmacros, qboolean qctokenize)
+char *COM_StringParse (const char *data, char *token, unsigned int tokenlen, qboolean expandmacros, qboolean qctokenize)
 {
 	int		c;
 	int		len;
 	char *s;
 
 	len = 0;
-	com_token[0] = 0;
+	token[0] = 0;
 
 	if (!data)
 		return NULL;
@@ -2491,8 +2506,8 @@ skipwhite:
 	}
 	if (c == '\n')
 	{
-		com_token[len++] = c;
-		com_token[len] = 0;
+		token[len++] = c;
+		token[len] = 0;
 		return (char*)data+1;
 	}
 
@@ -2530,9 +2545,9 @@ skipwhite:
 		data++;
 		while (1)
 		{
-			if (len >= TOKENSIZE-1)
+			if (len >= tokenlen-1)
 			{
-				com_token[len] = '\0';
+				token[len] = '\0';
 				return (char*)data;
 			}
 
@@ -2543,12 +2558,12 @@ skipwhite:
 				c = *(data);
 				if (c!='\"')
 				{
-					com_token[len] = 0;
+					token[len] = 0;
 					return (char*)data;
 				}
 				while (c=='\"')
 				{
-					com_token[len] = c;
+					token[len] = c;
 					len++;
 					data++;
 					c = *(data+1);
@@ -2556,10 +2571,10 @@ skipwhite:
 			}
 			if (!c)
 			{
-				com_token[len] = 0;
+				token[len] = 0;
 				return (char*)data-1;
 			}
-			com_token[len] = c;
+			token[len] = c;
 			len++;
 		}
 	}
@@ -2570,9 +2585,9 @@ skipwhite:
 		data++;
 		while (1)
 		{
-			if (len >= TOKENSIZE-1)
+			if (len >= tokenlen-1)
 			{
-				com_token[len] = '\0';
+				token[len] = '\0';
 				return (char*)data;
 			}
 
@@ -2583,12 +2598,12 @@ skipwhite:
 				c = *(data);
 				if (c!='\'')
 				{
-					com_token[len] = 0;
+					token[len] = 0;
 					return (char*)data;
 				}
 				while (c=='\'')
 				{
-					com_token[len] = c;
+					token[len] = c;
 					len++;
 					data++;
 					c = *(data+1);
@@ -2596,10 +2611,10 @@ skipwhite:
 			}
 			if (!c)
 			{
-				com_token[len] = 0;
+				token[len] = 0;
 				return (char*)data;
 			}
-			com_token[len] = c;
+			token[len] = c;
 			len++;
 		}
 	}
@@ -2607,33 +2622,33 @@ skipwhite:
 	if (qctokenize && (c == '\n' || c == '{' || c == '}' || c == ')' || c == '(' || c == ']' || c == '[' || c == '\'' || c == ':' || c == ',' || c == ';'))
 	{
 		// single character
-		com_token[len++] = c;
-		com_token[len] = 0;
+		token[len++] = c;
+		token[len] = 0;
 		return (char*)data+1;
 	}
 
 // parse a regular word
 	do
 	{
-		if (len >= TOKENSIZE-1)
+		if (len >= tokenlen-1)
 		{
-			com_token[len] = '\0';
+			token[len] = '\0';
 			return (char*)data;
 		}
 
-		com_token[len] = c;
+		token[len] = c;
 		data++;
 		len++;
 		c = *data;
 	} while ((unsigned)c>32 && !(qctokenize && (c == '\n' || c == '{' || c == '}' || c == ')' || c == '(' || c == ']' || c == '[' || c == '\'' || c == ':' || c == ',' || c == ';')));
 
-	com_token[len] = 0;
+	token[len] = 0;
 
 	if (!expandmacros)
 		return (char*)data;
 
 	//now we check for macros.
-	for (s = com_token, c= 0; c < len; c++, s++)	//this isn't a quoted token by the way.
+	for (s = token, c= 0; c < len; c++, s++)	//this isn't a quoted token by the way.
 	{
 		if (*s == '$')
 		{
@@ -2653,9 +2668,9 @@ skipwhite:
 			macro = Cvar_FindVar(name);
 			if (macro)	//got one...
 			{
-				if (len+strlen(macro->string)-(i+1) >= TOKENSIZE-1)	//give up.
+				if (len+strlen(macro->string)-(i+1) >= tokenlen-1)	//give up.
 				{
-					com_token[len] = '\0';
+					token[len] = '\0';
 					return (char*)data;
 				}
 				memmove(s+strlen(macro->string), s+i+1, len-c-i);

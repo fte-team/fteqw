@@ -1870,6 +1870,11 @@ void Surf_SetupFrame(void)
 		}
 	}
 #endif
+	else if (cl.worldmodel && cl.worldmodel->fromgame == fg_doom3)
+	{
+		r_viewleaf = NULL;
+		r_viewleaf2 = NULL;
+	}
 	else
 	{
 		r_oldviewleaf = r_viewleaf;
@@ -1945,7 +1950,7 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 
 // calculate dynamic lighting for bmodel if it's not an
 // instanced model
-	if (model->fromgame != fg_quake3)
+	if (model->fromgame != fg_quake3 && model->fromgame != fg_doom3)
 	{
 		int k;
 		int shift;
@@ -2000,6 +2005,36 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 		bef |= BEF_FORCETRANSPARENT;
 	if (ent->flags & RF_NODEPTHTEST)
 		bef |= BEF_FORCENODEPTH;
+
+	if (!model->surfaces && model->batches)
+	{
+		for (i = 0; i < model->numsurfaces; i++)
+		{
+			b = BE_GetTempBatch();
+			if (!b)
+				continue;
+			*b = model->batches[0][i];
+			b->mesh = (mesh_t**)&model->batches[0][i].mesh;
+			b->ent = ent;
+
+			if (bef & BEF_FORCEADDITIVE)
+			{
+				b->next = batches[SHADER_SORT_ADDITIVE];
+				batches[SHADER_SORT_ADDITIVE] = b;
+			}
+			else if (bef & BEF_FORCETRANSPARENT)
+			{
+				b->next = batches[SHADER_SORT_BLEND];
+				batches[SHADER_SORT_BLEND] = b;
+			}
+			else
+			{
+				b->next = batches[b->shader->sort];
+				batches[b->shader->sort] = b;
+			}
+		}
+		return;
+	}
 
 	b = NULL;
 	for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
@@ -2117,6 +2152,11 @@ void Surf_DrawWorld (void)
 		}
 		else
 #endif
+		     if (cl.worldmodel->fromgame == fg_doom3)
+		{
+			vis = D3_CalcVis(cl.worldmodel, r_refdef.vieworg);
+		}
+		else
 		{
 			//extern cvar_t temp1;
 			if (0)//temp1.value)
@@ -2155,7 +2195,7 @@ void Surf_DrawWorld (void)
 */
 
 // returns a texture number and the position inside it
-static int Surf_LM_AllocBlock (int w, int h, int *x, int *y)
+static int Surf_LM_AllocBlock (int w, int h, int *x, int *y, shader_t *shader)
 {
 	int		i, j;
 	int		best, best2;
@@ -2189,6 +2229,7 @@ static int Surf_LM_AllocBlock (int w, int h, int *x, int *y)
 			lightmap[texnum] = Z_Malloc(sizeof(*lightmap[texnum]));
 			lightmap[texnum]->meshchain = NULL;
 			lightmap[texnum]->modified = true;
+			lightmap[texnum]->shader = shader;
 			// reset stainmap since it now starts at 255
 			memset(lightmap[texnum]->stainmaps, 255, sizeof(lightmap[texnum]->stainmaps));
 
@@ -2201,6 +2242,9 @@ static int Surf_LM_AllocBlock (int w, int h, int *x, int *y)
 			}
 		}
 
+		/*not required, but using one lightmap per texture can result in better texture unit switching*/
+		if (lightmap[texnum]->shader != shader)
+			continue;
 
 		best = LMBLOCK_HEIGHT;
 
@@ -2445,7 +2489,7 @@ static void Surf_CreateSurfaceLightmap (msurface_t *surf, int shift)
 	if (currentmodel->fromgame == fg_quake3)
 		Surf_LM_FillBlock(surf->lightmaptexturenum, smax, tmax, surf->light_s, surf->light_t);
 	else
-		surf->lightmaptexturenum = Surf_LM_AllocBlock (smax, tmax, &surf->light_s, &surf->light_t);
+		surf->lightmaptexturenum = Surf_LM_AllocBlock (smax, tmax, &surf->light_s, &surf->light_t, surf->texinfo->texture->shader);
 	base = lightmap[surf->lightmaptexturenum]->lightmaps;
 	base += (surf->light_t * LMBLOCK_WIDTH + surf->light_s) * lightmap_bytes;
 
@@ -2490,6 +2534,8 @@ void Surf_Clear(model_t *mod)
 {
 	batch_t *b;
 	int i;
+	if (mod->fromgame == fg_doom3)
+		return;/*they're on the hunk*/
 	for (i = 0; i < SHADER_SORT_COUNT; i++)
 	{
 		while ((b = mod->batches[i]))

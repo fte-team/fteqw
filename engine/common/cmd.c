@@ -1086,7 +1086,7 @@ void Cmd_ShiftArgs (int ammount, qboolean expandstring)
 
 		if (cmd_args)
 		{
-			cmd_args = COM_StringParse(cmd_args, expandstring, false);
+			cmd_args = COM_StringParse(cmd_args, com_token, sizeof(com_token), expandstring, false);
 			if (cmd_args)
 				while(*cmd_args == ' ' || *cmd_args == '\t')
 					cmd_args++;
@@ -1372,7 +1372,7 @@ void Cmd_TokenizeString (char *text, qboolean expandmacros, qboolean qctokenize)
 			Cmd_Args_Set(text);
 		}
 
-		text = COM_StringParse (text, expandmacros, qctokenize);
+		text = COM_StringParse (text, com_token, sizeof(com_token), expandmacros, qctokenize);
 		if (!text)
 			return;
 

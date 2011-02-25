@@ -1178,7 +1178,6 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs)
 			Matrix4_Project(v, v2, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y);
 			v2[0]*=r_view_width;
 			v2[1]*=r_view_height;
-//			GL_TransformToScreen(v, v2);
 			//Con_Printf("%.3f %.3f %.3f %.3f transformed to %.3f %.3f %.3f %.3f\n", v[0], v[1], v[2], v[3], v2[0], v2[1], v2[2], v2[3]);
 			x = v2[0];
 			y = v2[1];
@@ -1195,7 +1194,7 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs)
 				y1 = y2 = y;
 			}
 		}
-#if 0
+#if 1
 		// this code doesn't handle boxes with any points behind view properly
 		x1 = 1000;x2 = -1000;
 		y1 = 1000;y2 = -1000;
@@ -1205,7 +1204,7 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs)
 			v[1] = (i & 2) ? mins[1] : maxs[1];
 			v[2] = (i & 4) ? mins[2] : maxs[2];
 			v[3] = 1.0f;
-			GL_TransformToScreen(v, v2);
+			Matrix4_Project(v, v2, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y);
 			v2[0]*=r_view_width;
 			v2[1]*=r_view_height;
 			//Con_Printf("%.3f %.3f %.3f %.3f transformed to %.3f %.3f %.3f %.3f\n", v[0], v[1], v[2], v[3], v2[0], v2[1], v2[2], v2[3]);
@@ -1266,7 +1265,7 @@ void GL_EndRenderBuffer_DepthOnly(texid_t depthtexture, int texsize)
 	}
 	else
 	{
-		GL_Bind(depthtexture);
+		GL_MTBind(0, GL_TEXTURE_2D, depthtexture);
 		qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, texsize, texsize);
 	}
 }
@@ -1386,7 +1385,7 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 	{
 		l->stexture = GL_AllocNewTexture(smsize, smsize);
 
-		GL_Bind(l->stexture);
+		GL_MTBind(0, GL_TEXTURE_2D, l->stexture);
 		qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32_ARB, smsize, smsize, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
 	//	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, smsize, smsize, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -1537,7 +1536,8 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 	bench.numlights++;
 
 	qglMatrixMode(GL_TEXTURE);
-	GL_MBind(7, l->stexture);
+	GL_MTBind(7, GL_TEXTURE_2D, l->stexture);
+
 //	qglEnable(GL_TEXTURE_2D);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE_ARB, GL_COMPARE_R_TO_TEXTURE_ARB);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC_ARB, GL_LEQUAL);
@@ -1642,7 +1642,6 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 	GL_SelectVBO(0);
 	GL_SelectEBO(0);
 	qglEnableClientState(GL_VERTEX_ARRAY);
-	qglEnable(GL_VERTEX_ARRAY);
 
 	BE_PushOffsetShadow(true);
 
@@ -1741,7 +1740,6 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 		GL_SelectVBO(0);
 		GL_SelectEBO(0);
 		qglEnableClientState(GL_VERTEX_ARRAY);
-		qglEnable(GL_VERTEX_ARRAY);
 		//draw cached world shadow mesh
 		qglVertexPointer(3, GL_FLOAT, sizeof(vecV_t), sm->verts);
 		qglDrawRangeElements(GL_TRIANGLES, 0, sm->numverts, sm->numindicies, GL_INDEX_TYPE, sm->indicies);

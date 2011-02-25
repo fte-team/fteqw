@@ -1379,7 +1379,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 								selstartoffset = 0;
 						}
 						
-						Draw_Fill((sstart*vid.width)/vid.pixelwidth, (y*vid.height)/vid.pixelheight, ((send - sstart)*vid.width)/vid.pixelwidth, (Font_CharHeight()*vid.height)/vid.pixelheight, 0);
+						Draw_Fill((sstart*vid.width)/vid.rotpixelwidth, (y*vid.height)/vid.rotpixelheight, ((send - sstart)*vid.width)/vid.rotpixelwidth, (Font_CharHeight()*vid.height)/vid.rotpixelheight, 0);
 					}
 				}
 			}

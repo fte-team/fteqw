@@ -455,11 +455,7 @@ void GLCrosshairimage_Callback(struct cvar_s *var, char *oldvalue);
 void GLCrosshair_Callback(struct cvar_s *var, char *oldvalue);
 void GLCrosshaircolor_Callback(struct cvar_s *var, char *oldvalue);
 void GLR_Menutint_Callback (struct cvar_s *var, char *oldvalue);
-void GLVID_Conwidth_Callback(struct cvar_s *var, char *oldvalue);
-void GLVID_Conautoscale_Callback(struct cvar_s *var, char *oldvalue);
-void GLVID_Conheight_Callback(struct cvar_s *var, char *oldvalue);
 void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue);
-void GL_Font_Callback(struct cvar_s *var, char *oldvalue);
 
 void GLR_DeInit (void)
 {
@@ -976,6 +972,9 @@ TRACE(("dbg: GLR_NewMap: ui\n"));
 TRACE(("dbg: GLR_NewMap: tp\n"));
 	TP_NewMap();
 	R_SetSky(cl.skyname);
+
+	if (cl.worldmodel->fromgame == fg_doom3)
+		D3_GenerateAreas(cl.worldmodel);
 
 #ifdef RTLIGHTS
 	if (r_shadow_realtime_dlight.ival || r_shadow_realtime_world.ival)

@@ -67,14 +67,21 @@ void RSpeedShow(void)
 	RQntNames[RQUANT_MSECS] = "Microseconds";
 	RQntNames[RQUANT_EPOLYS] = "Entity Polys";
 	RQntNames[RQUANT_WPOLYS] = "World Polys";
+	RQntNames[RQUANT_DRAWS] = "Draw Calls";
+	RQntNames[RQUANT_2DBATCHES] = "2d Batches";
+	RQntNames[RQUANT_WORLDBATCHES] = "World Batches";
+	RQntNames[RQUANT_ENTBATCHES] = "Ent Batches";
 	RQntNames[RQUANT_SHADOWFACES] = "Shadow Faces";
 	RQntNames[RQUANT_SHADOWEDGES] = "Shadow edges";
 	RQntNames[RQUANT_LITFACES] = "Lit faces";
 
-	for (i = 0; i < RSPEED_MAX; i++)
+	if (r_speeds.ival > 1)
 	{
-		s = va("%i %-20s", samplerspeeds[i], RSpNames[i]);
-		Draw_FunString(vid.width-strlen(s)*8, i*8, s);
+		for (i = 0; i < RSPEED_MAX; i++)
+		{
+			s = va("%i %-20s", samplerspeeds[i], RSpNames[i]);
+			Draw_FunString(vid.width-strlen(s)*8, i*8, s);
+		}
 	}
 	for (i = 0; i < RQUANT_MAX; i++)
 	{
@@ -84,7 +91,7 @@ void RSpeedShow(void)
 	s = va("%f %-20s", 100000000.0f/samplerspeeds[RSPEED_TOTALREFRESH], "Framerate");
 	Draw_FunString(vid.width-strlen(s)*8, (i+RSPEED_MAX)*8, s);
 
-	if (framecount++>=100)
+	if (++framecount>=100)
 	{
 		for (i = 0; i < RSPEED_MAX; i++)
 		{
@@ -1285,6 +1292,10 @@ void SCR_DrawFPS (void)
 
 			SCR_StringXY(va("%f deviation", deviation), show_fps_x.value, show_fps_y.value-8);
 		}
+		break;
+	case 8:
+		if (cls.timedemo)
+			Con_Printf("%f\n", frametime);
 		break;
 	}
 

@@ -636,7 +636,7 @@ static void GL_DrawSkyGrid (texture_t *tex)
 	float time = cl.gametime+realtime-cl.gametimemark;
 
 	PPL_RevertToKnownState();
-	GL_Bind (tex->shader->defaulttextures.base);
+	GL_LazyBind(0, GL_TEXTURE_2D, tex->shader->defaulttextures.base, false);
 
 	speedscale = time*8;
 	speedscale -= (int)speedscale & ~127;
@@ -649,7 +649,7 @@ static void GL_DrawSkyGrid (texture_t *tex)
 	}
 
 	qglEnable (GL_BLEND);
-	GL_Bind (tex->shader->defaulttextures.fullbright);
+	GL_LazyBind(0, GL_TEXTURE_2D, tex->shader->defaulttextures.fullbright, false);
 
 	speedscale = time*16;
 	speedscale -= (int)speedscale & ~127;

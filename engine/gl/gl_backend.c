@@ -320,7 +320,7 @@ static const char PCFPASS_SHADER[] = "\
 
 extern cvar_t r_glsl_offsetmapping, r_noportals;
 
-static void BE_SendPassBlendAndDepth(unsigned int sbits);
+static void BE_SendPassBlendDepthMask(unsigned int sbits);
 void GLBE_SubmitBatch(batch_t *batch);
 
 struct {
@@ -342,6 +342,8 @@ struct {
 		int currenttmu;
 		int texenvmode[SHADER_PASS_MAX];
 		int currenttextures[SHADER_PASS_MAX];
+		GLenum curtexturetype[SHADER_PASS_MAX];
+		unsigned int tmuarrayactive;
 
 		polyoffset_t curpolyoffset;
 		unsigned int curcull;
@@ -367,6 +369,8 @@ struct {
 		float identitylighting;	//set to how bright lightmaps should be (reduced for overbright or realtime_world_lightmaps)
 
 		texid_t temptexture;
+		texid_t fogtexture;
+		float fogfar;
 	};
 
 	//exterior state (paramters)
@@ -434,11 +438,8 @@ void GL_SetShaderState2D(qboolean is2d)
 void GL_SelectTexture(int target) 
 {
 	shaderstate.currenttmu = target;
-	if (qglClientActiveTextureARB)
-	{
-		qglClientActiveTextureARB(target + mtexid0);
+	if (qglActiveTextureARB)
 		qglActiveTextureARB(target + mtexid0);
-	}
 	else if (qglSelectTextureSGIS)
 		qglSelectTextureSGIS(target + mtexid0);
 }
@@ -477,40 +478,83 @@ static void GL_ApplyVertexPointer(void)
 	}
 }
 
-void GL_MBind(int target, texid_t texnum)
+void GL_MTBind(int tmu, int target, texid_t texnum)
 {
-	GL_SelectTexture(target);
+	GL_SelectTexture(tmu);
 
 #ifndef FORCESTATE
-	if (shaderstate.currenttextures[shaderstate.currenttmu] == texnum.num)
+	if (shaderstate.currenttextures[tmu] == texnum.num)
 		return;
 #endif
 
-	shaderstate.currenttextures[shaderstate.currenttmu] = texnum.num;
-	bindTexFunc (GL_TEXTURE_2D, texnum.num);
+	shaderstate.currenttextures[tmu] = texnum.num;
+	if (target)
+		bindTexFunc (target, texnum.num);
+
+	if (shaderstate.curtexturetype[tmu] != target)
+	{
+		if (shaderstate.curtexturetype[tmu])
+			qglDisable(shaderstate.curtexturetype[tmu]);
+		shaderstate.curtexturetype[tmu] = target;
+		if (target)
+			qglEnable(target);
+	}
+
+	if (((shaderstate.tmuarrayactive>>tmu) & 1) != 0)
+	{
+		qglClientActiveTextureARB(tmu + mtexid0);
+		if (0)
+		{
+			shaderstate.tmuarrayactive |= 1u<<tmu;
+			qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+		}
+		else
+		{
+			shaderstate.tmuarrayactive &= ~(1u<<tmu);
+			qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+		}
+	}
 }
 
-void GL_Bind(texid_t texnum)
+void GL_LazyBind(int tmu, int target, texid_t texnum, qboolean arrays)
 {
 #ifndef FORCESTATE
-	if (shaderstate.currenttextures[shaderstate.currenttmu] == texnum.num)
-		return;
+	if (shaderstate.currenttextures[tmu] != texnum.num)
 #endif
+	{
+		GL_SelectTexture(tmu);
 
-	shaderstate.currenttextures[shaderstate.currenttmu] = texnum.num;
+		shaderstate.currenttextures[shaderstate.currenttmu] = texnum.num;
+		if (target)
+			bindTexFunc (target, texnum.num);
 
-	bindTexFunc (GL_TEXTURE_2D, texnum.num);
-}
+		if (shaderstate.curtexturetype[tmu] != target)
+		{
+			if (shaderstate.curtexturetype[tmu])
+				qglDisable(shaderstate.curtexturetype[tmu]);
+			shaderstate.curtexturetype[tmu] = target;
+			if (target)
+				qglEnable(target);
+		}
+	}
 
-void GL_BindType(int type, texid_t texnum)
-{
-#ifndef FORCESTATE
-	if (shaderstate.currenttextures[shaderstate.currenttmu] == texnum.num)
-		return;
-#endif
+	if (!target)
+		arrays = false;
 
-	shaderstate.currenttextures[shaderstate.currenttmu] = texnum.num;
-	bindTexFunc (type, texnum.num);
+	if (((shaderstate.tmuarrayactive>>tmu) & 1) != arrays)
+	{
+		qglClientActiveTextureARB(mtexid0 + tmu);
+		if (arrays)
+		{
+			shaderstate.tmuarrayactive |= 1u<<tmu;
+			qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+		}
+		else
+		{
+			shaderstate.tmuarrayactive &= ~(1u<<tmu);
+			qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+		}
+	}
 }
 
 static void BE_EnableShaderAttributes(unsigned int newm)
@@ -642,9 +686,7 @@ static void RevertToKnownState(void)
 
 	while(shaderstate.lastpasstmus>0)
 	{
-		GL_SelectTexture(--shaderstate.lastpasstmus);
-		qglDisable(GL_TEXTURE_2D);
-		qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+		GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex, false);
 	}
 	GL_SelectTexture(0);
 
@@ -654,7 +696,7 @@ static void RevertToKnownState(void)
 
 	qglColor3f(1,1,1);
 
-	shaderstate.shaderbits &= ~(SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY);
+	shaderstate.shaderbits &= ~(SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY|SBITS_MASK_BITS);
 	shaderstate.shaderbits |= SBITS_MISC_DEPTHWRITE;
 
 	shaderstate.shaderbits &= ~(SBITS_BLEND_BITS);
@@ -695,12 +737,9 @@ void BE_SetupForShadowMap(void)
 {
 	while(shaderstate.lastpasstmus>0)
 	{
-		GL_SelectTexture(--shaderstate.lastpasstmus);
-		qglDisable(GL_TEXTURE_2D);
-		qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+		GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex, false);
 	}
 
-	qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
 	qglShadeModel(GL_FLAT);
 	GL_TexEnv(GL_REPLACE);
 	qglDepthMask(GL_TRUE);
@@ -711,7 +750,7 @@ void BE_SetupForShadowMap(void)
 }
 #endif
 
-static texid_t T_Gen_CurrentRender(void)
+static void T_Gen_CurrentRender(int tmu)
 {
 	int vwidth, vheight;
 	if (gl_config.arb_texture_non_power_of_two)
@@ -735,51 +774,69 @@ static texid_t T_Gen_CurrentRender(void)
 	// copy the scene to texture
 	if (!TEXVALID(shaderstate.temptexture))
 		shaderstate.temptexture = GL_AllocNewTexture(vwidth, vheight);
-	GL_Bind(shaderstate.temptexture);
+	GL_MTBind(tmu, GL_TEXTURE_2D, shaderstate.temptexture);
 	qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 0, 0, vwidth, vheight, 0);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	return shaderstate.temptexture;
 }
 
-static texid_t Shader_TextureForPass(const shaderpass_t *pass)
+static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass, qboolean useclientarray)
 {
+	texid_t t;
 	switch(pass->texgen)
 	{
 	default:
+	case T_GEN_SKYBOX:
+		t = pass->anim_frames[0];
+		GL_LazyBind(tmu, GL_TEXTURE_CUBE_MAP_ARB, t, useclientarray);
+		return;
 	case T_GEN_SINGLEMAP:
-		return pass->anim_frames[0];
+		t = pass->anim_frames[0];
+		break;
 	case T_GEN_ANIMMAP:
-		return pass->anim_frames[(int)(pass->anim_fps * shaderstate.curtime) % pass->anim_numframes];
+		t = pass->anim_frames[(int)(pass->anim_fps * shaderstate.curtime) % pass->anim_numframes];
+		break;
 	case T_GEN_LIGHTMAP:
-		return shaderstate.curlightmap;
+		t = shaderstate.curlightmap;
+		break;
 	case T_GEN_DELUXMAP:
-		return shaderstate.curdeluxmap;
+		t = shaderstate.curdeluxmap;
+		break;
 	case T_GEN_DIFFUSE:
-		return shaderstate.curtexnums?shaderstate.curtexnums->base:r_nulltex;
+		t = shaderstate.curtexnums?shaderstate.curtexnums->base:r_nulltex;
+		break;
 	case T_GEN_NORMALMAP:
-		return shaderstate.curtexnums?shaderstate.curtexnums->bump:r_nulltex;
+		t = shaderstate.curtexnums?shaderstate.curtexnums->bump:r_nulltex;
+		break;
 	case T_GEN_SPECULAR:
-		return shaderstate.curtexnums->specular;
+		t = shaderstate.curtexnums->specular;
+		break;
 	case T_GEN_UPPEROVERLAY:
-		return shaderstate.curtexnums->upperoverlay;
+		t = shaderstate.curtexnums->upperoverlay;
+		break;
 	case T_GEN_LOWEROVERLAY:
-		return shaderstate.curtexnums->loweroverlay;
+		t = shaderstate.curtexnums->loweroverlay;
+		break;
 	case T_GEN_FULLBRIGHT:
-		return shaderstate.curtexnums->fullbright;
+		t = shaderstate.curtexnums->fullbright;
+		break;
 	case T_GEN_SHADOWMAP:
-		return shaderstate.curshadowmap;
+		t = shaderstate.curshadowmap;
+		break;
 
 	case T_GEN_VIDEOMAP:
 #ifdef NOMEDIA
-		return shaderstate.curtexnums?shaderstate.curtexnums->base:r_nulltex;
+		t = shaderstate.curtexnums?shaderstate.curtexnums->base:r_nulltex;
 #else
-		return Media_UpdateForShader(pass->cin);
+		t = Media_UpdateForShader(pass->cin);
 #endif
+		break;
 
 	case T_GEN_CURRENTRENDER:
-		return T_Gen_CurrentRender();
+		T_Gen_CurrentRender(tmu);
+		return;
 	}
+	GL_LazyBind(tmu, GL_TEXTURE_2D, t, useclientarray);
 }
 
 /*========================================== matrix functions =====================================*/
@@ -871,11 +928,37 @@ void Shader_LightPass_Spot(char *shortname, shader_t *s, const void *args)
 	Shader_DefaultScript(shortname, s, shadertext);
 }
 
+texid_t GenerateFogTexture(void)
+{
+#define FOGS 256
+#define FOGT 32
+	byte_vec4_t fogdata[FOGS*FOGT];
+	int s, t;
+	float f;
+	for(s = 0; s < FOGS; s++)
+		for(t = 0; t < FOGT; t++)
+		{
+			f = (float)s / FOGS;
+			if (f < 0)
+				f = 0;
+			if (f > 1)
+				f = 1;
+			f = pow(f, 0.5);
+			fogdata[t*FOGS + s][0] = 255;
+			fogdata[t*FOGS + s][1] = 255;
+			fogdata[t*FOGS + s][2] = 255;
+			fogdata[t*FOGS + s][3] = 255*f;
+		}
+
+	return R_LoadTexture32("fog", FOGS, FOGT, fogdata, IF_CLAMP|IF_NOMIPMAP);
+}
+
 void GLBE_Init(void)
 {
 	int i;
 	double t;
 
+	shaderstate.curentity = &r_worldentity;
 	be_maxpasses = gl_mtexarbable;
 
 	for (i = 0; i < FTABLE_SIZE; i++)
@@ -910,12 +993,16 @@ void GLBE_Init(void)
 	}
 
 	shaderstate.shaderbits = ~0;
-	BE_SendPassBlendAndDepth(0);
+	BE_SendPassBlendDepthMask(0);
 	
 	if (qglEnableClientState)
 		qglEnableClientState(GL_VERTEX_ARRAY);
 
 	currententity = &r_worldentity;
+
+
+
+	shaderstate.fogtexture = GenerateFogTexture();
 }
 
 //end tables
@@ -954,11 +1041,36 @@ static void tcgen_environment(float *st, unsigned int numverts, float *xyz, floa
 	}
 }
 
-static float *tcgen(const shaderpass_t *pass, int cnt, float *dst, const mesh_t *mesh)
+static void tcgen_fog(float *st, unsigned int numverts, float *xyz)
+{
+	int			i;
+	vec3_t		viewer;
+
+	vec3_t		rorg;
+	float z;
+	vec4_t zmat;
+
+	//generate a simple matrix to calc only the projected z coord
+	zmat[0] = -shaderstate.modelviewmatrix[2];
+	zmat[1] = -shaderstate.modelviewmatrix[6];
+	zmat[2] = -shaderstate.modelviewmatrix[10];
+	zmat[3] = -shaderstate.modelviewmatrix[14];
+
+	Vector4Scale(zmat, shaderstate.fogfar, zmat);
+
+	for (i = 0 ; i < numverts ; i++, xyz += sizeof(vecV_t)/sizeof(vec_t), st += 2 ) 
+	{
+		z = DotProduct(xyz, zmat) + zmat[3];
+		st[0] = z;
+		st[1] = realtime - (int)realtime;
+	}
+}
+
+static float *tcgen(unsigned int tcgen, int cnt, float *dst, const mesh_t *mesh)
 {
 	int i;
 	vecV_t *src;
-	switch (pass->tcgen)
+	switch (tcgen)
 	{
 	default:
 	case TC_GEN_BASE:
@@ -975,6 +1087,9 @@ static float *tcgen(const shaderpass_t *pass, int cnt, float *dst, const mesh_t 
 		if (!mesh->normals_array)
 			return (float*)mesh->st_array;
 		tcgen_environment(dst, cnt, (float*)mesh->xyz_array, (float*)mesh->normals_array);
+		return dst;
+	case TC_GEN_FOG:
+		tcgen_fog(dst, cnt, (float*)mesh->xyz_array);
 		return dst;
 
 //	case TC_GEN_DOTPRODUCT:
@@ -1078,6 +1193,25 @@ static void tcmod(const tcmod_t *tcmod, int cnt, const float *src, float *dst, c
 	}
 }
 
+static void GenerateTCFog(int passnum)
+{
+	int m;
+	float *src;
+	mesh_t *mesh;
+	for (m = 0; m < shaderstate.meshcount; m++)
+	{
+		mesh = shaderstate.meshes[m];
+
+		src = tcgen(TC_GEN_FOG, mesh->numvertexes, texcoordarray[passnum]+mesh->vbofirstvert*2, mesh);
+		if (src != texcoordarray[passnum]+mesh->vbofirstvert*2)
+		{
+			//this shouldn't actually ever be true
+			memcpy(texcoordarray[passnum]+mesh->vbofirstvert*2, src, 8*mesh->numvertexes);
+		}
+	}
+	GL_SelectVBO(0);
+	qglTexCoordPointer(2, GL_FLOAT, 0, texcoordarray[passnum]);
+}
 static void GenerateTCMods(const shaderpass_t *pass, int passnum)
 {
 #if 1
@@ -1088,7 +1222,7 @@ static void GenerateTCMods(const shaderpass_t *pass, int passnum)
 	{
 		mesh = shaderstate.meshes[m];
 
-		src = tcgen(pass, mesh->numvertexes, texcoordarray[passnum]+mesh->vbofirstvert*2, mesh);
+		src = tcgen(pass->tcgen, mesh->numvertexes, texcoordarray[passnum]+mesh->vbofirstvert*2, mesh);
 		//tcgen might return unmodified info
 		if (pass->numtcmods)
 		{
@@ -1659,12 +1793,12 @@ static void GenerateColourMods(const shaderpass_t *pass)
 	mesh_t *meshlist;
 	meshlist = shaderstate.meshes[0];
 
-	if (meshlist->colors4b_array)
+	if (shaderstate.sourcevbo->colours4ub)
 	{
 		//hack...
-		GL_SelectVBO(0);
-		qglColorPointer(4, GL_UNSIGNED_BYTE, 0, meshlist->colors4b_array);
+		GL_SelectVBO(shaderstate.sourcevbo->vbocolours);
 		qglEnableClientState(GL_COLOR_ARRAY);
+		qglColorPointer(4, GL_UNSIGNED_BYTE, 0, shaderstate.sourcevbo->colours4ub);
 		qglShadeModel(GL_SMOOTH);
 		return;
 	}
@@ -1743,6 +1877,7 @@ static void GenerateColourMods(const shaderpass_t *pass)
 static void BE_GeneratePassTC(const shaderpass_t *pass, int passno)
 {
 	pass += passno;
+	qglClientActiveTextureARB(mtexid0 + passno);
 	if (!pass->numtcmods)
 	{
 		//if there are no tcmods, pass through here as fast as possible
@@ -1783,7 +1918,7 @@ static void BE_GeneratePassTC(const shaderpass_t *pass, int passno)
 	}
 }
 
-static void BE_SendPassBlendAndDepth(unsigned int sbits)
+static void BE_SendPassBlendDepthMask(unsigned int sbits)
 {
 	unsigned int delta;
 
@@ -1917,6 +2052,15 @@ static void BE_SendPassBlendAndDepth(unsigned int sbits)
 			break;
 		}
 	}
+	if (delta & (SBITS_MASK_BITS))
+	{
+		qglColorMask(
+				(sbits&SBITS_MASK_RED)?GL_FALSE:GL_TRUE,
+				(sbits&SBITS_MASK_GREEN)?GL_FALSE:GL_TRUE,
+				(sbits&SBITS_MASK_BLUE)?GL_FALSE:GL_TRUE,
+				(sbits&SBITS_MASK_ALPHA)?GL_FALSE:GL_TRUE
+				);
+	}
 }
 
 static void BE_SubmitMeshChain(void)
@@ -2011,6 +2155,7 @@ static void BE_SubmitMeshChain(void)
 		}
 
 		qglDrawRangeElements(GL_TRIANGLES, startv, endv, endi-starti, GL_INDEX_TYPE, shaderstate.sourcevbo->indicies + starti);
+		RQuantAdd(RQUANT_DRAWS, 1);
  	}
 /*
 	if (qglUnlockArraysEXT)
@@ -2037,7 +2182,7 @@ static void DrawPass(const shaderpass_t *pass)
 	if (i == lastpass)
 		return;
 
-	BE_SendPassBlendAndDepth(pass[i].shaderbits);
+	BE_SendPassBlendDepthMask(pass[i].shaderbits);
 	GenerateColourMods(pass+i);
 	tmu = 0;
 	for (; i < lastpass; i++)
@@ -2048,16 +2193,9 @@ static void DrawPass(const shaderpass_t *pass)
 			continue;
 		if (pass[i].texgen == T_GEN_FULLBRIGHT && !TEXVALID(shaderstate.curtexnums->fullbright))
 			continue;
-		GL_MBind(tmu, Shader_TextureForPass(pass+i));
+		Shader_BindTextureForPass(tmu, pass+i, true);
 
 		BE_GeneratePassTC(pass, i);
-
-		if (tmu >= shaderstate.lastpasstmus)
-		{
-			qglEnable(GL_TEXTURE_2D);
-			qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
-		}
-
 
 		switch (pass[i].blendmode)
 		{
@@ -2088,9 +2226,7 @@ static void DrawPass(const shaderpass_t *pass)
 
 	for (i = tmu; i < shaderstate.lastpasstmus; i++)
 	{
-		GL_SelectTexture(i);
-		qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
-		qglDisable(GL_TEXTURE_2D);
+		GL_LazyBind(i, 0, r_nulltex, false);
 	}
 	shaderstate.lastpasstmus = tmu;
 	GL_ApplyVertexPointer();
@@ -2302,68 +2438,61 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pass)
 {
 	const shader_t *s = shader;
+	program_t *p = shader->prog;
 	int	i;
 	unsigned int attr = 0;
 
 	int perm;
 
 	perm = 0;
-	if (TEXVALID(shaderstate.curtexnums->bump) && s->programhandle[perm|PERMUTATION_BUMPMAP].glsl)
+	if (TEXVALID(shaderstate.curtexnums->bump) && p->handle[perm|PERMUTATION_BUMPMAP].glsl)
 		perm |= PERMUTATION_BUMPMAP;
-	if (TEXVALID(shaderstate.curtexnums->specular) && s->programhandle[perm|PERMUTATION_SPECULAR].glsl)
+	if (TEXVALID(shaderstate.curtexnums->specular) && p->handle[perm|PERMUTATION_SPECULAR].glsl)
 		perm |= PERMUTATION_SPECULAR;
-	if (TEXVALID(shaderstate.curtexnums->fullbright) && s->programhandle[perm|PERMUTATION_FULLBRIGHT].glsl)
+	if (TEXVALID(shaderstate.curtexnums->fullbright) && p->handle[perm|PERMUTATION_FULLBRIGHT].glsl)
 		perm |= PERMUTATION_FULLBRIGHT;
-	if (TEXVALID(shaderstate.curtexnums->loweroverlay) && s->programhandle[perm|PERMUTATION_LOWER].glsl)
+	if (TEXVALID(shaderstate.curtexnums->loweroverlay) && p->handle[perm|PERMUTATION_LOWER].glsl)
 		perm |= PERMUTATION_LOWER;
-	if (TEXVALID(shaderstate.curtexnums->upperoverlay) && s->programhandle[perm|PERMUTATION_UPPER].glsl)
+	if (TEXVALID(shaderstate.curtexnums->upperoverlay) && p->handle[perm|PERMUTATION_UPPER].glsl)
 		perm |= PERMUTATION_UPPER;
-	if (r_glsl_offsetmapping.ival && TEXVALID(shaderstate.curtexnums->bump) && s->programhandle[perm|PERMUTATION_OFFSET].glsl)
+	if (r_glsl_offsetmapping.ival && TEXVALID(shaderstate.curtexnums->bump) && p->handle[perm|PERMUTATION_OFFSET].glsl)
 		perm |= PERMUTATION_OFFSET;
-	GL_SelectProgram(s->programhandle[perm].glsl);
+	GL_SelectProgram(p->handle[perm].glsl);
 
-	BE_SendPassBlendAndDepth(pass->shaderbits);
+	BE_SendPassBlendDepthMask(pass->shaderbits);
 
-	for (i = 0; i < s->numprogparams; i++)
+	for (i = 0; i < p->numparams; i++)
 	{
-		if (s->progparm[i].handle[perm] == -1)
+		if (p->parm[i].handle[perm] == -1)
 			continue;	/*not in this permutation*/
-		attr |= BE_Program_Set_Attribute(&s->progparm[i], perm);
+		attr |= BE_Program_Set_Attribute(&p->parm[i], perm);
 	}
-	if (s->flags & SHADER_NOBUILTINATTR)
+	if (p->nofixedcompat)
 	{
 		qglDisableClientState(GL_COLOR_ARRAY);
 		qglDisableClientState(GL_VERTEX_ARRAY);
 		for (i = 0; i < pass->numMergedPasses; i++)
 		{
-			GL_MBind(i, Shader_TextureForPass(pass+i));
+			Shader_BindTextureForPass(i, pass+i, false);
 		}
-		for (i = 0; i < shaderstate.lastpasstmus; i++)
+		//we need this loop to fix up fixed-function stuff
+		for (; i < shaderstate.lastpasstmus; i++)
 		{
-			GL_SelectTexture(i);
-			qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
-			qglDisable(GL_TEXTURE_2D);
+			GL_LazyBind(i, 0, r_nulltex, false);
 		}
-		shaderstate.lastpasstmus = 0;
+		shaderstate.lastpasstmus = pass->numMergedPasses;
 	}
 	else
 	{
 		GenerateColourMods(pass);
 		for (i = 0; i < pass->numMergedPasses; i++)
 		{
-			GL_MBind(i, Shader_TextureForPass(pass+i));
-			if (i >= shaderstate.lastpasstmus)
-			{
-				qglEnable(GL_TEXTURE_2D);
-				qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
-			}
+			Shader_BindTextureForPass(i, pass+i, true);
 			BE_GeneratePassTC(pass, i);
 		}
 		for (; i < shaderstate.lastpasstmus; i++)
 		{
-			GL_SelectTexture(i);
-			qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
-			qglDisable(GL_TEXTURE_2D);
+			GL_LazyBind(i, 0, r_nulltex, false);
 		}
 		shaderstate.lastpasstmus = pass->numMergedPasses;
 		GL_ApplyVertexPointer();
@@ -2416,23 +2545,19 @@ void GLBE_SelectMode(backendmode_t mode, unsigned int flags)
 #ifdef RTLIGHTS
 		if (mode == BEM_STENCIL)
 		{
-			qglColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-
 			/*BEM_STENCIL doesn't support mesh writing*/
 			qglDisableClientState(GL_COLOR_ARRAY);
 			//disable all tmus
 			while(shaderstate.lastpasstmus>0)
 			{
-				GL_SelectTexture(--shaderstate.lastpasstmus);
-				qglDisable(GL_TEXTURE_2D);
-				qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+				GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex, false);
 			}
 			qglShadeModel(GL_FLAT);
 			//replace mode please
 			GL_TexEnv(GL_REPLACE);
 
 			//we don't write or blend anything (maybe alpha test... but mneh)
-			BE_SendPassBlendAndDepth(SBITS_MISC_DEPTHCLOSERONLY);
+			BE_SendPassBlendDepthMask(SBITS_MISC_DEPTHCLOSERONLY | SBITS_MASK_BITS);
 
 			//don't change cull stuff, and 
 			//don't actually change stencil stuff - caller needs to be 
@@ -2441,26 +2566,19 @@ void GLBE_SelectMode(backendmode_t mode, unsigned int flags)
 #endif
 		if (mode == BEM_DEPTHONLY)
 		{
-			qglColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 			/*BEM_DEPTHONLY does support mesh writing, but its not the only way its used... FIXME!*/
 			qglDisableClientState(GL_COLOR_ARRAY);
 			while(shaderstate.lastpasstmus>0)
 			{
-				GL_SelectTexture(--shaderstate.lastpasstmus);
-				qglDisable(GL_TEXTURE_2D);
-				qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+				GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex, false);
 			}
 			qglShadeModel(GL_FLAT);
 
 			//we don't write or blend anything (maybe alpha test... but mneh)
-			BE_SendPassBlendAndDepth(SBITS_MISC_DEPTHWRITE);
+			BE_SendPassBlendDepthMask(SBITS_MISC_DEPTHWRITE | SBITS_MASK_BITS);
 
 			GL_TexEnv(GL_REPLACE);
 			GL_CullFace(SHADER_CULL_FRONT);
-		}
-		if (shaderstate.mode == BEM_STENCIL || shaderstate.mode == BEM_DEPTHONLY)
-		{
-			qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 		}
 #ifdef RTLIGHTS
 		if (mode == BEM_SMAPLIGHT)
@@ -2487,6 +2605,21 @@ void GLBE_SelectMode(backendmode_t mode, unsigned int flags)
 				shaderstate.lightpassshader = R_RegisterCustom("lightpass", Shader_LightPass_Std, NULL);
 			}
 		}
+		if (mode == BEM_FOG)
+		{
+			while(shaderstate.lastpasstmus>0)
+			{
+				GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex, false);
+			}
+			GL_LazyBind(0, GL_TEXTURE_2D, shaderstate.fogtexture, true);
+			shaderstate.lastpasstmus = 1;
+
+			qglDisableClientState(GL_COLOR_ARRAY);
+			qglColor4f(1, 1, 1, 1);
+			qglShadeModel(GL_FLAT);
+			GL_TexEnv(GL_MODULATE);
+			BE_SendPassBlendDepthMask(SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | SBITS_MISC_DEPTHEQUALONLY);
+		}
 #endif
 	}
 	shaderstate.mode = mode;
@@ -2495,7 +2628,7 @@ void GLBE_SelectMode(backendmode_t mode, unsigned int flags)
 
 void GLBE_SelectEntity(entity_t *ent)
 {
-	if (shaderstate.curentity && shaderstate.curentity->flags & Q2RF_DEPTHHACK && qglDepthRange)
+	if (shaderstate.curentity->flags & Q2RF_DEPTHHACK && qglDepthRange)
 		qglDepthRange (gldepthmin, gldepthmax);
 	shaderstate.curentity = ent;
 	currententity = ent;
@@ -2504,6 +2637,12 @@ void GLBE_SelectEntity(entity_t *ent)
 		qglLoadMatrixf(shaderstate.modelviewmatrix);
 	if (shaderstate.curentity->flags & Q2RF_DEPTHHACK && qglDepthRange)
 		qglDepthRange (gldepthmin, gldepthmin + 0.3*(gldepthmax-gldepthmin));
+}
+
+void BE_SelectFog(vec3_t colour, float alpha, float fardist)
+{
+	qglColor4f(colour[0], colour[1], colour[2], alpha);
+	shaderstate.fogfar = 1/fardist;
 }
 
 #ifdef RTLIGHTS
@@ -2608,6 +2747,19 @@ static void DrawMeshes(void)
 	int passno;
 	passno = 0;
 
+	if (shaderstate.force2d)
+	{
+		RQuantAdd(RQUANT_2DBATCHES, 1);
+	}
+	else if (shaderstate.curentity == &r_worldentity)
+	{
+		RQuantAdd(RQUANT_WORLDBATCHES, 1);
+	}
+	else
+	{
+		RQuantAdd(RQUANT_ENTBATCHES, 1);
+	}
+
 	GL_SelectEBO(shaderstate.sourcevbo->vboe);
 	if (shaderstate.curshader->numdeforms)
 		GenerateVertexDeforms(shaderstate.curshader);
@@ -2662,6 +2814,13 @@ static void DrawMeshes(void)
 		BE_SubmitMeshChain();
 		break;
 
+	case BEM_FOG:
+		GL_DeSelectProgram();
+		GenerateTCFog(0);
+		GL_ApplyVertexPointer();
+		BE_SubmitMeshChain();
+		break;
+
 	case BEM_DEPTHDARK:
 		if (shaderstate.curshader->flags & SHADER_HASLIGHTMAP)
 		{
@@ -2670,12 +2829,10 @@ static void DrawMeshes(void)
 			qglDisableClientState(GL_COLOR_ARRAY);
 			while(shaderstate.lastpasstmus>0)
 			{
-				GL_SelectTexture(--shaderstate.lastpasstmus);
-				qglDisable(GL_TEXTURE_2D);
-				qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+				GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex, false);
 			}
 			GL_TexEnv(GL_REPLACE);
-			BE_SendPassBlendAndDepth(shaderstate.curshader->passes[0].shaderbits);
+			BE_SendPassBlendDepthMask(shaderstate.curshader->passes[0].shaderbits);
 
 			GL_ApplyVertexPointer();
 			BE_SubmitMeshChain();
@@ -2684,7 +2841,7 @@ static void DrawMeshes(void)
 		//fallthrough
 	case BEM_STANDARD:
 	default:
-		if (shaderstate.curshader->programhandle[0].glsl)
+		if (shaderstate.curshader->prog)
 		{
 			BE_RenderMeshProgram(shaderstate.curshader, shaderstate.curshader->passes);
 		}
@@ -2806,6 +2963,7 @@ void GLBE_SubmitBatch(batch_t *batch)
 		shaderstate.dummyvbo.svector = batch->mesh[0]->snormals_array;
 		shaderstate.dummyvbo.tvector = batch->mesh[0]->tnormals_array;
 		shaderstate.dummyvbo.colours4f = batch->mesh[0]->colors4f_array;
+		shaderstate.dummyvbo.colours4ub = batch->mesh[0]->colors4b_array;
 		shaderstate.sourcevbo = &shaderstate.dummyvbo;
 		lm = -1;
 	}
@@ -2911,9 +3069,11 @@ static void BE_SubmitMeshesSortList(batch_t *sortlist)
 
 		if (batch->buildmeshes)
 			batch->buildmeshes(batch);
-		else
+		else if (batch->texture)
 			batch->shader = R_TextureAnimation(batch->ent->framestate.g[FS_REG].frame[0], batch->texture)->shader;
 
+		if (batch->shader->flags & SHADER_NODRAW)
+			continue;
 		if (batch->shader->flags & SHADER_NODLIGHT)
 			if (shaderstate.mode == BEM_LIGHT || shaderstate.mode == BEM_SMAPLIGHT)
 				continue;
@@ -2921,7 +3081,8 @@ static void BE_SubmitMeshesSortList(batch_t *sortlist)
 		{
 			if (shaderstate.mode == BEM_STANDARD)
 				R_DrawSkyChain (batch);
-			continue;
+			if (shaderstate.mode != BEM_FOG)
+				continue;
 		}
 
 		BE_SubmitBatch(batch);
@@ -2958,7 +3119,8 @@ static void BE_UpdateLightmaps(void)
 			glRect_t *theRect;
 			lightmap[lm]->modified = false;
 			theRect = &lightmap[lm]->rectchange;
-			GL_Bind(lightmap_textures[lm]);
+			checkglerror();
+			GL_MTBind(0, GL_TEXTURE_2D, lightmap_textures[lm]);
 			checkglerror();
 			switch (lightmap_bytes)
 			{
@@ -2988,7 +3150,7 @@ static void BE_UpdateLightmaps(void)
 			{
 				lightmap[lm]->deluxmodified = false;
 				theRect = &lightmap[lm]->deluxrectchange;
-				GL_Bind(deluxmap_textures[lm]);
+				GL_MTBind(0, GL_TEXTURE_2D, deluxmap_textures[lm]);
 				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
 					LMBLOCK_WIDTH, theRect->h, GL_RGB, GL_UNSIGNED_BYTE,
 					lightmap[lm]->deluxmaps+(theRect->t) *LMBLOCK_WIDTH*3);
@@ -3000,6 +3162,7 @@ static void BE_UpdateLightmaps(void)
 			}
 		}
 	}
+	checkglerror();
 }
 
 batch_t *GLBE_GetTempBatch(void)
@@ -3068,6 +3231,9 @@ void GLBE_DrawWorld (qbyte *vis)
 	extern cvar_t r_shadow_realtime_world, r_shadow_realtime_world_lightmaps;
 	batch_t *batches[SHADER_SORT_COUNT];
 	RSpeedLocals();
+
+	checkglerror();
+
 	GL_DoSwap();
 
 	if (!r_refdef.recurse)
@@ -3091,7 +3257,7 @@ void GLBE_DrawWorld (qbyte *vis)
 		shaderstate.wbatch = 0;
 	}
 	BE_GenModelBatches(batches);
-	shaderstate.curentity = NULL;
+	shaderstate.curentity = &r_worldentity;
 	shaderstate.updatetime = cl.servertime;
 
 #if 0
@@ -3136,13 +3302,43 @@ void GLBE_DrawWorld (qbyte *vis)
 
 	BE_DrawPolys(false);
 
+	if (1)//gl_fog.value)
+	{
+		cvar_t *v;
+		vec3_t rgb;
+		float alpha;
+		float fardist;
+		v = Cvar_Get("_gl_fog", "0", 0, "experimental");
+		if (v->value)
+		{
+			v = Cvar_Get("_gl_fog_red", "1", 0, "experimental");
+			rgb[0] = v->value;
+			v = Cvar_Get("_gl_fog_green", "1", 0, "experimental");
+			rgb[1] = v->value;
+			v = Cvar_Get("_gl_fog_blue", "1", 0, "experimental");
+			rgb[2] = v->value;
+			v = Cvar_Get("_gl_fog_alpha", "1", 0, "experimental");
+			alpha = v->value;
+			v = Cvar_Get("_gl_fog_dist", "512", 0, "experimental");
+			fardist = v->value;
+			BE_SelectMode(BEM_FOG, 0);
+			BE_SelectFog(rgb, alpha, fardist);
+			GLBE_SubmitMeshes(true, batches);
+		}
+	}
+
 	BE_SelectEntity(&r_worldentity);
 	shaderstate.updatetime = realtime;
+
+	checkglerror();
 }
 
 void BE_DrawNonWorld (void)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
+
+	checkglerror();
+
 	if (shaderstate.wmesh > shaderstate.maxwmesh)
 	{
 		int newm = shaderstate.wmesh;
@@ -3162,13 +3358,14 @@ void BE_DrawNonWorld (void)
 	shaderstate.wbatch = 0;
 	BE_GenModelBatches(batches);
 
-	shaderstate.curentity = NULL;
 	shaderstate.updatetime = cl.servertime;
 
 	GLBE_SubmitMeshes(false, batches);
 
 	BE_SelectEntity(&r_worldentity);
 	shaderstate.updatetime = realtime;
+
+	checkglerror();
 }
 
 #endif

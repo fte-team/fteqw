@@ -1159,7 +1159,7 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 	case 2:	//horizontal bands
 	case 3:
 #ifdef GLQUAKE
-		if (qrenderer == QR_OPENGL && vid.pixelwidth > vid.pixelheight * 2
+		if (qrenderer == QR_OPENGL && vid.rotpixelwidth > vid.rotpixelheight * 2
 #ifdef FISH
 			&& ffov.value >= 0
 #endif

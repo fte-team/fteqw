@@ -704,8 +704,8 @@ static void QCBUILTIN PF_cs_makestatic (progfuncs_t *prinst, struct globalvars_s
 	ent = &cl_static_entities[cl.num_statics].ent;
 	if (CopyCSQCEdictToEntity(in, ent))
 	{
-		cl.num_statics++;
 		cl_static_entities[cl.num_statics].mdlidx = in->v->modelindex;
+		cl.num_statics++;
 	}
 
 	PF_cs_remove(prinst, pr_globals);

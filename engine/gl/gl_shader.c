@@ -156,6 +156,8 @@ skipwhite:
 		}
 		data++;
 		c = *data;
+		if (c == ',' && len)
+			break;
 	} while (c>32);
 
 	if (len == MAX_TOKEN_CHARS)
@@ -708,8 +710,9 @@ static void Shader_EntityMergable ( shader_t *shader, shaderpass_t *pass, char *
 	shader->flags |= SHADER_ENTITY_MERGABLE;
 }
 
+static void Shader_ProgAutoFields(program_t *prog);
 /*program text is already loaded, this function parses the 'header' of it to see which permutations it provides, and how many times we need to recompile it*/
-static void Shader_LoadPermutations(union programhandle_u *handle, char *script, int qrtype)
+static void Shader_LoadPermutations(program_t *prog, char *script, int qrtype)
 {
 	static char *permutationname[] =
 	{
@@ -749,7 +752,7 @@ static void Shader_LoadPermutations(union programhandle_u *handle, char *script,
 			break;
 	};
 
-	memset(handle, 0, sizeof(*handle)*PERMUTATIONS);
+	memset(prog->handle, 0, sizeof(*prog->handle)*PERMUTATIONS);
 	for (p = 0; p < PERMUTATIONS; p++)
 	{
 		if (qrenderer != qrtype)
@@ -769,16 +772,19 @@ static void Shader_LoadPermutations(union programhandle_u *handle, char *script,
 					permutationdefines[pn++] = permutationname[n];
 			}
 			permutationdefines[pn++] = NULL;
-			handle[p].glsl = GLSlang_CreateProgram(permutationdefines, script, script);
+			prog->handle[p].glsl = GLSlang_CreateProgram(permutationdefines, script, script);
 		}
 	#endif
 	}
+
+	Shader_ProgAutoFields(prog);
 }
 typedef struct sgeneric_s
 {
 	struct sgeneric_s *next;
 	char name[MAX_QPATH];
-	union programhandle_u handle[PERMUTATIONS];
+	qboolean failed;
+	program_t prog;
 } sgeneric_t;
 static sgeneric_t *sgenerics;
 struct sbuiltin_s
@@ -1126,6 +1132,64 @@ struct sbuiltin_s
 			"}\n"
 		"#endif\n"
 	},
+	{QR_OPENGL, 110, "defaultskin",
+		"!!permu FULLBRIGHT\n"
+		"!!permu LOWER\n"
+		"!!permu UPPER\n"
+		//"#version 110\n"
+		"#ifdef VERTEX_SHADER\n"
+			"uniform mat4 m_modelview;\n"
+			"uniform mat4 m_projection;\n"
+			"attribute vec3 v_position;\n"
+			"attribute vec2 v_texcoord;\n"
+			"varying vec2 tc;\n"
+
+			"attribute vec3 v_normal;\n"
+			"uniform vec3 e_light_dir;\n"
+			"uniform vec3 e_light_mul;\n"
+			"uniform vec3 e_light_ambient;\n"
+			"varying vec3 light;\n"
+
+			"void main (void)\n"
+			"{\n"
+			"	light = e_light_ambient + (dot(v_normal,e_light_dir)*e_light_mul);\n"
+			"	tc = v_texcoord;\n"
+			"	gl_Position = m_projection * m_modelview * vec4(v_position, 1.0);\n"
+			"}\n"
+		"#endif\n"
+
+		"#ifdef FRAGMENT_SHADER\n"
+			"uniform sampler2D s_t0;\n" /*tex_diffuse*/
+			"#ifdef LOWER\n"
+			"uniform sampler2D s_t1;\n" /*tex_lower*/
+			"uniform vec3 e_lowercolour;\n"
+			"#endif\n"
+			"#ifdef UPPER\n"
+			"uniform sampler2D s_t2;\n" /*tex_upper*/
+			"uniform vec3 e_uppercolour;\n"
+			"#endif\n"
+			"#ifdef FULLBRIGHT\n"
+			"uniform sampler2D s_t3;\n" /*tex_fullbright*/
+			"#endif\n"
+			"varying vec2 tc;\n"
+			"varying vec3 light;\n"
+
+			"void main (void)\n"
+			"{\n"
+			"	gl_FragColor = texture2D(s_t0, tc);\n"
+			"#ifdef UPPER\n"
+			"	gl_FragColor.rgb += texture2D(s_t2, tc).rgb*e_uppercolour;\n"
+			"#endif\n"
+			"#ifdef LOWER\n"
+			"	gl_FragColor.rgb += texture2D(s_t1, tc).rgb*e_lowercolour;\n"
+			"#endif\n"
+			"	gl_FragColor.rgb *= light;\n"
+			"#ifdef FULLBRIGHT\n"
+			"	gl_FragColor += texture2D(s_t3, tc);\n"
+			"#endif\n"
+			"}\n"
+		"#endif\n"
+	},
 #endif
 	{QR_NONE}
 };
@@ -1140,7 +1204,7 @@ static void Shader_FlushGenerics(void)
 		free(g);
 	}
 }
-static void Shader_LoadGeneric(union programhandle_u *shader, char *name, int qrtype)
+static program_t *Shader_LoadGeneric(char *name, int qrtype)
 {
 	unsigned int i;
 	void *file;
@@ -1150,27 +1214,34 @@ static void Shader_LoadGeneric(union programhandle_u *shader, char *name, int qr
 	{
 		if (!strcmp(name, g->name))
 		{
-			memcpy(shader, g->handle, sizeof(g->handle));
-			return;
+			if (g->failed)
+				return NULL;
+			g->prog.refs++;
+			return &g->prog;
 		}
 	}
 
 	if (strlen(name) >= sizeof(g->name))
-		return; /*name overflow*/
+		return NULL; /*name overflow*/
 	g = malloc(sizeof(*g));
+	memset(g, 0, sizeof(*g));
 	strcpy(g->name, name);
 	g->next = sgenerics;
 	sgenerics = g;
 
+	g->prog.refs = 1;
+
 	FS_LoadFile(name, &file);
 	if (file)
 	{
-		Shader_LoadPermutations(g->handle, file, qrtype);
+		Shader_LoadPermutations(&g->prog, file, qrtype);
 		FS_FreeFile(file);
+
+		g->prog.refs++;
+		return &g->prog;
 	}
 	else
 	{
-		memset(g->handle, 0, sizeof(g->handle));
 		for (i = 0; *sbuiltins[i].name; i++)
 		{
 			if (sbuiltins[i].qrtype == qrenderer && !strcmp(sbuiltins[i].name, name))
@@ -1187,16 +1258,18 @@ static void Shader_LoadGeneric(union programhandle_u *shader, char *name, int qr
 						continue;
 				}
 #endif
-				Shader_LoadPermutations(g->handle, sbuiltins[i].body, sbuiltins[i].qrtype);
-				break;
+				Shader_LoadPermutations(&g->prog, sbuiltins[i].body, sbuiltins[i].qrtype);
+
+				g->prog.refs++;
+				return &g->prog;
 			}
 		}
 	}
-
-	memcpy(shader, g->handle, sizeof(g->handle));
+	g->failed = true;
+	return NULL;
 }
 
-static void Shader_ProgAutoFields(shader_t *shader)
+static void Shader_ProgAutoFields(program_t *prog)
 {
 	unsigned int i, p;
 	qboolean found;
@@ -1233,21 +1306,21 @@ static void Shader_ProgAutoFields(shader_t *shader)
 		{"e_light_ambient",			SP_E_L_AMBIENT},
 		{NULL}
 	};
-	shader->numprogparams = 0;
+	prog->numparams = 0;
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
 		if (gl_config.nofixedfunc)
-			shader->flags |= SHADER_NOBUILTINATTR;
+			prog->nofixedcompat = true;
 
 		for (p = 0; p < PERMUTATIONS; p++)
 		{
-			if (!shader->programhandle[p].glsl)
+			if (!prog->handle[p].glsl)
 				continue;
-			GLSlang_UseProgram(shader->programhandle[p].glsl);
+			GLSlang_UseProgram(prog->handle[p].glsl);
 			for (i = 0; i < 8; i++)
 			{
-				uniformloc = qglGetUniformLocationARB(shader->programhandle[p].glsl, va("s_t%i", i));
+				uniformloc = qglGetUniformLocationARB(prog->handle[p].glsl, va("s_t%i", i));
 				if (uniformloc != -1)
 					qglUniform1iARB(uniformloc, i);
 			}
@@ -1257,24 +1330,24 @@ static void Shader_ProgAutoFields(shader_t *shader)
 			found = false;
 			for (p = 0; p < PERMUTATIONS; p++)
 			{
-				if (!shader->programhandle[p].glsl)
+				if (!prog->handle[p].glsl)
 					continue;
-				GLSlang_UseProgram(shader->programhandle[p].glsl);
+				GLSlang_UseProgram(prog->handle[p].glsl);
 				if (u[i].ptype >= SP_FIRSTUNIFORM)
-					uniformloc = qglGetUniformLocationARB(shader->programhandle[p].glsl, u[i].name);
+					uniformloc = qglGetUniformLocationARB(prog->handle[p].glsl, u[i].name);
 				else
-					uniformloc = qglGetAttribLocationARB(shader->programhandle[p].glsl, u[i].name);
+					uniformloc = qglGetAttribLocationARB(prog->handle[p].glsl, u[i].name);
 				if (uniformloc != -1)
 					found = true;
-				shader->progparm[shader->numprogparams].handle[p] = uniformloc;
+				prog->parm[prog->numparams].handle[p] = uniformloc;
 			}
 			if (found)
 			{
-				shader->progparm[shader->numprogparams].type = u[i].ptype;
-				shader->numprogparams++;
+				prog->parm[prog->numparams].type = u[i].ptype;
+				prog->numparams++;
 
 				if (u[i].ptype < SP_FIRSTUNIFORM)
-					shader->flags |= SHADER_NOBUILTINATTR;
+					prog->nofixedcompat = true;
 			}
 		}
 		GLSlang_UseProgram(0);
@@ -1330,16 +1403,17 @@ static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **p
 			programbody[end-start] = 0;
 			*ptr = end+1;/*skip over it all*/
 
-			Shader_LoadPermutations(shader->programhandle, programbody, qrtype);
-			Shader_ProgAutoFields(shader);
+			shader->prog = malloc(sizeof(*shader->prog));
+			memset(shader->prog, 0, sizeof(shader->prog));
+			shader->prog->refs = 1;
+			Shader_LoadPermutations(shader->prog, programbody, qrtype);
 
 			BZ_Free(programbody);
 		}
 		return;
 	}
 
-	Shader_LoadGeneric(shader->programhandle, Shader_ParseString(ptr), qrtype);
-	Shader_ProgAutoFields(shader);
+	shader->prog = Shader_LoadGeneric(Shader_ParseString(ptr), qrtype);
 }
 
 static void Shader_GLSLProgramName (shader_t *shader, shaderpass_t *pass, char **ptr)
@@ -1444,26 +1518,30 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 		int p;
 		qboolean foundone;
 		unsigned int uniformloc;
-		if (!shader->programhandle[0].glsl)
+		program_t *prog = shader->prog;
+		if (!prog)
 		{
 			Con_Printf("shader %s: param without program set\n", shader->name);
 		}
-		else if (shader->numprogparams == SHADER_PROGPARMS_MAX)
+		else if (prog->numparams == SHADER_PROGPARMS_MAX)
 			Con_Printf("shader %s: too many parms\n", shader->name);
 		else
 		{
+			if (prog->refs != 1)
+				Con_Printf("shader %s: parms on shared shader\n", shader->name);
+
 			foundone = false;
-			shader->progparm[shader->numprogparams].type = parmtype;
+			prog->parm[prog->numparams].type = parmtype;
 			for (p = 0; p < PERMUTATIONS; p++)
 			{
-				if (!shader->programhandle[p].glsl)
+				if (!prog->handle[p].glsl)
 					continue;
-				GLSlang_UseProgram(shader->programhandle[p].glsl);
+				GLSlang_UseProgram(prog->handle[p].glsl);
 				if (parmtype >= SP_FIRSTUNIFORM)
-					uniformloc = qglGetUniformLocationARB(shader->programhandle[p].glsl, token);
+					uniformloc = qglGetUniformLocationARB(prog->handle[p].glsl, token);
 				else
-					uniformloc = qglGetAttribLocationARB(shader->programhandle[p].glsl, token);
-				shader->progparm[shader->numprogparams].handle[p] = uniformloc;
+					uniformloc = qglGetAttribLocationARB(prog->handle[p].glsl, token);
+				prog->parm[prog->numparams].handle[p] = uniformloc;
 				if (uniformloc != -1)
 				{
 					foundone = true;
@@ -1474,17 +1552,17 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 						break;
 					case SP_TEXTURE:
 					case SP_CONSTI:
-						shader->progparm[shader->numprogparams].ival = specialint;
+						prog->parm[prog->numparams].ival = specialint;
 						break;
 					case SP_CONSTF:
-						shader->progparm[shader->numprogparams].fval = specialfloat;
+						prog->parm[prog->numparams].fval = specialfloat;
 						break;
 					case SP_CVARF:
 					case SP_CVARI:
-						shader->progparm[shader->numprogparams].pval = cv;
+						prog->parm[prog->numparams].pval = cv;
 						break;
 					case SP_CVAR3F:
-						shader->progparm[shader->numprogparams].pval = cv;
+						prog->parm[prog->numparams].pval = cv;
 						qglUniform3fvARB(uniformloc, 1, specialvec);
 						break;
 					default:
@@ -1495,12 +1573,24 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 			if (!foundone && !silent)
 				Con_Printf("shader %s: param \"%s\" not found\n", shader->name, token);
 			else
-				shader->numprogparams++;
+				prog->numparams++;
 
 			GLSlang_UseProgram(0);
 		}
 	}
 #endif
+}
+
+static void Shader_DiffuseMap(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	char *token;
+	token = Shader_ParseString(ptr);
+	shader->defaulttextures.base = R_LoadHiResTexture(token, NULL, 0);
+}
+
+static void Shader_Translucent(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	shader->flags |= SHADER_BLEND;
 }
 
 static shaderkey_t shaderkeys[] =
@@ -1521,6 +1611,17 @@ static shaderkey_t shaderkeys[] =
 	{"program",			Shader_GLSLProgramName},	//legacy
 	{"hlslprogram",		Shader_HLSLProgramName},	//for d3d
 	{"param",			Shader_ProgramParam},
+
+	/*doom3 compat*/
+	{"diffusemap",		Shader_DiffuseMap},
+	{"bumpmap",			NULL},
+	{"specularmap",		NULL},
+	{"nonsolid",		NULL},
+	{"noimpact",		NULL},
+	{"translucent",		Shader_Translucent},
+	{"noshadows",		NULL},
+	{"nooverlays",		NULL},
+	{"nofragment",		NULL},
 
     {NULL,				NULL}
 };
@@ -1870,7 +1971,15 @@ static void Shaderpass_BlendFunc (shader_t *shader, shaderpass_t *pass, char **p
 	pass->shaderbits &= ~(SBITS_BLEND_BITS);
 
 	token = Shader_ParseString (ptr);
-	if ( !Q_stricmp (token, "blend"))
+	if ( !Q_stricmp (token, "diffusemap"))
+	{
+		//if the shader is translucent then this pass must be meant to be blended
+		if (shader->flags & SHADER_BLEND)
+			pass->shaderbits |= SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA;
+		else
+			pass->shaderbits |= SBITS_SRCBLEND_NONE | SBITS_DSTBLEND_NONE;
+	}
+	else if ( !Q_stricmp (token, "blend"))
 	{
 		pass->shaderbits |= SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA;
 	}
@@ -1891,6 +2000,8 @@ static void Shaderpass_BlendFunc (shader_t *shader, shaderpass_t *pass, char **p
 		pass->shaderbits |= Shader_BlendFactor(token, false);
 
 		token = Shader_ParseString (ptr);
+		if (*token == ',')
+			token = Shader_ParseString (ptr);
 		pass->shaderbits |= Shader_BlendFactor(token, true);
     }
 }
@@ -2010,28 +2121,31 @@ static void Shaderpass_Scale ( shader_t *shader, shaderpass_t *pass, char **ptr 
 
 	tcmod = &pass->tcmods[pass->numtcmods];
 
-	token = Shader_ParseString ( ptr );
-	if (!strcmp(token, "static"))
-	{
-		tcmod->type = SHADER_TCMOD_SCALE;
-		tcmod->args[0] = Shader_ParseFloat ( ptr );
-	}
-	else
-	{
-		Con_Printf("Bad shader scale\n");
-		return;
-	}
+	tcmod->type = SHADER_TCMOD_SCALE;
 
 	token = Shader_ParseString ( ptr );
 	if (!strcmp(token, "static"))
 	{
-		tcmod->type = SHADER_TCMOD_SCALE;
+		tcmod->args[0] = Shader_ParseFloat ( ptr );
+	}
+	else
+	{
+		tcmod->args[0] = atof(token);
+	}
+	
+	while (**ptr == ' ' || **ptr == '\t')
+		*ptr+=1;
+	if (**ptr == ',')
+		*ptr+=1;
+
+	token = Shader_ParseString ( ptr );
+	if (!strcmp(token, "static"))
+	{
 		tcmod->args[1] = Shader_ParseFloat ( ptr );
 	}
 	else
 	{
-		Con_Printf("Bad shader scale\n");
-		return;
+		tcmod->args[1] = atof(token);
 	}
 
 	pass->numtcmods++;
@@ -2115,28 +2229,103 @@ static void Shaderpass_NoLightMap ( shader_t *shader, shaderpass_t *pass, char *
 	pass->rgbgen = RGB_GEN_IDENTITY;
 }
 
+static void Shaderpass_MaskColor(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	pass->shaderbits |= SBITS_MASK_RED|SBITS_MASK_GREEN|SBITS_MASK_BLUE;
+}
+static void Shaderpass_MaskRed(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	pass->shaderbits |= SBITS_MASK_RED;
+}
+static void Shaderpass_MaskGreen(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	pass->shaderbits |= SBITS_MASK_GREEN;
+}
+static void Shaderpass_MaskBlue(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	pass->shaderbits |= SBITS_MASK_BLUE;
+}
+static void Shaderpass_MaskAlpha(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	pass->shaderbits |= SBITS_MASK_ALPHA;
+}
+static void Shaderpass_AlphaTest(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	if (Shader_ParseFloat(ptr) == 0.5)
+		pass->shaderbits |= SBITS_ATEST_GE128;
+	else
+		Con_Printf("unsupported alphatest value\n");
+}
+static void Shaderpass_TexGen(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	char *token = Shader_ParseString(ptr);
+	if (!strcmp(token, "normal"))
+		pass->tcgen = TC_GEN_NORMAL;
+	else if (!strcmp(token, "skybox"))
+		pass->tcgen = TC_GEN_SKYBOX;
+	else if (!strcmp(token, "wobblesky"))
+	{
+		pass->tcgen = TC_GEN_WOBBLESKY;
+		token = Shader_ParseString(ptr);
+		token = Shader_ParseString(ptr);
+		token = Shader_ParseString(ptr);
+	}
+	else if (!strcmp(token, "reflect"))
+		pass->tcgen = TC_GEN_REFLECT;
+	else
+	{
+		Con_Printf("texgen token not understood\n");
+	}
+}
+static void Shaderpass_CubeMap(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	char *token = Shader_ParseString(ptr);
+	int flags = Shader_SetImageFlags(shader);
+	if (pass->tcgen == TC_GEN_BASE)
+		pass->tcgen = TC_GEN_SKYBOX;
+	pass->texgen = T_GEN_SKYBOX;
+	pass->anim_frames[0] = r_nulltex;//Shader_FindImage(token, flags);
+
+	if (!TEXVALID(pass->anim_frames[0]))
+	{
+		pass->texgen = T_GEN_SINGLEMAP;
+		pass->anim_frames[0] = missing_texture;
+	}
+}
+
 static shaderkey_t shaderpasskeys[] =
 {
-    {"rgbgen",		Shaderpass_RGBGen },
-    {"blendfunc",	Shaderpass_BlendFunc },
-    {"depthfunc",	Shaderpass_DepthFunc },
-    {"depthwrite",	Shaderpass_DepthWrite },
-    {"alphafunc",	Shaderpass_AlphaFunc },
-    {"tcmod",		Shaderpass_TcMod },
-    {"map",			Shaderpass_Map },
-    {"animmap",		Shaderpass_AnimMap },
-    {"clampmap",	Shaderpass_ClampMap },
-	{"videomap",	Shaderpass_VideoMap },
-    {"tcgen",		Shaderpass_TcGen },
-	{"envmap",		Shaderpass_EnvMap },//for alienarena
-	{"nolightmap",	Shaderpass_NoLightMap },//for alienarena
-	{"scale",		Shaderpass_Scale },//for alienarena
-	{"scroll",		Shaderpass_Scroll },//for alienarena
-	{"alphagen",	Shaderpass_AlphaGen },
-	{"alphashift",	Shaderpass_AlphaShift },//for alienarena
-	{"alphamask",	Shaderpass_AlphaMask },//for alienarena
-	{"detail",		Shaderpass_Detail },
-    {NULL,			NULL }
+    {"rgbgen",		Shaderpass_RGBGen},
+    {"blendfunc",	Shaderpass_BlendFunc},
+    {"depthfunc",	Shaderpass_DepthFunc},
+    {"depthwrite",	Shaderpass_DepthWrite},
+    {"alphafunc",	Shaderpass_AlphaFunc},
+    {"tcmod",		Shaderpass_TcMod},
+    {"map",			Shaderpass_Map},
+    {"animmap",		Shaderpass_AnimMap},
+    {"clampmap",	Shaderpass_ClampMap},
+	{"videomap",	Shaderpass_VideoMap},
+    {"tcgen",		Shaderpass_TcGen},
+	{"envmap",		Shaderpass_EnvMap},//for alienarena
+	{"nolightmap",	Shaderpass_NoLightMap},//for alienarena
+	{"scale",		Shaderpass_Scale},//for alienarena
+	{"scroll",		Shaderpass_Scroll},//for alienarena
+	{"alphagen",	Shaderpass_AlphaGen},
+	{"alphashift",	Shaderpass_AlphaShift},//for alienarena
+	{"alphamask",	Shaderpass_AlphaMask},//for alienarena
+	{"detail",		Shaderpass_Detail},
+
+	/*doom3 compat*/
+	{"blend",		Shaderpass_BlendFunc},
+	{"maskcolor",	Shaderpass_MaskColor},
+	{"maskred",		Shaderpass_MaskRed},
+	{"maskgreen",	Shaderpass_MaskGreen},
+	{"maskblue",	Shaderpass_MaskBlue},
+	{"maskalpha",	Shaderpass_MaskAlpha},
+	{"alphatest",	Shaderpass_AlphaTest},
+	{"texgen",		Shaderpass_TexGen},
+	{"cameracubemap",Shaderpass_CubeMap},
+    {NULL,			NULL}
 };
 
 // ===============================================================
@@ -2297,18 +2486,22 @@ void Shader_Free (shader_t *shader)
 		Hash_RemoveData(&shader_active_hash, shader->name, shader);
 
 #ifdef GLQUAKE
-	if (qrenderer == QR_OPENGL)
+	if (qrenderer == QR_OPENGL && shader->prog)
 	{
+		program_t *prog = shader->prog;
 		int p;
-		for (p = 0; p < PERMUTATIONS; p++)
+		if (--prog->refs == 0)
 		{
-			if (shader->programhandle[p].glsl)
-				qglDeleteProgramObject_(shader->programhandle[p].glsl);
+			for (p = 0; p < PERMUTATIONS; p++)
+			{
+				if (prog->handle[p].glsl)
+					qglDeleteProgramObject_(prog->handle[p].glsl);
+			}
+			free(prog);
 		}
+		shader->prog = NULL;
 	}
 #endif
-	memset(&shader->programhandle, 0, sizeof(shader->programhandle));
-
 	if (shader->skydome)
 	{
 		Z_Free (shader->skydome);
@@ -2568,6 +2761,9 @@ void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 	if ((pass->shaderbits & SBITS_ATEST_BITS) && (!(pass2->shaderbits & SBITS_MISC_DEPTHEQUALONLY) || pass2->texgen != T_GEN_LIGHTMAP))
 		return;
 
+	if ((pass->shaderbits & SBITS_MASK_BITS) != (pass2->shaderbits & SBITS_MASK_BITS))
+		return;
+
 	// check if we can use multiple passes
 	if (pass2->blendmode == GL_DOT3_RGB_ARB)
 	{
@@ -2714,18 +2910,24 @@ void Shader_Finish (shader_t *s)
 		pass = &s->passes[s->numpasses++];
 		pass = &s->passes[0];
 		pass->tcgen = TC_GEN_BASE;
-		pass->anim_frames[0] = R_LoadHiResTexture(s->name, NULL, IF_NOALPHA);
-		if (!TEXVALID(pass->anim_frames[0]))
+		if (TEXVALID(s->defaulttextures.base))
+			pass->texgen = T_GEN_DIFFUSE;
+		else
 		{
-			Con_Printf("Shader %s failed to load default texture\n", s->name);
-			pass->anim_frames[0] = missing_texture;
+			pass->texgen = T_GEN_SINGLEMAP;
+			pass->anim_frames[0] = R_LoadHiResTexture(s->name, NULL, IF_NOALPHA);
+			if (!TEXVALID(pass->anim_frames[0]))
+			{
+				Con_Printf("Shader %s failed to load default texture\n", s->name);
+				pass->anim_frames[0] = missing_texture;
+			}
+			Con_Printf("Shader %s with no passes and no surfaceparm nodraw, inserting pass\n", s->name);
 		}
 		pass->shaderbits |= SBITS_MISC_DEPTHWRITE;
 		pass->rgbgen = RGB_GEN_VERTEX;
 		pass->alphagen = ALPHA_GEN_IDENTITY;
 		pass->numMergedPasses = 1;
 		Shader_SetBlendmode(pass);
-		Con_Printf("Shader %s with no passes and no surfaceparm nodraw, inserting pass\n", s->name);
 	}
 
 	if (!Q_stricmp (s->name, "flareShader"))
@@ -2749,7 +2951,7 @@ void Shader_Finish (shader_t *s)
 		s->sort = SHADER_SORT_DECAL;
 	}
 
-	if (r_vertexlight.value && !s->programhandle[0].glsl)
+	if (r_vertexlight.value && !s->prog)
 	{
 		// do we have a lightmap pass?
 		pass = s->passes;
@@ -2836,7 +3038,7 @@ done:;
 	pass = s->passes;
 	for (i = 0; i < s->numpasses; i++, pass++)
 	{
-		if (!(pass->shaderbits & SBITS_BLEND_BITS))
+		if (!(pass->shaderbits & (SBITS_BLEND_BITS|SBITS_MASK_BITS)))
 		{
 			break;
 		}
@@ -2933,7 +3135,7 @@ done:;
 		s->flags &= ~SHADER_DEPTHWRITE;
 	}
 
-	if (s->programhandle[0].glsl)
+	if (s->prog)
 	{
 		if (!s->numpasses)
 			s->numpasses = 1;
@@ -3293,23 +3495,14 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 				"{\n"
 					"sort blend\n" /*make sure it always has the same sort order, so switching on/off wateralpha doesn't break stuff*/
 					"program defaultwarp\n"
-					"if r_wateralpha != 1\n"
-					"[\n"
-						"param cvarf r_wateralpha wateralpha\n"
-						"{\n"
-							"map $diffuse\n"
-							"tcmod turb 0 0 3 0.1\n"
+					"{\n"
+						"map $diffuse\n"
+						"tcmod turb 0 0 3 0.1\n"
+						"if r_wateralpha != 1\n"
+						"[\n"
 							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
-						"}\n"
-					"]\n"
-					"if r_wateralpha == 1\n"
-					"[\n"
-						"param constf 1 wateralpha\n"
-						"{\n"
-							"map $diffuse\n"
-							"tcmod turb 0 0 3 0.1\n"
-						"}\n"
-					"]\n"
+						"]\n"
+					"}\n"
 					"surfaceparm nodlight\n"
 				"}\n"
 			);
@@ -3808,9 +4001,16 @@ static int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *gena
 
 	if (defaultgen)
 	{
-		memset ( s, 0, sizeof( shader_t ) );
-		defaultgen(shortname, s, genargs);
-		Com_sprintf ( s->name, MAX_QPATH, shortname );
+		memset(s, 0, sizeof(shader_t));
+		Com_sprintf(s->name, MAX_QPATH, shortname);
+		if (!strcmp(shortname, "textures/common/clip"))
+			Shader_DefaultScript(shortname, s, 
+				"{\n"
+					"surfaceparm nodraw\n"
+					"surfaceparm nodlight\n"
+				"}\n");
+		else
+			defaultgen(shortname, s, genargs);
 		Hash_Add(&shader_active_hash, s->name, s, &s->bucket);
 		s->generator = defaultgen;
 		s->genargs = genargs;
@@ -3833,6 +4033,7 @@ void Shader_DoReload(void)
 	{
 		Con_Printf ( "Initializing Shaders.\n" );
 
+		COM_EnumerateFiles("materials/*.mtr", Shader_InitCallback, NULL);
 		COM_EnumerateFiles("shaders/*.shader", Shader_InitCallback, NULL);
 		COM_EnumerateFiles("scripts/*.shader", Shader_InitCallback, NULL);
 		//COM_EnumerateFiles("scripts/*.rscript", Shader_InitCallback, NULL);

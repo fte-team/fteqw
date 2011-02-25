@@ -898,7 +898,10 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 
 	//if we're meant to be writing, best write to it.
 	if (strchr(mode , 'w') || strchr(mode , 'a'))
+	{
+		COM_CreatePath(fullname);
 		return VFSOS_Open(fullname, mode);
+	}
 	return NULL;
 }
 

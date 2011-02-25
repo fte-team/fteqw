@@ -536,8 +536,12 @@ void SV_Map_f (void)
 			snprintf (expanded, sizeof(expanded), "maps/%s.bsp", level);
 			if (!COM_FCheckExists (expanded))
 			{
-				Con_TPrintf (STL_CANTFINDMAP, expanded);
-				return;
+				snprintf (expanded, sizeof(expanded), "maps/%s.cm", level);
+				if (!COM_FCheckExists (expanded))
+				{
+					Con_TPrintf (STL_CANTFINDMAP, expanded);
+					return;
+				}
 			}
 		}
 	}

@@ -117,7 +117,7 @@ void GL_DrawHeightmapModel (entity_t *e)
 				else
 #endif
 				{	//single texture
-					GL_Bind(hm->textures[x+y*SECTIONS]);
+					GL_MTBind(0, GL_TEXTURE_2D, hm->textures[x+y*SECTIONS]);
 					qglBegin(GL_QUADS);
 					subsize = hm->terrainsize/hm->numsegs;
 					minx = x*subsize;
@@ -138,7 +138,7 @@ void GL_DrawHeightmapModel (entity_t *e)
 					}
 					qglEnd();
 
-					GL_Bind(hm->detailtexture);
+					GL_MTBind(0, GL_TEXTURE_2D, hm->detailtexture);
 					qglEnable(GL_BLEND);
 
 					qglBlendFunc (GL_ZERO, GL_SRC_COLOR);

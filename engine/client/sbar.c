@@ -188,7 +188,7 @@ void Draw_FunStringWidth(int x, int y, const void *str, int width)
 	conchar_t buffer[2048];
 	conchar_t *w = buffer;
 
-	width = (width*vid.pixelwidth)/vid.width;
+	width = (width*vid.rotpixelwidth)/vid.width;
 
 	COM_ParseFunString(CON_WHITEMASK, str, buffer, sizeof(buffer), false);
 

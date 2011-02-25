@@ -1986,7 +1986,7 @@ int tokenizeqc(char *str, qboolean dpfuckage)
 			break;
 
 		qctoken[qctoken_count].start = str - start;
-		str = COM_StringParse (str, false, dpfuckage);
+		str = COM_StringParse (str, com_token, sizeof(com_token), false, dpfuckage);
 		if (!str)
 			break;
 

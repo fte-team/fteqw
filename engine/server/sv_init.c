@@ -846,6 +846,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	{
 		strcpy (sv.name, server);
 		sprintf (sv.modelname,"maps/%s.bsp", server);
+		if (!COM_FCheckExists(sv.modelname))
+			if (COM_FCheckExists(va("maps/%s.cm", server)))
+				sprintf (sv.modelname,"maps/%s.cm", server);
 	}
 	sv.state = ss_loading;
 	sv.world.worldmodel = Mod_ForName (sv.modelname, true);

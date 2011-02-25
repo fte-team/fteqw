@@ -122,12 +122,15 @@ enum
 
 	SBITS_MISC_DEPTHWRITE				= 0x00001000,
 	SBITS_MISC_NODEPTHTEST				= 0x00002000,
-
 	SBITS_MISC_DEPTHEQUALONLY			= 0x00004000,
 	SBITS_MISC_DEPTHCLOSERONLY			= 0x00008000,
-
-//	SBITS_MISC_POLYFILL_LINES			= 0x00008000,
 #define SBITS_MISC_BITS				  0x0000f000
+
+	SBITS_MASK_RED						= 0x00010000,
+	SBITS_MASK_GREEN					= 0x00020000,
+	SBITS_MASK_BLUE						= 0x00040000,
+	SBITS_MASK_ALPHA					= 0x00080000,
+#define SBITS_MASK_BITS				  0x000f0000
 };
 
 
@@ -176,11 +179,15 @@ typedef struct shaderpass_s {
 		TC_GEN_ENVIRONMENT,
 		TC_GEN_DOTPRODUCT,
 		TC_GEN_VECTOR,
+		TC_GEN_FOG,
 
-		//these are really for use only in glsl stuff.
+		//these are really for use only in glsl stuff or perhaps cubemaps, as they generate 3d coords.
 		TC_GEN_NORMAL,
 		TC_GEN_SVECTOR,
 		TC_GEN_TVECTOR,
+		TC_GEN_SKYBOX,
+		TC_GEN_WOBBLESKY,
+		TC_GEN_REFLECT,
 	} tcgen;
 	int numtcmods;
 	tcmod_t		tcmods[SHADER_MAX_TC_MODS];
@@ -207,6 +214,7 @@ typedef struct shaderpass_s {
 		T_GEN_CURRENTRENDER,//copy the current screen to a texture, and draw that
 
 		T_GEN_VIDEOMAP,		//use the media playback as an image source, updating each frame for which it is visible
+		T_GEN_SKYBOX,		//use a skybox instead, otherwise T_GEN_SINGLEMAP
 	} texgen;
 
 	enum {
@@ -300,6 +308,16 @@ union programhandle_u
 {
 	int glsl;
 };
+
+typedef struct programshared_s
+{
+	int refs;
+	qboolean nofixedcompat;
+	union programhandle_u handle[PERMUTATIONS];
+	int numparams;
+	shaderprogparm_t parm[SHADER_PROGPARMS_MAX];
+} program_t;
+
 typedef struct {
 	float factor;
 	float unit;
@@ -344,12 +362,9 @@ struct shader_s
 		SHADER_NODLIGHT			= 1 << 15,	//from surfaceflags
 		SHADER_HASLIGHTMAP		= 1 << 16,
 		SHADER_HASTOPBOTTOM		= 1 << 17,
-		SHADER_NOBUILTINATTR    = 1 << 18	/*using custom glsl attributes so don't feed it builtins*/
 	} flags;
 
-	union programhandle_u programhandle[PERMUTATIONS];
-	int numprogparams;
-	shaderprogparm_t progparm[SHADER_PROGPARMS_MAX];
+	program_t *prog;
 
 	shaderpass_t passes[SHADER_PASS_MAX];
 

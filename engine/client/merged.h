@@ -168,9 +168,10 @@ typedef enum backendmode_e
         BEM_DEPTHONLY,          //just a quick depth pass. textures used only for alpha test (shadowmaps).
         BEM_STENCIL,            //used for drawing shadow volumes to the stencil buffer.
         BEM_DEPTHDARK,          //a quick depth pass. textures used only for alpha test. additive textures still shown as normal.
-        BEM_LIGHT,                      //we have a valid light
+        BEM_LIGHT,              //we have a valid light
         BEM_SMAPLIGHTSPOT,      //we have a spot light using a shadowmap
-        BEM_SMAPLIGHT           //we have a light using a shadowmap
+        BEM_SMAPLIGHT,          //we have a light using a shadowmap
+		BEM_FOG                 //drawing a fog volume
 } backendmode_t;
 
 typedef struct rendererinfo_s {

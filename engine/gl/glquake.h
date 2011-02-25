@@ -243,11 +243,10 @@ qboolean R_CullSphere (vec3_t origin, float radius);
 
 #ifdef GLQUAKE
 void R_TranslatePlayerSkin (int playernum);
-void GL_Bind (texid_t texnum);
-void GL_MBind(int tmunum, texid_t texnum);
+void GL_MTBind(int tmu, int target, texid_t texnum); /*use this if you're going to change the texture object*/
+void GL_LazyBind(int tmu, int target, texid_t texnum, qboolean arrays); /*use this if you don't care about the object itself, only that it is bound*/
 void GL_CullFace(unsigned int sflags);
 void GL_TexEnv(GLenum mode);
-void GL_BindType (int type, texid_t texnum);
 void GL_FlushBackEnd (void);
 
 // Multitexture
@@ -355,6 +354,9 @@ qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer);
 #ifdef MAP_DOOM
 void GLR_DoomWorld();
 #endif
+qboolean D3_LoadMap_CollisionMap(model_t *mod, char *buf);
+unsigned char *D3_CalcVis(model_t *mod, vec3_t org);
+void D3_GenerateAreas(model_t *mod);
 
 //gl_bloom.c
 #ifdef GLQUAKE

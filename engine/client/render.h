@@ -199,6 +199,7 @@ typedef struct {
 	qbyte		lightmaps[4*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];
 	qbyte		deluxmaps[4*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];	//fixme: make seperate structure for easy disabling with less memory usage.
 	stmap		stainmaps[3*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];	//rgb no a. added to lightmap for added (hopefully) speed.
+	shader_t    *shader;
 } lightmapinfo_t;
 extern lightmapinfo_t **lightmap;
 extern int numlightmaps;
@@ -460,6 +461,10 @@ enum {
 	RQUANT_MSECS,	//old r_speeds
 	RQUANT_EPOLYS,
 	RQUANT_WPOLYS,
+	RQUANT_DRAWS,
+	RQUANT_ENTBATCHES,
+	RQUANT_WORLDBATCHES,
+	RQUANT_2DBATCHES,
 	RQUANT_SHADOWFACES,
 	RQUANT_SHADOWEDGES,
 	RQUANT_LITFACES,
@@ -468,7 +473,7 @@ enum {
 };
 int rquant[RQUANT_MAX];
 
-#define RQuantAdd(type,quant) rquant[type] += quant;
+#define RQuantAdd(type,quant) rquant[type] += quant
 
 #if defined(NDEBUG) || !defined(_WIN32)
 #define RSpeedLocals()
@@ -477,13 +482,13 @@ int rquant[RQUANT_MAX];
 #define RSpeedEnd(spt)
 #else
 #define RSpeedLocals() int rsp
-#define RSpeedMark() int rsp = r_speeds.ival?Sys_DoubleTime()*1000000:0
-#define RSpeedRemark() rsp = r_speeds.ival?Sys_DoubleTime()*1000000:0
+#define RSpeedMark() int rsp = (r_speeds.ival>1)?Sys_DoubleTime()*1000000:0
+#define RSpeedRemark() rsp = (r_speeds.ival>1)?Sys_DoubleTime()*1000000:0
 
 #if defined(_WIN32) && defined(GLQUAKE)
 extern void (_stdcall *qglFinish) (void);
-#define RSpeedEnd(spt) do {if(r_speeds.ival && qglFinish){qglFinish(); rspeeds[spt] += (int)(Sys_DoubleTime()*1000000) - rsp;}}while (0)
+#define RSpeedEnd(spt) do {if(r_speeds.ival > 1){if(r_speeds.ival > 2 && qglFinish)qglFinish(); rspeeds[spt] += (int)(Sys_DoubleTime()*1000000) - rsp;}}while (0)
 #else
-#define RSpeedEnd(spt) rspeeds[spt] += r_speeds.value?Sys_DoubleTime()*1000000 - rsp:0
+#define RSpeedEnd(spt) rspeeds[spt] += (r_speeds.ival>1)?Sys_DoubleTime()*1000000 - rsp:0
 #endif
 #endif

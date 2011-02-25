@@ -3,6 +3,8 @@
 #include "shader.h"
 #include "renderque.h"
 
+#include "glquake.h"
+
 #ifdef D3DQUAKE
 #include "winquake.h"
 
@@ -732,6 +734,9 @@ static void	(D3D9_R_NewMap)					(void)
 	r_worldentity.model = cl.worldmodel;
 	R_AnimateLight();
 	Surf_BuildLightmaps();
+
+	if (cl.worldmodel && cl.worldmodel->fromgame == fg_doom3)
+		D3_GenerateAreas(cl.worldmodel);
 
 	/*wipe any lingering particles*/
 	P_ClearParticles();

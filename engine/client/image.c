@@ -2124,7 +2124,7 @@ texid_t GL_LoadTextureDDS(unsigned char *buffer, int filesize)
 		return r_nulltex;
 
 	texnum = GL_AllocNewTexture(fmtheader.dwWidth, fmtheader.dwHeight);
-	GL_Bind(texnum);
+	GL_MTBind(0, GL_TEXTURE_2D, texnum);
 
 	datasize = fmtheader.dwPitchOrLinearSize;
 	for (mipnum = 0; mipnum < nummips; mipnum++)

@@ -4,6 +4,7 @@
 #endif
 
 void RMod_SetParent (mnode_t *node, mnode_t *parent);
+int	D3_LeafnumForPoint (struct model_s *model, vec3_t point);
 
 #ifndef SERVERONLY
 qboolean Mod_LoadMap_Proc(model_t *model, char *data)

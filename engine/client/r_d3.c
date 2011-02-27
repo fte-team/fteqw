@@ -548,8 +548,7 @@ qboolean D3_LoadMap_CollisionMap(model_t *mod, char *buf)
 
 	/*that's the physics sorted*/
 #ifndef SERVERONLY
-	if (!isDedi
-		cated)
+	if (!isDedicated)
 	{
 		COM_StripExtension(mod->name, token, sizeof(token));
 		buf = FS_LoadMallocFile(va("%s.proc", token));

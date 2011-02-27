@@ -519,6 +519,8 @@ void PR_LoadGlabalStruct(void)
 {
 	static float writeonly;
 	static float dimension_send_default;
+	static float zero_default;
+	static vec3_t vecwriteonly;
 	int i;
 	int *v;
 	nqglobalvars_t *pr_globals = pr_nqglobal_struct;
@@ -540,23 +542,23 @@ void PR_LoadGlabalStruct(void)
 	globalfloat		(false, deathmatch);
 	globalfloat		(false, coop);
 	globalfloat		(false, teamplay);
-	globalfloat		(true, serverflags);
-	globalfloat		(true, total_secrets);
-	globalfloat		(true, total_monsters);
-	globalfloat		(true, found_secrets);
-	globalfloat		(true, killed_monsters);
+	globalfloat		(false, serverflags);
+	globalfloat		(false, total_secrets);
+	globalfloat		(false, total_monsters);
+	globalfloat		(false, found_secrets);
+	globalfloat		(false, killed_monsters);
 	globalvec		(true, v_forward);
 	globalvec		(true, v_up);
 	globalvec		(true, v_right);
-	globalfloat		(true, trace_allsolid);
-	globalfloat		(true, trace_startsolid);
-	globalfloat		(true, trace_fraction);
-	globalvec		(true, trace_endpos);
-	globalvec		(true, trace_plane_normal);
-	globalfloat		(true, trace_plane_dist);
+	globalfloat		(false, trace_allsolid);
+	globalfloat		(false, trace_startsolid);
+	globalfloat		(false, trace_fraction);
+	globalvec		(false, trace_endpos);
+	globalvec		(false, trace_plane_normal);
+	globalfloat		(false, trace_plane_dist);
 	globalint		(true, trace_ent);
-	globalfloat		(true, trace_inopen);
-	globalfloat		(true, trace_inwater);
+	globalfloat		(false, trace_inopen);
+	globalfloat		(false, trace_inwater);
 	globalfloat		(false, trace_endcontents);
 	globalfloat		(false, trace_surfaceflags);
 	globalfloat		(false, cycle_wrapped);
@@ -587,24 +589,49 @@ void PR_LoadGlabalStruct(void)
 	for (i = 0; i < NUM_SPAWN_PARMS; i++)
 		spawnparamglobals[i] = (float *)PR_FindGlobal(svprogfuncs, va("parm%i", i+1), 0);
 
-	if (!((nqglobalvars_t*)pr_globals)->dimension_send)
-	{	//make sure dimension send is always a valid pointer.
-		((nqglobalvars_t*)pr_globals)->dimension_send = &dimension_send_default;
+#define ensurefloat(name,var) if (!((nqglobalvars_t*)pr_globals)->name) ((nqglobalvars_t*)pr_globals)->name = &var;
+
+	// make sure these entries are always valid pointers
+	ensurefloat(dimension_send, dimension_send_default);
+	ensurefloat(trace_endcontents, writeonly);
+	ensurefloat(trace_surfaceflags, writeonly);
+
+	// qtest renames and missing variables
+	if (!((nqglobalvars_t*)pr_globals)->V_trace_plane_normal)
+	{
+		((nqglobalvars_t*)pr_globals)->V_trace_plane_normal = (vec3_t *)PR_FindGlobal(svprogfuncs, "trace_normal", 0);
+		if (!((nqglobalvars_t*)pr_globals)->V_trace_plane_normal) 
+			SV_Error("Could not find export trace_plane_normal in progs\n");
 	}
-	if (!((nqglobalvars_t*)pr_globals)->trace_endcontents)
-	{	//make sure dimension send is always a valid pointer.
-		((nqglobalvars_t*)pr_globals)->trace_endcontents = &writeonly;
+	if (!((nqglobalvars_t*)pr_globals)->V_trace_endpos)
+	{
+		((nqglobalvars_t*)pr_globals)->V_trace_endpos = (vec3_t *)PR_FindGlobal(svprogfuncs, "trace_impact", 0);
+		if (!((nqglobalvars_t*)pr_globals)->V_trace_endpos) 
+			SV_Error("Could not find export trace_endpos in progs\n");
 	}
-	if (!((nqglobalvars_t*)pr_globals)->trace_surfaceflags)
-	{	//make sure dimension send is always a valid pointer.
-		((nqglobalvars_t*)pr_globals)->trace_surfaceflags = &writeonly;
+	if (!((nqglobalvars_t*)pr_globals)->trace_fraction)
+	{
+		((nqglobalvars_t*)pr_globals)->trace_fraction = (vec3_t *)PR_FindGlobal(svprogfuncs, "trace_frac", 0);
+		if (!((nqglobalvars_t*)pr_globals)->trace_fraction) 
+			SV_Error("Could not find export trace_fraction in progs\n");
 	}
-
-
-
-
+	ensurefloat(serverflags, zero_default);
+	ensurefloat(total_secrets, zero_default);
+	ensurefloat(total_monsters, zero_default);
+	ensurefloat(found_secrets, zero_default);
+	ensurefloat(killed_monsters, zero_default);
+	ensurefloat(trace_allsolid, writeonly);
+	ensurefloat(trace_startsolid, writeonly);
+	ensurefloat(trace_plane_dist, writeonly);
+	ensurefloat(trace_inopen, writeonly);
+	ensurefloat(trace_inwater, writeonly);
 
 	pr_global_struct->dimension_send = 255;
+	pr_global_struct->serverflags = 0;
+	pr_global_struct->total_secrets = 0;
+	pr_global_struct->total_monsters = 0;
+	pr_global_struct->found_secrets = 0;
+	pr_global_struct->killed_monsters = 0;
 
 	pr_teamfield = 0;
 
@@ -8707,7 +8734,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"setorigin",		PF_setorigin,		2,		2,		2},	// void(entity e, vector o) setorigin	= #2;
 	{"setmodel",		PF_setmodel,		3,		3,		3},	// void(entity e, string m) setmodel	= #3;
 	{"setsize",			PF_setsize,			4,		4,		4},	// void(entity e, vector min, vector max) setsize = #4;
-//	{"qtest_setabssize",NULL,				5},
+	{"qtest_setabssize",PF_setsize,			5}, // void(entity e, vector min, vector max) setabssize = #5; 
 	{"lightstylestatic",PF_lightstylestatic,0,		0,		5,		5},
 	{"break",			PF_break,			6,		6,		6},	// void() break						= #6;
 	{"random",			PF_random,			7,		7,		7},	// float() random						= #7;
@@ -8739,16 +8766,16 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"eprint",			PF_eprint,			31,		31,		31},	//31 // void(entity e) debug print an entire entity
 	{"walkmove",		PF_walkmove,		32,		32,		32},	//32 // float(float yaw, float dist) walkmove
 	{"tracearea",		PF_traceboxh2,		0,		0,		33},	//33 //
-//	{"qtest_flymove",	NULL,	33},	//vector
+//	{"qtest_flymove",	NULL,	33},	// float(vector dir) flymove = #33;
 	{"droptofloor",		PF_droptofloor,		34,		34,		34},	//34
 	{"lightstyle",		PF_lightstyle,		35,		35,		35},	//35
 	{"rint",			PF_rint,			36,		36,		36},	//36
 	{"floor",			PF_floor,			37,		37,		37},	//37
 	{"ceil",			PF_ceil,			38,		38,		38},	//38
-//	{"qtest_canreach",	NULL,				39},
+	{"qtest_canreach",	PF_Ignore,			39},					// float(vector v) canreach = #39; // QTest builtin called in effectless statement
 	{"checkbottom",		PF_checkbottom,		40,		40,		40},	//40
 	{"pointcontents",	PF_pointcontents,	41,		41,		41},	//41
-//	{"qtest_stopsound",	NULL,				42},
+//	{"qtest_stopsound",	NULL,				42}, // defined QTest builtin that is never called
 	{"fabs",			PF_fabs,			43,		43,		43},	//43
 	{"aim",				PF_aim,				44,		44,		44},	//44
 	{"cvar",			PF_cvar,			45,		45,		45},	//45
@@ -8756,7 +8783,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"nextent",			PF_nextent,			47,		47,		47},	//47
 	{"particle",		PF_particle,		48,		0,		48,		48},		//48 nq readded. This isn't present in QW protocol (fte added it back).
 	{"changeyaw",		PF_changeyaw,		49,		49,		49},	//49
-//	{"qtest_precacheitem", NULL,			50},	//1 1
+//	{"qtest_precacheitem", NULL,			50}, // defined QTest builtin that is never called
 	{"vhlen",			PF_vhlen,			0,		0,		50},	//49
 	{"vectoangles",		PF_vectoangles,		51,		51,		51},	//51
 

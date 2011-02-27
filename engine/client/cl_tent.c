@@ -1759,7 +1759,7 @@ void CLDP_ParsePointParticles(qboolean compact)
 void CLNQ_ParseParticleEffect (void)
 {
 	vec3_t		org, dir;
-	int			i, count, msgcount, color;
+	int			i, msgcount, color;
 	
 	for (i=0 ; i<3 ; i++)
 		org[i] = MSG_ReadCoord ();
@@ -1769,11 +1769,13 @@ void CLNQ_ParseParticleEffect (void)
 	color = MSG_ReadByte ();
 
 	if (msgcount == 255)
-		count = 1024;
+	{
+		// treat as spriteless explosion (qtest/some mods require this)
+		if (P_RunParticleEffectType(org, NULL, 1, pt_explosion))
+			P_RunParticleEffect(org, NULL, 107, 1024); // should be 97-111
+	}
 	else
-		count = msgcount;
-	
-	P_RunParticleEffect (org, dir, color, count);
+		P_RunParticleEffect (org, dir, color, msgcount);
 }
 void CL_ParseParticleEffect2 (void)
 {

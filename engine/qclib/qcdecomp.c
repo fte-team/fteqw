@@ -908,7 +908,7 @@ pbool Decompile(progfuncs_t *progfuncs, char *fname)
 			if (v->string && *(pr_strings+v->_int))
 				writes(f, "string %s = \"%s\";\r\n", progfuncs->stringtable+pr_globaldefs16[i].s_name, pr_strings+v->_int);
 			else
-				writes(f, "string %s;\r\n", pr_globaldefs16[i].s_name);
+				writes(f, "string %s;\r\n", progfuncs->stringtable+pr_globaldefs16[i].s_name);
 			break;
 		case ev_float:
 			if (v->_float)

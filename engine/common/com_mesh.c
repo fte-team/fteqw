@@ -1883,8 +1883,8 @@ static void *QTest_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremap
 	qtestaliasframe_t *frameinfo;
 	int				i, j;
 
-	vec3_t *normals;
-	vec3_t *verts;
+	vec3_t *normals, *svec, *tvec;
+	vecV_t *verts;
 
 	frame = (galiasgroup_t*)((char *)galias + galias->groupofs);
 
@@ -1895,18 +1895,23 @@ static void *QTest_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremap
 		case ALIAS_SINGLE:
 			frameinfo = (qtestaliasframe_t*)((char *)(pframetype+1));
 			pinframe = (dtrivertx_t*)((char*)frameinfo+sizeof(qtestaliasframe_t));
-			pose = (galiaspose_t *)Hunk_Alloc(sizeof(galiaspose_t) + sizeof(vec3_t)*2*galias->numverts);
+			pose = (galiaspose_t *)Hunk_Alloc(sizeof(galiaspose_t) + (sizeof(vecV_t)+sizeof(vec3_t)*3)*galias->numverts);
 			frame->poseofs = (char *)pose - (char *)frame;
 			frame->numposes = 1;
 			galias->groups++;
 
 			frame->name[0] = '\0';
 
-			verts = (vec3_t *)(pose+1);
+			verts = (vecV_t *)(pose+1);
 			normals = &verts[galias->numverts];
 			pose->ofsverts = (char *)verts - (char *)pose;
 #ifndef SERVERONLY
+			normals = (vec3_t*)&verts[galias->numverts];
+			svec = &normals[galias->numverts];
+			tvec = &svec[galias->numverts];
 			pose->ofsnormals = (char *)normals - (char *)pose;
+			pose->ofssvector = (char *)svec - (char *)pose;
+			pose->ofstvector = (char *)tvec - (char *)pose;
 #endif
 
 			for (j = 0; j < pq1inmodel->numverts; j++)
@@ -1920,7 +1925,9 @@ static void *QTest_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremap
 				if (seamremaps[j] != j)
 				{
 					VectorCopy(verts[j], verts[seamremaps[j]]);
+#ifndef SERVERONLY
 					VectorCopy(normals[j], normals[seamremaps[j]]);
+#endif
 				}
 			}
 

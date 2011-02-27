@@ -94,7 +94,8 @@ static void SV_CheckAllEnts (void)
 		if (check->v->movetype == MOVETYPE_PUSH
 		|| check->v->movetype == MOVETYPE_NONE
 		|| check->v->movetype == MOVETYPE_FOLLOW
-		|| check->v->movetype == MOVETYPE_NOCLIP)
+		|| check->v->movetype == MOVETYPE_NOCLIP
+		|| check->v->movetype == MOVETYPE_ANGLENOCLIP)
 			continue;
 
 		if (World_TestEntityPosition (&sv.world, (wedict_t*)check))
@@ -571,7 +572,8 @@ static qboolean SV_PushAngles (edict_t *pusher, vec3_t move, vec3_t amove)
 
 		if (check->v->movetype == MOVETYPE_PUSH
 		|| check->v->movetype == MOVETYPE_NONE
-		|| check->v->movetype == MOVETYPE_NOCLIP)
+		|| check->v->movetype == MOVETYPE_NOCLIP
+		|| check->v->movetype == MOVETYPE_ANGLENOCLIP)
 			continue;
 
 #if 1
@@ -746,7 +748,8 @@ static qboolean SV_Push (edict_t *pusher, vec3_t move, vec3_t amove)
 		if (check->v->movetype == MOVETYPE_PUSH
 		|| check->v->movetype == MOVETYPE_NONE
 		|| check->v->movetype == MOVETYPE_FOLLOW
-		|| check->v->movetype == MOVETYPE_NOCLIP)
+		|| check->v->movetype == MOVETYPE_NOCLIP
+		|| check->v->movetype == MOVETYPE_ANGLENOCLIP)
 			continue;
 
 	// if the entity is standing on the pusher, it will definately be moved
@@ -1861,6 +1864,7 @@ void SV_RunEntity (edict_t *ent)
 			return;
 		break;
 	case MOVETYPE_NOCLIP:
+	case MOVETYPE_ANGLENOCLIP:
 		SV_Physics_Noclip (ent);
 		break;
 	case MOVETYPE_STEP:

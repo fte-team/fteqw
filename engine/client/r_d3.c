@@ -5,6 +5,7 @@
 
 void RMod_SetParent (mnode_t *node, mnode_t *parent);
 
+#ifndef SERVERONLY
 qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 {
 	char token[256];
@@ -293,71 +294,6 @@ qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 	return true;
 }
 
-//edict system as opposed to q2 game dll system.
-void D3_FindTouchedLeafs (struct model_s *model, struct pvscache_s *ent, vec3_t cullmins, vec3_t cullmaxs)
-{
-}
-qbyte *D3_LeafPVS (struct model_s *model, int num, qbyte *buffer, unsigned int buffersize)
-{
-	return buffer;
-}
-int	D3_LeafnumForPoint (struct model_s *model, vec3_t point)
-{
-	float p;
-	int c;
-	mnode_t *node;
-	node = model->nodes;
-	while(1)
-	{
-		p = DotProduct(point, node->plane->normal) + node->plane->dist;
-		c = node->childnum[p<0];
-		if (c <= 0)
-			return -1-c;
-		node = model->nodes + c;
-	}
-	return 0;
-}
-unsigned int D3_FatPVS (struct model_s *model, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean merge)
-{
-	return 0;
-}
-
-void D3_StainNode			(struct mnode_s *node, float *parms)
-{
-}
-
-qboolean D3_Trace (struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, struct trace_s *trace)
-{
-	trace->fraction = 0;
-	VectorCopy(p1, trace->endpos);
-	trace->allsolid = true;
-	trace->startsolid = true;
-	trace->ent = NULL;
-	return false;
-}
-
-unsigned int D3_PointContents (struct model_s *model, vec3_t axis[3], vec3_t p)
-{
-	return FTECONTENTS_SOLID;
-}
-
-void D3_LightPointValues (struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
-{
-	VectorClear(res_diffuse);
-	VectorClear(res_ambient);
-	VectorClear(res_dir);
-	res_dir[2] = 1;
-}
-
-
-qboolean D3_EdictInFatPVS (struct model_s *model, struct pvscache_s *edict, qbyte *pvsbuffer)
-{
-	int i;
-	for (i = 0; i < edict->num_leafs; i++)
-		if (pvsbuffer[edict->leafnums[i]>>3] & (1u<<(edict->leafnums[i]&7)))
-			return true;
-	return false;
-}
 
 static qboolean D3_PolyBounds(vec_t result[4], int count, vec4_t *vlist)
 {
@@ -516,6 +452,74 @@ void D3_GenerateAreas(model_t *mod)
 	}
 }
 
+#endif
+
+//edict system as opposed to q2 game dll system.
+void D3_FindTouchedLeafs (struct model_s *model, struct pvscache_s *ent, vec3_t cullmins, vec3_t cullmaxs)
+{
+}
+qbyte *D3_LeafPVS (struct model_s *model, int num, qbyte *buffer, unsigned int buffersize)
+{
+	return buffer;
+}
+int	D3_LeafnumForPoint (struct model_s *model, vec3_t point)
+{
+	float p;
+	int c;
+	mnode_t *node;
+	node = model->nodes;
+	while(1)
+	{
+		p = DotProduct(point, node->plane->normal) + node->plane->dist;
+		c = node->childnum[p<0];
+		if (c <= 0)
+			return -1-c;
+		node = model->nodes + c;
+	}
+	return 0;
+}
+unsigned int D3_FatPVS (struct model_s *model, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean merge)
+{
+	return 0;
+}
+
+void D3_StainNode			(struct mnode_s *node, float *parms)
+{
+}
+
+qboolean D3_Trace (struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, struct trace_s *trace)
+{
+	trace->fraction = 0;
+	VectorCopy(p1, trace->endpos);
+	trace->allsolid = true;
+	trace->startsolid = true;
+	trace->ent = NULL;
+	return false;
+}
+
+unsigned int D3_PointContents (struct model_s *model, vec3_t axis[3], vec3_t p)
+{
+	return FTECONTENTS_SOLID;
+}
+
+void D3_LightPointValues (struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
+{
+	VectorClear(res_diffuse);
+	VectorClear(res_ambient);
+	VectorClear(res_dir);
+	res_dir[2] = 1;
+}
+
+
+qboolean D3_EdictInFatPVS (struct model_s *model, struct pvscache_s *edict, qbyte *pvsbuffer)
+{
+	int i;
+	for (i = 0; i < edict->num_leafs; i++)
+		if (pvsbuffer[edict->leafnums[i]>>3] & (1u<<(edict->leafnums[i]&7)))
+			return true;
+	return false;
+}
+
 qboolean D3_LoadMap_CollisionMap(model_t *mod, char *buf)
 {
 	char token[256];
@@ -544,12 +548,14 @@ qboolean D3_LoadMap_CollisionMap(model_t *mod, char *buf)
 
 	/*that's the physics sorted*/
 #ifndef SERVERONLY
-	if (isDedicated)
-		return true;
-	COM_StripExtension(mod->name, token, sizeof(token));
-	buf = FS_LoadMallocFile(va("%s.proc", token));
-	Mod_LoadMap_Proc(mod, buf);
-	BZ_Free(buf);
-	return true;
+	if (!isDedi
+		cated)
+	{
+		COM_StripExtension(mod->name, token, sizeof(token));
+		buf = FS_LoadMallocFile(va("%s.proc", token));
+		Mod_LoadMap_Proc(mod, buf);
+		BZ_Free(buf);
+	}
 #endif
+	return true;
 }

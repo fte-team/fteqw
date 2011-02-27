@@ -3,7 +3,7 @@
 	ProjectType="Visual C++"
 	Version="8.00"
 	Name="ftequake_SDL"
-	ProjectGUID="{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1364}"
+	ProjectGUID="{F384725A-62D4-4063-9941-6D8D2D6C2A47}"
 	RootNamespace="ftequake_SDL"
 	>
 	<Platforms>
@@ -10973,14 +10973,6 @@
 						/>
 					</FileConfiguration>
 					<FileConfiguration
-						Name="Debug Dedicated Server SDL|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
 						Name="Release Dedicated Server SDL|x64"
 						ExcludedFromBuild="true"
 						>
@@ -10988,6 +10980,14 @@
 							Name="VCCLCompilerTool"
 							AdditionalIncludeDirectories=""
 							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug Dedicated Server SDL|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
@@ -14106,55 +14106,6 @@
 						RelativePath="..\client\snd_al.c"
 						>
 						<FileConfiguration
-							Name="MinGLDebug_SDL|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="MinGLDebug_SDL|x64"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="D3DDebug_SDL|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="D3DDebug_SDL|x64"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="MinGLRelease_SDL|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="MinGLRelease_SDL|x64"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="GLDebug_SDL|x64"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
 							Name="Release Dedicated Server SDL|Win32"
 							ExcludedFromBuild="true"
 							>
@@ -14213,13 +14164,6 @@
 						<FileConfiguration
 							Name="MDebug_SDL|x64"
 							ExcludedFromBuild="true"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="GLRelease_SDL|x64"
 							>
 							<Tool
 								Name="VCCLCompilerTool"

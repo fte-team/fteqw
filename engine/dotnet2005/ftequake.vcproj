@@ -14106,13 +14106,6 @@
 						RelativePath="..\client\snd_al.c"
 						>
 						<FileConfiguration
-							Name="D3DDebug|Win32"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
 							Name="D3DDebug|x64"
 							ExcludedFromBuild="true"
 							>
@@ -14122,7 +14115,6 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="GLDebug|x64"
-							ExcludedFromBuild="true"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -14171,13 +14163,6 @@
 						<FileConfiguration
 							Name="Debug Dedicated Server|x64"
 							ExcludedFromBuild="true"
-							>
-							<Tool
-								Name="VCCLCompilerTool"
-							/>
-						</FileConfiguration>
-						<FileConfiguration
-							Name="MDebug|Win32"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -26390,6 +26375,10 @@
 				</File>
 				<File
 					RelativePath="..\client\r_2d.c"
+					>
+				</File>
+				<File
+					RelativePath="..\client\r_d3.c"
 					>
 				</File>
 				<File

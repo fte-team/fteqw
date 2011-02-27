@@ -27,6 +27,7 @@ char	loadname[32];	// for hunk tags
 
 qboolean Mod_LoadBrushModel (model_t *mod, void *buffer);
 qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
+qboolean D3_LoadMap_CollisionMap(model_t *mod, char *buf);
 
 qboolean Mod_LoadQ1Model (model_t *mod, void *buffer);
 qboolean Mod_LoadQ2Model (model_t *mod, void *buffer);
@@ -470,6 +471,16 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 #endif
 
 	default:
+		COM_Parse((char*)buf);
+#ifdef MAP_PROC
+		if (!strcmp(com_token, "CM"))	//doom3 map.
+		{
+			if (!D3_LoadMap_CollisionMap (mod, (char*)buf))
+				goto couldntload;
+			break;
+		}
+#endif
+
 		Con_Printf (CON_ERROR "Mod_NumForName: %s: format not recognised\n", mod->name);
 couldntload:
 		if (crash)

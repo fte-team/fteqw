@@ -517,6 +517,7 @@ COMMON_OBJS = $(COMMON_ASM_OBJS) \
 	net_wins.o 		\
 	zone.o 		\
 	qvm.o	\
+	r_d3.o	\
 	gl_q2bsp.o		\
 	glmod_doom.o 	\
 	q3common.o	\

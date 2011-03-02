@@ -256,6 +256,15 @@ void Surf_LessenStains(void)
 
 	static float time;
 
+	extern cvar_t gl_lightmap_shift;
+
+	if (gl_lightmap_shift.modified)
+	{
+		gl_lightmap_shift.modified = 0;
+		for (i=0, surf = cl.worldmodel->surfaces; i<cl.worldmodel->numsurfaces ; i++, surf++)
+			surf->cached_dlight=-1;//force it
+	}
+
 	if (!r_stains.value)
 		return;
 

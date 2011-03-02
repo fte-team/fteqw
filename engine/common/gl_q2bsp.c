@@ -1100,6 +1100,7 @@ qboolean CMod_LoadSurfaces (lump_t *l)
 #ifndef SERVERONLY
 texture_t *Mod_LoadWall(char *name, char *sname)
 {
+	q2miptex_t replacementwal;
 	qbyte *in, *oin;
 	texture_t *tex;
 	q2miptex_t *wal;
@@ -1113,10 +1114,15 @@ texture_t *Mod_LoadWall(char *name, char *sname)
 	wal = (void *)FS_LoadMallocFile (name);
 	if (!wal)
 	{
-		//they will download eventually...
-		CL_CheckOrEnqueDownloadFile(name, NULL, 0);
-		return NULL;
+		tn.base = R_LoadReplacementTexture(name, loadname, 0);
+		wal = &replacementwal;
+		memset(wal, 0, sizeof(*wal));
+		Q_strncpyz(wal->name, name, sizeof(wal->name));
+		wal->width = image_width;
+		wal->height = image_height;
 	}
+	else
+		tn.base = R_LoadReplacementTexture(wal->name, loadname, IF_NOALPHA);
 
 	wal->width = LittleLong(wal->width);
 	wal->height = LittleLong(wal->height);
@@ -1137,21 +1143,32 @@ texture_t *Mod_LoadWall(char *name, char *sname)
 	tex->width = wal->width;
 	tex->height = wal->height;
 
-	tn.base = R_LoadReplacementTexture(wal->name, loadname, IF_NOALPHA);
 	if (!TEXVALID(tn.base))
 	{
 		tn.base = R_LoadReplacementTexture(wal->name, "bmodels", IF_NOALPHA);
 		if (!TEXVALID(tn.base))
+		{
+			if (!wal->offsets[0])
+			{
+				//they will download eventually...
+				CL_CheckOrEnqueDownloadFile(name, NULL, 0);
+				return NULL;
+			}
 			tn.base = R_LoadTexture8Pal24 (wal->name, tex->width, tex->height, (qbyte *)wal+wal->offsets[0], d_q28to24table, IF_NOALPHA|IF_NOGAMMA);
+		}
 	}
 
-	in = Hunk_TempAllocMore(wal->width*wal->height);
-	oin = (qbyte *)wal+wal->offsets[0];
-	for (j = 0; j < wal->width*wal->height; j++)
-		in[j] = (d_q28to24table[oin[j]*3+0] + d_q28to24table[oin[j]*3+1] + d_q28to24table[oin[j]*3+2])/3;
-	tn.bump = R_LoadTexture8BumpPal (va("%s_bump", wal->name), tex->width, tex->height, in, true);
+	if (wal->offsets[0])
+	{
+		in = Hunk_TempAllocMore(wal->width*wal->height);
+		oin = (qbyte *)wal+wal->offsets[0];
+		for (j = 0; j < wal->width*wal->height; j++)
+			in[j] = (d_q28to24table[oin[j]*3+0] + d_q28to24table[oin[j]*3+1] + d_q28to24table[oin[j]*3+2])/3;
+		tn.bump = R_LoadTexture8BumpPal (va("%s_bump", wal->name), tex->width, tex->height, in, true);
+	}
 
-	BZ_Free(wal);
+	if (wal != &replacementwal)
+		BZ_Free(wal);
 
 	tex->shader = R_RegisterCustom (sname, Shader_DefaultBSPQ2, NULL);
 	R_BuildDefaultTexnums(&tn, tex->shader);

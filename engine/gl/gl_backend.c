@@ -2187,6 +2187,7 @@ static void DrawPass(const shaderpass_t *pass)
 	tmu = 0;
 	for (; i < lastpass; i++)
 	{
+		extern cvar_t gl_overbright;
 		if (pass[i].texgen == T_GEN_UPPEROVERLAY && !TEXVALID(shaderstate.curtexnums->upperoverlay))
 			continue;
 		if (pass[i].texgen == T_GEN_LOWEROVERLAY && !TEXVALID(shaderstate.curtexnums->loweroverlay))
@@ -2199,25 +2200,36 @@ static void DrawPass(const shaderpass_t *pass)
 
 		switch (pass[i].blendmode)
 		{
-		case GL_DOT3_RGB_ARB:
-			GL_TexEnv(GL_COMBINE_EXT);
+		case PBM_DOTPRODUCT:
+			GL_TexEnv(GL_COMBINE_ARB);
 			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
 			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
-			qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_EXT, pass[i].blendmode);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_DOT3_RGB_ARB);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, 1);
 			break;
-		case GL_REPLACE:
+		case PBM_REPLACE:
 			GL_TexEnv(GL_REPLACE);
 			break;
-		case GL_DECAL:
-		case GL_ADD:
-			if (tmu != 0)
-			{
-				GL_TexEnv(pass[i].blendmode);
-				break;
-			}
-			//fallthrough
+		case PBM_DECAL:
+			if (tmu == 0)
+				goto forcemod;
+			GL_TexEnv(GL_DECAL);
+			break;
+		case PBM_ADD:
+			if (tmu == 0)
+				goto forcemod;
+			GL_TexEnv(GL_ADD);
+			break;
+		case PBM_OVERBRIGHT:
+			GL_TexEnv(GL_COMBINE_ARB);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, gl_overbright.value+1);
+			break;
 		default:
-		case GL_MODULATE:
+		case PBM_MODULATE:
+		forcemod:
 			GL_TexEnv(GL_MODULATE);
 			break;
 		}

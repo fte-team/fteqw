@@ -261,7 +261,7 @@ cvar_t gl_font								= SCVARF ("gl_font", "",
 cvar_t gl_lateswap							= SCVAR  ("gl_lateswap", "0");
 cvar_t gl_lerpimages						= SCVAR  ("gl_lerpimages", "1");
 cvar_t gl_lightmap_shift					= SCVARF ("gl_lightmap_shift", "0",
-												CVAR_ARCHIVE | CVAR_LATCH);
+												CVAR_ARCHIVE);
 //cvar_t gl_lightmapmode						= SCVARF("gl_lightmapmode", "",
 //												CVAR_ARCHIVE);
 cvar_t gl_load24bit							= SCVARF ("gl_load24bit", "1",

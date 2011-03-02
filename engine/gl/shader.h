@@ -143,7 +143,14 @@ typedef struct shaderpass_s {
 	
 	unsigned int	shaderbits;
 
-	unsigned int	blendmode;
+	enum {
+		PBM_MODULATE,
+		PBM_OVERBRIGHT,
+		PBM_DECAL,
+		PBM_ADD,
+		PBM_DOTPRODUCT,
+		PBM_REPLACE
+	} blendmode;
 
 	enum {
 		RGB_GEN_WAVE,

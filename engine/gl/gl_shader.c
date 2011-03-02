@@ -31,13 +31,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <ctype.h>
 
-#ifndef GLQUAKE
-/*the shaders have a few GL_FOO constants in them. they shouldn't, but they do.*/
-#include <GL/gl.h>
-#include "glsupp.h"
-#endif
-
-
 extern texid_t missing_texture;
 static qboolean shader_reload_needed;
 static qboolean shader_rescan_needed;
@@ -2558,13 +2551,13 @@ void Shader_SetBlendmode (shaderpass_t *pass)
 {
 	if (pass->texgen == T_GEN_DELUXMAP)
 	{
-		pass->blendmode = GL_DOT3_RGB_ARB;
+		pass->blendmode = PBM_DOTPRODUCT;
 		return;
 	}
 
 	if (pass->texgen < T_GEN_DIFFUSE && !TEXVALID(pass->anim_frames[0]) && !(pass->flags & SHADER_PASS_LIGHTMAP))
 	{
-		pass->blendmode = GL_MODULATE;
+		pass->blendmode = PBM_MODULATE;
 		return;
 	}
 
@@ -2572,7 +2565,7 @@ void Shader_SetBlendmode (shaderpass_t *pass)
 	{
 		if ((pass->rgbgen == RGB_GEN_IDENTITY) && (pass->alphagen == ALPHA_GEN_IDENTITY))
 		{
-			pass->blendmode = GL_REPLACE;
+			pass->blendmode = PBM_REPLACE;
 		}
 		else
 		{
@@ -2580,20 +2573,20 @@ void Shader_SetBlendmode (shaderpass_t *pass)
 			pass->shaderbits &= ~SBITS_BLEND_BITS;
 			pass->shaderbits |= SBITS_SRCBLEND_ONE;
 			pass->shaderbits |= SBITS_DSTBLEND_ZERO;
-			pass->blendmode = GL_MODULATE;
+			pass->blendmode = PBM_MODULATE;
 		}
 		return;
 	}
 
 	if (((pass->shaderbits&SBITS_BLEND_BITS) == (SBITS_SRCBLEND_ZERO|SBITS_DSTBLEND_SRC_COLOR)) ||
 		((pass->shaderbits&SBITS_BLEND_BITS) == (SBITS_SRCBLEND_DST_COLOR|SBITS_DSTBLEND_ZERO)))
-		pass->blendmode = GL_MODULATE;
+		pass->blendmode = PBM_MODULATE;
 	else if ((pass->shaderbits&SBITS_BLEND_BITS) == (SBITS_SRCBLEND_ONE|SBITS_DSTBLEND_ONE))
-		pass->blendmode = GL_ADD;
+		pass->blendmode = PBM_ADD;
 	else if ((pass->shaderbits&SBITS_BLEND_BITS) == (SBITS_SRCBLEND_SRC_ALPHA|SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA))
-		pass->blendmode = GL_DECAL;
+		pass->blendmode = PBM_DECAL;
 	else
-		pass->blendmode = GL_MODULATE;
+		pass->blendmode = PBM_MODULATE;
 }
 
 void Shader_Readpass (shader_t *shader, char **ptr)
@@ -2765,31 +2758,37 @@ void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 		return;
 
 	// check if we can use multiple passes
-	if (pass2->blendmode == GL_DOT3_RGB_ARB)
+	if (pass2->blendmode == PBM_DOTPRODUCT)
 	{
 		pass->numMergedPasses++;
 	}
 	else if (pass->numMergedPasses < be_maxpasses)
 	{
-		if ( pass->blendmode == GL_REPLACE )
+		if ( pass->blendmode == PBM_REPLACE )
 		{
-			if ((pass2->blendmode == GL_DECAL && config_tex_env_combine) ||
-				(pass2->blendmode == GL_ADD && config_env_add) ||
-				(pass2->blendmode && pass2->blendmode != GL_ADD) ||	config_nv_tex_env_combine4)
+			if ((pass2->blendmode == PBM_DECAL && config_tex_env_combine) ||
+				(pass2->blendmode == PBM_ADD && config_env_add) ||
+				(pass2->blendmode && pass2->blendmode != PBM_ADD) ||	config_nv_tex_env_combine4)
 			{
 				pass->numMergedPasses++;
 			}
 		}
-		else if (pass->blendmode == GL_ADD &&
-			pass2->blendmode == GL_ADD && config_env_add)
+		else if (pass->blendmode == PBM_ADD &&
+			pass2->blendmode == PBM_ADD && config_env_add)
 		{
 			pass->numMergedPasses++;
 		}
-		else if (pass->blendmode == GL_MODULATE && pass2->blendmode == GL_MODULATE)
+		else if (pass->blendmode == PBM_MODULATE && pass2->blendmode == PBM_MODULATE)
 		{
 			pass->numMergedPasses++;
 		}
+		else
+			return;
 	}
+	else return;
+
+	if (pass2->texgen == T_GEN_LIGHTMAP)
+		pass2->blendmode = PBM_OVERBRIGHT;
 }
 
 void Shader_SetFeatures ( shader_t *s )
@@ -4036,7 +4035,7 @@ void Shader_DoReload(void)
 		COM_EnumerateFiles("materials/*.mtr", Shader_InitCallback, NULL);
 		COM_EnumerateFiles("shaders/*.shader", Shader_InitCallback, NULL);
 		COM_EnumerateFiles("scripts/*.shader", Shader_InitCallback, NULL);
-		//COM_EnumerateFiles("scripts/*.rscript", Shader_InitCallback, NULL);
+		COM_EnumerateFiles("scripts/*.rscript", Shader_InitCallback, NULL);
 
 		shader_reload_needed = true;
 		shader_rescan_needed = false;

@@ -7,10 +7,6 @@
 #endif
 #include <d3d9.h>
 
-/*shaders have a few GL_FOO constants in them. they shouldn't, but they do.*/
-#include <GL/gl.h>
-#include "glsupp.h"
-
 extern LPDIRECT3DDEVICE9 pD3DDev9;
 
 //#define d3dcheck(foo) foo
@@ -583,7 +579,7 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 
 	switch (pass->blendmode)
 	{
-	case GL_DOT3_RGB_ARB:
+	case PBM_DOTPRODUCT:
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG1, D3DTA_TEXTURE);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG2, D3DTA_CURRENT);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLOROP, D3DTOP_DOTPRODUCT3);
@@ -592,7 +588,7 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 //		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
 		break;
-	case GL_REPLACE:
+	case PBM_REPLACE:
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG1, D3DTA_TEXTURE);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
 
@@ -609,7 +605,7 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 			IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
 		}
 		break;
-	case GL_ADD:
+	case PBM_ADD:
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG1, D3DTA_TEXTURE);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG2, D3DTA_CURRENT);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLOROP, D3DTOP_BLENDTEXTUREALPHA);
@@ -619,7 +615,7 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG2, D3DTA_DIFFUSE);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAOP, D3DTOP_MODULATE);
 		break;
-	case GL_DECAL:
+	case PBM_DECAL:
 		if (!tu)
 			goto forcemod;
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG1, D3DTA_TEXTURE);
@@ -631,7 +627,7 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
 		break;
 	default:
-	case GL_MODULATE:
+	case PBM_MODULATE:
 	forcemod:
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG1, D3DTA_TEXTURE);
 		IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG2, D3DTA_CURRENT);

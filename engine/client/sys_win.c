@@ -277,10 +277,6 @@ static HANDLE	tevent;
 
 void Sys_InitFloatTime (void);
 
-void VARGS MaskExceptions (void);
-void Sys_PopFPCW (void);
-void Sys_PushFPCW_SetHigh (void);
-
 int VARGS Sys_DebugLog(char *file, char *fmt, ...)
 {
 	FILE *fd;
@@ -646,12 +642,6 @@ void Sys_Init (void)
 			1,            // Maximum count
 			"qwcl"); // Semaphore name
 	}
-#endif
-
-
-#ifndef SERVERONLY
-	MaskExceptions ();
-	Sys_SetFPCW ();
 #endif
 
 #if 0
@@ -1789,7 +1779,6 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 }
 
 
-#if !id386 //these couldn't be found... (it is a masm thing, right?)
 void Sys_HighFPPrecision (void)
 {
 }
@@ -1805,7 +1794,6 @@ void VARGS Sys_SetFPCW (void)
 void VARGS MaskExceptions (void)
 {
 }
-#endif
 
 #ifdef MULTITHREAD
 /* Thread creation calls */

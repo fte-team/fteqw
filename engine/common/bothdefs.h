@@ -61,7 +61,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //		#define AVAIL_OPENAL	/* Jogi's OpenAL support */
 	#endif
-	#define AVAIL_MASM
 
 #if defined(MINGW) || defined(MACOSX)
 	#define AVAIL_PNGLIB
@@ -104,9 +103,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef NO_OGG
 	#undef AVAIL_OGGVORBIS
 #endif
-#if defined(NO_MASM) || !defined(_WIN32)
-	#undef AVAIL_MASM
-#endif
 #if defined(NO_FREETYPE)
 	#undef AVAIL_FREETYPE
 #endif
@@ -114,14 +110,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define AVAIL_FREETYPE
 
 //set any additional defines or libs in win32
-	#ifndef AVAIL_MASM
-		#ifdef _WIN32
-			#define NOASM
-		#else
-			#undef AVAIL_MASM	//fixme
-		#endif
-	#endif
-
 	#define SVRANKING
 
 	#ifdef MINIMAL
@@ -130,7 +118,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#undef AVAIL_JPEGLIB	//no jpeg support
 		#undef AVAIL_PNGLIB		//no png support
 		#undef USE_MADLIB		//no internal mp3 playing
-		#undef USE_D3D		//no d3d support
 		#define NOMEDIA			//NO playing of avis/cins/roqs
 
 		#define MD3MODELS		//we DO want to use quake3 alias models. This might be a minimal build, but we still want this.
@@ -238,10 +225,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#if !defined(MD2MODELS) || !defined(SP2MODELS)
 		#error "Q2 game support without full Q2 model support. doesn't make sense"
 	#endif
-#endif
-
-#if !defined(AVAIL_D3D) || !defined(GLQUAKE)
-	#undef USE_D3D
 #endif
 
 #ifdef NPQTV
@@ -367,17 +350,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 
-#if (defined(_M_IX86) || defined(__i386__)) && !defined(id386) && !defined(__amd64__) && !defined(_AMD64_)
-#define id386	1
-#else
-#define id386	0
-#endif
-
-#if defined(NOASM)		// no asm in dedicated server
-#undef id386
-#endif
-
-#if id386
+#if (defined(_M_IX86) || defined(__i386__)) && !defined(__amd64__) && !defined(_AMD64_)
 #define UNALIGNED_OK	1	// set to 0 if unaligned accesses are not supported
 #else
 #define UNALIGNED_OK	0

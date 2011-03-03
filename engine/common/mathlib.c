@@ -172,8 +172,6 @@ void VARGS BOPS_Error (void)
 	Sys_Error ("BoxOnPlaneSide:  Bad signbits");
 }
 
-#if !id386
-
 /*
 ==================
 BoxOnPlaneSide
@@ -280,8 +278,6 @@ if (sides == 0)
 
 	return sides;
 }
-
-#endif
 
 
 
@@ -694,8 +690,6 @@ int GreatestCommonDivisor (int i1, int i2)
 }
 
 
-#if !id386
-
 // TODO: move to nonintel.c
 
 /*
@@ -715,7 +709,6 @@ fixed16_t Invert24To16(fixed16_t val)
 			(((double)0x10000 * (double)0x1000000 / (double)val) + 0.5);
 }
 
-#endif
 
 
 

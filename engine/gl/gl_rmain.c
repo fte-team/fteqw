@@ -514,7 +514,7 @@ void R_RotateForEntity (float *modelview, const entity_t *e, const model_t *mod)
 	{
 		/*FIXME: no bob*/
 		float simpleview[16];
-		vec3_t ang, f, r, u;
+		vec3_t ang;
 		ang[0] = 0;
 		ang[1] = 0;
 		ang[2] = gl_screenangle.value;

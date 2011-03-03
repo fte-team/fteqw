@@ -93,10 +93,6 @@ extern cvar_t vid_wndalpha;
 
 typedef enum {MS_WINDOWED, MS_FULLSCREEN, MS_FULLDIB, MS_UNINIT} modestate_t;
 
-#ifdef USE_D3D
-void D3DInitialize(void);
-void d3dSetMode(int fullscreen, int width, int height, int bpp, int zbpp);
-#endif
 BOOL bSetupPixelFormat(HDC hDC);
 
 //qboolean VID_SetWindowedMode (int modenum);
@@ -872,26 +868,6 @@ qboolean VID_AttachGL (rendererstate_t *info)
 {	//make sure we can get a valid renderer.
 	do
 	{
-#ifdef USE_D3D
-		if (!Q_strcasecmp(info->glrenderer, "D3D"))
-		{
-			int zbpp = info->bpp > 16 ? 24 : 16;
-			gl_canstencil = false;
-			TRACE(("dbg: VID_AttachGL: D3DInitialize\n"));
-			D3DInitialize();	//replacement of GLInitialise, to get the function pointers set up.
-			if (COM_CheckParm("-zbpp"))
-			{
-				zbpp = Q_atoi(com_argv[COM_CheckParm("-zbpp")+1]);
-			}
-			TRACE(("dbg: VID_AttachGL: d3dSetMode\n"));
-			d3dSetMode(info->fullscreen, info->width, info->height, info->bpp, zbpp);	//d3d cheats to get it's dimensions and stuff... One that we can currently live with though.
-
-			maindc = GetDC(mainwindow);
-
-			Con_Printf(CON_NOTICE "OpenGL to Direct3D wrapper enabled\n");	//green to make it show.
-			break;
-		}
-#endif
 		TRACE(("dbg: VID_AttachGL: GLInitialise\n"));
 		if (GLInitialise(info->glrenderer))
 		{

@@ -23,8 +23,6 @@ void Q1BSP_CheckHullNodes(hull_t *hull)
 	}
 }
 
-#if	!id386
-
 /*
 ==================
 SV_HullPointContents
@@ -54,9 +52,6 @@ static int Q1_HullPointContents (hull_t *hull, int num, vec3_t p)
 
 	return num;
 }
-#else
-int VARGS Q1_HullPointContents (hull_t *hull, int num, vec3_t p);
-#endif	// !id386
 
 
 

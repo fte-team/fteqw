@@ -121,14 +121,9 @@ typedef struct {
 typedef struct {
 	dtrivertx_t	bboxmin;	// lightnormal isn't used
 	dtrivertx_t	bboxmax;	// lightnormal isn't used
+// qtest stops here
 	char		name[16];	// frame name from grabbing
 } daliasframe_t;
-
-typedef struct {
-	dtrivertx_t	bboxmin;	// lightnormal isn't used
-	dtrivertx_t	bboxmax;	// lightnormal isn't used
-	// no name[16]!
-} qtestaliasframe_t;
 
 typedef struct {
 	int			numframes;

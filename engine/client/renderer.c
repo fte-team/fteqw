@@ -260,8 +260,9 @@ cvar_t gl_font								= SCVARF ("gl_font", "",
 												CVAR_RENDERERCALLBACK);
 cvar_t gl_lateswap							= SCVAR  ("gl_lateswap", "0");
 cvar_t gl_lerpimages						= SCVAR  ("gl_lerpimages", "1");
-cvar_t gl_lightmap_shift					= SCVARF ("gl_lightmap_shift", "0",
-												CVAR_ARCHIVE);
+cvar_t gl_lightmap_shift					= CVARFC ("gl_lightmap_shift", "1",
+												CVAR_ARCHIVE,
+												Surf_RebuildLightmap_Callback);
 //cvar_t gl_lightmapmode						= SCVARF("gl_lightmapmode", "",
 //												CVAR_ARCHIVE);
 cvar_t gl_load24bit							= SCVARF ("gl_load24bit", "1",
@@ -281,7 +282,7 @@ cvar_t gl_mindist							= SCVARF ("gl_mindist", "4",
 cvar_t gl_motionblur						= SCVARF ("gl_motionblur", "0",
 												CVAR_ARCHIVE);
 cvar_t gl_motionblurscale					= SCVAR  ("gl_motionblurscale", "1");
-cvar_t gl_overbright						= SCVARF ("gl_overbright", "0",
+cvar_t gl_overbright						= SCVARF ("gl_overbright", "1",
 												CVAR_ARCHIVE);
 cvar_t gl_overbright_all					= SCVARF ("gl_overbright_all", "0",
 												CVAR_ARCHIVE);

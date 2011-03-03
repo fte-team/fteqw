@@ -64,6 +64,21 @@ int Surf_LightmapShift (model_t *model)
 	return 0;
 }
 
+void Surf_RebuildLightmap (void)
+{
+	int i;
+	msurface_t *surf;
+
+	if (cl.worldmodel)
+		for (i=0, surf = cl.worldmodel->surfaces; i<cl.worldmodel->numsurfaces ; i++, surf++)
+			surf->cached_dlight=-1;//force it
+}
+
+void Surf_RebuildLightmap_Callback (struct cvar_s *var, char *oldvalue)
+{
+	Surf_RebuildLightmap();
+}
+
 //radius, x y z, r g b
 void Surf_StainSurf (msurface_t *surf, float *parms)
 {	
@@ -255,15 +270,6 @@ void Surf_LessenStains(void)
 	int limit;
 
 	static float time;
-
-	extern cvar_t gl_lightmap_shift;
-
-	if (gl_lightmap_shift.modified)
-	{
-		gl_lightmap_shift.modified = 0;
-		for (i=0, surf = cl.worldmodel->surfaces; i<cl.worldmodel->numsurfaces ; i++, surf++)
-			surf->cached_dlight=-1;//force it
-	}
 
 	if (!r_stains.value)
 		return;

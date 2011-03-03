@@ -208,7 +208,7 @@ extern texid_t		*deluxmap_textures;
 extern int			lightmap_bytes;		// 1, 3, or 4
 extern qboolean		lightmap_bgra;		/*true=bgra, false=rgba*/
 #endif
-
+void Surf_RebuildLightmap_Callback (struct cvar_s *var, char *oldvalue);
 
 
 void R_SetSky(char *skyname);		/*override all sky shaders*/

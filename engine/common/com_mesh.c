@@ -1875,76 +1875,8 @@ static galiasinfo_t *galias;
 static dmdl_t *pq1inmodel;
 #define NUMVERTEXNORMALS	162
 extern float	r_avertexnormals[NUMVERTEXNORMALS][3];
-static void *QTest_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
-{
-	galiaspose_t *pose;
-	galiasgroup_t *frame;
-	dtrivertx_t		*pinframe;
-	qtestaliasframe_t *frameinfo;
-	int				i, j;
-
-	vec3_t *normals, *svec, *tvec;
-	vecV_t *verts;
-
-	frame = (galiasgroup_t*)((char *)galias + galias->groupofs);
-
-	for (i = 0; i < pq1inmodel->numframes; i++)
-	{
-		switch(LittleLong(pframetype->type))
-		{
-		case ALIAS_SINGLE:
-			frameinfo = (qtestaliasframe_t*)((char *)(pframetype+1));
-			pinframe = (dtrivertx_t*)((char*)frameinfo+sizeof(qtestaliasframe_t));
-			pose = (galiaspose_t *)Hunk_Alloc(sizeof(galiaspose_t) + (sizeof(vecV_t)+sizeof(vec3_t)*3)*galias->numverts);
-			frame->poseofs = (char *)pose - (char *)frame;
-			frame->numposes = 1;
-			galias->groups++;
-
-			frame->name[0] = '\0';
-
-			verts = (vecV_t *)(pose+1);
-			normals = &verts[galias->numverts];
-			pose->ofsverts = (char *)verts - (char *)pose;
-#ifndef SERVERONLY
-			normals = (vec3_t*)&verts[galias->numverts];
-			svec = &normals[galias->numverts];
-			tvec = &svec[galias->numverts];
-			pose->ofsnormals = (char *)normals - (char *)pose;
-			pose->ofssvector = (char *)svec - (char *)pose;
-			pose->ofstvector = (char *)tvec - (char *)pose;
-#endif
-
-			for (j = 0; j < pq1inmodel->numverts; j++)
-			{
-				verts[j][0] = pinframe[j].v[0]*pq1inmodel->scale[0]+pq1inmodel->scale_origin[0];
-				verts[j][1] = pinframe[j].v[1]*pq1inmodel->scale[1]+pq1inmodel->scale_origin[1];
-				verts[j][2] = pinframe[j].v[2]*pq1inmodel->scale[2]+pq1inmodel->scale_origin[2];
-#ifndef SERVERONLY
-				VectorCopy(r_avertexnormals[pinframe[j].lightnormalindex], normals[j]);
-#endif
-				if (seamremaps[j] != j)
-				{
-					VectorCopy(verts[j], verts[seamremaps[j]]);
-#ifndef SERVERONLY
-					VectorCopy(normals[j], normals[seamremaps[j]]);
-#endif
-				}
-			}
-
-//			GL_GenerateNormals((float*)verts, (float*)normals, (int *)((char *)galias + galias->ofs_indexes), galias->numindexes/3, galias->numverts);
-
-			pframetype = (daliasframetype_t *)&pinframe[pq1inmodel->numverts];
-			break;
-		default:
-			Con_Printf(CON_ERROR "Bad frame type for QTest model in %s\n", loadmodel->name);
-			return NULL;
-		}
-		frame++;
-	}
-	return pframetype;
-}
-
-static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
+// mdltype 0 = q1, 1 = qtest, 2 = rapo/h2
+static void *Alias_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps, int mdltype)
 {
 	galiaspose_t *pose;
 	galiasgroup_t *frame;
@@ -1957,6 +1889,9 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 
 	vec3_t *normals, *svec, *tvec;
 	vecV_t *verts;
+	int aliasframesize;
+
+	aliasframesize = (mdltype == 1) ? sizeof(daliasframe_t)-16 : sizeof(daliasframe_t);
 
 	frame = (galiasgroup_t*)((char *)galias + galias->groupofs);
 
@@ -1965,14 +1900,17 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 		switch(LittleLong(pframetype->type))
 		{
 		case ALIAS_SINGLE:
-			frameinfo = (daliasframe_t*)((char *)(pframetype+1));
-			pinframe = (dtrivertx_t*)((char*)frameinfo+sizeof(daliasframe_t));
+			frameinfo = (daliasframe_t*)((char *)(pframetype+1)); // qtest aliasframe is a subset
+			pinframe = (dtrivertx_t*)((char*)frameinfo+aliasframesize);
 			pose = (galiaspose_t *)Hunk_Alloc(sizeof(galiaspose_t) + (sizeof(vecV_t)+sizeof(vec3_t)*3)*galias->numverts);
 			frame->poseofs = (char *)pose - (char *)frame;
 			frame->numposes = 1;
 			galias->groups++;
 
-			Q_strncpyz(frame->name, frameinfo->name, sizeof(frame->name));
+			if (mdltype == 1)
+				frame->name[0] = '\0';
+			else
+				Q_strncpyz(frame->name, frameinfo->name, sizeof(frame->name));
 
 			verts = (vecV_t *)(pose+1);
 			pose->ofsverts = (char *)verts - (char *)pose;
@@ -1987,20 +1925,35 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 #pragma message("wasted memory")
 #endif
 
-			for (j = 0; j < pq1inmodel->numverts; j++)
+			if (mdltype == 2)
 			{
-				verts[j][0] = pinframe[j].v[0]*pq1inmodel->scale[0]+pq1inmodel->scale_origin[0];
-				verts[j][1] = pinframe[j].v[1]*pq1inmodel->scale[1]+pq1inmodel->scale_origin[1];
-				verts[j][2] = pinframe[j].v[2]*pq1inmodel->scale[2]+pq1inmodel->scale_origin[2];
-#ifndef SERVERONLY
-				VectorCopy(r_avertexnormals[pinframe[j].lightnormalindex], normals[j]);
-#endif
-				if (seamremaps[j] != j)
+				for (j = 0; j < galias->numverts; j++)
 				{
-					VectorCopy(verts[j], verts[seamremaps[j]]);
+					verts[j][0] = pinframe[seamremaps[j]].v[0]*pq1inmodel->scale[0]+pq1inmodel->scale_origin[0];
+					verts[j][1] = pinframe[seamremaps[j]].v[1]*pq1inmodel->scale[1]+pq1inmodel->scale_origin[1];
+					verts[j][2] = pinframe[seamremaps[j]].v[2]*pq1inmodel->scale[2]+pq1inmodel->scale_origin[2];
 #ifndef SERVERONLY
-					VectorCopy(normals[j], normals[seamremaps[j]]);
+					VectorCopy(r_avertexnormals[pinframe[seamremaps[j]].lightnormalindex], normals[j]);
 #endif
+				}
+			}
+			else
+			{
+				for (j = 0; j < pq1inmodel->numverts; j++)
+				{
+					verts[j][0] = pinframe[j].v[0]*pq1inmodel->scale[0]+pq1inmodel->scale_origin[0];
+					verts[j][1] = pinframe[j].v[1]*pq1inmodel->scale[1]+pq1inmodel->scale_origin[1];
+					verts[j][2] = pinframe[j].v[2]*pq1inmodel->scale[2]+pq1inmodel->scale_origin[2];
+#ifndef SERVERONLY
+					VectorCopy(r_avertexnormals[pinframe[j].lightnormalindex], normals[j]);
+#endif
+					if (seamremaps[j] != j)
+					{
+						VectorCopy(verts[j], verts[seamremaps[j]]);
+#ifndef SERVERONLY
+						VectorCopy(normals[j], normals[seamremaps[j]]);
+#endif
+					}
 				}
 			}
 
@@ -2046,27 +1999,48 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 #endif
 
 				frameinfo = (daliasframe_t*)pinframe;
-				pinframe = (dtrivertx_t *)((char *)frameinfo + sizeof(daliasframe_t));
+				pinframe = (dtrivertx_t *)((char *)frameinfo + aliasframesize);
 
 				if (k == 0)
-					Q_strncpyz(frame->name, frameinfo->name, sizeof(frame->name));
-
-				for (j = 0; j < pq1inmodel->numverts; j++)
 				{
-					verts[j][0] = pinframe[j].v[0]*pq1inmodel->scale[0]+pq1inmodel->scale_origin[0];
-					verts[j][1] = pinframe[j].v[1]*pq1inmodel->scale[1]+pq1inmodel->scale_origin[1];
-					verts[j][2] = pinframe[j].v[2]*pq1inmodel->scale[2]+pq1inmodel->scale_origin[2];
-#ifndef SERVERONLY
-					VectorCopy(r_avertexnormals[pinframe[j].lightnormalindex], normals[j]);
-#endif
-					if (seamremaps[j] != j)
+					if (mdltype == 1)
+						frame->name[0] = '\0';
+					else
+						Q_strncpyz(frame->name, frameinfo->name, sizeof(frame->name));
+				}
+
+				if (mdltype == 2)
+				{
+					for (j = 0; j < galias->numverts; j++)
 					{
-						VectorCopy(verts[j], verts[seamremaps[j]]);
+						verts[j][0] = pinframe[seamremaps[j]].v[0]*pq1inmodel->scale[0]+pq1inmodel->scale_origin[0];
+						verts[j][1] = pinframe[seamremaps[j]].v[1]*pq1inmodel->scale[1]+pq1inmodel->scale_origin[1];
+						verts[j][2] = pinframe[seamremaps[j]].v[2]*pq1inmodel->scale[2]+pq1inmodel->scale_origin[2];
 #ifndef SERVERONLY
-						VectorCopy(normals[j], normals[seamremaps[j]]);
+						VectorCopy(r_avertexnormals[pinframe[seamremaps[j]].lightnormalindex], normals[j]);
 #endif
 					}
 				}
+				else
+				{
+					for (j = 0; j < pq1inmodel->numverts; j++)
+					{
+						verts[j][0] = pinframe[j].v[0]*pq1inmodel->scale[0]+pq1inmodel->scale_origin[0];
+						verts[j][1] = pinframe[j].v[1]*pq1inmodel->scale[1]+pq1inmodel->scale_origin[1];
+						verts[j][2] = pinframe[j].v[2]*pq1inmodel->scale[2]+pq1inmodel->scale_origin[2];
+#ifndef SERVERONLY
+						VectorCopy(r_avertexnormals[pinframe[j].lightnormalindex], normals[j]);
+#endif
+						if (seamremaps[j] != j)
+						{
+							VectorCopy(verts[j], verts[seamremaps[j]]);
+#ifndef SERVERONLY
+							VectorCopy(normals[j], normals[seamremaps[j]]);
+#endif
+						}
+					}
+				}
+
 #ifndef SERVERONLY
 				verts = (vecV_t*)&tvec[galias->numverts];
 				normals = (vec3_t*)&verts[galias->numverts];
@@ -2075,132 +2049,6 @@ static void *Q1_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
 #else
 				verts = &verts[galias->numverts];
 #endif
-				pose++;
-
-				pinframe += pq1inmodel->numverts;
-			}
-
-//			GL_GenerateNormals((float*)verts, (float*)normals, (int *)((char *)galias + galias->ofs_indexes), galias->numindexes/3, galias->numverts);
-
-			pframetype = (daliasframetype_t *)pinframe;
-			break;
-		default:
-			Con_Printf(CON_ERROR "Bad frame type in %s\n", loadmodel->name);
-			return NULL;
-		}
-		frame++;
-	}
-	return pframetype;
-}
-
-static void *H2_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremaps)
-{
-	galiaspose_t *pose;
-	galiasgroup_t *frame;
-	dtrivertx_t		*pinframe;
-	daliasframe_t *frameinfo;
-	int				i, j, k;
-	daliasgroup_t *ingroup;
-	daliasinterval_t *intervals;
-	float sinter;
-
-	vec3_t *normals, *svec, *tvec;
-	vecV_t *verts;
-
-	frame = (galiasgroup_t*)((char *)galias + galias->groupofs);
-
-	for (i = 0; i < pq1inmodel->numframes; i++)
-	{
-		switch(LittleLong(pframetype->type))
-		{
-		case ALIAS_SINGLE:
-			frameinfo = (daliasframe_t*)((char *)(pframetype+1));
-			pinframe = (dtrivertx_t*)((char*)frameinfo+sizeof(daliasframe_t));
-			pose = (galiaspose_t *)Hunk_Alloc(sizeof(galiaspose_t) + (sizeof(vecV_t)+sizeof(vec3_t)*3)*galias->numverts);
-			frame->poseofs = (char *)pose - (char *)frame;
-			frame->numposes = 1;
-			galias->groups++;
-
-			Q_strncpyz(frame->name, frameinfo->name, sizeof(frame->name));
-
-			verts = (vecV_t *)(pose+1);
-			normals = (vec3_t*)&verts[galias->numverts];
-			svec = &normals[galias->numverts];
-			tvec = &svec[galias->numverts];
-			pose->ofsverts = (char *)verts - (char *)pose;
-#ifndef SERVERONLY
-			pose->ofsnormals = (char *)normals - (char *)pose;
-			pose->ofssvector = (char *)svec - (char *)pose;
-			pose->ofstvector = (char *)tvec - (char *)pose;
-#else
-#pragma message("wasted memory")
-#endif
-
-			for (j = 0; j < galias->numverts; j++)
-			{
-				verts[j][0] = pinframe[seamremaps[j]].v[0]*pq1inmodel->scale[0]+pq1inmodel->scale_origin[0];
-				verts[j][1] = pinframe[seamremaps[j]].v[1]*pq1inmodel->scale[1]+pq1inmodel->scale_origin[1];
-				verts[j][2] = pinframe[seamremaps[j]].v[2]*pq1inmodel->scale[2]+pq1inmodel->scale_origin[2];
-#ifndef SERVERONLY
-				VectorCopy(r_avertexnormals[pinframe[seamremaps[j]].lightnormalindex], normals[j]);
-#endif
-			}
-
-//			GL_GenerateNormals((float*)verts, (float*)normals, (int *)((char *)galias + galias->ofs_indexes), galias->numindexes/3, galias->numverts);
-
-			pframetype = (daliasframetype_t *)&pinframe[pq1inmodel->numverts];
-			break;
-
-		case ALIAS_GROUP:
-		case ALIAS_GROUP_SWAPPED: // prerelease
-			ingroup = (daliasgroup_t *)(pframetype+1);
-
-			pose = (galiaspose_t *)Hunk_Alloc(LittleLong(ingroup->numframes)*(sizeof(galiaspose_t) + (sizeof(vecV_t)+sizeof(vec3_t)*3)*galias->numverts));
-			frame->poseofs = (char *)pose - (char *)frame;
-			frame->numposes = LittleLong(ingroup->numframes);
-			frame->loop = true;
-			galias->groups++;
-
-			verts = (vecV_t *)(pose+frame->numposes);
-			normals = (vec3_t*)&verts[galias->numverts];
-			svec = &normals[galias->numverts];
-			tvec = &svec[galias->numverts];
-
-			intervals = (daliasinterval_t *)(ingroup+1);
-			sinter = LittleFloat(intervals->interval);
-			if (sinter <= 0)
-				sinter = 0.1;
-			frame->rate = 1/sinter;
-
-			pinframe = (dtrivertx_t *)(intervals+frame->numposes);
-			for (k = 0; k < frame->numposes; k++)
-			{
-				pose->ofsverts = (char *)verts - (char *)pose;
-#ifndef SERVERONLY
-				pose->ofsnormals = (char *)normals - (char *)pose;
-				pose->ofssvector = (char *)svec - (char *)pose;
-				pose->ofstvector = (char *)tvec - (char *)pose;
-#endif
-
-				frameinfo = (daliasframe_t*)pinframe;
-				pinframe = (dtrivertx_t *)((char *)frameinfo + sizeof(daliasframe_t));
-
-				if (k == 0)
-					Q_strncpyz(frame->name, frameinfo->name, sizeof(frame->name));
-
-				for (j = 0; j < galias->numverts; j++)
-				{
-					verts[j][0] = pinframe[seamremaps[j]].v[0]*pq1inmodel->scale[0]+pq1inmodel->scale_origin[0];
-					verts[j][1] = pinframe[seamremaps[j]].v[1]*pq1inmodel->scale[1]+pq1inmodel->scale_origin[1];
-					verts[j][2] = pinframe[seamremaps[j]].v[2]*pq1inmodel->scale[2]+pq1inmodel->scale_origin[2];
-#ifndef SERVERONLY
-					VectorCopy(r_avertexnormals[pinframe[seamremaps[j]].lightnormalindex], normals[j]);
-#endif
-				}
-				verts = (vecV_t*)&tvec[galias->numverts];
-				normals = (vec3_t*)&verts[galias->numverts];
-				svec = &normals[galias->numverts];
-				tvec = &svec[galias->numverts];
 				pose++;
 
 				pinframe += pq1inmodel->numverts;
@@ -2518,6 +2366,8 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 	int size;
 	unsigned int hdrsize;
 	void *end;
+	qboolean qtest = false;
+	qboolean rapo = false;
 
 	loadmodel=mod;
 
@@ -2532,10 +2382,14 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 	version = LittleLong(pq1inmodel->version);
 	if (version == QTESTALIAS_VERSION)
 	{
-		hdrsize = sizeof(dmdl_t) - sizeof(int)*3;
+		hdrsize = (unsigned int)&((dmdl_t*)NULL)->flags;
+		qtest = true;
 	}
 	else if (version == 50)
+	{
 		hdrsize = sizeof(dmdl_t);
+		rapo = true;
+	}
 	else if (version != ALIAS_VERSION)
 	{
 		Con_Printf (CON_ERROR "%s has wrong version number (%i should be %i)\n",
@@ -2561,7 +2415,7 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 		return false;
 	}
 
-	if (hdrsize <= (unsigned int)&((dmdl_t*)NULL)->flags)
+	if (qtest)
 		mod->flags = 0; // Qtest has no flags in header
 	else
 		mod->flags = pq1inmodel->flags;
@@ -2604,7 +2458,7 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 		break;
 	}
 
-	if (hdrsize == sizeof(dmdl_t))
+	if (rapo)
 	{
 		/*each triangle can use one coord and one st, for each vert, that's a lot of combinations*/
 #ifdef SERVERONLY
@@ -2680,7 +2534,7 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 #endif
 		end = &pinh2triangles[pq1inmodel->numtris];
 
-		if (H2_LoadFrameGroup((daliasframetype_t *)end, seamremap) == NULL)
+		if (Alias_LoadFrameGroup((daliasframetype_t *)end, seamremap, 2) == NULL)
 		{
 			BZ_Free(seamremap);
 			Hunk_FreeToLowMark (hunkstart);
@@ -2756,23 +2610,11 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 		end = &pinq1triangles[pq1inmodel->numtris];
 
 		//frames
-		if (hdrsize <= (unsigned int)&((dmdl_t*)NULL)->flags)
+		if (Alias_LoadFrameGroup((daliasframetype_t *)end, seamremap, qtest ? 1 : 0) == NULL)
 		{
-			if (QTest_LoadFrameGroup((daliasframetype_t *)end, seamremap) == NULL)
-			{
-				BZ_Free(seamremap);
-				Hunk_FreeToLowMark (hunkstart);
-				return false;
-			}
-		}
-		else
-		{
-			if (Q1_LoadFrameGroup((daliasframetype_t *)end, seamremap) == NULL)
-			{
-				BZ_Free(seamremap);
-				Hunk_FreeToLowMark (hunkstart);
-				return false;
-			}
+			BZ_Free(seamremap);
+			Hunk_FreeToLowMark (hunkstart);
+			return false;
 		}
 		BZ_Free(seamremap);
 	}

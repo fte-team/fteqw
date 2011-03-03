@@ -76,7 +76,7 @@ cvar_t snd_noextraupdate		= CVARAF(	"s_noextraupdate", "0",
 											"snd_noextraupdate", 0);
 cvar_t snd_show					= CVARAF(	"s_show", "0",
 											"snd_show", 0);
-cvar_t snd_khz					= CVARAF(	"s_khz", "11",
+cvar_t snd_khz					= CVARAF(	"s_khz", "44",
 											"snd_khz", CVAR_ARCHIVE);
 cvar_t	snd_inactive			= CVARAF(	"s_inactive", "0",
 											"snd_inactive", 0);	//set if you want sound even when tabbed out.

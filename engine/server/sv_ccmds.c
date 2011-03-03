@@ -539,6 +539,8 @@ void SV_Map_f (void)
 				snprintf (expanded, sizeof(expanded), "maps/%s.cm", level);
 				if (!COM_FCheckExists (expanded))
 				{
+					// FTE is still a Quake engine so report BSP missing
+					snprintf (expanded, sizeof(expanded), "maps/%s.bsp", level);
 					Con_TPrintf (STL_CANTFINDMAP, expanded);
 					return;
 				}

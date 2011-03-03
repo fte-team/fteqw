@@ -2161,11 +2161,13 @@ void Surf_DrawWorld (void)
 		}
 		else
 #endif
+#ifdef MAP_PROC
 		     if (cl.worldmodel->fromgame == fg_doom3)
 		{
 			vis = D3_CalcVis(cl.worldmodel, r_refdef.vieworg);
 		}
 		else
+#endif
 		{
 			//extern cvar_t temp1;
 			if (0)//temp1.value)

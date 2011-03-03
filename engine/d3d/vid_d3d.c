@@ -735,8 +735,10 @@ static void	(D3D9_R_NewMap)					(void)
 	R_AnimateLight();
 	Surf_BuildLightmaps();
 
+#ifdef MAP_PROC
 	if (cl.worldmodel && cl.worldmodel->fromgame == fg_doom3)
 		D3_GenerateAreas(cl.worldmodel);
+#endif
 
 	/*wipe any lingering particles*/
 	P_ClearParticles();

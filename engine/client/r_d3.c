@@ -1,4 +1,6 @@
 #include "quakedef.h"
+#ifdef MAP_PROC
+
 #ifndef SERVERONLY
 #include "shader.h"
 #endif
@@ -559,3 +561,5 @@ qboolean D3_LoadMap_CollisionMap(model_t *mod, char *buf)
 #endif
 	return true;
 }
+
+#endif

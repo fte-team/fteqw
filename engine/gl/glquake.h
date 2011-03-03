@@ -354,9 +354,11 @@ qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer);
 #ifdef MAP_DOOM
 void GLR_DoomWorld();
 #endif
+#ifdef MAP_PROC
 qboolean D3_LoadMap_CollisionMap(model_t *mod, char *buf);
 unsigned char *D3_CalcVis(model_t *mod, vec3_t org);
 void D3_GenerateAreas(model_t *mod);
+#endif
 
 //gl_bloom.c
 #ifdef GLQUAKE

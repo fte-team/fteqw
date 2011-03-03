@@ -973,8 +973,10 @@ TRACE(("dbg: GLR_NewMap: tp\n"));
 	TP_NewMap();
 	R_SetSky(cl.skyname);
 
+#ifdef MAP_PROC
 	if (cl.worldmodel->fromgame == fg_doom3)
 		D3_GenerateAreas(cl.worldmodel);
+#endif
 
 #ifdef RTLIGHTS
 	if (r_shadow_realtime_dlight.ival || r_shadow_realtime_world.ival)

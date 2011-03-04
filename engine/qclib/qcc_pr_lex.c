@@ -683,7 +683,7 @@ pbool QCC_PR_Precompiler(void)
 			{
 				if (*pr_file_p == '\n')
 				{
-					QCC_PR_ParseError(0, "#include continued over line boundy\n");
+					QCC_PR_ParseError(0, "#include continued over line boundry\n");
 					break;
 				}
 				msg[a++] = *pr_file_p;

@@ -593,6 +593,7 @@ void SetExecutionToLine(progfuncs_t *progfuncs, int linenum)
 	switch(current_progstate->structtype)
 	{
 	case PST_DEFAULT:
+	case PST_QTEST:
 		for (snum = f->first_statement; pr_progstate[pn].linenums[snum] < linenum; snum++)
 		{
 			if (pr_statements16[snum].op == OP_DONE)

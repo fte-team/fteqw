@@ -2709,6 +2709,7 @@ retry:
 			fnc[i].s_name += stringadjust;
 			fnc[i].s_file += stringadjust;
 		}
+		break;
 	default:
 		Sys_Error("Bad struct type");
 	}

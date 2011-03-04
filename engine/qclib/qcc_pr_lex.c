@@ -868,6 +868,8 @@ pbool QCC_PR_Precompiler(void)
 					qcc_targetformat = QCF_STANDARD;
 				else if (!QC_strcasecmp(msg, "DEBUG"))
 					qcc_targetformat = QCF_FTEDEBUG;
+				else if (!QC_strcasecmp(msg, "QTEST"))
+					qcc_targetformat = QCF_QTEST;
 				else
 					QCC_PR_ParseWarning(WARN_BADTARGET, "Unknown target \'%s\'. Ignored.", msg);
 			}

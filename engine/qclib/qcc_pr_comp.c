@@ -826,6 +826,7 @@ pbool QCC_OPCodeValid(QCC_opcode_t *op)
 	{
 	case QCF_STANDARD:
 	case QCF_KK7:
+	case QCF_QTEST:
 		if (num < OP_MULSTORE_F)
 			return true;
 		return false;

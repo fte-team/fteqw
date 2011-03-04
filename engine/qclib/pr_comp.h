@@ -353,6 +353,37 @@ enum {
 	OP_NUMOPS
 };
 
+#define	MAX_PARMS	8
+
+// qtest structs (used for reordering and not execution)
+typedef struct qtest_statement_s
+{
+	unsigned int	line; // line number in source code file
+	unsigned short	op;
+	unsigned short	a,b,c;
+} qtest_statement_t;
+
+typedef struct qtest_def_s
+{
+	unsigned int	type; // no DEFGLOBAL found in qtest progs
+	unsigned int	s_name; // different order!
+	unsigned int	ofs;
+} qtest_def_t;
+
+typedef struct qtest_function_s
+{
+	int		first_statement;
+	int		unused1;
+	int		locals;	// assumed! (always 0 in real qtest progs)
+	int		profile; // assumed! (always 0 in real qtest progs)
+	
+	int		s_name;
+	int		s_file;
+	
+	int		numparms;
+	int		parm_start; // different order
+	int		parm_size[MAX_PARMS]; // ints instead of bytes...
+} qtest_function_t;
 
 #ifndef COMPILER
 typedef struct statement16_s
@@ -430,8 +461,6 @@ typedef struct QCC_ddef32_s
 #define	DEF_SAVEGLOBAL 		(1<<15)
 #define	DEF_SHARED 		(1<<14)
 
-#define	MAX_PARMS	8
-
 #ifndef COMPILER
 typedef struct
 {
@@ -464,7 +493,7 @@ typedef struct
 } QCC_dfunction_t;
 #endif
 
-
+#define PROG_QTESTVERSION	3
 #define	PROG_VERSION	6
 #define PROG_KKQWSVVERSION 7
 #define	PROG_EXTENDEDVERSION	7

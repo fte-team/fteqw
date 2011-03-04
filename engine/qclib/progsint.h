@@ -160,6 +160,14 @@ void PR_StackTrace (progfuncs_t *progfuncs);
 
 extern int noextensions;
 
+typedef enum
+{
+	PST_DEFAULT, //16
+	PST_FTE32, //32
+	PST_KKQWSV, //24
+	PST_QTEST,
+} progstructtype_t;
+
 #ifndef COMPILER
 typedef struct progstate_s
 {
@@ -191,7 +199,7 @@ typedef struct progstate_s
 
 	int *linenums;	//debug versions only
 
-	int intsize;	//16 for standard (more limiting) versions
+	progstructtype_t structtype;
 } progstate_t;
 
 typedef struct extensionbuiltin_s {

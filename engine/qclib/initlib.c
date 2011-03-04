@@ -232,15 +232,16 @@ func_t PR_FindFunc(progfuncs_t *progfuncs, char *funcname, progsnum_t pnum)
 	{
 	ddef16_t *var16;
 	ddef32_t *var32;
-	switch(pr_progstate[pnum].intsize)
+	switch(pr_progstate[pnum].structtype)
 	{
-	case 24:
-	case 16:
+	case PST_KKQWSV:
+	case PST_DEFAULT:
 		var16 = ED_FindTypeGlobalFromProgs16(progfuncs, funcname, pnum, ev_function);	//we must make sure we actually have a function def - 'light' is defined as a field before it is defined as a function.
 		if (!var16)
 			return (f - pr_progstate[pnum].functions) | (pnum << 24);
-		return *(int *)&pr_progstate[pnum].globals[var16->ofs];	
-	case 32:
+		return *(int *)&pr_progstate[pnum].globals[var16->ofs];
+	case PST_QTEST:
+	case PST_FTE32:
 		var32 = ED_FindTypeGlobalFromProgs32(progfuncs, funcname, pnum, ev_function);	//we must make sure we actually have a function def - 'light' is defined as a field before it is defined as a function.
 		if (!var32)
 			return (f - pr_progstate[pnum].functions) | (pnum << 24);
@@ -273,15 +274,16 @@ eval_t *PR_FindGlobal(progfuncs_t *progfuncs, char *globname, progsnum_t pnum)
 	}
 	if (pnum < 0 || (unsigned)pnum >= maxprogs || !pr_progstate[pnum].progs)
 		return NULL;
-	switch(pr_progstate[pnum].intsize)
+	switch(pr_progstate[pnum].structtype)
 	{
-	case 16:
-	case 24:
+	case PST_DEFAULT:
+	case PST_KKQWSV:
 		if (!(var16 = ED_FindGlobalFromProgs16(progfuncs, globname, pnum)))
 			return NULL;
 
 		return (eval_t *)&pr_progstate[pnum].globals[var16->ofs];
-	case 32:
+	case PST_QTEST:
+	case PST_FTE32:
 		if (!(var32 = ED_FindGlobalFromProgs32(progfuncs, globname, pnum)))
 			return NULL;
 

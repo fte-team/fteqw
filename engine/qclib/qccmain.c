@@ -259,6 +259,7 @@ struct {
 	{QCF_FTE,		"fte"},
 	{QCF_DARKPLACES,"darkplaces"},
 	{QCF_DARKPLACES,"dp"},
+	{QCF_QTEST,		"qtest"},
 	{0,				NULL}
 };
 
@@ -568,7 +569,7 @@ pbool QCC_WriteData (int crc)
 	int			i, len;
 	pbool debugtarget = false;
 	pbool types = false;
-	int outputsize = 16;
+	int outputsttype = PST_DEFAULT;
 	pbool warnedunref = false;
 
 	if (numstatements==1 && numfunctions==1 && numglobaldefs==1 && numfielddefs==1)
@@ -597,7 +598,7 @@ pbool QCC_WriteData (int crc)
 		if (numpr_globals > 65530 )
 		{
 			printf("Forcing target to FTE32 due to numpr_globals\n");
-			outputsize = 32;
+			outputsttype = PST_FTE32;
 		}
 		else if (qcc_targetformat == QCF_HEXEN2)
 		{
@@ -623,7 +624,7 @@ pbool QCC_WriteData (int crc)
 		if (numpr_globals > 65530)
 		{
 			printf("Using 32 bit target due to numpr_globals\n");
-			outputsize = 32;
+			outputsttype = PST_FTE32;
 		}
 
 		if (qcc_targetformat == QCF_DARKPLACES)
@@ -663,7 +664,14 @@ pbool QCC_WriteData (int crc)
 			printf("Warning: Saving is not supported. Ensure all engine read fields and globals are defined early on.\n");
 
 		printf("A KK compatible executor will be required (FTE/KK)\n");
+		outputsttype = PST_KKQWSV;
 		break;
+	case QCF_QTEST:
+		printf("Compiled QTest progs will most likely not work at all. YOU'VE BEEN WARNED!\n");
+		outputsttype = PST_QTEST;
+		break;
+	default:
+		Sys_Error("invalid progs type chosen!");
 	}
 
 	//part of how compilation works. This def is always present, and never used.
@@ -923,9 +931,10 @@ strofs = (strofs+3)&~3;
 
 	for (i=0 ; i<numstatements ; i++)
 
-	switch(qcc_targetformat == QCF_KK7?32:outputsize)	//KK7 sucks.
+	switch(outputsttype)
 	{
-	case 32:
+	case PST_KKQWSV:
+	case PST_FTE32:
 		for (i=0 ; i<numstatements ; i++)
 		{
 			statements[i].op = PRLittleLong/*PRLittleShort*/(statements[i].op);
@@ -947,7 +956,32 @@ strofs = (strofs+3)&~3;
 		else
 			SafeWrite (h, statements, numstatements*sizeof(QCC_dstatement32_t));
 		break;
-	case 16:
+	case PST_QTEST:
+#define qtst ((qtest_statement_t*) statements)
+		for (i=0 ; i<numstatements ; i++) // scale down from 16-byte internal to 12-byte qtest
+		{
+			QCC_dstatement_t stmt = statements[i];
+			qtst[i].line = 0; // no line support
+			qtst[i].op = PRLittleShort((unsigned short)stmt.op);
+			if (stmt.a < 0)
+				qtst[i].a = PRLittleShort((short)stmt.a);
+			else
+				qtst[i].a = (unsigned short)PRLittleShort((unsigned short)stmt.a);
+			if (stmt.b < 0)
+				qtst[i].b = PRLittleShort((short)stmt.b);
+			else
+				qtst[i].b = (unsigned short)PRLittleShort((unsigned short)stmt.b);
+			if (stmt.c < 0)
+				qtst[i].c = PRLittleShort((short)stmt.c);
+			else
+				qtst[i].c = (unsigned short)PRLittleShort((unsigned short)stmt.c);
+		}
+
+		// no compression
+		SafeWrite (h, qtst, numstatements*sizeof(qtest_statement_t));
+#undef qtst
+		break;
+	case PST_DEFAULT:
 #define statements16 ((QCC_dstatement16_t*) statements)
 		for (i=0 ; i<numstatements ; i++)	//resize as we go - scaling down
 		{
@@ -980,37 +1014,88 @@ strofs = (strofs+3)&~3;
 			SafeWrite (h, statements16, numstatements*sizeof(QCC_dstatement16_t));
 		break;
 	default:
-		Sys_Error("intsize error");
+		Sys_Error("structtype error");
 	}
 
 	progs.ofs_functions = SafeSeek (h, 0, SEEK_CUR);
 	progs.numfunctions = numfunctions;
-	for (i=0 ; i<numfunctions ; i++)
+
+	switch (outputsttype)
 	{
-		functions[i].first_statement = PRLittleLong (functions[i].first_statement);
-		functions[i].parm_start = PRLittleLong (functions[i].parm_start);
-		functions[i].s_name = PRLittleLong (functions[i].s_name);
-		functions[i].s_file = PRLittleLong (functions[i].s_file);
-		functions[i].numparms = PRLittleLong ((functions[i].numparms>MAX_PARMS)?MAX_PARMS:functions[i].numparms);
-		functions[i].locals = PRLittleLong (functions[i].locals);
+	case PST_QTEST:
+		{
+			// this sucks but the structures are just too different
+			qtest_function_t *qtestfuncs = (qtest_function_t *)qccHunkAlloc(sizeof(qtest_function_t)*numfunctions);
+
+			for (i=0 ; i<numfunctions ; i++)
+			{
+				int j;
+
+				qtestfuncs[i].unused1 = 0;
+				qtestfuncs[i].profile = 0;
+				qtestfuncs[i].first_statement = PRLittleLong (functions[i].first_statement);
+				qtestfuncs[i].parm_start = PRLittleLong (functions[i].parm_start);
+				qtestfuncs[i].s_name = PRLittleLong (functions[i].s_name);
+				qtestfuncs[i].s_file = PRLittleLong (functions[i].s_file);
+				qtestfuncs[i].numparms = PRLittleLong ((functions[i].numparms>MAX_PARMS)?MAX_PARMS:functions[i].numparms);
+				qtestfuncs[i].locals = PRLittleLong (functions[i].locals);
+				for (j = 0; j < MAX_PARMS; j++)
+					qtestfuncs[i].parm_size[j] = PRLittleLong((int)functions[i].parm_size[j]);
+			}
+
+			SafeWrite (h, qtestfuncs, numfunctions*sizeof(qtest_function_t));
+		}
+		break;
+	case PST_DEFAULT:
+	case PST_KKQWSV:
+	case PST_FTE32:
+		for (i=0 ; i<numfunctions ; i++)
+		{
+			functions[i].first_statement = PRLittleLong (functions[i].first_statement);
+			functions[i].parm_start = PRLittleLong (functions[i].parm_start);
+			functions[i].s_name = PRLittleLong (functions[i].s_name);
+			functions[i].s_file = PRLittleLong (functions[i].s_file);
+			functions[i].numparms = PRLittleLong ((functions[i].numparms>MAX_PARMS)?MAX_PARMS:functions[i].numparms);
+			functions[i].locals = PRLittleLong (functions[i].locals);
+		}
+
+		if (progs.blockscompressed&8)
+		{		
+			SafeWrite (h, &len, sizeof(int));	//save for later
+			len = QC_encode(progfuncs, numfunctions*sizeof(QCC_dfunction_t), 2, (char *)functions, h);	//write
+			i = SafeSeek (h, 0, SEEK_CUR);
+			SafeSeek(h, progs.ofs_functions, SEEK_SET);//seek back
+			len = PRLittleLong(len);
+			SafeWrite (h, &len, sizeof(int));	//write size.
+			SafeSeek(h, i, SEEK_SET);
+		}
+		else
+			SafeWrite (h, functions, numfunctions*sizeof(QCC_dfunction_t));
+		break;
+	default:
+		Sys_Error("structtype error");
 	}
 
-	if (progs.blockscompressed&8)
-	{		
-		SafeWrite (h, &len, sizeof(int));	//save for later
-		len = QC_encode(progfuncs, numfunctions*sizeof(QCC_dfunction_t), 2, (char *)functions, h);	//write
-		i = SafeSeek (h, 0, SEEK_CUR);
-		SafeSeek(h, progs.ofs_functions, SEEK_SET);//seek back
-		len = PRLittleLong(len);
-		SafeWrite (h, &len, sizeof(int));	//write size.
-		SafeSeek(h, i, SEEK_SET);
-	}
-	else
-		SafeWrite (h, functions, numfunctions*sizeof(QCC_dfunction_t));
-
-	switch(outputsize)
+	switch(outputsttype)
 	{
-	case 32:
+	case PST_QTEST:
+		// qtest needs a struct remap but should be able to get away with a simple swap here
+		for (i=0 ; i<numglobaldefs ; i++)
+		{
+			qtest_def_t qtdef = ((qtest_def_t *)qcc_globals)[i];
+			qcc_globals[i].type = qtdef.type;
+			qcc_globals[i].ofs = qtdef.ofs;
+			qcc_globals[i].s_name = qtdef.s_name;
+		}
+		for (i=0 ; i<numfielddefs ; i++)
+		{
+			qtest_def_t qtdef = ((qtest_def_t *)fields)[i];
+			fields[i].type = qtdef.type;
+			fields[i].ofs = qtdef.ofs;
+			fields[i].s_name = qtdef.s_name;
+		}
+		// passthrough.. reuse FTE32 code
+	case PST_FTE32:
 		progs.ofs_globaldefs = SafeSeek (h, 0, SEEK_CUR);
 		progs.numglobaldefs = numglobaldefs;
 		for (i=0 ; i<numglobaldefs ; i++)
@@ -1056,7 +1141,8 @@ strofs = (strofs+3)&~3;
 		else
 			SafeWrite (h, fields, numfielddefs*sizeof(QCC_ddef_t));
 		break;
-	case 16:
+	case PST_KKQWSV:
+	case PST_DEFAULT:
 #define qcc_globals16 ((QCC_ddef16_t*)qcc_globals)
 #define fields16 ((QCC_ddef16_t*)fields)
 		progs.ofs_globaldefs = SafeSeek (h, 0, SEEK_CUR);
@@ -1105,7 +1191,7 @@ strofs = (strofs+3)&~3;
 			SafeWrite (h, fields16, numfielddefs*sizeof(QCC_ddef16_t));
 		break;
 	default:
-		Sys_Error("intsize error");
+		Sys_Error("structtype error");
 	}
 
 	progs.ofs_globals = SafeSeek (h, 0, SEEK_CUR);
@@ -1147,6 +1233,9 @@ strofs = (strofs+3)&~3;
 
 	switch(qcc_targetformat)
 	{
+	case QCF_QTEST:
+		progs.version = PROG_QTESTVERSION;
+		break;
 	case QCF_KK7:
 		progs.version = PROG_KKQWSVVERSION;
 		break;
@@ -1159,7 +1248,7 @@ strofs = (strofs+3)&~3;
 	case QCF_FTEDEBUG:
 		progs.version = PROG_EXTENDEDVERSION;
 
-		if (outputsize == 32)
+		if (outputsttype == PST_FTE32)
 			progs.secondaryversion = PROG_SECONDARYVERSION32;
 		else
 			progs.secondaryversion = PROG_SECONDARYVERSION16;

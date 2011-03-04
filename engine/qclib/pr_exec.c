@@ -346,10 +346,10 @@ ddef32_t *ED_FindLocalOrGlobal(progfuncs_t *progfuncs, char *name, eval_t **val)
 	ddef16_t *def16;
 	int i;
 
-	switch (pr_progstate[pr_typecurrent].intsize)
+	switch (pr_progstate[pr_typecurrent].structtype)
 	{
-	case 16:
-	case 24:
+	case PST_DEFAULT:
+	case PST_KKQWSV:
 		//this gets parms fine, but not locals
 		if (pr_xfunction)
 		for (i = 0; i < pr_xfunction->numparms; i++)
@@ -377,7 +377,8 @@ ddef32_t *ED_FindLocalOrGlobal(progfuncs_t *progfuncs, char *name, eval_t **val)
 		def.s_name = def16->s_name;
 		def32 = &def;
 		break;
-	case 32:
+	case PST_QTEST:
+	case PST_FTE32:
 		//this gets parms fine, but not locals
 		if (pr_xfunction)
 		for (i = 0; i < pr_xfunction->numparms; i++)
@@ -399,7 +400,7 @@ ddef32_t *ED_FindLocalOrGlobal(progfuncs_t *progfuncs, char *name, eval_t **val)
 			return NULL;
 		break;
 	default:
-		Sys_Error("Bad int size in ED_FindLocalOrGlobal");
+		Sys_Error("Bad struct type in ED_FindLocalOrGlobal");
 		def32 = NULL;
 	}
 
@@ -589,17 +590,17 @@ void SetExecutionToLine(progfuncs_t *progfuncs, int linenum)
 	int snum;
 	dfunction_t *f = pr_xfunction;
 
-	switch(current_progstate->intsize)
+	switch(current_progstate->structtype)
 	{
-	case 16:
+	case PST_DEFAULT:
 		for (snum = f->first_statement; pr_progstate[pn].linenums[snum] < linenum; snum++)
 		{
 			if (pr_statements16[snum].op == OP_DONE)
 				return;
 		}
 		break;
-	case 24:
-	case 32:
+	case PST_KKQWSV:
+	case PST_FTE32:
 		for (snum = f->first_statement; pr_progstate[pn].linenums[snum] < linenum; snum++)
 		{
 			if (pr_statements32[snum].op == OP_DONE)
@@ -607,7 +608,7 @@ void SetExecutionToLine(progfuncs_t *progfuncs, int linenum)
 		}
 		break;
 	default:
-		Sys_Error("Bad intsize");
+		Sys_Error("Bad struct type");
 		snum = 0;
 	}
 	debugstatement = snum;
@@ -648,17 +649,18 @@ int PR_ToggleBreakpoint(progfuncs_t *progfuncs, char *filename, int linenum, int
 								if ((unsigned int)pr_progstate[pn].linenums[i] > fl)
 									break;
 
-								switch(pr_progstate[pn].intsize)
+								switch(pr_progstate[pn].structtype)
 								{
-								case 16:
+								case PST_DEFAULT:
+								case PST_QTEST:
 									op = ((dstatement16_t*)pr_progstate[pn].statements + i)->op;
 									break;
-								case 24:
-								case 32:
+								case PST_KKQWSV:
+								case PST_FTE32:
 									op = ((dstatement32_t*)pr_progstate[pn].statements + i)->op;
 									break;
 								default:
-									Sys_Error("Bad intsize");
+									Sys_Error("Bad structtype");
 									op = 0;
 								}
 								switch (flag)
@@ -689,17 +691,18 @@ int PR_ToggleBreakpoint(progfuncs_t *progfuncs, char *filename, int linenum, int
 									if (op & 0x8000)
 										return true;
 								}
-								switch(pr_progstate[pn].intsize)
+								switch(pr_progstate[pn].structtype)
 								{
-								case 16:
+								case PST_DEFAULT:
+								case PST_QTEST:
 									((dstatement16_t*)pr_progstate[pn].statements + i)->op = op;
 									break;
-								case 24:
-								case 32:
+								case PST_KKQWSV:
+								case PST_FTE32:
 									((dstatement32_t*)pr_progstate[pn].statements + i)->op = op;
 									break;
 								default:
-									Sys_Error("Bad intsize");
+									Sys_Error("Bad structtype");
 									op = 0;
 								}
 							}
@@ -716,17 +719,18 @@ int PR_ToggleBreakpoint(progfuncs_t *progfuncs, char *filename, int linenum, int
 				if (!strcmp(f->s_name+progfuncs->stringtable, filename))
 				{
 					i = f->first_statement;
-					switch(pr_progstate[pn].intsize)
+					switch(pr_progstate[pn].structtype)
 					{
-					case 16:
+					case PST_DEFAULT:
+					case PST_QTEST:
 						op = ((dstatement16_t*)pr_progstate[pn].statements + i)->op;
 						break;
-					case 24:
-					case 32:
+					case PST_KKQWSV:
+					case PST_FTE32:
 						op = ((dstatement32_t*)pr_progstate[pn].statements + i)->op;
 						break;
 					default:
-						Sys_Error("Bad intsize");
+						Sys_Error("Bad structtype");
 					}
 					switch (flag)
 					{
@@ -756,17 +760,18 @@ int PR_ToggleBreakpoint(progfuncs_t *progfuncs, char *filename, int linenum, int
 						if (op & 0x8000)
 							return true;
 					}
-					switch(pr_progstate[pn].intsize)
+					switch(pr_progstate[pn].structtype)
 					{
-					case 16:
+					case PST_DEFAULT:
+					case PST_QTEST:
 						((dstatement16_t*)pr_progstate[pn].statements + i)->op = op;
 						break;
-					case 24:
-					case 32:
+					case PST_KKQWSV:
+					case PST_FTE32:
 						((dstatement32_t*)pr_progstate[pn].statements + i)->op = op;
 						break;
 					default:
-						Sys_Error("Bad intsize");
+						Sys_Error("Bad structtype");
 					}
 					break;
 				}
@@ -882,9 +887,10 @@ void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 
 restart:	//jumped to when the progs might have changed.
 	glob = pr_globals;
-	switch (current_progstate->intsize)
+	switch (current_progstate->structtype)
 	{
-	case 16:
+	case PST_DEFAULT:
+	case PST_QTEST:
 #define INTSIZE 16
 		st16 = &pr_statements16[s];
 		while (pr_trace)
@@ -905,8 +911,8 @@ restart:	//jumped to when the progs might have changed.
 #undef INTSIZE
 		Sys_Error("PR_ExecuteProgram - should be unreachable");
 		break;
-	case 24:
-	case 32:
+	case PST_KKQWSV:
+	case PST_FTE32:
 #define INTSIZE 32
 		st32 = &pr_statements32[s];
 		while (pr_trace)
@@ -932,7 +938,7 @@ restart:	//jumped to when the progs might have changed.
 		Sys_Error("PR_ExecuteProgram - should be unreachable");
 		break;
 	default:
-		Sys_Error("PR_ExecuteProgram - bad intsize");
+		Sys_Error("PR_ExecuteProgram - bad structtype");
 	}
 }
 

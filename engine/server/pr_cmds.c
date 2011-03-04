@@ -2862,7 +2862,10 @@ void QCBUILTIN PF_svtraceline (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	v1 = G_VECTOR(OFS_PARM0);
 	v2 = G_VECTOR(OFS_PARM1);
 	nomonsters = G_FLOAT(OFS_PARM2);
-	ent = G_EDICT(prinst, OFS_PARM3);
+	if (*svprogfuncs->callargc == 3) // QTEST
+		ent = PROG_TO_EDICT(prinst, pr_global_struct->self);
+	else
+		ent = G_EDICT(prinst, OFS_PARM3);
 
 	if (sv_antilag.ival == 2)
 		nomonsters |= MOVE_LAGGED;

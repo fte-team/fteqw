@@ -358,10 +358,10 @@ void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num, char *stringtable)
 	}
 	*/
 	
-	switch(current_progstate->intsize)
+	switch(current_progstate->structtype)
 	{
-	case 24:
-	case 16:
+	case PST_KKQWSV:
+	case PST_DEFAULT:
 		for (i=1 ; i<pr_progs->numfielddefs; i++)
 		{
 			if (!strcmp(pr_fielddefs16[i].s_name+stringtable, pr_globaldefs16[num].s_name+stringtable))
@@ -392,7 +392,8 @@ void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num, char *stringtable)
 //		if (*(int *)&pr_globals[pr_globaldefs16[num].ofs])
 //			Sys_Error("QCLIB: Global field var with no matching field \"%s\", from offset %i", pr_globaldefs16[num].s_name+stringtable, *(int *)&pr_globals[pr_globaldefs16[num].ofs]);
 		return;
-	case 32:
+	case PST_FTE32:
+	case PST_QTEST:
 		for (i=1 ; i<pr_progs->numfielddefs; i++)
 		{
 			if (!strcmp(pr_fielddefs32[i].s_name+stringtable, pr_globaldefs32[num].s_name+stringtable))

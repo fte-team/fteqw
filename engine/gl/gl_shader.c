@@ -1397,7 +1397,7 @@ static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **p
 			*ptr = end+1;/*skip over it all*/
 
 			shader->prog = malloc(sizeof(*shader->prog));
-			memset(shader->prog, 0, sizeof(shader->prog));
+			memset(shader->prog, 0, sizeof(*shader->prog));
 			shader->prog->refs = 1;
 			Shader_LoadPermutations(shader->prog, programbody, qrtype);
 

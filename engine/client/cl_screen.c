@@ -2147,7 +2147,7 @@ void SCR_TileClear (void)
 		{
 			// top
 			Draw_TileClear (scr_vrect.x, 0,
-				scr_vrect.x + scr_vrect.width,
+				scr_vrect.width,
 				scr_vrect.y);
 			// bottom
 			Draw_TileClear (scr_vrect.x,
@@ -2172,7 +2172,7 @@ void SCR_TileClear (void)
 		{
 			// top
 			Draw_TileClear (scr_vrect.x, 0,
-				scr_vrect.x + scr_vrect.width,
+				scr_vrect.width,
 				scr_vrect.y);
 			// bottom
 			Draw_TileClear (scr_vrect.x,

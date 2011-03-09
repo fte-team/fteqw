@@ -1669,7 +1669,7 @@ const gamemode_info_t gamemode_info[] = {
 
 //rogue/hipnotic have no special files - the detection conflicts and stops us from running regular quake
 	//protocol name(dpmaster) exename        cmdline switch   identifying file   exec     dir1       dir2    dir3       dir(fte)     full name
-	{"Darkplaces-Quake",	"darkplaces",	"-quake",		{"id1/pak0.pak"},		NULL,	{"id1",		"qw",				"fte"},		"Quake"},
+	{"Darkplaces-Quake",	"q1",			"-quake",		{"id1/pak0.pak"},		NULL,	{"id1",		"qw",				"fte"},		"Quake"},
 	{"Darkplaces-Hipnotic",	"hipnotic",		"-hipnotic",	{NULL},					NULL,	{"id1",		"qw",	"hipnotic",	"fte"},		"Quake: Scourge of Armagon"},
 	{"Darkplaces-Rogue",	"rogue",		"-rogue",		{NULL},					NULL,	{"id1",		"qw",	"rogue",	"fte"},		"Quake: Dissolution of Eternity"},
 	{"Nexuiz",				"nexuiz",		"-nexuiz",		{"nexuiz.exe"},			NEXCFG,	{"data",						"ftedata"},	"Nexuiz"},
@@ -1678,7 +1678,7 @@ const gamemode_info_t gamemode_info[] = {
 	//supported commercial mods (some are currently only partially supported)
 	{"FTE-H2MP",			"h2mp",			"-portals",		{"portals/hexen.rc",
 															 "portals/pak3.pak"},	HEX2CFG,{"data1",	"portals",			"fteh2"},		"Hexen II MP"},
-	{"FTE-Hexen2",			"hexen",		"-hexen2",		{"data1/pak0.pak"},		HEX2CFG,{"data1",						"fteh2"},		"Hexen II"},
+	{"FTE-Hexen2",			"hexen2",		"-hexen2",		{"data1/pak0.pak"},		HEX2CFG,{"data1",						"fteh2"},		"Hexen II"},
 	{"FTE-Quake2",			"q2",			"-q2",			{"baseq2/pak0.pak"},	NULL,	{"baseq2",						"fteq2"},	"Quake II"},
 	{"FTE-Quake3",			"q3",			"-q3",			{"baseq3/pak0.pk3"},	NULL,	{"baseq3",						"fteq3"},	"Quake III Arena"},
 	{"FTE-Quake4",			"q4",			"-q4",			{"q4base/pak00.pk4"},	NULL,	{"q4base",						"fteq4"},	"Quake 4"},
@@ -1897,10 +1897,10 @@ static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir
 	FILE *f;
 	DWORD resultlen;
 	HKEY key = NULL;
-	if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Valve\\Steam", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
+	if (!FAILED(RegOpenKeyEx(HKEY_CURRENT_USER, "SOFTWARE\\Valve\\Steam", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
 	{
 		resultlen = basepathlen;
-		RegQueryValueEx(key, "InstallPath", NULL, NULL, basepath, &resultlen);
+		RegQueryValueEx(key, "SteamPath", NULL, NULL, basepath, &resultlen);
 		RegCloseKey(key);
 		Q_strncatz(basepath, va("/SteamApps/common/%s", steamdir), basepathlen);
 		if (f = fopen(va("%s/%s", basepath, fname), "rb"))
@@ -2057,10 +2057,10 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 	}
 */
 
-	if (!strcmp(gamename, "h2"))
+	if (!strcmp(gamename, "hexen2"))
 	{
 		//append SteamApps\common\hexen 2
-		if (Sys_SteamHasFile(basepath, basepathlen, "hexen 2", "h2.exe"))
+		if (Sys_SteamHasFile(basepath, basepathlen, "hexen 2", "glh2.exe"))
 			return true;
 	}
 

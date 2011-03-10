@@ -111,7 +111,12 @@ typedef enum
 	VF_CL_VIEWANGLES_Y = 35,
 	VF_CL_VIEWANGLES_Z = 36,
 
+#if !defined(__MINGW32__)
+#if !defined(__GNUC__)
 #pragma message("FIXME: add cshift")
+#endif
+#endif
+
 
 	//33-36 used by DP...
 	VF_PERSPECTIVE = 200,

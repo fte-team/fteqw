@@ -183,6 +183,7 @@ void Key_SetBinding (int keynum, int modifier, char *binding, int cmdlevel);
 void Key_ClearStates (void);
 
 qboolean Key_GetConsoleSelectionBox(int *sx, int *sy, int *ex, int *ey);
+qboolean Key_MouseShouldBeFree(void);
 
 #endif
 

@@ -6,11 +6,12 @@
 texid_t missing_texture;
 static mpic_t *conback;
 static mpic_t *draw_backtile;
-static mpic_t *draw_fill, *draw_fill_trans;
+static shader_t *shader_draw_fill, *shader_draw_fill_trans;
 mpic_t		*draw_disc;
 
 shader_t *shader_brighten;
 shader_t *shader_polyblend;
+shader_t *shader_menutint;
 
 static mesh_t	draw_mesh;
 static vecV_t	draw_mesh_xyz[4];
@@ -91,14 +92,14 @@ void R2D_Init(void)
 	if (!draw_backtile)
 		draw_backtile = Draw_SafeCachePic ("gfx/menu/backtile.lmp");
 
-	draw_fill = R_RegisterShader("fill_opaque",
+	shader_draw_fill = R_RegisterShader("fill_opaque",
 		"{\n"
 			"{\n"
 				"map $whiteimage\n"
 				"rgbgen vertex\n"
 			"}\n"
 		"}\n");
-	draw_fill_trans = R_RegisterShader("fill_trans",
+	shader_draw_fill_trans = R_RegisterShader("fill_trans",
 		"{\n"
 			"{\n"
 				"map $whiteimage\n"
@@ -125,6 +126,60 @@ void R2D_Init(void)
 				"rgbgen vertex\n"
 				"alphagen vertex\n"
 			"}\n"
+		"}\n"
+	);
+	shader_menutint = R_RegisterShader("menutint_glsl",
+		"{\n"
+			"if $glsl && gl_menutint_shader != 0\n"
+			"[\n"
+				"glslprogram\n"
+				"{\n"
+			"#ifdef VERTEX_SHADER\n"
+			"\
+					varying vec2 texcoord;\
+					uniform vec3 rendertexturescale;\
+					void main(void)\
+					{\
+						texcoord.x = gl_MultiTexCoord0.x*rendertexturescale.x;\
+						texcoord.y = (1-gl_MultiTexCoord0.y)*rendertexturescale.y;\
+						gl_Position = ftransform();\
+					}\
+			\n"
+			"#endif\n"
+			"#ifdef FRAGMENT_SHADER\n"
+			"\
+					varying vec2 texcoord;\
+					uniform vec3 colorparam;\
+					uniform sampler2D source;\
+					uniform int invert;\
+					const vec3 lumfactors = vec3(0.299, 0.587, 0.114);\
+					const vec3 invertvec = vec3(1.0, 1.0, 1.0);\
+					void main(void)\
+					{\
+						vec3 texcolor = texture2D(source, texcoord).rgb;\
+						float luminance = dot(lumfactors, texcolor);\
+						texcolor = vec3(luminance, luminance, luminance);\
+						texcolor *= colorparam;\
+						texcolor = (invert > 0) ? (invertvec - texcolor) : texcolor;\
+						gl_FragColor = vec4(texcolor, 1.0);\
+					}\n"
+			"#endif\n"
+				"}\n"
+				"param cvari r_menutint_inverse invert\n"
+				"param cvar3f r_menutint colorparam\n"
+				"param texture 0 source\n"
+				"param rendertexturescale rendertexturescale\n"
+
+				"{\n"
+					"map $currentrender\n"
+				"}\n"
+			"][\n"
+				"{\n"
+					"map $whitetexture\n"
+					"blendfunc gl_dst_color gl_zero\n"
+					"rgbgen const $r_menutint\n"
+				"}\n"
+			"]\n"
 		"}\n"
 	);
 
@@ -234,9 +289,9 @@ void R2D_FillBlock(int x, int y, int w, int h)
 	draw_mesh_xyz[3][1] = y+h;
 
 	if (draw_mesh_colors[0][3] != 1)
-		BE_DrawMesh_Single(draw_fill_trans, &draw_mesh, NULL, &draw_fill_trans->defaulttextures);
+		BE_DrawMesh_Single(shader_draw_fill_trans, &draw_mesh, NULL, &shader_draw_fill_trans->defaulttextures);
 	else
-		BE_DrawMesh_Single(draw_fill, &draw_mesh, NULL, &draw_fill->defaulttextures);
+		BE_DrawMesh_Single(shader_draw_fill, &draw_mesh, NULL, &shader_draw_fill->defaulttextures);
 }
 
 void R2D_ScalePic (int x, int y, int width, int height, mpic_t *pic)
@@ -567,4 +622,13 @@ void R2D_BrightenScreen (void)
 
 	RSpeedEnd(RSPEED_PALETTEFLASHES);
 }
+
+//for menus
+void R2D_FadeScreen (void)
+{
+	R2D_ScalePic(0, 0, vid.width, vid.height, shader_menutint);
+
+	Sbar_Changed();
+}
+
 #endif

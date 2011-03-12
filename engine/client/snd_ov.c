@@ -74,8 +74,6 @@ int OV_DecodeSome(sfx_t *s, int minlength);
 void OV_CancelDecoder(sfx_t *s);
 qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuffer_t *buffer);
 
-qbyte *COM_LoadFile (char *path, int usehunk);
-
 sfxcache_t *S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
 	//char	namebuffer[MAX_OSPATH]; //unreferenced

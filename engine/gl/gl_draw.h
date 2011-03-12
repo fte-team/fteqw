@@ -30,7 +30,6 @@ void GLDraw_BeginDisc (void);
 void GLDraw_EndDisc (void);
 void GLDraw_FillRGB (int x, int y, int w, int h, float r, float g, float b);
 void GLDraw_Fill (int x, int y, int w, int h, unsigned int c);
-void GLDraw_FadeScreen (void);
 void GLDraw_Crosshair(void);
 void GLDraw_LevelPic (mpic_t *pic);
 
@@ -44,6 +43,7 @@ void R2D_SubPic(int x, int y, int width, int height, mpic_t *pic, int srcx, int 
 void R2D_ConsoleBackground (int firstline, int lastline, qboolean forceopaque);
 void R2D_EditorBackground (void);
 void R2D_TileClear (int x, int y, int w, int h);
+void R2D_FadeScreen (void);
 void R2D_Init(void);
 void R2D_Shutdown(void);
 

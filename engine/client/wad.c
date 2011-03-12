@@ -65,7 +65,6 @@ void W_CleanupName (const char *in, char *out)
 W_LoadWadFile
 ====================
 */
-qbyte *COM_LoadFile (char *path, int usehunk);
 void W_LoadWadFile (char *filename)
 {
 	lumpinfo_t		*lump_p;

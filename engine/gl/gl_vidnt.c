@@ -621,7 +621,7 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 	return true;
 }
 
-extern int gammaworks;
+extern qboolean gammaworks;
 static void ReleaseGL(void);
 static qboolean CreateMainWindow(rendererstate_t *info)
 {

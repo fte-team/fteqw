@@ -175,6 +175,42 @@ enum
 };
 IDirect3DVertexDeclaration9 *vertexdecls[D3D_VDEC_MAX];
 
+static void BE_ApplyTMUState(unsigned int tu, unsigned int flags)
+{
+	if ((flags ^ shaderstate.tmuflags[tu]) & SHADER_PASS_CLAMP)
+	{
+		shaderstate.tmuflags[tu] ^= SHADER_PASS_CLAMP;
+		if (flags & SHADER_PASS_CLAMP)
+		{
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_ADDRESSW, D3DTADDRESS_CLAMP);
+		}
+		else
+		{
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_ADDRESSU, D3DTADDRESS_WRAP);
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_ADDRESSV, D3DTADDRESS_WRAP);
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_ADDRESSW, D3DTADDRESS_WRAP);
+		}
+	}
+	if ((flags ^ shaderstate.tmuflags[tu]) & SHADER_PASS_NOMIPMAP)
+	{
+		shaderstate.tmuflags[tu] ^= SHADER_PASS_NOMIPMAP;
+		/*lightmaps don't use mipmaps*/
+		if (flags & SHADER_PASS_NOMIPMAP)
+		{
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+		}
+		else
+		{
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR);
+			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+		}
+	}
+}
 
 void D3DBE_Reset(qboolean before)
 {
@@ -289,42 +325,11 @@ void D3DBE_Reset(qboolean before)
 			IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, shaderstate.dynst_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &shaderstate.dynst_buff[tmu], NULL);
 		IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, shaderstate.dyncol_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &shaderstate.dyncol_buff, NULL);
 		IDirect3DDevice9_CreateIndexBuffer(pD3DDev9, shaderstate.dynidx_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, D3DFMT_QINDEX, D3DPOOL_DEFAULT, &shaderstate.dynidx_buff, NULL);
-	}
-}
-
-static void BE_ApplyTMUState(unsigned int tu, unsigned int flags)
-{
-	if ((flags ^ shaderstate.tmuflags[tu]) & SHADER_PASS_CLAMP)
-	{
-		shaderstate.tmuflags[tu] ^= SHADER_PASS_CLAMP;
-		if (flags & SHADER_PASS_CLAMP)
+	
+		for (i = 0; i < MAX_TMUS; i++)
 		{
-			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
-			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
-			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_ADDRESSW, D3DTADDRESS_CLAMP);
-		}
-		else
-		{
-			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_ADDRESSU, D3DTADDRESS_WRAP);
-			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_ADDRESSV, D3DTADDRESS_WRAP);
-			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_ADDRESSW, D3DTADDRESS_WRAP);
-		}
-	}
-	if ((flags ^ shaderstate.tmuflags[tu]) & SHADER_PASS_NOMIPMAP)
-	{
-		shaderstate.tmuflags[tu] ^= SHADER_PASS_NOMIPMAP;
-		/*lightmaps don't use mipmaps*/
-		if (flags & SHADER_PASS_NOMIPMAP)
-		{
-			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
-			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MIPFILTER, D3DTEXF_NONE);
-			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
-		}
-		else
-		{
-			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
-			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR);
-			IDirect3DDevice9_SetSamplerState(pD3DDev9, tu, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+			shaderstate.tmuflags[i] = ~0;
+			BE_ApplyTMUState(i, 0);
 		}
 	}
 }
@@ -479,11 +484,6 @@ void D3DBE_Init(void)
 	shaderstate.shaderbits = ~0;
 	D3DBE_ApplyShaderBits(0);
 
-	for (i = 0; i < MAX_TMUS; i++)
-	{
-		shaderstate.tmuflags[i] = ~0;
-		BE_ApplyTMUState(i, 0);
-	}
 }
 
 static void allocvertexbuffer(IDirect3DVertexBuffer9 *buff, unsigned int bmaxsize, unsigned int *offset, void **data, unsigned int bytes)
@@ -666,9 +666,17 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 	{
 		if (shaderstate.passsinglecolour)
 		{
-			IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG2, D3DTA_CONSTANT);
-			IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG2, D3DTA_CONSTANT);
-			IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_CONSTANT, shaderstate.passcolour);
+			if (shaderstate.passcolour == D3DCOLOR_RGBA(255,255,255,255))
+			{
+				IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+				IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+			}
+			else
+			{
+				IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_COLORARG2, D3DTA_CONSTANT);
+				IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_ALPHAARG2, D3DTA_CONSTANT);
+				IDirect3DDevice9_SetTextureStageState(pD3DDev9, tu, D3DTSS_CONSTANT, shaderstate.passcolour);
+			}
 		}
 		else
 		{
@@ -736,11 +744,10 @@ static void colourgenbyte(const shaderpass_t *pass, int cnt, const byte_vec4_t *
 		break;
 	case RGB_GEN_IDENTITY_LIGHTING:
 		//compensate for overbrights
+		block = D3DCOLOR_RGBA(255, 255, 255, 255); //shaderstate.identitylighting
 		while((cnt)--)
 		{
-			dst[cnt][0] = 255;//shaderstate.identitylighting;
-			dst[cnt][1] = 255;//shaderstate.identitylighting;
-			dst[cnt][2] = 255;//shaderstate.identitylighting;
+			((D3DCOLOR*)dst)[cnt] = block;
 		}
 		break;
 	default:

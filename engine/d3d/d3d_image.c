@@ -103,6 +103,29 @@ static void D3D9_RoundDimensions(int *scaled_width, int *scaled_height, qboolean
 		*scaled_height = 1;
 }
 
+#if 0
+static void D3D_MipMap (qbyte *out, int outwidth, int outheight, qbyte *in, int inwidth, int inheight)
+{
+        int             i, j;
+        qbyte   *inrow;
+
+        //with npot
+        int rowwidth = inwidth*4; //rowwidth is the byte width of the input
+        inrow = in;
+
+        for (i=0 ; i<outheight ; i++, inrow+=rowwidth*2)
+        {
+                for (in = inrow, j=0 ; j<outwidth ; j++, out+=4, in+=8)
+                {
+                        out[0] = (in[0] + in[4] + in[rowwidth+0] + in[rowwidth+4])>>2;
+                        out[1] = (in[1] + in[5] + in[rowwidth+1] + in[rowwidth+5])>>2;
+                        out[2] = (in[2] + in[6] + in[rowwidth+2] + in[rowwidth+6])>>2;
+                        out[3] = (in[3] + in[7] + in[rowwidth+3] + in[rowwidth+7])>>2;
+                }
+        }
+}
+#endif
+
 static void Upload_Texture_32(LPDIRECT3DTEXTURE9 tex, unsigned int *data, int width, int height, unsigned int flags)
 {
 	int x, y;
@@ -110,32 +133,26 @@ static void Upload_Texture_32(LPDIRECT3DTEXTURE9 tex, unsigned int *data, int wi
 	unsigned char swapbuf[4];
 	unsigned char swapbuf2[4];
 	D3DLOCKED_RECT lock;
+	int i;
 
 	D3DSURFACE_DESC desc;
 	IDirect3DTexture9_GetLevelDesc(tex, 0, &desc);
 
-	IDirect3DTexture9_LockRect(tex, 0, &lock, NULL, D3DLOCK_NOSYSLOCK|D3DLOCK_READONLY);
+	IDirect3DTexture9_LockRect(tex, 0, &lock, NULL, D3DLOCK_NOSYSLOCK|D3DLOCK_DISCARD);
 
 	if (width == desc.Width && height == desc.Height)
 	{
-//		if (desc.lPitch == twidth*4)
-//		{
-//			memcpy(desc.lpSurface, data, width*height*4);
-//		}
-//		else
+		for (y = 0; y < height; y++)
 		{
-			for (y = 0; y < height; y++)
+			dest = (unsigned int *)((char *)lock.pBits + lock.Pitch*y);
+			for (x = 0; x < width; x++)
 			{
-				dest = (unsigned int *)((char *)lock.pBits + lock.Pitch*y);
-				for (x = 0; x < width; x++)
-				{
-					*(unsigned int*)swapbuf2 = *(unsigned int*)swapbuf = data[x];
-					swapbuf[0] = swapbuf2[2];
-					swapbuf[2] = swapbuf2[0];
-					dest[x] = *(unsigned int*)swapbuf;
-				}
-				data += width;
+				*(unsigned int*)swapbuf2 = *(unsigned int*)swapbuf = data[x];
+				swapbuf[0] = swapbuf2[2];
+				swapbuf[2] = swapbuf2[0];
+				dest[x] = *(unsigned int*)swapbuf;
 			}
+			data += width;
 		}
 	}
 	else
@@ -157,17 +174,27 @@ static void Upload_Texture_32(LPDIRECT3DTEXTURE9 tex, unsigned int *data, int wi
 				row[x] = *(unsigned int*)swapbuf;
 			}
 		}
-
-
-
-		//mimic opengl and draw it white
-//		memset(desc.lpSurface, 255, twidth*theight*4);
 	}
 
-	IDirect3DTexture9_UnlockRect(tex, 0);
-
+#if 0 //D3DUSAGE_AUTOGENMIPMAP so this isn't needed
 	if (!(flags & IF_NOMIPMAP))
-		IDirect3DBaseTexture9_GenerateMipSubLevels(tex);
+	{
+		int max = IDirect3DTexture9_GetLevelCount(tex);
+		for (i = 1; i < max; i++)
+		{
+			width = desc.Width;
+			height = desc.Height;
+			data = lock.pBits;
+			IDirect3DTexture9_LockRect(tex, i, &lock, NULL, D3DLOCK_NOSYSLOCK|D3DLOCK_DISCARD);
+		        IDirect3DTexture9_GetLevelDesc(tex, i, &desc);
+			D3D_MipMap(lock.pBits, desc.Width, desc.Height, data, width, height);
+			IDirect3DTexture9_UnlockRect(tex, i-1);
+		}
+		IDirect3DTexture9_UnlockRect(tex, i-1);
+	}
+	else
+#endif
+		IDirect3DTexture9_UnlockRect(tex, 0);
 }
 
 //create a basic shader from a 32bit image
@@ -190,7 +217,7 @@ static LPDIRECT3DBASETEXTURE9 D3D9_LoadTexture_32(d3dtexture_t *tex, unsigned in
 
 	newsurf = tex->tex.ptr;
 	if (!newsurf)
-		IDirect3DDevice9_CreateTexture(pD3DDev9, nwidth, nheight, 0, ((flags & IF_NOMIPMAP)?0:D3DUSAGE_AUTOGENMIPMAP), D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &newsurf, NULL);
+		IDirect3DDevice9_CreateTexture(pD3DDev9, nwidth, nheight, (flags & IF_NOMIPMAP)?1:0, ((flags & IF_NOMIPMAP)?0:D3DUSAGE_AUTOGENMIPMAP), D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &newsurf, NULL);
 
 	if (!newsurf)
 		return NULL;

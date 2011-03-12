@@ -244,8 +244,8 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 	if ( uMsg == uiWheelMessage )
 		uMsg = WM_MOUSEWHEEL;
 
-    switch (uMsg)
-    {
+	switch (uMsg)
+	{
 		case WM_KILLFOCUS:
 			if (modestate == MS_FULLDIB)
 				ShowWindow(mainwindow, SW_SHOWMINNOACTIVE);
@@ -347,7 +347,7 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 				IN_RawInput_Read((HANDLE)lParam);
 			break;
 
-    	case WM_SIZE:
+		case WM_SIZE:
 			if (!vid_initializing)
 			{
 				extern cvar_t vid_conautoscale, vid_conwidth;
@@ -365,9 +365,9 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 				Cvar_ForceCallback(&vid_conautoscale);
 				Cvar_ForceCallback(&vid_conwidth);
 			}
-            break;
+			break;
 
-   	    case WM_CLOSE:
+			case WM_CLOSE:
 			if (!vid_initializing)
 				if (MessageBox (mainwindow, "Are you sure you want to quit?", "Confirm Exit",
 							MB_YESNO | MB_SETFOREGROUND | MB_ICONQUESTION) == IDYES)
@@ -604,7 +604,7 @@ static void initD3D9(HWND hWnd, rendererstate_t *info)
 
 	numadaptors = IDirect3D9_GetAdapterCount(pD3D);
 	for (i = 0; i < numadaptors; i++)
-	{	//try each adaptor in turn until we get one that actually works
+	{	//NVIDIA's debug app requires that we use a specific device
 		memset(&inf, 0, sizeof(inf));
 		err = IDirect3D9_GetAdapterIdentifier(pD3D, i, 0, &inf);
 		if (strstr(inf.Description, "PerfHUD"))
@@ -681,8 +681,6 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 	}
 
 	ShowWindow(mainwindow, SW_NORMAL);
-	//IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET, 0xffffffff, 1, 0);
-	//IDirect3DDevice9_Present(pD3DDev9, NULL, NULL, NULL, NULL);
 
 	IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_TARGET, D3DCOLOR_XRGB(0, 0, 0), 1.0f, 0);
 	IDirect3DDevice9_BeginScene(pD3DDev9);
@@ -701,9 +699,6 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 
 	vid_initializing = false;
 
-	//IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRENDERSTATE_DITHERENABLE, FALSE);
-	//IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRENDERSTATE_SPECULARENABLE, FALSE);
-	//IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRENDERSTATE_TEXTUREPERSPECTIVE, TRUE);
 	IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_LIGHTING, FALSE);
 
 	GetWindowRect(mainwindow, &window_rect);
@@ -1043,9 +1038,6 @@ static void	(D3D9_Draw_Fill)				(int x, int y, int w, int h, unsigned int c)
 static void	(D3D9_Draw_FillRGB)				(int x, int y, int w, int h, float r, float g, float b)
 {
 }
-static void	(D3D9_Draw_FadeScreen)			(void)
-{
-}
 static void	(D3D9_Draw_BeginDisc)			(void);
 static void	(D3D9_Draw_EndDisc)				(void);
 
@@ -1186,7 +1178,7 @@ rendererinfo_t d3drendererinfo =
 	R2D_TileClear,
 	D3D9_Draw_Fill,
 	D3D9_Draw_FillRGB,
-	D3D9_Draw_FadeScreen,
+	R2D_FadeScreen,
 	D3D9_Draw_BeginDisc,
 	D3D9_Draw_EndDisc,
 

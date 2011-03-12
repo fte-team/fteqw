@@ -396,6 +396,8 @@ qbyte *FS_LoadMallocFile (const char *path);
 int FS_LoadFile(char *name, void **file);
 void FS_FreeFile(void *file);
 
+qbyte *COM_LoadFile (const char *path, int usehunk);
+
 qboolean COM_LoadMapPackFile(const char *name, int offset);
 void COM_FlushTempoaryPacks(void);
 

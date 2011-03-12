@@ -19,8 +19,6 @@ typedef struct {
 char	m_filenames[MAX_SAVEGAMES][SAVEGAME_COMMENT_LENGTH+1];
 int		loadable[MAX_SAVEGAMES];
 
-menubutton_t *VARGS MC_AddConsoleCommandf(menu_t *menu, int x, int y, char *text, char *command, ...);
-
 void M_ScanSaves (void)
 {
 	int		i, j;

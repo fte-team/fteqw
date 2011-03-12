@@ -11,8 +11,6 @@ char QCC_copyright[1024];
 int QCC_packid;
 char QCC_Packname[5][128];
 
-extern QCC_def_t *functemps;		//floats/strings/funcs/ents...
-
 extern int optres_test1;
 extern int optres_test2;
 
@@ -2965,7 +2963,7 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 
 	numtemps = 0;
 
-	functemps=NULL;
+	QCC_PurgeTemps();
 
 	strings = (void *)qccHunkAlloc(sizeof(char) * MAX_STRINGS);
 	strofs = 1;

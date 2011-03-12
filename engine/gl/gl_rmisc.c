@@ -446,7 +446,7 @@ extern cvar_t gl_bump, v_contrast, r_drawflat;
 extern cvar_t r_stains, r_stainfadetime, r_stainfadeammount;
 
 // callback defines
-extern cvar_t gl_font, r_menutint;
+extern cvar_t gl_font;
 extern cvar_t vid_conautoscale, vid_conheight, vid_conwidth;
 extern cvar_t crosshair, crosshairimage, crosshaircolor, r_skyboxname;
 extern cvar_t r_floorcolour, r_wallcolour, r_floortexture, r_walltexture;
@@ -454,7 +454,6 @@ extern cvar_t r_fastskycolour;
 void GLCrosshairimage_Callback(struct cvar_s *var, char *oldvalue);
 void GLCrosshair_Callback(struct cvar_s *var, char *oldvalue);
 void GLCrosshaircolor_Callback(struct cvar_s *var, char *oldvalue);
-void GLR_Menutint_Callback (struct cvar_s *var, char *oldvalue);
 void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue);
 
 void GLR_DeInit (void)
@@ -469,7 +468,6 @@ void GLR_DeInit (void)
 	Cvar_Unhook(&crosshairimage);
 	Cvar_Unhook(&crosshaircolor);
 	Cvar_Unhook(&r_skyboxname);
-	Cvar_Unhook(&r_menutint);
 	Cvar_Unhook(&vid_conautoscale);
 	Cvar_Unhook(&vid_conheight);
 	Cvar_Unhook(&vid_conwidth);
@@ -500,7 +498,6 @@ void GLR_Init (void)
 	Cvar_Hook(&crosshair, GLCrosshair_Callback);
 	Cvar_Hook(&crosshairimage, GLCrosshairimage_Callback);
 	Cvar_Hook(&crosshaircolor, GLCrosshaircolor_Callback);
-	Cvar_Hook(&r_menutint, GLR_Menutint_Callback);
 //	Cvar_Hook(&r_floorcolour, GLR_Floorcolour_Callback);
 //	Cvar_Hook(&r_fastskycolour, GLR_Fastskycolour_Callback);
 //	Cvar_Hook(&r_wallcolour, GLR_Wallcolour_Callback);

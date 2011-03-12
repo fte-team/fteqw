@@ -155,7 +155,6 @@ char *SaveEnts(progfuncs_t *progfuncs, char *mem, int *size, int mode);
 int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags);
 char *SaveEnt (progfuncs_t *progfuncs, char *buf, int *size, struct edict_s *ed);
 struct edict_s *RestoreEnt (progfuncs_t *progfuncs, char *buf, int *size, struct edict_s *ed);
-char *PF_VarString (int	first);
 void PR_StackTrace (progfuncs_t *progfuncs);
 
 extern int noextensions;

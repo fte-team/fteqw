@@ -27,11 +27,6 @@ Encode a client frame onto the network channel
 =============================================================================
 */
 
-void SV_Q2BSP_FatPVS (vec3_t org);
-
-
-
-
 /*
 ==================
 MSG_WriteDeltaEntity

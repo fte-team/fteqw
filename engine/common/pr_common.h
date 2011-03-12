@@ -267,7 +267,6 @@ void QCBUILTIN PF_buf_cvarlist  (progfuncs_t *prinst, struct globalvars_s *pr_gl
 void QCBUILTIN PF_whichpack (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void PF_fclose_progs (progfuncs_t *prinst);
-char *PF_VarString (progfuncs_t *prinst, int	first, struct globalvars_s *pr_globals);
 int QCEditor (progfuncs_t *prinst, char *filename, int line, int nump, char **parms);
 void PF_Common_RegisterCvars(void);
 

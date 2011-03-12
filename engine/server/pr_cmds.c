@@ -1896,8 +1896,6 @@ static void SV_CustomTEnt_Spawn(int index, float *org, float *org2, int count, f
 
 
 int externcallsdepth;
-void PR_MoveParms(int progs1, int progs2);	//from 2 to 1
-
 
 float PR_LoadAditionalProgs(char *s);
 static void QCBUILTIN PF_addprogs(progfuncs_t *prinst, globalvars_t *pr_globals)

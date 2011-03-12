@@ -230,6 +230,24 @@ static qboolean Shader_EvaluateCondition(char **ptr)
 		else if (!Q_stricmp(token, "normalmap") )
 			conditiontrue = conditiontrue == !!gl_bump.value;
 
+		else if (!Q_stricmp(token, "glsl") )
+		{
+#ifdef GLQUAKE
+			conditiontrue = conditiontrue == ((qrenderer == QR_OPENGL) && gl_config.arb_shader_objects);
+#else
+			conditiontrue = conditiontrue == false;
+#endif
+		}
+		else if (!Q_stricmp(token, "hlsl") )
+		{
+#ifdef D3DQUAKE
+			conditiontrue = conditiontrue == false;//((qrenderer == QR_DIRECT3D) && gl_config.arb_shader_objects);
+#else
+			conditiontrue = conditiontrue == false;
+#endif
+		}
+
+
 // GCC hates these within if statements "error: expected '}' before 'else'"
 #ifdef _MSC_VER
 #pragma message("shader fixme")
@@ -244,9 +262,11 @@ static qboolean Shader_EvaluateCondition(char **ptr)
 			conditiontrue = conditiontrue == false;
 		else if (!Q_stricmp(token, "loweroverlay") )
 			conditiontrue = conditiontrue == false;
-
 		else
+		{
+			Con_Printf("Unrecognised builtin shader condition '%s'\n", token);
 			conditiontrue = conditiontrue == false;
+		}
 	}
 	else
 	{
@@ -280,6 +300,11 @@ static qboolean Shader_EvaluateCondition(char **ptr)
 				conditiontrue = conditiontrue == !!cv->value;
 		}
 	}
+	token = COM_ParseExt ( ptr, false );
+	if (!strcmp(token, "&&"))
+		return Shader_EvaluateCondition(ptr) && conditiontrue;
+	if (!strcmp(token, "||"))
+		return Shader_EvaluateCondition(ptr) || conditiontrue;
 
 	return conditiontrue;
 }
@@ -1588,15 +1613,15 @@ static void Shader_Translucent(shader_t *shader, shaderpass_t *pass, char **ptr)
 
 static shaderkey_t shaderkeys[] =
 {
-    {"cull",			Shader_Cull},
-    {"skyparms",		Shader_SkyParms},
+	{"cull",			Shader_Cull},
+	{"skyparms",		Shader_SkyParms},
 	{"fogparms",		Shader_FogParms},
 	{"surfaceparm",		Shader_SurfaceParm},
-    {"nomipmaps",		Shader_NoMipMaps},
+	{"nomipmaps",		Shader_NoMipMaps},
 	{"nopicmip",		Shader_NoPicMip},
 	{"polygonoffset",	Shader_PolygonOffset},
 	{"sort",			Shader_Sort},
-    {"deformvertexes",	Shader_DeformVertexes},
+	{"deformvertexes",	Shader_DeformVertexes},
 	{"portal",			Shader_Portal},
 	{"entitymergable",	Shader_EntityMergable},
 
@@ -1616,7 +1641,7 @@ static shaderkey_t shaderkeys[] =
 	{"nooverlays",		NULL},
 	{"nofragment",		NULL},
 
-    {NULL,				NULL}
+	{NULL,				NULL}
 };
 
 // ===============================================================
@@ -1698,24 +1723,24 @@ static void Shaderpass_Map (shader_t *shader, shaderpass_t *pass, char **ptr)
 
 		pass->tcgen = TC_GEN_BASE;
 		pass->anim_frames[0] = Shader_FindImage (token, flags);
-    }
+	}
 }
 
 static void Shaderpass_AnimMap (shader_t *shader, shaderpass_t *pass, char **ptr)
 {
-    int flags;
+	int flags;
 	char *token;
 	texid_t image;
 
 	flags = Shader_SetImageFlags (shader);
 
 	pass->tcgen = TC_GEN_BASE;
-    pass->flags |= SHADER_PASS_ANIMMAP;
+	pass->flags |= SHADER_PASS_ANIMMAP;
 	pass->texgen = T_GEN_ANIMMAP;
-    pass->anim_fps = (int)Shader_ParseFloat (ptr);
+	pass->anim_fps = (int)Shader_ParseFloat (ptr);
 	pass->anim_numframes = 0;
 
-    for ( ; ; )
+	for ( ; ; )
 	{
 		token = Shader_ParseString(ptr);
 		if (!token[0])
@@ -1996,7 +2021,7 @@ static void Shaderpass_BlendFunc (shader_t *shader, shaderpass_t *pass, char **p
 		if (*token == ',')
 			token = Shader_ParseString (ptr);
 		pass->shaderbits |= Shader_BlendFactor(token, true);
-    }
+	}
 }
 
 static void Shaderpass_AlphaFunc (shader_t *shader, shaderpass_t *pass, char **ptr)
@@ -2006,7 +2031,7 @@ static void Shaderpass_AlphaFunc (shader_t *shader, shaderpass_t *pass, char **p
 	pass->shaderbits &= ~SBITS_ATEST_BITS;
 
 	token = Shader_ParseString (ptr);
-    if (!Q_stricmp (token, "gt0"))
+	if (!Q_stricmp (token, "gt0"))
 	{
 		pass->shaderbits = SBITS_ATEST_GT0;
 	}
@@ -2017,7 +2042,7 @@ static void Shaderpass_AlphaFunc (shader_t *shader, shaderpass_t *pass, char **p
 	else if (!Q_stricmp (token, "ge128"))
 	{
 		pass->shaderbits = SBITS_ATEST_GE128;
-    }
+	}
 }
 
 static void Shaderpass_DepthFunc (shader_t *shader, shaderpass_t *pass, char **ptr)
@@ -2025,9 +2050,9 @@ static void Shaderpass_DepthFunc (shader_t *shader, shaderpass_t *pass, char **p
 	char *token;
 
 	token = Shader_ParseString (ptr);
-    if (!Q_stricmp (token, "equal"))
+	if (!Q_stricmp (token, "equal"))
 		pass->shaderbits |= SBITS_MISC_DEPTHEQUALONLY;
-    else if (!Q_stricmp (token, "lequal"))
+	else if (!Q_stricmp (token, "lequal"))
 		pass->shaderbits &= ~SBITS_MISC_DEPTHEQUALONLY;
 	else
 		Con_DPrintf("Invalid depth func %s\n", token);
@@ -2035,8 +2060,8 @@ static void Shaderpass_DepthFunc (shader_t *shader, shaderpass_t *pass, char **p
 
 static void Shaderpass_DepthWrite (shader_t *shader, shaderpass_t *pass, char **ptr)
 {
-    shader->flags |= SHADER_DEPTHWRITE;
-    pass->shaderbits |= SBITS_MISC_DEPTHWRITE;
+	shader->flags |= SHADER_DEPTHWRITE;
+	pass->shaderbits |= SBITS_MISC_DEPTHWRITE;
 }
 
 static void Shaderpass_TcMod (shader_t *shader, shaderpass_t *pass, char **ptr)
@@ -2288,25 +2313,25 @@ static void Shaderpass_CubeMap(shader_t *shader, shaderpass_t *pass, char **ptr)
 
 static shaderkey_t shaderpasskeys[] =
 {
-    {"rgbgen",		Shaderpass_RGBGen},
-    {"blendfunc",	Shaderpass_BlendFunc},
-    {"depthfunc",	Shaderpass_DepthFunc},
-    {"depthwrite",	Shaderpass_DepthWrite},
-    {"alphafunc",	Shaderpass_AlphaFunc},
-    {"tcmod",		Shaderpass_TcMod},
-    {"map",			Shaderpass_Map},
-    {"animmap",		Shaderpass_AnimMap},
-    {"clampmap",	Shaderpass_ClampMap},
-	{"videomap",	Shaderpass_VideoMap},
-    {"tcgen",		Shaderpass_TcGen},
-	{"envmap",		Shaderpass_EnvMap},//for alienarena
-	{"nolightmap",	Shaderpass_NoLightMap},//for alienarena
-	{"scale",		Shaderpass_Scale},//for alienarena
-	{"scroll",		Shaderpass_Scroll},//for alienarena
-	{"alphagen",	Shaderpass_AlphaGen},
-	{"alphashift",	Shaderpass_AlphaShift},//for alienarena
-	{"alphamask",	Shaderpass_AlphaMask},//for alienarena
-	{"detail",		Shaderpass_Detail},
+	{"rgbgen",		Shaderpass_RGBGen },
+	{"blendfunc",	Shaderpass_BlendFunc },
+	{"depthfunc",	Shaderpass_DepthFunc },
+	{"depthwrite",	Shaderpass_DepthWrite },
+	{"alphafunc",	Shaderpass_AlphaFunc },
+	{"tcmod",		Shaderpass_TcMod },
+	{"map",			Shaderpass_Map },
+	{"animmap",		Shaderpass_AnimMap },
+	{"clampmap",	Shaderpass_ClampMap },
+	{"videomap",	Shaderpass_VideoMap },
+	{"tcgen",		Shaderpass_TcGen },
+	{"envmap",		Shaderpass_EnvMap },//for alienarena
+	{"nolightmap",	Shaderpass_NoLightMap },//for alienarena
+	{"scale",		Shaderpass_Scale },//for alienarena
+	{"scroll",		Shaderpass_Scroll },//for alienarena
+	{"alphagen",	Shaderpass_AlphaGen },
+	{"alphashift",	Shaderpass_AlphaShift },//for alienarena
+	{"alphamask",	Shaderpass_AlphaMask },//for alienarena
+	{"detail",		Shaderpass_Detail },
 
 	/*doom3 compat*/
 	{"blend",		Shaderpass_BlendFunc},
@@ -2318,7 +2343,7 @@ static shaderkey_t shaderpasskeys[] =
 	{"alphatest",	Shaderpass_AlphaTest},
 	{"texgen",		Shaderpass_TexGen},
 	{"cameracubemap",Shaderpass_CubeMap},
-    {NULL,			NULL}
+	{NULL,			NULL}
 };
 
 // ===============================================================
@@ -2406,10 +2431,10 @@ static void Shader_MakeCache ( char *path )
 char *Shader_Skip ( char *ptr )
 {
 	char *tok;
-    int brace_count;
+	int brace_count;
 
     // Opening brace
-    tok = COM_ParseExt ( &ptr, true );
+	tok = COM_ParseExt ( &ptr, true );
 
 	if (!ptr)
 		return NULL;
@@ -2419,8 +2444,8 @@ char *Shader_Skip ( char *ptr )
 		tok = COM_ParseExt ( &ptr, true );
 	}
 
-    for (brace_count = 1; brace_count > 0 ; ptr++)
-    {
+	for (brace_count = 1; brace_count > 0 ; ptr++)
+	{
 		tok = COM_ParseExt ( &ptr, true );
 
 		if ( !tok[0] )
@@ -2433,7 +2458,7 @@ char *Shader_Skip ( char *ptr )
 		{
 			brace_count--;
 		}
-    }
+	}
 
 	return ptr;
 }
@@ -2591,7 +2616,7 @@ void Shader_SetBlendmode (shaderpass_t *pass)
 
 void Shader_Readpass (shader_t *shader, char **ptr)
 {
-    char *token;
+	char *token;
 	shaderpass_t *pass;
 	qboolean ignore;
 	static shader_t dummy;
@@ -2610,10 +2635,10 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 	}
 
     // Set defaults
-    pass->flags = 0;
-    pass->anim_frames[0] = r_nulltex;
+	pass->flags = 0;
+	pass->anim_frames[0] = r_nulltex;
 	pass->anim_numframes = 0;
-    pass->rgbgen = RGB_GEN_UNKNOWN;
+	pass->rgbgen = RGB_GEN_UNKNOWN;
 	pass->alphagen = ALPHA_GEN_IDENTITY;
 	pass->tcgen = TC_GEN_BASE;
 	pass->numtcmods = 0;
@@ -2636,6 +2661,7 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 		}
 		else if (!Q_stricmp(token, "if"))
 		{
+			int nest = 0;
 			qboolean conditionistrue = Shader_EvaluateCondition(ptr);
 
 			while (*ptr)
@@ -2644,7 +2670,18 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 				if ( !token[0] )
 					continue;
 				else if (token[0] == ']')
-					break;
+				{
+					if (--nest <= 0)
+					{
+						nest++;
+						if (!strcmp(token, "]["))
+							conditionistrue = !conditionistrue;
+						else
+							break;
+					}
+				}
+				else if (token[0] == '[')
+					nest++;
 				else if (conditionistrue)
 				{
 					Shader_Parsetok (shader, pass, shaderpasskeys, token, ptr);
@@ -2706,7 +2743,7 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 
 static qboolean Shader_Parsetok (shader_t *shader, shaderpass_t *pass, shaderkey_t *keys, char *token, char **ptr)
 {
-    shaderkey_t *key;
+	shaderkey_t *key;
 
 	for (key = keys; key->keyword != NULL; key++)
 	{
@@ -3487,8 +3524,7 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 				"}\n"
 			);
 		}
-#ifdef GLQUAKE
-		else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects)
+		else
 		{
 			builtin = (
 				"{\n"
@@ -3499,38 +3535,10 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 						"tcmod turb 0 0 3 0.1\n"
 						"if r_wateralpha != 1\n"
 						"[\n"
+							"alphagen const $r_wateralpha\n"
 							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
 						"]\n"
 					"}\n"
-					"surfaceparm nodlight\n"
-				"}\n"
-			);
-		}
-#endif
-		else if (r_wateralpha.value < 1)
-		{
-			builtin = (
-				"{\n"
-					"{\n"
-						"map $diffuse\n"
-						"tcmod turb 0 0 3 0.1\n"
-						"alphagen const $r_wateralpha\n"
-						"blendfunc blend\n"
-					"}\n"
-					"sort blend\n"
-					"surfaceparm nodlight\n"
-				"}\n"
-			);
-		}
-		else
-		{
-			builtin = (
-				"{\n"
-					"{\n"
-						"map $diffuse\n"
-						"tcmod turb 0 0 3 0.1\n"
-					"}\n"
-					"sort blend\n"
 					"surfaceparm nodlight\n"
 				"}\n"
 			);
@@ -3823,6 +3831,7 @@ static void Shader_ReadShader(shader_t *s, char *shadersource)
 			break;
 		else if (!Q_stricmp(token, "if"))
 		{
+			int nest = 0;
 			qboolean conditionistrue = Shader_EvaluateCondition(&shadersource);
 
 			while (shadersource)
@@ -3830,8 +3839,19 @@ static void Shader_ReadShader(shader_t *s, char *shadersource)
 				token = COM_ParseExt (&shadersource, true);
 				if ( !token[0] )
 					continue;
-				else if (token[0] == ']')
-					break;
+                                else if (token[0] == ']')
+                                {
+                                        if (--nest <= 0)
+                                        {
+                                                nest++;
+						if (!strcmp(token, "]["))
+                                                        conditionistrue = !conditionistrue;
+                                                else
+                                                        break;
+                                        }
+                                }
+                                else if (token[0] == '[')
+                                        nest++;
 				else if (conditionistrue)
 				{
 					if (token[0] == '{')

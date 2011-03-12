@@ -48,15 +48,6 @@ void GLMod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight );
 extern char	loadname[32];	// for hunk tags
 
 
-int numTempColours;
-byte_vec4_t *tempColours;
-
-int numTempVertexCoords;
-vec3_t *tempVertexCoords;
-
-int numTempNormals;
-vec3_t *tempNormals;
-
 extern cvar_t gl_ati_truform;
 extern cvar_t r_vertexdlights;
 extern cvar_t mod_md3flags;

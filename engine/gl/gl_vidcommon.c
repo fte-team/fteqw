@@ -1078,7 +1078,7 @@ rendererinfo_t openglrendererinfo = {
 	R2D_TileClear,
 	GLDraw_Fill,
 	GLDraw_FillRGB,
-	GLDraw_FadeScreen,
+	R2D_FadeScreen,
 	GLDraw_BeginDisc,
 	GLDraw_EndDisc,
 

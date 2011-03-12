@@ -101,8 +101,6 @@ extern cvar_t cl_chasecam;
 
 float	v_dmg_time[MAX_SPLITS], v_dmg_roll[MAX_SPLITS], v_dmg_pitch[MAX_SPLITS];
 
-extern	int			in_forward, in_forward2, in_back;
-
 frame_t		*view_frame;
 player_state_t		*view_message;
 

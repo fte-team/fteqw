@@ -2244,7 +2244,6 @@ static struct
 };
 
 int image_width, image_height;
-qbyte *COM_LoadFile (char *path, int usehunk);
 //fixme: should probably get rid of the 'Mod' prefix, and use something more suitable.
 texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 {

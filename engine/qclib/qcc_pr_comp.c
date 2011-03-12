@@ -1370,6 +1370,10 @@ static void QCC_FreeTemps(void)
 #else
 #define QCC_FreeTemps()
 #endif
+void QCC_PurgeTemps(void)
+{
+	functemps = NULL;
+}
 
 //temps that are still in use over a function call can be considered dodgy.
 //we need to remap these to locally defined temps, on return from the function so we know we got them all.

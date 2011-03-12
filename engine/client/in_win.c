@@ -63,8 +63,6 @@ cvar_t  m_threshold_noforce = SCVAR("m_threshold_noforce", "0");
 cvar_t	cl_keypad = SCVAR("cl_keypad", "0");
 extern cvar_t cl_forcesplitclient;
 
-qboolean Key_MouseShouldBeFree(void);
-
 typedef struct {
 	union {
 		HANDLE rawinputhandle;

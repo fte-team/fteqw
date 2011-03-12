@@ -319,6 +319,7 @@ typedef struct temp_s {
 	pbool used;
 	unsigned int size;
 } temp_t;
+void QCC_PurgeTemps(void);
 
 //not written
 typedef struct QCC_def_s

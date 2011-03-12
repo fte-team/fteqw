@@ -105,7 +105,6 @@ cvar_t	r_xflip = SCVAR("leftisright", "0");
 extern	cvar_t	scr_fov;
 
 shader_t *scenepp_waterwarp;
-shader_t *scenepp_mt_shader;
 
 // post processing stuff
 texid_t sceneblur_texture;
@@ -270,78 +269,12 @@ void GL_InitFisheyeFov(void)
 	}
 }
 
-void GL_InitSceneProcessingShaders_MenuTint(void)
-{
-	extern cvar_t gl_menutint_shader;
-
-	if (gl_config.arb_shader_objects && gl_menutint_shader.ival)
-	{
-		scenepp_mt_shader = R_RegisterShader("menutint",
-			"{\n"
-				"glslprogram\n"
-				"{\n"
-			"#ifdef VERTEX_SHADER\n"
-			"\
-					varying vec2 texcoord;\
-					uniform vec3 rendertexturescale;\
-					void main(void)\
-					{\
-						texcoord.x = gl_MultiTexCoord0.x*rendertexturescale.x;\
-						texcoord.y = (1-gl_MultiTexCoord0.y)*rendertexturescale.y;\
-						gl_Position = ftransform();\
-					}\
-			\n"
-			"#endif\n"
-			"#ifdef FRAGMENT_SHADER\n"
-			"\
-					varying vec2 texcoord;\
-					uniform vec3 colorparam;\
-					uniform sampler2D source;\
-					uniform int invert;\
-					const vec3 lumfactors = vec3(0.299, 0.587, 0.114);\
-					const vec3 invertvec = vec3(1.0, 1.0, 1.0);\
-					void main(void)\
-					{\
-						vec3 texcolor = texture2D(source, texcoord).rgb;\
-						float luminance = dot(lumfactors, texcolor);\
-						texcolor = vec3(luminance, luminance, luminance);\
-						texcolor *= colorparam;\
-						texcolor = (invert > 0) ? (invertvec - texcolor) : texcolor;\
-						gl_FragColor = vec4(texcolor, 1.0);\
-					}\n"
-			"#endif\n"
-				"}\n"
-				"param cvari r_menutint_inverse invert\n"
-				"param cvar3f r_menutint colorparam\n"
-				"param texture 0 source\n"
-
-				"{\n"
-					"map $currentrender\n"
-				"}\n"
-				"param rendertexturescale rendertexturescale\n"
-			"}");
-	}
-	else
-	{
-		scenepp_mt_shader = R_RegisterShader("menutint",
-			"{\n"
-			"{\n"
-				"map $whitetexture\n"
-				"blendfunc gl_dst_color gl_zero\n"
-				"rgbgen const $r_menutint\n"
-			"}\n"
-			"}\n"
-			);
-	}
-}
-
 void GL_InitSceneProcessingShaders (void)
 {
 	if (gl_config.arb_shader_objects)
 	{
 		GL_InitSceneProcessingShaders_WaterWarp();
 		GL_InitFisheyeFov();
-		GL_InitSceneProcessingShaders_MenuTint();
 	}
 }
 

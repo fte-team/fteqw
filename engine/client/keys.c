@@ -30,7 +30,7 @@ void Editor_Key(int key, int unicode);
 
 #define		KEY_MODIFIERSTATES 8
 #define		MAXCMDLINE	256
-char	key_lines[32][MAXCMDLINE];
+unsigned char	key_lines[32][MAXCMDLINE];
 int		key_linepos;
 int		shift_down=false;
 int		key_lastpress;

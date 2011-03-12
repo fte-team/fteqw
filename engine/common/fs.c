@@ -8,6 +8,7 @@
 #include <errno.h>
 
 #include "fs.h"
+#include "shader.h"
 
 #if defined(MINGW) && defined(_SDL)
 #include "./mingw-libs/SDL_syswm.h" // mingw sdl cross binary complains off sys_parentwindow
@@ -1633,10 +1634,7 @@ void COM_Gamedir (const char *dir)
 		}
 	}
 
-	{
-		extern void Shader_Init(void);
-		Shader_Init();	//FIXME!
-	}
+	Shader_Init();	//FIXME!
 
 	COM_Effectinfo_Clear();
 

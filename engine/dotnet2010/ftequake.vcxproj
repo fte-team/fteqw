@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="D3DDebug|Win32">
@@ -459,7 +459,7 @@
     </Midl>
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>..\client;../libs/freetype2/include;../common;../server;../gl;../sw;../qclib;../libs;../d3d9;../libs/dxsdk9/include;../libs/dxsdk7/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../libs/speex;..\client;../libs/freetype2/include;../common;../server;../gl;../sw;../qclib;../libs;../d3d9;../libs/dxsdk9/include;../libs/dxsdk7/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_DEBUG;D3DQUAKE;WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <FloatingPointModel>Fast</FloatingPointModel>
@@ -854,7 +854,7 @@
       <Optimization>MaxSpeed</Optimization>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
       <AdditionalIncludeDirectories>../libs/speex;..\client;../libs/freetype2/include;../common;../server;../gl;../sw;../qclib;../libs;../libs/dxsdk7/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>NDEBUG;WIN32;_WINDOWS;GLQUAKE;USE_D3D;D3DQUAKE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;WIN32;_WINDOWS;GLQUAKE;D3DQUAKE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -904,7 +904,7 @@
       <Optimization>MaxSpeed</Optimization>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
       <AdditionalIncludeDirectories>../libs/speex;..\client;../libs/freetype2/include;../common;../server;../gl;../sw;../qclib;../libs;../libs/dxsdk7/include;../d3d;../d3d9;../libs/dxsdk9/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>NDEBUG;WIN32;_WINDOWS;GLQUAKE;USE_D3D;D3DQUAKE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;WIN32;_WINDOWS;GLQUAKE;D3DQUAKE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -1052,8 +1052,8 @@
     </Midl>
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>../libs/speex;..\client;../libs/freetype2/include;../common;../server;../gl;../sw;../qclib;../libs;../libs/dxsdk7/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_DEBUG;WIN32;_WINDOWS;GLQUAKE;USE_D3D;D3DQUAKE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>../libs/speex;..\client;../libs/freetype2/include;../common;../server;../gl;../sw;../qclib;../libs;../libs/dxsdk9/include;../libs/dxsdk7/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_DEBUG;WIN32;_WINDOWS;GLQUAKE;D3DQUAKE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <FloatingPointModel>Fast</FloatingPointModel>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -1102,7 +1102,7 @@
     <ClCompile>
       <Optimization>Disabled</Optimization>
       <AdditionalIncludeDirectories>../libs/speex;..\client;../libs/freetype2/include;../common;../server;../gl;../sw;../qclib;../libs;../libs/dxsdk7/include;../d3d;../d3d9;../libs/dxsdk9/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_DEBUG;WIN32;_WINDOWS;GLQUAKE;USE_D3D;D3DQUAKE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;WIN32;_WINDOWS;GLQUAKE;D3DQUAKE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <FloatingPointModel>Fast</FloatingPointModel>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -7478,6 +7478,7 @@
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|x64'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <ClCompile Include="..\client\r_2d.c" />
+    <ClCompile Include="..\client\r_d3.c" />
     <ClCompile Include="..\client\r_surf.c" />
     <ClCompile Include="..\gl\doomclip.c">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='D3DDebug|Win32'">true</ExcludedFromBuild>
@@ -7660,84 +7661,6 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|x64'">true</ExcludedFromBuild>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|x64'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|x64'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ClCompile>
-    <ClCompile Include="..\gl\gltod3d\gl_fakegl.cpp">
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='D3DDebug|Win32'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='D3DDebug|Win32'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='D3DDebug|Win32'">
-      </PrecompiledHeader>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='D3DDebug|x64'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='D3DDebug|x64'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='D3DDebug|x64'">
-      </PrecompiledHeader>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|Win32'">true</ExcludedFromBuild>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|Win32'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|Win32'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|Win32'">
-      </PrecompiledHeader>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|x64'">true</ExcludedFromBuild>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|x64'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|x64'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|x64'">
-      </PrecompiledHeader>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='GLDebug|Win32'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='GLDebug|Win32'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='GLDebug|Win32'">
-      </PrecompiledHeader>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='GLDebug|x64'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='GLDebug|x64'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='GLDebug|x64'">
-      </PrecompiledHeader>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='GLRelease|Win32'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='GLRelease|Win32'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='GLRelease|Win32'">
-      </PrecompiledHeader>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='GLRelease|x64'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='GLRelease|x64'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='GLRelease|x64'">
-      </PrecompiledHeader>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='MDebug|Win32'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='MDebug|Win32'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='MDebug|Win32'">
-      </PrecompiledHeader>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='MDebug|x64'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='MDebug|x64'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='MDebug|x64'">
-      </PrecompiledHeader>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='MRelease|Win32'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='MRelease|Win32'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='MRelease|Win32'">
-      </PrecompiledHeader>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='MRelease|x64'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='MRelease|x64'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='MRelease|x64'">
-      </PrecompiledHeader>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|Win32'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|Win32'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|Win32'">
-      </PrecompiledHeader>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|x64'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|x64'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|x64'">
-      </PrecompiledHeader>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|Win32'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|Win32'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|Win32'">
-      </PrecompiledHeader>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|x64'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|x64'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|x64'">
-      </PrecompiledHeader>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|Win32'">true</ExcludedFromBuild>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|Win32'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|Win32'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|Win32'">
-      </PrecompiledHeader>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|x64'">true</ExcludedFromBuild>
-      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|x64'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|x64'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|x64'">
-      </PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="..\gl\gl_heightmap.c">
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='D3DDebug|Win32'">%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -8879,466 +8802,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\client\cl_plugin.inc" />
-    <CustomBuild Include="..\common\math.s">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='D3DDebug|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='D3DDebug|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='D3DDebug|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='D3DDebug|x64'">cl /EP /I ..\common %(FullPath) &gt; $(OutDir)%(Filename).spp
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='D3DDebug|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|x64'">cl /EP /I ..\common %(FullPath) &gt; $(OutDir)%(Filename).spp
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='GLDebug|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='GLDebug|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='GLDebug|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='GLDebug|x64'">cl /EP /I ..\common %(FullPath) &gt; $(OutDir)%(Filename).spp
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='GLDebug|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='GLRelease|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='GLRelease|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='GLRelease|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='GLRelease|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='GLRelease|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MDebug|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MDebug|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='MDebug|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MDebug|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MDebug|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MRelease|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MRelease|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='MRelease|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MRelease|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MRelease|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-    </CustomBuild>
-    <CustomBuild Include="..\client\snd_mixa.s">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='D3DDebug|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='D3DDebug|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='D3DDebug|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='D3DDebug|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='D3DDebug|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|Win32'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='GLDebug|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='GLDebug|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='GLDebug|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='GLDebug|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='GLDebug|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='GLRelease|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='GLRelease|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='GLRelease|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='GLRelease|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='GLRelease|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MDebug|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MDebug|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='MDebug|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MDebug|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MDebug|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MRelease|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MRelease|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='MRelease|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MRelease|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MRelease|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|Win32'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|x64'">true</ExcludedFromBuild>
-    </CustomBuild>
-    <CustomBuild Include="..\client\sys_wina.s">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='D3DDebug|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='D3DDebug|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='D3DDebug|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='D3DDebug|x64'">cl /EP /I ..\common %(FullPath)  &gt; $(OutDir)%(Filename).spp
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='D3DDebug|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|Win32'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='GLDebug|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='GLDebug|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='GLDebug|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='GLDebug|x64'">cl /EP /I ..\common %(FullPath)  &gt; $(OutDir)%(Filename).spp
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='GLDebug|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='GLRelease|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='GLRelease|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='GLRelease|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='GLRelease|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='GLRelease|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MDebug|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MDebug|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='MDebug|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MDebug|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MDebug|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MRelease|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MRelease|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='MRelease|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MRelease|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MRelease|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|Win32'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|x64'">true</ExcludedFromBuild>
-    </CustomBuild>
-    <CustomBuild Include="..\server\worlda.s">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='D3DDebug|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='D3DDebug|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='D3DDebug|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='D3DDebug|x64'">cl /EP /I ..\common %(FullPath) &gt; $(OutDir)%(Filename).spp
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='D3DDebug|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|x64'">cl /EP /I ..\common %(FullPath) &gt; $(OutDir)%(Filename).spp
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='GLDebug|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='GLDebug|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='GLDebug|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='GLDebug|x64'">cl /EP /I ..\common %(FullPath) &gt; $(OutDir)%(Filename).spp
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='GLDebug|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='GLRelease|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='GLRelease|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='GLRelease|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='GLRelease|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='GLRelease|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MDebug|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MDebug|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='MDebug|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MDebug|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MDebug|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MRelease|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MRelease|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='MRelease|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MRelease|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MRelease|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinGLRelease|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|Win32'">cl /EP /I ..\common "%(FullPath)" /nologo&gt; "$(OutDir)%(Filename).spp"
-..\gas2masm\debug\gas2masm &lt; "$(OutDir)%(Filename).spp" &gt;          "$(OutDir)%(Filename).asm"
-ml /c /Cp /coff /Fo"$(OutDir)%(Filename).obj" /Zm /Zi  "$(OutDir)%(Filename).asm"
-del "$(OutDir)%(Filename).spp"
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|x64'">true</ExcludedFromBuild>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|x64'">cl /EP /I ..\common &gt; $(OutDir)%(Filename).spp %(FullPath)
-..\gas2masm\debug\gas2masm &lt; $(OutDir)%(Filename).spp &gt;          $(OutDir)%(Filename).asm
-ml /c /Cp /coff /Fo$(OutDir)%(Filename).obj /Zm /Zi                                                                                                                                                                                                                           $(OutDir)%(Filename).asm
-del $(OutDir)%(Filename).spp
-</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-    </CustomBuild>
     <None Include="..\client\bymorphed.ico" />
     <None Include="..\client\q2.ico" />
   </ItemGroup>
@@ -9472,12 +8935,6 @@ del $(OutDir)%(Filename).spp
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\client\winquake.rc" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="gas2masm.vcxproj">
-      <Project>{382e6790-d1ca-48f5-8e53-d114635eb61d}</Project>
-      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
-    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

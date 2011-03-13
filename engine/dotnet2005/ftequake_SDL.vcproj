@@ -1174,7 +1174,7 @@
 				Optimization="2"
 				InlineFunctionExpansion="1"
 				AdditionalIncludeDirectories="../libs/sdl/include,../libs/speex,..\client,../libs/freetype2/include,../common,../server,../gl,../sw,../qclib,../libs,../libs/dxsdk7/include,../d3d,../d3d9,../libs/dxsdk9/include"
-				PreprocessorDefinitions="NDEBUG;WIN32;_WINDOWS;_SDL;GLQUAKE;USE_D3D;D3DQUAKE"
+				PreprocessorDefinitions="NDEBUG;WIN32;_WINDOWS;_SDL;GLQUAKE;D3DQUAKE"
 				StringPooling="true"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
@@ -1479,7 +1479,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories="../libs/sdl/include,../libs/speex,..\client,../libs/freetype2/include,../common,../server,../gl,../sw,../qclib,../libs,../libs/dxsdk7/include"
-				PreprocessorDefinitions="_DEBUG;WIN32;_WINDOWS;_SDL;GLQUAKE;USE_D3D;D3DQUAKE"
+				PreprocessorDefinitions="_DEBUG;WIN32;_WINDOWS;_SDL;GLQUAKE;D3DQUAKE"
 				RuntimeLibrary="1"
 				FloatingPointModel="2"
 				UsePrecompiledHeader="2"
@@ -1580,7 +1580,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories="../libs/sdl/include,../libs/speex,..\client,../libs/freetype2/include,../common,../server,../gl,../sw,../qclib,../libs,../libs/dxsdk7/include,../d3d,../d3d9,../libs/dxsdk9/include"
-				PreprocessorDefinitions="_DEBUG;WIN32;_WINDOWS;_SDL;GLQUAKE;USE_D3D;D3DQUAKE"
+				PreprocessorDefinitions="_DEBUG;WIN32;_WINDOWS;_SDL;GLQUAKE;D3DQUAKE"
 				RuntimeLibrary="1"
 				FloatingPointModel="2"
 				UsePrecompiledHeader="2"
@@ -14123,7 +14123,6 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="MRelease_SDL|Win32"
-							ExcludedFromBuild="true"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -14131,7 +14130,6 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="MRelease_SDL|x64"
-							ExcludedFromBuild="true"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -14155,7 +14153,6 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="MDebug_SDL|Win32"
-							ExcludedFromBuild="true"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -14163,7 +14160,6 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="MDebug_SDL|x64"
-							ExcludedFromBuild="true"
 							>
 							<Tool
 								Name="VCCLCompilerTool"

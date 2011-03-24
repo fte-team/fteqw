@@ -104,7 +104,7 @@ char *svc_strings[] =
 	"BAD svc_unused",
 	"FTE svc_view2",
 	"FTE svc_lightstylecol",
-	"FTE svc_bulletentext",
+	"FTE svc_bulletentext", // obsolete
 	"FTE svc_lightnings",
 	"FTE svc_modellistshort",
 	"FTE svc_ftesetclientpersist",
@@ -5210,14 +5210,6 @@ void CL_ParseServerMessage (void)
 			else
 				CDAudio_Resume ();
 			break;
-
-#ifdef PEXT_BULLETENS
-		case svcfte_bulletentext:
-			if (!(cls.fteprotocolextensions & PEXT_BULLETENS))
-				Host_EndGame("PEXT_BULLETENS is meant to be disabled\n");
-			Bul_ParseMessage();
-			break;
-#endif
 
 		case svc_ftesetclientpersist:
 			CL_ParseClientPersist();

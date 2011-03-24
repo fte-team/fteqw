@@ -21,9 +21,6 @@ qboolean vid_isfullscreen;
 
 #define VIDCOMMANDGROUP "Video config"
 #define GRAPHICALNICETIES "Graphical Nicaties"	//or eyecandy, which ever you prefer.
-#ifdef PEXT_BULLETENS
-#define BULLETENVARS		"BulletenBoard controls"
-#endif
 #define GLRENDEREROPTIONS	"GL Renderer Options"
 #define SCREENOPTIONS	"Screen Options"
 
@@ -194,23 +191,6 @@ cvar_t vid_wndalpha							= CVAR ("vid_wndalpha", "1");
 cvar_t vid_width							= CVARF ("vid_width", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 
-extern cvar_t bul_backcol;
-extern cvar_t bul_forcemode;
-extern cvar_t bul_norender;
-extern cvar_t bul_nowater;
-extern cvar_t bul_rippleamount;
-extern cvar_t bul_ripplespeed;
-extern cvar_t bul_scrollspeedx;
-extern cvar_t bul_scrollspeedy;
-extern cvar_t bul_sparkle;
-extern cvar_t bul_text1;
-extern cvar_t bul_text2;
-extern cvar_t bul_text3;
-extern cvar_t bul_text4;
-extern cvar_t bul_text5;
-extern cvar_t bul_text6;
-extern cvar_t bul_textpalette;
-
 extern cvar_t r_dodgytgafiles;
 extern cvar_t r_dodgypcxfiles;
 extern cvar_t r_drawentities;
@@ -226,9 +206,6 @@ extern cvar_t r_waterwarp;
 
 extern cvar_t	r_polygonoffset_submodel_factor;
 extern cvar_t	r_polygonoffset_submodel_offset;
-
-
-void R_BulletenForce_f (void);
 
 rendererstate_t currentrendererstate;
 
@@ -625,29 +602,6 @@ void Renderer_Init(void)
 	Cvar_Register (&r_skin_overlays, GRAPHICALNICETIES);
 
 	Cvar_Register (&r_replacemodels, GRAPHICALNICETIES);
-
-#ifdef PEXT_BULLETENS
-//bulletens
-	Cvar_Register(&bul_nowater, BULLETENVARS);
-	Cvar_Register(&bul_rippleamount, BULLETENVARS);
-	Cvar_Register(&bul_ripplespeed, BULLETENVARS);
-	Cvar_Register(&bul_forcemode, BULLETENVARS);
-	Cvar_Register(&bul_sparkle, BULLETENVARS);
-	Cvar_Register(&bul_textpalette, BULLETENVARS);
-	Cvar_Register(&bul_scrollspeedy, BULLETENVARS);
-	Cvar_Register(&bul_scrollspeedx, BULLETENVARS);
-	Cvar_Register(&bul_backcol, BULLETENVARS);
-
-	Cvar_Register(&bul_text6,	BULLETENVARS);	//reverse order, to get forwards ordered console vars.
-	Cvar_Register(&bul_text5,	BULLETENVARS);
-	Cvar_Register(&bul_text4,	BULLETENVARS);
-	Cvar_Register(&bul_text3,	BULLETENVARS);
-	Cvar_Register(&bul_text2,	BULLETENVARS);
-	Cvar_Register(&bul_text1,	BULLETENVARS);
-	Cvar_Register(&bul_norender,	BULLETENVARS);	//find this one first...
-
-	Cmd_AddCommand("bul_make",	R_BulletenForce_f);
-#endif
 
 
 // misc
@@ -1581,10 +1535,6 @@ TRACE(("dbg: R_ApplyRenderer: isDedicated = true\n"));
 	}
 TRACE(("dbg: R_ApplyRenderer: initing mods\n"));
 	Mod_Init();
-#ifdef PEXT_BULLETENS
-TRACE(("dbg: R_ApplyRenderer: initing bulletein boards\n"));
-	WipeBulletenTextures();
-#endif
 
 //	host_hunklevel = Hunk_LowMark();
 

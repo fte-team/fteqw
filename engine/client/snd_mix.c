@@ -21,10 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-#ifndef NOSOUNDASM
-#define NOSOUNDASM	//since channels per sound card went to 6 (portable_samplegroup_t was changed)
-#endif
-
 #define	PAINTBUFFER_SIZE	2048
 
 float voicevolumemod = 1;

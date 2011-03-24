@@ -3891,9 +3891,6 @@ void SV_InitLocal (void)
 #ifdef PEXT_VIEW2
 	svs.fteprotocolextensions |= PEXT_VIEW2;
 #endif
-#ifdef PEXT_BULLETENS
-	svs.fteprotocolextensions |= PEXT_BULLETENS;
-#endif
 	svs.fteprotocolextensions |= PEXT_ACCURATETIMINGS;
 #ifdef PEXT_ZLIBDL
 	svs.fteprotocolextensions |= PEXT_ZLIBDL;

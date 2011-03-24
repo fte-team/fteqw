@@ -26,7 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef SIDEVIEWS
 	#define PEXT_VIEW2			0x00000010
 #endif
-//#define PEXT_BULLETENS			0x00000020
+//#define PEXT_BULLETENS			0x00000020 //obsolete
 #define PEXT_ACCURATETIMINGS	0x00000040
 #define PEXT_SOUNDDBL			0x00000080	//revised startsound protocol
 #define PEXT_FATNESS			0x00000100	//GL only (or servers)
@@ -228,9 +228,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svcfte_lightstylecol	57
 #endif
 
-#ifdef PEXT_BULLETENS
-#define svcfte_bulletentext	58
-#endif
+//#define svcfte_svcremoved	58
 
 //#define	svcfte_svcremoved		59
 

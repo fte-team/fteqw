@@ -346,7 +346,6 @@ CLIENT_OBJS = \
 	roq_read.o	\
 	clq2_cin.o	\
 	net_master.o	\
-	r_bulleten.o	\
 	r_part.o	\
 	p_script.o	\
 	p_null.o	\

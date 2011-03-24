@@ -1085,9 +1085,6 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 			R_InitSky (&tn, tx, (char *)mt + mt->offsets[0]);
 		}
 		else
-#ifdef PEXT_BULLETENS
-			if (!R_AddBulleten(tx))
-#endif
 		{
 /*
 			RMod_LoadAdvancedTexture(tx->name, &tn.base, &tn.bump, &tn.fullbright, &tn.specular, NULL, NULL);
@@ -1326,25 +1323,20 @@ void RMod_NowLoadExternal(void)
 
 		if (!TEXVALID(tn.base))
 		{
-#ifdef PEXT_BULLETENS
-			if (!R_AddBulleten(tx))
-#endif
+			qbyte * data;
+
+			data = W_GetTexture(tx->name, &width, &height, &alphaed);
+			if (data)
+			{	//data is from temp hunk, so no need to free.
+				tx->alphaed = alphaed;
+			}
+
+			tn.base = R_LoadHiResTexture(tx->name, loadname, IF_NOALPHA);
+			if (!TEXVALID(tn.base))
 			{
-				qbyte * data;
-
-				data = W_GetTexture(tx->name, &width, &height, &alphaed);
-				if (data)
-				{	//data is from temp hunk, so no need to free.
-					tx->alphaed = alphaed;
-				}
-
-				tn.base = R_LoadHiResTexture(tx->name, loadname, IF_NOALPHA);
+				tn.base = R_LoadHiResTexture(tx->name, "bmodels", IF_NOALPHA);
 				if (!TEXVALID(tn.base))
-				{
-					tn.base = R_LoadHiResTexture(tx->name, "bmodels", IF_NOALPHA);
-					if (!TEXVALID(tn.base))
-						tn.base = R_LoadReplacementTexture("light1_4", NULL, IF_NOALPHA);	//a fallback. :/
-				}
+					tn.base = R_LoadReplacementTexture("light1_4", NULL, IF_NOALPHA);	//a fallback. :/
 			}
 		}
 		if (!TEXVALID(tn.bump) && *tx->name != '{' && gl_bumpmappingpossible && cls.allow_bump)

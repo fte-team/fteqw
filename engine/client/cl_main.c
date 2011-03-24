@@ -328,9 +328,6 @@ void CL_SupportedFTEExtensions(int *pext1, int *pext2)
 #ifdef PEXT_VIEW2
 	fteprotextsupported |= PEXT_VIEW2;
 #endif
-#ifdef PEXT_BULLETENS
-	fteprotextsupported |= PEXT_BULLETENS;
-#endif
 #ifdef PEXT_ACCURATETIMINGS
 	fteprotextsupported |= PEXT_ACCURATETIMINGS;
 #endif
@@ -991,9 +988,6 @@ void CL_ClearState (void)
 	Cvar_ApplyLatches(CVAR_SERVEROVERRIDE);
 
 	Con_DPrintf ("Clearing memory\n");
-#ifdef PEXT_BULLETENS
-	WipeBulletenTextures ();
-#endif
 	if (!serverrunning || !tolocalserver)
 	{
 		if (serverrunning)

@@ -5079,32 +5079,6 @@ static void QCBUILTIN PF_redstring(progfuncs_t *prinst, struct globalvars_s *pr_
 	RETURN_TSTRING(buf);
 }
 
-#ifdef PEXT_BULLETENS
-static void QCBUILTIN PF_bulleten (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int j;
-	client_t  *client;
-	char *msg = PF_VarString(prinst, 1, pr_globals);
-	int board = G_FLOAT(OFS_PARM0);
-	int msglen = strlen(msg);
-
-	// send the data to all relevent clients
-	for (j = 0, client = svs.clients; j < MAX_CLIENTS; j++, client++)
-	{
-		if (client->state < cs_connected)	//so a call can be used in client connected.
-			continue;
-
-		if (client->fteprotocolextensions & PEXT_BULLETENS)
-		{
-			ClientReliableCheckBlock(client, msglen+1);
-			ClientReliableWrite_Byte(client, svcfte_bulletentext);
-			ClientReliableWrite_Byte(client, board);
-			ClientReliableWrite_String(client, msg);
-		}
-	}
-}
-#endif
-
 #ifdef SVCHAT
 void SV_Chat(char *filename, float starttag, edict_t *edict);
 static void QCBUILTIN PF_chat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -9040,9 +9014,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"checkpvs",		PF_checkpvs,		0,		0,		0,		240},
 	{"matchclientname",	PF_matchclient,		0,		0,		0,		241},
 	{"sendpacket",		PF_SendPacket,		0,		0,		0,		242},	//void(string dest, string content) sendpacket = #242; (FTE_QC_SENDPACKET)
-#ifdef PEXT_BULLETENS
-	{"bulleten",		PF_bulleten,		0,		0,		0,		243},
-#endif
+
+//	{"bulleten",		PF_bulleten,		0,		0,		0,		243}, (removed builtin)
 
 #ifdef SQL
 	{"sqlconnect",		PF_sqlconnect,		0,		0,		0,		250},	// #250 float([string host], [string user], [string pass], [string defaultdb], [string driver]) sqlconnect (FTE_SQL)

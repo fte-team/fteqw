@@ -1,5 +1,5 @@
-#ifndef __GL_VIDGLES_H__
-#define __GL_VIDGLES_H__
+#ifndef __GL_VIDEGL_H__
+#define __GL_VIDEGL_H__
 
 #include "quakedef.h"
 #include <EGL/egl.h>

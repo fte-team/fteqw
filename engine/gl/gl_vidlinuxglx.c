@@ -34,7 +34,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <GL/glx.h>
 #ifdef USE_EGL
-#include "gl_vidgles.h"
+#include "gl_videgl.h"
 #endif
 
 #include <X11/keysym.h>

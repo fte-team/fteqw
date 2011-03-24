@@ -2628,7 +2628,6 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_PEXT_LIGHTSTYLECOL"},	//lightstyles may have colours.
 	{"DP_ENT_ALPHA"},			//transparent entites
 	{"FTE_PEXT_VIEW2"},		//secondary view.
-	{"FTE_PEXT_BULLETENS"},	//bulleten boards (scrolling text on walls)
 	{"FTE_PEXT_ACURATETIMINGS"},		//allows full interpolation
 	{"FTE_PEXT_SOUNDDBL"},	//twice the sound indexes
 	{"FTE_PEXT_FATNESS"},		//entities may be expanded along their vertex normals

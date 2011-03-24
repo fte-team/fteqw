@@ -1,4 +1,4 @@
-#include "gl_vidgles.h"
+#include "gl_videgl.h"
 
 EGLContext eglctx = EGL_NO_CONTEXT;
 EGLDisplay egldpy = EGL_NO_DISPLAY;

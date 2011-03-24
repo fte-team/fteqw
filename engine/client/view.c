@@ -1413,10 +1413,6 @@ void V_RenderPlayerViews(int plnum)
 void V_RenderView (void)
 {
 	int viewnum;
-#ifdef PEXT_BULLETENS
-	//avoid redoing the bulleten boards for rear view as well.
-	static qboolean alreadyrendering = false;
-#endif
 
 	R_LessenStains();
 
@@ -1455,22 +1451,11 @@ void V_RenderView (void)
 
 	R_PushDlights ();
 
-
-#ifdef PEXT_BULLETENS
-	if (!alreadyrendering)
-		R_SetupBulleten ();
-	alreadyrendering=true;
-#endif
-
 	r_secondaryview = 0;
 	for (viewnum = 0; viewnum < cl.splitclients; viewnum++)
 	{
 		V_RenderPlayerViews(viewnum);
 	}
-
-#ifdef PEXT_BULLETENS
-	alreadyrendering=false;
-#endif
 }
 
 //============================================================================

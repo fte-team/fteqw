@@ -143,10 +143,6 @@ extern "C" {
 
 #include "vm.h"
 
-#ifdef PEXT_BULLETENS
-#include "r_bulleten.h"
-#endif
-
 #include "input.h"
 #include "keys.h"
 #include "console.h"

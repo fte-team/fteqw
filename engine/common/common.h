@@ -17,6 +17,10 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
+// release version
+#define FTE_VER_MAJOR 1
+#define FTE_VER_MINOR 0
+
 // comndef.h  -- general definitions
 
 typedef unsigned char 		qbyte;
@@ -429,8 +433,8 @@ qbyte	COM_BlockSequenceCheckByte (qbyte *base, int length, int sequence, unsigne
 qbyte	COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence);
 qbyte	Q2COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence);
 
-int build_number( void );
-
+int version_number(void);
+char *version_string(void);
 
 
 void TL_InitLanguages(void);

@@ -1504,7 +1504,6 @@ qboolean R_RenderScene_Fish(void)
 	int order[6] = {4, 0, 1, 5, 3, 2};
 	int numsides = 4;
 	vec3_t saveang;
-	int rot45 = 0;
 
 	vrect_t vrect;
 	vrect_t prect;

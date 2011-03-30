@@ -2901,12 +2901,10 @@ void CL_Init (void)
 	extern void CL_SayTeam_f (void);
 	extern	cvar_t		baseskin;
 	extern	cvar_t		noskins;
-	char st[80];
 
 	cls.state = ca_disconnected;
 
-	sprintf (st, "%s %i", DISTRIBUTION, build_number());
-	Info_SetValueForStarKey (cls.userinfo[0], "*ver", st, sizeof(cls.userinfo[0]));
+	Info_SetValueForStarKey (cls.userinfo[0], "*ver", version_string(), sizeof(cls.userinfo[0]));
 	Info_SetValueForStarKey (cls.userinfo[1], "*ss", "1", sizeof(cls.userinfo[1]));
 	Info_SetValueForStarKey (cls.userinfo[2], "*ss", "1", sizeof(cls.userinfo[2]));
 	Info_SetValueForStarKey (cls.userinfo[3], "*ss", "1", sizeof(cls.userinfo[3]));
@@ -3769,7 +3767,7 @@ void Host_FinishInit(void)
 #endif
 
 Con_TPrintf (TL_NL);
-	Con_TPrintf (TL_VERSION, DISTRIBUTION, build_number());
+	Con_Printf ("%s", version_string());
 Con_TPrintf (TL_NL);
 
 	Con_TPrintf (TLC_QUAKEWORLD_INITED);

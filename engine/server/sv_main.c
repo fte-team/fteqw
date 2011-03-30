@@ -1684,7 +1684,7 @@ client_t *SVC_DirectConnect(void)
 //		case 43:	//q3 1.11 (most 'recent' demo)
 //			break;
 		default:
-			SV_RejectMessage (SCP_BAD, "Server is "DISTRIBUTION" build %i.\n", build_number());
+			SV_RejectMessage (SCP_BAD, "Server is %s.\n", version_string());
 			Con_Printf ("* rejected connect from incompatable client\n");
 			return NULL;
 		}
@@ -1707,7 +1707,7 @@ client_t *SVC_DirectConnect(void)
 
 		if (strcmp(Info_ValueForKey(userinfo[0], "protocol"), "darkplaces 3"))
 		{
-			SV_RejectMessage (SCP_BAD, "Server is "DISTRIBUTION" build %i.\n", build_number());
+			SV_RejectMessage (SCP_BAD, "Server is %s.\n", version_string());
 			Con_Printf ("* rejected connect from incompatible client\n");
 			return NULL;
 		}
@@ -1749,7 +1749,7 @@ client_t *SVC_DirectConnect(void)
 			numssclients = atoi(Cmd_Argv(0)+7);
 			if (numssclients<1 || numssclients > 4)
 			{
-				SV_RejectMessage (SCP_BAD, "Server is "DISTRIBUTION" build %i.\n", build_number());
+				SV_RejectMessage (SCP_BAD, "Server is %s.\n", version_string());
 				Con_Printf ("* rejected connect from broken client\n");
 				return NULL;
 			}
@@ -3961,7 +3961,7 @@ void SV_InitLocal (void)
 //	if (svs.protocolextensions)
 //		Info_SetValueForStarKey (svs.info, "*"DISTRIBUTION"_ext", va("%x", svs.protocolextensions), MAX_SERVERINFO_STRING);
 
-	Info_SetValueForStarKey (svs.info, "*version", va("%s %i", DISTRIBUTION, build_number()), MAX_SERVERINFO_STRING);
+	Info_SetValueForStarKey (svs.info, "*version", version_string(), MAX_SERVERINFO_STRING);
 
 	Info_SetValueForStarKey (svs.info, "*z_ext", va("%i", SUPPORTED_Z_EXTENSIONS), MAX_SERVERINFO_STRING);
 
@@ -4616,10 +4616,7 @@ void SV_Init (quakeparms_t *parms)
 		Con_TPrintf (TL_EXEDATETIME, __DATE__, __TIME__);
 		Con_TPrintf (TL_HEAPSIZE,parms->memsize/ (1024*1024.0));
 
-		if (sizeof(void*) == 8)
-			Con_TPrintf (TL_VERSION, DISTRIBUTION"-64", build_number());
-		else
-			Con_TPrintf (TL_VERSION, DISTRIBUTION"-32", build_number());
+		Con_Printf ("%s\n", version_string());
 
 		Con_TPrintf (STL_INITED);
 

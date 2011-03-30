@@ -829,13 +829,13 @@ void pscript_property_map_sets(struct context *ctx, const char *val)
 
 float pscript_property_curver_getf(struct context *ctx)
 {
-	return build_number();
+	return version_number();
 }
 
 void pscript_property_availver_setf(struct context *ctx, float val)
 {
 	ctx->pub.availver = val;
-	if (ctx->pub.availver <= build_number())
+	if (ctx->pub.availver <= version_number())
 		ctx->pub.availver = 0;
 }
 

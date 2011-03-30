@@ -3101,7 +3101,7 @@ COM_Version_f
 */
 void COM_Version_f (void)
 {
-	Con_TPrintf (TLC_VERSIONST, DISTRIBUTION, build_number());
+	Con_Printf("%s", version_string());
 
 	Con_TPrintf (TL_EXEDATETIME, __DATE__, __TIME__);
 
@@ -4251,48 +4251,6 @@ qbyte	Q2COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence)
 
 #endif
 
-// char *date = "Oct 24 1996";
-static char *date = __DATE__ ;
-static char *mon[12] =
-{ "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-static char mond[12] =
-{ 31,    28,    31,    30,    31,    30,    31,    31,    30,    31,    30,    31 };
-
-// returns days since Oct 24 1996
-int build_number( void )
-{
-	int m = 0;
-	int d = 0;
-	int y = 0;
-	static int b = 0;
-
-	if (b != 0)
-		return b;
-
-	for (m = 0; m < 11; m++)
-	{
-		if (Q_strncasecmp( &date[0], mon[m], 3 ) == 0)
-			break;
-		d += mond[m];
-	}
-
-	d += atoi( &date[4] ) - 1;
-
-	y = atoi( &date[7] ) - 1900;
-
-	b = d + (int)((y - 1) * 365.25);
-
-	if (((y % 4) == 0) && m > 1)
-	{
-		b += 1;
-	}
-
-	b -= 35778; // Dec 16 1998
-
-	return b;
-}
-
-
 #ifdef _WIN32
 // don't use these functions in MSVC8
 #if (_MSC_VER < 1400)
@@ -4353,3 +4311,38 @@ int __mingw_vfprintf (FILE *__stream, const char *__format, __VALIST __local_arg
   return vfprintf( __stream, __format, __local_argv );
 }
 #endif
+
+int version_number(void)
+{
+	int base = FTE_VER_MAJOR * 10000 + FTE_VER_MINOR * 100;
+
+#ifdef OFFICIAL_RELEASE
+	base -= 1;
+#endif
+
+	return base;
+}
+
+char *version_string(void)
+{
+	static char s[128];
+	static qboolean done;
+
+	if (!done)
+	{
+#ifdef OFFICIAL_RELEASE
+		Q_snprintfz(s, sizeof(s), "%s v%i.%02i", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR);
+#elif SVNREVISION
+#define STRINGIFY2(arg) #arg
+#define STRINGIFY(arg) STRINGIFY2(arg)
+		Q_snprintfz(s, sizeof(s), "%s SVN %s", DISTRIBUTION, STRINGIFY(SVNREVISION));
+#undef STRINGIFY2
+#undef STRINGIFY
+#else
+		Q_snprintfz(s, sizeof(s), "%s build %s", DISTRIBUTION, __DATE__);
+#endif
+		done = true;
+	}
+
+	return s;
+}

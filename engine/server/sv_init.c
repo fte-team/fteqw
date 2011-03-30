@@ -1204,7 +1204,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 #endif
 			{
 				ent->v->targetname = PR_NewString(svprogfuncs, "mvdsv", 0);
-				ent->v->netname = PR_NewString(svprogfuncs, va("%s %f %s, build %d\nBuild date: " __DATE__ ", " __TIME__ "", DISTRIBUTIONLONG, 2.4, PLATFORM, build_number()), 0);
+				ent->v->netname = PR_NewString(svprogfuncs, version_string(), 0);
 			}
 			ent->v->impulse = 0;//QWE_VERNUM;
 			ent->v->items = 103;

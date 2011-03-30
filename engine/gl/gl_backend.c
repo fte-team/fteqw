@@ -1044,9 +1044,7 @@ static void tcgen_environment(float *st, unsigned int numverts, float *xyz, floa
 static void tcgen_fog(float *st, unsigned int numverts, float *xyz)
 {
 	int			i;
-	vec3_t		viewer;
 
-	vec3_t		rorg;
 	float z;
 	vec4_t zmat;
 
@@ -2449,7 +2447,6 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 
 static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pass)
 {
-	const shader_t *s = shader;
 	program_t *p = shader->prog;
 	int	i;
 	unsigned int attr = 0;

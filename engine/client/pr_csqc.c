@@ -5313,7 +5313,7 @@ qboolean CSQC_Init (unsigned int checksum)
 			void *pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 			G_FLOAT(OFS_PARM0) = 1.0;	//api version
 			(((string_t *)pr_globals)[OFS_PARM1] = PR_TempString(csqcprogs, FULLENGINENAME));
-			G_FLOAT(OFS_PARM2) = build_number();
+			G_FLOAT(OFS_PARM2) = version_number();
 			PR_ExecuteProgram(csqcprogs, csqcg.init_function);
 		}
 

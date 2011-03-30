@@ -144,7 +144,6 @@
 "TL_EXEDATETIME \"Exe: %s %s\\n\"\n"
 "TL_HEAPSIZE \"%4.1f megabyte heap\\n\"\n"
 "TL_VERSION \"\\nBuild %i\\n\\n\"\n"
-"TL_SERVERVERSION \"\\n%s Build %i\\n\\n\"\n"
 "STL_SAVESYNTAX \"save <savename> : save a game\\n\"\n"
 "STL_NORELATIVEPATHS \"Relative pathnames are not allowed.\\n\"\n"
 "STL_SAVEGAMETO \"Saving game to %s...\\n\"\n"

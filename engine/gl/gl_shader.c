@@ -2297,8 +2297,6 @@ static void Shaderpass_TexGen(shader_t *shader, shaderpass_t *pass, char **ptr)
 }
 static void Shaderpass_CubeMap(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
-	char *token = Shader_ParseString(ptr);
-	int flags = Shader_SetImageFlags(shader);
 	if (pass->tcgen == TC_GEN_BASE)
 		pass->tcgen = TC_GEN_SKYBOX;
 	pass->texgen = T_GEN_SKYBOX;
@@ -2772,7 +2770,6 @@ void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 {
 	qboolean config_tex_env_combine = 1;//0;
 	qboolean config_nv_tex_env_combine4 = 1;//0;
-	qboolean config_multitexure = be_maxpasses > 1;//0;
 	qboolean config_env_add = 1;//0;
 
 	if (((pass->flags & SHADER_PASS_DETAIL) && !r_detailtextures.value) ||

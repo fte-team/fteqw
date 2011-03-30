@@ -845,7 +845,7 @@ static char *Macro_Version (void)
 {
 	/*	you probably don't need date, but it's included as this is likly to be used by
 		q2 servers checking for cheats. */
-	return va("%.2f "DISTRIBUTION" ["__DATE__"] (%i)", 2.57, build_number());
+	return va("%.2f %s", 2.57, version_string());
 }
 
 

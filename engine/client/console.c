@@ -1396,13 +1396,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 	if (!haveprogress && lines == vid.height)
 	{
-#ifdef SVNREVISION
-		#define STRINGIFY2(arg) #arg
-		#define STRINGIFY(arg) STRINGIFY2(arg)
-		char *version = va(DISTRIBUTION " Quake B%i" IFMINIMAL("m","") " (R%s)\n", build_number(), STRINGIFY(SVNREVISION));
-#else
-		char *version = va(DISTRIBUTION " Quake %i" IFMINIMAL("m",""), build_number());
-#endif
+		char *version = version_string();
 		int i;
 		Font_BeginString(font_conchar, vid.width, lines, &x, &y);
 		y -= Font_CharHeight();

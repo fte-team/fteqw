@@ -402,11 +402,7 @@ void SVNQ_New_f (void)
 	int i;
 
 	MSG_WriteByte (&host_client->netchan.message, svc_print);
-#ifdef DISTRIBUTION
-	sprintf (message, "%c\n" DISTRIBUTION " QuakeWorld build %i server\n", 2, build_number());
-#else
-	sprintf (message, "%c\nQUAKEWORLD BUILD %i SERVER\n", 2, build_number());
-#endif
+	sprintf (message, "%c\n%s server\n", 2, version_string());
 	MSG_WriteString (&host_client->netchan.message,message);
 
 	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)

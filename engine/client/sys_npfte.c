@@ -168,7 +168,7 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 				{
 					s = va("Your plugin may be incompatible");
 					TextOutA(hdc, 0, 32, s, strlen(s));
-					s = va("Version %3.2f was requested, you are using version %3.2f", pub->availver, (float)build_number());
+					s = va("Version %3.2f was requested, you are using version %3.2f", pub->availver, (float)version_number());
 					TextOutA(hdc, 0, 48, s, strlen(s));
 				}
 			}

@@ -117,9 +117,9 @@ static void Validation_Version(void)
 		auth = "";
 
 	if (*sr)
-		Cbuf_AddText (va("say "DISTRIBUTION"Quake v%i "PLATFORM"/%s/%s%s\n", build_number(), q_renderername, sr, auth), RESTRICT_RCON);
+		Cbuf_AddText (va("say %s "PLATFORM"/%s/%s%s\n", version_string(), q_renderername, sr, auth), RESTRICT_RCON);
 	else
-		Cbuf_AddText (va("say "DISTRIBUTION"Quake v%i "PLATFORM"/%s%s\n", build_number(), q_renderername, auth), RESTRICT_RCON);
+		Cbuf_AddText (va("say %s "PLATFORM"/%s%s\n", version_string(), q_renderername, auth), RESTRICT_RCON);
 }
 void Validation_CheckIfResponse(char *text)
 {
@@ -234,7 +234,7 @@ void InitValidation(void)
 
 	if (Security_Init)
 	{
-		switch(Security_Init(va("%s %.2f %i", DISTRIBUTION, 2.57, build_number())))
+		switch(Security_Init(va("%s %.2f %i", DISTRIBUTION, 2.57, version_number())))
 		{
 		case SECURITY_INIT_BAD_CHECKSUM:
 			Con_Printf("Checksum failed. Security module does not support this build. Go upgrade it.\n");
@@ -505,7 +505,7 @@ void Validation_AllChecks(void)
 {
 	char servername[22];
 	char playername[16];
-	char *enginebuild = va(DISTRIBUTION "%i", build_number());
+	char *enginebuild = version_string();
 	char localpnamelen = strlen(cl.players[cl.playernum[0]].name);
 	char ruleset[1024];
 

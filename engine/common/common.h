@@ -17,10 +17,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
-// release version
-#define FTE_VER_MAJOR 1
-#define FTE_VER_MINOR 0
-
 // comndef.h  -- general definitions
 
 typedef unsigned char 		qbyte;

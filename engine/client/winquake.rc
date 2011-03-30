@@ -9,6 +9,8 @@
 //
 #include "windows.h"
 
+#include "../common/bothdefs.h"
+
 /////////////////////////////////////////////////////////////////////////////
 #undef APSTUDIO_READONLY_SYMBOLS
 
@@ -90,14 +92,31 @@ IDI_ICON3               ICON                    "bymorphed.ico"
 // Version
 //
 
-VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,0,1
- PRODUCTVERSION 1,0,0,1
- FILEFLAGSMASK 0x17L
-#ifdef _DEBUG
- FILEFLAGS 0x1L
+// defines needed to transform MAJOR/MINOR defines into an x.xx string define...
+#define STR2(x) #x
+#define STR(x) STR2(x)
+#define V_DOT "."
+#define V_MAJ STR(FTE_VER_MAJOR)
+#if FTE_VER_MINOR < 10
+#define V_MIN STR(0) STR(FTE_VER_MINOR)
 #else
+#define V_MIN FTE_VER_MINOR
+#endif
+#define V_STR V_MAJ V_DOT V_MIN
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION FTE_VER_MAJOR,FTE_VER_MINOR,0,0
+ PRODUCTVERSION FTE_VER_MAJOR,FTE_VER_MINOR,0,0
+ FILEFLAGSMASK 0x17L
+#ifdef OFFICIAL_RELEASE
  FILEFLAGS 0x0L
+#define V_SUFFIX ""
+#elif _DEBUG
+ FILEFLAGS VS_FF_PRERELEASE|VS_FF_DEBUG
+#define V_SUFFIX " DEBUG"
+#else
+ FILEFLAGS VS_FF_PRERELEASE
+#define V_SUFFIX " BETA"
 #endif
  FILEOS 0x4L
  FILETYPE 0x0L
@@ -107,13 +126,13 @@ BEGIN
     BEGIN
         BLOCK "080904b0"
         BEGIN
-            VALUE "CompanyName", "Forethought Entertainment"
-            VALUE "FileDescription", "Quake Worlds"
-            VALUE "FileVersion", "1, 0, 0, 1"
-            VALUE "InternalName", "winquake"
-            VALUE "LegalCopyright", "Copyright (C) 2010"
-            VALUE "ProductName", "FTEQuake"
-            VALUE "ProductVersion", "1, 0, 0, 1"
+            VALUE "CompanyName", DISTRIBUTIONLONG
+            VALUE "FileDescription", FULLENGINENAME
+			VALUE "FileVersion", V_STR V_SUFFIX
+            VALUE "InternalName", "ftequake"
+            VALUE "LegalCopyright", "Copyright (C) 2011"
+            VALUE "ProductName", FULLENGINENAME
+			VALUE "ProductVersion", V_STR V_SUFFIX
         END
     END
     BLOCK "VarFileInfo"

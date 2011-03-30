@@ -21,6 +21,19 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef __BOTHDEFS_H
 #define __BOTHDEFS_H
 
+// release version
+#define FTE_VER_MAJOR 1
+#define FTE_VER_MINOR 0
+
+//#define	VERSION		2.56
+#ifndef DISTRIBUTION
+	#define DISTRIBUTION "FTE"
+	#define DISTRIBUTIONLONG "Forethought Entertainment"
+	#define FULLENGINENAME "FTE QuakeWorld"
+	#define ENGINEWEBSITE "http://www.fteqw.com"
+#endif
+
+
 #if defined(__APPLE__) && defined(__MACH__)
 	#define MACOSX
 #endif
@@ -311,15 +324,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define PRE_SAYONE	2.487	//FIXME: remove.
 
 // defs common to client and server
-
-//#define	VERSION		2.56
-
-#ifndef DISTRIBUTION
-	#define DISTRIBUTION "FTE"
-	#define DISTRIBUTIONLONG "Forethought Entertainment"
-	#define FULLENGINENAME "FTE QuakeWorld"
-	#define ENGINEWEBSITE "http://www.fteqw.com"
-#endif
 
 #ifndef PLATFORM
 	#if defined(_WIN32)

@@ -1378,8 +1378,9 @@ void Con_DrawConsole (int lines, qboolean noback)
 							else
 								selstartoffset = 0;
 						}
-						
-						Draw_Fill((sstart*vid.width)/vid.rotpixelwidth, (y*vid.height)/vid.rotpixelheight, ((send - sstart)*vid.width)/vid.rotpixelwidth, (Font_CharHeight()*vid.height)/vid.rotpixelheight, 0);
+						Draw_ImagePaletteColour(0, 1.0);
+						Draw_FillBlock((sstart*vid.width)/vid.rotpixelwidth, (y*vid.height)/vid.rotpixelheight, ((send - sstart)*vid.width)/vid.rotpixelwidth, (Font_CharHeight()*vid.height)/vid.rotpixelheight);
+						Draw_ImageColours(1.0, 1.0, 1.0, 1.0);
 					}
 				}
 			}

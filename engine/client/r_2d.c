@@ -229,9 +229,9 @@ void R2D_ImageColours(float r, float g, float b, float a)
 }
 void R2D_ImagePaletteColour(unsigned int i, float a)
 {
-	draw_mesh_colors[0][0] = host_basepal[i*3+0]/255;
-	draw_mesh_colors[0][1] = host_basepal[i*3+1]/255;
-	draw_mesh_colors[0][2] = host_basepal[i*3+2]/255;
+	draw_mesh_colors[0][0] = host_basepal[i*3+0]/255.0;
+	draw_mesh_colors[0][1] = host_basepal[i*3+1]/255.0;
+	draw_mesh_colors[0][2] = host_basepal[i*3+2]/255.0;
 	draw_mesh_colors[0][3] = a;
 	Vector4Copy(draw_mesh_colors[0], draw_mesh_colors[1]);
 	Vector4Copy(draw_mesh_colors[0], draw_mesh_colors[2]);

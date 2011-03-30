@@ -24,7 +24,9 @@ void Draw_TextBox (int x, int y, int width, int lines)
 
 	if (!p)	//assume none exist
 	{
-		Draw_FillRGB(x, y, width + 16, 8 * (2 + lines), 0.0, 0.0, 0.0);
+		Draw_ImageColours(0.0, 0.0, 0.0, 1.0);
+		Draw_FillBlock(x, y, width + 16, 8 * (2 + lines));
+		Draw_ImageColours(1.0, 1.0, 1.0, 1.0);
 		return;
 	}
 

@@ -1480,13 +1480,17 @@ void SCR_DrawLoading (void)
 			sizex = current_loading_size * 192 / total_loading_size;
 			if (loading_stage == LS_SERVER)
 			{
-				Draw_FillRGB(x, y, sizex, 16, 1.0, 0.0, 0.0);
-				Draw_FillRGB(x+sizex, y, 192-sizex, 16, 0.0, 0.0, 0.0);
+				Draw_ImageColours(1.0, 0.0, 0.0, 1.0);
+				Draw_FillBlock(x, y, sizex, 16);
+				Draw_ImageColours(0.0, 0.0, 0.0, 1.0);
+				Draw_FillBlock(x+sizex, y, 192-sizex, 16);
 			}
 			else
 			{
-				Draw_FillRGB(x, y, sizex, 16, 1.0, 1.0, 0.0);
-				Draw_FillRGB(x+sizex, y, 192-sizex, 16, 1.0, 0.0, 0.0);
+				Draw_ImageColours(1.0, 1.0, 0.0, 1.0);
+				Draw_FillBlock(x, y, sizex, 16);
+				Draw_ImageColours(1.0, 0.0, 0.0, 1.0);
+				Draw_FillBlock(x+sizex, y, 192-sizex, 16);
 			}
 
 			Draw_FunString(x+8, y+4, va("Loading %s... %i%%",
@@ -1522,18 +1526,22 @@ void SCR_DrawLoading (void)
 			else
 				count = 106;
 
-			Draw_Fill (offset+42, 87, count, 1, 136);
-			Draw_Fill (offset+42, 87+1, count, 4, 138);
-			Draw_Fill (offset+42, 87+5, count, 1, 136);
+			Draw_ImagePaletteColour (136, 1.0);
+			Draw_FillBlock (offset+42, 87, count, 1);
+			Draw_FillBlock (offset+42, 87+5, count, 1);
+			Draw_ImagePaletteColour (138, 1.0);
+			Draw_FillBlock (offset+42, 87+1, count, 4);
 
 			if (loading_stage == LS_SERVER)
 				count = size;
 			else
 				count = 0;
 
-			Draw_Fill (offset+42, 97, count, 1, 168);
-			Draw_Fill (offset+42, 97+1, count, 4, 170);
-			Draw_Fill (offset+42, 97+5, count, 1, 168);
+			Draw_ImagePaletteColour(168, 1.0);
+			Draw_FillBlock (offset+42, 97, count, 1);
+			Draw_FillBlock (offset+42, 97+5, count, 1);
+			Draw_ImagePaletteColour(170, 1.0);
+			Draw_FillBlock (offset+42, 97+1, count, 4);
 
 			y = 104;
 		}

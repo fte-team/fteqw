@@ -1038,24 +1038,26 @@ void Sbar_FillPC (int x, int y, int w, int h, unsigned int pcolour)
 {
 	if (pcolour >= 16)
 	{
-		Draw_FillRGB (x, y, w, h, ((pcolour&0xff0000)>>16)/255.0f, ((pcolour&0xff00)>>8)/255.0f, (pcolour&0xff)/255.0f);
+		Draw_ImageColours (((pcolour&0xff0000)>>16)/255.0f, ((pcolour&0xff00)>>8)/255.0f, (pcolour&0xff)/255.0f, 1.0);
+		Draw_FillBlock (x, y, w, h);
 	}
 	else
 	{
-		pcolour = Sbar_ColorForMap(pcolour);
-		Draw_Fill (x, y, w, h, pcolour);
+		Draw_ImagePaletteColour(Sbar_ColorForMap(pcolour), 1.0);
+		Draw_FillBlock (x, y, w, h);
 	}
 }
 static void Sbar_FillPCDark (int x, int y, int w, int h, unsigned int pcolour)
 {
 	if (pcolour >= 16)
 	{
-		Draw_FillRGB (x, y, w, h, (pcolour&0xff)/1024.0f, ((pcolour&0xff00)>>8)/1024.0f, ((pcolour&0xff0000)>>17)/1024.0f);
+		Draw_ImageColours (((pcolour&0xff0000)>>16)/1024.0f, ((pcolour&0xff00)>>8)/1024.0f, (pcolour&0xff)/1024.0f, 1.0);
+		Draw_FillBlock (x, y, w, h);
 	}
 	else
 	{
-		pcolour = Sbar_ColorForMap(pcolour)-1;
-		Draw_Fill (x, y, w, h, pcolour);
+		Draw_ImagePaletteColour(Sbar_ColorForMap(pcolour)-1, 1.0);
+		Draw_FillBlock (x, y, w, h);
 	}
 }
 
@@ -1667,6 +1669,7 @@ void Sbar_DrawFrags (void)
 		}
 		x+=4;
 	}
+	Draw_ImageColours(1.0, 1.0, 1.0, 1.0);
 }
 
 //=============================================================================
@@ -2829,10 +2832,12 @@ void Sbar_DeathmatchOverlay (int start)
 	if (scr_scoreboard_newstyle.ival)
 	{
 		// Electro's scoreboard eyecandy: Draw top border
-		Draw_Fill(startx - 3, y - 1, rank_width - 1, 1, 0);
+		Draw_ImagePaletteColour (0, 1.0);
+		Draw_FillBlock(startx - 3, y - 1, rank_width - 1, 1);
 
 		// Electro's scoreboard eyecandy: Draw the title row background
-		Draw_Fill(startx - 2, y, rank_width - 3, 9, 1);
+		Draw_ImagePaletteColour (1, 1.0);
+		Draw_FillBlock(startx - 2, y, rank_width - 3, 9);
 	}
 
 	x = startx;
@@ -2863,13 +2868,14 @@ if (showcolumns & (1<<COLUMN##title)) \
 	if (scr_scoreboard_newstyle.ival)
 	{
 		// Electro's scoreboard eyecandy: Draw top border (under header)
-		Draw_Fill (startx - 3, y + 1, rank_width - 1, 1, 0);
+		Draw_ImagePaletteColour (0, 1.0);
+		Draw_FillBlock (startx - 3, y + 1, rank_width - 1, 1);
 		// Electro's scoreboard eyecandy: Don't go over the black border, move the rest down
 		y += 2;
 		// Electro's scoreboard eyecandy: Draw left border
-		Draw_Fill (startx - 3, y - 10, 1, 9, 0);
+		Draw_FillBlock (startx - 3, y - 10, 1, 9);
 		// Electro's scoreboard eyecandy: Draw right border
-		Draw_Fill (startx - 3 + rank_width - 2, y - 10, 1, 9, 0);
+		Draw_FillBlock (startx - 3 + rank_width - 2, y - 10, 1, 9);
 	}
 
 	y -= skip;
@@ -2917,10 +2923,14 @@ if (showcolumns & (1<<COLUMN##title)) \
 			else if (S_Voip_Speaking(k))
 				Sbar_FillPCDark (startx - 2, y, rank_width - 3, skip, 0x00ff00);
 			else
-				Draw_Fill (startx - 2, y, rank_width - 3, skip, 2);
+			{
+				Draw_ImagePaletteColour (2, 1.0);
+				Draw_FillBlock (startx - 2, y, rank_width - 3, skip);
+			}
 
-			Draw_Fill (startx - 3, y, 1, skip, 0); // Electro - Border - Left
-			Draw_Fill (startx - 3 + rank_width - 2, y, 1, skip, 0); // Electro - Border - Right
+			Draw_ImagePaletteColour (0, 1.0);
+			Draw_FillBlock (startx - 3, y, 1, skip); // Electro - Border - Left
+			Draw_FillBlock (startx - 3 + rank_width - 2, y, 1, skip); // Electro - Border - Right
 		}
 
 		x = startx;
@@ -2935,10 +2945,15 @@ if (showcolumns & (1<<COLUMN##title)) \
 	}
 
 	if (scr_scoreboard_newstyle.ival)
-		Draw_Fill (startx - 3, y + skip, rank_width - 1, 1, 0); // Electro - Border - Bottom
+	{
+		Draw_ImagePaletteColour (0, 1.0);
+		Draw_FillBlock (startx - 3, y + skip, rank_width - 1, 1); // Electro - Border - Bottom
+	}
 
 	if (y >= vid.height-10) // we ran over the screen size, squish
 		largegame = true;
+
+	Draw_ImageColours(1.0, 1.0, 1.0, 1.0);
 }
 
 void Sbar_ChatModeOverlay(void)

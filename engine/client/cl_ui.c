@@ -282,9 +282,7 @@ static vm_t *uivm;
 static char *scr_centerstring;
 
 void GLDraw_Image(float x, float y, float w, float h, float s1, float t1, float s2, float t2, qpic_t *pic);
-void SWDraw_Image (float xp, float yp, float wp, float hp, float s1, float t1, float s2, float t2, qpic_t *pic);
 char *Get_Q2ConfigString(int i);
-void SWDraw_ImageColours (float r, float g, float b, float a);
 
 
 #define MAX_PINGREQUESTS 16

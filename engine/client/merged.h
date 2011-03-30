@@ -78,6 +78,8 @@ extern void	(*Draw_Image)							(float x, float y, float w, float h, float s1, f
 extern void	(*Draw_ImageColours)					(float r, float g, float b, float a);
 void R2D_FillBlock(int x, int y, int w, int h);
 #define Draw_FillBlock R2D_FillBlock
+void R2D_ImagePaletteColour(unsigned int i, float a);
+#define Draw_ImagePaletteColour R2D_ImagePaletteColour
 
 extern void	(*R_Init)								(void);
 extern void	(*R_DeInit)								(void);

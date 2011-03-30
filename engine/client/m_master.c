@@ -237,8 +237,11 @@ void M_DrawOneServer (int inity)
 	{
 		if (y>=miny)
 		{
-			Draw_Fill (12, y, 28, 4, Sbar_ColorForMap(selectedserver.detail->players[i].topc));
-			Draw_Fill (12, y+4, 28, 4, Sbar_ColorForMap(selectedserver.detail->players[i].botc));
+			Draw_ImagePaletteColour(Sbar_ColorForMap(selectedserver.detail->players[i].topc), 1.0);
+			Draw_FillBlock (12, y, 28, 4);
+			Draw_ImagePaletteColour(Sbar_ColorForMap(selectedserver.detail->players[i].botc), 1.0);
+			Draw_FillBlock (12, y+4, 28, 4);
+			Draw_ImageColours(1.0, 1.0, 1.0, 1.0);
 			NM_PrintWhite (12, y, va("%3i", selectedserver.detail->players[i].frags));
 			NM_Print (12+8*4, y, selectedserver.detail->players[i].name);
 		}
@@ -413,7 +416,10 @@ void M_DrawServerList(void)
 
 			// make sure we have a highlighted background
 			if (highlight >= 0)
-				Draw_FillRGB(8, y, vid.width-16, 8, consolecolours[highlight].fr, consolecolours[highlight].fg, consolecolours[highlight].fb);
+			{
+				Draw_ImageColours(consolecolours[highlight].fr, consolecolours[highlight].fg, consolecolours[highlight].fb, 1.0);
+				Draw_FillBlock(8, y, vid.width-16, 8);
+			}
 
 			if (sb_showtimelimit.value)
 				x = M_AddColumn(x, y, va("%i", server->tl),			3, colour, highlight);	//time limit
@@ -909,7 +915,8 @@ void SL_DrawColumnTitle (int *x, int y, int xlen, int mx, char *str, qboolean re
 	if (mx >= xmin && !(*filldraw))
 	{
 		*filldraw = true;
-		Draw_FillRGB(xmin, y, xlen, 8, (sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08);
+		Draw_ImageColours((sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08, 1.0);
+		Draw_FillBlock(xmin, y, xlen, 8);
 	}
 	Draw_FunStringWidth(xmin, y, str, xlen);
 
@@ -1055,24 +1062,25 @@ void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 		stype = flagstoservertype(si->special);
 		if (thisone == info->selectedpos)
 		{
-			Draw_FillRGB(0, y, ths->common.width, 8, 
+			Draw_ImageColours(
 				serverhighlight[(int)stype][0],
 				serverhighlight[(int)stype][1],
-				serverhighlight[(int)stype][2]);
+				serverhighlight[(int)stype][2],
+				1.0);
 		}
 		else if (thisone == info->scrollpos + (mousecursor_y-16)/8 && mousecursor_x < x)
-			Draw_FillRGB(0, y, ths->common.width, 8, (sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08);
+			Draw_ImageColours((sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08, 1.0);
 		else if (selectedserver.inuse && NET_CompareAdr(si->adr, selectedserver.adr))
-		{		
-			Draw_FillRGB(0, y, ths->common.width, 8, ((sin(realtime*4.4)*0.25)+0.5) * 0.5, ((sin(realtime*4.4)*0.25)+0.5)*0.5, 0.08*0.5);
-		}
+			Draw_ImageColours(((sin(realtime*4.4)*0.25)+0.5) * 0.5, ((sin(realtime*4.4)*0.25)+0.5)*0.5, 0.08*0.5, 1.0);
 		else
 		{		
-			Draw_FillRGB(0, y, ths->common.width, 8, 
+			Draw_ImageColours(
 				serverbackcolor[(int)stype * 2 + (thisone & 1)][0],
 				serverbackcolor[(int)stype * 2 + (thisone & 1)][1],
-				serverbackcolor[(int)stype * 2 + (thisone & 1)][2]);
+				serverbackcolor[(int)stype * 2 + (thisone & 1)][2],
+				1.0);
 		}
+		Draw_FillBlock(0, y, ths->common.width, 8);
 
 		if (sb_showtimelimit.value)	{Draw_FunStringWidth((x-3*8), y, va("%i", si->tl), 3*8); x-=4*8;}
 		if (sb_showfraglimit.value)	{Draw_FunStringWidth((x-3*8), y, va("%i", si->fl), 3*8); x-=4*8;}
@@ -1238,8 +1246,10 @@ void SL_ServerPlayer (int x, int y, menucustom_t *ths, menu_t *menu)
 			if ((int)ths->data < selectedserver.detail->numplayers)
 			{
 				int i = (int)ths->data;
-				Draw_Fill (x, y, 28, 4, Sbar_ColorForMap(selectedserver.detail->players[i].topc));
-				Draw_Fill (x, y+4, 28, 4, Sbar_ColorForMap(selectedserver.detail->players[i].botc));
+				Draw_ImagePaletteColour (Sbar_ColorForMap(selectedserver.detail->players[i].topc), 1.0);
+				Draw_FillBlock (x, y, 28, 4);
+				Draw_ImagePaletteColour (Sbar_ColorForMap(selectedserver.detail->players[i].botc), 1.0);
+				Draw_FillBlock (x, y+4, 28, 4);
 				NM_PrintWhite (x, y, va("%3i", selectedserver.detail->players[i].frags));
 
 				Draw_FunStringWidth (x+28, y, selectedserver.detail->players[i].name, 12*8);
@@ -1273,12 +1283,13 @@ void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 	}
 	else
 	{
-
-		Draw_FillRGB(x, y, ths->common.width, ths->common.height, 0.1, 0.1, 0.2);
+		Draw_ImageColours(0.1, 0.1, 0.2, 1.0);
+		Draw_FillBlock(x, y, ths->common.width, ths->common.height);
 
 		y += ((info->scrollpos) / ((float)info->numslots - info->visibleslots)) * (ths->common.height-8);
 
-		Draw_FillRGB(x, y, 8, 8, 0.35, 0.35, 0.55);
+		Draw_ImageColours(0.35, 0.35, 0.55, 1.0);
+		Draw_FillBlock(x, y, 8, 8);
 	}
 
 	if (info->sliderpressed)

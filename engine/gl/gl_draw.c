@@ -32,7 +32,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //#define GL_USE8BITTEX
 
-void GLDraw_ImageColours(float r, float g, float b, float a);
 static void GL_Upload32 (char *name, unsigned *data, int width, int height, unsigned int flags);
 static void GL_Upload32_BGRA (char *name, unsigned *data, int width, int height, unsigned int flags);
 static void GL_Upload24BGR_Flip (char *name, qbyte *framedata, int inwidth, int inheight, unsigned int flags);

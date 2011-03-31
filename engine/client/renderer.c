@@ -647,7 +647,6 @@ void	(*Draw_Shutdown)			(void);
 
 void	(*Draw_Crosshair)			(void);
 void	(*Draw_SubPic)				(int x, int y, int width, int height, mpic_t *pic, int srcx, int srcy, int srcwidth, int srcheight);
-void	(*Draw_TransPicTranslate)	(int x, int y, int w, int h, qbyte *image, qbyte *translation);
 
 void	(*R_Init)					(void);
 void	(*R_DeInit)					(void);
@@ -704,7 +703,6 @@ rendererinfo_t dedicatedrendererinfo = {
 	NULL,	//Draw_Init;
 	NULL,	//Draw_Shutdown;
 	NULL,	//Draw_Crosshair;
-	NULL,	//Draw_TransPicTranslate;
 
 	NULL,	//R_LoadTexture
 	NULL,	//R_LoadTexture8Pal24
@@ -1250,7 +1248,6 @@ void R_SetRenderer(rendererinfo_t *ri)
 	Draw_Init				= ri->Draw_Init;
 	Draw_Shutdown			= ri->Draw_Shutdown;
 	Draw_Crosshair			= ri->Draw_Crosshair;
-	Draw_TransPicTranslate	= ri->Draw_TransPicTranslate;
 
 	R_Init					= ri->R_Init;
 	R_DeInit				= ri->R_DeInit;

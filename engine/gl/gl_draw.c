@@ -149,7 +149,6 @@ extern cvar_t		gl_texturemode, gl_texture_anisotropic_filtering;
 
 extern cvar_t		gl_savecompressedtex;
 
-texid_t			translate_texture;
 texid_t			missing_texture;	//texture used when one is missing.
 
 texid_t			cs_texture; // crosshair texture
@@ -387,9 +386,6 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 
 	GL_SetupSceneProcessingTextures();
 
-	// save a texture slot for translated picture
-	translate_texture = GL_AllocNewTexture(0, 0);
-
 	//
 	// get the other pics we need
 	//
@@ -601,58 +597,6 @@ void GLDraw_Crosshair(void)
 	}
 }
 
-/*
-=============
-Draw_TransPicTranslate
-
-Only used for the player color selection menu
-=============
-*/
-void GLDraw_TransPicTranslate (int x, int y, int width, int height, qbyte *pic, qbyte *translation)
-{
-	int				v, u, c;
-	unsigned		trans[64*64], *dest;
-	qbyte			*src;
-	int				p;
-
-	if (gl_config.gles)
-		return; // TODO: NOT FIXED YET
-	
-	GL_MTBind(0, GL_TEXTURE_2D, translate_texture);
-
-	c = width * height;
-
-	dest = trans;
-	for (v=0 ; v<64 ; v++, dest += 64)
-	{
-		src = &pic[ ((v*height)>>6) *width];
-		for (u=0 ; u<64 ; u++)
-		{
-			p = src[(u*width)>>6];
-			if (p == 255)
-				dest[u] = p;
-			else
-				dest[u] =  d_8to24rgbtable[translation[p]];
-		}
-	}
-
-	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 64, 64, 0, GL_RGBA, GL_UNSIGNED_BYTE, trans);
-
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	qglColor3f (1,1,1);
-	qglBegin (GL_QUADS);
-	qglTexCoord2f (0, 0);
-	qglVertex2f (x, y);
-	qglTexCoord2f (1, 0);
-	qglVertex2f (x+width, y);
-	qglTexCoord2f (1, 1);
-	qglVertex2f (x+width, y+height);
-	qglTexCoord2f (0, 1);
-	qglVertex2f (x, y+height);
-	qglEnd ();
-}
 
 
 //=============================================================================

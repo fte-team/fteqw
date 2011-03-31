@@ -1068,7 +1068,6 @@ rendererinfo_t openglrendererinfo = {
 	GLDraw_Init,
 	GLDraw_ReInit,
 	GLDraw_Crosshair,
-	GLDraw_TransPicTranslate,
 
 	GL_LoadTextureFmt,
 	GL_LoadTexture8Pal24,

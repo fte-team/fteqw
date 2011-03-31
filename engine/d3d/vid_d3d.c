@@ -1038,9 +1038,6 @@ static void	(D3D9_Draw_ReInit)				(void)
 static void	(D3D9_Draw_Crosshair)			(void)
 {
 }
-static void	(D3D9_Draw_TransPicTranslate)	(int x, int y, int w, int h, qbyte *pic, qbyte *translation)
-{
-}
 
 static void	(D3D9_R_Init)					(void)
 {
@@ -1169,7 +1166,6 @@ rendererinfo_t d3drendererinfo =
 	D3D9_Draw_Init,
 	D3D9_Draw_ReInit,
 	D3D9_Draw_Crosshair,
-	D3D9_Draw_TransPicTranslate,
 
 	D3D9_LoadTexture,
 	D3D9_LoadTexture8Pal24,

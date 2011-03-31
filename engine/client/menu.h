@@ -382,7 +382,6 @@ void M_SListKey(int key);
 
 //drawing funcs
 void M_BuildTranslationTable(int top, int bottom);
-FTE_DEPRECATED void M_DrawTransPicTranslate (int x, int y, mpic_t *pic);
 void M_DrawCharacter (int cx, int line, unsigned int num);
 void M_Print (int cx, int cy, qbyte *str);
 void M_PrintWhite (int cx, int cy, qbyte *str);

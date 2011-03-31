@@ -60,6 +60,7 @@ mpic_t *R2D_SafeCachePic (char *path);
 mpic_t *R2D_SafePicFromWad (char *name);
 void R2D_ScalePic (int x, int y, int width, int height, mpic_t *pic);
 void R2D_SubPic(int x, int y, int width, int height, mpic_t *pic, int srcx, int srcy, int srcwidth, int srcheight);
+void R2D_TransPicTranslate (int x, int y, int width, int height, qbyte *pic, qbyte *translation);
 void R2D_TileClear (int x, int y, int w, int h);
 void R2D_FadeScreen (void);
 
@@ -75,7 +76,6 @@ void R2D_FillBlock(int x, int y, int w, int h);
 extern void	(*Draw_Init)							(void);
 extern void	(*Draw_TinyCharacter)					(int x, int y, unsigned int num);
 extern void	(*Draw_Crosshair)						(void);
-extern void	(*Draw_TransPicTranslate)				(int x, int y, int width, int height, qbyte *image, qbyte *translation);
 extern qboolean (*Draw_IsCached)					(char *picname);	//can be null
 
 extern void	(*R_Init)								(void);
@@ -181,7 +181,6 @@ typedef struct rendererinfo_s {
 	void	(*Draw_Init)				(void);
 	void	(*Draw_Shutdown)			(void);
 	void	(*Draw_Crosshair)			(void); //TODO: MARKED FOR DEMOLITION
-	void	(*Draw_TransPicTranslate)	(int x, int y, int w, int h, qbyte *pic, qbyte *translation); //TODO: MARKED FOR DEMOLITION
 
 	texid_t (*IMG_LoadTexture)			(char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);
 	texid_t (*IMG_LoadTexture8Pal24)	(char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);

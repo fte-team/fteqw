@@ -1460,7 +1460,6 @@ void DrawCursor(int prydoncursornum)
 	{
 		R2D_ImageColours(1, 1, 1, 1);
 		R2D_Image(mousecursor_x-cl_cursorbias.value, mousecursor_y-cl_cursorbias.value, cl_cursorsize.value, cl_cursorsize.value, 0, 0, 1, 1, p);
-//		Draw_TransPic(mousecursor_x-4, mousecursor_y-4, p);
 	}
 	else
 	{

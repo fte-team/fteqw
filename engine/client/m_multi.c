@@ -317,7 +317,7 @@ void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 		R2D_ScalePic (x-12, y-8, 72, 72, p);
 
 	M_BuildTranslationTable(info->topcolour, info->lowercolour);
-	Draw_TransPicTranslate (x, y, info->tiwidth, info->tiheight, info->translationimage, translationTable);	
+	R2D_TransPicTranslate (x, y, info->tiwidth, info->tiheight, info->translationimage, translationTable);	
 }
 
 void M_Menu_Setup_f (void)

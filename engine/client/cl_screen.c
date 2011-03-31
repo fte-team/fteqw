@@ -299,43 +299,6 @@ void SCR_StringToRGB (char *rgbstring, float *rgb, float rgbinputscale)
 	} // i contains the crosshair color
 }
 
-// SCR_StringToPalIndex: takes in "<index>" or "<r> <g> <b>" and converts to a
-// Quake palette index
-int SCR_StringToPalIndex (char *rgbstring, float rgbinputscale)
-{
-	int i;
-	char *t;
-
-	rgbinputscale = 255/rgbinputscale;
-	t = strstr(rgbstring, " ");
-
-	if (t)
-	{
-		int r, g, b;
-
-		t++;
-		r = atof(rgbstring) * rgbinputscale;
-		g = atof(t) * rgbinputscale;
-		t = strstr(t, " ");
-		if (t)
-			b = atof(t) * rgbinputscale;
-		else
-			b = 0;
-
-		r = bound(0, r, 255);
-		g = bound(0, g, 255);
-		b = bound(0, b, 255);
-		i = GetPaletteIndex(r, g, b);
-	}
-	else
-	{
-		i = atoi(rgbstring);
-		i = bound(0, i, 255);
-	}
-
-	return i;
-}
-
 /*
 ==============
 SCR_CenterPrint
@@ -584,7 +547,6 @@ void SCR_DrawCursor(int prydoncursornum)
 	{
 		R2D_ImageColours(1, 1, 1, 1);
 		R2D_Image(mousecursor_x-cl_cursorbias.value, mousecursor_y-cl_cursorbias.value, cl_cursorsize.value, cl_cursorsize.value, 0, 0, 1, 1, p);
-//		Draw_TransPic(mousecursor_x-4, mousecursor_y-4, p);
 	}
 	else
 	{

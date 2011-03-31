@@ -4,6 +4,10 @@
 #include "gl_draw.h"
 
 texid_t missing_texture;
+
+texid_t translate_texture;
+shader_t *translate_shader;
+
 static mpic_t *conback;
 static mpic_t *draw_backtile;
 static shader_t *shader_draw_fill, *shader_draw_fill_trans;
@@ -87,6 +91,7 @@ void R2D_Init(void)
 #pragma message("Fixme: move conwidth handling into here")
 
 	missing_texture = R_LoadTexture8("no_texture", 16, 16, (unsigned char*)r_notexture_mip + r_notexture_mip->offsets[0], IF_NOALPHA|IF_NOGAMMA, 0);
+	translate_texture = r_nulltex;
 
 	draw_backtile = R_RegisterShader("gfx/backtile.lmp",
 		"{\n"
@@ -326,6 +331,50 @@ void R2D_SubPic(int x, int y, int width, int height, mpic_t *pic, int srcx, int 
 	R2D_Image(x, y, width, height, newsl, newtl, newsh, newth, pic);
 }
 
+/* this is an ugly special case drawing func that's only used for the player color selection menu */
+void R2D_TransPicTranslate (int x, int y, int width, int height, qbyte *pic, qbyte *translation)
+{
+	int				v, u, c;
+	unsigned		trans[64*64], *dest;
+	qbyte			*src;
+	int				p;
+
+	c = width * height;
+
+	dest = trans;
+	for (v=0 ; v<64 ; v++, dest += 64)
+	{
+		src = &pic[ ((v*height)>>6) *width];
+		for (u=0 ; u<64 ; u++)
+		{
+			p = src[(u*width)>>6];
+			if (p == 255)
+				dest[u] = 0x0;
+			else
+				dest[u] =  d_8to24rgbtable[translation[p]];
+		}
+	}
+
+	if (!TEXVALID(translate_texture))
+	{
+		translate_texture = R_AllocNewTexture(64, 64);
+		translate_shader = R_RegisterShader("translatedpic", "{\n"
+#ifdef USE_EGL
+			"program default2d\n"
+#endif
+			"nomipmaps\n"
+			"{\n"
+				"map $diffuse\n"
+				"blendfunc blend\n"
+			"}\n"
+		"}\n");
+		translate_shader->defaulttextures.base = translate_texture;
+	}
+	/* could avoid reuploading already translated textures but this func really isn't used enough anyway */
+	R_Upload(translate_texture, NULL, TF_RGBA32, trans, NULL, 64, 64, IF_NOMIPMAP|IF_NOGAMMA);
+	R2D_ScalePic(x, y, width, height, translate_shader);
+}
+
 /*
 ================
 Draw_ConsoleBackground
@@ -426,7 +475,7 @@ void R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 		conback = NULL;
 		return;
 	}
-		
+
 	if (*var->string)
 		conback = R_RegisterPic(var->string);
 	if (!conback || !conback->width)

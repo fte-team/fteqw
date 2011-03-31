@@ -1965,15 +1965,15 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	{
 		qglColorMask(GL_FALSE, GL_TRUE, GL_FALSE, GL_FALSE);
 		qglStencilFunc(GL_GREATER, 1, ~0);
-		Draw_ConsoleBackground(vid.height);
+		R2D_ConsoleBackground(vid.height);
 
 		qglColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_FALSE);
 		qglStencilFunc(GL_LESS, 1, ~0);
-		Draw_ConsoleBackground(vid.height);
+		R2D_ConsoleBackground(vid.height);
 
 		qglColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_FALSE);
 		qglStencilFunc(GL_NEVER, 1, ~0);
-		Draw_ConsoleBackground(vid.height);
+		R2D_ConsoleBackground(vid.height);
 	}
 
 	qglMatrixMode(GL_PROJECTION);

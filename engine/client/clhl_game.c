@@ -344,7 +344,7 @@ int hl_viewmodelsequencebody;
 HLPIC QDECL CLGHL_pic_load (char *picname)
 {
 	return Mod_ForName(picname, false);
-//	return Draw_SafeCachePic(picname);
+//	return R2D_SafeCachePic(picname);
 }
 int QDECL CLGHL_pic_getnumframes (HLPIC pic)
 {
@@ -404,7 +404,7 @@ int QDECL CLGHL_pic_getwidth (HLPIC pic, int frame)
 void QDECL CLGHL_pic_select (HLPIC pic, int r, int g, int b)
 {
 	selectedpic = pic;
-	Draw_ImageColours(r/255.0f, g/255.0f, b/255.0f, 1);
+	R2D_ImageColours(r/255.0f, g/255.0f, b/255.0f, 1);
 }
 void QDECL CLGHL_pic_drawcuropaque (int frame, int x, int y, hlsubrect_t *loc)
 {
@@ -415,7 +415,7 @@ void QDECL CLGHL_pic_drawcuropaque (int frame, int x, int y, hlsubrect_t *loc)
 	//faster SW render: no blends/holes
 	pic->flags &= ~1;
 
-	Draw_Image(x, y,
+	R2D_Image(x, y,
 		loc->r-loc->l, loc->b-loc->t,
 		(float)loc->l/pic->width, (float)loc->t/pic->height,
 		(float)loc->r/pic->width, (float)loc->b/pic->height,
@@ -429,7 +429,7 @@ void QDECL CLGHL_pic_drawcuralphtest (int frame, int x, int y, hlsubrect_t *loc)
 	//use some kind of alpha
 	pic->flags |= 1;
 
-	Draw_Image(x, y,
+	R2D_Image(x, y,
 		loc->r-loc->l, loc->b-loc->t,
 		(float)loc->l/pic->width, (float)loc->t/pic->height,
 		(float)loc->r/pic->width, (float)loc->b/pic->height,
@@ -448,7 +448,7 @@ void QDECL CLGHL_pic_drawcuradditive (int frame, int x, int y, hlsubrect_t *loc)
 	pic->flags |= 1;
 	if (loc)
 	{
-		Draw_Image(x, y,
+		R2D_Image(x, y,
 			loc->r-loc->l, loc->b-loc->t,
 			(float)loc->l/pic->width, (float)loc->t/pic->height,
 			(float)loc->r/pic->width, (float)loc->b/pic->height,
@@ -456,7 +456,7 @@ void QDECL CLGHL_pic_drawcuradditive (int frame, int x, int y, hlsubrect_t *loc)
 	}
 	else
 	{
-		Draw_Image(x, y,
+		R2D_Image(x, y,
 			pic->width, pic->height,
 			0, 0,
 			1, 1,

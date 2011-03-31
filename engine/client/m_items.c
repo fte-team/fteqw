@@ -20,68 +20,68 @@ void Draw_TextBox (int x, int y, int width, int lines)
 	// draw left side
 	cx = x;
 	cy = y;
-	p = Draw_SafeCachePic ("gfx/box_tl.lmp");
+	p = R2D_SafeCachePic ("gfx/box_tl.lmp");
 
 	if (!p)	//assume none exist
 	{
-		Draw_ImageColours(0.0, 0.0, 0.0, 1.0);
-		Draw_FillBlock(x, y, width + 16, 8 * (2 + lines));
-		Draw_ImageColours(1.0, 1.0, 1.0, 1.0);
+		R2D_ImageColours(0.0, 0.0, 0.0, 1.0);
+		R2D_FillBlock(x, y, width + 16, 8 * (2 + lines));
+		R2D_ImageColours(1.0, 1.0, 1.0, 1.0);
 		return;
 	}
 
 	if (p)
-		Draw_ScalePic (cx, cy, 8, 8, p);
-	p = Draw_SafeCachePic ("gfx/box_ml.lmp");
+		R2D_ScalePic (cx, cy, 8, 8, p);
+	p = R2D_SafeCachePic ("gfx/box_ml.lmp");
 	for (n = 0; n < lines; n++)
 	{
 		cy += 8;
 		if (p)
-			Draw_ScalePic (cx, cy, 8, 8, p);
+			R2D_ScalePic (cx, cy, 8, 8, p);
 	}
-	p = Draw_SafeCachePic ("gfx/box_bl.lmp");
+	p = R2D_SafeCachePic ("gfx/box_bl.lmp");
 	if (p)
-		Draw_ScalePic (cx, cy+8, 8, 8, p);
+		R2D_ScalePic (cx, cy+8, 8, 8, p);
 
 	// draw middle
 	cx += 8;
 	while (width > 0)
 	{
 		cy = y;
-		p = Draw_SafeCachePic ("gfx/box_tm.lmp");
+		p = R2D_SafeCachePic ("gfx/box_tm.lmp");
 		if (p)
-			Draw_ScalePic (cx, cy, 16, 8, p);
-		p = Draw_SafeCachePic ("gfx/box_mm.lmp");
+			R2D_ScalePic (cx, cy, 16, 8, p);
+		p = R2D_SafeCachePic ("gfx/box_mm.lmp");
 		for (n = 0; n < lines; n++)
 		{
 			cy += 8;
 			if (n == 1)
-				p = Draw_SafeCachePic ("gfx/box_mm2.lmp");
+				p = R2D_SafeCachePic ("gfx/box_mm2.lmp");
 			if (p)
-				Draw_ScalePic (cx, cy, 16, 8, p);
+				R2D_ScalePic (cx, cy, 16, 8, p);
 		}
-		p = Draw_SafeCachePic ("gfx/box_bm.lmp");
+		p = R2D_SafeCachePic ("gfx/box_bm.lmp");
 		if (p)
-			Draw_ScalePic (cx, cy+8, 16, 8, p);
+			R2D_ScalePic (cx, cy+8, 16, 8, p);
 		width -= 2;
 		cx += 16;
 	}
 
 	// draw right side
 	cy = y;
-	p = Draw_SafeCachePic ("gfx/box_tr.lmp");
+	p = R2D_SafeCachePic ("gfx/box_tr.lmp");
 	if (p)
-		Draw_ScalePic (cx, cy, 8, 8, p);
-	p = Draw_SafeCachePic ("gfx/box_mr.lmp");
+		R2D_ScalePic (cx, cy, 8, 8, p);
+	p = R2D_SafeCachePic ("gfx/box_mr.lmp");
 	for (n = 0; n < lines; n++)
 	{
 		cy += 8;
 		if (p)
-			Draw_ScalePic (cx, cy, 8, 8, p);
+			R2D_ScalePic (cx, cy, 8, 8, p);
 	}
-	p = Draw_SafeCachePic ("gfx/box_br.lmp");
+	p = R2D_SafeCachePic ("gfx/box_br.lmp");
 	if (p)
-		Draw_ScalePic (cx, cy+8, 8, 8, p);
+		R2D_ScalePic (cx, cy+8, 8, 8, p);
 }
 
 void Draw_Hexen2BigFontString(int x, int y, const char *text)
@@ -91,7 +91,7 @@ void Draw_Hexen2BigFontString(int x, int y, const char *text)
 	unsigned int hack;
 	hack = d_8to24rgbtable[0];
 	d_8to24rgbtable[0] = 0;
-	p = Draw_SafeCachePic ("gfx/menu/bigfont.lmp");
+	p = R2D_SafeCachePic ("gfx/menu/bigfont.lmp");
 	d_8to24rgbtable[0] = hack;
 
 	while(*text)
@@ -112,7 +112,7 @@ void Draw_Hexen2BigFontString(int x, int y, const char *text)
 			sy=-1;
 		}
 		if(sx>=0)
-			Draw_SubPic(x, y, 20, 20, p, sx, sy, 20*8, 20*4);
+			R2D_SubPic(x, y, 20, 20, p, sx, sy, 20*8, 20*4);
 		x+=20;
 		text++;
 	}
@@ -121,16 +121,16 @@ void Draw_Hexen2BigFontString(int x, int y, const char *text)
 mpic_t *QBigFontWorks(void)
 {
 	mpic_t *p;
-	p = Draw_SafeCachePic ("gfx/mcharset.lmp");
+	p = R2D_SafeCachePic ("gfx/mcharset.lmp");
 	if (p)
 		return p;
-	p = Draw_SafeCachePic ("mcharset.lmp");
+	p = R2D_SafeCachePic ("mcharset.lmp");
 	if (p)
 		return p;
-	p = Draw_SafeCachePic ("textures/gfx/mcharset.lmp");
+	p = R2D_SafeCachePic ("textures/gfx/mcharset.lmp");
 	if (p)
 		return p;
-	p = Draw_SafeCachePic ("textures/mcharset.lmp");
+	p = R2D_SafeCachePic ("textures/mcharset.lmp");
 	if (p)
 		return p;
 	return NULL;
@@ -182,7 +182,7 @@ void Draw_BigFontString(int x, int y, const char *text)
 			sy=-1;
 		}
 		if(sx>=0)
-			Draw_SubPic(x, y, 20, 20, p, sx, sy, 20*8, 20*8);
+			R2D_SubPic(x, y, 20, 20, p, sx, sy, 20*8, 20*8);
 		x+=(p->width>>3);
 		text++;
 	}
@@ -399,8 +399,8 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 			break;
 		case mt_menudot:
 			i = (int)(realtime * 10)%maxdots;
-			p = Draw_SafeCachePic(va(menudotstyle, i+mindot ));
-			Draw_ScalePic(xpos+option->common.posx, ypos+option->common.posy+dotofs, 20, 20, p);
+			p = R2D_SafeCachePic(va(menudotstyle, i+mindot ));
+			R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy+dotofs, 20, 20, p);
 			break;
 		case mt_picturesel:
 			p = NULL;
@@ -410,16 +410,16 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 				Q_strncpyz(selname, option->picture.picturename, sizeof(selname));
 				COM_StripExtension(selname, selname, sizeof(selname));
 				Q_strncatz(selname, "_sel", sizeof(selname));
-				p = Draw_SafeCachePic(selname);
+				p = R2D_SafeCachePic(selname);
 			}
 			if (!p)
-				p = Draw_SafeCachePic(option->picture.picturename);
+				p = R2D_SafeCachePic(option->picture.picturename);
 
-			Draw_ScalePic(xpos+option->common.posx, ypos+option->common.posy, option->common.width?option->common.width:p->width, option->common.height?option->common.height:p->height, p);
+			R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy, option->common.width?option->common.width:p->width, option->common.height?option->common.height:p->height, p);
 			break;
 		case mt_picture:
-			p = Draw_SafeCachePic(option->picture.picturename);
-			if (p) Draw_ScalePic(xpos+option->common.posx, ypos+option->common.posy, option->common.width, option->common.height, p);
+			p = R2D_SafeCachePic(option->picture.picturename);
+			if (p) R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy, option->common.width, option->common.height, p);
 			break;
 		case mt_childwindow:
 			MenuDrawItems(xpos+option->common.posx, ypos+option->common.posy, ((menu_t *)option->custom.data)->options, (menu_t *)option->custom.data);
@@ -716,8 +716,8 @@ menupicture_t *MC_AddSelectablePicture(menu_t *menu, int x, int y, char *picname
 	COM_StripExtension(selname, selname, sizeof(selname));
 	Q_strncatz(selname, "_sel", sizeof(selname));
 
-	Draw_SafeCachePic(picname);
-	Draw_SafeCachePic(selname);
+	R2D_SafeCachePic(picname);
+	R2D_SafeCachePic(selname);
 
 	n = Z_Malloc(sizeof(menupicture_t) + strlen(picname)+1);
 	n->common.type = mt_picturesel;
@@ -738,7 +738,7 @@ menupicture_t *MC_AddPicture(menu_t *menu, int x, int y, int width, int height, 
 	if (qrenderer == QR_NONE)
 		return NULL;
 
-	Draw_SafeCachePic(picname);
+	R2D_SafeCachePic(picname);
 
 	n = Z_Malloc(sizeof(menupicture_t) + strlen(picname)+1);
 	n->common.type = mt_picture;
@@ -763,7 +763,7 @@ menupicture_t *MC_AddCenterPicture(menu_t *menu, int y, int height, char *picnam
 
 	if (qrenderer == QR_NONE)
 		return NULL;
-	p = Draw_SafeCachePic(picname);
+	p = R2D_SafeCachePic(picname);
 	if (!p)
 	{
 		x = 320/2;
@@ -1455,11 +1455,11 @@ void DrawCursor(int prydoncursornum)
 	if (!*cl_cursor.string)
 		p = NULL;
 	else
-		p = Draw_SafeCachePic(cl_cursor.string);
+		p = R2D_SafeCachePic(cl_cursor.string);
 	if (p)
 	{
-		Draw_ImageColours(1, 1, 1, 1);
-		Draw_Image(mousecursor_x-cl_cursorbias.value, mousecursor_y-cl_cursorbias.value, cl_cursorsize.value, cl_cursorsize.value, 0, 0, 1, 1, p);
+		R2D_ImageColours(1, 1, 1, 1);
+		R2D_Image(mousecursor_x-cl_cursorbias.value, mousecursor_y-cl_cursorbias.value, cl_cursorsize.value, cl_cursorsize.value, 0, 0, 1, 1, p);
 //		Draw_TransPic(mousecursor_x-4, mousecursor_y-4, p);
 	}
 	else
@@ -1830,12 +1830,6 @@ void M_Menu_Main_f (void)
 
 	SCR_EndLoadingPlaque();	//just in case...
 
-	if (!Draw_SafeCachePic)
-	{
-		Con_ToggleConsole_f();
-		return;
-	}
-
 /*
 	if (0)
 	{
@@ -1866,7 +1860,7 @@ void M_Menu_Main_f (void)
 	mgt = M_GameType();
 	if (mgt == MGT_QUAKE2)	//quake2 main menu.
 	{
-		if (Draw_SafeCachePic("pics/m_main_game"))
+		if (R2D_SafeCachePic("pics/m_main_game"))
 		{
 			m_state = m_complex;
 			key_dest = key_menu;
@@ -1875,7 +1869,7 @@ void M_Menu_Main_f (void)
 			mainm->key = MC_Main_Key;
 
 			MC_AddPicture(mainm, 0, 4, 38, 166, "pics/m_main_plaque");
-			p = Draw_SafeCachePic("pics/m_main_logo");
+			p = R2D_SafeCachePic("pics/m_main_logo");
 			if (!p)
 				return;
 			MC_AddPicture(mainm, 0, 173, 36, 42, "pics/m_main_logo");
@@ -1921,7 +1915,7 @@ void M_Menu_Main_f (void)
 		mainm->key = MC_Main_Key;
 
 		MC_AddPicture(mainm, 16, 0, 35, 176, "gfx/menu/hplaque.lmp");
-		p = Draw_SafeCachePic("gfx/menu/title0.lmp");
+		p = R2D_SafeCachePic("gfx/menu/title0.lmp");
 		if (!p)
 			return;
 		MC_AddCenterPicture(mainm, 0, 60, "gfx/menu/title0.lmp");
@@ -1959,7 +1953,7 @@ void M_Menu_Main_f (void)
 		key_dest = key_menu;
 		mainm = M_CreateMenu(0);
 
-		p = Draw_SafeCachePic("gfx/ttl_main.lmp");
+		p = R2D_SafeCachePic("gfx/ttl_main.lmp");
 		if (!p)
 		{
 			MC_AddRedText(mainm, 16, 0,				"MAIN MENU", false);
@@ -1993,7 +1987,7 @@ void M_Menu_Main_f (void)
 		key_dest = key_menu;
 		mainm = M_CreateMenu(0);
 
-		p = Draw_SafeCachePic("gfx/ttl_main.lmp");
+		p = R2D_SafeCachePic("gfx/ttl_main.lmp");
 		if (!p)
 		{
 			MC_AddRedText(mainm, 16, 0,				"MAIN MENU", false);
@@ -2011,7 +2005,7 @@ void M_Menu_Main_f (void)
 		MC_AddPicture(mainm, 72, 32, 240, 112, "gfx/mainmenu.lmp");
 
 
-		p = Draw_SafeCachePic("gfx/mainmenu.lmp");
+		p = R2D_SafeCachePic("gfx/mainmenu.lmp");
 
 		b=MC_AddConsoleCommand	(mainm, 72, 32,	"", "menu_single\n");
 		mainm->selecteditem = (menuoption_t *)b;

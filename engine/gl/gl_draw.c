@@ -364,9 +364,9 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 
 	qglClear(GL_COLOR_BUFFER_BIT);
 	{
-		mpic_t *pic = Draw_SafeCachePic ("gfx/loading.lmp");
+		mpic_t *pic = R2D_SafeCachePic ("gfx/loading.lmp");
 		if (pic)
-			Draw_ScalePic ( ((int)vid.width - pic->width)/2,
+			R2D_ScalePic ( ((int)vid.width - pic->width)/2,
 				((int)vid.height - 48 - pic->height)/2, pic->width, pic->height, pic);
 	}
 
@@ -393,8 +393,8 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	//
 	// get the other pics we need
 	//
-	TRACE(("dbg: GLDraw_ReInit: Draw_SafePicFromWad\n"));
-	draw_disc = Draw_SafePicFromWad ("disc");
+	TRACE(("dbg: GLDraw_ReInit: R2D_SafePicFromWad\n"));
+	draw_disc = R2D_SafePicFromWad ("disc");
 
 #ifdef GL_USE8BITTEX
 	inited15to8 = false;
@@ -654,80 +654,8 @@ void GLDraw_TransPicTranslate (int x, int y, int width, int height, qbyte *pic, 
 	qglEnd ();
 }
 
-void GLDraw_FillRGB (int x, int y, int w, int h, float r, float g, float b)
-{
-	if (gl_config.gles)
-		return; //TODO: DRAW FILL NOT FIXED YET
 
-	qglDisable (GL_TEXTURE_2D);
-	qglColor3f (r, g, b);
-
-	qglBegin (GL_QUADS);
-
-	qglVertex2f (x,y);
-	qglVertex2f (x+w, y);
-	qglVertex2f (x+w, y+h);
-	qglVertex2f (x, y+h);
-
-	qglEnd ();
-	qglColor3f (1,1,1);
-	qglEnable (GL_TEXTURE_2D);
-}
-
-/*
-=============
-Draw_Fill
-
-Fills a box of pixels with a single color
-=============
-*/
-void GLDraw_Fill (int x, int y, int w, int h, unsigned int c)
-{
-	unsigned int r, g, b;
-	extern qboolean gammaworks;
-
-	r = host_basepal[c*3];
-	g = host_basepal[c*3+1];
-	b = host_basepal[c*3+2];
-
-	if (!gammaworks)
-	{
-		r = gammatable[r];
-		g = gammatable[r];
-		b = gammatable[r];
-	}
-
-	GLDraw_FillRGB (x, y, w, h,
-		r/255.0,
-		g/255.0,
-		b/255.0);
-}
 //=============================================================================
-
-/*
-================
-Draw_BeginDisc
-
-Draws the little blue disc in the corner of the screen.
-Call before beginning any disc IO.
-================
-*/
-void GLDraw_BeginDisc (void)
-{
-}
-
-
-/*
-================
-Draw_EndDisc
-
-Erases the disc icon.
-Call after completing any disc IO
-================
-*/
-void GLDraw_EndDisc (void)
-{
-}
 
 /*
 ================

@@ -287,7 +287,7 @@ void M_Media_Draw (void)
 
 #define MP_Hightlight(x,y,text,hl) (hl?M_PrintWhite(x, y, text):M_Print(x, y, text))
 
-	p = Draw_SafeCachePic ("gfx/p_option.lmp");
+	p = R2D_SafeCachePic ("gfx/p_option.lmp");
 	if (p)
 		M_DrawScalePic ( (320-p->width)/2, 4, 144, 24, p);
 	if (!bgmvolume.value)
@@ -914,7 +914,7 @@ qboolean Media_WinAvi_DecodeFrame(cin_t *cin, qboolean nosound)
 	if (!lpbi || lpbi->biBitCount != 24)//oops
 	{		
 		SCR_SetUpToDrawConsole();
-		Draw_ConsoleBackground(0, vid.height, true);
+		R2D_ConsoleBackground(0, vid.height, true);
 		Draw_FunString(0, 0, "Video stream is corrupt\n");			
 	}
 	else
@@ -1743,8 +1743,8 @@ qboolean Media_ShowFilm(void)
 			Media_PlayFilm("");
 		else
 		{
-			Draw_ImageColours(1, 1, 1, 1);
-			Draw_ScalePic(0, 0, vid.width, vid.height, videoshader);
+			R2D_ImageColours(1, 1, 1, 1);
+			R2D_ScalePic(0, 0, vid.width, vid.height, videoshader);
 
 			SCR_SetUpToDrawConsole();
 			if  (scr_con_current)

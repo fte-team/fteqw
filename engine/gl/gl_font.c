@@ -1102,8 +1102,6 @@ void Font_InvalidateColour(void)
 	font_colourmask = ~0;
 }
 
-void GLDraw_FillRGB (int x, int y, int w, int h, float r, float g, float b);
-
 //draw a character from the current font at a pixel location.
 int Font_DrawChar(int px, int py, unsigned int charcode)
 {

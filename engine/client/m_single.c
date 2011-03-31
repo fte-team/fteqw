@@ -328,7 +328,7 @@ void M_Menu_SinglePlayer_f (void)
 		MC_AddCenterPicture(menu, 4, 24, "gfx/p_option.lmp");
 	}
 
-	p = Draw_SafeCachePic("gfx/sp_menu.lmp");
+	p = R2D_SafeCachePic("gfx/sp_menu.lmp");
 	if (!p)
 	{
 		MC_AddBox (menu, 60, 10*8, 23, 4);

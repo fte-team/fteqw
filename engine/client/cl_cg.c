@@ -446,8 +446,6 @@ int CG_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projecti
 	return numtris;
 }
 
-
-void GLDraw_Image(float x, float y, float w, float h, float s1, float t1, float s2, float t2, qpic_t *pic);
 int VM_LerpTag(void *out, model_t *model, int f1, int f2, float l2, char *tagname);
 
 
@@ -803,14 +801,14 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		{
 			float *f = VM_POINTER(arg[0]);
 			if (f)
-				Draw_ImageColours(f[0], f[1], f[2], f[3]);
+				R2D_ImageColours(f[0], f[1], f[2], f[3]);
 			else
-				Draw_ImageColours(1, 1, 1, 1);
+				R2D_ImageColours(1, 1, 1, 1);
 		}
 		break;
 
 	case CG_R_DRAWSTRETCHPIC:
-		Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), VM_FROMSHANDLE(VM_LONG(arg[8])));
+		R2D_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), VM_FROMSHANDLE(VM_LONG(arg[8])));
 		break;
 
 	case CG_R_LERPTAG:	//Lerp tag...
@@ -1099,7 +1097,7 @@ int CG_Refresh(void)
 	time = ccs.serverTime;
 	VM_Call(cgvm, CG_DRAW_ACTIVE_FRAME, time, 0, false);
 
-	Draw_ImageColours(1, 1, 1, 1);
+	R2D_ImageColours(1, 1, 1, 1);
 
 	return true;
 }
@@ -1127,7 +1125,7 @@ void CG_Start (void)
 		return;
 	}
 
-	if (!Draw_SafeCachePic)	//no renderer loaded
+	if (!R2D_SafeCachePic)	//no renderer loaded
 	{
 		CG_Stop();
 		return;

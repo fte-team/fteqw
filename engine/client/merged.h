@@ -56,30 +56,27 @@ typedef struct {
 extern r_qrenderer_t qrenderer;
 extern char *q_renderername;
 
-extern mpic_t	*(*Draw_SafePicFromWad)				(char *name);
-extern mpic_t	*(*Draw_SafeCachePic)				(char *path);
+mpic_t *R2D_SafeCachePic (char *path);
+mpic_t *R2D_SafePicFromWad (char *name);
+void R2D_ScalePic (int x, int y, int width, int height, mpic_t *pic);
+void R2D_SubPic(int x, int y, int width, int height, mpic_t *pic, int srcx, int srcy, int srcwidth, int srcheight);
+void R2D_TileClear (int x, int y, int w, int h);
+void R2D_FadeScreen (void);
+
+void R2D_ConsoleBackground (int firstline, int lastline, qboolean forceopaque);
+void R2D_EditorBackground (void);
+
+void R2D_Image(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);
+
+void R2D_ImageColours(float r, float g, float b, float a);
+void R2D_ImagePaletteColour(unsigned int i, float a);
+void R2D_FillBlock(int x, int y, int w, int h);
+
 extern void	(*Draw_Init)							(void);
 extern void	(*Draw_TinyCharacter)					(int x, int y, unsigned int num);
 extern void	(*Draw_Crosshair)						(void);
-extern void	(*Draw_ScalePic)						(int x, int y, int width, int height, mpic_t *pic);
-extern void	(*Draw_SubPic)							(int x, int y, int width, int height, mpic_t *pic, int srcx, int srcy, int srcwidth, int srcheight);
 extern void	(*Draw_TransPicTranslate)				(int x, int y, int width, int height, qbyte *image, qbyte *translation);
-extern void	(*Draw_ConsoleBackground)				(int firstline, int lastline, qboolean forceopaque);
-extern void	(*Draw_EditorBackground)				(void);
-extern void	(*Draw_TileClear)						(int x, int y, int w, int h);
-extern void	(*Draw_Fill)							(int x, int y, int w, int h, unsigned int c);
-extern void	(*Draw_FillRGB)							(int x, int y, int w, int h, float r, float g, float b);
-extern void	(*Draw_FadeScreen)						(void);
-extern void	(*Draw_BeginDisc)						(void);
-extern void	(*Draw_EndDisc)							(void);
 extern qboolean (*Draw_IsCached)					(char *picname);	//can be null
-
-extern void	(*Draw_Image)							(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);	//gl-style scaled/coloured/subpic
-extern void	(*Draw_ImageColours)					(float r, float g, float b, float a);
-void R2D_FillBlock(int x, int y, int w, int h);
-#define Draw_FillBlock R2D_FillBlock
-void R2D_ImagePaletteColour(unsigned int i, float a);
-#define Draw_ImagePaletteColour R2D_ImagePaletteColour
 
 extern void	(*R_Init)								(void);
 extern void	(*R_DeInit)								(void);
@@ -181,25 +178,10 @@ typedef struct rendererinfo_s {
 	char *name[4];
 	r_qrenderer_t rtype;
 
-	mpic_t	*(*Draw_SafePicFromWad)		(char *name);
-	mpic_t	*(*Draw_SafeCachePic)		(char *path);
 	void	(*Draw_Init)				(void);
 	void	(*Draw_Shutdown)			(void);
-	void	(*Draw_Crosshair)			(void);
-	void	(*Draw_ScalePic)			(int x, int y, int width, int height, mpic_t *pic);
-	void	(*Draw_SubPic)				(int x, int y, int width, int height, mpic_t *pic, int srcx, int srcy, int srcwidth, int srcheight);
-	void	(*Draw_TransPicTranslate)	(int x, int y, int w, int h, qbyte *pic, qbyte *translation);
-	void	(*Draw_ConsoleBackground)	(int firstline, int lastline, qboolean forceopaque);
-	void	(*Draw_EditorBackground)	(void);
-	void	(*Draw_TileClear)			(int x, int y, int w, int h);
-	void	(*Draw_Fill)				(int x, int y, int w, int h, unsigned int c);
-	void	(*Draw_FillRGB)				(int x, int y, int w, int h, float r, float g, float b);
-	void	(*Draw_FadeScreen)			(void);
-	void	(*Draw_BeginDisc)			(void);
-	void	(*Draw_EndDisc)				(void);
-
-	void	(*Draw_Image)				(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);	//gl-style scaled/coloured/subpic
-	void	(*Draw_ImageColours)		(float r, float g, float b, float a);
+	void	(*Draw_Crosshair)			(void); //TODO: MARKED FOR DEMOLITION
+	void	(*Draw_TransPicTranslate)	(int x, int y, int w, int h, qbyte *pic, qbyte *translation); //TODO: MARKED FOR DEMOLITION
 
 	texid_t (*IMG_LoadTexture)			(char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);
 	texid_t (*IMG_LoadTexture8Pal24)	(char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);

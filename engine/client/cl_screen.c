@@ -424,7 +424,7 @@ void SCR_EraseCenterString (void)
 		}
 
 		y = vid.height>>1;
-		Draw_TileClear (0, y, vid.width, min(8*p->erase_lines, vid.height - y - 1));
+		R2D_TileClear (0, y, vid.width, min(8*p->erase_lines, vid.height - y - 1));
 	}
 }
 
@@ -577,13 +577,13 @@ void SCR_DrawCursor(int prydoncursornum)
 	extern int mousecursor_x, mousecursor_y;
 	mpic_t *p;
 	if (!*cl_cursor.string || prydoncursornum>1)
-		p = Draw_SafeCachePic(va("gfx/prydoncursor%03i.lmp", prydoncursornum));
+		p = R2D_SafeCachePic(va("gfx/prydoncursor%03i.lmp", prydoncursornum));
 	else
-		p = Draw_SafeCachePic(cl_cursor.string);
+		p = R2D_SafeCachePic(cl_cursor.string);
 	if (p)
 	{
-		Draw_ImageColours(1, 1, 1, 1);
-		Draw_Image(mousecursor_x-cl_cursorbias.value, mousecursor_y-cl_cursorbias.value, cl_cursorsize.value, cl_cursorsize.value, 0, 0, 1, 1, p);
+		R2D_ImageColours(1, 1, 1, 1);
+		R2D_Image(mousecursor_x-cl_cursorbias.value, mousecursor_y-cl_cursorbias.value, cl_cursorsize.value, cl_cursorsize.value, 0, 0, 1, 1, p);
 //		Draw_TransPic(mousecursor_x-4, mousecursor_y-4, p);
 	}
 	else
@@ -683,10 +683,10 @@ void SCR_ShowPics_Draw(void)
 		if (failed)
 			continue;
 
-		p = Draw_SafeCachePic(sp->picname);
+		p = R2D_SafeCachePic(sp->picname);
 		if (!p)
 			continue;
-		Draw_ScalePic(x, y, p->width, p->height, p);
+		R2D_ScalePic(x, y, p->width, p->height, p);
 	}
 }
 
@@ -1123,8 +1123,8 @@ void SCR_Init (void)
 	Cmd_AddRemCommand ("sizeup",SCR_SizeUp_f);
 	Cmd_AddRemCommand ("sizedown",SCR_SizeDown_f);
 
-	scr_net = Draw_SafePicFromWad ("net");
-	scr_turtle = Draw_SafePicFromWad ("turtle");
+	scr_net = R2D_SafePicFromWad ("net");
+	scr_turtle = R2D_SafePicFromWad ("turtle");
 
 	scr_initialized = true;
 }
@@ -1164,7 +1164,7 @@ void SCR_DrawTurtle (void)
 	if (count < 3)
 		return;
 
-	Draw_ScalePic (scr_vrect.x, scr_vrect.y, 64, 64, scr_turtle);
+	R2D_ScalePic (scr_vrect.x, scr_vrect.y, 64, 64, scr_turtle);
 }
 
 /*
@@ -1179,7 +1179,7 @@ void SCR_DrawNet (void)
 	if (cls.demoplayback || !scr_net)
 		return;
 
-	Draw_ScalePic (scr_vrect.x+64, scr_vrect.y, 64, 64, scr_net);
+	R2D_ScalePic (scr_vrect.x+64, scr_vrect.y, 64, 64, scr_net);
 }
 
 void SCR_StringXY(char *str, float x, float y)
@@ -1410,10 +1410,10 @@ void SCR_DrawPause (void)
 	if (key_dest == key_menu)
 		return;
 
-	pic = Draw_SafeCachePic ("gfx/pause.lmp");
+	pic = R2D_SafeCachePic ("gfx/pause.lmp");
 	if (pic)
 	{
-		Draw_ScalePic ( (vid.width - pic->width)/2,
+		R2D_ScalePic ( (vid.width - pic->width)/2,
 			(vid.height - 48 - pic->height)/2, pic->width, pic->height, pic);
 	}
 	else
@@ -1456,12 +1456,12 @@ void SCR_DrawLoading (void)
 	if (qdepth < h2depth || h2depth > 0xffffff)
 	{	//quake files
 
-		pic = Draw_SafeCachePic ("gfx/loading.lmp");
+		pic = R2D_SafeCachePic ("gfx/loading.lmp");
 		if (pic)
 		{
 			x = (vid.width - pic->width)/2;
 			y = (vid.height - 48 - pic->height)/2;
-			Draw_ScalePic (x, y, pic->width, pic->height, pic);
+			R2D_ScalePic (x, y, pic->width, pic->height, pic);
 			x = (vid.width/2) - 96;
 			y += pic->height + 8;
 		}
@@ -1480,17 +1480,17 @@ void SCR_DrawLoading (void)
 			sizex = current_loading_size * 192 / total_loading_size;
 			if (loading_stage == LS_SERVER)
 			{
-				Draw_ImageColours(1.0, 0.0, 0.0, 1.0);
-				Draw_FillBlock(x, y, sizex, 16);
-				Draw_ImageColours(0.0, 0.0, 0.0, 1.0);
-				Draw_FillBlock(x+sizex, y, 192-sizex, 16);
+				R2D_ImageColours(1.0, 0.0, 0.0, 1.0);
+				R2D_FillBlock(x, y, sizex, 16);
+				R2D_ImageColours(0.0, 0.0, 0.0, 1.0);
+				R2D_FillBlock(x+sizex, y, 192-sizex, 16);
 			}
 			else
 			{
-				Draw_ImageColours(1.0, 1.0, 0.0, 1.0);
-				Draw_FillBlock(x, y, sizex, 16);
-				Draw_ImageColours(1.0, 0.0, 0.0, 1.0);
-				Draw_FillBlock(x+sizex, y, 192-sizex, 16);
+				R2D_ImageColours(1.0, 1.0, 0.0, 1.0);
+				R2D_FillBlock(x, y, sizex, 16);
+				R2D_ImageColours(1.0, 0.0, 0.0, 1.0);
+				R2D_FillBlock(x+sizex, y, 192-sizex, 16);
 			}
 
 			Draw_FunString(x+8, y+4, va("Loading %s... %i%%",
@@ -1502,7 +1502,7 @@ void SCR_DrawLoading (void)
 	}
 	else
 	{	//hexen2 files
-		pic = Draw_SafeCachePic ("gfx/menu/loading.lmp");
+		pic = R2D_SafeCachePic ("gfx/menu/loading.lmp");
 		if (pic)
 		{
 			int		size, count, offset;
@@ -1511,7 +1511,7 @@ void SCR_DrawLoading (void)
 				return;
 
 			offset = (vid.width - pic->width)/2;
-			Draw_ScalePic (offset, 0, pic->width, pic->height, pic);
+			R2D_ScalePic (offset, 0, pic->width, pic->height, pic);
 
 			if (loading_stage == LS_NONE)
 				return;
@@ -1526,22 +1526,22 @@ void SCR_DrawLoading (void)
 			else
 				count = 106;
 
-			Draw_ImagePaletteColour (136, 1.0);
-			Draw_FillBlock (offset+42, 87, count, 1);
-			Draw_FillBlock (offset+42, 87+5, count, 1);
-			Draw_ImagePaletteColour (138, 1.0);
-			Draw_FillBlock (offset+42, 87+1, count, 4);
+			R2D_ImagePaletteColour (136, 1.0);
+			R2D_FillBlock (offset+42, 87, count, 1);
+			R2D_FillBlock (offset+42, 87+5, count, 1);
+			R2D_ImagePaletteColour (138, 1.0);
+			R2D_FillBlock (offset+42, 87+1, count, 4);
 
 			if (loading_stage == LS_SERVER)
 				count = size;
 			else
 				count = 0;
 
-			Draw_ImagePaletteColour(168, 1.0);
-			Draw_FillBlock (offset+42, 97, count, 1);
-			Draw_FillBlock (offset+42, 97+5, count, 1);
-			Draw_ImagePaletteColour(170, 1.0);
-			Draw_FillBlock (offset+42, 97+1, count, 4);
+			R2D_ImagePaletteColour(168, 1.0);
+			R2D_FillBlock (offset+42, 97, count, 1);
+			R2D_FillBlock (offset+42, 97+5, count, 1);
+			R2D_ImagePaletteColour(170, 1.0);
+			R2D_FillBlock (offset+42, 97+1, count, 4);
 
 			y = 104;
 		}
@@ -1635,7 +1635,7 @@ void SCR_ImageName (char *mapname)
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
-		if (!Draw_SafeCachePic (levelshotname))
+		if (!R2D_SafeCachePic (levelshotname))
 		{
 			*levelshotname = '\0';
 			return;
@@ -2145,20 +2145,20 @@ void SCR_TileClear (void)
 		if (scr_vrect.x > 0)
 		{
 			// left
-			Draw_TileClear (0, 0, scr_vrect.x, vid.height);
+			R2D_TileClear (0, 0, scr_vrect.x, vid.height);
 			// right
-			Draw_TileClear (scr_vrect.x + scr_vrect.width, 0,
+			R2D_TileClear (scr_vrect.x + scr_vrect.width, 0,
 				vid.width - scr_vrect.x + scr_vrect.width,
 				vid.height);
 		}
 		if (scr_vrect.y > 0 || scr_vrect.height != vid.height)
 		{
 			// top
-			Draw_TileClear (scr_vrect.x, 0,
+			R2D_TileClear (scr_vrect.x, 0,
 				scr_vrect.width,
 				scr_vrect.y);
 			// bottom
-			Draw_TileClear (scr_vrect.x,
+			R2D_TileClear (scr_vrect.x,
 				scr_vrect.y + scr_vrect.height,
 				scr_vrect.width,
 				vid.height);
@@ -2170,20 +2170,20 @@ void SCR_TileClear (void)
 		if (scr_vrect.x > 0)
 		{
 			// left
-			Draw_TileClear (0, 0, scr_vrect.x, vid.height - sb_lines);
+			R2D_TileClear (0, 0, scr_vrect.x, vid.height - sb_lines);
 			// right
-			Draw_TileClear (scr_vrect.x + scr_vrect.width, 0,
+			R2D_TileClear (scr_vrect.x + scr_vrect.width, 0,
 				vid.width - scr_vrect.x + scr_vrect.width,
 				vid.height - sb_lines);
 		}
 		if (scr_vrect.y > 0)
 		{
 			// top
-			Draw_TileClear (scr_vrect.x, 0,
+			R2D_TileClear (scr_vrect.x, 0,
 				scr_vrect.width,
 				scr_vrect.y);
 			// bottom
-			Draw_TileClear (scr_vrect.x,
+			R2D_TileClear (scr_vrect.x,
 				scr_vrect.y + scr_vrect.height,
 				scr_vrect.width,
 				vid.height - cl_sbar.value?sb_lines:0 -

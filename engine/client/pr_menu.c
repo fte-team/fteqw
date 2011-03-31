@@ -279,8 +279,8 @@ void QCBUILTIN PF_CL_drawfill (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	float *rgb = G_VECTOR(OFS_PARM2);
 	float alpha = G_FLOAT(OFS_PARM3);
 
-	Draw_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
-	Draw_FillBlock(pos[0], pos[1], size[0], size[1]);
+	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
+	R2D_FillBlock(pos[0], pos[1], size[0], size[1]);
 
 	G_FLOAT(OFS_RETURN) = 1;
 }
@@ -417,13 +417,13 @@ void QCBUILTIN PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globa
 
 	mpic_t *p;
 
-	p = Draw_SafeCachePic(picname);
+	p = R2D_SafeCachePic(picname);
 	if (!p)
-		p = Draw_SafePicFromWad(picname);
+		p = R2D_SafePicFromWad(picname);
 
 	PF_SelectDPDrawFlag(flag);
-	Draw_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
-	Draw_Image(pos[0], pos[1], size[0], size[1], 0, 0, 1, 1, p);
+	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
+	R2D_Image(pos[0], pos[1], size[0], size[1], 0, 0, 1, 1, p);
 	BE_SelectMode(BEM_STANDARD, 0);
 
 	G_FLOAT(OFS_RETURN) = 1;
@@ -442,11 +442,11 @@ void QCBUILTIN PF_CL_drawsubpic (progfuncs_t *prinst, struct globalvars_s *pr_gl
 
 	mpic_t *p;
 
-	p = Draw_SafeCachePic(picname);
+	p = R2D_SafeCachePic(picname);
 
 	PF_SelectDPDrawFlag(flag);
-	Draw_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
-	Draw_Image(	pos[0], pos[1],
+	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
+	R2D_Image(	pos[0], pos[1],
 				size[0], size[1],
 				srcPos[0], srcPos[1],
 				srcPos[0]+srcSize[0], srcPos[1]+srcSize[1],
@@ -484,7 +484,7 @@ void QCBUILTIN PF_CL_precache_pic (progfuncs_t *prinst, struct globalvars_s *pr_
 		fromwad = false;
 
 	if (fromwad)
-		pic = Draw_SafePicFromWad(str);
+		pic = R2D_SafePicFromWad(str);
 	else
 	{
 		if (cls.state
@@ -494,7 +494,7 @@ void QCBUILTIN PF_CL_precache_pic (progfuncs_t *prinst, struct globalvars_s *pr_
 			)
 			CL_CheckOrEnqueDownloadFile(str, str, 0);
 
-		pic = Draw_SafeCachePic(str);
+		pic = R2D_SafeCachePic(str);
 	}
 
 	if (pic)
@@ -597,12 +597,12 @@ void QCBUILTIN PF_CL_drawline (progfuncs_t *prinst, struct globalvars_s *pr_glob
 void QCBUILTIN PF_CL_drawgetimagesize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *picname = PR_GetStringOfs(prinst, OFS_PARM0);
-	mpic_t *p = Draw_SafeCachePic(picname);
+	mpic_t *p = R2D_SafeCachePic(picname);
 
 	float *ret = G_VECTOR(OFS_RETURN);
 
 	if (!p)
-		p = Draw_SafeCachePic(va("%s.tga", picname));
+		p = R2D_SafeCachePic(va("%s.tga", picname));
 
 	if (p)
 	{

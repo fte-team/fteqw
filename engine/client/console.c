@@ -1211,7 +1211,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 // draw the background
 	if (!noback)
-		Draw_ConsoleBackground (0, lines, scr_con_forcedraw);
+		R2D_ConsoleBackground (0, lines, scr_con_forcedraw);
 
 	con_current->unseentext = false;
 
@@ -1378,12 +1378,12 @@ void Con_DrawConsole (int lines, qboolean noback)
 							else
 								selstartoffset = 0;
 						}
-						Draw_ImagePaletteColour(0, 1.0);
-						Draw_FillBlock((sstart*vid.width)/vid.rotpixelwidth, (y*vid.height)/vid.rotpixelheight, ((send - sstart)*vid.width)/vid.rotpixelwidth, (Font_CharHeight()*vid.height)/vid.rotpixelheight);
-						Draw_ImageColours(1.0, 1.0, 1.0, 1.0);
+						R2D_ImagePaletteColour(0, 1.0);
+						R2D_FillBlock((sstart*vid.width)/vid.rotpixelwidth, (y*vid.height)/vid.rotpixelheight, ((send - sstart)*vid.width)/vid.rotpixelwidth, (Font_CharHeight()*vid.height)/vid.rotpixelheight);
 					}
 				}
 			}
+			R2D_ImageColours(1.0, 1.0, 1.0, 1.0);
 
 			x = sx;
 			Font_LineDraw(x, y, s, s+linelength);

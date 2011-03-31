@@ -974,7 +974,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 			scr_con_current = vid.height;
 
 		if (scr_con_current != vid.height)
-			Draw_ConsoleBackground(0, vid.height, true);
+			R2D_ConsoleBackground(0, vid.height, true);
 		else
 			scr_con_forcedraw = true;
 
@@ -1011,12 +1011,6 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 
 
 
-static void	(D3D9_Draw_BeginDisc)			(void)
-{
-}
-static void	(D3D9_Draw_EndDisc)				(void)
-{
-}
 
 
 static void	(D3D9_Draw_Init)				(void)
@@ -1032,14 +1026,6 @@ static void	(D3D9_Draw_Crosshair)			(void)
 static void	(D3D9_Draw_TransPicTranslate)	(int x, int y, int w, int h, qbyte *pic, qbyte *translation)
 {
 }
-static void	(D3D9_Draw_Fill)				(int x, int y, int w, int h, unsigned int c)
-{
-}
-static void	(D3D9_Draw_FillRGB)				(int x, int y, int w, int h, float r, float g, float b)
-{
-}
-static void	(D3D9_Draw_BeginDisc)			(void);
-static void	(D3D9_Draw_EndDisc)				(void);
 
 static void	(D3D9_R_Init)					(void)
 {
@@ -1165,25 +1151,10 @@ rendererinfo_t d3drendererinfo =
 	},
 	QR_DIRECT3D,
 
-	R2D_SafePicFromWad,
-	R2D_SafeCachePic,
 	D3D9_Draw_Init,
 	D3D9_Draw_ReInit,
 	D3D9_Draw_Crosshair,
-	R2D_ScalePic,
-	R2D_SubPic,
 	D3D9_Draw_TransPicTranslate,
-	R2D_ConsoleBackground,
-	R2D_EditorBackground,
-	R2D_TileClear,
-	D3D9_Draw_Fill,
-	D3D9_Draw_FillRGB,
-	R2D_FadeScreen,
-	D3D9_Draw_BeginDisc,
-	D3D9_Draw_EndDisc,
-
-	R2D_Image,
-	R2D_ImageColours,
 
 	D3D9_LoadTexture,
 	D3D9_LoadTexture8Pal24,

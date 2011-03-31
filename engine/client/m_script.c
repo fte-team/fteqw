@@ -154,7 +154,7 @@ void M_MenuS_Picture_f (void)
 		return;
 	}
 
-	p = Draw_SafeCachePic(picname);
+	p = R2D_SafeCachePic(picname);
 	if (!p)
 		return;
 

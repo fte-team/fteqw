@@ -684,6 +684,7 @@ static void Shader_Sort ( shader_t *shader, shaderpass_t *pass, char **ptr )
 {
 	char *token;
 
+
 	token = Shader_ParseString ( ptr );
 	if ( !Q_stricmp( token, "portal" ) ) {
 		shader->sort = SHADER_SORT_PORTAL;

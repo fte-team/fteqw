@@ -640,28 +640,14 @@ void Renderer_Start(void)
 }
 
 
-mpic_t	*(*Draw_SafePicFromWad)		(char *name);
-mpic_t	*(*Draw_SafeCachePic)		(char *path);
 void	(*Draw_Init)				(void);
 void	(*Draw_Shutdown)			(void);
 
 //void	(*Draw_TinyCharacter)		(int x, int y, unsigned int num);
 
 void	(*Draw_Crosshair)			(void);
-void	(*Draw_ScalePic)			(int x, int y, int width, int height, mpic_t *pic);
 void	(*Draw_SubPic)				(int x, int y, int width, int height, mpic_t *pic, int srcx, int srcy, int srcwidth, int srcheight);
 void	(*Draw_TransPicTranslate)	(int x, int y, int w, int h, qbyte *image, qbyte *translation);
-void	(*Draw_ConsoleBackground)	(int firstline, int lastline, qboolean forceopaque);
-void	(*Draw_EditorBackground)	(void);
-void	(*Draw_TileClear)			(int x, int y, int w, int h);
-void	(*Draw_Fill)				(int x, int y, int w, int h, unsigned int c);
-void    (*Draw_FillRGB)				(int x, int y, int w, int h, float r, float g, float b);
-void	(*Draw_FadeScreen)			(void);
-void	(*Draw_BeginDisc)			(void);
-void	(*Draw_EndDisc)				(void);
-
-void	(*Draw_Image)				(float x, float y, float w, float h, float s1, float t1, float s2, float t2, mpic_t *pic);	//gl-style scaled/coloured/subpic
-void	(*Draw_ImageColours)		(float r, float g, float b, float a);
 
 void	(*R_Init)					(void);
 void	(*R_DeInit)					(void);
@@ -715,25 +701,10 @@ rendererinfo_t dedicatedrendererinfo = {
 	},
 	QR_NONE,
 
-	NULL,	//Draw_PicFromWad;	//Not supported
-	NULL,	//Draw_SafeCachePic;
 	NULL,	//Draw_Init;
 	NULL,	//Draw_Shutdown;
 	NULL,	//Draw_Crosshair;
-	NULL,	//Draw_SubPic;
 	NULL,	//Draw_TransPicTranslate;
-	NULL,	//Draw_ConsoleBackground;
-	NULL,	//Draw_EditorBackground;
-	NULL,	//Draw_TileClear;
-	NULL,	//Draw_Fill;
-	NULL,   //Draw_FillRGB;
-	NULL,	//Draw_FadeScreen;
-	NULL,	//Draw_BeginDisc;
-	NULL,	//Draw_EndDisc;
-	NULL,	//I'm lazy.
-
-	NULL,	//Draw_Image
-	NULL,	//Draw_ImageColours
 
 	NULL,	//R_LoadTexture
 	NULL,	//R_LoadTexture8Pal24
@@ -1276,25 +1247,10 @@ void R_SetRenderer(rendererinfo_t *ri)
 	qrenderer = ri->rtype;
 	q_renderername = ri->name[0];
 
-	Draw_SafePicFromWad		= ri->Draw_SafePicFromWad;	//Not supported
-	Draw_SafeCachePic		= ri->Draw_SafeCachePic;
 	Draw_Init				= ri->Draw_Init;
 	Draw_Shutdown			= ri->Draw_Shutdown;
 	Draw_Crosshair			= ri->Draw_Crosshair;
-	Draw_SubPic				= ri->Draw_SubPic;
 	Draw_TransPicTranslate	= ri->Draw_TransPicTranslate;
-	Draw_ConsoleBackground	= ri->Draw_ConsoleBackground;
-	Draw_EditorBackground	= ri->Draw_EditorBackground;
-	Draw_TileClear			= ri->Draw_TileClear;
-	Draw_Fill				= ri->Draw_Fill;
-	Draw_FillRGB			= ri->Draw_FillRGB;
-	Draw_FadeScreen			= ri->Draw_FadeScreen;
-	Draw_BeginDisc			= ri->Draw_BeginDisc;
-	Draw_EndDisc			= ri->Draw_EndDisc;
-	Draw_ScalePic			= ri->Draw_ScalePic;
-
-	Draw_Image				= ri->Draw_Image;
-	Draw_ImageColours 		= ri->Draw_ImageColours;
 
 	R_Init					= ri->R_Init;
 	R_DeInit				= ri->R_DeInit;

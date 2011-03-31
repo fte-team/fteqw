@@ -88,9 +88,9 @@ void R2D_Init(void)
 
 	missing_texture = R_LoadTexture8("no_texture", 16, 16, (unsigned char*)r_notexture_mip + r_notexture_mip->offsets[0], IF_NOALPHA|IF_NOGAMMA, 0);
 
-	draw_backtile = Draw_SafePicFromWad ("backtile");
+	draw_backtile = R2D_SafePicFromWad ("backtile");
 	if (!draw_backtile)
-		draw_backtile = Draw_SafeCachePic ("gfx/menu/backtile.lmp");
+		draw_backtile = R2D_SafeCachePic ("gfx/menu/backtile.lmp");
 
 	shader_draw_fill = R_RegisterShader("fill_opaque",
 		"{\n"

@@ -1065,20 +1065,9 @@ qbyte *COM_LoadFile (const char *path, int usehunk)
 		Sys_Error ("COM_LoadFile: not enough space for %s", path);
 
 	((qbyte *)buf)[len] = 0;
-#ifndef SERVERONLY
-	if (qrenderer != QR_NONE)
-		if (Draw_BeginDisc)
-			Draw_BeginDisc ();
-#endif
 
 	VFS_READ(f, buf, len);
 	VFS_CLOSE(f);
-
-#ifndef SERVERONLY
-	if (qrenderer != QR_NONE)
-		if (Draw_EndDisc)
-			Draw_EndDisc ();
-#endif
 
 	return buf;
 }

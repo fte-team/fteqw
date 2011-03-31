@@ -243,7 +243,7 @@ static char		*q2sb_nums[2][11] =
 
 static mpic_t *Sbar_Q2CachePic(char *name)
 {
-	return Draw_SafeCachePic(va("pics/%s.pcx", name));
+	return R2D_SafeCachePic(va("pics/%s.pcx", name));
 }
 
 #define	ICON_WIDTH	24
@@ -280,7 +280,7 @@ static void SCR_DrawField (int x, int y, int color, int width, int value)
 
 		p = Sbar_Q2CachePic(q2sb_nums[color][frame]);
 		if (p)
-			Draw_ScalePic (x,y,p->width, p->height, p);
+			R2D_ScalePic (x,y,p->width, p->height, p);
 		x += CHAR_WIDTH;
 		ptr++;
 		l--;
@@ -378,7 +378,7 @@ void Sbar_ExecuteLayoutString (char *s)
 //				SCR_AddDirtyPoint (x+23, y+23);
 				p = Sbar_Q2CachePic(Get_Q2ConfigString(Q2CS_IMAGES+value));
 				if (p)
-					Draw_ScalePic (x, y, p->width, p->height, p);
+					R2D_ScalePic (x, y, p->width, p->height, p);
 			}
 			continue;
 		}
@@ -417,7 +417,7 @@ void Sbar_ExecuteLayoutString (char *s)
 
 //			if (!ci->icon)
 //				ci = &cl.baseclientinfo;
-//			Draw_Pic (x, y, Draw_SafeCachePic(ci->iconname));
+//			Draw_Pic (x, y, R2D_SafeCachePic(ci->iconname));
 			continue;
 		}
 
@@ -463,7 +463,7 @@ void Sbar_ExecuteLayoutString (char *s)
 //			SCR_AddDirtyPoint (x+23, y+23);
 			p = Sbar_Q2CachePic(com_token);
 			if (p)
-				Draw_ScalePic (x, y, p->width, p->height, p);
+				R2D_ScalePic (x, y, p->width, p->height, p);
 			continue;
 		}
 
@@ -494,7 +494,7 @@ void Sbar_ExecuteLayoutString (char *s)
 			{
 				p = Sbar_Q2CachePic("field_3");
 				if (p)
-					Draw_ScalePic (x, y, p->width, p->height, p);
+					R2D_ScalePic (x, y, p->width, p->height, p);
 			}
 
 			SCR_DrawField (x, y, color, width, value);
@@ -518,7 +518,7 @@ void Sbar_ExecuteLayoutString (char *s)
 			{
 				p = Sbar_Q2CachePic("field_3");
 				if (p)
-					Draw_ScalePic (x, y, p->width, p->height, p);
+					R2D_ScalePic (x, y, p->width, p->height, p);
 			}
 
 			SCR_DrawField (x, y, color, width, value);
@@ -537,7 +537,7 @@ void Sbar_ExecuteLayoutString (char *s)
 			color = 0;	// green
 
 			if (cl.q2frame.playerstate.stats[Q2STAT_FLASHES] & 2)
-				Draw_ScalePic (x, y, FINDOUT, FINDOUT, Draw_SafeCachePic("field_3"));
+				R2D_ScalePic (x, y, FINDOUT, FINDOUT, R2D_SafeCachePic("field_3"));
 
 			SCR_DrawField (x, y, color, width, value);
 			continue;
@@ -773,7 +773,7 @@ char *failedpic;
 mpic_t *Sbar_PicFromWad(char *name)
 {
 	mpic_t *ret;
-	ret = Draw_SafePicFromWad(name);
+	ret = R2D_SafePicFromWad(name);
 
 	if (ret)
 		return ret;
@@ -958,7 +958,7 @@ Sbar_DrawPic
 */
 void Sbar_DrawPic (int x, int y, int w, int h, mpic_t *pic)
 {
-	Draw_ScalePic(sbar_rect.x + x /* + ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y + (sbar_rect.height-SBAR_HEIGHT), w, h, pic);
+	R2D_ScalePic(sbar_rect.x + x /* + ((sbar_rect.width - 320)>>1) */, sbar_rect.y + y + (sbar_rect.height-SBAR_HEIGHT), w, h, pic);
 }
 
 /*
@@ -970,7 +970,7 @@ JACK: Draws a portion of the picture in the status bar.
 
 void Sbar_DrawSubPic(int x, int y, int width, int height, mpic_t *pic, int srcx, int srcy, int srcwidth, int srcheight)
 {
-	Draw_SubPic (sbar_rect.x + x, sbar_rect.y + y+(sbar_rect.height-SBAR_HEIGHT), width, height, pic, srcx, srcy, srcwidth, srcheight);
+	R2D_SubPic (sbar_rect.x + x, sbar_rect.y + y+(sbar_rect.height-SBAR_HEIGHT), width, height, pic, srcx, srcy, srcwidth, srcheight);
 }
 
 /*
@@ -1038,26 +1038,26 @@ void Sbar_FillPC (int x, int y, int w, int h, unsigned int pcolour)
 {
 	if (pcolour >= 16)
 	{
-		Draw_ImageColours (((pcolour&0xff0000)>>16)/255.0f, ((pcolour&0xff00)>>8)/255.0f, (pcolour&0xff)/255.0f, 1.0);
-		Draw_FillBlock (x, y, w, h);
+		R2D_ImageColours (((pcolour&0xff0000)>>16)/255.0f, ((pcolour&0xff00)>>8)/255.0f, (pcolour&0xff)/255.0f, 1.0);
+		R2D_FillBlock (x, y, w, h);
 	}
 	else
 	{
-		Draw_ImagePaletteColour(Sbar_ColorForMap(pcolour), 1.0);
-		Draw_FillBlock (x, y, w, h);
+		R2D_ImagePaletteColour(Sbar_ColorForMap(pcolour), 1.0);
+		R2D_FillBlock (x, y, w, h);
 	}
 }
 static void Sbar_FillPCDark (int x, int y, int w, int h, unsigned int pcolour)
 {
 	if (pcolour >= 16)
 	{
-		Draw_ImageColours (((pcolour&0xff0000)>>16)/1024.0f, ((pcolour&0xff00)>>8)/1024.0f, (pcolour&0xff)/1024.0f, 1.0);
-		Draw_FillBlock (x, y, w, h);
+		R2D_ImageColours (((pcolour&0xff0000)>>16)/1024.0f, ((pcolour&0xff00)>>8)/1024.0f, (pcolour&0xff)/1024.0f, 1.0);
+		R2D_FillBlock (x, y, w, h);
 	}
 	else
 	{
-		Draw_ImagePaletteColour(Sbar_ColorForMap(pcolour)-1, 1.0);
-		Draw_FillBlock (x, y, w, h);
+		R2D_ImagePaletteColour(Sbar_ColorForMap(pcolour)-1, 1.0);
+		R2D_FillBlock (x, y, w, h);
 	}
 }
 
@@ -1669,7 +1669,7 @@ void Sbar_DrawFrags (void)
 		}
 		x+=4;
 	}
-	Draw_ImageColours(1.0, 1.0, 1.0, 1.0);
+	R2D_ImageColours(1.0, 1.0, 1.0, 1.0);
 }
 
 //=============================================================================
@@ -1879,14 +1879,14 @@ void Sbar_DrawScoreboard (void)
 void Sbar_Hexen2DrawItem(int pnum, int x, int y, int itemnum)
 {
 	int num;
-	Sbar_DrawPic(x, y, 29, 28, Draw_SafeCachePic(va("gfx/arti%02d.lmp", itemnum)));
+	Sbar_DrawPic(x, y, 29, 28, R2D_SafeCachePic(va("gfx/arti%02d.lmp", itemnum)));
 
 	num = cl.stats[pnum][STAT_H2_CNT_TORCH+itemnum];
 	if(num > 0)
 	{
 		if (num >= 10)
-			Sbar_DrawPic(x+20, y+21, 4, 6, Draw_SafeCachePic(va("gfx/artinum%d.lmp", num/10)));
-		Sbar_DrawPic(x+20+4, y+21, 4, 6, Draw_SafeCachePic(va("gfx/artinum%d.lmp", num%10)));
+			Sbar_DrawPic(x+20, y+21, 4, 6, R2D_SafeCachePic(va("gfx/artinum%d.lmp", num/10)));
+		Sbar_DrawPic(x+20+4, y+21, 4, 6, R2D_SafeCachePic(va("gfx/artinum%d.lmp", num%10)));
 	}
 }
 
@@ -1926,7 +1926,7 @@ void Sbar_Hexen2DrawInventory(int pnum)
 			continue;
 
 		if (i == sb_hexen2_cur_item[pnum])
-			Sbar_DrawPic(x+9, y-12, 11, 11, Draw_SafeCachePic("gfx/artisel.lmp"));
+			Sbar_DrawPic(x+9, y-12, 11, 11, R2D_SafeCachePic("gfx/artisel.lmp"));
 		Sbar_Hexen2DrawItem(pnum, x, y, i);
 		x -= 33;
 	}
@@ -1937,7 +1937,7 @@ void Sbar_Hexen2DrawInventory(int pnum)
 		if (i != sb_hexen2_cur_item[pnum] && !cl.stats[pnum][STAT_H2_CNT_TORCH+i])
 			continue;
 		if (i == sb_hexen2_cur_item[pnum])
-			Sbar_DrawPic(x+9, y-12, 11, 11, Draw_SafeCachePic("gfx/artisel.lmp"));
+			Sbar_DrawPic(x+9, y-12, 11, 11, R2D_SafeCachePic("gfx/artisel.lmp"));
 		Sbar_Hexen2DrawItem(pnum, x, y, i);
 		x+=33;
 	}
@@ -1985,8 +1985,8 @@ void Sbar_Hexen2DrawExtra (int pnum)
 	//adjust it so there's space
 	sbar_rect.y -= 46+98-SBAR_HEIGHT;
 
-	Sbar_DrawPic(0, 46, 160, 98, Draw_SafeCachePic("gfx/btmbar1.lmp"));
-	Sbar_DrawPic(160, 46, 160, 98, Draw_SafeCachePic("gfx/btmbar2.lmp"));
+	Sbar_DrawPic(0, 46, 160, 98, R2D_SafeCachePic("gfx/btmbar1.lmp"));
+	Sbar_DrawPic(160, 46, 160, 98, R2D_SafeCachePic("gfx/btmbar2.lmp"));
 
 	Sbar_DrawTinyString (11, 48, pclassname[pclass]);
 
@@ -2019,7 +2019,7 @@ void Sbar_Hexen2DrawExtra (int pnum)
 	{
 		if (cl.stats[pnum][STAT_H2_ARMOUR1+i] > 0)
 		{
-			Sbar_DrawPic (164+i*40, 115, 28, 19, Draw_SafeCachePic(va("gfx/armor%d.lmp", i+1)));
+			Sbar_DrawPic (164+i*40, 115, 28, 19, R2D_SafeCachePic(va("gfx/armor%d.lmp", i+1)));
 			Sbar_DrawTinyString (168+i*40, 136, va("+%d", cl.stats[pnum][STAT_H2_ARMOUR1+i]));
 		}
 	}
@@ -2027,14 +2027,14 @@ void Sbar_Hexen2DrawExtra (int pnum)
 	{
 		if (cl.stats[pnum][STAT_H2_FLIGHT_T+i] > 0)
 		{
-			Sbar_DrawPic (ringpos[i], 119, 32, 22, Draw_SafeCachePic(va("gfx/ring_f.lmp")));
+			Sbar_DrawPic (ringpos[i], 119, 32, 22, R2D_SafeCachePic(va("gfx/ring_f.lmp")));
 			val = cl.stats[pnum][STAT_H2_FLIGHT_T+i];
 			if (val > 100)
 				val = 100;
 			if (val < 0)
 				val = 0;
-			Sbar_DrawPic(ringpos[i]+29 - (int)(26 * (val/(float)100)),142, 26, 1, Draw_SafeCachePic("gfx/ringhlth.lmp"));
-			Sbar_DrawPic(ringpos[i]+29, 142, 26, 1, Draw_SafeCachePic("gfx/rhlthcvr.lmp"));
+			Sbar_DrawPic(ringpos[i]+29 - (int)(26 * (val/(float)100)),142, 26, 1, R2D_SafeCachePic("gfx/ringhlth.lmp"));
+			Sbar_DrawPic(ringpos[i]+29, 142, 26, 1, R2D_SafeCachePic("gfx/rhlthcvr.lmp"));
 		}
 	}
 
@@ -2043,12 +2043,12 @@ void Sbar_Hexen2DrawExtra (int pnum)
 	{
 		if (cl.statsstr[pnum][STAT_H2_PUZZLE1+i])
 		{
-			Sbar_DrawPic (194+(slot%4)*31, slot<4?51:82, 26, 26, Draw_SafeCachePic(va("gfx/puzzle/%s.lmp", cl.statsstr[pnum][STAT_H2_PUZZLE1+i])));
+			Sbar_DrawPic (194+(slot%4)*31, slot<4?51:82, 26, 26, R2D_SafeCachePic(va("gfx/puzzle/%s.lmp", cl.statsstr[pnum][STAT_H2_PUZZLE1+i])));
 			slot++;
 		}
 	}
 
-	Sbar_DrawPic(134, 50, 49, 56, Draw_SafeCachePic(va("gfx/cport%d.lmp", pclass)));
+	Sbar_DrawPic(134, 50, 49, 56, R2D_SafeCachePic(va("gfx/cport%d.lmp", pclass)));
 }
 
 int Sbar_Hexen2ArmourValue(int pnum)
@@ -2089,11 +2089,11 @@ void Sbar_Hexen2DrawBasic(int pnum)
 {
 	int chainpos;
 	int val, maxval;
-	Sbar_DrawPic(0, 0, 160, 46, Draw_SafeCachePic("gfx/topbar1.lmp"));
-	Sbar_DrawPic(160, 0, 160, 46, Draw_SafeCachePic("gfx/topbar2.lmp"));
-	Sbar_DrawPic(0, -23, 51, 23, Draw_SafeCachePic("gfx/topbumpl.lmp"));
-	Sbar_DrawPic(138, -8, 39, 8, Draw_SafeCachePic("gfx/topbumpm.lmp"));
-	Sbar_DrawPic(269, -23, 51, 23, Draw_SafeCachePic("gfx/topbumpr.lmp"));
+	Sbar_DrawPic(0, 0, 160, 46, R2D_SafeCachePic("gfx/topbar1.lmp"));
+	Sbar_DrawPic(160, 0, 160, 46, R2D_SafeCachePic("gfx/topbar2.lmp"));
+	Sbar_DrawPic(0, -23, 51, 23, R2D_SafeCachePic("gfx/topbumpl.lmp"));
+	Sbar_DrawPic(138, -8, 39, 8, R2D_SafeCachePic("gfx/topbumpm.lmp"));
+	Sbar_DrawPic(269, -23, 51, 23, R2D_SafeCachePic("gfx/topbumpr.lmp"));
 
 	//mana1
 	maxval = cl.stats[pnum][STAT_H2_MAXMANA];
@@ -2102,8 +2102,8 @@ void Sbar_Hexen2DrawBasic(int pnum)
 	Sbar_DrawTinyString(201, 22, va("%03d", val));
 	if(val)
 	{
-		Sbar_DrawPic(190, 26-(int)((val*18.0)/(float)maxval+0.5), 3, 19, Draw_SafeCachePic("gfx/bmana.lmp"));
-		Sbar_DrawPic(190, 27, 3, 19, Draw_SafeCachePic("gfx/bmanacov.lmp"));
+		Sbar_DrawPic(190, 26-(int)((val*18.0)/(float)maxval+0.5), 3, 19, R2D_SafeCachePic("gfx/bmana.lmp"));
+		Sbar_DrawPic(190, 27, 3, 19, R2D_SafeCachePic("gfx/bmanacov.lmp"));
 	}
 
 	//mana2
@@ -2113,8 +2113,8 @@ void Sbar_Hexen2DrawBasic(int pnum)
 	Sbar_DrawTinyString(243, 22, va("%03d", val));
 	if(val)
 	{
-		Sbar_DrawPic(232, 26-(int)((val*18.0)/(float)maxval+0.5), 3, 19, Draw_SafeCachePic("gfx/gmana.lmp"));
-		Sbar_DrawPic(232, 27, 3, 19, Draw_SafeCachePic("gfx/gmanacov.lmp"));
+		Sbar_DrawPic(232, 26-(int)((val*18.0)/(float)maxval+0.5), 3, 19, R2D_SafeCachePic("gfx/gmana.lmp"));
+		Sbar_DrawPic(232, 27, 3, 19, R2D_SafeCachePic("gfx/gmanacov.lmp"));
 	}
 
 
@@ -2132,10 +2132,10 @@ void Sbar_Hexen2DrawBasic(int pnum)
 	chainpos = (195.0f*cl.stats[pnum][STAT_HEALTH]) / cl.stats[pnum][STAT_H2_MAXHEALTH];
 	if (chainpos < 0)
 		chainpos = 0;
-	Sbar_DrawPic(45+((int)chainpos&7), 38, 222, 5, Draw_SafeCachePic("gfx/hpchain.lmp"));
-	Sbar_DrawPic(45+(int)chainpos, 36,	35, 9, Draw_SafeCachePic("gfx/hpgem.lmp"));
-	Sbar_DrawPic(43, 36, 10, 10, Draw_SafeCachePic("gfx/chnlcov.lmp"));
-	Sbar_DrawPic(267, 36, 10, 10, Draw_SafeCachePic("gfx/chnrcov.lmp"));
+	Sbar_DrawPic(45+((int)chainpos&7), 38, 222, 5, R2D_SafeCachePic("gfx/hpchain.lmp"));
+	Sbar_DrawPic(45+(int)chainpos, 36,	35, 9, R2D_SafeCachePic("gfx/hpgem.lmp"));
+	Sbar_DrawPic(43, 36, 10, 10, R2D_SafeCachePic("gfx/chnlcov.lmp"));
+	Sbar_DrawPic(267, 36, 10, 10, R2D_SafeCachePic("gfx/chnrcov.lmp"));
 
 
 	Sbar_Hexen2DrawItem(pnum, 144, 3, sb_hexen2_cur_item[pnum]);
@@ -2145,8 +2145,8 @@ void Sbar_Hexen2DrawMinimal(int pnum)
 {
 	int y;
 	y = -16;
-	Sbar_DrawPic(3, y, 31, 17, Draw_SafeCachePic("gfx/bmmana.lmp"));
-	Sbar_DrawPic(3, y+18, 31, 17, Draw_SafeCachePic("gfx/gmmana.lmp"));
+	Sbar_DrawPic(3, y, 31, 17, R2D_SafeCachePic("gfx/bmmana.lmp"));
+	Sbar_DrawPic(3, y+18, 31, 17, R2D_SafeCachePic("gfx/gmmana.lmp"));
 
 	Sbar_DrawTinyString(10, y+6, va("%03d", cl.stats[pnum][STAT_H2_BLUEMANA]));
 	Sbar_DrawTinyString(10, y+18+6, va("%03d", cl.stats[pnum][STAT_H2_GREENMANA]));
@@ -2338,7 +2338,7 @@ void Sbar_Draw (void)
 	if (cls.protocol == CP_QUAKE2)
 	{
 		SCR_VRectForPlayer(&sbar_rect, 0);
-		Draw_ImageColours(1, 1, 1, 1);
+		R2D_ImageColours(1, 1, 1, 1);
 		if (*cl.q2statusbar)
 			Sbar_ExecuteLayoutString(cl.q2statusbar);
 		if (*cl.q2layout)
@@ -2352,7 +2352,7 @@ void Sbar_Draw (void)
 
 	Sbar_Start();
 
-	Draw_ImageColours(1, 1, 1, 1);
+	R2D_ImageColours(1, 1, 1, 1);
 
 	for (pnum = 0; pnum < cl.splitclients; pnum++)
 	{
@@ -2474,10 +2474,10 @@ void Sbar_Draw (void)
 	{
 		if (cl.splitclients==1 && sbar_rect.x>0)
 		{	// left
-				Draw_TileClear (0, sbar_rect.height - sb_lines, sbar_rect.x, sb_lines);
+				R2D_TileClear (0, sbar_rect.height - sb_lines, sbar_rect.x, sb_lines);
 		}
 		if (sbar_rect.x + 320 <= sbar_rect.width && !headsup)
-			Draw_TileClear (sbar_rect.x + 320, sbar_rect.height - sb_lines, sbar_rect.width - (320), sb_lines);
+			R2D_TileClear (sbar_rect.x + 320, sbar_rect.height - sb_lines, sbar_rect.width - (320), sb_lines);
 	}
 #endif
 
@@ -2523,7 +2523,7 @@ void Sbar_IntermissionNumber (int x, int y, int num, int digits, int color)
 		else
 			frame = *ptr -'0';
 
-		Draw_ScalePic (x,y, 16, 24, sb_nums[color][frame]);
+		R2D_ScalePic (x,y, 16, 24, sb_nums[color][frame]);
 		x += 24;
 		ptr++;
 	}
@@ -2558,11 +2558,11 @@ void Sbar_TeamOverlay (void)
 
 	if (scr_scoreboard_drawtitle.ival)
 	{
-		pic = Draw_SafeCachePic ("gfx/ranking.lmp");
+		pic = R2D_SafeCachePic ("gfx/ranking.lmp");
 		if (pic)
 		{
 			k = (pic->width * 24) / pic->height;
-			Draw_ScalePic ((vid.width-k)/2, 0, k, 24, pic);
+			R2D_ScalePic ((vid.width-k)/2, 0, k, 24, pic);
 		}
 		y += 24;
 	}
@@ -2763,11 +2763,11 @@ void Sbar_DeathmatchOverlay (int start)
 		y = 0;
 		if (scr_scoreboard_drawtitle.ival)
 		{
-			pic = Draw_SafeCachePic ("gfx/ranking.lmp");
+			pic = R2D_SafeCachePic ("gfx/ranking.lmp");
 			if (pic)
 			{
 				k = (pic->width * 24) / pic->height;
-				Draw_ScalePic ((vid.width-k)/2, 0, k, 24, pic);
+				R2D_ScalePic ((vid.width-k)/2, 0, k, 24, pic);
 			}
 			y += 24;
 		}
@@ -2832,12 +2832,12 @@ void Sbar_DeathmatchOverlay (int start)
 	if (scr_scoreboard_newstyle.ival)
 	{
 		// Electro's scoreboard eyecandy: Draw top border
-		Draw_ImagePaletteColour (0, 1.0);
-		Draw_FillBlock(startx - 3, y - 1, rank_width - 1, 1);
+		R2D_ImagePaletteColour (0, 1.0);
+		R2D_FillBlock(startx - 3, y - 1, rank_width - 1, 1);
 
 		// Electro's scoreboard eyecandy: Draw the title row background
-		Draw_ImagePaletteColour (1, 1.0);
-		Draw_FillBlock(startx - 2, y, rank_width - 3, 9);
+		R2D_ImagePaletteColour (1, 1.0);
+		R2D_FillBlock(startx - 2, y, rank_width - 3, 9);
 	}
 
 	x = startx;
@@ -2868,14 +2868,14 @@ if (showcolumns & (1<<COLUMN##title)) \
 	if (scr_scoreboard_newstyle.ival)
 	{
 		// Electro's scoreboard eyecandy: Draw top border (under header)
-		Draw_ImagePaletteColour (0, 1.0);
-		Draw_FillBlock (startx - 3, y + 1, rank_width - 1, 1);
+		R2D_ImagePaletteColour (0, 1.0);
+		R2D_FillBlock (startx - 3, y + 1, rank_width - 1, 1);
 		// Electro's scoreboard eyecandy: Don't go over the black border, move the rest down
 		y += 2;
 		// Electro's scoreboard eyecandy: Draw left border
-		Draw_FillBlock (startx - 3, y - 10, 1, 9);
+		R2D_FillBlock (startx - 3, y - 10, 1, 9);
 		// Electro's scoreboard eyecandy: Draw right border
-		Draw_FillBlock (startx - 3 + rank_width - 2, y - 10, 1, 9);
+		R2D_FillBlock (startx - 3 + rank_width - 2, y - 10, 1, 9);
 	}
 
 	y -= skip;
@@ -2924,13 +2924,13 @@ if (showcolumns & (1<<COLUMN##title)) \
 				Sbar_FillPCDark (startx - 2, y, rank_width - 3, skip, 0x00ff00);
 			else
 			{
-				Draw_ImagePaletteColour (2, 1.0);
-				Draw_FillBlock (startx - 2, y, rank_width - 3, skip);
+				R2D_ImagePaletteColour (2, 1.0);
+				R2D_FillBlock (startx - 2, y, rank_width - 3, skip);
 			}
 
-			Draw_ImagePaletteColour (0, 1.0);
-			Draw_FillBlock (startx - 3, y, 1, skip); // Electro - Border - Left
-			Draw_FillBlock (startx - 3 + rank_width - 2, y, 1, skip); // Electro - Border - Right
+			R2D_ImagePaletteColour (0, 1.0);
+			R2D_FillBlock (startx - 3, y, 1, skip); // Electro - Border - Left
+			R2D_FillBlock (startx - 3 + rank_width - 2, y, 1, skip); // Electro - Border - Right
 		}
 
 		x = startx;
@@ -2946,14 +2946,14 @@ if (showcolumns & (1<<COLUMN##title)) \
 
 	if (scr_scoreboard_newstyle.ival)
 	{
-		Draw_ImagePaletteColour (0, 1.0);
-		Draw_FillBlock (startx - 3, y + skip, rank_width - 1, 1); // Electro - Border - Bottom
+		R2D_ImagePaletteColour (0, 1.0);
+		R2D_FillBlock (startx - 3, y + skip, rank_width - 1, 1); // Electro - Border - Bottom
 	}
 
 	if (y >= vid.height-10) // we ran over the screen size, squish
 		largegame = true;
 
-	Draw_ImageColours(1.0, 1.0, 1.0, 1.0);
+	R2D_ImageColours(1.0, 1.0, 1.0, 1.0);
 }
 
 void Sbar_ChatModeOverlay(void)
@@ -3199,30 +3199,30 @@ void Sbar_CoopIntermission (void)
 	sbar_rect.x = 0;
 	sbar_rect.y = 0;
 
-	pic = Draw_SafeCachePic ("gfx/complete.lmp");
+	pic = R2D_SafeCachePic ("gfx/complete.lmp");
 	if (!pic)
 		return;
-	Draw_ScalePic ((sbar_rect.width - 320)/2 + 64, (sbar_rect.height - 200)/2 + 24, 192, 24, pic);
+	R2D_ScalePic ((sbar_rect.width - 320)/2 + 64, (sbar_rect.height - 200)/2 + 24, 192, 24, pic);
 
-	pic = Draw_SafeCachePic ("gfx/inter.lmp");
+	pic = R2D_SafeCachePic ("gfx/inter.lmp");
 	if (pic)
-		Draw_ScalePic ((sbar_rect.width - 320)/2 + 0, (sbar_rect.height - 200)/2 + 56, 160, 144, pic);
+		R2D_ScalePic ((sbar_rect.width - 320)/2 + 0, (sbar_rect.height - 200)/2 + 56, 160, 144, pic);
 
 // time
 	dig = cl.completed_time/60;
 	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 160, (sbar_rect.height - 200)/2 + 64, dig, 3, 0);
 	num = cl.completed_time - dig*60;
-	Draw_ScalePic ((sbar_rect.width - 320)/2 + 234,(sbar_rect.height - 200)/2 + 64, 16, 24, sb_colon);
-	Draw_ScalePic ((sbar_rect.width - 320)/2 + 246,(sbar_rect.height - 200)/2 + 64, 16, 26, sb_nums[0][num/10]);
-	Draw_ScalePic ((sbar_rect.width - 320)/2 + 266,(sbar_rect.height - 200)/2 + 64, 16, 24, sb_nums[0][num%10]);
+	R2D_ScalePic ((sbar_rect.width - 320)/2 + 234,(sbar_rect.height - 200)/2 + 64, 16, 24, sb_colon);
+	R2D_ScalePic ((sbar_rect.width - 320)/2 + 246,(sbar_rect.height - 200)/2 + 64, 16, 26, sb_nums[0][num/10]);
+	R2D_ScalePic ((sbar_rect.width - 320)/2 + 266,(sbar_rect.height - 200)/2 + 64, 16, 24, sb_nums[0][num%10]);
 
 //it is assumed that secrits/monsters are going to be constant for any player...
 	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 160, (sbar_rect.height - 200)/2 + 104, cl.stats[0][STAT_SECRETS], 3, 0);
-	Draw_ScalePic ((sbar_rect.width - 320)/2 + 232,(sbar_rect.height - 200)/2 + 104, 16, 24, sb_slash);
+	R2D_ScalePic ((sbar_rect.width - 320)/2 + 232,(sbar_rect.height - 200)/2 + 104, 16, 24, sb_slash);
 	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 240, (sbar_rect.height - 200)/2 + 104, cl.stats[0][STAT_TOTALSECRETS], 3, 0);
 
 	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 160, (sbar_rect.height - 200)/2 + 144, cl.stats[0][STAT_MONSTERS], 3, 0);
-	Draw_ScalePic ((sbar_rect.width - 320)/2 + 232,(sbar_rect.height - 200)/2 + 144, 16, 24, sb_slash);
+	R2D_ScalePic ((sbar_rect.width - 320)/2 + 232,(sbar_rect.height - 200)/2 + 144, 16, 24, sb_slash);
 	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 240, (sbar_rect.height - 200)/2 + 144, cl.stats[0][STAT_TOTALMONSTERS], 3, 0);
 }
 /*
@@ -3263,8 +3263,8 @@ void Sbar_FinaleOverlay (void)
 	if (UI_DrawFinale()>0)
 		return;
 #endif
-	pic = Draw_SafeCachePic ("gfx/finale.lmp");
+	pic = R2D_SafeCachePic ("gfx/finale.lmp");
 	if (pic)
-		Draw_ScalePic ( (vid.width-pic->width)/2, 16, pic->width, pic->height, pic);
+		R2D_ScalePic ( (vid.width-pic->width)/2, 16, pic->width, pic->height, pic);
 }
 

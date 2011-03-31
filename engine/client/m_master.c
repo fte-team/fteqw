@@ -237,11 +237,11 @@ void M_DrawOneServer (int inity)
 	{
 		if (y>=miny)
 		{
-			Draw_ImagePaletteColour(Sbar_ColorForMap(selectedserver.detail->players[i].topc), 1.0);
-			Draw_FillBlock (12, y, 28, 4);
-			Draw_ImagePaletteColour(Sbar_ColorForMap(selectedserver.detail->players[i].botc), 1.0);
-			Draw_FillBlock (12, y+4, 28, 4);
-			Draw_ImageColours(1.0, 1.0, 1.0, 1.0);
+			R2D_ImagePaletteColour(Sbar_ColorForMap(selectedserver.detail->players[i].topc), 1.0);
+			R2D_FillBlock (12, y, 28, 4);
+			R2D_ImagePaletteColour(Sbar_ColorForMap(selectedserver.detail->players[i].botc), 1.0);
+			R2D_FillBlock (12, y+4, 28, 4);
+			R2D_ImageColours(1.0, 1.0, 1.0, 1.0);
 			NM_PrintWhite (12, y, va("%3i", selectedserver.detail->players[i].frags));
 			NM_Print (12+8*4, y, selectedserver.detail->players[i].name);
 		}
@@ -417,8 +417,8 @@ void M_DrawServerList(void)
 			// make sure we have a highlighted background
 			if (highlight >= 0)
 			{
-				Draw_ImageColours(consolecolours[highlight].fr, consolecolours[highlight].fg, consolecolours[highlight].fb, 1.0);
-				Draw_FillBlock(8, y, vid.width-16, 8);
+				R2D_ImageColours(consolecolours[highlight].fr, consolecolours[highlight].fg, consolecolours[highlight].fb, 1.0);
+				R2D_FillBlock(8, y, vid.width-16, 8);
 			}
 
 			if (sb_showtimelimit.value)
@@ -915,8 +915,8 @@ void SL_DrawColumnTitle (int *x, int y, int xlen, int mx, char *str, qboolean re
 	if (mx >= xmin && !(*filldraw))
 	{
 		*filldraw = true;
-		Draw_ImageColours((sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08, 1.0);
-		Draw_FillBlock(xmin, y, xlen, 8);
+		R2D_ImageColours((sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08, 1.0);
+		R2D_FillBlock(xmin, y, xlen, 8);
 	}
 	Draw_FunStringWidth(xmin, y, str, xlen);
 
@@ -1062,25 +1062,25 @@ void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 		stype = flagstoservertype(si->special);
 		if (thisone == info->selectedpos)
 		{
-			Draw_ImageColours(
+			R2D_ImageColours(
 				serverhighlight[(int)stype][0],
 				serverhighlight[(int)stype][1],
 				serverhighlight[(int)stype][2],
 				1.0);
 		}
 		else if (thisone == info->scrollpos + (mousecursor_y-16)/8 && mousecursor_x < x)
-			Draw_ImageColours((sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08, 1.0);
+			R2D_ImageColours((sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08, 1.0);
 		else if (selectedserver.inuse && NET_CompareAdr(si->adr, selectedserver.adr))
-			Draw_ImageColours(((sin(realtime*4.4)*0.25)+0.5) * 0.5, ((sin(realtime*4.4)*0.25)+0.5)*0.5, 0.08*0.5, 1.0);
+			R2D_ImageColours(((sin(realtime*4.4)*0.25)+0.5) * 0.5, ((sin(realtime*4.4)*0.25)+0.5)*0.5, 0.08*0.5, 1.0);
 		else
 		{		
-			Draw_ImageColours(
+			R2D_ImageColours(
 				serverbackcolor[(int)stype * 2 + (thisone & 1)][0],
 				serverbackcolor[(int)stype * 2 + (thisone & 1)][1],
 				serverbackcolor[(int)stype * 2 + (thisone & 1)][2],
 				1.0);
 		}
-		Draw_FillBlock(0, y, ths->common.width, 8);
+		R2D_FillBlock(0, y, ths->common.width, 8);
 
 		if (sb_showtimelimit.value)	{Draw_FunStringWidth((x-3*8), y, va("%i", si->tl), 3*8); x-=4*8;}
 		if (sb_showfraglimit.value)	{Draw_FunStringWidth((x-3*8), y, va("%i", si->fl), 3*8); x-=4*8;}
@@ -1114,7 +1114,7 @@ qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key)
 		if (server)
 		{
 			snprintf(info->mappic->picturename, 32, "levelshots/%s", server->map);
-			if (!Draw_SafeCachePic(info->mappic->picturename))
+			if (!R2D_SafeCachePic(info->mappic->picturename))
 				snprintf(info->mappic->picturename, 32, "levelshots/nomap");
 		}
 		else
@@ -1217,7 +1217,7 @@ qboolean SL_Key	(int key, menu_t *menu)
 		if (server)
 		{
 			snprintf(info->mappic->picturename, 32, "levelshots/%s", server->map);
-			if (!Draw_SafeCachePic(info->mappic->picturename))
+			if (!R2D_SafeCachePic(info->mappic->picturename))
 				snprintf(info->mappic->picturename, 32, "levelshots/nomap");
 		}
 		else
@@ -1246,10 +1246,10 @@ void SL_ServerPlayer (int x, int y, menucustom_t *ths, menu_t *menu)
 			if ((int)ths->data < selectedserver.detail->numplayers)
 			{
 				int i = (int)ths->data;
-				Draw_ImagePaletteColour (Sbar_ColorForMap(selectedserver.detail->players[i].topc), 1.0);
-				Draw_FillBlock (x, y, 28, 4);
-				Draw_ImagePaletteColour (Sbar_ColorForMap(selectedserver.detail->players[i].botc), 1.0);
-				Draw_FillBlock (x, y+4, 28, 4);
+				R2D_ImagePaletteColour (Sbar_ColorForMap(selectedserver.detail->players[i].topc), 1.0);
+				R2D_FillBlock (x, y, 28, 4);
+				R2D_ImagePaletteColour (Sbar_ColorForMap(selectedserver.detail->players[i].botc), 1.0);
+				R2D_FillBlock (x, y+4, 28, 4);
 				NM_PrintWhite (x, y, va("%3i", selectedserver.detail->players[i].frags));
 
 				Draw_FunStringWidth (x+28, y, selectedserver.detail->players[i].name, 12*8);
@@ -1263,33 +1263,33 @@ void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 
 	mpic_t *pic;
 
-	pic = Draw_SafeCachePic("scrollbars/slidebg.png");
+	pic = R2D_SafeCachePic("scrollbars/slidebg.png");
 	if (pic)
 	{
-		Draw_ScalePic(x + ths->common.width - 8, y+8, 8, ths->common.height-16, pic);
+		R2D_ScalePic(x + ths->common.width - 8, y+8, 8, ths->common.height-16, pic);
 
-		pic = Draw_SafeCachePic("scrollbars/arrow_up.png");
-		Draw_ScalePic(x + ths->common.width - 8, y, 8, 8, pic);
+		pic = R2D_SafeCachePic("scrollbars/arrow_up.png");
+		R2D_ScalePic(x + ths->common.width - 8, y, 8, 8, pic);
 
-		pic = Draw_SafeCachePic("scrollbars/arrow_down.png");
-		Draw_ScalePic(x + ths->common.width - 8, y + ths->common.height - 8, 8, 8, pic);
+		pic = R2D_SafeCachePic("scrollbars/arrow_down.png");
+		R2D_ScalePic(x + ths->common.width - 8, y + ths->common.height - 8, 8, 8, pic);
 
 		y += ((info->scrollpos) / ((float)info->numslots - info->visibleslots)) * (float)(ths->common.height-(64+16-1));
 
 		y += 8;
 
-		pic = Draw_SafeCachePic("scrollbars/slider.png");
-		Draw_ScalePic(x + ths->common.width - 8, y, 8, 64, pic);
+		pic = R2D_SafeCachePic("scrollbars/slider.png");
+		R2D_ScalePic(x + ths->common.width - 8, y, 8, 64, pic);
 	}
 	else
 	{
-		Draw_ImageColours(0.1, 0.1, 0.2, 1.0);
-		Draw_FillBlock(x, y, ths->common.width, ths->common.height);
+		R2D_ImageColours(0.1, 0.1, 0.2, 1.0);
+		R2D_FillBlock(x, y, ths->common.width, ths->common.height);
 
 		y += ((info->scrollpos) / ((float)info->numslots - info->visibleslots)) * (ths->common.height-8);
 
-		Draw_ImageColours(0.35, 0.35, 0.55, 1.0);
-		Draw_FillBlock(x, y, 8, 8);
+		R2D_ImageColours(0.35, 0.35, 0.55, 1.0);
+		R2D_FillBlock(x, y, 8, 8);
 	}
 
 	if (info->sliderpressed)
@@ -1303,7 +1303,7 @@ void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 
 			my = mousecursor_y;
 			my -= ths->common.posy;
-			if (Draw_SafeCachePic("scrollbars/slidebg.png"))
+			if (R2D_SafeCachePic("scrollbars/slidebg.png"))
 			{
 				my -= 32+8;
 				my /= ths->common.height - (64+16);
@@ -1333,7 +1333,7 @@ qboolean SL_SliderKey (menucustom_t *ths, menu_t *menu, int key)
 
 		my = mousecursor_y;
 		my -= ths->common.posy;
-		if (Draw_SafeCachePic("scrollbars/slidebg.png"))
+		if (R2D_SafeCachePic("scrollbars/slidebg.png"))
 		{
 			my -= 32+8;
 			my /= ths->common.height - (64+16);

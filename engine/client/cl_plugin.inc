@@ -109,15 +109,10 @@ qintptr_t VARGS Plug_Draw_LoadImage(void *offset, quintptr_t mask, const qintptr
 
 	if (qrenderer != QR_NONE)
 	{
-		if (fromwad && Draw_SafePicFromWad)
-			pic = Draw_SafePicFromWad(name);
+		if (fromwad)
+			pic = R2D_SafePicFromWad(name);
 		else
-		{
-			if (Draw_SafeCachePic)
-				pic = Draw_SafeCachePic(name);
-			else
-				pic = NULL;
-		}
+			pic = R2D_SafeCachePic(name);
 	}
 	else
 		pic = NULL;
@@ -140,12 +135,9 @@ void Plug_DrawReloadImages(void)
 			continue;
 		}
 
-		if (Draw_SafePicFromWad)
-			pluginimagearray[i].pic = Draw_SafePicFromWad(pluginimagearray[i].name);
-		else if (Draw_SafeCachePic)
-				pluginimagearray[i].pic = Draw_SafeCachePic(pluginimagearray[i].name);
-		else
-			pluginimagearray[i].pic = NULL;
+		pluginimagearray[i].pic = R2D_SafePicFromWad(pluginimagearray[i].name);
+		//pluginimagearray[i].pic = R2D_SafeCachePic(pluginimagearray[i].name);
+		//pluginimagearray[i].pic = NULL;
 	}
 }
 
@@ -163,14 +155,12 @@ void Plug_FreePlugImages(plugin_t *plug)
 	}
 }
 
-//int Draw_Image (float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t image)
+//int R2D_Image (float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t image)
 qintptr_t VARGS Plug_Draw_Image(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	mpic_t *pic;
 	int i;
 	if (qrenderer == QR_NONE)
-		return 0;
-	if (!Draw_Image)
 		return 0;
 
 	i = VM_LONG(arg[8]);
@@ -186,12 +176,12 @@ qintptr_t VARGS Plug_Draw_Image(void *offset, quintptr_t mask, const qintptr_t *
 		return 0;	//wasn't loaded.
 	else
 	{
-		pic = Draw_SafeCachePic(pluginimagearray[i].name);
+		pic = R2D_SafeCachePic(pluginimagearray[i].name);
 		if (!pic)
 			return -1;
 	}
 
-	Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), pic);
+	R2D_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), pic);
 	return 1;
 }
 //x1,y1,x2,y2
@@ -224,7 +214,7 @@ qintptr_t VARGS Plug_Draw_Character(void *offset, quintptr_t mask, const qintptr
 	Font_EndString(font_conchar);
 	return 0;
 }
-void	(D3D_Draw_Fill_Colours)				(int x, int y, int w, int h);
+
 qintptr_t VARGS Plug_Draw_Fill(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	float x, y, width, height;
@@ -234,59 +224,27 @@ qintptr_t VARGS Plug_Draw_Fill(void *offset, quintptr_t mask, const qintptr_t *a
 	y = VM_FLOAT(arg[1]);
 	width = VM_FLOAT(arg[2]);
 	height = VM_FLOAT(arg[3]);
-	switch(qrenderer)	//FIXME: I don't want qrenderer seen outside the refresh
-	{
-#ifdef GLQUAKE
-	case QR_OPENGL:
-		qglDisable(GL_TEXTURE_2D);
-		qglBegin(GL_QUADS);
-		qglVertex2f(x, y);
-		qglVertex2f(x+width, y);
-		qglVertex2f(x+width, y+height);
-		qglVertex2f(x, y+height);
-		qglEnd();
-		qglEnable(GL_TEXTURE_2D);
-		return 1;
-#endif
-	case QR_DIRECT3D:
-//		D3D_Draw_Fill_Colours(x, y, width, height);
-		break;
-	default:
-		break;
-	}
+
+	R2D_FillBlock(x, y, width, height);
 	return 0;
 }
 qintptr_t VARGS Plug_Draw_ColourP(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	qbyte *pal = host_basepal + VM_LONG(arg[0])*3;
-
 	if (arg[0]<0 || arg[0]>255)
 		return false;
 
-	if (Draw_ImageColours)
-	{
-		Draw_ImageColours(pal[0]/255.0f, pal[1]/255.0f, pal[2]/255.0f, 1);
-		return 1;
-	}
-	return 0;
+	R2D_ImagePaletteColour(arg[0], 1);
+	return 1;
 }
 qintptr_t VARGS Plug_Draw_Colour3f(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	if (Draw_ImageColours)
-	{
-		Draw_ImageColours(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), 1);
-		return 1;
-	}
-	return 0;
+	R2D_ImageColours(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), 1);
+	return 1;
 }
 qintptr_t VARGS Plug_Draw_Colour4f(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	if (Draw_ImageColours)
-	{
-		Draw_ImageColours(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]));
-		return 1;
-	}
-	return 0;
+	R2D_ImageColours(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]));
+	return 1;
 }
 
 

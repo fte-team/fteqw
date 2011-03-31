@@ -870,7 +870,7 @@ void Editor_Draw(void)
 		key_dest = key_editor;
 
 	if ((editoractive && cls.state == ca_disconnected) || editormodal)
-		Draw_EditorBackground();
+		R2D_EditorBackground();
 
 	if (cursorlinenum < 0)	//look for the cursor line num
 	{

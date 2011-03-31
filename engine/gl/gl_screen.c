@@ -192,14 +192,9 @@ void GLSCR_UpdateScreen (void)
 
 		//draw the levelshot or the conback fullscreen
 		if (*levelshotname)
-		{
-			if(Draw_ScalePic)
-				Draw_ScalePic(0, 0, vid.width, vid.height, Draw_SafeCachePic (levelshotname));
-			else if (scr_con_current != vid.height)
-				Draw_ConsoleBackground(0, vid.height, true);
-		}
+			R2D_ScalePic(0, 0, vid.width, vid.height, R2D_SafeCachePic (levelshotname));
 		else if (scr_con_current != vid.height)
-			Draw_ConsoleBackground(0, vid.height, true);
+			R2D_ConsoleBackground(0, vid.height, true);
 		else
 			scr_con_forcedraw = true;
 

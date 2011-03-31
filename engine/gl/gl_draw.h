@@ -26,10 +26,6 @@ void GLDraw_ReInit (void);
 void GLDraw_DeInit (void);
 void Surf_DeInit (void);
 void GLDraw_TransPicTranslate (int x, int y, int w, int h, qbyte *pic, qbyte *translation);
-void GLDraw_BeginDisc (void);
-void GLDraw_EndDisc (void);
-void GLDraw_FillRGB (int x, int y, int w, int h, float r, float g, float b);
-void GLDraw_Fill (int x, int y, int w, int h, unsigned int c);
 void GLDraw_Crosshair(void);
 void GLDraw_LevelPic (mpic_t *pic);
 

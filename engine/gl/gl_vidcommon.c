@@ -1065,25 +1065,10 @@ rendererinfo_t openglrendererinfo = {
 	QR_OPENGL,
 
 
-	R2D_SafePicFromWad,
-	R2D_SafeCachePic,
 	GLDraw_Init,
 	GLDraw_ReInit,
 	GLDraw_Crosshair,
-	R2D_ScalePic,
-	R2D_SubPic,
 	GLDraw_TransPicTranslate,
-	R2D_ConsoleBackground,
-	R2D_EditorBackground,
-	R2D_TileClear,
-	GLDraw_Fill,
-	GLDraw_FillRGB,
-	R2D_FadeScreen,
-	GLDraw_BeginDisc,
-	GLDraw_EndDisc,
-
-	R2D_Image,
-	R2D_ImageColours,
 
 	GL_LoadTextureFmt,
 	GL_LoadTexture8Pal24,

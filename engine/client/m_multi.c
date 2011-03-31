@@ -72,7 +72,7 @@ void M_Menu_MultiPlayer_f (void)
 	}
 	else
 	{
-		p = Draw_SafeCachePic("gfx/mp_menu.lmp");
+		p = R2D_SafeCachePic("gfx/mp_menu.lmp");
 		if (p)
 		{
 			MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
@@ -254,7 +254,7 @@ void MSetupQ2_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 	mpic_t	*p;
 
 
-	p = Draw_SafeCachePic (va("players/%s_i", skin.string));
+	p = R2D_SafeCachePic (va("players/%s_i", skin.string));
 	if (!p)
 	{
 		q2skinsearch_t *s = Z_Malloc(sizeof(*s));
@@ -263,10 +263,10 @@ void MSetupQ2_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 			Cvar_Set(&skin, s->names[rand()%s->entries]);
 		q2skin_destroy(s);
 
-		p = Draw_SafeCachePic (va("players/%s_i", skin.string));
+		p = R2D_SafeCachePic (va("players/%s_i", skin.string));
 	}
 	if (p)
-		Draw_ScalePic (x-12, y-8, p->width, p->height, p);
+		R2D_ScalePic (x-12, y-8, p->width, p->height, p);
 }
 
 void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
@@ -312,9 +312,9 @@ void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 		}
 	}
 
-	p = Draw_SafeCachePic ("gfx/bigbox.lmp");
+	p = R2D_SafeCachePic ("gfx/bigbox.lmp");
 	if (p)
-		Draw_ScalePic (x-12, y-8, 72, 72, p);
+		R2D_ScalePic (x-12, y-8, 72, 72, p);
 
 	M_BuildTranslationTable(info->topcolour, info->lowercolour);
 	Draw_TransPicTranslate (x, y, info->tiwidth, info->tiheight, info->translationimage, translationTable);	
@@ -339,7 +339,7 @@ void M_Menu_Setup_f (void)
 	mgt = M_GameType();
 	if (mgt == MGT_QUAKE2)	//quake2 main menu.
 	{
-		if (Draw_SafeCachePic("pics/m_banner_plauer_setup"))
+		if (R2D_SafeCachePic("pics/m_banner_plauer_setup"))
 		{
 			char *modeloptions[] =
 			{
@@ -357,7 +357,7 @@ void M_Menu_Setup_f (void)
 //			menu->key = MC_Main_Key;	
 
 			MC_AddPicture(menu, 0, 4, 38, 166, "pics/m_main_plaque");
-			p = Draw_SafeCachePic("pics/m_main_logo");
+			p = R2D_SafeCachePic("pics/m_main_logo");
 			if (!p)
 				return;
 			MC_AddPicture(menu, 0, 173, 36, 42, "pics/m_main_logo");

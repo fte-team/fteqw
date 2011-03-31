@@ -58,7 +58,7 @@ void M_PrintWhite (int cx, int cy, qbyte *str)
 }
 void M_DrawScalePic (int x, int y, int w, int h, mpic_t *pic)
 {
-	Draw_ScalePic (x + ((vid.width - 320)>>1), y, w, h, pic);
+	R2D_ScalePic (x + ((vid.width - 320)>>1), y, w, h, pic);
 }
 
 qbyte identityTable[256];
@@ -129,18 +129,18 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 	// draw left side
 	cx = x;
 	cy = y;
-	p = Draw_SafeCachePic ("gfx/box_tl.lmp");
+	p = R2D_SafeCachePic ("gfx/box_tl.lmp");
 	if (!p)
 		return;	//assume we can't find any
 	M_DrawScalePic (cx, cy, 8, 8, p);
-	p = Draw_SafeCachePic ("gfx/box_ml.lmp");
+	p = R2D_SafeCachePic ("gfx/box_ml.lmp");
 	if (p)
 		for (n = 0; n < lines; n++)
 		{
 			cy += 8;
 			M_DrawScalePic (cx, cy, 8, 8, p);
 		}
-	p = Draw_SafeCachePic ("gfx/box_bl.lmp");
+	p = R2D_SafeCachePic ("gfx/box_bl.lmp");
 	if (p)
 		M_DrawScalePic (cx, cy+8, 8, 8, p);
 
@@ -149,23 +149,23 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 	while (width > 0)
 	{
 		cy = y;
-		p = Draw_SafeCachePic ("gfx/box_tm.lmp");
+		p = R2D_SafeCachePic ("gfx/box_tm.lmp");
 		if (p)
 			M_DrawScalePic (cx, cy, 16, 8, p);
-		p = Draw_SafeCachePic ("gfx/box_mm.lmp");
+		p = R2D_SafeCachePic ("gfx/box_mm.lmp");
 		if (p)
 			for (n = 0; n < lines; n++)
 			{
 				cy += 8;
 				if (n == 1)
 				{
-					p = Draw_SafeCachePic ("gfx/box_mm2.lmp");
+					p = R2D_SafeCachePic ("gfx/box_mm2.lmp");
 					if (!p)
 						break;
 				}
 				M_DrawScalePic (cx, cy, 16, 8, p);
 			}
-		p = Draw_SafeCachePic ("gfx/box_bm.lmp");
+		p = R2D_SafeCachePic ("gfx/box_bm.lmp");
 		if (p)
 			M_DrawScalePic (cx, cy+8, 16, 8, p);
 		width -= 2;
@@ -174,17 +174,17 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 
 	// draw right side
 	cy = y;
-	p = Draw_SafeCachePic ("gfx/box_tr.lmp");
+	p = R2D_SafeCachePic ("gfx/box_tr.lmp");
 	if (p)
 		M_DrawScalePic (cx, cy, 8, 8, p);
-	p = Draw_SafeCachePic ("gfx/box_mr.lmp");
+	p = R2D_SafeCachePic ("gfx/box_mr.lmp");
 	if (p)
 		for (n = 0; n < lines; n++)
 		{
 			cy += 8;
 			M_DrawScalePic (cx, cy, 8, 8, p);
 		}
-	p = Draw_SafeCachePic ("gfx/box_br.lmp");
+	p = R2D_SafeCachePic ("gfx/box_br.lmp");
 	if (p)
 		M_DrawScalePic (cx, cy+8, 8, 8, p);
 }
@@ -544,7 +544,7 @@ void M_Menu_Help_f (void)
 void M_Help_Draw (void)
 {
 	mpic_t *pic;
-	pic = Draw_SafeCachePic(va(helpstyle, help_page+helppagemin));
+	pic = R2D_SafeCachePic(va(helpstyle, help_page+helppagemin));
 	if (!pic)
 		M_Menu_Main_f ();
 	else
@@ -992,7 +992,7 @@ void M_Draw (int uimenu)
 	if (uimenu)
 	{
 		if (uimenu == 2)
-			Draw_FadeScreen ();
+			R2D_FadeScreen ();
 #ifdef VM_UI
 		UI_DrawMenu();
 #endif
@@ -1013,14 +1013,14 @@ void M_Draw (int uimenu)
 
 	if ((!menu_script || scr_con_current) && !m_recursiveDraw)
 	{
-		Draw_FadeScreen ();
+		R2D_FadeScreen ();
 	}
 	else
 	{
 		m_recursiveDraw = false;
 	}
 
-	Draw_ImageColours(1, 1, 1, 1);
+	R2D_ImageColours(1, 1, 1, 1);
 
 	switch (m_state)
 	{

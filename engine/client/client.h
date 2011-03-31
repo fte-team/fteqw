@@ -590,6 +590,9 @@ typedef struct
 	float skyrotate;
 	vec3_t skyaxis;
 
+	float		fog_density;
+	vec3_t		fog_colour;
+
 	char		levelname[40];	// for display on solo scoreboard
 	int			playernum[MAX_SPLITS];
 	qboolean	nolocalplayer[MAX_SPLITS];

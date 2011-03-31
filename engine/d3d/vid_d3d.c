@@ -347,7 +347,20 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 				IN_RawInput_Read((HANDLE)lParam);
 			break;
 
-		case WM_SIZE:
+		case WM_GETMINMAXINFO:
+			{
+				RECT windowrect;
+				RECT clientrect;
+				MINMAXINFO *mmi = (MINMAXINFO *) lParam;
+
+				GetWindowRect (hWnd, &windowrect);
+				GetClientRect (hWnd, &clientrect);
+
+				mmi->ptMinTrackSize.x = 320 + ((windowrect.right - windowrect.left) - (clientrect.right - clientrect.left));
+				mmi->ptMinTrackSize.y = 200 + ((windowrect.bottom - windowrect.top) - (clientrect.bottom - clientrect.top));
+			}
+			return 0;
+    	case WM_SIZE:
 			if (!vid_initializing)
 			{
 				extern cvar_t vid_conautoscale, vid_conwidth;
@@ -529,7 +542,7 @@ static qboolean initD3D9Device(HWND hWnd, rendererstate_t *info, unsigned int de
 		char *s;
 		for (s = inf.Description + strlen(inf.Description)-1; s >= inf.Description && *s <= ' '; s--)
 			*s = 0;
-		Con_Printf("D3D9: Using device %s\n", inf.Description);
+		Con_Printf("D3D9: %s\n", inf.Description);
 
 		vid.numpages = d3dpp.BackBufferCount;
 
@@ -555,6 +568,8 @@ static qboolean initD3D9Device(HWND hWnd, rendererstate_t *info, unsigned int de
 			rect.bottom = d3dpp.BackBufferHeight;
 			AdjustWindowRectEx(&rect, WS_OVERLAPPEDWINDOW, FALSE, 0);
 			MoveWindow(d3dpp.hDeviceWindow, mi.rcWork.left, mi.rcWork.top, rect.right-rect.left, rect.bottom-rect.top, false);
+
+			D3DShader_Init();
 		}
 		return true;	//successful
 	}

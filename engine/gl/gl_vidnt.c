@@ -1705,6 +1705,19 @@ LONG WINAPI GLMainWndProc (
 				IN_RawInput_Read((HANDLE)lParam);
 			break;
 
+		case WM_GETMINMAXINFO:
+			{
+				RECT windowrect;
+				RECT clientrect;
+				MINMAXINFO *mmi = (MINMAXINFO *) lParam;
+
+				GetWindowRect (hWnd, &windowrect);
+				GetClientRect (hWnd, &clientrect);
+
+				mmi->ptMinTrackSize.x = 320 + ((windowrect.right - windowrect.left) - (clientrect.right - clientrect.left));
+				mmi->ptMinTrackSize.y = 200 + ((windowrect.bottom - windowrect.top) - (clientrect.bottom - clientrect.top));
+			}
+			return 0;
     	case WM_SIZE:
 			if (!vid_initializing)
 			{

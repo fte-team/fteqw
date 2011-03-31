@@ -88,9 +88,20 @@ void R2D_Init(void)
 
 	missing_texture = R_LoadTexture8("no_texture", 16, 16, (unsigned char*)r_notexture_mip + r_notexture_mip->offsets[0], IF_NOALPHA|IF_NOGAMMA, 0);
 
-	draw_backtile = R2D_SafePicFromWad ("backtile");
-	if (!draw_backtile)
-		draw_backtile = R2D_SafeCachePic ("gfx/menu/backtile.lmp");
+	draw_backtile = R_RegisterShader("gfx/backtile.lmp",
+		"{\n"
+#ifdef USE_EGL
+			"program default2d\n"
+#endif
+			"nomipmaps\n"
+			"{\n"
+				"map $diffuse\n"
+			"}\n"
+		"}\n");
+	if (!TEXVALID(draw_backtile->defaulttextures.base))
+		draw_backtile->defaulttextures.base = R_LoadHiResTexture("gfx/backtile", NULL, IF_NOPICMIP|IF_NOMIPMAP);
+	if (!TEXVALID(draw_backtile->defaulttextures.base))
+		draw_backtile->defaulttextures.base = R_LoadHiResTexture("gfx/menu/backtile", NULL, IF_NOPICMIP|IF_NOMIPMAP);
 
 	shader_draw_fill = R_RegisterShader("fill_opaque",
 		"{\n"
@@ -136,13 +147,17 @@ void R2D_Init(void)
 				"{\n"
 			"#ifdef VERTEX_SHADER\n"
 			"\
+					uniform mat4 m_view;\
+					uniform mat4 m_projection;\
+					attribute vec3 v_position;\
+					attribute vec2 v_texcoord;\
 					varying vec2 texcoord;\
 					uniform vec3 rendertexturescale;\
 					void main(void)\
 					{\
-						texcoord.x = gl_MultiTexCoord0.x*rendertexturescale.x;\
-						texcoord.y = (1-gl_MultiTexCoord0.y)*rendertexturescale.y;\
-						gl_Position = ftransform();\
+						texcoord.x = v_texcoord.x*rendertexturescale.x;\
+						texcoord.y = (1.0-v_texcoord.y)*rendertexturescale.y;\
+						gl_Position = m_projection * m_view * vec4(v_position, 1.0);\
 					}\
 			\n"
 			"#endif\n"
@@ -150,13 +165,13 @@ void R2D_Init(void)
 			"\
 					varying vec2 texcoord;\
 					uniform vec3 colorparam;\
-					uniform sampler2D source;\
+					uniform sampler2D s_t0;\
 					uniform int invert;\
 					const vec3 lumfactors = vec3(0.299, 0.587, 0.114);\
 					const vec3 invertvec = vec3(1.0, 1.0, 1.0);\
 					void main(void)\
 					{\
-						vec3 texcolor = texture2D(source, texcoord).rgb;\
+						vec3 texcolor = texture2D(s_t0, texcoord).rgb;\
 						float luminance = dot(lumfactors, texcolor);\
 						texcolor = vec3(luminance, luminance, luminance);\
 						texcolor *= colorparam;\
@@ -167,7 +182,6 @@ void R2D_Init(void)
 				"}\n"
 				"param cvari r_menutint_inverse invert\n"
 				"param cvar3f r_menutint colorparam\n"
-				"param texture 0 source\n"
 				"param rendertexturescale rendertexturescale\n"
 
 				"{\n"
@@ -402,7 +416,7 @@ void R2D_TileClear (int x, int y, int w, int h)
 	draw_mesh_st[3][0] = newsl;
 	draw_mesh_st[3][1] = newth;
 
-	BE_DrawMesh_Single(draw_backtile, &draw_mesh, NULL, NULL);
+	BE_DrawMesh_Single(draw_backtile, &draw_mesh, NULL, &draw_backtile->defaulttextures);
 }
 
 void R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)

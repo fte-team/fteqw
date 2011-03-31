@@ -631,6 +631,19 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel, char *data, char *mapname)	//a
 		{
 			Q_strncpyz(cl.skyname, com_token, sizeof(cl.skyname));
 		}
+		else if (!strcmp("fog", key))
+		{
+			char *s;
+			Q_strncpyz(key, com_token, sizeof(key));
+			s = COM_Parse(key);
+			cl.fog_density = atof(com_token);
+			s = COM_Parse(s);
+			cl.fog_colour[0] = atof(com_token);
+			s = COM_Parse(s);
+			cl.fog_colour[1] = atof(com_token);
+			s = COM_Parse(s);
+			cl.fog_colour[2] = atof(com_token);
+		}
 		else if (!strcmp("sky", key)) // for Quake2 maps
 		{
 			Q_strncpyz(cl.skyname, com_token, sizeof(cl.skyname));

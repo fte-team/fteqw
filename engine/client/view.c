@@ -953,6 +953,11 @@ void V_CalcRefdef (int pnum)
 		return;
 #endif
 
+
+	r_refdef.gfog_density = cl.fog_density;
+	r_refdef.gfog_alpha = cl.fog_density?1:0;//cl.fog_alpha;
+	VectorCopy(cl.fog_colour, r_refdef.gfog_rgb);
+
 // view is the weapon model (only visible from inside body)
 	view = &cl.viewent[pnum];
 

@@ -1,6 +1,7 @@
 #include "quakedef.h"
 
 //#define FORCESTATE
+//#define WIREFRAME
 
 #ifdef GLQUAKE
 
@@ -432,6 +433,12 @@ void GL_SetShaderState2D(qboolean is2d)
 {
 	shaderstate.updatetime = realtime;
 	shaderstate.force2d = is2d;
+#ifdef WIREFRAME
+	if (!is2d)
+		qglPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	else
+		qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+#endif
 	BE_SelectMode(BEM_STANDARD, 0);
 }
 
@@ -928,29 +935,39 @@ void Shader_LightPass_Spot(char *shortname, shader_t *s, const void *args)
 	Shader_DefaultScript(shortname, s, shadertext);
 }
 
-texid_t GenerateFogTexture(void)
+void GenerateFogTexture(texid_t *tex, float density, float zscale)
 {
 #define FOGS 256
 #define FOGT 32
 	byte_vec4_t fogdata[FOGS*FOGT];
 	int s, t;
-	float f;
+	float f, z;
 	for(s = 0; s < FOGS; s++)
 		for(t = 0; t < FOGT; t++)
 		{
-			f = (float)s / FOGS;
+			z = (float)s / (FOGS-1);
+			z *= zscale;
+
+			if (0)//q3
+				f = pow(f, 0.5);
+			else if (1)//GL_EXP
+				f = 1-exp(-density * z);
+			else //GL_EXP2
+				f = 1-exp(-(density*density) * z);
 			if (f < 0)
 				f = 0;
 			if (f > 1)
 				f = 1;
-			f = pow(f, 0.5);
+
 			fogdata[t*FOGS + s][0] = 255;
 			fogdata[t*FOGS + s][1] = 255;
 			fogdata[t*FOGS + s][2] = 255;
 			fogdata[t*FOGS + s][3] = 255*f;
 		}
 
-	return R_LoadTexture32("fog", FOGS, FOGT, fogdata, IF_CLAMP|IF_NOMIPMAP);
+	if (!TEXVALID(*tex))
+		*tex = R_AllocNewTexture(FOGS, FOGT);
+	R_Upload(*tex, "fog", TF_RGBA32, fogdata, NULL, FOGS, FOGT, IF_CLAMP|IF_NOMIPMAP);
 }
 
 void GLBE_Init(void)
@@ -1001,8 +1018,7 @@ void GLBE_Init(void)
 	currententity = &r_worldentity;
 
 
-
-	shaderstate.fogtexture = GenerateFogTexture();
+	shaderstate.fogtexture = r_nulltex;
 }
 
 //end tables
@@ -2648,10 +2664,17 @@ void GLBE_SelectEntity(entity_t *ent)
 		qglDepthRange (gldepthmin, gldepthmin + 0.3*(gldepthmax-gldepthmin));
 }
 
-void BE_SelectFog(vec3_t colour, float alpha, float fardist)
+void BE_SelectFog(vec3_t colour, float alpha, float density)
 {
+	float zscale;
+
+	density /= 64;
+
+	zscale = 2048;	/*this value is meant to be the distance at which fog the value becomes as good as fully fogged, just hack it to 2048...*/
+	GenerateFogTexture(&shaderstate.fogtexture, density, zscale);
+	shaderstate.fogfar = 1/zscale; /*scaler for z coords*/
+
 	qglColor4f(colour[0], colour[1], colour[2], alpha);
-	shaderstate.fogfar = 1/fardist;
 }
 
 #ifdef RTLIGHTS
@@ -3089,8 +3112,14 @@ static void BE_SubmitMeshesSortList(batch_t *sortlist)
 		if (batch->shader->flags & SHADER_SKY)
 		{
 			if (shaderstate.mode == BEM_STANDARD)
-				R_DrawSkyChain (batch);
-			if (shaderstate.mode != BEM_FOG)
+			{
+				if (!batch->shader->prog)
+				{
+					R_DrawSkyChain (batch);
+					continue;
+				}
+			}
+			else if (shaderstate.mode != BEM_FOG)
 				continue;
 		}
 
@@ -3311,29 +3340,11 @@ void GLBE_DrawWorld (qbyte *vis)
 
 	BE_DrawPolys(false);
 
-	if (1)//gl_fog.value)
+	if (r_refdef.gfog_alpha)
 	{
-		cvar_t *v;
-		vec3_t rgb;
-		float alpha;
-		float fardist;
-		v = Cvar_Get("_gl_fog", "0", 0, "experimental");
-		if (v->value)
-		{
-			v = Cvar_Get("_gl_fog_red", "1", 0, "experimental");
-			rgb[0] = v->value;
-			v = Cvar_Get("_gl_fog_green", "1", 0, "experimental");
-			rgb[1] = v->value;
-			v = Cvar_Get("_gl_fog_blue", "1", 0, "experimental");
-			rgb[2] = v->value;
-			v = Cvar_Get("_gl_fog_alpha", "1", 0, "experimental");
-			alpha = v->value;
-			v = Cvar_Get("_gl_fog_dist", "512", 0, "experimental");
-			fardist = v->value;
-			BE_SelectMode(BEM_FOG, 0);
-			BE_SelectFog(rgb, alpha, fardist);
-			GLBE_SubmitMeshes(true, batches);
-		}
+		BE_SelectMode(BEM_FOG, 0);
+		BE_SelectFog(r_refdef.gfog_rgb, r_refdef.gfog_alpha, r_refdef.gfog_density);
+		GLBE_SubmitMeshes(true, batches);
 	}
 
 	BE_SelectEntity(&r_worldentity);

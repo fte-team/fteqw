@@ -1042,6 +1042,11 @@ void CL_ClearState (void)
 // wipe the entire cl structure
 	memset (&cl, 0, sizeof(cl));
 
+	cl.fog_density = 0;
+	cl.fog_colour[0] = 0.3;
+	cl.fog_colour[1] = 0.3;
+	cl.fog_colour[2] = 0.3;
+
 	SZ_Clear (&cls.netchan.message);
 
 	r_worldentity.model = NULL;
@@ -2887,6 +2892,24 @@ void CL_FTP_f(void)
 #endif
 */
 
+void CL_Fog_f(void)
+{
+	if (Cmd_Argc() <= 1)
+	{
+		Con_Printf("Current fog %f (r:%f g:%f b:%f)\n", cl.fog_density, cl.fog_colour[0], cl.fog_colour[1], cl.fog_colour[2]);
+	}
+	else
+	{
+		cl.fog_density = atof(Cmd_Argv(1));
+		if (Cmd_Argc() > 5)
+		{
+			cl.fog_colour[0] = atof(Cmd_Argv(2));
+			cl.fog_colour[1] = atof(Cmd_Argv(3));
+			cl.fog_colour[2] = atof(Cmd_Argv(4));
+		}
+	}
+}
+
 void CL_Skygroup_f(void);
 void SCR_ShowPic_Script_f(void);
 /*
@@ -3141,6 +3164,7 @@ void CL_Init (void)
 
 	Cmd_AddCommand ("topten", NULL);
 
+	Cmd_AddCommand ("fog", CL_Fog_f);
 	Cmd_AddCommand ("kill", NULL);
 	Cmd_AddCommand ("pause", NULL);
 	Cmd_AddCommand ("say", CL_Say_f);

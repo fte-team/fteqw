@@ -5,7 +5,7 @@
     DECLARE_HANDLE(HMONITOR);
 #endif
 #include <d3d9.h>
-LPDIRECT3DDEVICE9 pD3DDev9;
+extern LPDIRECT3DDEVICE9 pD3DDev9;
 
 typedef struct d3dtexture_s
 {
@@ -133,7 +133,6 @@ static void Upload_Texture_32(LPDIRECT3DTEXTURE9 tex, unsigned int *data, int wi
 	unsigned char swapbuf[4];
 	unsigned char swapbuf2[4];
 	D3DLOCKED_RECT lock;
-	int i;
 
 	D3DSURFACE_DESC desc;
 	IDirect3DTexture9_GetLevelDesc(tex, 0, &desc);

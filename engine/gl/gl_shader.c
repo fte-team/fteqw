@@ -777,7 +777,7 @@ static void Shader_LoadPermutations(program_t *prog, char *script, int qrtype)
 		if (qrenderer != qrtype)
 		{
 		}
-	#ifdef GLQUAKE
+#ifdef GLQUAKE
 		else if (qrenderer == QR_OPENGL)
 		{
 			if (nopermutation & p)
@@ -793,7 +793,24 @@ static void Shader_LoadPermutations(program_t *prog, char *script, int qrtype)
 			permutationdefines[pn++] = NULL;
 			prog->handle[p].glsl = GLSlang_CreateProgram(permutationdefines, script, script);
 		}
-	#endif
+#endif
+#ifdef D3DQUAKE
+		else if (qrenderer == QR_DIRECT3D)
+		{
+			if (nopermutation & p)
+			{
+				continue;
+			}
+			pn = 0;
+			for (n = 0; permutationname[n]; n++)
+			{
+				if (p & (1u<<n))
+					permutationdefines[pn++] = permutationname[n];
+			}
+			permutationdefines[pn++] = NULL;
+			prog->handle[p] = D3DShader_CreateProgram(permutationdefines, script, script);
+		}
+#endif
 	}
 
 	Shader_ProgAutoFields(prog);
@@ -1031,14 +1048,14 @@ struct sbuiltin_s
 			"uniform sampler2D s_t1;\n"
 
 			"uniform mediump float e_time;\n"
-			"uniform mediump vec3 eyepos;\n"
+			"uniform mediump vec3 e_eyepos;\n"
 			"varying mediump vec3 pos;\n"
 
 			"void main (void)\n"
 			"{\n"
 			"	mediump vec2 tccoord;\n"
 
-			"	mediump vec3 dir = pos - eyepos;\n"
+			"	mediump vec3 dir = pos - e_eyepos;\n"
 
 			"	dir.z *= 3.0;\n"
 			"	dir.xy /= 0.5*length(dir);\n"
@@ -1068,7 +1085,7 @@ struct sbuiltin_s
 
 		"#ifdef FRAGMENT_SHADER\n"
 			"uniform float e_time;\n"
-			"uniform vec3 eyepos;\n"
+			"uniform vec3 e_eyepos;\n"
 			"varying vec3 pos;\n"
 			"uniform sampler2D s_t0;\n"
 			"uniform sampler2D s_t1;\n"
@@ -1077,7 +1094,7 @@ struct sbuiltin_s
 			"{\n"
 			"	vec2 tccoord;\n"
 
-			"	vec3 dir = pos - eyepos;\n"
+			"	vec3 dir = pos - e_eyepos;\n"
 
 			"	dir.z *= 3.0;\n"
 			"	dir.xy /= 0.5*length(dir);\n"
@@ -1210,6 +1227,56 @@ struct sbuiltin_s
 		"#endif\n"
 	},
 #endif
+#if 0//def D3DQUAKE
+		{QR_DIRECT3D, 9, "defaultsky",
+
+			"struct a2v {\n"
+				"float4 pos: POSITION;\n"
+			"};\n"
+			"struct v2f {\n"
+		"#ifdef VERTEX_SHADER\n"
+				"float4 pos: POSITION;\n"
+		"#endif\n"
+				"float3 vpos: COLOR;\n"
+			"};\n"
+
+		"#ifdef VERTEX_SHADER\n"
+			"float4x4  ModelViewProj;\n"
+			"v2f main (a2v inp)\n"
+			"{\n"
+			"	v2f outp;\n"
+			"	outp.pos = mul(inp.pos, ModelViewProj);\n"
+			"	outp.vpos = inp.pos;\n"
+			"	return outp;\n"
+			"}\n"
+		"#endif\n"
+
+		"#ifdef FRAGMENT_SHADER\n"
+			"float e_time;\n"
+			"float3 e_eyepos;\n"
+			"sampler2D s_t0;\n"
+			"sampler2D s_t1;\n"
+			"float4 main (v2f inp) : COLOR0\n"
+			"{\n"
+			"	float2 tccoord;\n"
+
+			"	float3 dir = inp.vpos - e_eyepos;\n"
+
+			"	dir.z *= 3.0;\n"
+			"	dir.xy /= 0.5*length(dir);\n"
+
+			"	tccoord = (dir.xy + e_time*0.03125);\n"
+			"	float4 solid = tex2D(s_t0, tccoord);\n"
+
+			"	tccoord = (dir.xy + e_time*0.0625);\n"
+			"	float4 clouds = tex2D(s_t1, tccoord);\n"
+
+			"	return float4((solid.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb), 1);\n"
+//			"	return solid.rgb;/*gl_FragColor.g = clouds.r;*/gl_FragColor.b = clouds.a;\n"
+			"}\n"
+		"#endif\n"
+	},
+#endif
 	{QR_NONE}
 };
 static sgeneric_t *sgenerics;
@@ -1317,6 +1384,7 @@ static void Shader_ProgAutoFields(program_t *prog)
 
 		/*ent properties*/
 		{"e_time",					SP_TIME},
+		{"e_eyepos",				SP_EYEPOS},
 		{"e_colour",				SP_ENTCOLOURS},
 		{"e_topcolour",				SP_TOPCOLOURS},
 		{"e_bottomcolour",			SP_BOTTOMCOLOURS},
@@ -1438,6 +1506,10 @@ static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **p
 static void Shader_GLSLProgramName (shader_t *shader, shaderpass_t *pass, char **ptr)
 {
 	Shader_SLProgramName(shader,pass,ptr,QR_OPENGL);
+}
+static void Shader_ProgramName (shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	Shader_SLProgramName(shader,pass,ptr,qrenderer);
 }
 static void Shader_HLSLProgramName (shader_t *shader, shaderpass_t *pass, char **ptr)
 {
@@ -1627,7 +1699,7 @@ static shaderkey_t shaderkeys[] =
 	{"entitymergable",	Shader_EntityMergable},
 
 	{"glslprogram",		Shader_GLSLProgramName},
-	{"program",			Shader_GLSLProgramName},	//legacy
+	{"program",			Shader_ProgramName},	//legacy
 	{"hlslprogram",		Shader_HLSLProgramName},	//for d3d
 	{"param",			Shader_ProgramParam},
 
@@ -3575,28 +3647,11 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 			Shader_Free(s);
 			memset (s, 0, sizeof(*s));
 		}
-#ifdef GLQUAKE
-		if (!builtin && qrenderer == QR_OPENGL && gl_config.arb_shader_objects)
-			builtin = (
-				"{\n"
-					"sort sky\n"
-					"program defaultsky\n"
-					"param eyepos eyepos\n"
-					"surfaceparm nodlight\n"
-					//"skyparms - 512 -\n"
-					"{\n"
-						"map $diffuse\n"
-					"}\n"
-					"{\n"
-						"map $fullbright\n"
-					"}\n"
-				"}\n"
-			);
-#endif
 		if (!builtin)
 			builtin = (
 				"{\n"
 					"sort sky\n"
+					"program defaultsky\n"
 					"skyparms - 512 -\n"
 					/*WARNING: these values are not authentic quake, only close aproximations*/
 					"{\n"

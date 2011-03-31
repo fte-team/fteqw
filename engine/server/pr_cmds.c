@@ -611,7 +611,7 @@ void PR_LoadGlabalStruct(void)
 	}
 	if (!((nqglobalvars_t*)pr_globals)->trace_fraction)
 	{
-		((nqglobalvars_t*)pr_globals)->trace_fraction = (vec3_t *)PR_FindGlobal(svprogfuncs, "trace_frac", 0);
+		((nqglobalvars_t*)pr_globals)->trace_fraction = (float *)PR_FindGlobal(svprogfuncs, "trace_frac", 0);
 		if (!((nqglobalvars_t*)pr_globals)->trace_fraction) 
 			SV_Error("Could not find export trace_fraction in progs\n");
 	}

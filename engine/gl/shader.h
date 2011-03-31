@@ -314,6 +314,13 @@ typedef struct {
 union programhandle_u
 {
 	int glsl;
+#ifdef D3DQUAKE
+	struct
+	{
+		void *vert;
+		void *frag;
+	} hlsl;
+#endif
 };
 
 typedef struct programshared_s
@@ -452,6 +459,9 @@ void D3DBE_UploadAllLightmaps(void);
 void D3DBE_DrawWorld (qbyte *vis);
 qboolean D3DBE_LightCullModel(vec3_t org, model_t *model);
 void D3DBE_SelectEntity(entity_t *ent);
+
+union programhandle_u D3DShader_CreateProgram (char **precompilerconstants, char *vert, char *frag);
+void D3DShader_Init(void);
 #endif
 
 //Asks the backend to invoke DrawMeshChain for each surface, and to upload lightmaps as required

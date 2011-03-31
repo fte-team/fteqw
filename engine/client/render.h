@@ -144,6 +144,10 @@ typedef struct
 	float		m_projection[16];
 	float		m_view[16];
 
+	vec3_t		gfog_rgb;
+	float		gfog_alpha;
+	float		gfog_density;
+
 	vrect_t		pxrect;		/*vrect, but in pixels rather than virtual coords*/
 	qboolean	externalview; /*draw external models and not viewmodels*/
 	qboolean	recurse;	/*in a mirror/portal/half way through drawing something else*/

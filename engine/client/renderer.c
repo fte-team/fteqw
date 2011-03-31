@@ -197,7 +197,7 @@ extern cvar_t r_drawentities;
 extern cvar_t r_drawviewmodel;
 extern cvar_t r_drawworld;
 extern cvar_t r_fullbright;
-cvar_t	r_mirroralpha = SCVARF("r_mirroralpha","1", CVAR_CHEAT);
+cvar_t	r_mirroralpha = SCVARF("r_mirroralpha","1", CVAR_CHEAT|CVAR_SHADERSYSTEM);
 extern cvar_t r_netgraph;
 extern cvar_t r_norefresh;
 extern cvar_t r_novis;
@@ -349,7 +349,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&vid_desktopgamma, GLRENDEREROPTIONS);
 
 //renderer
-	Cvar_Register (&r_mirroralpha, GLRENDEREROPTIONS);
 	Cvar_Register (&r_norefresh, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_affinemodels, GLRENDEREROPTIONS);
@@ -525,6 +524,7 @@ void Renderer_Init(void)
 
 	Cvar_Register (&vid_desktopsettings, VIDCOMMANDGROUP);
 
+	Cvar_Register (&r_mirroralpha, GLRENDEREROPTIONS);
 	Cvar_Register (&r_skyboxname, GRAPHICALNICETIES);
 	Cbuf_AddText("alias sky r_skybox\n", RESTRICT_LOCAL);	/*alternative name for users*/
 

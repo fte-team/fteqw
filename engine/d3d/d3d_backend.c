@@ -466,7 +466,6 @@ static void D3DBE_ApplyShaderBits(unsigned int bits)
 
 void D3DBE_Init(void)
 {
-	unsigned int i;
 	be_maxpasses = MAX_TMUS;
 	memset(&shaderstate, 0, sizeof(shaderstate));
 	shaderstate.curvertdecl = -1;
@@ -1499,6 +1498,21 @@ static qboolean BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vert
 	return true;
 }
 
+static void BE_RenderMeshProgram(unsigned int vertcount, unsigned int idxfirst, unsigned int idxcount)
+{
+	shader_t *s = shaderstate.curshader;
+	shaderpass_t *pass = s->passes;
+
+	IDirect3DDevice9_SetVertexShader(pD3DDev9, s->prog->handle[0].hlsl.vert);
+	IDirect3DDevice9_SetPixelShader(pD3DDev9, s->prog->handle[0].hlsl.frag);
+
+//	IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, 
+	d3dcheck(IDirect3DDevice9_DrawIndexedPrimitive(pD3DDev9, D3DPT_TRIANGLELIST, 0, 0, vertcount, idxfirst, idxcount/3));
+
+	IDirect3DDevice9_SetVertexShader(pD3DDev9, NULL);
+	IDirect3DDevice9_SetPixelShader(pD3DDev9, NULL);
+}
+
 static void BE_Cull(unsigned int cullflags)
 {
 	cullflags |= r_refdef.flipcull;
@@ -1574,8 +1588,9 @@ static void BE_DrawMeshChain_Internal(void)
 	d3dcheck(IDirect3DIndexBuffer9_Unlock(shaderstate.dynidx_buff));
 	d3dcheck(IDirect3DDevice9_SetIndices(pD3DDev9, shaderstate.dynidx_buff));
 
-	if (shaderstate.mode == BEM_DEPTHONLY)
+	switch (shaderstate.mode)
 	{
+	case BEM_DEPTHONLY:
 		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_COLORWRITEENABLE, 0);
 		/*deactivate any extras*/
 		for (passno = 0; passno < shaderstate.lastpasscount; )
@@ -1588,21 +1603,29 @@ static void BE_DrawMeshChain_Internal(void)
 		shaderstate.lastpasscount = 0;
 		d3dcheck(IDirect3DDevice9_DrawIndexedPrimitive(pD3DDev9, D3DPT_TRIANGLELIST, 0, 0, vertcount, idxfirst, idxcount/3));
 		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_COLORWRITEENABLE, D3DCOLORWRITEENABLE_RED|D3DCOLORWRITEENABLE_GREEN|D3DCOLORWRITEENABLE_BLUE|D3DCOLORWRITEENABLE_ALPHA);
-	}
-	else
-	{
-		/*now go through and flush each pass*/
-		for (passno = 0; passno < shaderstate.curshader->numpasses; passno += pass->numMergedPasses)
+		break;
+	default:
+	case BEM_STANDARD:
+		if (shaderstate.curshader->prog)
 		{
-			if (!BE_DrawMeshChain_SetupPass(pass+passno, vertcount))
-				continue;
-	#ifdef BENCH
-			shaderstate.bench.draws++;
-			if (shaderstate.bench.clamp && shaderstate.bench.clamp < shaderstate.bench.draws)
-				continue;
-	#endif
-			d3dcheck(IDirect3DDevice9_DrawIndexedPrimitive(pD3DDev9, D3DPT_TRIANGLELIST, 0, 0, vertcount, idxfirst, idxcount/3));
+			BE_RenderMeshProgram(vertcount, idxfirst, idxcount);
 		}
+		else
+		{
+			/*now go through and flush each pass*/
+			for (passno = 0; passno < shaderstate.curshader->numpasses; passno += pass->numMergedPasses)
+			{
+				if (!BE_DrawMeshChain_SetupPass(pass+passno, vertcount))
+					continue;
+		#ifdef BENCH
+				shaderstate.bench.draws++;
+				if (shaderstate.bench.clamp && shaderstate.bench.clamp < shaderstate.bench.draws)
+					continue;
+		#endif
+				d3dcheck(IDirect3DDevice9_DrawIndexedPrimitive(pD3DDev9, D3DPT_TRIANGLELIST, 0, 0, vertcount, idxfirst, idxcount/3));
+			}
+		}
+		break;
 	}
 }
 

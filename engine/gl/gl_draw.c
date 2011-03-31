@@ -135,7 +135,6 @@ extern qbyte		gammatable[256];
 unsigned char *d_15to8table;
 qboolean inited15to8;
 #endif
-extern cvar_t crosshair, crosshairimage, crosshairalpha, cl_crossx, cl_crossy, crosshaircolor, crosshairsize;
 
 static texid_t filmtexture;
 
@@ -151,11 +150,6 @@ extern cvar_t		gl_savecompressedtex;
 
 texid_t			missing_texture;	//texture used when one is missing.
 
-texid_t			cs_texture; // crosshair texture
-shader_t		*crosshair_shader;
-
-static unsigned cs_data[16*16];
-static texid_t externalhair;
 int gl_anisotropy_factor;
 
 mpic_t		*conback;
@@ -373,17 +367,6 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	GL_EndRendering ();
 	GL_DoSwap();
 
-	cs_texture = GL_AllocNewTexture(16, 16);
-
-	crosshair_shader = R_RegisterShader("crosshairshader",
-		"{\n"
-			"{\n"
-				"map $diffuse\n"
-				"blendfunc blend\n"
-			"}\n"
-		"}\n"
-		);
-
 	GL_SetupSceneProcessingTextures();
 
 	//
@@ -448,153 +431,6 @@ void GLDraw_DeInit (void)
 		BZ_Free(glt);
 	}
 
-}
-
-#include "crosshairs.dat"
-vec3_t chcolor;
-
-void GLCrosshairimage_Callback(struct cvar_s *var, char *oldvalue)
-{
-	if (*(var->string))
-		externalhair = R_LoadHiResTexture (var->string, "crosshairs", IF_NOMIPMAP);
-}
-
-void GLCrosshair_Callback(struct cvar_s *var, char *oldvalue)
-{
-	unsigned int c, c2;
-
-	if (!var->value)
-		return;
-
-	c = (unsigned int)(chcolor[0] * 255) | // red
-		((unsigned int)(chcolor[1] * 255) << 8) | // green
-		((unsigned int)(chcolor[2] * 255) << 16) | // blue
-		0xff000000; // alpha
-	c2 = c;
-
-#define Pix(x,y,c) {	\
-		if (y+8<0)c=0;	\
-		if (y+8>=16)c=0;	\
-		if (x+8<0)c=0;	\
-		if (x+8>=16)c=0;	\
-			\
-		cs_data[(y+8)*16+(x+8)] = c;	\
-	}
-	memset(cs_data, 0, sizeof(cs_data));
-	switch((int)var->value)
-	{
-	default:
-#include "crosshairs.dat"
-	}
-#undef Pix
-
-	R_Upload(cs_texture, NULL, TF_RGBA32, cs_data, NULL, 16, 16, IF_NOMIPMAP|IF_NOGAMMA);
-
-	if (gl_smoothcrosshair.ival)
-	{
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	}
-	else
-	{
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	}
-}
-
-void GLCrosshaircolor_Callback(struct cvar_s *var, char *oldvalue)
-{
-	SCR_StringToRGB(var->string, chcolor, 255);
-
-	chcolor[0] = bound(0, chcolor[0], 1);
-	chcolor[1] = bound(0, chcolor[1], 1);
-	chcolor[2] = bound(0, chcolor[2], 1);
-
-	GLCrosshair_Callback(&crosshair, "");
-}
-
-void GLDraw_Crosshair(void)
-{
-	int x, y;
-	int sc;
-	float sx, sy, sizex, sizey;
-
-	float size, chc;
-	shader_t *shader;
-
-	qboolean usingimage = false;
-
-	if (crosshair.ival == 1 && !*crosshairimage.string)
-	{
-		for (sc = 0; sc < cl.splitclients; sc++)
-		{
-			SCR_CrosshairPosition(sc, &x, &y);
-			Font_BeginString(font_conchar, x, y, &x, &y);
-			x -= Font_CharWidth('+' | 0xe000 | CON_WHITEMASK)/2;
-			y -= Font_CharHeight()/2;
-			Font_DrawChar(x, y, '+' | 0xe000 | CON_WHITEMASK);
-			Font_EndString(font_conchar);
-		}
-		return;
-	}
-
-	shader = crosshair_shader;
-	if (*crosshairimage.string)
-	{
-		usingimage = true;
-		chc = 0;
-
-		shader->defaulttextures.base = externalhair;
-	}
-	else if (crosshair.ival)
-	{
-		chc = 1/16.0;
-
-		// force crosshair refresh with animated crosshairs
-		if (crosshair.ival >= FIRSTANIMATEDCROSHAIR)
-			GLCrosshair_Callback(&crosshair, "");
-
-		shader->defaulttextures.base = cs_texture;
-	}
-	else
-		return;
-
-	size = crosshairsize.value;
-
-	if (size < 0)
-	{
-		size = -size;
-		sizex = size;
-		sizey = size;
-		chc = 0;
-	}
-	else
-	{
-		sizex = (size*vid.rotpixelwidth) / (float)vid.width;
-		sizey = (size*vid.rotpixelheight) / (float)vid.height;
-		chc = size * chc;
-	}
-
-	sizex = (int)sizex;
-	sizex = ((sizex)*(int)vid.width) / (float)vid.rotpixelwidth;
-
-	sizey = (int)sizey;
-	sizey = ((sizey)*(int)vid.height) / (float)vid.rotpixelheight;
-
-	for (sc = 0; sc < cl.splitclients; sc++)
-	{
-		SCR_CrosshairPosition(sc, &x, &y);
-
-		//translate to pixel coord, for rounding
-		x = ((x-sizex-chc)*vid.rotpixelwidth) / (float)vid.width;
-		y = ((y-sizey-chc)*vid.rotpixelheight) / (float)vid.height;
-
-		//translate to screen coords
-		sx = ((x)*(int)vid.width) / (float)vid.rotpixelwidth;
-		sy = ((y)*(int)vid.height) / (float)vid.rotpixelheight;
-
-		R2D_Image(sx, sy, sizex*2, sizey*2, 0, 0, 1, 1, shader);
-	}
 }
 
 

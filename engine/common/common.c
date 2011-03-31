@@ -4336,8 +4336,8 @@ char *version_string(void)
 #define STRINGIFY2(arg) #arg
 #define STRINGIFY(arg) STRINGIFY2(arg)
 		Q_snprintfz(s, sizeof(s), "%s SVN %s", DISTRIBUTION, STRINGIFY(SVNREVISION));
-#undef STRINGIFY2
 #undef STRINGIFY
+#undef STRINGIFY2
 #else
 		Q_snprintfz(s, sizeof(s), "%s build %s", DISTRIBUTION, __DATE__);
 #endif

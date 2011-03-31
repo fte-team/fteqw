@@ -798,7 +798,64 @@ static void	(D3D9_VID_ShiftPalette)			(unsigned char *palette)
 }
 static char	*(D3D9_VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight)
 {
-	return NULL;
+	IDirect3DSurface9 *surf;
+	D3DLOCKED_RECT rect;
+	extern qboolean gammaworks;
+	int i, j, c;
+	qbyte *ret = BZ_Malloc(prepad + vid.pixelwidth*vid.pixelheight*3);
+	qbyte *p;
+	HRESULT res;
+
+	// TODO: this captures the entire screen on windowed display..
+	// also might break on multi-monitor
+	IDirect3DDevice9_CreateOffscreenPlainSurface(pD3DDev9, 
+		GetSystemMetrics(SM_CXSCREEN), 
+		GetSystemMetrics(SM_CYSCREEN),
+		D3DFMT_A8R8G8B8,
+		D3DPOOL_SYSTEMMEM,
+		&surf,
+		NULL);
+	IDirect3DDevice9_GetFrontBufferData(pD3DDev9, 0, surf);
+	IDirect3DSurface9_LockRect(surf, &rect, NULL, D3DLOCK_NO_DIRTY_UPDATE|D3DLOCK_READONLY|D3DLOCK_NOSYSLOCK);
+
+	// read surface rect and convert 32 bgra to 24 rgb and flip
+	c = prepad+vid.pixelwidth*vid.pixelheight*3;
+	p = (qbyte *)rect.pBits;
+
+	if (gammaworks)
+	{
+		extern qbyte gammatable[256];
+		for (i=c-(3*vid.pixelwidth); i>=prepad; i-=(3*vid.pixelwidth))
+		{
+			for (j=0; j<vid.pixelwidth; j++)
+			{
+				ret[i+j*3+0] = gammatable[p[j*4+2]];
+				ret[i+j*3+1] = gammatable[p[j*4+1]];
+				ret[i+j*3+2] = gammatable[p[j*4+0]];
+			}
+		}
+	}
+	else
+	{
+		for (i=c-(3*vid.pixelwidth); i>=prepad; i-=(3*vid.pixelwidth))
+		{
+			for (j=0; j<vid.pixelwidth; j++)
+			{
+				ret[i+j*3+0] = p[j*4+2];
+				ret[i+j*3+1] = p[j*4+1];
+				ret[i+j*3+2] = p[j*4+0];
+			}
+			p += rect.Pitch;
+		}
+	}
+
+	*truevidwidth = vid.pixelwidth;
+	*truevidheight = vid.pixelheight;
+
+	IDirect3DSurface9_UnlockRect(surf);
+	IDirect3DSurface9_Release(surf);
+	
+	return ret;
 }
 static void	(D3D9_VID_SetWindowCaption)		(char *msg)
 {
@@ -1035,9 +1092,6 @@ static void	(D3D9_Draw_Init)				(void)
 static void	(D3D9_Draw_ReInit)				(void)
 {
 }
-static void	(D3D9_Draw_Crosshair)			(void)
-{
-}
 
 static void	(D3D9_R_Init)					(void)
 {
@@ -1165,7 +1219,6 @@ rendererinfo_t d3drendererinfo =
 
 	D3D9_Draw_Init,
 	D3D9_Draw_ReInit,
-	D3D9_Draw_Crosshair,
 
 	D3D9_LoadTexture,
 	D3D9_LoadTexture8Pal24,

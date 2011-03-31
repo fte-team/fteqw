@@ -221,9 +221,31 @@ char *GLVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight)
 {	//returns a BZ_Malloced array
 	extern qboolean gammaworks;
 	int i, c;
-	qbyte *ret = BZ_Malloc(prepadbytes + vid.pixelwidth*vid.pixelheight*3);
+	qbyte *ret;
 
-	qglReadPixels (0, 0, vid.pixelwidth, vid.pixelheight, GL_RGB, GL_UNSIGNED_BYTE, ret + prepadbytes); 
+	if (gl_config.gles)
+	{
+		qbyte *p;
+
+		// gles only guarantees GL_RGBA/GL_UNSIGNED_BYTE so downconvert and resize
+		ret = BZ_Malloc(prepadbytes + vid.pixelwidth*vid.pixelheight*4);
+		qglReadPixels (0, 0, vid.pixelwidth, vid.pixelheight, GL_RGBA, GL_UNSIGNED_BYTE, ret + prepadbytes); 
+
+		c = vid.pixelwidth*vid.pixelheight;
+		p = ret + prepadbytes;
+		for (i = 1; i < c; i++)
+		{
+			p[i*3+0]=p[i*4+0];
+			p[i*3+1]=p[i*4+1];
+			p[i*3+2]=p[i*4+2];
+		}
+		ret = BZ_Realloc(ret, prepadbytes + vid.pixelwidth*vid.pixelheight*3);
+	}
+	else
+	{
+		ret = BZ_Malloc(prepadbytes + vid.pixelwidth*vid.pixelheight*3);
+		qglReadPixels (0, 0, vid.pixelwidth, vid.pixelheight, GL_RGB, GL_UNSIGNED_BYTE, ret + prepadbytes); 
+	}
 
 	*truewidth = vid.pixelwidth;
 	*trueheight = vid.pixelheight;

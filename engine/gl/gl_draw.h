@@ -25,7 +25,6 @@ void GLDraw_Init (void);
 void GLDraw_ReInit (void);
 void GLDraw_DeInit (void);
 void Surf_DeInit (void);
-void GLDraw_Crosshair(void);
 
 void R2D_Init(void);
 mpic_t	*R2D_SafeCachePic (char *path);

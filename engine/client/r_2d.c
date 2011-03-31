@@ -1003,7 +1003,7 @@ void R2D_DrawCrosshair(void)
 	{
 		sizex = (size*vid.rotpixelwidth) / (float)vid.width;
 		sizey = (size*vid.rotpixelheight) / (float)vid.height;
-		chc = size * chc;
+		chc = size / 16.0;
 	}
 
 	sizex = (int)sizex;

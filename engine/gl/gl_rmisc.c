@@ -451,9 +451,6 @@ extern cvar_t vid_conautoscale, vid_conheight, vid_conwidth;
 extern cvar_t crosshair, crosshairimage, crosshaircolor, r_skyboxname;
 extern cvar_t r_floorcolour, r_wallcolour, r_floortexture, r_walltexture;
 extern cvar_t r_fastskycolour;
-void GLCrosshairimage_Callback(struct cvar_s *var, char *oldvalue);
-void GLCrosshair_Callback(struct cvar_s *var, char *oldvalue);
-void GLCrosshaircolor_Callback(struct cvar_s *var, char *oldvalue);
 void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue);
 
 void GLR_DeInit (void)
@@ -464,9 +461,6 @@ void GLR_DeInit (void)
 
 	Cmd_RemoveCommand ("makewad");
 
-	Cvar_Unhook(&crosshair);
-	Cvar_Unhook(&crosshairimage);
-	Cvar_Unhook(&crosshaircolor);
 	Cvar_Unhook(&r_skyboxname);
 	Cvar_Unhook(&vid_conautoscale);
 	Cvar_Unhook(&vid_conheight);
@@ -495,9 +489,6 @@ void GLR_Init (void)
 
 //	Cmd_AddRemCommand ("makewad", R_MakeTexWad_f);
 
-	Cvar_Hook(&crosshair, GLCrosshair_Callback);
-	Cvar_Hook(&crosshairimage, GLCrosshairimage_Callback);
-	Cvar_Hook(&crosshaircolor, GLCrosshaircolor_Callback);
 //	Cvar_Hook(&r_floorcolour, GLR_Floorcolour_Callback);
 //	Cvar_Hook(&r_fastskycolour, GLR_Fastskycolour_Callback);
 //	Cvar_Hook(&r_wallcolour, GLR_Wallcolour_Callback);

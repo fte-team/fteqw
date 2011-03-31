@@ -1125,19 +1125,6 @@ void CG_Start (void)
 		return;
 	}
 
-	if (!R2D_SafeCachePic)	//no renderer loaded
-	{
-		CG_Stop();
-		return;
-	}
-
-	if (qrenderer != QR_OPENGL && qrenderer != QR_DIRECT3D)
-	{	//sorry.
-		CG_Stop();
-		Host_EndGame("Unable to connect to q3 servers without opengl or d3d.\n");
-		return;
-	}
-
 	Z_FreeTags(CGTAGNUM);
 	SCR_BeginLoadingPlaque();
 

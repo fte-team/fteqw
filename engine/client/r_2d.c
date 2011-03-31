@@ -8,6 +8,10 @@ texid_t missing_texture;
 texid_t translate_texture;
 shader_t *translate_shader;
 
+texid_t ch_int_texture;
+vec3_t ch_color;
+shader_t *shader_crosshair;
+
 static mpic_t *conback;
 static mpic_t *draw_backtile;
 static shader_t *shader_draw_fill, *shader_draw_fill_trans;
@@ -36,6 +40,16 @@ void R2D_Conautoscale_Callback(struct cvar_s *var, char *oldvalue);
 void R2D_ScreenAngle_Callback(struct cvar_s *var, char *oldvalue);
 void R2D_Conheight_Callback(struct cvar_s *var, char *oldvalue);
 void R2D_Conwidth_Callback(struct cvar_s *var, char *oldvalue);
+
+extern cvar_t crosshair;
+extern cvar_t crosshaircolor;
+extern cvar_t crosshairsize;
+extern cvar_t crosshairimage;
+extern cvar_t crosshairalpha;
+void R2D_Crosshair_Callback(struct cvar_s *var, char *oldvalue);
+void R2D_CrosshairImage_Callback(struct cvar_s *var, char *oldvalue);
+void R2D_CrosshairColor_Callback(struct cvar_s *var, char *oldvalue);
+
 
 //We need this for minor things though, so we'll just use the slow accurate method.
 //this is unlikly to be called too often.			
@@ -92,6 +106,7 @@ void R2D_Init(void)
 
 	missing_texture = R_LoadTexture8("no_texture", 16, 16, (unsigned char*)r_notexture_mip + r_notexture_mip->offsets[0], IF_NOALPHA|IF_NOGAMMA, 0);
 	translate_texture = r_nulltex;
+	ch_int_texture = r_nulltex;
 
 	draw_backtile = R_RegisterShader("gfx/backtile.lmp",
 		"{\n"
@@ -201,6 +216,21 @@ void R2D_Init(void)
 			"]\n"
 		"}\n"
 	);
+	shader_crosshair = R_RegisterShader("crosshairshader",
+		"{\n"
+#ifdef USE_EGL
+			"program default2d\n"
+#endif
+			"nomipmaps\n"
+			"{\n"
+				"map $diffuse\n"
+				"blendfunc blend\n"
+				"rgbgen vertex\n"
+				"alphagen vertex\n"
+			"}\n"
+		"}\n"
+		);
+
 
 	Cvar_Hook(&gl_font, R2D_Font_Callback);
 	Cvar_Hook(&vid_conautoscale, R2D_Conautoscale_Callback);
@@ -208,9 +238,16 @@ void R2D_Init(void)
 	Cvar_Hook(&vid_conheight, R2D_Conheight_Callback);
 	Cvar_Hook(&vid_conwidth, R2D_Conwidth_Callback);
 
+	Cvar_Hook(&crosshair, R2D_Crosshair_Callback);
+	Cvar_Hook(&crosshairimage, R2D_CrosshairImage_Callback);
+	Cvar_Hook(&crosshaircolor, R2D_CrosshairColor_Callback);
+
 	Cvar_ForceCallback(&gl_conback);
 	Cvar_ForceCallback(&vid_conautoscale);
 	Cvar_ForceCallback(&gl_font);
+
+	Cvar_ForceCallback(&crosshair);
+	Cvar_ForceCallback(&crosshaircolor);
 }
 
 mpic_t	*R2D_SafeCachePic (char *path)
@@ -693,5 +730,305 @@ void R2D_FadeScreen (void)
 
 	Sbar_Changed();
 }
+
+//crosshairs
+#define CS_HEIGHT 8
+#define CS_WIDTH 8
+unsigned char crosshair_pixels[] =
+{
+	// 2 + (spaced)
+	0x08,
+	0x00,
+	0x08,
+	0x55,
+	0x08,
+	0x00,
+	0x08,
+	0x00,
+	// 3 +
+	0x00,
+	0x08,
+	0x08,
+	0x36,
+	0x08,
+	0x08,
+	0x00,
+	0x00,
+	// 4 X
+	0x00,
+	0x22,
+	0x14,
+	0x00,
+	0x14,
+	0x22,
+	0x00,
+	0x00,
+	// 5 X (spaced)
+	0x41,
+	0x00,
+	0x14,
+	0x00,
+	0x14,
+	0x00,
+	0x41,
+	0x00,
+	// 6 diamond (unconnected)
+	0x00,
+	0x14,
+	0x22,
+	0x00,
+	0x22,
+	0x14,
+	0x00,
+	0x00,
+	// 7 diamond
+	0x00,
+	0x08,
+	0x14,
+	0x22,
+	0x14,
+	0x08,
+	0x00,
+	0x00,
+	// 8 four points
+	0x00,
+	0x08,
+	0x00,
+	0x22,
+	0x00,
+	0x08,
+	0x00,
+	0x00,
+	// 9 three points
+	0x00,
+	0x00,
+	0x08,
+	0x00,
+	0x22,
+	0x00,
+	0x00,
+	0x00,
+	// 10
+	0x08,
+	0x2a,
+	0x00,
+	0x63,
+	0x00,
+	0x2a,
+	0x08,
+	0x00,
+	// 11
+	0x49,
+	0x2a,
+	0x00,
+	0x63,
+	0x00,
+	0x2a,
+	0x49,
+	0x00,
+	// 12 horizontal line
+	0x00,
+	0x00,
+	0x00,
+	0x77,
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	// 13 vertical line
+	0x08,
+	0x08,
+	0x08,
+	0x00,
+	0x08,
+	0x08,
+	0x08,
+	0x00,
+	// 14 larger +
+	0x08,
+	0x08,
+	0x08,
+	0x77,
+	0x08,
+	0x08,
+	0x08,
+	0x00,
+	// 15 angle
+	0x00,
+	0x00,
+	0x00,
+	0x70,
+	0x08,
+	0x08,
+	0x08,
+	0x00,
+	// 16 dot
+	0x00,
+	0x00,
+	0x00,
+	0x08,
+	0x00,
+	0x00,
+	0x00,
+	0x00,
+	// 17 weird angle thing
+	0x00,
+	0x00,
+	0x00,
+	0x38,
+	0x48,
+	0x08,
+	0x10,
+	0x00,
+	// 18 circle w/ dot
+	0x00,
+	0x00,
+	0x00,
+	0x6b,
+	0x41,
+	0x63,
+	0x3e,
+	0x08,
+	// 19 tripoint
+	0x08,
+	0x08,
+	0x08,
+	0x00,
+	0x14,
+	0x22,
+	0x41,
+	0x00,
+};
+
+void R2D_Crosshair_Update(void)
+{
+	int crossdata[CS_WIDTH*CS_HEIGHT];
+	int c;
+	int w, h;
+	unsigned char *x;
+
+	c = crosshair.ival;
+
+	if (crosshairimage.string[0] && c == 1)
+	{
+		shader_crosshair->defaulttextures.base = R_LoadHiResTexture (crosshairimage.string, "crosshairs", IF_NOMIPMAP|IF_NOGAMMA);
+		if (TEXVALID(shader_crosshair->defaulttextures.base))
+			return;
+	}
+	else if (c <= 1)
+		return;
+
+	c -= 2;
+	c = c % (sizeof(crosshair_pixels) / (CS_HEIGHT*sizeof(*crosshair_pixels)));
+
+	if (!TEXVALID(ch_int_texture))
+		ch_int_texture = R_AllocNewTexture(CS_WIDTH, CS_HEIGHT);
+	shader_crosshair->defaulttextures.base = ch_int_texture;
+
+	Q_memset(crossdata, 0, sizeof(crossdata));
+
+	x = crosshair_pixels + (CS_HEIGHT * c);
+	for (h = 0; h < CS_HEIGHT; h++)
+	{
+		int pix = x[h];
+		for (w = 0; w < CS_WIDTH; w++)
+		{
+			if (pix & 0x1)
+				crossdata[CS_WIDTH * h + w] = 0xffffffff;
+			pix >>= 1;
+		}
+	}
+
+	R_Upload(ch_int_texture, NULL, TF_RGBA32, crossdata, NULL, CS_WIDTH, CS_HEIGHT, IF_NOMIPMAP|IF_NOGAMMA);
+
+}
+
+void R2D_CrosshairImage_Callback(struct cvar_s *var, char *oldvalue)
+{
+	R2D_Crosshair_Update();
+}
+
+void R2D_Crosshair_Callback(struct cvar_s *var, char *oldvalue)
+{
+	R2D_Crosshair_Update();
+}
+
+void R2D_CrosshairColor_Callback(struct cvar_s *var, char *oldvalue)
+{
+	SCR_StringToRGB(var->string, ch_color, 255);
+
+	ch_color[0] = bound(0, ch_color[0], 1);
+	ch_color[1] = bound(0, ch_color[1], 1);
+	ch_color[2] = bound(0, ch_color[2], 1);
+}
+
+void R2D_DrawCrosshair(void)
+{
+	int x, y;
+	int sc;
+	float sx, sy, sizex, sizey;
+
+	float size, chc;
+
+	if (crosshair.ival < 1)
+		return;
+
+	// old style 
+	if (crosshair.ival == 1 && !crosshairimage.string[0])
+	{
+		for (sc = 0; sc < cl.splitclients; sc++)
+		{
+			SCR_CrosshairPosition(sc, &x, &y);
+			Font_BeginString(font_conchar, x, y, &x, &y);
+			x -= Font_CharWidth('+' | 0xe000 | CON_WHITEMASK)/2;
+			y -= Font_CharHeight()/2;
+			Font_ForceColour(ch_color[0], ch_color[1], ch_color[2], crosshairalpha.value);
+			Font_DrawChar(x, y, '+' | 0xe000 | CON_WHITEMASK);
+			Font_InvalidateColour();
+			Font_EndString(font_conchar);
+		}
+		return;
+	}
+
+	size = crosshairsize.value;
+
+	if (size < 0)
+	{
+		size = -size;
+		sizex = size;
+		sizey = size;
+		chc = 0;
+	}
+	else
+	{
+		sizex = (size*vid.rotpixelwidth) / (float)vid.width;
+		sizey = (size*vid.rotpixelheight) / (float)vid.height;
+		chc = size * chc;
+	}
+
+	sizex = (int)sizex;
+	sizex = ((sizex)*(int)vid.width) / (float)vid.rotpixelwidth;
+
+	sizey = (int)sizey;
+	sizey = ((sizey)*(int)vid.height) / (float)vid.rotpixelheight;
+
+	R2D_ImageColours(ch_color[0], ch_color[1], ch_color[2], crosshairalpha.value);
+	for (sc = 0; sc < cl.splitclients; sc++)
+	{
+		SCR_CrosshairPosition(sc, &x, &y);
+
+		//translate to pixel coord, for rounding
+		x = ((x-sizex-chc)*vid.rotpixelwidth) / (float)vid.width;
+		y = ((y-sizey-chc)*vid.rotpixelheight) / (float)vid.height;
+
+		//translate to screen coords
+		sx = ((x)*(int)vid.width) / (float)vid.rotpixelwidth;
+		sy = ((y)*(int)vid.height) / (float)vid.rotpixelheight;
+
+		R2D_Image(sx, sy, sizex*2, sizey*2, 0, 0, 1, 1, shader_crosshair);
+	}
+	R2D_ImageColours(1, 1, 1, 1);
+}
+
 
 #endif

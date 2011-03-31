@@ -70,13 +70,13 @@ cvar_t	v_ipitch_level = SCVAR("v_ipitch_level", "0.3");
 cvar_t	v_idlescale = SCVAR("v_idlescale", "0");
 
 cvar_t	crosshair = SCVARF("crosshair", "0", CVAR_ARCHIVE);
-cvar_t	crosshaircolor = SCVARF("crosshaircolor", "79", CVAR_ARCHIVE | CVAR_RENDERERCALLBACK);
+cvar_t	crosshaircolor = SCVARF("crosshaircolor", "255 255 255", CVAR_ARCHIVE);
 cvar_t	crosshairsize = SCVARF("crosshairsize", "8", CVAR_ARCHIVE);
 
 cvar_t  cl_crossx = SCVARF("cl_crossx", "0", CVAR_ARCHIVE);
 cvar_t  cl_crossy = SCVARF("cl_crossy", "0", CVAR_ARCHIVE);
 cvar_t	crosshaircorrect = SCVARF("crosshaircorrect", "0", CVAR_SEMICHEAT);
-cvar_t	crosshairimage = SCVARF("crosshairimage", "", CVAR_RENDERERCALLBACK);
+cvar_t	crosshairimage = SCVAR("crosshairimage", "");
 cvar_t	crosshairalpha = SCVAR("crosshairalpha", "1");
 
 cvar_t	gl_cshiftpercent = SCVAR("gl_cshiftpercent", "100");
@@ -448,30 +448,65 @@ V_cshift_f
 */
 void V_cshift_f (void)
 {
-	if (Cmd_Argc() != 5 && Cmd_Argc() != 1)	//this is actually to warn of a malice bug (and prevent a totally black screen) more than it is to help the user. :/
-	{										//The 1 is so teamfortress can use it to clear.
-		if (Cmd_FromGamecode())	//nehahra does nasty things and becomes unplayable.
+	int r, g, b, p;
+
+	r = g = b = p = 0;
+
+	if (Cmd_Argc() >= 5)
+	{
+		r = atoi(Cmd_Argv(1));
+		g = atoi(Cmd_Argv(2));
+		b = atoi(Cmd_Argv(3));
+		p = atoi(Cmd_Argv(4));
+	}
+
+	if (Cmd_FromGamecode())
+	{
+		if (Cmd_Argc() >= 5)
 		{
-			cl.cshifts[CSHIFT_SERVER].destcolor[0] = 0;
-			cl.cshifts[CSHIFT_SERVER].destcolor[1] = 0;
-			cl.cshifts[CSHIFT_SERVER].destcolor[2] = 0;
-			cl.cshifts[CSHIFT_SERVER].percent = 0;
+			qboolean term = false;
+			int i;
+			char *c = Cmd_Argv(4);
+
+			// malice jumbles commands into a v_cshift so this attempts to fix
+			while (isdigit(*c))
+				c++;
+
+			if (*c)
+			{
+				Cbuf_AddText(c, RESTRICT_SERVER);
+				term = true;
+			}
+			for (i = 5; i < Cmd_Argc(); i++)
+			{
+				Cbuf_AddText(" ", RESTRICT_SERVER);
+				Cbuf_AddText(Cmd_Argv(i), RESTRICT_SERVER);
+				term = true;
+			}
+			if (term)
+				Cbuf_AddText("\n", RESTRICT_SERVER);
 		}
+		else if (Cmd_Argc() > 1)
+			Con_DPrintf("broken v_cshift from gamecode\n");
+
+		// ensure we always clear out or set for nehahra
+		cl.cshifts[CSHIFT_SERVER].destcolor[0] = r;
+		cl.cshifts[CSHIFT_SERVER].destcolor[1] = g;
+		cl.cshifts[CSHIFT_SERVER].destcolor[2] = b;
+		cl.cshifts[CSHIFT_SERVER].percent = p;
+		return;
+	}
+
+	if (Cmd_Argc() != 5 && Cmd_Argc() != 1)
+	{
 		Con_Printf("v_cshift: v_cshift <r> <g> <b> <alpha>\n");
 		return;
 	}
-	if (Cmd_FromGamecode())
-	{
-		cl.cshifts[CSHIFT_SERVER].destcolor[0] = atoi(Cmd_Argv(1));
-		cl.cshifts[CSHIFT_SERVER].destcolor[1] = atoi(Cmd_Argv(2));
-		cl.cshifts[CSHIFT_SERVER].destcolor[2] = atoi(Cmd_Argv(3));
-		cl.cshifts[CSHIFT_SERVER].percent = atoi(Cmd_Argv(4));
-		return;
-	}
-	cshift_empty.destcolor[0] = atoi(Cmd_Argv(1));
-	cshift_empty.destcolor[1] = atoi(Cmd_Argv(2));
-	cshift_empty.destcolor[2] = atoi(Cmd_Argv(3));
-	cshift_empty.percent = atoi(Cmd_Argv(4));
+
+	cshift_empty.destcolor[0] = r;
+	cshift_empty.destcolor[1] = g;
+	cshift_empty.destcolor[2] = b;
+	cshift_empty.percent = p;
 }
 
 

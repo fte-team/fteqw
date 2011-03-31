@@ -1340,7 +1340,7 @@ static void QCBUILTIN PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s 
 	}
 
 	if (csqc_addcrosshair)
-		Draw_Crosshair();
+		R2D_DrawCrosshair();
 }
 
 static void QCBUILTIN PF_cs_getstatf(progfuncs_t *prinst, struct globalvars_s *pr_globals)

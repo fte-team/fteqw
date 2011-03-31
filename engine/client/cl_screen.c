@@ -2203,7 +2203,7 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 	{
 		if (!nohud)
 		{
-			Draw_Crosshair();
+			R2D_DrawCrosshair();
 
 			SCR_DrawNet ();
 			SCR_DrawFPS ();

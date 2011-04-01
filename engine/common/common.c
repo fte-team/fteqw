@@ -4332,7 +4332,7 @@ char *version_string(void)
 	{
 #ifdef OFFICIAL_RELEASE
 		Q_snprintfz(s, sizeof(s), "%s v%i.%02i", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR);
-#elif SVNREVISION
+#elif defined(SVNREVISION)
 #define STRINGIFY2(arg) #arg
 #define STRINGIFY(arg) STRINGIFY2(arg)
 		Q_snprintfz(s, sizeof(s), "%s SVN %s", DISTRIBUTION, STRINGIFY(SVNREVISION));

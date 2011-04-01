@@ -397,6 +397,7 @@ GLQUAKE_OBJS =		\
 D3DQUAKE_OBJS =		\
 	d3d_backend.o \
 	d3d_image.o	\
+	d3d_shader.o	\
 	vid_d3d.o
 	
 D3DONLY_OBJS =		\

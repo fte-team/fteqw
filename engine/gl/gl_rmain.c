@@ -144,17 +144,21 @@ void GL_InitSceneProcessingShaders_WaterWarp (void)
 			"{\n"
 			"#ifdef VERTEX_SHADER\n"
 			"\
+			uniform mat4 m_view;\
+			uniform mat4 m_projection;\
+			attribute vec3 v_position;\
+			attribute vec2 v_texcoord;\
 			varying vec2 v_stc;\
 			varying vec2 v_warp;\
 			varying vec2 v_edge;\
-			uniform float time;\
+			uniform float e_time;\
 			void main (void)\
 			{\
-				gl_Position = ftransform();\
+				gl_Position = m_projection * m_view * vec4(v_position, 1.0);\
 				v_stc = (1.0+(gl_Position.xy / gl_Position.w))/2.0;\
-				v_warp.s = time * 0.25 + gl_MultiTexCoord0.s;\
-				v_warp.t = time * 0.25 + gl_MultiTexCoord0.t;\
-				v_edge = gl_MultiTexCoord0.xy;\
+				v_warp.s = e_time * 0.25 + v_texcoord.s;\
+				v_warp.t = e_time * 0.25 + v_texcoord.t;\
+				v_edge = v_texcoord.xy;\
 			}\
 			\n"
 			"#endif\n"
@@ -163,34 +167,30 @@ void GL_InitSceneProcessingShaders_WaterWarp (void)
 			varying vec2 v_stc;\
 			varying vec2 v_warp;\
 			varying vec2 v_edge;\
-			uniform sampler2D texScreen;\
-			uniform sampler2D texWarp;\
-			uniform sampler2D texEdge;\
+			uniform sampler2D s_t0;\
+			uniform sampler2D s_t1;\
+			uniform sampler2D s_t2;\
 			uniform float ampscale;\
 			uniform vec3 rendertexturescale;\
 			void main (void)\
 			{\
 				float amptemp;\
 				vec3 edge;\
-				edge = texture2D( texEdge, v_edge ).rgb;\
+				edge = texture2D( s_t2, v_edge ).rgb;\
 				amptemp = (0.010 / 0.625) * ampscale * edge.x;\
 				vec3 offset;\
-				offset = texture2D( texWarp, v_warp ).rgb;\
+				offset = texture2D( s_t1, v_warp ).rgb;\
 				offset.x = (offset.x - 0.5) * 2.0;\
 				offset.y = (offset.y - 0.5) * 2.0;\
 				vec2 temp;\
 				temp.x = v_stc.x + offset.x * amptemp;\
 				temp.y = v_stc.y + offset.y * amptemp;\
-				gl_FragColor = texture2D( texScreen, temp*rendertexturescale.st );\
+				gl_FragColor = texture2D( s_t0, temp*rendertexturescale.st );\
 			}\
 			\n"
 			"#endif\n"
 			"}\n"
 			"param cvarf r_waterwarp ampscale\n"
-			"param texture 0 texScreen\n"
-			"param texture 1 texWarp\n"
-			"param texture 2 texEdge\n"
-			"param time time\n"
 			"param rendertexturescale rendertexturescale\n"
 			"{\n"
 			"map $currentrender\n"

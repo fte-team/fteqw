@@ -800,7 +800,6 @@ static char	*(D3D9_VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevi
 {
 	IDirect3DSurface9 *surf;
 	D3DLOCKED_RECT rect;
-	extern qboolean gammaworks;
 	int i, j, c;
 	qbyte *ret = BZ_Malloc(prepad + vid.pixelwidth*vid.pixelheight*3);
 	qbyte *p;
@@ -822,31 +821,15 @@ static char	*(D3D9_VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevi
 	c = prepad+vid.pixelwidth*vid.pixelheight*3;
 	p = (qbyte *)rect.pBits;
 
-	if (gammaworks)
+	for (i=c-(3*vid.pixelwidth); i>=prepad; i-=(3*vid.pixelwidth))
 	{
-		extern qbyte gammatable[256];
-		for (i=c-(3*vid.pixelwidth); i>=prepad; i-=(3*vid.pixelwidth))
+		for (j=0; j<vid.pixelwidth; j++)
 		{
-			for (j=0; j<vid.pixelwidth; j++)
-			{
-				ret[i+j*3+0] = gammatable[p[j*4+2]];
-				ret[i+j*3+1] = gammatable[p[j*4+1]];
-				ret[i+j*3+2] = gammatable[p[j*4+0]];
-			}
+			ret[i+j*3+0] = p[j*4+2];
+			ret[i+j*3+1] = p[j*4+1];
+			ret[i+j*3+2] = p[j*4+0];
 		}
-	}
-	else
-	{
-		for (i=c-(3*vid.pixelwidth); i>=prepad; i-=(3*vid.pixelwidth))
-		{
-			for (j=0; j<vid.pixelwidth; j++)
-			{
-				ret[i+j*3+0] = p[j*4+2];
-				ret[i+j*3+1] = p[j*4+1];
-				ret[i+j*3+2] = p[j*4+0];
-			}
-			p += rect.Pitch;
-		}
+		p += rect.Pitch;
 	}
 
 	*truevidwidth = vid.pixelwidth;

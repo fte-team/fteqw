@@ -975,17 +975,28 @@ qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
 
 	switch(info->renderer->selectedoption)
 	{
-#ifdef GLQUAKE
+#if defined(GLQUAKE) && !defined(D3DQUAKE) // Just OpenGL client
 	case 0:
 		Cbuf_AddText("setrenderer gl\n", RESTRICT_LOCAL);
 		break;
 #endif
-#ifdef D3DQUAKE
+
+#if defined(D3DQUAKE) && !defined(GLQUAKE) // Just Direct3D client
+	case 0:
+        Cbuf_AddText("setrenderer d3d\n", RESTRICT_LOCAL);
+        break;
+#endif
+
+#if defined(GLQUAKE) && defined(D3DQUAKE) // OpenGL + Direct3D = Merged
+	case 0:
+		Cbuf_AddText("setrenderer gl\n", RESTRICT_LOCAL);
+		break;
 	case 1:
         Cbuf_AddText("setrenderer d3d\n", RESTRICT_LOCAL);
         break;
 #endif
 	}
+
 	M_RemoveMenu(menu);
 	Cbuf_AddText("menu_video\n", RESTRICT_LOCAL);
 	return true;

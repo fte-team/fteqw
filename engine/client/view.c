@@ -91,6 +91,7 @@ cvar_t	v_suitcshift = SCVAR("v_suitcshift", "1");
 cvar_t	v_ringcshift = SCVAR("v_ringcshift", "1");
 cvar_t	v_pentcshift = SCVAR("v_pentcshift", "1");
 cvar_t	v_gunkick = SCVAR("v_gunkick", "0");
+cvar_t	v_gunkick_q2 = SCVAR("v_gunkick_q2", "1");
 
 cvar_t	v_viewheight = SCVAR("v_viewheight", "0");
 
@@ -1533,6 +1534,7 @@ void V_Init (void)
 	Cvar_Register (&v_ringcshift, VIEWVARS);
 	Cvar_Register (&v_pentcshift, VIEWVARS);
 	Cvar_Register (&v_gunkick, VIEWVARS);
+	Cvar_Register (&v_gunkick_q2, VIEWVARS);
 
 	Cvar_Register (&v_bonusflash, VIEWVARS);
 

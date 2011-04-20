@@ -115,6 +115,9 @@ typedef enum
 	VF_AFOV = 203,	//aproximate fov (match what the engine would normally use for the fov cvar). p0=fov, p1=zoom
 } viewflags;
 
+/*FIXME: this should be changed*/
+#define CSQC_API_VERSION 1.0f
+
 #define CSQCRF_VIEWMODEL		1 //Not drawn in mirrors
 #define CSQCRF_EXTERNALMODEL	2 //drawn ONLY in mirrors
 #define CSQCRF_DEPTHHACK		4 //fun depthhack
@@ -5311,7 +5314,7 @@ qboolean CSQC_Init (unsigned int checksum)
 		if (csqcg.init_function)
 		{
 			void *pr_globals = PR_globals(csqcprogs, PR_CURRENT);
-			G_FLOAT(OFS_PARM0) = 1.0;	//api version
+			G_FLOAT(OFS_PARM0) = CSQC_API_VERSION;	//api version
 			(((string_t *)pr_globals)[OFS_PARM1] = PR_TempString(csqcprogs, FULLENGINENAME));
 			G_FLOAT(OFS_PARM2) = version_number();
 			PR_ExecuteProgram(csqcprogs, csqcg.init_function);

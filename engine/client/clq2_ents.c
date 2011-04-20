@@ -1153,6 +1153,7 @@ void CLQ2_ParseFrame (void)
 	int			cmd;
 	int			len;
 	q2frame_t		*old;
+	int i,j;
 
 	memset (&cl.q2frame, 0, sizeof(cl.q2frame));
 
@@ -1164,7 +1165,10 @@ void CLQ2_ParseFrame (void)
 	cl.q2frame.deltaframe = MSG_ReadLong ();
 	cl.q2frame.servertime = cl.q2frame.serverframe*100;
 
-	cl.surpressCount = MSG_ReadByte ();
+	i = MSG_ReadByte ();
+
+	for (j=0 ; j<i ; j++)
+		cl.frames[ (cls.netchan.incoming_acknowledged-1-j)&UPDATE_MASK ].receivedtime = -2;
 
 	if (cl_shownet.value == 3)
 		Con_Printf ("   frame:%i  delta:%i\n", cl.q2frame.serverframe,
@@ -1951,7 +1955,7 @@ Sets r_refdef view values
 */
 void CLQ2_CalcViewValues (void)
 {
-	extern cvar_t v_gunkick;
+	extern cvar_t v_gunkick_q2;
 	int			i;
 	float		lerp, backlerp;
 	q2centity_t	*ent;
@@ -2019,7 +2023,7 @@ void CLQ2_CalcViewValues (void)
 	}
 
 	for (i=0 ; i<3 ; i++)
-		r_refdef.viewangles[i] += v_gunkick.value * LerpAngle (ops->kick_angles[i], ps->kick_angles[i], lerp);
+		r_refdef.viewangles[i] += v_gunkick_q2.value * LerpAngle (ops->kick_angles[i], ps->kick_angles[i], lerp);
 
 	VectorCopy(r_refdef.vieworg, cl.simorg[0]);
 	VectorCopy(r_refdef.viewangles, cl.simangles[0]);

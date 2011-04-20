@@ -624,7 +624,6 @@ typedef struct
 	char		q2statusbar[1024];
 	char		q2layout[1024];
 	int parse_entities;
-	int surpressCount;
 	float lerpfrac;
 	vec3_t predicted_origin;
 	vec3_t predicted_angles;

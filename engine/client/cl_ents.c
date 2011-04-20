@@ -1727,6 +1727,8 @@ void CL_LinkPacketEntities (void)
 	dlight_t			*dl;
 	vec3_t				angles;
 	qboolean nolerp;
+	static int flickertime;
+	static int flicker;
 
 	float servertime;
 
@@ -1750,6 +1752,10 @@ void CL_LinkPacketEntities (void)
 	else
 		servertime = realtime;
 */
+
+	i = servertime*20;
+	if (flickertime != i)
+		flicker = rand();
 
 	autorotate = anglemod(100*servertime);
 
@@ -1825,7 +1831,7 @@ void CL_LinkPacketEntities (void)
 
 			if (radius)
 			{
-				radius += r_lightflicker.value?(rand()&31):0;
+				radius += r_lightflicker.value?((flicker + state->number)&31):0;
 				CL_NewDlightRGB(state->number, state->origin, radius, 0.1, colour[0], colour[1], colour[2]);
 			}
 		}
@@ -2664,6 +2670,8 @@ void CL_LinkPlayers (void)
 	vec3_t			angles;
 	qboolean		predictplayers;
 	model_t			*model;
+	static int		flickertime;
+	static int		flicker;
 
 	if (!cl.worldmodel || cl.worldmodel->needload)
 		return;
@@ -2751,13 +2759,23 @@ void CL_LinkPlayers (void)
 				vec3_t org;
 				VectorCopy(state->origin, org);
 				for (pnum = 0; pnum < cl.splitclients; pnum++)
-					VectorCopy(cl.simorg[pnum], org);
+					if (cl.playernum[pnum] == j)
+						VectorCopy(cl.simorg[pnum], org);
 				if (model)
 				{
 					org[2] += model->mins[2];
 					org[2] += 32;
 				}
-				radius += r_lightflicker.value?(rand()&31):0;
+				if (r_lightflicker.value)
+				{
+					pnum = realtime*20;
+					if (flickertime != pnum)
+					{
+						flickertime = pnum;
+						flicker = rand();
+					}
+					radius += (flicker+j)&31;
+				}
 				CL_NewDlightRGB(j+1, org, radius, 0.1, colour[0], colour[1], colour[2])->flags &= ~LFLAG_ALLOW_FLASH;
 			}
 		}

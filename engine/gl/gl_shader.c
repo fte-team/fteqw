@@ -3460,17 +3460,19 @@ void Shader_DefaultBSPQ2(char *shortname, shader_t *s, const void *args)
 	{
 		Shader_DefaultScript(shortname, s,
 				"{\n"
+					"surfaceparm nodlight\n"
 					"skyparms - - -\n"
 				"}\n"
 			);
 	}
-	else if (!strncmp(shortname, "warp/", 7))
+	else if (!strncmp(shortname, "warp/", 5))
 	{
 		Shader_DefaultScript(shortname, s,
 				"{\n"
+					"program defaultwarp\n"
 					"{\n"
 						"map $diffuse\n"
-						"tcmod turb 0 0.01 0.5 0\n"
+						"tcmod turb 0 0 3 0.1\n"
 					"}\n"
 				"}\n"
 			);

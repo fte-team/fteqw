@@ -2570,6 +2570,7 @@ void GLBE_SelectMode(backendmode_t mode, unsigned int flags)
 #ifdef RTLIGHTS
 		if (mode == BEM_STENCIL)
 		{
+			GL_DeSelectProgram();
 			/*BEM_STENCIL doesn't support mesh writing*/
 			qglDisableClientState(GL_COLOR_ARRAY);
 			//disable all tmus
@@ -2591,6 +2592,7 @@ void GLBE_SelectMode(backendmode_t mode, unsigned int flags)
 #endif
 		if (mode == BEM_DEPTHONLY)
 		{
+			GL_DeSelectProgram();
 			/*BEM_DEPTHONLY does support mesh writing, but its not the only way its used... FIXME!*/
 			qglDisableClientState(GL_COLOR_ARRAY);
 			while(shaderstate.lastpasstmus>0)

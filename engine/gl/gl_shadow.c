@@ -1610,6 +1610,8 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 			if (!sm->litsurfs[tno].count)
 				continue;
 			tex = cl.worldmodel->textures[tno];
+			if (tex->shader->flags & SHADER_NODLIGHT)
+				continue;
 			BE_DrawMesh_List(tex->shader, sm->litsurfs[tno].count, sm->litsurfs[tno].s, &tex->vbo, &tex->shader->defaulttextures);
 		}
 

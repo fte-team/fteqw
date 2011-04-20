@@ -1334,10 +1334,10 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, float p
 		if (!smesh->litsurfs[tno].count)
 			continue;
 		tex = cl.worldmodel->textures[tno];
-		BE_DrawMesh_List(tex->shader, smesh->litsurfs[tno].count, smesh->litsurfs[tno].s, &tex->vbo, &tex->shader->defaulttextures);
+		BE_DrawMesh_List(tex->shader, smesh->litsurfs[tno].count, smesh->litsurfs[tno].s, &tex->vbo, &tex->shader->defaulttextures, 0);
 	}
 
-	BE_SelectMode(BEM_DEPTHONLY, 0);
+	BE_SelectMode(BEM_DEPTHONLY);
 	BE_BaseEntTextures();
 
 	if (0)
@@ -1550,7 +1550,7 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 	ve = 0;
 
 	BE_SelectDLight(l, colour);
-	BE_SelectMode(l->fov?BEM_SMAPLIGHTSPOT:BEM_SMAPLIGHT, 0);
+	BE_SelectMode(l->fov?BEM_SMAPLIGHTSPOT:BEM_SMAPLIGHT);
 	Sh_DrawEntLighting(l, colour);
 
 	GL_SelectTexture(7);
@@ -1612,7 +1612,7 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 			tex = cl.worldmodel->textures[tno];
 			if (tex->shader->flags & SHADER_NODLIGHT)
 				continue;
-			BE_DrawMesh_List(tex->shader, sm->litsurfs[tno].count, sm->litsurfs[tno].s, &tex->vbo, &tex->shader->defaulttextures);
+			BE_DrawMesh_List(tex->shader, sm->litsurfs[tno].count, sm->litsurfs[tno].s, &tex->vbo, &tex->shader->defaulttextures, 0);
 		}
 
 		BE_BaseEntTextures();
@@ -1852,7 +1852,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	bench.numlights++;
 
 	BE_SelectDLight(dl, colour);
-	BE_SelectMode(BEM_STENCIL, 0);
+	BE_SelectMode(BEM_STENCIL);
 
 	//The backend doesn't maintain scissor state.
 //	qglEnable(GL_SCISSOR_TEST);
@@ -1986,7 +1986,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 
 	PPL_RevertToKnownState();
 
-	BE_SelectMode(BEM_LIGHT, 0);
+	BE_SelectMode(BEM_LIGHT);
 	Sh_DrawEntLighting(dl, colour);
 
 	qglDisable(GL_STENCIL_TEST);
@@ -2052,7 +2052,7 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	bench.numlights++;
 
 	BE_SelectDLight(dl, colour);
-	BE_SelectMode(BEM_LIGHT, 0);
+	BE_SelectMode(BEM_LIGHT);
 	Sh_DrawEntLighting(dl, colour);
 }
 
@@ -2132,7 +2132,7 @@ void Sh_DrawLights(qbyte *vis)
 	}
 
 	qglDisable(GL_SCISSOR_TEST);
-	BE_SelectMode(BEM_STANDARD, 0);
+	BE_SelectMode(BEM_STANDARD);
 
 //	if (developer.value)
 //	Con_Printf("%i lights drawn, %i frustum culled, %i pvs culled, %i scissor culled\n", bench.numlights, bench.numfrustumculled, bench.numpvsculled, bench.numscissorculled);

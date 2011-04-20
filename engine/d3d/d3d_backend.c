@@ -1629,10 +1629,9 @@ static void BE_DrawMeshChain_Internal(void)
 	}
 }
 
-void D3DBE_SelectMode(backendmode_t mode, unsigned int flags)
+void D3DBE_SelectMode(backendmode_t mode)
 {
 	shaderstate.mode = mode;
-	shaderstate.flags = flags;
 }
 
 /*Generates an optimised vbo for each of the given model's textures*/
@@ -2085,7 +2084,7 @@ static void R_DrawLightning(entity_t *e)
 	mesh.normals_array = NULL;
 	mesh.numvertexes = 4;
 	mesh.st_array = texcoords;
-	BE_DrawMesh_Single(e->forcedshader, &mesh, NULL, NULL);
+	BE_DrawMesh_Single(e->forcedshader, &mesh, NULL, NULL, 0);
 }
 //q3 railgun beam
 static void R_DrawRailCore(entity_t *e)
@@ -2146,7 +2145,7 @@ static void R_DrawRailCore(entity_t *e)
 	mesh.numvertexes = 4;
 	mesh.st_array = texcoords;
 
-	BE_DrawMesh_Single(e->forcedshader, &mesh, NULL, NULL);
+	BE_DrawMesh_Single(e->forcedshader, &mesh, NULL, NULL, 0);
 }
 #endif
 static void BE_GenModelBatches(batch_t **batches)
@@ -2514,7 +2513,7 @@ static void BE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 
 
 				/*draw already-drawn portals as depth-only, to ensure that their contents are not harmed*/
-				BE_SelectMode(BEM_DEPTHONLY, 0);
+				BE_SelectMode(BEM_DEPTHONLY);
 				for (old = worldlist[SHADER_SORT_PORTAL]; old && old != batch; old = old->next)
 				{
 					if (old->meshes == old->firstmesh)
@@ -2530,7 +2529,7 @@ static void BE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 						BE_SubmitBatch(old);
 					}
 				}
-				BE_SelectMode(BEM_STANDARD, 0);
+				BE_SelectMode(BEM_STANDARD);
 
 				R_DrawPortal(batch, worldlist);
 
@@ -2593,7 +2592,7 @@ void D3DBE_DrawWorld (qbyte *vis)
 		r_worldentity.axis[1][1] = 1;
 		r_worldentity.axis[2][2] = 1;
 
-		BE_SelectMode(BEM_STANDARD, 0);
+		BE_SelectMode(BEM_STANDARD);
 
 		RSpeedRemark();
 		BE_SubmitMeshes(true, batches);

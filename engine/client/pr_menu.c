@@ -392,7 +392,8 @@ void QCBUILTIN PF_CL_stringwidth(progfuncs_t *prinst, struct globalvars_s *pr_gl
 #define DRAWFLAG_MODULATE 2
 #define DRAWFLAG_MODULATE2 3
 
-static void PF_SelectDPDrawFlag(int flag)
+extern unsigned int r2d_be_flags;
+static unsigned int PF_SelectDPDrawFlag(int flag)
 {
 	//flags:
 	//0 = blend
@@ -400,9 +401,9 @@ static void PF_SelectDPDrawFlag(int flag)
 	//2 = modulate
 	//3 = modulate*2
 	if (flag == 1)
-		BE_SelectMode(BEM_STANDARD, BEF_FORCEADDITIVE);
+		return BEF_FORCEADDITIVE;
 	else
-		BE_SelectMode(BEM_STANDARD, BEF_FORCETRANSPARENT);
+		return BEF_FORCETRANSPARENT;
 }
 
 //float	drawpic(vector position, string pic, vector size, vector rgb, float alpha, float flag) = #456;
@@ -421,10 +422,10 @@ void QCBUILTIN PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	if (!p)
 		p = R2D_SafePicFromWad(picname);
 
-	PF_SelectDPDrawFlag(flag);
+	r2d_be_flags = PF_SelectDPDrawFlag(flag);
 	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
 	R2D_Image(pos[0], pos[1], size[0], size[1], 0, 0, 1, 1, p);
-	BE_SelectMode(BEM_STANDARD, 0);
+	r2d_be_flags = 0;
 
 	G_FLOAT(OFS_RETURN) = 1;
 }
@@ -444,14 +445,14 @@ void QCBUILTIN PF_CL_drawsubpic (progfuncs_t *prinst, struct globalvars_s *pr_gl
 
 	p = R2D_SafeCachePic(picname);
 
-	PF_SelectDPDrawFlag(flag);
+	r2d_be_flags = PF_SelectDPDrawFlag(flag);
 	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
 	R2D_Image(	pos[0], pos[1],
 				size[0], size[1],
 				srcPos[0], srcPos[1],
 				srcPos[0]+srcSize[0], srcPos[1]+srcSize[1],
 				p);
-	BE_SelectMode(BEM_STANDARD, 0);
+	r2d_be_flags = 0;
 
 	G_FLOAT(OFS_RETURN) = 1;
 }

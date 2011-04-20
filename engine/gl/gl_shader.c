@@ -3472,7 +3472,7 @@ void Shader_DefaultBSPQ2(char *shortname, shader_t *s, const void *args)
 					"program defaultwarp\n"
 					"{\n"
 						"map $diffuse\n"
-						"tcmod turb 0 0 3 0.1\n"
+						"tcmod turb 0 0.01 0.5 0\n"
 					"}\n"
 				"}\n"
 			);
@@ -3604,7 +3604,7 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 					"program defaultwarp\n"
 					"{\n"
 						"map $diffuse\n"
-						"tcmod turb 0 0 3 0.1\n"
+						"tcmod turb 0.02 0.1 0.5 0.1\n"
 						"if r_wateralpha != 1\n"
 						"[\n"
 							"alphagen const $r_wateralpha\n"

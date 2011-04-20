@@ -229,11 +229,11 @@ typedef struct rendererinfo_s {
 
 	
 	//Select the current render mode and modifier flags
-	void	(*BE_SelectMode)(backendmode_t mode, unsigned int flags);
+	void	(*BE_SelectMode)(backendmode_t mode);
 	/*Draws an entire mesh list from a VBO. vbo can be null, in which case the chain may be drawn without batching.
 	  Rules for using a list: Every mesh must be part of the same VBO, shader, lightmap, and must have the same pointers set*/
-	void	(*BE_DrawMesh_List)(shader_t *shader, int nummeshes, struct mesh_s **mesh, struct vbo_s *vbo, struct texnums_s *texnums);
-	void	(*BE_DrawMesh_Single)(shader_t *shader, struct mesh_s *meshchain, struct vbo_s *vbo, struct texnums_s *texnums);
+	void	(*BE_DrawMesh_List)(shader_t *shader, int nummeshes, struct mesh_s **mesh, struct vbo_s *vbo, struct texnums_s *texnums, unsigned int be_flags);
+	void	(*BE_DrawMesh_Single)(shader_t *shader, struct mesh_s *meshchain, struct vbo_s *vbo, struct texnums_s *texnums, unsigned int be_flags);
 	void	(*BE_SubmitBatch)(struct batch_s *batch);
 	struct batch_s *(*BE_GetTempBatch)(void);
 	//Asks the backend to invoke DrawMeshChain for each surface, and to upload lightmaps as required

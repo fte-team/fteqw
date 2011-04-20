@@ -449,9 +449,9 @@ static void GL_SkyForceDepth(batch_t *batch)
 {
 	if (!cls.allow_skyboxes)	//allow a little extra fps.
 	{
-		BE_SelectMode(BEM_DEPTHONLY, 0);
-		BE_DrawMesh_List(batch->shader, batch->meshes-batch->firstmesh, batch->mesh+batch->firstmesh, &batch->texture->vbo, &batch->shader->defaulttextures);
-		BE_SelectMode(BEM_STANDARD, 0);	/*skys only render in standard mode anyway, so this is safe*/
+		BE_SelectMode(BEM_DEPTHONLY);
+		BE_DrawMesh_List(batch->shader, batch->meshes-batch->firstmesh, batch->mesh+batch->firstmesh, &batch->texture->vbo, &batch->shader->defaulttextures, batch->flags);
+		BE_SelectMode(BEM_STANDARD);	/*skys only render in standard mode anyway, so this is safe*/
 	}
 }
 

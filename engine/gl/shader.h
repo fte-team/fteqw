@@ -434,9 +434,9 @@ mfog_t *CM_FogForOrigin(vec3_t org);
 
 #ifdef GLQUAKE
 void GLBE_Init(void);
-void GLBE_SelectMode(backendmode_t mode, unsigned int flags);
-void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **mesh, vbo_t *vbo, texnums_t *texnums);
-void GLBE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums);
+void GLBE_SelectMode(backendmode_t mode);
+void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **mesh, vbo_t *vbo, texnums_t *texnums, unsigned int beflags);
+void GLBE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums, unsigned int beflags);
 void GLBE_SubmitBatch(batch_t *batch);
 batch_t *GLBE_GetTempBatch(void);
 void GLBE_GenBrushModelVBO(model_t *mod);
@@ -448,7 +448,7 @@ void GLBE_SelectEntity(entity_t *ent);
 #endif
 #ifdef D3DQUAKE
 void D3DBE_Init(void);
-void D3DBE_SelectMode(backendmode_t mode, unsigned int flags);
+void D3DBE_SelectMode(backendmode_t mode);
 void D3DBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **mesh, vbo_t *vbo, texnums_t *texnums);
 void D3DBE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums);
 void D3DBE_SubmitBatch(batch_t *batch);

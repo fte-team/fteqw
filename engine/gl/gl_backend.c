@@ -439,7 +439,7 @@ void GL_SetShaderState2D(qboolean is2d)
 	else
 		qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 #endif
-	BE_SelectMode(BEM_STANDARD, 0);
+	BE_SelectMode(BEM_STANDARD);
 }
 
 void GL_SelectTexture(int target) 
@@ -753,7 +753,7 @@ void BE_SetupForShadowMap(void)
 	shaderstate.shaderbits |= SBITS_MISC_DEPTHWRITE;
 //	qglColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 
-	BE_SelectMode(BEM_DEPTHONLY, 0);
+	BE_SelectMode(BEM_DEPTHONLY);
 }
 #endif
 
@@ -2561,12 +2561,13 @@ qboolean GLBE_LightCullModel(vec3_t org, model_t *model)
 }
 
 //Note: Be cautious about using BEM_LIGHT here.
-void GLBE_SelectMode(backendmode_t mode, unsigned int flags)
+void GLBE_SelectMode(backendmode_t mode)
 {
 	extern int gldepthfunc;
 
 	if (mode != shaderstate.mode)
 	{
+		shaderstate.mode = mode;
 #ifdef RTLIGHTS
 		if (mode == BEM_STENCIL)
 		{
@@ -2649,8 +2650,6 @@ void GLBE_SelectMode(backendmode_t mode, unsigned int flags)
 		}
 #endif
 	}
-	shaderstate.mode = mode;
-	shaderstate.flags = flags;
 }
 
 void GLBE_SelectEntity(entity_t *ent)
@@ -2898,13 +2897,14 @@ static void DrawMeshes(void)
 	}
 }
 
-void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_t *vbo, texnums_t *texnums)
+void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_t *vbo, texnums_t *texnums, unsigned int beflags)
 {
 	if (!vbo)
 	{
 		mesh_t *m;
 		shaderstate.sourcevbo = &shaderstate.dummyvbo;
 		shaderstate.curshader = shader;
+		shaderstate.flags = beflags;
 		if (shaderstate.curentity != &r_worldentity)
 		{
 			BE_SelectEntity(&r_worldentity);
@@ -2936,6 +2936,7 @@ void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_
 	{
 		shaderstate.sourcevbo = vbo;
 		shaderstate.curshader = shader;
+		shaderstate.flags = beflags;
 		if (shaderstate.curentity != &r_worldentity)
 		{
 			BE_SelectEntity(&r_worldentity);
@@ -2950,10 +2951,10 @@ void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_
 		DrawMeshes();
 	}
 }
-void GLBE_DrawMesh_Single(shader_t *shader, mesh_t *mesh, vbo_t *vbo, texnums_t *texnums)
+void GLBE_DrawMesh_Single(shader_t *shader, mesh_t *mesh, vbo_t *vbo, texnums_t *texnums, unsigned int beflags)
 {
 	shader->next = NULL;
-	BE_DrawMesh_List(shader, 1, &mesh, NULL, texnums);
+	BE_DrawMesh_List(shader, 1, &mesh, NULL, texnums, beflags);
 }
 
 void BE_DrawPolys(qboolean decalsset)
@@ -2976,7 +2977,7 @@ void BE_DrawPolys(qboolean decalsset)
 		m.indexes = cl_strisidx + cl_stris[i].firstidx;
 		m.numindexes = cl_stris[i].numidx;
 		m.numvertexes = cl_stris[i].numvert;
-		BE_DrawMesh_Single(cl_stris[i].shader, &m, NULL, &cl_stris[i].shader->defaulttextures);
+		BE_DrawMesh_Single(cl_stris[i].shader, &m, NULL, &cl_stris[i].shader->defaulttextures, 0);
 	}
 }
 void GLBE_SubmitBatch(batch_t *batch)
@@ -3014,12 +3015,12 @@ void GLBE_SubmitBatch(batch_t *batch)
 	}
 
 	shaderstate.curshader = batch->shader;
+	shaderstate.flags = batch->flags;
 	if (shaderstate.curentity != batch->ent)
 	{
 		BE_SelectEntity(batch->ent);
 		shaderstate.curtime = r_refdef.time - shaderstate.curentity->shaderTime;
 	}
-	shaderstate.flags = batch->flags;
 	if (batch->skin)
 		shaderstate.curtexnums = batch->skin;
 	else
@@ -3064,7 +3065,7 @@ static void BE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 
 
 				/*draw already-drawn portals as depth-only, to ensure that their contents are not harmed*/
-				BE_SelectMode(BEM_DEPTHONLY, 0);
+				BE_SelectMode(BEM_DEPTHONLY);
 				for (old = worldlist[SHADER_SORT_PORTAL]; old && old != batch; old = old->next)
 				{
 					if (old->meshes == old->firstmesh)
@@ -3080,7 +3081,7 @@ static void BE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 						BE_SubmitBatch(old);
 					}
 				}
-				BE_SelectMode(BEM_STANDARD, 0);
+				BE_SelectMode(BEM_STANDARD);
 
 				GLR_DrawPortal(batch, worldlist);
 
@@ -3325,9 +3326,9 @@ void GLBE_DrawWorld (qbyte *vis)
 		shaderstate.identitylighting = 1;
 
 	if (shaderstate.identitylighting == 0)
-		BE_SelectMode(BEM_DEPTHDARK, 0);
+		BE_SelectMode(BEM_DEPTHDARK);
 	else
-		BE_SelectMode(BEM_STANDARD, 0);
+		BE_SelectMode(BEM_STANDARD);
 
 	RSpeedRemark();
 	GLBE_SubmitMeshes(true, batches);
@@ -3344,7 +3345,7 @@ void GLBE_DrawWorld (qbyte *vis)
 
 	if (r_refdef.gfog_alpha)
 	{
-		BE_SelectMode(BEM_FOG, 0);
+		BE_SelectMode(BEM_FOG);
 		BE_SelectFog(r_refdef.gfog_rgb, r_refdef.gfog_alpha, r_refdef.gfog_density);
 		GLBE_SubmitMeshes(true, batches);
 	}

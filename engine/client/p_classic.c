@@ -321,7 +321,7 @@ static void PClassic_DrawParticles(void)
 		if (classicmesh.numvertexes >= BUFFERVERTS-3)
 		{
 			classicmesh.numindexes = classicmesh.numvertexes;
-			BE_DrawMesh_Single(classicshader, &classicmesh, NULL, &classicshader->defaulttextures);
+			BE_DrawMesh_Single(classicshader, &classicmesh, NULL, &classicshader->defaulttextures, 0);
 			classicmesh.numvertexes = 0;
 		}
 
@@ -404,7 +404,7 @@ static void PClassic_DrawParticles(void)
 	if (classicmesh.numvertexes)
 	{
 		classicmesh.numindexes = classicmesh.numvertexes;
-		BE_DrawMesh_Single(classicshader, &classicmesh, NULL, &classicshader->defaulttextures);
+		BE_DrawMesh_Single(classicshader, &classicmesh, NULL, &classicshader->defaulttextures, 0);
 		classicmesh.numvertexes = 0;
 	}
 

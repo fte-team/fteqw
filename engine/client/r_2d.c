@@ -26,6 +26,7 @@ static vecV_t	draw_mesh_xyz[4];
 vec2_t	draw_mesh_st[4];
 static avec4_t	draw_mesh_colors[4];
 index_t r_quad_indexes[6] = {0, 1, 2, 2, 3, 0};
+unsigned int r2d_be_flags;
 
 extern cvar_t scr_conalpha;
 extern cvar_t gl_conback;
@@ -326,7 +327,7 @@ void R2D_Image(float x, float y, float w, float h, float s1, float t1, float s2,
 	draw_mesh_st[3][0] = s1;
 	draw_mesh_st[3][1] = t2;
 
-	BE_DrawMesh_Single(pic, &draw_mesh, NULL, &pic->defaulttextures);
+	BE_DrawMesh_Single(pic, &draw_mesh, NULL, &pic->defaulttextures, r2d_be_flags);
 }
 
 /*draws a block of the current colour on the screen*/
@@ -345,9 +346,9 @@ void R2D_FillBlock(int x, int y, int w, int h)
 	draw_mesh_xyz[3][1] = y+h;
 
 	if (draw_mesh_colors[0][3] != 1)
-		BE_DrawMesh_Single(shader_draw_fill_trans, &draw_mesh, NULL, &shader_draw_fill_trans->defaulttextures);
+		BE_DrawMesh_Single(shader_draw_fill_trans, &draw_mesh, NULL, &shader_draw_fill_trans->defaulttextures, r2d_be_flags);
 	else
-		BE_DrawMesh_Single(shader_draw_fill, &draw_mesh, NULL, &shader_draw_fill->defaulttextures);
+		BE_DrawMesh_Single(shader_draw_fill, &draw_mesh, NULL, &shader_draw_fill->defaulttextures, r2d_be_flags);
 }
 
 void R2D_ScalePic (int x, int y, int width, int height, mpic_t *pic)
@@ -502,7 +503,7 @@ void R2D_TileClear (int x, int y, int w, int h)
 	draw_mesh_st[3][0] = newsl;
 	draw_mesh_st[3][1] = newth;
 
-	BE_DrawMesh_Single(draw_backtile, &draw_mesh, NULL, &draw_backtile->defaulttextures);
+	BE_DrawMesh_Single(draw_backtile, &draw_mesh, NULL, &draw_backtile->defaulttextures, r2d_be_flags);
 }
 
 void R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)

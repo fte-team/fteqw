@@ -3653,7 +3653,7 @@ static void GL_DrawTexturedParticle(int count, particle_t **plist, plooks_t *typ
 		if (pscriptmesh.numvertexes >= BUFFERVERTS-4)
 		{
 			pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
-			BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
+			BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures, 0);
 			pscriptmesh.numvertexes = 0;
 		}
 
@@ -3711,7 +3711,7 @@ static void GL_DrawTexturedParticle(int count, particle_t **plist, plooks_t *typ
 	if (pscriptmesh.numvertexes)
 	{
 		pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
-		BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
+		BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures, 0);
 		pscriptmesh.numvertexes = 0;
 	}
 }
@@ -3729,7 +3729,7 @@ static void GL_DrawTrifanParticle(int count, particle_t **plist, plooks_t *type)
 		if (pscripttmesh.numvertexes >= BUFFERVERTS-3)
 		{
 			pscripttmesh.numindexes = pscripttmesh.numvertexes;
-			BE_DrawMesh_Single(type->shader, &pscripttmesh, NULL, &type->shader->defaulttextures);
+			BE_DrawMesh_Single(type->shader, &pscripttmesh, NULL, &type->shader->defaulttextures, 0);
 			pscripttmesh.numvertexes = 0;
 		}
 
@@ -3765,7 +3765,7 @@ static void GL_DrawTrifanParticle(int count, particle_t **plist, plooks_t *type)
 	if (pscripttmesh.numvertexes)
 	{
 		pscripttmesh.numindexes = pscripttmesh.numvertexes;
-		BE_DrawMesh_Single(type->shader, &pscripttmesh, NULL, &type->shader->defaulttextures);
+		BE_DrawMesh_Single(type->shader, &pscripttmesh, NULL, &type->shader->defaulttextures, 0);
 		pscripttmesh.numvertexes = 0;
 	}
 }
@@ -3813,7 +3813,7 @@ static void GL_DrawTexturedSparkParticle(int count, particle_t **plist, plooks_t
 		if (pscriptmesh.numvertexes >= BUFFERVERTS-4)
 		{
 			pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
-			BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
+			BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures, 0);
 			pscriptmesh.numvertexes = 0;
 		}
 
@@ -3859,7 +3859,7 @@ static void GL_DrawTexturedSparkParticle(int count, particle_t **plist, plooks_t
 	if (pscriptmesh.numvertexes)
 	{
 		pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
-		BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
+		BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures, 0);
 		pscriptmesh.numvertexes = 0;
 	}
 }
@@ -3881,7 +3881,7 @@ static void GL_DrawParticleBeam(int count, beamseg_t **blist, plooks_t *type)
 		if (pscriptmesh.numvertexes >= BUFFERVERTS-4)
 		{
 			pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
-			BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
+			BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures, 0);
 			pscriptmesh.numvertexes = 0;
 		}
 
@@ -3918,7 +3918,7 @@ static void GL_DrawParticleBeam(int count, beamseg_t **blist, plooks_t *type)
 	if (pscriptmesh.numvertexes)
 	{
 		pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
-		BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures);
+		BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures, 0);
 		pscriptmesh.numvertexes = 0;
 	}
 }
@@ -3934,7 +3934,7 @@ static void GL_DrawClippedDecal(int count, clippeddecal_t **dlist, plooks_t *typ
 		if (pscripttmesh.numvertexes >= BUFFERVERTS-3)
 		{
 			pscripttmesh.numindexes = pscripttmesh.numvertexes;
-			BE_DrawMesh_Single(type->shader, &pscripttmesh, NULL, &type->shader->defaulttextures);
+			BE_DrawMesh_Single(type->shader, &pscripttmesh, NULL, &type->shader->defaulttextures, 0);
 			pscripttmesh.numvertexes = 0;
 		}
 
@@ -3956,7 +3956,7 @@ static void GL_DrawClippedDecal(int count, clippeddecal_t **dlist, plooks_t *typ
 	if (pscripttmesh.numvertexes)
 	{
 		pscripttmesh.numindexes = pscripttmesh.numvertexes;
-		BE_DrawMesh_Single(type->shader, &pscripttmesh, NULL, &type->shader->defaulttextures);
+		BE_DrawMesh_Single(type->shader, &pscripttmesh, NULL, &type->shader->defaulttextures, 0);
 		pscripttmesh.numvertexes = 0;
 	}
 }

@@ -156,7 +156,7 @@ void R_InitFlashblends(void)
 		);
 }
 
-void R_RenderDlight (dlight_t *light)
+void R_RenderDlight (dlight_t *light, unsigned int beflags)
 {
 	int		i, j;
 //	float	a;
@@ -205,7 +205,7 @@ void R_RenderDlight (dlight_t *light)
 		bub_cos++;
 	}
 
-	BE_DrawMesh_Single(flashblend_shader, &flashblend_mesh, NULL, &flashblend_shader->defaulttextures);
+	BE_DrawMesh_Single(flashblend_shader, &flashblend_mesh, NULL, &flashblend_shader->defaulttextures, beflags);
 }
 
 /*
@@ -218,6 +218,7 @@ void GLR_RenderDlights (void)
 	int		i;
 	dlight_t	*l;
 	vec3_t waste1, waste2;
+	unsigned int beflags = 0;
 
 	switch(r_flashblend.ival)
 	{
@@ -225,10 +226,9 @@ void GLR_RenderDlights (void)
 		return;
 	default:
 	case 1:
-		BE_SelectMode(BEM_STANDARD, 0);
 		break;
 	case 2:
-		BE_SelectMode(BEM_STANDARD, BEF_FORCENODEPTH);
+		beflags |= BEF_FORCENODEPTH;
 		break;
 	}
 
@@ -252,10 +252,8 @@ void GLR_RenderDlights (void)
 			if (TraceLineN(r_refdef.vieworg, l->origin, waste1, waste2))
 				continue;
 		}
-		R_RenderDlight (l);
+		R_RenderDlight (l, beflags);
 	}
-
-	BE_SelectMode(BEM_STANDARD, 0);
 }
 #endif
 

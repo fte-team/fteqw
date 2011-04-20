@@ -231,7 +231,12 @@ void SV_New_f (void)
 
 	gamedir = Info_ValueForKey (svs.info, "*gamedir");
 	if (!gamedir[0] || !strcmp(gamedir, "fte"))
-		gamedir = "qw";
+	{
+		if (ISQWCLIENT(host_client))
+			gamedir = "qw";
+		else
+			gamedir = "";
+	}
 
 //NOTE:  This doesn't go through ClientReliableWrite since it's before the user
 //spawns.  These functions are written to not overflow

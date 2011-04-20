@@ -572,7 +572,6 @@ void R_DrawSpriteModel (entity_t *e)
 		fl |= BEF_FORCETRANSPARENT;
 	if (e->flags & RF_NODEPTHTEST)
 		fl |= BEF_FORCENODEPTH;
-	BE_SelectMode(BEM_STANDARD, fl);
 
 	VectorMA (sprorigin, frame->down, up, point);
 	VectorMA (point, frame->left, right, vertcoords[0]);
@@ -599,7 +598,7 @@ void R_DrawSpriteModel (entity_t *e)
 	mesh.numvertexes = 4;
 	mesh.st_array = texcoords;
 	mesh.istrifan = true;
-	BE_DrawMesh_Single(frame->shader, &mesh, NULL, &frame->shader->defaulttextures);
+	BE_DrawMesh_Single(frame->shader, &mesh, NULL, &frame->shader->defaulttextures, fl);
 }
 
 //==================================================================================
@@ -671,7 +670,7 @@ void R_DrawLightning(entity_t *e)
 	mesh.normals_array = NULL;
 	mesh.numvertexes = 4;
 	mesh.st_array = texcoords;
-	BE_DrawMesh_Single(e->forcedshader, &mesh, NULL, NULL);
+	BE_DrawMesh_Single(e->forcedshader, &mesh, NULL, NULL, 0);
 }
 //q3 railgun beam
 void R_DrawRailCore(entity_t *e)
@@ -732,7 +731,7 @@ void R_DrawRailCore(entity_t *e)
 	mesh.numvertexes = 4;
 	mesh.st_array = texcoords;
 
-	BE_DrawMesh_Single(e->forcedshader, &mesh, NULL, NULL);
+	BE_DrawMesh_Single(e->forcedshader, &mesh, NULL, NULL, 0);
 }
 #endif
 
@@ -812,7 +811,7 @@ shader_t *beamshader;
 	mesh.normals_array = NULL;
 	mesh.numvertexes = sizeof(points)/sizeof(points[0]);
 	mesh.st_array = texcoords;
-	BE_DrawMesh_Single(beamshader, &mesh, NULL, &beamshader->defaulttextures);
+	BE_DrawMesh_Single(beamshader, &mesh, NULL, &beamshader->defaulttextures, 0);
 }
 
 /*

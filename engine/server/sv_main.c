@@ -3206,7 +3206,10 @@ qboolean SV_ReadPackets (void)
 				svs.stats.packets++;
 				if (cl->state != cs_zombie)
 				{
-					cl->send_message = true;	// reply at end of frame
+					if (cl->send_message)
+						cl->chokecount++;
+					else
+						cl->send_message = true;	// reply at end of frame
 
 #ifdef Q2SERVER
 					if (cl->protocol == SCP_QUAKE2)
@@ -3484,6 +3487,8 @@ void SV_Frame (void)
 	start = Sys_DoubleTime ();
 	svs.stats.idle += start - end;
 	end = start;
+
+	//qw qc uses this for newmis handling
 	svs.framenum++;
 	if (svs.framenum > 0x10000)
 		svs.framenum = 0;
@@ -3595,6 +3600,7 @@ void SV_MVDStream_Poll(void);
 	}
 	else
 	{
+		isidle = idletime < 0.1;
 #ifdef VM_Q1
 		if (svs.gametype == GT_Q1QVM)
 		{
@@ -3607,8 +3613,10 @@ void SV_MVDStream_Poll(void);
 		}
 	}
 
-	if (!isidle || idletime > 0.1)
+	if (!isidle || idletime > 0.15)
 	{
+		//this is the q2 frame number found in the q2 protocol. each packet should contain a new frame or interpolation gets confused
+		sv.framenum++;
 
 #ifdef SQL
 		PR_SQLCycle();

@@ -9,13 +9,11 @@ qboolean SVQ2_InitGameProgs(void)
 }
 #else
 game_export_t	*ge;
-
+int svq2_maxclients;
 
 
 void Sys_UnloadGame (void);
 void *Sys_GetGameAPI (void *parms);
-
-
 
 /*
 ===============
@@ -644,6 +642,7 @@ void SVQ2_InitWorld(void)
 
 qboolean SVQ2_InitGameProgs(void)
 {
+	extern cvar_t maxclients;
 	volatile static game_import_t	import;	//volatile because msvc sucks
 	if (COM_CheckParm("-noq2dll"))
 	{
@@ -748,9 +747,16 @@ qboolean SVQ2_InitGameProgs(void)
 		return false;
 	}
 
+	if (maxclients.value > MAX_CLIENTS)
+		Cvar_SetValue(&maxclients, MAX_CLIENTS);
+
+	svq2_maxclients = maxclients.value;
+	maxclients.flags |= CVAR_LATCH;
+	deathmatch.flags |= CVAR_LATCH;
+	coop.flags |= CVAR_LATCH;
+
 	SVQ2_InitWorld();
 	ge->Init ();
-
 	return true;
 }
 

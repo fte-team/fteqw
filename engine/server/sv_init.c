@@ -966,6 +966,23 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	if (newgametype != svs.gametype)
 	{
+#ifdef HLSERVER
+		if (newgametype != GT_HALFLIFE)
+			SVHL_ShutdownGame();
+#endif
+#ifdef Q3SERVER
+		if (newgametype != GT_QUAKE3)
+			SVQ3_ShutdownGame();
+#endif
+#ifdef Q2SERVER
+		if (newgametype != GT_QUAKE2)	//we don't want the q2 stuff anymore.
+			SVQ2_ShutdownGameProgs ();
+#endif
+#ifdef VM_Q1
+		if (newgametype != GT_Q1QVM)
+			Q1QVM_Shutdown();
+#endif
+
 		for (i=0 ; i<MAX_CLIENTS ; i++)	//server type changed, so we need to drop all clients. :(
 		{
 			if (svs.clients[i].state)
@@ -975,24 +992,6 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		}
 	}
 	svs.gametype = newgametype;
-
-#ifdef HLSERVER
-	if (newgametype != GT_HALFLIFE)
-		SVHL_ShutdownGame();
-#endif
-#ifdef Q3SERVER
-	if (newgametype != GT_QUAKE3)
-		SVQ3_ShutdownGame();
-#endif
-#ifdef Q2SERVER
-	if (newgametype != GT_QUAKE2)	//we don't want the q2 stuff anymore.
-		SVQ2_ShutdownGameProgs ();
-#endif
-#ifdef VM_Q1
-	if (newgametype != GT_Q1QVM)
-		Q1QVM_Shutdown();
-#endif
-
 
 	sv.models[1] = sv.world.worldmodel;
 #ifdef VM_Q1
@@ -1147,7 +1146,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			q2ent->s.number = i+1;
 			svs.clients[i].q2edict = q2ent;
 		}
-		sv.allocated_client_slots = i;
+		sv.allocated_client_slots = svq2_maxclients;
 #endif
 		break;
 	case GT_QUAKE3:

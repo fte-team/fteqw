@@ -2029,8 +2029,6 @@ qboolean SV_Physics (void)
 			host_frametime = sv_maxtic.value;
 		sv.world.physicstime = sv.time;
 
-
-		sv.framenum++;
 		switch(svs.gametype)
 		{
 #ifdef Q2SERVER

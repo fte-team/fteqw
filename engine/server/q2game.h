@@ -313,5 +313,6 @@ game_export_t *GetGameApi (game_import_t *import);
 
 
 extern game_export_t	*ge;
+extern int svq2_maxclients;
 
 #endif

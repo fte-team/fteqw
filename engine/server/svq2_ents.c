@@ -570,8 +570,8 @@ void SV_WriteFrameToClient (client_t *client, sizebuf_t *msg)
 	MSG_WriteByte (msg, svcq2_frame);
 	MSG_WriteLong (msg, sv.framenum);
 	MSG_WriteLong (msg, lastframe);	// what we are delta'ing from
-	MSG_WriteByte (msg, 0);//client->surpressCount);	// rate dropped packets
-//	client->surpressCount = 0;
+	MSG_WriteByte (msg, client->chokecount);	// rate dropped packets
+	client->chokecount = 0;
 
 	// send over the areabits
 	MSG_WriteByte (msg, frame->areabytes);
@@ -649,6 +649,9 @@ void SV_BuildClientFrame (client_t *client)
 
 	// grab the current player_state_t
 	frame->ps = clent->client->ps;
+
+	if (sv.paused)
+		frame->ps.pmove.pm_type = Q2PM_FREEZE;
 
 
 	sv.world.worldmodel->funcs.FatPVS(sv.world.worldmodel, org, clientpvs, sizeof(clientpvs), false);

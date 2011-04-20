@@ -36,7 +36,6 @@ R_AnimateLight
 void R_AnimateLight (void)
 {
 	int			i,j;
-	int v1, v2;
 	float f;
 	
 //
@@ -46,13 +45,12 @@ void R_AnimateLight (void)
 	if (f < 0)
 		f = 0;
 	i = (int)f;
+	f -= i;	//this can require updates at 1000 times a second.. Depends on your framerate of course
 
-	if (r_lightstylesmooth.ival)
-		f -= i;	//this can require updates at 1000 times a second.. Depends on your framerate of course
-	else
-		f = 0;	//only update them 10 times a second
 	for (j=0 ; j<MAX_LIGHTSTYLES ; j++)
 	{
+		int v1, v2, vd;
+
 		if (!cl_lightstyle[j].length)
 		{
 			d_lightstylevalue[j] = 256;
@@ -65,7 +63,11 @@ void R_AnimateLight (void)
 		v2 = (i+1) % cl_lightstyle[j].length;
 		v2 = cl_lightstyle[j].map[v2] - 'a';
 
-		d_lightstylevalue[j] = (v1*(1-f) + v2*(f))*22;
+		vd = v1 - v2;
+		if (!r_lightstylesmooth.ival || vd < -r_lightstylesmooth_limit.ival || vd > r_lightstylesmooth_limit.ival)
+			d_lightstylevalue[j] = v1*22;
+		else
+			d_lightstylevalue[j] = (v1*(1-f) + v2*(f))*22;
 	}
 }
 

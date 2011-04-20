@@ -5127,7 +5127,7 @@ void CL_ParseServerMessage (void)
 			break;
 
 		case svc_sellscreen:
-			Cmd_ExecuteString ("help", RESTRICT_RCON);
+			Cmd_ExecuteString ("help", RESTRICT_SERVER);
 			break;
 
 		case svc_smallkick:
@@ -5932,7 +5932,7 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_sellscreen:	//pantsie
-			Cmd_ExecuteString ("help 0", RESTRICT_RCON);
+			Cmd_ExecuteString ("help 0", RESTRICT_SERVER);
 			break;
 
 		case svc_damage:
@@ -5946,7 +5946,7 @@ void CLNQ_ParseServerMessage (void)
 			}
 			break;
 		case svcfitz_bf:
-			Cmd_ExecuteString("bf", RESTRICT_RCON);
+			Cmd_ExecuteString("bf", RESTRICT_SERVER);
 			break;
 		case svcfitz_fog:
 			cl.fog_density = MSG_ReadByte();

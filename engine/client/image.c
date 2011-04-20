@@ -21,13 +21,6 @@ cvar_t r_dodgypcxfiles = SCVAR("r_dodgypcxfiles", "0");	//Quake 2's PCX loading 
 #include <unistd.h>
 #endif
 
-//the eye doesn't see different colours in the same proportion.
-//must add to slightly less than 1
-#define NTSC_RED 0.299
-#define NTSC_GREEN 0.587
-#define NTSC_BLUE 0.114
-#define NTSC_SUM (NTSC_RED + NTSC_GREEN + NTSC_BLUE)
-
 typedef struct {	//cm = colourmap
 	char	id_len;		//0
 	char	cm_type;	//1

@@ -40,8 +40,6 @@ typedef struct
 
 extern cvar_t gl_part_flame, r_fullbrightSkins, r_fb_models;
 extern cvar_t r_noaliasshadows;
-void R_TorchEffect (vec3_t pos, int type);
-void GLMod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight );
 
 
 

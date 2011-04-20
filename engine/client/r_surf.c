@@ -706,11 +706,11 @@ merges stains and oversaturates overbrights.
 */
 static void Surf_StoreLightmap(qbyte *dest, int smax, int tmax, unsigned int shift, enum lm_mode lm_mode, stmap *stainsrc)
 {
-	int r, g, b, t;
-	int cr, cg, cb;
+	int r, g, b, t, m;
 	unsigned int i, j;
 	unsigned int *bl;
 	int stride;
+
 	switch (lm_mode)
 	{
 	case bgra4_os:
@@ -733,66 +733,30 @@ static void Surf_StoreLightmap(qbyte *dest, int smax, int tmax, unsigned int shi
 					b = (127+b*(*stainsrc++)) >> 8;
 				}
 
-				cr = 0;
-				cg = 0;
-				cb = 0;
-
-				if (r > 255)	//ak too much red
+				/*
+				// quake 2 method, scale highest down to
+				// maintain hue
+				m = max(max(r, g), b);
+				if (m > 255)
 				{
-					cr -= (255-r)/2;
-					cg += (255-r)/4;	//reduce it, and indicate to drop the others too.
-					cb += (255-r)/4;
-					r = 255;
-				}			
-
-				if (g > 255)
-				{					
-					cr += (255-g)/4;
-					cg -= (255-g)/2;
-					cb += (255-g)/4;
-					g = 255;
-				}				
-
-				if (b > 255)
-				{
-					cr += (255-b)/4;
-					cg += (255-b)/4;
-					cb -= (255-b)/2;
-					b = 255;
+					r *= 255.0/m;
+					g *= 255.0/m;
+					b *= 255.0/m;
 				}
+				*/
 
-				r+=cr;
-				if (r > 255)
-					dest[2] = 255;
-				else if (r < 0)
-					dest[2] = 0;
-				else
-					dest[2] = r;
-
-				g+=cg;
-				if (g > 255)
-					dest[1] = 255;
-				else if (g < 0)
-					dest[1] = 0;
-				else
-					dest[1] = g;
-
-				b+=cb;
-				if (b > 255)
-					dest[0] = 255;
-				else if (b < 0)
-					dest[0] = 0;
-				else
-					dest[0] = b;
-
+				dest[0] = min(b, 255);
+				dest[1] = min(g, 255);
+				dest[2] = min(r, 255);
 				dest[3] = 255;
+
 				dest += 4;					
 			}
 			if (stainsrc)
 				stainsrc += (LMBLOCK_WIDTH - smax)*3;
 		}	
 		break;
-
+/*
 	case bgra4:
 		stride = LMBLOCK_WIDTH*4 - (smax<<2);
 
@@ -841,7 +805,7 @@ static void Surf_StoreLightmap(qbyte *dest, int smax, int tmax, unsigned int shi
 				stainsrc += (LMBLOCK_WIDTH - smax)*3;
 		}	
 		break;
-
+*/
 	case rgb3_os:
 		stride = LMBLOCK_WIDTH*3 - (smax*3);
 		bl = blocklights;
@@ -861,57 +825,21 @@ static void Surf_StoreLightmap(qbyte *dest, int smax, int tmax, unsigned int shi
 					b = (127+b*(*stainsrc++)) >> 8;
 				}
 
-				cr = 0;
-				cg = 0;
-				cb = 0;
-
-				if (r > 255)	//ak too much red
+				/*
+				// quake 2 method, scale highest down to
+				// maintain hue
+				m = max(max(r, g), b);
+				if (m > 255)
 				{
-					cr -= (255-r)/2;
-					cg += (255-r)/4;	//reduce it, and indicate to drop the others too.
-					cb += (255-r)/4;
-					r = 255;
-				}			
-				
-				if (g > 255)
-				{					
-					cr += (255-g)/4;
-					cg -= (255-g)/2;
-					cb += (255-g)/4;
-					g = 255;
-				}				
-
-				if (b > 255)
-				{
-					cr += (255-b)/4;
-					cg += (255-b)/4;
-					cb -= (255-b)/2;
-					b = 255;
+					r *= 255.0/m;
+					g *= 255.0/m;
+					b *= 255.0/m;
 				}
+				*/
 
-				r+=cr;
-				if (r > 255)
-					dest[0] = 255;
-				else if (r < 0)
-					dest[0] = 0;
-				else
-					dest[0] = (r+cr);
-
-				g+=cg;
-				if (g > 255)
-					dest[1] = 255;
-				else if (g < 0)
-					dest[1] = 0;
-				else
-					dest[1] = g;
-
-				b+=cb;
-				if (b > 255)
-					dest[2] = 255;
-				else if (b < 0)
-					dest[2] = 0;
-				else
-					dest[2] = b;
+				dest[0] = min(r, 255);
+				dest[1] = min(g, 255);
+				dest[2] = min(b, 255);
 				dest += 3;	
 			}
 			if (stainsrc)
@@ -954,7 +882,6 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 	unsigned	scale;
 	int			maps;
 	unsigned	*bl;
-	extern cvar_t gl_lightmap_shift;
 
 	int stride = LMBLOCK_WIDTH*lightmap_bytes;
 
@@ -1129,14 +1056,14 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 		if (surf->dlightframe == r_framecount)
 			Surf_AddDynamicLightsColours (surf);
 
+		if (!r_stains.value || !surf->stained)
+			stainsrc = NULL;
+
 		if (lightmap_bytes == 4)
 		{
 			if (lightmap_bgra)
 			{
-				if (!r_stains.value || !surf->stained)
-					Surf_StoreLightmap(dest, smax, tmax, shift, bgra4_os, NULL);
-				else
-					Surf_StoreLightmap(dest, smax, tmax, shift, bgra4_os, stainsrc);
+				Surf_StoreLightmap(dest, smax, tmax, shift, bgra4_os, stainsrc);
 			}
 			else
 			{
@@ -1160,10 +1087,7 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 			}
 			else 
 			{
-				if (!r_stains.value || !surf->stained)
-					Surf_StoreLightmap(dest, smax, tmax, shift, rgb3_os, NULL);
-				else
-					Surf_StoreLightmap(dest, smax, tmax, shift, rgb3_os, stainsrc);
+				Surf_StoreLightmap(dest, smax, tmax, shift, rgb3_os, stainsrc);
 			}
 		}
 	}
@@ -1223,10 +1147,7 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 				Surf_AddDynamicLights (surf);
 		}
 
-		if (!r_stains.value || !surf->stained)
-			Surf_StoreLightmap(dest, smax, tmax, shift, lum, NULL);
-		else
-			Surf_StoreLightmap(dest, smax, tmax, shift, lum, stainsrc);
+		Surf_StoreLightmap(dest, smax, tmax, shift, lum, stainsrc);
 	}
 }
 

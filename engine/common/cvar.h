@@ -130,7 +130,7 @@ typedef struct cvar_group_s
 #define CVAR_RULESETLATCH	(1<<15)	//latched by the ruleset
 #define CVAR_SHADERSYSTEM	(1<<16)	//change flushes shaders.
 
-#define CVAR_LASTFLAG CVAR_RULESETLATCH
+#define CVAR_LASTFLAG CVAR_SHADERSYSTEM
 
 #define CVAR_LATCHMASK		(CVAR_LATCH|CVAR_RENDERERLATCH|CVAR_SERVEROVERRIDE|CVAR_CHEAT|CVAR_SEMICHEAT)	//you're only allowed one of these.
 #define CVAR_NEEDDEFAULT	CVAR_CHEAT

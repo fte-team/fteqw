@@ -45,10 +45,6 @@ cvar_t _windowed_mouse						= CVARF ("_windowed_mouse","1",
 
 cvar_t con_ocranaleds						= CVAR  ("con_ocranaleds", "2");
 
-cvar_t d_palconvwrite						= CVAR  ("d_palconvwrite", "1");
-cvar_t d_palremapsize						= CVARF ("d_palremapsize", "64",
-													 CVAR_RENDERERLATCH);
-
 cvar_t cl_cursor							= CVAR  ("cl_cursor", "");
 cvar_t cl_cursorsize						= CVAR  ("cl_cursorsize", "32");
 cvar_t cl_cursorbias						= CVAR  ("cl_cursorbias", "4");
@@ -101,6 +97,7 @@ cvar_t r_fullbrightSkins					= SCVARF ("r_fullbrightSkins", "1",
 												CVAR_SEMICHEAT|CVAR_SHADERSYSTEM);
 cvar_t r_lightmap_saturation				= SCVAR  ("r_lightmap_saturation", "1");
 cvar_t r_lightstylesmooth					= SCVAR  ("r_lightstylesmooth", "0");
+cvar_t r_lightstylesmooth_limit				= SCVAR  ("r_lightstylesmooth_limit", "2");
 cvar_t r_lightstylespeed					= SCVAR  ("r_lightstylespeed", "10");
 cvar_t r_loadlits							= SCVAR  ("r_loadlit", "1");
 cvar_t r_menutint							= SCVARF ("r_menutint", "0.68 0.4 0.13",
@@ -532,6 +529,7 @@ void Renderer_Init(void)
 	Cvar_Register(&r_dodgypcxfiles, "Bug fixes");
 	Cvar_Register(&r_loadlits, GRAPHICALNICETIES);
 	Cvar_Register(&r_lightstylesmooth, GRAPHICALNICETIES);
+	Cvar_Register(&r_lightstylesmooth_limit, GRAPHICALNICETIES);
 	Cvar_Register(&r_lightstylespeed, GRAPHICALNICETIES);
 
 	Cvar_Register(&r_stains, GRAPHICALNICETIES);

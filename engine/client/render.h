@@ -56,6 +56,13 @@ static const texid_t r_nulltex = {0};
 
 //=============================================================================
 
+//the eye doesn't see different colours in the same proportion.
+//must add to slightly less than 1
+#define NTSC_RED 0.299
+#define NTSC_GREEN 0.587
+#define NTSC_BLUE 0.114
+#define NTSC_SUM (NTSC_RED + NTSC_GREEN + NTSC_BLUE)
+
 typedef enum {
 	RT_MODEL,
 	RT_POLY,
@@ -427,6 +434,7 @@ extern	cvar_t	gl_nohwblend;
 extern	cvar_t	gl_reporttjunctions;
 extern	cvar_t	r_flashblend;
 extern	cvar_t	r_lightstylesmooth;
+extern	cvar_t	r_lightstylesmooth_limit;
 extern	cvar_t	r_lightstylespeed;
 extern	cvar_t	gl_nocolors;
 extern	cvar_t	gl_load24bit;
@@ -434,9 +442,6 @@ extern	cvar_t	gl_finish;
 
 extern	cvar_t	gl_max_size;
 extern	cvar_t	gl_playermip;
-
-extern cvar_t   d_palconvwrite;
-extern cvar_t	d_palremapsize;
 
 extern  cvar_t	r_lightmap_saturation;
 

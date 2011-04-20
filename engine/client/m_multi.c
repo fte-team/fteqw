@@ -271,7 +271,7 @@ void MSetupQ2_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 
 void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 {
-	extern qbyte translationTable[256];
+	qbyte translationTable[256];
 	setupmenu_t *info = menu->data;
 	mpic_t	*p;
 	void *f;
@@ -316,7 +316,7 @@ void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 	if (p)
 		R2D_ScalePic (x-12, y-8, 72, 72, p);
 
-	M_BuildTranslationTable(info->topcolour, info->lowercolour);
+	M_BuildTranslationTable(info->topcolour, info->lowercolour, translationTable);
 	R2D_TransPicTranslate (x, y, info->tiwidth, info->tiheight, info->translationimage, translationTable);	
 }
 

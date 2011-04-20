@@ -30,17 +30,6 @@ extern menu_t *menu_script;
 
 qboolean	m_recursiveDraw;
 
-int			m_return_state;
-qboolean	m_return_onerror;
-char		m_return_reason [32];
-
-#define StartingGame	(m_multiplayer_cursor == 1)
-#define JoiningGame		(m_multiplayer_cursor == 0)
-#define SerialConfig	(m_net_cursor == 0)
-#define DirectConfig	(m_net_cursor == 1)
-#define	IPXConfig		(m_net_cursor == 2)
-#define	TCPIPConfig		(m_net_cursor == 3)
-
 void M_ConfigureNetSubsystem(void);
 
 cvar_t m_helpismedia = SCVAR("m_helpismedia", "0");
@@ -61,13 +50,11 @@ void M_DrawScalePic (int x, int y, int w, int h, mpic_t *pic)
 	R2D_ScalePic (x + ((vid.width - 320)>>1), y, w, h, pic);
 }
 
-qbyte identityTable[256];
-qbyte translationTable[256];
-
-void M_BuildTranslationTable(int top, int bottom)
+void M_BuildTranslationTable(int top, int bottom, qbyte *translationTable)
 {
 	int		j;
 	qbyte	*dest, *source;
+	qbyte identityTable[256];
 
 	int pc = Cvar_Get("cl_playerclass", "1", 0, "foo")->value;
 	if (h2playertranslations && pc)

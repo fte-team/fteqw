@@ -1081,6 +1081,42 @@ int CL_LoadSounds(int stage, qboolean dontactuallyload)
 	return stage;
 }
 
+void Sound_CheckDownload(char *s)
+{
+	char mangled[512];
+
+	if (*s == '*')	//q2 sexed sound
+		return;
+
+	if (!S_HaveOutput())
+		return;
+
+	//check without the sound/ prefix
+	if (CL_CheckFile(s))
+		return;	//we have it already
+
+	//the things I do for nexuiz... *sigh*
+	COM_StripExtension(s, mangled, sizeof(mangled));
+	COM_DefaultExtension(mangled, ".ogg", sizeof(mangled));
+	if (CL_CheckFile(mangled))
+		return;
+
+	//check with the sound/ prefix
+	s = va("sound/%s",s);
+
+	if (CL_CheckFile(s))
+		return;	//we have it already
+
+	//the things I do for nexuiz... *sigh*
+	COM_StripExtension(s, mangled, sizeof(mangled));
+	COM_DefaultExtension(mangled, ".ogg", sizeof(mangled));
+	if (CL_CheckFile(mangled))
+		return;
+
+	//download the one the server said.
+	CL_CheckOrEnqueDownloadFile(s, NULL, 0);
+}
+
 /*
 =================
 Sound_NextDownload
@@ -1088,7 +1124,6 @@ Sound_NextDownload
 */
 void Sound_CheckDownloads (void)
 {
-	char mangled[512];
 	char	*s;
 	int		i;
 
@@ -1122,37 +1157,7 @@ void Sound_CheckDownloads (void)
 	for (i = 1; cl.sound_name[i][0]
 		; i++)
 	{
-		s = cl.sound_name[i];
-		if (*s == '*')	//q2 sexed sound
-			continue;
-
-		if (!S_HaveOutput())
-			continue;
-
-		//check without the sound/ prefix
-		if (CL_CheckFile(s))
-			continue;	//we have it already
-
-		//the things I do for nexuiz... *sigh*
-		COM_StripExtension(s, mangled, sizeof(mangled));
-		COM_DefaultExtension(mangled, ".ogg", sizeof(mangled));
-		if (CL_CheckFile(mangled))
-			continue;
-
-		//check with the sound/ prefix
-		s = va("sound/%s",s);
-
-		if (CL_CheckFile(s))
-			continue;	//we have it already
-
-		//the things I do for nexuiz... *sigh*
-		COM_StripExtension(s, mangled, sizeof(mangled));
-		COM_DefaultExtension(mangled, ".ogg", sizeof(mangled));
-		if (CL_CheckFile(mangled))
-			continue;
-
-		//download the one the server said.
-		CL_CheckOrEnqueDownloadFile(s, NULL, 0);
+		Sound_CheckDownload(cl.sound_name[i]);
 	}
 }
 

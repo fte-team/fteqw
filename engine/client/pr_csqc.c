@@ -1724,6 +1724,7 @@ static void QCBUILTIN PF_cs_PrecacheModel(progfuncs_t *prinst, struct globalvars
 static void QCBUILTIN PF_cs_PrecacheSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *soundname = PR_GetStringOfs(prinst, OFS_PARM0);
+	Sound_CheckDownload(soundname);
 	S_PrecacheSound(soundname);
 }
 

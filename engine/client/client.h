@@ -935,6 +935,7 @@ qboolean CL_ParseOOBDownload(void);
 void CL_DownloadFinished(void);
 void CL_RequestNextDownload (void);
 void CL_SendDownloadReq(sizebuf_t *msg);
+void Sound_CheckDownload(char *s); /*checkorenqueue a sound file*/
 
 qboolean CL_IsUploading(void);
 void CL_NextUpload(void);

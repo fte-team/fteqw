@@ -563,9 +563,9 @@ static void Surf_AddDynamicLightsColours (msurface_t *surf)
 						dist = td + (sd>>1);
 					if (dist < minlight)
 					{					
-						bl[0]		+= (rad - dist)*r;					
-						bl[1]	+= (rad - dist)*g;
-						bl[2]	+= (rad - dist)*b;
+						bl[0] += (rad - dist)*r;					
+						bl[1] += (rad - dist)*g;
+						bl[2] += (rad - dist)*b;
 					}
 					bl += 3;
 				}
@@ -733,7 +733,6 @@ static void Surf_StoreLightmap(qbyte *dest, int smax, int tmax, unsigned int shi
 					b = (127+b*(*stainsrc++)) >> 8;
 				}
 
-				/*
 				// quake 2 method, scale highest down to
 				// maintain hue
 				m = max(max(r, g), b);
@@ -743,11 +742,10 @@ static void Surf_StoreLightmap(qbyte *dest, int smax, int tmax, unsigned int shi
 					g *= 255.0/m;
 					b *= 255.0/m;
 				}
-				*/
 
-				dest[0] = min(b, 255);
-				dest[1] = min(g, 255);
-				dest[2] = min(r, 255);
+				dest[0] = b;
+				dest[1] = g;
+				dest[2] = r;
 				dest[3] = 255;
 
 				dest += 4;					
@@ -825,7 +823,6 @@ static void Surf_StoreLightmap(qbyte *dest, int smax, int tmax, unsigned int shi
 					b = (127+b*(*stainsrc++)) >> 8;
 				}
 
-				/*
 				// quake 2 method, scale highest down to
 				// maintain hue
 				m = max(max(r, g), b);
@@ -835,11 +832,10 @@ static void Surf_StoreLightmap(qbyte *dest, int smax, int tmax, unsigned int shi
 					g *= 255.0/m;
 					b *= 255.0/m;
 				}
-				*/
 
-				dest[0] = min(r, 255);
-				dest[1] = min(g, 255);
-				dest[2] = min(b, 255);
+				dest[0] = r;
+				dest[1] = g;
+				dest[2] = b;
 				dest += 3;	
 			}
 			if (stainsrc)

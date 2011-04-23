@@ -395,12 +395,9 @@ struct {
 		texid_t lighttexture;
 	};
 
-	int wmesh;
-	int maxwmesh;
 	int wbatch;
 	int maxwbatches;
 	batch_t *wbatches;
-	mesh_t **wmeshes;
 } shaderstate;
 
 struct {
@@ -1943,14 +1940,17 @@ static void BE_SendPassBlendDepthMask(unsigned int sbits)
 		sbits &= ~(SBITS_MISC_DEPTHWRITE|SBITS_MISC_DEPTHEQUALONLY);
 		sbits |= SBITS_MISC_NODEPTHTEST;
 	}
-	if (shaderstate.flags & ~BEF_PUSHDEPTH)
+	if (shaderstate.flags & (BEF_FORCEADDITIVE|BEF_FORCETRANSPARENT|BEF_FORCENODEPTH|BEF_FORCEDEPTHTEST|BEF_FORCEDEPTHWRITE))
 	{
 		if (shaderstate.flags & BEF_FORCEADDITIVE)
 			sbits = (sbits & ~(SBITS_MISC_DEPTHWRITE|SBITS_BLEND_BITS|SBITS_ATEST_BITS))
-						| (SBITS_SRCBLEND_ONE | SBITS_DSTBLEND_ONE);
-		else if ((shaderstate.flags & BEF_FORCETRANSPARENT) && !(sbits & SBITS_BLEND_BITS)) 	/*if transparency is forced, clear alpha test bits*/
-			sbits = (sbits & ~(SBITS_MISC_DEPTHWRITE|SBITS_BLEND_BITS|SBITS_ATEST_BITS))
-						| (SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA);
+						| (SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE);
+		else if (shaderstate.flags & BEF_FORCETRANSPARENT)
+		{
+			if ((sbits & SBITS_BLEND_BITS) == (SBITS_SRCBLEND_ONE| SBITS_DSTBLEND_ZERO) || !(sbits & SBITS_BLEND_BITS)) 	/*if transparency is forced, clear alpha test bits*/
+				sbits = (sbits & ~(SBITS_MISC_DEPTHWRITE|SBITS_BLEND_BITS|SBITS_ATEST_BITS))
+							| (SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA);
+		}
 
 		if (shaderstate.flags & BEF_FORCENODEPTH) 	/*EF_NODEPTHTEST dp extension*/
 			sbits |= SBITS_MISC_NODEPTHTEST;
@@ -2568,6 +2568,7 @@ void GLBE_SelectMode(backendmode_t mode)
 	if (mode != shaderstate.mode)
 	{
 		shaderstate.mode = mode;
+		shaderstate.flags = 0;
 #ifdef RTLIGHTS
 		if (mode == BEM_STENCIL)
 		{
@@ -2957,29 +2958,6 @@ void GLBE_DrawMesh_Single(shader_t *shader, mesh_t *mesh, vbo_t *vbo, texnums_t 
 	BE_DrawMesh_List(shader, 1, &mesh, NULL, texnums, beflags);
 }
 
-void BE_DrawPolys(qboolean decalsset)
-{
-	unsigned int i;
-	mesh_t m;
-
-	if (!cl_numstris)
-		return;
-
-	memset(&m, 0, sizeof(m));
-	for (i = 0; i < cl_numstris; i++)
-	{
-		if ((cl_stris[i].shader->sort <= SHADER_SORT_DECAL) ^ decalsset)
-			continue;
-
-		m.xyz_array = cl_strisvertv + cl_stris[i].firstvert;
-		m.st_array = cl_strisvertt + cl_stris[i].firstvert;
-		m.colors4f_array = cl_strisvertc + cl_stris[i].firstvert;
-		m.indexes = cl_strisidx + cl_stris[i].firstidx;
-		m.numindexes = cl_stris[i].numidx;
-		m.numvertexes = cl_stris[i].numvert;
-		BE_DrawMesh_Single(cl_stris[i].shader, &m, NULL, &cl_stris[i].shader->defaulttextures, 0);
-	}
-}
 void GLBE_SubmitBatch(batch_t *batch)
 {
 	int lm;
@@ -3102,6 +3080,13 @@ static void BE_SubmitMeshesSortList(batch_t *sortlist)
 		if (batch->meshes == batch->firstmesh)
 			continue;
 
+		if (batch->flags & BEF_NODLIGHT)
+			if (shaderstate.mode == BEM_LIGHT || shaderstate.mode == BEM_SMAPLIGHT)
+				continue;
+		if (batch->flags & BEF_NOSHADOWS)
+			if (shaderstate.mode == BEM_STENCIL)
+				continue;
+
 		if (batch->buildmeshes)
 			batch->buildmeshes(batch);
 		else if (batch->texture)
@@ -3216,46 +3201,6 @@ batch_t *GLBE_GetTempBatch(void)
 	return &shaderstate.wbatches[shaderstate.wbatch++];
 }
 
-void BE_GenModelBatches(batch_t **batches)
-{
-	int		i;
-	entity_t *ent;
-
-	/*clear the batch list*/
-	for (i = 0; i < SHADER_SORT_COUNT; i++)
-		batches[i] = NULL;
-
-	if (!r_drawentities.ival)
-		return;
-
-	// draw sprites seperately, because of alpha blending
-	for (i=0 ; i<cl_numvisedicts ; i++)
-	{
-		ent = &cl_visedicts[i];
-		if (!ent->model)
-			continue;
-		if (ent->model->needload)
-			continue;
-		if (!R_ShouldDraw(ent))
-			continue;
-		switch(ent->model->type)
-		{
-		case mod_brush:
-			if (r_drawentities.ival == 2)
-				continue;
-			Surf_GenBrushBatches(batches, ent);
-			break;
-		case mod_alias:
-			if (r_drawentities.ival == 3)
-				continue;
-			R_GAlias_GenerateBatches(ent, batches);
-			break;
-		default:
-			break;
-		}
-	}
-}
-
 /*called from shadowmapping code*/
 #ifdef RTLIGHTS
 void BE_BaseEntTextures(void)
@@ -3279,13 +3224,6 @@ void GLBE_DrawWorld (qbyte *vis)
 
 	if (!r_refdef.recurse)
 	{
-		if (shaderstate.wmesh > shaderstate.maxwmesh)
-		{
-			int newm = shaderstate.wmesh;
-			shaderstate.wmeshes = BZ_Realloc(shaderstate.wmeshes, newm * sizeof(*shaderstate.wmeshes));
-			memset(shaderstate.wmeshes + shaderstate.maxwmesh, 0, (newm - shaderstate.maxwmesh) * sizeof(*shaderstate.wmeshes));
-			shaderstate.maxwmesh = newm;
-		}
 		if (shaderstate.wbatch > shaderstate.maxwbatches)
 		{
 			int newm = shaderstate.wbatch;
@@ -3294,7 +3232,6 @@ void GLBE_DrawWorld (qbyte *vis)
 			shaderstate.maxwbatches = newm;
 		}
 
-		shaderstate.wmesh = 0;
 		shaderstate.wbatch = 0;
 	}
 	BE_GenModelBatches(batches);
@@ -3341,8 +3278,6 @@ void GLBE_DrawWorld (qbyte *vis)
 	RSpeedEnd(RSPEED_STENCILSHADOWS);
 #endif
 
-	BE_DrawPolys(false);
-
 	if (r_refdef.gfog_alpha)
 	{
 		BE_SelectMode(BEM_FOG);
@@ -3362,13 +3297,6 @@ void BE_DrawNonWorld (void)
 
 	checkglerror();
 
-	if (shaderstate.wmesh > shaderstate.maxwmesh)
-	{
-		int newm = shaderstate.wmesh;
-		shaderstate.wmeshes = BZ_Realloc(shaderstate.wmeshes, newm * sizeof(*shaderstate.wmeshes));
-		memset(shaderstate.wmeshes + shaderstate.maxwmesh, 0, (newm - shaderstate.maxwmesh) * sizeof(*shaderstate.wmeshes));
-		shaderstate.maxwmesh = newm;
-	}
 	if (shaderstate.wbatch > shaderstate.maxwbatches)
 	{
 		int newm = shaderstate.wbatch;
@@ -3377,7 +3305,6 @@ void BE_DrawNonWorld (void)
 		shaderstate.maxwbatches = newm;
 	}
 
-	shaderstate.wmesh = 0;
 	shaderstate.wbatch = 0;
 	BE_GenModelBatches(batches);
 

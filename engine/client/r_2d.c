@@ -253,7 +253,10 @@ void R2D_Init(void)
 
 mpic_t	*R2D_SafeCachePic (char *path)
 {
-	shader_t *s = R_RegisterPic(path);
+	shader_t *s;
+	if (!qrenderer)
+		return NULL;
+	s = R_RegisterPic(path);
 	if (s->width)
 		return s;
 	return NULL;

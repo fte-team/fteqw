@@ -1307,7 +1307,7 @@ int CLHL_ParseGamePacket(void)
 				ef->firstframe = 0;
 				ef->numframes = ef->model->numframes;
 				if (!(flags & 1))
-					ef->flags = Q2RF_ADDATIVE;
+					ef->flags = Q2RF_ADDITIVE;
 				else
 					ef->flags = 0;
 				break;

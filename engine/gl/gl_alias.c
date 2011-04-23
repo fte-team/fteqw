@@ -991,6 +991,12 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 			b->lightmap = -1;
 			b->surf_first = surfnum;
 			b->flags = 0;
+			if (e->flags & Q2RF_ADDITIVE)
+				b->flags |= BEF_FORCEADDITIVE;
+			if (e->flags & Q2RF_TRANSLUCENT)
+				b->flags |= BEF_FORCETRANSPARENT;
+			if (e->flags & RF_NODEPTHTEST)
+				b->flags |= BEF_FORCENODEPTH;
 			b->vbo = 0;
 			b->next = batches[shader->sort];
 			batches[shader->sort] = b;
@@ -1433,3 +1439,487 @@ void GL_GenerateNormals(float *orgs, float *normals, int *indicies, int numtris,
 #endif
 
 #endif	// defined(GLQUAKE)
+
+
+
+
+
+
+
+
+qboolean BE_ShouldDraw(entity_t *e)
+{
+	if (!r_refdef.externalview && (e->externalmodelview & (1<<r_refdef.currentplayernum)))
+		return false;
+	if (!Cam_DrawPlayer(r_refdef.currentplayernum, e->keynum-1))
+		return false;
+	return true;
+}
+
+#ifdef Q3CLIENT
+//q3 lightning gun
+static void R_DB_LightningBeam(batch_t *batch)
+{
+	entity_t *e = batch->ent;
+	vec3_t v;
+	vec3_t dir, cr;
+	float scale = e->scale;
+	float length;
+
+	static vecV_t points[4];
+	static vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
+	static index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
+	static vec4_t colors[4];
+
+	static mesh_t mesh;
+	static mesh_t *meshptr = &mesh;
+
+	scale *= -10;
+	if (!scale)
+		scale = 10;
+
+
+	VectorSubtract(e->origin, e->oldorigin, dir);
+	length = Length(dir);
+
+	//this seems to be about right.
+	texcoords[2][0] = length/128;
+	texcoords[3][0] = length/128;
+
+	VectorSubtract(r_refdef.vieworg, e->origin, v);
+	CrossProduct(v, dir, cr);
+	VectorNormalize(cr);
+
+	VectorMA(e->origin, -scale/2, cr, points[0]);
+	VectorMA(e->origin, scale/2, cr, points[1]);
+
+	VectorSubtract(r_refdef.vieworg, e->oldorigin, v);
+	CrossProduct(v, dir, cr);
+	VectorNormalize(cr);
+
+	VectorMA(e->oldorigin, scale/2, cr, points[2]);
+	VectorMA(e->oldorigin, -scale/2, cr, points[3]);
+
+	/*this is actually meant to be 4 separate quads at 45 degrees from each other*/
+
+	Vector4Copy(e->shaderRGBAf, colors[0]);
+	Vector4Copy(e->shaderRGBAf, colors[1]);
+	Vector4Copy(e->shaderRGBAf, colors[2]);
+	Vector4Copy(e->shaderRGBAf, colors[3]);
+
+	batch->ent = &r_worldentity;
+	batch->mesh = &meshptr;
+
+	memset(&mesh, 0, sizeof(mesh));
+	mesh.vbofirstelement = 0;
+	mesh.vbofirstvert = 0;
+	mesh.xyz_array = points;
+	mesh.indexes = indexarray;
+	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
+	mesh.colors4f_array = (vec4_t*)colors;
+	mesh.lmst_array = NULL;
+	mesh.normals_array = NULL;
+	mesh.numvertexes = 4;
+	mesh.st_array = texcoords;
+}
+//q3 railgun beam
+static void R_DB_RailgunBeam(batch_t *batch)
+{
+	entity_t *e = batch->ent;
+	vec3_t v;
+	vec3_t dir, cr;
+	float scale = e->scale;
+	float length;
+
+	static mesh_t mesh;
+	static mesh_t *meshptr = &mesh;
+	static vecV_t points[4];
+	static vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
+	static index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
+	static vec4_t colors[4];
+
+	if (!e->forcedshader)
+		return;
+
+	if (!scale)
+		scale = 10;
+
+
+	VectorSubtract(e->origin, e->oldorigin, dir);
+	length = Length(dir);
+
+	//this seems to be about right.
+	texcoords[2][0] = length/128;
+	texcoords[3][0] = length/128;
+
+	VectorSubtract(r_refdef.vieworg, e->origin, v);
+	CrossProduct(v, dir, cr);
+	VectorNormalize(cr);
+
+	VectorMA(e->origin, -scale/2, cr, points[0]);
+	VectorMA(e->origin, scale/2, cr, points[1]);
+
+	VectorSubtract(r_refdef.vieworg, e->oldorigin, v);
+	CrossProduct(v, dir, cr);
+	VectorNormalize(cr);
+
+	VectorMA(e->oldorigin, scale/2, cr, points[2]);
+	VectorMA(e->oldorigin, -scale/2, cr, points[3]);
+
+	Vector4Copy(e->shaderRGBAf, colors[0]);
+	Vector4Copy(e->shaderRGBAf, colors[1]);
+	Vector4Copy(e->shaderRGBAf, colors[2]);
+	Vector4Copy(e->shaderRGBAf, colors[3]);
+
+	batch->ent = &r_worldentity;
+	batch->mesh = &meshptr;
+
+	memset(&mesh, 0, sizeof(mesh));
+	mesh.vbofirstelement = 0;
+	mesh.vbofirstvert = 0;
+	mesh.xyz_array = points;
+	mesh.indexes = indexarray;
+	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
+	mesh.colors4f_array = (vec4_t*)colors;
+	mesh.lmst_array = NULL;
+	mesh.normals_array = NULL;
+	mesh.numvertexes = 4;
+	mesh.st_array = texcoords;
+
+}
+#endif
+static void R_DB_Sprite(batch_t *batch)
+{
+	entity_t *e = batch->ent;
+	vec3_t	point;
+	mspriteframe_t	*frame, genframe;
+	vec3_t		forward, right, up;
+	msprite_t		*psprite;
+	vec3_t sprorigin;
+	unsigned int fl = 0;
+	unsigned int sprtype;
+
+	static vec2_t texcoords[4]={{0, 1},{0,0},{1,0},{1,1}};
+	static index_t indexes[6] = {0, 1, 2, 0, 2, 3};
+	static vecV_t vertcoords[4];
+	static avec4_t colours[4];
+	static mesh_t mesh;
+	static mesh_t *meshptr = &mesh;
+
+
+	if (e->flags & Q2RF_WEAPONMODEL && r_refdef.currentplayernum >= 0)
+	{
+		sprorigin[0] = cl.viewent[r_refdef.currentplayernum].origin[0];
+		sprorigin[1] = cl.viewent[r_refdef.currentplayernum].origin[1];
+		sprorigin[2] = cl.viewent[r_refdef.currentplayernum].origin[2];
+		VectorMA(sprorigin, e->origin[0], cl.viewent[r_refdef.currentplayernum].axis[0], sprorigin);
+		VectorMA(sprorigin, e->origin[1], cl.viewent[r_refdef.currentplayernum].axis[1], sprorigin);
+		VectorMA(sprorigin, e->origin[2], cl.viewent[r_refdef.currentplayernum].axis[2], sprorigin);
+		VectorMA(sprorigin, 12, vpn, sprorigin);
+
+		batch->flags |= BEF_FORCENODEPTH;
+	}
+	else
+		VectorCopy(e->origin, sprorigin);
+
+	if (!e->model || e->forcedshader)
+	{
+		genframe.shader = e->forcedshader;
+		genframe.up = genframe.left = -1;
+		genframe.down = genframe.right = 1;
+		sprtype = SPR_VP_PARALLEL;
+		frame = &genframe;
+	}
+	else
+	{
+		// don't even bother culling, because it's just a single
+		// polygon without a surface cache
+		frame = R_GetSpriteFrame (e);
+		psprite = e->model->cache.data;
+		sprtype = psprite->type;
+	}
+	if (!frame->shader)
+		return;
+
+	switch(sprtype)
+	{
+	case SPR_ORIENTED:
+		// bullet marks on walls
+		AngleVectors (e->angles, forward, right, up);
+		break;
+
+	case SPR_FACING_UPRIGHT:
+		up[0] = 0;up[1] = 0;up[2]=1;
+		right[0] = sprorigin[1] - r_origin[1];
+		right[1] = -(sprorigin[0] - r_origin[0]);
+		right[2] = 0;
+		VectorNormalize (right);
+		break;
+	case SPR_VP_PARALLEL_UPRIGHT:
+		up[0] = 0;up[1] = 0;up[2]=1;
+		VectorCopy (vright, right);
+		break;
+
+	default:
+	case SPR_VP_PARALLEL:
+		//normal sprite
+		VectorCopy(vup, up);
+		VectorCopy(vright, right);
+		break;
+	}
+	up[0]*=e->scale;
+	up[1]*=e->scale;
+	up[2]*=e->scale;
+	right[0]*=e->scale;
+	right[1]*=e->scale;
+	right[2]*=e->scale;
+
+	if (e->shaderRGBAf[0] > 1)
+		e->shaderRGBAf[0] = 1;
+	if (e->shaderRGBAf[1] > 1)
+		e->shaderRGBAf[1] = 1;
+	if (e->shaderRGBAf[2] > 1)
+		e->shaderRGBAf[2] = 1;
+
+	Vector4Copy(e->shaderRGBAf, colours[0]);
+	Vector4Copy(e->shaderRGBAf, colours[1]);
+	Vector4Copy(e->shaderRGBAf, colours[2]);
+	Vector4Copy(e->shaderRGBAf, colours[3]);
+
+	VectorMA (sprorigin, frame->down, up, point);
+	VectorMA (point, frame->left, right, vertcoords[0]);
+
+	VectorMA (sprorigin, frame->up, up, point);
+	VectorMA (point, frame->left, right, vertcoords[1]);
+
+	VectorMA (sprorigin, frame->up, up, point);
+	VectorMA (point, frame->right, right, vertcoords[2]);
+
+	VectorMA (sprorigin, frame->down, up, point);
+	VectorMA (point, frame->right, right, vertcoords[3]);
+
+	batch->ent = &r_worldentity;
+	batch->flags |= fl;
+	batch->mesh = &meshptr;
+
+	memset(&mesh, 0, sizeof(mesh));
+	mesh.vbofirstelement = 0;
+	mesh.vbofirstvert = 0;
+	mesh.xyz_array = vertcoords;
+	mesh.indexes = indexes;
+	mesh.numindexes = sizeof(indexes)/sizeof(indexes[0]);
+	mesh.colors4f_array = colours;
+	mesh.lmst_array = NULL;
+	mesh.normals_array = NULL;
+	mesh.numvertexes = 4;
+	mesh.st_array = texcoords;
+	mesh.istrifan = true;
+}
+static void R_Sprite_GenerateBatch(entity_t *e, batch_t **batches, void (*drawfunc)(batch_t *batch))
+{
+	extern cvar_t gl_blendsprites;
+	shader_t *shader = NULL;
+	batch_t *b;
+	shadersort_t sort;
+
+	if (!e->model || e->model->type != mod_sprite || e->forcedshader)
+	{
+		shader = e->forcedshader;
+		if (!shader)
+			shader = R_RegisterShader("q2beam",
+				"{\n"
+					"{\n"
+						"map $whiteimage\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+						"blendfunc blend\n"
+					"}\n"
+				"}\n"
+				);
+	}
+	else
+	{
+		// don't even bother culling, because it's just a single
+		// polygon without a surface cache
+		shader = R_GetSpriteFrame(e)->shader;
+	}
+
+	if (!shader)
+		return;
+
+	b = BE_GetTempBatch();
+	if (!b)
+		return;
+
+	b->flags = 0;
+	sort = shader->sort;
+	if (e->flags & Q2RF_ADDITIVE)
+	{
+		b->flags |= BEF_FORCEADDITIVE;
+		if (sort < SHADER_SORT_ADDITIVE)
+			sort = SHADER_SORT_ADDITIVE;
+	}
+	if (e->flags & Q2RF_TRANSLUCENT || (gl_blendsprites.ival && drawfunc == R_DB_Sprite))
+	{
+		b->flags |= BEF_FORCETRANSPARENT;
+		if (sort < SHADER_SORT_BLEND)
+			sort = SHADER_SORT_BLEND;
+	}
+	if (e->flags & RF_NODEPTHTEST)
+	{
+		b->flags |= BEF_FORCENODEPTH;
+		if (sort < SHADER_SORT_BANNER)
+			sort = SHADER_SORT_BANNER;
+	}
+
+	b->buildmeshes = drawfunc;
+	b->ent = e;
+	b->mesh = NULL;
+	b->firstmesh = 0;
+	b->meshes = 1;
+	b->skin = &shader->defaulttextures;
+	b->texture = NULL;
+	b->shader = shader;
+	b->lightmap = -1;
+	b->surf_first = 0;
+	b->flags |= BEF_NODLIGHT|BEF_NOSHADOWS;
+	b->vbo = 0;
+	b->next = batches[sort];
+	batches[sort] = b;
+}
+
+static void R_DB_Poly(batch_t *batch)
+{
+	static mesh_t mesh;
+	static mesh_t *meshptr = &mesh;
+	unsigned int i = batch->surf_first;
+
+	batch->mesh = &meshptr;
+
+	mesh.xyz_array = cl_strisvertv + cl_stris[i].firstvert;
+	mesh.st_array = cl_strisvertt + cl_stris[i].firstvert;
+	mesh.colors4f_array = cl_strisvertc + cl_stris[i].firstvert;
+	mesh.indexes = cl_strisidx + cl_stris[i].firstidx;
+	mesh.numindexes = cl_stris[i].numidx;
+	mesh.numvertexes = cl_stris[i].numvert;
+}
+void BE_GenPolyBatches(batch_t **batches)
+{
+	shader_t *shader = NULL;
+	batch_t *b;
+	unsigned int i;
+
+	for (i = 0; i < cl_numstris; i++)
+	{
+		b = BE_GetTempBatch();
+		if (!b)
+			return;
+
+		shader = cl_stris[i].shader;
+
+		b->buildmeshes = R_DB_Poly;
+		b->ent = &r_worldentity;
+		b->mesh = NULL;
+		b->firstmesh = 0;
+		b->meshes = 1;
+		b->skin = &shader->defaulttextures;
+		b->texture = NULL;
+		b->shader = shader;
+		b->lightmap = -1;
+		b->surf_first = i;
+		b->flags = BEF_NODLIGHT|BEF_NOSHADOWS;
+		b->vbo = 0;
+		b->next = batches[shader->sort];
+		batches[shader->sort] = b;
+	}
+}
+
+void BE_GenModelBatches(batch_t **batches)
+{
+	int		i;
+	entity_t *ent;
+
+	/*clear the batch list*/
+	for (i = 0; i < SHADER_SORT_COUNT; i++)
+		batches[i] = NULL;
+
+	if (!r_drawentities.ival)
+		return;
+
+	// draw sprites seperately, because of alpha blending
+	for (i=0 ; i<cl_numvisedicts ; i++)
+	{
+		ent = &cl_visedicts[i];
+
+		if (!BE_ShouldDraw(ent))
+			continue;
+
+		switch(ent->rtype)
+		{
+		case RT_MODEL:
+		default:
+			if (!ent->model)
+				continue;
+			if (ent->model->needload)
+				continue;
+
+			if (cl.lerpents && (cls.allow_anyparticles || ent->visframe))	//allowed or static
+			{
+				if (gl_part_flame.value)
+				{
+					if (ent->model->engineflags & MDLF_ENGULPHS)
+						continue;
+				}
+			}
+
+			if (ent->model->engineflags & MDLF_NOTREPLACEMENTS)
+			{
+				if (ent->model->fromgame != fg_quake || ent->model->type != mod_alias)
+					if (!ruleset_allow_sensative_texture_replacements.value)
+						continue;
+			}
+
+			switch(ent->model->type)
+			{
+			case mod_brush:
+				if (r_drawentities.ival == 2)
+					continue;
+				Surf_GenBrushBatches(batches, ent);
+				break;
+			case mod_alias:
+				if (r_drawentities.ival == 3)
+					continue;
+				R_GAlias_GenerateBatches(ent, batches);
+				break;
+			case mod_sprite:
+				R_Sprite_GenerateBatch(ent, batches, R_DB_Sprite);
+				break;
+			}
+			break;
+		case RT_SPRITE:
+			R_Sprite_GenerateBatch(ent, batches, R_DB_Sprite);
+			break;
+
+#ifdef Q3CLIENT
+		case RT_BEAM:
+		case RT_RAIL_RINGS:
+		case RT_LIGHTNING:
+			R_Sprite_GenerateBatch(ent, batches, R_DB_LightningBeam);
+			continue;
+		case RT_RAIL_CORE:
+			R_Sprite_GenerateBatch(ent, batches, R_DB_RailgunBeam);
+			continue;
+#endif
+
+		case RT_POLY:
+			/*not implemented*/
+			break;
+		case RT_PORTALSURFACE:
+			/*nothing*/
+			break;
+		}
+	}
+
+	if (cl_numstris)
+		BE_GenPolyBatches(batches);
+}

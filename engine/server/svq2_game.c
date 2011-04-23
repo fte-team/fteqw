@@ -747,6 +747,8 @@ qboolean SVQ2_InitGameProgs(void)
 		return false;
 	}
 
+	if (!deathmatch.value && !coop.value)
+		maxclients.value = 1;
 	if (maxclients.value > MAX_CLIENTS)
 		Cvar_SetValue(&maxclients, MAX_CLIENTS);
 

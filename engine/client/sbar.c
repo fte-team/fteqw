@@ -673,38 +673,59 @@ void Sbar_ShowScores (void)
 
 void Sbar_Hexen2InvLeft_f(void)
 {
-	int tries = 15;
-	int pnum = CL_TargettedSplit(false);
-	sb_hexen2_item_time[pnum] = realtime;
-	while (tries-- > 0)
+	if (cls.protocol == CP_QUAKE2)
 	{
-		sb_hexen2_cur_item[pnum]--;
-		if (sb_hexen2_cur_item[pnum] < 0)
-			sb_hexen2_cur_item[pnum] = 14;
+		CL_SendClientCommand(true, "invprev");
+	}
+	else
+	{
+		int tries = 15;
+		int pnum = CL_TargettedSplit(false);
+		sb_hexen2_item_time[pnum] = realtime;
+		while (tries-- > 0)
+		{
+			sb_hexen2_cur_item[pnum]--;
+			if (sb_hexen2_cur_item[pnum] < 0)
+				sb_hexen2_cur_item[pnum] = 14;
 
-		if (cl.stats[pnum][STAT_H2_CNT_TORCH+sb_hexen2_cur_item[pnum]] > 0)
-			break;
+			if (cl.stats[pnum][STAT_H2_CNT_TORCH+sb_hexen2_cur_item[pnum]] > 0)
+				break;
+		}
 	}
 }
 void Sbar_Hexen2InvRight_f(void)
 {
-	int tries = 15;
-	int pnum = CL_TargettedSplit(false);
-	sb_hexen2_item_time[pnum] = realtime;
-	while (tries-- > 0)
+	if (cls.protocol == CP_QUAKE2)
 	{
-		sb_hexen2_cur_item[pnum]++;
-		if (sb_hexen2_cur_item[pnum] > 14)
-			sb_hexen2_cur_item[pnum] = 0;
+		CL_SendClientCommand(true, "invnext");
+	}
+	else
+	{
+		int tries = 15;
+		int pnum = CL_TargettedSplit(false);
+		sb_hexen2_item_time[pnum] = realtime;
+		while (tries-- > 0)
+		{
+			sb_hexen2_cur_item[pnum]++;
+			if (sb_hexen2_cur_item[pnum] > 14)
+				sb_hexen2_cur_item[pnum] = 0;
 
-		if (cl.stats[pnum][STAT_H2_CNT_TORCH+sb_hexen2_cur_item[pnum]] > 0)
-			break;
+			if (cl.stats[pnum][STAT_H2_CNT_TORCH+sb_hexen2_cur_item[pnum]] > 0)
+				break;
+		}
 	}
 }
 void Sbar_Hexen2InvUse_f(void)
 {
-	int pnum = CL_TargettedSplit(false);
-	Cmd_ExecuteString(va("impulse %d\n", 100+sb_hexen2_cur_item[pnum]), Cmd_ExecLevel);
+	if (cls.protocol == CP_QUAKE2)
+	{
+		CL_SendClientCommand(true, "invuse");
+	}
+	else
+	{
+		int pnum = CL_TargettedSplit(false);
+		Cmd_ExecuteString(va("impulse %d\n", 100+sb_hexen2_cur_item[pnum]), Cmd_ExecLevel);
+	}
 }
 void Sbar_Hexen2ShowInfo_f(void)
 {
@@ -938,6 +959,8 @@ void Sbar_Init (void)
 	//stuff to get hexen2 working out-of-the-box
 	Cmd_AddCommand ("invleft", Sbar_Hexen2InvLeft_f);
 	Cmd_AddCommand ("invright", Sbar_Hexen2InvRight_f);
+	Cmd_AddCommand ("invprev", Sbar_Hexen2InvLeft_f);
+	Cmd_AddCommand ("invnext", Sbar_Hexen2InvRight_f);
 	Cmd_AddCommand ("invuse", Sbar_Hexen2InvUse_f);
 	Cmd_AddCommand ("+showinfo", Sbar_Hexen2ShowInfo_f);
 	Cmd_AddCommand ("-showinfo", Sbar_Hexen2DontShowInfo_f);

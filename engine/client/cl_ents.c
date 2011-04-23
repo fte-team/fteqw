@@ -1887,6 +1887,8 @@ void CL_LinkPacketEntities (void)
 			ent->flags |= Q2RF_ADDITIVE;
 		if (state->effects & EF_NODEPTHTEST)
 			ent->flags |= RF_NODEPTHTEST;
+		if (state->trans != 0xff)
+			ent->flags |= Q2RF_TRANSLUCENT;
 
 		/*FIXME: pay attention to tags instead, so nexuiz can work with splitscreen*/
 		if (ent->flags & Q2RF_EXTERNALMODEL)
@@ -2812,10 +2814,12 @@ void CL_LinkPlayers (void)
 #ifdef PEXT_SCALE
 		ent->scale = state->scale;
 #endif
-		ent->shaderRGBAf[0] = state->colourmod[0]/32;
-		ent->shaderRGBAf[1] = state->colourmod[1]/32;
-		ent->shaderRGBAf[2] = state->colourmod[2]/32;
-		ent->shaderRGBAf[3] = state->alpha/255;
+		ent->shaderRGBAf[0] = state->colourmod[0]/32.0f;
+		ent->shaderRGBAf[1] = state->colourmod[1]/32.0f;
+		ent->shaderRGBAf[2] = state->colourmod[2]/32.0f;
+		ent->shaderRGBAf[3] = state->alpha/255.0f;
+		if (state->alpha != 255)
+			ent->flags |= Q2RF_TRANSLUCENT;
 
 		ent->fatness = state->fatness/16;
 		//

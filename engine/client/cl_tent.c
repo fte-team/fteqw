@@ -1890,6 +1890,7 @@ void CL_SmokeAndFlash(vec3_t origin)
 //	ex->type = ex_misc;
 	ex->numframes = 4;
 	ex->flags = Q2RF_TRANSLUCENT;
+	ex->alpha = 1;
 	ex->start = cl.time;
 	ex->model = Mod_ForName (q2tentmodels[q2cl_mod_smoke].modelname, false);
 
@@ -2060,7 +2061,8 @@ void CLQ2_ParseTEnt (void)
 		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, false);
 		ex->firstframe = 0;
 		ex->numframes = 4;
-		ex->flags = Q2RF_FULLBRIGHT|Q2RF_ADDITIVE|RF_NOSHADOW;
+		ex->flags = Q2RF_FULLBRIGHT|Q2RF_ADDITIVE|RF_NOSHADOW|Q2RF_TRANSLUCENT;
+		ex->alpha = 1;
 		
 		ex->angles[0] = acos(dir[2])/M_PI*180;
 	// PMM - fixed to correct for pitch of 0
@@ -2137,8 +2139,8 @@ void CLQ2_ParseTEnt (void)
 			S_StartSound (-2, 0, S_PrecacheSound ("weapons/grenlx1a.wav"), pos, 1, 1, 0);
 	
 	// sprite
-		/*
-		if (!R_ParticleExplosionHeart(pos))
+		
+//		if (!R_ParticleExplosionHeart(pos))
 		{
 			ex = CL_AllocExplosion ();
 			VectorCopy (pos, ex->origin);
@@ -2146,9 +2148,10 @@ void CLQ2_ParseTEnt (void)
 			ex->start = cl.time;
 			ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explo4].modelname, true);
 			ex->firstframe = 30;
+			ex->alpha = 1;
+			ex->flags |= Q2RF_TRANSLUCENT;
 			ex->numframes = 19;
 		}
-		*/
 		break;
 /*
 		ex = CL_AllocExplosion ();
@@ -2232,19 +2235,21 @@ void CLQ2_ParseTEnt (void)
 			S_StartSound (-2, 0, S_PrecacheSound ("weapons/rocklx1a.wav"), pos, 1, 1, 0);
 
 	// sprite		
-/*		if (!R_ParticleExplosionHeart(pos))
+//		if (!R_ParticleExplosionHeart(pos))
 		{
 			ex = CL_AllocExplosion ();
 			VectorCopy (pos, ex->origin);
 			VectorClear(ex->angles);
 			ex->start = cl.time;
 			ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explo4].modelname, false);
+			ex->alpha = 1;
+			ex->flags |= Q2RF_TRANSLUCENT;
 			if (rand()&1)
 				ex->firstframe = 15;
 			else
 				ex->firstframe = 0;
 			ex->numframes = 15;
-		}*/
+		}
 		break;
 /*
 		ex = CL_AllocExplosion ();
@@ -3011,11 +3016,23 @@ void CL_UpdateExplosions (void)
 		ent->framestate.g[FS_REG].frame[1] = (int)f+firstframe;
 		ent->framestate.g[FS_REG].frame[0] = of+firstframe;
 		ent->framestate.g[FS_REG].lerpfrac = (f - (int)f);
-		if (ent->model->type == mod_sprite)
+		if (ent->model && ent->model->type == mod_sprite)
 			ent->shaderRGBAf[3] = ex->alpha;	/*sprites don't fade over time, the animation should do it*/
 		else
 			ent->shaderRGBAf[3] = (1.0 - f/(numframes))*ex->alpha;
 		ent->flags = ex->flags;
+
+		if (ex->flags & Q2RF_BEAM)
+		{
+			ent->rtype = RT_BEAM;
+			ent->shaderRGBAf[0] = ((d_8to24rgbtable[ex->skinnum & 0xFF] >>  0) & 0xFF)/255.0;
+			ent->shaderRGBAf[1] = ((d_8to24rgbtable[ex->skinnum & 0xFF] >>  8) & 0xFF)/255.0;
+			ent->shaderRGBAf[2] = ((d_8to24rgbtable[ex->skinnum & 0xFF] >> 16) & 0xFF)/255.0;
+		}
+		else
+		{
+			ent->skinnum = 7*f/(numframes);
+		}
 	}
 
 	explosions_running = lastrunningexplosion + 1;

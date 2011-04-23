@@ -67,10 +67,6 @@ qbyte FloatToByte( float x )
 
 cvar_t r_detailtextures;
 
-
-#define MAX_SHADERS 2048	//fixme: this takes a lot of bss in the r_shaders list
-
-
 #define MAX_TOKEN_CHARS 1024
 
 char *COM_ParseExt (char **data_p, qboolean nl)
@@ -1209,6 +1205,7 @@ struct sbuiltin_s
 			"#endif\n"
 			"varying vec2 tc;\n"
 			"varying vec3 light;\n"
+			"uniform vec4 e_colour;\n"
 
 			"void main (void)\n"
 			"{\n"
@@ -1223,6 +1220,7 @@ struct sbuiltin_s
 			"#ifdef FULLBRIGHT\n"
 			"	gl_FragColor += texture2D(s_t3, tc);\n"
 			"#endif\n"
+			"	gl_FragColor *= e_colour;\n"
 			"}\n"
 		"#endif\n"
 	},
@@ -3811,33 +3809,18 @@ void Shader_DefaultSkin(char *shortname, shader_t *s, const void *args)
 }
 void Shader_DefaultSkinShell(char *shortname, shader_t *s, const void *args)
 {
-	shaderpass_t *pass;
-	pass = &s->passes[0];
-	pass->shaderbits |= SBITS_MISC_DEPTHWRITE;
-	pass->anim_frames[0] = R_LoadHiResTexture(shortname, NULL, 0);
-	if (!TEXVALID(pass->anim_frames[0]))
-		pass->anim_frames[0] = missing_texture;
-	pass->rgbgen = RGB_GEN_ENTITY;
-	pass->alphagen = ALPHA_GEN_ENTITY;
-	pass->numtcmods = 0;
-	pass->tcgen = TC_GEN_BASE;
-	pass->shaderbits |= SBITS_SRCBLEND_SRC_ALPHA;
-	pass->shaderbits |= SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA;
-	pass->numMergedPasses = 1;
-	Shader_SetBlendmode(pass);
-
-	if (!TEXVALID(pass->anim_frames[0]))
-	{
-		Con_DPrintf (CON_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
-		pass->anim_frames[0] = missing_texture;
-	}
-
-	s->numpasses = 1;
-	s->numdeforms = 0;
-	s->flags = SHADER_DEPTHWRITE|SHADER_CULL_FRONT;
-	s->features = MF_STCOORDS|MF_NORMALS;
-	s->sort = SHADER_SORT_OPAQUE;
-	s->uses = 1;
+	Shader_DefaultScript(shortname, s,
+		"{\n"
+			"sort blend\n"
+			"deformvertexes normal 1 1\n"
+			"{\n"
+				"map $diffuse\n"
+				"rgbgen entity\n"
+				"alphagen entity\n"
+				"blendfunc blend\n"
+			"}\n"
+		"}\n"
+		);
 }
 void Shader_Default2D(char *shortname, shader_t *s, const void *genargs)
 {

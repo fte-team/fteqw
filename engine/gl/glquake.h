@@ -277,10 +277,6 @@ void GL_SelectTexture (int tmunum);
 void GL_SetShaderState2D(qboolean is2d);
 void GL_ForceDepthWritable(void);
 
-void R_DrawRailCore(entity_t *e);
-void R_DrawLightning(entity_t *e);
-void R_DrawBeam( entity_t *e );
-
 #endif
 
 //

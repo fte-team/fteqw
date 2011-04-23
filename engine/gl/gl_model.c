@@ -3513,8 +3513,8 @@ qboolean RMod_LoadSprite2Model (model_t *mod, void *buffer)
 		origin[0] = LittleLong (pframetype->origin_x);
 		origin[1] = LittleLong (pframetype->origin_y);
 
-		frame->up = -origin[1];
-		frame->down = h - origin[1];
+		frame->down = -origin[1];
+		frame->up = h - origin[1];
 		frame->left = -origin[0];
 		frame->right = w - origin[0];
 

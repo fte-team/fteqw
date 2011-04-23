@@ -406,6 +406,7 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 	ent.shaderRGBAf[2] = q3->shaderRGBA[2]/255.0f;
 	ent.shaderRGBAf[3] = q3->shaderRGBA[3]/255.0f;
 
+	/*don't set translucent, the shader is meant to already be correct*/
 //	if (ent.shaderRGBAf[3] <= 0)
 //		return;
 

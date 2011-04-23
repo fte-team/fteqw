@@ -392,6 +392,7 @@ struct shader_s
 	bucket_t bucket;
 };
 
+#define MAX_SHADERS 2048	//fixme: this takes a lot of bss in the r_shaders list
 extern shader_t	*r_shaders;
 extern int be_maxpasses;
 
@@ -431,6 +432,8 @@ mfog_t *CM_FogForOrigin(vec3_t org);
 #define BEF_FORCETRANSPARENT	8	//texenv replace -> modulate
 #define BEF_FORCENODEPTH		16	//disables any and all depth.
 #define BEF_PUSHDEPTH			32	//additional polygon offset
+#define BEF_NODLIGHT            64  //don't use a dlight pass
+#define BEF_NOSHADOWS			128 //don't appear in shadows
 
 #ifdef GLQUAKE
 void GLBE_Init(void);
@@ -449,8 +452,8 @@ void GLBE_SelectEntity(entity_t *ent);
 #ifdef D3DQUAKE
 void D3DBE_Init(void);
 void D3DBE_SelectMode(backendmode_t mode);
-void D3DBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **mesh, vbo_t *vbo, texnums_t *texnums);
-void D3DBE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums);
+void D3DBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **mesh, vbo_t *vbo, texnums_t *texnums, unsigned int beflags);
+void D3DBE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums, unsigned int beflags);
 void D3DBE_SubmitBatch(batch_t *batch);
 batch_t *D3DBE_GetTempBatch(void);
 void D3DBE_GenBrushModelVBO(model_t *mod);

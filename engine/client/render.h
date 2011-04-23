@@ -169,6 +169,8 @@ extern	struct texture_s	*r_notexture_mip;
 
 extern	entity_t	r_worldentity;
 
+void BE_GenModelBatches(struct batch_s **batches);
+
 //gl_alias.c
 void R_GAlias_DrawBatch(struct batch_s *batch);
 void R_GAlias_GenerateBatches(entity_t *e, struct batch_s **batches);

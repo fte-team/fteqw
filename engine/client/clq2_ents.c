@@ -1351,6 +1351,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		effects = s1->effects;
 		renderfx = s1->renderfx;
 
+		ent.rtype = RT_MODEL;
 		ent.keynum = s1->number;
 
 		ent.scale = 1;
@@ -1427,10 +1428,14 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		// tweak the color of beams
 		if ( renderfx & Q2RF_BEAM )
 		{	// the four beam colors are encoded in 32 bits of skinnum (hack)
-			ent.shaderRGBAf[3] = 0.30;
 			ent.skinnum = (s1->skinnum >> ((rand() % 4)*8)) & 0xff;
+			ent.shaderRGBAf[0] = ((d_8to24rgbtable[ent.skinnum & 0xFF] >>  0) & 0xFF)/255.0;
+			ent.shaderRGBAf[1] = ((d_8to24rgbtable[ent.skinnum & 0xFF] >>  8) & 0xFF)/255.0;
+			ent.shaderRGBAf[2] = ((d_8to24rgbtable[ent.skinnum & 0xFF] >> 16) & 0xFF)/255.0;
+			ent.shaderRGBAf[3] = 0.30;
 			ent.model = NULL;
 			ent.framestate.g[FS_REG].lerpfrac = 1;
+			ent.rtype = RT_BEAM;
 		}
 		else
 		{
@@ -1629,14 +1634,12 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				}
 			}
 			// pmm
-			ent.flags = renderfx | Q2RF_TRANSLUCENT;
+			ent.flags = renderfx;
 			ent.shaderRGBAf[3] = 0.30;
-			ent.fatness = 1;
 			ent.shaderRGBAf[0] = (!!(renderfx & Q2RF_SHELL_RED));
 			ent.shaderRGBAf[1] = (!!(renderfx & Q2RF_SHELL_GREEN));
 			ent.shaderRGBAf[2] = (!!(renderfx & Q2RF_SHELL_BLUE));
 			ent.forcedshader = R_RegisterCustom("q2/shell", Shader_DefaultSkinShell, NULL);
-
 			VQ2_AddLerpEntity (&ent);
 		}
 		ent.forcedshader = NULL;

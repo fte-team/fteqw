@@ -421,13 +421,13 @@ static void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs
 	{
 		if (start[i] < end[i])
 		{
-			mmins[i] = start[i]+mins[i];
-			mmaxs[i] = end[i]+maxs[i];
+			mmins[i] = start[i]+mins[i]-1;
+			mmaxs[i] = end[i]+maxs[i]+1;
 		}
 		else
 		{
-			mmins[i] = end[i]+mins[i];
-			mmaxs[i] = start[i]+maxs[i];
+			mmins[i] = end[i]+mins[i]-1;
+			mmaxs[i] = start[i]+maxs[i]+1;
 		}
 	}
 
@@ -454,12 +454,12 @@ static void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs
 
 		if (entnum != ENTITYNUM_WORLD)
 		{
-//			if (contactlist[i] == entnum)
-//				continue;	// don't clip against the pass entity
-//			if (es->r.ownerNum == entnum)
-//				continue;	// don't clip against own missiles
-//			if (es->r.ownerNum == ourowner)
-//				continue;	// don't clip against other missiles from our owner
+			if (contactlist[i] == entnum)
+				continue;
+			if (es->r.ownerNum == entnum)
+				continue;
+			if (es->r.ownerNum == ourowner)
+				continue;
 		}
 
 		if (es->r.bmodel)
@@ -528,12 +528,12 @@ static int SVQ3_PointContents(vec3_t pos, int entnum)
 
 		if (entnum != ENTITYNUM_WORLD)
 		{
-//			if (contactlist[i] == entnum)
-//				continue;	// don't clip against the pass entity
-//			if (es->r.ownerNum == entnum)
-//				continue;	// don't clip against own missiles
-//			if (es->r.ownerNum == ourowner)
-//				continue;	// don't clip against other missiles from our owner
+			if (contactlist[i] == entnum)
+				continue;	// don't clip against the pass entity
+			if (es->r.ownerNum == entnum)
+				continue;	// don't clip against own missiles
+			if (es->r.ownerNum == ourowner)
+				continue;	// don't clip against other missiles from our owner
 		}
 
 		if (es->r.bmodel)

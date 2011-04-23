@@ -123,6 +123,8 @@ typedef struct
 	int			curvertdecl;
 	unsigned int shaderbits;
 	unsigned int curcull;
+	float depthbias;
+	float depthfactor;
 	unsigned int lastpasscount;
 
 	texid_t		curtex[MAX_TMUS];
@@ -338,14 +340,17 @@ static void D3DBE_ApplyShaderBits(unsigned int bits)
 {
 	unsigned int delta;
 
-	if (shaderstate.flags & ~BEF_PUSHDEPTH)
+	if (shaderstate.flags & (BEF_FORCEADDITIVE|BEF_FORCETRANSPARENT|BEF_FORCENODEPTH|BEF_FORCEDEPTHTEST|BEF_FORCEDEPTHWRITE))
 	{
 		if (shaderstate.flags & BEF_FORCEADDITIVE)
 			bits = (bits & ~(SBITS_MISC_DEPTHWRITE|SBITS_BLEND_BITS|SBITS_ATEST_BITS))
-						| (SBITS_SRCBLEND_ONE | SBITS_DSTBLEND_ONE);
-		else if ((shaderstate.flags & BEF_FORCETRANSPARENT) && !(bits & SBITS_BLEND_BITS)) 	/*if transparency is forced, clear alpha test bits*/
-			bits = (bits & ~(SBITS_MISC_DEPTHWRITE|SBITS_BLEND_BITS|SBITS_ATEST_BITS))
-						| (SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA);
+						| (SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE);
+		else if (shaderstate.flags & BEF_FORCETRANSPARENT)
+		{
+			if ((bits & SBITS_BLEND_BITS) == (SBITS_SRCBLEND_ONE|SBITS_DSTBLEND_ZERO) || !(bits & SBITS_BLEND_BITS)) 	/*if transparency is forced, clear alpha test bits*/
+				bits = (bits & ~(SBITS_MISC_DEPTHWRITE|SBITS_BLEND_BITS|SBITS_ATEST_BITS))
+							| (SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA);
+		}
 
 		if (shaderstate.flags & BEF_FORCENODEPTH) 	/*EF_NODEPTHTEST dp extension*/
 			bits |= SBITS_MISC_NODEPTHTEST;
@@ -1549,8 +1554,24 @@ static void BE_DrawMeshChain_Internal(void)
 	unsigned int mno;
 	unsigned int passno = 0;
 	shaderpass_t *pass = shaderstate.curshader->passes;
+	extern cvar_t r_polygonoffset_submodel_offset, r_polygonoffset_submodel_factor;
+	float pushdepth;
+//	float pushfactor;
 
 	BE_Cull(shaderstate.curshader->flags & (SHADER_CULL_FRONT | SHADER_CULL_BACK));
+	pushdepth = (shaderstate.curshader->polyoffset.factor + ((shaderstate.flags & BEF_PUSHDEPTH)?r_polygonoffset_submodel_offset.value:0))/0xffff;
+	if (pushdepth != shaderstate.depthbias)
+	{
+		shaderstate.depthbias = pushdepth;
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_DEPTHBIAS, *(DWORD*)&shaderstate.depthbias);
+	}
+//	pushdepth = shaderstate.curshader->polyoffset.unit/-1;// + ((shaderstate.flags & BEF_PUSHDEPTH)?8:0);
+//	pushfactor = shaderstate.curshader->polyoffset.factor/-1;
+//	if (pushfactor != shaderstate.depthfactor)
+//	{
+//		shaderstate.depthfactor = pushfactor;
+//		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_SLOPESCALEDEPTHBIAS, *(DWORD*)&shaderstate.depthfactor);
+//	}
 
 	for (mno = 0, vertcount = 0, idxcount = 0; mno < shaderstate.nummeshes; mno++)
 	{
@@ -1995,18 +2016,19 @@ void D3DBE_SubmitBatch(batch_t *batch)
 	BE_DrawMeshChain_Internal();
 }
 
-void D3DBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_t *vbo, texnums_t *texnums)
+void D3DBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_t *vbo, texnums_t *texnums, unsigned int beflags)
 {
 	shaderstate.curshader = shader;
 	shaderstate.curtexnums = texnums;
 	shaderstate.curlightmap = r_nulltex;
 	shaderstate.meshlist = meshlist;
 	shaderstate.nummeshes = nummeshes;
+	shaderstate.flags = beflags;
 
 	BE_DrawMeshChain_Internal();
 }
 
-void D3DBE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums)
+void D3DBE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums, unsigned int beflags)
 {
 	shaderstate.curtime = realtime;
 	shaderstate.curshader = shader;
@@ -2014,207 +2036,9 @@ void D3DBE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texn
 	shaderstate.curlightmap = r_nulltex;
 	shaderstate.meshlist = &meshchain;
 	shaderstate.nummeshes = 1;
+	shaderstate.flags = beflags;
 
 	BE_DrawMeshChain_Internal();
-}
-
-qboolean BE_ShouldDraw(entity_t *e)
-{
-	if (!r_refdef.externalview && (e->externalmodelview & (1<<r_refdef.currentplayernum)))
-		return false;
-	if (!Cam_DrawPlayer(r_refdef.currentplayernum, e->keynum-1))
-		return false;
-	return true;
-}
-
-
-
-#ifdef Q3CLIENT
-
-//q3 lightning gun
-static void R_DrawLightning(entity_t *e)
-{
-	vec3_t v;
-	vec3_t dir, cr;
-	float scale = e->scale;
-	float length;
-
-	vecV_t points[4];
-	vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
-	static index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
-
-	mesh_t mesh;
-
-	if (!e->forcedshader)
-		return;
-
-	if (!scale)
-		scale = 10;
-
-
-	VectorSubtract(e->origin, e->oldorigin, dir);
-	length = Length(dir);
-
-	//this seems to be about right.
-	texcoords[2][0] = length/128;
-	texcoords[3][0] = length/128;
-
-	VectorSubtract(r_refdef.vieworg, e->origin, v);
-	CrossProduct(v, dir, cr);
-	VectorNormalize(cr);
-
-	VectorMA(e->origin, -scale/2, cr, points[0]);
-	VectorMA(e->origin, scale/2, cr, points[1]);
-
-	VectorSubtract(r_refdef.vieworg, e->oldorigin, v);
-	CrossProduct(v, dir, cr);
-	VectorNormalize(cr);
-
-	VectorMA(e->oldorigin, scale/2, cr, points[2]);
-	VectorMA(e->oldorigin, -scale/2, cr, points[3]);
-
-	memset(&mesh, 0, sizeof(mesh));
-	mesh.vbofirstelement = 0;
-	mesh.vbofirstvert = 0;
-	mesh.xyz_array = points;
-	mesh.indexes = indexarray;
-	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
-	mesh.colors4f_array = NULL;
-	mesh.lmst_array = NULL;
-	mesh.normals_array = NULL;
-	mesh.numvertexes = 4;
-	mesh.st_array = texcoords;
-	BE_DrawMesh_Single(e->forcedshader, &mesh, NULL, NULL, 0);
-}
-//q3 railgun beam
-static void R_DrawRailCore(entity_t *e)
-{
-	vec3_t v;
-	vec3_t dir, cr;
-	float scale = e->scale;
-	float length;
-
-	mesh_t mesh;
-	vecV_t points[4];
-	vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
-	static index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
-	vec4_t colors[4];
-
-	if (!e->forcedshader)
-		return;
-
-	if (!scale)
-		scale = 10;
-
-
-	VectorSubtract(e->origin, e->oldorigin, dir);
-	length = Length(dir);
-
-	//this seems to be about right.
-	texcoords[2][0] = length/128;
-	texcoords[3][0] = length/128;
-
-	VectorSubtract(r_refdef.vieworg, e->origin, v);
-	CrossProduct(v, dir, cr);
-	VectorNormalize(cr);
-
-	VectorMA(e->origin, -scale/2, cr, points[0]);
-	VectorMA(e->origin, scale/2, cr, points[1]);
-
-	VectorSubtract(r_refdef.vieworg, e->oldorigin, v);
-	CrossProduct(v, dir, cr);
-	VectorNormalize(cr);
-
-	VectorMA(e->oldorigin, scale/2, cr, points[2]);
-	VectorMA(e->oldorigin, -scale/2, cr, points[3]);
-
-	Vector4Copy(e->shaderRGBAf, colors[0]);
-	Vector4Copy(e->shaderRGBAf, colors[1]);
-	Vector4Copy(e->shaderRGBAf, colors[2]);
-	Vector4Copy(e->shaderRGBAf, colors[3]);
-
-	memset(&mesh, 0, sizeof(mesh));
-	mesh.vbofirstelement = 0;
-	mesh.vbofirstvert = 0;
-	mesh.xyz_array = points;
-	mesh.indexes = indexarray;
-	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
-	mesh.colors4f_array = (vec4_t*)colors;
-	mesh.lmst_array = NULL;
-	mesh.normals_array = NULL;
-	mesh.numvertexes = 4;
-	mesh.st_array = texcoords;
-
-	BE_DrawMesh_Single(e->forcedshader, &mesh, NULL, NULL, 0);
-}
-#endif
-static void BE_GenModelBatches(batch_t **batches)
-{
-	int		i;
-	entity_t *ent;
-
-	/*clear the batch list*/
-	for (i = 0; i < SHADER_SORT_COUNT; i++)
-		batches[i] = NULL;
-
-	if (!r_drawentities.ival)
-		return;
-
-	// draw sprites seperately, because of alpha blending
-	for (i=0 ; i<cl_numvisedicts ; i++)
-	{
-		ent = &cl_visedicts[i];
-
-		if (!BE_ShouldDraw(ent))
-			continue;
-
-		switch(ent->rtype)
-		{
-		case RT_MODEL:
-		default:
-			if (!ent->model)
-				continue;
-			if (ent->model->needload)
-				continue;
-			switch(ent->model->type)
-			{
-			case mod_brush:
-				if (r_drawentities.ival == 2)
-					continue;
-				Surf_GenBrushBatches(batches, ent);
-				break;
-			case mod_alias:
-				if (r_drawentities.ival == 3)
-					continue;
-				R_GAlias_GenerateBatches(ent, batches);
-				break;
-			case mod_sprite:
-				break;
-			}
-			break;
-		case RT_SPRITE:
-			//RQ_AddDistReorder(GLR_DrawSprite, currententity, NULL, currententity->origin);
-			break;
-
-#ifdef Q3CLIENT
-		case RT_BEAM:
-		case RT_RAIL_RINGS:
-		case RT_LIGHTNING:
-			R_DrawLightning(ent);
-			continue;
-		case RT_RAIL_CORE:
-			R_DrawRailCore(ent);
-			continue;
-#endif
-
-		case RT_POLY:
-			/*not implemented*/
-			break;
-		case RT_PORTALSURFACE:
-			/*nothing*/
-			break;
-		}
-	}
 }
 
 static void BE_SubmitMeshesSortList(batch_t *sortlist)

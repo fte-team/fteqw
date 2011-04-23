@@ -606,12 +606,12 @@ static model_t *CSQC_GetModelForIndex(int index)
 
 static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 {
-	int i;
+	int i, ival;
 	model_t *model;
 	unsigned int rflags;
 
-	i = in->v->modelindex;
-	model = CSQC_GetModelForIndex(in->v->modelindex);
+	ival = in->v->modelindex;
+	model = CSQC_GetModelForIndex(ival);
 	if (!model)
 		return false; //there might be other ent types later as an extension that stop this.
 
@@ -668,23 +668,31 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 		}
 	}
 
-	if (in->v->colormap > 0 && in->v->colormap <= MAX_CLIENTS)
+	ival = in->v->colormap;
+	if (ival > 0 && ival <= MAX_CLIENTS)
 	{
-		out->scoreboard = &cl.players[(int)in->v->colormap-1];
-	} // TODO: DP COLORMAP extension?
+		out->scoreboard = &cl.players[ival-1];
+	}
+	// TODO: DP COLORMAP extension?
 
 	out->shaderRGBAf[0] = 1;
 	out->shaderRGBAf[1] = 1;
 	out->shaderRGBAf[2] = 1;
-	if (!in->xv->alpha)
-		out->shaderRGBAf[3] = 1;
+	if (!in->xv->alpha || in->xv->alpha == 1)
+	{
+		out->shaderRGBAf[3] = 1.0f;
+	}
 	else
+	{
+		out->flags |= Q2RF_TRANSLUCENT;
 		out->shaderRGBAf[3] = in->xv->alpha;
+	}
 
 	out->skinnum = in->v->skin;
 	out->fatness = in->xv->fatness;
-	if (in->xv->forceshader >= 1)
-		out->forcedshader = r_shaders + ((int)in->xv->forceshader-1);
+	ival = in->xv->forceshader;
+	if (ival >= 1 && ival <= MAX_SHADERS)
+		out->forcedshader = r_shaders + (ival-1);
 	else
 		out->forcedshader = NULL;
 

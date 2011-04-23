@@ -1933,7 +1933,7 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 		bef |= BEF_FORCETRANSPARENT;
 		ent->shaderRGBAf[3] = r_wateralpha.value;
 	}
-	else if (ent->shaderRGBAf[3] < 1 && cls.protocol != CP_QUAKE3)
+	else if (ent->flags & Q2RF_TRANSLUCENT && cls.protocol != CP_QUAKE3)
 		bef |= BEF_FORCETRANSPARENT;
 	if (ent->flags & RF_NODEPTHTEST)
 		bef |= BEF_FORCENODEPTH;

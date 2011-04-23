@@ -1438,9 +1438,6 @@ void GL_GenerateNormals(float *orgs, float *normals, int *indicies, int numtris,
 #endif
 #endif
 
-#endif	// defined(GLQUAKE)
-
-
 
 
 
@@ -1923,3 +1920,5 @@ void BE_GenModelBatches(batch_t **batches)
 	if (cl_numstris)
 		BE_GenPolyBatches(batches);
 }
+
+#endif	// defined(GLQUAKE)

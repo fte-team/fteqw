@@ -1333,14 +1333,14 @@ void V_AddAxisEntity(entity_t *in)
 
 	*ent = *in;
 }
-void V_AddEntity(entity_t *in)
+entity_t *V_AddEntity(entity_t *in)
 {
 	entity_t *ent;
 
 	if (cl_numvisedicts == MAX_VISEDICTS)
 	{
 		Con_Printf("Visedict list is full!\n");
-		return;		// object list is full
+		return NULL;		// object list is full
 	}
 	ent = &cl_visedicts[cl_numvisedicts];
 	cl_numvisedicts++;
@@ -1351,6 +1351,8 @@ void V_AddEntity(entity_t *in)
 	AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 	VectorInverse(ent->axis[1]);
 	ent->angles[0]*=-1;
+
+	return ent;
 }
 
 void VQ2_AddLerpEntity(entity_t *in)	//a convienience function
@@ -1384,6 +1386,63 @@ void VQ2_AddLerpEntity(entity_t *in)	//a convienience function
 int V_AddLight (int entsource, vec3_t org, float quant, float r, float g, float b)
 {
 	return CL_NewDlightRGB (entsource, org, quant, -0.1, r, g, b) - cl_dlights;
+}
+
+void CLQ1_AddPowerupShell(entity_t *ent, qboolean viewweap, unsigned int effects)
+{
+	entity_t *shell;
+	if (!(effects & (EF_BLUE | EF_RED)) || !v_powerupshell.value || !ent)
+		return;
+
+	if (cl_numvisedicts == MAX_VISEDICTS)
+		return;		// object list is full
+	shell = &cl_visedicts[cl_numvisedicts++];
+
+	*shell = *ent;
+
+	/*view weapons are much closer to the screen, the scales don't work too well, so use a different shader with a smaller expansion*/
+	if (viewweap)
+	{
+		shell->forcedshader = R_RegisterShader("powerups/shellweapon",
+				"{\n"
+					"program defaultpowerupshell\n"
+					"sort additive\n"
+					"deformVertexes wave 100 sin 0.5 0 0 0\n"
+					"noshadows\n"
+					"surfaceparm nodlight\n"
+					"{\n"
+						"map $whitetexture\n"
+						"rgbgen entity\n"
+						"alphagen entity\n"
+						"blendfunc src_alpha one\n"
+					"}\n"
+				"}\n"
+			);
+	}
+	else
+	{
+		shell->forcedshader = R_RegisterShader("powerups/shell",
+				"{\n"
+					"program defaultpowerupshell\n"
+					"sort additive\n"
+					"deformVertexes wave 100 sin 3 0 0 0\n"
+					"noshadows\n"
+					"surfaceparm nodlight\n"
+					"{\n"
+						"map $whitetexture\n"
+						"rgbgen entity\n"
+						"alphagen entity\n"
+						"blendfunc src_alpha one\n"
+					"}\n"
+				"}\n"
+			);
+	}
+	shell->shaderRGBAf[0] *= (effects & EF_RED)?1:0;
+	shell->shaderRGBAf[1] *= 0;//(effects & EF_GREEN)?1:0;
+	shell->shaderRGBAf[2] *= (effects & EF_BLUE)?1:0;
+	shell->shaderRGBAf[3] *= v_powerupshell.value;
+	/*let the shader do all the work*/
+	shell->flags &= ~Q2RF_TRANSLUCENT|Q2RF_ADDITIVE;
 }
 
 static void CL_LerpNetFrameState(int fsanim, framestate_t *fs, lerpents_t *le)
@@ -1462,6 +1521,9 @@ void CL_LinkStaticEntities(void *pvs)
 			// there needs to be a cleaner method for this
 			P_EmitEffect(ent->origin, clmodel->particleeffect, &cl_static_entities[i].emit);
 		}
+
+//  FIXME: no effects on static ents
+//		CLQ1_AddPowerupShell(ent, false, stat->effects);
 	}
 }
 
@@ -1976,7 +2038,7 @@ void CL_LinkPacketEntities (void)
 		AngleVectors(angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 		VectorInverse(ent->axis[1]);
 
-		if (ent->keynum <= MAX_CLIENTS)
+		if (ent->keynum <= cl.allocated_client_slots)
 		{
 			if (!cl.nolocalplayer[0])
 				ent->keynum += MAX_EDICTS;
@@ -1986,6 +2048,8 @@ void CL_LinkPacketEntities (void)
 		{	//ent is attached to a tag, rotate this ent accordingly.
 			CL_RotateAroundTag(ent, state->number, state->tagentity, state->tagindex);
 		}
+
+		CLQ1_AddPowerupShell(ent, false, state->effects);
 
 		// add automatic particle trails
 		if (!model || (!(model->flags&~EF_ROTATE) && model->particletrail<0 && model->particleeffect<0))
@@ -2917,6 +2981,8 @@ void CL_LinkPlayers (void)
 		else if (state->command.impulse)
 			CL_AddVWeapModel (ent, cl.model_precache_vwep[state->command.impulse]);
 
+		CLQ1_AddPowerupShell(ent, false, state->effects);
+
 		if (r_torch.ival)
 		{
 			dlight_t *dl;
@@ -2935,6 +3001,8 @@ void CL_LinkViewModel(void)
 {
 	entity_t	ent;
 
+	unsigned int plnum;
+	player_state_t *plstate;
 	static struct model_s *oldmodel[MAX_SPLITS];
 	static float lerptime[MAX_SPLITS];
 	static float frameduration[MAX_SPLITS];
@@ -2968,12 +3036,6 @@ void CL_LinkViewModel(void)
 	if (cl.stats[r_refdef.currentplayernum][STAT_HEALTH] <= 0)
 		return;
 
-	memset(&ent, 0, sizeof(ent));
-
-	ent.model = cl.viewent[r_refdef.currentplayernum].model;
-	if (!ent.model)
-		return;
-
 	if (r_drawviewmodel.value > 0 && r_drawviewmodel.value < 1)
 		alpha = r_drawviewmodel.value;
 	else
@@ -2983,6 +3045,15 @@ void CL_LinkViewModel(void)
 		&& r_drawviewmodelinvis.value > 0
 		&& r_drawviewmodelinvis.value < 1)
 		alpha *= r_drawviewmodelinvis.value;
+
+	if (alpha <= 0)
+		return;
+
+	memset(&ent, 0, sizeof(ent));
+
+	ent.model = cl.viewent[r_refdef.currentplayernum].model;
+	if (!ent.model)
+		return;
 
 #ifdef PEXT_SCALE
 	ent.scale = 1;
@@ -3000,6 +3071,10 @@ void CL_LinkViewModel(void)
 	ent.shaderRGBAf[1] = 1;
 	ent.shaderRGBAf[2] = 1;
 	ent.shaderRGBAf[3] = alpha;
+	if (alpha != 1)
+	{
+		ent.flags |= Q2RF_TRANSLUCENT;
+	}
 
 #ifdef HLCLIENT
 	if (!CLHL_AnimateViewEntity(&ent))
@@ -3032,47 +3107,16 @@ void CL_LinkViewModel(void)
 		ent.framestate.g[FS_REG].lerpfrac = bound(0, ent.framestate.g[FS_REG].lerpfrac, 1);
 	}
 
-	ent.flags = Q2RF_WEAPONMODEL|Q2RF_DEPTHHACK|RF_NOSHADOW;
+	ent.flags |= Q2RF_WEAPONMODEL|Q2RF_DEPTHHACK|RF_NOSHADOW;
 
-	V_AddEntity(&ent);
+	plnum = -1;
+	if (cl.spectator)
+		plnum = Cam_TrackNum(r_refdef.currentplayernum);
+	if (plnum == -1)
+		plnum = cl.playernum[r_refdef.currentplayernum];
+	plstate = &cl.frames[parsecountmod].playerstate[plnum];
 
-	if (!v_powerupshell.ival)
-		return;
-
-	if (cl.stats[r_refdef.currentplayernum][STAT_ITEMS] & IT_QUAD)
-	{
-		if (v_powerupshell.ival == 2)
-		{
-			ent.forcedshader = R_RegisterCustom("powerups/quadWeapon", Shader_DefaultSkinShell, NULL);
-			V_AddEntity(&ent);
-		}
-		else
-			ent.flags |= Q2RF_SHELL_BLUE;
-	}
-	if (cl.stats[r_refdef.currentplayernum][STAT_ITEMS] & IT_INVULNERABILITY)
-	{
-		if (v_powerupshell.ival == 2)
-		{
-			ent.forcedshader = R_RegisterCustom("powerups/regen", Shader_DefaultSkinShell, NULL);
-			ent.fatness = -2.5;
-			V_AddEntity(&ent);
-		}
-		else
-			ent.flags |= Q2RF_SHELL_RED;
-	}
-
-	if (!(ent.flags & (Q2RF_SHELL_RED|Q2RF_SHELL_GREEN|Q2RF_SHELL_BLUE)))
-		return;
-
-	ent.fatness = 0.5;
-	ent.shaderRGBAf[3] /= 10;
-
-	ent.shaderRGBAf[0] = (!!(ent.flags & Q2RF_SHELL_RED));
-	ent.shaderRGBAf[1] = (!!(ent.flags & Q2RF_SHELL_GREEN));
-	ent.shaderRGBAf[2] = (!!(ent.flags & Q2RF_SHELL_BLUE));
-	ent.forcedshader = R_RegisterCustom("q2/shell", Shader_DefaultSkinShell, NULL);
-
-	V_AddEntity(&ent);
+	CLQ1_AddPowerupShell(V_AddEntity(&ent), true, plstate?plstate->effects:0);
 }
 
 //======================================================================

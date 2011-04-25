@@ -131,7 +131,7 @@ m*_t structures are in-memory
 #define EF_BLUE					64
 #define EF_RED					128
 
-#define	H2EF_NODRAW				128	//this is going to get complicated...
+#define	H2EF_NODRAW				128	//this is going to get complicated... emulated server side.
 
 #define EF_NODEPTHTEST			8192	//shows through walls. :(
 

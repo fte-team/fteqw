@@ -1937,6 +1937,8 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 		bef |= BEF_FORCETRANSPARENT;
 	if (ent->flags & RF_NODEPTHTEST)
 		bef |= BEF_FORCENODEPTH;
+	if (ent->flags & RF_NOSHADOW)
+		bef |= BEF_NOSHADOWS;
 
 	if (!model->surfaces && model->batches)
 	{

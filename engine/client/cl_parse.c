@@ -2043,6 +2043,12 @@ void CL_ParseServerData (void)
 	SCR_SetLoadingStage(LS_CLIENT);
 	SCR_BeginLoadingPlaque();
 
+	cl.allocated_client_slots = MAX_CLIENTS;
+#ifndef CLIENTONLY
+	if (sv.state)
+		cl.allocated_client_slots = sv.allocated_client_slots;
+#endif
+
 // parse protocol version number
 // allow 2.2 and 2.29 demos to play
 #ifdef PROTOCOL_VERSION_FTE
@@ -5744,10 +5750,10 @@ void CLNQ_ParseServerMessage (void)
 			if (!cl.viewentity[0])
 			{
 				cl.playernum[0] = (cl.viewentity[0] = MSG_ReadShort())-1;
-				if (cl.playernum[0] >= MAX_CLIENTS)
+				if (cl.playernum[0] >= cl.allocated_client_slots)
 				{
 					Con_Printf(CON_WARNING "WARNING: Server put us in slot %i. We are not on the scoreboard.\n", cl.playernum[0]);
-					cl.playernum[0] = MAX_CLIENTS;	//pretend it's an mvd (we have that spare slot)
+					cl.playernum[0] = cl.allocated_client_slots;	//pretend it's an mvd (we have that spare slot)
 				}
 			}
 			else

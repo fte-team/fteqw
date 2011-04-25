@@ -106,7 +106,7 @@ static void pp_flush(multicast_t to, vec3_t origin, void (*flushfunc)(client_t *
 		}
 
 		// send the data to all relevent clients
-		for (j = 0, client = svs.clients; j < MAX_CLIENTS; j++, client++)
+		for (j = 0, client = svs.clients; j < sv.allocated_client_slots; j++, client++)
 		{
 			if (client->state != cs_spawned)
 				continue;
@@ -1433,7 +1433,7 @@ void NPP_QWFlush(void)
 		if (buffer[6])
 		{
 			unsigned int j = buffer[1];
-			if (j < MAX_CLIENTS)
+			if (j < sv.allocated_client_slots)
 			{
 				Q_strncpyz(svs.clients[j].userinfo, (buffer+6), sizeof(svs.clients[j].userinfo));
 				if (*Info_ValueForKey(svs.clients[j].userinfo, "name"))
@@ -1445,7 +1445,7 @@ void NPP_QWFlush(void)
 		else
 		{
 			unsigned int j = buffer[1];
-			if (j < MAX_CLIENTS)
+			if (j < sv.allocated_client_slots)
 			{
 				*svs.clients[j].name = '\0';
 				*svs.clients[j].userinfo = '\0';
@@ -2353,7 +2353,7 @@ void NPP_MVDFlush(void)
 		{
 			unsigned int j;
 			j = buffer[1];
-			if (j < MAX_CLIENTS)
+			if (j < sv.allocated_client_slots)
 			{
 				sv.recordedplayer[j].userid = buffer[2] | (buffer[3]<<8) | (buffer[4]<<16) | (buffer[5]<<24);
 				Q_strncpyz(sv.recordedplayer[j].userinfo, buffer+6, sizeof(sv.recordedplayer[j].userinfo));

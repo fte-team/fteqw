@@ -259,7 +259,7 @@ static void CSQC_FindGlobals(void)
 	CSQC_ChangeLocalPlayer(0);
 
 	if (csqcg.maxclients)
-		*csqcg.maxclients = MAX_CLIENTS;
+		*csqcg.maxclients = cl.allocated_client_slots;
 }
 
 
@@ -2232,7 +2232,7 @@ static void QCBUILTIN PF_cs_getplayerkey (progfuncs_t *prinst, struct globalvars
 		}
 	}
 
-	if (pnum < 0 || pnum >= MAX_CLIENTS)
+	if (pnum < 0 || pnum >= cl.allocated_client_slots)
 		ret = "";
 	else if (!*cl.players[pnum].userinfo)
 		ret = "";	//player isn't on the server.

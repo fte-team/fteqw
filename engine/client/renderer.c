@@ -93,7 +93,7 @@ cvar_t r_floortexture						= SCVARF ("r_floortexture", "",
 												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
 cvar_t r_fullbright							= SCVARF ("r_fullbright", "0",
 												CVAR_CHEAT|CVAR_SHADERSYSTEM);
-cvar_t r_fullbrightSkins					= SCVARF ("r_fullbrightSkins", "1",
+cvar_t r_fullbrightSkins					= SCVARF ("r_fullbrightSkins", "0.8", /*don't default to 1, as it looks a little ugly (too bright), but don't default to 0 either because then you're handicapped in the dark*/
 												CVAR_SEMICHEAT|CVAR_SHADERSYSTEM);
 cvar_t r_lightmap_saturation				= SCVAR  ("r_lightmap_saturation", "1");
 cvar_t r_lightstylesmooth					= SCVAR  ("r_lightstylesmooth", "0");

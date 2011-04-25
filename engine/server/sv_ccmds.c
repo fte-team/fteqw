@@ -254,7 +254,7 @@ qboolean SV_SetPlayer (void)
 
 	idnum = atoi(Cmd_Argv(1));
 
-	for (i=0,cl=svs.clients ; i<MAX_CLIENTS ; i++,cl++)
+	for (i=0,cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++)
 	{
 		if (!cl->state)
 			continue;

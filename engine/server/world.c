@@ -1797,7 +1797,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 #ifndef CLIENTONLY
 			if (w == &sv.world)
 			{
-				if (passedict->entnum && passedict->entnum <= MAX_CLIENTS)
+				if (passedict->entnum && passedict->entnum <= sv.allocated_client_slots)
 				{
 					clip.type |= MOVE_LAGGED;
 					w->lagents = svs.clients[passedict->entnum-1].laggedents;
@@ -1806,7 +1806,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 				}
 				else if (passedict->v->owner)
 				{
-					if (passedict->v->owner && passedict->v->owner <= MAX_CLIENTS)
+					if (passedict->v->owner && passedict->v->owner <= sv.allocated_client_slots)
 					{
 						clip.type |= MOVE_LAGGED;
 						w->lagents = svs.clients[passedict->v->owner-1].laggedents;

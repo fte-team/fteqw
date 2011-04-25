@@ -747,7 +747,7 @@ static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 	}
 	else
 	{
-		ambientlight[0] = ambientlight[1] = ambientlight[2] = shadelight[0] = shadelight[1] = shadelight[2] = 255;
+		ambientlight[0] = ambientlight[1] = ambientlight[2] = shadelight[0] = shadelight[1] = shadelight[2] = 128;
 		lightdir[0] = 0;
 		lightdir[1] = 1;
 		lightdir[2] = 1;
@@ -819,7 +819,7 @@ static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		for (i = 0; i < 3; i++)
 		{
 			if (ambientlight[i] < 8)
-				ambientlight[i] = shadelight[i] = 8;
+				ambientlight[i] = 8;
 		}
 	}
 
@@ -926,6 +926,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 	shader_t *shader;
 	batch_t *b;
 	int surfnum;
+	shadersort_t sort;
 
 	texnums_t *skin;
 
@@ -991,15 +992,30 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 			b->lightmap = -1;
 			b->surf_first = surfnum;
 			b->flags = 0;
+			sort = shader->sort;
 			if (e->flags & Q2RF_ADDITIVE)
+			{
 				b->flags |= BEF_FORCEADDITIVE;
+				if (sort < SHADER_SORT_ADDITIVE)
+					sort = SHADER_SORT_ADDITIVE;
+			}
 			if (e->flags & Q2RF_TRANSLUCENT)
+			{
 				b->flags |= BEF_FORCETRANSPARENT;
+				if (sort < SHADER_SORT_BLEND)
+					sort = SHADER_SORT_BLEND;
+			}
 			if (e->flags & RF_NODEPTHTEST)
+			{
 				b->flags |= BEF_FORCENODEPTH;
+				if (sort < SHADER_SORT_NEAREST)
+					sort = SHADER_SORT_NEAREST;
+			}
+			if (e->flags & RF_NOSHADOW)
+				b->flags |= BEF_NOSHADOWS;
 			b->vbo = 0;
-			b->next = batches[shader->sort];
-			batches[shader->sort] = b;
+			b->next = batches[sort];
+			batches[sort] = b;
 		}
 	}
 }

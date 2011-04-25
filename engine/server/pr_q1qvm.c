@@ -1268,7 +1268,7 @@ void Q1QVM_Shutdown(void)
 	int i;
 	if (q1qvm)
 	{
-		for (i = 0; i < MAX_CLIENTS; i++)
+		for (i = 0; i < sv.allocated_client_slots; i++)
 		{
 			if (svs.clients[i].name)
 				Q_strncpyz(svs.clients[i].namebuf, svs.clients[i].name, sizeof(svs.clients[i].namebuf));

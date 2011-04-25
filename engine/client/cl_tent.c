@@ -2806,7 +2806,7 @@ void CL_UpdateBeams (void)
 		lastrunningbeam = bnum;
 
 	// if coming from the player, update the start position
-		if ((b->flags & 1) && b->entity > 0 && b->entity <= MAX_CLIENTS)
+		if ((b->flags & 1) && b->entity > 0 && b->entity <= cl.allocated_client_slots)
 		{
 			for (j = 0; j < cl.splitclients; j++)
 			{
@@ -2884,7 +2884,7 @@ void CL_UpdateBeams (void)
 			{
 				VectorCopy(st->origin, b->start);
 			}
-			else if (b->entity <= MAX_CLIENTS && b->entity > 0)
+			else if (b->entity <= cl.allocated_client_slots && b->entity > 0)
 			{
 				pl = &cl.frames[cl.parsecount&UPDATE_MASK].playerstate[b->entity-1];
 				VectorCopy(pl->origin, b->start);

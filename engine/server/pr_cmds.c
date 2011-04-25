@@ -1533,7 +1533,7 @@ qboolean PR_GameCodePacket(char *s)
 
 	// check for packets from connected clients
 	pr_global_struct->self = 0;
-	for (i=0, cl=svs.clients ; i<MAX_CLIENTS ; i++,cl++)
+	for (i=0, cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++)
 	{
 		if (cl->state == cs_free)
 			continue;
@@ -4088,7 +4088,7 @@ sizebuf_t *QWWriteDest (int		dest)
 #if 0
 		ent = PROG_TO_EDICT(pr_global_struct->msg_entity);
 		entnum = NUM_FOR_EDICT(ent);
-		if (entnum < 1 || entnum > MAX_CLIENTS)
+		if (entnum < 1 || entnum > sv.allocated_client_slots)
 		{
 			PR_BIError ("WriteDest: not a client");
 			return &sv.reliable_datagram;
@@ -4137,7 +4137,7 @@ sizebuf_t *NQWriteDest (int dest)
 #if 0
 		ent = PROG_TO_EDICT(pr_global_struct->msg_entity);
 		entnum = NUM_FOR_EDICT(ent);
-		if (entnum < 1 || entnum > MAX_CLIENTS)
+		if (entnum < 1 || entnum > sv.allocated_client_slots)
 		{
 			PR_BIError (prinst, "WriteDest: not a client");
 			return &sv.nqreliable_datagram;
@@ -4916,7 +4916,7 @@ char *PF_infokey_Internal (int entnum, char *key)
 				value = Info_ValueForKey(localinfo, key);
 		}
 	}
-	else if (entnum <= MAX_CLIENTS)
+	else if (entnum <= sv.allocated_client_slots)
 	{
 		value = ov;
 		if (!strcmp(key, "ip") || !strcmp(key, "realip"))	//note: FTE doesn't support mvdsv's realip stuff, so pretend that we do if the mod asks
@@ -5449,7 +5449,7 @@ static void QCBUILTIN PF_checkextension (progfuncs_t *prinst, struct globalvars_
 		if (*svprogfuncs->callargc == 2)
 		{
 			int clnum = NUM_FOR_EDICT(prinst, G_EDICT(prinst, OFS_PARM1));
-			if (clnum >= 1 && clnum <= MAX_CLIENTS)	//valid client as second parameter
+			if (clnum >= 1 && clnum <= sv.allocated_client_slots)	//valid client as second parameter
 			{
 				ext = checkfteextensioncl(svs.clients[clnum-1].fteprotocolextensions, s);
 			}
@@ -5653,7 +5653,7 @@ static void QCBUILTIN PF_redirectcmd (progfuncs_t *prinst, struct globalvars_s *
 		return;
 
 	entnum = G_EDICTNUM(OFS_PARM0);
-	if (entnum < 1 || entnum > MAX_CLIENTS)
+	if (entnum < 1 || entnum > sv.allocated_client_slots)
 		PR_RunError ("Parm 0 not a client");
 
 	s = G_STRING(OFS_PARM1);
@@ -7844,7 +7844,7 @@ static void QCBUILTIN PF_setcolors (progfuncs_t *prinst, struct globalvars_s *pr
 	entnum = G_EDICTNUM(prinst, OFS_PARM0);
 	i = G_FLOAT(OFS_PARM1);
 
-	if (entnum < 1 || entnum > MAX_CLIENTS)
+	if (entnum < 1 || entnum > sv.allocated_client_slots)
 	{
 		Con_Printf ("tried to setcolor a non-client\n");
 		return;

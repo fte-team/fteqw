@@ -606,7 +606,7 @@ static model_t *CSQC_GetModelForIndex(int index)
 
 static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 {
-	int i, ival;
+	int ival;
 	model_t *model;
 	unsigned int rflags;
 

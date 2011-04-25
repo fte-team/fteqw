@@ -798,45 +798,58 @@ static void	(D3D9_VID_ShiftPalette)			(unsigned char *palette)
 }
 static char	*(D3D9_VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevidheight)
 {
-	IDirect3DSurface9 *surf;
+	IDirect3DSurface9 *backbuf, *surf;
 	D3DLOCKED_RECT rect;
+	D3DSURFACE_DESC desc;
 	int i, j, c;
-	qbyte *ret = BZ_Malloc(prepad + vid.pixelwidth*vid.pixelheight*3);
+	qbyte *ret = NULL;
 	qbyte *p;
-	HRESULT res;
 
-	// TODO: this captures the entire screen on windowed display..
-	// also might break on multi-monitor
-	IDirect3DDevice9_CreateOffscreenPlainSurface(pD3DDev9, 
-		GetSystemMetrics(SM_CXSCREEN), 
-		GetSystemMetrics(SM_CYSCREEN),
-		D3DFMT_A8R8G8B8,
-		D3DPOOL_SYSTEMMEM,
-		&surf,
-		NULL);
-	IDirect3DDevice9_GetFrontBufferData(pD3DDev9, 0, surf);
-	IDirect3DSurface9_LockRect(surf, &rect, NULL, D3DLOCK_NO_DIRTY_UPDATE|D3DLOCK_READONLY|D3DLOCK_NOSYSLOCK);
+	/*DON'T read the front buffer.
+	this function can be used by the quakeworld remote screenshot 'snap' feature,
+	so DO NOT read the frontbuffer because it can show other information than just quake to third parties*/
 
-	// read surface rect and convert 32 bgra to 24 rgb and flip
-	c = prepad+vid.pixelwidth*vid.pixelheight*3;
-	p = (qbyte *)rect.pBits;
-
-	for (i=c-(3*vid.pixelwidth); i>=prepad; i-=(3*vid.pixelwidth))
+	if (!FAILED(IDirect3DDevice9_GetRenderTarget(pD3DDev9, 0, &backbuf)))
 	{
-		for (j=0; j<vid.pixelwidth; j++)
+		if (!FAILED(IDirect3DSurface9_GetDesc(backbuf, &desc)))
+		if (desc.Format == D3DFMT_X8R8G8B8 || desc.Format == D3DFMT_A8R8G8B8)
+		if (!FAILED(IDirect3DDevice9_CreateOffscreenPlainSurface(pD3DDev9, 
+					desc.Width, desc.Height, desc.Format,
+					D3DPOOL_SYSTEMMEM, &surf, NULL))
+			)
 		{
-			ret[i+j*3+0] = p[j*4+2];
-			ret[i+j*3+1] = p[j*4+1];
-			ret[i+j*3+2] = p[j*4+0];
+
+			if (!FAILED(IDirect3DDevice9_GetRenderTargetData(pD3DDev9, backbuf, surf)))
+			if (!FAILED(IDirect3DSurface9_LockRect(surf, &rect, NULL, D3DLOCK_NO_DIRTY_UPDATE|D3DLOCK_READONLY|D3DLOCK_NOSYSLOCK)))
+			{
+				ret = BZ_Malloc(prepad + desc.Width*desc.Height*3);
+				if (ret)
+				{
+					// read surface rect and convert 32 bgra to 24 rgb and flip
+					c = prepad+desc.Width*desc.Height*3;
+					p = (qbyte *)rect.pBits;
+
+					for (i=c-(3*desc.Height); i>=prepad; i-=(3*desc.Height))
+					{
+						for (j=0; j<desc.Width; j++)
+						{
+							ret[i+j*3+0] = p[j*4+2];
+							ret[i+j*3+1] = p[j*4+1];
+							ret[i+j*3+2] = p[j*4+0];
+						}
+						p += rect.Pitch;
+					}
+
+					*truevidwidth = desc.Width;
+					*truevidheight = desc.Height;
+				}
+
+				IDirect3DSurface9_UnlockRect(surf);
+			}
+			IDirect3DSurface9_Release(surf);
 		}
-		p += rect.Pitch;
+		IDirect3DSurface9_Release(backbuf);
 	}
-
-	*truevidwidth = vid.pixelwidth;
-	*truevidheight = vid.pixelheight;
-
-	IDirect3DSurface9_UnlockRect(surf);
-	IDirect3DSurface9_Release(surf);
 	
 	return ret;
 }

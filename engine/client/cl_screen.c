@@ -1857,6 +1857,7 @@ SCR_ScreenShot_f
 */
 void SCR_ScreenShot_f (void)
 {
+	char			sysname[1024];
 	char            pcxname[80];
 	int                     i;
 	vfsfile_t *vfs;
@@ -1902,8 +1903,10 @@ void SCR_ScreenShot_f (void)
 		}
 	}
 
+	FS_NativePath(pcxname, FS_GAMEONLY, sysname, sizeof(sysname));
+
 	if (SCR_ScreenShot(pcxname))
-		Con_Printf ("Wrote %s\n", pcxname);
+		Con_Printf ("Wrote %s\n", sysname);
 	else
 		Con_Printf ("Screenshot failed\n");
 }

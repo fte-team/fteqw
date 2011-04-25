@@ -201,8 +201,8 @@ extern cvar_t r_novis;
 extern cvar_t r_speeds;
 extern cvar_t r_waterwarp;
 
-extern cvar_t	r_polygonoffset_submodel_factor;
-extern cvar_t	r_polygonoffset_submodel_offset;
+cvar_t	r_polygonoffset_submodel_factor = SCVAR("r_polygonoffset_submodel_factor", "0.05");
+cvar_t	r_polygonoffset_submodel_offset = SCVAR("r_polygonoffset_submodel_offset", "25");
 
 rendererstate_t currentrendererstate;
 
@@ -387,9 +387,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_specular, GRAPHICALNICETIES);
 
 //	Cvar_Register (&gl_lightmapmode, GLRENDEREROPTIONS);
-
-	Cvar_Register (&r_polygonoffset_submodel_factor, GLRENDEREROPTIONS);
-	Cvar_Register (&r_polygonoffset_submodel_offset, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_picmip, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_picmip2d, GLRENDEREROPTIONS);
@@ -601,6 +598,8 @@ void Renderer_Init(void)
 
 	Cvar_Register (&r_replacemodels, GRAPHICALNICETIES);
 
+	Cvar_Register (&r_polygonoffset_submodel_factor, GLRENDEREROPTIONS);
+	Cvar_Register (&r_polygonoffset_submodel_offset, GLRENDEREROPTIONS);
 
 // misc
 	Cvar_Register(&con_ocranaleds, "Console controls");

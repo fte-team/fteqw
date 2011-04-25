@@ -82,9 +82,6 @@ cvar_t	gl_dither = SCVAR("gl_dither", "1");
 
 extern cvar_t	gl_screenangle;
 
-cvar_t	r_polygonoffset_submodel_factor = SCVAR("r_polygonoffset_submodel_factor", "0.05");
-cvar_t	r_polygonoffset_submodel_offset = SCVAR("r_polygonoffset_submodel_offset", "25");
-
 extern cvar_t	gl_mindist;
 
 extern cvar_t	ffov;

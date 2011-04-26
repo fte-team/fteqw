@@ -2239,7 +2239,16 @@ static void DrawPass(const shaderpass_t *pass)
 			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
 			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
 			qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
-			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, gl_overbright.value+1);
+			{
+				float o;
+				if (gl_overbright.value >= 2)
+					o = 4.0;
+				else if (gl_overbright.value >= 1)
+					o = 2.0;
+				else
+					o = 1.0;
+				qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, o);
+			}
 			break;
 		default:
 		case PBM_MODULATE:

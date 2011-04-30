@@ -47,7 +47,7 @@ void Sys_RecentServer(char *command, char *target, char *title, char *desc)
 {
 }
 
-static void Sys_Shutdown()
+void Sys_Shutdown()
 {
 #if I_AM_BIGFOOT
 	if(DynLoadBase)

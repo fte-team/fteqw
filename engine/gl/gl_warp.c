@@ -89,7 +89,7 @@ void R_DrawSkyChain (batch_t *batch)
 		return;
 	}
 #ifdef GLQUAKE
-	if (*r_fastsky.string && qrenderer == QR_OPENGL)
+	if (*r_fastsky.string && qrenderer == QR_OPENGL && TEXVALID(batch->shader->defaulttextures.base))
 	{
 		R_CalcSkyChainBounds(batch);
 
@@ -565,13 +565,12 @@ static void MakeSkyGridVec2 (float s, float t, int axis, vec3_t v)
 {
 	vec3_t		b;
 	int			j, k;
-	float skydist = gl_skyboxdist.value;
-	extern cvar_t gl_maxdist;
 
-	if (!skydist)
-	{
-		skydist = gl_maxdist.value * 0.577;
-	}
+	float skydist = gl_skyboxdist.value;
+	if (skydist<1)
+		skydist=gl_maxdist.value * 0.577;
+	if (skydist<1)
+		skydist = 10000000;
 
 	b[0] = s*skydist;
 	b[1] = t*skydist;
@@ -635,7 +634,6 @@ static void GL_DrawSkyGrid (texture_t *tex)
 	int i;
 	float time = cl.gametime+realtime-cl.gametimemark;
 
-	PPL_RevertToKnownState();
 	GL_LazyBind(0, GL_TEXTURE_2D, tex->shader->defaulttextures.base, false);
 
 	speedscale = time*8;

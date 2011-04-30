@@ -689,6 +689,16 @@ void Sys_Init (void)
 }
 
 
+void Sys_Shutdown(void)
+{
+	if (host_parms.membase)
+	{
+		VirtualFree(host_parms.membase, 0, MEM_RELEASE);
+		host_parms.membase = 0;
+	}
+}
+
+
 void VARGS Sys_Error (const char *error, ...)
 {
 	va_list		argptr;
@@ -714,7 +724,15 @@ void VARGS Sys_Error (const char *error, ...)
 	SetHookState(false);
 #endif
 
+#ifdef NPQTV
+	{
+		extern jmp_buf 	host_abort;
+		/*jump to start of main loop (which exits the main loop)*/
+		longjmp (host_abort, 1);
+	}
+#else
 	exit (1);
+#endif
 }
 
 void VARGS Sys_Printf (char *fmt, ...)
@@ -759,6 +777,7 @@ void Sys_Quit (void)
 #ifdef NPQTV
 	{
 		extern jmp_buf 	host_abort;
+		/*jump to start of main loop (which exits the main loop)*/
 		longjmp (host_abort, 1);
 	}
 #else
@@ -1234,15 +1253,6 @@ void NPQTV_Sys_MainLoop(void)
 		Sys_Error("wut?");
 #endif
 	}
-}
-
-void NPQTV_Sys_Shutdown(void)
-{
-	//disconnect server/client/etc
-	CL_Disconnect_f();
-	R_ShutdownRenderer();
-
-	Host_Shutdown();
 }
 
 void Sys_RecentServer(char *command, char *target, char *title, char *desc)

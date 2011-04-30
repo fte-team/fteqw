@@ -425,7 +425,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 			s_speex.driver = &OSS_Capture;
 
 		/*no way to capture audio, give up*/
-		if (!s_speex.driver)
+		if (!s_speex.driver || !s_speex.driver->Init)
 			return;
 
 		/*see if we can init speex...*/
@@ -1062,8 +1062,7 @@ void S_Init (void)
 
 	snd_initialized = true;
 
-	if (!known_sfx)
-		known_sfx = Hunk_AllocName (MAX_SFX*sizeof(sfx_t), "sfx_t");
+	known_sfx = Hunk_AllocName (MAX_SFX*sizeof(sfx_t), "sfx_t");
 	num_sfx = 0;
 
 // create a piece of DMA memory

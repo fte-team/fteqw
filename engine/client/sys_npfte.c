@@ -253,7 +253,6 @@ NPError NP_LOADDS NPP_Destroy(NPP instance, NPSavedData** save)
 }
 NPError NP_LOADDS NPP_SetWindow(NPP instance, NPWindow* window)
 {
-	extern cvar_t vid_width;
 	struct context *ctx = instance->pdata;
 	struct contextpublic *pub = (struct contextpublic*)ctx;
 
@@ -525,10 +524,10 @@ bool npscript_getProperty(NPObject *npobj, NPIdentifier name, NPVariant *result)
 			}
 			else
 			{
-				ns = browserfuncs->memalloc(len);
+				ns = browserfuncs->memalloc(len+1);
 				if (ns)
 				{
-					memcpy(ns, strval, len);
+					memcpy(ns, strval, len+1);
 					STRINGZ_TO_NPVARIANT(ns, *result);
 					success = true;
 				}
@@ -683,7 +682,6 @@ NPError OSCALL NP_GetValue(void *instance, NPPVariable variable, void *value)
 
 NPError OSCALL NP_GetEntryPoints (NPPluginFuncs* pFuncs)
 {
-	MessageBox(NULL, "Foo", "Foo", 0);
 	if (pFuncs->size < sizeof(NPPluginFuncs))
 		return NPERR_INVALID_FUNCTABLE_ERROR;
 	pFuncs->size = sizeof(NPPluginFuncs);

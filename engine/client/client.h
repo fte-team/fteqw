@@ -453,6 +453,10 @@ typedef struct {
 	vec3_t origin;	//current render position
 	vec3_t angles;
 
+	//previous rendering frame (for trails)
+	vec3_t lastorigin;
+	qboolean isnew;
+
 	//intermediate values for frame lerping
 	float framelerpdeltatime;
 	float newframestarttime;
@@ -463,8 +467,8 @@ typedef struct {
 	//intermediate values for origin lerping of stepping things
 	float orglerpdeltatime;
 	float orglerpstarttime;
-	vec3_t neworigin;
-	vec3_t oldorigin;
+	vec3_t neworigin; /*origin that we're lerping towards*/
+	vec3_t oldorigin; /*origin that we're lerping away from*/
 	vec3_t newangle;
 	vec3_t oldangle;
 } lerpents_t;
@@ -784,9 +788,9 @@ void CLNQ_BeginServerConnect(void);
 char *CL_TryingToConnect(void);
 
 #define			MAX_VISEDICTS	1024
-extern	int				cl_numvisedicts, cl_oldnumvisedicts;
-extern	entity_t		*cl_visedicts, *cl_oldvisedicts;
-extern	entity_t		cl_visedicts_list[2][MAX_VISEDICTS];
+extern	int				cl_numvisedicts;
+extern	entity_t		*cl_visedicts;
+extern	entity_t		cl_visedicts_list[MAX_VISEDICTS];
 
 /*these are for q3 really*/
 typedef struct {

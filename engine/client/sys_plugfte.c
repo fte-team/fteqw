@@ -364,7 +364,7 @@ int Plug_PluginThread(void *ctxptr)
 			{
 				ctx->shutdown = false;
 				VS_DebugLocation(__FILE__, __LINE__, "Sys_Shutdown");
-				NPQTV_Sys_Shutdown();
+				Host_Shutdown(); /*will shut down the host*/
 			}
 			else if (ctx->resetvideo)
 			{
@@ -390,7 +390,7 @@ int Plug_PluginThread(void *ctxptr)
 #else
 	__except (EXCEPTION_EXECUTE_HANDLER)
 	{
-		NPQTV_Sys_Shutdown();
+		Host_Shutdown();
 		MessageBox(sys_parentwindow, "Sorry, FTE plugin crashed.\nYou probably should restart your browser", "FTE crashed", 0);
 	}
 #endif
@@ -463,8 +463,6 @@ struct context *Plug_CreateContext(void *sysctx, const struct browserfuncs *func
 	if (!sysctx || !funcs)
 		return NULL;
 
-//	MessageBox(0, "hello", "this one", 0);
-
 	ctx = malloc(sizeof(struct context));
 	if (!ctx)
 		return NULL;
@@ -499,14 +497,13 @@ qboolean Plug_ChangeWindow(struct context *ctx, void *whnd, int width, int heigh
 		ctx->windowhnd = whnd;
 		ctx->resetvideo = 2;
 	}
-	if (ctx->windowwidth != width && ctx->windowheight != height)
+	if (ctx->windowwidth != width || ctx->windowheight != height)
 	{
 		ctx->windowwidth = width;
 		ctx->windowheight = height;
-
-		if (ctx->pub.running && !ctx->resetvideo)
-			ctx->resetvideo = true;
 	}
+	if (ctx->pub.running && !ctx->resetvideo)
+		ctx->resetvideo = true;
 	Plug_LockPlugin(ctx, false);
 
 	while(ctx->pub.running && ctx->resetvideo)

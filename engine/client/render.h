@@ -86,6 +86,11 @@ typedef struct entity_s
 	vec4_t					shaderRGBAf;
 	float					shaderTime;
 
+	int						light_known;
+	vec3_t                  light_avg; /*midpoint level*/
+	vec3_t                  light_range; /*avg + this = max, avg - this = min*/
+	vec3_t                  light_dir;
+
 	vec3_t					oldorigin;
 	vec3_t					oldangles;
 	
@@ -191,8 +196,8 @@ void Surf_DeInit(void);
 void Surf_Clear(struct model_s *mod);
 void Surf_BuildLightmaps(void);
 void Surf_BuildSurfaceDisplayList (struct model_s *mod, struct msurface_s *fa);
-void Surf_RenderDynamicLightmaps (struct msurface_s *fa, int shift);
-void Surf_RenderAmbientLightmaps (struct msurface_s *fa, int shift, int ambient);
+void Surf_RenderDynamicLightmaps (struct msurface_s *fa);
+void Surf_RenderAmbientLightmaps (struct msurface_s *fa, int ambient);
 int Surf_LightmapShift (struct model_s *model);
 #ifndef LMBLOCK_WIDTH
 #define	LMBLOCK_WIDTH		128

@@ -630,6 +630,10 @@ void Sys_Init (void)
 	Cvar_Register (&sys_linebuffer, "System configuration");
 }
 
+void Sys_Shutdown (void)
+{
+}
+
 /*
 =============
 main

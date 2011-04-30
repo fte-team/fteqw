@@ -55,13 +55,16 @@ extern cvar_t r_loadlits;
 extern cvar_t r_stainfadetime;
 extern cvar_t r_stainfadeammount;
 
+static int lightmap_shift;
 int Surf_LightmapShift (model_t *model)
 {
 	extern cvar_t gl_overbright_all, gl_lightmap_shift;
 
 	if (gl_overbright_all.ival || (model->engineflags & MDLF_NEEDOVERBRIGHT))
-		return bound(0, gl_lightmap_shift.ival, 2);
-	return 0;
+		lightmap_shift = bound(0, gl_lightmap_shift.ival, 2);
+	else
+		lightmap_shift = 0;
+	return lightmap_shift;
 }
 
 void Surf_RebuildLightmap (void)
@@ -1162,7 +1165,7 @@ R_RenderDynamicLightmaps
 Multitexture
 ================
 */
-void Surf_RenderDynamicLightmaps (msurface_t *fa, int shift)
+void Surf_RenderDynamicLightmaps (msurface_t *fa)
 {
 	qbyte		*base, *luxbase;
 	stmap *stainbase;
@@ -1256,13 +1259,13 @@ dynamic:
 		base += fa->light_t * LMBLOCK_WIDTH * lightmap_bytes + fa->light_s * lightmap_bytes;
 		stainbase = lightmap[fa->lightmaptexturenum]->stainmaps;
 		stainbase += (fa->light_t * LMBLOCK_WIDTH + fa->light_s) * 3;
-		Surf_BuildLightMap (fa, base, luxbase, stainbase, shift, r_ambient.value*255);
+		Surf_BuildLightMap (fa, base, luxbase, stainbase, lightmap_shift, r_ambient.value*255);
 
 		RSpeedEnd(RSPEED_DYNAMIC);
 	}
 }
 
-void Surf_RenderAmbientLightmaps (msurface_t *fa, int shift, int ambient)
+void Surf_RenderAmbientLightmaps (msurface_t *fa, int ambient)
 {
 	qbyte		*base, *luxbase;
 	stmap *stainbase;
@@ -1342,7 +1345,7 @@ dynamic:
 		base += fa->light_t * LMBLOCK_WIDTH * lightmap_bytes + fa->light_s * lightmap_bytes;
 		stainbase = lightmap[fa->lightmaptexturenum]->stainmaps;
 		stainbase += (fa->light_t * LMBLOCK_WIDTH + fa->light_s) * 3;
-		Surf_BuildLightMap (fa, base, luxbase, stainbase, shift, -1-ambient);
+		Surf_BuildLightMap (fa, base, luxbase, stainbase, lightmap_shift, -1-ambient);
 
 		RSpeedEnd(RSPEED_DYNAMIC);
 	}
@@ -1403,7 +1406,7 @@ static qbyte *R_MarkLeafSurfaces_Q1 (void)
 				surf = tex->vbo.meshlist[j];
 				if (surf)
 				{
-					Surf_RenderDynamicLightmaps (surf, shift);
+					Surf_RenderDynamicLightmaps (surf);
 
 					tex->vbo.meshlist[j] = NULL;
 					surf->sbatch->mesh[surf->sbatch->meshes++] = surf->mesh;
@@ -1426,7 +1429,6 @@ static void Surf_RecursiveWorldNode (mnode_t *node, unsigned int clipflags)
 	msurface_t	*surf, **mark;
 	mleaf_t		*pleaf;
 	double		dot;
-	int shift;
 
 start:
 
@@ -1502,8 +1504,6 @@ start:
 	{
 		surf = cl.worldmodel->surfaces + node->firstsurface;
 
-		shift = Surf_LightmapShift(cl.worldmodel);
-
 		if (dot < 0 -BACKFACE_EPSILON)
 			side = SURF_PLANEBACK;
 		else if (dot > BACKFACE_EPSILON)
@@ -1517,7 +1517,7 @@ start:
 				if (((dot < 0) ^ !!(surf->flags & SURF_PLANEBACK)))
 					continue;		// wrong side
 
-				Surf_RenderDynamicLightmaps (surf, shift);
+				Surf_RenderDynamicLightmaps (surf);
 				surf->sbatch->mesh[surf->sbatch->meshes++] = surf->mesh;
 			}
 		}
@@ -1537,7 +1537,6 @@ static void Surf_RecursiveQ2WorldNode (mnode_t *node)
 	msurface_t	*surf, **mark;
 	mleaf_t		*pleaf;
 	double		dot;
-	int shift;
 
 	int sidebit;
 
@@ -1610,8 +1609,6 @@ static void Surf_RecursiveQ2WorldNode (mnode_t *node)
 // recurse down the children, front side first
 	Surf_RecursiveQ2WorldNode (node->children[side]);
 
-	shift = Surf_LightmapShift(currentmodel);
-
 	// draw stuff
 	for ( c = node->numsurfaces, surf = currentmodel->surfaces + node->firstsurface; c ; c--, surf++)
 	{
@@ -1623,7 +1620,7 @@ static void Surf_RecursiveQ2WorldNode (mnode_t *node)
 
 		surf->visframe = r_framecount+1;//-1;
 
-		Surf_RenderDynamicLightmaps (surf, shift);
+		Surf_RenderDynamicLightmaps (surf);
 
 		surf->sbatch->mesh[surf->sbatch->meshes++] = surf->mesh;
 	}
@@ -1885,7 +1882,6 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 	if (model->fromgame != fg_quake3 && model->fromgame != fg_doom3)
 	{
 		int k;
-		int shift;
 
 		currententity = ent;
 		currentmodel = ent->model;
@@ -1903,24 +1899,24 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 			}
 		}
 
-		shift = Surf_LightmapShift(model);
+		Surf_LightmapShift(model);
 		if ((ent->drawflags & MLS_MASKIN) == MLS_ABSLIGHT)
 		{
 			//update lightmaps.
 			for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
-				Surf_RenderAmbientLightmaps (s, shift, ent->abslight);
+				Surf_RenderAmbientLightmaps (s, ent->abslight);
 		}
 		else if (ent->drawflags & DRF_TRANSLUCENT)
 		{
 			//update lightmaps.
 			for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
-				Surf_RenderAmbientLightmaps (s, shift, 255);
+				Surf_RenderAmbientLightmaps (s, 255);
 		}
 		else
 		{
 			//update lightmaps.
 			for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
-				Surf_RenderDynamicLightmaps (s, shift);
+				Surf_RenderDynamicLightmaps (s);
 		}
 		currententity = NULL;
 	}
@@ -2055,6 +2051,8 @@ void Surf_DrawWorld (void)
 	{
 		RSpeedRemark();
 
+		Surf_LightmapShift(cl.worldmodel);
+
 #ifdef Q2BSPS
 		if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
 		{
@@ -2101,6 +2099,7 @@ void Surf_DrawWorld (void)
 			{
 				vis = R_MarkLeaves_Q1 ();
 				VectorCopy (r_refdef.vieworg, modelorg);
+
 				Surf_RecursiveWorldNode (cl.worldmodel->nodes, 0xf);
 			}
 		}
@@ -2110,7 +2109,6 @@ void Surf_DrawWorld (void)
 		RSpeedEnd(RSPEED_WORLDNODE);
 		TRACE(("dbg: calling BE_DrawWorld\n"));
 		BE_DrawWorld(vis);
-
 
 		/*FIXME: move this away*/
 		if (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife)

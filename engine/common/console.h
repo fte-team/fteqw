@@ -128,6 +128,7 @@ void Con_DrawCharacter (int cx, int line, int num);
 void Con_CheckResize (void);
 void Con_ForceActiveNow(void);
 void Con_Init (void);
+void Con_Shutdown (void);
 void Con_DrawConsole (int lines, qboolean noback);
 char *Con_CopyConsole(void);
 void Con_Print (char *txt);

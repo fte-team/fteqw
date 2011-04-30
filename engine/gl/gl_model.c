@@ -31,6 +31,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern cvar_t r_shadow_bumpscale_basetexture;
 extern cvar_t r_replacemodels;
+extern cvar_t r_deluxemapping;
 
 extern int gl_bumpmappingpossible;
 qboolean isnotmap = true;	//used to not warp ammo models.
@@ -1422,7 +1423,7 @@ void RMod_LoadLighting (lump_t *l)
 	if (loadmodel->fromgame == fg_halflife || loadmodel->fromgame == fg_quake2 || loadmodel->fromgame == fg_quake3)
 		mapcomeswith24bitcolouredlighting = true;
 
-	if (!mapcomeswith24bitcolouredlighting && r_loadlits.value && gl_bumpmappingpossible)	//fixme: adjust the light intensities.
+	if (!mapcomeswith24bitcolouredlighting && r_loadlits.ival && gl_bumpmappingpossible && r_deluxemapping.ival)	//fixme: adjust the light intensities.
 	{	//the map util has a '-scalecos X' parameter. use 0 if you're going to use only just lux. without lux scalecos 0 is hideous.
 		char luxname[MAX_QPATH];		
 		if (!luxdata)

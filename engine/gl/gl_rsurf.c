@@ -66,23 +66,26 @@ static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int
 	if (!qglGenBuffersARB)
 		return false;
 
-	qglGenBuffersARB(2, vbos);
+	qglGenBuffersARB(1+(elementsize>0), vbos);
 	GL_SelectVBO(vbos[0]);
 	qglBufferDataARB(GL_ARRAY_BUFFER_ARB, vsize, vdata, GL_STATIC_DRAW_ARB);
-	GL_SelectEBO(vbos[1]);
-	qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, elementsize, edata, GL_STATIC_DRAW_ARB);
+	if (elementsize>0)
+	{
+		GL_SelectEBO(vbos[1]);
+		qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, elementsize, edata, GL_STATIC_DRAW_ARB);
+	}
 
 	if (qglGetError())
 	{
 		GL_SelectVBO(0);
 		GL_SelectEBO(0);
-		qglDeleteBuffersARB(2, vbos);
+		qglDeleteBuffersARB(1+(elementsize>0), vbos);
 		return false;
 	}
 
 	//opengl ate our data, fixup the vbo arrays to point to the vbo instead of the raw data
 
-	if (vbo->indicies)
+	if (vbo->indicies && elementsize)
 	{
 		vbo->vboe = vbos[1];
 		vbo->indicies = (index_t*)((char*)vbo->indicies - (char*)edata);

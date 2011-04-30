@@ -97,10 +97,21 @@ int Con_IsActive (console_t *con)
 {
 	return (con == con_current) | (con->unseentext*2);
 }
-/*kills a console_t object. will never destroy the main console*/
+/*kills a console_t object. will never destroy the main console (which will only be cleared)*/
 void Con_Destroy (console_t *con)
 {
 	console_t *prev;
+	conline_t *t;
+	/*purge the lines from the console*/
+	while (con->current)
+	{
+		t = con->current;
+		con->current = t->older;
+		Z_Free(t);
+	}
+	con->display = con->current = con->oldest = NULL;
+	selstartline = NULL;
+	selendline = NULL;
 
 	if (con == &con_main)
 		return;
@@ -505,6 +516,8 @@ void Con_Init (void)
 
 	con_main.linebuffered = Con_ExecuteLine;
 	con_main.commandcompletion = true;
+
+	con_initialized = true;
 	Con_Printf ("Console initialized.\n");
 
 //
@@ -531,9 +544,17 @@ void Con_Init (void)
 	Cmd_AddCommand ("conclose", Cmd_ConClose_f);
 	Cmd_AddCommand ("conactivate", Cmd_ConActivate_f);
 
-	con_initialized = true;
-
 	Log_Init();
+}
+
+void Con_Shutdown(void)
+{
+	while(con_main.next)
+	{
+		Con_Destroy(con_main.next);
+	}
+	Con_Destroy(&con_main);
+	con_initialized = false;
 }
 
 /*

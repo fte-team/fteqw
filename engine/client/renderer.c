@@ -215,25 +215,27 @@ cvar_t	vid_gl_context_es2					= SCVAR  ("vid_gl_context_es2", "0"); //requires v
 #endif
 
 #if defined(GLQUAKE) || defined(D3DQUAKE)
-cvar_t gl_ati_truform						= SCVAR  ("gl_ati_truform", "0");
-cvar_t gl_ati_truform_type					= SCVAR  ("gl_ati_truform_type", "1");
-cvar_t gl_ati_truform_tesselation			= SCVAR  ("gl_ati_truform_tesselation", "3");
-cvar_t gl_blend2d							= SCVAR  ("gl_blend2d", "1");
-cvar_t gl_blendsprites						= SCVAR  ("gl_blendsprites", "1");
-cvar_t gl_bump								= SCVARF ("gl_bump", "0",
+cvar_t gl_ati_truform						= CVAR  ("gl_ati_truform", "0");
+cvar_t gl_ati_truform_type					= CVAR  ("gl_ati_truform_type", "1");
+cvar_t gl_ati_truform_tesselation			= CVAR  ("gl_ati_truform_tesselation", "3");
+cvar_t gl_blend2d							= CVAR  ("gl_blend2d", "1");
+cvar_t gl_blendsprites						= CVAR  ("gl_blendsprites", "1");
+cvar_t gl_bump								= CVARF ("gl_bump", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-cvar_t gl_compress							= SCVARF ("gl_compress", "0",
+cvar_t r_deluxemapping						= CVARAF ("r_deluxemapping", "0", "r_glsl_deluxemapping", 
+												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
+cvar_t gl_compress							= CVARF ("gl_compress", "0",
 												CVAR_ARCHIVE);
 cvar_t gl_conback							= CVARFC ("gl_conback", "",
 												CVAR_RENDERERCALLBACK, R2D_Conback_Callback);
-cvar_t gl_contrast							= SCVAR  ("gl_contrast", "1");
-cvar_t gl_detail							= SCVARF ("gl_detail", "0",
+cvar_t gl_contrast							= CVAR  ("gl_contrast", "1");
+cvar_t gl_detail							= CVARF ("gl_detail", "0",
 												CVAR_ARCHIVE);
-cvar_t gl_detailscale						= SCVAR  ("gl_detailscale", "5");
-cvar_t gl_font								= SCVARF ("gl_font", "",
+cvar_t gl_detailscale						= CVAR  ("gl_detailscale", "5");
+cvar_t gl_font								= CVARF ("gl_font", "",
 												CVAR_RENDERERCALLBACK);
-cvar_t gl_lateswap							= SCVAR  ("gl_lateswap", "0");
-cvar_t gl_lerpimages						= SCVAR  ("gl_lerpimages", "1");
+cvar_t gl_lateswap							= CVAR  ("gl_lateswap", "0");
+cvar_t gl_lerpimages						= CVAR  ("gl_lerpimages", "1");
 cvar_t gl_lightmap_shift					= CVARFC ("gl_lightmap_shift", "1",
 												CVAR_ARCHIVE,
 												Surf_RebuildLightmap_Callback);
@@ -291,6 +293,8 @@ cvar_t gl_triplebuffer						= SCVARF ("gl_triplebuffer", "1",
 
 cvar_t r_noportals							= SCVAR  ("r_noportals", "0");
 cvar_t r_noaliasshadows						= SCVARF ("r_noaliasshadows", "0",
+												CVAR_ARCHIVE);
+cvar_t r_shadows						= SCVARF ("r_shadows", "0",
 												CVAR_ARCHIVE);
 
 cvar_t r_shadow_bumpscale_basetexture		= SCVAR  ("r_shadow_bumpscale_basetexture", "4");
@@ -377,6 +381,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_smoothcrosshair, GRAPHICALNICETIES);
 
 	Cvar_Register (&gl_bump, GRAPHICALNICETIES);
+	Cvar_Register (&r_deluxemapping, GRAPHICALNICETIES);
 	Cvar_Register (&r_glsl_offsetmapping, GRAPHICALNICETIES);
 	Cvar_Register (&r_glsl_offsetmapping_scale, GRAPHICALNICETIES);
 
@@ -595,6 +600,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_fb_bmodels, GRAPHICALNICETIES);
 	Cvar_Register (&r_fb_models, GRAPHICALNICETIES);
 	Cvar_Register (&r_skin_overlays, GRAPHICALNICETIES);
+	Cvar_Register (&r_shadows, GRAPHICALNICETIES);
 
 	Cvar_Register (&r_replacemodels, GRAPHICALNICETIES);
 
@@ -1585,6 +1591,8 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 #endif
 	Cvar_ForceCallback(&r_particlesystem);
 
+	CL_InitDlights();
+
 TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 	if (cl.worldmodel)
 	{
@@ -1775,7 +1783,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 	}
 	if (!newr.renderer)
 	{
-		Con_Printf("vid_renderer unset or invalid. Using default.\n");
+		Con_Printf("vid_renderer unset or unsupported. Using default.\n");
 		//gotta do this after main hunk is saved off.
 #if defined(GLQUAKE)
 		Cmd_ExecuteString("setrenderer gl\n", RESTRICT_LOCAL);
@@ -1873,7 +1881,6 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 
 	TRACE(("dbg: R_RestartRenderer_f success\n"));
 	M_Reinit();
-	CL_InitDlights();
 }
 
 void R_SetRenderer_f (void)
@@ -2287,7 +2294,7 @@ qbyte *R_CalcVis_Q1 (void)
 
 qbyte *R_MarkLeaves_Q1 (void)
 {
-	qbyte	fatvis[MAX_MAP_LEAFS/8];
+	static qbyte	fatvis[MAX_MAP_LEAFS/8];
 	static qbyte	*vis;
 	mnode_t	*node;
 	int		i;
@@ -2318,7 +2325,9 @@ qbyte *R_MarkLeaves_Q1 (void)
 		vis = fatvis;
 	}
 	else
-		vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL, 0);
+	{
+		vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, fatvis, sizeof(fatvis));
+	}
 
 	for (i=0 ; i<cl.worldmodel->numleafs ; i++)
 	{

@@ -3156,7 +3156,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 
 				if (news != INVALID_SOCKET)
 				{
-					if (cluster->tcpsocket != INVALID_SOCKET)
+					if (cluster->tcpsocket[1] != INVALID_SOCKET)
 						closesocket(cluster->tcpsocket[1]);
 					cluster->tcpsocket[1] = news;
 					cluster->tcplistenportnum = newp;
@@ -3174,7 +3174,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 
 				if (news != INVALID_SOCKET)
 				{
-					if (cluster->tcpsocket != INVALID_SOCKET)
+					if (cluster->tcpsocket[0] != INVALID_SOCKET)
 						closesocket(cluster->tcpsocket[0]);
 					cluster->tcpsocket[0] = news;
 					cluster->tcplistenportnum = newp;

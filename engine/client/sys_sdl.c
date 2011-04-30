@@ -388,7 +388,10 @@ void Sys_Init(void)
 {
 	SDL_Init(SDL_INIT_TIMER | SDL_INIT_VIDEO | SDL_INIT_CDROM | SDL_INIT_NOPARACHUTE);
 }
-
+void Sys_Shutdown(void)
+{
+	SDL_Quit();
+}
 
 
 

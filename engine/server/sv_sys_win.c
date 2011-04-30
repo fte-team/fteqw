@@ -1076,6 +1076,10 @@ void Sys_Init (void)
 	hconsoleout = GetStdHandle(STD_OUTPUT_HANDLE);
 }
 
+void Sys_Shutdown (void)
+{
+}
+
 /*
 ==================
 main

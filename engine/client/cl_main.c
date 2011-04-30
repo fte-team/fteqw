@@ -195,9 +195,9 @@ int rtlights_first, rtlights_max;
 // refresh list
 // this is double buffered so the last frame
 // can be scanned for oldorigins of trailing objects
-int				cl_numvisedicts, cl_oldnumvisedicts;
-entity_t		*cl_visedicts, *cl_oldvisedicts;
-entity_t		cl_visedicts_list[2][MAX_VISEDICTS];
+int				cl_numvisedicts;
+entity_t		*cl_visedicts;
+entity_t		cl_visedicts_list[MAX_VISEDICTS];
 
 scenetris_t		*cl_stris;
 vecV_t			*cl_strisvertv;
@@ -1046,6 +1046,12 @@ void CL_ClearState (void)
 	cl.fog_colour[0] = 0.3;
 	cl.fog_colour[1] = 0.3;
 	cl.fog_colour[2] = 0.3;
+
+	cl.allocated_client_slots = MAX_CLIENTS;
+#ifndef CLIENTONLY
+	if (sv.state)
+		cl.allocated_client_slots = sv.allocated_client_slots;
+#endif
 
 	SZ_Clear (&cls.netchan.message);
 
@@ -3627,6 +3633,9 @@ void Host_Init (quakeparms_t *parms)
 	Cvar_Init();
 	Memory_Init (parms->membase, parms->memsize);
 
+	/*memory is working, its safe to printf*/
+	Con_Init ();
+
 	Sys_Init();
 
 	COM_ParsePlusSets();
@@ -3646,7 +3655,6 @@ void Host_Init (quakeparms_t *parms)
 
 //	W_LoadWadFile ("gfx.wad");
 	Key_Init ();
-	Con_Init ();
 	M_Init ();
 	IN_Init ();
 	S_Init ();
@@ -3840,6 +3848,11 @@ void Host_Shutdown(void)
 	}
 	host_initialized = false;
 
+	//disconnect server/client/etc
+	CL_Disconnect_f();
+	//Kill renderer
+	R_ShutdownRenderer();
+
 #ifdef VM_UI
 	UI_Stop();
 #endif
@@ -3863,12 +3876,14 @@ void Host_Shutdown(void)
 	Validation_FlushFileList();
 
 	Cmd_Shutdown();
+	Con_Shutdown();
 	Memory_DeInit();
 
 #ifndef CLIENTONLY
 	memset(&sv, 0, sizeof(sv));
 	memset(&svs, 0, sizeof(svs));
 #endif
+	Sys_Shutdown();
 }
 
 #ifdef CLIENTONLY

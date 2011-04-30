@@ -890,9 +890,6 @@ vecV_t *tempVertexCoords;
 int numTempNormals;
 vec3_t *tempNormals;
 
-avec3_t shadevector;
-avec3_t ambientlight;
-avec3_t shadelight;
 //#define SSE_INTRINSICS
 #ifdef SSE_INTRINSICS
 #include <xmmintrin.h>
@@ -907,12 +904,13 @@ void R_LightArraysByte_BGR(vecV_t *coords, byte_vec4_t *colours, int vertcount, 
 
 	byte_vec4_t ambientlightb;
 	byte_vec4_t shadelightb;
+	float *lightdir = currententity->light_dir;
 
 	for (i = 0; i < 3; i++)
 	{
-		l = ambientlight[2-i]*255;
+		l = currententity->light_avg[2-i]*255;
 		ambientlightb[i] = bound(0, l, 255);
-		l = shadelight[2-i]*255;
+		l = currententity->light_range[2-i]*255;
 		shadelightb[i] = bound(0, l, 255);
 	}
 
@@ -928,21 +926,17 @@ void R_LightArraysByte_BGR(vecV_t *coords, byte_vec4_t *colours, int vertcount, 
 	}
 	else
 	{
-		byte_vec4_t meanambient;
-		/*dotproduct will return a value between 1 and -1, so increase the ambient to be correct for normals facing away from the light*/
-		VectorMA(ambientlightb, 1, shadelightb, meanambient);
-
 		for (i = vertcount-1; i >= 0; i--)
 		{
-			l = DotProduct(normals[i], shadevector);
+			l = DotProduct(normals[i], lightdir);
 			c = l*shadelightb[0];
-			c += meanambient[0];
+			c += ambientlightb[0];
 			colours[i][0] = bound(0, c, 255);
 			c = l*shadelightb[1];
-			c += meanambient[1];
+			c += ambientlightb[1];
 			colours[i][1] = bound(0, c, 255);
 			c = l*shadelightb[2];
-			c += meanambient[2];
+			c += ambientlightb[2];
 			colours[i][2] = bound(0, c, 255);
 		}
 	}
@@ -954,18 +948,19 @@ void R_LightArrays(vecV_t *coords, avec4_t *colours, int vertcount, vec3_t *norm
 	int i;
 	float l;
 
-	if (VectorCompare(ambientlight, shadelight))
+	float *lightdir = currententity->light_dir;
+
+	if (!currententity->light_range[0] && !currententity->light_range[1] && !currententity->light_range[2])
 	{
 		for (i = vertcount-1; i >= 0; i--)
 		{
-			colours[i][0] = ambientlight[0];
-			colours[i][1] = ambientlight[1];
-			colours[i][2] = ambientlight[2];
+			colours[i][0] = currententity->light_avg[0];
+			colours[i][1] = currententity->light_avg[1];
+			colours[i][2] = currententity->light_avg[2];
 		}
 	}
 	else
 	{
-		vec3_t meanambient;
 #ifdef SSE_INTRINSICS
 		__m128 va, vs, vl, vr;
 		va = _mm_load_ps(ambientlight);
@@ -974,11 +969,9 @@ void R_LightArrays(vecV_t *coords, avec4_t *colours, int vertcount, vec3_t *norm
 		vs.m128_f32[3] = 1;
 #endif
 		/*dotproduct will return a value between 1 and -1, so increase the ambient to be correct for normals facing away from the light*/
-		VectorMA(ambientlight, 1, shadelight, meanambient);
-
 		for (i = vertcount-1; i >= 0; i--)
 		{
-			l = DotProduct(normals[i], shadevector);
+			l = DotProduct(normals[i], currententity->light_dir);
 	#ifdef SSE_INTRINSICS
 			vl = _mm_load1_ps(&l);
 			vr = _mm_mul_ss(va,vl);
@@ -987,9 +980,9 @@ void R_LightArrays(vecV_t *coords, avec4_t *colours, int vertcount, vec3_t *norm
 			_mm_storeu_ps(colours[i], vr);
 			//stomp on colour[i][3] (will be set to 1)
 	#else
-			colours[i][0] = l*shadelight[0]+meanambient[0];
-			colours[i][1] = l*shadelight[1]+meanambient[1];
-			colours[i][2] = l*shadelight[2]+meanambient[2];
+			colours[i][0] = l*currententity->light_range[0]+currententity->light_avg[0];
+			colours[i][1] = l*currententity->light_range[1]+currententity->light_avg[1];
+			colours[i][2] = l*currententity->light_range[2]+currententity->light_avg[2];
 	#endif
 		}
 	}

@@ -37,6 +37,7 @@ static qboolean shader_rescan_needed;
 
 //cvars that affect shader generation
 cvar_t r_vertexlight = SCVAR("r_vertexlight", "0");
+extern cvar_t r_deluxemapping;
 extern cvar_t r_fastturb, r_fastsky, r_skyboxname;
 extern cvar_t r_drawflat;
 
@@ -220,7 +221,7 @@ static qboolean Shader_EvaluateCondition(char **ptr)
 		if (!Q_stricmp(token, "lightmap"))
 			conditiontrue = conditiontrue == !r_fullbright.value;
 		else if (!Q_stricmp(token, "deluxmap") )
-			conditiontrue = conditiontrue == !!gl_bump.value;
+			conditiontrue = conditiontrue == (r_deluxemapping.value && gl_bump.value);
 
 		//normalmaps are generated if they're not already known.
 		else if (!Q_stricmp(token, "normalmap") )
@@ -725,7 +726,7 @@ static void Shader_EntityMergable ( shader_t *shader, shaderpass_t *pass, char *
 	shader->flags |= SHADER_ENTITY_MERGABLE;
 }
 
-static void Shader_ProgAutoFields(program_t *prog);
+static void Shader_ProgAutoFields(program_t *prog, char **cvarfnames);
 /*program text is already loaded, this function parses the 'header' of it to see which permutations it provides, and how many times we need to recompile it*/
 static void Shader_LoadPermutations(program_t *prog, char *script, int qrtype)
 {
@@ -744,14 +745,32 @@ static void Shader_LoadPermutations(program_t *prog, char *script, int qrtype)
 	int p, n, pn;
 	char *end;
 
+	char *cvarfnames[64];
+	int cvarfcount = 0;
+
+	cvarfnames[cvarfcount] = NULL;
+
 	for(;;)
 	{
 		while (*script == ' ' || *script == '\r' || *script == '\n' || *script == '\t')
 			script++;
-		if (!strncmp(script, "!!permu", 7))
+		if (!strncmp(script, "!!cvarf", 7))
 		{
 			script += 7;
-			while (*script == ' ' || *script == '\r' || *script == '\n' || *script == '\t')
+			while (*script == ' ' || *script == '\t')
+				script++;
+			end = script;
+			while ((*end >= 'A' && *end <= 'Z') || (*end >= 'a' && *end <= 'z') || (*end >= '0' && *end <= '9') || *end == '_')
+				end++;
+			if (cvarfcount+1 != sizeof(cvarfnames)/sizeof(cvarfnames[0]))
+				cvarfnames[cvarfcount++] = script;
+			cvarfnames[cvarfcount] = NULL;
+			script = end;
+		}
+		else if (!strncmp(script, "!!permu", 7))
+		{
+			script += 7;
+			while (*script == ' ' || *script == '\t')
 				script++;
 			end = script;
 			while ((*end >= 'A' && *end <= 'Z') || (*end >= 'a' && *end <= 'z') || (*end >= '0' && *end <= '9') || *end == '_')
@@ -809,7 +828,7 @@ static void Shader_LoadPermutations(program_t *prog, char *script, int qrtype)
 #endif
 	}
 
-	Shader_ProgAutoFields(prog);
+	Shader_ProgAutoFields(prog, cvarfnames);
 }
 typedef struct sgeneric_s
 {
@@ -967,6 +986,7 @@ struct sbuiltin_s
 		"#endif\n"
 	},
 	{QR_OPENGL/*ES*/, 100, "defaultwarp",
+		"!!cvarf r_wateralpha\n"
 		//"#version 100\n"
 		"varying mediump vec2 tc;\n"
 		"#ifdef VERTEX_SHADER\n"
@@ -984,7 +1004,7 @@ struct sbuiltin_s
 		"#ifdef FRAGMENT_SHADER\n"
 			"uniform sampler2D watertexture;\n"
 			"uniform mediump float e_time;\n"
-			"uniform lowp float wateralpha;\n"
+			"uniform lowp float r_wateralpha;\n"
 
 			"void main (void)\n"
 			"{\n"
@@ -993,11 +1013,12 @@ struct sbuiltin_s
 			"	ntc.t = tc.t + sin(tc.s+e_time)*0.125;\n"
 			"	lowp vec3 ts = vec3(texture2D(watertexture, ntc));\n"
 
-			"	gl_FragColor = vec4(ts, wateralpha);\n"
+			"	gl_FragColor = vec4(ts, r_wateralpha);\n"
 			"}\n"
 		"#endif\n"
 	},
 	{QR_OPENGL, 110, "defaultwarp",
+		"!!cvarf r_wateralpha\n"
 		"#version 110\n"
 		"varying vec2 tc;\n"
 		"#ifdef VERTEX_SHADER\n"
@@ -1011,7 +1032,7 @@ struct sbuiltin_s
 		"#ifdef FRAGMENT_SHADER\n"
 			"uniform sampler2D s_t0;\n"
 			"uniform float e_time;\n"
-			"uniform float wateralpha;\n"
+			"uniform float r_wateralpha;\n"
 
 			"void main (void)\n"
 			"{\n"
@@ -1020,7 +1041,7 @@ struct sbuiltin_s
 			"	ntc.t = tc.t + sin(tc.s+e_time)*0.125;\n"
 			"	vec3 ts = vec3(texture2D(s_t0, ntc));\n"
 
-			"	gl_FragColor = vec4(ts, wateralpha);\n"
+			"	gl_FragColor = vec4(ts, r_wateralpha);\n"
 			"}\n"
 		"#endif\n"
 	},
@@ -1147,6 +1168,7 @@ struct sbuiltin_s
 			"#endif\n"
 			"varying mediump vec2 tc;\n"
 			"varying lowp vec3 light;\n"
+			"uniform vec4 e_colourident;\n"
 
 			"void main (void)\n"
 			"{\n"
@@ -1165,8 +1187,7 @@ struct sbuiltin_s
 			"	vec4 fb = texture2D(s_t3, tc);\n"
 			"	col.rgb = mix(col.rgb, fb.rgb, fb.a);\n"
 			"#endif\n"
-			"	gl_FragColor.rgb = col.rgb;\n"    /*'default' skin has an rgbgen of identity*/
-			"	gl_FragColor.a = col.a * e_colour.a;\n" /*it also has an alphagen of identity too, but generate an alpha anyway, as its normally not blended and thus ignores colour*/
+			"	gl_FragColor = col * e_colourident;\n" 
 			"}\n"
 		"#endif\n"
 	},
@@ -1211,7 +1232,7 @@ struct sbuiltin_s
 			"#endif\n"
 			"varying vec2 tc;\n"
 			"varying vec3 light;\n"
-			"uniform vec4 e_colour;\n"
+			"uniform vec4 e_colourident;\n"
 
 			"void main (void)\n"
 			"{\n"
@@ -1230,8 +1251,7 @@ struct sbuiltin_s
 			"	vec4 fb = texture2D(s_t3, tc);\n"
 			"	col.rgb = mix(col.rgb, fb.rgb, fb.a);\n"
 			"#endif\n"
-			"	gl_FragColor.rgb = col.rgb;\n"    /*'default' skin has an rgbgen of identity*/
-			"   gl_FragColor.a = col.a * e_colour.a;\n" /*it also has an alphagen of identity too, but generate an alpha anyway, as its normally not blended and thus ignores colour*/
+			"	gl_FragColor = col * e_colourident;\n" 
 			"}\n"
 		"#endif\n"
 	},
@@ -1364,11 +1384,13 @@ static program_t *Shader_LoadGeneric(char *name, int qrtype)
 	return NULL;
 }
 
-static void Shader_ProgAutoFields(program_t *prog)
+static void Shader_ProgAutoFields(program_t *prog, char **cvarfnames)
 {
 	unsigned int i, p;
 	qboolean found;
 	int uniformloc;
+	char tmpname[128];
+	cvar_t *cvar;
 	static struct
 	{
 		char *name;
@@ -1395,6 +1417,7 @@ static void Shader_ProgAutoFields(program_t *prog)
 		{"e_time",					SP_TIME},
 		{"e_eyepos",				SP_EYEPOS},
 		{"e_colour",				SP_ENTCOLOURS},
+		{"e_colourident",			SP_ENTCOLOURSIDENT},
 		{"e_topcolour",				SP_TOPCOLOURS},
 		{"e_bottomcolour",			SP_BOTTOMCOLOURS},
 		{"e_light_dir",				SP_E_L_DIR},
@@ -1409,16 +1432,24 @@ static void Shader_ProgAutoFields(program_t *prog)
 		if (gl_config.nofixedfunc)
 			prog->nofixedcompat = true;
 
-		for (p = 0; p < PERMUTATIONS; p++)
+		/*set cvar unirforms*/
+		for (i = 0; cvarfnames[i]; i++)
 		{
-			if (!prog->handle[p].glsl)
+			for (p = 0; cvarfnames[i][p] && (unsigned char)cvarfnames[i][p] > 32 && p < sizeof(tmpname)-1; p++)
+				tmpname[p] = cvarfnames[i][p];
+			tmpname[p] = 0;
+			cvar = Cvar_FindVar(tmpname);
+			if (!cvar)
 				continue;
-			GLSlang_UseProgram(prog->handle[p].glsl);
-			for (i = 0; i < 8; i++)
+			cvar->flags |= CVAR_SHADERSYSTEM; 
+			for (p = 0; p < PERMUTATIONS; p++)
 			{
-				uniformloc = qglGetUniformLocationARB(prog->handle[p].glsl, va("s_t%i", i));
+				if (!prog->handle[p].glsl)
+					continue;
+				GLSlang_UseProgram(prog->handle[p].glsl);
+				uniformloc = qglGetUniformLocationARB(prog->handle[p].glsl, u[i].name);
 				if (uniformloc != -1)
-					qglUniform1iARB(uniformloc, i);
+					qglUniform1fARB(uniformloc, cvar->value);
 			}
 		}
 		for (i = 0; u[i].name; i++)
@@ -1444,6 +1475,19 @@ static void Shader_ProgAutoFields(program_t *prog)
 
 				if (u[i].ptype < SP_FIRSTUNIFORM)
 					prog->nofixedcompat = true;
+			}
+		}
+		/*set texture uniforms*/
+		for (p = 0; p < PERMUTATIONS; p++)
+		{
+			if (!prog->handle[p].glsl)
+				continue;
+			GLSlang_UseProgram(prog->handle[p].glsl);
+			for (i = 0; i < 8; i++)
+			{
+				uniformloc = qglGetUniformLocationARB(prog->handle[p].glsl, va("s_t%i", i));
+				if (uniformloc != -1)
+					qglUniform1iARB(uniformloc, i);
 			}
 		}
 		GLSlang_UseProgram(0);
@@ -2861,9 +2905,19 @@ void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 		return;
 	}
 
-	if (pass2->rgbgen != RGB_GEN_IDENTITY || pass2->alphagen != ALPHA_GEN_IDENTITY)
+	/*identity alpha is required for merging*/
+	if (pass->alphagen != ALPHA_GEN_IDENTITY || pass2->alphagen != ALPHA_GEN_IDENTITY)
 		return;
-	if (pass->rgbgen != RGB_GEN_IDENTITY || pass->alphagen != ALPHA_GEN_IDENTITY)
+
+	/*rgbgen must be identity too except if the later pass is identity_ligting, in which case all is well and we can switch the first pass to identity_lighting instead*/
+	if (pass2->rgbgen == RGB_GEN_IDENTITY_LIGHTING && pass2->blendmode == PBM_MODULATE && pass->rgbgen == RGB_GEN_IDENTITY)
+	{
+		pass->blendmode = PBM_REPLACELIGHT;
+		pass->rgbgen = RGB_GEN_IDENTITY_LIGHTING;
+		pass2->rgbgen = RGB_GEN_IDENTITY;
+	}
+	/*rgbgen must be identity (or the first is identity_lighting)*/
+	else if (pass2->rgbgen != RGB_GEN_IDENTITY || (pass->rgbgen != RGB_GEN_IDENTITY && pass->rgbgen != RGB_GEN_IDENTITY_LIGHTING))
 		return;
 
 	/*if its alphatest, don't merge with anything other than lightmap*/
@@ -2880,7 +2934,7 @@ void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 	}
 	else if (pass->numMergedPasses < be_maxpasses)
 	{
-		if ( pass->blendmode == PBM_REPLACE )
+		if (pass->blendmode == PBM_REPLACE || pass->blendmode == PBM_REPLACELIGHT)
 		{
 			if ((pass2->blendmode == PBM_DECAL && config_tex_env_combine) ||
 				(pass2->blendmode == PBM_ADD && config_env_add) ||
@@ -2903,7 +2957,7 @@ void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 	}
 	else return;
 
-	if (pass2->texgen == T_GEN_LIGHTMAP)
+	if (pass2->texgen == T_GEN_LIGHTMAP && pass2->blendmode == PBM_MODULATE)
 		pass2->blendmode = PBM_OVERBRIGHT;
 }
 
@@ -3003,10 +3057,14 @@ void Shader_Finish (shader_t *s)
 					s->flags = 0;
 		if (!(s->flags & SHADER_SKY))
 		{
+			char name[MAX_QPATH];
+			Q_strncpyz(name, s->name, sizeof(name));
 			Shader_Free(s);
 			memset(s, 0, sizeof(*s));
 
-			Shader_DefaultScript(s->name, s,
+			Q_strncpyz(s->name, name, sizeof(s->name));
+
+			Shader_DefaultScript(name, s,
 						"{\n"
 							"sort sky\n"
 							"{\n"
@@ -3202,7 +3260,10 @@ done:;
 		{
 			if (sp->rgbgen == RGB_GEN_UNKNOWN)
 			{
-				sp->rgbgen = RGB_GEN_IDENTITY;
+				if (sp->flags & SHADER_PASS_LIGHTMAP)
+					sp->rgbgen = RGB_GEN_IDENTITY_LIGHTING;
+				else
+					sp->rgbgen = RGB_GEN_IDENTITY;
 			}
 
 			Shader_SetBlendmode (sp);
@@ -3397,7 +3458,7 @@ void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args)
 	if (!builtin)
 		builtin = (
 				"{\n"
-					"if gl_bump\n"
+					"if $deluxmap\n"
 					"[\n"
 						"{\n"
 							"map $normalmap\n"

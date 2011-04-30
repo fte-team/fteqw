@@ -1303,7 +1303,6 @@ static void FS_AddDataFiles(const char *purepath, const char *pathto, searchpath
 		vfs = search->funcs->OpenVFS(search->handle, &loc, "r");
 		if (!vfs)
 			break;
-		Con_Printf("Opened %s\n", pakfile);
 		handle = funcs->OpenNew (vfs, pakfile);
 		if (!handle)
 			break;

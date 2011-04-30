@@ -53,7 +53,6 @@ extern cvar_t r_skin_overlays;
 
 #ifndef SERVERONLY
 static hashtable_t skincolourmapped;
-extern avec3_t shadevector, shadelight, ambientlight; 
 
 //changes vertex lighting values
 #if 0
@@ -707,18 +706,25 @@ static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 	int i;
 	vec3_t dist;
 	float add;
+	vec3_t shadelight, ambientlight;
 
+	if (e->light_known)
+		return e->light_known-1;
+
+	e->light_dir[0] = 0; e->light_dir[1] = 1; e->light_dir[2] = 0;
 	if (clmodel->engineflags & MDLF_FLAME)
 	{
-		shadelight[0] = shadelight[1] = shadelight[2] = 1;
-		ambientlight[0] = ambientlight[1] = ambientlight[2] = 1;
-		return true;
+		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;
+		e->light_range[0] = e->light_range[1] = e->light_range[2] = 0;
+		e->light_known = 2;
+		return e->light_known-1;
 	}
 	if ((e->drawflags & MLS_MASKIN) == MLS_FULLBRIGHT || (e->flags & Q2RF_FULLBRIGHT))
 	{
-		shadelight[0] = shadelight[1] = shadelight[2] = 1;
-		ambientlight[0] = ambientlight[1] = ambientlight[2] = 1;
-		return true;
+		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;
+		e->light_range[0] = e->light_range[1] = e->light_range[2] = 0;
+		e->light_known = 2;
+		return e->light_known-1;
 	}
 
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
@@ -805,7 +811,9 @@ static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 			{
 				ambientlight[0] = ambientlight[1] = ambientlight[2] = 1;
 				shadelight[0] = shadelight[1] = shadelight[2] = 1;
-				return true;
+
+				e->light_known = 2;
+				return e->light_known-1;
 			}
 			else
 			{
@@ -846,21 +854,21 @@ static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 
 //#define SHOWLIGHTDIR
 	{	//lightdir is absolute, shadevector is relative
-		shadevector[0] = DotProduct(lightdir, e->axis[0]);
-		shadevector[1] = DotProduct(lightdir, e->axis[1]);
-		shadevector[2] = DotProduct(lightdir, e->axis[2]);
+		e->light_dir[0] = DotProduct(lightdir, e->axis[0]);
+		e->light_dir[1] = DotProduct(lightdir, e->axis[1]);
+		e->light_dir[2] = DotProduct(lightdir, e->axis[2]);
 
 		if (e->flags & Q2RF_WEAPONMODEL)
 		{
 			vec3_t temp;
-			temp[0] = DotProduct(shadevector, vpn);
-			temp[1] = -DotProduct(shadevector, vright);
-			temp[2] = DotProduct(shadevector, vup);
+			temp[0] = DotProduct(e->light_dir, vpn);
+			temp[1] = -DotProduct(e->light_dir, vright);
+			temp[2] = DotProduct(e->light_dir, vup);
 
-			VectorCopy(temp, shadevector);
+			VectorCopy(temp, e->light_dir);
 		}
 
-		VectorNormalize(shadevector);
+		VectorNormalize(e->light_dir);
 
 	}
 
@@ -877,7 +885,12 @@ static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		shadelight[1] += sin(cl.time)*0.25;
 		shadelight[2] += sin(cl.time)*0.25;
 	}
-	return false;
+
+	VectorMA(ambientlight, 0.5, shadelight, e->light_avg);
+	VectorSubtract(shadelight, ambientlight, e->light_range);
+
+	e->light_known = 1;
+	return e->light_known-1;
 }
 
 void R_GAlias_DrawBatch(batch_t *batch)
@@ -1487,6 +1500,13 @@ static void R_DB_LightningBeam(batch_t *batch)
 	static mesh_t mesh;
 	static mesh_t *meshptr = &mesh;
 
+	if (batch->ent == &r_worldentity)
+	{
+		mesh.numindexes = 0;
+		mesh.numindexes = 0;
+		return;
+	}
+
 	scale *= -10;
 	if (!scale)
 		scale = 10;
@@ -1551,6 +1571,13 @@ static void R_DB_RailgunBeam(batch_t *batch)
 	static index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
 	static vec4_t colors[4];
 
+	if (batch->ent == &r_worldentity)
+	{
+		mesh.numindexes = 0;
+		mesh.numindexes = 0;
+		return;
+	}
+
 	if (!e->forcedshader)
 		return;
 
@@ -1609,7 +1636,6 @@ static void R_DB_Sprite(batch_t *batch)
 	vec3_t		forward, right, up;
 	msprite_t		*psprite;
 	vec3_t sprorigin;
-	unsigned int fl = 0;
 	unsigned int sprtype;
 
 	static vec2_t texcoords[4]={{0, 1},{0,0},{1,0},{1,1}};
@@ -1619,6 +1645,12 @@ static void R_DB_Sprite(batch_t *batch)
 	static mesh_t mesh;
 	static mesh_t *meshptr = &mesh;
 
+	if (batch->ent == &r_worldentity)
+	{
+		mesh.numindexes = 0;
+		mesh.numindexes = 0;
+		return;
+	}
 
 	if (e->flags & Q2RF_WEAPONMODEL && r_refdef.currentplayernum >= 0)
 	{
@@ -1712,7 +1744,6 @@ static void R_DB_Sprite(batch_t *batch)
 	VectorMA (point, frame->right, right, vertcoords[3]);
 
 	batch->ent = &r_worldentity;
-	batch->flags |= fl;
 	batch->mesh = &meshptr;
 
 	memset(&mesh, 0, sizeof(mesh));

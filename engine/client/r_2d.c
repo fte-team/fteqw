@@ -912,8 +912,9 @@ void R2D_Crosshair_Update(void)
 	unsigned char *x;
 
 	c = crosshair.ival;
-
-	if (crosshairimage.string[0] && c == 1)
+	if (!crosshairimage.string)
+		return;
+	else if (crosshairimage.string[0] && c == 1)
 	{
 		shader_crosshair->defaulttextures.base = R_LoadHiResTexture (crosshairimage.string, "crosshairs", IF_NOMIPMAP|IF_NOGAMMA);
 		if (TEXVALID(shader_crosshair->defaulttextures.base))

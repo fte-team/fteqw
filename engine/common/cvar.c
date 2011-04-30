@@ -979,7 +979,7 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 	if (variable->name2)
 		Hash_AddInsensative(&cvar_hash, variable->name2, variable, &variable->hbn2);
 
-	variable->string = (char*)Z_Malloc (1);
+	variable->string = NULL;
 
 	if (variable->flags & CVAR_FREEDEFAULT)
 		variable->defaultstr = Cvar_DefaultAlloc(initial);

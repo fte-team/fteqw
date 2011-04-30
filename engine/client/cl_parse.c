@@ -2043,12 +2043,6 @@ void CL_ParseServerData (void)
 	SCR_SetLoadingStage(LS_CLIENT);
 	SCR_BeginLoadingPlaque();
 
-	cl.allocated_client_slots = MAX_CLIENTS;
-#ifndef CLIENTONLY
-	if (sv.state)
-		cl.allocated_client_slots = sv.allocated_client_slots;
-#endif
-
 // parse protocol version number
 // allow 2.2 and 2.29 demos to play
 #ifdef PROTOCOL_VERSION_FTE

@@ -13,6 +13,8 @@
 #include <alloca.h>
 #endif
 
+extern cvar_t gl_overbright;
+
 #define LIGHTPASS_GLSL_SHARED	"\
 varying vec2 tcbase;\n\
 varying vec3 lightvector;\n\
@@ -230,10 +232,17 @@ char *defaultglsl2program =
 	LIGHTPASS_GLSL_SHARED LIGHTPASS_GLSL_VERTEX LIGHTPASS_GLSL_FRAGMENT
 	;
 
+//!!permu LOWER
+//!!permu UPPER
+
 static const char LIGHTPASS_SHADER[] = "\
 {\n\
 	program\n\
 	{\n\
+		!!permu BUMP\n\
+		!!permu SPECULAR\n\
+		!!permu FULLBRIGHT\n\
+		!!permu OFFSETMAPPING\n\
 	#define LIGHTPASS\n\
 	%s\n\
 	}\n\
@@ -341,6 +350,7 @@ struct {
 
 		qboolean force2d;
 		int currenttmu;
+		int blendmode[SHADER_PASS_MAX];
 		int texenvmode[SHADER_PASS_MAX];
 		int currenttextures[SHADER_PASS_MAX];
 		GLenum curtexturetype[SHADER_PASS_MAX];
@@ -413,6 +423,57 @@ void GL_TexEnv(GLenum mode)
 	{
 		qglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, mode);
 		shaderstate.texenvmode[shaderstate.currenttmu] = mode;
+	}
+}
+
+static void BE_SetPassBlendMode(int tmu, int pbm)
+{
+	if (shaderstate.blendmode[tmu] != pbm)
+	{
+		shaderstate.blendmode[tmu] = pbm;
+		if (shaderstate.currenttmu != tmu)
+			GL_SelectTexture(tmu);
+
+		switch (pbm)
+		{
+		case PBM_DOTPRODUCT:
+			GL_TexEnv(GL_COMBINE_ARB);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_DOT3_RGB_ARB);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, 1);
+			break;
+		case PBM_REPLACELIGHT:
+			if (shaderstate.identitylighting != 1)
+				goto forcemod;
+			GL_TexEnv(GL_REPLACE);
+			break;
+		case PBM_REPLACE:
+			GL_TexEnv(GL_REPLACE);
+			break;
+		case PBM_DECAL:
+			if (tmu == 0)
+				goto forcemod;
+			GL_TexEnv(GL_DECAL);
+			break;
+		case PBM_ADD:
+			if (tmu == 0)
+				goto forcemod;
+			GL_TexEnv(GL_ADD);
+			break;
+		case PBM_OVERBRIGHT:
+			GL_TexEnv(GL_COMBINE_ARB);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, 1<<gl_overbright.ival);
+			break;
+		default:
+		case PBM_MODULATE:
+		forcemod:
+			GL_TexEnv(GL_MODULATE);
+			break;
+		}
 	}
 }
 
@@ -696,7 +757,7 @@ static void RevertToKnownState(void)
 
 	qglEnableClientState(GL_VERTEX_ARRAY);
 
-	GL_TexEnv(GL_REPLACE);
+	BE_SetPassBlendMode(0, PBM_REPLACE);
 
 	qglColor3f(1,1,1);
 
@@ -745,7 +806,7 @@ void BE_SetupForShadowMap(void)
 	}
 
 	qglShadeModel(GL_FLAT);
-	GL_TexEnv(GL_REPLACE);
+	BE_SetPassBlendMode(0, PBM_REPLACE);
 	qglDepthMask(GL_TRUE);
 	shaderstate.shaderbits |= SBITS_MISC_DEPTHWRITE;
 //	qglColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
@@ -810,7 +871,7 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass, qboolea
 		t = shaderstate.curtexnums?shaderstate.curtexnums->base:r_nulltex;
 		break;
 	case T_GEN_NORMALMAP:
-		t = shaderstate.curtexnums?shaderstate.curtexnums->bump:r_nulltex;
+		t = shaderstate.curtexnums?shaderstate.curtexnums->bump:r_nulltex; /*FIXME: nulltex is not correct*/
 		break;
 	case T_GEN_SPECULAR:
 		t = shaderstate.curtexnums->specular;
@@ -1850,11 +1911,10 @@ static void GenerateColourMods(const shaderpass_t *pass)
 			}
 			if (r_nolightdir.ival)
 			{
-				extern avec3_t ambientlight, shadelight;
 				qglDisableClientState(GL_COLOR_ARRAY);
-				qglColor4f(	ambientlight[0]*0.5+shadelight[0],
-							ambientlight[1]*0.5+shadelight[1],
-							ambientlight[2]*0.5+shadelight[2],
+				qglColor4f(	shaderstate.curentity->light_avg[0],
+							shaderstate.curentity->light_avg[1],
+							shaderstate.curentity->light_avg[2],
 							shaderstate.curentity->shaderRGBAf[3]);
 				qglShadeModel(GL_FLAT);
 				return;
@@ -2090,6 +2150,7 @@ static void BE_SubmitMeshChain(void)
 	{
 		mesh = shaderstate.meshes[0];
 		qglDrawRangeElements(GL_TRIANGLES, mesh->vbofirstvert, mesh->vbofirstvert+mesh->numvertexes, mesh->numindexes, GL_INDEX_TYPE, shaderstate.sourcevbo->indicies + mesh->vbofirstelement);
+		RQuantAdd(RQUANT_DRAWS, 1);
 		return;
 	}
 	else
@@ -2120,6 +2181,7 @@ static void BE_SubmitMeshChain(void)
 				ilst[endi++] = mesh->vbofirstvert + mesh->indexes[starti++];
 		}
 		qglDrawRangeElements(GL_TRIANGLES, startv, endv, endi, GL_INDEX_TYPE, ilst);
+		RQuantAdd(RQUANT_DRAWS, 1);
 	}
 
 
@@ -2201,7 +2263,6 @@ static void DrawPass(const shaderpass_t *pass)
 	tmu = 0;
 	for (; i < lastpass; i++)
 	{
-		extern cvar_t gl_overbright;
 		if (pass[i].texgen == T_GEN_UPPEROVERLAY && !TEXVALID(shaderstate.curtexnums->upperoverlay))
 			continue;
 		if (pass[i].texgen == T_GEN_LOWEROVERLAY && !TEXVALID(shaderstate.curtexnums->loweroverlay))
@@ -2212,50 +2273,7 @@ static void DrawPass(const shaderpass_t *pass)
 
 		BE_GeneratePassTC(pass, i);
 
-		switch (pass[i].blendmode)
-		{
-		case PBM_DOTPRODUCT:
-			GL_TexEnv(GL_COMBINE_ARB);
-			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
-			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
-			qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_DOT3_RGB_ARB);
-			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, 1);
-			break;
-		case PBM_REPLACE:
-			GL_TexEnv(GL_REPLACE);
-			break;
-		case PBM_DECAL:
-			if (tmu == 0)
-				goto forcemod;
-			GL_TexEnv(GL_DECAL);
-			break;
-		case PBM_ADD:
-			if (tmu == 0)
-				goto forcemod;
-			GL_TexEnv(GL_ADD);
-			break;
-		case PBM_OVERBRIGHT:
-			GL_TexEnv(GL_COMBINE_ARB);
-			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
-			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
-			qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
-			{
-				float o;
-				if (gl_overbright.value >= 2)
-					o = 4.0;
-				else if (gl_overbright.value >= 1)
-					o = 2.0;
-				else
-					o = 1.0;
-				qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, o);
-			}
-			break;
-		default:
-		case PBM_MODULATE:
-		forcemod:
-			GL_TexEnv(GL_MODULATE);
-			break;
-		}
+		BE_SetPassBlendMode(tmu, pass[i].blendmode);
 		tmu++;
 	}
 
@@ -2269,7 +2287,6 @@ static void DrawPass(const shaderpass_t *pass)
 	BE_SubmitMeshChain();
 }
 
-extern avec3_t shadevector, shadelight, ambientlight; 
 static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned int perm)
 {
 	vec3_t param3;
@@ -2350,6 +2367,12 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 
 	case SP_ENTCOLOURS:
 		qglUniform4fvARB(p->handle[perm], 1, (GLfloat*)shaderstate.curentity->shaderRGBAf);
+		break;
+	case SP_ENTCOLOURSIDENT:
+		if (shaderstate.flags & BEF_FORCECOLOURMOD)
+			qglUniform4fvARB(p->handle[perm], 1, (GLfloat*)shaderstate.curentity->shaderRGBAf);
+		else
+			qglUniform4fARB(p->handle[perm], 1, 1, 1, shaderstate.curentity->shaderRGBAf[3]);
 		break;
 	case SP_TOPCOLOURS:
 		R_FetchTopColour(&r, &g, &b);
@@ -2453,14 +2476,13 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 		}
 		break;
 	case SP_E_L_DIR:
-		qglUniform3fvARB(p->handle[perm], 1, shadevector);
+		qglUniform3fvARB(p->handle[perm], 1, (float*)shaderstate.curentity->light_dir);
 		break;
 	case SP_E_L_MUL:
-		qglUniform3fvARB(p->handle[perm], 1, shadelight);
+		qglUniform3fvARB(p->handle[perm], 1, (float*)shaderstate.curentity->light_range);
 		break;
 	case SP_E_L_AMBIENT:
-		VectorMA(ambientlight, 1, shadelight, param3);
-		qglUniform3fvARB(p->handle[perm], 1, param3);
+		qglUniform3fvARB(p->handle[perm], 1, (float*)shaderstate.curentity->light_avg);
 		break;
 
 	default:
@@ -2591,7 +2613,7 @@ void GLBE_SelectMode(backendmode_t mode)
 			}
 			qglShadeModel(GL_FLAT);
 			//replace mode please
-			GL_TexEnv(GL_REPLACE);
+			BE_SetPassBlendMode(0, PBM_REPLACE);
 
 			//we don't write or blend anything (maybe alpha test... but mneh)
 			BE_SendPassBlendDepthMask(SBITS_MISC_DEPTHCLOSERONLY | SBITS_MASK_BITS);
@@ -2615,7 +2637,7 @@ void GLBE_SelectMode(backendmode_t mode)
 			//we don't write or blend anything (maybe alpha test... but mneh)
 			BE_SendPassBlendDepthMask(SBITS_MISC_DEPTHWRITE | SBITS_MASK_BITS);
 
-			GL_TexEnv(GL_REPLACE);
+			BE_SetPassBlendMode(0, PBM_REPLACE);
 			GL_CullFace(SHADER_CULL_FRONT);
 		}
 #ifdef RTLIGHTS
@@ -2655,7 +2677,7 @@ void GLBE_SelectMode(backendmode_t mode)
 			qglDisableClientState(GL_COLOR_ARRAY);
 			qglColor4f(1, 1, 1, 1);
 			qglShadeModel(GL_FLAT);
-			GL_TexEnv(GL_MODULATE);
+			BE_SetPassBlendMode(0, PBM_MODULATE);
 			BE_SendPassBlendDepthMask(SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | SBITS_MISC_DEPTHEQUALONLY);
 		}
 #endif
@@ -2874,7 +2896,7 @@ static void DrawMeshes(void)
 			{
 				GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex, false);
 			}
-			GL_TexEnv(GL_REPLACE);
+			BE_SetPassBlendMode(0, PBM_REPLACE);
 			BE_SendPassBlendDepthMask(shaderstate.curshader->passes[0].shaderbits);
 
 			GL_ApplyVertexPointer();
@@ -3264,12 +3286,24 @@ void GLBE_DrawWorld (qbyte *vis)
 	r_worldentity.axis[1][1] = 1;
 	r_worldentity.axis[2][2] = 1;
 
+	if (gl_overbright.modified)
+	{
+		int i;
+		gl_overbright.modified = false;
+		if (gl_overbright.ival > 2)
+			gl_overbright.ival = 2;
+
+		for (i = 0; i < SHADER_PASS_MAX; i++)
+			shaderstate.blendmode[i] = -1;
+	}
+
 #ifdef RTLIGHTS
 	if (r_shadow_realtime_world.value && gl_config.arb_shader_objects)
 		shaderstate.identitylighting = r_shadow_realtime_world_lightmaps.value;
 	else
 #endif
 		shaderstate.identitylighting = 1;
+//	shaderstate.identitylighting /= 1<<gl_overbright.ival;
 
 	if (shaderstate.identitylighting == 0)
 		BE_SelectMode(BEM_DEPTHDARK);

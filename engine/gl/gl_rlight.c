@@ -931,6 +931,7 @@ void GLQ1BSP_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, 
 {
 	vec3_t		end;
 	float *r;
+	extern cvar_t r_shadow_realtime_world, r_shadow_realtime_world_lightmaps;
 
 	if (!cl.worldmodel->lightdata || r_fullbright.ival)
 	{
@@ -973,10 +974,11 @@ void GLQ1BSP_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, 
 		res_diffuse[0] = r[0];
 		res_diffuse[1] = r[1];
 		res_diffuse[2] = r[2];
-	
-		res_ambient[0] = 0;
-		res_ambient[1] = 0;
-		res_ambient[2] = 0;
+
+		/*bright on one side, dark on the other, but not too dark*/
+		res_ambient[0] = r[0]/3;
+		res_ambient[1] = r[1]/3;
+		res_ambient[2] = r[2]/3;
 
 		res_dir[0] = r[3];
 		res_dir[1] = r[4];
@@ -984,6 +986,12 @@ void GLQ1BSP_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, 
 		if (!res_dir[0] && !res_dir[1] && !res_dir[2])
 			res_dir[1] = res_dir[2] = 1;
 		VectorNormalize(res_dir);
+	}
+
+	if (r_shadow_realtime_world.ival)
+	{
+		VectorScale(res_diffuse, r_shadow_realtime_world_lightmaps.value, res_diffuse);
+		VectorScale(res_ambient, r_shadow_realtime_world_lightmaps.value, res_ambient);
 	}
 }
 

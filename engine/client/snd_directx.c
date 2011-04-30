@@ -46,7 +46,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define iDirectSoundEnumerate(a,b,c)	pDirectSoundEnumerate(a,b)
 
 HRESULT (WINAPI *pDirectSoundCreate)(GUID FAR *lpGUID, LPDIRECTSOUND FAR *lplpDS, IUnknown FAR *pUnkOuter);
-#if defined(VOICECHAT) && !defined(__MINGW32__)
+#if defined(VOICECHAT)
 HRESULT (WINAPI *pDirectSoundCaptureCreate)(GUID FAR *lpGUID, LPDIRECTSOUNDCAPTURE FAR *lplpDS, IUnknown FAR *pUnkOuter);
 #endif
 HRESULT (WINAPI *pDirectSoundEnumerate)(LPDSENUMCALLBACKA lpCallback, LPVOID lpContext );
@@ -899,7 +899,7 @@ int (*pDSOUND_InitCard) (soundcardinfo_t *sc, int cardnum) = &DSOUND_InitCard;
 
 
 
-#if defined(VOICECHAT) && defined(AVAIL_DSOUND) && !defined(__MINGW32__)
+#if defined(VOICECHAT) && defined(AVAIL_DSOUND)
 
 
 typedef struct

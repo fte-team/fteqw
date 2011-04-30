@@ -51,6 +51,19 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define MACOSX
 #endif
 
+#include <stdio.h>
+/*work around fucked MSVC functions. we use our own for these*/
+#if _MSC_VER >= 1300
+	#include <string.h>
+	#ifndef _CRT_SECURE_NO_WARNINGS
+		#define _CRT_SECURE_NO_WARNINGS
+	#endif
+	#define vsnprintf q_vsnprintf /*msvc doesn't null terminate. its insecute and thus useless*/
+	#define stricmp _stricmp /*msvc just doesn't work properly*/
+	#define chdir _chdir
+	#define gwtcwd _getcwd
+#endif
+
 #ifdef _WIN32
 	#include <conio.h>
 	#include <winsock2.h>	//this includes windows.h and is the reason for much compiling slowness with windows builds.
@@ -114,9 +127,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#if !defined(__MINGW32_VERSION)
 		#define unlink _unlink	//why do MS have to be so awkward?
 		int snprintf(char *buffer, int buffersize, char *format, ...) PRINTFWARNING(3);
-		#if !defined(_VC80_UPGRADE)
-			int vsnprintf(char *buffer, int buffersize, char *format, va_list argptr);
-		#endif
+		int vsnprintf(char *buffer, int buffersize, const char *format, va_list argptr);
 	#else
 		#define unlink remove	//seems mingw misses something
 	#endif

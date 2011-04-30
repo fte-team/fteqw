@@ -1587,6 +1587,7 @@ static void Sh_WorldLightingPass(void)
 			qglVertexPointer(3, GL_FLOAT, sizeof(vecV_t), s->texinfo->texture->vbo.coord);
 		}
 		qglDrawRangeElements(GL_TRIANGLES, s->mesh->vbofirstvert, s->mesh->numvertexes, s->mesh->numindexes, GL_INDEX_TYPE, (index_t*)(s->mesh->vbofirstelement*sizeof(index_t)));
+		RQuantAdd(RQUANT_LITFACES, s->mesh->numindexes);
 	}
 }
 
@@ -1674,6 +1675,7 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 		qglVertexPointer(3, GL_FLOAT, sizeof(vecV_t), surf->mesh->xyz_array);
 		qglDrawArrays(GL_POLYGON, 0, surf->mesh->numvertexes);
 //		qglDrawRangeElements(GL_TRIANGLES, 0, surf->mesh->numvertexes, surf->mesh->numindexes, GL_INDEX_TYPE, surf->mesh->indexes);
+		RQuantAdd(RQUANT_SHADOWFACES, surf->mesh->numvertexes);
 
 		for (v = 0; v < surf->mesh->numvertexes; v++)
 		{
@@ -1745,6 +1747,7 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 		//draw cached world shadow mesh
 		qglVertexPointer(3, GL_FLOAT, sizeof(vecV_t), sm->verts);
 		qglDrawRangeElements(GL_TRIANGLES, 0, sm->numverts, sm->numindicies, GL_INDEX_TYPE, sm->indicies);
+		RQuantAdd(RQUANT_SHADOWFACES, sm->numindicies);
 
 //qglEnable(GL_POLYGON_OFFSET_FILL);
 //qglPolygonOffset(shaderstate.curpolyoffset.factor, shaderstate.curpolyoffset.unit);

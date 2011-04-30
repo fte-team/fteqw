@@ -149,7 +149,8 @@ typedef struct shaderpass_s {
 		PBM_DECAL,
 		PBM_ADD,
 		PBM_DOTPRODUCT,
-		PBM_REPLACE
+		PBM_REPLACE,
+		PBM_REPLACELIGHT
 	} blendmode;
 
 	enum {
@@ -272,6 +273,7 @@ typedef struct {
 
 		/*entity properties*/
 		SP_ENTCOLOURS,
+		SP_ENTCOLOURSIDENT,
 		SP_TOPCOLOURS,
 		SP_BOTTOMCOLOURS,
 		SP_TIME,
@@ -434,6 +436,7 @@ mfog_t *CM_FogForOrigin(vec3_t org);
 #define BEF_PUSHDEPTH			32	//additional polygon offset
 #define BEF_NODLIGHT            64  //don't use a dlight pass
 #define BEF_NOSHADOWS			128 //don't appear in shadows
+#define BEF_FORCECOLOURMOD		256 //q3 shaders default to 'rgbgen identity', and ignore ent colours. this forces ent colours to be considered
 
 #ifdef GLQUAKE
 void GLBE_Init(void);

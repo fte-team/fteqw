@@ -310,19 +310,38 @@ qboolean GLInitialise (char *renderer)
 	return true;
 }
 
-void CenterWindow(HWND hWndCenter, int width, int height, BOOL lefttopjustify)
+/*doesn't consider parent offsets*/
+RECT centerrect(unsigned int parentwidth, unsigned int parentheight, unsigned int cwidth, unsigned int cheight)
 {
-//    RECT    rect;
-    int     CenterX, CenterY;
+	RECT r;
+	if (!vid_width.ival)
+		cwidth = parentwidth;
+	if (!vid_height.ival)
+		cheight = parentwidth;
 
-	CenterX = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
-	CenterY = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
-	if (CenterX > CenterY*2)
-		CenterX >>= 1;	// dual screens
-	CenterX = (CenterX < 0) ? 0: CenterX;
-	CenterY = (CenterY < 0) ? 0: CenterY;
-	SetWindowPos (hWndCenter, NULL, CenterX, CenterY, 0, 0,
-			SWP_NOSIZE | SWP_NOZORDER | SWP_SHOWWINDOW | SWP_DRAWFRAME);
+	if (parentwidth < cwidth)
+	{
+		r.left = 0;
+		r.right = parentwidth;
+	}
+	else
+	{
+		r.left = (parentwidth - cwidth) / 2;
+		r.right = r.left + cwidth;
+	}
+
+	if (parentheight < cheight)
+	{
+		r.top = 0;
+		r.bottom = parentheight;
+	}
+	else
+	{
+		r.top = (parentheight - cheight) / 2;
+		r.bottom = r.top + cheight;
+	}
+
+	return r;
 }
 
 qboolean VID_SetWindowedMode (rendererstate_t *info)
@@ -330,7 +349,7 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 {
 	int i;
 	HDC				hdc;
-	int				lastmodestate, wwidth, wheight;
+	int				lastmodestate, wwidth, wheight, pwidth, pheight;
 	RECT			rect;
 
 	hdc = GetDC(NULL);
@@ -357,24 +376,8 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 		WindowStyle = WS_CHILDWINDOW|WS_OVERLAPPED;
 		ExWindowStyle = 0;
 
-		//if (vid_fullscreen.ival < 0)
-		{
-			WindowRect.right = sys_parentwidth;
-			WindowRect.bottom = sys_parentheight;
-		}
-
-		if (WindowRect.right > sys_parentwidth)
-			WindowRect.right = sys_parentwidth;
-		else if (WindowRect.right < sys_parentwidth)
-			WindowRect.left = (sys_parentwidth - WindowRect.right)/2;
-
-		if (WindowRect.bottom > sys_parentheight)
-			WindowRect.bottom = sys_parentheight;
-		else if (WindowRect.bottom < sys_parentheight)
-			WindowRect.top = (sys_parentheight - WindowRect.bottom)/2;
-
-		WindowRect.right += WindowRect.left;
-		WindowRect.bottom += WindowRect.top;
+		pwidth = sys_parentwidth;
+		pheight = sys_parentheight;
 	}
 	else
 #endif
@@ -384,6 +387,13 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 		ExWindowStyle = 0;
 
 		WindowStyle |= WS_SIZEBOX | WS_MAXIMIZEBOX;
+
+		pwidth = GetSystemMetrics(SM_CXSCREEN);
+		pheight = GetSystemMetrics(SM_CYSCREEN);
+
+		/*Assume dual monitors, and chop the width to try to put it on only one screen*/
+		if (pwidth >= pheight*2)
+			pwidth /= 2;
 	}
 
 	DIBWidth = WindowRect.right - WindowRect.left;
@@ -395,15 +405,17 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 	wwidth = rect.right - rect.left;
 	wheight = rect.bottom - rect.top;
 
+	WindowRect = centerrect(pwidth, pheight, wwidth, wheight);
+
 	// Create the DIB window
 	dibwindow = CreateWindowEx (
 		 ExWindowStyle,
 		 WINDOW_CLASS_NAME,
 		 FULLENGINENAME,
 		 WindowStyle,
-		 rect.left, rect.top,
-		 wwidth,
-		 wheight,
+		 WindowRect.left, WindowRect.top,
+		 WindowRect.right - WindowRect.left,
+		 WindowRect.bottom - WindowRect.top,
 		 sys_parentwindow,
 		 NULL,
 		 global_hInstance,
@@ -438,13 +450,10 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 			}
 		}
 #endif
-
-		// Center and show the DIB window
-		CenterWindow(dibwindow, WindowRect.right - WindowRect.left,
-					 WindowRect.bottom - WindowRect.top, false);
 	}
-	else
-		SetFocus(dibwindow);
+
+	ShowWindow (dibwindow, SW_SHOWDEFAULT);
+	SetFocus(dibwindow);
 
 //	ShowWindow (dibwindow, SW_SHOWDEFAULT);
 //	UpdateWindow (dibwindow);
@@ -458,7 +467,6 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 	hdc = GetDC(dibwindow);
 	PatBlt(hdc,0,0,WindowRect.right,WindowRect.bottom,BLACKNESS);
 	ReleaseDC(dibwindow, hdc);
-
 
 	if ((i = COM_CheckParm("-conwidth")) != 0)
 		vid.width = Q_atoi(com_argv[i+1]);
@@ -509,7 +517,7 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 	int				lastmodestate, wwidth, wheight;
 	RECT			rect;
 
-	if (leavecurrentmode && Q_strcasecmp(info->glrenderer, "D3D"))	//don't do this with d3d - d3d should set it's own video mode.
+	if (leavecurrentmode)	//don't do this with d3d - d3d should set it's own video mode.
 	{	//make windows change res.
 		gdevmode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT;
 		if (info->bpp)
@@ -1062,7 +1070,7 @@ void VID_Wait_Override_Callback(struct cvar_s *var, char *oldvalue)
 		qwglSwapIntervalEXT(_vid_wait_override.value);
 }
 
-void VID_Size_Override_Callback(struct cvar_s *var, char *oldvalue)
+void GLVID_Recenter_f(void)
 {
 	int nw = vid_width.value;
 	int nh = vid_height.value;
@@ -1071,16 +1079,12 @@ void VID_Size_Override_Callback(struct cvar_s *var, char *oldvalue)
 
 	if (sys_parentwindow && modestate==MS_WINDOWED)
 	{
-		if (nw > sys_parentwidth)
-			nw = sys_parentwidth;
-		else
-			nx = (sys_parentwidth - nw)/2;
-		if (nh > sys_parentheight)
-			nh = sys_parentheight;
-		else
-			ny = (sys_parentheight - nh)/2;
+		WindowRect = centerrect(sys_parentwidth, sys_parentheight, vid_width.value, vid_height.value);
+		MoveWindow(mainwindow, WindowRect.left, WindowRect.top, WindowRect.right - WindowRect.left, WindowRect.bottom - WindowRect.top, FALSE);
 
-		MoveWindow(mainwindow, nx, ny, nw, nh, FALSE);
+		Cvar_ForceCallback(&vid_conautoscale);
+		Cvar_ForceCallback(&vid_conwidth);
+		VID_UpdateWindowStatus (mainwindow);
 	}
 }
 
@@ -1818,9 +1822,11 @@ void GLVID_DeInit (void)
 
 	Cvar_Unhook(&_vid_wait_override);
 	Cvar_Unhook(&vid_wndalpha);
+	Cmd_RemoveCommand("vid_recenter");
 
 	UnregisterClass(WINDOW_CLASS_NAME, global_hInstance);
 }
+
 /*
 ===================
 VID_Init
@@ -1875,9 +1881,9 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	S_Restart_f();
 
 	Cvar_Hook(&_vid_wait_override, VID_Wait_Override_Callback);
-	Cvar_Hook(&vid_width, VID_Size_Override_Callback);
-	Cvar_Hook(&vid_height, VID_Size_Override_Callback);
 	Cvar_Hook(&vid_wndalpha, VID_WndAlpha_Override_Callback);
+
+	Cmd_AddRemCommand("vid_recenter", GLVID_Recenter_f);
 
 	vid_initialized = true;
 	vid_initializing = false;

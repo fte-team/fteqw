@@ -225,6 +225,9 @@ void Sys_Quit (void)
 void Sys_Init(void)
 {
 }
+void Sys_Shutdown(void)
+{
+}
 
 void Sys_Error (const char *error, ...)
 {

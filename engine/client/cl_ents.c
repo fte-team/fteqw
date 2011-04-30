@@ -36,6 +36,7 @@ extern	cvar_t	v_powerupshell;
 extern	cvar_t	cl_nolerp;
 extern	cvar_t	cl_nolerp_netquake;
 extern	cvar_t	r_torch;
+extern  cvar_t r_shadows;
 
 extern	cvar_t	cl_gibfilter, cl_deadbodyfilter;
 extern int cl_playerindex;
@@ -1388,6 +1389,116 @@ int V_AddLight (int entsource, vec3_t org, float quant, float r, float g, float 
 	return CL_NewDlightRGB (entsource, org, quant, -0.1, r, g, b) - cl_dlights;
 }
 
+void CLQ1_AddShadow(entity_t *ent)
+{
+	float radius;
+	vec3_t shadoworg;
+	vec3_t eang;
+	vec3_t axis[3];
+	float tx, ty, tz;
+	float *verts;
+	shader_t *s;
+	int v, num;
+	scenetris_t *t;
+
+	if (!r_shadows.value || !ent->model || ent->model->type != mod_alias)
+		return;
+
+	s = R_RegisterShader("shadowshader", 
+		"{\n"
+		"polygonoffset\n"
+		"{\n"
+		"map $diffuse\n"
+		"blendfunc blend\n"
+		"rgbgen vertex\n"
+		"alphagen vertex\n"
+		"}\n"
+		"}\n");
+	s->defaulttextures.base = balltexture;
+
+	tx = ent->model->maxs[0] - ent->model->mins[0];
+	ty = ent->model->maxs[1] - ent->model->mins[1];
+
+	if (tx > ty)
+		radius = tx;
+	else
+		radius = ty;
+	radius/=2;
+
+	shadoworg[0] = ent->origin[0];
+	shadoworg[1] = ent->origin[1];
+	shadoworg[2] = ent->origin[2] + ent->model->mins[2];
+
+	eang[0] = 0;
+	eang[1] = ent->angles[1];
+	eang[2] = 0;
+	AngleVectors(eang, axis[0], axis[1], axis[2]);
+	VectorNegate(axis[2], axis[2]);
+
+	num = Q1BSP_ClipDecal(shadoworg, axis[2], axis[1], axis[0], radius, &verts);
+
+	if (!num)
+		return;
+	num*=3;
+
+	tx = DotProduct(shadoworg, axis[1]) + 0.5*radius;
+	ty = DotProduct(shadoworg, axis[0]) + 0.5*radius;
+	tz = DotProduct(shadoworg, axis[2]);
+
+	/*reuse the previous trigroup if its the same shader*/
+	if (cl_numstris && cl_stris[cl_numstris-1].shader == s)
+		t = &cl_stris[cl_numstris-1];
+	else
+	{
+		if (cl_numstris == cl_maxstris)
+		{
+			cl_maxstris += 8;
+			cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+		}
+		t = &cl_stris[cl_numstris++];
+		t->shader = s;
+		t->numidx = 0;
+		t->numvert = 0;
+		t->firstidx = cl_numstrisidx;
+		t->firstvert = cl_numstrisvert;
+	}
+
+
+	if (cl_numstrisvert + num > cl_maxstrisvert)
+	{
+		cl_maxstrisvert = cl_numstrisvert + num;
+
+		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
+		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
+	}
+	if (cl_maxstrisidx < cl_numstrisidx+num)
+	{
+		cl_maxstrisidx = cl_numstrisidx+num + 64;
+		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+	}
+
+
+	for (v = 0; v < num; v++)
+	{
+		VectorCopy(verts, cl_strisvertv[cl_numstrisvert+v]);
+		cl_strisvertt[cl_numstrisvert+v][0] = (DotProduct(verts, axis[1]) - tx)/radius;
+		cl_strisvertt[cl_numstrisvert+v][1] = -(DotProduct(verts, axis[0]) - ty)/radius;
+		cl_strisvertc[cl_numstrisvert+v][0] = 0;
+		cl_strisvertc[cl_numstrisvert+v][1] = 0;
+		cl_strisvertc[cl_numstrisvert+v][2] = 0;
+		cl_strisvertc[cl_numstrisvert+v][3] = r_shadows.value * (1-((DotProduct(verts, axis[2]) - tz)/(radius/2)));
+		verts+=3;
+	}
+	for (v = 0; v < num; v++)
+	{
+		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+v - t->firstvert;
+	}
+
+	t->numvert += num;
+	t->numidx += num;
+	cl_numstrisvert += num;
+}
 void CLQ1_AddPowerupShell(entity_t *ent, qboolean viewweap, unsigned int effects)
 {
 	entity_t *shell;
@@ -1612,61 +1723,70 @@ static void CL_TransitionPacketEntities(packet_entities_t *newpack, packet_entit
 
 			le->orglerpdeltatime = 0.1;
 			le->orglerpstarttime = oldpack->servertime;
-		}
-		else if (snew->dpflags & RENDER_STEP)
-		{
-			float lfrac;
-			//ignore the old packet entirely, except for maybe its time.
-			if (!VectorEquals(le->neworigin, snew->origin) || !VectorEquals(le->newangle, snew->angles))
-			{
-				le->orglerpdeltatime = bound(0, oldpack->servertime - le->orglerpstarttime, 0.1);	//clamp to 10 tics per second
-				le->orglerpstarttime = oldpack->servertime;
 
-				VectorCopy(le->neworigin, le->oldorigin);
-				VectorCopy(le->newangle, le->oldangle);
-
-				VectorCopy(snew->origin, le->neworigin);
-				VectorCopy(snew->angles, le->newangle);
-			}
-
-			lfrac = (servertime - le->orglerpstarttime) / le->orglerpdeltatime;
-			lfrac = bound(0, lfrac, 1);
-			for (i = 0; i < 3; i++)
-			{
-				le->origin[i] = le->oldorigin[i] + lfrac*(le->neworigin[i] - le->oldorigin[i]);
-
-				for (j = 0; j < 3; j++)
-				{
-					a1 = le->oldangle[i];
-					a2 = le->newangle[i];
-					if (a1 - a2 > 180)
-						a1 -= 360;
-					if (a1 - a2 < -180)
-						a1 += 360;
-					le->angles[i] = a1 + lfrac * (a2 - a1);
-				}
-			}
+			le->isnew = true;
+			VectorCopy(le->origin, le->lastorigin);
 		}
 		else
 		{
-			//lerp based purely on the packet times,
-			for (i = 0; i < 3; i++)
-			{
-				le->origin[i] = sold->origin[i] + frac*(move[i]);
+			le->isnew = false;
+			VectorCopy(le->origin, le->lastorigin);
 
-				for (j = 0; j < 3; j++)
+			if (snew->dpflags & RENDER_STEP)
+			{
+				float lfrac;
+				//ignore the old packet entirely, except for maybe its time.
+				if (!VectorEquals(le->neworigin, snew->origin) || !VectorEquals(le->newangle, snew->angles))
 				{
-					a1 = sold->angles[i];
-					a2 = snew->angles[i];
-					if (a1 - a2 > 180)
-						a1 -= 360;
-					if (a1 - a2 < -180)
-						a1 += 360;
-					le->angles[i] = a1 + frac * (a2 - a1);
+					le->orglerpdeltatime = bound(0, oldpack->servertime - le->orglerpstarttime, 0.1);	//clamp to 10 tics per second
+					le->orglerpstarttime = oldpack->servertime;
+
+					VectorCopy(le->neworigin, le->oldorigin);
+					VectorCopy(le->newangle, le->oldangle);
+
+					VectorCopy(snew->origin, le->neworigin);
+					VectorCopy(snew->angles, le->newangle);
+				}
+
+				lfrac = (servertime - le->orglerpstarttime) / le->orglerpdeltatime;
+				lfrac = bound(0, lfrac, 1);
+				for (i = 0; i < 3; i++)
+				{
+					le->origin[i] = le->oldorigin[i] + lfrac*(le->neworigin[i] - le->oldorigin[i]);
+
+					for (j = 0; j < 3; j++)
+					{
+						a1 = le->oldangle[i];
+						a2 = le->newangle[i];
+						if (a1 - a2 > 180)
+							a1 -= 360;
+						if (a1 - a2 < -180)
+							a1 += 360;
+						le->angles[i] = a1 + lfrac * (a2 - a1);
+					}
 				}
 			}
-			le->orglerpdeltatime = 0.1;
-			le->orglerpstarttime = oldpack->servertime;
+			else
+			{
+				//lerp based purely on the packet times,
+				for (i = 0; i < 3; i++)
+				{
+					le->origin[i] = sold->origin[i] + frac*(move[i]);
+
+					for (j = 0; j < 3; j++)
+					{
+						a1 = sold->angles[i];
+						a2 = snew->angles[i];
+						if (a1 - a2 > 180)
+							a1 -= 360;
+						if (a1 - a2 < -180)
+							a1 += 360;
+						le->angles[i] = a1 + frac * (a2 - a1);
+					}
+				}
+				le->orglerpdeltatime = 0.1;
+				le->orglerpstarttime = oldpack->servertime;
+			}
 		}
 
 		CL_UpdateNetFrameLerpState(sold == snew, snew->frame, le);
@@ -1843,6 +1963,7 @@ void CL_LinkPacketEntities (void)
 #endif
 
 		ent = &cl_visedicts[cl_numvisedicts];
+		ent->light_known = 0;
 		ent->forcedshader = NULL;
 
 		le = &cl.lerpents[state->number];
@@ -2022,7 +2143,7 @@ void CL_LinkPacketEntities (void)
 			angles[2] = 0;
 
 			if (cl_item_bobbing.value)
-				ent->origin[2] += 5+sin(cl.time*3+(state->origin[0]+state->origin[1]+state->origin[2]))*5.5;	//don't let it into the ground
+				ent->origin[2] += 5+sin(cl.time*3+(state->origin[0]+state->origin[1])/8)*5.5;	//don't let it into the ground
 		}
 		else
 		{
@@ -2049,6 +2170,7 @@ void CL_LinkPacketEntities (void)
 			CL_RotateAroundTag(ent, state->number, state->tagentity, state->tagindex);
 		}
 
+		CLQ1_AddShadow(ent);
 		CLQ1_AddPowerupShell(ent, false, state->effects);
 
 		// add automatic particle trails
@@ -2058,22 +2180,14 @@ void CL_LinkPacketEntities (void)
 		if (!cls.allow_anyparticles && !(model->flags & ~EF_ROTATE))
 			continue;
 
-		// scan the old entity display list for a matching
-		for (i=0 ; i<cl_oldnumvisedicts ; i++)
-		{
-			if (cl_oldvisedicts[i].keynum == ent->keynum)
-			{
-				VectorCopy (cl_oldvisedicts[i].origin, old_origin);
-				break;
-			}
-		}
-		if (i == cl_oldnumvisedicts)
+		if (le->isnew)
 		{
 			pe->DelinkTrailstate(&(cl.lerpents[state->number].trailstate));
 			pe->DelinkTrailstate(&(cl.lerpents[state->number].emitstate));
 			continue;		// not in last message
 		}
 
+		VectorCopy(le->lastorigin, old_origin);
 		for (i=0 ; i<3 ; i++)
 		{
 			if ( abs(old_origin[i] - ent->origin[i]) > 128)
@@ -2236,6 +2350,7 @@ void CL_LinkProjectiles (void)
 			break;		// object list is full
 		ent = &cl_visedicts[cl_numvisedicts];
 		cl_numvisedicts++;
+		ent->light_known = 0;
 		ent->keynum = 0;
 
 		if (pr->modelindex < 1)
@@ -2860,6 +2975,7 @@ void CL_LinkPlayers (void)
 			break;		// object list is full
 		ent = &cl_visedicts[cl_numvisedicts];
 		cl_numvisedicts++;
+		ent->light_known = 0;
 		ent->keynum = j+1;
 		ent->flags = 0;
 		ent->model = model;
@@ -2898,6 +3014,11 @@ void CL_LinkPlayers (void)
 		// the player object gets added with flags | 2
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
 		{
+			if (j == (cl.viewentity[pnum]?cl.viewentity[pnum]:cl.playernum[pnum]))
+			{
+				ent->flags |= Q2RF_EXTERNALMODEL;
+				ent->externalmodelview |= (1<<pnum);
+			}
 			if (j == cl.playernum[pnum])
 			{
 /*				if (cl.spectator)
@@ -2911,11 +3032,7 @@ void CL_LinkPlayers (void)
 				ent->origin[0] = cl.simorg[pnum][0];
 				ent->origin[1] = cl.simorg[pnum][1];
 				ent->origin[2] = cl.simorg[pnum][2]+cl.crouch[pnum];
-			}
-			if (j == (cl.viewentity[pnum]?cl.viewentity[pnum]:cl.playernum[pnum]))
-			{
-				ent->flags |= Q2RF_EXTERNALMODEL;
-				ent->externalmodelview |= (1<<pnum);
+				break;
 			}
 		}
 
@@ -2981,6 +3098,7 @@ void CL_LinkPlayers (void)
 		else if (state->command.impulse)
 			CL_AddVWeapModel (ent, cl.model_precache_vwep[state->command.impulse]);
 
+		CLQ1_AddShadow(ent);
 		CLQ1_AddPowerupShell(ent, false, state->effects);
 
 		if (r_torch.ival)
@@ -3319,14 +3437,7 @@ Made up of: clients, packet_entities, nails, and tents
 */
 void CL_SwapEntityLists(void)
 {
-	cl_oldnumvisedicts = cl_numvisedicts;
-	cl_oldvisedicts = cl_visedicts;
-	if (cl_visedicts == cl_visedicts_list[0])
-		cl_visedicts = cl_visedicts_list[1];
-	else
-		cl_visedicts = cl_visedicts_list[0];
-//	cl_oldvisedicts = cl_visedicts_list[(cls.netchan.incoming_sequence-1)&1];
-//	cl_visedicts = cl_visedicts_list[cls.netchan.incoming_sequence&1];
+	cl_visedicts = cl_visedicts_list;
 
 	cl_numvisedicts = 0;
 	cl_numstrisidx = 0;

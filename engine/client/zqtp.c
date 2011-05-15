@@ -202,7 +202,7 @@ typedef struct tvars_s {
 	vec3_t	pointorg;
 	char	pointloc[MAX_LOC_NAME];
 	int		droppedweapon;
-	char	lastdroploc[MAX_LOC_NAME];	
+	char	lastdroploc[MAX_LOC_NAME];
 
 	int last_numenemies;
 	int numenemies;
@@ -234,8 +234,8 @@ typedef struct item_vis_s {
 	vec3_t	up;
 	vec3_t	entorg;
 	float	radius;
-	vec3_t	dir;		
-	float	dist;		
+	vec3_t	dir;
+	float	dist;
 } item_vis_t;
 
 
@@ -389,7 +389,7 @@ static char *Macro_DroppedWeapon (void)
 	return Weapon_NumToString(vars.droppedweapon);
 }
 
-static char *Macro_Weapons (void) {	
+static char *Macro_Weapons (void) {
 	macro_buf[0] = 0;
 
 	if (cl.stats[SP][STAT_ITEMS] & IT_LIGHTNING)
@@ -408,7 +408,7 @@ static char *Macro_Weapons (void) {
 		MacroBuf_strcat_with_separator (tp_name_sg.string);
 	if (cl.stats[SP][STAT_ITEMS] & IT_AXE)
 		MacroBuf_strcat_with_separator (tp_name_axe.string);
-//	if (!macro_buf[0])	
+//	if (!macro_buf[0])
 //		strlcpy(macro_buf, tp_name_none.string, sizeof(macro_buf));
 
 	return macro_buf;
@@ -442,7 +442,7 @@ static char *Macro_WeaponNum (void)
 static int	_Macro_BestWeapon (void)
 {
 	int i;
-	char *t[] = {tp_weapon_order.string, "78654321", NULL}, **s;	
+	char *t[] = {tp_weapon_order.string, "78654321", NULL}, **s;
 
 	for (s = t; *s; s++)
 	{
@@ -472,7 +472,7 @@ static char *Macro_BestAmmo (void)
 {
 	switch (_Macro_BestWeapon())
 	{
-	case IT_SHOTGUN: case IT_SUPER_SHOTGUN: 
+	case IT_SHOTGUN: case IT_SUPER_SHOTGUN:
 		sprintf(macro_buf, "%i", cl.stats[0][STAT_SHELLS]);
 		return macro_buf;
 
@@ -765,6 +765,8 @@ static char *Macro_demoplayback (void)
 {
 	switch (cls.demoplayback)
 	{
+	case DPB_EZTV: // warning: enumeration value ‘DPB_EZTV’ not handled in switch
+		break;
 	case DPB_NONE:
 		return "0";
 	case DPB_QUAKEWORLD:
@@ -808,7 +810,7 @@ static char *Macro_Match_Name (void)
 		else if (i > 2)
 		{	// FFA
 			return va ("%s ffa - %s",
-				TP_PlayerName(), 
+				TP_PlayerName(),
 				TP_MapName());
 		}
 		else
@@ -886,14 +888,14 @@ static char *Macro_MyStatus_LED(void)
 		for (count = 1; *s; s++)
 			if (*s == separator[0])
 				count++;
-	}	
+	}
 
 	if (count == 0)
 		Q_snprintfz(macro_buf, sizeof(macro_buf), "%s", tp_name_status_green.string);
 	else if (count <= 1)
 		Q_snprintfz(macro_buf, sizeof(macro_buf), "%s", tp_name_status_yellow.string);
 	else
-		Q_snprintfz(macro_buf, sizeof(macro_buf), "%s", tp_name_status_red.string);	
+		Q_snprintfz(macro_buf, sizeof(macro_buf), "%s", tp_name_status_red.string);
 
 	return macro_buf;
 }
@@ -919,7 +921,7 @@ static void CountNearbyPlayers(qboolean dead)
 
 	state = cl.frames[cl.oldparsecount & UPDATE_MASK].playerstate;
 	info = cl.players;
-	for (i = 0; i < MAX_CLIENTS; i++, info++, state++) {			
+	for (i = 0; i < MAX_CLIENTS; i++, info++, state++) {
 		if (i != cl.playernum[0] && state->messagenum == cl.oldparsecount && !info->spectator && !ISDEAD(state->frame)) {
 			if (cl.teamplay && !strcmp(info->team, TP_PlayerTeam()))
 				vars.numfriendlies++;
@@ -1005,7 +1007,7 @@ static char *Macro_LastPointAtLoc (void)
 	if (!vars.pointtime || realtime - vars.pointtime > TP_POINT_EXPIRE_TIME)
 		Q_strncpyz (macro_buf, tp_name_nothing.string, sizeof(macro_buf));
 	else
-		Q_snprintfz (macro_buf, sizeof(macro_buf), "%s %s %s", vars.pointname, tp_name_at.string, vars.pointloc[0] ? vars.pointloc : Macro_Location());		
+		Q_snprintfz (macro_buf, sizeof(macro_buf), "%s %s %s", vars.pointname, tp_name_at.string, vars.pointloc[0] ? vars.pointloc : Macro_Location());
 	return macro_buf;
 }
 
@@ -1037,13 +1039,13 @@ static char *Macro_LastSeenPowerup(void)
 			Q_strncatz2(macro_buf, tp_name_quad.string);
 		if (vars.enemy_powerups & TP_PENT)
 		{
-			if (macro_buf[0])  
+			if (macro_buf[0])
 				Q_strncatz2(macro_buf, tp_name_separator.string);
 			Q_strncatz2(macro_buf, tp_name_pent.string);
 		}
 		if (vars.enemy_powerups & TP_RING)
 		{
-			if (macro_buf[0])  
+			if (macro_buf[0])
 				Q_strncatz2(macro_buf, tp_name_separator.string);
 			Q_strncatz2(macro_buf, tp_name_ring.string);
 		}
@@ -1220,7 +1222,7 @@ static char *TP_ParseMacroString (char *s)
 					sprintf (mbuf, "%s:%i", macro_string, cl.stats[SP][STAT_ARMOR]);
 				macro_string = mbuf;
 				break;
-				
+
 			case 'h':
 				if (cl.stats[SP][STAT_HEALTH] >= 50)
 					sprintf (macro_buf, "%i", cl.stats[SP][STAT_HEALTH]);
@@ -1228,7 +1230,7 @@ static char *TP_ParseMacroString (char *s)
 					sprintf (macro_buf, "\x10%i\x11", cl.stats[SP][STAT_HEALTH]);
 				macro_string = macro_buf;
 				break;
-				
+
 			case 'p':
 			case 'P':
 				macro_string = Macro_Powerups();
@@ -1238,9 +1240,9 @@ static char *TP_ParseMacroString (char *s)
 					mbuf[0] = 0;
 				macro_string = mbuf;
 				break;
-				
+
 				// todo: %[w], %[b]
-				
+
 			default:
 				buf[i++] = *s++;
 				continue;
@@ -1252,7 +1254,7 @@ static char *TP_ParseMacroString (char *s)
 			s += 4;	// skip %[<char>]
 			continue;
 		}
-		
+
 		// check %a, etc
 		if (*s == '%')
 		{
@@ -1270,18 +1272,18 @@ static char *TP_ParseMacroString (char *s)
 				case 'l':	macro_string = Macro_Location(); break;
 				case 'L':	macro_string = Macro_Last_Location(); break;
 				case 'm':	macro_string = Macro_LastTookOrPointed(); break;
-		
+
 				case 'o':	macro_string = Macro_CountNearbyFriendlyPlayers(); break;
 				case 'e':	macro_string = Macro_CountNearbyEnemyPlayers(); break;
 				case 'O':	macro_string = Macro_Count_Last_NearbyFriendlyPlayers(); break;
 				case 'E':	macro_string = Macro_Count_Last_NearbyEnemyPlayers(); break;
-		
-				case 'P': 
+
+				case 'P':
 				case 'p':	macro_string = Macro_Powerups(); break;
-				case 'q':	macro_string = Macro_LastSeenPowerup(); break;	
+				case 'q':	macro_string = Macro_LastSeenPowerup(); break;
 //				case 'r':	macro_string = Macro_LastReportedLoc(); break;
-				case 's':	macro_string = Macro_EnemyStatus_LED(); break;	
-				case 'S':	macro_string = Macro_TF_Skin(); break;			
+				case 's':	macro_string = Macro_EnemyStatus_LED(); break;
+				case 'S':	macro_string = Macro_TF_Skin(); break;
 				case 't':	macro_string = Macro_PointNameAtLocation(); break;
 				case 'u':	macro_string = Macro_Need(); break;
 				case 'w':	macro_string = Macro_WeaponAndAmmo(); break;
@@ -1289,7 +1291,7 @@ static char *TP_ParseMacroString (char *s)
 				case 'X':	macro_string = Macro_Took(); break;
 				case 'y':	macro_string = Macro_PointLocation(); break;
 				case 'Y':	macro_string = Macro_TookLoc(); break;
-				default: 
+				default:
 					buf[i++] = *s++;
 					continue;
 			}
@@ -1386,7 +1388,7 @@ static char *TP_ParseFunChars (char *s, qbool chat)
 			s += 2;
 			continue;
 		}
-skip:			
+skip:
 		*out++ = *s++;
 	}
 	*out = 0;
@@ -1511,7 +1513,7 @@ char *TP_LocationName (vec3_t location)
 	vec3_t	vec;
 	static qbool	recursive;
 	static char buf[MAX_LOC_NAME];
-	
+
 	if (!loc_numentries || (cls.state != ca_active))
 		return tp_name_someplace.string;
 
@@ -1611,7 +1613,7 @@ static void TP_MsgTrigger_f (void)
 			Com_Printf ("trigger string too long\n");
 			return;
 		}
-		
+
 		trig = TP_FindTrigger (name);
 
 		if (!trig) {
@@ -1933,7 +1935,7 @@ static void TP_TeamColor_f (void)
 	else {
 		bottom = TP_ForceColour(Cmd_Argv(2));
 	}
-	
+
 //	if (top != cl_teamtopcolor || bottom != cl_teambottomcolor)
 	{
 		cl_teamtopcolor = top;
@@ -2073,7 +2075,7 @@ int TP_CategorizeMessage (char *s, int *offset, player_info_t **plr)
 		{
 			// no team messages in teamplay 0, except for our own
 			if (cl.spectator)
-			{	
+			{
 				unsigned int track = Cam_TrackNum(0);
 				if (i == track || ( cl.teamplay &&
 					!strcmp(cl.players[track].team, player->team)) )
@@ -2117,7 +2119,7 @@ int TP_CategorizeMessage (char *s, int *offset, player_info_t **plr)
 // symbolic names used in tp_took, tp_pickup, tp_point commands
 char *pknames[] = {"quad", "pent", "ring", "suit", "ra", "ya",	"ga",
 "mh", "health", "lg", "rl", "gl", "sng", "ng", "ssg", "pack",
-"cells", "rockets", "nails", "shells", "flag", 
+"cells", "rockets", "nails", "shells", "flag",
 "teammate", "enemy", "eyes", "sentry", "disp", "runes"};
 
 #define it_quad		(1 << 0)
@@ -2229,7 +2231,7 @@ static void FlagCommand (int *flags, int defaultflags) {
 				flag = (1<<NUM_ITEMFLAGS)-1;
 		}
 
-		
+
 		if (flags != &pointflags)
 			flag &= ~(it_sentry|it_disp|it_players);
 
@@ -2464,7 +2466,7 @@ static int FindNearestItem (int flags, item_t **pitem)
 	VectorCopy (cl.frames[cl.validsequence&UPDATE_MASK]
 		.playerstate[cl.playernum[SP]].origin, org);
 
-	// look in previous frame 
+	// look in previous frame
 	frame = &cl.frames[cl.oldvalidsequence&UPDATE_MASK];
 	pak = &frame->packet_entities;
 	bestdist = 100.0f;
@@ -2553,7 +2555,7 @@ static void ExecTookTrigger (char *s, int flag, vec3_t org)
 
 	pkflags_dmm = pkflags;
 	tookflags_dmm = tookflags;
-	
+
 	if (!cl.teamfortress && cl.deathmatch >= 1 && cl.deathmatch <= 4) {
 		if (cl.deathmatch == 4) {
 			pkflags_dmm &= ~(it_ammo|it_weapons);
@@ -3131,7 +3133,7 @@ void TP_StatChanged (int stat, int value)
 						cl.frames[cl.validsequence&UPDATE_MASK].playerstate[cl.playernum[SP]].origin);
 			}
 		}
-		
+
 		if (!cl.spectator && cl.teamfortress && ~value & vars.items & (IT_KEY1|IT_KEY2))
 		{
 			vars.lastdrop_time = realtime;
@@ -3271,7 +3273,7 @@ qbool TP_FilterMessage (char *s)
 			// strip the filter from message
 			if (i && s[i-1] == ' ')
 			{	// there's a space just before the filter, remove it
-				// so that soundtriggers like ^blah #att work 
+				// so that soundtriggers like ^blah #att work
 				s[i-1] = '\n';
 				s[i] = 0;
 			} else {
@@ -3458,7 +3460,7 @@ void CL_Say (qboolean team, char *extra)
 
 			CL_PrintChat(&cl.players[cl.playernum[SP]], NULL, text, plrflags);
 		}
-		
+
 		//strip out the extra markup
 		for (s = sendtext, d = sendtext; *s; s++, d++)
 		{
@@ -3477,7 +3479,7 @@ void CL_Say (qboolean team, char *extra)
 					break;
 				d--;
 			}
-		
+
 			else
 				*d = *s;
 		}
@@ -3486,7 +3488,7 @@ void CL_Say (qboolean team, char *extra)
 		//mark the message so that we ignore it when we get the echo.
 		strlcat (sendtext, va("\x7f!%c", 'A'+cl.playernum[0]), sizeof(sendtext));
 	}
-	
+
 #ifdef Q3CLIENT
 	if (cls.protocol == CP_QUAKE3)
 		CLQ3_SendClientCommand("%s %s%s", team ? "say_team" : "say", extra?extra:"", sendtext);

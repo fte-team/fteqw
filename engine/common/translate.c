@@ -3,7 +3,7 @@
 #undef malloc
 #undef free
 
-static char *defaultlanguagetext = 
+static char *defaultlanguagetext =
 "STL_LANGUAGENAME \"English\"\n"
 "TL_NL \"\\n\"\n"
 "TL_STNL \"%s\\n\"\n"
@@ -312,7 +312,7 @@ void TranslateReset(void)
 
 						s++;
 					}
-					fputc('"', F);				
+					fputc('"', F);
 				}
 				else
 					fprintf(F, "\"%s\"", trans->english);
@@ -454,7 +454,7 @@ void TranslateReset(void)
 											s2++;
 										}
 //										strcpy(trans->foreign, fore);
-										goto next;							
+										goto next;
 									}
 									else if (*s == '\\')	//skip
 										s++;
@@ -464,7 +464,7 @@ void TranslateReset(void)
 							else if (*s == '\\')	//skip
 								s++;
 							s++;
-						}				
+						}
 					}
 					else if (*s == '\\')	//skip
 						s++;
@@ -540,7 +540,7 @@ char *languagetext[STL_MAXSTL][MAX_LANGUAGES];
 
 void TL_ParseLanguage (char *name, char *data, int num)	//this is one of the first functions to be called. so it mustn't use any quake subsystem routines
 {
-	int i;			
+	int i;
 	char *s;
 
 	s = data;
@@ -554,8 +554,8 @@ void TL_ParseLanguage (char *name, char *data, int num)	//this is one of the fir
 		{
 			if (!strcmp(com_token, langtext(i, 0)))	//lang 0 is actually the string names.
 				break;
-		}		
-		
+		}
+
 		s = COM_ParseCString(s);
 		if (i == STL_MAXSTL)	//silently ignore - allow other servers or clients to add stuff
 			continue;
@@ -571,6 +571,7 @@ void TL_LoadLanguage (char *name, char *shortname, int num)	//this is one of the
 	FILE *f;
 	int size;
 	char *buffer;
+	size_t result;
 
 	f = fopen(va("%s.trl", shortname), "rb");
 	if (!f)
@@ -580,7 +581,7 @@ void TL_LoadLanguage (char *name, char *shortname, int num)	//this is one of the
 	fseek(f, 0, SEEK_SET);
 	buffer = malloc(size+1);
 	buffer[size] = '\0';
-	fread(buffer, 1, size, f);
+	result = fread(buffer, 1, size, f); // do something with result
 	fclose(f);
 
 	TL_ParseLanguage(name, buffer, num);
@@ -630,7 +631,7 @@ char *TL_ExpandToCString(char *in)
 		in++;
 	}
 	*out = '\0';
-	
+
 	return buffer;
 }
 char *TL_ExpandToDoubleCString(char *in) //TL_ExpandToCString twice
@@ -659,7 +660,7 @@ char *TL_ExpandToDoubleCString(char *in) //TL_ExpandToCString twice
 		in++;
 	}
 	*out = '\0';
-	
+
 	return TL_ExpandToCString(buffer);
 }
 void TL_WriteTLHeader(void)
@@ -691,7 +692,7 @@ void TL_InitLanguages(void)
 	#include "translate.h"
 	#undef NAME
 /*
-	#define ENGLISH(i, s) (languagetext[i][1] = s)	
+	#define ENGLISH(i, s) (languagetext[i][1] = s)
 	#undef ENGLISH
 */
 	TL_ParseLanguage("English", defaultlanguagetext, 1);

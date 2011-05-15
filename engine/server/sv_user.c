@@ -968,7 +968,7 @@ void SV_Modellist_f (void)
 	{
 		char mname[MAX_QPATH];
 		char vweaplist[1024] = "//vwep";
-		int pos = strlen(vweaplist);
+		//int pos = strlen(vweaplist); // warning: unused variable ‘pos’
 
 		for (i = 0; sv.strings.vw_model_precache[i]; i++)
 		{
@@ -1613,7 +1613,7 @@ void SV_Begin_Core(client_t *split)
 						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
 						G_FLOAT(OFS_PARM0) = split->csqcactive;	//this arg is part of EXT_CSQC_1, but doesn't have to be supported by the mod
 						PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
-				
+
 						// actually spawn the player
 						pr_global_struct->time = sv.world.physicstime;
 						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
@@ -1758,12 +1758,12 @@ void SV_DarkPlacesDownloadChunk(client_t *cl, sizebuf_t *msg)
 
 	if (cl->num_backbuf)
 		return;
-	
+
 	size = 1024;	//fixme
 
 	if (size > cl->datagram.maxsize - cl->datagram.cursize)
 		size = cl->datagram.maxsize - cl->datagram.cursize - 16;
-	
+
 	if (size > MAXDPDOWNLOADCHUNK)	//don't clog it too much
 		size = MAXDPDOWNLOADCHUNK;
 
@@ -2253,7 +2253,7 @@ void SV_VoiceSendPacket(client_t *client, sizebuf_t *buf)
 		send = false;
 		if (ring->receiver[clno>>3] & (1<<(clno&3)))
 			send = true;
-		
+
 		/*if you're spectating, you can hear whatever your tracked player can hear*/
 		if (host_client->spectator && host_client->spec_track)
 			if (ring->receiver[(host_client->spec_track-1)>>3] & (1<<((host_client->spec_track-1)&3)))
@@ -2312,7 +2312,7 @@ void SV_Voice_Ignore_f(void)
 	case -1:
 		host_client->voice_mute[other>>3] &= ~(1<<(other&3));
 		break;
-	case 0:	
+	case 0:
 		host_client->voice_mute[other>>3] ^= (1<<(other&3));
 		break;
 	case 1:
@@ -2534,7 +2534,7 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 					Con_Printf("Failed to read %s\n", pakname);
 			}
 		}
-		
+
 		if (protectedpak)
 		{	//if its in a pak file, don't allow downloads if we don't allow the contents of paks to be sent.
 			if (!allow_download_pakcontents.value)
@@ -2669,7 +2669,7 @@ void SV_BeginDownload_f(void)
 		if (redirection)
 		{
 			//tell the client to download the new one.
-			ClientReliableWrite_Begin (host_client, ISQ2CLIENT(host_client)?svcq2_stufftext:svc_stufftext, 2+strlen(redirection)); 
+			ClientReliableWrite_Begin (host_client, ISQ2CLIENT(host_client)?svcq2_stufftext:svc_stufftext, 2+strlen(redirection));
 			ClientReliableWrite_String (host_client, va("\ndownload \"%s\"\n", redirection));
 		}
 		return;
@@ -2853,7 +2853,7 @@ void SV_PushFloodProt(client_t *client)
 
 	if (client->lastspoke)
 	{
-		client->floodprotmessage -= (realtime - client->lastspoke) 
+		client->floodprotmessage -= (realtime - client->lastspoke)
 			* sv_floodprotect_messages.value
 			/ sv_floodprotect_interval.value;
 		client->floodprotmessage = max(0, client->floodprotmessage);
@@ -3118,7 +3118,7 @@ SV_Kill_f
 void SV_Kill_f (void)
 {
 	float floodtime;
-	
+
 #ifdef HLSERVER
 	if (svs.gametype == GT_HALFLIFE)
 	{
@@ -3385,7 +3385,7 @@ void SV_SetInfo_f (void)
 	Q_strncpyz(oldval, Info_ValueForKey(host_client->userinfo, Cmd_Argv(1)), MAX_INFO_STRING);
 
 #ifdef VM_Q1
-	if (Q1QVM_UserInfoChanged(sv_player))	
+	if (Q1QVM_UserInfoChanged(sv_player))
 		return;
 #endif
 
@@ -3995,7 +3995,7 @@ void Cmd_Observe_f (void)
 		return;
 	if (host_client->spectator)
 		return;		// already a spectator
-	
+
 	if (svs.gametype != GT_PROGS)
 	{
 		SV_PrintToClient(host_client, PRINT_HIGH, "Sorry, not implemented in this gamecode type. Try moaning at the dev team\n");
@@ -5394,7 +5394,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		}
 		else
 			jumpable = false;
-		
+
 #ifdef VM_Q1
 		if (svs.gametype == GT_Q1QVM)
 			Q1QVM_PlayerPreThink();

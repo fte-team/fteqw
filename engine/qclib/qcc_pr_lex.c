@@ -231,8 +231,8 @@ pbool QCC_PR_SimpleGetToken (void);
 int ParsePrecompilerIf(void)
 {
 	CompilerConstant_t *c;
-	int eval;
-	char *start = pr_file_p;
+	int eval = 0;
+	//char *start = pr_file_p; //warning: unused variable âstartâ
 	if (!QCC_PR_SimpleGetToken())
 	{
 		if (*pr_file_p == '(')
@@ -830,7 +830,7 @@ pbool QCC_PR_Precompiler(void)
 			{
 	#define MAXSOURCEFILESLIST 8
 	extern char sourcefileslist[MAXSOURCEFILESLIST][1024];
-	extern int currentsourcefile;
+	//extern int currentsourcefile; // warning: unused variable âcurrentsourcefileâ
 	extern int numsourcefiles;
 
 				int i;

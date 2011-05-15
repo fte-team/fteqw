@@ -75,11 +75,12 @@ extern cvar_t sv_nomsec;
 
 static void SV_Physics_Toss (edict_t *ent);
 
+// warning: ‘SV_CheckAllEnts’ defined but not used
 /*
 ================
 SV_CheckAllEnts
 ================
-*/
+
 static void SV_CheckAllEnts (void)
 {
 	int			e;
@@ -102,6 +103,7 @@ static void SV_CheckAllEnts (void)
 			Con_Printf ("entity in invalid position\n");
 	}
 }
+*/
 
 /*
 ================
@@ -1376,6 +1378,7 @@ static void SV_WallFriction (edict_t *ent, trace_t *trace)
 	ent->v->velocity[1] = side[1] * (1 + d);
 }
 
+// warning: ‘SV_TryUnstick’ defined but not used
 /*
 =====================
 SV_TryUnstick
@@ -1387,7 +1390,7 @@ Try fixing by pushing one pixel in each direction.
 
 This is a hack, but in the interest of good gameplay...
 ======================
-*/
+
 static int SV_TryUnstick (edict_t *ent, vec3_t oldvel)
 {
 	int		i;
@@ -1436,6 +1439,7 @@ static int SV_TryUnstick (edict_t *ent, vec3_t oldvel)
 	VectorClear (ent->v->velocity);
 	return 7;		// still not moving
 }
+*/
 
 /*
 =====================
@@ -1797,7 +1801,7 @@ SV_RunEntity
 void SV_RunEntity (edict_t *ent)
 {
 	edict_t	*movechain;
-	vec3_t	initial_origin,initial_angle;
+	vec3_t	initial_origin = {0},initial_angle = {0}; // warning: ‘initial_?[?]’ may be used uninitialized in this function
 
 	if (ent->entnum > 0 && ent->entnum <= sv.allocated_client_slots)
 	{	//a client woo.
@@ -2177,7 +2181,7 @@ qboolean SV_Physics (void)
 
 			SV_RunEntity (ent);
 			SV_RunNewmis ();
-			
+
 			if (ent->solidtype != ent->v->solid && !ent->isfree)
 			{
 				Con_DPrintf("Entity \"%s\" improperly changed solid type\n", PR_GetString(svprogfuncs, ent->v->classname));

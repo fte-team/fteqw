@@ -844,7 +844,7 @@ struct sbuiltin_s
 	int apiver;
 	char name[MAX_QPATH];
 	char *body;
-} sbuiltins[] = 
+} sbuiltins[] =
 {
 #ifdef GLQUAKE
 	/*a quick note on glsl versions:
@@ -1187,7 +1187,7 @@ struct sbuiltin_s
 			"	vec4 fb = texture2D(s_t3, tc);\n"
 			"	col.rgb = mix(col.rgb, fb.rgb, fb.a);\n"
 			"#endif\n"
-			"	gl_FragColor = col * e_colourident;\n" 
+			"	gl_FragColor = col * e_colourident;\n"
 			"}\n"
 		"#endif\n"
 	},
@@ -1251,7 +1251,7 @@ struct sbuiltin_s
 			"	vec4 fb = texture2D(s_t3, tc);\n"
 			"	col.rgb = mix(col.rgb, fb.rgb, fb.a);\n"
 			"#endif\n"
-			"	gl_FragColor = col * e_colourident;\n" 
+			"	gl_FragColor = col * e_colourident;\n"
 			"}\n"
 		"#endif\n"
 	},
@@ -1441,7 +1441,7 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarfnames)
 			cvar = Cvar_FindVar(tmpname);
 			if (!cvar)
 				continue;
-			cvar->flags |= CVAR_SHADERSYSTEM; 
+			cvar->flags |= CVAR_SHADERSYSTEM;
 			for (p = 0; p < PERMUTATIONS; p++)
 			{
 				if (!prog->handle[p].glsl)
@@ -2276,7 +2276,7 @@ static void Shaderpass_Scale ( shader_t *shader, shaderpass_t *pass, char **ptr 
 	{
 		tcmod->args[0] = atof(token);
 	}
-	
+
 	while (**ptr == ' ' || **ptr == '\t')
 		*ptr+=1;
 	if (**ptr == ',')
@@ -2543,7 +2543,7 @@ static void Shader_MakeCache ( char *path )
 		cache->hash_next = shader_hash[key];
 		cache->path = path;
 		cache->offset = ptr - buf;
-		Com_sprintf ( cache->name, MAX_QPATH, token );
+		Com_sprintf ( cache->name, MAX_QPATH, "%s", token ); // warning: format not a string literal and no format arguments
 		shader_hash[key] = cache;
 
 		ptr = Shader_Skip ( ptr );
@@ -4012,7 +4012,7 @@ static qboolean Shader_ParseShader(char *shortname, char *usename, shader_t *s)
 
 		Shader_Free(s);
 		memset ( s, 0, sizeof( shader_t ) );
-		Com_sprintf ( s->name, MAX_QPATH, usename );
+		Com_sprintf ( s->name, MAX_QPATH, "%s",usename ); // warning: format not a string literal and no format arguments
 		Hash_Add(&shader_active_hash, s->name, s, &s->bucket);
 
 		Shader_ReadShader(s, file);
@@ -4131,9 +4131,9 @@ static int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *gena
 	if (defaultgen)
 	{
 		memset(s, 0, sizeof(shader_t));
-		Com_sprintf(s->name, MAX_QPATH, shortname);
+		Com_sprintf(s->name, MAX_QPATH, "%s", shortname); // warning: format not a string literal and no format arguments
 		if (!strcmp(shortname, "textures/common/clip"))
-			Shader_DefaultScript(shortname, s, 
+			Shader_DefaultScript(shortname, s,
 				"{\n"
 					"surfaceparm nodraw\n"
 					"surfaceparm nodlight\n"
@@ -4218,7 +4218,7 @@ void Shader_DoReload(void)
 
 			s->generator = defaultgen;
 			s->genargs = genargs;
-			Com_sprintf ( s->name, MAX_QPATH, shortname );
+			Com_sprintf ( s->name, MAX_QPATH, "%s", shortname ); // warning: format not a string literal and no format arguments
 			Hash_Add(&shader_active_hash, s->name, s, &s->bucket);
 			R_BuildDefaultTexnums(&oldtn, s);
 		}

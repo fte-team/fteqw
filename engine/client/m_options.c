@@ -260,7 +260,7 @@ void M_Menu_Audio_f (void)
 {
 	menu_t *menu;
 	int cursorpositionY;
-	extern cvar_t nosound, precache, snd_leftisright, snd_khz, snd_eax, snd_speakers, ambient_level, bgmvolume, snd_playersoundvolume, ambient_fade, cl_staticsounds, snd_inactive, _snd_mixahead, snd_usemultipledevices, snd_noextraupdate, snd_show, bgmbuffer;
+	extern cvar_t nosound, precache, snd_leftisright, snd_khz, snd_eax, snd_speakers, ambient_level, bgmvolume, snd_playersoundvolume, ambient_fade, cl_staticsounds, snd_inactive, _snd_mixahead, snd_usemultipledevices, snd_noextraupdate, bgmbuffer;
 	extern cvar_t cl_voip_play, cl_voip_send;
 
 	static const char *soundqualityoptions[] = {
@@ -1128,6 +1128,7 @@ void M_Menu_Shadow_Lighting_f (void)
 		MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
 		y+=8;
 
+		MC_AddSlider(menu,	16, y,							"                          Shadows", &r_shadows,0,2,1);	y+=8;
 		//MC_AddSlider(menu,	16, y,						"                   Light Map Mode", &gl_lightmapmode,0,2,1);	y+=8;
 		MC_AddSlider(menu,	16, y,							"             Light Map Saturation", &r_lightmap_saturation,0,1,0.1);	y+=8;
 		MC_AddCheckBox(menu,	16, y,						"                 Dynamic Lighting", &r_dynamic,0);	y+=8;

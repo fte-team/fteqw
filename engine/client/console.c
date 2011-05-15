@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -273,7 +273,7 @@ void QT_Create(char *command)
 	int ret;
 
 	qt = Z_Malloc(sizeof(*qt));
-	
+
 	memset(&sa,0,sizeof(sa));
 	sa.nLength=sizeof(sa);
 	sa.bInheritHandle=true;
@@ -291,20 +291,20 @@ void QT_Create(char *command)
 	qt->pipeoutih	= StdOut[1];
 	qt->pipeinih	= StdIn[1];
 
-	if (!DuplicateHandle(GetCurrentProcess(), StdIn[0], 
-						GetCurrentProcess(), &qt->pipein, 0, 
-						FALSE,                  // not inherited 
+	if (!DuplicateHandle(GetCurrentProcess(), StdIn[0],
+						GetCurrentProcess(), &qt->pipein, 0,
+						FALSE,                  // not inherited
 						DUPLICATE_SAME_ACCESS))
 		qt->pipein = StdIn[0];
 	else
-		CloseHandle(StdIn[0]); 
-	if (!DuplicateHandle(GetCurrentProcess(), StdOut[0], 
-						GetCurrentProcess(), &qt->pipeout, 0, 
-						FALSE,                  // not inherited 
+		CloseHandle(StdIn[0]);
+	if (!DuplicateHandle(GetCurrentProcess(), StdOut[0],
+						GetCurrentProcess(), &qt->pipeout, 0,
+						FALSE,                  // not inherited
 						DUPLICATE_SAME_ACCESS))
 		qt->pipeout = StdOut[0];
 	else
-		CloseHandle(StdOut[0]); 
+		CloseHandle(StdOut[0]);
 
 	SUInf.hStdInput		= qt->pipeinih;
 	SUInf.hStdOutput	= qt->pipeoutih;
@@ -371,7 +371,7 @@ void Con_ToggleConsole_f (void)
 	}
 	else
 		key_dest = key_console;
-	
+
 	Con_ClearNotify ();
 }
 
@@ -391,7 +391,7 @@ void Con_ToggleChat_f (void)
 	}
 	else
 		key_dest = key_console;
-	
+
 	Con_ClearNotify ();
 }
 
@@ -459,7 +459,7 @@ void Cmd_ConActivate_f(void)
 	if (con)
 		Con_SetActive(con);
 }
-						
+
 /*
 ================
 Con_ClearNotify
@@ -468,12 +468,12 @@ Con_ClearNotify
 void Con_ClearNotify (void)
 {
 	int		i;
-	
+
 	for (i=0 ; i<NUM_CON_TIMES ; i++)
 		con_times[i] = 0;
 }
 
-						
+
 /*
 ================
 Con_MessageMode_f
@@ -676,10 +676,10 @@ void SV_FlushRedirect (void);
 #define	MAXPRINTMSG	4096
 // FIXME: make a buffer size safe vsprintf?
 void VARGS Con_Printf (const char *fmt, ...)
-{	
+{
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
-	
+
 	va_start (argptr,fmt);
 	vsnprintf (msg,sizeof(msg), fmt,argptr);
 	va_end (argptr);
@@ -710,7 +710,7 @@ void VARGS Con_Printf (const char *fmt, ...)
 }
 
 void VARGS Con_SafePrintf (char *fmt, ...)
-{	
+{
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
 
@@ -719,15 +719,15 @@ void VARGS Con_SafePrintf (char *fmt, ...)
 	va_end (argptr);
 
 // write it to the scrollable buffer
-	Con_Printf ("%s", msg);	
+	Con_Printf ("%s", msg);
 }
 
 void VARGS Con_TPrintf (translation_t text, ...)
-{	
+{
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
 	char *fmt = languagetext[text][cls.language];
-	
+
 	va_start (argptr,text);
 	vsnprintf (msg,sizeof(msg), fmt,argptr);
 	va_end (argptr);
@@ -737,11 +737,11 @@ void VARGS Con_TPrintf (translation_t text, ...)
 }
 
 void VARGS Con_SafeTPrintf (translation_t text, ...)
-{	
+{
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
 	char *fmt = languagetext[text][cls.language];
-	
+
 	va_start (argptr,text);
 	vsnprintf (msg,sizeof(msg), fmt,argptr);
 	va_end (argptr);
@@ -884,7 +884,7 @@ void Con_DrawInput (int left, int right, int y)
 	//if the left hand side is on the right of the left point (overrides right alignment)
 	if (x - lhs > 0)
 		x = lhs;
-		
+
 	lhs = x - lhs + left;
 	for (cchar = maskedtext; cchar < cursor; cchar++)
 	{
@@ -1013,9 +1013,9 @@ void Con_DrawNotify (void)
 	Font_EndString(font_conchar);
 }
 
-//send all the stuff that was con_printed to sys_print. 
+//send all the stuff that was con_printed to sys_print.
 //This is so that system consoles in windows can scroll up and have all the text.
-void Con_PrintToSys(void)	
+void Con_PrintToSys(void)
 {
 	console_t *curcon = &con_main;
 	conline_t *l;
@@ -1048,7 +1048,7 @@ static int Con_DrawProgress(int left, int right, int y)
 	int barwidth, barleft;
 	float progresspercent = 0;
 	*progresspercenttext = 0;
-	
+
 	// draw the download bar
 	// figure out width
 	if (cls.downloadmethod)
@@ -1100,7 +1100,7 @@ static int Con_DrawProgress(int left, int right, int y)
 			txt = progresstext;
 
 		x = 0;
-		COM_ParseFunString(CON_WHITEMASK, txt, dlbar, sizeof(dlbar), false); 
+		COM_ParseFunString(CON_WHITEMASK, txt, dlbar, sizeof(dlbar), false);
 		for (i = 0; dlbar[i]; )
 		{
 			x += Font_CharWidth(dlbar[i]);
@@ -1454,7 +1454,7 @@ char *Con_CopyConsole(void)
 	l = selstartline;
 	cur = (conchar_t*)(l+1) + selstartoffset;
 	finalendoffset = selendoffset;
-	
+
 	if (selstartline == selendline)
 	{
 		if (selstartoffset+1 == finalendoffset)
@@ -1527,7 +1527,7 @@ void Con_NotifyBox (char *text)
 // during startup for sound / cd warnings
 	Con_Printf("\n\n\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37\n");
 
-	Con_Printf (text);
+	Con_Printf ("%s", text);
 
 	Con_Printf ("Press a key.\n");
 	Con_Printf("\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37\n");

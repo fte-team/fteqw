@@ -36,9 +36,14 @@ char rank_cvargroup[] = "server rankings";
 void inline READ_PLAYERSTATS(int x, rankstats_t *os)
 {
 	int i;
+	size_t result;
 
 	fseek(rankfile, sizeof(rankfileheader_t)+sizeof(rankheader_t)+((x-1)*sizeof(rankinfo_t)), SEEK_SET);
-	fread(os, sizeof(rankstats_t), 1, rankfile);
+	result = fread(os, sizeof(rankstats_t), 1, rankfile);
+
+	// ignoring return value of ‘fread’, declared with attribute warn_unused_result
+	if (result != 1)
+		fprintf(stderr, "fread() error in READ_PLAYERSTATS\n");
 
 	os->kills = swaplong(os->kills);
 	os->deaths = swaplong(os->deaths);
@@ -73,9 +78,15 @@ void inline WRITE_PLAYERSTATS(int x, rankstats_t *os)
 
 void inline READ_PLAYERHEADER(int x, rankheader_t *oh)
 {
+	size_t result;
+
 	fseek(rankfile, sizeof(rankfileheader_t)+((x-1)*sizeof(rankinfo_t)), SEEK_SET);
 
-	fread(oh, sizeof(rankheader_t), 1, rankfile);
+	result = fread(oh, sizeof(rankheader_t), 1, rankfile);
+
+	// ignoring return value of ‘fread’, declared with attribute warn_unused_result
+	if (result != 1)
+		fprintf(stderr, "fread() error in WRITE_PLAYERSTATS\n");
 
 	oh->prev = swaplong(oh->prev);		//score is held for convineance.
 	oh->next = swaplong(oh->next);
@@ -125,6 +136,7 @@ void inline WRITEHEADER(void)
 qboolean Rank_OpenRankings(void)
 {
 	char syspath[MAX_OSPATH];
+	size_t result;
 	qboolean created;
 	if (!rankfile)
 	{
@@ -150,7 +162,11 @@ qboolean Rank_OpenRankings(void)
 		memset(&rankfileheader, 0, sizeof(rankfileheader));
 
 		fseek(rankfile, 0, SEEK_SET);
-		fread(&rankfileheader, sizeof(rankfileheader_t), 1, rankfile);
+		result = fread(&rankfileheader, sizeof(rankfileheader_t), 1, rankfile);
+
+		// ignoring return value of ‘fread’, declared with attribute warn_unused_result
+		if (result != 1)
+			fprintf(stderr, "fread() error in Rank_OpenRankings\n");
 
 		rankfileheader.version		= swaplong(rankfileheader.version);
 		rankfileheader.usedslots	= swaplong(rankfileheader.usedslots);

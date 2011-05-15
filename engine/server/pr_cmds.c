@@ -205,7 +205,7 @@ pbool ED_CanFree (edict_t *ed)
 
 	ed->v->classname = 0;
 
-	if (pr_imitatemvdsv.value) 
+	if (pr_imitatemvdsv.value)
 	{
 		ed->v->health = 0;
 		ed->v->nextthink = -1;
@@ -520,7 +520,7 @@ void PR_LoadGlabalStruct(void)
 	static float writeonly;
 	static float dimension_send_default;
 	static float zero_default;
-	static vec3_t vecwriteonly;
+	//static vec3_t vecwriteonly; // 523:16: warning: unused variable ‘vecwriteonly’
 	int i;
 	int *v;
 	nqglobalvars_t *pr_globals = pr_nqglobal_struct;
@@ -576,7 +576,7 @@ void PR_LoadGlabalStruct(void)
 	globalfloat		(false, cycle_wrapped);
 	globalfloat		(false, dimension_send);
 
-	
+
 	globalfloat		(false, clientcommandframe);
 	globalfloat		(false, input_timelength);
 	globalvec_		(false, input_angles);
@@ -600,19 +600,19 @@ void PR_LoadGlabalStruct(void)
 	if (!((nqglobalvars_t*)pr_globals)->V_trace_plane_normal)
 	{
 		((nqglobalvars_t*)pr_globals)->V_trace_plane_normal = (vec3_t *)PR_FindGlobal(svprogfuncs, "trace_normal", 0);
-		if (!((nqglobalvars_t*)pr_globals)->V_trace_plane_normal) 
+		if (!((nqglobalvars_t*)pr_globals)->V_trace_plane_normal)
 			SV_Error("Could not find export trace_plane_normal in progs\n");
 	}
 	if (!((nqglobalvars_t*)pr_globals)->V_trace_endpos)
 	{
 		((nqglobalvars_t*)pr_globals)->V_trace_endpos = (vec3_t *)PR_FindGlobal(svprogfuncs, "trace_impact", 0);
-		if (!((nqglobalvars_t*)pr_globals)->V_trace_endpos) 
+		if (!((nqglobalvars_t*)pr_globals)->V_trace_endpos)
 			SV_Error("Could not find export trace_endpos in progs\n");
 	}
 	if (!((nqglobalvars_t*)pr_globals)->trace_fraction)
 	{
 		((nqglobalvars_t*)pr_globals)->trace_fraction = (float *)PR_FindGlobal(svprogfuncs, "trace_frac", 0);
-		if (!((nqglobalvars_t*)pr_globals)->trace_fraction) 
+		if (!((nqglobalvars_t*)pr_globals)->trace_fraction)
 			SV_Error("Could not find export trace_fraction in progs\n");
 	}
 	ensurefloat(serverflags, zero_default);
@@ -1620,7 +1620,7 @@ qboolean PR_UserCmd(char *s)
 		//ktpro bug warning:
 		//admin + judge. I don't know the exact rules behind this bug, so I just ban the entire command
 		//I can't be arsed detecting ktpro specifically, so assume we're always running ktpro
-		
+
 		if (!strncmp(s, "admin", 5) || !strncmp(s, "judge", 5))
 		{
 			Con_Printf("Blocking potentially unsafe ktpro command: %s\n", s);
@@ -3515,7 +3515,7 @@ static void QCBUILTIN PF_precache_model (progfuncs_t *prinst, struct globalvars_
 	char	*s;
 
 	s = PR_GetStringOfs(prinst, OFS_PARM0);
-	
+
 	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
 
 	PF_precache_model_Internal(prinst, s);
@@ -3580,6 +3580,8 @@ void QCBUILTIN PF_precache_vwep_model (progfuncs_t *prinst, struct globalvars_s 
 	}
 }
 
+// warning: ‘PF_svcoredump’ defined but not used
+/*
 static void QCBUILTIN PF_svcoredump (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int size = 1024*1024*8;
@@ -3588,6 +3590,7 @@ static void QCBUILTIN PF_svcoredump (progfuncs_t *prinst, struct globalvars_s *p
 	COM_WriteFile("ssqccore.txt", buffer, size);
 	BZ_Free(buffer);
 }
+*/
 
 static void QCBUILTIN PF_sv_movetogoal (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -5044,6 +5047,8 @@ static void QCBUILTIN PF_newstring(progfuncs_t *prinst, struct globalvars_s *pr_
 	RETURN_SSTRING(s+8);
 }
 
+// warning: ‘PF_strcatp’ defined but not used
+/*
 static void QCBUILTIN PF_strcatp(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *buf = PR_GetStringOfs(prinst, OFS_PARM0); char *add = PR_GetStringOfs(prinst, OFS_PARM1);
@@ -5066,7 +5071,10 @@ static void QCBUILTIN PF_strcatp(progfuncs_t *prinst, struct globalvars_s *pr_gl
 
 	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
 }
+*/
 
+// warning: ‘PF_redstring’ defined but not used
+/*
 static void QCBUILTIN PF_redstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *string = PR_GetStringOfs(prinst, OFS_PARM0), *s;
@@ -5078,6 +5086,7 @@ static void QCBUILTIN PF_redstring(progfuncs_t *prinst, struct globalvars_s *pr_
 
 	RETURN_TSTRING(buf);
 }
+*/
 
 #ifdef SVCHAT
 void SV_Chat(char *filename, float starttag, edict_t *edict);
@@ -5134,7 +5143,7 @@ void PF_sqlconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	if (!driver[0])
 		driver = sql_driver.string;
-	
+
 	G_FLOAT(OFS_RETURN) = SQL_NewServer(driver, paramstr);
 }
 
@@ -5191,14 +5200,14 @@ void PF_sqlclosequery (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	sqlserver_t *server;
 	queryresult_t *qres;
-	
+
 	if (SQL_Available())
 	{
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
 			qres = SQL_GetQueryResult(server, G_FLOAT(OFS_PARM1));
-			if (qres) 
+			if (qres)
 			{
 				// TODO: partial resultset logic not implemented yet
 				SQL_CloseResult(server, qres);
@@ -5216,7 +5225,7 @@ void PF_sqlreadfield (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char *data;
 
 	if (SQL_Available())
-	{	
+	{
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
@@ -5243,7 +5252,7 @@ void PF_sqlreadfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char *data;
 
 	if (SQL_Available())
-	{	
+	{
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
@@ -5276,7 +5285,7 @@ void PF_sqlerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			if (*svprogfuncs->callargc == 2)
 			{ // query-specific error request
 				if (server->active) // didn't check this earlier so check it now
-				{ 
+				{
 					queryresult_t *qres = SQL_GetQueryResult(server, G_FLOAT(OFS_PARM1));
 					if (qres)
 					{
@@ -5323,7 +5332,7 @@ void PF_sqlescape (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 void PF_sqlversion (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	sqlserver_t *server;
-	
+
 	if (SQL_Available())
 	{
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
@@ -5776,39 +5785,39 @@ static void QCBUILTIN PF_strstr (progfuncs_t *prinst, struct globalvars_s *pr_gl
 	RETURN_TSTRING(p);
 }
 
-char readable2[256] = 
+char readable2[256] =
 {
-	'.', '_', '_', '_', '_', '.', '_', '_', 
-	'_', '_', '\n', '_', '\n', '>', '.', '.', 
-	'[', ']', '0', '1', '2', '3', '4', '5', 
-	'6', '7', '8', '9', '.', '_', '_', '_', 
-	' ', '!', '\"', '#', '$', '%', '&', '\'', 
-	'(', ')', '*', '+', ',', '-', '.', '/', 
-	'0', '1', '2', '3', '4', '5', '6', '7', 
-	'8', '9', ':', ';', '<', '=', '>', '?', 
-	'@', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 
-	'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 
-	'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 
-	'X', 'Y', 'Z', '[', '\\', ']', '^', '_', 
-	'`', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 
-	'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 
-	'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 
-	'x', 'y', 'z', '{', '|', '}', '~', '_', 
-	'_', '_', '_', '_', '_', '.', '_', '_', 
-	'_', '_', '_', '_', '_', '>', '.', '.', 
-	'[', ']', '0', '1', '2', '3', '4', '5', 
-	'6', '7', '8', '9', '.', '_', '_', '_', 
-	' ', '!', '\"', '#', '$', '%', '&', '\'', 
-	'(', ')', '*', '+', ',', '-', '.', '/', 
-	'0', '1', '2', '3', '4', '5', '6', '7', 
-	'8', '9', ':', ';', '<', '=', '>', '?', 
-	'@', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 
-	'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 
-	'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 
-	'X', 'Y', 'Z', '[', '\\', ']', '^', '_', 
-	'`', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 
-	'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 
-	'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 
+	'.', '_', '_', '_', '_', '.', '_', '_',
+	'_', '_', '\n', '_', '\n', '>', '.', '.',
+	'[', ']', '0', '1', '2', '3', '4', '5',
+	'6', '7', '8', '9', '.', '_', '_', '_',
+	' ', '!', '\"', '#', '$', '%', '&', '\'',
+	'(', ')', '*', '+', ',', '-', '.', '/',
+	'0', '1', '2', '3', '4', '5', '6', '7',
+	'8', '9', ':', ';', '<', '=', '>', '?',
+	'@', 'A', 'B', 'C', 'D', 'E', 'F', 'G',
+	'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
+	'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
+	'X', 'Y', 'Z', '[', '\\', ']', '^', '_',
+	'`', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
+	'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
+	'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
+	'x', 'y', 'z', '{', '|', '}', '~', '_',
+	'_', '_', '_', '_', '_', '.', '_', '_',
+	'_', '_', '_', '_', '_', '>', '.', '.',
+	'[', ']', '0', '1', '2', '3', '4', '5',
+	'6', '7', '8', '9', '.', '_', '_', '_',
+	' ', '!', '\"', '#', '$', '%', '&', '\'',
+	'(', ')', '*', '+', ',', '-', '.', '/',
+	'0', '1', '2', '3', '4', '5', '6', '7',
+	'8', '9', ':', ';', '<', '=', '>', '?',
+	'@', 'A', 'B', 'C', 'D', 'E', 'F', 'G',
+	'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
+	'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
+	'X', 'Y', 'Z', '[', '\\', ']', '^', '_',
+	'`', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
+	'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
+	'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
 	'x', 'y', 'z', '{', '|', '}', '~', '_'
 };
 
@@ -6463,7 +6472,7 @@ enum
 
 
 	/*internal effects, here for indexes*/
-	
+
 	ce_teleporterbody_1,	/*de-sheeped*/
 	ce_white_smoke_05,
 	ce_white_smoke_10,
@@ -6799,7 +6808,7 @@ static void QCBUILTIN PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s 
 	}
 
 	Con_Printf("FTE-H2 FIXME: Effect %i doesn't have an effect registered\nTell Spike!\n", efnum);
-	
+
 #if 0
 
 	switch((int)G_FLOAT(OFS_PARM0))
@@ -8221,7 +8230,7 @@ static void QCBUILTIN PF_globalstat(progfuncs_t *prinst, struct globalvars_s *pr
 
 //EXT_CSQC_1
 static void QCBUILTIN PF_runclientphys(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{	
+{
 	unsigned int i, n;
 	extern vec3_t player_maxs, player_mins;
 	extern qbyte playertouch[];
@@ -8709,7 +8718,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"setorigin",		PF_setorigin,		2,		2,		2},	// void(entity e, vector o) setorigin	= #2;
 	{"setmodel",		PF_setmodel,		3,		3,		3},	// void(entity e, string m) setmodel	= #3;
 	{"setsize",			PF_setsize,			4,		4,		4},	// void(entity e, vector min, vector max) setsize = #4;
-	{"qtest_setabssize",PF_setsize,			5}, // void(entity e, vector min, vector max) setabssize = #5; 
+	{"qtest_setabssize",PF_setsize,			5}, // void(entity e, vector min, vector max) setabssize = #5;
 	{"lightstylestatic",PF_lightstylestatic,0,		0,		5,		5},
 	{"break",			PF_break,			6,		6,		6},	// void() break						= #6;
 	{"random",			PF_random,			7,		7,		7},	// float() random						= #7;

@@ -493,7 +493,7 @@ static float Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 				VectorSubtract(xyz[idx[2]], xyz[idx[1]], d2);
 				angle = acos(DotProduct(d1, d2)/(Length(d1)*Length(d2)));
 				VectorMA(normals[mvert[idx[1]]], angle, tn, normals[mvert[idx[1]]]);
-				
+
 				VectorSubtract(xyz[idx[0]], xyz[idx[2]], d1);
 				VectorSubtract(xyz[idx[1]], xyz[idx[2]], d2);
 				angle = acos(DotProduct(d1, d2)/(Length(d1)*Length(d2)));
@@ -767,7 +767,7 @@ float *Alias_GetBonePositions(galiasinfo_t *inf, framestate_t *fstate, float *bu
 
 		galiasgroup_t *g1, *g2;
 
-		galiasbone_t *bones = (galiasbone_t *)((char*)inf+inf->ofsbones);
+		//galiasbone_t *bones = (galiasbone_t *)((char*)inf+inf->ofsbones); //unsed variable
 
 		if (buffersize < inf->numbones)
 			return NULL;
@@ -897,7 +897,7 @@ vec3_t *tempNormals;
 
 void R_LightArraysByte_BGR(vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3_t *normals)
 {
-	extern cvar_t r_vertexdlights;
+	//extern cvar_t r_vertexdlights; //unused
 	int i;
 	int c;
 	float l;
@@ -948,7 +948,7 @@ void R_LightArrays(vecV_t *coords, avec4_t *colours, int vertcount, vec3_t *norm
 	int i;
 	float l;
 
-	float *lightdir = currententity->light_dir;
+	//float *lightdir = currententity->light_dir; //unused variable
 
 	if (!currententity->light_range[0] && !currententity->light_range[1] && !currententity->light_range[2])
 	{
@@ -1031,7 +1031,7 @@ void R_LightArrays(vecV_t *coords, avec4_t *colours, int vertcount, vec3_t *norm
 
 static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float lerp, qbyte alpha, float expand, qboolean nolightdir)
 {
-	extern cvar_t r_nolerp, r_nolightdir;
+	extern cvar_t r_nolerp; // r_nolightdir is unused
 	float blerp = 1-lerp;
 	int i;
 	vecV_t *p1v, *p2v;
@@ -1880,7 +1880,9 @@ static void *Alias_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremap
 	daliasinterval_t *intervals;
 	float sinter;
 
+#ifndef SERVERONLY
 	vec3_t *normals, *svec, *tvec;
+#endif
 	vecV_t *verts;
 	int aliasframesize;
 
@@ -3603,7 +3605,7 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 			externalskins = LittleLong(surf->numShaders);
 		if (externalskins)
 		{
-			extern int gl_bumpmappingpossible;
+			//extern int gl_bumpmappingpossible; // unused variable
 			char shadname[1024];
 
 			skin = Hunk_Alloc((LittleLong(surf->numShaders)+externalskins)*((sizeof(galiasskin_t)+sizeof(texnums_t))));
@@ -4200,7 +4202,7 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 	unsigned int num_animinfo=0, num_animkeys=0;
 
 	int hunkstart, hunkend, hunktotal;
-	extern cvar_t temp1;
+	//extern cvar_t temp1; //unused variable
 
 	/*load the psk*/
 	while (pos < com_filesize && !fail)
@@ -4430,7 +4432,7 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 	}
 
 	hunkstart = Hunk_LowMark ();
-	
+
 	gmdl = Hunk_Alloc(sizeof(*gmdl)*num_matt);
 
 	/*bones!*/
@@ -5199,7 +5201,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer)
 	float *vpos = NULL, *tcoord = NULL, *vnorm = NULL, *vtang = NULL;
 	unsigned char *vbone = NULL, *vweight = NULL;
 	unsigned int type, fmt, size, offset;
-	
+
 	varray = (struct iqmvertexarray*)(buffer + h->ofs_vertexarrays);
 	for (i = 0; i < h->num_vertexarrays; i++)
 	{

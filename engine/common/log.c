@@ -277,8 +277,8 @@ void SV_LogPlayer(client_t *cl, char *msg)
 		return;	//don't log botclients
 
 	snprintf(line, sizeof(line),
-			"%s\\%s\\%i\\%s\\%s\\%i%s\n", 
-			msg, cl->name, cl->userid, 
+			"%s\\%s\\%i\\%s\\%s\\%i%s\n",
+			msg, cl->name, cl->userid,
 			NET_BaseAdrToString(remote_adr, sizeof(remote_adr), cl->netchan.remote_address), (cl->realip_status > 0 ? NET_BaseAdrToString(realip_adr, sizeof(realip_adr), cl->realip) : "??"),
 			cl->netchan.remote_address.port, cl->userinfo);
 
@@ -311,7 +311,7 @@ void Log_Logfile_f (void)
 		if (log_name[LOG_CONSOLE].string[0])
 			f = log_name[LOG_CONSOLE].string;
 
-		Con_Printf(va("Logging to %s/%s.log.\n", d, f));
+		Con_Printf("%s", va("Logging to %s/%s.log.\n", d, f));
 		Cvar_SetValue(&log_enable[LOG_CONSOLE], 1);
 	}
 

@@ -172,7 +172,23 @@ void Cvar_List_f (void)
 	int gnum, i, num = 0;
 	int listflags = 0, cvarflags = 0;
 	char strtmp[512];
-	
+	static char *cvarlist_help =
+"cvarlist list all cvars matching given parameters\n"
+"Syntax: cvarlist [-FLdhlrv] [-f flag] [-g group] [cvar]\n"
+"  -F shows cvar flags\n"
+"  -L shows latched values\n"
+"  -a shows cvar alternate names\n"
+"  -d shows default cvar values\n"
+"  -f shows only cvars with a matching flag, more than one -f can be used\n"
+"  -g shows only cvar groups using wildcards in group\n"
+"  -h shows this help message\n"
+"  -l shows cvar restriction levels\n"
+"  -r removes group and list headers\n"
+"  -v shows current values\n"
+"  cvar indicates the cvar to show, wildcards (*,?) accepted\n"
+"Cvar flags are:"
+;
+
 	gsearch = search = NULL;
 	for (i = 1; i < Cmd_Argc(); i++)
 	{
@@ -253,20 +269,7 @@ void Cvar_List_f (void)
 					break;
 				case 'h':
 					// list options
-					Con_Printf("cvarlist list all cvars matching given parameters\n"
-						"Syntax: cvarlist [-FLdhlrv] [-f flag] [-g group] [cvar]\n"
-						"  -F shows cvar flags\n"
-						"  -L shows latched values\n"
-						"  -a shows cvar alternate names\n"
-						"  -d shows default cvar values\n"
-						"  -f shows only cvars with a matching flag, more than one -f can be used\n"
-						"  -g shows only cvar groups using wildcards in group\n"
-						"  -h shows this help message\n"
-						"  -l shows cvar restriction levels\n"
-						"  -r removes group and list headers\n"
-						"  -v shows current values\n"
-						"  cvar indicates the cvar to show, wildcards (*,?) accepted\n"
-						"Cvar flags are:");
+					Con_Printf("%s", cvarlist_help);
 
 					for (num = 1; num <= CVAR_LASTFLAG; num <<= 1)
 					{
@@ -329,7 +332,7 @@ void Cvar_List_f (void)
 						Q_strncpyz(strtmp, cmd->name2, 512);
 						Q_strlwr(strtmp);
 						if (!wildcmp(search, strtmp))
-							continue;		
+							continue;
 					}
 					else
 						continue;
@@ -353,8 +356,8 @@ void Cvar_List_f (void)
 				Con_Printf("(%i) ", cmd->restriction);
 
 			// print cvar name
-			Con_Printf(cmd->name);
-			
+			Con_Printf("%s", cmd->name);
+
 			// print current value
 			if (listflags & CLF_VALUES)
 			{
@@ -373,9 +376,9 @@ void Cvar_List_f (void)
 			// print cvar flags
 			if (listflags & CLF_FLAGS)
 			{
-				for (i = 1; i <= CVAR_LASTFLAG; i <<= 1) 
+				for (i = 1; i <= CVAR_LASTFLAG; i <<= 1)
 				{
-					if (i & cmd->flags) 
+					if (i & cmd->flags)
 					{
 						var = Cvar_FlagToName(i);
 						if (var)
@@ -458,7 +461,7 @@ void Cvar_Reset_f (void)
 					Con_Printf("Invalid option for cvarreset\nUse cvarreset -h for help\n");
 					return;
 				}
-			}			
+			}
 		}
 		else
 			search = var;
@@ -509,7 +512,7 @@ void Cvar_Reset_f (void)
 						Q_strncpyz(strtmp, cmd->name2, 512);
 						Q_strlwr(strtmp);
 						if (!wildcmp(search, strtmp))
-							continue;		
+							continue;
 					}
 					else
 						continue;

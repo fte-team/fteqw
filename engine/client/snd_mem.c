@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -448,7 +448,7 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 						STANDARDRESCALESTEREO(in16, inrate, insamps, out16, outrate, 0, 0)
 				}
 			}
-			else 
+			else
 			{
 				if (inrate == outrate) // quick convert
 				{
@@ -518,7 +518,7 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 				else // downsample
 					STANDARDRESCALESTEREOTOMONO(in16, inrate, insamps, out16, outrate, 0, 0)
 			}
-			else 
+			else
 			{
 				if (inrate == outrate) // quick convert
 					QUICKCONVERTSTEREOTOMONO(in16, insamps, out8, 0, 8)
@@ -576,15 +576,15 @@ void ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth, int insam
 	else
 		sc->loopstart = inloopstart * scale;
 
-	SND_ResampleStream (data, 
-		inrate, 
-		inwidth, 
-		inchannels, 
-		insamps, 
-		sc->data, 
-		sc->speed, 
-		sc->width, 
-		sc->numchannels, 
+	SND_ResampleStream (data,
+		inrate,
+		inwidth,
+		inchannels,
+		insamps,
+		sc->data,
+		sc->speed,
+		sc->width,
+		sc->numchannels,
 		snd_linearresample.ival);
 }
 
@@ -768,6 +768,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	qbyte	*data;
 	sfxcache_t	*sc;
 	int i;
+	size_t result;
 
 	char *name = s->name;
 
@@ -796,7 +797,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 			if (*name == '\\')
 				*name = '/';
 			name++;
-		}			
+		}
 		name = unixname;
 #endif
 
@@ -804,7 +805,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 		{
 			com_filesize = COM_filelength(f);
 			data = Hunk_TempAlloc (com_filesize);
-			fread(data, 1, com_filesize, f);
+			result = fread(data, 1, com_filesize, f); //do something with result
 			fclose(f);
 		}
 		else
@@ -977,7 +978,7 @@ unsigned int FindChunk(char *name)
 void DumpChunks(void)
 {
 	char	str[5];
-	
+
 	str[4] = 0;
 	data_p=iff_data;
 	do
@@ -1008,7 +1009,7 @@ wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 
 	if (!wav)
 		return info;
-		
+
 	iff_data = wav;
 	iff_end = wav + wavlength;
 	wavname = name;
@@ -1069,7 +1070,7 @@ wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 		info.loopstart = -1;
 
 // find data chunk
-	chunklen = FindChunk("data"); 
+	chunklen = FindChunk("data");
 	if (!chunklen)
 	{
 		Con_Printf("Missing data chunk in %s\n", name);
@@ -1097,6 +1098,6 @@ wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 	}
 
 	info.dataofs = data_p - wav;
-	
+
 	return info;
 }

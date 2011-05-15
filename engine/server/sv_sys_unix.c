@@ -104,6 +104,7 @@ int Sys_DebugLog(char *file, char *fmt, ...)
 	va_list argptr;
 	char data[1024];
 	int fd;
+	size_t result;
 
 	va_start(argptr, fmt);
 	_vsnprintf (data,sizeof(data)-1, fmt, argptr);
@@ -115,7 +116,7 @@ int Sys_DebugLog(char *file, char *fmt, ...)
 	fd = open(file, O_WRONLY | O_CREAT | O_APPEND, 0666);
 	if (fd)
 	{
-		write(fd, data, strlen(data));
+		result = write(fd, data, strlen(data)); // do something with the result
 		close(fd);
 		return 0;
 	}
@@ -204,7 +205,7 @@ void ApplyColour(unsigned int chr)
 
 	bg = (chr & CON_BGMASK) >> CON_BGSHIFT;
 	fg = (chr & CON_FGMASK) >> CON_FGSHIFT;
-	
+
 	// don't handle intensive bit for background
 	// as terminals differ too much in displaying \e[1;7;3?m
 	bg &= 0x7;
@@ -272,7 +273,7 @@ char	coninput_text[256];
 int		coninput_len;
 void Sys_Printf (char *fmt, ...)
 {
-	va_list		argptr;	
+	va_list		argptr;
 
 	if (sys_nostdout.value)
 		return;
@@ -289,7 +290,7 @@ void Sys_Printf (char *fmt, ...)
 		if (!sys_linebuffer.value)
 		{
 			int i;
-			
+
 			for (i = 0; i < coninput_len; i++)
 				putch('\b');
 			putch('\b');
@@ -810,7 +811,7 @@ static void *game_library;
 
 void Sys_UnloadGame(void)
 {
-	if (game_library) 
+	if (game_library)
 	{
 		dlclose(game_library);
 		game_library = 0;
@@ -825,10 +826,11 @@ void *Sys_GetGameAPI(void *parms)
 	char curpath[MAX_OSPATH];
 	char *searchpath;
 	const char *gamename = "gamei386.so";
+	size_t result;
 
 	void *ret;
 
-	getcwd(curpath, sizeof(curpath));
+	result = getcwd(curpath, sizeof(curpath)); // do soemthing with the result
 
 	searchpath = 0;
 	while((searchpath = COM_NextPath(searchpath)))
@@ -863,11 +865,11 @@ void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
 {
 	pthread_t *thread;
 	pthread_attr_t attr;
-	
+
 	thread = (pthread_t *)malloc(sizeof(pthread_t));
 	if (!thread)
 		return NULL;
-	
+
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 	if (stacksize < PTHREAD_STACK_MIN)
@@ -885,7 +887,7 @@ void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
 
 void Sys_WaitOnThread(void *thread)
 {
-	pthread_join((pthread_t *)thread, NULL); 
+	pthread_join((pthread_t *)thread, NULL);
 	free(thread);
 }
 
@@ -893,7 +895,7 @@ void Sys_WaitOnThread(void *thread)
 void *Sys_CreateMutex(void)
 {
 	pthread_mutex_t *mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
-	
+
 	if (mutex && !pthread_mutex_init(mutex, NULL))
 		return mutex;
 	return NULL;
@@ -932,36 +934,36 @@ void *Sys_CreateConditional(void)
 	condvar_t *condv;
 	pthread_mutex_t *mutex;
 	pthread_cond_t *cond;
-	
+
 	condv = (condvar_t *)malloc(sizeof(condvar_t));
 	if (!condv)
 		return NULL;
-	
+
 	mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
 	if (!mutex)
 		return NULL;
-		
+
 	cond = (pthread_cond_t *)malloc(sizeof(pthread_cond_t));
 	if (!cond)
 		return NULL;
-		
+
 	if (!pthread_mutex_init(mutex, NULL))
 	{
 		if (!pthread_cond_init(cond, NULL))
 		{
 			condv->cond = cond;
 			condv->mutex = mutex;
-			
+
 			return (void *)condv;
 		}
 		else
 			pthread_mutex_destroy(mutex);
 	}
-	
+
 	free(cond);
 	free(mutex);
 	free(condv);
-	return NULL;	
+	return NULL;
 }
 
 qboolean Sys_LockConditional(void *condv)
@@ -992,7 +994,7 @@ qboolean Sys_ConditionBroadcast(void *condv)
 void Sys_DestroyConditional(void *condv)
 {
 	condvar_t *cv = (condvar_t *)condv;
-	
+
 	pthread_cond_destroy(cv->cond);
 	pthread_mutex_destroy(cv->mutex);
 	free(cv->cond);

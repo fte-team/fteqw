@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -84,7 +84,7 @@ void Surf_RebuildLightmap_Callback (struct cvar_s *var, char *oldvalue)
 
 //radius, x y z, r g b
 void Surf_StainSurf (msurface_t *surf, float *parms)
-{	
+{
 	int			sd, td;
 	float		dist, rad, minlight;
 	float change;
@@ -130,8 +130,8 @@ void Surf_StainSurf (msurface_t *surf, float *parms)
 	local[1] = DotProduct (impact, tex->vecs[1]) + tex->vecs[1][3];
 
 	local[0] -= surf->texturemins[0];
-	local[1] -= surf->texturemins[1];		
-	
+	local[1] -= surf->texturemins[1];
+
 	for (t = 0 ; t<tmax ; t++)
 	{
 		td = local[1] - t*16;
@@ -171,13 +171,13 @@ static void Surf_StainNode (mnode_t *node, float *parms)
 	float		dist;
 	msurface_t	*surf;
 	int			i;
-	
+
 	if (node->contents < 0)
-		return;	
+		return;
 
 	splitplane = node->plane;
 	dist = DotProduct ((parms+1), splitplane->normal) - splitplane->dist;
-	
+
 	if (dist > (*parms))
 	{
 		Surf_StainNode (node->children[0], parms);
@@ -226,7 +226,7 @@ void Surf_AddStain(vec3_t org, float red, float green, float blue, float radius)
 
 	for (i=1 ; i< pmove.numphysent ; i++)	//0 is world...
 	{
-		pe = &pmove.physents[i];	
+		pe = &pmove.physents[i];
 		if (pe->model && pe->model->surfaces == cl.worldmodel->surfaces)
 		{
 			parms[1] = org[0] - pe->origin[0];
@@ -293,7 +293,7 @@ void Surf_LessenStains(void)
 			surf->cached_dlight=-1;//nice hack here...
 
 			smax = (surf->extents[0]>>4)+1;
-			tmax = (surf->extents[1]>>4)+1;	
+			tmax = (surf->extents[1]>>4)+1;
 
 			stain = lightmap[surf->lightmaptexturenum]->stainmaps;
 			stain += (surf->light_t * LMBLOCK_WIDTH + surf->light_s) * 3;
@@ -317,7 +317,7 @@ void Surf_LessenStains(void)
 						*stain = 255;
 
 					stain++;
-				}				
+				}
 			}
 		}
 	}
@@ -399,6 +399,8 @@ static void Surf_AddDynamicLights (msurface_t *surf)
 	}
 }
 
+// warning: ‘Surf_AddDynamicLightNorms’ defined but not used
+/*
 static void Surf_AddDynamicLightNorms (msurface_t *surf)
 {
 	int			lnum;
@@ -470,6 +472,7 @@ static void Surf_AddDynamicLightNorms (msurface_t *surf)
 		}
 	}
 }
+*/
 
 #ifdef PEXT_LIGHTSTYLECOL
 static void Surf_AddDynamicLightsColours (msurface_t *surf)
@@ -539,8 +542,8 @@ static void Surf_AddDynamicLightsColours (msurface_t *surf)
 					else
 						dist = td + (sd>>1);
 					if (dist < minlight)
-					{					
-						blocklights[t*smax + s]		+= 2*sin(dist/10+cl.time*20)*(rad - dist)*256 * cl_dlights[lnum].colour[0]*3;					
+					{
+						blocklights[t*smax + s]		+= 2*sin(dist/10+cl.time*20)*(rad - dist)*256 * cl_dlights[lnum].colour[0]*3;
 						greenblklights[t*smax + s]	+= 2*sin(M_PI/3+dist/10+cl.time*20)*(rad - dist)*256 * cl_dlights[lnum].colour[1]*3;
 						blueblklights[t*smax + s]	+= 2*sin(2*M_PI/3+dist/10+cl.time*20)*(rad - dist)*256 * cl_dlights[lnum].colour[2]*3;
 					}
@@ -565,8 +568,8 @@ static void Surf_AddDynamicLightsColours (msurface_t *surf)
 					else
 						dist = td + (sd>>1);
 					if (dist < minlight)
-					{					
-						bl[0] += (rad - dist)*r;					
+					{
+						bl[0] += (rad - dist)*r;
 						bl[1] += (rad - dist)*g;
 						bl[2] += (rad - dist)*b;
 					}
@@ -693,7 +696,7 @@ store:
 			dest += 3;
 			bnorm+=3;
 		}
-	}		
+	}
 }
 
 enum lm_mode
@@ -751,11 +754,11 @@ static void Surf_StoreLightmap(qbyte *dest, int smax, int tmax, unsigned int shi
 				dest[2] = r;
 				dest[3] = 255;
 
-				dest += 4;					
+				dest += 4;
 			}
 			if (stainsrc)
 				stainsrc += (LMBLOCK_WIDTH - smax)*3;
-		}	
+		}
 		break;
 /*
 	case bgra4:
@@ -800,24 +803,24 @@ static void Surf_StoreLightmap(qbyte *dest, int smax, int tmax, unsigned int shi
 					dest[0] = b;
 
 				dest[3] = 255;
-				dest += 4;					
+				dest += 4;
 			}
 			if (stainsrc)
 				stainsrc += (LMBLOCK_WIDTH - smax)*3;
-		}	
+		}
 		break;
 */
 	case rgb3_os:
 		stride = LMBLOCK_WIDTH*3 - (smax*3);
 		bl = blocklights;
-	
+
 		for (i=0 ; i<tmax ; i++, dest += stride)
 		{
 			for (j=0 ; j<smax ; j++)
 			{
 				r = *bl++ >> shift;
 				g = *bl++ >> shift;
-				b = *bl++ >> shift;	
+				b = *bl++ >> shift;
 
 				if (stainsrc)	// merge in stain
 				{
@@ -839,11 +842,11 @@ static void Surf_StoreLightmap(qbyte *dest, int smax, int tmax, unsigned int shi
 				dest[0] = r;
 				dest[1] = g;
 				dest[2] = b;
-				dest += 3;	
+				dest += 3;
 			}
 			if (stainsrc)
 				stainsrc += (LMBLOCK_WIDTH - smax)*3;
-		}		
+		}
 		break;
 	case lum:
 		stride = LMBLOCK_WIDTH;
@@ -882,7 +885,7 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 	int			maps;
 	unsigned	*bl;
 
-	int stride = LMBLOCK_WIDTH*lightmap_bytes;
+	//int stride = LMBLOCK_WIDTH*lightmap_bytes; //warning: unused variable ‘stride’
 
 	shift += 7; // increase to base value
 	surf->cached_dlight = (surf->dlightframe == r_framecount);
@@ -897,7 +900,7 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 		Con_Printf("Lightmap too large\n");
 		return;
 	}
-	
+
 	if (currentmodel->deluxdata)
 		Surf_BuildDeluxMap(surf, deluxdest);
 
@@ -979,7 +982,7 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 					}
 				}
 				else if (currentmodel->engineflags & MDLF_RGBLIGHTING)	//rgb
-				{				
+				{
 					for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
 						 maps++)
 					{
@@ -1084,7 +1087,7 @@ static void Surf_BuildLightMap (msurface_t *surf, qbyte *dest, qbyte *deluxdest,
 					Surf_StoreLightmap(dest, smax, tmax, shift, bgr3, stainsrc);
 				*/
 			}
-			else 
+			else
 			{
 				Surf_StoreLightmap(dest, smax, tmax, shift, rgb3_os, stainsrc);
 			}
@@ -1183,7 +1186,7 @@ void Surf_RenderDynamicLightmaps (msurface_t *fa)
 	//surfaces with lightmaps that do not animate, supposedly
 	if (fa->texinfo->flags & (TI_SKY|TI_TRANS33|TI_TRANS66|TI_WARP))
 		return;
-	
+
 	// check for lightmap modification
 	if (!fa->samples)
 	{
@@ -1368,7 +1371,7 @@ static qbyte *R_MarkLeafSurfaces_Q1 (void)
 	int shift;
 
 	vis = R_CalcVis_Q1();
-		
+
 	for (i=0 ; i<cl.worldmodel->numleafs ; i++)
 	{
 		if (vis[i>>3] & (1<<(i&7)))
@@ -1547,7 +1550,7 @@ static void Surf_RecursiveQ2WorldNode (mnode_t *node)
 		return;
 	if (R_CullBox (node->minmaxs, node->minmaxs+3))
 		return;
-	
+
 // if a leaf node, draw stuff
 	if (node->contents != -1)
 	{
@@ -1817,7 +1820,7 @@ void Surf_SetupFrame(void)
 		{
 		}
 		else if (r_viewleaf->contents == Q1CONTENTS_EMPTY)
-		{	//look down a bit			
+		{	//look down a bit
 			VectorCopy (r_origin, temp);
 			temp[2] -= 16;
 			leaf = RMod_PointInLeaf (cl.worldmodel, temp);
@@ -1828,7 +1831,7 @@ void Surf_SetupFrame(void)
 		}
 		else if (r_viewleaf->contents <= Q1CONTENTS_WATER && r_viewleaf->contents >= Q1CONTENTS_LAVA)
 		{	//in water, look up a bit.
-		
+
 			VectorCopy (r_origin, temp);
 			temp[2] += 16;
 			leaf = RMod_PointInLeaf (cl.worldmodel, temp);
@@ -1839,7 +1842,7 @@ void Surf_SetupFrame(void)
 		}
 		else
 			r_viewleaf2 = NULL;
-		
+
 		if (r_viewleaf)
 			V_SetContentsColor (r_viewleaf->contents);
 	}
@@ -2139,7 +2142,7 @@ static int Surf_LM_AllocBlock (int w, int h, int *x, int *y, shader_t *shader)
 	{
 		if (texnum == numlightmaps)	//allocate 4 more lightmap slots. not much memory usage, but we don't want any caps here.
 		{
-			lightmap = BZ_Realloc(lightmap, sizeof(*lightmap)*(numlightmaps+4)); 
+			lightmap = BZ_Realloc(lightmap, sizeof(*lightmap)*(numlightmaps+4));
 			lightmap[numlightmaps+0] = NULL;
 			lightmap[numlightmaps+1] = NULL;
 			lightmap[numlightmaps+2] = NULL;
@@ -2220,19 +2223,19 @@ static int Surf_LM_FillBlock (int texnum, int w, int h, int x, int y)
 	int		i, l;
 	while (texnum >= numlightmaps)	//allocate 4 more lightmap slots. not much memory usage, but we don't want any caps here.
 	{
-		lightmap = BZ_Realloc(lightmap, sizeof(*lightmap)*(numlightmaps+4)); 
+		lightmap = BZ_Realloc(lightmap, sizeof(*lightmap)*(numlightmaps+4));
 		lightmap[numlightmaps+0] = NULL;
 		lightmap[numlightmaps+1] = NULL;
 		lightmap[numlightmaps+2] = NULL;
 		lightmap[numlightmaps+3] = NULL;
 
-		lightmap_textures = BZ_Realloc(lightmap_textures, sizeof(*lightmap_textures)*(numlightmaps+4)); 
+		lightmap_textures = BZ_Realloc(lightmap_textures, sizeof(*lightmap_textures)*(numlightmaps+4));
 		lightmap_textures[numlightmaps+0] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
 		lightmap_textures[numlightmaps+1] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
 		lightmap_textures[numlightmaps+2] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
 		lightmap_textures[numlightmaps+3] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
 
-		deluxmap_textures = BZ_Realloc(deluxmap_textures, sizeof(*deluxmap_textures)*(numlightmaps+4)); 
+		deluxmap_textures = BZ_Realloc(deluxmap_textures, sizeof(*deluxmap_textures)*(numlightmaps+4));
 		deluxmap_textures[numlightmaps+0] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
 		deluxmap_textures[numlightmaps+1] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
 		deluxmap_textures[numlightmaps+2] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
@@ -2519,13 +2522,13 @@ void Surf_BuildLightmaps (void)
 
 	switch(qrenderer)
 	{
-#ifdef D3DQUAKE
 	case QR_DIRECT3D:
+#ifdef D3DQUAKE
 		/*always bgra, hope your card supports it*/
 		lightmap_bytes = 4;
 		lightmap_bgra = true;
-		break;
 #endif
+		break;
 #ifdef GLQUAKE
 	case QR_OPENGL:
 		/*favour bgra if the gpu supports it, otherwise use rgb only if it'll be used*/
@@ -2550,6 +2553,8 @@ void Surf_BuildLightmaps (void)
 			lightmap_bytes = 1;
 		break;
 #endif
+	case QR_NONE:
+		break;
 	}
 
 	for (j=1 ; j<MAX_MODELS ; j++)

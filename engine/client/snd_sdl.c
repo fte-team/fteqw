@@ -14,6 +14,30 @@
 //FIXME: One thing I saw in quakeforge was that quakeforge basically leaves the audio locked except for a really short period of time.
 //An interesting idea, which ensures the driver can only paint in a small time-frame. this would possibly allow lower latency painting.
 
+/*
+==================
+S_BlockSound
+==================
+*/
+//all devices
+void S_BlockSound (void)
+{
+	soundcardinfo_t *sc;
+	wavhandle_t *wh;
+
+	snd_blocked++;
+
+	for (sc = sndcardinfo; sc; sc=sc->next)
+	{
+		if (sc->Submit == WAV_Submit && !sc->inactive_sound)
+		{
+			wh = sc->handle;
+			if (snd_blocked == 1)
+				waveOutReset (wh->hWaveOut);
+		}
+	}
+}
+
 static void SSDL_Shutdown(soundcardinfo_t *sc)
 {
 Con_Printf("Shutdown SDL sound\n");

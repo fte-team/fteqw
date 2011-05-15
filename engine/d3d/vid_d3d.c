@@ -325,7 +325,7 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 		// JACK: This is the mouse wheel with the Intellimouse
 		// Its delta is either positive or neg, and we generate the proper
 		// Event.
-		case WM_MOUSEWHEEL: 
+		case WM_MOUSEWHEEL:
 			if (!vid_initializing)
 			{
 				if ((short) HIWORD(wParam) > 0)
@@ -413,7 +413,7 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 		case MM_MCINOTIFY:
             lRet = CDAudio_MessageHandler (hWnd, uMsg, wParam, lParam);
 			break;
-		
+
     	default:
             /* pass all unhandled messages to DefWindowProc */
             lRet = DefWindowProc (hWnd, uMsg, wParam, lParam);
@@ -440,8 +440,8 @@ static void resetD3D9(void)
 
 
 
-	
-	
+
+
 
 
 	//IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRENDERSTATE_DITHERENABLE, FALSE);
@@ -527,7 +527,7 @@ static qboolean initD3D9Device(HWND hWnd, rendererstate_t *info, unsigned int de
 
 	pD3DDev9 = NULL;
 	// create a device class using this information and information from the d3dpp stuct
-	err = IDirect3D9_CreateDevice(pD3D, 
+	err = IDirect3D9_CreateDevice(pD3D,
 			devno,
 			devtype,
 			hWnd,
@@ -674,7 +674,7 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 		wstyle = 0;
 	else
 		wstyle = WS_OVERLAPPEDWINDOW;
-	
+
 	rect.left = rect.top = 0;
 	rect.right = info->width;
 	rect.bottom = info->height;
@@ -689,10 +689,10 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 
 
 
-	while (PeekMessage(&msg, NULL,  0, 0, PM_REMOVE)) 
-	{ 
-		TranslateMessage(&msg); 
-		DispatchMessage(&msg); 
+	while (PeekMessage(&msg, NULL,  0, 0, PM_REMOVE))
+	{
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
 	}
 
 	ShowWindow(mainwindow, SW_NORMAL);
@@ -813,7 +813,7 @@ static char	*(D3D9_VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevi
 	{
 		if (!FAILED(IDirect3DSurface9_GetDesc(backbuf, &desc)))
 		if (desc.Format == D3DFMT_X8R8G8B8 || desc.Format == D3DFMT_A8R8G8B8)
-		if (!FAILED(IDirect3DDevice9_CreateOffscreenPlainSurface(pD3DDev9, 
+		if (!FAILED(IDirect3DDevice9_CreateOffscreenPlainSurface(pD3DDev9,
 					desc.Width, desc.Height, desc.Format,
 					D3DPOOL_SYSTEMMEM, &surf, NULL))
 			)
@@ -850,7 +850,7 @@ static char	*(D3D9_VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevi
 		}
 		IDirect3DSurface9_Release(backbuf);
 	}
-	
+
 	return ret;
 }
 static void	(D3D9_VID_SetWindowCaption)		(char *msg)
@@ -934,7 +934,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 			scr_disabled_for_loading = false;
 		}
 		else
-		{		
+		{
 			IDirect3DDevice9_BeginScene(pD3DDev9);
 			scr_drawloading = true;
 			SCR_DrawLoading ();
@@ -975,7 +975,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 
 		if (key_dest == key_console)
 			Con_DrawConsole(vid_conheight.value/2, false);
-		GL_EndRendering ();	
+		GL_EndRendering ();
 		GL_DoSwap();
 		RSpeedEnd(RSPEED_TOTALREFRESH);
 		return;

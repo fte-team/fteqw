@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -121,7 +121,7 @@ static vec3_t	skyclip[6] = {
 	{0,-1,1},
 	{0,1,1},
 	{1,0,1},
-	{-1,0,1} 
+	{-1,0,1}
 };
 
 // 1 = s, 2 = t, 3 = 2048
@@ -459,7 +459,7 @@ static void R_DrawSkyMesh(batch_t *batch, mesh_t *m, shader_t *shader)
 {
 	static entity_t skyent;
 	batch_t b;
-	float time = cl.gametime+realtime-cl.gametimemark;
+	//float time = cl.gametime+realtime-cl.gametimemark; //warning: unused variable ‘time’
 
 	float skydist = gl_skyboxdist.value;
 	if (skydist<1)

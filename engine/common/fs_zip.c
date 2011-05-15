@@ -2,7 +2,10 @@
 #include "fs.h"
 
 #ifdef AVAIL_ZLIB
-#define ZEXPORT VARGS
+
+#ifndef ZEXPORT
+	#define ZEXPORT VARGS
+#endif
 #include <zlib.h>
 
 typedef struct {

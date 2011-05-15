@@ -1971,12 +1971,12 @@ void Sbar_Hexen2DrawExtra (int pnum)
 	unsigned int i, slot;
 	unsigned int pclass;
 	int ringpos[] = {6, 44, 81, 119};
-	char *ringimages[] = {"gfx/ring_f.lmp", "gfx/ring_w.lmp", "gfx/ring_t.lmp", "gfx/ring_r.lmp"};
+	//char *ringimages[] = {"gfx/ring_f.lmp", "gfx/ring_w.lmp", "gfx/ring_t.lmp", "gfx/ring_r.lmp"}; //unused variable
 	float val;
 	char *pclassname[] = {
 		"Unknown",
 		"Paladin",
-		"Crusader",	
+		"Crusader",
 		"Necromancer",
 		"Assasin",
 		"Demoness"
@@ -2022,7 +2022,7 @@ void Sbar_Hexen2DrawExtra (int pnum)
 	Sbar_DrawTinyString (11, 70, va("dex"));
 	Sbar_DrawTinyString (33, 70, va("%02d", cl.stats[pnum][STAT_H2_DEXTERITY]));
 
-	
+
 	Sbar_DrawTinyString (58, 58, va("str"));
 	Sbar_DrawTinyString (80, 58, va("%02d", cl.stats[pnum][STAT_H2_STRENGTH]));
 

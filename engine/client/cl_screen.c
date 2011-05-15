@@ -1409,7 +1409,7 @@ void SCR_DrawLoading (void)
 	char *s;
 	int qdepth;
 	int h2depth;
-	int mtype = M_GameType();
+	//int mtype = M_GameType(); //unused variable
 	y = vid.height/2;
 
 	qdepth = COM_FDepthFile("gfx/loading.lmp", true);
@@ -1636,7 +1636,7 @@ SCR_SetUpToDrawConsole
 void SCR_SetUpToDrawConsole (void)
 {
 #ifdef TEXTEDITOR
-	extern qboolean editoractive;
+	//extern qboolean editoractive; //unused variable
 #endif
 	if (scr_drawloading)
 		return;         // never a console with loading plaque

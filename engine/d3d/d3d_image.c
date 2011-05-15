@@ -209,7 +209,7 @@ static LPDIRECT3DBASETEXTURE9 D3D9_LoadTexture_32(d3dtexture_t *tex, unsigned in
 		return NULL;
 	}
 */
-	
+
 	nwidth = width;
 	nheight = height;
 	D3D9_RoundDimensions(&nwidth, &nheight, !(flags & IF_NOMIPMAP));
@@ -370,6 +370,24 @@ texid_t D3D9_LoadTexture (char *identifier, int width, int height, enum uploadfm
 				return r_nulltex;
 		}
 		break;
+	case TF_INVALID:
+	case TF_RGBA32:
+	case TF_BGRA32:
+	case TF_RGBX32:
+	case TF_RGB24:
+	case TF_BGR24_FLIP:
+	case TF_SOLID8:
+	case TF_TRANS8:
+	case TF_HEIGHT8:
+	case TF_HEIGHT8PAL:
+	case TF_H2_T7G1:
+	case TF_H2_TRANS8_0:
+	case TF_H2_T4A4:
+	case TF_PALETTES:
+	case TF_8PAL24:
+	case TF_8PAL32:
+		break;
+
 	}
 	tex = d3d_lookup_texture(identifier);
 

@@ -214,11 +214,13 @@ static qboolean FSSTDIO_FLocate(void *handle, flocation_t *loc, const char *file
 static void FSSTDIO_ReadFile(void *handle, flocation_t *loc, char *buffer)
 {
 	FILE *f;
+	size_t result;
+
 	f = fopen(loc->rawname, "rb");
 	if (!f)	//err...
 		return;
 	fseek(f, loc->offset, SEEK_SET);
-	fread(buffer, 1, loc->len, f);
+	result = fread(buffer, 1, loc->len, f); // do soemthing with result
 	fclose(f);
 }
 static int FSSTDIO_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *), void *parm)

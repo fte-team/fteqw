@@ -225,7 +225,7 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, 
 			galiascolourmapped_t *cm;
 			char hashname[512];
 
-//			if (e->scoreboard->skin->cachedbpp 
+//			if (e->scoreboard->skin->cachedbpp
 
 	/*		if (cls.protocol == CP_QUAKE2)
 			{
@@ -343,7 +343,7 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, 
 						texnums->base = e->scoreboard->skin->tex_base;
 						return texnums;
 					}
-				
+
 					cm->texnum.base = R_LoadHiResTexture(e->scoreboard->skin->name, "skins", IF_NOALPHA);
 					return &cm->texnum;
 				}
@@ -450,9 +450,9 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, 
 					for(i=0;i<256;i++)
 					{
 						translate32[i] = d_8to24rgbtable[i];
-						if (tc > 0 && (colorA[i] != 255)) 
+						if (tc > 0 && (colorA[i] != 255))
 							translate32[i] = d_8to24rgbtable[sourceA[i]];
-						if (bc > 0 && (colorB[i] != 255)) 
+						if (bc > 0 && (colorB[i] != 255))
 							translate32[i] = d_8to24rgbtable[sourceB[i]];
 					}
 					translate32[0] = 0;
@@ -843,7 +843,7 @@ static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 
 	if ((e->model->flags & EF_ROTATE) && cl.hexen2pickups)
 	{
-		shadelight[0] = shadelight[1] = shadelight[2] = 
+		shadelight[0] = shadelight[1] = shadelight[2] =
 		ambientlight[0] = ambientlight[1] = ambientlight[2] = 128+sin(cl.servertime*4)*64;
 	}
 	if ((e->drawflags & MLS_MASKIN) == MLS_ABSLIGHT)
@@ -1937,6 +1937,11 @@ void BE_GenModelBatches(batch_t **batches)
 				break;
 			case mod_sprite:
 				R_Sprite_GenerateBatch(ent, batches, R_DB_Sprite);
+				break;
+			// warning: enumeration value ‘mod_*’ not handled in switch
+			case mod_dummy:
+			case mod_halflife:
+			case mod_heightmap:
 				break;
 			}
 			break;

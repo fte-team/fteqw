@@ -72,7 +72,7 @@ static void SHM_End (void)
 	if (sh_shmesh->maxindicies != i)
 	{
 		sh_shmesh->maxindicies = i;
-		sh_shmesh->indicies = BZ_Realloc(sh_shmesh->indicies, i * sizeof(*sh_shmesh->indicies)); 
+		sh_shmesh->indicies = BZ_Realloc(sh_shmesh->indicies, i * sizeof(*sh_shmesh->indicies));
 	}
 	//add the extra triangles
 	for (i = 0; i < sh_vertnum; i+=4)
@@ -310,7 +310,7 @@ static void SHM_RecursiveWorldNodeQ1_r (dlight_t *dl, mnode_t *node)
 		if (dl->origin[c] - dl->radius > node->minmaxs[3+c])
 			return;
 	}
-	
+
 // if a leaf node, draw stuff
 	if (node->contents < 0)
 	{
@@ -497,7 +497,7 @@ static void SHM_RecursiveWorldNodeQ2_r (dlight_t *dl, mnode_t *node)
 		if (dl->origin[c] - dl->radius > node->minmaxs[3+c])
 			return;
 	}
-	
+
 // if a leaf node, draw stuff
 	if (node->contents != -1)
 	{
@@ -1564,7 +1564,8 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 
 
 
-
+// warning: ‘Sh_WorldLightingPass’ defined but not used
+/*
 static void Sh_WorldLightingPass(void)
 {
 	msurface_t *s;
@@ -1590,6 +1591,7 @@ static void Sh_WorldLightingPass(void)
 		RQuantAdd(RQUANT_LITFACES, s->mesh->numindexes);
 	}
 }
+*/
 
 /*
 draws faces facing the light
@@ -1701,7 +1703,7 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 				qglVertex3f (v2[0]+v4[0], v2[1]+v4[1], v2[2]+v4[2]);
 			qglEnd();
 		}
-			
+
 //back
 			//the same applies as earlier
 		qglBegin(GL_POLYGON);
@@ -1890,7 +1892,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 		qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	}*/
 #endif
-			
+
 	if (qglStencilOpSeparateATI)
 	{
 		qglClearStencil(0);

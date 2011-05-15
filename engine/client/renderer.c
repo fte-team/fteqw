@@ -222,7 +222,7 @@ cvar_t gl_blend2d							= CVAR  ("gl_blend2d", "1");
 cvar_t gl_blendsprites						= CVAR  ("gl_blendsprites", "1");
 cvar_t gl_bump								= CVARF ("gl_bump", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-cvar_t r_deluxemapping						= CVARAF ("r_deluxemapping", "0", "r_glsl_deluxemapping", 
+cvar_t r_deluxemapping						= CVARAF ("r_deluxemapping", "0", "r_glsl_deluxemapping",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 cvar_t gl_compress							= CVARF ("gl_compress", "0",
 												CVAR_ARCHIVE);
@@ -1026,13 +1026,14 @@ void M_Menu_Video_f (void)
 		"32",
 		NULL
 	};
-	static const char *texturefilternames[] =
+	//unused
+	/*static const char *texturefilternames[] =
 	{
 		"Nearest",
 		"Bilinear",
 		"Trilinear",
 		NULL
-	};
+	};*/
 
 	static const char *refreshrates[] =
 	{

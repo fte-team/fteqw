@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -22,6 +22,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 #include "winquake.h"
+
+#include <ctype.h> // for isdigit();
 
 #ifdef FISH
 void R_RenderView_fisheye(void);
@@ -117,21 +119,21 @@ float V_CalcRoll (vec3_t angles, vec3_t velocity)
 	float	sign;
 	float	side;
 	float	value;
-	
+
 	AngleVectors (angles, forward, right, up);
 	side = DotProduct (velocity, right);
 	sign = side < 0 ? -1 : 1;
 	side = fabs(side);
-	
+
 	value = cl_rollangle.value;
 
 	if (side < cl_rollspeed.value)
 		side = side * value / cl_rollspeed.value;
 	else
 		side = value;
-	
+
 	return side*sign;
-	
+
 }
 
 
@@ -146,7 +148,7 @@ float V_CalcBob (int pnum)
 	static	double	bobtime[MAX_SPLITS];
 	static float	bob[MAX_SPLITS];
 	float	cycle;
-	
+
 	if (cl.spectator)
 		return 0;
 
@@ -174,7 +176,7 @@ float V_CalcBob (int pnum)
 	else if (bob[pnum] < -7)
 		bob[pnum] = -7;
 	return bob[pnum];
-	
+
 }
 
 
@@ -218,7 +220,7 @@ If the user is adjusting pitch manually, either with lookup/lookdown,
 mlook and mouse, or klook and keyboard, pitch drifting is constantly stopped.
 
 Drifting is enabled when the center view key is hit, mlook is released and
-lookspring is non 0, or when 
+lookspring is non 0, or when
 ===============
 */
 void V_DriftPitch (int pnum)
@@ -239,14 +241,14 @@ void V_DriftPitch (int pnum)
 			cl.driftmove[pnum] = 0;
 		else
 			cl.driftmove[pnum] += host_frametime;
-	
+
 		if ( cl.driftmove[pnum] > v_centermove.value)
 		{
 			V_StartPitchDrift (pnum);
 		}
 		return;
 	}
-	
+
 	delta = 0 - cl.viewangles[pnum][PITCH];
 
 	if (!delta)
@@ -257,7 +259,7 @@ void V_DriftPitch (int pnum)
 
 	move = host_frametime * cl.pitchvel[pnum];
 	cl.pitchvel[pnum] += host_frametime * v_centerspeed.value;
-	
+
 //Con_Printf ("move: %f (%f)\n", move, host_frametime);
 
 	if (delta > 0)
@@ -285,14 +287,14 @@ void V_DriftPitch (int pnum)
 
 
 /*
-============================================================================== 
- 
-						PALETTE FLASHES 
- 
-============================================================================== 
-*/ 
- 
- 
+==============================================================================
+
+						PALETTE FLASHES
+
+==============================================================================
+*/
+
+
 cshift_t	cshift_empty = { {130,80,50}, 0 };
 cshift_t	cshift_water = { {130,80,50}, 128 };
 cshift_t	cshift_slime = { {0,25,5}, 150 };
@@ -314,14 +316,14 @@ float		hw_blend[4];		// rgba 0.0 - 1.0
 void BuildGammaTable (float g)
 {
 	int		i, inf;
-	
+
 	if (g == 1.0)
 	{
 		for (i=0 ; i<256 ; i++)
 			gammatable[i] = i;
 		return;
 	}
-	
+
 	for (i=0 ; i<256 ; i++)
 	{
 		inf = 255 * pow ( (i+0.5)/255.5 , g ) + 0.5;
@@ -352,7 +354,7 @@ void BuildGammaTable (float g, float c)
 		if (inf < 0)
 			inf = 0;
 		else if (inf > 255)
-			inf = 255;		
+			inf = 255;
 		gammatable[i] = inf;
 	}
 }
@@ -384,7 +386,7 @@ void V_ParseDamage (int pnum)
 	vec3_t	forward, right, up;
 	float	side;
 	float	count;
-	
+
 	armor = MSG_ReadByte ();
 	blood = MSG_ReadByte ();
 	for (i=0 ; i<3 ; i++)
@@ -405,7 +407,7 @@ void V_ParseDamage (int pnum)
 	if (cl.cshifts[CSHIFT_DAMAGE].percent > 150)
 		cl.cshifts[CSHIFT_DAMAGE].percent = 150;
 
-	if (armor > blood)		
+	if (armor > blood)
 	{
 		cl.cshifts[CSHIFT_DAMAGE].destcolor[0] = 200;
 		cl.cshifts[CSHIFT_DAMAGE].destcolor[1] = 100;
@@ -429,12 +431,12 @@ void V_ParseDamage (int pnum)
 //
 	VectorSubtract (from, cl.simorg[pnum], from);
 	VectorNormalize (from);
-	
+
 	AngleVectors (cl.simangles[pnum], forward, right, up);
 
 	side = DotProduct (from, right);
 	v_dmg_roll[pnum] = count*side*v_kickroll.value;
-	
+
 	side = DotProduct (from, forward);
 	v_dmg_pitch[pnum] = count*side*v_kickpitch.value;
 
@@ -638,7 +640,7 @@ void GLV_CalcBlend (float *hw_blend)
 	memset(sw_blend, 0, sizeof(float)*4);
 
 	//don't apply it to the server, we'll blend the two later if the user has no hardware gamma (if they do have it, we use just the server specified value) This way we avoid winnt users having a cheat with flashbangs and stuff.
-	for (j=0 ; j<NUM_CSHIFTS ; j++)	
+	for (j=0 ; j<NUM_CSHIFTS ; j++)
 	{
 		if (j != CSHIFT_SERVER)
 		{
@@ -760,13 +762,13 @@ void V_ClearCShifts (void)
 		cl.cshifts[i].percent = 0;
 }
 
-/* 
-============================================================================== 
- 
-						VIEW RENDERING 
- 
-============================================================================== 
-*/ 
+/*
+==============================================================================
+
+						VIEW RENDERING
+
+==============================================================================
+*/
 
 float angledelta (float a)
 {
@@ -782,11 +784,11 @@ CalcGunAngle
 ==================
 */
 void CalcGunAngle (int pnum)
-{	
+{
 	float	yaw, pitch, move;
 	static float oldyaw = 0;
 	static float oldpitch = 0;
-	
+
 	yaw = r_refdef.viewangles[YAW];
 	pitch = -r_refdef.viewangles[PITCH];
 
@@ -811,7 +813,7 @@ void CalcGunAngle (int pnum)
 		if (oldyaw - move > yaw)
 			yaw = oldyaw - move;
 	}
-	
+
 	if (pitch > oldpitch)
 	{
 		if (oldpitch + move < pitch)
@@ -822,7 +824,7 @@ void CalcGunAngle (int pnum)
 		if (oldpitch - move > pitch)
 			pitch = oldpitch - move;
 	}
-	
+
 	oldyaw = yaw;
 	oldpitch = pitch;
 
@@ -1005,7 +1007,7 @@ void V_CalcRefdef (int pnum)
 		bob=v_viewheight.value;
 	else
 		bob = V_CalcBob (pnum);
-	
+
 // refresh position from simulated origin
 	VectorCopy (cl.simorg[pnum], r_refdef.vieworg);
 
@@ -1077,7 +1079,7 @@ void V_CalcRefdef (int pnum)
 		// v_viewheight only affects the view if the player is alive
 		r_refdef.vieworg[2] += bob;
 	}
-	
+
 // set up gun position
 	AngleVectors (view->angles, forward, right, up);
 	CalcGunAngle (pnum);
@@ -1306,13 +1308,13 @@ void V_RenderPlayerViews(int plnum)
 	if (cls.protocol == CP_NETQUAKE)
 		view_message->weaponframe = cl.stats[0][STAT_WEAPONFRAME];
 #endif
-	cl.simangles[plnum][ROLL] = 0;	// FIXME @@@ 
+	cl.simangles[plnum][ROLL] = 0;	// FIXME @@@
 
 
 	DropPunchAngle (plnum);
 	if (cl.intermission)
 	{	// intermission / finale rendering
-		V_CalcIntermissionRefdef (plnum);	
+		V_CalcIntermissionRefdef (plnum);
 	}
 	else
 	{
@@ -1353,7 +1355,7 @@ void V_RenderPlayerViews(int plnum)
 #ifdef SIDEVIEWS
 /*	//adjust main view height to strip off the rearviews at the top
 	if (vsecwidth >= 1)
-	{		
+	{
 		r_refdef.vrect.y -= vsecheight;
 		r_refdef.vrect.height += vsecheight;
 	}
@@ -1405,8 +1407,8 @@ void V_RenderPlayerViews(int plnum)
 		if (e)
 		{
 			float s;
-			memcpy(r_refdef.viewangles, e->angles, sizeof(vec3_t));				
-			memcpy(r_refdef.vieworg, e->origin, sizeof(vec3_t));				
+			memcpy(r_refdef.viewangles, e->angles, sizeof(vec3_t));
+			memcpy(r_refdef.vieworg, e->origin, sizeof(vec3_t));
 //				cl.viewentity = cl.viewentity2;
 
 //				s =	(realtime - e->lerptime)*10;
@@ -1440,7 +1442,7 @@ void V_RenderPlayerViews(int plnum)
 		}
 
 		r_refdef.vrect = oldrect;
-		memcpy(r_refdef.viewangles, oldangles, sizeof(vec3_t));		
+		memcpy(r_refdef.viewangles, oldangles, sizeof(vec3_t));
 		memcpy(r_refdef.vieworg, oldposition, sizeof(vec3_t));
 		r_refdef.fov_x = ofx;
 		r_refdef.fov_y = ofy;
@@ -1512,7 +1514,7 @@ void V_Init (void)
 #ifdef SIDEVIEWS
 	int i;
 #endif
-	Cmd_AddCommand ("v_cshift", V_cshift_f);	
+	Cmd_AddCommand ("v_cshift", V_cshift_f);
 	Cmd_AddCommand ("bf", V_BonusFlash_f);
 //	Cmd_AddCommand ("centerview", V_StartPitchDrift);
 

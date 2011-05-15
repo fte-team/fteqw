@@ -120,7 +120,7 @@ typedef struct beamseg_s
 {
 	struct beamseg_s *next;  // next in beamseg list
 
-	particle_t *p; 
+	particle_t *p;
 	int    flags;            // flags for beamseg
 	vec3_t dir;
 
@@ -188,7 +188,7 @@ typedef struct part_type_s {
 	float veladd;		//scale the incoming velocity by this much
 	float orgadd;		//spawn the particle this far along its velocity direction
 	float spawnvel, spawnvelvert; //spawn the particle with a velocity based upon its spawn type (generally so it flies outwards)
-	
+
 	float s1, t1, s2, t2;	//texture coords
 	float texsstride;	//addition for s for each random slot.
 	int randsmax;	//max times the stride can be added
@@ -280,9 +280,9 @@ static void PScript_DrawParticleTypes (void (*texturedparticles)(int count, part
 
 #ifndef TYPESONLY
 
-//triangle fan sparks use these.
-static double sint[7] = {0.000000, 0.781832,  0.974928,  0.433884, -0.433884, -0.974928, -0.781832};
-static double cost[7] = {1.000000, 0.623490, -0.222521, -0.900969, -0.900969, -0.222521,  0.623490};
+//triangle fan sparks use these. // defined but not used
+//static double sint[7] = {0.000000, 0.781832,  0.974928,  0.433884, -0.433884, -0.974928, -0.781832};
+//static double cost[7] = {1.000000, 0.623490, -0.222521, -0.900969, -0.900969, -0.222521,  0.623490};
 
 #define crand() (rand()%32767/16383.5f-1)
 
@@ -352,7 +352,7 @@ static part_type_t *part_run_list;
 static struct {
 	char *oldn;
 	char *newn;
-} legacynames[] = 
+} legacynames[] =
 {
 	{"t_rocket", "TR_ROCKET"},
 	{"te_explosion", "TE_EXPLOSION"},
@@ -520,7 +520,7 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 	}
 	else
 		ptype->looks.shader = NULL;
-	
+
 	if (!ptype->looks.shader)
 	{
 		/*okay, so no shader, generate a shader that matches the legacy/shaderless mode*/
@@ -1887,7 +1887,7 @@ static void P_LoadParticleSet(char *name, qboolean first)
 {
 	char *file;
 	int i;
-	int restrictlevel = Cmd_FromGamecode() ? RESTRICT_SERVER : RESTRICT_LOCAL; 
+	int restrictlevel = Cmd_FromGamecode() ? RESTRICT_SERVER : RESTRICT_LOCAL;
 
 	/*set up a default*/
 	if (first && !*name)
@@ -2307,7 +2307,7 @@ static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t dir)
 		dl->channelfade[2] = ptype->dl_decay[2];
 	}
 	if (ptype->stain_radius)
-		R_AddStain(org, ptype->stain_rgb[0], ptype->stain_rgb[1], ptype->stain_rgb[2], ptype->stain_radius); 
+		R_AddStain(org, ptype->stain_rgb[0], ptype->stain_rgb[1], ptype->stain_rgb[2], ptype->stain_radius);
 }
 
 int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent, vec3_t tangent2, float size, float **out);
@@ -3669,7 +3669,7 @@ static void GL_DrawTexturedParticle(int count, particle_t **plist, plooks_t *typ
 			else
 				scale = 0.25 + scale * 0.001;
 		}
-			
+
 		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+0]);
 		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+1]);
 		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+2]);
@@ -3780,7 +3780,7 @@ static void GL_DrawLineSparkParticle(int count, particle_t **plist, plooks_t *ty
 	APPLYBLEND(type->blendmode);
 	qglShadeModel(GL_SMOOTH);
 	qglBegin(GL_LINES);
-	
+
 	while (count--)
 	{
 		p = *plist++;
@@ -3827,7 +3827,7 @@ static void GL_DrawTexturedSparkParticle(int count, particle_t **plist, plooks_t
 		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+2], p->s2, p->t2);
 		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+3], p->s2, p->t1);
 
-		
+
 		if (type->stretch)
 		{
 			VectorMA(p->org, type->stretch, p->vel, o2);

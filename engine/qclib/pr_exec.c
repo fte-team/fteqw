@@ -624,7 +624,7 @@ int PR_ToggleBreakpoint(progfuncs_t *progfuncs, char *filename, int linenum, int
 	unsigned int i;
 	int pn = pr_typecurrent;
 	dfunction_t *f;
-	int op;
+	int op = 0; //warning about not being initialized before use
 
 	for (pn = 0; (unsigned)pn < maxprogs; pn++)
 	{
@@ -843,7 +843,7 @@ void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 {
 	eval_t	*t, *swtch=NULL;
 
-	int swtchtype;
+	int swtchtype = 0; //warning about not being initialized before use
 	dstatement16_t	*st16;
 	dstatement32_t	*st32;
 	dfunction_t	*newf;

@@ -1100,6 +1100,7 @@ char *Cmd_ExpandCvar(char *cvarname, int maxaccesslevel, int *len)
 	char *fixup = NULL, fixval=0;
 	cvar_t	*var;
 	static char temp[12];
+	size_t result;
 
 	namestart = cvarname;
 	if (*cvarname == '{')
@@ -1117,7 +1118,7 @@ char *Cmd_ExpandCvar(char *cvarname, int maxaccesslevel, int *len)
 		fixval = *fixup;
 	}
 
-	strtol(cvarname, &end, 10);
+	result = strtol(cvarname, &end, 10); // do something with result
 	if (fixval && *end == '\0') //only expand $0 if its actually ${0} - this avoids conflicting with the $0 macro
 	{	//purely numerical
 		ret = Cmd_Argv(atoi(cvarname));
@@ -1303,7 +1304,7 @@ char *Cmd_ExpandStringArguments (char *data, char *dest, int destlen)
 				str = NULL;
 				old_len = 0;
 			}
-			
+
 			if (str)
 			{
 				// check buffer size
@@ -2815,7 +2816,7 @@ void Cmd_Condump_f(void)
 
 	filename = va("%s", filename);
 	COM_DefaultExtension(filename, ".txt", MAX_QPATH);
-	
+
 	f = FS_OpenVFS (filename, "wb", FS_GAME);
 	if (!f)
 	{

@@ -220,6 +220,16 @@ qboolean Master_ServerIsGreater(serverinfo_t *a, serverinfo_t *b)
 		return Master_CompareInteger(a->tl, b->tl, SLIST_TEST_LESS);
 	case SLKEY_TOOMANY:
 		break;
+
+	// warning: enumeration value ‘SLKEY_*’ not handled in switch
+	case SLKEY_MOD:
+	case SLKEY_PROTOCOL:
+	case SLKEY_NUMBOTS:
+	case SLKEY_NUMHUMANS:
+	case SLKEY_QCSTATUS:
+	case SLKEY_ISFAVORITE:
+		break;
+
 	}
 	return false;
 }
@@ -560,7 +570,7 @@ int Master_KeyForName(char *keyname)
 			}
 		}
 		Q_strncpyz(slist_keyname[slist_customkeys], keyname, MAX_INFO_KEY);
-	
+
 		slist_customkeys++;
 
 		return slist_customkeys-1 + SLKEY_CUSTOM;
@@ -771,7 +781,7 @@ qboolean Master_LoadMasterList (char *filename, int defaulttype, int depth)
 			default:
 				Master_AddMaster(line, servertype, name);
 			}
-			
+
 		}
 	}
 	VFS_CLOSE(f);
@@ -979,7 +989,7 @@ int NET_CheckPollSockets(void)
 			}
 
 			if (c == M2C_MASTER_REPLY)	//qw master reply.
-			{		
+			{
 				CL_MasterListParse(NA_IP, SS_GENERICQUAKEWORLD, false);
 				continue;
 			}
@@ -1021,7 +1031,7 @@ int NET_CheckPollSockets(void)
 			CL_ReadServerInfo(va("\\hostname\\%s\\map\\%s\\maxclients\\%i\\clients\\%i", name, map, maxusers, users), MT_SINGLENQ, false);
 		}
 #endif
-		continue;		
+		continue;
 	}
 	return 0;
 }
@@ -1072,7 +1082,7 @@ void SListOptionChanged(serverinfo_t *newserver)
 		}
 //we don't know all the info, so send a request for it.
 		selectedserver.detail = newserver->moreinfo = Z_Malloc(sizeof(serverdetailedinfo_t));
-		
+
 		newserver->moreinfo->numplayers = newserver->players;
 		strcpy(newserver->moreinfo->info, "");
 		Info_SetValueForKey(newserver->moreinfo->info, "hostname", newserver->name, sizeof(newserver->moreinfo->info));
@@ -1149,7 +1159,7 @@ void MasterInfo_ProcessHTTPQW(struct dl_download *dl)
 //don't try sending to servers we don't support
 void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles)
 {
-	static int mastersequence;
+	//static int mastersequence; // warning: unused variable âmastersequenceâ
 	if (!mast)
 		return;
 	switch(mast->type)
@@ -1233,14 +1243,14 @@ void MasterInfo_WriteServers(void)
 	serverinfo_t *server;
 	vfsfile_t *mf, *qws;
 	char adr[MAX_ADR_SIZE];
-	
+
 	mf = FS_OpenVFS("masters.txt", "wt", FS_ROOT);
 	if (!mf)
 	{
 		Con_Printf("Couldn't write masters.txt");
 		return;
 	}
-	
+
 	for (mast = master; mast; mast=mast->next)
 	{
 		switch(mast->type)
@@ -1298,14 +1308,14 @@ void MasterInfo_WriteServers(void)
 		else
 			VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), mast->adr), typename, mast->name));
 	}
-	
+
 	if (slist_writeserverstxt.value)
 		qws = FS_OpenVFS("servers.txt", "wt", FS_ROOT);
 	else
 		qws = NULL;
 	if (qws)
 		VFS_PUTS(mf, va("\n%s\t%s\t%s\n\n", "file servers.txt", "favorite:qw", "personal server list"));
-		
+
 	for (server = firstserver; server; server = server->next)
 	{
 		if (server->special & SS_FAVORITE)
@@ -1322,11 +1332,11 @@ void MasterInfo_WriteServers(void)
 				VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), server->adr), "favorite:qw", server->name));
 		}
 	}
-	
+
 	if (qws)
 		VFS_CLOSE(qws);
-	
-	
+
+
 	VFS_CLOSE(mf);
 }
 
@@ -1429,7 +1439,7 @@ void CL_QueryServers(void)
 {
 	static int poll;
 	int op;
-	serverinfo_t *server;	
+	serverinfo_t *server;
 
 	extern cvar_t	sb_hidequake2;
 	extern cvar_t	sb_hidequake3;
@@ -1437,7 +1447,7 @@ void CL_QueryServers(void)
 	extern cvar_t	sb_hidequakeworld;
 
 	op = poll;
-	
+
 
 	for (server = firstserver; op>0 && server; server=server->next, op--);
 
@@ -1489,7 +1499,7 @@ void CL_QueryServers(void)
 		poll++;
 		return;
 	}
-	
+
 
 	poll = 0;
 }
@@ -1574,7 +1584,7 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 
 	char *token;
 	char *nl;
-	char *name;	
+	char *name;
 	int ping;
 	int len;
 	serverinfo_t *info;
@@ -1844,6 +1854,17 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 			for (i = 0; i < adrlen; i++)
 				((qbyte *)&info->adr.address)[i] = MSG_ReadByte();
 			break;
+
+		// warning: enumeration value ‘NA_*’ not handled in switch
+		case NA_INVALID:
+		case NA_LOOPBACK:
+		case NA_BROADCAST_IP:
+		case NA_BROADCAST_IP6:
+		case NA_BROADCAST_IPX:
+		case NA_TCP:
+		case NA_TCPV6:
+		case NA_IRC:
+			break;
 		}
 
 		p1 = MSG_ReadByte();
@@ -1871,7 +1892,7 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 			last = info;
 
 			Master_ResortServer(info);
-		}		
+		}
 	}
 
 	firstserver = last;

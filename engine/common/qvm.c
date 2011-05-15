@@ -129,7 +129,7 @@ dllhandle_t *QVM_LoadDLL(const char *name, void **vmMain, sys_calldll_t syscall)
 			{
 				break;
 			}
-					
+
 			snprintf (fname, sizeof(fname), "%s/%s", gpath, dllname_anycpu);
 
 			Con_DPrintf("Loading native: %s\n", fname);

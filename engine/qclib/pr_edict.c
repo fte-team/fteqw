@@ -1055,7 +1055,7 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s,
 	string_t st;
 	dfunction_t	*func;
 
-	int type;
+	int type = 0; // warning about beign used without initializing it
 
 	switch(structtype)
 	{
@@ -1215,7 +1215,7 @@ char *ED_ParseEdict (progfuncs_t *progfuncs, char *data, edictrun_t *ent)
 		if (!data)
 		{
 			printf ("ED_ParseEntity: EOF without closing brace\n");
-			return NULL; 
+			return NULL;
 		}
 
 		if (qcc_token[0] == '}')
@@ -2678,7 +2678,7 @@ retry:
 		{
 			int j;
 			qtest_function_t qtfunc = ((qtest_function_t*)fnc)[i];
-			
+
 			fnc[i].first_statement	= PRLittleLong (qtfunc.first_statement);
 			fnc[i].parm_start	= PRLittleLong (qtfunc.parm_start);
 			fnc[i].s_name	= (string_t)PRLittleLong (qtfunc.s_name);

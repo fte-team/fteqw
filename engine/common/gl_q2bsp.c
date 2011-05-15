@@ -815,7 +815,7 @@ static void CM_CreatePatch( q3cpatch_t *patch, q2mapsurface_t *shaderref, const 
 	if( size[0] <= 0 || size[1] <= 0 )
 		return;
 
-	data = BZ_Malloc( size[0] * size[1] * sizeof( vecV_t ) + 
+	data = BZ_Malloc( size[0] * size[1] * sizeof( vecV_t ) +
 		( size[0]-1 ) * ( size[1]-1 ) * 2 * ( sizeof( q2cbrush_t ) + 32 * sizeof( mplane_t ) ) );
 
 	points = ( vecV_t * )data; data += size[0] * size[1] * sizeof( vecV_t );
@@ -4384,7 +4384,7 @@ unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int fram
 					if ( (contents & brush->contents) == brush->contents ) {
 						continue;
 					}
-					
+
 					brushside = brush->brushside;
 					for ( j = 0; j < brush->numsides; j++, brushside++ )
 					{
@@ -4392,7 +4392,7 @@ unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int fram
 							break;
 					}
 
-					if (j == brush->numsides) 
+					if (j == brush->numsides)
 						contents |= brush->contents;
 				}
 			}
@@ -5660,7 +5660,9 @@ and recalculates the area connections
 */
 void	CM_ReadPortalState (FILE *f)
 {
-	fread (portalopen, 1, sizeof(portalopen), f);
+	size_t result;
+
+	result = fread (portalopen, 1, sizeof(portalopen), f); // do something with result
 	FloodAreaConnections ();
 }
 

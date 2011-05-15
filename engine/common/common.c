@@ -3015,6 +3015,7 @@ void COM_InitArgv (int argc, const char **argv)	//not allowed to tprint
 {
 	qboolean	safe;
 	int			i;
+	size_t result;
 
 	FILE *f;
 
@@ -3028,7 +3029,7 @@ void COM_InitArgv (int argc, const char **argv)	//not allowed to tprint
 		fseek(f, 0, SEEK_SET);
 
 		buffer = (char*)malloc(len+1);
-		fread(buffer, 1, len, f);
+		result = fread(buffer, 1, len, f); // do something with result
 		buffer[len] = '\0';
 
 		while (*buffer && (argc < MAX_NUM_ARGVS))

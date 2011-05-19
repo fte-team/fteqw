@@ -653,7 +653,7 @@ int main(int argc, char *argv[])
 
 	memset (&parms, 0, sizeof(parms));
 
-	COM_InitArgv (argc, argv);
+	COM_InitArgv (argc, (const char **)argv);
 	TL_InitLanguages();
 	parms.argc = com_argc;
 	parms.argv = com_argv;
@@ -826,7 +826,7 @@ void *Sys_GetGameAPI(void *parms)
 	char curpath[MAX_OSPATH];
 	char *searchpath;
 	const char *gamename = "gamei386.so";
-	size_t result;
+	char *result;
 
 	void *ret;
 

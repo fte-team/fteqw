@@ -59,7 +59,7 @@ struct
 extern qbyte *host_basepal;
 
 extern particleengine_t pe_classic;
-extern particleengine_t *fallback = NULL;
+particleengine_t *fallback = NULL; //does this really need to be 'extern'?
 #define FALLBACKBIAS 0x1000000
 
 static int pt_pointfile = P_INVALID;

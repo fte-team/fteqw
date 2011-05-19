@@ -16,14 +16,14 @@ void M_Menu_MultiPlayer_f (void)
 	mpic_t *p;
 	int mgt;
 
-	p = NULL; 
+	p = NULL;
 	key_dest = key_menu;
 	m_state = m_complex;
 
 	mgt = M_GameType();
 
 	menu = M_CreateMenu(0);
-	
+
 	if (mgt == MGT_QUAKE2)
 	{
 		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_multiplayer");
@@ -81,7 +81,7 @@ void M_Menu_MultiPlayer_f (void)
 		}
 	}
 
-	b = MC_AddConsoleCommand(menu, 72, 32, "", "menu_slist\n"); 
+	b = MC_AddConsoleCommand(menu, 72, 32, "", "menu_slist\n");
 	menu->selecteditem = (menuoption_t*)b;
 	b->common.height = 20;
 	b->common.width = p?p->width:320;
@@ -317,7 +317,7 @@ void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 		R2D_ScalePic (x-12, y-8, 72, 72, p);
 
 	M_BuildTranslationTable(info->topcolour, info->lowercolour, translationTable);
-	R2D_TransPicTranslate (x, y, info->tiwidth, info->tiheight, info->translationimage, translationTable);	
+	R2D_TransPicTranslate (x, y, info->tiwidth, info->tiheight, info->translationimage, translationTable);
 }
 
 void M_Menu_Setup_f (void)
@@ -354,7 +354,7 @@ void M_Menu_Setup_f (void)
 
 			menu = M_CreateMenu(sizeof(setupmenu_t));
 			info = menu->data;
-//			menu->key = MC_Main_Key;	
+//			menu->key = MC_Main_Key;
 
 			MC_AddPicture(menu, 0, 4, 38, 166, "pics/m_main_plaque");
 			p = R2D_SafeCachePic("pics/m_main_logo");
@@ -364,7 +364,7 @@ void M_Menu_Setup_f (void)
 
 			menu->selecteditem = (menuoption_t*)
 			(info->nameedit = MC_AddEdit(menu, 64, 40, "Your name", name.string));
-			(info->modeledit = MC_AddCvarCombo(menu, 64, 72, "model", &skin, modeloptions, modeloptions));
+			(info->modeledit = MC_AddCvarCombo(menu, 64, 72, "model", &skin, (const char **)modeloptions, (const char **)modeloptions));
 			info->modeledit->selectedoption = !strncmp(skin.string, "female", 6);
 			cu = MC_AddCustom(menu, 172-16, 88+16, NULL);
 			cu->draw = MSetupQ2_TransDraw;
@@ -401,9 +401,9 @@ void M_Menu_Setup_f (void)
 	key_dest = key_menu;
 	m_state = m_complex;
 
-	menu = M_CreateMenu(sizeof(setupmenu_t));	
+	menu = M_CreateMenu(sizeof(setupmenu_t));
 	info = menu->data;
-	
+
 	MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
 	MC_AddCenterPicture(menu, 4, 24, "gfx/p_multi.lmp");
 
@@ -416,7 +416,7 @@ void M_Menu_Setup_f (void)
 	if (mgt == MGT_HEXEN2)
 	{
 		cvar_t *pc = Cvar_Get("cl_playerclass", "1", CVAR_USERINFO|CVAR_ARCHIVE, "Hexen2");
-		(info->classedit = MC_AddCombo(menu, 64, 72, "Your class", classnames, pc->ival-1));
+		(info->classedit = MC_AddCombo(menu, 64, 72, "Your class", (const char **)classnames, pc->ival-1));
 	}
 	else
 		(info->skinedit = MC_AddEdit(menu, 64, 72, "Your skin", skin.string));
@@ -483,7 +483,7 @@ typedef struct {
 	menucombo_t *teamplay;
 	menucombo_t *skill;
 	menucombo_t *timelimit;
-	menucombo_t *fraglimit;	
+	menucombo_t *fraglimit;
 	menuedit_t *mapnameedit;
 	menucheck_t *rundedicated;
 
@@ -601,7 +601,7 @@ void M_Menu_GameOptions_f (void)
 	key_dest = key_menu;
 	m_state = m_complex;
 
-	menu = M_CreateMenu(sizeof(newmultimenu_t));	
+	menu = M_CreateMenu(sizeof(newmultimenu_t));
 	info = menu->data;
 
 	mgt = M_GameType();

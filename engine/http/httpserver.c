@@ -17,7 +17,7 @@ typedef enum {HTTP_WAITINGFORREQUEST,HTTP_SENDING} http_mode_t;
 
 
 qboolean HTTP_ServerInit(int port)
-{	
+{
 	struct sockaddr_in address;
 	unsigned long _true = true;
 	int i;
@@ -51,7 +51,7 @@ qboolean HTTP_ServerInit(int port)
 		address.sin_port = 0;
 	else
 		address.sin_port = htons((short)port);
-	
+
 	if( bind (httpserversocket, (void *)&address, sizeof(address)) == -1)
 	{
 		closesocket(httpserversocket);
@@ -59,7 +59,7 @@ qboolean HTTP_ServerInit(int port)
 		httpserverfailed = true;
 		return false;
 	}
-	
+
 	listen(httpserversocket, 3);
 
 	httpserverinitied = true;
@@ -271,7 +271,7 @@ cont:
 						msg++;
 						break;	//that was our blank line.
 					}
-					
+
 					while(*msg == ' ')
 						msg++;
 
@@ -346,7 +346,7 @@ cont:
 						cl->file = NULL;
 					else
 						cl->file = FS_OpenVFS(resource+1, "rb", FS_GAME);
-				
+
 					if (!cl->file)
 					{
 						cl->file = IWebGenerateFile(resource+1, content, contentlen);
@@ -384,7 +384,7 @@ cont:
 
 					if (*mode == 'H' || *mode == 'h')
 					{
-						
+
 						VFS_CLOSE(cl->file);
 						cl->file = NULL;
 					}
@@ -542,7 +542,7 @@ qboolean HTTP_ServerPoll(qboolean httpserverwanted, int portnum)	//loop while tr
 		return false;
 	}
 
-	if (ioctlsocket (clientsock, FIONBIO, &_true) == -1)
+	if (ioctlsocket (clientsock, FIONBIO, (u_long *)&_true) == -1)
 	{
 		IWebPrintf ("HTTP_ServerInit: ioctl FIONBIO: %s\n", strerror(qerrno));
 		closesocket(clientsock);
@@ -559,7 +559,7 @@ qboolean HTTP_ServerPoll(qboolean httpserverwanted, int portnum)	//loop while tr
 	cl->datasock = clientsock;
 
 	cl->next = HTTP_ServerConnections;
-	HTTP_ServerConnections = cl; 
+	HTTP_ServerConnections = cl;
 	httpconnectioncount++;
 
 	return true;

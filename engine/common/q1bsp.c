@@ -19,7 +19,7 @@ void Q1BSP_CheckHullNodes(hull_t *hull)
 			if (node->children[c] >= 0)
 				if (node->children[c] < hull->firstclipnode || node->children[c] > hull->lastclipnode)
 					Sys_Error ("Q1BSP_CheckHull: bad node number");
-				
+
 	}
 }
 
@@ -97,7 +97,7 @@ reenter:
 	}
 
 	/*its a node*/
-	
+
 	/*get the node info*/
 	node = hull->clipnodes + num;
 	plane = hull->planes + node->planenum;
@@ -112,7 +112,7 @@ reenter:
 		t1 = DotProduct (plane->normal, p1) - plane->dist;
 		t2 = DotProduct (plane->normal, p2) - plane->dist;
 	}
-	
+
 	/*if its completely on one side, resume on that side*/
 	if (t1 >= 0 && t2 >= 0)
 	{
@@ -151,7 +151,7 @@ reenter:
 	rht = Q1BSP_RecursiveHullTrace(hull, node->children[side^1], midf, p2f, mid, p2, trace);
 	if (rht != rht_solid)
 		return rht;
-	
+
 	trace->fraction = midf;
 	if (side)
 	{
@@ -444,7 +444,7 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3]
 		{
 			vec3_t iaxis[3];
 			vec3_t norm;
-			Matrix3_Invert_Simple(axis, iaxis);
+			Matrix3_Invert_Simple((void *)axis, iaxis);
 			VectorCopy(trace->plane.normal, norm);
 			trace->plane.normal[0] = DotProduct(norm, iaxis[0]);
 			trace->plane.normal[1] = DotProduct(norm, iaxis[1]);
@@ -459,7 +459,7 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3]
 		VectorSubtract(start, offset, start_l);
 		VectorSubtract(end, offset, end_l);
 		Q1BSP_RecursiveHullCheck(hull, hull->firstclipnode, 0, 1, start_l, end_l, trace);
-	
+
 		if (trace->fraction == 1)
 		{
 			VectorCopy (end, trace->endpos);
@@ -746,7 +746,7 @@ int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float
 	char keep[MAXFRAGMENTVERTS+1];
 #define KEEP_KILL 0
 #define KEEP_KEEP 1
-#define KEEP_BORDER 2 
+#define KEEP_BORDER 2
 	int i;
 	int outcount = 0;
 	int clippedcount = 0;

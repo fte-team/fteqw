@@ -522,9 +522,9 @@ void Cmd_Exec_f (void)
 	else
 		Q_strncpyz(name, Cmd_Argv(1), sizeof(name));
 
-	if (FS_LoadFile(name, &f) != -1)
+	if (FS_LoadFile(name, (void **)&f) != -1)
 		;
-	else if (FS_LoadFile(va("%s.cfg", name), &f) != -1)
+	else if (FS_LoadFile(va("%s.cfg", name), (void **)&f) != -1)
 		;
 	else
 	{

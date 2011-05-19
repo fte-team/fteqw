@@ -478,7 +478,7 @@ void *Sys_GetGameAPI(void *parms)
 	char curpath[MAX_OSPATH];
 	char *searchpath;
 	const char *gamename = "gamei386.so";
-	size_t result;
+	char *result;
 
 	void *ret;
 
@@ -583,7 +583,7 @@ void Sys_LowFPPrecision (void)
 {
 }
 
-int main (int c, char **v)
+int main (int c, const char **v)
 {
 	double time, oldtime, newtime;
 	quakeparms_t parms;

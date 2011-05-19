@@ -53,7 +53,7 @@
 
 int gl_bumpmappingpossible;
 
-static void D3D9_GetBufferSize(int *width, int *height);
+//static void D3D9_GetBufferSize(int *width, int *height); //not defined
 static void resetD3D9(void);
 static LPDIRECT3D9 pD3D;
 LPDIRECT3DDEVICE9 pD3DDev9;
@@ -637,15 +637,15 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 {
 	DWORD width = info->width;
 	DWORD height = info->height;
-	DWORD bpp = info->bpp;
-	DWORD zbpp = 16;
-	DWORD flags = 0;
+	//DWORD bpp = info->bpp;
+	//DWORD zbpp = 16;
+	//DWORD flags = 0;
 	DWORD wstyle;
 	RECT rect;
 	MSG msg;
 
 	extern cvar_t vid_conwidth;
-	extern cvar_t vid_conheight;
+	//extern cvar_t vid_conheight;
 
 	//DDGAMMARAMP gammaramp;
 	//int i;
@@ -889,17 +889,17 @@ void D3D9_Set2D (void)
 static int d3d9error(int i)
 {
 	if (FAILED(i))// != D3D_OK)
-		Con_Printf("D3D error: %x  %i\n", i);
+		Con_Printf("D3D error: %i\n", i);
 	return i;
 }
 
 static void	(D3D9_SCR_UpdateScreen)			(void)
 {
-	extern int keydown[];
-	extern cvar_t vid_conheight;
+	//extern int keydown[];
+	//extern cvar_t vid_conheight;
 	int uimenu;
 #ifdef TEXTEDITOR
-	extern qboolean editormodal;
+	//extern qboolean editormodal;
 #endif
 	qboolean nohud, noworld;
 	RSpeedMark();

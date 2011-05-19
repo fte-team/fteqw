@@ -533,6 +533,8 @@ void Sys_Error (const char *error, ...)
 	CloseHandle(processinfo.hThread);
 
 	Sys_Quit ();
+
+	exit (1); // this function is NORETURN type, complains without this
 }
 
 /*
@@ -1097,7 +1099,7 @@ void Signal_Error_Handler (int sig)
 void StartQuakeServer(void)
 {
 	quakeparms_t	parms;
-	static	char	cwd[1024];
+	//static	char	cwd[1024]; //unused variable
 	int				t;
 
 	TL_InitLanguages();
@@ -1287,7 +1289,7 @@ int main (int argc, char **argv)
 	__try
 #endif
 	{
-		COM_InitArgv (argc, argv);
+		COM_InitArgv (argc, (const char **)argv);
 	#ifdef USESERVICE
 		if (COM_CheckParm("-register"))
 		{

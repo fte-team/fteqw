@@ -375,7 +375,7 @@ void SV_MVD_RunPendingConnections(void)
 							{
 								char hash[512];
 								int md4sum[4];
-								
+
 								snprintf(hash, sizeof(hash), "%s%s", p->challenge, qtv_password.string);
 								Com_BlockFullChecksum (hash, strlen(hash), (unsigned char*)md4sum);
 								sprintf(hash, "%X%X%X%X", md4sum[0], md4sum[1], md4sum[2], md4sum[3]);
@@ -674,7 +674,7 @@ int Sys_listdirFound(const char *fname, int fsize, void *uptr)
 dir_t *Sys_listdir (char *path, char *ext, qboolean usesorting)
 {
 	char searchterm[MAX_QPATH];
-	
+
 	unsigned int maxfiles = MAX_DIRFILES;
 	dir_t *dir = malloc(sizeof(*dir) + sizeof(*dir->files)*maxfiles);
 	memset(dir, 0, sizeof(*dir));
@@ -2039,7 +2039,7 @@ void SV_MVD_QTVReverse_f (void)
 		return;
 	}
 
-	if (ioctlsocket (sock, FIONBIO, &nonblocking) == INVALID_SOCKET)
+	if (ioctlsocket (sock, FIONBIO, (u_long *)&nonblocking) == INVALID_SOCKET)
 	{
 		closesocket(sock);
 		Con_Printf ("qtvreverse: ioctl FIONBIO: %s\n", strerror(qerrno));
@@ -2294,7 +2294,7 @@ int MVD_StreamStartListening(int port)
 		Sys_Error ("MVD_StreamStartListening: socket: %s", strerror(qerrno));
 	}
 
-	if (ioctlsocket (sock, FIONBIO, &nonblocking) == INVALID_SOCKET)
+	if (ioctlsocket (sock, FIONBIO, (u_long *)&nonblocking) == INVALID_SOCKET)
 	{
 		Sys_Error ("FTP_TCP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
 	}
@@ -2364,7 +2364,7 @@ void SV_MVDStream_Poll(void)
 	if (client == INVALID_SOCKET)
 		return;
 
-	ioctlsocket(client, FIONBIO, &_true);
+	ioctlsocket(client, FIONBIO, (u_long *)&_true);
 
 	if (qtv_maxstreams.value > 0)
 	{
@@ -2480,7 +2480,7 @@ void SV_UserCmdMVDList_f (void)
 				SV_ClientPrintf(host_client, PRINT_HIGH, "%d: %s %dk\n", i, list->name, list->size/1024);
 		}
 	}
-	
+
 	for (d = demo.dest; d; d = d->nextdest)
 		dir->size += d->totalsize;
 

@@ -758,7 +758,7 @@ static qboolean CL_CheckModelResources (char *name)
 
 	// checking for skins in the model
 
-	FS_LoadFile(name, &file);
+	FS_LoadFile(name, (void **)&file);
 	if (!file)
 	{
 		return false; // couldn't load it

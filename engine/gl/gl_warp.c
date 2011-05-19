@@ -470,7 +470,7 @@ static void R_DrawSkyMesh(batch_t *batch, mesh_t *m, shader_t *shader)
 	VectorCopy(r_refdef.vieworg, skyent.origin);
 	skyent.axis[0][0] = skydist;
 	skyent.axis[0][1] = 0;
-	skyent.axis[0][3] = 0;
+	skyent.axis[0][2] = 0;
 	skyent.axis[1][0] = 0;
 	skyent.axis[1][1] = skydist;
 	skyent.axis[1][2] = 0;

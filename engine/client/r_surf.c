@@ -2529,8 +2529,8 @@ void Surf_BuildLightmaps (void)
 		lightmap_bgra = true;
 #endif
 		break;
-#ifdef GLQUAKE
 	case QR_OPENGL:
+#ifdef GLQUAKE
 		/*favour bgra if the gpu supports it, otherwise use rgb only if it'll be used*/
 		lightmap_bgra = false;
 		if (gl_config.gles)

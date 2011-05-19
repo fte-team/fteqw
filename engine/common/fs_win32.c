@@ -179,7 +179,7 @@ static vfsfile_t *VFSW32_OpenVFS(void *handle, flocation_t *loc, const char *mod
 
 static void VFSW32_PrintPath(void *handle)
 {
-	Con_Printf("%s\n", handle);
+	Con_Printf("%s\n", (char *)handle);
 }
 static void VFSW32_ClosePath(void *handle)
 {

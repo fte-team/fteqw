@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -180,7 +180,7 @@ LPDIRECTINPUTDEVICE	g_pMouse;
 static HINSTANCE hInstDI;
 
 // current DirectInput version in use, 0 means using no DirectInput
-static int dinput; 
+static int dinput;
 
 typedef struct MYDATA {
 	LONG  lX;                   // X axis goes here
@@ -192,8 +192,8 @@ typedef struct MYDATA {
 	BYTE  bButtonD;             // Another button goes here
 #if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
 	BYTE  bButtonE;             // DX7 buttons
-	BYTE  bButtonF;             
-	BYTE  bButtonG;             
+	BYTE  bButtonF;
+	BYTE  bButtonG;
 	BYTE  bButtonH;
 #endif
 } MYDATA;
@@ -602,7 +602,7 @@ int IN_InitDInput (void)
 	if (!hInstDI)
 	{
 		hInstDI = LoadLibrary("dinput.dll");
-		
+
 		if (hInstDI == NULL)
 		{
 			Con_SafePrintf ("Couldn't load dinput.dll\n");
@@ -764,8 +764,8 @@ void IN_RawInput_MouseDeRegister(void)
 	RAWINPUTDEVICE Rid;
 
 	// deregister raw input
-	Rid.usUsagePage = 0x01; 
-	Rid.usUsage = 0x02; 
+	Rid.usUsagePage = 0x01;
+	Rid.usUsage = 0x02;
 	Rid.dwFlags = RIDEV_REMOVE;
 	Rid.hwndTarget = NULL;
 
@@ -777,8 +777,8 @@ void IN_RawInput_KeyboardDeRegister(void)
 	RAWINPUTDEVICE Rid;
 
 	// deregister raw input
-	Rid.usUsagePage = 0x01; 
-	Rid.usUsage = 0x02; 
+	Rid.usUsagePage = 0x01;
+	Rid.usUsage = 0x02;
 	Rid.dwFlags = RIDEV_REMOVE;
 	Rid.hwndTarget = NULL;
 
@@ -807,11 +807,11 @@ void IN_RawInput_DeInit(void)
 int IN_RawInput_MouseRegister(void)
 {
 	// This function registers to receive the WM_INPUT messages
-	RAWINPUTDEVICE Rid; // Register only for mouse messages from wm_input.  
+	RAWINPUTDEVICE Rid; // Register only for mouse messages from wm_input.
 
 	//register to get wm_input messages
-	Rid.usUsagePage = 0x01; 
-	Rid.usUsage = 0x02; 
+	Rid.usUsagePage = 0x01;
+	Rid.usUsage = 0x02;
 	Rid.dwFlags = RIDEV_NOLEGACY; // adds HID mouse and also ignores legacy mouse messages
 	Rid.hwndTarget = NULL;
 
@@ -826,8 +826,8 @@ int IN_RawInput_KeyboardRegister(void)
 {
 	RAWINPUTDEVICE Rid;
 
-	Rid.usUsagePage = 0x01; 
-	Rid.usUsage = 0x06; 
+	Rid.usUsagePage = 0x01;
+	Rid.usUsage = 0x06;
 	Rid.dwFlags = RIDEV_NOLEGACY | RIDEV_APPKEYS | RIDEV_NOHOTKEYS; // fetch everything, disable hotkey behavior (should cvar?)
 	Rid.hwndTarget = NULL;
 
@@ -974,7 +974,7 @@ void IN_RawInput_Init(void)
 			continue;
 
 		switch (pRawInputDeviceList[i].dwType)
-		{ 
+		{
 		case RIM_TYPEMOUSE:
 			// set handle
 			rawmice[rawmicecount].handles.rawinputhandle = pRawInputDeviceList[i].hDevice;
@@ -1005,10 +1005,10 @@ void IN_RawInput_Init(void)
 				break;
 			}
 		}
-		Con_SafePrintf("Raw input type %i: [%i] %s\n", pRawInputDeviceList[i].dwType, i, dname);
+		Con_SafePrintf("Raw input type %i: [%i] %s\n", (int)pRawInputDeviceList[i].dwType, i, dname);
 	}
 
-   
+
 	// free the RAWINPUTDEVICELIST
 	Z_Free(pRawInputDeviceList);
 
@@ -1029,8 +1029,8 @@ IN_StartupMouse
 */
 void IN_StartupMouse (void)
 {
-	if ( COM_CheckParm ("-nomouse") ) 
-		return; 
+	if ( COM_CheckParm ("-nomouse") )
+		return;
 
 	mouseinitialized = true;
 
@@ -1062,10 +1062,10 @@ void IN_StartupMouse (void)
 
 		if (mouseparmsvalid)
 		{
-			if ( m_accel_noforce.value ) 
+			if ( m_accel_noforce.value )
 				newmouseparms[2] = originalmouseparms[2];
 
-			if ( m_threshold_noforce.value ) 
+			if ( m_threshold_noforce.value )
 			{
 				newmouseparms[0] = originalmouseparms[0];
 				newmouseparms[1] = originalmouseparms[1];
@@ -1139,7 +1139,7 @@ void IN_Init (void)
 	Cvar_Register (&in_xflip, "Input stuff");
 #endif
 
-	// joystick variables		
+	// joystick variables
 	Cvar_Register (&in_joystick, "Joystick variables");
 
 	Cvar_Register (&joy_name, "Joystick variables");
@@ -1229,8 +1229,8 @@ void IN_MouseEvent (int mstate)
 			{
 				Key_Event (0, K_MOUSE1 + i, 0, false);
 			}
-		}	
-			
+		}
+
 		sysmouse.oldbuttons = mstate;
 	}
 }
@@ -1398,7 +1398,7 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 
 	if (in_mlook.state[pnum] & 1)
 		V_StopPitchDrift (pnum);
-		
+
 	if ( (in_mlook.state[pnum] & 1) && !(in_strafe.state[pnum] & 1))
 	{
 		cl.viewangles[pnum][PITCH] += m_pitch.value * mouse_y;
@@ -1517,59 +1517,59 @@ void IN_MouseMove (float *movements, int pnum)
 
 				case DIMOFS_BUTTON0:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= 1; 
-					else 
-						sysmouse.buttons &= ~1; 
+						sysmouse.buttons |= 1;
+					else
+						sysmouse.buttons &= ~1;
 					break;
 
 				case DIMOFS_BUTTON1:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1 << 1); 
-					else 
-						sysmouse.buttons &= ~(1 << 1); 
+						sysmouse.buttons |= (1 << 1);
+					else
+						sysmouse.buttons &= ~(1 << 1);
 					break;
 
 				case DIMOFS_BUTTON2:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1 << 2); 
-					else 
-						sysmouse.buttons &= ~(1 << 2); 
+						sysmouse.buttons |= (1 << 2);
+					else
+						sysmouse.buttons &= ~(1 << 2);
 					break;
 
 				case DIMOFS_BUTTON3:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1 << 3); 
-					else 
-						sysmouse.buttons &= ~(1 << 3); 
+						sysmouse.buttons |= (1 << 3);
+					else
+						sysmouse.buttons &= ~(1 << 3);
 					break;
 
 #if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
 				case DIMOFS_BUTTON4:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1 << 4); 
-					else 
-						sysmouse.buttons &= ~(1 << 4); 
+						sysmouse.buttons |= (1 << 4);
+					else
+						sysmouse.buttons &= ~(1 << 4);
 					break;
 
 				case DIMOFS_BUTTON5:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1 << 5); 
-					else 
-						sysmouse.buttons &= ~(1 << 5); 
+						sysmouse.buttons |= (1 << 5);
+					else
+						sysmouse.buttons &= ~(1 << 5);
 					break;
 
 				case DIMOFS_BUTTON6:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1 << 6); 
-					else 
-						sysmouse.buttons &= ~(1 << 6); 
+						sysmouse.buttons |= (1 << 6);
+					else
+						sysmouse.buttons &= ~(1 << 6);
 					break;
 
 				case DIMOFS_BUTTON7:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1 << 7); 
-					else 
-						sysmouse.buttons &= ~(1 << 7); 
+						sysmouse.buttons |= (1 << 7);
+					else
+						sysmouse.buttons &= ~(1 << 7);
 					break;
 #endif
 			}
@@ -1687,31 +1687,31 @@ void IN_RawInput_MouseRead(void)
 	}
 
 	// buttons
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN) 
+	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN)
 		Key_Event(pnum, K_MOUSE1, 0, true);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_UP)   
+	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_UP)
 		Key_Event(pnum, K_MOUSE1, 0, false);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN) 
+	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN)
 		Key_Event(pnum, K_MOUSE2, 0, true);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_UP)   
+	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_UP)
 		Key_Event(pnum, K_MOUSE2, 0, false);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_DOWN) 
+	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_DOWN)
 		Key_Event(pnum, K_MOUSE3, 0, true);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_UP)   
+	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_UP)
 		Key_Event(pnum, K_MOUSE3, 0, false);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_4_DOWN) 
+	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_4_DOWN)
 		Key_Event(pnum, K_MOUSE4, 0, true);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_4_UP)   
+	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_4_UP)
 		Key_Event(pnum, K_MOUSE4, 0, false);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_5_DOWN) 
+	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_5_DOWN)
 		Key_Event(pnum, K_MOUSE5, 0, true);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_5_UP)   
+	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_5_UP)
 		Key_Event(pnum, K_MOUSE5, 0, false);
 
 	// mouse wheel
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_WHEEL)
 	{      // If the current message has a mouse_wheel message
-		if ((SHORT)raw->data.mouse.usButtonData > 0) 
+		if ((SHORT)raw->data.mouse.usButtonData > 0)
 		{
 			Key_Event(pnum, K_MWHEELUP, 0, true);
 			Key_Event(pnum, K_MWHEELUP, 0, false);
@@ -1780,7 +1780,7 @@ void IN_RawInput_Read(HANDLE in_device_handle)
 	int dwSize;
 
 	// get raw input
-	if ((*_GRID)((HRAWINPUT)in_device_handle, RID_INPUT, NULL, &dwSize, sizeof(RAWINPUTHEADER)) == -1) 
+	if ((*_GRID)((HRAWINPUT)in_device_handle, RID_INPUT, NULL, &dwSize, sizeof(RAWINPUTHEADER)) == -1)
 	{
 		Con_Printf("Raw input: unable to add to get size of raw input header.\n");
 		return;
@@ -1791,7 +1791,7 @@ void IN_RawInput_Read(HANDLE in_device_handle)
 		ribuffersize = dwSize;
 		raw = (RAWINPUT *)BZ_Realloc(raw, dwSize);
 	}
-		
+
 	if ((*_GRID)((HRAWINPUT)in_device_handle, RID_INPUT, raw, &dwSize, sizeof(RAWINPUTHEADER)) != dwSize ) {
 		Con_Printf("Raw input: unable to add to get raw input header.\n");
 		return;
@@ -1822,24 +1822,24 @@ void IN_ClearStates (void)
 }
 
 
-/* 
-=============== 
-IN_StartupJoystick 
-=============== 
-*/  
-void IN_StartupJoystick (void) 
-{ 
+/*
+===============
+IN_StartupJoystick
+===============
+*/
+void IN_StartupJoystick (void)
+{
 	int			numdevs;
 	JOYCAPS		jc;
 	MMRESULT	mmr;
- 
+
  	// assume no joystick
-	joy_avail = false; 
+	joy_avail = false;
 
 	// abort startup if user requests no joystick
-	if ( COM_CheckParm ("-nojoy") ) 
-		return; 
- 
+	if ( COM_CheckParm ("-nojoy") )
+		return;
+
 	// verify joystick driver is present
 	if ((numdevs = joyGetNumDevs ()) == 0)
 	{
@@ -1858,7 +1858,7 @@ void IN_StartupJoystick (void)
 
 		if ((mmr = joyGetPosEx (joy_id, &ji)) == JOYERR_NOERROR)
 			break;
-	} 
+	}
 
 	// abort startup if we didn't find a valid joystick
 	if (mmr != JOYERR_NOERROR)
@@ -1872,7 +1872,7 @@ void IN_StartupJoystick (void)
 	memset (&jc, 0, sizeof(jc));
 	if ((mmr = joyGetDevCaps (joy_id, &jc, sizeof(jc))) != JOYERR_NOERROR)
 	{
-		Con_Printf ("joystick not found -- invalid joystick capabilities (%x)\n", mmr); 
+		Con_Printf ("joystick not found -- invalid joystick capabilities (%x)\n", mmr);
 		return;
 	}
 
@@ -1886,10 +1886,10 @@ void IN_StartupJoystick (void)
 	// mark the joystick as available and advanced initialization not completed
 	// this is needed as cvars are not available during initialization
 
-	joy_avail = true; 
+	joy_avail = true;
 	joy_advancedinit = false;
 
-	Con_Printf ("joystick detected\n"); 
+	Con_Printf ("joystick detected\n");
 }
 
 
@@ -2006,7 +2006,7 @@ void IN_Commands (void)
 		return;
 	}
 
-	
+
 	// loop through the joystick buttons
 	// key a joystick event or auxillary event for higher number buttons for each state change
 	buttonstate = ji.dwButtons;
@@ -2061,11 +2061,11 @@ void IN_Commands (void)
 }
 
 
-/* 
-=============== 
+/*
+===============
 IN_ReadJoystick
-=============== 
-*/  
+===============
+*/
 qboolean IN_ReadJoystick (void)
 {
 
@@ -2118,9 +2118,9 @@ void IN_JoyMove (float *movements, int pnum)
 	// verify joystick is available and that the user wants to use it
 	if (!joy_avail || !in_joystick.value)
 	{
-		return; 
+		return;
 	}
- 
+
 	// collect the joystick data, if possible
 	if (IN_ReadJoystick () != true)
 	{
@@ -2157,7 +2157,7 @@ void IN_JoyMove (float *movements, int pnum)
 			}
 		}
 
-		// convert range from -32768..32767 to -1..1 
+		// convert range from -32768..32767 to -1..1
 		fAxisValue /= 32768.0;
 
 		switch (dwAxisMap[i])
@@ -2167,7 +2167,7 @@ void IN_JoyMove (float *movements, int pnum)
 			{
 				// user wants forward control to become look control
 				if (fabs(fAxisValue) > joy_pitchthreshold.value)
-				{		
+				{
 					// if mouse invert is on, invert the joystick pitch value
 					// only absolute control support here (joy_advanced is false)
 					if (m_pitch.value < 0.0)
@@ -2270,49 +2270,49 @@ void IN_JoyMove (float *movements, int pnum)
 	CL_ClampPitch(pnum);
 }
 
-static qbyte        scantokey[128] = 
-					{ 
-//  0           1       2       3       4       5       6       7 
-//  8           9       A       B       C       D       E       F 
-	0  ,		27,		'1',		'2',		'3',	'4',		'5',			'6', 
-	'7',		'8',	'9',		'0',		'-',	'=',		K_BACKSPACE,	9,			// 0 
-	'q',		'w',	'e',		'r',		't',	'y',		'u',			'i', 
-	'o',		'p',	'[',		']',		13 ,	K_CTRL,		'a',			's',		// 1 
-	'd',		'f',	'g',		'h',		'j',	'k',		'l',			';', 
-	'\'',		'`',	K_SHIFT,	'\\',		'z',	'x',		'c',			'v',		// 2 
-	'b',		'n',	'm',		',',		'.',	'/',		K_SHIFT,		'*', 
-	K_ALT,		' ',	K_CAPSLOCK,	K_F1,		K_F2,	K_F3,		K_F4,			K_F5,		// 3 
-	K_F6,		K_F7,	K_F8,		K_F9,		K_F10,	K_PAUSE,	K_SCRLCK,		K_HOME, 
-	K_UPARROW,	K_PGUP,	'-',		K_LEFTARROW,'5',	K_RIGHTARROW,'+',			K_END,		// 4 
-	K_DOWNARROW,K_PGDN,	K_INS,		K_DEL,		0,      0,			0,				K_F11, 
-	K_F12,		0,		0,			0,			0,		0,			0,				0,			// 5 
-	0,			0,		0,			0,			0,		0,			0,				0, 
-	0,			0,		0,			0,			0,		0,			0,				0,			// 6 
-	0,			0,		0,			0,			0,		0,			0,				0, 
-	0,			0,		0,			0,			0,		0,			0,				0			// 7 
-					}; 
+static qbyte        scantokey[128] =
+					{
+//  0           1       2       3       4       5       6       7
+//  8           9       A       B       C       D       E       F
+	0  ,		27,		'1',		'2',		'3',	'4',		'5',			'6',
+	'7',		'8',	'9',		'0',		'-',	'=',		K_BACKSPACE,	9,			// 0
+	'q',		'w',	'e',		'r',		't',	'y',		'u',			'i',
+	'o',		'p',	'[',		']',		13 ,	K_CTRL,		'a',			's',		// 1
+	'd',		'f',	'g',		'h',		'j',	'k',		'l',			';',
+	'\'',		'`',	K_SHIFT,	'\\',		'z',	'x',		'c',			'v',		// 2
+	'b',		'n',	'm',		',',		'.',	'/',		K_SHIFT,		'*',
+	K_ALT,		' ',	K_CAPSLOCK,	K_F1,		K_F2,	K_F3,		K_F4,			K_F5,		// 3
+	K_F6,		K_F7,	K_F8,		K_F9,		K_F10,	K_PAUSE,	K_SCRLCK,		K_HOME,
+	K_UPARROW,	K_PGUP,	'-',		K_LEFTARROW,'5',	K_RIGHTARROW,'+',			K_END,		// 4
+	K_DOWNARROW,K_PGDN,	K_INS,		K_DEL,		0,      0,			0,				K_F11,
+	K_F12,		0,		0,			0,			0,		0,			0,				0,			// 5
+	0,			0,		0,			0,			0,		0,			0,				0,
+	0,			0,		0,			0,			0,		0,			0,				0,			// 6
+	0,			0,		0,			0,			0,		0,			0,				0,
+	0,			0,		0,			0,			0,		0,			0,				0			// 7
+					};
 /*
-static qbyte        shiftscantokey[128] = 
-					{ 
-//  0           1       2       3       4       5       6       7 
-//  8           9       A       B       C       D       E       F 
-	0  ,    27,     '!',    '@',    '#',    '$',    '%',    '^', 
-	'&',    '*',    '(',    ')',    '_',    '+',    K_BACKSPACE, 9, // 0 
-	'Q',    'W',    'E',    'R',    'T',    'Y',    'U',    'I', 
-	'O',    'P',    '{',    '}',    13 ,    K_CTRL,'A',  'S',      // 1 
-	'D',    'F',    'G',    'H',    'J',    'K',    'L',    ':', 
-	'"' ,    '~',    K_SHIFT,'|',  'Z',    'X',    'C',    'V',      // 2 
-	'B',    'N',    'M',    '<',    '>',    '?',    K_SHIFT,'*', 
-	K_ALT,' ',   K_CAPSLOCK  ,    K_F1, K_F2, K_F3, K_F4, K_F5,   // 3 
-	K_F6, K_F7, K_F8, K_F9, K_F10, K_PAUSE  ,    K_SCRLCK  , K_HOME, 
-	K_UPARROW,K_PGUP,'_',K_LEFTARROW,'%',K_RIGHTARROW,'+',K_END, //4 
-	K_DOWNARROW,K_PGDN,K_INS,K_DEL,0,0,             0,              K_F11, 
-	K_F12,  0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0,        // 5 
-	0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0, 
-	0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0,        // 6 
-	0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0, 
-	0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0         // 7 
-					}; 
+static qbyte        shiftscantokey[128] =
+					{
+//  0           1       2       3       4       5       6       7
+//  8           9       A       B       C       D       E       F
+	0  ,    27,     '!',    '@',    '#',    '$',    '%',    '^',
+	'&',    '*',    '(',    ')',    '_',    '+',    K_BACKSPACE, 9, // 0
+	'Q',    'W',    'E',    'R',    'T',    'Y',    'U',    'I',
+	'O',    'P',    '{',    '}',    13 ,    K_CTRL,'A',  'S',      // 1
+	'D',    'F',    'G',    'H',    'J',    'K',    'L',    ':',
+	'"' ,    '~',    K_SHIFT,'|',  'Z',    'X',    'C',    'V',      // 2
+	'B',    'N',    'M',    '<',    '>',    '?',    K_SHIFT,'*',
+	K_ALT,' ',   K_CAPSLOCK  ,    K_F1, K_F2, K_F3, K_F4, K_F5,   // 3
+	K_F6, K_F7, K_F8, K_F9, K_F10, K_PAUSE  ,    K_SCRLCK  , K_HOME,
+	K_UPARROW,K_PGUP,'_',K_LEFTARROW,'%',K_RIGHTARROW,'+',K_END, //4
+	K_DOWNARROW,K_PGDN,K_INS,K_DEL,0,0,             0,              K_F11,
+	K_F12,  0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0,        // 5
+	0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0,
+	0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0,        // 6
+	0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0,
+	0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0         // 7
+					};
 */
 
 /*
@@ -2423,6 +2423,6 @@ void IN_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int pnum)
 				unicode = wchars[0];
 		}
 	}
-	
+
 	Key_Event (pnum, qcode, unicode, down);
 }

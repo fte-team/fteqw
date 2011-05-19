@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -71,7 +71,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef LWA_ALPHA
 	#define LWA_ALPHA 0x00000002
 #endif
-typedef BOOL (WINAPI *lpfnSetLayeredWindowAttributes)(HWND hwnd, COLORREF crKey, BYTE bAlpha, DWORD dwFlags); 
+typedef BOOL (WINAPI *lpfnSetLayeredWindowAttributes)(HWND hwnd, COLORREF crKey, BYTE bAlpha, DWORD dwFlags);
 
 extern cvar_t vid_conwidth, vid_conautoscale;
 
@@ -267,7 +267,7 @@ qboolean GLInitialise (char *renderer)
 	}
 	else
 		hInstGL = NULL;
-	
+
 	if (!hInstGL)
 	{
 		unsigned int emode;
@@ -442,7 +442,7 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 
 			if (pSetLayeredWindowAttributes)
 			{
-				// Set WS_EX_LAYERED on this window 
+				// Set WS_EX_LAYERED on this window
 				SetWindowLong(dibwindow, GWL_EXSTYLE, GetWindowLong(dibwindow, GWL_EXSTYLE) | WS_EX_LAYERED);
 
 				// Make this window 70% alpha
@@ -537,7 +537,7 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 
 		if (ChangeDisplaySettings (&gdevmode, CDS_FULLSCREEN) != DISP_CHANGE_SUCCESSFUL)
 		{
-			Con_SafePrintf((gdevmode.dmFields&DM_DISPLAYFREQUENCY)?"Windows rejected mode %i*%i*%i*%i\n":"Windows rejected mode %i*%i*%i\n", gdevmode.dmPelsWidth, gdevmode.dmPelsHeight, gdevmode.dmBitsPerPel, gdevmode.dmDisplayFrequency);
+			Con_SafePrintf((gdevmode.dmFields&DM_DISPLAYFREQUENCY)?"Windows rejected mode %i*%i*%i*%i\n":"Windows rejected mode %i*%i*%i\n", (int)gdevmode.dmPelsWidth, (int)gdevmode.dmPelsHeight, (int)gdevmode.dmBitsPerPel, (int)gdevmode.dmDisplayFrequency);
 			return false;
 		}
 	}
@@ -909,7 +909,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 		TRACE(("dbg: VID_AttachGL: failed to find a valid dll\n"));
 		return false;
 	} while(1);
-	
+
 	TRACE(("dbg: VID_AttachGL: qwglCreateContext\n"));
 
     baseRC = qwglCreateContext(maindc);
@@ -1072,10 +1072,11 @@ void VID_Wait_Override_Callback(struct cvar_s *var, char *oldvalue)
 
 void GLVID_Recenter_f(void)
 {
-	int nw = vid_width.value;
-	int nh = vid_height.value;
-	int nx = 0;
-	int ny = 0;
+	// 4 unused variables
+	//int nw = vid_width.value;
+	//int nh = vid_height.value;
+	//int nx = 0;
+	//int ny = 0;
 
 	if (sys_parentwindow && modestate==MS_WINDOWED)
 	{
@@ -1106,7 +1107,7 @@ void VID_WndAlpha_Override_Callback(struct cvar_s *var, char *oldvalue)
 
 		if (pSetLayeredWindowAttributes)
 		{
-			// Set WS_EX_LAYERED on this window 
+			// Set WS_EX_LAYERED on this window
 
 			if (av < 255)
 			{
@@ -1182,7 +1183,7 @@ void	GLVID_SetPalette (unsigned char *palette)
 			g = pal[1];
 			b = pal[2];
 			pal += 3;
-			
+
 	//		v = (255<<24) + (r<<16) + (g<<8) + (b<<0);
 	//		v = (255<<0) + (r<<8) + (g<<16) + (b<<24);
 			v = (255<<24) + (r<<0) + (g<<8) + (b<<16);
@@ -1202,7 +1203,7 @@ void	GLVID_SetPalette (unsigned char *palette)
 			g = gammatable[pal[1]];
 			b = gammatable[pal[2]];
 			pal += 3;
-			
+
 	//		v = (255<<24) + (r<<16) + (g<<8) + (b<<0);
 	//		v = (255<<0) + (r<<8) + (g<<16) + (b<<24);
 			v = (255<<24) + (r<<0) + (g<<8) + (b<<16);
@@ -1437,7 +1438,7 @@ BOOL bSetupPixelFormat(HDC hDC)
 			if (SetPixelFormat(hDC, pixelformat, &pfd))
 			{
 				TRACE(("dbg: bSetupPixelFormat: we can use the stencil buffer. woot\n"));
-				DescribePixelFormat(hDC, pixelformat, sizeof(pfd), &pfd); 
+				DescribePixelFormat(hDC, pixelformat, sizeof(pfd), &pfd);
 				FixPaletteInDescriptor(hDC, &pfd);
 				gl_canstencil = pfd.cStencilBits;
 				return TRUE;
@@ -1450,14 +1451,14 @@ BOOL bSetupPixelFormat(HDC hDC)
 
 		if ( (pixelformat = ChoosePixelFormat(hDC, &pfd)) == 0 )
 		{
-			Con_Printf("bSetupPixelFormat: ChoosePixelFormat failed (%i)\n", GetLastError());
+			Con_Printf("bSetupPixelFormat: ChoosePixelFormat failed (%i)\n", (int)GetLastError());
 			return FALSE;
 		}
 	}
 
     if (SetPixelFormat(hDC, pixelformat, &pfd) == FALSE)
     {
-        Con_Printf("bSetupPixelFormat: SetPixelFormat failed (%i)\n", GetLastError());
+        Con_Printf("bSetupPixelFormat: SetPixelFormat failed (%i)\n", (int)GetLastError());
         return FALSE;
     }
 
@@ -1481,7 +1482,7 @@ ClearAllStates
 void ClearAllStates (void)
 {
 	int		i;
-	
+
 // send an up event for each key, to make sure the server clears them all
 	for (i=0 ; i<256 ; i++)
 	{
@@ -1547,7 +1548,7 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 	{
 		if (modestate != MS_WINDOWED)
 		{
-			if (vid_canalttab) { 
+			if (vid_canalttab) {
 				ChangeDisplaySettings (NULL, 0);
 				vid_wassuspended = true;
 			}
@@ -1687,7 +1688,7 @@ LONG WINAPI GLMainWndProc (
 		// JACK: This is the mouse wheel with the Intellimouse
 		// Its delta is either positive or neg, and we generate the proper
 		// Event.
-		case WM_MOUSEWHEEL: 
+		case WM_MOUSEWHEEL:
 			if (!vid_initializing)
 			{
 				if ((short) HIWORD(wParam) > 0)
@@ -1764,7 +1765,7 @@ LONG WINAPI GLMainWndProc (
 		case MM_MCINOTIFY:
             lRet = CDAudio_MessageHandler (hWnd, uMsg, wParam, lParam);
 			break;
-		
+
     	default:
             /* pass all unhandled messages to DefWindowProc */
             lRet = DefWindowProc (hWnd, uMsg, wParam, lParam);
@@ -1781,7 +1782,7 @@ qboolean GLVID_Is8bit(void) {
 }
 
 
-void VID_Init8bitPalette(void) 
+void VID_Init8bitPalette(void)
 {
 #ifdef GL_USE8BITTEX
 #ifdef GL_EXT_paletted_texture

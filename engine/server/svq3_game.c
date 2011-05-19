@@ -1397,7 +1397,7 @@ static qintptr_t Q3G_SystemCalls(void *offset, unsigned int mask, qintptr_t fn, 
 	return ret;
 }
 
-static int Q3G_SystemCallsVM(void *offset, unsigned int mask, int fn, const int *arg)
+static int Q3G_SystemCallsVM(void *offset, quintptr_t mask, int fn, const int *arg)
 {
 	qintptr_t args[13];
 

@@ -372,7 +372,7 @@ void M_Menu_Particles_f (void)
 	MC_AddWhiteText(menu, 16, y,		"     €‚ ", false); y+=8;
 	y+=8;
 
-	MC_AddCvarCombo(menu, 16, y,							"        particle system", &r_particlesystem, psystemopts, psystemvals);y+=8;
+	MC_AddCvarCombo(menu, 16, y,							"        particle system", &r_particlesystem, (const char **)psystemopts, (const char **)psystemvals);y+=8;
 	//fixme: hide the rest of the options if r_particlesystem==classic
 	MC_AddConsoleCommand(menu, 16, y,						"    Choose particle set", "menu_particlesets");y+=8;
 //	MC_AddSlider(menu, 16, y,								"        exp spark count", &r_particles_in_explosion, 16, 1024);y+=8;

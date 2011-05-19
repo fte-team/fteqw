@@ -1316,7 +1316,7 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 //	if (e->shaderRGBAf[3] < 0.5)
 //		return;
 
-	RotateLightVector(e->axis, e->origin, lightpos, lightorg);
+	RotateLightVector((void *)e->axis, e->origin, lightpos, lightorg);
 
 	if (Length(lightorg) > radius + clmodel->radius)
 		return;

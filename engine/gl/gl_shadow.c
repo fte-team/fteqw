@@ -1640,7 +1640,7 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 	if (BE_LightCullModel(e->origin, e->model))
 		return;
 
-	RotateLightVector(e->axis, e->origin, dl->origin, lightorg);
+	RotateLightVector((void *)e->axis, e->origin, dl->origin, lightorg);
 
 	BE_SelectEntity(e);
 

@@ -68,9 +68,9 @@ void M_BuildTranslationTable(int top, int bottom, qbyte *translationTable)
 		sourceB = colorB + (bottom * 256);
 		for(i=0;i<256;i++)
 		{
-			if (bottom > 0 && (colorB[i] != 255)) 
+			if (bottom > 0 && (colorB[i] != 255))
 				translationTable[i] = sourceB[i];
-			else if (top > 0 && (colorA[i] != 255)) 
+			else if (top > 0 && (colorA[i] != 255))
 				translationTable[i] = sourceA[i];
 			else
 				translationTable[i] = i;
@@ -401,7 +401,7 @@ void M_Menu_Keys_f (void)
 			"3",
 			"4"
 		};
-		MC_AddCvarCombo(menu, 16, y, "Force client", &cl_forcesplitclient, texts, values);
+		MC_AddCvarCombo(menu, 16, y, "Force client", &cl_forcesplitclient, (const char **)texts, (const char **)values);
 		y+=8;
 	}
 

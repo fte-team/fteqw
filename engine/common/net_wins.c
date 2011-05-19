@@ -1904,7 +1904,7 @@ closesvstream:
 		if (newsock != INVALID_SOCKET)
 		{
 			int _true = true;
-			ioctlsocket(newsock, FIONBIO, &_true);
+			ioctlsocket(newsock, FIONBIO, (u_long *)&_true);
 			setsockopt(newsock, IPPROTO_TCP, TCP_NODELAY, (char *)&_true, sizeof(_true));
 
 			con->active++;
@@ -2444,7 +2444,7 @@ qboolean FTENET_IRCConnect_GetPacket(ftenet_generic_connection_t *gcon)
 		}
 		else
 		{
-			code = strtoul(s, &s, 10);
+			code = strtoul(s, (char **  __restrict__)&s, 10);
 			switch (code)
 			{
 			case 001:

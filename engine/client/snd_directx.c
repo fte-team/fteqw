@@ -486,7 +486,7 @@ inside the recirculating dma buffer, so the mixing code will know
 how many sample are required to fill it up.
 ===============
 */
-static int DSOUND_GetDMAPos(soundcardinfo_t *sc)
+static unsigned int DSOUND_GetDMAPos(soundcardinfo_t *sc)
 {
 	DWORD	mmtime;
 	int		s;
@@ -528,7 +528,7 @@ Direct-Sound support
 */
 int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 {
-	extern cvar_t snd_eax, snd_inactive;
+	extern cvar_t snd_inactive; // snd_eax unused
 	DSBUFFERDESC	dsbuf;
 	DSBCAPS			dsbcaps;
 	DWORD			dwSize, dwWrite;

@@ -405,7 +405,7 @@ texid_t D3D9_LoadTexture (char *identifier, int width, int height, enum uploadfm
 		tid.ptr = D3D9_LoadTexture_32(tex, data, width, height, flags);
 		return tid;
 	default:
-		OutputDebugString(va("D3D_LoadTextureFmt doesn't support fmt %i (%s)", fmt, name));
+		OutputDebugString(va("D3D_LoadTexture doesn't support fmt %i", fmt));
 		return r_nulltex;
 	}
 }

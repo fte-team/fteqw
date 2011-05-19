@@ -3457,7 +3457,7 @@ void COM_Effectinfo_Reload(void)
 		COM_Effectinfo_Add(dpnames[i]);
 
 
-	FS_LoadFile("effectinfo.txt", &f);
+	FS_LoadFile("effectinfo.txt", (void **)&f);
 	if (!f)
 		return;
 	buf = f;

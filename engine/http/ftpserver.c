@@ -37,7 +37,7 @@ typedef struct FTPclient_s{
 	char messagebuffer[256];
 	int cmdbuflen;
 	int msgbuflen;
-	
+
 	int controlsock;
 	int datasock;	//FTP only allows one transfer per connection.
 	int dataislisten;
@@ -52,7 +52,7 @@ typedef struct FTPclient_s{
 FTPclient_t *FTPclient;
 
 qboolean FTP_ServerInit(int port)
-{	
+{
 	struct sockaddr_in address;
 	unsigned long _true = true;
 	int i;
@@ -84,7 +84,7 @@ qboolean FTP_ServerInit(int port)
 		address.sin_port = 0;
 	else
 		address.sin_port = htons((short)port);
-	
+
 	if( bind (ftpserversocket, (void *)&address, sizeof(address)) == -1)
 	{
 		IWebPrintf("FTP_ServerInit: failed to bind socket\n");
@@ -92,7 +92,7 @@ qboolean FTP_ServerInit(int port)
 		ftpserverfailed = true;
 		return false;
 	}
-	
+
 	listen(ftpserversocket, 3);
 
 	ftpserverinitied = true;
@@ -137,7 +137,7 @@ static int SendFileNameTo(const char *rawname, int size, void *param)
 		sprintf(buffer, "drw-r--r--\t1\troot\troot\t%8u Jan 1 12:00 %s\r\n", size, fname);
 	else
 		sprintf(buffer, "-rw-r--r--\t1\troot\troot\t%8u Jan 1 12:00 %s\r\n", size, fname);
-    
+
 //	strcpy(buffer, fname);
 //	for (i = strlen(buffer); i < 40; i+=8)
 //		strcat(buffer, "\t");
@@ -151,7 +151,7 @@ int FTP_SV_makelistensocket(unsigned long nblocking)
 	char name[256];
 	int sock;
 	struct hostent *hent;
-	
+
 	struct sockaddr_in	address;
 //	int fromlen;
 
@@ -175,13 +175,13 @@ int FTP_SV_makelistensocket(unsigned long nblocking)
 	{
 		Sys_Error ("FTP_TCP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
 	}
-	
+
 	if( bind (sock, (void *)&address, sizeof(address)) == -1)
 	{
 		closesocket(sock);
 		return INVALID_SOCKET;
 	}
-	
+
 	listen(sock, 2);
 
 	return sock;
@@ -193,7 +193,7 @@ iwboolean	FTP_SVSocketToString (int socket, char *s)
 
 	if (getsockname(socket, (struct sockaddr*)&addr, &adrlen) == -1)
 		return false;
-	
+
 	sprintf(s, "%i,%i,%i,%i,%i,%i", ((qbyte *)&addr.sin_addr)[0], ((qbyte *)&addr.sin_addr)[1], ((qbyte *)&addr.sin_addr)[2], ((qbyte *)&addr.sin_addr)[3], ((qbyte *)&addr.sin_port)[0], ((qbyte *)&addr.sin_port)[1]);
 	return true;
 }
@@ -205,7 +205,7 @@ iwboolean	FTP_SVRemoteSocketToString (int socket, char *s)
 	addr.sin_family = AF_INET;
 	if (getpeername(socket, (struct sockaddr*)&addr, &adrlen) == -1)
 		return false;
-	
+
 	sprintf(s, "%i,%i,%i,%i,%i,%i", ((qbyte *)&addr.sin_addr)[0], ((qbyte *)&addr.sin_addr)[1], ((qbyte *)&addr.sin_addr)[2], ((qbyte *)&addr.sin_addr)[3], ((qbyte *)&addr.sin_port)[0], ((qbyte *)&addr.sin_port)[1]);
 	return true;
 }
@@ -270,7 +270,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 				cl->datasock = INVALID_SOCKET;
 				VFS_CLOSE(cl->file);
 				cl->file = NULL;
-				
+
 				QueueMessage (cl, "226 Transfer complete .\r\n");
 				cl->datadir = 0;
 			}
@@ -296,7 +296,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 		}
 
 		pos = cl->datadir?1:!cl->blocking;
-		if (ioctlsocket (cl->controlsock, FIONBIO, &pos) == -1)
+		if (ioctlsocket (cl->controlsock, FIONBIO, (u_long *)&pos) == -1)
 		{
 			IWebPrintf ("FTP_ServerRun: blocking error: %s\n", strerror(qerrno));
 			return 0;
@@ -306,7 +306,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 	{
 		int len;
 		while((len = recv(cl->datasock, resource, sizeof(resource), 0)) >0 )
-		{			
+		{
 			VFS_WRITE(cl->file, resource, len);
 		}
 		if (len == -1)
@@ -332,7 +332,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 		}
 	}
 
-	ret = recv(cl->controlsock, cl->commandbuffer+cl->cmdbuflen, sizeof(cl->commandbuffer)-1 - cl->cmdbuflen, 0);		
+	ret = recv(cl->controlsock, cl->commandbuffer+cl->cmdbuflen, sizeof(cl->commandbuffer)-1 - cl->cmdbuflen, 0);
 	if (ret == -1)
 	{
 		if (qerrno == EWOULDBLOCK)
@@ -341,7 +341,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 		if (qerrno == ECONNABORTED || qerrno == ECONNRESET)
 			return true;
 
-		Con_TPrintf (TL_NETGETPACKETERROR, strerror(qerrno));			
+		Con_TPrintf (TL_NETGETPACKETERROR, strerror(qerrno));
 		return true;
 	}
 	if (*cl->messagebuffer)
@@ -385,7 +385,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 		}
 		else if (!stricmp(mode, "user"))
 		{
-			msg = COM_ParseOut(msg, cl->name, sizeof(cl->name));			
+			msg = COM_ParseOut(msg, cl->name, sizeof(cl->name));
 
 			QueueMessage (cl, "331 User name received, will be checked with password.\r\n");
 		}
@@ -488,7 +488,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 				Sys_Error ("FTP_UDP_OpenSocket: socket: %s", strerror(qerrno));
 			}
 
-			if (ioctlsocket (cl->datasock, FIONBIO, &_true) == -1)
+			if (ioctlsocket (cl->datasock, FIONBIO, (u_long *)&_true) == -1)
 			{
 				Sys_Error ("FTTP_UDP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
 			}
@@ -498,7 +498,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 			from.sin_addr.s_addr = INADDR_ANY;
 
 			from.sin_port = 0;
-			
+
 			if( bind (cl->datasock, (void *)&from, sizeof(from)) == -1)
 			{
 				closesocket(cl->datasock);
@@ -507,7 +507,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 				QueueMessage (cl, "425 server bind error.\r\n");
 				continue;
 			}
-	
+
 
 			fromlen = sizeof(from);
 			FTP_StringToAdr(resource, (qbyte *)&from.sin_addr, (qbyte *)&from.sin_port);
@@ -540,7 +540,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 					continue;
 				}
 				else
-					ioctlsocket(cl->datasock, FIONBIO, &_true);
+					ioctlsocket(cl->datasock, FIONBIO, (u_long *)&_true);
 			}
 			if (cl->datasock == INVALID_SOCKET)
 			{
@@ -595,7 +595,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 					continue;
 				}
 				else
-					ioctlsocket(cl->datasock, FIONBIO, &_true);
+					ioctlsocket(cl->datasock, FIONBIO, (u_long *)&_true);
 			}
 			if (cl->datasock == INVALID_SOCKET)
 			{
@@ -604,7 +604,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 			}
 			msg = COM_ParseOut(msg, resource, sizeof(resource));
 
-			if (!cl->auth & IWEBACC_READ)			
+			if (!cl->auth & IWEBACC_READ)
 			{
 				QueueMessage (cl, "550 No read access.\r\n");
 				continue;
@@ -674,7 +674,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 						continue;
 					}
 					else
-						ioctlsocket(cl->datasock, FIONBIO, &_true);
+						ioctlsocket(cl->datasock, FIONBIO, (u_long *)&_true);
 				}
 				if (cl->datasock == INVALID_SOCKET)
 				{
@@ -790,7 +790,7 @@ unsigned long _true = true;
 		FTP_ServerShutdown();
 		return false;
 	}
-	
+
 	prevcl = NULL;
 	for (cl = FTPclient; cl; cl = cl->next)
 	{
@@ -819,7 +819,7 @@ unsigned long _true = true;
 
 				if (!cl)	//kills loop
 					break;
-			}			
+			}
 		}
 		prevcl = cl;
 	}

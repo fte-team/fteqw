@@ -23,11 +23,11 @@ struct gnutls_session_int;
 typedef struct gnutls_session_int* gnutls_session;
 typedef void * gnutls_transport_ptr;
 
-typedef enum gnutls_kx_algorithm { GNUTLS_KX_RSA=1, GNUTLS_KX_DHE_DSS, 
+typedef enum gnutls_kx_algorithm { GNUTLS_KX_RSA=1, GNUTLS_KX_DHE_DSS,
 	GNUTLS_KX_DHE_RSA, GNUTLS_KX_ANON_DH, GNUTLS_KX_SRP,
 	GNUTLS_KX_RSA_EXPORT, GNUTLS_KX_SRP_RSA, GNUTLS_KX_SRP_DSS
 } gnutls_kx_algorithm;
-typedef enum gnutls_certificate_type { GNUTLS_CRT_X509=1, GNUTLS_CRT_OPENPGP 
+typedef enum gnutls_certificate_type { GNUTLS_CRT_X509=1, GNUTLS_CRT_OPENPGP
 } gnutls_certificate_type;
 typedef enum gnutls_connection_end { GNUTLS_SERVER=1, GNUTLS_CLIENT } gnutls_connection_end;
 typedef enum gnutls_credentials_type { GNUTLS_CRD_CERTIFICATE=1, GNUTLS_CRD_ANON, GNUTLS_CRD_SRP } gnutls_credentials_type;
@@ -265,7 +265,7 @@ int Plug_SystemCallsVM(void *offset, quintptr_t mask, int fn, const int *arg)
 	fn = fn+1;
 
 	if (fn>=0 && fn < numplugbuiltins && plugbuiltins[fn].func!=NULL)
-		return plugbuiltins[fn].func(offset, mask, args);
+		return plugbuiltins[fn].func(offset, mask, (const long int *)args);
 #undef args
 	Sys_Error("QVM Plugin tried calling invalid builtin %i", fn);
 	return 0;
@@ -816,7 +816,7 @@ qintptr_t VARGS Plug_Net_TCPListen(void *offset, quintptr_t mask, const qintptr_
 		Con_Printf("Failed to create socket\n");
 		return -2;
 	}
-	if (ioctlsocket (sock, FIONBIO, &_true) == -1)
+	if (ioctlsocket (sock, FIONBIO, (u_long *)&_true) == -1)
 	{
 		closesocket(sock);
 		return -2;
@@ -858,7 +858,7 @@ qintptr_t VARGS Plug_Net_Accept(void *offset, quintptr_t mask, const qintptr_t *
 	if (sock < 0)
 		return -1;
 
-	if (ioctlsocket (sock, FIONBIO, &_true) == -1)	//now make it non blocking.
+	if (ioctlsocket (sock, FIONBIO, (u_long *)&_true) == -1)	//now make it non blocking.
 	{
 		closesocket(sock);
 		return -1;
@@ -922,7 +922,7 @@ qintptr_t VARGS Plug_Net_TCPConnect(void *offset, quintptr_t mask, const qintptr
 		return -2;
 	}
 
-	if (ioctlsocket (sock, FIONBIO, &_true) == -1)	//now make it non blocking.
+	if (ioctlsocket (sock, FIONBIO, (u_long *)&_true) == -1)	//now make it non blocking.
 	{
 		return -1;
 	}

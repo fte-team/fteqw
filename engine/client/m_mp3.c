@@ -79,7 +79,7 @@ qboolean WinAmp_StartTune(char *name)
 	SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_DELETE);
 	SendMessage(hwnd_winamp,WM_COPYDATA,(WPARAM)NULL,(LPARAM)&cds);
 	SendMessage(hwnd_winamp,WM_WA_IPC,(WPARAM)0,IPC_STARTPLAY );
-	
+
 	for (trys = 1000; trys; trys--)
 	{
 		pos = SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_GETOUTPUTTIME);
@@ -100,7 +100,7 @@ void WinAmp_Think(void)
 	int len;
 
 	if (!WinAmp_GetHandle())
-		return;	
+		return;
 
 	pos = bgmvolume.value*255;
 	if (pos > 255) pos = 255;
@@ -117,7 +117,7 @@ void WinAmp_Think(void)
 }
 #endif
 void Media_Seek (float time)
-{	
+{
 #ifdef WINAMP
 	if (media_hijackwinamp.value)
 	{
@@ -233,7 +233,7 @@ qboolean Media_FakeTrack(int i, qboolean loop)
 			return true;
 		}
 	}
-	
+
 	fakecdactive = false;
 	return false;
 }
@@ -363,14 +363,14 @@ void M_Media_Draw (void)
 				if (media_repeat.value)
 					MP_Hightlight (12, y, "Repeat on", op == selectedoption);
 				else
-					MP_Hightlight (12, y, "Repeat off", op == selectedoption);				
+					MP_Hightlight (12, y, "Repeat off", op == selectedoption);
 			}
 			else
 			{
 				if (media_repeat.value)
 					MP_Hightlight (12, y, "(Repeat on)", op == selectedoption);
 				else
-					MP_Hightlight (12, y, "(Repeat off)", op == selectedoption);				
+					MP_Hightlight (12, y, "(Repeat off)", op == selectedoption);
 			}
 			y+=8;
 			break;
@@ -395,12 +395,12 @@ int Com_CompleatenameCallback(const char *name, int size, void *data)
 {
 	if (*compleatenamename)
 		compleatenamemultiple = true;
-	Q_strncpyz(compleatenamename, name, sizeof(compleatenamename));	
+	Q_strncpyz(compleatenamename, name, sizeof(compleatenamename));
 
 	return true;
 }
 void Com_CompleateOSFileName(char *name)
-{	
+{
 	char *ending;
 	compleatenamemultiple = false;
 
@@ -419,7 +419,7 @@ void Com_CompleateOSFileName(char *name)
 
 void M_Media_Key (int key)
 {
-	int dir;	
+	int dir;
 	if (key == K_ESCAPE)
 		M_Menu_Main_f();
 	else if (key == K_RIGHTARROW || key == K_LEFTARROW)
@@ -536,7 +536,7 @@ void M_Media_Key (int key)
 		case MEDIA_ADDLIST:
 			if (*media_iofilename)
 				Media_LoadTrackNames(media_iofilename);
-			break;						
+			break;
 		case MEDIA_SHUFFLE:
 			Cvar_Set(&media_shuffle, media_shuffle.value?"0":"1");
 			break;
@@ -548,7 +548,7 @@ void M_Media_Key (int key)
 			{
 				media_playing = true;
 				nexttrack = selectedoption;
-				Media_Next_f();				
+				Media_Next_f();
 			}
 			break;
 		}
@@ -560,7 +560,7 @@ void M_Media_Key (int key)
 			if (key == K_TAB)
 				Com_CompleateOSFileName(media_iofilename);
 			else if (key == K_BACKSPACE)
-			{				
+			{
 				dir = strlen(media_iofilename);
 				if (dir)
 					media_iofilename[dir-1] = '\0';
@@ -579,8 +579,8 @@ void M_Media_Key (int key)
 			tr=tracks;
 			while(tr)
 			{
-				if (num == selectedoption)		
-					break;				
+				if (num == selectedoption)
+					break;
 
 				prevtrack = tr;
 				tr=tr->next;
@@ -590,7 +590,7 @@ void M_Media_Key (int key)
 				return;
 
 			if (key == K_BACKSPACE)
-			{				
+			{
 				dir = strlen(tr->nicename);
 				if (dir)
 					tr->nicename[dir-1] = '\0';
@@ -611,7 +611,7 @@ void M_Media_Key (int key)
 
 //safeprints only.
 void Media_LoadTrackNames (char *listname)
-{	
+{
 	char *lineend;
 	char *len;
 	char *filename;
@@ -662,7 +662,7 @@ void Media_LoadTrackNames (char *listname)
 				snprintf(newtrack->filename, sizeof(newtrack->filename)-1, "/mnt/%c/%s", filename[0]-'A'+'a', filename+3);
 				while((filename = strchr(newtrack->filename, '\\')))
 					*filename = '/';
-			
+
 			}
 			else
 #endif
@@ -686,7 +686,7 @@ void Media_LoadTrackNames (char *listname)
 
 			if (!lineend && !*data)
 				break;
-			lineend[-1]='\0';			
+			lineend[-1]='\0';
 			data = lineend+1;
 
 			newtrack = Z_Malloc(sizeof(mediatrack_t));
@@ -912,10 +912,10 @@ qboolean Media_WinAvi_DecodeFrame(cin_t *cin, qboolean nosound)
 	lpbi = (LPBITMAPINFOHEADER)AVIStreamGetFrame(cin->avi.pgf, cin->currentframe);	// Grab Data From The AVI Stream
 	cin->currentframe++;
 	if (!lpbi || lpbi->biBitCount != 24)//oops
-	{		
+	{
 		SCR_SetUpToDrawConsole();
 		R2D_ConsoleBackground(0, vid.height, true);
-		Draw_FunString(0, 0, "Video stream is corrupt\n");			
+		Draw_FunString(0, 0, "Video stream is corrupt\n");
 	}
 	else
 	{
@@ -940,7 +940,7 @@ qboolean Media_WinAvi_DecodeFrame(cin_t *cin, qboolean nosound)
 
 		AVIStreamRead(cin->avi.pavisound, cin->avi.soundpos, AVISTREAMREAD_CONVENIENT, pBuffer, lSize, NULL, &samples);
 
-		S_RawAudio(-1, pBuffer, cin->avi.pWaveFormat->nSamplesPerSec, samples, cin->avi.pWaveFormat->nChannels, 2);			
+		S_RawAudio(-1, pBuffer, cin->avi.pWaveFormat->nSamplesPerSec, samples, cin->avi.pWaveFormat->nChannels, 2);
 	}
 	return true;
 }
@@ -1070,7 +1070,7 @@ qboolean Media_Roq_DecodeFrame (cin_t *cin, qboolean nosound)
 		return true;
 	}
 	else if (curtime<cin->nextframetime || roq_read_frame(cin->roq.roqfilm)==1)	 //0 if end, -1 if error, 1 if success
-	{			
+	{
 	//#define LIMIT(x) ((x)<0xFFFF)?(x)>>16:0xFF;
 #define LIMIT(x) ((((x) > 0xffffff) ? 0xff0000 : (((x) <= 0xffff) ? 0 : (x) & 0xff0000)) >> 16)
 		unsigned char *pa=cin->roq.roqfilm->y[0];
@@ -1099,7 +1099,7 @@ qboolean Media_Roq_DecodeFrame (cin_t *cin, qboolean nosound)
 			{										//convert it properly.
 				for(x = 0; x < num_columns; ++x)
 				{
-					
+
 					int r, g, b, y1, y2, u, v, t;
 					y1 = *(pa++); y2 = *(pa++);
 					u = pb[x] - 128;
@@ -1128,7 +1128,7 @@ qboolean Media_Roq_DecodeFrame (cin_t *cin, qboolean nosound)
 
 				}
 				if(y & 0x01) { pb += num_columns; pc += num_columns; }
-			}	
+			}
 		}
 
 		cin->outunchanged = false;
@@ -1231,11 +1231,11 @@ cin_t *Media_Static_TryLoad(char *name)
 		qbyte *file;
 
 		sprintf(fullname, "%s", name);
-		fsize = FS_LoadFile(fullname, &file);
+		fsize = FS_LoadFile(fullname, (void **)&file);
 		if (!file)
 		{
 			sprintf(fullname, "pics/%s", name);
-			fsize = FS_LoadFile(fullname, &file);
+			fsize = FS_LoadFile(fullname, (void **)&file);
 			if (!file)
 				return NULL;
 		}
@@ -1977,7 +1977,7 @@ void Media_RecordFrame (void)
 				return;
 			}
 		//ask gl for it
-			qglReadPixels (0, 0, vid.pixelwidth, vid.pixelheight, GL_RGB, GL_UNSIGNED_BYTE, framebuffer ); 
+			qglReadPixels (0, 0, vid.pixelwidth, vid.pixelheight, GL_RGB, GL_UNSIGNED_BYTE, framebuffer );
 
 			// swap rgb to bgr
 			c = vid.pixelwidth*vid.pixelheight*3;
@@ -1989,7 +1989,7 @@ void Media_RecordFrame (void)
 			}
 			//write it
 			hr = AVIStreamWrite(recordavi_video_stream, captureframe++, 1, framebuffer, vid.pixelwidth*vid.pixelheight * 3, ((captureframe%15) == 0)?AVIIF_KEYFRAME:0, NULL, NULL);
-			if (FAILED(hr)) Con_Printf("Recoring error\n");	
+			if (FAILED(hr)) Con_Printf("Recoring error\n");
 		}
 #endif /* WINAVI */
 		break;
@@ -2151,7 +2151,7 @@ void Media_StopRecordFilm_f (void)
     if (recordavi_uncompressed_video_stream)	AVIStreamRelease(recordavi_uncompressed_video_stream);
     if (recordavi_compressed_video_stream)		AVIStreamRelease(recordavi_compressed_video_stream);
     if (recordavi_uncompressed_audio_stream)	AVIStreamRelease(recordavi_uncompressed_audio_stream);
-    if (recordavi_file)					AVIFileRelease(recordavi_file);	
+    if (recordavi_file)					AVIFileRelease(recordavi_file);
 
 	recordavi_uncompressed_video_stream=NULL;
 	recordavi_compressed_video_stream = NULL;
@@ -2230,7 +2230,7 @@ void Media_RecordFilm_f (void)
 
 	if (capturetype == CT_NONE)
 	{
-		
+
 	}
 	else if (capturetype == CT_SCREENSHOT)
 	{
@@ -2308,7 +2308,7 @@ void Media_RecordFilm_f (void)
 		stream_header.fccHandler = recordavi_codec_fourcc;
 		stream_header.dwScale = 100;
 		stream_header.dwRate = (unsigned long)(0.5 + 100.0/recordavi_frametime);
-		SetRect(&stream_header.rcFrame, 0, 0, vid.pixelwidth, vid.pixelheight);  
+		SetRect(&stream_header.rcFrame, 0, 0, vid.pixelwidth, vid.pixelheight);
 
 		hr = AVIFileCreateStream(recordavi_file, &recordavi_uncompressed_video_stream, &stream_header);
 		if (FAILED(hr))
@@ -2322,7 +2322,7 @@ void Media_RecordFilm_f (void)
 		{
 			AVICOMPRESSOPTIONS opts;
 			AVICOMPRESSOPTIONS* aopts[1] = { &opts };
-			memset(&opts, 0, sizeof(opts));        
+			memset(&opts, 0, sizeof(opts));
 			opts.fccType = stream_header.fccType;
 			opts.fccHandler = recordavi_codec_fourcc;
 			// Make the stream according to compression
@@ -2334,7 +2334,7 @@ void Media_RecordFilm_f (void)
 				return;
 			}
 		}
-		
+
 
 		hr = AVIStreamSetFormat(recordavi_video_stream, 0, &bitmap_info_header, sizeof(BITMAPINFOHEADER));
 		if (FAILED(hr))
@@ -2352,15 +2352,15 @@ void Media_RecordFilm_f (void)
 		if (capturesound.value)
 		{
 			memset(&recordavi_wave_format, 0, sizeof(WAVEFORMATEX));
-			recordavi_wave_format.wFormatTag = WAVE_FORMAT_PCM; 
+			recordavi_wave_format.wFormatTag = WAVE_FORMAT_PCM;
 			recordavi_wave_format.nChannels = capturesoundchannels.value;
 			recordavi_wave_format.nSamplesPerSec = snd_speed;
 			recordavi_wave_format.wBitsPerSample = capturesoundbits.value;
-			recordavi_wave_format.nBlockAlign = recordavi_wave_format.wBitsPerSample/8 * recordavi_wave_format.nChannels; 
-			recordavi_wave_format.nAvgBytesPerSec = recordavi_wave_format.nSamplesPerSec * recordavi_wave_format.nBlockAlign; 
-			recordavi_wave_format.cbSize = 0; 
+			recordavi_wave_format.nBlockAlign = recordavi_wave_format.wBitsPerSample/8 * recordavi_wave_format.nChannels;
+			recordavi_wave_format.nAvgBytesPerSec = recordavi_wave_format.nSamplesPerSec * recordavi_wave_format.nBlockAlign;
+			recordavi_wave_format.cbSize = 0;
 
-			
+
 			memset(&stream_header, 0, sizeof(stream_header));
 			stream_header.fccType = streamtypeAUDIO;
 			stream_header.dwScale = recordavi_wave_format.nBlockAlign;

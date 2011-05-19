@@ -158,7 +158,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 		return 0;
 	}
 	Q_strncpyz(sc->name, snddev, sizeof(sc->name));
-	
+
 //reset it
 	rc = ioctl(sc->audio_fd, SNDCTL_DSP_RESET, 0);
 	if (rc < 0)
@@ -254,7 +254,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 //choose speed
 	//use the default - menu set value.
 	tmp = sc->sn.speed;
-	if (ioctl(sc->audio_fd, SNDCTL_DSP_SPEED, &tmp) != 0)	
+	if (ioctl(sc->audio_fd, SNDCTL_DSP_SPEED, &tmp) != 0)
 	{	//humph, default didn't work. Go for random preset ones that should work.
 		for (i=0 ; i<sizeof(tryrates)/4 ; i++)
 		{
@@ -364,7 +364,7 @@ void *OSS_Capture_Init(int rate)
 	fd = open(snddev, O_RDONLY | O_NONBLOCK);       //try the primary device
 	if (fd == -1)
 		return NULL;
-	
+
 #ifdef SNDCTL_DSP_CHANNELS
 	tmp = 1;
 	if (ioctl(fd, SNDCTL_DSP_CHANNELS, &tmp) != 0)
@@ -402,7 +402,7 @@ void OSS_Capture_Start(void *ctx)
 void OSS_Capture_Stop(void *ctx)
 {
 	intptr_t fd = ((intptr_t)ctx)-1;
-	
+
 	ioctl(fd, SNDCTL_DSP_RESET, NULL);
 }
 

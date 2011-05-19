@@ -411,7 +411,9 @@ int *debug;
 		DWORD dwExtraInfo;
 	} KBDLLHOOKSTRUCT;
 #elif defined(MINGW)
-	#define LLKHF_UP             0x00000080
+	#ifndef LLKHF_UP
+		#define LLKHF_UP             0x00000080
+	#endif
 #endif
 
 HHOOK llkeyboardhook;
@@ -598,7 +600,7 @@ void Sys_MakeCodeWriteable (unsigned long startaddr, unsigned long length)
 						str,
 						sizeof(str),
 						NULL);
-		Sys_Error("Protection change failed!\nError %d: %s\n", GetLastError(), str);
+		Sys_Error("Protection change failed!\nError %d: %s\n", (int)GetLastError(), str);
 	}
 }
 
@@ -1545,7 +1547,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 		GetModuleFileName(NULL, cwd, sizeof(cwd)-1);
 		strcpy(exename, COM_SkipPath(cwd));
-		parms.argv = argv;
+		parms.argv = (const char **)argv;
 
 		COM_InitArgv (parms.argc, parms.argv);
 

@@ -12,8 +12,8 @@
     warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
     details. You should have received a copy of the GNU General Public License along with this program; if not, write
     to the Free Software Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA. fromquake.h -
-    
-	render.c - apart from calculations (mostly range checking or value conversion code is a mix of standard Quake 1 
+
+	render.c - apart from calculations (mostly range checking or value conversion code is a mix of standard Quake 1
 	meshing, and vertex deforms. The rendering loop uses standard Quake 1 drawing, after SetupBones deforms the vertex.
  +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -80,7 +80,7 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 {
     /*~~*/
     int i;
-	
+
 	hlmodelcache_t *model;
 	hlmdl_header_t *header;
 	hlmdl_header_t *texheader;
@@ -105,20 +105,20 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 		QCRC_Init(&crc);
 		for (len = com_filesize, p = buffer; len; len--, p++)
 			QCRC_ProcessByte(&crc, *p);
-	
+
 		sprintf(st, "%d", (int) crc);
-		Info_SetValueForKey (cls.userinfo[0], 
+		Info_SetValueForKey (cls.userinfo[0],
 			(mod->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
 			st, sizeof(cls.userinfo[0]));
 
 		if (cls.state >= ca_connected)
 		{
-			CL_SendClientCommand(true, "setinfo %s %d", 
+			CL_SendClientCommand(true, "setinfo %s %d",
 				(mod->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name,
 				(int)crc);
 		}
 	}
-	
+
 	start = Hunk_LowMark ();
 
 
@@ -173,7 +173,7 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 		texheader = header;
 	else
 		header->numtextures = texheader->numtextures;
-	
+
 	tex = (hlmdl_tex_t *) ((qbyte *) texheader + texheader->textures);
     bones = (hlmdl_bone_t *) ((qbyte *) header + header->boneindex);
     bonectls = (hlmdl_bonecontroller_t *) ((qbyte *) header + header->controllerindex);
@@ -210,12 +210,12 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 
 //
 // move the complete, relocatable alias model to the cache
-//	
+//
 	end = Hunk_LowMark ();
 	total = end - start;
 
 	mod->type = mod_halflife;
-	
+
 	Cache_Alloc (&mod->cache, total, mod->name);
 	if (!mod->cache.data)
 		return false;
@@ -505,7 +505,7 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
 		{
 			HL_CalculateBones(0, frame, frametime, model->adjust, model->bones + i, animation + i, positions[0]);
 			HL_CalculateBones(3, frame, frametime, model->adjust, model->bones + i, animation + i, quaternions[0]);
-			
+
 			HL_CalculateBones(3, frame, frametime, model->adjust, model->bones + i, animation + i + model->header->numbones, quaternions[1]);
 
 			QuaternionSlerp(quaternions[0], quaternions[1], subblendfrac, blended);
@@ -646,12 +646,12 @@ void R_DrawHLModel(entity_t	*curent)
         /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 
-        for(v = 0; v < amodel->numverts; v++)			// Transform per the matrix 
+        for(v = 0; v < amodel->numverts; v++)			// Transform per the matrix
 		{
-            VectorTransform(verts[v], transform_matrix[bone[v]], transformed[v]);
+            VectorTransform(verts[v], (void *)transform_matrix[bone[v]], transformed[v]);
 //			glVertex3fv(verts[v]);
 //			glVertex3f(	verts[v][0]+10*verts[v][0],
-//						verts[v][1]+10*verts[v][1], 
+//						verts[v][1]+10*verts[v][1],
 //						verts[v][2]+10*verts[v][2]);
 		}
 
@@ -661,18 +661,18 @@ void R_DrawHLModel(entity_t	*curent)
 		//what's also weird is that the meshes use these up!
 /*		glDisable(GL_TEXTURE_2D);
 		glBegin(GL_LINES);
-		for(v = 0; v < amodel->unknown3[0]; v++)			// Transform per the matrix 
+		for(v = 0; v < amodel->unknown3[0]; v++)			// Transform per the matrix
 		{
 			VectorTransform(norms[v], transform_matrix[bone[v]], transformednorms[v]);
 			glVertex3fv(transformednorms[v]);
 			glVertex3f(	transformednorms[v][0]+10*transformednorms[v][0],
-						transformednorms[v][1]+10*transformednorms[v][1], 
+						transformednorms[v][1]+10*transformednorms[v][1],
 						transformednorms[v][2]+10*transformednorms[v][2]);
 		}
 		glEnd();
 		glEnable(GL_TEXTURE_2D);
 */
-		
+
 
         /* Draw each mesh */
         for(m = 0; m < amodel->nummesh; m++)

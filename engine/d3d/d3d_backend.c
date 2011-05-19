@@ -10,7 +10,7 @@
 extern LPDIRECT3DDEVICE9 pD3DDev9;
 
 //#define d3dcheck(foo) foo
-#define d3dcheck(foo) do{HRESULT err = foo; if (FAILED(err)) Sys_Error("D3D reported error on backend line %i - error 0x%x\n", __LINE__, err);} while(0)
+#define d3dcheck(foo) do{HRESULT err = foo; if (FAILED(err)) Sys_Error("D3D reported error on backend line %i - error 0x%x\n", __LINE__, (unsigned int)err);} while(0)
 
 #define MAX_TMUS 4
 
@@ -59,15 +59,15 @@ static void FTable_Init(void)
 		t = (double)i / (double)FTABLE_SIZE;
 
 		r_sintable[i] = sin(t * 2*M_PI);
-		
-		if (t < 0.25) 
+
+		if (t < 0.25)
 			r_triangletable[i] = t * 4.0;
 		else if (t < 0.75)
 			r_triangletable[i] = 2 - 4.0 * t;
 		else
 			r_triangletable[i] = (t - 0.75) * 4.0 - 1.0;
 
-		if (t < 0.5) 
+		if (t < 0.5)
 			r_squaretable[i] = 1.0f;
 		else
 			r_squaretable[i] = -1.0f;
@@ -165,7 +165,7 @@ static d3dbackend_t shaderstate;
 
 extern int be_maxpasses;
 
-enum 
+enum
 {
 	D3D_VDEC_COL4B = 1<<0,
 	//D3D_VDEC_NORMS = 1<<1,
@@ -327,7 +327,7 @@ void D3DBE_Reset(qboolean before)
 			IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, shaderstate.dynst_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &shaderstate.dynst_buff[tmu], NULL);
 		IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, shaderstate.dyncol_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &shaderstate.dyncol_buff, NULL);
 		IDirect3DDevice9_CreateIndexBuffer(pD3DDev9, shaderstate.dynidx_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, D3DFMT_QINDEX, D3DPOOL_DEFAULT, &shaderstate.dynidx_buff, NULL);
-	
+
 		for (i = 0; i < MAX_TMUS; i++)
 		{
 			shaderstate.tmuflags[i] = ~0;
@@ -522,7 +522,7 @@ static unsigned int allocindexbuffer(void **dest, unsigned int entries)
 		shaderstate.dynidx_offs += bytes;
 	}
 
-	d3dcheck(IDirect3DIndexBuffer9_Lock(shaderstate.dynidx_buff, offset, entries, dest, offset?D3DLOCK_NOOVERWRITE:D3DLOCK_DISCARD));
+	d3dcheck(IDirect3DIndexBuffer9_Lock(shaderstate.dynidx_buff, offset, (unsigned int)entries, dest, offset?D3DLOCK_NOOVERWRITE:D3DLOCK_DISCARD));
 	return offset/sizeof(index_t);
 }
 
@@ -690,7 +690,7 @@ static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 	}
 }
 
-static void colourgenbyte(const shaderpass_t *pass, int cnt, const byte_vec4_t *src, byte_vec4_t *dst, const mesh_t *mesh)
+static void colourgenbyte(const shaderpass_t *pass, int cnt, byte_vec4_t *src, byte_vec4_t *dst, const mesh_t *mesh)
 {
 	D3DCOLOR block;
 	switch (pass->rgbgen)
@@ -815,7 +815,7 @@ static void colourgenbyte(const shaderpass_t *pass, int cnt, const byte_vec4_t *
 	}
 }
 
-static void alphagenbyte(const shaderpass_t *pass, int cnt, const byte_vec4_t *src, byte_vec4_t *dst, const mesh_t *mesh)
+static void alphagenbyte(const shaderpass_t *pass, int cnt, byte_vec4_t *src, byte_vec4_t *dst, const mesh_t *mesh)
 {
 	/*FIXME: Skip this if the rgbgen did it*/
 	float *table;
@@ -901,7 +901,7 @@ static void alphagenbyte(const shaderpass_t *pass, int cnt, const byte_vec4_t *s
 			int i;
 			VectorSubtract(r_origin, shaderstate.curentity->origin, v1);
 
-			if (!Matrix3_Compare(shaderstate.curentity->axis, axisDefault))
+			if (!Matrix3_Compare(shaderstate.curentity->axis, (void *)axisDefault))
 			{
 				Matrix3_Multiply_Vec3(shaderstate.curentity->axis, v2, v2);
 			}
@@ -1010,7 +1010,7 @@ static unsigned int BE_GenerateColourMods(unsigned int vertcount, const shaderpa
 /*********************************************************************************************************/
 /*========================================== texture coord generation =====================================*/
 
-static void tcgen_environment(float *st, unsigned int numverts, float *xyz, float *normal) 
+static void tcgen_environment(float *st, unsigned int numverts, float *xyz, float *normal)
 {
 	int			i;
 	vec3_t		viewer, reflected;
@@ -1020,7 +1020,7 @@ static void tcgen_environment(float *st, unsigned int numverts, float *xyz, floa
 
 	RotateLightVector(shaderstate.curentity->axis, shaderstate.curentity->origin, r_origin, rorg);
 
-	for (i = 0 ; i < numverts ; i++, xyz += 3, normal += 3, st += 2 ) 
+	for (i = 0 ; i < numverts ; i++, xyz += 3, normal += 3, st += 2 )
 	{
 		VectorSubtract (rorg, xyz, viewer);
 		VectorNormalizeFast (viewer);
@@ -1161,7 +1161,8 @@ static void tcmod(const tcmod_t *tcmod, int cnt, const float *src, float *dst, c
 static void GenerateTCMods(const shaderpass_t *pass, float *dest)
 {
 	mesh_t *mesh;
-	unsigned int fvertex = 0, mno;
+	unsigned int mno;
+	// unsigned int fvertex = 0; //unused variable
 	int i;
 	float *src;
 	for (mno = 0; mno < shaderstate.nummeshes; mno++)
@@ -1188,7 +1189,7 @@ static void GenerateTCMods(const shaderpass_t *pass, float *dest)
 //end texture coords
 /*******************************************************************************************************************/
 
-static void deformgen(const deformv_t *deformv, int cnt, const vecV_t *src, vecV_t *dst, const mesh_t *mesh)
+static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *dst, const mesh_t *mesh)
 {
 	float *table;
 	int j, k;
@@ -1198,14 +1199,14 @@ static void deformgen(const deformv_t *deformv, int cnt, const vecV_t *src, vecV
 	{
 	default:
 	case DEFORMV_NONE:
-		if (src != (const avec4_t*)dst)
+		if (src != dst)
 			memcpy(dst, src, sizeof(*src)*cnt);
 		break;
 
 	case DEFORMV_WAVE:
 		if (!mesh->normals_array)
 		{
-			if (src != (const avec4_t*)dst)
+			if (src != dst)
 				memcpy(dst, src, sizeof(*src)*cnt);
 			return;
 		}
@@ -1227,7 +1228,7 @@ static void deformgen(const deformv_t *deformv, int cnt, const vecV_t *src, vecV
 	case DEFORMV_NORMAL:
 		//normal does not actually move the verts, but it does change the normals array
 		//we don't currently support that.
-		if (src != (const avec4_t*)dst)
+		if (src != dst)
 			memcpy(dst, src, sizeof(*src)*cnt);
 /*
 		args[0] = deformv->args[1] * shaderstate.curtime;
@@ -1310,7 +1311,7 @@ static void deformgen(const deformv_t *deformv, int cnt, const vecV_t *src, vecV
 			for (j = 2; j >= 0; j--)
 			{
 				quad[3] = (float *)(dst + mesh->indexes[k+3+j]);
-				if (!VectorEquals (quad[3], quad[0]) && 
+				if (!VectorEquals (quad[3], quad[0]) &&
 					!VectorEquals (quad[3], quad[1]) &&
 					!VectorEquals (quad[3], quad[2]))
 				{
@@ -1415,7 +1416,7 @@ static void deformgen(const deformv_t *deformv, int cnt, const vecV_t *src, vecV
 			for (j = 0; j < 4; j++)
 			{
 				VectorSubtract(quad[j], rot_centre, tv);
-				Matrix3_Multiply_Vec3(result, tv, quad[j]);
+				Matrix3_Multiply_Vec3((void *)result, tv, quad[j]);
 				VectorAdd(rot_centre, quad[j], quad[j]);
 			}
 		}
@@ -1488,8 +1489,8 @@ static qboolean BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vert
 	}
 	shaderstate.lastpasscount = tmu;
 
-//	if (meshchain->normals_array && 
-//		meshchain->2 && 
+//	if (meshchain->normals_array &&
+//		meshchain->2 &&
 //		meshchain->tnormals_array)
 //		vdec |= D3D_VDEC_NORMS;
 
@@ -1506,12 +1507,12 @@ static qboolean BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vert
 static void BE_RenderMeshProgram(unsigned int vertcount, unsigned int idxfirst, unsigned int idxcount)
 {
 	shader_t *s = shaderstate.curshader;
-	shaderpass_t *pass = s->passes;
+	//shaderpass_t *pass = s->passes; //unused variable
 
 	IDirect3DDevice9_SetVertexShader(pD3DDev9, s->prog->handle[0].hlsl.vert);
 	IDirect3DDevice9_SetPixelShader(pD3DDev9, s->prog->handle[0].hlsl.frag);
 
-//	IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, 
+//	IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9,
 	d3dcheck(IDirect3DDevice9_DrawIndexedPrimitive(pD3DDev9, D3DPT_TRIANGLELIST, 0, 0, vertcount, idxfirst, idxcount/3));
 
 	IDirect3DDevice9_SetVertexShader(pD3DDev9, NULL);
@@ -1554,7 +1555,7 @@ static void BE_DrawMeshChain_Internal(void)
 	unsigned int mno;
 	unsigned int passno = 0;
 	shaderpass_t *pass = shaderstate.curshader->passes;
-	extern cvar_t r_polygonoffset_submodel_offset, r_polygonoffset_submodel_factor;
+	extern cvar_t r_polygonoffset_submodel_offset; // r_polygonoffset_submodel_factor // unused variable
 	float pushdepth;
 //	float pushfactor;
 
@@ -1672,7 +1673,7 @@ void D3DBE_GenBrushModelVBO(model_t *mod)
 	char *vboedata;
 	mesh_t *m;
 	char *vbovdata;
-	
+
 	if (!mod->numsurfaces)
 		return;
 
@@ -2198,7 +2199,7 @@ static void TransformDir(vec3_t in, vec3_t planea[3], vec3_t viewa[3], vec3_t re
 		VectorMA(result, d, viewa[i], result);
 	}
 }
-static R_RenderScene(void)
+static void R_RenderScene(void)
 {
 	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)r_refdef.m_projection);
 	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)r_refdef.m_view);

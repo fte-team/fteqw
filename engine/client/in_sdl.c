@@ -294,10 +294,6 @@ void IN_ReInit (void)
 
 void IN_Init (void)
 {
-	#ifdef IN_XFLIP
-	cvar_t	in_xflip = SCVAR("in_xflip", "0");
-	#endif
-
 #ifdef IN_XFLIP
 	Cvar_Register (&in_xflip, "Input Controls");
 #endif
@@ -353,24 +349,4 @@ void IN_Commands (void)	//used to Cbuf_AddText joystick button events in windows
 }
 
 
-/*
-===========
-IN_UpdateClipCursor
-===========
-*/
-void IN_UpdateClipCursor (void)
-{
 
-	if (mouseinitialized && mouseactive && !dinput)
-	{
-		ClipCursor (&window_rect);
-	}
-}
-
-void IN_RawInput_Read(HANDLE in_device_handle)
-{
-}
-
-static int MapKey (int vkey)
-{
-}

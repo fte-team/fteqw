@@ -2444,7 +2444,7 @@ qboolean FTENET_IRCConnect_GetPacket(ftenet_generic_connection_t *gcon)
 		}
 		else
 		{
-			code = strtoul(s, (char **  __restrict__)&s, 10);
+			code = strtoul(s, (char **)&s, 10);
 			switch (code)
 			{
 			case 001:

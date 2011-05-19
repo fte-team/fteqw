@@ -265,7 +265,7 @@ int Plug_SystemCallsVM(void *offset, quintptr_t mask, int fn, const int *arg)
 	fn = fn+1;
 
 	if (fn>=0 && fn < numplugbuiltins && plugbuiltins[fn].func!=NULL)
-		return plugbuiltins[fn].func(offset, mask, (const long int *)args);
+		return plugbuiltins[fn].func(offset, mask, (const long*)args);
 #undef args
 	Sys_Error("QVM Plugin tried calling invalid builtin %i", fn);
 	return 0;

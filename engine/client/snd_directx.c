@@ -528,7 +528,7 @@ Direct-Sound support
 */
 int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 {
-	extern cvar_t snd_inactive; // snd_eax unused
+	extern cvar_t snd_inactive, snd_eax;
 	DSBUFFERDESC	dsbuf;
 	DSBCAPS			dsbcaps;
 	DWORD			dwSize, dwWrite;

@@ -268,7 +268,7 @@ static void CD_f (void)
 	}
 }
 
-
+/*
 LONG CDAudio_MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	if (lParam != wDeviceID)
@@ -302,7 +302,7 @@ LONG CDAudio_MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 	return 0;
 }
-
+*/
 
 void BGMVolume_Callback(struct cvar_s *var, char *oldvalue)
 {

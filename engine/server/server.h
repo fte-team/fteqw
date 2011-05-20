@@ -498,6 +498,7 @@ typedef struct client_s
 
 	qboolean		csqcactive;
 #ifdef PROTOCOL_VERSION_FTE
+	qboolean        pextknown;
 	unsigned long	fteprotocolextensions;
 	unsigned long	fteprotocolextensions2;
 #endif

@@ -712,7 +712,7 @@ static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		return e->light_known-1;
 
 	e->light_dir[0] = 0; e->light_dir[1] = 1; e->light_dir[2] = 0;
-	if (clmodel->engineflags & MDLF_FLAME)
+	if (clmodel->engineflags & MDLF_FLAME || r_fullbright.ival)
 	{
 		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;
 		e->light_range[0] = e->light_range[1] = e->light_range[2] = 0;
@@ -1889,6 +1889,11 @@ void BE_GenModelBatches(batch_t **batches)
 
 	if (!r_drawentities.ival)
 		return;
+
+#if defined(TERRAIN)
+	if (cl.worldmodel && cl.worldmodel->type == mod_heightmap)
+		GL_DrawHeightmapModel(batches, &r_worldentity);
+#endif
 
 	// draw sprites seperately, because of alpha blending
 	for (i=0 ; i<cl_numvisedicts ; i++)

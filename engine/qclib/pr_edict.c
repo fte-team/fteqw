@@ -502,10 +502,17 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		sprintf (line, "%s", PR_StringToNative(progfuncs, val->string));
 		break;
 	case ev_entity:
-//		if (val->edict >= maxedicts)
+		fielddef = ED_FindField(progfuncs, "classname");
+		if (fielddef && val->edict < sv_num_edicts)
+		{
+			edictrun_t *ed;
+			string_t *v;
+			ed = (edictrun_t *)EDICT_NUM(progfuncs, val->edict);
+			v = (string_t *)((char *)edvars(ed) + fielddef->ofs*4);
+			sprintf (line, "entity %i(%s)", val->edict, PR_StringToNative(progfuncs, *v));
+		}
+		else
 			sprintf (line, "entity %i", val->edict);
-//		else
-//			sprintf (line, "entity %i", NUM_FOR_EDICT(progfuncs, (struct edict_s *)PROG_TO_EDICT(progfuncs, val->edict)) );
 		break;
 	case ev_function:
 		if (!val->function)
@@ -3095,7 +3102,7 @@ retry:
 	if (progfuncs->stringtablesize + progfuncs->stringtable < pr_strings + pr_progs->numstrings)
 		progfuncs->stringtablesize = (pr_strings + pr_progs->numstrings) - progfuncs->stringtable;
 
-	eval = PR_FindGlobal(progfuncs, "thisprogs", progstype);
+	eval = PR_FindGlobal(progfuncs, "thisprogs", progstype, NULL);
 	if (eval)
 		eval->prog = progstype;
 
@@ -3157,7 +3164,7 @@ retry:
 		break;
 	}
 
-	eval = PR_FindGlobal(progfuncs, "__ext__fasttrackarrays", PR_CURRENT);
+	eval = PR_FindGlobal(progfuncs, "__ext__fasttrackarrays", PR_CURRENT, NULL);
 	if (eval)	//we support these opcodes
 		eval->_float = true;
 

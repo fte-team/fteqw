@@ -406,6 +406,13 @@ void SVNQ_New_f (void)
 	char			message[2048];
 	int i;
 
+	if (!host_client->pextknown)
+	{
+		MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
+		MSG_WriteString (&host_client->netchan.message, "cmd pext\n");
+		return;
+	}
+
 	MSG_WriteByte (&host_client->netchan.message, svc_print);
 	sprintf (message, "%c\n%s server\n", 2, version_string());
 	MSG_WriteString (&host_client->netchan.message,message);
@@ -436,6 +443,18 @@ void SVNQ_New_f (void)
 	}
 
 	MSG_WriteByte (&host_client->netchan.message, svc_serverdata);
+
+	if (host_client->fteprotocolextensions)
+	{
+		MSG_WriteLong (&host_client->netchan.message, PROTOCOL_VERSION_FTE);
+		MSG_WriteLong (&host_client->netchan.message, host_client->fteprotocolextensions);
+	}
+	if (host_client->fteprotocolextensions2)
+	{
+		MSG_WriteLong (&host_client->netchan.message, PROTOCOL_VERSION_FTE2);
+		MSG_WriteLong (&host_client->netchan.message, host_client->fteprotocolextensions2);
+	}
+
 	switch(host_client->protocol)
 	{
 #ifdef NQPROT
@@ -1119,9 +1138,15 @@ void SV_PreSpawn_f (void)
 		if (!sv.demofile || (sv.demofile && !sv.democausesreconnect))	//demo playing causes no check. If it's the return level, check anyway to avoid that loophole.
 #endif
 		{
+			char *msg;
 			SV_ClientTPrintf (host_client, PRINT_HIGH,
 				STL_MAPCHEAT,
 				sv.modelname, check, sv.world.worldmodel->checksum, sv.world.worldmodel->checksum2);
+
+
+			msg = va("\n//kickfile \"%s\"\n", sv.modelname);
+			ClientReliableWrite_Begin (host_client, svc_stufftext, 3+strlen(msg));
+			ClientReliableWrite_String (host_client, msg);
 			SV_DropClient (host_client);
 			return;
 		}
@@ -1567,7 +1592,7 @@ void SV_Begin_Core(client_t *split)
 			if (svprogfuncs)
 			{
 				eval_t *eval, *eval2;
-				eval = PR_FindGlobal(svprogfuncs, "ClientReEnter", 0);
+				eval = PR_FindGlobal(svprogfuncs, "ClientReEnter", 0, NULL);
 				if (eval && split->spawninfo)
 				{
 					globalvars_t *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
@@ -4762,6 +4787,37 @@ void SVNQ_Ping_f(void)
 	}
 }
 
+void SV_Pext_f(void)
+{
+	int i;
+	char *tag;
+	char *val;
+
+	if (host_client->pextknown)
+		return;
+	host_client->pextknown = true;
+
+	for (i = 1; i < Cmd_Argc(); )
+	{
+		tag = Cmd_Argv(i++);
+		val = Cmd_Argv(i++);
+		switch(strtoul(tag, NULL, 0))
+		{
+		case PROTOCOL_VERSION_FTE:
+			host_client->fteprotocolextensions = strtoul(val, NULL, 0) & svs.fteprotocolextensions;
+			break;
+		case PROTOCOL_VERSION_FTE2:
+			host_client->fteprotocolextensions2 = strtoul(val, NULL, 0) & svs.fteprotocolextensions2;
+			break;
+		}
+	}
+
+	if (ISNQCLIENT(host_client))
+		SVNQ_New_f();
+	else
+		SV_New_f();
+}
+
 ucmd_t nqucmds[] =
 {
 	{"new",			SVNQ_New_f, true},
@@ -4801,6 +4857,15 @@ ucmd_t nqucmds[] =
 
 #ifdef SVRANKING
 	{"topten",		Rank_ListTop10_f},
+#endif
+
+	{"pext",        SV_Pext_f},
+
+#ifdef VOICECHAT
+	{"voicetarg", SV_Voice_Target_f},
+	{"vignore", SV_Voice_Ignore_f},	/*ignore/mute specific player*/
+	{"muteall", SV_Voice_MuteAll_f},	/*disables*/
+	{"unmuteall", SV_Voice_UnmuteAll_f}, /*reenables*/
 #endif
 
 	{NULL, NULL}
@@ -6284,6 +6349,12 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 			if (cl->state == cs_zombie)
 				return;	// disconnect command
 			break;
+
+#ifdef PEXT2_VOICECHAT
+		case clc_voicechat:
+			SV_VoiceReadPacket();
+			break;
+#endif
 		}
 	}
 }
@@ -6474,6 +6545,12 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 		case clcdp_ackdownloaddata:
 			SV_DarkPlacesDownloadAck(host_client);
 			break;
+
+#ifdef PEXT2_VOICECHAT
+		case clc_voicechat:
+			SV_VoiceReadPacket();
+			break;
+#endif
 		}
 	}
 }

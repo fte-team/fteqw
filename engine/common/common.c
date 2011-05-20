@@ -89,6 +89,8 @@ static char	*safeargvs[NUM_SAFE_ARGVS] =
 
 cvar_t	registered = CVARD("registered","0","Set if quake's pak1.pak is available");
 cvar_t	gameversion = CVARFD("gameversion","", CVAR_SERVERINFO, "gamecode version for server browsers");
+cvar_t	gameversion_min = CVARD("gameversion_min","", "gamecode version for server browsers");
+cvar_t	gameversion_max = CVARD("gameversion_max","", "gamecode version for server browsers");
 cvar_t	com_gamename = CVARD("com_gamename", "", "The game name used for dpmaster queries");
 cvar_t	com_modname = CVARD("com_modname", "", "dpmaster information");
 cvar_t	com_parseutf8 = CVARD("com_parseutf8", "0", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts.");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
@@ -3313,6 +3315,8 @@ void COM_Init (void)
 
 	Cvar_Register (&registered, "Copy protection");
 	Cvar_Register (&gameversion, "Gamecode");
+	Cvar_Register (&gameversion_min, "Gamecode");
+	Cvar_Register (&gameversion_max, "Gamecode");
 	Cvar_Register (&com_parseutf8, "Internationalisation");
 	com_parseutf8.ival = 1;
 

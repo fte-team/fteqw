@@ -1093,15 +1093,13 @@ void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t
 
 int SV_HullNumForPlayer(int h2hull, float *mins, float *maxs)
 {
-	vec3_t size;
 	int diff;
 	int best;
 	int hullnum, i;
 
 	if (sv.world.worldmodel->fromgame != fg_quake)
 	{
-		VectorSubtract (maxs, mins, size);
-		return size[2];	//clients are expected to decide themselves.
+		return -mins[2] + 32;	//clients are expected to decide themselves.
 	}
 
 	if (h2hull)

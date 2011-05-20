@@ -1740,6 +1740,9 @@ void M_Menu_Singleplayer_Cheats_f (void)
 	extern cvar_t sv_gravity, sv_cheats, sv_maxspeed, skill;
 	extern cvar_t host_mapname;
 	#endif
+	#ifdef TEXTEDITOR
+	extern cvar_t debugger;
+	#endif
 	int y;
 	menu_t *menu = M_Options_Title(&y, sizeof(*info));
 	info = menu->data;
@@ -1764,6 +1767,9 @@ void M_Menu_Singleplayer_Cheats_f (void)
 	info->skillcombo = MC_AddCombo(menu,16, y,	"         Difficulty", skilloptions, currentskill);	y+=8;
 	info->mapcombo = MC_AddCombo(menu,16, y,	"                Map", mapoptions_q1, currentmap);	y+=8;
 	MC_AddCheckBox(menu,	16, y,		"             Cheats", &sv_cheats,0);	y+=8;
+	#endif
+	#ifdef TEXTEDITOR
+	MC_AddCheckBox(menu,	16, y,		"           Debugger", &debugger, 0); y+=8;
 	#endif
 	MC_AddConsoleCommand(menu, 16, y,	"     Toggle Godmode", "god\n"); y+=8;
 	MC_AddConsoleCommand(menu, 16, y,	"     Toggle Flymode", "fly\n"); y+=8;

@@ -111,9 +111,10 @@ void R2D_Init(void)
 
 	draw_backtile = R_RegisterShader("gfx/backtile.lmp",
 		"{\n"
-#ifdef USE_EGL
-			"program default2d\n"
-#endif
+			"if $nofixed\n"
+			"[\n"
+				"program default2d\n"
+			"]\n"
 			"nomipmaps\n"
 			"{\n"
 				"map $diffuse\n"
@@ -219,9 +220,10 @@ void R2D_Init(void)
 	);
 	shader_crosshair = R_RegisterShader("crosshairshader",
 		"{\n"
-#ifdef USE_EGL
-			"program default2d\n"
-#endif
+			"if $nofixed\n"
+			"[\n"
+				"program default2d\n"
+			"]\n"
 			"nomipmaps\n"
 			"{\n"
 				"map $diffuse\n"
@@ -257,9 +259,9 @@ mpic_t	*R2D_SafeCachePic (char *path)
 	if (!qrenderer)
 		return NULL;
 	s = R_RegisterPic(path);
-	if (s->width)
-		return s;
-	return NULL;
+	if (s->flags & SHADER_NOIMAGE)
+		return NULL;
+	return s;
 }
 
 
@@ -270,7 +272,7 @@ mpic_t *R2D_SafePicFromWad (char *name)
 	shader_t *s;
 	snprintf(newname, sizeof(newname), "gfx/%s.lmp", name);
 	s = R_RegisterPic(newname);
-	if (s->width)
+	if (!(s->flags & SHADER_NOIMAGE))
 		return s;
 	failedpic = name;
 	return NULL;
@@ -400,9 +402,10 @@ void R2D_TransPicTranslate (int x, int y, int width, int height, qbyte *pic, qby
 	{
 		translate_texture = R_AllocNewTexture(64, 64);
 		translate_shader = R_RegisterShader("translatedpic", "{\n"
-#ifdef USE_EGL
-			"program default2d\n"
-#endif
+			"if $nofixed\n"
+			"[\n"
+				"program default2d\n"
+			"]\n"
 			"nomipmaps\n"
 			"{\n"
 				"map $diffuse\n"

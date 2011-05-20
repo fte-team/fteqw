@@ -445,7 +445,7 @@ var(unsigned int, addressablesize);
 } prinst_t;
 extern vec3_t vec3_origin;
 
-eval_t *PR_FindGlobal(progfuncs_t *prfuncs, char *globname, progsnum_t pnum);
+eval_t *PR_FindGlobal(progfuncs_t *prfuncs, char *globname, progsnum_t pnum, etype_t *type);
 ddef16_t *ED_FindTypeGlobalFromProgs16 (progfuncs_t *progfuncs, char *name, progsnum_t prnum, int type);
 ddef32_t *ED_FindTypeGlobalFromProgs32 (progfuncs_t *progfuncs, char *name, progsnum_t prnum, int type);
 ddef16_t *ED_FindGlobalFromProgs16 (progfuncs_t *progfuncs, char *name, progsnum_t prnum);

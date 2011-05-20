@@ -928,6 +928,12 @@ qboolean TransformedTrace (struct model_s *model, int hulloverride, int frame, v
 	trace->inopen = true;	//probably wrong...
 	VectorCopy (end, trace->endpos);
 
+	if (IS_NAN(end[0]) || IS_NAN(end[1]) || IS_NAN(end[2]))
+	{
+		Con_DPrintf("Nan in traceline\n");
+		return false;
+	}
+
 	// don't rotate non bsp ents. Too small to bother.
 	if (model)
 	{

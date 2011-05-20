@@ -90,6 +90,8 @@ progsnum_t PR_LoadProgs(progfuncs_t *progfuncs, char *s, int headercrc, builtin_
 			{
 				current_progstate->builtins = builtins;
 				current_progstate->numbuiltins = numbuiltins;
+				if (a <= progfuncs->numprogs)
+					progfuncs->numprogs = a+1;
 
 #ifdef QCJIT
 				if (prinst->usejit)

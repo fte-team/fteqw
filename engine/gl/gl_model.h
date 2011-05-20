@@ -925,7 +925,7 @@ qbyte	*Mod_LeafPVS (mleaf_t *leaf, model_t *model);
 
 
 
-
+qboolean Heightmap_Edit(model_t *mod, int action, float *pos, float radius, float quant);
 
 
 #ifdef Q2BSPS

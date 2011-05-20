@@ -2666,9 +2666,15 @@ void CL_ReadPackets (void)
 	if (cls.state >= ca_connected
 	 && realtime - cls.netchan.last_received > cl_timeout.value)
 	{
-		Con_TPrintf (TLC_SERVERTIMEOUT);
-		CL_Disconnect ();
-		return;
+#ifndef CLIENTONLY
+		/*don't timeout when we're the actual server*/
+		if (!sv.state)
+#endif
+		{
+			Con_TPrintf (TLC_SERVERTIMEOUT);
+			CL_Disconnect ();
+			return;
+		}
 	}
 
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)

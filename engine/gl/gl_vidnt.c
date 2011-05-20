@@ -1001,7 +1001,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 
 			if ((opengl3 = qwglCreateContextAttribsARB(maindc, NULL, attribs)))
 			{
-				qwglMakeCurrent(NULL, NULL);
+				qwglMakeCurrent(maindc, NULL);
 				qwglDeleteContext(baseRC);
 
 				baseRC = opengl3;

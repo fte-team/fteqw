@@ -1082,7 +1082,7 @@ void SVC_GetInfo (char *challenge, int fullstatus)
 
 	if (svprogfuncs)
 	{
-		v = PR_FindGlobal(svprogfuncs, "worldstatus", PR_ANY);
+		v = PR_FindGlobal(svprogfuncs, "worldstatus", PR_ANY, NULL);
 		if (v)
 			gamestatus = PR_GetString(svprogfuncs, v->string);
 		else

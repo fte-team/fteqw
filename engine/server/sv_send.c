@@ -1349,7 +1349,7 @@ void SV_QCStatGlobal(int type, char *globalname, int statnum)
 	if (type < 0)
 		return;
 
-	glob = svprogfuncs->FindGlobal(svprogfuncs, globalname, PR_ANY);
+	glob = svprogfuncs->FindGlobal(svprogfuncs, globalname, PR_ANY, NULL);
 	if (!glob)
 	{
 		Con_Printf("couldn't find named global for csqc stat (%s)\n", globalname);
@@ -1398,6 +1398,7 @@ void SV_ClearQCStats(void)
 	numqcstats = 0;
 }
 
+extern cvar_t dpcompat_stats;
 void SV_UpdateQCStats(edict_t	*ent, int *statsi, char **statss, float *statsf)
 {
 	char *s;
@@ -1424,6 +1425,11 @@ void SV_UpdateQCStats(edict_t	*ent, int *statsi, char **statss, float *statsf)
 		{
 		case ev_float:
 			statsf[qcstats[i].statnum] = eval->_float;
+			break;
+		case ev_vector:
+			statsf[qcstats[i].statnum+0] = eval->_vector[0];
+			statsf[qcstats[i].statnum+1] = eval->_vector[1];
+			statsf[qcstats[i].statnum+2] = eval->_vector[2];
 			break;
 		case ev_integer:
 			statsi[qcstats[i].statnum] = eval->_int;
@@ -1607,31 +1613,6 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 #ifdef PEXT_CSQC
 			if ((client->fteprotocolextensions & PEXT_CSQC) && (sv.csqcchecksum || progstype == PROG_H2))
 			{
-				if (statsf[i] && statsf[i] - (float)(int)statsf[i] == 0)
-				{
-					statsi[i] = statsf[i];
-					statsf[i] = 0;
-				}
-				else if (statsf[i] != client->statsf[i])
-				{
-					client->statsf[i] = statsf[i];
-//					client->statsi[i] = statsi[i];
-					if (pnum)
-					{
-						ClientReliableWrite_Begin(client->controller, svcfte_choosesplitclient, 8);
-						ClientReliableWrite_Byte(client->controller, pnum);
-						ClientReliableWrite_Byte(client->controller, svcfte_updatestatfloat);
-						ClientReliableWrite_Byte(client->controller, i);
-						ClientReliableWrite_Float(client->controller, statsf[i]);
-					}
-					else
-					{
-						ClientReliableWrite_Begin(client, svcfte_updatestatfloat, 6);
-						ClientReliableWrite_Byte(client, i);
-						ClientReliableWrite_Float(client, statsf[i]);
-					}
-				}
-
 				if (statss[i] || client->statss[i])
 				if (strcmp(statss[i]?statss[i]:"", client->statss[i]?client->statss[i]:""))
 				{
@@ -1652,14 +1633,63 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 					}
 				}
 			}
-			else
+			if (dpcompat_stats.ival)
+			{
+				if (statsf[i])
+				{
+					statsi[i] = statsf[i];
+					statsf[i] = 0;
+				}
+			}
 #endif
-				if (!statsi[i])
-				statsi[i] = statsf[i];
-			if (statsi[i] != client->statsi[i])
+
+			if (statsf[i])
+			{
+				if (statsf[i] != client->statsf[i])
+				{
+					if (statsf[i] - (float)(int)statsf[i] == 0 && statsf[i] >= 0 && statsf[i] <= 255)
+					{
+						if (pnum)
+						{
+							ClientReliableWrite_Begin(client->controller, svcfte_choosesplitclient, 5);
+							ClientReliableWrite_Byte(client->controller, pnum);
+							ClientReliableWrite_Byte(client->controller, svc_updatestat);
+							ClientReliableWrite_Byte(client->controller, i);
+							ClientReliableWrite_Byte(client->controller, statsf[i]);
+						}
+						else
+						{
+							ClientReliableWrite_Begin(client, svc_updatestat, 3);
+							ClientReliableWrite_Byte(client, i);
+							ClientReliableWrite_Byte(client, statsf[i]);
+						}
+					}
+					else
+					{
+						if (pnum)
+						{
+							ClientReliableWrite_Begin(client->controller, svcfte_choosesplitclient, 8);
+							ClientReliableWrite_Byte(client->controller, pnum);
+							ClientReliableWrite_Byte(client->controller, svcfte_updatestatfloat);
+							ClientReliableWrite_Byte(client->controller, i);
+							ClientReliableWrite_Float(client->controller, statsf[i]);
+						}
+						else
+						{
+							ClientReliableWrite_Begin(client, svcfte_updatestatfloat, 6);
+							ClientReliableWrite_Byte(client, i);
+							ClientReliableWrite_Float(client, statsf[i]);
+						}
+					}
+					client->statsf[i] = statsf[i];
+					/*make sure statsf is correct*/
+					client->statsi[i] = statsf[i];
+				}
+			}
+			else if (statsi[i] != client->statsi[i])
 			{
 				client->statsi[i] = statsi[i];
-				client->statsf[i] = 0;
+				client->statsf[i] = statsi[i];
 
 				if (statsi[i] >=0 && statsi[i] <= 255)
 				{

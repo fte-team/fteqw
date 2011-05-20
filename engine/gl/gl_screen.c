@@ -117,7 +117,7 @@ void GLSCR_UpdateScreen (void)
 		R2D_BrightenScreen();
 
 		if (key_dest == key_console)
-			Con_DrawConsole(vid_conheight.value/2, false);
+			Con_DrawConsole(vid.height/2, false);
 		GL_EndRendering ();	
 		GL_DoSwap();
 		RSpeedEnd(RSPEED_TOTALREFRESH);

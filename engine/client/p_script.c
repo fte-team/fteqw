@@ -1915,6 +1915,12 @@ static void P_LoadParticleSet(char *name, qboolean first)
 		}
 	}
 
+	if (!strcmp(name, "effectinfo"))
+	{
+		P_ImportEffectInfo_f();
+		return;
+	}
+
 
 	FS_LoadFile(va("particles/%s.cfg", name), (void**)&file);
 	if (!file)

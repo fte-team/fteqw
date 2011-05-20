@@ -44,8 +44,6 @@ struct wedict_s
 #define PF_cin_getstate PF_Fixme
 #define PF_cin_restart PF_Fixme
 #define PF_drawline PF_Fixme
-#define PF_drawcolorcodedstring PF_Fixme
-#define PF_uri_get PF_Fixme
 #define PF_gecko_create PF_Fixme
 #define PF_gecko_destroy PF_Fixme
 #define PF_gecko_navigate PF_Fixme
@@ -53,7 +51,6 @@ struct wedict_s
 #define PF_gecko_movemouse PF_Fixme
 #define PF_gecko_resize PF_Fixme
 #define PF_gecko_get_texture_extent PF_Fixme
-#define PF_uri_get PF_Fixme
 
 #define PF_pointsound PF_Fixme
 #define PF_getsurfacepointattribute PF_Fixme
@@ -141,6 +138,7 @@ void QCBUILTIN PF_atan (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_atan2 (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_tan (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_localcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_sprintf (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_random (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_fclose (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_fputs (progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -166,13 +164,15 @@ void QCBUILTIN PF_crc16 (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cvar_type (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_uri_escape  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_uri_unescape  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_uri_get  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_itos (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_stoi (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_stoh (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_htos (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PR_fclose_progs (progfuncs_t *prinst);
 char *PF_VarString (progfuncs_t *prinst, int	first, struct globalvars_s *pr_globals);
-
+void PR_AutoCvarSetup(progfuncs_t *prinst);
+void PR_AutoCvar(progfuncs_t *prinst, cvar_t *var);
 
 
 
@@ -244,6 +244,8 @@ void QCBUILTIN PF_CL_drawresetcliparea (progfuncs_t *prinst, struct globalvars_s
 void QCBUILTIN PF_CL_drawgetimagesize (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_CL_stringwidth (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_CL_drawsubpic (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+
+void QCBUILTIN PF_cl_getmousepos (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void QCBUILTIN PF_cl_keynumtostring (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_findkeysforcommand (progfuncs_t *prinst, struct globalvars_s *pr_globals);

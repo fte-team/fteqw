@@ -15,6 +15,7 @@ static char *cvargroup_progs = "Progs variables";
 cvar_t pr_brokenfloatconvert = SCVAR("pr_brokenfloatconvert", "0");
 cvar_t pr_tempstringcount = SCVAR("pr_tempstringcount", "");//"16");
 cvar_t pr_tempstringsize = SCVAR("pr_tempstringsize", "4096");
+cvar_t  dpcompat_stats = CVAR("dpcompat_stats", "0");
 
 static char *strtoupper(char *s)
 {
@@ -54,6 +55,7 @@ void PF_Common_RegisterCvars(void)
 	Cvar_Register (&pr_brokenfloatconvert, cvargroup_progs);
 	Cvar_Register (&pr_tempstringcount, cvargroup_progs);
 	Cvar_Register (&pr_tempstringsize, cvargroup_progs);
+	Cvar_Register (&dpcompat_stats, cvargroup_progs);
 }
 
 char *Translate(char *message);
@@ -1951,6 +1953,15 @@ void QCBUILTIN PF_uri_unescape  (progfuncs_t *prinst, struct globalvars_s *pr_gl
 	RETURN_TSTRING(resultbuf);
 }
 
+// uri_get() gets content from an URL and calls a callback "uri_get_callback" with it set as string; an unique ID of the transfer is returned
+// returns 1 on success, and then calls the callback with the ID, 0 or the HTTP status code, and the received data in a string
+void QCBUILTIN PF_uri_get  (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	Con_Printf("PF_uri_get: stub\n");
+
+	G_FLOAT(OFS_RETURN) = 0;
+}
+
 ////////////////////////////////////////////////////
 //Console functions
 
@@ -2444,7 +2455,7 @@ void QCBUILTIN PF_externset (progfuncs_t *prinst, struct globalvars_s *pr_global
 	char *varname = PF_VarString(prinst, 2, pr_globals);
 	eval_t *var;
 
-	var = prinst->FindGlobal(prinst, varname, n);
+	var = PR_FindGlobal(prinst, varname, n, NULL);
 
 	if (var)
 		var->_int = v;
@@ -2456,7 +2467,7 @@ void QCBUILTIN PF_externvalue (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	char *varname = PF_VarString(prinst, 1, pr_globals);
 	eval_t *var;
 
-	var = prinst->FindGlobal(prinst, varname, n);
+	var = prinst->FindGlobal(prinst, varname, n, NULL);
 
 	if (var)
 	{
@@ -2610,11 +2621,105 @@ void QCBUILTIN PF_localcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals
 		Cbuf_AddText (str, RESTRICT_INSECURE);
 }
 
+void QCBUILTIN PF_sprintf (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char result[1024];
+	char *fmt = PR_GetStringOfs(prinst, OFS_PARM0);
 
+	Con_Printf("PF_sprintf: stub\n");
+	Q_strncpyz(result, fmt, sizeof(result));
 
+	RETURN_TSTRING(result);
+}
 
+#define DEF_SAVEGLOBAL (1u<<15)
+static void PR_AutoCvarApply(progfuncs_t *prinst, eval_t *val, etype_t type, cvar_t *var)
+{
+	switch(type & ~DEF_SAVEGLOBAL)
+	{
+	case ev_float:
+		val->_float = var->value;
+		break;
+	case ev_integer:
+		val->_int = var->ival;
+		break;
+	case ev_string:
+		PR_RemoveProgsString(prinst, val->_int);
+		val->_int = PR_SetString(prinst, var->string);
+		break;
+	case ev_vector:
+		{
+			char res[128];
+			char *vs = var->string;
+			vs = COM_ParseOut(vs, res, sizeof(res));
+			val->_vector[0] = atof(com_token);
+			vs = COM_ParseOut(vs, res, sizeof(res));
+			val->_vector[1] = atof(com_token);
+			vs = COM_ParseOut(vs, res, sizeof(res));
+			val->_vector[2] = atof(com_token);
+		}
+		break;
+	}
+}
+/*called when a var has changed*/
+void PR_AutoCvar(progfuncs_t *prinst, cvar_t *var)
+{
+	char *gname;
+	eval_t *val;
+	etype_t type;
+	int n, p;
+	for (n = 0; n < 2; n++)
+	{
+		gname = n?var->name2:var->name;
+		if (!gname)
+			continue;
+		gname = va("autocvar_%s", gname);
+		
+		for (p = 0; p < prinst->numprogs; p++)
+		{
+			val = PR_FindGlobal(prinst, gname, p, &type);
+			if (val)
+				PR_AutoCvarApply(prinst, val, type, var);
+		}
+	}
+}
 
+void PR_FoundPrefixedGlobals(progfuncs_t *progfuncs, char *name, eval_t *val, etype_t type)
+{
+	cvar_t *var;
+	char *vals;
+	name += 9; //autocvar_
+	
+	switch(type & ~DEF_SAVEGLOBAL)
+	{
+	case ev_float:
+		vals = va("%f", val->_float);
+		break;
+	case ev_integer:
+		vals = va("%i", val->_int);
+		break;
+	case ev_vector:
+		vals = va("%f %f %f", val->_vector[0], val->_vector[1], val->_vector[2]);
+		break;
+	case ev_string:
+		vals = PR_GetString(progfuncs, val->string);
+		break;
+	default:
+		return;
+	}
+	var = Cvar_Get(name, vals, 0, "autocvars");
+	if (!var)
+		return;
 
+	var->flags |= CVAR_TELLGAMECODE;
+
+	PR_AutoCvarApply(progfuncs, val, type, var);
+}
+
+void PR_AutoCvarSetup(progfuncs_t *prinst)
+{
+	prinst->FindPrefixGlobals (prinst, "autocvar_", PR_FoundPrefixedGlobals);
+}
 
 lh_extension_t QSG_Extensions[] = {
 

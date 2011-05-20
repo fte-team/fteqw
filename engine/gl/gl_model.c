@@ -659,6 +659,12 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 			break;
 #endif
 
+#ifdef INTERQUAKEMODELS
+		case ('I'<<0)+('N'<<8)+('T'<<16)+('E'<<24):
+			if (!Mod_LoadInterQuakeModel (mod, buf))
+				continue;
+			break;
+#endif
 
 //Binary Sprites
 #ifdef SP2MODELS
@@ -3236,8 +3242,9 @@ void * RMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum,
 	pspriteframe->shader = R_RegisterShader(name,
 			"{\n"
 				"{\n"
-					"map $diffuse\n"
-					"alphafunc ge128\n"
+							"map $diffuse\n"
+							"alphafunc ge128\n"
+							"depthwrite\n"
 					"rgbgen entity\n"
 					"alphagen entity\n"
 				"}\n"

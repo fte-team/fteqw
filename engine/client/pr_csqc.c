@@ -25,7 +25,7 @@
 
 #include "pr_common.h"
 
-#ifdef CLIENTONLY
+#ifndef TEXTEDITOR
 //client only builds don't have a qc debugger
 #define QCEditor NULL
 #endif
@@ -59,6 +59,8 @@ cvar_t	pr_csmaxedicts = CVAR("pr_csmaxedicts", "3072");	//not tied to protocol n
 cvar_t	cl_csqcdebug = CVAR("cl_csqcdebug", "0");	//prints entity numbers which arrive (so I can tell people not to apply it to players...)
 cvar_t  cl_nocsqc = CVAR("cl_nocsqc", "0");
 cvar_t  pr_csqc_coreonerror = CVAR("pr_csqc_coreonerror", "1");
+extern cvar_t dpcompat_stats;
+cvar_t  dpcompat_corruptglobals = CVAR("dpcompat_corruptglobals", "0");
 
 
 #define MASK_DELTA 1
@@ -140,6 +142,7 @@ typedef enum
 	globalfunction(input_event,			"CSQC_InputEvent");	\
 	globalfunction(input_frame,			"CSQC_Input_Frame");/*EXT_CSQC_1*/	\
 	globalfunction(console_command,		"CSQC_ConsoleCommand");	\
+	globalfunction(gamecommand,			"GameCommand");	/*DP extension*/\
 	\
 	globalfunction(ent_update,			"CSQC_Ent_Update");	\
 	globalfunction(ent_remove,			"CSQC_Ent_Remove");	\
@@ -232,15 +235,29 @@ static void CSQC_ChangeLocalPlayer(int lplayernum)
 		csqcg.view_angles[1] = cl.viewangles[csqc_lplayernum][1];
 		csqcg.view_angles[2] = cl.viewangles[csqc_lplayernum][2];
 	}
-
+	if (dpcompat_corruptglobals.ival)
+	{
+		if (csqcg.pmove_org)
+		{
+			csqcg.pmove_org[0] = cl.simorg[csqc_lplayernum][0];
+			csqcg.pmove_org[1] = cl.simorg[csqc_lplayernum][1];
+			csqcg.pmove_org[2] = cl.simorg[csqc_lplayernum][2];
+		}
+		if (csqcg.input_angles)
+		{
+			csqcg.input_angles[0] = cl.viewangles[csqc_lplayernum][0];
+			csqcg.input_angles[1] = cl.viewangles[csqc_lplayernum][1];
+			csqcg.input_angles[2] = cl.viewangles[csqc_lplayernum][2];
+		}
+	}
 }
 
 static void CSQC_FindGlobals(void)
 {
-#define globalfloat(name,qcname) csqcg.name = (float*)PR_FindGlobal(csqcprogs, qcname, 0);
-#define globalvector(name,qcname) csqcg.name = (float*)PR_FindGlobal(csqcprogs, qcname, 0);
-#define globalentity(name,qcname) csqcg.name = (int*)PR_FindGlobal(csqcprogs, qcname, 0);
-#define globalstring(name,qcname) csqcg.name = (string_t*)PR_FindGlobal(csqcprogs, qcname, 0);
+#define globalfloat(name,qcname) csqcg.name = (float*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
+#define globalvector(name,qcname) csqcg.name = (float*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
+#define globalentity(name,qcname) csqcg.name = (int*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
+#define globalstring(name,qcname) csqcg.name = (string_t*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
 #define globalfunction(name,qcname) csqcg.name = PR_FindFunction(csqcprogs,qcname,PR_ANY);
 
 	csqcglobals
@@ -262,6 +279,16 @@ static void CSQC_FindGlobals(void)
 		*csqcg.maxclients = cl.allocated_client_slots;
 }
 
+static void QCBUILTIN PF_cs_gettime (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int timer = G_FLOAT(OFS_PARM0);
+	switch(timer)
+	{
+	default:
+		G_FLOAT(OFS_RETURN) = cl.time;
+		break;
+	}
+}
 
 
 //this is the list for all the csqc fields.
@@ -1078,126 +1105,6 @@ static void QCBUILTIN PF_R_ClearScene (progfuncs_t *prinst, struct globalvars_s 
 	csqc_drawsbar = false;
 }
 
-static void QCBUILTIN PF_R_SetViewFlag(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	viewflags parametertype = G_FLOAT(OFS_PARM0);
-	float *p = G_VECTOR(OFS_PARM1);
-
-	csqc_rebuildmatricies = true;
-
-	G_FLOAT(OFS_RETURN) = 1;
-	switch(parametertype)
-	{
-	case VF_FOV:
-		r_refdef.fov_x = p[0];
-		r_refdef.fov_y = p[1];
-		break;
-
-	case VF_FOVX:
-		r_refdef.fov_x = *p;
-		break;
-
-	case VF_FOVY:
-		r_refdef.fov_y = *p;
-		break;
-
-	case VF_AFOV:
-		{
-			float frustumx, frustumy;
-			frustumy = tan(p[0] * (M_PI/360)) * 0.75;
-			if (*prinst->callargc > 2)
-				frustumy *= G_FLOAT(OFS_PARM2);
-			frustumx = frustumy * vid.width / vid.height /* / vid.pixelheight*/;
-			r_refdef.fov_x = atan2(frustumx, 1) * (360/M_PI);
-			r_refdef.fov_y = atan2(frustumy, 1) * (360/M_PI);
-		}
-		break;
-
-	case VF_ORIGIN:
-		VectorCopy(p, r_refdef.vieworg);
-		cl.crouch[csqc_lplayernum] = 0;
-		break;
-
-	case VF_ORIGIN_Z:
-		cl.crouch[csqc_lplayernum] = 0;
-	case VF_ORIGIN_X:
-	case VF_ORIGIN_Y:
-		r_refdef.vieworg[parametertype-VF_ORIGIN_X] = *p;
-		break;
-
-	case VF_ANGLES:
-		VectorCopy(p, r_refdef.viewangles);
-		break;
-	case VF_ANGLES_X:
-	case VF_ANGLES_Y:
-	case VF_ANGLES_Z:
-		r_refdef.viewangles[parametertype-VF_ANGLES_X] = *p;
-		break;
-
-	case VF_CL_VIEWANGLES_V:
-		VectorCopy(p, cl.viewangles[csqc_lplayernum]);
-		break;
-	case VF_CL_VIEWANGLES_X:
-	case VF_CL_VIEWANGLES_Y:
-	case VF_CL_VIEWANGLES_Z:
-		cl.viewangles[csqc_lplayernum][parametertype-VF_CL_VIEWANGLES_X] = *p;
-		break;
-
-	case VF_CARTESIAN_ANGLES:
-		Con_Printf(CON_WARNING "WARNING: CARTESIAN ANGLES ARE NOT YET SUPPORTED!\n");
-		break;
-
-	case VF_VIEWPORT:
-		r_refdef.vrect.x = p[0];
-		r_refdef.vrect.y = p[1];
-		p+=3;
-		r_refdef.vrect.width = p[0];
-		r_refdef.vrect.height = p[1];
-		break;
-
-	case VF_SIZE_X:
-		r_refdef.vrect.width = *p;
-		break;
-	case VF_SIZE_Y:
-		r_refdef.vrect.height = *p;
-		break;
-	case VF_SIZE:
-		r_refdef.vrect.width = p[0];
-		r_refdef.vrect.height = p[1];
-		break;
-
-	case VF_MIN_X:
-		r_refdef.vrect.x = *p;
-		break;
-	case VF_MIN_Y:
-		r_refdef.vrect.y = *p;
-		break;
-	case VF_MIN:
-		r_refdef.vrect.x = p[0];
-		r_refdef.vrect.y = p[1];
-		break;
-
-	case VF_DRAWWORLD:
-		r_refdef.flags = (r_refdef.flags&~Q2RDF_NOWORLDMODEL) | (*p?0:Q2RDF_NOWORLDMODEL);
-		break;
-	case VF_ENGINESBAR:
-		csqc_drawsbar = *p;
-		break;
-	case VF_DRAWCROSSHAIR:
-		csqc_addcrosshair = *p;
-		break;
-
-	case VF_PERSPECTIVE:
-		r_refdef.useperspective = *p;
-		break;
-
-	default:
-		Con_DPrintf("SetViewFlag: %i not recognised\n", parametertype);
-		G_FLOAT(OFS_RETURN) = 0;
-		break;
-	}
-}
-
 static void QCBUILTIN PF_R_GetViewFlag(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	viewflags parametertype = G_FLOAT(OFS_PARM0);
@@ -1316,6 +1223,133 @@ static void QCBUILTIN PF_R_GetViewFlag(progfuncs_t *prinst, struct globalvars_s 
 	}
 }
 
+static void QCBUILTIN PF_R_SetViewFlag(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	viewflags parametertype = G_FLOAT(OFS_PARM0);
+	float *p = G_VECTOR(OFS_PARM1);
+
+	if (*prinst->callargc < 2)
+	{
+		csqc_deprecated("PF_R_SetViewFlag called with wrong argument count\n");
+		PF_R_GetViewFlag(prinst, pr_globals);
+		return;
+	}
+
+	csqc_rebuildmatricies = true;
+
+	G_FLOAT(OFS_RETURN) = 1;
+	switch(parametertype)
+	{
+	case VF_FOV:
+		r_refdef.fov_x = p[0];
+		r_refdef.fov_y = p[1];
+		break;
+
+	case VF_FOVX:
+		r_refdef.fov_x = *p;
+		break;
+
+	case VF_FOVY:
+		r_refdef.fov_y = *p;
+		break;
+
+	case VF_AFOV:
+		{
+			float frustumx, frustumy;
+			frustumy = tan(p[0] * (M_PI/360)) * 0.75;
+			if (*prinst->callargc > 2)
+				frustumy *= G_FLOAT(OFS_PARM2);
+			frustumx = frustumy * vid.width / vid.height /* / vid.pixelheight*/;
+			r_refdef.fov_x = atan2(frustumx, 1) * (360/M_PI);
+			r_refdef.fov_y = atan2(frustumy, 1) * (360/M_PI);
+		}
+		break;
+
+	case VF_ORIGIN:
+		VectorCopy(p, r_refdef.vieworg);
+		cl.crouch[csqc_lplayernum] = 0;
+		break;
+
+	case VF_ORIGIN_Z:
+		cl.crouch[csqc_lplayernum] = 0;
+	case VF_ORIGIN_X:
+	case VF_ORIGIN_Y:
+		r_refdef.vieworg[parametertype-VF_ORIGIN_X] = *p;
+		break;
+
+	case VF_ANGLES:
+		VectorCopy(p, r_refdef.viewangles);
+		break;
+	case VF_ANGLES_X:
+	case VF_ANGLES_Y:
+	case VF_ANGLES_Z:
+		r_refdef.viewangles[parametertype-VF_ANGLES_X] = *p;
+		break;
+
+	case VF_CL_VIEWANGLES_V:
+		VectorCopy(p, cl.viewangles[csqc_lplayernum]);
+		break;
+	case VF_CL_VIEWANGLES_X:
+	case VF_CL_VIEWANGLES_Y:
+	case VF_CL_VIEWANGLES_Z:
+		cl.viewangles[csqc_lplayernum][parametertype-VF_CL_VIEWANGLES_X] = *p;
+		break;
+
+	case VF_CARTESIAN_ANGLES:
+		Con_Printf(CON_WARNING "WARNING: CARTESIAN ANGLES ARE NOT YET SUPPORTED!\n");
+		break;
+
+	case VF_VIEWPORT:
+		r_refdef.vrect.x = p[0];
+		r_refdef.vrect.y = p[1];
+		p+=3;
+		r_refdef.vrect.width = p[0];
+		r_refdef.vrect.height = p[1];
+		break;
+
+	case VF_SIZE_X:
+		r_refdef.vrect.width = *p;
+		break;
+	case VF_SIZE_Y:
+		r_refdef.vrect.height = *p;
+		break;
+	case VF_SIZE:
+		r_refdef.vrect.width = p[0];
+		r_refdef.vrect.height = p[1];
+		break;
+
+	case VF_MIN_X:
+		r_refdef.vrect.x = *p;
+		break;
+	case VF_MIN_Y:
+		r_refdef.vrect.y = *p;
+		break;
+	case VF_MIN:
+		r_refdef.vrect.x = p[0];
+		r_refdef.vrect.y = p[1];
+		break;
+
+	case VF_DRAWWORLD:
+		r_refdef.flags = (r_refdef.flags&~Q2RDF_NOWORLDMODEL) | (*p?0:Q2RDF_NOWORLDMODEL);
+		break;
+	case VF_ENGINESBAR:
+		csqc_drawsbar = *p;
+		break;
+	case VF_DRAWCROSSHAIR:
+		csqc_addcrosshair = *p;
+		break;
+
+	case VF_PERSPECTIVE:
+		r_refdef.useperspective = *p;
+		break;
+
+	default:
+		Con_DPrintf("SetViewFlag: %i not recognised\n", parametertype);
+		G_FLOAT(OFS_RETURN) = 0;
+		break;
+	}
+}
+
 static void QCBUILTIN PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	if (cl.worldmodel)
@@ -1354,11 +1388,10 @@ static void QCBUILTIN PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s 
 		R2D_DrawCrosshair();
 }
 
-static void QCBUILTIN PF_cs_getstatf(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_cs_getstati(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int stnum = G_FLOAT(OFS_PARM0);
-	float val = cl.statsf[csqc_lplayernum][stnum];	//copy float into the stat
-	G_FLOAT(OFS_RETURN) = val;
+	G_INT(OFS_RETURN) = cl.stats[csqc_lplayernum][stnum];
 }
 static void QCBUILTIN PF_cs_getstatbits(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//convert an int stat into a qc float.
@@ -1376,7 +1409,7 @@ static void QCBUILTIN PF_cs_getstatbits(progfuncs_t *prinst, struct globalvars_s
 		G_FLOAT(OFS_RETURN) = (((unsigned int)val)&(((1<<count)-1)<<first))>>first;
 	}
 	else
-		G_FLOAT(OFS_RETURN) = val;
+		G_FLOAT(OFS_RETURN) = cl.statsf[csqc_lplayernum][stnum];
 }
 static void QCBUILTIN PF_cs_getstats(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -1865,8 +1898,10 @@ static void QCBUILTIN PF_cs_trailparticles (progfuncs_t *prinst, struct globalva
 
 	if (csqc_isdarkplaces)
 	{
-		efnum = G_FLOAT(OFS_PARM1)-1;
+		efnum = G_FLOAT(OFS_PARM1);
 		ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
+
+		efnum = pe->FindParticleType(COM_Effectinfo_ForNumber(efnum));
 	}
 	else
 	{
@@ -1884,10 +1919,15 @@ static void QCBUILTIN PF_cs_particleeffectnum (progfuncs_t *prinst, struct globa
 {
 	char *effectname = PR_GetStringOfs(prinst, OFS_PARM0);
 
-	//keep the effectinfo synced between server and client.
-	COM_Effectinfo_ForName(effectname);
-
-	G_FLOAT(OFS_RETURN) = pe->FindParticleType(effectname)+1;
+	if (csqc_isdarkplaces)
+	{
+		//keep the effectinfo synced between server and client.
+		G_FLOAT(OFS_RETURN) = COM_Effectinfo_ForName(effectname);
+	}
+	else
+	{
+		G_FLOAT(OFS_RETURN) = pe->FindParticleType(effectname)+1;
+	}
 }
 
 static void QCBUILTIN PF_cs_sendevent (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2234,6 +2274,11 @@ static void QCBUILTIN PF_cs_getplayerkey (progfuncs_t *prinst, struct globalvars
 
 	if (pnum < 0 || pnum >= cl.allocated_client_slots)
 		ret = "";
+	else if (!strcmp(keyname, "viewentity"))	//compat with DP. Yes, I know this is in the wrong place.
+	{
+		ret = buffer;
+		sprintf(ret, "%i", pnum+1);
+	}
 	else if (!*cl.players[pnum].userinfo)
 		ret = "";	//player isn't on the server.
 	else if (!strcmp(keyname, "ping"))
@@ -2259,11 +2304,6 @@ static void QCBUILTIN PF_cs_getplayerkey (progfuncs_t *prinst, struct globalvars
 	{
 		ret = buffer;
 		sprintf(ret, "%i", (int)cl.players[pnum].entertime);
-	}
-	else if (!strcmp(keyname, "viewentity"))	//compat with DP
-	{
-		ret = buffer;
-		sprintf(ret, "%i", pnum+1);
 	}
 #ifdef VOICECHAT
 	else if (!strcmp(keyname, "voipspeaking"))
@@ -2998,10 +3038,16 @@ void CSQC_RunThreads(void)
 static void QCBUILTIN PF_cs_addprogs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *s = PR_GetStringOfs(prinst, OFS_PARM0);
+	int newp;
 	if (!s || !*s)
-		G_FLOAT(OFS_RETURN) = -1;
+		newp = -1;
 	else
-		G_FLOAT(OFS_RETURN) = PR_LoadProgs(prinst, s, 0, NULL, 0);
+	{
+		newp = PR_LoadProgs(prinst, s, 0, NULL, 0);
+		if (newp >= 0)
+			PR_AutoCvarSetup(csqcprogs);
+	}
+	G_FLOAT(OFS_RETURN) = newp;
 }
 
 static void QCBUILTIN PF_cs_OpenPortal (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4057,6 +4103,8 @@ void CSQC_PlayerStateToCSQC(int pnum, player_state_t *srcp, csqcedict_t *ent)
 	ent->v->skin = srcp->skinnum;
 
 	CSQC_LerpStateToCSQC(&cl.lerpplayers[pnum], ent, true);
+	ent->xv->lerpfrac = 1-(ent->xv->frame1time) / cl.lerpplayers[pnum].framelerpdeltatime;
+	ent->xv->lerpfrac = bound(0, ent->xv->lerpfrac, 1);
 
 
 	VectorCopy(srcp->origin, ent->v->origin);
@@ -4065,7 +4113,7 @@ void CSQC_PlayerStateToCSQC(int pnum, player_state_t *srcp, csqcedict_t *ent)
 	VectorCopy(srcp->velocity, ent->v->velocity);
 	ent->v->angles[0] *= -0.333;
 	ent->v->colormap = pnum+1;
-	ent->xv->scale = srcp->scale/16.0f;
+	ent->xv->scale = srcp->scale;
 	//ent->v->fatness = srcp->fatness;
 	ent->xv->alpha = srcp->alpha/255.0f;
 
@@ -4122,6 +4170,7 @@ qboolean CSQC_DeltaPlayer(int playernum, player_state_t *state)
 			ent = (csqcedict_t *)ED_Alloc(csqcprogs);
 
 		CSQC_PlayerStateToCSQC(playernum, state, ent);
+
 		ent->xv->drawmask = MASK_DELTA;
 
 		*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)ent);
@@ -4443,6 +4492,19 @@ static void QCBUILTIN PF_ReadServerEntityState(progfuncs_t *prinst, struct globa
 }
 #endif
 
+static void QCBUILTIN PF_cs_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int action = G_FLOAT(OFS_PARM0);
+	float *pos = G_VECTOR(OFS_PARM1);
+	float radius = G_FLOAT(OFS_PARM2);
+	float quant = G_FLOAT(OFS_PARM3);
+#if defined(TERRAIN)
+	G_FLOAT(OFS_RETURN) = Heightmap_Edit(csqc_world.worldmodel, action, pos, radius, quant);
+#else
+	G_FLOAT(OFS_RETURN) = false;
+#endif
+}
+
 #define PF_FixTen PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme
 
 //prefixes:
@@ -4636,6 +4698,24 @@ static struct {
 	{"shaderforname",	PF_shaderforname,	238},	// #238
 	{"te_bloodqw",	PF_cl_te_bloodqw,	239},	// #239 void te_bloodqw(vector org[, float count]) (FTE_TE_STANDARDEFFECTBUILTINS)
 
+//	{"checkpvs",		PF_checkpvs,		240},
+//	{"matchclientname",	PF_matchclient,		241},
+	{"sendpacket",		PF_NoCSQC,			242},	//void(string dest, string content) sendpacket = #242; (FTE_QC_SENDPACKET)
+
+//	{"bulleten",		PF_bulleten,		243}, (removed builtin)
+
+#ifdef SQL
+	{"sqlconnect",		PF_NoCSQC,			250},	// #250 float([string host], [string user], [string pass], [string defaultdb], [string driver]) sqlconnect (FTE_SQL)
+	{"sqldisconnect",	PF_NoCSQC,			251},	// #251 void(float serveridx) sqldisconnect (FTE_SQL)
+	{"sqlopenquery",	PF_NoCSQC,			252},	// #252 float(float serveridx, void(float serveridx, float queryidx, float rows, float columns, float eof) callback, float querytype, string query) sqlopenquery (FTE_SQL)
+	{"sqlclosequery",	PF_NoCSQC,			253},	// #253 void(float serveridx, float queryidx) sqlclosequery (FTE_SQL)
+	{"sqlreadfield",	PF_NoCSQC,			254},	// #254 string(float serveridx, float queryidx, float row, float column) sqlreadfield (FTE_SQL)
+	{"sqlerror",		PF_NoCSQC,			255},	// #255 string(float serveridx, [float queryidx]) sqlerror (FTE_SQL)
+	{"sqlescape",		PF_NoCSQC,			256},	// #256 string(float serveridx, string data) sqlescape (FTE_SQL)
+	{"sqlversion",		PF_NoCSQC,			257},	// #257 string(float serveridx) sqlversion (FTE_SQL)
+	{"sqlreadfloat",	PF_NoCSQC,			258},	// #258 float(float serveridx, float queryidx, float row, float column) sqlreadfloat (FTE_SQL)
+#endif
+
 	{"stoi",			PF_stoi,			259},
 	{"itos",			PF_itos,			260},
 	{"stoh",			PF_stoh,			261},
@@ -4657,6 +4737,7 @@ static struct {
 	{"frameforname",		PF_frameforname,		276},//void(float modidx, string framename) frameforname = #276 (FTE_CSQC_SKELETONOBJECTS)
 	{"frameduration",		PF_frameduration,		277},//void(float modidx, float framenum) frameduration = #277 (FTE_CSQC_SKELETONOBJECTS)
 
+	{"terrain_edit",		PF_cs_terrain_edit,		278},//void(float action, vector pos, float radius, float quant) terrain_edit = #278 (??FTE_TERRAIN_EDIT??)
 //300
 	{"clearscene",	PF_R_ClearScene,	300},				// #300 void() clearscene (EXT_CSQC)
 	{"addentities",	PF_R_AddEntityMask,	301},				// #301 void(float mask) addentities (EXT_CSQC)
@@ -4701,7 +4782,7 @@ static struct {
 //	{"?",	PF_Fixme,						329},	// #329 EXT_CSQC_'DARKPLACES'
 
 //330
-	{"getstatf",	PF_cs_getstatf,					330},	// #330 float(float stnum) getstatf (EXT_CSQC)
+	{"getstati",	PF_cs_getstati,					330},	// #330 float(float stnum) getstati (EXT_CSQC)
 	{"getstatbits",	PF_cs_getstatbits,					331},	// #331 float(float stnum) getstatbits (EXT_CSQC)
 	{"getstats",	PF_cs_getstats,					332},	// #332 string(float firststnum) getstats (EXT_CSQC)
 	{"setmodelindex",	PF_cs_SetModelIndex,			333},	// #333 void(entity e, float mdlindex) setmodelindex (EXT_CSQC)
@@ -4720,7 +4801,7 @@ static struct {
 	{"getkeybind",	PF_cl_getkeybind,				342},	// #342 string(float keynum) getkeybind (EXT_CSQC)
 
 //	{"?",	PF_Fixme,						343},	// #343
-//	{"?",	PF_Fixme,						344},	// #344
+	{"getmousepos",	PF_cl_getmousepos,						344},	// #344 This is a DP extension
 
 	{"getinputstate",	PF_cs_getinputstate,			345},	// #345 float(float framenum) getinputstate (EXT_CSQC)
 	{"setsensitivityscaler",	PF_cs_setsensativityscaler, 	346},	// #346 void(float sens) setsensitivityscaler (EXT_CSQC)
@@ -4941,14 +5022,18 @@ static struct {
 	{"argv_end_index",		PF_argv_end_index,			516},
 	{"buf_cvarlist",		PF_buf_cvarlist,			517},
 	{"cvar_description",	PF_cvar_description,		518},
+	
+	{"gettime",				PF_cs_gettime,				519},
 
 	{"keynumtostring",		PF_cl_keynumtostring,		520},
 	{"findkeysforcommand",	PF_cl_findkeysforcommand,	521},
 
+	{"sprintf",				PF_sprintf,					627},
+
 	{NULL}
 };
 
-static builtin_t pr_builtin[550];
+static builtin_t csqc_builtin[800];
 
 
 
@@ -5048,6 +5133,9 @@ void CSQC_Shutdown(void)
 		CSQC_ForgetThreads();
 		CloseProgs(csqcprogs);
 	}
+#ifdef TEXTEDITOR
+	Editor_ProgsKilled(csqcprogs);
+#endif
 	csqcprogs = NULL;
 
 #ifdef USEODE
@@ -5202,12 +5290,12 @@ qboolean CSQC_Init (unsigned int checksum)
 	if (cl_nocsqc.value)
 		return false;
 
-	for (i = 0; i < sizeof(pr_builtin)/sizeof(pr_builtin[0]); i++)
-		pr_builtin[i] = PF_Fixme;
+	for (i = 0; i < sizeof(csqc_builtin)/sizeof(csqc_builtin[0]); i++)
+		csqc_builtin[i] = PF_Fixme;
 	for (i = 0; BuiltinList[i].bifunc; i++)
 	{
 		if (BuiltinList[i].ebfsnum)
-			pr_builtin[BuiltinList[i].ebfsnum] = BuiltinList[i].bifunc;
+			csqc_builtin[BuiltinList[i].ebfsnum] = BuiltinList[i].bifunc;
 	}
 
 	csqc_deprecated_warned = false;
@@ -5239,8 +5327,8 @@ qboolean CSQC_Init (unsigned int checksum)
 	csqcprogparms.memfree = PR_CB_Free;//void (*memfree) (void * mem);
 
 
-	csqcprogparms.globalbuiltins = pr_builtin;//builtin_t *globalbuiltins;	//these are available to all progs
-	csqcprogparms.numglobalbuiltins = sizeof(pr_builtin)/sizeof(pr_builtin[0]);
+	csqcprogparms.globalbuiltins = csqc_builtin;//builtin_t *globalbuiltins;	//these are available to all progs
+	csqcprogparms.numglobalbuiltins = sizeof(csqc_builtin)/sizeof(csqc_builtin[0]);
 
 	csqcprogparms.autocompile = PR_COMPILEIGNORE;//enum {PR_NOCOMPILE, PR_COMPILENEXIST, PR_COMPILECHANGED, PR_COMPILEALWAYS} autocompile;
 
@@ -5289,6 +5377,7 @@ qboolean CSQC_Init (unsigned int checksum)
 			return false;
 		}
 
+		PR_AutoCvarSetup(csqcprogs);
 
 		PF_InitTempStrings(csqcprogs);
 
@@ -5307,11 +5396,12 @@ qboolean CSQC_Init (unsigned int checksum)
 		worldent = (csqcedict_t *)EDICT_NUM(csqcprogs, 0);
 		worldent->isfree = false;
 
+		/*DP compat*/
 		str = (string_t*)csqcprogs->GetEdictFieldValue(csqcprogs, (edict_t*)worldent, "message", NULL);
 		if (str)
 			*str = PR_SetString(csqcprogs, cl.levelname);
 
-		str = (string_t*)PR_FindGlobal(csqcprogs, "mapname", 0);
+		str = (string_t*)PR_FindGlobal(csqcprogs, "mapname", 0, NULL);
 		if (str)
 		{
 			char *s = Info_ValueForKey(cl.serverinfo, "map");
@@ -5400,14 +5490,14 @@ void PR_CSExtensionList_f(void)
 		showflags = SHOW_ACTIVEEXT|SHOW_NOTACTIVEEXT;
 
 	//make sure the info is valid
-	if (!pr_builtin[0])
+	if (!csqc_builtin[0])
 	{
-		for (i = 0; i < sizeof(pr_builtin)/sizeof(pr_builtin[0]); i++)
-			pr_builtin[i] = PF_Fixme;
+		for (i = 0; i < sizeof(csqc_builtin)/sizeof(csqc_builtin[0]); i++)
+			csqc_builtin[i] = PF_Fixme;
 		for (i = 0; BuiltinList[i].bifunc; i++)
 		{
 			if (BuiltinList[i].ebfsnum)
-				pr_builtin[BuiltinList[i].ebfsnum] = BuiltinList[i].bifunc;
+				csqc_builtin[BuiltinList[i].ebfsnum] = BuiltinList[i].bifunc;
 		}
 	}
 
@@ -5419,7 +5509,7 @@ void PR_CSExtensionList_f(void)
 			continue;	//a reserved builtin.
 		if (BuiltinList[i].bifunc == PF_Fixme)
 			Con_Printf("^1%s:%i needs to be added\n", BuiltinList[i].name, BuiltinList[i].ebfsnum);
-		else if (pr_builtin[BuiltinList[i].ebfsnum] == BuiltinList[i].bifunc)
+		else if (csqc_builtin[BuiltinList[i].ebfsnum] == BuiltinList[i].bifunc)
 		{
 			if (showflags & SHOW_ACTIVEBI)
 				Con_Printf("%s is active on %i\n", BuiltinList[i].name, BuiltinList[i].ebfsnum);
@@ -5464,9 +5554,9 @@ void PR_CSExtensionList_f(void)
 						Con_Printf("^4%s is not supported\n", extlist[i].name);
 					break;
 				}
-				if (pr_builtin[BuiltinList[bi].ebfsnum] != BuiltinList[bi].bifunc)
+				if (csqc_builtin[BuiltinList[bi].ebfsnum] != BuiltinList[bi].bifunc)
 				{
-					if (pr_builtin[BuiltinList[bi].ebfsnum] == PF_Fixme)
+					if (csqc_builtin[BuiltinList[bi].ebfsnum] == PF_Fixme)
 					{
 						if (showflags & SHOW_NOTACTIVEEXT)
 							Con_Printf("^4%s is not currently active (builtin: %s#%i)\n", extlist[i].name, BuiltinList[bi].name, BuiltinList[bi].ebfsnum);
@@ -5493,18 +5583,53 @@ void PR_CSExtensionList_f(void)
 	}
 }
 
+void CSQC_Breakpoint_f(void)
+{
+	int wasset;
+	int isset;
+	char *filename = Cmd_Argv(1);
+	int line = atoi(Cmd_Argv(2));
+
+	if (!csqcprogs)
+	{
+		Con_Printf("CSQC not running\n");
+		return;
+	}
+	wasset = svprogfuncs->ToggleBreak(csqcprogs, filename, line, 3);
+	isset = svprogfuncs->ToggleBreak(csqcprogs, filename, line, 2);
+
+	if (wasset == isset)
+		Con_Printf("Breakpoint was not valid\n");
+	else if (isset)
+		Con_Printf("Breakpoint has been set\n");
+	else
+		Con_Printf("Breakpoint has been cleared\n");
+
+}
+
+static void CSQC_GameCommand_f(void);
 void CSQC_RegisterCvarsAndThings(void)
 {
 	PF_Common_RegisterCvars();
 
 	Cmd_AddCommand("coredump_csqc", CSQC_CoreDump);
 	Cmd_AddCommand ("extensionlist_csqc", PR_CSExtensionList_f);
-
+	Cmd_AddCommand("cl_cmd", CSQC_GameCommand_f);
+	Cmd_AddCommand("breakpoint_csqc", CSQC_Breakpoint_f);
 
 	Cvar_Register(&pr_csmaxedicts, CSQCPROGSGROUP);
 	Cvar_Register(&cl_csqcdebug, CSQCPROGSGROUP);
 	Cvar_Register(&cl_nocsqc, CSQCPROGSGROUP);
 	Cvar_Register(&pr_csqc_coreonerror, CSQCPROGSGROUP);
+	Cvar_Register(&dpcompat_corruptglobals, CSQCPROGSGROUP);
+}
+
+void CSQC_CvarChanged(cvar_t *var)
+{
+	if (csqcprogs)
+	{
+		PR_AutoCvar(csqcprogs, var);
+	}
 }
 
 qboolean CSQC_DrawView(void)
@@ -5626,6 +5751,17 @@ qboolean CSQC_ConsoleCommand(char *cmd)
 	PR_ExecuteProgram (csqcprogs, csqcg.console_command);
 	return G_FLOAT(OFS_RETURN);
 }
+static void CSQC_GameCommand_f(void)
+{
+	void *pr_globals;
+	if (!csqcprogs || !csqcg.gamecommand)
+		return;
+
+	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+	(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, Cmd_Args()));
+
+	PR_ExecuteProgram (csqcprogs, csqcg.gamecommand);
+}
 
 #pragma message("do we really need the firstbyte parameter here?")
 qboolean CSQC_ParseTempEntity(unsigned char firstbyte)
@@ -5643,7 +5779,25 @@ qboolean CSQC_ParseTempEntity(unsigned char firstbyte)
 
 qboolean CSQC_ParseGamePacket(void)
 {
-	return false;
+	int len = (unsigned short)MSG_ReadShort();
+	int start = msg_readcount;
+
+	void *pr_globals;
+	if (!csqcprogs || !csqcg.parse_tempentity)
+	{
+		MSG_ReadSkip(len);
+		return false;
+	}
+
+	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+	PR_ExecuteProgram (csqcprogs, csqcg.parse_tempentity);
+
+	if (msg_readcount != start + len)
+	{
+		Con_Printf("Gamecode misread a gamecode packet (%i bytes too much)\n", msg_readcount - (start+len));
+		msg_readcount = start + len;
+	}
+	return true;
 }
 
 qboolean CSQC_LoadResource(char *resname, char *restype)

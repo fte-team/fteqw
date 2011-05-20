@@ -719,6 +719,19 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 		var->latched_string = NULL;
 	}
 
+	if (var->flags & CVAR_TELLGAMECODE)
+	{
+#ifndef CLIENTONLY
+		SVQ1_CvarChanged(var);
+#endif
+#ifdef MENU_DAT
+		MP_CvarChanged(var);
+#endif
+#ifdef CSQC_DAT
+		CSQC_CvarChanged(var);
+#endif
+	}
+
 	return var;
 }
 

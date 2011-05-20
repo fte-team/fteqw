@@ -463,7 +463,7 @@ static eval_t *Q1QVMPF_GetEdictFieldValue(progfuncs_t *pf, edict_t *e, char *fie
 	return NULL;
 }
 
-static eval_t	*Q1QVMPF_FindGlobal		(progfuncs_t *prinst, char *name, progsnum_t num)
+static eval_t	*Q1QVMPF_FindGlobal		(progfuncs_t *prinst, char *name, progsnum_t num, etype_t *type)
 {
 	return NULL;
 }

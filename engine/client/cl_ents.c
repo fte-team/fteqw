@@ -2713,15 +2713,6 @@ guess_pm_type:
 			state->pm_type = PM_NORMAL;
 	}
 
-/*	if (cl.lerpplayers[num].frame != state->frame)
-	{
-		cl.lerpplayers[num].oldframechange = cl.lerpplayers[num].framechange;
-		cl.lerpplayers[num].framechange = cl.time;
-		cl.lerpplayers[num].frame = state->frame;
-
-		//don't care about position interpolation.
-	}
-*/
 	TP_ParsePlayerInfo(oldstate, state, info);
 }
 
@@ -2881,6 +2872,8 @@ void CL_LinkPlayers (void)
 			continue;	// not present this frame
 		}
 
+		CL_UpdateNetFrameLerpState(false, state->frame, &cl.lerpplayers[j]);
+
 #ifdef CSQC_DAT
 		if (CSQC_DeltaPlayer(j, state))
 			continue;
@@ -2983,7 +2976,6 @@ void CL_LinkPlayers (void)
 
 		ent->skinnum = state->skinnum;
 
-		CL_UpdateNetFrameLerpState(false, state->frame, &cl.lerpplayers[j]);
 		CL_LerpNetFrameState(FS_REG, &ent->framestate,	&cl.lerpplayers[j]);
 
 //		if (state->modelindex == cl_playerindex)

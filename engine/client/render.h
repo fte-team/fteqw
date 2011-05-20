@@ -211,6 +211,7 @@ typedef struct {
 	struct mesh_s		*meshchain;
 	qboolean	modified;
 	qboolean	deluxmodified;
+	qboolean	external;
 	glRect_t	rectchange;
 	glRect_t	deluxrectchange;
 	int allocated[LMBLOCK_WIDTH];

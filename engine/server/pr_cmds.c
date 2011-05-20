@@ -61,6 +61,7 @@ cvar_t	pr_fixbrokenqccarrays = SCVARF("pr_fixbrokenqccarrays", "1", CVAR_LATCH);
 cvar_t	pr_maxedicts = SCVARF("pr_maxedicts", "2048", CVAR_LATCH);
 
 cvar_t	pr_no_playerphysics = SCVARF("pr_no_playerphysics", "0", CVAR_LATCH);
+cvar_t	pr_no_parsecommand = SCVARF("pr_no_parsecommand", "0", 0);
 
 cvar_t	progs = CVARAF("progs", "", "sv_progs", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_NOTFROMSERVER);
 cvar_t	qc_nonetaccess = SCVAR("qc_nonetaccess", "0");	//prevent write_... builtins from doing anything. This means we can run any mod, specific to any engine, on the condition that it also has a qw or nq crc.
@@ -496,6 +497,9 @@ void PR_Deinit(void)
 
 		Z_FreeTags(Z_QC_TAG);
 	}
+#ifdef TEXTEDITOR
+	Editor_ProgsKilled(svprogfuncs);
+#endif
 	svprogfuncs=NULL;
 
 	//clear out function pointers (so changing game modes cannot lead to confusions)
@@ -524,12 +528,12 @@ void PR_LoadGlabalStruct(void)
 	int i;
 	int *v;
 	nqglobalvars_t *pr_globals = pr_nqglobal_struct;
-#define globalfloat(need,name) ((nqglobalvars_t*)pr_nqglobal_struct)->name = (float *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find \""#name"\" export in progs\n");
-#define globalint(need,name) ((nqglobalvars_t*)pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
-#define globalstring(need,name) ((nqglobalvars_t*)pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
-#define globalvec(need,name) ((nqglobalvars_t*)pr_globals)->V_##name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->V_##name) SV_Error("Could not find export \""#name"\" in progs\n");
-#define globalvec_(need,name) ((nqglobalvars_t*)pr_globals)->name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
-#define globalfunc(need,name) ((nqglobalvars_t*)pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) {static func_t strippedout; strippedout = PR_FindFunction(svprogfuncs, #name, 0); if (strippedout) ((nqglobalvars_t*)pr_globals)->name = &strippedout; else SV_Error("Could not find function \""#name"\" in progs\n"); }
+#define globalfloat(need,name) ((nqglobalvars_t*)pr_nqglobal_struct)->name = (float *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find \""#name"\" export in progs\n");
+#define globalint(need,name) ((nqglobalvars_t*)pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
+#define globalstring(need,name) ((nqglobalvars_t*)pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
+#define globalvec(need,name) ((nqglobalvars_t*)pr_globals)->V_##name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !((nqglobalvars_t*)pr_globals)->V_##name) SV_Error("Could not find export \""#name"\" in progs\n");
+#define globalvec_(need,name) ((nqglobalvars_t*)pr_globals)->name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
+#define globalfunc(need,name) ((nqglobalvars_t*)pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !((nqglobalvars_t*)pr_globals)->name) {static func_t strippedout; strippedout = PR_FindFunction(svprogfuncs, #name, 0); if (strippedout) ((nqglobalvars_t*)pr_globals)->name = &strippedout; else SV_Error("Could not find function \""#name"\" in progs\n"); }
 //			globalint(pad);
 	globalint		(true, self);	//we need the qw ones, but any in standard quake and not quakeworld, we don't really care about.
 	globalint		(true, other);
@@ -587,7 +591,7 @@ void PR_LoadGlabalStruct(void)
 	memset(&evalc_pitch_speed, 0, sizeof(evalc_pitch_speed));
 
 	for (i = 0; i < NUM_SPAWN_PARMS; i++)
-		spawnparamglobals[i] = (float *)PR_FindGlobal(svprogfuncs, va("parm%i", i+1), 0);
+		spawnparamglobals[i] = (float *)PR_FindGlobal(svprogfuncs, va("parm%i", i+1), 0, NULL);
 
 #define ensurefloat(name,var) if (!((nqglobalvars_t*)pr_globals)->name) ((nqglobalvars_t*)pr_globals)->name = &var;
 
@@ -599,19 +603,19 @@ void PR_LoadGlabalStruct(void)
 	// qtest renames and missing variables
 	if (!((nqglobalvars_t*)pr_globals)->V_trace_plane_normal)
 	{
-		((nqglobalvars_t*)pr_globals)->V_trace_plane_normal = (vec3_t *)PR_FindGlobal(svprogfuncs, "trace_normal", 0);
+		((nqglobalvars_t*)pr_globals)->V_trace_plane_normal = (vec3_t *)PR_FindGlobal(svprogfuncs, "trace_normal", 0, NULL);
 		if (!((nqglobalvars_t*)pr_globals)->V_trace_plane_normal)
 			SV_Error("Could not find export trace_plane_normal in progs\n");
 	}
 	if (!((nqglobalvars_t*)pr_globals)->V_trace_endpos)
 	{
-		((nqglobalvars_t*)pr_globals)->V_trace_endpos = (vec3_t *)PR_FindGlobal(svprogfuncs, "trace_impact", 0);
+		((nqglobalvars_t*)pr_globals)->V_trace_endpos = (vec3_t *)PR_FindGlobal(svprogfuncs, "trace_impact", 0, NULL);
 		if (!((nqglobalvars_t*)pr_globals)->V_trace_endpos)
 			SV_Error("Could not find export trace_endpos in progs\n");
 	}
 	if (!((nqglobalvars_t*)pr_globals)->trace_fraction)
 	{
-		((nqglobalvars_t*)pr_globals)->trace_fraction = (float *)PR_FindGlobal(svprogfuncs, "trace_frac", 0);
+		((nqglobalvars_t*)pr_globals)->trace_fraction = (float *)PR_FindGlobal(svprogfuncs, "trace_frac", 0, NULL);
 		if (!((nqglobalvars_t*)pr_globals)->trace_fraction)
 			SV_Error("Could not find export trace_fraction in progs\n");
 	}
@@ -669,7 +673,7 @@ void PR_LoadGlabalStruct(void)
 	QC_AddSharedVar(svprogfuncs, (int *)((nqglobalvars_t*)pr_nqglobal_struct)->other-v, 1);
 	QC_AddSharedVar(svprogfuncs, (int *)((nqglobalvars_t*)pr_nqglobal_struct)->time-v, 1);
 
-	pr_items2 = !!PR_FindGlobal(svprogfuncs, "items2", 0);
+	pr_items2 = !!PR_FindGlobal(svprogfuncs, "items2", 0, NULL);
 
 	SV_ClearQCStats();
 
@@ -825,6 +829,8 @@ progsnum_t AddProgs(char *name)
 	}
 
 	Con_Printf("Loaded %s\n", name);
+
+	PR_AutoCvarSetup(svprogfuncs);
 
 	if (!svs.numprogs)
 	{
@@ -1055,6 +1061,7 @@ void PR_Init(void)
 
 	Cvar_Register(&pr_maxedicts, cvargroup_progs);
 	Cvar_Register(&pr_no_playerphysics, cvargroup_progs);
+	Cvar_Register(&pr_no_parsecommand, cvargroup_progs);
 
 	for (i = 0; i < MAXADDONS; i++)
 	{
@@ -1096,6 +1103,14 @@ void PR_Init(void)
 #ifdef SQL
 	SQL_Init();
 #endif
+}
+
+void SVQ1_CvarChanged(cvar_t *var)
+{
+	if (svprogfuncs)
+	{
+		PR_AutoCvar(svprogfuncs, var);
+	}
 }
 
 void SV_RegisterH2CustomTents(void);
@@ -1561,6 +1576,10 @@ qboolean PR_KrimzonParseCommand(char *s)
 		return false;
 #endif
 	if (!svprogfuncs)
+		return false;
+
+	/*some people are irresponsible*/
+	if (pr_no_parsecommand.ival)
 		return false;
 
 	if (gfuncs.ParseClientCommand)
@@ -8711,6 +8730,19 @@ static void QCBUILTIN PF_SendPacket(progfuncs_t *prinst, struct globalvars_s *pr
 	NET_SendPacket(NS_SERVER, strlen(contents), contents, to);
 }
 
+static void QCBUILTIN PF_sv_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int action = G_FLOAT(OFS_PARM0);
+	float *pos = G_VECTOR(OFS_PARM1);
+	float radius = G_FLOAT(OFS_PARM2);
+	float quant = G_FLOAT(OFS_PARM3);
+#if defined(TERRAIN)
+	G_FLOAT(OFS_RETURN) = Heightmap_Edit(sv.world.worldmodel, action, pos, radius, quant);
+#else
+	G_FLOAT(OFS_RETURN) = false;
+#endif
+}
+
 BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"fixme",			PF_Fixme,			0,		0,		0},
 	{"ignore",			PF_Ignore,			0,		0,		0},
@@ -9016,8 +9048,11 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"clientstat",		PF_clientstat,		0,		0,		0,		232},	//EXT_CSQC
 	{"globalstat",		PF_globalstat,		0,		0,		0,		233},	//EXT_CSQC_1 actually
 //END EXT_CSQC
-	{"isbackbuffered",	PF_isbackbuffered,	0,		0,		0,		234},
+	{"isbackbuffered",	PF_isbackbuffered,	0,		0,		0,		234},	
+	//{"rotatevectorsbyangle",	PF_rotatevectorsbyangles,0,0,0,		235}, // #235
+	//{"rotatevectorsbymatrix",	PF_rotatevectorsbymatrix,0,0,0,		236}, // #236
 	{"skinforname",		PF_skinforname,		0,		0,		0,		237},		// #237
+	{"shaderforname",	PF_Fixme,			0,		0,		0,		238},
 	{"te_bloodqw",		PF_te_bloodqw,		0,		0,		0,		239},
 
 	{"checkpvs",		PF_checkpvs,		0,		0,		0,		240},
@@ -9042,9 +9077,25 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"stoh",			PF_stoh,			0,		0,		0,		261},
 	{"htos",			PF_htos,			0,		0,		0,		262},
 
+#if 0
+	{"skel_create",		PF_skel_create,		0,		0,		0,		263},//float(float modlindex) skel_create = #263; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_build",		PF_skel_build,		0,		0,		0,		264},//float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone) skel_build = #264; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_numbones",PF_skel_get_numbones,0,	0,		0,		265},//float(float skel) skel_get_numbones = #265; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_bonename",PF_skel_get_bonename,0,	0,		0,		266},//string(float skel, float bonenum) skel_get_bonename = #266; // (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
+	{"skel_get_boneparent",PF_skel_get_boneparent,0,0,		0,		267},//float(float skel, float bonenum) skel_get_boneparent = #267; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_find_bone",	PF_skel_find_bone,	0,		0,		0,		268},//float(float skel, string tagname) skel_get_boneidx = #268; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_bonerel",PF_skel_get_bonerel,0,		0,		0,		269},//vector(float skel, float bonenum) skel_get_bonerel = #269; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+	{"skel_get_boneabs",PF_skel_get_boneabs,0,		0,		0,		270},//vector(float skel, float bonenum) skel_get_boneabs = #270; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+	{"skel_set_bone",	PF_skel_set_bone,	0,		0,		0,		271},//void(float skel, float bonenum, vector org) skel_set_bone = #271; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_mul_bone",	PF_skel_mul_bone,	0,		0,		0,		272},//void(float skel, float bonenum, vector org) skel_mul_bone = #272; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_mul_bones",	PF_skel_mul_bones,	0,		0,		0,		273},//void(float skel, float startbone, float endbone, vector org) skel_mul_bone = #273; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_copybones",	PF_skel_copybones,	0,		0,		0,		274},//void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones = #274; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_delete",		PF_skel_delete,		0,		0,		0,		275},//void(float skel) skel_delete = #275; // (FTE_CSQC_SKELETONOBJECTS)
+#endif
 	{"frameforname",	PF_frameforname,	0,		0,		0,		276},//void(float modidx, string framename) frameforname = #276 (FTE_CSQC_SKELETONOBJECTS)
 	{"frameduration",	PF_frameduration,	0,		0,		0,		277},//float(float modidx, float framenum) frameduration = #277 (FTE_CSQC_SKELETONOBJECTS)
 
+	{"terrain_edit",	PF_sv_terrain_edit,	0,		0,		0,		278},//void(float action, vector pos, float radius, float quant) terrain_edit = #278 (??FTE_TERRAIN_EDIT??
 
 //EXT_CSQC
 //	{"setmodelindex",	PF_sv_SetModelIndex,0,		0,		0,		333},	// #333 void(entity e, float mdlindex) setmodelindex (EXT_CSQC)
@@ -9267,6 +9318,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //end dp extras
 
 	{"precache_vwep_model",PF_precache_vwep_model,0,0,		0,		532},	// #532 float(string mname) precache_vwep_model
+
+	{"sprintf",			PF_sprintf,			0,		0,		0,		627},
 
 	//don't exceed sizeof(pr_builtin)/sizeof(pr_builtin[0]) (currently 1024) without modifing the size of pr_builtin
 

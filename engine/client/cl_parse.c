@@ -4658,6 +4658,13 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 			{
 				Cam_SetAutoTrack(atoi(stufftext+5));
 			}
+			else if (!strncmp(stufftext, "//kickfile ", 11))
+			{
+				flocation_t loc;
+				Cmd_TokenizeString(stufftext+2, false, false);
+				if (FS_FLocateFile(Cmd_Argv(1), FSLFRT_IFFOUND, &loc))
+					Con_Printf("You have been kicked due to a modified file located at %s.\n", Cmd_Argv(0));
+			}
 #ifdef PLUGINS
 			else if (!strncmp(stufftext, "//tinfo ", 8))
 			{
@@ -5200,11 +5207,11 @@ void CL_ParseServerMessage (void)
 			cl.ackedinputsequence = cl.validsequence;
 			break;
 
-		case svc_maxspeed :
+		case svc_maxspeed:
 			cl.maxspeed[destsplit] = MSG_ReadFloat();
 			break;
 
-		case svc_entgravity :
+		case svc_entgravity:
 			cl.entgravity[destsplit] = MSG_ReadFloat();
 			break;
 
@@ -5270,11 +5277,11 @@ void CL_ParseServerMessage (void)
 
 		case svcfte_cgamepacket:
 #ifdef HLCLIENT
-			if (CLHL_ParseGamePacket());
+			if (CLHL_ParseGamePacket())
 				break;
 #endif
 #ifdef CSQC_DAT
-			if (CSQC_ParseGamePacket());
+			if (CSQC_ParseGamePacket())
 				break;
 #endif
 			Con_Printf("Unable to parse gamecode packet\n");

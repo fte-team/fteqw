@@ -9,6 +9,13 @@
 
 #if defined(MENU_DAT) || defined(CSQC_DAT)
 
+struct
+{
+	float *drawfont;
+	float *drawfontscale;
+} mp_globs;
+
+
 int MP_TranslateFTEtoDPCodes(int code)
 {
 	switch(code)
@@ -343,11 +350,29 @@ void QCBUILTIN PF_CL_drawcolouredstring (progfuncs_t *prinst, struct globalvars_
 	float *pos = G_VECTOR(OFS_PARM0);
 	char *text = PR_GetStringOfs(prinst, OFS_PARM1);
 	float *size = G_VECTOR(OFS_PARM2);
-	float alpha = G_FLOAT(OFS_PARM3);
-//	float flag = G_FLOAT(OFS_PARM4);
+	float alpha = 0;
+	float flag = 0;
+	float r, g, b;
 
 	conchar_t buffer[2048], *str;
 	float px, py;
+
+	if (*prinst->callargc >= 6)
+	{
+		r = G_FLOAT(OFS_PARM3 + 0);
+		g = G_FLOAT(OFS_PARM3 + 1);
+		b = G_FLOAT(OFS_PARM3 + 2);
+		alpha = G_FLOAT(OFS_PARM4);
+		flag = G_FLOAT(OFS_PARM5);
+	}
+	else
+	{
+		r = 1;
+		g = 1;
+		b = 1;
+		alpha = G_FLOAT(OFS_PARM3);
+		flag = G_FLOAT(OFS_PARM4);
+	}
 
 	if (!text)
 	{
@@ -359,7 +384,7 @@ void QCBUILTIN PF_CL_drawcolouredstring (progfuncs_t *prinst, struct globalvars_
 	str = buffer;
 
 	Font_BeginScaledString(font_conchar, pos[0], pos[1], &px, &py);
-	Font_ForceColour(1, 1, 1, alpha);
+	Font_ForceColour(r, g, b, alpha);
 	while(*str)
 	{
 		px = Font_DrawScaleChar(px, py, size[0], size[1], *str++);
@@ -377,9 +402,26 @@ void QCBUILTIN PF_CL_stringwidth(progfuncs_t *prinst, struct globalvars_s *pr_gl
 		fontsize = G_FLOAT(OFS_PARM2);
 	else
 		fontsize = 1;
+	if (mp_globs.drawfontscale)
+		fontsize *= mp_globs.drawfontscale[1];
 	if (usecolours)
 	{
-		G_FLOAT(OFS_RETURN) = COM_FunStringLength(text)*fontsize;
+		conchar_t buffer[2048], *str;
+		float px, py;
+		COM_ParseFunString(CON_WHITEMASK, text, buffer, sizeof(buffer), false);
+		str = buffer;
+
+		Font_BeginScaledString(font_conchar, 0, 0, &px, &py);
+		while(*str)
+		{
+			px += Font_CharWidth(*str++);
+		}
+		Font_EndString(font_conchar);
+
+		if (mp_globs.drawfontscale)
+			px *= mp_globs.drawfontscale[1];
+
+		G_FLOAT(OFS_RETURN) = px;
 	}
 	else
 	{
@@ -534,7 +576,7 @@ void QCBUILTIN PF_CL_drawcharacter (progfuncs_t *prinst, struct globalvars_s *pr
 
 	Font_BeginScaledString(font_conchar, pos[0], pos[1], &x, &y);
 	Font_ForceColour(rgb[0], rgb[1], rgb[2], alpha);
-	Font_DrawScaleChar(x, y, size[0], size[1], CON_WHITEMASK | 0xe000|(chara&0xff));
+	Font_DrawScaleChar(x, y, size[0], size[1], CON_WHITEMASK | /*0xe000|*/(chara&0xff));
 	Font_InvalidateColour();
 	Font_EndString(font_conchar);
 
@@ -561,9 +603,15 @@ void QCBUILTIN PF_CL_drawrawstring (progfuncs_t *prinst, struct globalvars_s *pr
 	x = pos[0];
 	y = pos[1];
 	Font_ForceColour(rgb[0], rgb[1], rgb[2], alpha);
+
+	if (mp_globs.drawfontscale)
+	{
+		size[0] *= mp_globs.drawfontscale[0];
+		size[1] *= mp_globs.drawfontscale[1];
+	}
 	while(*text)
 	{
-		x = Font_DrawScaleChar(x, y, size[0], size[1], CON_WHITEMASK|0xe000|(*text++&0xff));
+		x = Font_DrawScaleChar(x, y, size[0], size[1], CON_WHITEMASK|/*0xe000|*/(*text++&0xff));
 	}
 	Font_InvalidateColour();
 	Font_EndString(font_conchar);
@@ -601,9 +649,6 @@ void QCBUILTIN PF_CL_drawgetimagesize (progfuncs_t *prinst, struct globalvars_s 
 	mpic_t *p = R2D_SafeCachePic(picname);
 
 	float *ret = G_VECTOR(OFS_RETURN);
-
-	if (!p)
-		p = R2D_SafeCachePic(va("%s.tga", picname));
 
 	if (p)
 	{
@@ -743,7 +788,15 @@ void QCBUILTIN PF_parseentitydata(progfuncs_t *prinst, struct globalvars_s *pr_g
 
 void QCBUILTIN PF_mod (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	G_FLOAT(OFS_RETURN) = (float)(((int)G_FLOAT(OFS_PARM0))%((int)G_FLOAT(OFS_PARM1)));
+	int a = G_FLOAT(OFS_PARM0);
+	int b = G_FLOAT(OFS_PARM1);
+	if (b == 0)
+	{
+		Con_Printf("mod by zero\n");
+		G_FLOAT(OFS_RETURN) = 0;
+	}
+	else
+		G_FLOAT(OFS_RETURN) = a % b;
 }
 
 char *RemapCvarNameFromDPToFTE(char *name)
@@ -836,7 +889,7 @@ void QCBUILTIN PF_nonfatalobjerror (progfuncs_t *prinst, struct globalvars_s *pr
 
 	PR_StackTrace(prinst);
 
-	selfp = PR_FindGlobal(prinst, "self", PR_CURRENT);
+	selfp = PR_FindGlobal(prinst, "self", PR_CURRENT, NULL);
 	if (selfp && selfp->_int)
 	{
 		ed = PROG_TO_EDICT(prinst, selfp->_int);
@@ -970,7 +1023,7 @@ void QCBUILTIN PF_cl_getmousetarget (progfuncs_t *prinst, struct globalvars_s *p
 }
 
 //vector	getmousepos(void)  	= #66;
-void QCBUILTIN QCBUILTIN PF_cl_getmousepos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cl_getmousepos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *ret = G_VECTOR(OFS_RETURN);
 	extern int mousemove_x, mousemove_y;
@@ -1608,7 +1661,7 @@ builtin_t menu_builtins[] = {
 	PF_cin_getstate,					// #464
 	PF_cin_restart, 					// #465
 	PF_drawline,						// #466
-	PF_drawcolorcodedstring,		// #467
+	PF_CL_drawcolouredstring,		// #467
 	PF_CL_stringwidth,					// #468
 	PF_CL_drawsubpic,						// #469
 	
@@ -1705,7 +1758,21 @@ builtin_t menu_builtins[] = {
 	PF_M_gethostcacheindexforkey,
 	PF_M_addwantedhostcachekey,
 	PF_M_getextresponse,			// #624
-	PF_netaddress_resolve
+	PF_netaddress_resolve,
+	skip1	/*get gamedir info*/
+	PF_sprintf,	/*sprintf*/
+	skip1	/*not listed in dp*/
+	skip1	/*not listed in dp*/
+	skip1	/*setkeybind*/
+	skip1	/*getbindmaps*/
+	skip1	/*setbindmaps*/
+	skip1	/*crypto*/
+	skip1	/*crypto*/
+	skip1	/*crypto*/
+	skip1	/*crypto*/
+	skip1	/*crypto #637*/
+
+
 };
 int menu_numbuiltins = sizeof(menu_builtins)/sizeof(menu_builtins[0]);
 
@@ -1757,6 +1824,9 @@ void MP_Shutdown (void)
 	search_close_progs(menuprogs, true);
 
 	CloseProgs(menuprogs);
+#ifdef TEXTEDITOR
+	Editor_ProgsKilled(menuprogs);
+#endif
 	menuprogs = NULL;
 
 	key_dest = key_game;
@@ -1798,6 +1868,14 @@ void VARGS Menu_Abort (char *format, ...)
 	}
 
 	MP_Shutdown();
+}
+
+void MP_CvarChanged(cvar_t *var)
+{
+	if (svprogfuncs)
+	{
+		PR_AutoCvar(svprogfuncs, var);
+	}
 }
 
 double  menutime;
@@ -1875,9 +1953,13 @@ qboolean MP_Init (void)
 
 		PF_InitTempStrings(menuprogs);
 
-		mp_time = (float*)PR_FindGlobal(menuprogs, "time", 0);
+		mp_time = (float*)PR_FindGlobal(menuprogs, "time", 0, NULL);
 		if (mp_time)
 			*mp_time = Sys_DoubleTime();
+
+#pragma message("disabled until csqc gets forked or some such")
+		//mp_globs.drawfont = (float*)PR_FindGlobal(menuprogs, "drawfont", 0, NULL);
+		//mp_globs.drawfontscale = (float*)PR_FindGlobal(menuprogs, "drawfontscale", 0, NULL);
 
 		menuentsize = PR_InitEnts(menuprogs, 8192);
 
@@ -1923,7 +2005,7 @@ void MP_CoreDump_f(void)
 void MP_Reload_f(void)
 {
 	MP_Shutdown();
-	M_Init();
+	MP_Init();
 }
 
 void MP_RegisterCvarsAndCmds(void)

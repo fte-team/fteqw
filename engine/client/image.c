@@ -1178,7 +1178,7 @@ badjpeg:
 		#endif
 		goto badjpeg;
 	}
-	if (cinfo.output_components!=3)
+	if (cinfo.output_components!=3 && cinfo.output_components != 1)
 	{
 		#ifdef _DEBUG
 		Con_Printf("Bad number of components in JPEG: '%d', should be '3'.\n",cinfo.output_components);
@@ -1192,21 +1192,45 @@ badjpeg:
 	out=mem=BZ_Malloc(cinfo.output_height*cinfo.output_width*4);
 	memset(out, 0, cinfo.output_height*cinfo.output_width*4);
 
-	while (cinfo.output_scanline < cinfo.output_height)
+	if (cinfo.output_components == 1)
 	{
-		#ifdef DYNAMIC_LIBJPEG
-			(void) qjpeg_read_scanlines(&cinfo, buffer, 1);
-		#else
-			(void) jpeg_read_scanlines(&cinfo, buffer, 1);
-		#endif
+		while (cinfo.output_scanline < cinfo.output_height)
+		{
+			#ifdef DYNAMIC_LIBJPEG
+				(void) qjpeg_read_scanlines(&cinfo, buffer, 1);
+			#else
+				(void) jpeg_read_scanlines(&cinfo, buffer, 1);
+			#endif
 
-		in = buffer[0];
-		for (i = 0; i < cinfo.output_width; i++)
-		{//rgb to rgba
-			*out++ = *in++;
-			*out++ = *in++;
-			*out++ = *in++;
-			*out++ = 255;
+			in = buffer[0];
+			for (i = 0; i < cinfo.output_width; i++)
+			{//rgb to rgba
+				*out++ = *in;
+				*out++ = *in;
+				*out++ = *in;
+				*out++ = 255;
+				in++;
+			}
+		}
+	}
+	else
+	{
+		while (cinfo.output_scanline < cinfo.output_height)
+		{
+			#ifdef DYNAMIC_LIBJPEG
+				(void) qjpeg_read_scanlines(&cinfo, buffer, 1);
+			#else
+				(void) jpeg_read_scanlines(&cinfo, buffer, 1);
+			#endif
+
+			in = buffer[0];
+			for (i = 0; i < cinfo.output_width; i++)
+			{//rgb to rgba
+				*out++ = *in++;
+				*out++ = *in++;
+				*out++ = *in++;
+				*out++ = 255;
+			}
 		}
 	}
 
@@ -2241,7 +2265,8 @@ int image_width, image_height;
 texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 {
 	qboolean alphaed;
-	char *buf, *data;
+	char *buf;
+	unsigned char *data;
 	texid_t tex;
 //	int h;
 	char fname[MAX_QPATH], nicename[MAX_QPATH];
@@ -2332,6 +2357,35 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 					extern cvar_t vid_hardwaregamma;
 					if (!(flags&IF_NOGAMMA) && !vid_hardwaregamma.value)
 						BoostGamma(data, image_width, image_height);
+
+					if (!(flags & IF_NOALPHA))
+					{
+						unsigned int alpha_width, alpha_height, p;
+						char aname[MAX_QPATH];
+						unsigned char *alphadata;
+						char *alph;
+						if (tex_path[i].args >= 3)
+							snprintf(aname, sizeof(aname)-1, tex_path[i].path, subpath, nicename, va("_alpha%s", tex_extensions[e].name));
+						else
+							snprintf(aname, sizeof(aname)-1, tex_path[i].path, nicename, va("_alpha%s", tex_extensions[e].name));
+						if ((alph = COM_LoadFile (aname, 5)))
+						{
+							if ((alphadata = Read32BitImageFile(alph, com_filesize, &alpha_width, &alpha_height, aname)))
+							{
+								if (alpha_width == image_width && alpha_height == image_height)
+								{
+									for (p = 0; p < alpha_width*alpha_height; p++)
+									{
+										data[(p<<2) + 3] = (alphadata[(p<<2) + 0] + alphadata[(p<<2) + 1] + alphadata[(p<<2) + 2])/3;
+									}
+								}
+								BZ_Free(alphadata);
+							}
+							BZ_Free(alph);
+						}
+					}
+
+
 					TRACE(("dbg: Mod_LoadHiResTexture: %s loaded\n", name));
 					if (tex_path[i].args >= 3)
 					{	//if it came from a special subpath (eg: map specific), upload it using the subpath prefix

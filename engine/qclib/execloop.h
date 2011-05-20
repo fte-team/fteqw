@@ -49,11 +49,11 @@ cont:	//last statement may have been a breakpoint
 	st = pr_statements + s;
 
 reeval:
+	switch (st->op & ~0x8000)
 #else
 	st++;
-#endif
-
 	switch (st->op)
+#endif
 	{
 	case OP_ADD_F:
 		OPC->_float = OPA->_float + OPB->_float;
@@ -1108,14 +1108,6 @@ if (pr_typecurrent != 0)
 			s = ShowStep(progfuncs, s);
 			st = &pr_statements[s];	//let the user move execution
 			pr_xstatement = s = st-pr_statements;
-
-#if 0	//fakeop stuff - not practical, the rest of the code is more optimised, st needs to point at the correct statement
-			memcpy(&fakeop, st, sizeof(dstatement_t));	//don't hit the new statement as a break point, cos it's probably the same one.
-			fakeop.op &= ~0x8000;
-			st = &fakeop;	//a little remapping...
-#else
-			st->op &= ~0x8000;	//just remove the breakpoint and go around again, but this time in the debugger.
-#endif
 
 			goto reeval;	//reexecute
 		}

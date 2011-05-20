@@ -129,6 +129,7 @@ typedef struct cvar_group_s
 #define CVAR_NOUNSAFEEXPAND	(1<<14) // do not expand cvar value when command is from gamecode
 #define CVAR_RULESETLATCH	(1<<15)	//latched by the ruleset
 #define CVAR_SHADERSYSTEM	(1<<16)	//change flushes shaders.
+#define CVAR_TELLGAMECODE   (1<<17) //tells the gamecode when it has changed, does not prevent changing, added as an optimisation
 
 #define CVAR_LASTFLAG CVAR_SHADERSYSTEM
 

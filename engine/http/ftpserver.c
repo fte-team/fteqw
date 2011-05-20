@@ -525,18 +525,20 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 			}
 			if (cl->dataislisten)	//accept a connect.
 			{
+				int err;
 				int _true = true;
 				int temp;
 				struct sockaddr_in adr;
 				int adrlen = sizeof(adr);
 				temp = accept(cl->datasock, (struct sockaddr *)&adr, &adrlen);
+				err = qerrno;
 				closesocket(cl->datasock);
 				cl->datasock = temp;
 				cl->dataislisten = false;
 
 				if (cl->datasock == INVALID_SOCKET)
 				{
-					QueueMessageva (cl, "425 Your client connected too slowly - %i.\r\n", qerrno);
+					QueueMessageva (cl, "425 Your client connected too slowly - %i.\r\n", err);
 					continue;
 				}
 				else

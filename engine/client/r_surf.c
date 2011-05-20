@@ -2046,11 +2046,6 @@ void Surf_DrawWorld (void)
 		GLR_DoomWorld();
 	else
 #endif
-#ifdef TERRAIN
-	if (currentmodel->type == mod_heightmap)
-		GL_DrawHeightmapModel(currententity);
-	else
-#endif
 	{
 		RSpeedRemark();
 
@@ -2091,6 +2086,13 @@ void Surf_DrawWorld (void)
 		     if (cl.worldmodel->fromgame == fg_doom3)
 		{
 			vis = D3_CalcVis(cl.worldmodel, r_refdef.vieworg);
+		}
+		else
+#endif
+#ifdef TERRAIN
+		if (currentmodel->type == mod_heightmap)
+		{
+			vis = NULL;
 		}
 		else
 #endif
@@ -2178,6 +2180,9 @@ static int Surf_LM_AllocBlock (int w, int h, int *x, int *y, shader_t *shader)
 				lightmap[texnum]->deluxmaps[j+2] = 255;
 			}
 		}
+
+		if (lightmap[texnum]->external)
+			lightmap_textures[texnum] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
 
 		/*not required, but using one lightmap per texture can result in better texture unit switching*/
 		if (lightmap[texnum]->shader != shader)
@@ -2277,6 +2282,9 @@ static int Surf_LM_FillBlock (int texnum, int w, int h, int x, int y)
 				memset(lightmap[i]->lightmaps, 255, LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*3);
 
 				COM_StripExtension(cl.worldmodel->name, basename, sizeof(basename));
+				if (!lightmap[i]->external)
+					R_DestroyTexture(lightmap_textures[i]);
+				lightmap[i]->external = true;
 				lightmap_textures[i] = R_LoadHiResTexture(va("%s/lm_%04i", basename, i), NULL, IF_NOALPHA|IF_NOGAMMA);
 				lightmap[i]->modified = false;
 			}
@@ -2445,6 +2453,14 @@ void Surf_DeInit(void)
 {
 	int i;
 
+	if (lightmap_textures)
+	{
+		for (i = 0; i < numlightmaps; i++)
+			if (!lightmap[i] || lightmap[i]->external)
+				R_DestroyTexture(lightmap_textures[i]);
+		BZ_Free(lightmap_textures);
+	}
+
 	for (i = 0; i < numlightmaps; i++)
 	{
 		if (!lightmap[i])
@@ -2453,12 +2469,6 @@ void Surf_DeInit(void)
 		lightmap[i] = NULL;
 	}
 
-	if (lightmap_textures)
-	{
-		for (i = 0; i < numlightmaps; i++)
-			R_DestroyTexture(lightmap_textures[i]);
-		BZ_Free(lightmap_textures);
-	}
 	if (lightmap)
 		BZ_Free(lightmap);
 

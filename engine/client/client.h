@@ -1052,6 +1052,8 @@ qboolean CSQC_DeltaPlayer(int playernum, player_state_t *state);
 void CSQC_DeltaStart(float time);
 qboolean CSQC_DeltaUpdate(entity_state_t *src);
 void CSQC_DeltaEnd(void);
+
+void CSQC_CvarChanged(cvar_t *var);
 #endif
 
 //
@@ -1211,6 +1213,8 @@ extern qboolean editoractive;
 extern qboolean editormodal;
 void Editor_Draw(void);
 void Editor_Init(void);
+struct progfuncs_s;
+void Editor_ProgsKilled(struct progfuncs_s *dead);
 #endif
 
 void SCR_StringToRGB (char *rgbstring, float *rgb, float rgbinputscale);

@@ -2858,7 +2858,7 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 
 	MAX_REGS		= 65536;
 	MAX_STRINGS		= 1000000;
-	MAX_GLOBALS		= 32768;
+	MAX_GLOBALS		= 65535;
 	MAX_FIELDS		= 2048;
 	MAX_STATEMENTS	= 0x80000;
 	MAX_FUNCTIONS	= 16384;

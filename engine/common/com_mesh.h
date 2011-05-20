@@ -144,6 +144,9 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer);
 #ifdef PSKMODELS
 	qboolean Mod_LoadPSKModel(model_t *mod, void *buffer);
 #endif
+#ifdef INTERQUAKEMODELS
+	qboolean Mod_LoadInterQuakeModel(model_t *mod, void *buffer);
+#endif
 #ifdef MD5MODELS
 	qboolean Mod_LoadMD5MeshModel(model_t *mod, void *buffer);
 	qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer);

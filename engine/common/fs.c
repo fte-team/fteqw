@@ -1633,7 +1633,7 @@ void COM_Gamedir (const char *dir)
 #endif
 }
 
-#define DPCOMPAT "set dpcompat_set 1\nset dpcompat_trailparticles 1\n"
+#define DPCOMPAT "set _cl_playermodel \"\"\n set dpcompat_set 1\n set dpcompat_trailparticles 1\nset dpcompat_corruptglobals 1\nset vid_pixelheight 1\n"
 #define NEXCFG DPCOMPAT "set r_particlesdesc effectinfo\nset sv_maxairspeed \"400\"\nset sv_jumpvelocity 270\nset sv_mintic \"0.01\"\ncl_nolerp 0\nset r_particlesdesc effectinfo\n"
 #define DMFCFG "set com_parseutf8 1\npm_airstep 1\n"
 #define HEX2CFG "set r_particlesdesc \"spikeset tsshaft h2part\"\nset sv_maxspeed 640\nset watervis 1\nset r_wateralpha 0.5\nset sv_pupglow 1\nset cl_model_bobbing 1\n"
@@ -1659,6 +1659,7 @@ const gamemode_info_t gamemode_info[] = {
 	{"Darkplaces-Hipnotic",	"hipnotic",		"-hipnotic",	{NULL},					NULL,	{"id1",		"qw",	"hipnotic",	"fte"},		"Quake: Scourge of Armagon"},
 	{"Darkplaces-Rogue",	"rogue",		"-rogue",		{NULL},					NULL,	{"id1",		"qw",	"rogue",	"fte"},		"Quake: Dissolution of Eternity"},
 	{"Nexuiz",				"nexuiz",		"-nexuiz",		{"nexuiz.exe"},			NEXCFG,	{"data",						"ftedata"},	"Nexuiz"},
+	{"Xonotic",				"xonotic",		"-xonotic",		{"xonotic.exe"},		NEXCFG,	{"data",						"ftedata"},	"Xonotic"},
 	{"DMF",					"dmf",			"-dmf",			{"base/src/progs.src"},	DMFCFG,	{"base",						         },		"DMF"},
 
 	//supported commercial mods (some are currently only partially supported)

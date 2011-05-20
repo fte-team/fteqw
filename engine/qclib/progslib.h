@@ -86,7 +86,7 @@ struct progfuncs_s {
 	char	*(*saveent)					(progfuncs_t *prinst, char *buf, int *size, struct edict_s *ed);	//will save just one entities vars
 	struct edict_s	*(*restoreent)		(progfuncs_t *prinst, char *buf, int *size, struct edict_s *ed);	//will restore the entity that had it's values saved (can use NULL for ed)
 
-	union eval_s	*(*FindGlobal)		(progfuncs_t *prinst, char *name, progsnum_t num);	//find a pointer to the globals value
+	union eval_s	*(*FindGlobal)		(progfuncs_t *prinst, char *name, progsnum_t num, etype_t *type);	//find a pointer to the globals value
 	char	*(*AddString)				(progfuncs_t *prinst, char *val, int minlength);	//dump a string into the progs memory (for setting globals and whatnot)
 	void	*(*Tempmem)					(progfuncs_t *prinst, int ammount, char *whatfor);	//grab some mem for as long as the progs stays loaded
 
@@ -137,6 +137,7 @@ struct progfuncs_s {
 	int (*QueryField)					(progfuncs_t *prinst, unsigned int fieldoffset, etype_t *type, char **name, evalc_t *fieldcache);	//find info on a field definition at an offset
 
 	void (*EntClear)					(progfuncs_t *progfuncs, struct edict_s *e);
+	void (*FindPrefixGlobals)			(progfuncs_t *progfuncs, char *prefix, void (*found) (progfuncs_t *progfuncs, char *name, union eval_s *val, etype_t type) );
 };
 
 typedef struct progexterns_s {
@@ -249,7 +250,7 @@ typedef union eval_s
 #define PR_PrintEdict(pf,ed)								(*pf->PrintEdict)			(pf, ed)
 
 #define PR_FindFunction(pf, name, num)						(*pf->FindFunction)			(pf, name, num)
-#define PR_FindGlobal(pf, name, progs)						(*pf->FindGlobal)			(pf, name, progs)
+#define PR_FindGlobal(pf, name, progs, type)				(*pf->FindGlobal)			(pf, name, progs, type)
 #define PR_AddString(pf, ed, len)							(*pf->AddString)			(pf, ed, len)
 #define PR_Alloc(pf,size)									(*pf->Tempmem)				(pf, size)
 

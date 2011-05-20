@@ -1340,6 +1340,7 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 #endif
 
 #ifdef PEXT_CSQC
+	if (mx || my)
 	if (CSQC_MouseMove(mx, my))
 	{
 		mx = 0;

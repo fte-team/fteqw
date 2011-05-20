@@ -447,7 +447,7 @@ static void gl_skyspherecalc(int skytype)
 
 static void GL_SkyForceDepth(batch_t *batch)
 {
-	if (!cls.allow_skyboxes)	//allow a little extra fps.
+	if (!cls.allow_skyboxes && batch->texture)	//allow a little extra fps.
 	{
 		BE_SelectMode(BEM_DEPTHONLY);
 		BE_DrawMesh_List(batch->shader, batch->meshes-batch->firstmesh, batch->mesh+batch->firstmesh, &batch->texture->vbo, &batch->shader->defaulttextures, batch->flags);

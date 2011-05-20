@@ -254,9 +254,10 @@ void Font_Init(void)
 
 	fontplanes.shader = R_RegisterShader("ftefont",
 		"{\n"
-#ifdef USE_EGL
-			"program default2d\n"
-#endif
+			"if $nofixed\n"
+			"[\n"
+				"program default2d\n"
+			"]\n"
 			"nomipmaps\n"
 			"{\n"
 				"map $diffuse\n"
@@ -554,6 +555,21 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 				return c;
 			}
 		}
+	}
+	/*make tab invisible*/
+	if (charidx == '\t' || charidx == '\n')
+	{
+		c = &f->chars[charidx];
+		c->left = 0;
+		c->advance = f->charheight;
+		c->top = 0;
+
+		c->texplane = 0;
+		c->bmx = 0;
+		c->bmy = 0;
+		c->bmw = 0;
+		c->bmh = 0;
+		return c;
 	}
 
 #ifdef AVAIL_FREETYPE
@@ -949,14 +965,14 @@ void Font_Free(struct font_s *f)
 void Font_BeginString(struct font_s *font, int vx, int vy, int *px, int *py)
 {
 	curfont = font;
-	*px = (vx*vid.rotpixelwidth) / (float)vid.width;
-	*py = (vy*vid.rotpixelheight) / (float)vid.height;
+	*px = (vx*(int)vid.rotpixelwidth) / (float)vid.width;
+	*py = (vy*(int)vid.rotpixelheight) / (float)vid.height;
 }
 void Font_BeginScaledString(struct font_s *font, float vx, float vy, float *px, float *py)
 {
 	curfont = font;
-	*px = (vx*vid.rotpixelwidth) / (float)vid.width;
-	*py = (vy*vid.rotpixelheight) / (float)vid.height;
+	*px = vx;
+	*py = vy;
 }
 
 void Font_EndString(struct font_s *font)
@@ -1273,10 +1289,10 @@ float Font_DrawScaleChar(float px, float py, float cw, float ch, unsigned int ch
 
 	if (c->texplane >= DEFAULTPLANE)
 	{
-		sx = ((px+c->left));//*(int)vid.width) / (float)vid.rotpixelwidth;
-		sy = ((py+c->top));//*(int)vid.height) / (float)vid.rotpixelheight;
-		sw = ((curfont->charheight*cw));//*vid.width) / (float)vid.rotpixelwidth;
-		sh = ((curfont->charheight*ch));//*vid.height) / (float)vid.rotpixelheight;
+		sx = ((px+c->left));
+		sy = ((py+c->top));
+		sw = ((curfont->charheight*cw));
+		sh = ((curfont->charheight*ch));
 
 		if (c->texplane == DEFAULTPLANE)
 			v = Font_BeginChar(fontplanes.defaultfont);
@@ -1285,10 +1301,10 @@ float Font_DrawScaleChar(float px, float py, float cw, float ch, unsigned int ch
 	}
 	else
 	{
-		sx = ((px+c->left));//*(int)vid.width) / (float)vid.rotpixelwidth;
-		sy = ((py+c->top));//*(int)vid.height) / (float)vid.rotpixelheight;
-		sw = ((c->bmw*cw));//*vid.width) / (float)vid.rotpixelwidth;
-		sh = ((c->bmh*ch));//*vid.height) / (float)vid.rotpixelheight;
+		sx = ((px+c->left));
+		sy = ((py+c->top));
+		sw = ((c->bmw*cw));
+		sh = ((c->bmh*ch));
 		v = Font_BeginChar(fontplanes.texnum[c->texplane]);
 	}
 

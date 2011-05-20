@@ -610,6 +610,9 @@ vfsfile_t *FSZIP_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 	if (strcmp(mode, "rb"))
 		return NULL; //urm, unable to write/append
 
+	if (loc->len < 0)
+		return NULL;
+
 	vfsz = Z_Malloc(sizeof(vfszip_t));
 
 	vfsz->parent = zip;

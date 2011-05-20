@@ -1288,7 +1288,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf,
 	}
 	if (frame2 >= inf->groups)
 	{
-		Con_DPrintf("Too high frame %i (%s)\n", frame2, currententity->model->name);
+ 		Con_DPrintf("Too high frame %i (%s)\n", frame2, currententity->model->name);
 		frame2 = frame1;
 	}
 
@@ -1848,6 +1848,8 @@ void Mod_LoadSkinFile(texnums_t *texnum, char *surfacename, int skinnumber, unsi
 	texnum->shader = R_RegisterSkin(shadername);
 
 	R_BuildDefaultTexnums(texnum, texnum->shader);
+	if (texnum->shader->flags & SHADER_NOIMAGE)
+		Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", texnum->shader->name, loadmodel->name);
 }
 #endif
 
@@ -2210,6 +2212,16 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 							"blendfunc gl_one_minus_src_alpha gl_src_alpha\n"
 							"rgbgen lightingDiffuse\n"
 							"cull disable\n"
+							"depthwrite\n"
+						"}\n"
+					"}\n");
+			else if (skintranstype == 3)
+				texnums->shader = R_RegisterShader(skinname,
+					"{\n"
+						"{\n"
+							"map $diffuse\n"
+							"alphafunc ge128\n"
+							"rgbgen lightingDiffuse\n"
 							"depthwrite\n"
 						"}\n"
 					"}\n");
@@ -3639,6 +3651,9 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 				{
 					texnum->shader = R_RegisterSkin(shadname);
 					R_BuildDefaultTexnums(texnum, texnum->shader);
+
+					if (texnum->shader->flags & SHADER_NOIMAGE)
+						Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", texnum->shader->name, loadmodel->name);
 				}
 
 				inshader++;
@@ -4594,6 +4609,8 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 		Q_strncpyz(skin->name, matt[i].name, sizeof(skin->name));
 		gtexnums->shader = R_RegisterSkin(matt[i].name);
 		R_BuildDefaultTexnums(gtexnums, gtexnums->shader);
+		if (gtexnums->shader->flags & SHADER_NOIMAGE)
+			Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", gtexnums->shader->name, loadmodel->name);
 
 		gmdl[i].ofsskins = (char*)skin - (char*)&gmdl[i];
 		gmdl[i].numskins = 1;
@@ -5138,7 +5155,7 @@ galisskeletaltransforms_t *IQM_ImportTransforms(int *resultcount, int inverts, f
 {
 	galisskeletaltransforms_t *t, *r;
 	unsigned int num_t = 0;
-	unsigned int 0;
+	unsigned int v, j;
 	for (v = 0; v < inverts*4; v++)
 	{
 		if (vweight[v])
@@ -5149,12 +5166,12 @@ galisskeletaltransforms_t *IQM_ImportTransforms(int *resultcount, int inverts, f
 	{
 		for (j = 0; j < 4; j++)
 		{
-			if (vweight[v<<2+j])
+			if (vweight[(v<<2)+j])
 			{
-				t->boneindex = vbone[v<<2+j];
+				t->boneindex = vbone[(v<<2)+j];
 				t->vertexindex = v;
-				VectorScale(vpos, vweight[v<<2+j]/255.0, t->org);
-				VectorScale(vnorm, vweight[v<<2+j]/255.0, t->normal);
+				VectorScale(vpos, vweight[(v<<2)+j]/255.0, t->org);
+				VectorScale(vnorm, vweight[(v<<2)+j]/255.0, t->normal);
 				t++;
 			}
 		}
@@ -5162,31 +5179,42 @@ galisskeletaltransforms_t *IQM_ImportTransforms(int *resultcount, int inverts, f
 	return r;
 }
 
-galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer)
+galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 {
 	struct iqmheader *h = (struct iqmheader *)buffer;
 	struct iqmjoint *joint;
 	struct iqmmesh *mesh;
 	struct iqmvertexarray *varray;
+	struct iqmtriangle *tris;
+	unsigned int i, t, nt;
+
+	char *strings;
+
+	float *vpos = NULL, *tcoord = NULL, *vnorm = NULL, *vtang = NULL;
+	unsigned char *vbone = NULL, *vweight = NULL;
+	unsigned int type, fmt, size, offset;
 
 	galiasinfo_t *gai;
+	galiasskin_t *skin;
+	texnums_t *texnum;
+	index_t *idx;
 
-	if (memcmp(h->magic, IQM_MAGIC, sizeof(h->magic))
+	if (memcmp(h->magic, IQM_MAGIC, sizeof(h->magic)))
 	{
 		Con_Printf("%s: format not recognised\n", mod->name);
-		return false;
+		return NULL;
 	}
 	if (h->version != IQM_VERSION)
 	{
 		Con_Printf("%s: unsupported version\n", mod->name);
-		return false;
+		return NULL;
 	}
 	if (h->filesize != com_filesize)
 	{
 		Con_Printf("%s: size (%u != %u)\n", mod->name, h->filesize, com_filesize);
-		return false;
+		return NULL;
 	}
-
+/*
 	struct iqmjoint
 	    unsigned int name;
     int parent;
@@ -5196,11 +5224,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer)
     unsigned int num_vertexarrays, num_vertexes, ofs_vertexarrays;
     unsigned int num_triangles, ofs_triangles, ofs_adjacency;
     unsigned int num_joints, ofs_joints;
-
-
-	float *vpos = NULL, *tcoord = NULL, *vnorm = NULL, *vtang = NULL;
-	unsigned char *vbone = NULL, *vweight = NULL;
-	unsigned int type, fmt, size, offset;
+*/
 
 	varray = (struct iqmvertexarray*)(buffer + h->ofs_vertexarrays);
 	for (i = 0; i < h->num_vertexarrays; i++)
@@ -5223,24 +5247,55 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer)
 			vweight = (unsigned char *)(buffer + offset);
 	}
 
-	gai = Hunk_Alloc(sizeof(*gai)*h->num_meshes);
+	if (!h->num_meshes)
+		return NULL;
+
+	strings = buffer + h->ofs_text;
+
+	mesh = buffer + h->ofs_meshes;
+	tris = buffer + h->ofs_triangles;
+
+	gai = Hunk_Alloc(sizeof(*gai)*h->num_meshes + sizeof(*skin)*h->num_meshes + sizeof(*texnum)*h->num_meshes);
+	skin = (galiasskin_t*)(gai + h->num_meshes);
+	texnum = (texnums_t*)(skin + h->num_meshes);
 	for (i = 0; i < h->num_meshes; i++)
 	{
 		gai[i].nextsurf = (i == (h->num_meshes-1))?0:sizeof(*gai);
 		gai[i].sharesverts = false;	//used with models with two shaders using the same vertex - use last mesh's verts
 		gai[i].sharesbones = i != 0;
 		gai[i].numverts = LittleLong(mesh[i].num_vertexes);
+		gai[i].numskins = 1;
+		gai[i].ofsskins = (char*)&skin[i] - (char*)&gai[i];
+
+		Q_strncpyz(skin[i].name, strings+mesh[i].material, sizeof(skin[i].name));
+		skin[i].skinwidth = 1;
+		skin[i].skinheight = 1;
+		skin[i].ofstexels = NULL; /*doesn't support 8bit colourmapping*/
+		skin[i].skinspeed = 10; /*something to avoid div by 0*/
+		skin[i].texnums = 1;
+		skin[i].ofstexnums = (char*)&texnum[i] - (char*)&skin[i];
+		texnum[i].shader = R_RegisterSkin(skin[i].name);
+
 		offset = LittleLong(mesh[i].first_vertex);
 
 		/*generate transforms for each vertex*/
 		gai[i].ofstransforms = (char*)IQM_ImportTransforms(&gai[i].numtransforms, gai[i].numverts, vpos+offset*3, tcoord+offset*2, vnorm+offset*3, vtang+offset*4, vbone+offset*4, vweight+offset*4) - (char*)gai;
-	}
-galiasinfo_t
-	    unsigned int name;
-    unsigned int material;
-    unsigned int first_vertex, num_vertexes;
-    unsigned int first_triangle, num_triangles;
 
+
+		nt = 0;//LittleLong(mesh[i].num_triangles);
+		tris = buffer + LittleLong(h->ofs_triangles);
+		tris += LittleLong(mesh[i].first_triangle);
+		gai[i].numindexes = nt*3;
+		idx = Hunk_Alloc(sizeof(*idx)*gai[i].numindexes);
+		gai[i].ofs_indexes = (char*)idx - (char*)&gai[i];
+		for (t = 0; t < nt; t++)
+		{
+			*idx++ = LittleShort(tris[t].vertex[0]);
+			*idx++ = LittleShort(tris[t].vertex[1]);
+			*idx++ = LittleShort(tris[t].vertex[2]);
+		}
+	}
+	return gai;
 }
 
 qboolean Mod_ParseIQMAnim(char *buffer, galiasinfo_t *prototype, void**poseofs, galiasgroup_t *gat)
@@ -5251,11 +5306,12 @@ qboolean Mod_ParseIQMAnim(char *buffer, galiasinfo_t *prototype, void**poseofs, 
 
 qboolean Mod_LoadInterQuakeModel(model_t *mod, void *buffer)
 {
+	unsigned int hunkstart, hunkend, hunktotal;
 	galiasinfo_t *root;
 	struct iqmheader *h = (struct iqmheader *)buffer;
 
 	hunkstart = Hunk_LowMark();
-	root = Mod_ParseMD5MeshModel(buffer);
+	root = Mod_ParseIQMMeshModel(mod, buffer);
 	if (!root)
 		return false;
 	hunkend = Hunk_LowMark();
@@ -5693,6 +5749,8 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer)
 #ifndef SERVERONLY
 					texnum->shader = R_RegisterSkin(com_token);
 					R_BuildDefaultTexnums(texnum, texnum->shader);
+					if (texnum->shader->flags & SHADER_NOIMAGE)
+						Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", texnum->shader->name, loadmodel->name);
 #endif
 				}
 				else if (!strcmp(com_token, "numverts"))

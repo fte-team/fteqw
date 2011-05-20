@@ -357,7 +357,7 @@ void SV_SaveSpawnparms (qboolean dontsave)
 			continue;
 
 		// call the progs to get default spawn parms for the new client
-		if (PR_FindGlobal(svprogfuncs, "ClientReEnter", 0))
+		if (PR_FindGlobal(svprogfuncs, "ClientReEnter", 0, NULL))
 		{//oooh, evil.
 			char buffer[65536];
 			int bufsize = sizeof(buffer);
@@ -844,11 +844,16 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	}
 	else
 	{
+		char *exts[] = {"maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", NULL};
 		strcpy (sv.name, server);
-		sprintf (sv.modelname,"maps/%s.bsp", server);
+		sprintf (sv.modelname, exts[0], server);
 		if (!COM_FCheckExists(sv.modelname))
-			if (COM_FCheckExists(va("maps/%s.cm", server)))
-				sprintf (sv.modelname,"maps/%s.cm", server);
+		{
+			if (COM_FCheckExists(va(exts[1], server)))
+				sprintf (sv.modelname,exts[1], server);
+			else if (COM_FCheckExists(va(exts[2], server)))
+				sprintf (sv.modelname,exts[2], server);
+		}
 	}
 	sv.state = ss_loading;
 	sv.world.worldmodel = Mod_ForName (sv.modelname, true);
@@ -1224,20 +1229,20 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			cvar_t *cv;
 			if (coop.value)
 			{
-				eval = PR_FindGlobal(svprogfuncs, "coop", 0);
+				eval = PR_FindGlobal(svprogfuncs, "coop", 0, NULL);
 				if (eval) eval->_float = coop.value;
 			}
 			else
 			{
-				eval = PR_FindGlobal(svprogfuncs, "deathmatch", 0);
+				eval = PR_FindGlobal(svprogfuncs, "deathmatch", 0, NULL);
 				if (eval) eval->_float = deathmatch.value;
 			}
 			cv = Cvar_Get("randomclass", "0", CVAR_LATCH, "Hexen2");
-			eval = PR_FindGlobal(svprogfuncs, "randomclass", 0);
+			eval = PR_FindGlobal(svprogfuncs, "randomclass", 0, NULL);
 			if (eval && cv) eval->_float = cv->value;
 
 			cv = Cvar_Get("cl_playerclass", "1", CVAR_USERINFO|CVAR_ARCHIVE, "Hexen2");
-			eval = PR_FindGlobal(svprogfuncs, "cl_playerclass", 0);
+			eval = PR_FindGlobal(svprogfuncs, "cl_playerclass", 0, NULL);
 			if (eval && cv) eval->_float = cv->value;
 		}
 		else
@@ -1459,7 +1464,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	if (svprogfuncs && startspot)
 	{
 		eval_t *eval;
-		eval = PR_FindGlobal(svprogfuncs, "startspot", 0);
+		eval = PR_FindGlobal(svprogfuncs, "startspot", 0, NULL);
 		if (eval) eval->string = PR_NewString(svprogfuncs, startspot, 0);
 	}
 

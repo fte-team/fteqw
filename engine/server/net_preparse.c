@@ -575,6 +575,7 @@ static int multicastpos;	//writecoord*3 offset
 static int multicasttype;
 static int requireextension;
 static qboolean ignoreprotocol;
+static int te_515sevilhackworkaround;
 
 #define svc_setfrags 14
 #define svc_updatecolors 17
@@ -713,6 +714,22 @@ void NPP_NQFlush(void)
 	case svc_temp_entity:
 		switch (buffer[1])
 		{
+		default:
+			if (te_515sevilhackworkaround)
+			{
+				/*shift the data up by two bytes, but don't care about the first byte*/
+				memmove(buffer+3, buffer+1, bufferlen-1);
+
+				/*replace the svc itself*/
+				buffer[0] = svcfte_cgamepacket;
+
+				/*add a length in the 2nd/3rd bytes*/
+				buffer[1] = (bufferlen-1);
+				buffer[2] = (bufferlen-1) >> 8;
+
+				bufferlen += 2;
+			}
+			break;
 		case TENQ_EXPLOSION2:	//happens with rogue.
 			bufferlen -= 2;	//trim the colour
 			buffer[1] = TE_EXPLOSION;
@@ -852,6 +869,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			break;
 		case svc_sound:
 		case svc_temp_entity:
+			te_515sevilhackworkaround = false;
 			break;
 		case svc_setangle:
 			protocollen = sizeof(qbyte) + destprim->anglesize*3;
@@ -1044,6 +1062,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 
 			default:
 				protocollen = sizeof(buffer);
+				te_515sevilhackworkaround = true;
 				Con_Printf("NQWriteByte: bad tempentity %i\n", data);
 				PR_StackTrace(svprogfuncs);
 				break;
@@ -1456,6 +1475,22 @@ void NPP_QWFlush(void)
 	case svc_temp_entity:
 		switch(minortype)
 		{
+		default:
+			if (te_515sevilhackworkaround)
+			{
+				/*shift the data up by two bytes*/
+				memmove(buffer+3, buffer+1, bufferlen-1);
+
+				/*replace the svc itself*/
+				buffer[0] = svcfte_cgamepacket;
+
+				/*add a length in the 2nd/3rd bytes*/
+				buffer[1] = (bufferlen-1);
+				buffer[2] = (bufferlen-1) >> 8;
+
+				bufferlen += 2;
+			}
+			break;
 		case TEQW_LIGHTNINGBLOOD:
 		case TEQW_BLOOD:		//needs to be converted to a particle
 			{

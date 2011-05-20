@@ -714,48 +714,25 @@ static void SHM_MarkLeavesQ2(dlight_t *dl, unsigned char *lvis, unsigned char *v
 }
 #endif
 
-static void SHM_MarkLeavesQ1(dlight_t *dl, unsigned char *lvis, unsigned char *vvis)
+static void SHM_MarkLeavesQ1(dlight_t *dl, unsigned char *lvis)
 {
 	mnode_t *node;
 	int i;
 	sh_shadowframe++;
 
-	if (!dl->die || !vvis)
+	//variation on mark leaves
+	for (i=0 ; i<cl.worldmodel->numleafs ; i++)
 	{
-		//static
-		//variation on mark leaves
-		for (i=0 ; i<cl.worldmodel->numleafs ; i++)
+		if (lvis[i>>3] & (1<<(i&7)))
 		{
-			if (lvis[i>>3] & (1<<(i&7)))// && vvis[i>>3] & (1<<(i&7)))
+			node = (mnode_t *)&cl.worldmodel->leafs[i+1];
+			do
 			{
-				node = (mnode_t *)&cl.worldmodel->leafs[i+1];
-				do
-				{
-					if (node->shadowframe == sh_shadowframe)
-						break;
-					node->shadowframe = sh_shadowframe;
-					node = node->parent;
-				} while (node);
-			}
-		}
-	}
-	else
-	{
-		//dynamic lights will be discarded after this frame anyway, so only include leafs that are visible
-		//variation on mark leaves
-		for (i=0 ; i<cl.worldmodel->numleafs ; i++)
-		{
-			if (lvis[i>>3] & vvis[i>>3] & (1<<(i&7)))
-			{
-				node = (mnode_t *)&cl.worldmodel->leafs[i+1];
-				do
-				{
-					if (node->shadowframe == sh_shadowframe)
-						break;
-					node->shadowframe = sh_shadowframe;
-					node = node->parent;
-				} while (node);
-			}
+				if (node->shadowframe == sh_shadowframe)
+					break;
+				node->shadowframe = sh_shadowframe;
+				node = node->parent;
+			} while (node);
 		}
 	}
 }
@@ -893,7 +870,7 @@ static struct shadowmesh_s *SHM_BuildShadowVolumeMesh(dlight_t *dl, unsigned cha
 	if (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife)
 	{
 		SHM_BeginShadowMesh(dl);
-		SHM_MarkLeavesQ1(dl, lvis, vvis);
+		SHM_MarkLeavesQ1(dl, lvis);
 		SHM_RecursiveWorldNodeQ1_r(dl, cl.worldmodel->nodes);
 	}
 #ifdef Q3BSPS
@@ -980,6 +957,8 @@ static struct shadowmesh_s *SHM_BuildShadowVolumeMesh(dlight_t *dl, unsigned cha
 static qboolean Sh_VisOverlaps(qbyte *v1, qbyte *v2)
 {
 	int i, m;
+	if (!v2)
+		return false;
 	m = (cl.worldmodel->numleafs-1)>>3;
 	for (i=0 ; i<m ; i++)
 	{

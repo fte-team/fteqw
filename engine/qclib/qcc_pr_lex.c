@@ -178,7 +178,6 @@ extern char qccmsourcedir[];
 void QCC_FindBestInclude(char *newfile, char *currentfile, char *rootpath)
 {
 	char fullname[1024];
-	char *stripfrom;
 	int doubledots;
 
 	char *end = fullname;
@@ -187,6 +186,7 @@ void QCC_FindBestInclude(char *newfile, char *currentfile, char *rootpath)
 		return;
 
 	doubledots = 0;
+	/*count how far up we need to go*/
 	while(!strncmp(newfile, "../", 3) || !strncmp(newfile, "..\\", 3))
 	{
 		newfile+=3;
@@ -195,26 +195,31 @@ void QCC_FindBestInclude(char *newfile, char *currentfile, char *rootpath)
 
 	currentfile += strlen(rootpath);	//could this be bad?
 
-	for(stripfrom = currentfile+strlen(currentfile)-1; stripfrom>currentfile; stripfrom--)
-	{
-		if (*stripfrom == '/' || *stripfrom == '\\')
-		{
-			if (doubledots>0)
-				doubledots--;
-			else
-			{
-				stripfrom++;
-				break;
-			}
-		}
-	}
-	strcpy(end, rootpath); end = end+strlen(end);
+	strcpy(fullname, rootpath);
+	end = fullname+strlen(end);
 	if (*fullname && end[-1] != '/')
 	{
 		strcpy(end, "/");
 		end = end+strlen(end);
 	}
-	strncpy(end, currentfile, stripfrom - currentfile); end += stripfrom - currentfile; *end = '\0';
+	strcpy(end, currentfile);
+	end = end+strlen(end);
+
+	while (end > fullname)
+	{
+		end--;
+		/*stop at the slash, unless we're meant to go further*/
+		if (*end == '/' || *end == '\\')
+		{
+			if (!doubledots)
+			{
+				end++;
+				break;
+			}
+			doubledots--;
+		}
+	}
+
 	strcpy(end, newfile);
 
 	QCC_Include(fullname);

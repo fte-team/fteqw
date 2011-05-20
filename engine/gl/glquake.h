@@ -342,7 +342,7 @@ void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_a
 // gl_heightmap.c
 //
 #ifdef GLQUAKE
-void GL_DrawHeightmapModel (entity_t *e);
+void GL_DrawHeightmapModel (batch_t **batch, entity_t *e);
 qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer);
 #endif
 

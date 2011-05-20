@@ -352,8 +352,17 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 	else
 		gl_config.gles = false;
 
-	gl_config.nofixedfunc = (gl_config.gles && gl_config.glversion >= 2) /*||
-							(!gl_config.gles && gl_config.glversion >= 3 && noncompat)*/;
+	if (gl_config.gles)
+		gl_config.nofixedfunc = gl_config.glversion >= 2;
+	else
+	{
+		/*in gl3.0 things are depricated but not removed*/
+		/*in gl3.1 depricated things are removed unless compatibility is present*/
+		if (gl_config.glversion >= 3.1)
+			gl_config.nofixedfunc = !GL_CheckExtension("GL_ARB_compatibility");
+		else
+			gl_config.nofixedfunc = false;
+	}
 
 	//multitexture
 	gl_mtexable = false;
@@ -1021,6 +1030,16 @@ void GL_Init(void *(*getglfunction) (char *name))
 		qglDisableClientState = GL_ClientStateStub;
 
 		qglDrawRangeElements = GL_DrawRangeElementsEmul;
+	}
+	else if (gl_config.nofixedfunc)
+	{
+		qglLoadMatrixf = NULL;
+		qglPolygonMode = NULL;
+		qglShadeModel = NULL;
+		qglDepthRange = NULL;
+
+		qglEnableClientState = GL_ClientStateStub;
+		qglDisableClientState = GL_ClientStateStub;
 	}
 
 	qglClearColor (0,0,0,0);	//clear to black so that it looks a little nicer on start.

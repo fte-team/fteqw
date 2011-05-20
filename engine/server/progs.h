@@ -28,6 +28,8 @@ struct edict_s;
 
 #define	NUM_SPAWN_PARMS			64	//moved from server.h because of include ordering :(.
 
+
+void SVQ1_CvarChanged(cvar_t *var);
 #define NewGetEdictFieldValue GetEdictFieldValue
 void Q_SetProgsParms(qboolean forcompiler);
 void PR_Deinit(void);

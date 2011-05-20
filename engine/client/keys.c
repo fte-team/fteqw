@@ -1312,7 +1312,7 @@ qboolean Key_MouseShouldBeFree(void)
 		if (m_state == m_complex || m_state == m_plugin /*|| m_state == m_menu_dat*/)
 			return true;
 	}
-	if (key_dest == key_console)
+	if (key_dest == key_console || key_dest == key_editor)
 		return true;
 
 #ifdef VM_UI
@@ -1605,7 +1605,6 @@ void Key_Event (int pnum, int key, unsigned int unicode, qboolean down)
 //
 // during demo playback, most keys bring up the main menu
 //
-
 	if (cls.demoplayback && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV && down && consolekeys[key] && key != K_TAB && key_dest == key_game)
 	{
 		M_ToggleMenu_f ();

@@ -2919,6 +2919,8 @@ void Cmd_Init (void)
 	Cvar_Register(&com_fs_cache, "Filesystem");
 	Cvar_Register(&tp_disputablemacros, "Teamplay");
 
+	Cvar_Register(&dpcompat_set, "Darkplaces compatibility");
+
 #ifndef SERVERONLY
 	rcon_level.ival = atof(rcon_level.string);	//client is restricted to not be allowed to change restrictions.
 #else

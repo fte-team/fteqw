@@ -227,6 +227,22 @@ static qboolean Shader_EvaluateCondition(char **ptr)
 		else if (!Q_stricmp(token, "normalmap") )
 			conditiontrue = conditiontrue == !!gl_bump.value;
 
+		else if (!Q_stricmp(token, "gles") )
+		{
+#ifdef GLQUAKE
+			conditiontrue = conditiontrue == ((qrenderer == QR_OPENGL) && !!gl_config.gles);
+#else
+			conditiontrue = conditiontrue == false;
+#endif
+		}
+		else if (!Q_stricmp(token, "nofixed") )
+		{
+#ifdef GLQUAKE
+			conditiontrue = conditiontrue == ((qrenderer == QR_OPENGL) && !!gl_config.nofixedfunc);
+#else
+			conditiontrue = conditiontrue == false;
+#endif
+		}
 		else if (!Q_stricmp(token, "glsl") )
 		{
 #ifdef GLQUAKE
@@ -915,15 +931,15 @@ struct sbuiltin_s
 			"}\n"
 		"#endif\n"
 	},
-	{QR_OPENGL, 130, "defaultwall",
-		"#version 130\n"
+	{QR_OPENGL, 110, "defaultwall",
+		"!!cvarf gl_overbright\n"
+		"#version 110\n"
 		"#ifdef VERTEX_SHADER\n"
-			"uniform mat4 m_modelview;\n"
-			"uniform mat4 m_projection;\n"
-			"in vec3 v_position;\n"
-			"in vec2 v_texcoord;\n"
-			"in vec2 v_lmcoord;\n"
-			"out vec2 tc, lm;\n"
+			"uniform mat4 m_modelview, m_projection;\n"
+			"attribute vec3 v_position;\n"
+			"attribute vec2 v_texcoord;\n"
+			"attribute vec2 v_lmcoord;\n"
+			"varying vec2 tc, lm;\n"
 
 			"void main (void)\n"
 			"{\n"
@@ -939,14 +955,16 @@ struct sbuiltin_s
 			//"uniform sampler2D s_t2;\n" /*tex_normalmap*/
 			//"uniform sampler2D s_t3;\n" /*tex_deluxmap*/
 			//"uniform sampler2D s_t4;\n" /*tex_fullbright*/
-			"in vec2 tc, lm;\n"
+			"varying vec2 tc, lm;\n"
+			"uniform float cvar_gl_overbright;\n"
 
 			"void main (void)\n"
 			"{\n"
-			"	gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm);\n"
+			"	gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm) * vec4(cvar_gl_overbright, cvar_gl_overbright, cvar_gl_overbright, 1);\n"
 			"}\n"
 		"#endif\n"
 	},
+	/*FIXME: this doesn't match the gl3 version*/
 	{QR_OPENGL/*ES*/, 100, "defaultwall",
 		"!!permu FULLBRIGHT\n"
 		//"#version 100\n"
@@ -1004,7 +1022,7 @@ struct sbuiltin_s
 		"#ifdef FRAGMENT_SHADER\n"
 			"uniform sampler2D watertexture;\n"
 			"uniform mediump float e_time;\n"
-			"uniform lowp float r_wateralpha;\n"
+			"uniform lowp float cvar_r_wateralpha;\n"
 
 			"void main (void)\n"
 			"{\n"
@@ -1013,7 +1031,7 @@ struct sbuiltin_s
 			"	ntc.t = tc.t + sin(tc.s+e_time)*0.125;\n"
 			"	lowp vec3 ts = vec3(texture2D(watertexture, ntc));\n"
 
-			"	gl_FragColor = vec4(ts, r_wateralpha);\n"
+			"	gl_FragColor = vec4(ts, cvar_r_wateralpha);\n"
 			"}\n"
 		"#endif\n"
 	},
@@ -1022,17 +1040,21 @@ struct sbuiltin_s
 		"#version 110\n"
 		"varying vec2 tc;\n"
 		"#ifdef VERTEX_SHADER\n"
+			"uniform mat4 m_modelview;\n"
+			"uniform mat4 m_projection;\n"
+			"attribute vec3 v_position;\n"
+			"attribute vec2 v_texcoord;\n"
 			"void main (void)\n"
 			"{\n"
-			"	tc = gl_MultiTexCoord0.st;\n"
-			"	gl_Position = ftransform();\n"
+			"	tc = v_texcoord.st;\n"
+			"	gl_Position = m_projection * m_modelview * vec4(v_position, 1.0);\n"
 			"}\n"
 		"#endif\n"
 
 		"#ifdef FRAGMENT_SHADER\n"
 			"uniform sampler2D s_t0;\n"
 			"uniform float e_time;\n"
-			"uniform float r_wateralpha;\n"
+			"uniform float cvar_r_wateralpha;\n"
 
 			"void main (void)\n"
 			"{\n"
@@ -1041,7 +1063,7 @@ struct sbuiltin_s
 			"	ntc.t = tc.t + sin(tc.s+e_time)*0.125;\n"
 			"	vec3 ts = vec3(texture2D(s_t0, ntc));\n"
 
-			"	gl_FragColor = vec4(ts, r_wateralpha);\n"
+			"	gl_FragColor = vec4(ts, cvar_r_wateralpha);\n"
 			"}\n"
 		"#endif\n"
 	},
@@ -1091,12 +1113,15 @@ struct sbuiltin_s
 	{QR_OPENGL, 110, "defaultsky",
 		"#version 110\n"
 		"#ifdef VERTEX_SHADER\n"
+			"uniform mat4 m_modelview;\n"
+			"uniform mat4 m_projection;\n"
+			"attribute vec3 v_position;\n"
 			"varying vec3 pos;\n"
 
 			"void main (void)\n"
 			"{\n"
-			"	pos = gl_Vertex.xyz;\n"
-			"	gl_Position = ftransform();\n"
+			"	pos = v_position.xyz;\n"
+			"	gl_Position = m_projection * m_modelview * vec4(v_position, 1.0);\n"
 			"}\n"
 		"#endif\n"
 
@@ -1447,7 +1472,7 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarfnames)
 				if (!prog->handle[p].glsl)
 					continue;
 				GLSlang_UseProgram(prog->handle[p].glsl);
-				uniformloc = qglGetUniformLocationARB(prog->handle[p].glsl, u[i].name);
+				uniformloc = qglGetUniformLocationARB(prog->handle[p].glsl, va("cvar_%s", tmpname));
 				if (uniformloc != -1)
 					qglUniform1fARB(uniformloc, cvar->value);
 			}
@@ -1791,6 +1816,7 @@ static qboolean ShaderPass_MapGen (shader_t *shader, shaderpass_t *pass, char *t
 	{
 		pass->texgen = T_GEN_DIFFUSE;
 		pass->tcgen = TC_GEN_BASE;
+		shader->flags |= SHADER_NOIMAGE;
 	}
 	else if (!Q_stricmp (tname, "$normalmap"))
 	{
@@ -2626,6 +2652,7 @@ void Shader_Free (shader_t *shader)
 
 	if (shader->bucket.data == shader)
 		Hash_RemoveData(&shader_active_hash, shader->name, shader);
+	shader->bucket.data = NULL;
 
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL && shader->prog)
@@ -2655,6 +2682,25 @@ void Shader_Free (shader_t *shader)
 		Shader_FreePass (pass);
 	}
 	shader->numpasses = 0;
+}
+
+void Shader_Reset(shader_t *s)
+{
+	char name[MAX_QPATH];
+	int uses = s->uses;
+	shader_gen_t *defaultgen = s->generator;
+	const char *genargs = s->genargs;
+	texnums_t dt = s->defaulttextures;
+	Q_strncpyz(name, s->name, sizeof(name));
+	Shader_Free(s);
+	memset(s, 0, sizeof(*s));
+
+	s->defaulttextures = dt;
+	s->generator = defaultgen;
+	s->genargs = genargs;
+	s->uses = uses;
+	Q_strncpyz(s->name, name, sizeof(s->name));
+	Hash_Add(&shader_active_hash, s->name, s, &s->bucket);
 }
 
 void Shader_Shutdown (void)
@@ -3057,14 +3103,9 @@ void Shader_Finish (shader_t *s)
 					s->flags = 0;
 		if (!(s->flags & SHADER_SKY))
 		{
-			char name[MAX_QPATH];
-			Q_strncpyz(name, s->name, sizeof(name));
-			Shader_Free(s);
-			memset(s, 0, sizeof(*s));
+			Shader_Reset(s);
 
-			Q_strncpyz(s->name, name, sizeof(s->name));
-
-			Shader_DefaultScript(name, s,
+			Shader_DefaultScript(s->name, s,
 						"{\n"
 							"sort sky\n"
 							"{\n"
@@ -3077,6 +3118,9 @@ void Shader_Finish (shader_t *s)
 			return;
 		}
 	}
+
+	if (TEXVALID(s->defaulttextures.base))
+		s->flags &= ~SHADER_NOIMAGE;
 
 	if (!s->numpasses && !(s->flags & (SHADER_NODRAW|SHADER_SKY)) && !s->fog_dist)
 	{
@@ -3375,7 +3419,11 @@ void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 
 	/*dlights/realtime lighting needs some stuff*/
 	if (!TEXVALID(tn->base))
+	{
 		tn->base = R_LoadHiResTexture(shader->name, NULL, IF_NOALPHA);
+	}
+	if (TEXVALID(tn->base))
+		shader->flags &= ~SHADER_NOIMAGE;
 
 	if (gl_bump.ival)
 	{
@@ -3716,8 +3764,7 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 				return;
 			builtin = NULL;
 			/*if the r_skybox failed to load or whatever, reset and fall through and just use the regular sky*/
-			Shader_Free(s);
-			memset (s, 0, sizeof(*s));
+			Shader_Reset(s);
 		}
 		if (!builtin)
 			builtin = (
@@ -3898,9 +3945,10 @@ void Shader_Default2D(char *shortname, shader_t *s, const void *genargs)
 {
 	Shader_DefaultScript(shortname, s,
 		"{\n"
-#ifdef USE_EGL
-			"program default2d\n"
-#endif
+			"if $nofixed\n"
+			"[\n"
+				"program default2d\n"
+			"]\n"
 			"nomipmaps\n"
 			"{\n"
 				"clampmap $diffuse\n"
@@ -3917,9 +3965,17 @@ void Shader_Default2D(char *shortname, shader_t *s, const void *genargs)
 	{
 		unsigned char data[4*4] = {0};
 		s->defaulttextures.base = R_LoadTexture8("black", 4, 4, data, 0, 0);
+		s->flags |= SHADER_NOIMAGE;
+
+		s->width = 64;
+		s->height = 64;
 	}
-	s->width = image_width;
-	s->height = image_height;
+	else
+	{
+		s->flags &= ~SHADER_NOIMAGE;
+		s->width = image_width;
+		s->height = image_height;
+	}
 }
 
 //loads a shader string into an existing shader object, and finalises it and stuff
@@ -4010,10 +4066,7 @@ static qboolean Shader_ParseShader(char *shortname, char *usename, shader_t *s)
 			return false;
 		}
 
-		Shader_Free(s);
-		memset ( s, 0, sizeof( shader_t ) );
-		Com_sprintf ( s->name, MAX_QPATH, "%s",usename ); // warning: format not a string literal and no format arguments
-		Hash_Add(&shader_active_hash, s->name, s, &s->bucket);
+		Shader_Reset(s);
 
 		Shader_ReadShader(s, file);
 
@@ -4037,6 +4090,10 @@ static int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *gena
 	char shortname[MAX_QPATH];
 	shader_t *s;
 
+	if (!*name)
+		name = "gfx/white";
+
+	*(int*)shortname = 0;
 	COM_StripExtension ( name, shortname, sizeof(shortname));
 
 	COM_CleanUpPath(shortname);
@@ -4071,6 +4128,10 @@ static int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *gena
 
 	s = &r_shaders[f];
 
+	Q_strncpyz(s->name, shortname, sizeof(s->name));
+	s->generator = defaultgen;
+	s->genargs = genargs;
+
 	if (ruleset_allow_shaders.ival)
 	{
 #ifdef GLQUAKE
@@ -4080,8 +4141,6 @@ static int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *gena
 			{
 				if (Shader_ParseShader(va("%s_gles2", shortname), shortname, s))
 				{
-					s->generator = defaultgen;
-					s->genargs = genargs;
 					return f;
 				}
 			}
@@ -4089,8 +4148,6 @@ static int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *gena
 			{
 				if (Shader_ParseShader(va("%s_glsl3", shortname), shortname, s))
 				{
-					s->generator = defaultgen;
-					s->genargs = genargs;
 					return f;
 				}
 			}
@@ -4098,8 +4155,6 @@ static int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *gena
 			{
 				if (Shader_ParseShader(va("%s_glsl", shortname), shortname, s))
 				{
-					s->generator = defaultgen;
-					s->genargs = genargs;
 					return f;
 				}
 			}
@@ -4111,8 +4166,6 @@ static int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *gena
 			{
 				if (Shader_ParseShader(va("%s_hlsl", shortname), shortname, s))
 				{
-					s->generator = defaultgen;
-					s->genargs = genargs;
 					return f;
 				}
 			}
@@ -4120,18 +4173,16 @@ static int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *gena
 #endif
 		if (Shader_ParseShader(shortname, shortname, s))
 		{
-			s->generator = defaultgen;
-			s->genargs = genargs;
 			return f;
 		}
 	}
 
 	// make a default shader
 
-	if (defaultgen)
+	if (s->generator)
 	{
-		memset(s, 0, sizeof(shader_t));
-		Com_sprintf(s->name, MAX_QPATH, "%s", shortname); // warning: format not a string literal and no format arguments
+		Shader_Reset(s);
+
 		if (!strcmp(shortname, "textures/common/clip"))
 			Shader_DefaultScript(shortname, s,
 				"{\n"
@@ -4139,12 +4190,12 @@ static int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *gena
 					"surfaceparm nodlight\n"
 				"}\n");
 		else
-			defaultgen(shortname, s, genargs);
-		Hash_Add(&shader_active_hash, s->name, s, &s->bucket);
-		s->generator = defaultgen;
-		s->genargs = genargs;
-
+			s->generator(shortname, s, s->genargs);
 		return f;
+	}
+	else
+	{
+		r_shaders[i].uses = 0;
 	}
 	return -1;
 }
@@ -4154,9 +4205,6 @@ void Shader_DoReload(void)
 	shader_t *s;
 	unsigned int i;
 	char shortname[MAX_QPATH];
-	shader_gen_t *defaultgen;
-	const char *genargs;
-	texnums_t oldtn;
 
 	if (shader_rescan_needed && ruleset_allow_shaders.ival)
 	{
@@ -4182,10 +4230,6 @@ void Shader_DoReload(void)
 		if (!s->uses)
 			continue;
 
-		defaultgen = s->generator;
-		genargs = s->genargs;
-		oldtn = s->defaulttextures;
-
 		strcpy(shortname, s->name);
 		if (ruleset_allow_shaders.ival)
 		{
@@ -4194,33 +4238,20 @@ void Shader_DoReload(void)
 			{
 				if (Shader_ParseShader(va("%s_glsl", shortname), shortname, s))
 				{
-					s->generator = defaultgen;
-					s->genargs = genargs;
-					R_BuildDefaultTexnums(&oldtn, s);
 					continue;
 				}
 			}
 #endif
 			if (Shader_ParseShader(shortname, shortname, s))
 			{
-				s->generator = defaultgen;
-				s->genargs = genargs;
-				R_BuildDefaultTexnums(&oldtn, s);
 				continue;
 			}
 		}
 		if (s->generator)
 		{
-			Shader_Free(s);
-			memset ( s, 0, sizeof( shader_t ) );
+			Shader_Reset(s);
 
-			defaultgen(shortname, s, genargs);
-
-			s->generator = defaultgen;
-			s->genargs = genargs;
-			Com_sprintf ( s->name, MAX_QPATH, "%s", shortname ); // warning: format not a string literal and no format arguments
-			Hash_Add(&shader_active_hash, s->name, s, &s->bucket);
-			R_BuildDefaultTexnums(&oldtn, s);
+			s->generator(shortname, s, s->genargs);
 		}
 	}
 }

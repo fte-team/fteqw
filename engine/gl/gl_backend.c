@@ -36,25 +36,32 @@ uniform vec3 lightposition;\n\
 uniform vec3 eyeposition;\n\
 #endif\n\
 \
+uniform mat4 m_modelview, m_projection;\n\
+attribute vec3 v_position;\n\
+attribute vec2 v_texcoord;\n\
+attribute vec3 v_normal;\n\
+attribute vec3 v_svector;\n\
+attribute vec3 v_tvector;\n\
+\
 void main (void)\n\
 {\n\
-	gl_Position = ftransform();\n\
+	gl_Position = m_projection * m_modelview * vec4(v_position, 1);\n\
 \
-	tcbase = gl_MultiTexCoord0.xy;	//pass the texture coords straight through\n\
+	tcbase = v_texcoord;	//pass the texture coords straight through\n\
 \
-	vec3 lightminusvertex = lightposition - gl_Vertex.xyz;\n\
-	lightvector.x = dot(lightminusvertex, gl_MultiTexCoord2.xyz);\n\
-	lightvector.y = dot(lightminusvertex, gl_MultiTexCoord3.xyz);\n\
-	lightvector.z = dot(lightminusvertex, gl_MultiTexCoord1.xyz);\n\
+	vec3 lightminusvertex = lightposition - v_position.xyz;\n\
+	lightvector.x = dot(lightminusvertex, v_svector.xyz);\n\
+	lightvector.y = dot(lightminusvertex, v_tvector.xyz);\n\
+	lightvector.z = dot(lightminusvertex, v_normal.xyz);\n\
 \
 #if defined(SPECULAR)||defined(OFFSETMAPPING)\n\
-	vec3 eyeminusvertex = eyeposition - gl_Vertex.xyz;\n\
-	eyevector.x = dot(eyeminusvertex, gl_MultiTexCoord2.xyz);\n\
-	eyevector.y = -dot(eyeminusvertex, gl_MultiTexCoord3.xyz);\n\
-	eyevector.z = dot(eyeminusvertex, gl_MultiTexCoord1.xyz);\n\
+	vec3 eyeminusvertex = eyeposition - v_position.xyz;\n\
+	eyevector.x = dot(eyeminusvertex, v_svector.xyz);\n\
+	eyevector.y = -dot(eyeminusvertex, v_tvector.xyz);\n\
+	eyevector.z = dot(eyeminusvertex, v_normal.xyz);\n\
 #endif\n\
 #if defined(PCF) || defined(SPOT) || defined(PROJECTION)\n\
-	vshadowcoord = gl_TextureMatrix[7] * (entmatrix*gl_Vertex);\n\
+	vshadowcoord = gl_TextureMatrix[7] * (entmatrix*v_position);\n\
 #endif\n\
 }\n\
 #endif\n\
@@ -556,7 +563,7 @@ void GL_MTBind(int tmu, int target, texid_t texnum)
 	if (target)
 		bindTexFunc (target, texnum.num);
 
-	if (shaderstate.curtexturetype[tmu] != target)
+	if (shaderstate.curtexturetype[tmu] != target && !gl_config.nofixedfunc)
 	{
 		if (shaderstate.curtexturetype[tmu])
 			qglDisable(shaderstate.curtexturetype[tmu]);
@@ -593,7 +600,7 @@ void GL_LazyBind(int tmu, int target, texid_t texnum, qboolean arrays)
 		if (target)
 			bindTexFunc (target, texnum.num);
 
-		if (shaderstate.curtexturetype[tmu] != target)
+		if (shaderstate.curtexturetype[tmu] != target && !gl_config.nofixedfunc)
 		{
 			if (shaderstate.curtexturetype[tmu])
 				qglDisable(shaderstate.curtexturetype[tmu]);
@@ -1148,7 +1155,10 @@ static float *tcgen(unsigned int tcgen, int cnt, float *dst, const mesh_t *mesh)
 	case TC_GEN_BASE:
 		return (float*)mesh->st_array;
 	case TC_GEN_LIGHTMAP:
-		return (float*)mesh->lmst_array;
+		if (!mesh->lmst_array)
+			return (float*)mesh->st_array;
+		else
+			return (float*)mesh->lmst_array;
 	case TC_GEN_NORMAL:
 		return (float*)mesh->normals_array;
 	case TC_GEN_SVECTOR:
@@ -1959,8 +1969,16 @@ static void BE_GeneratePassTC(const shaderpass_t *pass, int passno)
 		}
 		else if (pass->tcgen == TC_GEN_LIGHTMAP)
 		{
-			GL_SelectVBO(shaderstate.sourcevbo->vbolmcoord);
-			qglTexCoordPointer(2, GL_FLOAT, 0, shaderstate.sourcevbo->lmcoord);
+			if (!shaderstate.sourcevbo->lmcoord)
+			{
+				GL_SelectVBO(shaderstate.sourcevbo->vbotexcoord);
+				qglTexCoordPointer(2, GL_FLOAT, 0, shaderstate.sourcevbo->texcoord);
+			}
+			else
+			{
+				GL_SelectVBO(shaderstate.sourcevbo->vbolmcoord);
+				qglTexCoordPointer(2, GL_FLOAT, 0, shaderstate.sourcevbo->lmcoord);
+			}
 		}
 		else if (pass->tcgen == TC_GEN_NORMAL)
 		{
@@ -3269,6 +3287,8 @@ void GLBE_DrawWorld (qbyte *vis)
 	shaderstate.curentity = &r_worldentity;
 	shaderstate.updatetime = cl.servertime;
 
+	BE_SelectEntity(&r_worldentity);
+
 #if 0
 	{int i;
 		for (i = 0; i < SHADER_SORT_COUNT; i++)
@@ -3309,18 +3329,18 @@ void GLBE_DrawWorld (qbyte *vis)
 		BE_SelectMode(BEM_DEPTHDARK);
 	else
 		BE_SelectMode(BEM_STANDARD);
-
+	checkglerror();
 	RSpeedRemark();
 	GLBE_SubmitMeshes(true, batches);
 	RSpeedEnd(RSPEED_WORLD);
-
+	checkglerror();
 #ifdef RTLIGHTS
 	RSpeedRemark();
 	BE_SelectEntity(&r_worldentity);
 	Sh_DrawLights(vis);
 	RSpeedEnd(RSPEED_STENCILSHADOWS);
 #endif
-
+	checkglerror();
 	if (r_refdef.gfog_alpha)
 	{
 		BE_SelectMode(BEM_FOG);

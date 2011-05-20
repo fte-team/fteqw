@@ -524,26 +524,35 @@ void SV_Map_f (void)
 	}
 	else
 	{
-		snprintf (expanded, sizeof(expanded), "maps/%s.bsp", level);
-		if (!COM_FCheckExists (expanded))
+		char *exts[] = {"maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", NULL};
+		int i, j;
+
+		for (i = 0; exts[i]; i++)
 		{
-			//doesn't exist, so try lowercase. Q3 does this.
-			for (i = 0; i < sizeof(level) && level[i]; i++)
+			snprintf (expanded, sizeof(expanded), exts[i], level);
+			if (COM_FCheckExists (expanded))
+				break;
+		}
+		if (!exts[i])
+		{
+			for (i = 0; exts[i]; i++)
 			{
-				if (level[i] >= 'A' && level[i] <= 'Z')
-					level[i] = level[i] - 'A' + 'a';
-			}
-			snprintf (expanded, sizeof(expanded), "maps/%s.bsp", level);
-			if (!COM_FCheckExists (expanded))
-			{
-				snprintf (expanded, sizeof(expanded), "maps/%s.cm", level);
-				if (!COM_FCheckExists (expanded))
+				//doesn't exist, so try lowercase. Q3 does this.
+				for (j = 0; j < sizeof(level) && level[j]; j++)
 				{
-					// FTE is still a Quake engine so report BSP missing
-					snprintf (expanded, sizeof(expanded), "maps/%s.bsp", level);
-					Con_TPrintf (STL_CANTFINDMAP, expanded);
-					return;
+					if (level[j] >= 'A' && level[j] <= 'Z')
+						level[j] = level[j] - 'A' + 'a';
 				}
+				snprintf (expanded, sizeof(expanded), exts[i], level);
+				if (COM_FCheckExists (expanded))
+					break;
+			}
+			if (!exts[i])
+			{
+				// FTE is still a Quake engine so report BSP missing
+				snprintf (expanded, sizeof(expanded), exts[0], level);
+				Con_TPrintf (STL_CANTFINDMAP, expanded);
+				return;
 			}
 		}
 	}

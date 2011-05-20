@@ -73,7 +73,7 @@ nonstatic void(entity ent) Pred_PlayerUpdated =
 	v = ent.velocity;
 	pmf = ent.pmove_flags;
 
-	noerror = cvar("cg_noerror");
+	noerror = CVARF(cg_noerror);
 
 	//reset the prediction to last-known-good state
 	Pred_ResetPlayerPrediction(ent);
@@ -139,7 +139,7 @@ void(entity ent, float endframe) Pred_RunMovement =
 		Pred_ResetPlayerPrediction();
 #endif
 
-	if (getstati(STAT_HEALTH) <= 0)
+	if (getstatf(STAT_HEALTH) <= 0)
 	{
 		pmoveframe = clientcommandframe;
 		//just update the angles
@@ -149,7 +149,7 @@ void(entity ent, float endframe) Pred_RunMovement =
 		return;	//dead, so don't run prediction. :D
 	}
 
-	if (cvar("cg_nopred"))
+	if (CVARF(cg_nopred))
 	{
 		pmoveframe = clientcommandframe;
 		//just update the angles
@@ -196,29 +196,29 @@ nonstatic void(entity ent) Pred_UpdateLocalMovement =
 	pmove_step_oldz = ent.origin_z;
 
 	//allow the user to move the viewheight down 6 units so it's at +16, where projectiles come from.
-	viewheight = cvar("v_viewheight");
+	viewheight = CVARF(v_viewheight);
 	if (viewheight < -7)
 		viewheight = -7;
 	else if (viewheight > 7)
 		viewheight = 7;
 
 	vieworg = ent.origin;	//the default view height
-	vieworg_z += getstati(STAT_VIEWHEIGHT) + viewheight;
+	vieworg_z += getstatf(STAT_VIEWHEIGHT) + viewheight;
 
 	//correct the view position to compensate for any errors, slowly over time, 0.1 seconds.
 	if (pmove_errortime - time > 0)
 		vieworg += (pmove_errortime - time)*ERRORTIME * pmove_error;
 
-	if (!cvar("cg_nostep"))
+	if (!CVARF(cg_nostep))
 		if (pmove_steptime - time > 0)
 			vieworg_z += (pmove_steptime - time)*STEPTIME * pmove_step;
 
 	if (chasecam)
 	{
-		view_angles_y += cvar("cg_thirdPersonAngle");
+		view_angles_y += CVARF(cg_thirdPersonAngle);
 
 		makevectors(view_angles);
-		traceline(self.origin, vieworg - v_forward * cvar("cg_thirdPersonRange")+v_up*cvar("cg_thirdPersonHeight"), TRUE, self);
+		traceline(self.origin, vieworg - v_forward * CVARF(cg_thirdPersonRange)+v_up*CVARF(cg_thirdPersonHeight), TRUE, self);
 		vieworg = trace_endpos + v_forward*8;
 	}
 };

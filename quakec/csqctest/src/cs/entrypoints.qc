@@ -5,6 +5,8 @@
 float show_scoreboard;
 string dbgstr;
 
+void()	CSQC_Shutdown = {};
+
 //check engine extensions, and give suitable warning
 void() checkengineversion =
 {
@@ -190,9 +192,6 @@ float(string str) CSQC_ConsoleCommand =
 
 void(string msg, float type) CSQC_Parse_Print =
 {
-	print("parse_print(", ftos(type), "): ");
-	print(msg);
-
 cprint(msg);
 
 	if (dbgstr)
@@ -213,8 +212,8 @@ void(entity ve) DoThatViewModelThing =
 {
 	float newframe, newmodel;
 
-	newframe = getstati(STAT_WEAPONFRAME);
-	newmodel = getstati(STAT_WEAPONMODEL);
+	newframe = getstatf(STAT_WEAPONFRAME);
+	newmodel = getstatf(STAT_WEAPONMODEL);
 
 	if (newmodel != ve.modelindex)
 	{	//changed entirly.
@@ -246,18 +245,6 @@ void() CSQC_Init =
 {
 	checkengineversion();
 	checkcompilerversion();
-
-	//set some cvars to their defaults, and create them at the same time
-	if (cvar_string("cg_giblevel") == "")	localcmd("set cg_giblevel 1\n");
-	if (cvar_string("cg_thirdPerson") == "")	localcmd("set cg_thirdPerson 0\n");
-	if (cvar_string("cg_forceskin") == "")	localcmd("set cg_forceskin \"\"\n");
-	if (cvar_string("cg_hudtype") == "")	localcmd("set cg_hudtype 1\n");
-	if (cvar_string("cg_nopred") == "")		localcmd("set cg_nopred 0\n");
-	if (cvar_string("v_viewheight") == "")	localcmd("set v_viewheight 0\n");//normally an engine cvar in quakeworld.
-	if (cvar_string("cg_nostep") == "")		localcmd("set cg_nostep 0\n");
-	if (cvar_string("cg_noerror") == "")	localcmd("set cg_noerror 0\n");
-	if (cvar_string("cg_noselfsounds") == "")	localcmd("set cg_noselfsounds 0\n");
-	if (cvar_string("cg_noselfjumpsound") == "")	localcmd("set cg_noselfjumpsound 0\n");
 
 	viewentity = spawn();
 	viewentity.renderflags = RF_VIEWMODEL|RF_DEPTHHACK;
@@ -329,24 +316,36 @@ void() CSQC_Delta_Remove =
 	remove(self);
 };
 
+
+float (float event, float parama, float paramb) CSQC_InputEvent =
+{
+	if (event == 0)
+	{
+		switch(CVARF(cg_editor))
+		{
+		case 1:
+			if (editor_lights_key(parama, paramb))
+				return true;
+			break;
+		case 2:
+			if (editor_terrain_key(parama, paramb))
+				return true;
+			break;
+		}
+	}
+	return Menu_InputEvent(event, parama, paramb);
+};
+
 void(float width, float height, float do2d) CSQC_UpdateView =
 {
-	float hudtype = cvar("cg_hudtype");
+	float hudtype = CVARF(cg_hudtype);
 
-	chasecam = cvar("cg_thirdPerson");
-	if (getstati(STAT_HEALTH) <= 0)
+	chasecam = CVARF(cg_thirdPerson);
+	if (getstatf(STAT_HEALTH) <= 0)
 		chasecam = 1;
 
 	clearscene();
 
-	if (hudtype != 1)
-	{
-		setviewprop(VF_DRAWENGINESBAR, 0);
-	}
-	else
-	{
-		setviewprop(VF_DRAWENGINESBAR, 1);
-	}
 	setviewprop(VF_DRAWCROSSHAIR, 1);
 
 	//force fullscreen views (ignore viewsize).
@@ -359,6 +358,16 @@ void(float width, float height, float do2d) CSQC_UpdateView =
 	setviewprop(VF_SIZE_X, width/2);
 	setviewprop(VF_SIZE_Y, height/2);
 #endif
+
+	if (hudtype != 1)
+	{
+		setviewprop(VF_DRAWENGINESBAR, 0);
+	}
+	else
+	{
+		setviewprop(VF_DRAWENGINESBAR, 1);
+	}
+
 	addentities(MASK_NORMAL|MASK_ENGINE);
 
 	if (player_local)
@@ -380,28 +389,43 @@ void(float width, float height, float do2d) CSQC_UpdateView =
 		addentities(MASK_ENGINEVIEWMODEL);
 	}
 
+	switch(CVARF(cg_editor))
+	{
+	case 1:
+		/*add light ents*/
+		editor_lights_add();
+		hudtype = 0;
+		break;
+	case 2:
+		break;
+	}
+
 	renderscene();
-#if 0
-clearscene();
-	setviewprop(VF_MIN_X, 0);
-	setviewprop(VF_MIN_Y, 0);
-	setviewprop(VF_SIZE_X, width/2);
-	setviewprop(VF_SIZE_Y, height/2);
-	addentities(MASK_NORMAL|MASK_ENGINE);
-renderscene();
-#endif
+
 	if (do2d)
 	{
-		if (hudtype)
-			Hud_Draw(hudtype, show_scoreboard, width, height);
+		switch(CVARF(cg_editor))
+		{
+		case 1:
+			/*add light ents*/
+			editor_lights_overlay();
+			hudtype = 0;
+			break;
+		case 2:
+			break;
+		default:
+			if (hudtype)
+				Hud_Draw(hudtype, show_scoreboard, width, height);
+			break;
+		}
 
 		Menu_Think();
 	}
 
 	if (dbgstr)
 	{
-		drawrawstring('16 64 0', dbgstr, '16 16 16', '1 1 1', 0.5);
-		drawstring('16 80 0', dbgstr, '16 16 16', 0.5);
+//		drawrawstring('16 64 0', dbgstr, '16 16 16', '1 1 1', 0.5);
+//		drawstring('16 80 0', dbgstr, '16 16 16', 0.5);
 	}
 };
 

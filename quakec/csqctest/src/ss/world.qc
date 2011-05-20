@@ -1,6 +1,10 @@
 float infokeyworks;
 void() InitBodyQue;
 
+void(float num, float type, .float field) addstatf = #232;
+void(float num, float type, .string field) addstats = #232;
+void(float num, float type, .vector field) addstatv = #232;
+
 void() main =
 {
 	dprint ("main function\n");
@@ -334,10 +338,11 @@ void() worldspawn =
 	lightstyle(63, "a");
 
 	infokeyworks = checkextension("QW_ENGINE");
-#ifdef WORKINDP
-	serverusingcsqc = TRUE;
-#else
+
 	serverusingcsqc = checkextension("EXT_CSQC") || checkextension("EXT_CSQC_1");
+#ifdef WORKINDP
+	if (isdp)
+		serverusingcsqc = TRUE;
 #endif
 };
 

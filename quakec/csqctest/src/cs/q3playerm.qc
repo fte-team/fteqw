@@ -246,7 +246,7 @@ void(entity ent, string soundname) sexedsound =
 {
 	string str, full;
 	if (self == player_local)
-		if (cvar("cg_noselfsounds"))
+		if (CVARF(cg_noselfsounds))
 			return;	//option to disable sounds from local player
 
 	str = strcat("player/", anim_name[self.modelnum], "/", soundname);
@@ -254,13 +254,13 @@ void(entity ent, string soundname) sexedsound =
 	if (fileexists(full))
 	{
 		precache_sound(str);
-		sound(self, CHAN_VOICE, str, 1, 1);
+		soundp(self, CHAN_VOICE, str, 1, 1, 95 + random()*10);
 	}
 	else
 	{
 		str = strcat("player/sarge/", soundname);	// :(
 		precache_sound(str);
-		sound(self, CHAN_VOICE, str, 1, 1);
+		soundp(self, CHAN_VOICE, str, 1, 1, 95 + random()*10);
 	}
 };
 
@@ -1167,7 +1167,7 @@ float(float channel, string soundname, vector pos, float vol, float attenuation)
 	if (soundname == "player/plyrjmp8.wav")
 	{
 		if (self == player_local)
-			if (cvar("cg_noselfjumpsound"))
+			if (CVARF(cg_noselfjumpsound))
 				return true;	//option to disable jump noise for local player.
 		sexedsound(self, "jump1.wav");
 		return true;

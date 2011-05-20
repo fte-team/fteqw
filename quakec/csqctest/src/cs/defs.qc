@@ -68,3 +68,17 @@ void() Menu_Think;
 var void(float event, float button, float mousex, float mousey) MenuEventFunc;
 
 void() Movetype_Bounce;
+
+DEFCVAR_FLOAT(cg_editor, 0)
+DEFCVAR_FLOAT(cg_hudtype, 2)
+DEFCVAR_FLOAT(cg_noerror, 0)
+DEFCVAR_FLOAT(cg_nostep, 0)
+DEFCVAR_FLOAT(cg_nopred, 0)
+DEFCVAR_FLOAT(cg_thirdPerson, 0)
+DEFCVAR_FLOAT(cg_thirdPersonAngle, 0)
+DEFCVAR_FLOAT(cg_thirdPersonRange, 96)
+DEFCVAR_FLOAT(cg_thirdPersonHeight, 24)
+DEFCVAR_FLOAT(cg_noselfsounds, 0)
+DEFCVAR_FLOAT(cg_noselfjumpsound, 0)
+DEFCVAR_FLOAT(v_viewheight, 0)
+DEFCVAR_STRING(cg_forceskin, "")

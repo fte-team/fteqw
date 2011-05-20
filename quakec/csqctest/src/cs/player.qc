@@ -15,8 +15,14 @@ enum
 #ifdef MD3PMODELS
 	MF_QUAKE3,
 #endif
+#ifdef Q4PMODELS
+	MF_QUAKE4,
+#endif
 #ifdef HLPMODELS
 	MF_HLPM,
+#endif
+#ifdef XM
+	MF_XM,
 #endif
 	MF_QUAKE
 };
@@ -40,9 +46,19 @@ static void() Player_Interpolate =
 		Anim_Draw();
 		break;
 #endif
+#ifdef Q4PMODELS
+	case MF_QUAKE4:
+		Q4PM_Draw();
+		break;
+#endif
 #ifdef HLPMODELS
 	case MF_HLPM:
 		HLPM_Draw();
+		break;
+#endif
+#ifdef XM
+	case MF_XM:
+		XM_Draw();
 		break;
 #endif
 	default:
@@ -97,7 +113,7 @@ static void(float g) Player_SetLocalInfoGender =
 	if (player_local == self)
 	{
 		//if it was forced, don't lie to everyone else.
-		if (cvar_string("cg_forceskin") != "")
+		if (CVARS(cg_forceskin) != "")
 			return;
 
 		switch(g)
@@ -119,7 +135,8 @@ static void(float g) Player_SetLocalInfoGender =
 static void() Player_SetQ1Model =
 {
 	self.modelstyle = MF_QUAKE;
-
+	self.drawmask = MASK_NORMAL;	
+	setmodel(self, "progs/player.mdl");
 	Player_SetLocalInfoGender(GENDER_MALE);
 }
 
@@ -133,6 +150,19 @@ static void(string skinname) Player_SetQ3Model =
 	}
 	Player_SetLocalInfoGender(Anim_GetGender());
 	self.modelstyle = MF_QUAKE3;
+};
+#endif
+
+#ifdef Q4PMODELS
+static void(string skinname) Player_SetQ4Model =
+{
+	if (!Q4PM_SetModel(skinname))
+	{
+		Q4PM_UnsetModel();
+		return;
+	}
+	Player_SetLocalInfoGender(GENDER_MALE);
+	self.modelstyle = MF_QUAKE4;
 };
 #endif
 
@@ -158,6 +188,11 @@ static void() Player_UnsetModel =
 		Anim_UnsetModel();
 		break;
 #endif
+#ifdef Q4PMODELS
+	case MF_QUAKE4:
+		Q4PM_UnsetModel();
+		break;
+#endif
 #ifdef HLPMODELS
 	case MF_HLPM:
 		HLPM_UnsetModel();
@@ -180,6 +215,11 @@ static entity() Player_DupModel =
 #ifdef MD3PMODELS
 	case MF_QUAKE3:
 		e = Anim_DupModel();
+		break;
+#endif
+#ifdef Q4PMODELS
+	case MF_QUAKE4:
+		e = Q4PM_DupModel();
 		break;
 #endif
 #ifdef HLPMODELS
@@ -336,7 +376,7 @@ void(float isnew) RefreshPlayer =
 	}
 	else
 	{
-		newskin = cvar_string("cg_forceskin");
+		newskin = CVARS(cg_forceskin);
 		if (newskin == "")
 			newskin = getplayerkeyvalue(self.entnum-1, "model");
 		if (newskin == "")
@@ -355,11 +395,15 @@ void(float isnew) RefreshPlayer =
 
 #ifdef MD3PMODELS
 			if (self.modelstyle == MF_BAD && newskin != "")
-				Player_SetHLModel(newskin);
+				Player_SetQ3Model(newskin);
+#endif
+#ifdef Q4PMODELS
+			if (self.modelstyle == MF_BAD && newskin != "")
+				Player_SetQ4Model(newskin);
 #endif
 #ifdef HLPMODELS
 			if (self.modelstyle == MF_BAD && newskin != "")
-				Player_SetQ3Model(newskin);
+				Player_SetHLModel(newskin);
 #endif
 			if (self.modelstyle == MF_BAD)
 				Player_SetQ1Model();

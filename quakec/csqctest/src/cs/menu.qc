@@ -14,7 +14,7 @@ nonstatic void(void(float, float, float, float) fnc) Menu_Activate =
 };
 
 noref vector mousepos; //z is not set
-float (float event, float parama, float paramb) CSQC_InputEvent =
+float (float event, float parama, float paramb) Menu_InputEvent =
 {
 	if (!inmenu)
 		return false;	//let the engine do what it wants.

@@ -354,12 +354,16 @@ float(entity toplayer) SendExplosion =
 	return TRUE;
 };
 
-void()	s_explode1	=	[0,		s_explode2] {};
-void()	s_explode2	=	[1,		s_explode3] {};
-void()	s_explode3	=	[2,		s_explode4] {};
-void()	s_explode4	=	[3,		s_explode5] {};
-void()	s_explode5	=	[4,		s_explode6] {};
-void()	s_explode6	=	[5,		SUB_Remove] {};
+/*this is for shits and giggles*/
+void(float action, vector pos, float radius, float quant) terrain_edit = #278;
+void() makevolcano =
+{
+#ifdef FTEDEPENDANT
+	terrain_edit(4, self.origin, 512, 64/3);
+	terrain_edit(5, self.origin, 256, 32/3);
+#endif
+};
+void()	s_explode1	= {self.think = s_explode1; if (self.frame >= 6) {remove(self); return;}makevolcano(); self.frame += 0.5; self.nextthink = time + 0.05;};
 
 void() BecomeExplosion =
 {

@@ -17,9 +17,6 @@
 //FTE_CSQC_HALFLIFE_MODELS
 .float bonecontrol1, bonecontrol2, bonecontrol3, bonecontrol4;
 
-//DP_QC_WHICHPACK
-string(string fname) whichpack = #503;
-
 #pragma noref 0
 
 .float starttime;

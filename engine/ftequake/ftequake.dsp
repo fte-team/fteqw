@@ -166,7 +166,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /G5 /ML /W3 /GX /ZI /Od /I "..\client\gltod3d\sdk7\include" /I "..\client\gltod3d\D3DFrame" /I "..\dxsdk\sdk\inc" /I "..\scitech\include" /I "..\client" /D "NQPROT" /D "_DEBUG" /D "GLQUAKE" /D "SERVERDLL" /D "WIN32" /D "_WINDOWS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /YX /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
-# ADD CPP /nologo /G5 /W3 /Gi /GX /ZI /Od /I "..\client" /I "../libs/dxsdk9/include" /I "../d3d" /I "../d3d9" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "GLQUAKE" /D "SWQUAKE" /D "USE_D3D" /D "D3DQUAKE" /Fr /Fp".\MDebug/qwcl.pch" /Yu"quakedef.h" /FD /c
+# ADD CPP /nologo /G5 /MT /W3 /Gi /GX /ZI /Od /I "..\client" /I "../libs/dxsdk9/include" /I "../d3d" /I "../d3d9" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /I "../libs/freetype2/include" /D "_DEBUG" /D "WIN32" /D "_WINDOWS" /D "GLQUAKE" /D "SWQUAKE" /D "USE_D3D" /D "D3DQUAKE" /Fr /Fp".\MDebug/qwcl.pch" /Yu"quakedef.h" /FD /c
 # SUBTRACT CPP /WX
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
@@ -449,9 +449,9 @@ LINK32=link.exe
 # PROP Intermediate_Dir "ftequake___Win32_GLSDLDebug"
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
-# ADD BASE CPP /nologo /G5 /MT /W3 /GX /ZI /Od /I "..\client" /I " ../libs/sdl/include" /I "../libs/freetype2/include" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
+# ADD BASE CPP /nologo /G5 /MT /W3 /GX /ZI /Od /I "..\client" /I "../libs/sdl/include" /I "../libs/freetype2/include" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
 # SUBTRACT BASE CPP /X
-# ADD CPP /nologo /G5 /MD /W3 /GX /ZI /Od /I "..\client" /I " ../libs/sdl/include" /I "../libs/freetype2/include" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /D "_SDL" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
+# ADD CPP /nologo /G5 /MD /W3 /GX /ZI /Od /I "..\client" /I "../libs/sdl/include" /I "../libs/freetype2/include" /I "../common" /I "../server" /I "../gl" /I "../sw" /I "../qclib" /I "../libs/vc6-libs" /I "../libs" /I "../libs/speex" /I "../libs/dxsdk7/include" /D "_DEBUG" /D "GLQUAKE" /D "WIN32" /D "_WINDOWS" /D "_SDL" /FR".\GLDebug/" /Fp".\GLDebug/qwcl.pch" /Yu"quakedef.h" /Fo".\GLDebug/" /Fd".\GLDebug/" /FD /c
 # SUBTRACT CPP /X
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
@@ -463,7 +463,7 @@ BSC32=bscmake.exe
 LINK32=link.exe
 # ADD BASE LINK32 comctl32.lib wsock32.lib winmm.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:windows /map /debug /machine:I386 /nodefaultlib:"msvcrt.lib" /out:"../../fteglqwvc6.exe" /libpath:"../libs/dxsdk7/lib"
 # SUBTRACT BASE LINK32 /pdb:none
-# ADD LINK32 comctl32.lib wsock32.lib winmm.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib sdl.lib sdlmain.lib /nologo /subsystem:windows /map /debug /machine:I386 /nodefaultlib:"libcmt" /out:"../../fteglqw_sdl.exe" /libpath:"../libs/dxsdk7/lib,../libs/vc6-libs"
+# ADD LINK32 comctl32.lib wsock32.lib winmm.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib sdl.lib sdlmain.lib /nologo /subsystem:windows /map /debug /machine:I386 /nodefaultlib:"libcmt" /out:"../../fteglqw_sdl.exe" /libpath:"../libs/dxsdk7/lib" /libpath:"../libs/vc6-libs"
 # SUBTRACT LINK32 /pdb:none
 
 !ENDIF 
@@ -2426,48 +2426,7 @@ SOURCE=..\client\pr_menu.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\client\r_bulleten.c
-
-!IF  "$(CFG)" == "ftequake - Win32 Release"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
-
-# PROP Exclude_From_Build 1
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
-
-# PROP BASE Exclude_From_Build 1
-# PROP Exclude_From_Build 1
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated ServerQ3"
-
-# PROP BASE Exclude_From_Build 1
-# PROP Exclude_From_Build 1
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 D3DDebug"
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLSDLDebug"
-
-!ENDIF 
-
+SOURCE=..\client\r_d3.c
 # End Source File
 # Begin Source File
 
@@ -2818,7 +2777,7 @@ SOURCE=..\client\skin.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\client\snd_directx.c
+SOURCE=..\client\snd_al.c
 
 !IF  "$(CFG)" == "ftequake - Win32 Release"
 
@@ -2857,12 +2816,12 @@ SOURCE=..\client\snd_directx.c
 
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLSDLDebug"
 
-!ENDIF
+!ENDIF 
 
 # End Source File
 # Begin Source File
 
-SOURCE=..\client\snd_al.c
+SOURCE=..\client\snd_directx.c
 
 !IF  "$(CFG)" == "ftequake - Win32 Release"
 
@@ -3963,83 +3922,6 @@ SOURCE=..\gl\gl_draw.c
 # End Source File
 # Begin Source File
 
-SOURCE=..\gl\gltod3d\gl_fakegl.cpp
-
-!IF  "$(CFG)" == "ftequake - Win32 Release"
-
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
-
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
-
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
-
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
-
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
-
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
-
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
-
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
-
-# PROP Exclude_From_Build 1
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
-
-# PROP BASE Exclude_From_Build 1
-# PROP Exclude_From_Build 1
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
-
-# PROP BASE Exclude_From_Build 1
-# PROP Exclude_From_Build 1
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
-
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated ServerQ3"
-
-# PROP BASE Exclude_From_Build 1
-# PROP Exclude_From_Build 1
-# SUBTRACT BASE CPP /YX /Yc /Yu
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 D3DDebug"
-
-# SUBTRACT BASE CPP /YX /Yc /Yu
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLSDLDebug"
-
-# SUBTRACT BASE CPP /YX /Yc /Yu
-# SUBTRACT CPP /YX /Yc /Yu
-
-!ENDIF 
-
-# End Source File
-# Begin Source File
-
 SOURCE=..\gl\gl_font.c
 # End Source File
 # Begin Source File
@@ -5083,7 +4965,7 @@ SOURCE=..\qclib\execloop.h
 !IF  "$(CFG)" == "ftequake - Win32 Release"
 
 # Begin Custom Build
-InputDir=\Games\Quake\wip\engine\qclib
+InputDir=\ftetgcvs\wip\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -5105,7 +4987,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
 
 # Begin Custom Build
-InputDir=\Games\Quake\wip\engine\qclib
+InputDir=\ftetgcvs\wip\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -5127,7 +5009,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
 
 # Begin Custom Build
-InputDir=\Games\Quake\wip\engine\qclib
+InputDir=\ftetgcvs\wip\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -5149,7 +5031,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
 
 # Begin Custom Build
-InputDir=\Games\Quake\wip\engine\qclib
+InputDir=\ftetgcvs\wip\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -5171,7 +5053,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
 
 # Begin Custom Build
-InputDir=\Games\Quake\wip\engine\qclib
+InputDir=\ftetgcvs\wip\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -5193,7 +5075,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
 
 # Begin Custom Build
-InputDir=\Games\Quake\wip\engine\qclib
+InputDir=\ftetgcvs\wip\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -5215,7 +5097,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
 
 # Begin Custom Build
-InputDir=\Games\Quake\wip\engine\qclib
+InputDir=\ftetgcvs\wip\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -5237,7 +5119,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
 
 # Begin Custom Build
-InputDir=\Games\Quake\wip\engine\qclib
+InputDir=\ftetgcvs\wip\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -5259,7 +5141,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
 
 # Begin Custom Build
-InputDir=\Games\Quake\wip\engine\qclib
+InputDir=\ftetgcvs\wip\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -5281,7 +5163,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
 
 # Begin Custom Build
-InputDir=\Games\Quake\wip\engine\qclib
+InputDir=\ftetgcvs\wip\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -5303,7 +5185,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
 
 # Begin Custom Build
-InputDir=\Games\Quake\wip\engine\qclib
+InputDir=\ftetgcvs\wip\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -5325,7 +5207,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
 
 # Begin Custom Build
-InputDir=\Games\Quake\wip\engine\qclib
+InputDir=\ftetgcvs\wip\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -5347,7 +5229,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated ServerQ3"
 
 # Begin Custom Build
-InputDir=\Games\Quake\wip\engine\qclib
+InputDir=\ftetgcvs\wip\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -5369,7 +5251,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 D3DDebug"
 
 # Begin Custom Build
-InputDir=\Games\Quake\wip\engine\qclib
+InputDir=\ftetgcvs\wip\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -5391,7 +5273,7 @@ BuildCmds= \
 !ELSEIF  "$(CFG)" == "ftequake - Win32 GLSDLDebug"
 
 # Begin Custom Build
-InputDir=\Games\Quake\wip\engine\qclib
+InputDir=\ftetgcvs\wip\engine\qclib
 InputPath=..\qclib\execloop.h
 
 BuildCmds= \
@@ -5746,865 +5628,6 @@ SOURCE=..\QCLIB\qcdecomp.c
 # Begin Group "asm"
 
 # PROP Default_Filter ""
-# Begin Source File
-
-SOURCE=..\common\math.s
-
-!IF  "$(CFG)" == "ftequake - Win32 Release"
-
-# Begin Custom Build
-OutDir=.\Release
-InputPath=..\common\math.s
-InputName=math
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
-
-# Begin Custom Build
-OutDir=.\Debug
-InputPath=..\common\math.s
-InputName=math
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common  $(InputPath) > $(OUTDIR)\$(InputName).spp 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp > $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
-
-# Begin Custom Build
-OutDir=.\GLDebug
-InputPath=..\common\math.s
-InputName=math
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common $(InputPath) > $(OUTDIR)\$(InputName).spp 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_GLRelease
-InputPath=..\common\math.s
-InputName=math
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
-
-# PROP Intermediate_Dir ".\MDebug"
-# Begin Custom Build
-OutDir=.\MDebug
-InputPath=..\common\math.s
-InputName=math
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
-
-# Begin Custom Build
-OutDir=.\MRelease
-InputPath=..\common\math.s
-InputName=math
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
-
-# Begin Custom Build
-OutDir=.\MinGLDebug
-InputPath=..\common\math.s
-InputName=math
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_MinGLRelease
-InputPath=..\common\math.s
-InputName=math
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
-
-# Begin Custom Build
-OutDir=.\DebugServer
-InputPath=..\common\math.s
-InputName=math
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common $(InputPath) > $(OUTDIR)\$(InputName).spp 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_Release_Dedicated_Server
-InputPath=..\common\math.s
-InputName=math
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_MinSW
-InputPath=..\common\math.s
-InputName=math
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_GLDebugQ3
-InputPath=..\common\math.s
-InputName=math
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated ServerQ3"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_Debug_Dedicated_ServerQ3
-InputPath=..\common\math.s
-InputName=math
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 D3DDebug"
-
-# Begin Custom Build
-OutDir=.\D3DDebug
-InputPath=..\common\math.s
-InputName=math
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common $(InputPath) > $(OUTDIR)\$(InputName).spp 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLSDLDebug"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_GLSDLDebug
-InputPath=..\common\math.s
-InputName=math
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common $(InputPath) > $(OUTDIR)\$(InputName).spp 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ENDIF 
-
-# End Source File
-# Begin Source File
-
-SOURCE=..\client\snd_mixa.s
-
-!IF  "$(CFG)" == "ftequake - Win32 Release"
-
-# Begin Custom Build
-OutDir=.\Release
-InputPath=..\client\snd_mixa.s
-InputName=snd_mixa
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
-
-# Begin Custom Build
-OutDir=.\Debug
-InputPath=..\client\snd_mixa.s
-InputName=snd_mixa
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common  $(InputPath) > $(OUTDIR)\$(InputName).spp 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp > $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
-
-# Begin Custom Build
-OutDir=.\GLDebug
-InputPath=..\client\snd_mixa.s
-InputName=snd_mixa
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_GLRelease
-InputPath=..\client\snd_mixa.s
-InputName=snd_mixa
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
-
-# PROP Intermediate_Dir ".\MDebug"
-# Begin Custom Build
-OutDir=.\MDebug
-InputPath=..\client\snd_mixa.s
-InputName=snd_mixa
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
-
-# Begin Custom Build
-OutDir=.\MRelease
-InputPath=..\client\snd_mixa.s
-InputName=snd_mixa
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
-
-# Begin Custom Build
-OutDir=.\MinGLDebug
-InputPath=..\client\snd_mixa.s
-InputName=snd_mixa
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_MinGLRelease
-InputPath=..\client\snd_mixa.s
-InputName=snd_mixa
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
-
-# PROP Exclude_From_Build 1
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
-
-# PROP BASE Exclude_From_Build 1
-# PROP Exclude_From_Build 1
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_MinSW
-InputPath=..\client\snd_mixa.s
-InputName=snd_mixa
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_GLDebugQ3
-InputPath=..\client\snd_mixa.s
-InputName=snd_mixa
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated ServerQ3"
-
-# PROP BASE Exclude_From_Build 1
-# PROP Exclude_From_Build 1
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 D3DDebug"
-
-# Begin Custom Build
-OutDir=.\D3DDebug
-InputPath=..\client\snd_mixa.s
-InputName=snd_mixa
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLSDLDebug"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_GLSDLDebug
-InputPath=..\client\snd_mixa.s
-InputName=snd_mixa
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ENDIF 
-
-# End Source File
-# Begin Source File
-
-SOURCE=..\client\sys_wina.s
-
-!IF  "$(CFG)" == "ftequake - Win32 Release"
-
-# Begin Custom Build
-OutDir=.\Release
-InputPath=..\client\sys_wina.s
-InputName=sys_wina
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
-
-# Begin Custom Build
-OutDir=.\Debug
-InputPath=..\client\sys_wina.s
-InputName=sys_wina
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common  $(InputPath) > $(OUTDIR)\$(InputName).spp 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp > $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
-
-# Begin Custom Build
-OutDir=.\GLDebug
-InputPath=..\client\sys_wina.s
-InputName=sys_wina
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common $(InputPath)  > $(OUTDIR)\$(InputName).spp 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_GLRelease
-InputPath=..\client\sys_wina.s
-InputName=sys_wina
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
-
-# PROP Intermediate_Dir ".\MDebug"
-# Begin Custom Build
-OutDir=.\MDebug
-InputPath=..\client\sys_wina.s
-InputName=sys_wina
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
-
-# Begin Custom Build
-OutDir=.\MRelease
-InputPath=..\client\sys_wina.s
-InputName=sys_wina
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
-
-# Begin Custom Build
-OutDir=.\MinGLDebug
-InputPath=..\client\sys_wina.s
-InputName=sys_wina
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_MinGLRelease
-InputPath=..\client\sys_wina.s
-InputName=sys_wina
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
-
-# PROP Exclude_From_Build 1
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
-
-# PROP BASE Exclude_From_Build 1
-# PROP Exclude_From_Build 1
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_MinSW
-InputPath=..\client\sys_wina.s
-InputName=sys_wina
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_GLDebugQ3
-InputPath=..\client\sys_wina.s
-InputName=sys_wina
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated ServerQ3"
-
-# PROP BASE Exclude_From_Build 1
-# PROP Exclude_From_Build 1
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 D3DDebug"
-
-# Begin Custom Build
-OutDir=.\D3DDebug
-InputPath=..\client\sys_wina.s
-InputName=sys_wina
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common $(InputPath)  > $(OUTDIR)\$(InputName).spp 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLSDLDebug"
-
-# PROP Exclude_From_Build 1
-
-!ENDIF 
-
-# End Source File
-# Begin Source File
-
-SOURCE=..\server\worlda.s
-
-!IF  "$(CFG)" == "ftequake - Win32 Release"
-
-# Begin Custom Build
-OutDir=.\Release
-InputPath=..\server\worlda.s
-InputName=worlda
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug"
-
-# Begin Custom Build
-OutDir=.\Debug
-InputPath=..\server\worlda.s
-InputName=worlda
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common  $(InputPath) > $(OUTDIR)\$(InputName).spp 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp > $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebug"
-
-# Begin Custom Build
-OutDir=.\GLDebug
-InputPath=..\server\worlda.s
-InputName=worlda
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common $(InputPath) > $(OUTDIR)\$(InputName).spp 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLRelease"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_GLRelease
-InputPath=..\server\worlda.s
-InputName=worlda
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MDebug"
-
-# PROP Intermediate_Dir ".\MDebug"
-# Begin Custom Build
-OutDir=.\MDebug
-InputPath=..\server\worlda.s
-InputName=worlda
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MRelease"
-
-# Begin Custom Build
-OutDir=.\MRelease
-InputPath=..\server\worlda.s
-InputName=worlda
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLDebug"
-
-# Begin Custom Build
-OutDir=.\MinGLDebug
-InputPath=..\server\worlda.s
-InputName=worlda
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinGLRelease"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_MinGLRelease
-InputPath=..\server\worlda.s
-InputName=worlda
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated Server"
-
-# Begin Custom Build
-OutDir=.\DebugServer
-InputPath=..\server\worlda.s
-InputName=worlda
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common $(InputPath) > $(OUTDIR)\$(InputName).spp 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Release Dedicated Server"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_Release_Dedicated_Server
-InputPath=..\server\worlda.s
-InputName=worlda
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 MinSW"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_MinSW
-InputPath=..\server\worlda.s
-InputName=worlda
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLDebugQ3"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_GLDebugQ3
-InputPath=..\server\worlda.s
-InputName=worlda
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 Debug Dedicated ServerQ3"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_Debug_Dedicated_ServerQ3
-InputPath=..\server\worlda.s
-InputName=worlda
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common > $(OUTDIR)\$(InputName).spp $(InputPath) 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 D3DDebug"
-
-# Begin Custom Build
-OutDir=.\D3DDebug
-InputPath=..\server\worlda.s
-InputName=worlda
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common $(InputPath) > $(OUTDIR)\$(InputName).spp 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ELSEIF  "$(CFG)" == "ftequake - Win32 GLSDLDebug"
-
-# Begin Custom Build
-OutDir=.\ftequake___Win32_GLSDLDebug
-InputPath=..\server\worlda.s
-InputName=worlda
-
-"$(OUTDIR)\$(InputName).obj" : $(SOURCE) "$(INTDIR)" "$(OUTDIR)"
-	cl /EP /I ..\common $(InputPath) > $(OUTDIR)\$(InputName).spp 
-	..\gas2masm\debug\gas2masm < $(OUTDIR)\$(InputName).spp >          $(OUTDIR)\$(InputName).asm 
-	ml /c /Cp /coff /Fo$(OUTDIR)\$(InputName).obj /Zm /Zi                                                                                                                                                                                                                           $(OUTDIR)\$(InputName).asm 
-	del $(OUTDIR)\$(InputName).spp 
-	
-# End Custom Build
-
-!ENDIF 
-
-# End Source File
 # End Group
 # Begin Group "http"
 
@@ -7524,6 +6547,26 @@ SOURCE=..\server\svmodel.c
 
 !ENDIF 
 
+# End Source File
+# End Group
+# Begin Group "d3d"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=..\d3d\d3d_backend.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\d3d\d3d_image.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\d3d\d3d_shader.c
+# End Source File
+# Begin Source File
+
+SOURCE=..\d3d\vid_d3d.c
 # End Source File
 # End Group
 # Begin Source File

@@ -1087,9 +1087,6 @@ static void	(D3D9_Draw_Init)				(void)
 }
 static void	(D3D9_Draw_ReInit)				(void)
 {
-#ifdef PLUGINS
-	Plug_DrawReloadImages();
-#endif
 }
 
 static void	(D3D9_R_Init)					(void)

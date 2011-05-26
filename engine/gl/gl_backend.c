@@ -435,10 +435,14 @@ void GL_TexEnv(GLenum mode)
 
 static void BE_SetPassBlendMode(int tmu, int pbm)
 {
+#ifndef FORCESTATE
 	if (shaderstate.blendmode[tmu] != pbm)
+#endif
 	{
 		shaderstate.blendmode[tmu] = pbm;
+#ifndef FORCESTATE
 		if (shaderstate.currenttmu != tmu)
+#endif
 			GL_SelectTexture(tmu);
 
 		switch (pbm)
@@ -487,7 +491,9 @@ static void BE_SetPassBlendMode(int tmu, int pbm)
 /*OpenGL requires glDepthMask(GL_TRUE) or glClear(GL_DEPTH_BUFFER_BIT) will fail*/
 void GL_ForceDepthWritable(void)
 {
+#ifndef FORCESTATE
 	if (!(shaderstate.shaderbits & SBITS_MISC_DEPTHWRITE))
+#endif
 	{
 		shaderstate.shaderbits |= SBITS_MISC_DEPTHWRITE;
 		qglDepthMask(GL_TRUE);
@@ -632,16 +638,27 @@ void GL_LazyBind(int tmu, int target, texid_t texnum, qboolean arrays)
 static void BE_EnableShaderAttributes(unsigned int newm)
 {
 	unsigned int i;
+
+	i = 0;
+	if (newm & (1u<<i))
+		qglEnableVertexAttribArray(i);
+	else
+		qglDisableVertexAttribArray(i);
+
 	if (newm == shaderstate.sha_attr)
 		return;
-	for (i = 0; i < 8; i++)
+	for (i = 1; i < 8; i++)
+	{
+#ifndef FORCESTATE
 		if ((newm^shaderstate.sha_attr) & (1u<<i))
+#endif
 		{
 			if (newm & (1u<<i))
 				qglEnableVertexAttribArray(i);
 			else
 				qglDisableVertexAttribArray(i);
 		}
+	}
 	shaderstate.sha_attr = newm;
 }
 void GL_SelectProgram(int program)
@@ -662,6 +679,9 @@ static void GL_DeSelectProgram(void)
 
 		/*if disabling a program, we need to kill off custom attributes*/
 		BE_EnableShaderAttributes(0);
+
+		/*ATI tends to use a true 100% alias here, so make sure this state is reenabled*/
+		qglEnableClientState(GL_VERTEX_ARRAY);
 	}
 }
 
@@ -2545,6 +2565,7 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 	{
 		qglDisableClientState(GL_COLOR_ARRAY);
 		qglDisableClientState(GL_VERTEX_ARRAY);
+		BE_EnableShaderAttributes(attr);
 		for (i = 0; i < pass->numMergedPasses; i++)
 		{
 			Shader_BindTextureForPass(i, pass+i, false);
@@ -2558,6 +2579,8 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 	}
 	else
 	{
+		BE_EnableShaderAttributes(attr);
+		qglEnableClientState(GL_VERTEX_ARRAY);
 		GenerateColourMods(pass);
 		for (i = 0; i < pass->numMergedPasses; i++)
 		{
@@ -2571,11 +2594,7 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 		shaderstate.lastpasstmus = pass->numMergedPasses;
 		GL_ApplyVertexPointer();
 	}
-
-	BE_EnableShaderAttributes(attr);
 	BE_SubmitMeshChain();
-
-	qglEnableClientState(GL_VERTEX_ARRAY);
 }
 
 qboolean GLBE_LightCullModel(vec3_t org, model_t *model)
@@ -3329,18 +3348,18 @@ void GLBE_DrawWorld (qbyte *vis)
 		BE_SelectMode(BEM_DEPTHDARK);
 	else
 		BE_SelectMode(BEM_STANDARD);
-	checkglerror();
+
 	RSpeedRemark();
 	GLBE_SubmitMeshes(true, batches);
 	RSpeedEnd(RSPEED_WORLD);
-	checkglerror();
+
 #ifdef RTLIGHTS
 	RSpeedRemark();
 	BE_SelectEntity(&r_worldentity);
 	Sh_DrawLights(vis);
 	RSpeedEnd(RSPEED_STENCILSHADOWS);
 #endif
-	checkglerror();
+
 	if (r_refdef.gfog_alpha)
 	{
 		BE_SelectMode(BEM_FOG);

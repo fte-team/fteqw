@@ -2274,7 +2274,8 @@ void COM_InitFilesystem (void)
 	//use the game based on an exe name over the filesystem one (could easily have multiple fs path matches).
 	for (i = 0; gamemode_info[i].argname; i++)
 	{
-		if (strstr(com_argv[0], gamemode_info[i].exename))
+		ev = strstr(com_argv[0], gamemode_info[i].exename);
+		if (ev && (!strchr(ev, '\\') && !strchr(ev, '/')))
 			gamenum = i;
 	}
 	//use the game based on an parameter over all else.

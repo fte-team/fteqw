@@ -151,6 +151,7 @@ FTEPFNGLLINKPROGRAMARBPROC          qglLinkProgramARB;
 FTEPFNGLBINDATTRIBLOCATIONARBPROC   qglBindAttribLocationARB;
 FTEPFNGLGETATTRIBLOCATIONARBPROC	qglGetAttribLocationARB;
 FTEPFNGLVERTEXATTRIBPOINTER			qglVertexAttribPointer;
+FTEPFNGLGETVERTEXATTRIBIV			qglGetVertexAttribiv;
 FTEPFNGLENABLEVERTEXATTRIBARRAY		qglEnableVertexAttribArray;
 FTEPFNGLDISABLEVERTEXATTRIBARRAY	qglDisableVertexAttribArray;
 FTEPFNGLGETUNIFORMLOCATIONARBPROC   qglGetUniformLocationARB;
@@ -572,6 +573,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 		qglBindAttribLocationARB	= (void *)getglext("glBindAttribLocationARB");
 		qglGetAttribLocationARB		= (void *)getglext("glGetAttribLocationARB");
 		qglVertexAttribPointer		= (void *)getglext("glVertexAttribPointerARB");
+		qglGetVertexAttribiv		= (void *)getglext("glGetVertexAttribivARB");
 		qglEnableVertexAttribArray	= (void *)getglext("glEnableVertexAttribArrayARB");
 		qglDisableVertexAttribArray	= (void *)getglext("glDisableVertexAttribArrayARB");
 		qglGetUniformLocationARB	= (void *)getglext("glGetUniformLocationARB");
@@ -605,6 +607,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 		qglBindAttribLocationARB	= (void *)getglext("glBindAttribLocation");
 		qglGetAttribLocationARB		= (void *)getglext("glGetAttribLocation");
 		qglVertexAttribPointer		= (void *)getglext("glVertexAttribPointer");
+		qglGetVertexAttribiv		= (void *)getglext("glGetVertexAttribiv");
 		qglEnableVertexAttribArray	= (void *)getglext("glEnableVertexAttribArray");
 		qglDisableVertexAttribArray	= (void *)getglext("glDisableVertexAttribArray");
 		qglGetUniformLocationARB	= (void *)getglext("glGetUniformLocation");
@@ -651,14 +654,17 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 
 // glslang helper api function definitions
 // type should be GL_FRAGMENT_SHADER_ARB or GL_VERTEX_SHADER_ARB
-GLhandleARB GLSlang_CreateShader (char **precompilerconstants, char *shadersource, GLenum shadertype)
+GLhandleARB GLSlang_CreateShader (char *versionline, char **precompilerconstants, char *shadersource, GLenum shadertype)
 {
 	GLhandleARB shader;
 	GLint       compiled;
 	char        str[1024];
 	int loglen, i;
-	char *prstrings[3+16];
+	char *prstrings[4+16];
 	int strings = 0;
+
+	if (versionline)
+		prstrings[strings++] = versionline;
 
 	prstrings[strings++] = "#define ENGINE_"DISTRIBUTION"\n";
 	switch (shadertype)
@@ -768,7 +774,7 @@ bucket_t *compiledshadersbuckets[64];
 static hashtable_t compiledshaderstable;
 #endif
 
-GLhandleARB GLSlang_CreateProgram(char **precompilerconstants, char *vert, char *frag)
+GLhandleARB GLSlang_CreateProgram(char *versionline, char **precompilerconstants, char *vert, char *frag)
 {
 	GLhandleARB handle;
 	GLhandleARB vs;
@@ -802,8 +808,8 @@ GLhandleARB GLSlang_CreateProgram(char **precompilerconstants, char *vert, char 
 	}
 #endif
 
-	vs = GLSlang_CreateShader(precompilerconstants, vert, GL_VERTEX_SHADER_ARB);
-	fs = GLSlang_CreateShader(precompilerconstants, frag, GL_FRAGMENT_SHADER_ARB);
+	vs = GLSlang_CreateShader(versionline, precompilerconstants, vert, GL_VERTEX_SHADER_ARB);
+	fs = GLSlang_CreateShader(versionline, precompilerconstants, frag, GL_FRAGMENT_SHADER_ARB);
 
 	if (!vs || !fs)
 		handle = 0;

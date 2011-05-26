@@ -744,7 +744,7 @@ static void Shader_EntityMergable ( shader_t *shader, shaderpass_t *pass, char *
 
 static void Shader_ProgAutoFields(program_t *prog, char **cvarfnames);
 /*program text is already loaded, this function parses the 'header' of it to see which permutations it provides, and how many times we need to recompile it*/
-static void Shader_LoadPermutations(program_t *prog, char *script, int qrtype)
+static void Shader_LoadPermutations(program_t *prog, char *script, int qrtype, int ver)
 {
 	static char *permutationname[] =
 	{
@@ -760,6 +760,7 @@ static void Shader_LoadPermutations(program_t *prog, char *script, int qrtype)
 	unsigned int nopermutation = ~0u;
 	int p, n, pn;
 	char *end;
+	char *vers;
 
 	char *cvarfnames[64];
 	int cvarfcount = 0;
@@ -798,10 +799,25 @@ static void Shader_LoadPermutations(program_t *prog, char *script, int qrtype)
 			}
 			script = end;
 		}
+		else if (!strncmp(script, "!!ver", 5))
+		{
+			script += 5;
+			while (*script == ' ' || *script == '\t')
+				script++;
+			end = script;
+			while ((*end >= 'A' && *end <= 'Z') || (*end >= 'a' && *end <= 'z') || (*end >= '0' && *end <= '9') || *end == '_')
+				end++;
+			ver = strtol(script, NULL, 0);
+			script = end;
+		}
 		else
 			break;
 	};
 
+	if (ver)
+		vers = va("#version %u\n", ver);
+	else
+		vers = NULL;
 	memset(prog->handle, 0, sizeof(*prog->handle)*PERMUTATIONS);
 	for (p = 0; p < PERMUTATIONS; p++)
 	{
@@ -822,7 +838,7 @@ static void Shader_LoadPermutations(program_t *prog, char *script, int qrtype)
 					permutationdefines[pn++] = permutationname[n];
 			}
 			permutationdefines[pn++] = NULL;
-			prog->handle[p].glsl = GLSlang_CreateProgram(permutationdefines, script, script);
+			prog->handle[p].glsl = GLSlang_CreateProgram(vers, permutationdefines, script, script);
 		}
 #endif
 #ifdef D3DQUAKE
@@ -871,8 +887,6 @@ struct sbuiltin_s
 	/*glsl es shaders require precisions to be defined for fragment shader variables
 	  more precision for shaders would be a good candidate for a cvar */
 	{QR_OPENGL/*ES*/, 100, "default2d",
-		//SGX requires #version to come before defines
-		//"#version 100\n"
 		"#ifdef VERTEX_SHADER\n"
 			"uniform mat4 m_view;\n"
 			"uniform mat4 m_projection;\n"
@@ -902,7 +916,6 @@ struct sbuiltin_s
 		"#endif\n"
 	},
 	{QR_OPENGL, 110, "default2d",
-		"#version 110\n"
 		"#ifdef VERTEX_SHADER\n"
 			"uniform mat4 m_view;\n"
 			"uniform mat4 m_projection;\n"
@@ -933,7 +946,6 @@ struct sbuiltin_s
 	},
 	{QR_OPENGL, 110, "defaultwall",
 		"!!cvarf gl_overbright\n"
-		"#version 110\n"
 		"#ifdef VERTEX_SHADER\n"
 			"uniform mat4 m_modelview, m_projection;\n"
 			"attribute vec3 v_position;\n"
@@ -967,7 +979,6 @@ struct sbuiltin_s
 	/*FIXME: this doesn't match the gl3 version*/
 	{QR_OPENGL/*ES*/, 100, "defaultwall",
 		"!!permu FULLBRIGHT\n"
-		//"#version 100\n"
 		"#ifdef VERTEX_SHADER\n"
 			"uniform mat4 m_modelview;\n"
 			"uniform mat4 m_projection;\n"
@@ -1005,7 +1016,6 @@ struct sbuiltin_s
 	},
 	{QR_OPENGL/*ES*/, 100, "defaultwarp",
 		"!!cvarf r_wateralpha\n"
-		//"#version 100\n"
 		"varying mediump vec2 tc;\n"
 		"#ifdef VERTEX_SHADER\n"
 			"uniform mat4 m_modelview;\n"
@@ -1037,7 +1047,6 @@ struct sbuiltin_s
 	},
 	{QR_OPENGL, 110, "defaultwarp",
 		"!!cvarf r_wateralpha\n"
-		"#version 110\n"
 		"varying vec2 tc;\n"
 		"#ifdef VERTEX_SHADER\n"
 			"uniform mat4 m_modelview;\n"
@@ -1068,7 +1077,6 @@ struct sbuiltin_s
 		"#endif\n"
 	},
 	{QR_OPENGL/*ES*/, 100, "defaultsky",
-		//"#version 100\n"
 		"#ifdef VERTEX_SHADER\n"
 			"uniform mat4 m_modelview;\n"
 			"uniform mat4 m_projection;\n"
@@ -1111,7 +1119,6 @@ struct sbuiltin_s
 		"#endif\n"
 	},
 	{QR_OPENGL, 110, "defaultsky",
-		"#version 110\n"
 		"#ifdef VERTEX_SHADER\n"
 			"uniform mat4 m_modelview;\n"
 			"uniform mat4 m_projection;\n"
@@ -1156,7 +1163,6 @@ struct sbuiltin_s
 		"!!permu FULLBRIGHT\n"
 		"!!permu LOWER\n"
 		"!!permu UPPER\n"
-		//"#version 100\n"
 		"#ifdef VERTEX_SHADER\n"
 			"uniform mat4 m_modelview;\n"
 			"uniform mat4 m_projection;\n"
@@ -1220,7 +1226,6 @@ struct sbuiltin_s
 		"!!permu FULLBRIGHT\n"
 		"!!permu LOWER\n"
 		"!!permu UPPER\n"
-		//"#version 110\n"
 		"#ifdef VERTEX_SHADER\n"
 			"uniform mat4 m_modelview;\n"
 			"uniform mat4 m_projection;\n"
@@ -1374,7 +1379,7 @@ static program_t *Shader_LoadGeneric(char *name, int qrtype)
 	FS_LoadFile(name, &file);
 	if (file)
 	{
-		Shader_LoadPermutations(&g->prog, file, qrtype);
+		Shader_LoadPermutations(&g->prog, file, qrtype, 0);
 		FS_FreeFile(file);
 
 		g->prog.refs++;
@@ -1398,7 +1403,7 @@ static program_t *Shader_LoadGeneric(char *name, int qrtype)
 						continue;
 				}
 #endif
-				Shader_LoadPermutations(&g->prog, sbuiltins[i].body, sbuiltins[i].qrtype);
+				Shader_LoadPermutations(&g->prog, sbuiltins[i].body, sbuiltins[i].qrtype, sbuiltins[i].apiver);
 
 				g->prog.refs++;
 				return &g->prog;
@@ -1571,7 +1576,7 @@ static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **p
 			shader->prog = malloc(sizeof(*shader->prog));
 			memset(shader->prog, 0, sizeof(*shader->prog));
 			shader->prog->refs = 1;
-			Shader_LoadPermutations(shader->prog, programbody, qrtype);
+			Shader_LoadPermutations(shader->prog, programbody, qrtype, 0);
 
 			BZ_Free(programbody);
 		}

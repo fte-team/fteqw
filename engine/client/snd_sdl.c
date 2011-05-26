@@ -70,7 +70,7 @@ static void SSDL_SetUnderWater(soundcardinfo_t *sc, qboolean uw)
 }
 
 
-static void SSDL_Submit(soundcardinfo_t *sc)
+static void SSDL_Submit(soundcardinfo_t *sc, int start, int end)
 {
 	//SDL will call SSDL_Paint to paint when it's time, and the sound buffer is always there...
 }

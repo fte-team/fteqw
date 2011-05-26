@@ -247,7 +247,7 @@ void GL_InitFisheyeFov(void)
 			gl_FragColor = textureCube(source, tc);\
 		}";
 
-	scenepp_fisheye_program = GLSlang_CreateProgram(NULL, vshader, fisheyefshader);
+	scenepp_fisheye_program = GLSlang_CreateProgram("#version 110\n", NULL, vshader, fisheyefshader);
 	if (scenepp_fisheye_program)
 	{
 		GLSlang_UseProgram(scenepp_fisheye_program);
@@ -256,7 +256,7 @@ void GL_InitFisheyeFov(void)
 		GLSlang_UseProgram(0);
 	}
 
-	scenepp_panorama_program = GLSlang_CreateProgram(NULL, vshader, panoramafshader);
+	scenepp_panorama_program = GLSlang_CreateProgram("#version 110\n", NULL, vshader, panoramafshader);
 	if (scenepp_panorama_program)
 	{
 		GLSlang_UseProgram(scenepp_panorama_program);

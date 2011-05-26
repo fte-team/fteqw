@@ -94,6 +94,7 @@ typedef void		(APIENTRYP FTEPFNGLVERTEXATTRIBPOINTER)			(GLuint index, GLint siz
 typedef void		(APIENTRYP FTEPFNGLENABLEVERTEXATTRIBARRAY)		(GLuint index);
 typedef void		(APIENTRYP FTEPFNGLDISABLEVERTEXATTRIBARRAY)	(GLuint index);
 typedef GLint		(APIENTRYP FTEPFNGLGETUNIFORMLOCATIONARBPROC)	(GLhandleARB programObj, const GLcharARB *name);
+typedef void		(APIENTRYP FTEPFNGLGETVERTEXATTRIBIV)			(GLuint index, GLenum pname, GLint *params);
 typedef void		(APIENTRYP FTEPFNGLUNIFORM4FARBPROC)			(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
 typedef void		(APIENTRYP FTEPFNGLUNIFORMMATRIX4FVARBPROC)		(GLint location, GLsizei count, GLboolean transpose, GLfloat *value);
 typedef void		(APIENTRYP FTEPFNGLUNIFORM4FVARBPROC)			(GLint location, GLsizei count, GLfloat *value);
@@ -774,6 +775,7 @@ extern FTEPFNGLLINKPROGRAMARBPROC			qglLinkProgramARB;
 extern FTEPFNGLBINDATTRIBLOCATIONARBPROC   qglBindAttribLocationARB;
 extern FTEPFNGLGETATTRIBLOCATIONARBPROC		qglGetAttribLocationARB;
 extern FTEPFNGLVERTEXATTRIBPOINTER			qglVertexAttribPointer;
+extern FTEPFNGLGETVERTEXATTRIBIV			qglGetVertexAttribiv;
 extern FTEPFNGLENABLEVERTEXATTRIBARRAY		qglEnableVertexAttribArray;
 extern FTEPFNGLDISABLEVERTEXATTRIBARRAY	qglDisableVertexAttribArray;
 extern FTEPFNGLGETUNIFORMLOCATIONARBPROC	qglGetUniformLocationARB;
@@ -786,7 +788,7 @@ extern FTEPFNGLUNIFORM1IARBPROC			qglUniform1iARB;
 extern FTEPFNGLUNIFORM1FARBPROC			qglUniform1fARB;
 
 //glslang helper api
-GLhandleARB GLSlang_CreateProgram (char **precompilerconstants, char *vert, char *frag);
+GLhandleARB GLSlang_CreateProgram(char *versionline, char **precompilerconstants, char *vert, char *frag);
 GLint GLSlang_GetUniformLocation (int prog, char *name);
 void GL_SelectProgram(int program);
 #define GLSlang_UseProgram(prog) GL_SelectProgram(prog)

@@ -251,6 +251,10 @@ void R2D_Init(void)
 
 	Cvar_ForceCallback(&crosshair);
 	Cvar_ForceCallback(&crosshaircolor);
+
+#ifdef PLUGINS
+	Plug_DrawReloadImages();
+#endif
 }
 
 mpic_t	*R2D_SafeCachePic (char *path)

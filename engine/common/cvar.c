@@ -724,11 +724,13 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 #ifndef CLIENTONLY
 		SVQ1_CvarChanged(var);
 #endif
+#ifndef SERVERONLY
 #ifdef MENU_DAT
 		MP_CvarChanged(var);
 #endif
 #ifdef CSQC_DAT
 		CSQC_CvarChanged(var);
+#endif
 #endif
 	}
 

@@ -359,7 +359,17 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 	{
 		/*in gl3.0 things are depricated but not removed*/
 		/*in gl3.1 depricated things are removed unless compatibility is present*/
-		if (gl_config.glversion >= 3.1)
+		/*in gl3.2 there's a profile flag we can query*/
+		if (gl_config.glversion > 3.1)
+		{
+			GLint profile = 0;
+#define GL_CONTEXT_PROFILE_MASK					0x9126
+#define GL_CONTEXT_COMPATIBILITY_PROFILE_BIT	0x00000002
+			qglGetIntegerv(GL_CONTEXT_PROFILE_MASK, &profile);
+
+			gl_config.nofixedfunc = !(profile & GL_CONTEXT_COMPATIBILITY_PROFILE_BIT);
+		}
+		else if (gl_config.glversion == 3.1)
 			gl_config.nofixedfunc = !GL_CheckExtension("GL_ARB_compatibility");
 		else
 			gl_config.nofixedfunc = false;

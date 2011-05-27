@@ -285,6 +285,24 @@ void RMod_Think (void)
 #endif
 }
 
+void Mod_RebuildLightmaps (void)
+{
+	int i, j;
+	msurface_t *surf;
+	model_t	*mod;
+
+	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
+	{
+		if (mod->needload)
+			continue;
+
+		if (mod->type == mod_brush)
+		{
+			for (j=0, surf = mod->surfaces; j<mod->numsurfaces ; j++, surf++)
+				surf->cached_dlight=-1;//force it
+		}
+	}
+}
 
 /*
 ===================

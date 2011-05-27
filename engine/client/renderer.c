@@ -258,8 +258,9 @@ cvar_t gl_mindist							= SCVARF ("gl_mindist", "4",
 cvar_t gl_motionblur						= SCVARF ("gl_motionblur", "0",
 												CVAR_ARCHIVE);
 cvar_t gl_motionblurscale					= SCVAR  ("gl_motionblurscale", "1");
-cvar_t gl_overbright						= SCVARF ("gl_overbright", "1",
-												CVAR_ARCHIVE);
+cvar_t gl_overbright						= CVARFC ("gl_overbright", "1",
+												CVAR_ARCHIVE,
+												Surf_RebuildLightmap_Callback);
 cvar_t gl_overbright_all					= SCVARF ("gl_overbright_all", "0",
 												CVAR_ARCHIVE);
 cvar_t gl_picmip							= SCVAR  ("gl_picmip", "0");

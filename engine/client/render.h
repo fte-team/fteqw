@@ -344,6 +344,7 @@ struct model_s *RMod_ForName (char *name, qboolean crash);
 struct model_s *RMod_FindName (char *name);
 void	*RMod_Extradata (struct model_s *mod);	// handles caching
 void	RMod_TouchModel (char *name);
+void Mod_RebuildLightmaps (void);
 
 struct mleaf_s *RMod_PointInLeaf (struct model_s *model, float *p);
 

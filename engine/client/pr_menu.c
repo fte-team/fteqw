@@ -396,26 +396,23 @@ void QCBUILTIN PF_CL_drawcolouredstring (progfuncs_t *prinst, struct globalvars_
 void QCBUILTIN PF_CL_stringwidth(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *text = PR_GetStringOfs(prinst, OFS_PARM0);
-	qboolean usecolours = G_FLOAT(OFS_PARM1);
+	int usecolours = G_FLOAT(OFS_PARM1);
 	float fontsize;
 	if (*prinst->callargc > 2)
 		fontsize = G_FLOAT(OFS_PARM2);
 	else
 		fontsize = 1;
+
 	if (mp_globs.drawfontscale)
 		fontsize *= mp_globs.drawfontscale[1];
 	if (usecolours)
 	{
-		conchar_t buffer[2048], *str;
+		conchar_t buffer[2048], *end;
 		float px, py;
-		COM_ParseFunString(CON_WHITEMASK, text, buffer, sizeof(buffer), false);
-		str = buffer;
+		end = COM_ParseFunString(CON_WHITEMASK, text, buffer, sizeof(buffer), false);
 
 		Font_BeginScaledString(font_conchar, 0, 0, &px, &py);
-		while(*str)
-		{
-			px += Font_CharWidth(*str++);
-		}
+		px = Font_LineWidth(buffer, end);
 		Font_EndString(font_conchar);
 
 		if (mp_globs.drawfontscale)

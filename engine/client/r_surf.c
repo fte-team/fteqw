@@ -58,28 +58,18 @@ extern cvar_t r_stainfadeammount;
 static int lightmap_shift;
 int Surf_LightmapShift (model_t *model)
 {
-	extern cvar_t gl_overbright_all, gl_lightmap_shift;
+	extern cvar_t gl_overbright_all, gl_overbright, gl_lightmap_shift;
 
 	if (gl_overbright_all.ival || (model->engineflags & MDLF_NEEDOVERBRIGHT))
-		lightmap_shift = bound(0, gl_lightmap_shift.ival, 2);
+		lightmap_shift = bound(0, gl_lightmap_shift.ival + gl_overbright.ival, 2);
 	else
 		lightmap_shift = 0;
 	return lightmap_shift;
 }
 
-void Surf_RebuildLightmap (void)
-{
-	int i;
-	msurface_t *surf;
-
-	if (cl.worldmodel)
-		for (i=0, surf = cl.worldmodel->surfaces; i<cl.worldmodel->numsurfaces ; i++, surf++)
-			surf->cached_dlight=-1;//force it
-}
-
 void Surf_RebuildLightmap_Callback (struct cvar_s *var, char *oldvalue)
 {
-	Surf_RebuildLightmap();
+	Mod_RebuildLightmaps();
 }
 
 //radius, x y z, r g b

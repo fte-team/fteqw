@@ -568,8 +568,7 @@ return NULL;
 #define PNG_ALLOCATED
 #endif
 
-
-void (PNGAPI *qpng_error) PNGARG((png_structp png_ptr, png_const_charp error_message)) PNG_NORETURN PSTATIC(png_error);
+void (PNGAPI *qpng_error) PNGARG((png_structp png_ptr, png_const_charp error_message)) PSTATIC(png_error);
 void (PNGAPI *qpng_read_end) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_end);
 void (PNGAPI *qpng_read_image) PNGARG((png_structp png_ptr, png_bytepp image)) PSTATIC(png_read_image);
 png_byte (PNGAPI *qpng_get_bit_depth) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_get_bit_depth);
@@ -590,8 +589,8 @@ void (PNGAPI *qpng_read_info) PNGARG((png_structp png_ptr, png_infop info_ptr)) 
 void (PNGAPI *qpng_set_sig_bytes) PNGARG((png_structp png_ptr, int num_bytes)) PSTATIC(png_set_sig_bytes);
 void (PNGAPI *qpng_set_read_fn) PNGARG((png_structp png_ptr, png_voidp io_ptr, png_rw_ptr read_data_fn)) PSTATIC(png_set_read_fn);
 void (PNGAPI *qpng_destroy_read_struct) PNGARG((png_structpp png_ptr_ptr, png_infopp info_ptr_ptr, png_infopp end_info_ptr_ptr)) PSTATIC(png_destroy_read_struct);
-png_infop (PNGAPI *qpng_create_info_struct) PNGARG((png_structp png_ptr)) PNG_ALLOCATED PSTATIC(png_create_info_struct);
-png_structp (PNGAPI *qpng_create_read_struct) PNGARG((png_const_charp user_png_ver, png_voidp error_ptr, png_error_ptr error_fn, png_error_ptr warn_fn)) PNG_ALLOCATED PSTATIC(png_create_read_struct);
+png_infop (PNGAPI *qpng_create_info_struct) PNGARG((png_structp png_ptr)) PSTATIC(png_create_info_struct);
+png_structp (PNGAPI *qpng_create_read_struct) PNGARG((png_const_charp user_png_ver, png_voidp error_ptr, png_error_ptr error_fn, png_error_ptr warn_fn)) PSTATIC(png_create_read_struct);
 int (PNGAPI *qpng_sig_cmp) PNGARG((png_bytep sig, png_size_t start, png_size_t num_to_check)) PSTATIC(png_sig_cmp);
 
 void (PNGAPI *qpng_write_end) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_write_end);
@@ -602,7 +601,7 @@ void (PNGAPI *qpng_set_IHDR) PNGARG((png_structp png_ptr, png_infop info_ptr, pn
 void (PNGAPI *qpng_set_compression_level) PNGARG((png_structp png_ptr, int level)) PSTATIC(png_set_compression_level);
 void (PNGAPI *qpng_init_io) PNGARG((png_structp png_ptr, png_FILE_p fp)) PSTATIC(png_init_io);
 void (PNGAPI *qpng_destroy_write_struct) PNGARG((png_structpp png_ptr_ptr, png_infopp info_ptr_ptr)) PSTATIC(png_destroy_write_struct);
-png_structp (PNGAPI *qpng_create_write_struct) PNGARG((png_const_charp user_png_ver, png_voidp error_ptr, png_error_ptr error_fn, png_error_ptr warn_fn)) PNG_ALLOCATED PSTATIC(png_create_write_struct);
+png_structp (PNGAPI *qpng_create_write_struct) PNGARG((png_const_charp user_png_ver, png_voidp error_ptr, png_error_ptr error_fn, png_error_ptr warn_fn)) PSTATIC(png_create_write_struct);
 
 qboolean LibPNG_Init(void)
 {
@@ -670,7 +669,7 @@ void PNGAPI png_default_read_data(png_structp png_ptr, png_bytep data, png_size_
 
 void VARGS readpngdata(png_structp png_ptr,png_bytep data,png_size_t len)
 {
-	pngreadinfo_t *ri = (pngreadinfo_t*)png_ptr->io_ptr;
+	pngreadinfo_t *ri = (pngreadinfo_t*)png_get_io_ptr(png_ptr);
 	if (ri->readposition+len > ri->filelen)
 	{
 		qpng_error(png_ptr, "unexpected eof");
@@ -709,7 +708,7 @@ qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, const char *
 		return (png_rgba = NULL);
 	}
 
-	if (setjmp(png->jmpbuf))
+	if (setjmp(png_jmpbuf(png)))
 	{
 error:
 		if (data)
@@ -829,7 +828,7 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 		return false;
     }
 
-	if (setjmp(png_ptr->jmpbuf))
+	if (setjmp(png_jmpbuf(png_ptr)))
 	{
         qpng_destroy_write_struct(&png_ptr, &info_ptr);
         fclose(fp);
@@ -838,6 +837,14 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 
 	qpng_init_io(png_ptr, fp);
 	compression = bound(0, compression, 100);
+
+// had to add these when I migrated from libpng 1.4.x to 1.5.x
+#ifndef Z_NO_COMPRESSION
+#define Z_NO_COMPRESSION         0
+#endif
+#ifndef Z_BEST_COMPRESSION
+#define Z_BEST_COMPRESSION       9
+#endif
 	qpng_set_compression_level(png_ptr, Z_NO_COMPRESSION + (compression*(Z_BEST_COMPRESSION-Z_NO_COMPRESSION))/100);
 
 	qpng_set_IHDR(png_ptr, info_ptr, width, height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);

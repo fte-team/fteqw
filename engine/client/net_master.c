@@ -591,7 +591,9 @@ void Master_AddMaster (char *address, int type, char *description)
 		return;
 	}
 
+#ifdef _MSC_VER
 #pragma message("Master_AddMaster: add ipv6. don't care about tcp/irc.")
+#endif
 	if (adr.type != NA_IP && adr.type != NA_IPX)
 	{
 		Con_Printf("Fixme: unable to poll address family for \"%s\"\n", address);
@@ -795,7 +797,9 @@ void NET_SendPollPacket(int len, void *data, netadr_t to)
 	int ret;
 	struct sockaddr_qstorage	addr;
 
+#ifdef _MSC_VER
 #pragma message("NET_SendPollPacket: no support for ipv6")
+#endif
 
 	NetadrToSockadr (&to, &addr);
 #ifdef USEIPX

@@ -2139,7 +2139,9 @@ q3playerState_t *SVQ3Q1_BuildPlayerState(client_t *client)
 
 	memset(&state, 0, sizeof(state));
 
+#ifdef _MSC_VER
 #pragma message("qwoverq3: other things will need to be packed into here.")
+#endif
 
 	state.commandTime = client->lastcmd.servertime;
 
@@ -2350,7 +2352,9 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 
 void SVQ3Q1_ConvertEntStateQ1ToQ3(entity_state_t *q1, q3entityState_t *q3)
 {
+#ifdef _MSC_VER
 #pragma message("qwoverq3: This _WILL_ need extending")
+#endif
 	q3->number = q1->number;
 
 	q3->pos.trTime = 0;
@@ -2864,7 +2868,9 @@ void SVQ3_ParseUsercmd(client_t *client, qboolean delta)
 			{
 				usercmd_t temp;
 				temp = client->lastcmd;
+#ifdef _MSC_VER
 #pragma message("qwoverq3: you need to be aware of this if you're making a compatible cgame")
+#endif
 				//if you read the q3 code, you'll see that the speed value used is 64 for walking, and 127 for running (full speed).
 				//so we map full to full here.
 				temp.sidemove *= client->maxspeed/127.0f;

@@ -861,7 +861,9 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist)
 
 	GL_CullFace(0);
 
+#ifdef _MSC_VER
 #pragma message("warning: there's a bug with rtlights in portals, culling is broken or something. May also be loading the wrong matrix")
+#endif
 }
 
 
@@ -948,7 +950,9 @@ static void R_RenderMotionBlur(void)
 {
 	int vwidth = 1, vheight = 1;
 	float vs, vt, cs, ct;
+#ifdef _MSC_VER
 #pragma message("backend fixme")
+#endif
 	Con_Printf("motionblur is not updated for the backend\n");
 
 	if (gl_config.arb_texture_non_power_of_two)

@@ -553,7 +553,9 @@ void SV_DropClient (client_t *drop)
 	if (drop->netchan.remote_address.type == NA_LOOPBACK)
 	{
 		Netchan_Transmit(&drop->netchan, 0, "", SV_RateForClient(drop));
+#ifdef _MSC_VER
 #pragma message("This mans that we may not see the reason we kicked ourselves.")
+#endif
 		CL_Disconnect();
 		drop->state = cs_free;	//don't do zombie stuff
 	}
@@ -871,7 +873,9 @@ void SV_FullClientUpdate (client_t *client, sizebuf_t *buf, unsigned int ftepext
 	MSG_WriteByte (buf, i);
 	MSG_WriteFloat (buf, realtime - client->connection_started);
 
+#ifdef _MSC_VER
 #pragma message("this is a bug: it can be broadcast to all qw clients")
+#endif
 	if (ftepext & PEXT_BIGUSERINFOS)
 		Q_strncpyz (info, client->userinfo, sizeof(info));
 	else
@@ -1053,9 +1057,9 @@ void SVC_Status (void)
 	if (slots>12)
 		Con_Printf ("5013 23 64 94 \"DeathBunny\" \"soldier\" 13 13\n");
 	if (slots>10)
-		Con_Printf ("5010 32 85 162 \"��\" \"hacker\" 13 13\n");
+		Con_Printf ("5010 32 85 162 \"??\" \"hacker\" 13 13\n");
 	if (slots>8)
-		Con_Printf ("5011 32 85 162 \"��a���\" \"hacker\" 4 4\n");
+		Con_Printf ("5011 32 85 162 \"??a???\" \"hacker\" 4 4\n");
 	*/
 	SV_EndRedirect ();
 }
@@ -1694,7 +1698,7 @@ client_t *SVC_DirectConnect(void)
 
 		s = Info_ValueForKey(userinfo[0], "qport");
 		qport = atoi(s);
-		
+
 		s = Info_ValueForKey(userinfo[0], "name");
 		if (!*s)
 			Info_SetValueForKey(userinfo[0], "name", "UnnamedQ3", sizeof(userinfo[0]));
@@ -3061,14 +3065,14 @@ qboolean SV_ReadPackets (void)
 			cl->laggedpacket = lp->next;
 			if (cl->laggedpacket_last == lp)
 				cl->laggedpacket_last = lp->next;
-		
+
 			lp->next = svs.free_lagged_packet;
 			svs.free_lagged_packet = lp;
 
 			SZ_Clear(&net_message);
 			memcpy(net_message.data, lp->data, lp->length);
 			net_message.cursize = lp->length;
-			
+
 			net_from = cl->netchan.remote_address;	//not sure if anything depends on this, but lets not screw them up willynilly
 
 			if (Netchan_Process(&cl->netchan))
@@ -3155,7 +3159,9 @@ qboolean SV_ReadPackets (void)
 #ifdef Q3SERVER
 			if (ISQ3CLIENT(cl))
 			{
+#ifdef _MSC_VER
 #pragma message("qwoverq3: fixme: this will block qw+q3 clients from the same ip")
+#endif
 				if (cl->state != cs_zombie)
 				{
 					received++;
@@ -3198,7 +3204,7 @@ qboolean SV_ReadPackets (void)
 				cl->laggedpacket_last->length = net_message.cursize;
 				break;
 			}
-			
+
 
 			if (Netchan_Process(&cl->netchan))
 			{	// this is a valid, sequenced packet, so process it
@@ -4658,16 +4664,16 @@ void SV_Init (quakeparms_t *parms)
 			Cbuf_AddText("startmap_sp", RESTRICT_LOCAL);	//DP extension
 			Cbuf_Execute();
 		}
-		if (sv.state == ss_dead && COM_FCheckExists("maps/start.bsp")) 
+		if (sv.state == ss_dead && COM_FCheckExists("maps/start.bsp"))
 			Cmd_ExecuteString ("map start", RESTRICT_LOCAL);	//regular q1
-		if (sv.state == ss_dead && COM_FCheckExists("maps/demo1.bsp")) 
+		if (sv.state == ss_dead && COM_FCheckExists("maps/demo1.bsp"))
 			Cmd_ExecuteString ("map demo1", RESTRICT_LOCAL);	//regular h2 sp
 #ifdef Q2SERVER
-		if (sv.state == ss_dead && COM_FCheckExists("maps/base1.bsp")) 
+		if (sv.state == ss_dead && COM_FCheckExists("maps/base1.bsp"))
 			Cmd_ExecuteString ("map base1", RESTRICT_LOCAL);	//regular q2 sp
 #endif
 #ifdef Q3SERVER
-		if (sv.state == ss_dead && COM_FCheckExists("maps/q3dm1.bsp")) 
+		if (sv.state == ss_dead && COM_FCheckExists("maps/q3dm1.bsp"))
 			Cmd_ExecuteString ("map q3dm1", RESTRICT_LOCAL);	//regular q3 'sp'
 #endif
 #ifdef HLSERVER

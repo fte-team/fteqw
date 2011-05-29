@@ -502,7 +502,7 @@ void QCBUILTIN PF_CL_drawsubpic (progfuncs_t *prinst, struct globalvars_s *pr_gl
 void QCBUILTIN PF_CL_is_cached_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*str;
-	
+
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
 
 //	if (Draw_IsCached)
@@ -546,7 +546,7 @@ void QCBUILTIN PF_CL_precache_pic (progfuncs_t *prinst, struct globalvars_s *pr_
 void QCBUILTIN PF_CL_free_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*str;
-	
+
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
 
 	//we don't support this.
@@ -779,7 +779,7 @@ void QCBUILTIN PF_parseentitydata(progfuncs_t *prinst, struct globalvars_s *pr_g
 		if (*file)
 			Con_Printf("parseentitydata: too much data\n");
 	}
-	
+
 	G_FLOAT(OFS_RETURN) = 0;
 }
 
@@ -825,7 +825,7 @@ static void QCBUILTIN PF_menu_cvar (progfuncs_t *prinst, struct globalvars_s *pr
 {
 	cvar_t	*var;
 	char	*str;
-	
+
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
 	str = RemapCvarNameFromDPToFTE(str);
 	var = Cvar_Get(str, "", 0, "menu cvars");
@@ -881,7 +881,7 @@ void QCBUILTIN PF_nonfatalobjerror (progfuncs_t *prinst, struct globalvars_s *pr
 	char	*s;
 	struct edict_s	*ed;
 	eval_t *selfp;
-	
+
 	s = PF_VarString(prinst, 0, pr_globals);
 
 	PR_StackTrace(prinst);
@@ -940,7 +940,7 @@ static void QCBUILTIN PF_Fixme (progfuncs_t *prinst, struct globalvars_s *pr_glo
 void QCBUILTIN PF_CL_precache_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*str;
-	
+
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
 
 	if (S_PrecacheSound(str))
@@ -1041,7 +1041,7 @@ void QCBUILTIN PF_cl_getmousepos (progfuncs_t *prinst, struct globalvars_s *pr_g
 static void QCBUILTIN PF_Remove_ (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	menuedict_t *ed;
-	
+
 	ed = (void*)G_EDICT(prinst, OFS_PARM0);
 
 	if (ed->isfree)
@@ -1661,7 +1661,7 @@ builtin_t menu_builtins[] = {
 	PF_CL_drawcolouredstring,		// #467
 	PF_CL_stringwidth,					// #468
 	PF_CL_drawsubpic,						// #469
-	
+
 //470
 	skip1					// #470
 	PF_asin,				// #471
@@ -1954,7 +1954,9 @@ qboolean MP_Init (void)
 		if (mp_time)
 			*mp_time = Sys_DoubleTime();
 
+#ifdef _MSC_VER
 #pragma message("disabled until csqc gets forked or some such")
+#endif
 		//mp_globs.drawfont = (float*)PR_FindGlobal(menuprogs, "drawfont", 0, NULL);
 		//mp_globs.drawfontscale = (float*)PR_FindGlobal(menuprogs, "drawfontscale", 0, NULL);
 

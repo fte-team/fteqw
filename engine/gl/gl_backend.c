@@ -513,7 +513,7 @@ void GL_SetShaderState2D(qboolean is2d)
 	BE_SelectMode(BEM_STANDARD);
 }
 
-void GL_SelectTexture(int target) 
+void GL_SelectTexture(int target)
 {
 	shaderstate.currenttmu = target;
 	if (qglActiveTextureARB)
@@ -1068,15 +1068,15 @@ void GLBE_Init(void)
 		t = (double)i / (double)FTABLE_SIZE;
 
 		r_sintable[i] = sin(t * 2*M_PI);
-		
-		if (t < 0.25) 
+
+		if (t < 0.25)
 			r_triangletable[i] = t * 4.0;
 		else if (t < 0.75)
 			r_triangletable[i] = 2 - 4.0 * t;
 		else
 			r_triangletable[i] = (t - 0.75) * 4.0 - 1.0;
 
-		if (t < 0.5) 
+		if (t < 0.5)
 			r_squaretable[i] = 1.0f;
 		else
 			r_squaretable[i] = -1.0f;
@@ -1096,7 +1096,7 @@ void GLBE_Init(void)
 
 	shaderstate.shaderbits = ~0;
 	BE_SendPassBlendDepthMask(0);
-	
+
 	if (qglEnableClientState)
 		qglEnableClientState(GL_VERTEX_ARRAY);
 
@@ -1115,7 +1115,7 @@ static vecV_t		vertexarray[MAX_ARRAY_VERTS];
 
 /*========================================== texture coord generation =====================================*/
 
-static void tcgen_environment(float *st, unsigned int numverts, float *xyz, float *normal) 
+static void tcgen_environment(float *st, unsigned int numverts, float *xyz, float *normal)
 {
 	int			i;
 	vec3_t		viewer, reflected;
@@ -1126,7 +1126,7 @@ static void tcgen_environment(float *st, unsigned int numverts, float *xyz, floa
 
 	RotateLightVector(shaderstate.curentity->axis, shaderstate.curentity->origin, r_origin, rorg);
 
-	for (i = 0 ; i < numverts ; i++, xyz += sizeof(vecV_t)/sizeof(vec_t), normal += 3, st += 2 ) 
+	for (i = 0 ; i < numverts ; i++, xyz += sizeof(vecV_t)/sizeof(vec_t), normal += 3, st += 2 )
 	{
 		VectorSubtract (rorg, xyz, viewer);
 		VectorNormalizeFast (viewer);
@@ -1157,7 +1157,7 @@ static void tcgen_fog(float *st, unsigned int numverts, float *xyz)
 
 	Vector4Scale(zmat, shaderstate.fogfar, zmat);
 
-	for (i = 0 ; i < numverts ; i++, xyz += sizeof(vecV_t)/sizeof(vec_t), st += 2 ) 
+	for (i = 0 ; i < numverts ; i++, xyz += sizeof(vecV_t)/sizeof(vec_t), st += 2 )
 	{
 		z = DotProduct(xyz, zmat) + zmat[3];
 		st[0] = z;
@@ -1202,7 +1202,7 @@ static float *tcgen(unsigned int tcgen, int cnt, float *dst, const mesh_t *mesh)
 		{
 			static vec3_t tc_gen_s = { 1.0f, 0.0f, 0.0f };
 			static vec3_t tc_gen_t = { 0.0f, 1.0f, 0.0f };
-			
+
 			dst[0] = DotProduct(tc_gen_s, src[i]);
 			dst[1] = DotProduct(tc_gen_t, src[i]);
 		}
@@ -1255,7 +1255,7 @@ static void tcmod(const tcmod_t *tcmod, int cnt, const float *src, float *dst, c
 				dst[1] = src[1] + R_FastSin (src[1]*t2+t1) * t2;
 			}
 			break;
-		
+
 		case SHADER_TCMOD_STRETCH:
 			table = FTableForFunc(tcmod->args[0]);
 			t2 = tcmod->args[3] + shaderstate.curtime * tcmod->args[4];
@@ -1268,7 +1268,7 @@ static void tcmod(const tcmod_t *tcmod, int cnt, const float *src, float *dst, c
 				dst[1] = src[1] * t1 + t2;
 			}
 			break;
-					
+
 		case SHADER_TCMOD_SCROLL:
 			t1 = tcmod->args[0] * shaderstate.curtime;
 			t2 = tcmod->args[1] * shaderstate.curtime;
@@ -1279,7 +1279,7 @@ static void tcmod(const tcmod_t *tcmod, int cnt, const float *src, float *dst, c
 				dst[1] = src[1] + t2;
 			}
 			break;
-				
+
 		case SHADER_TCMOD_TRANSFORM:
 			for (j = 0; j < cnt; j++, dst+=2, src+=2)
 			{
@@ -1645,7 +1645,7 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 			for (j = 2; j >= 0; j--)
 			{
 				quad[3] = (float *)(dst + mesh->indexes[k+3+j]);
-				if (!VectorEquals (quad[3], quad[0]) && 
+				if (!VectorEquals (quad[3], quad[0]) &&
 					!VectorEquals (quad[3], quad[1]) &&
 					!VectorEquals (quad[3], quad[2]))
 				{
@@ -1863,7 +1863,7 @@ static void alphagen(const shaderpass_t *pass, int cnt, avec4_t *const src, avec
 
 
 	case ALPHA_GEN_SPECULAR:
-		{ 
+		{
 			mat3_t axis;
 			AngleVectors(shaderstate.curentity->angles, axis[0], axis[1], axis[2]);
 			VectorSubtract(r_origin, shaderstate.curentity->origin, v1);
@@ -1907,7 +1907,7 @@ static void GenerateColourMods(const shaderpass_t *pass)
 	if (pass->flags & SHADER_PASS_NOCOLORARRAY)
 	{
 		avec4_t scol;
-	
+
 		colourgen(pass, 1, meshlist->colors4f_array, &scol, meshlist);
 		alphagen(pass, 1, meshlist->colors4f_array, &scol, meshlist);
 		qglDisableClientState(GL_COLOR_ARRAY);
@@ -2032,7 +2032,9 @@ static void BE_SendPassBlendDepthMask(unsigned int sbits)
 	unsigned int delta;
 
 	/*2d mode doesn't depth test or depth write*/
+#ifdef _MSC_VER
 #pragma message("fixme: q3 doesn't seem to have this, why do we need it?")
+#endif
 	if (shaderstate.force2d)
 	{
 		sbits &= ~(SBITS_MISC_DEPTHWRITE|SBITS_MISC_DEPTHEQUALONLY);
@@ -2457,7 +2459,9 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 	case SP_EYEPOS:
 		{
 			float m16[16];
+#ifdef _MSC_VER
 #pragma message("is this correct?")
+#endif
 //			vec3_t t1;
 			vec3_t t2;
 			Matrix4_ModelMatrixFromAxis(m16, shaderstate.curentity->axis[0], shaderstate.curentity->axis[1], shaderstate.curentity->axis[2], shaderstate.curentity->origin);
@@ -2469,7 +2473,9 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 		break;
 	case SP_LIGHTPOSITION:
 		{
+#ifdef _MSC_VER
 #pragma message("is this correct?")
+#endif
 			float inv[16];
 			float m16[16];
 //			vec3_t t1;
@@ -2655,8 +2661,8 @@ void GLBE_SelectMode(backendmode_t mode)
 			//we don't write or blend anything (maybe alpha test... but mneh)
 			BE_SendPassBlendDepthMask(SBITS_MISC_DEPTHCLOSERONLY | SBITS_MASK_BITS);
 
-			//don't change cull stuff, and 
-			//don't actually change stencil stuff - caller needs to be 
+			//don't change cull stuff, and
+			//don't actually change stencil stuff - caller needs to be
 			//aware of how many times stuff is drawn, so they can do that themselves.
 		}
 #endif
@@ -2911,7 +2917,9 @@ static void DrawMeshes(void)
 #endif
 	case BEM_DEPTHONLY:
 		GL_DeSelectProgram();
+#ifdef _MSC_VER
 #pragma message("fixme: support alpha test")
+#endif
 		GL_ApplyVertexPointer();
 		BE_SubmitMeshChain();
 		break;
@@ -3219,17 +3227,17 @@ static void BE_UpdateLightmaps(void)
 			switch (lightmap_bytes)
 			{
 			case 4:
-				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
+				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t,
 					LMBLOCK_WIDTH, theRect->h, (lightmap_bgra?GL_BGRA_EXT:GL_RGBA), GL_UNSIGNED_INT_8_8_8_8_REV,
 					lightmap[lm]->lightmaps+(theRect->t) *LMBLOCK_WIDTH*4);
 				break;
 			case 3:
-				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
+				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t,
 					LMBLOCK_WIDTH, theRect->h, (lightmap_bgra?GL_BGR_EXT:GL_RGB), GL_UNSIGNED_BYTE,
 					lightmap[lm]->lightmaps+(theRect->t) *LMBLOCK_WIDTH*3);
 				break;
 			case 1:
-				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
+				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t,
 					LMBLOCK_WIDTH, theRect->h, GL_LUMINANCE, GL_UNSIGNED_BYTE,
 					lightmap[lm]->lightmaps+(theRect->t) *LMBLOCK_WIDTH);
 				break;
@@ -3245,7 +3253,7 @@ static void BE_UpdateLightmaps(void)
 				lightmap[lm]->deluxmodified = false;
 				theRect = &lightmap[lm]->deluxrectchange;
 				GL_MTBind(0, GL_TEXTURE_2D, deluxmap_textures[lm]);
-				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t, 
+				qglTexSubImage2D(GL_TEXTURE_2D, 0, 0, theRect->t,
 					LMBLOCK_WIDTH, theRect->h, GL_RGB, GL_UNSIGNED_BYTE,
 					lightmap[lm]->deluxmaps+(theRect->t) *LMBLOCK_WIDTH*3);
 				theRect->l = LMBLOCK_WIDTH;

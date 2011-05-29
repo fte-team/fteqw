@@ -506,7 +506,9 @@ void R_BloomBlend (void)
 		return;
 
 	PPL_RevertToKnownState();
+#ifdef _MSC_VER
 #pragma message("Note: Bloom doesn't use the backend.")
+#endif
 
 	//set up full screen workspace
 	qglViewport(0, 0, vid.pixelwidth, vid.pixelheight);

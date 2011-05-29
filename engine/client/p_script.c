@@ -3778,7 +3778,9 @@ static void GL_DrawTrifanParticle(int count, particle_t **plist, plooks_t *type)
 
 static void GL_DrawLineSparkParticle(int count, particle_t **plist, plooks_t *type)
 {
+#ifdef _MSC_VER
 #pragma message("fixme: no line sparks")
+#endif
 #if 0
 	particle_t *p;
 

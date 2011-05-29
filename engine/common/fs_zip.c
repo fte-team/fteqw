@@ -43,7 +43,7 @@ void *zlib_handle;
 #endif
 #endif
 
-#pragma comment(lib, MSVCLIBSPATH "zlib.lib")
+//#pragma comment(lib, MSVCLIBSPATH "zlib.lib")
 
 static int (ZEXPORT *qinflateEnd) OF((z_streamp strm)) ZSTATIC(inflateEnd);
 static int (ZEXPORT *qinflate) OF((z_streamp strm, int flush)) ZSTATIC(inflate);

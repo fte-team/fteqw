@@ -53,7 +53,7 @@ void R2D_CrosshairColor_Callback(struct cvar_s *var, char *oldvalue);
 
 
 //We need this for minor things though, so we'll just use the slow accurate method.
-//this is unlikly to be called too often.			
+//this is unlikly to be called too often.
 qbyte GetPaletteIndex(int red, int green, int blue)
 {
 	//slow, horrible method.
@@ -103,7 +103,9 @@ void R2D_Init(void)
 
 	Font_Init();
 
+#ifdef _MSC_VER
 #pragma message("Fixme: move conwidth handling into here")
+#endif
 
 	missing_texture = R_LoadTexture8("no_texture", 16, 16, (unsigned char*)r_notexture_mip + r_notexture_mip->offsets[0], IF_NOALPHA|IF_NOGAMMA, 0);
 	translate_texture = r_nulltex;
@@ -141,7 +143,7 @@ void R2D_Init(void)
 				"blendfunc blend\n"
 			"}\n"
 		"}\n");
-	shader_brighten = R_RegisterShader("constrastshader", 
+	shader_brighten = R_RegisterShader("constrastshader",
 		"{\n"
 			"{\n"
 				"map $whiteimage\n"
@@ -446,7 +448,7 @@ void R2D_ConsoleBackground (int firstline, int lastline, qboolean forceopaque)
 	else
 	{
 		if (!scr_conalpha.value)
-			return; 
+			return;
 
 		a = scr_conalpha.value;
 	}
@@ -591,7 +593,7 @@ void R2D_Console_Resize(void)
 		char *s = strchr(vid_conautoscale.string, ' ');
 		if (s)
 			yratio = atof(s + 1);
-		
+
 		if (yratio <= 0)
 			yratio = xratio;
 
@@ -985,7 +987,7 @@ void R2D_DrawCrosshair(void)
 	if (crosshair.ival < 1)
 		return;
 
-	// old style 
+	// old style
 	if (crosshair.ival == 1 && !crosshairimage.string[0])
 	{
 		for (sc = 0; sc < cl.splitclients; sc++)

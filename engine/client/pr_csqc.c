@@ -1129,7 +1129,7 @@ static void QCBUILTIN PF_R_GetViewFlag(progfuncs_t *prinst, struct globalvars_s 
 		*r = r_refdef.fov_y;
 		break;
 
-#ifndef MINGW
+#ifdef _MSC_VER
 #pragma message("fixme: AFOV not retrievable")
 #endif
 	case VF_AFOV:
@@ -3304,7 +3304,9 @@ static void QCBUILTIN PF_cs_gettaginfo (progfuncs_t *prinst, struct globalvars_s
 
 	cs_getframestate(ent, ent->xv->renderflags, &fstate);
 
+#ifdef _MSC_VER
 #pragma message("PF_cs_gettaginfo: This function doesn't honour attachments (but setattachment isn't implemented yet anyway)")
+#endif
 	if (!Mod_GetTag(mod, tagnum, &fstate, transforms))
 	{
 		memset(transforms, 0, sizeof(transforms));
@@ -5022,7 +5024,7 @@ static struct {
 	{"argv_end_index",		PF_argv_end_index,			516},
 	{"buf_cvarlist",		PF_buf_cvarlist,			517},
 	{"cvar_description",	PF_cvar_description,		518},
-	
+
 	{"gettime",				PF_cs_gettime,				519},
 
 	{"keynumtostring",		PF_cl_keynumtostring,		520},
@@ -5763,7 +5765,9 @@ static void CSQC_GameCommand_f(void)
 	PR_ExecuteProgram (csqcprogs, csqcg.gamecommand);
 }
 
+#ifdef _MSC_VER
 #pragma message("do we really need the firstbyte parameter here?")
+#endif
 qboolean CSQC_ParseTempEntity(unsigned char firstbyte)
 {
 	void *pr_globals;

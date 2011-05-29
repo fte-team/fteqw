@@ -1919,7 +1919,9 @@ static void *Alias_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremap
 			pose->ofssvector = (char *)svec - (char *)pose;
 			pose->ofstvector = (char *)tvec - (char *)pose;
 #else
+#ifdef _MSC_VER
 #pragma message("wasted memory")
+#endif
 #endif
 
 			if (mdltype == 2)
@@ -3122,7 +3124,9 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 		float f1time, f2time;
 		float f2ness;
 
+#ifdef _MSC_VER
 #pragma message("fixme")
+#endif
 		frame1 = fstate->g[FS_REG].frame[0];
 		frame2 = fstate->g[FS_REG].frame[1];
 		f1time = fstate->g[FS_REG].frametime[0];

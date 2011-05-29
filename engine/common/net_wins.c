@@ -23,7 +23,9 @@ struct sockaddr;
 #include "quakedef.h"
 #include "netinc.h"
 
+#ifdef _MSC_VER
 #pragma message("these two are never set. A NET_ReplySource function that returns the address a reply would originate from would be sufficient. Note that INADDR_ANY can be multiple however, so these are just a hint.")
+#endif
 netadr_t	net_local_cl_ipadr;	//still used to match local ui requests, and to generate ip reports for q3 servers.
 
 netadr_t	net_from;

@@ -1604,7 +1604,9 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 
 #define PROJECTION_DISTANCE (float)(dl->radius*2)//0x7fffffff
 /*Fixme: this is brute forced*/
+#ifdef _MSC_VER
 #pragma message("brush shadows are bruteforced")
+#endif
 static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 {
 	int v;

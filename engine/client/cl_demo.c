@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the included (GNU.txt) GNU General Public License for more details.
 
@@ -386,7 +386,7 @@ qboolean CL_GetDemoMessage (void)
 	}
 
 #ifdef NQPROT
-	if (cls.demoplayback == DPB_NETQUAKE 
+	if (cls.demoplayback == DPB_NETQUAKE
 #ifdef Q2CLIENT
 		|| cls.demoplayback == DPB_QUAKE2
 #endif
@@ -415,7 +415,7 @@ qboolean CL_GetDemoMessage (void)
 #ifdef Q2CLIENT
 		if (cls.demoplayback == DPB_QUAKE2 && (cls.netchan.last_received == realtime || cls.netchan.last_received > realtime-0.1))
 			return 0;
-		else 
+		else
 #endif
 			if (cls.demoplayback == DPB_NETQUAKE && cls.signon == 4/*SIGNONS*/)
 		{
@@ -484,7 +484,7 @@ qboolean CL_GetDemoMessage (void)
 		}
 		demo_flushbytes(demopos);
 		net_message.cursize = msglength;
-	
+
 		return 1;
 	}
 #endif
@@ -530,7 +530,7 @@ readnext:
 		demotime = LittleFloat(demotime);
 	}
 
-// decide if it is time to grab the next message		
+// decide if it is time to grab the next message
 	if (cls.timedemo)
 	{
 		if (cls.state == ca_active)
@@ -542,7 +542,7 @@ readnext:
 				cls.td_lastframe = host_framecount;
 				return 0;		// already read this frame's message
 			}
-			if (cls.td_startframe == -1) 
+			if (cls.td_startframe == -1)
 			{	//start the timer only once we are connected.
 				cls.td_starttime = Sys_DoubleTime();
 				cls.td_startframe = host_framecount;
@@ -585,7 +585,7 @@ readnext:
 
 	if (cls.state < ca_demostart)
 		Host_Error ("CL_GetDemoMessage: cls.state != ca_active");
-	
+
 	// get the msg type
 	if (!readdemobytes (&demopos, &c, sizeof(c)))
 	{
@@ -796,7 +796,7 @@ qboolean CL_GetMessage (void)
 		return false;
 
 	CL_WriteDemoMessage (&net_message);
-	
+
 	return true;
 }
 
@@ -937,7 +937,7 @@ void CL_Record_f (void)
 
 	if (cls.demorecording)
 		CL_Stop_f();
-  
+
 	if (c == 2)	//user supplied a name
 	{
 		fname = Cmd_Argv(1);
@@ -973,7 +973,7 @@ void CL_Record_f (void)
 				else if (i > 2)
 				{	// FFA
 					fname = va ("%s_ffa_%s",
-						TP_PlayerName(), 
+						TP_PlayerName(),
 						TP_MapName());
 				}
 				else
@@ -1111,7 +1111,7 @@ void CL_Record_f (void)
 #endif
 	// flush packet
 	CL_WriteRecordDemoMessage (&buf, seq++);
-	SZ_Clear (&buf); 
+	SZ_Clear (&buf);
 
 // soundlist
 	MSG_WriteByte (&buf, svc_soundlist);
@@ -1127,7 +1127,7 @@ void CL_Record_f (void)
 			MSG_WriteByte (&buf, 0);
 			MSG_WriteByte (&buf, n);
 			CL_WriteRecordDemoMessage (&buf, seq++);
-			SZ_Clear (&buf); 
+			SZ_Clear (&buf);
 			MSG_WriteByte (&buf, svc_soundlist);
 			MSG_WriteByte (&buf, n + 1);
 		}
@@ -1139,7 +1139,7 @@ void CL_Record_f (void)
 		MSG_WriteByte (&buf, 0);
 		MSG_WriteByte (&buf, 0);
 		CL_WriteRecordDemoMessage (&buf, seq++);
-		SZ_Clear (&buf); 
+		SZ_Clear (&buf);
 	}
 
 // modellist
@@ -1156,7 +1156,7 @@ void CL_Record_f (void)
 			MSG_WriteByte (&buf, 0);
 			MSG_WriteByte (&buf, n);
 			CL_WriteRecordDemoMessage (&buf, seq++);
-			SZ_Clear (&buf); 
+			SZ_Clear (&buf);
 			MSG_WriteByte (&buf, svc_modellist);
 			MSG_WriteByte (&buf, n + 1);
 		}
@@ -1168,7 +1168,7 @@ void CL_Record_f (void)
 		MSG_WriteByte (&buf, 0);
 		MSG_WriteByte (&buf, 0);
 		CL_WriteRecordDemoMessage (&buf, seq++);
-		SZ_Clear (&buf); 
+		SZ_Clear (&buf);
 	}
 
 // spawnstatic
@@ -1199,7 +1199,7 @@ void CL_Record_f (void)
 		if (buf.cursize > MAX_QWMSGLEN/2)
 		{
 			CL_WriteRecordDemoMessage (&buf, seq++);
-			SZ_Clear (&buf); 
+			SZ_Clear (&buf);
 		}
 	}
 
@@ -1214,7 +1214,7 @@ void CL_Record_f (void)
 
 		if (memcmp(es, &nullentitystate, sizeof(nullentitystate)))
 		{
-			MSG_WriteByte (&buf,svc_spawnbaseline);		
+			MSG_WriteByte (&buf,svc_spawnbaseline);
 			MSG_WriteShort (&buf, i);
 
 			MSG_WriteByte (&buf, es->modelindex);
@@ -1230,7 +1230,7 @@ void CL_Record_f (void)
 			if (buf.cursize > MAX_QWMSGLEN/2)
 			{
 				CL_WriteRecordDemoMessage (&buf, seq++);
-				SZ_Clear (&buf); 
+				SZ_Clear (&buf);
 			}
 		}
 	}
@@ -1241,7 +1241,7 @@ void CL_Record_f (void)
 	if (buf.cursize)
 	{
 		CL_WriteRecordDemoMessage (&buf, seq++);
-		SZ_Clear (&buf); 
+		SZ_Clear (&buf);
 	}
 
 // send current status of all other players
@@ -1253,15 +1253,15 @@ void CL_Record_f (void)
 		MSG_WriteByte (&buf, svc_updatefrags);
 		MSG_WriteByte (&buf, i);
 		MSG_WriteShort (&buf, player->frags);
-		
+
 		MSG_WriteByte (&buf, svc_updateping);
 		MSG_WriteByte (&buf, i);
 		MSG_WriteShort (&buf, player->ping);
-		
+
 		MSG_WriteByte (&buf, svc_updatepl);
 		MSG_WriteByte (&buf, i);
 		MSG_WriteByte (&buf, player->pl);
-		
+
 		MSG_WriteByte (&buf, svc_updateentertime);
 		MSG_WriteByte (&buf, i);
 		MSG_WriteFloat (&buf, player->entertime);
@@ -1274,10 +1274,10 @@ void CL_Record_f (void)
 		if (buf.cursize > MAX_QWMSGLEN/2)
 		{
 			CL_WriteRecordDemoMessage (&buf, seq++);
-			SZ_Clear (&buf); 
+			SZ_Clear (&buf);
 		}
 	}
-	
+
 // send all current light styles
 	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
 	{
@@ -1300,7 +1300,7 @@ void CL_Record_f (void)
 		if (buf.cursize > MAX_QWMSGLEN/2)
 		{
 			CL_WriteRecordDemoMessage (&buf, seq++);
-			SZ_Clear (&buf); 
+			SZ_Clear (&buf);
 		}
 	}
 
@@ -1350,7 +1350,7 @@ void CL_ReRecord_f (void)
 		Con_Printf ("Relative paths not allowed.\n");
 		return;
 	}
-  
+
 	sprintf (name, "%s", s);
 
 //
@@ -1401,7 +1401,9 @@ void CL_PlayDemo_f (void)
 	}
 
 #ifdef WEBCLIENT
+#ifdef _MSC_VER
 #pragma message("playdemo http://blah is broken right now")
+#endif
 #if 0
 	if (!strncmp(Cmd_Argv(1), "ftp://", 6) || !strncmp(Cmd_Argv(1), "http://", 7))
 	{
@@ -1758,7 +1760,7 @@ void CL_QTVPoll (void)
 			}
 			//end of sourcelist entry
 
-			//from e to s, we have a line	
+			//from e to s, we have a line
 			s = e+1;
 		}
 		e++;
@@ -2161,7 +2163,7 @@ void CL_TimeDemo_f (void)
 	}
 
 	CL_PlayDemo_f ();
-	
+
 	if (cls.state != ca_demostart)
 		return;
 
@@ -2169,7 +2171,7 @@ void CL_TimeDemo_f (void)
 
 // cls.td_starttime will be grabbed at the second frame of the demo, so
 // all the loading time doesn't get counted
-	
+
 	cls.timedemo = true;
 	cls.td_starttime = Sys_DoubleTime();
 	cls.td_startframe = -1;

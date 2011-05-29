@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -123,7 +123,7 @@ struct world_s
 	int				*global_self;
 	unsigned int	max_edicts;	//limiting factor... 1024 fields*4*MAX_EDICTS == a heck of a lot.
 	unsigned int	num_edicts;			// increases towards MAX_EDICTS
-FTE_DEPRECATED	unsigned int	edict_size; //still used in copyentity
+/*FTE_DEPRECATED*/	unsigned int	edict_size; //still used in copyentity
 	wedict_t		*edicts;			// can NOT be array indexed.
 	struct progfuncs_s *progs;
 	qboolean		usesolidcorpse;

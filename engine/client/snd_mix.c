@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -65,7 +65,7 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 	skip = paintskip[sc->sn.numchannels-1];
 	cskip = chnskip[sc->sn.numchannels-1];
 	count = (endtime - sc->paintedtime) * sc->sn.numchannels;
-	outlimit = sc->sn.samples; 
+	outlimit = sc->sn.samples;
 	startidx = out_idx = (sc->paintedtime * sc->sn.numchannels) % outlimit;
 	snd_vol = (volume.value*voicevolumemod)*256;
 
@@ -160,7 +160,7 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 				continue;
 
 			scache = S_LoadSound (ch->sfx);
-			if (!scache)				
+			if (!scache)
 				continue;
 
 			if ((ch->pos>>PITCHSHIFT) > scache->length)	//cache was flushed and gamedir changed.
@@ -181,8 +181,10 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 //				start = ch->end - scache->length;
 //				samples = end - start;
 
+#ifdef _MSC_VER
 #pragma message("pitch fix needed")
-				ch->sfx->decoder->decodemore(ch->sfx, 
+#endif
+				ch->sfx->decoder->decodemore(ch->sfx,
 					end - (ch->end - scache->length) + 1);
 //						ch->pos + end-ltime+1);
 
@@ -208,7 +210,7 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 
 
 				if (count > 0)
-				{	
+				{
 					if (ch->pos < 0)	//delay the sound a little
 					{
 						if (count > -ch->pos)
@@ -219,14 +221,14 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 					}
 
 					if (scache->width == 1)
-					{						
+					{
 						if (scache->numchannels==2)
 							SND_PaintChannelFrom8Stereo(ch, scache, count);
 						else if (sc->sn.numchannels == 6)
 							SND_PaintChannelFrom8_6Speaker(ch, scache, count);
 						else if (sc->sn.numchannels == 4)
 							SND_PaintChannelFrom8_4Speaker(ch, scache, count);
-						else	
+						else
 							SND_PaintChannelFrom8(ch, scache, count);
 					}
 					else
@@ -264,18 +266,18 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 						ch->end = ltime + ((scache->length)<<PITCHSHIFT)/ch->rate;
 					}
 					else
-					{	// channel just stopped	
+					{	// channel just stopped
 						s = ch->sfx;
 						ch->sfx = NULL;
 						if (s->decoder)
-						{							
+						{
 							if (!S_IsPlayingSomewhere(s))
 								s->decoder->abort(s);
-						}						
+						}
 						break;
 					}
 				}
-			}			
+			}
 		}
 
 	// transfer out according to DMA format
@@ -329,7 +331,7 @@ void SND_PaintChannelFrom8Stereo (channel_t *ch, sfxcache_t *sc, int count)
 		ch->vol[0] = 255;
 	if (ch->vol[1] > 255)
 		ch->vol[1] = 255;
-		
+
 	if (ch->rate != (1<<PITCHSHIFT))
 	{
 		sfx = (signed char *)sc->data;
@@ -344,8 +346,8 @@ void SND_PaintChannelFrom8Stereo (channel_t *ch, sfxcache_t *sc, int count)
 	{
 		sfx = (signed char *)sc->data + (ch->pos>>PITCHSHIFT)*2;
 		for (i=0 ; i<count ; i++)
-		{		
-			paintbuffer[i].s[0] += ch->vol[0] * sfx[(i<<1)];		
+		{
+			paintbuffer[i].s[0] += ch->vol[0] * sfx[(i<<1)];
 			paintbuffer[i].s[1] += ch->vol[1] * sfx[(i<<1)+1];
 		}
 		ch->pos += count<<PITCHSHIFT;
@@ -432,12 +434,12 @@ void SND_PaintChannelFrom8_6Speaker (channel_t *ch, sfxcache_t *sc, int count)
 	{
 		sfx = (signed char *)sc->data + (ch->pos>>PITCHSHIFT);
 		for (i=0 ; i<count ; i++)
-		{		
+		{
 			paintbuffer[i].s[0] += ch->vol[0] * sfx[i];
 			paintbuffer[i].s[1] += ch->vol[1] * sfx[i];
-			paintbuffer[i].s[2] += ch->vol[2] * sfx[i];		
+			paintbuffer[i].s[2] += ch->vol[2] * sfx[i];
 			paintbuffer[i].s[3] += ch->vol[3] * sfx[i];
-			paintbuffer[i].s[4] += ch->vol[4] * sfx[i];		
+			paintbuffer[i].s[4] += ch->vol[4] * sfx[i];
 			paintbuffer[i].s[5] += ch->vol[5] * sfx[i];
 		}
 		ch->pos += count<<PITCHSHIFT;

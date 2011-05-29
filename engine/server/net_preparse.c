@@ -60,7 +60,7 @@ static void decide(enum protocol_type *types, unsigned int numtypes, qboolean (*
 
 static void pp_flush(multicast_t to, vec3_t origin, void (*flushfunc)(client_t *cl, sizebuf_t *msg, enum protocol_type *pt, union protocol_data *pd), enum protocol_type *pt, union protocol_data *pd)
 {
-	
+
 	client_t	*client;
 	qbyte		*mask;
 	int			leafnum;
@@ -150,7 +150,7 @@ inrange:
 /*
 	if (sv.mvdrecording && !with)	//mvds don't get the pext stuff
 	{
-		flushfunc(&dem.recorder, 
+		flushfunc(&dem.recorder,
 		if (reliable)
 		{
 			MVDWrite_Begin(dem_all, 0, sv.multicast.cursize);
@@ -836,7 +836,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 	NPP_NQCheckDest(dest);
 
 #ifdef NQPROT
-	if (dest == MSG_ONE) 
+	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
 		if (!cl)
@@ -951,7 +951,9 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				protocollen++;
 			if (data & DPSND_LARGESOUND)
 				protocollen++;
+#ifdef _MSC_VER
 #pragma message("NPP_NQWriteByte: this ignores SVC_SOUND from nq mods (nexuiz)")
+#endif
 			ignoreprotocol = true;
 			break;
 		case svc_temp_entity:
@@ -1673,7 +1675,7 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				return;
 			}
 		}
-	} 
+	}
 	else
 		MSG_WriteByte (QWWriteDest(dest), data);
 #endif

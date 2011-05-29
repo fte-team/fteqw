@@ -24,7 +24,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "pr_common.h"
 
+#ifdef _MSC_VER
 #pragma message("fixme, fix this up before adding to csqc")
+#endif
 extern nqglobalvars_t realpr_nqglobal_struct;
 
 /*

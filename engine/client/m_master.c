@@ -85,7 +85,9 @@ static void NM_PrintWhite (int cx, int cy, qbyte *str)
 
 static void NM_PrintColoured (int cx, int cy, int colour, qbyte *str)
 {
+#ifdef _MSC_VER
 #pragma message("NM_PrintColoured: needs reimplementing")
+#endif
 /*
 	while (*str)
 	{
@@ -98,7 +100,9 @@ static void NM_PrintColoured (int cx, int cy, int colour, qbyte *str)
 
 static void NM_PrintHighlighted (int cx, int cy, int colour, int bg, qbyte *str)
 {
+#ifdef _MSC_VER
 #pragma message("NM_PrintHighlighted: needs reimplementing")
+#endif
 /*
 	while (*str)
 	{
@@ -153,7 +157,7 @@ qboolean M_IsFiltered(serverinfo_t *server)	//figure out if we should filter a s
 	if (*sb_mapname.string)
 		if (!strstr(server->map, sb_mapname.string))
 			return true;
-	
+
 	return false;
 }
 
@@ -178,9 +182,9 @@ void M_DrawOneServer (int inity)
 	char	*o;
 	int		l, i;
 	char *s;
-	
+
 	int miny=8*5;
-	int y=8*(5-selectedserver.linenum);	
+	int y=8*(5-selectedserver.linenum);
 
 	miny += inity;
 	y += inity;
@@ -261,7 +265,9 @@ int M_AddColumn (int right, int y, char *text, int maxchars, int colour, int hig
 
 	right = left;
 
+#ifdef _MSC_VER
 #pragma message("M_AddColumn: needs reimplementing")
+#endif
 /*
 	if (highlight >= 0)
 	{
@@ -300,7 +306,7 @@ void M_DrawServerList(void)
 	char adr[MAX_ADR_SIZE];
 
 	CL_QueryServers();
-	
+
 	slist_numoptions = 0;
 
 	//find total servers.
@@ -333,7 +339,7 @@ void M_DrawServerList(void)
 		return;
 	}
 
-	
+
 	if (slist_option >= slist_numoptions)
 		slist_option = slist_numoptions-1;
 	op = vid.height/2/8;
@@ -609,7 +615,7 @@ void M_SListOptions_Key (int key)
 			slist_option = slist_numoptions-1;
 		return;
 	}
-	
+
 	switch(options[slist_option].type)
 	{
 	default:
@@ -764,7 +770,7 @@ void M_SListKey(int key)
 		M_SListOptions_Key(key);
 		return;
 	}
-	
+
 	if (key == K_UPARROW)
 	{
 		slist_option--;
@@ -872,7 +878,7 @@ void M_SListKey(int key)
 		}
 
 		return;
-	}	
+	}
 }
 
 
@@ -1073,7 +1079,7 @@ void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 		else if (selectedserver.inuse && NET_CompareAdr(si->adr, selectedserver.adr))
 			R2D_ImageColours(((sin(realtime*4.4)*0.25)+0.5) * 0.5, ((sin(realtime*4.4)*0.25)+0.5)*0.5, 0.08*0.5, 1.0);
 		else
-		{		
+		{
 			R2D_ImageColours(
 				serverbackcolor[(int)stype * 2 + (thisone & 1)][0],
 				serverbackcolor[(int)stype * 2 + (thisone & 1)][1],

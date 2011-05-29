@@ -86,7 +86,9 @@ qboolean CL_FilterModelindex(int modelindex, int frame)
 
 void CL_FreeDlights(void)
 {
+#ifdef _MSC_VER
 #pragma message("not freeing shadowmeshes")
+#endif
 	rtlights_max = cl_maxdlights = 0;
 	BZ_Free(cl_dlights);
 	cl_dlights = NULL;
@@ -576,7 +578,7 @@ void CL_ParsePacketEntities (qboolean delta)
 				if (newindex >= newp->max_entities)
 				{
 					newp->max_entities = newindex+1;
-					newp->entities = BZ_Realloc(newp->entities, sizeof(entity_state_t)*newp->max_entities); 
+					newp->entities = BZ_Realloc(newp->entities, sizeof(entity_state_t)*newp->max_entities);
 				}
 				if (oldindex >= oldp->max_entities)
 					Host_EndGame("Old packet entity too big\n");
@@ -1404,7 +1406,7 @@ void CLQ1_AddShadow(entity_t *ent)
 	if (!r_shadows.value || !ent->model || ent->model->type != mod_alias)
 		return;
 
-	s = R_RegisterShader("shadowshader", 
+	s = R_RegisterShader("shadowshader",
 		"{\n"
 		"polygonoffset\n"
 		"{\n"
@@ -1715,7 +1717,7 @@ static void CL_TransitionPacketEntities(packet_entities_t *newpack, packet_entit
 			//new this frame (or we noticed something changed significantly)
 			VectorCopy(snew->origin, le->origin);
 			VectorCopy(snew->angles, le->angles);
-				
+
 			VectorCopy(snew->origin, le->oldorigin);
 			VectorCopy(snew->angles, le->oldangle);
 			VectorCopy(snew->origin, le->neworigin);
@@ -2223,7 +2225,9 @@ void CL_LinkPacketEntities (void)
 
 			if (model->flags & EF_ROCKET)
 			{
+#ifdef _MSC_VER
 #pragma message("Replace this flag on load for hexen2 models")
+#endif
 				if (strncmp(model->name, "models/sflesh", 13))
 				{	//hmm. hexen spider gibs...
 					rad = 200;
@@ -2370,7 +2374,7 @@ void CL_LinkProjectiles (void)
 		ent->shaderRGBAf[1] = 1;
 		ent->shaderRGBAf[2] = 1;
 		ent->shaderRGBAf[3] = 1;
-		
+
 		VectorCopy (pr->origin, ent->origin);
 		VectorCopy (pr->angles, ent->angles);
 
@@ -3053,7 +3057,7 @@ void CL_LinkPlayers (void)
 			}
 
 		}
-		else 
+		else
 			*/
 		if (pnum < cl.splitclients)
 		{	//this is a local player

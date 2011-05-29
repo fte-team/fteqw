@@ -5907,7 +5907,9 @@ void SV_ExecuteClientMessage (client_t *cl)
 			if (temp1.ival)
 			frame = &cl->frameunion.frames[(cl->netchan.incoming_acknowledged+temp1.ival) & UPDATE_MASK];
 			*/
+#ifdef _MSC_VER
 #pragma message("FIXME: make antilag optionally support non-player ents too")
+#endif
 			for (i = 0; i < sv.allocated_client_slots; i++)
 			{
 				cl->laggedents[i].present = frame->playerpresent[i];

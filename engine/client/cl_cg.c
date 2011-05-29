@@ -192,7 +192,7 @@ typedef enum {
 	CG_LAST_ATTACKER,
 //	int (*CG_LastAttacker)( void );
 
-	CG_KEY_EVENT, 
+	CG_KEY_EVENT,
 //	void	(*CG_KeyEvent)( int key, qboolean down );
 
 	CG_MOUSE_EVENT,
@@ -320,7 +320,7 @@ typedef struct {
 	int				serverTime;
 	int				angles[3];
 	int 			buttons;
-	qbyte			weapon;           // weapon 
+	qbyte			weapon;           // weapon
 	signed char	forwardmove, rightmove, upmove;
 } q3usercmd_t;
 #define CMD_MASK Q3UPDATE_MASK
@@ -637,7 +637,9 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 				TransformedNativeTrace(mod, 0, 0, start, end, mins, maxs, brushmask, &tr, origin, angles);
 #else
 			{
+#ifdef _MSC_VER
 #pragma message("FIXME: G3 CGame requires TransformedNativeTrace!")
+#endif
 								memset(&tr, 0, sizeof(tr));
 				tr.allsolid = tr.startsolid = true;
 				tr.contents = 1;

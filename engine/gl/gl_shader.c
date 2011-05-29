@@ -2769,7 +2769,9 @@ void Shader_SetBlendmode (shaderpass_t *pass)
 		}
 		else
 		{
+#ifdef _MSC_VER
 #pragma message("is this correct?")
+#endif
 			pass->shaderbits &= ~SBITS_BLEND_BITS;
 			pass->shaderbits |= SBITS_SRCBLEND_ONE;
 			pass->shaderbits |= SBITS_DSTBLEND_ZERO;
@@ -2911,7 +2913,9 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 
 	if ((shader->flags & SHADER_SKY) && (shader->flags & SHADER_DEPTHWRITE))
 	{
+#ifdef _MSC_VER
 #pragma message("is this valid?")
+#endif
 		pass->shaderbits &= ~SBITS_MISC_DEPTHWRITE;
 	}
 }

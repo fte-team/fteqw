@@ -1779,7 +1779,9 @@ qboolean SCR_ScreenShot (char *filename)
 	ext = COM_FileExtension(filename);
 
 	buffer = VID_GetRGBInfo(MAX_PREPAD, &truewidth, &trueheight);
+#ifdef _MSC_VER
 #pragma message("Need to ensure that the various image writing routines can cope with ((width|height)&3")
+#endif
 
 	if (!buffer)
 		return false;

@@ -1060,7 +1060,9 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 
 	RSpeedEnd(RSPEED_TOTALREFRESH);
 	RSpeedShow();
+#ifdef _MSC_VER
 #pragma message("Fixme: ... to here")
+#endif
 
 
 	d3d9error(IDirect3DDevice9_EndScene(pD3DDev9));

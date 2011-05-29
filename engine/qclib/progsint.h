@@ -41,8 +41,10 @@ extern int hunksize;
 #include "progtype.h"
 #include "progslib.h"
 
+#ifdef _MSC_VER
 #pragma warning(disable : 4244)
 #pragma warning(disable : 4267)
+#endif
 
 //extern progfuncs_t *progfuncs;
 

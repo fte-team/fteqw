@@ -22,7 +22,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "shader.h"
 
+#ifdef _MSC_VER
 #pragma message("hipnotic/rogue: Find out")
+#endif
 #define FINDOUT 1024
 
 extern cvar_t hud_tracking_show;

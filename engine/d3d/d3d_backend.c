@@ -804,7 +804,9 @@ static void colourgenbyte(const shaderpass_t *pass, int cnt, byte_vec4_t *src, b
 
 	case RGB_GEN_TOPCOLOR:
 	case RGB_GEN_BOTTOMCOLOR:
+#ifdef _MSC_VER
 #pragma message("fix 24bit player colours")
+#endif
 		block = D3DCOLOR_RGBA(255, 255, 255, 255);
 		while((cnt)--)
 		{

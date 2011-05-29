@@ -7110,7 +7110,9 @@ static void QCBUILTIN PF_CustomTEnt(progfuncs_t *prinst, struct globalvars_s *pr
 static void QCBUILTIN PF_sv_particleeffectnum(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 #ifdef PEXT_CSQC
+#ifdef _MSC_VER
 #pragma message("PF_sv_particleeffectnum: which effect index values to use?")
+#endif
 	char *efname = PR_GetStringOfs(prinst, OFS_PARM0);
 	G_FLOAT(OFS_RETURN) = COM_Effectinfo_ForName(efname);
 #else
@@ -8208,7 +8210,9 @@ static void QCBUILTIN PF_sv_gettaginfo(progfuncs_t *prinst, struct globalvars_s 
 
 	if (ent->xv->tag_entity)
 	{
+#ifdef _MSC_VER
 		#pragma message("PF_sv_gettaginfo: This function doesn't honour attachments")
+#endif
 		Con_Printf("PF_sv_gettaginfo doesn't support attachments\n");
 	}
 
@@ -9048,7 +9052,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"clientstat",		PF_clientstat,		0,		0,		0,		232},	//EXT_CSQC
 	{"globalstat",		PF_globalstat,		0,		0,		0,		233},	//EXT_CSQC_1 actually
 //END EXT_CSQC
-	{"isbackbuffered",	PF_isbackbuffered,	0,		0,		0,		234},	
+	{"isbackbuffered",	PF_isbackbuffered,	0,		0,		0,		234},
 	//{"rotatevectorsbyangle",	PF_rotatevectorsbyangles,0,0,0,		235}, // #235
 	//{"rotatevectorsbymatrix",	PF_rotatevectorsbymatrix,0,0,0,		236}, // #236
 	{"skinforname",		PF_skinforname,		0,		0,		0,		237},		// #237

@@ -367,7 +367,9 @@ qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
 	return true;
 }
 
+#ifdef _MSC_VER
 #pragma message("fix this")
+#endif
 int downloadsize;
 void CL_GetDownloadSizes(unsigned int *filecount, unsigned int *totalsize, qboolean *somesizesunknown)
 {
@@ -2511,7 +2513,9 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 		}
 		strcpy (cl.sound_name[numsounds], str);
 
+#ifdef _MSC_VER
 #pragma message("CLNQ_ParseServerData: no sound autodownloads")
+#endif
 		//CL_CheckOrEnqueDownloadFile(str, NULL, 0);
 
 		S_TouchSound (str);

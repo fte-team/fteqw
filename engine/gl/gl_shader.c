@@ -944,6 +944,40 @@ struct sbuiltin_s
 			"}\n"
 		"#endif\n"
 	},
+	{QR_OPENGL/*ES*/, 100, "defaultwall",
+		"!!cvarf gl_overbright\n"
+		"#ifdef VERTEX_SHADER\n"
+			"uniform mat4 m_modelview;\n"
+			"uniform mat4 m_projection;\n"
+			"attribute vec3 v_position;\n"
+			"attribute vec2 v_texcoord;\n"
+			"attribute vec2 v_lmcoord;\n"
+			"varying vec2 tc, lm;\n"
+
+			"void main (void)\n"
+			"{\n"
+			"	tc = v_texcoord;\n"
+			"	lm = v_lmcoord;\n"
+			"	gl_Position = m_projection * m_modelview * vec4(v_position, 1.0);\n"
+			"}\n"
+		"#endif\n"
+
+		"#ifdef FRAGMENT_SHADER\n"
+			"uniform sampler2D s_t0;\n" /*tex_diffuse*/
+			"uniform sampler2D s_t1;\n" /*tex_lightmap*/
+			//"uniform sampler2D s_t2;\n" /*tex_normalmap*/
+			//"uniform sampler2D s_t3;\n" /*tex_deluxmap*/
+			//"uniform sampler2D s_t4;\n" /*tex_fullbright*/
+			"varying mediump vec2 tc, lm;\n"
+			"uniform mediump float cvar_gl_overbright;\n"
+
+			"void main (void)\n"
+			"{\n"
+			"	mediump float scale = exp2(floor(clamp(cvar_gl_overbright, 0.0, 2.0)));\n"
+			"	gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm) * vec4(scale, scale, scale, 1);\n"
+			"}\n"
+		"#endif\n"
+	},
 	{QR_OPENGL, 110, "defaultwall",
 		"!!cvarf gl_overbright\n"
 		"#ifdef VERTEX_SHADER\n"
@@ -972,45 +1006,8 @@ struct sbuiltin_s
 
 			"void main (void)\n"
 			"{\n"
-			"	gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm) * vec4(cvar_gl_overbright, cvar_gl_overbright, cvar_gl_overbright, 1);\n"
-			"}\n"
-		"#endif\n"
-	},
-	/*FIXME: this doesn't match the gl3 version*/
-	{QR_OPENGL/*ES*/, 100, "defaultwall",
-		"!!permu FULLBRIGHT\n"
-		"#ifdef VERTEX_SHADER\n"
-			"uniform mat4 m_modelview;\n"
-			"uniform mat4 m_projection;\n"
-			"attribute vec3 v_position;\n"
-			"attribute vec2 v_texcoord;\n"
-			"attribute vec2 v_lmcoord;\n"
-			"varying vec2 tc, lm;\n"
-
-			"void main (void)\n"
-			"{\n"
-			"	tc = v_texcoord;\n"
-			"	lm = v_lmcoord;\n"
-			"	gl_Position = m_projection * m_modelview * vec4(v_position, 1.0);\n"
-			"}\n"
-		"#endif\n"
-
-		"#ifdef FRAGMENT_SHADER\n"
-			"uniform sampler2D s_t0;\n" /*tex_diffuse*/
-			"uniform sampler2D s_t1;\n" /*tex_lightmap*/
-			//"uniform sampler2D s_t2;\n" /*tex_normalmap*/
-			//"uniform sampler2D s_t3;\n" /*tex_deluxmap*/
-			"#ifdef FULLBRIGHT\n"
-			"uniform sampler2D s_t4;\n" /*tex_fullbright*/
-			"#endif\n"
-			"varying mediump vec2 tc, lm;\n"
-
-			"void main (void)\n"
-			"{\n"
-			"	gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm);\n"
-			"#ifdef FULLBRIGHT\n"
-			"	gl_FragColor += texture2D(s_t4, tc);\n"
-			"#endif\n"
+			"	float scale = exp2(floor(clamp(cvar_gl_overbright, 0.0, 2.0)));\n"
+			"	gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm) * vec4(scale, scale, scale, 1);\n"
 			"}\n"
 		"#endif\n"
 	},
@@ -1199,23 +1196,23 @@ struct sbuiltin_s
 			"#endif\n"
 			"varying mediump vec2 tc;\n"
 			"varying lowp vec3 light;\n"
-			"uniform vec4 e_colourident;\n"
+			"uniform lowp vec4 e_colourident;\n"
 
 			"void main (void)\n"
 			"{\n"
-			"	vec4 col, sp;\n"
+			"	lowp vec4 col;\n"
 			"	col = texture2D(s_t0, tc);\n"
 			"#ifdef UPPER\n"
-			"	vec4 uc = texture2D(s_t2, tc);\n"
+			"	lowp vec4 uc = texture2D(s_t2, tc);\n"
 			"	col.rgb = mix(col.rgb, uc.rgb*e_uppercolour, uc.a);\n"
 			"#endif\n"
 			"#ifdef LOWER\n"
-			"	vec4 lc = texture2D(s_t1, tc);\n"
+			"	lowp vec4 lc = texture2D(s_t1, tc);\n"
 			"	col.rgb = mix(col.rgb, lc.rgb*e_lowercolour, lc.a);\n"
 			"#endif\n"
 			"	col.rgb *= light;\n"
 			"#ifdef FULLBRIGHT\n"
-			"	vec4 fb = texture2D(s_t3, tc);\n"
+			"	lowp vec4 fb = texture2D(s_t3, tc);\n"
 			"	col.rgb = mix(col.rgb, fb.rgb, fb.a);\n"
 			"#endif\n"
 			"	gl_FragColor = col * e_colourident;\n"

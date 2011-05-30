@@ -236,9 +236,6 @@ cvar_t gl_font								= CVARF ("gl_font", "",
 												CVAR_RENDERERCALLBACK);
 cvar_t gl_lateswap							= CVAR  ("gl_lateswap", "0");
 cvar_t gl_lerpimages						= CVAR  ("gl_lerpimages", "1");
-cvar_t gl_lightmap_shift					= CVARFC ("gl_lightmap_shift", "1",
-												CVAR_ARCHIVE,
-												Surf_RebuildLightmap_Callback);
 //cvar_t gl_lightmapmode						= SCVARF("gl_lightmapmode", "",
 //												CVAR_ARCHIVE);
 cvar_t gl_load24bit							= SCVARF ("gl_load24bit", "1",
@@ -432,8 +429,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_blend2d, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_blendsprites, GLRENDEREROPTIONS);
-
-	Cvar_Register (&gl_lightmap_shift, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_menutint_shader, GLRENDEREROPTIONS);
 

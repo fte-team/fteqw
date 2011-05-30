@@ -4,8 +4,8 @@ EGLContext eglctx = EGL_NO_CONTEXT;
 EGLDisplay egldpy = EGL_NO_DISPLAY;
 EGLSurface eglsurf = EGL_NO_SURFACE;
 
-static void *egllibrary;
-static void *eslibrary;
+static dllhandle_t egllibrary;
+static dllhandle_t eslibrary;
 
 static EGLint (*qeglGetError)(void);
 
@@ -26,10 +26,11 @@ static EGLContext (*qeglCreateContext)(EGLDisplay dpy, EGLConfig config, EGLCont
 static EGLBoolean (*qeglDestroyContext)(EGLDisplay dpy, EGLContext ctx);
 static void *(*qeglGetProcAddress) (char *name);
 
-/*
 static dllfunction_t qeglfuncs[] =
 {
 	{(void*)&qeglGetError, "eglGetError"},
+	
+	{(void*)&qeglGetDisplay, "eglGetDisplay"},
 	{(void*)&qeglInitialize, "eglInitialize"},
 	{(void*)&qeglTerminate, "eglTerminate"},
 
@@ -49,7 +50,7 @@ static dllfunction_t qeglfuncs[] =
 
 	{NULL}
 };
-*/
+
 
 void *EGL_Proc(char *f)
 {
@@ -66,9 +67,9 @@ void *EGL_Proc(char *f)
 	if (qeglGetProcAddress)
 		proc = qeglGetProcAddress(f);
 	if (!proc)
-		proc = dlsym(eslibrary, f);
+		proc = Sys_GetAddressForName(eslibrary, f);
 	if (!proc)
-		proc = dlsym(egllibrary, f);
+		proc = Sys_GetAddressForName(egllibrary, f);
 
 	return proc;
 }
@@ -76,52 +77,28 @@ void *EGL_Proc(char *f)
 void EGL_UnloadLibrary(void)
 {
 	if (egllibrary)
-		dlclose(egllibrary);
+		Sys_CloseLibrary(egllibrary);
 	if (egllibrary == eslibrary)
 		eslibrary = NULL;
 	if (eslibrary)
-		dlclose(eslibrary);
+		Sys_CloseLibrary(eslibrary);
 	eslibrary = egllibrary = NULL;
 }
 
 qboolean EGL_LoadLibrary(char *driver)
 {
-	/* ignore driver for now */
-	egllibrary = dlopen("libEGL.so", RTLD_LAZY);
-	if (!egllibrary)
-		return false;
-
-	/*eslibrary = dlopen("GLESwrap.so", RTLD_LAZY);*/
-	eslibrary = dlopen("libGLESv2.so", RTLD_LAZY);
+	/* apps seem to load glesv2 first for dependency issues */
+	eslibrary = Sys_LoadLibrary("libGLESv2", NULL);
 	if (!eslibrary)
 		return false;
-
-	qeglGetError = dlsym(egllibrary, "eglGetError");
-
-	qeglGetDisplay = dlsym(egllibrary, "eglGetDisplay");
-	qeglInitialize = dlsym(egllibrary, "eglInitialize");
-	qeglTerminate = dlsym(egllibrary, "eglTerminate");
-
-	qeglGetConfigs = dlsym(egllibrary, "eglGetConfigs");
-	qeglChooseConfig = dlsym(egllibrary, "eglChooseConfig");
-
-	qeglCreateWindowSurface = dlsym(egllibrary, "eglCreateWindowSurface");
-	qeglDestroySurface = dlsym(egllibrary, "eglDestroySurface");
-	qeglQuerySurface = dlsym(egllibrary, "eglQuerySurface");
-
-	qeglSwapBuffers = dlsym(egllibrary, "eglSwapBuffers");
-	qeglMakeCurrent = dlsym(egllibrary, "eglMakeCurrent");
-	qeglCreateContext = dlsym(egllibrary, "eglCreateContext");
-	qeglDestroyContext = dlsym(egllibrary, "eglDestroyContext");
-
-	qeglGetProcAddress = dlsym(egllibrary, "eglGetProcAddress");
-
-	// TODO: properly unload on error
-	if (!qeglGetError || !qeglGetDisplay || !qeglInitialize || !qeglTerminate || !qeglCreateWindowSurface ||
-		!qeglDestroySurface || !qeglGetConfigs || !qeglChooseConfig || !qeglQuerySurface ||
-		!qeglSwapBuffers || !qeglMakeCurrent || !qeglCreateContext || !qeglDestroyContext ||
-		!qeglGetProcAddress)
+	
+	egllibrary = Sys_LoadLibrary("libEGL", qeglfuncs);
+	if (!egllibrary)
+	{
+		/* TODO: some implementations combine EGL/GLESv2 into single library... */
+		Sys_CloseLibrary(eslibrary);
 		return false;
+	}
 
 	return true;
 }

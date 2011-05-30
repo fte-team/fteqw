@@ -1890,7 +1890,7 @@ static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir
 		RegQueryValueEx(key, "SteamPath", NULL, NULL, basepath, &resultlen);
 		RegCloseKey(key);
 		Q_strncatz(basepath, va("/SteamApps/common/%s", steamdir), basepathlen);
-		if (f = fopen(va("%s/%s", basepath, fname), "rb"))
+		if ((f = fopen(va("%s/%s", basepath, fname), "rb")))
 		{
 			fclose(f);
 			return true;
@@ -1937,7 +1937,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 		//well, okay, so they don't have quake installed from steam.
 
 		//quite a lot of people have it in c:\quake, as that's the default install location from the quake cd.
-		if (f = fopen("c:/quake/quake.exe", "rb"))
+		if ((f = fopen("c:/quake/quake.exe", "rb")))
 		{
 			//HAHAHA! Found it!
 			fclose(f);
@@ -1958,7 +1958,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 			resultlen = basepathlen;
 			RegQueryValueEx(key, "Path", NULL, NULL, basepath, &resultlen);
 			RegCloseKey(key);
-			if (f = fopen(va("%s/quake2.exe", basepath), "rb"))
+			if ((f = fopen(va("%s/quake2.exe", basepath), "rb")))
 			{
 				fclose(f);
 				return true;
@@ -1981,7 +1981,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 			RegQueryValueEx(key, "InstallPath", NULL, NULL, basepath, &resultlen);
 			RegCloseKey(key);
 
-			if (f = fopen(va("%s/ET.exe", basepath), "rb"))
+			if ((f = fopen(va("%s/ET.exe", basepath), "rb")))
 			{
 				fclose(f);
 				return true;
@@ -2003,7 +2003,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 			RegQueryValueEx(key, "InstallPath", NULL, NULL, basepath, &resultlen);
 			RegCloseKey(key);
 
-			if (f = fopen(va("%s/quake3.exe", basepath), "rb"))
+			if ((f = fopen(va("%s/quake3.exe", basepath), "rb")))
 			{
 				fclose(f);
 				return true;

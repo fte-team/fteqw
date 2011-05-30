@@ -695,11 +695,11 @@ qboolean CL_CheckHLBspWads(char *file)
 		if (!strcmp(key, "wad"))
 		{
 			s = wads;
-			while (s = COM_ParseToken(s, ";"))
+			while ((s = COM_ParseToken(s, ";")))
 			{
 				if (!strcmp(com_token, ";"))
 					continue;
-				while (w = strchr(com_token, '\\'))
+				while ((w = strchr(com_token, '\\')))
 					*w = '/';
 				w = COM_SkipPath(com_token);
 				Con_Printf("wads: %s\n", w);

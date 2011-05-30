@@ -3220,7 +3220,7 @@ newstyle:
 
 		if (stat(destfile, &os) != -1)
 		{
-			while (pr_file_p=QCC_COM_Parse(pr_file_p))
+			while ((pr_file_p=QCC_COM_Parse(pr_file_p)))
 			{
 				if (stat(qcc_token, &s) == -1 || s.st_mtime > os.st_mtime)
 				{

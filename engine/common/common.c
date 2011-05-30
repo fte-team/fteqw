@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 #include <ctype.h>
+#include <errno.h>
 
 // These 4 libraries required for the version command
 
@@ -3032,6 +3033,10 @@ void COM_InitArgv (int argc, const char **argv)	//not allowed to tprint
 
 		buffer = (char*)malloc(len+1);
 		result = fread(buffer, 1, len, f); // do something with result
+
+		if (result != len)
+			Con_SafePrintf("COM_InitArgv() fread: Filename: %s, expected %i, result was %i (%i)\n",va("%s_p.txt", argv[0]),len,result,errno);
+
 		buffer[len] = '\0';
 
 		while (*buffer && (argc < MAX_NUM_ARGVS))

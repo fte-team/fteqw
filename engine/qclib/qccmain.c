@@ -7,6 +7,8 @@
 #include <direct.h>
 #endif
 
+#include "errno.h"
+
 char QCC_copyright[1024];
 int QCC_packid;
 char QCC_Packname[5][128];
@@ -296,6 +298,9 @@ void QCC_BspModels (void)
 		name[strlen(m)-4] = 0;
 		sprintf (cmd, "qbsp %s/%s ; light -extra %s/%s", gamedir, name, gamedir, name);
 		result = system (cmd); // do something with the result
+
+		if (result != 0)
+			QCC_Error(ERR_INTERNAL, "QCC_BspModels() system returned non zero (failure) with: qbsp %s/%s ; light -extra %s/%s (%i)\n", gamedir, name, gamedir, name, errno);
 	}
 }
 

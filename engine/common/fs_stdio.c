@@ -1,5 +1,6 @@
 #include "quakedef.h"
 #include "fs.h"
+#include "errno.h"
 
 #ifdef WEBSVONLY
 #define Z_Free free
@@ -221,6 +222,10 @@ static void FSSTDIO_ReadFile(void *handle, flocation_t *loc, char *buffer)
 		return;
 	fseek(f, loc->offset, SEEK_SET);
 	result = fread(buffer, 1, loc->len, f); // do soemthing with result
+
+	if (result != loc->len)
+		Con_SafePrintf("FSSTDIO_ReadFile() fread: Filename: %s, expected %i, result was %i (%i)\n",loc->rawname,loc->len,result,errno);
+
 	fclose(f);
 }
 static int FSSTDIO_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *), void *parm)

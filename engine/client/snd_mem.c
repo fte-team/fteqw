@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 #include "winquake.h"
+#include "errno.h"
 
 int			cache_full_cycle;
 
@@ -806,6 +807,10 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 			com_filesize = COM_filelength(f);
 			data = Hunk_TempAlloc (com_filesize);
 			result = fread(data, 1, com_filesize, f); //do something with result
+
+			if (result != com_filesize)
+				Con_SafePrintf("S_LoadSound() fread: Filename: %s, expected %i, result was %i (%i)\n",name,com_filesize,result,errno);
+
 			fclose(f);
 		}
 		else

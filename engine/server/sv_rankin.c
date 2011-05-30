@@ -1,4 +1,5 @@
 #include "qwsvdef.h"
+#include "errno.h"
 
 #ifndef CLIENTONLY
 
@@ -41,9 +42,8 @@ void inline READ_PLAYERSTATS(int x, rankstats_t *os)
 	fseek(rankfile, sizeof(rankfileheader_t)+sizeof(rankheader_t)+((x-1)*sizeof(rankinfo_t)), SEEK_SET);
 	result = fread(os, sizeof(rankstats_t), 1, rankfile);
 
-	// ignoring return value of ‘fread’, declared with attribute warn_unused_result
-	if (result != 1)
-		fprintf(stderr, "fread() error in READ_PLAYERSTATS\n");
+	if (result != sizeof(rankstats_t))
+		Con_SafePrintf("READ_PLAYERSTATS() fread: expected %i, result was %i (%i)\n",sizeof(rankstats_t),result,errno);
 
 	os->kills = swaplong(os->kills);
 	os->deaths = swaplong(os->deaths);
@@ -84,9 +84,8 @@ void inline READ_PLAYERHEADER(int x, rankheader_t *oh)
 
 	result = fread(oh, sizeof(rankheader_t), 1, rankfile);
 
-	// ignoring return value of ‘fread’, declared with attribute warn_unused_result
-	if (result != 1)
-		fprintf(stderr, "fread() error in WRITE_PLAYERSTATS\n");
+	if (result != sizeof(rankheader_t))
+		Con_SafePrintf("READ_PLAYERHEADER() fread: expected %i, result was %i (%i)\n",sizeof(rankheader_t),result,errno);
 
 	oh->prev = swaplong(oh->prev);		//score is held for convineance.
 	oh->next = swaplong(oh->next);
@@ -164,9 +163,8 @@ qboolean Rank_OpenRankings(void)
 		fseek(rankfile, 0, SEEK_SET);
 		result = fread(&rankfileheader, sizeof(rankfileheader_t), 1, rankfile);
 
-		// ignoring return value of ‘fread’, declared with attribute warn_unused_result
-		if (result != 1)
-			fprintf(stderr, "fread() error in Rank_OpenRankings\n");
+		if (result != sizeof(rankfileheader_t))
+			Con_SafePrintf("Rank_OpenRankings() fread: expected %i, result was %i (%i)\n",sizeof(rankfileheader_t),result,errno);
 
 		rankfileheader.version		= swaplong(rankfileheader.version);
 		rankfileheader.usedslots	= swaplong(rankfileheader.usedslots);

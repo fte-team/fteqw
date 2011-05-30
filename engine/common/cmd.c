@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // cmd.c -- Quake script command processing module
 
 #include "quakedef.h"
+#include "errno.h"
 
 cvar_t com_fs_cache			= SCVARF("fs_cache", IFMINIMAL("2","1"), CVAR_ARCHIVE);
 cvar_t rcon_level			= SCVAR("rcon_level", "20");
@@ -1119,6 +1120,10 @@ char *Cmd_ExpandCvar(char *cvarname, int maxaccesslevel, int *len)
 	}
 
 	result = strtol(cvarname, &end, 10); // do something with result
+
+	if (result == 0)
+		Con_DPrintf("Cmd_ExpandCvar() strtol returned zero cvar: %s (%i)\n", cvarname, errno);
+
 	if (fixval && *end == '\0') //only expand $0 if its actually ${0} - this avoids conflicting with the $0 macro
 	{	//purely numerical
 		ret = Cmd_Argv(atoi(cvarname));

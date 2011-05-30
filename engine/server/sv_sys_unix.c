@@ -119,7 +119,7 @@ int Sys_DebugLog(char *file, char *fmt, ...)
 		result = write(fd, data, strlen(data)); // do something with the result
 
 		if (result != strlen(data))
-			Con_SafePrintf("Sys_DebugLog() write: Filename: %s, expected %i, result was %i (%i)\n",file,strlen(data),result,errno);
+			Con_Printf("Sys_DebugLog() write: Filename: %s, expected %i, result was %i (%i)\n",file,strlen(data),result,errno);
 
 		close(fd);
 		return 0;

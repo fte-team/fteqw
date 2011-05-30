@@ -3035,7 +3035,7 @@ void COM_InitArgv (int argc, const char **argv)	//not allowed to tprint
 		result = fread(buffer, 1, len, f); // do something with result
 
 		if (result != len)
-			Con_SafePrintf("COM_InitArgv() fread: Filename: %s, expected %i, result was %i (%i)\n",va("%s_p.txt", argv[0]),len,result,errno);
+			Con_Printf("COM_InitArgv() fread: Filename: %s, expected %i, result was %i (%i)\n",va("%s_p.txt", argv[0]),len,result,errno);
 
 		buffer[len] = '\0';
 

@@ -224,7 +224,7 @@ static void FSSTDIO_ReadFile(void *handle, flocation_t *loc, char *buffer)
 	result = fread(buffer, 1, loc->len, f); // do soemthing with result
 
 	if (result != loc->len)
-		Con_SafePrintf("FSSTDIO_ReadFile() fread: Filename: %s, expected %i, result was %i (%i)\n",loc->rawname,loc->len,result,errno);
+		Con_Printf("FSSTDIO_ReadFile() fread: Filename: %s, expected %i, result was %i (%i)\n",loc->rawname,loc->len,result,errno);
 
 	fclose(f);
 }

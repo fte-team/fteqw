@@ -809,7 +809,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 			result = fread(data, 1, com_filesize, f); //do something with result
 
 			if (result != com_filesize)
-				Con_SafePrintf("S_LoadSound() fread: Filename: %s, expected %i, result was %i (%i)\n",name,com_filesize,result,errno);
+				Con_SafePrintf("S_LoadSound() fread: Filename: %s, expected %i, result was %u (%s)\n",name,com_filesize,(unsigned int)result,strerror(errno));
 
 			fclose(f);
 		}

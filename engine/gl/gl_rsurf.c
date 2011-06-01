@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -133,7 +133,7 @@ void *allocbuf(char **p, int elements, int elementsize)
 {
 	void *ret;
 	*p += elementsize - 1;
-	*p -= (unsigned int)*p & (elementsize-1);
+	*p -= (size_t)*p & (elementsize-1);
 	ret = *p;
 	*p += elements*elementsize;
 	return ret;
@@ -312,12 +312,12 @@ void GLBE_UploadAllLightmaps(void)
 		switch (lightmap_bytes)
 		{
 		case 4:
-			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 
+			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8,
 				LMBLOCK_WIDTH, LMBLOCK_WIDTH, 0, (lightmap_bgra?GL_BGRA_EXT:GL_RGBA), GL_UNSIGNED_INT_8_8_8_8_REV,
 				lightmap[i]->lightmaps);
 			break;
 		case 3:
-			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 
+			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
 				LMBLOCK_WIDTH, LMBLOCK_WIDTH, 0, (lightmap_bgra?GL_BGR_EXT:GL_RGB), GL_UNSIGNED_BYTE,
 				lightmap[i]->lightmaps);
 			break;
@@ -338,7 +338,7 @@ void GLBE_UploadAllLightmaps(void)
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 			qglTexImage2D (GL_TEXTURE_2D, 0, 3
-					, LMBLOCK_WIDTH, LMBLOCK_HEIGHT, 0, 
+					, LMBLOCK_WIDTH, LMBLOCK_HEIGHT, 0,
 					GL_RGB, GL_UNSIGNED_BYTE, lightmap[i]->deluxmaps);
 		}
 	}

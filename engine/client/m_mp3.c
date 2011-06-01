@@ -2027,7 +2027,7 @@ static void MSD_Unlock (soundcardinfo_t *sc, void *buffer)
 {
 }
 
-static int MSD_GetDMAPos(soundcardinfo_t *sc)
+static unsigned int MSD_GetDMAPos(soundcardinfo_t *sc)
 {
 	int		s;
 

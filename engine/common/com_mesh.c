@@ -2391,7 +2391,7 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 	version = LittleLong(pq1inmodel->version);
 	if (version == QTESTALIAS_VERSION)
 	{
-		hdrsize = (unsigned int)&((dmdl_t*)NULL)->flags;
+		hdrsize = (size_t)&((dmdl_t*)NULL)->flags;
 		qtest = true;
 	}
 	else if (version == 50)

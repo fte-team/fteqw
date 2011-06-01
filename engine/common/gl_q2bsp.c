@@ -5666,7 +5666,7 @@ void	CM_ReadPortalState (FILE *f)
 	result = fread (portalopen, 1, sizeof(portalopen), f); // do something with result
 
 	if (result != sizeof(portalopen))
-		Con_Printf("CM_ReadPortalState() fread: expected %i, result was %i (%i)\n",sizeof(portalopen),result,errno);
+		Con_Printf("CM_ReadPortalState() fread: expected %lu, result was %u (%s)\n",(long unsigned int)sizeof(portalopen),(unsigned int)result,strerror(errno));
 
 	FloodAreaConnections ();
 }

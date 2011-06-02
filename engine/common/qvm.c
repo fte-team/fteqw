@@ -362,7 +362,7 @@ qvm_t *QVM_LoadVM(const char *name, sys_callqvm_t syscall)
 	}
 
 // check file
-	if(header.vmMagic!=VM_MAGIC && header.vmMagic!=VM_MAGIC2 || header.instructionCount<=0 || header.codeLength<=0)
+	if( (header.vmMagic!=VM_MAGIC && header.vmMagic!=VM_MAGIC2) || header.instructionCount<=0 || header.codeLength<=0)
 	{
 		Con_Printf("%s: invalid qvm file\n", name);
 		FS_FreeFile(raw);

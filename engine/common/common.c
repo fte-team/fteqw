@@ -3173,7 +3173,7 @@ void COM_Version_f (void)
 #ifdef _WIN64
 		Con_Printf("Compiled for 64bit windows\n");
 #endif
-#ifdef _M_AMD64
+#if defined(_M_AMD64) || defined(__amd64__)
 		Con_Printf("Compiled for AMD64 compatible cpus\n");
 #endif
 

@@ -1103,7 +1103,7 @@ int SV_HullNumForPlayer(int h2hull, float *mins, float *maxs)
 	}
 
 	if (h2hull)
-		return h2hull-1 | (mins[2]?0:128);
+		return (h2hull-1) | (mins[2]?0:128);
 
 
 	hullnum = 0;

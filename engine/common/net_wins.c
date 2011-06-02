@@ -2812,7 +2812,7 @@ void NET_PrintAddresses(ftenet_connections_t *collection)
 			continue;
 		if (collection->conn[i]->GetLocalAddress)
 		{
-			for (adrno = 0, adrcount=1; adrcount = collection->conn[i]->GetLocalAddress(collection->conn[i], &adr, adrno) && adrno < adrcount; adrno++)
+			for (adrno = 0, adrcount=1; (adrcount = collection->conn[i]->GetLocalAddress(collection->conn[i], &adr, adrno)) && adrno < adrcount; adrno++)
 			{
 				Con_Printf("net address: %s\n", NET_AdrToString(adrbuf, sizeof(adrbuf), adr));
 			}

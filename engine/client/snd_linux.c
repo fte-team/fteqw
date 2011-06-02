@@ -298,7 +298,7 @@ static int OSS_InitCard(soundcardinfo_t *sc, int cardnum)
 			if (alsadetected)
 			{
 				char *f, *n;
-				f = com_argv[0];
+				f = (char *)com_argv[0];
 				while((n = strchr(f, '/')))
 					f = n + 1;
 				Con_Printf("Your system is running alsa.\nTry: sudo echo \"%s 0 0 direct\" > /proc/asound/card0/pcm0p/oss\n", f);

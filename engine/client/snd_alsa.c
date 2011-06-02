@@ -131,7 +131,7 @@ static void ALSA_RW_Submit (soundcardinfo_t *sc, int start, int end)
         frames = end - sc->snd_sent;
         if (!frames)
                 return;
-	
+
 	state = psnd_pcm_state (sc->handle);
 
         ringsize = sc->sn.samples / sc->sn.numchannels;
@@ -166,8 +166,8 @@ static void ALSA_Shutdown (soundcardinfo_t *sc)
 {
 	psnd_pcm_close (sc->handle);
 
-	if (sc->Submit == ALSA_RW_Submit);
-                free(sc->sn.buffer);
+	if (sc->Submit == ALSA_RW_Submit)
+		free(sc->sn.buffer);
 }
 
 static void *ALSA_LockBuffer(soundcardinfo_t *sc)
@@ -322,7 +322,7 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 	}
 
 	err = psnd_pcm_hw_params_set_access (pcm, hw,  mmap?SND_PCM_ACCESS_MMAP_INTERLEAVED:SND_PCM_ACCESS_RW_INTERLEAVED);
-	if (0 > err) 
+	if (0 > err)
 	{
 		Con_Printf (CON_ERROR "ALSA: Failure to set interleaved PCM access. %s\n",
 					psnd_strerror (err));
@@ -358,7 +358,7 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 	// get speaker channels
 	stereo = sc->sn.numchannels;
 	err = psnd_pcm_hw_params_set_channels (pcm, hw, stereo);
-	while (err < 0) 
+	while (err < 0)
 	{
 		if (stereo > 2)
 			stereo = 2;
@@ -472,7 +472,7 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 		sc->GetDMAPos	= ALSA_MMap_GetDMAPos;
 		sc->Submit	= ALSA_MMap_Submit;
 		sc->GetDMAPos(sc);		// sets shm->buffer
-	
+
 		//alsa doesn't seem to like high mixahead values
 		//(maybe it tells us above somehow...)
 		//so force it lower

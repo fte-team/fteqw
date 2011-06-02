@@ -1027,7 +1027,7 @@ struct sbuiltin_s
 		"#endif\n"
 
 		"#ifdef FRAGMENT_SHADER\n"
-			"uniform sampler2D watertexture;\n"
+			"uniform sampler2D s_t0;\n"
 			"uniform mediump float e_time;\n"
 			"uniform lowp float cvar_r_wateralpha;\n"
 
@@ -1036,7 +1036,7 @@ struct sbuiltin_s
 			"	mediump vec2 ntc;\n"
 			"	ntc.s = tc.s + sin(tc.t+e_time)*0.125;\n"
 			"	ntc.t = tc.t + sin(tc.s+e_time)*0.125;\n"
-			"	lowp vec3 ts = vec3(texture2D(watertexture, ntc));\n"
+			"	lowp vec3 ts = vec3(texture2D(s_t0, ntc));\n"
 
 			"	gl_FragColor = vec4(ts, cvar_r_wateralpha);\n"
 			"}\n"

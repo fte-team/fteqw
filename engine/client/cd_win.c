@@ -23,7 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "winquake.h"
 
-#if (_MSC_VER < 1300)
+#if defined(_MSC_VER) && (_MSC_VER < 1300)
 #define DWORD_PTR DWORD
 #endif
 
@@ -425,7 +425,7 @@ LONG CDAudio_MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			break;
 
 		default:
-			Con_DPrintf("Unexpected MM_MCINOTIFY type (%i)\n", wParam);
+			Con_DPrintf("Unexpected MM_MCINOTIFY type (%i)\n", (int)wParam);
 			return 1;
 	}
 

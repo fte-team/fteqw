@@ -1343,7 +1343,11 @@ static void Shader_FlushGenerics(void)
 	{
 		g = sgenerics;
 		sgenerics = g->next;
-		free(g);
+
+		if (g->prog.refs == 1)
+			free(g);
+		else
+			Con_Printf("generic shader still used\n"); 
 	}
 }
 static program_t *Shader_LoadGeneric(char *name, int qrtype)
@@ -2500,6 +2504,61 @@ static shaderkey_t shaderpasskeys[] =
 
 // ===============================================================
 
+
+void Shader_FreePass (shaderpass_t *pass)
+{
+#ifndef NOMEDIA
+	if ( pass->flags & SHADER_PASS_VIDEOMAP )
+	{
+		Media_ShutdownCin(pass->cin);
+		pass->cin = NULL;
+	}
+#endif
+}
+
+void Shader_Free (shader_t *shader)
+{
+	int i;
+	shaderpass_t *pass;
+
+	if (shader->bucket.data == shader)
+		Hash_RemoveData(&shader_active_hash, shader->name, shader);
+	shader->bucket.data = NULL;
+
+#ifdef GLQUAKE
+	if (qrenderer == QR_OPENGL && shader->prog)
+	{
+		program_t *prog = shader->prog;
+		int p;
+		if (--prog->refs == 0)
+		{
+			for (p = 0; p < PERMUTATIONS; p++)
+			{
+				if (prog->handle[p].glsl)
+					qglDeleteProgramObject_(prog->handle[p].glsl);
+			}
+			free(prog);
+		}
+		shader->prog = NULL;
+	}
+#endif
+	if (shader->skydome)
+	{
+		Z_Free (shader->skydome);
+	}
+
+	pass = shader->passes;
+	for (i = 0; i < shader->numpasses; i++, pass++)
+	{
+		Shader_FreePass (pass);
+	}
+	shader->numpasses = 0;
+}
+
+
+
+
+
 int Shader_InitCallback (const char *name, int size, void *param)
 {
 	strcpy(shaderbuf+shaderbuflen, name);
@@ -2511,6 +2570,7 @@ int Shader_InitCallback (const char *name, int size, void *param)
 
 qboolean Shader_Init (void)
 {
+	int i;
 	shaderbuflen = 0;
 
 	r_shaders = calloc(MAX_SHADERS, sizeof(shader_t));
@@ -2521,6 +2581,11 @@ qboolean Shader_Init (void)
 	memset(shader_active_hash_mem, 0, Hash_BytesForBuckets(1024));
 	Hash_InitTable(&shader_active_hash, 1024, shader_active_hash_mem);
 
+	for (i = 0; i < MAX_SHADERS; i++)
+	{
+		if (r_shaders[i].uses)
+			Shader_Free(&r_shaders[i]);
+	}
 	Shader_FlushGenerics();
 	shader_rescan_needed = true;
 	Shader_NeedReload();
@@ -2634,56 +2699,6 @@ static void Shader_GetPathAndOffset ( char *name, char **path, unsigned int *off
 	}
 
 	path = NULL;
-}
-
-void Shader_FreePass (shaderpass_t *pass)
-{
-#ifndef NOMEDIA
-	if ( pass->flags & SHADER_PASS_VIDEOMAP )
-	{
-		Media_ShutdownCin(pass->cin);
-		pass->cin = NULL;
-	}
-#endif
-}
-
-void Shader_Free (shader_t *shader)
-{
-	int i;
-	shaderpass_t *pass;
-
-	if (shader->bucket.data == shader)
-		Hash_RemoveData(&shader_active_hash, shader->name, shader);
-	shader->bucket.data = NULL;
-
-#ifdef GLQUAKE
-	if (qrenderer == QR_OPENGL && shader->prog)
-	{
-		program_t *prog = shader->prog;
-		int p;
-		if (--prog->refs == 0)
-		{
-			for (p = 0; p < PERMUTATIONS; p++)
-			{
-				if (prog->handle[p].glsl)
-					qglDeleteProgramObject_(prog->handle[p].glsl);
-			}
-			free(prog);
-		}
-		shader->prog = NULL;
-	}
-#endif
-	if (shader->skydome)
-	{
-		Z_Free (shader->skydome);
-	}
-
-	pass = shader->passes;
-	for (i = 0; i < shader->numpasses; i++, pass++)
-	{
-		Shader_FreePass (pass);
-	}
-	shader->numpasses = 0;
 }
 
 void Shader_Reset(shader_t *s)

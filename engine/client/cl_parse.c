@@ -115,15 +115,54 @@ char *svc_strings[] =
 	"FTE svc_spawnbaseline2",
 	"FTE svc_customtempent",
 	"FTE svc_choosesplitclient",
-	"FTE svc_showpic",
-	"FTE svc_hidepic",
-	"FTE svc_movepic",
-	"FTE svc_updatepic",
-	"FTE svcqw_effect",
-	"FTE svcqw_effect2",
-	"FTE svc_csqcentities",
-	"FTE svc_precache",
-	"FTE svc_choosesplitclient",
+
+	"svcfte_showpic",
+	"svcfte_hidepic",
+	"svcfte_movepic",
+	"svcfte_updatepic",
+
+	"???",
+
+	"svcfte_effect",
+	"svcfte_effect2",
+
+	"svcfte_csqcentities",
+
+	"svcfte_precache",
+
+	"svcfte_updatestatstring",
+	"svcfte_updatestatfloat",
+
+	"svcfte_trailparticles",
+	"svcfte_pointparticles",
+	"svcfte_pointparticles1",
+
+	"svcfte_cgamepacket",
+	"svcfte_voicechat",
+	"svcfte_setangledelta",
+	"???",
+	"???",
+	"???",
+	"???",
+	"???",
+	"???",
+	"???",
+	"???",
+	"???",
+	"???",
+	"???",
+	"???",
+	"???",
+	"???",
+	"???",
+	"???",
+	"???",
+	"???",
+	"???",
+	"???",
+	"???",
+	"???",
+	"???",
 };
 
 char *svc_nqstrings[] =

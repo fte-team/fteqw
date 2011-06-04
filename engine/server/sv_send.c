@@ -1611,7 +1611,7 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 		else
 		{
 #ifdef PEXT_CSQC
-			if ((client->fteprotocolextensions & PEXT_CSQC) && (sv.csqcchecksum || progstype == PROG_H2))
+			if (client->fteprotocolextensions & PEXT_CSQC)
 			{
 				if (statss[i] || client->statss[i])
 				if (strcmp(statss[i]?statss[i]:"", client->statss[i]?client->statss[i]:""))
@@ -1645,48 +1645,55 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 
 			if (statsf[i])
 			{
-				if (statsf[i] != client->statsf[i])
+				if (client->fteprotocolextensions & PEXT_CSQC)
 				{
-					if (statsf[i] - (float)(int)statsf[i] == 0 && statsf[i] >= 0 && statsf[i] <= 255)
+					if (statsf[i] != client->statsf[i])
 					{
-						if (pnum)
+						if (statsf[i] - (float)(int)statsf[i] == 0 && statsf[i] >= 0 && statsf[i] <= 255)
 						{
-							ClientReliableWrite_Begin(client->controller, svcfte_choosesplitclient, 5);
-							ClientReliableWrite_Byte(client->controller, pnum);
-							ClientReliableWrite_Byte(client->controller, svc_updatestat);
-							ClientReliableWrite_Byte(client->controller, i);
-							ClientReliableWrite_Byte(client->controller, statsf[i]);
+							if (pnum)
+							{
+								ClientReliableWrite_Begin(client->controller, svcfte_choosesplitclient, 5);
+								ClientReliableWrite_Byte(client->controller, pnum);
+								ClientReliableWrite_Byte(client->controller, svc_updatestat);
+								ClientReliableWrite_Byte(client->controller, i);
+								ClientReliableWrite_Byte(client->controller, statsf[i]);
+							}
+							else
+							{
+								ClientReliableWrite_Begin(client, svc_updatestat, 3);
+								ClientReliableWrite_Byte(client, i);
+								ClientReliableWrite_Byte(client, statsf[i]);
+							}
 						}
 						else
 						{
-							ClientReliableWrite_Begin(client, svc_updatestat, 3);
-							ClientReliableWrite_Byte(client, i);
-							ClientReliableWrite_Byte(client, statsf[i]);
+							if (pnum)
+							{
+								ClientReliableWrite_Begin(client->controller, svcfte_choosesplitclient, 8);
+								ClientReliableWrite_Byte(client->controller, pnum);
+								ClientReliableWrite_Byte(client->controller, svcfte_updatestatfloat);
+								ClientReliableWrite_Byte(client->controller, i);
+								ClientReliableWrite_Float(client->controller, statsf[i]);
+							}
+							else
+							{
+								ClientReliableWrite_Begin(client, svcfte_updatestatfloat, 6);
+								ClientReliableWrite_Byte(client, i);
+								ClientReliableWrite_Float(client, statsf[i]);
+							}
 						}
+						client->statsf[i] = statsf[i];
+						/*make sure statsf is correct*/
+						client->statsi[i] = statsf[i];
 					}
-					else
-					{
-						if (pnum)
-						{
-							ClientReliableWrite_Begin(client->controller, svcfte_choosesplitclient, 8);
-							ClientReliableWrite_Byte(client->controller, pnum);
-							ClientReliableWrite_Byte(client->controller, svcfte_updatestatfloat);
-							ClientReliableWrite_Byte(client->controller, i);
-							ClientReliableWrite_Float(client->controller, statsf[i]);
-						}
-						else
-						{
-							ClientReliableWrite_Begin(client, svcfte_updatestatfloat, 6);
-							ClientReliableWrite_Byte(client, i);
-							ClientReliableWrite_Float(client, statsf[i]);
-						}
-					}
-					client->statsf[i] = statsf[i];
-					/*make sure statsf is correct*/
-					client->statsi[i] = statsf[i];
+				}
+				else
+				{
+					statsi[i] = statsf[i];
 				}
 			}
-			else if (statsi[i] != client->statsi[i])
+			if (statsi[i] != client->statsi[i])
 			{
 				client->statsi[i] = statsi[i];
 				client->statsf[i] = statsi[i];

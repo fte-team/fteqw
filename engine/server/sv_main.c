@@ -600,6 +600,7 @@ void SV_DropClient (client_t *drop)
 #ifdef NQPROT
 		SVNQ_FullClientUpdate (drop, &sv.nqreliable_datagram);
 #endif
+		SV_MVD_FullClientUpdate(NULL, drop);
 	}
 
 	if (drop->controlled)

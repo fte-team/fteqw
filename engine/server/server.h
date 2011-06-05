@@ -1268,6 +1268,7 @@ typedef struct mvddest_s {
 	struct mvddest_s *nextdest;
 } mvddest_t;
 void SV_MVDPings (void);
+void SV_MVD_FullClientUpdate(sizebuf_t *msg, client_t *player);
 void SV_MVDWriteToDisk(int type, int to, float time);
 qboolean MVDWrite_Begin(qbyte type, int to, int size);
 void MVDSetMsgBuf(demobuf_t *prev,demobuf_t *cur);

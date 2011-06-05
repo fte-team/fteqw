@@ -1687,6 +1687,7 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 						/*make sure statsf is correct*/
 						client->statsi[i] = statsf[i];
 					}
+					continue;
 				}
 				else
 				{

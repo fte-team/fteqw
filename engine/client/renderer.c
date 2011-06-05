@@ -1700,21 +1700,17 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 	switch (qrenderer)
 	{
 	case QR_NONE:
-		Con_Printf(	"\n"
-					"-----------------------------\n"
-					"Dedicated console created\n");
+		Con_Printf(	"Dedicated console created\n");
 		break;
 
+#ifdef GLQUAKE
 	case QR_OPENGL:
-		Con_Printf(	"\n"
-					"-----------------------------\n"
-					"OpenGL renderer initialized\n");
+		Con_Printf(	"OpenGL renderer initialized\n");
 		break;
+#endif
 
 	case QR_DIRECT3D:
-		Con_Printf(	"\n"
-					"-----------------------------\n"
-					"Direct3d renderer initialized\n");
+		Con_Printf(	"Direct3d renderer initialized\n");
 		break;
 	}
 

@@ -1617,7 +1617,6 @@ void COM_Gamedir (const char *dir)
 			Cbuf_InsertText("cl_warncmd 0\n"
 							"exec config.cfg\n"
 							"exec fte.cfg\n"
-							"exec frontend.cfg\n"
 							"cl_warncmd 1\n", RESTRICT_LOCAL, false);
 		}
 	}

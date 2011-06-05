@@ -364,10 +364,17 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 		{
 			GLint profile = 0;
 #define GL_CONTEXT_PROFILE_MASK					0x9126
+#define GL_CONTEXT_CORE_PROFILE_BIT				0x00000001
 #define GL_CONTEXT_COMPATIBILITY_PROFILE_BIT	0x00000002
 			qglGetIntegerv(GL_CONTEXT_PROFILE_MASK, &profile);
 
-			gl_config.nofixedfunc = !(profile & GL_CONTEXT_COMPATIBILITY_PROFILE_BIT);
+			if (!profile)
+			{
+				Con_DPrintf("Driver reports invalid profile, assuming compatibility support\n");
+				gl_config.nofixedfunc = false;
+			}
+			else
+				gl_config.nofixedfunc = !(profile & GL_CONTEXT_COMPATIBILITY_PROFILE_BIT);
 		}
 		else if (gl_config.glversion == 3.1)
 			gl_config.nofixedfunc = !GL_CheckExtension("GL_ARB_compatibility");

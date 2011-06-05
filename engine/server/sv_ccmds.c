@@ -1570,10 +1570,13 @@ void SV_ConSay_f(void)
 
 	if (sv.mvdrecording)
 	{
-		MVDWrite_Begin (dem_all, 0, strlen(text)+3);
+		MVDWrite_Begin (dem_all, 0, strlen(text)+4);
 		MSG_WriteByte (&demo.dbuf->sb, svc_print);
 		MSG_WriteByte (&demo.dbuf->sb, PRINT_CHAT);
-		MSG_WriteString (&demo.dbuf->sb, text);
+		for (j = 0; text[j]; j++)
+			MSG_WriteChar(&demo.dbuf->sb, text[j]);
+		MSG_WriteChar(&demo.dbuf->sb, '\n');
+		MSG_WriteChar(&demo.dbuf->sb, 0);
 	}
 }
 

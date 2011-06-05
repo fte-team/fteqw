@@ -1864,7 +1864,7 @@ void IN_StartupJoystick (void)
 	// abort startup if we didn't find a valid joystick
 	if (mmr != JOYERR_NOERROR)
 	{
-		Con_Printf ("joystick not found -- no valid joysticks (%x)\n", mmr);
+//		Con_Printf ("joystick not found -- no valid joysticks (%x)\n", mmr);
 		return;
 	}
 

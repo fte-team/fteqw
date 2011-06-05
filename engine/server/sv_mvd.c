@@ -774,6 +774,57 @@ void SV_MVDPings (void)
 		MSG_WriteByte (&demo.dbuf->sb, client->lossage);
 	}
 }
+void SV_MVD_FullClientUpdate(sizebuf_t *msg, client_t *player)
+{
+	char info[MAX_INFO_STRING];
+	qboolean dosizes;
+	if (!sv.mvdrecording)
+		return;
+
+	if (msg)
+		dosizes = false;
+	else
+	{
+		dosizes = true;
+		msg = &demo.dbuf->sb;
+	}
+
+	if (dosizes)
+		MVDWrite_Begin (dem_all, 0, 4);
+	MSG_WriteByte (msg, svc_updatefrags);
+	MSG_WriteByte (msg, player - svs.clients);
+	MSG_WriteShort (msg, player->old_frags);
+
+	if (dosizes)
+		MVDWrite_Begin (dem_all, 0, 4);
+	MSG_WriteByte (msg, svc_updateping);
+	MSG_WriteByte (msg, player - svs.clients);
+	MSG_WriteShort (msg, SV_CalcPing(player, false));
+
+	if (dosizes)
+		MVDWrite_Begin (dem_all, 0, 3);
+	MSG_WriteByte (msg, svc_updatepl);
+	MSG_WriteByte (msg, player - svs.clients);
+	MSG_WriteByte (msg, player->lossage);
+
+	if (dosizes)
+		MVDWrite_Begin (dem_all, 0, 6);
+	MSG_WriteByte (msg, svc_updateentertime);
+	MSG_WriteByte (msg, player - svs.clients);
+	MSG_WriteFloat (msg, realtime - player->connection_started);
+
+	Q_strncpyz (info, player->userinfo, MAX_INFO_STRING);
+	Info_RemovePrefixedKeys (info, '_');	// server passwords, etc
+	Info_RemoveKey(info, "password");
+	Info_RemoveKey(info, "*ip");
+
+	if (dosizes)
+		MVDWrite_Begin (dem_all, 0, 7 + strlen(info));
+	MSG_WriteByte (msg, svc_updateuserinfo);
+	MSG_WriteByte (msg, player - svs.clients);
+	MSG_WriteLong (msg, player->userid);
+	MSG_WriteString (msg, info);
+}
 
 void MVDBuffer_Init(dbuffer_t *dbuffer, qbyte *buf, size_t size)
 {
@@ -1620,7 +1671,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	sizebuf_t	buf;
 	char buf_data[MAX_QWMSGLEN];
 	int n, i;
-	char *s, info[MAX_INFO_STRING];
+	char *s;
 
 	client_t *player;
 	char *gamedir;
@@ -1851,29 +1902,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	{
 		player = svs.clients + i;
 
-		MSG_WriteByte (&buf, svc_updatefrags);
-		MSG_WriteByte (&buf, i);
-		MSG_WriteShort (&buf, player->old_frags);
-
-		MSG_WriteByte (&buf, svc_updateping);
-		MSG_WriteByte (&buf, i);
-		MSG_WriteShort (&buf, SV_CalcPing(player, false));
-
-		MSG_WriteByte (&buf, svc_updatepl);
-		MSG_WriteByte (&buf, i);
-		MSG_WriteByte (&buf, player->lossage);
-
-		MSG_WriteByte (&buf, svc_updateentertime);
-		MSG_WriteByte (&buf, i);
-		MSG_WriteFloat (&buf, realtime - player->connection_started);
-
-		Q_strncpyz (info, player->userinfo, MAX_INFO_STRING);
-		Info_RemovePrefixedKeys (info, '_');	// server passwords, etc
-
-		MSG_WriteByte (&buf, svc_updateuserinfo);
-		MSG_WriteByte (&buf, i);
-		MSG_WriteLong (&buf, player->userid);
-		MSG_WriteString (&buf, info);
+		SV_MVD_FullClientUpdate(&buf, player);
 
 		if (buf.cursize > MAX_QWMSGLEN/2)
 		{

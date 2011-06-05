@@ -1388,6 +1388,7 @@ void SV_Spawn_f (void)
 	// normally this could overflow, but no need to check due to backbuf
 	for (i=0, client = svs.clients ; i<MAX_CLIENTS ; i++, client++)
 		SV_FullClientUpdateToClient (client, host_client);
+	SV_MVD_FullClientUpdate(NULL, host_client);
 
 // send all current light styles
 	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
@@ -4444,6 +4445,7 @@ void SVNQ_Spawn_f (void)
 	// normally this could overflow, but no need to check due to backbuf
 	for (i=0, client = svs.clients; i<sv.allocated_client_slots ; i++, client++)
 		SV_FullClientUpdateToClient (client, host_client);
+	SV_MVD_FullClientUpdate(NULL, host_client);
 
 // send all current light styles
 	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)

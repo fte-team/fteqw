@@ -3277,8 +3277,6 @@ void NET_Init (void)
 	if (r)
 		Sys_Error ("Winsock initialization failed.");
 #endif
-
-	Con_TPrintf(TL_UDPINITED);
 }
 #define STRINGIFY2(s) #s
 #define STRINGIFY(s) STRINGIFY2(s)

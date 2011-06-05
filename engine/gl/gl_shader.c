@@ -4229,8 +4229,6 @@ void Shader_DoReload(void)
 
 	if (shader_rescan_needed && ruleset_allow_shaders.ival)
 	{
-		Con_Printf ( "Initializing Shaders.\n" );
-
 		COM_EnumerateFiles("materials/*.mtr", Shader_InitCallback, NULL);
 		COM_EnumerateFiles("shaders/*.shader", Shader_InitCallback, NULL);
 		COM_EnumerateFiles("scripts/*.shader", Shader_InitCallback, NULL);
@@ -4244,7 +4242,6 @@ void Shader_DoReload(void)
 		return;
 	shader_reload_needed = false;
 	Font_InvalidateColour();
-	Con_Printf("Reloading all shaders\n");
 
 	for (s = r_shaders, i = 0; i < MAX_SHADERS; i++, s++)
 	{

@@ -3733,6 +3733,9 @@ void Host_FinishInit(void)
 		Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);
 	}
 	Cbuf_AddText ("exec fte.cfg\n", RESTRICT_LOCAL);
+
+	if (COM_FCheckExists ("frontend.cfg"))
+		Cbuf_AddText ("exec frontend.cfg\n", RESTRICT_LOCAL);
 	Cbuf_AddText ("cl_warncmd 1\n", RESTRICT_LOCAL);	//and then it's allowed to start moaning.
 
 	{

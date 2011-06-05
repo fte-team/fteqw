@@ -76,10 +76,6 @@ void CL_StopPlayback (void)
 		CL_FinishTimeDemo ();
 }
 
-#define dem_cmd		0
-#define dem_read	1
-#define dem_set		2
-
 /*
 ====================
 CL_WriteDemoCmd
@@ -170,8 +166,12 @@ int demo_preparsedemo(unsigned char *buffer, int bytes)
 	{
 		switch(buffer[1]&dem_mask)
 		{
+		case dem_cmd:
+			ofs = -(sizeof(q1usercmd_t));
+			ofs = 0;
+			break;
 		case dem_set:
-			ofs = -10;
+			ofs = -(8);
 			break;
 		case dem_multiple:
 			ofs = 6;
@@ -270,7 +270,11 @@ void demo_flushbytes(int bytes)
 		Sys_Error("demo_flushbytes: flushed too much!\n");
 	memmove(demobuffer, demobuffer+bytes, demobuffersize - bytes);
 	demobuffersize -= bytes;
-	demopreparsedbytes -= bytes;
+
+	if (demopreparsedbytes < bytes)
+		demopreparsedbytes = 0;
+	else
+		demopreparsedbytes -= bytes;
 }
 
 void demo_flushcache(void)

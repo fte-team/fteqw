@@ -4899,6 +4899,11 @@ void CL_ParseServerMessage (void)
 		case svc_disconnect:
 			if (cls.demoplayback == DPB_EZTV)	//eztv fails to detect the end of demos.
 				MSG_ReadString();
+			else if (cls.demoplayback)
+			{
+				CL_Disconnect_f();
+				return;
+			}
 			else if (cls.state == ca_connected)
 			{
 				Host_EndGame ("Server disconnected\n"

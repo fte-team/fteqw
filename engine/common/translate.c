@@ -142,7 +142,6 @@ static char *defaultlanguagetext =
 "TL_NETSENDERROR \"NET_SendPacket ERROR: %i\\n\"\n"
 "TL_NETBINDINTERFACE \"Binding to IP Interface Address of %s\\n\"\n"
 "TL_IPADDRESSIS \"IP address %s\\n\"\n"
-"TL_UDPINITED \"UDP Initialized\\n\"\n"
 "TL_SERVERPORTINITED \"Server port Initialized\\n\"\n"
 "TL_CLIENTPORTINITED \"Client port Initialized\\n\"\n"
 "TL_OUTMESSAGEOVERFLOW \"%s:Outgoing message overflow\\n\"\n"

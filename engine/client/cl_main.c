@@ -3410,7 +3410,7 @@ float Host_Frame (double time)
 	else
 	{
 		maxfpsignoreserver = false;
-		maxfps = (cl_maxfps.ival>0||cls.protocol!=CP_QUAKEWORLD)?cl_maxfps.value:cl_netfps.value;
+		maxfps = (cl_maxfps.ival>0||cls.protocol!=CP_QUAKEWORLD)?cl_maxfps.value:((cl_netfps.value>0)?cl_netfps.value:cls.maxfps);
 		/*gets buggy at times longer than 250ms (and 0/negative, obviously)*/
 		if (maxfps < 4)
 			maxfps = 4;

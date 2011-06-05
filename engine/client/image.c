@@ -191,8 +191,11 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 	{
 		return ReadGreyTargaFile(data, length, &tgaheader, asgrey);
 	}
-	else if (tgaheader.version == 10 || tgaheader.version == 11)
+	else if (tgaheader.version == 10 || tgaheader.version == 9 || tgaheader.version == 11)
 	{
+		//9:paletted
+		//10:bgr(a)
+		//11:greyscale
 #undef getc
 #define getc(x) *data++
 		unsigned row, rows=tgaheader.height, column, columns=tgaheader.width, packetHeader, packetSize, j;
@@ -200,8 +203,62 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 
 		qbyte blue, red, green, alphabyte;
 
-		if (tgaheader.version == 10 && tgaheader.bpp == 8) return NULL;
-		if (tgaheader.version == 11 && tgaheader.bpp != 8) return NULL;
+		byte_vec4_t palette[256];
+
+		if (tgaheader.version == 9)
+		{
+			for (row = 0; row < 256; row++)
+			{
+				palette[row][0] = row;
+				palette[row][1] = row;
+				palette[row][2] = row;
+				palette[row][3] = 255;
+			}
+			if (tgaheader.bpp != 8)
+				return NULL;
+		}
+		if (tgaheader.version == 10)
+		{
+			if (tgaheader.bpp == 8)
+				return NULL;
+		}
+		if (tgaheader.version == 11)
+		{
+			for (row = 0; row < 256; row++)
+			{
+				palette[row][0] = row;
+				palette[row][1] = row;
+				palette[row][2] = row;
+				palette[row][3] = 255;
+			}
+			if (tgaheader.bpp != 8)
+				return NULL;
+		}
+
+		if (tgaheader.cm_type)
+		{
+			switch(tgaheader.cm_size)
+			{
+			case 24:
+				for (row = 0; row < tgaheader.cm_len; row++)
+				{
+					palette[row][0] = *data++;
+					palette[row][1] = *data++;
+					palette[row][2] = *data++;
+					palette[row][3] = 255;
+				}
+				break;
+			case 32:
+				for (row = 0; row < tgaheader.cm_len; row++)
+				{
+					palette[row][0] = *data++;
+					palette[row][1] = *data++;
+					palette[row][2] = *data++;
+					palette[row][3] = *data++;
+				}
+				break;
+			}
+		}
 
 		for(row=rows-1; row>=0; row--)
 		{
@@ -218,8 +275,11 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 					switch (tgaheader.bpp)
 					{
 						case 8:	//we made sure this was version 11
-								blue = green = red = *data++;
-								alphabyte = 255;
+								blue = palette[*data][0];
+								green = palette[*data][1];
+								red = palette[*data][2];
+								alphabyte = palette[*data][3];
+								data++;
 								break;
 
 						case 16:
@@ -303,11 +363,14 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 							switch (tgaheader.bpp)
 							{
 								case 8:
-										blue = green = red = *data++;
+										blue = palette[*data][0];
+										green = palette[*data][1];
+										red = palette[*data][2];
 										*pixbuf++ = red;
 										*pixbuf++ = green;
 										*pixbuf++ = blue;
-										*pixbuf++ = 255;
+										*pixbuf++ = palette[*data][3];
+										data++;
 										break;
 								case 16:
 										inrow = data;
@@ -370,7 +433,11 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 							switch (tgaheader.bpp)
 							{
 								case 8:
-										*pixbuf++ = *data++;
+										blue = palette[*data][0];
+										green = palette[*data][1];
+										red = palette[*data][2];
+										*pixbuf++ = (blue + green + red)/3;
+										data++;
 										break;
 								case 16:
 										inrow = data;
@@ -525,6 +592,8 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 
 		return initbuf;
 	}
+	else
+		Con_Printf("Unsupported version\n");
 return NULL;
 }
 
@@ -2410,6 +2479,7 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 				}
 				else
 				{
+					Con_Printf("Unable to read file %s (format unsupported)\n", fname);
 					BZ_Free(buf);
 					continue;
 				}

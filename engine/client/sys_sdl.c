@@ -471,6 +471,7 @@ int main(int argc, char **argv)
 	float time, newtime, oldtime;
 	quakeparms_t	parms;
 	int				t;
+	int delay = 1;
 
 	parms.argv = argv;
 
@@ -529,14 +530,14 @@ int main(int argc, char **argv)
 #ifndef CLIENTONLY
 		if (isDedicated)
 		{
-			NET_Sleep(100, false);
+			NET_Sleep(delay, false);
 
 		// find time passed since last cycle
 			newtime = Sys_DoubleTime ();
 			time = newtime - oldtime;
 			oldtime = newtime;
 			
-			SV_Frame ();
+			delay = SV_Frame()*1000;
 		}
 		else
 #endif

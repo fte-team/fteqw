@@ -1448,6 +1448,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	double			time, oldtime, newtime;
 	char	cwd[1024];
 	const char *qtvfile = NULL;
+	int delay = 0;
 
 	/* previous instances do not exist in Win32 */
     if (hPrevInstance)
@@ -1635,16 +1636,18 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	#ifndef CLIENTONLY
 		if (isDedicated)	//compleate denial to switch to anything else - many of the client structures are not initialized.
 		{
+			int delay;
+
 			SV_Init (&parms);
 
-			SV_Frame ();
+			delay = SV_Frame()*1000;
 
 			while (1)
 			{
 				if (!isDedicated)
 					Sys_Error("Dedicated was cleared");
-				NET_Sleep(100, false);
-				SV_Frame ();
+				NET_Sleep(delay, false);
+				delay = SV_Frame()*1000;
 			}
 			return TRUE;
 		}
@@ -1701,14 +1704,14 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			if (isDedicated)
 			{
 	#ifndef CLIENTONLY
-				NET_Sleep(50, false);
+				NET_Sleep(delay, false);
 
 			// find time passed since last cycle
 				newtime = Sys_DoubleTime ();
 				time = newtime - oldtime;
 				oldtime = newtime;
 
-				SV_Frame ();
+				delay = 1000*SV_Frame ();
 	#else
 				Sys_Error("wut?");
 	#endif

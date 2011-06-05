@@ -2054,6 +2054,15 @@ void Sh_DrawLights(qbyte *vis)
 	if (!r_shadow_realtime_world.ival && !r_shadow_realtime_dlight.ival)
 		return;
 
+	/*no stencil?*/
+	if (gl_config.nofixedfunc)
+	{
+		Con_Printf("FTE does not support stencil shadows without a fixed-function pipeline\n");
+		r_shadow_realtime_world.ival = 0;
+		r_shadow_realtime_dlight.ival = 0;
+		return;
+	}
+
 	if (!gl_config.arb_shader_objects)
 	{
 		Con_Printf("Missing GL extensions: switching off realtime lighting.\n");

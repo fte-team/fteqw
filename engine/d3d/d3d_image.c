@@ -20,7 +20,7 @@ static d3dtexture_t *d3d_lookup_texture(char *ident)
 {
 	d3dtexture_t *tex;
 
-	if (ident)
+	if (ident && *ident)
 	{
 		for (tex = d3dtextures; tex; tex = tex->next)
 			if (!strcmp(tex->name, ident))
@@ -401,6 +401,8 @@ texid_t D3D9_LoadTexture (char *identifier, int width, int height, enum uploadfm
 	case TF_TRANS8_FULLBRIGHT:
 		tid.ptr = D3D9_LoadTexture_8(tex, data, d_8to24rgbtable, width, height, flags, fmt);
 		return tid;
+	case TF_RGBX32:
+		flags |= IF_NOALPHA;
 	case TF_RGBA32:
 		tid.ptr = D3D9_LoadTexture_32(tex, data, width, height, flags);
 		return tid;

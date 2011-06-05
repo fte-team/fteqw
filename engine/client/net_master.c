@@ -1391,7 +1391,9 @@ void MasterInfo_Begin(void)
 //		if (q2servers)	//q2
 		{
 			Master_AddMaster("255.255.255.255:27910",		MT_BCASTQ2, "Nearby Quake2 UDP servers.");
+#ifdef USEIPX
 			Master_AddMaster("00000000:ffffffffffff:27910",	MT_BCASTQ2, "Nearby Quake2 IPX servers.");
+#endif
 			Master_AddMaster("192.246.40.37:27900",			MT_MASTERQ2, "id q2 Master.");
 		}
 

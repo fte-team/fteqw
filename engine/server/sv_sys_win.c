@@ -353,7 +353,6 @@ void CreateSampleService(qboolean create);
 void PR_Deinit(void);
 
 cvar_t	sys_nostdout = {"sys_nostdout","0"};
-cvar_t	sys_maxtic = {"sys_maxtic", "100"};
 cvar_t	sys_colorconsole = {"sys_colorconsole", "1"};
 
 HWND consolewindowhandle;
@@ -1073,7 +1072,6 @@ is marked
 void Sys_Init (void)
 {
 	Cvar_Register (&sys_nostdout, "System controls");
-	Cvar_Register (&sys_maxtic, "System controls");
 	Cvar_Register (&sys_colorconsole, "System controls");
 
 	Cmd_AddCommand("hide", Sys_HideConsole);
@@ -1141,19 +1139,20 @@ int servicecontrol;
 void ServerMainLoop(void)
 {
 	double			newtime, time, oldtime;
+	int delay = 1;
 //
 // main loop
 //
 	oldtime = Sys_DoubleTime () - 0.1;
 	while (1)
 	{
-		NET_Sleep(sys_maxtic.value, false);
+		NET_Sleep(delay, false);
 
 	// find time passed since last cycle
 		newtime = Sys_DoubleTime ();
 		time = newtime - oldtime;
 		oldtime = newtime;
-		SV_Frame ();
+		delay = SV_Frame()*1000;
 
 
 #ifdef USESERVICE

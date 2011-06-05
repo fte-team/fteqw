@@ -141,9 +141,6 @@ void GL_InitSceneProcessingShaders_WaterWarp (void)
 			"{\n"
 			"#ifdef VERTEX_SHADER\n"
 			"\
-			uniform mat4 m_view;\
-			uniform mat4 m_projection;\
-			attribute vec3 v_position;\
 			attribute vec2 v_texcoord;\
 			varying vec2 v_stc;\
 			varying vec2 v_warp;\
@@ -151,7 +148,7 @@ void GL_InitSceneProcessingShaders_WaterWarp (void)
 			uniform float e_time;\
 			void main (void)\
 			{\
-				gl_Position = m_projection * m_view * vec4(v_position, 1.0);\
+				gl_Position = ftetransform();\
 				v_stc = (1.0+(gl_Position.xy / gl_Position.w))/2.0;\
 				v_warp.s = e_time * 0.25 + v_texcoord.s;\
 				v_warp.t = e_time * 0.25 + v_texcoord.t;\
@@ -247,7 +244,10 @@ void GL_InitFisheyeFov(void)
 			gl_FragColor = textureCube(source, tc);\
 		}";
 
-	scenepp_fisheye_program = GLSlang_CreateProgram("#version 110\n", NULL, vshader, fisheyefshader);
+	if (gl_config.gles)
+		return;
+
+	scenepp_fisheye_program = GLSlang_CreateProgram("fisheye", "#version 110\n", NULL, vshader, fisheyefshader);
 	if (scenepp_fisheye_program)
 	{
 		GLSlang_UseProgram(scenepp_fisheye_program);
@@ -256,7 +256,7 @@ void GL_InitFisheyeFov(void)
 		GLSlang_UseProgram(0);
 	}
 
-	scenepp_panorama_program = GLSlang_CreateProgram("#version 110\n", NULL, vshader, panoramafshader);
+	scenepp_panorama_program = GLSlang_CreateProgram("panorama", "#version 110\n", NULL, vshader, panoramafshader);
 	if (scenepp_panorama_program)
 	{
 		GLSlang_UseProgram(scenepp_panorama_program);

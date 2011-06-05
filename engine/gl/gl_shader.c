@@ -744,7 +744,7 @@ static void Shader_EntityMergable ( shader_t *shader, shaderpass_t *pass, char *
 
 static void Shader_ProgAutoFields(program_t *prog, char **cvarfnames);
 /*program text is already loaded, this function parses the 'header' of it to see which permutations it provides, and how many times we need to recompile it*/
-static void Shader_LoadPermutations(program_t *prog, char *script, int qrtype, int ver)
+static void Shader_LoadPermutations(char *name, program_t *prog, char *script, int qrtype, int ver)
 {
 	static char *permutationname[] =
 	{
@@ -838,7 +838,7 @@ static void Shader_LoadPermutations(program_t *prog, char *script, int qrtype, i
 					permutationdefines[pn++] = permutationname[n];
 			}
 			permutationdefines[pn++] = NULL;
-			prog->handle[p].glsl = GLSlang_CreateProgram(vers, permutationdefines, script, script);
+			prog->handle[p].glsl = GLSlang_CreateProgram(name, vers, permutationdefines, script, script);
 		}
 #endif
 #ifdef D3DQUAKE
@@ -886,11 +886,32 @@ struct sbuiltin_s
 	  with gl4, versions are meant to match the gl version more closely, so gl4.0 uses 400.*/
 	/*glsl es shaders require precisions to be defined for fragment shader variables
 	  more precision for shaders would be a good candidate for a cvar */
+	
+/*defaultfill is a simple shader for block-filling with vertex colours. note that the blendfunc stuff is done after the shader anyway.*/
+	{QR_OPENGL/*ES*/, 100, "defaultfill",
+		"#ifdef VERTEX_SHADER\n"
+			"attribute vec2 v_texcoord;\n"
+			"attribute vec4 v_colour;\n"
+			"varying vec4 vc;\n"
+
+			"void main (void)\n"
+			"{\n"
+			"	vc = v_colour;\n"
+			"	gl_Position = ftetransform();\n"
+			"}\n"
+		"#endif\n"
+
+		"#ifdef FRAGMENT_SHADER\n"
+			"varying vec4 vc;\n"
+			"void main (void)\n"
+			"{\n"
+			"	gl_FragColor = vc;\n"
+			"}\n"
+		"#endif\n"
+	},
+/*default2d is a simple shader to draw the 2d elements. simple copying of a texture image to its dest (with vertex colour blending)*/
 	{QR_OPENGL/*ES*/, 100, "default2d",
 		"#ifdef VERTEX_SHADER\n"
-			"uniform mat4 m_view;\n"
-			"uniform mat4 m_projection;\n"
-			"attribute vec3 v_position;\n"
 			"attribute vec2 v_texcoord;\n"
 			"attribute vec4 v_colour;\n"
 			"varying vec2 tc;\n"
@@ -900,7 +921,7 @@ struct sbuiltin_s
 			"{\n"
 			"	tc = v_texcoord;\n"
 			"	vc = v_colour;\n"
-			"	gl_Position = m_projection * m_view * vec4(v_position, 1.0);\n"
+			"	gl_Position = ftetransform();\n"
 			"}\n"
 		"#endif\n"
 
@@ -917,9 +938,6 @@ struct sbuiltin_s
 	},
 	{QR_OPENGL, 110, "default2d",
 		"#ifdef VERTEX_SHADER\n"
-			"uniform mat4 m_view;\n"
-			"uniform mat4 m_projection;\n"
-			"attribute vec3 v_position;\n"
 			"attribute vec2 v_texcoord;\n"
 			"attribute vec4 v_colour;\n"
 			"varying vec2 tc;\n"
@@ -929,7 +947,7 @@ struct sbuiltin_s
 			"{\n"
 			"	tc = v_texcoord;\n"
 			"	vc = v_colour;\n"
-			"	gl_Position = m_projection * m_view * vec4(v_position, 1.0);\n"
+			"	gl_Position = ftetransform();\n"
 			"}\n"
 		"#endif\n"
 
@@ -944,12 +962,10 @@ struct sbuiltin_s
 			"}\n"
 		"#endif\n"
 	},
+/*draws a wall, with lightmap.*/
 	{QR_OPENGL/*ES*/, 100, "defaultwall",
 		"!!cvarf gl_overbright\n"
 		"#ifdef VERTEX_SHADER\n"
-			"uniform mat4 m_modelview;\n"
-			"uniform mat4 m_projection;\n"
-			"attribute vec3 v_position;\n"
 			"attribute vec2 v_texcoord;\n"
 			"attribute vec2 v_lmcoord;\n"
 			"varying vec2 tc, lm;\n"
@@ -958,7 +974,7 @@ struct sbuiltin_s
 			"{\n"
 			"	tc = v_texcoord;\n"
 			"	lm = v_lmcoord;\n"
-			"	gl_Position = m_projection * m_modelview * vec4(v_position, 1.0);\n"
+			"	gl_Position = ftetransform();\n"
 			"}\n"
 		"#endif\n"
 
@@ -981,8 +997,6 @@ struct sbuiltin_s
 	{QR_OPENGL, 110, "defaultwall",
 		"!!cvarf gl_overbright\n"
 		"#ifdef VERTEX_SHADER\n"
-			"uniform mat4 m_modelview, m_projection;\n"
-			"attribute vec3 v_position;\n"
 			"attribute vec2 v_texcoord;\n"
 			"attribute vec2 v_lmcoord;\n"
 			"varying vec2 tc, lm;\n"
@@ -991,7 +1005,7 @@ struct sbuiltin_s
 			"{\n"
 			"	tc = v_texcoord;\n"
 			"	lm = v_lmcoord;\n"
-			"	gl_Position = m_projection * m_modelview * vec4(v_position, 1.0);\n"
+			"	gl_Position = ftetransform();\n"
 			"}\n"
 		"#endif\n"
 
@@ -1011,18 +1025,16 @@ struct sbuiltin_s
 			"}\n"
 		"#endif\n"
 	},
+/*defaultwarp: draws a water surface*/
 	{QR_OPENGL/*ES*/, 100, "defaultwarp",
 		"!!cvarf r_wateralpha\n"
 		"varying mediump vec2 tc;\n"
 		"#ifdef VERTEX_SHADER\n"
-			"uniform mat4 m_modelview;\n"
-			"uniform mat4 m_projection;\n"
-			"attribute vec3 v_position;\n"
 			"attribute vec2 v_texcoord;\n"
 			"void main (void)\n"
 			"{\n"
 			"	tc = v_texcoord;\n"
-			"	gl_Position = m_projection * m_modelview * vec4(v_position, 1.0);\n"
+			"	gl_Position = ftetransform();\n"
 			"}\n"
 		"#endif\n"
 
@@ -1046,14 +1058,11 @@ struct sbuiltin_s
 		"!!cvarf r_wateralpha\n"
 		"varying vec2 tc;\n"
 		"#ifdef VERTEX_SHADER\n"
-			"uniform mat4 m_modelview;\n"
-			"uniform mat4 m_projection;\n"
-			"attribute vec3 v_position;\n"
 			"attribute vec2 v_texcoord;\n"
 			"void main (void)\n"
 			"{\n"
 			"	tc = v_texcoord.st;\n"
-			"	gl_Position = m_projection * m_modelview * vec4(v_position, 1.0);\n"
+			"	gl_Position = ftetransform();\n"
 			"}\n"
 		"#endif\n"
 
@@ -1073,17 +1082,15 @@ struct sbuiltin_s
 			"}\n"
 		"#endif\n"
 	},
+/*defautsky projects the texture in order to match q1 skies, along with two separate layers scrolling at separate speeds*/
 	{QR_OPENGL/*ES*/, 100, "defaultsky",
 		"#ifdef VERTEX_SHADER\n"
-			"uniform mat4 m_modelview;\n"
-			"uniform mat4 m_projection;\n"
-			"attribute vec3 v_position;\n"
 			"varying vec3 pos;\n"
 
 			"void main (void)\n"
 			"{\n"
 			"	pos = v_position.xyz;\n"
-			"	gl_Position = m_projection * m_modelview * vec4(v_position, 1.0);\n"
+			"	gl_Position = ftetransform();\n"
 			"}\n"
 		"#endif\n"
 
@@ -1117,15 +1124,12 @@ struct sbuiltin_s
 	},
 	{QR_OPENGL, 110, "defaultsky",
 		"#ifdef VERTEX_SHADER\n"
-			"uniform mat4 m_modelview;\n"
-			"uniform mat4 m_projection;\n"
-			"attribute vec3 v_position;\n"
 			"varying vec3 pos;\n"
 
 			"void main (void)\n"
 			"{\n"
 			"	pos = v_position.xyz;\n"
-			"	gl_Position = m_projection * m_modelview * vec4(v_position, 1.0);\n"
+			"	gl_Position = ftetransform();\n"
 			"}\n"
 		"#endif\n"
 
@@ -1156,14 +1160,12 @@ struct sbuiltin_s
 			"}\n"
 		"#endif\n"
 	},
+/*draws a model. there's lots of extra stuff for light shading calcs and upper/lower textures*/
 	{QR_OPENGL/*ES*/, 100, "defaultskin",
 		"!!permu FULLBRIGHT\n"
 		"!!permu LOWER\n"
 		"!!permu UPPER\n"
 		"#ifdef VERTEX_SHADER\n"
-			"uniform mat4 m_modelview;\n"
-			"uniform mat4 m_projection;\n"
-			"attribute vec3 v_position;\n"
 			"attribute vec2 v_texcoord;\n"
 			"varying vec2 tc;\n"
 
@@ -1177,7 +1179,7 @@ struct sbuiltin_s
 			"{\n"
 			"	light = e_light_ambient + (dot(v_normal,e_light_dir)*e_light_mul);\n"
 			"	tc = v_texcoord;\n"
-			"	gl_Position = m_projection * m_modelview * vec4(v_position, 1.0);\n"
+			"	gl_Position = ftetransform();\n"
 			"}\n"
 		"#endif\n"
 
@@ -1224,9 +1226,6 @@ struct sbuiltin_s
 		"!!permu LOWER\n"
 		"!!permu UPPER\n"
 		"#ifdef VERTEX_SHADER\n"
-			"uniform mat4 m_modelview;\n"
-			"uniform mat4 m_projection;\n"
-			"attribute vec3 v_position;\n"
 			"attribute vec2 v_texcoord;\n"
 			"varying vec2 tc;\n"
 
@@ -1240,7 +1239,7 @@ struct sbuiltin_s
 			"{\n"
 			"	light = e_light_ambient + (dot(v_normal,e_light_dir)*e_light_mul);\n"
 			"	tc = v_texcoord;\n"
-			"	gl_Position = m_projection * m_modelview * vec4(v_position, 1.0);\n"
+			"	gl_Position = ftetransform();\n"
 			"}\n"
 		"#endif\n"
 
@@ -1336,6 +1335,26 @@ struct sbuiltin_s
 	{QR_NONE}
 };
 static sgeneric_t *sgenerics;
+void Shader_UnloadGeneric(program_t *prog)
+{
+	int p;
+	if (prog->refs == 1)
+	{
+#ifdef GLQUAKE
+		if (qrenderer == QR_OPENGL)
+		{
+			for (p = 0; p < PERMUTATIONS; p++)
+			{
+				if (prog->handle[p].glsl)
+					qglDeleteProgramObject_(prog->handle[p].glsl);
+			}
+		}
+#endif
+		free(prog);
+	}
+	else
+		prog->refs--;
+}
 static void Shader_FlushGenerics(void)
 {
 	sgeneric_t *g;
@@ -1380,7 +1399,7 @@ static program_t *Shader_LoadGeneric(char *name, int qrtype)
 	FS_LoadFile(name, &file);
 	if (file)
 	{
-		Shader_LoadPermutations(&g->prog, file, qrtype, 0);
+		Shader_LoadPermutations(name, &g->prog, file, qrtype, 0);
 		FS_FreeFile(file);
 
 		g->prog.refs++;
@@ -1404,7 +1423,7 @@ static program_t *Shader_LoadGeneric(char *name, int qrtype)
 						continue;
 				}
 #endif
-				Shader_LoadPermutations(&g->prog, sbuiltins[i].body, sbuiltins[i].qrtype, sbuiltins[i].apiver);
+				Shader_LoadPermutations(name, &g->prog, sbuiltins[i].body, sbuiltins[i].qrtype, sbuiltins[i].apiver);
 
 				g->prog.refs++;
 				return &g->prog;
@@ -1577,7 +1596,7 @@ static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **p
 			shader->prog = malloc(sizeof(*shader->prog));
 			memset(shader->prog, 0, sizeof(*shader->prog));
 			shader->prog->refs = 1;
-			Shader_LoadPermutations(shader->prog, programbody, qrtype, 0);
+			Shader_LoadPermutations(shader->name, shader->prog, programbody, qrtype, 0);
 
 			BZ_Free(programbody);
 		}
@@ -2525,23 +2544,10 @@ void Shader_Free (shader_t *shader)
 		Hash_RemoveData(&shader_active_hash, shader->name, shader);
 	shader->bucket.data = NULL;
 
-#ifdef GLQUAKE
-	if (qrenderer == QR_OPENGL && shader->prog)
-	{
-		program_t *prog = shader->prog;
-		int p;
-		if (--prog->refs == 0)
-		{
-			for (p = 0; p < PERMUTATIONS; p++)
-			{
-				if (prog->handle[p].glsl)
-					qglDeleteProgramObject_(prog->handle[p].glsl);
-			}
-			free(prog);
-		}
-		shader->prog = NULL;
-	}
-#endif
+	if (shader->prog)
+		Shader_UnloadGeneric(shader->prog);
+	shader->prog = NULL;
+
 	if (shader->skydome)
 	{
 		Z_Free (shader->skydome);
@@ -2570,23 +2576,20 @@ int Shader_InitCallback (const char *name, int size, void *param)
 
 qboolean Shader_Init (void)
 {
-	int i;
 	shaderbuflen = 0;
 
-	r_shaders = calloc(MAX_SHADERS, sizeof(shader_t));
-
-	shader_hash = calloc (HASH_SIZE, sizeof(*shader_hash));
-
-	shader_active_hash_mem = malloc(Hash_BytesForBuckets(1024));
-	memset(shader_active_hash_mem, 0, Hash_BytesForBuckets(1024));
-	Hash_InitTable(&shader_active_hash, 1024, shader_active_hash_mem);
-
-	for (i = 0; i < MAX_SHADERS; i++)
+	if (!r_shaders)
 	{
-		if (r_shaders[i].uses)
-			Shader_Free(&r_shaders[i]);
+		r_shaders = calloc(MAX_SHADERS, sizeof(shader_t));
+
+		shader_hash = calloc (HASH_SIZE, sizeof(*shader_hash));
+
+		shader_active_hash_mem = malloc(Hash_BytesForBuckets(1024));
+		memset(shader_active_hash_mem, 0, Hash_BytesForBuckets(1024));
+		Hash_InitTable(&shader_active_hash, 1024, shader_active_hash_mem);
+
+		Shader_FlushGenerics();
 	}
-	Shader_FlushGenerics();
 	shader_rescan_needed = true;
 	Shader_NeedReload();
 	Shader_DoReload();
@@ -2680,7 +2683,7 @@ char *Shader_Skip ( char *ptr )
 	return ptr;
 }
 
-static void Shader_GetPathAndOffset ( char *name, char **path, unsigned int *offset )
+static void Shader_GetPathAndOffset(char *name, char **path, unsigned int *offset)
 {
 	unsigned int key;
 	shadercache_t *cache;
@@ -2731,21 +2734,21 @@ void Shader_Shutdown (void)
 		return;	/*nothing needs freeing yet*/
 	for (i = 0; i < MAX_SHADERS; i++, shader++)
 	{
-		if ( !shader->uses )
+		if (!shader->uses)
 			continue;
 
-		Shader_Free ( shader );
+		Shader_Free(shader);
 	}
 
-	for ( i = 0; i < HASH_SIZE; i++ )
+	for (i = 0; i < HASH_SIZE; i++)
 	{
 		cache = shader_hash[i];
 
-		for ( ; cache; cache = cache_next )
+		for (; cache; cache = cache_next)
 		{
 			cache_next = cache->hash_next;
 			cache->hash_next = NULL;
-			Z_Free ( cache );
+			Z_Free(cache);
 		}
 	}
 

@@ -46,7 +46,6 @@ void Sys_Linebuffer_Callback (struct cvar_s *var, char *oldvalue);
 
 cvar_t sys_nostdout = CVAR("sys_nostdout","0");
 cvar_t sys_extrasleep = CVAR("sys_extrasleep","0");
-cvar_t sys_maxtic = CVAR("sys_maxtic", "100");
 cvar_t sys_colorconsole = CVAR("sys_colorconsole", "0");
 cvar_t sys_linebuffer = CVARC("sys_linebuffer", "1", Sys_Linebuffer_Callback);
 
@@ -629,7 +628,6 @@ void Sys_Init (void)
 {
 	Cvar_Register (&sys_nostdout, "System configuration");
 	Cvar_Register (&sys_extrasleep,	"System configuration");
-	Cvar_Register (&sys_maxtic, "System configuration");
 
 	Cvar_Register (&sys_colorconsole, "System configuration");
 	Cvar_Register (&sys_linebuffer, "System configuration");
@@ -646,6 +644,7 @@ main
 */
 int main(int argc, char *argv[])
 {
+	int maxsleep;
 	quakeparms_t	parms;
 //	fd_set	fdset;
 //	extern	int		net_socket;
@@ -676,7 +675,7 @@ int main(int argc, char *argv[])
 	SV_Init (&parms);
 
 // run one frame immediately for first heartbeat
-	SV_Frame ();
+	maxsleep = SV_Frame()*1000;
 
 //
 // main loop
@@ -684,14 +683,14 @@ int main(int argc, char *argv[])
 	while (1)
 	{
 		if (do_stdin)
-			stdin_ready = NET_Sleep(sys_maxtic.value, true);
+			stdin_ready = NET_Sleep(maxsleep, true);
 		else
 		{
-			NET_Sleep(sys_maxtic.value, false);
+			NET_Sleep(maxsleep, false);
 			stdin_ready = false;
 		}
 
-		SV_Frame ();
+		maxsleep = SV_Frame()*1000;
 
 	// extrasleep is just a way to generate a fucked up connection on purpose
 		if (sys_extrasleep.value)

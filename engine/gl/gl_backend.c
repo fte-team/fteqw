@@ -36,8 +36,6 @@ uniform vec3 lightposition;\n\
 uniform vec3 eyeposition;\n\
 #endif\n\
 \
-uniform mat4 m_modelview, m_projection;\n\
-attribute vec3 v_position;\n\
 attribute vec2 v_texcoord;\n\
 attribute vec3 v_normal;\n\
 attribute vec3 v_svector;\n\
@@ -45,7 +43,7 @@ attribute vec3 v_tvector;\n\
 \
 void main (void)\n\
 {\n\
-	gl_Position = m_projection * m_modelview * vec4(v_position, 1);\n\
+	gl_Position = ftetransform();\n\
 \
 	tcbase = v_texcoord;	//pass the texture coords straight through\n\
 \
@@ -510,6 +508,8 @@ void GL_SetShaderState2D(qboolean is2d)
 	else
 		qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 #endif
+	if (is2d)
+		memcpy(shaderstate.modelviewmatrix, r_refdef.m_view, sizeof(shaderstate.modelviewmatrix));
 	BE_SelectMode(BEM_STANDARD);
 }
 
@@ -638,16 +638,9 @@ void GL_LazyBind(int tmu, int target, texid_t texnum, qboolean arrays)
 static void BE_EnableShaderAttributes(unsigned int newm)
 {
 	unsigned int i;
-
-	i = 0;
-	if (newm & (1u<<i))
-		qglEnableVertexAttribArray(i);
-	else
-		qglDisableVertexAttribArray(i);
-
 	if (newm == shaderstate.sha_attr)
 		return;
-	for (i = 1; i < 8; i++)
+	for (i = 0; i < 8; i++)
 	{
 #ifndef FORCESTATE
 		if ((newm^shaderstate.sha_attr) & (1u<<i))
@@ -2570,7 +2563,6 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 	if (p->nofixedcompat)
 	{
 		qglDisableClientState(GL_COLOR_ARRAY);
-		qglDisableClientState(GL_VERTEX_ARRAY);
 		BE_EnableShaderAttributes(attr);
 		for (i = 0; i < pass->numMergedPasses; i++)
 		{
@@ -2582,6 +2574,12 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 			GL_LazyBind(i, 0, r_nulltex, false);
 		}
 		shaderstate.lastpasstmus = pass->numMergedPasses;
+
+		if (!gl_config.nofixedfunc)
+		{
+			qglEnableClientState(GL_VERTEX_ARRAY);
+			GL_ApplyVertexPointer();
+		}
 	}
 	else
 	{

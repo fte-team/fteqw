@@ -3048,7 +3048,7 @@ SV_ReadPackets
 qboolean SV_GetPacket (void);
 #endif
 
-qboolean SV_ReadPackets (void)
+qboolean SV_ReadPackets (float *delay)
 {
 	int			i;
 	client_t	*cl;
@@ -3060,36 +3060,46 @@ qboolean SV_ReadPackets (void)
 	for (i = 0; i < MAX_CLIENTS; i++)	//fixme: shouldn't we be using svs.allocated_client_slots ?
 	{
 		cl = &svs.clients[i];
-		while (cl->laggedpacket && cl->laggedpacket->time < realtime)
+		while (cl->laggedpacket)
 		{
-			lp = cl->laggedpacket;
-			cl->laggedpacket = lp->next;
-			if (cl->laggedpacket_last == lp)
-				cl->laggedpacket_last = lp->next;
+			//schedule a wakeup so minping is more consistant
+			if (cl->laggedpacket->time > realtime)
+			{
+				if (*delay > cl->laggedpacket->time - realtime)
+					*delay = cl->laggedpacket->time - realtime;
+				break;
+			}
+			else
+			{
+				lp = cl->laggedpacket;
+				cl->laggedpacket = lp->next;
+				if (cl->laggedpacket_last == lp)
+					cl->laggedpacket_last = lp->next;
 
-			lp->next = svs.free_lagged_packet;
-			svs.free_lagged_packet = lp;
+				lp->next = svs.free_lagged_packet;
+				svs.free_lagged_packet = lp;
 
-			SZ_Clear(&net_message);
-			memcpy(net_message.data, lp->data, lp->length);
-			net_message.cursize = lp->length;
+				SZ_Clear(&net_message);
+				memcpy(net_message.data, lp->data, lp->length);
+				net_message.cursize = lp->length;
 
-			net_from = cl->netchan.remote_address;	//not sure if anything depends on this, but lets not screw them up willynilly
+				net_from = cl->netchan.remote_address;	//not sure if anything depends on this, but lets not screw them up willynilly
 
-			if (Netchan_Process(&cl->netchan))
-			{	// this is a valid, sequenced packet, so process it
-				received++;
-				svs.stats.packets++;
-				if (cl->state > cs_zombie)
-				{	//make sure they didn't already disconnect
-					cl->send_message = true;	// reply at end of frame
+				if (Netchan_Process(&cl->netchan))
+				{	// this is a valid, sequenced packet, so process it
+					received++;
+					svs.stats.packets++;
+					if (cl->state > cs_zombie)
+					{	//make sure they didn't already disconnect
+						cl->send_message = true;	// reply at end of frame
 
-#ifdef Q2SERVER
-					if (cl->protocol == SCP_QUAKE2)
-						SVQ2_ExecuteClientMessage(cl);
-					else
-#endif
-						SV_ExecuteClientMessage (cl);
+	#ifdef Q2SERVER
+						if (cl->protocol == SCP_QUAKE2)
+							SVQ2_ExecuteClientMessage(cl);
+						else
+	#endif
+							SV_ExecuteClientMessage (cl);
+					}
 				}
 			}
 		}
@@ -3482,7 +3492,7 @@ SV_Frame
 
 ==================
 */
-void SV_Frame (void)
+float SV_Frame (void)
 {
 	extern cvar_t pr_imitatemvdsv;
 	static double	start, end, idletime;
@@ -3490,6 +3500,7 @@ void SV_Frame (void)
 	qboolean isidle;
 	static int oldpaused;
 	float timedelta;
+	float delay;
 
 	start = Sys_DoubleTime ();
 	svs.stats.idle += start - end;
@@ -3499,6 +3510,8 @@ void SV_Frame (void)
 	svs.framenum++;
 	if (svs.framenum > 0x10000)
 		svs.framenum = 0;
+
+	delay = sv_maxtic.value;
 
 // keep the random time dependent
 	rand ();
@@ -3567,7 +3580,7 @@ void SV_MVDStream_Poll(void);
 			SV_GetConsoleCommands ();
 			Cbuf_Execute ();
 		}
-		return;
+		return delay;
 	}
 
 // check timeouts
@@ -3579,13 +3592,13 @@ void SV_MVDStream_Poll(void);
 	SV_CheckLog ();
 
 // get packets
-	isidle = !SV_ReadPackets ();
+	isidle = !SV_ReadPackets (&delay);
 
 	if (pr_imitatemvdsv.ival)
 	{
 		Cbuf_Execute ();
 		if (sv.state < ss_active)	//whoops...
-			return;
+			return delay;
 	}
 
 	if (sv.multicast.cursize)
@@ -3656,7 +3669,7 @@ void SV_MVDStream_Poll(void);
 		}
 
 		if (sv.state < ss_active)	//whoops...
-			return;
+			return delay;
 
 		SV_CheckVars ();
 
@@ -3693,6 +3706,7 @@ void SV_MVDStream_Poll(void);
 		svs.stats.packets = 0;
 		svs.stats.count = 0;
 	}
+	return delay;
 }
 
 /*

@@ -788,7 +788,7 @@ extern FTEPFNGLUNIFORM1IARBPROC			qglUniform1iARB;
 extern FTEPFNGLUNIFORM1FARBPROC			qglUniform1fARB;
 
 //glslang helper api
-GLhandleARB GLSlang_CreateProgram(char *versionline, char **precompilerconstants, char *vert, char *frag);
+GLhandleARB GLSlang_CreateProgram(char *name, char *versionline, char **precompilerconstants, char *vert, char *frag);
 GLint GLSlang_GetUniformLocation (int prog, char *name);
 void GL_SelectProgram(int program);
 #define GLSlang_UseProgram(prog) GL_SelectProgram(prog)

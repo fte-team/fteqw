@@ -514,8 +514,15 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, 
 						frac += fracstep;
 					}
 				}
-				texnums->base = R_AllocNewTexture(scaled_width, scaled_height);
-				R_Upload(texnums->base, "", h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, NULL, scaled_width, scaled_height, IF_NOMIPMAP);
+				if (qrenderer == QR_OPENGL)
+				{
+					texnums->base = R_AllocNewTexture(scaled_width, scaled_height);
+					R_Upload(texnums->base, "", h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, NULL, scaled_width, scaled_height, IF_NOMIPMAP);
+				}
+				else
+				{
+					texnums->base = R_LoadTexture(NULL, scaled_width, scaled_height, h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, 0);
+				}
 
 				if (!h2playertranslations)
 				{
@@ -533,8 +540,15 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, 
 							frac += fracstep;
 						}
 					}
-					texnums->fullbright = R_AllocNewTexture(scaled_width, scaled_height);
-					R_Upload(texnums->fullbright, "", TF_RGBA32, pixels, NULL, scaled_width, scaled_height, IF_NOMIPMAP);
+					if (qrenderer == QR_OPENGL)
+					{
+						texnums->fullbright = R_AllocNewTexture(scaled_width, scaled_height);
+						R_Upload(texnums->fullbright, "", TF_RGBA32, pixels, NULL, scaled_width, scaled_height, IF_NOMIPMAP);
+					}
+					else
+					{
+						texnums->fullbright = R_LoadTexture(NULL, scaled_width, scaled_height, h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, 0);
+					}
 				}
 			}
 			else

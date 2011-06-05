@@ -129,6 +129,7 @@ void R2D_Init(void)
 
 	shader_draw_fill = R_RegisterShader("fill_opaque",
 		"{\n"
+			"program defaultfill\n"
 			"{\n"
 				"map $whiteimage\n"
 				"rgbgen vertex\n"
@@ -136,6 +137,7 @@ void R2D_Init(void)
 		"}\n");
 	shader_draw_fill_trans = R_RegisterShader("fill_trans",
 		"{\n"
+			"program defaultfill\n"
 			"{\n"
 				"map $whiteimage\n"
 				"rgbgen vertex\n"
@@ -145,6 +147,7 @@ void R2D_Init(void)
 		"}\n");
 	shader_brighten = R_RegisterShader("constrastshader",
 		"{\n"
+			"program defaultfill\n"
 			"{\n"
 				"map $whiteimage\n"
 				"blendfunc gl_dst_color gl_one\n"
@@ -155,6 +158,7 @@ void R2D_Init(void)
 	);
 	shader_polyblend = R_RegisterShader("polyblendshader",
 		"{\n"
+			"program defaultfill\n"
 			"{\n"
 				"map $whiteimage\n"
 				"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
@@ -171,9 +175,6 @@ void R2D_Init(void)
 				"{\n"
 			"#ifdef VERTEX_SHADER\n"
 			"\
-					uniform mat4 m_view;\
-					uniform mat4 m_projection;\
-					attribute vec3 v_position;\
 					attribute vec2 v_texcoord;\
 					varying vec2 texcoord;\
 					uniform vec3 rendertexturescale;\
@@ -181,7 +182,7 @@ void R2D_Init(void)
 					{\
 						texcoord.x = v_texcoord.x*rendertexturescale.x;\
 						texcoord.y = (1.0-v_texcoord.y)*rendertexturescale.y;\
-						gl_Position = m_projection * m_view * vec4(v_position, 1.0);\
+						gl_Position = ftetransform();\
 					}\
 			\n"
 			"#endif\n"

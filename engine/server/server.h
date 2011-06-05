@@ -918,7 +918,7 @@ extern	vfsfile_t	*sv_fraglogfile;
 //
 NORETURN void VARGS SV_Error (char *error, ...) LIKEPRINTF(1);
 void SV_Shutdown (void);
-void SV_Frame (void);
+float SV_Frame (void);
 void SV_FinalMessage (char *message);
 void SV_DropClient (client_t *drop);
 struct quakeparms_s;

@@ -449,8 +449,6 @@ void GL_Set2D (void)
 	float *Matrix4_NewTranslation(float x, float y, float z);
 	float w = vid.width, h = vid.height;
 
-	GL_SetShaderState2D(true);
-
 	ang = (gl_screenangle.value>0?(gl_screenangle.value+45):(gl_screenangle.value-45))/90;
 	ang = (int)ang * 90;
 	if (ang)
@@ -483,6 +481,8 @@ void GL_Set2D (void)
 		qglMatrixMode(GL_MODELVIEW);
 		qglLoadMatrixf(r_refdef.m_view);
 	}
+
+	GL_SetShaderState2D(true);
 }
 
 //====================================================================

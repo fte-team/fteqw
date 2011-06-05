@@ -360,7 +360,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 		/*in gl3.0 things are depricated but not removed*/
 		/*in gl3.1 depricated things are removed unless compatibility is present*/
 		/*in gl3.2 there's a profile flag we can query*/
-		if (gl_config.glversion > 3.1)
+		if (gl_config.glversion >= 3.2)
 		{
 			GLint profile = 0;
 #define GL_CONTEXT_PROFILE_MASK					0x9126
@@ -671,13 +671,13 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 
 // glslang helper api function definitions
 // type should be GL_FRAGMENT_SHADER_ARB or GL_VERTEX_SHADER_ARB
-GLhandleARB GLSlang_CreateShader (char *versionline, char **precompilerconstants, char *shadersource, GLenum shadertype)
+GLhandleARB GLSlang_CreateShader (char *name, char *versionline, char **precompilerconstants, char *shadersource, GLenum shadertype)
 {
 	GLhandleARB shader;
 	GLint       compiled;
 	char        str[1024];
 	int loglen, i;
-	char *prstrings[4+16];
+	char *prstrings[6+16];
 	int strings = 0;
 
 	if (versionline)
@@ -688,9 +688,33 @@ GLhandleARB GLSlang_CreateShader (char *versionline, char **precompilerconstants
 	{
 	case GL_FRAGMENT_SHADER_ARB:
 		prstrings[strings++] = "#define FRAGMENT_SHADER\n";
+		if (gl_config.gles)
+		{
+			prstrings[strings++] =	"precision mediump float;\n";
+		}
 		break;
 	case GL_VERTEX_SHADER_ARB:
 		prstrings[strings++] = "#define VERTEX_SHADER\n";
+		if (gl_config.gles)
+		{
+			prstrings[strings++] =	"#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
+									"precision highp float;\n"
+									"#else\n"
+									"precision mediump float;\n"
+									"#endif\n";
+		}
+		if (gl_config.nofixedfunc)
+		{
+			prstrings[strings++] =	"#define ftetransform() (m_projection * m_modelview * vec4(v_position, 1.0))\n"
+									"uniform mat4 m_modelview, m_projection;\n"
+									"attribute vec3 v_position;\n";
+		}
+		else
+		{
+			prstrings[strings++] =	"#define ftetransform() ftransform()\n"
+									"#define v_position gl_Vertex\n";
+		}
+
 		break;
 	default:
 		prstrings[strings++] = "#define UNKNOWN_SHADER\n";
@@ -722,6 +746,10 @@ GLhandleARB GLSlang_CreateShader (char *versionline, char **precompilerconstants
 			Con_Printf("Shader_CreateShader: This shouldn't happen ever\n");
 			break;
 		}
+		Con_Printf("Shader \"%s\" source:\n", name);
+		for (i = 0; i < strings; i++)
+			Con_Printf("%s", prstrings[i]);
+		Con_Printf("%s\n", str);
 		return 0;
 	}
 
@@ -754,7 +782,7 @@ GLhandleARB GLSlang_CreateProgramObject (GLhandleARB vert, GLhandleARB frag)
 	qglAttachObjectARB(program, vert);
 	qglAttachObjectARB(program, frag);
 
-	qglBindAttribLocationARB(program, 0, "v_position");
+	qglBindAttribLocationARB(program, gl_config.nofixedfunc?0:7, "v_position");
 	qglBindAttribLocationARB(program, 1, "v_colour");
 	qglBindAttribLocationARB(program, 2, "v_texcoord");
 	qglBindAttribLocationARB(program, 3, "v_lmcoord");
@@ -791,7 +819,7 @@ bucket_t *compiledshadersbuckets[64];
 static hashtable_t compiledshaderstable;
 #endif
 
-GLhandleARB GLSlang_CreateProgram(char *versionline, char **precompilerconstants, char *vert, char *frag)
+GLhandleARB GLSlang_CreateProgram(char *name, char *versionline, char **precompilerconstants, char *vert, char *frag)
 {
 	GLhandleARB handle;
 	GLhandleARB vs;
@@ -825,8 +853,8 @@ GLhandleARB GLSlang_CreateProgram(char *versionline, char **precompilerconstants
 	}
 #endif
 
-	vs = GLSlang_CreateShader(versionline, precompilerconstants, vert, GL_VERTEX_SHADER_ARB);
-	fs = GLSlang_CreateShader(versionline, precompilerconstants, frag, GL_FRAGMENT_SHADER_ARB);
+	vs = GLSlang_CreateShader(name, versionline, precompilerconstants, vert, GL_VERTEX_SHADER_ARB);
+	fs = GLSlang_CreateShader(name, versionline, precompilerconstants, frag, GL_FRAGMENT_SHADER_ARB);
 
 	if (!vs || !fs)
 		handle = 0;

@@ -255,14 +255,14 @@ static qboolean S_Speex_Init(void)
 	s_speex.speexlib = Sys_LoadLibrary("libspeex", qspeexfuncs);
 	if (!s_speex.speexlib)
 	{
-		Con_Printf("libspeex not found. Voice chat not available.\n");
+		Con_Printf("libspeex not found. Voice chat is not available.\n");
 		return false;
 	}
 
 	s_speex.speexdsplib = Sys_LoadLibrary("libspeexdsp", qspeexdspfuncs);
 	if (!s_speex.speexdsplib)
 	{
-		Con_Printf("libspeexdsp not found. Voice chat not available.\n");
+		Con_Printf("libspeexdsp not found. Voice chat is not available.\n");
 		return false;
 	}
 

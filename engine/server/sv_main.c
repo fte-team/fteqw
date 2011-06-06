@@ -1630,6 +1630,22 @@ void SV_AcceptMessage(int protocol)
 	Netchan_OutOfBand (NS_SERVER, net_from, len, (qbyte *)string);
 }
 
+#ifndef _WIN32
+#include <sys/stat.h>
+static void SV_CheckRecentCrashes(client_t *tellclient)
+{
+	struct stat sb;
+	if (-1 != stat("crash.log", &sb))
+	{
+		SV_ClientPrintf(tellclient, PRINT_HIGH, "\1WARNING: crash.log exists, dated %s\n", ctime(&sb.st_mtime));
+	}
+}
+#else
+static void SV_CheckRecentCrashes(client_t *tellclient)
+{
+}
+#endif
+
 /*
 ==================
 SVC_DirectConnect
@@ -2388,6 +2404,8 @@ client_t *SVC_DirectConnect(void)
 		if (*sv_motd[i].string)
 			SV_ClientPrintf(newcl, PRINT_CHAT, "%s\n", sv_motd[i].string);
 	}
+
+	SV_CheckRecentCrashes(newcl);
 
 #ifdef PEXT2_VOICECHAT
 	SV_VoiceInitClient(newcl);

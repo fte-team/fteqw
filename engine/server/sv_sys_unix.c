@@ -637,6 +637,32 @@ void Sys_Shutdown (void)
 {
 }
 
+#include <execinfo.h>
+static void Friendly_Crash_Handler(int sig)
+{
+	int fd;
+	void *array[10];
+	size_t size;
+
+	// get void*'s for all entries on the stack
+	size = backtrace(array, 10);
+
+	// print out all the frames to stderr
+	fprintf(stderr, "Error: signal %d:\n", sig);
+	backtrace_symbols_fd(array, size, 2);
+
+	fd = open("crash.log", O_WRONLY|O_CREAT|O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP);
+	if (fd != -1)
+	{
+		write(fd, "Crash Log:\n", 11);
+		size = backtrace(array, 10);
+		backtrace_symbols_fd(array, size, fd);
+		write(fd, "\n", 1);
+		close(fd);
+	}
+	exit(1);
+}
+
 /*
 =============
 main
@@ -661,6 +687,12 @@ int main(int argc, char *argv[])
 	parms.argc = com_argc;
 	parms.argv = com_argv;
 
+	if (COM_CheckParm("-dumpstack"))
+	{
+		signal(SIGILL, Friendly_Crash_Handler);
+		signal(SIGSEGV, Friendly_Crash_Handler);
+		signal(SIGBUS, Friendly_Crash_Handler);
+	}
 
 	parms.memsize = 16*1024*1024;
 

@@ -3117,10 +3117,6 @@ void CL_Init (void)
 	Cmd_AddCommand ("demo_jump", CL_DemoJump_f);
 	Cmd_AddCommand ("timedemo", CL_TimeDemo_f);
 
-#ifdef _DEBUG
-	Cmd_AddCommand ("crashme", (void*)~0);
-#endif
-
 	Cmd_AddCommand ("showpic", SCR_ShowPic_Script_f);
 
 	Cmd_AddCommand ("startdemos", CL_Startdemos_f);

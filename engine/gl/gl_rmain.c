@@ -75,7 +75,6 @@ extern cvar_t	gl_part_flame;
 extern cvar_t	r_bloom;
 
 cvar_t	gl_affinemodels = SCVAR("gl_affinemodels","0");
-cvar_t	gl_playermip = SCVAR("gl_playermip","0");
 cvar_t	gl_reporttjunctions = SCVAR("gl_reporttjunctions","0");
 cvar_t	gl_finish = SCVAR("gl_finish","0");
 cvar_t	gl_dither = SCVAR("gl_dither", "1");

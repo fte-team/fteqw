@@ -147,7 +147,7 @@ void TP_SkinCvar_Callback(struct cvar_s *var, char *oldvalue);
 	TP_CVAR(tp_name_teammate,		"");	\
 	TP_CVAR(tp_name_eyes,			"eyes");	\
 	\
-	TP_CVAR(loc_name_seperator,		"-");	\
+	TP_CVAR(loc_name_separator,		"-");	\
 	TP_CVAR(loc_name_ssg,		"ssg");	\
 	TP_CVAR(loc_name_ng,		"ng");	\
 	TP_CVAR(loc_name_sng,		"sng");	\

@@ -343,7 +343,7 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 
 	while (option)
 	{
-		if (mousemoved && !bindingactive)
+		if (mousemoved && !bindingactive && !option->common.ishidden)
 		{
 			if (omousex > xpos+option->common.posx && omousex < xpos+option->common.posx+option->common.width)
 			{
@@ -518,7 +518,10 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 				else
 					Draw_FunString(x, y, option->edit.caption);
 				x+=strlen(option->edit.caption)*8+8;
-				Draw_TextBox(x-8, y-8, 16, 1);
+				if (option->edit.slim)
+					x += 8; // more space for cursor
+				else
+					Draw_TextBox(x-8, y-8, 16, 1);
 				Draw_FunString(x, y, option->edit.text);
 
 				if (menu->selecteditem == option && (int)(realtime*4) & 1)
@@ -832,7 +835,7 @@ menuedit_t *MC_AddEdit(menu_t *menu, int x, int y, char *text, char *def)
 	return n;
 }
 
-menuedit_t *MC_AddEditCvar(menu_t *menu, int x, int y, char *text, char *name)
+menuedit_t *MC_AddEditCvar_Full(menu_t *menu, int x, int y, char *text, char *name, qboolean isslim)
 {
 	menuedit_t *n = Z_Malloc(sizeof(menuedit_t)+strlen(text)+1);
 	cvar_t *cvar;
@@ -853,8 +856,19 @@ menuedit_t *MC_AddEditCvar(menu_t *menu, int x, int y, char *text, char *name)
 	Q_strncpyz(n->text, cvar->string, sizeof(n->text));
 
 	n->common.next = menu->options;
+	n->slim = isslim;
 	menu->options = (menuoption_t *)n;
 	return n;
+}
+
+menuedit_t *MC_AddEditCvarSlim(menu_t *menu, int x, int y, char *text, char *name)
+{
+	return MC_AddEditCvar_Full(menu, x, y, text, name, true);
+}
+
+menuedit_t *MC_AddEditCvar(menu_t *menu, int x, int y, char *text, char *name)
+{
+	return MC_AddEditCvar_Full(menu, x, y, text, name, false);
 }
 
 menubox_t *MC_AddBox(menu_t *menu, int x, int y, int width, int height)
@@ -2034,3 +2048,142 @@ void M_Menu_Main_f (void)
 	}
 }
 
+int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, int y)
+{
+	int x;
+	int selectedy = y;
+	menuoption_t *selected = NULL;
+
+	while (bulk)
+	{
+		switch (bulk->type)
+		{
+		case mt_text:
+			switch (bulk->variant)
+			{
+			case -1: // end of menu
+				bulk = NULL;
+				continue;
+			case 0: // white text
+				x = xtextend - strlen(bulk->text) * 8;
+				MC_AddWhiteText(menu, x, y, bulk->text, bulk->rightalign);
+				y += 8;
+				break;
+			case 1: // red text
+				x = xtextend - strlen(bulk->text) * 8;
+				MC_AddRedText(menu, x, y, bulk->text, bulk->rightalign);
+				y += 8;
+				break;
+			case 2: // spacing
+				y += bulk->spacing;
+				break;
+			}
+			break;
+		case mt_button:
+			{
+				menubutton_t *button;
+				x = xtextend - strlen(bulk->text) * 8;
+				switch (bulk->variant)
+				{
+				default:
+				case 0: // console command
+					button = MC_AddConsoleCommand(menu, x, y, bulk->text, bulk->consolecmd);
+					break;
+				case 1: // function command
+					button = MC_AddCommand(menu, x, y, bulk->text, bulk->command);
+					break;
+				}
+				if (!selected)
+					selected = (union menuoption_s *)button;
+				if (bulk->tooltip)
+					button->common.tooltip = bulk->tooltip;
+				y += 8;
+			}
+			break;
+		case mt_checkbox:
+			x = xtextend - strlen(bulk->text) * 8;
+			{
+				menucheck_t *check = MC_AddCheckBox(menu, x, y, bulk->text, bulk->cvar, bulk->flags);
+				check->func = bulk->func;
+				if (bulk->ret)
+					*bulk->ret = (union menuoption_s *)check;
+				if (!selected)
+					selected = (union menuoption_s *)check;
+				if (bulk->tooltip)
+					check->common.tooltip = bulk->tooltip;
+			}
+			y += 8;
+			break;
+		case mt_slider:
+			x = xtextend - strlen(bulk->text) * 8;
+			{
+				menuslider_t *slider = MC_AddSlider(menu, x, y, bulk->text, bulk->cvar, bulk->min, bulk->max, bulk->delta);
+				if (!selected)
+					selected = (union menuoption_s *)slider;
+				if (bulk->tooltip)
+					slider->common.tooltip = bulk->tooltip;
+			}
+			y += 8;
+			break;
+		case mt_combo:
+			{
+				menucombo_t *combo;
+				x = xtextend - strlen(bulk->text) * 8;
+				switch (bulk->variant)
+				{
+				default:
+				case 0: // cvar combo
+					combo = MC_AddCvarCombo(menu, x, y, bulk->text, bulk->cvar, bulk->options, bulk->values);
+					break;
+				case 1: // combo with return value
+					combo = MC_AddCombo(menu, x, y, bulk->text, bulk->options, bulk->selectedoption);
+					break;
+				}
+				if (bulk->ret)
+					*bulk->ret = (union menuoption_s *)combo;
+				if (!selected)
+					selected = (union menuoption_s *)combo;
+				if (bulk->tooltip)
+					combo->common.tooltip = bulk->tooltip;
+				y += 8;
+			}
+			break;
+		case mt_edit:
+			{
+				menuedit_t *edit;
+				x = xtextend - strlen(bulk->text) * 8;
+				switch (bulk->variant)
+				{
+				default:
+				case 0:
+					y += 4;
+					edit = MC_AddEditCvar(menu, x, y, bulk->text, bulk->cvarname);
+					y += 4;
+					break;
+				case 1:
+					edit = MC_AddEditCvarSlim(menu, x, y, bulk->text, bulk->cvarname);
+					break;
+				}
+				if (bulk->ret)
+					*bulk->ret = (union menuoption_s *)edit;
+				if (!selected)
+					selected = (union menuoption_s *)edit;
+				if (bulk->tooltip)
+					edit->common.tooltip = bulk->tooltip;
+				y += 8;
+			}
+			break;
+		default:
+			Con_Printf(CON_ERROR "Invalid type in bulk menu!\n");
+			bulk = NULL;
+			continue;
+		}
+		bulk++;
+	}
+
+	menu->selecteditem = selected;
+	if (selected)
+		selectedy = selected->common.posy;
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, xtextend + 8, selectedy, NULL, false);
+	return y;
+}

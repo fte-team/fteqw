@@ -45,7 +45,6 @@ void M_Menu_MultiPlayer_f (void)
 		mgt=64;
 		menu->selecteditem = (menuoption_t*)
 		MC_AddConsoleCommandHexen2BigFont	(menu, 80, mgt,	"Join A Game ",	"menu_slist\n");mgt+=20;
-		MC_AddConsoleCommandHexen2BigFont	(menu, 80, mgt,	"Old Browser ",	"menu_serversold\n");mgt+=20;
 		MC_AddConsoleCommandHexen2BigFont	(menu, 80, mgt,	"New Server  ",	"menu_newmulti\n");mgt+=20;
 		MC_AddConsoleCommandHexen2BigFont	(menu, 80, mgt,	"Player Setup",	"menu_setup\n");mgt+=20;
 		MC_AddConsoleCommandHexen2BigFont	(menu, 80, mgt,	"Demos       ",	"menu_demo\n");mgt+=20;
@@ -62,7 +61,6 @@ void M_Menu_MultiPlayer_f (void)
 		menu->selecteditem = (menuoption_t*)
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Join A Game ",	"menu_slist\n");mgt+=20;
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Quick Connect", "quickconnect qw\n");mgt+=20;
-		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Old Browser ",	"menu_serversold\n");mgt+=20;
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"New Server  ",	"menu_newmulti\n");mgt+=20;
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Player Setup",	"menu_setup\n");mgt+=20;
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Demos       ",	"menu_demo\n");mgt+=20;

@@ -902,7 +902,7 @@ struct sbuiltin_s
 		"#endif\n"
 
 		"#ifdef FRAGMENT_SHADER\n"
-			"varying vec4 vc;\n"
+			"varying lowp vec4 vc;\n"
 			"void main (void)\n"
 			"{\n"
 			"	gl_FragColor = vc;\n"

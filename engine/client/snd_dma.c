@@ -59,15 +59,18 @@ int 		desired_bits = 16;
 
 int sound_started=0;
 
-cvar_t bgmvolume				= CVARF(	"musicvolume", "0", CVAR_ARCHIVE);
-cvar_t volume					= CVARF(	"volume", "0.7", CVAR_ARCHIVE);
+cvar_t bgmvolume				= CVARFD(	"musicvolume", "0", CVAR_ARCHIVE,
+											"Volume level for background music.");
+cvar_t volume					= CVARFD(	"volume", "0.7", CVAR_ARCHIVE,
+											"Main volume level for all engine sound.");
 
-cvar_t nosound					= CVAR(		"nosound", "0");
+cvar_t nosound					= CVARD(	"nosound", "0",
+											"Disable all sound from the engine.");
 cvar_t precache					= CVARAF(	"s_precache", "1",
 											"precache", 0);
-cvar_t loadas8bit				= CVARAF(	"s_loadas8bit", "0",
-											"loadas8bit", 0);
-cvar_t bgmbuffer				= CVAR(		"bgmbuffer", "4096");
+cvar_t loadas8bit				= CVARAFD(	"s_loadas8bit", "0",
+											"loadas8bit", 0,
+											"Downsample sounds on load as lower quality 8-bit sound.");
 cvar_t ambient_level			= CVARAF(	"s_ambientlevel", "0.3",
 											"ambient_level", 0);
 cvar_t ambient_fade				= CVARAF(	"s_ambientfade", "100",
@@ -78,8 +81,10 @@ cvar_t snd_show					= CVARAF(	"s_show", "0",
 											"snd_show", 0);
 cvar_t snd_khz					= CVARAF(	"s_khz", "44",
 											"snd_khz", CVAR_ARCHIVE);
-cvar_t	snd_inactive			= CVARAF(	"s_inactive", "0",
-											"snd_inactive", 0);	//set if you want sound even when tabbed out.
+cvar_t	snd_inactive			= CVARAFD(	"s_inactive", "0",
+											"snd_inactive", 0,
+											"Play sound while application is inactive (ex. tabbed out)."
+											);	//set if you want sound even when tabbed out.
 cvar_t _snd_mixahead			= CVARAF(	"s_mixahead", "0.08",
 											"_snd_mixahead", CVAR_ARCHIVE);
 cvar_t snd_leftisright			= CVARAF(	"s_swapstereo", "0",
@@ -92,8 +97,9 @@ cvar_t snd_buffersize			= CVARAF(	"s_buffersize", "0",
 											"snd_buffersize", 0);
 cvar_t snd_samplebits			= CVARAF(	"s_bits", "16",
 											"snd_samplebits", CVAR_ARCHIVE);
-cvar_t snd_playersoundvolume	= CVARAF(	"s_localvolume", "1",
-											"snd_localvolume", 0);	//sugested by crunch
+cvar_t snd_playersoundvolume	= CVARAFD(	"s_localvolume", "1",
+											"snd_localvolume", 0,
+											"Sound level for sounds local or originating from the player such as firing and pain sounds.");	//sugested by crunch
 
 cvar_t snd_linearresample		= CVARAF(	"s_linearresample", "1",
 											"snd_linearresample", 0);
@@ -992,7 +998,6 @@ void S_Init (void)
 	Cvar_Register(&precache,			"Sound controls");
 	Cvar_Register(&loadas8bit,			"Sound controls");
 	Cvar_Register(&bgmvolume,			"Sound controls");
-	Cvar_Register(&bgmbuffer,			"Sound controls");
 	Cvar_Register(&ambient_level,		"Sound controls");
 	Cvar_Register(&ambient_fade,		"Sound controls");
 	Cvar_Register(&snd_noextraupdate,	"Sound controls");

@@ -134,7 +134,7 @@ typedef enum {
 	mt_checkbox,
 	mt_picture, 
 	mt_picturesel, 
-	mt_menudot, 
+	mt_menudot,
 	mt_custom
 } menutype_t;
 
@@ -167,6 +167,7 @@ typedef struct {
 	char text[MAX_EDIT_LENGTH];
 	int cursorpos;
 	qboolean modified;
+	qboolean slim;
 } menuedit_t;
 typedef struct {
 	menucommon_t common;
@@ -302,8 +303,52 @@ menucombo_t *MC_AddCombo(menu_t *menu, int x, int y, const char *caption, const 
 menubutton_t *MC_AddCommand(menu_t *menu, int x, int y, char *text, qboolean (*command) (union menuoption_s *,struct menu_s *,int));
 menuedit_t *MC_AddEdit(menu_t *menu, int x, int y, char *text, char *def);
 menuedit_t *MC_AddEditCvar(menu_t *menu, int x, int y, char *text, char *name);
+menuedit_t *MC_AddEditCvarSlim(menu_t *menu, int x, int y, char *text, char *name);
 menucustom_t *MC_AddCustom(menu_t *menu, int x, int y, void *data);
 menucombo_t *MC_AddCvarCombo(menu_t *menu, int x, int y, const char *caption, cvar_t *cvar, const char **ops, const char **values);
+
+typedef struct menubulk_s {
+	menutype_t type;
+	int variant;
+	char *text;
+	char *tooltip;
+	char *consolecmd; // console command
+	cvar_t *cvar; // check box, slider
+	int flags; // check box
+	qboolean (*func) (struct menucheck_s *option, struct menu_s *menu, chk_set_t set); // check box
+	float min; // slider
+	float max; // slider
+	float delta; // slider
+	qboolean rightalign; // text
+	qboolean (*command) (union menuoption_s *, struct menu_s *, int); // command
+	char *cvarname; // edit cvar
+	const char **options; // combo
+	const char **values; // cvar combo
+	int selectedoption; // other combo
+	union menuoption_s **ret; // other combo
+	int spacing; // spacing
+} menubulk_t;
+
+#define MB_CONSOLECMD(text, cmd, tip) {mt_button, 0, text, tip, cmd}
+#define MB_CHECKBOXCVAR(text, cvar, flags) {mt_checkbox, 0, text, NULL, NULL, &cvar, flags}
+#define MB_CHECKBOXCVARRETURN(text, cvar, flags, ret) {mt_checkbox, 0, text, NULL, NULL, &cvar, flags, NULL, 0, 0, 0, false, NULL, NULL, NULL, NULL, 0, (union menuoption_s **)&ret}
+#define MB_CHECKBOXFUNC(text, func, flags, tip) {mt_checkbox, 0, text, tip, NULL, NULL, flags, func}
+#define MB_SLIDER(text, cvar, min, max, delta, tip) {mt_slider, 0, text, tip, NULL, &cvar, 0, NULL, min, max, delta}
+#define MB_TEXT(text, align) {mt_text, 0, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, align}
+#define MB_REDTEXT(text, align) {mt_text, 1, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, align}
+#define MB_CMD(text, cmdfunc, tip) {mt_button, 1, text, tip, NULL, NULL, 0, NULL, 0, 0, 0, false, cmdfunc}
+#define MB_EDITCVAR(text, cvarname) {mt_edit, 0, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname}
+#define MB_EDITCVARSLIM(text, cvarname) {mt_edit, 1, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname}
+#define MB_EDITCVARSLIMRETURN(text, cvarname, ret) {mt_edit, 1, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname, NULL, NULL, 0, (union menuoption_s **)&ret}
+#define MB_COMBOCVAR(text, cvar, options, values, tip) {mt_combo, 0, text, tip, NULL, &cvar, 0, NULL, 0, 0, 0, false, NULL, NULL, options, values}
+#define MB_COMBORETURN(text, options, selected, ret, tip) {mt_combo, 1, text, tip, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, NULL, options, NULL, selected, (union menuoption_s **)&ret}
+#define MB_COMBOCVARRETURN(text, cvar, options, values, ret, tip) {mt_combo, 0, text, tip, NULL, &cvar, 0, NULL, 0, 0, 0, false, NULL, NULL, options, values, 0, (union menuoption_s **)&ret}
+#define MB_SPACING(space) {mt_text, 2, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, NULL, NULL, NULL, 0, NULL, space}
+#define MB_END() {mt_text, -1}
+
+int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, int y);
+
+
 
 menu_t *M_Options_Title(int *y, int infosize);	/*Create a menu with the default options titlebar*/
 menu_t *M_CreateMenu (int extrasize);

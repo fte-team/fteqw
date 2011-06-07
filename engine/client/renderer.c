@@ -50,7 +50,7 @@ cvar_t cl_cursorsize						= CVAR  ("cl_cursorsize", "32");
 cvar_t cl_cursorbias						= CVAR  ("cl_cursorbias", "4");
 
 cvar_t gl_nocolors							= CVAR  ("gl_nocolors", "0");
-cvar_t gl_part_flame						= CVAR  ("gl_part_flame", "1");
+cvar_t gl_part_flame						= CVARD  ("gl_part_flame", "1", "Enable particle emitting from models. Mainly used for torch and flame effects.");
 
 //opengl library, blank means try default.
 static cvar_t gl_driver						= CVARF ("gl_driver", "",
@@ -63,8 +63,9 @@ cvar_t mod_md3flags							= CVAR  ("mod_md3flags", "1");
 cvar_t r_ambient							= CVARF ("r_ambient", "0",
 												CVAR_CHEAT);
 cvar_t r_bloodstains						= CVAR  ("r_bloodstains", "1");
-cvar_t r_bouncysparks						= CVARF ("r_bouncysparks", "0",
-												CVAR_ARCHIVE);
+cvar_t r_bouncysparks						= CVARFD ("r_bouncysparks", "0",
+												CVAR_ARCHIVE,
+												"Enables particle interaction with world surfaces, allowing for bouncy particles.");
 cvar_t r_drawentities						= CVAR  ("r_drawentities", "1");
 cvar_t r_drawflat							= CVARF ("r_drawflat", "0",
 												CVAR_SEMICHEAT | CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
@@ -106,8 +107,9 @@ cvar_t r_netgraph							= SCVAR  ("r_netgraph", "0");
 cvar_t r_nolerp								= SCVAR  ("r_nolerp", "0");
 cvar_t r_nolightdir							= SCVAR  ("r_nolightdir", "0");
 cvar_t r_novis								= SCVAR  ("r_novis", "0");
-cvar_t r_part_rain							= SCVARF ("r_part_rain", "0",
-												CVAR_ARCHIVE);
+cvar_t r_part_rain							= CVARFD ("r_part_rain", "0",
+												CVAR_ARCHIVE,
+												"Enable particle effects to emit off of surfaces. Mainly used for weather or lava/slime effects.");
 cvar_t r_skyboxname							= SCVARF ("r_skybox", "",
 												CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
 cvar_t r_speeds								= SCVAR ("r_speeds", "0");
@@ -162,26 +164,24 @@ cvar_t vid_conwidth							= CVARF ("vid_conwidth", "0",
 cvar_t vid_renderer							= CVARF ("vid_renderer", "",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 
-static cvar_t vid_allow_modex				= CVARF ("vid_allow_modex", "1",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH);	//FIXME: remove
-static cvar_t vid_bpp						= CVARF ("vid_bpp", "32",
+cvar_t vid_bpp								= CVARF ("vid_bpp", "32",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-static cvar_t vid_desktopsettings			= CVARF ("vid_desktopsettings", "0",
+cvar_t vid_desktopsettings					= CVARF ("vid_desktopsettings", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 #ifdef NPQTV
-static cvar_t vid_fullscreen_npqtv			= CVARF ("vid_fullscreen", "1",
+cvar_t vid_fullscreen_npqtv					= CVARF ("vid_fullscreen", "1",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 cvar_t vid_fullscreen						= CVARF ("vid_fullscreen_embedded", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 #else
-static cvar_t vid_fullscreen				= CVARF ("vid_fullscreen", "1",
+cvar_t vid_fullscreen						= CVARF ("vid_fullscreen", "1",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 #endif
 cvar_t vid_height							= CVARF ("vid_height", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 cvar_t vid_multisample						= CVARF ("vid_multisample", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
-static cvar_t vid_refreshrate				= CVARF ("vid_displayfrequency", "0",
+cvar_t vid_refreshrate						= CVARF ("vid_displayfrequency", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 cvar_t vid_wndalpha							= CVAR ("vid_wndalpha", "1");
 //more readable defaults to match conwidth/conheight.
@@ -353,7 +353,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_affinemodels, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_nohwblend, GLRENDEREROPTIONS);
 	Cvar_Register (&r_flashblend, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_playermip, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_nocolors, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_finish, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_lateswap, GLRENDEREROPTIONS);
@@ -510,8 +509,6 @@ void Renderer_Init(void)
 	Cvar_Register (&vid_conwidth, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_conheight, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_conautoscale, VIDCOMMANDGROUP);
-
-	Cvar_Register (&vid_allow_modex, VIDCOMMANDGROUP);
 
 	Cvar_Register (&vid_width, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_height, VIDCOMMANDGROUP);
@@ -790,458 +787,6 @@ rendererinfo_t *rendererinfo[] =
 #endif
 };
 
-
-
-
-typedef struct vidmode_s
-{
-	const char *description;
-	int         width, height;
-} vidmode_t;
-
-vidmode_t vid_modes[] =
-{
-	{ "320x200 (16:10)",   320, 200}, // CGA, MCGA
-	{ "320x240 (4:3)",   320, 240}, // QVGA
-	{ "400x300 (4:3)",   400, 300}, // Quarter SVGA
-	{ "512x384 (4:3)",   512, 384}, // Mac LC
-	{ "640x400 (16:10)",   640, 400}, // Atari ST mono, Amiga OCS NTSC Hires interlace
-	{ "640x480 (4:3)",   640, 480}, // VGA, MCGA
-	{ "800x600 (4:3)",   800, 600}, // SVGA
-	{ "856x480 (16:9)",   856, 480}, // WVGA
-	{ "960x720 (4:3)",   960, 720}, // unnamed
-	{ "1024x576 (16:9)",  1024, 576}, // WSVGA
-	{ "1024x640 (16:10)",  1024, 640}, // unnamed
-	{ "1024x768 (4:3)",  1024, 768}, // XGA
-	{ "1152x720 (16:10)",  1152, 720}, // XGA+
-	{ "1152x864 (4:3)",  1152, 864}, // XGA+
-	{ "1280x720 (16:9)", 1280, 720}, // WXGA min.
-	{ "1280x800 (16:10)", 1280, 800}, // WXGA avg (native resolution of 17" widescreen LCDs)
-	{ "1280x960 (4:3)",  1280, 960}, //SXGA-
-	{ "1280x1024 (5:4)", 1280, 1024}, // SXGA (native resolution of 17-19" LCDs)
-	{ "1366x768 (16:9)", 1366, 768}, // WXGA
-	{ "1400x1050 (4:3)", 1400, 1050}, // SXGA+
-	{ "1440x900 (16:10)", 1440, 900}, // WXGA+ (native resolution of 19" widescreen LCDs)
-	{ "1440x1080 (4:3)", 1440, 1080}, // unnamed
-	{ "1600x900 (16:9)", 1600, 900}, // 900p
-	{ "1600x1200 (4:3)", 1600, 1200}, // UXGA (native resolution of 20"+ LCDs) //sw height is bound to 200 to 1024
-	{ "1680x1050 (16:10)", 1680, 1050}, // WSXGA+ (native resolution of 22" widescreen LCDs)
-	{ "1792x1344 (4:3)", 1792, 1344}, // unnamed
-	{ "1800x1440 (5:4)", 1800, 1440}, // unnamed
-	{ "1856x1392 (4:3)", 1856, 1392}, //unnamed
-	{ "1920x1080 (16:9)", 1920, 1080}, // 1080p (native resolution of cheap 24" LCDs, which really are 23.6")
-	{ "1920x1200 (16:10)", 1920, 1200}, // WUXGA (native resolution of good 24" widescreen LCDs)
-	{ "1920x1440 (4:3)", 1920, 1440}, // TXGA
-	{ "2048x1152 (16:9)", 2048, 1152}, // QWXGA (native resolution of 23" ultra-widescreen LCDs)
-	{ "2048x1536 (4:3)", 2048, 1536}, // QXGA	//too much width will disable water warping (>1280) (but at that resolution, it's almost unnoticable)
-	{ "2304x1440 (16:10)", 2304, 1440}, // (unnamed; maximum resolution of the Sony GDM-FW900 and Hewlett Packard A7217A)
-	{ "2560x1600 (16:10)", 2560, 1600}, // WQXGA (maximum resolution of 30" widescreen LCDs, Dell for example)
-	{ "2560x2048 (5:4)", 2560, 2048} // QSXGA
-};
-#define NUMVIDMODES sizeof(vid_modes)/sizeof(vid_modes[0])
-
-qboolean M_Vid_GetMode(int num, int *w, int *h)
-{
-	if ((unsigned)num >= NUMVIDMODES)
-		return false;
-
-	*w = vid_modes[num].width;
-	*h = vid_modes[num].height;
-	return true;
-}
-
-typedef struct {
-	menucombo_t *renderer;
-	menucombo_t *modecombo;
-	menucombo_t *conscalecombo;
-	menucombo_t *bppcombo;
-	menucombo_t *refreshratecombo;
-	menucombo_t *vsynccombo;
-	menuedit_t *customwidth;
-	menuedit_t *customheight;
-} videomenuinfo_t;
-
-menuedit_t *MC_AddEdit(menu_t *menu, int x, int y, char *text, char *def);
-void CheckCustomMode(struct menu_s *menu)
-{
-	videomenuinfo_t *info = menu->data;
-	if (info->modecombo->selectedoption && info->conscalecombo->selectedoption)
-	{	//hide the custom options
-		info->customwidth->common.ishidden = true;
-		info->customheight->common.ishidden = true;
-	}
-	else
-	{
-		info->customwidth->common.ishidden = false;
-		info->customheight->common.ishidden = false;
-	}
-
-	if (!info->bppcombo->selectedoption)
-		info->bppcombo->selectedoption = 1;
-
-	info->conscalecombo->common.ishidden = false;
-}
-qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
-{
-	videomenuinfo_t *info = menu->data;
-	int selectedbpp;
-
-	if (key != K_ENTER)
-		return false;
-
-	if (info->modecombo->selectedoption)
-	{	//set a prefab
-		Cbuf_AddText(va("vid_width %i\n", vid_modes[info->modecombo->selectedoption-1].width), RESTRICT_LOCAL);
-		Cbuf_AddText(va("vid_height %i\n", vid_modes[info->modecombo->selectedoption-1].height), RESTRICT_LOCAL);
-	}
-	else
-	{	//use the custom one
-		Cbuf_AddText(va("vid_width %s\n", info->customwidth->text), RESTRICT_LOCAL);
-		Cbuf_AddText(va("vid_height %s\n", info->customheight->text), RESTRICT_LOCAL);
-	}
-
-	if (info->conscalecombo->selectedoption)	//I am aware that this handicaps the menu a bit, but it should be easier for n00bs.
-	{	//set a prefab
-		Cbuf_AddText(va("vid_conwidth %i\n", vid_modes[info->conscalecombo->selectedoption-1].width), RESTRICT_LOCAL);
-		Cbuf_AddText(va("vid_conheight %i\n", vid_modes[info->conscalecombo->selectedoption-1].height), RESTRICT_LOCAL);
-	}
-	else
-	{	//use the custom one
-		Cbuf_AddText(va("vid_conwidth %s\n", info->customwidth->text), RESTRICT_LOCAL);
-		Cbuf_AddText(va("vid_conheight %s\n", info->customheight->text), RESTRICT_LOCAL);
-	}
-
-	selectedbpp = 16;
-	switch(info->bppcombo->selectedoption)
-	{
-	case 0:
-		if (info->renderer->selectedoption)
-			selectedbpp = 16;
-		else
-			selectedbpp = 8;
-		break;
-	case 1:
-		selectedbpp = 16;
-		break;
-	case 2:
-		selectedbpp = 32;
-		break;
-	}
-
-	switch(info->vsynccombo->selectedoption)
-	{
-	case 0:
-		Cbuf_AddText(va("vid_wait %i\n", 0), RESTRICT_LOCAL);
-		break;
-	case 1:
-		Cbuf_AddText(va("vid_wait %i\n", 1), RESTRICT_LOCAL);
-		break;
-	case 2:
-		Cbuf_AddText(va("vid_wait %i\n", 2), RESTRICT_LOCAL);
-		break;
-	}
-
-
-	Cbuf_AddText(va("vid_bpp %i\n", selectedbpp), RESTRICT_LOCAL);
-
-	switch(info->refreshratecombo->selectedoption)
-	{
-	case 0:
-		Cbuf_AddText(va("vid_displayfrequency %i\n", 0), RESTRICT_LOCAL);
-		break;
-	case 1:
-		Cbuf_AddText(va("vid_displayfrequency %i\n", 59), RESTRICT_LOCAL);
-		break;
-	case 2:
-		Cbuf_AddText(va("vid_displayfrequency %i\n", 60), RESTRICT_LOCAL);
-		break;
-	case 3:
-		Cbuf_AddText(va("vid_displayfrequency %i\n", 70), RESTRICT_LOCAL);
-		break;
-	case 4:
-		Cbuf_AddText(va("vid_displayfrequency %i\n", 72), RESTRICT_LOCAL);
-		break;
-	case 5:
-		Cbuf_AddText(va("vid_displayfrequency %i\n", 75), RESTRICT_LOCAL);
-		break;
-	case 6:
-		Cbuf_AddText(va("vid_displayfrequency %i\n", 85), RESTRICT_LOCAL);
-		break;
-	case 7:
-		Cbuf_AddText(va("vid_displayfrequency %i\n", 100), RESTRICT_LOCAL);
-		break;
-	}
-
-	switch(info->renderer->selectedoption)
-	{
-#if defined(GLQUAKE) && !defined(D3DQUAKE) // Just OpenGL client
-	case 0:
-		Cbuf_AddText("setrenderer gl\n", RESTRICT_LOCAL);
-		break;
-#endif
-
-#if defined(D3DQUAKE) && !defined(GLQUAKE) // Just Direct3D client
-	case 0:
-        Cbuf_AddText("setrenderer d3d\n", RESTRICT_LOCAL);
-        break;
-#endif
-
-#if defined(GLQUAKE) && defined(D3DQUAKE) // OpenGL + Direct3D = Merged
-	case 0:
-		Cbuf_AddText("setrenderer gl\n", RESTRICT_LOCAL);
-		break;
-	case 1:
-        Cbuf_AddText("setrenderer d3d\n", RESTRICT_LOCAL);
-        break;
-#endif
-	}
-
-	M_RemoveMenu(menu);
-	Cbuf_AddText("menu_video\n", RESTRICT_LOCAL);
-	return true;
-}
-void M_Menu_Video_f (void)
-{
-	extern cvar_t v_contrast;
-#if defined(GLQUAKE)
-#endif
-	static const char *modenames[128] = {"Custom"};
-	static const char *rendererops[] = {
-#ifdef GLQUAKE
-		"OpenGL",
-#endif
-#ifdef D3DQUAKE
-		"DirectX9",
-#endif
-		NULL
-	};
-	static const char *bppnames[] =
-	{
-		"8",
-		"16",
-		"32",
-		NULL
-	};
-	//unused
-	/*static const char *texturefilternames[] =
-	{
-		"Nearest",
-		"Bilinear",
-		"Trilinear",
-		NULL
-	};*/
-
-	static const char *refreshrates[] =
-	{
-		"0Hz (OS Driver refresh rate)",
-		"59Hz (NTSC is 59.94i)",
-		"60Hz",
-		"70Hz",
-		"72Hz", // VESA minimum setting to avoid eye damage on CRT monitors
-		"75Hz",
-		"85Hz",
-		"100Hz",
-		NULL
-	};
-
-	static const char *vsyncoptions[] =
-	{
-		"Off",
-		"Wait for Vertical Sync",
-		"Wait for Display Enable",
-		NULL
-	};
-
-	videomenuinfo_t *info;
-	int prefabmode;
-	int prefab2dmode;
-	int currentbpp;
-	int currentrefreshrate;
-	int currentvsync;
-	int aspectratio3d;
-	int aspectratio2d;
-	char *aspectratio23d;
-	char *aspectratio22d;
-	char *rendererstring;
-	static char current3dres[10]; // enough to fit 1920x1200
-	static char current2dres[10]; // same as above
-	static char currenthz[6]; // enough to fit 120hz
-	static char currentcolordepth[6];
-
-	extern cvar_t _vid_wait_override;
-	float vidwidth = vid.pixelwidth;
-	float vidheight = vid.pixelheight;
-
-	int i, y;
-	menu_t *menu = M_Options_Title(&y, sizeof(videomenuinfo_t));
-	info = menu->data;
-
-	prefabmode = -1;
-	prefab2dmode = -1;
-	for (i = 0; i < sizeof(vid_modes)/sizeof(vidmode_t); i++)
-	{
-		if (vid_modes[i].width == vid_width.value && vid_modes[i].height == vid_height.value)
-			prefabmode = i;
-		if (vid_modes[i].width == vid_conwidth.value && vid_modes[i].height == vid_conheight.value)
-			prefab2dmode = i;
-		modenames[i+1] = vid_modes[i].description;
-	}
-	modenames[i+1] = NULL;
-
-#if defined(GLQUAKE) && defined(D3DQUAKE)
-	if (!strcmp(vid_renderer.string, "d3d9"))
-		i = 1;
-	else
-#endif
-		i = 0;
-
-	if (vid_bpp.value >= 32)
-	{
-		currentbpp = 2;
-		strcpy(currentcolordepth, va("%sbit (16.7m colors)",vid_bpp.string) );
-	}
-	else if (vid_bpp.value >= 16)
-	{
-		currentbpp = 1;
-		strcpy(currentcolordepth, va("%sbit (65.5k colors)",vid_bpp.string) );
-	}
-	else
-		currentbpp = 0;
-
-	if (vid_refreshrate.value >= 100)
-		currentrefreshrate = 7;
-	else if (vid_refreshrate.value >= 85)
-		currentrefreshrate = 6;
-	else if (vid_refreshrate.value >= 75)
-		currentrefreshrate = 5;
-	else if (vid_refreshrate.value >= 72)
-		currentrefreshrate = 4;
-	else if (vid_refreshrate.value >= 70)
-		currentrefreshrate = 3;
-	else if (vid_refreshrate.value >= 60)
-		currentrefreshrate = 2;
-	else if (vid_refreshrate.value >= 59)
-		currentrefreshrate = 1;
-	else if (vid_refreshrate.value >= 0)
-		currentrefreshrate = 0;
-	else
-		currentrefreshrate = 0;
-
-	strcpy(currenthz, va("%sHz",vid_refreshrate.string) );
-
-	aspectratio3d = (vidwidth / vidheight * 100); // times by 100 so don't have to deal with floats
-
-	if (aspectratio3d == 125) // 1.25
-		aspectratio23d = "5:4";
-	else if (aspectratio3d == 160) // 1.6
-		aspectratio23d = "16:10";
-	else if (aspectratio3d == 133) // 1.333333
-		aspectratio23d = "4:3";
-	else if (aspectratio3d == 177) // 1.777778
-		aspectratio23d = "16:9";
-	else
-	{
-		aspectratio23d = "Non-standard Ratio";
-		Con_Printf("Ratio: %i, width: %i, height: %i\n", aspectratio3d, vid.pixelwidth, vid.pixelheight);
-	}
-
-	aspectratio2d = (vid_conwidth.value / vid_conheight.value * 100); // times by 100 so don't have to deal with floats
-
-	if (aspectratio2d == 125) // 1.25
-		aspectratio22d = "5:4";
-	else if (aspectratio2d == 160) // 1.6
-		aspectratio22d = "16:10";
-	else if (aspectratio2d == 133) // 1.333333
-		aspectratio22d = "4:3";
-	else if (aspectratio2d == 177) // 1.777778
-		aspectratio22d = "16:9";
-	else
-		aspectratio22d = "Non-standard Ratio";
-
-	currentvsync = _vid_wait_override.value;
-
-	if ( stricmp(vid_renderer.string,"gl" ) == 0 )
-		rendererstring = "OpenGL";
-	else if ( stricmp(vid_renderer.string,"d3d7") == 0 )
-		rendererstring = "DirectX 7";
-	else if ( stricmp(vid_renderer.string,"d3d9") == 0 )
-		rendererstring = "DirectX 9";
-	else if ( stricmp(vid_renderer.string,"d3d") == 0)
-		rendererstring = "DirectX";
-	else if ( stricmp(vid_renderer.string,"sw") == 0)
-		rendererstring = "Software";
-	else
-		rendererstring = "Unknown Renderer?";
-
-	strcpy(current3dres, va("%ix%i", vid.pixelwidth, vid.pixelheight) );
-	strcpy(current2dres, va("%sx%s", vid_conwidth.string, vid_conheight.string) );
-
-	y += 40;
-	MC_AddRedText(menu, 0, y, 								"           Current Renderer", false);
-	MC_AddRedText(menu, 225, y, 						        rendererstring, false); y+=8;
-	MC_AddRedText(menu, 0, y, 							    "        Current Color Depth", false);
-	MC_AddRedText(menu, 225, y, 						 		currentcolordepth, false); y+=8;
-	if ( ( vidwidth == 0) || ( vidheight == 0) )
-		y+=16;
-	else
-	{
-		MC_AddRedText(menu, 0, y, 								"             Current 3D Res", false);
-		MC_AddRedText(menu, 225, y, 							  	  current3dres, false); y+=8;
-		MC_AddRedText(menu, 0, y, 								"             Current 3D A/R", false);
-		MC_AddRedText(menu, 225, y, 								aspectratio23d, false); y+=8;
-	}
-
-	if ( ( vid_conwidth.value == 0) || ( vid_conheight.value == 0) ) // same as 3d resolution
-	{
-		MC_AddRedText(menu, 0, y, 								"             Current 2D Res", false);
-		MC_AddRedText(menu, 225, y, 								  current3dres, false); y+=8;
-		MC_AddRedText(menu, 0, y, 								"             Current 2D A/R", false);
-		MC_AddRedText(menu, 225, y, 								aspectratio23d, false); y+=8;
-	}
-	else
-	{
-		MC_AddRedText(menu, 0, y, 								"             Current 2D Res", false);
-		MC_AddRedText(menu, 225, y, 								  current2dres, false); y+=8;
-		MC_AddRedText(menu, 0, y, 								"             Current 2D A/R", false);
-		MC_AddRedText(menu, 225, y, 								aspectratio22d, false); y+=8;
-	}
-
-	MC_AddRedText(menu, 0, y, 								"       Current Refresh Rate", false);
-	MC_AddRedText(menu, 225, y, 								currenthz, false); y+=8;
- 	y+=8;
-	MC_AddRedText(menu, 0, y,								"      €‚ ", false); y+=8;
-	y+=8;
-	info->renderer = MC_AddCombo(menu,	16, y,				"         Renderer", rendererops, i);	y+=8;
-	info->bppcombo = MC_AddCombo(menu,	16, y,				"      Color Depth", bppnames, currentbpp); y+=8;
-	info->refreshratecombo = MC_AddCombo(menu,	16, y,		"     Refresh Rate", refreshrates, currentrefreshrate); y+=8;
-	info->modecombo = MC_AddCombo(menu,	16, y,				"       Video Size", modenames, prefabmode+1);	y+=8;
-	MC_AddWhiteText(menu, 16, y, 							"  3D Aspect Ratio", false); y+=8;
-	info->conscalecombo = MC_AddCombo(menu,	16, y,			"          2D Size", modenames, prefab2dmode+1);	y+=8;
-	MC_AddWhiteText(menu, 16, y, 							"  2D Aspect Ratio", false); y+=8;
-	MC_AddCheckBox(menu,	16, y,							"       Fullscreen", &vid_fullscreen,0);	y+=8;
-	y+=4;info->customwidth = MC_AddEdit(menu, 16, y,		"     Custom width", vid_width.string);	y+=8;
-	y+=4;info->customheight = MC_AddEdit(menu, 16, y,		"    Custom height", vid_height.string);	y+=12;
-	info->vsynccombo = MC_AddCombo(menu,	16, y,			"            VSync", vsyncoptions, currentvsync); y+=8;
-	//MC_AddCheckBox(menu,	16, y,							"   Override VSync", &_vid_wait_override,0);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							" Desktop Settings", &vid_desktopsettings,0);	y+=8;
-	y+=8;
-	MC_AddCommand(menu,	16, y,								"= Apply Changes =", M_VideoApply);	y+=8;
-	y+=8;
-	MC_AddSlider(menu,	16, y,								"      Screen size", &scr_viewsize,	30,		120, 1);y+=8;
-	MC_AddSlider(menu,	16, y,								"Console Autoscale",&vid_conautoscale, 0, 6, 0.25);	y+=8;
-	MC_AddSlider(menu,	16, y,								"            Gamma", &v_gamma, 0.3, 1, 0.05);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"    Desktop Gamma", &vid_desktopgamma,0);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"   Hardware Gamma", &vid_hardwaregamma,0);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"   Preserve Gamma", &vid_preservegamma,0);	y+=8;
-	MC_AddSlider(menu,	16, y,								"         Contrast", &v_contrast, 1, 3, 0.05);	y+=8;
-	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"      Allow ModeX", &vid_allow_modex,0);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"   Windowed Mouse", &_windowed_mouse,0);	y+=8;
-
-	menu->selecteditem = (union menuoption_s *)info->renderer;
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 152, menu->selecteditem->common.posy, NULL, false);
-	menu->event = CheckCustomMode;
-}
 
 void R_SetRenderer(rendererinfo_t *ri)
 {

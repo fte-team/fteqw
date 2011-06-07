@@ -711,34 +711,6 @@ void M_Menu_Demos_f (void)
 	ShowDemoMenu(menu, "");
 }
 
-void M_Menu_ParticleSets_f (void)
-{
-	demomenu_t *info;
-	menu_t *menu;	
-
-	key_dest = key_menu;
-	m_state = m_complex;
-
-	menu = M_CreateMenu(sizeof(demomenu_t));
-	menu->remove = M_Demo_Remove;
-	info = menu->data;
-
-	info->command[0] = "r_particlesystem script; r_particlesdesc";
-	info->ext[0] = ".cfg";
-	info->numext = 1;
-
-	MC_AddWhiteText(menu, 24, 8, "Choose a Particle Set", false);
-	MC_AddWhiteText(menu, 16, 24, "\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37", false);
-
-	info->list = MC_AddCustom(menu, 0, 32, NULL);
-	info->list->draw = M_DemoDraw;
-	info->list->key = M_DemoKey;
-
-	menu->selecteditem = (menuoption_t*)info->list;
-
-	ShowDemoMenu(menu, "particles/");
-}
-
 void M_Menu_MediaFiles_f (void)
 {
 	demomenu_t *info;

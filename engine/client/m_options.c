@@ -569,7 +569,10 @@ void M_Menu_Render_f (void)
 	};
 
 	menu_t *menu;
-	extern cvar_t r_novis, cl_item_bobbing, r_waterwarp, r_nolerp, r_fastsky, gl_nocolors, gl_lerpimages, r_wateralpha, r_drawviewmodel, gl_cshiftenabled, r_bloom;
+	extern cvar_t r_novis, cl_item_bobbing, r_waterwarp, r_nolerp, r_fastsky, gl_nocolors, gl_lerpimages, r_wateralpha, r_drawviewmodel, gl_cshiftenabled;
+#ifdef GLQUAKE
+	extern cvar_t r_bloom;
+#endif
 
 	int y;
 	menubulk_t bulk[] =
@@ -585,7 +588,9 @@ void M_Menu_Render_f (void)
 		MB_SLIDER("Viewmodel Alpha", r_drawviewmodel, 0, 1, 0.1, NULL),
 		MB_CHECKBOXCVAR("Poly Blending", gl_cshiftenabled, 0),
 		MB_CHECKBOXCVAR("Disable Colormap", gl_nocolors, 0),
+#ifdef GLQUAKE
 		MB_CHECKBOXCVAR("Bloom", r_bloom, 0),
+#endif
 		MB_CHECKBOXCVAR("Model Bobbing", cl_item_bobbing, 0),
 		MB_END()
 	};
@@ -757,7 +762,7 @@ qboolean M_VideoApplyShadowLighting (union menuoption_s *op,struct menu_s *menu,
 	Cbuf_AddText("vid_restart\n", RESTRICT_LOCAL);
 
 	M_RemoveMenu(menu);
-	Cbuf_AddText("menu_shadow_lighting\n", RESTRICT_LOCAL);
+	Cbuf_AddText("menu_lighting\n", RESTRICT_LOCAL);
 	return true;
 }
 
@@ -900,269 +905,6 @@ void M_Menu_Lighting_f (void)
 	}
 }
 
-void M_Menu_Teamplay_f (void)
-{
-	static const char *noskinsoptions[] =
-	{
-		"Enabled",
-		"Disabled",
-		"No Download",
-		NULL
-	};
-	static const char *noskinsvalues[] =
-	{
-		"0",
-		"1",
-		"2",
-		NULL
-	};
-
-	extern cvar_t cl_parseSay, cl_triggers, tp_forceTriggers, tp_loadlocs, cl_parseFunChars, cl_noblink, noskins;
-	int y;
-	menubulk_t bulk[] =
-	{
-		MB_REDTEXT("Teamplay Options", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
-		MB_COMBOCVAR("Skins", noskins, noskinsoptions, noskinsvalues, "Enable or disable player skin usage. No download will use skins but will not download them from the server."),
-		MB_EDITCVAR("Enemy Skin", "cl_enemyskin"),
-		MB_EDITCVAR("Team Skin", "cl_teamskin"),
-		MB_EDITCVAR("Fake Name", "cl_fakename"),
-		MB_CHECKBOXCVAR("Parse Fun Chars", cl_parseFunChars, 0),
-		MB_CHECKBOXCVAR("Parse Macros", cl_parseSay, 0),
-		MB_CHECKBOXCVAR("Load Locs", tp_loadlocs, 0),
-		MB_CHECKBOXCVAR("No Blink", cl_noblink, 0),
-		MB_EDITCVAR("Sound Trigger", "tp_soundtrigger"),
-		MB_EDITCVAR("Weapon Order", "tp_weapon_order"),
-		MB_CHECKBOXCVAR("Teamplay Triggers", cl_triggers, 0),
-		MB_CHECKBOXCVAR("Force Triggers", tp_forceTriggers, 0),
-		MB_SPACING(4),
-		MB_CONSOLECMD("Location Names", "menu_teamplay_locations\n", "Modify team play location settings."),
-		MB_CONSOLECMD("Item Needs", "menu_teamplay_needs\n", "Modify messages for item needs in team play macros."),
-		MB_CONSOLECMD("Item Names", "menu_teamplay_items\n", "Modify messages for items in team play macros."),
-		MB_END()
-	};
-	menu_t *menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 200, y);
-}
-
-void M_Menu_Teamplay_Locations_f (void)
-{
-	menu_t *menu;
-	int y;
-	menubulk_t bulk[] =
-	{
-		MB_REDTEXT("Teamplay Location Names", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
-		MB_EDITCVARSLIM("Separator", "loc_name_separator"),
-		MB_SPACING(4),
-		MB_EDITCVARSLIM("Super Shotgun", "loc_name_ssg"),
-		MB_EDITCVARSLIM("Nailgun", "loc_name_ng"),
-		MB_EDITCVARSLIM("Super Nailgun", "loc_name_sng"),
-		MB_EDITCVARSLIM("Grenade Launcher", "loc_name_gl"),
-		MB_EDITCVARSLIM("Rocket Launcher", "loc_name_rl"),
-		MB_EDITCVARSLIM("Lightning Gun", "loc_name_lg"),
-		MB_SPACING(4),
-		MB_EDITCVARSLIM("Quad Damage", "loc_name_quad"),
-		MB_EDITCVARSLIM("Pentagram", "loc_name_pent"),
-		MB_EDITCVARSLIM("Ring of Invis", "loc_name_ring"),
-		MB_EDITCVARSLIM("Suit", "loc_name_suit"),
-		MB_SPACING(4),
-		MB_EDITCVARSLIM("Green Armor", "loc_name_ga"),
-		MB_EDITCVARSLIM("Yellow Armor", "loc_name_ya"),
-		MB_EDITCVARSLIM("Red Armor", "loc_name_ra"),
-		// TODO: we probably need an actual back button or some such
-		//MB_SPACING(4),
-		//MB_CONSOLECMD("\x7f Teamplay", "menu_teamplay\n", "Return to the teamplay menu."),
-		MB_END()
-	};
-	menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 200, y);
-}
-
-void M_Menu_Teamplay_Needs_f (void)
-{
-	menu_t *menu;
-	int y;
-	menubulk_t bulk[] =
-	{
-		MB_REDTEXT("Teamplay Needed Items", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
-		MB_EDITCVARSLIM("Shells", "tp_need_shells"),
-		MB_EDITCVARSLIM("Nails", "tp_need_nails"),
-		MB_EDITCVARSLIM("Rockets", "tp_need_rockets"),
-		MB_EDITCVARSLIM("Cells", "tp_need_cells"),
-		MB_EDITCVARSLIM("Rocket Launcher", "tp_need_rl"),
-		MB_SPACING(4),
-		MB_EDITCVARSLIM("Green Armor", "tp_need_ga"),
-		MB_EDITCVARSLIM("Yellow Armor", "tp_need_ya"),
-		MB_EDITCVARSLIM("Red Armor", "tp_need_ra"),
-		MB_SPACING(4),
-		MB_EDITCVARSLIM("Health", "tp_need_health"),
-		MB_EDITCVARSLIM("Weapon", "tp_need_weapon"),
-		MB_END()
-	};
-	menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 200, y);
-}
-
-void M_Menu_Teamplay_Items_f (void)
-{
-	menu_t *menu;
-	int y;
-	menubulk_t bulk[] =
-	{
-		MB_REDTEXT("Teamplay Item Names", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
-		MB_CONSOLECMD("Armor", "menu_teamplay_armor\n", "Modify team play macro armor names."),
-		MB_CONSOLECMD("Weapon", "menu_teamplay_weapons\n", "Modify team play macro weapon names."),
-		MB_CONSOLECMD("Powerups", "menu_teamplay_powerups\n", "Modify team play macro powerup names."),
-		MB_CONSOLECMD("Ammo/Health", "menu_teamplay_ammo_health\n", "Modify team play macro ammo and health names."),
-		MB_CONSOLECMD("Team Fortress", "menu_teamplay_team_fortress\n", "Modify Team Fortress exclusive team play macro names."),
-		MB_CONSOLECMD("Status/Location/Misc", "menu_teamplay_status_location_misc\n", "Modify status, location, and miscellaneous team play macro names."),
-		MB_END()
-	};
-	menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 224, y);
-}
-
-void M_Menu_Teamplay_Items_Armor_f (void)
-{
-	menu_t *menu;
-	int y;
-	menubulk_t bulk[] =
-	{
-		MB_REDTEXT("Teamplay Armor Names", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
-		MB_EDITCVARSLIM("Armor", "tp_name_armor"),
-		MB_EDITCVARSLIM("Green Type -", "tp_name_armortype_ga"),
-		MB_EDITCVARSLIM("Yellow Type -", "tp_name_armortype_ya"),
-		MB_EDITCVARSLIM("Red Type -", "tp_name_armortype_ra"),
-		MB_SPACING(4),
-		MB_EDITCVARSLIM("Green Armor", "tp_name_ga"),
-		MB_EDITCVARSLIM("Yellow Armor", "tp_name_ya"),
-		MB_EDITCVARSLIM("Red Armor", "tp_name_ra"),
-		MB_END()
-	};
-	menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 200, y);
-}
-
-void M_Menu_Teamplay_Items_Weapons_f (void)
-{
-	menu_t *menu;
-	int y;
-	menubulk_t bulk[] =
-	{
-		MB_REDTEXT("Teamplay Weapon Names", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
-		MB_EDITCVARSLIM("Weapon", "tp_name_weapon"),
-		MB_SPACING(4),
-		MB_EDITCVARSLIM("Axe", "tp_name_axe"),
-		MB_EDITCVARSLIM("Shotgun", "tp_name_sg"),
-		MB_EDITCVARSLIM("Super Shotgun", "tp_name_ssg"),
-		MB_EDITCVARSLIM("Nailgun", "tp_name_ng"),
-		MB_EDITCVARSLIM("Super Nailgun", "tp_name_sng"),
-		MB_EDITCVARSLIM("Grenade Launcher", "tp_name_gl"),
-		MB_EDITCVARSLIM("Rocket Launcher", "tp_name_rl"),
-		MB_EDITCVARSLIM("Lightning Gun", "tp_name_lg"),
-		MB_END()
-	};
-	menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 200, y);
-}
-
-void M_Menu_Teamplay_Items_Powerups_f (void)
-{
-	menu_t *menu;
-	int y;
-	menubulk_t bulk[] =
-	{
-		MB_REDTEXT("Teamplay Powerup Names", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
-		MB_EDITCVARSLIM("Quad Damage", "tp_name_quad"),
-		MB_EDITCVARSLIM("Pentagram", "tp_name_pent"),
-		MB_EDITCVARSLIM("Ring of Invis", "tp_name_ring"),
-		MB_EDITCVARSLIM("Suit", "tp_name_suit"),
-		MB_SPACING(4),
-		MB_EDITCVARSLIM("Quaded", "tp_name_quaded"),
-		MB_EDITCVARSLIM("Pented", "tp_name_pented"),
-		MB_EDITCVARSLIM("Eyes (Ringed)", "tp_name_eyes"),
-		MB_SPACING(4),
-		MB_EDITCVARSLIM("Resistance Rune", "tp_name_rune_1"),
-		MB_EDITCVARSLIM("Strength Rune", "tp_name_rune_2"),
-		MB_EDITCVARSLIM("Haste Rune", "tp_name_rune_3"),
-		MB_EDITCVARSLIM("Regen Rune", "tp_name_rune_4"),
-		MB_END()
-	};
-	menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 200, y);
-}
-
-void M_Menu_Teamplay_Items_Ammo_Health_f (void)
-{
-	menu_t *menu;
-	int y;
-	menubulk_t bulk[] = 
-	{
-		MB_REDTEXT("Teamplay Ammo/Health", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
-		MB_EDITCVARSLIM("Shells", "tp_name_shells"),
-		MB_EDITCVARSLIM("Nails", "tp_name_nails"),
-		MB_EDITCVARSLIM("Rockets", "tp_name_rockets"),
-		MB_EDITCVARSLIM("Cells", "tp_name_cells"),
-		MB_SPACING(4),
-		MB_EDITCVARSLIM("Backpack", "tp_name_backpack"),
-		MB_EDITCVARSLIM("Health", "tp_name_health"),
-		MB_EDITCVARSLIM("Mega Health", "tp_name_mh"),
-		MB_END()
-	};
-	menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 200, y);
-}
-
-void M_Menu_Teamplay_Items_Team_Fortress_f (void)
-{
-	menu_t *menu;
-	int y;
-	menubulk_t bulk[] =
-	{
-		MB_REDTEXT("Teamplay Team Fortress", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
-		MB_EDITCVARSLIM("Sentry Gun", "tp_name_sentry"),
-		MB_EDITCVARSLIM("Dispenser", "tp_name_disp"),
-		MB_EDITCVARSLIM("Flag", "tp_name_flag"),
-		MB_END()
-	};
-	menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 200, y);
-}
-
-void M_Menu_Teamplay_Items_Status_Location_Misc_f (void)
-{
-	menu_t *menu;
-	int y;
-	menubulk_t bulk[] =
-	{
-		MB_REDTEXT("Teamplay Misc", false),
-		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
-		MB_EDITCVARSLIM("Enemy", "tp_name_enemy"),
-		MB_EDITCVARSLIM("Teammate", "tp_name_teammate"),
-		MB_SPACING(4),
-		MB_EDITCVARSLIM("At (Location)", "tp_name_at"),
-		MB_EDITCVARSLIM("None", "tp_name_none"),
-		MB_EDITCVARSLIM("Nothing", "tp_name_nothing"),
-		MB_EDITCVARSLIM("Separator", "tp_name_separator"),
-		MB_EDITCVARSLIM("Some place", "tp_name_someplace"),
-		MB_SPACING(4),
-		MB_EDITCVARSLIM("Red Status", "tp_name_status_red"),
-		MB_EDITCVARSLIM("Green Status", "tp_name_status_green"),
-		MB_EDITCVARSLIM("Blue Status", "tp_name_status_blue"),
-		MB_EDITCVARSLIM("Yellow Status", "tp_name_status_yellow"),
-		MB_END()
-	};
-	menu = M_Options_Title(&y, 0);
-	MC_AddBulk(menu, bulk, 16, 200, y);
-}
 
 typedef struct {
 menucombo_t *skillcombo;

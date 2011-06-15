@@ -137,7 +137,7 @@ cvar_t sv_reportheartbeats = CVAR("sv_reportheartbeats", "1");
 cvar_t sv_highchars = CVAR("sv_highchars", "1");
 cvar_t sv_loadentfiles = CVAR("sv_loadentfiles", "1");
 cvar_t sv_maxrate = CVAR("sv_maxrate", "10000");
-cvar_t sv_maxdrate = CVARAF("sv_maxdrate", "10000",
+cvar_t sv_maxdrate = CVARAF("sv_maxdrate", "100000",
 							"sv_maxdownloadrate", 0);
 cvar_t sv_minping = CVARF("sv_minping", "0", CVAR_SERVERINFO);
 

@@ -64,7 +64,7 @@ qboolean M_Options_InvertMouse (menucheck_t *option, struct menu_s *menu, chk_se
 //options menu.
 void M_Menu_Options_f (void)
 {
-	extern cvar_t cl_standardchat, cl_splitscreen;
+	extern cvar_t cl_standardchat;
 	extern cvar_t cl_standardmsg, crosshair;
 #ifdef _WIN32
 	extern qboolean vid_isfullscreen;
@@ -85,9 +85,7 @@ void M_Menu_Options_f (void)
 		MB_CHECKBOXCVAR("Lookstrafe", lookstrafe, 0),
 		MB_CHECKBOXCVAR("Windowed Mouse", _windowed_mouse, 0),
 		MB_SPACING(4),
-		// removed splitscreen (move this option somewhere else, multiplayer settings?)
 		// removed hud options (cl_sbar, cl_hudswap, old-style chat, old-style msg)
-		// removed cl_netfps (move this to multiplayer network settings)
 		MB_CONSOLECMD("Video Options", "menu_video\n", "Set video resolution, color depth, refresh rate, and anti-aliasing options."),
 		MB_CONSOLECMD("Audio Options", "menu_audio\n", "Set audio quality and speaker setup options."),
 		MB_SPACING(4),
@@ -480,6 +478,11 @@ const char *presetexec[] =
 	"gl_texture_anisotropic_filtering 16;"
 };
 
+typedef struct fpsmenuinfo_s 
+{
+	menucombo_t *preset;
+} fpsmenuinfo_t;
+
 static void ApplyPreset (int presetnum)
 {
 	int i;
@@ -512,43 +515,73 @@ void FPS_Preset_f (void)
 		Con_Printf("%s\n", presetname[i]);
 }
 
+qboolean M_PresetApply (union menuoption_s *op, struct menu_s *menu, int key)
+{
+	fpsmenuinfo_t *info = (fpsmenuinfo_t*)menu->data;
+
+	if (key != K_ENTER && key != K_MOUSE1)
+		return false;
+
+	Cbuf_AddText("fps_preset ", RESTRICT_LOCAL);
+	Cbuf_AddText(info->preset->options[info->preset->selectedoption], RESTRICT_LOCAL);
+	Cbuf_AddText("\n", RESTRICT_LOCAL);
+
+	return true;
+}
 
 void M_Menu_FPS_f (void)
 {
+	static const char *fpsopts[] =
+	{
+		"Disabled",
+		"Average FPS",
+		"Worst FPS",
+		"Best FPS",
+		"Immediate FPS",
+		"Average MSEC",
+		"Worst MSEC",
+		"Best MSEC",
+		"Immediate MSEC",
+		NULL
+	};
+	static const char *fpsvalues[] = {"0", "1", "2", "3", "4", "-1", "-2", "-3", "-4", NULL};
+	static const char *bodyopts[] =
+	{
+		"Disabled",
+		"Ground",
+		"All",
+		NULL
+	};
+	static const char *bodyvalues[] = {"0", "1", "2", NULL};
+
 	menu_t *menu;
-	int cursorpositionY;
-	int i, len;
+	fpsmenuinfo_t *info;
 
 	extern cvar_t v_contentblend, show_fps, cl_r2g, cl_gibfilter, cl_expsprite, cl_deadbodyfilter;
 
 	int y;
-	menu = M_Options_Title(&y, 0);
+	menu = M_Options_Title(&y, sizeof(fpsmenuinfo_t));
+	info = (fpsmenuinfo_t *)menu->data;
 
-	cursorpositionY = (y + 24);
-
-	menu->selecteditem = (union menuoption_s *)
-
-	MC_AddRedText(menu, 16, y, 			"     FPS Options", false); y+=8;
-	MC_AddWhiteText(menu, 16, y,		"     ÄÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
-	y+=8;
-
-	// add vsync?
-	// maxfps?
-	for (i = 0; i < PRESET_NUM; i++)
 	{
-		len = strlen(presetname[i]);
-		MC_AddConsoleCommand(menu, 116, y,		va("(preset)   %s", presetname[i]), va("fps_preset %s\n", presetname[i])); y+=8;
+		menubulk_t bulk[] = 
+		{
+			MB_REDTEXT("FPS Options", false),
+			MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+			MB_COMBORETURN("Preset", presetname, 2, info->preset, "Select a builtin configuration of graphical settings."),
+			MB_CMD("Apply", M_PresetApply, "Applies selected preset."),
+			MB_SPACING(4),
+			MB_COMBOCVAR("Show FPS", show_fps, fpsopts, fpsvalues, "Display FPS or frame millisecond values on screen. Settings except immediate are for values across 1 second."),
+			MB_CHECKBOXCVAR("Content Blend", v_contentblend, 0),
+			MB_CHECKBOXCVAR("Gib Filter", cl_gibfilter, 0),
+			MB_COMBOCVAR("Dead Body Filter", cl_deadbodyfilter, bodyopts, bodyvalues, "Selects which dead player frames to filter out in rendering. Ground frames are those of the player lying on the ground, and all frames include all used in the player dying animation."),
+			MB_CHECKBOXCVAR("Explosion Sprite", cl_expsprite, 0),
+			MB_CHECKBOXCVAR("Rockets to Grenades", cl_r2g, 0),
+			MB_EDITCVAR("Skybox", "r_skybox"),
+			MB_END()
+		};
+		MC_AddBulk(menu, bulk, 16, 216, y);
 	}
-	MC_AddCheckBox(menu, 16, y,					"             Show FPS", &show_fps,0);y+=8;
-
-	MC_AddCheckBox(menu, 16, y,					"        Content blend", &v_contentblend,0);y+=8;
-	MC_AddCheckBox(menu,	16, y,				"           Gib Filter", &cl_gibfilter,0);	y+=8;
-	MC_AddSlider(menu,	16, y,					"     Dead Body Filter", &cl_deadbodyfilter,0,2,1);	y+=8;
-	MC_AddCheckBox(menu,	16, y,				"     Explosion Sprite", &cl_expsprite,0);	y+=8;
-	y+=4;MC_AddEditCvar(menu, 16, y,			"               Skybox", "r_skybox");y+=8;y+=4;
-	MC_AddCheckBox(menu,	16, y,				"  Rockets to Grenades", &cl_r2g,0);	y+=8;
-
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 188, cursorpositionY, NULL, false);
 }
 
 void M_Menu_Render_f (void)
@@ -675,8 +708,8 @@ void M_Menu_Textures_f (void)
 		MB_CHECKBOXCVAR("Load Replacements", gl_load24bit, 0),
 		MB_CHECKBOXCVAR("Simple Texturing", r_drawflat, 0),
 #ifdef GLQUAKE
-		MB_COMBOCVAR("3D Filter Mode", gl_texturemode, texturefilternames, texturefiltervalues, NULL),
-		MB_COMBOCVAR("2D Filter Mode", gl_texturemode2d, texture2dfilternames, texture2dfiltervalues, NULL),
+		MB_COMBOCVAR("3D Filter Mode", gl_texturemode, texturefilternames, texturefiltervalues, "Chooses the texture filtering method used for 3D objects."),
+		MB_COMBOCVAR("2D Filter Mode", gl_texturemode2d, texture2dfilternames, texture2dfiltervalues, "Chooses the texture filtering method used for HUD, menus, and other 2D assets."),
 		MB_COMBOCVAR("Anisotropy", gl_texture_anisotropic_filtering, anisotropylevels, anisotropyvalues, NULL),
 #endif
 		MB_SPACING(4),
@@ -894,7 +927,7 @@ void M_Menu_Lighting_f (void)
 			MB_COMBOCVAR("Flash Blend", r_flashblend, fbopts, fbvalues, "Disables or enables the spherical light effect for dynamic lights. Traced means the sphere effect will be line of sight checked before displaying the effect."),
 			MB_SLIDER("Explosion Light", r_explosionlight, 0, 1, 0.1, NULL),
 			MB_SLIDER("Rocket Light", r_rocketlight, 0, 1, 0.1, NULL),
-			MB_COMBOCVAR("Powerup Glow", r_powerupglow, powerupopts, powerupvalues, ""),
+			MB_COMBOCVAR("Powerup Glow", r_powerupglow, powerupopts, powerupvalues, "Disables or enables the dynamic light effect for powerups. Non-self will disable the light only for the current player."),
 			MB_CHECKBOXCVAR("Powerup Shell", v_powerupshell, 0),
 			MB_SPACING(4),
 			MB_SLIDER("Stains", r_stains, 0, 1, 0.05, NULL),
@@ -1868,7 +1901,7 @@ int M_MatchModes(int width, int height, int *outres)
 	return ratio;
 }
 
-qboolean M_VideoApply (union menuoption_s *op,struct menu_s *menu,int key)
+qboolean M_VideoApply (union menuoption_s *op, struct menu_s *menu, int key)
 {
 	extern cvar_t vid_desktopsettings;
 	videomenuinfo_t *info = (videomenuinfo_t*)menu->data;
@@ -2102,17 +2135,17 @@ void M_Menu_Video_f (void)
 			MB_CHECKBOXCVAR("Fullscreen", vid_fullscreen, 0),
 			MB_COMBOCVAR("Anti-aliasing", vid_multisample, aaopts, aavalues, NULL),
 			MB_REDTEXT(current3dres, false),
-			MB_COMBORETURN("Display Mode", resmodeopts, resmodechoice, info->resmode, NULL),
+			MB_COMBORETURN("Display Mode", resmodeopts, resmodechoice, info->resmode, "Select method for determining or configuring display options. The desktop option will attempt to use the width, height, color depth, and refresh from your operating system's desktop environment."),
 			// aspect entries
-			MB_COMBORETURN("Size", resaspects[0], reschoices[0], info->ressize[0], NULL),
+			MB_COMBORETURN("Size", resaspects[0], reschoices[0], info->ressize[0], "Select resolution for display."),
 			MB_SPACING(-8),
-			MB_COMBORETURN("Size", resaspects[1], reschoices[1], info->ressize[1], NULL),
+			MB_COMBORETURN("Size", resaspects[1], reschoices[1], info->ressize[1], "Select resolution for display."),
 			MB_SPACING(-8),
-			MB_COMBORETURN("Size", resaspects[2], reschoices[2], info->ressize[2], NULL),
+			MB_COMBORETURN("Size", resaspects[2], reschoices[2], info->ressize[2], "Select resolution for display."),
 			MB_SPACING(-8),
-			MB_COMBORETURN("Size", resaspects[3], reschoices[3], info->ressize[3], NULL),
-			MB_COMBOCVARRETURN("Color Depth", vid_bpp, bppopts, bppvalues, info->bppfixed, NULL),
-			MB_COMBOCVARRETURN("Refresh Rate", vid_refreshrate, refreshopts, refreshvalues, info->hzfixed, NULL),
+			MB_COMBORETURN("Size", resaspects[3], reschoices[3], info->ressize[3], "Select resolution for display."),
+			MB_COMBOCVARRETURN("Color Depth", vid_bpp, bppopts, bppvalues, info->bppfixed, vid_bpp.description),
+			MB_COMBOCVARRETURN("Refresh Rate", vid_refreshrate, refreshopts, refreshvalues, info->hzfixed, vid_refreshrate.description),
 			MB_SPACING(-24), // really hacky...
 			// custom enteries
 			MB_EDITCVARSLIMRETURN("Width", "vid_width", info->width),
@@ -2120,24 +2153,24 @@ void M_Menu_Video_f (void)
 			MB_EDITCVARSLIMRETURN("Color Depth", "vid_bpp", info->bpp),
 			MB_EDITCVARSLIMRETURN("Refresh Rate", "vid_refreshrate", info->hz),
 			MB_SPACING(4),
-			MB_COMBORETURN("2D Mode", res2dmodeopts, res2dmodechoice, info->res2dmode, NULL),
+			MB_COMBORETURN("2D Mode", res2dmodeopts, res2dmodechoice, info->res2dmode, "Select method for determining or configuring 2D resolution and scaling. The default option matches the current display resolution, and the scale option scales by a factor of the display resolution."),
 			// scale entry
 			MB_COMBOCVARRETURN("Amount", vid_conautoscale, scaleopts, scalevalues, info->scale, NULL),
 			MB_SPACING(-8),
 			// 2d aspect entries
-			MB_COMBORETURN("Size", resaspects[0], res2dchoices[0], info->res2dsize[0], NULL),
+			MB_COMBORETURN("Size", resaspects[0], res2dchoices[0], info->res2dsize[0], "Select resolution for 2D rendering."),
 			MB_SPACING(-8),
-			MB_COMBORETURN("Size", resaspects[1], res2dchoices[1], info->res2dsize[1], NULL),
+			MB_COMBORETURN("Size", resaspects[1], res2dchoices[1], info->res2dsize[1], "Select resolution for 2D rendering."),
 			MB_SPACING(-8),
-			MB_COMBORETURN("Size", resaspects[2], res2dchoices[2], info->res2dsize[2], NULL),
+			MB_COMBORETURN("Size", resaspects[2], res2dchoices[2], info->res2dsize[2], "Select resolution for 2D rendering."),
 			MB_SPACING(-8),
-			MB_COMBORETURN("Size", resaspects[3], res2dchoices[3], info->res2dsize[3], NULL),
+			MB_COMBORETURN("Size", resaspects[3], res2dchoices[3], info->res2dsize[3], "Select resolution for 2D rendering."),
 			MB_SPACING(-8),
 			// 2d custom entries
 			MB_EDITCVARSLIMRETURN("Width", "vid_conwidth", info->width2d),
 			MB_EDITCVARSLIMRETURN("Height", "vid_conheight", info->height2d),
 			MB_SPACING(4),
-			MB_CMD("Apply Settings", M_VideoApply, NULL),
+			MB_CMD("Apply Settings", M_VideoApply, "Restart video and apply renderer, display, and 2D resolution options."),
 			MB_SPACING(4),
 			MB_SLIDER("View Size", scr_viewsize, 30, 120, 10, NULL),
 			MB_SLIDER("Gamma", v_gamma, 0.25, 1.5, 0.05, NULL),

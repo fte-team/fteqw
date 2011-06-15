@@ -789,6 +789,7 @@ void M_Menu_Teamplay_Items_Powerups_f (void);
 void M_Menu_Teamplay_Items_Ammo_Health_f (void);
 void M_Menu_Teamplay_Items_Team_Fortress_f (void);
 void M_Menu_Teamplay_Items_Status_Location_Misc_f (void);
+void M_Menu_Network_f(void);
 void M_Menu_Singleplayer_Cheats_f (void);
 void M_Menu_Particles_f (void);
 void M_Menu_Audio_Speakers_f (void);
@@ -852,6 +853,7 @@ void M_Init_Internal (void)
 	Cmd_AddRemCommand ("menu_teamplay_team_fortress", M_Menu_Teamplay_Items_Team_Fortress_f);
 	Cmd_AddRemCommand ("menu_teamplay_status_location_misc", M_Menu_Teamplay_Items_Status_Location_Misc_f);
 	Cmd_AddRemCommand ("menu_particles", M_Menu_Particles_f);
+	Cmd_AddRemCommand ("menu_network", M_Menu_Network_f);
 
 #ifdef WEBCLIENT
 	Cmd_AddRemCommand ("menu_download", Menu_DownloadStuff_f);

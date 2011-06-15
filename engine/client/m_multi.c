@@ -324,7 +324,8 @@ void M_Menu_Setup_f (void)
 	setupmenu_t *info;
 	menu_t *menu;
 	menucustom_t *ci;
-	char *classnames[] =
+	menubutton_t *b;
+	static const char *classnames[] =
 	{
 		"Paladin",
 		"Crusader",
@@ -339,7 +340,7 @@ void M_Menu_Setup_f (void)
 	{
 		if (R2D_SafeCachePic("pics/m_banner_plauer_setup"))
 		{
-			char *modeloptions[] =
+			static const char *modeloptions[] =
 			{
 				"male",
 				"female",
@@ -427,8 +428,10 @@ void M_Menu_Setup_f (void)
 	MC_AddCommand(menu, 64, 120, "Lower colour", SetupMenuColour);
 
 	MC_AddCommand(menu, 64, 152, "Accept changes", ApplySetupMenu);
-	MC_AddConsoleCommand(menu, 64, 168, "Teamplay Settings", "menu_teamplay\n");
-
+	b = MC_AddConsoleCommand(menu, 64, 168, "Network Settings", "menu_network\n");
+	b->common.tooltip = "Change network and client prediction settings.";
+	b = MC_AddConsoleCommand(menu, 64, 176, "Teamplay Settings", "menu_teamplay\n");
+	b->common.tooltip = "Change teamplay macro settings.";
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 54, 32, NULL, false);
 
 
@@ -490,7 +493,7 @@ typedef struct {
 	int lowercolour;
 } newmultimenu_t;
 
-static char *numplayeroptions[] = {
+static const char *numplayeroptions[] = {
 	"2",
 	"3",
 	"4",
@@ -539,7 +542,7 @@ qboolean MultiBeginGame (union menuoption_s *option,struct menu_s *menu, int key
 void M_Menu_GameOptions_f (void)
 {
 	extern cvar_t pr_maxedicts;
-	static char *deathmatchoptions[] = {
+	static const char *deathmatchoptions[] = {
 		"Cooperative",
 		"Deathmatch 1",
 		"Deathmatch 2",
@@ -548,20 +551,20 @@ void M_Menu_GameOptions_f (void)
 		"Deathmatch 5",
 		NULL
 	};
-	static char *teamplayoptions[] = {
+	static const char *teamplayoptions[] = {
 		"off",
 		"friendly fire",
 		"no friendly fire",
 		NULL
 	};
-	static char *skilloptions[] = {
+	static const char *skilloptions[] = {
 		"Easy",
 		"Medium",
 		"Hard",
 		"NIGHTMARE",
 		NULL
 	};
-	static char *timelimitoptions[] = {
+	static const char *timelimitoptions[] = {
 		"no limit",
 		"5 minutes",
 		"10 minutes",
@@ -577,7 +580,7 @@ void M_Menu_GameOptions_f (void)
 		"1 hour",
 		NULL
 	};
-	static char *fraglimitoptions[] = {
+	static const char *fraglimitoptions[] = {
 		"no limit",
 		"10 frags",
 		"20 frags",
@@ -916,6 +919,41 @@ void M_Menu_Teamplay_Items_Status_Location_Misc_f (void)
 		MB_EDITCVARSLIM("Green Status", "tp_name_status_green"),
 		MB_EDITCVARSLIM("Blue Status", "tp_name_status_blue"),
 		MB_EDITCVARSLIM("Yellow Status", "tp_name_status_yellow"),
+		MB_END()
+	};
+	menu = M_Options_Title(&y, 0);
+	MC_AddBulk(menu, bulk, 16, 200, y);
+}
+
+void M_Menu_Network_f (void)
+{
+	static const char *splitopts[] = {
+		"Disabled",
+		"2 Screens",
+		"3 Screens",
+		"4 Screens",
+		NULL
+	};
+	static const char *splitvalues[] = {"0", "1", "2", "3", NULL};
+	extern cvar_t allow_download_csprogs, allow_download_redirection, requiredownloads, cl_solid_players;
+	extern cvar_t cl_splitscreen, cl_predict_players;
+	menu_t *menu;
+	int y;
+	menubulk_t bulk[] =
+	{
+		MB_REDTEXT("Network Settings", false),
+		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_EDITCVARSLIM("Network FPS", "cl_netfps"),
+		MB_EDITCVARSLIM("Rate", "rate"),
+		MB_EDITCVARSLIM("Download Rate", "drate"),
+		MB_SPACING(4),
+		MB_CHECKBOXCVAR("Require Download", requiredownloads, 0),
+		MB_CHECKBOXCVAR("Redirect Download", allow_download_redirection, 0),
+		MB_CHECKBOXCVAR("Download CSQC", allow_download_redirection, 0),
+		MB_SPACING(4),
+		MB_CHECKBOXCVAR("Predict Players", cl_predict_players, 0),
+		MB_CHECKBOXCVAR("Solid Players", cl_solid_players, 0),
+		MB_COMBOCVAR("Split-screen", cl_splitscreen, splitopts, splitvalues, "Enables split screen with a number of clients. This feature requires server support."),
 		MB_END()
 	};
 	menu = M_Options_Title(&y, 0);

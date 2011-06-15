@@ -24,7 +24,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "shader.h"
 
 extern	cvar_t	cl_predict_players;
-extern	cvar_t	cl_predict_players2;
 extern	cvar_t	cl_solid_players;
 extern	cvar_t	cl_item_bobbing;
 
@@ -2859,7 +2858,7 @@ void CL_LinkPlayers (void)
 	frame = &cl.frames[cl.validsequence&UPDATE_MASK];
 	fromf = &cl.frames[cl.oldvalidsequence&UPDATE_MASK];
 
-	predictplayers = cl_predict_players.ival || cl_predict_players2.ival;
+	predictplayers = cl_predict_players.ival;
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 		predictplayers = false;
 
@@ -3346,7 +3345,7 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 			// only predict half the move to minimize overruns
 			msec = 500*(playertime - state->state_time);
 			if (msec <= 0 ||
-				(!cl_predict_players.ival && !cl_predict_players2.ival) ||
+				!cl_predict_players.ival ||
 				!dopred)
 			{
 				VectorCopy (state->origin, pplayer->origin);

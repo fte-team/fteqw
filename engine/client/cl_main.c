@@ -71,7 +71,6 @@ cvar_t	m_side = CVARF("m_side","0.8", CVAR_ARCHIVE);
 
 cvar_t	entlatency = CVAR("entlatency", "20");
 cvar_t	cl_predict_players = CVAR("cl_predict_players", "1");
-cvar_t	cl_predict_players2 = CVAR("cl_predict_players2", "1");
 cvar_t	cl_solid_players = CVAR("cl_solid_players", "1");
 cvar_t	cl_noblink = CVAR("cl_noblink", "0");
 cvar_t	cl_servername = CVAR("cl_servername", "none");
@@ -2999,7 +2998,6 @@ void CL_Init (void)
 	Cvar_Register (&rcon_address,	cl_controlgroup);
 
 	Cvar_Register (&entlatency,	cl_predictiongroup);
-	Cvar_Register (&cl_predict_players2,	cl_predictiongroup);
 	Cvar_Register (&cl_predict_players,	cl_predictiongroup);
 	Cvar_Register (&cl_solid_players,	cl_predictiongroup);
 

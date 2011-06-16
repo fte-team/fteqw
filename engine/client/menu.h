@@ -144,6 +144,7 @@ typedef struct {	//must be first of each structure type.
 	int posy;
 	int width;
 	int height;
+	int extracollide; // dirty hack to stretch collide box left (the real fix is to have separate collide/render rects)
 	char *tooltip;
 	qboolean noselectionsound:1;
 	qboolean iszone:1;

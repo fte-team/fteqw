@@ -345,7 +345,7 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 	{
 		if (mousemoved && !bindingactive && !option->common.ishidden)
 		{
-			if (omousex > xpos+option->common.posx && omousex < xpos+option->common.posx+option->common.width)
+			if (omousex > xpos+option->common.posx-option->common.extracollide && omousex < xpos+option->common.posx+option->common.width)
 			{
 				if (omousey > ypos+option->common.posy && omousey < ypos+option->common.posy+option->common.height)
 				{
@@ -2050,12 +2050,20 @@ void M_Menu_Main_f (void)
 
 int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, int y)
 {
-	int x;
 	int selectedy = y;
 	menuoption_t *selected = NULL;
 
 	while (bulk)
 	{
+		qboolean selectable = true;
+		menuoption_t *control;
+		int x = xtextend;
+		int xleft;
+		
+		if (bulk->text)
+			x -= strlen(bulk->text) * 8;
+		xleft = x - xstart;
+
 		switch (bulk->type)
 		{
 		case mt_text:
@@ -2065,14 +2073,12 @@ int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, 
 				bulk = NULL;
 				continue;
 			case 0: // white text
-				x = xtextend - strlen(bulk->text) * 8;
-				MC_AddWhiteText(menu, x, y, bulk->text, bulk->rightalign);
-				y += 8;
+				control = (union menuoption_s *)MC_AddWhiteText(menu, x, y, bulk->text, bulk->rightalign);
+				selectable = false;
 				break;
 			case 1: // red text
-				x = xtextend - strlen(bulk->text) * 8;
-				MC_AddRedText(menu, x, y, bulk->text, bulk->rightalign);
-				y += 8;
+				control = (union menuoption_s *)MC_AddRedText(menu, x, y, bulk->text, bulk->rightalign);
+				selectable = false;
 				break;
 			case 2: // spacing
 				y += bulk->spacing;
@@ -2080,97 +2086,48 @@ int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, 
 			}
 			break;
 		case mt_button:
+			switch (bulk->variant)
 			{
-				menubutton_t *button;
-				x = xtextend - strlen(bulk->text) * 8;
-				switch (bulk->variant)
-				{
-				default:
-				case 0: // console command
-					button = MC_AddConsoleCommand(menu, x, y, bulk->text, bulk->consolecmd);
-					break;
-				case 1: // function command
-					button = MC_AddCommand(menu, x, y, bulk->text, bulk->command);
-					break;
-				}
-				if (!selected)
-					selected = (union menuoption_s *)button;
-				if (bulk->tooltip)
-					button->common.tooltip = bulk->tooltip;
-				y += 8;
+			default:
+			case 0: // console command
+				control = (union menuoption_s *)MC_AddConsoleCommand(menu, x, y, bulk->text, bulk->consolecmd);
+				break;
+			case 1: // function command
+				control = (union menuoption_s *)MC_AddCommand(menu, x, y, bulk->text, bulk->command);
+				break;
 			}
 			break;
 		case mt_checkbox:
-			x = xtextend - strlen(bulk->text) * 8;
-			{
-				menucheck_t *check = MC_AddCheckBox(menu, x, y, bulk->text, bulk->cvar, bulk->flags);
-				check->func = bulk->func;
-				if (bulk->ret)
-					*bulk->ret = (union menuoption_s *)check;
-				if (!selected)
-					selected = (union menuoption_s *)check;
-				if (bulk->tooltip)
-					check->common.tooltip = bulk->tooltip;
-			}
-			y += 8;
+			control = (union menuoption_s *)MC_AddCheckBox(menu, x, y, bulk->text, bulk->cvar, bulk->flags);
+			control->check.func = bulk->func;
 			break;
 		case mt_slider:
-			x = xtextend - strlen(bulk->text) * 8;
-			{
-				menuslider_t *slider = MC_AddSlider(menu, x, y, bulk->text, bulk->cvar, bulk->min, bulk->max, bulk->delta);
-				if (!selected)
-					selected = (union menuoption_s *)slider;
-				if (bulk->tooltip)
-					slider->common.tooltip = bulk->tooltip;
-			}
-			y += 8;
+			control = (union menuoption_s *)MC_AddSlider(menu, x, y, bulk->text, bulk->cvar, bulk->min, bulk->max, bulk->delta);
 			break;
 		case mt_combo:
+			switch (bulk->variant)
 			{
-				menucombo_t *combo;
-				x = xtextend - strlen(bulk->text) * 8;
-				switch (bulk->variant)
-				{
-				default:
-				case 0: // cvar combo
-					combo = MC_AddCvarCombo(menu, x, y, bulk->text, bulk->cvar, bulk->options, bulk->values);
-					break;
-				case 1: // combo with return value
-					combo = MC_AddCombo(menu, x, y, bulk->text, bulk->options, bulk->selectedoption);
-					break;
-				}
-				if (bulk->ret)
-					*bulk->ret = (union menuoption_s *)combo;
-				if (!selected)
-					selected = (union menuoption_s *)combo;
-				if (bulk->tooltip)
-					combo->common.tooltip = bulk->tooltip;
-				y += 8;
+			default:
+			case 0: // cvar combo
+				control = (union menuoption_s *)MC_AddCvarCombo(menu, x, y, bulk->text, bulk->cvar, bulk->options, bulk->values);
+				break;
+			case 1: // combo with return value
+				control = (union menuoption_s *)MC_AddCombo(menu, x, y, bulk->text, bulk->options, bulk->selectedoption);
+				break;
 			}
 			break;
 		case mt_edit:
+			switch (bulk->variant)
 			{
-				menuedit_t *edit;
-				x = xtextend - strlen(bulk->text) * 8;
-				switch (bulk->variant)
-				{
-				default:
-				case 0:
-					y += 4;
-					edit = MC_AddEditCvar(menu, x, y, bulk->text, bulk->cvarname);
-					y += 4;
-					break;
-				case 1:
-					edit = MC_AddEditCvarSlim(menu, x, y, bulk->text, bulk->cvarname);
-					break;
-				}
-				if (bulk->ret)
-					*bulk->ret = (union menuoption_s *)edit;
-				if (!selected)
-					selected = (union menuoption_s *)edit;
-				if (bulk->tooltip)
-					edit->common.tooltip = bulk->tooltip;
-				y += 8;
+			default:
+			case 0:
+				y += 4;
+				control = (union menuoption_s *)MC_AddEditCvar(menu, x, y, bulk->text, bulk->cvarname);
+				y += 4;
+				break;
+			case 1:
+				control = (union menuoption_s *)MC_AddEditCvarSlim(menu, x, y, bulk->text, bulk->cvarname);
+				break;
 			}
 			break;
 		default:
@@ -2178,6 +2135,17 @@ int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, 
 			bulk = NULL;
 			continue;
 		}
+
+		if (bulk->ret)
+			*bulk->ret = control;
+		if (selectable && !selected)
+			selected = control;
+		if (bulk->tooltip)
+			control->common.tooltip = bulk->tooltip;
+		if (xleft > 0)
+			control->common.extracollide = xleft;
+		y += 8;
+
 		bulk++;
 	}
 

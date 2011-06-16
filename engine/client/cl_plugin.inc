@@ -405,7 +405,7 @@ qintptr_t VARGS Plug_Con_SubPrint(void *offset, quintptr_t mask, const qintptr_t
 	con = Con_FindConsole(name);
 	if (!con)
 	{
-		con = Con_Create(name);
+		con = Con_Create(name, 0);
 		Con_SetActive(con);
 
 		if (currentplug->conexecutecommand)
@@ -453,7 +453,7 @@ qintptr_t VARGS Plug_Con_SetActive(void *offset, quintptr_t mask, const qintptr_
 		return false;
 	con = Con_FindConsole(name);
 	if (!con)
-		con = Con_Create(name);
+		con = Con_Create(name, 0);
 
 	Con_SetActive(con);
 	return true;

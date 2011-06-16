@@ -105,11 +105,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //=========================================
 
-#define	PORT_CLIENT	27001
-#define	PORT_MASTER	27000
-#define	PORT_SERVER	27500
-#define Q2PORT_CLIENT 27901
-#define Q2PORT_SERVER 27910
+#define	PORT_NQSERVER	26000
+#define	PORT_QWCLIENT	27001
+#define	PORT_QWMASTER	27000
+#define	PORT_QWSERVER	27500
+#define PORT_Q2CLIENT 27901
+#define PORT_Q2SERVER 27910
 
 //=========================================
 
@@ -131,6 +132,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	A2C_CLIENT_COMMAND	'B'	// + command line
 #define	S2M_SHUTDOWN		'C'
 
+#define C2M_MASTER_REQUEST  'c'
 #define M2C_MASTER_REPLY	'd'	// + \n + qw server port list
 //==================
 // note that there are some defs.qc that mirror to these numbers

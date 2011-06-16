@@ -1867,6 +1867,212 @@
 				Name="VCPostBuildEventTool"
 			/>
 		</Configuration>
+		<Configuration
+			Name="D3DRelease|Win32"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
+			ConfigurationType="1"
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
+			UseOfMFC="0"
+			ATLMinimizesCRunTimeLibraryUsage="false"
+			WholeProgramOptimization="1"
+			>
+			<Tool
+				Name="VCPreBuildEventTool"
+			/>
+			<Tool
+				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="VCXMLDataGeneratorTool"
+			/>
+			<Tool
+				Name="VCWebServiceProxyGeneratorTool"
+			/>
+			<Tool
+				Name="VCMIDLTool"
+				PreprocessorDefinitions="_DEBUG"
+				MkTypLibCompatible="true"
+				SuppressStartupBanner="true"
+				TargetEnvironment="1"
+				TypeLibraryName=".\D3DDebug/ftequake.tlb"
+				HeaderFileName=""
+			/>
+			<Tool
+				Name="VCCLCompilerTool"
+				InlineFunctionExpansion="2"
+				EnableIntrinsicFunctions="true"
+				FavorSizeOrSpeed="1"
+				OmitFramePointers="true"
+				AdditionalIncludeDirectories="../libs/speex;..\client;../libs/freetype2/include;../common;../server;../gl;../sw;../qclib;../libs;../d3d9;../libs/dxsdk9/include;../libs/dxsdk7/include"
+				PreprocessorDefinitions="NDEBUG;D3DQUAKE;WIN32;_WINDOWS"
+				RuntimeLibrary="0"
+				BufferSecurityCheck="false"
+				FloatingPointModel="2"
+				RuntimeTypeInfo="false"
+				UsePrecompiledHeader="2"
+				PrecompiledHeaderThrough="quakedef.h"
+				AssemblerListingLocation=".\D3DRelease/"
+				ObjectFile=".\D3DRelease/"
+				ProgramDataBaseFileName=".\D3DRelease/vc80.pdb"
+				WarningLevel="3"
+				SuppressStartupBanner="true"
+				DebugInformationFormat="0"
+				CompileAs="0"
+				DisableSpecificWarnings="4996"
+			/>
+			<Tool
+				Name="VCManagedResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCResourceCompilerTool"
+				PreprocessorDefinitions="_DEBUG"
+				Culture="2057"
+			/>
+			<Tool
+				Name="VCPreLinkEventTool"
+			/>
+			<Tool
+				Name="VCLinkerTool"
+				AdditionalDependencies="comctl32.lib wsock32.lib winmm.lib odbc32.lib odbccp32.lib"
+				OutputFile="../../fted3dqw.exe"
+				SuppressStartupBanner="true"
+				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
+				GenerateManifest="false"
+				IgnoreDefaultLibraryNames="libc.lib;msvcrt.lib"
+				GenerateMapFile="true"
+				MapFileName=".\D3DRelease/fted3dqw_dbg.map"
+				SubSystem="2"
+				TargetMachine="1"
+			/>
+			<Tool
+				Name="VCALinkTool"
+			/>
+			<Tool
+				Name="VCManifestTool"
+			/>
+			<Tool
+				Name="VCXDCMakeTool"
+			/>
+			<Tool
+				Name="VCBscMakeTool"
+				SuppressStartupBanner="true"
+				OutputFile=".\D3DRelease/ftequake.bsc"
+			/>
+			<Tool
+				Name="VCFxCopTool"
+			/>
+			<Tool
+				Name="VCAppVerifierTool"
+			/>
+			<Tool
+				Name="VCWebDeploymentTool"
+			/>
+			<Tool
+				Name="VCPostBuildEventTool"
+			/>
+		</Configuration>
+		<Configuration
+			Name="D3DRelease|x64"
+			OutputDirectory="$(SolutionDir)$(PlatformName)\$(ConfigurationName)"
+			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
+			ConfigurationType="1"
+			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
+			UseOfMFC="0"
+			ATLMinimizesCRunTimeLibraryUsage="false"
+			>
+			<Tool
+				Name="VCPreBuildEventTool"
+			/>
+			<Tool
+				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="VCXMLDataGeneratorTool"
+			/>
+			<Tool
+				Name="VCWebServiceProxyGeneratorTool"
+			/>
+			<Tool
+				Name="VCMIDLTool"
+				PreprocessorDefinitions="_DEBUG"
+				MkTypLibCompatible="true"
+				SuppressStartupBanner="true"
+				TargetEnvironment="3"
+				TypeLibraryName=".\D3DDebug/ftequake.tlb"
+				HeaderFileName=""
+			/>
+			<Tool
+				Name="VCCLCompilerTool"
+				Optimization="0"
+				AdditionalIncludeDirectories="../libs/speex,..\client,../libs/freetype2/include,../common,../server,../gl,../sw,../qclib,../libs,../libs/dxsdk7/include,../d3d,../d3d9,../libs/dxsdk9/include"
+				PreprocessorDefinitions="_DEBUG;D3DQUAKE;WIN32;_WINDOWS"
+				RuntimeLibrary="1"
+				EnableFunctionLevelLinking="true"
+				FloatingPointModel="2"
+				UsePrecompiledHeader="2"
+				PrecompiledHeaderThrough="quakedef.h"
+				BrowseInformation="1"
+				WarningLevel="3"
+				SuppressStartupBanner="true"
+				DebugInformationFormat="3"
+				DisableSpecificWarnings="4996"
+			/>
+			<Tool
+				Name="VCManagedResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCResourceCompilerTool"
+				PreprocessorDefinitions="_DEBUG"
+				Culture="2057"
+			/>
+			<Tool
+				Name="VCPreLinkEventTool"
+			/>
+			<Tool
+				Name="VCLinkerTool"
+				AdditionalDependencies="comctl32.lib wsock32.lib winmm.lib odbc32.lib odbccp32.lib"
+				OutputFile="C:\Games\Quake\fte_wip\fted3dqw_dbg64.exe"
+				LinkIncremental="2"
+				SuppressStartupBanner="true"
+				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
+				GenerateManifest="false"
+				IgnoreDefaultLibraryNames="libc.lib;msvcrt.lib"
+				GenerateDebugInformation="true"
+				ProgramDatabaseFile=".\D3DDebug/fted3dqw_dbg.pdb"
+				GenerateMapFile="true"
+				MapFileName=".\D3DDebug/fted3dqw_dbg.map"
+				SubSystem="2"
+				TargetMachine="17"
+			/>
+			<Tool
+				Name="VCALinkTool"
+			/>
+			<Tool
+				Name="VCManifestTool"
+				EmbedManifest="false"
+			/>
+			<Tool
+				Name="VCXDCMakeTool"
+			/>
+			<Tool
+				Name="VCBscMakeTool"
+				SuppressStartupBanner="true"
+				OutputFile=".\D3DDebug/ftequake.bsc"
+			/>
+			<Tool
+				Name="VCFxCopTool"
+			/>
+			<Tool
+				Name="VCAppVerifierTool"
+			/>
+			<Tool
+				Name="VCWebDeploymentTool"
+			/>
+			<Tool
+				Name="VCPostBuildEventTool"
+			/>
+		</Configuration>
 	</Configurations>
 	<References>
 	</References>
@@ -2061,6 +2267,26 @@
 							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\server\pr_cmds.c"
@@ -2237,6 +2463,26 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -2433,6 +2679,26 @@
 							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\server\sv_ccmds.c"
@@ -2609,6 +2875,26 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -2801,6 +3087,26 @@
 							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\server\sv_demo.c"
@@ -2977,6 +3283,26 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -3169,6 +3495,26 @@
 							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\server\sv_init.c"
@@ -3345,6 +3691,26 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -3537,6 +3903,26 @@
 							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\server\sv_master.c"
@@ -3713,6 +4099,26 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -3905,6 +4311,26 @@
 							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\server\sv_nchan.c"
@@ -4081,6 +4507,26 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -4273,6 +4719,26 @@
 							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\server\sv_rankin.c"
@@ -4449,6 +4915,26 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -4641,6 +5127,26 @@
 							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\server\sv_user.c"
@@ -4825,6 +5331,26 @@
 							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\server\svhl_game.c"
@@ -4967,6 +5493,22 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -5121,6 +5663,22 @@
 							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\server\svhl_world.c"
@@ -5263,6 +5821,22 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -5453,6 +6027,26 @@
 							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\server\svq2_game.c"
@@ -5629,6 +6223,26 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -5825,6 +6439,26 @@
 							PrecompiledHeaderThrough="qwsvdef.h"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="qwsvdef.h"
+						/>
+					</FileConfiguration>
 				</File>
 			</Filter>
 			<Filter
@@ -5992,6 +6626,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -6173,6 +6825,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\cl_demo.c"
@@ -6336,6 +7006,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -6513,6 +7201,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\cl_ignore.c"
@@ -6676,6 +7382,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -6853,6 +7577,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\cl_main.c"
@@ -7016,6 +7758,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -7193,6 +7953,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\cl_pred.c"
@@ -7356,6 +8134,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -7533,6 +8329,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\cl_tent.c"
@@ -7703,6 +8517,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\cl_ui.c"
@@ -7866,6 +8698,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -8047,6 +8897,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\clq2_ents.c"
@@ -8210,6 +9078,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -8391,6 +9277,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\console.c"
@@ -8554,6 +9458,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -8731,6 +9653,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\image.c"
@@ -8894,6 +9834,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -9071,6 +10029,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\keys.c"
@@ -9234,6 +10210,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -9411,6 +10405,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\m_items.c"
@@ -9574,6 +10586,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -9751,6 +10781,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\m_mp3.c"
@@ -9914,6 +10962,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -10091,6 +11157,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\m_options.c"
@@ -10254,6 +11338,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -10431,6 +11533,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\m_single.c"
@@ -10594,6 +11714,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -10771,6 +11909,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\net_master.c"
@@ -10934,6 +12090,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -11189,6 +12363,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\pr_menu.c"
@@ -11361,6 +12553,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\r_part.c"
@@ -11524,6 +12734,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -11719,6 +12947,26 @@
 							UsePrecompiledHeader="0"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\renderer.c"
@@ -11882,6 +13130,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -12059,6 +13325,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\roq_read.c"
@@ -12222,6 +13506,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -12399,6 +13701,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\skin.c"
@@ -12562,6 +13882,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -12739,6 +14077,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\teamplay.c"
@@ -12902,6 +14258,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -13079,6 +14453,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\valid.c"
@@ -13242,6 +14634,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -13419,6 +14829,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\wad.c"
@@ -13582,6 +15010,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -13759,6 +15205,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<Filter
 					Name="sound"
@@ -13925,6 +15389,24 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="GLRelease|x64"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|x64"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -14138,6 +15620,24 @@
 								PreprocessorDefinitions=""
 							/>
 						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|x64"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
 					</File>
 					<File
 						RelativePath="..\client\snd_dma.c"
@@ -14301,6 +15801,24 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="GLRelease|x64"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|x64"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -14478,6 +15996,24 @@
 								PreprocessorDefinitions=""
 							/>
 						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|x64"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
 					</File>
 					<File
 						RelativePath="..\client\snd_mix.c"
@@ -14641,6 +16177,24 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="GLRelease|x64"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|x64"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -14818,6 +16372,24 @@
 								PreprocessorDefinitions=""
 							/>
 						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|x64"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
 					</File>
 					<File
 						RelativePath="..\client\snd_win.c"
@@ -14981,6 +16553,24 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="GLRelease|x64"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|x64"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -15163,6 +16753,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\common\com_mesh.c"
@@ -15322,6 +16930,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -15517,6 +17143,26 @@
 							UsePrecompiledHeader="1"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="1"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="1"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\common\crc.c"
@@ -15676,6 +17322,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -15849,6 +17513,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\common\fs.c"
@@ -16008,6 +17690,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -16197,6 +17897,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\common\log.c"
@@ -16363,6 +18081,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\common\mathlib.c"
@@ -16522,6 +18258,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -16713,6 +18467,26 @@
 							UsePrecompiledHeader="0"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\common\net_chan.c"
@@ -16872,6 +18646,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -17045,6 +18837,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\common\plugin.c"
@@ -17204,6 +19014,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -17377,6 +19205,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\common\pmovetst.c"
@@ -17536,6 +19382,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -17713,6 +19577,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\common\q2pmove.c"
@@ -17872,6 +19754,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -18049,6 +19949,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\common\qvm.c"
@@ -18208,6 +20126,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -18399,6 +20335,26 @@
 							PrecompiledHeaderThrough="quakedef.h"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="quakedef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="quakedef.h"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\common\translate.c"
@@ -18558,6 +20514,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -18749,6 +20723,26 @@
 							PrecompiledHeaderThrough="quakedef.h"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="quakedef.h"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							PrecompiledHeaderThrough="quakedef.h"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\common\zone.c"
@@ -18908,6 +20902,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -19103,6 +21115,26 @@
 							UsePrecompiledHeader="0"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\QCLIB\hash.c"
@@ -19279,6 +21311,26 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -19471,6 +21523,26 @@
 							UsePrecompiledHeader="0"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\QCLIB\pr_edict.c"
@@ -19647,6 +21719,26 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -19839,6 +21931,26 @@
 							UsePrecompiledHeader="0"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\QCLIB\pr_multi.c"
@@ -20023,6 +22135,26 @@
 							UsePrecompiledHeader="0"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\qclib\pr_x86.c"
@@ -20165,6 +22297,22 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -20347,6 +22495,26 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -20539,6 +22707,26 @@
 							UsePrecompiledHeader="0"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\QCLIB\qcc_pr_lex.c"
@@ -20715,6 +22903,26 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -20907,6 +23115,26 @@
 							UsePrecompiledHeader="0"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\QCLIB\qcd_main.c"
@@ -21083,6 +23311,26 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21275,6 +23523,26 @@
 							UsePrecompiledHeader="0"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
 				</File>
 			</Filter>
 			<Filter
@@ -21438,6 +23706,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -21611,6 +23897,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\http\httpclient.c"
@@ -21777,6 +24081,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\http\httpserver.c"
@@ -21936,6 +24258,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -22127,6 +24467,26 @@
 							UsePrecompiledHeader="0"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+							UsePrecompiledHeader="0"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\http\webgen.c"
@@ -22286,6 +24646,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -22481,6 +24859,26 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\server\svmodel.c"
@@ -22665,6 +25063,26 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 			</Filter>
 			<Filter
@@ -22811,6 +25229,22 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -22965,6 +25399,22 @@
 							Name="VCCLCompilerTool"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\in_morphos.c"
@@ -23107,6 +25557,22 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -23261,6 +25727,22 @@
 							Name="VCCLCompilerTool"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\snd_linux.c"
@@ -23403,6 +25885,22 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -23557,6 +26055,22 @@
 							Name="VCCLCompilerTool"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\snd_morphos.c"
@@ -23699,6 +26213,22 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -23853,6 +26383,22 @@
 							Name="VCCLCompilerTool"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\server\sv_sys_unix.c"
@@ -23995,6 +26541,22 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -24149,6 +26711,22 @@
 							Name="VCCLCompilerTool"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\sys_morphos.c"
@@ -24297,6 +26875,22 @@
 							Name="VCCLCompilerTool"
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\sys_sdl.c"
@@ -24439,6 +27033,22 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -24608,6 +27218,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -24789,6 +27417,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\common\gl_q2bsp.c"
@@ -24948,6 +27594,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -25116,6 +27780,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -25294,6 +27976,24 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\gl\LTFACE.C"
@@ -25457,6 +28157,24 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						>
 						<Tool
 							Name="VCCLCompilerTool"
@@ -25663,6 +28381,26 @@
 								PreprocessorDefinitions=""
 							/>
 						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|Win32"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|x64"
+							ExcludedFromBuild="true"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
 					</File>
 					<File
 						RelativePath="..\gl\gl_backend.c"
@@ -25826,6 +28564,24 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="GLRelease|x64"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|x64"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -26003,6 +28759,24 @@
 								PreprocessorDefinitions=""
 							/>
 						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|x64"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
 					</File>
 					<File
 						RelativePath="..\gl\gl_draw.c"
@@ -26173,6 +28947,24 @@
 								PreprocessorDefinitions=""
 							/>
 						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|x64"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
 					</File>
 					<File
 						RelativePath="..\gl\gl_heightmap.c"
@@ -26332,6 +29124,24 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="GLRelease|x64"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|x64"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -26509,6 +29319,24 @@
 								PreprocessorDefinitions=""
 							/>
 						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|x64"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
 					</File>
 					<File
 						RelativePath="..\gl\gl_ngraph.c"
@@ -26672,6 +29500,24 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="GLRelease|x64"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|x64"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -26849,6 +29695,24 @@
 								PreprocessorDefinitions=""
 							/>
 						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|x64"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
 					</File>
 					<File
 						RelativePath="..\gl\gl_rmain.c"
@@ -27012,6 +29876,24 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="GLRelease|x64"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|x64"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -27190,6 +30072,24 @@
 								PreprocessorDefinitions=""
 							/>
 						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|x64"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
 					</File>
 					<File
 						RelativePath="..\gl\gl_rsurf.c"
@@ -27360,6 +30260,24 @@
 								PreprocessorDefinitions=""
 							/>
 						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|x64"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
 					</File>
 					<File
 						RelativePath="..\gl\gl_screen.c"
@@ -27523,6 +30441,24 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="GLRelease|x64"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|x64"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -27704,6 +30640,24 @@
 								PreprocessorDefinitions=""
 							/>
 						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|x64"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
 					</File>
 					<File
 						RelativePath="..\gl\gl_vidnt.c"
@@ -27867,6 +30821,24 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="GLRelease|x64"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|x64"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -28039,6 +31011,24 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="GLRelease|x64"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|Win32"
+							>
+							<Tool
+								Name="VCCLCompilerTool"
+								AdditionalIncludeDirectories=""
+								PreprocessorDefinitions=""
+							/>
+						</FileConfiguration>
+						<FileConfiguration
+							Name="D3DRelease|x64"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -28255,6 +31245,26 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\..\mp3\libmad\decoder.c"
@@ -28431,6 +31441,26 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -28623,6 +31653,26 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\..\mp3\libmad\frame.c"
@@ -28799,6 +31849,26 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -28991,6 +32061,26 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\..\mp3\libmad\layer12.c"
@@ -29167,6 +32257,26 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -29359,6 +32469,26 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\client\mymad.c"
@@ -29535,6 +32665,26 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -29727,6 +32877,26 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\..\mp3\libmad\synth.c"
@@ -29903,6 +33073,26 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						ExcludedFromBuild="true"
 						>
 						<Tool
@@ -30095,6 +33285,26 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
 				</File>
 				<File
 					RelativePath="..\..\mp3\libmad\version.c"
@@ -30271,6 +33481,26 @@
 					</FileConfiguration>
 					<FileConfiguration
 						Name="GLRelease|x64"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							AdditionalIncludeDirectories=""
+							PreprocessorDefinitions=""
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="D3DRelease|x64"
 						ExcludedFromBuild="true"
 						>
 						<Tool

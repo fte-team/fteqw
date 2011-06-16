@@ -16,9 +16,7 @@
 
 #ifdef CSQC_DAT
 
-#ifdef GLQUAKE
 #include "glquake.h"	//evil to include this
-#endif
 #include "shader.h"
 
 //#define CHEAT_PARANOID
@@ -1366,6 +1364,12 @@ static void QCBUILTIN PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s 
 	if (qrenderer == QR_OPENGL)
 	{
 		GL_Set2D ();
+	}
+#endif
+#ifdef D3DQUAKE
+	if (qrenderer == QR_DIRECT3D)
+	{
+		D3D9_Set2D ();
 	}
 #endif
 
@@ -3798,7 +3802,7 @@ static void QCBUILTIN PF_skel_set_bone (progfuncs_t *prinst, struct globalvars_s
 	bonemat_fromqcvectors(skelobj->bonematrix+12*boneidx, matrix[0], matrix[1], matrix[2], G_VECTOR(OFS_PARM2));
 }
 
-//void(float skel, float bonenum, vector org) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+//void(float skel, float bonenum, vector org [, vector fwd, vector right, vector up]) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
 static void QCBUILTIN PF_skel_mul_bone (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int skelidx = G_FLOAT(OFS_PARM0);

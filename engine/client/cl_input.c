@@ -791,7 +791,7 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 
 	for (i=0 ; i<3 ; i++)
 	{
-		if (cls.protocol_nq == CPNQ_FITZ666)
+		if (cls.protocol_nq == CPNQ_FITZ666 || cls.protocol_nq == CPNQ_PROQUAKE3_4)
 			MSG_WriteAngle16 (buf, cl.viewangles[pnum][i]);
 		else
 			MSG_WriteAngle (buf, cl.viewangles[pnum][i]);
@@ -842,7 +842,7 @@ void CLNQ_SendCmd(sizebuf_t *buf)
 {
 	extern int cl_latestframenum;
 
-	if (cls.signon == 4)
+//	if (cls.signon == 4)
 	{
 	// send the unreliable message
 		if (independantphysics[0].impulse && !cls.netchan.message.cursize)
@@ -858,7 +858,6 @@ void CLNQ_SendCmd(sizebuf_t *buf)
 	}
 
 	memset(&independantphysics[0], 0, sizeof(independantphysics[0]));
-	cl.allowsendpacket = false;
 }
 #else
 void Name_Callback(struct cvar_s *var, char *oldvalue)
@@ -1626,37 +1625,38 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 
 //	if (skipcmd)
 //		return;
-#ifdef NQPROT
-	if ((!cl.allowsendpacket || cls.state <= ca_connected) && cls.protocol == CP_NETQUAKE)
-		return;
-#endif
 
 	if (!fullsend && cls.state == ca_active)
 		return; // when we're actually playing we try to match netfps exactly to avoid gameplay problems
 
-	CL_SendDownloadReq(&buf);
-
-	while (clientcmdlist)
+#ifdef NQPROT
+	if (cls.protocol != CP_NETQUAKE || cls.netchan.nqreliable_allowed)
+#endif
 	{
-		next = clientcmdlist->next;
-		if (clientcmdlist->reliable)
+		CL_SendDownloadReq(&buf);
+
+		while (clientcmdlist)
 		{
-			if (cls.netchan.message.cursize + 2+strlen(clientcmdlist->command) > cls.netchan.message.maxsize)
-				break;
-			MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-			MSG_WriteString (&cls.netchan.message, clientcmdlist->command);
-		}
-		else
-		{
-			if (buf.cursize + 2+strlen(clientcmdlist->command) <= buf.maxsize)
+			next = clientcmdlist->next;
+			if (clientcmdlist->reliable)
 			{
-				MSG_WriteByte (&buf, clc_stringcmd);
-				MSG_WriteString (&buf, clientcmdlist->command);
+				if (cls.netchan.message.cursize + 2+strlen(clientcmdlist->command) > cls.netchan.message.maxsize)
+					break;
+				MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
+				MSG_WriteString (&cls.netchan.message, clientcmdlist->command);
 			}
+			else
+			{
+				if (buf.cursize + 2+strlen(clientcmdlist->command) <= buf.maxsize)
+				{
+					MSG_WriteByte (&buf, clc_stringcmd);
+					MSG_WriteString (&buf, clientcmdlist->command);
+				}
+			}
+			Con_DPrintf("Sending stringcmd %s\n", clientcmdlist->command);
+			Z_Free(clientcmdlist);
+			clientcmdlist = next;
 		}
-		Con_DPrintf("Sending stringcmd %s\n", clientcmdlist->command);
-		Z_Free(clientcmdlist);
-		clientcmdlist = next;
 	}
 
 	// if we're not doing clc_moves and etc, don't continue unless we wrote something previous

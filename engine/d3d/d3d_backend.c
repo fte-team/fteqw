@@ -214,128 +214,6 @@ static void BE_ApplyTMUState(unsigned int tu, unsigned int flags)
 	}
 }
 
-void D3DBE_Reset(qboolean before)
-{
-	int i, tmu;
-	if (before)
-	{
-		IDirect3DDevice9_SetVertexDeclaration(pD3DDev9, NULL);
-		shaderstate.curvertdecl = 0;
-		for (i = 0; i < 5+MAX_TMUS; i++)
-			IDirect3DDevice9_SetStreamSource(pD3DDev9, i, NULL, 0, 0);
-		IDirect3DDevice9_SetIndices(pD3DDev9, NULL);
-
-		if (shaderstate.dynxyz_buff)
-			IDirect3DVertexBuffer9_Release(shaderstate.dynxyz_buff);
-		shaderstate.dynxyz_buff = NULL;
-		for (tmu = 0; tmu < MAX_TMUS; tmu++)
-		{
-			if (shaderstate.dynst_buff[tmu])
-				IDirect3DVertexBuffer9_Release(shaderstate.dynst_buff[tmu]);
-			shaderstate.dynst_buff[tmu] = NULL;
-		}
-		if (shaderstate.dyncol_buff)
-			IDirect3DVertexBuffer9_Release(shaderstate.dyncol_buff);
-		shaderstate.dyncol_buff = NULL;
-		if (shaderstate.dynidx_buff)
-			IDirect3DIndexBuffer9_Release(shaderstate.dynidx_buff);
-		shaderstate.dynidx_buff = NULL;
-
-		for (i = 0; i < D3D_VDEC_MAX; i++)
-		{
-			if (vertexdecls[i])
-				IDirect3DVertexDeclaration9_Release(vertexdecls[i]);
-			vertexdecls[i] = NULL;
-		}
-	}
-	else
-	{
-		D3DVERTEXELEMENT9 decl[8], declend=D3DDECL_END();
-		int elements;
-
-		for (i = 0; i < D3D_VDEC_MAX; i++)
-		{
-			elements = 0;
-			decl[elements].Stream = 0;
-			decl[elements].Offset = 0;
-			decl[elements].Type = D3DDECLTYPE_FLOAT3;
-			decl[elements].Method = D3DDECLMETHOD_DEFAULT;
-			decl[elements].Usage = D3DDECLUSAGE_POSITION;
-			decl[elements].UsageIndex = 0;
-			elements++;
-
-			if (i & D3D_VDEC_COL4B)
-			{
-				decl[elements].Stream = 1;
-				decl[elements].Offset = 0;
-				decl[elements].Type = D3DDECLTYPE_D3DCOLOR;
-				decl[elements].Method = D3DDECLMETHOD_DEFAULT;
-				decl[elements].Usage = D3DDECLUSAGE_COLOR;
-				decl[elements].UsageIndex = 0;
-				elements++;
-			}
-
-/*			if (i & D3D_VDEC_NORMS)
-			{
-				decl[elements].Stream = 2;
-				decl[elements].Offset = 0;
-				decl[elements].Type = D3DDECLTYPE_FLOAT2;
-				decl[elements].Method = D3DDECLMETHOD_DEFAULT;
-				decl[elements].Usage = D3DDECLUSAGE_TEXCOORD;
-				decl[elements].UsageIndex = 1;
-				elements++;
-
-				decl[elements].Stream = 3;
-				decl[elements].Offset = 0;
-				decl[elements].Type = D3DDECLTYPE_FLOAT2;
-				decl[elements].Method = D3DDECLMETHOD_DEFAULT;
-				decl[elements].Usage = D3DDECLUSAGE_TEXCOORD;
-				decl[elements].UsageIndex = 1;
-				elements++;
-
-				decl[elements].Stream = 4;
-				decl[elements].Offset = 0;
-				decl[elements].Type = D3DDECLTYPE_FLOAT2;
-				decl[elements].Method = D3DDECLMETHOD_DEFAULT;
-				decl[elements].Usage = D3DDECLUSAGE_TEXCOORD;
-				decl[elements].UsageIndex = 1;
-				elements++;
-			}
-*/
-			for (tmu = 0; tmu < MAX_TMUS; tmu++)
-			{
-				if (i & (D3D_VDEC_ST0<<tmu))
-				{
-					decl[elements].Stream = 5+tmu;
-					decl[elements].Offset = 0;
-					decl[elements].Type = D3DDECLTYPE_FLOAT2;
-					decl[elements].Method = D3DDECLMETHOD_DEFAULT;
-					decl[elements].Usage = D3DDECLUSAGE_TEXCOORD;
-					decl[elements].UsageIndex = tmu;
-					elements++;
-				}
-			}
-
-			decl[elements] = declend;
-			elements++;
-
-			IDirect3DDevice9_CreateVertexDeclaration(pD3DDev9, decl, &vertexdecls[i]);
-		}
-
-		IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, shaderstate.dynxyz_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &shaderstate.dynxyz_buff, NULL);
-		for (tmu = 0; tmu < MAX_TMUS; tmu++)
-			IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, shaderstate.dynst_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &shaderstate.dynst_buff[tmu], NULL);
-		IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, shaderstate.dyncol_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &shaderstate.dyncol_buff, NULL);
-		IDirect3DDevice9_CreateIndexBuffer(pD3DDev9, shaderstate.dynidx_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, D3DFMT_QINDEX, D3DPOOL_DEFAULT, &shaderstate.dynidx_buff, NULL);
-
-		for (i = 0; i < MAX_TMUS; i++)
-		{
-			shaderstate.tmuflags[i] = ~0;
-			BE_ApplyTMUState(i, 0);
-		}
-	}
-}
-
 static void D3DBE_ApplyShaderBits(unsigned int bits)
 {
 	unsigned int delta;
@@ -469,6 +347,132 @@ static void D3DBE_ApplyShaderBits(unsigned int bits)
 	}
 }
 
+void D3DBE_Reset(qboolean before)
+{
+	int i, tmu;
+	if (before)
+	{
+		IDirect3DDevice9_SetVertexDeclaration(pD3DDev9, NULL);
+		shaderstate.curvertdecl = 0;
+		for (i = 0; i < 5+MAX_TMUS; i++)
+			IDirect3DDevice9_SetStreamSource(pD3DDev9, i, NULL, 0, 0);
+		IDirect3DDevice9_SetIndices(pD3DDev9, NULL);
+
+		if (shaderstate.dynxyz_buff)
+			IDirect3DVertexBuffer9_Release(shaderstate.dynxyz_buff);
+		shaderstate.dynxyz_buff = NULL;
+		for (tmu = 0; tmu < MAX_TMUS; tmu++)
+		{
+			if (shaderstate.dynst_buff[tmu])
+				IDirect3DVertexBuffer9_Release(shaderstate.dynst_buff[tmu]);
+			shaderstate.dynst_buff[tmu] = NULL;
+		}
+		if (shaderstate.dyncol_buff)
+			IDirect3DVertexBuffer9_Release(shaderstate.dyncol_buff);
+		shaderstate.dyncol_buff = NULL;
+		if (shaderstate.dynidx_buff)
+			IDirect3DIndexBuffer9_Release(shaderstate.dynidx_buff);
+		shaderstate.dynidx_buff = NULL;
+
+		for (i = 0; i < D3D_VDEC_MAX; i++)
+		{
+			if (vertexdecls[i])
+				IDirect3DVertexDeclaration9_Release(vertexdecls[i]);
+			vertexdecls[i] = NULL;
+		}
+	}
+	else
+	{
+		D3DVERTEXELEMENT9 decl[8], declend=D3DDECL_END();
+		int elements;
+
+		for (i = 0; i < D3D_VDEC_MAX; i++)
+		{
+			elements = 0;
+			decl[elements].Stream = 0;
+			decl[elements].Offset = 0;
+			decl[elements].Type = D3DDECLTYPE_FLOAT3;
+			decl[elements].Method = D3DDECLMETHOD_DEFAULT;
+			decl[elements].Usage = D3DDECLUSAGE_POSITION;
+			decl[elements].UsageIndex = 0;
+			elements++;
+
+			if (i & D3D_VDEC_COL4B)
+			{
+				decl[elements].Stream = 1;
+				decl[elements].Offset = 0;
+				decl[elements].Type = D3DDECLTYPE_D3DCOLOR;
+				decl[elements].Method = D3DDECLMETHOD_DEFAULT;
+				decl[elements].Usage = D3DDECLUSAGE_COLOR;
+				decl[elements].UsageIndex = 0;
+				elements++;
+			}
+
+/*			if (i & D3D_VDEC_NORMS)
+			{
+				decl[elements].Stream = 2;
+				decl[elements].Offset = 0;
+				decl[elements].Type = D3DDECLTYPE_FLOAT2;
+				decl[elements].Method = D3DDECLMETHOD_DEFAULT;
+				decl[elements].Usage = D3DDECLUSAGE_TEXCOORD;
+				decl[elements].UsageIndex = 1;
+				elements++;
+
+				decl[elements].Stream = 3;
+				decl[elements].Offset = 0;
+				decl[elements].Type = D3DDECLTYPE_FLOAT2;
+				decl[elements].Method = D3DDECLMETHOD_DEFAULT;
+				decl[elements].Usage = D3DDECLUSAGE_TEXCOORD;
+				decl[elements].UsageIndex = 1;
+				elements++;
+
+				decl[elements].Stream = 4;
+				decl[elements].Offset = 0;
+				decl[elements].Type = D3DDECLTYPE_FLOAT2;
+				decl[elements].Method = D3DDECLMETHOD_DEFAULT;
+				decl[elements].Usage = D3DDECLUSAGE_TEXCOORD;
+				decl[elements].UsageIndex = 1;
+				elements++;
+			}
+*/
+			for (tmu = 0; tmu < MAX_TMUS; tmu++)
+			{
+				if (i & (D3D_VDEC_ST0<<tmu))
+				{
+					decl[elements].Stream = 5+tmu;
+					decl[elements].Offset = 0;
+					decl[elements].Type = D3DDECLTYPE_FLOAT2;
+					decl[elements].Method = D3DDECLMETHOD_DEFAULT;
+					decl[elements].Usage = D3DDECLUSAGE_TEXCOORD;
+					decl[elements].UsageIndex = tmu;
+					elements++;
+				}
+			}
+
+			decl[elements] = declend;
+			elements++;
+
+			IDirect3DDevice9_CreateVertexDeclaration(pD3DDev9, decl, &vertexdecls[i]);
+		}
+
+		IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, shaderstate.dynxyz_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &shaderstate.dynxyz_buff, NULL);
+		for (tmu = 0; tmu < MAX_TMUS; tmu++)
+			IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, shaderstate.dynst_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &shaderstate.dynst_buff[tmu], NULL);
+		IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, shaderstate.dyncol_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, 0, D3DPOOL_DEFAULT, &shaderstate.dyncol_buff, NULL);
+		IDirect3DDevice9_CreateIndexBuffer(pD3DDev9, shaderstate.dynidx_size, D3DUSAGE_DYNAMIC|D3DUSAGE_WRITEONLY, D3DFMT_QINDEX, D3DPOOL_DEFAULT, &shaderstate.dynidx_buff, NULL);
+
+		for (i = 0; i < MAX_TMUS; i++)
+		{
+			shaderstate.tmuflags[i] = ~0;
+			BE_ApplyTMUState(i, 0);
+		}
+
+		/*force all state to change, thus setting a known state*/
+		shaderstate.shaderbits = ~0;
+		D3DBE_ApplyShaderBits(0);
+	}
+}
+
 void D3DBE_Init(void)
 {
 	be_maxpasses = MAX_TMUS;
@@ -483,11 +487,6 @@ void D3DBE_Init(void)
 	shaderstate.dynidx_size = sizeof(index_t) * DYNIBUFFSIZE;
 
 	D3DBE_Reset(false);
-
-	/*force all state to change, thus setting a known state*/
-	shaderstate.shaderbits = ~0;
-	D3DBE_ApplyShaderBits(0);
-
 }
 
 static void allocvertexbuffer(IDirect3DVertexBuffer9 *buff, unsigned int bmaxsize, unsigned int *offset, void **data, unsigned int bytes)
@@ -1557,12 +1556,12 @@ static void BE_DrawMeshChain_Internal(void)
 	unsigned int mno;
 	unsigned int passno = 0;
 	shaderpass_t *pass = shaderstate.curshader->passes;
-	extern cvar_t r_polygonoffset_submodel_offset; // r_polygonoffset_submodel_factor // unused variable
+	extern cvar_t r_polygonoffset_submodel_factor;
 	float pushdepth;
 //	float pushfactor;
 
 	BE_Cull(shaderstate.curshader->flags & (SHADER_CULL_FRONT | SHADER_CULL_BACK));
-	pushdepth = (shaderstate.curshader->polyoffset.factor + ((shaderstate.flags & BEF_PUSHDEPTH)?r_polygonoffset_submodel_offset.value:0))/0xffff;
+	pushdepth = (shaderstate.curshader->polyoffset.factor + ((shaderstate.flags & BEF_PUSHDEPTH)?r_polygonoffset_submodel_factor.value:0))/0xffff;
 	if (pushdepth != shaderstate.depthbias)
 	{
 		shaderstate.depthbias = pushdepth;

@@ -464,8 +464,8 @@ void Key_Console (unsigned int unicode, int key)
 		extern cvar_t vid_conwidth, vid_conheight;
 		extern int mousecursor_x, mousecursor_y;
 		int xpos, ypos;
-		xpos = (int)((mousecursor_x*vid_conwidth.value)/(vid.width*8));
-		ypos = (int)((mousecursor_y*vid_conheight.value)/(vid.height*8));
+		xpos = (int)((mousecursor_x*vid.width)/(vid.pixelwidth*8));
+		ypos = (int)((mousecursor_y*vid.height)/(vid.pixelheight*8));
 		con_mousedown[0] = mousecursor_x;
 		con_mousedown[1] = mousecursor_y;
 		if (ypos == 0 && con_main.next)
@@ -638,6 +638,8 @@ void Key_Console (unsigned int unicode, int key)
 		int i = 2;
 		if (keydown[K_CTRL])
 			i = 8;
+		if (!con_current->display)
+			return;
 		if (con_current->display == con_current->current)
 			i+=2;	//skip over the blank input line, and extra so we actually move despite the addition of the ^^^^^ line
 		while (i-->0)
@@ -653,6 +655,8 @@ void Key_Console (unsigned int unicode, int key)
 		int i = 2;
 		if (keydown[K_CTRL])
 			i = 8;
+		if (!con_current->display)
+			return;
 		while (i-->0)
 		{
 			if (con_current->display->newer == NULL)

@@ -116,7 +116,8 @@ typedef struct
 	qboolean	fatal_error;
 
 #ifdef NQPROT
-	qboolean	isnqprotocol;
+	int	isnqprotocol;
+	qboolean	nqreliable_allowed;
 #endif
 	struct netprim_s netprim;
 

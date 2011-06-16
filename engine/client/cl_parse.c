@@ -2189,10 +2189,10 @@ void CL_ParseServerData (void)
 	{
 		int i;
 		MSG_ReadFloat();
-		cl.playernum[0] = MAX_CLIENTS - 1;
-		cl.playernum[1] = MAX_CLIENTS - 2;
-		cl.playernum[2] = MAX_CLIENTS - 3;
-		cl.playernum[3] = MAX_CLIENTS - 4;
+		cl.playernum[0] = MAX_CLIENTS;
+		cl.playernum[1] = MAX_CLIENTS+1;
+		cl.playernum[2] = MAX_CLIENTS+2;
+		cl.playernum[3] = MAX_CLIENTS+3;
 		cl.spectator = true;
 		for (i = 0; i < UPDATE_BACKUP; i++)
 			cl.frames[i].playerstate[cl.playernum[0]].pm_type = PM_SPECTATOR;
@@ -2444,7 +2444,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	netprim.coordsize = 2;
 	netprim.anglesize = 1;
 
-	cls.protocol_nq = 0;
+	cls.protocol_nq = (cls.protocol_nq==CPNQ_PROQUAKE3_4)?CPNQ_PROQUAKE3_4:CPNQ_ID;
 	cls.z_ext = 0;
 
 	if (protover == NEHD_PROTOCOL_VERSION)
@@ -4430,6 +4430,7 @@ int CL_PlayerColor(player_info_t *plr, qboolean *name_coloured)
 // NOTE: text in rawmsg/msg is assumed destroyable and should not be used afterwards
 void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 {
+	extern cvar_t con_separatechat;
 	char *name = NULL;
 	int c;
 	qboolean name_coloured = false;
@@ -4552,6 +4553,26 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 	if (CSQC_ParsePrint(fullchatmessage, PRINT_CHAT))
 		return;
 #endif
+
+
+	if (con_separatechat.ival)
+	{
+		if (!con_chat)
+			con_chat = Con_Create("chat", CONF_HIDDEN|CONF_NOTIFY|CONF_NOTIFY_BOTTOM);
+		if (con_chat)
+		{
+			Con_PrintCon(con_chat, fullchatmessage);
+
+			if (con_separatechat.ival == 1)
+			{
+				con_main.flags |= CONF_NOTIMES;
+				Con_PrintCon(&con_main, fullchatmessage);
+				con_main.flags &= CONF_NOTIMES;
+				return;
+			}
+		}
+	}
+
 	Con_Printf("%s", fullchatmessage);
 }
 
@@ -5648,7 +5669,7 @@ void CLNQ_ParseServerMessage (void)
 //	cl.last_servermessage = realtime;
 	CL_ClearProjectiles ();
 
-	cl.allowsendpacket = true;
+	cls.netchan.nqreliable_allowed = true;
 
 //
 // if recording demos, copy the message out

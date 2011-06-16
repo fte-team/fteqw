@@ -2083,9 +2083,11 @@ void SV_UpdateToReliableMessages (void)
 #ifdef NQPROT
 		if (!ISQWCLIENT(client))
 		{
-			ClientReliableCheckBlock(client, sv.nqreliable_datagram.cursize);
-			ClientReliableWrite_SZ(client, sv.nqreliable_datagram.data, sv.nqreliable_datagram.cursize);
-
+			if (client->pextknown)
+			{
+				ClientReliableCheckBlock(client, sv.nqreliable_datagram.cursize);
+				ClientReliableWrite_SZ(client, sv.nqreliable_datagram.data, sv.nqreliable_datagram.cursize);
+			}
 			if (client->state != cs_spawned)
 				continue;	// datagrams only go to spawned
 			SZ_Write (&client->datagram
@@ -2268,7 +2270,7 @@ void SV_SendClientMessages (void)
 			c->send_message = false;
 			if (c->nextservertimeupdate != pt && c->state != cs_zombie)
 			{
-				c->send_message = true;
+				c->send_message = c->netchan.nqreliable_allowed = true;
 
 				if (c->state == cs_connected && !c->datagram.cursize && !c->netchan.message.cursize)
 				{

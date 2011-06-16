@@ -13,6 +13,7 @@ struct font_s *Font_LoadFont(int height, char *fontfilename);
 void Font_Free(struct font_s *f);
 void Font_BeginString(struct font_s *font, int vx, int vy, int *px, int *py);
 void Font_BeginScaledString(struct font_s *font, float vx, float vy, float *px, float *py); /*avoid using*/
+void Font_Transform(int vx, int vy, int *px, int *py);
 int Font_CharHeight(void);
 int Font_CharWidth(unsigned int charcode);
 int Font_CharEndCoord(int x, unsigned int charcode);
@@ -967,6 +968,13 @@ void Font_BeginString(struct font_s *font, int vx, int vy, int *px, int *py)
 	curfont = font;
 	*px = (vx*(int)vid.rotpixelwidth) / (float)vid.width;
 	*py = (vy*(int)vid.rotpixelheight) / (float)vid.height;
+}
+void Font_Transform(int vx, int vy, int *px, int *py)
+{
+	if (px)
+		*px = (vx*(int)vid.rotpixelwidth) / (float)vid.width;
+	if (py)
+		*py = (vy*(int)vid.rotpixelheight) / (float)vid.height;
 }
 void Font_BeginScaledString(struct font_s *font, float vx, float vy, float *px, float *py)
 {

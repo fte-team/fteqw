@@ -2810,6 +2810,8 @@ void SVNQ_ConnectionlessPacket(void)
 	int header;
 	int length;
 	int active, i;
+	int mod, modver, flags;
+	unsigned int passwd;
 	char *str;
 	char buffer[256], buffer2[256];
 	netadr_t localaddr;
@@ -2855,10 +2857,23 @@ void SVNQ_ConnectionlessPacket(void)
 			NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
 			return;	//not our version...
 		}
-		str = va("connect %i %i %i \"\\name\\unconnected\"", NET_PROTOCOL_VERSION, 0, SV_NewChallenge());
-		Cmd_TokenizeString (str, false, false);
+		mod = MSG_ReadByte();
+		modver = MSG_ReadByte();
+		flags = MSG_ReadByte();
+		passwd = MSG_ReadLong();
 
-		SVC_DirectConnect();
+		if (!strncmp(MSG_ReadString(), "getchallenge", 12))
+		{
+			/*dual-stack client, supporting either DP or QW protocols*/
+			SVC_GetChallenge ();
+		}
+		else
+		{
+			str = va("connect %i %i %i \"\\name\\unconnected\"", NET_PROTOCOL_VERSION, 0, SV_NewChallenge());
+			Cmd_TokenizeString (str, false, false);
+
+			SVC_DirectConnect();
+		}
 		break;
 	case CCREQ_SERVER_INFO:
 		if (Q_strcmp (MSG_ReadString(), NET_GAMENAME_NQ) != 0)
@@ -3046,7 +3061,7 @@ void SV_OpenRoute_f(void)
 
 	NET_StringToAdr(Cmd_Argv(1), &to);
 	if (!to.port)
-		to.port = PORT_CLIENT;
+		to.port = PORT_QWCLIENT;
 
 	sprintf(data, "\xff\xff\xff\xff%c", S2C_CONNECTION);
 
@@ -3580,7 +3595,7 @@ float SV_Frame (void)
 		if (sv_masterport.ival)
 			SVM_Think(sv_masterport.ival);
 		else
-			SVM_Think(PORT_MASTER);
+			SVM_Think(PORT_QWMASTER);
 	}
 
 	{
@@ -4038,7 +4053,7 @@ void SV_InitLocal (void)
 	{
 		int port = atoi(com_argv[p+1]);
 		if (!port)
-			port = PORT_SERVER;
+			port = PORT_QWSERVER;
 		Cvar_SetValue(&sv_port, port);
 #ifdef IPPROTO_IPV6
 		Cvar_SetValue(&sv_port_ipv6, port);

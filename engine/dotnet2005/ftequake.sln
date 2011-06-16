@@ -17,6 +17,8 @@ Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		D3DDebug|Win32 = D3DDebug|Win32
 		D3DDebug|x64 = D3DDebug|x64
+		D3DRelease|Win32 = D3DRelease|Win32
+		D3DRelease|x64 = D3DRelease|x64
 		Debug Dedicated Server|Win32 = Debug Dedicated Server|Win32
 		Debug Dedicated Server|x64 = Debug Dedicated Server|x64
 		Debug|Win32 = Debug|Win32
@@ -43,6 +45,10 @@ Global
 		{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1364}.D3DDebug|Win32.Build.0 = D3DDebug|Win32
 		{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1364}.D3DDebug|x64.ActiveCfg = D3DDebug|x64
 		{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1364}.D3DDebug|x64.Build.0 = D3DDebug|x64
+		{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1364}.D3DRelease|Win32.ActiveCfg = D3DRelease|Win32
+		{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1364}.D3DRelease|Win32.Build.0 = D3DRelease|Win32
+		{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1364}.D3DRelease|x64.ActiveCfg = D3DRelease|x64
+		{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1364}.D3DRelease|x64.Build.0 = D3DRelease|x64
 		{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1364}.Debug Dedicated Server|Win32.ActiveCfg = Debug Dedicated Server|Win32
 		{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1364}.Debug Dedicated Server|Win32.Build.0 = Debug Dedicated Server|Win32
 		{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1364}.Debug Dedicated Server|x64.ActiveCfg = Debug Dedicated Server|x64
@@ -84,6 +90,8 @@ Global
 		{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1364}.Release|x64.Build.0 = GLRelease|x64
 		{F384725A-62D4-4063-9941-6D8D2D6C2A47}.D3DDebug|Win32.ActiveCfg = D3DDebug_SDL|x64
 		{F384725A-62D4-4063-9941-6D8D2D6C2A47}.D3DDebug|x64.ActiveCfg = D3DDebug_SDL|x64
+		{F384725A-62D4-4063-9941-6D8D2D6C2A47}.D3DRelease|Win32.ActiveCfg = D3DDebug_SDL|x64
+		{F384725A-62D4-4063-9941-6D8D2D6C2A47}.D3DRelease|x64.ActiveCfg = D3DDebug_SDL|x64
 		{F384725A-62D4-4063-9941-6D8D2D6C2A47}.Debug Dedicated Server|Win32.ActiveCfg = Debug Dedicated Server SDL|x64
 		{F384725A-62D4-4063-9941-6D8D2D6C2A47}.Debug Dedicated Server|x64.ActiveCfg = Debug Dedicated Server SDL|x64
 		{F384725A-62D4-4063-9941-6D8D2D6C2A47}.Debug|Win32.ActiveCfg = Debug Dedicated Server SDL|x64
@@ -108,6 +116,8 @@ Global
 		{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1365}.D3DDebug|Win32.ActiveCfg = GLRelease|x64
 		{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1365}.D3DDebug|x64.ActiveCfg = GLRelease|x64
 		{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1365}.D3DDebug|x64.Build.0 = GLRelease|x64
+		{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1365}.D3DRelease|Win32.ActiveCfg = GLRelease|Win32
+		{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1365}.D3DRelease|x64.ActiveCfg = GLRelease|Win32
 		{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1365}.Debug Dedicated Server|Win32.ActiveCfg = GLRelease|x64
 		{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1365}.Debug Dedicated Server|x64.ActiveCfg = GLRelease|x64
 		{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1365}.Debug Dedicated Server|x64.Build.0 = GLRelease|x64
@@ -146,6 +156,10 @@ Global
 		{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1365}.Release|x64.Build.0 = GLRelease|x64
 		{E0EE8B50-3A75-42A9-B80A-787675979B0C}.D3DDebug|Win32.ActiveCfg = Debug
 		{E0EE8B50-3A75-42A9-B80A-787675979B0C}.D3DDebug|x64.ActiveCfg = Debug
+		{E0EE8B50-3A75-42A9-B80A-787675979B0C}.D3DRelease|Win32.ActiveCfg = Release
+		{E0EE8B50-3A75-42A9-B80A-787675979B0C}.D3DRelease|Win32.Build.0 = Release
+		{E0EE8B50-3A75-42A9-B80A-787675979B0C}.D3DRelease|x64.ActiveCfg = Release
+		{E0EE8B50-3A75-42A9-B80A-787675979B0C}.D3DRelease|x64.Build.0 = Release
 		{E0EE8B50-3A75-42A9-B80A-787675979B0C}.Debug Dedicated Server|Win32.ActiveCfg = Debug
 		{E0EE8B50-3A75-42A9-B80A-787675979B0C}.Debug Dedicated Server|x64.ActiveCfg = Debug
 		{E0EE8B50-3A75-42A9-B80A-787675979B0C}.Debug|Win32.ActiveCfg = Debug
@@ -169,6 +183,8 @@ Global
 		{1A353DA0-F351-4C0D-A21D-E2B460600B20}.D3DDebug|Win32.ActiveCfg = Debug|Win32
 		{1A353DA0-F351-4C0D-A21D-E2B460600B20}.D3DDebug|Win32.Build.0 = Debug|Win32
 		{1A353DA0-F351-4C0D-A21D-E2B460600B20}.D3DDebug|x64.ActiveCfg = Debug|Win32
+		{1A353DA0-F351-4C0D-A21D-E2B460600B20}.D3DRelease|Win32.ActiveCfg = Release|Win32
+		{1A353DA0-F351-4C0D-A21D-E2B460600B20}.D3DRelease|x64.ActiveCfg = Release|Win32
 		{1A353DA0-F351-4C0D-A21D-E2B460600B20}.Debug Dedicated Server|Win32.ActiveCfg = Debug|Win32
 		{1A353DA0-F351-4C0D-A21D-E2B460600B20}.Debug Dedicated Server|Win32.Build.0 = Debug|Win32
 		{1A353DA0-F351-4C0D-A21D-E2B460600B20}.Debug Dedicated Server|x64.ActiveCfg = Debug|Win32

@@ -174,6 +174,7 @@ RECT		window_rect;
 
 HMODULE hInstGL = NULL;
 HMODULE hInstwgl = NULL;
+char reqminidriver[MAX_OSPATH];
 char opengldllname[MAX_OSPATH];
 
 //just GetProcAddress with a safty net.
@@ -246,48 +247,57 @@ HGLRC (APIENTRY *qwglCreateContextAttribsARB)(HDC hDC, HGLRC hShareContext, cons
 
 qboolean GLInitialise (char *renderer)
 {
-	if (hInstGL)
-		FreeModule(hInstGL);
-	if (hInstwgl)
-		FreeModule(hInstwgl);
-	hInstwgl=NULL;
-
-	strcpy(opengldllname, renderer);
-
-	if (*renderer)
+	if (!hInstGL || strcmp(reqminidriver, renderer))
 	{
-		Con_DPrintf ("Loading renderer dll \"%s\"", renderer);
-		hInstGL = LoadLibrary(opengldllname);
-
 		if (hInstGL)
-			Con_DPrintf (" Success\n");
+			FreeLibrary(hInstGL);
+		hInstGL=NULL;
+		if (hInstwgl)
+			FreeLibrary(hInstwgl);
+		hInstwgl=NULL;
+
+		Q_strncpyz(reqminidriver, renderer, sizeof(reqminidriver));
+		Q_strncpyz(opengldllname, renderer, sizeof(opengldllname));
+
+		if (*renderer)
+		{
+			Con_DPrintf ("Loading renderer dll \"%s\"", renderer);
+			hInstGL = LoadLibrary(opengldllname);
+
+			if (hInstGL)
+				Con_DPrintf (" Success\n");
+			else
+				Con_DPrintf (" Failed\n");
+		}
 		else
-			Con_DPrintf (" Failed\n");
+			hInstGL = NULL;
+
+		if (!hInstGL)
+		{
+			unsigned int emode;
+			strcpy(opengldllname, "opengl32");
+			Con_DPrintf ("Loading renderer dll \"%s\"", opengldllname);
+			emode = SetErrorMode(SEM_FAILCRITICALERRORS); /*no annoying errors if they use glide*/
+			hInstGL = LoadLibrary(opengldllname);
+			SetErrorMode(emode);
+
+			if (hInstGL)
+				Con_DPrintf (" Success\n");
+			else
+				Con_DPrintf (" Failed\n");
+		}
+		if (!hInstGL)
+		{
+			if (*renderer)
+				Con_Printf ("Couldn't load %s or %s\n", renderer, opengldllname);
+			else
+				Con_Printf ("Couldn't load %s\n", opengldllname);
+			return false;
+		}
 	}
 	else
-		hInstGL = NULL;
-
-	if (!hInstGL)
 	{
-		unsigned int emode;
-		strcpy(opengldllname, "opengl32");
-		Con_DPrintf ("Loading renderer dll \"%s\"", opengldllname);
-		emode = SetErrorMode(SEM_FAILCRITICALERRORS); /*no annoying errors if they use glide*/
-		hInstGL = LoadLibrary(opengldllname);
-		SetErrorMode(emode);
-
-		if (hInstGL)
-			Con_DPrintf (" Success\n");
-		else
-			Con_DPrintf (" Failed\n");
-	}
-	if (!hInstGL)
-	{
-		if (*renderer)
-			Con_Printf ("Couldn't load %s or %s\n", renderer, opengldllname);
-		else
-			Con_Printf ("Couldn't load %s\n", opengldllname);
-		return false;
+		Con_DPrintf ("Reusing renderer dll %s\n", opengldllname);
 	}
 
 	Con_DPrintf ("Loaded renderer dll %s\n", opengldllname);
@@ -819,14 +829,23 @@ void VID_UnSetMode (void)
 		DestroyWindow(mainwindow);
 		mainwindow = NULL;
 	}
+
+#if 0
+	//Logically this code should be active. However...
+	//1: vid_restarts are slightly slower if we don't reuse the old dll
+	//2: nvidia drivers crash if we shut it down+reload!
 	if (hInstGL)
 	{
-#ifndef NPQTV
-		//FIXME: not cleaning up after myself because nvidia drivers crash the second time around
 		FreeLibrary(hInstGL);
-#endif
-		hInstGL = NULL;
+		hInstGL=NULL;
 	}
+	if (hInstwgl)
+	{
+		FreeLibrary(hInstwgl);
+		hInstwgl=NULL;
+	}
+	*opengldllname = 0;
+#endif
 }
 
 

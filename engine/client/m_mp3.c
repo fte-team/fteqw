@@ -1721,7 +1721,6 @@ qboolean Media_PlayFilm(char *name)
 		CDAudio_Stop();
 		SCR_EndLoadingPlaque();
 
-		Con_ClearNotify();
 		if (key_dest == key_menu)
 		{
 			key_dest = key_game;

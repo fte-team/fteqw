@@ -146,6 +146,7 @@ typedef struct player_info_s
 	int		userid;
 	char	userinfo[EXTENDED_INFO_STRING];
 	char	teamstatus[128];
+	float	teamstatustime;
 
 	// scoreboard information
 	char	name[MAX_SCOREBOARDNAME];
@@ -192,7 +193,7 @@ typedef struct
 
 	// received from server
 	double		receivedtime;	// time message was received, or -1
-	player_state_t	playerstate[MAX_CLIENTS];	// message received that reflects performing
+	player_state_t	playerstate[MAX_CLIENTS+MAX_SPLITS];	// message received that reflects performing
 							// the usercmd
 	packet_entities_t	packet_entities;
 	qboolean	invalid;		// true if the packet_entities delta was invalid
@@ -339,6 +340,7 @@ typedef struct
 	enum
 	{
 		CPNQ_ID,
+		CPNQ_PROQUAKE3_4,
 		CPNQ_FITZ666,
 		CPNQ_DP5,
 		CPNQ_DP6,
@@ -783,8 +785,7 @@ qboolean CL_DemoBehind(void);
 void CL_SaveInfo(vfsfile_t *f);
 void CL_SetInfo (int pnum, char *key, char *value);
 
-void CL_BeginServerConnect(void);
-void CLNQ_BeginServerConnect(void);
+void CL_BeginServerConnect(int port);
 char *CL_TryingToConnect(void);
 
 #define			MAX_VISEDICTS	1024

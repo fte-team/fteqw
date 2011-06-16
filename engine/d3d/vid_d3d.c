@@ -64,6 +64,7 @@ static qboolean vid_initializing;
 extern qboolean		scr_initialized;                // ready to draw
 extern qboolean		scr_drawloading;
 extern qboolean		scr_con_forcedraw;
+static qboolean d3d_resized;
 
 cvar_t vid_hardwaregamma;
 
@@ -361,26 +362,10 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 			}
 			return 0;
     	case WM_SIZE:
-			if (!vid_initializing)
-			{
-				extern cvar_t vid_conautoscale, vid_conwidth;
-				// force width/height to be updated
-				//vid.pixelwidth = window_rect.right - window_rect.left;
-				//vid.pixelheight = window_rect.bottom - window_rect.top;
-				D3DVID_UpdateWindowStatus(hWnd);
-
-				D3DBE_Reset(true);
-				vid.pixelwidth = d3dpp.BackBufferWidth = window_rect.right - window_rect.left;
-				vid.pixelheight = d3dpp.BackBufferHeight = window_rect.bottom - window_rect.top;
-				resetD3D9();
-				D3DBE_Reset(false);
-
-				Cvar_ForceCallback(&vid_conautoscale);
-				Cvar_ForceCallback(&vid_conwidth);
-			}
+			d3d_resized = true;
 			break;
 
-			case WM_CLOSE:
+		case WM_CLOSE:
 			if (!vid_initializing)
 				if (MessageBox (mainwindow, "Are you sure you want to quit?", "Confirm Exit",
 							MB_YESNO | MB_SETFOREGROUND | MB_ICONQUESTION) == IDYES)
@@ -429,7 +414,10 @@ static void resetD3D9(void)
 	HRESULT res;
 	res = IDirect3DDevice9_Reset(pD3DDev9, &d3dpp);
 	if (FAILED(res))
+	{
+		Con_Printf("IDirect3DDevice9_Reset failed (%u)\n", res&0xffff);
 		return;
+	}
 
 
 	/*clear the screen to black as soon as we start up, so there's no lingering framebuffer state*/
@@ -829,7 +817,7 @@ static char	*(D3D9_VID_GetRGBInfo)			(int prepad, int *truevidwidth, int *truevi
 					c = prepad+desc.Width*desc.Height*3;
 					p = (qbyte *)rect.pBits;
 
-					for (i=c-(3*desc.Height); i>=prepad; i-=(3*desc.Height))
+					for (i=c-(3*desc.Width); i>=prepad; i-=(3*desc.Width))
 					{
 						for (j=0; j<desc.Width; j++)
 						{
@@ -904,10 +892,30 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 	qboolean nohud, noworld;
 	RSpeedMark();
 
+	if (d3d_resized && d3dpp.Windowed)
+	{
+		extern cvar_t vid_conautoscale, vid_conwidth;
+		d3d_resized = false;
+
+		// force width/height to be updated
+		//vid.pixelwidth = window_rect.right - window_rect.left;
+		//vid.pixelheight = window_rect.bottom - window_rect.top;
+		D3DVID_UpdateWindowStatus(mainwindow);
+
+		D3DBE_Reset(true);
+		vid.pixelwidth = d3dpp.BackBufferWidth = window_rect.right - window_rect.left;
+		vid.pixelheight = d3dpp.BackBufferHeight = window_rect.bottom - window_rect.top;
+		resetD3D9();
+		D3DBE_Reset(false);
+
+		Cvar_ForceCallback(&vid_conautoscale);
+		Cvar_ForceCallback(&vid_conwidth);
+	}
+
 	switch (IDirect3DDevice9_TestCooperativeLevel(pD3DDev9))
 	{
 	case D3DERR_DEVICELOST:
-		//the user has task switched away from us or something, don't do anything.
+		//the user has task switched away from us or something, don't draw anything until they switch back to us
 		return;
 	case D3DERR_DEVICENOTRESET:
 		D3DBE_Reset(true);
@@ -961,7 +969,6 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 #endif
 
 	d3d9error(IDirect3DDevice9_BeginScene(pD3DDev9));
-	D3D9_Set2D ();
 /*
 #ifdef TEXTEDITOR
 	if (editormodal)
@@ -1030,8 +1037,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 			}
 		}
 
-
-	D3D9_Set2D ();
+	D3D9_Set2D();
 
 	R2D_BrightenScreen();
 

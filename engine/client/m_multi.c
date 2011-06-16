@@ -450,7 +450,7 @@ void M_Menu_ServerList_f (void)
 	key_dest = key_menu;
 	m_state = m_slist;
 
-	MasterInfo_Begin();
+	MasterInfo_Refresh();
 }
 #endif
 

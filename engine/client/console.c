@@ -22,7 +22,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 console_t	con_main;
-console_t	*con_current;			// point to either con_main
+console_t	*con_current;		// points to whatever is the visible console
+console_t	*con_chat;			// points to a chat console
 
 #define Font_ScreenWidth() (vid.pixelwidth)
 
@@ -59,13 +60,11 @@ cvar_t		con_centernotify = SCVAR("con_centernotify", "0");
 cvar_t		con_displaypossibilities = SCVAR("con_displaypossibilities", "1");
 cvar_t		con_maxlines = SCVAR("con_maxlines", "1024");
 cvar_t		cl_chatmode = SCVAR("cl_chatmode", "2");
+cvar_t		con_numnotifylines_chat = CVAR("con_numnotifylines_chat", "8");
+cvar_t		con_notifytime_chat = CVAR("con_notifytime_chat", "8");
+cvar_t		con_separatechat = CVAR("con_separatechat", "0");
 
 #define	NUM_CON_TIMES 24
-float		con_times[NUM_CON_TIMES];	// realtime time the line was generated
-								// for transparent notify lines
-
-//int			con_vislines;
-int			con_notifylines;		// scan lines to clear for notify lines
 
 #define		MAXCMDLINE	256
 extern	unsigned char	key_lines[32][MAXCMDLINE];
@@ -114,7 +113,10 @@ void Con_Destroy (console_t *con)
 	selendline = NULL;
 
 	if (con == &con_main)
+	{
+		Con_Finit(con);
 		return;
+	}
 
 	for (prev = &con_main; prev->next; prev = prev->next)
 	{
@@ -142,12 +144,13 @@ console_t *Con_FindConsole(char *name)
 	return NULL;
 }
 /*creates a potentially duplicate console_t - please use Con_FindConsole first, as its confusing otherwise*/
-console_t *Con_Create(char *name)
+console_t *Con_Create(char *name, unsigned int flags)
 {
 	console_t *con;
 	con = Z_Malloc(sizeof(console_t));
 	Q_strncpyz(con->name, name, sizeof(con->name));
 
+	con->flags = flags;
 	Con_Finit(con);
 	con->next = con_main.next;
 	con_main.next = con;
@@ -325,7 +328,7 @@ void QT_Create(char *command)
 
 	qt->running = true;
 
-	qt->console = Con_Create("QTerm");
+	qt->console = Con_Create("QTerm", 0);
 	qt->console->redirect = QT_KeyPress;
 	Con_PrintCon(qt->console, "Started Process\n");
 	Con_SetVisible(qt->console);
@@ -371,8 +374,6 @@ void Con_ToggleConsole_f (void)
 	}
 	else
 		key_dest = key_console;
-
-	Con_ClearNotify ();
 }
 
 /*
@@ -391,8 +392,6 @@ void Con_ToggleChat_f (void)
 	}
 	else
 		key_dest = key_console;
-
-	Con_ClearNotify ();
 }
 
 void Con_ClearCon(console_t *con)
@@ -429,7 +428,7 @@ void Cmd_ConEcho_f(void)
 	console_t *con;
 	con = Con_FindConsole(Cmd_Argv(1));
 	if (!con)
-		con = Con_Create(Cmd_Argv(1));
+		con = Con_Create(Cmd_Argv(1), 0);
 	if (con)
 	{
 		Cmd_ShiftArgs(1, false);
@@ -459,20 +458,6 @@ void Cmd_ConActivate_f(void)
 	if (con)
 		Con_SetActive(con);
 }
-
-/*
-================
-Con_ClearNotify
-================
-*/
-void Con_ClearNotify (void)
-{
-	int		i;
-
-	for (i=0 ; i<NUM_CON_TIMES ; i++)
-		con_times[i] = 0;
-}
-
 
 /*
 ================
@@ -529,6 +514,9 @@ void Con_Init (void)
 	Cvar_Register (&con_displaypossibilities, "Console controls");
 	Cvar_Register (&cl_chatmode, "Console controls");
 	Cvar_Register (&con_maxlines, "Console controls");
+	Cvar_Register (&con_numnotifylines_chat, "Console controls");
+	Cvar_Register (&con_notifytime_chat, "Console controls");
+	Cvar_Register (&con_separatechat, "Console controls");
 
 	Cmd_AddCommand ("toggleconsole", Con_ToggleConsole_f);
 	Cmd_AddCommand ("togglechat", Con_ToggleChat_f);
@@ -606,8 +594,10 @@ void Con_PrintCon (console_t *con, char *txt)
 				con->linecount--;
 			}
 			con->linecount++;
-			if (con == &con_main)
-				con_times[con->linesprinted++%NUM_CON_TIMES] = realtime;
+			if (con->flags & CONF_NOTIMES)
+				con->current->time = 0;
+			else
+				con->current->time = realtime;
 			con->current->newer = Z_Malloc(sizeof(conline_t));
 			con->current->newer->older = con->current;
 			con->current = con->current->newer;
@@ -652,9 +642,16 @@ void Con_Print (char *txt)
 
 void Con_CycleConsole(void)
 {
-	con_current = con_current->next;
-	if (!con_current)
-		con_current = &con_main;
+	while(1)
+	{
+		con_current = con_current->next;
+		if (!con_current)
+			con_current = &con_main;
+
+		if (con_current->flags & CONF_HIDDEN)
+			continue;
+		break;
+	}
 }
 
 void Con_Log(char *s);
@@ -915,43 +912,44 @@ Con_DrawNotify
 Draws the last few lines of output transparently over the game top
 ================
 */
-void Con_DrawNotify (void)
+void Con_DrawNotifyOne (console_t *con)
 {
 	conchar_t *starts[NUM_CON_TIMES], *ends[NUM_CON_TIMES];
 	conchar_t *c;
 	conline_t *l;
-	console_t *con = &con_main;
-	int lines=NUM_CON_TIMES;
+	int lines=con->notif_l;
 	int line;
-	int x = 0, y = 0;
-	unsigned int cn = con->linesprinted+NUM_CON_TIMES;
+	int x = con->notif_x, y = con->notif_y;
+	int w = con->notif_w;
 
 	int maxlines;
 	float t;
 
 	Font_BeginString(font_conchar, x, y, &x, &y);
+	Font_Transform(con->notif_w, 0, &w, NULL);
 
-	maxlines = con_numnotifylines.value;
-	if (maxlines < 0)
-		maxlines = 0;
-	if (maxlines > NUM_CON_TIMES)
-		maxlines = NUM_CON_TIMES;
+	if (con->notif_l < 0)
+		con->notif_l = 0;
+	if (con->notif_l > NUM_CON_TIMES)
+		con->notif_l = NUM_CON_TIMES;
+	lines = maxlines = con->notif_l;
 
-	y = Con_DrawProgress(0, Font_ScreenWidth(), 0);
+	if (x == 0 && y == 0 && con->notif_w == vid.width)
+		y = Con_DrawProgress(0, w, 0);
 
 	l = con->current;
 	if (!l->length)
 		l = l->older;
-	for (; l && cn > con->linesprinted && lines > NUM_CON_TIMES-maxlines; l = l->older)
+	for (; l && lines > con->notif_l-maxlines; l = l->older)
 	{
-		t = con_times[--cn % NUM_CON_TIMES];
+		t = l->time;
 		if (!t)
-			break; //cleared
+			continue; //hidden from notify
 		t = realtime - t;
-		if (t > con_notifytime.value)
+		if (t > con->notif_t)
 			break;
 
-		line = Font_LineBreaks((conchar_t*)(l+1), (conchar_t*)(l+1)+l->length, Font_ScreenWidth(), lines, starts, ends);
+		line = Font_LineBreaks((conchar_t*)(l+1), (conchar_t*)(l+1)+l->length, w, lines, starts, ends);
 		if (!line && lines > 0)
 		{
 			lines--;
@@ -967,10 +965,16 @@ void Con_DrawNotify (void)
 		if (lines == 0)
 			break;
 	}
+
 	//clamp it properly
-	while (lines < NUM_CON_TIMES-maxlines)
+	while (lines < con->notif_l-maxlines)
+	{
 		lines++;
-	while (lines < NUM_CON_TIMES)
+	}
+	if (con->flags & CONF_NOTIFY_BOTTOM)
+		y -= (con->notif_l - lines) * Font_CharHeight();
+
+	while (lines < con->notif_l)
 	{
 		x = 0;
 		if (con_centernotify.value)
@@ -979,7 +983,7 @@ void Con_DrawNotify (void)
 			{
 				x += Font_CharWidth(*c);
 			}
-			x = (vid.width - x) / 2;
+			x = (w - x) / 2;
 		}
 		Font_LineDraw(x, y, starts[lines], ends[lines]);
 
@@ -988,14 +992,43 @@ void Con_DrawNotify (void)
 		lines++;
 	}
 
+	Font_EndString(font_conchar);
+}
+
+void Con_DrawNotify (void)
+{
+	console_t *con;
+
+	con_main.flags = CONF_NOTIFY;
+	/*keep the main console up to date*/
+	con_main.notif_l = con_numnotifylines.ival;
+	con_main.notif_w = vid.width;
+	con_main.notif_t = con_notifytime.value;
+
+	if (con_chat)
+	{
+		con_chat->notif_l = con_numnotifylines_chat.ival;
+		con_chat->notif_w = vid.width - 64;
+		con_chat->notif_y = vid.height - sb_lines - 8*4;
+		con_chat->notif_t = con_notifytime_chat.value;
+	}
+
+	for (con = &con_main; con; con = con->next)
+	{
+		if (con->flags & CONF_NOTIFY)
+			Con_DrawNotifyOne(con);
+	}
 
 	if (key_dest == key_message)
 	{
+		int x, y;
 		conchar_t *starts[8];
 		conchar_t *ends[8];
 		conchar_t markup[MAXCMDLINE+64];
 		conchar_t *c;
 		int lines, i;
+		Font_BeginString(font_conchar, 0, 0, &x, &y);
+		y = con_main.notif_l * Font_CharHeight();
 		c = COM_ParseFunString(CON_WHITEMASK, va(chat_team?"say_team: %s":"say: %s", chat_buffer), markup, sizeof(markup), true);
 		*c++ = (0xe00a+((int)(realtime*con_cursorspeed)&1))|CON_WHITEMASK;
 		lines = Font_LineBreaks(markup, c, Font_ScreenWidth(), 8, starts, ends);
@@ -1005,12 +1038,8 @@ void Con_DrawNotify (void)
 			Font_LineDraw(x, y, starts[i], ends[i]);
 			y += Font_CharHeight();
 		}
+		Font_EndString(font_conchar);
 	}
-
-	if (y > con_notifylines)
-		con_notifylines = y;
-
-	Font_EndString(font_conchar);
 }
 
 //send all the stuff that was con_printed to sys_print.
@@ -1179,11 +1208,21 @@ int Con_DrawAlternateConsoles(int lines)
 {
 	char *txt;
 	int x, y = 0;
-	if (lines == scr_conlines && con_main.next)
+	int consshown = 0;
+	console_t *con = &con_main;
+
+	for (con = &con_main; con; con = con->next)
 	{
-		console_t *con = con_current;
+		if (!(con->flags & CONF_HIDDEN))
+			consshown++;
+	}
+
+	if (lines == scr_conlines && consshown > 1) 
+	{
 		for (x = 0, con = &con_main; con; con = con->next)
 		{
+			if (con->flags & CONF_HIDDEN)
+				continue;
 			if (con == &con_main)
 				txt = "MAIN";
 			else

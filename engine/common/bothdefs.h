@@ -156,6 +156,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define DPMMODELS		//darkplaces model format (which I've never seen anyone use)
 		#define PSKMODELS		//PSK model format (ActorX stuff from UT, though not the format the game itself uses)
 		#define HALFLIFEMODELS	//halflife model support (experimental)
+//		#define INTERQUAKEMODELS
 
 		#define HUFFNETWORK		//huffman network compression
 		//#define DOOMWADS		//doom wad/sprite support

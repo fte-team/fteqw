@@ -2201,6 +2201,9 @@ void Sbar_DrawTeamStatus(void)
 		if (track == p)	//nor is the person you are tracking
 			continue;
 
+		if (cl.players[p].teamstatustime < realtime)
+			continue;
+
 		if (!*cl.players[p].teamstatus)	//only show them if they have something. no blank lines thanks
 			continue;
 		if (strcmp(cl.players[p].team, cl.players[track].team))
@@ -2285,6 +2288,8 @@ qboolean Sbar_UpdateTeamStatus(player_info_t *player, char *status)
 			*outb++ = *status++|128;
 		outlen--;
 	}
+
+	player->teamstatustime = realtime + 10;
 
 	*outb = '\0';
 

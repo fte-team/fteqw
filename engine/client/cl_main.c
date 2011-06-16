@@ -54,6 +54,8 @@ cvar_t	cl_nolerp	= CVAR("cl_nolerp", "2");
 cvar_t	cl_nolerp_netquake = CVAR("cl_nolerp_netquake", "0");
 cvar_t	hud_tracking_show = CVAR("hud_tracking_show", "1");
 
+cvar_t	cl_defaultport		= CVARAF("cl_defaultport", STRINGIFY(PORT_QWSERVER), "port", 0);
+
 cvar_t	cfg_save_name = CVARF("cfg_save_name", "fte", CVAR_ARCHIVE);
 
 cvar_t	cl_splitscreen = CVAR("cl_splitscreen", "0");
@@ -211,7 +213,7 @@ unsigned int cl_numstris;
 unsigned int cl_maxstris;
 
 double			connect_time = -1;		// for connection retransmits
-int				connect_type = 0;
+int				connect_defaultport = 0;
 int				connect_tries = 0;	//increased each try, every fourth trys nq connect packets.
 
 quakeparms_t host_parms;
@@ -688,10 +690,12 @@ void CL_CheckForResend (void)
 
 	if (adr.port == 0)
 	{
-		if (connect_type)
-			adr.port = BigShort (26000);	//assume a different port for nq
-		else
-			adr.port = BigShort (27500);
+		adr.port = BigShort (connect_defaultport);	//assume a different port for nq
+
+		if (!strchr(cls.servername, ':'))
+		{
+			Q_strncatz(cls.servername, va(":%u", connect_defaultport), sizeof(cls.servername));
+		}
 	}
 	t2 = Sys_DoubleTime ();
 
@@ -709,26 +713,41 @@ void CL_CheckForResend (void)
 	if (connect_tries == 0)
 		NET_EnsureRoute(cls.sockets, "conn", cls.servername, false);
 
+	Con_TPrintf (TLC_CONNECTINGTO, cls.servername);
+
 #ifdef NQPROT
-	if (connect_type || ((connect_tries&3)==3))
+	if (((connect_tries&3)==3) != (connect_defaultport==26000))
 	{
 		sizebuf_t sb;
 		memset(&sb, 0, sizeof(sb));
 		sb.data = data;
 		sb.maxsize = sizeof(data);
 
-		Con_TPrintf (TLC_CONNECTINGTO, cls.servername);
-
 		MSG_WriteLong(&sb, LongSwap(NETFLAG_CTL | (strlen(NET_GAMENAME_NQ)+7)));
 		MSG_WriteByte(&sb, CCREQ_CONNECT);
 		MSG_WriteString(&sb, NET_GAMENAME_NQ);
 		MSG_WriteByte(&sb, NET_PROTOCOL_VERSION);
+
+		/*NQ engines have a few extra bits on the end*/
+		/*proquake servers wait for us to send them a packet before anything happens,
+		  which means it corrects for our public port if our nat uses different public ports for different remote ports
+		  thus all nq engines claim to be proquake
+		*/
+
+		MSG_WriteByte(&sb, 1); /*'mod'*/
+		MSG_WriteByte(&sb, 34); /*'mod' version*/
+		MSG_WriteByte(&sb, 0); /*flags*/
+		MSG_WriteLong(&sb, strtoul(password.string, NULL, 0)); /*password*/
+
+		/*so dual-protocol servers can send a more useful reply*/
+		MSG_WriteString(&sb, "getchallenge");
+
+		*(int*)sb.data = LongSwap(NETFLAG_CTL | sb.cursize);
 		NET_SendPacket (NS_CLIENT, sb.cursize, sb.data, adr);
 	}
 	else
 #endif
 	{
-		Con_TPrintf (TLC_CONNECTINGTO, cls.servername);
 		sprintf (data, "%c%c%c%cgetchallenge\n", 255, 255, 255, 255);
 		NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
 	}
@@ -736,24 +755,17 @@ void CL_CheckForResend (void)
 	connect_tries++;
 }
 
-void CL_BeginServerConnect(void)
+void CL_BeginServerConnect(int port)
 {
+	if (!port)
+		port = cl_defaultport.value;
 	SCR_SetLoadingStage(LS_CONNECTION);
 	connect_time = 0;
-	connect_type = 0;
+	connect_defaultport = port;
 	connect_tries = 0;
 	CL_CheckForResend();
 }
-#ifdef NQPROT
-void CLNQ_BeginServerConnect(void)
-{
-	SCR_SetLoadingStage(LS_CONNECTION);
-	connect_time = 0;
-	connect_type = 1;
-	connect_tries = 0;
-	CL_CheckForResend();
-}
-#endif
+
 void CL_BeginServerReconnect(void)
 {
 #ifndef CLIENTONLY
@@ -787,7 +799,7 @@ void CL_Connect_f (void)
 	CL_Disconnect_f ();
 
 	Q_strncpyz (cls.servername, server, sizeof(cls.servername));
-	CL_BeginServerConnect();
+	CL_BeginServerConnect(0);
 }
 
 void CL_Join_f (void)
@@ -815,7 +827,7 @@ void CL_Join_f (void)
 	Cvar_Set(&spectator, "0");
 
 	Q_strncpyz (cls.servername, server, sizeof(cls.servername));
-	CL_BeginServerConnect();
+	CL_BeginServerConnect(0);
 }
 
 void CL_Observe_f (void)
@@ -843,7 +855,7 @@ void CL_Observe_f (void)
 	Cvar_Set(&spectator, "1");
 
 	Q_strncpyz (cls.servername, server, sizeof(cls.servername));
-	CL_BeginServerConnect();
+	CL_BeginServerConnect(0);
 }
 
 #ifdef NQPROT
@@ -862,7 +874,7 @@ void CLNQ_Connect_f (void)
 	CL_Disconnect_f ();
 
 	Q_strncpyz (cls.servername, server, sizeof(cls.servername));
-	CLNQ_BeginServerConnect();
+	CL_BeginServerConnect(26000);
 }
 #endif
 
@@ -878,7 +890,7 @@ void CL_IRCConnect_f (void)
 
 		strcpy(cls.servername, "irc://");
 		Q_strncpyz (cls.servername+6, server, sizeof(cls.servername)-6);
-		CL_BeginServerConnect();
+		CL_BeginServerConnect(0);
 	}
 }
 #endif
@@ -1673,9 +1685,9 @@ void CL_SetInfo (int pnum, char *key, char *value)
 #endif
 		{
 			if (pnum)
-				CL_SendClientCommand(true, "%i setinfo %s %s", pnum+1, key, value);
+				CL_SendClientCommand(true, "%i setinfo %s \"%s\"", pnum+1, key, value);
 			else
-				CL_SendClientCommand(true, "setinfo %s %s", key, value);
+				CL_SendClientCommand(true, "setinfo %s \"%s\"", key, value);
 		}
 	}
 }
@@ -2300,6 +2312,7 @@ void CL_ConnectionlessPacket (void)
 
 			cls.netchan.isnqprotocol = true;
 			cls.protocol = CP_NETQUAKE;
+			cls.protocol_nq = CPNQ_ID;
 
 			cls.demonum = -1;			// not in the demo loop now
 			cls.state = ca_connected;
@@ -2458,15 +2471,18 @@ void CLNQ_ConnectionlessPacket(void)
 		//this is the port that we're meant to respond to.
 		net_from.port = htons((short)MSG_ReadLong());
 
+		cls.protocol_nq = CPNQ_ID;
 		if (MSG_ReadByte() == 1)	//a proquake server adds a little extra info
 		{
 			int ver = MSG_ReadByte();
 			Con_Printf("ProQuake server %i.%i\n", ver/10, ver%10);
 
+			if (ver >= 34)
+				cls.protocol_nq = CPNQ_PROQUAKE3_4;
 			if (MSG_ReadByte() == 1)
 			{
 				//its a 'pure' server.
-				Con_Printf("ProQuake sucks\nGo play on a decent server.\n");
+				Con_Printf("pure ProQuake server\n");
 				return;
 			}
 		}
@@ -2489,7 +2505,7 @@ void CLNQ_ConnectionlessPacket(void)
 
 		//send a dummy packet.
 		//this makes our local nat think we initialised the conversation.
-		NET_SendPacket(NS_CLIENT, 0, "", net_from);
+		Netchan_Transmit(&cls.netchan, 1, "\x01", 2500);
 		return;
 
 	case CCREP_REJECT:
@@ -2968,6 +2984,7 @@ void CL_Init (void)
 
 	Cvar_Register (&cfg_save_name, cl_controlgroup);
 
+	Cvar_Register (&cl_defaultport, cl_controlgroup);
 	Cvar_Register (&cl_servername, cl_controlgroup);
 	Cvar_Register (&cl_serveraddress, cl_controlgroup);
 	Cvar_Register (&cl_demospeed, "Demo playback");

@@ -92,12 +92,23 @@ typedef struct conline_s {
 	struct conline_s *newer;
 	unsigned short length;
 	unsigned short lines;
+	float time;
 } conline_t;
 
+#define CONF_HIDDEN			1
+#define CONF_NOTIFY			2
+#define CONF_NOTIFY_BOTTOM	4 /*align the bottom*/
+#define CONF_NOTIMES		8
 typedef struct console_s
 {
 	char name[64];
 	int linecount;
+	unsigned int flags;
+	int notif_x;
+	int notif_y;
+	int notif_w;
+	int notif_l;
+	float notif_t;
 	conline_t *oldest;
 	conline_t *current;		// line where next message will be printed
 	int		x;				// offset in current line for next print
@@ -115,13 +126,13 @@ typedef struct console_s
 
 extern	console_t	con_main;
 extern	console_t	*con_current;			// point to either con_main or con_chat
+extern	console_t	*con_chat;
 
 extern int scr_chatmode;
 
 //extern int con_totallines;
 extern qboolean con_initialized;
 extern qbyte *con_chars;
-extern	int	con_notifylines;		// scan lines to clear for notify lines
 
 void Con_DrawCharacter (int cx, int line, int num);
 
@@ -150,7 +161,7 @@ void Con_Destroy (console_t *con);
 void Con_SetActive (console_t *con);
 qboolean Con_NameForNum(int num, char *buffer, int buffersize);
 console_t *Con_FindConsole(char *name);
-console_t *Con_Create(char *name);
+console_t *Con_Create(char *name, unsigned int flags);
 void Con_SetVisible (console_t *con);
 void Con_PrintCon (console_t *con, char *txt);
 

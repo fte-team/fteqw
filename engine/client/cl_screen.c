@@ -1682,8 +1682,6 @@ void SCR_SetUpToDrawConsole (void)
 	else if (clearnotify++ < vid.numpages)
 	{
 	}
-	else
-		con_notifylines = 0;
 }
 
 /*

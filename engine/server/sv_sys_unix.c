@@ -690,6 +690,7 @@ int main(int argc, char *argv[])
 	if (COM_CheckParm("-dumpstack"))
 	{
 		signal(SIGILL, Friendly_Crash_Handler);
+		signal(SIGFPE, Friendly_Crash_Handler);
 		signal(SIGSEGV, Friendly_Crash_Handler);
 		signal(SIGBUS, Friendly_Crash_Handler);
 	}

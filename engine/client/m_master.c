@@ -505,7 +505,7 @@ void M_DrawSources (void)
 
 		switch (mast->type)
 		{
-		case MT_MASTERHTTP:
+		case MT_MASTERHTTPNQ:
 		case MT_MASTERHTTPQW:
 			clr = COLOR_YELLOW;
 			break;
@@ -808,7 +808,7 @@ void M_SListKey(int key)
 			SListOptionChanged(M_FindCurrentServer());	//go for these early.
 	}
 	else if (key == 'r')
-		MasterInfo_Begin();
+		MasterInfo_Refresh();
 	else if (key == K_SPACE)
 	{
 		if (slist_type == SLISTTYPE_SERVERS || slist_type == SLISTTYPE_FAVORITES)
@@ -901,6 +901,8 @@ typedef struct {
 	int numslots;
 	qboolean stillpolling;
 	qbyte filter[8];
+
+	char refreshtext[64];
 
 	qboolean sliderpressed;
 
@@ -1180,6 +1182,7 @@ void SL_PreDraw	(menu_t *menu)
 
 	CL_QueryServers();
 
+	snprintf(info->refreshtext, sizeof(info->refreshtext), "Refresh - %u of %u\n", Master_NumPolled(), Master_TotalCount());
 	info->numslots = Master_NumSorted();
 }
 qboolean SL_Key	(int key, menu_t *menu)
@@ -1419,7 +1422,7 @@ void SL_Remove	(menu_t *menu)
 
 qboolean SL_DoRefresh (menuoption_t *opt, menu_t *menu, int key)
 {
-	MasterInfo_Begin();
+	MasterInfo_Refresh();
 	return true;
 }
 
@@ -1438,8 +1441,6 @@ void M_Menu_ServerList2_f(void)
 
 	key_dest = key_menu;
 	m_state = m_complex;
-
-	MasterInfo_Begin();
 
 	menu = M_CreateMenu(sizeof(serverlist_t));
 	menu->event = SL_PreDraw;
@@ -1488,6 +1489,8 @@ void M_Menu_ServerList2_f(void)
 		}
 	}
 
+	strcpy(info->refreshtext, "Refresh");
+
 	MC_AddCheckBox(menu, 0, vid.height - 64+8*1, "Ping     ", &sb_showping, 1);
 	MC_AddCheckBox(menu, 0, vid.height - 64+8*2, "Address  ", &sb_showaddress, 1);
 	MC_AddCheckBox(menu, 0, vid.height - 64+8*3, "Map      ", &sb_showmap, 1);
@@ -1504,7 +1507,7 @@ void M_Menu_ServerList2_f(void)
 	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*6, "Hide Empty", SL_ReFilter, 6);
 	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*7, "Hide Full ", SL_ReFilter, 7);
 
-	MC_AddCommand(menu, 64, 0, "Refresh", SL_DoRefresh);
+	MC_AddCommand(menu, 64, 0, info->refreshtext, SL_DoRefresh);
 
 	info->filter[1] = !sb_hidenetquake.value;
 	info->filter[2] = !sb_hidequakeworld.value;
@@ -1518,6 +1521,8 @@ void M_Menu_ServerList2_f(void)
 	CalcFilters(menu);
 
 	Master_SetSortField(SLKEY_PING, true);
+
+	MasterInfo_Refresh();
 }
 
 float quickconnecttimeout;
@@ -1567,7 +1572,7 @@ void M_QuickConnect_PreDraw(menu_t *menu)
 		}
 
 		//retry
-		MasterInfo_Begin();
+		MasterInfo_Refresh();
 
 		quickconnecttimeout = Sys_DoubleTime() + 5;
 	}
@@ -1600,7 +1605,7 @@ void M_QuickConnect_f(void)
 	key_dest = key_menu;
 	m_state = m_complex;
 
-	MasterInfo_Begin();
+	MasterInfo_Refresh();
 
 	quickconnecttimeout = Sys_DoubleTime() + 5;
 

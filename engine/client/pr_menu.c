@@ -1150,7 +1150,7 @@ void QCBUILTIN PF_M_sethostcachesort(progfuncs_t *prinst, struct globalvars_s *p
 //void	refreshhostcache(void) = #620;
 void QCBUILTIN PF_M_refreshhostcache(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	MasterInfo_Begin();
+	MasterInfo_Refresh();
 }
 //float	gethostcachenumber(float fld, float hostnr) = #621;
 void QCBUILTIN PF_M_gethostcachenumber(progfuncs_t *prinst, struct globalvars_s *pr_globals)

@@ -529,10 +529,10 @@ void R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 
 	if (*var->string)
 		conback = R_RegisterPic(var->string);
-	if (!conback || !conback->width)
+	if (!conback || conback->flags & SHADER_NOIMAGE)
 	{
 		conback = R_RegisterCustom("console", NULL, NULL);
-		if (!conback)
+		if (!conback || conback->flags & SHADER_NOIMAGE)
 		{
 			if (M_GameType() == MGT_HEXEN2)
 				conback = R_RegisterPic("gfx/menu/conback.lmp");

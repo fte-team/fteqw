@@ -3278,14 +3278,12 @@ void NET_Init (void)
 		Sys_Error ("Winsock initialization failed.");
 #endif
 }
-#define STRINGIFY2(s) #s
-#define STRINGIFY(s) STRINGIFY2(s)
 #ifndef SERVERONLY
 void NET_InitClient(void)
 {
 	const char *port;
 	int p;
-	port = STRINGIFY(PORT_CLIENT);
+	port = STRINGIFY(PORT_QWCLIENT);
 
 	p = COM_CheckParm ("-port");
 	if (p && p < com_argc)
@@ -3369,7 +3367,7 @@ void NET_CloseServer(void)
 void NET_InitServer(void)
 {
 	char *port;
-	port = STRINGIFY(PORT_SERVER);
+	port = STRINGIFY(PORT_QWSERVER);
 
 	if (sv_listen_nq.value || sv_listen_dp.value || sv_listen_qw.value || sv_listen_q3.value)
 	{

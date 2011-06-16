@@ -806,11 +806,10 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			}
 			else if (!strncmp(cmdtext, "localservers", 12))
 			{
-				MasterInfo_Begin();
+				MasterInfo_Refresh();
 			}
 	/*		else if (!strncmp(cmdtext, "r_vidmode", 12))
 			{
-				MasterInfo_Begin();
 			}
 	*/		else
 				Cbuf_AddText(cmdtext, RESTRICT_SERVER);

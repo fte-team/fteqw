@@ -423,7 +423,8 @@ void Master_SortServers(void)
 		Master_ResortServer(server);
 	}
 
-	nextsort = Sys_DoubleTime() + 8;
+	if (nextsort < Sys_DoubleTime())
+		nextsort = Sys_DoubleTime() + 8;
 }
 
 serverinfo_t *Master_SortedServer(int idx)
@@ -444,7 +445,6 @@ int Master_NumSorted(void)
 
 	return numvisibleservers;
 }
-
 
 
 float Master_ReadKeyFloat(serverinfo_t *server, int keynum)
@@ -714,8 +714,8 @@ qboolean Master_LoadMasterList (char *filename, int defaulttype, int depth)
 			servertype = MT_MASTERQ2;
 		else if (!strcmp(com_token, "master:q3"))
 			servertype = MT_MASTERQ3;
-		else if (!strcmp(com_token, "master:http"))
-			servertype = MT_MASTERHTTP;
+		else if (!strcmp(com_token, "master:httpnq"))
+			servertype = MT_MASTERHTTPNQ;
 		else if (!strcmp(com_token, "master:httpqw"))
 			servertype = MT_MASTERHTTPQW;
 		else if (!strcmp(com_token, "master"))	//any other sort of master, assume it's a qw master.
@@ -776,7 +776,7 @@ qboolean Master_LoadMasterList (char *filename, int defaulttype, int depth)
 		{
 			switch (servertype)
 			{
-			case MT_MASTERHTTP:
+			case MT_MASTERHTTPNQ:
 			case MT_MASTERHTTPQW:
 				Master_AddMasterHTTP(line, servertype, name);
 				break;
@@ -1020,7 +1020,8 @@ int NET_CheckPollSockets(void)
 			if (MSG_ReadByte() != CCREP_SERVER_INFO)
 				continue;
 
-			NET_StringToAdr(MSG_ReadString(), &net_from);
+			/*this is an address string sent from the server. its not usable. if its replying to serverinfos, its possible to send it connect requests, while the address that it claims is 50% bugged*/
+			MSG_ReadString();
 
 			Q_strncpyz(name, MSG_ReadString(), sizeof(name));
 			Q_strncpyz(map, MSG_ReadString(), sizeof(map));
@@ -1166,6 +1167,10 @@ void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles)
 	//static int mastersequence; // warning: unused variable âmastersequenceâ
 	if (!mast)
 		return;
+
+	if (mast->sends)
+		mast->sends--;
+
 	switch(mast->type)
 	{
 #ifdef Q3CLIENT
@@ -1229,7 +1234,7 @@ void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles)
 		break;
 #endif
 #ifdef WEBCLIENT
-	case MT_MASTERHTTP:
+	case MT_MASTERHTTPNQ:
 		HTTP_CL_Get(mast->address, NULL, MasterInfo_ProcessHTTPNQ);
 		break;
 	case MT_MASTERHTTPQW:
@@ -1271,8 +1276,8 @@ void MasterInfo_WriteServers(void)
 		case MT_MASTERDP:
 			typename = "master:dp";
 			break;
-		case MT_MASTERHTTP:
-			typename = "master:http";
+		case MT_MASTERHTTPNQ:
+			typename = "master:httpnq";
 			break;
 		case MT_MASTERHTTPQW:
 			typename = "master:httpqw";
@@ -1345,7 +1350,7 @@ void MasterInfo_WriteServers(void)
 }
 
 //poll master servers for server lists.
-void MasterInfo_Begin(void)
+void MasterInfo_Refresh(void)
 {
 	master_t *mast;
 	if (!Master_LoadMasterList("masters.txt",			MT_MASTERQW, 5))
@@ -1378,7 +1383,7 @@ void MasterInfo_Begin(void)
 
 //		if (q1servers)	//nq master servers
 		{
-			Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake", MT_MASTERHTTP, "gameaholic's NQ master");
+			Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake", MT_MASTERHTTPNQ, "gameaholic's NQ master");
 			Master_AddMaster("255.255.255.255:26000",		MT_BCASTNQ, "Nearby Quake1 servers");
 
 			Master_AddMaster("ghdigital.com:27950",				MT_MASTERDP, "DarkPlaces Master 1");
@@ -1407,8 +1412,11 @@ void MasterInfo_Begin(void)
 
 	for (mast = master; mast; mast=mast->next)
 	{
-		MasterInfo_Request(mast, false);
+		mast->sends = 1;
 	}
+
+	Master_SortServers();
+	nextsort = Sys_DoubleTime() + 2;
 }
 
 void Master_QueryServer(serverinfo_t *server)
@@ -1446,6 +1454,7 @@ void CL_QueryServers(void)
 	static int poll;
 	int op;
 	serverinfo_t *server;
+	master_t *mast;
 
 	extern cvar_t	sb_hidequake2;
 	extern cvar_t	sb_hidequake3;
@@ -1453,6 +1462,46 @@ void CL_QueryServers(void)
 	extern cvar_t	sb_hidequakeworld;
 
 	op = poll;
+
+	for (mast = master; mast; mast=mast->next)
+	{
+		switch (mast->type)
+		{
+		case MT_BAD:
+			continue;
+		case MT_MASTERHTTPNQ:
+		case MT_BCASTNQ:
+		case MT_SINGLENQ:
+		case MT_BCASTDP:
+		case MT_SINGLEDP:
+		case MT_MASTERDP:
+			if (sb_hidenetquake.value)
+				continue;
+			break;
+		case MT_MASTERHTTPQW:
+		case MT_BCASTQW:
+		case MT_SINGLEQW:
+		case MT_MASTERQW:
+			if (sb_hidequakeworld.value)
+				continue;
+			break;
+		case MT_BCASTQ2:
+		case MT_SINGLEQ2:
+		case MT_MASTERQ2:
+			if (sb_hidequake2.value)
+				continue;
+			break;
+		case MT_BCASTQ3:
+		case MT_MASTERQ3:
+		case MT_SINGLEQ3:
+			if (sb_hidequake3.value)
+				continue;
+			break;
+		}
+
+		if (mast->sends > 0)
+			MasterInfo_Request(mast, false);
+	}
 
 
 	for (server = firstserver; op>0 && server; server=server->next, op--);
@@ -1510,14 +1559,27 @@ void CL_QueryServers(void)
 	poll = 0;
 }
 
-int Master_TotalCount(void)
+unsigned int Master_TotalCount(void)
 {
-	int count=0;
+	unsigned int count=0;
 	serverinfo_t *info;
 
 	for (info = firstserver; info; info = info->next)
 	{
 		count++;
+	}
+	return count;
+}
+
+unsigned int Master_NumPolled(void)
+{
+	unsigned int count=0;
+	serverinfo_t *info;
+
+	for (info = firstserver; info; info = info->next)
+	{
+		if (info->maxplayers)
+			count++;
 	}
 	return count;
 }

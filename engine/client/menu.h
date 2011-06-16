@@ -415,7 +415,7 @@ void M_Search_Key (int key);
 void M_ServerList_Key (int key);
 void M_Media_Key (int key);
 
-void MasterInfo_Begin(void);
+void MasterInfo_Refresh(void);
 void M_DrawServers(void);
 void M_SListKey(int key);
 

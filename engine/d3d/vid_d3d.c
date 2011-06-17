@@ -469,7 +469,7 @@ static qboolean initD3D9Device(HWND hWnd, rendererstate_t *info, unsigned int de
 	d3dpp.BackBufferWidth = info->width;
 	d3dpp.BackBufferHeight = info->height;
 	d3dpp.MultiSampleType = info->multisample;
-	d3dpp.BackBufferCount = 1;
+	d3dpp.BackBufferCount = 1 + info->triplebuffer;
 	d3dpp.FullScreen_RefreshRateInHz = info->fullscreen?info->rate:0;	//don't pass a rate if not fullscreen, d3d doesn't like it.
 	d3dpp.Windowed = !info->fullscreen;
 

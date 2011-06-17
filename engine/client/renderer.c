@@ -14,6 +14,7 @@ int			sh_shadowframe;	//index for msurf->shadowframe
 int			r_framecount;
 struct texture_s	*r_notexture_mip;
 
+qboolean	r_blockvidrestart;
 
 void R_InitParticleTexture (void);
 
@@ -286,8 +287,8 @@ cvar_t gl_texturemode2d						= CVARFC("gl_texturemode2d", "GL_LINEAR",
 												GL_Texturemode2d_Callback);
 #endif
 
-cvar_t gl_triplebuffer						= SCVARF ("gl_triplebuffer", "1",
-												CVAR_ARCHIVE);
+cvar_t vid_triplebuffer						= CVARAF ("vid_triplebuffer", "1",
+												"gl_triplebuffer", CVAR_ARCHIVE);
 
 cvar_t r_noportals							= SCVAR  ("r_noportals", "0");
 cvar_t r_noaliasshadows						= SCVARF ("r_noaliasshadows", "0",
@@ -341,8 +342,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&vid_gl_context_es2, GLRENDEREROPTIONS);
 
 	//screen
-	Cvar_Register (&gl_triplebuffer, GLRENDEREROPTIONS);
-
 	Cvar_Register (&vid_preservegamma, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_hardwaregamma, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_desktopgamma, GLRENDEREROPTIONS);
@@ -480,6 +479,7 @@ void Renderer_Init(void)
 	currentrendererstate.renderer = NULL;
 	qrenderer = QR_NONE;
 
+	r_blockvidrestart = true;
 	Cmd_AddCommand("setrenderer", R_SetRenderer_f);
 	Cmd_AddCommand("vid_restart", R_RestartRenderer_f);
 
@@ -510,6 +510,7 @@ void Renderer_Init(void)
 	Cvar_Register (&vid_conheight, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_conautoscale, VIDCOMMANDGROUP);
 
+	Cvar_Register (&vid_triplebuffer, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_width, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_height, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_refreshrate, VIDCOMMANDGROUP);
@@ -615,6 +616,7 @@ qboolean Renderer_Started(void)
 
 void Renderer_Start(void)
 {
+	r_blockvidrestart = false;
 	Cvar_ApplyLatches(CVAR_RENDERERLATCH);
 
 	//renderer = none && currentrendererstate.bpp == -1 means we've never applied any mode at all
@@ -1283,6 +1285,12 @@ void R_RestartRenderer_f (void)
 	int i, j;
 	rendererstate_t oldr;
 	rendererstate_t newr;
+	if (r_blockvidrestart)
+	{
+		Con_Printf("Ignoring vid_restart from config\n");
+		return;
+	}
+
 	M_Shutdown();
 	memset(&newr, 0, sizeof(newr));
 
@@ -1295,6 +1303,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 	newr.width = vid_width.value;
 	newr.height = vid_height.value;
 
+	newr.triplebuffer = vid_triplebuffer.value;
 	newr.multisample = vid_multisample.value;
 	newr.bpp = vid_bpp.value;
 	newr.fullscreen = vid_fullscreen.value;

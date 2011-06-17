@@ -33,7 +33,7 @@ void GLSCR_UpdateScreen (void);
 
 extern qboolean	scr_drawdialog;
 
-extern cvar_t gl_triplebuffer;
+extern cvar_t vid_triplebuffer;
 extern cvar_t          scr_fov;
 
 extern qboolean        scr_initialized;
@@ -68,7 +68,7 @@ void GLSCR_UpdateScreen (void)
 	qboolean noworld;
 	RSpeedMark();
 
-	vid.numpages = 2 + gl_triplebuffer.value;
+	vid.numpages = 2 + vid_triplebuffer.value;
 
 	if (scr_disabled_for_loading)
 	{

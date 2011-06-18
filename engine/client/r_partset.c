@@ -1148,14 +1148,13 @@ char *particle_set_highfps =
 
 "r_part te_railtrail\n"
 "{\n"
-"step 1000000\n"
+"step 64\n"
 "scale 5\n"
 "die 1.2\n"
 "alpha 0.7\n"
 "rgb 16 16 255\n"
 "blend add\n"
 "type beam\n"
-"averageout\n"
 "}\n"
 
 //the blob tempent is used quite a bit with teamfortress emp grenades.

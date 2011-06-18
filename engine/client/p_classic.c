@@ -643,8 +643,11 @@ static float Classic_ParticleTrail (vec3_t start, vec3_t end, float leftover, ef
 	case BLOOD_TRAIL:
 		scale = 6; break;
 	default:
-		scale = 3; break;	
+		scale = 3; break;
 	}
+
+	leftover = scale - leftover;
+	VectorMA(point, leftover, delta, point);
 
 	len /= scale;
 	leftover = rlen - ((int)(len) * scale);
@@ -652,7 +655,7 @@ static float Classic_ParticleTrail (vec3_t start, vec3_t end, float leftover, ef
 	if (!(num_particles = (int) len))
 		goto done;
 
-	VectorScale (delta, 1.0 / num_particles, delta);
+	VectorScale (delta, scale, delta);
 
 	for (i = 0; i < num_particles && free_particles; i++)
 	{

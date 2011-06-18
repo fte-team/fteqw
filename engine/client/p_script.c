@@ -355,10 +355,8 @@ static struct {
 } legacynames[] =
 {
 	{"t_rocket", "TR_ROCKET"},
-	{"te_explosion", "TE_EXPLOSION"},
 
-	{"t_blastertrail", "TR_BLASTERTRAIL"},
-	{"t_rocket", "TR_ROCKET"},
+	//{"t_blastertrail", "TR_BLASTERTRAIL"},
 	{"t_grenade", "TR_GRENADE"},
 	{"t_gib", "TR_BLOOD"},
 

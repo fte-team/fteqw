@@ -637,6 +637,7 @@ void Sys_Shutdown (void)
 {
 }
 
+#ifdef __linux__ /*should probably be GNUC but whatever*/
 #include <execinfo.h>
 static void Friendly_Crash_Handler(int sig)
 {
@@ -662,6 +663,7 @@ static void Friendly_Crash_Handler(int sig)
 	}
 	exit(1);
 }
+#endif
 
 /*
 =============
@@ -687,6 +689,7 @@ int main(int argc, char *argv[])
 	parms.argc = com_argc;
 	parms.argv = com_argv;
 
+#ifdef __linux__
 	if (COM_CheckParm("-dumpstack"))
 	{
 		signal(SIGILL, Friendly_Crash_Handler);
@@ -694,6 +697,7 @@ int main(int argc, char *argv[])
 		signal(SIGSEGV, Friendly_Crash_Handler);
 		signal(SIGBUS, Friendly_Crash_Handler);
 	}
+#endif
 
 	parms.memsize = 16*1024*1024;
 

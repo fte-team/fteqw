@@ -40,7 +40,10 @@ static void PNULL_ShutdownParticles(void)
 {
 }
 
-static void PNULL_DelinkTrailstate(trailstate_t **tsk){}
+static void PNULL_DelinkTrailstate(trailstate_t **tsk)
+{
+	*tsk = NULL;
+}
 static void PNULL_ClearParticles (void){}
 static void PNULL_DrawParticles(void)
 {

@@ -2328,7 +2328,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 	trailstate_t *ts;
 
 	if (typenum >= FALLBACKBIAS && fallback)
-		return fallback->RunParticleEffectState(org, dir, count, typenum-FALLBACKBIAS, tsk);
+		return fallback->RunParticleEffectState(org, dir, count, typenum-FALLBACKBIAS, NULL);
 
 	if (typenum < 0 || typenum >= numparticletypes)
 		return 1;
@@ -3613,8 +3613,10 @@ static int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailst
 {
 	part_type_t *ptype = &part_type[type];
 
+	// TODO: fallback particle system won't have a decent trailstate which will mess up
+	// high fps trails
 	if (type >= FALLBACKBIAS && fallback)
-		return fallback->ParticleTrail(startpos, end, type-FALLBACKBIAS, tsk);
+		return fallback->ParticleTrail(startpos, end, type-FALLBACKBIAS, NULL);
 
 	if (type < 0 || type >= numparticletypes)
 		return 1;	//bad value

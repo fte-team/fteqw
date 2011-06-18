@@ -47,7 +47,7 @@ char *particle_set_spikeset =
 "spawnvel 10\n"
 "}\n"
 
-"r_part t_rocket\n"
+"r_part tr_rocket\n"
 "{\n"
 "texture \"particles/fteparticlefont.tga\"\n"
 "tcoords 97 97 191 191 256\n"
@@ -78,7 +78,7 @@ char *particle_set_spikeset =
 "cliptype rockettail\n"
 "}\n"
 
-"r_part t_altrocket\n"
+"r_part tr_altrocket\n"
 "{\n"
 "texture \"particles/fteparticlefont.tga\"\n"
 "tcoords 97 97 191 191 256\n"
@@ -188,7 +188,7 @@ char *particle_set_spikeset =
 "rgb 150 150 150\n"
 "}\n"
 
-"r_part t_grenade\n"
+"r_part tr_grenade\n"
 "{\n"
 "texture \"particles/fteparticlefont.tga\"\n"
 "tcoords 97 97 191 191 256\n"
@@ -207,7 +207,7 @@ char *particle_set_spikeset =
 "}\n"
 
 //cool's blood trails (cos they're cooler)
-"r_part t_gib\n"
+"r_part tr_gib\n"
 "{\n"
 "texture \"particles/fteparticlefont.tga\"\n"
 "tcoords 1 1 63 63 256 2 64\n"
@@ -226,7 +226,7 @@ char *particle_set_spikeset =
 "stains 5\n"
 "}\n"
 
-"r_part t_zomgib\n"
+"r_part tr_slightblood\n"
 "{\n"
 "texture \"particles/fteparticlefont.tga\"\n"
 "tcoords 1 1 63 63 256 2 64\n"
@@ -245,7 +245,7 @@ char *particle_set_spikeset =
 "stains 5\n"
 "}\n"
 
-"r_part t_tracer\n"
+"r_part tr_wizspike\n"
 "{\n"
 "texture \"particles/fteparticlefont.tga\"\n"
 "tcoords 1 97 95 191 256\n"
@@ -260,7 +260,7 @@ char *particle_set_spikeset =
 "scalefactor 0.825\n"
 "}\n"
 
-"r_part t_tracer2\n"
+"r_part tr_knightspike\n"
 "{\n"
 "texture \"particles/fteparticlefont.tga\"\n"
 "tcoords 1 97 95 191 256\n"
@@ -275,7 +275,7 @@ char *particle_set_spikeset =
 "scalefactor 0.825\n"
 "}\n"
 
-"r_part t_tracer3\n"
+"r_part tr_vorespike\n"
 "{\n"
 "texture \"particles/fteparticlefont.tga\"\n"
 "tcoords 1 97 95 191 256\n"
@@ -727,7 +727,7 @@ char *particle_set_spikeset =
 
 char *particle_set_faithful =
 // faithful, by TimeServ
-"r_part t_gib\n"
+"r_part tr_gib\n"
 "{\n"
 "texture \"particles/quake\"\n"
 "step 3\n"
@@ -742,7 +742,7 @@ char *particle_set_faithful =
 "stains 1\n"
 "}\n"
 
-"r_part t_zomgib\n"
+"r_part tr_slightblood\n"
 "{\n"
 "texture \"particles/quake\"\n"
 "step 6\n"
@@ -757,7 +757,7 @@ char *particle_set_faithful =
 "stains 1\n"
 "}\n"
 
-"r_part t_tracer3\n"
+"r_part tr_vorespike\n"
 "{\n"
 "texture \"particles/quake\"\n"
 "step 3\n"
@@ -768,7 +768,7 @@ char *particle_set_faithful =
 "spawnorg 8\n"
 "}\n"
 
-"r_part t_tracer\n"
+"r_part tr_wizspike\n"
 "{\n"
 "texture \"particles/quake\"\n"
 "step 3\n"
@@ -781,7 +781,7 @@ char *particle_set_faithful =
 "spawnmode tracer\n"
 "}\n"
 
-"r_part t_tracer2\n"
+"r_part tr_knightspike\n"
 "{\n"
 "texture \"particles/quake\"\n"
 "step 3\n"
@@ -794,7 +794,7 @@ char *particle_set_faithful =
 "spawnmode tracer\n"
 "}\n"
 
-"r_part t_rocket\n"
+"r_part tr_rocket\n"
 "{\n"
 "texture \"particles/quake\"\n"
 "step 3\n"
@@ -812,7 +812,7 @@ char *particle_set_faithful =
 "gravity -40\n"
 "}\n"
 
-"r_part t_altrocket\n"
+"r_part tr_altrocket\n"
 "{\n"
 "texture \"particles/quake\"\n"
 "step 3\n"
@@ -825,7 +825,7 @@ char *particle_set_faithful =
 "gravity -40\n"
 "}\n"
 
-"r_part t_grenade\n"
+"r_part tr_grenade\n"
 "{\n"
 "texture \"particles/quake\"\n"
 "step 3\n"
@@ -1031,7 +1031,7 @@ char *particle_set_faithful =
 char *particle_set_highfps =
 // highfps, originally submitted by 'ShadowWalker'
 // rehashed by TimeServ
-"r_part t_gib\n"
+"r_part tr_gib\n"
 "{\n"
 "texture \"particles/bloodtrail\"\n"
 "step 12\n"
@@ -1042,7 +1042,7 @@ char *particle_set_highfps =
 "rgb 64 0 0\n"
 "rgbdelta -128 0 0\n"
 "}\n"
-"r_part t_zomgib\n"
+"r_part tr_slightblood\n"
 "{\n"
 "texture \"particles/bloodtrail\"\n"
 "step 16\n"
@@ -1054,7 +1054,7 @@ char *particle_set_highfps =
 "rgbdelta -128 0 0\n"
 "}\n"
 
-"r_part t_tracer\n"
+"r_part tr_wizspike\n"
 "{\n"
 "texture \"particles/tracer\"\n"
 "scale 23\n"
@@ -1063,7 +1063,7 @@ char *particle_set_highfps =
 "die 0.5\n"
 "}\n"
 
-"r_part t_tracer2\n"
+"r_part tr_knightspike\n"
 "{\n"
 "texture \"particles/tracer\"\n"
 "scale 23\n"
@@ -1072,7 +1072,7 @@ char *particle_set_highfps =
 "rgb 192 96 0\n"
 "}\n"
 
-"r_part t_tracer3\n"
+"r_part tr_vorespike\n"
 "{\n"
 "texture \"particles/tracer\"\n"
 "scale 23\n"
@@ -1212,7 +1212,7 @@ char *particle_set_highfps =
 "spawnvel 25 4\n"
 "}\n"
 
-"r_part t_grenade\n"
+"r_part tr_grenade\n"
 "{\n"
 "texture \"particles/smoke\"\n"
 "step 20\n"
@@ -1222,7 +1222,7 @@ char *particle_set_highfps =
 "rgb 128 128 128\n"
 "}\n"
 
-"r_part t_rocket\n"
+"r_part tr_rocket\n"
 "{\n"
 "texture \"particles/rocket\"\n"
 "step 15\n"
@@ -1233,7 +1233,7 @@ char *particle_set_highfps =
 "assoc t_grenade\n"
 "}\n"
 
-"r_part t_altrocket\n"
+"r_part tr_altrocket\n"
 "{\n"
 "texture \"particles/rocket\"\n"
 "step 15\n"

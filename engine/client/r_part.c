@@ -346,7 +346,7 @@ void P_SelectableTrail(model_t *model, cvar_t *selection, int mdleffect, int mdl
 		model->traildefaultindex = 154;
 		break;
 	case 9: // rail trail
-		model->particletrail = P_FindParticleType("TR_RAILTRAIL");
+		model->particletrail = P_FindParticleType("TE_RAILTRAIL");
 		model->traildefaultindex = 15;
 		break;
 	}
@@ -393,57 +393,57 @@ void P_DefaultTrail (model_t *model)
 	}
 	else if (model->flags & EFH2_BLOODSHOT)	//these are the hexen2 ones.
 	{
-		model->particletrail = P_FindParticleType("t_bloodshot");
+		model->particletrail = P_FindParticleType("tr_bloodshot");
 		model->traildefaultindex = 136;
 	}
 	else if (model->flags & EFH2_FIREBALL)
 	{
-		model->particletrail = P_FindParticleType("t_fireball");
+		model->particletrail = P_FindParticleType("tr_fireball");
 		model->traildefaultindex = 424;
 	}
 	else if (model->flags & EFH2_ACIDBALL)
 	{
-		model->particletrail = P_FindParticleType("t_acidball");
+		model->particletrail = P_FindParticleType("tr_acidball");
 		model->traildefaultindex = 440;
 	}
 	else if (model->flags & EFH2_ICE)
 	{
-		model->particletrail = P_FindParticleType("t_ice");
+		model->particletrail = P_FindParticleType("tr_ice");
 		model->traildefaultindex = 408;
 	}
 	else if (model->flags & EFH2_SPIT)
 	{
-		model->particletrail = P_FindParticleType("t_spit");
+		model->particletrail = P_FindParticleType("tr_spit");
 		model->traildefaultindex = 260;
 	}
 	else if (model->flags & EFH2_SPELL)
 	{
-		model->particletrail = P_FindParticleType("t_spell");
+		model->particletrail = P_FindParticleType("tr_spell");
 		model->traildefaultindex = 260;
 	}
 	else if (model->flags & EFH2_VORP_MISSILE)
 	{
-		model->particletrail = P_FindParticleType("t_vorpmissile");
+		model->particletrail = P_FindParticleType("tr_vorpmissile");
 		model->traildefaultindex = 302;
 	}
 	else if (model->flags & EFH2_SET_STAFF)
 	{
-		model->particletrail = P_FindParticleType("t_setstaff");
+		model->particletrail = P_FindParticleType("tr_setstaff");
 		model->traildefaultindex = 424;
 	}
 	else if (model->flags & EFH2_MAGICMISSILE)
 	{
-		model->particletrail = P_FindParticleType("t_magicmissile");
+		model->particletrail = P_FindParticleType("tr_magicmissile");
 		model->traildefaultindex = 149;
 	}
 	else if (model->flags & EFH2_BONESHARD)
 	{
-		model->particletrail = P_FindParticleType("t_boneshard");
+		model->particletrail = P_FindParticleType("tr_boneshard");
 		model->traildefaultindex = 384;
 	}
 	else if (model->flags & EFH2_SCARAB)
 	{
-		model->particletrail = P_FindParticleType("t_scarab");
+		model->particletrail = P_FindParticleType("tr_scarab");
 		model->traildefaultindex = 254;
 	}
 	else

@@ -231,10 +231,30 @@ static void PClassic_ShutdownParticles(void)
 	particles = NULL;
 }
 
+// a classic trailstate is really just a float stored in a pointer variable...
+// assuming float alignment/size is more strict than pointer
+static float Classic_GetLeftover(trailstate_t **tsk)
+{
+	float *f = (float *)tsk;
+
+	if (!f)
+		return 0;
+
+	return *f;
+}
+
+static void Classic_SetLeftover(trailstate_t **tsk, float leftover)
+{
+	float *f = (float *)tsk;
+
+	if (f)
+		*f = leftover;
+}
+
 //called when an entity is removed from the world, taking its trailstate with it.
 static void PClassic_DelinkTrailstate(trailstate_t **tsk)
 {
-	//classic has no concept of trail states.
+	*tsk = NULL;
 }
 
 //wipes all the particles ready for the next map.
@@ -599,10 +619,10 @@ static void Classic_TeleportSplash (vec3_t org)
 	}
 }
 
-static void Classic_ParticleTrail (vec3_t start, vec3_t end, vec3_t *trail_origin, effect_type_t type)
+static float Classic_ParticleTrail (vec3_t start, vec3_t end, float leftover, effect_type_t type)
 {
 	vec3_t point, delta, dir;
-	float len;
+	float len, rlen, scale;
 	int i, j, num_particles;
 	cparticle_t *p;
 	static int tracercount;
@@ -613,15 +633,21 @@ static void Classic_ParticleTrail (vec3_t start, vec3_t end, vec3_t *trail_origi
 		goto done;
 	VectorScale(delta, 1 / len, dir);	//unit vector in direction of trail
 
+	len += leftover;
+	rlen = len;
+
 	switch (type)
 	{
 	case ALT_ROCKET_TRAIL:
-		len /= 1.5; break;
+		scale = 1.5; break;
 	case BLOOD_TRAIL:
-		len /= 6; break;
+		scale = 6; break;
 	default:
-		len /= 3; break;	
+		scale = 3; break;	
 	}
+
+	len /= scale;
+	leftover = rlen - ((int)(len) * scale);
 
 	if (!(num_particles = (int) len))
 		goto done;
@@ -708,8 +734,7 @@ static void Classic_ParticleTrail (vec3_t start, vec3_t end, vec3_t *trail_origi
 		VectorAdd (point, delta, point);
 	}
 done:
-	if (trail_origin)
-		VectorCopy(point, *trail_origin);
+	return leftover;
 }
 
 
@@ -717,10 +742,13 @@ done:
 //builds a trail from here to there. The trail state can be used to remember how far you got last frame.
 static int PClassic_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t **tsk)
 {
+	float leftover;
+
 	if (type == P_INVALID)
 		return 1;
 
-	Classic_ParticleTrail(startpos, end, NULL, type);
+	leftover = Classic_ParticleTrail(startpos, end, Classic_GetLeftover(tsk), type);
+	Classic_SetLeftover(tsk, leftover);
 	return 0;
 }
 

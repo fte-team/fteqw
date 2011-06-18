@@ -68,16 +68,16 @@ static int pe_size2 = P_INVALID;
 static int pe_size3 = P_INVALID;
 static int pe_defaulttrail = P_INVALID;
 
-static float psintable[64];
+static float psintable[256];
 
 static void buildsintable(void)
 {
 	int i;
-	for (i = 0; i < 64; i++)
-		psintable[i] = sin((i*M_PI)/32);
+	for (i = 0; i < 256; i++)
+		psintable[i] = sin((i*M_PI)/128);
 }
-#define sin(x) (psintable[(int)(x*(64/M_PI)) & 63])
-#define cos(x) (psintable[((int)(x*(64/M_PI)) + 16) & 63])
+#define sin(x) (psintable[(int)((x)*(128/M_PI)) & 255])
+#define cos(x) (psintable[((int)((x)*(128/M_PI)) + 64) & 255])
 
 typedef struct particle_s
 {
@@ -3155,7 +3155,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 	float randvelvert = ptype->randomvelvert;
 	float step;
 	float stop;
-	float tdegree = 2*M_PI/256; /* MSVC whine */
+	float tdegree = 2.0*M_PI/256; /* MSVC whine */
 	float sdegree = 0;
 	float nrfirst, nrlast;
 
@@ -3246,7 +3246,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 
 		// precalculate degree of rotation
 		if (ptype->spawnparam1)
-			tdegree = 2*M_PI/ptype->spawnparam1; /* distance per rotation inversed */
+			tdegree = 2.0*M_PI/ptype->spawnparam1; /* distance per rotation inversed */
 		sdegree = ptype->spawnparam2*(M_PI/180);
 	}
 	else if (ptype->spawnmode == SM_CIRCLE)

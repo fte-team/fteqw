@@ -85,7 +85,7 @@ cvar_t cl_demospeed = CVARAF("cl_demospeed", "1", "demo_setspeed", 0);
 cvar_t cl_loopbackprotocol = CVAR("cl_loopbackprotocol", "qw");
 
 
-cvar_t	cl_indepphysics = CVAR("cl_indepphysics", "0");
+cvar_t	cl_threadedphysics = CVAR("cl_threadedphysics", "0");
 
 cvar_t  localid = SCVAR("localid", "");
 
@@ -3087,7 +3087,7 @@ void CL_Init (void)
 	Cvar_Register (&cl_loopbackprotocol,				cl_controlgroup);
 #endif
 	Cvar_Register (&cl_countpendingpl,				cl_controlgroup);
-	Cvar_Register (&cl_indepphysics,				cl_controlgroup);
+	Cvar_Register (&cl_threadedphysics,				cl_controlgroup);
 	Cvar_Register (&cl_antibunch,					"evil hacks");
 	Cvar_Register (&hud_tracking_show,				"statusbar");
 	Cvar_Register (&cl_download_mapsrc,				cl_controlgroup);
@@ -3413,7 +3413,7 @@ float Host_Frame (double time)
 	*/
 	Mod_Think();	//think even on idle (which means small walls and a fast cpu can get more surfaces done.
 
-	if ((cl_netfps.value>0 || cls.demoplayback || cl_indepphysics.ival))
+	if ((cl_netfps.value>0 || cls.demoplayback || cl_threadedphysics.ival))
 	{	//limit the fps freely, and expect the netfps to cope.
 		maxfpsignoreserver = true;
 		maxfps = cl_maxfps.ival;
@@ -3480,7 +3480,7 @@ float Host_Frame (double time)
 
 	RSpeedRemark();
 
-	CL_UseIndepPhysics(!!cl_indepphysics.ival);
+	CL_UseIndepPhysics(!!cl_threadedphysics.ival);
 
 	CL_AllowIndependantSendCmd(false);
 

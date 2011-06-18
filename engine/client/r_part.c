@@ -160,6 +160,9 @@ void P_InitParticleSystem(void)
 	Cvar_Register(&r_part_contentswitch, particlecvargroupname);
 
 	Cvar_Register (&gl_part_flame, particlecvargroupname);
+
+	Cvar_Register (&r_rockettrail, particlecvargroupname);
+	Cvar_Register (&r_grenadetrail, particlecvargroupname);
 }
 
 void P_Shutdown(void)

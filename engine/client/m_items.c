@@ -851,8 +851,10 @@ menuedit_t *MC_AddEditCvar_Full(menu_t *menu, int x, int y, char *text, char *na
 	n->caption = (char *)(n+1);
 	strcpy((char *)(n+1), text);
 	n->cvar = cvar;
+#ifdef _DEBUG
 	if (!(cvar->flags & CVAR_ARCHIVE))
 		Con_Printf("Warning: %s is not set for archiving\n", cvar->name);
+#endif
 	Q_strncpyz(n->text, cvar->string, sizeof(n->text));
 
 	n->common.next = menu->options;
@@ -915,13 +917,13 @@ menucheck_t *MC_AddCheckBox(menu_t *menu, int x, int y, const char *text, cvar_t
 	n->var = var;
 	n->bits = bits;
 
-	#ifdef _DEBUG
+#ifdef _DEBUG
 	if (var)
 		if (!(var->flags & CVAR_ARCHIVE))
 			Con_Printf("Warning: %s is not set for archiving\n", var->name);
 		else if (var->flags & CVAR_RENDERERLATCH)
 			Con_Printf("Warning: %s requires a vid_restart\n", var->name);
-	#endif
+#endif
 
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;
@@ -2055,10 +2057,10 @@ int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, 
 
 	while (bulk)
 	{
-		qboolean selectable = true;
 		menuoption_t *control;
 		int x = xtextend;
 		int xleft;
+		int spacing = 8;
 		
 		if (bulk->text)
 			x -= strlen(bulk->text) * 8;
@@ -2074,14 +2076,12 @@ int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, 
 				continue;
 			case 0: // white text
 				control = (union menuoption_s *)MC_AddWhiteText(menu, x, y, bulk->text, bulk->rightalign);
-				selectable = false;
 				break;
 			case 1: // red text
 				control = (union menuoption_s *)MC_AddRedText(menu, x, y, bulk->text, bulk->rightalign);
-				selectable = false;
 				break;
 			case 2: // spacing
-				y += bulk->spacing;
+				spacing = bulk->spacing;
 				break;
 			}
 			break;
@@ -2123,7 +2123,7 @@ int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, 
 			case 0:
 				y += 4;
 				control = (union menuoption_s *)MC_AddEditCvar(menu, x, y, bulk->text, bulk->cvarname);
-				y += 4;
+				spacing += 4;
 				break;
 			case 1:
 				control = (union menuoption_s *)MC_AddEditCvarSlim(menu, x, y, bulk->text, bulk->cvarname);
@@ -2138,13 +2138,13 @@ int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, 
 
 		if (bulk->ret)
 			*bulk->ret = control;
-		if (selectable && !selected)
+		if (MI_Selectable(control) && !selected)
 			selected = control;
 		if (bulk->tooltip)
 			control->common.tooltip = bulk->tooltip;
 		if (xleft > 0)
 			control->common.extracollide = xleft;
-		y += 8;
+		y += spacing;
 
 		bulk++;
 	}

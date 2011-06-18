@@ -973,6 +973,7 @@ void DropPunchAngle (int pnum);
 void CL_RegisterParticles(void);
 void CL_InitTEnts (void);
 void CL_ClearTEnts (void);
+void CL_ClearTEntParticleState (void);
 void CL_ClearCustomTEnts(void);
 void CL_ParseCustomTEnt(void);
 void CL_ParseEffect (qboolean effect2);
@@ -1005,6 +1006,7 @@ void CL_LinkViewModel(void);
 void CL_LinkPlayers (void);
 void CL_LinkPacketEntities (void);
 void CL_LinkProjectiles (void);
+void CL_ClearLerpEntsParticleState (void);
 qboolean CL_MayLerp(void);
 
 //

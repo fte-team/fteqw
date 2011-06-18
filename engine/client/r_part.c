@@ -82,6 +82,9 @@ void R_ParticleSystem_Callback(struct cvar_s *var, char *oldvalue)
 	int i;
 	if (pe)
 	{
+		CL_ClearTEntParticleState();
+		CL_ClearLerpEntsParticleState();
+
 		pe->ShutdownParticles();
 	}
 
@@ -444,5 +447,8 @@ void P_DefaultTrail (model_t *model)
 		model->traildefaultindex = 254;
 	}
 	else
+	{
 		model->particletrail = P_INVALID;
+		model->traildefaultindex = -1;
+	}
 }

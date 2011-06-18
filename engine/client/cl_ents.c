@@ -1590,6 +1590,16 @@ static void CL_UpdateNetFrameLerpState(qboolean force, unsigned int curframe, le
 	}
 }
 
+void CL_ClearLerpEntsParticleState(void)
+{
+	int i;
+	for (i = 0; i < cl.maxlerpents; i++)
+	{
+		pe->DelinkTrailstate(&(cl.lerpents[i].trailstate));
+		pe->DelinkTrailstate(&(cl.lerpents[i].emitstate));
+	}
+}
+
 void CL_LinkStaticEntities(void *pvs)
 {
 	int i;
@@ -2198,11 +2208,9 @@ void CL_LinkPacketEntities (void)
 			}
 		}
 
-		if (model->particletrail >= 0)
-		{
-			if (pe->ParticleTrail (old_origin, ent->origin, model->particletrail, &(le->trailstate)))
+		if (model->particletrail == P_INVALID || pe->ParticleTrail (old_origin, ent->origin, model->particletrail, &(le->trailstate)))
+			if (model->traildefaultindex >= 0)
 				pe->ParticleTrailIndex(old_origin, ent->origin, model->traildefaultindex, 0, &(le->trailstate));
-		}
 
 		{
 			extern cvar_t gl_part_flame;

@@ -346,6 +346,17 @@ void CL_ShutdownTEnts (void)
 		BZ_Free(ae);
 	}
 }
+
+void CL_ClearTEntParticleState (void)
+{
+	int i;
+	for (i = 0; i < beams_running; i++)
+	{
+		pe->DelinkTrailstate(&(cl_beams[i].trailstate));
+		pe->DelinkTrailstate(&(cl_beams[i].emitstate));
+	}
+}
+
 void P_LoadedModel(model_t *mod)
 {
 	struct associatedeffect *ae;

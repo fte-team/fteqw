@@ -4048,10 +4048,11 @@ void CSQC_EntStateToCSQC(unsigned int flags, float lerptime, entity_state_t *src
 	if (!(flags & RSES_NOTRAILS))
 	{
 		//use entnum as a test to see if its new (if the old origin isn't usable)
-		if (ent->xv->entnum && model->particletrail >= 0)
+		if (ent->xv->entnum)
 		{
-			if (pe->ParticleTrail (ent->v->origin, src->origin, model->particletrail, &(le->trailstate)))
-				pe->ParticleTrailIndex(ent->v->origin, src->origin, model->traildefaultindex, 0, &(le->trailstate));
+			if (model->particletrail == P_INVALID || pe->ParticleTrail (ent->v->origin, src->origin, model->particletrail, &(le->trailstate)))
+				if (model->traildefaultindex >= 0)
+					pe->ParticleTrailIndex(ent->v->origin, src->origin, model->traildefaultindex, 0, &(le->trailstate));
 		}
 	}
 

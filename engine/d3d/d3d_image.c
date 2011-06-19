@@ -137,7 +137,7 @@ static void Upload_Texture_32(LPDIRECT3DTEXTURE9 tex, unsigned int *data, int wi
 	D3DSURFACE_DESC desc;
 	IDirect3DTexture9_GetLevelDesc(tex, 0, &desc);
 
-	IDirect3DTexture9_LockRect(tex, 0, &lock, NULL, D3DLOCK_NOSYSLOCK|D3DLOCK_DISCARD);
+	IDirect3DTexture9_LockRect(tex, 0, &lock, NULL, D3DLOCK_NOSYSLOCK);
 
 	if (width == desc.Width && height == desc.Height)
 	{

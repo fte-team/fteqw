@@ -530,7 +530,7 @@ static qboolean initD3D9Device(HWND hWnd, rendererstate_t *info, unsigned int de
 		char *s;
 		for (s = inf.Description + strlen(inf.Description)-1; s >= inf.Description && *s <= ' '; s--)
 			*s = 0;
-		Con_Printf("D3D9: %s\n", inf.Description);
+		Con_Printf("D3D9 Driver: %s\n", inf.Description);
 
 		vid.numpages = d3dpp.BackBufferCount;
 
@@ -761,6 +761,10 @@ static void	 (D3D9_VID_DeInit)				(void)
 	/*final shutdown, kill the video stuff*/
 	if (pD3DDev9)
 	{
+		/*try and knock it back into windowed mode to avoid d3d bugs*/
+		d3dpp.Windowed = true;
+		IDirect3DDevice9_Reset(pD3DDev9, &d3dpp);
+
 		IDirect3DDevice9_Release(pD3DDev9);
 		pD3DDev9 = NULL;
 	}

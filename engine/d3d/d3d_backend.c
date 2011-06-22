@@ -1614,6 +1614,13 @@ static void BE_DrawMeshChain_Internal(void)
 	switch (shaderstate.mode)
 	{
 	case BEM_DEPTHONLY:
+		shaderstate.lastpasscount = 0;
+		i = 0;
+		if (i != shaderstate.curvertdecl)
+		{
+			shaderstate.curvertdecl = i;
+			d3dcheck(IDirect3DDevice9_SetVertexDeclaration(pD3DDev9, vertexdecls[shaderstate.curvertdecl]));
+		}
 		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_COLORWRITEENABLE, 0);
 		/*deactivate any extras*/
 		for (passno = 0; passno < shaderstate.lastpasscount; )

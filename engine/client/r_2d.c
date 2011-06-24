@@ -991,14 +991,22 @@ void R2D_DrawCrosshair(void)
 	// old style
 	if (crosshair.ival == 1 && !crosshairimage.string[0])
 	{
+		// adjust console crosshair scale to match default
+		size = crosshairsize.value / 8;
+		if (size == 0)
+			size = 8;
+		else if (size < 0)
+			size = -size;
 		for (sc = 0; sc < cl.splitclients; sc++)
 		{
 			SCR_CrosshairPosition(sc, &x, &y);
-			Font_BeginString(font_conchar, x, y, &x, &y);
-			x -= Font_CharWidth('+' | 0xe000 | CON_WHITEMASK)/2;
-			y -= Font_CharHeight()/2;
+			Font_BeginScaledString(font_conchar, x, y, &sx, &sy);
+			sizex = Font_CharWidth('+' | 0xe000 | CON_WHITEMASK) * size;
+			sizey = Font_CharHeight() * size;
+			sx -= sizex/2;
+			sy -= sizey/2;
 			Font_ForceColour(ch_color[0], ch_color[1], ch_color[2], crosshairalpha.value);
-			Font_DrawChar(x, y, '+' | 0xe000 | CON_WHITEMASK);
+			Font_DrawScaleChar(sx, sy, sizex, sizey, '+' | 0xe000 | CON_WHITEMASK);
 			Font_InvalidateColour();
 			Font_EndString(font_conchar);
 		}

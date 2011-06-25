@@ -92,7 +92,9 @@ void M_Menu_Options_f (void)
 		MB_CONSOLECMD("FPS Options", "menu_fps\n", "Set model filtering and graphical profile options."),
 		MB_CONSOLECMD("Rendering Options", "menu_render\n", "Set rendering options such as water warp and tinting effects."),
 		MB_CONSOLECMD("Lighting Options", "menu_lighting\n", "Set options for level lighting and dynamic lights."),
+#ifdef GLQUAKE
 		MB_CONSOLECMD("Texture Options", "menu_textures\n", "Set options for texture detail and effects."),
+#endif
 #ifndef MINIMAL
 		MB_CONSOLECMD("Particle Options", "menu_particles\n", "Set particle effect options."),
 #endif
@@ -631,6 +633,7 @@ void M_Menu_Render_f (void)
 	MC_AddBulk(menu, bulk, 16, 216, y);
 }
 
+#ifdef GLQUAKE
 void M_Menu_Textures_f (void)
 {
 	static const char *texturefilternames[] =
@@ -697,9 +700,7 @@ void M_Menu_Textures_f (void)
 	};
 
 	extern cvar_t gl_load24bit, gl_specular, gl_bump, gl_detail, gl_compress, gl_picmip, gl_picmip2d, gl_max_size, r_drawflat;
-#ifdef GLQUAKE
 	extern cvar_t gl_texture_anisotropic_filtering, gl_texturemode, gl_texturemode2d;
-#endif
 	int y;
 	menubulk_t bulk[] =
 	{
@@ -707,11 +708,9 @@ void M_Menu_Textures_f (void)
 		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
 		MB_CHECKBOXCVAR("Load Replacements", gl_load24bit, 0),
 		MB_CHECKBOXCVAR("Simple Texturing", r_drawflat, 0),
-#ifdef GLQUAKE
 		MB_COMBOCVAR("3D Filter Mode", gl_texturemode, texturefilternames, texturefiltervalues, "Chooses the texture filtering method used for 3D objects."),
 		MB_COMBOCVAR("2D Filter Mode", gl_texturemode2d, texture2dfilternames, texture2dfiltervalues, "Chooses the texture filtering method used for HUD, menus, and other 2D assets."),
 		MB_COMBOCVAR("Anisotropy", gl_texture_anisotropic_filtering, anisotropylevels, anisotropyvalues, NULL),
-#endif
 		MB_SPACING(4),
 		MB_CHECKBOXCVAR("Bumpmapping", gl_bump, 0),
 		MB_CHECKBOXCVAR("Specular Highlights", gl_specular, 0),
@@ -726,6 +725,7 @@ void M_Menu_Textures_f (void)
 	menu_t *menu = M_Options_Title(&y, 0);
 	MC_AddBulk(menu, bulk, 16, 216, y);
 }
+#endif
 
 typedef struct {
 	menucombo_t *lightcombo;

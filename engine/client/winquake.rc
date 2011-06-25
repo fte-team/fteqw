@@ -100,7 +100,7 @@ IDI_ICON3               ICON                    "bymorphed.ico"
 #if FTE_VER_MINOR < 10
 #define V_MIN STR(0) STR(FTE_VER_MINOR)
 #else
-#define V_MIN FTE_VER_MINOR
+#define V_MIN STR(FTE_VER_MINOR)
 #endif
 #define V_STR V_MAJ V_DOT V_MIN
 

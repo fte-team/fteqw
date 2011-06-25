@@ -23,7 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 // release version
 #define FTE_VER_MAJOR 1
-#define FTE_VER_MINOR 0
+#define FTE_VER_MINOR 1
 
 //#define	VERSION		2.56
 #ifndef DISTRIBUTION

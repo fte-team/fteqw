@@ -3109,7 +3109,7 @@ COM_Version_f
 */
 void COM_Version_f (void)
 {
-	Con_Printf("%s", version_string());
+	Con_Printf("%s\n", version_string());
 
 	Con_TPrintf (TL_EXEDATETIME, __DATE__, __TIME__);
 

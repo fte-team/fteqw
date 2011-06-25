@@ -27,7 +27,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 
-qboolean	sv_allow_cheats;
+int	sv_allow_cheats;
+qboolean SV_MayCheat(void)
+{
+	if (sv_allow_cheats == 2)
+		return sv.allocated_client_slots == 1;
+	return sv_allow_cheats!=0;
+}
 
 extern cvar_t cl_warncmd;
 cvar_t sv_cheats = SCVARF("sv_cheats", "0", CVAR_LATCH);
@@ -53,9 +59,9 @@ void deleetstring(char *match, char *leet)
 			*s = *s - 18 + '0';
 		else if (*s >= 'A' && *s <= 'Z')
 			*s = *s - 'A' + 'a';
-		else if (*s<' ' || *s == '~')
+		else if (*s == ' ' || *s == '~')
 			continue;
-			s++;
+		s++;
 	}
 	*s = '\0';
 
@@ -152,6 +158,7 @@ Make a master server current
 ====================
 */
 void Master_ClearAll(void);
+void Master_ReResolve(void);
 void Master_Add(char *stringadr);
 
 void SV_SetMaster_f (void)
@@ -247,7 +254,7 @@ qboolean SV_SetPlayer (void)
 
 	idnum = atoi(Cmd_Argv(1));
 
-	for (i=0,cl=svs.clients ; i<MAX_CLIENTS ; i++,cl++)
+	for (i=0,cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++)
 	{
 		if (!cl->state)
 			continue;
@@ -272,7 +279,7 @@ Sets client to godmode
 */
 void SV_God_f (void)
 {
-	if (!sv_allow_cheats)
+	if (!SV_MayCheat())
 	{
 		Con_TPrintf (STL_NEEDCHEATPARM);
 		return;
@@ -292,7 +299,7 @@ void SV_God_f (void)
 
 void SV_Noclip_f (void)
 {
-	if (!sv_allow_cheats)
+	if (!SV_MayCheat())
 	{
 		Con_TPrintf (STL_NEEDCHEATPARM);
 		return;
@@ -325,7 +332,7 @@ void SV_Give_f (void)
 	char	*t;
 	int		v;
 
-	if (!sv_allow_cheats)
+	if (!SV_MayCheat())
 	{
 		Con_TPrintf (STL_NEEDCHEATPARM);
 		return;
@@ -335,7 +342,7 @@ void SV_Give_f (void)
 	{
 		int oldself;
 		oldself = pr_global_struct->self;
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.edicts);
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
 		Con_Printf("Result: %s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, Cmd_Args()));
 		pr_global_struct->self = oldself;
 	}
@@ -436,7 +443,7 @@ void SV_Map_f (void)
 	nextserver = 0;
 
 #ifndef SERVERONLY
-	if (qrenderer == -1)
+	if (!Renderer_Started() && !isDedicated)
 	{
 		Cbuf_AddText(va("wait;map %s\n", Cmd_Args()), Cmd_ExecLevel);
 		return;
@@ -517,18 +524,33 @@ void SV_Map_f (void)
 	}
 	else
 	{
-		snprintf (expanded, sizeof(expanded), "maps/%s.bsp", level);
-		if (!COM_FCheckExists (expanded))
+		char *exts[] = {"maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", NULL};
+		int i, j;
+
+		for (i = 0; exts[i]; i++)
 		{
-			//doesn't exist, so try lowercase. Q3 does this.
-			for (i = 0; i < sizeof(level) && level[i]; i++)
+			snprintf (expanded, sizeof(expanded), exts[i], level);
+			if (COM_FCheckExists (expanded))
+				break;
+		}
+		if (!exts[i])
+		{
+			for (i = 0; exts[i]; i++)
 			{
-				if (level[i] >= 'A' && level[i] <= 'Z')
-					level[i] = level[i] - 'A' + 'a';
+				//doesn't exist, so try lowercase. Q3 does this.
+				for (j = 0; j < sizeof(level) && level[j]; j++)
+				{
+					if (level[j] >= 'A' && level[j] <= 'Z')
+						level[j] = level[j] - 'A' + 'a';
+				}
+				snprintf (expanded, sizeof(expanded), exts[i], level);
+				if (COM_FCheckExists (expanded))
+					break;
 			}
-			snprintf (expanded, sizeof(expanded), "maps/%s.bsp", level);
-			if (!COM_FCheckExists (expanded))
+			if (!exts[i])
 			{
+				// FTE is still a Quake engine so report BSP missing
+				snprintf (expanded, sizeof(expanded), exts[0], level);
 				Con_TPrintf (STL_CANTFINDMAP, expanded);
 				return;
 			}
@@ -559,7 +581,7 @@ void SV_Map_f (void)
 				savedinuse[i] = svs.clients[i].q2edict->inuse;
 				svs.clients[i].q2edict->inuse = false;
 			}
-			SV_SaveLevelCache(false);
+			SV_SaveLevelCache(NULL, false);
 			for (i=0 ; i<sv.allocated_client_slots; i++)
 			{
 				svs.clients[i].q2edict->inuse = savedinuse[i];
@@ -567,7 +589,7 @@ void SV_Map_f (void)
 		}
 		else
 #endif
-			SV_SaveLevelCache(false);
+			SV_SaveLevelCache(NULL, false);
 	}
 
 #ifdef Q3SERVER
@@ -602,7 +624,7 @@ void SV_Map_f (void)
 	SV_BroadcastCommand ("changing \"%s\"\n", level);
 	SV_SendMessagesToAll ();
 
-	if (newunit || !startspot || !SV_LoadLevelCache(level, startspot, false))
+	if (newunit || !startspot || !SV_LoadLevelCache(NULL, level, startspot, false))
 	{
 		if (waschangelevel && !startspot)
 			startspot = "";
@@ -807,7 +829,6 @@ void SV_BanIP_f (void)
 	netadr_t banadr;
 	netadr_t banmask;
 	char *reason = NULL;
-	int reasonsize = 0;
 
 	if (Cmd_Argc() < 2)
 	{
@@ -1200,7 +1221,6 @@ void SV_Cuff_f (void)
 			cl->iscuffed = false;
 			SV_ClientTPrintf (cl, PRINT_HIGH, STL_YOUARNTCUFFED);
 		}
-		return;
 	}
 
 	if (clnum == -1)
@@ -1374,6 +1394,7 @@ void SV_Status_f (void)
 	char		adr[MAX_ADR_SIZE];
 
 	int columns = 80;
+	extern cvar_t sv_listen_qw, sv_listen_nq, sv_listen_dp, sv_listen_q3;
 
 	if (sv_redirected != RD_OBLIVION && (sv_redirected != RD_NONE
 #ifndef SERVERONLY
@@ -1409,11 +1430,12 @@ void SV_Status_f (void)
 	else
 		Con_Printf ("current map      : %s\n", sv.name);
 
-	Con_Printf("map uptime       : %s\n", ShowTime(sv.physicstime));
+	Con_Printf("map uptime       : %s\n", ShowTime(sv.world.physicstime));
 	Con_Printf("server uptime    : %s\n", ShowTime(realtime));
 	if (sv.csqcdebug)
 		Con_Printf("csqc debug       : true\n");
 	Con_Printf("public           : %s\n", sv_public.value?"yes":"no");
+	Con_Printf("client types     :%s%s%s%s\n", sv_listen_qw.ival?" QW":"", sv_listen_nq.ival?" NQ":"", sv_listen_dp.ival?" DP":"", sv_listen_q3.ival?" Q3":"");
 
 // min fps lat drp
 	if (columns < 80)
@@ -1455,7 +1477,7 @@ void SV_Status_f (void)
 			}
 			Con_Printf ("%4i %4i %5.2f\n"
 				, (int)(1000*cl->netchan.frame_rate)
-				, (int)SV_CalcPing (cl)
+				, (int)SV_CalcPing (cl, false)
 				, 100.0*cl->netchan.drop_count / cl->netchan.incoming_sequence);
 		}
 	}
@@ -1495,7 +1517,7 @@ void SV_Status_f (void)
 			else
 				Con_Printf ("%4i %4i %5.1f %4i"
 				, (int)(1000*cl->netchan.frame_rate)
-				, (int)SV_CalcPing (cl)
+				, (int)SV_CalcPing (cl, false)
 				, 100.0*cl->netchan.drop_count / cl->netchan.incoming_sequence
 				, cl->netchan.qport);
 			if (cl->download)
@@ -1548,10 +1570,13 @@ void SV_ConSay_f(void)
 
 	if (sv.mvdrecording)
 	{
-		MVDWrite_Begin (dem_all, 0, strlen(text)+3);
-		MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_print);
-		MSG_WriteByte ((sizebuf_t*)demo.dbuf, PRINT_CHAT);
-		MSG_WriteString ((sizebuf_t*)demo.dbuf, text);
+		MVDWrite_Begin (dem_all, 0, strlen(text)+4);
+		MSG_WriteByte (&demo.dbuf->sb, svc_print);
+		MSG_WriteByte (&demo.dbuf->sb, PRINT_CHAT);
+		for (j = 0; text[j]; j++)
+			MSG_WriteChar(&demo.dbuf->sb, text[j]);
+		MSG_WriteChar(&demo.dbuf->sb, '\n');
+		MSG_WriteChar(&demo.dbuf->sb, 0);
 	}
 }
 
@@ -1764,16 +1789,22 @@ Examine a users info strings
 */
 void SV_User_f (void)
 {
+	client_t	*cl;
+	int clnum=-1;
+
 	if (Cmd_Argc() != 2)
 	{
 		Con_TPrintf (STL_USERINFOSYNTAX);
 		return;
 	}
 
-	if (!SV_SetPlayer ())
-		return;
+	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
+	{
+		Info_Print (cl->userinfo);
+	}
 
-	Info_Print (host_client->userinfo);
+	if (clnum == -1)
+		Con_TPrintf (STL_USERIDNOTONSERVER, atoi(Cmd_Argv(1)));
 }
 
 /*
@@ -1876,7 +1907,8 @@ void SV_Snap (int uid)
 		if (cl->userid == uid)
 			break;
 	}
-	if (i >= MAX_CLIENTS) {
+	if (i >= MAX_CLIENTS)
+	{
 		Con_TPrintf (STL_USERDOESNTEXIST);
 		return;
 	}
@@ -1888,7 +1920,7 @@ void SV_Snap (int uid)
 
 	sprintf(pcxname, "%d-00.pcx", uid);
 
-	sprintf(checkname, "%s/snap", gamedirfile);
+	strcpy(checkname, "snap");
 	Sys_mkdir(gamedirfile);
 	Sys_mkdir(checkname);
 
@@ -1897,7 +1929,7 @@ void SV_Snap (int uid)
 		pcxname[strlen(pcxname) - 6] = i/10 + '0';
 		pcxname[strlen(pcxname) - 5] = i%10 + '0';
 		sprintf (checkname, "%s/snap/%s", gamedirfile, pcxname);
-		if (Sys_FileTime(checkname) == -1)
+		if (!COM_FCheckExists(checkname))
 			break;	// file doesn't exist
 	}
 	if (i==100)
@@ -2088,6 +2120,7 @@ void SV_InitOperatorCommands (void)
 		Cmd_AddCommand ("quit", SV_Quit_f);
 		Cmd_AddCommand ("say", SV_ConSay_f);
 		Cmd_AddCommand ("sayone", SV_ConSayOne_f);
+		Cmd_AddCommand ("tell", SV_ConSayOne_f);
 		Cmd_AddCommand ("serverinfo", SV_Serverinfo_f);	//commands that conflict with client commands.
 		Cmd_AddCommand ("user", SV_User_f);
 

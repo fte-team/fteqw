@@ -105,7 +105,7 @@ local float 	ldmg;
 	if (!CanDamage (self.enemy, self))
 		return;
 		
-	ldmg = 40*random()*10*random()*10;
+	ldmg = (random() + random() + random()) * 40;
 	T_Damage (self.enemy, self, self, ldmg);
 	sound (self, CHAN_VOICE, "shambler/smack.wav", 1, ATTN_NORM);
 
@@ -179,8 +179,9 @@ void() sham_melee =
 	local float chance;
 	
 	chance = random();
-
-	if (chance > 0.5)
+	if (chance > 0.6 || self.health == 600)
+		sham_smash1 ();
+	else if (chance > 0.3)
 		sham_swingr1 ();
 	else
 		sham_swingl1 ();
@@ -212,190 +213,12 @@ void() CastLightning =
 	WriteCoord (MSG_BROADCAST, trace_endpos_y);
 	WriteCoord (MSG_BROADCAST, trace_endpos_z);
 
-	LightningDamage (org, trace_endpos, self, 5+random()*10);
+	LightningDamage (org, trace_endpos, self, 10);
 };
-
-
-void (vector spot) summon_wizard =
-{
-	local entity wiz;
-	local entity te;
-
-
-	wiz = spawn ();
-	self = wiz;
-	self.solid = SOLID_SLIDEBOX;
-	self.movetype = MOVETYPE_STEP;
-	setmodel (self, "progs/wizard.mdl");
-	setsize (self, '-8 -8 -12', '8 8 20');
-	self.scale = 0.5;
-	self.health = 90;
-	self.netname = "floater";
-	self.max_health = self.health;
-	self.th_stand = wiz_stand1;
-	self.th_walk = wiz_walk1;
-	self.th_run = wiz_run1;
-	self.th_missile = Wiz_Missile;
-	self.th_pain = Wiz_Pain;
-	self.th_die = wiz_die;
-
-	self.flags = self.flags | FL_FLY;
-	self.flags = self.flags | FL_MONSTER;
-
-	self.origin = spot;
-
-	if (!walkmove(0, 0))
-	{
-		self.origin = spot + '0 -64 0';
-		if (!walkmove(0, 0))
-		{
-			self.origin = spot + '64 0 0';
-			if (!walkmove(0, 0))
-			{
-				self.origin = spot + '-64 0 0';
-				if (!walkmove(0, 0))
-				{
-					remove(self);
-					return;
-				}
-			}
-		}
-	}
-
-	te = findradius (self.origin, 30);
-	while (te)
-	{
-		if (te.classname == "player" || te.classname == "monster" && te.health > 0)
-		{
-			remove(self);
-			return;
-		}
-
-
-		te = te.chain;
-	}
-
-	te_smallflash(self.origin);
-	self.classname = "monster";
-	flymonster_start_go ();
-};
-
-void() shambler_summon_magic =
-{
-	local vector point;
-	local entity wiz;
-
-	makevectors (self.v_angle);
-
-	point = self.origin + '0 0 64' + v_up*crandom()*128 + v_right*crandom()*128;
-
-	summon_wizard(point);
-
-	if (random()<0.75)
-		summon_wizard(point);
-	if (random()<0.75)
-		summon_wizard(point);
-};
-
-void() sham_heal1;
-void() sham_magic1;
-void() sham_summon1;
-
-void () sham_cast_magic =
-{
-	local entity te;
-	local string cast_type;
-	local vector org;
-
-
-	self.heal_ent = world;
-
-	te = findradius (self.origin, 600);
-	while (te)
-	{
-		if (te.classname == "monster")
-		{
-			if (te.health < te.max_health*0.5)
-			{
-				self.heal_ent = te;
-			}
-		}
-
-		te = te.chain;
-	}
-	if (self.heal_ent.classname == "monster" && random()<0.8)
-	{
-		org = self.origin + '0 0 32';
-		WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
-		WriteByte (MSG_MULTICAST, TE_WIZSPIKE);
-		WriteCoord (MSG_MULTICAST, org_x);
-		WriteCoord (MSG_MULTICAST, org_y);
-		WriteCoord (MSG_MULTICAST, org_z);
-		multicast (self.origin, MULTICAST_PHS);
-		sham_heal1();
-		sound (self, CHAN_WEAPON, "shambler/heal.wav", 1, ATTN_NORM);
-		te_smallflash(self.origin);
-		return;
-	}
-	else if (random()<0.25)
-	{
-		sham_summon1();
-		sound (self, CHAN_WEAPON, "shambler/summon.wav", 1, ATTN_NORM);
-	}
-	else
-		sham_magic1();
-
-};
-
-void() sham_summon1     =[      $magic1,       sham_summon2    ] {ai_face();};
-void() sham_summon2     =[      $magic1,       sham_summon3    ] {ai_face();};
-void() sham_summon3     =[      $magic1,       sham_summon4    ] {ai_face();};
-void() sham_summon4     =[      $magic1,       sham_summon5    ] {ai_face();};
-void() sham_summon5     =[      $magic1,       sham_summon6    ] {ai_face();};
-void() sham_summon6     =[      $magic2,       sham_summon7    ] {ai_face();};
-void() sham_summon7     =[      $magic2,       sham_summon8    ] {ai_face();};
-void() sham_summon8     =[      $magic2,       sham_summon9    ] {ai_face();};
-void() sham_summon9     =[      $magic2,       sham_summon10   ] {ai_face();};
-void() sham_summon10    =[      $magic2,       sham_summon11   ] {ai_face();};
-void() sham_summon11    =[      $magic3,       sham_summon12   ] {ai_face();};
-void() sham_summon12    =[      $magic3,       sham_summon13   ] {ai_face();};
-void() sham_summon13    =[      $magic3,       sham_summon14   ] {ai_face();};
-void() sham_summon14    =[      $magic3,       sham_summon15   ] {ai_face();};
-void() sham_summon15    =[      $magic3,       sham_summon16   ] {ai_face();};
-void() sham_summon16    =[      $magic4,       sham_summon17   ] {ai_face();};
-void() sham_summon17    =[      $magic4,       sham_summon18   ] {ai_face();};
-void() sham_summon18    =[      $magic4,       sham_summon19   ] {ai_face();};
-void() sham_summon19    =[      $magic4,       sham_summon20   ] {ai_face();
-shambler_summon_magic();
-};
-void() sham_summon20    =[      $magic4,       sham_run1       ] {ai_face();};
-
-
-void() sham_heal1     =[      $magic1,       sham_heal2    ] {ai_face();};
-void() sham_heal2     =[      $magic2,       sham_heal3    ] {ai_face();};
-void() sham_heal3     =[      $magic3,       sham_heal4    ] {ai_face();};
-void() sham_heal4     =[      $magic4,       sham_heal5    ] {ai_face();};
-void() sham_heal5     =[      $magic5,       sham_heal6    ] {ai_face();
-
-	if (self.heal_ent.classname == "monster")
-	{
-		self.heal_ent.health = self.heal_ent.health + 200;
-		if (self.heal_ent.health > self.heal_ent.max_health)
-			self.heal_ent.health = self.heal_ent.max_health;
-		
-		self.heal_ent = world;
-
-		te_smallflash(self.heal_ent.origin);
-	}
-};
-
-void() sham_heal6     =[      $magic1,       sham_run1     ] {ai_face();};
 
 void() sham_magic1     =[      $magic1,       sham_magic2    ] {ai_face();
-sound (self, CHAN_WEAPON, "shambler/sboom.wav", 1, ATTN_NORM);
-
+	sound (self, CHAN_WEAPON, "shambler/sattck1.wav", 1, ATTN_NORM);
 };
-
 void() sham_magic2     =[      $magic2,       sham_magic3    ] {ai_face();};
 void() sham_magic3     =[      $magic3,       sham_magic4    ] {ai_face();self.nextthink = self.nextthink + 0.2;
 local entity o;
@@ -454,7 +277,6 @@ void(entity attacker, float damage)	sham_pain =
 
 	if (self.pain_finished > time)
 		return;
-
 	self.pain_finished = time + 2;
 		
 	sham_pain1 ();
@@ -477,13 +299,15 @@ void() sham_death11     =[      $death11,      sham_death11    ] {};
 
 void() sham_die =
 {
-// check for gurgling death sound
+// check for gib
 	if (self.health < -60)
 	{
 		sound (self, CHAN_VOICE, "player/udeath.wav", 1, ATTN_NORM);
+		ThrowHead ("progs/h_shams.mdl", self.health);
 		ThrowGib ("progs/gib1.mdl", self.health);
 		ThrowGib ("progs/gib2.mdl", self.health);
 		ThrowGib ("progs/gib3.mdl", self.health);
+		return;
 	}
 
 // regular death
@@ -495,12 +319,11 @@ void() sham_die =
 
 void() monster_shambler =
 {
-	if (self.zone == 0)
+	if (deathmatch)
 	{
-		load_monster();
+		remove(self);
 		return;
 	}
-
 	precache_model ("progs/shambler.mdl");
 	precache_model ("progs/s_light.mdl");
 	precache_model ("progs/h_shams.mdl");
@@ -515,44 +338,21 @@ void() monster_shambler =
 	precache_sound ("shambler/melee1.wav");
 	precache_sound ("shambler/melee2.wav");
 	precache_sound ("shambler/smack.wav");
-	precache_sound ("shambler/heal.wav");
-	precache_sound ("shambler/summon.wav");
 
-	if (random() < 0.001)//shambler warrior
-	{
-		self.solid = SOLID_SLIDEBOX;
-		self.movetype = MOVETYPE_STEP;
-		setmodel (self, "progs/shambler.mdl");
-		self.classname = "monster";
-		self.netname = "shambler warrior";
-		setsize (self, VEC_HULL2_MIN, VEC_HULL2_MAX);
-		self.health = 2200;
-      	self.islot3 = SlotVal(IID_ARM_FORCE, 1);
-		self.th_stand = sham_stand1;
-		self.th_walk = sham_walk1;
-		self.th_run = sham_run1;
-		self.th_die = sham_die;
-		self.th_melee = sham_melee;
-		self.th_pain = sham_pain;
-	}
-	else //shambler shaman
-	{
-		self.solid = SOLID_SLIDEBOX;
-		self.movetype = MOVETYPE_STEP;
-		setmodel (self, "progs/shambler.mdl");
-		self.classname = "monster";
-		self.netname = "shambler shaman";
-		setsize (self, VEC_HULL2_MIN, VEC_HULL2_MAX);
-		self.health = 1800;
+	self.solid = SOLID_SLIDEBOX;
+	self.movetype = MOVETYPE_STEP;
+	setmodel (self, "progs/shambler.mdl");
 
-		self.th_stand = sham_stand1;
-		self.th_walk = sham_walk1;
-		self.th_run = sham_run1;
-		self.th_die = sham_die;
-		self.th_melee = sham_melee;
-		self.th_missile = sham_cast_magic;
-		self.th_pain = sham_pain;
-	}
+	setsize (self, VEC_HULL2_MIN, VEC_HULL2_MAX);
+	self.health = 600;
 
+	self.th_stand = sham_stand1;
+	self.th_walk = sham_walk1;
+	self.th_run = sham_run1;
+	self.th_die = sham_die;
+	self.th_melee = sham_melee;
+	self.th_missile = sham_magic1;
+	self.th_pain = sham_pain;
+	
 	walkmonster_start();
 };

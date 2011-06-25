@@ -33,12 +33,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "glquake.h"
 
 #include <GL/glx.h>
+#ifdef USE_EGL
+#include "gl_videgl.h"
+#endif
 
 #include <X11/keysym.h>
 #include <X11/cursorfont.h>
 
 #ifdef USE_DGA
-#include <X11/extensions/xf86dga.h>
+#include <X11/extensions/Xxf86dga.h>
 #endif
 
 #ifdef __linux__
@@ -52,11 +55,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define WARP_WIDTH              320
 #define WARP_HEIGHT             200
 
-#ifdef SWQUAKE
-Display *vid_dpy = NULL;
-#else
 static Display *vid_dpy = NULL;
-#endif
 static Window vid_window;
 static GLXContext ctx = NULL;
 int scrnum;
@@ -90,7 +89,6 @@ qboolean originalapplied;	//states that the origionalramps arrays are valid, and
 extern cvar_t	_windowed_mouse;
 
 
-#ifndef SWQUAKE
 cvar_t	m_filter = {"m_filter", "0"};
 cvar_t  m_accel = {"m_accel", "0"};
 
@@ -100,12 +98,6 @@ cvar_t	in_xflip = {"in_xflip", "0"};
 
 static float   mouse_x, mouse_y;
 static float	old_mouse_x, old_mouse_y;
-
-#else
-
-extern float   mouse_x, mouse_y;
-extern float	old_mouse_x, old_mouse_y;
-#endif
 
 /*-----------------------------------------------------------------------*/
 
@@ -159,7 +151,6 @@ qboolean GLX_InitLibrary(char *driver)
 	qglXMakeCurrent = dlsym(gllibrary, "glXMakeCurrent");
 	qglXCreateContext = dlsym(gllibrary, "glXCreateContext");
 	qglXDestroyContext = dlsym(gllibrary, "glXDestroyContext");
-	qglXDestroyContext = dlsym(gllibrary, "glXDestroyContext");
 	qglXGetProcAddress = dlsym(gllibrary, "glXGetProcAddress");
 	if (!qglXGetProcAddress)
 		qglXGetProcAddress = dlsym(gllibrary, "glXGetProcAddressARB");
@@ -181,15 +172,6 @@ void *GLX_GetSymbol(char *name)
 	if (!symb)
 		symb = dlsym(gllibrary, name);
 	return symb;
-}
-
-
-void GLD_BeginDirectRect (int x, int y, qbyte *pbitmap, int width, int height)
-{
-}
-
-void GLD_EndDirectRect (int x, int y, int width, int height)
-{
 }
 
 static int XLateKey(XKeyEvent *ev, unsigned int *unicode)
@@ -357,8 +339,11 @@ static void install_grabs(void)
 static void uninstall_grabs(void)
 {
 #ifdef USE_DGA
-	XF86DGADirectVideo(vid_dpy, DefaultScreen(vid_dpy), 0);
-	dgamouse = 0;
+	if (dgamouse)
+	{
+		XF86DGADirectVideo(vid_dpy, DefaultScreen(vid_dpy), 0);
+		dgamouse = 0;
+	}
 #endif
 
 	XUngrabPointer(vid_dpy, CurrentTime);
@@ -373,7 +358,7 @@ void ClearAllStates (void)
 // send an up event for each key, to make sure the server clears them all
 	for (i=0 ; i<256 ; i++)
 	{
-		Key_Event (i, 0, false);
+		Key_Event (0, i, 0, false);
 	}
 
 	Key_ClearStates ();
@@ -395,20 +380,20 @@ static void GetEvent(void)
 
 	switch (event.type) {
 	case ResizeRequest:
-		glwidth = event.xresizerequest.width;
-		glheight = event.xresizerequest.height;
+		vid.pixelwidth = event.xresizerequest.width;
+		vid.pixelheight = event.xresizerequest.height;
 		break;
 	case ConfigureNotify:
-		glwidth = event.xconfigurerequest.width;
-		glheight = event.xconfigurerequest.height;
+		vid.pixelwidth = event.xconfigurerequest.width;
+		vid.pixelheight = event.xconfigurerequest.height;
 		break;
 	case KeyPress:
 		b = XLateKey(&event.xkey, &uc);
-		Key_Event(b, uc, true);
+		Key_Event(0, b, uc, true);
 		break;
 	case KeyRelease:
 		b = XLateKey(&event.xkey, NULL);
-		Key_Event(b, 0, false);
+		Key_Event(0, b, 0, false);
 		break;
 
 	case MotionNotify:
@@ -467,7 +452,7 @@ static void GetEvent(void)
 			b = x11violations?K_MOUSE10:-1;
 
 		if (b>=0)
-			Key_Event(b, 0, true);
+			Key_Event(0, b, 0, true);
 #ifdef WITH_VMODE
 		if (vidmode_ext && vidmode_usemode>=0)
 		if (!ActiveApp)
@@ -510,7 +495,7 @@ static void GetEvent(void)
 			b = x11violations?K_MOUSE10:-1;
 
 		if (b>=0)
-			Key_Event(b, 0, false);
+			Key_Event(0, b, 0, false);
 		break;
 
 	case FocusIn:
@@ -552,6 +537,26 @@ static void GetEvent(void)
 		ClearAllStates();
 
 		break;
+	case ClientMessage:
+		{
+			char *name = XGetAtomName(vid_dpy, event.xclient.message_type);
+			if (!strcmp(name, "WM_PROTOCOLS") && event.xclient.format == 32)
+			{
+				char *protname = XGetAtomName(vid_dpy, event.xclient.data.l[0]);
+				if (!strcmp(protname, "WM_DELETE_WINDOW"))
+					Cmd_ExecuteString("menu_quit", RESTRICT_LOCAL);
+				else
+					Con_Printf("Got message %s\n", protname);
+				XFree(protname);
+			}
+			else
+				Con_Printf("Got message %s\n", name);
+			XFree(name);
+		}
+		break;
+	default:
+//		Con_Printf("%x\n", event.type);
+		break;
 	}
 
 	wantwindowed = !!_windowed_mouse.value;
@@ -582,6 +587,9 @@ static void GetEvent(void)
 
 void GLVID_Shutdown(void)
 {
+#ifdef USE_EGL
+	EGL_Shutdown();
+#else
 	printf("GLVID_Shutdown\n");
 	if (!ctx)
 		return;
@@ -605,11 +613,17 @@ void GLVID_Shutdown(void)
 		if (vidmode_active)
 			XF86VidModeSwitchToMode(vid_dpy, scrnum, vidmodes[0]);
 		vidmode_active = false;
+
+		if (vidmodes)
+			XFree(vidmodes);
+		vidmodes = NULL;
+		num_vidmodes = 0;
 	}
 #endif
 	XCloseDisplay(vid_dpy);
 	vid_dpy = NULL;
 	vid_window = (Window)NULL;
+#endif
 }
 
 void GLVID_DeInit(void)	//FIXME:....
@@ -720,25 +734,24 @@ GL_BeginRendering
 
 =================
 */
-void GL_BeginRendering (int *x, int *y, int *width, int *height)
+void GL_BeginRendering (void)
 {
-	*x = *y = 0;
-	*width = glwidth;
-	*height = glheight;
-
-//    if (!wglMakeCurrent( maindc, baseRC ))
-//		Sys_Error ("wglMakeCurrent failed");
-
-//	qglViewport (*x, *y, *width, *height);
+#ifdef USE_EGL
+	EGL_BeginRendering();
+#endif
 }
 
 
 void GL_EndRendering (void)
 {
+#ifdef USE_EGL
+	EGL_EndRendering();
+#else
 //return;
 //we don't need the flush, XSawpBuffers does it for us.
 //chances are, it's version is more suitable anyway. At least there's the chance that it might be.
 	qglXSwapBuffers(vid_dpy, vid_window);
+#endif
 }
 
 qboolean GLVID_Is8bit(void)
@@ -756,15 +769,20 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		GLX_BLUE_SIZE, 1,
 		GLX_DOUBLEBUFFER,
 		GLX_DEPTH_SIZE, 1,
+		GLX_STENCIL_SIZE, 8,
 		None
 	};
 	XSetWindowAttributes attr;
 	unsigned long mask;
 	Window root;
+#ifdef USE_EGL
+	XVisualInfo vinfodef;
+#endif
 	XVisualInfo *visinfo;
+	qboolean fullscreen = false;
+	Atom prots[1];
 
 #ifdef WITH_VMODE
-	qboolean fullscreen = false;
 	int MajorVersion, MinorVersion;
 
 	if (info->fullscreen)
@@ -774,36 +792,42 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	S_Startup();
 
+#ifdef USE_EGL
+	if (!EGL_LoadLibrary(info->glrenderer))
+	{
+		Con_Printf("couldn't load EGL library\n");
+		return false;
+	}
+#else
 	if (!GLX_InitLibrary(info->glrenderer))
 	{
 		Con_Printf("Couldn't intialise GLX\nEither your drivers are not installed or you need to specify the library name with the gl_driver cvar\n");
 		return false;
 	}
+#endif
 
-	vid.maxwarpwidth = WARP_WIDTH;
-	vid.maxwarpheight = WARP_HEIGHT;
 	vid.colormap = host_colormap;
 
 // interpret command-line params
 
 // set vid parameters
 	if ((i = COM_CheckParm("-conwidth")) != 0)
-		vid.conwidth = Q_atoi(com_argv[i+1]);
+		vid.width = Q_atoi(com_argv[i+1]);
 	else
-		vid.conwidth = 640;
+		vid.width = 640;
 
-	vid.conwidth &= ~7; // make it a multiple of eight
+	vid.width &= ~7; // make it a multiple of eight
 
-	if (vid.conwidth < 320)
-		vid.conwidth = 320;
+	if (vid.width < 320)
+		vid.width = 320;
 
 	// pick a conheight that matches with correct aspect
-	vid.conheight = vid.conwidth*3 / 4;
+	vid.height = vid.width*3 / 4;
 
 	if ((i = COM_CheckParm("-conheight")) != 0)
-		vid.conheight = Q_atoi(com_argv[i+1]);
-	if (vid.conheight < 200)
-		vid.conheight = 200;
+		vid.height = Q_atoi(com_argv[i+1]);
+	if (vid.height < 200)
+		vid.height = 200;
 	if (!vid_dpy)
 		vid_dpy = XOpenDisplay(NULL);
 	if (!vid_dpy)
@@ -827,12 +851,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		vidmode_ext = MajorVersion;
 	}
 #endif
-
-	visinfo = qglXChooseVisual(vid_dpy, scrnum, attrib);
-	if (!visinfo)
-	{
-		Sys_Error("qkHack: Error couldn't get an RGB, Double-buffered, Depth visual\n");
-	}
 
 #ifdef WITH_VMODE
 	vidmode_usemode = -1;
@@ -880,6 +898,21 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	vidglx_fullscreen = fullscreen;
 
+#ifdef USE_EGL
+	visinfo = &vinfodef;
+	if (!XMatchVisualInfo(vid_dpy, scrnum, info->bpp, TrueColor, visinfo))
+//	if (!XMatchVisualInfo(vid_dpy, scrnum, DefaultDepth(vid_dpy, scrnum), TrueColor, &visinfo))
+	{
+		Sys_Error("Couldn't choose visual for EGL\n");
+	}
+#else
+	visinfo = qglXChooseVisual(vid_dpy, scrnum, attrib);
+	if (!visinfo)
+	{
+		Sys_Error("qkHack: Error couldn't get an RGB, Double-buffered, Depth visual\n");
+	}
+#endif
+
 	/* window attributes */
 	attr.background_pixel = 0;
 	attr.border_pixel = 0;
@@ -898,13 +931,23 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	}
 #endif
 
-	ActiveApp = false;
 	vid_window = XCreateWindow(vid_dpy, root, 0, 0, info->width, info->height,
 						0, visinfo->depth, InputOutput,
 						visinfo->visual, mask, &attr);
-	XMapWindow(vid_dpy, vid_window);
 
+	ActiveApp = false;
+	/*ask the window manager to stop triggering bugs in Xlib*/
+	prots[0] = XInternAtom(vid_dpy, "WM_DELETE_WINDOW", False);
+	XSetWMProtocols(vid_dpy, vid_window, prots, sizeof(prots)/sizeof(prots[0]));
+	/*set caption*/
+	XStoreName(vid_dpy, vid_window, "FTE QuakeWorld");
+	/*make it visibl*/
+	XMapWindow(vid_dpy, vid_window);
+	/*put it somewhere*/
 	XMoveWindow(vid_dpy, vid_window, 0, 0);
+
+	//XFree(visinfo);
+
 #ifdef WITH_VMODE
 	if (vidmode_active) {
 		XRaiseWindow(vid_dpy, vid_window);
@@ -914,13 +957,13 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		XF86VidModeSetViewPort(vid_dpy, scrnum, 0, 0);
 	}
 #endif
-	XStoreName(vid_dpy, vid_window, "FTE QuakeWorld");
 
 //hide the cursor.
 	XDefineCursor(vid_dpy, vid_window, CreateNullCursor(vid_dpy, vid_window));
 
 	XFlush(vid_dpy);
 
+#ifndef USE_EGL
 #ifdef WITH_VMODE
 	if (vidmode_ext >= 2)
 	{
@@ -953,25 +996,29 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		return false;
 	}
 
-	glwidth = info->width;
-	glheight = info->height;
-
-	if (vid.conheight > info->height)
-		vid.conheight = info->height;
-	if (vid.conwidth > info->width)
-		vid.conwidth = info->width;
-	vid.width = vid.conwidth;
-	vid.height = vid.conheight;
-
-	vid.aspect = ((float)vid.height / (float)vid.width) * (320.0 / 240.0);
-	vid.numpages = 2;
-
-	InitSig(); // trap evil signals
-
 	GL_Init(&GLX_GetSymbol);
+
+#else
+	EGL_Init(info, palette, vid_window);
+	GL_Init(&EGL_Proc);
+#endif
 
 	GLVID_SetPalette(palette);
 	GLVID_ShiftPalette(palette);
+
+	qglGetIntegerv(GL_STENCIL_BITS, &gl_canstencil);
+
+	InitSig(); // trap evil signals
+
+	vid.pixelwidth = info->width;
+	vid.pixelheight = info->height;
+
+	if (vid.height > info->height)
+		vid.height = info->height;
+	if (vid.width > info->width)
+		vid.width = info->width;
+
+	vid.numpages = 2;
 
 	Con_SafePrintf ("Video mode %dx%d initialized.\n", info->width, info->height);
 
@@ -989,11 +1036,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	return true;
 }
 
-#ifdef SWQUAKE
-void GLSys_SendKeyEvents(void)
-#else
 void Sys_SendKeyEvents(void)
-#endif
 {
 	if (vid_dpy && vid_window) {
 		while (XPending(vid_dpy))
@@ -1006,7 +1049,6 @@ void Force_CenterView_f (void)
 	cl.viewangles[0][PITCH] = 0;
 }
 
-#ifndef SWQUAKE
 void IN_ReInit(void)
 {
 }
@@ -1130,14 +1172,6 @@ void IN_Move (float *movements, int pnum)
 {
 	IN_MouseMove(movements, pnum);
 }
-#endif
-
-
-void GLVID_UnlockBuffer() {}
-void GLVID_LockBuffer() {}
-
-int GLVID_ForceUnlockedAndReturnState (void) {return 0;}
-void GLVID_ForceLockState (int lk) {}
 
 void GL_DoSwap(void) {}
 

@@ -43,7 +43,11 @@ extern struct Library *VorbisFileBase;
 qboolean isDedicated;
 #endif
 
-static void Sys_Shutdown()
+void Sys_RecentServer(char *command, char *target, char *title, char *desc)
+{
+}
+
+void Sys_Shutdown()
 {
 #if I_AM_BIGFOOT
 	if(DynLoadBase)
@@ -352,7 +356,8 @@ void Sys_CloseLibrary(dllhandle_t *lib)
 {
 	dlclose((void*)lib);
 }
-dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs)
+
+dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 {
 	int i;
 	dllhandle_t lib;
@@ -361,19 +366,29 @@ dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs)
 	if (!lib)
 		return NULL;
 
-	for (i = 0; funcs[i].name; i++)
+	if (funcs)
 	{
-		*funcs[i].funcptr = dlsym(lib, funcs[i].name);
-		if (!*funcs[i].funcptr)
-			break;
-	}
-	if (funcs[i].name)
-	{
-		Sys_CloseLibrary((dllhandle_t*)lib);
-		lib = NULL;
+		for (i = 0; funcs[i].name; i++)
+		{
+			*funcs[i].funcptr = dlsym(lib, funcs[i].name);
+			if (!*funcs[i].funcptr)
+				break;
+		}
+		if (funcs[i].name)
+		{
+			Sys_CloseLibrary((dllhandle_t*)lib);
+			lib = NULL;
+		}
 	}
 
 	return (dllhandle_t*)lib;
+}
+
+void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname)
+{
+	if (!module)
+		return NULL;
+	return dlsym(module, exportname);
 }
 
 int main(int argc, char **argv)

@@ -23,11 +23,11 @@ struct gnutls_session_int;
 typedef struct gnutls_session_int* gnutls_session;
 typedef void * gnutls_transport_ptr;
 
-typedef enum gnutls_kx_algorithm { GNUTLS_KX_RSA=1, GNUTLS_KX_DHE_DSS, 
+typedef enum gnutls_kx_algorithm { GNUTLS_KX_RSA=1, GNUTLS_KX_DHE_DSS,
 	GNUTLS_KX_DHE_RSA, GNUTLS_KX_ANON_DH, GNUTLS_KX_SRP,
 	GNUTLS_KX_RSA_EXPORT, GNUTLS_KX_SRP_RSA, GNUTLS_KX_SRP_DSS
 } gnutls_kx_algorithm;
-typedef enum gnutls_certificate_type { GNUTLS_CRT_X509=1, GNUTLS_CRT_OPENPGP 
+typedef enum gnutls_certificate_type { GNUTLS_CRT_X509=1, GNUTLS_CRT_OPENPGP
 } gnutls_certificate_type;
 typedef enum gnutls_connection_end { GNUTLS_SERVER=1, GNUTLS_CLIENT } gnutls_connection_end;
 typedef enum gnutls_credentials_type { GNUTLS_CRD_CERTIFICATE=1, GNUTLS_CRD_ANON, GNUTLS_CRD_SRP } gnutls_credentials_type;
@@ -98,7 +98,7 @@ qboolean Init_GNUTLS(void) {return true;}
 cvar_t plug_sbar = SCVAR("plug_sbar", "1");
 cvar_t plug_loaddefault = SCVAR("plug_loaddefault", "1");
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"
 #endif
 
@@ -222,26 +222,29 @@ static void Plug_RegisterBuiltinIndex(char *name, Plug_Builtin_t bi, int flags, 
 }
 */
 
-qintptr_t VARGS Plug_FindBuiltin(void *offset, quintptr_t mask, const qintptr_t *args)
+static qintptr_t Plug_FindBuiltin(qboolean native, char *p)
 {
 	int i;
-	char *p = (char *)VM_POINTER(args[0]);
-
 	for (i = 0; i < numplugbuiltins; i++)
 		if (plugbuiltins[i].name)
 			if (p && !strcmp(plugbuiltins[i].name, p))
 			{
-				if (offset && plugbuiltins[i].flags & PLUG_BIF_DLLONLY)
+				if (!native && plugbuiltins[i].flags & PLUG_BIF_DLLONLY)
 					return 0;	//block it, if not native
-				if (!offset && plugbuiltins[i].flags & PLUG_BIF_QVMONLY)
+				if (native && plugbuiltins[i].flags & PLUG_BIF_QVMONLY)
 					return 0;	//block it, if not native
 				return -i;
 			}
 
 	return 0;
 }
+qintptr_t VARGS Plug_GetBuiltin(void *offset, quintptr_t mask, const qintptr_t *args)
+{
+	char *p = (char *)VM_POINTER(args[0]);
+	return Plug_FindBuiltin(!offset, p);
+}
 
-int Plug_SystemCallsEx(void *offset, quintptr_t mask, int fn, const int *arg)
+int Plug_SystemCallsVM(void *offset, quintptr_t mask, int fn, const int *arg)
 {
 #if FTE_WORDSIZE == 32
 	#define args arg
@@ -262,7 +265,7 @@ int Plug_SystemCallsEx(void *offset, quintptr_t mask, int fn, const int *arg)
 	fn = fn+1;
 
 	if (fn>=0 && fn < numplugbuiltins && plugbuiltins[fn].func!=NULL)
-		return plugbuiltins[fn].func(offset, mask, args);
+		return plugbuiltins[fn].func(offset, mask, (qintptr_t*)args);
 #undef args
 	Sys_Error("QVM Plugin tried calling invalid builtin %i", fn);
 	return 0;
@@ -270,7 +273,7 @@ int Plug_SystemCallsEx(void *offset, quintptr_t mask, int fn, const int *arg)
 
 //I'm not keen on this.
 //but dlls call it without saying what sort of vm it comes from, so I've got to have them as specifics
-static qintptr_t EXPORT_FN Plug_SystemCalls(qintptr_t arg, ...)
+static qintptr_t EXPORT_FN Plug_SystemCallsNative(qintptr_t arg, ...)
 {
 	qintptr_t args[9];
 	va_list argptr;
@@ -300,7 +303,6 @@ static qintptr_t EXPORT_FN Plug_SystemCalls(qintptr_t arg, ...)
 plugin_t *Plug_Load(char *file)
 {
 	plugin_t *newplug;
-	int argarray;
 
 	for (newplug = plugs; newplug; newplug = newplug->next)
 	{
@@ -312,7 +314,7 @@ plugin_t *Plug_Load(char *file)
 	newplug->name = (char*)(newplug+1);
 	strcpy(newplug->name, file);
 
-	newplug->vm = VM_Create(NULL, file, Plug_SystemCalls, Plug_SystemCallsEx);
+	newplug->vm = VM_Create(NULL, file, Plug_SystemCallsNative, Plug_SystemCallsVM);
 	currentplug = newplug;
 	if (newplug->vm)
 	{
@@ -321,8 +323,7 @@ plugin_t *Plug_Load(char *file)
 		newplug->next = plugs;
 		plugs = newplug;
 
-		argarray = 4;
-		if (!VM_Call(newplug->vm, 0, Plug_FindBuiltin("Plug_GetEngineFunction"-4, ~0, &argarray)))
+		if (!VM_Call(newplug->vm, 0, Plug_FindBuiltin(true, "Plug_GetEngineFunction")))
 		{
 			Plug_Close(newplug);
 			return NULL;
@@ -356,7 +357,7 @@ int Plug_Emumerated (const char *name, int size, void *param)
 
 qintptr_t VARGS Plug_Con_Print(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-//	if (qrenderer <= 0)
+//	if (qrenderer == QR_NONE)
 //		return false;
 	Con_Printf("%s", (char*)VM_POINTER(arg[0]));
 	return 0;
@@ -815,7 +816,7 @@ qintptr_t VARGS Plug_Net_TCPListen(void *offset, quintptr_t mask, const qintptr_
 		Con_Printf("Failed to create socket\n");
 		return -2;
 	}
-	if (ioctlsocket (sock, FIONBIO, &_true) == -1)
+	if (ioctlsocket (sock, FIONBIO, (u_long *)&_true) == -1)
 	{
 		closesocket(sock);
 		return -2;
@@ -857,7 +858,7 @@ qintptr_t VARGS Plug_Net_Accept(void *offset, quintptr_t mask, const qintptr_t *
 	if (sock < 0)
 		return -1;
 
-	if (ioctlsocket (sock, FIONBIO, &_true) == -1)	//now make it non blocking.
+	if (ioctlsocket (sock, FIONBIO, (u_long *)&_true) == -1)	//now make it non blocking.
 	{
 		closesocket(sock);
 		return -1;
@@ -921,7 +922,7 @@ qintptr_t VARGS Plug_Net_TCPConnect(void *offset, quintptr_t mask, const qintptr
 		return -2;
 	}
 
-	if (ioctlsocket (sock, FIONBIO, &_true) == -1)	//now make it non blocking.
+	if (ioctlsocket (sock, FIONBIO, (u_long *)&_true) == -1)	//now make it non blocking.
 	{
 		return -1;
 	}
@@ -1429,7 +1430,7 @@ void Plug_Init(void)
 	Cmd_AddCommand("plug_load", Plug_Load_f);
 	Cmd_AddCommand("plug_list", Plug_List_f);
 
-	Plug_RegisterBuiltin("Plug_GetEngineFunction",	Plug_FindBuiltin, 0);//plugin wishes to find a builtin number.
+	Plug_RegisterBuiltin("Plug_GetEngineFunction",	Plug_GetBuiltin, 0);//plugin wishes to find a builtin number.
 	Plug_RegisterBuiltin("Plug_ExportToEngine",		Plug_ExportToEngine, 0);	//plugin has a call back that we might be interested in.
 	Plug_RegisterBuiltin("Plug_ExportNative",		Plug_ExportNative, PLUG_BIF_DLLONLY);
 	Plug_RegisterBuiltin("Con_Print",				Plug_Con_Print, 0);	//printf is not possible - qvm floats are never doubles, vararg floats in a cdecl call are always converted to doubles.
@@ -1626,7 +1627,7 @@ void Plug_SBar(void)
 		return;
 
 	ret = 0;
-	if (!plug_sbar.value || cl.splitclients > 1)
+	if (!plug_sbar.ival || cl.splitclients > 1)
 		currentplug = NULL;
 	else
 	{
@@ -1637,8 +1638,7 @@ void Plug_SBar(void)
 				for (cp = 0; cp < cl.splitclients; cp++)
 				{	//if you don't use splitscreen, use a full videosize rect.
 					SCR_VRectForPlayer(&rect, cp);
-					if (Draw_ImageColours)
-						Draw_ImageColours(1, 1, 1, 1); // ensure menu colors are reset
+					R2D_ImageColours(1, 1, 1, 1); // ensure menu colors are reset
 					ret |= VM_Call(currentplug->vm, currentplug->sbarlevel[0], cp, rect.x, rect.y, rect.width, rect.height, sb_showscores+sb_showteamscores*2);
 				}
 				break;
@@ -1657,8 +1657,7 @@ void Plug_SBar(void)
 			for (cp = 0; cp < cl.splitclients; cp++)
 			{	//if you don't use splitscreen, use a full videosize rect.
 				SCR_VRectForPlayer(&rect, cp);
-				if (Draw_ImageColours)
-					Draw_ImageColours(1, 1, 1, 1); // ensure menu colors are reset
+				R2D_ImageColours(1, 1, 1, 1); // ensure menu colors are reset
 				ret |= VM_Call(currentplug->vm, currentplug->sbarlevel[1], cp, rect.x, rect.y, rect.width, rect.height, sb_showscores+sb_showteamscores*2);
 			}
 		}
@@ -1671,8 +1670,7 @@ void Plug_SBar(void)
 			for (cp = 0; cp < cl.splitclients; cp++)
 			{	//if you don't use splitscreen, use a full videosize rect.
 				SCR_VRectForPlayer(&rect, cp);
-				if (Draw_ImageColours)
-					Draw_ImageColours(1, 1, 1, 1); // ensure menu colors are reset
+				R2D_ImageColours(1, 1, 1, 1); // ensure menu colors are reset
 				ret |= VM_Call(currentplug->vm, currentplug->sbarlevel[2], cp, rect.x, rect.y, rect.width, rect.height, sb_showscores+sb_showteamscores*2);
 			}
 		}

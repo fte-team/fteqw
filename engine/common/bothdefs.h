@@ -21,8 +21,21 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef __BOTHDEFS_H
 #define __BOTHDEFS_H
 
+// release version
+#define FTE_VER_MAJOR 1
+#define FTE_VER_MINOR 0
+
+//#define	VERSION		2.56
+#ifndef DISTRIBUTION
+	#define DISTRIBUTION "FTE"
+	#define DISTRIBUTIONLONG "Forethought Entertainment"
+	#define FULLENGINENAME "FTE QuakeWorld"
+	#define ENGINEWEBSITE "http://www.fteqw.com"
+#endif
+
+
 #if defined(__APPLE__) && defined(__MACH__)
-#define MACOSX
+	#define MACOSX
 #endif
 
 #if defined(__MINGW32_VERSION) || defined(__MINGW__) || defined(__MINGW32__) || defined(__MINGW64__)
@@ -35,6 +48,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef HAVE_CONFIG_H	//if it was configured properly, then we have a more correct list of features we want to use.
 	#include "config.h"
 #else
+	#ifndef MSVCLIBSPATH
+	#if _MSC_VER == 1200
+		#define MSVCLIBSPATH "../libs/vc6-libs/"
+	#else
+		#define MSVCLIBSPATH "../libs/"
+	#endif
+	#endif
 
 	#ifdef NO_LIBRARIES
 		#define NO_DIRECTX
@@ -51,8 +71,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define AVAIL_ZLIB
 
 		#define AVAIL_OGGVORBIS
+
+//		#define AVAIL_OPENAL	/* Jogi's OpenAL support */
 	#endif
-	#define AVAIL_MASM
 
 #if defined(MINGW) || defined(MACOSX)
 	#define AVAIL_PNGLIB
@@ -67,9 +88,20 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define AVAIL_D3D
 #endif
 
+//#define DYNAMIC_ZLIB
+//#define DYNAMIC_LIBPNG
+//#define DYNAMIC_LIBJPEG
+
+#define AVAIL_FREETYPE
 #ifdef _WIN32
 //needs testing on other platforms
-#define AVAIL_FREETYPE
+#define AVAIL_OPENAL
+#endif
+
+#define ODE_DYNAMIC
+
+#ifdef NO_OPENAL
+	#undef AVAIL_OPENAL
 #endif
 
 #ifdef NO_PNG
@@ -84,25 +116,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef NO_OGG
 	#undef AVAIL_OGGVORBIS
 #endif
-#if defined(NO_MASM) || !defined(_WIN32)
-	#undef AVAIL_MASM
-#endif
 #if defined(NO_FREETYPE)
 	#undef AVAIL_FREETYPE
 #endif
 
 //#define AVAIL_FREETYPE
-//#define NEWBACKEND
 
 //set any additional defines or libs in win32
-	#ifndef AVAIL_MASM
-		#ifdef _WIN32
-			#define NOASM
-		#else
-			#undef AVAIL_MASM	//fixme
-		#endif
-	#endif
-
 	#define SVRANKING
 
 	#ifdef MINIMAL
@@ -111,7 +131,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#undef AVAIL_JPEGLIB	//no jpeg support
 		#undef AVAIL_PNGLIB		//no png support
 		#undef USE_MADLIB		//no internal mp3 playing
-		#undef USE_D3D		//no d3d support
 		#define NOMEDIA			//NO playing of avis/cins/roqs
 
 		#define MD3MODELS		//we DO want to use quake3 alias models. This might be a minimal build, but we still want this.
@@ -119,19 +138,30 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 		#define PSET_CLASSIC
 
-#ifndef SERVERONLY	//don't be stupid, stupid.
-		#define CLIENTONLY
-#endif
+		//#define CSQC_DAT	//support for csqc
+
+		#ifndef SERVERONLY	//don't be stupid, stupid.
+			#ifndef CLIENTONLY
+				#define CLIENTONLY
+			#endif
+		#endif
 	#else
 		#define SIDEVIEWS	4	//enable secondary/reverse views.
+
 		#define SP2MODELS		//quake2 sprite models
 		#define MD2MODELS		//quake2 alias models
 		#define MD3MODELS		//quake3 alias models
 		#define MD5MODELS		//doom3 models
 		#define ZYMOTICMODELS	//zymotic skeletal models.
-		#define HUFFNETWORK		//huffman network compression
+		#define DPMMODELS		//darkplaces model format (which I've never seen anyone use)
+		#define PSKMODELS		//PSK model format (ActorX stuff from UT, though not the format the game itself uses)
 		#define HALFLIFEMODELS	//halflife model support (experimental)
-//		#define DOOMWADS		//doom wad/map/sprite support
+//		#define INTERQUAKEMODELS
+
+		#define HUFFNETWORK		//huffman network compression
+		//#define DOOMWADS		//doom wad/sprite support
+		//#define MAP_DOOM		//doom map support
+		#define MAP_PROC		//doom3/quake4 map support
 		//#define WOLF3DSUPPORT	//wolfenstein3d map support (not started yet)
 		#define Q2BSPS			//quake 2 bsp support
 		#define Q3BSPS			//quake 3 bsp support
@@ -142,8 +172,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define Q2CLIENT		//client can connect to q2 servers
 		#define Q3CLIENT
 		#define Q3SERVER
-//		#define HLCLIENT		//we can run HL gamecode (not protocol compatible)
-//		#define HLSERVER		//we can run HL gamecode (not protocol compatible)
+//		#define HLCLIENT 7		//we can run HL gamecode (not protocol compatible, set to 6 or 7)
+//		#define HLSERVER 140	//we can run HL gamecode (not protocol compatible, set to 138 or 140)
 		#define NQPROT			//server and client are capable of using quake1/netquake protocols. (qw is still prefered. uses the command 'nqconnect')
 		#define FISH			//fisheye distortion stuff
 		#define ZLIB			//zip/pk3 support
@@ -152,12 +182,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define RUNTIMELIGHTING	//calculate lit/lux files the first time the map is loaded and doesn't have a loadable lit.
 //		#define QTERM			//qterm... adds a console command that allows running programs from within quake - bit like xterm.
 		#define CL_MASTER		//query master servers and stuff for a dynamic server listing.
-		#define SERIALMOUSE		//means that the engine talks to a serial mouse directly via the com/serial port. Thus allowing duel mice with seperate inputs.
 		#define R_XFLIP			//allow view to be flipped horizontally
+#ifndef NO_XFLIP
 		#define IN_XFLIP		//allow input to be flipped horizontally.
+#endif
 		#define TEXTEDITOR
 		#define PPL				//per pixel lighting (stencil shadowing)
 		#define DDS				//a sort of image file format.
+		#define RTLIGHTS		//realtime lighting
 
 		#define VM_Q1			//q1 qvm gamecode interface
 
@@ -170,29 +202,31 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //		#define OFFSCREENGECKO
 #endif
 
+		//#define SQL
+
 		#define CSQC_DAT	//support for csqc
 		#define MENU_DAT	//support for menu.dat
-
-		#define Q3SHADERS
 
 		#define PSET_SCRIPT
 		#define PSET_CLASSIC
 		//#define PSET_DARKPLACES
 
-//		#define VOICECHAT	//not added yet.
+		#define VOICECHAT	//not added yet.
 
 //these things were moved to plugins.
 	#endif
 
 #endif
 
-//temporarily disable stuff here, so as to not break any custom configs
-#ifdef Q3SHADERS
-//#define NEWBACKEND
-#endif
-
 
 //fix things a little...
+#ifdef NPQTV
+	/*plugins require threads and stuff now, and http download support*/
+	#ifndef MULTITHREAD
+		#define MULTITHREAD
+		#define WEBCLIENT
+	#endif
+#endif
 
 #ifndef _WIN32
 	#undef QTERM	//not supported - FIXME: move to native plugin
@@ -207,13 +241,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 #endif
 
-#if !defined(AVAIL_D3D) || (!defined(GLQUAKE) && !defined(RGLQUAKE))
-	#undef USE_D3D
-#endif
-
 #ifdef NPQTV
 	#undef TEXTEDITOR
-	#undef WEBCLIENT
 	#undef WEBSERVER
 #endif
 
@@ -227,7 +256,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef WEBCLIENT
 	#undef TEXTEDITOR
 	#undef RUNTIMELIGHTING
-	#undef Q3SHADERS
 	#undef TERRAIN	//not supported
 
 	#undef PSET_SCRIPT
@@ -240,39 +268,33 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef HLSERVER
 	#undef WEBSERVER
 	#undef VM_Q1
-#endif
-
-#if defined(D3DQUAKE)
-	//not supported in anything but GL. avoid bugs.
-	#undef AVAIL_FREETYPE
+	#undef SQL
 #endif
 
 //remove any options that depend upon GL.
 #ifndef SERVERONLY
-	#if !defined(GLQUAKE)
+	#if !defined(GLQUAKE) && !defined(D3DQUAKE)
 		#undef DOOMWADS
 		#undef HALFLIFEMODELS
 		#undef Q3BSPS
 		#undef R_XFLIP
 		#undef RUNTIMELIGHTING
-		#undef TERRAIN
 		#undef Q3CLIENT
+	#endif
+
+	#if !defined(GLQUAKE)
+		#undef TERRAIN
 	#endif
 
 	// undefine things not supported yet for D3D
 	#if defined(D3DQUAKE) && !defined(GLQUAKE)
 		#undef DDS // this is dumb
 		#undef HALFLIFEMODELS
-		#undef Q3BSPS
-		#undef Q3CLIENT
-		#undef Q2BSPS
-		#undef Q2CLIENT
-		#undef Q2SERVER
 	#endif
 
 #endif
 
-#if !defined(GLQUAKE) && !defined(SERVERONLY)
+#if !defined(GLQUAKE) && !defined(D3DQUAKE) && !defined(SERVERONLY)
 	#undef Q3BSPS
 #endif
 #if !defined(Q3BSPS)
@@ -294,18 +316,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define PROTOCOLEXTENSIONS
 
+#ifdef MINIMAL
+	#define IFMINIMAL(x,y) x
+#else
+	#define IFMINIMAL(x,y) y
+#endif
+
 //#define PRE_SAYONE	2.487	//FIXME: remove.
 
 // defs common to client and server
-
-//#define	VERSION		2.56
-
-#ifndef DISTRIBUTION
-	#define DISTRIBUTION "FTE"
-	#define DISTRIBUTIONLONG "Forethought Entertainment"
-	#define FULLENGINENAME "FTE QuakeWorld"
-	#define ENGINEWEBSITE "http://www.fteqw.com"
-#endif
 
 #ifndef PLATFORM
 	#if defined(_WIN32)
@@ -336,27 +355,42 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 
-#if (defined(_M_IX86) || defined(__i386__)) && !defined(id386) && !defined(__amd64__) && !defined(_AMD64_)
-#define id386	1
-#else
-#define id386	0
-#endif
-
-#if defined(NOASM)		// no asm in dedicated server
-#undef id386
-#endif
-
-#if id386
+#if (defined(_M_IX86) || defined(__i386__)) && !defined(__amd64__) && !defined(_AMD64_)
 #define UNALIGNED_OK	1	// set to 0 if unaligned accesses are not supported
 #else
 #define UNALIGNED_OK	0
 #endif
 
 #ifdef _MSC_VER
-#define VARGS __cdecl
+	#define VARGS __cdecl
+	#define MSVCDISABLEWARNINGS
+	#if _MSC_VER >= 1300
+		#define FTE_DEPRECATED __declspec(deprecated)
+		#define _CRT_SECURE_NO_WARNINGS
+		#define _CRT_NONSTDC_NO_WARNINGS
+	#endif
+	#define NORETURN __declspec(noreturn)
+#endif
+#if (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1))
+	#define FTE_DEPRECATED  __attribute__((__deprecated__))	//no idea about the actual gcc version
+	#define LIKEPRINTF(x) __attribute__((format(printf,x,x+1)))
+#endif
+#if (__GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 5))
+	#define NORETURN __attribute__((noreturn))
+#endif
+
+
+#ifndef FTE_DEPRECATED
+#define FTE_DEPRECATED
+#endif
+#ifndef LIKEPRINTF
+#define LIKEPRINTF(x)
 #endif
 #ifndef VARGS
 #define VARGS
+#endif
+#ifndef NORETURN
+#define NORETURN
 #endif
 
 #ifdef _WIN32
@@ -389,10 +423,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	ON_EPSILON		0.1			// point on plane side epsilon
 
-#define	MAX_NQMSGLEN	8000		// max length of a reliable message
+#define	MAX_NQMSGLEN	65536		// max length of a reliable message
 #define MAX_Q2MSGLEN	1400
 #define MAX_QWMSGLEN	1450
-#define MAX_OVERALLMSGLEN	8192	// mvdsv sends packets this big
+#define MAX_OVERALLMSGLEN	65536	// mvdsv sends packets this big
 #define	MAX_DATAGRAM	1450		// max length of unreliable message
 #define MAX_Q2DATAGRAM	MAX_Q2MSGLEN
 #define	MAX_NQDATAGRAM	1024		// max length of unreliable message
@@ -498,6 +532,9 @@ STAT_H2_MAXHEALTH,
 STAT_H2_MAXMANA,
 STAT_H2_FLAGS,
 STAT_H2_PLAYERCLASS,
+
+STAT_H2_OBJECTIVE1,
+STAT_H2_OBJECTIVE2,
 
 
 

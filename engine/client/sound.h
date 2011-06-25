@@ -48,6 +48,9 @@ typedef struct {
 typedef struct sfx_s
 {
 	char 	name[MAX_OSPATH];
+#ifdef AVAIL_OPENAL
+	unsigned int	openal_buffer;
+#endif
 	qboolean failedload; //no more super-spammy
 	cache_user_t	cache;
 	sfxdecode_t *decoder;
@@ -78,13 +81,16 @@ typedef struct
 	unsigned char	*buffer;
 } dma_t;
 
+#define PITCHSHIFT 8
+
 typedef struct
 {
 	sfx_t	*sfx;			// sfx number
 	int		vol[MAXSOUNDCHANNELS];		// 0-255 volume
-	int		delay[MAXSOUNDCHANNELS];
+//	int		delay[MAXSOUNDCHANNELS];
 	int		end;			// end time in global paintsamples
-	int 	pos;			// sample position in sfx, <0 means delay sound start
+	int 	pos;			// sample position in sfx, <0 means delay sound start (shifted up by 8)
+	int     rate;			// 24.8 fixed point rate scaling
 	int		looping;		// where to loop, -1 = no looping
 	int		entnum;			// to allow overriding a specific sound
 	int		entchannel;		//int audio_fd
@@ -109,12 +115,14 @@ typedef struct soundcardinfo_s soundcardinfo_t;
 void S_Init (void);
 void S_Startup (void);
 void S_Shutdown (void);
-void S_StartSound (int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation);
+void S_StartSound (int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float pitchadj);
 void S_StartSoundDelayed(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float timeofs);
 void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation);
 void S_StopSound (int entnum, int entchannel);
 void S_StopAllSounds(qboolean clear);
-void S_UpdateListener(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, qboolean dontmix);
+void S_UpdateListener(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up);
+void S_GetListenerInfo(float *origin, float *forward, float *right, float *up);
+void S_Update (void);
 void S_ExtraUpdate (void);
 
 qboolean S_HaveOutput(void);
@@ -139,8 +147,22 @@ void S_StopSoundCard (soundcardinfo_t *sc, int entnum, int entchannel);
 void S_DefaultSpeakerConfiguration(soundcardinfo_t *sc);
 void S_ResetFailedLoad(void);
 
+#ifdef VOICECHAT
+extern cvar_t cl_voip_showmeter;
+void S_Voip_Parse(void);
+void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf);
+void S_Voip_MapChange(void);
+int S_Voip_Loudness(qboolean ignorevad);	//-1 for not capturing, otherwise between 0 and 100
+qboolean S_Voip_Speaking(unsigned int plno);
+void S_Voip_Ignore(unsigned int plno, qboolean ignore);
+#else
+#define S_Voip_Loudness() -1
+#define S_Voip_Speaking(p) false
+#define S_Voip_Ignore(p,s)
+#endif
+
 qboolean S_IsPlayingSomewhere(sfx_t *s);
-void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, qbyte *data);
+void ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth, int insamps, int inloopstart, qbyte *data);
 
 // picks a channel based on priorities, empty slots, number of channels
 channel_t *SND_PickChannel(soundcardinfo_t *sc, int entnum, int entchannel);
@@ -162,13 +184,32 @@ void CLVC_Poll (void);
 
 void SNDVC_MicInput(qbyte *buffer, int samples, int freq, int width);
 
+
+
+#ifdef AVAIL_OPENAL
+void OpenAL_LoadCache(sfx_t *s, sfxcache_t *sc);
+void OpenAL_StartSound(int entnum, int entchannel, sfx_t * sfx, vec3_t origin, float fvol, float attenuation, float pitchscale);
+void OpenAL_Update_Listener(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, vec3_t velocity);
+void OpenAL_CvarInit(void);
+#endif
+
+
 // ====================================================================
 // User-setable variables
 // ====================================================================
 
-#define	MAX_CHANNELS			256
-#define	MAX_DYNAMIC_CHANNELS	8
+#define	MAX_CHANNELS			1024/*tracked sounds (including statics)*/
+#define	MAX_DYNAMIC_CHANNELS	8	/*playing sounds (identical ones merge)*/
 
+
+#define NUM_MUSICS				1
+
+#define AMBIENT_FIRST 0
+#define AMBIENT_STOP NUM_AMBIENTS
+#define MUSIC_FIRST AMBIENT_STOP
+#define MUSIC_STOP (MUSIC_FIRST + NUM_MUSICS)
+#define DYNAMIC_FIRST MUSIC_STOP
+#define DYNAMIC_STOP (DYNAMIC_FIRST + MAX_DYNAMIC_CHANNELS)
 
 //
 // Fake dma is a synchronous faking of the DMA progress used for
@@ -189,6 +230,8 @@ extern	cvar_t bgmvolume;
 extern	cvar_t volume;
 extern	cvar_t snd_capture;
 
+extern float voicevolumemod;
+
 extern qboolean	snd_initialized;
 extern cvar_t snd_usemultipledevices;
 
@@ -208,6 +251,7 @@ void S_AmbientOn (void);
 
 //inititalisation functions.
 typedef int (*sounddriver) (soundcardinfo_t *sc, int cardnum);
+extern sounddriver pOPENAL_InitCard;
 extern sounddriver pDSOUND_InitCard;
 extern sounddriver pALSA_InitCard;
 extern sounddriver pOSS_InitCard;
@@ -220,9 +264,9 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 	struct soundcardinfo_s *next;
 
 //speaker orientations for spacialisation.
-	float dist[MAX_CHANNELS];
-	float pitch[MAX_CHANNELS];
-	float yaw[MAX_CHANNELS];
+	float dist[MAXSOUNDCHANNELS];
+
+	vec3_t speakerdir[MAXSOUNDCHANNELS];
 
 //info on which sound effects are playing
 	channel_t   channel[MAX_CHANNELS];
@@ -233,28 +277,42 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 	qboolean inactive_sound;	//continue mixing for this card even when the window isn't active.
 	qboolean selfpainting;	//allow the sound code to call the right functions when it feels the need (not properly supported).
 
-	int	paintedtime;	//used in the mixer
+	int	paintedtime;	//used in the mixer as last-written pos (in sample pairs)
 	int	oldsamplepos;	//this is used to track buffer wraps
 	int	buffers;	//used to keep track of how many buffer wraps for consistant sound
+	int	samplequeue;	//this is the number of samples the device can enqueue. if set, DMAPos returns the write point (rather than hardware read point) (in samplepairs).
 
 //callbacks
 	void *(*Lock) (soundcardinfo_t *sc);
 	void (*Unlock) (soundcardinfo_t *sc, void *buffer);
-	void (*Submit) (soundcardinfo_t *sc);
+	void (*Submit) (soundcardinfo_t *sc, int start, int end);
 	void (*Shutdown) (soundcardinfo_t *sc);
 	unsigned int (*GetDMAPos) (soundcardinfo_t *sc);
 	void (*SetWaterDistortion) (soundcardinfo_t *sc, qboolean underwater);
 	void (*Restore) (soundcardinfo_t *sc);
+	void (*ChannelUpdate) (soundcardinfo_t *sc, channel_t *channel, unsigned int schanged);
 
 //driver -specific
 	void *handle;
 	int snd_sent;
 	int snd_completed;
 	int audio_fd;
+
+// no clue how else to handle this yet!
+#ifdef AVAIL_OPENAL
+	int openal;
+#endif
 };
 
 extern soundcardinfo_t *sndcardinfo;
 
-
+typedef struct
+{
+	void *(*Init) (int samplerate);			/*create a new context*/
+	void (*Start) (void *ctx);		/*begin grabbing new data, old data is potentially flushed*/
+	unsigned int (*Update) (void *ctx, unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes);	/*grab the data into a different buffer*/
+	void (*Stop) (void *ctx);		/*stop grabbing new data, old data may remain*/
+	void (*Shutdown) (void *ctx);	/*destroy everything*/
+} snd_capture_driver_t;
 
 #endif

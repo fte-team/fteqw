@@ -84,11 +84,13 @@ qboolean	Plugin_ExecuteString(void);
 #ifdef VM_UI
 qboolean UI_Command(void);
 void UI_Init (void);
-void UI_Restart_f(void);
+void UI_Start (void);
 void UI_Stop (void);
+qboolean UI_OpenMenu(void);
+void UI_Restart_f(void);
 qboolean UI_Q2LayoutChanged(void);
 void UI_StringChanged(int num);
-void UI_MousePosition(int xpos, int ypos);
+qboolean UI_MousePosition(int xpos, int ypos);
 int UI_MenuState(void);
 qboolean UI_KeyPress(int key, int unicode, qboolean down);
 void UI_Reset(void);

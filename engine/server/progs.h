@@ -20,11 +20,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define QCLIB	//as opposed to standard qc stuff. One or other. All references+changes were by DMW unless specified otherwise. Starting 1/10/02
 
+struct client_s;
+struct edict_s;
+
 #define MAX_PROGS 64
 #define MAXADDONS 16
 
-#define	NUM_SPAWN_PARMS			32	//moved from server.h because of include ordering :(.
+#define	NUM_SPAWN_PARMS			64	//moved from server.h because of include ordering :(.
 
+
+void SVQ1_CvarChanged(cvar_t *var);
 #define NewGetEdictFieldValue GetEdictFieldValue
 void Q_SetProgsParms(qboolean forcompiler);
 void PR_Deinit(void);
@@ -33,18 +38,16 @@ void Q_InitProgs(void);
 void PR_RegisterFields(void);
 void PR_Init(void);
 void ED_Spawned (struct edict_s *ent, int loading);
+qboolean SV_RunFullQCMovement(struct client_s *client, usercmd_t *ucmd);
 qboolean PR_KrimzonParseCommand(char *s);
 qboolean PR_UserCmd(char *cmd);
 qboolean PR_ConsoleCmd(void);
 
-void PR_RunThreads(void);
+void PRSV_RunThreads(void);
 
 
 #define PR_MAINPROGS 0	//this is a constant that should really be phased out. But seeing as QCLIB requires some sort of master progs due to extern funcs...
 	//maybe go through looking for extern funcs, and remember which were not allocated. It would then be a first come gets priority. Not too bad I supppose.
-
-#include "progtype.h"
-#include "progdefs.h"
 
 extern int compileactive;
 
@@ -54,14 +57,11 @@ extern progstype_t progstype;
 
 //extern globalvars_t *glob0;
 
-extern int pr_edict_size;
-
 
 //extern progparms_t progparms;
 
 //extern progsnum_t mainprogs;
 
-#define	MAX_ENT_LEAFS	16
 typedef struct edict_s
 {
 	//these 5 shared with qclib
@@ -69,27 +69,33 @@ typedef struct edict_s
 	float		freetime; // sv.time when the object was freed
 	int			entnum;
 	qboolean	readonly;	//world
-
-#ifndef VM_Q1
-	stdentvars_t		*v;
-	#define xv v
-#else
-	stdentvars_t		*v;
-
-	//the rest is free for adaption
+#ifdef VM_Q1
+	stdentvars_t	*v;
 	extentvars_t	*xv;
+#else
+	union {
+		stdentvars_t	*v;
+		stdentvars_t	*xv;
+	};
 #endif
-	link_t		area;				// linked to a division node or leaf
+	/*qc lib doesn't care about the rest*/
 
+	/*these are shared with csqc*/
+	link_t	area;
 	int			num_leafs;
 	short		leafnums[MAX_ENT_LEAFS];
-	int areanum;	//q2bsp
-	int areanum2;	//q2bsp
-	int headnode;	//q2bsp
+#ifdef Q2BSPS
+	int areanum;
+	int areanum2;
+	int headnode;
+#endif
+#ifdef USEODE
+	entityode_t ode;
+#endif
+	qbyte solidtype;
+	/*csqc doesn't reference the rest*/
 
 	entity_state_t	baseline;
-
-	qbyte solidtype;	//relinks entities if their solidity changed
 // other fields from progs come immediately after
 } edict_t;
   
@@ -109,7 +115,6 @@ extern progfuncs_t *svprogfuncs;	//instance
 extern progparms_t svprogparms;
 extern progsnum_t svmainprogs;
 extern progsnum_t clmainprogs;
-#define	EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,edict_t,area)
 #define	HLEDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,hledict_t,area)
 #define	Q2EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,q2edict_t,area)
 #define	Q3EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,q3serverEntity_t,area)

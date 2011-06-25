@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -22,31 +22,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 console_t	con_main;
-console_t	*con_current;			// point to either con_main
+console_t	*con_current;		// points to whatever is the visible console
+console_t	*con_chat;			// points to a chat console
 
-#ifdef AVAIL_FREETYPE
-	extern struct font_s *conchar_font;
-	int GLFont_DrawChar(struct font_s *font, int px, int py, unsigned int charcode);
-	void GLFont_BeginString(struct font_s *font, int vx, int vy, int *px, int *py);
-	//void GLFont_EndString(struct font_s *font);
-	#define GLFont_EndString(f)
+#define Font_ScreenWidth() (vid.pixelwidth)
 
-	#define Font_DrawChar(x,y,c) (conchar_font?GLFont_DrawChar(conchar_font, x, y, c):(Draw_ColouredCharacter(x, y, c),(x)+8))
-
-	#define Font_CharWidth(c) (conchar_font?GLFont_CharWidth(conchar_font, c):8)
-	#define Font_CharHeight() (conchar_font?GLFont_CharHeight(conchar_font):8)
-	#define Font_ScreenWidth() (conchar_font?glwidth:vid.width)
-	extern int glwidth;
-#else
-	#define GLFont_BeginString(f, vx, vy, px, py) *px = vx; *py = vy;
-	#define GLFont_EndString(f)
-	#define Font_DrawChar(x,y,c) (Draw_ColouredCharacter(x, y, c),(x)+8)
-	#define Font_CharWidth(c) 8
-	#define Font_CharHeight() 8
-	#define Font_ScreenWidth() vid.width
-#endif
-
-static int Con_LineBreaks(conchar_t *start, conchar_t *end, int scrwidth, int maxlines, conchar_t **starts, conchar_t **ends);
 static int Con_DrawProgress(int left, int right, int y);
 
 #ifdef QTERM
@@ -80,13 +60,11 @@ cvar_t		con_centernotify = SCVAR("con_centernotify", "0");
 cvar_t		con_displaypossibilities = SCVAR("con_displaypossibilities", "1");
 cvar_t		con_maxlines = SCVAR("con_maxlines", "1024");
 cvar_t		cl_chatmode = SCVAR("cl_chatmode", "2");
+cvar_t		con_numnotifylines_chat = CVAR("con_numnotifylines_chat", "8");
+cvar_t		con_notifytime_chat = CVAR("con_notifytime_chat", "8");
+cvar_t		con_separatechat = CVAR("con_separatechat", "0");
 
 #define	NUM_CON_TIMES 24
-float		con_times[NUM_CON_TIMES];	// realtime time the line was generated
-								// for transparent notify lines
-
-//int			con_vislines;
-int			con_notifylines;		// scan lines to clear for notify lines
 
 #define		MAXCMDLINE	256
 extern	unsigned char	key_lines[32][MAXCMDLINE];
@@ -98,18 +76,47 @@ static unsigned int	selstartoffset, selendoffset;
 
 qboolean	con_initialized;
 
-void Con_ResizeCon (console_t *con);
+/*makes sure the console object works*/
+void Con_Finit (console_t *con)
+{
+	if (con->current == NULL)
+	{
+		con->oldest = con->current = Z_Malloc(sizeof(conline_t));
+		con->linecount = 0;
+	}
+	if (con->display == NULL)
+		con->display = con->current;
+}
 
-qboolean Con_IsActive (console_t *con)
+/*returns a bitmask:
+1: currently active
+2: has text that has not been seen yet
+*/
+int Con_IsActive (console_t *con)
 {
 	return (con == con_current) | (con->unseentext*2);
 }
+/*kills a console_t object. will never destroy the main console (which will only be cleared)*/
 void Con_Destroy (console_t *con)
 {
 	console_t *prev;
+	conline_t *t;
+	/*purge the lines from the console*/
+	while (con->current)
+	{
+		t = con->current;
+		con->current = t->older;
+		Z_Free(t);
+	}
+	con->display = con->current = con->oldest = NULL;
+	selstartline = NULL;
+	selendline = NULL;
 
 	if (con == &con_main)
+	{
+		Con_Finit(con);
 		return;
+	}
 
 	for (prev = &con_main; prev->next; prev = prev->next)
 	{
@@ -125,6 +132,7 @@ void Con_Destroy (console_t *con)
 	if (con_current == con)
 		con_current = &con_main;
 }
+/*obtains a console_t without creating*/
 console_t *Con_FindConsole(char *name)
 {
 	console_t *con;
@@ -135,22 +143,26 @@ console_t *Con_FindConsole(char *name)
 	}
 	return NULL;
 }
-console_t *Con_Create(char *name)
+/*creates a potentially duplicate console_t - please use Con_FindConsole first, as its confusing otherwise*/
+console_t *Con_Create(char *name, unsigned int flags)
 {
 	console_t *con;
 	con = Z_Malloc(sizeof(console_t));
 	Q_strncpyz(con->name, name, sizeof(con->name));
 
-	Con_ResizeCon(con);
+	con->flags = flags;
+	Con_Finit(con);
 	con->next = con_main.next;
 	con_main.next = con;
 
 	return con;
 }
+/*sets a console as the active one*/
 void Con_SetActive (console_t *con)
 {
 	con_current = con;
 }
+/*for enumerating consoles*/
 qboolean Con_NameForNum(int num, char *buffer, int buffersize)
 {
 	console_t *con;
@@ -167,6 +179,7 @@ qboolean Con_NameForNum(int num, char *buffer, int buffersize)
 	return false;
 }
 
+/*print text to a console*/
 void Con_PrintCon (console_t *con, char *txt);
 
 
@@ -263,7 +276,7 @@ void QT_Create(char *command)
 	int ret;
 
 	qt = Z_Malloc(sizeof(*qt));
-	
+
 	memset(&sa,0,sizeof(sa));
 	sa.nLength=sizeof(sa);
 	sa.bInheritHandle=true;
@@ -281,20 +294,20 @@ void QT_Create(char *command)
 	qt->pipeoutih	= StdOut[1];
 	qt->pipeinih	= StdIn[1];
 
-	if (!DuplicateHandle(GetCurrentProcess(), StdIn[0], 
-						GetCurrentProcess(), &qt->pipein, 0, 
-						FALSE,                  // not inherited 
+	if (!DuplicateHandle(GetCurrentProcess(), StdIn[0],
+						GetCurrentProcess(), &qt->pipein, 0,
+						FALSE,                  // not inherited
 						DUPLICATE_SAME_ACCESS))
 		qt->pipein = StdIn[0];
 	else
-		CloseHandle(StdIn[0]); 
-	if (!DuplicateHandle(GetCurrentProcess(), StdOut[0], 
-						GetCurrentProcess(), &qt->pipeout, 0, 
-						FALSE,                  // not inherited 
+		CloseHandle(StdIn[0]);
+	if (!DuplicateHandle(GetCurrentProcess(), StdOut[0],
+						GetCurrentProcess(), &qt->pipeout, 0,
+						FALSE,                  // not inherited
 						DUPLICATE_SAME_ACCESS))
 		qt->pipeout = StdOut[0];
 	else
-		CloseHandle(StdOut[0]); 
+		CloseHandle(StdOut[0]);
 
 	SUInf.hStdInput		= qt->pipeinih;
 	SUInf.hStdOutput	= qt->pipeoutih;
@@ -315,7 +328,7 @@ void QT_Create(char *command)
 
 	qt->running = true;
 
-	qt->console = Con_Create("QTerm");
+	qt->console = Con_Create("QTerm", 0);
 	qt->console->redirect = QT_KeyPress;
 	Con_PrintCon(qt->console, "Started Process\n");
 	Con_SetVisible(qt->console);
@@ -361,8 +374,6 @@ void Con_ToggleConsole_f (void)
 	}
 	else
 		key_dest = key_console;
-	
-	Con_ClearNotify ();
 }
 
 /*
@@ -381,8 +392,23 @@ void Con_ToggleChat_f (void)
 	}
 	else
 		key_dest = key_console;
-	
-	Con_ClearNotify ();
+}
+
+void Con_ClearCon(console_t *con)
+{
+	conline_t *t;
+	while (con->current)
+	{
+		t = con->current;
+		con->current = t->older;
+		Z_Free(t);
+	}
+	con->display = con->current = con->oldest = NULL;
+	selstartline = NULL;
+	selendline = NULL;
+
+	/*reset the line pointers, create an active line*/
+	Con_Finit(con);
 }
 
 /*
@@ -392,35 +418,47 @@ Con_Clear_f
 */
 void Con_Clear_f (void)
 {
-	conline_t *t;
-	while (con_main.current)
-	{
-		t = con_main.current;
-		con_main.current = t->older;
-		Z_Free(t);
-	}
-	con_main.display = con_main.current = con_main.oldest = NULL;
-	selstartline = NULL;
-	selendline = NULL;
-
-	Con_ResizeCon(&con_main);
+	Con_ClearCon(&con_main);
 }
 
-						
-/*
-================
-Con_ClearNotify
-================
-*/
-void Con_ClearNotify (void)
+
+
+void Cmd_ConEcho_f(void)
 {
-	int		i;
-	
-	for (i=0 ; i<NUM_CON_TIMES ; i++)
-		con_times[i] = 0;
+	console_t *con;
+	con = Con_FindConsole(Cmd_Argv(1));
+	if (!con)
+		con = Con_Create(Cmd_Argv(1), 0);
+	if (con)
+	{
+		Cmd_ShiftArgs(1, false);
+		Con_PrintCon(con, Cmd_Args());
+		Con_PrintCon(con, "\n");
+	}
 }
 
-						
+void Cmd_ConClear_f(void)
+{
+	console_t *con;
+	con = Con_FindConsole(Cmd_Argv(1));
+	if (con)
+		Con_ClearCon(con);
+}
+void Cmd_ConClose_f(void)
+{
+	console_t *con;
+	con = Con_FindConsole(Cmd_Argv(1));
+	if (con)
+		Con_Destroy(con);
+}
+void Cmd_ConActivate_f(void)
+{
+	console_t *con;
+	con = Con_FindConsole(Cmd_Argv(1));
+	if (con)
+		Con_SetActive(con);
+}
+
 /*
 ================
 Con_MessageMode_f
@@ -443,37 +481,6 @@ void Con_MessageMode2_f (void)
 	key_dest = key_message;
 }
 
-/*
-================
-Con_Resize
-
-================
-*/
-void Con_ResizeCon (console_t *con)
-{
-	if (con->current == NULL)
-	{
-		con->oldest = con->current = Z_Malloc(sizeof(conline_t));
-		con->linecount = 0;
-	}
-	if (con->display == NULL)
-		con->display = con->current;
-}
-					
-/*
-================
-Con_CheckResize
-
-If the line width has changed, reformat the buffer.
-================
-*/
-void Con_CheckResize (void)
-{
-	console_t *c;
-	for (c = &con_main; c; c = c->next)
-		Con_ResizeCon (c);
-}
-
 void Con_ForceActiveNow(void)
 {
 	key_dest = key_console;
@@ -490,9 +497,12 @@ void Log_Init (void);
 void Con_Init (void)
 {
 	con_current = &con_main;
+	Con_Finit(&con_main);
+
 	con_main.linebuffered = Con_ExecuteLine;
 	con_main.commandcompletion = true;
-	Con_CheckResize ();
+
+	con_initialized = true;
 	Con_Printf ("Console initialized.\n");
 
 //
@@ -504,6 +514,9 @@ void Con_Init (void)
 	Cvar_Register (&con_displaypossibilities, "Console controls");
 	Cvar_Register (&cl_chatmode, "Console controls");
 	Cvar_Register (&con_maxlines, "Console controls");
+	Cvar_Register (&con_numnotifylines_chat, "Console controls");
+	Cvar_Register (&con_notifytime_chat, "Console controls");
+	Cvar_Register (&con_separatechat, "Console controls");
 
 	Cmd_AddCommand ("toggleconsole", Con_ToggleConsole_f);
 	Cmd_AddCommand ("togglechat", Con_ToggleChat_f);
@@ -513,9 +526,23 @@ void Con_Init (void)
 #ifdef QTERM
 	Cmd_AddCommand ("qterm", Con_QTerm_f);
 #endif
-	con_initialized = true;
+
+	Cmd_AddCommand ("conecho", Cmd_ConEcho_f);
+	Cmd_AddCommand ("conclear", Cmd_ConClear_f);
+	Cmd_AddCommand ("conclose", Cmd_ConClose_f);
+	Cmd_AddCommand ("conactivate", Cmd_ConActivate_f);
 
 	Log_Init();
+}
+
+void Con_Shutdown(void)
+{
+	while(con_main.next)
+	{
+		Con_Destroy(con_main.next);
+	}
+	Con_Destroy(&con_main);
+	con_initialized = false;
 }
 
 /*
@@ -542,31 +569,14 @@ void Con_PrintCon (console_t *con, char *txt)
 	{
 		conchar_t *o;
 
-		if ((*c&CON_CHARMASK)=='\t')
-			*c = (*c&~CON_CHARMASK)|' ';
-
-		switch (*c & (CON_CHARMASK&~CON_HIGHCHARSMASK))
+		switch (*c & (CON_CHARMASK))
 		{
 		case '\r':
 			cr = true;
 			break;
 		case '\n':
-{
-conline_t *cl;
-cl = con->oldest;
-if (cl->older)
-Sys_Error("older?\n");
-while(cl->newer)
-{
-	if (cl->newer->older != cl)
-		Sys_Error("bad backlink\n");
-cl = cl->newer;
-}
-if (cl != con->current)
-Sys_Error("not newest?\n");
-}
 			cr = false;
-			while (con->linecount >= con_maxlines.value)
+			while (con->linecount >= con_maxlines.ival)
 			{
 				if (con->oldest == con->current)
 					break;
@@ -584,8 +594,10 @@ Sys_Error("not newest?\n");
 				con->linecount--;
 			}
 			con->linecount++;
-			if (con == &con_main)
-				con_times[con->linesprinted++%NUM_CON_TIMES] = realtime;
+			if (con->flags & CONF_NOTIMES)
+				con->current->time = 0;
+			else
+				con->current->time = realtime;
 			con->current->newer = Z_Malloc(sizeof(conline_t));
 			con->current->newer->older = con->current;
 			con->current = con->current->newer;
@@ -630,9 +642,16 @@ void Con_Print (char *txt)
 
 void Con_CycleConsole(void)
 {
-	con_current = con_current->next;
-	if (!con_current)
-		con_current = &con_main;
+	while(1)
+	{
+		con_current = con_current->next;
+		if (!con_current)
+			con_current = &con_main;
+
+		if (con_current->flags & CONF_HIDDEN)
+			continue;
+		break;
+	}
 }
 
 void Con_Log(char *s);
@@ -654,10 +673,10 @@ void SV_FlushRedirect (void);
 #define	MAXPRINTMSG	4096
 // FIXME: make a buffer size safe vsprintf?
 void VARGS Con_Printf (const char *fmt, ...)
-{	
+{
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
-	
+
 	va_start (argptr,fmt);
 	vsnprintf (msg,sizeof(msg), fmt,argptr);
 	va_end (argptr);
@@ -685,30 +704,10 @@ void VARGS Con_Printf (const char *fmt, ...)
 
 // write it to the scrollable buffer
 	Con_Print (msg);
-/*
-	if (con != &con_main)
-		return;
-
-// update the screen immediately if the console is displayed
-	if (cls.state != ca_active && !filmactive)
-#ifndef CLIENTONLY
-	if (progfuncs != svprogfuncs)	//cover our back - don't do rendering stuff that will change this
-#endif
-	{
-	// protect against infinite loop if something in SCR_UpdateScreen calls
-	// Con_Printd
-		if (!inupdate)
-		{
-			inupdate = true;
-			SCR_UpdateScreen ();
-			inupdate = false;
-		}
-	}
-*/
 }
 
 void VARGS Con_SafePrintf (char *fmt, ...)
-{	
+{
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
 
@@ -717,15 +716,15 @@ void VARGS Con_SafePrintf (char *fmt, ...)
 	va_end (argptr);
 
 // write it to the scrollable buffer
-	Con_Printf ("%s", msg);	
+	Con_Printf ("%s", msg);
 }
 
 void VARGS Con_TPrintf (translation_t text, ...)
-{	
+{
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
 	char *fmt = languagetext[text][cls.language];
-	
+
 	va_start (argptr,text);
 	vsnprintf (msg,sizeof(msg), fmt,argptr);
 	va_end (argptr);
@@ -735,11 +734,11 @@ void VARGS Con_TPrintf (translation_t text, ...)
 }
 
 void VARGS Con_SafeTPrintf (translation_t text, ...)
-{	
+{
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
 	char *fmt = languagetext[text][cls.language];
-	
+
 	va_start (argptr,text);
 	vsnprintf (msg,sizeof(msg), fmt,argptr);
 	va_end (argptr);
@@ -802,6 +801,9 @@ void Con_DrawInput (int left, int right, int y)
 	extern int con_commandmatch;
 	conchar_t maskedtext[MAXCMDLINE];
 	conchar_t *endmtext;
+	conchar_t *cursor;
+	conchar_t *cchar;
+	qboolean cursorframe;
 
 	int x;
 
@@ -818,12 +820,11 @@ void Con_DrawInput (int left, int right, int y)
 	//if it's not a command, and the cursor is at the end of the line, leave it as is,
 	//	but add to the end to show what the compleation will be.
 
+	i = text[key_linepos];
+	text[key_linepos] = 0;
+	cursor = COM_ParseFunString(CON_WHITEMASK, text, maskedtext, sizeof(maskedtext)-1*sizeof(conchar_t), true);
+	text[key_linepos] = i;
 	endmtext = COM_ParseFunString(CON_WHITEMASK, text, maskedtext, sizeof(maskedtext)-1*sizeof(conchar_t), true);
-
-	//FIXME: key_linepos is not corrected for multibyte codes.
-	if (endmtext < maskedtext+key_linepos)
-		key_linepos = endmtext-maskedtext;
-
 
 	endmtext[1] = 0;
 
@@ -840,7 +841,7 @@ void Con_DrawInput (int left, int right, int y)
 //		else
 //			Plug_SpellCheckMaskedText(maskedtext+1, i-1, x, y, 8, si, con_current->linewidth);
 
-		if (!text[key_linepos])	//cursor is at end
+		if (cursor == endmtext)	//cursor is at end
 		{
 			int cmdstart;
 			cmdstart = text[1] == '/'?2:1;
@@ -857,12 +858,11 @@ void Con_DrawInput (int left, int right, int y)
 //		Plug_SpellCheckMaskedText(maskedtext+1, i-1, x, y, 8, si, con_current->linewidth);
 
 #ifdef _WIN32
-	if (ActiveApp)
+	if (!ActiveApp)
+		cursorframe = 0;
+	else
 #endif
-	if (((int)(realtime*con_cursorspeed)&1))
-	{
-		maskedtext[key_linepos] = 0xe000|11|CON_WHITEMASK;	//make it blink
-	}
+		cursorframe = ((int)(realtime*con_cursorspeed)&1);
 
 	for (lhs = 0, i = key_linepos-1; i >= 0; i--)
 	{
@@ -881,16 +881,27 @@ void Con_DrawInput (int left, int right, int y)
 	//if the left hand side is on the right of the left point (overrides right alignment)
 	if (x - lhs > 0)
 		x = lhs;
-		
+
 	lhs = x - lhs + left;
-	for (i = 0; i < key_linepos; i++)
+	for (cchar = maskedtext; cchar < cursor; cchar++)
 	{
-		lhs = Font_DrawChar(lhs, y, maskedtext[i]);
+		lhs = Font_DrawChar(lhs, y, *cchar);
 	}
 	rhs = x + left;
-	for (i = key_linepos; maskedtext[i]; i++)
+	if (cursorframe)
 	{
-		rhs = Font_DrawChar(rhs, y, maskedtext[i]);
+		extern cvar_t com_parseutf8;
+		if (com_parseutf8.ival)
+			Font_DrawChar(rhs, y, (*cursor&~(CON_BGMASK|CON_FGMASK)) | (COLOR_BLUE<<CON_BGSHIFT) | CON_NONCLEARBG | CON_WHITEMASK);
+		else
+			Font_DrawChar(rhs, y, 0xe000|11|CON_WHITEMASK);
+	}
+	else if (*cursor)
+		Font_DrawChar(rhs, y, *cursor);
+	rhs += Font_CharWidth(*cursor);
+	for (cchar = cursor+1; *cchar; cchar++)
+	{
+		rhs = Font_DrawChar(rhs, y, *cchar);
 	}
 }
 
@@ -901,41 +912,44 @@ Con_DrawNotify
 Draws the last few lines of output transparently over the game top
 ================
 */
-void Con_DrawNotify (void)
+void Con_DrawNotifyOne (console_t *con)
 {
 	conchar_t *starts[NUM_CON_TIMES], *ends[NUM_CON_TIMES];
 	conchar_t *c;
 	conline_t *l;
-	console_t *con = &con_main;
-	int lines=NUM_CON_TIMES;
+	int lines=con->notif_l;
 	int line;
-	int x = 0, y = 0;
-	unsigned int cn = con->linesprinted+NUM_CON_TIMES;
+	int x = con->notif_x, y = con->notif_y;
+	int w = con->notif_w;
 
 	int maxlines;
 	float t;
 
-	maxlines = con_numnotifylines.value;
-	if (maxlines < 0)
-		maxlines = 0;
-	if (maxlines > NUM_CON_TIMES)
-		maxlines = NUM_CON_TIMES;
+	Font_BeginString(font_conchar, x, y, &x, &y);
+	Font_Transform(con->notif_w, 0, &w, NULL);
 
-	y = Con_DrawProgress(0, Font_ScreenWidth(), 0);
+	if (con->notif_l < 0)
+		con->notif_l = 0;
+	if (con->notif_l > NUM_CON_TIMES)
+		con->notif_l = NUM_CON_TIMES;
+	lines = maxlines = con->notif_l;
+
+	if (x == 0 && y == 0 && con->notif_w == vid.width)
+		y = Con_DrawProgress(0, w, 0);
 
 	l = con->current;
 	if (!l->length)
 		l = l->older;
-	for (; l && cn > con->linesprinted && lines > NUM_CON_TIMES-maxlines; l = l->older)
+	for (; l && lines > con->notif_l-maxlines; l = l->older)
 	{
-		t = con_times[--cn % NUM_CON_TIMES];
+		t = l->time;
 		if (!t)
-			break; //cleared
+			continue; //hidden from notify
 		t = realtime - t;
-		if (t > con_notifytime.value)
+		if (t > con->notif_t)
 			break;
 
-		line = Con_LineBreaks((conchar_t*)(l+1), (conchar_t*)(l+1)+l->length, Font_ScreenWidth(), lines, starts, ends);
+		line = Font_LineBreaks((conchar_t*)(l+1), (conchar_t*)(l+1)+l->length, w, lines, starts, ends);
 		if (!line && lines > 0)
 		{
 			lines--;
@@ -951,10 +965,16 @@ void Con_DrawNotify (void)
 		if (lines == 0)
 			break;
 	}
+
 	//clamp it properly
-	while (lines < NUM_CON_TIMES-maxlines)
+	while (lines < con->notif_l-maxlines)
+	{
 		lines++;
-	while (lines < NUM_CON_TIMES)
+	}
+	if (con->flags & CONF_NOTIFY_BOTTOM)
+		y -= (con->notif_l - lines) * Font_CharHeight();
+
+	while (lines < con->notif_l)
 	{
 		x = 0;
 		if (con_centernotify.value)
@@ -963,46 +983,68 @@ void Con_DrawNotify (void)
 			{
 				x += Font_CharWidth(*c);
 			}
-			x = (vid.width - x) / 2;
+			x = (w - x) / 2;
 		}
-		for (c = starts[lines]; c < ends[lines]; c++)
-			x = Font_DrawChar(x, y, *c);
+		Font_LineDraw(x, y, starts[lines], ends[lines]);
 
 		y += Font_CharHeight();
 
 		lines++;
 	}
 
+	Font_EndString(font_conchar);
+}
+
+void Con_DrawNotify (void)
+{
+	console_t *con;
+
+	con_main.flags = CONF_NOTIFY;
+	/*keep the main console up to date*/
+	con_main.notif_l = con_numnotifylines.ival;
+	con_main.notif_w = vid.width;
+	con_main.notif_t = con_notifytime.value;
+
+	if (con_chat)
+	{
+		con_chat->notif_l = con_numnotifylines_chat.ival;
+		con_chat->notif_w = vid.width - 64;
+		con_chat->notif_y = vid.height - sb_lines - 8*4;
+		con_chat->notif_t = con_notifytime_chat.value;
+	}
+
+	for (con = &con_main; con; con = con->next)
+	{
+		if (con->flags & CONF_NOTIFY)
+			Con_DrawNotifyOne(con);
+	}
 
 	if (key_dest == key_message)
 	{
+		int x, y;
 		conchar_t *starts[8];
 		conchar_t *ends[8];
 		conchar_t markup[MAXCMDLINE+64];
 		conchar_t *c;
 		int lines, i;
+		Font_BeginString(font_conchar, 0, 0, &x, &y);
+		y = con_main.notif_l * Font_CharHeight();
 		c = COM_ParseFunString(CON_WHITEMASK, va(chat_team?"say_team: %s":"say: %s", chat_buffer), markup, sizeof(markup), true);
 		*c++ = (0xe00a+((int)(realtime*con_cursorspeed)&1))|CON_WHITEMASK;
-		lines = Con_LineBreaks(markup, c, Font_ScreenWidth(), 8, starts, ends);
+		lines = Font_LineBreaks(markup, c, Font_ScreenWidth(), 8, starts, ends);
 		for (i = 0; i < lines; i++)
 		{
-			c = starts[i];
 			x = 0;
-			while (c < ends[i])
-			{
-				x = Font_DrawChar(x, y, *c++);
-			}
+			Font_LineDraw(x, y, starts[i], ends[i]);
 			y += Font_CharHeight();
 		}
+		Font_EndString(font_conchar);
 	}
-
-	if (y > con_notifylines)
-		con_notifylines = y;
 }
 
-//send all the stuff that was con_printed to sys_print. 
+//send all the stuff that was con_printed to sys_print.
 //This is so that system consoles in windows can scroll up and have all the text.
-void Con_PrintToSys(void)	
+void Con_PrintToSys(void)
 {
 	console_t *curcon = &con_main;
 	conline_t *l;
@@ -1016,53 +1058,6 @@ void Con_PrintToSys(void)
 			Sys_Printf("%c", t[i]&0xff);
 		Sys_Printf("\n");
 	}
-}
-
-static int Con_LineBreaks(conchar_t *start, conchar_t *end, int scrwidth, int maxlines, conchar_t **starts, conchar_t **ends)
-{
-	int l, bt;
-	int px;
-	int foundlines = 0;
-
-	while (start < end)
-	{
-	// scan the width of the line
-		for (px=0, l=0 ; px <= scrwidth;)
-		{
-			if (start+l >= end || (start[l]&CON_CHARMASK) == '\n')
-				break;
-			l++;
-			px += Font_CharWidth(start[l]);
-		}
-		//if we did get to the end
-		if (px > scrwidth)
-		{
-			bt = l;
-			//backtrack until we find a space
-			while(l > 0 && (start[l-1]&CON_CHARMASK)>' ')
-			{
-				l--;
-			}
-			if (l == 0 && bt>0)
-				l = bt-1;
-			px -= Font_CharWidth(start[l]);
-		}
-
-		starts[foundlines] = start;
-		ends[foundlines] = start+l;
-		foundlines++;
-		if (foundlines == maxlines)
-			break;
-
-		start+=l;
-//		for (l=0 ; l<40 && *start && *start != '\n'; l++)
- //			start++;
-
-		if (start < end && (*start&CON_CHARMASK) == '\n'||!l)
-			start++;                // skip the \n
-	}
-
-	return foundlines;
 }
 
 //returns the bottom of the progress bar
@@ -1082,7 +1077,7 @@ static int Con_DrawProgress(int left, int right, int y)
 	int barwidth, barleft;
 	float progresspercent = 0;
 	*progresspercenttext = 0;
-	
+
 	// draw the download bar
 	// figure out width
 	if (cls.downloadmethod)
@@ -1134,7 +1129,7 @@ static int Con_DrawProgress(int left, int right, int y)
 			txt = progresstext;
 
 		x = 0;
-		COM_ParseFunString(CON_WHITEMASK, txt, dlbar, sizeof(dlbar), false); 
+		COM_ParseFunString(CON_WHITEMASK, txt, dlbar, sizeof(dlbar), false);
 		for (i = 0; dlbar[i]; )
 		{
 			x += Font_CharWidth(dlbar[i]);
@@ -1213,11 +1208,21 @@ int Con_DrawAlternateConsoles(int lines)
 {
 	char *txt;
 	int x, y = 0;
-	if (lines == scr_conlines && con_main.next)
+	int consshown = 0;
+	console_t *con = &con_main;
+
+	for (con = &con_main; con; con = con->next)
 	{
-		console_t *con = con_current;
+		if (!(con->flags & CONF_HIDDEN))
+			consshown++;
+	}
+
+	if (lines == scr_conlines && consshown > 1) 
+	{
 		for (x = 0, con = &con_main; con; con = con->next)
 		{
+			if (con->flags & CONF_HIDDEN)
+				continue;
 			if (con == &con_main)
 				txt = "MAIN";
 			else
@@ -1253,7 +1258,8 @@ void Con_DrawConsole (int lines, qboolean noback)
 	int top;
 	conchar_t *starts[64], *ends[sizeof(starts)/sizeof(starts[0])];
 	int i;
-	extern int glwidth;
+	qboolean haveprogress;
+	int hidelines;
 
 	if (lines <= 0)
 		return;
@@ -1265,31 +1271,28 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 // draw the background
 	if (!noback)
-		Draw_ConsoleBackground (0, lines, scr_con_forcedraw);
+		R2D_ConsoleBackground (0, lines, scr_con_forcedraw);
 
 	con_current->unseentext = false;
 
 	con_current->vislines = lines;
+
+	top = Con_DrawAlternateConsoles(lines);
 
 	x = 8;
 	y = lines;
 
 	selactive = Key_GetConsoleSelectionBox(&selsx, &selsy, &selex, &seley);
 
-#ifdef AVAIL_FREETYPE
-	if (conchar_font)
-	{
-		GLFont_BeginString(conchar_font, x, y, &x, &y);
-		GLFont_BeginString(conchar_font, selsx, selsy, &selsx, &selsy);
-		GLFont_BeginString(conchar_font, selex, seley, &selex, &seley);
-	}
-#endif
+	Font_BeginString(font_conchar, x, y, &x, &y);
+	Font_BeginString(font_conchar, selsx, selsy, &selsx, &selsy);
+	Font_BeginString(font_conchar, selex, seley, &selex, &seley);
 	ex = Font_ScreenWidth();
 	sx = x;
 	ex -= sx;
 
 	y -= Font_CharHeight();
-	Con_DrawProgress(x, ex - x, y);
+	haveprogress = Con_DrawProgress(x, ex - x, y) != y;
 	y -= Font_CharHeight();
 	Con_DrawInput (x, ex - x, y);
 
@@ -1338,11 +1341,10 @@ void Con_DrawConsole (int lines, qboolean noback)
 		seley += y;
 	}
 
-	top = Con_DrawAlternateConsoles(lines);
-
 	if (!con_current->display)
 		con_current->display = con_current->current;
 	l = con_current->display;
+	hidelines = con_current->subline;
 
 	if (l != con_current->current)
 	{
@@ -1358,13 +1360,22 @@ void Con_DrawConsole (int lines, qboolean noback)
 	{
 		s = (conchar_t*)(l+1);
 
-		linecount = Con_LineBreaks(s, s+l->length, ex-sx, sizeof(starts)/sizeof(starts[0]), starts, ends);
+		linecount = Font_LineBreaks(s, s+l->length, ex-sx, sizeof(starts)/sizeof(starts[0]), starts, ends);
 
 		//if Con_LineBreaks didn't find any lines at all, then it was an empty line, and we need to ensure that its still drawn
 		if (linecount == 0)
 		{
 			linecount = 1;
 			starts[0] = ends[0] = NULL;
+		}
+		l->lines = linecount;
+
+		if (hidelines > 0)
+		{
+			linecount -= hidelines;
+			if (linecount < 0)
+				linecount = 0;
+			hidelines -= linecount;
 		}
 
 		while (linecount-- > 0)
@@ -1386,7 +1397,9 @@ void Con_DrawConsole (int lines, qboolean noback)
 						int sstart;
 						int send;
 						sstart = sx;
-						send = sstart+linelength*8;
+						send = sstart;
+						for (i = 0; i < linelength; i++)
+							send += Font_CharWidth(s[i]);
 
 						//show something on blank lines
 						if (send == sstart)
@@ -1425,17 +1438,15 @@ void Con_DrawConsole (int lines, qboolean noback)
 							else
 								selstartoffset = 0;
 						}
-						
-						Draw_Fill(sstart, y, send - sstart, Font_CharHeight(), 0);
+						R2D_ImagePaletteColour(0, 1.0);
+						R2D_FillBlock((sstart*vid.width)/vid.rotpixelwidth, (y*vid.height)/vid.rotpixelheight, ((send - sstart)*vid.width)/vid.rotpixelwidth, (Font_CharHeight()*vid.height)/vid.rotpixelheight);
 					}
 				}
 			}
+			R2D_ImageColours(1.0, 1.0, 1.0, 1.0);
 
 			x = sx;
-			for (i = 0; i < linelength; i++)
-			{
-				x = Font_DrawChar(x, y, *s++);
-			}
+			Font_LineDraw(x, y, s, s+linelength);
 
 			if (y < top)
 				break;
@@ -1444,10 +1455,22 @@ void Con_DrawConsole (int lines, qboolean noback)
 			break;
 	}
 
-	GLFont_EndString(conchar_font);
+	if (!haveprogress && lines == vid.height)
+	{
+		char *version = version_string();
+		int i;
+		Font_BeginString(font_conchar, vid.width, lines, &x, &y);
+		y -= Font_CharHeight();
+		for (i = 0; version[i]; i++)
+			x -= Font_CharWidth(version[i] | CON_WHITEMASK|CON_HALFALPHA);
+		for (i = 0; version[i]; i++)
+			x = Font_DrawChar(x, y, version[i] | CON_WHITEMASK|CON_HALFALPHA);
+	}
+
+	Font_EndString(font_conchar);
 
 // draw the input prompt, user text, and cursor if desired
-	DrawCursor();
+	SCR_DrawCursor(0);
 }
 
 
@@ -1470,7 +1493,7 @@ char *Con_CopyConsole(void)
 	l = selstartline;
 	cur = (conchar_t*)(l+1) + selstartoffset;
 	finalendoffset = selendoffset;
-	
+
 	if (selstartline == selendline)
 	{
 		if (selstartoffset+1 == finalendoffset)
@@ -1543,7 +1566,7 @@ void Con_NotifyBox (char *text)
 // during startup for sound / cd warnings
 	Con_Printf("\n\n\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37\n");
 
-	Con_Printf (text);
+	Con_Printf ("%s", text);
 
 	Con_Printf ("Press a key.\n");
 	Con_Printf("\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37\n");

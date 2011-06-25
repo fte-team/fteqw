@@ -232,15 +232,16 @@ func_t PR_FindFunc(progfuncs_t *progfuncs, char *funcname, progsnum_t pnum)
 	{
 	ddef16_t *var16;
 	ddef32_t *var32;
-	switch(pr_progstate[pnum].intsize)
+	switch(pr_progstate[pnum].structtype)
 	{
-	case 24:
-	case 16:
+	case PST_KKQWSV:
+	case PST_DEFAULT:
 		var16 = ED_FindTypeGlobalFromProgs16(progfuncs, funcname, pnum, ev_function);	//we must make sure we actually have a function def - 'light' is defined as a field before it is defined as a function.
 		if (!var16)
 			return (f - pr_progstate[pnum].functions) | (pnum << 24);
-		return *(int *)&pr_progstate[pnum].globals[var16->ofs];	
-	case 32:
+		return *(int *)&pr_progstate[pnum].globals[var16->ofs];
+	case PST_QTEST:
+	case PST_FTE32:
 		var32 = ED_FindTypeGlobalFromProgs32(progfuncs, funcname, pnum, ev_function);	//we must make sure we actually have a function def - 'light' is defined as a field before it is defined as a function.
 		if (!var32)
 			return (f - pr_progstate[pnum].functions) | (pnum << 24);
@@ -251,7 +252,44 @@ func_t PR_FindFunc(progfuncs_t *progfuncs, char *funcname, progsnum_t pnum)
 	return 0;
 }
 
-eval_t *PR_FindGlobal(progfuncs_t *progfuncs, char *globname, progsnum_t pnum)
+void QC_FindPrefixedGlobals(progfuncs_t *progfuncs, char *prefix, void (*found) (progfuncs_t *progfuncs, char *name, union eval_s *val, etype_t type) )
+{
+	unsigned int i;
+	ddef16_t		*def16;
+	ddef32_t		*def32;
+	int len = strlen(prefix);
+	unsigned int pnum;
+
+	for (pnum = 0; pnum < maxprogs; pnum++)
+	{
+		if (!pr_progstate[pnum].progs)
+			continue;
+
+		switch(pr_progstate[pnum].structtype)
+		{
+		case PST_DEFAULT:
+		case PST_KKQWSV:
+			for (i=1 ; i<pr_progstate[pnum].progs->numglobaldefs ; i++)
+			{
+				def16 = &pr_progstate[pnum].globaldefs16[i];
+				if (!strncmp(def16->s_name+progfuncs->stringtable,prefix, len))
+					found(progfuncs, def16->s_name+progfuncs->stringtable, (eval_t *)&pr_progstate[pnum].globals[def16->ofs], def16->type);
+			}
+			break;
+		case PST_QTEST:
+		case PST_FTE32:
+			for (i=1 ; i<pr_progstate[pnum].progs->numglobaldefs ; i++)
+			{
+				def32 = &pr_progstate[pnum].globaldefs32[i];
+				if (!strncmp(def32->s_name+progfuncs->stringtable,prefix, len))
+					found(progfuncs, def32->s_name+progfuncs->stringtable, (eval_t *)&pr_progstate[pnum].globals[def32->ofs], def32->type);
+			}
+			break;
+		}
+	}
+}
+
+eval_t *PR_FindGlobal(progfuncs_t *progfuncs, char *globname, progsnum_t pnum, etype_t *type)
 {
 	unsigned int i;
 	ddef16_t *var16;
@@ -265,7 +303,7 @@ eval_t *PR_FindGlobal(progfuncs_t *progfuncs, char *globname, progsnum_t pnum)
 		{
 			if (!pr_progstate[i].progs)
 				continue;
-			ev = PR_FindGlobal(progfuncs, globname, i);
+			ev = PR_FindGlobal(progfuncs, globname, i, type);
 			if (ev)
 				return ev;
 		}
@@ -273,18 +311,23 @@ eval_t *PR_FindGlobal(progfuncs_t *progfuncs, char *globname, progsnum_t pnum)
 	}
 	if (pnum < 0 || (unsigned)pnum >= maxprogs || !pr_progstate[pnum].progs)
 		return NULL;
-	switch(pr_progstate[pnum].intsize)
+	switch(pr_progstate[pnum].structtype)
 	{
-	case 16:
-	case 24:
+	case PST_DEFAULT:
+	case PST_KKQWSV:
 		if (!(var16 = ED_FindGlobalFromProgs16(progfuncs, globname, pnum)))
 			return NULL;
 
+		if (type)
+			*type = var16->type;
 		return (eval_t *)&pr_progstate[pnum].globals[var16->ofs];
-	case 32:
+	case PST_QTEST:
+	case PST_FTE32:
 		if (!(var32 = ED_FindGlobalFromProgs32(progfuncs, globname, pnum)))
 			return NULL;
 
+		if (type)
+			*type = var32->type;
 		return (eval_t *)&pr_progstate[pnum].globals[var32->ofs];
 	}
 	Sys_Error("Error with def size (PR_FindGlobal)");
@@ -308,12 +351,9 @@ char *PR_VarString (progfuncs_t *progfuncs, int	first)
 		if (G_STRING(OFS_PARM0+i*3))
 		{
 			s=G_STRING((OFS_PARM0+i*3)) + progfuncs->stringtable;
+			if (strlen(out) + strlen(s) + 1 >= sizeof(out))
+				return out;
 			strcat (out, s);
-
-//#ifdef PARANOID
-			if (strlen(out)+1 >= sizeof(out))
-				Sys_Error("VarString (builtin call ending with strings) exceeded maximum string length of %i chars", sizeof(out));
-//#endif
 		}
 	}
 	return out;
@@ -463,7 +503,7 @@ char *PR_RemoveProgsString				(progfuncs_t *progfuncs, string_t str)
 	return NULL;
 }
 
-char *PR_StringToNative				(progfuncs_t *progfuncs, string_t str)
+char *ASMCALL PR_StringToNative				(progfuncs_t *progfuncs, string_t str)
 {
 	if ((unsigned int)str & 0xc0000000)
 	{
@@ -647,7 +687,8 @@ progfuncs_t deffuncs = {
 	PR_StringToNative,
 	0,
 	PR_QueryField,
-	QC_ClearEdict
+	QC_ClearEdict,
+	QC_FindPrefixedGlobals
 };
 #undef printf
 
@@ -677,6 +718,7 @@ progexterns_t defexterns = {
 	//used when loading a game
 	NULL, //builtin_t *(*builtinsfor) (int num);	//must return a pointer to the builtins that were used before the state was saved.
 	NULL, //void (*loadcompleate) (int edictsize);	//notification to reset any pointers.
+	NULL,
 
 	(void*)malloc, //void *(*memalloc) (int size);	//small string allocation	malloced and freed randomly by the executor. (use memalloc if you want)
 	free, //void (*memfree) (void * mem);
@@ -735,6 +777,14 @@ void CloseProgs(progfuncs_t *inst)
 #else
 	free(inst->addressablehunk);
 #endif
+
+	if (inst->prinst->allocedstrings)
+                f(inst->prinst->allocedstrings);
+       	inst->prinst->allocedstrings = NULL;
+	if (inst->prinst->tempstrings)
+		f(inst->prinst->tempstrings);
+	inst->prinst->tempstrings = NULL;
+
 
 /*
 	while(inst->prinst->extensionbuiltin)

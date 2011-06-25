@@ -305,17 +305,18 @@ unsigned int ED_FindGlobalOfs (progfuncs_t *progfuncs, char *name)
 {
 	ddef16_t *d16;
 	ddef32_t *d32;
-	switch(current_progstate->intsize)
+	switch(current_progstate->structtype)
 	{
-	case 24:
-	case 16:
+	case PST_KKQWSV:
+	case PST_DEFAULT:
 		d16 = ED_FindGlobal16(progfuncs, name);
 		return d16?d16->ofs:0;
-	case 32:
+	case PST_QTEST:
+	case PST_FTE32:
 		d32 = ED_FindGlobal32(progfuncs, name);
 		return d32?d32->ofs:0;
 	}
-	Sys_Error("ED_FindGlobalOfs - bad intsize");
+	Sys_Error("ED_FindGlobalOfs - bad struct type");
 	return 0;
 }
 
@@ -398,22 +399,23 @@ unsigned int *ED_FindGlobalOfsFromProgs (progfuncs_t *progfuncs, char *name, pro
 	ddef16_t		*def16;
 	ddef32_t		*def32;
 	static unsigned int pos;
-	switch(pr_progstate[prnum].intsize)
+	switch(pr_progstate[prnum].structtype)
 	{
-	case 16:
-	case 24:
+	case PST_DEFAULT:
+	case PST_KKQWSV:
 		def16 = ED_FindTypeGlobalFromProgs16(progfuncs, name, prnum, type);
 		if (!def16)
 			return NULL;
 		pos = def16->ofs;
 		return &pos;
-	case 32:
+	case PST_QTEST:
+	case PST_FTE32:
 		def32 = ED_FindTypeGlobalFromProgs32(progfuncs, name, prnum, type);
 		if (!def32)
 			return NULL;
 		return &def32->ofs;
 	}
-	Sys_Error("ED_FindGlobalOfsFromProgs - bad intsize");
+	Sys_Error("ED_FindGlobalOfsFromProgs - bad struct type");
 	return 0;
 }
 
@@ -500,7 +502,17 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		sprintf (line, "%s", PR_StringToNative(progfuncs, val->string));
 		break;
 	case ev_entity:
-		sprintf (line, "entity %i", NUM_FOR_EDICT(progfuncs, (struct edict_s *)PROG_TO_EDICT(progfuncs, val->edict)) );
+		fielddef = ED_FindField(progfuncs, "classname");
+		if (fielddef && val->edict < sv_num_edicts)
+		{
+			edictrun_t *ed;
+			string_t *v;
+			ed = (edictrun_t *)EDICT_NUM(progfuncs, val->edict);
+			v = (string_t *)((char *)edvars(ed) + fielddef->ofs*4);
+			sprintf (line, "entity %i(%s)", val->edict, PR_StringToNative(progfuncs, *v));
+		}
+		else
+			sprintf (line, "entity %i", val->edict);
 		break;
 	case ev_function:
 		if (!val->function)
@@ -511,8 +523,13 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 				sprintf (line, "Bad function");
 			else
 			{
-				f = pr_progstate[(val->function & 0xff000000)>>24].functions + (val->function & ~0xff000000);
-				sprintf (line, "%i:%s()", (val->function & 0xff000000)>>24, f->s_name+progfuncs->stringtable);
+				if ((val->function &~0xff000000) >= pr_progs->numfunctions)
+					sprintf(line, "bad function %i:%i\n", (val->function & 0xff000000)>>24, val->function & ~0xff000000);
+				else
+				{
+					f = pr_progstate[(val->function & 0xff000000)>>24].functions + (val->function & ~0xff000000);
+					sprintf (line, "%i:%s()", (val->function & 0xff000000)>>24, f->s_name+progfuncs->stringtable);
+				}
 			}
 		}
 		break;
@@ -796,10 +813,10 @@ char *PR_GlobalString (progfuncs_t *progfuncs, int ofs)
 	void	*val;
 	static char	line[128];
 
-	switch (current_progstate->intsize)
+	switch (current_progstate->structtype)
 	{
-	case 16:
-	case 24:
+	case PST_DEFAULT:
+	case PST_KKQWSV:
 		val = (void *)&pr_globals[ofs];
 		def16 = ED_GlobalAtOfs16(progfuncs, ofs);
 		if (!def16)
@@ -815,7 +832,8 @@ char *PR_GlobalString (progfuncs_t *progfuncs, int ofs)
 			strcat (line," ");
 		strcat (line," ");
 		return line;
-	case 32:
+	case PST_QTEST:
+	case PST_FTE32:
 		val = (void *)&pr_globals[ofs];
 		def32 = ED_GlobalAtOfs32(progfuncs, ofs);
 		if (!def32)
@@ -832,7 +850,7 @@ char *PR_GlobalString (progfuncs_t *progfuncs, int ofs)
 		strcat (line," ");
 		return line;
 	}
-	Sys_Error("Bad offset size in PR_GlobalString");
+	Sys_Error("Bad struct type in PR_GlobalString");
 	return "";
 }
 
@@ -843,17 +861,18 @@ char *PR_GlobalStringNoContents (progfuncs_t *progfuncs, int ofs)
 	ddef32_t	*def32;
 	static char	line[128];
 
-	switch (current_progstate->intsize)
+	switch (current_progstate->structtype)
 	{
-	case 16:
-	case 24:
+	case PST_DEFAULT:
+	case PST_KKQWSV:
 		def16 = ED_GlobalAtOfs16(progfuncs, ofs);
 		if (!def16)
 			sprintf (line,"%i(?""?""?)", ofs);
 		else
 			sprintf (line,"%i(%s)", ofs, def16->s_name+progfuncs->stringtable);
 		break;
-	case 32:
+	case PST_QTEST:
+	case PST_FTE32:
 		def32 = ED_GlobalAtOfs32(progfuncs, ofs);
 		if (!def32)
 			sprintf (line,"%i(?""?""?)", ofs);
@@ -861,7 +880,7 @@ char *PR_GlobalStringNoContents (progfuncs_t *progfuncs, int ofs)
 			sprintf (line,"%i(%s)", ofs, def32->s_name+progfuncs->stringtable);
 		break;
 	default:
-		Sys_Error("Bad offset size in PR_GlobalStringNoContents");
+		Sys_Error("Bad struct type in PR_GlobalStringNoContents");
 	}
 
 	i = strlen(line);
@@ -1033,7 +1052,7 @@ Can parse either fields or globals
 returns false if error
 =============
 */
-pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s, int bits)
+pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s, int structtype)
 {
 	int		i;
 	char	string[128];
@@ -1043,11 +1062,11 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s,
 	string_t st;
 	dfunction_t	*func;
 
-	int type;
+	int type = 0; // warning about beign used without initializing it
 
-	switch(bits)
+	switch(structtype)
 	{
-	case 16:
+	case PST_DEFAULT:
 		d = (void *)((int *)base + ((ddef16_t*)key)->ofs);
 
 		if (pr_types)
@@ -1055,7 +1074,7 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s,
 		else
 			type = ((ddef16_t*)key)->type & ~DEF_SAVEGLOBAL;
 		break;
-	case 32:
+	case PST_FTE32:
 		d = (void *)((int *)base + ((ddef32_t*)key)->ofs);
 
 		if (pr_types)
@@ -1064,7 +1083,7 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s,
 			type = ((ddef32_t*)key)->type & ~DEF_SAVEGLOBAL;
 		break;
 	default:
-		Sys_Error("Bad bits in ED_ParseEpair");
+		Sys_Error("Bad struct type in ED_ParseEpair");
 		d = 0;
 	}
 
@@ -1091,9 +1110,17 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s,
 		{
 			while (*v && *v != ' ')
 				v++;
-			*v = 0;
-			((float *)d)[i] = (float)atof (w);
-			w = v = v+1;
+			if (!*v)
+			{
+				((float *)d)[i] = (float)atof (w);
+				w = v;
+			}
+			else
+			{
+				*v = 0;
+				((float *)d)[i] = (float)atof (w);
+				w = v = v+1;
+			}
 		}
 		break;
 
@@ -1148,6 +1175,7 @@ char *ED_ParseEdict (progfuncs_t *progfuncs, char *data, edictrun_t *ent)
 	pbool	init;
 	char		keyname[256];
 	int			n;
+	int			nest = 1;
 
 //	eval_t		*val;
 
@@ -1163,12 +1191,20 @@ char *ED_ParseEdict (progfuncs_t *progfuncs, char *data, edictrun_t *ent)
 	// parse key
 		data = QCC_COM_Parse (data);
 		if (qcc_token[0] == '}')
+		{
+			if (--nest)
+				continue;
 			break;
+		}
+		if (qcc_token[0] == '{' && !qcc_token[1])
+			nest++;
 		if (!data)
 		{
 			printf ("ED_ParseEntity: EOF without closing brace\n");
 			return NULL;
 		}
+		if (nest > 1)
+			continue;
 
 		strncpy (keyname, qcc_token, sizeof(keyname)-1);
 		keyname[sizeof(keyname)-1] = 0;
@@ -1186,7 +1222,7 @@ char *ED_ParseEdict (progfuncs_t *progfuncs, char *data, edictrun_t *ent)
 		if (!data)
 		{
 			printf ("ED_ParseEntity: EOF without closing brace\n");
-			return NULL; 
+			return NULL;
 		}
 
 		if (qcc_token[0] == '}')
@@ -1216,12 +1252,14 @@ char *ED_ParseEdict (progfuncs_t *progfuncs, char *data, edictrun_t *ent)
 			if (!strcmp(keyname, "light"))	//Quake lighthack - allows a field name and a classname to go by the same thing in the level editor
 				if ((key = ED_FindField (progfuncs, "light_lev")))
 					goto cont;
+			if (externs->badfield && externs->badfield(progfuncs, (struct edict_s*)ent, keyname, qcc_token))
+				continue;
 			printf ("'%s' is not a field\n", keyname);
 			continue;
 		}
 
 cont:
-		if (!ED_ParseEpair (progfuncs, ent->fields, (ddefXX_t*)key, qcc_token, 32))
+		if (!ED_ParseEpair (progfuncs, ent->fields, (ddefXX_t*)key, qcc_token, PST_FTE32))
 		{
 			continue;
 //			Sys_Error ("ED_ParseEdict: parse error on entities");
@@ -1263,10 +1301,10 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buffer)	//switch first.
 	int			type;
 	int curprogs = pr_typecurrent;
 	int len;
-	switch(current_progstate->intsize)
+	switch(current_progstate->structtype)
 	{
-	case 16:
-	case 24:
+	case PST_DEFAULT:
+	case PST_KKQWSV:
 		for (i=0 ; i<pr_progs->numglobaldefs ; i++)
 		{
 			def16 = &pr_globaldefs16[i];
@@ -1331,7 +1369,8 @@ char *ED_WriteGlobals(progfuncs_t *progfuncs, char *buffer)	//switch first.
 			AddS (qcva("\"%s\"\n", PR_UglyValueString(progfuncs, def16->type&~DEF_SAVEGLOBAL, (eval_t *)v)));
 		}
 		break;
-	case 32:
+	case PST_QTEST:
+	case PST_FTE32:
 		for (i=0 ; i<pr_progs->numglobaldefs ; i++)
 		{
 			def32 = &pr_globaldefs32[i];
@@ -1385,7 +1424,7 @@ add32:
 		}
 		break;
 	default:
-		Sys_Error("Bad number of bits in SaveEnts");
+		Sys_Error("Bad struct type in SaveEnts");
 	}
 
 	return buffer;
@@ -1696,6 +1735,11 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 		file = QCC_COM_Parse(file);
 		if (file == NULL)
 			break;	//finished reading file
+		else if (!strcmp(qcc_token, "Version"))
+		{
+			file = QCC_COM_Parse(file);
+			//qcc_token is a version number
+		}
 		else if (!strcmp(qcc_token, "entity"))
 		{
 			if (entsize == 0 && resethunk)	//edicts have not yet been initialized, and this is a compleate load (memsize has been set)
@@ -1849,10 +1893,10 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 				else if (!qcc_token[0] || !file)
 					Sys_Error("EOF when parsing global values");
 
-				switch(current_progstate->intsize)
+				switch(current_progstate->structtype)
 				{
-				case 16:
-				case 24:
+				case PST_DEFAULT:
+				case PST_KKQWSV:
 					if (!(d16 = ED_FindGlobal16(progfuncs, qcc_token)))
 					{
 						file = QCC_COM_Parse(file);
@@ -1861,10 +1905,11 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					else
 					{
 						file = QCC_COM_Parse(file);
-						ED_ParseEpair(progfuncs, pr_globals, (ddefXX_t*)d16, qcc_token, 16);
+						ED_ParseEpair(progfuncs, pr_globals, (ddefXX_t*)d16, qcc_token, PST_DEFAULT);
 					}
 					break;
-				case 32:
+				case PST_QTEST:
+				case PST_FTE32:
 					if (!(d32 = ED_FindGlobal32(progfuncs, qcc_token)))
 					{
 						file = QCC_COM_Parse(file);
@@ -1873,11 +1918,11 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					else
 					{
 						file = QCC_COM_Parse(file);
-						ED_ParseEpair(progfuncs, pr_globals, (ddefXX_t*)d32, qcc_token, 32);
+						ED_ParseEpair(progfuncs, pr_globals, (ddefXX_t*)d32, qcc_token, PST_FTE32);
 					}
 					break;
 				default:
-					Sys_Error("Bad intsize in LoadEnts");
+					Sys_Error("Bad struct type in LoadEnts");
 				}
 			}
 
@@ -1947,10 +1992,10 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 						else if (!qcc_token[0] || !file)
 							Sys_Error("EOF when parsing global values");
 
-						switch(current_progstate->intsize)
+						switch(current_progstate->structtype)
 						{
-						case 16:
-						case 24:
+						case PST_DEFAULT:
+						case PST_KKQWSV:
 							if (!(d16 = ED_FindGlobal16(progfuncs, qcc_token)))
 							{
 								file = QCC_COM_Parse(file);
@@ -1959,10 +2004,11 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 							else
 							{
 								file = QCC_COM_Parse(file);
-								ED_ParseEpair(progfuncs, pr_globals, (ddefXX_t*)d16, qcc_token, 16);
+								ED_ParseEpair(progfuncs, pr_globals, (ddefXX_t*)d16, qcc_token, PST_DEFAULT);
 							}
 							break;
-						case 32:
+						case PST_QTEST:
+						case PST_FTE32:
 							if (!(d32 = ED_FindGlobal32(progfuncs, qcc_token)))
 							{
 								file = QCC_COM_Parse(file);
@@ -1971,11 +2017,11 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 							else
 							{
 								file = QCC_COM_Parse(file);
-								ED_ParseEpair(progfuncs, pr_globals, (ddefXX_t*)d32, qcc_token, 32);
+								ED_ParseEpair(progfuncs, pr_globals, (ddefXX_t*)d32, qcc_token, PST_FTE32);
 							}
 							break;
 						default:
-							Sys_Error("Bad intsize in LoadEnts");
+							Sys_Error("Bad struct type in LoadEnts");
 						}
 					}
 				}
@@ -2372,7 +2418,11 @@ retry:
 	if (pr_progs->version == PROG_VERSION)
 	{
 //		printf("Opening standard progs file \"%s\"\n", filename);
-		current_progstate->intsize = 16;
+		current_progstate->structtype = PST_DEFAULT;
+	}
+	else if (pr_progs->version == PROG_QTESTVERSION)
+	{
+		current_progstate->structtype = PST_QTEST;
 	}
 	else if (pr_progs->version == PROG_EXTENDEDVERSION)
 	{
@@ -2383,17 +2433,17 @@ retry:
 		if (pr_progs->secondaryversion == PROG_SECONDARYVERSION16)
 		{
 //			printf("Opening 16bit fte progs file \"%s\"\n", filename);
-			current_progstate->intsize = 16;
+			current_progstate->structtype = PST_DEFAULT;
 		}
 		else if (pr_progs->secondaryversion == PROG_SECONDARYVERSION32)
 		{
 //			printf("Opening 32bit fte progs file \"%s\"\n", filename);
-			current_progstate->intsize = 32;
+			current_progstate->structtype = PST_FTE32;
 		}
 		else
 		{
 //			printf("Opening KK7 progs file \"%s\"\n", filename);
-			current_progstate->intsize = 24;	//KK progs. Yuck. Disabling saving would be a VERY good idea.
+			current_progstate->structtype = PST_KKQWSV;	//KK progs. Yuck. Disabling saving would be a VERY good idea.
 			pr_progs->version = PROG_VERSION;	//not fte.
 		}
 /*		else
@@ -2468,16 +2518,16 @@ retry:
 		//start decompressing stuff...
 		if (pr_progs->blockscompressed & 1)	//statements
 		{
-			switch(current_progstate->intsize)
+			switch(current_progstate->structtype)
 			{
-			case 16:
+			case PST_DEFAULT:
 				len=sizeof(dstatement16_t)*pr_progs->numstatements;
 				break;
-			case 32:
+			case PST_FTE32:
 				len=sizeof(dstatement32_t)*pr_progs->numstatements;
 				break;
 			default:
-				Sys_Error("Bad intsize");
+				Sys_Error("Bad struct type");
 			}
 			s = PRHunkAlloc(progfuncs, len);
 			QC_decode(progfuncs, PRLittleLong(*(int *)pr_statements16), len, 2, (char *)(((int *)pr_statements16)+1), s);
@@ -2486,16 +2536,16 @@ retry:
 		}
 		if (pr_progs->blockscompressed & 2)	//global defs
 		{
-			switch(current_progstate->intsize)
+			switch(current_progstate->structtype)
 			{
-			case 16:
+			case PST_DEFAULT:
 				len=sizeof(ddef16_t)*pr_progs->numglobaldefs;
 				break;
-			case 32:
+			case PST_FTE32:
 				len=sizeof(ddef32_t)*pr_progs->numglobaldefs;
 				break;
 			default:
-				Sys_Error("Bad intsize");
+				Sys_Error("Bad struct type");
 			}
 			s = PRHunkAlloc(progfuncs, len);
 			QC_decode(progfuncs, PRLittleLong(*(int *)pr_globaldefs16), len, 2, (char *)(((int *)pr_globaldefs16)+1), s);
@@ -2504,16 +2554,16 @@ retry:
 		}
 		if (pr_progs->blockscompressed & 4)	//fields
 		{
-			switch(current_progstate->intsize)
+			switch(current_progstate->structtype)
 			{
-			case 16:
+			case PST_DEFAULT:
 				len=sizeof(ddef16_t)*pr_progs->numglobaldefs;
 				break;
-			case 32:
+			case PST_FTE32:
 				len=sizeof(ddef32_t)*pr_progs->numglobaldefs;
 				break;
 			default:
-				Sys_Error("Bad intsize");
+				Sys_Error("Bad struct type");
 			}
 			s = PRHunkAlloc(progfuncs, len);
 			QC_decode(progfuncs, PRLittleLong(*(int *)pr_fielddefs16), len, 2, (char *)(((int *)pr_fielddefs16)+1), s);
@@ -2627,40 +2677,48 @@ retry:
 	current_progstate->edict_size = pr_progs->entityfields * 4 + externs->edictsize;
 
 // byte swap the lumps
-	for (i=0 ; i<pr_progs->numfunctions; i++)
+	switch(current_progstate->structtype)
 	{
-#ifndef NOENDIAN
-		fnc[i].first_statement	= PRLittleLong (fnc[i].first_statement);
-		fnc[i].parm_start	= PRLittleLong (fnc[i].parm_start);
-		fnc[i].s_name	= (string_t)PRLittleLong ((long)fnc[i].s_name);
-		fnc[i].s_file	= (string_t)PRLittleLong ((long)fnc[i].s_file);
-		fnc[i].numparms	= PRLittleLong (fnc[i].numparms);
-		fnc[i].locals	= PRLittleLong (fnc[i].locals);
-#endif
-/*		if (!strncmp(fnc[i].s_name+pr_strings, "ext_", 4))
+	case PST_QTEST:
+		// qtest needs a struct remap
+		for (i=0 ; i<pr_progs->numfunctions; i++)
 		{
-			for (eb = extensionbuiltin; eb; eb = eb->prev)
-			{
-				if (*eb->name == '_')
-				{
-					if (!strncmp(fnc[i].s_name+pr_strings+4, eb->name+1, strlen(eb->name+1)))
-					{
-						fnc[i].first_statement = -0x7fffffff;
-						*(void**)&fnc[i].profile = (void*)eb->func;
-						break;
-					}
-				}
-				else if (!strcmp(fnc[i].s_name+4, eb->name))
-				{
-					fnc[i].first_statement = -0x7fffffff;
-					*(void**)&fnc[i].profile = (void*)eb->func;
-					break;
-				}
-			}
+			int j;
+			qtest_function_t qtfunc = ((qtest_function_t*)fnc)[i];
+
+			fnc[i].first_statement	= PRLittleLong (qtfunc.first_statement);
+			fnc[i].parm_start	= PRLittleLong (qtfunc.parm_start);
+			fnc[i].s_name	= (string_t)PRLittleLong (qtfunc.s_name);
+			fnc[i].s_file	= (string_t)PRLittleLong (qtfunc.s_file);
+			fnc[i].numparms	= PRLittleLong (qtfunc.numparms);
+			fnc[i].locals	= PRLittleLong (qtfunc.locals);
+
+			for (j=0; j<MAX_PARMS;j++)
+				fnc[i].parm_size[j] = PRLittleLong (qtfunc.parm_size[j]);
+
+			fnc[i].s_name += stringadjust;
+			fnc[i].s_file += stringadjust;
 		}
-*/
-		fnc[i].s_name += stringadjust;
-		fnc[i].s_file += stringadjust;
+		break;
+	case PST_KKQWSV:
+	case PST_DEFAULT:
+	case PST_FTE32:
+		for (i=0 ; i<pr_progs->numfunctions; i++)
+		{
+#ifndef NOENDIAN
+			fnc[i].first_statement	= PRLittleLong (fnc[i].first_statement);
+			fnc[i].parm_start	= PRLittleLong (fnc[i].parm_start);
+			fnc[i].s_name	= (string_t)PRLittleLong ((long)fnc[i].s_name);
+			fnc[i].s_file	= (string_t)PRLittleLong ((long)fnc[i].s_file);
+			fnc[i].numparms	= PRLittleLong (fnc[i].numparms);
+			fnc[i].locals	= PRLittleLong (fnc[i].locals);
+#endif
+			fnc[i].s_name += stringadjust;
+			fnc[i].s_file += stringadjust;
+		}
+		break;
+	default:
+		Sys_Error("Bad struct type");
 	}
 
 	//actual global values
@@ -2680,7 +2738,7 @@ retry:
 			pr_types[i].num_parms = PRLittleLong(current_progstate->types[i].num_parms);
 			pr_types[i].ofs = PRLittleLong(current_progstate->types[i].ofs);
 			pr_types[i].size = PRLittleLong(current_progstate->types[i].size);
-			pr_types[i].name = (char *)PRLittleLong((long)current_progstate->types[i].name);
+			pr_types[i].name = PRLittleLong(current_progstate->types[i].name);
 #endif
 			pr_types[i].name += stringadjust;
 		}
@@ -2690,10 +2748,10 @@ retry:
 		reorg = (headercrc != -1);
 
 	QC_FlushProgsOffsets(progfuncs);
-	switch(current_progstate->intsize)
+	switch(current_progstate->structtype)
 	{
-	case 24:
-	case 16:
+	case PST_KKQWSV:
+	case PST_DEFAULT:
 		//byteswap the globals and fix name offsets
 		for (i=0 ; i<pr_progs->numglobaldefs ; i++)
 		{
@@ -2764,7 +2822,26 @@ retry:
 		}
 
 		break;
-	case 32:
+	case PST_QTEST:
+		// qtest needs a struct remap
+		for (i=0 ; i<pr_progs->numglobaldefs ; i++)
+		{
+			qtest_def_t qtdef = ((qtest_def_t *)pr_globaldefs32)[i];
+
+			pr_globaldefs32[i].type = qtdef.type;
+			pr_globaldefs32[i].s_name = qtdef.s_name;
+			pr_globaldefs32[i].ofs = qtdef.ofs;
+		}
+		for (i=0 ; i<pr_progs->numfielddefs ; i++)
+		{
+			qtest_def_t qtdef = ((qtest_def_t *)pr_fielddefs32)[i];
+
+			pr_fielddefs32[i].type = qtdef.type;
+			pr_fielddefs32[i].s_name = qtdef.s_name;
+			pr_fielddefs32[i].ofs = qtdef.ofs;
+		}
+		// passthrough
+	case PST_FTE32:
 		for (i=0 ; i<pr_progs->numglobaldefs ; i++)
 		{
 #ifndef NOENDIAN
@@ -2790,7 +2867,7 @@ retry:
 				else
 					type = pr_fielddefs32[i].type & ~(DEF_SHARED|DEF_SAVEGLOBAL);
 				if (progfuncs->fieldadjust && !pr_typecurrent)	//we need to make sure all fields appear in their original place.
-					QC_RegisterFieldVar(progfuncs, type, fld16[i].s_name+pr_strings, 4*(fld16[i].ofs+progfuncs->fieldadjust), -1);
+					QC_RegisterFieldVar(progfuncs, type, pr_fielddefs32[i].s_name+pr_strings, 4*(pr_fielddefs32[i].ofs+progfuncs->fieldadjust), -1);
 				else if (type == ev_vector)
 					QC_RegisterFieldVar(progfuncs, type, pr_fielddefs32[i].s_name+pr_strings, -1, pr_fielddefs32[i].ofs);
 			}
@@ -2808,14 +2885,27 @@ retry:
 		}
 		break;
 	default:
-		Sys_Error("Bad int size");
+		Sys_Error("Bad struct type");
 	}
 
 //ifstring fixes arn't performed anymore.
 //the following switch just fixes endian and hexen2 calling conventions (by using different opcodes).
-	switch(current_progstate->intsize)
+	switch(current_progstate->structtype)
 	{
-	case 16:
+	case PST_QTEST:
+		for (i=0 ; i<pr_progs->numstatements ; i++)
+		{
+			qtest_statement_t qtst = ((qtest_statement_t*)st16)[i];
+
+			st16[i].op = PRLittleShort(qtst.op);
+			st16[i].a = PRLittleShort(qtst.a);
+			st16[i].b = PRLittleShort(qtst.b);
+			st16[i].c = PRLittleShort(qtst.c);
+			// could use the line info as lno information maybe? is it really worth it?
+			// also never assuming h2 calling mechanism
+		}
+		break;
+	case PST_DEFAULT:
 		for (i=0 ; i<pr_progs->numstatements ; i++)
 		{
 #ifndef NOENDIAN
@@ -2827,8 +2917,10 @@ retry:
 			if (st16[i].op >= OP_CALL1 && st16[i].op <= OP_CALL8)
 			{
 				if (st16[i].b)
+				{
 					hexencalling = true;
-
+					break;
+				}
 			}
 		}
 		if (hexencalling)
@@ -2841,7 +2933,8 @@ retry:
 		}
 		break;
 
-	case 24:	//24 sucks. Guess why.
+	case PST_KKQWSV:	//24 sucks. Guess why.
+	case PST_FTE32:
 		for (i=0 ; i<pr_progs->numstatements ; i++)
 		{
 #ifndef NOENDIAN
@@ -2853,33 +2946,10 @@ retry:
 			if (pr_statements32[i].op >= OP_CALL1 && pr_statements32[i].op <= OP_CALL8)
 			{
 				if (pr_statements32[i].b)
+				{
 					hexencalling = true;
-
-			}
-		}
-		if (hexencalling)
-		{
-			for (i=0 ; i<pr_progs->numstatements ; i++)
-			{
-				if (pr_statements32[i].op >= OP_CALL1 && pr_statements32[i].op <= OP_CALL8)
-					pr_statements32[i].op += OP_CALL1H - OP_CALL1;
-			}
-		}
-		break;
-	case 32:
-		for (i=0 ; i<pr_progs->numstatements ; i++)
-		{
-#ifndef NOENDIAN
-			pr_statements32[i].op = PRLittleLong(pr_statements32[i].op);
-			pr_statements32[i].a = PRLittleLong(pr_statements32[i].a);
-			pr_statements32[i].b = PRLittleLong(pr_statements32[i].b);
-			pr_statements32[i].c = PRLittleLong(pr_statements32[i].c);
-#endif
-			if (pr_statements32[i].op >= OP_CALL1 && pr_statements32[i].op <= OP_CALL8)
-			{
-				if (pr_statements32[i].b)
-					hexencalling = true;
-
+					break;
+				}
 			}
 		}
 		if (hexencalling)
@@ -2897,7 +2967,7 @@ retry:
 	if (headercrc == -1)
 	{
 		isfriked = true;
-		if (current_progstate->intsize != 16)
+		if (current_progstate->structtype != PST_DEFAULT)
 			Sys_Error("Decompiling a bigprogs");
 		return true;
 	}
@@ -2911,10 +2981,10 @@ retry:
 		isfriked = -1;		//partly to avoid some bad progs.
 
 //	len = 0;
-	switch(current_progstate->intsize)
+	switch(current_progstate->structtype)
 	{
-	case 24:
-	case 16:
+	case PST_DEFAULT:
+	case PST_KKQWSV:
 		for (i=0 ; i<pr_progs->numglobaldefs ; i++)
 		{
 			if (pr_types)
@@ -2960,7 +3030,8 @@ retry:
 			}
 		}
 		break;
-	case 32:
+	case PST_QTEST:
+	case PST_FTE32:
 		for (i=0 ; i<pr_progs->numglobaldefs ; i++)
 		{
 			if (pr_types)
@@ -3013,7 +3084,7 @@ retry:
 		}
 		break;
 	default:
-		Sys_Error("Bad int size");
+		Sys_Error("Bad struct type");
 	}
 
 	if ((isfriked && pr_typecurrent))	//friked progs only allow one file.
@@ -3031,13 +3102,13 @@ retry:
 	if (progfuncs->stringtablesize + progfuncs->stringtable < pr_strings + pr_progs->numstrings)
 		progfuncs->stringtablesize = (pr_strings + pr_progs->numstrings) - progfuncs->stringtable;
 
-	eval = PR_FindGlobal(progfuncs, "thisprogs", progstype);
+	eval = PR_FindGlobal(progfuncs, "thisprogs", progstype, NULL);
 	if (eval)
 		eval->prog = progstype;
 
-	switch(current_progstate->intsize)
+	switch(current_progstate->structtype)
 	{
-	case 16:
+	case PST_DEFAULT:
 		if (pr_progs->version == PROG_EXTENDEDVERSION && pr_progs->numbodylessfuncs)
 		{
 			s = &((char *)pr_progs)[pr_progs->ofsbodylessfuncs];
@@ -3065,9 +3136,10 @@ retry:
 			}
 		}
 		break;
-	case 24:
+	case PST_QTEST:
+	case PST_KKQWSV:
 		break;	//cannot happen anyway.
-	case 32:
+	case PST_FTE32:
 		if (pr_progs->version == PROG_EXTENDEDVERSION && pr_progs->numbodylessfuncs)
 		{
 			s = &((char *)pr_progs)[pr_progs->ofsbodylessfuncs];
@@ -3092,7 +3164,7 @@ retry:
 		break;
 	}
 
-	eval = PR_FindGlobal(progfuncs, "__ext__fasttrackarrays", PR_CURRENT);
+	eval = PR_FindGlobal(progfuncs, "__ext__fasttrackarrays", PR_CURRENT, NULL);
 	if (eval)	//we support these opcodes
 		eval->_float = true;
 

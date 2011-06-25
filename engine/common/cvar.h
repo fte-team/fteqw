@@ -53,6 +53,8 @@ Cvars are restricted from having the same names as commands to keep this
 interface from being ambiguous.
 */
 
+#include "hash.h"
+
 typedef struct cvar_s
 {
 	//must match q2's definition
@@ -68,6 +70,7 @@ typedef struct cvar_s
 	char		*name2;
 
 	void		(*callback) (struct cvar_s *var, char *oldvalue);
+	char		*description;
 
 
 	int			ival;
@@ -78,15 +81,24 @@ typedef struct cvar_s
 #ifdef HLSERVER
 	struct hlcvar_s	*hlcvar;
 #endif
+	bucket_t hbn1, hbn2;
 } cvar_t;
 
-#define FCVARC(ConsoleName,ConsoleName2,Value,Flags,Callback) {ConsoleName, Value, NULL, Flags, 0, 0, 0, ConsoleName2, Callback}
-#define FCVAR(ConsoleName,ConsoleName2,Value,Flags) FCVARC(ConsoleName, ConsoleName2, Value, Flags, NULL)
-#define SCVARFC(ConsoleName, Value, Flags, Callback) FCVARC(ConsoleName, NULL, Value, Flags, Callback)
-#define SCVARF(ConsoleName,Value, Flags) FCVAR(ConsoleName, NULL, Value, Flags)
-#define SCVARC(ConsoleName,Value,Callback) FCVARC(ConsoleName, NULL, Value, 0, Callback)
-#define SCVAR(ConsoleName,Value) FCVAR(ConsoleName, NULL, Value, 0)
-#define CVARDP4(Flags,ConsoleName,Value,Description) FCVAR(ConsoleName, NULL, Value, Flags)
+#define CVARAFDC(ConsoleName,Value,ConsoleName2,Flags,Description,Callback)	{ConsoleName, Value, NULL, Flags, 0, 0, 0, ConsoleName2, Callback, Description}
+#define CVARAFD(ConsoleName,Value,ConsoleName2,Flags,Description)CVARAFDC(ConsoleName, Value, ConsoleName2, Flags, Description, NULL)
+#define CVARAFC(ConsoleName,Value,ConsoleName2,Flags,Callback)	CVARAFC(ConsoleName, Value, ConsoleName2, Flags, NULL, Callback)
+#define CVARAF(ConsoleName,Value,ConsoleName2,Flags)			CVARAFDC(ConsoleName, Value, ConsoleName2, Flags, NULL, NULL)
+#define CVARFC(ConsoleName,Value,Flags,Callback)				CVARAFDC(ConsoleName, Value, NULL, Flags, NULL, Callback)
+#define CVARFD(ConsoleName,Value,Flags,Description)				CVARAFDC(ConsoleName, Value, NULL, Flags, Description, NULL)
+#define CVARF(ConsoleName,Value,Flags)							CVARFC(ConsoleName, Value, Flags, NULL)
+#define CVARC(ConsoleName,Value,Callback)						CVARFC(ConsoleName, Value, 0, Callback)
+#define CVARCD(ConsoleName,Value,Callback,Description)			CVARAFDC(ConsoleName, Value, NULL, 0, Description, Callback)
+#define CVARD(ConsoleName,Value,Description)					CVARAFDC(ConsoleName, Value, NULL, 0, Description, NULL)
+#define CVAR(ConsoleName,Value)									CVARD(ConsoleName, Value, NULL)
+
+#define SCVAR(ConsoleName,Value) CVAR(ConsoleName,Value)
+#define SCVARF(ConsoleName,Value,Flags) CVARF(ConsoleName,Value,Flags)
+#define CVARDP4(Flags,ConsoleName,Value,Description) CVARFD(ConsoleName, Value, Flags,Description)
 
 typedef struct cvar_group_s
 {
@@ -106,7 +118,7 @@ typedef struct cvar_group_s
 
 //freestyle
 #define CVAR_POINTER		(1<<5)	// q2 style. May be converted to q1 if needed. These are often specified on the command line and then converted into q1 when registered properly.
-#define CVAR_FREEDEFAULT	(1<<6)	// q2 style. May be converted to q1 if needed. These are often specified on the command line and then converted into q1 when registered properly.
+#define CVAR_FREEDEFAULT	(1<<6)  //the default string was malloced/needs to be malloced, free on unregister
 #define CVAR_NOTFROMSERVER	(1<<7)	// the console will ignore changes to cvars if set at from the server or any gamecode. This is to protect against security flaws - like qterm
 #define CVAR_USERCREATED	(1<<8)	//write a 'set' or 'seta' in front of the var name.
 #define CVAR_CHEAT		(1<<9)	//latch to the default, unless cheats are enabled.
@@ -116,8 +128,10 @@ typedef struct cvar_group_s
 #define CVAR_RENDERERCALLBACK	(1<<13) //force callback for cvars on renderer change
 #define CVAR_NOUNSAFEEXPAND	(1<<14) // do not expand cvar value when command is from gamecode
 #define CVAR_RULESETLATCH	(1<<15)	//latched by the ruleset
+#define CVAR_SHADERSYSTEM	(1<<16)	//change flushes shaders.
+#define CVAR_TELLGAMECODE   (1<<17) //tells the gamecode when it has changed, does not prevent changing, added as an optimisation
 
-#define CVAR_LASTFLAG CVAR_RULESETLATCH
+#define CVAR_LASTFLAG CVAR_SHADERSYSTEM
 
 #define CVAR_LATCHMASK		(CVAR_LATCH|CVAR_RENDERERLATCH|CVAR_SERVEROVERRIDE|CVAR_CHEAT|CVAR_SEMICHEAT)	//you're only allowed one of these.
 #define CVAR_NEEDDEFAULT	CVAR_CHEAT
@@ -181,6 +195,7 @@ void Cvar_WriteVariables (vfsfile_t *f, qboolean all);
 
 cvar_t *Cvar_FindVar (const char *var_name);
 
+void Cvar_Init(void);
 void Cvar_Shutdown(void);
 
 void Cvar_ForceCheatVars(qboolean semicheats, qboolean absolutecheats);	//locks/unlocks cheat cvars depending on weather we are allowed them.

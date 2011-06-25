@@ -3,6 +3,35 @@
 #include "quakedef.h"
 #include "winquake.h"
 
+menu_t *M_Options_Title(int *y, int infosize)
+{
+	struct menu_s *menu;
+	*y = 32;
+
+	key_dest = key_menu;
+	m_state = m_complex;
+
+	menu = M_CreateMenu(infosize);
+
+	switch(M_GameType())
+	{
+	case MGT_QUAKE2:	//q2...
+		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_options");
+		*y += 32;
+		break;
+	case MGT_HEXEN2://h2
+		MC_AddPicture(menu, 16, 0, 35, 176, "gfx/menu/hplaque.lmp");
+		MC_AddCenterPicture(menu, 0, 60, "gfx/menu/title3.lmp");
+		*y += 32;
+		break;
+	default: //q1
+		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, 24, "gfx/p_option.lmp");
+		break;
+	}
+	return menu;
+}
+
 //these are awkward/strange
 qboolean M_Options_AlwaysRun (menucheck_t *option, struct menu_s *menu, chk_set_t set)
 {
@@ -35,92 +64,48 @@ qboolean M_Options_InvertMouse (menucheck_t *option, struct menu_s *menu, chk_se
 //options menu.
 void M_Menu_Options_f (void)
 {
-	int mgt;
 	extern cvar_t cl_standardchat;
 	extern cvar_t cl_standardmsg, crosshair;
 #ifdef _WIN32
 	extern qboolean vid_isfullscreen;
 #endif
-	menu_t *menu;
-	int y = 32;
+	int y;
 
-	key_dest = key_menu;
-	m_state = m_complex;
-
-	menu = M_CreateMenu(0);
-
-	mgt = M_GameType();
-	if (mgt == MGT_QUAKE2)
-	{	//q2...
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 32;
-	}
-	else if (mgt == MGT_HEXEN2)
-	{	//h2
-		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title3.lmp");
-		y+=32;
-	}
-	else
-	{	//q1
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
-	}
-
-	menu->selecteditem = (union menuoption_s *)
-	MC_AddConsoleCommand(menu, 16, y,	"        Customize controls", "menu_keys\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"             Go to console", "toggleconsole\nplay misc/menu2.wav\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"         Reset to defaults", "exec default.cfg\nplay misc/menu2.wav\n"); y+=8;
-
-	MC_AddSlider(menu, 16, y,			"               Mouse Speed", &sensitivity,		1,		10, 0.5); y+=8;
-	MC_AddSlider(menu, 16, y,			"                 Crosshair", &crosshair,		0,		22, 1); y+=8;
-
-	MC_AddCheckBox(menu, 16, y,			"                Always Run", NULL,0)->func = M_Options_AlwaysRun; y+=8;
-	MC_AddCheckBox(menu, 16, y,			"              Invert Mouse", NULL,0)->func = M_Options_InvertMouse; y+=8;
-	MC_AddCheckBox(menu, 16, y,			"                Lookspring", &lookspring,0); y+=8;
-	MC_AddCheckBox(menu, 16, y,			"                Lookstrafe", &lookstrafe,0); y+=8;
-	MC_AddCheckBox(menu, 16, y,			"        Use old status bar", &cl_sbar,0); y+=8;
-	MC_AddCheckBox(menu, 16, y,			"          HUD on left side", &cl_hudswap,0); y+=8;
-	MC_AddCheckBox(menu, 16, y,			"        Old-style chatting", &cl_standardchat,0);y+=8;
-	MC_AddCheckBox(menu, 16, y,			"        Old-style messages", &cl_standardmsg,0);y+=8;
-	y+=4;MC_AddEditCvar(menu, 16, y,	"               Imitate FPS", "cl_netfps"); y+=8+4;
-
-	MC_AddConsoleCommand(menu, 16, y,	"             Video Options", "menu_video\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,   " Shadow & Lighting Options", "menu_shadow_lighting\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,   "      3D Rendering Options", "menu_3d\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,   "           Texture Options", "menu_textures\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,   "          Particle Options", "menu_particles\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"               FPS Options", "menu_fps\n"); y+=8;
-
-	if ((mgt != MGT_QUAKE2) && (mgt != MGT_HEXEN2))
-	{
-		MC_AddConsoleCommand(menu, 16, y,	"          Teamplay Options", "menu_teamplay\n"); y+=8;
-	}
-
-	if (mgt == MGT_QUAKE2)
-	{
-		MC_AddConsoleCommand(menu, 16, y,	"Singleplayer Cheat Options", "menu_quake2_spcheats\n"); y+=8;
-	}
-	else if (mgt == MGT_HEXEN2)
-	{
-		MC_AddConsoleCommand(menu, 16, y,	"Singleplayer Cheat Options", "menu_hexen2_spcheats\n"); y+=8;
-	}
-	else
-	{
-		MC_AddConsoleCommand(menu, 16, y,	"Singleplayer Cheat Options", "menu_spcheats\n"); y+=8;
-	}
-
-	MC_AddConsoleCommand(menu, 16, y,	"             Audio Options", "menu_audio\n"); y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"                 Downloads", "menu_download\n"); y+=8;
-
-#ifdef _WIN32
-	if (!vid_isfullscreen)
+	menubulk_t bulk[] = {
+		MB_CONSOLECMD("Customize controls", "menu_keys\n", "Modify keyboard and mouse inputs."),
+		MB_CONSOLECMD("Go to console", "toggleconsole\nplay misc/menu2.wav\n", "Open up the engine console."),
+		MB_CONSOLECMD("Reset to defaults", "exec default.cfg\nplay misc/menu2.wav\n", "Reloads the default configuration."),
+		MB_CONSOLECMD("Save all settings", "cfg_save\n", "Writes changed settings out to a config file."),
+		MB_SPACING(4),
+		MB_SLIDER("Mouse Speed", sensitivity, 1, 10, 0.2, NULL),
+		MB_SLIDER("Crosshair", crosshair, 0, 22, 1, NULL), // move this to hud setup?
+		MB_CHECKBOXFUNC("Always Run", M_Options_AlwaysRun, 0, "Set movement to run at fastest speed by default."),
+		MB_CHECKBOXFUNC("Invert Mouse", M_Options_InvertMouse, 0, "Invert vertical mouse movement."),
+		MB_CHECKBOXCVAR("Lookspring", lookspring, 0),
+		MB_CHECKBOXCVAR("Lookstrafe", lookstrafe, 0),
+		MB_CHECKBOXCVAR("Windowed Mouse", _windowed_mouse, 0),
+		MB_SPACING(4),
+		// removed hud options (cl_sbar, cl_hudswap, old-style chat, old-style msg)
+		MB_CONSOLECMD("Video Options", "menu_video\n", "Set video resolution, color depth, refresh rate, and anti-aliasing options."),
+		MB_CONSOLECMD("Audio Options", "menu_audio\n", "Set audio quality and speaker setup options."),
+		MB_SPACING(4),
+		MB_CONSOLECMD("FPS Options", "menu_fps\n", "Set model filtering and graphical profile options."),
+		MB_CONSOLECMD("Rendering Options", "menu_render\n", "Set rendering options such as water warp and tinting effects."),
+		MB_CONSOLECMD("Lighting Options", "menu_lighting\n", "Set options for level lighting and dynamic lights."),
+#ifdef GLQUAKE
+		MB_CONSOLECMD("Texture Options", "menu_textures\n", "Set options for texture detail and effects."),
 #endif
-	{
-		MC_AddCheckBox(menu, 16, y,	"             Use Mouse", &_windowed_mouse,0); y+=8;
-	}
+#ifndef MINIMAL
+		MB_CONSOLECMD("Particle Options", "menu_particles\n", "Set particle effect options."),
+#endif
+		// removed downloads (is this still appropriate?)
+		// removed teamplay
+		// removed singleplayer cheats (move this to single player menu)
+		MB_END()
+	};
+	menu_t *menu = M_Options_Title(&y, 0);
 
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 225, 32, NULL, false);
+	MC_AddBulk(menu, bulk, 16, 216, y);
 }
 
 #ifndef __CYGWIN__
@@ -172,7 +157,7 @@ qboolean M_Audio_Key (int key, struct menu_s *menu)
 		i = key - '0';
 		x = info->testsoundsource->common.posx - 320/2;
 		y = info->testsoundsource->common.posy - 200/2;
-		sc->yaw[i] = (-atan2 (y,x)*180/M_PI) - 90;
+//		sc->yaw[i] = (-atan2 (y,x)*180/M_PI) - 90;
 
 		sc->dist[i] = 50/sqrt(x*x+y*y);
 	}
@@ -205,8 +190,8 @@ void M_Audio_StartSound (struct menu_s *menu)
 
 	for (i = 0; i < sc->sn.numchannels; i++)
 	{
-		info->speaker[i]->common.posx = 320/2 - sin(sc->yaw[i]*M_PI/180) * 50/sc->dist[i];
-		info->speaker[i]->common.posy = 200/2 - cos(sc->yaw[i]*M_PI/180) * 50/sc->dist[i];
+//		info->speaker[i]->common.posx = 320/2 - sin(sc->yaw[i]*M_PI/180) * 50/sc->dist[i];
+//		info->speaker[i]->common.posy = 200/2 - cos(sc->yaw[i]*M_PI/180) * 50/sc->dist[i];
 	}
 	for (; i < 6; i++)
 		info->speaker[i]->common.posy = -100;
@@ -219,7 +204,7 @@ void M_Audio_StartSound (struct menu_s *menu)
 		org[0] = mat[0][0] + 2*(mat[1][0]*(info->testsoundsource->common.posx-320/2) + mat[1][0]*(info->testsoundsource->common.posy-200/2));
 		org[1] = mat[0][1] + 2*(mat[1][1]*(info->testsoundsource->common.posx-320/2) + mat[1][1]*(info->testsoundsource->common.posy-200/2));
 		org[2] = mat[0][2] + 2*(mat[1][2]*(info->testsoundsource->common.posx-320/2) + mat[1][2]*(info->testsoundsource->common.posy-200/2));
-		S_StartSound(-2, 0, S_PrecacheSound("player/pain3.wav"), org, 1, 4);
+		S_StartSound(-2, 0, S_PrecacheSound("player/pain3.wav"), org, 1, 4, 0);
 	}
 }
 
@@ -250,23 +235,23 @@ void M_Menu_Audio_Speakers_f (void)
 menucombo_t *MC_AddCvarCombo(menu_t *menu, int x, int y, const char *caption, cvar_t *cvar, const char **ops, const char **values);
 void M_Menu_Audio_f (void)
 {
-	int y = 32;
 	menu_t *menu;
-	int mgt;
-	int cursorpositionY;
-	extern cvar_t nosound, precache, snd_leftisright, snd_khz, snd_eax, snd_speakers, ambient_level, bgmvolume, snd_playersoundvolume, ambient_fade, cl_staticsounds, snd_inactive, _snd_mixahead, snd_usemultipledevices, snd_noextraupdate, snd_show, bgmbuffer;
+	extern cvar_t nosound, precache, snd_leftisright, snd_khz, snd_eax, snd_speakers, ambient_level, bgmvolume, snd_playersoundvolume, ambient_fade, cl_staticsounds, snd_inactive, _snd_mixahead, snd_usemultipledevices, snd_noextraupdate;
+	extern cvar_t cl_voip_play, cl_voip_send;
 
 	static const char *soundqualityoptions[] = {
 		"11025 Hz",
 		"22050 Hz",
 		"44100 Hz",
+		"48000 Hz",
 		NULL
 	};
 
 	static const char *soundqualityvalues[] = {
-		"11.025",
-		"22.050",
-		"44.100",
+		"11",
+		"22",
+		"44",
+		"48",
 		NULL
 	};
 
@@ -274,7 +259,7 @@ void M_Menu_Audio_f (void)
 		"Mono",
 		"Stereo",
 		"Quad",
-		"5.1 surround",
+		"5.1",
 		NULL
 	};
 
@@ -286,61 +271,43 @@ void M_Menu_Audio_f (void)
 		NULL
 	};
 
-	key_dest = key_menu;
-	m_state = m_complex;
+	int y;
+	menubulk_t bulk[] = {
+		MB_REDTEXT("Sound Options", false),
+		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_SPACING(8),
+		MB_SLIDER("Volume", volume, 0, 1, 0.1, NULL),
+		MB_COMBOCVAR("Speaker Setup", snd_speakers, speakeroptions, speakervalues, NULL),
+		MB_COMBOCVAR("Frequency", snd_khz, soundqualityoptions, soundqualityvalues, NULL),
+		MB_CHECKBOXCVAR("Low Quality (8-bit)", loadas8bit, 0),
+		MB_CHECKBOXCVAR("Flip Speakers", snd_leftisright, 0),
+		MB_SLIDER("Mixahead", _snd_mixahead, 0, 1, 0.05, NULL),
+		MB_CHECKBOXCVAR("Disable All Sounds", nosound, 0),
+		MB_SPACING(4),
+#ifdef VOICECHAT
+		MB_CHECKBOXCVAR("Voice Chat", cl_voip_play, 0),
+		MB_CHECKBOXCVAR("Voice Activation", cl_voip_send, 0),
+#endif
+		MB_SLIDER("Player Sound Volume", snd_playersoundvolume, 0, 1, 0.1, NULL),
+		MB_SLIDER("Ambient Volume", ambient_level, 0, 1, 0.1, NULL),
+		MB_SLIDER("Ambient Fade", ambient_fade, 0, 1000, 1, NULL),
+		MB_CHECKBOXCVAR("Static Sounds", cl_staticsounds, 0),
+		MB_SLIDER("CD Music Volume", bgmvolume, 0, 1, 0.1, NULL),
+		// removed music buffer
+		// removed precache
+		// removed eax2
+		MB_CHECKBOXCVAR("Multiple Devices", snd_usemultipledevices, 0),
+		// remove no extra update
+		MB_CHECKBOXCVAR("Sound While Inactive", snd_inactive, 0),
+		MB_SPACING(4),
+		//MB_CONSOLECMD("Speaker Test", "menu_speakers\n", "Test speaker setup output."),
+		MB_CONSOLECMD("Restart Sound", "snd_restart\n", "Restart audio systems and apply set options."),
+		MB_END()
+	};
 
-	menu = M_CreateMenu(0);
+	menu = M_Options_Title(&y, 0);
 
-	mgt = M_GameType();
-
-	if (mgt == MGT_QUAKE2)
-	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 8;
-	}
-	else if (mgt == MGT_HEXEN2)
-	{
-		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title3.lmp");
-		y += 25+8;
-	}
-	else
-	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
-	}
-
-	cursorpositionY = (y + 24);
-
-	menu->selecteditem = (union menuoption_s *)
-
-	MC_AddRedText(menu, 16, y, 			"     Sound Options", false); y+=8;
-	MC_AddWhiteText(menu, 16, y,		"     ÄÅÅÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
-	y+=8;
-
-	MC_AddSlider(menu, 16, y,			"          CD Music Volume", &bgmvolume,		0,		1, 0.1);y+=8;
-	MC_AddSlider(menu, 16, y,			"          CD Music Buffer", &bgmbuffer,		0,		10240, 1024);y+=8;
-	MC_AddSlider(menu, 16, y,			"             Sound Volume", &volume,			0,		1, 0.1);y+=8;
-	MC_AddSlider(menu, 16, y,			"      Player Sound Volume", &snd_playersoundvolume,0,1,0.1);y+=8;
-	MC_AddSlider(menu, 16, y,			"           Ambient Volume", &ambient_level,	0,		1, 0.1);y+=8;
-	MC_AddSlider(menu, 16, y,			"             Ambient Fade", &ambient_fade,	0,		1000, 1);y+=8;
-	MC_AddCheckBox(menu, 16, y,			"                 No Sound", &nosound,0);y+=8;
-	MC_AddCheckBox(menu, 16, y,			"            Static Sounds", &cl_staticsounds,0);y+=8;
-	MC_AddCheckBox(menu, 16, y,			"                 Precache", &precache,0);y+=8;
-	MC_AddCheckBox(menu, 16, y,			"       Experimental EAX 2", &snd_eax,0);y+=8;
-	MC_AddCvarCombo(menu, 16, y,		"            Speaker Setup", &snd_speakers, speakeroptions, speakervalues);y+=8;
-	MC_AddCvarCombo(menu, 16, y,		"              Sound Speed", &snd_khz, soundqualityoptions, soundqualityvalues);y+=8;
-	MC_AddSlider(menu, 16, y,			"           Sound Mixahead", &_snd_mixahead,0,1,0.05);y+=8;
-	MC_AddCheckBox(menu, 16, y,			"         Multiple Devices", &snd_usemultipledevices,0);y+=8;
-	MC_AddCheckBox(menu, 16, y,			"    No Extra Sound Update", &snd_noextraupdate,0);y+=8;
-	MC_AddCheckBox(menu, 16, y,			" Low Quality Sound (8bit)", &loadas8bit,0);y+=8;
-	MC_AddCheckBox(menu, 16, y,			"               Flip Sound", &snd_leftisright,0);y+=8;
-	MC_AddCheckBox(menu, 16, y,			"Play Sound While Inactive", &snd_inactive,0);y+=8;
-	//MC_AddCombo(menu, 16, y,			"      Show Sounds Playing", &snd_show,0);y+=8;
-	y+=8;
-	MC_AddConsoleCommand(menu, 16, y,	"        = Restart Sound =", "snd_restart\n");y+=8;
-
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 225, cursorpositionY, NULL, false);
+	MC_AddBulk(menu, bulk, 16, 216, y);
 }
 
 #else
@@ -354,128 +321,179 @@ void M_Menu_Audio_f (void)
 
 void M_Menu_Particles_f (void)
 {
-	int y = 32;
 	menu_t *menu;
-	int mgt;
-	int cursorpositionY;
-	extern cvar_t r_bouncysparks, r_part_rain, gl_part_flame, r_particlesystem, r_grenadetrail, r_rockettrail, r_part_sparks_textured, r_part_sparks_trifan, r_part_rain_quantity, r_part_beams, r_part_beams_textured, r_particle_tracelimit;
+	extern cvar_t r_bouncysparks, r_part_rain, gl_part_flame, r_particlesystem, r_grenadetrail, r_rockettrail, r_part_sparks_textured, r_part_sparks_trifan, r_part_rain_quantity, r_particledesc, r_particle_tracelimit, r_part_contentswitch, r_bloodstains;
 
-	char *psystemopts[] =
+	static const char *psystemopts[] =
 	{
-		"fixed/classic(faster)",
-		"scripted",
+		"Classic",
+		"Script",
+		"None",
 		NULL
 	};
-	char *psystemvals[] =
+	static const char *psystemvals[] =
 	{
 		"classic",
 		"script",
+		"null",
 		NULL
 	};
 
-	key_dest = key_menu;
-	m_state = m_complex;
-
-	menu = M_CreateMenu(0);
-
-	mgt = M_GameType();
-
-	if (mgt == MGT_QUAKE2)
+	static const char *pdescopts[] = 
 	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 8;
-	}
-	else if (mgt == MGT_HEXEN2)
+		"Faithful",
+		"High FPS",
+		"Fancy",
+		"Fancy+LG",
+		"Bare bones",
+		NULL
+	};
+	static const char *pdescvals[] =
 	{
-		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title6.lmp");
-		y += 25+8;
-	}
-	else
+		"faithful",
+		"highfps",
+		"spikeset",
+		"spikeset tsshaft",
+		"minimal",
+		NULL
+	};
+
+	static const char *trailopts[] =
 	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
-	}
+		"Disable",
+		"Default",
+		"Swap",
+		"Alternate",
+		"Blood",
+		"Zombie",
+		"Scrag",
+		"Knight",
+		"Vore",
+		"Rail",
+		NULL
+	};
+	static const char *trailvals[] = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", NULL };
 
-	cursorpositionY = (y + 24);
+	int y;
+	menubulk_t bulk[] = {
+		MB_REDTEXT("Particle Options", false),
+		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_COMBOCVAR("Particle System", r_particlesystem, psystemopts, psystemvals, "Selects particle system to use. Classic is standard Quake particles, script is FTE style scripted particles, and none disables particles entirely."),
+		MB_COMBOCVAR("Script Set", r_particledesc, pdescopts, pdescvals, "Selects particle set to use with script system."),
+		MB_SPACING(4),
+		MB_COMBOCVAR("Rocket Trail", r_rockettrail, trailopts, trailvals, "Chooses effect to replace rocket trails."),
+		MB_COMBOCVAR("Grenade Trail", r_grenadetrail, trailopts, trailvals, "Chooses effect to replace grenade trails."),
+		MB_SPACING(4),
+		// removed texture sparks
+		// removed trifan sparks
+		MB_CHECKBOXCVAR("Particle Physics", r_bouncysparks, 0),
+		MB_CHECKBOXCVAR("Particle Stains", r_bloodstains, 0),
+		MB_CHECKBOXCVAR("Content Switching", r_part_contentswitch, 0),
+		MB_CHECKBOXCVAR("Surface Emitting", r_part_rain, 0),
+		MB_SLIDER("Surface Quantity", r_part_rain_quantity, 0, 10, 1, NULL),
+		MB_CHECKBOXCVAR("Model Emitting", gl_part_flame, 0),
+		MB_SLIDER("Trace Limit", r_particle_tracelimit, 0, 2000, 100, NULL),
+		// removed particle beams
+		MB_END()
+	};
 
-	menu->selecteditem = (union menuoption_s *)
+	menu = M_Options_Title(&y, 0);
 
-	MC_AddRedText(menu, 16, y, 			"     Particle Options", false); y+=8;
-	MC_AddWhiteText(menu, 16, y,		"     ÄÅÅÅÅÅÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
-	y+=8;
-
-	MC_AddCvarCombo(menu, 16, y,							"        particle system", &r_particlesystem, psystemopts, psystemvals);y+=8;
-	//fixme: hide the rest of the options if r_particlesystem==classic
-	MC_AddConsoleCommand(menu, 16, y,						"    Choose particle set", "menu_particlesets");y+=8;
-//	MC_AddSlider(menu, 16, y,								"        exp spark count", &r_particles_in_explosion, 16, 1024);y+=8;
-
-	MC_AddSlider(menu,	16, y,								"          Grenade Trail", &r_grenadetrail,0,10,1);	y+=8;
-	MC_AddSlider(menu,	16, y,								"           Rocket Trail", &r_rockettrail,0,10,1);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"          Bouncy Sparks", &r_bouncysparks,0);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"        Textured Sparks", &r_part_sparks_textured,0);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"          Trifan Sparks", &r_part_sparks_trifan,0);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"                   Rain", &r_part_rain,0);	y+=8;
-	MC_AddSlider(menu,	16, y,								"          Rain Quantity", &r_part_rain_quantity,0,10,1);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"            Torch Flame", &gl_part_flame,0);	y+=8;
-	MC_AddSlider(menu,	16, y,								"    Particle Tracelimit", &r_particle_tracelimit,0,2000,50);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"         Particle Beams", &r_part_beams,0);	y+=8;
-	MC_AddCheckBox(menu,	16, y,							"Textured Particle Beams", &r_part_beams_textured,0);	y+=8;
-
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, cursorpositionY, NULL, false);
+	MC_AddBulk(menu, bulk, 16, 200, y);
 }
 
-enum {
-	PRESET_286,
-	PRESET_FAST,
-	PRESET_DEFAULT,
-	PRESET_NICE,
-	PRESET_REALTIME,
-	PRESET_MAX
-};
-typedef struct {
-	char *cvarname;
-	char *value[PRESET_MAX];
-} presetinfo_t;
-presetinfo_t preset[] =
+const char *presetname[] =
 {
-	//default is a reasonable nice look for single player
-	//fast is for competetive deathmatch games (equivelent to the default settings of other quakrworld engines)
-	//286 is an attempt to get the very vest fps possible, if you're crazy
-	{"r_presetname",		{"286",		"fast",		"default",			"nice",				"realtime"}},
-	{"gl_texturemode",		{"nn",		"ln",		"ln",				"ll",				"ll"}},
-	{"r_particlesdesc",		{"none",	"highfps",	"spikeset tsshaft",	"spikeset tsshaft",	"spikeset tsshaft"}},
-	{"r_particlesystem",	{"none",	"classic",	"script",			"script",			"script"}},
-	{"r_stains",			{"0",		"0",		"0.75",				"0.75",				"0.75"}},
-	{"r_drawflat",			{"1",		"0",		"0",				"0",				"0"}},
-	{"r_nolerp",			{"1",		"0",		"0",				"0",				"0"}},
-	{"r_nolightdir",		{"1",		"1",		"0",				"0",				"0"}},
-	{"r_dynamic",			{"0",		"0",		"1",				"1",				"1"}},
-	{"r_bloom",				{"0",		"0",		"0",				"0",				"1"}},
-	{"gl_flashblend",		{"0",		"1",		"0",				"1",				"2"}},
-	{"gl_bump",				{"0",		"0",		"0",				"1",				"1"}},
-	{"gl_specular",			{"0",		"0",		"0",				"1",				"1"}},
-	{"r_loadlit",			{"0",		"1",		"1",				"2",				"2"}},
-	{"r_fastsky",			{"1",		"0",		"0",				"-1",				"-1"}},
-	{"r_waterlayers",		{"0",		"2",		"",					"4",				"4"}},
-	{"r_shadows",			{"0",		"0",		"0",				"1",				"1"}},
-	{"r_shadow_realtime_world",{"0",	"0",		"0",				"0",				"1"}},
-	{"gl_detail",			{"0",		"0",		"0",				"1",				"1"}},
-	{"gl_load24bit",		{"0",		"0",		"1",				"1",				"1"}},
-	{"r_replacemodels",		{"",		"",			"md3 md2",			"md3 md2",			"md3 md2"}},
-	{"r_waterwarp",			{"0",		"-1",		"1",				"1",				"1"}},
-	{"r_lightstylesmooth",	{"0",		"0",		"0",				"1",				"1"}},
-	{NULL}
+	"286",
+	"Fast",
+	"Normal",
+	"Nice",
+	"Realtime",
+	NULL
 };
+#define PRESET_NUM 5
+
+// this is structured like this for a possible future feature
+// also don't include cvars that need a restart here
+const char *presetexec[] =
+{
+	// 286 options (also the first commands to be execed in the chain)
+	"gl_texturemode nn;"
+	"r_particlesystem null;"
+	"r_stains 0;"
+	"r_drawflat 1;"
+	"r_nolerp 1;"
+	"r_nolightdir 1;"
+	"r_dynamic 0;"
+	"gl_flashblend 0;"
+	"gl_bump 0;"
+	"gl_specular 0;"
+	"r_loadlit 0;"
+	"r_fastsky 1;"
+	"r_shadow_realtime_dlight 0;"
+	"r_shadow_realtime_world 0;"
+	"gl_detail 0;"
+	"gl_load24bit 0;"
+	"r_replacemodels \"\";"
+	"r_waterwarp 0;"
+	"r_lightstylesmooth 0;"
+	, // fast options
+	"gl_texturemode ln;"
+#ifdef MINIMAL
+	"r_particlesystem classic;"
+#else
+	"r_particlesystem script;"
+	"r_particledesc highfps;"
+#endif
+	"r_drawflat 0;"
+	"r_nolerp 0;"
+	"gl_flashblend 1;"
+	"r_loadlit 1;"
+	"r_fastsky 0;"
+	"r_waterwarp -1;"
+	, // normal options
+	"r_particlesystem classic;"
+	"r_stains 0.75;"
+	"r_nolightdir 0;"
+	"r_dynamic 1;"
+	"gl_flashblend 0;"
+	"gl_load24bit 1;"
+	"r_replacemodels \"md3 md2\";"
+	"r_waterwarp 1;"
+	, // nice options
+	"gl_texturemode ll;"
+#ifndef MINIMAL
+	"r_particlesystem script;"
+	"r_particledesc \"spikeset tsshaft\";"
+#endif
+//	"gl_bump 1;" // requires restart
+	"gl_specular 1;"
+	"r_loadlit 2;"
+//	"r_fastsky -1;"
+	"r_shadow_realtime_dlight 1;"
+	"gl_detail 1;"
+	"r_lightstylesmooth 1;"
+	"gl_texture_anisotropic_filtering 4;"
+	, // realtime options
+//	"r_bloom 1;"
+	"r_shadow_realtime_world 1;"
+	"gl_texture_anisotropic_filtering 16;"
+};
+
+typedef struct fpsmenuinfo_s 
+{
+	menucombo_t *preset;
+} fpsmenuinfo_t;
+
 static void ApplyPreset (int presetnum)
 {
 	int i;
-	for (i = 1; preset[i].cvarname; i++)
+	// TODO: work backwards and only set cvars once
+	for (i = 0; i <= presetnum; i++)
 	{
-		Cbuf_AddText(preset[i].cvarname, Cmd_ExecLevel);
-		Cbuf_AddText(" ", Cmd_ExecLevel);
-		Cbuf_AddText(preset[i].value[presetnum], Cmd_ExecLevel);
+		Cbuf_AddText(presetexec[i], Cmd_ExecLevel);
 		Cbuf_AddText("\n", Cmd_ExecLevel);
+		Cbuf_Execute(); // hack
 	}
 }
 
@@ -483,9 +501,10 @@ void FPS_Preset_f (void)
 {
 	char *arg = Cmd_Argv(1);
 	int i;
-	for (i = 0; i < PRESET_MAX; i++)
+
+	for (i = 0; i < PRESET_NUM; i++)
 	{
-		if (!strcmp(preset[0].value[i], arg))
+		if (!stricmp(presetname[i], arg))
 		{
 			ApplyPreset(i);
 			return;
@@ -494,445 +513,127 @@ void FPS_Preset_f (void)
 
 	Con_Printf("Preset %s not recognised\n", arg);
 	Con_Printf("Valid presests:\n");
-	for (i = 0; i < PRESET_MAX; i++)
-		Con_Printf("%s\n", preset[0].value[i]);
+	for (i = 0; i < PRESET_NUM; i++)
+		Con_Printf("%s\n", presetname[i]);
 }
 
+qboolean M_PresetApply (union menuoption_s *op, struct menu_s *menu, int key)
+{
+	fpsmenuinfo_t *info = (fpsmenuinfo_t*)menu->data;
+
+	if (key != K_ENTER && key != K_MOUSE1)
+		return false;
+
+	Cbuf_AddText("fps_preset ", RESTRICT_LOCAL);
+	Cbuf_AddText(info->preset->options[info->preset->selectedoption], RESTRICT_LOCAL);
+	Cbuf_AddText("\n", RESTRICT_LOCAL);
+
+	return true;
+}
 
 void M_Menu_FPS_f (void)
 {
-	int y = 32;
+	static const char *fpsopts[] =
+	{
+		"Disabled",
+		"Average FPS",
+		"Worst FPS",
+		"Best FPS",
+		"Immediate FPS",
+		"Average MSEC",
+		"Worst MSEC",
+		"Best MSEC",
+		"Immediate MSEC",
+		NULL
+	};
+	static const char *fpsvalues[] = {"0", "1", "2", "3", "4", "-1", "-2", "-3", "-4", NULL};
+	static const char *bodyopts[] =
+	{
+		"Disabled",
+		"Ground",
+		"All",
+		NULL
+	};
+	static const char *bodyvalues[] = {"0", "1", "2", NULL};
+
 	menu_t *menu;
-	int mgt;
-	int cursorpositionY;
-	int i, len;
+	fpsmenuinfo_t *info;
 
 	extern cvar_t v_contentblend, show_fps, cl_r2g, cl_gibfilter, cl_expsprite, cl_deadbodyfilter;
 
-	key_dest = key_menu;
-	m_state = m_complex;
+	int y;
+	menu = M_Options_Title(&y, sizeof(fpsmenuinfo_t));
+	info = (fpsmenuinfo_t *)menu->data;
 
-	menu = M_CreateMenu(0);
-
-	mgt = M_GameType();
-
-	if (mgt == MGT_QUAKE2)
 	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 8;
-	}
-	else if (mgt == MGT_HEXEN2)
-	{
-		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title3.lmp");
-		y += 25+8;
-	}
-	else
-	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
-	}
-
-	cursorpositionY = (y + 24);
-
-	menu->selecteditem = (union menuoption_s *)
-
-	MC_AddRedText(menu, 16, y, 			"     FPS Options", false); y+=8;
-	MC_AddWhiteText(menu, 16, y,		"     ÄÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
-	y+=8;
-
-	for (i = 0; i < PRESET_MAX; i++)
-	{
-		len = strlen(preset[0].value[i]);
-		MC_AddConsoleCommand(menu, 116, y,		va("(preset)   %s", preset[0].value[i]), va("fps_preset %s\n", preset[0].value[i])); y+=8;
-	}
-	MC_AddCheckBox(menu, 16, y,					"             Show FPS", &show_fps,0);y+=8;
-
-	MC_AddCheckBox(menu, 16, y,					"        Content blend", &v_contentblend,0);y+=8;
-	MC_AddCheckBox(menu,	16, y,				"           Gib Filter", &cl_gibfilter,0);	y+=8;
-	MC_AddSlider(menu,	16, y,					"     Dead Body Filter", &cl_deadbodyfilter,0,2,1);	y+=8;
-	MC_AddCheckBox(menu,	16, y,				"     Explosion Sprite", &cl_expsprite,0);	y+=8;
-	y+=4;MC_AddEditCvar(menu, 16, y,			"               Skybox", "r_skybox");y+=8;y+=4;
-	MC_AddCheckBox(menu,	16, y,				"  Rockets to Grenades", &cl_r2g,0);	y+=8;
-
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 188, cursorpositionY, NULL, false);
-}
-
-//copy and pasted from renderer.c
-qboolean M_VideoApply2 (union menuoption_s *op,struct menu_s *menu,int key)
-{
-	if (key != K_ENTER)
-		return false;
-
-	// r_shadows too
-
-
-	Cbuf_AddText("vid_restart\n", RESTRICT_LOCAL);
-
-	M_RemoveMenu(menu);
-	Cbuf_AddText("menu_options\n", RESTRICT_LOCAL);
-	return true;
-}
-
-typedef struct {
-	menucombo_t *multisamplingcombo;
-} threeDmenuinfo_t;
-
-qboolean M_VideoApply3D (union menuoption_s *op,struct menu_s *menu,int key)
-{
-	threeDmenuinfo_t *info = menu->data;
-	int currentmsaalevel;
-	extern cvar_t vid_multisample;
-
-	if (key != K_ENTER)
-		return false;
-
-	if (vid_multisample.value == 8)
-		currentmsaalevel = 4;
-	else if (vid_multisample.value == 6)
-		currentmsaalevel = 3;
-	else if (vid_multisample.value == 4)
-		currentmsaalevel = 2;
-	else if (vid_multisample.value == 2)
-		currentmsaalevel = 1;
-	else if (vid_multisample.value <= 1)
-		currentmsaalevel = 0;
-	else
-		currentmsaalevel = 0;
-
-	if (info->multisamplingcombo->selectedoption != currentmsaalevel) // if MSAA doesn't change, don't bother applying it when the video system is restarted
-	{
-		switch(info->multisamplingcombo->selectedoption)
+		menubulk_t bulk[] = 
 		{
-		case 0:
-			Cbuf_AddText("vid_multisample 0\n", RESTRICT_LOCAL);
-			break;
-		case 1:
-			Cbuf_AddText("vid_multisample 2\n", RESTRICT_LOCAL);
-			break;
-		case 2:
-			Cbuf_AddText("vid_multisample 4\n", RESTRICT_LOCAL);
-			break;
-		case 3:
-			Cbuf_AddText("vid_multisample 6\n", RESTRICT_LOCAL);
-			break;
-		case 4:
-			Cbuf_AddText("vid_multisample 8\n", RESTRICT_LOCAL);
-			break;
-		}
+			MB_REDTEXT("FPS Options", false),
+			MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+			MB_COMBORETURN("Preset", presetname, 2, info->preset, "Select a builtin configuration of graphical settings."),
+			MB_CMD("Apply", M_PresetApply, "Applies selected preset."),
+			MB_SPACING(4),
+			MB_COMBOCVAR("Show FPS", show_fps, fpsopts, fpsvalues, "Display FPS or frame millisecond values on screen. Settings except immediate are for values across 1 second."),
+			MB_CHECKBOXCVAR("Content Blend", v_contentblend, 0),
+			MB_CHECKBOXCVAR("Gib Filter", cl_gibfilter, 0),
+			MB_COMBOCVAR("Dead Body Filter", cl_deadbodyfilter, bodyopts, bodyvalues, "Selects which dead player frames to filter out in rendering. Ground frames are those of the player lying on the ground, and all frames include all used in the player dying animation."),
+			MB_CHECKBOXCVAR("Explosion Sprite", cl_expsprite, 0),
+			MB_CHECKBOXCVAR("Rockets to Grenades", cl_r2g, 0),
+			MB_EDITCVAR("Skybox", "r_skybox"),
+			MB_END()
+		};
+		MC_AddBulk(menu, bulk, 16, 216, y);
 	}
-	#ifdef _DEBUG
-	else
-	{
-		Con_Printf("MSAA: Selected option matches current CVAR value (%d & %d), no change made.\n",info->multisamplingcombo->selectedoption, currentmsaalevel);
-	}
-	#endif
-
-	Cbuf_AddText("vid_restart\n", RESTRICT_LOCAL);
-
-	M_RemoveMenu(menu);
-	Cbuf_AddText("menu_3d\n", RESTRICT_LOCAL);
-	return true;
 }
 
-void M_Menu_3D_f (void)
+void M_Menu_Render_f (void)
 {
-	static const char *msaalevels[] =
+	static const char *warpopts[] =
 	{
-			"Off",
-			"2x",
-			"4x",
-			"6x",
-			"8x",
-			NULL
+		"Disabled",
+		"FOV Warp",
+		"Shader",
+		NULL
+	};
+	static const char *warpvalues[] =
+	{
+		"0",
+		"-1",
+		"1",
+		NULL
 	};
 
-
-	int y = 32;
-	threeDmenuinfo_t *info;
 	menu_t *menu;
-	int mgt;
-	int cursorpositionY;
-	int currentmsaalevel;
-#ifndef MINIMAL
-	extern cvar_t gl_shadeq1, gl_shadeq3, r_xflip;
+	extern cvar_t r_novis, cl_item_bobbing, r_waterwarp, r_nolerp, r_fastsky, gl_nocolors, gl_lerpimages, r_wateralpha, r_drawviewmodel, gl_cshiftenabled;
+#ifdef GLQUAKE
+	extern cvar_t r_bloom;
 #endif
-	extern cvar_t r_novis, gl_dither, cl_item_bobbing, r_waterwarp, r_nolerp, r_fastsky, gl_nocolors, gl_lerpimages, gl_keeptjunctions, gl_lateswap, r_mirroralpha, r_wateralpha, r_drawviewmodel, gl_maxdist, gl_motionblur, gl_motionblurscale, gl_blend2d, gl_blendsprites, r_flashblend, gl_cshiftenabled, vid_multisample;
 
-	key_dest = key_menu;
-	m_state = m_complex;
-
-	menu = M_CreateMenu(sizeof(threeDmenuinfo_t));
-	info = menu->data;
-
-	mgt = M_GameType();
-
-	if (mgt == MGT_QUAKE2)
+	int y;
+	menubulk_t bulk[] =
 	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 8;
-	}
-	else if (mgt == MGT_HEXEN2)
-	{
-		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title3.lmp");
-		y += 25+8;
-	}
-	else
-	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
-	}
-
-	cursorpositionY = (y + 24);
-
-	if (vid_multisample.value == 8)
-		currentmsaalevel = 4;
-	else if (vid_multisample.value == 6)
-		currentmsaalevel = 3;
-	else if (vid_multisample.value == 4)
-		currentmsaalevel = 2;
-	else if (vid_multisample.value == 2)
-		currentmsaalevel = 1;
-	else if (vid_multisample.value <= 1)
-		currentmsaalevel = 0;
-	else
-		currentmsaalevel = 0;
-
-	menu->selecteditem = (union menuoption_s *)
-
-		MC_AddRedText(menu, 16, y, 			"     3D Renderering Options", false); y+=8;
-		MC_AddWhiteText(menu, 16, y,		"     ÄÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
-		y+=8;
-
-		MC_AddCheckBox(menu,	16, y,							"             Calculate VIS", &r_novis,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,							"                Water Warp", &r_waterwarp,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,							"      Model Interpollation", &r_nolerp,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,							"                Toggle Sky", &r_fastsky,0);	y+=8;
-		#ifndef MINIMAL
-		MC_AddCheckBox(menu,	16, y,							"                Q1 Shaders", &gl_shadeq1,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,							"                Q3 Shaders", &gl_shadeq3,0);	y+=8;
-		#endif
-		MC_AddCheckBox(menu,	16, y,							"               Lerp Images", &gl_lerpimages,0);	y+=8;
-		MC_AddSlider(menu,	16, y,								"          Maximum Distance", &gl_maxdist,1,8192,128);	y+=8;
-		MC_AddCheckBox(menu,	16, y,							"       GL Swapbuffer Delay", &gl_lateswap,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,							"        Mirror Reflections", &r_mirroralpha,0);	y+=8;
-		#ifndef MINIMAL
-		MC_AddCheckBox(menu,	16, y,							"      Flip Horizontal View", &r_xflip,0);	y+=8;
-		#endif
-		MC_AddCheckBox(menu,	16, y,							"        Water Transparency", &r_wateralpha,0);	y+=8;
-		MC_AddSlider(menu,	16, y,								"   View Model Transparency", &r_drawviewmodel,0,1,0.1);	y+=8;
-		MC_AddCheckBox(menu,	16, y,							"Ignore Player Model Colors", &gl_nocolors,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,							"  Toggle Colinear Vertexes", &gl_keeptjunctions,0);	y+=8;
-		MC_AddSlider(menu,	16, y,								"               Motion Blur", &gl_motionblur,0,1,0.5);	y+=8;
-		MC_AddSlider(menu,	16, y,								"         Motion Blur Scale", &gl_motionblurscale,0,1,0.5);	y+=8;
-		MC_AddCheckBox(menu,	16, y,							"               2D Blending", &gl_blend2d,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,							"           Sprite Blending", &gl_blendsprites,0);	y+=8;
-		MC_AddSlider(menu,	16, y,								"            Flash Blending", &r_flashblend,0,2,1);	y+=8;
-		MC_AddCheckBox(menu,	16, y,							"             Poly Blending", &gl_cshiftenabled,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,							"     16bit Color Dithering", &gl_dither,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,							"             Model Bobbing", &cl_item_bobbing,0);	y+=8;
-		info->multisamplingcombo = MC_AddCombo(menu, 16, y,		" Multisample Anti-Aliasing", msaalevels, currentmsaalevel); y+=8;
-		y+=8;
-		MC_AddCommand(menu,	16, y,								"           Apply", M_VideoApply3D);	y+=8;
-
-	//menu->selecteditem = (union menuoption_s *)info->multisamplingcombo;
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 225, cursorpositionY, NULL, false);
+		MB_REDTEXT("Rendering Options", false),
+		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_CHECKBOXCVAR("Calculate VIS", r_novis, 0),
+		MB_CHECKBOXCVAR("Fast Sky", r_fastsky, 0),
+		MB_CHECKBOXCVAR("Disable Model Lerp", r_nolerp, 0),
+		MB_CHECKBOXCVAR("Lerp Images", gl_lerpimages, 0),
+		MB_COMBOCVAR("Water Warp", r_waterwarp, warpopts, warpvalues, NULL),
+		MB_SLIDER("Water Alpha", r_wateralpha, 0, 1, 0.1, NULL),
+		MB_SLIDER("Viewmodel Alpha", r_drawviewmodel, 0, 1, 0.1, NULL),
+		MB_CHECKBOXCVAR("Poly Blending", gl_cshiftenabled, 0),
+		MB_CHECKBOXCVAR("Disable Colormap", gl_nocolors, 0),
+#ifdef GLQUAKE
+		MB_CHECKBOXCVAR("Bloom", r_bloom, 0),
+#endif
+		MB_CHECKBOXCVAR("Model Bobbing", cl_item_bobbing, 0),
+		MB_END()
+	};
+	menu = M_Options_Title(&y, 0);
+	MC_AddBulk(menu, bulk, 16, 216, y);
 }
 
-typedef struct {
-	menucombo_t *texturefiltercombo;
-	menucombo_t *anisotropycombo;
-	menucombo_t *maxtexturesizecombo;
-	menucombo_t *bloomsamplesizecombo;
-	menucombo_t *bloomdiamondcombo;
-} texturemenuinfo_t;
-
-qboolean M_VideoApplyTextures (union menuoption_s *op,struct menu_s *menu,int key)
-{
-	texturemenuinfo_t *info = menu->data;
-	int currentbloomdiamond;
-	int currentbloomsamplesize;
-
-#ifndef MINIMAL
-	extern cvar_t r_bloom_sample_size, r_bloom_diamond_size;
-#endif
-
-	if (key != K_ENTER)
-		return false;
-
-	switch(info->texturefiltercombo->selectedoption)
-	{
-	case 0:
-		Cbuf_AddText("gl_texturemode gl_nearest_mipmap_nearest\n", RESTRICT_LOCAL);
-		break;
-	case 1:
-		Cbuf_AddText("gl_texturemode gl_linear_mipmap_nearest\n", RESTRICT_LOCAL);
-		break;
-	case 2:
-		Cbuf_AddText("gl_texturemode gl_linear_mipmap_linear\n", RESTRICT_LOCAL);
-		break;
-	}
-
-	switch(info->anisotropycombo->selectedoption)
-	{
-	case 0:
-		Cbuf_AddText("gl_texture_anisotropic_filtering 0\n", RESTRICT_LOCAL);
-		break;
-	case 1:
-		Cbuf_AddText("gl_texture_anisotropic_filtering 2\n", RESTRICT_LOCAL);
-		break;
-	case 2:
-		Cbuf_AddText("gl_texture_anisotropic_filtering 4\n", RESTRICT_LOCAL);
-		break;
-	case 3:
-		Cbuf_AddText("gl_texture_anisotropic_filtering 8\n", RESTRICT_LOCAL);
-		break;
-	case 4:
-		Cbuf_AddText("gl_texture_anisotropic_filtering 16\n", RESTRICT_LOCAL);
-		break;
-	}
-
-	switch(info->maxtexturesizecombo->selectedoption)
-	{
-	case 0:
-		Cbuf_AddText("gl_max_size 128\n", RESTRICT_LOCAL);
-		break;
-	case 1:
-		Cbuf_AddText("gl_max_size 196\n", RESTRICT_LOCAL);
-		break;
-	case 2:
-		Cbuf_AddText("gl_max_size 256\n", RESTRICT_LOCAL);
-		break;
-	case 3:
-		Cbuf_AddText("gl_max_size 384\n", RESTRICT_LOCAL);
-		break;
-	case 4:
-		Cbuf_AddText("gl_max_size 512\n", RESTRICT_LOCAL);
-		break;
-	case 5:
-		Cbuf_AddText("gl_max_size 768\n", RESTRICT_LOCAL);
-		break;
-	case 6:
-		Cbuf_AddText("gl_max_size 1024\n", RESTRICT_LOCAL);
-		break;
-	case 7:
-		Cbuf_AddText("gl_max_size 2048\n", RESTRICT_LOCAL);
-		break;
-	case 8:
-		Cbuf_AddText("gl_max_size 4096\n", RESTRICT_LOCAL);
-		break;
-	case 9:
-		Cbuf_AddText("gl_max_size 8192\n", RESTRICT_LOCAL);
-		break;
-	}
-
-#ifndef MINIMAL
-	if (r_bloom_sample_size.value >= 512)
-		currentbloomsamplesize = 7;
-	else if (r_bloom_sample_size.value == 384)
-		currentbloomsamplesize = 6;
-	else if (r_bloom_sample_size.value == 256)
-		currentbloomsamplesize = 5;
-	else if (r_bloom_sample_size.value == 192)
-		currentbloomsamplesize = 4;
-	else if (r_bloom_sample_size.value == 128)
-		currentbloomsamplesize = 3;
-	else if (r_bloom_sample_size.value == 96)
-		currentbloomsamplesize = 2;
-	else if (r_bloom_sample_size.value == 64)
-		currentbloomsamplesize = 1;
-	else if (r_bloom_sample_size.value <= 32)
-		currentbloomsamplesize = 0;
-	else
-		currentbloomsamplesize = 0;
-
-	if (info->bloomsamplesizecombo->selectedoption != currentbloomsamplesize)
-	{
-		switch(info->bloomsamplesizecombo->selectedoption)
-		{
-		case 0:
-			Cbuf_AddText("r_bloom_sample_size 32\n", RESTRICT_LOCAL);
-			break;
-		case 1:
-			Cbuf_AddText("r_bloom_sample_size 64\n", RESTRICT_LOCAL);
-			break;
-		case 2:
-			Cbuf_AddText("r_bloom_sample_size 96\n", RESTRICT_LOCAL);
-			break;
-		case 3:
-			Cbuf_AddText("r_bloom_sample_size 128\n", RESTRICT_LOCAL);
-			break;
-		case 4:
-			Cbuf_AddText("r_bloom_sample_size 192\n", RESTRICT_LOCAL);
-			break;
-		case 5:
-			Cbuf_AddText("r_bloom_sample_size 256\n", RESTRICT_LOCAL);
-			break;
-		case 6:
-			Cbuf_AddText("r_bloom_sample_size 384\n", RESTRICT_LOCAL);
-			break;
-		case 7:
-			Cbuf_AddText("r_bloom_sample_size 512\n", RESTRICT_LOCAL);
-			break;
-		}
-	}
-	#ifdef _DEBUG
-	else
-	{
-		Con_Printf("Bloom Sample Size: Selected option matches current CVAR value (%d & %d), no change made.\n",info->bloomsamplesizecombo->selectedoption, currentbloomsamplesize);
-	}
-	#endif
-
-	if (r_bloom_diamond_size.value >= 10)
-		currentbloomdiamond = 4;
-	else if (r_bloom_diamond_size.value >= 8)
-		currentbloomdiamond = 3;
-	else if (r_bloom_diamond_size.value >= 6)
-		currentbloomdiamond = 2;
-	else if (r_bloom_diamond_size.value >= 4)
-		currentbloomdiamond = 1;
-	else if (r_bloom_diamond_size.value <= 2)
-		currentbloomdiamond = 0;
-	else
-		currentbloomdiamond = 0;
-
-	if (info->bloomdiamondcombo->selectedoption != currentbloomdiamond)
-	{
-		switch(info->bloomdiamondcombo->selectedoption)
-		{
-		case 0:
-			Cbuf_AddText("r_bloom_diamond_size 2\n", RESTRICT_LOCAL);
-			break;
-		case 1:
-			Cbuf_AddText("r_bloom_diamond_size 4\n", RESTRICT_LOCAL);
-			break;
-		case 2:
-			Cbuf_AddText("r_bloom_diamond_size 6\n", RESTRICT_LOCAL);
-			break;
-		case 3:
-			Cbuf_AddText("r_bloom_diamond_size 8\n", RESTRICT_LOCAL);
-			break;
-		case 4:
-			Cbuf_AddText("r_bloom_diamond_size 10\n", RESTRICT_LOCAL);
-			break;
-		}
-	}
-	#ifdef _DEBUG
-	else
-	{
-		Con_Printf("Bloom Diamond Size: Selected option matches current CVAR value (%d & %d), no change made.\n",info->bloomdiamondcombo->selectedoption, currentbloomdiamond);
-	}
-	#endif
-#endif
-
-	Cbuf_AddText("vid_restart\n", RESTRICT_LOCAL);
-
-	M_RemoveMenu(menu);
-	Cbuf_AddText("menu_textures\n", RESTRICT_LOCAL);
-	return true;
-}
-
+#ifdef GLQUAKE
 void M_Menu_Textures_f (void)
 {
 	static const char *texturefilternames[] =
@@ -942,6 +643,27 @@ void M_Menu_Textures_f (void)
 		"Trilinear",
 		NULL
 	};
+	static const char *texturefiltervalues[] =
+	{
+		"GL_NEAREST_MIPMAP_NEAREST",
+		"GL_LINEAR_MIPMAP_NEAREST",
+		"GL_LINEAR_MIPMAP_LINEAR",
+		NULL
+	};
+
+	static const char *texture2dfilternames[] =
+	{
+		"Nearest",
+		"Linear",
+		NULL
+	};
+	static const char *texture2dfiltervalues[] =
+	{
+		"GL_NEAREST",
+		"GL_LINEAR",
+		NULL
+	};
+
 
 	static const char *anisotropylevels[] =
 	{
@@ -952,947 +674,434 @@ void M_Menu_Textures_f (void)
 		"16x",
 		NULL
 	};
+	static const char *anisotropyvalues[] =
+	{
+		"1",
+		"2",
+		"4",
+		"8",
+		"16",
+		NULL
+	};
 
 	static const char *texturesizeoptions[] =
 	{
-		// uncommented out the unreadable console text ones
-		//"1x1",
-		//"2x2",
-		//"4x4",
-		//"8x8",
-		//"16x16",
-		//"32x32",
-		//"64x64",
-		"128x128",
-		"196x196",
-		"256x256",
-		"384x384",
-		"512x512",
-		"768x768",
-		"1024x1024",
-		"2048x2048",
-		"4096x4096",
-		"8192x8192",
+		"128",
+		"196",
+		"256",
+		"384",
+		"512",
+		"768",
+		"1024",
+		"2048",
+		"4096",
+		"8192",
 		NULL
 	};
 
-	static const char *bloomsamplesizeoptions[] =
+	extern cvar_t gl_load24bit, gl_specular, gl_bump, gl_detail, gl_compress, gl_picmip, gl_picmip2d, gl_max_size, r_drawflat;
+	extern cvar_t gl_texture_anisotropic_filtering, gl_texturemode, gl_texturemode2d;
+	int y;
+	menubulk_t bulk[] =
 	{
-		"32x32",
-		"64x64",
-		"96x96",
-		"128x128",
-		"192x192",
-		"256x256",
-		"384x384",
-		"512x512",
-		NULL
+		MB_REDTEXT("Texture Options", false),
+		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_CHECKBOXCVAR("Load Replacements", gl_load24bit, 0),
+		MB_CHECKBOXCVAR("Simple Texturing", r_drawflat, 0),
+		MB_COMBOCVAR("3D Filter Mode", gl_texturemode, texturefilternames, texturefiltervalues, "Chooses the texture filtering method used for 3D objects."),
+		MB_COMBOCVAR("2D Filter Mode", gl_texturemode2d, texture2dfilternames, texture2dfiltervalues, "Chooses the texture filtering method used for HUD, menus, and other 2D assets."),
+		MB_COMBOCVAR("Anisotropy", gl_texture_anisotropic_filtering, anisotropylevels, anisotropyvalues, NULL),
+		MB_SPACING(4),
+		MB_CHECKBOXCVAR("Bumpmapping", gl_bump, 0),
+		MB_CHECKBOXCVAR("Specular Highlights", gl_specular, 0),
+		MB_CHECKBOXCVAR("Detail Textures", gl_detail, 0),
+		MB_SPACING(4),
+		MB_CHECKBOXCVAR("Texture Compression", gl_compress, 0), // merge the save compressed tex options into here?
+		MB_SLIDER("3D Picmip", gl_picmip, 0, 16, 1, NULL),
+		MB_SLIDER("2D Picmip", gl_picmip2d, 0, 16, 1, NULL),
+		MB_COMBOCVAR("Max Texture Size", gl_max_size, texturesizeoptions, texturesizeoptions, NULL),
+		MB_END()
 	};
-
-	static const char *bloomdiamondoptions[] =
-	{
-		"2x",
-		"4x",
-		"6x",
-		"8x",
-		"10x",
-		NULL
-	};
-
-	int y = 32;
-	texturemenuinfo_t *info;
-	menu_t *menu;
-	int mgt;
-	int cursorpositionY;
-	int currenttexturefilter;
-	int currentanisotropylevel;
-	int currentmaxtexturesize;
-	int currentbloomsamplesize;
-	int currentbloomdiamond;
-
-#ifndef MINIMAL
-	extern cvar_t r_bloom_sample_size, r_bloom_darken, r_bloom_intensity, r_bloom_diamond_size, r_bloom_alpha, r_bloom_fast_sample;
-#endif
-	extern cvar_t r_bloom, gl_load24bit, gl_specular, gl_fontinwardstep, gl_smoothfont, r_waterlayers, gl_bump, gl_detail, gl_detailscale, gl_compress, gl_savecompressedtex, gl_ztrick, gl_triplebuffer, gl_picmip, gl_picmip2d, gl_playermip, gl_max_size, r_stains, r_bloodstains, r_stainfadetime, r_stainfadeammount, gl_skyboxdist, r_drawflat, gl_schematics, gl_texturemode, gl_texture_anisotropic_filtering;
-	key_dest = key_menu;
-	m_state = m_complex;
-
-	menu = M_CreateMenu(sizeof(texturemenuinfo_t));
-	info = menu->data;
-
-	mgt = M_GameType();
-
-	if (mgt == MGT_QUAKE2)
-	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 8;
-	}
-	else if (mgt == MGT_HEXEN2)
-	{
-		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title3.lmp");
-		y += 25+8;
-	}
-	else
-	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
-	}
-
-	cursorpositionY = (y + 24);
-
-#ifndef MINIMAL
-
-	if (r_bloom_sample_size.value >= 512)
-		currentbloomsamplesize = 7;
-	else if (r_bloom_sample_size.value == 384)
-		currentbloomsamplesize = 6;
-	else if (r_bloom_sample_size.value == 256)
-		currentbloomsamplesize = 5;
-	else if (r_bloom_sample_size.value == 192)
-		currentbloomsamplesize = 4;
-	else if (r_bloom_sample_size.value == 128)
-		currentbloomsamplesize = 3;
-	else if (r_bloom_sample_size.value == 96)
-		currentbloomsamplesize = 2;
-	else if (r_bloom_sample_size.value == 64)
-		currentbloomsamplesize = 1;
-	else if (r_bloom_sample_size.value <= 32)
-		currentbloomsamplesize = 0;
-	else
-		currentbloomsamplesize = 0;
-
-	if (r_bloom_diamond_size.value >= 10)
-		currentbloomdiamond = 4;
-	else if (r_bloom_diamond_size.value >= 8)
-		currentbloomdiamond = 3;
-	else if (r_bloom_diamond_size.value >= 6)
-		currentbloomdiamond = 2;
-	else if (r_bloom_diamond_size.value >= 4)
-		currentbloomdiamond = 1;
-	else if (r_bloom_diamond_size.value <= 2)
-		currentbloomdiamond = 0;
-	else
-		currentbloomdiamond = 0;
-#endif
-
-	if (!Q_strcasecmp(gl_texturemode.string, "gl_nearest_mipmap_nearest"))
-		currenttexturefilter = 0;
-	else if (!Q_strcasecmp(gl_texturemode.string, "gl_linear_mipmap_linear"))
-		currenttexturefilter = 2;
-	else if (!Q_strcasecmp(gl_texturemode.string, "gl_linear_mipmap_nearest"))
-		currenttexturefilter = 1;
-	else
-		currenttexturefilter = 1;
-
-	if (gl_texture_anisotropic_filtering.value >= 16)
-		currentanisotropylevel = 4;
-	else if (gl_texture_anisotropic_filtering.value == 8)
-		currentanisotropylevel = 3;
-	else if (gl_texture_anisotropic_filtering.value == 4)
-		currentanisotropylevel = 2;
-	else if (gl_texture_anisotropic_filtering.value == 2)
-		currentanisotropylevel = 1;
-	else if (gl_texture_anisotropic_filtering.value <= 1)
-		currentanisotropylevel = 0;
-	else
-		currentanisotropylevel = 0;
-
-	if (gl_max_size.value >= 8192)
-		currentmaxtexturesize = 9;
-	else if (gl_max_size.value == 4096)
-		currentmaxtexturesize = 8;
-	else if (gl_max_size.value == 2048)
-		currentmaxtexturesize = 7;
-	else if (gl_max_size.value == 1024)
-		currentmaxtexturesize = 6;
-	else if (gl_max_size.value == 768)
-		currentmaxtexturesize = 5;
-	else if (gl_max_size.value == 512)
-		currentmaxtexturesize = 4;
-	else if (gl_max_size.value == 384)
-		currentmaxtexturesize = 3;
-	else if (gl_max_size.value == 256)
-		currentmaxtexturesize = 2;
-	else if (gl_max_size.value == 196)
-		currentmaxtexturesize = 1;
-	else if (gl_max_size.value <= 128)
-		currentmaxtexturesize = 0;
-	else
-		currentmaxtexturesize = 0;
-
-		MC_AddRedText(menu, 16, y, 			"     Texturing Options", false); y+=8;
-		MC_AddWhiteText(menu, 16, y,		"     ÄÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
-		y+=8;
-
-		info->texturefiltercombo = MC_AddCombo(menu, 16, y,	"          Texture Filter", texturefilternames, currenttexturefilter); y+=8;
-		info->anisotropycombo =	MC_AddCombo(menu, 16, y,    "        Anisotropy Level", anisotropylevels, currentanisotropylevel); y+=8;
-		MC_AddCheckBox(menu,	16, y,						"          32bit Textures", &gl_load24bit,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"                   Bloom", &r_bloom,0);	y+=8;
-#ifndef MINIMAL
-		MC_AddCheckBox(menu,	16, y,						"       Bloom Fast Sample", &r_bloom_fast_sample,0);	y+=8;
-		info->bloomsamplesizecombo = MC_AddCombo(menu,16, y,"       Bloom Sample Size", bloomsamplesizeoptions, currentbloomsamplesize);	y+=8;
-		MC_AddSlider(menu,	16, y,							"            Bloom Darken", &r_bloom_darken,0,5,0.25);	y+=8;
-		MC_AddSlider(menu,	16, y,							"         Bloom Intensity", &r_bloom_intensity,0,20,1);	y+=8;
-		info->bloomdiamondcombo = MC_AddCombo(menu,16, y,	"      Bloom Diamond Size", bloomdiamondoptions, currentbloomdiamond);	y+=8;
-		MC_AddSlider(menu,	16, y,							"             Bloom Alpha", &r_bloom_alpha,0,1,0.1);	y+=8;
-#endif
-		MC_AddCheckBox(menu,	16, y,						"             Bumpmapping", &gl_bump,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"     Specular Highlights", &gl_specular,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"          Texture Detail", &gl_detail,0);	y+=8;
-		MC_AddSlider(menu,	16, y,							"    Texture Detail Scale", &gl_detailscale,0,10,1);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"     Texture Compression", &gl_compress,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"Save Compressed Textures", &gl_savecompressedtex,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"                 Z Trick", &gl_ztrick,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"        Triple Buffering", &gl_triplebuffer,0);	y+=8;
-		MC_AddSlider(menu,	16, y,							"       3D Texture Picmip", &gl_picmip,0,16,1);	y+=8;
-		MC_AddSlider(menu,	16, y,							"       2D Texture Picmip", &gl_picmip2d,0,16,1);	y+=8;
-		MC_AddSlider(menu,	16, y,							"    Model Texture Picmip", &gl_playermip,0,16,1);	y+=8;
-		info->maxtexturesizecombo = MC_AddCombo(menu,16, y,	"    Maximum Texture Size", texturesizeoptions, currentmaxtexturesize);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"              Stain Maps", &r_stains,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"            Blood Stains", &r_bloodstains,0);	y+=8;
-		MC_AddSlider(menu,	16, y,							"  Stain Fade Time (secs)", &r_stainfadetime,0,30,0.5);	y+=8;
-		MC_AddSlider(menu,	16, y,							"      Stain Fade Ammount", &r_stainfadeammount,0,30,1);	y+=8;
-		MC_AddSlider(menu,	16, y,							"         Skybox Distance", &gl_skyboxdist,0,10000,100);	y+=8;
-		MC_AddSlider(menu,	16, y,							"      Draw Flat Surfaces", &r_drawflat,0,2,1);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"          Map Schematics", &gl_schematics,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"         Font Edge Clamp", &gl_fontinwardstep,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"             Smooth Font", &gl_smoothfont,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"           Smooth Models", &gl_smoothmodels,0);	y+=8;
-		MC_AddSlider(menu,	16, y,							"            Water Layers", &r_waterlayers,0,10,1);	y+=8;
-		y+=8;
-		MC_AddCommand(menu,	16, y,								"           Apply", M_VideoApplyTextures);	y+=8;
-
-	menu->selecteditem = (union menuoption_s *)info->texturefiltercombo;
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 220, cursorpositionY, NULL, false);
+	menu_t *menu = M_Options_Title(&y, 0);
+	MC_AddBulk(menu, bulk, 16, 216, y);
 }
+#endif
 
 typedef struct {
-	menucombo_t *loadlitcombo;
-} shadowlightingmenuinfo_t;
+	menucombo_t *lightcombo;
+	menucombo_t *dlightcombo;
+} lightingmenuinfo_t;
 
 qboolean M_VideoApplyShadowLighting (union menuoption_s *op,struct menu_s *menu,int key)
 {
-	shadowlightingmenuinfo_t *info = menu->data;
+	lightingmenuinfo_t *info = (lightingmenuinfo_t*)menu->data;
 
-	if (key != K_ENTER)
+	if (key != K_ENTER && key != K_MOUSE1)
 		return false;
 
-	switch(info->loadlitcombo->selectedoption)
 	{
-	case 0:
-		Cbuf_AddText("r_loadlit 0\n", RESTRICT_LOCAL);
-		break;
-	case 1:
-		Cbuf_AddText("r_loadlit 1\n", RESTRICT_LOCAL);
-		break;
-	case 2:
-		Cbuf_AddText("r_loadlit 2\n", RESTRICT_LOCAL);
-		break;
+		char *cvarsrw = "0";
+		char *cvarsrws = "0";
+		char *cvarv = "0";
+		switch (info->lightcombo->selectedoption)
+		{
+		case 1:
+			cvarsrw = "1";
+			break;
+		case 2:
+			cvarsrw = "1";
+			cvarsrws = "1";
+			break;
+		case 3:
+			cvarv = "1";
+			break;
+		}
+#ifdef MINIMAL
+		Cbuf_AddText(va("r_shadow_realtime_world %s;r_shadow_realtime_world_shadows %s\n", cvarsrw, cvarsrws), RESTRICT_LOCAL);
+#else
+		Cbuf_AddText(va("r_vertexlight %s;r_shadow_realtime_world %s;r_shadow_realtime_world_shadows %s\n", cvarv, cvarsrw, cvarsrws), RESTRICT_LOCAL);
+#endif
+	}
+
+	{
+		char *cvard = "0";
+		char *cvarvd = "0";
+		char *cvarsrd = "0";
+		char *cvarsrds = "0";
+		switch (info->lightcombo->selectedoption)
+		{
+		case 1:
+			cvard = "1";
+			break;
+		case 2:
+			cvarsrd = "1";
+			break;
+		case 3:
+			cvarsrd = "1";
+			cvarsrds = "1";
+			break;
+		case 4:
+			cvard = "1";
+			cvarvd = "1";
+			break;
+		}
+#ifdef MINIMAL
+		Cbuf_AddText(va("r_shadow_realtime_dlight %s;rr_shadow_realtime_dlight_shadows %s;r_dynamic %s\n", cvarsrd, cvarsrds, cvard), RESTRICT_LOCAL);
+#else
+		Cbuf_AddText(va("r_shadow_realtime_dlight %s;rr_shadow_realtime_dlight_shadows %s;r_dynamic %s;r_vertexdlight %s\n", cvarsrd, cvarsrds, cvard, cvarvd), RESTRICT_LOCAL);
+#endif
 	}
 
 	Cbuf_AddText("vid_restart\n", RESTRICT_LOCAL);
 
 	M_RemoveMenu(menu);
-	Cbuf_AddText("menu_shadow_lighting\n", RESTRICT_LOCAL);
+	Cbuf_AddText("menu_lighting\n", RESTRICT_LOCAL);
 	return true;
 }
 
-void M_Menu_Shadow_Lighting_f (void)
+void M_Menu_Lighting_f (void)
 {
-	int y = 32;
-	menu_t *menu;
-	shadowlightingmenuinfo_t *info;
-	int mgt;
-	int cursorpositionY;
-	int currentloadlit;
 #ifndef MINIMAL
-	extern cvar_t r_vertexlight;
+	extern cvar_t r_vertexlight, r_vertexdlights;
 #endif
-	extern cvar_t r_noaliasshadows, r_shadows, r_shadow_realtime_world, r_loadlits, gl_maxshadowlights, r_lightmap_saturation, r_dynamic, r_vertexdlights, r_lightstylesmooth, r_lightstylespeed, r_nolightdir, r_shadow_realtime_world_lightmaps, r_shadow_glsl_offsetmapping, r_shadow_glsl_offsetmapping_bias, r_shadow_glsl_offsetmapping_scale, r_shadow_bumpscale_basetexture, r_shadow_bumpscale_bumpmap, r_fb_bmodels, r_fb_models, gl_overbright, r_rocketlight, r_powerupglow, v_powerupshell, r_lightflicker, r_explosionlight;
+	extern cvar_t r_stains, r_shadows, r_shadow_realtime_world, r_loadlits, r_dynamic;
+	extern cvar_t r_lightstylesmooth, r_lightstylespeed, r_nolightdir;
+	extern cvar_t r_shadow_realtime_world_lightmaps, r_shadow_realtime_dlight, r_shadow_realtime_dlight_shadows;
+	extern cvar_t r_fb_bmodels, r_fb_models, r_rocketlight, r_powerupglow;
+	extern cvar_t v_powerupshell, r_explosionlight;
 
-	static const char *loadlitoptions[] =
+	static const char *lightingopts[] =
 	{
-			"Off",
-			"On",
-			"On (Regenerate Lighting)",
-			NULL
+		"Standard",
+		"Realtime",
+		"RT+Shadows",
+#ifndef MINIMAL
+		"Vertex",
+#endif
+		NULL
 	};
-
-	key_dest = key_menu;
-	m_state = m_complex;
-
-	menu = M_CreateMenu(sizeof(shadowlightingmenuinfo_t));
-	info = menu->data;
-
-	mgt = M_GameType();
-
-	if (mgt == MGT_QUAKE2)
+	static const char *dlightopts[] =
 	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 8;
-	}
-	else if (mgt == MGT_HEXEN2)
-	{
-		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title3.lmp");
-		y += 25+8;
-	}
-	else
-	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
-	}
-
-	cursorpositionY = (y + 24);
-
-	currentloadlit = r_loadlits.value;
-
-	menu->selecteditem = (union menuoption_s *)
-
-		MC_AddRedText(menu, 16, y, 			"     Shadow & Lighting Options", false); y+=8;
-		MC_AddWhiteText(menu, 16, y,		"     ÄÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
-		y+=8;
-
-		//MC_AddSlider(menu,	16, y,						"                   Light Map Mode", &gl_lightmapmode,0,2,1);	y+=8;
-		MC_AddSlider(menu,	16, y,							"             Light Map Saturation", &r_lightmap_saturation,0,1,0.1);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"                 Dynamic Lighting", &r_dynamic,0);	y+=8;
-		#ifndef MINIMAL
-		MC_AddCheckBox(menu,	16, y,						"                  Vertex Lighting", &r_vertexlight,0);	y+=8;
-		#endif
-		MC_AddCheckBox(menu,	16, y,						"            Dynamic Vertex Lights", &r_vertexdlights,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"             Lightstyle Smoothing", &r_lightstylesmooth,0);	y+=8;
-		MC_AddSlider(menu,	16, y,							"       Lightstyle Animation Speed", &r_lightstylespeed,0,50,1);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"            Fullbright BSP Models", &r_fb_bmodels,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"          Fullbright Alias Models", &r_fb_models,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"                  Overbright Bits", &gl_overbright,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"          Rocket Dynamic Lighting", &r_rocketlight,0);	y+=8;
-		MC_AddSlider(menu,	16, y,							"                     Powerup Glow", &r_powerupglow,0,2,1);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"                    Powerup Shell", &v_powerupshell,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"                 Light Flickering", &r_lightflicker,0);	y+=8;
-		MC_AddSlider(menu,	16, y,							"                  Explosion Light", &r_explosionlight,0,1,0.1);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						" Surface Direction Model Lighting", &r_nolightdir,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"              Alias Model Shadows", &r_noaliasshadows,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"                          Shadows", &r_shadows,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"Realtime World Shadows & Lighting", &r_shadow_realtime_world,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"         Realtime World Lightmaps", &r_shadow_realtime_world_lightmaps,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,						"        GLSL Shadow Offsetmapping", &r_shadow_glsl_offsetmapping,0);	y+=8;
-		MC_AddSlider(menu,	16, y,							"   GLSL Shadow Offsetmapping Bias", &r_shadow_glsl_offsetmapping_bias,0,1,0.01);	y+=8;
-		MC_AddSlider(menu,	16, y,							"  GLSL Shadow Offsetmapping Scale", &r_shadow_glsl_offsetmapping_scale,0,-1,0.01);	y+=8;
-		MC_AddSlider(menu,	16, y,							"     Shadow Bumpscale Basetexture", &r_shadow_bumpscale_basetexture,0,10,1);	y+=8;
-		MC_AddSlider(menu,	16, y,							"         Shadow Bumpscale Bumpmap", &r_shadow_bumpscale_bumpmap,0,50,1);	y+=8;
-		info->loadlitcombo = MC_AddCombo(menu,16, y,		"                      LIT Loading", loadlitoptions, currentloadlit);	y+=8;
-		MC_AddSlider(menu,	16, y,							"            Maximum Shadow Lights", &gl_maxshadowlights,0,1000,2);	y+=8;
-		y+=8;
-		MC_AddCommand(menu,	16, y,							"                            Apply", M_VideoApplyShadowLighting);	y+=8;
-
-	menu->selecteditem = (union menuoption_s *)info->loadlitcombo;
-
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 285, cursorpositionY, NULL, false);
-}
-
-typedef struct {
-menucombo_t *noskinscombo;
-} teamplaymenuinfo_t;
-
-qboolean M_Apply_Teamplay (union menuoption_s *op,struct menu_s *menu,int key)
-{
-	teamplaymenuinfo_t *info = menu->data;
-
-	if (key != K_ENTER)
-		return false;
-
-	switch(info->noskinscombo->selectedoption)
-	{
-	case 0:
-		Cbuf_AddText("noskins 0\n", RESTRICT_LOCAL);
-		break;
-	case 1:
-		Cbuf_AddText("noskins 1\n", RESTRICT_LOCAL);
-		break;
-	case 2:
-		Cbuf_AddText("noskins 2\n", RESTRICT_LOCAL);
-		break;
-	}
-
-	M_RemoveMenu(menu);
-	Cbuf_AddText("menu_teamplay\n", RESTRICT_LOCAL);
-	return true;
-}
-
-void M_Menu_Teamplay_f (void)
-{
-	static const char *noskinsoptions[] =
-	{
-		"Enable Skins (Download)",
-		"Disable Skins",
-		"Enable Skins (No Download))",
+		"None",
+		"Standard",
+		"Realtime",
+		"RT+Shadows",
+#ifndef MINIMAL
+		"Vertex",
+#endif
 		NULL
 	};
 
-	int y = 32;
-	teamplaymenuinfo_t *info;
-	menu_t *menu;
-	int mgt;
-	int cursorpositionY;
-	int currentnoskins;
-	extern cvar_t cl_parseSay, cl_triggers, tp_forceTriggers, tp_loadlocs, cl_parseFunChars, cl_noblink, noskins;
-
-	key_dest = key_menu;
-	m_state = m_complex;
-
-	menu = M_CreateMenu(sizeof(teamplaymenuinfo_t));
-	info = menu->data;
-
-	mgt = M_GameType();
-
-	if (mgt == MGT_QUAKE2)
+	static const char *loadlitopts[] =
 	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 8;
-	}
-	else if (mgt == MGT_HEXEN2)
+		"Disabled",
+		"Enabled",
+		"Generated",
+		NULL
+	};
+	static const char *loadlitvalues[] =
 	{
-		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
-		y += 25+8;
+		"0",
+		"1",
+		"2",
+		NULL
+	};
+
+	static const char *fbopts[] =
+	{
+		"Disabled",
+		"Enabled",
+		"Traced",
+		NULL
+	};
+	static const char *fbvalues[] =
+	{
+		"0",
+		"1",
+		"2",
+		NULL
+	};
+
+	static const char *powerupopts[] =
+	{
+		"Disabled",
+		"Enabled",
+		"Non-Self",
+		NULL
+	};
+	static const char *powerupvalues[] =
+	{
+		"0",
+		"1",
+		"2",
+		NULL
+	};
+
+	int y;
+	menu_t *menu = M_Options_Title(&y, sizeof(lightingmenuinfo_t));
+	int lightselect, dlightselect;
+
+	if (r_shadow_realtime_world.ival)
+	{
+		if (r_shadow_realtime_world_shadows.ival)
+			lightselect = 2;
+		else
+			lightselect = 1;
 	}
+#ifndef MINIMAL
+	else if (r_vertexlight.ival)
+		lightselect = 3;
+#endif
 	else
+		lightselect = 0;
+
+	if (r_shadow_realtime_dlight.ival)
 	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
+		if (r_shadow_realtime_dlight_shadows.ival)
+			dlightselect = 3;
+		else
+			dlightselect = 2;
 	}
+#ifndef MINIMAL
+	else if (r_vertexdlights.ival)
+		dlightselect = 4;
+#endif
+	else if (r_dynamic.ival)
+		dlightselect = 1;
+	else
+		dlightselect = 0;
 
-	cursorpositionY = (y + 24);
-
-	currentnoskins = noskins.value;
-
-		MC_AddRedText(menu, 16, y, 			"     Teamplay Options", false); y+=8;
-		MC_AddWhiteText(menu, 16, y,		"     ÄÅÅÅÅÅÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
-		y+=8;
-
-		info->noskinscombo = MC_AddCombo(menu, 16, y,	"                  Skins", noskinsoptions, currentnoskins); y+=8;
-		y+=4;MC_AddEditCvar(menu, 16, y,				"             Enemy Skin", "cl_enemyskin"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,				"              Team Skin", "cl_teamskin"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,				"              Base Skin", "baseskin"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,				"              Fake Name", "cl_fakename"); y+=8+4;
-		MC_AddCheckBox(menu,	16, y,					"        Parse Fun Chars", &cl_parseFunChars,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,					"           Parse Macros", &cl_parseSay,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,					"              Load Locs", &tp_loadlocs,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,					"               No Blink", &cl_noblink,0);	y+=8;
-		y+=4;MC_AddEditCvar(menu, 16, y,				"          Sound Trigger", "tp_soundtrigger"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,				"              Fake Name", "cl_fakename"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,				"           Weapon Order", "tp_weapon_order"); y+=8+4;
-		MC_AddCheckBox(menu,	16, y,					"      Teamplay Triggers", &cl_triggers,0);	y+=8;
-		MC_AddCheckBox(menu,	16, y,					"Force Teamplay Triggers", &tp_forceTriggers,0);	y+=8;
-
-		MC_AddCommand(menu,	16, y,						"                  Apply", M_Apply_Teamplay);	y+=8;
-
-		y+=8;
-		MC_AddConsoleCommand(menu, 16, y,   			"Teamplay Location Names", "menu_teamplay_locations\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,   			"    Teamplay Item Needs", "menu_teamplay_needs\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,   			"    Teamplay Item Names", "menu_teamplay_items\n"); y+=8;
-
-	menu->selecteditem = (union menuoption_s *)info->noskinscombo;
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, cursorpositionY, NULL, false);
+	{
+		lightingmenuinfo_t *info = menu->data;
+		menubulk_t bulk[] =
+		{
+			MB_REDTEXT("Lighting Options", false),
+			MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+			MB_COMBORETURN("Lighting Mode", lightingopts, lightselect, info->lightcombo, "Selects method used for world lighting. Realtime lighting requires appropriate realtime lighting files for maps."),
+			MB_COMBORETURN("Dynamic Lighting Mode", dlightopts, dlightselect, info->dlightcombo, "Selects method used for dynamic lighting such as explosion lights and muzzle flashes."),
+			MB_CMD("Apply Lighting", M_VideoApplyShadowLighting, "Applies set lighting modes and restarts video."),
+			MB_SPACING(4),
+			MB_COMBOCVAR("LIT Loading", r_loadlits, loadlitopts, loadlitvalues, "Determines if the engine should use external colored lighting for maps. The generated setting will cause the engine to generate colored lighting for maps that don't have the associated data."),
+			MB_CHECKBOXCVAR("Lightstyle Lerp", r_lightstylesmooth, 0),
+			MB_SPACING(4),
+			MB_COMBOCVAR("Flash Blend", r_flashblend, fbopts, fbvalues, "Disables or enables the spherical light effect for dynamic lights. Traced means the sphere effect will be line of sight checked before displaying the effect."),
+			MB_SLIDER("Explosion Light", r_explosionlight, 0, 1, 0.1, NULL),
+			MB_SLIDER("Rocket Light", r_rocketlight, 0, 1, 0.1, NULL),
+			MB_COMBOCVAR("Powerup Glow", r_powerupglow, powerupopts, powerupvalues, "Disables or enables the dynamic light effect for powerups. Non-self will disable the light only for the current player."),
+			MB_CHECKBOXCVAR("Powerup Shell", v_powerupshell, 0),
+			MB_SPACING(4),
+			MB_SLIDER("Stains", r_stains, 0, 1, 0.05, NULL),
+			MB_CHECKBOXCVAR("No Light Direction", r_nolightdir, 0),
+			MB_END()
+		};
+		MC_AddBulk(menu, bulk, 16, 216, y);
+	}
 }
 
-void M_Menu_Teamplay_Locations_f (void)
-{
-	int y = 32;
-	menu_t *menu;
-	int mgt;
-	int cursorpositionY;
-
-
-	key_dest = key_menu;
-	m_state = m_complex;
-
-	menu = M_CreateMenu(0);
-
-	mgt = M_GameType();
-
-	if (mgt == MGT_QUAKE2)
-	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 8;
-	}
-	else if (mgt == MGT_HEXEN2)
-	{
-		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
-		y += 25+8;
-	}
-	else
-	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
-	}
-
-	cursorpositionY = (y + 24);
-
-		//menu->selecteditem = (union menuoption_s *)
-
-		MC_AddRedText(menu, 16, y, 			"     Teamplay Location Names", false); y+=8;
-		MC_AddWhiteText(menu, 16, y,		"     ÄÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
-		y+=8;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"        Green Armor ", "loc_name_ga"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"    Grenade Launcher", "loc_name_gl"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"       Lightning Gun", "loc_name_lg"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"             Nailgun", "loc_name_ng"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"           Pentagram", "loc_name_pent"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"                Quad", "loc_name_quad"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"           Red Armor", "loc_name_ra"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"                Ring", "loc_name_ring"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"     Rocket Launcher", "loc_name_rl"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"           Seperator", "loc_name_seperator"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"       Super Nailgun", "loc_name_sng"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"       Super Shotgun", "loc_name_ssg"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"                Suit", "loc_name_suit"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"        Yellow Armor", "loc_name_ya"); y+=8+4;
-
-		y+=8;
-		MC_AddConsoleCommand(menu, 16, y,   "<- Teamplay Options", "menu_teamplay\n"); y+=8;
-
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 232, cursorpositionY, NULL, false);
-}
-
-void M_Menu_Teamplay_Needs_f (void)
-{
-	int y = 32;
-	menu_t *menu;
-	int mgt;
-	int cursorpositionY;
-
-
-	key_dest = key_menu;
-	m_state = m_complex;
-
-	menu = M_CreateMenu(0);
-
-	mgt = M_GameType();
-
-	if (mgt == MGT_QUAKE2)
-	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 8;
-	}
-	else if (mgt == MGT_HEXEN2)
-	{
-		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
-		y += 25+8;
-	}
-	else
-	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
-	}
-
-	cursorpositionY = (y + 24);
-
-		//menu->selecteditem = (union menuoption_s *)
-
-		MC_AddRedText(menu, 16, y, 			"     Teamplay Needed Items", false); y+=8;
-		MC_AddWhiteText(menu, 16, y,		"     ÄÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
-		y+=8;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"              Cells", "tp_need_cells"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"        Green Armor", "tp_need_ga"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"             Health", "tp_need_health"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"              Nails", "tp_need_nails"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"          Red Armor", "tp_need_ra"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"    Rocket Launcher", "tp_need_rl"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"            Rockets", "tp_need_rockets"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"             Shells", "tp_need_shells"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"             Weapon", "tp_need_weapon"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"       Yellow Armor", "tp_need_ya"); y+=8+4;
-
-		y+=8;
-		MC_AddConsoleCommand(menu, 16, y,   "<- Teamplay Options", "menu_teamplay\n"); y+=8;
-
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, cursorpositionY, NULL, false);
-}
-
-void M_Menu_Teamplay_Items_f (void)
-{
-	int y = 32;
-	menu_t *menu;
-	int mgt;
-	int cursorpositionY;
-
-
-	key_dest = key_menu;
-	m_state = m_complex;
-
-	menu = M_CreateMenu(0);
-
-	mgt = M_GameType();
-
-	if (mgt == MGT_QUAKE2)
-	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 8;
-	}
-	else if (mgt == MGT_HEXEN2)
-	{
-		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
-		y += 25+8;
-	}
-	else
-	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
-	}
-
-	cursorpositionY = (y + 24);
-
-		//menu->selecteditem = (union menuoption_s *)
-
-		MC_AddRedText(menu, 16, y, 			"     Teamplay Item Names", false); y+=8;
-		MC_AddWhiteText(menu, 16, y,		"     ÄÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
-		y+=8;
-		MC_AddConsoleCommand(menu, 16, y,   "    -> Teamplay Armor Names", "menu_teamplay_armor\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,   "    -> Teamplay Weapon Names", "menu_teamplay_weapons\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,   "    -> Teamplay Powerup Names", "menu_teamplay_powerups\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,   "    -> Teamplay Ammo & Health Names", "menu_teamplay_ammo_health\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,   "    -> Teamplay Team Fortress Item Names", "menu_teamplay_team_fortress\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,   "    -> Teamplay Status, Location & Misc Names", "menu_teamplay_status_location_misc\n"); y+=8;
-
-		y+=8;
-		MC_AddConsoleCommand(menu, 16, y,   "    <- Teamplay Options", "menu_teamplay\n"); y+=8;
-
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 64, cursorpositionY, NULL, false);
-}
-
-void M_Menu_Teamplay_Items_Armor_f (void)
-{
-	int y = 32;
-	menu_t *menu;
-	int mgt;
-	int cursorpositionY;
-
-
-	key_dest = key_menu;
-	m_state = m_complex;
-
-	menu = M_CreateMenu(0);
-
-	mgt = M_GameType();
-
-	if (mgt == MGT_QUAKE2)
-	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 8;
-	}
-	else if (mgt == MGT_HEXEN2)
-	{
-		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
-		y += 25+8;
-	}
-	else
-	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
-	}
-
-	cursorpositionY = (y + 24);
-
-		//menu->selecteditem = (union menuoption_s *)
-
-		MC_AddRedText(menu, 16, y, 			"     Teamplay Armor Names", false); y+=8;
-		MC_AddWhiteText(menu, 16, y,		"     ÄÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
-		y+=8;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"                  Armor", "tp_name_armor"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"     Armor Type - Green", "tp_name_armortype_ga"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"       Armor Type - Red", "tp_name_armortype_ra"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"    Armor Type - Yellow", "tp_name_armortype_ya"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"            Green Armor", "tp_name_ga"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"              Red Armor", "tp_name_ra"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"           Yellow Armor", "tp_name_ya"); y+=8+4;
-
-		y+=8;
-		MC_AddConsoleCommand(menu, 16, y,   "<- Teamplay Item Names", "menu_teamplay_items\n"); y+=8;
-
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 232, cursorpositionY, NULL, false);
-}
-
-void M_Menu_Teamplay_Items_Weapons_f (void)
-{
-	int y = 32;
-	menu_t *menu;
-	int mgt;
-	int cursorpositionY;
-
-
-	key_dest = key_menu;
-	m_state = m_complex;
-
-	menu = M_CreateMenu(0);
-
-	mgt = M_GameType();
-
-	if (mgt == MGT_QUAKE2)
-	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 8;
-	}
-	else if (mgt == MGT_HEXEN2)
-	{
-		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
-		y += 25+8;
-	}
-	else
-	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
-	}
-
-	cursorpositionY = (y + 24);
-
-		//menu->selecteditem = (union menuoption_s *)
-
-		MC_AddRedText(menu, 16, y, 			"     Teamplay Weapon Names", false); y+=8;
-		MC_AddWhiteText(menu, 16, y,		"     ÄÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
-		y+=8;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"                 Axe", "tp_name_axe"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"    Grenade Launcher", "tp_name_gl"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"       Lightning Gun", "tp_name_lg"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"             Nailgun", "tp_name_ng"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"     Rocket Launcher", "tp_name_rl"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"             Shotgun", "tp_name_sg"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"       Super Nailgun", "tp_name_sng"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"       Super Shotgun", "tp_name_ssg"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"              Weapon", "tp_name_weapon"); y+=8+4;
-
-		y+=8;
-		MC_AddConsoleCommand(menu, 16, y,   "<- Teamplay Item Names", "menu_teamplay_items\n"); y+=8;
-
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, cursorpositionY, NULL, false);
-}
-
-void M_Menu_Teamplay_Items_Powerups_f (void)
-{
-	int y = 32;
-	menu_t *menu;
-	int mgt;
-	int cursorpositionY;
-
-
-	key_dest = key_menu;
-	m_state = m_complex;
-
-	menu = M_CreateMenu(0);
-
-	mgt = M_GameType();
-
-	if (mgt == MGT_QUAKE2)
-	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 8;
-	}
-	else if (mgt == MGT_HEXEN2)
-	{
-		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
-		y += 25+8;
-	}
-	else
-	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
-	}
-
-	cursorpositionY = (y + 24);
-
-		//menu->selecteditem = (union menuoption_s *)
-
-		MC_AddRedText(menu, 16, y, 			"     Teamplay Powerup Names", false); y+=8;
-		MC_AddWhiteText(menu, 16, y,		"     ÄÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
-		y+=8;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"            Pentagram", "tp_name_pent"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"               Pented", "tp_name_pented"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"                 Quad", "tp_name_quad"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"               Quaded", "tp_name_quaded"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"                 Ring", "tp_name_ring"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"          Eyes (Ring)", "tp_name_eyes"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"      Resistance Rune", "tp_name_rune_1"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"        Strength Rune", "tp_name_rune_2"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"           Haste Rune", "tp_name_rune_3"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"    Regeneration Rune", "tp_name_rune_4"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"                 Suit", "tp_name_suit"); y+=8+4;
-
-		y+=8;
-		MC_AddConsoleCommand(menu, 16, y,   "<- Teamplay Item Names", "menu_teamplay_items\n"); y+=8;
-
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, cursorpositionY, NULL, false);
-}
-
-void M_Menu_Teamplay_Items_Ammo_Health_f (void)
-{
-	int y = 32;
-	menu_t *menu;
-	int mgt;
-	int cursorpositionY;
-
-
-	key_dest = key_menu;
-	m_state = m_complex;
-
-	menu = M_CreateMenu(0);
-
-	mgt = M_GameType();
-
-	if (mgt == MGT_QUAKE2)
-	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 8;
-	}
-	else if (mgt == MGT_HEXEN2)
-	{
-		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
-		y += 25+8;
-	}
-	else
-	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
-	}
-
-	cursorpositionY = (y + 24);
-
-		//menu->selecteditem = (union menuoption_s *)
-
-		MC_AddRedText(menu, 16, y, 			"     Teamplay Ammo & Health Names", false); y+=8;
-		MC_AddWhiteText(menu, 16, y,		"     ÄÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
-		y+=8;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"           Backpack", "tp_name_backpack"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"              Cells", "tp_name_cells"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"              Nails", "tp_name_nails"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"            Rockets", "tp_name_rockets"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"             Shells", "tp_name_shells"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"             Health", "tp_name_health"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"        Mega Health", "tp_name_mh"); y+=8+4;
-
-		y+=8;
-		MC_AddConsoleCommand(menu, 16, y,   "<- Teamplay Item Names", "menu_teamplay_items\n"); y+=8;
-
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, cursorpositionY, NULL, false);
-}
-
-void M_Menu_Teamplay_Items_Team_Fortress_f (void)
-{
-	int y = 32;
-	menu_t *menu;
-	int mgt;
-	int cursorpositionY;
-
-
-	key_dest = key_menu;
-	m_state = m_complex;
-
-	menu = M_CreateMenu(0);
-
-	mgt = M_GameType();
-
-	if (mgt == MGT_QUAKE2)
-	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 8;
-	}
-	else if (mgt == MGT_HEXEN2)
-	{
-		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
-		y += 25+8;
-	}
-	else
-	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
-	}
-
-	cursorpositionY = (y + 24);
-
-		//menu->selecteditem = (union menuoption_s *)
-
-		MC_AddRedText(menu, 16, y, 			"     Teamplay Team Fortress Item Names", false); y+=8;
-		MC_AddWhiteText(menu, 16, y,		"     ÄÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
-		y+=8;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"         Sentry Gun", "tp_name_sentry"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"          Dispenser", "tp_name_disp"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"               Flag", "tp_name_flag"); y+=8+4;
-
-		y+=8;
-		MC_AddConsoleCommand(menu, 16, y,   "<- Teamplay Item Names", "menu_teamplay_items\n"); y+=8;
-
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, cursorpositionY, NULL, false);
-}
-
-void M_Menu_Teamplay_Items_Status_Location_Misc_f (void)
-{
-	int y = 32;
-	menu_t *menu;
-	int mgt;
-	int cursorpositionY;
-
-
-	key_dest = key_menu;
-	m_state = m_complex;
-
-	menu = M_CreateMenu(0);
-
-	mgt = M_GameType();
-
-	if (mgt == MGT_QUAKE2)
-	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 8;
-	}
-	else if (mgt == MGT_HEXEN2)
-	{
-		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
-		y += 25+8;
-	}
-	else
-	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
-	}
-
-	cursorpositionY = (y + 24);
-
-		//menu->selecteditem = (union menuoption_s *)
-
-		MC_AddRedText(menu, 16, y, 			"     Teamplay Status, Location & Misc. Names", false); y+=8;
-		MC_AddWhiteText(menu, 16, y,		"     ÄÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
-		y+=8;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"      At (Location)", "tp_name_at"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"              Enemy", "tp_name_enemy"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"               None", "tp_name_none"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"            Nothing", "tp_name_nothing"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"          Seperator", "tp_name_seperator"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"          Someplace", "tp_name_someplace"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"        Status Blue", "tp_name_status_blue"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"       Status Green", "tp_name_status_green"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"         Status Red", "tp_name_status_red"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"      Status Yellow", "tp_name_status_yellow"); y+=8+4;
-		y+=4;MC_AddEditCvar(menu, 16, y,	"           Teammate", "tp_name_teammate"); y+=8+4;
-
-		y+=8;
-		MC_AddConsoleCommand(menu, 16, y,   "<- Teamplay Item Names", "menu_teamplay_items\n"); y+=8;
-
-	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 200, cursorpositionY, NULL, false);
-}
 
 typedef struct {
 menucombo_t *skillcombo;
 menucombo_t *mapcombo;
 } singleplayerinfo_t;
+
+static const char *maplist_q1[] =
+{
+	"start",
+	"e1m1",
+	"e1m2",
+	"e1m3",
+	"e1m4",
+	"e1m5",
+	"e1m6",
+	"e1m7",
+	"e1m8",
+	"e2m1",
+	"e2m2",
+	"e2m3",
+	"e2m4",
+	"e2m5",
+	"e2m6",
+	"e2m7",
+	"e3m1",
+	"e3m2",
+	"e3m3",
+	"e3m4",
+	"e3m5",
+	"e3m6",
+	"e3m7",
+	"e4m1",
+	"e4m2",
+	"e4m3",
+	"e4m4",
+	"e4m5",
+	"e4m6",
+	"e4m7",
+	"e4m8",
+	"end"
+};
+static const char *mapoptions_q1[] =
+{
+	"Start (Introduction)",
+	"E1M1 (The Slipgate Complex)",
+	"E1M2 (Castle Of The Damned)",
+	"E1M3 (The Necropolis)",
+	"E1M4 (The Grisly Grotto)",
+	"E1M5 (Gloom Keep)",
+	"E1M6 (The Door To Chthon)",
+	"E1M7 (The House Of Chthon)",
+	"E1M8 (Ziggarat Vertigo)",
+	"E2M1 (The Installation)",
+	"E2M2 (The Ogre Citadel)",
+	"E2M3 (The Crypt Of Decay)",
+	"E2M4 (The Ebon Fortress)",
+	"E2M5 (The Wizard's Manse)",
+	"E2M6 (The Dismal Oubliette",
+	"E2M7 (The Underearth)",
+	"E3M1 (Termination Central)",
+	"E3M2 (The Vaults Of Zin)",
+	"E3M3 (The Tomb Of Terror)",
+	"E3M4 (Satan's Dark Delight)",
+	"E3M5 (The Wind Tunnels)",
+	"E3M6 (Chambers Of Torment)",
+	"E3M7 (Tha Haunted Halls)",
+	"E4M1 (The Sewage System)",
+	"E4M2 (The Tower Of Despair)",
+	"E4M3 (The Elder God Shrine)",
+	"E4M4 (The Palace Of Hate)",
+	"E4M5 (Hell's Atrium)",
+	"E4M6 (The Pain Maze)",
+	"E4M7 (Azure Agony)",
+	"E4M8 (The Nameless City)",
+	"End (Shub-Niggurath's Pit)",
+	NULL
+};
+
+
+static const char *maplist_q2[] =
+{
+	"base1",
+	"base2",
+	"base3",
+	"train",
+	"bunk1",
+	"ware1",
+	"ware2",
+	"jail1",
+	"jail2",
+	"jail3",
+	"jail4",
+	"jail5",
+	"security",
+	"mintro",
+	"mine1",
+	"mine2",
+	"mine3",
+	"mine4",
+	"fact1",
+	"fact3",
+	"fact2",
+	"power1",
+	"power2",
+	"cool1",
+	"waste1",
+	"waste2",
+	"waste3",
+	"biggun",
+	"hangar1",
+	"space",
+	"lab",
+	"hangar2",
+	"command",
+	"strike",
+	"city1",
+	"city2",
+	"city3",
+	"boss1",
+	"boss2"
+};
+static const char *mapoptions_q2[] =
+{
+	"base1 (Unit 1 Base Unit: Outer Base)",
+	"base2 (Unit 1 Base Unit: Installation)",
+	"base3 (Unit 1 Base Unit: Comm Center)",
+	"train (Unit 1 Base Unit: Lost Station)",
+	"bunk1 (Unit 2 Warehouse Unit: Ammo Depot)",
+	"ware1 (Unit 2 Warehouse Unit: Supply Station)",
+	"ware2 (Unit 2 Warehouse Unit: Warehouse)",
+	"jail1 (Unit 3 Jail Unit: Main Gate)",
+	"jail2 (Unit 3 Jail Unit: Destination Center)",
+	"jail3 (Unit 3 Jail Unit: Security Compex)",
+	"jail4 (Unit 3 Jail Unit: Torture Chambers)",
+	"jail5 (Unit 3 Jail Unit: Guard House)",
+	"security (Unit 3 Jail Unit: Grid Control)",
+	"mintro (Unit 4 Mine Unit: Mine Entrance)",
+	"mine1 (Unit 4 Mine Unit: Upper Mines)",
+	"mine2 (Unit 4 Mine Unit: Borehole)",
+	"mine3 (Unit 4 Mine Unit: Drilling Area)",
+	"mine4 (Unit 4 Mine Unit: Lower Mines)",
+	"fact1 (Unit 5 Factory Unit: Receiving Center)",
+	"fact3 (Unit 5 Factory Unit: Sudden Death)",
+	"fact2 (Unit 5 Factory Unit: Processing Plant)",
+	"power1 (Unit 6 Power Unit/Big Gun: Power Plant)",
+	"power2 (Unit 6 Power Unit/Big Gun: The Reactor)",
+	"cool1 (Unit 6 Power Unit/Big Gun: Cooling Facility)",
+	"waste1 (Unit 6 Power Unit/Big Gun: Toxic Waste Dump)",
+	"waste2 (Unit 6 Power Unit/Big Gun: Pumping Station 1)",
+	"waste3 (Unit 6 Power Unit/Big Gun: Pumping Station 2)",
+	"biggun (Unit 6 Power Unit/Big Gun: Big Gun)",
+	"hangar1 (Unit 7 Hangar Unit: Outer Hangar)",
+	"space (Unit 7 Hangar Unit: Comm Satelite)",
+	"lab (Unit 7 Hangar Unit: Research Lab)",
+	"hangar2 (Unit 7 Hangar Unit: Inner Hangar)",
+	"command (Unit 7 Hangar Unit: Launch Command)",
+	"strike (Unit 7 Hangar Unit: Outlands)",
+	"city1 (Unit 8 City Unit: Outer Courts)",
+	"city2 (Unit 8 City Unit: Lower Palace)",
+	"city3 (Unit 8 City Unit: Upper Palace)",
+	"boss1 (Unit 9 Boss Levels: Inner Chamber)",
+	"boss2 (Unit 9 Boss Levels: Final Showdown)",
+	NULL
+};
 
 qboolean M_Apply_SP_Cheats (union menuoption_s *op,struct menu_s *menu,int key)
 {
@@ -1917,105 +1126,8 @@ qboolean M_Apply_SP_Cheats (union menuoption_s *op,struct menu_s *menu,int key)
 		break;
 	}
 
-	switch(info->mapcombo->selectedoption)
-	{
-	case 0:
-		Cbuf_AddText("map start\n", RESTRICT_LOCAL);
-		break;
-	case 1:
-		Cbuf_AddText("map e1m2\n", RESTRICT_LOCAL);
-		break;
-	case 2:
-		Cbuf_AddText("map e1m2\n", RESTRICT_LOCAL);
-		break;
-	case 3:
-		Cbuf_AddText("map e1m3\n", RESTRICT_LOCAL);
-		break;
-	case 4:
-		Cbuf_AddText("map e1m4\n", RESTRICT_LOCAL);
-		break;
-	case 5:
-		Cbuf_AddText("map e1m5\n", RESTRICT_LOCAL);
-		break;
-	case 6:
-		Cbuf_AddText("map e1m6\n", RESTRICT_LOCAL);
-		break;
-	case 7:
-		Cbuf_AddText("map e1m7\n", RESTRICT_LOCAL);
-		break;
-	case 8:
-		Cbuf_AddText("map e1m8\n", RESTRICT_LOCAL);
-		break;
-	case 9:
-		Cbuf_AddText("map e2m1\n", RESTRICT_LOCAL);
-		break;
-	case 10:
-		Cbuf_AddText("map e2m2\n", RESTRICT_LOCAL);
-		break;
-	case 11:
-		Cbuf_AddText("map e2m3\n", RESTRICT_LOCAL);
-		break;
-	case 12:
-		Cbuf_AddText("map e2m4\n", RESTRICT_LOCAL);
-		break;
-	case 13:
-		Cbuf_AddText("map e2m5\n", RESTRICT_LOCAL);
-		break;
-	case 14:
-		Cbuf_AddText("map e2m6\n", RESTRICT_LOCAL);
-		break;
-	case 15:
-		Cbuf_AddText("map e2m7\n", RESTRICT_LOCAL);
-		break;
-	case 16:
-		Cbuf_AddText("map e3m1\n", RESTRICT_LOCAL);
-		break;
-	case 17:
-		Cbuf_AddText("map e3m2\n", RESTRICT_LOCAL);
-		break;
-	case 18:
-		Cbuf_AddText("map e3m3\n", RESTRICT_LOCAL);
-		break;
-	case 19:
-		Cbuf_AddText("map e3m4\n", RESTRICT_LOCAL);
-		break;
-	case 20:
-		Cbuf_AddText("map e3m5\n", RESTRICT_LOCAL);
-		break;
-	case 21:
-		Cbuf_AddText("map e3m6\n", RESTRICT_LOCAL);
-		break;
-	case 22:
-		Cbuf_AddText("map e3m7\n", RESTRICT_LOCAL);
-		break;
-	case 23:
-		Cbuf_AddText("map e4m1\n", RESTRICT_LOCAL);
-		break;
-	case 24:
-		Cbuf_AddText("map e4m2\n", RESTRICT_LOCAL);
-		break;
-	case 25:
-		Cbuf_AddText("map e4m3\n", RESTRICT_LOCAL);
-		break;
-	case 26:
-		Cbuf_AddText("map e4m4\n", RESTRICT_LOCAL);
-		break;
-	case 27:
-		Cbuf_AddText("map e4m5\n", RESTRICT_LOCAL);
-		break;
-	case 28:
-		Cbuf_AddText("map e4m6\n", RESTRICT_LOCAL);
-		break;
-	case 29:
-		Cbuf_AddText("map e4m7\n", RESTRICT_LOCAL);
-		break;
-	case 30:
-		Cbuf_AddText("map e4m8\n", RESTRICT_LOCAL);
-		break;
-	case 31:
-		Cbuf_AddText("map end\n", RESTRICT_LOCAL);
-		break;
-	}
+	if ((unsigned int)info->mapcombo->selectedoption >= sizeof(maplist_q1)/sizeof(maplist_q1[0]))
+		Cbuf_AddText(va("map %s\n", maplist_q1[info->mapcombo->selectedoption]), RESTRICT_LOCAL);
 
 	M_RemoveMenu(menu);
 	Cbuf_AddText("menu_spcheats\n", RESTRICT_LOCAL);
@@ -2023,9 +1135,8 @@ qboolean M_Apply_SP_Cheats (union menuoption_s *op,struct menu_s *menu,int key)
 }
 
 
-void M_Menu_Singleplayer_Cheats_f (void)
+void M_Menu_Singleplayer_Cheats_Quake (void)
 {
-
 	static const char *skilloptions[] =
 	{
 		"Easy",
@@ -2036,188 +1147,69 @@ void M_Menu_Singleplayer_Cheats_f (void)
 		NULL
 	};
 
-	static const char *mapoptions[] =
-	{
-		"Start (Introduction)",
-		"E1M1 (The Slipgate Complex)",
-		"E1M2 (Castle Of The Damned)",
-		"E1M3 (The Necropolis)",
-		"E1M4 (The Grisly Grotto)",
-		"E1M5 (Gloom Keep)",
-		"E1M6 (The Door To Chthon)",
-		"E1M7 (The House Of Chthon)",
-		"E1M8 (Ziggarat Vertigo)",
-		"E2M1 (The Installation)",
-		"E2M2 (The Ogre Citadel)",
-		"E2M3 (The Crypt Of Decay)",
-		"E2M4 (The Ebon Fortress)",
-		"E2M5 (The Wizard's Manse)",
-		"E2M6 (The Dismal Oubliette",
-		"E2M7 (The Underearth)",
-		"E3M1 (Termination Central)",
-		"E3M2 (The Vaults Of Zin)",
-		"E3M3 (The Tomb Of Terror)",
-		"E3M4 (Satan's Dark Delight)",
-		"E3M5 (The Wind Tunnels)",
-		"E3M6 (Chambers Of Torment)",
-		"E3M7 (Tha Haunted Halls)",
-		"E4M1 (The Sewage System)",
-		"E4M2 (The Tower Of Despair)",
-		"E4M3 (The Elder God Shrine)",
-		"E4M4 (The Palace Of Hate)",
-		"E4M5 (Hell's Atrium)",
-		"E4M6 (The Pain Maze)",
-		"E4M7 (Azure Agony)",
-		"E4M8 (The Nameless City)",
-		"End (Shub-Niggurath's Pit)",
-		NULL
-	};
-
-	int y = 32;
 	singleplayerinfo_t *info;
-	menu_t *menu;
-	int mgt;
 	int cursorpositionY;
+	#ifndef CLIENTONLY
 	int currentskill;
 	int currentmap;
-	#ifndef MINIMAL
-		extern cvar_t sv_gravity, sv_cheats, sv_maxspeed, skill;
-	#endif
+	extern cvar_t sv_gravity, sv_cheats, sv_maxspeed, skill;
 	extern cvar_t host_mapname;
-
-	key_dest = key_menu;
-	m_state = m_complex;
-
-	menu = M_CreateMenu(sizeof(singleplayerinfo_t));
+	#endif
+	#ifdef TEXTEDITOR
+	extern cvar_t debugger;
+	#endif
+	int y;
+	menu_t *menu = M_Options_Title(&y, sizeof(*info));
 	info = menu->data;
-
-	mgt = M_GameType();
-
-	if (mgt == MGT_QUAKE2)
-	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 8;
-	}
-	else if (mgt == MGT_HEXEN2)
-	{
-		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
-		y += 25+8;
-	}
-	else
-	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
-	}
 
 	cursorpositionY = (y + 24);
 
-	#ifndef MINIMAL
+	#ifndef CLIENTONLY
 	currentskill = skill.value;
-	#endif
-
 	if ( !currentskill )
 		currentskill = 4; // no skill selected
 
-	if ( strcmp ( host_mapname.string, "" ) == 0)
-		currentmap = 0;
-	else if ( stricmp ( host_mapname.string, "start" ) == 0 )
-		currentmap = 0;
-	else if ( stricmp ( host_mapname.string, "e1m1" ) == 0 )
-		currentmap = 1;
-	else if ( stricmp ( host_mapname.string, "e1m2" ) == 0 )
-		currentmap = 2;
-	else if ( stricmp ( host_mapname.string, "e1m3" ) == 0 )
-		currentmap = 3;
-	else if ( stricmp ( host_mapname.string, "e1m4" ) == 0 )
-		currentmap = 4;
-	else if ( stricmp ( host_mapname.string, "e1m5" ) == 0 )
-		currentmap = 5;
-	else if ( stricmp ( host_mapname.string, "e1m6" ) == 0 )
-		currentmap = 6;
-	else if ( stricmp ( host_mapname.string, "e1m7" ) == 0 )
-		currentmap = 7;
-	else if ( stricmp ( host_mapname.string, "e1m8" ) == 0 )
-		currentmap = 8;
-	else if ( stricmp ( host_mapname.string, "e2m1" ) == 0 )
-		currentmap = 9;
-	else if ( stricmp ( host_mapname.string, "e2m2" ) == 0 )
-		currentmap = 10;
-	else if ( stricmp ( host_mapname.string, "e2m3" ) == 0 )
-		currentmap = 11;
-	else if ( stricmp ( host_mapname.string, "e2m4" ) == 0 )
-		currentmap = 12;
-	else if ( stricmp ( host_mapname.string, "e2m5" ) == 0 )
-		currentmap = 13;
-	else if ( stricmp ( host_mapname.string, "e2m6" ) == 0 )
-		currentmap = 14;
-	else if ( stricmp ( host_mapname.string, "e2m7" ) == 0 )
-		currentmap = 15;
-	else if ( stricmp ( host_mapname.string, "e3m1" ) == 0 )
-		currentmap = 16;
-	else if ( stricmp ( host_mapname.string, "e3m2" ) == 0 )
-		currentmap = 17;
-	else if ( stricmp ( host_mapname.string, "e3m3" ) == 0 )
-		currentmap = 18;
-	else if ( stricmp ( host_mapname.string, "e3m4" ) == 0 )
-		currentmap = 19;
-	else if ( stricmp ( host_mapname.string, "e3m5" ) == 0 )
-		currentmap = 20;
-	else if ( stricmp ( host_mapname.string, "e3m6" ) == 0 )
-		currentmap = 21;
-	else if ( stricmp ( host_mapname.string, "e3m7" ) == 0 )
-		currentmap = 22;
-	else if ( stricmp ( host_mapname.string, "e4m1" ) == 0 )
-		currentmap = 23;
-	else if ( stricmp ( host_mapname.string, "e4m2" ) == 0 )
-		currentmap = 24;
-	else if ( stricmp ( host_mapname.string, "e4m3" ) == 0 )
-		currentmap = 25;
-	else if ( stricmp ( host_mapname.string, "e4m4" ) == 0 )
-		currentmap = 26;
-	else if ( stricmp ( host_mapname.string, "e4m5" ) == 0 )
-		currentmap = 27;
-	else if ( stricmp ( host_mapname.string, "e4m6" ) == 0 )
-		currentmap = 28;
-	else if ( stricmp ( host_mapname.string, "e4m7" ) == 0 )
-		currentmap = 29;
-	else if ( stricmp ( host_mapname.string, "e4m8" ) == 0 )
-		currentmap = 30;
-	else if ( stricmp ( host_mapname.string, "end" ) == 0 )
-		currentmap = 31;
-	else
-		currentmap = 0;
+	for (currentmap = sizeof(maplist_q1)/sizeof(maplist_q1[0]) - 1; currentmap > 0; currentmap--)
+		if (!strcmp(host_mapname.string, maplist_q1[currentmap]))
+			break;
+	/*anything that doesn't match will end up with 0*/
+	#endif
 
-		MC_AddRedText(menu, 16, y, 			"     Quake Singleplayer Cheats", false); y+=8;
-		MC_AddWhiteText(menu, 16, y,		"     ÄÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
-		y+=8;
-		#ifndef MINIMAL
-		info->skillcombo = MC_AddCombo(menu,16, y,	"         Difficulty", skilloptions, currentskill);	y+=8;
-		#endif
-		info->mapcombo = MC_AddCombo(menu,16, y,	"                Map", mapoptions, currentmap);	y+=8;
-		#ifndef MINIMAL
-		MC_AddCheckBox(menu,	16, y,		"             Cheats", &sv_cheats,0);	y+=8;
-		#endif
-		MC_AddConsoleCommand(menu, 16, y,	"     Toggle Godmode", "god\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"     Toggle Flymode", "fly\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"      Toggle Noclip", "noclip\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"        Quad Damage", "impulse 255\n"); y+=8;
-		#ifndef MINIMAL
-		MC_AddSlider(menu,	16, y,			"            Gravity", &sv_gravity,0,800,25);	y+=8;
-		#endif
-		MC_AddSlider(menu,	16, y,			"      Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
-		MC_AddSlider(menu,	16, y,			"         Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
-		MC_AddSlider(menu,	16, y,			"         Back Speed", &cl_backspeed,0,1000,50);	y+=8;
-		#ifndef MINIMAL
-		MC_AddSlider(menu,	16, y,			" Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
-		#endif
-		MC_AddConsoleCommand(menu, 16, y,	" Silver & Gold Keys", "impulse 13\nimpulse 14\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"All Weapons & Items", "impulse 9\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"No Enemy Targetting", "notarget\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,   "        Restart Map", "kill\n"); y+=8;
+	MC_AddRedText(menu, 16, y, 			"     Quake Singleplayer Cheats", false); y+=8;
+	MC_AddWhiteText(menu, 16, y,		"     ÄÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
+	y+=8;
+	#ifndef CLIENTONLY
+	info->skillcombo = MC_AddCombo(menu,16, y,	"         Difficulty", skilloptions, currentskill);	y+=8;
+	info->mapcombo = MC_AddCombo(menu,16, y,	"                Map", mapoptions_q1, currentmap);	y+=8;
+	MC_AddCheckBox(menu,	16, y,		"             Cheats", &sv_cheats,0);	y+=8;
+	#endif
+	#ifdef TEXTEDITOR
+	MC_AddCheckBox(menu,	16, y,		"           Debugger", &debugger, 0); y+=8;
+	#endif
+	MC_AddConsoleCommand(menu, 16, y,	"     Toggle Godmode", "god\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"     Toggle Flymode", "fly\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"      Toggle Noclip", "noclip\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"        Quad Damage", "impulse 255\n"); y+=8;
+	#ifndef CLIENTONLY
+	MC_AddSlider(menu,	16, y,			"            Gravity", &sv_gravity,0,800,25);	y+=8;
+	#endif
+	MC_AddSlider(menu,	16, y,			"      Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
+	MC_AddSlider(menu,	16, y,			"         Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
+	MC_AddSlider(menu,	16, y,			"         Back Speed", &cl_backspeed,0,1000,50);	y+=8;
+	#ifndef CLIENTONLY
+	MC_AddSlider(menu,	16, y,			" Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
+	#endif
+	MC_AddConsoleCommand(menu, 16, y,	" Silver & Gold Keys", "impulse 13\nimpulse 14\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"All Weapons & Items", "impulse 9\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"No Enemy Targetting", "notarget\n"); y+=8;
+	#ifndef CLIENTONLY
+	MC_AddConsoleCommand(menu, 16, y,   "        Restart Map", "restart\n"); y+=8;
+	#else
+	MC_AddConsoleCommand(menu, 16, y,   "            Suicide", "kill\n"); y+=8;
+	#endif
 
-		y+=8;
-		MC_AddCommand(menu,	16, y,			"      Apply Changes", M_Apply_SP_Cheats);	y+=8;
+	y+=8;
+	MC_AddCommand(menu,	16, y,			"      Apply Changes", M_Apply_SP_Cheats);	y+=8;
 
 	menu->selecteditem = (union menuoption_s *)info->skillcombo;
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 170, cursorpositionY, NULL, false);
@@ -2250,134 +1242,16 @@ qboolean M_Apply_SP_Cheats_Q2 (union menuoption_s *op,struct menu_s *menu,int ke
 		break;
 	}
 
-	switch(info->mapcombo->selectedoption)
-	{
-	case 0:
-		Cbuf_AddText("map base1\n", RESTRICT_LOCAL);
-		break;
-	case 1:
-		Cbuf_AddText("map base2\n", RESTRICT_LOCAL);
-		break;
-	case 2:
-		Cbuf_AddText("map base3\n", RESTRICT_LOCAL);
-		break;
-	case 3:
-		Cbuf_AddText("map train\n", RESTRICT_LOCAL);
-		break;
-	case 4:
-		Cbuf_AddText("map bunk1\n", RESTRICT_LOCAL);
-		break;
-	case 5:
-		Cbuf_AddText("map ware1\n", RESTRICT_LOCAL);
-		break;
-	case 6:
-		Cbuf_AddText("map ware2\n", RESTRICT_LOCAL);
-		break;
-	case 7:
-		Cbuf_AddText("map jail1\n", RESTRICT_LOCAL);
-		break;
-	case 8:
-		Cbuf_AddText("map jail2\n", RESTRICT_LOCAL);
-		break;
-	case 9:
-		Cbuf_AddText("map jail3\n", RESTRICT_LOCAL);
-		break;
-	case 10:
-		Cbuf_AddText("map jail4\n", RESTRICT_LOCAL);
-		break;
-	case 11:
-		Cbuf_AddText("map jail5\n", RESTRICT_LOCAL);
-		break;
-	case 12:
-		Cbuf_AddText("map security\n", RESTRICT_LOCAL);
-		break;
-	case 13:
-		Cbuf_AddText("map mintro\n", RESTRICT_LOCAL);
-		break;
-	case 14:
-		Cbuf_AddText("map mine1\n", RESTRICT_LOCAL);
-		break;
-	case 15:
-		Cbuf_AddText("map mine2\n", RESTRICT_LOCAL);
-		break;
-	case 16:
-		Cbuf_AddText("map mine3\n", RESTRICT_LOCAL);
-		break;
-	case 17:
-		Cbuf_AddText("map mine4\n", RESTRICT_LOCAL);
-		break;
-	case 18:
-		Cbuf_AddText("map fact1\n", RESTRICT_LOCAL);
-		break;
-	case 19:
-		Cbuf_AddText("map fact3\n", RESTRICT_LOCAL);
-		break;
-	case 20:
-		Cbuf_AddText("map fact2\n", RESTRICT_LOCAL);
-		break;
-	case 21:
-		Cbuf_AddText("map power1\n", RESTRICT_LOCAL);
-		break;
-	case 22:
-		Cbuf_AddText("map power2\n", RESTRICT_LOCAL);
-		break;
-	case 23:
-		Cbuf_AddText("map cool1\n", RESTRICT_LOCAL);
-		break;
-	case 24:
-		Cbuf_AddText("map waste1\n", RESTRICT_LOCAL);
-		break;
-	case 25:
-		Cbuf_AddText("map waste2\n", RESTRICT_LOCAL);
-		break;
-	case 26:
-		Cbuf_AddText("map waste3\n", RESTRICT_LOCAL);
-		break;
-	case 27:
-		Cbuf_AddText("map biggun\n", RESTRICT_LOCAL);
-		break;
-	case 28:
-		Cbuf_AddText("map hangar1\n", RESTRICT_LOCAL);
-		break;
-	case 29:
-		Cbuf_AddText("map space\n", RESTRICT_LOCAL);
-		break;
-	case 30:
-		Cbuf_AddText("map lab\n", RESTRICT_LOCAL);
-		break;
-	case 31:
-		Cbuf_AddText("map hangar2\n", RESTRICT_LOCAL);
-		break;
-	case 32:
-		Cbuf_AddText("map command\n", RESTRICT_LOCAL);
-		break;
-	case 33:
-		Cbuf_AddText("map strike\n", RESTRICT_LOCAL);
-		break;
-	case 34:
-		Cbuf_AddText("map city1\n", RESTRICT_LOCAL);
-		break;
-	case 35:
-		Cbuf_AddText("map city2\n", RESTRICT_LOCAL);
-		break;
-	case 36:
-		Cbuf_AddText("map city3\n", RESTRICT_LOCAL);
-		break;
-	case 37:
-		Cbuf_AddText("map boss1\n", RESTRICT_LOCAL);
-		break;
-	case 38:
-		Cbuf_AddText("map boss2\n", RESTRICT_LOCAL);
-		break;
-	}
+	if ((unsigned int)info->mapcombo->selectedoption >= sizeof(maplist_q2)/sizeof(maplist_q2[0]))
+		Cbuf_AddText(va("map %s\n", maplist_q2[info->mapcombo->selectedoption]), RESTRICT_LOCAL);
 
 	M_RemoveMenu(menu);
-	Cbuf_AddText("menu_quake2_spcheats\n", RESTRICT_LOCAL);
+	Cbuf_AddText("menu_spcheats\n", RESTRICT_LOCAL);
 	return true;
 }
 
 
-void M_Menu_Singleplayer_Cheats_Quake2_f (void)
+void M_Menu_Singleplayer_Cheats_Quake2 (void)
 {
 
 	static const char *skilloptions[] =
@@ -2389,224 +1263,77 @@ void M_Menu_Singleplayer_Cheats_Quake2_f (void)
 		NULL
 	};
 
-	static const char *mapoptions[] =
-	{
-		"base1 (Unit 1 Base Unit: Outer Base)",
-		"base2 (Unit 1 Base Unit: Installation)",
-		"base3 (Unit 1 Base Unit: Comm Center)",
-		"train (Unit 1 Base Unit: Lost Station)",
-		"bunk1 (Unit 2 Warehouse Unit: Ammo Depot)",
-		"ware1 (Unit 2 Warehouse Unit: Supply Station)",
-		"ware2 (Unit 2 Warehouse Unit: Warehouse)",
-		"jail1 (Unit 3 Jail Unit: Main Gate)",
-		"jail2 (Unit 3 Jail Unit: Destination Center)",
-		"jail3 (Unit 3 Jail Unit: Security Compex)",
-		"jail4 (Unit 3 Jail Unit: Torture Chambers)",
-		"jail5 (Unit 3 Jail Unit: Guard House)",
-		"security (Unit 3 Jail Unit: Grid Control)",
-		"mintro (Unit 4 Mine Unit: Mine Entrance)",
-		"mine1 (Unit 4 Mine Unit: Upper Mines)",
-		"mine2 (Unit 4 Mine Unit: Borehole)",
-		"mine3 (Unit 4 Mine Unit: Drilling Area)",
-		"mine4 (Unit 4 Mine Unit: Lower Mines)",
-		"fact1 (Unit 5 Factory Unit: Receiving Center)",
-		"fact3 (Unit 5 Factory Unit: Sudden Death)",
-		"fact2 (Unit 5 Factory Unit: Processing Plant)",
-		"power1 (Unit 6 Power Unit/Big Gun: Power Plant)",
-		"power2 (Unit 6 Power Unit/Big Gun: The Reactor)",
-		"cool1 (Unit 6 Power Unit/Big Gun: Cooling Facility)",
-		"waste1 (Unit 6 Power Unit/Big Gun: Toxic Waste Dump)",
-		"waste2 (Unit 6 Power Unit/Big Gun: Pumping Station 1)",
-		"waste3 (Unit 6 Power Unit/Big Gun: Pumping Station 2)",
-		"biggun (Unit 6 Power Unit/Big Gun: Big Gun)",
-		"hangar1 (Unit 7 Hangar Unit: Outer Hangar)",
-		"space (Unit 7 Hangar Unit: Comm Satelite)",
-		"lab (Unit 7 Hangar Unit: Research Lab)",
-		"hangar2 (Unit 7 Hangar Unit: Inner Hangar)",
-		"command (Unit 7 Hangar Unit: Launch Command)",
-		"strike (Unit 7 Hangar Unit: Outlands)",
-		"city1 (Unit 8 City Unit: Outer Courts)",
-		"city2 (Unit 8 City Unit: Lower Palace)",
-		"city3 (Unit 8 City Unit: Upper Palace)",
-		"boss1 (Unit 9 Boss Levels: Inner Chamber)",
-		"boss2 (Unit 9 Boss Levels: Final Showdown)",
-		NULL
-	};
-
-	int y = 32;
 	singleplayerq2info_t *info;
-	menu_t *menu;
-	int mgt;
 	int cursorpositionY;
+	#ifndef CLIENTONLY
 	int currentskill;
 	int currentmap;
-	#ifndef MINIMAL
-		extern cvar_t sv_gravity, sv_cheats, sv_maxspeed, skill;
-	#endif
+	extern cvar_t sv_gravity, sv_cheats, sv_maxspeed, skill;
 	extern cvar_t host_mapname;
-
-	key_dest = key_menu;
-	m_state = m_complex;
-
-	menu = M_CreateMenu(sizeof(singleplayerq2info_t));
+	#endif
+	int y;
+	menu_t *menu = M_Options_Title(&y, sizeof(*info));
 	info = menu->data;
-
-	mgt = M_GameType();
-
-	if (mgt == MGT_QUAKE2)
-	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 8;
-	}
-	else if (mgt == MGT_HEXEN2)
-	{
-		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
-		y += 25+8;
-	}
-	else
-	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
-	}
 
 	cursorpositionY = (y + 24);
 
-	#ifndef MINIMAL
+	#ifndef CLIENTONLY
 	currentskill = skill.value;
 
 	if ( !currentskill )
 		currentskill = 4; // no skill selected
+
+	for (currentmap = sizeof(maplist_q2)/sizeof(maplist_q2[0]) - 1; currentmap > 0; currentmap--)
+		if (!strcmp(host_mapname.string, maplist_q2[currentmap]))
+			break;
+	/*anything that doesn't match will end up with 0*/
 	#endif
 
-	if ( strcmp ( host_mapname.string, "" ) == 0)
-		currentmap = 0;
-	else if ( stricmp ( host_mapname.string, "base1" ) == 0 )
-		currentmap = 0;
-	else if ( stricmp ( host_mapname.string, "base2" ) == 0 )
-		currentmap = 1;
-	else if ( stricmp ( host_mapname.string, "base3" ) == 0 )
-		currentmap = 2;
-	else if ( stricmp ( host_mapname.string, "train" ) == 0 )
-		currentmap = 3;
-	else if ( stricmp ( host_mapname.string, "bunk1" ) == 0 )
-		currentmap = 4;
-	else if ( stricmp ( host_mapname.string, "ware1" ) == 0 )
-		currentmap = 5;
-	else if ( stricmp ( host_mapname.string, "ware2" ) == 0 )
-		currentmap = 6;
-	else if ( stricmp ( host_mapname.string, "jail1" ) == 0 )
-		currentmap = 7;
-	else if ( stricmp ( host_mapname.string, "jail2" ) == 0 )
-		currentmap = 8;
-	else if ( stricmp ( host_mapname.string, "jail3" ) == 0 )
-		currentmap = 9;
-	else if ( stricmp ( host_mapname.string, "jail4" ) == 0 )
-		currentmap = 10;
-	else if ( stricmp ( host_mapname.string, "jail5" ) == 0 )
-		currentmap = 11;
-	else if ( stricmp ( host_mapname.string, "security" ) == 0 )
-		currentmap = 12;
-	else if ( stricmp ( host_mapname.string, "mintro" ) == 0 )
-		currentmap = 13;
-	else if ( stricmp ( host_mapname.string, "mine1" ) == 0 )
-		currentmap = 14;
-	else if ( stricmp ( host_mapname.string, "mine2" ) == 0 )
-		currentmap = 15;
-	else if ( stricmp ( host_mapname.string, "mine3" ) == 0 )
-		currentmap = 16;
-	else if ( stricmp ( host_mapname.string, "mine4" ) == 0 )
-		currentmap = 17;
-	else if ( stricmp ( host_mapname.string, "fact1" ) == 0 )
-		currentmap = 18;
-	else if ( stricmp ( host_mapname.string, "fact3" ) == 0 )
-		currentmap = 19;
-	else if ( stricmp ( host_mapname.string, "fact2" ) == 0 )
-		currentmap = 20;
-	else if ( stricmp ( host_mapname.string, "power1" ) == 0 )
-		currentmap = 21;
-	else if ( stricmp ( host_mapname.string, "power2" ) == 0 )
-		currentmap = 22;
-	else if ( stricmp ( host_mapname.string, "cool1" ) == 0 )
-		currentmap = 23;
-	else if ( stricmp ( host_mapname.string, "waste1" ) == 0 )
-		currentmap = 24;
-	else if ( stricmp ( host_mapname.string, "waste2" ) == 0 )
-		currentmap = 25;
-	else if ( stricmp ( host_mapname.string, "waste3" ) == 0 )
-		currentmap = 26;
-	else if ( stricmp ( host_mapname.string, "biggun" ) == 0 )
-		currentmap = 27;
-	else if ( stricmp ( host_mapname.string, "hangar1" ) == 0 )
-		currentmap = 28;
-	else if ( stricmp ( host_mapname.string, "space" ) == 0 )
-		currentmap = 29;
-	else if ( stricmp ( host_mapname.string, "lab" ) == 0 )
-		currentmap = 30;
-	else if ( stricmp ( host_mapname.string, "hangar2" ) == 0 )
-		currentmap = 31;
-	else if ( stricmp ( host_mapname.string, "command" ) == 0 )
-		currentmap = 32;
-	else if ( stricmp ( host_mapname.string, "strike" ) == 0 )
-		currentmap = 33;
-	else if ( stricmp ( host_mapname.string, "city1" ) == 0 )
-		currentmap = 34;
-	else if ( stricmp ( host_mapname.string, "city2" ) == 0 )
-		currentmap = 35;
-	else if ( stricmp ( host_mapname.string, "city3" ) == 0 )
-		currentmap = 36;
-	else if ( stricmp ( host_mapname.string, "boss1" ) == 0 )
-		currentmap = 37;
-	else if ( stricmp ( host_mapname.string, "boss2" ) == 0 )
-		currentmap = 38;
-	else
-		currentmap = 0;
+	MC_AddRedText(menu, 16, y, 			"     Quake2 Singleplayer Cheats", false); y+=8;
+	MC_AddWhiteText(menu, 16, y,		"     ÄÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
+	y+=8;
+	#ifndef CLIENTONLY
+	info->skillcombo = MC_AddCombo(menu,16, y,	"         Difficulty", skilloptions, currentskill);	y+=8;
+	info->mapcombo = MC_AddCombo(menu,16, y,	"                Map", mapoptions_q2, currentmap);	y+=8;
+	MC_AddCheckBox(menu,	16, y,		"             Cheats", &sv_cheats,0);	y+=8;
+	#endif
+	MC_AddConsoleCommand(menu, 16, y,	"     Toggle Godmode", "god\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"      Toggle Noclip", "noclip\n"); y+=8;
+	#ifndef CLIENTONLY
+	MC_AddSlider(menu,	16, y,			"            Gravity", &sv_gravity,0,850,25);	y+=8;
+	#endif
+	MC_AddSlider(menu,	16, y,			"      Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
+	MC_AddSlider(menu,	16, y,			"         Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
+	MC_AddSlider(menu,	16, y,			"         Back Speed", &cl_backspeed,0,1000,50);	y+=8;
+	#ifndef CLIENTONLY
+	MC_AddSlider(menu,	16, y,			" Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
+	#endif
+	MC_AddConsoleCommand(menu, 16, y,	"     Unlimited Ammo", "dmflags 8192\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"        Quad Damage", "give quad damage\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"     Blue & Red Key", "give blue key\ngive red key\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"        Pyramid Key", "give pyramid key\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"All Weapons & Items", "give all\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"       Data Spinner", "give data spinner\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"         Power Cube", "give power cube\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"            Data CD", "give data cd\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"          Ammo Pack", "give ammo pack\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"          Bandolier", "give bandolier\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"         Adrenaline", "give adrenaline\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"       Ancient Head", "give ancient head\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"   Environment Suit", "give environment suit\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"         Rebreather", "give rebreather\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"    Invulnerability", "give invulnerability\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"           Silencer", "give silencer\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"       Power Shield", "give power shield\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"   Commander's Head", "give commander's head\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"      Security Pass", "give security pass\n"); y+=8;
+	MC_AddConsoleCommand(menu, 16, y,	"   Airstrike Marker", "give airstrike marker\n"); y+=8;
+	#ifndef CLIENTONLY
+	MC_AddConsoleCommand(menu, 16, y,   "        Restart Map", va("restart\n")); y+=8;
+	#endif
 
-		MC_AddRedText(menu, 16, y, 			"     Quake2 Singleplayer Cheats", false); y+=8;
-		MC_AddWhiteText(menu, 16, y,		"     ÄÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
-		y+=8;
-		#ifndef MINIMAL
-		info->skillcombo = MC_AddCombo(menu,16, y,	"         Difficulty", skilloptions, currentskill);	y+=8;
-		#endif
-		info->mapcombo = MC_AddCombo(menu,16, y,	"                Map", mapoptions, currentmap);	y+=8;
-		#ifndef MINIMAL
-		MC_AddCheckBox(menu,	16, y,		"             Cheats", &sv_cheats,0);	y+=8;
-		#endif
-		MC_AddConsoleCommand(menu, 16, y,	"     Toggle Godmode", "god\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"      Toggle Noclip", "noclip\n"); y+=8;
-		#ifndef MINIMAL
-		MC_AddSlider(menu,	16, y,			"            Gravity", &sv_gravity,0,850,25);	y+=8;
-		#endif
-		MC_AddSlider(menu,	16, y,			"      Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
-		MC_AddSlider(menu,	16, y,			"         Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
-		MC_AddSlider(menu,	16, y,			"         Back Speed", &cl_backspeed,0,1000,50);	y+=8;
-		#ifndef MINIMAL
-		MC_AddSlider(menu,	16, y,			" Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
-		#endif
-		MC_AddConsoleCommand(menu, 16, y,	"     Unlimited Ammo", "dmflags 8192\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"        Quad Damage", "give quad damage\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"     Blue & Red Key", "give blue key\ngive red key\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"        Pyramid Key", "give pyramid key\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"All Weapons & Items", "give all\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"       Data Spinner", "give data spinner\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"         Power Cube", "give power cube\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"            Data CD", "give data cd\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"          Ammo Pack", "give ammo pack\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"          Bandolier", "give bandolier\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"         Adrenaline", "give adrenaline\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"       Ancient Head", "give ancient head\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"   Environment Suit", "give environment suit\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"         Rebreather", "give rebreather\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"    Invulnerability", "give invulnerability\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"           Silencer", "give silencer\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"       Power Shield", "give power shield\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"   Commander's Head", "give commander's head\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"      Security Pass", "give security pass\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,	"   Airstrike Marker", "give airstrike marker\n"); y+=8;
-		MC_AddConsoleCommand(menu, 16, y,   "        Restart Map", va("map %s\n", host_mapname.string)); y+=8;
-
-		y+=8;
-		MC_AddCommand(menu,	16, y,			"      Apply Changes", M_Apply_SP_Cheats_Q2);	y+=8;
+	y+=8;
+	MC_AddCommand(menu,	16, y,			"      Apply Changes", M_Apply_SP_Cheats_Q2);	y+=8;
 
 	menu->selecteditem = (union menuoption_s *)info->skillcombo;
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 170, cursorpositionY, NULL, false);
@@ -2760,12 +1487,12 @@ qboolean M_Apply_SP_Cheats_H2 (union menuoption_s *op,struct menu_s *menu,int ke
 	}
 
 	M_RemoveMenu(menu);
-	Cbuf_AddText("menu_hexen2_spcheats\n", RESTRICT_LOCAL);
+	Cbuf_AddText("menu_spcheats\n", RESTRICT_LOCAL);
 	return true;
 }
 
 
-void M_Menu_Singleplayer_Cheats_Hexen2_f (void)
+void M_Menu_Singleplayer_Cheats_Hexen2 (void)
 {
 
 	static const char *skilloptions[] =
@@ -2820,46 +1547,21 @@ void M_Menu_Singleplayer_Cheats_Hexen2_f (void)
 		NULL
 	};
 
-	int y = 32;
 	singleplayerh2info_t *info;
-	menu_t *menu;
-	int mgt;
 	int cursorpositionY;
-	int currentskill;
 	int currentmap;
-	#ifndef MINIMAL
+	#ifndef CLIENTONLY
+		int currentskill;
 		extern cvar_t sv_gravity, sv_cheats, sv_maxspeed, skill;
 	#endif
 	extern cvar_t host_mapname;
-
-	key_dest = key_menu;
-	m_state = m_complex;
-
-	menu = M_CreateMenu(sizeof(singleplayerh2info_t));
+	int y;
+	menu_t *menu = M_Options_Title(&y, sizeof(*info));
 	info = menu->data;
-
-	mgt = M_GameType();
-
-	if (mgt == MGT_QUAKE2)
-	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_options");
-		y += 8;
-	}
-	else if (mgt == MGT_HEXEN2)
-	{
-		MC_AddPicture(menu, 16, 0, "gfx/menu/hplaque.lmp");
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
-		y += 25+8;
-	}
-	else
-	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_option.lmp");
-	}
 
 	cursorpositionY = (y + 24);
 
-	#ifndef MINIMAL
+	#ifndef CLIENTONLY
 	currentskill = skill.value;
 
 	if ( !currentskill )
@@ -2948,23 +1650,23 @@ void M_Menu_Singleplayer_Cheats_Hexen2_f (void)
 		MC_AddRedText(menu, 16, y, 			"     Hexen2 Singleplayer Cheats", false); y+=8;
 		MC_AddWhiteText(menu, 16, y,		"     ÄÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
 		y+=8;
-#ifndef MINIMAL
-info->skillcombo = MC_AddCombo(menu,16, y,	"                   Difficulty", skilloptions, currentskill);	y+=8;
-#endif
-info->mapcombo = MC_AddCombo(menu,16, y,	"                          Map", mapoptions, currentmap);	y+=8;
-		#ifndef MINIMAL
+		#ifndef CLIENTONLY
+		info->skillcombo = MC_AddCombo(menu,16, y,	"                   Difficulty", skilloptions, currentskill);	y+=8;
+		#endif
+		info->mapcombo = MC_AddCombo(menu,16, y,	"                          Map", mapoptions, currentmap);	y+=8;
+		#ifndef CLIENTONLY
 		MC_AddCheckBox(menu,	16, y,		"                       Cheats", &sv_cheats,0);	y+=8;
 		#endif
 		MC_AddConsoleCommand(menu, 16, y,	"               Toggle Godmode", "god\n"); y+=8;
 		MC_AddConsoleCommand(menu, 16, y,	"               Toggle Flymode", "fly\n"); y+=8;
 		MC_AddConsoleCommand(menu, 16, y,	"                Toggle Noclip", "noclip\n"); y+=8;
-		#ifndef MINIMAL
+		#ifndef CLIENTONLY
 		MC_AddSlider(menu,	16, y,			"                      Gravity", &sv_gravity,0,800,25);	y+=8;
 		#endif
 		MC_AddSlider(menu,	16, y,			"                Forward Speed", &cl_forwardspeed,0,1000,50);	y+=8;
 		MC_AddSlider(menu,	16, y,			"                   Side Speed", &cl_sidespeed,0,1000,50);	y+=8;
 		MC_AddSlider(menu,	16, y,			"                   Back Speed", &cl_backspeed,0,1000,50);	y+=8;
-		#ifndef MINIMAL
+		#ifndef CLIENTONLY
 		MC_AddSlider(menu,	16, y,			"           Max Movement Speed", &sv_maxspeed,0,1000,50);	y+=8;
 		#endif
 		MC_AddConsoleCommand(menu, 16, y,	"         Sheep Transformation", "impulse 14\n"); y+=8;
@@ -2990,4 +1692,529 @@ info->mapcombo = MC_AddCombo(menu,16, y,	"                          Map", mapopt
 
 	menu->selecteditem = (union menuoption_s *)info->skillcombo;
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 250, cursorpositionY, NULL, false);
+}
+
+void M_Menu_Singleplayer_Cheats_f (void)
+{
+	switch(M_GameType())
+	{
+	case MGT_QUAKE1:
+		M_Menu_Singleplayer_Cheats_Quake();
+		break;
+	case MGT_QUAKE2:
+		M_Menu_Singleplayer_Cheats_Quake2();
+		break;
+	case MGT_HEXEN2:
+		M_Menu_Singleplayer_Cheats_Hexen2();
+		break;
+	}
+}
+
+// video mode options
+#if defined(D3DQUAKE) && defined(GLQUAKE)
+#define MULTIRENDERER // allow options for selecting renderer
+#endif
+
+static const char *res4x3[] =
+{
+	"640x480",
+	"800x600",
+	"960x720",
+	"1024x768",
+	"1152x864",
+	"1280x960",
+	"1440x1080",
+	"1600x1200",
+//	"1792x1344",
+//	"1856x1392",
+	"1920x1440",
+	"2048x1536",
+	NULL
+};
+static const char *res5x4[] =
+{
+	"1280x1024",
+	"1800x1440",
+	"2560x2048",
+	NULL
+};
+static const char *res16x9[] =
+{
+	"856x480",
+	"1024x576",
+	"1280x720",
+	"1366x768",
+	"1600x900",
+	"1920x1080",
+	"2048x1152",
+	NULL
+};
+static const char *res16x10[] =
+{
+	"1024x640",
+	"1152x720",
+	"1280x800",
+	"1440x900",
+	"1680x1050",
+	"1920x1200",
+	"2304x1440",
+	"2560x1600",
+	NULL
+};
+#define ASPECT_RATIOS 4
+static const char **resaspects[ASPECT_RATIOS] =
+{
+	res4x3,
+	res5x4,
+	res16x9,
+	res16x10
+};
+#define ASPECT_LIST "4:3", "5:4", "16:9", "16:10",
+
+qboolean M_Vid_GetMode(int num, int *w, int *h)
+{
+	int i;
+
+	for (i = 0; i < 4; i++)
+	{
+		const char **v = resaspects[i];
+		while (*v && num)
+		{
+			v++;
+			num--;
+		}
+		if (v)
+		{
+			const char *c = *v;
+			const char *s = strchr(c, 'x');
+			if (s)
+			{
+				*w = atoi(c);
+				*h = atoi(s + 1);
+				return true;
+			}
+			return false;
+		}
+	}
+	return false;
+}
+
+typedef struct {
+	menucombo_t *resmode;
+	menuedit_t *width;
+	menuedit_t *height;
+	menuedit_t *bpp;
+	menuedit_t *hz;
+	menucombo_t *bppfixed;
+	menucombo_t *hzfixed;
+	menucombo_t *res2dmode;
+	menucombo_t *scale;
+	menuedit_t *width2d;
+	menuedit_t *height2d;
+	menucombo_t *ressize[ASPECT_RATIOS];
+	menucombo_t *res2dsize[ASPECT_RATIOS];
+} videomenuinfo_t;
+
+void CheckCustomMode(struct menu_s *menu)
+{
+	int i, sel;
+	videomenuinfo_t *info = (videomenuinfo_t*)menu->data;
+
+	// hide all display controls
+	info->width->common.ishidden = true;
+	info->height->common.ishidden = true;
+	info->bpp->common.ishidden = true;
+	info->hz->common.ishidden = true;
+	info->bppfixed->common.ishidden = true;
+	info->hzfixed->common.ishidden = true;
+	for (i = 0; i < ASPECT_RATIOS; i++)
+		info->ressize[i]->common.ishidden = true;
+	sel = info->resmode->selectedoption;
+	if (sel < ASPECT_RATIOS) 
+	{
+		// unhide appropriate aspect ratio combo and restricted bpp/hz combos
+		info->bppfixed->common.ishidden = false;
+		info->hzfixed->common.ishidden = false;
+		info->ressize[sel]->common.ishidden = false;
+	}
+	else if (sel == (ASPECT_RATIOS + 1))
+	{ // unhide custom entries for custom option
+		info->width->common.ishidden = false;
+		info->height->common.ishidden = false;
+		info->bpp->common.ishidden = false;
+		info->hz->common.ishidden = false;
+	}
+	// hide all 2d display controls
+	info->width2d->common.ishidden = true;
+	info->height2d->common.ishidden = true;
+	info->scale->common.ishidden = true;
+	for (i = 0; i < ASPECT_RATIOS; i++)
+		info->res2dsize[i]->common.ishidden = true;
+	sel = info->res2dmode->selectedoption;
+	if (sel < ASPECT_RATIOS) // unhide appropriate aspect ratio combo
+		info->res2dsize[sel]->common.ishidden = false;
+	else if (sel == (ASPECT_RATIOS + 1)) // unhide scale option
+		info->scale->common.ishidden = false;
+	else if (sel == (ASPECT_RATIOS + 2)) // unhide custom entries for custom option
+	{
+		info->width2d->common.ishidden = false;
+		info->height2d->common.ishidden = false;
+	}
+}
+
+int M_MatchModes(int width, int height, int *outres)
+{
+	int i;
+	int ratio = -1;
+
+	// find closest resolution for each ratio
+	for (i = 0; i < ASPECT_RATIOS; i++)
+	{
+		const char **v = resaspects[i];
+		outres[i] = 0;
+		// search through each string in ratio array
+		while (*v)
+		{
+			const char *c = *v;
+			int w = atoi(c);
+			if (width <= w)
+			{
+				if (width == w)
+				{
+					// if we match height as well we have a direct resolution match
+					// so record ratio index
+					const char *s = strchr(c, 'x');
+					if (s)
+					{
+						int h = atoi(s + 1);
+						if (height == h)
+							ratio = i;
+					}
+				}
+				break;
+			}
+			outres[i]++;
+			v++;
+		}
+	}
+
+	return ratio;
+}
+
+qboolean M_VideoApply (union menuoption_s *op, struct menu_s *menu, int key)
+{
+	extern cvar_t vid_desktopsettings;
+	videomenuinfo_t *info = (videomenuinfo_t*)menu->data;
+
+	if (key != K_ENTER && key != K_MOUSE1)
+		return false;
+	
+	// force update display options
+	{
+		int w = 0, h = 0;
+		const char *wc = NULL;
+		const char *hc = NULL;
+		const char *bc = "32";
+		const char *fc = "0";
+		const char *dc = "0";
+
+		switch (info->resmode->selectedoption)
+		{
+		case ASPECT_RATIOS: // Desktop
+			dc = "1";
+			break;
+		case ASPECT_RATIOS + 1: // Custom
+			wc = info->width->text;
+			hc = info->height->text;
+			bc = info->bpp->text;
+			fc = info->hz->text;
+			break;
+		default: // Aspects
+			{
+				menucombo_t *c = info->ressize[info->resmode->selectedoption];
+				const char *res = c->options[c->selectedoption];
+				const char *x = strchr(res, 'x');
+
+				w = atoi(res);
+				h = atoi(x + 1);
+
+				bc = info->bppfixed->values[info->bppfixed->selectedoption];
+				fc = info->hzfixed->values[info->hzfixed->selectedoption];
+			}
+		}
+
+		if (!wc)
+			Cvar_SetValue(info->width->cvar, w);
+		else
+			Cvar_Set(info->width->cvar, wc);
+		if (!hc)
+			Cvar_SetValue(info->height->cvar, h);
+		else
+			Cvar_Set(info->height->cvar, hc);
+		Cvar_Set(info->bpp->cvar, bc);
+		Cvar_Set(info->hz->cvar, fc);
+		Cvar_Set(&vid_desktopsettings, dc);
+	}
+
+	// force update 2d options
+	{
+		int w = 0, h = 0;
+		const char *wc = NULL;
+		const char *hc = NULL;
+		const char *sc = "0";
+
+		switch (info->res2dmode->selectedoption)
+		{
+		case ASPECT_RATIOS: // Default
+			break;
+		case ASPECT_RATIOS + 1: // Scale
+			sc = info->scale->values[info->scale->selectedoption];
+			break;
+		case ASPECT_RATIOS + 2: // Custom
+			wc = info->width2d->text;
+			hc = info->height2d->text;
+			break;
+		default: // Aspects
+			{
+				menucombo_t *c = info->res2dsize[info->res2dmode->selectedoption];
+				const char *res = c->options[c->selectedoption];
+				const char *x = strchr(res, 'x');
+
+				w = atoi(res);
+				h = atoi(x + 1);
+			}
+		}
+
+		if (!wc)
+			Cvar_SetValue(info->width2d->cvar, w);
+		else
+			Cvar_Set(info->width2d->cvar, wc);
+		if (!hc)
+			Cvar_SetValue(info->height2d->cvar, h);
+		else
+			Cvar_Set(info->height2d->cvar, hc);
+		Cvar_Set(info->scale->cvar, sc);
+	}
+
+	// restart video to apply latched cvars
+	M_RemoveMenu(menu);
+	Cbuf_AddText("vid_restart\nmenu_video\n", RESTRICT_LOCAL);
+	return true;
+}
+
+void M_Menu_Video_f (void)
+{
+	extern cvar_t v_contrast, vid_width, vid_height, vid_conwidth, vid_conheight;
+	extern cvar_t vid_fullscreen, vid_desktopsettings, vid_conautoscale;
+	extern cvar_t vid_desktopgamma, vid_hardwaregamma, vid_preservegamma;
+	extern cvar_t vid_bpp, vid_refreshrate, vid_renderer, vid_multisample;
+
+	static const char *rendererops[] = 
+	{
+#ifdef GLQUAKE
+		"OpenGL",
+#endif
+#ifdef D3DQUAKE
+		"Direct3D",
+#endif
+		NULL
+	};
+	static const char *renderervalues[] = 
+	{
+#ifdef GLQUAKE
+		"gl",
+#endif
+#ifdef D3DQUAKE
+		"d3d",
+#endif
+		NULL
+	};
+
+	static const char *aaopts[] = {
+		"1x",
+		"2x",
+		"4x",
+		"6x",
+		"8x",
+		NULL
+	};
+	static const char *aavalues[] = {"0", "2", "4", "6", "8", NULL};
+
+	static const char *resmodeopts[] = {
+		ASPECT_LIST
+		"Desktop",
+		"Custom",
+		NULL
+	};
+
+	static const char *bppopts[] = 
+	{
+		"16-bit",
+		"32-bit",
+		NULL
+	};
+	static const char *bppvalues[] = {"16", "32", NULL};
+
+	static const char *refreshopts[] =
+	{
+		"Default",
+		"59Hz",
+		"60Hz",
+		"70Hz",
+		"72Hz",
+		"75Hz",
+		"85Hz",
+		"100Hz",
+		"120Hz",
+		NULL
+	};
+	static const char *refreshvalues[] = {"", "59", "60", "70", "72", "75", "85", "100", "120", NULL};
+
+	static const char *res2dmodeopts[] = {
+		ASPECT_LIST
+		"Default",
+		"Scale",
+		"Custom",
+		NULL
+	};
+
+	static const char *scaleopts[] = {
+		"1x",
+		"1.5x",
+		"2x",
+		"2.5x",
+		"3x",
+		"4x",
+		"5x",
+		"6x",
+		NULL
+	};
+	static const char *scalevalues[] = { "1", "1.5", "2", "2.5", "3", "4", "5", "6", NULL};
+
+	static const char *vsyncoptions[] =
+	{
+		"Off",
+		"Wait for Vertical Sync",
+		"Wait for Display Enable",
+		NULL
+	};
+
+	videomenuinfo_t *info;
+	static char current3dres[32]; // enough to fit 1920x1200
+
+	extern cvar_t _vid_wait_override;
+
+	int y;
+	int resmodechoice, res2dmodechoice;
+	int reschoices[ASPECT_RATIOS], res2dchoices[ASPECT_RATIOS];
+	menu_t *menu = M_Options_Title(&y, sizeof(videomenuinfo_t));
+	info = (videomenuinfo_t*)menu->data;
+
+	snprintf(current3dres, sizeof(current3dres), "Current: %ix%i", vid.pixelwidth, vid.pixelheight);
+	resmodechoice = M_MatchModes(vid.pixelwidth, vid.pixelheight, reschoices);
+	if (vid_desktopsettings.ival)
+		resmodechoice = ASPECT_RATIOS;
+	else if (resmodechoice < 0)
+		resmodechoice = ASPECT_RATIOS + 1;
+	res2dmodechoice = M_MatchModes(vid.pixelwidth, vid.pixelheight, res2dchoices);
+	if (vid_conautoscale.ival >= 1)
+		res2dmodechoice = ASPECT_RATIOS + 1;
+	else if (!vid_conwidth.ival && !vid_conheight.ival)
+		res2dmodechoice = ASPECT_RATIOS;
+	else if (res2dmodechoice < 0)
+		res2dmodechoice = ASPECT_RATIOS + 2;
+
+	{
+		menubulk_t bulk[] =
+		{
+			MB_REDTEXT("Video Options", false),
+			MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+#ifdef MULTIRENDERER
+			MB_COMBOCVAR("Renderer", vid_renderer, rendererops, renderervalues, NULL),
+#endif
+			MB_CHECKBOXCVAR("Fullscreen", vid_fullscreen, 0),
+			MB_COMBOCVAR("Anti-aliasing", vid_multisample, aaopts, aavalues, NULL),
+			MB_REDTEXT(current3dres, false),
+			MB_COMBORETURN("Display Mode", resmodeopts, resmodechoice, info->resmode, "Select method for determining or configuring display options. The desktop option will attempt to use the width, height, color depth, and refresh from your operating system's desktop environment."),
+			// aspect entries
+			MB_COMBORETURN("Size", resaspects[0], reschoices[0], info->ressize[0], "Select resolution for display."),
+			MB_SPACING(-8),
+			MB_COMBORETURN("Size", resaspects[1], reschoices[1], info->ressize[1], "Select resolution for display."),
+			MB_SPACING(-8),
+			MB_COMBORETURN("Size", resaspects[2], reschoices[2], info->ressize[2], "Select resolution for display."),
+			MB_SPACING(-8),
+			MB_COMBORETURN("Size", resaspects[3], reschoices[3], info->ressize[3], "Select resolution for display."),
+			MB_COMBOCVARRETURN("Color Depth", vid_bpp, bppopts, bppvalues, info->bppfixed, vid_bpp.description),
+			MB_COMBOCVARRETURN("Refresh Rate", vid_refreshrate, refreshopts, refreshvalues, info->hzfixed, vid_refreshrate.description),
+			MB_SPACING(-24), // really hacky...
+			// custom enteries
+			MB_EDITCVARSLIMRETURN("Width", "vid_width", info->width),
+			MB_EDITCVARSLIMRETURN("Height", "vid_height", info->height),
+			MB_EDITCVARSLIMRETURN("Color Depth", "vid_bpp", info->bpp),
+			MB_EDITCVARSLIMRETURN("Refresh Rate", "vid_refreshrate", info->hz),
+			MB_SPACING(4),
+			MB_COMBORETURN("2D Mode", res2dmodeopts, res2dmodechoice, info->res2dmode, "Select method for determining or configuring 2D resolution and scaling. The default option matches the current display resolution, and the scale option scales by a factor of the display resolution."),
+			// scale entry
+			MB_COMBOCVARRETURN("Amount", vid_conautoscale, scaleopts, scalevalues, info->scale, NULL),
+			MB_SPACING(-8),
+			// 2d aspect entries
+			MB_COMBORETURN("Size", resaspects[0], res2dchoices[0], info->res2dsize[0], "Select resolution for 2D rendering."),
+			MB_SPACING(-8),
+			MB_COMBORETURN("Size", resaspects[1], res2dchoices[1], info->res2dsize[1], "Select resolution for 2D rendering."),
+			MB_SPACING(-8),
+			MB_COMBORETURN("Size", resaspects[2], res2dchoices[2], info->res2dsize[2], "Select resolution for 2D rendering."),
+			MB_SPACING(-8),
+			MB_COMBORETURN("Size", resaspects[3], res2dchoices[3], info->res2dsize[3], "Select resolution for 2D rendering."),
+			MB_SPACING(-8),
+			// 2d custom entries
+			MB_EDITCVARSLIMRETURN("Width", "vid_conwidth", info->width2d),
+			MB_EDITCVARSLIMRETURN("Height", "vid_conheight", info->height2d),
+			MB_SPACING(4),
+			MB_CMD("Apply Settings", M_VideoApply, "Restart video and apply renderer, display, and 2D resolution options."),
+			MB_SPACING(4),
+			MB_SLIDER("View Size", scr_viewsize, 30, 120, 10, NULL),
+			MB_SLIDER("Gamma", v_gamma, 0.25, 1.5, 0.05, NULL),
+			MB_SLIDER("Contrast", v_contrast, 0.8, 3, 0.05, NULL),
+			MB_END()
+		};
+		MC_AddBulk(menu, bulk, 16, 200, y);
+	}
+
+	/*
+	y += 8;
+	MC_AddRedText(menu, 200, y, current3dres, false); y+=8;
+
+ 	y+=8;
+	MC_AddRedText(menu, 0, y,								"      ÄÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÅÇ ", false); y+=8;
+	y+=8;
+	info->renderer = MC_AddCombo(menu,	16, y,				"         Renderer", rendererops, i);	y+=8;
+	info->bppcombo = MC_AddCombo(menu,	16, y,				"      Color Depth", bppnames, currentbpp); y+=8;
+	info->refreshratecombo = MC_AddCombo(menu,	16, y,		"     Refresh Rate", refreshrates, currentrefreshrate); y+=8;
+	info->modecombo = MC_AddCombo(menu,	16, y,				"       Video Size", modenames, prefabmode+1);	y+=8;
+	MC_AddWhiteText(menu, 16, y, 							"  3D Aspect Ratio", false); y+=8;
+	info->conscalecombo = MC_AddCombo(menu,	16, y,			"          2D Size", modenames, prefab2dmode+1);	y+=8;
+	MC_AddWhiteText(menu, 16, y, 							"  2D Aspect Ratio", false); y+=8;
+	MC_AddCheckBox(menu,	16, y,							"       Fullscreen", &vid_fullscreen,0);	y+=8;
+	y+=4;info->customwidth = MC_AddEdit(menu, 16, y,		"     Custom width", vid_width.string);	y+=8;
+	y+=4;info->customheight = MC_AddEdit(menu, 16, y,		"    Custom height", vid_height.string);	y+=12;
+	info->vsynccombo = MC_AddCombo(menu,	16, y,			"            VSync", vsyncoptions, currentvsync); y+=8;
+	//MC_AddCheckBox(menu,	16, y,							"   Override VSync", &_vid_wait_override,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							" Desktop Settings", &vid_desktopsettings,0);	y+=8;
+	y+=8;
+	MC_AddCommand(menu,	16, y,								"= Apply Changes =", M_VideoApply);	y+=8;
+	y+=8;
+	MC_AddSlider(menu,	16, y,								"      Screen size", &scr_viewsize,	30,		120, 1);y+=8;
+	MC_AddSlider(menu,	16, y,								"Console Autoscale",&vid_conautoscale, 0, 6, 0.25);	y+=8;
+	MC_AddSlider(menu,	16, y,								"            Gamma", &v_gamma, 0.3, 1, 0.05);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"    Desktop Gamma", &vid_desktopgamma,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"   Hardware Gamma", &vid_hardwaregamma,0);	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"   Preserve Gamma", &vid_preservegamma,0);	y+=8;
+	MC_AddSlider(menu,	16, y,								"         Contrast", &v_contrast, 1, 3, 0.05);	y+=8;
+	y+=8;
+	MC_AddCheckBox(menu,	16, y,							"   Windowed Mouse", &_windowed_mouse,0);	y+=8;
+
+	menu->selecteditem = (union menuoption_s *)info->renderer;
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 152, menu->selecteditem->common.posy, NULL, false);
+	*/
+	menu->event = CheckCustomMode;
 }

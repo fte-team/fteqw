@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #include "quakedef.h"
+#include "glquake.h"
 
 cvar_t		baseskin = SCVAR("baseskin", "");
 cvar_t		noskins = SCVAR("noskins", "0");
@@ -222,9 +223,9 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 	if (skin->failedload)
 		return NULL;
 
-	skin->tex_base = 0;
-	skin->tex_lower = 0;
-	skin->tex_upper = 0;
+	skin->tex_base = r_nulltex;
+	skin->tex_lower = r_nulltex;
+	skin->tex_upper = r_nulltex;
 
 	out = Cache_Check (&skin->cache);
 	if (out)
@@ -275,16 +276,16 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 	{
 		if (strcmp(skin->name, baseskin.string))
 		{
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 			if (qrenderer == QR_OPENGL || qrenderer == QR_DIRECT3D)
 			{
-				skin->tex_base = Mod_LoadReplacementTexture(skin->name, "skins", true, false, true);
-				if (skin->tex_base)
+				skin->tex_base = R_LoadReplacementTexture(skin->name, "skins", IF_NOALPHA);
+				if (TEXVALID(skin->tex_base))
 				{
 					sprintf (name, "%s_shirt", skin->name);
-					skin->tex_upper = Mod_LoadReplacementTexture(name, "skins", true, true, true);
+					skin->tex_upper = R_LoadReplacementTexture(name, "skins", 0);
 					sprintf (name, "%s_pants", skin->name);
-					skin->tex_lower = Mod_LoadReplacementTexture(name, "skins", true, true, true);
+					skin->tex_lower = R_LoadReplacementTexture(name, "skins", 0);
 
 					skin->failedload = true;
 					return NULL;
@@ -382,7 +383,7 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 			}
 
 			if (dataByte >= 256-vid.fullbright)	//kill the fb componant
-				if (!r_fb_models.value)
+				if (!r_fb_models.ival)
 					dataByte = fbremap[dataByte + vid.fullbright-256];
 
 			while(runLength-- > 0)
@@ -528,7 +529,7 @@ void Skin_NextDownload (void)
 		if (!sc->name[0])
 			continue;
 		Skin_Find (sc);
-		if (noskins.value)
+		if (noskins.ival)
 			continue;
 
 		if (strchr(sc->skin->name, ' '))	//skip over skins using a space
@@ -537,7 +538,31 @@ void Skin_NextDownload (void)
 		if (!*sc->skin->name)
 			continue;
 
-		CL_CheckOrEnqueDownloadFile(va("skins/%s.pcx", sc->skin->name), NULL, 0);
+		if (cls.protocol == CP_QUAKE2)
+		{
+			int j;
+			char *slash;
+			slash = strchr(sc->skin->name, '/');
+			if (slash)
+			{
+				*slash = 0;
+				CL_CheckOrEnqueDownloadFile(va("players/%s/tris.md2", sc->skin->name), NULL, 0);
+				for (j = 0; j < MAX_MODELS; j++)
+				{
+					if (cl.model_name[j][0] == '#')
+						CL_CheckOrEnqueDownloadFile(va("players/%s/%s", sc->skin->name, cl.model_name[j]+1), NULL, 0);
+				}
+				for (j = 0; j < MAX_SOUNDS; j++)
+				{
+					if (cl.sound_name[j][0] == '*')
+						CL_CheckOrEnqueDownloadFile(va("players/%s/%s", sc->skin->name, cl.sound_name[j]+1), NULL, 0);
+				}
+				*slash = '/';
+				CL_CheckOrEnqueDownloadFile(va("players/%s.pcx", sc->skin->name), NULL, 0);
+			}
+		}
+		else
+			CL_CheckOrEnqueDownloadFile(va("skins/%s.pcx", sc->skin->name), NULL, 0);
 	}
 
 	// now load them in for real
@@ -550,7 +575,7 @@ void Skin_NextDownload (void)
 			Skin_Cache32(sc->skin);
 		else
 			Skin_Cache8 (sc->skin);
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 		sc->skin = NULL;
 #endif
 	}
@@ -595,10 +620,13 @@ void	Skin_Skins_f (void)
 	Skin_NextDownload ();
 
 
-	SCR_SetLoadingStage(LS_NONE);
+//	if (Cmd_FromServer())
+	{
+		SCR_SetLoadingStage(LS_NONE);
 
-	CL_SendClientCommand(true, "begin %i", cl.servercount);
-	Cache_Report ();		// print remaining memory
+		CL_SendClientCommand(true, "begin %i", cl.servercount);
+		Cache_Report ();		// print remaining memory
+	}
 }
 
 

@@ -9,6 +9,8 @@ void(float mask) addentities		= #301; //  (EXT_CSQC)
 void(entity ent) addentity		= #302; //  (EXT_CSQC)
 float(float property, ...) setviewprop	= #303; //  (EXT_CSQC)
 void() renderscene			= #304; //  (EXT_CSQC)
+float(float property) getviewpropf	= #309; //  (EXT_CSQC)
+vector(float property) getviewpropv	= #309; //  (EXT_CSQC)
 
 void(vector org, float radius, vector lightcolours) adddynamiclight		= #305; //  (EXT_CSQC)
 
@@ -33,8 +35,8 @@ void(vector position, vector size, vector rgb, float alpha, ...) drawfill				= #
 
 void(vector position, string text, vector scale, float alpha, ...) drawstring		= #326; //  (EXT_CSQC_1)
 
-float(float stnum) getstatf							= #330; //  (EXT_CSQC)
-float(float stnum) getstati							= #331; //  (EXT_CSQC)
+float(float stnum) getstati							= #330; //  (EXT_CSQC)
+float(float stnum) getstatf							= #331; //  (EXT_CSQC)
 float(float stnum, float first, float count) getstatbits			= #331; //  (EXT_CSQC)
 string(float firststnum) getstats						= #332; //  (EXT_CSQC)
 void(entity e, float mdlindex) setmodelindex					= #333; //  (EXT_CSQC)

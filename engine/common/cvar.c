@@ -20,8 +20,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // cvar.c -- dynamic variable tracking
 
 #include "quakedef.h"
+#include "shader.h"
 
 cvar_group_t *cvar_groups;
+
+hashtable_t cvar_hash;
+bucket_t *cvar_buckets[1024];
 
 //cvar_t	*cvar_vars;
 static char	*cvar_null_string = "";
@@ -64,6 +68,8 @@ Cvar_FindVar
 */
 cvar_t *Cvar_FindVar (const char *var_name)
 {
+	return Hash_GetInsensative(&cvar_hash, var_name);
+/*
 	cvar_group_t	*grp;
 	cvar_t	*var;
 
@@ -75,7 +81,7 @@ cvar_t *Cvar_FindVar (const char *var_name)
 			if (var->name2 && !Q_strcasecmp (var_name, var->name2))
 				return var;
 		}
-
+*/
 	return NULL;
 }
 
@@ -142,6 +148,8 @@ char *Cvar_FlagToName(int flag)
 		return "nounsafeexpand";
 	case CVAR_RULESETLATCH:
 		return "rulesetlatch";
+	case CVAR_SHADERSYSTEM:
+		return "shadersystem";
 	}
 
 	return NULL;
@@ -164,7 +172,23 @@ void Cvar_List_f (void)
 	int gnum, i, num = 0;
 	int listflags = 0, cvarflags = 0;
 	char strtmp[512];
-	
+	static char *cvarlist_help =
+"cvarlist list all cvars matching given parameters\n"
+"Syntax: cvarlist [-FLdhlrv] [-f flag] [-g group] [cvar]\n"
+"  -F shows cvar flags\n"
+"  -L shows latched values\n"
+"  -a shows cvar alternate names\n"
+"  -d shows default cvar values\n"
+"  -f shows only cvars with a matching flag, more than one -f can be used\n"
+"  -g shows only cvar groups using wildcards in group\n"
+"  -h shows this help message\n"
+"  -l shows cvar restriction levels\n"
+"  -r removes group and list headers\n"
+"  -v shows current values\n"
+"  cvar indicates the cvar to show, wildcards (*,?) accepted\n"
+"Cvar flags are:"
+;
+
 	gsearch = search = NULL;
 	for (i = 1; i < Cmd_Argc(); i++)
 	{
@@ -245,20 +269,7 @@ void Cvar_List_f (void)
 					break;
 				case 'h':
 					// list options
-					Con_Printf("cvarlist list all cvars matching given parameters\n"
-						"Syntax: cvarlist [-FLdhlrv] [-f flag] [-g group] [cvar]\n"
-						"  -F shows cvar flags\n"
-						"  -L shows latched values\n"
-						"  -a shows cvar alternate names\n"
-						"  -d shows default cvar values\n"
-						"  -f shows only cvars with a matching flag, more than one -f can be used\n"
-						"  -g shows only cvar groups using wildcards in group\n"
-						"  -h shows this help message\n"
-						"  -l shows cvar restriction levels\n"
-						"  -r removes group and list headers\n"
-						"  -v shows current values\n"
-						"  cvar indicates the cvar to show, wildcards (*,?) accepted\n"
-						"Cvar flags are:");
+					Con_Printf("%s", cvarlist_help);
 
 					for (num = 1; num <= CVAR_LASTFLAG; num <<= 1)
 					{
@@ -305,7 +316,7 @@ void Cvar_List_f (void)
 		for (cmd=grp->cvars ; cmd ; cmd=cmd->next)
 		{
 			// list only non-restricted cvars
-			if ((cmd->restriction?cmd->restriction:rcon_level.value) > Cmd_ExecLevel)
+			if ((cmd->restriction?cmd->restriction:rcon_level.ival) > Cmd_ExecLevel)
 				continue;
 
 			// list only cvars with search substring
@@ -321,7 +332,7 @@ void Cvar_List_f (void)
 						Q_strncpyz(strtmp, cmd->name2, 512);
 						Q_strlwr(strtmp);
 						if (!wildcmp(search, strtmp))
-							continue;		
+							continue;
 					}
 					else
 						continue;
@@ -345,8 +356,8 @@ void Cvar_List_f (void)
 				Con_Printf("(%i) ", cmd->restriction);
 
 			// print cvar name
-			Con_Printf(cmd->name);
-			
+			Con_Printf("%s", cmd->name);
+
 			// print current value
 			if (listflags & CLF_VALUES)
 			{
@@ -365,9 +376,9 @@ void Cvar_List_f (void)
 			// print cvar flags
 			if (listflags & CLF_FLAGS)
 			{
-				for (i = 1; i <= CVAR_LASTFLAG; i <<= 1) 
+				for (i = 1; i <= CVAR_LASTFLAG; i <<= 1)
 				{
-					if (i & cmd->flags) 
+					if (i & cmd->flags)
 					{
 						var = Cvar_FlagToName(i);
 						if (var)
@@ -450,7 +461,7 @@ void Cvar_Reset_f (void)
 					Con_Printf("Invalid option for cvarreset\nUse cvarreset -h for help\n");
 					return;
 				}
-			}			
+			}
 		}
 		else
 			search = var;
@@ -481,7 +492,7 @@ void Cvar_Reset_f (void)
 		for (cmd=grp->cvars ; cmd ; cmd=cmd->next)
 		{
 			// reset only non-restricted cvars
-			if ((cmd->restriction?cmd->restriction:rcon_level.value) > Cmd_ExecLevel)
+			if ((cmd->restriction?cmd->restriction:rcon_level.ival) > Cmd_ExecLevel)
 				continue;
 
 			// don't reset cvars with matched flags
@@ -501,7 +512,7 @@ void Cvar_Reset_f (void)
 						Q_strncpyz(strtmp, cmd->name2, 512);
 						Q_strlwr(strtmp);
 						if (!wildcmp(search, strtmp))
-							continue;		
+							continue;
 					}
 					else
 						continue;
@@ -604,7 +615,7 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 		latch = "variable %s is latched and will be applied for the start of the next map\n";
 //	else if (var->flags & CVAR_LATCHFLUSH)
 //		latch = "variable %s is latched (type flush)\n";
-	else if (var->flags & CVAR_RENDERERLATCH && qrenderer)
+	else if (var->flags & CVAR_RENDERERLATCH && qrenderer != QR_NONE)
 		latch = "variable %s will be changed after a vid_restart\n";
 	else if (var->flags & CVAR_RULESETLATCH)
 		latch = "variable %s is latched due to current ruleset\n";
@@ -654,12 +665,18 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 	}
 #endif
 #ifndef SERVERONLY
+	if (var->flags & CVAR_SHADERSYSTEM)
+	{
+		if (var->string && value)
+			if (strcmp(var->string, value))
+				Shader_NeedReload();
+	}
 	if (var->flags & CVAR_USERINFO)
 	{
-		char *old = Info_ValueForKey(cls.userinfo, var->name);
+		char *old = Info_ValueForKey(cls.userinfo[0], var->name);
 		if (strcmp(old, value))	//only spam the server if it actually changed
 		{				//this helps with config execs
-			Info_SetValueForKey (cls.userinfo, var->name, value, sizeof(cls.userinfo));
+			Info_SetValueForKey (cls.userinfo[0], var->name, value, sizeof(cls.userinfo[0]));
 			if (cls.state >= ca_connected)
 			{
 #ifdef Q2CLIENT
@@ -700,6 +717,21 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 	{
 		Z_Free(var->latched_string);
 		var->latched_string = NULL;
+	}
+
+	if (var->flags & CVAR_TELLGAMECODE)
+	{
+#ifndef CLIENTONLY
+		SVQ1_CvarChanged(var);
+#endif
+#ifndef SERVERONLY
+#ifdef MENU_DAT
+		MP_CvarChanged(var);
+#endif
+#ifdef CSQC_DAT
+		CSQC_CvarChanged(var);
+#endif
+#endif
 	}
 
 	return var;
@@ -878,6 +910,9 @@ unlinked:
 		Cvar_DefaultFree(tbf->defaultstr);
 	if (tbf->latched_string)
 		Z_Free(tbf->latched_string);
+	Hash_RemoveData(&cvar_hash, tbf->name, tbf);
+	if (tbf->name2)
+		Hash_RemoveData(&cvar_hash, tbf->name2, tbf);
 	Z_Free(tbf);
 }
 
@@ -932,6 +967,11 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 				Cvar_SetCore (variable, old->string, true);
 
 			Cvar_Free(old);
+
+			Hash_AddInsensative(&cvar_hash, variable->name, variable, &variable->hbn1);
+			if (variable->name2)
+				Hash_AddInsensative(&cvar_hash, variable->name2, variable, &variable->hbn2);
+
 			return false;
 		}
 
@@ -953,7 +993,11 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 	variable->restriction = 0;	//exe registered vars
 	group->cvars = variable;
 
-	variable->string = (char*)Z_Malloc (1);
+	Hash_AddInsensative(&cvar_hash, variable->name, variable, &variable->hbn1);
+	if (variable->name2)
+		Hash_AddInsensative(&cvar_hash, variable->name2, variable, &variable->hbn2);
+
+	variable->string = NULL;
 
 	if (variable->flags & CVAR_FREEDEFAULT)
 		variable->defaultstr = Cvar_DefaultAlloc(initial);
@@ -1037,7 +1081,7 @@ qboolean	Cvar_Command (int level)
 	if (!v)
 		return false;
 
-	if ((v->restriction?v->restriction:rcon_level.value) > level)
+	if ((v->restriction?v->restriction:rcon_level.ival) > level)
 	{
 		Con_Printf ("You do not have the priveledges for %s\n", v->name);
 		return true;
@@ -1200,6 +1244,12 @@ void Cvar_Limiter_ZeroToOne_Callback(struct cvar_s *var, char *oldvalue)
 		Cvar_ForceSet(var, "0");
 		return;
 	}
+}
+
+void Cvar_Init(void)
+{
+	memset(cvar_buckets, 0, sizeof(cvar_buckets));
+	Hash_InitTable(&cvar_hash, sizeof(cvar_buckets)/Hash_BytesForBuckets(1), cvar_buckets);
 }
 
 void Cvar_Shutdown(void)

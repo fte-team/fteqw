@@ -21,9 +21,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // cl_screen.c -- master for refresh, status bar, console, chat, notify, etc
 
 #include "quakedef.h"
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"//would prefer not to have this
 #endif
+#include "shader.h"
 
 //name of the current backdrop for the loading screen
 char levelshotname[MAX_QPATH];
@@ -39,7 +40,7 @@ void RSpeedShow(void)
 	char *s;
 	static int framecount;
 
-	if (!r_speeds.value)
+	if (!r_speeds.ival)
 		return;
 
 	memset(RSpNames, 0, sizeof(RSpNames));
@@ -49,7 +50,7 @@ void RSpeedShow(void)
 	RSpNames[RSPEED_WORLDNODE] = "World walking";
 	RSpNames[RSPEED_WORLD] = "World rendering";
 	RSpNames[RSPEED_DYNAMIC] = "Lightmap updates";
-	RSpNames[RSPEED_PARTICLES] = "Particle physics and sorting";
+	RSpNames[RSPEED_PARTICLES] = "Particle phys/sort";
 	RSpNames[RSPEED_PARTICLESDRAW] = "Particle drawing";
 	RSpNames[RSPEED_2D] = "2d elements";
 	RSpNames[RSPEED_SERVER] = "Server";
@@ -61,29 +62,36 @@ void RSpeedShow(void)
 
 	RSpNames[RSPEED_FULLBRIGHTS] = "World fullbrights";
 
-	RSpNames[RSPEED_FINISH] = "Waiting for card to catch up";
+	RSpNames[RSPEED_FINISH] = "glFinish";
 
 	RQntNames[RQUANT_MSECS] = "Microseconds";
 	RQntNames[RQUANT_EPOLYS] = "Entity Polys";
 	RQntNames[RQUANT_WPOLYS] = "World Polys";
+	RQntNames[RQUANT_DRAWS] = "Draw Calls";
+	RQntNames[RQUANT_2DBATCHES] = "2d Batches";
+	RQntNames[RQUANT_WORLDBATCHES] = "World Batches";
+	RQntNames[RQUANT_ENTBATCHES] = "Ent Batches";
 	RQntNames[RQUANT_SHADOWFACES] = "Shadow Faces";
 	RQntNames[RQUANT_SHADOWEDGES] = "Shadow edges";
 	RQntNames[RQUANT_LITFACES] = "Lit faces";
 
-	for (i = 0; i < RSPEED_MAX; i++)
+	if (r_speeds.ival > 1)
 	{
-		s = va("%i %-30s", samplerspeeds[i], RSpNames[i]);
-		Draw_String(vid.width-strlen(s)*8, i*8, s);
+		for (i = 0; i < RSPEED_MAX; i++)
+		{
+			s = va("%i %-20s", samplerspeeds[i], RSpNames[i]);
+			Draw_FunString(vid.width-strlen(s)*8, i*8, s);
+		}
 	}
 	for (i = 0; i < RQUANT_MAX; i++)
 	{
-		s = va("%i %-30s", samplerquant[i], RQntNames[i]);
-		Draw_String(vid.width-strlen(s)*8, (i+RSPEED_MAX)*8, s);
+		s = va("%i %-20s", samplerquant[i], RQntNames[i]);
+		Draw_FunString(vid.width-strlen(s)*8, (i+RSPEED_MAX)*8, s);
 	}
-	s = va("%f %-30s", 100000000.0f/samplerspeeds[RSPEED_TOTALREFRESH], "Framerate");
-	Draw_String(vid.width-strlen(s)*8, (i+RSPEED_MAX)*8, s);
+	s = va("%f %-20s", 100000000.0f/samplerspeeds[RSPEED_TOTALREFRESH], "Framerate");
+	Draw_FunString(vid.width-strlen(s)*8, (i+RSPEED_MAX)*8, s);
 
-	if (framecount++>=100)
+	if (++framecount>=100)
 	{
 		for (i = 0; i < RSPEED_MAX; i++)
 		{
@@ -240,12 +248,18 @@ CENTER PRINTING
 ===============================================================================
 */
 
-conchar_t       scr_centerstring[MAX_SPLITS][1024];
-float           scr_centertime_start[MAX_SPLITS];   // for slow victory printing
-float           scr_centertime_off[MAX_SPLITS];
-int                     scr_center_lines[MAX_SPLITS];
-int                     scr_erase_lines[MAX_SPLITS];
-int                     scr_erase_center[MAX_SPLITS];
+typedef struct {
+	unsigned int	flags;
+
+	conchar_t		string[1024];
+	unsigned int charcount;
+	float			time_start;   // for slow victory printing
+	float			time_off;
+	int				erase_lines;
+	int				erase_center;
+} cprint_t;
+
+cprint_t scr_centerprint[MAX_SPLITS];
 
 // SCR_StringToRGB: takes in "<index>" or "<r> <g> <b>" and converts to an RGB vector
 void SCR_StringToRGB (char *rgbstring, float *rgb, float rgbinputscale)
@@ -285,43 +299,6 @@ void SCR_StringToRGB (char *rgbstring, float *rgb, float rgbinputscale)
 	} // i contains the crosshair color
 }
 
-// SCR_StringToPalIndex: takes in "<index>" or "<r> <g> <b>" and converts to a 
-// Quake palette index
-int SCR_StringToPalIndex (char *rgbstring, float rgbinputscale)
-{
-	int i;
-	char *t;
-
-	rgbinputscale = 255/rgbinputscale;
-	t = strstr(rgbstring, " ");
-
-	if (t)
-	{
-		int r, g, b;
-
-		t++;
-		r = atof(rgbstring) * rgbinputscale;
-		g = atof(t) * rgbinputscale;
-		t = strstr(t, " ");
-		if (t)
-			b = atof(t) * rgbinputscale;
-		else
-			b = 0;
-
-		r = bound(0, r, 255);
-		g = bound(0, g, 255);
-		b = bound(0, b, 255);
-		i = GetPaletteIndex(r, g, b);
-	}
-	else
-	{
-		i = atoi(rgbstring);
-		i = bound(0, i, 255);
-	}
-
-	return i;
-}
-
 /*
 ==============
 SCR_CenterPrint
@@ -332,6 +309,7 @@ for a few moments
 */
 void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 {
+	cprint_t *p;
 	if (!skipgamecode)
 	{
 #ifdef CSQC_DAT
@@ -350,18 +328,38 @@ void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 		Cbuf_AddText("f_centerprint\n", RESTRICT_LOCAL);
 	}
 
-	COM_ParseFunString(CON_WHITEMASK, str, scr_centerstring[pnum], sizeof(scr_centerstring[pnum]), false);
-	scr_centertime_off[pnum] = scr_centertime.value;
-	scr_centertime_start[pnum] = cl.time;
+	p = &scr_centerprint[pnum];
+	p->flags = 0;
+	if (cl.intermission)
+		p->flags |= CPRINT_TYPEWRITER | CPRINT_PERSIST;
 
-// count the number of lines for centering
-	scr_center_lines[pnum] = 1;
-	while (*str)
+	while (*str == '/')
 	{
-		if (*str == '\n')
-			scr_center_lines[pnum]++;
-		str++;
+		if (str[1] == '.')
+		{
+/* /. means text actually starts after, no more flags */
+			str+=2;
+			break;
+		}
+		else if (str[1] == 'P')
+			p->flags |= CPRINT_PERSIST | CPRINT_BACKGROUND;
+		else if (str[1] == 'O')
+			p->flags = CPRINT_OBITUARTY;
+		else if (str[1] == 'B')
+			p->flags |= CPRINT_BALIGN;	//Note: you probably want to add some blank lines...
+		else if (str[1] == 'T')
+			p->flags |= CPRINT_TALIGN;
+		else if (str[1] == 'L')
+			p->flags |= CPRINT_LALIGN;
+		else if (str[1] == 'R')
+			p->flags |= CPRINT_RALIGN;
+		else
+			break;
+		str += 2;
 	}
+	p->charcount = COM_ParseFunString(CON_WHITEMASK, str, p->string, sizeof(p->string), false) - p->string;
+	p->time_off = scr_centertime.value;
+	p->time_start = cl.time;
 }
 
 void SCR_CPrint_f(void)
@@ -371,6 +369,7 @@ void SCR_CPrint_f(void)
 
 void SCR_EraseCenterString (void)
 {
+	cprint_t *p;
 	int pnum;
 	int		y;
 
@@ -379,161 +378,132 @@ void SCR_EraseCenterString (void)
 
 	for (pnum = 0; pnum < cl.splitclients; pnum++)
 	{
-		if (scr_erase_center[pnum]++ > vid.numpages)
+		p = &scr_centerprint[pnum];
+
+		if (p->erase_center++ > vid.numpages)
 		{
-			scr_erase_lines[pnum] = 0;
+			p->erase_lines = 0;
 			continue;
 		}
 
-		if (scr_center_lines[pnum] <= 4)
-			y = vid.height*0.35;
-		else
-			y = 48;
-
-		Draw_TileClear (0, y, vid.width, min(8*scr_erase_lines[pnum], vid.height - y - 1));
+		y = vid.height>>1;
+		R2D_TileClear (0, y, vid.width, min(8*p->erase_lines, vid.height - y - 1));
 	}
 }
 
-void SCR_CenterPrintBreaks(conchar_t *start, int *lines, int *maxlength)
+#define MAX_CPRINT_LINES 128
+void SCR_DrawCenterString (vrect_t *rect, cprint_t *p)
 {
-	int l;
-	*lines = 0;
-	*maxlength = 0;
-	do
-	{
-	// scan the width of the line
-		for (l=0 ; l<40 ; l++)
-			if ((start[l]&CON_CHARMASK) == '\n' || !(start[l]&CON_CHARMASK))
-				break;
-		if (l == 40)
-		{
-			while(l > 0 && (start[l-1]&CON_CHARMASK)>' ')
-			{
-				l--;
-			}
-		}
-
-		(*lines)++;
-		if (*maxlength < l)
-			*maxlength = l;
-
-		start+=l;
-//		for (l=0 ; l<40 && *start && *start != '\n'; l++)
- //			start++;
-
-		if (!(*start&CON_CHARMASK))
-			break;
-		else if ((*start&CON_CHARMASK) == '\n'||!l)
-			start++;                // skip the \n
-	} while (1);
-}
-
-void SCR_DrawCenterString (int pnum)
-{
-	conchar_t    *start;
 	int             l;
-	int             j;
-	int             x, y;
+	int             y, x;
+	int				left;
+	int				right;
+	int				top;
+	int				bottom;
 	int             remaining;
-	int hd = 1;
-	int screenwidth;
 
-	vrect_t rect;
+	conchar_t *line_start[MAX_CPRINT_LINES];
+	conchar_t *line_end[MAX_CPRINT_LINES];
+	int linecount;
 
-	int telejanostyle = 0;
-
-	if (cl.splitclients)
-		hd = cl.splitclients;
 
 // the finale prints the characters one at a time
-	if (cl.intermission)
-		remaining = scr_printspeed.value * (cl.time - scr_centertime_start[pnum]);
+	if (p->flags & CPRINT_TYPEWRITER)
+		remaining = scr_printspeed.value * (cl.time - p->time_start);
 	else
 		remaining = 9999;
 
-	scr_erase_center[pnum] = 0;
-	start = scr_centerstring[pnum];
+	p->erase_center = 0;
 
-	if (scr_center_lines[pnum] <= 4)
-		y = vid.height/hd*0.35;
-	else
-		y = 48;
-
-	SCR_VRectForPlayer(&rect, pnum);
-
-	y += rect.y;
-
-	screenwidth = 40;//vid.width/8;
-
-	if ((start[0]&CON_CHARMASK) == '/')
-	{
-		if ((start[1]&CON_CHARMASK) == 'O')
+	if (p->flags & CPRINT_BACKGROUND)
+	{	//hexen2 style plaque.
+		if (rect->width > 320)
 		{
-			telejanostyle = (start[1]&CON_CHARMASK);
-			start+=2;
+			rect->x = (rect->x + rect->width/2) - (160);
+			rect->width = 320;
 		}
-		else if ((start[1]&CON_CHARMASK) == 'P')
-		{	//hexen2 style plaque.
-			int lines, len;
-			start+=2;
-			SCR_CenterPrintBreaks(start, &lines, &len);
-			x = rect.x+(rect.width-len*8)/2;
-			Draw_TextBox(x-6, y-8, len-1, lines);
+		if (rect->width < 32)
+			return;
+		rect->x += 16;
+		rect->width -= 32;
+	}
+
+	Font_BeginString(font_conchar, rect->x, rect->y, &left, &top);
+	Font_BeginString(font_conchar, rect->x+rect->width, rect->y+rect->height, &right, &bottom);
+	linecount = Font_LineBreaks(p->string, p->string + p->charcount, right - left, MAX_CPRINT_LINES, line_start, line_end);
+
+	if (p->flags & CPRINT_TALIGN)
+		y = top;
+	else if (p->flags & CPRINT_BALIGN)
+		y = bottom - Font_CharHeight()*linecount;
+	else if (p->flags & CPRINT_OBITUARTY)
+		//'obituary' messages appear at the bottom of the screen
+		y = (bottom-top - Font_CharHeight()*linecount) * 0.65 + top;
+	else if (p->flags & CPRINT_TYPEWRITER)
+		Font_BeginString(font_conchar, 48, rect->y, &y, &top);
+	else
+	{
+		if (linecount <= 4)
+		{
+			//small messages appear above and away from the crosshair
+			y = (bottom-top - Font_CharHeight()*linecount) * 0.35 + top;
+		}
+		else
+		{
+			//longer messages are fully centered
+			y = (bottom-top - Font_CharHeight()*linecount) * 0.5 + top;
 		}
 	}
 
-	do
+	if (p->flags & CPRINT_BACKGROUND)
+	{	//hexen2 style plaque.
+		int px, py, pw;
+		px = rect->x;
+		py = (     y * vid.height) / (float)vid.pixelheight;
+		pw = rect->width+8;
+		Draw_TextBox(px-16, py-8-8, pw/8, linecount+2);
+	}
+
+	for (l = 0; l < linecount; l++, y += Font_CharHeight())
 	{
-	// scan the width of the line
-		for (l=0 ; l<=screenwidth ; l++)
-			if ((start[l]&CON_CHARMASK) == '\n' || !(start[l]&CON_CHARMASK))
-				break;
-		if (l == screenwidth+1)
+		if (p->flags & CPRINT_RALIGN)
 		{
-			while(l > 0 && (start[l-1]&CON_CHARMASK)>' ' && (start[l-1]&CON_CHARMASK) != ' '+128)
-			{
-				l--;
-			}
+			x = right - Font_LineWidth(line_start[l], line_end[l]);
 		}
-		x = rect.x + (rect.width - l*8)/2+4;
-		for (j=0 ; j<l ; j++, x+=8)
+		else if (p->flags & CPRINT_LALIGN)
+			x = left;
+		else
 		{
-			switch(telejanostyle)
-			{
-			case 'O':
-				Draw_ColouredCharacter (x, y+vid.height/2, start[j]);
-				break;
-			default:
-				Draw_ColouredCharacter (x, y, start[j]);
-			}
-			if (!remaining--)
-				return;
+			x = (right + left - Font_LineWidth(line_start[l], line_end[l]))/2;
 		}
 
-		y += 8;
-
-		start+=l;
-//		for (l=0 ; l<40 && *start && *start != '\n'; l++)
- //			start++;
-
-		if (!(*start&CON_CHARMASK))
-			break;
-		else if ((*start&CON_CHARMASK) == '\n'||!l)
-			start++;                // skip the \n
-	} while (1);
+		remaining -= line_end[l]-line_start[l];
+		if (remaining <= 0)
+		{
+			line_end[l] += remaining;
+			if (line_end[l] <= line_start[l])
+				break;
+		}
+		Font_LineDraw(x, y, line_start[l], line_end[l]);
+	}
+	Font_EndString(font_conchar);
 }
 
 void SCR_CheckDrawCenterString (void)
 {
 extern qboolean sb_showscores;
 	int pnum;
+	cprint_t *p;
+	vrect_t rect;
 
 	for (pnum = 0; pnum < cl.splitclients; pnum++)
 	{
-		if (scr_center_lines[pnum] > scr_erase_lines[pnum])
-			scr_erase_lines[pnum] = scr_center_lines[pnum];
+		p = &scr_centerprint[pnum];
 
-		scr_centertime_off[pnum] -= host_frametime;
+		if (p->time_off <= 0 && !cl.intermission && !(p->flags & CPRINT_PERSIST))
+			continue;	//'/P' prefix doesn't time out
+
+		p->time_off -= host_frametime;
 
 		if (key_dest != key_game)	//don't let progs guis/centerprints interfere with the game menu
 			continue;
@@ -541,13 +511,54 @@ extern qboolean sb_showscores;
 		if (sb_showscores)	//this was annoying
 			continue;
 
-		if (scr_centertime_off[pnum] <= 0 && !cl.intermission && (scr_centerstring[pnum][0]&255) != '/' && (scr_centerstring[pnum][1]&255) != 'P')
-			continue;	//'/P' prefix doesn't time out
-
-		SCR_DrawCenterString (pnum);
+		SCR_VRectForPlayer(&rect, pnum);
+		SCR_DrawCenterString(&rect, p);
 	}
 }
 
+void R_DrawTextField(int x, int y, int w, int h, char *text, unsigned int defaultmask, unsigned int fieldflags)
+{
+	cprint_t p;
+	vrect_t r;
+
+	r.x = x;
+	r.y = y;
+	r.width = w;
+	r.height = h;
+
+	p.flags = fieldflags;
+	p.charcount = COM_ParseFunString(defaultmask, text, p.string, sizeof(p.string), false) - p.string;
+	p.time_off = scr_centertime.value;
+	p.time_start = cl.time;
+
+	SCR_DrawCenterString(&r, &p);
+}
+
+void SCR_DrawCursor(int prydoncursornum)
+{
+	extern cvar_t cl_cursor, cl_cursorbias, cl_cursorsize;
+	extern int mousecursor_x, mousecursor_y;
+	mpic_t *p;
+	if (!*cl_cursor.string || prydoncursornum>1)
+		p = R2D_SafeCachePic(va("gfx/prydoncursor%03i.lmp", prydoncursornum));
+	else
+		p = R2D_SafeCachePic(cl_cursor.string);
+	if (p)
+	{
+		R2D_ImageColours(1, 1, 1, 1);
+		R2D_Image(mousecursor_x-cl_cursorbias.value, mousecursor_y-cl_cursorbias.value, cl_cursorsize.value, cl_cursorsize.value, 0, 0, 1, 1, p);
+	}
+	else
+	{
+		int x, y;
+		Font_BeginString(font_conchar, mousecursor_x, mousecursor_y, &x, &y);
+		x -= Font_CharWidth('+' | 0xe000 | CON_WHITEMASK)/2;
+		y -= Font_CharHeight()/2;
+		Font_DrawChar(x, y, '+' | 0xe000 | CON_WHITEMASK);
+		Font_EndString(font_conchar);
+	}
+
+}
 
 ////////////////////////////////////////////////////////////////
 //TEI_SHOWLMP2 (not 3)
@@ -634,10 +645,10 @@ void SCR_ShowPics_Draw(void)
 		if (failed)
 			continue;
 
-		p = Draw_SafeCachePic(sp->picname);
+		p = R2D_SafeCachePic(sp->picname);
 		if (!p)
 			continue;
-		Draw_Pic(x, y, p);
+		R2D_ScalePic(x, y, p->width, p->height, p);
 	}
 }
 
@@ -647,7 +658,10 @@ void SCR_ShowPic_Clear(void)
 	int pnum;
 
 	for (pnum = 0; pnum < MAX_SPLITS; pnum++)
-		*scr_centerstring[pnum] = '\0';
+	{
+		scr_centerprint[pnum].flags = 0;
+		scr_centerprint[pnum].charcount = 0;
+	}
 
 	while((sp = showpics))
 	{
@@ -900,7 +914,7 @@ void SCR_CalcRefdef (void)
 	{
 		full = true;
 		size = 100.0;
-	} 
+	}
 	else
 		size = scr_viewsize.value;
 
@@ -929,7 +943,7 @@ void SCR_CalcRefdef (void)
 	{
   		if (r_refdef.vrect.height > vid.height - sb_lines)
   			r_refdef.vrect.height = vid.height - sb_lines;
-	} 
+	}
 	else if (r_refdef.vrect.height > vid.height)
 			r_refdef.vrect.height = vid.height;
 
@@ -952,12 +966,12 @@ void SCR_CalcRefdef (void)
 	if (cl.stats[0][STAT_VIEWZOOM])
 		r_refdef.fov_x *= cl.stats[0][STAT_VIEWZOOM]/255.0f;
 
-	if (r_refdef.fov_x < 10)
-		r_refdef.fov_x = 10;
+	if (r_refdef.fov_x < 1)
+		r_refdef.fov_x = 1;
 	else if (r_refdef.fov_x > 170)
 		r_refdef.fov_x = 170;
 
-	
+
 	r_refdef.fov_y = CalcFov (r_refdef.fov_x, r_refdef.vrect.width, r_refdef.vrect.height);
 
 
@@ -975,7 +989,7 @@ void SCR_CrosshairPosition(int pnum, int *x, int *y)
 	vrect_t rect;
 	SCR_VRectForPlayer(&rect, pnum);
 
-	if (cl.worldmodel && crosshaircorrect.value)
+	if (cl.worldmodel && crosshaircorrect.ival)
 	{
 		float adj;
 		trace_t tr;
@@ -991,7 +1005,7 @@ void SCR_CrosshairPosition(int pnum, int *x, int *y)
 
 		memset(&tr, 0, sizeof(tr));
 		tr.fraction = 1;
-		cl.worldmodel->funcs.Trace(cl.worldmodel, 0, 0, start, end, vec3_origin, vec3_origin, &tr);
+		cl.worldmodel->funcs.Trace(cl.worldmodel, 0, 0, NULL, start, end, vec3_origin, vec3_origin, &tr);
 		start[2]-=16;
 		if (tr.fraction == 1)
 		{
@@ -1033,7 +1047,10 @@ Keybinding command
 */
 void SCR_SizeUp_f (void)
 {
-	Cvar_SetValue (&scr_viewsize,scr_viewsize.value+10);
+	if (Cmd_FromGamecode())
+		Cvar_ForceSet(&scr_viewsize,va("%i", scr_viewsize.ival+10));
+	else
+		Cvar_SetValue (&scr_viewsize,scr_viewsize.value+10);
 }
 
 
@@ -1046,7 +1063,10 @@ Keybinding command
 */
 void SCR_SizeDown_f (void)
 {
-	Cvar_SetValue (&scr_viewsize,scr_viewsize.value-10);
+	if (Cmd_FromGamecode())
+		Cvar_ForceSet(&scr_viewsize,va("%i", scr_viewsize.ival-10));
+	else
+		Cvar_SetValue (&scr_viewsize,scr_viewsize.value-10);
 }
 
 //============================================================================
@@ -1065,8 +1085,8 @@ void SCR_Init (void)
 	Cmd_AddRemCommand ("sizeup",SCR_SizeUp_f);
 	Cmd_AddRemCommand ("sizedown",SCR_SizeDown_f);
 
-	scr_net = Draw_SafePicFromWad ("net");
-	scr_turtle = Draw_SafePicFromWad ("turtle");
+	scr_net = R2D_SafePicFromWad ("net");
+	scr_turtle = R2D_SafePicFromWad ("turtle");
 
 	scr_initialized = true;
 }
@@ -1093,7 +1113,7 @@ void SCR_DrawTurtle (void)
 {
 	static int      count;
 
-	if (!scr_showturtle.value || !scr_turtle)
+	if (!scr_showturtle.ival || !scr_turtle)
 		return;
 
 	if (host_frametime <= 1.0/scr_turtlefps.value)
@@ -1106,7 +1126,7 @@ void SCR_DrawTurtle (void)
 	if (count < 3)
 		return;
 
-	Draw_Pic (scr_vrect.x, scr_vrect.y, scr_turtle);
+	R2D_ScalePic (scr_vrect.x, scr_vrect.y, 64, 64, scr_turtle);
 }
 
 /*
@@ -1121,42 +1141,60 @@ void SCR_DrawNet (void)
 	if (cls.demoplayback || !scr_net)
 		return;
 
-	Draw_Pic (scr_vrect.x+64, scr_vrect.y, scr_net);
+	R2D_ScalePic (scr_vrect.x+64, scr_vrect.y, 64, 64, scr_net);
 }
 
 void SCR_StringXY(char *str, float x, float y)
 {
-	if (x < 0)
-		x = vid.width + x*strlen(str)*8;
-	if (y < 0)
-		y = vid.height - sb_lines + y*8;
+	char *s2;
+	int px, py;
 
-	Draw_String(x, y, str);
+	Font_BeginString(font_conchar, ((x<0)?vid.width:x), ((y<0)?vid.height - sb_lines:y), &px, &py);
+
+	if (x < 0)
+	{
+		for (s2 = str; *s2; s2++)
+			px -= Font_CharWidth(*s2);
+	}
+
+	if (y < 0)
+		py += y*Font_CharHeight();
+
+	while (*str)
+		px = Font_DrawChar(px, py, CON_WHITEMASK|*str++);
+	Font_EndString(font_conchar);
 }
 
 void SCR_DrawFPS (void)
 {
 	extern cvar_t show_fps;
-	static double lastframetime;
+	static double lastupdatetime;
+	static double lastsystemtime;
 	double t;
 	extern int fps_count;
 	static float lastfps;
+	static float deviationtimes[64];
+	static int deviationframe;
 	char str[80];
-	int sfps;
+	int sfps, frame;
 	qboolean usemsecs = false;
 
-	if (!show_fps.value)
+	float frametime;
+
+	if (!show_fps.ival)
 		return;
 
 	t = Sys_DoubleTime();
-	if ((t - lastframetime) >= 1.0)
+	if ((t - lastupdatetime) >= 1.0)
 	{
-		lastfps = fps_count/(t - lastframetime);
+		lastfps = fps_count/(t - lastupdatetime);
 		fps_count = 0;
-		lastframetime = t;
+		lastupdatetime = t;
 	}
+	frametime = t - lastsystemtime;
+	lastsystemtime = t;
 
-	sfps = show_fps.value;
+	sfps = show_fps.ival;
 	if (sfps < 0)
 	{
 		sfps = -sfps;
@@ -1166,31 +1204,61 @@ void SCR_DrawFPS (void)
 	switch (sfps)
 	{
 	case 2: // lowest FPS, highest MS encountered
-		if (lastfps > 1/host_frametime)
+		if (lastfps > 1/frametime)
 		{
-			lastfps = 1/host_frametime;
+			lastfps = 1/frametime;
 			fps_count = 0;
-			lastframetime = t;
+			lastupdatetime = t;
 		}
 		break;
 	case 3: // highest FPS, lowest MS encountered
-		if (lastfps < 1/host_frametime)
+		if (lastfps < 1/frametime)
 		{
-			lastfps = 1/host_frametime;
+			lastfps = 1/frametime;
 			fps_count = 0;
-			lastframetime = t;
+			lastupdatetime = t;
 		}
 		break;
 	case 4: // immediate FPS/MS
-		lastfps = 1/host_frametime;
-		lastframetime = t;
+		lastfps = 1/frametime;
+		lastupdatetime = t;
 		break;
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	case 5:
 		if (qrenderer == QR_OPENGL)
-			GLR_FrameTimeGraph((int)(1000.0*host_frametime));
+			GLR_FrameTimeGraph((int)(1000.0*2*frametime));
+		break;
+	case 7:
+		if (qrenderer == QR_OPENGL)
+			GLR_FrameTimeGraph((int)(1000.0*1*frametime));
 		break;
 #endif
+	case 6:
+		{
+			float mean, deviation;
+			deviationtimes[deviationframe++&63] = frametime*1000;
+			mean = 0;
+			for (frame = 0; frame < 64; frame++)
+			{
+				mean += deviationtimes[frame];
+			}
+			mean /= 64;
+			deviation = 0;
+			for (frame = 0; frame < 64; frame++)
+			{
+				deviation += (deviationtimes[frame] - mean)*(deviationtimes[frame] - mean);
+			}
+			deviation /= 64;
+			deviation = sqrt(deviation);
+
+
+			SCR_StringXY(va("%f deviation", deviation), show_fps_x.value, show_fps_y.value-8);
+		}
+		break;
+	case 8:
+		if (cls.timedemo)
+			Con_Printf("%f\n", frametime);
+		break;
 	}
 
 	if (usemsecs)
@@ -1207,14 +1275,24 @@ void SCR_DrawUPS (void)
 	double t;
 	static float lastups;
 	char str[80];
+	float *vel;
+	int track;
 
-	if (!show_speed.value)
+	if (!show_speed.ival)
 		return;
 
 	t = Sys_DoubleTime();
 	if ((t - lastupstime) >= 1.0/20)
 	{
-		lastups = sqrt((cl.simvel[0][0]*cl.simvel[0][0]) + (cl.simvel[0][1]*cl.simvel[0][1]));
+		if (cl.spectator)
+			track = Cam_TrackNum(0);
+		else
+			track = -1;
+		if (track != -1)
+			vel = cl.frames[cl.validsequence&UPDATE_MASK].playerstate[track].velocity;
+		else
+			vel = cl.simvel[0];
+		lastups = sqrt((vel[0]*vel[0]) + (vel[1]*vel[1]));
 		lastupstime = t;
 	}
 
@@ -1228,7 +1306,7 @@ void SCR_DrawClock(void)
 	time_t long_time;
 	char str[16];
 
-	if (!show_clock.value)
+	if (!show_clock.ival)
 		return;
 
 	time( &long_time );
@@ -1247,16 +1325,16 @@ void SCR_DrawGameClock(void)
 	int flags;
 	float timelimit;
 
-	if (!show_gameclock.value)
+	if (!show_gameclock.ival)
 		return;
 
 	flags = (show_gameclock.value-1);
-	if (flags & 1) 
+	if (flags & 1)
 		timelimit = 60 * atof(Info_ValueForKey(cl.serverinfo, "timelimit"));
 	else
 		timelimit = 0;
 
-	showtime = timelimit - cl.ktprogametime;
+	showtime = timelimit - cl.matchgametime;
 
 	if (showtime < 0)
 	{
@@ -1285,20 +1363,23 @@ void SCR_DrawPause (void)
 {
 	mpic_t  *pic;
 
-	if (!scr_showpause.value)               // turn off for screenshots
+	if (!scr_showpause.ival)               // turn off for screenshots
 		return;
 
 	if (!cl.paused)
 		return;
 
-	pic = Draw_SafeCachePic ("gfx/pause.lmp");
+	if (key_dest == key_menu)
+		return;
+
+	pic = R2D_SafeCachePic ("gfx/pause.lmp");
 	if (pic)
 	{
-		Draw_Pic ( (vid.width - pic->width)/2,
-			(vid.height - 48 - pic->height)/2, pic);
+		R2D_ScalePic ( (vid.width - pic->width)/2,
+			(vid.height - 48 - pic->height)/2, pic->width, pic->height, pic);
 	}
 	else
-		Draw_String((vid.width-strlen("Paused")*8)/2, (vid.height-8)/2, "Paused");
+		Draw_FunString((vid.width-strlen("Paused")*8)/2, (vid.height-8)/2, "Paused");
 }
 
 
@@ -1328,7 +1409,7 @@ void SCR_DrawLoading (void)
 	char *s;
 	int qdepth;
 	int h2depth;
-	int mtype = M_GameType();
+	//int mtype = M_GameType(); //unused variable
 	y = vid.height/2;
 
 	qdepth = COM_FDepthFile("gfx/loading.lmp", true);
@@ -1337,12 +1418,12 @@ void SCR_DrawLoading (void)
 	if (qdepth < h2depth || h2depth > 0xffffff)
 	{	//quake files
 
-		pic = Draw_SafeCachePic ("gfx/loading.lmp");
+		pic = R2D_SafeCachePic ("gfx/loading.lmp");
 		if (pic)
 		{
 			x = (vid.width - pic->width)/2;
 			y = (vid.height - 48 - pic->height)/2;
-			Draw_Pic (x, y, pic);
+			R2D_ScalePic (x, y, pic->width, pic->height, pic);
 			x = (vid.width/2) - 96;
 			y += pic->height + 8;
 		}
@@ -1351,7 +1432,7 @@ void SCR_DrawLoading (void)
 			x = (vid.width/2) - 96;
 			y = (vid.height/2) - 8;
 
-			Draw_String((vid.width-7*8)/2, y-16, "Loading");
+			Draw_FunString((vid.width-7*8)/2, y-16, "Loading");
 		}
 
 		if (!total_loading_size)
@@ -1361,16 +1442,20 @@ void SCR_DrawLoading (void)
 			sizex = current_loading_size * 192 / total_loading_size;
 			if (loading_stage == LS_SERVER)
 			{
-				Draw_FillRGB(x, y, sizex, 16, 1.0, 0.0, 0.0);
-				Draw_FillRGB(x+sizex, y, 192-sizex, 16, 0.0, 0.0, 0.0);
+				R2D_ImageColours(1.0, 0.0, 0.0, 1.0);
+				R2D_FillBlock(x, y, sizex, 16);
+				R2D_ImageColours(0.0, 0.0, 0.0, 1.0);
+				R2D_FillBlock(x+sizex, y, 192-sizex, 16);
 			}
 			else
 			{
-				Draw_FillRGB(x, y, sizex, 16, 1.0, 1.0, 0.0);
-				Draw_FillRGB(x+sizex, y, 192-sizex, 16, 1.0, 0.0, 0.0);
+				R2D_ImageColours(1.0, 1.0, 0.0, 1.0);
+				R2D_FillBlock(x, y, sizex, 16);
+				R2D_ImageColours(1.0, 0.0, 0.0, 1.0);
+				R2D_FillBlock(x+sizex, y, 192-sizex, 16);
 			}
 
-			Draw_String(x+8, y+4, va("Loading %s... %i%%", 
+			Draw_FunString(x+8, y+4, va("Loading %s... %i%%",
 				(loading_stage == LS_SERVER) ? "server" : "client",
 				current_loading_size * 100 / total_loading_size));
 
@@ -1379,7 +1464,7 @@ void SCR_DrawLoading (void)
 	}
 	else
 	{	//hexen2 files
-		pic = Draw_SafeCachePic ("gfx/menu/loading.lmp");
+		pic = R2D_SafeCachePic ("gfx/menu/loading.lmp");
 		if (pic)
 		{
 			int		size, count, offset;
@@ -1388,7 +1473,7 @@ void SCR_DrawLoading (void)
 				return;
 
 			offset = (vid.width - pic->width)/2;
-			Draw_TransPic (offset , 0, pic);
+			R2D_ScalePic (offset, 0, pic->width, pic->height, pic);
 
 			if (loading_stage == LS_NONE)
 				return;
@@ -1403,18 +1488,22 @@ void SCR_DrawLoading (void)
 			else
 				count = 106;
 
-			Draw_Fill (offset+42, 87, count, 1, 136);
-			Draw_Fill (offset+42, 87+1, count, 4, 138);
-			Draw_Fill (offset+42, 87+5, count, 1, 136);
+			R2D_ImagePaletteColour (136, 1.0);
+			R2D_FillBlock (offset+42, 87, count, 1);
+			R2D_FillBlock (offset+42, 87+5, count, 1);
+			R2D_ImagePaletteColour (138, 1.0);
+			R2D_FillBlock (offset+42, 87+1, count, 4);
 
 			if (loading_stage == LS_SERVER)
 				count = size;
 			else
 				count = 0;
 
-			Draw_Fill (offset+42, 97, count, 1, 168);
-			Draw_Fill (offset+42, 97+1, count, 4, 170);
-			Draw_Fill (offset+42, 97+5, count, 1, 168);
+			R2D_ImagePaletteColour(168, 1.0);
+			R2D_FillBlock (offset+42, 97, count, 1);
+			R2D_FillBlock (offset+42, 97+5, count, 1);
+			R2D_ImagePaletteColour(170, 1.0);
+			R2D_FillBlock (offset+42, 97+1, count, 4);
 
 			y = 104;
 		}
@@ -1425,19 +1514,19 @@ void SCR_DrawLoading (void)
 		unsigned int fcount;
 		unsigned int tsize;
 		qboolean sizeextra;
-		
-		x = vid.conwidth/2 - 160;
+
+		x = vid.width/2 - 160;
 
 		CL_GetDownloadSizes(&fcount, &tsize, &sizeextra);
 		//downloading files?
 		if (cls.downloadmethod)
-			Draw_String(x+8, y+4, va("Downloading %s... %i%%", 
+			Draw_FunString(x+8, y+4, va("Downloading %s... %i%%",
 				cls.downloadlocalname,
 				cls.downloadpercent));
 
 		if (tsize > 1024*1024*16)
 		{
-			Draw_String(x+8, y+8+4, va("%5ukbps %8umb%s remaining (%i files)", 
+			Draw_FunString(x+8, y+8+4, va("%5ukbps %8umb%s remaining (%i files)",
 				(unsigned int)(CL_DownloadRate()/1000.0f),
 				tsize/(1024*1024),
 				sizeextra?"+":"",
@@ -1445,7 +1534,7 @@ void SCR_DrawLoading (void)
 		}
 		else
 		{
-			Draw_String(x+8, y+8+4, va("%5ukbps %8ukb%s remaining (%i files)", 
+			Draw_FunString(x+8, y+8+4, va("%5ukbps %8ukb%s remaining (%i files)",
 				(unsigned int)(CL_DownloadRate()/1000.0f),
 				tsize/1024,
 				sizeextra?"+":"",
@@ -1464,7 +1553,7 @@ void SCR_DrawLoading (void)
 		dots[1] = '.';
 		dots[2] = '.';
 		dots[(int)realtime & 3] = 0;
-		Draw_String(x, y+4, va("Connecting to: %s%s", s, dots)); 
+		Draw_FunString(x, y+4, va("Connecting to: %s%s", s, dots));
 	}
 }
 
@@ -1496,6 +1585,8 @@ void SCR_EndLoadingPlaque (void)
 
 	scr_disabled_for_loading = false;
 	*levelshotname = '\0';
+	scr_drawloading = false;
+	loading_stage = 0;
 }
 
 void SCR_ImageName (char *mapname)
@@ -1503,10 +1594,10 @@ void SCR_ImageName (char *mapname)
 	strcpy(levelshotname, "levelshots/");
 	COM_FileBase(mapname, levelshotname + strlen(levelshotname), sizeof(levelshotname)-strlen(levelshotname));
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
-		if (!Draw_SafeCachePic (levelshotname))
+		if (!R2D_SafeCachePic (levelshotname))
 		{
 			*levelshotname = '\0';
 			return;
@@ -1520,7 +1611,7 @@ void SCR_ImageName (char *mapname)
 
 	scr_disabled_for_loading = false;
 	scr_drawloading = true;
-	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
+	GL_BeginRendering ();
 	SCR_DrawLoading();
 	SCR_SetUpToDrawConsole();
 	SCR_DrawConsole(!!*levelshotname);
@@ -1545,33 +1636,14 @@ SCR_SetUpToDrawConsole
 void SCR_SetUpToDrawConsole (void)
 {
 #ifdef TEXTEDITOR
-	extern qboolean editoractive;
+	//extern qboolean editoractive; //unused variable
 #endif
-	Con_CheckResize ();
-
-	scr_con_forcedraw = false;
-
 	if (scr_drawloading)
 		return;         // never a console with loading plaque
 
 // decide on the height of the console
 	if (!scr_disabled_for_loading)
 	{
-		/*if (cls.state != ca_active && !Media_PlayingFullScreen()
-	#ifdef TEXTEDITOR
-			&& !editoractive
-	#endif
-	#ifdef VM_UI
-			&& !UI_MenuState()
-	#endif
-			)
-		{
-			scr_conlines = vid.height;              // full screen
-			scr_con_current = scr_conlines;
-			scr_con_forcedraw = true;
-		}
-		else */
-		scr_con_forcedraw = false;
 		if ((key_dest == key_console || key_dest == key_game) && !cl.sendprespawn && cl.worldmodel && cl.worldmodel->needload)
 			Con_ForceActiveNow();
 		else if (key_dest == key_console || scr_chatmode)
@@ -1610,8 +1682,6 @@ void SCR_SetUpToDrawConsole (void)
 	else if (clearnotify++ < vid.numpages)
 	{
 	}
-	else
-		con_notifylines = 0;
 }
 
 /*
@@ -1651,8 +1721,8 @@ typedef struct _TargaHeader {
 } TargaHeader;
 
 
-#ifdef AVAIL_JPEGLIB
-void screenshotJPEG(char *filename, int compression, qbyte *screendata, int screenwidth, int screenheight);
+#if defined(AVAIL_JPEGLIB) && !defined(NO_JPEG)
+	void screenshotJPEG(char *filename, int compression, qbyte *screendata, int screenwidth, int screenheight);
 #endif
 #ifdef AVAIL_PNGLIB
 int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, int height);
@@ -1707,6 +1777,9 @@ qboolean SCR_ScreenShot (char *filename)
 	ext = COM_FileExtension(filename);
 
 	buffer = VID_GetRGBInfo(MAX_PREPAD, &truewidth, &trueheight);
+#ifdef _MSC_VER
+#pragma message("Need to ensure that the various image writing routines can cope with ((width|height)&3")
+#endif
 
 	if (!buffer)
 		return false;
@@ -1784,6 +1857,7 @@ SCR_ScreenShot_f
 */
 void SCR_ScreenShot_f (void)
 {
+	char			sysname[1024];
 	char            pcxname[80];
 	int                     i;
 	vfsfile_t *vfs;
@@ -1829,8 +1903,10 @@ void SCR_ScreenShot_f (void)
 		}
 	}
 
+	FS_NativePath(pcxname, FS_GAMEONLY, sysname, sizeof(sysname));
+
 	if (SCR_ScreenShot(pcxname))
-		Con_Printf ("Wrote %s\n", pcxname);
+		Con_Printf ("Wrote %s\n", sysname);
 	else
 		Con_Printf ("Screenshot failed\n");
 }
@@ -1900,7 +1976,7 @@ qboolean SCR_RSShot (void)
 	char st[80];
 	time_t now;
 
-	if (!scr_allowsnap.value)
+	if (!scr_allowsnap.ival)
 		return false;
 
 	if (CL_IsUploading())
@@ -1997,74 +2073,6 @@ qboolean SCR_RSShot (void)
 
 //=============================================================================
 
-char    *scr_notifystring;
-qboolean        scr_drawdialog;
-
-void SCR_DrawNotifyString (void)
-{
-	char    *start;
-	int             l;
-	int             j;
-	int             x, y;
-
-	start = scr_notifystring;
-
-	y = vid.height*0.35;
-
-	do
-	{
-	// scan the width of the line
-		for (l=0 ; l<40 ; l++)
-			if (start[l] == '\n' || !start[l])
-				break;
-		x = (vid.width - l*8)/2;
-		for (j=0 ; j<l ; j++, x+=8)
-			Draw_Character (x, y, start[j]);
-
-		y += 8;
-
-		while (*start && *start != '\n')
-			start++;
-
-		if (!*start)
-			break;
-		start++;                // skip the \n
-	} while (1);
-}
-
-/*
-==================
-SCR_ModalMessage
-
-Displays a text string in the center of the screen and waits for a Y or N
-keypress.
-==================
-*/
-int SCR_ModalMessage (char *text)
-{
-	scr_notifystring = text;
-
-// draw a fresh screen
-	scr_drawdialog = true;
-	SCR_UpdateScreen ();
-	scr_drawdialog = false;
-
-	S_StopAllSounds (true);               // so dma doesn't loop current sound
-
-	do
-	{
-		key_count = -1;         // wait for a key down and up
-		Sys_SendKeyEvents ();
-	} while (key_lastpress != 'y' && key_lastpress != 'n' && key_lastpress != K_ESCAPE);
-
-	SCR_UpdateScreen ();
-
-	return key_lastpress == 'y';
-}
-
-
-//=============================================================================
-
 /*
 ===============
 SCR_BringDownConsole
@@ -2078,7 +2086,7 @@ void SCR_BringDownConsole (void)
 	int pnum;
 
 	for (pnum = 0; pnum < cl.splitclients; pnum++)
-		scr_centertime_off[pnum] = 0;
+		scr_centerprint[pnum].charcount = 0;
 
 	for (i=0 ; i<20 && scr_conlines != scr_con_current ; i++)
 		SCR_UpdateScreen ();
@@ -2097,25 +2105,25 @@ void SCR_TileClear (void)
 		return;	//splitclients always takes the entire screen.
 
 #ifdef PLUGINS
-	if (plug_sbar.value)
+	if (plug_sbar.ival)
 	{
 		if (scr_vrect.x > 0)
 		{
 			// left
-			Draw_TileClear (0, 0, scr_vrect.x, vid.height);
+			R2D_TileClear (0, 0, scr_vrect.x, vid.height);
 			// right
-			Draw_TileClear (scr_vrect.x + scr_vrect.width, 0,
+			R2D_TileClear (scr_vrect.x + scr_vrect.width, 0,
 				vid.width - scr_vrect.x + scr_vrect.width,
 				vid.height);
 		}
 		if (scr_vrect.y > 0 || scr_vrect.height != vid.height)
 		{
 			// top
-			Draw_TileClear (scr_vrect.x, 0,
-				scr_vrect.x + scr_vrect.width,
+			R2D_TileClear (scr_vrect.x, 0,
+				scr_vrect.width,
 				scr_vrect.y);
 			// bottom
-			Draw_TileClear (scr_vrect.x,
+			R2D_TileClear (scr_vrect.x,
 				scr_vrect.y + scr_vrect.height,
 				scr_vrect.width,
 				vid.height);
@@ -2127,20 +2135,20 @@ void SCR_TileClear (void)
 		if (scr_vrect.x > 0)
 		{
 			// left
-			Draw_TileClear (0, 0, scr_vrect.x, vid.height - sb_lines);
+			R2D_TileClear (0, 0, scr_vrect.x, vid.height - sb_lines);
 			// right
-			Draw_TileClear (scr_vrect.x + scr_vrect.width, 0,
+			R2D_TileClear (scr_vrect.x + scr_vrect.width, 0,
 				vid.width - scr_vrect.x + scr_vrect.width,
 				vid.height - sb_lines);
 		}
 		if (scr_vrect.y > 0)
 		{
 			// top
-			Draw_TileClear (scr_vrect.x, 0,
-				scr_vrect.x + scr_vrect.width,
+			R2D_TileClear (scr_vrect.x, 0,
+				scr_vrect.width,
 				scr_vrect.y);
 			// bottom
-			Draw_TileClear (scr_vrect.x,
+			R2D_TileClear (scr_vrect.x,
 				scr_vrect.y + scr_vrect.height,
 				scr_vrect.width,
 				vid.height - cl_sbar.value?sb_lines:0 -
@@ -2159,30 +2167,12 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 	//
 	// draw any areas not covered by the refresh
 	//
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	if (r_netgraph.value && qrenderer == QR_OPENGL)
 		GLR_NetGraph ();
 #endif
 
-	if (scr_drawdialog)
-	{
-		if (!nohud)
-		{
-#ifdef PLUGINS
-			Plug_SBar ();
-#else
-			if (Sbar_ShouldDraw())
-			{
-				Sbar_Draw ();
-				Sbar_DrawScoreboard ();
-			}
-#endif
-		}
-		SCR_ShowPics_Draw();
-		Draw_FadeScreen ();
-		SCR_DrawNotifyString ();
-	}
-	else if (scr_drawloading || loading_stage)
+	if (scr_drawloading || loading_stage)
 	{
 		SCR_DrawLoading();
 
@@ -2216,7 +2206,7 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 	{
 		if (!nohud)
 		{
-			Draw_Crosshair();
+			R2D_DrawCrosshair();
 
 			SCR_DrawNet ();
 			SCR_DrawFPS ();
@@ -2239,12 +2229,11 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 			CL_DrawPrydonCursor();
 		}
 		else
+		{
 			SCR_DrawFPS ();
+			SCR_DrawUPS ();
+		}
 		SCR_CheckDrawCenterString ();
-#ifdef RGLQUAKE
-		if (qrenderer == QR_OPENGL)
-			qglTexEnvi ( GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE );
-#endif
 	}
 
 #ifdef TEXTEDITOR
@@ -2252,12 +2241,16 @@ void SCR_DrawTwoDimensional(int uimenu, qboolean nohud)
 		Editor_Draw();
 #endif
 
-	SCR_DrawConsole (false);
+	if (key_dest != key_console)
+		SCR_DrawConsole (false);
 
 	M_Draw (uimenu);
 #ifdef MENU_DAT
 	MP_Draw();
 #endif
+
+	if (key_dest == key_console)
+		SCR_DrawConsole (false);
 
 	RSpeedEnd(RSPEED_2D);
 }

@@ -56,11 +56,11 @@ void CDAudio_Play(int track, qboolean looping)
 {
 	if (!enabled)
 		return;
-	
+
 	if (!cdValid)
 	{
 		CDAudio_GetAudioDiskInfo();
-		if (!cdValid)	
+		if (!cdValid)
 			return;
 	}
 
@@ -74,8 +74,8 @@ void CDAudio_Play(int track, qboolean looping)
 
 	if (playing)
 	{
-		if (playTrack == track)				
-			return;		
+		if (playTrack == track)
+			return;
 		CDAudio_Stop();
 	}
 
@@ -100,7 +100,7 @@ void CDAudio_Stop(void)
 {
 	if (!enabled)
 		return;
-	
+
 	if (!playing)
 		return;
 
@@ -132,7 +132,7 @@ void CDAudio_Resume(void)
 {
 	if (!enabled)
 		return;
-	
+
 	if (!cdValid)
 		return;
 

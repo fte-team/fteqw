@@ -10,6 +10,24 @@
 extern jmp_buf qcccompileerror;
 #endif
 
+// I put the following here to resolve "undefined reference to `__imp__vsnprintf'" with MinGW64 ~ Moodles
+#ifdef __MINGW64__
+#ifndef QCCONLY
+	#if (_MSC_VER >= 1400)
+		//with MSVC 8, use MS extensions
+		#define snprintf linuxlike_snprintf_vc8
+		int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
+		#define vsnprintf(a, b, c, d) vsnprintf_s(a, b, _TRUNCATE, c, d)
+	#else
+		//msvc crap
+		#define snprintf linuxlike_snprintf
+		int VARGS linuxlike_snprintf(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
+		#define vsnprintf linuxlike_vsnprintf
+		int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_list argptr);
+	#endif
+#endif
+#endif
+
 // set these before calling CheckParm
 int myargc;
 char **myargv;
@@ -83,13 +101,13 @@ int    QCC_Long (int l)
 float	QCC_SwapFloat (float l)
 {
 	union {qbyte b[4]; float f;} in, out;
-	
+
 	in.f = l;
 	out.b[0] = in.b[3];
 	out.b[1] = in.b[2];
 	out.b[2] = in.b[1];
 	out.b[3] = in.b[0];
-	
+
 	return out.f;
 }
 
@@ -138,13 +156,13 @@ double I_FloatTime (void)
 	static int		secbase;
 
 	gettimeofday(&tp, &tzp);
-	
+
 	if (!secbase)
 	{
 		secbase = tp.tv_sec;
 		return tp.tv_usec/1000000.0;
 	}
-	
+
 	return (tp.tv_sec - secbase) + tp.tv_usec/1000000.0;
 }
 
@@ -155,7 +173,7 @@ double I_FloatTime (void)
 int QC_strncasecmp (const char *s1, const char *s2, int n)
 {
 	int             c1, c2;
-	
+
 	while (1)
 	{
 		c1 = *s1++;
@@ -163,7 +181,7 @@ int QC_strncasecmp (const char *s1, const char *s2, int n)
 
 		if (!n--)
 			return 0;               // strings are equal until end point
-		
+
 		if (c1 != c2)
 		{
 			if (c1 >= 'a' && c1 <= 'z')
@@ -178,7 +196,7 @@ int QC_strncasecmp (const char *s1, const char *s2, int n)
 //              s1++;
 //              s2++;
 	}
-	
+
 	return -1;
 }
 
@@ -210,13 +228,13 @@ char *QCC_COM_Parse (char *data)
 {
 	int		c;
 	int		len;
-	
+
 	len = 0;
 	qcc_token[0] = 0;
-	
+
 	if (!data)
 		return NULL;
-		
+
 // skip whitespace
 skipwhite:
 	while ( (c = *data) <= ' ')
@@ -228,7 +246,7 @@ skipwhite:
 		}
 		data++;
 	}
-	
+
 // skip // comments
 	if (c=='/' && data[1] == '/')
 	{
@@ -245,7 +263,7 @@ skipwhite:
 		data+=2;
 		goto skipwhite;
 	}
-	
+
 
 // handle quoted strings specially
 	if (c == '\"')
@@ -297,7 +315,7 @@ skipwhite:
 		if (c=='{' || c=='}'|| c==')'|| c=='(' || c=='\'' || c==':' || c=='\"' || c==',')
 			break;
 	} while (c>32);
-	
+
 	qcc_token[len] = 0;
 	return data;
 }
@@ -307,13 +325,13 @@ char *QCC_COM_Parse2 (char *data)
 {
 	int		c;
 	int		len;
-	
+
 	len = 0;
 	qcc_token[0] = 0;
-	
+
 	if (!data)
 		return NULL;
-		
+
 // skip whitespace
 skipwhite:
 	while ( (c = *data) <= ' ')
@@ -325,7 +343,7 @@ skipwhite:
 		}
 		data++;
 	}
-	
+
 // skip // comments
 	if (c=='/' && data[1] == '/')
 	{
@@ -333,7 +351,7 @@ skipwhite:
 			data++;
 		goto skipwhite;
 	}
-	
+
 
 // handle quoted strings specially
 	if (c == '\"')
@@ -389,7 +407,7 @@ skipwhite:
 					break;
 			}
 		}
-		
+
 		qcc_token[len] = 0;
 		return data;
 	}
@@ -403,7 +421,7 @@ skipwhite:
 			len++;
 			c = *data;
 		} while ((c>= 'a' && c <= 'z') || (c>= 'A' && c <= 'Z') || c == '_');
-		
+
 		qcc_token[len] = 0;
 		return data;
 	}
@@ -419,7 +437,7 @@ skipwhite:
 char *VARGS qcva (char *text, ...)
 {
 	va_list argptr;
-	static char msg[2048];	
+	static char msg[2048];
 
 	va_start (argptr,text);
 	QC_vsnprintf (msg,sizeof(msg)-1, text,argptr);
@@ -475,7 +493,7 @@ void VARGS QCC_Error (int errortype, const char *error, ...)
 {
 	extern int numsourcefiles;
 	va_list argptr;
-	char msg[2048];	
+	char msg[2048];
 
 	va_start (argptr,error);
 	QC_vsnprintf (msg,sizeof(msg)-1, error,argptr);
@@ -489,7 +507,7 @@ void VARGS QCC_Error (int errortype, const char *error, ...)
 	numsourcefiles = 0;
 
 #ifndef QCC
-	longjmp(qcccompileerror, 1);	
+	longjmp(qcccompileerror, 1);
 #else
 	print ("Press any key\n");
 	getch();
@@ -532,7 +550,7 @@ int SafeOpenWrite (char *filename)
 	int     handle;
 
 	umask (0);
-	
+
 	handle = open(filename,O_WRONLY | O_CREAT | O_TRUNC | O_BINARY
 	, 0666);
 
@@ -776,7 +794,7 @@ int SafeOpenWrite (char *filename, int maxsize)
 
 void ResizeBuf(int hand, int newsize)
 {
-//	int wasmal = qccfile[hand].buffismalloc;	
+//	int wasmal = qccfile[hand].buffismalloc;
 	char *nb;
 
 	if (qccfile[hand].buffsize >= newsize)
@@ -792,7 +810,7 @@ void ResizeBuf(int hand, int newsize)
 //		qccfile[hand].buffismalloc = false;
 //		nb = memalloc(newsize);
 //	}
-	
+
 	memcpy(nb, qccfile[hand].buff, qccfile[hand].maxofs);
 //	if (wasmal)
 		free(qccfile[hand].buff);
@@ -826,7 +844,7 @@ int SafeSeek(int hand, int ofs, int mode)
 }
 void SafeClose(int hand)
 {
-	externs->WriteFile(qccfile[hand].name, qccfile[hand].buff, qccfile[hand].maxofs);	
+	externs->WriteFile(qccfile[hand].name, qccfile[hand].buff, qccfile[hand].maxofs);
 //	if (qccfile[hand].buffismalloc)
 		free(qccfile[hand].buff);
 //	else
@@ -847,21 +865,21 @@ long	QCC_LoadFile (char *filename, void **bufferptr)
 			return -1;
 //		Abort("failed to find file %s", filename);
 	}
-	mem = qccHunkAlloc(sizeof(qcc_cachedsourcefile_t) + len+2);	
+	mem = qccHunkAlloc(sizeof(qcc_cachedsourcefile_t) + len+2);
 
 	((qcc_cachedsourcefile_t*)mem)->next = qcc_sourcefile;
 	qcc_sourcefile = (qcc_cachedsourcefile_t*)mem;
-	qcc_sourcefile->size = len;	
-	mem += sizeof(qcc_cachedsourcefile_t);	
+	qcc_sourcefile->size = len;
+	mem += sizeof(qcc_cachedsourcefile_t);
 	strcpy(qcc_sourcefile->filename, filename);
 	qcc_sourcefile->file = mem;
 	qcc_sourcefile->type = FT_CODE;
-	
+
 	externs->ReadFile(filename, mem, len+2);
 	mem[len] = '\n';
 	mem[len+1] = '\0';
 	*bufferptr=mem;
-	
+
 	return len;
 }
 void	QCC_AddFile (char *filename)
@@ -871,12 +889,12 @@ void	QCC_AddFile (char *filename)
 	len = externs->FileSize(filename);
 	if (len < 0)
 		Abort("failed to find file %s", filename);
-	mem = qccHunkAlloc(sizeof(qcc_cachedsourcefile_t) + len+1);	
+	mem = qccHunkAlloc(sizeof(qcc_cachedsourcefile_t) + len+1);
 
 	((qcc_cachedsourcefile_t*)mem)->next = qcc_sourcefile;
 	qcc_sourcefile = (qcc_cachedsourcefile_t*)mem;
-	qcc_sourcefile->size = len;	
-	mem += sizeof(qcc_cachedsourcefile_t);	
+	qcc_sourcefile->size = len;
+	mem += sizeof(qcc_cachedsourcefile_t);
 	strcpy(qcc_sourcefile->filename, filename);
 	qcc_sourcefile->file = mem;
 	qcc_sourcefile->type = FT_DATA;

@@ -73,7 +73,8 @@ struct vm_s {
 dllhandle_t *QVM_LoadDLL(const char *name, void **vmMain, sys_calldll_t syscall)
 {
 	void (EXPORT_FN *dllEntry)(sys_calldll_t syscall);
-	char dllname[MAX_OSPATH];
+	char dllname_arch[MAX_OSPATH];	//id compatible
+	char dllname_anycpu[MAX_OSPATH];//simple
 	dllhandle_t *hVM;
 
 	dllfunction_t funcs[] =
@@ -89,17 +90,23 @@ dllhandle_t *QVM_LoadDLL(const char *name, void **vmMain, sys_calldll_t syscall)
 #endif
 
 #ifdef _WIN32
-	sprintf(dllname, "%sx86.dll", name);
+	snprintf(dllname_arch, sizeof(dllname_arch), "%sx86.dll", name);
+	snprintf(dllname_anycpu, sizeof(dllname_anycpu), "%s.dll", name);
 #elif defined(__amd64__)
-	sprintf(dllname, "%samd.so", name);
+	snprintf(dllname_arch, sizeof(dllname_arch), "%samd.so", name);
+	snprintf(dllname_anycpu, sizeof(dllname_anycpu), "%s.so", name);
 #elif defined(_M_IX86) || defined(__i386__)
-	sprintf(dllname, "%sx86.so", name);
+	snprintf(dllname_arch, sizeof(dllname_arch), "%sx86.so", name);
+	snprintf(dllname_anycpu, sizeof(dllname_anycpu), "%s.so", name);
 #elif defined(__powerpc__)
-	sprintf(dllname, "%sppc.so", name);
+	snprintf(dllname_arch, sizeof(dllname_arch), "%sppc.so", name);
+	snprintf(dllname_anycpu, sizeof(dllname_anycpu), "%s.so", name);
 #elif defined(__ppc__)
-	sprintf(dllname, "%sppc.so", name);
+	snprintf(dllname_arch, sizeof(dllname_arch), "%sppc.so", name);
+	snprintf(dllname_anycpu, sizeof(dllname_anycpu), "%s.so", name);
 #else
-	sprintf(dllname, "%sunk.so", name);
+	snprintf(dllname_arch, sizeof(dllname_arch), "%sunk.so", name);
+	snprintf(dllname_anycpu, sizeof(dllname_anycpu), "%s.so", name);
 #endif
 
 	hVM=NULL;
@@ -114,7 +121,7 @@ dllhandle_t *QVM_LoadDLL(const char *name, void **vmMain, sys_calldll_t syscall)
 			if (!gpath)
 				return NULL;		// couldn't find one anywhere
 
-			snprintf (fname, sizeof(fname), "%s/%s", gpath, dllname);
+			snprintf (fname, sizeof(fname), "%s/%s", gpath, dllname_arch);
 
 			Con_DPrintf("Loading native: %s\n", fname);
 			hVM = Sys_LoadLibrary(fname, funcs);
@@ -122,8 +129,8 @@ dllhandle_t *QVM_LoadDLL(const char *name, void **vmMain, sys_calldll_t syscall)
 			{
 				break;
 			}
-					
-			snprintf (fname, sizeof(fname), "%s/%s", gpath, name);
+
+			snprintf (fname, sizeof(fname), "%s/%s", gpath, dllname_anycpu);
 
 			Con_DPrintf("Loading native: %s\n", fname);
 			hVM = Sys_LoadLibrary(fname, funcs);
@@ -330,10 +337,10 @@ qvm_t *QVM_LoadVM(const char *name, sys_callqvm_t syscall)
 	qvm_t *qvm;
 	qbyte *raw;
 	int n;
-	int i;
+	unsigned int i;
 
 	sprintf(path, "%s.qvm", name);
-	FS_LoadFile(path, &raw);
+	FS_LoadFile(path, (void **)&raw);
 // file not found
 	if(!raw) return NULL;
 	srcheader=(vmHeader_t*)raw;
@@ -355,7 +362,7 @@ qvm_t *QVM_LoadVM(const char *name, sys_callqvm_t syscall)
 	}
 
 // check file
-	if(header.vmMagic!=VM_MAGIC && header.vmMagic!=VM_MAGIC2 || header.instructionCount<=0 || header.codeLength<=0)
+	if( (header.vmMagic!=VM_MAGIC && header.vmMagic!=VM_MAGIC2) || header.instructionCount<=0 || header.codeLength<=0)
 	{
 		Con_Printf("%s: invalid qvm file\n", name);
 		FS_FreeFile(raw);
@@ -372,7 +379,7 @@ qvm_t *QVM_LoadVM(const char *name, sys_callqvm_t syscall)
 	qvm->ds_mask = qvm->len_ds*sizeof(qbyte)+(qvm->len_ss+16*4)*sizeof(qbyte);//+4 for a stack check decrease
 	for (i = 0; i < sizeof(qvm->ds_mask)*8-1; i++)
 	{
-		if ((1<<(unsigned int)i) >= qvm->ds_mask)	//is this bit greater than our minimum?
+		if ((1<<i) >= qvm->ds_mask)	//is this bit greater than our minimum?
 			break;
 	}
 	qvm->len_ss = (1<<i) - qvm->len_ds*sizeof(qbyte) - 4;	//expand the stack space to fill it.
@@ -566,10 +573,10 @@ static void inline QVM_Return(qvm_t *vm, int size)
 		Sys_Error("VM run time error: freed too much stack\n");
 
 	if(fp[1]>=vm->len_cs*2)
-		if ((int)(vm->cs+fp[1]) != (int)RETURNOFFSETMARKER)	//this being false causes the program to quit.
+		if ((size_t)(vm->cs+fp[1]) != (size_t)RETURNOFFSETMARKER)	//this being false causes the program to quit.
 			Sys_Error("VM run time error: program returned to hyperspace (%p, %p)\n", (char*)vm->cs, (char*)fp[1]);
 	if(fp[1]<0)
-		if ((int)(vm->cs+fp[1]) != (int)RETURNOFFSETMARKER)
+		if ((size_t)(vm->cs+fp[1]) != (size_t)RETURNOFFSETMARKER)
 			Sys_Error("VM run time error: program returned to negative hyperspace\n");
 
 	if (vm->sp-vm->max_sp != fp[0])
@@ -650,7 +657,7 @@ int QVM_ExecVM(register qvm_t *qvm, int command, int arg0, int arg1, int arg2, i
 		case OP_LEAVE:
 			QVM_Return(qvm, param);
 
-			if ((int)qvm->pc == (int)RETURNOFFSETMARKER)
+			if ((size_t)qvm->pc == (size_t)RETURNOFFSETMARKER)
 			{
 				// pick return value from stack
 				qvm->pc = oldpc;

@@ -7,6 +7,22 @@
 
 #define Host_Error Sys_Error
 
+// I put the following here to resolve "undefined reference to `__imp__vsnprintf'" with MinGW64 ~ Moodles
+#ifdef _WIN32
+	#if (_MSC_VER >= 1400)
+		//with MSVC 8, use MS extensions
+		#define snprintf linuxlike_snprintf_vc8
+		int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
+		#define vsnprintf(a, b, c, d) vsnprintf_s(a, b, _TRUNCATE, c, d)
+	#else
+		//msvc crap
+		#define snprintf linuxlike_snprintf
+		int VARGS linuxlike_snprintf(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
+		#define vsnprintf linuxlike_vsnprintf
+		int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_list argptr);
+	#endif
+#endif
+
 
 //=============================================================================
 
@@ -28,7 +44,7 @@ return;
 		for ( ; i<10 ; i++)
 			printf (" ");
 	}
-		
+
 	if (s->op == OP_IF || s->op == OP_IFNOT)
 		printf ("%sbranch %i",PR_GlobalString(progfuncs, s->a),s->b);
 	else if (s->op == OP_GOTO)
@@ -84,13 +100,13 @@ void PR_StackTrace (progfuncs_t *progfuncs)
 	int *globalbase;
 #endif
 	progs = -1;
-	
+
 	if (pr_depth == 0)
 	{
 		printf ("<NO STACK>\n");
 		return;
 	}
-	
+
 #ifdef STACKTRACE
 	globalbase = (int *)pr_globals + pr_xfunction->parm_start - pr_xfunction->locals;
 #endif
@@ -100,7 +116,7 @@ void PR_StackTrace (progfuncs_t *progfuncs)
 	for (i=pr_depth ; i>0 ; i--)
 	{
 		f = pr_stack[i].f;
-		
+
 		if (!f)
 		{
 			printf ("<NO FUNCTION>\n");
@@ -216,8 +232,8 @@ void VARGS PR_RunError (progfuncs_t *progfuncs, char *error, ...)
 	printf ("\n");
 
 //editbadfile(pr_strings + pr_xfunction->s_file, -1);
-	
-//	pr_depth = 0;		// dump the stack so host_error can shutdown functions	
+
+//	pr_depth = 0;		// dump the stack so host_error can shutdown functions
 //	prinst->exitdepth = 0;
 
 	Abort ("%s", string);
@@ -239,12 +255,12 @@ Returns the new program statement counter
 ====================
 */
 void	PR_AbortStack			(progfuncs_t *progfuncs);
-int PR_EnterFunction (progfuncs_t *progfuncs, dfunction_t *f, int progsnum)
+int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, dfunction_t *f, int progsnum)
 {
 	int		i, j, c, o;
 
 	pr_stack[pr_depth].s = pr_xstatement;
-	pr_stack[pr_depth].f = pr_xfunction;	
+	pr_stack[pr_depth].f = pr_xfunction;
 	pr_stack[pr_depth].progsnum = progsnum;
 	pr_stack[pr_depth].pushed = pr_spushed;
 	pr_depth++;
@@ -296,7 +312,7 @@ int PR_EnterFunction (progfuncs_t *progfuncs, dfunction_t *f, int progsnum)
 PR_LeaveFunction
 ====================
 */
-int PR_LeaveFunction (progfuncs_t *progfuncs)
+int ASMCALL PR_LeaveFunction (progfuncs_t *progfuncs)
 {
 	int		i, c;
 
@@ -330,10 +346,10 @@ ddef32_t *ED_FindLocalOrGlobal(progfuncs_t *progfuncs, char *name, eval_t **val)
 	ddef16_t *def16;
 	int i;
 
-	switch (pr_progstate[pr_typecurrent].intsize)
+	switch (pr_progstate[pr_typecurrent].structtype)
 	{
-	case 16:
-	case 24:
+	case PST_DEFAULT:
+	case PST_KKQWSV:
 		//this gets parms fine, but not locals
 		if (pr_xfunction)
 		for (i = 0; i < pr_xfunction->numparms; i++)
@@ -361,7 +377,8 @@ ddef32_t *ED_FindLocalOrGlobal(progfuncs_t *progfuncs, char *name, eval_t **val)
 		def.s_name = def16->s_name;
 		def32 = &def;
 		break;
-	case 32:
+	case PST_QTEST:
+	case PST_FTE32:
 		//this gets parms fine, but not locals
 		if (pr_xfunction)
 		for (i = 0; i < pr_xfunction->numparms; i++)
@@ -383,10 +400,10 @@ ddef32_t *ED_FindLocalOrGlobal(progfuncs_t *progfuncs, char *name, eval_t **val)
 			return NULL;
 		break;
 	default:
-		Sys_Error("Bad int size in ED_FindLocalOrGlobal");
+		Sys_Error("Bad struct type in ED_FindLocalOrGlobal");
 		def32 = NULL;
 	}
-	
+
 	*val = (eval_t *)&pr_progstate[pr_typecurrent].globals[def32->ofs];
 	return &def;
 }
@@ -426,7 +443,7 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 
 	c = strchr(key, '.');
 	if (c) *c = '\0';
-	def = ED_FindLocalOrGlobal(progfuncs, key, &val);	
+	def = ED_FindLocalOrGlobal(progfuncs, key, &val);
 	if (!def)
 	{
 		if (atoi(key))
@@ -440,13 +457,13 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 	}
 	if (c) *c = '.';
 	if (!def)
-	{		
+	{
 		return "(Bad string)";
-	}	
+	}
 	type = def->type;
 
 	//go through ent vars
-	c = strchr(key, '.');	
+	c = strchr(key, '.');
 	while(c)
 	{
 		c2 = c+1;
@@ -461,10 +478,10 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 		if (c)*c = '.';
 		if (!fdef)
 			return "(Bad string)";
-		val = (eval_t *) (((char *)PROG_TO_EDICT(progfuncs, val->_int)->fields) + fdef->ofs*4);		
+		val = (eval_t *) (((char *)PROG_TO_EDICT(progfuncs, val->_int)->fields) + fdef->ofs*4);
 		type = fdef->type;
 	}
-	
+
 	if (assignment)
 	{
 		assignment++;
@@ -473,7 +490,7 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 		case ev_string:
 			*(string_t *)val = PR_StringToProgs(progfuncs, ED_NewString (progfuncs, assignment, 0));
 			break;
-			
+
 		case ev_float:
 			*(float *)val = (float)atof (assignment);
 			break;
@@ -481,7 +498,7 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 		case ev_integer:
 			*(int *)val = atoi (assignment);
 			break;
-			
+
 /*		case ev_vector:
 			strcpy (string, assignment);
 			v = string;
@@ -504,7 +521,7 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 			fdef = ED_FindField (progfuncs, assignment);
 			if (!fdef)
 			{
-				int l,nl = strlen(assignment);
+				size_t l,nl = strlen(assignment);
 				strcpy(buf, "Can't find field ");
 				l = strlen(buf);
 				if (nl > sizeof(buf)-l-2)
@@ -537,7 +554,7 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 				func = ED_FindFunction (progfuncs, s, &i, progsnum);
 				if (!func)
 				{
-					int l,nl = strlen(s);
+					size_t l,nl = strlen(s);
 
 					assignment[-1] = '=';
 
@@ -573,25 +590,26 @@ void SetExecutionToLine(progfuncs_t *progfuncs, int linenum)
 	int snum;
 	dfunction_t *f = pr_xfunction;
 
-	switch(current_progstate->intsize)
+	switch(current_progstate->structtype)
 	{
-	case 16:
-		for (snum = f->first_statement; pr_progstate[pn].linenums[snum] < linenum; snum++) 
+	case PST_DEFAULT:
+	case PST_QTEST:
+		for (snum = f->first_statement; pr_progstate[pn].linenums[snum] < linenum; snum++)
 		{
 			if (pr_statements16[snum].op == OP_DONE)
 				return;
 		}
 		break;
-	case 24:
-	case 32:
-		for (snum = f->first_statement; pr_progstate[pn].linenums[snum] < linenum; snum++) 
+	case PST_KKQWSV:
+	case PST_FTE32:
+		for (snum = f->first_statement; pr_progstate[pn].linenums[snum] < linenum; snum++)
 		{
 			if (pr_statements32[snum].op == OP_DONE)
 				return;
 		}
 		break;
 	default:
-		Sys_Error("Bad intsize");
+		Sys_Error("Bad struct type");
 		snum = 0;
 	}
 	debugstatement = snum;
@@ -606,7 +624,7 @@ int PR_ToggleBreakpoint(progfuncs_t *progfuncs, char *filename, int linenum, int
 	unsigned int i;
 	int pn = pr_typecurrent;
 	dfunction_t *f;
-	int op;
+	int op = 0; //warning about not being initialized before use
 
 	for (pn = 0; (unsigned)pn < maxprogs; pn++)
 	{
@@ -632,17 +650,18 @@ int PR_ToggleBreakpoint(progfuncs_t *progfuncs, char *filename, int linenum, int
 								if ((unsigned int)pr_progstate[pn].linenums[i] > fl)
 									break;
 
-								switch(pr_progstate[pn].intsize)
+								switch(pr_progstate[pn].structtype)
 								{
-								case 16:
+								case PST_DEFAULT:
+								case PST_QTEST:
 									op = ((dstatement16_t*)pr_progstate[pn].statements + i)->op;
 									break;
-								case 24:
-								case 32:
+								case PST_KKQWSV:
+								case PST_FTE32:
 									op = ((dstatement32_t*)pr_progstate[pn].statements + i)->op;
 									break;
 								default:
-									Sys_Error("Bad intsize");
+									Sys_Error("Bad structtype");
 									op = 0;
 								}
 								switch (flag)
@@ -673,19 +692,20 @@ int PR_ToggleBreakpoint(progfuncs_t *progfuncs, char *filename, int linenum, int
 									if (op & 0x8000)
 										return true;
 								}
-								switch(pr_progstate[pn].intsize)
+								switch(pr_progstate[pn].structtype)
 								{
-								case 16:
+								case PST_DEFAULT:
+								case PST_QTEST:
 									((dstatement16_t*)pr_progstate[pn].statements + i)->op = op;
 									break;
-								case 24:
-								case 32:
+								case PST_KKQWSV:
+								case PST_FTE32:
 									((dstatement32_t*)pr_progstate[pn].statements + i)->op = op;
 									break;
 								default:
-									Sys_Error("Bad intsize");
+									Sys_Error("Bad structtype");
 									op = 0;
-								}							
+								}
 							}
 							goto cont;
 						}
@@ -700,17 +720,18 @@ int PR_ToggleBreakpoint(progfuncs_t *progfuncs, char *filename, int linenum, int
 				if (!strcmp(f->s_name+progfuncs->stringtable, filename))
 				{
 					i = f->first_statement;
-					switch(pr_progstate[pn].intsize)
+					switch(pr_progstate[pn].structtype)
 					{
-					case 16:
+					case PST_DEFAULT:
+					case PST_QTEST:
 						op = ((dstatement16_t*)pr_progstate[pn].statements + i)->op;
 						break;
-					case 24:
-					case 32:
+					case PST_KKQWSV:
+					case PST_FTE32:
 						op = ((dstatement32_t*)pr_progstate[pn].statements + i)->op;
 						break;
 					default:
-						Sys_Error("Bad intsize");
+						Sys_Error("Bad structtype");
 					}
 					switch (flag)
 					{
@@ -740,17 +761,18 @@ int PR_ToggleBreakpoint(progfuncs_t *progfuncs, char *filename, int linenum, int
 						if (op & 0x8000)
 							return true;
 					}
-					switch(pr_progstate[pn].intsize)
+					switch(pr_progstate[pn].structtype)
 					{
-					case 16:
+					case PST_DEFAULT:
+					case PST_QTEST:
 						((dstatement16_t*)pr_progstate[pn].statements + i)->op = op;
 						break;
-					case 24:
-					case 32:
+					case PST_KKQWSV:
+					case PST_FTE32:
 						((dstatement32_t*)pr_progstate[pn].statements + i)->op = op;
 						break;
 					default:
-						Sys_Error("Bad intsize");
+						Sys_Error("Bad structtype");
 					}
 					break;
 				}
@@ -772,7 +794,7 @@ static char *lastfile = 0;
 
 	int pn = pr_typecurrent;
 	int i;
-	dfunction_t *f = pr_xfunction;	
+	dfunction_t *f = pr_xfunction;
 
 	if (f && pr_progstate[pn].linenums && externs->useeditor)
 	{
@@ -806,7 +828,7 @@ static char *lastfile = 0;
 				externs->useeditor(progfuncs, f->s_file+progfuncs->stringtable, -1, 0, NULL);
 		return statement;
 	}
-	
+
 
 	return statement;
 }
@@ -821,7 +843,7 @@ void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 {
 	eval_t	*t, *swtch=NULL;
 
-	int swtchtype;
+	int swtchtype = 0; //warning about not being initialized before use
 	dstatement16_t	*st16;
 	dstatement32_t	*st32;
 	dfunction_t	*newf;
@@ -866,9 +888,10 @@ void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 
 restart:	//jumped to when the progs might have changed.
 	glob = pr_globals;
-	switch (current_progstate->intsize)
+	switch (current_progstate->structtype)
 	{
-	case 16:
+	case PST_DEFAULT:
+	case PST_QTEST:
 #define INTSIZE 16
 		st16 = &pr_statements16[s];
 		while (pr_trace)
@@ -881,16 +904,16 @@ restart:	//jumped to when the progs might have changed.
 			#endif
 			#undef DEBUGABLE
 		}
-		
+
 		while(1)
 		{
 			#include "execloop.h"
-		}	
+		}
 #undef INTSIZE
 		Sys_Error("PR_ExecuteProgram - should be unreachable");
 		break;
-	case 24:
-	case 32:
+	case PST_KKQWSV:
+	case PST_FTE32:
 #define INTSIZE 32
 		st32 = &pr_statements32[s];
 		while (pr_trace)
@@ -903,7 +926,7 @@ restart:	//jumped to when the progs might have changed.
 			#endif
 			#undef DEBUGABLE
 		}
-		
+
 		while(1)
 		{
 			#ifdef SEPARATEINCLUDES
@@ -912,11 +935,11 @@ restart:	//jumped to when the progs might have changed.
 				#include "execloop.h"
 			#endif
 		}
-#undef INTSIZE	
+#undef INTSIZE
 		Sys_Error("PR_ExecuteProgram - should be unreachable");
 		break;
 	default:
-		Sys_Error("PR_ExecuteProgram - bad intsize");
+		Sys_Error("PR_ExecuteProgram - bad structtype");
 	}
 }
 
@@ -1035,7 +1058,7 @@ struct qcthread_s *PR_ForkStack(progfuncs_t *progfuncs)
 	int localsoffset, baselocalsoffset;
 	qcthread_t *thread = memalloc(sizeof(qcthread_t));
 	dfunction_t *f;
-	
+
 	//copy out the functions stack.
 	for (i = 0,localsoffset=0; i < ed; i++)
 	{
@@ -1048,7 +1071,7 @@ struct qcthread_s *PR_ForkStack(progfuncs_t *progfuncs)
 	baselocalsoffset = localsoffset;
 	for (i = ed; i < pr_depth; i++)
 	{
-		thread->fstack[i-ed].fnum = pr_stack[i].f - pr_progstate[pr_stack[i].progsnum].functions; 
+		thread->fstack[i-ed].fnum = pr_stack[i].f - pr_progstate[pr_stack[i].progsnum].functions;
 		thread->fstack[i-ed].progsnum = pr_stack[i].progsnum;
 		thread->fstack[i-ed].statement = pr_stack[i].s;
 
@@ -1138,7 +1161,7 @@ void PR_ResumeThread (progfuncs_t *progfuncs, struct qcthread_s *thread)
 		else
 		{
 			pr_stack[pr_depth].progsnum = thread->fstack[i].progsnum;
-			pr_stack[pr_depth].f = pr_progstate[thread->fstack[i].progsnum].functions + thread->fstack[i].fnum; 
+			pr_stack[pr_depth].f = pr_progstate[thread->fstack[i].progsnum].functions + thread->fstack[i].fnum;
 			pr_stack[pr_depth].s = thread->fstack[i].statement;
 		}
 
@@ -1158,7 +1181,7 @@ void PR_ResumeThread (progfuncs_t *progfuncs, struct qcthread_s *thread)
 	if (ls != thread->lstackused)
 		PR_RunError(progfuncs, "Thread stores incorrect locals count\n");
 
-	
+
 	f = &pr_functions[fnum];
 
 //	thread->lstackused -= f->locals;	//the current function is the odd one out.

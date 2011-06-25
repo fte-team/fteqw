@@ -242,15 +242,15 @@ static void ConcatPackageLists(package_t *l2)
 	}
 }
 
-static void dlnotification(char *localfile, qboolean sucess)
+static void dlnotification(struct dl_download *dl)
 {
 	int i;
 	vfsfile_t *f;
-	COM_RefreshFSCache_f();
+	f = dl->file;
+	dl->file = NULL;
 
-	i = atoi(localfile+7);
+	i = dl->user_num;
 
-	f = FS_OpenVFS (localfile, "rb", FS_GAME);
 	if (f)
 	{
 		downloadablelistreceived[i] = 1;
@@ -267,31 +267,29 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct menu_s *m)
 	p = c->data;
 	if (p)
 	{
-		Draw_Character (x+4, y, 128);
-		Draw_Character (x+12, y, 130);
-		Draw_Character (x+24, y, 128);
-		Draw_Character (x+32, y, 130);
+		Draw_FunString (x+4, y, "^Ue080^Ue082");
+		Draw_FunString (x+24, y, "^Ue080^Ue082");
 
 		if (p->flags&DPF_WANTTOINSTALL)
-			Draw_Character (x+8, y, 131);
+			Draw_FunString (x+8, y, "^Ue083");
 		else
-			Draw_Character (x+8, y, 129);
+			Draw_FunString (x+8, y, "^Ue081");
 
 		//if you have it already
 		if (p->flags&(DPF_HAVEAVERSION | ((((int)(realtime*4))&1)?(DPF_DOWNLOADING|DPF_ENQUED):0) ))
-			Draw_Character (x+28, y, 131);
+			Draw_FunString (x+28, y, "^Ue083");
 		else
-			Draw_Character (x+28, y, 129);
+			Draw_FunString (x+28, y, "^Ue081");
 
 
 		if (&m->selecteditem->common == &c->common)
-			Draw_Alt_String (x+48, y, p->name);
+			Draw_AltFunString (x+48, y, p->name);
 		else
-			Draw_String(x+48, y, p->name);
+			Draw_FunString(x+48, y, p->name);
 
 		if (p->flags & DPF_DISPLAYVERSION)
 		{
-			Draw_String(x+48+strlen(p->name)*8, y, va(" (%i.%i)", p->version/1000, p->version%1000));
+			Draw_FunString(x+48+strlen(p->name)*8, y, va(" (%i.%i)", p->version/1000, p->version%1000));
 		}
 	}
 }
@@ -331,7 +329,7 @@ qboolean MD_PopMenu (union menuoption_s *mo,struct menu_s *m,int key)
 	return false;
 }
 
-static void Menu_Download_Got(char *fname, qboolean successful);
+static void Menu_Download_Got(struct dl_download *dl);
 qboolean MD_ApplyDownloads (union menuoption_s *mo,struct menu_s *m,int key)
 {
 	if (key == K_ENTER || key == K_MOUSE1)
@@ -487,6 +485,7 @@ void M_AddItemsToDownloadMenu(menu_t *m)
 
 void M_Download_UpdateStatus(struct menu_s *m)
 {
+	struct dl_download *dl;
 	dlmenu_t *info = m->data;
 	int i;
 
@@ -501,7 +500,10 @@ void M_Download_UpdateStatus(struct menu_s *m)
 			if (!downloadablelistreceived[info->parsedsourcenum])
 			{
 				sprintf(basename, "dlinfo_%i.inf", info->parsedsourcenum);
-				if (!HTTP_CL_Get(downloadablelist[info->parsedsourcenum], basename, dlnotification))
+				dl = HTTP_CL_Get(downloadablelist[info->parsedsourcenum], basename, dlnotification);
+				if (dl)
+					dl->user_num = info->parsedsourcenum;
+				else
 					Con_Printf("Could not contact server\n");
 				return;
 			}
@@ -592,8 +594,10 @@ static void M_Download_Draw (int x, int y, struct menucustom_s *c, struct menu_s
 	}
 }
 */
-static void Menu_Download_Got(char *fname, qboolean successful)
+static void Menu_Download_Got(struct dl_download *dl)
 {
+	char *fname = dl->localname;
+	qboolean successful = dl->status == DL_FINISHED;
 	char *ext;
 	package_t *p;
 	int dlnum = atoi(fname+3);

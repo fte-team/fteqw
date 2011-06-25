@@ -375,7 +375,7 @@ void SV_MVD_RunPendingConnections(void)
 							{
 								char hash[512];
 								int md4sum[4];
-								
+
 								snprintf(hash, sizeof(hash), "%s%s", p->challenge, qtv_password.string);
 								Com_BlockFullChecksum (hash, strlen(hash), (unsigned char*)md4sum);
 								sprintf(hash, "%X%X%X%X", md4sum[0], md4sum[1], md4sum[2], md4sum[3]);
@@ -674,7 +674,7 @@ int Sys_listdirFound(const char *fname, int fsize, void *uptr)
 dir_t *Sys_listdir (char *path, char *ext, qboolean usesorting)
 {
 	char searchterm[MAX_QPATH];
-	
+
 	unsigned int maxfiles = MAX_DIRFILES;
 	dir_t *dir = malloc(sizeof(*dir) + sizeof(*dir->files)*maxfiles);
 	memset(dir, 0, sizeof(*dir));
@@ -706,23 +706,25 @@ void Sys_freedir(dir_t *dir)
 
 static void SV_DemoDir_Callback(struct cvar_s *var, char *oldvalue);
 
-cvar_t	sv_demoUseCache = SCVAR("sv_demoUseCache", "");
-cvar_t	sv_demoCacheSize = SCVAR("sv_demoCacheSize", "");
-cvar_t	sv_demoMaxDirSize = SCVAR("sv_demoMaxDirSize", "102400");	//so ktpro autorecords.
-cvar_t	sv_demoDir = SCVARC("sv_demoDir", "demos", SV_DemoDir_Callback);
-cvar_t	sv_demofps = SCVAR("sv_demofps", "");
-cvar_t	sv_demoPings = SCVAR("sv_demoPings", "");
-cvar_t	sv_demoNoVis = SCVAR("sv_demoNoVis", "");
-cvar_t	sv_demoMaxSize = SCVAR("sv_demoMaxSize", "");
-cvar_t	sv_demoExtraNames = SCVAR("sv_demoExtraNames", "");
+cvar_t	sv_demoUseCache = CVAR("sv_demoUseCache", "");
+cvar_t	sv_demoCacheSize = CVAR("sv_demoCacheSize", "");
+cvar_t	sv_demoMaxDirSize = CVAR("sv_demoMaxDirSize", "102400");	//so ktpro autorecords.
+cvar_t	sv_demoDir = CVARC("sv_demoDir", "demos", SV_DemoDir_Callback);
+cvar_t	sv_demofps = CVAR("sv_demofps", "");
+cvar_t	sv_demoPings = CVAR("sv_demoPings", "");
+cvar_t	sv_demoNoVis = CVAR("sv_demoNoVis", "");
+cvar_t	sv_demoMaxSize = CVAR("sv_demoMaxSize", "");
+cvar_t	sv_demoExtraNames = CVAR("sv_demoExtraNames", "");
 
-cvar_t qtv_password = SCVAR("qtv_password", "");
-cvar_t qtv_streamport = FCVAR("qtv_streamport", "mvd_streamport", "0", 0);
-cvar_t qtv_maxstreams = FCVAR("qtv_maxstreams", "mvd_maxstreams", "1", 0);
+cvar_t qtv_password		= CVAR(		"qtv_password", "");
+cvar_t qtv_streamport	= CVARAF(	"qtv_streamport", "0",
+									"mvd_streamport", 0);
+cvar_t qtv_maxstreams	= CVARAF(	"qtv_maxstreams", "1",
+									"mvd_maxstreams",  0);
 
-cvar_t			sv_demoPrefix = SCVAR("sv_demoPrefix", "");
-cvar_t			sv_demoSuffix = SCVAR("sv_demoSuffix", "");
-cvar_t			sv_demotxt = SCVAR("sv_demotxt", "1");
+cvar_t			sv_demoPrefix = CVAR("sv_demoPrefix", "");
+cvar_t			sv_demoSuffix = CVAR("sv_demoSuffix", "");
+cvar_t			sv_demotxt = CVAR("sv_demotxt", "1");
 
 void SV_WriteMVDMessage (sizebuf_t *msg, int type, int to, float time);
 
@@ -764,13 +766,64 @@ void SV_MVDPings (void)
 			continue;
 
 		MVDWrite_Begin (dem_all, 0, 7);
-		MSG_WriteByte((sizebuf_t*)demo.dbuf, svc_updateping);
-		MSG_WriteByte((sizebuf_t*)demo.dbuf,  j);
-		MSG_WriteShort((sizebuf_t*)demo.dbuf,  SV_CalcPing(client));
-		MSG_WriteByte((sizebuf_t*)demo.dbuf, svc_updatepl);
-		MSG_WriteByte ((sizebuf_t*)demo.dbuf, j);
-		MSG_WriteByte ((sizebuf_t*)demo.dbuf, client->lossage);
+		MSG_WriteByte(&demo.dbuf->sb, svc_updateping);
+		MSG_WriteByte(&demo.dbuf->sb,  j);
+		MSG_WriteShort(&demo.dbuf->sb,  SV_CalcPing(client, false));
+		MSG_WriteByte(&demo.dbuf->sb, svc_updatepl);
+		MSG_WriteByte (&demo.dbuf->sb, j);
+		MSG_WriteByte (&demo.dbuf->sb, client->lossage);
 	}
+}
+void SV_MVD_FullClientUpdate(sizebuf_t *msg, client_t *player)
+{
+	char info[MAX_INFO_STRING];
+	qboolean dosizes;
+	if (!sv.mvdrecording)
+		return;
+
+	if (msg)
+		dosizes = false;
+	else
+	{
+		dosizes = true;
+		msg = &demo.dbuf->sb;
+	}
+
+	if (dosizes)
+		MVDWrite_Begin (dem_all, 0, 4);
+	MSG_WriteByte (msg, svc_updatefrags);
+	MSG_WriteByte (msg, player - svs.clients);
+	MSG_WriteShort (msg, player->old_frags);
+
+	if (dosizes)
+		MVDWrite_Begin (dem_all, 0, 4);
+	MSG_WriteByte (msg, svc_updateping);
+	MSG_WriteByte (msg, player - svs.clients);
+	MSG_WriteShort (msg, SV_CalcPing(player, false));
+
+	if (dosizes)
+		MVDWrite_Begin (dem_all, 0, 3);
+	MSG_WriteByte (msg, svc_updatepl);
+	MSG_WriteByte (msg, player - svs.clients);
+	MSG_WriteByte (msg, player->lossage);
+
+	if (dosizes)
+		MVDWrite_Begin (dem_all, 0, 6);
+	MSG_WriteByte (msg, svc_updateentertime);
+	MSG_WriteByte (msg, player - svs.clients);
+	MSG_WriteFloat (msg, realtime - player->connection_started);
+
+	Q_strncpyz (info, player->userinfo, MAX_INFO_STRING);
+	Info_RemovePrefixedKeys (info, '_');	// server passwords, etc
+	Info_RemoveKey(info, "password");
+	Info_RemoveKey(info, "*ip");
+
+	if (dosizes)
+		MVDWrite_Begin (dem_all, 0, 7 + strlen(info));
+	MSG_WriteByte (msg, svc_updateuserinfo);
+	MSG_WriteByte (msg, player - svs.clients);
+	MSG_WriteLong (msg, player->userid);
+	MSG_WriteString (msg, info);
 }
 
 void MVDBuffer_Init(dbuffer_t *dbuffer, qbyte *buf, size_t size)
@@ -797,13 +850,14 @@ void MVDSetMsgBuf(demobuf_t *prev,demobuf_t *cur)
 	// fix the maxsize of previous msg buffer,
 	// we won't be able to write there anymore
 	if (prev != NULL)
-		prev->maxsize = prev->bufsize;
+		prev->sb.maxsize = prev->bufsize;
 
 	demo.dbuf = cur;
 	memset(demo.dbuf, 0, sizeof(*demo.dbuf));
 
-	demo.dbuf->data = demobuffer->data + demobuffer->end;
-	demo.dbuf->maxsize = MAXSIZE;
+	demo.dbuf->sb.data = demobuffer->data + demobuffer->end;
+	demo.dbuf->sb.maxsize = MAXSIZE;
+	demo.dbuf->sb.prim = demo.recorder.netchan.netprim;
 }
 
 /*
@@ -823,7 +877,7 @@ void SV_MVDWriteToDisk(int type, int to, float time)
 	int	size;
 	sizebuf_t msg;
 
-	p = (header_t *)demo.dbuf->data;
+	p = (header_t *)demo.dbuf->sb.data;
 	demo.dbuf->h = NULL;
 
 	oldm = demo.dbuf->bufsize;
@@ -845,13 +899,13 @@ void SV_MVDWriteToDisk(int type, int to, float time)
 			}
 
 			// data is written so it need to be cleard from demobuf
-			if (demo.dbuf->data != (qbyte*)p)
-				memmove(demo.dbuf->data + size + header, demo.dbuf->data, (qbyte*)p - demo.dbuf->data);
+			if (demo.dbuf->sb.data != (qbyte*)p)
+				memmove(demo.dbuf->sb.data + size + header, demo.dbuf->sb.data, (qbyte*)p - demo.dbuf->sb.data);
 
 			demo.dbuf->bufsize -= size + header;
-			demo.dbuf->data += size + header;
+			demo.dbuf->sb.data += size + header;
 			pos -= size + header;
-			demo.dbuf->maxsize -= size + header;
+			demo.dbuf->sb.maxsize -= size + header;
 			demobuffer->start += size + header;
 		}
 		// move along
@@ -863,7 +917,7 @@ void SV_MVDWriteToDisk(int type, int to, float time)
 		if (demobuffer->start == demobuffer->end)
 		{
 			demobuffer->end = 0; // demobuffer is empty
-			demo.dbuf->data = demobuffer->data;
+			demo.dbuf->sb.data = demobuffer->data;
 		}
 
 		// go back to begining of the buffer
@@ -885,7 +939,7 @@ static void MVDSetBuf(qbyte type, int to)
 	header_t *p;
 	int pos = 0;
 
-	p = (header_t *)demo.dbuf->data;
+	p = (header_t *)demo.dbuf->sb.data;
 
 	while (pos < demo.dbuf->bufsize)
 	{
@@ -893,7 +947,7 @@ static void MVDSetBuf(qbyte type, int to)
 
 		if (type == p->type && to == p->to && !p->full)
 		{
-			demo.dbuf->cursize = pos;
+			demo.dbuf->sb.cursize = pos;
 			demo.dbuf->h = p;
 			return;
 		}
@@ -908,7 +962,7 @@ static void MVDSetBuf(qbyte type, int to)
 	p->full = 0;
 
 	demo.dbuf->bufsize += header;
-	demo.dbuf->cursize = demo.dbuf->bufsize;
+	demo.dbuf->sb.cursize = demo.dbuf->bufsize;
 	demobuffer->end += header;
 	demo.dbuf->h = p;
 }
@@ -919,11 +973,11 @@ void MVDMoveBuf(void)
 	demobuffer->last = demobuffer->end - demo.dbuf->bufsize;
 
 	// move buffer to the begining of demo buffer
-	memmove(demobuffer->data, demo.dbuf->data, demo.dbuf->bufsize);
-	demo.dbuf->data = demobuffer->data;
+	memmove(demobuffer->data, demo.dbuf->sb.data, demo.dbuf->bufsize);
+	demo.dbuf->sb.data = demobuffer->data;
 	demobuffer->end = demo.dbuf->bufsize;
 	demo.dbuf->h = NULL; // it will be setup again
-	demo.dbuf->maxsize = MAXSIZE + demo.dbuf->bufsize;
+	demo.dbuf->sb.maxsize = MAXSIZE + demo.dbuf->bufsize;
 }
 
 qboolean MVDWrite_Begin(qbyte type, int to, int size)
@@ -932,7 +986,7 @@ qboolean MVDWrite_Begin(qbyte type, int to, int size)
 	qboolean move = false;
 
 	// will it fit?
-	while (demo.dbuf->bufsize + size + header > demo.dbuf->maxsize)
+	while (demo.dbuf->bufsize + size + header > demo.dbuf->sb.maxsize)
 	{
 		// if we reached the end of buffer move msgbuf to the begining
 		if (!move && demobuffer->end > demobuffer->start)
@@ -956,9 +1010,9 @@ qboolean MVDWrite_Begin(qbyte type, int to, int size)
 	}
 
 	// we have to make room for new data
-	if (demo.dbuf->cursize != demo.dbuf->bufsize) {
-		p = demo.dbuf->data + demo.dbuf->cursize;
-		memmove(p+size, p, demo.dbuf->bufsize - demo.dbuf->cursize);
+	if (demo.dbuf->sb.cursize != demo.dbuf->bufsize) {
+		p = demo.dbuf->sb.data + demo.dbuf->sb.cursize;
+		memmove(p+size, p, demo.dbuf->bufsize - demo.dbuf->sb.cursize);
 	}
 
 	demo.dbuf->bufsize += size;
@@ -1090,6 +1144,7 @@ qboolean SV_MVDWritePackets (int num)
 	if (!sv.mvdrecording)
 		return false;
 
+	msg.prim = svs.netprim;
 	msg.data = msg_buf;
 	msg.maxsize = sizeof(msg_buf);
 
@@ -1153,7 +1208,8 @@ qboolean SV_MVDWritePackets (int num)
 			// now write it to buf
 			flags = cl->flags;
 
-			if (cl->fixangle) {
+			if (cl->fixangle)
+			{
 				demo.fixangletime[i] = cl->cmdtime;
 			}
 
@@ -1226,7 +1282,7 @@ qboolean SV_MVDWritePackets (int num)
 		demo.lastwritten = demo.parsecount;
 
 	demo.dbuf = &demo.frames[demo.parsecount&DEMO_FRAMES_MASK].buf;
-	demo.dbuf->maxsize = MAXSIZE + demo.dbuf->bufsize;
+	demo.dbuf->sb.maxsize = MAXSIZE + demo.dbuf->bufsize;
 
 	return true;
 }
@@ -1382,6 +1438,7 @@ mvddest_t *SV_InitRecordFile (char *name)
 	else
 		FS_Remove(path, FS_GAMEONLY);
 
+	FS_FlushFSHash();
 
 	return dst;
 }
@@ -1456,12 +1513,12 @@ void SV_MVDStop (int reason, qboolean mvdonly)
 // write a disconnect message to the demo file
 
 	// clearup to be sure message will fit
-	demo.dbuf->cursize = 0;
+	demo.dbuf->sb.cursize = 0;
 	demo.dbuf->h = NULL;
 	demo.dbuf->bufsize = 0;
 	MVDWrite_Begin(dem_all, 0, 2+strlen("EndOfDemo"));
-	MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_disconnect);
-	MSG_WriteString ((sizebuf_t*)demo.dbuf, "EndOfDemo");
+	MSG_WriteByte (&demo.dbuf->sb, svc_disconnect);
+	MSG_WriteString (&demo.dbuf->sb, "EndOfDemo");
 
 	SV_MVDWritePackets(demo.parsecount - demo.lastwritten + 1);
 // finish up
@@ -1585,17 +1642,20 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 		memset(&demo, 0, sizeof(demo));
 		demo.recorder.frameunion.frames = demo_frames;
 		demo.recorder.protocol = SCP_QUAKEWORLD;
+		demo.recorder.netchan.netprim = sv.datagram.prim;
 		for (i = 0; i < UPDATE_BACKUP; i++)
 		{
 			demo.recorder.frameunion.frames[i].entities.max_entities = MAX_MVDPACKET_ENTITIES;
 			demo.recorder.frameunion.frames[i].entities.entities = demo_entities[i];
 		}
+		demo.recorder.max_net_ents = MAX_MVDPACKET_ENTITIES;
 
 		MVDBuffer_Init(&demo.dbuffer, demo.buffer, sizeof(demo.buffer));
 		MVDSetMsgBuf(NULL, &demo.frames[0].buf);
 
 		demo.datagram.maxsize = sizeof(demo.datagram_data);
 		demo.datagram.data = demo.datagram_data;
+		demo.datagram.prim = demo.recorder.netchan.netprim;
 	}
 //	else
 //		SV_WriteRecordMVDMessage(&buf, dem_read);
@@ -1611,7 +1671,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	sizebuf_t	buf;
 	char buf_data[MAX_QWMSGLEN];
 	int n, i;
-	char *s, info[MAX_INFO_STRING];
+	char *s;
 
 	client_t *player;
 	char *gamedir;
@@ -1635,6 +1695,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	memset(&buf, 0, sizeof(buf));
 	buf.data = buf_data;
 	buf.maxsize = sizeof(buf_data);
+	buf.prim = svs.netprim;
 
 // send the serverdata
 
@@ -1643,7 +1704,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 		gamedir = "qw";
 
 	MSG_WriteByte (&buf, svc_serverdata);
-	if (sizeofcoord == 4)	//sorry.
+	if (buf.prim.coordsize == 4)	//sorry.
 	{
 		MSG_WriteLong (&buf, PROTOCOL_VERSION_FTE);
 		MSG_WriteLong (&buf, PEXT_FLOATCOORDS);
@@ -1749,7 +1810,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 
 		memset(&from, 0, sizeof(from));
 
-		for (n = 0; n < sv.num_edicts; n++)
+		for (n = 0; n < sv.world.num_edicts; n++)
 		{
 			ent = EDICT_NUM(svprogfuncs, n);
 			state = &ent->baseline;
@@ -1841,29 +1902,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	{
 		player = svs.clients + i;
 
-		MSG_WriteByte (&buf, svc_updatefrags);
-		MSG_WriteByte (&buf, i);
-		MSG_WriteShort (&buf, player->old_frags);
-
-		MSG_WriteByte (&buf, svc_updateping);
-		MSG_WriteByte (&buf, i);
-		MSG_WriteShort (&buf, SV_CalcPing(player));
-
-		MSG_WriteByte (&buf, svc_updatepl);
-		MSG_WriteByte (&buf, i);
-		MSG_WriteByte (&buf, player->lossage);
-
-		MSG_WriteByte (&buf, svc_updateentertime);
-		MSG_WriteByte (&buf, i);
-		MSG_WriteFloat (&buf, realtime - player->connection_started);
-
-		Q_strncpyz (info, player->userinfo, MAX_INFO_STRING);
-		Info_RemovePrefixedKeys (info, '_');	// server passwords, etc
-
-		MSG_WriteByte (&buf, svc_updateuserinfo);
-		MSG_WriteByte (&buf, i);
-		MSG_WriteLong (&buf, player->userid);
-		MSG_WriteString (&buf, info);
+		SV_MVD_FullClientUpdate(&buf, player);
 
 		if (buf.cursize > MAX_QWMSGLEN/2)
 		{
@@ -1961,7 +2000,7 @@ void SV_MVD_Record_f (void)
 
 	COM_StripExtension(name, name, sizeof(name));
 	COM_DefaultExtension(name, ".mvd", sizeof(name));
-	COM_CreatePath(name);
+	FS_CreatePath (name, FS_GAMEONLY);
 
 	//
 	// open the demo file and start recording
@@ -2029,7 +2068,7 @@ void SV_MVD_QTVReverse_f (void)
 		return;
 	}
 
-	if (ioctlsocket (sock, FIONBIO, &nonblocking) == INVALID_SOCKET)
+	if (ioctlsocket (sock, FIONBIO, (u_long *)&nonblocking) == INVALID_SOCKET)
 	{
 		closesocket(sock);
 		Con_Printf ("qtvreverse: ioctl FIONBIO: %s\n", strerror(qerrno));
@@ -2241,8 +2280,8 @@ void SV_MVDEasyRecord_f (void)
 	Q_strncpyz(name, va("%s/%s", sv_demoDir.string, name), sizeof(name));
 // find a filename that doesn't exist yet
 	Q_strncpyz(name2, name, sizeof(name2));
-	FS_CreatePath (sv_demoDir.string, FS_GAMEONLY);
 //	COM_StripExtension(name2, name2);
+	FS_CreatePath (name2, FS_GAMEONLY);
 	strcat (name2, ".mvd");
 	if ((f = FS_OpenVFS(name2, "rb", FS_GAMEONLY)) == 0)
 		f = FS_OpenVFS(va("%s.gz", name2), "rb", FS_GAMEONLY);
@@ -2284,7 +2323,7 @@ int MVD_StreamStartListening(int port)
 		Sys_Error ("MVD_StreamStartListening: socket: %s", strerror(qerrno));
 	}
 
-	if (ioctlsocket (sock, FIONBIO, &nonblocking) == INVALID_SOCKET)
+	if (ioctlsocket (sock, FIONBIO, (u_long *)&nonblocking) == INVALID_SOCKET)
 	{
 		Sys_Error ("FTP_TCP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
 	}
@@ -2316,16 +2355,16 @@ void SV_MVDStream_Poll(void)
 	char *ip;
 	char adrbuf[MAX_ADR_SIZE];
 
-	if (!sv.state || !qtv_streamport.value)
+	if (!sv.state || !qtv_streamport.ival)
 		wanted = false;
-	else if (listenport && (int)qtv_streamport.value != listenport)	//easy way to switch... disable for a frame. :)
+	else if (listenport && qtv_streamport.ival != listenport)	//easy way to switch... disable for a frame. :)
 	{
-		listenport = qtv_streamport.value;
+		listenport = qtv_streamport.ival;
 		wanted = false;
 	}
 	else
 	{
-		listenport = qtv_streamport.value;
+		listenport = qtv_streamport.ival;
 		wanted = true;
 	}
 
@@ -2354,7 +2393,7 @@ void SV_MVDStream_Poll(void)
 	if (client == INVALID_SOCKET)
 		return;
 
-	ioctlsocket(client, FIONBIO, &_true);
+	ioctlsocket(client, FIONBIO, (u_long *)&_true);
 
 	if (qtv_maxstreams.value > 0)
 	{
@@ -2470,7 +2509,7 @@ void SV_UserCmdMVDList_f (void)
 				SV_ClientPrintf(host_client, PRINT_HIGH, "%d: %s %dk\n", i, list->name, list->size/1024);
 		}
 	}
-	
+
 	for (d = demo.dest; d; d = d->nextdest)
 		dir->size += d->totalsize;
 

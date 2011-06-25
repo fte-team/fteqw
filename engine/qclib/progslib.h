@@ -1,26 +1,6 @@
 
 #ifndef PROGSLIB_H
 #define PROGSLIB_H
-/*#define true 1
-#define false 0
-
-#define PITCH	0
-#define YAW		1
-#define ROLL	2
-
-typedef char bool;
-//typedef float vec3_t[3];
-typedef int progsnum_t;
-typedef int	func_t;
-#ifndef COMPILER
-typedef char *string_t;
-#endif
-//typedef struct globalvars_s globalvars_t;
-//typedef struct edict_s edict_t;
-#define globalvars_t void
-#define edict_t void
-*/
-
 #ifdef _MSC_VER
 	#define VARGS __cdecl
 #endif
@@ -34,13 +14,24 @@ typedef char *string_t;
 	#define VARGS
 #endif
 
+#if defined(_M_IX86) || defined(__i386__)
+//#define QCJIT
+#endif
+
+#ifdef QCJIT
+#define ASMCALL VARGS
+#else
+#define ASMCALL
+#endif
+#define QCBUILTIN ASMCALL
+
 
 struct edict_s;
 struct entvars_s;
 struct globalvars_s;
 struct qcthread_s;
 typedef struct progfuncs_s progfuncs_t;
-typedef void (*builtin_t) (progfuncs_t *prinst, struct globalvars_s *gvars);
+typedef void (ASMCALL *builtin_t) (progfuncs_t *prinst, struct globalvars_s *gvars);
 
 //used by progs engine. All nulls is reset.
 typedef struct {
@@ -95,7 +86,7 @@ struct progfuncs_s {
 	char	*(*saveent)					(progfuncs_t *prinst, char *buf, int *size, struct edict_s *ed);	//will save just one entities vars
 	struct edict_s	*(*restoreent)		(progfuncs_t *prinst, char *buf, int *size, struct edict_s *ed);	//will restore the entity that had it's values saved (can use NULL for ed)
 
-	union eval_s	*(*FindGlobal)		(progfuncs_t *prinst, char *name, progsnum_t num);	//find a pointer to the globals value
+	union eval_s	*(*FindGlobal)		(progfuncs_t *prinst, char *name, progsnum_t num, etype_t *type);	//find a pointer to the globals value
 	char	*(*AddString)				(progfuncs_t *prinst, char *val, int minlength);	//dump a string into the progs memory (for setting globals and whatnot)
 	void	*(*Tempmem)					(progfuncs_t *prinst, int ammount, char *whatfor);	//grab some mem for as long as the progs stays loaded
 
@@ -132,7 +123,7 @@ struct progfuncs_s {
 
 	int lastcalledbuiltinnumber;			//useful with non-implemented opcodes.
 
-	int (*RegisterFieldVar)				(progfuncs_t *prinst, unsigned int type, char *name, int requestedpos, int originalofs);
+	int (*RegisterFieldVar)				(progfuncs_t *prinst, unsigned int type, char *name, signed long requestedpos, signed long originalofs);
 
 	char	*tempstringbase;				//for engine's use. Store your base tempstring pointer here.
 	int		tempstringnum;			//for engine's use.
@@ -140,20 +131,21 @@ struct progfuncs_s {
 	string_t (*TempString)				(progfuncs_t *prinst, char *str);
 
 	string_t (*StringToProgs)			(progfuncs_t *prinst, char *str);
-	char *(*StringToNative)				(progfuncs_t *prinst, string_t str);
+	char *(ASMCALL *StringToNative)				(progfuncs_t *prinst, string_t str);
 	int stringtablesize;
 
 	int (*QueryField)					(progfuncs_t *prinst, unsigned int fieldoffset, etype_t *type, char **name, evalc_t *fieldcache);	//find info on a field definition at an offset
 
 	void (*EntClear)					(progfuncs_t *progfuncs, struct edict_s *e);
+	void (*FindPrefixGlobals)			(progfuncs_t *progfuncs, char *prefix, void (*found) (progfuncs_t *progfuncs, char *name, union eval_s *val, etype_t type) );
 };
 
 typedef struct progexterns_s {
 	int progsversion;	//PROGSTRUCT_VERSION
 
-	unsigned char *(*ReadFile) (char *fname, void *buffer, int len);
-	int (*FileSize) (char *fname);	//-1 if file does not exist
-	pbool (*WriteFile) (char *name, void *data, int len);
+	unsigned char *(*ReadFile) (const char *fname, void *buffer, int len);
+	int (*FileSize) (const char *fname);	//-1 if file does not exist
+	pbool (*WriteFile) (const char *name, void *data, int len);
 	int (VARGS *printf) (const char *, ...) LIKEPRINTF(1);
 	void (VARGS *Sys_Error) (const char *, ...) LIKEPRINTF(1);
 	void (VARGS *Abort) (char *, ...) LIKEPRINTF(1);
@@ -161,15 +153,16 @@ typedef struct progexterns_s {
 
 	void (*entspawn) (struct edict_s *ent, int loading);	//ent has been spawned, but may not have all the extra variables (that may need to be set) set
 	pbool (*entcanfree) (struct edict_s *ent);	//return true to stop ent from being freed
-	void (*stateop) (progfuncs_t *prinst, float var, func_t func);	//what to do on qc's state opcode.
-	void (*cstateop) (progfuncs_t *prinst, float vara, float varb, func_t currentfunc);		//a hexen2 opcode.
-	void (*cwstateop) (progfuncs_t *prinst, float vara, float varb, func_t currentfunc);	//a hexen2 opcode.
-	void (*thinktimeop) (progfuncs_t *prinst, struct edict_s *ent, float varb);			//a hexen2 opcode.
+	void (ASMCALL *stateop) (progfuncs_t *prinst, float var, func_t func);	//what to do on qc's state opcode.
+	void (ASMCALL *cstateop) (progfuncs_t *prinst, float vara, float varb, func_t currentfunc);		//a hexen2 opcode.
+	void (ASMCALL *cwstateop) (progfuncs_t *prinst, float vara, float varb, func_t currentfunc);	//a hexen2 opcode.
+	void (ASMCALL *thinktimeop) (progfuncs_t *prinst, struct edict_s *ent, float varb);			//a hexen2 opcode.
 
 
 	//used when loading a game
 	builtin_t *(*builtinsfor) (int num, int headercrc);	//must return a pointer to the builtins that were used before the state was saved.
 	void (*loadcompleate) (int edictsize);	//notification to reset any pointers.
+	pbool (*badfield)(progfuncs_t *prinst, struct edict_s *ent, const char *keyname, const char *value);	//called for any fields that are not registered
 
 	void *(VARGS *memalloc) (int size);	//small string allocation	malloced and freed randomly by the executor. (use malloc if you want)
 	void (VARGS *memfree) (void * mem);
@@ -257,7 +250,7 @@ typedef union eval_s
 #define PR_PrintEdict(pf,ed)								(*pf->PrintEdict)			(pf, ed)
 
 #define PR_FindFunction(pf, name, num)						(*pf->FindFunction)			(pf, name, num)
-#define PR_FindGlobal(pf, name, progs)						(*pf->FindGlobal)			(pf, name, progs)
+#define PR_FindGlobal(pf, name, progs, type)				(*pf->FindGlobal)			(pf, name, progs, type)
 #define PR_AddString(pf, ed, len)							(*pf->AddString)			(pf, ed, len)
 #define PR_Alloc(pf,size)									(*pf->Tempmem)				(pf, size)
 

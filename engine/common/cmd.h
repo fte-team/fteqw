@@ -69,6 +69,7 @@ typedef void (*xcommand_t) (void);
 int Cmd_Level(char *name);
 
 void	Cmd_Init (void);
+void	Cmd_Shutdown(void);
 void	Cmd_StuffCmds (void);
 
 void	Cmd_RemoveCommand (char *cmd_name);
@@ -116,14 +117,14 @@ void	Cmd_ExecuteString (char *text, int restrictionlevel);
 
 void Cmd_Args_Set(char *newargs);
 
-#define RESTRICT_MAX		64	//1-64	it's all about bit size. This is max settable. servers are +1
-#define RESTRICT_DEFAULT	50	//rcon get's 63, local always gets 64
+#define RESTRICT_MAX		29	//1-64	it's all about bit size. This is max settable. servers are +1 or +2
+#define RESTRICT_DEFAULT	20	//rcon get's 63, local always gets 64
 #define RESTRICT_MIN		1	//rcon get's 63, local always gets 64
 
 #define RESTRICT_LOCAL	RESTRICT_MAX
 #define RESTRICT_INSECURE	RESTRICT_MAX+1
 #define RESTRICT_SERVER	RESTRICT_MAX+2
-#define RESTRICT_RCON	rcon_level.value
+#define RESTRICT_RCON	rcon_level.ival
 #define RESTRICT_PROGS	RESTRICT_MAX-2
 
 #define Cmd_FromGamecode() (Cmd_ExecLevel>=RESTRICT_SERVER)	//cheat provention

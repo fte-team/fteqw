@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 #include "winquake.h"
+#include "errno.h"
 
 int			cache_full_cycle;
 
@@ -448,7 +449,7 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 						STANDARDRESCALESTEREO(in16, inrate, insamps, out16, outrate, 0, 0)
 				}
 			}
-			else 
+			else
 			{
 				if (inrate == outrate) // quick convert
 				{
@@ -518,7 +519,7 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 				else // downsample
 					STANDARDRESCALESTEREOTOMONO(in16, inrate, insamps, out16, outrate, 0, 0)
 			}
-			else 
+			else
 			{
 				if (inrate == outrate) // quick convert
 					QUICKCONVERTSTEREOTOMONO(in16, insamps, out8, 0, 8)
@@ -542,40 +543,50 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 ResampleSfx
 ================
 */
-void ResampleSfx (sfx_t *sfx, int inrate, int inwidth, qbyte *data)
+void ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth, int insamps, int inloopstart, qbyte *data)
 {
 	extern cvar_t snd_linearresample;
 	double scale;
 	sfxcache_t	*sc;
-	int insamps, outsamps;
+	int outsamps;
+	int len;
+	int outwidth;
 
-	sc = Cache_Check (&sfx->cache);
-	if (!sc)
-		return;
-
-	insamps = sc->length;
 	scale = snd_speed / (double)inrate;
 	outsamps = insamps * scale;
-	sc->length = outsamps;
-	if (sc->loopstart != -1)
-		sc->loopstart = sc->loopstart * scale;
-
-	sc->speed = snd_speed;
-	if (loadas8bit.value)
-		sc->width = 1;
+	if (loadas8bit.ival < 0)
+		outwidth = 2;
+	else if (loadas8bit.ival)
+		outwidth = 1;
 	else
-		sc->width = inwidth;
+		outwidth = inwidth;
+	len = outsamps * outwidth * inchannels;
 
-	SND_ResampleStream (data, 
-		inrate, 
-		inwidth, 
-		sc->numchannels, 
-		insamps, 
-		sc->data, 
-		sc->speed, 
-		sc->width, 
-		sc->numchannels, 
-		(int)snd_linearresample.value);
+	sc = Cache_Alloc (&sfx->cache, len + sizeof(sfxcache_t), sfx->name);
+	if (!sc)
+	{
+		return;
+	}
+
+	sc->numchannels = inchannels;
+	sc->width = outwidth;
+	sc->speed = snd_speed;
+	sc->length = outsamps;
+	if (inloopstart == -1)
+		sc->loopstart = inloopstart;
+	else
+		sc->loopstart = inloopstart * scale;
+
+	SND_ResampleStream (data,
+		inrate,
+		inwidth,
+		inchannels,
+		insamps,
+		sc->data,
+		sc->speed,
+		sc->width,
+		sc->numchannels,
+		snd_linearresample.ival);
 }
 
 //=============================================================================
@@ -633,6 +644,8 @@ sfxcache_t *S_LoadDoomSpeakerSound (sfx_t *s, qbyte *data, int datalen, int snds
 	inaccum = inrate;
 	if (*data)
 		timerfreq = DSPK_BASE * pow((double)2.0, DSPK_EXP * (*data));
+	else
+		timerfreq = 0;
 
 	while (len > 0)
 	{
@@ -661,8 +674,6 @@ sfxcache_t *S_LoadDoomSpeakerSound (sfx_t *s, qbyte *data, int datalen, int snds
 
 sfxcache_t *S_LoadDoomSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
-	sfxcache_t	*sc;
-
 	// format data from Unofficial Doom Specs v1.6
 	unsigned short *dataus;
 	int samples, rate, len;
@@ -684,36 +695,17 @@ sfxcache_t *S_LoadDoomSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	if (datalen != samples)
 		return NULL;
 
-	len = (int)((double)samples * (double)snd_speed / (double)rate);
+	COM_CharBias(data, sc->length);
 
-	sc = Cache_Alloc (&s->cache, len + sizeof(sfxcache_t), s->name);
-	if (!sc)
-	{
-		return NULL;
-	}
+	ResampleSfx (s, rate, 1, 1, samples, -1, data);
 
-	sc->length = samples;
-	sc->loopstart = -1;
-	sc->numchannels = 1;
-	sc->width = 1;
-	sc->speed = rate;
-
-	if (sc->width == 1)
-		COM_CharBias(data, sc->length);
-	else if (sc->width == 2)
-		COM_SwapLittleShortBlock((short *)data, sc->length);
-
-	ResampleSfx (s, sc->speed, sc->width, data);
-
-	return sc;
+	return Cache_Check(&s->cache);
 }
 #endif
 
 sfxcache_t *S_LoadWavSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
 	wavinfo_t	info;
-	int		len;
-	sfxcache_t	*sc;
 
 	if (datalen < 4 || strncmp(data, "RIFF", 4))
 		return NULL;
@@ -726,29 +718,14 @@ sfxcache_t *S_LoadWavSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 		return NULL;
 	}
 
-	len = (int) ((double) info.samples * (double) snd_speed / (double) info.rate);
-	len = len * info.width * info.numchannels;
+	if (info.width == 1)
+		COM_CharBias(data + info.dataofs, info.samples*info.numchannels);
+	else if (info.width == 2)
+		COM_SwapLittleShortBlock((short *)(data + info.dataofs), info.samples*info.numchannels);
 
-	sc = Cache_Alloc ( &s->cache, len + sizeof(sfxcache_t), s->name);
-	if (!sc)
-	{
-		return NULL;
-	}
-	
-	sc->length = info.samples;
-	sc->loopstart = info.loopstart;
-	sc->speed = info.rate;
-	sc->width = info.width;
-	sc->numchannels = info.numchannels;
+	ResampleSfx (s, info.rate, info.numchannels, info.width, info.samples, info.loopstart, data + info.dataofs);
 
-	if (sc->width == 1)
-		COM_CharBias(data + info.dataofs, sc->length*sc->numchannels);
-	else if (sc->width == 2)
-		COM_SwapLittleShortBlock((short *)(data + info.dataofs), sc->length*sc->numchannels);
-
-	ResampleSfx (s, sc->speed, sc->width, data + info.dataofs);
-
-	return sc;
+	return Cache_Check(&s->cache);
 }
 
 sfxcache_t *S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed);
@@ -792,6 +769,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	qbyte	*data;
 	sfxcache_t	*sc;
 	int i;
+	size_t result;
 
 	char *name = s->name;
 
@@ -820,7 +798,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 			if (*name == '\\')
 				*name = '/';
 			name++;
-		}			
+		}
 		name = unixname;
 #endif
 
@@ -828,7 +806,11 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 		{
 			com_filesize = COM_filelength(f);
 			data = Hunk_TempAlloc (com_filesize);
-			fread(data, 1, com_filesize, f);
+			result = fread(data, 1, com_filesize, f); //do something with result
+
+			if (result != com_filesize)
+				Con_SafePrintf("S_LoadSound() fread: Filename: %s, expected %i, result was %u (%s)\n",name,com_filesize,(unsigned int)result,strerror(errno));
+
 			fclose(f);
 		}
 		else
@@ -894,7 +876,9 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 		{
 			sc = AudioInputPlugins[i](s, data, com_filesize, snd_speed);
 			if (sc)
+			{
 				return sc;
+			}
 		}
 	}
 
@@ -915,7 +899,7 @@ WAV loading
 ===============================================================================
 */
 
-
+char	*wavname;
 qbyte	*data_p;
 qbyte 	*iff_end;
 qbyte 	*last_chunk;
@@ -967,7 +951,7 @@ unsigned int FindNextChunk(char *name)
 		}
 		if (iff_chunk_len > dataleft)
 		{
-			Con_Printf ("Sound file seems truncated by %i bytes\n", iff_chunk_len-dataleft);
+			Con_DPrintf ("\"%s\" seems truncated by %i bytes\n", wavname, iff_chunk_len-dataleft);
 #if 1
 			iff_chunk_len = dataleft;
 #else
@@ -999,7 +983,7 @@ unsigned int FindChunk(char *name)
 void DumpChunks(void)
 {
 	char	str[5];
-	
+
 	str[4] = 0;
 	data_p=iff_data;
 	do
@@ -1030,9 +1014,10 @@ wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 
 	if (!wav)
 		return info;
-		
+
 	iff_data = wav;
 	iff_end = wav + wavlength;
+	wavname = name;
 
 // find "RIFF" chunk
 	chunklen = FindChunk("RIFF");
@@ -1090,7 +1075,7 @@ wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 		info.loopstart = -1;
 
 // find data chunk
-	chunklen = FindChunk("data"); 
+	chunklen = FindChunk("data");
 	if (!chunklen)
 	{
 		Con_Printf("Missing data chunk in %s\n", name);
@@ -1118,6 +1103,6 @@ wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 	}
 
 	info.dataofs = data_p - wav;
-	
+
 	return info;
 }

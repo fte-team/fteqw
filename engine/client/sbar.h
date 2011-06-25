@@ -28,7 +28,7 @@ extern	int			sb_lines;			// scan lines to draw
 void Sbar_Init (void);
 struct player_info_s;
 qboolean Sbar_UpdateTeamStatus(struct player_info_s *player, char *status);
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 void Sbar_ReInit (void);
 #endif
 
@@ -44,8 +44,15 @@ void Sbar_IntermissionOverlay (void);
 // called each frame after the level has been completed
 
 void Sbar_FinaleOverlay (void);
-void Sbar_SortFrags (qboolean includespec);
+void Sbar_SortFrags (qboolean includespec, qboolean teamsort);
+
+void Sbar_PQ_Team_New(unsigned int team, unsigned int shirt);
+void Sbar_PQ_Team_Frags(unsigned int team, int frags);
+void Sbar_PQ_Team_Reset(void);
 
 void Sbar_Start (void);
 void Sbar_Flush (void);
 unsigned int	Sbar_ColorForMap (unsigned int m);
+
+extern int scoreboardlines;
+extern int fragsort[];

@@ -97,13 +97,6 @@ void() plat_outside_touch =
 	if (other.classname != "player")
 		return;
 
-
-	if (other.classname == "treasure_chest")
-	{
-		remove(other);
-		return;
-	}
-
 	if (other.health <= 0)
 		return;
 		
@@ -124,12 +117,6 @@ void() plat_trigger_use =
 void() plat_crush =
 {
 //dprint ("plat_crush\n");
-
-	if (other.classname == "treasure_chest")
-	{
-		remove(other);
-		return;
-	}
 
 	other.deathtype = "squish";
 	T_Damage (other, self, self, 1);
@@ -238,13 +225,6 @@ void() func_train_find;
 
 void() train_blocked =
 {
-
-	if (other.classname == "treasure_chest")
-	{
-		remove(other);
-		return;
-	}
-
 	if (time < self.attack_finished)
 		return;
 	self.attack_finished = time + 0.5;

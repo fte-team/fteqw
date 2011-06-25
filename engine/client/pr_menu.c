@@ -1,16 +1,675 @@
 #include "quakedef.h"
 
-#ifdef MENU_DAT
-
-#ifdef RGLQUAKE
-#include "glquake.h"
-#ifdef Q3SHADERS
-#include "shader.h"
-#endif
-#endif
-
 #include "pr_common.h"
+#include "shader.h"
 
+#ifdef GLQUAKE
+#include "glquake.h"
+#endif
+
+#if defined(MENU_DAT) || defined(CSQC_DAT)
+
+struct
+{
+	float *drawfont;
+	float *drawfontscale;
+} mp_globs;
+
+
+int MP_TranslateFTEtoDPCodes(int code)
+{
+	switch(code)
+	{
+	case K_TAB:				return 9;
+	case K_ENTER:			return 13;
+	case K_ESCAPE:			return 27;
+	case K_SPACE:			return 32;
+	case K_BACKSPACE:		return 127;
+	case K_UPARROW:			return 128;
+	case K_DOWNARROW:		return 129;
+	case K_LEFTARROW:		return 130;
+	case K_RIGHTARROW:		return 131;
+	case K_ALT:				return 132;
+	case K_CTRL:			return 133;
+	case K_SHIFT:			return 134;
+	case K_F1:				return 135;
+	case K_F2:				return 136;
+	case K_F3:				return 137;
+	case K_F4:				return 138;
+	case K_F5:				return 139;
+	case K_F6:				return 140;
+	case K_F7:				return 141;
+	case K_F8:				return 142;
+	case K_F9:				return 143;
+	case K_F10:				return 144;
+	case K_F11:				return 145;
+	case K_F12:				return 146;
+	case K_INS:				return 147;
+	case K_DEL:				return 148;
+	case K_PGDN:			return 149;
+	case K_PGUP:			return 150;
+	case K_HOME:			return 151;
+	case K_END:				return 152;
+	case K_KP_HOME:			return 160;
+	case K_KP_UPARROW:		return 161;
+	case K_KP_PGUP:			return 162;
+	case K_KP_LEFTARROW:	return 163;
+	case K_KP_5:			return 164;
+	case K_KP_RIGHTARROW:	return 165;
+	case K_KP_END:			return 166;
+	case K_KP_DOWNARROW:	return 167;
+	case K_KP_PGDN:			return 168;
+	case K_KP_ENTER:		return 169;
+	case K_KP_INS:			return 170;
+	case K_KP_DEL:			return 171;
+	case K_KP_SLASH:		return 172;
+	case K_KP_MINUS:		return 173;
+	case K_KP_PLUS:			return 174;
+	case K_PAUSE:			return 255;
+	case K_JOY1:			return 768;
+	case K_JOY2:			return 769;
+	case K_JOY3:			return 770;
+	case K_JOY4:			return 771;
+	case K_AUX1:			return 772;
+	case K_AUX2:			return 773;
+	case K_AUX3:			return 774;
+	case K_AUX4:			return 775;
+	case K_AUX5:			return 776;
+	case K_AUX6:			return 777;
+	case K_AUX7:			return 778;
+	case K_AUX8:			return 779;
+	case K_AUX9:			return 780;
+	case K_AUX10:			return 781;
+	case K_AUX11:			return 782;
+	case K_AUX12:			return 783;
+	case K_AUX13:			return 784;
+	case K_AUX14:			return 785;
+	case K_AUX15:			return 786;
+	case K_AUX16:			return 787;
+	case K_AUX17:			return 788;
+	case K_AUX18:			return 789;
+	case K_AUX19:			return 790;
+	case K_AUX20:			return 791;
+	case K_AUX21:			return 792;
+	case K_AUX22:			return 793;
+	case K_AUX23:			return 794;
+	case K_AUX24:			return 795;
+	case K_AUX25:			return 796;
+	case K_AUX26:			return 797;
+	case K_AUX27:			return 798;
+	case K_AUX28:			return 799;
+	case K_AUX29:			return 800;
+	case K_AUX30:			return 801;
+	case K_AUX31:			return 802;
+	case K_AUX32:			return 803;
+	case K_MOUSE1:			return 512;
+	case K_MOUSE2:			return 513;
+	case K_MOUSE3:			return 514;
+	case K_MOUSE4:			return 515;
+	case K_MOUSE5:			return 516;
+//	case K_MOUSE6:			return 517;
+//	case K_MOUSE7:			return 518;
+//	case K_MOUSE8:			return 519;
+//	case K_MOUSE9:			return 520;
+//	case K_MOUSE10:			return 521;
+	case K_MWHEELDOWN:		return 515;//K_MOUSE4;
+	case K_MWHEELUP:		return 516;//K_MOUSE5;
+	default:				return code;
+	}
+}
+
+int MP_TranslateDPtoFTECodes(int code)
+{
+	switch(code)
+	{
+	case 9:			return K_TAB;
+	case 13:		return K_ENTER;
+	case 27:		return K_ESCAPE;
+	case 32:		return K_SPACE;
+	case 127:		return K_BACKSPACE;
+	case 128:		return K_UPARROW;
+	case 129:		return K_DOWNARROW;
+	case 130:		return K_LEFTARROW;
+	case 131:		return K_RIGHTARROW;
+	case 132:		return K_ALT;
+	case 133:		return K_CTRL;
+	case 134:		return K_SHIFT;
+	case 135:		return K_F1;
+	case 136:		return K_F2;
+	case 137:		return K_F3;
+	case 138:		return K_F4;
+	case 139:		return K_F5;
+	case 140:		return K_F6;
+	case 141:		return K_F7;
+	case 142:		return K_F8;
+	case 143:		return K_F9;
+	case 144:		return K_F10;
+	case 145:		return K_F11;
+	case 146:		return K_F12;
+	case 147:		return K_INS;
+	case 148:		return K_DEL;
+	case 149:		return K_PGDN;
+	case 150:		return K_PGUP;
+	case 151:		return K_HOME;
+	case 152:		return K_END;
+	case 160:		return K_KP_HOME;
+	case 161:		return K_KP_UPARROW;
+	case 162:		return K_KP_PGUP;
+	case 163:		return K_KP_LEFTARROW;
+	case 164:		return K_KP_5;
+	case 165:		return K_KP_RIGHTARROW;
+	case 166:		return K_KP_END;
+	case 167:		return K_KP_DOWNARROW;
+	case 168:		return K_KP_PGDN;
+	case 169:		return K_KP_ENTER;
+	case 170:		return K_KP_INS;
+	case 171:		return K_KP_DEL;
+	case 172:		return K_KP_SLASH;
+	case 173:		return K_KP_MINUS;
+	case 174:		return K_KP_PLUS;
+	case 255:		return K_PAUSE;
+
+	case 768:		return K_JOY1;
+	case 769:		return K_JOY2;
+	case 770:		return K_JOY3;
+	case 771:		return K_JOY4;
+	case 772:		return K_AUX1;
+	case 773:		return K_AUX2;
+	case 774:		return K_AUX3;
+	case 775:		return K_AUX4;
+	case 776:		return K_AUX5;
+	case 777:		return K_AUX6;
+	case 778:		return K_AUX7;
+	case 779:		return K_AUX8;
+	case 780:		return K_AUX9;
+	case 781:		return K_AUX10;
+	case 782:		return K_AUX11;
+	case 783:		return K_AUX12;
+	case 784:		return K_AUX13;
+	case 785:		return K_AUX14;
+	case 786:		return K_AUX15;
+	case 787:		return K_AUX16;
+	case 788:		return K_AUX17;
+	case 789:		return K_AUX18;
+	case 790:		return K_AUX19;
+	case 791:		return K_AUX20;
+	case 792:		return K_AUX21;
+	case 793:		return K_AUX22;
+	case 794:		return K_AUX23;
+	case 795:		return K_AUX24;
+	case 796:		return K_AUX25;
+	case 797:		return K_AUX26;
+	case 798:		return K_AUX27;
+	case 799:		return K_AUX28;
+	case 800:		return K_AUX29;
+	case 801:		return K_AUX30;
+	case 802:		return K_AUX31;
+	case 803:		return K_AUX32;
+	case 512:		return K_MOUSE1;
+	case 513:		return K_MOUSE2;
+	case 514:		return K_MOUSE3;
+//	case 515:		return K_MOUSE4;
+//	case 516:		return K_MOUSE5;
+	case 517:		return K_MOUSE6;
+	case 518:		return K_MOUSE7;
+	case 519:		return K_MOUSE8;
+//	case 520:		return K_MOUSE9;
+//	case 521:		return K_MOUSE10;
+	case 515:		return K_MWHEELDOWN;//K_MOUSE4;
+	case 516:		return K_MWHEELUP;//K_MOUSE5;
+	default:		return code;
+	}
+}
+
+//string	findkeysforcommand(string command) = #610;
+void QCBUILTIN PF_cl_findkeysforcommand (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *cmdname = PR_GetStringOfs(prinst, OFS_PARM0);
+	int keynums[2];
+	char keyname[512];
+
+	M_FindKeysForCommand(0, cmdname, keynums);
+
+	keyname[0] = '\0';
+
+	Q_strncatz (keyname, va(" \'%i\'", MP_TranslateFTEtoDPCodes(keynums[0])), sizeof(keyname));
+	Q_strncatz (keyname, va(" \'%i\'", MP_TranslateFTEtoDPCodes(keynums[1])), sizeof(keyname));
+
+	RETURN_TSTRING(keyname);
+}
+
+void QCBUILTIN PF_cl_getkeybind (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *binding = Key_GetBinding(G_FLOAT(OFS_PARM0));
+	RETURN_TSTRING(binding);
+}
+
+void QCBUILTIN PF_cl_stringtokeynum(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int i;
+	int modifier;
+	char *s;
+
+	s = PR_GetStringOfs(prinst, OFS_PARM0);
+	i = Key_StringToKeynum(s, &modifier);
+	if (i < 0 || modifier != ~0)
+	{
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
+	i = MP_TranslateFTEtoDPCodes(i);
+	G_FLOAT(OFS_RETURN) = i;
+}
+
+//string	keynumtostring(float keynum) = #609;
+void QCBUILTIN PF_cl_keynumtostring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int code = G_FLOAT(OFS_PARM0);
+
+	code = MP_TranslateDPtoFTECodes (code);
+
+	RETURN_TSTRING(Key_KeynumToString(code));
+}
+
+
+
+
+
+
+
+
+//float	drawfill(vector position, vector size, vector rgb, float alpha, float flag) = #457;
+void QCBUILTIN PF_CL_drawfill (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	float *size = G_VECTOR(OFS_PARM1);
+	float *rgb = G_VECTOR(OFS_PARM2);
+	float alpha = G_FLOAT(OFS_PARM3);
+
+	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
+	R2D_FillBlock(pos[0], pos[1], size[0], size[1]);
+
+	G_FLOAT(OFS_RETURN) = 1;
+}
+//void	drawsetcliparea(float x, float y, float width, float height) = #458;
+void QCBUILTIN PF_CL_drawsetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float x = G_FLOAT(OFS_PARM0), y = G_FLOAT(OFS_PARM1), w = G_FLOAT(OFS_PARM2), h = G_FLOAT(OFS_PARM3);
+
+#ifdef GLQUAKE
+	if (qrenderer == QR_OPENGL && qglScissor)
+	{
+
+		x *= (float)vid.pixelwidth/vid.width;
+		y *= (float)vid.pixelheight/vid.height;
+
+		w *= (float)vid.pixelwidth/vid.width;
+		h *= (float)vid.pixelheight/vid.height;
+
+		//add a pixel because this makes DP's menus come out right.
+		x-=1;
+		y-=1;
+		w+=2;
+		h+=2;
+
+
+		qglScissor (x, vid.pixelheight-(y+h), w, h);
+		qglEnable(GL_SCISSOR_TEST);
+		G_FLOAT(OFS_RETURN) = 1;
+		return;
+	}
+#endif
+	G_FLOAT(OFS_RETURN) = 0;
+}
+//void	drawresetcliparea(void) = #459;
+void QCBUILTIN PF_CL_drawresetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+#ifdef GLQUAKE
+	if (qrenderer == QR_OPENGL)
+	{
+		qglDisable(GL_SCISSOR_TEST);
+		G_FLOAT(OFS_RETURN) = 1;
+		return;
+	}
+#endif
+	G_FLOAT(OFS_RETURN) = 0;
+}
+
+void QCBUILTIN PF_CL_DrawTextField (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	float *size = G_VECTOR(OFS_PARM1);
+	unsigned int flags = G_FLOAT(OFS_PARM2);
+	char *text = PR_GetStringOfs(prinst, OFS_PARM3);
+	R_DrawTextField(pos[0], pos[1], size[0], size[1], text, CON_WHITEMASK, flags);
+}
+
+//float	drawstring(vector position, string text, vector scale, float alpha, float flag) = #455;
+void QCBUILTIN PF_CL_drawcolouredstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	char *text = PR_GetStringOfs(prinst, OFS_PARM1);
+	float *size = G_VECTOR(OFS_PARM2);
+	float alpha = 0;
+	float flag = 0;
+	float r, g, b;
+
+	conchar_t buffer[2048], *str;
+	float px, py;
+
+	if (*prinst->callargc >= 6)
+	{
+		r = G_FLOAT(OFS_PARM3 + 0);
+		g = G_FLOAT(OFS_PARM3 + 1);
+		b = G_FLOAT(OFS_PARM3 + 2);
+		alpha = G_FLOAT(OFS_PARM4);
+		flag = G_FLOAT(OFS_PARM5);
+	}
+	else
+	{
+		r = 1;
+		g = 1;
+		b = 1;
+		alpha = G_FLOAT(OFS_PARM3);
+		flag = G_FLOAT(OFS_PARM4);
+	}
+
+	if (!text)
+	{
+		G_FLOAT(OFS_RETURN) = -1;	//was null..
+		return;
+	}
+
+	COM_ParseFunString(CON_WHITEMASK, text, buffer, sizeof(buffer), false);
+	str = buffer;
+
+	Font_BeginScaledString(font_conchar, pos[0], pos[1], &px, &py);
+	Font_ForceColour(r, g, b, alpha);
+	while(*str)
+	{
+		px = Font_DrawScaleChar(px, py, size[0], size[1], *str++);
+	}
+	Font_InvalidateColour();
+	Font_EndString(font_conchar);
+}
+
+void QCBUILTIN PF_CL_stringwidth(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *text = PR_GetStringOfs(prinst, OFS_PARM0);
+	int usecolours = G_FLOAT(OFS_PARM1);
+	float fontsize;
+	if (*prinst->callargc > 2)
+		fontsize = G_FLOAT(OFS_PARM2);
+	else
+		fontsize = 1;
+
+	if (mp_globs.drawfontscale)
+		fontsize *= mp_globs.drawfontscale[1];
+	if (usecolours)
+	{
+		conchar_t buffer[2048], *end;
+		float px, py;
+		end = COM_ParseFunString(CON_WHITEMASK, text, buffer, sizeof(buffer), false);
+
+		Font_BeginScaledString(font_conchar, 0, 0, &px, &py);
+		px = Font_LineWidth(buffer, end);
+		Font_EndString(font_conchar);
+
+		if (mp_globs.drawfontscale)
+			px *= mp_globs.drawfontscale[1];
+
+		G_FLOAT(OFS_RETURN) = px;
+	}
+	else
+	{
+		G_FLOAT(OFS_RETURN) = strlen(text)*fontsize;
+	}
+}
+
+#define DRAWFLAG_NORMAL 0
+#define DRAWFLAG_ADD 1
+#define DRAWFLAG_MODULATE 2
+#define DRAWFLAG_MODULATE2 3
+
+extern unsigned int r2d_be_flags;
+static unsigned int PF_SelectDPDrawFlag(int flag)
+{
+	//flags:
+	//0 = blend
+	//1 = add
+	//2 = modulate
+	//3 = modulate*2
+	if (flag == 1)
+		return BEF_FORCEADDITIVE;
+	else
+		return BEF_FORCETRANSPARENT;
+}
+
+//float	drawpic(vector position, string pic, vector size, vector rgb, float alpha, float flag) = #456;
+void QCBUILTIN PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	char *picname = PR_GetStringOfs(prinst, OFS_PARM1);
+	float *size = G_VECTOR(OFS_PARM2);
+	float *rgb = G_VECTOR(OFS_PARM3);
+	float alpha = G_FLOAT(OFS_PARM4);
+	int flag = (int)G_FLOAT(OFS_PARM5);
+
+	mpic_t *p;
+
+	p = R2D_SafeCachePic(picname);
+	if (!p)
+		p = R2D_SafePicFromWad(picname);
+
+	r2d_be_flags = PF_SelectDPDrawFlag(flag);
+	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
+	R2D_Image(pos[0], pos[1], size[0], size[1], 0, 0, 1, 1, p);
+	r2d_be_flags = 0;
+
+	G_FLOAT(OFS_RETURN) = 1;
+}
+
+void QCBUILTIN PF_CL_drawsubpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	float *size = G_VECTOR(OFS_PARM1);
+	char *picname = PR_GetStringOfs(prinst, OFS_PARM2);
+	float *srcPos = G_VECTOR(OFS_PARM3);
+	float *srcSize = G_VECTOR(OFS_PARM4);
+	float *rgb = G_VECTOR(OFS_PARM5);
+	float alpha = G_FLOAT(OFS_PARM6);
+	int flag = (int) G_FLOAT(OFS_PARM7);
+
+	mpic_t *p;
+
+	p = R2D_SafeCachePic(picname);
+
+	r2d_be_flags = PF_SelectDPDrawFlag(flag);
+	R2D_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
+	R2D_Image(	pos[0], pos[1],
+				size[0], size[1],
+				srcPos[0], srcPos[1],
+				srcPos[0]+srcSize[0], srcPos[1]+srcSize[1],
+				p);
+	r2d_be_flags = 0;
+
+	G_FLOAT(OFS_RETURN) = 1;
+}
+
+
+
+
+void QCBUILTIN PF_CL_is_cached_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char	*str;
+
+	str = PR_GetStringOfs(prinst, OFS_PARM0);
+
+//	if (Draw_IsCached)
+//		G_FLOAT(OFS_RETURN) = !!Draw_IsCached(str);
+//	else
+		G_FLOAT(OFS_RETURN) = 1;
+}
+
+void QCBUILTIN PF_CL_precache_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char	*str;
+	mpic_t	*pic;
+	float fromwad;
+
+	str = PR_GetStringOfs(prinst, OFS_PARM0);
+	if (*prinst->callargc > 1)
+		fromwad = G_FLOAT(OFS_PARM1);
+	else
+		fromwad = false;
+
+	if (fromwad)
+		pic = R2D_SafePicFromWad(str);
+	else
+	{
+		if (cls.state
+#ifndef CLIENTONLY
+			&& !sv.active
+#endif
+			)
+			CL_CheckOrEnqueDownloadFile(str, str, 0);
+
+		pic = R2D_SafeCachePic(str);
+	}
+
+	if (pic)
+		G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
+	else
+		G_INT(OFS_RETURN) = 0;
+}
+
+void QCBUILTIN PF_CL_free_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char	*str;
+
+	str = PR_GetStringOfs(prinst, OFS_PARM0);
+
+	//we don't support this.
+}
+
+
+//float	drawcharacter(vector position, float character, vector scale, vector rgb, float alpha, float flag) = #454;
+void QCBUILTIN PF_CL_drawcharacter (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	int chara = G_FLOAT(OFS_PARM1);
+	float *size = G_VECTOR(OFS_PARM2);
+	float *rgb = G_VECTOR(OFS_PARM3);
+	float alpha = G_FLOAT(OFS_PARM4);
+//	float flag = G_FLOAT(OFS_PARM5);
+
+	float x, y;
+
+	if (!chara)
+	{
+		G_FLOAT(OFS_RETURN) = -1;	//was null..
+		return;
+	}
+
+	Font_BeginScaledString(font_conchar, pos[0], pos[1], &x, &y);
+	Font_ForceColour(rgb[0], rgb[1], rgb[2], alpha);
+	Font_DrawScaleChar(x, y, size[0], size[1], CON_WHITEMASK | /*0xe000|*/(chara&0xff));
+	Font_InvalidateColour();
+	Font_EndString(font_conchar);
+
+	G_FLOAT(OFS_RETURN) = 1;
+}
+//float	drawrawstring(vector position, string text, vector scale, vector rgb, float alpha, float flag) = #455;
+void QCBUILTIN PF_CL_drawrawstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *pos = G_VECTOR(OFS_PARM0);
+	char *text = PR_GetStringOfs(prinst, OFS_PARM1);
+	float *size = G_VECTOR(OFS_PARM2);
+	float *rgb = G_VECTOR(OFS_PARM3);
+	float alpha = G_FLOAT(OFS_PARM4);
+//	float flag = G_FLOAT(OFS_PARM5);
+	float x, y;
+
+	if (!text)
+	{
+		G_FLOAT(OFS_RETURN) = -1;	//was null..
+		return;
+	}
+
+	Font_BeginScaledString(font_conchar, pos[0], pos[1], &x, &y);
+	x = pos[0];
+	y = pos[1];
+	Font_ForceColour(rgb[0], rgb[1], rgb[2], alpha);
+
+	if (mp_globs.drawfontscale)
+	{
+		size[0] *= mp_globs.drawfontscale[0];
+		size[1] *= mp_globs.drawfontscale[1];
+	}
+	while(*text)
+	{
+		x = Font_DrawScaleChar(x, y, size[0], size[1], CON_WHITEMASK|/*0xe000|*/(*text++&0xff));
+	}
+	Font_InvalidateColour();
+	Font_EndString(font_conchar);
+}
+
+//void (float width, vector rgb, float alpha, float flags, vector pos1, ...) drawline;
+void QCBUILTIN PF_CL_drawline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *rgb = G_VECTOR(OFS_PARM1);
+	float alpha = G_FLOAT(OFS_PARM2);
+	float *pos = G_VECTOR(OFS_PARM4);
+	int numpoints = *prinst->callargc-4;
+
+#ifdef GLQUAKE	// :(
+
+	if (qrenderer == QR_OPENGL)
+	{
+		qglColor4f(rgb[0], rgb[1], rgb[2], alpha);
+		qglBegin(GL_LINES);
+		while (numpoints-->0)
+		{
+			qglVertex3fv(pos);
+			pos += 3;
+		}
+
+		qglEnd();
+	}
+#endif
+}
+
+//vector  drawgetimagesize(string pic) = #460;
+void QCBUILTIN PF_CL_drawgetimagesize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *picname = PR_GetStringOfs(prinst, OFS_PARM0);
+	mpic_t *p = R2D_SafeCachePic(picname);
+
+	float *ret = G_VECTOR(OFS_RETURN);
+
+	if (p)
+	{
+		ret[0] = p->width;
+		ret[1] = p->height;
+		ret[2] = 0;
+	}
+	else
+	{
+		ret[0] = 0;
+		ret[1] = 0;
+		ret[2] = 0;
+	}
+}
+
+#endif
+
+
+
+
+
+
+
+#ifdef MENU_DAT
 
 typedef struct menuedict_s
 {
@@ -36,14 +695,14 @@ cvar_t pr_menuqc_coreonerror = SCVAR("pr_menuqc_coreonerror", "1");
 //new generic functions.
 
 //float	isfunction(string function_name) = #607;
-void PF_isfunction (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_isfunction (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*name = PR_GetStringOfs(prinst, OFS_PARM0);
 	G_FLOAT(OFS_RETURN) = !!PR_FindFunction(prinst, name, PR_CURRENT);
 }
 
 //void	callfunction(...) = #605;
-void PF_callfunction (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_callfunction (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*name;
 	func_t f;
@@ -56,7 +715,7 @@ void PF_callfunction (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //void	loadfromfile(string file) = #69;
-void PF_loadfromfile (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_loadfromfile (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*filename = PR_GetStringOfs(prinst, OFS_PARM0);
 	char *file = COM_LoadTempFile(filename);
@@ -77,7 +736,7 @@ void PF_loadfromfile (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = 0;
 }
 
-void PF_loadfromdata (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_loadfromdata (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*file = PR_GetStringOfs(prinst, OFS_PARM0);
 
@@ -97,7 +756,7 @@ void PF_loadfromdata (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = 0;
 }
 
-void PF_parseentitydata(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_parseentitydata(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	void	*ed = G_EDICT(prinst, OFS_PARM0);
 	char	*file = PR_GetStringOfs(prinst, OFS_PARM1);
@@ -120,13 +779,21 @@ void PF_parseentitydata(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		if (*file)
 			Con_Printf("parseentitydata: too much data\n");
 	}
-	
+
 	G_FLOAT(OFS_RETURN) = 0;
 }
 
-void PF_mod (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_mod (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	G_FLOAT(OFS_RETURN) = (float)(((int)G_FLOAT(OFS_PARM0))%((int)G_FLOAT(OFS_PARM1)));
+	int a = G_FLOAT(OFS_PARM0);
+	int b = G_FLOAT(OFS_PARM1);
+	if (b == 0)
+	{
+		Con_Printf("mod by zero\n");
+		G_FLOAT(OFS_RETURN) = 0;
+	}
+	else
+		G_FLOAT(OFS_RETURN) = a % b;
 }
 
 char *RemapCvarNameFromDPToFTE(char *name)
@@ -154,26 +821,24 @@ char *RemapCvarNameFromDPToFTE(char *name)
 	return name;
 }
 
-static void PF_menu_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_menu_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	cvar_t	*var;
 	char	*str;
-	
+
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
 	str = RemapCvarNameFromDPToFTE(str);
+	var = Cvar_Get(str, "", 0, "menu cvars");
+	if (var)
 	{
-		var = Cvar_Get(str, "", 0, "menu cvars");
-		if (var)
-		{
-			if (var->latched_string)
-				G_FLOAT(OFS_RETURN) = atof(var->latched_string);			else
-				G_FLOAT(OFS_RETURN) = var->value;
-		}
-		else
-			G_FLOAT(OFS_RETURN) = 0;
+		if (var->latched_string)
+			G_FLOAT(OFS_RETURN) = atof(var->latched_string);			else
+			G_FLOAT(OFS_RETURN) = var->value;
 	}
+	else
+		G_FLOAT(OFS_RETURN) = 0;
 }
-static void PF_menu_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_menu_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*var_name, *val;
 	cvar_t *var;
@@ -185,23 +850,23 @@ static void PF_menu_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	var = Cvar_Get(var_name, val, 0, "QC variables");
 	Cvar_Set (var, val);
 }
-static void PF_menu_cvar_string (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_menu_cvar_string (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
 	cvar_t *cv = Cvar_Get(RemapCvarNameFromDPToFTE(str), "", 0, "QC variables");
 	G_INT( OFS_RETURN ) = (int)PR_SetString( prinst, cv->string );
 }
 
-qboolean M_Vid_GetMove(int num, int *w, int *h);
+qboolean M_Vid_GetMode(int num, int *w, int *h);
 //a bit pointless really
-void PF_cl_getresolution (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cl_getresolution (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float mode = G_FLOAT(OFS_PARM0);
 	float *ret = G_VECTOR(OFS_RETURN);
 	int w, h;
 
 	w=h=0;
-	M_Vid_GetMove(mode, &w, &h);
+	M_Vid_GetMode(mode, &w, &h);
 
 	ret[0] = w;
 	ret[1] = h;
@@ -211,17 +876,17 @@ void PF_cl_getresolution (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 
 
-void PF_nonfatalobjerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_nonfatalobjerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*s;
 	struct edict_s	*ed;
 	eval_t *selfp;
-	
+
 	s = PF_VarString(prinst, 0, pr_globals);
 
 	PR_StackTrace(prinst);
 
-	selfp = PR_FindGlobal(prinst, "self", PR_CURRENT);
+	selfp = PR_FindGlobal(prinst, "self", PR_CURRENT, NULL);
 	if (selfp && selfp->_int)
 	{
 		ed = PROG_TO_EDICT(prinst, selfp->_int);
@@ -246,7 +911,7 @@ void PF_nonfatalobjerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 
 //float	isserver(void)  = #60;
-void PF_isserver (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_isserver (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 #ifdef CLIENTONLY
 	G_FLOAT(OFS_RETURN) = false;
@@ -256,13 +921,13 @@ void PF_isserver (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //float	clientstate(void)  = #62;
-void PF_clientstate (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_clientstate (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_FLOAT(OFS_RETURN) = cls.state >= ca_connected ? 2 : 1;	//fit in with netquake	 (we never run a menu.dat dedicated)
 }
 
 //too specific to the prinst's builtins.
-static void PF_Fixme (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_Fixme (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	Con_Printf("\n");
 
@@ -272,10 +937,10 @@ static void PF_Fixme (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 
 
-void PF_CL_precache_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_CL_precache_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*str;
-	
+
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
 
 	if (S_PrecacheSound(str))
@@ -284,394 +949,8 @@ void PF_CL_precache_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		G_INT(OFS_RETURN) = 0;
 }
 
-
-void PF_CL_is_cached_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char	*str;
-	
-	str = PR_GetStringOfs(prinst, OFS_PARM0);
-
-//	if (Draw_IsCached)
-//		G_FLOAT(OFS_RETURN) = !!Draw_IsCached(str);
-//	else
-		G_FLOAT(OFS_RETURN) = 1;
-}
-
-void PF_CL_precache_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char	*str;
-	mpic_t	*pic;
-	float fromwad;
-
-	str = PR_GetStringOfs(prinst, OFS_PARM0);
-	if (*prinst->callargc > 1)
-		fromwad = G_FLOAT(OFS_PARM1);
-	else
-		fromwad = false;
-
-	if (fromwad)
-		pic = Draw_SafePicFromWad(str);
-	else
-	{
-		if (cls.state
-#ifndef CLIENTONLY
-			&& !sv.active
-#endif
-			)
-			CL_CheckOrEnqueDownloadFile(str, str, 0);
-
-		pic = Draw_SafeCachePic(str);
-	}
-
-	if (pic)
-		G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
-	else
-		G_INT(OFS_RETURN) = 0;
-}
-
-void PF_CL_free_pic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char	*str;
-	
-	str = PR_GetStringOfs(prinst, OFS_PARM0);
-
-	//we don't support this.
-}
-
-
-//float	drawcharacter(vector position, float character, vector scale, vector rgb, float alpha, float flag) = #454;
-void PF_CL_drawcharacter (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float *pos = G_VECTOR(OFS_PARM0);
-	int chara = G_FLOAT(OFS_PARM1);
-	float *size = G_VECTOR(OFS_PARM2);
-	float *rgb = G_VECTOR(OFS_PARM3);
-	float alpha = G_FLOAT(OFS_PARM4);
-//	float flag = G_FLOAT(OFS_PARM5);
-
-	const float fsize = 0.0625;
-	float frow, fcol;
-
-	if (!chara)
-	{
-		G_FLOAT(OFS_RETURN) = -1;	//was null..
-		return;
-	}
-
-	chara &= 255;
-	frow = (chara>>4)*fsize;
-	fcol = (chara&15)*fsize;
-
-	if (Draw_ImageColours)
-		Draw_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
-	if (Draw_Image)
-		Draw_Image(pos[0], pos[1], size[0], size[1], fcol, frow, fcol+fsize, frow+fsize, Draw_CachePic("conchars"));
-
-	G_FLOAT(OFS_RETURN) = 1;
-}
-//float	drawrawstring(vector position, string text, vector scale, vector rgb, float alpha, float flag) = #455;
-void PF_CL_drawrawstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float *pos = G_VECTOR(OFS_PARM0);
-	char *text = PR_GetStringOfs(prinst, OFS_PARM1);
-	float *size = G_VECTOR(OFS_PARM2);
-//	float *rgb = G_VECTOR(OFS_PARM3);
-//	float alpha = G_FLOAT(OFS_PARM4);
-//	float flag = G_FLOAT(OFS_PARM5);
-
-	if (!text)
-	{
-		G_FLOAT(OFS_RETURN) = -1;	//was null..
-		return;
-	}
-
-	while(*text)
-	{
-		G_FLOAT(OFS_PARM1) = *text++;
-		PF_CL_drawcharacter(prinst, pr_globals);
-		pos[0] += size[0];
-	}
-}
-
-//float	drawstring(vector position, string text, vector scale, float alpha, float flag) = #455;
-void PF_CL_drawcolouredstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float *pos = G_VECTOR(OFS_PARM0);
-	char *text = PR_GetStringOfs(prinst, OFS_PARM1);
-	float *size = G_VECTOR(OFS_PARM2);
-//	float *alpha = G_FLOAT(OFS_PARM3);
-//	float flag = G_FLOAT(OFS_PARM4);
-
-	if (!text)
-	{
-		G_FLOAT(OFS_RETURN) = -1;	//was null..
-		return;
-	}
-
-	Draw_FunString(pos[0], pos[1], text);
-}
-
-void PF_CL_stringwidth(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *text = PR_GetStringOfs(prinst, OFS_PARM0);
-	qboolean usecolours = G_FLOAT(OFS_PARM1);
-	float fontsize;
-	if (*prinst->callargc > 2)
-		fontsize = G_FLOAT(OFS_PARM2);
-	else
-		fontsize = 1;
-	if (usecolours)
-	{
-		G_FLOAT(OFS_RETURN) = COM_FunStringLength(text)*fontsize;
-	}
-	else
-	{
-		G_FLOAT(OFS_RETURN) = strlen(text)*fontsize;
-	}
-}
-
-#define DRAWFLAG_NORMAL 0
-#define DRAWFLAG_ADD 1
-#define DRAWFLAG_MODULATE 2
-#define DRAWFLAG_MODULATE2 3
-
-#ifdef Q3SHADERS
-void GLDraw_ShaderPic (int x, int y, int width, int height, shader_t *pic, float r, float g, float b, float a);
-#endif
-//float	drawpic(vector position, string pic, vector size, vector rgb, float alpha, float flag) = #456;
-void PF_CL_drawpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float *pos = G_VECTOR(OFS_PARM0);
-	char *picname = PR_GetStringOfs(prinst, OFS_PARM1);
-	float *size = G_VECTOR(OFS_PARM2);
-	float *rgb = G_VECTOR(OFS_PARM3);
-	float alpha = G_FLOAT(OFS_PARM4);
-	float flag = G_FLOAT(OFS_PARM5);
-
-	mpic_t *p;
-
-#ifdef RGLQUAKE
-	if (qrenderer == QR_OPENGL)
-	{
-#ifdef Q3SHADERS
-		shader_t *s;
-
-		s = R_RegisterCustom(picname, NULL, NULL);
-		if (s)
-		{
-			GLDraw_ShaderPic(pos[0], pos[1], size[0], size[1], s, rgb[0], rgb[1], rgb[2], alpha);
-			return;
-		}
-#endif
-
-		if (flag == 1)	//add
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
-		else if(flag == 2)	//modulate
-			qglBlendFunc(GL_DST_COLOR, GL_ZERO);
-		else if(flag == 3)	//modulate*2
-			qglBlendFunc(GL_DST_COLOR,GL_SRC_COLOR);
-		else	//blend
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	}
-#endif
-
-	p = Draw_SafeCachePic(picname);
-
-	if (Draw_ImageColours)
-		Draw_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
-	if (Draw_Image)
-		Draw_Image(pos[0], pos[1], size[0], size[1], 0, 0, 1, 1, p);
-
-#ifdef RGLQUAKE
-	if (qrenderer == QR_OPENGL)
-		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-#endif
-
-	G_FLOAT(OFS_RETURN) = 1;
-}
-
-void PF_CL_drawsubpic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float *pos = G_VECTOR(OFS_PARM0);
-	float *size = G_VECTOR(OFS_PARM1);
-	char *picname = PR_GetStringOfs(prinst, OFS_PARM2);
-	float *srcPos = G_VECTOR(OFS_PARM3);
-	float *srcSize = G_VECTOR(OFS_PARM4);
-	float *rgb = G_VECTOR(OFS_PARM5);
-	float alpha = G_FLOAT(OFS_PARM6);
-	int flag = (int) G_FLOAT(OFS_PARM7);
-
-	mpic_t *p;
-
-	if(pos[2] || size[2])
-		Con_Printf("VM_drawsubpic: z value%s from %s discarded\n",(pos[2] && size[2]) ? "s" : " ",((pos[2] && size[2]) ? "pos and size" : (pos[2] ? "pos" : "size")));
-
-#ifdef RGLQUAKE
-	if (qrenderer == QR_OPENGL)
-	{
-#ifdef Q3SHADERS
-		shader_t *s;
-
-		s = R_RegisterCustom(picname, NULL, NULL);
-		if (s)
-		{
-			GLDraw_ShaderPic(pos[0], pos[1], size[0], size[1], s, rgb[0], rgb[1], rgb[2], alpha);
-			return;
-		}
-#endif
-
-		if (flag == 1)	//add
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
-		else if(flag == 2)	//modulate
-			qglBlendFunc(GL_DST_COLOR, GL_ZERO);
-		else if(flag == 3)	//modulate*2
-			qglBlendFunc(GL_DST_COLOR,GL_SRC_COLOR);
-		else	//blend
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	}
-#endif
-
-	p = Draw_SafeCachePic(picname);
-
-	if (Draw_ImageColours)
-		Draw_ImageColours(rgb[0], rgb[1], rgb[2], alpha);
-	if (Draw_Image)
-		Draw_Image(	pos[0], pos[1],
-					size[0], size[1],
-					srcPos[0], srcPos[1],
-					srcPos[0]+srcSize[0], srcPos[1]+srcSize[1],
-					p);
-
-#ifdef RGLQUAKE
-	if (qrenderer == QR_OPENGL)
-		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-#endif
-
-	G_FLOAT(OFS_RETURN) = 1;
-}
-
-//float	drawfill(vector position, vector size, vector rgb, float alpha, float flag) = #457;
-void PF_CL_drawfill (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float *pos = G_VECTOR(OFS_PARM0);
-	float *size = G_VECTOR(OFS_PARM1);
-	float *rgb = G_VECTOR(OFS_PARM2);
-	float alpha = G_FLOAT(OFS_PARM3);
-#ifdef RGLQUAKE
-	if (qrenderer == QR_OPENGL)
-	{
-		qglColor4f(rgb[0], rgb[1], rgb[2], alpha);
-
-		qglDisable(GL_TEXTURE_2D);
-
-		qglBegin(GL_QUADS);
-		qglVertex2f(pos[0],			pos[1]);
-		qglVertex2f(pos[0]+size[0],	pos[1]);
-		qglVertex2f(pos[0]+size[0],	pos[1]+size[1]);
-		qglVertex2f(pos[0],			pos[1]+size[1]);
-		qglEnd();
-
-		qglEnable(GL_TEXTURE_2D);
-	}
-#endif
-	G_FLOAT(OFS_RETURN) = 1;
-}
-//void	drawsetcliparea(float x, float y, float width, float height) = #458;
-void PF_CL_drawsetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float x = G_FLOAT(OFS_PARM0), y = G_FLOAT(OFS_PARM1), w = G_FLOAT(OFS_PARM2), h = G_FLOAT(OFS_PARM3);
-
-#ifdef RGLQUAKE
-	if (qrenderer == QR_OPENGL && qglScissor)
-	{
-
-		x *= (float)glwidth/vid.width;
-		y *= (float)glheight/vid.height;
-
-		w *= (float)glwidth/vid.width;
-		h *= (float)glheight/vid.height;
-
-		//add a pixel because this makes DP's menus come out right.
-		x-=1;
-		y-=1;
-		w+=2;
-		h+=2;
-
-
-		qglScissor (x, glheight-(y+h), w, h);
-		qglEnable(GL_SCISSOR_TEST);
-		G_FLOAT(OFS_RETURN) = 1;
-		return;
-	}
-#endif
-	G_FLOAT(OFS_RETURN) = 0;
-}
-//void	drawresetcliparea(void) = #459;
-void PF_CL_drawresetcliparea (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-#ifdef RGLQUAKE
-	if (qrenderer == QR_OPENGL)
-	{
-		qglDisable(GL_SCISSOR_TEST);
-		G_FLOAT(OFS_RETURN) = 1;
-		return;
-	}
-#endif
-	G_FLOAT(OFS_RETURN) = 0;
-}
-
-//void (float width, vector rgb, float alpha, float flags, vector pos1, ...) drawline;
-void PF_CL_drawline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float *rgb = G_VECTOR(OFS_PARM1);
-	float alpha = G_FLOAT(OFS_PARM2);
-	float *pos = G_VECTOR(OFS_PARM4);
-	int numpoints = *prinst->callargc-4;
-
-#ifdef RGLQUAKE	// :(
-
-	if (qrenderer == QR_OPENGL)
-	{
-		qglColor4f(rgb[0], rgb[1], rgb[2], alpha);
-		qglBegin(GL_LINES);
-		while (numpoints-->0)
-		{
-			qglVertex3fv(pos);
-			pos += 3;
-		}
-
-		qglEnd();
-	}
-#endif
-}
-
-//vector  drawgetimagesize(string pic) = #460;
-void PF_CL_drawgetimagesize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *picname = PR_GetStringOfs(prinst, OFS_PARM0);
-	mpic_t *p = Draw_SafeCachePic(picname);
-
-	float *ret = G_VECTOR(OFS_RETURN);
-
-	if (!p)
-		p = Draw_SafeCachePic(va("%s.tga", picname));
-
-	if (p)
-	{
-		ret[0] = p->width;
-		ret[1] = p->height;
-		ret[2] = 0;
-	}
-	else
-	{
-		ret[0] = 0;
-		ret[1] = 0;
-		ret[2] = 0;
-	}
-}
-
 //void	setkeydest(float dest) 	= #601;
-void PF_cl_setkeydest (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cl_setkeydest (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	switch((int)G_FLOAT(OFS_PARM0))
 	{
@@ -694,7 +973,7 @@ void PF_cl_setkeydest (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 }
 //float	getkeydest(void)	= #602;
-void PF_cl_getkeydest (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cl_getkeydest (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	switch(key_dest)
 	{
@@ -717,7 +996,7 @@ void PF_cl_getkeydest (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //void	setmousetarget(float trg) = #603;
-void PF_cl_setmousetarget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cl_setmousetarget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	extern int mouseusedforgui;
 	switch ((int)G_FLOAT(OFS_PARM0))
@@ -734,53 +1013,17 @@ void PF_cl_setmousetarget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //float	getmousetarget(void)	  = #604;
-void PF_cl_getmousetarget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cl_getmousetarget (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	extern int mouseusedforgui;
 	G_FLOAT(OFS_RETURN) = mouseusedforgui?1:2;
 }
 
-int MP_TranslateDPtoFTECodes(int code);
-//string	keynumtostring(float keynum) = #609;
-void PF_cl_keynumtostring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int code = G_FLOAT(OFS_PARM0);
-
-	code = MP_TranslateDPtoFTECodes (code);
-
-	RETURN_TSTRING(Key_KeynumToString(code));
-}
-
-void PF_cl_getkeybind (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *binding = Key_GetBinding(G_FLOAT(OFS_PARM0));
-	RETURN_TSTRING(binding);
-}
-
-int MP_TranslateDPtoFTECodes(int code);
-//string	findkeysforcommand(string command) = #610;
-void PF_cl_findkeysforcommand (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char *cmdname = PR_GetStringOfs(prinst, OFS_PARM0);
-	int keynums[2];
-	char keyname[512];
-
-	M_FindKeysForCommand(cmdname, keynums);
-
-	keyname[0] = '\0';
-
-	Q_strncatz (keyname, va(" \'%i\'", MP_TranslateFTEtoDPCodes(keynums[0])), sizeof(keyname));
-	Q_strncatz (keyname, va(" \'%i\'", MP_TranslateFTEtoDPCodes(keynums[1])), sizeof(keyname));
-
-	RETURN_TSTRING(keyname);
-}
-
 //vector	getmousepos(void)  	= #66;
-void PF_cl_getmousepos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_cl_getmousepos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *ret = G_VECTOR(OFS_RETURN);
 	extern int mousemove_x, mousemove_y;
-	extern int mousecursor_x, mousecursor_y;
 
 	ret[0] = mousemove_x;
 	ret[1] = mousemove_y;
@@ -788,16 +1031,17 @@ void PF_cl_getmousepos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	mousemove_x=0;
 	mousemove_y=0;
 
+//	extern int mousecursor_x, mousecursor_y;
 //	ret[0] = mousecursor_x;
 //	ret[1] = mousecursor_y;
 	ret[2] = 0;
 }
 
 
-static void PF_Remove_ (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_Remove_ (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	menuedict_t *ed;
-	
+
 	ed = (void*)G_EDICT(prinst, OFS_PARM0);
 
 	if (ed->isfree)
@@ -809,7 +1053,7 @@ static void PF_Remove_ (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	ED_Free (prinst, (void*)ed);
 }
 
-static void PF_CopyEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_CopyEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	menuedict_t *in, *out;
 
@@ -833,7 +1077,7 @@ typedef enum{
 	SLIST_SORTDESCENDING
 } hostcacheglobal_t;
 
-void PF_M_gethostcachevalue (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_gethostcachevalue (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	hostcacheglobal_t hcg = G_FLOAT(OFS_PARM0);
 	G_FLOAT(OFS_RETURN) = 0;
@@ -869,12 +1113,12 @@ void PF_M_gethostcachevalue (progfuncs_t *prinst, struct globalvars_s *pr_global
 }
 
 //void 	resethostcachemasks(void) = #615;
-void PF_M_resethostcachemasks(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_resethostcachemasks(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	Master_ClearMasks();
 }
 //void 	sethostcachemaskstring(float mask, float fld, string str, float op) = #616;
-void PF_M_sethostcachemaskstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_sethostcachemaskstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int mask = G_FLOAT(OFS_PARM0);
 	int field = G_FLOAT(OFS_PARM1);
@@ -884,7 +1128,7 @@ void PF_M_sethostcachemaskstring(progfuncs_t *prinst, struct globalvars_s *pr_gl
 	Master_SetMaskString(mask, field, str, op);
 }
 //void	sethostcachemasknumber(float mask, float fld, float num, float op) = #617;
-void PF_M_sethostcachemasknumber(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_sethostcachemasknumber(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int mask = G_FLOAT(OFS_PARM0);
 	int field = G_FLOAT(OFS_PARM1);
@@ -894,22 +1138,22 @@ void PF_M_sethostcachemasknumber(progfuncs_t *prinst, struct globalvars_s *pr_gl
 	Master_SetMaskInteger(mask, field, str, op);
 }
 //void 	resorthostcache(void) = #618;
-void PF_M_resorthostcache(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_resorthostcache(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	Master_SortServers();
 }
 //void	sethostcachesort(float fld, float descending) = #619;
-void PF_M_sethostcachesort(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_sethostcachesort(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	Master_SetSortField(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
 }
 //void	refreshhostcache(void) = #620;
-void PF_M_refreshhostcache(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_refreshhostcache(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	MasterInfo_Begin();
+	MasterInfo_Refresh();
 }
 //float	gethostcachenumber(float fld, float hostnr) = #621;
-void PF_M_gethostcachenumber(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_gethostcachenumber(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float ret = 0;
 	int keynum = G_FLOAT(OFS_PARM0);
@@ -921,7 +1165,7 @@ void PF_M_gethostcachenumber(progfuncs_t *prinst, struct globalvars_s *pr_global
 
 	G_FLOAT(OFS_RETURN) = ret;
 }
-void PF_M_gethostcachestring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_gethostcachestring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *ret;
 	int keynum = G_FLOAT(OFS_PARM0);
@@ -935,22 +1179,33 @@ void PF_M_gethostcachestring (progfuncs_t *prinst, struct globalvars_s *pr_globa
 }
 
 //float	gethostcacheindexforkey(string key) = #622;
-void PF_M_gethostcacheindexforkey(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_gethostcacheindexforkey(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *keyname = PR_GetStringOfs(prinst, OFS_PARM0);
 
 	G_FLOAT(OFS_RETURN) = Master_KeyForName(keyname);
 }
 //void	addwantedhostcachekey(string key) = #623;
-void PF_M_addwantedhostcachekey(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_addwantedhostcachekey(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	PF_M_gethostcacheindexforkey(prinst, pr_globals);
 }
 
-void PF_M_getextresponse(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_M_getextresponse(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	//this does something weird
 	G_INT(OFS_RETURN) = 0;
+}
+
+void QCBUILTIN PF_netaddress_resolve(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *address = PR_GetStringOfs(prinst, OFS_PARM0);
+	netadr_t adr;
+	char result[256];
+	if (NET_StringToAdr(address, &adr))
+		RETURN_TSTRING(NET_AdrToString (result, sizeof(result), adr));
+	else
+		RETURN_TSTRING("");
 }
 #else
 
@@ -977,7 +1232,7 @@ void PF_M_addwantedhostcachekey(progfuncs_t *prinst, struct globalvars_s *pr_glo
 #endif
 
 
-void PF_localsound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_localsound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *soundname = PR_GetStringOfs(prinst, OFS_PARM0);
 	S_LocalSound (soundname);
@@ -989,24 +1244,24 @@ void PF_localsound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 #define skip50 skip10 skip10 skip10 skip10 skip10
 #define skip100 skip50 skip50
 
-void PF_menu_checkextension (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_menu_checkextension (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	//yeah, this is a stub... not sure what form extex
 	G_FLOAT(OFS_RETURN) = 0;
 }
 
-void PF_gettime (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_gettime (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_FLOAT(OFS_RETURN) = *prinst->parms->gametime;
 }
 
-void PF_CL_precache_file (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_CL_precache_file (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
 }
 
 //entity	findchainstring(.string _field, string match) = #26;
-void PF_menu_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_menu_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i, f;
 	char *s;
@@ -1039,7 +1294,7 @@ void PF_menu_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_EDICT(prinst, (void*)chain);
 }
 //entity	findchainfloat(.float _field, float match) = #27;
-void PF_menu_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_menu_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i, f;
 	float s;
@@ -1068,44 +1323,26 @@ void PF_menu_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_global
 	RETURN_EDICT(prinst, (void*)chain);
 }
 
-void PF_etof(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_etof(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_FLOAT(OFS_RETURN) = G_EDICTNUM(prinst, OFS_PARM0);
 }
-void PF_ftoe(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_ftoe(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int entnum = G_FLOAT(OFS_PARM0);
 
 	RETURN_EDICT(prinst, EDICT_NUM(prinst, entnum));
 }
 
-void PF_IsNotNull(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_IsNotNull(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int str = G_INT(OFS_PARM0);
 	G_FLOAT(OFS_RETURN) = !!str;
 }
 
-void PF_cl_stringtokeynum(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int i;
-	int modifier;
-	char *s;
-
-	s = PR_GetStringOfs(prinst, OFS_PARM0);
-	i = Key_StringToKeynum(s, &modifier);
-	if (i < 0 || modifier != ~0)
-	{
-		G_FLOAT(OFS_RETURN) = -1;
-		return;
-	}
-	i = MP_TranslateFTEtoDPCodes(i);
-	G_FLOAT(OFS_RETURN) = i;
-}
-
-
 //float 	altstr_count(string str) = #82;
 //returns number of single quoted strings in the string.
-void PF_altstr_count(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_altstr_count(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *s;
 	int count = 0;
@@ -1123,7 +1360,7 @@ void PF_altstr_count(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = count/2;
 }
 //string  altstr_prepare(string str) = #83;
-void PF_altstr_prepare(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_altstr_prepare(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char outstr[8192], *out;
 	char *instr, *in;
@@ -1150,7 +1387,7 @@ void PF_altstr_prepare(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_INT( OFS_RETURN ) = (int)PR_TempString( prinst, outstr );
 }
 //string  altstr_get(string str, float num) = #84;
-void PF_altstr_get(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_altstr_get(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *altstr, *pos, outstr[8192], *out;
 	int count, size;
@@ -1196,7 +1433,7 @@ void PF_altstr_get(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_INT( OFS_RETURN ) = (int)PR_SetString( prinst, outstr );
 }
 //string  altstr_set(string str, float num, string set) = #85
-void PF_altstr_set(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_altstr_set(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int num;
 	char *altstr, *str;
@@ -1421,10 +1658,10 @@ builtin_t menu_builtins[] = {
 	PF_cin_getstate,					// #464
 	PF_cin_restart, 					// #465
 	PF_drawline,						// #466
-	PF_drawcolorcodedstring,		// #467
+	PF_CL_drawcolouredstring,		// #467
 	PF_CL_stringwidth,					// #468
 	PF_CL_drawsubpic,						// #469
-	
+
 //470
 	skip1					// #470
 	PF_asin,				// #471
@@ -1440,7 +1677,7 @@ builtin_t menu_builtins[] = {
 //480
 	PF_strtolower,						// #480 string(string s) VM_strtolower : DRESK - Return string as lowercase
 	PF_strtoupper,						// #481 string(string s) VM_strtoupper : DRESK - Return string as uppercase
-	skip1									// #482
+	PF_cvar_defstring,									// #482
 	skip1									// #483
 	PF_strreplace,						// #484 string(string search, string replace, string subject) strreplace (DP_QC_STRREPLACE)
 	PF_strireplace,					// #485 string(string search, string replace, string subject) strireplace (DP_QC_STRREPLACE)
@@ -1478,11 +1715,11 @@ builtin_t menu_builtins[] = {
 	PF_uri_unescape,				// #511 string(string in) uri_unescape = #511;
 	PF_etof,					// #512 float(entity ent) num_for_edict = #512 (DP_QC_NUM_FOR_EDICT)
 	PF_uri_get,						// #513 float(string uril, float id) uri_get = #513; (DP_QC_URI_GET)
-	skip1									// #514
-	skip1									// #515
-	skip1									// #516
-	skip1									// #517
-	skip1									// #518
+	PF_tokenize_console,									// #514
+	PF_argv_start_index,					// #515
+	PF_argv_end_index,						// #516
+	PF_buf_cvarlist,						// #517
+	PF_cvar_description,					// #518
 	skip1									// #519
 
 //520
@@ -1517,14 +1754,28 @@ builtin_t menu_builtins[] = {
 	PF_M_gethostcachenumber,
 	PF_M_gethostcacheindexforkey,
 	PF_M_addwantedhostcachekey,
-	PF_M_getextresponse			// #624
+	PF_M_getextresponse,			// #624
+	PF_netaddress_resolve,
+	skip1	/*get gamedir info*/
+	PF_sprintf,	/*sprintf*/
+	skip1	/*not listed in dp*/
+	skip1	/*not listed in dp*/
+	skip1	/*setkeybind*/
+	skip1	/*getbindmaps*/
+	skip1	/*setbindmaps*/
+	skip1	/*crypto*/
+	skip1	/*crypto*/
+	skip1	/*crypto*/
+	skip1	/*crypto*/
+	skip1	/*crypto #637*/
+
+
 };
 int menu_numbuiltins = sizeof(menu_builtins)/sizeof(menu_builtins[0]);
 
 
 
 
-void M_Init_Internal (void);
 void M_DeInit_Internal (void);
 
 int inmenuprogs;
@@ -1570,14 +1821,15 @@ void MP_Shutdown (void)
 	search_close_progs(menuprogs, true);
 
 	CloseProgs(menuprogs);
+#ifdef TEXTEDITOR
+	Editor_ProgsKilled(menuprogs);
+#endif
 	menuprogs = NULL;
 
 	key_dest = key_game;
 	m_state = 0;
 
 	mouseusedforgui = false;
-
-	M_Init_Internal();
 
 	if (inmenuprogs)	//something in the menu caused the problem, so...
 	{
@@ -1586,7 +1838,7 @@ void MP_Shutdown (void)
 	}
 }
 
-pbool QC_WriteFile(char *name, void *data, int len);
+pbool QC_WriteFile(const char *name, void *data, int len);
 void *VARGS PR_CB_Malloc(int size);	//these functions should be tracked by the library reliably, so there should be no need to track them ourselves.
 void VARGS PR_CB_Free(void *mem);
 
@@ -1615,16 +1867,24 @@ void VARGS Menu_Abort (char *format, ...)
 	MP_Shutdown();
 }
 
-double  menutime;
-void MP_Init (void)
+void MP_CvarChanged(cvar_t *var)
 {
-	if (!qrenderer)
+	if (svprogfuncs)
 	{
-		return;
+		PR_AutoCvar(svprogfuncs, var);
+	}
+}
+
+double  menutime;
+qboolean MP_Init (void)
+{
+	if (qrenderer == QR_NONE)
+	{
+		return false;
 	}
 
 	if (forceqmenu.value)
-		return;
+		return false;
 
 	M_DeInit_Internal();
 
@@ -1678,23 +1938,27 @@ void MP_Init (void)
 			//failed to load or something
 //			CloseProgs(menuprogs);
 //			menuprogs = NULL;
-			M_Init_Internal();
-			return;
+			return false;
 		}
 		if (setjmp(mp_abort))
 		{
-			M_Init_Internal();
 			Con_DPrintf("Failed to initialize menu.dat\n");
 			inmenuprogs = false;
-			return;
+			return false;
 		}
 		inmenuprogs++;
 
 		PF_InitTempStrings(menuprogs);
 
-		mp_time = (float*)PR_FindGlobal(menuprogs, "time", 0);
+		mp_time = (float*)PR_FindGlobal(menuprogs, "time", 0, NULL);
 		if (mp_time)
 			*mp_time = Sys_DoubleTime();
+
+#ifdef _MSC_VER
+#pragma message("disabled until csqc gets forked or some such")
+#endif
+		//mp_globs.drawfont = (float*)PR_FindGlobal(menuprogs, "drawfont", 0, NULL);
+		//mp_globs.drawfontscale = (float*)PR_FindGlobal(menuprogs, "drawfontscale", 0, NULL);
 
 		menuentsize = PR_InitEnts(menuprogs, 8192);
 
@@ -1715,7 +1979,9 @@ void MP_Init (void)
 		inmenuprogs--;
 
 		Con_DPrintf("Initialized menu.dat\n");
+		return true;
 	}
+	return false;
 }
 
 void MP_CoreDump_f(void)
@@ -1762,7 +2028,7 @@ void MP_Draw(void)
 	if (setjmp(mp_abort))
 		return;
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
 		GL_TexEnv(GL_MODULATE);
@@ -1779,211 +2045,6 @@ void MP_Draw(void)
 	if (mp_draw_function)
 		PR_ExecuteProgram(menuprogs, mp_draw_function);
 	inmenuprogs--;
-}
-
-int MP_TranslateFTEtoDPCodes(int code)
-{
-	switch(code)
-	{
-	case K_TAB:				return 9;
-	case K_ENTER:			return 13;
-	case K_ESCAPE:			return 27;
-	case K_SPACE:			return 32;
-	case K_BACKSPACE:		return 127;
-	case K_UPARROW:			return 128;
-	case K_DOWNARROW:		return 129;
-	case K_LEFTARROW:		return 130;
-	case K_RIGHTARROW:		return 131;
-	case K_ALT:				return 132;
-	case K_CTRL:			return 133;
-	case K_SHIFT:			return 134;
-	case K_F1:				return 135;
-	case K_F2:				return 136;
-	case K_F3:				return 137;
-	case K_F4:				return 138;
-	case K_F5:				return 139;
-	case K_F6:				return 140;
-	case K_F7:				return 141;
-	case K_F8:				return 142;
-	case K_F9:				return 143;
-	case K_F10:				return 144;
-	case K_F11:				return 145;
-	case K_F12:				return 146;
-	case K_INS:				return 147;
-	case K_DEL:				return 148;
-	case K_PGDN:			return 149;
-	case K_PGUP:			return 150;
-	case K_HOME:			return 151;
-	case K_END:				return 152;
-	case K_KP_HOME:			return 160;
-	case K_KP_UPARROW:		return 161;
-	case K_KP_PGUP:			return 162;
-	case K_KP_LEFTARROW:	return 163;
-	case K_KP_5:			return 164;
-	case K_KP_RIGHTARROW:	return 165;
-	case K_KP_END:			return 166;
-	case K_KP_DOWNARROW:	return 167;
-	case K_KP_PGDN:			return 168;
-	case K_KP_ENTER:		return 169;
-	case K_KP_INS:			return 170;
-	case K_KP_DEL:			return 171;
-	case K_KP_SLASH:		return 172;
-	case K_KP_MINUS:		return 173;
-	case K_KP_PLUS:			return 174;
-	case K_PAUSE:			return 255;
-	case K_JOY1:			return 768;
-	case K_JOY2:			return 769;
-	case K_JOY3:			return 770;
-	case K_JOY4:			return 771;
-	case K_AUX1:			return 772;
-	case K_AUX2:			return 773;
-	case K_AUX3:			return 774;
-	case K_AUX4:			return 775;
-	case K_AUX5:			return 776;
-	case K_AUX6:			return 777;
-	case K_AUX7:			return 778;
-	case K_AUX8:			return 779;
-	case K_AUX9:			return 780;
-	case K_AUX10:			return 781;
-	case K_AUX11:			return 782;
-	case K_AUX12:			return 783;
-	case K_AUX13:			return 784;
-	case K_AUX14:			return 785;
-	case K_AUX15:			return 786;
-	case K_AUX16:			return 787;
-	case K_AUX17:			return 788;
-	case K_AUX18:			return 789;
-	case K_AUX19:			return 790;
-	case K_AUX20:			return 791;
-	case K_AUX21:			return 792;
-	case K_AUX22:			return 793;
-	case K_AUX23:			return 794;
-	case K_AUX24:			return 795;
-	case K_AUX25:			return 796;
-	case K_AUX26:			return 797;
-	case K_AUX27:			return 798;
-	case K_AUX28:			return 799;
-	case K_AUX29:			return 800;
-	case K_AUX30:			return 801;
-	case K_AUX31:			return 802;
-	case K_AUX32:			return 803;
-	case K_MOUSE1:			return 512;
-	case K_MOUSE2:			return 513;
-	case K_MOUSE3:			return 514;
-	case K_MOUSE4:			return 515;
-	case K_MOUSE5:			return 516;
-//	case K_MOUSE6:			return 517;
-//	case K_MOUSE7:			return 518;
-//	case K_MOUSE8:			return 519;
-//	case K_MOUSE9:			return 520;
-//	case K_MOUSE10:			return 521;
-	case K_MWHEELDOWN:		return 515;//K_MOUSE4;
-	case K_MWHEELUP:		return 516;//K_MOUSE5;
-	default:				return code;
-	}
-}
-
-int MP_TranslateDPtoFTECodes(int code)
-{
-	switch(code)
-	{
-	case 9:			return K_TAB;
-	case 13:		return K_ENTER;
-	case 27:		return K_ESCAPE;
-	case 32:		return K_SPACE;
-	case 127:		return K_BACKSPACE;
-	case 128:		return K_UPARROW;
-	case 129:		return K_DOWNARROW;
-	case 130:		return K_LEFTARROW;
-	case 131:		return K_RIGHTARROW;
-	case 132:		return K_ALT;
-	case 133:		return K_CTRL;
-	case 134:		return K_SHIFT;
-	case 135:		return K_F1;
-	case 136:		return K_F2;
-	case 137:		return K_F3;
-	case 138:		return K_F4;
-	case 139:		return K_F5;
-	case 140:		return K_F6;
-	case 141:		return K_F7;
-	case 142:		return K_F8;
-	case 143:		return K_F9;
-	case 144:		return K_F10;
-	case 145:		return K_F11;
-	case 146:		return K_F12;
-	case 147:		return K_INS;
-	case 148:		return K_DEL;
-	case 149:		return K_PGDN;
-	case 150:		return K_PGUP;
-	case 151:		return K_HOME;
-	case 152:		return K_END;
-	case 160:		return K_KP_HOME;
-	case 161:		return K_KP_UPARROW;
-	case 162:		return K_KP_PGUP;
-	case 163:		return K_KP_LEFTARROW;
-	case 164:		return K_KP_5;
-	case 165:		return K_KP_RIGHTARROW;
-	case 166:		return K_KP_END;
-	case 167:		return K_KP_DOWNARROW;
-	case 168:		return K_KP_PGDN;
-	case 169:		return K_KP_ENTER;
-	case 170:		return K_KP_INS;
-	case 171:		return K_KP_DEL;
-	case 172:		return K_KP_SLASH;
-	case 173:		return K_KP_MINUS;
-	case 174:		return K_KP_PLUS;
-	case 255:		return K_PAUSE;
-
-	case 768:		return K_JOY1;
-	case 769:		return K_JOY2;
-	case 770:		return K_JOY3;
-	case 771:		return K_JOY4;
-	case 772:		return K_AUX1;
-	case 773:		return K_AUX2;
-	case 774:		return K_AUX3;
-	case 775:		return K_AUX4;
-	case 776:		return K_AUX5;
-	case 777:		return K_AUX6;
-	case 778:		return K_AUX7;
-	case 779:		return K_AUX8;
-	case 780:		return K_AUX9;
-	case 781:		return K_AUX10;
-	case 782:		return K_AUX11;
-	case 783:		return K_AUX12;
-	case 784:		return K_AUX13;
-	case 785:		return K_AUX14;
-	case 786:		return K_AUX15;
-	case 787:		return K_AUX16;
-	case 788:		return K_AUX17;
-	case 789:		return K_AUX18;
-	case 790:		return K_AUX19;
-	case 791:		return K_AUX20;
-	case 792:		return K_AUX21;
-	case 793:		return K_AUX22;
-	case 794:		return K_AUX23;
-	case 795:		return K_AUX24;
-	case 796:		return K_AUX25;
-	case 797:		return K_AUX26;
-	case 798:		return K_AUX27;
-	case 799:		return K_AUX28;
-	case 800:		return K_AUX29;
-	case 801:		return K_AUX30;
-	case 802:		return K_AUX31;
-	case 803:		return K_AUX32;
-	case 512:		return K_MOUSE1;
-	case 513:		return K_MOUSE2;
-	case 514:		return K_MOUSE3;
-//	case 515:		return K_MOUSE4;
-//	case 516:		return K_MOUSE5;
-	case 517:		return K_MOUSE6;
-	case 518:		return K_MOUSE7;
-	case 519:		return K_MOUSE8;
-//	case 520:		return K_MOUSE9;
-//	case 521:		return K_MOUSE10;
-	case 515:		return K_MWHEELDOWN;//K_MOUSE4;
-	case 516:		return K_MWHEELUP;//K_MOUSE5;
-	default:		return code;
-	}
 }
 
 void MP_Keydown(int key, int unicode)

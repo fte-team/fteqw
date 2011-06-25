@@ -30,16 +30,38 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern int		r_framecount;
 
 struct msurface_s;
+struct batch_s;
+struct model_s;
+struct texnums_s;
+struct texture_s;
+
+static const texid_t r_nulltex = {0};
+#define TEXVALID(t) ((t).num!=0)
+
+
+#ifdef D3DQUAKE
+	#define sizeof_index_t 2
+#endif
+#if sizeof_index_t == 2
+	#define GL_INDEX_TYPE GL_UNSIGNED_SHORT
+	#define D3DFMT_QINDEX D3DFMT_INDEX16
+	typedef unsigned short index_t;
+	#define MAX_INDICIES 0xffff
+#else
+	#define GL_INDEX_TYPE GL_UNSIGNED_INT
+	#define D3DFMT_QINDEX D3DFMT_INDEX32
+	typedef unsigned int index_t;
+	#define MAX_INDICIES 0xffffffff
+#endif
 
 //=============================================================================
 
-typedef struct efrag_s
-{
-	struct mleaf_s		*leaf;
-	struct efrag_s		*leafnext;
-	struct entity_s		*entity;
-	struct efrag_s		*entnext;
-} efrag_t;
+//the eye doesn't see different colours in the same proportion.
+//must add to slightly less than 1
+#define NTSC_RED 0.299
+#define NTSC_GREEN 0.587
+#define NTSC_BLUE 0.114
+#define NTSC_SUM (NTSC_RED + NTSC_GREEN + NTSC_BLUE)
 
 typedef enum {
 	RT_MODEL,
@@ -63,6 +85,11 @@ typedef struct entity_s
 
 	vec4_t					shaderRGBAf;
 	float					shaderTime;
+
+	int						light_known;
+	vec3_t                  light_avg; /*midpoint level*/
+	vec3_t                  light_range; /*avg + this = max, avg - this = min*/
+	vec3_t                  light_dir;
 
 	vec3_t					oldorigin;
 	vec3_t					oldangles;
@@ -88,14 +115,13 @@ typedef struct entity_s
 
 	framestate_t			framestate;
 
+	unsigned int			externalmodelview;
 	int flags;
 
 	refEntityType_t rtype;
 	float rotation;
 
-#ifdef Q3SHADERS
 	struct shader_s *forcedshader;
-#endif
 
 #ifdef PEXT_SCALE
 	float scale;
@@ -109,35 +135,17 @@ typedef struct entity_s
 #endif
 } entity_t;
 
-// !!! if this is changed, it must be changed in asm_draw.h too !!!
 typedef struct
 {
 	vrect_t		vrect;				// subwindow in video for refresh
 									// FIXME: not need vrect next field here?
-	vrect_t		aliasvrect;			// scaled Alias version
-	int			vrectright, vrectbottom;	// right & bottom screen coords
-	int			aliasvrectright, aliasvrectbottom;	// scaled Alias versions
-	float		vrectrightedge;			// rightmost right edge we care about,
-										//  for use in edge list
-	float		fvrectx, fvrecty;		// for floating-point compares
-	float		fvrectx_adj, fvrecty_adj; // left and top edges, for clamping
-	int			vrect_x_adj_shift20;	// (vrect.x + 0.5 - epsilon) << 20
-	int			vrectright_adj_shift20;	// (vrectright + 0.5 - epsilon) << 20
-	float		fvrectright_adj, fvrectbottom_adj;
-										// right and bottom edges, for clamping
-	float		fvrectright;			// rightmost edge, for Alias clamping
-	float		fvrectbottom;			// bottommost edge, for Alias clamping
-	float		horizontalFieldOfView;	// at Z = 1.0, this many X is visible 
-										// 2.0 = 90 degrees
-	float		xOrigin;			// should probably always be 0.5
-	float		yOrigin;			// between be around 0.3 to 0.5
 
-	vec3_t		vieworg;
+	vec3_t		pvsorigin;			/*render the view using this point for pvs (useful for mirror views)*/
+	vec3_t		vieworg;			/*logical view center*/
 	vec3_t		viewangles;
+	vec3_t		viewaxis[3];		/*forward, left, up (NOT RIGHT)*/
 
 	float		fov_x, fov_y;
-	
-	int			ambientlight;
 
 	int			flags;
 
@@ -145,7 +153,18 @@ typedef struct
 
 	float		time;
 
-	qboolean	useperspective;
+	float		m_projection[16];
+	float		m_view[16];
+
+	vec3_t		gfog_rgb;
+	float		gfog_alpha;
+	float		gfog_density;
+
+	vrect_t		pxrect;		/*vrect, but in pixels rather than virtual coords*/
+	qboolean	externalview; /*draw external models and not viewmodels*/
+	qboolean	recurse;	/*in a mirror/portal/half way through drawing something else*/
+	qboolean	flipcull;	/*reflected/flipped view, requires inverted culling*/
+	qboolean	useperspective; /*not orthographic*/
 } refdef_t;
 
 extern	refdef_t	r_refdef;
@@ -155,19 +174,72 @@ extern	struct texture_s	*r_notexture_mip;
 
 extern	entity_t	r_worldentity;
 
-#if defined(RGLQUAKE)
+void BE_GenModelBatches(struct batch_s **batches);
+
+//gl_alias.c
+void R_GAlias_DrawBatch(struct batch_s *batch);
+void R_GAlias_GenerateBatches(entity_t *e, struct batch_s **batches);
+void R_LightArraysByte_BGR(vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3_t *normals);
+void R_LightArrays(vecV_t *coords, vec4_t *colours, int vertcount, vec3_t *normals);
+
+void R_DrawSkyChain (struct batch_s *batch); /*called from the backend, and calls back into it*/
+void R_InitSky (struct texnums_s *ret, struct texture_s *mt, qbyte *src); /*generate q1 sky texnums*/
+
+//r_surf.c
+void Surf_DrawWorld(void);
+void Surf_GenBrushBatches(struct batch_s **batches, entity_t *ent);
+void Surf_StainSurf(struct msurface_s *surf, float *parms);
+void Surf_AddStain(vec3_t org, float red, float green, float blue, float radius);
+void Surf_LessenStains(void);
+void Surf_WipeStains(void);
+void Surf_DeInit(void);
+void Surf_Clear(struct model_s *mod);
+void Surf_BuildLightmaps(void);
+void Surf_BuildSurfaceDisplayList (struct model_s *mod, struct msurface_s *fa);
+void Surf_RenderDynamicLightmaps (struct msurface_s *fa);
+void Surf_RenderAmbientLightmaps (struct msurface_s *fa, int ambient);
+int Surf_LightmapShift (struct model_s *model);
+#ifndef LMBLOCK_WIDTH
+#define	LMBLOCK_WIDTH		128
+#define	LMBLOCK_HEIGHT		128
+typedef struct glRect_s {
+	unsigned char l,t,w,h;
+} glRect_t;
+typedef unsigned char stmap;
+struct mesh_s;
+typedef struct {
+	struct mesh_s		*meshchain;
+	qboolean	modified;
+	qboolean	deluxmodified;
+	qboolean	external;
+	glRect_t	rectchange;
+	glRect_t	deluxrectchange;
+	int allocated[LMBLOCK_WIDTH];
+	qbyte		lightmaps[4*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];
+	qbyte		deluxmaps[4*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];	//fixme: make seperate structure for easy disabling with less memory usage.
+	stmap		stainmaps[3*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];	//rgb no a. added to lightmap for added (hopefully) speed.
+	shader_t    *shader;
+} lightmapinfo_t;
+extern lightmapinfo_t **lightmap;
+extern int numlightmaps;
+extern texid_t		*lightmap_textures;
+extern texid_t		*deluxmap_textures;
+extern int			lightmap_bytes;		// 1, 3, or 4
+extern qboolean		lightmap_bgra;		/*true=bgra, false=rgba*/
+#endif
+void Surf_RebuildLightmap_Callback (struct cvar_s *var, char *oldvalue);
+
+
+void R_SetSky(char *skyname);		/*override all sky shaders*/
+
+#if defined(GLQUAKE)
 void GLR_Init (void);
 void GLR_ReInit (void);
 void GLR_InitTextures (void);
 void GLR_InitEfrags (void);
 void GLR_RenderView (void);		// must set r_refdef first
 								// called whenever r_refdef or vid change
-void GLR_InitSky (struct texture_s *mt);	// called at level load
-void GLR_SetSky (char *name, float rotate, vec3_t axis);
-qboolean GLR_CheckSky(void);
-
-void GLR_AddEfrags (entity_t *ent);
-void GLR_RemoveEfrags (entity_t *ent);
+void GLR_DrawPortal(struct batch_s *batch, struct batch_s **blist);
 
 void GLR_PreNewMap(void);
 void GLR_NewMap (void);
@@ -175,167 +247,118 @@ void GLR_NewMap (void);
 void GLR_PushDlights (void);
 void GLR_DrawWaterSurfaces (void);
 
-void GLR_AddStain(vec3_t org, float red, float green, float blue, float radius);
-void GLR_LessenStains(void);
-
 void MediaGL_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *palette);
 void MediaGL_ShowFrameRGBA_32(qbyte *framedata, int inwidth, int inheight);	//top down
 void MediaGL_ShowFrameBGR_24_Flip(qbyte *framedata, int inwidth, int inheight);	//input is bottom up...
 
-void GLR_SetSky (char *name, float rotate, vec3_t axis);
-qboolean GLR_CheckSky(void);
-void GLR_AddStain(vec3_t org, float red, float green, float blue, float radius);
-void GLR_LessenStains(void);
-
 void GLVID_DeInit (void);
 void GLR_DeInit (void);
 void GLSCR_DeInit (void);
+void GLVID_Console_Resize(void);
 
 int GLR_LightPoint (vec3_t p);
 #endif
 
-
-void R_AddEfrags (entity_t *ent);
-void R_RemoveEfrags (entity_t *ent);
-
-
-//normalmaps
-//bumpmaps
-//32bits
-//8bits
-//8bitpal24
-//8bitpal32
-
-#define TF_NOMIPMAP		0x0000
-#define TF_NOTBUMPMAP	0x0000
-#define TF_NOALPHA		0x0000
-
-#define TF_MIPMAP		0x0001
-#define TF_BUMPMAP		0x0002	//or normalmap, depending on 8/24 bitness
-#define TF_ALPHA		0x0004	//preserve alpha channel (8biit, use index 255 for transparency)
-
-#define TF_FULLBRIGHT	0x0008	//dark pixels have alpha forced to 0
-#define TF_24BIT		0x0010
-#define TF_32BIT		0x0020	//use the standard quake palette
-
-#define TF_MANDATORY	(TF_NOMIPMAP|TF_NOTBUMPMAP|TF_NOALPHA)
-
-#if 0
-/*
-int R_LoadTexture(char *name, int width, int height, void *data, void *palette, int flags)
+enum imageflags
 {
-	if (palette)
-	{
-		if (flags & TF_BUMPMAP)
-			return 0;	//huh?
+	/*warning: many of these flags only apply the first time it is requested*/
+	IF_CLAMP = 1<<0,
+	IF_NOPICMIP = 1<<1,
+	IF_NOMIPMAP = 1<<2,
+	IF_NOALPHA = 1<<3,
+	IF_NOGAMMA = 1<<4,
 
-		if (flags & TF_FULLBRIGHT)
-			return 0;	//huh?
+	IF_SUBDIRONLY = 1<<31
+};
 
-		if (flags & TF_32BIT)
-			return R_LoadTexture8Pal32(name, width, height, data, palette, flags&TF_MIPMAP, flags&TF_ALPHA);
+enum uploadfmt
+{
+	TF_INVALID,
+	TF_RGBA32,		/*rgba byte order*/
+	TF_BGRA32,		/*bgra byte order*/
+	TF_RGBX32,		/*rgb byte order, with extra wasted byte after blue*/
+	TF_RGB24,		/*bgr byte order, no alpha channel nor pad, and top down*/
+	TF_BGR24_FLIP,	/*bgr byte order, no alpha channel nor pad, and bottom up*/
+	TF_SOLID8,	/*8bit quake-palette image*/
+	TF_TRANS8,	/*8bit quake-palette image, index 255=transparent*/
+	TF_TRANS8_FULLBRIGHT,	/*fullbright 8 - fullbright texels have alpha 255, everything else 0*/
+	TF_HEIGHT8,	/*image data is greyscale, convert to a normalmap and load that, uploaded alpha contains the original heights*/
+	TF_HEIGHT8PAL, /*source data is palette values rather than actual heights, generate a fallback heightmap*/
+	TF_H2_T7G1, /*8bit data, odd indexes give greyscale transparence*/
+	TF_H2_TRANS8_0,	/*8bit data, 0 is transparent, not 255*/
+	TF_H2_T4A4,	/*8bit data, weird packing*/
 
-		return 0;
-	}
+	/*anything below requires a palette*/
+	TF_PALETTES,
+	TF_8PAL24,
+	TF_8PAL32
+};
 
-	if (flags & TF_FULLBRIGHT)
-	{
-		if (flags & TF_BUMPMAP)
-			return 0;	//huh?
+#define R_LoadTexture8(id,w,h,d,f,t)		R_LoadTexture(id,w,h,t?TF_TRANS8:TF_SOLID8,d,f)
+#define R_LoadTexture32(id,w,h,d,f)			R_LoadTexture(id,w,h,TF_RGBA32,d,f)
+#define R_LoadTextureFB(id,w,h,d,f)			R_LoadTexture(id,w,h,TF_TRANS8_FULLBRIGHT,d,f)
+#define R_LoadTexture8BumpPal(id,w,h,d,f)	R_LoadTexture(id,w,h,TF_HEIGHT8PAL,d,f)
+#define R_LoadTexture8Bump(id,w,h,d,f)		R_LoadTexture(id,w,h,TF_HEIGHT8,d,f)
 
-		if (flags & TF_24BIT)
-			return 0;
-		if (flags & TF_32BIT)
-			return 0;
-
-		//8bit fullbrights
-		return R_LoadTextureFB(name, width, height, data, flags&TF_MIPMAP, flags&TF_ALPHA);
-	}
-
-	if (flags & TF_BUMPMAP)
-	{
-		if (flags & TF_24BIT)
-			return 0;
-		if (flags & TF_32BIT)
-			return R_LoadTexture32(name, width, height, data, flags&TF_MIPMAP, flags&TF_ALPHA);	//Warning: this is not correct
-		return R_LoadTexture8Bump(skinname,width,height,data,usemips,alpha) R_LoadTexture(name, width, height, data, NULL, TF_BUMPMAP | ((usemips)?TF_MIPMAP:TF_NOMIPMAP) | ((alpha)?TF_ALPHA:TF_NOALPHA))
-	}
-
-	if (flags & TF_32BIT)
-		return R_LoadTexture32(name, width, height, data, flags&TF_MIPMAP, flags&TF_ALPHA);
-	if (data)
-		return R_LoadTexture8(name, width, height, data, flags&TF_MIPMAP, flags&TF_ALPHA);
-
-	return R_FindTexture(name);
-}
-
-	#define R_LoadTexture8Pal32(skinname,width,height,data,palette,usemips,alpha) R_LoadTexture(name, width, height, data, palette, TF_32BIT | ((usemips)?TF_MIPMAP:TF_NOMIPMAP) | ((alpha)?TF_ALPHA:TF_NOALPHA))
-	#define R_LoadTexture8(skinname,width,height,data,usemips,alpha) R_LoadTexture(name, width, height, data, NULL, ((usemips)?TF_MIPMAP:TF_NOMIPMAP) | ((alpha)?TF_ALPHA:TF_NOALPHA))
-	#define R_LoadTexture32(skinname,width,height,data,usemips,alpha) R_LoadTexture(name, width, height, data, NULL, TF_32BIT | ((usemips)?TF_MIPMAP:TF_NOMIPMAP) | ((alpha)?TF_ALPHA:TF_NOALPHA))
-	#define R_LoadTextureFB(skinname,width,height,data,usemips,alpha) R_LoadTexture(name, width, height, data, NULL, TF_FULLBRIGHT | ((usemips)?TF_MIPMAP:TF_NOMIPMAP) | ((alpha)?TF_ALPHA:TF_NOALPHA))
-	#define R_LoadTexture8Bump(skinname,width,height,data,usemips,alpha) R_LoadTexture(name, width, height, data, NULL, TF_BUMPMAP | ((usemips)?TF_MIPMAP:TF_NOMIPMAP) | ((alpha)?TF_ALPHA:TF_NOALPHA))
-
-	#define R_FindTexture(name) R_LoadTexture(name, 0, 0, NULL, NULL, 0)
-	#define R_LoadCompressed(name)  ((qrenderer == QR_OPENGL)?GL_LoadCompressed(name):0)
-*/
-#elif defined(RGLQUAKE) && defined(D3DQUAKE)
-	#define R_LoadTexture8Pal32(skinname,width,height,data,palette,usemips,alpha) ((qrenderer == QR_DIRECT3D)?D3D_LoadTexture8Pal32(skinname, width, height, data, palette, usemips, alpha):GL_LoadTexture8Pal32(skinname, width, height, data, palette, usemips, alpha))
-	#define R_LoadTexture8Pal24(skinname,width,height,data,palette,usemips,alpha) ((qrenderer == QR_DIRECT3D)?D3D_LoadTexture8Pal24(skinname, width, height, data, palette, usemips, alpha):GL_LoadTexture8Pal24(skinname, width, height, data, palette, usemips, alpha))
-	#define R_LoadTexture8(skinname,width,height,data,usemips,alpha) ((qrenderer == QR_DIRECT3D)?D3D_LoadTexture(skinname, width, height, data, usemips, alpha):GL_LoadTexture(skinname, width, height, data, usemips, alpha))
-	#define R_LoadTexture32(skinname,width,height,data,usemips,alpha) ((qrenderer == QR_DIRECT3D)?D3D_LoadTexture32(skinname, width, height, data, usemips, alpha):GL_LoadTexture32(skinname, width, height, data, usemips, alpha))
-	#define R_LoadTextureFB(skinname,width,height,data,usemips,alpha) ((qrenderer == QR_DIRECT3D)?D3D_LoadTextureFB(skinname, width, height, data, usemips, alpha):GL_LoadTextureFB(skinname, width, height, data, usemips, alpha))
-	#define R_LoadTexture8Bump(skinname,width,height,data,usemips,alpha) ((qrenderer == QR_DIRECT3D)?D3D_LoadTexture8Bump(skinname, width, height, data, usemips, alpha):GL_LoadTexture8Bump(skinname, width, height, data, usemips, alpha))
-
-	#define R_FindTexture(name)  ((qrenderer == QR_DIRECT3D)?D3D_FindTexture(name):GL_FindTexture(name))
-	#define R_LoadCompressed(name)  ((qrenderer == QR_DIRECT3D)?D3D_LoadCompressed(name):GL_LoadCompressed(name))
-#elif defined(D3DQUAKE)
-	#define R_LoadTexture8Pal32	D3D_LoadTexture8Pal32
-	#define R_LoadTexture8Pal24	D3D_LoadTexture8Pal24
-	#define R_LoadTexture8		D3D_LoadTexture
-	#define R_LoadTexture32		D3D_LoadTexture32
-	#define R_LoadTextureFB		D3D_LoadTextureFB
-	#define R_LoadTexture8Bump	D3D_LoadTexture8Bump
-
-	#define R_FindTexture		D3D_FindTexture
-	#define R_LoadCompressed	D3D_LoadCompressed
-#elif defined(RGLQUAKE)
-	#define R_LoadTexture8Pal32	GL_LoadTexture8Pal32
-	#define R_LoadTexture8Pal24	GL_LoadTexture8Pal24
-	#define R_LoadTexture8		GL_LoadTexture
-	#define R_LoadTexture32		GL_LoadTexture32
-	#define R_LoadTextureFB		GL_LoadTextureFB
-	#define R_LoadTexture8Bump	GL_LoadTexture8Bump
-
-	#define R_FindTexture		GL_FindTexture
-	#define R_LoadCompressed	GL_LoadCompressed
+/*it seems a little excessive to have to include glquake (and windows headers), just to load some textures/shaders for the backend*/
+#ifdef GLQUAKE
+texid_t GL_AllocNewTexture(int w, int h);
+void GL_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
+texid_t GL_LoadTextureFmt (char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
+void GL_DestroyTexture(texid_t tex);
+#endif
+#ifdef D3DQUAKE
+texid_t D3D9_LoadTexture (char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
+texid_t D3D9_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
+texid_t D3D9_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
+texid_t D3D9_LoadCompressed (char *name);
+texid_t D3D9_FindTexture (char *identifier);
+texid_t D3D9_AllocNewTexture(int width, int height);
+void    D3D9_Upload (texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
+void    D3D9_DestroyTexture (texid_t tex);
 #endif
 
+extern int image_width, image_height;
+texid_t R_LoadReplacementTexture(char *name, char *subpath, unsigned int flags);
+texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags);
+texid_t R_LoadBumpmapTexture(char *name, char *subpath);
 
+extern	texid_t	particletexture;
+extern	texid_t particlecqtexture;
+extern	texid_t explosiontexture;
+extern	texid_t balltexture;
+extern	texid_t beamtexture;
+extern	texid_t ptritexture;
 
-void GL_ParallelPerspective(double xmin, double xmax, double ymax, double ymin, double znear, double zfar);
-void GL_InfinatePerspective(double fovx, double fovy, double zNear);
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
-
-void	GLMod_Init (void);
+void	RMod_Init (void);
+void RMod_Shutdown (void);
 int Mod_TagNumForName(struct model_s *model, char *name);
 int Mod_SkinNumForName(struct model_s *model, char *name);
 int Mod_FrameNumForName(struct model_s *model, char *name);
 float Mod_FrameDuration(struct model_s *model, int frameno);
 
-void	GLMod_ClearAll (void);
-struct model_s *GLMod_ForName (char *name, qboolean crash);
-struct model_s *GLMod_FindName (char *name);
-void	*GLMod_Extradata (struct model_s *mod);	// handles caching
-void	GLMod_TouchModel (char *name);
+void	RMod_ClearAll (void);
+struct model_s *RMod_ForName (char *name, qboolean crash);
+struct model_s *RMod_FindName (char *name);
+void	*RMod_Extradata (struct model_s *mod);	// handles caching
+void	RMod_TouchModel (char *name);
+void Mod_RebuildLightmaps (void);
 
-struct mleaf_s *GLMod_PointInLeaf (struct model_s *model, float *p);
+struct mleaf_s *RMod_PointInLeaf (struct model_s *model, float *p);
 
-void GLMod_Think (void);
-void GLMod_NowLoadExternal(void);
-void GLR_WipeStains(void);
+void RMod_Think (void);
+void RMod_NowLoadExternal(void);
 void GLR_LoadSkys (void);
+void R_BloomRegister(void);
 #endif
+
+#ifdef RUNTIMELIGHTING
+void LightFace (int surfnum);
+void LightLoadEntities(char *entstring);
+#endif
+
 
 extern struct model_s		*currentmodel;
 
@@ -347,11 +370,15 @@ double Media_TweekCaptureFrameTime(double time);
 
 void MYgluPerspective(double fovx, double fovy, double zNear, double zFar);
 
-void R_MarkLeaves_Q1 (void);
-void R_MarkLeaves_Q2 (void);
-void R_MarkLeaves_Q3 (void);
-void R_SetFrustum (void);
-void R_SetRenderer(int wanted);
+void	R_PushDlights				(void);
+qbyte *R_MarkLeaves_Q1 (void);
+qbyte *R_CalcVis_Q1 (void);
+qbyte *R_MarkLeaves_Q2 (void);
+qbyte *R_MarkLeaves_Q3 (void);
+void R_SetFrustum (float projmat[16], float viewmat[16]);
+void R_SetRenderer(rendererinfo_t *ri);
+void R_AnimateLight (void);
+struct texture_s *R_TextureAnimation (int frame, struct texture_s *base);
 void RQ_Init(void);
 
 void CLQ2_EntityEvent(entity_state_t *es);
@@ -380,6 +407,9 @@ void SaturateR8G8B8(qbyte *data, int size, float sat);
 void AddOcranaLEDsIndexed (qbyte *image, int h, int w);
 
 void Renderer_Init(void);
+void Renderer_Start(void);
+qboolean Renderer_Started(void);
+void R_ShutdownRenderer(void);
 void R_RestartRenderer_f (void);//this goes here so we can save some stack when first initing the sw renderer.
 
 //used to live in glquake.h
@@ -393,7 +423,8 @@ extern	cvar_t	r_speeds;
 extern	cvar_t	r_waterwarp;
 extern	cvar_t	r_fullbright;
 extern	cvar_t	r_lightmap;
-extern	cvar_t	r_shadows;
+extern	cvar_t	r_shadow_realtime_dlight, r_shadow_realtime_dlight_shadows;
+extern	cvar_t	r_shadow_realtime_world,r_shadow_realtime_world_shadows;
 extern	cvar_t	r_mirroralpha;
 extern	cvar_t	r_wateralpha;
 extern	cvar_t	r_dynamic;
@@ -404,16 +435,15 @@ extern	cvar_t	r_netgraph;
 extern cvar_t	r_xflip;
 #endif
 
-extern	cvar_t	gl_clear;
-extern	cvar_t	gl_cull;
+extern cvar_t gl_maxdist;
+extern	cvar_t	r_clear;
 extern	cvar_t	gl_poly;
-extern	cvar_t	gl_smoothmodels;
 extern	cvar_t	gl_affinemodels;
 extern	cvar_t	gl_nohwblend;
-extern	cvar_t	gl_keeptjunctions;
 extern	cvar_t	gl_reporttjunctions;
 extern	cvar_t	r_flashblend;
 extern	cvar_t	r_lightstylesmooth;
+extern	cvar_t	r_lightstylesmooth_limit;
 extern	cvar_t	r_lightstylespeed;
 extern	cvar_t	gl_nocolors;
 extern	cvar_t	gl_load24bit;
@@ -421,9 +451,6 @@ extern	cvar_t	gl_finish;
 
 extern	cvar_t	gl_max_size;
 extern	cvar_t	gl_playermip;
-
-extern cvar_t   d_palconvwrite;
-extern cvar_t	d_palremapsize;
 
 extern  cvar_t	r_lightmap_saturation;
 
@@ -452,6 +479,10 @@ enum {
 	RQUANT_MSECS,	//old r_speeds
 	RQUANT_EPOLYS,
 	RQUANT_WPOLYS,
+	RQUANT_DRAWS,
+	RQUANT_ENTBATCHES,
+	RQUANT_WORLDBATCHES,
+	RQUANT_2DBATCHES,
 	RQUANT_SHADOWFACES,
 	RQUANT_SHADOWEDGES,
 	RQUANT_LITFACES,
@@ -460,12 +491,22 @@ enum {
 };
 int rquant[RQUANT_MAX];
 
-#define RQuantAdd(type,quant) rquant[type] += quant;
+#define RQuantAdd(type,quant) rquant[type] += quant
 
+#if defined(NDEBUG) || !defined(_WIN32)
+#define RSpeedLocals()
+#define RSpeedMark()
+#define RSpeedRemark()
+#define RSpeedEnd(spt)
+#else
 #define RSpeedLocals() int rsp
-#define RSpeedMark() int rsp = r_speeds.value?Sys_DoubleTime()*1000000:0
-#define RSpeedRemark() rsp = r_speeds.value?Sys_DoubleTime()*1000000:0
+#define RSpeedMark() int rsp = (r_speeds.ival>1)?Sys_DoubleTime()*1000000:0
+#define RSpeedRemark() rsp = (r_speeds.ival>1)?Sys_DoubleTime()*1000000:0
 
-//extern void (_stdcall *qglFinish) (void);
-//#define RSpeedEnd(spt) do {qglFinish(); rspeeds[spt] += r_speeds.value?Sys_DoubleTime()*1000000 - rsp:0;}while (0)
-#define RSpeedEnd(spt) rspeeds[spt] += r_speeds.value?Sys_DoubleTime()*1000000 - rsp:0
+#if defined(_WIN32) && defined(GLQUAKE)
+extern void (_stdcall *qglFinish) (void);
+#define RSpeedEnd(spt) do {if(r_speeds.ival > 1){if(r_speeds.ival > 2 && qglFinish)qglFinish(); rspeeds[spt] += (int)(Sys_DoubleTime()*1000000) - rsp;}}while (0)
+#else
+#define RSpeedEnd(spt) rspeeds[spt] += (r_speeds.ival>1)?Sys_DoubleTime()*1000000 - rsp:0
+#endif
+#endif

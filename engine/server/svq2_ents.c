@@ -19,9 +19,6 @@ int svs_next_client_entities;
 
 q2entity_state_t	sv_baselines[Q2MAX_EDICTS];
 
-int areabytes;
-extern qbyte areabits[];
-
 /*
 =============================================================================
 
@@ -29,11 +26,6 @@ Encode a client frame onto the network channel
 
 =============================================================================
 */
-
-void SV_Q2BSP_FatPVS (vec3_t org);
-
-
-
 
 /*
 ==================
@@ -578,12 +570,12 @@ void SV_WriteFrameToClient (client_t *client, sizebuf_t *msg)
 	MSG_WriteByte (msg, svcq2_frame);
 	MSG_WriteLong (msg, sv.framenum);
 	MSG_WriteLong (msg, lastframe);	// what we are delta'ing from
-	MSG_WriteByte (msg, 0);//client->surpressCount);	// rate dropped packets
-//	client->surpressCount = 0;
+	MSG_WriteByte (msg, client->chokecount);	// rate dropped packets
+	client->chokecount = 0;
 
 	// send over the areabits
-	MSG_WriteByte (msg, areabytes);
-	SZ_Write (msg, areabits, areabytes);
+	MSG_WriteByte (msg, frame->areabytes);
+	SZ_Write (msg, frame->areabits, frame->areabytes);
 
 	// delta encode the playerstate
 	SVQ2_WritePlayerstateToClient (oldframe, frame, msg);
@@ -648,19 +640,22 @@ void SV_BuildClientFrame (client_t *client)
 	for (i=0 ; i<3 ; i++)
 		org[i] = clent->client->ps.pmove.origin[i]*0.125 + clent->client->ps.viewoffset[i];
 
-	leafnum = CM_PointLeafnum (sv.worldmodel, org);
-	clientarea = CM_LeafArea (sv.worldmodel, leafnum);
-	clientcluster = CM_LeafCluster (sv.worldmodel, leafnum);
+	leafnum = CM_PointLeafnum (sv.world.worldmodel, org);
+	clientarea = CM_LeafArea (sv.world.worldmodel, leafnum);
+	clientcluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
 
 	// calculate the visible areas
-	areabytes = CM_WriteAreaBits (sv.worldmodel, areabits, clientarea);
+	frame->areabytes = CM_WriteAreaBits (sv.world.worldmodel, frame->areabits, clientarea);
 
 	// grab the current player_state_t
 	frame->ps = clent->client->ps;
 
+	if (sv.paused)
+		frame->ps.pmove.pm_type = Q2PM_FREEZE;
 
-	sv.worldmodel->funcs.FatPVS(sv.worldmodel, org, clientpvs, sizeof(clientpvs), false);
-	clientphs = CM_ClusterPHS (sv.worldmodel, clientcluster);
+
+	sv.world.worldmodel->funcs.FatPVS(sv.world.worldmodel, org, clientpvs, sizeof(clientpvs), false);
+	clientphs = CM_ClusterPHS (sv.world.worldmodel, clientcluster);
 
 	// build up the list of visible entities
 	frame->num_entities = 0;
@@ -685,11 +680,11 @@ void SV_BuildClientFrame (client_t *client)
 		if (ent != clent)
 		{
 			// check area
-			if (!CM_AreasConnected (sv.worldmodel, clientarea, ent->areanum))
+			if (!CM_AreasConnected (sv.world.worldmodel, clientarea, ent->areanum))
 			{	// doors can legally straddle two areas, so
 				// we may need to check another one
 				if (!ent->areanum2
-					|| !CM_AreasConnected (sv.worldmodel, clientarea, ent->areanum2))
+					|| !CM_AreasConnected (sv.world.worldmodel, clientarea, ent->areanum2))
 					continue;		// blocked by a door
 			}
 
@@ -707,7 +702,7 @@ void SV_BuildClientFrame (client_t *client)
 
 				if (ent->num_clusters == -1)
 				{	// too many leafs for individual check, go by headnode
-					if (!CM_HeadnodeVisible (sv.worldmodel, ent->headnode, clientpvs))
+					if (!CM_HeadnodeVisible (sv.world.worldmodel, ent->headnode, clientpvs))
 						continue;
 					c_fullsend++;
 				}
@@ -751,6 +746,25 @@ void SV_BuildClientFrame (client_t *client)
 
 		svs_next_client_entities++;
 		frame->num_entities++;
+	}
+}
+
+void SVQ2_BuildBaselines(void)
+{
+	unsigned int e;
+	q2edict_t	*ent;
+	q2entity_state_t	*base;
+
+	if (!ge)
+		return;
+
+	for (e=1 ; e<ge->num_edicts ; e++)
+	{
+		ent = Q2EDICT_NUM(e);
+		base = &ent->s;
+
+		if (base->modelindex || base->sound || base->effects)
+			sv_baselines[e] = *base;
 	}
 }
 

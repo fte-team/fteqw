@@ -40,3 +40,9 @@ void IN_Accumulate (void);
 extern cvar_t in_xflip;
 #endif
 
+#ifdef _SDL
+void IN_ActivateMouse(void);
+void IN_DeactivateMouse(void);
+#endif
+
+int CL_TargettedSplit(qboolean nowrap);

@@ -7,9 +7,6 @@
 
 int keycatcher;
 
-
-void GLDraw_ShaderImage (int x, int y, int w, int h, float s1, float t1, float s2, float t2, struct shader_s *pic);
-
 #define MAX_TOKENLENGTH		1024
 typedef struct pc_token_s
 {
@@ -38,8 +35,8 @@ typedef struct {
 	char *defines;
 	int numdefines;
 } script_t;
-script_t *scripts;
-int maxscripts;
+static script_t *scripts;
+static int maxscripts;
 #define Q3SCRIPTPUNCTUATION "(,{})(\':;=!><&|+-\""
 void StripCSyntax (char *s)
 {
@@ -123,7 +120,7 @@ int Script_Read(int handle, struct pc_token_s *token)
 
 			if (sc->originalfilestack[sc->stackdepth])
 				BZ_Free(sc->originalfilestack[sc->stackdepth]);
-			sc->filestack[sc->stackdepth] = sc->originalfilestack[sc->stackdepth] = COM_LoadMallocFile(com_token);
+			sc->filestack[sc->stackdepth] = sc->originalfilestack[sc->stackdepth] = FS_LoadMallocFile(com_token);
 			Q_strncpyz(sc->filename[sc->stackdepth], com_token, MAX_QPATH);
 			sc->stackdepth++;
 			continue;
@@ -217,7 +214,7 @@ int Script_LoadFile(char *filename)
 	
 	sc = scripts+i;
 	memset(sc, 0, sizeof(*sc));
-	sc->filestack[0] = sc->originalfilestack[0] = COM_LoadMallocFile(filename);
+	sc->filestack[0] = sc->originalfilestack[0] = FS_LoadMallocFile(filename);
 	Q_strncpyz(sc->filename[sc->stackdepth], filename, MAX_QPATH);
 	sc->stackdepth = 1;
 
@@ -274,7 +271,7 @@ void Script_Get_File_And_Line(int handle, char *filename, int *line)
 
 
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"//hack
 #else
 typedef float m3by3_t[3][3];
@@ -284,12 +281,7 @@ static vm_t *uivm;
 
 static char *scr_centerstring;
 
-static int ox, oy;
-
-void GLDraw_Image(float x, float y, float w, float h, float s1, float t1, float s2, float t2, qpic_t *pic);
-void SWDraw_Image (float xp, float yp, float wp, float hp, float s1, float t1, float s2, float t2, qpic_t *pic);
 char *Get_Q2ConfigString(int i);
-void SWDraw_ImageColours (float r, float g, float b, float a);
 
 
 #define MAX_PINGREQUESTS 16
@@ -302,12 +294,11 @@ extern model_t mod_known[];
 #define VM_FROMMHANDLE(a) (a?mod_known+a-1:NULL)
 #define VM_TOMHANDLE(a) (a?a-mod_known+1:0)
 
-extern shader_t r_shaders[];
 #define VM_FROMSHANDLE(a) (a?r_shaders+a-1:NULL)
 #define VM_TOSHANDLE(a) (a?a-r_shaders+1:0)
 
 
-typedef struct q3refEntity_s {
+struct q3refEntity_s {
 	refEntityType_t	reType;
 	int			renderfx;
 
@@ -340,12 +331,14 @@ typedef struct q3refEntity_s {
 	// extra sprite information
 	float		radius;
 	float		rotation;
-} q3refEntity_t;
+};
 
-#define	Q2RF_VIEWERMODEL		2		// don't draw through eyes, only mirrors
-#define	Q2RF_WEAPONMODEL		4		// only draw through eyes
-#define	Q2RF_DEPTHHACK			16		// for view weapon Z crunching
-
+struct q3polyvert_s
+{
+	vec3_t org;
+	vec2_t tcoord;
+	qbyte colours[4];
+};
 
 #define Q3RF_MINLIGHT			1
 #define	Q3RF_THIRD_PERSON		2		// don't draw through eyes, only mirrors (player bodies, chat sprites)
@@ -394,7 +387,7 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 {
 	entity_t ent;
 	if (!cl_visedicts)
-		cl_visedicts = cl_visedicts_list[0];
+		cl_visedicts = cl_visedicts_list;
 	memset(&ent, 0, sizeof(ent));
 	ent.model = VM_FROMMHANDLE(q3->hModel);
 	ent.framestate.g[FS_REG].frame[0] = q3->frame;
@@ -413,22 +406,78 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 	ent.shaderRGBAf[2] = q3->shaderRGBA[2]/255.0f;
 	ent.shaderRGBAf[3] = q3->shaderRGBA[3]/255.0f;
 
+	/*don't set translucent, the shader is meant to already be correct*/
 //	if (ent.shaderRGBAf[3] <= 0)
 //		return;
 
-#ifdef Q3SHADERS
 	ent.forcedshader = VM_FROMSHANDLE(q3->customShader);
 	ent.shaderTime = q3->shaderTime;
-#endif
 	if (q3->renderfx & Q3RF_FIRST_PERSON)
 		ent.flags |= Q2RF_WEAPONMODEL;
 	if (q3->renderfx & Q3RF_DEPTHHACK)
 		ent.flags |= Q2RF_DEPTHHACK;
 	if (q3->renderfx & Q3RF_THIRD_PERSON)
-		ent.flags |= Q2RF_VIEWERMODEL;
+		ent.externalmodelview = ~0;
+	if (q3->renderfx & Q3RF_NOSHADOW)
+		ent.flags |= RF_NOSHADOW;
+
 	VectorCopy(q3->origin, ent.origin);
 	VectorCopy(q3->oldorigin, ent.oldorigin);
 	V_AddAxisEntity(&ent);
+}
+
+void VQ3_AddPoly(shader_t *s, int num, q3polyvert_t *verts)
+{
+	unsigned int v;
+	scenetris_t *t;
+	/*reuse the previous trigroup if its the same shader*/
+	if (cl_numstris && cl_stris[cl_numstris-1].shader == s)
+		t = &cl_stris[cl_numstris-1];
+	else
+	{
+		if (cl_numstris == cl_maxstris)
+		{
+			cl_maxstris += 8;
+			cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+		}
+		t = &cl_stris[cl_numstris++];
+		t->shader = s;
+		t->numidx = 0;
+		t->numvert = 0;
+		t->firstidx = cl_numstrisidx;
+		t->firstvert = cl_numstrisvert;
+	}
+
+	if (cl_maxstrisvert < cl_numstrisvert+num)
+	{
+		cl_maxstrisvert = cl_numstrisvert+num + 64;
+		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
+		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
+	}
+	if (cl_maxstrisidx < cl_numstrisidx+(num-2)*3)
+	{
+		cl_maxstrisidx = cl_numstrisidx+(num-2)*3 + 64;
+		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+	}
+
+	for (v = 0; v < num; v++)
+	{
+		VectorCopy(verts[v].org, cl_strisvertv[cl_numstrisvert+v]);
+		Vector2Copy(verts[v].tcoord, cl_strisvertt[cl_numstrisvert+v]);
+		Vector4Scale(verts[v].colours, (1/255.0f), cl_strisvertc[cl_numstrisvert+v]);
+	}
+	for (v = 2; v < num; v++)
+	{
+		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert - t->firstvert;
+		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+(v-1) - t->firstvert;
+		cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+v - t->firstvert;
+	}
+
+	t->numvert += num;
+	t->numidx += (num-2)*3;
+	cl_numstrisvert += num;
+	//we already increased idx
 }
 
 int VM_LerpTag(void *out, model_t *model, int f1, int f2, float l2, char *tagname)
@@ -496,7 +545,7 @@ int VM_LerpTag(void *out, model_t *model, int f1, int f2, float l2, char *tagnam
 #define	MAX_RENDER_STRINGS			8
 #define	MAX_RENDER_STRING_LENGTH	32
 
-typedef struct q3refdef_s {
+struct q3refdef_s {
 	int			x, y, width, height;
 	float		fov_x, fov_y;
 	vec3_t		vieworg;
@@ -512,14 +561,18 @@ typedef struct q3refdef_s {
 
 	// text messages for deform text shaders
 	char		text[MAX_RENDER_STRINGS][MAX_RENDER_STRING_LENGTH];
-} q3refdef_t;
-
+};
+void D3D9_Set2D (void);
 void VQ3_RenderView(const q3refdef_t *ref)
 {
+	extern cvar_t r_torch;
 	VectorCopy(ref->vieworg, r_refdef.vieworg);
 	r_refdef.viewangles[0] = -(atan2(ref->viewaxis[0][2], sqrt(ref->viewaxis[0][1]*ref->viewaxis[0][1]+ref->viewaxis[0][0]*ref->viewaxis[0][0])) * 180 / M_PI);
 	r_refdef.viewangles[1] = (atan2(ref->viewaxis[0][1], ref->viewaxis[0][0]) * 180 / M_PI);
 	r_refdef.viewangles[2] = 0;
+	VectorCopy(ref->viewaxis[0], r_refdef.viewaxis[0]);
+	VectorCopy(ref->viewaxis[1], r_refdef.viewaxis[1]);
+	VectorCopy(ref->viewaxis[2], r_refdef.viewaxis[2]);
 	if (ref->rdflags & 1)
 		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
 	else
@@ -534,29 +587,33 @@ void VQ3_RenderView(const q3refdef_t *ref)
 	r_refdef.useperspective = true;
 	r_refdef.currentplayernum = -1;
 
+	if (r_torch.ival)
+	{
+		dlight_t *dl;
+		dl = CL_NewDlightRGB(0, ref->vieworg, 300, r_torch.ival, 0.05, 0.05, 0.02);
+		dl->flags |= LFLAG_SHADOWMAP|LFLAG_ALLOW_FLASH;
+		dl->fov = 60;
+		VectorCopy(ref->viewaxis[0], dl->axis[0]);
+		VectorCopy(ref->viewaxis[1], dl->axis[1]);
+		VectorCopy(ref->viewaxis[2], dl->axis[2]);
+	}
+
 	memcpy(cl.q2frame.areabits, ref->areamask, sizeof(cl.q2frame.areabits));
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
-		gl_ztrickdisabled|=16;
 		qglDisable(GL_ALPHA_TEST);
 		qglDisable(GL_BLEND);
 	}
 #endif
 	R_RenderView();
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
-		gl_ztrickdisabled&=~16;
 		GL_Set2D ();
 		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		GL_TexEnv(GL_MODULATE);
-	}
-#endif
 
-#ifdef RGLQUAKE
-	if (qrenderer == QR_OPENGL)
-	{
 		qglDisable(GL_ALPHA_TEST);
 		qglEnable(GL_BLEND);
 	}
@@ -618,12 +675,9 @@ void UI_RegisterFont(char *fontName, int pointSize, fontInfo_t *font)
 
 
 
-#define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) Host_EndGame("Call to ui trap %i passes invalid pointer\n", fn);	//out of bounds.
+#define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) Host_EndGame("Call to ui trap %i passes invalid pointer\n", (int)fn);	//out of bounds.
 
-#ifndef _DEBUG
-static
-#endif
-int UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
+static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, const qintptr_t *arg)
 {
 	int ret=0;
 	char adrbuf[MAX_ADR_SIZE];
@@ -641,10 +695,10 @@ int UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 	switch((uiImport_t)fn)
 	{
 	case UI_ERROR:
-		Con_Printf("%s", VM_POINTER(arg[0]));
+		Con_Printf("%s", (char*)VM_POINTER(arg[0]));
 		break;
 	case UI_PRINT:
-		Con_Printf("%s", VM_POINTER(arg[0]));
+		Con_Printf("%s", (char*)VM_POINTER(arg[0]));
 		break;
 
 	case UI_MILLISECONDS:
@@ -667,24 +721,27 @@ int UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 	case UI_CVAR_SET:
 		{
 			cvar_t *var;
-			if (!strcmp(VM_POINTER(arg[0]), "fs_game"))
+			char *vname = VM_POINTER(arg[0]);
+			char *vval = VM_POINTER(arg[1]);
+			if (!strcmp(vname, "fs_game"))
 			{
-				Cbuf_AddText(va("gamedir %s\nui_restart\n", VM_POINTER(arg[1])), RESTRICT_SERVER);
+				Cbuf_AddText(va("gamedir %s\nui_restart\n", (char*)vval), RESTRICT_SERVER);
 			}
 			else
 			{
-				var = Cvar_FindVar(VM_POINTER(arg[0]));
+				var = Cvar_FindVar(vname);
 				if (var)
-					Cvar_Set(var, VM_POINTER(arg[1]));	//set it
+					Cvar_Set(var, vval);	//set it
 				else
-					Cvar_Get(VM_POINTER(arg[0]), VM_POINTER(arg[1]), 0, "UI created");	//create one
+					Cvar_Get(vname, vval, 0, "UI created");	//create one
 			}
 		}
 		break;
 	case UI_CVAR_VARIABLEVALUE:
 		{
 			cvar_t *var;
-			var = Cvar_FindVar(VM_POINTER(arg[0]));
+			char *vname = VM_POINTER(arg[0]);
+			var = Cvar_FindVar(vname);
 			if (var)
 				VM_FLOAT(ret) = var->value;
 			else
@@ -694,7 +751,8 @@ int UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 	case UI_CVAR_VARIABLESTRINGBUFFER:
 		{
 			cvar_t *var;
-			var = Cvar_FindVar(VM_POINTER(arg[0]));
+			char *vname = VM_POINTER(arg[0]);
+			var = Cvar_FindVar(vname);
 			if (!VM_LONG(arg[2]))
 				VM_LONG(ret) = 0;
 			else if (!var)
@@ -719,40 +777,43 @@ int UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 	case UI_CVAR_RESET:	//cvar reset
 		{
 			cvar_t *var;
-			var = Cvar_FindVar((char *)VM_POINTER(arg[0]));
+			char *vname = VM_POINTER(arg[0]);
+			var = Cvar_FindVar(vname);
 			if (var)
 				Cvar_Set(var, var->defaultstr);
 		}
 		break;
 
 	case UI_CMD_EXECUTETEXT:
-		if (!strncmp(VM_POINTER(arg[1]), "ping ", 5))
 		{
-			int i;
-			for (i = 0; i < MAX_PINGREQUESTS; i++)
-				if (ui_pings[i].type == NA_INVALID)
-				{
-					serverinfo_t *info;
-					NET_StringToAdr((char *)VM_POINTER(arg[1]) + 5, &ui_pings[i]);
-					info = Master_InfoForServer(ui_pings[i]);
-					if (info)
+			char *cmdtext = VM_POINTER(arg[1]);
+			if (!strncmp(cmdtext, "ping ", 5))
+			{
+				int i;
+				for (i = 0; i < MAX_PINGREQUESTS; i++)
+					if (ui_pings[i].type == NA_INVALID)
 					{
-						info->special |= SS_KEEPINFO;
-						Master_QueryServer(info);
+						serverinfo_t *info;
+						NET_StringToAdr(cmdtext + 5, &ui_pings[i]);
+						info = Master_InfoForServer(ui_pings[i]);
+						if (info)
+						{
+							info->special |= SS_KEEPINFO;
+							Master_QueryServer(info);
+						}
+						break;
 					}
-					break;
-				}
+			}
+			else if (!strncmp(cmdtext, "localservers", 12))
+			{
+				MasterInfo_Refresh();
+			}
+	/*		else if (!strncmp(cmdtext, "r_vidmode", 12))
+			{
+			}
+	*/		else
+				Cbuf_AddText(cmdtext, RESTRICT_SERVER);
 		}
-		else if (!strncmp(VM_POINTER(arg[1]), "localservers", 12))
-		{
-			MasterInfo_Begin();
-		}
-/*		else if (!strncmp(VM_POINTER(arg[1]), "r_vidmode", 12))
-		{
-			MasterInfo_Begin();
-		}
-*/		else
-			Cbuf_AddText(VM_POINTER(arg[1]), RESTRICT_SERVER);
 		break;
 
 	case UI_FS_FOPENFILE: //fopen
@@ -814,14 +875,15 @@ int UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 	case UI_R_REGISTERSHADERNOMIP:
 		if (!*(char*)VM_POINTER(arg[0]))
 			VM_LONG(ret) = 0;
-		else if (qrenderer == QR_OPENGL)
+		else
 			VM_LONG(ret) = VM_TOSHANDLE(R_RegisterPic(VM_POINTER(arg[0])));
-//FIXME: 64bit		else
-//			VM_LONG(ret) = (long)Draw_SafeCachePic(VM_POINTER(arg[0]));
 		break;
 
 	case UI_R_CLEARSCENE:	//clear scene
-		cl_numvisedicts=0;
+		cl_numvisedicts = 0;
+		cl_numstrisidx = 0;
+		cl_numstrisvert = 0;
+		cl_numstris = 0;
 		break;
 	case UI_R_ADDREFENTITYTOSCENE:	//add ent to scene
 		VQ3_AddEntity(VM_POINTER(arg[0]));
@@ -833,24 +895,17 @@ int UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 		break;
 
 	case UI_R_SETCOLOR:	//setcolour float*
-		if (Draw_ImageColours)
 		{
 			float *fl =VM_POINTER(arg[0]);
 			if (!fl)
-				Draw_ImageColours(1, 1, 1, 1);
+				R2D_ImageColours(1, 1, 1, 1);
 			else
-				Draw_ImageColours(fl[0], fl[1], fl[2], fl[3]);
+				R2D_ImageColours(fl[0], fl[1], fl[2], fl[3]);
 		}
 		break;
 
 	case UI_R_DRAWSTRETCHPIC:
-//		qglDisable(GL_ALPHA_TEST);
-//		qglEnable(GL_BLEND);
-//		GL_TexEnv(GL_MODULATE);
-		if (qrenderer == QR_OPENGL)
-			GLDraw_ShaderImage(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), VM_FROMSHANDLE(arg[8]));
-//		else
-//			Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (mpic_t *)VM_LONG(arg[8]));
+		R2D_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), VM_FROMSHANDLE(VM_LONG(arg[8])));
 		break;
 
 	case UI_CM_LERPTAG:	//Lerp tag...
@@ -863,7 +918,7 @@ int UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 	case UI_S_REGISTERSOUND:
 		{
 			sfx_t *sfx;
-			sfx = S_PrecacheSound(va("../%s", VM_POINTER(arg[0])));
+			sfx = S_PrecacheSound(va("../%s", (char*)VM_POINTER(arg[0])));
 			if (sfx)
 				VM_LONG(ret) = VM_TOSTRCACHE(arg[0]);	//return handle is the parameter they just gave
 			else
@@ -923,19 +978,25 @@ int UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 		break;
 
 	case UI_GETGLCONFIG:	//get glconfig
-		if ((int)arg[0] + 11332/*sizeof(glconfig_t)*/ >= mask || VM_POINTER(arg[0]) < offset)
-			break;	//out of bounds.
+		{
+			char *cfg;
+			if ((int)arg[0] + 11332/*sizeof(glconfig_t)*/ >= mask || VM_POINTER(arg[0]) < offset)
+				break;	//out of bounds.
+			cfg = VM_POINTER(arg[0]);
+		
 
 		//do any needed work
-		memset(VM_POINTER(arg[0]), 0, 11304);
-		*(int *)VM_POINTER(arg[0]+11304) = vid.width;
-		*(int *)VM_POINTER(arg[0]+11308) = vid.height;
-		*(float *)VM_POINTER(arg[0]+11312) = (float)vid.width/vid.height;
-		memset(VM_POINTER(arg[0]+11316), 0, 11332-11316);
+		memset(cfg, 0, 11304);
+		*(int *)(cfg+11304) = vid.width;
+		*(int *)(cfg+11308) = vid.height;
+		*(float *)(cfg+11312) = (float)vid.width/vid.height;
+		memset(cfg+11316, 0, 11332-11316);
+		}
 		break;
 
 	case UI_GETCLIENTSTATE:	//get client state
 		//fixme: we need to fill in a structure.
+		Con_Printf("ui_getclientstate\n");
 		break;
 
 	case UI_GETCONFIGSTRING:
@@ -1040,17 +1101,21 @@ int UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 		break;
 
 	case UI_GET_CDKEY:	//get cd key
-		if ((int)arg[0] + VM_LONG(arg[1]) >= mask || VM_POINTER(arg[0]) < offset)
-			break;	//out of bounds.
-		strncpy(VM_POINTER(arg[0]), Cvar_VariableString("cl_cdkey"), VM_LONG(arg[1]));
+		{
+			char *keydest = VM_POINTER(arg[0]);
+			if ((int)arg[0] + VM_LONG(arg[1]) >= mask || VM_POINTER(arg[0]) < offset)
+				break;	//out of bounds.
+			strncpy(keydest, Cvar_VariableString("cl_cdkey"), VM_LONG(arg[1]));
+		}
 		break;
 	case UI_SET_CDKEY:	//set cd key
-		if ((int)arg[0] + strlen(VM_POINTER(arg[0])) >= mask || VM_POINTER(arg[0]) < offset)
-			break;	//out of bounds.
 		{
+			char *keysrc = VM_POINTER(arg[0]);
 			cvar_t *cvar;
+			if ((int)arg[0] + strlen(keysrc) >= mask || VM_POINTER(arg[0]) < offset)
+				break;	//out of bounds.
 			cvar = Cvar_Get("cl_cdkey", "", 0, "Quake3 auth");
-			Cvar_Set(cvar, VM_POINTER(arg[0]));
+			Cvar_Set(cvar, keysrc);
 		}
 		break;
 
@@ -1104,19 +1169,30 @@ int UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 
 // standard Q3
 	case UI_MEMSET:
-		if ((int)arg[0] + arg[2] >= mask || VM_POINTER(arg[0]) < offset)
-			break;	//out of bounds.
-		memset(VM_POINTER(arg[0]), arg[1], arg[2]);
+		{
+			void *dest = VM_POINTER(arg[0]);
+			if ((int)arg[0] + arg[2] >= mask || dest < offset)
+				break;	//out of bounds.
+			memset(dest, arg[1], arg[2]);
+		}
 		break;
 	case UI_MEMCPY:
-		if ((int)arg[0] + arg[2] >= mask || VM_POINTER(arg[0]) < offset)
-			break;	//out of bounds.
-		memcpy(VM_POINTER(arg[0]), VM_POINTER(arg[1]), arg[2]);
+		{
+			void *dest = VM_POINTER(arg[0]);
+			void *src = VM_POINTER(arg[1]);
+			if ((int)arg[0] + arg[2] >= mask || VM_POINTER(arg[0]) < offset)
+				break;	//out of bounds.
+			memcpy(dest, src, arg[2]);
+		}
 		break;
 	case UI_STRNCPY:
-		if (arg[0] + arg[2] >= mask || VM_POINTER(arg[0]) < offset)
-			break;	//out of bounds.
-		Q_strncpyS(VM_POINTER(arg[0]), VM_POINTER(arg[1]), arg[2]);
+		{
+			void *dest = VM_POINTER(arg[0]);
+			void *src = VM_POINTER(arg[1]);
+			if (arg[0] + arg[2] >= mask || VM_POINTER(arg[0]) < offset)
+				break;	//out of bounds.
+			Q_strncpyS(dest, src, arg[2]);
+		}
 		break;
 	case UI_SIN:
 		VM_FLOAT(ret)=(float)sin(VM_FLOAT(arg[0]));
@@ -1137,22 +1213,6 @@ int UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 		VM_FLOAT(ret)=(float)ceil(VM_FLOAT(arg[0]));
 		break;
 /*
-	case UI_CACHE_PIC:
-		if (!Draw_SafeCachePic)
-			VM_LONG(ret) = 0;
-		else
-		{
-			VM_LONG(ret) = 0;//FIXME: 64bit (long)R_RegisterPic(VM_POINTER(arg[0]));
-		}
-		break;
-	case UI_PICFROMWAD:
-		if (!Draw_SafePicFromWad)
-			VM_LONG(ret) = 0;
-		else
-		{
-			VM_LONG(ret) = 0;//FIXME: 64bit (long)R_RegisterPic(VM_POINTER(arg[0]));
-		}
-		break;
 	case UI_GETPLAYERINFO:
 		if (arg[1] + sizeof(vmuiclientinfo_t) >= mask || VM_POINTER(arg[1]) < offset)
 			break;	//out of bounds.
@@ -1275,41 +1335,54 @@ int UI_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
 		break;
 
 	default:
-		Con_Printf("Q3UI: Not implemented system trap: %d\n", fn);
+		Con_Printf("Q3UI: Not implemented system trap: %i\n", (int)fn);
 		return 0;
 	}
 
 	return ret;
 }
 
-#ifdef _DEBUG
-static int UI_SystemCallsExWrapper(void *offset, unsigned int mask, int fn, const int *arg)
+static int UI_SystemCallsVM(void *offset, quintptr_t mask, int fn, const int *arg)
 {	//this is so we can use edit and continue properly (vc doesn't like function pointers for edit+continue)
-	return UI_SystemCallsEx(offset, mask, fn, arg);
-}
-#define UI_SystemCallsEx UI_SystemCallsExWrapper
+#if __WORDSIZE == 32
+	return UI_SystemCalls(offset, mask, fn, (qintptr_t*)arg);
+#else
+	qintptr_t args[9];
+
+	args[0]=arg[0];
+	args[1]=arg[1];
+	args[2]=arg[2];
+	args[3]=arg[3];
+	args[4]=arg[4];
+	args[5]=arg[5];
+	args[6]=arg[6];
+	args[7]=arg[7];
+	args[8]=arg[8];
+
+	return UI_SystemCalls(offset, mask, fn, args);
 #endif
+}
 
 //I'm not keen on this.
 //but dlls call it without saying what sort of vm it comes from, so I've got to have them as specifics
-static int EXPORT_FN UI_SystemCalls(int arg, ...)
+static qintptr_t EXPORT_FN UI_SystemCallsNative(qintptr_t arg, ...)
 {
-	int args[9];
+	qintptr_t args[9];
 	va_list argptr;
 
 	va_start(argptr, arg);
-	args[0]=va_arg(argptr, int);
-	args[1]=va_arg(argptr, int);
-	args[2]=va_arg(argptr, int);
-	args[3]=va_arg(argptr, int);
-	args[4]=va_arg(argptr, int);
-	args[5]=va_arg(argptr, int);
-	args[6]=va_arg(argptr, int);
-	args[7]=va_arg(argptr, int);
-	args[8]=va_arg(argptr, int);
+	args[0]=va_arg(argptr, qintptr_t);
+	args[1]=va_arg(argptr, qintptr_t);
+	args[2]=va_arg(argptr, qintptr_t);
+	args[3]=va_arg(argptr, qintptr_t);
+	args[4]=va_arg(argptr, qintptr_t);
+	args[5]=va_arg(argptr, qintptr_t);
+	args[6]=va_arg(argptr, qintptr_t);
+	args[7]=va_arg(argptr, qintptr_t);
+	args[8]=va_arg(argptr, qintptr_t);
 	va_end(argptr);
 
-	return UI_SystemCallsEx(NULL, ~0, arg, args);
+	return UI_SystemCalls(NULL, ~(quintptr_t)0, arg, args);
 }
 
 qboolean UI_DrawStatusBar(int scores)
@@ -1389,7 +1462,7 @@ void UI_Reset(void)
 {
 	keycatcher &= ~2;
 
-	if (!Draw_SafeCachePic || qrenderer != QR_OPENGL)	//no renderer loaded
+	if (qrenderer == QR_NONE)	//no renderer loaded
 		UI_Stop();
 	else if (uivm)
 		VM_Call(uivm, UI_INIT);
@@ -1429,10 +1502,7 @@ qboolean UI_KeyPress(int key, int unicode, qboolean down)
 				Media_PlayFilm("");
 			}
 
-			if (cls.state)
-				VM_Call(uivm, UI_SET_ACTIVE_MENU, 2);
-			else
-				VM_Call(uivm, UI_SET_ACTIVE_MENU, 1);
+			UI_OpenMenu();
 
 			scr_conlines = 0;
 			return true;
@@ -1458,26 +1528,14 @@ qboolean UI_KeyPress(int key, int unicode, qboolean down)
 //	return result;
 }
 
-void UI_MousePosition(int xpos, int ypos)
+qboolean UI_MousePosition(int xpos, int ypos)
 {
-	if (uivm && (ox != xpos || oy != ypos))
+	if (uivm && (keycatcher&2))
 	{
-		if (xpos < 0)
-			xpos = 0;
-		if (ypos < 0)
-			ypos = 0;
-		if (xpos > vid.width)
-			xpos = vid.width;
-		if (ypos > vid.height)
-			ypos = vid.height;
-		ox=0;oy=0;
-		//force a cap
-		VM_Call(uivm, UI_MOUSE_EVENT, -32767, -32767);
-		VM_Call(uivm, UI_MOUSE_EVENT, (xpos-ox)*640/vid.width, (ypos-oy)*480/vid.height);
-		ox = xpos;
-		oy = ypos;
-
+		VM_Call(uivm, UI_MOUSE_EVENT, (xpos)*640/(int)vid.width, (ypos)*480/(int)vid.height);
+		return true;
 	}
+	return false;
 }
 
 void UI_Stop (void)
@@ -1495,13 +1553,10 @@ void UI_Stop (void)
 void UI_Start (void)
 {
 	int apiversion;
-	if (!Draw_SafeCachePic)	//no renderer loaded
-		return;
-
 	if (qrenderer != QR_OPENGL && qrenderer != QR_DIRECT3D)
 		return;
 
-	uivm = VM_Create(NULL, "vm/ui", UI_SystemCalls, UI_SystemCallsEx);
+	uivm = VM_Create(NULL, "vm/ui", UI_SystemCallsNative, UI_SystemCallsVM);
 	if (uivm)
 	{
 		apiversion = VM_Call(uivm, UI_GETAPIVERSION, 6);
@@ -1515,11 +1570,7 @@ void UI_Start (void)
 		}
 		VM_Call(uivm, UI_INIT);
 
-		VM_Call(uivm, UI_MOUSE_EVENT, -32767, -32767);
-		ox = 0;
-		oy = 0;
-
-		VM_Call(uivm, UI_SET_ACTIVE_MENU, 1);
+		UI_OpenMenu();
 	}
 }
 
@@ -1537,6 +1588,20 @@ void UI_Restart_f(void)
 	}
 }
 
+qboolean UI_OpenMenu(void)
+{
+	if (uivm)
+	{
+		if (cls.state)
+			VM_Call(uivm, UI_SET_ACTIVE_MENU, 2);
+		else
+			VM_Call(uivm, UI_SET_ACTIVE_MENU, 1);
+		key_dest = key_game;
+		return true;
+	}
+	return false;
+}
+
 qboolean UI_Command(void)
 {
 	if (uivm)
@@ -1546,8 +1611,7 @@ qboolean UI_Command(void)
 
 void UI_Init (void)
 {
-	Cmd_AddRemCommand("ui_restart", UI_Restart_f);
-	UI_Start();
+	Cmd_AddCommand("ui_restart", UI_Restart_f);
 }
 #endif
 

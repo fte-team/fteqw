@@ -13,7 +13,7 @@ static plugin_t *protocolclientplugin;
 
 qintptr_t VARGS Plug_Menu_Control(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return 0;
 
 	switch(VM_LONG(arg[0]))
@@ -56,26 +56,10 @@ qintptr_t VARGS Plug_Key_GetKeyCode(void *offset, quintptr_t mask, const qintptr
 
 qintptr_t VARGS Plug_SCR_CenterPrint(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return 0;
 
 	SCR_CenterPrint(0, VM_POINTER(arg[0]), true);
-	return 0;
-}
-qintptr_t VARGS Plug_Media_ShowFrameRGBA_32(void *offset, quintptr_t mask, const qintptr_t *arg)
-{
-	void *src = VM_POINTER(arg[0]);
-	int srcwidth = VM_LONG(arg[1]);
-	int srcheight = VM_LONG(arg[2]);
-//	int x = VM_LONG(arg[3]);
-//	int y = VM_LONG(arg[4]);
-//	int width = VM_LONG(arg[5]);
-//	int height = VM_LONG(arg[6]);
-
-	if (qrenderer <= 0)
-		return 0;
-
-	Media_ShowFrameRGBA_32(src, srcwidth, srcheight);
 	return 0;
 }
 
@@ -123,17 +107,12 @@ qintptr_t VARGS Plug_Draw_LoadImage(void *offset, quintptr_t mask, const qintptr
 	if (pluginimagearray[i].pic)
 		return i+1;	//already loaded.
 
-	if (qrenderer > 0)
+	if (qrenderer != QR_NONE)
 	{
-		if (fromwad && Draw_SafePicFromWad)
-			pic = Draw_SafePicFromWad(name);
+		if (fromwad)
+			pic = R2D_SafePicFromWad(name);
 		else
-		{
-			if (Draw_SafeCachePic)
-				pic = Draw_SafeCachePic(name);
-			else
-				pic = NULL;
-		}
+			pic = R2D_SafeCachePic(name);
 	}
 	else
 		pic = NULL;
@@ -156,12 +135,9 @@ void Plug_DrawReloadImages(void)
 			continue;
 		}
 
-		if (Draw_SafePicFromWad)
-			pluginimagearray[i].pic = Draw_SafePicFromWad(pluginimagearray[i].name);
-		else if (Draw_SafeCachePic)
-				pluginimagearray[i].pic = Draw_SafeCachePic(pluginimagearray[i].name);
-		else
-			pluginimagearray[i].pic = NULL;
+		pluginimagearray[i].pic = R2D_SafePicFromWad(pluginimagearray[i].name);
+		//pluginimagearray[i].pic = R2D_SafeCachePic(pluginimagearray[i].name);
+		//pluginimagearray[i].pic = NULL;
 	}
 }
 
@@ -179,14 +155,12 @@ void Plug_FreePlugImages(plugin_t *plug)
 	}
 }
 
-//int Draw_Image (float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t image)
+//int R2D_Image (float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t image)
 qintptr_t VARGS Plug_Draw_Image(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	mpic_t *pic;
 	int i;
-	if (qrenderer <= 0)
-		return 0;
-	if (!Draw_Image)
+	if (qrenderer == QR_NONE)
 		return 0;
 
 	i = VM_LONG(arg[8]);
@@ -202,12 +176,12 @@ qintptr_t VARGS Plug_Draw_Image(void *offset, quintptr_t mask, const qintptr_t *
 		return 0;	//wasn't loaded.
 	else
 	{
-		pic = Draw_SafeCachePic(pluginimagearray[i].name);
+		pic = R2D_SafeCachePic(pluginimagearray[i].name);
 		if (!pic)
 			return -1;
 	}
 
-	Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), pic);
+	R2D_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), pic);
 	return 1;
 }
 //x1,y1,x2,y2
@@ -215,7 +189,7 @@ qintptr_t VARGS Plug_Draw_Line(void *offset, quintptr_t mask, const qintptr_t *a
 {
 	switch(qrenderer)	//FIXME: I don't want qrenderer seen outside the refresh
 	{
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	case QR_OPENGL:
 		qglDisable(GL_TEXTURE_2D);
 		qglBegin(GL_LINES);
@@ -232,74 +206,45 @@ qintptr_t VARGS Plug_Draw_Line(void *offset, quintptr_t mask, const qintptr_t *a
 }
 qintptr_t VARGS Plug_Draw_Character(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	if (qrenderer <= 0)
+	int x, y;
+	if (qrenderer == QR_NONE)
 		return 0;
-	Draw_Character(arg[0], arg[1], (unsigned int)arg[2]);
+	Font_BeginString(font_conchar, arg[0], arg[1], &x, &y);
+	Font_DrawChar(x, y, CON_WHITEMASK | 0xe000 | (unsigned int)arg[2]);
+	Font_EndString(font_conchar);
 	return 0;
 }
-void	(D3D_Draw_Fill_Colours)				(int x, int y, int w, int h);
+
 qintptr_t VARGS Plug_Draw_Fill(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	float x, y, width, height;
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return 0;
 	x = VM_FLOAT(arg[0]);
 	y = VM_FLOAT(arg[1]);
 	width = VM_FLOAT(arg[2]);
 	height = VM_FLOAT(arg[3]);
-	switch(qrenderer)	//FIXME: I don't want qrenderer seen outside the refresh
-	{
-#ifdef RGLQUAKE
-	case QR_OPENGL:
-		qglDisable(GL_TEXTURE_2D);
-		qglBegin(GL_QUADS);
-		qglVertex2f(x, y);
-		qglVertex2f(x+width, y);
-		qglVertex2f(x+width, y+height);
-		qglVertex2f(x, y+height);
-		qglEnd();
-		qglEnable(GL_TEXTURE_2D);
-		return 1;
-#endif
-	case QR_DIRECT3D:
-//		D3D_Draw_Fill_Colours(x, y, width, height);
-		break;
-	default:
-		break;
-	}
+
+	R2D_FillBlock(x, y, width, height);
 	return 0;
 }
 qintptr_t VARGS Plug_Draw_ColourP(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	qbyte *pal = host_basepal + VM_LONG(arg[0])*3;
-
 	if (arg[0]<0 || arg[0]>255)
 		return false;
 
-	if (Draw_ImageColours)
-	{
-		Draw_ImageColours(pal[0]/255.0f, pal[1]/255.0f, pal[2]/255.0f, 1);
-		return 1;
-	}
-	return 0;
+	R2D_ImagePaletteColour(arg[0], 1);
+	return 1;
 }
 qintptr_t VARGS Plug_Draw_Colour3f(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	if (Draw_ImageColours)
-	{
-		Draw_ImageColours(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), 1);
-		return 1;
-	}
-	return 0;
+	R2D_ImageColours(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), 1);
+	return 1;
 }
 qintptr_t VARGS Plug_Draw_Colour4f(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	if (Draw_ImageColours)
-	{
-		Draw_ImageColours(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]));
-		return 1;
-	}
-	return 0;
+	R2D_ImageColours(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]));
+	return 1;
 }
 
 
@@ -312,7 +257,7 @@ qintptr_t VARGS Plug_Draw_Colour4f(void *offset, quintptr_t mask, const qintptr_
 
 qintptr_t VARGS Plug_LocalSound(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return false;
 
 	S_LocalSound(VM_POINTER(arg[0]));
@@ -332,7 +277,7 @@ qintptr_t VARGS Plug_CL_GetStats(void *offset, quintptr_t mask, const qintptr_t 
 	if (VM_OOB(arg[1], arg[2]*4))
 		return 0;
 
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return false;
 
 	max = pluginstats;
@@ -428,7 +373,7 @@ qintptr_t VARGS Plug_SetUserInfo(void *offset, quintptr_t mask, const qintptr_t 
 	char *key = VM_POINTER(arg[0]);
 	char *value = VM_POINTER(arg[1]);
 
-	CL_SetInfo(key, value);
+	CL_SetInfo(0, key, value);
 
 	return true;
 }
@@ -454,13 +399,13 @@ qintptr_t VARGS Plug_Con_SubPrint(void *offset, quintptr_t mask, const qintptr_t
 	char *text = VM_POINTER(arg[1]);
 	console_t *con;
 
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return false;
 
 	con = Con_FindConsole(name);
 	if (!con)
 	{
-		con = Con_Create(name);
+		con = Con_Create(name, 0);
 		Con_SetActive(con);
 
 		if (currentplug->conexecutecommand)
@@ -478,7 +423,7 @@ qintptr_t VARGS Plug_Con_RenameSub(void *offset, quintptr_t mask, const qintptr_
 {
 	char *name = VM_POINTER(arg[0]);
 	console_t *con;
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return false;
 	con = Con_FindConsole(name);
 	if (!con)
@@ -492,7 +437,7 @@ qintptr_t VARGS Plug_Con_IsActive(void *offset, quintptr_t mask, const qintptr_t
 {
 	char *name = VM_POINTER(arg[0]);
 	console_t *con;
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return false;
 	con = Con_FindConsole(name);
 	if (!con)
@@ -504,11 +449,11 @@ qintptr_t VARGS Plug_Con_SetActive(void *offset, quintptr_t mask, const qintptr_
 {
 	char *name = VM_POINTER(arg[0]);
 	console_t *con;
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return false;
 	con = Con_FindConsole(name);
 	if (!con)
-		con = Con_Create(name);
+		con = Con_Create(name, 0);
 
 	Con_SetActive(con);
 	return true;
@@ -517,7 +462,7 @@ qintptr_t VARGS Plug_Con_Destroy(void *offset, quintptr_t mask, const qintptr_t 
 {
 	char *name = VM_POINTER(arg[0]);
 	console_t *con;
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return false;
 	con = Con_FindConsole(name);
 	if (!con)
@@ -533,7 +478,7 @@ qintptr_t VARGS Plug_Con_NameForNum(void *offset, quintptr_t mask, const qintptr
 	int buffersize = VM_LONG(arg[2]);
 	if (VM_OOB(arg[1], arg[2]) || buffersize < 1)
 		return false;
-	if (qrenderer <= 0)
+	if (qrenderer == QR_NONE)
 		return false;
 
 	return Con_NameForNum(num, buffer, buffersize);
@@ -565,7 +510,6 @@ void Plug_Client_Init(void)
 
 	Plug_RegisterBuiltin("LocalSound",				Plug_LocalSound, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("SCR_CenterPrint",			Plug_SCR_CenterPrint, PLUG_BIF_NEEDSRENDERER);
-	Plug_RegisterBuiltin("Media_ShowFrameRGBA_32",	Plug_Media_ShowFrameRGBA_32, PLUG_BIF_NEEDSRENDERER);
 
 	Plug_RegisterBuiltin("GetLocationName",			Plug_GetLocationName, PLUG_BIF_NEEDSRENDERER);
 	Plug_RegisterBuiltin("GetPlayerInfo",			Plug_GetPlayerInfo, PLUG_BIF_NEEDSRENDERER);

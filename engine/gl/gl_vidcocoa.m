@@ -364,8 +364,8 @@ int checkDepth(int d)
 	}
 
 	// get screen size
-	vid.width = CGDisplayPixelsWide(kCGDirectMainDisplay);
-	vid.height = CGDisplayPixelsHigh(kCGDirectMainDisplay);
+	vid.pixelwidth = CGDisplayPixelsWide(kCGDirectMainDisplay);
+	vid.pixelheight = CGDisplayPixelsHigh(kCGDirectMainDisplay);
 
 	// capture the display!
 	CGDisplayCapture(kCGDirectMainDisplay);
@@ -419,7 +419,7 @@ int checkDepth(int d)
 	if ([event type] == NSKeyDown)
 	{
 		int code = keyconv[[event keyCode]];
-		Key_Event(code, code>=128?0:code, TRUE);
+		Key_Event(0, code, code>=128?0:code, TRUE);
 		//printf("%d\n",[event keyCode]);
 		return;
 	}
@@ -427,7 +427,7 @@ int checkDepth(int d)
 	if ([event type] == NSKeyUp)
 	{
 		int code = keyconv[[event keyCode]];
-		Key_Event(code, 0, FALSE);
+		Key_Event(0, code, 0, FALSE);
 		return;
 	}
 
@@ -437,27 +437,27 @@ int checkDepth(int d)
 
 		if ((mflags & NSAlternateKeyMask) ^ (oldmflags & NSAlternateKeyMask))
 		{
-			Key_Event(K_ALT, 0, (mflags & NSAlternateKeyMask) ? TRUE : FALSE);
+			Key_Event(0, K_ALT, 0, (mflags & NSAlternateKeyMask) ? TRUE : FALSE);
 		}
 
 		if ((mflags & NSControlKeyMask) ^ (oldmflags & NSControlKeyMask))
 		{
-			Key_Event(K_LCTRL, 0, (mflags & NSControlKeyMask) ? TRUE : FALSE);
+			Key_Event(0, K_LCTRL, 0, (mflags & NSControlKeyMask) ? TRUE : FALSE);
 		}
         
 		if ((mflags & NSShiftKeyMask) ^ (oldmflags & NSShiftKeyMask))
 		{
-			Key_Event(K_LSHIFT, 0, (mflags & NSShiftKeyMask) ? TRUE : FALSE);
+			Key_Event(0, K_LSHIFT, 0, (mflags & NSShiftKeyMask) ? TRUE : FALSE);
 		}
 
 		if ((mflags & NSCommandKeyMask) ^ (oldmflags & NSCommandKeyMask))
 		{
-			Key_Event(K_LWIN, 0, (mflags & NSCommandKeyMask) ? TRUE : FALSE);
+			Key_Event(0, K_LWIN, 0, (mflags & NSCommandKeyMask) ? TRUE : FALSE);
 		}
 
 		if ((mflags & NSAlphaShiftKeyMask) ^ (oldmflags & NSAlphaShiftKeyMask))
 		{
-			Key_Event(K_CAPSLOCK, 0, (mflags & NSAlphaShiftKeyMask) ? TRUE : FALSE);
+			Key_Event(0, K_CAPSLOCK, 0, (mflags & NSAlphaShiftKeyMask) ? TRUE : FALSE);
 		}
 
 		oldmflags = mflags;
@@ -507,43 +507,43 @@ int checkDepth(int d)
 
 	if ([event type] == NSLeftMouseDown)
 	{
-		Key_Event(K_MOUSE1, 0, TRUE);
+		Key_Event(0, K_MOUSE1, 0, TRUE);
 		return;
 	}
 
 	if ([event type] == NSLeftMouseUp)
 	{
-		Key_Event(K_MOUSE1, 0, FALSE);
+		Key_Event(0, K_MOUSE1, 0, FALSE);
 		return;
 	}
 
 	if ([event type] == NSRightMouseDown)
 	{
-		Key_Event(K_MOUSE2, 0, TRUE);
+		Key_Event(0, K_MOUSE2, 0, TRUE);
 		return;
 	}
 
 	if ([event type] == NSRightMouseUp)
 	{
-		Key_Event(K_MOUSE2, 0, FALSE);
+		Key_Event(0, K_MOUSE2, 0, FALSE);
 		return;
 	}
 
 	if ([event type] == NSOtherMouseDown)
 	{
-		Key_Event(K_MOUSE3, 0, TRUE);
+		Key_Event(0, K_MOUSE3, 0, TRUE);
 		return;
 	}
 
 	if ([event type] == NSOtherMouseUp)
 	{
-		Key_Event(K_MOUSE3, 0, FALSE);
+		Key_Event(0, K_MOUSE3, 0, FALSE);
 		return;
 	}
     
 	if ([event type] == NSScrollWheel)
 	{
-		Key_Event(([event deltaY] > 0.0) ? K_MWHEELUP : K_MWHEELDOWN, 0, TRUE);
+		Key_Event(0, ([event deltaY] > 0.0) ? K_MWHEELUP : K_MWHEELDOWN, 0, TRUE);
 		return;
 	}
 }    

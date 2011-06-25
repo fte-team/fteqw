@@ -43,7 +43,7 @@ typedef struct
 	qbyte		data[4];			// variably sized
 } qpic_t;
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 typedef struct
 {
 	int		texnum;
@@ -51,6 +51,7 @@ typedef struct
 } glpic_t;
 #endif
 
+/*
 //this is what's actually used.
 #define MPIC_ALPHA 1
 typedef struct	//use this so we don't have to go slow over pics, and don't have to shift too much data around.
@@ -62,12 +63,15 @@ typedef struct	//use this so we don't have to go slow over pics, and don't have 
 
 	union {
 		int dummy;
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 		glpic_t gl;
 #endif
 	} d;
+	struct shader_s *shader;
 } mpic_t;
-
+*/
+typedef struct shader_s shader_t;
+#define mpic_t shader_t
 
 extern	mpic_t		*draw_disc;	// also used on sbar
 
@@ -95,19 +99,19 @@ extern	lumpinfo_t	*wad_lumps;
 extern	qbyte		*wad_base;
 
 void	W_LoadWadFile (char *filename);
-void	W_CleanupName (char *in, char *out);
+void	W_CleanupName (const char *in, char *out);
 lumpinfo_t	*W_GetLumpinfo (char *name);
 void	*W_GetLumpName (char *name);
-void	*W_SafeGetLumpName (char *name);
+void	*W_SafeGetLumpName (const char *name);
 void	*W_GetLumpNum (int num);
 void Wads_Flush (void);
 
 void SwapPic (qpic_t *pic);
 
-
+struct model_s;
 
 void Mod_ParseWadsFromEntityLump(char *data);
 qbyte *W_ConvertWAD3Texture(miptex_t *tex, int *width, int *height, qboolean *usesalpha);
-void Mod_ParseInfoFromEntityLump(char *data, char *mapname);
+void Mod_ParseInfoFromEntityLump(struct model_s *wmodel, char *data, char *mapname);
 qboolean Wad_NextDownload (void);
 qbyte *W_GetTexture(char *name, int *width, int *height, qboolean *usesalpha);

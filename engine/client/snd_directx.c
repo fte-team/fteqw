@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -21,6 +21,20 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "winquake.h"
 
 #include <dsound.h>
+#ifndef DECLSPEC_SELECTANY
+#define DECLSPEC_SELECTANY
+#endif
+#define FORCE_DEFINE_GUID(name, l, w1, w2, b1, b2, b3, b4, b5, b6, b7, b8) \
+        EXTERN_C const GUID DECLSPEC_SELECTANY name \
+                = { l, w1, w2, { b1, b2,  b3,  b4,  b5,  b6,  b7,  b8 } }
+
+#if _MSC_VER <= 1200
+	DEFINE_GUID(IID_IKsPropertySet, 0x31efac30, 0x515c, 0x11d0, 0xa9, 0xaa, 0x00, 0xaa, 0x00, 0x61, 0xbe, 0x93);
+	DEFINE_GUID(IID_IDirectSound, 0x279AFA83, 0x4981, 0x11CE, 0xA5, 0x21, 0x00, 0x20, 0xAF, 0x0B, 0xE5, 0x60);
+#else
+	FORCE_DEFINE_GUID(IID_IDirectSound, 0x279AFA83, 0x4981, 0x11CE, 0xA5, 0x21, 0x00, 0x20, 0xAF, 0x0B, 0xE5, 0x60);
+	FORCE_DEFINE_GUID(IID_IKsPropertySet, 0x31efac30, 0x515c, 0x11d0, 0xa9, 0xaa, 0x00, 0xaa, 0x00, 0x61, 0xbe, 0x93);
+#endif
 
 #define SND_ERROR 0
 #define SND_LOADED 1
@@ -32,7 +46,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define iDirectSoundEnumerate(a,b,c)	pDirectSoundEnumerate(a,b)
 
 HRESULT (WINAPI *pDirectSoundCreate)(GUID FAR *lpGUID, LPDIRECTSOUND FAR *lplpDS, IUnknown FAR *pUnkOuter);
-#if defined(VOICECHAT) && !defined(__MINGW32__)
+#if defined(VOICECHAT)
 HRESULT (WINAPI *pDirectSoundCaptureCreate)(GUID FAR *lpGUID, LPDIRECTSOUNDCAPTURE FAR *lplpDS, IUnknown FAR *pUnkOuter);
 #endif
 HRESULT (WINAPI *pDirectSoundEnumerate)(LPDSENUMCALLBACKA lpCallback, LPVOID lpContext );
@@ -86,7 +100,7 @@ static void *DSOUND_Lock(soundcardinfo_t *sc)
 
 	reps = 0;
 
-	while ((hresult = dh->pDSBuf->lpVtbl->Lock(dh->pDSBuf, 0, dh->gSndBufSize, (void**)&ret, &dwSize, 
+	while ((hresult = dh->pDSBuf->lpVtbl->Lock(dh->pDSBuf, 0, dh->gSndBufSize, (void**)&ret, &dwSize,
 								   (void**)&pbuf2, &dwSize2, 0)) != DS_OK)
 	{
 		if (hresult != DSERR_BUFFERLOST)
@@ -193,7 +207,9 @@ static BOOL (CALLBACK  DSEnumCallback)(GUID FAR *guid, LPCSTR str1, LPCSTR str2,
 */
 
 /* new formatTag:*/
+#ifndef WAVE_FORMAT_EXTENSIBLE
 # define WAVE_FORMAT_EXTENSIBLE (0xfffe)
+#endif
 
 /* Speaker Positions:*/
 # define SPEAKER_FRONT_LEFT              0x1
@@ -237,7 +253,7 @@ static BOOL (CALLBACK  DSEnumCallback)(GUID FAR *guid, LPCSTR str1, LPCSTR str2,
                                          SPEAKER_FRONT_LEFT_OF_CENTER | SPEAKER_FRONT_RIGHT_OF_CENTER)
 
 typedef struct {
-	WAVEFORMATEX    Format;	
+	WAVEFORMATEX    Format;
 	union {
 		WORD wValidBitsPerSample;       /* bits of precision  */
 		WORD wSamplesPerBlock;          /* valid if wBitsPerSample==0 */
@@ -262,7 +278,7 @@ const static GUID  KSDATAFORMAT_SUBTYPE_PCM = {0x00000001,0x0000,0x0010,
 #ifdef _IKsPropertySet_
 const static GUID  CLSID_EAXDIRECTSOUND = {0x4ff53b81, 0x1ce0, 0x11d3,
 {0xaa, 0xb8, 0x0, 0xa0, 0xc9, 0x59, 0x49, 0xd5}};
-const static GUID  DSPROPSETID_EAX20_LISTENERPROPERTIES = {0x306a6a8, 0xb224, 0x11d2, 
+const static GUID  DSPROPSETID_EAX20_LISTENERPROPERTIES = {0x306a6a8, 0xb224, 0x11d2,
 {0x99, 0xe5, 0x0, 0x0, 0xe8, 0xd8, 0xc7, 0x22}};
 
 typedef struct _EAXLISTENERPROPERTIES
@@ -334,14 +350,14 @@ typedef enum
 } DSPROPERTY_EAX_LISTENERPROPERTY;
 
 const static GUID DSPROPSETID_EAX20_BUFFERPROPERTIES ={
-    0x306a6a7, 
-    0xb224, 
-    0x11d2, 
+    0x306a6a7,
+    0xb224,
+    0x11d2,
     {0x99, 0xe5, 0x0, 0x0, 0xe8, 0xd8, 0xc7, 0x22}};
 
 const static GUID CLSID_EAXDirectSound ={
-		0x4ff53b81, 
-		0x1ce0, 
+		0x4ff53b81,
+		0x1ce0,
 		0x11d3,
 		{0xaa, 0xb8, 0x0, 0xa0, 0xc9, 0x59, 0x49, 0xd5}};
 
@@ -352,7 +368,7 @@ typedef struct _EAXBUFFERPROPERTIES
     long lRoom;                  // room effect level
     long lRoomHF;                // room effect level at high frequencies
     float flRoomRolloffFactor;   // like DS3D flRolloffFactor but for room effect
-    long lObstruction;           // main obstruction control (attenuation at high frequencies) 
+    long lObstruction;           // main obstruction control (attenuation at high frequencies)
     float flObstructionLFRatio;  // obstruction low-frequency level re. main control
     long lOcclusion;             // main occlusion control (attenuation at high frequencies)
     float flOcclusionLFRatio;    // occlusion low-frequency level re. main control
@@ -369,17 +385,17 @@ typedef enum
     DSPROPERTY_EAXBUFFER_DIRECT,
     DSPROPERTY_EAXBUFFER_DIRECTHF,
     DSPROPERTY_EAXBUFFER_ROOM,
-    DSPROPERTY_EAXBUFFER_ROOMHF, 
+    DSPROPERTY_EAXBUFFER_ROOMHF,
     DSPROPERTY_EAXBUFFER_ROOMROLLOFFFACTOR,
     DSPROPERTY_EAXBUFFER_OBSTRUCTION,
     DSPROPERTY_EAXBUFFER_OBSTRUCTIONLFRATIO,
-    DSPROPERTY_EAXBUFFER_OCCLUSION, 
+    DSPROPERTY_EAXBUFFER_OCCLUSION,
     DSPROPERTY_EAXBUFFER_OCCLUSIONLFRATIO,
     DSPROPERTY_EAXBUFFER_OCCLUSIONROOMRATIO,
     DSPROPERTY_EAXBUFFER_OUTSIDEVOLUMEHF,
     DSPROPERTY_EAXBUFFER_AIRABSORPTIONFACTOR,
     DSPROPERTY_EAXBUFFER_FLAGS
-} DSPROPERTY_EAX_BUFFERPROPERTY; 
+} DSPROPERTY_EAX_BUFFERPROPERTY;
 #endif
 
 static void DSOUND_SetUnderWater(soundcardinfo_t *sc, qboolean underwater)
@@ -470,7 +486,7 @@ inside the recirculating dma buffer, so the mixing code will know
 how many sample are required to fill it up.
 ===============
 */
-static int DSOUND_GetDMAPos(soundcardinfo_t *sc)
+static unsigned int DSOUND_GetDMAPos(soundcardinfo_t *sc)
 {
 	DWORD	mmtime;
 	int		s;
@@ -496,7 +512,7 @@ SNDDMA_Submit
 Send sound to device if buffer isn't really the dma buffer
 ===============
 */
-static void DSOUND_Submit(soundcardinfo_t *sc)
+static void DSOUND_Submit(soundcardinfo_t *sc, int start, int end)
 {
 }
 
@@ -512,12 +528,12 @@ Direct-Sound support
 */
 int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 {
-	extern cvar_t snd_eax, snd_inactive;
+	extern cvar_t snd_inactive, snd_eax;
 	DSBUFFERDESC	dsbuf;
 	DSBCAPS			dsbcaps;
 	DWORD			dwSize, dwWrite;
 	DSCAPS			dscaps;
-	QWAVEFORMATEX	format, pformat; 
+	QWAVEFORMATEX	format, pformat;
 	HRESULT			hresult;
 	int				reps;
 	qboolean		primary_format_set;
@@ -559,7 +575,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 		format.Format.cbSize = 0;
 		sc->sn.numchannels = 1;
 	}
- 
+
 	format.Format.nChannels = sc->sn.numchannels;
     format.Format.wBitsPerSample = sc->sn.samplebits;
     format.Format.nSamplesPerSec = sc->sn.speed;
@@ -571,7 +587,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	if (!hInstDS)
 	{
 		hInstDS = LoadLibrary("dsound.dll");
-		
+
 		if (hInstDS == NULL)
 		{
 			Con_SafePrintf ("Couldn't load dsound.dll\n");
@@ -585,7 +601,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 			Con_SafePrintf ("Couldn't get DS proc addr\n");
 			return SND_ERROR;
 		}
-				
+
 		pDirectSoundEnumerate = (void *)GetProcAddress(hInstDS,"DirectSoundEnumerateA");
 	}
 
@@ -594,7 +610,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	dsndcard="DirectSound";
 	if (pDirectSoundEnumerate)
 		pDirectSoundEnumerate(&DSEnumCallback, NULL);
-	if (!snd_usemultipledevices.value)	//if only one device, ALWAYS use the default.
+	if (!snd_usemultipledevices.ival)	//if only one device, ALWAYS use the default.
 		dsndguid=NULL;
 
 	aimedforguid++;
@@ -606,10 +622,11 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	sc->handle = Z_Malloc(sizeof(dshandle_t));
 	dh = sc->handle;
  //EAX attempt
+#if _MSC_VER > 1200
 #ifndef MINIMAL
 #ifdef _IKsPropertySet_
 	dh->pDS = NULL;
-	if (snd_eax.value)
+	if (snd_eax.ival)
 	{
 		CoInitialize(NULL);
 		if (FAILED(CoCreateInstance( &CLSID_EAXDirectSound, NULL, CLSCTX_INPROC_SERVER, &IID_IDirectSound, (void **)&dh->pDS )))
@@ -619,6 +636,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	}
 
 	if (!dh->pDS)
+#endif
 #endif
 #endif
 	{
@@ -676,7 +694,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	dsbuf.lpwfxFormat = NULL;
 
 #ifdef DSBCAPS_GLOBALFOCUS
-	if (snd_inactive.value)
+	if (snd_inactive.ival)
 	{
 		dsbuf.dwFlags |= DSBCAPS_GLOBALFOCUS;
 		sc->inactive_sound = true;
@@ -715,7 +733,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 		dsbuf.dwSize = sizeof(DSBUFFERDESC);
 		dsbuf.dwFlags = DSBCAPS_CTRLFREQUENCY|DSBCAPS_LOCSOFTWARE;	//dmw 29 may, 2003 removed locsoftware
 #ifdef DSBCAPS_GLOBALFOCUS
-		if (snd_inactive.value)
+		if (snd_inactive.ival)
 		{
 			dsbuf.dwFlags |= DSBCAPS_GLOBALFOCUS;
 			sc->inactive_sound = true;
@@ -834,9 +852,10 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	sc->GetDMAPos	= DSOUND_GetDMAPos;
 	sc->Restore		= DSOUND_Restore;
 
+#if _MSC_VER > 1200
 #ifdef _IKsPropertySet_
 	//attempt at eax support
-	if (snd_eax.value)
+	if (snd_eax.ival)
 	{
 		int r;
 		DWORD support;
@@ -862,6 +881,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 		}
 	}
 #endif
+#endif
 	return SND_LOADED;
 }
 int (*pDSOUND_InitCard) (soundcardinfo_t *sc, int cardnum) = &DSOUND_InitCard;
@@ -879,26 +899,29 @@ int (*pDSOUND_InitCard) (soundcardinfo_t *sc, int cardnum) = &DSOUND_InitCard;
 
 
 
-#if defined(VOICECHAT) && defined(AVAIL_DSOUND) && !defined(__MINGW32__)
+#if defined(VOICECHAT) && defined(AVAIL_DSOUND)
 
 
-
-LPDIRECTSOUNDCAPTURE DSCapture;
-LPDIRECTSOUNDCAPTUREBUFFER DSCaptureBuffer;
-long lastreadpos;
-long bufferbytes = 1024*1024;
-
-long inputwidth = 2;
-
-static WAVEFORMATEX  wfxFormat;
-
-int SNDDMA_InitCapture (void)
+typedef struct
 {
+	LPDIRECTSOUNDCAPTURE DSCapture;
+	LPDIRECTSOUNDCAPTUREBUFFER DSCaptureBuffer;
+	long lastreadpos;
+} dsndcapture_t;
+const long bufferbytes = 1024*1024;
+
+const long inputwidth = 2;
+
+void *DSOUND_Capture_Init (int rate)
+{
+	dsndcapture_t *result;
 	DSCBUFFERDESC bufdesc;
+
+	WAVEFORMATEX  wfxFormat;
 
 	wfxFormat.wFormatTag = WAVE_FORMAT_PCM;
     wfxFormat.nChannels = 1;
-    wfxFormat.nSamplesPerSec = 11025;
+    wfxFormat.nSamplesPerSec = rate;
 	wfxFormat.wBitsPerSample = 8*inputwidth;
     wfxFormat.nBlockAlign = wfxFormat.nChannels * (wfxFormat.wBitsPerSample / 8);
 	wfxFormat.nAvgBytesPerSec = wfxFormat.nSamplesPerSec * wfxFormat.nBlockAlign;
@@ -910,30 +933,18 @@ int SNDDMA_InitCapture (void)
 	bufdesc.dwReserved = 0;
 	bufdesc.lpwfxFormat = &wfxFormat;
 
-	if (DSCaptureBuffer)
-	{
-		IDirectSoundCaptureBuffer_Stop(DSCaptureBuffer);
-		IDirectSoundCaptureBuffer_Release(DSCaptureBuffer);
-		DSCaptureBuffer=NULL;
-	}
-	if (DSCapture)
-	{
-		IDirectSoundCapture_Release(DSCapture);
-		DSCapture=NULL;
-	}
-
-
+	/*probably already inited*/
 	if (!hInstDS)
 	{
 		hInstDS = LoadLibrary("dsound.dll");
-		
+
 		if (hInstDS == NULL)
 		{
 			Con_SafePrintf ("Couldn't load dsound.dll\n");
-			return SIS_FAILURE;
+			return NULL;
 		}
-
 	}
+	/*global pointer, used only in this function*/
 	if (!pDirectSoundCaptureCreate)
 	{
 		pDirectSoundCaptureCreate = (void *)GetProcAddress(hInstDS,"DirectSoundCaptureCreate");
@@ -941,31 +952,61 @@ int SNDDMA_InitCapture (void)
 		if (!pDirectSoundCaptureCreate)
 		{
 			Con_SafePrintf ("Couldn't get DS proc addr\n");
-			return SIS_FAILURE;
+			return NULL;
 		}
 
 //		pDirectSoundCaptureEnumerate = (void *)GetProcAddress(hInstDS,"DirectSoundCaptureEnumerateA");
 	}
-	pDirectSoundCaptureCreate(NULL, &DSCapture, NULL);
 
-	if (FAILED(IDirectSoundCapture_CreateCaptureBuffer(DSCapture, &bufdesc, &DSCaptureBuffer, NULL)))
+	result = Z_Malloc(sizeof(*result));
+	if (!FAILED(pDirectSoundCaptureCreate(NULL, &result->DSCapture, NULL)))
 	{
+		if (!FAILED(IDirectSoundCapture_CreateCaptureBuffer(result->DSCapture, &bufdesc, &result->DSCaptureBuffer, NULL)))
+		{
+			return result;
+		}
+		IDirectSoundCapture_Release(result->DSCapture);
 		Con_SafePrintf ("Couldn't create a capture buffer\n");
-		IDirectSoundCapture_Release(DSCapture);
-		DSCapture=NULL;
-		return SIS_FAILURE;
 	}
-
-	IDirectSoundCaptureBuffer_Start(DSCaptureBuffer, DSBPLAY_LOOPING);
-
-	lastreadpos = 0;
-
-	return SIS_SUCCESS;
+	Z_Free(result);
+	return NULL;
 }
 
-void SNDVC_Submit(qbyte *buffer, int samples, int freq, int width);
-void DSOUND_UpdateCapture(void)
+void DSOUND_Capture_Start(void *ctx)
 {
+	DWORD capturePos;
+	dsndcapture_t *c = ctx;
+	IDirectSoundCaptureBuffer_Start(c->DSCaptureBuffer, DSBPLAY_LOOPING);
+
+	c->lastreadpos = 0;
+	IDirectSoundCaptureBuffer_GetCurrentPosition(c->DSCaptureBuffer, &capturePos, &c->lastreadpos);
+}
+
+void DSOUND_Capture_Stop(void *ctx)
+{
+	dsndcapture_t *c = ctx;
+	IDirectSoundCaptureBuffer_Stop(c->DSCaptureBuffer);
+}
+
+void DSOUND_Capture_Shutdown(void *ctx)
+{
+	dsndcapture_t *c = ctx;
+	if (c->DSCaptureBuffer)
+	{
+		IDirectSoundCaptureBuffer_Stop(c->DSCaptureBuffer);
+		IDirectSoundCaptureBuffer_Release(c->DSCaptureBuffer);
+	}
+	if (c->DSCapture)
+	{
+		IDirectSoundCapture_Release(c->DSCapture);
+	}
+	Z_Free(ctx);
+}
+
+/*minsamples is a hint*/
+unsigned int DSOUND_Capture_Update(void *ctx, unsigned char *buffer, unsigned int minbytes, unsigned int maxbytes)
+{
+	dsndcapture_t *c = ctx;
 	HRESULT hr;
 	LPBYTE lpbuf1 = NULL;
 	LPBYTE lpbuf2 = NULL;
@@ -975,77 +1016,51 @@ void DSOUND_UpdateCapture(void)
 	DWORD capturePos;
 	DWORD readPos;
 	long  filled;
-	static int update;
-
-	char *pBuffer;
-
-
-//	return;
-
-	if (!snd_capture.value)
-	{
-		if (DSCaptureBuffer)
-		{
-			IDirectSoundCaptureBuffer_Stop(DSCaptureBuffer);
-			IDirectSoundCaptureBuffer_Release(DSCaptureBuffer);
-			DSCaptureBuffer=NULL;
-		}
-		if (DSCapture)
-		{
-			IDirectSoundCapture_Release(DSCapture);
-			DSCapture=NULL;
-		}
-		return;
-	}
-	else if (!DSCaptureBuffer)
-	{
-		SNDDMA_InitCapture();
-		return;
-	}
 
 // Query to see how much data is in buffer.
-	hr = IDirectSoundCaptureBuffer_GetCurrentPosition( DSCaptureBuffer, &capturePos, &readPos );
-	if( hr != DS_OK )
+	hr = IDirectSoundCaptureBuffer_GetCurrentPosition(c->DSCaptureBuffer, &capturePos, &readPos);
+	if (hr != DS_OK)
 	{
-		return;
+		return 0;
 	}
-	filled = readPos - lastreadpos;
-	if( filled < 0 ) filled += bufferbytes; // unwrap offset
+	filled = readPos - c->lastreadpos;
+	if (filled < 0)
+		filled += bufferbytes; // unwrap offset
 
-	if (filled > 1400)	//figure out how much we need to empty it by, and if that's enough to be worthwhile.
-		filled = 1400;
-	else if (filled < 1400)
-		return;
+	if (filled > maxbytes)	//figure out how much we need to empty it by, and if that's enough to be worthwhile.
+		filled = maxbytes;
+	else if (filled < minbytes)
+		return 0;
 
-	if ((filled/inputwidth) & 1)	//force even numbers of samples
-		filled -= inputwidth;
-
-	pBuffer = BZ_Malloc(filled*inputwidth);
-
+//	filled /= inputwidth;
+//	filled *= inputwidth;
 
 	// Lock free space in the DS
-	hr = IDirectSoundCaptureBuffer_Lock ( DSCaptureBuffer, lastreadpos, filled, (void **) &lpbuf1, &dwsize1,
-		(void **) &lpbuf2, &dwsize2, 0);
+	hr = IDirectSoundCaptureBuffer_Lock(c->DSCaptureBuffer, c->lastreadpos, filled, (void **) &lpbuf1, &dwsize1, (void **) &lpbuf2, &dwsize2, 0);
 	if (hr == DS_OK)
 	{
 		// Copy from DS to the buffer
-		memcpy( pBuffer, lpbuf1, dwsize1);
+		memcpy(buffer, lpbuf1, dwsize1);
 		if(lpbuf2 != NULL)
 		{
-			memcpy( pBuffer+dwsize1, lpbuf2, dwsize2);
+			memcpy(buffer+dwsize1, lpbuf2, dwsize2);
 		}
 		// Update our buffer offset and unlock sound buffer
- 		lastreadpos = (lastreadpos + dwsize1 + dwsize2) % bufferbytes;
-		IDirectSoundCaptureBuffer_Unlock ( DSCaptureBuffer, lpbuf1, dwsize1, lpbuf2, dwsize2);
+ 		c->lastreadpos = (c->lastreadpos + dwsize1 + dwsize2) % bufferbytes;
+		IDirectSoundCaptureBuffer_Unlock(c->DSCaptureBuffer, lpbuf1, dwsize1, lpbuf2, dwsize2);
 	}
 	else
 	{
-		BZ_Free(pBuffer);
-		return;
+		return 0;
 	}
-
-	SNDVC_MicInput(pBuffer, filled, wfxFormat.nSamplesPerSec, inputwidth); 
-	BZ_Free(pBuffer);
+	return filled;
 }
-void (*pDSOUND_UpdateCapture) (void) = &DSOUND_UpdateCapture;
+snd_capture_driver_t DSOUND_Capture =
+{
+	DSOUND_Capture_Init,
+	DSOUND_Capture_Start,
+	DSOUND_Capture_Update,
+	DSOUND_Capture_Stop,
+	DSOUND_Capture_Shutdown
+};
 #endif

@@ -9,9 +9,6 @@ extern cvar_t vid_hardwaregamma;
 extern cvar_t gl_lateswap;
 extern int gammaworks;
 
-int glwidth;
-int glheight;
-
 #ifdef _WIN32	//half the rest of the code uses windows apis to focus windows. Should be fixed, but it's not too important.
 HWND mainwindow;
 #endif
@@ -67,10 +64,10 @@ Con_Printf("Getting gamma\n");
 		flags = SDL_RESIZABLE;
 		vid_isfullscreen = false;
 	}
-	sdlsurf = SDL_SetVideoMode(glwidth=info->width, glheight=info->height, info->bpp, flags | SDL_OPENGL);
+	sdlsurf = SDL_SetVideoMode(vid.pixelwidth=info->width, vid.pixelheight=info->height, info->bpp, flags | SDL_OPENGL);
 	if (!sdlsurf)
 	{
-		Con_Printf(stderr, "Couldn't set GL mode: %s\n", SDL_GetError());
+		Con_Printf("Couldn't set GL mode: %s\n", SDL_GetError());
 		return false;
 	}
 
@@ -81,7 +78,7 @@ Con_Printf("Getting gamma\n");
 	GLVID_SetPalette (palette);
 	GL_Init(SDL_GL_GetProcAddress);
 
-	qglViewport (0, 0, glwidth, glheight);
+	qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
 
 	mouseactive = false;
 	if (vid_isfullscreen)
@@ -102,12 +99,8 @@ void GLVID_DeInit (void)
 }
 
 
-void GL_BeginRendering (int *x, int *y, int *width, int *height)
+void GL_BeginRendering (void)
 {
-	*x = *y = 0;
-	*width = glwidth;//WindowRect.right - WindowRect.left;
-	*height = glheight;//WindowRect.bottom - WindowRect.top;
-
 //    if (!wglMakeCurrent( maindc, baseRC ))
 //		Sys_Error ("wglMakeCurrent failed");
 
@@ -149,32 +142,6 @@ void GL_EndRendering (void)
 	screenflush = true;
 	if (!gl_lateswap.value)
 		GL_DoSwap();
-}
-
-
-
-void GLVID_LockBuffer (void)
-{
-}
-
-void GLVID_UnlockBuffer (void)
-{
-}
-
-int GLVID_ForceUnlockedAndReturnState (void)
-{
-	return 0;
-}
-
-void GLD_BeginDirectRect (int x, int y, qbyte *pbitmap, int width, int height)
-{
-}
-
-void GLD_EndDirectRect (int x, int y, int width, int height)
-{
-}
-void GLVID_ForceLockState (int lk)
-{
 }
 
 void	GLVID_SetPalette (unsigned char *palette)

@@ -8,6 +8,7 @@
 #include <errno.h>
 
 #include "fs.h"
+#include "shader.h"
 
 #if defined(MINGW) && defined(_SDL)
 #include "./mingw-libs/SDL_syswm.h" // mingw sdl cross binary complains off sys_parentwindow
@@ -15,6 +16,7 @@
 
 hashtable_t filesystemhash;
 qboolean com_fschanged = true;
+static unsigned int fs_restarts;
 extern cvar_t com_fs_cache;
 int active_fs_cachetype;
 
@@ -70,7 +72,7 @@ char *VFS_GETS(vfsfile_t *vf, char *buffer, int buflen)
 		return NULL;
 	while (len > 0)
 	{
-		if (!VFS_READ(vf, &in, 1))
+		if (VFS_READ(vf, &in, 1) != 1)
 		{
 			if (len == buflen-1)
 				return NULL;
@@ -130,9 +132,9 @@ int fs_hash_files;
 
 
 
-static int COM_FileOpenRead (char *path, FILE **hndl);
 static const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen);
 void FS_RegisterDefaultFileSystems(void);
+static void	COM_CreatePath (char *path);
 
 #define ENFORCEFOPENMODE(mode) {if (strcmp(mode, "r") && strcmp(mode, "w")/* && strcmp(mode, "rw")*/)Sys_Error("fs mode %s is not permitted here\n");}
 
@@ -287,12 +289,12 @@ void COM_Locate_f (void)
 	{
 		if (!*loc.rawname)
 		{
-			Con_Printf("File is compressed inside ");
+			Con_Printf("File is %i bytes compressed inside ", loc.len);
 			loc.search->funcs->PrintPath(loc.search->handle);
 		}
 		else
 		{
-			Con_Printf("Inside %s\n", loc.rawname);
+			Con_Printf("Inside %s (%i bytes)\n", loc.rawname, loc.len);
 			loc.search->funcs->PrintPath(loc.search->handle);
 		}
 	}
@@ -347,7 +349,7 @@ COM_CreatePath
 Only used for CopyFile and download
 ============
 */
-void	COM_CreatePath (char *path)
+static void	COM_CreatePath (char *path)
 {
 	char	*ofs;
 
@@ -458,7 +460,7 @@ void FS_RebuildFSHash(void)
 
 	com_fschanged = false;
 
-	Con_Printf("%i unique files, %i duplicates\n", fs_hash_files, fs_hash_dups);
+	Con_DPrintf("%i unique files, %i duplicates\n", fs_hash_files, fs_hash_dups);
 }
 
 /*
@@ -478,7 +480,6 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 	char cleanpath[MAX_QPATH];
 
 	void *pf;
-//Con_Printf("Finding %s: ", filename);
 
 	filename = FS_GetCleanPath(filename, cleanpath, sizeof(cleanpath));
 	if (!filename)
@@ -487,7 +488,7 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 		goto fail;
 	}
 
-	if (com_fs_cache.value)
+	if (com_fs_cache.ival)
 	{
 		if (com_fschanged)
 			FS_RebuildFSHash();
@@ -608,6 +609,7 @@ char *FS_GetPackHashes(char *buffer, int buffersize, qboolean referencedonly)
 }
 char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly)
 {
+	char temp[MAX_OSPATH];
 	searchpath_t	*search;
 	buffersize--;
 	*buffer = 0;
@@ -616,7 +618,8 @@ char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly)
 	{
 		for (search = com_purepaths ; search ; search = search->nextpure)
 		{
-			Q_strncatz(buffer, va("%s ", search->purepath), buffersize);
+			COM_StripExtension(search->purepath, temp, sizeof(temp));
+			Q_strncatz(buffer, va("%s ", temp), buffersize);
 		}
 		return buffer;
 	}
@@ -628,7 +631,8 @@ char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly)
 				search->crc_check = search->funcs->GeneratePureCRC(search->handle, 0, 0);
 			if (search->crc_check)
 			{
-				Q_strncatz(buffer, va("%s ", search->purepath), buffersize);
+				COM_StripExtension(search->purepath, temp, sizeof(temp));
+				Q_strncatz(buffer, va("%s ", temp), buffersize);
 			}
 		}
 		return buffer;
@@ -720,11 +724,13 @@ static const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen
 	if (strstr(pattern, "//"))
 	{
 		//amiga uses // as equivelent to /../
+		//so strip those out
+		//any other system ignores the extras
 
 		Q_strncpyz(outbuf, pattern, outlen);
 		pattern = outbuf;
 
-		Con_Printf("Warning: // characters in filename %s\n", pattern);
+		Con_DPrintf("Warning: // characters in filename %s\n", pattern);
 		while ((s=strstr(pattern, "//")))
 		{
 			s++;
@@ -735,11 +741,15 @@ static const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen
 			}
 		}
 	}
+	if (*pattern == '/')
+	{
+		/*'fix up' and ignore, compat with q3*/
+		Con_DPrintf("Error: absolute path in filename %s\n", pattern);
+		pattern++;
+	}
 
 	if (strstr(pattern, ".."))
 		Con_Printf("Error: '..' characters in filename %s\n", pattern);
-	else if (pattern[0] == '/')
-		Con_Printf("Error: absolute path in filename %s\n", pattern);
 	else if (strstr(pattern, ":")) //win32 drive seperator (or mac path seperator, but / works there and they're used to it) (or amiga device separator)
 		Con_Printf("Error: absolute path in filename %s\n", pattern);
 	else
@@ -748,161 +758,6 @@ static const char *FS_GetCleanPath(const char *pattern, char *outbuf, int outlen
 	}
 	return NULL;
 }
-
-#ifdef AVAIL_ZLIB
-typedef struct {
-	unsigned char ident1;
-	unsigned char ident2;
-	unsigned char cm;
-	unsigned char flags;
-	unsigned int mtime;
-	unsigned char xflags;
-	unsigned char os;
-} gzheader_t;
-#define sizeofgzheader_t 10
-
-#define	GZ_FTEXT	1
-#define	GZ_FHCRC	2
-#define GZ_FEXTRA	4
-#define GZ_FNAME	8
-#define GZ_FCOMMENT	16
-#define GZ_RESERVED (32|64|128)
-
-#include <zlib.h>
-#ifdef _WIN32
-#pragma comment( lib, "../libs/zlib.lib" )
-#endif
-
-vfsfile_t *FS_DecompressGZip(vfsfile_t *infile, gzheader_t *header)
-{
-	char inchar;
-	unsigned short inshort;
-	vfsfile_t *temp;
-
-	if (header->flags & GZ_RESERVED)
-	{	//reserved bits should be 0
-		//this is probably static, so it's not a gz. doh.
-		VFS_SEEK(infile, 0);
-		return infile;
-	}
-
-	if (header->flags & GZ_FEXTRA)
-	{
-		VFS_READ(infile, &inshort, sizeof(inshort));
-		inshort = LittleShort(inshort);
-		VFS_SEEK(infile, VFS_TELL(infile) + inshort);
-	}
-
-	if (header->flags & GZ_FNAME)
-	{
-		Con_Printf("gzipped file name: ");
-		do {
-			if (VFS_READ(infile, &inchar, sizeof(inchar)) != 1)
-				break;
-			Con_Printf("%c", inchar);
-		} while(inchar);
-		Con_Printf("\n");
-	}
-
-	if (header->flags & GZ_FCOMMENT)
-	{
-		Con_Printf("gzipped file comment: ");
-		do {
-			if (VFS_READ(infile, &inchar, sizeof(inchar)) != 1)
-				break;
-			Con_Printf("%c", inchar);
-		} while(inchar);
-		Con_Printf("\n");
-	}
-
-	if (header->flags & GZ_FHCRC)
-	{
-		VFS_READ(infile, &inshort, sizeof(inshort));
-	}
-
-
-
-	temp = FS_OpenTemp();
-	if (!temp)
-	{
-		VFS_SEEK(infile, 0);	//doh
-		return infile;
-	}
-
-
-	{
-		char inbuffer[16384];
-		char outbuffer[16384];
-		int ret;
-
-		z_stream strm = {
-			inbuffer,
-			0,
-			0,
-
-			outbuffer,
-			sizeof(outbuffer),
-			0,
-
-			NULL,
-			NULL,
-
-			NULL,
-			NULL,
-			NULL,
-
-			Z_UNKNOWN,
-			0,
-			0
-		};
-
-		strm.avail_in = VFS_READ(infile, inbuffer, sizeof(inbuffer));
-		strm.next_in = inbuffer;
-
-		inflateInit2(&strm, -MAX_WBITS);
-
-		while ((ret=inflate(&strm, Z_SYNC_FLUSH)) != Z_STREAM_END)
-		{
-			if (strm.avail_in == 0 || strm.avail_out == 0)
-			{
-				if (strm.avail_in == 0)
-				{
-					strm.avail_in = VFS_READ(infile, inbuffer, sizeof(inbuffer));
-					strm.next_in = inbuffer;
-				}
-
-				if (strm.avail_out == 0)
-				{
-					strm.next_out = outbuffer;
-					VFS_WRITE(temp, outbuffer, strm.total_out);
-					strm.total_out = 0;
-					strm.avail_out = sizeof(outbuffer);
-				}
-				continue;
-			}
-
-			//doh, it terminated for no reason
-			inflateEnd(&strm);
-			if (ret != Z_STREAM_END)
-			{
-				Con_Printf("Couldn't decompress gz file\n");
-				VFS_CLOSE(temp);
-				VFS_CLOSE(infile);
-				return NULL;
-			}
-		}
-		//we got to the end
-		VFS_WRITE(temp, outbuffer, strm.total_out);
-
-		inflateEnd(&strm);
-
-		VFS_SEEK(temp, 0);
-	}
-	VFS_CLOSE(infile);
-
-	return temp;
-}
-#endif
 
 vfsfile_t *VFS_Filter(const char *filename, vfsfile_t *handle)
 {
@@ -914,15 +769,7 @@ vfsfile_t *VFS_Filter(const char *filename, vfsfile_t *handle)
 #ifdef AVAIL_ZLIB
 //	if (!stricmp(ext, ".gz"))
 	{
-		gzheader_t gzh;
-		if (VFS_READ(handle, &gzh, sizeofgzheader_t) == sizeofgzheader_t)
-		{
-			if (gzh.ident1 == 0x1f && gzh.ident2 == 0x8b && gzh.cm == 8)
-			{	//it'll do
-				return FS_DecompressGZip(handle, &gzh);
-			}
-		}
-		VFS_SEEK(handle, 0);
+		return FS_DecompressGZip(handle);
 	}
 #endif
 	return handle;
@@ -986,9 +833,11 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 
 
 	if (strcmp(mode, "rb"))
-		if (strcmp(mode, "wb"))
-			if (strcmp(mode, "ab"))
-				return NULL; //urm, unable to write/append
+		if (strcmp(mode, "r+b"))
+			if (strcmp(mode, "wb"))
+				if (strcmp(mode, "w+b"))
+					if (strcmp(mode, "ab"))
+						return NULL; //urm, unable to write/append
 
 	//if there can only be one file (eg: write access) find out where it is.
 	switch (relativeto)
@@ -1050,7 +899,10 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 
 	//if we're meant to be writing, best write to it.
 	if (strchr(mode , 'w') || strchr(mode , 'a'))
+	{
+		COM_CreatePath(fullname);
 		return VFSOS_Open(fullname, mode);
+	}
 	return NULL;
 }
 
@@ -1213,25 +1065,14 @@ qbyte *COM_LoadFile (const char *path, int usehunk)
 		Sys_Error ("COM_LoadFile: not enough space for %s", path);
 
 	((qbyte *)buf)[len] = 0;
-#ifndef SERVERONLY
-	if (qrenderer)
-		if (Draw_BeginDisc)
-			Draw_BeginDisc ();
-#endif
 
 	VFS_READ(f, buf, len);
 	VFS_CLOSE(f);
 
-#ifndef SERVERONLY
-	if (qrenderer)
-		if (Draw_EndDisc)
-			Draw_EndDisc ();
-#endif
-
 	return buf;
 }
 
-qbyte *COM_LoadMallocFile (const char *path)	//used for temp info along side temp hunk
+qbyte *FS_LoadMallocFile (const char *path)
 {
 	return COM_LoadFile (path, 5);
 }
@@ -1272,7 +1113,7 @@ qbyte *COM_LoadStackFile (const char *path, void *buffer, int bufsize)
 /*warning: at some point I'll change this function to return only read-only buffers*/
 int FS_LoadFile(char *name, void **file)
 {
-	*file = COM_LoadMallocFile(name);
+	*file = FS_LoadMallocFile(name);
 	if (!*file)
 		return -1;
 	return com_filesize;
@@ -1462,7 +1303,6 @@ static void FS_AddDataFiles(const char *purepath, const char *pathto, searchpath
 		vfs = search->funcs->OpenVFS(search->handle, &loc, "r");
 		if (!vfs)
 			break;
-		Con_Printf("Opened %s\n", pakfile);
 		handle = funcs->OpenNew (vfs, pakfile);
 		if (!handle)
 			break;
@@ -1526,9 +1366,21 @@ void COM_RefreshFSCache_f(void)
 
 void COM_FlushFSCache(void)
 {
-	if (com_fs_cache.value != 2)
+	if (com_fs_cache.ival != 2)
 		com_fschanged=true;
 }
+
+/*since should start as 0, otherwise this can be used to poll*/
+qboolean FS_Restarted(unsigned int *since)
+{
+	if (*since < fs_restarts)
+	{
+		*since = fs_restarts;
+		return true;
+	}
+	return false;
+}
+
 /*
 ================
 FS_AddGameDirectory
@@ -1542,6 +1394,8 @@ void FS_AddGameDirectory (const char *puredir, const char *dir, unsigned int loa
 	searchpath_t	*search;
 
 	char			*p;
+
+	fs_restarts++;
 
 	if ((p = strrchr(dir, '/')) != NULL)
 		strcpy(gamedirfile, ++p);
@@ -1638,6 +1492,7 @@ void COM_Gamedir (const char *dir)
 	searchpath_t	*next;
 	int plen, dlen;
 	char *p;
+	qboolean isbase;
 
 	if (!*dir || !strcmp(dir, ".") || strstr(dir, "..") || strstr(dir, "/")
 		|| strstr(dir, "\\") || strstr(dir, ":") )
@@ -1646,9 +1501,12 @@ void COM_Gamedir (const char *dir)
 		return;
 	}
 
+	isbase = false;
 	dlen = strlen(dir);
-	for (next = com_base_searchpaths; next; next = next->next)
+	for (next = com_searchpaths; next; next = next->next)
 	{
+		if (next == com_base_searchpaths)
+			isbase = true;
 		if (next->funcs == &osfilefuncs)
 		{
 			p = next->handle;
@@ -1657,14 +1515,32 @@ void COM_Gamedir (const char *dir)
 			{
 				//no basedir, maybe
 				if (!strcmp(p, dir))
-					return;
+				{
+					if (isbase && com_searchpaths == com_base_searchpaths)
+					{
+						Q_strncpyz (gamedirfile, dir, sizeof(gamedirfile));
+						return;
+					}
+					if (!isbase)
+						return;
+					break;
+				}
 			}
 			else if (plen > dlen)
 			{
 				if (*(p+plen-dlen-1) == '/')
 				{
 					if (!strcmp(p+plen-dlen, dir))
-						return;
+					{
+						if (isbase && com_searchpaths == com_base_searchpaths)
+						{
+							Q_strncpyz (gamedirfile, dir, sizeof(gamedirfile));
+							return;
+						}
+						if (!isbase)
+							return;
+						break;
+					}
 				}
 			}
 
@@ -1677,7 +1553,7 @@ void COM_Gamedir (const char *dir)
 	Host_WriteConfiguration();	//before we change anything.
 #endif
 
-	strcpy (gamedirfile, dir);
+	Q_strncpyz (gamedirfile, dir, sizeof(gamedirfile));
 
 #ifndef CLIENTONLY
 	sv.gamedirchanged = true;
@@ -1709,7 +1585,7 @@ void COM_Gamedir (const char *dir)
 	if (strchr(dir, ';'))
 	{
 		//separate case because parsestringset splits by whitespace too
-		while (dir = COM_ParseStringSet(dir))
+		while ((dir = COM_ParseStringSet(dir)))
 		{
 			if (!strcmp(dir, ";"))
 				continue;
@@ -1732,7 +1608,7 @@ void COM_Gamedir (const char *dir)
 #ifndef SERVERONLY
 	if (!isDedicated)
 	{
-//		if (qrenderer>0)	//only do this if we have already started the renderer
+//		if (qrenderer != QR_NONE)	//only do this if we have already started the renderer
 //			Cbuf_InsertText("vid_restart\n", RESTRICT_LOCAL);
 
 
@@ -1741,17 +1617,11 @@ void COM_Gamedir (const char *dir)
 			Cbuf_InsertText("cl_warncmd 0\n"
 							"exec config.cfg\n"
 							"exec fte.cfg\n"
-							"exec frontend.cfg\n"
 							"cl_warncmd 1\n", RESTRICT_LOCAL, false);
 		}
 	}
 
-#ifdef Q3SHADERS
-	{
-		extern void Shader_Init(void);
-		Shader_Init();	//FIXME!
-	}
-#endif
+	Shader_Init();	//FIXME!
 
 	COM_Effectinfo_Clear();
 
@@ -1762,14 +1632,16 @@ void COM_Gamedir (const char *dir)
 #endif
 }
 
-#define NEXCFG "set sv_maxairspeed \"400\"\nset sv_mintic \"0.01\"\ncl_nolerp 0\n"
+#define DPCOMPAT "set _cl_playermodel \"\"\n set dpcompat_set 1\n set dpcompat_trailparticles 1\nset dpcompat_corruptglobals 1\nset vid_pixelheight 1\n"
+#define NEXCFG DPCOMPAT "set r_particlesdesc effectinfo\nset sv_maxairspeed \"400\"\nset sv_jumpvelocity 270\nset sv_mintic \"0.01\"\ncl_nolerp 0\nset r_particlesdesc effectinfo\n"
 #define DMFCFG "set com_parseutf8 1\npm_airstep 1\n"
+#define HEX2CFG "set r_particlesdesc \"spikeset tsshaft h2part\"\nset sv_maxspeed 640\nset watervis 1\nset r_wateralpha 0.5\nset sv_pupglow 1\nset cl_model_bobbing 1\n"
 
 typedef struct {
 	const char *protocolname;	//sent to the master server when this is the current gamemode.
 	const char *exename;	//used if the exe name contains this
 	const char *argname;	//used if this was used as a parameter.
-	const char *auniquefile;	//used if this file is relative from the gamedir
+	const char *auniquefile[4];	//used if this file is relative from the gamedir
 
 	const char *customexec;
 
@@ -1782,20 +1654,25 @@ const gamemode_info_t gamemode_info[] = {
 
 //rogue/hipnotic have no special files - the detection conflicts and stops us from running regular quake
 	//protocol name(dpmaster) exename        cmdline switch   identifying file   exec     dir1       dir2    dir3       dir(fte)     full name
-	{"Darkplaces-Quake",	"darkplaces",	"-quake",		"id1/pak0.pak",		NULL,	{"id1",		"qw",				"fte"},		"Quake"},
-	{"Darkplaces-Hipnotic",	"hipnotic",		"-hipnotic",	NULL,				NULL,	{"id1",		"qw",	"hipnotic",	"fte"},		"Quake: Scourge of Armagon"},
-	{"Darkplaces-Rogue",	"rogue",		"-rogue",		NULL,				NULL,	{"id1",		"qw",	"rogue",	"fte"},		"Quake: Dissolution of Eternity"},
-	{"Nexuiz",				"nexuiz",		"-nexuiz",		"nexuiz.exe",		NEXCFG,	{"data",						"ftedata"},	"Nexuiz"},
-	{"DMF",					"dmf",			"-dmf",			"base/src/progs.src",DMFCFG,{"base",						         },		"DMF"},
+	{"Darkplaces-Quake",	"q1",			"-quake",		{"id1/pak0.pak"},		NULL,	{"id1",		"qw",				"fte"},		"Quake"},
+	{"Darkplaces-Hipnotic",	"hipnotic",		"-hipnotic",	{NULL},					NULL,	{"id1",		"qw",	"hipnotic",	"fte"},		"Quake: Scourge of Armagon"},
+	{"Darkplaces-Rogue",	"rogue",		"-rogue",		{NULL},					NULL,	{"id1",		"qw",	"rogue",	"fte"},		"Quake: Dissolution of Eternity"},
+	{"Nexuiz",				"nexuiz",		"-nexuiz",		{"nexuiz.exe"},			NEXCFG,	{"data",						"ftedata"},	"Nexuiz"},
+	{"Xonotic",				"xonotic",		"-xonotic",		{"xonotic.exe"},		NEXCFG,	{"data",						"ftedata"},	"Xonotic"},
+	{"DMF",					"dmf",			"-dmf",			{"base/src/progs.src"},	DMFCFG,	{"base",						         },		"DMF"},
 
 	//supported commercial mods (some are currently only partially supported)
-	{"FTE-Hexen2",			"hexen",		"-hexen2",		"data1/pak0.pak",	NULL,	{"data1",						"fteh2"},		"Hexen II"},
-	{"FTE-Quake2",			"q2",			"-q2",			"baseq2/pak0.pak",	NULL,	{"baseq2",						"fteq2"},	"Quake II"},
-	{"FTE-Quake3",			"q3",			"-q3",			"baseq3/pak0.pk3",	NULL,	{"baseq3",						"fteq3"},	"Quake III Arena"},
+	{"FTE-H2MP",			"h2mp",			"-portals",		{"portals/hexen.rc",
+															 "portals/pak3.pak"},	HEX2CFG,{"data1",	"portals",			"fteh2"},		"Hexen II MP"},
+	{"FTE-Hexen2",			"hexen2",		"-hexen2",		{"data1/pak0.pak"},		HEX2CFG,{"data1",						"fteh2"},		"Hexen II"},
+	{"FTE-Quake2",			"q2",			"-q2",			{"baseq2/pak0.pak"},	NULL,	{"baseq2",						"fteq2"},	"Quake II"},
+	{"FTE-Quake3",			"q3",			"-q3",			{"baseq3/pak0.pk3"},	NULL,	{"baseq3",						"fteq3"},	"Quake III Arena"},
+	{"FTE-Quake4",			"q4",			"-q4",			{"q4base/pak00.pk4"},	NULL,	{"q4base",						"fteq4"},	"Quake 4"},
+	{"FTE-EnemyTerritory",	"et",			"-et",			{"etmain/pak0.pk3"},	NULL,	{"etmain",						"fteet"},	"Wolfenstein - Enemy Territory"},
 
-	{"FTE-JK2",				"jk2",			"-jk2",			"base/assets0.pk3",	NULL,	{"base",						"fte"},		"Jedi Knight II: Jedi Outcast"},
+	{"FTE-JK2",				"jk2",			"-jk2",			{"base/assets0.pk3"},	NULL,	{"base",						"fte"},		"Jedi Knight II: Jedi Outcast"},
 
-	{"FTE-HalfLife",		"hl",			"-halflife",	"valve/liblist.gam",NULL,	{"valve",						"ftehl"},	"Half-Life"},
+	{"FTE-HalfLife",		"hl",			"-halflife",	{"valve/liblist.gam"}	,NULL,	{"valve",						"ftehl"},	"Half-Life"},
 
 	{NULL}
 };
@@ -1997,6 +1874,29 @@ void FS_ReloadPackFiles_f(void)
 #define byte BYTE	//some versions of mingw headers are broken slightly. this lets it compile.
 #endif
 #include <shlobj.h>
+static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir, char *fname)
+{
+	/*
+	Find where Valve's Steam distribution platform is installed.
+	Then take a look at that location for the relevent installed app.
+	*/
+	FILE *f;
+	DWORD resultlen;
+	HKEY key = NULL;
+	if (!FAILED(RegOpenKeyEx(HKEY_CURRENT_USER, "SOFTWARE\\Valve\\Steam", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
+	{
+		resultlen = basepathlen;
+		RegQueryValueEx(key, "SteamPath", NULL, NULL, basepath, &resultlen);
+		RegCloseKey(key);
+		Q_strncatz(basepath, va("/SteamApps/common/%s", steamdir), basepathlen);
+		if ((f = fopen(va("%s/%s", basepath, fname), "rb")))
+		{
+			fclose(f);
+			return true;
+		}
+	}
+	return false;
+}
 qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen)
 {
 	DWORD resultlen;
@@ -2025,27 +1925,18 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 
 	if (!strcmp(gamename, "q1"))
 	{
+		FILE *f;
+
 		//try and find it via steam
 		//reads HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam\InstallPath
 		//append SteamApps\common\quake
 		//use it if we find winquake.exe there
-		FILE *f;
-		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Valve\\Steam", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
-		{
-			resultlen = basepathlen;
-			RegQueryValueEx(key, "InstallPath", NULL, NULL, basepath, &resultlen);
-			RegCloseKey(key);
-			Q_strncatz(basepath, "/SteamApps/common/quake", basepathlen);
-			if (f = fopen(va("%s/Winquake.exe", basepath), "rb"))
-			{
-				fclose(f);
-				return true;
-			}
-		}
+		if (Sys_SteamHasFile(basepath, basepathlen, "quake", "Winquake.exe"))
+			return true;
 		//well, okay, so they don't have quake installed from steam.
 
 		//quite a lot of people have it in c:\quake, as that's the default install location from the quake cd.
-		if (f = fopen("c:/quake/quake.exe", "rb"))
+		if ((f = fopen("c:/quake/quake.exe", "rb")))
 		{
 			//HAHAHA! Found it!
 			fclose(f);
@@ -2056,26 +1947,9 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 
 	if (!strcmp(gamename, "q2"))
 	{
-		//try and find it via steam
-		//reads HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam\InstallPath
-		//append SteamApps\common\quake 2
-		//use it if we find quake2.exe there
 		FILE *f;
 		DWORD resultlen;
 		HKEY key = NULL;
-		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Valve\\Steam", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
-		{
-			resultlen = basepathlen;
-			RegQueryValueEx(key, "InstallPath", NULL, NULL, basepath, &resultlen);
-			RegCloseKey(key);
-			Q_strncatz(basepath, "/SteamApps/common/quake 2", basepathlen);
-			if (f = fopen(va("%s/quake2.exe", basepath), "rb"))
-			{
-				fclose(f);
-				return true;
-			}
-		}
-		//well, okay, so they don't have quake2 installed from steam.
 
 		//look for HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Quake2_exe\Path
 		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Quake2_exe", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
@@ -2083,27 +1957,76 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 			resultlen = basepathlen;
 			RegQueryValueEx(key, "Path", NULL, NULL, basepath, &resultlen);
 			RegCloseKey(key);
-			if (f = fopen(va("%s/quake2.exe", basepath), "rb"))
+			if ((f = fopen(va("%s/quake2.exe", basepath), "rb")))
 			{
 				fclose(f);
 				return true;
 			}
 		}
+
+		if (Sys_SteamHasFile(basepath, basepathlen, "quake 2", "quake2.exe"))
+			return true;
+	}
+
+	if (!strcmp(gamename, "et"))
+	{
+		FILE *f;
+		DWORD resultlen;
+		HKEY key = NULL;
+		//reads HKEY_LOCAL_MACHINE\SOFTWARE\Activision\Wolfenstein - Enemy Territory
+		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Activision\\Wolfenstein - Enemy Territory", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
+		{
+			resultlen = basepathlen;
+			RegQueryValueEx(key, "InstallPath", NULL, NULL, basepath, &resultlen);
+			RegCloseKey(key);
+
+			if ((f = fopen(va("%s/ET.exe", basepath), "rb")))
+			{
+				fclose(f);
+				return true;
+			}
+			return true;
+		}
 	}
 
 	if (!strcmp(gamename, "q3"))
 	{
+		FILE *f;
 		DWORD resultlen;
 		HKEY key = NULL;
+
 		//reads HKEY_LOCAL_MACHINE\SOFTWARE\id\Quake III Arena\InstallPath
 		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\id\\Quake III Arena", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
 		{
 			resultlen = basepathlen;
 			RegQueryValueEx(key, "InstallPath", NULL, NULL, basepath, &resultlen);
 			RegCloseKey(key);
+
+			if ((f = fopen(va("%s/quake3.exe", basepath), "rb")))
+			{
+				fclose(f);
+				return true;
+			}
+		}
+
+		if (Sys_SteamHasFile(basepath, basepathlen, "quake 3 arena", "quake3.exe"))
+			return true;
+	}
+
+	if (!strcmp(gamename, "wop"))
+	{
+		DWORD resultlen;
+		HKEY key = NULL;
+		//reads HKEY_LOCAL_MACHINE\SOFTWARE\World Of Padman\Path
+		if (!FAILED(RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\World Of Padman", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key)))
+		{
+			resultlen = basepathlen;
+			RegQueryValueEx(key, "Path", NULL, NULL, basepath, &resultlen);
+			RegCloseKey(key);
 			return true;
 		}
 	}
+
 /*
 	if (!strcmp(gamename, "d3"))
 	{
@@ -2120,16 +2043,14 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 	}
 */
 
-	if (!strcmp(gamename, "h2"))
+	if (!strcmp(gamename, "hexen2"))
 	{
-		//try and find it via steam
-		//reads HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam\InstallPath
 		//append SteamApps\common\hexen 2
+		if (Sys_SteamHasFile(basepath, basepathlen, "hexen 2", "glh2.exe"))
+			return true;
 	}
 
 #if !defined(NPQTV) && !defined(SERVERONLY) //this is *really* unfortunate, but doing this crashes the browser
-				//I assume its because the client
-
 	if (poshname)
 	{
 		char resultpath[MAX_PATH];
@@ -2141,11 +2062,11 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 			SDL_SysWMinfo wmInfo;
 			SDL_GetWMInfo(&wmInfo);
 			HWND sys_parentwindow = wmInfo.window;
-		#endif
 
 		if (sys_parentwindow)
 			bi.hwndOwner = sys_parentwindow; //note that this is usually still null
 		else
+		#endif
 			bi.hwndOwner = mainwindow; //note that this is usually still null
 		bi.pidlRoot = NULL;
 		bi.pszDisplayName = resultpath;
@@ -2210,6 +2131,81 @@ void FS_Shutdown(void)
 
 }
 
+void FS_StartupWithGame(int gamenum)
+{
+	int i;
+
+#ifdef AVAIL_ZLIB
+	LibZ_Init();
+#endif
+
+	Cvar_Set(&com_gamename, gamemode_info[gamenum].protocolname);
+
+//
+// start up with id1 by default
+//
+	i = COM_CheckParm ("-basegame");
+	if (i && i < com_argc-1)
+	{
+		do	//use multiple -basegames
+		{
+			FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_quakedir, com_argv[i+1]), ~0);
+			if (*com_homedir)
+				FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_homedir, com_argv[i+1]), ~0);
+
+			i = COM_CheckNextParm ("-basegame", i);
+		}
+		while (i && i < com_argc-1);
+	}
+	else
+	{
+		for (i = 0; i < sizeof(gamemode_info[gamenum].dir)/sizeof(gamemode_info[gamenum].dir[0]); i++)
+		{
+			if (gamemode_info[gamenum].dir[i])
+			{
+				FS_AddGameDirectory (gamemode_info[gamenum].dir[i], va("%s%s", com_quakedir, gamemode_info[gamenum].dir[i]), ~0);
+				if (*com_homedir)
+					FS_AddGameDirectory (gamemode_info[gamenum].dir[i], va("%s%s", com_homedir, gamemode_info[gamenum].dir[i]), ~0);
+			}
+		}
+	}
+
+	i = COM_CheckParm ("-addbasegame");
+	while (i && i < com_argc-1)	//use multiple -addbasegames (this is so the basic dirs don't die)
+	{
+		FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_quakedir, com_argv[i+1]), ~0);
+		if (*com_homedir)
+			FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_homedir, com_argv[i+1]), ~0);
+
+		i = COM_CheckNextParm ("-addbasegame", i);
+	}
+
+	// any set gamedirs will be freed up to here
+	com_base_searchpaths = com_searchpaths;
+
+	//-game specifies the mod gamedir to use in NQ
+	i = COM_CheckParm ("-game");	//effectivly replace with +gamedir x (But overridable)
+	if (i && i < com_argc-1)
+	{
+		COM_Gamedir(com_argv[i+1]);
+	}
+
+	//+gamedir specifies the mod gamedir to use in QW
+	//hack - we parse the commandline after the config so commandline always overrides
+	//but this means ktpro/server.cfg (for example) is not found
+	//so if they specify a gamedir on the commandline, let the default configs be loaded from that gamedir
+	//note that -game +gamedir will result in both being loaded. but hey, who cares
+	i = COM_CheckParm ("+gamedir");	//effectivly replace with +gamedir x (But overridable)
+	if (i && i < com_argc-1)
+	{
+		COM_Gamedir(com_argv[i+1]);
+	}
+
+
+	if (gamemode_info[gamenum].customexec)
+		Cbuf_AddText(gamemode_info[gamenum].customexec, RESTRICT_LOCAL);
+}
+
 /*
 ================
 COM_InitFilesystem
@@ -2218,10 +2214,11 @@ COM_InitFilesystem
 void COM_InitFilesystem (void)
 {
 	FILE *f;
-	int		i;
+	int		i, j;
 
 	char *ev;
 	qboolean usehome;
+	qboolean autobasedir = true;
 
 	int gamenum=-1;
 
@@ -2235,7 +2232,10 @@ void COM_InitFilesystem (void)
 //
 	i = COM_CheckParm ("-basedir");
 	if (i && i < com_argc-1)
+	{
 		strcpy (com_quakedir, com_argv[i+1]);
+		autobasedir = false;
+	}
 	else
 		strcpy (com_quakedir, host_parms.basedir);
 
@@ -2255,22 +2255,26 @@ void COM_InitFilesystem (void)
 	Cvar_Register(&com_gamename, "evil hacks");
 	Cvar_Register(&com_modname, "evil hacks");
 	//identify the game from a telling file
-	for (i = 0; gamemode_info[i].argname; i++)
+	for (i = 0; gamemode_info[i].argname && gamenum==-1; i++)
 	{
-		if (!gamemode_info[i].auniquefile)
-			continue;	//no more
-		f = fopen(va("%s%s", com_quakedir, gamemode_info[i].auniquefile), "rb");
-		if (f)
+		for (j = 0; j < 4; j++)
 		{
-			fclose(f);
-			gamenum = i;
-			break;
+			if (!gamemode_info[i].auniquefile[j])
+				continue;	//no more
+			f = fopen(va("%s%s", com_quakedir, gamemode_info[i].auniquefile[j]), "rb");
+			if (f)
+			{
+				fclose(f);
+				gamenum = i;
+				break;
+			}
 		}
 	}
 	//use the game based on an exe name over the filesystem one (could easily have multiple fs path matches).
 	for (i = 0; gamemode_info[i].argname; i++)
 	{
-		if (strstr(com_argv[0], gamemode_info[i].exename))
+		ev = strstr(com_argv[0], gamemode_info[i].exename);
+		if (ev && (!strchr(ev, '\\') && !strchr(ev, '/')))
 			gamenum = i;
 	}
 	//use the game based on an parameter over all else.
@@ -2280,30 +2284,34 @@ void COM_InitFilesystem (void)
 		{
 			gamenum = i;
 
-			if (gamemode_info[gamenum].auniquefile)
+			for (j = 0; j < 4; j++)
 			{
-				f = fopen(va("%s%s", com_quakedir, gamemode_info[i].auniquefile), "rb");
-				if (f)
+				if (gamemode_info[gamenum].auniquefile[j])
 				{
-					//we found it, its all okay
-					fclose(f);
-					break;
-				}
-#ifdef _WIN32
-				if (Sys_FindGameData(gamemode_info[i].poshname, gamemode_info[i].exename, com_quakedir, sizeof(com_quakedir)))
-				{
-					if (com_quakedir[strlen(com_quakedir)-1] == '\\')
-						com_quakedir[strlen(com_quakedir)-1] = '/';
-					else if (com_quakedir[strlen(com_quakedir)-1] != '/')
+					f = fopen(va("%s%s", com_quakedir, gamemode_info[i].auniquefile[j]), "rb");
+					if (f)
 					{
-						com_quakedir[strlen(com_quakedir)+1] = '\0';
-						com_quakedir[strlen(com_quakedir)] = '/';
+						//we found it, its all okay
+						fclose(f);
+						break;
 					}
-				}
-				else
+#ifdef _WIN32
+					if (Sys_FindGameData(gamemode_info[i].poshname, gamemode_info[i].exename, com_quakedir, sizeof(com_quakedir)))
+					{
+						if (com_quakedir[strlen(com_quakedir)-1] == '\\')
+							com_quakedir[strlen(com_quakedir)-1] = '/';
+						else if (com_quakedir[strlen(com_quakedir)-1] != '/')
+						{
+							com_quakedir[strlen(com_quakedir)+1] = '\0';
+							com_quakedir[strlen(com_quakedir)] = '/';
+						}
+					}
+					else
 #endif
-				{
-					Con_Printf("Couldn't find the gamedata for this game mode!\n");
+					{
+						Con_Printf("Couldn't find the gamedata for this game mode!\n");
+					}
+					break;
 				}
 			}
 			break;
@@ -2316,14 +2324,26 @@ void COM_InitFilesystem (void)
 		for (i = 0; gamemode_info[i].argname; i++)
 		{
 			if (!strcmp(gamemode_info[i].argname, "-quake"))
+			{
 				gamenum = i;
+
+				if (autobasedir)
+				{
+					if (Sys_FindGameData(gamemode_info[i].poshname, gamemode_info[i].exename, com_quakedir, sizeof(com_quakedir)))
+					{
+						if (com_quakedir[strlen(com_quakedir)-1] == '\\')
+							com_quakedir[strlen(com_quakedir)-1] = '/';
+						else if (com_quakedir[strlen(com_quakedir)-1] != '/')
+						{
+							com_quakedir[strlen(com_quakedir)+1] = '\0';
+							com_quakedir[strlen(com_quakedir)] = '/';
+						}
+					}
+				}
+				break;
+			}
 		}
 	}
-
-	Cvar_Set(&com_gamename, gamemode_info[gamenum].protocolname);
-
-	if (gamemode_info[gamenum].customexec)
-		Cbuf_AddText(gamemode_info[gamenum].customexec, RESTRICT_LOCAL);
 
 	usehome = false;
 
@@ -2343,7 +2363,7 @@ void COM_InitFilesystem (void)
 				if (dSHGetFolderPath(NULL, 0x5, NULL, 0, folder) == S_OK)
 					Q_snprintfz(com_homedir, sizeof(com_homedir), "%s/My Games/%s/", folder, FULLENGINENAME);
 			}
-			FreeLibrary(shfolder);
+//			FreeLibrary(shfolder);
 		}
 
 		if (!*com_homedir)
@@ -2359,6 +2379,7 @@ void COM_InitFilesystem (void)
 		//as a browser plugin, always use their home directory
 		usehome = true;
 #else
+		/*would it not be better to just check to see if we have write permission to the basedir?*/
 		if (winver >= 0x6) // Windows Vista and above
 			usehome = true; // always use home directory by default, as Vista+ mimics this behavior anyway
 		else if (winver >= 0x5) // Windows 2000/XP/2003
@@ -2433,67 +2454,8 @@ void COM_InitFilesystem (void)
 	if (*com_homedir)
 		Con_Printf("Using home directory \"%s\"\n", com_homedir);
 
-//
-// start up with id1 by default
-//
-	i = COM_CheckParm ("-basegame");
-	if (i && i < com_argc-1)
-	{
-		do	//use multiple -basegames
-		{
-			FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_quakedir, com_argv[i+1]), ~0);
-			if (*com_homedir)
-				FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_homedir, com_argv[i+1]), ~0);
 
-			i = COM_CheckNextParm ("-basegame", i);
-		}
-		while (i && i < com_argc-1);
-	}
-	else
-	{
-		for (i = 0; i < sizeof(gamemode_info[gamenum].dir)/sizeof(gamemode_info[gamenum].dir[0]); i++)
-		{
-			if (gamemode_info[gamenum].dir[i])
-			{
-				FS_AddGameDirectory (gamemode_info[gamenum].dir[i], va("%s%s", com_quakedir, gamemode_info[gamenum].dir[i]), ~0);
-				if (*com_homedir)
-					FS_AddGameDirectory (gamemode_info[gamenum].dir[i], va("%s%s", com_homedir, gamemode_info[gamenum].dir[i]), ~0);
-			}
-		}
-	}
-
-
-	i = COM_CheckParm ("-addbasegame");
-	while (i && i < com_argc-1)	//use multiple -addbasegames (this is so the basic dirs don't die)
-	{
-		FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_quakedir, com_argv[i+1]), ~0);
-		if (*com_homedir)
-			FS_AddGameDirectory (com_argv[i+1], va("%s%s", com_homedir, com_argv[i+1]), ~0);
-
-		i = COM_CheckNextParm ("-addbasegame", i);
-	}
-
-
-	// any set gamedirs will be freed up to here
-	com_base_searchpaths = com_searchpaths;
-
-	//-game specifies the mod gamedir to use in NQ
-	i = COM_CheckParm ("-game");	//effectivly replace with +gamedir x (But overridable)
-	if (i && i < com_argc-1)
-	{
-		COM_Gamedir(com_argv[i+1]);
-	}
-
-	//+gamedir specifies the mod gamedir to use in QW
-	//hack - we parse the commandline after the config so commandline always overrides
-	//but this means ktpro/server.cfg (for example) is not found
-	//so if they specify a gamedir on the commandline, let the default configs be loaded from that gamedir
-	//note that -game +gamedir will result in both being loaded. but hey, who cares
-	i = COM_CheckParm ("+gamedir");	//effectivly replace with +gamedir x (But overridable)
-	if (i && i < com_argc-1)
-	{
-		COM_Gamedir(com_argv[i+1]);
-	}
+	FS_StartupWithGame(gamenum);
 }
 
 
@@ -2507,6 +2469,10 @@ extern searchpathfuncs_t doomwadfilefuncs;
 void FS_RegisterDefaultFileSystems(void)
 {
 	FS_RegisterFileSystemType("pak", &packfilefuncs);
+#ifndef _WIN32
+	/*for systems that have case sensitive paths, also include *.PAK */
+	FS_RegisterFileSystemType("PAK", &packfilefuncs);
+#endif
 #ifdef AVAIL_ZLIB
 	FS_RegisterFileSystemType("pk3", &zipfilefuncs);
 	FS_RegisterFileSystemType("pk4", &zipfilefuncs);

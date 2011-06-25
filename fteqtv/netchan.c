@@ -23,13 +23,20 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define curtime Sys_Milliseconds()
 
 
-
+SOCKET NET_ChooseSocket(SOCKET sock[2], netadr_t *adr)
+{
+#ifdef AF_INET6
+	if (((struct sockaddr *)adr)->sa_family == AF_INET6)
+		return sock[1];
+#endif
+	return sock[0];
+}
 
 void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, void *data, netadr_t adr)
 {
 	int ret;
 
-	ret = sendto(sock, data, length, 0, (struct sockaddr *)adr, sizeof(struct sockaddr_in));
+	ret = sendto(sock, data, length, 0, (struct sockaddr *)&adr, sizeof(struct sockaddr_in));
 	if (ret < 0)
 	{
 		int er = qerrno;
@@ -42,15 +49,41 @@ void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, void *data, net
 
 int Netchan_IsLocal (netadr_t adr)
 {
-	struct sockaddr_in *sadr = (struct sockaddr_in *)adr;
+	struct sockaddr_in *sadr = (struct sockaddr_in *)&adr;
 	unsigned char *bytes;
-	bytes = (unsigned char *)&sadr->sin_addr;
-	if (bytes[0] == 127 &&
-		bytes[1] == 0 &&
-		bytes[2] == 0 &&
-		bytes[3] == 1)
-		return true;
-	return false;
+	switch(((struct sockaddr *)&adr)->sa_family)
+	{
+	case AF_INET:
+		bytes = (unsigned char *)&((struct sockaddr_in *)&adr)->sin_addr;
+		if (bytes[0] == 127 &&
+			bytes[1] == 0 &&
+			bytes[2] == 0 &&
+			bytes[3] == 1)
+			return true;
+		return false;
+	case AF_INET6:
+		bytes = (unsigned char *)&((struct sockaddr_in6 *)&adr)->sin6_addr;
+		if (bytes[ 0] == 0 &&
+			bytes[ 1] == 0 &&
+			bytes[ 2] == 0 &&
+			bytes[ 3] == 0 &&
+			bytes[ 4] == 0 &&
+			bytes[ 5] == 0 &&
+			bytes[ 6] == 0 &&
+			bytes[ 7] == 0 &&
+			bytes[ 8] == 0 &&
+			bytes[ 9] == 0 &&
+			bytes[10] == 0 &&
+			bytes[11] == 0 &&
+			bytes[12] == 0 &&
+			bytes[13] == 0 &&
+			bytes[14] == 0 &&
+			bytes[15] == 1)
+			return true;
+		return false;
+	default:
+		return false;
+	}
 }
 
 
@@ -143,7 +176,7 @@ Netchan_OutOfBandPrint
 Sends a text message in an out-of-band datagram
 ================
 */
-void Netchan_OutOfBandPrint (cluster_t *cluster, SOCKET sock, netadr_t adr, char *format, ...)
+void Netchan_OutOfBandPrint (cluster_t *cluster, SOCKET sock[], netadr_t adr, char *format, ...)
 {
 	va_list		argptr;
 	char		string[8192];
@@ -157,7 +190,7 @@ void Netchan_OutOfBandPrint (cluster_t *cluster, SOCKET sock, netadr_t adr, char
 #endif // _WIN32
 	va_end (argptr);
 
-	Netchan_OutOfBand (cluster, sock, adr, strlen(string), (unsigned char *)string);
+	Netchan_OutOfBand (cluster, NET_ChooseSocket(sock, &adr), adr, strlen(string), (unsigned char *)string);
 }
 
 /*
@@ -184,7 +217,7 @@ void Netchan_Setup (SOCKET sock, netchan_t *chan, netadr_t adr, int qport, qbool
 	memset (chan, 0, sizeof(*chan));
 	
 	chan->sock = sock;
-	memcpy(&chan->remote_address, adr, sizeof(netadr_t));
+	memcpy(&chan->remote_address, &adr, sizeof(netadr_t));
 	chan->qport = qport;
 	chan->isclient = isclient;
 

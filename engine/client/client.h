@@ -28,9 +28,9 @@ typedef struct
 	int			height;
 
 	//for hardware 32bit texture overrides
-	int			tex_base;
-	int			tex_lower;
-	int			tex_upper;
+	texid_t		tex_base;
+	texid_t		tex_lower;
+	texid_t		tex_upper;
 
 	qboolean	failedload;		// the name isn't a valid skin
 	cache_user_t	cache;
@@ -146,6 +146,7 @@ typedef struct player_info_s
 	int		userid;
 	char	userinfo[EXTENDED_INFO_STRING];
 	char	teamstatus[128];
+	float	teamstatustime;
 
 	// scoreboard information
 	char	name[MAX_SCOREBOARDNAME];
@@ -156,6 +157,7 @@ typedef struct player_info_s
 	qbyte	pl;
 
 	qboolean ignored;
+	qboolean vignored;
 
 	colourised_t *colourised;
 
@@ -172,6 +174,7 @@ typedef struct player_info_s
 	struct model_s	*model;
 
 	unsigned short vweapindex;
+	unsigned char h2playerclass;
 
 	int prevcount;
 
@@ -190,7 +193,7 @@ typedef struct
 
 	// received from server
 	double		receivedtime;	// time message was received, or -1
-	player_state_t	playerstate[MAX_CLIENTS];	// message received that reflects performing
+	player_state_t	playerstate[MAX_CLIENTS+MAX_SPLITS];	// message received that reflects performing
 							// the usercmd
 	packet_entities_t	packet_entities;
 	qboolean	invalid;		// true if the packet_entities delta was invalid
@@ -231,19 +234,11 @@ typedef struct
 //
 // client_state_t should hold all pieces of the client state
 //
-#define MAX_SWLIGHTS		32	//sw lighting, aka: r_dynamic, uses unsigned ints as a mask for cached lit flags.	 We could increase this on 64bit platforms or by just using more fields.
-
-#ifdef RGLQUAKE
-#define	MAX_RTLIGHTS		256	//r_shadow_realtime_world needs a LOT of lights.
-#else
-#define	MAX_RTLIGHTS		0	//but sw rendering doesn't have that.
-#endif
-
-#if MAX_SWLIGHTS > MAX_RTLIGHTS
-#define MAX_DLIGHTS			MAX_SWLIGHTS
-#else
-#define MAX_DLIGHTS			MAX_RTLIGHTS
-#endif
+//the light array works thusly:
+//dlights are allocated DL_LAST downwards to 0, static wlights are allocated DL_LAST+1 to MAX_RTLIGHTS.
+//thus to clear the dlights but not rtlights, set the first light to RTL_FIRST
+#define DL_LAST				(sizeof(unsigned int)*8-1)
+#define RTL_FIRST			(sizeof(unsigned int)*8)
 
 #define LFLAG_NORMALMODE (1<<0)
 #define LFLAG_REALTIMEMODE (1<<1)
@@ -252,6 +247,7 @@ typedef struct
 #define LFLAG_ALLOW_LMHACK (1<<16)
 #define LFLAG_ALLOW_FLASH (1<<17)
 #define LFLAG_ALLOW_PPL (1<<18)
+#define LFLAG_SHADOWMAP (1<<19)
 
 #define LFLAG_DYNAMIC (LFLAG_ALLOW_PPL | LFLAG_ALLOW_LMHACK | LFLAG_ALLOW_FLASH | LFLAG_NORMALMODE | LFLAG_REALTIMEMODE)
 
@@ -270,12 +266,14 @@ typedef struct dlight_s
 	unsigned int flags;
 
 	//the following are used for rendering (client code should clear on create)
+	qboolean rebuildcache;
 	struct	shadowmesh_s *worldshadowmesh;
-	int stexture;
+	texid_t stexture;
 	struct {
 		float updatetime;
 	} face [6];
 	int style;	//multiply by style values if > 0
+	float	fov; //spotlight
 	float	dist;
 	struct dlight_s *next;
 } dlight_t;
@@ -321,6 +319,7 @@ typedef struct
 // connection information
 	cactive_t	state;
 
+	/*Specifies which protocol family we're speaking*/
 	enum {
 		CP_UNKNOWN,
 		CP_QUAKEWORLD,
@@ -329,6 +328,26 @@ typedef struct
 		CP_QUAKE3,
 		CP_PLUGIN
 	} protocol;
+
+	/*QuakeWorld protocol flags*/
+#ifdef PROTOCOLEXTENSIONS
+	unsigned long fteprotocolextensions;
+	unsigned long fteprotocolextensions2;
+#endif
+	unsigned long z_ext;
+
+	/*NQ Protocol flags*/
+	enum
+	{
+		CPNQ_ID,
+		CPNQ_PROQUAKE3_4,
+		CPNQ_FITZ666,
+		CPNQ_DP5,
+		CPNQ_DP6,
+		CPNQ_DP7
+	} protocol_nq;
+	#define CPNQ_IS_DP (cls.protocol_nq >= CPNQ_DP5)
+
 
 	qboolean resendinfo;
 	qboolean findtrack;
@@ -343,7 +362,7 @@ typedef struct
 	float lastarbiatarypackettime;	//used to mark when packets were sent to prevent mvdsv servers from causing us to disconnect.
 
 // private userinfo for sending to masterless servers
-	char		userinfo[MAX_INFO_STRING];
+	char		userinfo[MAX_SPLITS][EXTENDED_INFO_STRING];
 
 	char		servername[MAX_OSPATH];	// name of server from original connect
 
@@ -366,6 +385,8 @@ typedef struct
 // demo recording info must be here, because record is started before
 // entering a map (and clearing client_state_t)
 	qboolean	demorecording;
+	vfsfile_t	*demooutfile;
+
 	enum{DPB_NONE,DPB_QUAKEWORLD,DPB_MVD,DPB_EZTV,
 #ifdef NQPROT
 		DPB_NETQUAKE,
@@ -375,7 +396,7 @@ typedef struct
 #endif
 	}	demoplayback;
 	qboolean	timedemo;
-	vfsfile_t	*demofile;
+	vfsfile_t	*demoinfile;
 	float		td_lastframe;		// to meter out one message a frame
 	int			td_startframe;		// host_framecount at start
 	float		td_starttime;		// realtime at second frame of timedemo
@@ -390,7 +411,6 @@ typedef struct
 	qboolean	allow_skyboxes;
 	qboolean	allow_mirrors;
 	qboolean	allow_watervis;
-	qboolean	allow_shaders;
 	qboolean	allow_luma;
 	qboolean	allow_bump;
 	float		allow_fbskins;	//fraction of allowance
@@ -402,10 +422,6 @@ typedef struct
 	float		maxfps;	//server capped
 	enum {GAME_DEATHMATCH, GAME_COOP} gamemode;
 
-#ifdef PROTOCOLEXTENSIONS
-	unsigned long fteprotocolextensions;
-#endif
-	unsigned long z_ext;
 #ifdef NQPROT
 	int signon;
 #endif
@@ -415,8 +431,6 @@ typedef struct
 } client_static_t;
 
 extern client_static_t	cls;
-
-extern int nq_dp_protocol;
 
 typedef struct downloadlist_s {
 	char rname[128];
@@ -441,6 +455,10 @@ typedef struct {
 	vec3_t origin;	//current render position
 	vec3_t angles;
 
+	//previous rendering frame (for trails)
+	vec3_t lastorigin;
+	qboolean isnew;
+
 	//intermediate values for frame lerping
 	float framelerpdeltatime;
 	float newframestarttime;
@@ -451,8 +469,8 @@ typedef struct {
 	//intermediate values for origin lerping of stepping things
 	float orglerpdeltatime;
 	float orglerpstarttime;
-	vec3_t neworigin;
-	vec3_t oldorigin;
+	vec3_t neworigin; /*origin that we're lerping towards*/
+	vec3_t oldorigin; /*origin that we're lerping away from*/
 	vec3_t newangle;
 	vec3_t oldangle;
 } lerpents_t;
@@ -506,8 +524,7 @@ typedef struct
 	float		item_gettime[MAX_SPLITS][32];	// cl.time of aquiring item, for blinking
 	float		faceanimtime[MAX_SPLITS];		// use anim frame if cl.time < this
 
-	cshift_t	cshifts[NUM_CSHIFTS];	// color shifts for damage, powerups
-	cshift_t	prev_cshifts[NUM_CSHIFTS];	// and content types
+	cshift_t	cshifts[NUM_CSHIFTS];	// color shifts for damage, powerups and content types
 
 // the client maintains its own idea of view angles, which are
 // sent to the server each frame.  And only reset at level change
@@ -579,6 +596,9 @@ typedef struct
 	float skyrotate;
 	vec3_t skyaxis;
 
+	float		fog_density;
+	vec3_t		fog_colour;
+
 	char		levelname[40];	// for display on solo scoreboard
 	int			playernum[MAX_SPLITS];
 	qboolean	nolocalplayer[MAX_SPLITS];
@@ -586,7 +606,6 @@ typedef struct
 
 // refresh related state
 	struct model_s	*worldmodel;	// cl_entitites[0].model
-	struct efrag_s	*free_efrags;
 	int			num_entities;	// stored bottom up in cl_entities array
 	int			num_statics;	// stored top down in cl_entitiers
 
@@ -595,6 +614,7 @@ typedef struct
 	entity_t	viewent[MAX_SPLITS];		// weapon model
 
 // all player information
+	unsigned int    allocated_client_slots;
 	player_info_t	players[MAX_CLIENTS];
 
 
@@ -611,7 +631,6 @@ typedef struct
 	char		q2statusbar[1024];
 	char		q2layout[1024];
 	int parse_entities;
-	int surpressCount;
 	float lerpfrac;
 	vec3_t predicted_origin;
 	vec3_t predicted_angles;
@@ -623,7 +642,10 @@ typedef struct
 	float		entgravity[MAX_SPLITS];
 	float		maxspeed[MAX_SPLITS];
 	float		bunnyspeedcap;
-	qboolean	fixangle;	//received a fixangle - so disable prediction till the next packet.
+	qboolean	fixangle[MAX_SPLITS];		//received a fixangle - so disable prediction till the next packet.
+	qboolean	oldfixangle[MAX_SPLITS];	//received a fixangle - so disable prediction till the next packet.
+	vec3_t		fixangles[MAX_SPLITS];		//received a fixangle - so disable prediction till the next packet.
+	vec3_t		oldfixangles[MAX_SPLITS];	//received a fixangle - so disable prediction till the next packet.
 
 	int teamplay;
 	int deathmatch;
@@ -634,12 +656,13 @@ typedef struct
 	qboolean sendprespawn;
 	int contentstage;
 
-	double ktprogametime;
+	double matchgametime;
 	enum {
-		KTPRO_DONTKNOW,
-		KTPRO_COUNTDOWN,
-		KTPRO_STANDBY
-	} ktprostate;
+		MATCH_DONTKNOW,
+		MATCH_COUNTDOWN,
+		MATCH_STANDBY,
+		MATCH_INPROGRESS
+	} matchstate;
 } client_state_t;
 
 extern unsigned int		cl_teamtopcolor;
@@ -699,20 +722,27 @@ extern cvar_t ruleset_allow_larger_models;
 extern cvar_t ruleset_allow_modified_eyes;
 extern cvar_t ruleset_allow_sensative_texture_replacements;
 extern cvar_t ruleset_allow_localvolume;
-
-#define	MAX_STATIC_ENTITIES	256			// torches, etc
+extern cvar_t ruleset_allow_shaders;
 
 extern	client_state_t	cl;
 
+typedef struct
+{
+	entity_t		ent;
+	trailstate_t   *emit;
+	int	mdlidx;	/*negative are csqc indexes*/
+	pvscache_t		pvscache;
+} static_entity_t;
+
 // FIXME, allocate dynamically
 extern	entity_state_t *cl_baselines;
-extern	efrag_t			cl_efrags[MAX_EFRAGS];
-extern	entity_t		cl_static_entities[MAX_STATIC_ENTITIES];
-extern  trailstate_t   *cl_static_emit[MAX_STATIC_ENTITIES];
+extern	static_entity_t		*cl_static_entities;
+extern  unsigned int    cl_max_static_entities;
 extern	lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
-extern	dlight_t		cl_dlights[MAX_DLIGHTS];
+extern	dlight_t		*cl_dlights;
+extern	unsigned int	cl_maxdlights;
 
-extern int dlights_running, dlights_software;
+extern int rtlights_first, rtlights_max;
 extern int cl_baselines_count;
 
 extern	qboolean	nomaster;
@@ -724,10 +754,15 @@ extern float	server_version;	// version of server we connected to
 //
 // cl_main
 //
+void CL_InitDlights(void);
+void CL_FreeDlights(void);
 dlight_t *CL_AllocDlight (int key);
-dlight_t *CL_NewDlight (int key, float x, float y, float z, float radius, float time, int type);
-dlight_t *CL_NewDlightRGB (int key, float x, float y, float z, float radius, float time, float r, float g, float b);
+dlight_t *CL_AllocSlight (void);	//allocates a static light
+dlight_t *CL_NewDlight (int key, const vec3_t origin, float radius, float time, int type);
+dlight_t *CL_NewDlightRGB (int key, const vec3_t origin, float radius, float time, float r, float g, float b);
+dlight_t *CL_NewDlightCube (int key, const vec3_t origin, vec3_t angles, float radius, float time, vec3_t colours);
 void	CL_DecayLights (void);
+
 void CL_ParseDelta (struct entity_state_s *from, struct entity_state_s *to, int bits, qboolean);
 
 void CL_Init (void);
@@ -748,15 +783,35 @@ void CL_Reconnect_f (void);
 void CL_ConnectionlessPacket (void);
 qboolean CL_DemoBehind(void);
 void CL_SaveInfo(vfsfile_t *f);
-void CL_SetInfo (char *key, char *value);
+void CL_SetInfo (int pnum, char *key, char *value);
 
-void CL_BeginServerConnect(void);
-void CLNQ_BeginServerConnect(void);
+void CL_BeginServerConnect(int port);
+char *CL_TryingToConnect(void);
 
 #define			MAX_VISEDICTS	1024
-extern	int				cl_numvisedicts, cl_oldnumvisedicts;
-extern	entity_t		*cl_visedicts, *cl_oldvisedicts;
-extern	entity_t		cl_visedicts_list[2][MAX_VISEDICTS];
+extern	int				cl_numvisedicts;
+extern	entity_t		*cl_visedicts;
+extern	entity_t		cl_visedicts_list[MAX_VISEDICTS];
+
+/*these are for q3 really*/
+typedef struct {
+	struct shader_s *shader;
+	int firstvert;
+	int firstidx;
+	int numvert;
+	int numidx;
+} scenetris_t;
+extern scenetris_t		*cl_stris;
+extern vecV_t			*cl_strisvertv;
+extern vec4_t			*cl_strisvertc;
+extern vec2_t			*cl_strisvertt;
+extern index_t			*cl_strisidx;
+extern unsigned int cl_numstrisidx;
+extern unsigned int cl_maxstrisidx;
+extern unsigned int cl_numstrisvert;
+extern unsigned int cl_maxstrisvert;
+extern unsigned int cl_numstris;
+extern unsigned int cl_maxstris;
 
 extern char emodel_name[], pmodel_name[], prespawn_name[], modellist_name[], soundlist_name[];
 
@@ -780,7 +835,6 @@ extern	float in_sensitivityscale;
 
 void CL_MakeActive(char *gamename);
 
-void CL_RegisterSplitCommands(void);
 void CL_InitInput (void);
 void CL_SendCmd (double frametime, qboolean mainloop);
 void CL_SendMove (usercmd_t *cmd);
@@ -793,6 +847,7 @@ void CL_UpdateTEnts (void);
 void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end);
 
 void CL_ClearState (void);
+void CLQ2_ClearState(void);
 
 void CL_ReadPackets (void);
 void CL_ClampPitch (int pnum);
@@ -810,7 +865,8 @@ char *Key_GetBinding(int keynum);
 void CL_UseIndepPhysics(qboolean allow);
 
 void CL_FlushClientCommands(void);
-void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...);
+void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...) LIKEPRINTF(2);
+float CL_FilterTime (double time, float wantfps, qboolean ignoreserver);
 int CL_RemoveClientCommands(char *command);
 void CL_AllowIndependantSendCmd(qboolean allow);
 
@@ -822,6 +878,7 @@ void CL_DrawPrydonCursor(void);
 void CL_StopPlayback (void);
 qboolean CL_GetMessage (void);
 void CL_WriteDemoCmd (usercmd_t *pcmd);
+void CL_Demo_ClientCommand(char *commandtext);	//for QTV.
 
 void CL_Stop_f (void);
 void CL_Record_f (void);
@@ -865,24 +922,31 @@ void CL_ParseQTVFile(vfsfile_t *f, const char *fname, qtvfile_t *result);
 #define NET_TIMINGSMASK 255
 extern int	packet_latency[NET_TIMINGS];
 int CL_CalcNet (void);
-void CL_ParseServerMessage (void);
+void CL_ClearParseState(void);
 void CL_DumpPacket(void);
 void CL_ParseEstablished(void);
+void CL_ParseServerMessage (void);
 void CLNQ_ParseServerMessage (void);
 #ifdef Q2CLIENT
 void CLQ2_ParseServerMessage (void);
 #endif
 void CL_NewTranslation (int slot);
+
 qboolean CL_CheckOrEnqueDownloadFile (char *filename, char *localname, unsigned int flags);
 qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags);
 downloadlist_t *CL_DownloadFailed(char *name);
+int CL_DownloadRate(void);
+void CL_GetDownloadSizes(unsigned int *filecount, unsigned int *totalsize, qboolean *somesizesunknown);
+qboolean CL_ParseOOBDownload(void);
+void CL_DownloadFinished(void);
+void CL_RequestNextDownload (void);
+void CL_SendDownloadReq(sizebuf_t *msg);
+void Sound_CheckDownload(char *s); /*checkorenqueue a sound file*/
+
 qboolean CL_IsUploading(void);
 void CL_NextUpload(void);
 void CL_StartUpload (qbyte *data, int size);
 void CL_StopUpload(void);
-
-void CL_RequestNextDownload (void);
-void CL_SendDownloadReq(sizebuf_t *msg);
 
 qboolean CL_CheckBaselines (int size);
 
@@ -896,7 +960,6 @@ void V_RenderView (void);
 void V_Register (void);
 void V_ParseDamage (int pnum);
 void V_SetContentsColor (int contents);
-void GLV_CalcBlend (void);
 
 //used directly by csqc
 void V_CalcRefdef (int pnum);
@@ -910,6 +973,7 @@ void DropPunchAngle (int pnum);
 void CL_RegisterParticles(void);
 void CL_InitTEnts (void);
 void CL_ClearTEnts (void);
+void CL_ClearTEntParticleState (void);
 void CL_ClearCustomTEnts(void);
 void CL_ParseCustomTEnt(void);
 void CL_ParseEffect (qboolean effect2);
@@ -921,12 +985,14 @@ void CL_ParseParticleEffect4 (void);
 
 void CLDP_ParseTrailParticles(void);
 void CLDP_ParsePointParticles(qboolean compact);
+void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, struct model_s *model, int startframe, int framecount, int framerate, float alpha);	/*called from the particlesystem*/
 
 //
 // cl_ents.c
 //
 void CL_SetSolidPlayers (int playernum);
 void CL_SetUpPlayerPrediction(qboolean dopred);
+void CL_LinkStaticEntities(void *pvs);
 void CL_EmitEntities (void);
 void CL_ClearProjectiles (void);
 void CL_ParseProjectiles (int modelindex, qboolean nails2);
@@ -940,13 +1006,14 @@ void CL_LinkViewModel(void);
 void CL_LinkPlayers (void);
 void CL_LinkPacketEntities (void);
 void CL_LinkProjectiles (void);
+void CL_ClearLerpEntsParticleState (void);
 qboolean CL_MayLerp(void);
 
 //
 //clq3_parse.c
 //
 #ifdef Q3CLIENT
-void VARGS CLQ3_SendClientCommand(const char *fmt, ...);
+void VARGS CLQ3_SendClientCommand(const char *fmt, ...) LIKEPRINTF(1);
 void CLQ3_SendAuthPacket(netadr_t gameserver);
 void CLQ3_SendConnectPacket(netadr_t to);
 void CLQ3_SendCmd(usercmd_t *cmd);
@@ -969,14 +1036,17 @@ qboolean CSQC_Init (unsigned int checksum);
 void CSQC_RegisterCvarsAndThings(void);
 qboolean CSQC_DrawView(void);
 void CSQC_Shutdown(void);
-qboolean CSQC_StuffCmd(int lplayernum, char *cmd);
+qboolean CSQC_StuffCmd(int lplayernum, char *cmd, char *cmdend);
 qboolean CSQC_LoadResource(char *resname, char *restype);
+qboolean CSQC_ParsePrint(char *message, int printlevel);
+qboolean CSQC_ParseGamePacket(void);
 qboolean CSQC_CenterPrint(int lplayernum, char *cmd);
 void CSQC_Input_Frame(int lplayernum, usercmd_t *cmd);
 void CSQC_WorldLoaded(void);
 qboolean CSQC_ParseTempEntity(unsigned char firstbyte);
 qboolean CSQC_ConsoleCommand(char *cmd);
 qboolean CSQC_KeyPress(int key, int unicode, qboolean down);
+qboolean CSQC_MouseMove(float xdelta, float ydelta);
 int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation);
 void CSQC_ParseEntities(void);
 qboolean CSQC_SettingListener(void);
@@ -985,6 +1055,8 @@ qboolean CSQC_DeltaPlayer(int playernum, player_state_t *state);
 void CSQC_DeltaStart(float time);
 qboolean CSQC_DeltaUpdate(entity_state_t *src);
 void CSQC_DeltaEnd(void);
+
+void CSQC_CvarChanged(cvar_t *var);
 #endif
 
 //
@@ -1015,6 +1087,7 @@ void Cam_Lock(int pnum, int playernum);
 void Cam_SelfTrack(int pnum);
 void Cam_Track(int pnum, usercmd_t *cmd);
 void Cam_TrackCrosshairedPlayer(int pnum);
+void Cam_SetAutoTrack(int userid);
 void Cam_FinishMove(int pnum, usercmd_t *cmd);
 void Cam_Reset(void);
 void Cam_TrackPlayer(int pnum, char *cmdname, char *plrarg);
@@ -1047,6 +1120,7 @@ char*		TP_LocationName (vec3_t location);
 char*		TP_MapName (void);
 void		TP_NewMap (void);
 void		TP_ParsePlayerInfo(player_state_t *oldstate, player_state_t *state, player_info_t *info);
+qboolean	TP_IsPlayerVisible(vec3_t origin);
 char*		TP_PlayerName (void);
 char*		TP_PlayerTeam (void);
 void		TP_SearchForMsgTriggers (char *s, int level);
@@ -1054,6 +1128,7 @@ qboolean	TP_SoundTrigger(char *message);
 void		TP_StatChanged (int stat, int value);
 qboolean	TP_SuppressMessage(char *buf);
 colourised_t *TP_FindColours(char *name);
+void		TP_UpdateAutoStatus(void);
 
 //
 // skin.c
@@ -1117,15 +1192,17 @@ void CLQ2_AddEntities (void);
 void CLQ2_ParseBaseline (void);
 void CLQ2_ParseFrame (void);
 void CLQ2_RunMuzzleFlash2 (int ent, int flash_number);
-void CLNQ_ParseEntity(unsigned int bits);
 int CLQ2_RegisterTEntModels (void);
 #endif
 
+#ifdef NQPROT
+void CLNQ_ParseEntity(unsigned int bits);
 void NQ_P_ParseParticleEffect (void);
 void CLNQ_SignonReply (void);
 void NQ_BeginConnect(char *to);
 void NQ_ContinueConnect(char *to);
 int CLNQ_GetMessage (void);
+#endif
 
 void CL_BeginServerReconnect(void);
 
@@ -1139,31 +1216,32 @@ extern qboolean editoractive;
 extern qboolean editormodal;
 void Editor_Draw(void);
 void Editor_Init(void);
+struct progfuncs_s;
+void Editor_ProgsKilled(struct progfuncs_s *dead);
 #endif
 
 void SCR_StringToRGB (char *rgbstring, float *rgb, float rgbinputscale);
-int SCR_StringToPalIndex (char *rgbstring, float rgbinputscale);
-
 
 struct model_s;
 void CL_AddVWeapModel(entity_t *player, struct model_s *model);
 
+/*q2 cinematics*/
+struct cinematics_s;
+void CIN_StopCinematic (struct cinematics_s *cin);
+struct cinematics_s *CIN_PlayCinematic (char *arg);
+int CIN_RunCinematic (struct cinematics_s *cin, qbyte **outdata, int *outwidth, int *outheight, qbyte **outpalette);
 
+/*media playing system*/
 qboolean Media_PlayingFullScreen(void);
 void Media_Init(void);
 qboolean Media_PlayFilm(char *name);
-void CIN_FinishCinematic (void);
-qboolean CIN_PlayCinematic (char *arg);
-qboolean CIN_DrawCinematic (void);
-qboolean CIN_RunCinematic (void);
-
 typedef struct cin_s cin_t;
 struct cin_s *Media_StartCin(char *name);
-int Media_UpdateForShader(int texnum, cin_t *cin);
+texid_t Media_UpdateForShader(cin_t *cin);
 void Media_ShutdownCin(cin_t *cin);
+qboolean Media_FakeTrack(int i, qboolean loop);
 
 //these accept NULL for cin to mean the current fullscreen video
-void Media_Gecko_KeyPress (struct cin_s *cin, int code, int event);
 void Media_Send_Command(cin_t *cin, char *command);
 void Media_Send_MouseMove(cin_t *cin, float x, float y);
 void Media_Send_Resize(cin_t *cin, int x, int y);
@@ -1179,7 +1257,7 @@ int Stats_GetTouches(int playernum);
 int Stats_GetCaptures(int playernum);
 qboolean Stats_HaveFlags(void);
 qboolean Stats_HaveKills(void);
-void VARGS Stats_Message(char *msg, ...);
+void VARGS Stats_Message(char *msg, ...) LIKEPRINTF(1);
 int qm_strcmp(char *s1, char *s2);
 int qm_stricmp(char *s1, char *s2);
 void Stats_ParsePrintLine(char *line);

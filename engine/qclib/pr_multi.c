@@ -90,6 +90,8 @@ progsnum_t PR_LoadProgs(progfuncs_t *progfuncs, char *s, int headercrc, builtin_
 			{
 				current_progstate->builtins = builtins;
 				current_progstate->numbuiltins = numbuiltins;
+				if (a <= progfuncs->numprogs)
+					progfuncs->numprogs = a+1;
 
 #ifdef QCJIT
 				if (prinst->usejit)
@@ -205,7 +207,7 @@ void QC_FlushProgsOffsets(progfuncs_t *progfuncs)
 //origionaloffs is used to track matching field offsets. fields with the same progs offset overlap
 
 //note: we probably suffer from progs with renamed system globals.
-int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, int engineofs, int progsofs)
+int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, signed long engineofs, signed long progsofs)
 {
 //	progstate_t *p;
 //	int pnum;
@@ -231,7 +233,7 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 		{
 			if (field[i].type != type)
 			{
-				printf("Field type mismatch on \"%s\"\n", name);
+				printf("Field type mismatch on \"%s\". %i != %i\n", name, field[i].type, type);
 				continue;
 			}
 			if (!progfuncs->fieldadjust && engineofs>=0)
@@ -296,7 +298,7 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, i
 			}
 		}*/
 		if (engineofs&3)
-			Sys_Error("field %s is %i&3", name, engineofs);
+			Sys_Error("field %s is %i&3", name, (int)engineofs);
 		field[fnum].ofs = ofs = engineofs/4;
 	}
 	else
@@ -358,10 +360,10 @@ void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num, char *stringtable)
 	}
 	*/
 	
-	switch(current_progstate->intsize)
+	switch(current_progstate->structtype)
 	{
-	case 24:
-	case 16:
+	case PST_KKQWSV:
+	case PST_DEFAULT:
 		for (i=1 ; i<pr_progs->numfielddefs; i++)
 		{
 			if (!strcmp(pr_fielddefs16[i].s_name+stringtable, pr_globaldefs16[num].s_name+stringtable))
@@ -392,7 +394,8 @@ void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num, char *stringtable)
 //		if (*(int *)&pr_globals[pr_globaldefs16[num].ofs])
 //			Sys_Error("QCLIB: Global field var with no matching field \"%s\", from offset %i", pr_globaldefs16[num].s_name+stringtable, *(int *)&pr_globals[pr_globaldefs16[num].ofs]);
 		return;
-	case 32:
+	case PST_FTE32:
+	case PST_QTEST:
 		for (i=1 ; i<pr_progs->numfielddefs; i++)
 		{
 			if (!strcmp(pr_fielddefs32[i].s_name+stringtable, pr_globaldefs32[num].s_name+stringtable))

@@ -187,54 +187,15 @@ FAST ATTACKS
 ==============================================================================
 */
 
-void() wizspike_touch =
-{
-	if (other == self.owner)
-		return;
-
-	self.voided = 1;
-
-	if (other.solid == SOLID_TRIGGER)
-		return; // trigger field, do nothing
-
-	if (pointcontents(self.origin) == CONTENT_SKY)
-	{
-		remove(self);
-		return;
-	}
-	
-// hit something that bleeds
-	if (other.takedamage)
-	{
-		T_Damage (other, self, self.owner, 12+random()*12);
-		other.maxspeed = other.maxspeed * 0.25;
-	}
-	else
-	{
-		WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
-		WriteByte (MSG_MULTICAST, TE_WIZSPIKE);
-		WriteCoord (MSG_MULTICAST, self.origin_x);
-		WriteCoord (MSG_MULTICAST, self.origin_y);
-		WriteCoord (MSG_MULTICAST, self.origin_z);
-		multicast (self.origin, MULTICAST_PHS);
-	}
-
-	remove(self);
-
-};
-
 void() Wiz_FastFire =
 {
 	local vector		vec;
 	local vector		dst;
-	local float x, y;
-
-	x = random()*24;
 
 	if (self.owner.health > 0)
 	{
 		makevectors (self.enemy.angles);	
-		dst = self.enemy.origin - x*self.movedir;
+		dst = self.enemy.origin - 13*self.movedir;
 	
 		vec = normalize(dst - self.origin);
 		sound (self, CHAN_WEAPON, "wizard/wattack.wav", 1, ATTN_NORM);
@@ -242,7 +203,6 @@ void() Wiz_FastFire =
 		newmis.velocity = vec*600;
 		newmis.owner = self.owner;
 		newmis.classname = "wizspike";
-		newmis.touch = wizspike_touch;
 		setmodel (newmis, "progs/w_spike.mdl");
 		setsize (newmis, VEC_ORIGIN, VEC_ORIGIN);		
 	}
@@ -284,14 +244,8 @@ void() Wiz_StartFast =
 
 void() Wiz_idlesound =
 {
-	local float wr;
+local float wr;
 	wr = random() * 5;
-
-	if (self.takedamage == DAMAGE_NO)
-	{
-		remove(self);
-		return;
-	}
 
 	if (self.waitmin < time)
 	{
@@ -301,7 +255,6 @@ void() Wiz_idlesound =
 	 	if (wr < 1.5)
 	 		sound (self, CHAN_VOICE, "wizard/widle2.wav", 1, ATTN_IDLE);
 	}
-
 	return;
 };
 
@@ -389,10 +342,15 @@ void() wiz_die =
 	if (self.health < -40)
 	{
 		sound (self, CHAN_VOICE, "player/udeath.wav", 1, ATTN_NORM);
+		ThrowHead ("progs/h_wizard.mdl", -10);
 		ThrowGib ("progs/gib2.mdl", -10);
 		ThrowGib ("progs/gib2.mdl", -10);
+		ThrowGib ("progs/gib2.mdl", -10);
+		ThrowGib ("progs/gib3.mdl", -10);
 		ThrowGib ("progs/gib1.mdl", -10);
+		return;
 	}
+
 	wiz_death1 ();
 };
 
@@ -414,12 +372,6 @@ void() Wiz_Missile =
 
 void() monster_wizard =
 {
-	if (self.zone == 0)
-	{
-		load_monster();
-		return;
-	}
-
 	precache_model ("progs/wizard.mdl");
 	precache_model ("progs/h_wizard.mdl");
 	precache_model ("progs/w_spike.mdl");
@@ -437,12 +389,8 @@ void() monster_wizard =
 
 	setmodel (self, "progs/wizard.mdl");
 
-	setsize (self, '-16 -16 -16', '16 16 40');
-	self.health = 80;
-	self.max_health = 80;
-      self.islot3 = SlotVal(IID_ARM_LEATHER, 1);
-	self.armornoise = "misc/thud.wav";
-
+	setsize (self, '-16 -16 -24', '16 16 40');
+	self.health = 150;
 	self.team = 3;
 	self.classname = "monster";
 	self.netname = "floater";
@@ -452,6 +400,7 @@ void() monster_wizard =
 	self.th_missile = Wiz_Missile;
 	self.th_pain = Wiz_Pain;
 	self.th_die = wiz_die;
+	self.armornoise = "misc/thud.wav";
 
-	walkmonster_start ();
+	flymonster_start ();
 };

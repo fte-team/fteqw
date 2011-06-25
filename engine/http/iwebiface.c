@@ -1,4 +1,4 @@
-#include "bothdefs.h"
+#include "quakedef.h"
 
 #ifdef WEBSVONLY
 	#define WEBSERVER
@@ -11,6 +11,40 @@
 #include "iweb.h"
 
 #ifdef WEBSVONLY	//we need some functions from quake
+
+qboolean SV_AllowDownload (const char *name)
+{
+	return true;
+}
+char		com_token[1024];
+com_tokentype_t com_tokentype;
+int		com_argc;
+const char	**com_argv;
+
+vfsfile_t *IWebGenerateFile(char *name, char *content, int contentlength)
+{
+	return NULL;
+}
+vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode);
+vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative relativeto)
+{
+	return VFSSTDIO_Open(filename, mode);
+}
+void Q_strncpyz(char *d, const char *s, int n)
+{
+	int i;
+	n--;
+	if (n < 0)
+		return;	//this could be an error
+
+	for (i=0; *s; i++)
+	{
+		if (i == n)
+			break;
+		*d++ = *s++;
+	}
+	*d='\0';
+}
 
 /*char	*va(char *format, ...)
 {
@@ -29,13 +63,15 @@
 	return string[bufnum];	
 }*/
 
-void Sys_Error(char *format, ...)
+#undef _vsnprintf
+void Sys_Error(const char *format, ...)
 {
 	va_list		argptr;
 	char		string[1024];
-	
+
 	va_start (argptr, format);
 	_vsnprintf (string,sizeof(string)-1, format,argptr);
+	string[sizeof(string)-1] = 0;
 	va_end (argptr);
 
 	printf("%s", string);
@@ -43,7 +79,7 @@ void Sys_Error(char *format, ...)
 	exit(1000);
 }
 
-int COM_CheckParm(char *parm)
+int COM_CheckParm(const char *parm)
 {
 	return 0;
 }
@@ -66,16 +102,14 @@ int main(int argc, char **argv)
 
 	while(1)
 	{
-		FTP_ServerRun(1);
-		HTTP_ServerPoll(1);
-		if (ftpserverfailed || httpserverfailed)
-			Sys_Error("FTP/HTTP server failed");
+		FTP_ServerRun(1, 21);
+		HTTP_ServerPoll(1, 80);
 		Sleep(1);
 	}
 }
 
 
-void COM_EnumerateFiles (char *match, int (*func)(char *, int, void *), void *parm)
+void COM_EnumerateFiles (const char *match, int (*func)(const char *, int, void *), void *parm)
 {
 	HANDLE r;
 	WIN32_FIND_DATA fd;	
@@ -116,10 +150,7 @@ void COM_EnumerateFiles (char *match, int (*func)(char *, int, void *), void *pa
 	FindClose(r);
 }
 
-
-
-enum {TTP_UNKNOWN, TTP_STRING} com_tokentype;
-char *COM_ParseOut (char *data, char *out, int outlen)
+char *COM_ParseOut (const char *data, char *out, int outlen)
 {
 	int		c;
 	int		len;
@@ -159,13 +190,13 @@ skipwhite:
 		while (1)
 		{
 			if (len >= outlen-1)
-				return data;
+				return (char*)data;
 
 			c = *data++;
 			if (c=='\"' || !c)
 			{
 				out[len] = 0;
-				return data;
+				return (char*)data;
 			}
 			out[len] = c;
 			len++;
@@ -178,7 +209,7 @@ skipwhite:
 	do
 	{
 		if (len >= outlen-1)
-			return data;
+			return (char*)data;
 
 		out[len] = c;
 		data++;
@@ -187,11 +218,10 @@ skipwhite:
 	} while (c>32);
 	
 	out[len] = 0;
-	return data;
+	return (char*)data;
 }
 
-char com_token[2048];
-char *COM_ParseToken (char *data)
+char *COM_ParseToken (const char *data, const char *punctuation)
 {
 	int		c;
 	int		len;
@@ -242,7 +272,7 @@ skipwhite:
 			if (c=='\"' || !c)
 			{
 				com_token[len] = 0;
-				return data;
+				return (char*)data;
 			}
 			com_token[len] = c;
 			len++;
@@ -257,7 +287,7 @@ skipwhite:
 		com_token[len] = c;
 		len++;
 		com_token[len] = 0;
-		return data+1;
+		return (char*)data+1;
 	}
 
 // parse a regular word
@@ -272,10 +302,10 @@ skipwhite:
 	} while (c>32);
 	
 	com_token[len] = 0;
-	return data;
+	return (char*)data;
 }
 
-
+/*
 IWEBFILE *IWebFOpenRead(char *name)					//fread(name, "rb");
 {
 	FILE *f;
@@ -304,7 +334,7 @@ IWEBFILE *IWebFOpenRead(char *name)					//fread(name, "rb");
 	}
 	return NULL;
 }
-
+*/
 
 
 #else
@@ -384,8 +414,8 @@ void IWebRun(void)
 #ifdef WEBSERVER
 	extern qboolean httpserverfailed, ftpserverfailed;
 
-	FTP_ServerRun(ftpserver.value!= 0, ftpserver_port.value);
-	HTTP_ServerPoll(httpserver.value!=0, httpserver_port.value);
+	FTP_ServerRun(ftpserver.ival!= 0, ftpserver_port.ival);
+	HTTP_ServerPoll(httpserver.ival!=0, httpserver_port.ival);
 	if (ftpserverfailed)
 	{
 		Con_Printf("FTP Server failed to load, setting %s to 0\n", ftpserver.name);

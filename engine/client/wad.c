@@ -38,7 +38,7 @@ Space padding is so names can be printed nicely in tables.
 Can safely be performed in place.
 ==================
 */
-void W_CleanupName (char *in, char *out)
+void W_CleanupName (const char *in, char *out)
 {
 	int		i;
 	int		c;
@@ -65,7 +65,6 @@ void W_CleanupName (char *in, char *out)
 W_LoadWadFile
 ====================
 */
-qbyte *COM_LoadFile (char *path, int usehunk);
 void W_LoadWadFile (char *filename)
 {
 	lumpinfo_t		*lump_p;
@@ -136,7 +135,7 @@ lumpinfo_t	*W_GetLumpinfo (char *name)
 	return NULL;
 }
 
-void *W_SafeGetLumpName (char *name)
+void *W_SafeGetLumpName (const char *name)
 {
 	int		i;
 	lumpinfo_t	*lump_p;
@@ -428,6 +427,25 @@ qbyte *W_GetTexture(char *name, int *width, int *height, qboolean *usesalpha)//r
 	miptex_t *tex;
 	qbyte *data;
 
+	if (!strncmp(name, "gfx/", 4))
+	{
+		qpic_t *p;
+		p = W_SafeGetLumpName(name+4);
+		if (p)
+		{
+			*width = p->width;
+			*height = p->height;
+			*usesalpha = false;
+
+			data = BZ_Malloc(p->width * p->height * 4);
+			for (i = 0; i < p->width * p->height; i++)
+			{
+				((unsigned int*)data)[i] = d_8to24rgbtable[p->data[i]];
+			}
+			return data;
+		}
+	}
+
 	texname[16] = 0;
 	W_CleanupName (name, texname);
 	for (i = 0;i < numwadtextures;i++)
@@ -554,17 +572,14 @@ void CL_Skygroup_f(void)
 	}
 }
 
-//extern model_t	*loadmodel;
-
 char wads[4096];
-void Mod_ParseInfoFromEntityLump(char *data, char *mapname)	//actually, this should be in the model code.
+void Mod_ParseInfoFromEntityLump(model_t *wmodel, char *data, char *mapname)	//actually, this should be in the model code.
 {
-	extern model_t *loadmodel;
 	char key[128];
-	char skyname[64];
-	float skyrotate = 0;
-	vec3_t skyaxis = {0, 0, 0};
 	mapskys_t *msky;
+
+	cl.skyrotate = 0;
+	VectorClear(cl.skyaxis);
 
 	wads[0] = '\0';
 
@@ -575,16 +590,16 @@ void Mod_ParseInfoFromEntityLump(char *data, char *mapname)	//actually, this sho
 
 	// this hack is necessary to ensure Quake 2 maps get their
 	// default skybox
-	if (loadmodel->fromgame == fg_quake2)
-		strcpy(skyname, "unit1_");
+	if (wmodel->fromgame == fg_quake2)
+		strcpy(cl.skyname, "unit1_");
 	else
-		skyname[0] = '\0';
+		cl.skyname[0] = '\0';
 
 	for (msky = mapskies; msky; msky = msky->next)
 	{
 		if (!strcmp(msky->mapname, mapname))
 		{
-			Q_strncpyz(skyname, msky->skyname, sizeof(skyname));
+			Q_strncpyz(cl.skyname, msky->skyname, sizeof(cl.skyname));
 			break;
 		}
 	}
@@ -606,7 +621,7 @@ void Mod_ParseInfoFromEntityLump(char *data, char *mapname)	//actually, this sho
 			break; // error		
 		if (!strcmp("wad", key)) // for HalfLife maps
 		{
-			if (loadmodel->fromgame == fg_halflife)
+			if (wmodel->fromgame == fg_halflife)
 			{
 				strncat(wads, ";", 4095);	//cache it for later (so that we don't play with any temp memory yet)
 				strncat(wads, com_token, 4095);	//cache it for later (so that we don't play with any temp memory yet)
@@ -614,15 +629,28 @@ void Mod_ParseInfoFromEntityLump(char *data, char *mapname)	//actually, this sho
 		}
 		else if (!strcmp("skyname", key)) // for HalfLife maps
 		{
-			Q_strncpyz(skyname, com_token, sizeof(skyname));
+			Q_strncpyz(cl.skyname, com_token, sizeof(cl.skyname));
+		}
+		else if (!strcmp("fog", key))
+		{
+			char *s;
+			Q_strncpyz(key, com_token, sizeof(key));
+			s = COM_Parse(key);
+			cl.fog_density = atof(com_token);
+			s = COM_Parse(s);
+			cl.fog_colour[0] = atof(com_token);
+			s = COM_Parse(s);
+			cl.fog_colour[1] = atof(com_token);
+			s = COM_Parse(s);
+			cl.fog_colour[2] = atof(com_token);
 		}
 		else if (!strcmp("sky", key)) // for Quake2 maps
 		{
-			Q_strncpyz(skyname, com_token, sizeof(skyname));
+			Q_strncpyz(cl.skyname, com_token, sizeof(cl.skyname));
 		}
 		else if (!strcmp("skyrotate", key))
 		{
-			skyrotate = atof(com_token);
+			cl.skyrotate = atof(com_token);
 		}
 		else if (!strcmp("skyaxis", key))
 		{
@@ -631,21 +659,18 @@ void Mod_ParseInfoFromEntityLump(char *data, char *mapname)	//actually, this sho
 			s = COM_Parse(key);
 			if (s)
 			{
-				skyaxis[0] = atof(s);
+				cl.skyaxis[0] = atof(s);
 				s = COM_Parse(s);
 				if (s)
 				{
-					skyaxis[1] = atof(s);
+					cl.skyaxis[1] = atof(s);
 					COM_Parse(s);
 					if (s)
-						skyaxis[2] = atof(s);
+						cl.skyaxis[2] = atof(s);
 				}
 			}
 		}
 	}
-
-	skyrotate = VectorNormalize(skyaxis);
-	R_SetSky(skyname, skyrotate, skyaxis);
 }
 
 //textures/fred.wad is the DP standard - I wanna go for that one.

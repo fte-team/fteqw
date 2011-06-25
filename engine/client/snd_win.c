@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -26,7 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	WAV_BUFFER_SIZE			0x0400
 #define SECONDARY_BUFFER_SIZE	0x10000
 
-static void WAV_Submit(soundcardinfo_t *sc);
+static void WAV_Submit(soundcardinfo_t *sc, int start, int end);
 
 typedef struct {
 	HWAVEOUT hWaveOut;
@@ -48,7 +48,7 @@ void S_BlockSound (void)
 {
 	soundcardinfo_t *sc;
 	wavhandle_t *wh;
-	
+
 	snd_blocked++;
 
 	for (sc = sndcardinfo; sc; sc=sc->next)
@@ -110,7 +110,7 @@ static void WAV_Shutdown (soundcardinfo_t *sc)
 
 	if (wh->hWaveHdr)
 	{
-		GlobalUnlock(wh->hWaveHdr); 
+		GlobalUnlock(wh->hWaveHdr);
 		GlobalFree(wh->hWaveHdr);
 	}
 
@@ -145,7 +145,7 @@ inside the recirculating dma buffer, so the mixing code will know
 how many sample are required to fill it up.
 ===============
 */
-static int WAV_GetDMAPos(soundcardinfo_t *sc)
+static unsigned int WAV_GetDMAPos(soundcardinfo_t *sc)
 {
 	int		s;
 
@@ -166,7 +166,7 @@ WAV_Submit
 Send sound to device if buffer isn't really the dma buffer
 ===============
 */
-static void WAV_Submit(soundcardinfo_t *sc)
+static void WAV_Submit(soundcardinfo_t *sc, int start, int end)
 {
 	LPWAVEHDR	h;
 	int			wResult;
@@ -205,19 +205,19 @@ static void WAV_Submit(soundcardinfo_t *sc)
 		h = wh->lpWaveHdr + ( sc->snd_sent&WAV_MASK );
 
 		sc->snd_sent++;
-		/* 
-		 * Now the data block can be sent to the output device. The 
-		 * waveOutWrite function returns immediately and waveform 
-		 * data is sent to the output device in the background. 
-		 */ 
-		wResult = waveOutWrite(wh->hWaveOut, h, sizeof(WAVEHDR)); 
+		/*
+		 * Now the data block can be sent to the output device. The
+		 * waveOutWrite function returns immediately and waveform
+		 * data is sent to the output device in the background.
+		 */
+		wResult = waveOutWrite(wh->hWaveOut, h, sizeof(WAVEHDR));
 
 		if (wResult != MMSYSERR_NOERROR)
-		{ 
+		{
 			Con_SafePrintf ("Failed to write block to device\n");
 			WAV_Shutdown (sc);
-			return; 
-		} 
+			return;
+		}
 	}
 }
 
@@ -232,7 +232,7 @@ Crappy windows multimedia base
 */
 int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
 {
-	WAVEFORMATEX  format; 
+	WAVEFORMATEX  format;
 	int				i;
 	HRESULT			hr;
 	wavhandle_t *wh;
@@ -241,13 +241,13 @@ int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
 		return 2;	//we only support one card, at the moment.
 
 	wh = sc->handle = Z_Malloc(sizeof(wavhandle_t));
-	
+
 	sc->snd_sent = 0;
 	sc->snd_completed = 0;
 
 	if (sc->sn.speed > 48000) // limit waveout to 48000 until that buffer issue gets solved
 		sc->sn.speed = 48000;
-	
+
 	memset (&format, 0, sizeof(format));
 	format.wFormatTag = WAVE_FORMAT_PCM;
 	format.nChannels = sc->sn.numchannels;
@@ -257,9 +257,9 @@ int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
 		*format.wBitsPerSample / 8;
 	format.cbSize = 0;
 	format.nAvgBytesPerSec = format.nSamplesPerSec
-		*format.nBlockAlign; 
-	
-	/* Open a waveform device for output using window callback. */ 
+		*format.nBlockAlign;
+
+	/* Open a waveform device for output using window callback. */
 	while ((hr = waveOutOpen((LPHWAVEOUT)&wh->hWaveOut, WAVE_MAPPER,
 					&format,
 					0, 0L, CALLBACK_NULL)) != MMSYSERR_NOERROR)
@@ -269,7 +269,7 @@ int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
 			if (hr == WAVERR_BADFORMAT)
 				Con_SafePrintf (CON_ERROR "waveOutOpen failed, format not supported\n");
 			else
-				Con_SafePrintf (CON_ERROR "waveOutOpen failed, return code %i\n", hr);
+				Con_SafePrintf (CON_ERROR "waveOutOpen failed, return code %i\n", (int)hr);
 			WAV_Shutdown (sc);
 			return false;
 		}
@@ -285,61 +285,61 @@ int WAV_InitCard (soundcardinfo_t *sc, int cardnum)
 			WAV_Shutdown (sc);
 			return false;
 //		}
-	} 
+	}
 
-	/* 
-	 * Allocate and lock memory for the waveform data. The memory 
-	 * for waveform data must be globally allocated with 
-	 * GMEM_MOVEABLE and GMEM_SHARE flags. 
+	/*
+	 * Allocate and lock memory for the waveform data. The memory
+	 * for waveform data must be globally allocated with
+	 * GMEM_MOVEABLE and GMEM_SHARE flags.
 
-	*/ 
+	*/
 	wh->gSndBufSize = WAV_BUFFERS*WAV_BUFFER_SIZE;
-	wh->hData = GlobalAlloc(GMEM_MOVEABLE | GMEM_SHARE, wh->gSndBufSize); 
-	if (!wh->hData) 
-	{ 
+	wh->hData = GlobalAlloc(GMEM_MOVEABLE | GMEM_SHARE, wh->gSndBufSize);
+	if (!wh->hData)
+	{
 		Con_SafePrintf (CON_ERROR "Sound: Out of memory.\n");
 		WAV_Shutdown (sc);
-		return false; 
+		return false;
 	}
 	wh->lpData = GlobalLock(wh->hData);
 	if (!wh->lpData)
-	{ 
+	{
 		Con_SafePrintf (CON_ERROR "Sound: Failed to lock.\n");
 		WAV_Shutdown (sc);
-		return false; 
-	} 
+		return false;
+	}
 	memset (wh->lpData, 0, wh->gSndBufSize);
 
-	/* 
-	 * Allocate and lock memory for the header. This memory must 
-	 * also be globally allocated with GMEM_MOVEABLE and 
-	 * GMEM_SHARE flags. 
-	 */ 
-	wh->hWaveHdr = GlobalAlloc(GMEM_MOVEABLE | GMEM_SHARE, 
-		(DWORD) sizeof(WAVEHDR) * WAV_BUFFERS); 
+	/*
+	 * Allocate and lock memory for the header. This memory must
+	 * also be globally allocated with GMEM_MOVEABLE and
+	 * GMEM_SHARE flags.
+	 */
+	wh->hWaveHdr = GlobalAlloc(GMEM_MOVEABLE | GMEM_SHARE,
+		(DWORD) sizeof(WAVEHDR) * WAV_BUFFERS);
 
 	if (wh->hWaveHdr == NULL)
-	{ 
+	{
 		Con_SafePrintf (CON_ERROR "Sound: Failed to Alloc header.\n");
 		WAV_Shutdown (sc);
-		return false; 
-	} 
+		return false;
+	}
 
-	wh->lpWaveHdr = (LPWAVEHDR) GlobalLock(wh->hWaveHdr); 
+	wh->lpWaveHdr = (LPWAVEHDR) GlobalLock(wh->hWaveHdr);
 
 	if (wh->lpWaveHdr == NULL)
-	{ 
+	{
 		Con_SafePrintf (CON_ERROR "Sound: Failed to lock header.\n");
 		WAV_Shutdown (sc);
-		return false; 
+		return false;
 	}
 
 	memset (wh->lpWaveHdr, 0, sizeof(WAVEHDR) * WAV_BUFFERS);
 
-	/* After allocation, set up and prepare headers. */ 
+	/* After allocation, set up and prepare headers. */
 	for (i=0 ; i<WAV_BUFFERS ; i++)
 	{
-		wh->lpWaveHdr[i].dwBufferLength = WAV_BUFFER_SIZE; 
+		wh->lpWaveHdr[i].dwBufferLength = WAV_BUFFER_SIZE;
 		wh->lpWaveHdr[i].lpData = wh->lpData + i*WAV_BUFFER_SIZE;
 
 		if (waveOutPrepareHeader(wh->hWaveOut, wh->lpWaveHdr+i, sizeof(WAVEHDR)) !=

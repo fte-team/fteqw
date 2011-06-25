@@ -9,6 +9,8 @@
 
 #define MAX_BONES 256
 
+int HLMod_BoneForName(model_t *mod, char *name);
+int HLMod_FrameForName(model_t *mod, char *name);
 
 typedef struct {
 	int ofs_indexes;
@@ -32,6 +34,7 @@ typedef struct {
 
 	int groups;
 	int groupofs;
+	int baseframeofs;	/*non-heirachical*/
 
 	int nextsurf;
 
@@ -65,6 +68,8 @@ typedef struct {
 	int ofsverts;
 #ifndef SERVERONLY
 	int ofsnormals;
+	int ofstvector;
+	int ofssvector;
 #endif
 
 	vec3_t		scale;
@@ -102,30 +107,20 @@ typedef struct {
 } galiasskin_t;
 
 typedef struct {
-	int base;
-	int bump;
-	int fullbright;
-	int upperoverlay;
-	int loweroverlay;
-
-#ifdef Q3SHADERS
-	shader_t *shader;
-#endif
-} galiastexnum_t;
-
-typedef struct {
 	char name[MAX_QPATH];
-	galiastexnum_t texnum;
+	texnums_t texnum;
 	unsigned int tcolour;
 	unsigned int bcolour;
+	unsigned int pclass;
 	int skinnum;
+	unsigned int subframe;
 	bucket_t bucket;
 } galiascolourmapped_t;
 #endif
 
 float *Alias_GetBonePositions(galiasinfo_t *inf, framestate_t *fstate, float *buffer, int buffersize);
 #ifdef SKELETALMODELS
-void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, float *xyzout, float *normals);
+void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, vecV_t *xyzout, vec3_t *normout);
 #endif
 qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, 
 									entity_t *e,
@@ -142,9 +137,24 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer);
 #endif
 #ifdef ZYMOTICMODELS
 	qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer);
+#endif
+#ifdef DPMMODELS
 	qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer);
+#endif
+#ifdef PSKMODELS
+	qboolean Mod_LoadPSKModel(model_t *mod, void *buffer);
+#endif
+#ifdef INTERQUAKEMODELS
+	qboolean Mod_LoadInterQuakeModel(model_t *mod, void *buffer);
 #endif
 #ifdef MD5MODELS
 	qboolean Mod_LoadMD5MeshModel(model_t *mod, void *buffer);
 	qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer);
 #endif
+#ifdef MAP_PROC 
+	qboolean Mod_LoadMap_Proc(model_t *mode, void *buffer);
+#endif
+
+void Mod_AccumulateTextureVectors(vecV_t *vc, vec2_t *tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, index_t *idx, int numidx);
+void Mod_AccumulateMeshTextureVectors(mesh_t *mesh);
+void Mod_NormaliseTextureVectors(vec3_t *n, vec3_t *s, vec3_t *t, int v);

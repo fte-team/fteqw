@@ -73,48 +73,44 @@ int slist_type;
 
 
 
-static void NM_DrawColouredCharacter (int cx, int line, unsigned int num)
-{
-	Draw_ColouredCharacter(cx, line, num);
-}
 static void NM_Print (int cx, int cy, qbyte *str)
 {
-	while (*str)
-	{
-		Draw_ColouredCharacter (cx, cy, (*str)|CON_HIGHCHARSMASK|CON_WHITEMASK);
-		str++;
-		cx += 8;
-	}
+	Draw_AltFunString(cx, cy, str);
 }
 
 static void NM_PrintWhite (int cx, int cy, qbyte *str)
 {
-	while (*str)
-	{
-		Draw_ColouredCharacter (cx, cy, (*str)|CON_WHITEMASK);
-		str++;
-		cx += 8;
-	}
+	Draw_FunString(cx, cy, str);
 }
 
 static void NM_PrintColoured (int cx, int cy, int colour, qbyte *str)
 {
+#ifdef _MSC_VER
+#pragma message("NM_PrintColoured: needs reimplementing")
+#endif
+/*
 	while (*str)
 	{
 		NM_DrawColouredCharacter (cx, cy, (*str) | (colour<<CON_FGSHIFT));
 		str++;
 		cx += 8;
 	}
+*/
 }
 
 static void NM_PrintHighlighted (int cx, int cy, int colour, int bg, qbyte *str)
 {
+#ifdef _MSC_VER
+#pragma message("NM_PrintHighlighted: needs reimplementing")
+#endif
+/*
 	while (*str)
 	{
 		NM_DrawColouredCharacter (cx, cy, (*str) | (colour<<CON_FGSHIFT) | (bg<<CON_BGSHIFT) | CON_NONCLEARBG);
 		str++;
 		cx += 8;
 	}
+*/
 }
 
 qboolean M_IsFiltered(serverinfo_t *server)	//figure out if we should filter a server.
@@ -161,7 +157,7 @@ qboolean M_IsFiltered(serverinfo_t *server)	//figure out if we should filter a s
 	if (*sb_mapname.string)
 		if (!strstr(server->map, sb_mapname.string))
 			return true;
-	
+
 	return false;
 }
 
@@ -186,9 +182,9 @@ void M_DrawOneServer (int inity)
 	char	*o;
 	int		l, i;
 	char *s;
-	
+
 	int miny=8*5;
-	int y=8*(5-selectedserver.linenum);	
+	int y=8*(5-selectedserver.linenum);
 
 	miny += inity;
 	y += inity;
@@ -245,8 +241,11 @@ void M_DrawOneServer (int inity)
 	{
 		if (y>=miny)
 		{
-			Draw_Fill (12, y, 28, 4, Sbar_ColorForMap(selectedserver.detail->players[i].topc));
-			Draw_Fill (12, y+4, 28, 4, Sbar_ColorForMap(selectedserver.detail->players[i].botc));
+			R2D_ImagePaletteColour(Sbar_ColorForMap(selectedserver.detail->players[i].topc), 1.0);
+			R2D_FillBlock (12, y, 28, 4);
+			R2D_ImagePaletteColour(Sbar_ColorForMap(selectedserver.detail->players[i].botc), 1.0);
+			R2D_FillBlock (12, y+4, 28, 4);
+			R2D_ImageColours(1.0, 1.0, 1.0, 1.0);
 			NM_PrintWhite (12, y, va("%3i", selectedserver.detail->players[i].frags));
 			NM_Print (12+8*4, y, selectedserver.detail->players[i].name);
 		}
@@ -266,6 +265,10 @@ int M_AddColumn (int right, int y, char *text, int maxchars, int colour, int hig
 
 	right = left;
 
+#ifdef _MSC_VER
+#pragma message("M_AddColumn: needs reimplementing")
+#endif
+/*
 	if (highlight >= 0)
 	{
 		while (*text && maxchars>0)
@@ -286,6 +289,7 @@ int M_AddColumn (int right, int y, char *text, int maxchars, int colour, int hig
 			maxchars--;
 		}
 	}
+*/
 	return left;
 }
 void M_DrawServerList(void)
@@ -302,7 +306,7 @@ void M_DrawServerList(void)
 	char adr[MAX_ADR_SIZE];
 
 	CL_QueryServers();
-	
+
 	slist_numoptions = 0;
 
 	//find total servers.
@@ -335,7 +339,7 @@ void M_DrawServerList(void)
 		return;
 	}
 
-	
+
 	if (slist_option >= slist_numoptions)
 		slist_option = slist_numoptions-1;
 	op = vid.height/2/8;
@@ -419,9 +423,8 @@ void M_DrawServerList(void)
 			// make sure we have a highlighted background
 			if (highlight >= 0)
 			{
-				int i = 8;
-				for (; i < vid.width - 8; i += 8)
-					Draw_ColouredCharacter(i, y, ' ' | CON_NONCLEARBG | (COLOR_WHITE << CON_FGSHIFT) | (highlight << CON_BGSHIFT));
+				R2D_ImageColours(consolecolours[highlight].fr, consolecolours[highlight].fg, consolecolours[highlight].fb, 1.0);
+				R2D_FillBlock(8, y, vid.width-16, 8);
 			}
 
 			if (sb_showtimelimit.value)
@@ -502,7 +505,7 @@ void M_DrawSources (void)
 
 		switch (mast->type)
 		{
-		case MT_MASTERHTTP:
+		case MT_MASTERHTTPNQ:
 		case MT_MASTERHTTPQW:
 			clr = COLOR_YELLOW;
 			break;
@@ -612,7 +615,7 @@ void M_SListOptions_Key (int key)
 			slist_option = slist_numoptions-1;
 		return;
 	}
-	
+
 	switch(options[slist_option].type)
 	{
 	default:
@@ -767,7 +770,7 @@ void M_SListKey(int key)
 		M_SListOptions_Key(key);
 		return;
 	}
-	
+
 	if (key == K_UPARROW)
 	{
 		slist_option--;
@@ -805,7 +808,7 @@ void M_SListKey(int key)
 			SListOptionChanged(M_FindCurrentServer());	//go for these early.
 	}
 	else if (key == 'r')
-		MasterInfo_Begin();
+		MasterInfo_Refresh();
 	else if (key == K_SPACE)
 	{
 		if (slist_type == SLISTTYPE_SERVERS || slist_type == SLISTTYPE_FAVORITES)
@@ -875,7 +878,7 @@ void M_SListKey(int key)
 		}
 
 		return;
-	}	
+	}
 }
 
 
@@ -899,6 +902,8 @@ typedef struct {
 	qboolean stillpolling;
 	qbyte filter[8];
 
+	char refreshtext[64];
+
 	qboolean sliderpressed;
 
 	menupicture_t *mappic;
@@ -918,19 +923,20 @@ void SL_DrawColumnTitle (int *x, int y, int xlen, int mx, char *str, qboolean re
 	if (mx >= xmin && !(*filldraw))
 	{
 		*filldraw = true;
-		Draw_FillRGB(xmin*8, y, xlen*8, 8, (sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08);
+		R2D_ImageColours((sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08, 1.0);
+		R2D_FillBlock(xmin, y, xlen, 8);
 	}
-	Draw_FunStringLen(xmin*8, y, str, xlen);
+	Draw_FunStringWidth(xmin, y, str, xlen);
 
 	if (x != NULL)
-		*x -= xlen + 1;
+		*x -= xlen + 8;
 }
 
 void SL_TitlesDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 {
 	int sf = Master_GetSortField();
 	extern int mousecursor_x, mousecursor_y;
-	int mx = mousecursor_x/8;
+	int mx = mousecursor_x;
 	qboolean filldraw = false;
 	qbyte clr;
 
@@ -938,17 +944,17 @@ void SL_TitlesDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 		clr = 'D';
 	else
 		clr = 'B';
-	x = ths->common.width/8;
+	x = ths->common.width;
 	if (mx > x || mousecursor_y < y || mousecursor_y >= y+8)
 		filldraw = true;
-	if (sb_showtimelimit.value)	{SL_DrawColumnTitle(&x, y, 3, mx, "tl", (sf==SLKEY_TIMELIMIT), clr, &filldraw);}
-	if (sb_showfraglimit.value)	{SL_DrawColumnTitle(&x, y, 3, mx, "fl", (sf==SLKEY_FRAGLIMIT), clr, &filldraw);}
-	if (sb_showplayers.value)	{SL_DrawColumnTitle(&x, y, 5, mx, "plyrs", (sf==SLKEY_NUMPLAYERS), clr, &filldraw);}
-	if (sb_showmap.value)		{SL_DrawColumnTitle(&x, y, 8, mx, "map", (sf==SLKEY_MAP), clr, &filldraw);}
-	if (sb_showgamedir.value)	{SL_DrawColumnTitle(&x, y, 8, mx, "gamedir", (sf==SLKEY_GAMEDIR), clr, &filldraw);}
-	if (sb_showping.value)		{SL_DrawColumnTitle(&x, y, 3, mx, "png", (sf==SLKEY_PING), clr, &filldraw);}
-	if (sb_showaddress.value)	{SL_DrawColumnTitle(&x, y, 21, mx, "address", (sf==SLKEY_ADDRESS), clr, &filldraw);}
-	SL_DrawColumnTitle(NULL, y, x, mx, "hostname^7 ", (sf==SLKEY_NAME), clr, &filldraw);
+	if (sb_showtimelimit.value)	{SL_DrawColumnTitle(&x, y, 3*8, mx, "tl", (sf==SLKEY_TIMELIMIT), clr, &filldraw);}
+	if (sb_showfraglimit.value)	{SL_DrawColumnTitle(&x, y, 3*8, mx, "fl", (sf==SLKEY_FRAGLIMIT), clr, &filldraw);}
+	if (sb_showplayers.value)	{SL_DrawColumnTitle(&x, y, 5*8, mx, "plyrs", (sf==SLKEY_NUMPLAYERS), clr, &filldraw);}
+	if (sb_showmap.value)		{SL_DrawColumnTitle(&x, y, 8*8, mx, "map", (sf==SLKEY_MAP), clr, &filldraw);}
+	if (sb_showgamedir.value)	{SL_DrawColumnTitle(&x, y, 8*8, mx, "gamedir", (sf==SLKEY_GAMEDIR), clr, &filldraw);}
+	if (sb_showping.value)		{SL_DrawColumnTitle(&x, y, 3*8, mx, "png", (sf==SLKEY_PING), clr, &filldraw);}
+	if (sb_showaddress.value)	{SL_DrawColumnTitle(&x, y, 21*8, mx, "address", (sf==SLKEY_ADDRESS), clr, &filldraw);}
+	SL_DrawColumnTitle(NULL, y, x, mx, "hostname ", (sf==SLKEY_NAME), clr, &filldraw);
 }
 
 qboolean SL_TitlesKey (menucustom_t *ths, menu_t *menu, int key)
@@ -1064,35 +1070,34 @@ void SL_ServerDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 		stype = flagstoservertype(si->special);
 		if (thisone == info->selectedpos)
 		{
-			Draw_FillRGB(0, y, ths->common.width, 8, 
+			R2D_ImageColours(
 				serverhighlight[(int)stype][0],
 				serverhighlight[(int)stype][1],
-				serverhighlight[(int)stype][2]);
+				serverhighlight[(int)stype][2],
+				1.0);
 		}
 		else if (thisone == info->scrollpos + (mousecursor_y-16)/8 && mousecursor_x < x)
-			Draw_FillRGB(0, y, ths->common.width, 8, (sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08);
+			R2D_ImageColours((sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08, 1.0);
 		else if (selectedserver.inuse && NET_CompareAdr(si->adr, selectedserver.adr))
-		{		
-			Draw_FillRGB(0, y, ths->common.width, 8, ((sin(realtime*4.4)*0.25)+0.5) * 0.5, ((sin(realtime*4.4)*0.25)+0.5)*0.5, 0.08*0.5);
-		}
+			R2D_ImageColours(((sin(realtime*4.4)*0.25)+0.5) * 0.5, ((sin(realtime*4.4)*0.25)+0.5)*0.5, 0.08*0.5, 1.0);
 		else
-		{		
-			Draw_FillRGB(0, y, ths->common.width, 8, 
+		{
+			R2D_ImageColours(
 				serverbackcolor[(int)stype * 2 + (thisone & 1)][0],
 				serverbackcolor[(int)stype * 2 + (thisone & 1)][1],
-				serverbackcolor[(int)stype * 2 + (thisone & 1)][2]);
+				serverbackcolor[(int)stype * 2 + (thisone & 1)][2],
+				1.0);
 		}
+		R2D_FillBlock(0, y, ths->common.width, 8);
 
-		x /= 8;
-
-		if (sb_showtimelimit.value)	{Draw_FunStringLen((x-3)*8, y, va("%i", si->tl), 3); x-=4;}
-		if (sb_showfraglimit.value)	{Draw_FunStringLen((x-3)*8, y, va("%i", si->fl), 3); x-=4;}
-		if (sb_showplayers.value)	{Draw_FunStringLen((x-5)*8, y, va("%2i/%2i", si->players, si->maxplayers), 5); x-=6;}
-		if (sb_showmap.value)		{Draw_FunStringLen((x-8)*8, y, si->map, 8); x-=9;}
-		if (sb_showgamedir.value)	{Draw_FunStringLen((x-8)*8, y, si->gamedir, 8); x-=9;}
-		if (sb_showping.value)		{Draw_FunStringLen((x-3)*8, y, va("%i", si->ping), 3); x-=4;}
-		if (sb_showaddress.value)	{Draw_FunStringLen((x-21)*8, y, NET_AdrToString(adr, sizeof(adr), si->adr), 21); x-=22;}
-		Draw_FunStringLen(0, y, si->name, x);
+		if (sb_showtimelimit.value)	{Draw_FunStringWidth((x-3*8), y, va("%i", si->tl), 3*8); x-=4*8;}
+		if (sb_showfraglimit.value)	{Draw_FunStringWidth((x-3*8), y, va("%i", si->fl), 3*8); x-=4*8;}
+		if (sb_showplayers.value)	{Draw_FunStringWidth((x-5*8), y, va("%2i/%2i", si->players, si->maxplayers), 5*8); x-=6*8;}
+		if (sb_showmap.value)		{Draw_FunStringWidth((x-8*8), y, si->map, 8*8); x-=9*8;}
+		if (sb_showgamedir.value)	{Draw_FunStringWidth((x-8*8), y, si->gamedir, 8*8); x-=9*8;}
+		if (sb_showping.value)		{Draw_FunStringWidth((x-3*8), y, va("%i", si->ping), 3*8); x-=4*8;}
+		if (sb_showaddress.value)	{Draw_FunStringWidth((x-21*8), y, NET_AdrToString(adr, sizeof(adr), si->adr), 21*8); x-=22*8;}
+		Draw_FunStringWidth(0, y, si->name, x);
 	}
 }
 qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key)
@@ -1111,13 +1116,13 @@ qboolean SL_ServerKey (menucustom_t *ths, menu_t *menu, int key)
 		info->selectedpos = info->scrollpos + (mousecursor_y-16)/8;
 		server = Master_SortedServer(info->selectedpos);
 
-//		selectedserver.inuse = true;
-//		SListOptionChanged(server);
+		selectedserver.inuse = true;
+		SListOptionChanged(server);
 
 		if (server)
 		{
 			snprintf(info->mappic->picturename, 32, "levelshots/%s", server->map);
-			if (!Draw_SafeCachePic(info->mappic->picturename))
+			if (!R2D_SafeCachePic(info->mappic->picturename))
 				snprintf(info->mappic->picturename, 32, "levelshots/nomap");
 		}
 		else
@@ -1177,6 +1182,7 @@ void SL_PreDraw	(menu_t *menu)
 
 	CL_QueryServers();
 
+	snprintf(info->refreshtext, sizeof(info->refreshtext), "Refresh - %u of %u\n", Master_NumPolled(), Master_TotalCount());
 	info->numslots = Master_NumSorted();
 }
 qboolean SL_Key	(int key, menu_t *menu)
@@ -1220,7 +1226,7 @@ qboolean SL_Key	(int key, menu_t *menu)
 		if (server)
 		{
 			snprintf(info->mappic->picturename, 32, "levelshots/%s", server->map);
-			if (!Draw_SafeCachePic(info->mappic->picturename))
+			if (!R2D_SafeCachePic(info->mappic->picturename))
 				snprintf(info->mappic->picturename, 32, "levelshots/nomap");
 		}
 		else
@@ -1249,11 +1255,13 @@ void SL_ServerPlayer (int x, int y, menucustom_t *ths, menu_t *menu)
 			if ((int)ths->data < selectedserver.detail->numplayers)
 			{
 				int i = (int)ths->data;
-				Draw_Fill (x, y, 28, 4, Sbar_ColorForMap(selectedserver.detail->players[i].topc));
-				Draw_Fill (x, y+4, 28, 4, Sbar_ColorForMap(selectedserver.detail->players[i].botc));
+				R2D_ImagePaletteColour (Sbar_ColorForMap(selectedserver.detail->players[i].topc), 1.0);
+				R2D_FillBlock (x, y, 28, 4);
+				R2D_ImagePaletteColour (Sbar_ColorForMap(selectedserver.detail->players[i].botc), 1.0);
+				R2D_FillBlock (x, y+4, 28, 4);
 				NM_PrintWhite (x, y, va("%3i", selectedserver.detail->players[i].frags));
 
-				Draw_FunStringLen (x+28, y, selectedserver.detail->players[i].name, 12);
+				Draw_FunStringWidth (x+28, y, selectedserver.detail->players[i].name, 12*8);
 			}
 	}
 }
@@ -1264,32 +1272,33 @@ void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 
 	mpic_t *pic;
 
-	pic = Draw_SafeCachePic("scrollbars/slidebg.png");
+	pic = R2D_SafeCachePic("scrollbars/slidebg.png");
 	if (pic)
 	{
-		Draw_ScalePic(x + ths->common.width - 8, y+8, 8, ths->common.height-16, pic);
+		R2D_ScalePic(x + ths->common.width - 8, y+8, 8, ths->common.height-16, pic);
 
-		pic = Draw_SafeCachePic("scrollbars/arrow_up.png");
-		Draw_ScalePic(x + ths->common.width - 8, y, 8, 8, pic);
+		pic = R2D_SafeCachePic("scrollbars/arrow_up.png");
+		R2D_ScalePic(x + ths->common.width - 8, y, 8, 8, pic);
 
-		pic = Draw_SafeCachePic("scrollbars/arrow_down.png");
-		Draw_ScalePic(x + ths->common.width - 8, y + ths->common.height - 8, 8, 8, pic);
+		pic = R2D_SafeCachePic("scrollbars/arrow_down.png");
+		R2D_ScalePic(x + ths->common.width - 8, y + ths->common.height - 8, 8, 8, pic);
 
 		y += ((info->scrollpos) / ((float)info->numslots - info->visibleslots)) * (float)(ths->common.height-(64+16-1));
 
 		y += 8;
 
-		pic = Draw_SafeCachePic("scrollbars/slider.png");
-		Draw_ScalePic(x + ths->common.width - 8, y, 8, 64, pic);
+		pic = R2D_SafeCachePic("scrollbars/slider.png");
+		R2D_ScalePic(x + ths->common.width - 8, y, 8, 64, pic);
 	}
 	else
 	{
-
-		Draw_FillRGB(x, y, ths->common.width, ths->common.height, 0.1, 0.1, 0.2);
+		R2D_ImageColours(0.1, 0.1, 0.2, 1.0);
+		R2D_FillBlock(x, y, ths->common.width, ths->common.height);
 
 		y += ((info->scrollpos) / ((float)info->numslots - info->visibleslots)) * (ths->common.height-8);
 
-		Draw_FillRGB(x, y, 8, 8, 0.35, 0.35, 0.55);
+		R2D_ImageColours(0.35, 0.35, 0.55, 1.0);
+		R2D_FillBlock(x, y, 8, 8);
 	}
 
 	if (info->sliderpressed)
@@ -1303,7 +1312,7 @@ void SL_SliderDraw (int x, int y, menucustom_t *ths, menu_t *menu)
 
 			my = mousecursor_y;
 			my -= ths->common.posy;
-			if (Draw_SafeCachePic("scrollbars/slidebg.png"))
+			if (R2D_SafeCachePic("scrollbars/slidebg.png"))
 			{
 				my -= 32+8;
 				my /= ths->common.height - (64+16);
@@ -1333,7 +1342,7 @@ qboolean SL_SliderKey (menucustom_t *ths, menu_t *menu, int key)
 
 		my = mousecursor_y;
 		my -= ths->common.posy;
-		if (Draw_SafeCachePic("scrollbars/slidebg.png"))
+		if (R2D_SafeCachePic("scrollbars/slidebg.png"))
 		{
 			my -= 32+8;
 			my /= ths->common.height - (64+16);
@@ -1413,7 +1422,7 @@ void SL_Remove	(menu_t *menu)
 
 qboolean SL_DoRefresh (menuoption_t *opt, menu_t *menu, int key)
 {
-	MasterInfo_Begin();
+	MasterInfo_Refresh();
 	return true;
 }
 
@@ -1424,10 +1433,14 @@ void M_Menu_ServerList2_f(void)
 	menucustom_t *cust;
 	serverlist_t *info;
 
+	if (!qrenderer)
+	{
+		Cbuf_AddText("wait; menu_servers\n", Cmd_ExecLevel);
+		return;
+	}
+
 	key_dest = key_menu;
 	m_state = m_complex;
-
-	MasterInfo_Begin();
 
 	menu = M_CreateMenu(sizeof(serverlist_t));
 	menu->event = SL_PreDraw;
@@ -1476,6 +1489,8 @@ void M_Menu_ServerList2_f(void)
 		}
 	}
 
+	strcpy(info->refreshtext, "Refresh");
+
 	MC_AddCheckBox(menu, 0, vid.height - 64+8*1, "Ping     ", &sb_showping, 1);
 	MC_AddCheckBox(menu, 0, vid.height - 64+8*2, "Address  ", &sb_showaddress, 1);
 	MC_AddCheckBox(menu, 0, vid.height - 64+8*3, "Map      ", &sb_showmap, 1);
@@ -1492,7 +1507,7 @@ void M_Menu_ServerList2_f(void)
 	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*6, "Hide Empty", SL_ReFilter, 6);
 	MC_AddCheckBoxFunc(menu, 128, vid.height - 64+8*7, "Hide Full ", SL_ReFilter, 7);
 
-	MC_AddCommand(menu, 64, 0, "Refresh", SL_DoRefresh);
+	MC_AddCommand(menu, 64, 0, info->refreshtext, SL_DoRefresh);
 
 	info->filter[1] = !sb_hidenetquake.value;
 	info->filter[2] = !sb_hidequakeworld.value;
@@ -1501,11 +1516,13 @@ void M_Menu_ServerList2_f(void)
 	info->filter[6] = !!sb_hideempty.value;
 	info->filter[7] = !!sb_hidefull.value;
 
-	info->mappic = (menupicture_t *)MC_AddStrechPicture(menu, vid.width - 64, vid.height - 64, 64, 64, "012345678901234567890123456789012");
+	info->mappic = (menupicture_t *)MC_AddPicture(menu, vid.width - 64, vid.height - 64, 64, 64, "012345678901234567890123456789012");
 
 	CalcFilters(menu);
 
 	Master_SetSortField(SLKEY_PING, true);
+
+	MasterInfo_Refresh();
 }
 
 float quickconnecttimeout;
@@ -1555,7 +1572,7 @@ void M_QuickConnect_PreDraw(menu_t *menu)
 		}
 
 		//retry
-		MasterInfo_Begin();
+		MasterInfo_Refresh();
 
 		quickconnecttimeout = Sys_DoubleTime() + 5;
 	}
@@ -1577,7 +1594,7 @@ qboolean M_QuickConnect_Cancel (menuoption_t *opt, menu_t *menu, int key)
 
 void M_QuickConnect_DrawStatus (int x, int y, menucustom_t *ths, menu_t *menu)
 {
-	Draw_String(x, y, va("Polling, %i secs\n", (int)(quickconnecttimeout - Sys_DoubleTime() + 0.9)));
+	Draw_FunString(x, y, va("Polling, %i secs\n", (int)(quickconnecttimeout - Sys_DoubleTime() + 0.9)));
 }
 
 void M_QuickConnect_f(void)
@@ -1588,7 +1605,7 @@ void M_QuickConnect_f(void)
 	key_dest = key_menu;
 	m_state = m_complex;
 
-	MasterInfo_Begin();
+	MasterInfo_Refresh();
 
 	quickconnecttimeout = Sys_DoubleTime() + 5;
 

@@ -21,9 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	QW_SERVER
 
-#include "../http/iweb.h"
-
-
 #define	MAX_MASTERS	8				// max recipients for heartbeat packets
 
 #define	MAX_SIGNON_BUFFERS	16
@@ -73,12 +70,6 @@ typedef struct {
 	qbyte dlighttime;
 	qbyte dlightcfade[3];
 } svcustomtents_t;
-#define CTE_CUSTOMCOUNT		1
-#define CTE_CUSTOMDIRECTION	2
-#define CTE_STAINS			4
-#define CTE_GLOWS			8
-#define CTE_CHANNELFADE     16
-#define CTE_ISBEAM			128
 
 typedef struct laggedpacket_s
 {
@@ -103,6 +94,9 @@ typedef struct
 	char	fatness;
 } mvdentity_state_t;
 
+extern entity_state_t *sv_staticentities;
+extern int sv_max_staticentities;
+
 typedef struct
 {
 	qboolean	active;				// false when server is going down
@@ -115,11 +109,7 @@ typedef struct
 
 	double		time;
 	double		starttime;
-	double	physicstime;	//This is the time at which the physics were last run.
 	int framenum;
-
-	int			lastcheck;			// used by PF_checkclient
-	double		lastchecktime;		// for monster ai
 
 	qboolean	paused;				// are we paused?
 	float		pausedstart;
@@ -131,7 +121,8 @@ typedef struct
 	char		name[64];			// file map name
 	char		mapname[256];
 	char		modelname[MAX_QPATH];		// maps/<name>.bsp, for model_precache[0]
-	struct model_s 	*worldmodel;
+
+	world_t world;
 
 	union {
 #ifdef Q2SERVER
@@ -147,15 +138,11 @@ typedef struct
 			char		lightstylecolours[MAX_LIGHTSTYLES];
 		};
 	} strings;
-	struct model_s		*models[MAX_MODELS];
+	qbyte		h2cdtrack;
 
 	int			allocated_client_slots;	//number of slots available. (used mostly to stop single player saved games cacking up)
-	int			max_edicts;	//limiting factor... 1024 fields*4*MAX_EDICTS == a heck of a lot.
-	int			num_edicts;			// increases towards MAX_EDICTS
-	edict_t		*edicts;			// can NOT be array indexed, because
-									// edict_t is variable sized, but can
-									// be used to reference the world ent
 
+	model_t	*models[MAX_MODELS];
 	qbyte		*pvs, *phs;			// fully expanded and decompressed
 
 	// added to every client's unreliable buffer each frame, then cleared
@@ -168,7 +155,7 @@ typedef struct
 
 	// the multicast buffer is used to send a message to a set of clients
 	sizebuf_t	multicast;
-	qbyte		multicast_buf[MAX_NQMSGLEN];
+	qbyte		multicast_buf[MAX_QWMSGLEN];
 
 #ifdef NQPROT
 	sizebuf_t	nqdatagram;
@@ -215,8 +202,8 @@ typedef struct
 	qboolean mvdrecording;
 
 //====================================================
-//this lot is for playback of demos
-
+//this lot is for serverside playback of demos
+#ifdef SERVER_DEMO_PLAYBACK
 	qboolean mvdplayback;
 	float realtime;
 	vfsfile_t *demofile;	//also signifies playing the thing.
@@ -269,12 +256,12 @@ typedef struct
 	char		demfullmapname[64];
 
 	char		*demolightstyles[MAX_LIGHTSTYLES];
+#endif
 //====================================================
-
-	entity_state_t extendedstatics[MAX_STATIC_ENTITIES];
-	int numextrastatics;
 //	movevars_t	demomovevars;	//FIXME:!
 //end this lot... (demo playback)
+
+	int num_static_entities;
 
 	svcustomtents_t customtents[255];
 
@@ -300,6 +287,8 @@ typedef struct
 	int				move_msecs;
 	int					packetsizein;
 	int					packetsizeout;
+	vec3_t				playerpositions[MAX_CLIENTS];
+	qboolean			playerpresent[MAX_CLIENTS];
 	packet_entities_t	entities;	//must come last (mvd states are bigger)
 } client_frame_t;
 
@@ -334,13 +323,6 @@ typedef struct	//merge?
 	int				deltaFrame;
 } q3client_frame_t;
 #endif
-
-#define MAXCACHEDSOUNDBUFFERS 8
-typedef struct {
-	int socket;
-	qboolean floodingbuffers;	//not enough sound causes this. Sound is then only mixed when full.
-	qbyte *buffer[MAXCACHEDSOUNDBUFFERS];
-} svvoicechat_t;
 
 #define MAX_BACK_BUFFERS 16
 
@@ -404,6 +386,10 @@ typedef struct client_s
 	double			connection_started;	// or time of disconnect for zombies
 	qboolean		send_message;		// set on frames a datagram arived on
 
+	laggedentinfo_t	laggedents[MAX_CLIENTS];
+	unsigned int	laggedents_count;
+	float			laggedents_frac;
+
 // spawn parms are carried from level to level
 	float			spawn_parms[NUM_SPAWN_PARMS];
 	char			*spawninfo;
@@ -416,6 +402,7 @@ typedef struct client_s
 	int				statsi[MAX_CL_STATS];
 	float			statsf[MAX_CL_STATS];
 	char			*statss[MAX_CL_STATS];
+	char			*centerprintstring;
 
 	union{	//save space
 		client_frame_t	*frames;	// updates can be deltad from here
@@ -480,7 +467,22 @@ typedef struct client_s
 
 	int				lastsequence_acknoledged;
 
-	svvoicechat_t voicechat;
+#ifdef VOICECHAT
+	unsigned int voice_read;	/*place in ring*/
+	unsigned char voice_mute[MAX_CLIENTS/8];
+	qboolean voice_active;
+	enum
+	{
+		/*note - when recording an mvd, only 'all' will be received by non-spectating viewers. all other chat will only be heard when spectating the receiver(or sender) of said chat*/
+
+		/*should we add one to respond to the last speaker? or should that be an automagic +voip_reply instead?*/
+		VT_TEAM,
+		VT_ALL,
+		VT_NONMUTED,	/*cheap, but allows custom private channels with no external pesters*/
+		VT_PLAYERSLOT0
+		/*player0+...*/
+	} voice_target;
+#endif
 
 #ifdef SVCHAT
 	svchat_t chat;
@@ -496,9 +498,12 @@ typedef struct client_s
 
 	qboolean		csqcactive;
 #ifdef PROTOCOL_VERSION_FTE
+	qboolean        pextknown;
 	unsigned long	fteprotocolextensions;
+	unsigned long	fteprotocolextensions2;
 #endif
 	unsigned long	zquake_extensions;
+	unsigned int    max_net_ents;
 
 	enum {
 		SCP_BAD,	//don't send (a bot)
@@ -532,8 +537,8 @@ typedef struct client_s
 		qbyte vweap;
 	} otherclientsknown[MAX_CLIENTS];	//updated as needed. Flag at a time, or all flags.
 
-	struct client_s *controller;
-	struct client_s *controlled;
+	struct client_s *controller;	/*first in splitscreen chain, NULL=nosplitscreen*/
+	struct client_s *controlled;	/*next in splitscreen chain*/
 
 
 	int rate;
@@ -602,11 +607,7 @@ typedef struct {
 
 typedef struct
 {
-	qboolean	allowoverflow;	// if false, do a Sys_Error
-	qboolean	overflowed;		// set to true if the buffer size failed
-	qbyte	*data;
-	int		maxsize;
-	int		cursize;
+	sizebuf_t sb;
 	int		bufsize;
 	header_t *h;
 } demobuf_t;
@@ -616,7 +617,6 @@ typedef struct
 	demo_client_t clients[MAX_CLIENTS];
 	double		time;
 	demobuf_t	buf;
-
 } demo_frame_t;
 
 typedef struct {
@@ -754,7 +754,9 @@ typedef struct
 
 #ifdef PROTOCOLEXTENSIONS
 	unsigned long fteprotocolextensions;
+	unsigned long fteprotocolextensions2;
 #endif
+	struct netprim_s netprim;
 
 	qboolean demoplayback;
 	qboolean demorecording;
@@ -782,8 +784,9 @@ typedef struct
 #define	MOVETYPE_BOUNCE			10
 #define MOVETYPE_BOUNCEMISSILE	11		// bounce w/o gravity
 #define MOVETYPE_FOLLOW			12		// track movement of aiment
-#define MOVETYPE_PUSHPULL		13		// pushable/pullable object
-#define MOVETYPE_SWIM			14		// should keep the object in water
+#define MOVETYPE_H2PUSHPULL		13		// pushable/pullable object
+#define MOVETYPE_H2SWIM			14		// should keep the object in water
+#define MOVETYPE_PHYSICS		32
 
 // edict->solid values
 #define	SOLID_NOT				0		// no interaction with other objects
@@ -800,22 +803,28 @@ typedef struct
 #define	DAMAGE_AIM				2
 
 // edict->flags
-#define	FL_FLY					1
-#define	FL_SWIM					2
-#define	FL_GLIMPSE				4
-#define	FL_CLIENT				8
-#define	FL_INWATER				16
-#define	FL_MONSTER				32
-#define	FL_GODMODE				64
-#define	FL_NOTARGET				128
-#define	FL_ITEM					256
-#define	FL_ONGROUND				512
-#define	FL_PARTIALGROUND		1024	// not all corners are valid
-#define	FL_WATERJUMP			2048	// player jumping out of water
-
-#define FL_FINDABLE_NONSOLID	16384	//a cpqwsv feature
-#define FL_MOVECHAIN_ANGLE		32768    // when in a move chain, will update the angle
-#define FL_CLASS_DEPENDENT		2097152
+#define	FL_FLY					(1<<0)
+#define	FL_SWIM					(1<<1)
+#define	FL_GLIMPSE				(1<<2)
+#define	FL_CLIENT				(1<<3)
+#define	FL_INWATER				(1<<4)
+#define	FL_MONSTER				(1<<5)
+#define	FL_GODMODE				(1<<6)
+#define	FL_NOTARGET				(1<<7)
+#define	FL_ITEM					(1<<8)
+#define	FL_ONGROUND				(1<<9)
+#define	FL_PARTIALGROUND		(1<<10)	// not all corners are valid
+#define	FL_WATERJUMP			(1<<11)	// player jumping out of water
+								//12
+								//13
+#define FL_FINDABLE_NONSOLID	(1<<14)	//a cpqwsv feature
+#define FL_MOVECHAIN_ANGLE		(1<<15)    // when in a move chain, will update the angle
+#define FL_LAGGEDMOVE			(1<<16)
+								//17
+								//18
+								//19
+								//20
+#define FL_CLASS_DEPENDENT		(1<<21)
 
 #define PVSF_NORMALPVS		0x0
 #define PVSF_NOTRACECHECK	0x1
@@ -834,21 +843,21 @@ typedef struct
 #define	EF_FULLBRIGHT			512
 
 
-#define	SPAWNFLAG_NOT_EASY			256
-#define	SPAWNFLAG_NOT_MEDIUM		512
-#define	SPAWNFLAG_NOT_HARD			1024
-#define	SPAWNFLAG_NOT_DEATHMATCH	2048
+#define	SPAWNFLAG_NOT_EASY			(1<<8)
+#define	SPAWNFLAG_NOT_MEDIUM		(1<<9)
+#define	SPAWNFLAG_NOT_HARD			(1<<10)
+#define	SPAWNFLAG_NOT_DEATHMATCH	(1<<11)
 
-#define SPAWNFLAG_NOT_H2PALADIN			256
-#define SPAWNFLAG_NOT_H2CLERIC			512
-#define SPAWNFLAG_NOT_H2NECROMANCER		1024
-#define SPAWNFLAG_NOT_H2THEIF			2048
-#define	SPAWNFLAG_NOT_H2EASY			4096
-#define	SPAWNFLAG_NOT_H2MEDIUM			8192
-#define	SPAWNFLAG_NOT_H2HARD		    16384
-#define	SPAWNFLAG_NOT_H2DEATHMATCH		32768
-#define SPAWNFLAG_NOT_H2COOP			65536
-#define SPAWNFLAG_NOT_H2SINGLE			131072
+#define SPAWNFLAG_NOT_H2PALADIN			(1<<8)
+#define SPAWNFLAG_NOT_H2CLERIC			(1<<9)
+#define SPAWNFLAG_NOT_H2NECROMANCER		(1<<10)
+#define SPAWNFLAG_NOT_H2THEIF			(1<<11)
+#define	SPAWNFLAG_NOT_H2EASY			(1<<12)
+#define	SPAWNFLAG_NOT_H2MEDIUM			(1<<13)
+#define	SPAWNFLAG_NOT_H2HARD		    (1<<14)
+#define	SPAWNFLAG_NOT_H2DEATHMATCH		(1<<15)
+#define SPAWNFLAG_NOT_H2COOP			(1<<16)
+#define SPAWNFLAG_NOT_H2SINGLE			(1<<17)
 
 #if 0//ndef Q2SERVER
 typedef enum multicast_e
@@ -874,14 +883,17 @@ typedef enum multicast_e
 
 //============================================================================
 
-extern	cvar_t	sv_mintic, sv_maxtic;
+extern	cvar_t	sv_mintic, sv_maxtic, sv_limittics;
 extern	cvar_t	sv_maxspeed;
+extern	cvar_t	sv_antilag;
+extern	cvar_t	sv_antilag_frac;
 
 extern	netadr_t	master_adr[MAX_MASTERS];	// address of the master server
 
 extern	cvar_t	spawn;
 extern	cvar_t	teamplay;
 extern	cvar_t	deathmatch;
+extern	cvar_t	coop;
 extern	cvar_t	fraglimit;
 extern	cvar_t	timelimit;
 
@@ -904,32 +916,27 @@ extern	vfsfile_t	*sv_fraglogfile;
 //
 // sv_main.c
 //
-void VARGS SV_Error (char *error, ...);
+NORETURN void VARGS SV_Error (char *error, ...) LIKEPRINTF(1);
 void SV_Shutdown (void);
-void SV_Frame (void);
+float SV_Frame (void);
 void SV_FinalMessage (char *message);
 void SV_DropClient (client_t *drop);
 struct quakeparms_s;
 void SV_Init (struct quakeparms_s *parms);
 
-int SV_CalcPing (client_t *cl);
+int SV_CalcPing (client_t *cl, qboolean forcecalc);
 void SV_FullClientUpdate (client_t *client, sizebuf_t *buf, unsigned int ftepext);
 void SV_FullClientUpdateToClient (client_t *client, client_t *cl);
 void SVNQ_FullClientUpdate (client_t *client, sizebuf_t *buf);
 
 int SV_ModelIndex (char *name);
 
-qboolean SV_CheckBottom (edict_t *ent);
-qboolean SV_movestep (edict_t *ent, vec3_t move, qboolean relink, qboolean noenemy, struct globalvars_s *set_trace);
-
 void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg);
 void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qboolean force, unsigned int protext);
 
-void SV_MoveToGoal (progfuncs_t *prinst, struct globalvars_s *pr_globals);
-
 void SV_SaveSpawnparms (qboolean);
-void SV_SaveLevelCache(qboolean dontharmgame);
-qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers);
+void SV_SaveLevelCache(char *savename, qboolean dontharmgame);
+qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolean ignoreplayers);
 
 void SV_Physics_Client (edict_t	*ent, int num);
 
@@ -955,6 +962,7 @@ void SV_UnspawnServer (void);
 void SV_FlushSignon (void);
 
 void SV_FilterImpulseInit(void);
+qboolean SV_FilterImpulse(int imp, int level);
 
 //svq2_game.c
 qboolean SVQ2_InitGameProgs(void);
@@ -965,6 +973,7 @@ void SV_BuildClientFrame (client_t *client);
 void SV_WriteFrameToClient (client_t *client, sizebuf_t *msg);
 #ifdef Q2SERVER
 void MSGQ2_WriteDeltaEntity (q2entity_state_t *from, q2entity_state_t *to, sizebuf_t *msg, qboolean force, qboolean newentity);
+void SVQ2_BuildBaselines(void);
 #endif
 
 //q3 stuff
@@ -985,17 +994,14 @@ qboolean SVQ3_Command(void);
 //
 // sv_phys.c
 //
-void SV_TouchLinks ( edict_t *ent, areanode_t *node );
-void SV_ProgStartFrame (void);
+void SV_SetMoveVars(void);
+void SV_RunNewmis (void);
 qboolean SV_Physics (void);
 void SV_CheckVelocity (edict_t *ent);
-void SV_AddGravity (edict_t *ent, float scale);
+trace_t SV_Trace_Toss (edict_t *ent, edict_t *ignore);
+void SV_ProgStartFrame (void);
+void SV_RunEntity (edict_t *ent);
 qboolean SV_RunThink (edict_t *ent);
-void SV_Physics_Toss (edict_t *ent);
-void SV_RunNewmis (void);
-void SV_Impact (edict_t *e1, edict_t *e2);
-void SV_SetMoveVars(void);
-
 //
 // sv_send.c
 //
@@ -1003,6 +1009,7 @@ qboolean SV_ChallengePasses(int challenge);
 void SV_QCStatName(int type, char *name, int statnum);
 void SV_QCStatFieldIdx(int type, unsigned int fieldindex, int statnum);
 void SV_QCStatGlobal(int type, char *globalname, int statnum);
+void SV_QCStatPtr(int type, void *ptr, int statnum);
 void SV_ClearQCStats(void);
 
 void SV_SendClientMessages (void);
@@ -1011,14 +1018,14 @@ void VARGS SV_Multicast (vec3_t origin, multicast_t to);
 #define FULLDIMENSIONMASK 0xffffffff
 void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int with, int without);
 
-void SV_StartSound (int entnum, vec3_t origin, int seenmask, int channel, char *sample, int volume, float attenuation);
-void SVQ1_StartSound (edict_t *entity, int channel, char *sample, int volume, float attenuation);
+void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sample, int volume, float attenuation, int pitchadj);
+void SVQ1_StartSound (edict_t *entity, int channel, char *sample, int volume, float attenuation, int pitchadj);
 void SV_PrintToClient(client_t *cl, int level, char *string);
-void VARGS SV_ClientPrintf (client_t *cl, int level, char *fmt, ...);
+void VARGS SV_ClientPrintf (client_t *cl, int level, char *fmt, ...) LIKEPRINTF(3);
 void VARGS SV_ClientTPrintf (client_t *cl, int level, translation_t text, ...);
-void VARGS SV_BroadcastPrintf (int level, char *fmt, ...);
+void VARGS SV_BroadcastPrintf (int level, char *fmt, ...) LIKEPRINTF(2);
 void VARGS SV_BroadcastTPrintf (int level, translation_t fmt, ...);
-void VARGS SV_BroadcastCommand (char *fmt, ...);
+void VARGS SV_BroadcastCommand (char *fmt, ...) LIKEPRINTF(1);
 void SV_SendServerInfoChange(char *key, const char *value);
 void SV_SendMessagesToAll (void);
 void SV_FindModelNumbers (void);
@@ -1036,6 +1043,11 @@ void SVQ2_ExecuteClientMessage (client_t *cl);
 int SV_PMTypeForClient (client_t *cl);
 void SV_UserInit (void);
 qboolean SV_TogglePause (client_t *cl);
+
+#ifdef PEXT2_VOICECHAT
+void SV_VoiceInitClient(client_t *client);
+void SV_VoiceSendPacket(client_t *client, sizebuf_t *buf);
+#endif
 
 void SV_ClientThink (void);
 void SV_Begin_Core(client_t *split);
@@ -1080,6 +1092,7 @@ qboolean PR_ShouldTogglePause(client_t *initiator, qboolean pausedornot);
 // sv_ents.c
 //
 void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignorepvs);
+void SVQ3Q1_BuildEntityPacket(client_t *client, packet_entities_t *pack);
 int SV_HullNumForPlayer(int h2hull, float *mins, float *maxs);
 void SV_GibFilterInit(void);
 void SV_CleanupEnts(void);
@@ -1112,10 +1125,12 @@ void ClientReliableWrite_SZ(client_t *cl, void *data, int len);
 #define RANK_CUFFED		4
 #define RANK_CRIPPLED	8	//ha ha... get speed cheaters with this!... :o)
 
+#define NUM_RANK_SPAWN_PARMS 32
+
 typedef struct {	//stats info
 	int kills;
 	int deaths;
-	float parm[NUM_SPAWN_PARMS];
+	float parm[NUM_RANK_SPAWN_PARMS];
 	float timeonserver;
 	qbyte flags1;
 	qbyte trustlevel;
@@ -1151,6 +1166,7 @@ extern cvar_t rank_needlogin;
 
 
 client_t *SV_GetClientForString(char *name, int *id);
+qboolean    SV_MayCheat(void);
 
 
 qboolean ReloadRanking(client_t *cl, char *newname);
@@ -1252,6 +1268,7 @@ typedef struct mvddest_s {
 	struct mvddest_s *nextdest;
 } mvddest_t;
 void SV_MVDPings (void);
+void SV_MVD_FullClientUpdate(sizebuf_t *msg, client_t *player);
 void SV_MVDWriteToDisk(int type, int to, float time);
 qboolean MVDWrite_Begin(qbyte type, int to, int size);
 void MVDSetMsgBuf(demobuf_t *prev,demobuf_t *cur);
@@ -1287,12 +1304,6 @@ qboolean TransformedNativeTrace (struct model_s *model, int hulloverride, int fr
 
 void SVVC_Frame (qboolean enabled);
 void SV_CalcPHS (void);
-#ifdef Q2SERVER
-void VARGS SVQ2_LinkEdict(q2edict_t *ent);
-void VARGS SVQ2_UnlinkEdict(q2edict_t *ent);
-int VARGS SVQ2_AreaEdicts (vec3_t mins, vec3_t maxs, q2edict_t **list,
-	int maxcount, int areatype);
-#endif
 
 void SV_GetConsoleCommands (void);
 void SV_CheckTimer(void);
@@ -1310,3 +1321,5 @@ typedef struct
 void SV_TimeOfDay(date_t *date);
 
 void SV_LogPlayer(client_t *cl, char *msg);
+
+void AddLinksToPmove ( edict_t *player, areanode_t *node );

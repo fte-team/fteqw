@@ -216,7 +216,6 @@ typedef struct
 #define	AMBIENT_LAVA	3
 
 #define	NUM_AMBIENTS			4		// automatic ambient sounds
-#define NUM_MUSICS				1
 
 // leaf 0 is the generic CONTENTS_SOLID leaf, used for all solid areas
 // all other leafs need visibility info
@@ -469,45 +468,47 @@ typedef struct
 
 // remaining contents are non-visible, and don't eat brushes
 
-#define	Q2CONTENTS_AREAPORTAL		0x8000
+#define	Q2CONTENTS_AREAPORTAL	0x8000
 
-#define	Q2CONTENTS_PLAYERCLIP		0x10000
+#define	Q2CONTENTS_PLAYERCLIP	0x10000
 #define	Q2CONTENTS_MONSTERCLIP	0x20000
 
 // currents can be added to any other contents, and may be mixed
-#define	Q2CONTENTS_CURRENT_0		0x40000
-#define	Q2CONTENTS_CURRENT_90		0x80000
+#define	Q2CONTENTS_CURRENT_0	0x40000
+#define	Q2CONTENTS_CURRENT_90	0x80000
 #define	Q2CONTENTS_CURRENT_180	0x100000
 #define	Q2CONTENTS_CURRENT_270	0x200000
-#define	Q2CONTENTS_CURRENT_UP		0x400000
+#define	Q2CONTENTS_CURRENT_UP	0x400000
 #define	Q2CONTENTS_CURRENT_DOWN	0x800000
 
-#define	Q2CONTENTS_ORIGIN			0x1000000	// removed before bsping an entity
+#define	Q2CONTENTS_ORIGIN		0x1000000	// removed before bsping an entity
 
 #define	Q2CONTENTS_MONSTER		0x2000000	// should never be on a brush, only in game
 #define	Q2CONTENTS_DEADMONSTER	0x4000000
-#define	Q2CONTENTS_DETAIL			0x8000000	// brushes to be added after vis leafs
+#define	Q2CONTENTS_DETAIL		0x8000000	// brushes to be added after vis leafs
 #define	Q2CONTENTS_TRANSLUCENT	0x10000000	// auto set if any surface has trans
+#define	Q2CONTENTS_LADDER		0x20000000
+
+#define	Q3CONTENTS_SOLID		Q2CONTENTS_SOLID	// should never be on a brush, only in game
+#define	Q3CONTENTS_BODY			0x2000000	// should never be on a brush, only in game
 #define Q3CONTENTS_TRANSLUCENT	0x20000000
-#define	Q2CONTENTS_LADDER			0x20000000
 
 
+//Texinfo flags - warning: these mix with q3 surface flags
+#define	TI_LIGHT		0x1		// value will hold the light strength
 
-#define	SURF_LIGHT		0x1		// value will hold the light strength
+#define	TI_SLICK		0x2		// effects game physics
 
-#define	SURF_SLICK		0x2		// effects game physics
+#define	TI_SKY		0x4		// don't draw, but add to skybox
+#define	TI_WARP		0x8		// turbulent water warp
+#define	TI_TRANS33	0x10
+#define TI_TRANS66	0x20
+#define	TI_FLOWING	0x40	// scroll towards angle
+#define	TI_NODRAW		0x80	// don't bother referencing the texture
 
-#define	SURF_SKY		0x4		// don't draw, but add to skybox
-#define	SURF_WARP		0x8		// turbulent water warp
-#define	SURF_TRANS33	0x10
-#define	SURF_TRANS66	0x20
-#define	SURF_FLOWING	0x40	// scroll towards angle
-#define	SURF_NODRAW		0x80	// don't bother referencing the texture
+#define	TI_ALPHATEST	0x100
 
-#define	SURF_NODRAW		0x80	// don't bother referencing the texture
-
-#define	SURF_ALPHATEST	0x100
-
+//Surface flags
 #define Q3SURF_LADDER	0x8		//wee
 
 // content masks
@@ -769,3 +770,15 @@ typedef struct
 	int patchwidth;
 	int patchheight;
 } rbspface_t;
+
+#define	MAX_ENT_LEAFS	16
+typedef struct pvscache_s
+{
+	int			num_leafs;
+	short		leafnums[MAX_ENT_LEAFS];
+#ifdef Q2BSPS
+	int areanum;	//q2bsp
+	int areanum2;	//q2bsp
+	int headnode;	//q2bsp
+#endif
+} pvscache_t;

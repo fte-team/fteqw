@@ -19,7 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 #include "quakedef.h"
 
-qboolean PM_TransformedHullCheck (model_t *model, vec3_t start, vec3_t end, trace_t *trace, vec3_t origin, vec3_t angles);
+static qboolean PM_TransformedHullCheck (model_t *model, vec3_t start, vec3_t end, trace_t *trace, vec3_t origin, vec3_t angles);
 int Q1BSP_HullPointContents(hull_t *hull, vec3_t p);
 static	hull_t		box_hull;
 static	dclipnode_t	box_clipnodes[6];
@@ -45,8 +45,6 @@ void PM_InitBoxHull (void)
 	box_hull.planes = box_planes;
 	box_hull.firstclipnode = 0;
 	box_hull.lastclipnode = 5;
-
-	Q1BSP_SetHullFuncs(&box_hull);
 
 	for (i=0 ; i<6 ; i++)
 	{
@@ -90,21 +88,18 @@ hull_t	*PM_HullForBox (vec3_t mins, vec3_t maxs)
 
 int PM_TransformedModelPointContents (model_t *mod, vec3_t p, vec3_t origin, vec3_t angles)
 {
-	vec3_t p_l, forward, up, right, temp;
+	vec3_t p_l, axis[3];
 	VectorSubtract (p, origin, p_l);
 
 	// rotate start and end into the models frame of reference
 	if (angles[0] || angles[1] || angles[2])
 	{
-		AngleVectors (angles, forward, right, up);
-
-		VectorCopy (p_l, temp);
-		p_l[0] = DotProduct (temp, forward);
-		p_l[1] = -DotProduct (temp, right);
-		p_l[2] = DotProduct (temp, up);
+		AngleVectors (angles, axis[0], axis[1], axis[2]);
+		VectorNegate(axis[1], axis[1]);
+		return mod->funcs.PointContents(mod, axis, p_l);
 	}
 
-	return mod->funcs.PointContents(mod, p_l);
+	return mod->funcs.PointContents(mod, NULL, p_l);
 }
 
 
@@ -125,7 +120,7 @@ int PM_PointContents (vec3_t p)
 	pm = pmove.physents[0].model;
 	if (!pm)
 		return FTECONTENTS_EMPTY;
-	pc = pm->funcs.PointContents(pm, p);
+	pc = pm->funcs.PointContents(pm, NULL, p);
 	//we need this for e2m2 - waterjumping on to plats wouldn't work otherwise.
 	for (num = 1; num < pmove.numphysent; num++)
 	{
@@ -176,7 +171,8 @@ int PM_ExtraBoxContents (vec3_t p)
 		{
 			if (pe->forcecontentsmask)
 			{
-				PM_TransformedHullCheck(pm, p, p, &tr, pe->origin, pe->angles);
+				if (!PM_TransformedHullCheck(pm, p, p, &tr, pe->origin, pe->angles))
+					continue;
 				if (tr.startsolid)
 					pc |= pe->forcecontentsmask;
 			}
@@ -201,84 +197,46 @@ LINE TESTING IN HULLS
 ===============================================================================
 */
 
-// 1/32 epsilon to keep floating point happy
-#define	DIST_EPSILON	(0.03125)
-
-vec3_t trace_extents;
-
-
-qboolean PM_TransformedHullCheck (model_t *model, vec3_t start, vec3_t end, trace_t *trace, vec3_t origin, vec3_t angles)
+/*returns if it actually did a trace*/
+static qboolean PM_TransformedHullCheck (model_t *model, vec3_t start, vec3_t end, trace_t *trace, vec3_t origin, vec3_t angles)
 {
 	vec3_t		start_l, end_l;
-	vec3_t		a;
-	vec3_t		forward, right, up;
-	vec3_t		temp;
-	qboolean	rotated;
-	qboolean	result;
+	int i;
+	vec3_t		axis[3];
 
 	// subtract origin offset
 	VectorSubtract (start, origin, start_l);
 	VectorSubtract (end, origin, end_l);
 
-	// rotate start and end into the models frame of reference
-	if (model && 
-	(angles[0] || angles[1] || angles[2]) )
-		rotated = true;
-	else
-		rotated = false;
-
-	if (rotated)
-	{
-		AngleVectors (angles, forward, right, up);
-
-		VectorCopy (start_l, temp);
-		start_l[0] = DotProduct (temp, forward);
-		start_l[1] = -DotProduct (temp, right);
-		start_l[2] = DotProduct (temp, up);
-
-		VectorCopy (end_l, temp);
-		end_l[0] = DotProduct (temp, forward);
-		end_l[1] = -DotProduct (temp, right);
-		end_l[2] = DotProduct (temp, up);
-	}
 	// sweep the box through the model
-
-	if (model && model->funcs.Trace)
-		result = model->funcs.Trace(model, 0, 0, start_l, end_l, player_mins, player_maxs, trace);
-	else
+	if (model)
 	{
-		result = Q1BSP_RecursiveHullCheck (&box_hull, box_hull.firstclipnode, 0, 1, start_l, end_l, trace);
-	}
-
-	if (rotated)
-	{
-		// FIXME: figure out how to do this with existing angles
-//		VectorNegate (angles, a);
-
-		if (trace->fraction != 1.0)
+		if (angles[0] || angles[1] || angles[2])
 		{
-			a[0] = -angles[0];
-			a[1] = -angles[1];
-			a[2] = -angles[2];
-			AngleVectors (a, forward, right, up);
-
-			VectorCopy (trace->plane.normal, temp);
-			trace->plane.normal[0] = DotProduct (temp, forward);
-			trace->plane.normal[1] = -DotProduct (temp, right);
-			trace->plane.normal[2] = DotProduct (temp, up);
+			AngleVectors (angles, axis[0], axis[1], axis[2]);
+			VectorNegate(axis[1], axis[1]);
+			model->funcs.Trace(model, 0, 0, axis, start_l, end_l, player_mins, player_maxs, trace);
 		}
-		trace->endpos[0] = start[0] + trace->fraction * (end[0] - start[0]);
-		trace->endpos[1] = start[1] + trace->fraction * (end[1] - start[1]);
-		trace->endpos[2] = start[2] + trace->fraction * (end[2] - start[2]);
+		else
+			model->funcs.Trace(model, 0, 0, NULL, start_l, end_l, player_mins, player_maxs, trace);
 	}
 	else
 	{
-		trace->endpos[0] += origin[0];
-		trace->endpos[1] += origin[1];
-		trace->endpos[2] += origin[2];
+		for (i = 0; i < 3; i++)
+		{
+			if (start_l[i]+player_mins[i] > box_planes[0+i*2].dist && end_l[i] + player_mins[i] > box_planes[0+i*2].dist)
+				return false;
+			if (start_l[i]+player_maxs[i] < box_planes[1+i*2].dist && end_l[i] + player_maxs[i] < box_planes[1+i*2].dist)
+				return false;
+		}
+
+		Q1BSP_RecursiveHullCheck (&box_hull, box_hull.firstclipnode, 0, 1, start_l, end_l, trace);
 	}
 
-	return result;
+	trace->endpos[0] += origin[0];
+	trace->endpos[1] += origin[1];
+	trace->endpos[2] += origin[2];
+	return true;
 }
 
 /*
@@ -306,18 +264,8 @@ qboolean PM_TestPlayerPosition (vec3_t pos)
 	// get the clipping hull
 		if (pe->model)
 		{
-/*
-#ifdef Q2BSPS
-			if (pe->model->fromgame == fg_quake2 || pe->model->fromgame == fg_quake3)
-			{
-				trace_t trace = CM_TransformedBoxTrace(pe->model, pos, pos, player_mins, player_maxs, MASK_PLAYERSOLID, pe->origin, pe->angles);
-				if (trace.fraction == 0)
-					return false;
+			if (!PM_TransformedHullCheck (pe->model, pos, pos, &trace, pe->origin, pe->angles))
 				continue;
-			}
-#endif*/
-
-			PM_TransformedHullCheck (pe->model, pos, pos, &trace, pe->origin, pe->angles);
 			if (trace.allsolid)
 				return false;	//solid
 		}
@@ -330,9 +278,6 @@ qboolean PM_TestPlayerPosition (vec3_t pos)
 
 			if (Q1BSP_HullPointContents(hull, mins) & FTECONTENTS_SOLID)
 				return false;
-
-//			if (Q1BSP_Trace(&box_hull, 0, 0, pe->origin, pe->origin, pe->mins, pe->maxs, pos, pe->origin, pe->angles) & FTECONTENTS_SOLID)
-//				return false;
 		}
 	}
 
@@ -363,16 +308,24 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end)
 		if (pe->nonsolid)
 			continue;
 
-		if (!pe->model)
+		if (!pe->model || pe->model->needload)
 		{
 			vec3_t mins, maxs;
+
 			VectorSubtract (pe->mins, player_maxs, mins);
 			VectorSubtract (pe->maxs, player_mins, maxs);
 			PM_HullForBox (mins, maxs);
-		}
 
-	// trace a line through the apropriate clipping hull
-		PM_TransformedHullCheck (pe->model, start, end, &trace, pe->origin, pe->angles);
+			// trace a line through the apropriate clipping hull
+			if (!PM_TransformedHullCheck (NULL, start, end, &trace, pe->origin, pe->angles))
+				continue;
+		}
+		else
+		{
+			// trace a line through the apropriate clipping hull
+			if (!PM_TransformedHullCheck (pe->model, start, end, &trace, pe->origin, pe->angles))
+				continue;
+		}
 
 		if (trace.allsolid)
 			trace.startsolid = true;

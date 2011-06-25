@@ -1,4 +1,5 @@
 #include "qwsvdef.h"
+#include "errno.h"
 
 #ifndef CLIENTONLY
 
@@ -30,19 +31,23 @@ cvar_t rank_needlogin = SCVAR("rank_needlogin", "0");
 cvar_t rank_filename = SCVAR("rank_filename", "");
 char rank_cvargroup[] = "server rankings";
 
-#define RANKFILE_VERSION 0x00000000
+#define RANKFILE_VERSION ((NUM_RANK_SPAWN_PARMS==32)?0:0x00000001)
 #define RANKFILE_IDENT	*(int*)"RANK"
 
 void inline READ_PLAYERSTATS(int x, rankstats_t *os)
 {
 	int i;
+	size_t result;
 
 	fseek(rankfile, sizeof(rankfileheader_t)+sizeof(rankheader_t)+((x-1)*sizeof(rankinfo_t)), SEEK_SET);
-	fread(os, sizeof(rankstats_t), 1, rankfile);
+	result = fread(os, sizeof(rankstats_t), 1, rankfile);
+
+	if (result != sizeof(rankstats_t))
+		Con_Printf("READ_PLAYERSTATS() fread: expected %lu, result was %u (%s)\n",(long unsigned int)sizeof(rankstats_t),(unsigned int)result,strerror(errno));
 
 	os->kills = swaplong(os->kills);
 	os->deaths = swaplong(os->deaths);
-	for (i = 0; i < NUM_SPAWN_PARMS; i++)
+	for (i = 0; i < NUM_RANK_SPAWN_PARMS; i++)
 		os->parm[i] = swapfloat(os->parm[i]);
 	os->timeonserver = swapfloat(os->timeonserver);
 //	os->flags1 = (os->flags1);
@@ -60,7 +65,7 @@ void inline WRITE_PLAYERSTATS(int x, rankstats_t *os)
 
 	ns.kills = swaplong(os->kills);
 	ns.deaths = swaplong(os->deaths);
-	for (i = 0; i < NUM_SPAWN_PARMS; i++)
+	for (i = 0; i < NUM_RANK_SPAWN_PARMS; i++)
 		ns.parm[i] = swapfloat(os->parm[i]);
 	ns.timeonserver = swapfloat(os->timeonserver);
 	ns.flags1 = (os->flags1);
@@ -73,9 +78,14 @@ void inline WRITE_PLAYERSTATS(int x, rankstats_t *os)
 
 void inline READ_PLAYERHEADER(int x, rankheader_t *oh)
 {
+	size_t result;
+
 	fseek(rankfile, sizeof(rankfileheader_t)+((x-1)*sizeof(rankinfo_t)), SEEK_SET);
 
-	fread(oh, sizeof(rankheader_t), 1, rankfile);
+	result = fread(oh, sizeof(rankheader_t), 1, rankfile);
+
+	if (result != sizeof(rankheader_t))
+		Con_Printf("READ_PLAYERHEADER() fread: expected %lu, result was %u (%s)\n",(long unsigned int)sizeof(rankheader_t),(unsigned int)result,strerror(errno));
 
 	oh->prev = swaplong(oh->prev);		//score is held for convineance.
 	oh->next = swaplong(oh->next);
@@ -125,6 +135,7 @@ void inline WRITEHEADER(void)
 qboolean Rank_OpenRankings(void)
 {
 	char syspath[MAX_OSPATH];
+	size_t result;
 	qboolean created;
 	if (!rankfile)
 	{
@@ -150,7 +161,10 @@ qboolean Rank_OpenRankings(void)
 		memset(&rankfileheader, 0, sizeof(rankfileheader));
 
 		fseek(rankfile, 0, SEEK_SET);
-		fread(&rankfileheader, sizeof(rankfileheader_t), 1, rankfile);
+		result = fread(&rankfileheader, sizeof(rankfileheader_t), 1, rankfile);
+
+		if (result != sizeof(rankfileheader_t))
+			Con_Printf("Rank_OpenRankings() fread: expected %lu, result was %u (%s)\n",(long unsigned int)sizeof(rankfileheader_t),(unsigned int)result,strerror(errno));
 
 		rankfileheader.version		= swaplong(rankfileheader.version);
 		rankfileheader.usedslots	= swaplong(rankfileheader.usedslots);

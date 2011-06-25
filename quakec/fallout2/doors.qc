@@ -8,12 +8,6 @@ void () door_go_up;
 
 void () door_blocked =
 {
-	if (other.classname == "treasure_chest")
-	{
-		remove(other);
-		return;
-	}
-
 	T_Damage (other, self, self, self.dmg);
 	if ((self.wait >= MULTICAST_ALL))
 	{
@@ -165,37 +159,27 @@ void () door_killed =
 
 void () OpenDoorBeep =
 {
-	local float r,x;
-
+	local float r;
 
 	r = range (self.enemy);
 
 	if (r != RANGE_MELEE)
 	{
-		self.owner.owner.rtime = 0;
-		remove(self);
+		self.think = OpenDoorBeep;
+		self.nextthink = time + 0.5;
 		return;
 	}
 
-	if (random()*3<1.5)
-		sound (self, CHAN_BODY, "items/lockpick1.wav", 1, ATTN_NORM);
+	if (random()*3<1)
+		sound (self, CHAN_BODY, "misc/build1.wav", 1, ATTN_NORM);
+	else if (random()*3<2)
+		sound (self, CHAN_BODY, "misc/build2.wav", 1, ATTN_NORM);
 	else
-		sound (self, CHAN_BODY, "items/lockpick2.wav", 1, ATTN_NORM);
-
-
-	x = (2.51 - (2.5*(self.enemy.skill_sneak/7)));
-	if (x <= 0)
-		x = 0.1;
-
+		sound (self, CHAN_BODY, "misc/build3.wav", 1, ATTN_NORM);
 
 	self.think = OpenDoorBeep;
-	self.nextthink = time + x;
-
-	if (ToIID(self.enemy.islot4) == IID_EQUIP_TOOLKIT)
-		self.owner.owner.rtime = self.owner.owner.rtime + 3;
-	else
-		self.owner.owner.rtime = self.owner.owner.rtime + 1;
-
+	self.nextthink = time + 0.5;
+	self.owner.owner.rtime = self.owner.owner.rtime + 1;
 	self.frame = floor ((self.owner.owner.rtime / 12) * 7);
 
 	if (self.owner.owner.rtime >= 12)
@@ -255,29 +239,12 @@ void () door_touch =
 	{
 		if (self.size_y <= 128 && self.size_x <= 128)
 		{
-
-		if (other.perk1 == 4 || other.perk2 == 4)
-		{
-			self.owner.rtime = 12;
-			sound (other, CHAN_VOICE, "player/berserk.wav", 1, ATTN_NORM);
-			door_use ();
-			loud_noise(200);
-		}
-		else if (self.owner.items == IT_KEY1)
-		{                                   
+		if (other.class == 2 || other.class == 4) //assassins as well as scientists
+		{                                         //can open doors for more freedom
 			SpawnOpenDoor(self, other);
 			return;
 		}
-		else if (self.owner.items == IT_KEY2)
-		{
 
-				sprint(other, 2, "picking...\n");
-				other.attack_finished = time + 7;
-				other.rtime = time + 7.5;
-				SpawnOpenDoor(self, other);
-				return;
-
-		}
 		if (self.owner.items == IT_KEY1)
 			sound (self, CHAN_VOICE, self.noise3, 1, ATTN_NORM);
 
@@ -516,11 +483,23 @@ void () func_door =
 	self.blocked = door_blocked;
 	self.use = door_use;
 
-	if (random()<0.20)
-		self.items = IT_KEY1; //easy-to-pick lock
-	else if (random()<0.60)
-		self.items = IT_KEY2; //hard-to-pick lock
-	
+	if (coop == 0)
+	{
+		if ((self.spawnflags & DOOR_SILVER_KEY))
+			self.items = IT_KEY1;
+		if ((self.spawnflags & DOOR_GOLD_KEY))
+			self.items = IT_KEY2;
+	}
+
+	if (coop == 1)
+	{
+		r = random()*10;
+
+		if (r <= 7)
+			self.items = IT_KEY1;
+		else
+			self.items = IT_KEY2;
+	}
 	if (!self.speed)
 	{
 		self.speed = 100;

@@ -369,7 +369,7 @@ void PMQ2_Friction (void)
 	drop = 0;
 
 // apply ground friction
-	if ((q2pm->groundentity && q2pml.groundsurface && !(q2pml.groundsurface->flags & SURF_SLICK) ) || (q2pml.ladder) )
+	if ((q2pm->groundentity && q2pml.groundsurface && !(q2pml.groundsurface->flags & TI_SLICK) ) || (q2pml.ladder) )
 	{
 		friction = pm_friction;
 		control = speed < pm_stopspeed ? pm_stopspeed : speed;

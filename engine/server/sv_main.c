@@ -64,25 +64,25 @@ typedef struct {
 	netadr_t	adr;
 } sv_masterlist_t;
 sv_masterlist_t sv_masterlist[] = {
-	{MP_QUAKEWORLD, SCVARC("sv_master1", "", SV_Masterlist_Callback)},
-	{MP_QUAKEWORLD, SCVARC("sv_master2", "", SV_Masterlist_Callback)},
-	{MP_QUAKEWORLD, SCVARC("sv_master3", "", SV_Masterlist_Callback)},
-	{MP_QUAKEWORLD, SCVARC("sv_master4", "", SV_Masterlist_Callback)},
-	{MP_QUAKEWORLD, SCVARC("sv_master5", "", SV_Masterlist_Callback)},
-	{MP_QUAKEWORLD, SCVARC("sv_master6", "", SV_Masterlist_Callback)},
-	{MP_QUAKEWORLD, SCVARC("sv_master7", "", SV_Masterlist_Callback)},
-	{MP_QUAKEWORLD, SCVARC("sv_master8", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, CVARC("sv_master1", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, CVARC("sv_master2", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, CVARC("sv_master3", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, CVARC("sv_master4", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, CVARC("sv_master5", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, CVARC("sv_master6", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, CVARC("sv_master7", "", SV_Masterlist_Callback)},
+	{MP_QUAKEWORLD, CVARC("sv_master8", "", SV_Masterlist_Callback)},
 
-	{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra1", "qwmaster.ocrana.de:27000", SV_Masterlist_Callback)},	//german. admin unknown
-	{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra2", "masterserver.exhale.de:27000", SV_Masterlist_Callback)},	//german. admin unknown
-	{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra3", "kubus.rulez.pl:27000", SV_Masterlist_Callback)},	//poland. admin unknown
-	{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra4", "master.quakeservers.net:27000", SV_Masterlist_Callback)},	//european. admin: raz0?
-	//{MP_QUAKEWORLD, SCVARC("sv_qwmasterextra5", "asgaard.morphos-team.net:27000", SV_Masterlist_Callback)},	//admin bigfoot
+	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra1", "qwmaster.ocrana.de:27000", SV_Masterlist_Callback)},	//german. admin unknown
+	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra2", "masterserver.exhale.de:27000", SV_Masterlist_Callback)},	//german. admin unknown
+	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra3", "kubus.rulez.pl:27000", SV_Masterlist_Callback)},	//poland. admin unknown
+	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra4", "master.quakeservers.net:27000", SV_Masterlist_Callback)},	//european. admin: raz0?
+	//{MP_QUAKEWORLD, CVARC("sv_qwmasterextra5", "asgaard.morphos-team.net:27000", SV_Masterlist_Callback)},	//admin bigfoot
 
-	{MP_DARKPLACES, SCVARC("sv_masterextra1", "ghdigital.com:27950", SV_Masterlist_Callback)}, //69.59.212.88 (admin: LordHavoc)
-	{MP_DARKPLACES, SCVARC("sv_masterextra2", "dpmaster.deathmask.net:27950", SV_Masterlist_Callback)}, //209.164.24.243 (admin: Willis)
-	{MP_DARKPLACES, SCVARC("sv_masterextra3", "dpmaster.tchr.no:27950", SV_Masterlist_Callback)}, // (admin: tChr)
-	{MP_NONE, SCVAR(NULL, NULL)}
+	{MP_DARKPLACES, CVARC("sv_masterextra1", "ghdigital.com:27950", SV_Masterlist_Callback)}, //69.59.212.88 (admin: LordHavoc)
+	{MP_DARKPLACES, CVARC("sv_masterextra2", "dpmaster.deathmask.net:27950", SV_Masterlist_Callback)}, //209.164.24.243 (admin: Willis)
+	{MP_DARKPLACES, CVARC("sv_masterextra3", "dpmaster.tchr.no:27950", SV_Masterlist_Callback)}, // (admin: tChr)
+	{MP_NONE, CVAR(NULL, NULL)}
 };
 
 client_t	*host_client;			// current client
@@ -93,7 +93,9 @@ cvar_t	sv_mintic = SCVAR("sv_mintic","0.03");
 #else
 cvar_t	sv_mintic = SCVAR("sv_mintic","0");	//client builds can think as often as they want.
 #endif
-cvar_t	sv_maxtic = SCVAR("sv_maxtic","0.1");
+cvar_t	sv_maxtic = SCVAR("sv_maxtic","0.1");//never run a tick slower than this
+cvar_t	sv_limittics = SCVAR("sv_limittics","3");//
+
 cvar_t	sv_nailhack = SCVAR("sv_nailhack","0");
 
 
@@ -110,101 +112,105 @@ extern cvar_t	developer;
 extern cvar_t	rcon_password;
 extern cvar_t	password;
 #endif
-cvar_t	spectator_password = SCVARF("spectator_password", "", CVAR_NOUNSAFEEXPAND);	// password for entering as a sepctator
+cvar_t	spectator_password = CVARF("spectator_password", "", CVAR_NOUNSAFEEXPAND);	// password for entering as a sepctator
 
-cvar_t	allow_download = SCVAR("allow_download", "1");
-cvar_t	allow_download_skins = SCVAR("allow_download_skins", "1");
-cvar_t	allow_download_models = SCVAR("allow_download_models", "1");
-cvar_t	allow_download_sounds = SCVAR("allow_download_sounds", "1");
-cvar_t	allow_download_demos = SCVAR("allow_download_demos", "1");
-cvar_t	allow_download_maps = SCVAR("allow_download_maps", "1");
-cvar_t	allow_download_anymap = SCVAR("allow_download_pakmaps", "0");
-cvar_t	allow_download_pakcontents = SCVAR("allow_download_pakcontents", "1");
-cvar_t	allow_download_root = SCVAR("allow_download_root", "0");
-cvar_t	allow_download_textures = SCVAR("allow_download_textures", "1");
-cvar_t	allow_download_pk3s = SCVAR("allow_download_pk3s", "1");
-cvar_t	allow_download_wads = SCVAR("allow_download_wads", "1");
-cvar_t	allow_download_configs = SCVAR("allow_download_configs", "0");
+cvar_t	allow_download = CVAR("allow_download", "1");
+cvar_t	allow_download_skins = CVAR("allow_download_skins", "1");
+cvar_t	allow_download_models = CVAR("allow_download_models", "1");
+cvar_t	allow_download_sounds = CVAR("allow_download_sounds", "1");
+cvar_t	allow_download_demos = CVAR("allow_download_demos", "1");
+cvar_t	allow_download_maps = CVAR("allow_download_maps", "1");
+cvar_t	allow_download_anymap = CVAR("allow_download_pakmaps", "0");
+cvar_t	allow_download_pakcontents = CVAR("allow_download_pakcontents", "1");
+cvar_t	allow_download_root = CVAR("allow_download_root", "0");
+cvar_t	allow_download_textures = CVAR("allow_download_textures", "1");
+cvar_t	allow_download_pk3s = CVAR("allow_download_pk3s", "1");
+cvar_t	allow_download_wads = CVAR("allow_download_wads", "1");
+cvar_t	allow_download_configs = CVAR("allow_download_configs", "0");
 
-cvar_t sv_public = SCVAR("sv_public", "0");
-cvar_t sv_listen_qw = FCVAR("sv_listen_qw", "sv_listen", "1", 0);
-cvar_t sv_listen_nq = SCVAR("sv_listen_nq", "0");
-cvar_t sv_listen_dp = SCVAR("sv_listen_dp", "1");
-cvar_t sv_listen_q3 = SCVAR("sv_listen_q3", "0");
-cvar_t sv_reportheartbeats = SCVAR("sv_reportheartbeats", "1");
-cvar_t sv_highchars = SCVAR("sv_highchars", "1");
-cvar_t sv_loadentfiles = SCVAR("sv_loadentfiles", "1");
-cvar_t sv_maxrate = SCVAR("sv_maxrate", "10000");
-cvar_t sv_maxdrate = FCVAR("sv_maxdrate", "sv_maxdownloadrate", "10000", 0);
-cvar_t sv_minping = SCVARF("sv_minping", "0", CVAR_SERVERINFO);
+cvar_t sv_public = CVAR("sv_public", "0");
+cvar_t sv_listen_qw = CVARAF("sv_listen_qw", "1", "sv_listen", 0);
+cvar_t sv_listen_nq = CVAR("sv_listen_nq", "0");
+cvar_t sv_listen_dp = CVAR("sv_listen_dp", "1");
+cvar_t sv_listen_q3 = CVAR("sv_listen_q3", "0");
+cvar_t sv_reportheartbeats = CVAR("sv_reportheartbeats", "1");
+cvar_t sv_highchars = CVAR("sv_highchars", "1");
+cvar_t sv_loadentfiles = CVAR("sv_loadentfiles", "1");
+cvar_t sv_maxrate = CVAR("sv_maxrate", "10000");
+cvar_t sv_maxdrate = CVARAF("sv_maxdrate", "100000",
+							"sv_maxdownloadrate", 0);
+cvar_t sv_minping = CVARF("sv_minping", "0", CVAR_SERVERINFO);
 
-cvar_t sv_bigcoords = SCVARF("sv_bigcoords", "", CVAR_SERVERINFO);
+cvar_t sv_bigcoords = CVARF("sv_bigcoords", "", CVAR_SERVERINFO);
+cvar_t sv_calcphs = CVAR("sv_calcphs", "2");
 
-cvar_t sv_cullplayers_trace = SCVARF("sv_cullplayers_trace", "", CVAR_SERVERINFO);
-cvar_t sv_cullentities_trace = SCVARF("sv_cullentities_trace", "", CVAR_SERVERINFO);
-cvar_t sv_phs = SCVAR("sv_phs", "1");
-cvar_t sv_resetparms = SCVAR("sv_resetparms", "0");
+cvar_t sv_cullplayers_trace = CVARF("sv_cullplayers_trace", "", CVAR_SERVERINFO);
+cvar_t sv_cullentities_trace = CVARF("sv_cullentities_trace", "", CVAR_SERVERINFO);
+cvar_t sv_phs = CVAR("sv_phs", "1");
+cvar_t sv_resetparms = CVAR("sv_resetparms", "0");
+cvar_t sv_pupglow = CVARF("sv_pupglow", "", CVAR_SERVERINFO);
 
-cvar_t sv_master = SCVAR("sv_master", "0");
-cvar_t sv_masterport = SCVAR("sv_masterport", "0");
+cvar_t sv_master = CVAR("sv_master", "0");
+cvar_t sv_masterport = CVAR("sv_masterport", "0");
 
-cvar_t	sv_voicechat = SCVAR("sv_voicechat", "0");	//still development.
-cvar_t	sv_gamespeed = SCVAR("sv_gamespeed", "1");
-cvar_t	sv_csqcdebug = SCVAR("sv_csqcdebug", "0");
-cvar_t	sv_csqc_progname = SCVAR("sv_csqc_progname", "csprogs.dat");
+cvar_t	sv_gamespeed = CVAR("sv_gamespeed", "1");
+cvar_t	sv_csqcdebug = CVAR("sv_csqcdebug", "0");
+cvar_t	sv_csqc_progname = CVAR("sv_csqc_progname", "csprogs.dat");
 #ifdef TCPCONNECT
-cvar_t	sv_port_tcp = SCVARC("sv_port_tcp", "", SV_Tcpport_Callback);
+cvar_t	sv_port_tcp = CVARC("sv_port_tcp", "", SV_Tcpport_Callback);
 #ifdef IPPROTO_IPV6
-cvar_t	sv_port_tcp6 = SCVARC("sv_port_tcp6", "", SV_Tcpport6_Callback);
+cvar_t	sv_port_tcp6 = CVARC("sv_port_tcp6", "", SV_Tcpport6_Callback);
 #endif
 #endif
-cvar_t  sv_port = SCVARC("sv_port", "27500", SV_Port_Callback);
+cvar_t  sv_port = CVARC("sv_port", "27500", SV_Port_Callback);
 #ifdef IPPROTO_IPV6
-cvar_t  sv_port_ipv6 = SCVARC("sv_port_ipv6", "27500", SV_PortIPv6_Callback);
+cvar_t  sv_port_ipv6 = CVARC("sv_port_ipv6", "27500", SV_PortIPv6_Callback);
 #endif
 #ifdef USEIPX
-cvar_t  sv_port_ipx = SCVARC("sv_port_ipx", "27500", SV_PortIPX_Callback);
+cvar_t  sv_port_ipx = CVARC("sv_port_ipx", "27500", SV_PortIPX_Callback);
 #endif
 
-cvar_t pausable	= SCVAR("pausable", "1");
+cvar_t pausable	= CVAR("pausable", "1");
 
 
 //
 // game rules mirrored in svs.info
 //
-cvar_t	fraglimit		= SCVARF("fraglimit",		"" ,	CVAR_SERVERINFO);
-cvar_t	timelimit		= SCVARF("timelimit",		"" ,	CVAR_SERVERINFO);
-cvar_t	teamplay		= SCVARF("teamplay",		"" ,	CVAR_SERVERINFO);
-cvar_t	samelevel		= SCVARF("samelevel",		"" ,	CVAR_SERVERINFO);
-cvar_t	maxclients		= SCVARF("maxclients",		"8",	CVAR_SERVERINFO);
-cvar_t	maxspectators	= SCVARF("maxspectators",	"8",	CVAR_SERVERINFO);
+cvar_t	fraglimit		= CVARF("fraglimit",		"" ,	CVAR_SERVERINFO);
+cvar_t	timelimit		= CVARF("timelimit",		"" ,	CVAR_SERVERINFO);
+cvar_t	teamplay		= CVARF("teamplay",		"" ,	CVAR_SERVERINFO);
+cvar_t	samelevel		= CVARF("samelevel",		"" ,	CVAR_SERVERINFO);
+cvar_t	maxclients		= CVARAF("maxclients",		"8",
+								 "sv_maxclients",			CVAR_SERVERINFO);
+cvar_t	maxspectators	= CVARF("maxspectators",	"8",	CVAR_SERVERINFO);
 #ifdef SERVERONLY
-cvar_t	deathmatch		= SCVARF("deathmatch",		"1",	CVAR_SERVERINFO);			// 0, 1, or 2
+cvar_t	deathmatch		= CVARF("deathmatch",		"1",	CVAR_SERVERINFO);			// 0, 1, or 2
 #else
-cvar_t	deathmatch		= SCVARF("deathmatch",		"0",	CVAR_SERVERINFO);			// 0, 1, or 2
+cvar_t	deathmatch		= CVARF("deathmatch",		"0",	CVAR_SERVERINFO);			// 0, 1, or 2
 #endif
-cvar_t	coop			= SCVARF("coop",			"" ,	CVAR_SERVERINFO);
-cvar_t	skill			= SCVARF("skill",			"" ,	CVAR_SERVERINFO);			// 0, 1, 2 or 3
-cvar_t	spawn			= SCVARF("spawn",			"" ,	CVAR_SERVERINFO);
-cvar_t	watervis		= SCVARF("watervis",		"" ,	CVAR_SERVERINFO);
-cvar_t	rearview		= SCVARF("rearview",		"" ,	CVAR_SERVERINFO);
-cvar_t	allow_luma		= SCVARF("allow_luma",		"1",	CVAR_SERVERINFO);
-cvar_t	allow_bump		= SCVARF("allow_bump",		"1",	CVAR_SERVERINFO);
-cvar_t	allow_skybox	= SCVARF("allow_skybox",	"",		CVAR_SERVERINFO);
-cvar_t	sv_allow_splitscreen = SCVARF("allow_splitscreen","",CVAR_SERVERINFO);
-cvar_t	fbskins			= SCVARF("fbskins",			"1",	CVAR_SERVERINFO);	//to get rid of lame fuhquake fbskins
-cvar_t	mirrors			= SCVARF("mirrors",			"" ,	CVAR_SERVERINFO);
+cvar_t	coop			= CVARF("coop",			"" ,	CVAR_SERVERINFO);
+cvar_t	skill			= CVARF("skill",			"" ,	CVAR_SERVERINFO);			// 0, 1, 2 or 3
+cvar_t	spawn			= CVARF("spawn",			"" ,	CVAR_SERVERINFO);
+cvar_t	watervis		= CVARF("watervis",		"" ,	CVAR_SERVERINFO);
+cvar_t	rearview		= CVARF("rearview",		"" ,	CVAR_SERVERINFO);
+cvar_t	allow_fish		= CVARF("allow_fish",		"0",	CVAR_SERVERINFO);
+cvar_t	allow_luma		= CVARF("allow_luma",		"1",	CVAR_SERVERINFO);
+cvar_t	allow_bump		= CVARF("allow_bump",		"1",	CVAR_SERVERINFO);
+cvar_t	allow_skybox	= CVARF("allow_skybox",	"",		CVAR_SERVERINFO);
+cvar_t	sv_allow_splitscreen = CVARF("allow_splitscreen","",CVAR_SERVERINFO);
+cvar_t	fbskins			= CVARF("fbskins",			"1",	CVAR_SERVERINFO);	//to get rid of lame fuhquake fbskins
+cvar_t	mirrors			= CVARF("mirrors",			"" ,	CVAR_SERVERINFO);
 
-cvar_t	sv_motd[]		={	SCVAR("sv_motd1",		""),
-							SCVAR("sv_motd2",		""),
-							SCVAR("sv_motd3",		""),
-							SCVAR("sv_motd4",		"")	};
+cvar_t	sv_motd[]		={	CVAR("sv_motd1",		""),
+							CVAR("sv_motd2",		""),
+							CVAR("sv_motd3",		""),
+							CVAR("sv_motd4",		"")	};
 
-cvar_t sv_compatiblehulls = SCVAR("sv_compatiblehulls", "1");
+cvar_t sv_compatiblehulls = CVAR("sv_compatiblehulls", "1");
 
-cvar_t	hostname = SCVARF("hostname","unnamed", CVAR_SERVERINFO);
+cvar_t	hostname = CVARF("hostname","unnamed", CVAR_SERVERINFO);
 
-cvar_t	secure = SCVARF("secure", "", CVAR_SERVERINFO);
+cvar_t	secure = CVARF("secure", "", CVAR_SERVERINFO);
 
 extern cvar_t sv_nomsec;
 
@@ -218,7 +224,7 @@ vfsfile_t	*sv_fraglogfile;
 void SV_FixupName(char *in, char *out, unsigned int outlen);
 void SV_AcceptClient (netadr_t adr, int userid, char *userinfo);
 void Master_Shutdown (void);
-void PR_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc);
+void PRH2_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc);
 char *SV_BannedReason (netadr_t *a);
 
 #ifdef SQL
@@ -248,14 +254,16 @@ void SV_Shutdown (void)
 		sv_fraglogfile = NULL;
 	}
 
-	
 	PR_Deinit();
+#ifdef USEODE
+	World_Physics_Shutdown();
+#endif
 
 	if (sv.mvdrecording)
 		SV_MVDStop_f();
 
 	NET_Shutdown ();
-#ifdef IWEB_H__
+#ifdef WEBSERVER
 	IWebShutdown();
 #endif
 
@@ -317,8 +325,8 @@ void VARGS SV_Error (char *error, ...)
 
 		inerror = false;
 		Host_EndGame("SV_Error: %s\n",string);
-		return;
 	}
+	SCR_EndLoadingPlaque();
 
 	if (!isDedicated)	//dedicated servers crash...
 	{
@@ -326,7 +334,6 @@ void VARGS SV_Error (char *error, ...)
 		SCR_EndLoadingPlaque();
 		inerror=false;
 		longjmp (host_abort, 1);
-		return;
 	}
 #endif
 
@@ -334,6 +341,20 @@ void VARGS SV_Error (char *error, ...)
 
 	Sys_Error ("SV_Error: %s\n",string);
 }
+
+#ifdef SERVERONLY
+void VARGS Host_Error (char *error, ...)
+{
+	va_list		argptr;
+	char		string[1024];
+
+	va_start (argptr,error);
+	vsnprintf (string,sizeof(string)-1, error,argptr);
+	va_end (argptr);
+
+	SV_Error("%s", string);
+}
+#endif
 
 /*
 ==================
@@ -377,6 +398,14 @@ or crashing.
 void SV_DropClient (client_t *drop)
 {
 	laggedpacket_t *lp;
+
+	/*drop the first in the chain first*/
+	if (drop->controller && drop->controller != drop)
+	{
+		SV_DropClient(drop->controller);
+		return;
+	}
+
 	if (!drop->controller)
 	{
 		// add the disconnect
@@ -427,7 +456,7 @@ void SV_DropClient (client_t *drop)
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, drop->edict);
 				if (pr_nqglobal_struct->SetChangeParms)
 					PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetChangeParms);
-				for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
+				for (j=0 ; j<NUM_RANK_SPAWN_PARMS ; j++)
 					if (spawnparamglobals[j])
 						rs.parm[j] = *spawnparamglobals[j];
 				Rank_SetPlayerStats(drop->rankid, &rs);
@@ -443,10 +472,6 @@ void SV_DropClient (client_t *drop)
 	case GT_MAX:
 		break;
 	case GT_Q1QVM:
-#ifdef VM_Q1
-		// FIXME: missing code here?
-#endif
-		break;
 	case GT_PROGS:
 		if (svprogfuncs)
 		{
@@ -503,6 +528,10 @@ void SV_DropClient (client_t *drop)
 		break;
 	}
 
+	if (drop->centerprintstring)
+		Z_Free(drop->centerprintstring);
+	drop->centerprintstring = NULL;
+
 	if (drop->spectator)
 		Con_Printf ("Spectator %s removed\n",drop->name);
 	else
@@ -524,6 +553,9 @@ void SV_DropClient (client_t *drop)
 	if (drop->netchan.remote_address.type == NA_LOOPBACK)
 	{
 		Netchan_Transmit(&drop->netchan, 0, "", SV_RateForClient(drop));
+#ifdef _MSC_VER
+#pragma message("This mans that we may not see the reason we kicked ourselves.")
+#endif
 		CL_Disconnect();
 		drop->state = cs_free;	//don't do zombie stuff
 	}
@@ -568,12 +600,14 @@ void SV_DropClient (client_t *drop)
 #ifdef NQPROT
 		SVNQ_FullClientUpdate (drop, &sv.nqreliable_datagram);
 #endif
+		SV_MVD_FullClientUpdate(NULL, drop);
 	}
 
 	if (drop->controlled)
 	{
 		drop->controlled->controller = NULL;
 		SV_DropClient(drop->controlled);
+		drop->controlled = NULL;
 	}
 }
 
@@ -719,7 +753,7 @@ SV_CalcPing
 
 ===================
 */
-int SV_CalcPing (client_t *cl)
+int SV_CalcPing (client_t *cl, qboolean forcecalc)
 {
 	float		ping;
 	int			i;
@@ -790,6 +824,7 @@ void SV_FullClientUpdate (client_t *client, sizebuf_t *buf, unsigned int ftepext
 
 	i = client - svs.clients;
 
+#ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demofile)
 	{
 		MSG_WriteByte (buf, svc_updatefrags);
@@ -819,6 +854,7 @@ void SV_FullClientUpdate (client_t *client, sizebuf_t *buf, unsigned int ftepext
 		MSG_WriteString (buf, info);
 		return;
 	}
+#endif
 
 //Sys_Printf("SV_FullClientUpdate:  Updated frags for client %d\n", i);
 
@@ -828,7 +864,7 @@ void SV_FullClientUpdate (client_t *client, sizebuf_t *buf, unsigned int ftepext
 
 	MSG_WriteByte (buf, svc_updateping);
 	MSG_WriteByte (buf, i);
-	MSG_WriteShort (buf, SV_CalcPing (client));
+	MSG_WriteShort (buf, SV_CalcPing (client, false));
 
 	MSG_WriteByte (buf, svc_updatepl);
 	MSG_WriteByte (buf, i);
@@ -838,7 +874,9 @@ void SV_FullClientUpdate (client_t *client, sizebuf_t *buf, unsigned int ftepext
 	MSG_WriteByte (buf, i);
 	MSG_WriteFloat (buf, realtime - client->connection_started);
 
+#ifdef _MSC_VER
 #pragma message("this is a bug: it can be broadcast to all qw clients")
+#endif
 	if (ftepext & PEXT_BIGUSERINFOS)
 		Q_strncpyz (info, client->userinfo, sizeof(info));
 	else
@@ -908,12 +946,14 @@ void SV_FullClientUpdateToClient (client_t *client, client_t *cl)
 	else
 #endif
 	{
+#ifdef SERVER_DEMO_PLAYBACK
 		if (sv.demofile)
 		{
 			int i = client - svs.clients;
 			ClientReliableCheckBlock(cl, 24 + strlen(sv.recordedplayer[i].userinfo));
 		}
 		else
+#endif
 			ClientReliableCheckBlock(cl, 24 + strlen(client->userinfo));
 		if (cl->num_backbuf) {
 			SV_FullClientUpdate (client, &cl->backbuf, cl->fteprotocolextensions);
@@ -975,7 +1015,7 @@ void SVC_Status (void)
 			bottom = atoi(Info_ValueForKey (cl->userinfo, "bottomcolor"));
 			top = (top < 0) ? 0 : ((top > 13) ? 13 : top);
 			bottom = (bottom < 0) ? 0 : ((bottom > 13) ? 13 : bottom);
-			ping = SV_CalcPing (cl);
+			ping = SV_CalcPing (cl, false);
 			name = cl->name;
 
 			if (!cl->state)	//show bots differently. Just to be courteous.
@@ -1018,9 +1058,9 @@ void SVC_Status (void)
 	if (slots>12)
 		Con_Printf ("5013 23 64 94 \"DeathBunny\" \"soldier\" 13 13\n");
 	if (slots>10)
-		Con_Printf ("5010 32 85 162 \"��\" \"hacker\" 13 13\n");
+		Con_Printf ("5010 32 85 162 \"??\" \"hacker\" 13 13\n");
 	if (slots>8)
-		Con_Printf ("5011 32 85 162 \"��a���\" \"hacker\" 4 4\n");
+		Con_Printf ("5011 32 85 162 \"??a???\" \"hacker\" 4 4\n");
 	*/
 	SV_EndRedirect ();
 }
@@ -1047,7 +1087,7 @@ void SVC_GetInfo (char *challenge, int fullstatus)
 
 	if (svprogfuncs)
 	{
-		v = PR_FindGlobal(svprogfuncs, "worldstatus", PR_ANY);
+		v = PR_FindGlobal(svprogfuncs, "worldstatus", PR_ANY, NULL);
 		if (v)
 			gamestatus = PR_GetString(svprogfuncs, v->string);
 		else
@@ -1107,7 +1147,7 @@ void SVC_GetInfo (char *challenge, int fullstatus)
 									"%d %d \"%s\" \"%s\"\n"
 									,
 									cl->old_frags,
-									SV_CalcPing(cl),
+									SV_CalcPing(cl, false),
 									cl->team,
 									cl->name
 									), sizeof(response) - (resp-response));
@@ -1355,6 +1395,17 @@ void SVC_GetChallenge (void)
 				memcpy(over, &lng, sizeof(lng));
 				over+=sizeof(lng);
 			}
+			//tell the client what fte extensions we support
+			if (svs.fteprotocolextensions2)
+			{
+				lng = LittleLong(PROTOCOL_VERSION_FTE2);
+				memcpy(over, &lng, sizeof(lng));
+				over+=sizeof(lng);
+
+				lng = LittleLong(svs.fteprotocolextensions2);
+				memcpy(over, &lng, sizeof(lng));
+				over+=sizeof(lng);
+			}
 #endif
 
 #ifdef HUFFNETWORK
@@ -1579,6 +1630,22 @@ void SV_AcceptMessage(int protocol)
 	Netchan_OutOfBand (NS_SERVER, net_from, len, (qbyte *)string);
 }
 
+#ifndef _WIN32
+#include <sys/stat.h>
+static void SV_CheckRecentCrashes(client_t *tellclient)
+{
+	struct stat sb;
+	if (-1 != stat("crash.log", &sb))
+	{
+		SV_ClientPrintf(tellclient, PRINT_HIGH, "\1WARNING: crash.log exists, dated %s\n", ctime(&sb.st_mtime));
+	}
+}
+#else
+static void SV_CheckRecentCrashes(client_t *tellclient)
+{
+}
+#endif
+
 /*
 ==================
 SVC_DirectConnect
@@ -1614,6 +1681,7 @@ client_t *SVC_DirectConnect(void)
 	int protocol;
 
 	unsigned int protextsupported=0;
+	unsigned int protextsupported2=0;
 
 
 	char *name;
@@ -1637,7 +1705,7 @@ client_t *SVC_DirectConnect(void)
 //		case 43:	//q3 1.11 (most 'recent' demo)
 //			break;
 		default:
-			SV_RejectMessage (SCP_BAD, "Server is "DISTRIBUTION" build %i.\n", build_number());
+			SV_RejectMessage (SCP_BAD, "Server is %s.\n", version_string());
 			Con_Printf ("* rejected connect from incompatable client\n");
 			return NULL;
 		}
@@ -1647,7 +1715,7 @@ client_t *SVC_DirectConnect(void)
 
 		s = Info_ValueForKey(userinfo[0], "qport");
 		qport = atoi(s);
-		
+
 		s = Info_ValueForKey(userinfo[0], "name");
 		if (!*s)
 			Info_SetValueForKey(userinfo[0], "name", "UnnamedQ3", sizeof(userinfo[0]));
@@ -1660,14 +1728,14 @@ client_t *SVC_DirectConnect(void)
 
 		if (strcmp(Info_ValueForKey(userinfo[0], "protocol"), "darkplaces 3"))
 		{
-			SV_RejectMessage (SCP_BAD, "Server is "DISTRIBUTION" build %i.\n", build_number());
+			SV_RejectMessage (SCP_BAD, "Server is %s.\n", version_string());
 			Con_Printf ("* rejected connect from incompatible client\n");
 			return NULL;
 		}
 		//it's a darkplaces client.
 
 		s = Info_ValueForKey(userinfo[0], "protocols");
-		if (sizeofcoord != 4)
+		if (svs.netprim.coordsize != 4)
 		{	//we allow nq with sv_listen_nq 0...
 			//reason: dp is too similar for concerns about unsupported code, while the main reason why we disable nq is because of the lack of challenges
 			//(and no, this isn't a way to bypass invalid challenges)
@@ -1702,7 +1770,7 @@ client_t *SVC_DirectConnect(void)
 			numssclients = atoi(Cmd_Argv(0)+7);
 			if (numssclients<1 || numssclients > 4)
 			{
-				SV_RejectMessage (SCP_BAD, "Server is "DISTRIBUTION" build %i.\n", build_number());
+				SV_RejectMessage (SCP_BAD, "Server is %s.\n", version_string());
 				Con_Printf ("* rejected connect from broken client\n");
 				return NULL;
 			}
@@ -1762,9 +1830,13 @@ client_t *SVC_DirectConnect(void)
 				protextsupported = Q_atoi(Cmd_Argv(1));
 				Con_DPrintf("Client supports 0x%x fte extensions\n", protextsupported);
 				break;
+			case PROTOCOL_VERSION_FTE2:
+				protextsupported2 = Q_atoi(Cmd_Argv(1));
+				Con_DPrintf("Client supports 0x%x fte2 extensions\n", protextsupported2);
+				break;
 			case PROTOCOL_VERSION_HUFFMAN:
 				huffcrc = Q_atoi(Cmd_Argv(1));
-				Con_DPrintf("Client supports huffman compression\n", huffcrc);
+				Con_DPrintf("Client supports huffman compression. crc 0x%x\n", huffcrc);
 				break;
 			}
 		}
@@ -1776,7 +1848,8 @@ client_t *SVC_DirectConnect(void)
 	else
 		maxpacketentities = MAX_STANDARD_PACKET_ENTITIES;
 
-	if (!sv_allow_splitscreen.value)
+	/*allow_splitscreen applies only to non-local clients, so that clients have only one enabler*/
+	if (!sv_allow_splitscreen.ival && net_from.type != NA_LOOPBACK)
 		numssclients = 1;
 
 	if (!(protextsupported & PEXT_SPLITSCREEN))
@@ -1839,7 +1912,21 @@ client_t *SVC_DirectConnect(void)
 
 	newcl->userid = nextuserid;
 	newcl->fteprotocolextensions = protextsupported;
+	newcl->fteprotocolextensions2 = protextsupported2;
 	newcl->protocol = protocol;
+
+	if (protocol == SCP_QUAKEWORLD)	//readd?
+	{
+		newcl->max_net_ents = 512;
+		if (newcl->fteprotocolextensions & PEXT_ENTITYDBL)
+			newcl->max_net_ents += 512;
+		if (newcl->fteprotocolextensions & PEXT_ENTITYDBL2)
+			newcl->max_net_ents += 1024;
+	}
+	else if (ISDPCLIENT(newcl))
+		newcl->max_net_ents = 32767;
+	else
+		newcl->max_net_ents = 600;
 
 	if (sv.msgfromdemo)
 		newcl->wasrecorded = true;
@@ -1898,7 +1985,7 @@ client_t *SVC_DirectConnect(void)
 
 	if (protocol == SCP_QUAKEWORLD &&!atoi(Info_ValueForKey (temp.userinfo, "iknow")))
 	{
-		if (sv.worldmodel->fromgame == fg_halflife && !(newcl->fteprotocolextensions & PEXT_HLBSP))
+		if (sv.world.worldmodel->fromgame == fg_halflife && !(newcl->fteprotocolextensions & PEXT_HLBSP))
 		{
 			if (atof(Info_ValueForKey (temp.userinfo, "*FuhQuake")) < 0.3)
 			{
@@ -1908,7 +1995,7 @@ client_t *SVC_DirectConnect(void)
 			}
 		}
 #ifdef PEXT_Q2BSP
-		else if (sv.worldmodel->fromgame == fg_quake2 && !(newcl->fteprotocolextensions & PEXT_Q2BSP))
+		else if (sv.world.worldmodel->fromgame == fg_quake2 && !(newcl->fteprotocolextensions & PEXT_Q2BSP))
 		{
 			SV_RejectMessage (protocol, "The server is using a quake 2 level and we don't think your client supports this\nuse 'setinfo iknow 1' to ignore this check\nYou can go to "ENGINEWEBSITE" to get a compatible client\n\nYou may need to enable an option\n\n");
 //			Con_Printf("player %s was dropped due to incompatible client\n", name);
@@ -1916,7 +2003,7 @@ client_t *SVC_DirectConnect(void)
 		}
 #endif
 #ifdef PEXT_Q3BSP
-		else if (sv.worldmodel->fromgame == fg_quake3 && !(newcl->fteprotocolextensions & PEXT_Q3BSP))
+		else if (sv.world.worldmodel->fromgame == fg_quake3 && !(newcl->fteprotocolextensions & PEXT_Q3BSP))
 		{
 			SV_RejectMessage (protocol, "The server is using a quake 3 level and we don't think your client supports this\nuse 'setinfo iknow 1' to ignore this check\nYou can go to "ENGINEWEBSITE" to get a compatible client\n\nYou may need to enable an option\n\n");
 //			Con_Printf("player %s was dropped due to incompatible client\n", name);
@@ -1949,7 +2036,10 @@ client_t *SVC_DirectConnect(void)
 	spectators = 0;
 	newcl = NULL;
 	if (!sv.allocated_client_slots)
+	{
 		Con_Printf("Apparently, there are no client slots allocated. This shouldn't be happening\n");
+		return NULL;
+	}
 	for (i=0,cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++)
 	{
 		if (cl->state == cs_free)
@@ -1975,23 +2065,18 @@ client_t *SVC_DirectConnect(void)
 
 	if (!newcl)	//client has no slot. It's possible to bipass this if server is loading a game. (or a duplicated qsocket)
 	{
-		// if at server limits, refuse connection
-		if ( maxclients.value > MAX_CLIENTS )
-			Cvar_SetValue (&maxclients, MAX_CLIENTS);
-		if (maxspectators.value > MAX_CLIENTS)
-			Cvar_SetValue (&maxspectators, MAX_CLIENTS);
-//		if (maxspectators.value + maxclients.value > MAX_CLIENTS)	//maybe a server wishes to allow this sort of thing?
-//			Cvar_SetValue ("maxspectators", MAX_CLIENTS - maxspectators.value + maxclients.value);
-		if (svprogfuncs && ((spectator && spectators >= (int)maxspectators.value)
-			|| (!spectator && clients >= (int)maxclients.value)
-			|| (clients + spectators >= sv.allocated_client_slots) ))
-		{
-			Con_Printf ("%s:full connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), adr));
-			SV_RejectMessage (protocol, "\nserver is full\n\n");
-			return NULL;
-		}
+		/*single player logic*/
+		if (sv.allocated_client_slots == 1 && net_from.type == NA_LOOPBACK)
+			if (svs.clients[0].state)
+				SV_DropClient(svs.clients);
 
-	// find a client slot
+		// if at server limits, refuse connection
+		if ( maxclients.ival > MAX_CLIENTS )
+			Cvar_SetValue (&maxclients, MAX_CLIENTS);
+		if (maxspectators.ival > MAX_CLIENTS)
+			Cvar_SetValue (&maxspectators, MAX_CLIENTS);
+
+		// find a free client slot
 		for (i=0,cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++)
 		{
 			if (cl->state == cs_free)
@@ -2000,14 +2085,34 @@ client_t *SVC_DirectConnect(void)
 				break;
 			}
 		}
+
+		/*only q1/h2 has maxclients/maxspectators limits. q2 or q3 the gamecode does this*/
+		if (svprogfuncs)
+		{
+			if (spectator && spectators >= maxspectators.ival)
+				newcl = NULL;
+			if (!spectator && clients >= maxclients.ival)
+				newcl = NULL;
+		}
+
 		if (!newcl)
 		{
-			if (svprogfuncs)
-				Con_Printf ("WARNING: miscounted available clients\n");
+			if (!svprogfuncs)
+			{
+				SV_RejectMessage (protocol, "\nserver is full\n\n");
+				Con_Printf ("%s:full connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), adr));
+			}
 			else
 			{
-				Con_Printf ("%s:full connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), adr));
-				SV_RejectMessage (protocol, "server is full\n\n");
+				if (spectator && spectators >= maxspectators.ival)
+				{
+					SV_RejectMessage (protocol, "\nserver is full (%i of %i spectators)\n\n", spectators, maxspectators.ival);
+					Con_Printf ("%s:full connect\n", NET_AdrToString (adrbuf, sizeof(adrbuf), adr));
+				}
+				else if (!spectator && clients >= maxclients.ival)
+					SV_RejectMessage (protocol, "\nserver is full (%i of %i players)\n\n", clients, maxclients.ival);
+				else
+					SV_RejectMessage (protocol, "\nserver is full (%i of %i connections)\n\n", clients+spectators, sv.allocated_client_slots);
 			}
 			return NULL;
 		}
@@ -2136,7 +2241,7 @@ client_t *SVC_DirectConnect(void)
 	}
 	newcl->zquake_extensions &= SUPPORTED_Z_EXTENSIONS;
 
-	Netchan_Setup (NS_SERVER, &newcl->netchan , adr, qport);
+	Netchan_Setup (NS_SERVER, &newcl->netchan, adr, qport);
 
 	if (huffcrc)
 		newcl->netchan.compress = true;
@@ -2156,6 +2261,10 @@ client_t *SVC_DirectConnect(void)
 	newcl->datagram.allowoverflow = true;
 	newcl->datagram.data = newcl->datagram_buf;
 	newcl->datagram.maxsize = sizeof(newcl->datagram_buf);
+
+	newcl->netchan.netprim = svs.netprim;
+	newcl->datagram.prim = svs.netprim;
+	newcl->netchan.message.prim = svs.netprim;
 
 	// spectator mode can ONLY be set at join time
 	newcl->spectator = spectator;
@@ -2229,8 +2338,10 @@ client_t *SVC_DirectConnect(void)
 				}
 				else
 				{
-					for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
+					for (i=0 ; i<NUM_RANK_SPAWN_PARMS ; i++)
 						newcl->spawn_parms[i] = rs.parm[i];
+					for (; i < NUM_SPAWN_PARMS; i++)
+						newcl->spawn_parms[i] = 0;
 				}
 
 				if (rs.timeonserver > 3*60)	//woo. Ages.
@@ -2294,6 +2405,12 @@ client_t *SVC_DirectConnect(void)
 			SV_ClientPrintf(newcl, PRINT_CHAT, "%s\n", sv_motd[i].string);
 	}
 
+	SV_CheckRecentCrashes(newcl);
+
+#ifdef PEXT2_VOICECHAT
+	SV_VoiceInitClient(newcl);
+#endif
+
 	newcl->fteprotocolextensions &= ~PEXT_SPLITSCREEN;
 	for (clients = 1; clients < numssclients; clients++)
 	{
@@ -2312,6 +2429,13 @@ client_t *SVC_DirectConnect(void)
 		temp.frameunion.frames = cl->frameunion.frames;	//don't touch these.
 		temp.edict = cl->edict;
 		memcpy(cl, newcl, sizeof(client_t));
+		cl->name = cl->namebuf;
+		cl->team = cl->teambuf;
+
+		nextuserid++;	// so every client gets a unique id
+		cl->userid = nextuserid;
+
+		cl->playerclass = 0;
 		cl->frameunion.frames = temp.frameunion.frames;
 		cl->edict = temp.edict;
 
@@ -2491,7 +2615,7 @@ void SVC_RemoteCommand (void)
 			strcat (remaining, " ");
 		}
 
-		Cmd_ExecuteString (remaining, rcon_level.value);
+		Cmd_ExecuteString (remaining, rcon_level.ival);
 
 	}
 
@@ -2592,7 +2716,7 @@ qboolean SV_ConnectionlessPacket (void)
 	char	*c;
 	char	adr[MAX_ADR_SIZE];
 
-	MSG_BeginReading ();
+	MSG_BeginReading (svs.netprim);
 
 	if (net_message.cursize >= MAX_QWMSGLEN)	//add a null term in message space
 	{
@@ -2636,7 +2760,7 @@ qboolean SV_ConnectionlessPacket (void)
 			{	//if name isn't in the string, assume they're q3
 				//this isn't quite true though, hence the listen check. but users shouldn't be connecting with an empty name anyway. more fool them.
 				Huff_DecryptPacket(&net_message, 12);
-				MSG_BeginReading();
+				MSG_BeginReading(svs.netprim);
 				MSG_ReadLong();
 				s = MSG_ReadStringLine();
 				Cmd_TokenizeString(s, false, false);
@@ -2662,6 +2786,7 @@ qboolean SV_ConnectionlessPacket (void)
 		SVC_GetChallenge ();
 	}
 #ifdef NQPROT
+	/*for DP*/
 	else if (!strcmp(c, "getstatus"))
 		SVC_GetInfo(Cmd_Args(), true);
 	else if (!strcmp(c, "getinfo"))
@@ -2684,17 +2809,21 @@ void SVNQ_ConnectionlessPacket(void)
 	sizebuf_t sb;
 	int header;
 	int length;
+	int active, i;
+	int mod, modver, flags;
+	unsigned int passwd;
 	char *str;
-	char buffer[256];
+	char buffer[256], buffer2[256];
+	netadr_t localaddr;
 	if (net_from.type == NA_LOOPBACK)
 		return;
 
 	if (!sv_listen_nq.value)
 		return;
-	if (sv_bigcoords.value)
+	if (svs.netprim.coordsize != 2)
 		return;	//no, start using dp7 instead.
 
-	MSG_BeginReading();
+	MSG_BeginReading(svs.netprim);
 	header = LongSwap(MSG_ReadLong());
 	if (!(header & NETFLAG_CTL))
 		return;	//no idea what it is.
@@ -2728,10 +2857,117 @@ void SVNQ_ConnectionlessPacket(void)
 			NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
 			return;	//not our version...
 		}
-		str = va("connect %i %i %i \"\\name\\unconnected\"", NET_PROTOCOL_VERSION, 0, SV_NewChallenge());
-		Cmd_TokenizeString (str, false, false);
+		mod = MSG_ReadByte();
+		modver = MSG_ReadByte();
+		flags = MSG_ReadByte();
+		passwd = MSG_ReadLong();
 
-		SVC_DirectConnect();
+		if (!strncmp(MSG_ReadString(), "getchallenge", 12))
+		{
+			/*dual-stack client, supporting either DP or QW protocols*/
+			SVC_GetChallenge ();
+		}
+		else
+		{
+			str = va("connect %i %i %i \"\\name\\unconnected\"", NET_PROTOCOL_VERSION, 0, SV_NewChallenge());
+			Cmd_TokenizeString (str, false, false);
+
+			SVC_DirectConnect();
+		}
+		break;
+	case CCREQ_SERVER_INFO:
+		if (Q_strcmp (MSG_ReadString(), NET_GAMENAME_NQ) != 0)
+			break;
+
+		sb.maxsize = sizeof(buffer);
+		sb.data = buffer;
+		SZ_Clear (&sb);
+		// save space for the header, filled in later
+		MSG_WriteLong (&sb, 0);
+		MSG_WriteByte (&sb, CCREP_SERVER_INFO);
+		if (NET_LocalAddressForRemote(svs.sockets, &net_from, &localaddr, 0))
+			MSG_WriteString (&sb, NET_AdrToString (buffer2, sizeof(buffer2), localaddr));
+		else
+			MSG_WriteString (&sb, "unknown");
+		active = 0;
+		for (i = 0; i < sv.allocated_client_slots; i++)
+			if (svs.clients[i].state)
+				active++;
+		MSG_WriteString (&sb, hostname.string);
+		MSG_WriteString (&sb, sv.name);
+		MSG_WriteByte (&sb, active);
+		MSG_WriteByte (&sb, maxclients.value);
+		MSG_WriteByte (&sb, NET_PROTOCOL_VERSION);
+		*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
+		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
+		break;
+	case CCREQ_PLAYER_INFO:
+		/*one request per player, ouch ouch ouch, what will it make of 32 players, I wonder*/
+		sb.maxsize = sizeof(buffer);
+		sb.data = buffer;
+		// save space for the header, filled in later
+		SZ_Clear (&sb);
+		MSG_WriteLong (&sb, 0);
+		{
+			unsigned int pno;
+			client_t *cl;
+			pno = MSG_ReadByte();
+			if (pno >= sv.allocated_client_slots)
+				break;
+			cl = &svs.clients[pno];
+			if (cl->state <= cs_zombie)
+				break;
+
+			MSG_WriteByte (&sb, CCREP_PLAYER_INFO);
+			MSG_WriteByte (&sb, pno);
+			MSG_WriteString (&sb, cl->name);
+			MSG_WriteLong (&sb, cl->playercolor);
+			MSG_WriteLong (&sb, cl->old_frags);
+			MSG_WriteLong (&sb, realtime - cl->connection_started);
+			MSG_WriteString (&sb, "");	/*player's address, leave blank, don't spam that info as it can result in personal attacks exploits*/
+		}
+		*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
+		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
+		break;
+	case CCREQ_RULE_INFO:
+		/*lol, nq is evil*/
+		sb.maxsize = sizeof(buffer);
+		sb.data = buffer;
+		// save space for the header, filled in later
+		SZ_Clear (&sb);
+		MSG_WriteLong (&sb, 0);
+		{
+			char *rname, *rval, *kname;
+			rname = MSG_ReadString();
+
+			if (!*rname)
+				rname = Info_KeyForNumber(svs.info, 0);
+			else
+			{
+				int i = 0;
+				for(;;)
+				{
+					kname = Info_KeyForNumber(svs.info, i);
+					if (!*kname)
+					{
+						rname = NULL;
+						break;
+					}
+					i++;
+					if (!strcmp(kname, rname))
+					{
+						rname = Info_KeyForNumber(svs.info, i);
+						break;
+					}
+				}
+			}
+			rval = Info_ValueForKey(svs.info, rname);
+			MSG_WriteByte (&sb, CCREP_RULE_INFO);
+			MSG_WriteString (&sb, rname);
+			MSG_WriteString (&sb, rval);
+		}
+		*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
+		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
 		break;
 	}
 }
@@ -2825,7 +3061,7 @@ void SV_OpenRoute_f(void)
 
 	NET_StringToAdr(Cmd_Argv(1), &to);
 	if (!to.port)
-		to.port = PORT_CLIENT;
+		to.port = PORT_QWCLIENT;
 
 	sprintf(data, "\xff\xff\xff\xff%c", S2C_CONNECTION);
 
@@ -2840,54 +3076,73 @@ void SV_OpenRoute_f(void)
 SV_ReadPackets
 =================
 */
+#ifdef SERVER_DEMO_PLAYBACK
 //FIMXE: move to header
 qboolean SV_GetPacket (void);
-void SV_ReadPackets (void)
+#endif
+
+qboolean SV_ReadPackets (float *delay)
 {
 	int			i;
 	client_t	*cl;
 	int			qport;
 	laggedpacket_t *lp;
 	char		*banreason;
+	qboolean	received = false;
 
 	for (i = 0; i < MAX_CLIENTS; i++)	//fixme: shouldn't we be using svs.allocated_client_slots ?
 	{
 		cl = &svs.clients[i];
-		while (cl->laggedpacket && cl->laggedpacket->time < realtime)
+		while (cl->laggedpacket)
 		{
-			lp = cl->laggedpacket;
-			cl->laggedpacket = lp->next;
-			if (cl->laggedpacket_last == lp)
-				cl->laggedpacket_last = lp->next;
-		
-			lp->next = svs.free_lagged_packet;
-			svs.free_lagged_packet = lp;
+			//schedule a wakeup so minping is more consistant
+			if (cl->laggedpacket->time > realtime)
+			{
+				if (*delay > cl->laggedpacket->time - realtime)
+					*delay = cl->laggedpacket->time - realtime;
+				break;
+			}
+			else
+			{
+				lp = cl->laggedpacket;
+				cl->laggedpacket = lp->next;
+				if (cl->laggedpacket_last == lp)
+					cl->laggedpacket_last = lp->next;
 
-			SZ_Clear(&net_message);
-			memcpy(net_message.data, lp->data, lp->length);
-			net_message.cursize = lp->length;
-			
-			net_from = cl->netchan.remote_address;	//not sure if anything depends on this, but lets not screw them up willynilly
+				lp->next = svs.free_lagged_packet;
+				svs.free_lagged_packet = lp;
 
-			if (Netchan_Process(&cl->netchan))
-			{	// this is a valid, sequenced packet, so process it
-				svs.stats.packets++;
-				if (cl->state > cs_zombie)
-				{	//make sure they didn't already disconnect
-					cl->send_message = true;	// reply at end of frame
+				SZ_Clear(&net_message);
+				memcpy(net_message.data, lp->data, lp->length);
+				net_message.cursize = lp->length;
 
-#ifdef Q2SERVER
-					if (cl->protocol == SCP_QUAKE2)
-						SVQ2_ExecuteClientMessage(cl);
-					else
-#endif
-						SV_ExecuteClientMessage (cl);
+				net_from = cl->netchan.remote_address;	//not sure if anything depends on this, but lets not screw them up willynilly
+
+				if (Netchan_Process(&cl->netchan))
+				{	// this is a valid, sequenced packet, so process it
+					received++;
+					svs.stats.packets++;
+					if (cl->state > cs_zombie)
+					{	//make sure they didn't already disconnect
+						cl->send_message = true;	// reply at end of frame
+
+	#ifdef Q2SERVER
+						if (cl->protocol == SCP_QUAKE2)
+							SVQ2_ExecuteClientMessage(cl);
+						else
+	#endif
+							SV_ExecuteClientMessage (cl);
+					}
 				}
 			}
 		}
 	}
 
-	while (SV_GetPacket ())
+#ifdef SERVER_DEMO_PLAYBACK
+	while (SV_GetPacket())
+#else
+	while (NET_GetPacket (NS_SERVER))
+#endif
 	{
 		banreason = SV_BannedReason (&net_from);
 		if (banreason)
@@ -2909,6 +3164,7 @@ void SV_ReadPackets (void)
 #ifdef Q3SERVER
 		if (svs.gametype == GT_QUAKE3)
 		{
+			received++;
 			SVQ3_HandleClient();
 			continue;
 		}
@@ -2916,7 +3172,7 @@ void SV_ReadPackets (void)
 
 		// read the qport out of the message so we can fix up
 		// stupid address translating routers
-		MSG_BeginReading ();
+		MSG_BeginReading (svs.netprim);
 		MSG_ReadLong ();		// sequence number
 		MSG_ReadLong ();		// sequence number
 		qport = MSG_ReadShort () & 0xffff;
@@ -2935,6 +3191,7 @@ void SV_ReadPackets (void)
 				{
 					if (NQNetChan_Process(&cl->netchan))
 					{
+						received++;
 						svs.stats.packets++;
 						SVNQ_ExecuteClientMessage(cl);
 					}
@@ -2946,9 +3203,12 @@ void SV_ReadPackets (void)
 #ifdef Q3SERVER
 			if (ISQ3CLIENT(cl))
 			{
+#ifdef _MSC_VER
 #pragma message("qwoverq3: fixme: this will block qw+q3 clients from the same ip")
+#endif
 				if (cl->state != cs_zombie)
 				{
+					received++;
 					SVQ3_HandleClient();
 				}
 				break;
@@ -2988,14 +3248,18 @@ void SV_ReadPackets (void)
 				cl->laggedpacket_last->length = net_message.cursize;
 				break;
 			}
-			
+
 
 			if (Netchan_Process(&cl->netchan))
 			{	// this is a valid, sequenced packet, so process it
+				received++;
 				svs.stats.packets++;
 				if (cl->state != cs_zombie)
 				{
-					cl->send_message = true;	// reply at end of frame
+					if (cl->send_message)
+						cl->chokecount++;
+					else
+						cl->send_message = true;	// reply at end of frame
 
 #ifdef Q2SERVER
 					if (cl->protocol == SCP_QUAKE2)
@@ -3019,6 +3283,8 @@ void SV_ReadPackets (void)
 		//	Con_Printf ("%s:sequenced packet without connection\n"
 		// ,NET_AdrToString(net_from));
 	}
+
+	return received;
 }
 
 /*
@@ -3073,7 +3339,8 @@ void SV_CheckTimeouts (void)
 			}
 		}
 	}
-	if (sv.paused && !nclients) {
+	if ((sv.paused&1) && !nclients)
+	{
 		// nobody left, unpause the server
 		if (SV_TogglePause(NULL))
 			SV_BroadcastTPrintf(PRINT_HIGH, STL_CLIENTLESSUNPAUSE);
@@ -3198,7 +3465,7 @@ void SV_Impulse_f (void)
 	if (!svprogfuncs)
 		return;
 
-	pr_global_struct->time = sv.physicstime;
+	pr_global_struct->time = sv.world.physicstime;
 
 	svs.clients[i].state = cs_connected;
 
@@ -3209,7 +3476,7 @@ void SV_Impulse_f (void)
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
 
-	pr_global_struct->time = sv.physicstime;
+	pr_global_struct->time = sv.world.physicstime;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
 
@@ -3235,22 +3502,49 @@ void SV_Impulse_f (void)
 	svs.clients[i].state = cs_free;
 }
 
+static void SV_PauseChanged(void)
+{
+	int i;
+	client_t *cl;
+	// send notification to all clients
+	for (i=0, cl = svs.clients ; i<MAX_CLIENTS ; i++, cl++)
+	{
+		if (!cl->state)
+			continue;
+		if ((ISQWCLIENT(cl) || ISNQCLIENT(cl)) && !cl->controller)
+		{
+			ClientReliableWrite_Begin (cl, svc_setpause, 2);
+			ClientReliableWrite_Byte (cl, sv.paused!=0);
+		}
+	}
+}
+
 /*
 ==================
 SV_Frame
 
 ==================
 */
-void SV_Frame (void)
+float SV_Frame (void)
 {
 	extern cvar_t pr_imitatemvdsv;
-	static double	start, end;
+	static double	start, end, idletime;
 	float oldtime;
+	qboolean isidle;
+	static int oldpaused;
+	float timedelta;
+	float delay;
 
 	start = Sys_DoubleTime ();
 	svs.stats.idle += start - end;
 	end = start;
+
+	//qw qc uses this for newmis handling
 	svs.framenum++;
+	if (svs.framenum > 0x10000)
+		svs.framenum = 0;
+
+	delay = sv_maxtic.value;
 
 // keep the random time dependent
 	rand ();
@@ -3258,37 +3552,50 @@ void SV_Frame (void)
 	if (!sv.gamespeed)
 		sv.gamespeed = 1;
 
+#ifndef SERVERONLY
+	if ((sv.paused & 4) != ((!isDedicated && sv.allocated_client_slots == 1 && key_dest != key_game)?4:0))
+		sv.paused ^= 4;
+#endif
+
+	if (oldpaused != sv.paused)
+	{
+		SV_PauseChanged();
+		oldpaused = sv.paused;
+	}
+
 // decide the simulation time
 	{
 		oldtime = sv.time;
 		sv.time = (Sys_DoubleTime() - sv.starttime)*sv.gamespeed;
+		timedelta = sv.time - oldtime;
 		if (sv.time < oldtime)
+		{
 			sv.time = oldtime;	//urm
+			timedelta = 0;
+		}
 
-		if (sv.paused)
+		if (sv.paused && sv.time > 1.5)
 		{
 			sv.starttime += sv.time - oldtime;	//move the offset
 			sv.time = oldtime;	//and keep time as it was.
 		}
 
-#ifndef SERVERONLY
 		if (isDedicated)
-#endif
 			realtime += sv.time - oldtime;
 
 	}
 
 
-#ifdef IWEB_H__
+#ifdef WEBSERVER
 	IWebRun();
 #endif
 
-	if (sv_master.value)
+	if (sv_master.ival)
 	{
-		if (sv_masterport.value)
-			SVM_Think(sv_masterport.value);
+		if (sv_masterport.ival)
+			SVM_Think(sv_masterport.ival);
 		else
-			SVM_Think(PORT_MASTER);
+			SVM_Think(PORT_QWMASTER);
 	}
 
 	{
@@ -3296,7 +3603,7 @@ void SV_MVDStream_Poll(void);
 	SV_MVDStream_Poll();
 	}
 
-	if (sv.state < ss_active || !sv.worldmodel)
+	if (sv.state < ss_active || !sv.world.worldmodel)
 	{
 #ifndef SERVERONLY
 	// check for commands typed to the host
@@ -3306,12 +3613,8 @@ void SV_MVDStream_Poll(void);
 			SV_GetConsoleCommands ();
 			Cbuf_Execute ();
 		}
-		return;
+		return delay;
 	}
-
-#ifdef VOICECHAT
-	SVVC_Frame(sv_voicechat.value);
-#endif
 
 // check timeouts
 	SV_CheckTimeouts ();
@@ -3322,13 +3625,13 @@ void SV_MVDStream_Poll(void);
 	SV_CheckLog ();
 
 // get packets
-	SV_ReadPackets ();
+	isidle = !SV_ReadPackets (&delay);
 
-	if (pr_imitatemvdsv.value)
+	if (pr_imitatemvdsv.ival)
 	{
 		Cbuf_Execute ();
 		if (sv.state < ss_active)	//whoops...
-			return;
+			return delay;
 	}
 
 	if (sv.multicast.cursize)
@@ -3338,13 +3641,19 @@ void SV_MVDStream_Poll(void);
 	}
 
 	// move autonomous things around if enough time has passed
-	if (!sv.paused)
+	if (!sv.paused || sv.time < 1.5)
 	{
+#ifdef Q2SERVER
+		//q2 is idle even if clients sent packets.
+		if (svs.gametype == GT_QUAKE2)
+			isidle = true;
+#endif
 		if (SV_Physics ())
-			return;
+			isidle = false;
 	}
 	else
 	{
+		isidle = idletime < 0.1;
 #ifdef VM_Q1
 		if (svs.gametype == GT_Q1QVM)
 		{
@@ -3357,55 +3666,65 @@ void SV_MVDStream_Poll(void);
 		}
 	}
 
+	if (!isidle || idletime > 0.15)
+	{
+		//this is the q2 frame number found in the q2 protocol. each packet should contain a new frame or interpolation gets confused
+		sv.framenum++;
+
 #ifdef SQL
-	PR_SQLCycle();
+		PR_SQLCycle();
 #endif
 
-	while(SV_ReadMVD());
+#ifdef SERVER_DEMO_PLAYBACK
+		while(SV_ReadMVD());
+#endif
 
-	if (sv.multicast.cursize)
-	{
-		Con_Printf("Unterminated multicast\n");
-		sv.multicast.cursize=0;
-	}
+		if (sv.multicast.cursize)
+		{
+			Con_Printf("Unterminated multicast\n");
+			sv.multicast.cursize=0;
+		}
 
 #ifndef SERVERONLY
 // check for commands typed to the host
-	if (isDedicated)
+		if (isDedicated)
 #endif
-	{
+		{
 #ifdef PLUGINS
-		Plug_Tick();
+			Plug_Tick();
 #endif
 
-		SV_GetConsoleCommands ();
+			SV_GetConsoleCommands ();
 
 // process console commands
-		if (!pr_imitatemvdsv.value)
-			Cbuf_Execute ();
-	}
+			if (!pr_imitatemvdsv.value)
+				Cbuf_Execute ();
+		}
 
-	if (sv.state < ss_active)	//whoops...
-		return;
+		if (sv.state < ss_active)	//whoops...
+			return delay;
 
-	SV_CheckVars ();
+		SV_CheckVars ();
 
 // send messages back to the clients that had packets read this frame
-	SV_SendClientMessages ();
+		SV_SendClientMessages ();
 
 //	demo_start = Sys_DoubleTime ();
-	SV_SendMVDMessage();
+		SV_SendMVDMessage();
 //	demo_end = Sys_DoubleTime ();
 //	svs.stats.demo += demo_end - demo_start;
 
 // send a heartbeat to the master if needed
-	Master_Heartbeat ();
+		Master_Heartbeat ();
 
 
 #ifdef Q2SERVER
-	if (ge && ge->edicts)
-		SVQ2_ClearEvents();
+		if (ge && ge->edicts)
+			SVQ2_ClearEvents();
 #endif
+		idletime = 0;
+	}
+	idletime += timedelta;
 
 // collect timing statistics
 	end = Sys_DoubleTime ();
@@ -3420,6 +3739,7 @@ void SV_MVDStream_Poll(void);
 		svs.stats.packets = 0;
 		svs.stats.count = 0;
 	}
+	return delay;
 }
 
 /*
@@ -3442,6 +3762,7 @@ void SV_InitLocal (void)
 	extern	cvar_t	sv_wateraccelerate;
 	extern	cvar_t	sv_friction;
 	extern	cvar_t	sv_waterfriction;
+	extern	cvar_t sv_sound_watersplash;
 	extern	cvar_t	pr_allowbutton1;
 
 	extern	cvar_t	pm_bunnyspeedcap;
@@ -3471,6 +3792,7 @@ void SV_InitLocal (void)
 
 	Cvar_Register (&sv_mintic,	cvargroup_servercontrol);
 	Cvar_Register (&sv_maxtic,	cvargroup_servercontrol);
+	Cvar_Register (&sv_limittics,	cvargroup_servercontrol);
 
 	Cvar_Register (&fraglimit,	cvargroup_serverinfo);
 	Cvar_Register (&timelimit,	cvargroup_serverinfo);
@@ -3488,6 +3810,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&watervis,	cvargroup_serverinfo);
 	Cvar_Register (&rearview,	cvargroup_serverinfo);
 	Cvar_Register (&mirrors,	cvargroup_serverinfo);
+	Cvar_Register (&allow_fish, cvargroup_serverinfo);
 	Cvar_Register (&allow_luma,	cvargroup_serverinfo);
 	Cvar_Register (&allow_bump,	cvargroup_serverinfo);
 	Cvar_Register (&allow_skybox,	cvargroup_serverinfo);
@@ -3497,6 +3820,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&timeout,	cvargroup_servercontrol);
 	Cvar_Register (&zombietime,	cvargroup_servercontrol);
 
+	Cvar_Register (&sv_pupglow,	cvargroup_serverinfo);
 	Cvar_Register (&sv_loadentfiles,	cvargroup_servercontrol);
 
 	Cvar_Register (&sv_maxvelocity,			cvargroup_serverphysics);
@@ -3509,6 +3833,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_wateraccelerate,		cvargroup_serverphysics);
 	Cvar_Register (&sv_friction,			cvargroup_serverphysics);
 	Cvar_Register (&sv_waterfriction,		cvargroup_serverphysics);
+	Cvar_Register (&sv_sound_watersplash,		cvargroup_serverphysics);
 
 	Cvar_Register (&sv_bigcoords,			cvargroup_serverphysics);
 
@@ -3583,7 +3908,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&secure,	cvargroup_serverpermissions);
 
 	Cvar_Register (&sv_highchars,	cvargroup_servercontrol);
-
+	Cvar_Register (&sv_calcphs,	cvargroup_servercontrol);
 	Cvar_Register (&sv_phs,	cvargroup_servercontrol);
 	Cvar_Register (&sv_cullplayers_trace, cvargroup_servercontrol);
 	Cvar_Register (&sv_cullentities_trace, cvargroup_servercontrol);
@@ -3596,7 +3921,6 @@ void SV_InitLocal (void)
 
 	Cvar_Register (&pausable,	cvargroup_servercontrol);
 
-	Cvar_Register (&sv_voicechat,	cvargroup_servercontrol);
 	Cvar_Register (&sv_maxrate, cvargroup_servercontrol);
 	Cvar_Register (&sv_maxdrate, cvargroup_servercontrol);
 	Cvar_Register (&sv_minping, cvargroup_servercontrol);
@@ -3628,9 +3952,6 @@ void SV_InitLocal (void)
 #endif
 #ifdef PEXT_VIEW2
 	svs.fteprotocolextensions |= PEXT_VIEW2;
-#endif
-#ifdef PEXT_BULLETENS
-	svs.fteprotocolextensions |= PEXT_BULLETENS;
 #endif
 	svs.fteprotocolextensions |= PEXT_ACCURATETIMINGS;
 #ifdef PEXT_ZLIBDL
@@ -3693,10 +4014,16 @@ void SV_InitLocal (void)
 	svs.fteprotocolextensions |= PEXT_DPFLAGS;
 #endif
 
+	svs.fteprotocolextensions2 |= PEXT2_PRYDONCURSOR;
+#ifdef PEXT2_VOICECHAT
+	svs.fteprotocolextensions2 |= PEXT2_VOICECHAT;
+#endif
+	svs.fteprotocolextensions2 |= PEXT2_SETANGLEDELTA;
+
 //	if (svs.protocolextensions)
 //		Info_SetValueForStarKey (svs.info, "*"DISTRIBUTION"_ext", va("%x", svs.protocolextensions), MAX_SERVERINFO_STRING);
 
-	Info_SetValueForStarKey (svs.info, "*version", va("%s %i", DISTRIBUTION, build_number()), MAX_SERVERINFO_STRING);
+	Info_SetValueForStarKey (svs.info, "*version", version_string(), MAX_SERVERINFO_STRING);
 
 	Info_SetValueForStarKey (svs.info, "*z_ext", va("%i", SUPPORTED_Z_EXTENSIONS), MAX_SERVERINFO_STRING);
 
@@ -3726,7 +4053,7 @@ void SV_InitLocal (void)
 	{
 		int port = atoi(com_argv[p+1]);
 		if (!port)
-			port = PORT_SERVER;
+			port = PORT_QWSERVER;
 		Cvar_SetValue(&sv_port, port);
 #ifdef IPPROTO_IPV6
 		Cvar_SetValue(&sv_port_ipv6, port);
@@ -4035,7 +4362,7 @@ qboolean ReloadRanking(client_t *cl, char *newname)
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
 			if (pr_nqglobal_struct->SetChangeParms)
 				PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetChangeParms);
-			for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
+			for (j=0 ; j<NUM_RANK_SPAWN_PARMS ; j++)
 				if (spawnparamglobals[j])
 					rs.parm[j] = *spawnparamglobals[j];
 			Rank_SetPlayerStats(cl->rankid, &rs);
@@ -4200,7 +4527,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 	val = Info_ValueForKey (cl->userinfo, "cl_playerclass");
 	if (val)
 	{
-		PR_SetPlayerClass(cl, atoi(val), false);
+		PRH2_SetPlayerClass(cl, atoi(val), false);
 	}
 
 	// msg command
@@ -4268,8 +4595,11 @@ void SV_IgnoreCommand_f(void)
 SV_Init
 ====================
 */
+#ifdef SERVER_DEMO_PLAYBACK
 //FIXME: move to header
 void SV_Demo_Init(void);
+#endif
+
 void SV_Init (quakeparms_t *parms)
 {
 	int i;
@@ -4287,6 +4617,8 @@ void SV_Init (quakeparms_t *parms)
 //		if (parms->memsize < MINIMUM_MEMORY)
 //			SV_Error ("Only %4.1f megs of memory reported, can't execute game", parms->memsize / (float)0x100000);
 
+		Cvar_Init();
+
 		Memory_Init (parms->membase, parms->memsize);
 
 		Sys_Init();
@@ -4296,7 +4628,7 @@ void SV_Init (quakeparms_t *parms)
 		Cbuf_Init ();
 		Cmd_Init ();
 #ifndef SERVERONLY
-		R_SetRenderer(QR_NONE);
+		R_SetRenderer(NULL);
 #endif
 		COM_Init ();
 		Mod_Init ();
@@ -4308,11 +4640,17 @@ void SV_Init (quakeparms_t *parms)
 
 	SV_InitLocal ();
 
-#ifdef IWEB_H__
+#ifdef WEBSERVER
 	IWebInit();
 #endif
 
+#ifdef SERVER_DEMO_PLAYBACK
 	SV_Demo_Init();
+#endif
+
+#ifdef USEODE
+	World_Physics_Init();
+#endif
 
 #ifdef SVRANKING
 	Rank_RegisterCommands();
@@ -4340,10 +4678,7 @@ void SV_Init (quakeparms_t *parms)
 		Con_TPrintf (TL_EXEDATETIME, __DATE__, __TIME__);
 		Con_TPrintf (TL_HEAPSIZE,parms->memsize/ (1024*1024.0));
 
-		if (sizeof(void*) == 8)
-			Con_TPrintf (TL_VERSION, DISTRIBUTION"-64", build_number());
-		else
-			Con_TPrintf (TL_VERSION, DISTRIBUTION"-32", build_number());
+		Con_Printf ("%s\n", version_string());
 
 		Con_TPrintf (STL_INITED);
 
@@ -4377,16 +4712,16 @@ void SV_Init (quakeparms_t *parms)
 			Cbuf_AddText("startmap_sp", RESTRICT_LOCAL);	//DP extension
 			Cbuf_Execute();
 		}
-		if (sv.state == ss_dead && COM_FCheckExists("maps/start.bsp")) 
+		if (sv.state == ss_dead && COM_FCheckExists("maps/start.bsp"))
 			Cmd_ExecuteString ("map start", RESTRICT_LOCAL);	//regular q1
-		if (sv.state == ss_dead && COM_FCheckExists("maps/demo1.bsp")) 
+		if (sv.state == ss_dead && COM_FCheckExists("maps/demo1.bsp"))
 			Cmd_ExecuteString ("map demo1", RESTRICT_LOCAL);	//regular h2 sp
 #ifdef Q2SERVER
-		if (sv.state == ss_dead && COM_FCheckExists("maps/base1.bsp")) 
+		if (sv.state == ss_dead && COM_FCheckExists("maps/base1.bsp"))
 			Cmd_ExecuteString ("map base1", RESTRICT_LOCAL);	//regular q2 sp
 #endif
 #ifdef Q3SERVER
-		if (sv.state == ss_dead && COM_FCheckExists("maps/q3dm1.bsp")) 
+		if (sv.state == ss_dead && COM_FCheckExists("maps/q3dm1.bsp"))
 			Cmd_ExecuteString ("map q3dm1", RESTRICT_LOCAL);	//regular q3 'sp'
 #endif
 #ifdef HLSERVER
@@ -4400,3 +4735,4 @@ void SV_Init (quakeparms_t *parms)
 }
 
 #endif
+

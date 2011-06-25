@@ -26,7 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef SIDEVIEWS
 	#define PEXT_VIEW2			0x00000010
 #endif
-#define PEXT_BULLETENS			0x00000020
+//#define PEXT_BULLETENS			0x00000020 //obsolete
 #define PEXT_ACCURATETIMINGS	0x00000040
 #define PEXT_SOUNDDBL			0x00000080	//revised startsound protocol
 #define PEXT_FATNESS			0x00000100	//GL only (or servers)
@@ -52,10 +52,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT_SPAWNSTATIC2		0x00400000	//Sends an entity delta instead of a baseline.
 #define PEXT_CUSTOMTEMPEFFECTS	0x00800000	//supports custom temp ents.
 #define PEXT_256PACKETENTITIES	0x01000000	//Client can recieve 256 packet entities.
-//#define PEXT_64PLAYERS			0x02000000	//Client is able to cope with 64 players. Wow.
+//#define PEXT_NEVERUSED		0x02000000	//Client is able to cope with 64 players. Wow.
 #define PEXT_SHOWPIC			0x04000000
 #define PEXT_SETATTACHMENT		0x08000000	//md3 tags (needs networking, they need to lerp).
-//#define PEXT_PK3DOWNLOADS		0x10000000	//retrieve a list of pk3s/pk3s/paks for downloading (with optional URL and crcs)
+//#define PEXT_NEVERUSED		0x10000000	//retrieve a list of pk3s/pk3s/paks for downloading (with optional URL and crcs)
 #define PEXT_CHUNKEDDOWNLOADS	0x20000000	//alternate file download method. Hopefully it'll give quadroupled download speed, especially on higher pings.
 
 #ifdef CSQC_DAT
@@ -69,6 +69,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #else
 #define PEXT_BIGUSERINFOS	0xffffffff
 #endif		
+
+#define PEXT2_PRYDONCURSOR			0x00000001
+#ifdef VOICECHAT
+#define PEXT2_VOICECHAT				0x00000002
+#endif
+#define PEXT2_SETANGLEDELTA			0x00000004
+//#define PEXT2_64PLAYERS			0x02000000	//Client is able to cope with 64 players. Wow.
+//#define PEXT2_PK3DOWNLOADS		0x10000000	//retrieve a list of pk3s/pk3s/paks for downloading (with optional URL and crcs)
 
 //ZQuake transparent protocol extensions.
 #define Z_EXT_PM_TYPE		(1<<0)	// basic PM_TYPE functionality (reliable jump_held)
@@ -87,7 +95,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 #define PROTOCOL_VERSION_FTE			(('F'<<0) + ('T'<<8) + ('E'<<16) + ('X' << 24))	//fte extensions.
+#define PROTOCOL_VERSION_FTE2			(('F'<<0) + ('T'<<8) + ('E'<<16) + ('2' << 24))	//fte extensions.
 #define PROTOCOL_VERSION_HUFFMAN		(('H'<<0) + ('U'<<8) + ('F'<<16) + ('F' << 24))	//packet compression
+#define PROTOCOL_VERSION_VARLENGTH		(('v'<<0) + ('l'<<8) + ('e'<<16) + ('n' << 24))	//packet compression
 
 #define	PROTOCOL_VERSION_QW 28
 #define	PROTOCOL_VERSION_Q2_MIN 31
@@ -95,11 +105,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //=========================================
 
-#define	PORT_CLIENT	27001
-#define	PORT_MASTER	27000
-#define	PORT_SERVER	27500
-#define Q2PORT_CLIENT 27901
-#define Q2PORT_SERVER 27910
+#define	PORT_NQSERVER	26000
+#define	PORT_QWCLIENT	27001
+#define	PORT_QWMASTER	27000
+#define	PORT_QWSERVER	27500
+#define PORT_Q2CLIENT 27901
+#define PORT_Q2SERVER 27910
 
 //=========================================
 
@@ -121,6 +132,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	A2C_CLIENT_COMMAND	'B'	// + command line
 #define	S2M_SHUTDOWN		'C'
 
+#define C2M_MASTER_REQUEST  'c'
 #define M2C_MASTER_REPLY	'd'	// + \n + qw server port list
 //==================
 // note that there are some defs.qc that mirror to these numbers
@@ -218,9 +230,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svcfte_lightstylecol	57
 #endif
 
-#ifdef PEXT_BULLETENS
-#define svcfte_bulletentext	58
-#endif
+//#define svcfte_svcremoved	58
 
 //#define	svcfte_svcremoved		59
 
@@ -262,7 +272,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svcfte_pointparticles1	82		// [short] effectnum [vector] start, same as svc_pointparticles except velocity is zero and count is 1
 
 #define svcfte_cgamepacket	83
+#define svcfte_voicechat	84
+#define	svcfte_setangledelta		85	// [angle3] add this to the current viewangles
 
+
+//fitz svcs
+#define svcfitz_skybox				37
+#define svcfitz_bf					40
+#define svcfitz_fog					41
+#define svcfitz_spawnbaseline2		42
+#define svcfitz_spawnstatic2		43
+#define svcfitz_spawnstaticsound2	44
 
 //DP extended svcs
 #define svcdp_downloaddata	50
@@ -327,20 +347,21 @@ enum clcq2_ops_e
 //
 // client to server
 //
-#define	clc_bad			0
-#define	clc_nop 		1
-#define	clc_disconnect	2	//nq only
-#define	clc_move		3		// [[usercmd_t]
-#define	clc_stringcmd	4		// [string] message
-#define	clc_delta		5		// [qbyte] sequence number, requests delta compression of message
-#define clc_tmove		6		// teleport request, spectator only
-#define clc_upload		7		// teleport request, spectator only
+#define	clc_bad				0
+#define	clc_nop 			1
+#define	clc_disconnect		2	//nq only
+#define	clc_move			3	// [[usercmd_t]
+#define	clc_stringcmd		4	// [string] message
+#define	clc_delta			5	// [qbyte] sequence number, requests delta compression of message
+#define clc_tmove			6	// teleport request, spectator only
+#define clc_upload			7	// teleport request, spectator only
 
-#define clcdp_ackframe	50
-#define clcdp_ackdownloaddata 51
+#define clcdp_ackframe			50
+#define clcdp_ackdownloaddata	51
 
-#define clc_qcrequest 81
-#define clc_prydoncursor 82
+#define clc_qcrequest		81
+#define clc_prydoncursor	82
+#define clc_voicechat		83
 
 
 //==============================================
@@ -491,6 +512,55 @@ enum clcq2_ops_e
 #endif
 
 
+#ifdef NQPROT
+
+#define	NQU_MOREBITS	(1<<0)
+#define	NQU_ORIGIN1	(1<<1)
+#define	NQU_ORIGIN2	(1<<2)
+#define	NQU_ORIGIN3	(1<<3)
+#define	NQU_ANGLE2	(1<<4)
+#define	NQU_NOLERP	(1<<5)		// don't interpolate movement
+#define	NQU_FRAME		(1<<6)
+#define NQU_SIGNAL	(1<<7)		// just differentiates from other updates
+
+// svc_update can pass all of the fast update bits, plus more
+#define	NQU_ANGLE1	(1<<8)
+#define	NQU_ANGLE3	(1<<9)
+#define	NQU_MODEL		(1<<10)
+#define	NQU_COLORMAP	(1<<11)
+#define	NQU_SKIN		(1<<12)
+#define	NQU_EFFECTS	(1<<13)
+#define	NQU_LONGENTITY	(1<<14)
+
+
+// LordHavoc's: protocol extension
+#define DPU_EXTEND1		(1<<15)
+// LordHavoc: first extend byte
+#define DPU_DELTA			(1<<16) // no data, while this is set the entity is delta compressed (uses previous frame as a baseline, meaning only things that have changed from the previous frame are sent, except for the forced full update every half second)
+#define DPU_ALPHA			(1<<17) // 1 byte, 0.0-1.0 maps to 0-255, not sent if exactly 1, and the entity is not sent if <=0 unless it has effects (model effects are checked as well)
+#define DPU_SCALE			(1<<18) // 1 byte, scale / 16 positive, not sent if 1.0
+#define DPU_EFFECTS2		(1<<19) // 1 byte, this is .effects & 0xFF00 (second byte)
+#define DPU_GLOWSIZE		(1<<20) // 1 byte, encoding is float/4.0, unsigned, not sent if 0
+#define DPU_GLOWCOLOR		(1<<21) // 1 byte, palette index, default is 254 (white), this IS used for darklight (allowing colored darklight), however the particles from a darklight are always black, not sent if default value (even if glowsize or glowtrail is set)
+// LordHavoc: colormod feature has been removed, because no one used it
+#define DPU_COLORMOD		(1<<22) // 1 byte, 3 bit red, 3 bit green, 2 bit blue, this lets you tint an object artifically, so you could make a red rocket, or a blue fiend...
+#define DPU_EXTEND2		(1<<23) // another byte to follow
+// LordHavoc: second extend byte
+#define DPU_GLOWTRAIL		(1<<24) // leaves a trail of particles (of color .glowcolor, or black if it is a negative glowsize)
+#define DPU_VIEWMODEL		(1<<25) // attachs the model to the view (origin and angles become relative to it), only shown to owner, a more powerful alternative to .weaponmodel and such
+#define DPU_FRAME2		(1<<26) // 1 byte, this is .frame & 0xFF00 (second byte)
+#define DPU_MODEL2		(1<<27) // 1 byte, this is .modelindex & 0xFF00 (second byte)
+#define DPU_EXTERIORMODEL	(1<<28) // causes this model to not be drawn when using a first person view (third person will draw it, first person will not)
+#define DPU_UNUSED29		(1<<29) // future expansion
+#define DPU_UNUSED30		(1<<30) // future expansion
+#define DPU_EXTEND3		(1<<31) // another byte to follow, future expansion
+
+#define FITZU_ALPHA (1<<16)
+#define FITZU_FRAME2 (1<<17)
+#define FITZU_MODEL2 (1<<18)
+#define FITZU_LERPFINISH (1<<19)
+
+#endif
 
 
 
@@ -540,6 +610,7 @@ enum clcq2_ops_e
 #define DPSND_LOOPING		(1<<2)		// a long, supposedly
 #define DPSND_LARGEENTITY	(1<<3)
 #define DPSND_LARGESOUND	(1<<4)
+#define FTESND_PITCHADJ		(1<<7)		//a byte (speed percent (0=100%))
 
 #define DEFAULT_SOUND_PACKET_VOLUME 255
 #define DEFAULT_SOUND_PACKET_ATTENUATION 1.0
@@ -571,8 +642,10 @@ enum {
 	TE_LAVASPLASH		= 10,
 	TE_TELEPORT			= 11,
 
-	TE_BLOOD			= 12,
-	TE_LIGHTNINGBLOOD	= 13,
+	TEQW_BLOOD			= 12,
+	TENQ_EXPLOSION2		= 12,
+	TEQW_LIGHTNINGBLOOD	= 13,
+	TENQ_BEAM			= 13,
 
 #ifdef PEXT_TE_BULLET
 	TE_BULLET			= 14,
@@ -581,94 +654,46 @@ enum {
 
 	TE_RAILTRAIL		= 17,
 
-		// hexen 2
-	TE_STREAM_CHAIN			= 25,
-	TE_STREAM_SUNSTAFF1		= 26,
-	TE_STREAM_SUNSTAFF2		= 27,
-	TE_STREAM_LIGHTNING		= 28,
-	TE_STREAM_COLORBEAM		= 29,
-	TE_STREAM_ICECHUNKS		= 30,
-	TE_STREAM_GAZE			= 31,
-	TE_STREAM_FAMINE		= 32,
+	// hexen 2
+	TEH2_STREAM_LIGHTNING_SMALL	= 24,
+	TEH2_STREAM_CHAIN			= 25,
+	TEH2_STREAM_SUNSTAFF1		= 26,
+	TEH2_STREAM_SUNSTAFF2		= 27,
+	TEH2_STREAM_LIGHTNING		= 28,
+	TEH2_STREAM_COLORBEAM		= 29,
+	TEH2_STREAM_ICECHUNKS		= 30,
+	TEH2_STREAM_GAZE			= 31,
+	TEH2_STREAM_FAMINE		= 32,
 
-	TE_BIGGRENADE			= 33,
-	TE_CHUNK				= 34,
-	TE_HWBONEPOWER			= 35,
-	TE_HWBONEPOWER2			= 36,
-	TE_METEORHIT			= 37,
-	TE_HWRAVENDIE			= 38,
-	TE_HWRAVENEXPLODE		= 39,
-	TE_XBOWHIT				= 40,
-
-	TE_CHUNK2				= 41,
-	TE_ICEHIT				= 42,
-	TE_ICESTORM				= 43,
-	TE_HWMISSILEFLASH		= 44,
-	TE_SUNSTAFF_CHEAP		= 45,
-	TE_LIGHTNING_HAMMER		= 46,
-	TE_DRILLA_EXPLODE		= 47,
-	TE_DRILLA_DRILL			= 48,
-
-	TE_HWTELEPORT			= 49,
-	TE_SWORD_EXPLOSION		= 50,
-
-	TE_AXE_BOUNCE			= 51,
-	TE_AXE_EXPLODE			= 52,
-	TE_TIME_BOMB			= 53,
-	TE_FIREBALL				= 54,
-	TE_SUNSTAFF_POWER		= 55,
-	TE_PURIFY2_EXPLODE		= 56,
-	TE_PLAYER_DEATH			= 57,
-	TE_PURIFY1_EFFECT		= 58,
-	TE_TELEPORT_LINGER		= 59,
-	TE_LINE_EXPLOSION		= 60,
-	TE_METEOR_CRUSH			= 61,
-//MISSION PACK
-	TE_STREAM_LIGHTNING_SMALL	= 62,
-
-	TE_ACIDBALL				= 63,
-	TE_ACIDBLOB				= 64,
-	TE_FIREWALL				= 65,
-	TE_FIREWALL_IMPACT		= 66,
-	TE_HWBONERIC			= 67,
-	TE_POWERFLAME			= 68,
-	TE_BLOODRAIN			= 69,
-	TE_AXE					= 70,
-	TE_PURIFY2_MISSILE		= 71,
-	TE_SWORD_SHOT			= 72,
-	TE_ICESHOT				= 73,
-	TE_METEOR				= 74,
-	TE_LIGHTNINGBALL		= 75,
-	TE_MEGAMETEOR			= 76,
-	TE_CUBEBEAM				= 77,
-	TE_LIGHTNINGEXPLODE		= 78,
-	TE_ACID_BALL_FLY		= 79,
-	TE_ACID_BLOB_FLY		= 80,
-	TE_CHAINLIGHTNING		= 81
+	TEDP_BLOOD			= 50,
+	TEDP_SPARK			= 51,
+	TEDP_BLOODSHOWER	= 52,
+	TEDP_EXPLOSIONRGB	= 53,
+	TEDP_PARTICLECUBE	= 54,
+	TEDP_PARTICLERAIN	= 55, // [vector] min [vector] max [vector] dir [short] count [byte] color
+	TEDP_PARTICLESNOW	= 56, // [vector] min [vector] max [vector] dir [short] count [byte] color
+	TEDP_GUNSHOTQUAD	= 57, // [vector] origin
+	TEDP_SPIKEQUAD		= 58, // [vector] origin
+	TEDP_SUPERSPIKEQUAD	= 59, // [vector] origin
+	TEDP_EXPLOSIONQUAD	= 70, // [vector] origin
+	TEDP_SMALLFLASH		= 72, // [vector] origin
+	TEDP_CUSTOMFLASH	= 73,
+	TEDP_FLAMEJET		= 74,
+	TEDP_PLASMABURN		= 75,
+	TEDP_TEI_G3			= 76,
+	TEDP_SMOKE			= 77,
+	TEDP_TEI_BIGEXPLOSION = 78,
+	TEDP_TEI_PLASMAHIT	= 79,
 };
 
-#define NQTE_EXPLOSION2		12
-#define NQTE_BEAM			13
 
-#define DPTE_BLOOD			50
-#define DPTE_SPARK			51
-#define DPTE_BLOODSHOWER	52
-#define DPTE_EXPLOSIONRGB	53
-#define DPTE_PARTICLECUBE	54
-#define DPTE_PARTICLERAIN	55 // [vector] min [vector] max [vector] dir [short] count [byte] color
-#define DPTE_PARTICLESNOW	56 // [vector] min [vector] max [vector] dir [short] count [byte] color
-#define DPTE_GUNSHOTQUAD	57 // [vector] origin
-#define DPTE_SPIKEQUAD		58 // [vector] origin
-#define DPTE_SUPERSPIKEQUAD	59 // [vector] origin
-#define DPTE_EXPLOSIONQUAD	70 // [vector] origin
-#define DPTE_SMALLFLASH		72 // [vector] origin
-#define DPTE_CUSTOMFLASH	73
-#define DPTE_FLAMEJET		74
-#define DPTE_PLASMABURN		75
-#define DPTE_TEI_G3			76
-#define DPTE_SMOKE			77
-#define DPTE_TEI_BIGEXPLOSION		78
-#define DPTE_TEI_PLASMAHIT	79
+#define CTE_CUSTOMCOUNT		1
+#define CTE_CUSTOMDIRECTION	2
+#define CTE_STAINS			4
+#define CTE_GLOWS			8
+#define CTE_CHANNELFADE		16
+#define CTE_CUSTOMVELOCITY	32
+#define CTE_ISBEAM			128
 
 //FTE's version of TEI_SHOWLMP2
 #define SL_ORG_NW	0
@@ -730,17 +755,18 @@ typedef struct entity_state_s
 	unsigned short		modelindex2;	//q2
 #endif
 	unsigned short		frame;
+	unsigned int		skinnum; /*q2 needs 32 bits, which is quite impressive*/
 	unsigned short		colormap;
-	unsigned short		skinnum;
-
+	//pad 2 bytes
 	qbyte glowsize;
 	qbyte glowcolour;
 	qbyte	scale;
-
 	char	fatness;
+
 	qbyte	hexen2flags;
 	qbyte	abslight;
 	qbyte	dpflags;
+	//pad
 
 	qbyte	colormod[3];//multiply this by 8 to read as 0 to 1...
 	qbyte	trans;
@@ -804,6 +830,7 @@ typedef struct q1usercmd_s
 	qbyte	impulse;
 } q1usercmd_t;
 #define SHORT2ANGLE(x) (x) * (360.0/65536)
+#define ANGLE2SHORT(x) (x) * (65536/360.0)
 
 
 
@@ -908,7 +935,7 @@ typedef struct q1usercmd_s
 #define Q2RF_USE_DISGUISE		0x00040000
 //ROGUE
 
-#define Q2RF_ADDATIVE			0x00080000
+#define Q2RF_ADDITIVE			0x00080000
 #define RF_NOSHADOW				0x00100000
 #define RF_NODEPTHTEST			0x00200000
 
@@ -1334,3 +1361,7 @@ typedef struct q1usercmd_s
 #define E5_EXTEND4 (1<<31)
 
 #define E5_ALLUNUSED (E5_UNUSED24|E5_UNUSED25|E5_UNUSED26|E5_UNUSED27|E5_UNUSED28|E5_UNUSED29|E5_UNUSED30)
+
+#define FITZB_LARGEMODEL	(1<<0)	// modelindex is short instead of byte
+#define FITZB_LARGEFRAME	(1<<1)	// frame is short instead of byte
+#define FITZB_ALPHA			(1<<2)	// 1 byte, uses ENTALPHA_ENCODE, not sent if ENTALPHA_DEFAULT

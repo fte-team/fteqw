@@ -15,7 +15,6 @@ float() DemonCheckAttack;
 float(float v) anglemod;
 
 void(vector dest) ChooseTurn;
-void(entity targ, entity inflictor, entity attacker, float damage) X_Damage;
 
 void() ai_face;
 
@@ -61,9 +60,9 @@ float() CheckAttack =
 
 	traceline (spot1, spot2, FALSE, self);
 
-	//if (trace_ent != targ)
-	//	return FALSE;		// don't have a clear shot
-		
+	if (trace_ent != targ)
+		return FALSE;		// don't have a clear shot
+			
 	if (trace_inopen && trace_inwater)
 		return FALSE;			// sight line crossed contents
 
@@ -86,31 +85,27 @@ float() CheckAttack =
 	if (time < self.attack_finished)
 		return FALSE;
 		
+	if (enemy_range == RANGE_FAR)
+		return FALSE;
+		
 	if (enemy_range == RANGE_MELEE)
 	{
-		chance = 0.99;
+		chance = 0.9;
 		self.attack_finished = 0;
 	}
 	else if (enemy_range == RANGE_NEAR)
 	{
 		if (self.th_melee)
-			chance = 0.95;
+			chance = 0.2;
 		else
-			chance = 0.95;
+			chance = 0.4;
 	}
 	else if (enemy_range == RANGE_MID)
 	{
 		if (self.th_melee)
-			chance = 0.95;
+			chance = 0.05;
 		else
-			chance = 0.95;
-	}
-	else if (enemy_range == RANGE_FAR)
-	{
-		if (self.th_melee)
-			chance = 0.95;
-		else
-			chance = 0.95;
+			chance = 0.1;
 	}
 	else
 		chance = 0;
@@ -118,7 +113,7 @@ float() CheckAttack =
 	if (random () < chance)
 	{
 		self.th_missile ();
-		SUB_AttackFinished (4*random());
+		SUB_AttackFinished (2*random());
 		return TRUE;
 	}
 
@@ -137,12 +132,6 @@ void() ai_face =
 {
 	self.ideal_yaw = vectoyaw(self.enemy.origin - self.origin);
 	ChangeYaw ();
-
-	if (self.enemy.sneak > 0)//invisible, estimate position
-	{
-		self.angles_y += random()*50;
-		self.angles_y -= random()*50;
-	}
 };
 
 /*
@@ -183,9 +172,7 @@ void() ai_charge_side =
 /*
 =============
 ai_melee
-Monster melee weapons will have armor-piercing properties
-to make them feared, with the exception of the dogs, which
-will have great damage that does not go through armor.
+
 =============
 */
 void() ai_melee =
@@ -207,7 +194,7 @@ void() ai_melee =
 
 
 void() ai_melee_side =
-{	
+{
 	local vector	delta;
 	local float 	ldmg;
 
@@ -266,20 +253,18 @@ float() SoldierCheckAttack =
 		return FALSE;
 		
 	if (enemy_range == RANGE_MELEE)
-		chance = 0.95;
+		chance = 0.9;
 	else if (enemy_range == RANGE_NEAR)
-		chance = 0.95;
+		chance = 0.4;
 	else if (enemy_range == RANGE_MID)
-		chance = 0.95;
-	else if (enemy_range == RANGE_FAR)
-		chance = 0.95;
+		chance = 0.05;
 	else
 		chance = 0;
 
 	if (random () < chance)
 	{
 		self.th_missile ();
-		SUB_AttackFinished (2 + random());
+		SUB_AttackFinished (1 + random());
 		if (random() < 0.3)
 			self.lefty = !self.lefty;
 

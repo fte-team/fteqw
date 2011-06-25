@@ -153,22 +153,41 @@ void WriteDeltaUsercmd (netmsg_t *m, const usercmd_t *from, usercmd_t *move)
 
 
 
-SOCKET QW_InitUDPSocket(int port)
+SOCKET QW_InitUDPSocket(int port, qboolean ipv6)
 {
 	int sock;
 
-	struct sockaddr_in	address;
-//	int fromlen;
+	int pf;
+	struct sockaddr *address;
+	struct sockaddr_in	address4;
+	struct sockaddr_in6	address6;
+	int addrlen;
 
 	unsigned long nonblocking = true;
 
-	address.sin_family = AF_INET;
-	address.sin_addr.s_addr = INADDR_ANY;
-	address.sin_port = htons((u_short)port);
+#pragma message("fixme")
+	if (ipv6)
+	{
+		pf = PF_INET6;
+		memset(&address6, 0, sizeof(address6));
+		address6.sin6_family = AF_INET6;
+		address6.sin6_port = htons((u_short)port);
+		address = (struct sockaddr*)&address6;
+		addrlen = sizeof(address6);
+	}
+	else
+	{
+		pf = PF_INET;
+		address4.sin_family = AF_INET;
+		address4.sin_addr.s_addr = INADDR_ANY;
+		address4.sin_port = htons((u_short)port);
+		address = (struct sockaddr*)&address4;
+		addrlen = sizeof(address4);
+	}
 
 
 
-	if ((sock = socket (PF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET)
+	if ((sock = socket (pf, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET)
 	{
 		return INVALID_SOCKET;
 	}
@@ -179,8 +198,9 @@ SOCKET QW_InitUDPSocket(int port)
 		return INVALID_SOCKET;
 	}
 
-	if( bind (sock, (void *)&address, sizeof(address)) == -1)
+	if( bind (sock, (void *)address, addrlen) == -1)
 	{
+		printf("socket bind error %i\n", qerrno);
 		closesocket(sock);
 		return INVALID_SOCKET;
 	}
@@ -849,7 +869,7 @@ void NewNQClient(cluster_t *cluster, netadr_t *addr)
 	header = (buffer[0]<<24) + (buffer[1]<<16) + (buffer[2]<<8) + buffer[3];
 	*(int*)buffer = header;
 
-	NET_SendPacket (cluster, cluster->qwdsocket, len, buffer, *addr);
+	NET_SendPacket (cluster, NET_ChooseSocket(cluster->qwdsocket, addr), len, buffer, *addr);
 
 	if (!viewer)
 		return;
@@ -858,7 +878,7 @@ void NewNQClient(cluster_t *cluster, netadr_t *addr)
 	memset(viewer, 0, sizeof(*viewer));
 
 
-	Netchan_Setup (cluster->qwdsocket, &viewer->netchan, *addr, 0, false);
+	Netchan_Setup (NET_ChooseSocket(cluster->qwdsocket, addr), &viewer->netchan, *addr, 0, false);
 	viewer->netchan.isnqprotocol = true;
 	viewer->netchan.maxdatagramlen = MAX_NQDATAGRAM;
 	viewer->netchan.maxreliablelen = MAX_NQMSGLEN;
@@ -926,7 +946,7 @@ void NewQWClient(cluster_t *cluster, netadr_t *addr, char *connectmessage)
 	}
 	memset(viewer, 0, sizeof(viewer_t));
 
-	Netchan_Setup (cluster->qwdsocket, &viewer->netchan, *addr, atoi(qport), false);
+	Netchan_Setup (NET_ChooseSocket(cluster->qwdsocket, addr), &viewer->netchan, *addr, atoi(qport), false);
 	viewer->netchan.message.maxsize = MAX_QWMSGLEN;
 	viewer->netchan.maxdatagramlen = MAX_QWMSGLEN;
 	viewer->netchan.maxreliablelen = MAX_QWMSGLEN;
@@ -1137,18 +1157,103 @@ void QTV_Status(cluster_t *cluster, netadr_t *from)
 		{
 			sprintf(elem, "\\%i\\", sv->streamid);
 			WriteString2(&msg, elem);
-			WriteString2(&msg, (char*)sv->serveraddress);
-			sprintf(elem, " (%s)", sv->serveraddress);
-			WriteString2(&msg, elem);
+			WriteString2(&msg, sv->server);
+//			sprintf(elem, " (%s)", sv->serveraddress);
+//			WriteString2(&msg, elem);
 		}
 		
 		WriteString2(&msg, "\n");
 	}
 
 	WriteByte(&msg, 0);
-	NET_SendPacket(cluster, cluster->qwdsocket, msg.cursize, msg.data, *from);
+	NET_SendPacket(cluster, NET_ChooseSocket(cluster->qwdsocket, from), msg.cursize, msg.data, *from);
 }
 
+void QTV_StatusResponse(cluster_t *cluster, char *msg, netadr_t *from)
+{
+	int p, tc, bc;
+	char name[64], skin[64], token[64];
+	sv_t *sv;
+
+	char *eol;
+	
+	for (sv = cluster->servers; sv; sv = sv->next)
+	{
+		/*ignore connected streams*/
+		if (sv->isconnected)
+			continue;
+		/*and only streams that we could have requested this from*/
+		if (sv->autodisconnect != AD_STATUSPOLL)
+			continue;
+
+		if (Net_CompareAddress(&sv->serveraddress, from, 0, 1))
+			break;
+	}
+	/*not a valid server... weird.*/
+	if (!sv)
+		return;
+
+	/*skip the n directive*/
+	msg++;
+	eol = strchr(msg, '\n');
+	if (!eol)
+		return;
+	*eol = 0;
+
+	strlcpy(sv->map.serverinfo, msg, sizeof(sv->map.serverinfo));
+	QTV_UpdatedServerInfo(sv);
+
+	Info_ValueForKey(sv->map.serverinfo, "map", sv->map.mapname, sizeof(sv->map.mapname));
+	Info_ValueForKey(sv->map.serverinfo, "*gamedir", sv->map.gamedir, sizeof(sv->map.gamedir));
+	if (!*sv->map.gamedir)
+		strlcpy(sv->map.gamedir, "qw", sizeof(sv->map.gamedir));
+
+	for(p = 0; p < MAX_CLIENTS; p++)
+	{
+		msg = eol+1;
+		eol = strchr(msg, '\n');
+		if (!eol)
+			break;
+		*eol = 0;
+
+		sv->map.players[p].active = false;
+
+		//userid
+		msg = COM_ParseToken(msg, token, sizeof(token), NULL);
+
+		//frags
+		msg = COM_ParseToken(msg, token, sizeof(token), NULL);
+		sv->map.players[p].frags = atoi(token);
+
+		//time (minuites)
+		msg = COM_ParseToken(msg, token, sizeof(token), NULL);
+
+		//ping
+		msg = COM_ParseToken(msg, token, sizeof(token), NULL);
+		sv->map.players[p].ping = atoi(token);
+
+		//name
+		msg = COM_ParseToken(msg, name, sizeof(name), NULL);
+
+		//skin
+		msg = COM_ParseToken(msg, skin, sizeof(skin), NULL);
+
+		//tc
+		msg = COM_ParseToken(msg, token, sizeof(token), NULL);
+		tc = atoi(token);
+
+		//bc
+		msg = COM_ParseToken(msg, token, sizeof(token), NULL);
+		bc = atoi(token);
+
+		snprintf(sv->map.players[p].userinfo, sizeof(sv->map.players[p].userinfo), "\\name\\%s\\skin\\%s\\topcolor\\%i\\bottomcolor\\%i", name, skin, tc, bc);
+	}
+	for(; p < MAX_CLIENTS; p++)
+	{
+		sv->map.players[p].active = false;
+		*sv->map.players[p].userinfo = 0;
+	}
+}
 
 void ConnectionlessPacket(cluster_t *cluster, netadr_t *from, netmsg_t *m)
 {
@@ -1158,6 +1263,11 @@ void ConnectionlessPacket(cluster_t *cluster, netadr_t *from, netmsg_t *m)
 	ReadLong(m);
 	ReadString(m, buffer, sizeof(buffer));
 
+	if (!strncmp(buffer, "n\\", 2))
+	{
+		QTV_StatusResponse(cluster, buffer, from);
+		return;
+	}
 	if (!strncmp(buffer, "rcon ", 5))
 	{
 		QTV_Rcon(cluster, buffer+5, from);
@@ -1165,7 +1275,7 @@ void ConnectionlessPacket(cluster_t *cluster, netadr_t *from, netmsg_t *m)
 	}
 	if (!strncmp(buffer, "ping", 4))
 	{	//ack
-		NET_SendPacket (cluster, cluster->qwdsocket, 1, "l", *from);
+		NET_SendPacket (cluster, NET_ChooseSocket(cluster->qwdsocket, from), 1, "l", *from);
 		return;
 	}
 	if (!strncmp(buffer, "status", 6))
@@ -2464,7 +2574,7 @@ void QTV_SayCommand(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *fullcomman
 			QW_StuffcmdToViewer(v, "bind pause \"say proxy:menu\"\n");
 			QW_StuffcmdToViewer(v, "bind backspace \"say proxy:menu back\"\n");
 
-			QW_PrintfToViewer(v, "All keys bound not recognised\n");
+			QW_PrintfToViewer(v, "All keys bound\n");
 		}
 		else if (!*command)
 		{
@@ -2737,7 +2847,7 @@ tuiadmin:
 			isjoin = true;
 		
 		snprintf(buf, sizeof(buf), "udp:%s", args);
-		qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, true, !isjoin, false);
+		qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, AD_WHENEMPTY, !isjoin, false);
 		if (qtv)
 		{
 			QW_SetMenu(v, MENU_NONE);
@@ -2756,7 +2866,7 @@ tuiadmin:
 		char buf[256];
 
 		snprintf(buf, sizeof(buf), "tcp:%s", args);
-		qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, true, true, false);
+		qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, AD_WHENEMPTY, true, false);
 		if (qtv)
 		{
 			QW_SetMenu(v, MENU_NONE);
@@ -2802,7 +2912,7 @@ tuiadmin:
 	{
 		char buf[256];
 		snprintf(buf, sizeof(buf), "file:%s", args);
-		qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, true, true, false);
+		qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, AD_WHENEMPTY, true, false);
 		if (qtv)
 		{
 			QW_SetMenu(v, MENU_NONE);
@@ -2984,7 +3094,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		else if (!strcmp(v->expectcommand, "addserver"))
 		{
 			snprintf(buf, sizeof(buf), "tcp:%s", message);
-			qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, false, false, false);
+			qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, AD_NO, false, false);
 			if (qtv)
 			{
 				QW_SetViewersServer(cluster, v, qtv);
@@ -3010,7 +3120,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		else if (!strcmp(v->expectcommand, "insecadddemo"))
 		{
 			snprintf(buf, sizeof(buf), "file:%s", message);
-			qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, false, false, false);
+			qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, AD_NO, false, false);
 			if (!qtv)
 				QW_PrintfToViewer(v, "Failed to play demo \"%s\"\n", message);
 			else
@@ -3023,7 +3133,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		else if (!strcmp(v->expectcommand, "adddemo"))
 		{
 			snprintf(buf, sizeof(buf), "file:%s", message);
-			qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, false, false, false);
+			qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, AD_NO, false, false);
 			if (!qtv)
 				QW_PrintfToViewer(v, "Failed to play demo \"%s\"\n", message);
 			else
@@ -3035,26 +3145,45 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 		else if (!strcmp(v->expectcommand, "setmvdport"))
 		{
 			int newp;
-			int news;
+			SOCKET news;
 
 			newp = atoi(message);
 
+			
 			if (newp)
 			{
-				news = Net_MVDListen(newp);
+				news = Net_TCPListen(newp, true);
 
 				if (news != INVALID_SOCKET)
 				{
-					if (cluster->tcpsocket != INVALID_SOCKET)
-						closesocket(cluster->tcpsocket);
-					cluster->tcpsocket = news;
+					if (cluster->tcpsocket[1] != INVALID_SOCKET)
+						closesocket(cluster->tcpsocket[1]);
+					cluster->tcpsocket[1] = news;
 					cluster->tcplistenportnum = newp;
 				}
 			}
-			else if (cluster->tcpsocket != INVALID_SOCKET)
+			else if (cluster->tcpsocket[1] != INVALID_SOCKET)
 			{
-				closesocket(cluster->tcpsocket);
-				cluster->tcpsocket = INVALID_SOCKET;
+				closesocket(cluster->tcpsocket[1]);
+				cluster->tcpsocket[1] = INVALID_SOCKET;
+			}
+
+			if (newp)
+			{
+				news = Net_TCPListen(newp, false);
+
+				if (news != INVALID_SOCKET)
+				{
+					if (cluster->tcpsocket[0] != INVALID_SOCKET)
+						closesocket(cluster->tcpsocket[0]);
+					cluster->tcpsocket[0] = news;
+					cluster->tcplistenportnum = newp;
+				}
+			}
+			else if (cluster->tcpsocket[0] != INVALID_SOCKET)
+			{
+				closesocket(cluster->tcpsocket[0]);
+				cluster->tcpsocket[0] = INVALID_SOCKET;
 			}
 		}
 		else
@@ -3921,7 +4050,7 @@ void QW_FreeViewer(cluster_t *cluster, viewer_t *viewer)
 	{
 		if (viewer->server->controller == viewer)
 		{
-			if (viewer->server->disconnectwhennooneiswatching)
+			if (viewer->server->autodisconnect == AD_WHENEMPTY)
 				viewer->server->errored = ERR_DROP;
 			else
 				viewer->server->controller = NULL;
@@ -4043,6 +4172,7 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 	int read;
 	int qport;
 	netmsg_t m;
+	int socketno;
 
 	viewer_t *v, *f;
 	sv_t *useserver;
@@ -4053,7 +4183,7 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 		{
 			sprintf(buffer, "a\n%i\n0\n", cluster->mastersequence++);	//fill buffer with a heartbeat
 //why is there no \xff\xff\xff\xff ?..
-			NET_SendPacket(cluster, cluster->qwdsocket, strlen(buffer), buffer, from);
+			NET_SendPacket(cluster, NET_ChooseSocket(cluster->qwdsocket, &from), strlen(buffer), buffer, from);
 		}
 		else
 			Sys_Printf(cluster, "Cannot resolve master %s\n", cluster->master);
@@ -4064,14 +4194,25 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 	/* initialised for reading */
 	InitNetMsg(&m, buffer, sizeof(buffer));
 
+	socketno = 0;
 	for (;;)
 	{
-		read = recvfrom(cluster->qwdsocket, buffer, sizeof(buffer), 0, (struct sockaddr*)from, (unsigned*)&fromsize);
+		if (cluster->qwdsocket[socketno] == INVALID_SOCKET)
+		{
+			socketno++;
+			if (socketno >= SOCKETGROUPS)
+				break;
+		}
+		read = recvfrom(cluster->qwdsocket[socketno], buffer, sizeof(buffer), 0, (struct sockaddr*)&from, (unsigned*)&fromsize);
 
 		if (read <= 5)	//otherwise it's a runt or bad.
 		{
 			if (read < 0)	//it's bad.
-				break;
+			{
+				socketno++;
+				if (socketno >= SOCKETGROUPS)
+					break;
+			}
 			continue;
 		}
 
@@ -4189,7 +4330,7 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 						WriteByte(&m, cluster->maxviewers>255?255:cluster->maxviewers);
 						WriteByte(&m, NET_PROTOCOL_VERSION);
 						*(int*)m.data = BigLong(NETFLAG_CTL | m.cursize);
-						NET_SendPacket(cluster, cluster->qwdsocket, m.cursize, m.data, from);
+						NET_SendPacket(cluster, NET_ChooseSocket(cluster->qwdsocket, &from), m.cursize, m.data, from);
 					}
 					break;
 				case CCREQ_CONNECT:

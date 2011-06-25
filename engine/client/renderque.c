@@ -14,11 +14,16 @@ static renderque_t *distrque[NUMGRADUATIONS];
 int rqmaxgrad, rqmingrad;
 
 int rquesize = 0x2000;
+float rquepivot;
+
+void RQ_BeginFrame(void)
+{
+	rquepivot = DotProduct(r_refdef.vieworg, vpn);
+}
 
 void RQ_AddDistReorder(void (*render) (int count, void **objects, void *objtype), void *object, void *objtype, float *pos)
 {
 	int dist;
-	vec3_t delta;
 	renderque_t *rq;
 	if (!freerque)
 	{
@@ -26,8 +31,7 @@ void RQ_AddDistReorder(void (*render) (int count, void **objects, void *objtype)
 		return;
 	}
 
-	VectorSubtract(pos, r_refdef.vieworg, delta);
-	dist = Length(delta)/4;
+	dist = DotProduct(pos, vpn)-rquepivot;
 
 	if (dist > rqmaxgrad)
 	{
@@ -38,7 +42,8 @@ void RQ_AddDistReorder(void (*render) (int count, void **objects, void *objtype)
 	if (dist < rqmingrad)
 	{
 		if (dist < 0)	//hmm... value wrapped? shouldn't happen
-			dist = 0;
+			return;
+//			dist = 0;
 		rqmingrad = dist;
 	}
 
@@ -56,7 +61,7 @@ void RQ_AddDistReorder(void (*render) (int count, void **objects, void *objtype)
 	if (!distrque[dist])
 		distrque[dist] = rq;
 }
-
+/*
 void RQ_RenderDistAndClear(void)
 {
 	int i;
@@ -79,6 +84,7 @@ void RQ_RenderDistAndClear(void)
 	rqmaxgrad=0;
 	rqmingrad = NUMGRADUATIONS-1;
 }
+*/
 void RQ_RenderBatchClear(void)
 {
 #define SLOTS 512

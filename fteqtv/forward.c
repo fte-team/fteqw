@@ -67,6 +67,8 @@ void SV_FindProxies(SOCKET sock, cluster_t *cluster, sv_t *defaultqtv)
 	unsigned long nonblocking = true;
 	oproxy_t *prox;
 
+	if (sock == INVALID_SOCKET)
+		return;
 	sock = accept(sock, NULL, NULL);
 	if (sock == INVALID_SOCKET)
 		return;
@@ -237,8 +239,11 @@ void Net_ProxySend(cluster_t *cluster, oproxy_t *prox, void *buffer, int length)
 		Net_TryFlushProxyBuffer(cluster, prox);	//try flushing
 		if (prox->buffersize-prox->bufferpos + length > MAX_PROXY_BUFFER)	//damn, still too big.
 		{	//they're too slow. hopefully it was just momentary lag
-			printf("QTV client is too lagged\n");
-			prox->flushing = true;
+			if (!prox->flushing)
+			{
+				printf("QTV client is too lagged\n");
+				prox->flushing = true;
+			}
 			return;
 		}
 	}
@@ -646,11 +651,27 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 
 	if (pend->flushing)
 	{
-		if (pend->bufferpos == pend->buffersize)
+		if (pend->srcfile)
 		{
-			if (pend->srcfile)
+#if 0
+			//bufferend = transmit point
+			//buffersize = write point
+			if (bufferend < buffersize)
+				space = (MAX_PROXY_BUFFER - pend->buffersize) + pend->bufferend;
+			else
+				space = pend->bufferend - pend->buffersize;
+
+			if (space < 256)	/*don't bother reading if we're dribbling*/
+				return false;
+			if (space > 0)	/*never fully saturate so as to not confuse the ring*/
+				space--;
+
+			if (space > MAX_PROXY_BUFFER - 
+			fread(prox->buffer + pend->buffersize, 1, space, pend->srcfile);
+#else
+			if (pend->bufferpos == pend->buffersize)
 			{
-				char buffer[4096];
+				char buffer[MAX_PROXY_BUFFER/2];
 				len = fread(buffer, 1, sizeof(buffer), pend->srcfile);
 				if (!len)
 				{
@@ -658,13 +679,15 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 					pend->srcfile = NULL;
 				}
 				Net_ProxySend(cluster, pend, buffer, len);
-				return false;	//don't try reading anything yet
 			}
-			else
-			{
-				pend->drop = true;
-				return false;
-			}
+#endif
+			return false;	//don't try reading anything yet
+		}
+
+		if (pend->bufferpos == pend->buffersize)
+		{
+			pend->drop = true;
+			return false;
 		}
 		else
 			return false;
@@ -797,7 +820,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 
 						//FIXME: does this work?
 #if 0	//left disabled until properly tested
-						qtv = QTV_NewServerConnection(cluster, "reverse"/*server*/, "", true, 2, false, 0);
+						qtv = QTV_NewServerConnection(cluster, "reverse"/*server*/, "", true, AD_REVERSECONNECT, false, 0);
 
 						Net_ProxySendString(cluster, pend, QTVSVHEADER);
 						Net_ProxySendString(cluster, pend, "REVERSED\n");
@@ -826,7 +849,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 							sv_t *suitable = NULL;	//shush noisy compilers
 							for (qtv = cluster->servers; qtv; qtv = qtv->next)
 							{
-								if (!qtv->disconnectwhennooneiswatching)
+								if (qtv->autodisconnect == AD_NO)
 								{
 									suitable = qtv;
 									numfound++;
@@ -901,7 +924,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 							if (*t < '0' || *t > '9')
 								break;
 						if (*t)
-							qtv = QTV_NewServerConnection(cluster, 0, colon, "", false, true, true, false);
+							qtv = QTV_NewServerConnection(cluster, 0, colon, "", false, AD_WHENEMPTY, true, false);
 						else
 						{
 							//numerical source, use a stream id.
@@ -915,7 +938,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 						char buf[256];
 	
 						snprintf(buf, sizeof(buf), "demo:%s", colon);
-						qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, true, true, false);
+						qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, AD_WHENEMPTY, true, false);
 						if (!qtv)
 						{
 							Net_ProxySendString(cluster, pend,	QTVSVHEADER

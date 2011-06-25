@@ -33,11 +33,19 @@ typedef enum {qfalse, qtrue} qboolean;//false and true are forcivly defined.
 typedef enum {false, true}	qboolean;
 #endif
 
+#define STRINGIFY2(s) #s
+#define STRINGIFY(s) STRINGIFY2(s)
+
 #define	MAX_INFO_STRING			196	//regular quakeworld. Sickening isn't it.
 #define	EXTENDED_INFO_STRING	1024
 #define	MAX_SERVERINFO_STRING	1024	//standard quake has 512 here.
 #define	MAX_LOCALINFO_STRING	32768
 
+struct netprim_s
+{
+	int coordsize;
+	int anglesize;
+};
 //============================================================================
 
 typedef enum {
@@ -55,6 +63,8 @@ typedef struct sizebuf_s
 	int		cursize;
 	int packing;
 	int currentbit;
+
+	struct netprim_s prim;
 } sizebuf_t;
 
 void SZ_Clear (sizebuf_t *buf);
@@ -78,7 +88,7 @@ void InsertLinkAfter (link_t *l, link_t *after);
 // (type *)STRUCT_FROM_LINK(link_t *link, type, member)
 // ent = STRUCT_FROM_LINK(link,entity_t,order)
 // FIXME: remove this mess!
-#define	STRUCT_FROM_LINK(l,t,m) ((t *)((qbyte *)l - (int)&(((t *)0)->m)))
+#define	STRUCT_FROM_LINK(l,t,m) ((t *)((qbyte *)l - (qbyte*)&(((t *)0)->m)))
 
 //============================================================================
 
@@ -127,10 +137,9 @@ typedef union {	//note: reading from packets can be misaligned
 	int b4;
 	float f;
 } coorddata;
-extern int sizeofcoord;
-extern int sizeofangle;
 float MSG_FromCoord(coorddata c, int bytes);
 coorddata MSG_ToCoord(float f, int bytes);
+coorddata MSG_ToAngle(float f, int bytes);
 
 void MSG_WriteChar (sizebuf_t *sb, int c);
 void MSG_WriteByte (sizebuf_t *sb, int c);
@@ -148,8 +157,10 @@ void MSG_WriteDir (sizebuf_t *sb, float *dir);
 
 extern	int			msg_readcount;
 extern	qboolean	msg_badread;		// set if a read goes beyond end of message
+struct netprim_s msg_nullnetprim;
 
-void MSG_BeginReading (void);
+void MSG_BeginReading (struct netprim_s prim);
+void MSG_ChangePrimitives(struct netprim_s prim);
 int MSG_GetReadCount(void);
 int MSG_ReadChar (void);
 int MSG_ReadBits(int bits);
@@ -167,6 +178,7 @@ float MSG_ReadAngle16 (void);
 void MSG_ReadDeltaUsercmd (struct usercmd_s *from, struct usercmd_s *cmd);
 void MSGQ2_ReadDeltaUsercmd (struct usercmd_s *from, struct usercmd_s *move);
 void MSG_ReadData (void *data, int len);
+void MSG_ReadSkip (int len);
 
 //============================================================================
 
@@ -188,7 +200,7 @@ int wildcmp(const char *wild, const char *string);	//1 if match
 #define Q_strcmp(s1, s2) strcmp((s1), (s2))
 #define Q_strncmp(s1, s2, n) strncmp((s1), (s2), (n))
 
-void VARGS Q_snprintfz (char *dest, size_t size, char *fmt, ...);
+void VARGS Q_snprintfz (char *dest, size_t size, char *fmt, ...) LIKEPRINTF(3);
 
 #define Q_strncpyS(d, s, n) do{const char *____in=(s);char *____out=(d);int ____i; for (____i=0;*(____in); ____i++){if (____i == (n))break;*____out++ = *____in++;}if (____i < (n))*____out='\0';}while(0)	//only use this when it should be used. If undiciided, use N
 #define Q_strncpyN(d, s, n) do{if (n < 0)Sys_Error("Bad length in strncpyz");Q_strncpyS((d), (s), (n));((char *)(d))[n] = '\0';}while(0)	//this'll stop me doing buffer overflows. (guarenteed to overflow if you tried the wrong size.)
@@ -241,7 +253,7 @@ extern	qboolean	com_eof;
 char *COM_ParseOut (const char *data, char *out, int outlen);
 char *COM_ParseStringSet (const char *data);
 char *COM_ParseCString (const char *data);
-char *COM_StringParse (const char *data, qboolean expandmacros, qboolean qctokenize);
+char *COM_StringParse (const char *data, char *token, unsigned int tokenlen, qboolean expandmacros, qboolean qctokenize);
 char *COM_ParseToken (const char *data, const char *punctuation);
 char *COM_TrimString(char *str);
 
@@ -259,18 +271,19 @@ void COM_ParsePlusSets (void);
 
 typedef unsigned int conchar_t;
 void COM_DeFunString(conchar_t *str, char *out, int outsize, qboolean ignoreflags);
-conchar_t *COM_ParseFunString(conchar_t defaultflags, char *str, conchar_t *out, int outsize, qboolean keepmarkup);	//ext is usually CON_WHITEMASK, returns its null terminator
+conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t *out, int outsize, qboolean keepmarkup);	//ext is usually CON_WHITEMASK, returns its null terminator
 int COM_FunStringLength(unsigned char *str);
 
 char *COM_SkipPath (const char *pathname);
 void COM_StripExtension (const char *in, char *out, int outlen);
+void COM_StripAllExtensions (char *in, char *out, int outlen);
 void COM_FileBase (const char *in, char *out, int outlen);
 int COM_FileSize(const char *path);
 void COM_DefaultExtension (char *path, char *extension, int maxlen);
 char *COM_FileExtension (const char *in);
 void COM_CleanUpPath(char *str);
 
-char	*VARGS va(char *format, ...);
+char	*VARGS va(char *format, ...) LIKEPRINTF(1);
 // does a varargs printf into a temp buffer
 
 //============================================================================
@@ -339,7 +352,7 @@ typedef struct vfsfile_s {
 #define VFS_FLUSH(vf) do{if(vf->Flush)vf->Flush(vf);}while(0)
 #define VFS_PUTS(vf,s) do{const char *t=s;vf->WriteBytes(vf,t,strlen(t));}while(0)
 char *VFS_GETS(vfsfile_t *vf, char *buffer, int buflen);
-void VARGS VFS_PRINTF(vfsfile_t *vf, char *fmt, ...);
+void VARGS VFS_PRINTF(vfsfile_t *vf, char *fmt, ...) LIKEPRINTF(2);
 
 enum fs_relative{
 	FS_GAME,		//standard search (not generally valid for save/rename/delete/etc)
@@ -372,16 +385,23 @@ qbyte *COM_LoadTempFile2 (const char *path);	//allocates a little bit more witho
 qbyte *COM_LoadHunkFile (const char *path);
 qbyte *COM_LoadMallocFile (const char *path);
 void COM_LoadCacheFile (const char *path, struct cache_user_s *cu);
-void COM_CreatePath (char *path);
-void COM_Gamedir (const char *dir);
 void FS_ForceToPure(const char *str, const char *crcs, int seed);
 char *COM_GetPathInfo (int i, int *crc);
 char *COM_NextPath (char *prevpath);
 void COM_FlushFSCache(void);	//a file was written using fopen
 void COM_RefreshFSCache_f(void);
+qboolean FS_Restarted(unsigned int *since);
 
+void COM_InitFilesystem (void);
+void FS_Shutdown(void);
+void COM_Gamedir (const char *dir);
+char *FS_GetGamedir(void);
+
+qbyte *FS_LoadMallocFile (const char *path);
 int FS_LoadFile(char *name, void **file);
 void FS_FreeFile(void *file);
+
+qbyte *COM_LoadFile (const char *path, int usehunk);
 
 qboolean COM_LoadMapPackFile(const char *name, int offset);
 void COM_FlushTempoaryPacks(void);
@@ -395,7 +415,9 @@ void COM_Effectinfo_Clear(void);
 unsigned int COM_Effectinfo_ForName(const char *efname);
 char *COM_Effectinfo_ForNumber(unsigned int efnum);
 
-#define	MAX_INFO_KEY	64
+unsigned int COM_RemapMapChecksum(unsigned int checksum);
+
+#define	MAX_INFO_KEY	256
 char *Info_ValueForKey (char *s, const char *key);
 void Info_RemoveKey (char *s, const char *key);
 char *Info_KeyForNumber (char *s, int num);
@@ -412,13 +434,15 @@ qbyte	COM_BlockSequenceCheckByte (qbyte *base, int length, int sequence, unsigne
 qbyte	COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence);
 qbyte	Q2COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence);
 
-int build_number( void );
-
+int version_number(void);
+char *version_string(void);
 
 
 void TL_InitLanguages(void);
 void T_FreeStrings(void);
 char *T_GetString(int num);
+void T_FreeInfoStrings(void);
+char *T_GetInfoString(int num);
 
 //
 // log.c

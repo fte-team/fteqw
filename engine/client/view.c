@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -22,6 +22,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 #include "winquake.h"
+
+#include <ctype.h> // for isdigit();
 
 #ifdef FISH
 void R_RenderView_fisheye(void);
@@ -70,13 +72,13 @@ cvar_t	v_ipitch_level = SCVAR("v_ipitch_level", "0.3");
 cvar_t	v_idlescale = SCVAR("v_idlescale", "0");
 
 cvar_t	crosshair = SCVARF("crosshair", "0", CVAR_ARCHIVE);
-cvar_t	crosshaircolor = SCVARF("crosshaircolor", "79", CVAR_ARCHIVE | CVAR_RENDERERCALLBACK);
+cvar_t	crosshaircolor = SCVARF("crosshaircolor", "255 255 255", CVAR_ARCHIVE);
 cvar_t	crosshairsize = SCVARF("crosshairsize", "8", CVAR_ARCHIVE);
 
 cvar_t  cl_crossx = SCVARF("cl_crossx", "0", CVAR_ARCHIVE);
 cvar_t  cl_crossy = SCVARF("cl_crossy", "0", CVAR_ARCHIVE);
 cvar_t	crosshaircorrect = SCVARF("crosshaircorrect", "0", CVAR_SEMICHEAT);
-cvar_t	crosshairimage = SCVARF("crosshairimage", "", CVAR_RENDERERCALLBACK);
+cvar_t	crosshairimage = SCVAR("crosshairimage", "");
 cvar_t	crosshairalpha = SCVAR("crosshairalpha", "1");
 
 cvar_t	gl_cshiftpercent = SCVAR("gl_cshiftpercent", "100");
@@ -91,6 +93,7 @@ cvar_t	v_suitcshift = SCVAR("v_suitcshift", "1");
 cvar_t	v_ringcshift = SCVAR("v_ringcshift", "1");
 cvar_t	v_pentcshift = SCVAR("v_pentcshift", "1");
 cvar_t	v_gunkick = SCVAR("v_gunkick", "0");
+cvar_t	v_gunkick_q2 = SCVAR("v_gunkick_q2", "1");
 
 cvar_t	v_viewheight = SCVAR("v_viewheight", "0");
 
@@ -100,8 +103,6 @@ cvar_t	scr_autoid = SCVAR("scr_autoid", "1");
 extern cvar_t cl_chasecam;
 
 float	v_dmg_time[MAX_SPLITS], v_dmg_roll[MAX_SPLITS], v_dmg_pitch[MAX_SPLITS];
-
-extern	int			in_forward, in_forward2, in_back;
 
 frame_t		*view_frame;
 player_state_t		*view_message;
@@ -118,21 +119,21 @@ float V_CalcRoll (vec3_t angles, vec3_t velocity)
 	float	sign;
 	float	side;
 	float	value;
-	
+
 	AngleVectors (angles, forward, right, up);
 	side = DotProduct (velocity, right);
 	sign = side < 0 ? -1 : 1;
 	side = fabs(side);
-	
+
 	value = cl_rollangle.value;
 
 	if (side < cl_rollspeed.value)
 		side = side * value / cl_rollspeed.value;
 	else
 		side = value;
-	
+
 	return side*sign;
-	
+
 }
 
 
@@ -147,7 +148,7 @@ float V_CalcBob (int pnum)
 	static	double	bobtime[MAX_SPLITS];
 	static float	bob[MAX_SPLITS];
 	float	cycle;
-	
+
 	if (cl.spectator)
 		return 0;
 
@@ -175,7 +176,7 @@ float V_CalcBob (int pnum)
 	else if (bob[pnum] < -7)
 		bob[pnum] = -7;
 	return bob[pnum];
-	
+
 }
 
 
@@ -219,7 +220,7 @@ If the user is adjusting pitch manually, either with lookup/lookdown,
 mlook and mouse, or klook and keyboard, pitch drifting is constantly stopped.
 
 Drifting is enabled when the center view key is hit, mlook is released and
-lookspring is non 0, or when 
+lookspring is non 0, or when
 ===============
 */
 void V_DriftPitch (int pnum)
@@ -240,14 +241,14 @@ void V_DriftPitch (int pnum)
 			cl.driftmove[pnum] = 0;
 		else
 			cl.driftmove[pnum] += host_frametime;
-	
+
 		if ( cl.driftmove[pnum] > v_centermove.value)
 		{
 			V_StartPitchDrift (pnum);
 		}
 		return;
 	}
-	
+
 	delta = 0 - cl.viewangles[pnum][PITCH];
 
 	if (!delta)
@@ -258,7 +259,7 @@ void V_DriftPitch (int pnum)
 
 	move = host_frametime * cl.pitchvel[pnum];
 	cl.pitchvel[pnum] += host_frametime * v_centerspeed.value;
-	
+
 //Con_Printf ("move: %f (%f)\n", move, host_frametime);
 
 	if (delta > 0)
@@ -286,14 +287,14 @@ void V_DriftPitch (int pnum)
 
 
 /*
-============================================================================== 
- 
-						PALETTE FLASHES 
- 
-============================================================================== 
-*/ 
- 
- 
+==============================================================================
+
+						PALETTE FLASHES
+
+==============================================================================
+*/
+
+
 cshift_t	cshift_empty = { {130,80,50}, 0 };
 cshift_t	cshift_water = { {130,80,50}, 128 };
 cshift_t	cshift_slime = { {0,25,5}, 150 };
@@ -309,19 +310,20 @@ qbyte		gammatable[256];	// palette is sent through this
 
 unsigned short		ramps[3][256];
 //extern qboolean		gammaworks;
-float		v_blend[4];		// rgba 0.0 - 1.0
+float		sw_blend[4];		// rgba 0.0 - 1.0
+float		hw_blend[4];		// rgba 0.0 - 1.0
 /*
 void BuildGammaTable (float g)
 {
 	int		i, inf;
-	
+
 	if (g == 1.0)
 	{
 		for (i=0 ; i<256 ; i++)
 			gammatable[i] = i;
 		return;
 	}
-	
+
 	for (i=0 ; i<256 ; i++)
 	{
 		inf = 255 * pow ( (i+0.5)/255.5 , g ) + 0.5;
@@ -352,7 +354,7 @@ void BuildGammaTable (float g, float c)
 		if (inf < 0)
 			inf = 0;
 		else if (inf > 255)
-			inf = 255;		
+			inf = 255;
 		gammatable[i] = inf;
 	}
 }
@@ -362,7 +364,7 @@ void BuildGammaTable (float g, float c)
 V_CheckGamma
 =================
 */
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue)
 {
 	BuildGammaTable (v_gamma.value, v_contrast.value);
@@ -370,13 +372,6 @@ void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue)
 	GLV_UpdatePalette (true, 0);
 }
 #endif
-
-qboolean V_CheckGamma (void)
-{
-	return false;
-}
-
-
 
 /*
 ===============
@@ -391,7 +386,7 @@ void V_ParseDamage (int pnum)
 	vec3_t	forward, right, up;
 	float	side;
 	float	count;
-	
+
 	armor = MSG_ReadByte ();
 	blood = MSG_ReadByte ();
 	for (i=0 ; i<3 ; i++)
@@ -412,7 +407,7 @@ void V_ParseDamage (int pnum)
 	if (cl.cshifts[CSHIFT_DAMAGE].percent > 150)
 		cl.cshifts[CSHIFT_DAMAGE].percent = 150;
 
-	if (armor > blood)		
+	if (armor > blood)
 	{
 		cl.cshifts[CSHIFT_DAMAGE].destcolor[0] = 200;
 		cl.cshifts[CSHIFT_DAMAGE].destcolor[1] = 100;
@@ -436,12 +431,12 @@ void V_ParseDamage (int pnum)
 //
 	VectorSubtract (from, cl.simorg[pnum], from);
 	VectorNormalize (from);
-	
+
 	AngleVectors (cl.simangles[pnum], forward, right, up);
 
 	side = DotProduct (from, right);
 	v_dmg_roll[pnum] = count*side*v_kickroll.value;
-	
+
 	side = DotProduct (from, forward);
 	v_dmg_pitch[pnum] = count*side*v_kickpitch.value;
 
@@ -456,30 +451,65 @@ V_cshift_f
 */
 void V_cshift_f (void)
 {
-	if (Cmd_Argc() != 5 && Cmd_Argc() != 1)	//this is actually to warn of a malice bug (and prevent a totally black screen) more than it is to help the user. :/
-	{										//The 1 is so teamfortress can use it to clear.
-		if (Cmd_FromGamecode())	//nehahra does nasty things and becomes unplayable.
+	int r, g, b, p;
+
+	r = g = b = p = 0;
+
+	if (Cmd_Argc() >= 5)
+	{
+		r = atoi(Cmd_Argv(1));
+		g = atoi(Cmd_Argv(2));
+		b = atoi(Cmd_Argv(3));
+		p = atoi(Cmd_Argv(4));
+	}
+
+	if (Cmd_FromGamecode())
+	{
+		if (Cmd_Argc() >= 5)
 		{
-			cl.cshifts[CSHIFT_SERVER].destcolor[0] = 0;
-			cl.cshifts[CSHIFT_SERVER].destcolor[1] = 0;
-			cl.cshifts[CSHIFT_SERVER].destcolor[2] = 0;
-			cl.cshifts[CSHIFT_SERVER].percent = 0;
+			qboolean term = false;
+			int i;
+			char *c = Cmd_Argv(4);
+
+			// malice jumbles commands into a v_cshift so this attempts to fix
+			while (isdigit(*c))
+				c++;
+
+			if (*c)
+			{
+				Cbuf_AddText(c, RESTRICT_SERVER);
+				term = true;
+			}
+			for (i = 5; i < Cmd_Argc(); i++)
+			{
+				Cbuf_AddText(" ", RESTRICT_SERVER);
+				Cbuf_AddText(Cmd_Argv(i), RESTRICT_SERVER);
+				term = true;
+			}
+			if (term)
+				Cbuf_AddText("\n", RESTRICT_SERVER);
 		}
+		else if (Cmd_Argc() > 1)
+			Con_DPrintf("broken v_cshift from gamecode\n");
+
+		// ensure we always clear out or set for nehahra
+		cl.cshifts[CSHIFT_SERVER].destcolor[0] = r;
+		cl.cshifts[CSHIFT_SERVER].destcolor[1] = g;
+		cl.cshifts[CSHIFT_SERVER].destcolor[2] = b;
+		cl.cshifts[CSHIFT_SERVER].percent = p;
+		return;
+	}
+
+	if (Cmd_Argc() != 5 && Cmd_Argc() != 1)
+	{
 		Con_Printf("v_cshift: v_cshift <r> <g> <b> <alpha>\n");
 		return;
 	}
-	if (Cmd_FromGamecode())
-	{
-		cl.cshifts[CSHIFT_SERVER].destcolor[0] = atoi(Cmd_Argv(1));
-		cl.cshifts[CSHIFT_SERVER].destcolor[1] = atoi(Cmd_Argv(2));
-		cl.cshifts[CSHIFT_SERVER].destcolor[2] = atoi(Cmd_Argv(3));
-		cl.cshifts[CSHIFT_SERVER].percent = atoi(Cmd_Argv(4));
-		return;
-	}
-	cshift_empty.destcolor[0] = atoi(Cmd_Argv(1));
-	cshift_empty.destcolor[1] = atoi(Cmd_Argv(2));
-	cshift_empty.destcolor[2] = atoi(Cmd_Argv(3));
-	cshift_empty.percent = atoi(Cmd_Argv(4));
+
+	cshift_empty.destcolor[0] = r;
+	cshift_empty.destcolor[1] = g;
+	cshift_empty.destcolor[2] = b;
+	cshift_empty.percent = p;
 }
 
 
@@ -598,76 +628,63 @@ void V_CalcPowerupCshift (void)
 V_CalcBlend
 =============
 */
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 
-void GLV_CalcBlendServer (float colors[4])
+void GLV_CalcBlend (float *hw_blend)
 {
-//	extern qboolean gammaworks;
-//	if (gammaworks || !v_blend[3])
-	if (!v_blend[3])
-	{	//regular cshifts work through hardware gamma
-		//server sent cshifts do not.
-		colors[0] = cl.cshifts[CSHIFT_SERVER].destcolor[0]/255.0f;
-		colors[1] = cl.cshifts[CSHIFT_SERVER].destcolor[1]/255.0f;
-		colors[2] = cl.cshifts[CSHIFT_SERVER].destcolor[2]/255.0f;
-		colors[3] = cl.cshifts[CSHIFT_SERVER].percent/255.0f;
-	}
-	else
-	{
-		float na;
-		na = cl.cshifts[CSHIFT_SERVER].percent/255.0f;
-
-		colors[3] = v_blend[3] + na*(1-v_blend[3]);
-//Con_Printf ("j:%i a:%f\n", j, a);
-		na = na/colors[3];
-		colors[0] = v_blend[0]*(1-na) + (cl.cshifts[CSHIFT_SERVER].destcolor[0]/255.0f)*na;
-		colors[1] = v_blend[1]*(1-na) + (cl.cshifts[CSHIFT_SERVER].destcolor[1]/255.0f)*na;
-		colors[2] = v_blend[2]*(1-na) + (cl.cshifts[CSHIFT_SERVER].destcolor[2]/255.0f)*na;
-	}
-}
-void GLV_CalcBlend (void)
-{
-	float	r, g, b, a, a2;
+	float	a2;
 	int		j;
+	float *blend;
 
-	r = 0;
-	g = 0;
-	b = 0;
-	a = 0;
+	memset(hw_blend, 0, sizeof(float)*4);
+	memset(sw_blend, 0, sizeof(float)*4);
 
 	//don't apply it to the server, we'll blend the two later if the user has no hardware gamma (if they do have it, we use just the server specified value) This way we avoid winnt users having a cheat with flashbangs and stuff.
-	for (j=0 ; j<CSHIFT_SERVER ; j++)	
+	for (j=0 ; j<NUM_CSHIFTS ; j++)
 	{
-//		if (j != CSHIFT_SERVER)
-//		{
-			if (!gl_cshiftpercent.value || !gl_cshiftenabled.value)
+		if (j != CSHIFT_SERVER)
+		{
+			if (!gl_cshiftpercent.value || !gl_cshiftenabled.ival)
 				continue;
 
 			a2 = ((cl.cshifts[j].percent * gl_cshiftpercent.value) / 100.0) / 255.0;
-//		}
-//		else
-//		{
-//			a2 = cl.cshifts[j].percent / 255.0;	//don't allow modification of this one.
-//		}
+		}
+		else
+		{
+			a2 = cl.cshifts[j].percent / 255.0;	//don't allow modification of this one.
+		}
 
 		if (!a2)
 			continue;
-		a = a + a2*(1-a);
-//Con_Printf ("j:%i a:%f\n", j, a);
-		a2 = a2/a;
-		r = r*(1-a2) + cl.cshifts[j].destcolor[0]*a2;
-		g = g*(1-a2) + cl.cshifts[j].destcolor[1]*a2;
-		b = b*(1-a2) + cl.cshifts[j].destcolor[2]*a2;
+
+		if (j == CSHIFT_SERVER)
+		{
+			/*server blend always goes into sw, ALWAYS*/
+			blend = sw_blend;
+		}
+		else
+		{
+			if (j == CSHIFT_BONUS || j == CSHIFT_DAMAGE || gl_nohwblend.ival)
+				blend = sw_blend;
+			else	//powerup or contents?
+				blend = hw_blend;
+		}
+
+		blend[3] = blend[3] + a2*(1-blend[3]);
+		a2 = a2/blend[3];
+		blend[0] = blend[0]*(1-a2) + cl.cshifts[j].destcolor[0]*a2/255.0;
+		blend[1] = blend[1]*(1-a2) + cl.cshifts[j].destcolor[1]*a2/255.0;
+		blend[2] = blend[2]*(1-a2) + cl.cshifts[j].destcolor[2]*a2/255.0;
 	}
 
-	v_blend[0] = r/255.0;
-	v_blend[1] = g/255.0;
-	v_blend[2] = b/255.0;
-	v_blend[3] = a;
-	if (v_blend[3] > 1)
-		v_blend[3] = 1;
-	if (v_blend[3] < 0)
-		v_blend[3] = 0;
+	if (hw_blend[3] > 1)
+		hw_blend[3] = 1;
+	if (hw_blend[3] < 0)
+		hw_blend[3] = 0;
+	if (sw_blend[3] > 1)
+		sw_blend[3] = 1;
+	if (sw_blend[3] < 0)
+		sw_blend[3] = 0;
 }
 
 /*
@@ -677,45 +694,13 @@ V_UpdatePalette
 */
 void GLV_UpdatePalette (qboolean force, double ftime)
 {
-//	qboolean ogw;
-	int		i, j;
-	qboolean	update;
-//	qbyte	*basepal, *newpal;
-//	qbyte	pal[768];
-	float	r,g,b,a;
+	int		i;
+	float	newhw_blend[4];
 	int		ir, ig, ib;
 
 	RSpeedMark();
 
 	V_CalcPowerupCshift ();
-
-	update = false;
-
-	for (i=0 ; i<CSHIFT_SERVER ; i++)
-	{
-		if (gl_nohwblend.value || !gl_cshiftenabled.value)
-		{
-			if (0 != cl.prev_cshifts[i].percent)
-			{
-				update = true;
-				cl.prev_cshifts[i].percent = 0;
-			}
-		}
-		else
-		{
-			if (cl.cshifts[i].percent != cl.prev_cshifts[i].percent)
-			{
-				update = true;
-				cl.prev_cshifts[i].percent = cl.cshifts[i].percent;
-			}
-			for (j=0 ; j<3 ; j++)
-				if (cl.cshifts[i].destcolor[j] != cl.prev_cshifts[i].destcolor[j])
-				{
-					update = true;
-					cl.prev_cshifts[i].destcolor[j] = cl.cshifts[i].destcolor[j];
-				}
-		}
-	}
 
 // drop the damage value
 	cl.cshifts[CSHIFT_DAMAGE].percent -= ftime*150;
@@ -727,16 +712,17 @@ void GLV_UpdatePalette (qboolean force, double ftime)
 	if (cl.cshifts[CSHIFT_BONUS].percent <= 0)
 		cl.cshifts[CSHIFT_BONUS].percent = 0;
 
-	if (update || force)
-	{
-		GLV_CalcBlend ();
+	GLV_CalcBlend(newhw_blend);
 
-		a = v_blend[3];
-		if (gl_nohwblend.value)
-			a = 0;
-		r = 255*v_blend[0]*a;
-		g = 255*v_blend[1]*a;
-		b = 255*v_blend[2]*a;
+	if (hw_blend[0] != newhw_blend[0] || hw_blend[1] != newhw_blend[1] || hw_blend[2] != newhw_blend[2] || hw_blend[3] != newhw_blend[3] || force)
+	{
+		float r,g,b,a;
+		Vector4Copy(newhw_blend, hw_blend);
+
+		a = hw_blend[3];
+		r = 255*hw_blend[0]*a;
+		g = 255*hw_blend[1]*a;
+		b = 255*hw_blend[2]*a;
 
 		a = 1-a;
 		for (i=0 ; i<256 ; i++)
@@ -756,12 +742,7 @@ void GLV_UpdatePalette (qboolean force, double ftime)
 			ramps[2][i] = gammatable[ib]<<8;
 		}
 
-//		ogw = gammaworks;
 		VID_ShiftPalette (NULL);
-//		if (ogw != gammaworks)
-//		{
-//			Con_DPrintf("Gamma working state %i\n", gammaworks);
-//		}
 	}
 
 	RSpeedEnd(RSPEED_PALETTEFLASHES);
@@ -781,13 +762,13 @@ void V_ClearCShifts (void)
 		cl.cshifts[i].percent = 0;
 }
 
-/* 
-============================================================================== 
- 
-						VIEW RENDERING 
- 
-============================================================================== 
-*/ 
+/*
+==============================================================================
+
+						VIEW RENDERING
+
+==============================================================================
+*/
 
 float angledelta (float a)
 {
@@ -803,11 +784,11 @@ CalcGunAngle
 ==================
 */
 void CalcGunAngle (int pnum)
-{	
+{
 	float	yaw, pitch, move;
 	static float oldyaw = 0;
 	static float oldpitch = 0;
-	
+
 	yaw = r_refdef.viewangles[YAW];
 	pitch = -r_refdef.viewangles[PITCH];
 
@@ -832,7 +813,7 @@ void CalcGunAngle (int pnum)
 		if (oldyaw - move > yaw)
 			yaw = oldyaw - move;
 	}
-	
+
 	if (pitch > oldpitch)
 	{
 		if (oldpitch + move < pitch)
@@ -843,7 +824,7 @@ void CalcGunAngle (int pnum)
 		if (oldpitch - move > pitch)
 			pitch = oldpitch - move;
 	}
-	
+
 	oldyaw = yaw;
 	oldpitch = pitch;
 
@@ -1010,6 +991,11 @@ void V_CalcRefdef (int pnum)
 		return;
 #endif
 
+
+	r_refdef.gfog_density = cl.fog_density;
+	r_refdef.gfog_alpha = cl.fog_density?1:0;//cl.fog_alpha;
+	VectorCopy(cl.fog_colour, r_refdef.gfog_rgb);
+
 // view is the weapon model (only visible from inside body)
 	view = &cl.viewent[pnum];
 
@@ -1021,7 +1007,7 @@ void V_CalcRefdef (int pnum)
 		bob=v_viewheight.value;
 	else
 		bob = V_CalcBob (pnum);
-	
+
 // refresh position from simulated origin
 	VectorCopy (cl.simorg[pnum], r_refdef.vieworg);
 
@@ -1034,14 +1020,50 @@ void V_CalcRefdef (int pnum)
 	r_refdef.vieworg[1] += 1.0/16;
 	r_refdef.vieworg[2] += 1.0/16;
 
-	VectorCopy (cl.simangles[pnum], r_refdef.viewangles);
+	if (cl.fixangle[pnum])
+	{
+		if (cl.oldfixangle[pnum])
+		{
+			float frac, move;
+			if (cl.gametime <= cl.oldgametime)
+				frac = 1;
+			else
+			{
+				frac = (realtime - cl.gametimemark) / (cl.gametime - cl.oldgametime);
+				frac = bound(0, frac, 1);
+			}
+			for (i = 0; i < 3; i++)
+			{
+				move = cl.fixangles[pnum][i] - cl.oldfixangles[pnum][i];
+				if (move >= 180)
+					move -= 360;
+				if (move <= -180)
+					move += 360;
+				r_refdef.viewangles[i] = cl.oldfixangles[pnum][i] + frac * move;
+			}
+		}
+		else
+		{
+			VectorCopy (cl.fixangles[pnum], r_refdef.viewangles);
+		}
+	}
+	else
+	{
+		VectorCopy (cl.simangles[pnum], r_refdef.viewangles);
+	}
+	VectorCopy (r_refdef.viewangles, view->angles); //copy before it gets manipulatd
 	V_CalcViewRoll (pnum);
 	V_AddIdle (pnum);
 
-	if (view_message && view_message->flags & PF_GIB)
-		r_refdef.vieworg[2] += 8;	// gib view height
-	else if (view_message && view_message->flags & PF_DEAD)
-		r_refdef.vieworg[2] -= 16;	// corpse view height
+	if (cl.viewheight[pnum] == DEFAULT_VIEWHEIGHT)
+	{
+		if (view_message && view_message->flags & PF_GIB)
+			r_refdef.vieworg[2] += 8;	// gib view height
+		else if (view_message && view_message->flags & PF_DEAD)
+			r_refdef.vieworg[2] -= 16;	// corpse view height
+		else
+			r_refdef.vieworg[2] += DEFAULT_VIEWHEIGHT;
+	}
 	else
 		r_refdef.vieworg[2] += cl.viewheight[pnum];
 
@@ -1049,8 +1071,8 @@ void V_CalcRefdef (int pnum)
 
 	if (view_message && view_message->flags & PF_DEAD && v_deathtilt.value)		// PF_GIB will also set PF_DEAD
 	{
-		if (!cl.spectator || !cl_chasecam.value)
-			r_refdef.viewangles[ROLL] = 80;	// dead view angle
+		if (!cl.spectator || !cl_chasecam.ival)
+			r_refdef.viewangles[ROLL] = 80*v_deathtilt.value;	// dead view angle
 	}
 	else
 	{
@@ -1058,12 +1080,8 @@ void V_CalcRefdef (int pnum)
 		r_refdef.vieworg[2] += bob;
 	}
 
-// offsets
-	AngleVectors (cl.simangles[pnum], forward, right, up);
-	
 // set up gun position
-	VectorCopy (cl.simangles[pnum], view->angles);
-	
+	AngleVectors (view->angles, forward, right, up);
 	CalcGunAngle (pnum);
 
 	VectorCopy (r_refdef.vieworg, view->origin);
@@ -1141,7 +1159,6 @@ the entity origin, so any view position inside that will be valid
 */
 extern vrect_t scr_vrect;
 
-int gl_ztrickdisabled;
 qboolean r_secondaryview;
 #ifdef SIDEVIEWS
 
@@ -1162,9 +1179,6 @@ entity_t *CL_EntityNum(int num)
 float CalcFov (float fov_x, float width, float height);
 void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 {
-#ifdef GLQUAKE
-	extern int glwidth, glheight;
-#endif
 #if MAX_SPLITS > 4
 #pragma warning "Please change this function to cope with the new MAX_SPLITS value"
 #endif
@@ -1186,7 +1200,11 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 	case 2:	//horizontal bands
 	case 3:
 #ifdef GLQUAKE
-		if (qrenderer == QR_OPENGL && glwidth > glheight * 2)
+		if (qrenderer == QR_OPENGL && vid.rotpixelwidth > vid.rotpixelheight * 2
+#ifdef FISH
+			&& ffov.value >= 0
+#endif
+			)
 		{	//over twice as wide as high, assume duel moniter, horizontal.
 			vrect->width = vid.width/cl.splitclients;
 			vrect->height = vid.height;
@@ -1219,15 +1237,12 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 	if (cl.stats[pnum][STAT_VIEWZOOM])
 		r_refdef.fov_x *= cl.stats[pnum][STAT_VIEWZOOM]/255.0f;
 
-#ifdef GLQUAKE
-	if (qrenderer == QR_OPENGL && vrect->width < (vrect->height*640)/432)
+	if (vrect->width < (vrect->height*640)/432)
 	{
-		extern int glwidth, glheight;
-		r_refdef.fov_y = CalcFov(r_refdef.fov_x, (vrect->width*glwidth)/vid.width, (vrect->height*glheight)/vid.height);
+		r_refdef.fov_y = CalcFov(r_refdef.fov_x, (vrect->width*vid.pixelwidth)/vid.width, (vrect->height*vid.pixelheight)/vid.height);
 //		r_refdef.fov_x = CalcFov(r_refdef.fov_y, 432, 640);
 	}
 	else
-#endif
 	{
 		r_refdef.fov_y = CalcFov(r_refdef.fov_x, 640, 432);
 		r_refdef.fov_x = CalcFov(r_refdef.fov_y, vrect->height, vrect->width);
@@ -1247,12 +1262,12 @@ void R_DrawNameTags(void)
 
 	if (!cl.spectator && !cls.demoplayback)
 		return;
-	if (!scr_autoid.value)
+	if (!scr_autoid.ival)
 		return;
 	if (cls.state != ca_active || !cl.validsequence)
 		return;
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
 		void GL_Set2D (void);
@@ -1293,13 +1308,13 @@ void V_RenderPlayerViews(int plnum)
 	if (cls.protocol == CP_NETQUAKE)
 		view_message->weaponframe = cl.stats[0][STAT_WEAPONFRAME];
 #endif
-	cl.simangles[plnum][ROLL] = 0;	// FIXME @@@ 
+	cl.simangles[plnum][ROLL] = 0;	// FIXME @@@
 
 
 	DropPunchAngle (plnum);
 	if (cl.intermission)
 	{	// intermission / finale rendering
-		V_CalcIntermissionRefdef (plnum);	
+		V_CalcIntermissionRefdef (plnum);
 	}
 	else
 	{
@@ -1311,10 +1326,8 @@ void V_RenderPlayerViews(int plnum)
 	CL_LinkViewModel ();
 
 	Cam_SelfTrack(plnum);
-	{
-		R_RenderView ();
-		R_DrawNameTags();
-	}
+	R_RenderView ();
+	R_DrawNameTags();
 
 	cl_numvisedicts = oldnuments;
 
@@ -1324,7 +1337,6 @@ void V_RenderPlayerViews(int plnum)
 		vec3_t dir;
 		extern void vectoangles(vec3_t vec, vec3_t ang);
 
-		gl_ztrickdisabled|=16;
 		r_refdef.vrect.y -= r_refdef.vrect.height;
 		vid.recalc_refdef=true;
 		r_secondaryview = 2;
@@ -1338,21 +1350,16 @@ void V_RenderPlayerViews(int plnum)
 		R_RenderView ();
 		vid.recalc_refdef=true;
 	}
-	else
-		gl_ztrickdisabled&=~16;
 
 
 #ifdef SIDEVIEWS
 /*	//adjust main view height to strip off the rearviews at the top
 	if (vsecwidth >= 1)
-	{		
+	{
 		r_refdef.vrect.y -= vsecheight;
 		r_refdef.vrect.height += vsecheight;
 	}
 */
-#ifdef RGLQUAKE
-	gl_ztrickdisabled&=~1;
-#endif
 	for (viewnum = 0; viewnum < SIDEVIEWS; viewnum++)
 	if (vsec_scalex[viewnum].value>0&&vsec_scaley[viewnum].value>0
 		&& ((vsec_enabled[viewnum].value && vsec_enabled[viewnum].value != 2 && cls.allow_rearview) 	//rearview if v2_enabled = 1 and not 2
@@ -1366,7 +1373,6 @@ void V_RenderPlayerViews(int plnum)
 		float ofx;
 		float ofy;
 
-		gl_ztrickdisabled|=1;
 		vid.recalc_refdef=true;
 
 		r_secondaryview = true;
@@ -1401,8 +1407,8 @@ void V_RenderPlayerViews(int plnum)
 		if (e)
 		{
 			float s;
-			memcpy(r_refdef.viewangles, e->angles, sizeof(vec3_t));				
-			memcpy(r_refdef.vieworg, e->origin, sizeof(vec3_t));				
+			memcpy(r_refdef.viewangles, e->angles, sizeof(vec3_t));
+			memcpy(r_refdef.vieworg, e->origin, sizeof(vec3_t));
 //				cl.viewentity = cl.viewentity2;
 
 //				s =	(realtime - e->lerptime)*10;
@@ -1417,7 +1423,7 @@ void V_RenderPlayerViews(int plnum)
 			r_refdef.viewangles[2]=e->angles[2];//*s+(1-s)*e->msg_angles[1][2];
 			r_refdef.viewangles[PITCH] *= -1;
 
-			r_secondaryview = 3;	//show the player
+			r_refdef.externalview = true;	//show the player
 
 			R_RenderView ();
 //				r_framecount = old_framecount;
@@ -1436,7 +1442,7 @@ void V_RenderPlayerViews(int plnum)
 		}
 
 		r_refdef.vrect = oldrect;
-		memcpy(r_refdef.viewangles, oldangles, sizeof(vec3_t));		
+		memcpy(r_refdef.viewangles, oldangles, sizeof(vec3_t));
 		memcpy(r_refdef.vieworg, oldposition, sizeof(vec3_t));
 		r_refdef.fov_x = ofx;
 		r_refdef.fov_y = ofy;
@@ -1444,16 +1450,12 @@ void V_RenderPlayerViews(int plnum)
 		vid.recalc_refdef=true;
 	}
 #endif
-	r_secondaryview = 0;
+	r_refdef.externalview = false;
 }
 
 void V_RenderView (void)
 {
 	int viewnum;
-#ifdef PEXT_BULLETENS
-	//avoid redoing the bulleten boards for rear view as well.
-	static qboolean alreadyrendering = false;
-#endif
 
 	R_LessenStains();
 
@@ -1469,7 +1471,7 @@ void V_RenderView (void)
 		//work out which packet entities are solid
 		CL_SetSolidEntities ();
 
-		CL_EmitEntities();
+//		CL_EmitEntities();
 
 		// Set up prediction for other players
 		CL_SetUpPlayerPrediction(false);
@@ -1481,7 +1483,7 @@ void V_RenderView (void)
 		CL_SetUpPlayerPrediction(true);
 
 		// build a refresh entity list
-//		CL_EmitEntities ();
+		CL_EmitEntities ();
 
 		CL_AllowIndependantSendCmd(true);
 
@@ -1492,27 +1494,11 @@ void V_RenderView (void)
 
 	R_PushDlights ();
 
-
-#ifdef PEXT_BULLETENS
-	if (!alreadyrendering)
-		R_SetupBulleten ();
-	alreadyrendering=true;
-#endif
-
-	if (cl.splitclients>1)
-		gl_ztrickdisabled|=8;
-	else
-		gl_ztrickdisabled&=~8;
-
 	r_secondaryview = 0;
 	for (viewnum = 0; viewnum < cl.splitclients; viewnum++)
 	{
 		V_RenderPlayerViews(viewnum);
 	}
-
-#ifdef PEXT_BULLETENS
-	alreadyrendering=false;
-#endif
 }
 
 //============================================================================
@@ -1528,7 +1514,7 @@ void V_Init (void)
 #ifdef SIDEVIEWS
 	int i;
 #endif
-	Cmd_AddCommand ("v_cshift", V_cshift_f);	
+	Cmd_AddCommand ("v_cshift", V_cshift_f);
 	Cmd_AddCommand ("bf", V_BonusFlash_f);
 //	Cmd_AddCommand ("centerview", V_StartPitchDrift);
 
@@ -1550,6 +1536,7 @@ void V_Init (void)
 	Cvar_Register (&v_ringcshift, VIEWVARS);
 	Cvar_Register (&v_pentcshift, VIEWVARS);
 	Cvar_Register (&v_gunkick, VIEWVARS);
+	Cvar_Register (&v_gunkick_q2, VIEWVARS);
 
 	Cvar_Register (&v_bonusflash, VIEWVARS);
 

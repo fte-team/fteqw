@@ -1,10 +1,10 @@
 #include "quakedef.h"
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"
 #endif
 
 #ifdef D3DQUAKE
-#include "d3dquake.h"
+//#include "d3dquake.h"
 #endif
 
 cvar_t r_dodgytgafiles = SCVAR("r_dodgytgafiles", "0");	//Certain tgas are upside down.
@@ -20,13 +20,6 @@ cvar_t r_dodgypcxfiles = SCVAR("r_dodgypcxfiles", "0");	//Quake 2's PCX loading 
 #ifndef _WIN32
 #include <unistd.h>
 #endif
-
-//the eye doesn't see different colours in the same proportion.
-//must add to slightly less than 1
-#define NTSC_RED 0.299
-#define NTSC_GREEN 0.587
-#define NTSC_BLUE 0.114
-#define NTSC_SUM (NTSC_RED + NTSC_GREEN + NTSC_BLUE)
 
 typedef struct {	//cm = colourmap
 	char	id_len;		//0
@@ -198,8 +191,11 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 	{
 		return ReadGreyTargaFile(data, length, &tgaheader, asgrey);
 	}
-	else if (tgaheader.version == 10 || tgaheader.version == 11)
+	else if (tgaheader.version == 10 || tgaheader.version == 9 || tgaheader.version == 11)
 	{
+		//9:paletted
+		//10:bgr(a)
+		//11:greyscale
 #undef getc
 #define getc(x) *data++
 		unsigned row, rows=tgaheader.height, column, columns=tgaheader.width, packetHeader, packetSize, j;
@@ -207,8 +203,62 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 
 		qbyte blue, red, green, alphabyte;
 
-		if (tgaheader.version == 10 && tgaheader.bpp == 8) return NULL;
-		if (tgaheader.version == 11 && tgaheader.bpp != 8) return NULL;
+		byte_vec4_t palette[256];
+
+		if (tgaheader.version == 9)
+		{
+			for (row = 0; row < 256; row++)
+			{
+				palette[row][0] = row;
+				palette[row][1] = row;
+				palette[row][2] = row;
+				palette[row][3] = 255;
+			}
+			if (tgaheader.bpp != 8)
+				return NULL;
+		}
+		if (tgaheader.version == 10)
+		{
+			if (tgaheader.bpp == 8)
+				return NULL;
+		}
+		if (tgaheader.version == 11)
+		{
+			for (row = 0; row < 256; row++)
+			{
+				palette[row][0] = row;
+				palette[row][1] = row;
+				palette[row][2] = row;
+				palette[row][3] = 255;
+			}
+			if (tgaheader.bpp != 8)
+				return NULL;
+		}
+
+		if (tgaheader.cm_type)
+		{
+			switch(tgaheader.cm_size)
+			{
+			case 24:
+				for (row = 0; row < tgaheader.cm_len; row++)
+				{
+					palette[row][0] = *data++;
+					palette[row][1] = *data++;
+					palette[row][2] = *data++;
+					palette[row][3] = 255;
+				}
+				break;
+			case 32:
+				for (row = 0; row < tgaheader.cm_len; row++)
+				{
+					palette[row][0] = *data++;
+					palette[row][1] = *data++;
+					palette[row][2] = *data++;
+					palette[row][3] = *data++;
+				}
+				break;
+			}
+		}
 
 		for(row=rows-1; row>=0; row--)
 		{
@@ -225,8 +275,11 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 					switch (tgaheader.bpp)
 					{
 						case 8:	//we made sure this was version 11
-								blue = green = red = *data++;
-								alphabyte = 255;
+								blue = palette[*data][0];
+								green = palette[*data][1];
+								red = palette[*data][2];
+								alphabyte = palette[*data][3];
+								data++;
 								break;
 
 						case 16:
@@ -310,11 +363,14 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 							switch (tgaheader.bpp)
 							{
 								case 8:
-										blue = green = red = *data++;
+										blue = palette[*data][0];
+										green = palette[*data][1];
+										red = palette[*data][2];
 										*pixbuf++ = red;
 										*pixbuf++ = green;
 										*pixbuf++ = blue;
-										*pixbuf++ = 255;
+										*pixbuf++ = palette[*data][3];
+										data++;
 										break;
 								case 16:
 										inrow = data;
@@ -377,7 +433,11 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 							switch (tgaheader.bpp)
 							{
 								case 8:
-										*pixbuf++ = *data++;
+										blue = palette[*data][0];
+										green = palette[*data][1];
+										red = palette[*data][2];
+										*pixbuf++ = (blue + green + red)/3;
+										data++;
 										break;
 								case 16:
 										inrow = data;
@@ -532,6 +592,8 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 
 		return initbuf;
 	}
+	else
+		Con_Printf("Unsupported version\n");
 return NULL;
 }
 
@@ -545,17 +607,120 @@ return NULL;
 	#ifndef PNG_SUCKS_WITH_SETJMP
 		#if defined(MINGW)
 			#include "./mingw-libs/png.h"
-			#pragma comment(lib, "../libs/libpng.a")
 		#elif defined(_WIN32)
 			#include "png.h"
-			#pragma comment(lib, "../libs/libpng.lib")
 		#else
 			#include <png.h>
 		#endif
 	#endif
 
+	#ifdef DYNAMIC_LIBPNG
+		#define PSTATIC(n)
+		static dllhandle_t *libpng_handle;
+		#define LIBPNG_LOADED() (libpng_handle != NULL)
+	#else
+		#define LIBPNG_LOADED() 1
+		#define PSTATIC(n) = &n
+		#ifdef _MSC_VER
+			#ifdef _WIN64
+				#pragma comment(lib, MSVCLIBSPATH "libpng64.lib")
+			#else
+				#pragma comment(lib, MSVCLIBSPATH "libpng.lib")
+			#endif
+		#endif
+	#endif
 
-#if defined(MINGW)	//hehehe... add annother symbol so the statically linked cygwin libpng can link
+#ifndef PNG_NORETURN
+#define PNG_NORETURN
+#endif
+#ifndef PNG_ALLOCATED
+#define PNG_ALLOCATED
+#endif
+
+void (PNGAPI *qpng_error) PNGARG((png_structp png_ptr, png_const_charp error_message)) PSTATIC(png_error);
+void (PNGAPI *qpng_read_end) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_end);
+void (PNGAPI *qpng_read_image) PNGARG((png_structp png_ptr, png_bytepp image)) PSTATIC(png_read_image);
+png_byte (PNGAPI *qpng_get_bit_depth) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_get_bit_depth);
+png_byte (PNGAPI *qpng_get_channels) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_get_channels);
+png_uint_32 (PNGAPI *qpng_get_rowbytes) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_get_rowbytes);
+void (PNGAPI *qpng_read_update_info) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_update_info);
+void (PNGAPI *qpng_set_strip_16) PNGARG((png_structp png_ptr)) PSTATIC(png_set_strip_16);
+void (PNGAPI *qpng_set_expand) PNGARG((png_structp png_ptr)) PSTATIC(png_set_expand);
+void (PNGAPI *qpng_set_gray_to_rgb) PNGARG((png_structp png_ptr)) PSTATIC(png_set_gray_to_rgb);
+void (PNGAPI *qpng_set_tRNS_to_alpha) PNGARG((png_structp png_ptr)) PSTATIC(png_set_tRNS_to_alpha);
+png_uint_32 (PNGAPI *qpng_get_valid) PNGARG((png_structp png_ptr, png_infop info_ptr, png_uint_32 flag)) PSTATIC(png_get_valid);
+void (PNGAPI *qpng_set_expand_gray_1_2_4_to_8) PNGARG((png_structp png_ptr)) PSTATIC(png_set_expand_gray_1_2_4_to_8);
+void (PNGAPI *qpng_set_filler) PNGARG((png_structp png_ptr, png_uint_32 filler, int flags)) PSTATIC(png_set_filler);
+void (PNGAPI *qpng_set_palette_to_rgb) PNGARG((png_structp png_ptr)) PSTATIC(png_set_palette_to_rgb);
+png_uint_32 (PNGAPI *qpng_get_IHDR) PNGARG((png_structp png_ptr, png_infop info_ptr, png_uint_32 *width, png_uint_32 *height,
+			int *bit_depth, int *color_type, int *interlace_method, int *compression_method, int *filter_method)) PSTATIC(png_get_IHDR);
+void (PNGAPI *qpng_read_info) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_info);
+void (PNGAPI *qpng_set_sig_bytes) PNGARG((png_structp png_ptr, int num_bytes)) PSTATIC(png_set_sig_bytes);
+void (PNGAPI *qpng_set_read_fn) PNGARG((png_structp png_ptr, png_voidp io_ptr, png_rw_ptr read_data_fn)) PSTATIC(png_set_read_fn);
+void (PNGAPI *qpng_destroy_read_struct) PNGARG((png_structpp png_ptr_ptr, png_infopp info_ptr_ptr, png_infopp end_info_ptr_ptr)) PSTATIC(png_destroy_read_struct);
+png_infop (PNGAPI *qpng_create_info_struct) PNGARG((png_structp png_ptr)) PSTATIC(png_create_info_struct);
+png_structp (PNGAPI *qpng_create_read_struct) PNGARG((png_const_charp user_png_ver, png_voidp error_ptr, png_error_ptr error_fn, png_error_ptr warn_fn)) PSTATIC(png_create_read_struct);
+int (PNGAPI *qpng_sig_cmp) PNGARG((png_bytep sig, png_size_t start, png_size_t num_to_check)) PSTATIC(png_sig_cmp);
+
+void (PNGAPI *qpng_write_end) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_write_end);
+void (PNGAPI *qpng_write_image) PNGARG((png_structp png_ptr, png_bytepp image)) PSTATIC(png_write_image);
+void (PNGAPI *qpng_write_info) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_write_info);
+void (PNGAPI *qpng_set_IHDR) PNGARG((png_structp png_ptr, png_infop info_ptr, png_uint_32 width, png_uint_32 height,
+			int bit_depth, int color_type, int interlace_method, int compression_method, int filter_method)) PSTATIC(png_set_IHDR);
+void (PNGAPI *qpng_set_compression_level) PNGARG((png_structp png_ptr, int level)) PSTATIC(png_set_compression_level);
+void (PNGAPI *qpng_init_io) PNGARG((png_structp png_ptr, png_FILE_p fp)) PSTATIC(png_init_io);
+void (PNGAPI *qpng_destroy_write_struct) PNGARG((png_structpp png_ptr_ptr, png_infopp info_ptr_ptr)) PSTATIC(png_destroy_write_struct);
+png_structp (PNGAPI *qpng_create_write_struct) PNGARG((png_const_charp user_png_ver, png_voidp error_ptr, png_error_ptr error_fn, png_error_ptr warn_fn)) PSTATIC(png_create_write_struct);
+
+qboolean LibPNG_Init(void)
+{
+#ifdef DYNAMIC_LIBPNG
+	static dllfunction_t pngfuncs[] =
+	{
+		{(void **) &qpng_error,							"png_error"},
+		{(void **) &qpng_read_end,						"png_read_end"},
+		{(void **) &qpng_read_image,					"png_read_image"},
+		{(void **) &qpng_get_bit_depth,					"png_get_bit_depth"},
+		{(void **) &qpng_get_channels,					"png_get_channels"},
+		{(void **) &qpng_get_rowbytes,					"png_get_rowbytes"},
+		{(void **) &qpng_read_update_info,				"png_read_update_info"},
+		{(void **) &qpng_set_strip_16,					"png_set_strip_16"},
+		{(void **) &qpng_set_expand,					"png_set_expand"},
+		{(void **) &qpng_set_gray_to_rgb,				"png_set_gray_to_rgb"},
+		{(void **) &qpng_set_tRNS_to_alpha,				"png_set_tRNS_to_alpha"},
+		{(void **) &qpng_get_valid,						"png_get_valid"},
+		{(void **) &qpng_set_expand_gray_1_2_4_to_8,	"png_set_expand_gray_1_2_4_to_8"},
+		{(void **) &qpng_set_filler,					"png_set_filler"},
+		{(void **) &qpng_set_palette_to_rgb,			"png_set_palette_to_rgb"},
+		{(void **) &qpng_get_IHDR,						"png_get_IHDR"},
+		{(void **) &qpng_read_info,						"png_read_info"},
+		{(void **) &qpng_set_sig_bytes,					"png_set_sig_bytes"},
+		{(void **) &qpng_set_read_fn,					"png_set_read_fn"},
+		{(void **) &qpng_destroy_read_struct,			"png_destroy_read_struct"},
+		{(void **) &qpng_create_info_struct,			"png_create_info_struct"},
+		{(void **) &qpng_create_read_struct,			"png_create_read_struct"},
+		{(void **) &qpng_sig_cmp,						"png_sig_cmp"},
+
+		{(void **) &qpng_write_end,						"png_write_end"},
+		{(void **) &qpng_write_image,					"png_write_image"},
+		{(void **) &qpng_write_info,					"png_write_info"},
+		{(void **) &qpng_set_IHDR,						"png_set_IHDR"},
+		{(void **) &qpng_set_compression_level,			"png_set_compression_level"},
+		{(void **) &qpng_init_io,						"png_init_io"},
+		{(void **) &qpng_destroy_write_struct,			"png_destroy_write_struct"},
+		{(void **) &qpng_create_write_struct,			"png_create_write_struct"},
+		{NULL, NULL}
+	};
+
+	if (!LIBPNG_LOADED())
+		libpng_handle = Sys_LoadLibrary("libpng", pngfuncs);
+#endif
+	return LIBPNG_LOADED();
+}
+
+
+
+#if defined(MING)	//hehehe... add annother symbol so the statically linked cygwin libpng can link
 #undef setjmp
 int setjmp (jmp_buf jb)
 {
@@ -573,10 +738,10 @@ void PNGAPI png_default_read_data(png_structp png_ptr, png_bytep data, png_size_
 
 void VARGS readpngdata(png_structp png_ptr,png_bytep data,png_size_t len)
 {
-	pngreadinfo_t *ri = (pngreadinfo_t*)png_ptr->io_ptr;
+	pngreadinfo_t *ri = (pngreadinfo_t*)png_get_io_ptr(png_ptr);
 	if (ri->readposition+len > ri->filelen)
 	{
-		png_error(png_ptr, "unexpected eof");
+		qpng_error(png_ptr, "unexpected eof");
 		return;
 	}
 	memcpy(data, &ri->data[ri->readposition], len);
@@ -596,81 +761,87 @@ qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, const char *
 
 	memcpy(header, buf, 8);
 
-	if (png_sig_cmp(header, 0, 8))
+	if (qpng_sig_cmp(header, 0, 8))
 	{
 		return (png_rgba = NULL);
 	}
 
-	if (!(png = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL)))
+	if (!(png = qpng_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL)))
 	{
 		return (png_rgba = NULL);
 	}
 
-	if (!(pnginfo = png_create_info_struct(png)))
+	if (!(pnginfo = qpng_create_info_struct(png)))
 	{
-		png_destroy_read_struct(&png, &pnginfo, NULL);
+		qpng_destroy_read_struct(&png, &pnginfo, NULL);
 		return (png_rgba = NULL);
 	}
 
-	if (setjmp(png->jmpbuf))
+	if (setjmp(png_jmpbuf(png)))
 	{
 error:
 		if (data)
 			BZ_Free(data);
 		if (rowpointers)
 			BZ_Free(rowpointers);
-        png_destroy_read_struct(&png, &pnginfo, NULL);
+        qpng_destroy_read_struct(&png, &pnginfo, NULL);
         return (png_rgba = NULL);
     }
 
 	ri.data=buf;
 	ri.readposition=8;
 	ri.filelen=length;
-	png_set_read_fn(png, &ri, readpngdata);
+	qpng_set_read_fn(png, &ri, readpngdata);
 
-	png_set_sig_bytes(png, 8);
-	png_read_info(png, pnginfo);
-	png_get_IHDR(png, pnginfo, &pngwidth, &pngheight, &bitdepth, &colortype, &interlace, &compression, &filter);
+	qpng_set_sig_bytes(png, 8);
+	qpng_read_info(png, pnginfo);
+	qpng_get_IHDR(png, pnginfo, &pngwidth, &pngheight, &bitdepth, &colortype, &interlace, &compression, &filter);
 
 	*width = pngwidth;
 	*height = pngheight;
 
 	if (colortype == PNG_COLOR_TYPE_PALETTE)
 	{
-		png_set_palette_to_rgb(png);
-		png_set_filler(png, 255, PNG_FILLER_AFTER);
+		qpng_set_palette_to_rgb(png);
+		qpng_set_filler(png, 255, PNG_FILLER_AFTER);
 	}
 
 	if (colortype == PNG_COLOR_TYPE_GRAY && bitdepth < 8)
-		png_set_gray_1_2_4_to_8(png);
+	{
+		#if PNG_LIBPNG_VER > 10400
+			qpng_set_expand_gray_1_2_4_to_8(png);
+		#else
+			png_set_gray_1_2_4_to_8(png);
+		#endif
+	}
 
-	if (png_get_valid( png, pnginfo, PNG_INFO_tRNS))
-		png_set_tRNS_to_alpha(png);
+	if (qpng_get_valid( png, pnginfo, PNG_INFO_tRNS))
+		qpng_set_tRNS_to_alpha(png);
 
 	if (bitdepth >= 8 && colortype == PNG_COLOR_TYPE_RGB)
-		png_set_filler(png, 255, PNG_FILLER_AFTER);
+		qpng_set_filler(png, 255, PNG_FILLER_AFTER);
 
 	if (colortype == PNG_COLOR_TYPE_GRAY || colortype == PNG_COLOR_TYPE_GRAY_ALPHA)
 	{
-		png_set_gray_to_rgb( png );
-		png_set_filler(png, 255, PNG_FILLER_AFTER);
+		qpng_set_gray_to_rgb( png );
+		qpng_set_filler(png, 255, PNG_FILLER_AFTER);
 	}
 
 	if (bitdepth < 8)
-		png_set_expand (png);
+		qpng_set_expand (png);
 	else if (bitdepth == 16)
-		png_set_strip_16(png);
+		qpng_set_strip_16(png);
 
 
-	png_read_update_info(png, pnginfo);
-	rowbytes = png_get_rowbytes(png, pnginfo);
-	bytesperpixel = png_get_channels(png, pnginfo);
-	bitdepth = png_get_bit_depth(png, pnginfo);
+	qpng_read_update_info(png, pnginfo);
+	rowbytes = qpng_get_rowbytes(png, pnginfo);
+	bytesperpixel = qpng_get_channels(png, pnginfo);
+	bitdepth = qpng_get_bit_depth(png, pnginfo);
 
 	if (bitdepth != 8 || bytesperpixel != 4)
 	{
 		Con_Printf ("Bad PNG color depth and/or bpp (%s)\n", fname);
-		png_destroy_read_struct(&png, &pnginfo, NULL);
+		qpng_destroy_read_struct(&png, &pnginfo, NULL);
 		return (png_rgba = NULL);
 	}
 
@@ -683,10 +854,10 @@ error:
 	for (y = 0; y < *height; y++)
 		rowpointers[y] = data + y * rowbytes;
 
-	png_read_image(png, rowpointers);
-	png_read_end(png, NULL);
+	qpng_read_image(png, rowpointers);
+	qpng_read_end(png, NULL);
 
-	png_destroy_read_struct(&png, &pnginfo, NULL);
+	qpng_destroy_read_struct(&png, &pnginfo, NULL);
 	BZ_Free(rowpointers);
 	return (png_rgba = data);
 }
@@ -708,45 +879,53 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 
 	if (!(fp = fopen (name, "wb")))
 	{
-		COM_CreatePath (name);
+		FS_CreatePath (filename, FS_GAMEONLY);
 		if (!(fp = fopen (name, "wb")))
 			return false;
 	}
 
-    if (!(png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL)))
+    if (!(png_ptr = qpng_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL)))
 	{
 		fclose(fp);
 			return false;
 	}
 
-    if (!(info_ptr = png_create_info_struct(png_ptr)))
+    if (!(info_ptr = qpng_create_info_struct(png_ptr)))
 	{
-		png_destroy_write_struct(&png_ptr, (png_infopp) NULL);
+		qpng_destroy_write_struct(&png_ptr, (png_infopp) NULL);
 		fclose(fp);
 		return false;
     }
 
-	if (setjmp(png_ptr->jmpbuf))
+	if (setjmp(png_jmpbuf(png_ptr)))
 	{
-        png_destroy_write_struct(&png_ptr, &info_ptr);
+        qpng_destroy_write_struct(&png_ptr, &info_ptr);
         fclose(fp);
 		return false;
     }
 
-	png_init_io(png_ptr, fp);
+	qpng_init_io(png_ptr, fp);
 	compression = bound(0, compression, 100);
-	png_set_compression_level(png_ptr, Z_NO_COMPRESSION + (compression*(Z_BEST_COMPRESSION-Z_NO_COMPRESSION))/100);
 
-	png_set_IHDR(png_ptr, info_ptr, width, height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
-	png_write_info(png_ptr, info_ptr);
+// had to add these when I migrated from libpng 1.4.x to 1.5.x
+#ifndef Z_NO_COMPRESSION
+#define Z_NO_COMPRESSION         0
+#endif
+#ifndef Z_BEST_COMPRESSION
+#define Z_BEST_COMPRESSION       9
+#endif
+	qpng_set_compression_level(png_ptr, Z_NO_COMPRESSION + (compression*(Z_BEST_COMPRESSION-Z_NO_COMPRESSION))/100);
+
+	qpng_set_IHDR(png_ptr, info_ptr, width, height, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+	qpng_write_info(png_ptr, info_ptr);
 
 	row_pointers = BZ_Malloc (sizeof(png_byte *) * height);
 	for (i = 0; i < height; i++)
 		row_pointers[height - i - 1] = pixels + i * width * 3;
-	png_write_image(png_ptr, row_pointers);
-	png_write_end(png_ptr, info_ptr);
+	qpng_write_image(png_ptr, row_pointers);
+	qpng_write_end(png_ptr, info_ptr);
 	BZ_Free(row_pointers);
-	png_destroy_write_struct(&png_ptr, &info_ptr);
+	qpng_destroy_write_struct(&png_ptr, &info_ptr);
 	fclose(fp);
 	return true;
 }
@@ -761,25 +940,97 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 	#define JPEG_API VARGS
 	#include "./mingw-libs/jpeglib.h"
 	#include "./mingw-libs/jerror.h"
-	#pragma comment(lib, "../libs/jpeg.a")
 #elif defined(_WIN32)
 	#define JPEG_API VARGS
 	#include "jpeglib.h"
 	#include "jerror.h"
-	#pragma comment(lib, "../libs/jpeg.lib")
 #else
 //	#include <jinclude.h>
 	#include <jpeglib.h>
 	#include <jerror.h>
 #endif
 
-#ifndef JPEG_FALSE
-#define JPEG_BOOL boolean
+#ifdef DYNAMIC_LIBJPEG
+	#define JSTATIC(n)
+	static dllhandle_t *libjpeg_handle;
+	#define LIBJPEG_LOADED() (libjpeg_handle != NULL)
+#else
+	#ifdef _MSC_VER
+		#ifdef _WIN64
+			#pragma comment(lib, MSVCLIBSPATH "libjpeg64.lib")
+		#else
+			#pragma comment(lib, MSVCLIBSPATH "jpeg.lib")
+		#endif
+	#endif
+	#define JSTATIC(n) = &n
+	#define LIBJPEG_LOADED() (1)
 #endif
 
+#ifndef JPEG_FALSE
+#define JPEG_boolean boolean
+#endif
 
+#define qjpeg_create_compress(cinfo) \
+    qjpeg_CreateCompress((cinfo), JPEG_LIB_VERSION, \
+			(size_t) sizeof(struct jpeg_compress_struct))
+#define qjpeg_create_decompress(cinfo) \
+    qjpeg_CreateDecompress((cinfo), JPEG_LIB_VERSION, \
+			  (size_t) sizeof(struct jpeg_decompress_struct))
 
+#ifdef DYNAMIC_LIBJPEG
+boolean (VARGS *qjpeg_resync_to_restart) JPP((j_decompress_ptr cinfo, int desired))										JSTATIC(jpeg_resync_to_restart);
+boolean (VARGS *qjpeg_finish_decompress) JPP((j_decompress_ptr cinfo))												JSTATIC(jpeg_finish_decompress);
+JDIMENSION (VARGS *qjpeg_read_scanlines) JPP((j_decompress_ptr cinfo, JSAMPARRAY scanlines, JDIMENSION max_lines))	JSTATIC(jpeg_read_scanlines);
+boolean (VARGS *qjpeg_start_decompress) JPP((j_decompress_ptr cinfo))													JSTATIC(jpeg_start_decompress);
+int (VARGS *qjpeg_read_header) JPP((j_decompress_ptr cinfo, boolean require_image))									JSTATIC(jpeg_read_header);
+void (VARGS *qjpeg_CreateDecompress) JPP((j_decompress_ptr cinfo, int version, size_t structsize))					JSTATIC(jpeg_CreateDecompress);
+void (VARGS *qjpeg_destroy_decompress) JPP((j_decompress_ptr cinfo))													JSTATIC(jpeg_destroy_decompress);
 
+struct jpeg_error_mgr * (VARGS *qjpeg_std_error) JPP((struct jpeg_error_mgr * err))									JSTATIC(jpeg_std_error);
+
+void (VARGS *qjpeg_finish_compress) JPP((j_compress_ptr cinfo))														JSTATIC(jpeg_finish_compress);
+JDIMENSION (VARGS *qjpeg_write_scanlines) JPP((j_compress_ptr cinfo, JSAMPARRAY scanlines, JDIMENSION num_lines))		JSTATIC(jpeg_write_scanlines);
+void (VARGS *qjpeg_start_compress) JPP((j_compress_ptr cinfo, boolean write_all_tables))								JSTATIC(jpeg_start_compress);
+void (VARGS *qjpeg_set_quality) JPP((j_compress_ptr cinfo, int quality, boolean force_baseline))						JSTATIC(jpeg_set_quality);
+void (VARGS *qjpeg_set_defaults) JPP((j_compress_ptr cinfo))															JSTATIC(jpeg_set_defaults);
+void (VARGS *qjpeg_CreateCompress) JPP((j_compress_ptr cinfo, int version, size_t structsize))						JSTATIC(jpeg_CreateCompress);
+void (VARGS *qjpeg_destroy_compress) JPP((j_compress_ptr cinfo))														JSTATIC(jpeg_destroy_compress);
+#endif
+
+qboolean LibJPEG_Init(void)
+{
+	#ifdef DYNAMIC_LIBJPEG
+	static dllfunction_t jpegfuncs[] =
+	{
+		{(void **) &qjpeg_resync_to_restart,		"jpeg_resync_to_restart"},
+		{(void **) &qjpeg_finish_decompress,		"jpeg_finish_decompress"},
+		{(void **) &qjpeg_read_scanlines,			"jpeg_read_scanlines"},
+		{(void **) &qjpeg_start_decompress,			"jpeg_start_decompress"},
+		{(void **) &qjpeg_read_header,				"jpeg_read_header"},
+		{(void **) &qjpeg_CreateDecompress,			"jpeg_CreateDecompress"},
+		{(void **) &qjpeg_destroy_decompress,		"jpeg_destroy_decompress"},
+
+		{(void **) &qjpeg_std_error,				"jpeg_std_error"},
+
+		{(void **) &qjpeg_finish_compress,			"jpeg_finish_compress"},
+		{(void **) &qjpeg_write_scanlines,			"jpeg_write_scanlines"},
+		{(void **) &qjpeg_start_compress,			"jpeg_start_compress"},
+		{(void **) &qjpeg_set_quality,				"jpeg_set_quality"},
+		{(void **) &qjpeg_set_defaults,				"jpeg_set_defaults"},
+		{(void **) &qjpeg_CreateCompress,			"jpeg_CreateCompress"},
+		{(void **) &qjpeg_destroy_compress,			"jpeg_destroy_compress"},
+
+		{NULL, NULL}
+	};
+
+	if (!LIBJPEG_LOADED())
+		libjpeg_handle = Sys_LoadLibrary("libjpeg", jpegfuncs);
+	#endif
+
+	return LIBJPEG_LOADED();
+}
+
+/*begin jpeg read*/
 
 struct my_error_mgr {
   struct jpeg_error_mgr pub;	/* "public" fields */
@@ -825,7 +1076,7 @@ typedef struct {
   int currentpos;
   int maxlen;
   JOCTET * buffer;		/* start of buffer */
-  JPEG_BOOL start_of_file;	/* have we gotten any data yet? */
+  JPEG_boolean start_of_file;	/* have we gotten any data yet? */
 } my_source_mgr;
 
 typedef my_source_mgr * my_src_ptr;
@@ -841,7 +1092,7 @@ init_source (j_decompress_ptr cinfo)
   src->start_of_file = TRUE;
 }
 
-METHODDEF(JPEG_BOOL)
+METHODDEF(JPEG_boolean)
 fill_input_buffer (j_decompress_ptr cinfo)
 {
 	my_source_mgr *src = (my_source_mgr*) cinfo->src;
@@ -898,7 +1149,7 @@ term_source (j_decompress_ptr cinfo)
 #define GLOBAL(x) x
 
 GLOBAL(void)
-jpeg_mem_src (j_decompress_ptr cinfo, qbyte * infile, int maxlen)
+ftejpeg_mem_src (j_decompress_ptr cinfo, qbyte * infile, int maxlen)
 {
   my_source_mgr *src;
 
@@ -916,7 +1167,11 @@ jpeg_mem_src (j_decompress_ptr cinfo, qbyte * infile, int maxlen)
   src->pub.init_source = init_source;
   src->pub.fill_input_buffer = fill_input_buffer;
   src->pub.skip_input_data = skip_input_data;
-  src->pub.resync_to_restart = jpeg_resync_to_restart; /* use default method */
+  #ifdef DYNAMIC_LIBJPEG
+  	src->pub.resync_to_restart = qjpeg_resync_to_restart; /* use default method */
+  #else
+  	src->pub.resync_to_restart = jpeg_resync_to_restart; /* use default method */
+  #endif
   src->pub.term_source = term_source;
   src->infile = infile;
   src->pub.bytes_in_buffer = 0; /* forces fill_input_buffer on first read */
@@ -931,98 +1186,155 @@ qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height)
 	qbyte *mem=NULL, *in, *out;
 	int i;
 
-  /* This struct contains the JPEG decompression parameters and pointers to
-   * working space (which is allocated as needed by the JPEG library).
-   */
-  struct jpeg_decompress_struct cinfo;
-  /* We use our private extension JPEG error handler.
-   * Note that this struct must live as long as the main JPEG parameter
-   * struct, to avoid dangling-pointer problems.
-   */
-  struct my_error_mgr jerr;
-  /* More stuff */
-  JSAMPARRAY buffer;		/* Output row buffer */
-  int size_stride;		/* physical row width in output buffer */
+	/* This struct contains the JPEG decompression parameters and pointers to
+	* working space (which is allocated as needed by the JPEG library).
+	*/
+	struct jpeg_decompress_struct cinfo;
+	/* We use our private extension JPEG error handler.
+	* Note that this struct must live as long as the main JPEG parameter
+	* struct, to avoid dangling-pointer problems.
+	*/
+	struct my_error_mgr jerr;
+	/* More stuff */
+	JSAMPARRAY buffer;		/* Output row buffer */
+	int size_stride;		/* physical row width in output buffer */
 
+	if (!LIBJPEG_LOADED())
+		return NULL;
 
-  /* Step 1: allocate and initialize JPEG decompression object */
+	/* Step 1: allocate and initialize JPEG decompression object */
 
-  /* We set up the normal JPEG error routines, then override error_exit. */
-  cinfo.err = jpeg_std_error(&jerr.pub);
-  jerr.pub.error_exit = my_error_exit;
-  /* Establish the setjmp return context for my_error_exit to use. */
-  if (setjmp(jerr.setjmp_buffer)) {
-    // If we get here, the JPEG code has signaled an error.
-
+	/* We set up the normal JPEG error routines, then override error_exit. */
+	#ifdef DYNAMIC_LIBJPEG
+		cinfo.err = qjpeg_std_error(&jerr.pub);
+	#else
+		cinfo.err = jpeg_std_error(&jerr.pub);
+	#endif
+	jerr.pub.error_exit = my_error_exit;
+	/* Establish the setjmp return context for my_error_exit to use. */
+	if (setjmp(jerr.setjmp_buffer))
+	{
+		// If we get here, the JPEG code has signaled an error.
 badjpeg:
+		#ifdef DYNAMIC_LIBJPEG
+			qjpeg_destroy_decompress(&cinfo);
+		#else
+			jpeg_destroy_decompress(&cinfo);
+		#endif
 
-    jpeg_destroy_decompress(&cinfo);
+		if (mem)
+			BZ_Free(mem);
+		return 0;
+	}
+	#ifdef DYNAMIC_LIBJPEG
+		qjpeg_create_decompress(&cinfo);
+	#else
+		jpeg_create_decompress(&cinfo);
+	#endif
 
-	if (mem)
-		BZ_Free(mem);
-    return 0;
-  }
-  jpeg_create_decompress(&cinfo);
+	ftejpeg_mem_src(&cinfo, infile, length);
 
-  jpeg_mem_src(&cinfo, infile, length);
+	#ifdef DYNAMIC_LIBJPEG
+		(void) qjpeg_read_header(&cinfo, TRUE);
+	#else
+		(void) jpeg_read_header(&cinfo, TRUE);
+	#endif
 
-  (void) jpeg_read_header(&cinfo, TRUE);
+	#ifdef DYNAMIC_LIBJPEG
+		(void) qjpeg_start_decompress(&cinfo);
+	#else
+		(void) jpeg_start_decompress(&cinfo);
+	#endif
 
-  (void) jpeg_start_decompress(&cinfo);
 
-
-  if (cinfo.output_components == 0)
-  {
-  		#ifdef _DEBUG
-  		Con_Printf("No JPEG Components, not a JPEG.\n");
-  		#endif
-  		goto badjpeg;
-  }
-  if (cinfo.output_components!=3)
-  {
+	if (cinfo.output_components == 0)
+	{
+		#ifdef _DEBUG
+		Con_Printf("No JPEG Components, not a JPEG.\n");
+		#endif
+		goto badjpeg;
+	}
+	if (cinfo.output_components!=3 && cinfo.output_components != 1)
+	{
 		#ifdef _DEBUG
 		Con_Printf("Bad number of components in JPEG: '%d', should be '3'.\n",cinfo.output_components);
 		#endif
 		goto badjpeg;
-  }
-  size_stride = cinfo.output_width * cinfo.output_components;
-  /* Make a one-row-high sample array that will go away when done with image */
-   buffer = (*cinfo.mem->alloc_sarray)
-		((j_common_ptr) &cinfo, JPOOL_IMAGE, size_stride, 1);
-
-   out=mem=BZ_Malloc(cinfo.output_height*cinfo.output_width*4);
-   memset(out, 0, cinfo.output_height*cinfo.output_width*4);
-
-  while (cinfo.output_scanline < cinfo.output_height) {
-    (void) jpeg_read_scanlines(&cinfo, buffer, 1);
-
-	in = buffer[0];
-	for (i = 0; i < cinfo.output_width; i++)
-	{//rgb to rgba
-		*out++ = *in++;
-		*out++ = *in++;
-		*out++ = *in++;
-		*out++ = 255;
 	}
-  }
+	size_stride = cinfo.output_width * cinfo.output_components;
+	/* Make a one-row-high sample array that will go away when done with image */
+	buffer = (*cinfo.mem->alloc_sarray) ((j_common_ptr) &cinfo, JPOOL_IMAGE, size_stride, 1);
 
-  (void) jpeg_finish_decompress(&cinfo);
+	out=mem=BZ_Malloc(cinfo.output_height*cinfo.output_width*4);
+	memset(out, 0, cinfo.output_height*cinfo.output_width*4);
 
-  jpeg_destroy_decompress(&cinfo);
+	if (cinfo.output_components == 1)
+	{
+		while (cinfo.output_scanline < cinfo.output_height)
+		{
+			#ifdef DYNAMIC_LIBJPEG
+				(void) qjpeg_read_scanlines(&cinfo, buffer, 1);
+			#else
+				(void) jpeg_read_scanlines(&cinfo, buffer, 1);
+			#endif
 
-  *width = cinfo.output_width;
-  *height = cinfo.output_height;
+			in = buffer[0];
+			for (i = 0; i < cinfo.output_width; i++)
+			{//rgb to rgba
+				*out++ = *in;
+				*out++ = *in;
+				*out++ = *in;
+				*out++ = 255;
+				in++;
+			}
+		}
+	}
+	else
+	{
+		while (cinfo.output_scanline < cinfo.output_height)
+		{
+			#ifdef DYNAMIC_LIBJPEG
+				(void) qjpeg_read_scanlines(&cinfo, buffer, 1);
+			#else
+				(void) jpeg_read_scanlines(&cinfo, buffer, 1);
+			#endif
 
-  return mem;
+			in = buffer[0];
+			for (i = 0; i < cinfo.output_width; i++)
+			{//rgb to rgba
+				*out++ = *in++;
+				*out++ = *in++;
+				*out++ = *in++;
+				*out++ = 255;
+			}
+		}
+	}
+
+	#ifdef DYNAMIC_LIBJPEG
+		(void) qjpeg_finish_decompress(&cinfo);
+	#else
+		(void) jpeg_finish_decompress(&cinfo);
+	#endif
+
+	#ifdef DYNAMIC_LIBJPEG
+		qjpeg_destroy_decompress(&cinfo);
+	#else
+		jpeg_destroy_decompress(&cinfo);
+	#endif
+
+	*width = cinfo.output_width;
+	*height = cinfo.output_height;
+
+	return mem;
 
 }
-
-
+/*end read*/
+/*begin write*/
 #define OUTPUT_BUF_SIZE 4096
 typedef struct  {
-  struct jpeg_error_mgr pub;
+	struct jpeg_error_mgr pub;
 
-  jmp_buf setjmp_buffer;
+	jmp_buf setjmp_buffer;
 } jpeg_error_mgr_wrapper;
 
 typedef struct {
@@ -1041,7 +1353,7 @@ METHODDEF(void) init_destination (j_compress_ptr cinfo)
 	dest->pub.next_output_byte = dest->buffer;
 	dest->pub.free_in_buffer = OUTPUT_BUF_SIZE;
 }
-METHODDEF(JPEG_BOOL) empty_output_buffer (j_compress_ptr cinfo)
+METHODDEF(JPEG_boolean) empty_output_buffer (j_compress_ptr cinfo)
 {
 	my_destination_mgr *dest = (my_destination_mgr*) cinfo->dest;
 
@@ -1060,32 +1372,34 @@ METHODDEF(void) term_destination (j_compress_ptr cinfo)
 	dest->pub.free_in_buffer = OUTPUT_BUF_SIZE;
 }
 
-void jpeg_mem_dest (j_compress_ptr cinfo, vfsfile_t *vfs)
+void ftejpeg_mem_dest (j_compress_ptr cinfo, vfsfile_t *vfs)
 {
-  my_destination_mgr *dest;
+	my_destination_mgr *dest;
 
-  if (cinfo->dest == NULL) {	/* first time for this JPEG object? */
-    cinfo->dest = (struct jpeg_destination_mgr *)
-      (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_PERMANENT,
-				  sizeof(my_destination_mgr));
+	if (cinfo->dest == NULL)
+	{	/* first time for this JPEG object? */
+		cinfo->dest = (struct jpeg_destination_mgr *)
+						(*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_PERMANENT,
+						sizeof(my_destination_mgr));
+		dest = (my_destination_mgr*) cinfo->dest;
+		//    dest->buffer = (JOCTET *)
+		//      (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_PERMANENT,
+		//				  OUTPUT_BUF_SIZE * sizeof(JOCTET));
+	}
+
 	dest = (my_destination_mgr*) cinfo->dest;
-//    dest->buffer = (JOCTET *)
-//      (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_PERMANENT,
-//				  OUTPUT_BUF_SIZE * sizeof(JOCTET));
-  }
-
-  dest = (my_destination_mgr*) cinfo->dest;
-  dest->pub.init_destination = init_destination;
-  dest->pub.empty_output_buffer = empty_output_buffer;
-  dest->pub.term_destination = term_destination;
-  dest->pub.free_in_buffer = 0; /* forces fill_input_buffer on first read */
-  dest->pub.next_output_byte = NULL; /* until buffer loaded */
-  dest->vfs = vfs;
+	dest->pub.init_destination = init_destination;
+	dest->pub.empty_output_buffer = empty_output_buffer;
+	dest->pub.term_destination = term_destination;
+	dest->pub.free_in_buffer = 0; /* forces fill_input_buffer on first read */
+	dest->pub.next_output_byte = NULL; /* until buffer loaded */
+	dest->vfs = vfs;
 }
 
 
 
-METHODDEF(void) jpeg_error_exit (j_common_ptr cinfo) {
+METHODDEF(void) jpeg_error_exit (j_common_ptr cinfo)
+{
   longjmp(((jpeg_error_mgr_wrapper *) cinfo->err)->setjmp_buffer, 1);
 }
 void screenshotJPEG(char *filename, int compression, qbyte *screendata, int screenwidth, int screenheight)	//input is rgb NOT rgba
@@ -1095,6 +1409,9 @@ void screenshotJPEG(char *filename, int compression, qbyte *screendata, int scre
 	jpeg_error_mgr_wrapper jerr;
 	struct jpeg_compress_struct cinfo;
 	JSAMPROW row_pointer[1];
+
+	if (!LIBJPEG_LOADED())
+		return;
 
 	if (!(outfile = FS_OpenVFS(filename, "wb", FS_GAMEONLY)))
 	{
@@ -1106,40 +1423,74 @@ void screenshotJPEG(char *filename, int compression, qbyte *screendata, int scre
 		}
 	}
 
-	cinfo.err = jpeg_std_error(&jerr.pub);
+	#ifdef DYNAMIC_LIBJPEG
+		cinfo.err = qjpeg_std_error(&jerr.pub);
+	#else
+		cinfo.err = jpeg_std_error(&jerr.pub);
+	#endif
 	jerr.pub.error_exit = jpeg_error_exit;
 	if (setjmp(jerr.setjmp_buffer))
 	{
-		jpeg_destroy_compress(&cinfo);
+		#ifdef DYNAMIC_LIBJPEG
+			qjpeg_destroy_compress(&cinfo);
+		#else
+			jpeg_destroy_compress(&cinfo);
+		#endif
 		VFS_CLOSE(outfile);
 		FS_Remove(filename, FS_GAME);
 		Con_Printf("Failed to create jpeg\n");
 		return;
 	}
-	jpeg_create_compress(&cinfo);
+	#ifdef DYNAMIC_LIBJPEG
+		qjpeg_create_compress(&cinfo);
+	#else
+		jpeg_create_compress(&cinfo);
+	#endif
 
 	buffer = screendata;
 
-	jpeg_mem_dest(&cinfo, outfile);
+	ftejpeg_mem_dest(&cinfo, outfile);
 	cinfo.image_width = screenwidth;
 	cinfo.image_height = screenheight;
 	cinfo.input_components = 3;
 	cinfo.in_color_space = JCS_RGB;
-	jpeg_set_defaults(&cinfo);
-	jpeg_set_quality (&cinfo, bound(0, compression, 100), true);
-	jpeg_start_compress(&cinfo, true);
+	#ifdef DYNAMIC_LIBJPEG
+		qjpeg_set_defaults(&cinfo);
+	#else
+		jpeg_set_defaults(&cinfo);
+	#endif
+	#ifdef DYNAMIC_LIBJPEG
+		qjpeg_set_quality (&cinfo, bound(0, compression, 100), true);
+	#else
+		jpeg_set_quality (&cinfo, bound(0, compression, 100), true);
+	#endif
+	#ifdef DYNAMIC_LIBJPEG
+		qjpeg_start_compress(&cinfo, true);
+	#else
+		jpeg_start_compress(&cinfo, true);
+	#endif
 
 	while (cinfo.next_scanline < cinfo.image_height)
 	{
 	    *row_pointer = &buffer[(cinfo.image_height - cinfo.next_scanline - 1) * cinfo.image_width * 3];
-	    jpeg_write_scanlines(&cinfo, row_pointer, 1);
+	    #ifdef DYNAMIC_LIBJPEG
+	    	qjpeg_write_scanlines(&cinfo, row_pointer, 1);
+	    #else
+	    	jpeg_write_scanlines(&cinfo, row_pointer, 1);
+	    #endif
 	}
-
-	jpeg_finish_compress(&cinfo);
+	#ifdef DYNAMIC_LIBJPEG
+		qjpeg_finish_compress(&cinfo);
+	#else
+		jpeg_finish_compress(&cinfo);
+	#endif
 	VFS_CLOSE(outfile);
-	jpeg_destroy_compress(&cinfo);
+	#ifdef DYNAMIC_LIBJPEG
+		qjpeg_destroy_compress(&cinfo);
+	#else
+		jpeg_destroy_compress(&cinfo);
+	#endif
 }
-
 #endif
 
 
@@ -1761,7 +2112,7 @@ void SaturateR8G8B8(qbyte *data, int size, float sat)
 
 void BoostGamma(qbyte *rgba, int width, int height)
 {
-#if defined(RGLQUAKE)
+#if defined(GLQUAKE)
 	int i;
 	extern qbyte gammatable[256];
 
@@ -1784,7 +2135,7 @@ void BoostGamma(qbyte *rgba, int width, int height)
 
 
 
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 
 #ifdef DDS
 #ifndef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
@@ -1817,11 +2168,11 @@ typedef struct {
 } ddsheader;
 
 
-int GL_LoadTextureDDS(unsigned char *buffer, int filesize)
+texid_t GL_LoadTextureDDS(unsigned char *buffer, int filesize)
 {
 	extern int		gl_filter_min;
 	extern int		gl_filter_max;
-	int texnum;
+	texid_t texnum;
 	int nummips;
 	int mipnum;
 	int datasize;
@@ -1831,12 +2182,12 @@ int GL_LoadTextureDDS(unsigned char *buffer, int filesize)
 
 	ddsheader fmtheader;
 	if (*(int*)buffer != *(int*)"DDS ")
-		return 0;
+		return r_nulltex;
 	buffer+=4;
 
 	memcpy(&fmtheader, buffer, sizeof(fmtheader));
 	if (fmtheader.dwSize != sizeof(fmtheader))
-		return 0;	//corrupt/different version
+		return r_nulltex;	//corrupt/different version
 
 	buffer += fmtheader.dwSize;
 
@@ -1860,13 +2211,13 @@ int GL_LoadTextureDDS(unsigned char *buffer, int filesize)
 		pad = 8;
 	}
 	else
-		return 0;
+		return r_nulltex;
 
 	if (!qglCompressedTexImage2DARB)
-		return 0;
+		return r_nulltex;
 
-	texnum = GL_AllocNewTexture();
-	GL_Bind(texnum);
+	texnum = GL_AllocNewTexture(fmtheader.dwWidth, fmtheader.dwHeight);
+	GL_MTBind(0, GL_TEXTURE_2D, texnum);
 
 	datasize = fmtheader.dwPitchOrLinearSize;
 	for (mipnum = 0; mipnum < nummips; mipnum++)
@@ -1892,13 +2243,13 @@ int GL_LoadTextureDDS(unsigned char *buffer, int filesize)
 
 	if (nummips>1)
 	{
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
 	}
 	else
 	{
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max);
-		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
 	}
 
 	return texnum;
@@ -1947,39 +2298,62 @@ qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, char *fn
 	return NULL;
 }
 
+static struct
+{
+	char *name;
+	int enabled;
+} tex_extensions[] =
+{//reverse order of preference - (match commas with optional file types)
+	{".pcx", 1},	//pcxes are the original gamedata of q2. So we don't want them to override pngs.
+#ifdef AVAIL_JPEGLIB
+	{".jpg", 1},	//q3 uses some jpegs, for some reason
+#endif
+	{".bmp", 0},	//wtf? at least not lossy
+#ifdef AVAIL_PNGLIB
+	{".png", 1},	//pngs, fairly common, but slow
+#endif
+	{".tga", 1},	//fairly fast to load
+#ifdef DDS
+	{".dds", 1},	//compressed or something
+#endif
+	{"", 1}			//someone forgot an extension
+};
+
+static struct
+{
+	int args;
+	char *path;
+
+	int enabled;
+} tex_path[] =
+{
+	/*if three args, first is the subpath*/
+	/*the last two args are texturename then extension*/
+	{2, "%s%s", 1},				/*directly named texture*/
+	{3, "textures/%s/%s%s", 1},	/*fuhquake compatibility*/
+	{3, "%s/%s%s", 1},			/*fuhquake compatibility*/
+	{2, "textures/%s%s", 1},	/*directly named texture with textures/ prefix*/
+	{2, "override/%s%s", 1}		/*tenebrae compatibility*/
+};
+
 int image_width, image_height;
-qbyte *COM_LoadFile (char *path, int usehunk);
 //fixme: should probably get rid of the 'Mod' prefix, and use something more suitable.
-int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean alpha, qboolean colouradjust)
+texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 {
 	qboolean alphaed;
-	char *buf, *data;
-	int len;
+	char *buf;
+	unsigned char *data;
+	texid_t tex;
 //	int h;
 	char fname[MAX_QPATH], nicename[MAX_QPATH];
 
-	static char *extensions[] = {//reverse order of preference - (match commas with optional file types)
-		".pcx",	//pcxes are the original gamedata of q2. So we don't want them to override pngs.
-#ifdef AVAIL_JPEGLIB
-		".jpg",
-#endif
-		".bmp",
-#ifdef AVAIL_PNGLIB
-		".png",
-#endif
-		".tga",
-		""
-	};
-
-	static char *path[] ={
-		"2%s%s",
-		"3textures/%s/%s%s",	//this is special... It uses the subpath parameter. Note references to (i == 1)
-		"3%s/%s%s",
-		"2textures/%s%s",
-		"2override/%s%s"
-	};
-
 	int i, e;
+
+	if (!*name)
+		return r_nulltex;
+
+	image_width = 0;
+	image_height = 0;
 
 	COM_StripAllExtensions(name, nicename, sizeof(nicename));
 
@@ -1988,17 +2362,33 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 		*data = '#';
 	}
 
-	if ((len = R_FindTexture(name))!=-1)	//don't bother if it already exists.
-		return len;
+	snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name); /*should be safe if its null*/
 	if (subpath && *subpath)
 	{
-		snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name);
-		if ((len = R_FindTexture(fname))!=-1)	//don't bother if it already exists.
-			return len;
+		tex = R_FindTexture(fname);
+		if (TEXVALID(tex))	//don't bother if it already exists.
+			return tex;
+	}
+	if (!(flags & IF_SUBDIRONLY))
+	{
+		tex = R_FindTexture(name);
+		if (TEXVALID(tex))	//don't bother if it already exists.
+			return tex;
 	}
 
-	if ((len = R_LoadCompressed(name)))
-		return len;
+
+	if (subpath && *subpath)
+	{
+		tex = R_LoadCompressed(fname);
+		if (TEXVALID(tex))
+			return tex;
+	}
+	if (!(flags & IF_SUBDIRONLY))
+	{
+		tex = R_LoadCompressed(name);
+		if (TEXVALID(tex))
+			return tex;
+	}
 
 	if (strchr(name, '/'))	//never look in a root dir for the pic
 		i = 0;
@@ -2006,61 +2396,90 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 		i = 1;
 
 	//should write this nicer.
-	for (; i < sizeof(path)/sizeof(char *); i++)
+	for (; i < sizeof(tex_path)/sizeof(tex_path[0]); i++)
 	{
-#ifdef DDS
-		if (path[i][0] >= '3')
+		if (!tex_path[i].enabled)
+			continue;
+		for (e = sizeof(tex_extensions)/sizeof(tex_extensions[0])-1; e >=0 ; e--)
 		{
-			if (!subpath)
-					continue;
-			snprintf(fname, sizeof(fname)-1, path[i]+1, subpath, /*COM_SkipPath*/(nicename), ".dds");
-		}
-		else
-			snprintf(fname, sizeof(fname)-1, path[i]+1, nicename, ".dds");
-		if ((buf = COM_LoadFile (fname, 5)))
-		{
-			len = GL_LoadTextureDDS(buf, com_filesize);
-			BZ_Free(buf);
-			if (len)
-				return len;
-		}
-#endif
+			if (!tex_extensions[e].enabled)
+				continue;
 
-		for (e = sizeof(extensions)/sizeof(char *)-1; e >=0 ; e--)
-		{
-			if (path[i][0] >= '3')
+			if (tex_path[i].args >= 3)
 			{
 				if (!subpath)
 					continue;
-				snprintf(fname, sizeof(fname)-1, path[i]+1, subpath, /*COM_SkipPath*/(nicename), extensions[e]);
+				snprintf(fname, sizeof(fname)-1, tex_path[i].path, subpath, nicename, tex_extensions[e].name);
 			}
 			else
-				snprintf(fname, sizeof(fname)-1, path[i]+1, nicename, extensions[e]);
+			{
+				if (flags & IF_SUBDIRONLY)
+					continue;
+				snprintf(fname, sizeof(fname)-1, tex_path[i].path, nicename, tex_extensions[e].name);
+			}
 			TRACE(("dbg: Mod_LoadHiResTexture: trying %s\n", fname));
 			if ((buf = COM_LoadFile (fname, 5)))
 			{
+#ifdef DDS
+				tex = GL_LoadTextureDDS(buf, com_filesize);
+				if (TEXVALID(tex))
+				{
+					BZ_Free(buf);
+					return tex;
+				}
+#endif
 				if ((data = Read32BitImageFile(buf, com_filesize, &image_width, &image_height, fname)))
 				{
 					extern cvar_t vid_hardwaregamma;
-					if (colouradjust && !vid_hardwaregamma.value)
+					if (!(flags&IF_NOGAMMA) && !vid_hardwaregamma.value)
 						BoostGamma(data, image_width, image_height);
+
+					if (!(flags & IF_NOALPHA))
+					{
+						unsigned int alpha_width, alpha_height, p;
+						char aname[MAX_QPATH];
+						unsigned char *alphadata;
+						char *alph;
+						if (tex_path[i].args >= 3)
+							snprintf(aname, sizeof(aname)-1, tex_path[i].path, subpath, nicename, va("_alpha%s", tex_extensions[e].name));
+						else
+							snprintf(aname, sizeof(aname)-1, tex_path[i].path, nicename, va("_alpha%s", tex_extensions[e].name));
+						if ((alph = COM_LoadFile (aname, 5)))
+						{
+							if ((alphadata = Read32BitImageFile(alph, com_filesize, &alpha_width, &alpha_height, aname)))
+							{
+								if (alpha_width == image_width && alpha_height == image_height)
+								{
+									for (p = 0; p < alpha_width*alpha_height; p++)
+									{
+										data[(p<<2) + 3] = (alphadata[(p<<2) + 0] + alphadata[(p<<2) + 1] + alphadata[(p<<2) + 2])/3;
+									}
+								}
+								BZ_Free(alphadata);
+							}
+							BZ_Free(alph);
+						}
+					}
+
+
 					TRACE(("dbg: Mod_LoadHiResTexture: %s loaded\n", name));
-					if (i == 1)
+					if (tex_path[i].args >= 3)
 					{	//if it came from a special subpath (eg: map specific), upload it using the subpath prefix
 						snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name);
-						len = R_LoadTexture32 (fname, image_width, image_height, (unsigned*)data, mipmap, alpha);
+						tex = R_LoadTexture32 (fname, image_width, image_height, data, flags);
 					}
 					else
-						len = R_LoadTexture32 (name, image_width, image_height, (unsigned*)data, mipmap, alpha);
+						tex = R_LoadTexture32 (name, image_width, image_height, data, flags);
 
 					BZ_Free(data);
 
 					BZ_Free(buf);
 
-					return len;
+					return tex;
 				}
 				else
 				{
+					Con_Printf("Unable to read file %s (format unsupported)\n", fname);
 					BZ_Free(buf);
 					continue;
 				}
@@ -2068,37 +2487,57 @@ int Mod_LoadHiResTexture(char *name, char *subpath, qboolean mipmap, qboolean al
 		}
 	}
 
-	//now look in wad files. (halflife compatability)
-	data = W_GetTexture(name, &image_width, &image_height, &alphaed);
-	if (data)
-		return R_LoadTexture32 (name, image_width, image_height, (unsigned*)data, mipmap, alphaed);
-	return 0;
+	if (!(flags & IF_SUBDIRONLY))
+	{
+		/*still failed? attempt to load quake lmp files, which have no real format id*/
+		snprintf(fname, sizeof(fname)-1, "%s%s", nicename, ".lmp");
+		if ((buf = COM_LoadFile (fname, 5)))
+		{
+			extern cvar_t vid_hardwaregamma;
+			tex = r_nulltex;
+			if (com_filesize >= 8)
+			{
+				image_width = LittleLong(((int*)buf)[0]);
+				image_height = LittleLong(((int*)buf)[1]);
+				if (image_width*image_height+8 == com_filesize)
+				{
+					tex = R_LoadTexture8(name, image_width, image_height, buf+8, flags, 1);
+				}
+			}
+			BZ_Free(buf);
+			return tex;
+		}
+
+		//now look in wad files. (halflife compatability)
+		data = W_GetTexture(name, &image_width, &image_height, &alphaed);
+		if (data)
+		{
+			tex = R_LoadTexture32 (name, image_width, image_height, (unsigned*)data, flags);
+			BZ_Free(data);
+			return tex;
+		}
+	}
+	return r_nulltex;
 }
-int Mod_LoadReplacementTexture(char *name, char *subpath, qboolean mipmap, qboolean alpha, qboolean gammaadjust)
+texid_t R_LoadReplacementTexture(char *name, char *subpath, unsigned int flags)
 {
 	if (!gl_load24bit.value)
-		return 0;
-	return Mod_LoadHiResTexture(name, subpath, mipmap, alpha, gammaadjust);
+		return r_nulltex;
+	return R_LoadHiResTexture(name, subpath, flags);
 }
 
 extern cvar_t r_shadow_bumpscale_bumpmap;
-int Mod_LoadBumpmapTexture(char *name, char *subpath)
+texid_t R_LoadBumpmapTexture(char *name, char *subpath)
 {
 	char *buf, *data;
-	int len;
+	texid_t tex;
 //	int h;
 	char fname[MAX_QPATH], nicename[MAX_QPATH];
 
-	static char *extensions[] = {//reverse order of preference - (match commas with optional file types)
+	static char *extensions[] =
+	{//reverse order of preference - (match commas with optional file types)
 		".tga",
 		""
-	};
-
-	static char *path[] ={
-		"%s%s",
-		"textures/%s/%s%s",	//this is special... It's special name is Mr Ben Ian Graham Hacksworth.
-		"textures/%s%s",
-		"override/%s%s"
 	};
 
 	int i, e;
@@ -2107,11 +2546,13 @@ int Mod_LoadBumpmapTexture(char *name, char *subpath)
 
 	COM_StripExtension(name, nicename, sizeof(nicename));
 
-	if ((len = R_FindTexture(name))!=-1)	//don't bother if it already exists.
-		return len;
+	tex = R_FindTexture(name);
+	if (TEXVALID(tex))	//don't bother if it already exists.
+		return tex;
 
-	if ((len = R_LoadCompressed(name)))
-		return len;
+	tex = R_LoadCompressed(name);
+	if (TEXVALID(tex))
+		return tex;
 
 	if (strchr(name, '/'))	//never look in a root dir for the pic
 		i = 0;
@@ -2119,23 +2560,20 @@ int Mod_LoadBumpmapTexture(char *name, char *subpath)
 		i = 1;
 
 	//should write this nicer.
-	for (; i < sizeof(path)/sizeof(char *); i++)
+	for (; i < sizeof(tex_path)/sizeof(tex_path[0]); i++)
 	{
+		if (!tex_path[i].enabled)
+			continue;
 		for (e = sizeof(extensions)/sizeof(char *)-1; e >=0 ; e--)
 		{
-			if (i == 1)
+			if (tex_path[i].args >= 3)
 			{
-				char map [MAX_QPATH*2];
-#ifndef CLIENTONLY
-				if (*sv.name)	//server loads before the client knows what's happening. I suppose we could have some sort of param...
-					Q_strncpyz(map, sv.name, sizeof(map));
-				else
-#endif
-					COM_FileBase(cl.model_name[1], map, sizeof(map));
-				snprintf(fname, sizeof(fname)-1, path[i], map, nicename, extensions[e]);
+				if (!subpath)
+					continue;
+				snprintf(fname, sizeof(fname)-1, tex_path[i].path, subpath, nicename, extensions[e]);
 			}
 			else
-				snprintf(fname, sizeof(fname)-1, path[i], nicename, extensions[e]);
+				snprintf(fname, sizeof(fname)-1, tex_path[i].path, nicename, extensions[e]);
 
 			TRACE(("dbg: Mod_LoadBumpmapTexture: opening %s\n", fname));
 
@@ -2144,7 +2582,7 @@ int Mod_LoadBumpmapTexture(char *name, char *subpath)
 				if ((data = ReadTargaFile(buf, com_filesize, &image_width, &image_height, 2)))	//Only load a greyscale image.
 				{
 					TRACE(("dbg: Mod_LoadBumpmapTexture: tga %s loaded\n", name));
-					len = R_LoadTexture8Bump(name, image_width, image_height, data, true, r_shadow_bumpscale_bumpmap.value);
+					tex = R_LoadTexture8Bump(name, image_width, image_height, data, IF_NOALPHA|IF_NOGAMMA);
 					BZ_Free(data);
 				}
 				else
@@ -2155,11 +2593,11 @@ int Mod_LoadBumpmapTexture(char *name, char *subpath)
 
 				BZ_Free(buf);
 
-				return len;
+				return tex;
 			}
 		}
 	}
-	return 0;
+	return r_nulltex;
 }
 
 #endif

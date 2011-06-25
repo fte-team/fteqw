@@ -1,7 +1,7 @@
 #include "quakedef.h"
 
 #ifdef RUNTIMELIGHTING
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 
 
 extern model_t *lightmodel;
@@ -61,7 +61,7 @@ vec_t CastRay (vec3_t p1, vec3_t p2)
 	trace_t	trace;
 	vec3_t move;
 
-	lightmodel->funcs.Trace (lightmodel, 0, 0, p1, p2, vec3_origin, vec3_origin, &trace);
+	lightmodel->funcs.Trace (lightmodel, 0, 0, NULL, p1, p2, vec3_origin, vec3_origin, &trace);
 	if (trace.fraction < 1)
 		return -1;	
 
@@ -158,7 +158,7 @@ void LightLoadEntities(char *entstring)
 			for (i = 0; i < 256; i+=16)
 			{
 				v[2] = mapent->origin[2]-i;
-				cont = lightmodel->funcs.PointContents (lightmodel, v);
+				cont = lightmodel->funcs.PointContents (lightmodel, NULL, v);
 				if (cont & (FTECONTENTS_LAVA | FTECONTENTS_SLIME | FTECONTENTS_SOLID))
 					break;
 			}			
@@ -677,7 +677,7 @@ static void SingleLightFace (mentity_t *light, llightinfo_t *l)
 		lightsamp[c][1] += add*light->colour[1];
 		lightsamp[c][2] += add*light->colour[2];
 
-		norms[c][0] += add * incoming[0];	//Quake doesn't make sence some times.
+		norms[c][0] -= add * incoming[0];	//Quake doesn't make sence some times.
 		norms[c][1] -= add * incoming[1];
 		norms[c][2] -= add * incoming[2];
 
@@ -761,7 +761,7 @@ void LightFace (int surfnum)
 	byte	*rgbout;
 	byte	*dulout;
 	vec3_t	*light, *norm;
-	vec3_t	wnorm, temp;
+	vec3_t	wnorm, temp, svector, tvector;
 	int		w, h;
 	
 	f = dfaces + surfnum;
@@ -871,7 +871,14 @@ void LightFace (int surfnum)
 #else
 	rgbout = f->samples;
 	if (lightmodel->deluxdata)
+	{
 		dulout = f->samples - lightmodel->lightdata + lightmodel->deluxdata;
+
+		VectorCopy(bsptexinfo(f->texinfo).vecs[0], svector);
+		VectorNegate(bsptexinfo(f->texinfo).vecs[1], tvector);
+		VectorNormalize(svector);
+		VectorNormalize(tvector);
+	}
 	else
 		dulout = NULL;
 #endif
@@ -931,13 +938,13 @@ void LightFace (int surfnum)
 
 				if (dulout)
 				{
-					temp[0] = DotProduct(wnorm, bsptexinfo(f->texinfo).vecs[0]);
-					temp[1] = DotProduct(wnorm, bsptexinfo(f->texinfo).vecs[1]);
+					temp[0] = DotProduct(wnorm, svector);
+					temp[1] = DotProduct(wnorm, tvector);
 					temp[2] = DotProduct(wnorm, l.facenormal);
 					VectorNormalize(temp);
-					*dulout++ = (temp[0]+1)/2 * 255;
-					*dulout++ = (temp[1]+1)/2 * 255;
-					*dulout++ = (temp[2]+1)/2 * 255;
+					*dulout++ = -(temp[0]+1)*128 + 128;
+					*dulout++ = (temp[1]+1)*128 + 128;
+					*dulout++ = (temp[2]+1)*128 + 128;
 				}
 			}
 		}

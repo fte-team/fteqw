@@ -28,7 +28,6 @@ float		servercommandframe;	//clientframe echoed off the server
 string		mapname;	//current brief map name
 float		intermission;	//non-zero if the server sent an svc_intermission.
 
-
 //
 // global variables set by built in functions
 //
@@ -103,22 +102,10 @@ void		end_sys_globals;		// flag for structure dumping
 .float		renderflags;
 .string		model;
 .float		frame;
-.float            health;
-.float		ammo_shells;
-.float		ammo_cells;
-.float		weight;
-.float		max_weight;
-.float            max_health;
-.float            rage;
-.float            regen;
-.float            position;
-.float            missionbrief;
-.float            sneak;
-.float            perk2;
-.float            perk1;
 .float		frame2;
 .float		lerpfrac;	//the ammount of frame2 to use.
 .float		skin;
+
 .vector		mins, maxs;		// bounding box extents reletive to origin
 .vector		size;			// maxs - mins
 
@@ -142,16 +129,3 @@ void		end_sys_globals;		// flag for structure dumping
 //================================================
 void		end_sys_fields;			// flag for structure dumping
 //================================================
-
-.float             map_ent1;
-.float             map_ent2;
-.float             map_ent3;
-.float             map_obj;
-.float             location;
-.float             start_time;
-.float             recoil;
-
-.float             silencer;
-.float             extender;
-.float             timer;
-

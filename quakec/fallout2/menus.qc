@@ -36,12 +36,12 @@ weaponry\n\n
 
 string () ShopString =
 {
-	return ("êëêëêë supply merchant êëêëêë\n"
+	return ("--- S H O P -------\n"
 		"\n"
-		"ê1ë perk [slot 1]  \n"
-		"ê2ë perk [slot 2]  \n"
+		"ê1ë traits         \n"
+		"ê2ë perks          \n"
 		"ê3ë body armour    \n"
-		"ê4ë ammunition     \n"
+		"ê4ë protection     \n"
 		"ê5ë weapons        \n"
 		"ê6ë equipment      \n"
 		"ê7ë chems          \n"
@@ -54,7 +54,7 @@ string () WeaponString =
 	return ("weaponry\n"
 		"\n"
 		"ê1ë melee          \n"
-		"ê2ë explosives     \n"
+		"ê2ë thrown         \n"
 		"ê3ë pistols&smgs   \n"
 		"ê4ë shotguns       \n"
 		"ê5ë rifles         \n"
@@ -66,41 +66,36 @@ string () TraitString =
 {
 	return ("traits\n"
 		"\n"
-		"ê1ë unidextrous      \n"
-		"ê2ë ruthless         \n"
-		"ê3ë chem addict      \n"
-		"ê4ë red scare        \n"
-		"ê5ë living lightning \n"
-		"ê6ë one in a million \n"
-		"êeë leave            \n");
+		"ê1ë one handed     \n"
+		"ê2ë small frame    \n"
+		"ê3ë bruiser        \n"
+		"ê4ë heavy handed   \n"
+		"ê5ë bloody mess    \n"
+		"ê6ë bad luck       \n"
+		"êeë leave          \n");
 };
-
 
 string () ThrownString =
 {
-	return ("ê!ë explosives ê!ë\n"
+	return ("grenades\n"
+		"	GRENADE | COST		  \n"
 		"\n"
-		"ê1ë flash bomb               8$\n"
-		"ê2ë frag grenade            12$\n"
-		"ê3ë ultra-light necklace     3$\n"
-		"ê4ë hmx compound             2$\n"
-		"ê5ë rdx crystals             2$\n"
-		"ê6ë explosive rocket        10$\n"
-		"êeë exit                       \n");
+		"ê1ë smoke grenade             3$\n"
+		"ê2ë frag grenade              4$\n"
+		"ê3ë emp grenade               5$\n"
+		"ê4ë flashbang                 7$\n"
+		"êeë exit                        \n");
 };
 
 string () BuildString =
 {
 	return ("BUILD A STRUCTURE\n"
-		"      NAME         COST IN JUNK\n"
+		"      NAME | UPGRADE |   SCRAPS\n"
 		"\n"
-		"ê1ë Super Flash Bomb          4\n"
-		"ê2ë Homemade Grenade          5\n"
-		"ê3ë Needler Scope             5\n"
-		"ê4ë Ghost Goggles             7\n"
-		"ê5ë Gas Bomb                 10\n"
-		"ê6ë Deflector Ring           15\n"
-		"ê7ë Auto-Doc                 20\n"
+		"ê1ë Mr. Ammo                  4\n"
+		"ê2ë Barricade                 6\n"
+		"ê3ë AutoDoc(tm)              10\n"
+		"ê4ë Robo-Fang                11\n"
 		"êeë exit                       \n");
 };
 
@@ -121,75 +116,45 @@ string () ArmorString =
 {
 	return ("body armour           wt  abs  prc\n"
 		"\n"
-		"ê1ë kevlar shirt     04 1/25%  50$\n"
-		"ê2ë leather armor    07 3/30% 100$\n"
-		"ê3ë double kevlar    09 1/50% 125$\n"
-		"ê4ë ceramic armor    15 7/25% 150$\n"
-		"ê5ë combat armor     12 6/40% 200$\n"
-		"ê6ë brotherhood      17 7/45% 250$\n"
-		"ê7ë force armor      06 9/15% 300$\n"
-		"ê8ë power armor      25 8/50% 400$\n");
+		"ê1ë light kevlar      03 1/20% 03$\n"
+		"ê2ë leather armor     05 2/30% 08$\n"
+		"ê3ë kevlar armor      09 3/35% 10$\n"
+		"ê4ë metal armor       15 5/35% 12$\n"
+		"ê5ë combat armor      12 4/40% 25$\n"
+		"ê6ë brotherhood armor 17 5/45% 35$\n"
+		"ê7ë force armor       06 7/10% 45$\n"
+		"ê8ë metal armor mkii  20 8/50% 55$\n");
 };
 
 string () PerkString =
 {
 	return ("perks\n"
+		"  ABILITY | FRAGS NEEDED \n"
 		"\n"
-		"ê 1ë unbreakable          \n"
-		"ê 2ë feral swiftness      \n"
-		"ê 3ë stunt man            \n"
-		"ê 4ë kick in the door!    \n"
-		"ê 5ë quick draw           \n"
-		"ê 6ë light step           \n"
-		"ê 7ë surprise attack      \n"
-		"ê 8ë large and in charge  \n"
-		"ê 9ë nintendo gamer       \n"
-		"ê 0ë extrasensory paranoia\n"
-		"êF1ë last man standing    \n"
-		"êF2ë bodysnatcher         \n"
-		"êF3ë natural aim          \n"
-		"êF4ë dark alchemist       \n"
-		"êF5ë renegade commando    \n"
-		"êF6ë power shot           \n"
-		"êF7ë one in a million     \n"
-		"êF8ë master blaster       \n"
-		"êF9ë death wish           \n");
+		"ê1ë bonus movement       2\n"
+		"ê2ë strong back          2\n"
+		"ê3ë quick pockets        2\n"
+		"ê4ë awareness            2\n"
+		"ê5ë silent running       3\n"
+		"ê6ë better criticals     3\n"
+		"ê7ë bonus ranged damage  3\n"
+		"ê8ë divine favor         3\n"
+		"ê9ë slayer               3\n"
+		"ê0ë sharpshooter         4\n");
 };
 
-
-string () AmmoString =
+string () ProtectString =
 {
-	return ("++ ammunition ++\n"
+	return ("++ high-tech protective devices ++ \n"
 		"\n"
-		"  AMMO  | POWER | TYPE |  COST[50]\n"
-		"ê1ë 10mm       2       FMJ   ê015ë\n"
-		"ê2ë 12gauge    4      SHOT   ê025ë\n"
-		"ê3ë 44 mag     3        AP   ê030ë\n"
-		"ê4ë 45 acp     3       JHP   ê020ë\n"
-		"ê5ë .223       3       FMJ   ê030ë\n"
-		"ê6ë 5mm        3       JHP   ê025ë\n"
-		"ê7ë .308       4        AP   ê040ë\n"
-		"ê8ë needle     2        AP   ê035ë\n"
-		"ê9ë caseless   3       FMJ   ê040ë\n"
-		"ê0ë energycell 4      CELL   ê055ë\n");
+		"  HARDWARE | SHIELDS VS |  PRICE   \n"
+		"ê1ë energy amulet  |damage: 7% ê15ë\n"
+		"ê2ë force field    |front: 15% ê20ë\n"
+		"ê3ë safety ring    |absorb: 3  ê35ë\n"
+		"ê4ë smokescreen    |obscures   ê40ë\n"
+		"ê5ë sentient cube  |regenerate ê45ë\n");
 };
 
-string () AmmoString2 =
-{
-	return ("++ ammunition ++\n"
-		"you get a discount when fighting ghouls!\n"
-		"  AMMO  | POWER | TYPE |  COST[50]\n"
-		"ê1ë 10mm       2       FMJ   ê005ë\n"
-		"ê2ë 12gauge    4       N/A   ê008ë\n"
-		"ê3ë 44 mag     3        AP   ê010ë\n"
-		"ê4ë 45 acp     3       JHP   ê007ë\n"
-		"ê5ë .223       3       FMJ   ê010ë\n"
-		"ê6ë 5mm        3       JHP   ê008ë\n"
-		"ê7ë .308       4        AP   ê015ë\n"
-		"ê8ë needle     2        AP   ê010ë\n"
-		"ê9ë caseless   3       FMJ   ê020ë\n"
-		"ê0ë energycell 4       N/A   ê015ë\n");
-};
 
 /*return ("++ high-tech protective devices ++ \n\n
   HARDWARE | SHIELDS VS |  PRICE   \n
@@ -202,18 +167,17 @@ string () AmmoString2 =
 
 string () OtherString =
 {
-    return ("ê?ë miscellaneous ê?ë\n"
+	return
+		"++ miscellaneous items ++\n"
+		"  ITEM   |   CLASS   |   PRICE     \n"
 		"\n"
-		"ê1ë junk                   1$\n"
-		"ê2ë nuka-cola              1$\n"
-		"ê3ë chemicals              2$\n"
-		"ê4ë aerosol can            2$\n"
-		"ê5ë circuitboard           5$\n"
-		"ê6ë steel pipe             3$\n"
-		"ê7ë duct tape              1$\n"
-		"ê8ë chewing gum            1$\n"
-		"ê9ë copper wire            1$\n"
-		"ê0ë x-ray tube             7$\n");
+		"\n"
+		"ê1ë (25) bandages for medic      2$\n"
+		"ê3ë (20) mr.ammo                20$\n"
+		"ê4ë (20) auto-doc               20$\n"
+		"ê5ë (20) shield-gen             20$\n"
+		"ê6ë (20) tesla-turret           20$\n"
+		;
 };
 
 
@@ -222,10 +186,10 @@ string () MeleeString =
 	return ("MELEE WEAPONS\n"
 		"WEAPON | TYPE | WT | PRICE   \n"
 		"\n"
-		"ê1ë knife              01 06$\n"
-		"ê2ë wrench             03 08$\n"
-		"ê3ë axe                08 09$\n"
-		"ê4ë spear              04 12$\n"
+		"ê1ë knife        melee 01 01$\n"
+		"ê2ë hand axe     melee 08 03$\n"
+		"ê3ë vibroblade   melee 04 10$\n"
+		"ê4ë power axe    melee 07 15$\n"
 		"êeë exit                     \n");
 };
 
@@ -245,12 +209,12 @@ string () PistolString =
 	return ("Pistols and Submachineguns\n"
 		"    WEAPON | CAL | WEIGHT | PRICE \n"
 		"\n"
-		"ê1ë usp socom  .45   01      50$\n"
-		"ê2ë d. eagle   .44   02      70$\n"
-		"ê3ë glock 21  10mm   01      40$\n"
-		"ê4ë needler pistol   02     120$\n"
-		"ê5ë h&k mp10  10mm   03     150$\n"
-		"ê6ë h&k ump    .45   03     170$\n");
+		"ê1ë mk23 socom .45   01       5$\n"
+		"ê2ë d. eagle   .44   02       7$\n"
+		"ê3ë needler pistol   02       9$\n"
+		"ê4ë h&k mp7    4mm   03      14$\n"
+		"ê5ë grease gun 9mm   03      17$\n"
+		"ê6ë alien blaster    02      21$\n");
 };
 
 string () ShotgunString =
@@ -258,10 +222,10 @@ string () ShotgunString =
 	return ("shotguns\n"
 		"    WEAPON | TYPE | WEIGHT | PRICE \n"
 		"\n"
-		"ê1ë pipe rifle .44   02      15$\n"
-		"ê2ë winchester 12g   03      60$\n"
-		"ê3ë citykiller 12g   04     240$\n"
-		"ê4ë jackhammer 12g   07     350$\n");
+		"ê1ë pipe rifle .44   02       4$\n"
+		"ê2ë winchester 12g   03       8$\n"
+		"ê3ë mossberg   12g   04      14$\n"
+		"ê4ë citykiller 12g   05      35$\n");
 };
 
 /*
@@ -277,12 +241,13 @@ string () RifleString =
 	return ("rifles\n"
 		"   RIFLE | TYPE | WEIGHT | PRICE \n"
 		"\n"
-		"ê1ë rangemaster 223  03     110$\n"
-		"ê2ë ak-112      5mm  04     180$\n"
-		"ê3ë fn fal      308  08     190$\n"
-		"ê4ë widowmaker  308  10     270$\n"
-		"ê5ë moonlight   223  05     280$\n"
-		"ê6ë hk g11      4mm  06     220$\n");
+		"ê1ë rangemaster 7mm  03      11$\n"
+		"ê2ë ak-112      5mm  04      21$\n"
+		"ê3ë remington  .308  05      24$\n"
+		"ê4ë ak-74       5mm  04      27$\n"
+		"ê5ë moonlight  .223  05      36$\n"
+		"ê6ë sa-80       5mm  05      32$\n"
+		"ê7ë fn-fal     .308  09      25$\n");
 };
 
 string () HeavyString =
@@ -290,43 +255,40 @@ string () HeavyString =
 	return ("other weaponry\n"
 		"  WEAPON | TYPE | WEIGHT | PRICE \n"
 		"\n"
-		"ê1ë rpg-7 missile launcher     10 350$\n"
-		"ê2ë m72 gauss rifle            07 550$\n"
-		"ê3ë plasma pistol              02 250$\n"
-		"ê4ë m25a2 phased plasma rifle  11 450$\n"
-		"ê5ë m95a1 plasma carbine       08 550$\n"
-		"ê6ë rsb-80 heavy plasma gun    25 650$\n");
+		"ê1ë rocket launcher  10      30$\n"
+		"ê2ë gauss rifle      07      32$\n"
+		"ê3ë laser carbine    12      45$\n");
 };
 
 string () ChemString =
 {
 	return ("drugs\n     DRUG  |   EFFECTS   |  PRICE\n"
 		"\n"
-		"ê1ë stimpack   heal over time 10$\n"
-		"ê2ë rad-x      anti-radiation 15$\n"
-		"ê3ë adrenaline*+speed/jump    15$\n"
-		"ê4ë medkit*    endless heal   25$\n"
-		"ê5ë superstim* instant heal   25$\n"
-		"ê6ë psycho*    +resist damage 25$\n"
-		"ê7ë berserk*   +strength      25$\n"
+		"ê1ë stimpack   heals 05+20     3$\n"
+		"ê2ë medkit+    heals 10+50     5$\n"
+		"ê3ë superstim* heals 20+60    12$\n"
+		"ê4ë adrenaline*+speed/jump    10$\n"
+		"ê5ë jet*       aim better     18$\n"
+		"êeë exit                         \n"
 		"\n"
-		"* requires medic                 \n");
+		"+ requires medic                 \n"
+		"* requires advanced medic        \n");
 };
 
 string () ChemString2 =
 {
 	return ("chems\n     DRUG  |   EFFECTS   |  PRICE\n"
 		"\n"
-		"ê1ë adrenaline +60 speed/jump  5$\n"
-		"ê2ë stimpack   heals 40       10$\n"
-		"ê3ë psycho+    +60 hp/no pain 15$\n"
-		"ê4ë medkit*    heals 20+50    15$\n"
-		"ê5ë berserk*   adren+psycho   15$\n"
+		"ê1ë adrenaline +60 speed/jump  3$\n"
+		"ê2ë stimpack   heals 40        5$\n"
+		"ê3ë psycho+    +60 hp/no pain 11$\n"
+		"ê4ë medkit*    heals 20+50    12$\n"
+		"ê5ë berserk*   adren+psycho   12$\n"
 		"ê6ë jet*       aim better     15$\n"
 		"êeë exit                         \n"
 		"\n"
-		"+ requires medic                 \n"
-		"* requires advanced medic        \n");
+		"+ requires shaman                \n"
+		"* requires advanced shaman       \n");
 };
 
 string () EnergyWeaponsString =
@@ -386,103 +348,16 @@ string () de_dust =
 string () EquipmentString =
 {
 	return ("+ special equipment +\n"
-		"we only let you use one of these!\n"
-		"ê1ë medic's bag                   ê5cë\n"
-		"ê2ë ghost goggles                 ê5cë\n"
-		"ê3ë stealth boy                   ê5cë\n"
-		"ê4ë belt pouch                    ê5cë\n"
-		"ê5ë backpack                      ê5cë\n"
-		"ê6ë toolkit mark ii               ê5cë\n"
-		"ê7ë climbing gear                 ê5cë\n"
-		"ê8ë enhanced battery              ê5cë\n"
+		"press your c key to activate!\n"
+		"\n"
+		"ê1ë medic's bag                   ê15cë\n"
+		"ê2ë security alarm                ê15cë\n"
+		"ê3ë remote camera                 ê15cë\n"
+		"ê4ë belt pouch                    ê15cë\n"
+		"ê5ë backpack                      ê15cë\n"
+		"ê6ë toolkit mark ii               ê15cë\n"
+		"ê7ë climbing gear                 ê15cë\n"
+		"ê8ë enhanced battery              ê15cë\n"
+		"ê9ë stealth boy                   ê45cë\n"
 		"\n");
-};
-
-
-string () EnterString =
-{
-	return ("êëêëêëêë fallout êëêëêëêë\n"
-		"êë   a post-nuclear fps   êë\n"
-		"\n"
-            "scour the wastes with your friends!\n"
-            "this quake mod is entirely based on\n"
-            "the fallout series of computer rpgs\n"
-            "for best performance the fte client\n"
-            "is required for play, available at:\n"
-            "        êë www.fteqw.com êë        \n" 
-            "\n" 
-            "êpress 1 to continueë\n"
-            "\n" 
-
-		"\n");
-};
-
-
-string () WaitString =
-{
-	return ("êëêëêëêë fallout êëêëêëêë\n"
-		"êë   a post-nuclear fps   êë\n"
-		"\n"
-            "scour the wastes with your friends!\n"
-            "this quake mod is entirely based on\n"
-            "the fallout series of computer rpgs\n"
-            "for best performance the fte client\n"
-            "is required for play, available at:\n"
-            "        êë www.fteqw.com êë        \n" 
-            "\n" 
-            "êwait until next roundë\n"
-            "\n" 
-
-		"\n");
-};
-
-string () LockpickString =
-{
-	return ("êë Picking êë\n"
-            "\n\n"
-            "this is tricky business! wait until\n"
-            "all three tumblers are in place by \n"
-            "watching for three [!] symbols. but\n"
-            "you have to be quick! failure means\n" 
-            "you jam the lock.\n\n" 
-            "êpress 1 to pickë\n"
-            "êpress 2 to quitë\n");
-};
-
-string () DefuseString =
-{
-	return ("êë Defuse êë\n"
-            "\n\n"
-            "this is tricky business! wait until\n"
-            "all three circuits are in place by \n"
-            "watching for three [!] symbols. but\n"
-            "you have to be quick! failure means\n" 
-            "you reset the switch bypass.\n\n" 
-            "êpress 1 to pickë\n"
-            "êpress 2 to quitë\n");
-};
-
-
-
-string () MissionString =
-{
-	return ("êëêëêë   mission  select  êëêëêë\n"
-		"\n"
-		"\n"
-		"ê1ë hostage rescue   \n"
-		"ê2ë capture supplies \n"
-		"ê3ë shadow mission   \n"
-		"ê4ë zombie mission   \n"
-		"ê5ë destroy supplies \n"
-		"ê6ë bomb defusal     \n\n"
-		"ê7ë grab one later   \n");
-};
-
-string () DepartString =
-{
-	return ("êëêëêë saddle up! êëêëêë\n"
-		"\n"
-		"\n"
-		"ê1ë take off to mission site\n"
-		"ê2ë wait a second           \n\n\n");
 };

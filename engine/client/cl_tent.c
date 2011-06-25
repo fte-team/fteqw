@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -25,7 +25,7 @@ entity_state_t *CL_FindPacketEntity(int num);
 
 #define R_AddDecals(a)	//disabled for now
 
-int 
+int
 	pt_gunshot=P_INVALID,
 	ptdp_gunshotquad=P_INVALID,
 	pt_spike=P_INVALID,
@@ -63,7 +63,7 @@ int
 
 	ptqw_blood=P_INVALID,
 	ptqw_lightningblood=P_INVALID,
-	
+
 	ptq2_blood=P_INVALID,
 	rtq2_railtrail=P_INVALID,
 	rtq2_blastertrail=P_INVALID,
@@ -170,19 +170,6 @@ typedef enum
 #define Q2SPLASH_BLOOD		6
 #endif
 
-
-
-	// hexen 2
-#define TE_STREAM_CHAIN			25
-#define TE_STREAM_SUNSTAFF1		26
-#define TE_STREAM_SUNSTAFF2		27
-#define TE_STREAM_LIGHTNING		28
-#define TE_STREAM_COLORBEAM		29
-#define TE_STREAM_ICECHUNKS		30
-#define TE_STREAM_GAZE			31
-#define TE_STREAM_FAMINE		32
-
-
 #define	MAX_BEAMS	64
 typedef struct
 {
@@ -202,11 +189,12 @@ typedef struct
 
 beam_t		cl_beams[MAX_BEAMS];
 
-#define	MAX_EXPLOSIONS	32
+#define	MAX_EXPLOSIONS	256
 typedef struct
 {
 	vec3_t	origin;
 	vec3_t	oldorigin;
+	vec3_t	velocity;
 
 	int firstframe;
 	int numframes;
@@ -234,10 +222,10 @@ sfx_t			*cl_sfx_ric2;
 sfx_t			*cl_sfx_ric3;
 sfx_t			*cl_sfx_r_exp3;
 
-cvar_t	cl_expsprite = SCVAR("cl_expsprite", "0");
-cvar_t  r_explosionlight = SCVARC("r_explosionlight", "1", Cvar_Limiter_ZeroToOne_Callback);
-cvar_t	cl_truelightning = SCVARF("cl_truelightning", "0",	CVAR_SEMICHEAT);
-cvar_t  cl_beam_trace = SCVAR("cl_beam_trace", "0");
+cvar_t	cl_expsprite = CVAR("cl_expsprite", "0");
+cvar_t  r_explosionlight = CVARC("r_explosionlight", "1", Cvar_Limiter_ZeroToOne_Callback);
+cvar_t	cl_truelightning = CVARF("cl_truelightning", "0",	CVAR_SEMICHEAT);
+cvar_t  cl_beam_trace = CVAR("cl_beam_trace", "0");
 
 typedef struct {
 	sfx_t **sfx;
@@ -255,6 +243,74 @@ tentsfx_t tentsfx[] =
 };
 
 vec3_t playerbeam_end[MAX_SPLITS];
+
+struct associatedeffect
+{
+	struct associatedeffect *next;
+	char mname[MAX_QPATH];
+	char pname[MAX_QPATH];
+	enum
+	{
+		AE_TRAIL,
+		AE_EMIT,
+		AE_REPLACE
+	} type;
+} *associatedeffect;
+void CL_AssociateEffect_f(void)
+{
+	char *modelname = Cmd_Argv(1);
+	char *effectname = Cmd_Argv(2);
+	int type = atoi(Cmd_Argv(3));
+	struct associatedeffect *ae;
+	if (!strcmp(Cmd_Argv(0), "r_trail"))
+		type = AE_TRAIL;
+	else
+	{
+		if (type)
+			type = AE_REPLACE;
+		else
+			type = AE_EMIT;
+	}
+
+	if (
+		strstr(modelname, "player") ||
+		strstr(modelname, "eyes") ||
+		strstr(modelname, "flag") ||
+		strstr(modelname, "tf_stan") ||
+		strstr(modelname, ".bsp") ||
+		strstr(modelname, "turr"))
+	{
+		Con_Printf("Sorry: Not allowed to attach effects to model \"%s\"\n", modelname);
+		return;
+	}
+
+	if (strlen (modelname) >= MAX_QPATH || strlen(effectname) >= MAX_QPATH)
+		return;
+
+	/*replace the old one if it exists*/
+	for(ae = associatedeffect; ae; ae = ae->next)
+	{
+		if (!strcmp(ae->mname, modelname))
+			if ((ae->type==AE_TRAIL) == (type==AE_TRAIL))
+			{
+				strcpy(ae->pname, effectname);
+				break;
+			}
+	}
+	if (!ae)
+	{
+		ae = Z_Malloc(sizeof(*ae));
+		ae->type = type;
+		strcpy(ae->mname, modelname);
+		strcpy(ae->pname, effectname);
+		ae->next = associatedeffect;
+		associatedeffect = ae;
+	}
+
+	//FIXME: overkill
+	CL_RegisterParticles();
+}
+
 /*
 =================
 CL_ParseTEnts
@@ -271,71 +327,138 @@ void CL_InitTEnts (void)
 			*tentsfx[i].sfx = NULL;
 	}
 
+	Cmd_AddCommand("r_effect", CL_AssociateEffect_f);
+	Cmd_AddCommand("r_trail", CL_AssociateEffect_f);
+
 	Cvar_Register (&cl_expsprite, "Temporary entity control");
 	Cvar_Register (&cl_truelightning, "Temporary entity control");
 	Cvar_Register (&cl_beam_trace, "Temporary entity control");
 	Cvar_Register (&r_explosionlight, "Temporary entity control");
 }
 
+void CL_ShutdownTEnts (void)
+{
+	struct associatedeffect *ae;
+	while(associatedeffect)
+	{
+		ae = associatedeffect;
+		associatedeffect = ae->next;
+		BZ_Free(ae);
+	}
+}
+
+void CL_ClearTEntParticleState (void)
+{
+	int i;
+	for (i = 0; i < beams_running; i++)
+	{
+		pe->DelinkTrailstate(&(cl_beams[i].trailstate));
+		pe->DelinkTrailstate(&(cl_beams[i].emitstate));
+	}
+}
+
+void P_LoadedModel(model_t *mod)
+{
+	struct associatedeffect *ae;
+
+	mod->particleeffect = P_INVALID;
+	mod->particletrail = P_INVALID;
+	mod->engineflags &= ~(MDLF_NODEFAULTTRAIL | MDLF_ENGULPHS);
+	for(ae = associatedeffect; ae; ae = ae->next)
+	{
+		if (!strcmp(ae->mname, mod->name))
+		{
+			switch(ae->type)
+			{
+			case AE_TRAIL:
+				mod->particletrail = P_FindParticleType(ae->pname);
+				break;
+			case AE_EMIT:
+				mod->particleeffect = P_FindParticleType(ae->pname);
+				mod->engineflags &= ~MDLF_ENGULPHS;
+				break;
+			case AE_REPLACE:
+				mod->particleeffect = P_FindParticleType(ae->pname);
+				mod->engineflags |= MDLF_ENGULPHS;
+				break;
+			}
+		}
+	}
+	if (mod->particletrail == P_INVALID)
+		P_DefaultTrail(mod);
+}
+
 void CL_RegisterParticles(void)
 {
-	pt_gunshot				= P_ParticleTypeForName("TE_GUNSHOT");	/*shotgun*/
-	ptdp_gunshotquad		= P_ParticleTypeForName("TE_GUNSHOTQUAD");	/*DP: quadded shotgun*/
-	pt_spike				= P_ParticleTypeForName("TE_SPIKE");	/*nailgun*/
-	ptdp_spikequad			= P_ParticleTypeForName("TE_SPIKEQUAD");	/*DP: quadded nailgun*/
-	pt_superspike			= P_ParticleTypeForName("TE_SUPERSPIKE");	/*nailgun*/
-	ptdp_superspikequad		= P_ParticleTypeForName("TE_SUPERSPIKEQUAD");	/*DP: quadded nailgun*/
-	pt_wizspike				= P_ParticleTypeForName("TE_WIZSPIKE");	//scrag missile impact
-	pt_knightspike			= P_ParticleTypeForName("TE_KNIGHTSPIKE"); //hellknight missile impact
-	pt_explosion			= P_ParticleTypeForName("TE_EXPLOSION");/*rocket/grenade launcher impacts/far too many things*/
-	ptdp_explosionquad		= P_ParticleTypeForName("TE_EXPLOSIONQUAD");	/*nailgun*/
-	pt_tarexplosion			= P_ParticleTypeForName("TE_TAREXPLOSION");//tarbaby/spawn dying.
-	pt_teleportsplash		= P_ParticleTypeForName("TE_TELEPORT");/*teleporters*/
-	pt_lavasplash			= P_ParticleTypeForName("TE_LAVASPLASH");	//e1m7 boss dying.
-	ptdp_smallflash			= P_ParticleTypeForName("TE_SMALLFLASH");	//DP:
-	ptdp_flamejet			= P_ParticleTypeForName("TE_FLAMEJET");	//DP:
-	ptdp_flame				= P_ParticleTypeForName("EF_FLAME");	//DP:
-	ptdp_blood				= P_ParticleTypeForName("TE_BLOOD"); /*when you hit something with the shotgun/axe/nailgun - nq uses the general particle builtin*/
-	ptdp_spark				= P_ParticleTypeForName("TE_SPARK");//DPTE_SPARK
-	ptdp_plasmaburn			= P_ParticleTypeForName("TE_PLASMABURN");
-	ptdp_tei_g3				= P_ParticleTypeForName("TE_TEI_G3");
-	ptdp_tei_smoke			= P_ParticleTypeForName("TE_TEI_SMOKE");
-	ptdp_tei_bigexplosion	= P_ParticleTypeForName("TE_TEI_BIGEXPLOSION");
-	ptdp_tei_plasmahit		= P_ParticleTypeForName("TE_TEI_PLASMAHIT");
-	ptdp_stardust			= P_ParticleTypeForName("EF_STARDUST");
-	rt_rocket				= P_ParticleTypeForName("TR_ROCKET");	/*rocket trail*/
-	rt_grenade				= P_ParticleTypeForName("TR_GRENADE");	/*grenade trail*/
-	rt_blood				= P_ParticleTypeForName("TR_BLOOD");	/*blood trail*/
-	rt_wizspike				= P_ParticleTypeForName("TR_WIZSPIKE");
-	rt_slightblood			= P_ParticleTypeForName("TR_SLIGHTBLOOD");
-	rt_knightspike			= P_ParticleTypeForName("TR_KNIGHTSPIKE");
-	rt_vorespike			= P_ParticleTypeForName("TR_VORESPIKE");
-	rtdp_neharasmoke		= P_ParticleTypeForName("TR_NEHAHRASMOKE");
-	rtdp_nexuizplasma		= P_ParticleTypeForName("TR_NEXUIZPLASMA");
-	rtdp_glowtrail			= P_ParticleTypeForName("TR_GLOWTRAIL");
-	/*internal to psystem*/   P_ParticleTypeForName("SVC_PARTICLE");
+	model_t *mod;
+	extern model_t	mod_known[];
+	extern int		mod_numknown;
+	int i;
+	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
+	{
+		if (!mod->needload)
+		{
+			P_LoadedModel(mod);
+		}
+	}
 
-	ptqw_blood				= P_ParticleTypeForName("TE_BLOOD");
-	ptqw_lightningblood		= P_ParticleTypeForName("TE_LIGHTNINGBLOOD");
-	
-	ptq2_blood				= P_ParticleTypeForName("TE_BLOOD");
-	rtq2_railtrail			= P_ParticleTypeForName("TR_RAILTRAIL");
-	rtq2_blastertrail		= P_ParticleTypeForName("TR_BLASTERTRAIL");
-	ptq2_blasterparticles	= P_ParticleTypeForName("TE_BLASTERPARTICLES");
-	rtq2_bubbletrail		= P_ParticleTypeForName("TE_BUBBLETRAIL");
-	rtq2_gib				= P_ParticleTypeForName("TR_GIB");
-	rtq2_rocket				= P_ParticleTypeForName("TR_ROCKET");
-	rtq2_grenade			= P_ParticleTypeForName("TR_GRENADE");
+	pt_gunshot				= P_FindParticleType("TE_GUNSHOT");	/*shotgun*/
+	ptdp_gunshotquad		= P_FindParticleType("TE_GUNSHOTQUAD");	/*DP: quadded shotgun*/
+	pt_spike				= P_FindParticleType("TE_SPIKE");	/*nailgun*/
+	ptdp_spikequad			= P_FindParticleType("TE_SPIKEQUAD");	/*DP: quadded nailgun*/
+	pt_superspike			= P_FindParticleType("TE_SUPERSPIKE");	/*nailgun*/
+	ptdp_superspikequad		= P_FindParticleType("TE_SUPERSPIKEQUAD");	/*DP: quadded nailgun*/
+	pt_wizspike				= P_FindParticleType("TE_WIZSPIKE");	//scrag missile impact
+	pt_knightspike			= P_FindParticleType("TE_KNIGHTSPIKE"); //hellknight missile impact
+	pt_explosion			= P_FindParticleType("TE_EXPLOSION");/*rocket/grenade launcher impacts/far too many things*/
+	ptdp_explosionquad		= P_FindParticleType("TE_EXPLOSIONQUAD");	/*nailgun*/
+	pt_tarexplosion			= P_FindParticleType("TE_TAREXPLOSION");//tarbaby/spawn dying.
+	pt_teleportsplash		= P_FindParticleType("TE_TELEPORT");/*teleporters*/
+	pt_lavasplash			= P_FindParticleType("TE_LAVASPLASH");	//e1m7 boss dying.
+	ptdp_smallflash			= P_FindParticleType("TE_SMALLFLASH");	//DP:
+	ptdp_flamejet			= P_FindParticleType("TE_FLAMEJET");	//DP:
+	ptdp_flame				= P_FindParticleType("EF_FLAME");	//DP:
+	ptdp_blood				= P_FindParticleType("TE_BLOOD"); /*when you hit something with the shotgun/axe/nailgun - nq uses the general particle builtin*/
+	ptdp_spark				= P_FindParticleType("TE_SPARK");//DPTE_SPARK
+	ptdp_plasmaburn			= P_FindParticleType("TE_PLASMABURN");
+	ptdp_tei_g3				= P_FindParticleType("TE_TEI_G3");
+	ptdp_tei_smoke			= P_FindParticleType("TE_TEI_SMOKE");
+	ptdp_tei_bigexplosion	= P_FindParticleType("TE_TEI_BIGEXPLOSION");
+	ptdp_tei_plasmahit		= P_FindParticleType("TE_TEI_PLASMAHIT");
+	ptdp_stardust			= P_FindParticleType("EF_STARDUST");
+	rt_rocket				= P_FindParticleType("TR_ROCKET");	/*rocket trail*/
+	rt_grenade				= P_FindParticleType("TR_GRENADE");	/*grenade trail*/
+	rt_blood				= P_FindParticleType("TR_BLOOD");	/*blood trail*/
+	rt_wizspike				= P_FindParticleType("TR_WIZSPIKE");
+	rt_slightblood			= P_FindParticleType("TR_SLIGHTBLOOD");
+	rt_knightspike			= P_FindParticleType("TR_KNIGHTSPIKE");
+	rt_vorespike			= P_FindParticleType("TR_VORESPIKE");
+	rtdp_neharasmoke		= P_FindParticleType("TR_NEHAHRASMOKE");
+	rtdp_nexuizplasma		= P_FindParticleType("TR_NEXUIZPLASMA");
+	rtdp_glowtrail			= P_FindParticleType("TR_GLOWTRAIL");
+	/*internal to psystem*/   P_FindParticleType("SVC_PARTICLE");
 
-	rtqw_railtrail			= P_ParticleTypeForName("TE_RAILTRAIL");
-	rtfte_lightning1		= P_ParticleTypeForName("TE_LIGHTNING1");
-	ptfte_lightning1_end	= P_ParticleTypeForName("TE_LIGHTNING1_END");
-	rtfte_lightning2		= P_ParticleTypeForName("TE_LIGHTNING2");
-	ptfte_lightning2_end	= P_ParticleTypeForName("TE_LIGHTNING2_END");
-	rtfte_lightning3		= P_ParticleTypeForName("TE_LIGHTNING3");
-	ptfte_lightning3_end	= P_ParticleTypeForName("TE_LIGHTNING3_END");
-	ptfte_bullet			= P_ParticleTypeForName("TE_BULLET");
-	ptfte_superbullet		= P_ParticleTypeForName("TE_SUPERBULLET");
+	ptqw_blood				= P_FindParticleType("TE_BLOOD");
+	ptqw_lightningblood		= P_FindParticleType("TE_LIGHTNINGBLOOD");
+
+	ptq2_blood				= P_FindParticleType("TE_BLOOD");
+	rtq2_railtrail			= P_FindParticleType("TR_RAILTRAIL");
+	rtq2_blastertrail		= P_FindParticleType("TR_BLASTERTRAIL");
+	ptq2_blasterparticles	= P_FindParticleType("TE_BLASTERPARTICLES");
+	rtq2_bubbletrail		= P_FindParticleType("TE_BUBBLETRAIL");
+	rtq2_gib				= P_FindParticleType("TR_GIB");
+	rtq2_rocket				= P_FindParticleType("TR_ROCKET");
+	rtq2_grenade			= P_FindParticleType("TR_GRENADE");
+
+	rtqw_railtrail			= P_FindParticleType("TE_RAILTRAIL");
+	rtfte_lightning1		= P_FindParticleType("TE_LIGHTNING1");
+	ptfte_lightning1_end	= P_FindParticleType("TE_LIGHTNING1_END");
+	rtfte_lightning2		= P_FindParticleType("TE_LIGHTNING2");
+	ptfte_lightning2_end	= P_FindParticleType("TE_LIGHTNING2_END");
+	rtfte_lightning3		= P_FindParticleType("TE_LIGHTNING3");
+	ptfte_lightning3_end	= P_FindParticleType("TE_LIGHTNING3_END");
+	ptfte_bullet			= P_FindParticleType("TE_BULLET");
+	ptfte_superbullet		= P_FindParticleType("TE_SUPERBULLET");
 }
 
 #ifdef Q2CLIENT
@@ -375,7 +498,7 @@ int CLQ2_RegisterTEntModels (void)
 //			return false;
 
 	return true;
-}	
+}
 #endif
 /*
 =================
@@ -398,7 +521,7 @@ explosion_t *CL_AllocExplosion (void)
 	int		i;
 	float	time;
 	int		index;
-	
+
 	for (i=0; i < explosions_running; i++)
 	{
 		if (!cl_explosions[i].model)
@@ -548,7 +671,7 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 
 	if (etype >= 0 && cls.state == ca_active && etype != P_INVALID)
 	{
-		if (cl_beam_trace.value)
+		if (cl_beam_trace.ival)
 		{
 			VectorSubtract(end, start, normal);
 			VectorNormalize(normal);
@@ -566,7 +689,7 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 	b = CL_NewBeam(ent, -1);
 	if (!b)
 	{
-		Con_Printf ("beam list overflow!\n");	
+		Con_Printf ("beam list overflow!\n");
 		return;
 	}
 
@@ -593,11 +716,11 @@ void CL_ParseBeam (int tent)
 	vec3_t	start, end;
 
 	ent = MSG_ReadShort ();
-	
+
 	start[0] = MSG_ReadCoord ();
 	start[1] = MSG_ReadCoord ();
 	start[2] = MSG_ReadCoord ();
-	
+
 	end[0] = MSG_ReadCoord ();
 	end[1] = MSG_ReadCoord ();
 	end[2] = MSG_ReadCoord ();
@@ -613,14 +736,14 @@ void CL_ParseStream (int type)
 	int tag;
 	float duration;
 	int skin;
-	
+
 	ent = MSG_ReadShort();
 	flags = MSG_ReadByte();
 	tag = flags&15;
 	flags-=tag;
 	duration = (float)MSG_ReadByte()*0.05;
 	skin = 0;
-	if(type == TE_STREAM_COLORBEAM)
+	if(type == TEH2_STREAM_COLORBEAM)
 	{
 		skin = MSG_ReadByte();
 	}
@@ -634,7 +757,7 @@ void CL_ParseStream (int type)
 	b = CL_NewBeam(ent, tag);
 	if (!b)
 	{
-		Con_Printf ("beam list overflow!\n");	
+		Con_Printf ("beam list overflow!\n");
 		return;
 	}
 
@@ -644,18 +767,29 @@ void CL_ParseStream (int type)
 	b->model = NULL;
 	b->endtime = cl.time + duration;
 	b->alpha = 1;
+	b->skin = skin;
 	VectorCopy (start, b->start);
 	VectorCopy (end, b->end);
 
 	switch(type)
 	{
-	case TE_STREAM_ICECHUNKS:
+	case TEH2_STREAM_LIGHTNING_SMALL:
+		b->model = 	Mod_ForName("models/stltng2.mdl", true);
+		b->flags |= 2;
+		b->particleeffect = P_FindParticleType("te_stream_lightning_small");
+		break;
+	case TEH2_STREAM_LIGHTNING:
+		b->model = 	Mod_ForName("models/stlghtng.mdl", true);
+		b->flags |= 2;
+		b->particleeffect = P_FindParticleType("te_stream_lightning");
+		break;
+	case TEH2_STREAM_ICECHUNKS:
 		b->model = 	Mod_ForName("models/stice.mdl", true);
 		b->flags |= 2;
 		b->particleeffect = P_FindParticleType("te_stream_icechunks");
 		R_AddStain(end, -10, -10, 0, 20);
 		break;
-	case TE_STREAM_SUNSTAFF1:
+	case TEH2_STREAM_SUNSTAFF1:
 		b->model = Mod_ForName("models/stsunsf1.mdl", true);
 		b->particleeffect = P_FindParticleType("te_stream_sunstaff1");
 		if (b->particleeffect < 0)
@@ -669,10 +803,21 @@ void CL_ParseStream (int type)
 			}
 		}
 		break;
-	case TE_STREAM_SUNSTAFF2:
+	case TEH2_STREAM_SUNSTAFF2:
 		b->model = 	Mod_ForName("models/stsunsf1.mdl", true);
 		b->particleeffect = P_FindParticleType("te_stream_sunstaff2");
 		R_AddStain(end, -10, -10, -10, 20);
+		break;
+	case TEH2_STREAM_COLORBEAM:
+		b->model = Mod_ForName("models/stclrbm.mdl", true);
+		b->particleeffect = P_FindParticleType("te_stream_colorbeam");
+		break;
+	case TEH2_STREAM_GAZE:
+		b->model = Mod_ForName("models/stmedgaz.mdl", true);
+		b->particleeffect = P_FindParticleType("te_stream_gaze");
+		break;
+	default:
+		Con_Printf("CL_ParseStream: type %i\n", type);
 		break;
 	}
 }
@@ -723,9 +868,9 @@ void CL_ParseTEnt (void)
 		if (P_RunParticleEffectType(pos, NULL, 1, pt_wizspike))
 			P_RunParticleEffect (pos, vec3_origin, 20, 30);
 
-		S_StartSound (-2, 0, cl_sfx_wizhit, pos, 1, 1);
+		S_StartSound (-2, 0, cl_sfx_wizhit, pos, 1, 1, 0);
 		break;
-		
+
 	case TE_KNIGHTSPIKE:			// spike hitting wall
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -736,10 +881,10 @@ void CL_ParseTEnt (void)
 		if (P_RunParticleEffectType(pos, NULL, 1, pt_knightspike))
 			P_RunParticleEffect (pos, vec3_origin, 226, 20);
 
-		S_StartSound (-2, 0, cl_sfx_knighthit, pos, 1, 1);
+		S_StartSound (-2, 0, cl_sfx_knighthit, pos, 1, 1, 0);
 		break;
-		
-	case DPTE_SPIKEQUAD:
+
+	case TEDP_SPIKEQUAD:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -753,16 +898,16 @@ void CL_ParseTEnt (void)
 					P_RunParticleEffect (pos, vec3_origin, 0, 10);
 
 		if ( rand() % 5 )
-			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1);
+			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1, 0);
 		else
 		{
 			rnd = rand() & 3;
 			if (rnd == 1)
-				S_StartSound (-2, 0, cl_sfx_ric1, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric1, pos, 1, 1, 0);
 			else if (rnd == 2)
-				S_StartSound (-2, 0, cl_sfx_ric2, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric2, pos, 1, 1, 0);
 			else
-				S_StartSound (-2, 0, cl_sfx_ric3, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric3, pos, 1, 1, 0);
 		}
 		break;
 	case TE_SPIKE:			// spike hitting wall
@@ -778,19 +923,19 @@ void CL_ParseTEnt (void)
 				P_RunParticleEffect (pos, vec3_origin, 0, 10);
 
 		if ( rand() % 5 )
-			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1);
+			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1, 0);
 		else
 		{
 			rnd = rand() & 3;
 			if (rnd == 1)
-				S_StartSound (-2, 0, cl_sfx_ric1, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric1, pos, 1, 1, 0);
 			else if (rnd == 2)
-				S_StartSound (-2, 0, cl_sfx_ric2, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric2, pos, 1, 1, 0);
 			else
-				S_StartSound (-2, 0, cl_sfx_ric3, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric3, pos, 1, 1, 0);
 		}
 		break;
-	case DPTE_SUPERSPIKEQUAD:			// super spike hitting wall
+	case TEDP_SUPERSPIKEQUAD:			// super spike hitting wall
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -805,16 +950,16 @@ void CL_ParseTEnt (void)
 						P_RunParticleEffect (pos, vec3_origin, 0, 20);
 
 		if ( rand() % 5 )
-			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1);
+			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1, 0);
 		else
 		{
 			rnd = rand() & 3;
 			if (rnd == 1)
-				S_StartSound (-2, 0, cl_sfx_ric1, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric1, pos, 1, 1, 0);
 			else if (rnd == 2)
-				S_StartSound (-2, 0, cl_sfx_ric2, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric2, pos, 1, 1, 0);
 			else
-				S_StartSound (-2, 0, cl_sfx_ric3, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric3, pos, 1, 1, 0);
 		}
 		break;
 	case TE_SUPERSPIKE:			// super spike hitting wall
@@ -831,19 +976,19 @@ void CL_ParseTEnt (void)
 					P_RunParticleEffect (pos, vec3_origin, 0, 20);
 
 		if ( rand() % 5 )
-			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1);
+			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1, 0);
 		else
 		{
 			rnd = rand() & 3;
 			if (rnd == 1)
-				S_StartSound (-2, 0, cl_sfx_ric1, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric1, pos, 1, 1, 0);
 			else if (rnd == 2)
-				S_StartSound (-2, 0, cl_sfx_ric2, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric2, pos, 1, 1, 0);
 			else
-				S_StartSound (-2, 0, cl_sfx_ric3, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric3, pos, 1, 1, 0);
 		}
 		break;
-	
+
 #ifdef PEXT_TE_BULLET
 	case TE_BULLET:
 		if (!(cls.fteprotocolextensions & PEXT_TE_BULLET))
@@ -860,16 +1005,16 @@ void CL_ParseTEnt (void)
 				P_RunParticleEffect (pos, vec3_origin, 0, 10);
 
 		if ( rand() % 5 )
-			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1);
+			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1, 0);
 		else
 		{
 			rnd = rand() & 3;
 			if (rnd == 1)
-				S_StartSound (-2, 0, cl_sfx_ric1, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric1, pos, 1, 1, 0);
 			else if (rnd == 2)
-				S_StartSound (-2, 0, cl_sfx_ric2, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric2, pos, 1, 1, 0);
 			else
-				S_StartSound (-2, 0, cl_sfx_ric3, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric3, pos, 1, 1, 0);
 		}
 		break;
 	case TE_SUPERBULLET:
@@ -886,21 +1031,21 @@ void CL_ParseTEnt (void)
 					P_RunParticleEffect (pos, vec3_origin, 0, 20);
 
 		if ( rand() % 5 )
-			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1);
+			S_StartSound (-2, 0, cl_sfx_tink1, pos, 1, 1, 0);
 		else
 		{
 			rnd = rand() & 3;
 			if (rnd == 1)
-				S_StartSound (-2, 0, cl_sfx_ric1, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric1, pos, 1, 1, 0);
 			else if (rnd == 2)
-				S_StartSound (-2, 0, cl_sfx_ric2, pos, 1, 1);
+				S_StartSound (-2, 0, cl_sfx_ric2, pos, 1, 1, 0);
 			else
-				S_StartSound (-2, 0, cl_sfx_ric3, pos, 1, 1);
-		}		
+				S_StartSound (-2, 0, cl_sfx_ric3, pos, 1, 1, 0);
+		}
 		break;
 #endif
 
-	case DPTE_EXPLOSIONQUAD:			// rocket explosion
+	case TEDP_EXPLOSIONQUAD:			// rocket explosion
 	// particles
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -910,7 +1055,7 @@ void CL_ParseTEnt (void)
 				P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
 
 		R_AddStain(pos, -1, -1, -1, 100);
-		
+
 	// light
 		if (r_explosionlight.value)
 		{
@@ -919,7 +1064,7 @@ void CL_ParseTEnt (void)
 			dl->radius = 150 + r_explosionlight.value*200;
 			dl->die = cl.time + 1;
 			dl->decay = 300;
-		
+
 			dl->color[0] = 0.2;
 			dl->color[1] = 0.155;
 			dl->color[2] = 0.05;
@@ -930,10 +1075,10 @@ void CL_ParseTEnt (void)
 
 
 	// sound
-		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
-	
-	// sprite		
-		if (cl_expsprite.value) // temp hopefully
+		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1, 0);
+
+	// sprite
+		if (cl_expsprite.ival) // temp hopefully
 		{
 			explosion_t *ex = CL_AllocExplosion ();
 			VectorCopy (pos, ex->origin);
@@ -950,7 +1095,7 @@ void CL_ParseTEnt (void)
 			P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
 
 		R_AddStain(pos, -1, -1, -1, 100);
-		
+
 	// light
 		if (r_explosionlight.value)
 		{
@@ -959,7 +1104,7 @@ void CL_ParseTEnt (void)
 			dl->radius = 150 + r_explosionlight.value*200;
 			dl->die = cl.time + 1;
 			dl->decay = 300;
-			
+
 			dl->color[0] = 0.2;
 			dl->color[1] = 0.155;
 			dl->color[2] = 0.05;
@@ -970,10 +1115,10 @@ void CL_ParseTEnt (void)
 
 
 	// sound
-		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
-	
-	// sprite		
-		if (cl_expsprite.value && !nqprot) // temp hopefully
+		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1, 0);
+
+	// sprite
+		if (cl_expsprite.ival && !nqprot) // temp hopefully
 		{
 			explosion_t *ex = CL_AllocExplosion ();
 			VectorCopy (pos, ex->origin);
@@ -982,7 +1127,7 @@ void CL_ParseTEnt (void)
 		}
 		break;
 
-	case DPTE_EXPLOSIONRGB:
+	case TEDP_EXPLOSIONRGB:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -990,8 +1135,8 @@ void CL_ParseTEnt (void)
 			P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
 
 		R_AddStain(pos, -1, -1, -1, 100);
-		
-		
+
+
 	// light
 		if (r_explosionlight.value)
 		{
@@ -1000,7 +1145,7 @@ void CL_ParseTEnt (void)
 			dl->radius = 150 + r_explosionlight.value*200;
 			dl->die = cl.time + 0.5;
 			dl->decay = 300;
-		
+
 			dl->color[0] = 0.4f*MSG_ReadByte()/255.0f;
 			dl->color[1] = 0.4f*MSG_ReadByte()/255.0f;
 			dl->color[2] = 0.4f*MSG_ReadByte()/255.0f;
@@ -1009,10 +1154,10 @@ void CL_ParseTEnt (void)
 			dl->channelfade[2] = 0;
 		}
 
-		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
+		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1, 0);
 		break;
 
-	case DPTE_TEI_BIGEXPLOSION:
+	case TEDP_TEI_BIGEXPLOSION:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1021,17 +1166,17 @@ void CL_ParseTEnt (void)
 				P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
 
 		R_AddStain(pos, -1, -1, -1, 100);
-		
+
 	// light
 		if (r_explosionlight.value)
 		{
 			dl = CL_AllocDlight (0);
 			VectorCopy (pos, dl->origin);
 			// no point in doing this the fuh/ez way
-			dl->radius = 500*r_explosionlight.value; 
+			dl->radius = 500*r_explosionlight.value;
 			dl->die = cl.time + 1;
 			dl->decay = 500;
-			
+
 			dl->color[0] = 0.4f;
 			dl->color[1] = 0.3f;
 			dl->color[2] = 0.15f;
@@ -1040,16 +1185,16 @@ void CL_ParseTEnt (void)
 			dl->channelfade[2] = 0;
 		}
 
-		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
+		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1, 0);
 		break;
-		
+
 	case TE_TAREXPLOSION:			// tarbaby explosion
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
 		P_RunParticleEffectType(pos, NULL, 1, pt_tarexplosion);
 
-		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1);
+		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1, 0);
 		break;
 
 	case TE_LIGHTNING1:				// lightning bolts
@@ -1059,14 +1204,14 @@ void CL_ParseTEnt (void)
 	case TE_LIGHTNING3:				// lightning bolts
 		CL_ParseBeam (2);
 		break;
-	
-	case TE_LAVASPLASH:	
+
+	case TE_LAVASPLASH:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
 		P_RunParticleEffectType(pos, NULL, 1, pt_lavasplash);
 		break;
-	
+
 	case TE_TELEPORT:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -1074,7 +1219,7 @@ void CL_ParseTEnt (void)
 		P_RunParticleEffectType(pos, NULL, 1, pt_teleportsplash);
 		break;
 
-	case DPTE_GUNSHOTQUAD:			// bullet hitting wall
+	case TEDP_GUNSHOTQUAD:			// bullet hitting wall
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1101,8 +1246,8 @@ void CL_ParseTEnt (void)
 			P_RunParticleEffect (pos, vec3_origin, 0, 20*cnt);
 
 		break;
-		
-	case TE_BLOOD:				// bullets hitting body
+
+	case TEQW_BLOOD:				// bullets hitting body
 		cnt = MSG_ReadByte ();
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -1116,7 +1261,7 @@ void CL_ParseTEnt (void)
 
 		break;
 
-	case TE_LIGHTNINGBLOOD:		// lightning hitting body
+	case TEQW_LIGHTNINGBLOOD:		// lightning hitting body
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1142,18 +1287,19 @@ void CL_ParseTEnt (void)
 				P_ParticleTrailIndex(pos, pos2, 208, 8, NULL);
 		break;
 
-	case TE_STREAM_CHAIN:
-	case TE_STREAM_SUNSTAFF1:
-	case TE_STREAM_SUNSTAFF2:
-	case TE_STREAM_LIGHTNING:
-	case TE_STREAM_COLORBEAM:
-	case TE_STREAM_ICECHUNKS:
-	case TE_STREAM_GAZE:
-	case TE_STREAM_FAMINE:
+	case TEH2_STREAM_LIGHTNING_SMALL:
+	case TEH2_STREAM_CHAIN:
+	case TEH2_STREAM_SUNSTAFF1:
+	case TEH2_STREAM_SUNSTAFF2:
+	case TEH2_STREAM_LIGHTNING:
+	case TEH2_STREAM_COLORBEAM:
+	case TEH2_STREAM_ICECHUNKS:
+	case TEH2_STREAM_GAZE:
+	case TEH2_STREAM_FAMINE:
 		CL_ParseStream (type);
 		break;
 
-	case DPTE_BLOOD:
+	case TEDP_BLOOD:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1167,7 +1313,7 @@ void CL_ParseTEnt (void)
 		P_RunParticleEffectType(pos, pos2, cnt, ptdp_blood);
 		break;
 
-	case DPTE_SPARK:
+	case TEDP_SPARK:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1182,7 +1328,7 @@ void CL_ParseTEnt (void)
 		}
 		break;
 
-	case DPTE_BLOODSHOWER:
+	case TEDP_BLOODSHOWER:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1202,7 +1348,7 @@ void CL_ParseTEnt (void)
 		}
 		break;
 
-	case DPTE_SMALLFLASH:
+	case TEDP_SMALLFLASH:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1218,7 +1364,7 @@ void CL_ParseTEnt (void)
 		dl->color[2] = 0.4;
 		break;
 
-	case DPTE_CUSTOMFLASH:
+	case TEDP_CUSTOMFLASH:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1230,15 +1376,15 @@ void CL_ParseTEnt (void)
 		pos2[0] = (MSG_ReadByte() + 1) * (1.0 / 256.0);
 		dl->die = cl.time + pos2[0];
 		dl->decay = dl->radius / pos2[0];
-	
+
 		// DP's range is 0-2 for lights, FTE is 0-0.4.. 255/637.5 = 0.4
 		dl->color[0] = MSG_ReadByte()*(1.0f/637.5f);
 		dl->color[1] = MSG_ReadByte()*(1.0f/637.5f);
 		dl->color[2] = MSG_ReadByte()*(1.0f/637.5f);
-		
+
 		break;
 
-	case DPTE_FLAMEJET:
+	case TEDP_FLAMEJET:
 		// origin
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -1256,7 +1402,7 @@ void CL_ParseTEnt (void)
 			P_RunParticleEffect (pos, pos2, 232, cnt);
 		break;
 
-	case DPTE_PLASMABURN:
+	case TEDP_PLASMABURN:
 		// origin
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -1279,7 +1425,7 @@ void CL_ParseTEnt (void)
 			P_ParticleTrailIndex(pos, pos2, 15, 0, NULL);
 		break;
 
-	case DPTE_TEI_G3:	//nexuiz's nex beam
+	case TEDP_TEI_G3:	//nexuiz's nex beam
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1297,7 +1443,7 @@ void CL_ParseTEnt (void)
 			P_ParticleTrailIndex(pos, pos2, 15, 0, NULL);
 		break;
 
-	case DPTE_SMOKE:
+	case TEDP_SMOKE:
 		//org
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -1315,7 +1461,7 @@ void CL_ParseTEnt (void)
 		}
 		break;
 
-	case DPTE_TEI_PLASMAHIT:
+	case TEDP_TEI_PLASMAHIT:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
@@ -1331,7 +1477,7 @@ void CL_ParseTEnt (void)
 		}
 		break;
 
-	case DPTE_PARTICLECUBE:
+	case TEDP_PARTICLECUBE:
 		{
 			vec3_t dir;
 			int jitter;
@@ -1360,7 +1506,7 @@ void CL_ParseTEnt (void)
 			P_RunParticleCube(pos, pos2, dir, cnt, colour, gravity, jitter);
 		}
 		break;
-	case DPTE_PARTICLERAIN:
+	case TEDP_PARTICLERAIN:
 		{
 			vec3_t dir;
 
@@ -1385,7 +1531,7 @@ void CL_ParseTEnt (void)
 			P_RunParticleWeather(pos, pos2, dir, cnt, colour, "rain");
 		}
 		break;
-	case DPTE_PARTICLESNOW:
+	case TEDP_PARTICLESNOW:
 		{
 			vec3_t dir;
 
@@ -1419,6 +1565,7 @@ void CL_ParseTEnt (void)
 void MSG_ReadPos (vec3_t pos);
 void MSG_ReadDir (vec3_t dir);
 typedef struct {
+	char name[64];
 	int netstyle;
 	int particleeffecttype;
 	char stain[3];
@@ -1428,13 +1575,6 @@ typedef struct {
 	float dlighttime;
 	vec3_t dlightcfade;
 } clcustomtents_t;
-
-#define CTE_CUSTOMCOUNT		1
-#define CTE_CUSTOMDIRECTION	2
-#define CTE_STAINS			4
-#define CTE_GLOWS			8
-#define CTE_CHANNELFADE		16
-#define CTE_ISBEAM			128
 
 clcustomtents_t customtenttype[255];	//network based.
 void CL_ParseCustomTEnt(void)
@@ -1446,6 +1586,7 @@ void CL_ParseCustomTEnt(void)
 	char *str;
 	clcustomtents_t *t;
 	int type = MSG_ReadByte();
+	qboolean failed;
 
 	if (type == 255)	//255 is register
 	{
@@ -1456,7 +1597,8 @@ void CL_ParseCustomTEnt(void)
 
 		t->netstyle = MSG_ReadByte();
 		str = MSG_ReadString();
-		t->particleeffecttype = P_ParticleTypeForName(str);
+		Q_strncpyz(t->name, str, sizeof(t->name));
+		t->particleeffecttype = P_FindParticleType(str);
 
 		if (t->netstyle & CTE_STAINS)
 		{
@@ -1487,14 +1629,12 @@ void CL_ParseCustomTEnt(void)
 	}
 
 	t = &customtenttype[type];
-	if (t->particleeffecttype < 0)
-		Host_EndGame("Custom Temporary entity %i was not registered\n", type);
 
 	if (t->netstyle & CTE_ISBEAM)
 	{
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		P_ParticleTrail(pos, pos2, t->particleeffecttype, NULL);
+		failed = P_ParticleTrail(pos, pos2, t->particleeffecttype, NULL);
 	}
 	else
 	{
@@ -1506,13 +1646,23 @@ void CL_ParseCustomTEnt(void)
 		MSG_ReadPos (pos);
 		VectorCopy(pos, pos2);
 
-		if (t->netstyle & CTE_CUSTOMDIRECTION)
+		if (t->netstyle & CTE_CUSTOMVELOCITY)
+		{
+			dir[0] = MSG_ReadCoord();
+			dir[1] = MSG_ReadCoord();
+			dir[2] = MSG_ReadCoord();
+			failed = P_RunParticleEffectType(pos, dir, count, t->particleeffecttype);
+		}
+		else if (t->netstyle & CTE_CUSTOMDIRECTION)
 		{
 			MSG_ReadDir (dir);
-			P_RunParticleEffectType(pos, dir, 1, t->particleeffecttype);
+			failed = P_RunParticleEffectType(pos, dir, count, t->particleeffecttype);
 		}
-		else P_RunParticleEffectType(pos, NULL, 1, t->particleeffecttype);
+		else failed = P_RunParticleEffectType(pos, NULL, count, t->particleeffecttype);
 	}
+
+	if (failed)
+		Con_DPrintf("Failed to create effect %s\n", t->name);
 
 	if (t->netstyle & CTE_STAINS)
 	{	//added at pos2 - end of trail
@@ -1526,7 +1676,7 @@ void CL_ParseCustomTEnt(void)
 		dl->radius = t->dlightradius*4;
 		dl->die = cl.time + t->dlighttime;
 		dl->decay = t->radius/t->dlighttime;
-		
+
 		dl->color[0] = t->dlightrgb[0];
 		dl->color[1] = t->dlightrgb[1];
 		dl->color[2] = t->dlightrgb[2];
@@ -1585,7 +1735,7 @@ void CLDP_ParseTrailParticles(void)
 	else
 		ts = NULL;
 
-	effectindex = P_ParticleTypeForName(COM_Effectinfo_ForNumber(effectindex));
+	effectindex = P_FindParticleType(COM_Effectinfo_ForNumber(effectindex));
 	if (P_ParticleTrail(start, end, effectindex, ts))
 		P_ParticleTrail(start, end, rt_blood, ts);
 }
@@ -1612,7 +1762,7 @@ void CLDP_ParsePointParticles(qboolean compact)
 		count = (unsigned short)MSG_ReadShort();
 	}
 
-	effectindex = P_ParticleTypeForName(COM_Effectinfo_ForNumber(effectindex));
+	effectindex = P_FindParticleType(COM_Effectinfo_ForNumber(effectindex));
 	if (P_RunParticleEffectType(org, dir, count, effectindex))
 		P_RunParticleEffect (org, dir, 15, 15);
 }
@@ -1620,8 +1770,8 @@ void CLDP_ParsePointParticles(qboolean compact)
 void CLNQ_ParseParticleEffect (void)
 {
 	vec3_t		org, dir;
-	int			i, count, msgcount, color;
-	
+	int			i, msgcount, color;
+
 	for (i=0 ; i<3 ; i++)
 		org[i] = MSG_ReadCoord ();
 	for (i=0 ; i<3 ; i++)
@@ -1630,17 +1780,19 @@ void CLNQ_ParseParticleEffect (void)
 	color = MSG_ReadByte ();
 
 	if (msgcount == 255)
-		count = 1024;
+	{
+		// treat as spriteless explosion (qtest/some mods require this)
+		if (P_RunParticleEffectType(org, NULL, 1, pt_explosion))
+			P_RunParticleEffect(org, NULL, 107, 1024); // should be 97-111
+	}
 	else
-		count = msgcount;
-	
-	P_RunParticleEffect (org, dir, color, count);
+		P_RunParticleEffect (org, dir, color, msgcount);
 }
 void CL_ParseParticleEffect2 (void)
 {
 	vec3_t		org, dmin, dmax;
 	int			i, msgcount, color, effect;
-	
+
 	for (i=0 ; i<3 ; i++)
 		org[i] = MSG_ReadCoord ();
 	for (i=0 ; i<3 ; i++)
@@ -1657,7 +1809,7 @@ void CL_ParseParticleEffect3 (void)
 {
 	vec3_t		org, box;
 	int			i, msgcount, color, effect;
-	
+
 	for (i=0 ; i<3 ; i++)
 		org[i] = MSG_ReadCoord ();
 	for (i=0 ; i<3 ; i++)
@@ -1673,7 +1825,7 @@ void CL_ParseParticleEffect4 (void)
 	vec3_t		org;
 	int			i, msgcount, color, effect;
 	float		radius;
-	
+
 	for (i=0 ; i<3 ; i++)
 		org[i] = MSG_ReadCoord ();
 	radius = MSG_ReadByte();
@@ -1684,7 +1836,7 @@ void CL_ParseParticleEffect4 (void)
 	P_RunParticleEffect4 (org, radius, color, effect, msgcount);
 }
 
-void CL_SpawnSpriteEffect(vec3_t org, model_t *model, int startframe, int framecount, int framerate)
+void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, model_t *model, int startframe, int framecount, int framerate, float alpha)
 {
 	explosion_t	*ex;
 
@@ -1695,10 +1847,16 @@ void CL_SpawnSpriteEffect(vec3_t org, model_t *model, int startframe, int framec
 	ex->firstframe = startframe;
 	ex->numframes = framecount;
 	ex->framerate = framerate;
+	ex->alpha = alpha;
 
 	ex->angles[0] = 0;
 	ex->angles[1] = 0;
 	ex->angles[2] = 0;
+
+	if (dir)
+		VectorCopy(dir, ex->velocity);
+	else
+		VectorClear(ex->velocity);
 }
 
 // [vector] org [byte] modelindex [byte] startframe [byte] framecount [byte] framerate
@@ -1729,7 +1887,7 @@ void CL_ParseEffect (qboolean effect2)
 	framerate = MSG_ReadByte();
 
 
-	CL_SpawnSpriteEffect(org, cl.model_precache[modelindex], startframe, framecount, framerate);
+	CL_SpawnSpriteEffect(org, vec3_origin, cl.model_precache[modelindex], startframe, framecount, framerate, 1);
 }
 
 #ifdef Q2CLIENT
@@ -1743,6 +1901,7 @@ void CL_SmokeAndFlash(vec3_t origin)
 //	ex->type = ex_misc;
 	ex->numframes = 4;
 	ex->flags = Q2RF_TRANSLUCENT;
+	ex->alpha = 1;
 	ex->start = cl.time;
 	ex->model = Mod_ForName (q2tentmodels[q2cl_mod_smoke].modelname, false);
 
@@ -1762,7 +1921,7 @@ void CL_Laser (vec3_t start, vec3_t end, int colors)
 	ex->firstframe = 0;
 	ex->numframes = 10;
 	ex->alpha = 0.33f;
-	ex->model = (void*)0xDEAFF00D;	//something not null
+	ex->model = NULL;
 	ex->skinnum = (colors >> ((rand() % 4)*8)) & 0xff;
 	VectorCopy (start, ex->origin);
 	VectorCopy (end, ex->oldorigin);
@@ -1819,7 +1978,7 @@ void CLQ2_ParseTEnt (void)
 		if (type != Q2TE_SPARKS)
 		{
 			CL_SmokeAndFlash(pos);
-			
+
 			// impact sound (nope, not the same as Q1...)
 			cnt = rand()&15;
 			if (cnt == 1)
@@ -1841,7 +2000,7 @@ void CLQ2_ParseTEnt (void)
 		else
 			P_RunParticleEffect (pos, dir, 0xb0, 40);
 		//FIXME : replace or remove this sound
-		S_StartSound (-2, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, 1, 1);
+		S_StartSound (-2, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, 1, 1, 0);
 		break;
 
 	case Q2TE_SHOTGUN:			// bullet hitting wall
@@ -1913,8 +2072,9 @@ void CLQ2_ParseTEnt (void)
 		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, false);
 		ex->firstframe = 0;
 		ex->numframes = 4;
-		ex->flags = Q2RF_FULLBRIGHT;
-		
+		ex->flags = Q2RF_FULLBRIGHT|Q2RF_ADDITIVE|RF_NOSHADOW|Q2RF_TRANSLUCENT;
+		ex->alpha = 1;
+
 		ex->angles[0] = acos(dir[2])/M_PI*180;
 	// PMM - fixed to correct for pitch of 0
 		if (dir[0])
@@ -1927,7 +2087,7 @@ void CLQ2_ParseTEnt (void)
 			ex->angles[1] = 0;
 		ex->angles[0]*=-1;
 
-		S_StartSound (-2, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, 1, 1);
+		S_StartSound (-2, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, 1, 1, 0);
 
 	// light
 		if (r_explosionlight.value)
@@ -1965,7 +2125,7 @@ void CLQ2_ParseTEnt (void)
 			P_RunParticleEffect(pos, NULL, 0xe0, 256);
 
 		R_AddStain(pos, -1, -1, -1, 100);
-			
+
 	// light
 		if (r_explosionlight.value)
 		{
@@ -1982,16 +2142,16 @@ void CLQ2_ParseTEnt (void)
 			dl->channelfade[1] = 0.19;
 			dl->channelfade[2] = 0.19;
 		}
-	
+
 	// sound
 		if (type == Q2TE_GRENADE_EXPLOSION_WATER)
-			S_StartSound (-2, 0, S_PrecacheSound ("weapons/xpld_wat.wav"), pos, 1, 1);
+			S_StartSound (-2, 0, S_PrecacheSound ("weapons/xpld_wat.wav"), pos, 1, 1, 0);
 		else
-			S_StartSound (-2, 0, S_PrecacheSound ("weapons/grenlx1a.wav"), pos, 1, 1);
-	
+			S_StartSound (-2, 0, S_PrecacheSound ("weapons/grenlx1a.wav"), pos, 1, 1, 0);
+
 	// sprite
-		/*
-		if (!R_ParticleExplosionHeart(pos))
+
+//		if (!R_ParticleExplosionHeart(pos))
 		{
 			ex = CL_AllocExplosion ();
 			VectorCopy (pos, ex->origin);
@@ -1999,9 +2159,10 @@ void CLQ2_ParseTEnt (void)
 			ex->start = cl.time;
 			ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explo4].modelname, true);
 			ex->firstframe = 30;
+			ex->alpha = 1;
+			ex->flags |= Q2RF_TRANSLUCENT;
 			ex->numframes = 19;
 		}
-		*/
 		break;
 /*
 		ex = CL_AllocExplosion ();
@@ -2033,7 +2194,7 @@ void CLQ2_ParseTEnt (void)
 		ex->ent.flags = RF_FULLBRIGHT;
 		ex->start = cl.frame.servertime - 100;
 		ex->light = 350;
-		ex->lightcolor[0] = 1.0; 
+		ex->lightcolor[0] = 1.0;
 		ex->lightcolor[1] = 0.5;
 		ex->lightcolor[2] = 0.5;
 		ex->ent.angles[1] = rand() % 360;
@@ -2080,24 +2241,26 @@ void CLQ2_ParseTEnt (void)
 
 	// sound
 		if (type == Q2TE_ROCKET_EXPLOSION_WATER)
-			S_StartSound (-2, 0, S_PrecacheSound ("weapons/xpld_wat.wav"), pos, 1, 1);
+			S_StartSound (-2, 0, S_PrecacheSound ("weapons/xpld_wat.wav"), pos, 1, 1, 0);
 		else
-			S_StartSound (-2, 0, S_PrecacheSound ("weapons/rocklx1a.wav"), pos, 1, 1);
+			S_StartSound (-2, 0, S_PrecacheSound ("weapons/rocklx1a.wav"), pos, 1, 1, 0);
 
-	// sprite		
-/*		if (!R_ParticleExplosionHeart(pos))
+	// sprite
+//		if (!R_ParticleExplosionHeart(pos))
 		{
 			ex = CL_AllocExplosion ();
 			VectorCopy (pos, ex->origin);
 			VectorClear(ex->angles);
 			ex->start = cl.time;
 			ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explo4].modelname, false);
+			ex->alpha = 1;
+			ex->flags |= Q2RF_TRANSLUCENT;
 			if (rand()&1)
 				ex->firstframe = 15;
 			else
 				ex->firstframe = 0;
 			ex->numframes = 15;
-		}*/
+		}
 		break;
 /*
 		ex = CL_AllocExplosion ();
@@ -2240,8 +2403,8 @@ void CLQ2_ParseTEnt (void)
 		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, false);
 		ex->firstframe = 0;
 		ex->numframes = 4;
-		ex->flags = Q2RF_FULLBRIGHT;
-		
+		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
+
 		ex->angles[0] = acos(dir[2])/M_PI*180;
 	// PMM - fixed to correct for pitch of 0
 		if (dir[0])
@@ -2254,7 +2417,7 @@ void CLQ2_ParseTEnt (void)
 			ex->angles[1] = 0;
 		ex->angles[0]*=-1;
 
-		S_StartSound (-2, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, 1, 1);
+		S_StartSound (-2, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, 1, 1, 0);
 
 	// light
 		if (r_explosionlight.value)
@@ -2290,8 +2453,8 @@ void CLQ2_ParseTEnt (void)
 		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explode].modelname, false);
 		ex->firstframe = 0;
 		ex->numframes = 4;
-		ex->flags = Q2RF_FULLBRIGHT;
-		
+		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
+
 		ex->angles[0] = acos(dir[2])/M_PI*180;
 	// PMM - fixed to correct for pitch of 0
 		if (dir[0])
@@ -2304,7 +2467,7 @@ void CLQ2_ParseTEnt (void)
 			ex->angles[1] = 0;
 		ex->angles[0]*=-1;
 
-		S_StartSound (-2, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, 1, 1);
+		S_StartSound (-2, 0, S_PrecacheSound ("weapons/lashit.wav"), pos, 1, 1, 0);
 
 	// light
 		if (r_explosionlight.value)
@@ -2343,7 +2506,7 @@ void CLQ2_ParseTEnt (void)
 		ex = CL_AllocExplosion ();
 		VectorCopy (pos, ex->origin);
 //		ex->type = ex_poly;
-		ex->flags = Q2RF_FULLBRIGHT;
+		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->angles[1] = rand() % 360;
 		ex->model = Mod_ForName (q2tentmodels[q2cl_mod_explo4].modelname, false);
 		if (rand() < RAND_MAX/2)
@@ -2406,7 +2569,7 @@ void CLQ2_ParseTEnt (void)
 		CL_ParticleSteamEffect (pos, dir, color, cnt, magnitude);
 		S_StartSound (pos,  0, 0, cl_sfx_lashit, 1, ATTN_NORM, 0);
 		break;
-	
+
 	case Q2TE_HEATBEAM_STEAM:
 //		cnt = MSG_ReadByte (&net_message);
 		cnt = 20;
@@ -2501,7 +2664,7 @@ void CLQ2_ParseTEnt (void)
 		// sort of how beams have ents associated
 		MSG_ReadShort(); // id
 		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_widowbeamout"))
-			P_RunParticleEffect(pos, NULL, 13*8, 300); 
+			P_RunParticleEffect(pos, NULL, 13*8, 300);
 		break;
 
 	case Q2TE_NUKEBLAST:
@@ -2509,7 +2672,7 @@ void CLQ2_ParseTEnt (void)
 		// and there's no id to read in
 		MSG_ReadPos (pos);
 		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_nukeblast"))
-			P_RunParticleEffect(pos, NULL, 110, 700); 
+			P_RunParticleEffect(pos, NULL, 110, 700);
 		break;
 
 	case Q2TE_WIDOWSPLASH:
@@ -2518,7 +2681,7 @@ void CLQ2_ParseTEnt (void)
 		// easier to manage
 		MSG_ReadPos (pos);
 		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_widowsplash"))
-			P_RunParticleEffect(pos, NULL, 13*8, 256); 
+			P_RunParticleEffect(pos, NULL, 13*8, 256);
 		break;
 //PGM
 //==============
@@ -2530,27 +2693,27 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadPos (pos);
 		ex = CL_AllocExplosion ();
 		VectorCopy (pos, ex->origin);
-		ex->flags = Q2RF_FULLBRIGHT;
+		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->start = cl.q2frame.servertime - 100;
-		CL_NewDlightRGB(0, pos[0], pos[1], pos[2], 350, 0.5, 0.2, 0.1, 0);
+		CL_NewDlightRGB(0, pos, 350, 0.5, 0.2, 0.1, 0);
 		P_RunParticleEffectTypeString(pos, NULL, 1, "te_muzzleflash");
 		break;
 	case CRTE_BLUE_MUZZLEFLASH:
 		MSG_ReadPos (pos);
 		ex = CL_AllocExplosion ();
 		VectorCopy (pos, ex->origin);
-		ex->flags = Q2RF_FULLBRIGHT;
+		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->start = cl.q2frame.servertime - 100;
-		CL_NewDlightRGB(0, pos[0], pos[1], pos[2], 350, 0.5, 0.2, 0.1, 0);
+		CL_NewDlightRGB(0, pos, 350, 0.5, 0.2, 0.1, 0);
 		P_RunParticleEffectTypeString(pos, NULL, 1, "te_blue_muzzleflash");
 		break;
 	case CRTE_SMART_MUZZLEFLASH:
 		MSG_ReadPos (pos);
 		ex = CL_AllocExplosion ();
 		VectorCopy (pos, ex->origin);
-		ex->flags = Q2RF_FULLBRIGHT;
+		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->start = cl.q2frame.servertime - 100;
-		CL_NewDlightRGB(0, pos[0], pos[1], pos[2], 350, 0.5, 0.2, 0, 0.2);
+		CL_NewDlightRGB(0, pos, 350, 0.5, 0.2, 0, 0.2);
 		P_RunParticleEffectTypeString(pos, NULL, 1, "te_smart_muzzleflash");
 		break;
 	case CRTE_LEADERFIELD:
@@ -2559,9 +2722,9 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadPos (pos);
 		ex = CL_AllocExplosion ();
 		VectorCopy (pos, ex->origin);
-		ex->flags = Q2RF_FULLBRIGHT;
+		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
 		ex->start = cl.q2frame.servertime - 100;
-		CL_NewDlightRGB(0, pos[0], pos[1], pos[2], 350, 0.5, 0.2, 0, 0.2);
+		CL_NewDlightRGB(0, pos, 350, 0.5, 0.2, 0, 0.2);
 		P_RunParticleEffectTypeString(pos, NULL, 1, "te_deathfield");
 		break;
 	case CRTE_BLASTERBEAM:
@@ -2599,7 +2762,7 @@ entity_t *CL_NewTempEntity (void)
 	ent = &cl_visedicts[cl_numvisedicts];
 	cl_numvisedicts++;
 	ent->keynum = 0;
-	
+
 	memset (ent, 0, sizeof(*ent));
 
 #ifdef PEXT_SCALE
@@ -2639,19 +2802,22 @@ void CL_UpdateBeams (void)
 	{
 		if (!b->model)
 			continue;
-		
+
 		if (b->endtime < cl.time)
 		{
-			P_DelinkTrailstate(&b->trailstate);
-			P_DelinkTrailstate(&b->emitstate);
-			b->model = NULL;
-			continue;
+			if (!cl.paused)
+			{	/*don't let lightning decay while paused*/
+				P_DelinkTrailstate(&b->trailstate);
+				P_DelinkTrailstate(&b->emitstate);
+				b->model = NULL;
+				continue;
+			}
 		}
 
 		lastrunningbeam = bnum;
 
 	// if coming from the player, update the start position
-		if ((b->flags & 1) && b->entity > 0 && b->entity <= MAX_CLIENTS)
+		if ((b->flags & 1) && b->entity > 0 && b->entity <= cl.allocated_client_slots)
 		{
 			for (j = 0; j < cl.splitclients; j++)
 			{
@@ -2709,7 +2875,7 @@ void CL_UpdateBeams (void)
 						org[2] += 16;
 						VectorAdd (org, fwd, b->end);
 
-						if (cl_beam_trace.value)
+						if (cl_beam_trace.ival)
 						{
 							vec3_t normal;
 							VectorMA(org, len+4, ang, fwd);
@@ -2729,7 +2895,7 @@ void CL_UpdateBeams (void)
 			{
 				VectorCopy(st->origin, b->start);
 			}
-			else if (b->entity <= MAX_CLIENTS && b->entity > 0)
+			else if (b->entity <= cl.allocated_client_slots && b->entity > 0)
 			{
 				pl = &cl.frames[cl.parsecount&UPDATE_MASK].playerstate[b->entity-1];
 				VectorCopy(pl->origin, b->start);
@@ -2753,14 +2919,14 @@ void CL_UpdateBeams (void)
 			yaw = (int) (atan2(dist[1], dist[0]) * 180 / M_PI);
 			if (yaw < 0)
 				yaw += 360;
-	
+
 			forward = sqrt (dist[0]*dist[0] + dist[1]*dist[1]);
 			pitch = (int) (atan2(dist[2], forward) * 180 / M_PI);
 			if (pitch < 0)
 				pitch += 360;
 		}
 
-		if (ruleset_allow_particle_lightning.value)
+		if (ruleset_allow_particle_lightning.ival)
 			if (b->particleeffect >= 0 && !P_ParticleTrail(b->start, b->end, b->particleeffect, &b->trailstate))
 				continue;
 
@@ -2799,7 +2965,7 @@ void CL_UpdateBeams (void)
 			d -= 30;
 		}
 	}
-	
+
 	beams_running = lastrunningbeam+1;
 }
 
@@ -2821,7 +2987,7 @@ void CL_UpdateExplosions (void)
 
 	for (i=0, ex=cl_explosions; i < explosions_running; i++, ex++)
 	{
-		if (!ex->model)
+		if (!ex->model && !ex->flags)
 			continue;
 
 		lastrunningexplosion = i;
@@ -2841,6 +3007,7 @@ void CL_UpdateExplosions (void)
 		if ((int)f >= numframes || (int)f < 0)
 		{
 			ex->model = NULL;
+			ex->flags = 0;
 			continue;
 		}
 		if (of < 0)
@@ -2849,7 +3016,7 @@ void CL_UpdateExplosions (void)
 		ent = CL_NewTempEntity ();
 		if (!ent)
 			return;
-		VectorCopy (ex->origin, ent->origin);
+		VectorMA (ex->origin, f, ex->velocity, ent->origin);
 		VectorCopy (ex->oldorigin, ent->oldorigin);
 		VectorCopy (ex->angles, ent->angles);
 		ent->skinnum = ex->skinnum;
@@ -2857,11 +3024,26 @@ void CL_UpdateExplosions (void)
 		AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 		VectorInverse(ent->axis[1]);
 		ent->model = ex->model;
-		ent->framestate.g[FS_REG].frame[0] = (int)f+firstframe;
-		ent->framestate.g[FS_REG].frame[1] = of+firstframe;
-		ent->framestate.g[FS_REG].lerpfrac = 1-(f - (int)f);
-		ent->shaderRGBAf[3] = 1.0 - f/(numframes);
+		ent->framestate.g[FS_REG].frame[1] = (int)f+firstframe;
+		ent->framestate.g[FS_REG].frame[0] = of+firstframe;
+		ent->framestate.g[FS_REG].lerpfrac = (f - (int)f);
+		if (ent->model && ent->model->type == mod_sprite)
+			ent->shaderRGBAf[3] = ex->alpha;	/*sprites don't fade over time, the animation should do it*/
+		else
+			ent->shaderRGBAf[3] = (1.0 - f/(numframes))*ex->alpha;
 		ent->flags = ex->flags;
+
+		if (ex->flags & Q2RF_BEAM)
+		{
+			ent->rtype = RT_BEAM;
+			ent->shaderRGBAf[0] = ((d_8to24rgbtable[ex->skinnum & 0xFF] >>  0) & 0xFF)/255.0;
+			ent->shaderRGBAf[1] = ((d_8to24rgbtable[ex->skinnum & 0xFF] >>  8) & 0xFF)/255.0;
+			ent->shaderRGBAf[2] = ((d_8to24rgbtable[ex->skinnum & 0xFF] >> 16) & 0xFF)/255.0;
+		}
+		else
+		{
+			ent->skinnum = 7*f/(numframes);
+		}
 	}
 
 	explosions_running = lastrunningexplosion + 1;

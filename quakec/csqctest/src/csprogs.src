@@ -23,8 +23,12 @@ cs/keys.qc
 
 common/makeallstatic.qc
 
+cs/editor_lights.qc
+cs/editor_terrain.qc
+
 cs/prediction.qc
 cs/q3playerm.qc
+cs/q4player.qc
 cs/hlpm.qc
 cs/player.qc
 cs/hud.qc

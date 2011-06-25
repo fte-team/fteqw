@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 #include "quakedef.h"
 #include "winquake.h"
+#include "shader.h"
 
 void M_Menu_Audio_f (void);
 void M_Menu_Demos_f (void);
@@ -29,17 +30,6 @@ extern menu_t *menu_script;
 
 qboolean	m_recursiveDraw;
 
-int			m_return_state;
-qboolean	m_return_onerror;
-char		m_return_reason [32];
-
-#define StartingGame	(m_multiplayer_cursor == 1)
-#define JoiningGame		(m_multiplayer_cursor == 0)
-#define SerialConfig	(m_net_cursor == 0)
-#define DirectConfig	(m_net_cursor == 1)
-#define	IPXConfig		(m_net_cursor == 2)
-#define	TCPIPConfig		(m_net_cursor == 3)
-
 void M_ConfigureNetSubsystem(void);
 
 cvar_t m_helpismedia = SCVAR("m_helpismedia", "0");
@@ -47,94 +37,68 @@ cvar_t m_helpismedia = SCVAR("m_helpismedia", "0");
 //=============================================================================
 /* Support Routines */
 
-/*
-================
-M_DrawCharacter
-
-Draws one solid graphics character
-================
-*/
-void M_DrawCharacter (int cx, int line, unsigned int num)
-{
-	Draw_Character ( cx + ((vid.width - 320)>>1), line, num);
-}
-
-void M_DrawColouredCharacter (int cx, int line, unsigned int num)
-{
-	Draw_ColouredCharacter( cx + ((vid.width - 320)>>1), line, num);
-}
 void M_Print (int cx, int cy, qbyte *str)
 {
-	while (*str)
-	{
-		M_DrawCharacter (cx, cy, (*str)|CON_HIGHCHARSMASK);
-		str++;
-		cx += 8;
-	}
+	Draw_AltFunString(cx + ((vid.width - 320)>>1), cy, str);
 }
-
-void M_PrintColoured (int cx, int cy, int colour, qbyte *str)
-{
-	while (*str)
-	{
-		M_DrawColouredCharacter (cx, cy, (*str) + (colour<<CON_FGSHIFT));
-		str++;
-		cx += 8;
-	}
-}
-
 void M_PrintWhite (int cx, int cy, qbyte *str)
 {
-	while (*str)
-	{
-		M_DrawCharacter (cx, cy, *str);
-		str++;
-		cx += 8;
-	}
+	Draw_FunString(cx + ((vid.width - 320)>>1), cy, str);
 }
-
-void M_DrawTransPic (int x, int y, mpic_t *pic)
+void M_DrawScalePic (int x, int y, int w, int h, mpic_t *pic)
 {
-	Draw_TransPic (x + ((vid.width - 320)>>1), y, pic);
+	R2D_ScalePic (x + ((vid.width - 320)>>1), y, w, h, pic);
 }
 
-void M_DrawPic (int x, int y, mpic_t *pic)
-{
-	Draw_Pic (x + ((vid.width - 320)>>1), y, pic);
-}
-
-qbyte identityTable[256];
-qbyte translationTable[256];
-
-void M_BuildTranslationTable(int top, int bottom)
+void M_BuildTranslationTable(int top, int bottom, qbyte *translationTable)
 {
 	int		j;
 	qbyte	*dest, *source;
+	qbyte identityTable[256];
 
-	for (j = 0; j < 256; j++)
-		identityTable[j] = j;
-	dest = translationTable;
-	source = identityTable;
-	memcpy (dest, source, 256);
-
-	if (top < 128)	// the artists made some backwards ranges.  sigh.
-		memcpy (dest + TOP_RANGE, source + top, 16);
+	int pc = Cvar_Get("cl_playerclass", "1", 0, "foo")->value;
+	if (h2playertranslations && pc)
+	{
+		int i;
+		unsigned int color_offsets[5] = {2*14*256,0,1*14*256,2*14*256,2*14*256};
+		unsigned char *colorA, *colorB, *sourceA, *sourceB;
+		colorA = h2playertranslations + 256 + color_offsets[pc-1];
+		colorB = colorA + 256;
+		sourceA = colorB + (top * 256);
+		sourceB = colorB + (bottom * 256);
+		for(i=0;i<256;i++)
+		{
+			if (bottom > 0 && (colorB[i] != 255))
+				translationTable[i] = sourceB[i];
+			else if (top > 0 && (colorA[i] != 255))
+				translationTable[i] = sourceA[i];
+			else
+				translationTable[i] = i;
+		}
+	}
 	else
-		for (j=0 ; j<16 ; j++)
-			dest[TOP_RANGE+j] = source[top+15-j];
+	{
+		top *= 16;
+		bottom *= 16;
+		for (j = 0; j < 256; j++)
+			identityTable[j] = j;
+		dest = translationTable;
+		source = identityTable;
+		memcpy (dest, source, 256);
 
-	if (bottom < 128)
-		memcpy (dest + BOTTOM_RANGE, source + bottom, 16);
-	else
-		for (j=0 ; j<16 ; j++)
-			dest[BOTTOM_RANGE+j] = source[bottom+15-j];
+		if (top < 128)	// the artists made some backwards ranges.  sigh.
+			memcpy (dest + TOP_RANGE, source + top, 16);
+		else
+			for (j=0 ; j<16 ; j++)
+				dest[TOP_RANGE+j] = source[top+15-j];
+
+		if (bottom < 128)
+			memcpy (dest + BOTTOM_RANGE, source + bottom, 16);
+		else
+			for (j=0 ; j<16 ; j++)
+				dest[BOTTOM_RANGE+j] = source[bottom+15-j];
+	}
 }
-
-/*
-void M_DrawTransPicTranslate (int x, int y, mpic_t *pic)
-{
-	Draw_TransPicTranslate (x + ((vid.width - 320)>>1), y, pic, translationTable);
-}*/
 
 
 void M_DrawTextBox (int x, int y, int width, int lines)
@@ -146,64 +110,64 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 	// draw left side
 	cx = x;
 	cy = y;
-	p = Draw_SafeCachePic ("gfx/box_tl.lmp");
+	p = R2D_SafeCachePic ("gfx/box_tl.lmp");
 	if (!p)
 		return;	//assume we can't find any
-	M_DrawTransPic (cx, cy, p);
-	p = Draw_SafeCachePic ("gfx/box_ml.lmp");
+	M_DrawScalePic (cx, cy, 8, 8, p);
+	p = R2D_SafeCachePic ("gfx/box_ml.lmp");
 	if (p)
 		for (n = 0; n < lines; n++)
 		{
 			cy += 8;
-			M_DrawTransPic (cx, cy, p);
+			M_DrawScalePic (cx, cy, 8, 8, p);
 		}
-	p = Draw_SafeCachePic ("gfx/box_bl.lmp");
+	p = R2D_SafeCachePic ("gfx/box_bl.lmp");
 	if (p)
-		M_DrawTransPic (cx, cy+8, p);
+		M_DrawScalePic (cx, cy+8, 8, 8, p);
 
 	// draw middle
 	cx += 8;
 	while (width > 0)
 	{
 		cy = y;
-		p = Draw_SafeCachePic ("gfx/box_tm.lmp");
+		p = R2D_SafeCachePic ("gfx/box_tm.lmp");
 		if (p)
-			M_DrawTransPic (cx, cy, p);
-		p = Draw_SafeCachePic ("gfx/box_mm.lmp");
+			M_DrawScalePic (cx, cy, 16, 8, p);
+		p = R2D_SafeCachePic ("gfx/box_mm.lmp");
 		if (p)
 			for (n = 0; n < lines; n++)
 			{
 				cy += 8;
 				if (n == 1)
 				{
-					p = Draw_SafeCachePic ("gfx/box_mm2.lmp");
+					p = R2D_SafeCachePic ("gfx/box_mm2.lmp");
 					if (!p)
 						break;
 				}
-				M_DrawTransPic (cx, cy, p);
+				M_DrawScalePic (cx, cy, 16, 8, p);
 			}
-		p = Draw_SafeCachePic ("gfx/box_bm.lmp");
+		p = R2D_SafeCachePic ("gfx/box_bm.lmp");
 		if (p)
-			M_DrawTransPic (cx, cy+8, p);
+			M_DrawScalePic (cx, cy+8, 16, 8, p);
 		width -= 2;
 		cx += 16;
 	}
 
 	// draw right side
 	cy = y;
-	p = Draw_SafeCachePic ("gfx/box_tr.lmp");
+	p = R2D_SafeCachePic ("gfx/box_tr.lmp");
 	if (p)
-		M_DrawTransPic (cx, cy, p);
-	p = Draw_SafeCachePic ("gfx/box_mr.lmp");
+		M_DrawScalePic (cx, cy, 8, 8, p);
+	p = R2D_SafeCachePic ("gfx/box_mr.lmp");
 	if (p)
 		for (n = 0; n < lines; n++)
 		{
 			cy += 8;
-			M_DrawTransPic (cx, cy, p);
+			M_DrawScalePic (cx, cy, 8, 8, p);
 		}
-	p = Draw_SafeCachePic ("gfx/box_br.lmp");
+	p = R2D_SafeCachePic ("gfx/box_br.lmp");
 	if (p)
-		M_DrawTransPic (cx, cy+8, p);
+		M_DrawScalePic (cx, cy+8, 8, 8, p);
 }
 
 //=============================================================================
@@ -235,6 +199,10 @@ void M_ToggleMenu_f (void)
 	if (MP_Toggle())
 		return;
 #endif
+#ifdef VM_UI
+	if (UI_OpenMenu())
+		return;
+#endif
 
 	if (key_dest == key_menu)
 	{
@@ -253,39 +221,6 @@ void M_ToggleMenu_f (void)
 	{
 		M_Menu_Main_f ();
 	}
-}
-
-//=============================================================================
-/* OPTIONS MENU */
-#define	SLIDER_RANGE	10
-
-void M_DrawSlider (int x, int y, float range)
-{
-	int	i;
-
-	if (range < 0)
-		range = 0;
-	if (range > 1)
-		range = 1;
-	M_DrawCharacter (x-8, y, 128);
-	for (i=0 ; i<SLIDER_RANGE ; i++)
-		M_DrawCharacter (x + i*8, y, 129);
-	M_DrawCharacter (x+i*8, y, 130);
-	M_DrawCharacter (x + (SLIDER_RANGE-1)*8 * range, y, 131);
-}
-
-void M_DrawCheckbox (int x, int y, int on)
-{
-#if 0
-	if (on)
-		M_DrawCharacter (x, y, 131);
-	else
-		M_DrawCharacter (x, y, 129);
-#endif
-	if (on)
-		M_Print (x, y, "on");
-	else
-		M_Print (x, y, "off");
 }
 
 //=============================================================================
@@ -317,6 +252,9 @@ bindnames_t qwbindnames[] =
 {"+klook", 			"keyboard look "},
 {"+moveup",			"swim up       "},
 {"+movedown",		"swim down     "},
+#ifdef VOICECHAT
+{"+voip",			"voice chat    "},
+#endif
 {NULL}
 };
 
@@ -380,7 +318,7 @@ bindnames_t h2bindnames[] =
 {"+showinfo",		"full inventory"},
 {"+showdm",			"info / frags  "},
 //{"toggle_dm",		"toggle frags  "},
-//{"+infoplaque",		"objectives    "},	//requires pulling info out of the mod... on the client.
+{"+infoplaque",		"objectives    "},	//requires pulling info out of the mod... on the client.
 {"invleft",			"inv move left "},
 {"invright",		"inv move right"},
 {"impulse 100",		"inv:torch     "},
@@ -398,6 +336,9 @@ bindnames_t h2bindnames[] =
 {"impulse 112",		"inv:flight    "},
 {"impulse 113",		"inv:force cube"},
 {"impulse 114",		"inv:icon defn "},
+#ifdef VOICECHAT
+{"+voip",			"voice chat    "},
+#endif
 {NULL}
 };
 
@@ -412,26 +353,58 @@ void M_Menu_Keys_f (void)
 	int y;
 	menu_t *menu;
 	int mgt;
+	extern cvar_t cl_splitscreen, cl_forcesplitclient;
 
 	key_dest = key_menu;
 	m_state = m_complex;
 
 	menu = M_CreateMenu(0);
-
-	MC_AddCenterPicture(menu, 4, "gfx/ttl_cstm.lmp");
-
 	mgt = M_GameType();
 #ifdef Q2CLIENT
 	if (mgt == MGT_QUAKE2)	//quake2 main menu.
+	{
+		y = 48;
 		bindnames = q2bindnames;
+	}
 	else
 #endif
 	if (mgt == MGT_HEXEN2)
+	{
+		MC_AddCenterPicture(menu, 0, 60, "gfx/menu/title6.lmp");
+		y = 64;
 		bindnames = h2bindnames;
+	}
 	else
-		bindnames = qwbindnames;
+	{
+		MC_AddCenterPicture(menu, 4, 24, "gfx/ttl_cstm.lmp");
+		y = 48;
 
-	y = 48;
+		bindnames = qwbindnames;
+	}
+
+	if (cl_splitscreen.ival)
+	{
+		static char *texts[MAX_SPLITS+2] =
+		{
+			"Depends on device",
+			"Player 1",
+			"Player 2",
+			"Player 3",
+			"Player 4",
+			NULL
+		};
+		static char *values[MAX_SPLITS+1] =
+		{
+			"0",
+			"1",
+			"2",
+			"3",
+			"4"
+		};
+		MC_AddCvarCombo(menu, 16, y, "Force client", &cl_forcesplitclient, (const char **)texts, (const char **)values);
+		y+=8;
+	}
+
 	while (bindnames->name)
 	{
 		MC_AddBind(menu, 16, y, bindnames->name, bindnames->command);
@@ -441,15 +414,15 @@ void M_Menu_Keys_f (void)
 	}
 }
 
-
-void M_FindKeysForCommand (char *command, int *twokeys)
+int M_FindKeysForBind (char *command, int *keylist, int total)
 {
 	int		count;
 	int		j;
 	int		l;
 	char	*b;
 
-	twokeys[0] = twokeys[1] = -1;
+	for (count = 0; count < total; count++)
+		keylist[count] = -1;
 	l = strlen(command);
 	count = 0;
 
@@ -460,12 +433,44 @@ void M_FindKeysForCommand (char *command, int *twokeys)
 			continue;
 		if (!strncmp (b, command, l) )
 		{
-			twokeys[count] = j;
+			keylist[count] = j;
 			count++;
-			if (count == 2)
+			if (count == total)
 				break;
 		}
 	}
+	return count;
+}
+
+void M_FindKeysForCommand (int pnum, char *command, int *twokeys)
+{
+	char prefix[5];
+
+	if (*command == '+' || *command == '-')
+	{
+		prefix[0] = *command;
+		prefix[1] = 0;
+		if (pnum != 0)
+		{
+			prefix[1] = 'p';
+			prefix[2] = '0'+pnum;
+			prefix[3] = ' ';
+			prefix[4] = 0;
+		}
+		command++;
+	}
+	else
+	{
+		prefix[0] = 0;
+		if (pnum != 0)
+		{
+			prefix[0] = 'p';
+			prefix[1] = '0'+pnum;
+			prefix[2] = ' ';
+			prefix[3] = 0;
+		}
+	}
+	M_FindKeysForBind(va("%s%s", prefix, command), twokeys, 2);
 }
 
 void M_UnbindCommand (char *command)
@@ -483,150 +488,6 @@ void M_UnbindCommand (char *command)
 			continue;
 		if (!strncmp (b, command, l) )
 			Key_SetBinding (j, ~0, "", RESTRICT_LOCAL);
-	}
-}
-
-
-void M_Keys_Draw (void)
-{
-	int		i, l;
-	int		keys[2];
-	char	*name;
-	int		x, y;
-	mpic_t	*p;
-
-	p = Draw_SafeCachePic ("gfx/ttl_cstm.lmp");
-	if (p)
-		M_DrawPic ( (320-p->width)/2, 4, p);
-
-	if (bind_grab)
-		M_Print (12, 32, "Press a key or button for this action");
-	else
-		M_Print (18, 32, "Enter to change, backspace to clear");
-
-// search for known bindings
-	for (i=0 ; ; i++)
-	{
-		if (!bindnames[i].command)
-			break;
-		y = 48 + 8*i;
-
-		M_Print (16, y, bindnames[i].name);
-
-		l = strlen (bindnames[i].command);
-
-		M_FindKeysForCommand (bindnames[i].command, keys);
-
-		if (keys[0] == -1)
-		{
-			M_Print (140, y, "???");
-		}
-		else
-		{
-			name = Key_KeynumToString (keys[0]);
-			M_Print (140, y, name);
-			x = strlen(name) * 8;
-			if (keys[1] != -1)
-			{
-				M_Print (140 + x + 8, y, "or");
-				M_Print (140 + x + 32, y, Key_KeynumToString (keys[1]));
-			}
-		}
-	}
-
-	if (bind_grab)
-		M_DrawCharacter (130, 48 + keys_cursor*8, '=');
-	else
-		M_DrawCharacter (130, 48 + keys_cursor*8, 12+((int)(realtime*4)&1));
-}
-
-
-void M_Keys_Key (int k)
-{
-	char	cmd[80];
-	int		keys[2];
-	int mgt;
-
-	mgt = M_GameType();
-
-	if (mgt == MGT_HEXEN2)
-		S_LocalSound ("raven/menu1.wav");
-	else
-		S_LocalSound ("misc/menu1.wav");
-
-	if (bind_grab)
-	{	// defining a key
-		if (mgt == MGT_HEXEN2)
-			S_LocalSound ("raven/menu1.wav");
-		else
-			S_LocalSound ("misc/menu1.wav");
-
-		if (k == K_ESCAPE)
-		{
-			bind_grab = false;
-		}
-		else if (k != '`')
-		{
-			sprintf (cmd, "bind %s \"%s\"\n", Key_KeynumToString (k), bindnames[keys_cursor].command);
-			Cbuf_InsertText (cmd, RESTRICT_LOCAL, false);
-		}
-
-		bind_grab = false;
-		return;
-	}
-
-	switch (k)
-	{
-	case K_ESCAPE:
-		M_Menu_Options_f ();
-		break;
-
-	case K_LEFTARROW:
-	case K_UPARROW:
-		if (mgt == MGT_HEXEN2)
-			S_LocalSound ("raven/menu1.wav");
-		else
-			S_LocalSound ("misc/menu1.wav");
-
-		keys_cursor--;
-		if (keys_cursor < 0)
-			keys_cursor = numbindnames-1;
-		break;
-
-	case K_DOWNARROW:
-	case K_RIGHTARROW:
-		if (mgt == MGT_HEXEN2)
-			S_LocalSound ("raven/menu1.wav");
-		else
-			S_LocalSound ("misc/menu1.wav");
-
-		keys_cursor++;
-		if (keys_cursor >= numbindnames)
-			keys_cursor = 0;
-		break;
-
-	case K_ENTER:		// go into bind mode
-		M_FindKeysForCommand (bindnames[keys_cursor].command, keys);
-
-		if (mgt == MGT_HEXEN2)
-			S_LocalSound ("raven/menu2.wav");
-		else
-			S_LocalSound ("misc/menu2.wav");
-
-		if (keys[1] != -1)
-			M_UnbindCommand (bindnames[keys_cursor].command);
-		bind_grab = true;
-		break;
-
-	case K_BACKSPACE:		// delete bindings
-	case K_DEL:				// delete bindings
-		if (mgt == MGT_HEXEN2)
-			S_LocalSound ("raven/menu1.wav");
-		else
-			S_LocalSound ("misc/menu1.wav");
-
-		M_UnbindCommand (bindnames[keys_cursor].command);
-		break;
 	}
 }
 
@@ -664,11 +525,11 @@ void M_Menu_Help_f (void)
 void M_Help_Draw (void)
 {
 	mpic_t *pic;
-	pic = Draw_SafeCachePic(va(helpstyle, help_page+helppagemin));
+	pic = R2D_SafeCachePic(va(helpstyle, help_page+helppagemin));
 	if (!pic)
 		M_Menu_Main_f ();
 	else
-		M_DrawPic (0, 0, pic);
+		M_DrawScalePic (0, 0, 320, 200, pic);
 }
 
 
@@ -915,8 +776,8 @@ void M_QuickConnect_f(void);
 
 void M_Menu_MediaFiles_f (void);
 void M_Menu_FPS_f (void);
-void M_Menu_Shadow_Lighting_f (void);
-void M_Menu_3D_f (void);
+void M_Menu_Lighting_f (void);
+void M_Menu_Render_f (void);
 void M_Menu_Textures_f (void);
 void M_Menu_Teamplay_f (void);
 void M_Menu_Teamplay_Locations_f (void);
@@ -928,11 +789,9 @@ void M_Menu_Teamplay_Items_Powerups_f (void);
 void M_Menu_Teamplay_Items_Ammo_Health_f (void);
 void M_Menu_Teamplay_Items_Team_Fortress_f (void);
 void M_Menu_Teamplay_Items_Status_Location_Misc_f (void);
+void M_Menu_Network_f(void);
 void M_Menu_Singleplayer_Cheats_f (void);
-void M_Menu_Singleplayer_Cheats_Quake2_f (void);
-void M_Menu_Singleplayer_Cheats_Hexen2_f (void);
 void M_Menu_Particles_f (void);
-void M_Menu_ParticleSets_f (void);
 void M_Menu_Audio_Speakers_f (void);
 void Menu_DownloadStuff_f (void);
 static qboolean internalmenusregistered;
@@ -979,12 +838,12 @@ void M_Init_Internal (void)
 	Cmd_AddRemCommand ("menu_speakers", M_Menu_Audio_Speakers_f);
 #endif
 	Cmd_AddRemCommand ("menu_spcheats", M_Menu_Singleplayer_Cheats_f);
-	Cmd_AddRemCommand ("menu_quake2_spcheats", M_Menu_Singleplayer_Cheats_Quake2_f);
-	Cmd_AddRemCommand ("menu_hexen2_spcheats", M_Menu_Singleplayer_Cheats_Hexen2_f);
 	Cmd_AddRemCommand ("menu_fps", M_Menu_FPS_f);
-	Cmd_AddRemCommand ("menu_3d" , M_Menu_3D_f);
-	Cmd_AddRemCommand ("menu_shadow_lighting", M_Menu_Shadow_Lighting_f);
+	Cmd_AddRemCommand ("menu_render" , M_Menu_Render_f);
+	Cmd_AddRemCommand ("menu_lighting", M_Menu_Lighting_f);
+#ifdef GLQUAKE
 	Cmd_AddRemCommand ("menu_textures", M_Menu_Textures_f);
+#endif
 	Cmd_AddRemCommand ("menu_teamplay", M_Menu_Teamplay_f);
 	Cmd_AddRemCommand ("menu_teamplay_locations", M_Menu_Teamplay_Locations_f);
 	Cmd_AddRemCommand ("menu_teamplay_needs", M_Menu_Teamplay_Needs_f);
@@ -996,7 +855,7 @@ void M_Init_Internal (void)
 	Cmd_AddRemCommand ("menu_teamplay_team_fortress", M_Menu_Teamplay_Items_Team_Fortress_f);
 	Cmd_AddRemCommand ("menu_teamplay_status_location_misc", M_Menu_Teamplay_Items_Status_Location_Misc_f);
 	Cmd_AddRemCommand ("menu_particles", M_Menu_Particles_f);
-	Cmd_AddRemCommand ("menu_particlesets", M_Menu_ParticleSets_f);
+	Cmd_AddRemCommand ("menu_network", M_Menu_Network_f);
 
 #ifdef WEBCLIENT
 	Cmd_AddRemCommand ("menu_download", Menu_DownloadStuff_f);
@@ -1030,12 +889,11 @@ void M_DeInit_Internal (void)
 
 #ifdef CL_MASTER
 	Cmd_RemoveCommand ("menu_servers");
-	Cmd_RemoveCommand ("menu_servers2");
+	Cmd_RemoveCommand ("menu_serversold");
 	Cmd_RemoveCommand ("menu_slist");
 #endif
 	Cmd_RemoveCommand ("menu_setup");
 	Cmd_RemoveCommand ("menu_newmulti");
-	Cmd_RemoveCommand ("menu_main");	//I've moved main to last because that way tab give us main and not quit.
 
 	Cmd_RemoveCommand ("menu_options");
 	Cmd_RemoveCommand ("menu_video");
@@ -1052,18 +910,35 @@ void M_DeInit_Internal (void)
 	Cmd_RemoveCommand ("menu_teamplay_team_fortress");
 	Cmd_RemoveCommand ("menu_teamplay_status_location_misc");
 	Cmd_RemoveCommand ("menu_spcheats");
-	Cmd_RemoveCommand ("menu_hexen2_spcheats");
-	Cmd_RemoveCommand ("menu_quake2_spcheats");
 	Cmd_RemoveCommand ("menu_fps");
-	Cmd_RemoveCommand ("menu_3d");
-	Cmd_RemoveCommand ("menu_shadow_lighting");
+	Cmd_RemoveCommand ("menu_render");
+	Cmd_RemoveCommand ("menu_lighting");
 	Cmd_RemoveCommand ("menu_textures");
 	Cmd_RemoveCommand ("menu_particles");
-	Cmd_RemoveCommand ("menu_particlesets");
 
 	Cmd_RemoveCommand ("menu_download");
 
+
+	Cmd_RemoveCommand ("menu_main");	//I've moved main to last because that way tab give us main and not quit.
 	Cmd_RemoveCommand ("quickconnect");
+}
+
+void M_Shutdown(void)
+{
+#ifdef MENU_DAT
+	MP_Shutdown();
+#endif
+	M_DeInit_Internal();
+}
+
+void M_Reinit(void)
+{
+#ifdef MENU_DAT
+	if (!MP_Init())
+#endif
+	{
+		M_Init_Internal();
+	}
 }
 
 void FPS_Preset_f(void);
@@ -1071,7 +946,6 @@ void FPS_Preset_f(void);
 //menu.dat is loaded later... after the video and everything is up.
 void M_Init (void)
 {
-	M_Init_Internal();
 
 	Cmd_AddCommand("togglemenu", M_ToggleMenu_f);
 	Cmd_AddCommand("closemenu", M_CloseMenu_f);
@@ -1084,6 +958,8 @@ void M_Init (void)
 	M_Serverlist_Init();
 #endif
 	M_Script_Init();
+
+	M_Reinit();
 }
 
 
@@ -1092,7 +968,7 @@ void M_Draw (int uimenu)
 	if (uimenu)
 	{
 		if (uimenu == 2)
-			Draw_FadeScreen ();
+			R2D_FadeScreen ();
 #ifdef VM_UI
 		UI_DrawMenu();
 #endif
@@ -1113,20 +989,18 @@ void M_Draw (int uimenu)
 
 	if ((!menu_script || scr_con_current) && !m_recursiveDraw)
 	{
-		Draw_FadeScreen ();
+		R2D_FadeScreen ();
 	}
 	else
 	{
 		m_recursiveDraw = false;
 	}
 
+	R2D_ImageColours(1, 1, 1, 1);
+
 	switch (m_state)
 	{
 	case m_none:
-		break;
-
-	case m_keys:
-		M_Keys_Draw ();
 		break;
 
 	case m_help:
@@ -1166,10 +1040,6 @@ void M_Keydown (int key, int unicode)
 		key_dest = key_console;
 		return;
 
-	case m_keys:
-		M_Keys_Key (key);
-		return;
-
 	case m_help:
 		M_Help_Key (key);
 		return;
@@ -1183,7 +1053,7 @@ void M_Keydown (int key, int unicode)
 		return;
 
 	case m_complex:
-		M_Complex_Key (key);
+		M_Complex_Key (key, unicode);
 		return;
 #ifdef PLUGINS
 	case m_plugin:
@@ -1221,19 +1091,26 @@ void M_Keyup (int key, int unicode)
 // Generic function to choose which game menu to draw
 int M_GameType (void)
 {
-	int cached;
-	int q1, h2, q2;
+	static int cached;
+	static unsigned int cachedrestarts;
 
-	q1 = COM_FDepthFile("gfx/sp_menu.lmp", true);
-	h2 = COM_FDepthFile("gfx/menu/title2.lmp", true);
-	q2 = COM_FDepthFile("pics/m_banner_game.pcx", true);
+	if (FS_Restarted(&cachedrestarts))
+	{
+#if defined(Q2CLIENT)
+		int q1, h2, q2;
 
-	if (q2 < h2 && q2 < q1)
-		cached = MGT_QUAKE2;
-	else if (h2 < q1)
-		cached = MGT_HEXEN2;
-	else
-		cached = MGT_QUAKE1;
+		q1 = COM_FDepthFile("gfx/sp_menu.lmp", true);
+		h2 = COM_FDepthFile("gfx/menu/title2.lmp", true);
+		q2 = COM_FDepthFile("pics/m_banner_game.pcx", true);
+
+		if (q2 < h2 && q2 < q1)
+			cached = MGT_QUAKE2;
+		else if (h2 < q1)
+			cached = MGT_HEXEN2;
+		else
+#endif
+			cached = MGT_QUAKE1;
+	}
 
 	return cached;
 }

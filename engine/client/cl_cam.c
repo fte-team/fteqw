@@ -100,13 +100,13 @@ qboolean Cam_DrawViewModel(int pnum)
 {
 	if (cl.spectator)
 	{
-		if (autocam[pnum] && locked[pnum] && cl_chasecam.value)
+		if (autocam[pnum] && locked[pnum] && cl_chasecam.ival)
 			return true;
 		return false;
 	}
 	else
 	{
-		if (selfcam == 1 && r_secondaryview != 3)
+		if (selfcam == 1 && !r_refdef.externalview)
 			return true;
 		return false;
 	}
@@ -125,7 +125,7 @@ qboolean Cam_DrawPlayer(int pnum, int playernum)
 	}
 	else
 	{
-		if (selfcam == 1 && r_secondaryview != 3)
+		if (selfcam == 1 && !r_refdef.externalview)
 			if (playernum == (cl.viewentity[pnum]?cl.viewentity[pnum]-1:(cl.playernum[pnum])))
 				return false;
 	}
@@ -624,7 +624,7 @@ void Cam_FinishMove(int pnum, usercmd_t *cmd)
 		}
 	}
 
-	if (autocam[pnum] && cl_hightrack.value) 
+	if (autocam[pnum] && cl_hightrack.ival) 
 	{
 		Cam_CheckHighTarget(pnum);
 		return;

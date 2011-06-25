@@ -396,11 +396,7 @@ void() hknight_melee =
 
 void() monster_hell_knight =
 {
-	if (self.zone == 0)
-	{
-		load_monster();
-		return;
-	}
+
 	precache_model2 ("progs/hknight.mdl");
 	precache_model2 ("progs/k_spike.mdl");
 	precache_model2 ("progs/h_hellkn.mdl");
@@ -424,12 +420,13 @@ void() monster_hell_knight =
 	setmodel (self, "progs/hknight.mdl");
 
 	setsize (self, '-16 -16 -24', '16 16 40');
-	self.health = 200;
-      self.islot3 = SlotVal(IID_ARM_FORCE, 1);
+	self.health = 125;
+	self.islot3 = 10; //hell-knight armor
+	self.armortype = 0.30;
 	self.helmet = 1;
 	self.team = 3;
 	self.classname = "monster";
-	self.netname = "reaver overlord";
+	self.netname = "reaver";
 	self.th_stand = hknight_stand1;
 	self.th_walk = hknight_walk1;
 	self.th_run = hknight_run1;

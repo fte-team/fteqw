@@ -23,7 +23,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <math.h>
 
 vec3_t vec3_origin = {0,0,0};
-int nanmask = 255<<23;
 
 /*-----------------------------------------------------------------*/
 
@@ -173,8 +172,6 @@ void VARGS BOPS_Error (void)
 	Sys_Error ("BoxOnPlaneSide:  Bad signbits");
 }
 
-#if !id386
-
 /*
 ==================
 BoxOnPlaneSide
@@ -281,8 +278,6 @@ if (sides == 0)
 
 	return sides;
 }
-
-#endif
 
 
 
@@ -408,7 +403,7 @@ void AngleVectors (const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up)
 	}
 }
 
-int VectorCompare (vec3_t v1, vec3_t v2)
+int VectorCompare (const vec3_t v1, const vec3_t v2)
 {
 	int		i;
 	
@@ -524,13 +519,6 @@ void VectorInverse (vec3_t v)
 	v[0] = -v[0];
 	v[1] = -v[1];
 	v[2] = -v[2];
-}
-
-void VectorScale (vec3_t in, vec_t scale, vec3_t out)
-{
-	out[0] = in[0]*scale;
-	out[1] = in[1]*scale;
-	out[2] = in[2]*scale;
 }
 
 
@@ -702,8 +690,6 @@ int GreatestCommonDivisor (int i1, int i2)
 }
 
 
-#if !id386
-
 // TODO: move to nonintel.c
 
 /*
@@ -723,7 +709,6 @@ fixed16_t Invert24To16(fixed16_t val)
 			(((double)0x10000 * (double)0x1000000 / (double)val) + 0.5);
 }
 
-#endif
 
 
 
@@ -732,11 +717,11 @@ fixed16_t Invert24To16(fixed16_t val)
 
 
 
-void VectorTransform (const vec3_t in1, matrix3x4 in2, vec3_t out)
+void VectorTransform (const vec3_t in1, const matrix3x4 in2, vec3_t out)
 {
 	out[0] = DotProduct(in1, in2[0]) + in2[0][3];
-	out[1] = DotProduct(in1, in2[1]) +	in2[1][3];
-	out[2] = DotProduct(in1, in2[2]) +	in2[2][3];
+	out[1] = DotProduct(in1, in2[1]) + in2[1][3];
+	out[2] = DotProduct(in1, in2[2]) + in2[2][3];
 }
 
 #ifdef HALFLIFEMODELS
@@ -884,7 +869,7 @@ float *Matrix4_NewTranslation(float x, float y, float z)
 }
 
 //be aware that this generates two sorts of matricies depending on order of a+b
-void Matrix4_Multiply(float *a, float *b, float *out)
+void Matrix4_Multiply(const float *a, const float *b, float *out)
 {
 	out[0]  = a[0] * b[0] + a[4] * b[1] + a[8] * b[2] + a[12] * b[3];
 	out[1]  = a[1] * b[0] + a[5] * b[1] + a[9] * b[2] + a[13] * b[3];
@@ -908,7 +893,7 @@ void Matrix4_Multiply(float *a, float *b, float *out)
 }
 
 //transform 4d vector by a 4d matrix.
-void Matrix4_Transform4(float *matrix, float *vector, float *product)
+void Matrix4_Transform4(const float *matrix, const float *vector, float *product)
 {
 	product[0] = matrix[0]*vector[0] + matrix[4]*vector[1] + matrix[8]*vector[2] + matrix[12]*vector[3];
 	product[1] = matrix[1]*vector[0] + matrix[5]*vector[1] + matrix[9]*vector[2] + matrix[13]*vector[3];
@@ -916,14 +901,14 @@ void Matrix4_Transform4(float *matrix, float *vector, float *product)
 	product[3] = matrix[3]*vector[0] + matrix[7]*vector[1] + matrix[11]*vector[2] + matrix[15]*vector[3];
 }
 
-void Matrix4_Transform3(float *matrix, float *vector, float *product)
+void Matrix4_Transform3(const float *matrix, const float *vector, float *product)
 {
 	product[0] = matrix[0]*vector[0] + matrix[4]*vector[1] + matrix[8]*vector[2] + matrix[12];
 	product[1] = matrix[1]*vector[0] + matrix[5]*vector[1] + matrix[9]*vector[2] + matrix[13];
 	product[2] = matrix[2]*vector[0] + matrix[6]*vector[1] + matrix[10]*vector[2] + matrix[14];
 }
 
-void Matrix4_ModelViewMatrix(float *modelview, vec3_t viewangles, vec3_t vieworg)
+void Matrix4_ModelViewMatrix(float *modelview, const vec3_t viewangles, const vec3_t vieworg)
 {
 	float tempmat[16];
 	//load identity.
@@ -953,12 +938,35 @@ void Matrix4_ModelViewMatrix(float *modelview, vec3_t viewangles, vec3_t vieworg
 	Matrix4_Multiply(tempmat, Matrix4_NewTranslation(-vieworg[0],  -vieworg[1],  -vieworg[2]), modelview);	    // put Z going up
 }
 
-void		Matrix4x4_CreateTranslate (matrix4x4_t *out, float x, float y, float z)
+void		Matrix4_CreateTranslate (float *out, float x, float y, float z)
 {
-	memcpy(out, Matrix4_NewTranslation(x, y, z), sizeof(*out));
+	memcpy(out, Matrix4_NewTranslation(x, y, z), 16*sizeof(float));
 }
 
-void Matrix4_ModelViewMatrixFromAxis(float *modelview, vec3_t pn, vec3_t right, vec3_t up, vec3_t vieworg)
+void Matrix4Q_CreateTranslate (float *out, float x, float y, float z)
+{
+	out[0] = 1;
+	out[4] = 0;
+	out[8] = 0;
+	out[12] = 0;
+
+	out[1] = 0;
+    out[5] = 1;
+	out[9] = 0;
+	out[13] = 0;
+
+	out[2] = 0;
+	out[6] = 0;
+	out[10] = 1;
+	out[14] = 0;
+
+	out[3] = x;
+	out[7] = y;
+	out[11] = z;
+	out[15] = 1;
+}
+
+void Matrix4_ModelViewMatrixFromAxis(float *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg)
 {
 	float tempmat[16];
 
@@ -983,7 +991,46 @@ void Matrix4_ModelViewMatrixFromAxis(float *modelview, vec3_t pn, vec3_t right, 
 }
 
 
-void Matrix4_ModelMatrixFromAxis(float *modelview, vec3_t pn, vec3_t right, vec3_t up, vec3_t vieworg)
+void Matrix4Q_ToVectors(const float *in, float vx[3], float vy[3], float vz[3], float t[3])
+{
+	vx[0] = in[0];
+	vx[1] = in[4];
+	vx[2] = in[8];
+
+	vy[0] = in[1];
+	vy[1] = in[5];
+	vy[2] = in[9];
+
+	vz[0] = in[2];
+	vz[1] = in[6];
+	vz[2] = in[10];
+
+	t [0] = in[3];
+	t [1] = in[7];
+	t [2] = in[11];
+}
+
+void Matrix4Q_FromVectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3])
+{
+	out[0] = vx[0];
+	out[1] = vy[0];
+	out[2] = vz[0];
+	out[3] = t[0];
+	out[4] = vx[1];
+	out[5] = vy[1];
+	out[6] = vz[1];
+	out[7] = t[1];
+	out[8] = vx[2];
+	out[9] = vy[2];
+	out[10] = vz[2];
+	out[11] = t[2];
+	out[12] = 0.0f;
+	out[13] = 0.0f;
+	out[14] = 0.0f;
+	out[15] = 1.0f;
+}
+
+void Matrix4_ModelMatrixFromAxis(float *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg)
 {
 	float tempmat[16];
 
@@ -1005,6 +1052,36 @@ void Matrix4_ModelMatrixFromAxis(float *modelview, vec3_t pn, vec3_t right, vec3
 	tempmat[15] = 1;
 
 	Matrix4_Multiply(Matrix4_NewTranslation(vieworg[0],  vieworg[1],  vieworg[2]), tempmat, modelview);	    // put Z going up
+}
+
+void Matrix4_ModelMatrix(float *modelview, vec_t x, vec_t y, vec_t z, vec_t pitch, vec_t yaw, vec_t roll, vec_t scale)
+{
+	float tempmat[16];
+	//load identity.
+	memset(modelview, 0, sizeof(*modelview)*16);
+#if FULLYGL
+	modelview[0] = 1;
+	modelview[5] = 1;
+	modelview[10] = 1;
+	modelview[15] = 1;
+
+	Matrix4_Multiply(modelview, Matrix4_NewRotation(-90,  1, 0, 0), tempmat);	    // put Z going up
+	Matrix4_Multiply(tempmat, Matrix4_NewRotation(90,  0, 0, 1), modelview);	    // put Z going up
+#else
+	//use this lame wierd and crazy identity matrix..
+	modelview[2] = -1;
+	modelview[4] = -1;
+	modelview[9] = 1;
+	modelview[15] = 1;
+#endif
+	//figure out the current modelview matrix
+
+	//I would if some of these, but then I'd still need a couple of copys
+	Matrix4_Multiply(modelview, Matrix4_NewRotation(-roll,  1, 0, 0), tempmat);
+	Matrix4_Multiply(tempmat, Matrix4_NewRotation(-pitch,  0, 1, 0), modelview);
+	Matrix4_Multiply(modelview, Matrix4_NewRotation(-yaw,  0, 0, 1), tempmat);
+
+	Matrix4_Multiply(tempmat, Matrix4_NewTranslation(x,  y,  z), modelview);
 }
 
 void Matrix4_Identity(float *outm)
@@ -1140,30 +1217,52 @@ void Matrix4_Projection2(float *proj, float fovx, float fovy, float neard)
 	proj[15] = 0;
 }
 
-void Matrix4_Orthographic(float *proj, float xmin, float xmax, float ymax, float ymin,
+void Matrix4_Orthographic(float *proj, float xmin, float xmax, float ymin, float ymax,
 		     float znear, float zfar)
 {
 	proj[0] = 2/(xmax-xmin);
 	proj[4] = 0;
 	proj[8] = 0;
-	proj[12] = (xmax+xmin)/(xmax-xmin);
+	proj[12] = -(xmax+xmin)/(xmax-xmin);
 
 	proj[1] = 0;
 	proj[5] = 2/(ymax-ymin);
 	proj[9] = 0;
-	proj[13] = (ymax+ymin)/(ymax-ymin);
+	proj[13] = -(ymax+ymin)/(ymax-ymin);
 
 	proj[2] = 0;
 	proj[6] = 0;
 	proj[10] = -2/(zfar-znear);
-	proj[14] = (zfar+znear)/(zfar-znear);
+	proj[14] = -(zfar+znear)/(zfar-znear);
 	
 	proj[3] = 0;
 	proj[7] = 0;
 	proj[11] = 0;
 	proj[15] = 1;
 }
+void Matrix4_OrthographicD3D(float *proj, float xmin, float xmax, float ymax, float ymin,
+		     float znear, float zfar)
+{
+	proj[0] = 2/(xmax-xmin);
+	proj[4] = 0;
+	proj[8] = 0;
+	proj[12] = (xmax+xmin)/(xmin-xmax);
 
+	proj[1] = 0;
+	proj[5] = 2/(ymax-ymin);
+	proj[9] = 0;
+	proj[13] = (ymax+ymin)/(ymin-ymax);
+
+	proj[2] = 0;
+	proj[6] = 0;
+	proj[10] = 1/(znear-zfar);
+	proj[14] = znear/(znear-zfar);
+	
+	proj[3] = 0;
+	proj[7] = 0;
+	proj[11] = 0;
+	proj[15] = 1;
+}
 /*
  * Compute inverse of 4x4 transformation matrix.
  * Code contributed by Jacques Leroy jle@star.be
@@ -1343,6 +1442,90 @@ qboolean Matrix4_Invert(const float *m, float *out)
 #undef SWAP_ROWS
 }
 
+void Matrix3_Invert_Simple (const vec3_t in1[3], vec3_t out[3])
+{
+	// we only support uniform scaling, so assume the first row is enough
+	// (note the lack of sqrt here, because we're trying to undo the scaling,
+	// this means multiplying by the inverse scale twice - squaring it, which
+	// makes the sqrt a waste of time)
+#if 1
+	double scale = 1.0 / (in1[0][0] * in1[0][0] + in1[0][1] * in1[0][1] + in1[0][2] * in1[0][2]);
+#else
+	double scale = 3.0 / sqrt
+		 (in1->m[0][0] * in1->m[0][0] + in1->m[0][1] * in1->m[0][1] + in1->m[0][2] * in1->m[0][2]
+		+ in1->m[1][0] * in1->m[1][0] + in1->m[1][1] * in1->m[1][1] + in1->m[1][2] * in1->m[1][2]
+		+ in1->m[2][0] * in1->m[2][0] + in1->m[2][1] * in1->m[2][1] + in1->m[2][2] * in1->m[2][2]);
+	scale *= scale;
+#endif
+
+	// invert the rotation by transposing and multiplying by the squared
+	// recipricol of the input matrix scale as described above
+	out[0][0] = in1[0][0] * scale;
+	out[0][1] = in1[1][0] * scale;
+	out[0][2] = in1[2][0] * scale;
+
+	out[1][0] = in1[0][1] * scale;
+	out[1][1] = in1[1][1] * scale;
+	out[1][2] = in1[2][1] * scale;
+
+	out[2][0] = in1[0][2] * scale;
+	out[2][1] = in1[1][2] * scale;
+	out[2][2] = in1[2][2] * scale;
+}
+
+void Matrix4Q_Invert_Simple (const float *in1, float *out)
+{
+	// we only support uniform scaling, so assume the first row is enough
+	// (note the lack of sqrt here, because we're trying to undo the scaling,
+	// this means multiplying by the inverse scale twice - squaring it, which
+	// makes the sqrt a waste of time)
+#if 1
+	double scale = 1.0 / (in1[0] * in1[0] + in1[1] * in1[1] + in1[2] * in1[2]);
+#else
+	double scale = 3.0 / sqrt
+		 (in1->m[0][0] * in1->m[0][0] + in1->m[0][1] * in1->m[0][1] + in1->m[0][2] * in1->m[0][2]
+		+ in1->m[1][0] * in1->m[1][0] + in1->m[1][1] * in1->m[1][1] + in1->m[1][2] * in1->m[1][2]
+		+ in1->m[2][0] * in1->m[2][0] + in1->m[2][1] * in1->m[2][1] + in1->m[2][2] * in1->m[2][2]);
+	scale *= scale;
+#endif
+
+	// invert the rotation by transposing and multiplying by the squared
+	// recipricol of the input matrix scale as described above
+	out[0] = in1[0] * scale;
+	out[1] = in1[4] * scale;
+	out[2] = in1[8] * scale;
+	out[4] = in1[1] * scale;
+	out[5] = in1[5] * scale;
+	out[6] = in1[9] * scale;
+	out[8] = in1[2] * scale;
+	out[9] = in1[6] * scale;
+	out[10] = in1[10] * scale;
+
+#ifdef MATRIX4x4_OPENGLORIENTATION
+	// invert the translate
+	out->m[12] = -(in1[12] * out[0] + in1[13] * out[4] + in1[14] * out[8]);
+	out->m[13] = -(in1[12] * out[1] + in1[13] * out[5] + in1[14] * out[9]);
+	out->m[14] = -(in1[12] * out[2] + in1[13] * out[6] + in1[14] * out[10]);
+
+	// don't know if there's anything worth doing here
+	out[3] = 0;
+	out[7] = 0;
+	out[11] = 0;
+	out[15] = 1;
+#else
+	// invert the translate
+	out[3] = -(in1[3] * out[0] + in1[7] * out[1] + in1[11] * out[2]);
+	out[7] = -(in1[3] * out[4] + in1[7] * out[5] + in1[11] * out[6]);
+	out[11] = -(in1[3] * out[8] + in1[7] * out[9] + in1[11] * out[10]);
+
+	// don't know if there's anything worth doing here
+	out[12] = 0;
+	out[13] = 0;
+	out[14] = 0;
+	out[15] = 1;
+#endif
+}
+
 void Matrix3x4_InvertTo3x3(float *in, float *result)
 {
 	float t1[16], tr[16];
@@ -1377,7 +1560,7 @@ void Matrix3x4_InvertTo3x3(float *in, float *result)
 
 //screen->3d
 
-void Matrix4_UnProject(vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float fovx, float fovy)
+void Matrix4_UnProject(const vec3_t in, vec3_t out, const vec3_t viewangles, const vec3_t vieworg, float fovx, float fovy)
 {
 	float modelview[16];
 	float proj[16];
@@ -1393,21 +1576,25 @@ void Matrix4_UnProject(vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg,
 		float v[4], tempv[4];
 		v[0] = in[0]*2-1;
 		v[1] = in[1]*2-1;
-		v[2] = in[2]*2-1;
+		v[2] = in[2];
 		v[3] = 1;
+
+		//don't use 1, because the far clip plane really is an infinite distance away
+		if (v[2] >= 1)
+			v[2] = 0.999999;
 
 		Matrix4_Transform4(proj, v, tempv); 
 
-		out[0] = tempv[0];
-		out[1] = tempv[1];
-		out[2] = tempv[2];
+		out[0] = tempv[0]/tempv[3];
+		out[1] = tempv[1]/tempv[3];
+		out[2] = tempv[2]/tempv[3];
 	}
 }
 
 //returns fractions of screen.
 //uses GL style rotations and translations and stuff.
 //3d -> screen (fixme: offscreen return values needed)
-void Matrix4_Project (vec3_t in, vec3_t out, vec3_t viewangles, vec3_t vieworg, float fovx, float fovy)
+void Matrix4_Project (const vec3_t in, vec3_t out, const vec3_t viewangles, const vec3_t vieworg, float fovx, float fovy)
 {
 	float modelview[16];
 	float proj[16];
@@ -1450,7 +1637,7 @@ void Matrix3_Multiply (vec3_t *in1, vec3_t *in2, vec3_t *out)
 	out[2][2] = in1[2][0]*in2[0][2] + in1[2][1]*in2[1][2] +	in1[2][2]*in2[2][2];
 }
 
-vec_t VectorNormalize2 (vec3_t v, vec3_t out)
+vec_t VectorNormalize2 (const vec3_t v, vec3_t out)
 {
 	float	length, ilength;
 

@@ -10,9 +10,8 @@ void(float slot) WeaponAmmo;
 void() Identify;
 void(entity to, float iid, float amount) AddStackable;
 void(entity to, float iid, float amount) AddNonStackable;
-void() shop_face;
 
-float modelindex_dead, modelindex_sneak, modelindex_prone, modelindex_eyes, modelindex_player, modelindex_gone, modelindex_melee, modelindex_crawl;
+float modelindex_dead, modelindex_sneak, modelindex_prone, modelindex_eyes, modelindex_player, modelindex_gone;
 
 /*
 =============================================================================
@@ -24,6 +23,7 @@ float modelindex_dead, modelindex_sneak, modelindex_prone, modelindex_eyes, mode
 
 string nextmap;
 
+float   intermission_running;
 float   intermission_exittime;
 
 /*QUAKED info_intermission (1 0.5 0.5) (-16 -16 -16) (16 16 16)
@@ -44,31 +44,38 @@ void() SetChangeParms =
 	if (!self.current_slot)	//changing without spawning?
 		DecodeLevelParms();	//make sure we have our inventory!
 
-	if (self.supertime > 0)
+/*
+	if (self.health <= 0)
 	{
-		self.supertime = 0;
-		sprint(self, 2, "you are now back to your normal self.\n");
-		self.skill_combat = self.skill_combat - 10;
-		self.skill_doctor = self.skill_doctor - 10;
-		self.skill_sneak = self.skill_sneak - 10;
-		self.skill_science = self.skill_science - 10;
-		self.skill_speech = self.skill_speech - 10;
+		SetNewParms ();
+		return;
 	}
+ */
 
+// remove items
 	self.items = self.items - (self.items & 
 	(IT_KEY1 | IT_KEY2 | IT_INVISIBILITY | IT_INVULNERABILITY | IT_SUIT | IT_QUAD) );
 	
+//	parm1 = self.slot1;
+//	parm2 = self.slot2;
+//	parm3 = self.armor;
+//	parm4 = self.protect;
+//	parm5 = self.equipment;
+//	parm6 = self.chem;
+//	parm7 = self.chemcount;
+	parm8 = self.ammo_shells;
+	parm9 = self.trait;
+	parm10 = self.perk;
+//	parm11 = self.bandages;
+//	parm12 = self.scraps;
+	//parm13 = self.class;
+	parm14 = self.team;
+//	parm15 = self.grenadetype;
 
-	parm5 = self.skill_combat;
-	parm6 = self.skill_doctor;
-	parm7 = self.skill_sneak;
-	parm14 = self.skill_science;
-	parm16 = self.skill_speech;
 
 
-	parm8 = self.score;
-	parm9 = self.perk1;
-	parm10 = self.perk2;
+
+	parm16 = self.current_slot;
 	parm17 = self.islot1;
 	parm18 = self.islot2;
 	parm19 = self.islot3;
@@ -85,39 +92,31 @@ void() SetChangeParms =
 	parm30 = self.islot14;
 	parm31 = self.islot15;
 	parm32 = self.islot16;
-	parm1 = self.islot17;
-	parm2 = self.islot18;
-	parm3 = self.islot19;
-	parm4 = self.islot20;
-	parm11 = self.islot21;
-	parm12 = self.islot22;
-	parm13 = self.islot23;
-	parm15 = self.islot24;
-
 };
 
 void() SetNewParms =
-{	
+{	//remember, don't use self!
+//	parm1 = IID_WP_USP;
+//	parm2 = IID_WP_KNIFE;
+//	parm3 = IID_ARM_SHIRT;
+//	parm4 = 0;
+//	parm5 = 0;
+//	parm6 = 0;
+// 	parm7 = 0;
+	parm8 = 8;	//starting cash
+ 	parm9 = 0;
+	parm10 = 0;
+//	parm11 = 0;
+//	parm12 = 0;
+	//parm13 = 0;
+	parm14 = 0;
+//	parm15 = 0;
+
 
 //16 is the current_slot
 //17 to 32 are inventory slots.
 //the assignments were moved into PutClientInServer
 //on account of changing maps before spawning was resulting in no inventory.
-	parm1 = 0;
-	parm2 = 0;
-	parm3 = SlotVal(IID_ARM_LEATHER, 1);
-	parm4 = 0;
-	parm5 = 0;
-	parm6 = 0;
-	parm7 = 0;
-	parm8 = 0;
-	parm9 = 0;
-	parm10 = 0;
-	parm11 = 0;
-	parm12 = 0;
-	parm13 = 0;
-	parm14 = 0;
-	parm15 = 0;
 	parm16 = 0;
 	parm17 = 0;
 	parm18 = 0;
@@ -141,20 +140,24 @@ void() DecodeLevelParms =
 {
 	setspawnparms(self);
 
+//	self.slot1 = parm1;
+//	self.slot2 = parm2;
+//	self.armor = parm3;
+//	self.protect = parm4;
+//	self.equipment = parm5;
+//	self.chem = parm6;
+//	self.chemcount = parm7;
+	self.ammo_shells = parm8;
+	self.trait = parm9;
+	self.perk = parm10;
+//	self.bandages = parm11;
+//	self.scraps = parm12;
+//	self.class = parm13;
+	self.oldteam = parm14;
+//	self.grenadetype = parm15;
 
-	self.skill_combat = parm5;
-	self.skill_doctor = parm6;
-	self.skill_sneak = parm7;
-	self.skill_science = parm14;
-	self.skill_speech = parm16;
 
-	self.score = parm8;
-	self.perk1 = parm9;
-	self.perk2 = parm10;
-
-
-	self.current_slot = 1;
-
+	self.current_slot = parm16;
 	self.islot1 = parm17;
 	self.islot2 = parm18;
 	self.islot3 = parm19;
@@ -171,15 +174,6 @@ void() DecodeLevelParms =
 	self.islot14 = parm30;
 	self.islot15 = parm31;
 	self.islot16 = parm32;
-	self.islot17 = parm1;
-	self.islot18 = parm2;
-	self.islot19 = parm3;
-        self.islot20 = parm4;
-	self.islot21 = parm11;
-	self.islot22 = parm12;
-	self.islot23 = parm13;
-        self.islot24 = parm15;
-
 };
 
 /*
@@ -258,78 +252,6 @@ void() IntermissionThink =
 	GotoNextMap ();
 };
 
-
-void() get_new_map =
-{
-	if (random()<0.04)
-		m_map = "e1m1";	
-	else if (random()<0.04)
-		m_map = "e2m1";
-	else if (random()<0.10)
-		m_map = "e3m1";
-	else if (random()<0.04)
-		m_map = "e4m1";
-	else if (random()<0.08)
-		m_map = "bbelief1";
-	else if (random()<0.08)
-		m_map = "bbelief2";
-	else if (random()<0.08)
-		m_map = "bbelief3";
-	else if (random()<0.08)
-		m_map = "bbelief4";
-	else if (random()<0.08)
-		m_map = "bbelief5";
-	else if (random()<0.08)
-		m_map = "bbelief6";
-	else if (random()<0.08)
-		m_map = "e1m4";
-	else if (random()<0.08)
-		m_map = "e2m3";
-	else if (random()<0.08)
-		m_map = "e3m3";
-	else if (random()<0.08)
-		m_map = "e1m3";
-	else if (random()<0.08)
-		m_map = "e1m5";
-	else
-		m_map = "bbelief1";
-
-};
-
-void(float type) get_new_mission =
-{
-	local float x;
-	local string savemap;
-
-
-	if (type == 1)
-		savemap = "hostage";
-	if (type == 2)
-		savemap = "supplies";
-	if (type == 3)
-		savemap = "shadow";
-	if (type == 4)
-		savemap = "deadtown";
-	if (type == 5)
-		savemap = "destroy";
-	if (type == 6)
-		savemap = "defuse";
-
-	localcmd("serverinfo objective ");
-	localcmd(savemap);
-	localcmd("\n");
-
-	get_new_map();
-
-	bprint(2, "new mission has been received: ");
-	bprint(2, savemap);
-	bprint(2, "\n");
-	bprint(2, "location coordinates are near ");
-	bprint(2, m_map);
-	bprint(2, "\n");
-
-};
-
 /*
 ============
 execute_changelevel
@@ -340,100 +262,58 @@ Take the players to the intermission spot
 */
 void() execute_changelevel =
 {
-	local string savemap;
 	local entity    pos;
-	local float x;
 
+	intermission_running = 1;
+	
+// enforce a wait time before allowing changelevel
+	intermission_exittime = time + 5;
 
+	pos = FindIntermission ();
 
-	localcmd(strcat("map ", self.map, "\n"));
-	localcmd(strcat("serverinfo direction ", self.direction, "\n"));
+// play intermission music
+	WriteByte (MSG_ALL, SVC_CDTRACK);
+	WriteByte (MSG_ALL, 3);
 
+	WriteByte (MSG_ALL, SVC_INTERMISSION);
+	WriteCoord (MSG_ALL, pos.origin_x);
+	WriteCoord (MSG_ALL, pos.origin_y);
+	WriteCoord (MSG_ALL, pos.origin_z);
+	WriteAngle (MSG_ALL, pos.mangle_x);
+	WriteAngle (MSG_ALL, pos.mangle_y);
+	WriteAngle (MSG_ALL, pos.mangle_z);
+	
+	other = find (world, classname, "player");
+	while (other != world)
+	{
+		other.takedamage = DAMAGE_NO;
+		other.solid = SOLID_NOT;
+		other.movetype = MOVETYPE_NONE;
+		other.modelindex = 0;
+		other = find (other, classname, "player");
+	}       
 
 };
 
 
 void() changelevel_touch =
 {
-	if (coop == 0)
-		return;
-
 	if (other.classname != "player")
 		return;
 
-	if ((world.map_obj == OBJ_HOSTAGE && hostages > 0) && random()<0.02)
+// if "noexit" is set, blow up the player trying to leave
+//ZOID, 12-13-96, noexit isn't supported in QW.  Overload samelevel
+//      if ((cvar("noexit") == 1) || ((cvar("noexit") == 2) && (mapname != "start")))
+	if ((cvar("samelevel") == 2) || ((cvar("samelevel") == 3) && (mapname != "start")))
 	{
-		sprint (other, 2,"there are more hostages to save.\n");
+		T_Damage (other, self, self, 50000);
 		return;
 	}
-	else if ((world.map_obj == OBJ_DEADTOWN && hostages > 0) && random()<0.02)
-	{
-		sprint (other, 2,"there are more hostages to save.\n");
-		return;
-	}
-	else if ((world.map_obj == OBJ_SUPPLY && supplies > 0) && random()<0.02)
-	{
-		sprint (other, 2,"there are more supplies to secure.\n");
-		return;
-	}
-	else if ((world.map_obj == OBJ_DESTROY && supplies > 0) && random()<0.02)
-	{
-		sprint (other, 2,"there are more fuel tanks to destroy.\n");
-		return;
-	}
-	else if ((world.map_obj == OBJ_DEFUSE && supplies > 0) && random()<0.02)
-	{
-		sprint (other, 2,"there are still bombs to disarm.\n");
-		return;
-	}
-	else
-	{
-
-		if (infokey(world, "worldtime") == "1")
-			localcmd("serverinfo worldtime 2\n");
-		else if (infokey(world, "worldtime") == "2")
-			localcmd("serverinfo worldtime 3\n");
-		else if (infokey(world, "worldtime") == "3")
-			localcmd("serverinfo worldtime 3\n");
-		else if (infokey(world, "worldtime") == "4")
-			localcmd("serverinfo worldtime 5\n");
-		else if (infokey(world, "worldtime") == "5")
-			localcmd("serverinfo worldtime 6\n");
-		else if (infokey(world, "worldtime") == "6")
-			localcmd("serverinfo worldtime 1\n");
-
-		localcmd(strcat("map ", self.map, "\n"));
-		localcmd(strcat("serverinfo direction ", self.direction, "\n"));
-		return;
-	}
-
-	if (world.map_obj == OBJ_HOSTAGE && hostages > 0)
-		return;
-	else if (world.map_obj == OBJ_SUPPLY && supplies > 0)
-		return;
-	else if (world.map_obj == OBJ_DESTROY && supplies > 0)
-		return;
-	else if (world.map_obj == OBJ_DEFUSE && supplies > 0)
-		return;
-
 
 	bprint (PRINT_HIGH, other.netname);
 	bprint (PRINT_HIGH," exited the level\n");
 	
-	other = find (world, classname, "player");
-	while (other)
-	{
-		stuffcmd(other, "play music/victory\n");
-		other.missionbrief = 3;
-		other.takedamage = DAMAGE_NO;
-		other.solid = SOLID_NOT;
-		other.movetype = MOVETYPE_NONE;
-		other.modelindex = 0;
-
-		other = find (other, classname, "player");
-	}      
-
-	//localcmd("serverinfo objective return\n");
+	nextmap = self.map;
 
 	SUB_UseTargets ();
 
@@ -442,21 +322,7 @@ void() changelevel_touch =
 // we can't move people right now, because touch functions are called
 // in the middle of C movement code, so set a think time to do it
 	self.think = execute_changelevel;
-	self.nextthink = time + 10;
-
-
-		if (infokey(world, "worldtime") == "1")
-			localcmd("serverinfo worldtime 2\n");
-		else if (infokey(world, "worldtime") == "2")
-			localcmd("serverinfo worldtime 3\n");
-		else if (infokey(world, "worldtime") == "3")
-			localcmd("serverinfo worldtime 3\n");
-		else if (infokey(world, "worldtime") == "4")
-			localcmd("serverinfo worldtime 5\n");
-		else if (infokey(world, "worldtime") == "5")
-			localcmd("serverinfo worldtime 6\n");
-		else if (infokey(world, "worldtime") == "6")
-			localcmd("serverinfo worldtime 1\n");
+	self.nextthink = time + 0.1;
 };
 
 /*QUAKED trigger_changelevel (0.5 0.5 0.5) ? NO_INTERMISSION
@@ -486,9 +352,9 @@ void() set_suicide_frame;
 void() respawn =
 {
 	// make a copy of the dead body for appearances sake
-	//CopyToBodyQue (self);
+	CopyToBodyQue (self);
 	// set default spawn parms
-	//SetNewParms ();
+	SetNewParms ();
 	// respawn              
 	PutClientInServer ();
 };
@@ -503,7 +369,13 @@ Player entered the suicide command
 */
 void() ClientKill =
 {
-	sprint(self, 2, "you chicken out!\n");
+	bprint (PRINT_MEDIUM, self.netname);
+	bprint (PRINT_MEDIUM, " suicides\n");
+	set_suicide_frame ();
+	self.modelindex = modelindex_player;
+	logfrag (self, self);
+	self.frags = self.frags - 2;    // extra penalty
+	respawn ();
 };
 
 float(vector v) CheckSpawnPoint =
@@ -529,36 +401,17 @@ entity() SelectSpawnPoint =
 	numspots = 0;
 	totalspots = 0;
 
-
-	if (infokey(world, "coop") == "0")
-		coop = 0;
-	if (infokey(world, "coop") == "1")
-		coop = 1;
-
 // testinfo_player_start is only found in regioned levels
 
 	spot = find (world, classname, "testplayerstart");
 	if (spot)
 		return spot;
 	
-	spot = find (world, classname, "spawn3");
-
-	if (coop == 0)
-		ent1 = "info_player_deathmatch";
+	if (coop == 1)
+		ent1 = "info_player_coop";
 	else
-	{
+			ent1 = "spawn3";
 
-		if (infokey(world, "direction") == "north")
-			ent1 = "info_player_coop_south";
-		else if (infokey(world, "direction") == "west")
-			ent1 = "info_player_coop_east";
-		else if (infokey(world, "direction") == "east")
-			ent1 = "info_player_coop_west";
-		else if (infokey(world, "direction") == "south")
-			ent1 = "info_player_coop_north";
-		else
-			ent1 = "info_player_coop";
-	}
 	if (ent1 == "spawn3")
 	{
 		if (self.team == 1)
@@ -641,15 +494,36 @@ called each time a player enters a new level
 */
 void() PutClientInServer =
 {
-	local entity spot, gun;
-	local float x, xx;
-
+	local entity spot;
+	local float x;
+	if (self.class == 0 || self.team == 0)
+	{
+		self.deadflag = DEAD_NO;
+		self.health = 200;
+		self.max_health = 200;
+		setsize (self, VEC_HULL_MIN, VEC_HULL_MAX);
+		self.view_ofs = '0 0 22';
+		self.takedamage = DAMAGE_NO;
+		self.solid = SOLID_NOT;
+		spot = SelectSpawnPoint ();
+		self.origin = spot.origin + '0 0 1';
+		self.angles = spot.angles;
+		self.fixangle = TRUE;           // turn this way immediately
+		self.movetype = MOVETYPE_WALK;
+		self.flags = FL_CLIENT;
+		self.classname = "player";
+		self.currentmenu = "none";
+		self.air_finished = time + 999;
+		self.active = 1;
+		player_stand1 ();
+		return;
+	}
 	self.classname = "player";
 	self.health = 100;
 	self.takedamage = DAMAGE_AIM;
 	self.movetype = MOVETYPE_WALK;
 	self.show_hostile = 0;
-	self.max_health = 150 + (self.skill_combat*2);
+	self.max_health = 100;
 	self.health = 100;
 	self.flags = FL_CLIENT;
 	self.air_finished = time + 12;
@@ -665,36 +539,48 @@ void() PutClientInServer =
 	self.solid = SOLID_NOT;
 	self.materialize = 20;
 
-
 	DecodeLevelParms ();
 
-
-	if (self.islot1 == 0 && self.islot2 == 0 && self.islot3 == 0 && self.islot4 == 0 && self.islot5 == 0 && self.islot6 == 0 && self.islot7 == 0 && self.islot8 == 0 && self.islot9 == 0 && self.islot10 == 0 && self.islot11 == 0 && self.islot12 == 0)
+	if (self.current_slot == 0)
 	{
-		self.islot1 = SlotVal(IID_WP_KNIFE, 1);
+		self.current_slot = 1;
+		self.islot1 = SlotVal(IID_WP_USP, 12);
 		self.islot2 = 0;
-		self.islot3 = SlotVal(IID_ARM_LEATHER, 1);
-		self.islot4 = SlotVal(IID_EQUIP_CLIMBINGGEAR, 1);
-		self.islot5 = SlotVal(IID_CHEM_STIMPACK, 5);
+		self.islot3 = SlotVal(IID_ARM_SHIRT, 1);
+		self.islot4 = SlotVal(IID_CHEM_STIMPACK, 3);
+		self.islot5 = SlotVal(IID_AM_10MM, 24);
+		self.islot6 = 0;
 		self.islot7 = 0;
-		self.islot8 = SlotVal(IID_MONEY, 100);
+		self.islot8 = 0;
 		self.islot9 = 0;
 		self.islot10 = 0;
-		self.islot11 = SlotVal(IID_CHEM_MEDICALBAG, 25);
+		self.islot11 = 0;
 		self.islot12 = 0;
 		self.islot13 = 0;
 		self.islot14 = 0;
 		self.islot15 = 0;
 		self.islot16 = 0;
-		self.islot17 = 0;
-		self.islot18 = 0;
-		self.islot19 = 0;
-      		self.islot20 = 0;
-     		self.islot21 = 0;
-     		self.islot22 = 0;
-     		self.islot23 = 0;
-     		self.islot24 = 0;
-		self.score = 200;
+
+//now give them special items for thier class.
+//you're fairly screwed if you change class.
+		if (self.class == 1)
+		{
+			x = SlotOfItem(self, IID_CHEM_MEDICALBAG);
+			if (x == 0)
+				AddNonStackable(self, IID_CHEM_MEDICALBAG, 1);
+		}
+		if (self.class == 2)
+		{
+			x = SlotOfItem(self, IID_EQUIP_STEALTHBOY);
+			if (x == 0)
+				AddNonStackable(self, IID_EQUIP_STEALTHBOY, 1);
+		}
+		if (self.class == 4)
+		{
+			x = SlotOfItem(self, IID_WP_TOOLKIT);
+			if (x == 0)
+				AddNonStackable(self, IID_WP_TOOLKIT, 1);
+		}
 	}
 
 	self.attack_finished = time;
@@ -711,12 +597,15 @@ void() PutClientInServer =
 	self.angles = spot.angles;
 	self.fixangle = TRUE;           // turn this way immediately
 
-
-	self.max_health = 100 + (self.skill_combat*4) + (self.skill_doctor*2) + (self.skill_sneak*2) + (self.skill_speech*2) + (self.skill_science);
-
+	if (self.class == 1)
+		self.max_health = 80;
+	if (self.class == 2)
+		self.max_health = 80;
+	if (self.class == 3)
+		self.max_health = 100;
+	if (self.class == 4)
+		self.max_health = 60;
 	self.equipment_slot = 0;
-
-	spawn_dot(self);
 
 	self.health = self.max_health;
 
@@ -724,17 +613,11 @@ void() PutClientInServer =
 	setmodel (self, "progs/eyes.mdl");
 	modelindex_eyes = self.modelindex;
 
-	setmodel (self, "progs/prone.mdl");
-	modelindex_crawl = self.modelindex;
-
 	setmodel (self, "progs/lay.mdl");
 	modelindex_prone = self.modelindex;
 
 	setmodel (self, "progs/sneak.mdl");
 	modelindex_sneak = self.modelindex;
-
-	setmodel (self, "progs/melee.mdl");
-	modelindex_melee = self.modelindex;
 
 	setmodel (self, "progs/dead.mdl");
 	modelindex_dead = self.modelindex;
@@ -749,7 +632,6 @@ void() PutClientInServer =
 	
 	self.view_ofs = '0 0 22';
 	self.view2 = world;
-
 
 // Mod - Xian (May.20.97)
 // Bug where player would have velocity from their last kill
@@ -816,21 +698,6 @@ void() PutClientInServer =
 	}
 
 	W_SetCurrentAmmo();
-	stuffcmd(self, "impulse 2\n");
-	stuffcmd(self, "impulse 1\n");
-
-
-	if (world.model == "maps/r_bunker.bsp")
-		stuffcmd(self, "play music/vault\n");
-	else if (world.map_obj == OBJ_DEADTOWN)
-		stuffcmd(self, "play music/afterglow\n");
-
-	if (infokey(world, "worldtime") == "1" || infokey(world, "worldtime") == "2")
-		stuffcmd(self, "r_skybox dawn\n");
-	else if (infokey(world, "worldtime") == "3" || infokey(world, "worldtime") == "4")
-		stuffcmd(self, "r_skybox dusk\n");
-	else if (infokey(world, "worldtime") == "5" || infokey(world, "worldtime") == "6")
-		stuffcmd(self, "r_skybox night\n");
 };
 
 
@@ -864,6 +731,7 @@ void() info_player_start2 =
 
 	while (x > 0)
 	{
+		bprint(2, "hi\n");
 		start = spawn();
 		setsize(start, '-16 -16 -24', '16 16 32');
 		setorigin(start, self.origin + '0 0 4');
@@ -894,34 +762,6 @@ void() info_player_deathmatch =
 potential spawning position for coop games
 */
 void() info_player_coop =
-{
-};
-
-void() info_player_coop_north =
-{
-};
-
-void() info_player_coop_west =
-{
-};
-
-void() info_player_coop_east =
-{
-};
-
-void() info_player_coop_south =
-{
-};
-
-void() spawn1 =
-{
-};
-
-void() spawn2 =
-{
-};
-
-void() spawn3 =
 {
 };
 
@@ -1086,7 +926,7 @@ void() PlayerDeathThink =
 
 	self.view_ofs = '0 0 -12';
 	self.modelindex = modelindex_dead;
-//	self.solid = SOLID_NOT;
+	self.solid = SOLID_NOT;
 
 	if ((self.flags & FL_ONGROUND))
 	{
@@ -1128,10 +968,7 @@ void() PlayerJump =
 {
 	if (self.flags & FL_WATERJUMP)
 		return;
-
-	if (self.health <= (self.max_health*0.20))
-		return;
-
+	
 	if (self.waterlevel >= 2)
 	{
 // play swiming sound
@@ -1148,9 +985,6 @@ void() PlayerJump =
 	}
 
 	if (!(self.flags & FL_ONGROUND))
-		return;
-
-	if (self.position > 0)
 		return;
 
 	if ( !(self.flags & FL_JUMPRELEASED) )
@@ -1221,16 +1055,15 @@ void() WaterMove =
 			else
 				self.dmgtime = time + 0.2;
 
-			self.radiation = self.radiation + (1*self.waterlevel);
+			T_Damage (self, world, world, 10*self.waterlevel);
 		}
 	}
 	else if (self.watertype == CONTENT_SLIME)
 	{       // do damage
-		if (self.dmgtime < time && self.rage != IID_CHEM_RADX)
+		if (self.dmgtime < time && self.radsuit_finished < time)
 		{
 			self.dmgtime = time + 1;
-
-			self.radiation = self.radiation + ((1*self.waterlevel)/2);
+			T_Damage (self, world, world, 4*self.waterlevel);
 		}
 	}
 	
@@ -1280,255 +1113,53 @@ void() CheckWaterJump =
 	}
 };
 
-
-//this is used to check if the player is directly in front of a monster
-//or off to the side, on the corner of the monsters vision
-
-float(entity targ) check_fov =
-{
-	local vector	vec;
-	local float		dot;
-	
-	makevectors (targ.angles);
-	vec = normalize (self.origin - targ.origin);
-	dot = vec * v_forward;
-	
-	if ( dot > 0.5)
-	{
-		return TRUE;
-	}
-
-	return FALSE;
-};
-
-float(entity targ) check_fov_num =
-{
-	local vector	vec;
-	local float		dot;
-	
-	makevectors (targ.angles);
-	vec = normalize (self.origin - targ.origin);
-	dot = vec * v_forward;
-	
-
-	return dot;
-};
-
-float(entity targ) check_fov_side =
-{
-	local vector	vec;
-	local float		dot;
-	
-	makevectors (targ.angles);
-	vec = normalize (self.origin - targ.origin);
-	dot = vec * v_forward;
-	
-	if ( dot > 0.6 && dot < 0.9)
-	{
-		return TRUE;
-	}
-
-	return FALSE;
-};
-
-//determines chance of someone getting detected while sneaking
-
-void() SneakLevel =
-{
-	local float sn, st, front, r, q, x, b, c, y, z, t;
-	local entity te, ze;
-	local string report;
-	
-
-	front = 0;
-	q = 1200;
-	q = q - (self.skill_sneak*50);
-
-
-	sn = 99;
-	self.sneak = 99;
-
-
-	//light level gives a bonus/penalty to stealth
-	b = light_level(self.origin);
-	
-	if (b <= 50)
-		q = q - (200);
-	if (b >= 200)
-		q = q + (200);
-
-
-	//standing still gives a bonus to stealth
-	if (self.velocity == '0 0 0')
-		q = q - (200);
-
-
-	//stealthboy gives a bonus to stealth
-	st = ToIID(self.islot4);
-	if (st == IID_EQUIP_STEALTHBOY)
-		q = q - (100);
-
-	//combat armor gives a penalty to stealth
-	st = ToIID(self.islot3);
-	if (st == IID_ARM_COMBAT || st == IID_ARM_SEVA)
-		q = q + (100);
-
-	//metal armor gives a large penalty to stealth
-	st = ToIID(self.islot3);
-	if (st == IID_ARM_METAL)
-		q = q + (200);
-
-	//power armor gives a huge penalty to stealth
-	st = ToIID(self.islot3);
-	if (st == IID_ARM_LPOWER)
-		q = q + (300);
-
-	//tesla armor gives a massive penalty to stealth
-	st = ToIID(self.islot3);
-	if (st == IID_ARM_TESLA)
-		q = q + (400);
-
-	//walking in front of a monster at close range is very bad
-	//at longer ranges it isn't so bad to do so
-	//thus even healer and barbarian types can sneak if they do so smartly
-
-
-	c = 0;
-
-	te = findradius(self.origin, q);
-	while (te)
-	{
-		if ((te.enemy.classname != "player" || te.enemy != self) && visible(te) && te.classname == "monster" && (check_fov_num(te) > 0.5) && te.health > 3)
-		{	
-			if (c == 0)
-			{
-
-				r = vlen(self.origin - te.origin);
-				t = q * (check_fov_num(te));
-				t = t * (check_fov_num(te));
-				t = t * (check_fov_num(te));
-				y = r / t;
-				ze = te;
-				c = 1;
-
-			}
-			else
-			{
-
-				r = vlen(self.origin - te.origin);
-				t = q * (check_fov_num(te));
-				t = t * (check_fov_num(te));
-				t = t * (check_fov_num(te));
-				z = r / t;
-		
-
-				if (z < y)
-				{
-					ze = te;
-					y = z;
-				}
-
-			}
-		}
-			
-		te = te.chain;
-	}
-
-
-	if (r > 0 && r <= q)
-	{
-		sn = 150 * (r/t);
-		sn = sn - 50;
-	}
-
-	if (self.invistime > 0)
-	{
-		bprint(2, "invistime\n");
-		self.sneak = 99;
-	}
-
-
-	if (sn <= 1 && sn > 0)
-	{
-		sprint(self, 2, "you've been detected!\n");
-		self.sneak = 0;
-		return;
-	}
-
-	if (sn >= 99)
-		sn = 99;
-
-	if (self.sneak > 0)
-		self.sneak = sn;
-};
-
 void() ArmorCheck =
 {
-	local float type, aid, slow;
-	aid = ToIID(self.islot3);
+	local float type;
 
-	if (self.hold > 0)
-		self.speedmulti = 0;
-
-	slow = self.weight/self.max_weight;
-
-	self.speedmulti = 1.00 - (slow/2);
-
-	if (self.health <= (self.max_health*0.20))
-		self.speedmulti = 0.75;
-	else if (self.health <= (self.max_health*0.10))
-		self.speedmulti = 0.50;
-
-	if (self.walk == 1)
-		self.speedmulti = self.speedmulti * 0.50;
-
-	self.speedmulti = self.speedmulti*(1+(self.skill_sneak*0.01));
+	local float aid;
 
 	//Armor
-	if (aid == IID_ARM_DESERT)
-		type = 0.10;
+	aid = ToIID(self.islot3);
+	if (aid == IID_ARM_SHIRT)
+		type = 0.20;
 	if (aid == IID_ARM_LEATHER)
-		type = 0.25;
-	if (aid == IID_ARM_VANDAL)
 		type = 0.30;
+	if (aid == IID_ARM_KEVLAR)
+		type = 0.35;
 	if (aid == IID_ARM_METAL)
-		type = 0.50;
-	if (aid == IID_ARM_TESLA)
-		type = 0.25;
+		type = 0.35;
 	if (aid == IID_ARM_COMBAT)
 		type = 0.40;
-	if (aid == IID_ARM_SEVA)
+	if (aid == IID_ARM_BROTHERHOOD)
 		type = 0.45;
 	if (aid == IID_ARM_FORCE)
-		type = 0.15;
+		type = 0.10;
 	if (aid == IID_ARM_LPOWER)
 		type = 0.50;
-	if (self.rage == IID_CHEM_PSYCHO)
-		type += 0.20;
 
-
-	if (aid <= IID_ARM_METAL)
+	if (aid <= IID_ARM_KEVLAR)
 		self.items = (self.items - (self.items & ((IT_ARMOR1 | IT_ARMOR2) | IT_ARMOR3)) + IT_ARMOR1);
-	else if (aid <= IID_ARM_SEVA)
+	else if (aid <= IID_ARM_BROTHERHOOD)
 		self.items = (self.items - (self.items & ((IT_ARMOR1 | IT_ARMOR2) | IT_ARMOR3)) + IT_ARMOR1);
 	else
 		self.items = (self.items - (self.items & ((IT_ARMOR1 | IT_ARMOR2) | IT_ARMOR3)) + IT_ARMOR1);
 
-	if (aid == IID_ARM_LEATHER)
+	if (aid == 1)
 		self.armornoise = "misc/thud.wav";
-	if (aid == IID_ARM_VANDAL)
+	if (aid == 2)
 		self.armornoise = "misc/thud.wav";
-	if (aid == IID_ARM_METAL)
+	if (aid == 3)
 		self.armornoise = "misc/thud.wav";
-	if (aid == IID_ARM_TESLA)
+	if (aid == 4)
 		self.armornoise = "weapons/ric1.wav";
-	if (aid == IID_ARM_COMBAT)
+	if (aid == 5)
 		self.armornoise = "misc/thud.wav";
-	if (aid == IID_ARM_SEVA)
+	if (aid == 6)
 		self.armornoise = "misc/thud.wav";
-	if (aid == IID_ARM_FORCE)
+	if (aid == 7)
 		self.armornoise = "misc/laserdef.wav";
-	if (aid == IID_ARM_LPOWER)
+	if (aid == 8)
 		self.armornoise = "weapons/ric1.wav";
 
 	self.armorvalue = type * 100;
@@ -1557,15 +1188,21 @@ void () WeightControl =
 	wt = wt + GetItemsWeight(self.islot16);
 
 	self.weight = wt;
-	self.max_weight = 30;
 
-	self.max_weight = self.max_weight + self.skill_combat;
+	if (self.class == 1)
+		self.max_weight = 50;
+	if (self.class == 2)
+		self.max_weight = 50;
+	if (self.class == 3)
+		self.max_weight = 60;
+	if (self.class == 4)
+		self.max_weight = 40;
 };
 
 
 void () PositionControl =
 {
-	local float exp, slow;
+	local float exp;
 
 	if (self.position == 0)
 		self.view_ofs = '0 0 22';
@@ -1589,26 +1226,26 @@ void () PositionControl =
 	}
 
 	if (self.position == 0)
-		self.maxspeed = 225;
+		self.maxspeed = 200;
 	else if (self.position == 1)
 		self.maxspeed = 100;
-	else
+	else //if (self.position == 2)
 		self.maxspeed = 50;
 
+	if (self.weight > self.max_weight) //this is the penalty for being overweight.
+	{
+		exp = (self.weight/self.max_weight);
+		exp = (exp+2)*(exp+2)+(exp*exp*exp*8);	//is this enough?
+		self.maxspeed = self.maxspeed / exp;
+	}
 
-
-	if (self.rage == IID_CHEM_ADRENALINE)
-			self.maxspeed = self.maxspeed*1.20;
-
-	if (self.sneak > 0)
-			self.maxspeed = self.maxspeed*0.50;
-
-	self.maxspeed = self.maxspeed*self.speedmulti;
-
-	if (self.maxspeed < 50)
-		self.maxspeed = 50;
-
-
+	if (self.equipment_slot)
+	{
+		if ((ToIID(ItemInSlot(self, self.equipment_slot))) == IID_EQUIP_SPRINTKIT)
+			self.maxspeed = self.maxspeed*2;
+		if ((ToIID(ItemInSlot(self, self.equipment_slot))) == IID_EQUIP_STEALTHBOY)
+			self.maxspeed = self.maxspeed/2;
+	}
 };
 
 .float clientcolors;
@@ -1623,8 +1260,7 @@ Called every frame before physics are run
 */
 void() PlayerPreThink =
 {
-	local   float   r, grip;
-	local entity te;
+	local   float   r;
 
 	if (intermission_running)
 	{
@@ -1644,9 +1280,6 @@ void() PlayerPreThink =
 	}
 
 
-	if (self.hold > 0)
-		self.hold = self.hold - 1;
-
 	if (self.team == 0)
 		self.clientcolors = 0;
 	else if (self.team == 1)
@@ -1655,42 +1288,24 @@ void() PlayerPreThink =
 		self.clientcolors = 4 + 4*16;
 	if (self.team == 0 && self.currentmenu == "none")
 	{
-		self.currentmenu = "display_enter_screen";
-		DisplayMenu ();
-		return;
-	}
-
-
-
-	self.tnl = self.skill_combat + self.skill_doctor + self.skill_sneak + self.skill_science + self.skill_speech;
-	self.tnl = 10 + 10*self.tnl;
-
-	if (self.score > self.tnl)
-	{
-		self.score = self.tnl;
-		sound (self, CHAN_BODY, "player/levelup.wav", 1, ATTN_NORM);
-		sprint(self, 2, "you have gained a level!\npress 'p' to assign a skill point.\n");
-	}
-
-	//perk1timer and perk2timer are "cooldowns" for each perk
-		if (self.perk1timer > 0)
-			self.perk1timer = self.perk1timer - 1;
-		if (self.perk2timer > 0)
-			self.perk2timer = self.perk2timer - 1;
-
-	//speech skill provides faster perk regeneration
-		if (random()*30 < self.skill_speech)
+		if (coop)
+			self.team = 1;
+		else
 		{
-			if (self.perk1timer > 0)
-				self.perk1timer = self.perk1timer - 1;
-			if (self.perk2timer > 0)
-				self.perk2timer = self.perk2timer - 1;
+			self.currentmenu = "select_team";
+			DisplayMenu ();
 		}
+	}
+	else if (self.class == 0 && self.currentmenu == "none")
+	{
+		self.currentmenu = "select_skill";
+		DisplayMenu ();
+	}
 
 
 
 
-	self.shadowtime = time_left;
+
 
 	if (self.cycle1 < time)
 	{
@@ -1704,73 +1319,23 @@ void() PlayerPreThink =
 		PositionControl();
 		WeightControl();
 		ArmorCheck();
-		if (self.sneak > 0)
-			SneakLevel();
-		self.accept = 0;
-		
-
-		if (self.safezone > 0)
-			self.safezone = self.safezone - 1;
-
-		self.endinfo1 = rescue;
-		self.endinfo2 = dead_hostage;
-		self.endinfo3 = hostages;
-
-		if (self.invistime > 1)
-			self.invistime = self.invistime -1;
-		else if (self.invistime == 1)
-		{
-			self.invistime = 0;
-			sound (self, CHAN_BODY, "items/inv2.wav", 1, ATTN_NORM);
-			sprint(self, 2, "your disguise wears off.\n");
-		}
-
-		if (self.supertime > 1)
-			self.supertime = self.supertime -1;
-		else if (self.supertime == 1)
-		{
-			self.supertime = 0;
-			sound (self, CHAN_BODY, "items/damage2.wav", 1, ATTN_NORM);
-			sprint(self, 2, "you are now back to your normal self.\n");
-			self.skill_combat = self.skill_combat - 10;
-			self.skill_doctor = self.skill_doctor - 10;
-			self.skill_sneak = self.skill_sneak - 10;
-			self.skill_science = self.skill_science - 10;
-			self.skill_speech = self.skill_speech - 10;
-		}
-
-		local float lgrip, rgrip;
-
+		Crosshair();
 
 		if (self.health > self.max_health)
 			self.health = self.max_health;
 
 
-		if (self.flash < time || ToIID(self.islot4) == IID_EQUIP_GOGGLES)
+		if (self.flash < time)
 		{
-			if (ToIID(self.islot4) == IID_EQUIP_GOGGLES)
-				stuffcmd(self, "v_cshift 25 0 25 25\n");
-			else if (self.ragetime > time && self.rage != IID_CHEM_RADX)
+			if (self.ragetime > time)
 				stuffcmd(self, "v_cshift 75 0 0 75\n");
 			else if (self.sneak > 0)
-				stuffcmd(self, "v_cshift 0 0 75 75\n");
-			else if (self.zoom == 0)
+				stuffcmd(self, "v_cshift 0 75 0 75\n");
+			else
 				stuffcmd(self, "v_cshift 0 0 0 0\n");
 		}
 		self.cycle1 = time + 0.5;
 	}
-
-/*
-	if (walkmove(0, 0) && self.solid != SOLID_SLIDEBOX)
-	{
-		self.materialize = 0;
-		self.solid = SOLID_SLIDEBOX;
-	}
-	else
-	{
-		self.materialize = 5;
-		self.solid = SOLID_NOT;
-	}*/
 
 	if (self.materialize > 0)
 	{
@@ -1781,20 +1346,27 @@ void() PlayerPreThink =
 			if (walkmove(0, 0))
 			{
 				self.solid = SOLID_SLIDEBOX;
-				bprint(2, "turning solid\n");
+				//bprint(2, "turning solid\n");
 			}
 			else
 			{
 				self.materialize = 50;
-				bprint(2, "stuck in object, returning non-solid\n");
-				self.solid = SOLID_NOT;
+				//bprint(2, "stuck in object, returning non-solid\n");
 			}
 		}
 	}
 
+	if (self.class == 1)
+		self.recoil = self.recoil - 0.16;
+	if (self.class == 2)
+		self.recoil = self.recoil - 0.14;
+	if (self.class == 3)
+		self.recoil = self.recoil - 0.12;
+	if (self.class == 4)
+		self.recoil = self.recoil - 0.19;
 
-
-
+	if (self.recoil <= 0)
+		self.recoil = 0;
 
       self.deathtype = "";
 
@@ -1802,92 +1374,39 @@ void() PlayerPreThink =
 
 	if (self.cycle2 < time)
 	{
+		if (self.equipment == 8)
+			r = 30;
+		else
+			r = 20;
 
-
-
-		if (self.blurtime > 0 && self.blurtime <= 1)
-			stuffcmd(self, "gl_motionblur 0\n");
-		else if (self.blurtime > 0)
+		if (self.sneak == 0)
 		{
-			stuffcmd(self, "gl_motionblur 0.9\n");
-			self.blurtime -= 1;
+			if (self.ammo_cells < r)
+				self.ammo_cells = self.ammo_cells + 1;
+
+			if (self.ammo_cells > r)
+				self.ammo_cells = r;
 		}
-
-		if (self.ragetime > 0)
-			self.ragetime -= 1;
-
-		if (self.ragetime <= 0)
-			self.rage = 0;
-
-			traceline ((self.origin), ((self.origin - (v_right * 24))) + (v_forward * 64), FALSE, self);
-			if (trace_fraction < 1 && trace_fraction > 0)
-				lgrip = 1;
-
-			traceline ((self.origin), ((self.origin - (v_right * 48))) + (v_forward * 32), FALSE, self);
-			if (trace_fraction < 1 && trace_fraction > 0)
-				lgrip = 1;
-
-			traceline ((self.origin), ((self.origin + (v_right * 24))) + (v_forward * 64), FALSE, self);
-			if (trace_fraction < 1 && trace_fraction > 0)
-				rgrip = 1;
-
-			traceline ((self.origin), ((self.origin + (v_right * 48))) + (v_forward * 32), FALSE, self);
-			if (trace_fraction < 1 && trace_fraction > 0)
-				rgrip = 1;
-
-		if (rgrip == 1 && lgrip == 0)
-			self.rage = 777;
-		if (rgrip == 0 && lgrip == 1)
-			self.rage = 777;
-
-		
-		if (self.musictimer == 0)
+		if (self.sneak >= 1)
 		{
-			if (self.soundmode == 1)
-				stuffcmd(self, "play music/exploring\n");
-			else if (self.soundmode == 2)
-				stuffcmd(self, "play music/vault\n");
-			else if (world.model == "maps/r_bunker.bsp")
-				stuffcmd(self, "play music/vault\n");
-			else if (world.map_obj == OBJ_DEADTOWN)
-				stuffcmd(self, "play music/afterglow\n");
+			self.ammo_cells = self.ammo_cells - 1;
 
-			self.musictimer = 1;
+			if (self.ammo_cells <= 0)
+			{
+				sprint(self, 2, "uncloaked.\n");
+				self.sneak = 0;
+			}
 		}
-		else if (self.musictimer <= 120)
-			self.musictimer = self.musictimer + 1;
-		else if (self.musictimer > 120)
-			self.musictimer = 0;
 
 		if (self.regen > 0 && !self.deadflag)	//don't come back to life.
 		{
 			self.health = self.health + 3;
 			self.regen = self.regen - 1;
 		}
-		else if (self.rage == IID_CHEM_BESERK && !self.deadflag)	//don't come back to life.
-			self.health = self.health + 1;
 
-		if (self.flash < time || ToIID(self.islot4) == IID_EQUIP_GOGGLES)
+		if (self.flash < time)
 		{
-			local string x;
-
-			if (ToIID(self.islot4) == IID_EQUIP_GOGGLES)
-				stuffcmd(self, "v_cshift 25 0 25 25\n");
-
-			if (self.position == 0)
-				x = ftos(self.recoil);
-			else if (self.position == 1)
-				x = ftos(self.recoil/2);
-			else if (self.position == 2)
-				x = ftos(self.recoil/4);
-
-			if (self.steadyaim == 0 && self.velocity == '0 0 0')
-				stuffcmd(self, "v_idlescale 0\n");
-			else if (self.recoil > 0)
-				stuffcmd(self, strcat("v_idlescale ", x, "\n"));
-			else if (self.velocity != '0 0 0')
-				stuffcmd(self, "v_idlescale 4\n");
-
+			stuffcmd(self, "v_idlescale 0\n");
 		}
 		self.cycle2 = time + 1;
 	}
@@ -1905,7 +1424,7 @@ void() PlayerPreThink =
 	{
 		PlayerJump ();
 	}
-	else if (self.position > 0)
+	else
 		self.flags = self.flags | FL_JUMPRELEASED;
 
 // teleporters can force a non-moving pause time        
@@ -1921,26 +1440,18 @@ void() PlayerPreThink =
 	{
 		if ((ToIID(ItemInSlot(self, self.equipment_slot))) == IID_EQUIP_CLIMBINGGEAR)
 		{
-			grip = 0;
-
-
-			traceline ((self.origin), ((self.origin + (v_forward * 48))), FALSE, self);
+			traceline ((self.origin - '0 0 24'), ((self.origin + (v_forward * EF_FLAG2)) - '0 0 24'), FALSE, self);
 			if (trace_fraction < 1 && trace_fraction > 0)
-				grip = 1;
-
-
-			if (grip == 1)
 			{
-				self.attack_finished = time + 0.1;
-				self.rtime = time + 0.2;
 				self.gravity = 0;
 				self.maxspeed = 50;
-				self.velocity = v_forward*20 * self.movement_x;
+				self.velocity = v_forward*40 * self.movement_x;
 			}
 			else
 			{
 				self.gravity = 1;
 			}
+			self.attack_finished = time + 0.1;
 		}
 		if ((ToIID(ItemInSlot(self, self.equipment_slot))) == IID_EQUIP_HOVERBOOTS && self.button2)
 		{
@@ -1962,8 +1473,6 @@ Check for turning off powerups
 */
 void() CheckPowerups =
 {
-	local float weap;
-
 	if (self.health <= 0)
 		return;
 
@@ -2007,34 +1516,25 @@ void() CheckPowerups =
 		
 :beinvis
 		self.items = self.items | IT_INVISIBILITY;
+	// use the eyes
 		self.frame = 0;
-		self.modelindex = modelindex_sneak;
+		self.modelindex = modelindex_eyes;
 	}
 	else
 	{
 		self.items = self.items - (self.items & IT_INVISIBILITY);
-		if (self.ghost == 1 || self.team == 0)
-		{
-			self.modelindex = modelindex_gone;
-			return;
-		}
-
-		weap = ToIID(self.(SlotField(self.current_slot)));
-
 		if (self.position <= 1)
 			self.modelindex = modelindex_player;
-		if (self.position == 2 && self.velocity == '0 0 0')
+		if (self.position == 2)
 			self.modelindex = modelindex_prone;
-		if (self.position == 2 && self.velocity != '0 0 0')
-			self.modelindex = modelindex_crawl;
-		if (self.sneak > 0 && coop == 0)
+		if (self.sneak == 1 || self.sneak == 3 && coop == 0)
 			self.modelindex = modelindex_gone;
-		if (self.sneak > 0 && coop == 1)
+		if (self.sneak == 1 || self.sneak == 3 && coop == 1)
 			self.modelindex = modelindex_sneak;
-		if (IsMelee(weap))
-			self.modelindex = modelindex_melee;
 		if (self.health <= 0)
 			self.modelindex = modelindex_dead;
+		if (self.ghost == 1 || self.class == 0 || self.team == 0)
+			self.modelindex = modelindex_gone;
 	}
 
 
@@ -2215,97 +1715,35 @@ called when a player connects to a server
 */
 void() ClientConnect =
 {
-	local entity te;
-	local float t;
-
 	bprint (PRINT_HIGH, self.netname);
-	bprint (PRINT_HIGH, " entered the wasteland\n");
-
-	te = find(world, classname, "player");
-
-/*
-	t = 0;
-
-	while (te)
-	{
-		t = t + 1;
-
-		te = find(te, classname, "player");
-	}*/			
-
-/*
-	if (infokey(world, "total") == "zero")
-	{
-		bprint(2, "setting difficulty for one player.\n");
-		localcmd("serverinfo total one\n");
-	}
-	else if (infokey(world, "total") == "one")
-	{
-		bprint(2, "setting difficulty for two players.\n");
-		localcmd("serverinfo total two\n");
-	}
-	else if (infokey(world, "total") == "two")
-	{
-		bprint(2, "setting difficulty for three players.\n");
-		localcmd("serverinfo total three\n");
-	}
-	else if (infokey(world, "total") == "three")
-	{
-		bprint(2, "setting difficulty for four players.\n");
-		localcmd("serverinfo total four\n");
-	}
-	else if (infokey(world, "total") == "four")
-	{
-		bprint(2, "setting difficulty maxed out.\n");
-		localcmd("serverinfo total four\n");
-	}
-*/
-	self.start_time = world.start_time;
-	self.map_ent1 = world.map_ent1;
-	self.map_ent2 = world.map_ent2;
-	self.map_ent3 = world.map_ent3;
-	self.map_obj = world.map_obj;
-	self.location = world.location;
+	bprint (PRINT_HIGH, " entered the game\n");
+	
 
 	stuffcmd(self, "v_damagecshift 1\n");
-	stuffcmd(self, "alias +walk impulse 66\n");
-	stuffcmd(self, "alias -walk impulse 67\n");
 	stuffcmd(self, "alias duck impulse 200\n");
 	stuffcmd(self, "alias prone impulse 201\n");
 	stuffcmd(self, "alias reload impulse 50\n");
 	stuffcmd(self, "alias chem impulse 51\n");
 	stuffcmd(self, "alias buy impulse 52\n");
 	stuffcmd(self, "alias special impulse 53\n");
-	stuffcmd(self, "alias exit impulse 100\n");
+	stuffcmd(self, "alias exit impulse 54\n");
 	stuffcmd(self, "alias drop impulse 55\n");
-	stuffcmd(self, "alias zoom impulse 60\n");
-	stuffcmd(self, "alias hostage impulse 65\n");
-	stuffcmd(self, "alias perk1 impulse 61\n");
-	stuffcmd(self, "alias perk2 impulse 62\n");
+	stuffcmd(self, "alias info impulse 56\n");
+	stuffcmd(self, "alias equip impulse 57\n");
 
-	stuffcmd(self, "alias stimpack impulse 225\n");
-	stuffcmd(self, "alias radx impulse 228\n");
-	stuffcmd(self, "alias equip \"cmd invuse 4\"\n");
-	stuffcmd(self, "alias q1 \"cmd invuse 5\"\n");
-	stuffcmd(self, "alias q2 \"cmd invuse 11\"\n");
-	stuffcmd(self, "alias quick1 \"cmd invuse 5\"\n");
-	stuffcmd(self, "alias quick2 \"cmd invuse 11\"\n");
+	stuffcmd(self, "alias stimpack \"cmd invuse superstims+stimpack+bandages\"\n");
+	stuffcmd(self, "alias bandages \"cmd invuse bandages+superstims+stimpack\"\n");
 
 	stuffcmd(self, "alias toolkit \"cmd invswap toolkit 2;impulse 2\"\n");
 
-
-	stuffcmd(self, "bind 9 impulse 9\n");
-	stuffcmd(self, "bind 0 impulse 10\n");
 	stuffcmd(self, "bind c equip\n");
 	stuffcmd(self, "bind g drop\n");
 	stuffcmd(self, "bind e exit\n");
 	stuffcmd(self, "bind z special\n");
 	stuffcmd(self, "bind r reload\n");
-	stuffcmd(self, "bind h hostage\n");
 	stuffcmd(self, "bind x stimpack\n");
 	stuffcmd(self, "bind b buy\n");
-	stuffcmd(self, "bind q perk1\n");
-	stuffcmd(self, "bind a perk2\n");
+	stuffcmd(self, "bind q info\n");
 	stuffcmd(self, "bind shift prone\n");
 	stuffcmd(self, "bind ctrl duck\n");
 
@@ -2326,49 +1764,13 @@ called when a player disconnects from a server
 */
 void() ClientDisconnect =
 {
-	local entity te;
-	local float t;
-
-/*
-	if (infokey(world, "total") == "zero")
-	{
-		bprint(2, "need players to begin map.\n");
-		localcmd("serverinfo total zero\n");
-	}
-	else if (infokey(world, "total") == "one")
-	{
-		bprint(2, "need players to begin map.\n");
-		localcmd("serverinfo total zero\n");
-	}
-	else if (infokey(world, "total") == "two")
-	{
-		bprint(2, "setting difficulty for one player.\n");
-		localcmd("serverinfo total one\n");
-	}
-	else if (infokey(world, "total") == "three")
-	{
-		bprint(2, "setting difficulty for two players.\n");
-		localcmd("serverinfo total two\n");
-	}
-	else if (infokey(world, "total") == "four")
-	{
-		bprint(2, "setting difficulty for three players.\n");
-		localcmd("serverinfo total three\n");
-	}
-*/
-
 	// let everyone else know
 	bprint (PRINT_HIGH, self.netname);
-	bprint (PRINT_HIGH, " left the game.\n");
-	if (self.team == 1)
-		teamblue = teamblue - 1;
-	else if (self.team == 2)
-		teamred = teamred - 1;
-
-	self.classname = "disconnected";
+		bprint (PRINT_HIGH, " left the game with ");
+		bprint (PRINT_HIGH, ftos(self.frags));
+		bprint (PRINT_HIGH, " frags\n");
 	sound (self, CHAN_BODY, "player/tornoff2.wav", 1, ATTN_NONE);
 	set_suicide_frame ();
-	total_players = total_players - 1;
 };
 
 /*
@@ -2433,41 +1835,19 @@ void(entity targ, entity attacker) ClientObituary =
 			bprint (PRINT_MEDIUM, "[ ");
 
 		if (attacker.critical == 3) //headshot
-		{
 			bprint (PRINT_MEDIUM, "X ");
-			attacker.score = attacker.score + 1;
-		}
 		if (attacker.critical == 777) //through the wall
-		{
 			bprint (PRINT_MEDIUM, "% ");
-			attacker.score = attacker.score + 5;
-		}
 		if (attacker.critical == 778) //wall headshot
-		{
 			bprint (PRINT_MEDIUM, "& ");
-			attacker.score = attacker.score + 10;
-		}
 		if (attacker.velocity_z != 0)
-		{
 			bprint (PRINT_MEDIUM, "@ ");
-			attacker.score = attacker.score + 2;
-		}
 //		if (attacker.current_slot == 1 && attacker.mag1 == 0)
 //			bprint (PRINT_MEDIUM, "! ");
 
 			bprint (PRINT_MEDIUM, "] ");
 
 		bprint(2, attacker.netname);
-		bprint(2, " >>> ");
-		bprint(2, targ.netname);
-		bprint(2, "\n");
-		return;
-	}
-
-	if (targ != attacker && (targ.classname == "monster" || targ.classname == "player") && (attacker.classname == "robofang" || attacker.classname == "player"))
-	{
-		bprint (PRINT_MEDIUM, "[;;] ");
-		bprint(2, attacker.owner.netname);
 		bprint(2, " >>> ");
 		bprint(2, targ.netname);
 		bprint(2, "\n");
@@ -2760,12 +2140,89 @@ void(entity targ, entity attacker) ClientObituary =
 
 void() Identify =
 {
-	local vector source;
+	local string c1, c2, c3, c5;
+	local float tmp;
 
 	makevectors (self.v_angle);
-	source = self.origin + '0 0 0';
-	traceline (source, source + v_forward*128, FALSE, self);
+	traceline (self.origin, (self.origin + (v_forward * 2000)), 32, self);
+	if (trace_ent.classname == "player" && self.currentmenu == "none" && self.team == trace_ent.team)
+	{
+		if (trace_ent.class == 2)
+			c1 = "^7\nmedic\n";
+		else if (trace_ent.class == 3)
+			c1 = "^7\nassassin\n";
+		else if (trace_ent.class == 4)
+			c1 = "^7\nsoldier\n";
+		else if (trace_ent.class == 6)
+			c1 = "^7\nscientist\n";
+		else
+			c1 = "^7\n";
 
-	if (trace_ent.netname)
-		centerprint (self, trace_ent.netname);
+		if (trace_ent.health <= 0)
+			c2 = "^1dead^7";
+		c2 = ftos (trace_ent.health);
+		c3 = GetItemName (ToIID(ItemInSlot(trace_ent, trace_ent.current_slot)));
+
+		if (trace_ent.islot3 == 0)
+			c5 = "no armor";
+		else
+			c5 = GetItemName(ToIID(trace_ent.islot3));
+
+		centerprint (self, trace_ent.netname, c1, c2, "\n", c3, "\n", c5);
+	}
+	if (trace_ent.classname == "robowolf" && self.currentmenu == "none")
+	{
+		c1 = "robo-fang\n";
+		c2 = "robot construct\nowned by ";
+		c3 = trace_ent.track.netname;
+		if (trace_ent.team == self.team)
+			c5 = "\nfriendly\n";
+		else
+			c5 = "\nhostile\n";
+
+		centerprint (self, trace_ent.netname, c1, c2, c3, c5, "", "");
+	}
+	if (trace_ent.classname == "station" && self.currentmenu == "none")
+	{
+		c1 = trace_ent.netname;
+		if (self.armortype == 0)
+			c2 = "uncompleted";
+		else if (trace_ent.health >= trace_ent.max_health)
+			c2 = "online";
+		else if (trace_ent.health >= trace_ent.max_health*0.75)
+			c2 = "banged up";
+		else if (trace_ent.health >= trace_ent.max_health*0.50)
+			c2 = "damaged";
+		else
+			c2 = "almost destroyed";
+
+		c3 = trace_ent.track.netname;
+
+		centerprint (self, c1, "\nstationary bot", "\n", c2, "\n", "owned by ", c3);
+	}
+	if (trace_ent.classname == "monster" && self.currentmenu == "none")
+	{
+		c1 = "hostile";
+
+		tmp = ToIID(trace_ent.islot3);
+		if (tmp == 0)
+			c2 = "natural armor";
+		else if (tmp == IID_ARM_SHIRT)
+			c2 = "lightly armored";
+		else
+			c2 = GetItemName(ToIID(trace_ent.islot3));
+
+		if (trace_ent.weapon == 1)
+			c3 = "rifle";
+		if (trace_ent.weapon == 2)
+			c3 = "pistol";
+		if (trace_ent.weapon == 3)
+			c3 = "shotgun";
+		if (trace_ent.weapon == 4)
+			c3 = "smg";
+		if (trace_ent.weapon >= 5)
+			c3 = "assault rifle";
+
+		centerprint (self, trace_ent.netname, "\n", c1, "\n", c2, "\n", c3);
+	}
 };

@@ -29,22 +29,72 @@ float in_sensitivityscale = 1;
 
 void CL_SpareMsec_Callback (struct cvar_s *var, char *oldvalue);
 
-cvar_t	cl_nodelta = SCVAR("cl_nodelta","0");
+cvar_t	cl_nodelta = CVAR("cl_nodelta","0");
 
-cvar_t	cl_c2spps = SCVAR("cl_c2spps", "0");
+cvar_t	cl_c2spps = CVAR("cl_c2spps", "0");
 cvar_t	cl_c2sImpulseBackup = SCVAR("cl_c2sImpulseBackup","3");
-cvar_t	cl_netfps = SCVAR("cl_netfps", "0");
-cvar_t	cl_sparemsec = SCVARC("cl_sparemsec", "10", CL_SpareMsec_Callback);
-cvar_t  cl_queueimpulses = SCVAR("cl_queueimpulses", "0");
-cvar_t	cl_smartjump = SCVAR("cl_smartjump", "1");
+cvar_t	cl_netfps = CVAR("cl_netfps", "100");
+cvar_t	cl_sparemsec = CVARC("cl_sparemsec", "10", CL_SpareMsec_Callback);
+cvar_t  cl_queueimpulses = CVAR("cl_queueimpulses", "0");
+cvar_t	cl_smartjump = CVAR("cl_smartjump", "1");
 
-cvar_t	cl_prydoncursor = SCVAR("cl_prydoncursor", "0");	//for dp protocol
-cvar_t	cl_instantrotate = SCVARF("cl_instantrotate", "1", CVAR_SEMICHEAT);
+cvar_t	cl_prydoncursor = CVAR("cl_prydoncursor", "");	//for dp protocol
+cvar_t	cl_instantrotate = CVARF("cl_instantrotate", "1", CVAR_SEMICHEAT);
 
-cvar_t	prox_inmenu = SCVAR("prox_inmenu", "0");
+cvar_t	prox_inmenu = CVAR("prox_inmenu", "0");
 
 usercmd_t independantphysics[MAX_SPLITS];
 vec3_t mousemovements[MAX_SPLITS];
+
+/*kinda a hack...*/
+int		con_splitmodifier;
+cvar_t	cl_forcesplitclient = CVAR("cl_forcesplitclient", "0");
+extern cvar_t cl_splitscreen;
+int CL_TargettedSplit(qboolean nowrap)
+{
+	char *c;
+	int pnum;
+	int mod;
+	if (nowrap)
+		mod = MAX_SPLITS;
+	else
+		mod = cl.splitclients;
+	if (mod < 1)
+		return 0;
+	c = Cmd_Argv(0);
+	pnum = atoi(c+strlen(c)-1);
+	if (pnum && !(c[1] == 'b'&&c[2] == 'u' && !atoi(c+strlen(c)-2)))
+	{
+		pnum--;
+		return pnum;
+	}
+
+	if (con_splitmodifier > 0)
+		return (con_splitmodifier - 1) % mod;
+	else if (cl_forcesplitclient.ival > 0)
+		return (cl_forcesplitclient.ival-1) % mod;
+	else
+		return 0;
+}
+
+void CL_Split_f(void)
+{
+	int tmp;
+	char *c;
+	c = Cmd_Argv(0);
+	tmp = con_splitmodifier;
+	if (*c == '+' || *c == '-')
+	{
+		con_splitmodifier = c[2];
+		Cmd_ExecuteString(va("%c%s", *c, Cmd_Args()), Cmd_ExecLevel);
+	}
+	else
+	{
+		con_splitmodifier = c[1];
+		Cmd_ExecuteString(Cmd_Args(), Cmd_ExecLevel);
+	}
+	con_splitmodifier = tmp;
+}
 
 /*
 ===============================================================================
@@ -81,18 +131,19 @@ int			in_impulse[MAX_SPLITS][IN_IMPULSECACHE];
 int			in_nextimpulse[MAX_SPLITS];
 int			in_impulsespending[MAX_SPLITS];
 
+float		cursor_screen[2];
+qboolean	cursor_active;
+
+
+
+
 
 void KeyDown (kbutton_t *b)
 {
 	int		k;
 	char	*c;
 
-	int pnum;
-	c = Cmd_Argv(0);
-	pnum = atoi(c+strlen(c)-1);
-	if (c[1] == 'b'&&c[2] == 'u' && !atoi(c+strlen(c)-2))
-		pnum = 0;
-	else if (pnum)pnum--;
+	int pnum = CL_TargettedSplit(false);
 	
 	c = Cmd_Argv(1);
 	if (c[0])
@@ -123,12 +174,7 @@ void KeyUp (kbutton_t *b)
 	int		k;
 	char	*c;
 
-	int pnum;
-	c = Cmd_Argv(0);
-	pnum = atoi(c+strlen(c)-1);
-	if (c[1] == 'b'&&c[2] == 'u' && !atoi(c+strlen(c)-2))
-		pnum = 0;
-	else if (pnum)pnum--;
+	int pnum = CL_TargettedSplit(false);
 	
 	c = Cmd_Argv(1);
 	if (c[0])
@@ -158,15 +204,12 @@ void KeyUp (kbutton_t *b)
 void IN_KLookDown (void) {KeyDown(&in_klook);}
 void IN_KLookUp (void) {KeyUp(&in_klook);}
 void IN_MLookDown (void) {KeyDown(&in_mlook);}
-void IN_MLookUp (void) {
-	char	*c;
-	int pnum;
-	c = Cmd_Argv(0);
-	pnum = atoi(c+strlen(c)-1);
-	if (pnum)pnum--;
-KeyUp(&in_mlook);
-if ( !(in_mlook.state[pnum]&1) &&  lookspring.value)
-	V_StartPitchDrift(pnum);
+void IN_MLookUp (void)
+{
+	int pnum = CL_TargettedSplit(false);
+	KeyUp(&in_mlook);
+	if ( !(in_mlook.state[pnum]&1) &&  lookspring.ival)
+		V_StartPitchDrift(pnum);
 }
 void IN_UpDown(void) {KeyDown(&in_up);}
 void IN_UpUp(void) {KeyUp(&in_up);}
@@ -204,15 +247,11 @@ void IN_JumpDown (void)
 	qboolean condition;
 
 
-	int pnum;
-	char *c;
-	c = Cmd_Argv(0);
-	pnum = atoi(c+strlen(c)-1);
-	if (pnum)pnum--;
+	int pnum = CL_TargettedSplit(false);
 	
 
 
-	condition = (cls.state == ca_active && cl_smartjump.value && !prox_inmenu.value);
+	condition = (cls.state == ca_active && cl_smartjump.ival && !prox_inmenu.ival);
 #ifdef Q2CLIENT
 	if (condition && cls.protocol == CP_QUAKE2)
 		KeyDown(&in_up);
@@ -229,7 +268,7 @@ void IN_JumpDown (void)
 }
 void IN_JumpUp (void)
 {
-	if (cl_smartjump.value)
+	if (cl_smartjump.ival)
 		KeyUp(&in_up);
 	KeyUp(&in_jump);
 }
@@ -260,14 +299,7 @@ void IN_Impulse (void)
 {
 	int newimp;
 	int best, i, imp, items;
-
-
-
-	char	*c;
-	int pnum;
-	c = Cmd_Argv(0);
-	pnum = atoi(c+strlen(c)-1);
-	if (pnum)pnum--;
+	int pnum = CL_TargettedSplit(false);
 
 	newimp = Q_atoi(Cmd_Argv(1));
 
@@ -328,7 +360,7 @@ void IN_Impulse (void)
 		return;
 	}
 
-	if (cl_queueimpulses.value)
+	if (cl_queueimpulses.ival)
 	{
 		in_impulse[pnum][(in_nextimpulse[pnum]+in_impulsespending[pnum])%IN_IMPULSECACHE] = newimp;
 		in_impulsespending[pnum]++;
@@ -412,7 +444,7 @@ void CL_ProxyMenuHook(char *command, kbutton_t *key)
 
 void CL_ProxyMenuHooks(void)
 {
-	if (!prox_inmenu.value)
+	if (!prox_inmenu.ival)
 		return;
 
 	CL_ProxyMenuHook("say proxy:menu down\n", &in_back);
@@ -456,10 +488,10 @@ void CL_AdjustAngles (int pnum, double frametime)
 	
 	if (in_speed.state[pnum] & 1)
 	{
-		if (ruleset_allow_frj.value)
-			speed = frametime * cl_anglespeedkey.value;
+		if (ruleset_allow_frj.ival)
+			speed = frametime * cl_anglespeedkey.ival;
 		else
-			speed = frametime * bound(-2, cl_anglespeedkey.value, 2);
+			speed = frametime * bound(-2, cl_anglespeedkey.ival, 2);
 	}
 	else
 		speed = frametime;
@@ -467,17 +499,17 @@ void CL_AdjustAngles (int pnum, double frametime)
 	if (in_rotate && pnum==0 && !(cl.fpd & FPD_LIMIT_YAW))
 	{
 		quant = in_rotate;
-		if (!cl_instantrotate.value)
+		if (!cl_instantrotate.ival)
 			quant *= speed;
 		in_rotate -= quant;
-		if (ruleset_allow_frj.value)
+		if (ruleset_allow_frj.ival)
 			cl.viewangles[pnum][YAW] += quant;
 	}
 
 	if (!(in_strafe.state[pnum] & 1))
 	{
-		quant = cl_yawspeed.value;
-		if (cl.fpd & FPD_LIMIT_YAW || !ruleset_allow_frj.value)
+		quant = cl_yawspeed.ival;
+		if (cl.fpd & FPD_LIMIT_YAW || !ruleset_allow_frj.ival)
 			quant = bound(-900, quant, 900);
 		cl.viewangles[pnum][YAW] -= speed*quant * CL_KeyState (&in_right, pnum);
 		cl.viewangles[pnum][YAW] += speed*quant * CL_KeyState (&in_left, pnum);
@@ -486,8 +518,8 @@ void CL_AdjustAngles (int pnum, double frametime)
 	if (in_klook.state[pnum] & 1)
 	{
 		V_StopPitchDrift (pnum);
-		quant = cl_pitchspeed.value;
-		if (cl.fpd & FPD_LIMIT_PITCH || !ruleset_allow_frj.value)
+		quant = cl_pitchspeed.ival;
+		if (cl.fpd & FPD_LIMIT_PITCH || !ruleset_allow_frj.ival)
 			quant = bound(-700, quant, 700);
 		cl.viewangles[pnum][PITCH] -= speed*quant * CL_KeyState (&in_forward, pnum);
 		cl.viewangles[pnum][PITCH] += speed*quant * CL_KeyState (&in_back, pnum);
@@ -496,11 +528,11 @@ void CL_AdjustAngles (int pnum, double frametime)
 	up = CL_KeyState (&in_lookup, pnum);
 	down = CL_KeyState(&in_lookdown, pnum);
 
-	quant = cl_pitchspeed.value;
-	if (!ruleset_allow_frj.value)
+	quant = cl_pitchspeed.ival;
+	if (!ruleset_allow_frj.ival)
 		quant = bound(-700, quant, 700);	
-	cl.viewangles[pnum][PITCH] -= speed*cl_pitchspeed.value * up;
-	cl.viewangles[pnum][PITCH] += speed*cl_pitchspeed.value * down;
+	cl.viewangles[pnum][PITCH] -= speed*cl_pitchspeed.ival * up;
+	cl.viewangles[pnum][PITCH] += speed*cl_pitchspeed.ival * down;
 
 	if (up || down)
 		V_StopPitchDrift (pnum);
@@ -541,7 +573,7 @@ void CL_BaseMove (usercmd_t *cmd, int pnum, float extra, float wantfps)
 	cmd->sidemove -= scale*cl_sidespeed.value * CL_KeyState (&in_moveleft, pnum);
 
 #ifdef IN_XFLIP
-	if(in_xflip.value) cmd->sidemove *= -1;
+	if(in_xflip.ival) cmd->sidemove *= -1;
 #endif
 
 
@@ -587,18 +619,20 @@ void CL_ClampPitch (int pnum)
 	else
 #endif
 #ifdef Q3CLIENT
-		if (cls.gamemode == CP_QUAKE3)	//q3 expects the cgame to do it
+		if (cls.protocol == CP_QUAKE3)	//q3 expects the cgame to do it
 	{
 			//no-op
 	}
 	else
 #endif
 	{
+		if (cl.fixangle[pnum])
+			return;
 		if (cl.viewangles[pnum][PITCH] > cl.maxpitch)
 			cl.viewangles[pnum][PITCH] = cl.maxpitch;
 		if (cl.viewangles[pnum][PITCH] < cl.minpitch)
 			cl.viewangles[pnum][PITCH] = cl.minpitch;
-	}
+	} 
 }
 
 /*
@@ -642,7 +676,7 @@ void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 	for (i=0 ; i<3 ; i++)
 		cmd->angles[i] = ((int)(cl.viewangles[pnum][i]*65536.0/360)&65535);
 
-	if (in_impulsespending[pnum])
+	if (in_impulsespending[pnum] && !cl.paused)
 	{
 		in_nextimpulse[pnum]++;
 		in_impulsespending[pnum]--;
@@ -652,19 +686,12 @@ void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 		cmd->impulse = 0;
 }
 
-float cursor_screen[2];
-
 void CL_DrawPrydonCursor(void)
 {
-	if (cls.protocol == CP_NETQUAKE)
-	if (nq_dp_protocol >= 6)
-	if (cl_prydoncursor.value)
+	if (cursor_active && cl_prydoncursor.ival > 0)
 	{
-		mpic_t *pic = Draw_SafeCachePic(va("gfx/prydoncursor%03i.lmp", (int)cl_prydoncursor.value));
-		if (pic)
-			Draw_Pic((int)((cursor_screen[0] + 1) * 0.5 * vid.width), (int)((cursor_screen[1] + 1) * 0.5 * vid.height), pic);
-		else
-			Draw_Character((int)((cursor_screen[0] + 1) * 0.5 * vid.width), (int)((cursor_screen[1] + 1) * 0.5 * vid.height), '+');
+		SCR_DrawCursor(cl_prydoncursor.ival);
+		V_StopPitchDrift (0);
 	}
 }
 
@@ -675,15 +702,19 @@ void CL_UpdatePrydonCursor(usercmd_t *from, float cursor_screen[2], vec3_t curso
 	vec3_t temp;
 	vec3_t cursor_impact_normal;
 
-	if (!cl_prydoncursor.value)
+	extern int mousecursor_x, mousecursor_y;
+
+	cursor_active = true;
+
+	if (!cl_prydoncursor.ival)
 	{	//center the cursor
 		cursor_screen[0] = 0;
 		cursor_screen[1] = 0;
 	}
 	else
 	{
-		cursor_screen[0] += from->sidemove/10000.0f;
-		cursor_screen[1] -= from->forwardmove/10000.0f;
+		cursor_screen[0] = mousecursor_x/(vid.width/2.0f) - 1;
+		cursor_screen[1] = mousecursor_y/(vid.height/2.0f) - 1;
 		if (cursor_screen[0] < -1)
 			cursor_screen[0] = -1;
 		if (cursor_screen[1] < -1)
@@ -717,32 +748,21 @@ void CL_UpdatePrydonCursor(usercmd_t *from, float cursor_screen[2], vec3_t curso
 		cl.cmd.cursor_screen[1] = 1;
 	}
 	*/
-//	cursor_screen[0] = bound(-1, cursor_screen[0], 1);
-//	cursor_screen[1] = bound(-1, cursor_screen[1], 1);
 
 	VectorClear(cursor_start);
 	temp[0] = (cursor_screen[0]+1)/2;
 	temp[1] = (-cursor_screen[1]+1)/2;
 	temp[2] = 1;
 
-	Matrix4_UnProject(temp, cursor_end, cl.viewangles[0], vec3_origin, scr_fov.value*(float)vid.width/vid.height, scr_fov.value );
-	VectorScale(cursor_end, 100000, cursor_end);
-
-	VectorAdd(cursor_start, cl.simorg[0], cursor_start);
-	VectorAdd(cursor_end, cl.simorg[0], cursor_end);
-	cursor_start[2]+=cl.viewheight[0];
-	cursor_end[2]+=cl.viewheight[0];
-
+	VectorCopy(r_origin, cursor_start);
+	Matrix4_UnProject(temp, cursor_end, cl.viewangles[0], cursor_start, r_refdef.fov_x, r_refdef.fov_y);
 
 	CL_SetSolidEntities();
 	//don't bother with players, they don't exist in NQ...
 
 	TraceLineN(cursor_start, cursor_end, cursor_impact, cursor_impact_normal);
-//	CL_SelectTraceLine(cursor_start, cursor_end, cursor_impact, entnum);
-	// makes sparks where cursor is
-	//CL_SparkShower(cl.cmd.cursor_impact, cl.cmd.cursor_normal, 5, 0);
-//	P_RunParticleEffectType(cursor_impact, vec3_origin, 1, pt_gunshot);
-//P_ParticleTrail(cursor_start, cursor_impact, 0, NULL);
+
+//	P_RunParticleEffect(cursor_impact, vec3_origin, 15, 16);
 }
 
 #ifdef NQPROT
@@ -764,19 +784,24 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 
 	MSG_WriteByte (buf, clc_move);
 
-	if (nq_dp_protocol>=7)
+	if (cls.protocol_nq >= CPNQ_DP7)
 		MSG_WriteLong(buf, cls.netchan.outgoing_sequence);
 
 	MSG_WriteFloat (buf, cl.gametime);	// so server can get ping times
 
 	for (i=0 ; i<3 ; i++)
-		MSG_WriteAngle (buf, cl.viewangles[pnum][i]);
+	{
+		if (cls.protocol_nq == CPNQ_FITZ666 || cls.protocol_nq == CPNQ_PROQUAKE3_4)
+			MSG_WriteAngle16 (buf, cl.viewangles[pnum][i]);
+		else
+			MSG_WriteAngle (buf, cl.viewangles[pnum][i]);
+	}
 	
 	MSG_WriteShort (buf, cmd->forwardmove);
 	MSG_WriteShort (buf, cmd->sidemove);
 	MSG_WriteShort (buf, cmd->upmove);
 
-	if (nq_dp_protocol >= 6)
+	if (cls.protocol_nq >= CPNQ_DP6)
 	{
 		CL_UpdatePrydonCursor(cmd, cursor_screen, cursor_start, cursor_impact, &cursor_entitynumber);
 		MSG_WriteLong (buf, cmd->buttons);
@@ -788,7 +813,7 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 	MSG_WriteByte (buf, cmd->impulse);
 
 
-	if (nq_dp_protocol >= 6)
+	if (cls.protocol_nq >= CPNQ_DP6)
 	{
 		MSG_WriteShort (buf, cursor_screen[0] * 32767.0f);
 		MSG_WriteShort (buf, cursor_screen[1] * 32767.0f);
@@ -815,9 +840,9 @@ void Name_Callback(struct cvar_s *var, char *oldvalue)
 
 void CLNQ_SendCmd(sizebuf_t *buf)
 {
-	extern int cl_latestframenum, nq_dp_protocol;
+	extern int cl_latestframenum;
 
-	if (cls.signon == 4)
+//	if (cls.signon == 4)
 	{
 	// send the unreliable message
 		if (independantphysics[0].impulse && !cls.netchan.message.cursize)
@@ -826,14 +851,13 @@ void CLNQ_SendCmd(sizebuf_t *buf)
 			CLNQ_SendMove (&independantphysics[0], 0, buf);
 	}
 
-	if (nq_dp_protocol > 0 && cls.signon == 4)
+	if (CPNQ_IS_DP && cls.signon == 4)
 	{
 		MSG_WriteByte(buf, clcdp_ackframe);
 		MSG_WriteLong(buf, cl_latestframenum);
 	}
 
 	memset(&independantphysics[0], 0, sizeof(independantphysics[0]));
-	cl.allowsendpacket = false;
 }
 #else
 void Name_Callback(struct cvar_s *var, char *oldvalue)
@@ -842,14 +866,15 @@ void Name_Callback(struct cvar_s *var, char *oldvalue)
 }
 #endif
 
-float CL_FilterTime (double time, float wantfps)	//now returns the extra time not taken in this slot. Note that negative 1 means uncapped.
+float CL_FilterTime (double time, float wantfps, qboolean ignoreserver)	//now returns the extra time not taken in this slot. Note that negative 1 means uncapped.
 {
 	float fps, fpscap;
 
 	if (cls.timedemo || cls.protocol == CP_QUAKE3)
 		return -1;
 
-	if (cls.demoplayback != DPB_NONE || cls.protocol != CP_QUAKEWORLD)
+	/*ignore the server if we're playing demos, sending to the server only as replies, or if its meant to be disabled (netfps depending on where its called from)*/
+	if (cls.demoplayback != DPB_NONE || cls.protocol != CP_QUAKEWORLD || ignoreserver)
 	{
 		if (!wantfps)
 			return -1;
@@ -870,7 +895,7 @@ float CL_FilterTime (double time, float wantfps)	//now returns the extra time no
 	}
 
 	if (time < 1000 / fps)
-		return false;
+		return 0;
 
 	return time - (1000 / fps);
 }
@@ -1005,20 +1030,20 @@ unsigned long _stdcall CL_IndepPhysicsThread(void *param)
 {
 	int sleeptime;
 	float fps;
-	float time, lasttime;
+	unsigned int time, lasttime;
 	float spare;
-	lasttime = Sys_DoubleTime();
+	lasttime = Sys_Milliseconds();
 	while(1)
 	{
-		time = Sys_DoubleTime();
-		spare = CL_FilterTime((time - lasttime)*1000, cl_netfps.value);
+		time = Sys_Milliseconds();
+		spare = CL_FilterTime((time - lasttime), cl_netfps.value, false);
 		if (spare)
 		{
 			//don't let them bank too much and get sudden bursts
 			if (spare > 15)
 				spare = 15;
 
-			time -= spare/1000.0f;
+			time -= spare;
 			EnterCriticalSection(&indepcriticialsection);
 			if (cls.state)
 			{
@@ -1111,7 +1136,7 @@ void *CL_IndepPhysicsThread(void *param)
 	while(runningindepphys)
 	{
 		time = Sys_DoubleTime();
-		spare = CL_FilterTime((time - lasttime)*1000, cl_netfps.value);
+		spare = CL_FilterTime((time - lasttime)*1000, cl_netfps.value, false);
 		if (spare)
 		{
 			//don't let them bank too much and get sudden bursts
@@ -1210,20 +1235,20 @@ qboolean CL_WriteDeltas (int plnum, sizebuf_t *buf)
 
 	i = (cls.netchan.outgoing_sequence-2) & UPDATE_MASK;
 	cmd = &cl.frames[i].cmd[plnum];
-	if (cl_c2sImpulseBackup.value >= 2)
+	if (cl_c2sImpulseBackup.ival >= 2)
 		dontdrop = dontdrop || cmd->impulse;
 	MSG_WriteDeltaUsercmd (buf, &nullcmd, cmd);
 	oldcmd = cmd;
 
 	i = (cls.netchan.outgoing_sequence-1) & UPDATE_MASK;
-	if (cl_c2sImpulseBackup.value >= 3)
+	if (cl_c2sImpulseBackup.ival >= 3)
 		dontdrop = dontdrop || cmd->impulse;
 	cmd = &cl.frames[i].cmd[plnum];
 	MSG_WriteDeltaUsercmd (buf, oldcmd, cmd);
 	oldcmd = cmd;
 
 	i = (cls.netchan.outgoing_sequence) & UPDATE_MASK;
-	if (cl_c2sImpulseBackup.value >= 1)
+	if (cl_c2sImpulseBackup.ival >= 1)
 		dontdrop = dontdrop || cmd->impulse;
 	cmd = &cl.frames[i].cmd[plnum];
 	MSG_WriteDeltaUsercmd (buf, oldcmd, cmd);
@@ -1250,7 +1275,7 @@ qboolean CL_SendCmdQ2 (sizebuf_t *buf)
 	if (cls.resendinfo)
 	{
 		MSG_WriteByte (&cls.netchan.message, clcq2_userinfo);
-		MSG_WriteString (&cls.netchan.message, cls.userinfo);
+		MSG_WriteString (&cls.netchan.message, cls.userinfo[0]);
 
 		cls.resendinfo = false;
 	}
@@ -1261,7 +1286,7 @@ qboolean CL_SendCmdQ2 (sizebuf_t *buf)
 	checksumIndex = buf->cursize;
 	MSG_WriteByte (buf, 0);
 
-	if (!cl.q2frame.valid || cl_nodelta.value)
+	if (!cl.q2frame.valid || cl_nodelta.ival)
 		MSG_WriteLong (buf, -1);	// no compression
 	else
 		MSG_WriteLong (buf, cl.q2frame.serverframe);
@@ -1307,8 +1332,9 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 	int seq_hash;
 	qboolean dontdrop = false;
 	usercmd_t *cmd;
-	int checksumIndex, firstsize, i, plnum;
+	int checksumIndex, firstsize, plnum;
 	int clientcount, lost;
+	int curframe = cls.netchan.outgoing_sequence & UPDATE_MASK;
 
 	seq_hash = cls.netchan.outgoing_sequence;
 
@@ -1318,6 +1344,42 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 
 	if (!clientcount)
 		clientcount = 1;
+
+
+	for (plnum = 0; plnum<clientcount; plnum++)
+	{
+		cmd = &cl.frames[curframe].cmd[plnum];
+		*cmd = independantphysics[plnum];
+		
+		cmd->lightlevel = 0;
+#ifdef CSQC_DAT
+		CSQC_Input_Frame(plnum, cmd);
+#endif
+		memset(&independantphysics[plnum], 0, sizeof(independantphysics[plnum]));
+	}
+	cl.frames[curframe].senttime = realtime;
+	cl.frames[curframe].receivedtime = -1;		// we haven't gotten a reply yet
+
+
+	if ((cls.fteprotocolextensions2 & PEXT2_PRYDONCURSOR) && (*cl_prydoncursor.string && cl_prydoncursor.ival >= 0) && cls.state == ca_active)
+	{
+		vec3_t cursor_start, cursor_impact;
+		int cursor_entitynumber = 0;
+		cmd = &cl.frames[curframe].cmd[0];
+		CL_UpdatePrydonCursor(cmd, cursor_screen, cursor_start, cursor_impact, &cursor_entitynumber);
+		MSG_WriteByte (buf, clc_prydoncursor);
+		MSG_WriteShort(buf, cursor_screen[0] * 32767.0f);
+		MSG_WriteShort(buf, cursor_screen[1] * 32767.0f);
+		MSG_WriteFloat(buf, cursor_start[0]);
+		MSG_WriteFloat(buf, cursor_start[1]);
+		MSG_WriteFloat(buf, cursor_start[2]);
+		MSG_WriteFloat(buf, cursor_impact[0]);
+		MSG_WriteFloat(buf, cursor_impact[1]);
+		MSG_WriteFloat(buf, cursor_impact[2]);
+		MSG_WriteShort(buf, cursor_entitynumber);
+	}
+	else
+		cursor_active = false;
 
 	MSG_WriteByte (buf, clc_move);
 
@@ -1332,23 +1394,12 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 	firstsize=0;
 	for (plnum = 0; plnum<clientcount; plnum++)
 	{
-		i = cls.netchan.outgoing_sequence & UPDATE_MASK;
-		cmd = &cl.frames[i].cmd[plnum];
-		*cmd = independantphysics[plnum];
-		
-		cmd->lightlevel = 0;
-#ifdef CSQC_DAT
-		CSQC_Input_Frame(plnum, cmd);
-#endif
-
-		cl.frames[i].senttime = realtime;
-		cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
-		memset(&independantphysics[plnum], 0, sizeof(independantphysics[plnum]));
+		cmd = &cl.frames[curframe].cmd[plnum];
 
 		if (plnum)
 			MSG_WriteByte (buf, clc_move);
 
-		dontdrop = dontdrop || CL_WriteDeltas(plnum, buf);
+		dontdrop = CL_WriteDeltas(plnum, buf) || dontdrop;
 
 		if (!firstsize)
 			firstsize = buf->cursize;
@@ -1364,7 +1415,7 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 	if (cls.netchan.outgoing_sequence - cl.validsequence >= UPDATE_BACKUP-1)
 		cl.validsequence = 0;
 
-	if (cl.validsequence && !cl_nodelta.value && cls.state == ca_active && !cls.demorecording)
+	if (cl.validsequence && !cl_nodelta.ival && cls.state == ca_active && !cls.demorecording)
 	{
 		cl.frames[cls.netchan.outgoing_sequence&UPDATE_MASK].delta_sequence = cl.validsequence;
 		MSG_WriteByte (buf, clc_delta);
@@ -1382,9 +1433,8 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 
 void CL_SendCmd (double frametime, qboolean mainloop)
 {
-	extern cvar_t cl_indepphysics;
 	sizebuf_t	buf;
-	qbyte		data[512];
+	qbyte		data[1024];
 	int			i, plnum;
 	usercmd_t	*cmd;
 	float wantfps;
@@ -1406,14 +1456,6 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		curtime = Sys_DoubleTime();
 		frametime = curtime - lasttime;
 		lasttime = curtime;
-
-/*		for (plnum = 0; plnum < cl.splitclients; plnum++)
-		{
-			CL_AdjustAngles(plnum, frametime);
-			IN_Move(mousemovements[plnum], plnum);
-		}
-		return;
-*/
 	}
 
 	CL_ProxyMenuHooks();
@@ -1427,9 +1469,9 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			cl.frames[i].senttime = realtime;		// we haven't gotten a reply yet
 			cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
 
-			if (cl.splitclients > cl_splitscreen.value+1)
+			if (cl.splitclients > cl_splitscreen.ival+1)
 			{
-				cl.splitclients = cl_splitscreen.value+1;
+				cl.splitclients = cl_splitscreen.ival+1;
 				if (cl.splitclients < 1)
 					cl.splitclients = 1;
 			}
@@ -1438,7 +1480,11 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 				cmd = &cl.frames[i].cmd[0];
 
 				memset(cmd, 0, sizeof(*cmd));
-				cmd->msec = frametime*1000;
+				msecs += frametime*1000;
+				if (msecs > 50)
+					msecs = 50;
+				cmd->msec = msecs;
+				msecs -= cmd->msec;
 				independantphysics[0].msec = 0;
 
 				CL_AdjustAngles (plnum, frametime);
@@ -1456,7 +1502,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 				if (cl.spectator)
 					Cam_Track(plnum, cmd);
 
-				CL_FinishMove(cmd, (int)(frametime*1000), plnum);
+				CL_FinishMove(cmd, cmd->msec, plnum);
 
 				Cam_FinishMove(plnum, cmd);
 			}
@@ -1480,6 +1526,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	buf.maxsize = sizeof(data);
 	buf.cursize = 0;
 	buf.data = data;
+	buf.prim = cls.netchan.message.prim;
 
 #ifdef IRCCONNECT
 	if (cls.netchan.remote_address.type != NA_IRC)
@@ -1517,24 +1564,27 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	if (!runningindepphys)
 	{
 		// while we're not playing send a slow keepalive fullsend to stop mvdsv from screwing up
-		if (cls.state < ca_active && CL_FilterTime(msecstouse, 
-#ifdef IRCCONNECT	//don't spam irc.
-			cls.netchan.remote_address.type == NA_IRC?0.5:
-#endif
-			12.5) == false)
-			fullsend = false; 
-		else if (cl_netfps.value > 0)
+		if (cls.state < ca_active)
+		{
+			#ifdef IRCCONNECT	//don't spam irc.
+			if (cls.netchan.remote_address.type == NA_IRC)
+				wantfps = 0.5;
+			else
+			#endif
+				wantfps = 12.5;
+		}
+		if (cl_netfps.value > 0 || !fullsend)
 		{
 			int spare;
-			spare = CL_FilterTime(msecstouse, cl_netfps.value);
+			spare = CL_FilterTime(msecstouse, wantfps, false);
 			if (!spare && (msecstouse < 200
 #ifdef IRCCONNECT
 				|| cls.netchan.remote_address.type == NA_IRC
 #endif
 				))
 				fullsend = false;
-			if (spare > cl_sparemsec.value)
-				spare = cl_sparemsec.value;
+			if (spare > cl_sparemsec.ival)
+				spare = cl_sparemsec.ival;
 			if (spare > 0)
 				msecstouse -= spare;
 		}
@@ -1575,37 +1625,38 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 
 //	if (skipcmd)
 //		return;
-#ifdef NQPROT
-	if ((!cl.allowsendpacket || cls.state <= ca_connected) && cls.protocol == CP_NETQUAKE)
-		return;
-#endif
 
 	if (!fullsend && cls.state == ca_active)
 		return; // when we're actually playing we try to match netfps exactly to avoid gameplay problems
 
-	CL_SendDownloadReq(&buf);
-
-	while (clientcmdlist)
+#ifdef NQPROT
+	if (cls.protocol != CP_NETQUAKE || cls.netchan.nqreliable_allowed)
+#endif
 	{
-		next = clientcmdlist->next;
-		if (clientcmdlist->reliable)
+		CL_SendDownloadReq(&buf);
+
+		while (clientcmdlist)
 		{
-			if (cls.netchan.message.cursize + 2+strlen(clientcmdlist->command) > cls.netchan.message.maxsize)
-				break;
-			MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
-			MSG_WriteString (&cls.netchan.message, clientcmdlist->command);
-		}
-		else
-		{
-			if (buf.cursize + 2+strlen(clientcmdlist->command) <= buf.maxsize)
+			next = clientcmdlist->next;
+			if (clientcmdlist->reliable)
 			{
-				MSG_WriteByte (&buf, clc_stringcmd);
-				MSG_WriteString (&buf, clientcmdlist->command);
+				if (cls.netchan.message.cursize + 2+strlen(clientcmdlist->command) > cls.netchan.message.maxsize)
+					break;
+				MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
+				MSG_WriteString (&cls.netchan.message, clientcmdlist->command);
 			}
+			else
+			{
+				if (buf.cursize + 2+strlen(clientcmdlist->command) <= buf.maxsize)
+				{
+					MSG_WriteByte (&buf, clc_stringcmd);
+					MSG_WriteString (&buf, clientcmdlist->command);
+				}
+			}
+			Con_DPrintf("Sending stringcmd %s\n", clientcmdlist->command);
+			Z_Free(clientcmdlist);
+			clientcmdlist = next;
 		}
-		Con_DPrintf("Sending stringcmd %s\n", clientcmdlist->command);
-		Z_Free(clientcmdlist);
-		clientcmdlist = next;
 	}
 
 	// if we're not doing clc_moves and etc, don't continue unless we wrote something previous
@@ -1680,7 +1731,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	else
 #endif
 	//shamelessly stolen from fuhquake
-		if (cl_c2spps.value>0)
+		if (cl_c2spps.ival>0)
 	{
 		pps_balance += frametime;
 		// never drop more than 2 messages in a row -- that'll cause PL
@@ -1688,7 +1739,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		if (pps_balance > 0 || dropcount >= 2 || dontdrop)
 		{
 			float	pps;
-			pps = cl_c2spps.value;
+			pps = cl_c2spps.ival;
 			if (pps < 10) pps = 10;
 			if (pps > 72) pps = 72;
 			pps_balance -= 1 / pps;
@@ -1712,6 +1763,10 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		pps_balance = 0;
 		dropcount = 0;
 	}
+
+#ifdef PEXT2_VOICECHAT
+	S_Voip_Transmit(clc_voicechat, &buf);
+#endif
 
 //
 // deliver the message
@@ -1742,132 +1797,6 @@ static char	*VARGS vahunk(char *format, ...)
 	return ret;	
 }
 
-void CL_RegisterSplitCommands(void)
-{
-	static int oldsplit;
-	char spn[8];
-	int sp;
-	for (sp = 0; sp < MAX_SPLITS; sp++)
-	{
-		if (sp)
-			sprintf(spn, "%i", sp+1);
-		else
-			*spn = '\0';
-		if (sp < cl.splitclients)
-		{
-			if (oldsplit & (1<<sp))
-				continue;
-			oldsplit |= (1<<sp);
-
-			Cmd_AddRemCommand (vahunk("+moveup%s",		spn),	IN_UpDown);
-			Cmd_AddRemCommand (vahunk("-moveup%s",		spn),	IN_UpUp);
-			Cmd_AddRemCommand (vahunk("+movedown%s",	spn),	IN_DownDown);
-			Cmd_AddRemCommand (vahunk("-movedown%s",	spn),	IN_DownUp);
-			Cmd_AddRemCommand (vahunk("+left%s",		spn),	IN_LeftDown);
-			Cmd_AddRemCommand (vahunk("-left%s",		spn),	IN_LeftUp);
-			Cmd_AddRemCommand (vahunk("+right%s",		spn),	IN_RightDown);
-			Cmd_AddRemCommand (vahunk("-right%s",		spn),	IN_RightUp);
-			Cmd_AddRemCommand (vahunk("+forward%s",		spn),	IN_ForwardDown);
-			Cmd_AddRemCommand (vahunk("-forward%s",		spn),	IN_ForwardUp);
-			Cmd_AddRemCommand (vahunk("+back%s",		spn),	IN_BackDown);
-			Cmd_AddRemCommand (vahunk("-back%s",		spn),	IN_BackUp);
-			Cmd_AddRemCommand (vahunk("+lookup%s",		spn),	IN_LookupDown);
-			Cmd_AddRemCommand (vahunk("-lookup%s",		spn),	IN_LookupUp);
-			Cmd_AddRemCommand (vahunk("+lookdown%s",	spn),	IN_LookdownDown);
-			Cmd_AddRemCommand (vahunk("-lookdown%s",	spn),	IN_LookdownUp);
-			Cmd_AddRemCommand (vahunk("+strafe%s",		spn),	IN_StrafeDown);
-			Cmd_AddRemCommand (vahunk("-strafe%s",		spn),	IN_StrafeUp);
-			Cmd_AddRemCommand (vahunk("+moveleft%s",	spn),	IN_MoveleftDown);
-			Cmd_AddRemCommand (vahunk("-moveleft%s",	spn),	IN_MoveleftUp);
-			Cmd_AddRemCommand (vahunk("+moveright%s",	spn),	IN_MoverightDown);
-			Cmd_AddRemCommand (vahunk("-moveright%s",	spn),	IN_MoverightUp);
-			Cmd_AddRemCommand (vahunk("+speed%s",		spn),	IN_SpeedDown);
-			Cmd_AddRemCommand (vahunk("-speed%s",		spn),	IN_SpeedUp);
-			Cmd_AddRemCommand (vahunk("+attack%s",		spn),	IN_AttackDown);
-			Cmd_AddRemCommand (vahunk("-attack%s",		spn),	IN_AttackUp);
-			Cmd_AddRemCommand (vahunk("+use%s",			spn),	IN_UseDown);
-			Cmd_AddRemCommand (vahunk("-use%s",			spn),	IN_UseUp);
-			Cmd_AddRemCommand (vahunk("+jump%s",		spn),	IN_JumpDown);
-			Cmd_AddRemCommand (vahunk("-jump%s",		spn),	IN_JumpUp);
-			Cmd_AddRemCommand (vahunk("impulse%s",		spn),	IN_Impulse);
-			Cmd_AddRemCommand (vahunk("+klook%s",		spn),	IN_KLookDown);
-			Cmd_AddRemCommand (vahunk("-klook%s",		spn),	IN_KLookUp);
-			Cmd_AddRemCommand (vahunk("+mlook%s",		spn),	IN_MLookDown);
-			Cmd_AddRemCommand (vahunk("-mlook%s",		spn),	IN_MLookUp);
-
-
-			Cmd_AddRemCommand (vahunk("+button3%s",	spn),	IN_Button3Down);
-			Cmd_AddRemCommand (vahunk("-button3%s",	spn),	IN_Button3Up);
-			Cmd_AddRemCommand (vahunk("+button4%s",	spn),	IN_Button4Down);
-			Cmd_AddRemCommand (vahunk("-button4%s",	spn),	IN_Button4Up);
-			Cmd_AddRemCommand (vahunk("+button5%s",	spn),	IN_Button5Down);
-			Cmd_AddRemCommand (vahunk("-button5%s",	spn),	IN_Button5Up);
-			Cmd_AddRemCommand (vahunk("+button6%s",	spn),	IN_Button6Down);
-			Cmd_AddRemCommand (vahunk("-button6%s",	spn),	IN_Button6Up);
-			Cmd_AddRemCommand (vahunk("+button7%s",	spn),	IN_Button7Down);
-			Cmd_AddRemCommand (vahunk("-button7%s",	spn),	IN_Button7Up);
-			Cmd_AddRemCommand (vahunk("+button8%s",	spn),	IN_Button8Down);
-			Cmd_AddRemCommand (vahunk("-button8%s",	spn),	IN_Button8Up);
-		}
-		else
-		{
-			if (!(oldsplit & (1<<sp)))
-				continue;
-			oldsplit &= ~(1<<sp);
-
-			Cmd_RemoveCommand (vahunk("+moveup%s",		spn));
-			Cmd_RemoveCommand (vahunk("-moveup%s",		spn));
-			Cmd_RemoveCommand (vahunk("+movedown%s",	spn));
-			Cmd_RemoveCommand (vahunk("-movedown%s",	spn));
-			Cmd_RemoveCommand (vahunk("+left%s",		spn));
-			Cmd_RemoveCommand (vahunk("-left%s",		spn));
-			Cmd_RemoveCommand (vahunk("+right%s",		spn));
-			Cmd_RemoveCommand (vahunk("-right%s",		spn));
-			Cmd_RemoveCommand (vahunk("+forward%s",		spn));
-			Cmd_RemoveCommand (vahunk("-forward%s",		spn));
-			Cmd_RemoveCommand (vahunk("+back%s",		spn));
-			Cmd_RemoveCommand (vahunk("-back%s",		spn));
-			Cmd_RemoveCommand (vahunk("+lookup%s",		spn));
-			Cmd_RemoveCommand (vahunk("-lookup%s",		spn));
-			Cmd_RemoveCommand (vahunk("+lookdown%s",	spn));
-			Cmd_RemoveCommand (vahunk("-lookdown%s",	spn));
-			Cmd_RemoveCommand (vahunk("+strafe%s",		spn));
-			Cmd_RemoveCommand (vahunk("-strafe%s",		spn));
-			Cmd_RemoveCommand (vahunk("+moveleft%s",	spn));
-			Cmd_RemoveCommand (vahunk("-moveleft%s",	spn));
-			Cmd_RemoveCommand (vahunk("+moveright%s",	spn));
-			Cmd_RemoveCommand (vahunk("-moveright%s",	spn));
-			Cmd_RemoveCommand (vahunk("+speed%s",		spn));
-			Cmd_RemoveCommand (vahunk("-speed%s",		spn));
-			Cmd_RemoveCommand (vahunk("+attack%s",		spn));
-			Cmd_RemoveCommand (vahunk("-attack%s",		spn));
-			Cmd_RemoveCommand (vahunk("+use%s",			spn));
-			Cmd_RemoveCommand (vahunk("-use%s",			spn));
-			Cmd_RemoveCommand (vahunk("+jump%s",		spn));
-			Cmd_RemoveCommand (vahunk("-jump%s",		spn));
-			Cmd_RemoveCommand (vahunk("impulse%s",		spn));
-			Cmd_RemoveCommand (vahunk("+klook%s",		spn));
-			Cmd_RemoveCommand (vahunk("-klook%s",		spn));
-			Cmd_RemoveCommand (vahunk("+mlook%s",		spn));
-			Cmd_RemoveCommand (vahunk("-mlook%s",		spn));
-
-
-			Cmd_RemoveCommand (vahunk("+button3%s",	spn));
-			Cmd_RemoveCommand (vahunk("-button3%s",	spn));
-			Cmd_RemoveCommand (vahunk("+button4%s",	spn));
-			Cmd_RemoveCommand (vahunk("-button4%s",	spn));
-			Cmd_RemoveCommand (vahunk("+button5%s",	spn));
-			Cmd_RemoveCommand (vahunk("-button5%s",	spn));
-			Cmd_RemoveCommand (vahunk("+button6%s",	spn));
-			Cmd_RemoveCommand (vahunk("-button6%s",	spn));
-			Cmd_RemoveCommand (vahunk("+button7%s",	spn));
-			Cmd_RemoveCommand (vahunk("-button7%s",	spn));
-			Cmd_RemoveCommand (vahunk("+button8%s",	spn));
-			Cmd_RemoveCommand (vahunk("-button8%s",	spn));
-		}
-	}
-}
-
 void CL_SendCvar_f (void)
 {
 	cvar_t *var;
@@ -1891,9 +1820,9 @@ CL_InitInput
 */
 void CL_InitInput (void)
 {
+	int sp;
 #define inputnetworkcvargroup "client networking options"
 	cl.splitclients = 1;
-	CL_RegisterSplitCommands();
 
 	Cmd_AddCommand("rotate", IN_Rotate_f);
 	Cmd_AddCommand("in_restart", IN_Restart);
@@ -1913,14 +1842,62 @@ void CL_InitInput (void)
 
 	Cvar_Register (&cl_prydoncursor, inputnetworkcvargroup);
 	Cvar_Register (&cl_instantrotate, inputnetworkcvargroup);
-}
+	Cvar_Register (&cl_forcesplitclient, inputnetworkcvargroup);
 
-/*
-============
-CL_ClearStates
-============
-*/
-void CL_ClearStates (void)
-{
-}
+	for (sp = 0; sp < MAX_SPLITS; sp++)
+	{
+		Cmd_AddCommand (vahunk("p%i",		sp+1),	CL_Split_f);
+		Cmd_AddCommand (vahunk("+p%i",		sp+1),	CL_Split_f);
+		Cmd_AddCommand (vahunk("-p%i",		sp+1),	CL_Split_f);
+		in_mlook.state[sp] = 1;
+	}
+	
+	Cmd_AddCommand ("+moveup",		IN_UpDown);
+	Cmd_AddCommand ("-moveup",		IN_UpUp);
+	Cmd_AddCommand ("+movedown",	IN_DownDown);
+	Cmd_AddCommand ("-movedown",	IN_DownUp);
+	Cmd_AddCommand ("+left",		IN_LeftDown);
+	Cmd_AddCommand ("-left",		IN_LeftUp);
+	Cmd_AddCommand ("+right",		IN_RightDown);
+	Cmd_AddCommand ("-right",		IN_RightUp);
+	Cmd_AddCommand ("+forward",		IN_ForwardDown);
+	Cmd_AddCommand ("-forward",		IN_ForwardUp);
+	Cmd_AddCommand ("+back",		IN_BackDown);
+	Cmd_AddCommand ("-back",		IN_BackUp);
+	Cmd_AddCommand ("+lookup",		IN_LookupDown);
+	Cmd_AddCommand ("-lookup",		IN_LookupUp);
+	Cmd_AddCommand ("+lookdown",	IN_LookdownDown);
+	Cmd_AddCommand ("-lookdown",	IN_LookdownUp);
+	Cmd_AddCommand ("+strafe",		IN_StrafeDown);
+	Cmd_AddCommand ("-strafe",		IN_StrafeUp);
+	Cmd_AddCommand ("+moveleft",	IN_MoveleftDown);
+	Cmd_AddCommand ("-moveleft",	IN_MoveleftUp);
+	Cmd_AddCommand ("+moveright",	IN_MoverightDown);
+	Cmd_AddCommand ("-moveright",	IN_MoverightUp);
+	Cmd_AddCommand ("+speed",		IN_SpeedDown);
+	Cmd_AddCommand ("-speed",		IN_SpeedUp);
+	Cmd_AddCommand ("+attack",		IN_AttackDown);
+	Cmd_AddCommand ("-attack",		IN_AttackUp);
+	Cmd_AddCommand ("+use",			IN_UseDown);
+	Cmd_AddCommand ("-use",			IN_UseUp);
+	Cmd_AddCommand ("+jump",		IN_JumpDown);
+	Cmd_AddCommand ("-jump",		IN_JumpUp);
+	Cmd_AddCommand ("impulse",		IN_Impulse);
+	Cmd_AddCommand ("+klook",		IN_KLookDown);
+	Cmd_AddCommand ("-klook",		IN_KLookUp);
+	Cmd_AddCommand ("+mlook",		IN_MLookDown);
+	Cmd_AddCommand ("-mlooks",		IN_MLookUp);
 
+	Cmd_AddCommand ("+button3",		IN_Button3Down);
+	Cmd_AddCommand ("-button3",		IN_Button3Up);
+	Cmd_AddCommand ("+button4",		IN_Button4Down);
+	Cmd_AddCommand ("-button4",		IN_Button4Up);
+	Cmd_AddCommand ("+button5",		IN_Button5Down);
+	Cmd_AddCommand ("-button5",		IN_Button5Up);
+	Cmd_AddCommand ("+button6",		IN_Button6Down);
+	Cmd_AddCommand ("-button6",		IN_Button6Up);
+	Cmd_AddCommand ("+button7",		IN_Button7Down);
+	Cmd_AddCommand ("-button7",		IN_Button7Up);
+	Cmd_AddCommand ("+button8",		IN_Button8Down);
+	Cmd_AddCommand ("-button8",		IN_Button8Up);
+}

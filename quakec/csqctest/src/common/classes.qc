@@ -2,12 +2,13 @@
 	#define _CLASSES_QC_
 
 
-#define eclasses	eclass(CLASS_ROCKET, ParseRocketClass)	eclass(CLASS_GIB, ParseGibbing)	eclass(CLASS_PLAYER, ParsePlayer) eclass(CLASS_EXPLOSION, ParseExplosion) eclass(CLASS_DEADBODY, ParseBody) eclass(CLASS_NAIL, ParseNailClass)
+#define eclasses	eclass(CLASS_ROCKET, ParseRocketClass)	eclass(CLASS_GIB, ParseGibbing)	eclass(CLASS_PLAYER, ParsePlayer) eclass(CLASS_EXPLOSION, ParseExplosion) eclass(CLASS_NAIL, ParseNailClass)
 
-
+#ifdef CSQC
 #define eclass(eid,func) void(float isnew) func;
 		eclasses
 #undef eclass
+#endif
 
 
 	enum {

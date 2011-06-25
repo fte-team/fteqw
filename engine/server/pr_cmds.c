@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "qwsvdef.h"
 
 #ifdef SQL
-#include "win_mysql.h"
+#include "sv_sql.h"
 #endif
 
 #define G_PROG G_FLOAT
@@ -35,6 +35,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 void ED_Print (struct progfuncs_s *progfuncs, struct edict_s *ed);
 int PR_EnableEBFSBuiltin(char *name, int binum);
 
+/*cvars for the gamecode only*/
 cvar_t	nomonsters = SCVAR("nomonsters", "0");
 cvar_t	gamecfg = SCVAR("gamecfg", "0");
 cvar_t	scratch1 = SCVAR("scratch1", "0");
@@ -49,13 +50,20 @@ cvar_t	saved4 = SCVARF("saved4", "0", CVAR_ARCHIVE);
 cvar_t	temp1 = SCVARF("temp1", "0", CVAR_ARCHIVE);
 cvar_t	noexit = SCVAR("noexit", "0");
 
-cvar_t	pr_maxedicts = SCVARF("pr_maxedicts", "2048", CVAR_LATCH);
+/*cvars purely for compat with others*/
+cvar_t	dpcompat_trailparticles = SCVAR("dpcompat_trailparticles", "0");
 cvar_t	pr_imitatemvdsv = SCVARF("pr_imitatemvdsv", "0", CVAR_LATCH);
+
+/*compat with frikqcc's arrays (ensures that unknown fields are at the same offsets*/
 cvar_t	pr_fixbrokenqccarrays = SCVARF("pr_fixbrokenqccarrays", "1", CVAR_LATCH);
 
-cvar_t	pr_no_playerphysics = SCVARF("pr_no_playerphysics", "0", CVAR_LATCH);
+/*other stuff*/
+cvar_t	pr_maxedicts = SCVARF("pr_maxedicts", "2048", CVAR_LATCH);
 
-cvar_t	progs = SCVARF("progs", "", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_NOTFROMSERVER);
+cvar_t	pr_no_playerphysics = SCVARF("pr_no_playerphysics", "0", CVAR_LATCH);
+cvar_t	pr_no_parsecommand = SCVARF("pr_no_parsecommand", "0", 0);
+
+cvar_t	progs = CVARAF("progs", "", "sv_progs", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_NOTFROMSERVER);
 cvar_t	qc_nonetaccess = SCVAR("qc_nonetaccess", "0");	//prevent write_... builtins from doing anything. This means we can run any mod, specific to any engine, on the condition that it also has a qw or nq crc.
 
 cvar_t pr_overridebuiltins = SCVAR("pr_overridebuiltins", "1");
@@ -73,30 +81,14 @@ extern cvar_t sv_gameplayfix_noairborncorpse;
 cvar_t sv_addon[MAXADDONS];
 char cvargroup_progs[] = "Progs variables";
 
-#ifdef SQL
-cvar_t sql_driver = SCVARF("sv_sql_driver", "mysql", CVAR_NOUNSAFEEXPAND);
-cvar_t sql_host = SCVARF("sv_sql_host", "127.0.0.1", CVAR_NOUNSAFEEXPAND);
-cvar_t sql_username = SCVARF("sv_sql_username", "", CVAR_NOUNSAFEEXPAND);
-cvar_t sql_password = SCVARF("sv_sql_password", "", CVAR_NOUNSAFEEXPAND);
-cvar_t sql_defaultdb = SCVARF("sv_sql_defaultdb", "", CVAR_NOUNSAFEEXPAND);
-
-#define SQLCVAROPTIONS "SQL Defaults"
-#endif
-
 evalc_t evalc_idealpitch, evalc_pitch_speed;
 
 int pr_teamfield;
+unsigned int h2infoplaque[2];	/*hexen2 stat*/
 
-void PR_ClearThreads(void);
+static void PRSV_ClearThreads(void);
 void PR_fclose_progs(progfuncs_t*);
 void PF_InitTempStrings(progfuncs_t *prinst);
-
-#ifdef SQL
-// SQL prototypes
-void SQL_Init(void);
-void SQL_KillServers(void);
-void SQL_DeInit(void);
-#endif
 
 typedef struct {
 	//for func finding and swapping.
@@ -160,9 +152,6 @@ char *QC_ProgsNameForEnt(edict_t *ent)
 	return "?";
 }
 
-
-int pr_edict_size;
-
 void ED_Spawned (struct edict_s *ent, int loading)
 {
 #ifdef VM_Q1
@@ -185,7 +174,7 @@ void ED_Spawned (struct edict_s *ent, int loading)
 
 pbool ED_CanFree (edict_t *ed)
 {
-	if (ed == sv.edicts)
+	if (ed == (edict_t*)sv.world.edicts)
 	{
 		if (developer.value)
 		{
@@ -202,7 +191,7 @@ pbool ED_CanFree (edict_t *ed)
 		*svprogfuncs->pr_trace = 1;
 		return false;
 	}
-	SV_UnlinkEdict (ed);		// unlink from world bsp
+	World_UnlinkEdict ((wedict_t*)ed);		// unlink from world bsp
 
 	ed->v->model = 0;
 	ed->v->takedamage = 0;
@@ -215,10 +204,9 @@ pbool ED_CanFree (edict_t *ed)
 	ed->v->nextthink = 0;
 	ed->v->solid = 0;
 
-
 	ed->v->classname = 0;
 
-	if (pr_imitatemvdsv.value) 
+	if (pr_imitatemvdsv.value)
 	{
 		ed->v->health = 0;
 		ed->v->nextthink = -1;
@@ -232,10 +220,16 @@ pbool ED_CanFree (edict_t *ed)
 	ed->xv->SendEntity = 0;
 	sv.csqcentversion[ed->entnum] = ed->xv->Version+1;
 
+#ifdef USEODE
+	World_Physics_RemoveFromEntity(&sv.world, (wedict_t*)ed);
+	World_Physics_RemoveJointFromEntity(&sv.world, (wedict_t*)ed);
+#endif
+
+
 	return true;
 }
 
-void StateOp (progfuncs_t *prinst, float var, func_t func)
+void ASMCALL StateOp (progfuncs_t *prinst, float var, func_t func)
 {
 	stdentvars_t *vars = PROG_TO_EDICT(prinst, pr_global_struct->self)->v;
 	if (progstype == PROG_H2)
@@ -245,7 +239,7 @@ void StateOp (progfuncs_t *prinst, float var, func_t func)
 	vars->think = func;
 	vars->frame = var;
 }
-void CStateOp (progfuncs_t *prinst, float startFrame, float endFrame, func_t currentfunc)
+void ASMCALL CStateOp (progfuncs_t *prinst, float startFrame, float endFrame, func_t currentfunc)
 {
 	stdentvars_t *vars = PROG_TO_EDICT(prinst, pr_global_struct->self)->v;
 
@@ -281,7 +275,7 @@ void CStateOp (progfuncs_t *prinst, float startFrame, float endFrame, func_t cur
 		vars->frame = startFrame;
 	}
 }
-void CWStateOp (progfuncs_t *prinst, float startFrame, float endFrame, func_t currentfunc)
+void ASMCALL CWStateOp (progfuncs_t *prinst, float startFrame, float endFrame, func_t currentfunc)
 {
 	stdentvars_t *vars = PROG_TO_EDICT(prinst, pr_global_struct->self)->v;
 
@@ -318,13 +312,28 @@ void CWStateOp (progfuncs_t *prinst, float startFrame, float endFrame, func_t cu
 	}
 }
 
-void ThinkTimeOp (progfuncs_t *prinst, edict_t *ed, float var)
+void ASMCALL ThinkTimeOp (progfuncs_t *prinst, edict_t *ed, float var)
 {
 	stdentvars_t *vars = ed->v;
-#ifdef PARANOID
-	NUM_FOR_EDICT(ed); // Make sure it's in range
-#endif
 	vars->nextthink = pr_global_struct->time+var;
+}
+
+pbool SV_BadField(progfuncs_t *inst, edict_t *foo, const char *keyname, const char *value)
+{
+	/*Worldspawn only fields...*/
+	if (NUM_FOR_EDICT(inst, foo) == 0)
+	{
+		/*hexen2 midi - just mute it, we don't support it*/
+		if (!stricmp(keyname, "MIDI"))
+			return true;
+		/*hexen2 does cd tracks slightly differently too*/
+		if (!stricmp(keyname, "CD"))
+		{
+			sv.h2cdtrack = atoi(value);
+			return true;
+		}
+	}
+	return false;
 }
 
 //int QCEditor (char *filename, int line, int nump, char **parms);
@@ -389,6 +398,33 @@ int QCEditor (progfuncs_t *prinst, char *filename, int line, int nump, char **pa
 #endif
 }
 
+model_t *SVPR_GetCModel(world_t *w, int modelindex)
+{
+	if ((unsigned int)modelindex < MAX_MODELS)
+		return sv.models[modelindex];
+	else
+		return NULL;
+}
+
+void SVPR_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
+{
+	int oself = pr_global_struct->self;
+	int oother = pr_global_struct->other;
+
+	pr_global_struct->self = EDICT_TO_PROG(w->progs, s);
+	pr_global_struct->other = EDICT_TO_PROG(w->progs, o);
+	pr_global_struct->time = w->physicstime;
+#ifdef VM_Q1
+	if (w==&sv.world && svs.gametype == GT_Q1QVM)
+		Q1QVM_Touch();
+	else
+#endif
+		PR_ExecuteProgram (w->progs, s->v->touch);
+
+	pr_global_struct->self = oself;
+	pr_global_struct->other = oother;
+}
+
 void Q_SetProgsParms(qboolean forcompiler)
 {
 	progstype = PROG_NONE;
@@ -411,6 +447,7 @@ void Q_SetProgsParms(qboolean forcompiler)
 	//used when loading a game
 	svprogparms.builtinsfor = NULL;//builtin_t *(*builtinsfor) (int num);	//must return a pointer to the builtins that were used before the state was saved.
 	svprogparms.loadcompleate = NULL;//void (*loadcompleate) (int edictsize);	//notification to reset any pointers.
+	svprogparms.badfield = SV_BadField;
 
 	svprogparms.memalloc = PR_CB_Malloc;//void *(*memalloc) (int size);	//small string allocation	malloced and freed randomly
 	svprogparms.memfree = PR_CB_Free;//void (*memfree) (void * mem);
@@ -423,16 +460,18 @@ void Q_SetProgsParms(qboolean forcompiler)
 
 	svprogparms.gametime = &sv.time;
 
-	svprogparms.sv_edicts = &sv.edicts;
-	svprogparms.sv_num_edicts = &sv.num_edicts;
+	svprogparms.sv_edicts = (edict_t**)&sv.world.edicts;
+	svprogparms.sv_num_edicts = &sv.world.num_edicts;
 
 	svprogparms.useeditor = QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
 
 	if (!svprogfuncs)
 	{
-		svprogfuncs = InitProgs(&svprogparms);
+		sv.world.progs = svprogfuncs = InitProgs(&svprogparms);
 	}
-	PR_ClearThreads();
+	sv.world.Event_Touch = SVPR_Event_Touch;
+	sv.world.GetCModel = SVPR_GetCModel;
+	PRSV_ClearThreads();
 	PR_fclose_progs(svprogfuncs);
 
 //	svs.numprogs = 0;
@@ -441,11 +480,15 @@ void Q_SetProgsParms(qboolean forcompiler)
 
 void PR_Deinit(void)
 {
+#ifdef USEODE
+	World_Physics_End(&sv.world);
+#endif
+
 #ifdef SQL
 	SQL_DeInit();
 #endif
 
-	PR_ClearThreads();
+	PRSV_ClearThreads();
 	if (svprogfuncs)
 	{
 		PR_fclose_progs(svprogfuncs);
@@ -454,6 +497,9 @@ void PR_Deinit(void)
 
 		Z_FreeTags(Z_QC_TAG);
 	}
+#ifdef TEXTEDITOR
+	Editor_ProgsKilled(svprogfuncs);
+#endif
 	svprogfuncs=NULL;
 
 	//clear out function pointers (so changing game modes cannot lead to confusions)
@@ -477,15 +523,17 @@ void PR_LoadGlabalStruct(void)
 {
 	static float writeonly;
 	static float dimension_send_default;
+	static float zero_default;
+	//static vec3_t vecwriteonly; // 523:16: warning: unused variable ‘vecwriteonly’
 	int i;
 	int *v;
 	nqglobalvars_t *pr_globals = pr_nqglobal_struct;
-#define globalfloat(need,name) ((nqglobalvars_t*)pr_nqglobal_struct)->name = (float *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find \""#name"\" export in progs\n");
-#define globalint(need,name) ((nqglobalvars_t*)pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
-#define globalstring(need,name) ((nqglobalvars_t*)pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
-#define globalvec(need,name) ((nqglobalvars_t*)pr_globals)->V_##name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->V_##name) SV_Error("Could not find export \""#name"\" in progs\n");
-#define globalvec_(need,name) ((nqglobalvars_t*)pr_globals)->name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
-#define globalfunc(need,name) ((nqglobalvars_t*)pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
+#define globalfloat(need,name) ((nqglobalvars_t*)pr_nqglobal_struct)->name = (float *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find \""#name"\" export in progs\n");
+#define globalint(need,name) ((nqglobalvars_t*)pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
+#define globalstring(need,name) ((nqglobalvars_t*)pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
+#define globalvec(need,name) ((nqglobalvars_t*)pr_globals)->V_##name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !((nqglobalvars_t*)pr_globals)->V_##name) SV_Error("Could not find export \""#name"\" in progs\n");
+#define globalvec_(need,name) ((nqglobalvars_t*)pr_globals)->name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
+#define globalfunc(need,name) ((nqglobalvars_t*)pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !((nqglobalvars_t*)pr_globals)->name) {static func_t strippedout; strippedout = PR_FindFunction(svprogfuncs, #name, 0); if (strippedout) ((nqglobalvars_t*)pr_globals)->name = &strippedout; else SV_Error("Could not find function \""#name"\" in progs\n"); }
 //			globalint(pad);
 	globalint		(true, self);	//we need the qw ones, but any in standard quake and not quakeworld, we don't really care about.
 	globalint		(true, other);
@@ -498,23 +546,23 @@ void PR_LoadGlabalStruct(void)
 	globalfloat		(false, deathmatch);
 	globalfloat		(false, coop);
 	globalfloat		(false, teamplay);
-	globalfloat		(true, serverflags);
-	globalfloat		(true, total_secrets);
-	globalfloat		(true, total_monsters);
-	globalfloat		(true, found_secrets);
-	globalfloat		(true, killed_monsters);
+	globalfloat		(false, serverflags);
+	globalfloat		(false, total_secrets);
+	globalfloat		(false, total_monsters);
+	globalfloat		(false, found_secrets);
+	globalfloat		(false, killed_monsters);
 	globalvec		(true, v_forward);
 	globalvec		(true, v_up);
 	globalvec		(true, v_right);
-	globalfloat		(true, trace_allsolid);
-	globalfloat		(true, trace_startsolid);
-	globalfloat		(true, trace_fraction);
-	globalvec		(true, trace_endpos);
-	globalvec		(true, trace_plane_normal);
-	globalfloat		(true, trace_plane_dist);
+	globalfloat		(false, trace_allsolid);
+	globalfloat		(false, trace_startsolid);
+	globalfloat		(false, trace_fraction);
+	globalvec		(false, trace_endpos);
+	globalvec		(false, trace_plane_normal);
+	globalfloat		(false, trace_plane_dist);
 	globalint		(true, trace_ent);
-	globalfloat		(true, trace_inopen);
-	globalfloat		(true, trace_inwater);
+	globalfloat		(false, trace_inopen);
+	globalfloat		(false, trace_inwater);
 	globalfloat		(false, trace_endcontents);
 	globalfloat		(false, trace_surfaceflags);
 	globalfloat		(false, cycle_wrapped);
@@ -532,7 +580,7 @@ void PR_LoadGlabalStruct(void)
 	globalfloat		(false, cycle_wrapped);
 	globalfloat		(false, dimension_send);
 
-	
+
 	globalfloat		(false, clientcommandframe);
 	globalfloat		(false, input_timelength);
 	globalvec_		(false, input_angles);
@@ -543,26 +591,51 @@ void PR_LoadGlabalStruct(void)
 	memset(&evalc_pitch_speed, 0, sizeof(evalc_pitch_speed));
 
 	for (i = 0; i < NUM_SPAWN_PARMS; i++)
-		spawnparamglobals[i] = (float *)PR_FindGlobal(svprogfuncs, va("parm%i", i+1), 0);
+		spawnparamglobals[i] = (float *)PR_FindGlobal(svprogfuncs, va("parm%i", i+1), 0, NULL);
 
-	if (!((nqglobalvars_t*)pr_globals)->dimension_send)
-	{	//make sure dimension send is always a valid pointer.
-		((nqglobalvars_t*)pr_globals)->dimension_send = &dimension_send_default;
+#define ensurefloat(name,var) if (!((nqglobalvars_t*)pr_globals)->name) ((nqglobalvars_t*)pr_globals)->name = &var;
+
+	// make sure these entries are always valid pointers
+	ensurefloat(dimension_send, dimension_send_default);
+	ensurefloat(trace_endcontents, writeonly);
+	ensurefloat(trace_surfaceflags, writeonly);
+
+	// qtest renames and missing variables
+	if (!((nqglobalvars_t*)pr_globals)->V_trace_plane_normal)
+	{
+		((nqglobalvars_t*)pr_globals)->V_trace_plane_normal = (vec3_t *)PR_FindGlobal(svprogfuncs, "trace_normal", 0, NULL);
+		if (!((nqglobalvars_t*)pr_globals)->V_trace_plane_normal)
+			SV_Error("Could not find export trace_plane_normal in progs\n");
 	}
-	if (!((nqglobalvars_t*)pr_globals)->trace_endcontents)
-	{	//make sure dimension send is always a valid pointer.
-		((nqglobalvars_t*)pr_globals)->trace_endcontents = &writeonly;
+	if (!((nqglobalvars_t*)pr_globals)->V_trace_endpos)
+	{
+		((nqglobalvars_t*)pr_globals)->V_trace_endpos = (vec3_t *)PR_FindGlobal(svprogfuncs, "trace_impact", 0, NULL);
+		if (!((nqglobalvars_t*)pr_globals)->V_trace_endpos)
+			SV_Error("Could not find export trace_endpos in progs\n");
 	}
-	if (!((nqglobalvars_t*)pr_globals)->trace_surfaceflags)
-	{	//make sure dimension send is always a valid pointer.
-		((nqglobalvars_t*)pr_globals)->trace_surfaceflags = &writeonly;
+	if (!((nqglobalvars_t*)pr_globals)->trace_fraction)
+	{
+		((nqglobalvars_t*)pr_globals)->trace_fraction = (float *)PR_FindGlobal(svprogfuncs, "trace_frac", 0, NULL);
+		if (!((nqglobalvars_t*)pr_globals)->trace_fraction)
+			SV_Error("Could not find export trace_fraction in progs\n");
 	}
-
-
-
-
+	ensurefloat(serverflags, zero_default);
+	ensurefloat(total_secrets, zero_default);
+	ensurefloat(total_monsters, zero_default);
+	ensurefloat(found_secrets, zero_default);
+	ensurefloat(killed_monsters, zero_default);
+	ensurefloat(trace_allsolid, writeonly);
+	ensurefloat(trace_startsolid, writeonly);
+	ensurefloat(trace_plane_dist, writeonly);
+	ensurefloat(trace_inopen, writeonly);
+	ensurefloat(trace_inwater, writeonly);
 
 	pr_global_struct->dimension_send = 255;
+	pr_global_struct->serverflags = 0;
+	pr_global_struct->total_secrets = 0;
+	pr_global_struct->total_monsters = 0;
+	pr_global_struct->found_secrets = 0;
+	pr_global_struct->killed_monsters = 0;
 
 	pr_teamfield = 0;
 
@@ -589,7 +662,7 @@ void PR_LoadGlabalStruct(void)
 	gfuncs.ClassChangeWeapon = PR_FindFunction(svprogfuncs, "ClassChangeWeapon", PR_ANY);
 	gfuncs.RunClientCommand = PR_FindFunction(svprogfuncs, "SV_RunClientCommand", PR_ANY);
 
-	if (pr_no_playerphysics.value)
+	if (pr_no_playerphysics.ival)
 		SV_PlayerPhysicsQC = 0;
 	else
 		SV_PlayerPhysicsQC = PR_FindFunction(svprogfuncs, "SV_PlayerPhysics", PR_ANY);
@@ -600,7 +673,7 @@ void PR_LoadGlabalStruct(void)
 	QC_AddSharedVar(svprogfuncs, (int *)((nqglobalvars_t*)pr_nqglobal_struct)->other-v, 1);
 	QC_AddSharedVar(svprogfuncs, (int *)((nqglobalvars_t*)pr_nqglobal_struct)->time-v, 1);
 
-	pr_items2 = !!PR_FindGlobal(svprogfuncs, "items2", 0);
+	pr_items2 = !!PR_FindGlobal(svprogfuncs, "items2", 0, NULL);
 
 	SV_ClearQCStats();
 
@@ -631,8 +704,8 @@ void PR_LoadGlabalStruct(void)
 		SV_QCStatName(ev_float, "cnt_invincibility", STAT_H2_CNT_INVINCIBILITY);
 		SV_QCStatName(ev_float, "artifact_active", STAT_H2_ARTIFACT_ACTIVE);
 		SV_QCStatName(ev_float, "artifact_low", STAT_H2_ARTIFACT_LOW);
-		SV_QCStatName(ev_float, "movetype", STAT_H2_MOVETYPE);
-		SV_QCStatName(ev_entity, "cameramode", STAT_H2_CAMERAMODE);
+		SV_QCStatName(ev_float, "movetype", STAT_H2_MOVETYPE);		/*normally used to change the roll when flying*/
+		SV_QCStatName(ev_entity, "cameramode", STAT_H2_CAMERAMODE);	/*locks view in place when set*/
 		SV_QCStatName(ev_float, "hasted", STAT_H2_HASTED);
 		SV_QCStatName(ev_float, "inventory", STAT_H2_INVENTORY);
 		SV_QCStatName(ev_float, "rings_active", STAT_H2_RINGS_ACTIVE);
@@ -656,8 +729,10 @@ void PR_LoadGlabalStruct(void)
 		SV_QCStatName(ev_string, "puzzle_inv8", STAT_H2_PUZZLE8);
 		SV_QCStatName(ev_float, "max_health", STAT_H2_MAXHEALTH);
 		SV_QCStatName(ev_float, "max_mana", STAT_H2_MAXMANA);
-		SV_QCStatName(ev_float, "flags", STAT_H2_FLAGS);
-		SV_QCStatName(ev_float, "playerclass", STAT_H2_PLAYERCLASS);
+		SV_QCStatName(ev_float, "flags", STAT_H2_FLAGS);				/*to show the special abilities on the sbar*/
+
+		SV_QCStatPtr(ev_integer, &h2infoplaque[0], STAT_H2_OBJECTIVE1);
+		SV_QCStatPtr(ev_integer, &h2infoplaque[1], STAT_H2_OBJECTIVE2);
 	}
 }
 
@@ -722,7 +797,7 @@ progsnum_t AddProgs(char *name)
 				}
 			}
 		}
-
+		sv.world.usesolidcorpse = (progstype != PROG_H2);
 		if (num != -1)
 		{
 			PR_LoadGlabalStruct();
@@ -755,6 +830,8 @@ progsnum_t AddProgs(char *name)
 
 	Con_Printf("Loaded %s\n", name);
 
+	PR_AutoCvarSetup(svprogfuncs);
+
 	if (!svs.numprogs)
 	{
 		PF_InitTempStrings(svprogfuncs);
@@ -764,20 +841,20 @@ progsnum_t AddProgs(char *name)
 	if ((f = PR_FindFunction (svprogfuncs, "VersionChat", num )))
 	{
 		pr_globals = PR_globals(svprogfuncs, num);
-		G_FLOAT(OFS_PARM0) = build_number();
+		G_FLOAT(OFS_PARM0) = version_number();
 		PR_ExecuteProgram (svprogfuncs, f);
 
 		fl = G_FLOAT(OFS_RETURN);
 		if (fl < 0)
 			SV_Error ("PR_LoadProgs: progs.dat is not compatible with EXE version");
-		else if ((int) (fl) != (int) (build_number()))
-			Con_DPrintf("Warning: Progs may not be fully compatible\n (%4.2f != %i)\n", fl, build_number());
+		else if ((int) (fl) != (int) (version_number()))
+			Con_DPrintf("Warning: Progs may not be fully compatible\n (%4.2f != %i)\n", fl, version_number());
 	}
 
 	if ((f = PR_FindFunction (svprogfuncs, "FTE_init", num )))
 	{
 		pr_globals = PR_globals(svprogfuncs, num);
-		G_FLOAT(OFS_PARM0) = build_number();
+		G_FLOAT(OFS_PARM0) = version_number();
 		PR_ExecuteProgram (svprogfuncs, f);
 	}
 
@@ -868,17 +945,17 @@ void PR_ApplyCompilation_f (void)
 
 	PR_Configure(svprogfuncs, -1, MAX_PROGS);
 	PR_RegisterFields();
-	PR_InitEnts(svprogfuncs, sv.max_edicts);
+	PR_InitEnts(svprogfuncs, sv.world.max_edicts);
 
-	pr_edict_size=svprogfuncs->load_ents(svprogfuncs, s, 0);
+	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, s, 0);
 
 
 	PR_LoadGlabalStruct();
 
-	pr_global_struct->time = sv.physicstime;
+	pr_global_struct->time = sv.world.physicstime;
 
 
-	SV_ClearWorld ();
+	World_ClearWorld (&sv.world);
 
 	for (i=0 ; i<sv.allocated_client_slots ; i++)
 	{
@@ -887,14 +964,14 @@ void PR_ApplyCompilation_f (void)
 		svs.clients[i].edict = ent;
 	}
 
-	ent = sv.edicts;
-	for (i=0 ; i<sv.num_edicts ; i++)
+	ent = (edict_t*)sv.world.edicts;
+	for (i=0 ; i<sv.world.num_edicts ; i++)
 	{
 		ent = EDICT_NUM(svprogfuncs, i);
 		if (ent->isfree)
 			continue;
 
-		SV_LinkEdict (ent, false);	// force retouch even for stationary
+		World_LinkEdict (&sv.world, (wedict_t*)ent, false);	// force retouch even for stationary
 	}
 
 	svprogfuncs->parms->memfree(s);
@@ -978,10 +1055,13 @@ void PR_Init(void)
 	Cmd_AddCommand ("svtestprogs", QCLibTest);
 #endif
 */
-	Cvar_Register(&pr_maxedicts, cvargroup_progs);
+	Cvar_Register(&dpcompat_trailparticles, "Darkplaces compatibility");
 	Cvar_Register(&pr_imitatemvdsv, cvargroup_progs);
 	Cvar_Register(&pr_fixbrokenqccarrays, cvargroup_progs);
+
+	Cvar_Register(&pr_maxedicts, cvargroup_progs);
 	Cvar_Register(&pr_no_playerphysics, cvargroup_progs);
+	Cvar_Register(&pr_no_parsecommand, cvargroup_progs);
 
 	for (i = 0; i < MAXADDONS; i++)
 	{
@@ -1025,6 +1105,15 @@ void PR_Init(void)
 #endif
 }
 
+void SVQ1_CvarChanged(cvar_t *var)
+{
+	if (svprogfuncs)
+	{
+		PR_AutoCvar(svprogfuncs, var);
+	}
+}
+
+void SV_RegisterH2CustomTents(void);
 void Q_InitProgs(void)
 {
 	int i, i2;
@@ -1238,7 +1327,7 @@ void Q_InitProgs(void)
 	}
 	prnum = 0;
 
-	switch (sv.worldmodel->fromgame)	//spawn functions for - spawn funcs still come from the first progs found.
+	switch (sv.world.worldmodel->fromgame)	//spawn functions for - spawn funcs still come from the first progs found.
 	{
 	case fg_quake2:
 		if (COM_FDepthFile("q2bsp.dat", true)!=0x7fffffff)
@@ -1376,10 +1465,17 @@ void Q_InitProgs(void)
 		}
 	}
 
-	sv.max_edicts = pr_maxedicts.value;
-	if (sv.max_edicts > MAX_EDICTS)
-		sv.max_edicts = MAX_EDICTS;
-	pr_edict_size = PR_InitEnts(svprogfuncs, sv.max_edicts);
+	sv.world.max_edicts = pr_maxedicts.value;
+	if (sv.world.max_edicts > MAX_EDICTS)
+		sv.world.max_edicts = MAX_EDICTS;
+	sv.world.edict_size = PR_InitEnts(svprogfuncs, sv.world.max_edicts);
+
+
+	SV_RegisterH2CustomTents();
+
+#ifdef USEODE
+	World_Physics_Start(&sv.world);
+#endif
 }
 
 qboolean PR_QCChat(char *text, int say_type)
@@ -1448,11 +1544,11 @@ qboolean PR_GameCodePacket(char *s)
 		return false;
 
 	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-	pr_global_struct->time = sv.physicstime;
+	pr_global_struct->time = sv.world.physicstime;
 
 	// check for packets from connected clients
 	pr_global_struct->self = 0;
-	for (i=0, cl=svs.clients ; i<MAX_CLIENTS ; i++,cl++)
+	for (i=0, cl=svs.clients ; i<sv.allocated_client_slots ; i++,cl++)
 	{
 		if (cl->state == cs_free)
 			continue;
@@ -1482,11 +1578,15 @@ qboolean PR_KrimzonParseCommand(char *s)
 	if (!svprogfuncs)
 		return false;
 
+	/*some people are irresponsible*/
+	if (pr_no_parsecommand.ival)
+		return false;
+
 	if (gfuncs.ParseClientCommand)
 	{	//the QC is expected to send it back to use via a builtin.
 
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-		pr_global_struct->time = sv.physicstime;
+		pr_global_struct->time = sv.world.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
 		G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, s);
@@ -1515,7 +1615,7 @@ qboolean PR_UserCmd(char *s)
 	{	//the QC is expected to send it back to use via a builtin.
 
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-		pr_global_struct->time = sv.physicstime;
+		pr_global_struct->time = sv.world.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
 		G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, s);
@@ -1526,7 +1626,7 @@ qboolean PR_UserCmd(char *s)
 #ifdef VM_Q1
 	if (svs.gametype == GT_Q1QVM)
 	{
-		pr_global_struct->time = sv.physicstime;
+		pr_global_struct->time = sv.world.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 		Q1QVM_ClientCommand();
 		return true;	//qvm can print something if it wants
@@ -1539,7 +1639,7 @@ qboolean PR_UserCmd(char *s)
 		//ktpro bug warning:
 		//admin + judge. I don't know the exact rules behind this bug, so I just ban the entire command
 		//I can't be arsed detecting ktpro specifically, so assume we're always running ktpro
-		
+
 		if (!strncmp(s, "admin", 5) || !strncmp(s, "judge", 5))
 		{
 			Con_Printf("Blocking potentially unsafe ktpro command: %s\n", s);
@@ -1547,7 +1647,7 @@ qboolean PR_UserCmd(char *s)
 		}
 
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-		pr_global_struct->time = sv.physicstime;
+		pr_global_struct->time = sv.world.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
 		G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, s);
@@ -1584,8 +1684,8 @@ qboolean PR_ConsoleCmd(void)
 		{
 			if (sv_redirected != RD_OBLIVION)
 			{
-				pr_global_struct->time = sv.physicstime;
-				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.edicts);
+				pr_global_struct->time = sv.world.physicstime;
+				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
 			}
 
 			PR_ExecuteProgram (svprogfuncs, gfuncs.ConsoleCmd);
@@ -1603,7 +1703,7 @@ void PR_ClientUserInfoChanged(char *name, char *oldivalue, char *newvalue)
 		globalvars_t *pr_globals;
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 
-		pr_global_struct->time = sv.physicstime;
+		pr_global_struct->time = sv.world.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
 		G_INT(OFS_PARM0) = PR_TempString(svprogfuncs, name);
@@ -1621,8 +1721,8 @@ void PR_LocalInfoChanged(char *name, char *oldivalue, char *newvalue)
 		globalvars_t *pr_globals;
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 
-		pr_global_struct->time = sv.physicstime;
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.edicts);
+		pr_global_struct->time = sv.world.physicstime;
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
 
 		G_INT(OFS_PARM0) = PR_TempString(svprogfuncs, name);
 		G_INT(OFS_PARM1) = PR_TempString(svprogfuncs, oldivalue);
@@ -1676,16 +1776,148 @@ char *Translate(char *message);
 */
 
 
+static void SV_Effect(vec3_t org, int mdlidx, int startframe, int endframe, int framerate)
+{
+	if (startframe>255 || mdlidx>255)
+	{
+		MSG_WriteByte (&sv.multicast, svcfte_effect2);
+		MSG_WriteCoord (&sv.multicast, org[0]);
+		MSG_WriteCoord (&sv.multicast, org[1]);
+		MSG_WriteCoord (&sv.multicast, org[2]);
+		MSG_WriteShort (&sv.multicast, mdlidx);
+		MSG_WriteShort (&sv.multicast, startframe);
+		MSG_WriteByte (&sv.multicast, endframe);
+		MSG_WriteByte (&sv.multicast, framerate);
+
+#ifdef NQPROT
+		MSG_WriteByte (&sv.nqmulticast, svcnq_effect2);
+		MSG_WriteCoord (&sv.nqmulticast, org[0]);
+		MSG_WriteCoord (&sv.nqmulticast, org[1]);
+		MSG_WriteCoord (&sv.nqmulticast, org[2]);
+		MSG_WriteShort (&sv.nqmulticast, mdlidx);
+		MSG_WriteShort (&sv.nqmulticast, startframe);
+		MSG_WriteByte (&sv.nqmulticast, endframe);
+		MSG_WriteByte (&sv.nqmulticast, framerate);
+#endif
+	}
+	else
+	{
+		MSG_WriteByte (&sv.multicast, svcfte_effect);
+		MSG_WriteCoord (&sv.multicast, org[0]);
+		MSG_WriteCoord (&sv.multicast, org[1]);
+		MSG_WriteCoord (&sv.multicast, org[2]);
+		MSG_WriteByte (&sv.multicast, mdlidx);
+		MSG_WriteByte (&sv.multicast, startframe);
+		MSG_WriteByte (&sv.multicast, endframe);
+		MSG_WriteByte (&sv.multicast, framerate);
+
+#ifdef NQPROT
+		MSG_WriteByte (&sv.nqmulticast, svcnq_effect);
+		MSG_WriteCoord (&sv.nqmulticast, org[0]);
+		MSG_WriteCoord (&sv.nqmulticast, org[1]);
+		MSG_WriteCoord (&sv.nqmulticast, org[2]);
+		MSG_WriteByte (&sv.nqmulticast, mdlidx);
+		MSG_WriteByte (&sv.nqmulticast, startframe);
+		MSG_WriteByte (&sv.nqmulticast, endframe);
+		MSG_WriteByte (&sv.nqmulticast, framerate);
+#endif
+	}
+
+	SV_Multicast(org, MULTICAST_PVS);
+}
+
+
+static int SV_CustomTEnt_Register(char *effectname, int nettype, float *stain_rgb, float stain_radius, float *dl_rgb, float dl_radius, float dl_time, float *dl_fade)
+{
+	int i;
+	for (i = 0; i < 255; i++)
+	{
+		if (!*sv.customtents[i].particleeffecttype)
+			break;
+		if (!strcmp(effectname, sv.customtents[i].particleeffecttype))
+			break;
+	}
+	if (i == 255)
+	{
+		Con_Printf("Too many custom effects\n");
+		return -1;
+	}
+
+	Q_strncpyz(sv.customtents[i].particleeffecttype, effectname, sizeof(sv.customtents[i].particleeffecttype));
+	sv.customtents[i].netstyle = nettype;
+
+	if (nettype & CTE_STAINS)
+	{
+		VectorCopy(stain_rgb, sv.customtents[i].stain);
+		sv.customtents[i].radius = stain_radius;
+	}
+	if (nettype & CTE_GLOWS)
+	{
+		sv.customtents[i].dlightrgb[0] = dl_rgb[0]*255;
+		sv.customtents[i].dlightrgb[1] = dl_rgb[1]*255;
+		sv.customtents[i].dlightrgb[2] = dl_rgb[2]*255;
+		sv.customtents[i].dlightradius = dl_radius/4;
+		sv.customtents[i].dlighttime = dl_time*16;
+		if (nettype & CTE_CHANNELFADE)
+		{
+			sv.customtents[i].dlightcfade[0] = dl_fade[0]*64;
+			sv.customtents[i].dlightcfade[1] = dl_fade[1]*64;
+			sv.customtents[i].dlightcfade[2] = dl_fade[2]*64;
+		}
+	}
+
+	return i;
+}
+
+static void SV_CustomTEnt_Spawn(int index, float *org, float *org2, int count, float *dir)
+{
+	int type;
+	if (index < 0 || index >= 255)
+		return;
+
+	MSG_WriteByte(&sv.multicast, svcfte_customtempent);
+	MSG_WriteByte(&sv.multicast, index);
+	MSG_WriteCoord(&sv.multicast, org[0]);
+	MSG_WriteCoord(&sv.multicast, org[1]);
+	MSG_WriteCoord(&sv.multicast, org[2]);
+
+	type = sv.customtents[index].netstyle;
+	if (type & CTE_ISBEAM)
+	{
+		MSG_WriteCoord(&sv.multicast, org2[0]);
+		MSG_WriteCoord(&sv.multicast, org2[1]);
+		MSG_WriteCoord(&sv.multicast, org2[2]);
+	}
+	else
+	{
+		if (type & CTE_CUSTOMCOUNT)
+		{
+			MSG_WriteByte(&sv.multicast, count);
+		}
+		if (type & CTE_CUSTOMVELOCITY)
+		{
+			MSG_WriteCoord(&sv.multicast, dir[0]);
+			MSG_WriteCoord(&sv.multicast, dir[1]);
+			MSG_WriteCoord(&sv.multicast, dir[2]);
+		}
+		else if (type & CTE_CUSTOMDIRECTION)
+		{
+			vec3_t norm;
+			VectorNormalize2(dir, norm);
+			MSG_WriteDir(&sv.multicast, norm);
+		}
+	}
+
+	SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, PEXT_CUSTOMTEMPEFFECTS, 0);	//now send the new multicast to all that will.
+}
 
 
 
 
 int externcallsdepth;
-void PR_MoveParms(int progs1, int progs2);	//from 2 to 1
-
 
 float PR_LoadAditionalProgs(char *s);
-void PF_addprogs(progfuncs_t *prinst, globalvars_t *pr_globals)
+static void QCBUILTIN PF_addprogs(progfuncs_t *prinst, globalvars_t *pr_globals)
 {
 	char *s = PR_GetStringOfs(prinst, OFS_PARM0);
 	if (!s || !*s)
@@ -1726,7 +1958,7 @@ removed, but the level can continue.
 objerror(value)
 =================
 */
-static void PF_objerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_objerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*s;
 	edict_t	*ed;
@@ -1743,11 +1975,21 @@ static void PF_objerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		(*prinst->pr_trace) = 2;
 	else
 	{
-		ED_Free (prinst, ed);
-
-		prinst->AbortStack(prinst);
-
-		PR_BIError (prinst, "Program error: %s", s);
+		Con_Printf("Program error: %s\n", s);
+		if (developer.value)
+		{
+			struct globalvars_s *pr_globals = PR_globals(prinst, PR_CURRENT);
+			*prinst->pr_trace = 1;
+			G_INT(OFS_RETURN)=0;	//just in case it was a float and should be an ent...
+			G_INT(OFS_RETURN+1)=0;
+			G_INT(OFS_RETURN+2)=0;
+		}
+		else
+		{
+			ED_Free (prinst, ed);
+			PR_StackTrace(prinst);
+			PR_AbortStack(prinst);
+		}
 
 		if (sv.time > 10)
 			Cbuf_AddText("restart\n", RESTRICT_LOCAL);
@@ -1764,7 +2006,7 @@ Writes new values for v_forward, v_up, and v_right based on angles
 makevectors(vector)
 ==============
 */
-static void PF_makevectors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_makevectors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	AngleVectors (G_VECTOR(OFS_PARM0), P_VEC(v_forward), P_VEC(v_right), P_VEC(v_up));
 }
@@ -1778,7 +2020,7 @@ This is the only valid way to move an object without using the physics of the wo
 setorigin (entity, origin)
 =================
 */
-void PF_setorigin (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_setorigin (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*e;
 	float	*org;
@@ -1786,7 +2028,7 @@ void PF_setorigin (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	e = G_EDICT(prinst, OFS_PARM0);
 	org = G_VECTOR(OFS_PARM1);
 	VectorCopy (org, e->v->origin);
-	SV_LinkEdict (e, false);
+	World_LinkEdict (&sv.world, (wedict_t*)e, false);
 }
 
 
@@ -1799,7 +2041,7 @@ the size box is rotated by the current angle
 setsize (entity, minvector, maxvector)
 =================
 */
-void PF_setsize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_setsize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*e;
 	float	*min, *max;
@@ -1816,7 +2058,7 @@ void PF_setsize (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	VectorCopy (min, e->v->mins);
 	VectorCopy (max, e->v->maxs);
 	VectorSubtract (max, min, e->v->size);
-	SV_LinkEdict (e, false);
+	World_LinkEdict (&sv.world, (wedict_t*)e, false);
 }
 
 
@@ -1895,7 +2137,7 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 			VectorCopy (mod->mins, e->v->mins);
 			VectorCopy (mod->maxs, e->v->maxs);
 			VectorSubtract (mod->maxs, mod->mins, e->v->size);
-			SV_LinkEdict (e, false);
+			World_LinkEdict (&sv.world, (wedict_t*)e, false);
 		}
 
 		return;
@@ -1930,7 +2172,7 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 					VectorCopy (mod->mins, e->v->mins);
 					VectorCopy (mod->maxs, e->v->maxs);
 					VectorSubtract (mod->maxs, mod->mins, e->v->size);
-					SV_LinkEdict (e, false);
+					World_LinkEdict (&sv.world, (wedict_t*)e, false);
 				}
 			}
 			else
@@ -1946,7 +2188,7 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 				e->v->maxs[1] =
 				e->v->maxs[2] = 16;
 				VectorSubtract (e->v->maxs, e->v->mins, e->v->size);
-				SV_LinkEdict (e, false);
+				World_LinkEdict (&sv.world, (wedict_t*)e, false);
 			}
 		}
 		else
@@ -1959,7 +2201,7 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 					VectorCopy (mod->mins, e->v->mins);
 					VectorCopy (mod->maxs, e->v->maxs);
 					VectorSubtract (mod->maxs, mod->mins, e->v->size);
-					SV_LinkEdict (e, false);
+					World_LinkEdict (&sv.world, (wedict_t*)e, false);
 				}
 			}
 			//qw was fixed - it never sets the size of an alias model, mostly because it doesn't know it.
@@ -1967,7 +2209,7 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 	}
 }
 
-void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*e;
 	char	*m;
@@ -1978,7 +2220,7 @@ void PF_setmodel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	PF_setmodel_Internal(prinst, e, m);
 }
 
-void PF_set_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_h2set_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//qc/hc lacks string manipulation.
 	edict_t	*e;
 	char *shortname;
@@ -1990,7 +2232,7 @@ void PF_set_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	PF_setmodel_Internal(prinst, e, fullname);
 }
 
-static void PF_frameforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_frameforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	unsigned int modelindex = G_FLOAT(OFS_PARM0);
 	char *str = PF_VarString(prinst, 1, pr_globals);
@@ -2001,7 +2243,7 @@ static void PF_frameforname (progfuncs_t *prinst, struct globalvars_s *pr_global
 	else
 		G_FLOAT(OFS_RETURN) = -1;
 }
-static void PF_frameduration (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_frameduration (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	unsigned int modelindex = G_FLOAT(OFS_PARM0);
 	unsigned int framenum = G_FLOAT(OFS_PARM1);
@@ -2021,7 +2263,7 @@ static void PF_frameduration (progfuncs_t *prinst, struct globalvars_s *pr_globa
 			G_FLOAT(OFS_RETURN) = 0;
 	}
 }
-static void PF_skinforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_skinforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 #ifndef SERVERONLY
 	unsigned int modelindex = G_FLOAT(OFS_PARM0);
@@ -2045,13 +2287,15 @@ broadcast print to everyone on server
 bprint(value)
 =================
 */
-void PF_bprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_bprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char		*s;
 	int			level;
 
+#ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demofile)
 		return;
+#endif
 
 	if (progstype != PROG_QW)
 	{
@@ -2077,15 +2321,17 @@ single print to a specific client
 sprint(clientent, value)
 =================
 */
-void PF_sprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_sprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char		*s;
 	client_t	*client;
 	int			entnum;
 	int			level;
 
+#ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demofile)
 		return;
+#endif
 
 	entnum = G_EDICTNUM(prinst, OFS_PARM0);
 
@@ -2115,7 +2361,7 @@ void PF_sprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //When a client is backbuffered, it's generally not a brilliant plan to send a bazillion stuffcmds. You have been warned.
 //This handy function will let the mod know when it shouldn't send more. (use instead of a timer, and you'll never get clients overflowing. yay.)
-void PF_isbackbuffered (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_isbackbuffered (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int			entnum;
 	client_t	*client;
@@ -2141,13 +2387,15 @@ single print to a specific client
 centerprint(clientent, value)
 =================
 */
-void PF_centerprint_Internal (int entnum, char *s)
+void PF_centerprint_Internal (int entnum, qboolean plaque, char *s)
 {
-	client_t	*cl, *sp;
+	client_t	*cl;
 	int			slen;
 
+#ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demofile)
 		return;
+#endif
 
 	if (entnum < 1 || entnum > sv.allocated_client_slots)
 	{
@@ -2156,47 +2404,33 @@ void PF_centerprint_Internal (int entnum, char *s)
 	}
 
 	cl = &svs.clients[entnum-1];
+	if (cl->centerprintstring)
+		Z_Free(cl->centerprintstring);
+	cl->centerprintstring = NULL;
+
 	slen = strlen(s);
-
-	if (cl->controller)
-	{	//this is a slave client.
-		//find the right number and send.
-		int pnum = 0;
-		for (sp = cl->controller; sp; sp = sp->controlled)
-		{
-			if (sp == cl)
-				break;
-			pnum++;
-		}
-		sp = cl->controller;
-
-		ClientReliableWrite_Begin (sp, svcfte_choosesplitclient, 4 + slen);
-		ClientReliableWrite_Byte (sp, pnum);
-		ClientReliableWrite_Byte (sp, svc_centerprint);
-		ClientReliableWrite_String (sp, s);
+	if (plaque && *s)
+	{
+		cl->centerprintstring = Z_Malloc(slen+3);
+		cl->centerprintstring[0] = '/';
+		cl->centerprintstring[1] = 'P';
+		strcpy(cl->centerprintstring+2, s);
 	}
 	else
 	{
-		ClientReliableWrite_Begin (cl, svc_centerprint, 2 + slen);
-		ClientReliableWrite_String (cl, s);
-	}
-
-	if (sv.mvdrecording)
-	{
-		MVDWrite_Begin (dem_single, entnum - 1, 2 + slen);
-		MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_centerprint);
-		MSG_WriteString ((sizebuf_t*)demo.dbuf, s);
+		cl->centerprintstring = Z_Malloc(slen+1);
+		strcpy(cl->centerprintstring, s);
 	}
 }
 
-void PF_centerprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_centerprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char		*s;
 	int			entnum;
 
 	entnum = G_EDICTNUM(prinst, OFS_PARM0);
 	s = PF_VarString(prinst, 1, pr_globals);
-	PF_centerprint_Internal(entnum, s);
+	PF_centerprint_Internal(entnum, false, s);
 }
 
 /*
@@ -2206,7 +2440,7 @@ PF_vhlen
 scalar vhlen(vector)
 =================
 */
-void PF_vhlen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_vhlen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float	*value1;
 	float	newv;
@@ -2219,7 +2453,7 @@ void PF_vhlen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = newv;
 }
 
-void PF_anglemod (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_anglemod (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float v = G_FLOAT(OFS_PARM0);
 
@@ -2238,7 +2472,7 @@ PF_particle
 particle(origin, color, count)
 =================
 */
-static void PF_particle (progfuncs_t *prinst, globalvars_t *pr_globals)	//I said it was for compatability only.
+static void QCBUILTIN PF_particle (progfuncs_t *prinst, globalvars_t *pr_globals)	//I said it was for compatability only.
 {
 	float		*org, *dir;
 	float		color;
@@ -2284,7 +2518,7 @@ static void PF_particle (progfuncs_t *prinst, globalvars_t *pr_globals)	//I said
 		if (color == 73)
 	{
 		MSG_WriteByte (&sv.multicast, svc_temp_entity);
-		MSG_WriteByte (&sv.multicast, TE_BLOOD);
+		MSG_WriteByte (&sv.multicast, TEQW_BLOOD);
 		MSG_WriteByte (&sv.multicast, count<10?1:(count+10)/20);
 		MSG_WriteCoord (&sv.multicast, org[0]);
 		MSG_WriteCoord (&sv.multicast, org[1]);
@@ -2294,7 +2528,7 @@ static void PF_particle (progfuncs_t *prinst, globalvars_t *pr_globals)	//I said
 	else if (color == 225)
 	{
 		MSG_WriteByte (&sv.multicast, svc_temp_entity);
-		MSG_WriteByte (&sv.multicast, TE_LIGHTNINGBLOOD);
+		MSG_WriteByte (&sv.multicast, TEQW_LIGHTNINGBLOOD);
 		MSG_WriteCoord (&sv.multicast, org[0]);
 		MSG_WriteCoord (&sv.multicast, org[1]);
 		MSG_WriteCoord (&sv.multicast, org[2]);
@@ -2319,7 +2553,7 @@ static void PF_particle (progfuncs_t *prinst, globalvars_t *pr_globals)	//I said
 	SV_MulticastProtExt(org, MULTICAST_PVS, pr_global_struct->dimension_send, PEXT_HEXEN2, 0);
 }
 
-void PF_te_blooddp (progfuncs_t *prinst, globalvars_t *pr_globals)
+static void QCBUILTIN PF_te_blooddp (progfuncs_t *prinst, globalvars_t *pr_globals)
 {
 	float count;
 	float *org, *dir;
@@ -2349,7 +2583,7 @@ void PF_te_blooddp (progfuncs_t *prinst, globalvars_t *pr_globals)
 #endif
 
 	MSG_WriteByte (&sv.multicast, svc_temp_entity);
-	MSG_WriteByte (&sv.multicast, TE_BLOOD);
+	MSG_WriteByte (&sv.multicast, TEQW_BLOOD);
 	MSG_WriteByte (&sv.multicast, count<10?1:(count+10)/20);
 	MSG_WriteCoord (&sv.multicast, org[0]);
 	MSG_WriteCoord (&sv.multicast, org[1]);
@@ -2364,7 +2598,7 @@ PF_particle2 - hexen2
 particle(origin, dmin, dmax, color, effect, count)
 =================
 */
-static void PF_particle2 (progfuncs_t *prinst, globalvars_t *pr_globals)
+static void QCBUILTIN PF_particle2 (progfuncs_t *prinst, globalvars_t *pr_globals)
 {
 	float		*org, *dmin, *dmax;
 	float		color;
@@ -2404,7 +2638,7 @@ PF_particle3 - hexen2
 particle(origin, box, color, effect, count)
 =================
 */
-static void PF_particle3 (progfuncs_t *prinst, globalvars_t *pr_globals)
+static void QCBUILTIN PF_particle3 (progfuncs_t *prinst, globalvars_t *pr_globals)
 {
 	float		*org, *box;
 	float		color;
@@ -2439,7 +2673,7 @@ PF_particle4 - hexen2
 particle(origin, radius, color, effect, count)
 =================
 */
-static void PF_particle4 (progfuncs_t *prinst, globalvars_t *pr_globals)
+static void QCBUILTIN PF_particle4 (progfuncs_t *prinst, globalvars_t *pr_globals)
 {
 	float		*org;
 	float		radius;
@@ -2466,7 +2700,7 @@ static void PF_particle4 (progfuncs_t *prinst, globalvars_t *pr_globals)
 	SV_MulticastProtExt (org, MULTICAST_PVS, pr_global_struct->dimension_send, PEXT_HEXEN2, 0);
 }
 
-void PF_h2particleexplosion(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_h2particleexplosion(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *org;
 	int color,radius,counter;
@@ -2522,7 +2756,7 @@ void PF_ambientsound_Internal (float *pos, char *samp, float vol, float attenuat
 
 }
 
-void PF_ambientsound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_ambientsound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char		*samp;
 	float		*pos;
@@ -2548,22 +2782,28 @@ already running on that entity/channel pair.
 
 An attenuation of 0 will play full volume everywhere in the level.
 Larger attenuations will drop off.
+pitchadj is a number between -128 and 127. values greater than 0 will result in a higher pitch, less than 0 gives lower pitch.
 
 =================
 */
-void PF_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char		*sample;
 	int			channel;
 	edict_t		*entity;
 	int 		volume;
 	float attenuation;
+	int			pitchadj;
 
 	entity = G_EDICT(prinst, OFS_PARM0);
 	channel = G_FLOAT(OFS_PARM1);
 	sample = PR_GetStringOfs(prinst, OFS_PARM2);
 	volume = G_FLOAT(OFS_PARM3) * 255;
 	attenuation = G_FLOAT(OFS_PARM4);
+	if (*svprogfuncs->callargc > 5)
+		pitchadj = G_FLOAT(OFS_PARM5);
+	else
+		pitchadj = 0;
 
 	if (volume < 0)	//erm...
 		return;
@@ -2571,11 +2811,11 @@ void PF_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (volume > 255)
 		volume = 255;
 
-	SVQ1_StartSound (entity, channel, sample, volume, attenuation);
+	SVQ1_StartSound (entity, channel, sample, volume, attenuation, pitchadj);
 }
 
 //an evil one from telejano.
-void PF_LocalSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_LocalSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 #ifndef SERVERONLY
 	sfx_t	*sfx;
@@ -2587,10 +2827,35 @@ void PF_LocalSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (!isDedicated)
 	{
 		if ((sfx = S_PrecacheSound(s)))
-			S_StartSound(cl.playernum[0], chan, sfx, cl.simorg[0], vol, 0.0);
+			S_StartSound(cl.playernum[0], chan, sfx, cl.simorg[0], vol, 0.0, 0);
 	}
 #endif
 };
+
+static void set_trace_globals(trace_t *trace, struct globalvars_s *pr_globals)
+{
+	pr_global_struct->trace_allsolid = trace->allsolid;
+	pr_global_struct->trace_startsolid = trace->startsolid;
+	pr_global_struct->trace_fraction = trace->fraction;
+	pr_global_struct->trace_inwater = trace->inwater;
+	pr_global_struct->trace_inopen = trace->inopen;
+	pr_global_struct->trace_surfaceflags = trace->surface?trace->surface->flags:0;
+	pr_global_struct->trace_endcontents = trace->contents;
+//	if (trace.fraction != 1)
+//		VectorMA (trace->endpos, 4, trace->plane.normal, P_VEC(trace_endpos));
+//	else
+		VectorCopy (trace->endpos, P_VEC(trace_endpos));
+	VectorCopy (trace->plane.normal, P_VEC(trace_plane_normal));
+	pr_global_struct->trace_plane_dist =  trace->plane.dist;
+	if (trace->ent)
+		pr_global_struct->trace_ent = EDICT_TO_PROG(svprogfuncs, trace->ent);
+	else
+		pr_global_struct->trace_ent = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
+
+	if (trace->startsolid)
+		if (!sv_gameplayfix_honest_tracelines.ival)
+			pr_global_struct->trace_fraction = 1;
+}
 
 /*
 =================
@@ -2603,7 +2868,7 @@ if the tryents flag is set.
 traceline (vector1, vector2, tryents)
 =================
 */
-void PF_svtraceline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_svtraceline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float	*v1, *v2, *mins, *maxs;
 	trace_t	trace;
@@ -2614,7 +2879,13 @@ void PF_svtraceline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	v1 = G_VECTOR(OFS_PARM0);
 	v2 = G_VECTOR(OFS_PARM1);
 	nomonsters = G_FLOAT(OFS_PARM2);
-	ent = G_EDICT(prinst, OFS_PARM3);
+	if (*svprogfuncs->callargc == 3) // QTEST
+		ent = PROG_TO_EDICT(prinst, pr_global_struct->self);
+	else
+		ent = G_EDICT(prinst, OFS_PARM3);
+
+	if (sv_antilag.ival == 2)
+		nomonsters |= MOVE_LAGGED;
 
 	if (*svprogfuncs->callargc == 6)
 	{
@@ -2629,33 +2900,13 @@ void PF_svtraceline (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	savedhull = ent->xv->hull;
 	ent->xv->hull = 0;
-	trace = SV_Move (v1, mins, maxs, v2, nomonsters, ent);
+	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
 	ent->xv->hull = savedhull;
 
-	if (trace.startsolid)
-		if (!sv_gameplayfix_honest_tracelines.value)
-			trace.fraction = 1;
-
-	pr_global_struct->trace_allsolid = trace.allsolid;
-	pr_global_struct->trace_startsolid = trace.startsolid;
-	pr_global_struct->trace_fraction = trace.fraction;
-	pr_global_struct->trace_inwater = trace.inwater;
-	pr_global_struct->trace_inopen = trace.inopen;
-	pr_global_struct->trace_surfaceflags = trace.surface?trace.surface->flags:0;
-	pr_global_struct->trace_endcontents = trace.contents;
-//	if (trace.fraction != 1)
-//		VectorMA (trace.endpos, 4, trace.plane.normal, P_VEC(trace_endpos));
-//	else
-		VectorCopy (trace.endpos, P_VEC(trace_endpos));
-	VectorCopy (trace.plane.normal, P_VEC(trace_plane_normal));
-	pr_global_struct->trace_plane_dist =  trace.plane.dist;
-	if (trace.ent)
-		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, trace.ent);
-	else
-		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, sv.edicts);
+	set_trace_globals(&trace, pr_globals);
 }
 
-static void PF_traceboxh2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_traceboxh2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float	*v1, *v2, *mins, *maxs;
 	trace_t	trace;
@@ -2672,30 +2923,13 @@ static void PF_traceboxh2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	savedhull = ent->xv->hull;
 	ent->xv->hull = 0;
-	trace = SV_Move (v1, mins, maxs, v2, nomonsters, ent);
+	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
 	ent->xv->hull = savedhull;
 
-	if (trace.startsolid)
-		if (!sv_gameplayfix_honest_tracelines.value)
-			trace.fraction = 1;
-
-	pr_global_struct->trace_allsolid = trace.allsolid;
-	pr_global_struct->trace_startsolid = trace.startsolid;
-	pr_global_struct->trace_fraction = trace.fraction;
-	pr_global_struct->trace_inwater = trace.inwater;
-	pr_global_struct->trace_inopen = trace.inopen;
-	pr_global_struct->trace_surfaceflags = trace.surface?trace.surface->flags:0;
-	pr_global_struct->trace_endcontents = trace.contents;
-	VectorCopy (trace.endpos, P_VEC(trace_endpos));
-	VectorCopy (trace.plane.normal, P_VEC(trace_plane_normal));
-	pr_global_struct->trace_plane_dist =  trace.plane.dist;
-	if (trace.ent)
-		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, trace.ent);
-	else
-		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, sv.edicts);
+	set_trace_globals(&trace, pr_globals);
 }
 
-static void PF_traceboxdp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_traceboxdp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float	*v1, *v2, *mins, *maxs;
 	trace_t	trace;
@@ -2712,74 +2946,27 @@ static void PF_traceboxdp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	savedhull = ent->xv->hull;
 	ent->xv->hull = 0;
-	trace = SV_Move (v1, mins, maxs, v2, nomonsters, ent);
+	trace = World_Move (&sv.world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
 	ent->xv->hull = savedhull;
 
-	if (trace.startsolid)
-		if (!sv_gameplayfix_honest_tracelines.value)
-			trace.fraction = 1;
-
-	pr_global_struct->trace_allsolid = trace.allsolid;
-	pr_global_struct->trace_startsolid = trace.startsolid;
-	pr_global_struct->trace_fraction = trace.fraction;
-	pr_global_struct->trace_inwater = trace.inwater;
-	pr_global_struct->trace_inopen = trace.inopen;
-	pr_global_struct->trace_surfaceflags = trace.surface?trace.surface->flags:0;
-	pr_global_struct->trace_endcontents = trace.contents;
-//	if (trace.fraction != 1)
-//		VectorMA (trace.endpos, 4, trace.plane.normal, P_VEC(trace_endpos));
-//	else
-		VectorCopy (trace.endpos, P_VEC(trace_endpos));
-	VectorCopy (trace.plane.normal, P_VEC(trace_plane_normal));
-	pr_global_struct->trace_plane_dist =  trace.plane.dist;
-	if (trace.ent)
-		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, trace.ent);
-	else
-		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, sv.edicts);
+	set_trace_globals(&trace, pr_globals);
 }
 
 extern trace_t SV_Trace_Toss (edict_t *ent, edict_t *ignore);
-static void PF_TraceToss (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_TraceToss (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	trace_t	trace;
 	edict_t	*ent;
 	edict_t	*ignore;
 
 	ent = G_EDICT(prinst, OFS_PARM0);
-	if (ent == sv.edicts)
+	if (ent == (edict_t*)sv.world.edicts)
 		Con_DPrintf("tracetoss: can not use world entity\n");
 	ignore = G_EDICT(prinst, OFS_PARM1);
 
 	trace = SV_Trace_Toss (ent, ignore);
 
-	pr_global_struct->trace_allsolid = trace.allsolid;
-	pr_global_struct->trace_startsolid = trace.startsolid;
-	pr_global_struct->trace_fraction = trace.fraction;
-	pr_global_struct->trace_inwater = trace.inwater;
-	pr_global_struct->trace_inopen = trace.inopen;
-	pr_global_struct->trace_surfaceflags = trace.surface?trace.surface->flags:0;
-	pr_global_struct->trace_endcontents = trace.contents;
-	VectorCopy (trace.endpos, pr_global_struct->V_trace_endpos);
-	VectorCopy (trace.plane.normal, pr_global_struct->V_trace_plane_normal);
-	pr_global_struct->trace_plane_dist =  trace.plane.dist;
-	if (trace.ent)
-		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, trace.ent);
-	else
-		pr_global_struct->trace_ent = EDICT_TO_PROG(prinst, sv.edicts);
-}
-
-/*
-=================
-PF_checkpos
-
-Returns true if the given entity can move to the given position from it's
-current position by walking or rolling.
-FIXME: make work...
-scalar checkpos (entity, vector)
-=================
-*/
-void PF_checkpos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
+	set_trace_globals(&trace, pr_globals);
 }
 
 //============================================================================
@@ -2830,8 +3017,8 @@ int PF_newcheckclient (progfuncs_t *prinst, int check)
 
 // get the PVS for the entity
 	VectorAdd (ent->v->origin, ent->v->view_ofs, org);
-	leaf = sv.worldmodel->funcs.LeafnumForPoint(sv.worldmodel, org);
-	checkpvs = sv.worldmodel->funcs.LeafPVS (sv.worldmodel, leaf, checkpvsbuffer, sizeof(checkpvsbuffer));
+	leaf = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, org);
+	checkpvs = sv.world.worldmodel->funcs.LeafPVS (sv.world.worldmodel, leaf, checkpvsbuffer, sizeof(checkpvsbuffer));
 
 	return i;
 }
@@ -2858,16 +3045,17 @@ int PF_checkclient_Internal (progfuncs_t *prinst)
 	edict_t	*ent, *self;
 	int		l;
 	vec3_t	view;
+	world_t *w = &sv.world;
 
 // find a new check if on a new frame
-	if (sv.time - sv.lastchecktime >= 0.1)
+	if (w->physicstime - w->lastchecktime >= 0.1)
 	{
-		sv.lastcheck = PF_newcheckclient (prinst, sv.lastcheck);
-		sv.lastchecktime = sv.time;
+		w->lastcheck = PF_newcheckclient (prinst, w->lastcheck);
+		w->lastchecktime = w->physicstime;
 	}
 
 // return check if it might be visible
-	ent = EDICT_NUM(prinst, sv.lastcheck);
+	ent = EDICT_NUM(prinst, w->lastcheck);
 	if (ent->isfree || ent->v->health <= 0)
 	{
 		return 0;
@@ -2876,7 +3064,7 @@ int PF_checkclient_Internal (progfuncs_t *prinst)
 // if current entity can't possibly see the check entity, return 0
 	self = PROG_TO_EDICT(prinst, pr_global_struct->self);
 	VectorAdd (self->v->origin, self->v->view_ofs, view);
-	l = sv.worldmodel->funcs.LeafnumForPoint(sv.worldmodel, view)-1;
+	l = w->worldmodel->funcs.LeafnumForPoint(w->worldmodel, view)-1;
 	if ( (l<0) || !(checkpvs[l>>3] & (1<<(l&7)) ) )
 	{
 c_notvis++;
@@ -2885,10 +3073,10 @@ c_notvis++;
 
 // might be able to see it
 c_invis++;
-	return sv.lastcheck;
+	return w->lastcheck;
 }
 
-void PF_checkclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_checkclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	RETURN_EDICT(prinst, EDICT_NUM(prinst, PF_checkclient_Internal(prinst)));
 }
@@ -2905,7 +3093,7 @@ Sends text over to the client's execution buffer
 stuffcmd (clientent, value)
 =================
 */
-void PF_stuffcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_stuffcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int		entnum;
 	char	*str;
@@ -2992,13 +3180,13 @@ void PF_stuffcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (sv.mvdrecording)
 	{
 		MVDWrite_Begin (dem_single, entnum - 1, 2 + slen);
-		MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_stufftext);
-		MSG_WriteString ((sizebuf_t*)demo.dbuf, str);
+		MSG_WriteByte (&demo.dbuf->sb, svc_stufftext);
+		MSG_WriteString (&demo.dbuf->sb, str);
 	}
 }
 
 //DP_QC_DROPCLIENT
-void PF_dropclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_dropclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int		entnum;
 	client_t	*cl;
@@ -3020,7 +3208,7 @@ void PF_dropclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //DP_SV_BOTCLIENT
 //entity() spawnclient = #454;
-void PF_spawnclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_spawnclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i;
 	for (i = 0; i < sv.allocated_client_slots; i++)
@@ -3040,12 +3228,12 @@ void PF_spawnclient (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			return;
 		}
 	}
-	RETURN_EDICT(prinst, sv.edicts);
+	RETURN_EDICT(prinst, sv.world.edicts);
 }
 
 //DP_SV_BOTCLIENT
 //float(entity client) clienttype = #455;
-void PF_clienttype (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_clienttype (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int entnum = G_EDICTNUM(prinst, OFS_PARM0);
 	if (entnum < 1 || entnum > sv.allocated_client_slots)
@@ -3072,7 +3260,7 @@ PF_cvar
 float cvar (string)
 =================
 */
-static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*str;
 
@@ -3085,7 +3273,7 @@ static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	else if (!strcmp(str, "pr_map_builtin"))
 		G_FLOAT(OFS_RETURN) = PR_EnableEBFSBuiltin("map_builtin", 0);
 	else if (!strcmp(str, "halflifebsp"))
-		G_FLOAT(OFS_RETURN) = sv.worldmodel->fromgame == fg_halflife;
+		G_FLOAT(OFS_RETURN) = sv.world.worldmodel->fromgame == fg_halflife;
 	else
 	{
 		cvar_t *cv = Cvar_FindVar(str);
@@ -3095,6 +3283,8 @@ static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			char *def = "";
 			if (!strcmp(str, "sv_maxairspeed"))
 				def = "30";
+			else if (!strcmp(str, "sv_jumpvelocity"))
+				def = "270";
 			else
 				def = "";
 
@@ -3105,13 +3295,14 @@ static void PF_cvar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 }
 
-void PF_sv_getlight (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_sv_getlight (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	/*not shared with client - clients get more lights*/
 	float *point = G_VECTOR(OFS_PARM0);
 	vec3_t diffuse, ambient, dir;
-	if (sv.worldmodel && sv.worldmodel->funcs.LightPointValues)
+	if (sv.world.worldmodel && sv.world.worldmodel->funcs.LightPointValues)
 	{
-		sv.worldmodel->funcs.LightPointValues(sv.worldmodel, point, diffuse, ambient, dir);
+		sv.world.worldmodel->funcs.LightPointValues(sv.world.worldmodel, point, diffuse, ambient, dir);
 		VectorMA(ambient, 0.5, diffuse, G_VECTOR(OFS_RETURN));
 	}
 	else
@@ -3132,7 +3323,7 @@ Returns a chain of entities that have origins within a spherical area
 findradius (origin, radius)
 =================
 */
-void PF_findradius (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_findradius (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*ent, *chain;
 	float	rad;
@@ -3140,13 +3331,13 @@ void PF_findradius (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	vec3_t	eorg;
 	int		i, j;
 
-	chain = (edict_t *)sv.edicts;
+	chain = (edict_t *)sv.world.edicts;
 
 	org = G_VECTOR(OFS_PARM0);
 	rad = G_FLOAT(OFS_PARM1);
 	rad = rad*rad;
 
-	for (i=1 ; i<sv.num_edicts ; i++)
+	for (i=1 ; i<sv.world.num_edicts ; i++)
 	{
 		ent = EDICT_NUM(svprogfuncs, i);
 		if (ent->isfree)
@@ -3170,13 +3361,13 @@ void PF_findradius (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 PF_conprint
 =========
 */
-void PF_conprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_conprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	Sys_Printf ("%s",PF_VarString(prinst, 0, pr_globals));
 }
 
 
-void PF_printf (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_h2printf (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char temp[256];
 	float	v;
@@ -3191,7 +3382,7 @@ void PF_printf (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	Con_Printf (PR_GetStringOfs(prinst, OFS_PARM0),temp);
 }
 
-void PF_printv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_h2printv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char temp[256];
 
@@ -3200,14 +3391,14 @@ void PF_printv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	Con_Printf (PR_GetStringOfs(prinst, OFS_PARM0),temp);
 }
 
-void PF_spawn_temp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_h2spawn_temp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*ed;
 	ed = ED_Alloc(prinst);
 	RETURN_EDICT(prinst, ed);
 }
 
-void PF_Remove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_Remove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*ed;
 
@@ -3236,7 +3427,7 @@ void PR_CheckEmptyString (char *s)
 		PR_RunError ("Bad string");
 }
 */
-void PF_precache_file (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_precache_file (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	// precache_file is only used to copy files with qcc, it does nothing
 	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
 }
@@ -3276,7 +3467,7 @@ void PF_precache_sound_Internal (progfuncs_t *prinst, char *s)
 	}
 	PR_BIError (prinst, "PF_precache_sound: overflow");
 }
-void PF_precache_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_precache_sound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*s;
 
@@ -3338,18 +3529,18 @@ int PF_precache_model_Internal (progfuncs_t *prinst, char *s)
 	PR_BIError (prinst, "PF_precache_model: overflow");
 	return 0;
 }
-void PF_precache_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_precache_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*s;
 
 	s = PR_GetStringOfs(prinst, OFS_PARM0);
-	
+
 	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
 
 	PF_precache_model_Internal(prinst, s);
 }
 
-void PF_precache_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_h2precache_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//qc/hc lacks string manipulation.
 	char *shortname;
 	char fullname[MAX_QPATH];
@@ -3359,14 +3550,14 @@ void PF_precache_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	PF_precache_model_Internal(prinst, fullname);
 }
 
-void PF_getmodelindex (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_getmodelindex (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*s;
 
 	s = PR_GetStringOfs(prinst, OFS_PARM0);
 	G_INT(OFS_RETURN) = PF_precache_model_Internal(prinst, s);
 }
-void PF_precache_vwep_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_precache_vwep_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i;
 	char	*s;
@@ -3408,13 +3599,25 @@ void PF_precache_vwep_model (progfuncs_t *prinst, struct globalvars_s *pr_global
 	}
 }
 
-void PF_svcoredump (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+// warning: ‘PF_svcoredump’ defined but not used
+/*
+static void QCBUILTIN PF_svcoredump (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int size = 1024*1024*8;
 	char *buffer = BZ_Malloc(size);
 	prinst->save_ents(prinst, buffer, &size, 3);
 	COM_WriteFile("ssqccore.txt", buffer, size);
 	BZ_Free(buffer);
+}
+*/
+
+static void QCBUILTIN PF_sv_movetogoal (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	wedict_t	*ent;
+	float dist;
+	ent = (wedict_t*)PROG_TO_EDICT(prinst, pr_global_struct->self);
+	dist = G_FLOAT(OFS_PARM0);
+	World_MoveToGoal (&sv.world, ent, dist);
 }
 
 /*
@@ -3424,22 +3627,22 @@ PF_walkmove
 float(float yaw, float dist) walkmove
 ===============
 */
-void PF_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*ent;
 	float	yaw, dist;
 	vec3_t	move;
 //	dfunction_t	*oldf;
 	int 	oldself;
-	struct globalvars_s *settrace;
+	qboolean settrace;
 
 	ent = PROG_TO_EDICT(prinst, pr_global_struct->self);
 	yaw = G_FLOAT(OFS_PARM0);
 	dist = G_FLOAT(OFS_PARM1);
 	if (*svprogfuncs->callargc >= 3 && G_FLOAT(OFS_PARM2))
-		settrace = pr_globals;
+		settrace = true;
 	else
-		settrace = NULL;
+		settrace = false;
 
 	if ( !( (int)ent->v->flags & (FL_ONGROUND|FL_FLY|FL_SWIM) ) )
 	{
@@ -3463,7 +3666,7 @@ void PF_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //	}
 //	else if (!SV_TestEntityPosition(ent))
 //	{
-		G_FLOAT(OFS_RETURN) = SV_movestep(ent, move, true, false, settrace);
+		G_FLOAT(OFS_RETURN) = World_movestep(&sv.world, (wedict_t*)ent, move, true, false, settrace?set_trace_globals:NULL, pr_globals);
 //		if (SV_TestEntityPosition(ent))
 //			Con_Printf("Entity became stuck\n");
 //	}
@@ -3481,7 +3684,7 @@ PF_droptofloor
 void() droptofloor
 ===============
 */
-void PF_droptofloor (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_droptofloor (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t		*ent;
 	vec3_t		end;
@@ -3497,21 +3700,21 @@ void PF_droptofloor (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		end[2] -= 256;
 
 	VectorCopy (ent->v->origin, start);
-	trace = SV_Move (start, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, ent);
+	trace = World_Move (&sv.world, start, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, (wedict_t*)ent);
 
 	if (trace.fraction == 1 || trace.allsolid)
 		G_FLOAT(OFS_RETURN) = 0;
 	else
 	{
 		VectorCopy (trace.endpos, ent->v->origin);
-		SV_LinkEdict (ent, false);
+		World_LinkEdict (&sv.world, (wedict_t*)ent, false);
 		ent->v->flags = (int)ent->v->flags | FL_ONGROUND;
 		ent->v->groundentity = EDICT_TO_PROG(prinst, trace.ent);
 		G_FLOAT(OFS_RETURN) = 1;
 	}
 }
 
-void PF_applylightstyle(int style, char *val, int col)
+void QCBUILTIN PF_applylightstyle(int style, char *val, int col)
 {
 	client_t	*client;
 	int			j;
@@ -3577,7 +3780,7 @@ PF_lightstyle
 void(float style, string value [, float colour]) lightstyle
 ===============
 */
-void PF_lightstyle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_lightstyle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int		style;
 	char	*val;
@@ -3599,7 +3802,7 @@ void PF_lightstyle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	PF_applylightstyle(style, val, col);
 }
 
-void PF_lightstylevalue (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_lightstylevalue (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int style;
 	style = G_FLOAT(OFS_PARM0);
@@ -3611,10 +3814,10 @@ void PF_lightstylevalue (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = *sv.strings.lightstyles[style] - 'a';
 }
 
-void PF_lightstylestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_lightstylestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int		style;
-	float	num;
+	int	num;
 	char	*val;
 
 	static char *styleDefs[] =
@@ -3642,7 +3845,7 @@ void PF_lightstylestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		num = 0;
 	else if (num >= 'z'-'a')
 		num = 'z'-'a'-1;
-	val = styleDefs[(int)num];
+	val = styleDefs[num];
 
 	PF_applylightstyle(style, val, col);
 }
@@ -3652,13 +3855,13 @@ void PF_lightstylestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 PF_checkbottom
 =============
 */
-void PF_checkbottom (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_checkbottom (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*ent;
 
 	ent = G_EDICT(prinst, OFS_PARM0);
 
-	G_FLOAT(OFS_RETURN) = SV_CheckBottom (ent);
+	G_FLOAT(OFS_RETURN) = World_CheckBottom (&sv.world, (wedict_t*)ent);
 }
 
 /*
@@ -3666,7 +3869,7 @@ void PF_checkbottom (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 PF_pointcontents
 =============
 */
-void PF_pointcontents (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_pointcontents (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float	*v;
 	int cont;
@@ -3674,7 +3877,7 @@ void PF_pointcontents (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	v = G_VECTOR(OFS_PARM0);
 
 //	cont = SV_Move(v, vec3_origin, vec3_origin, v, MOVE_NOMONSTERS, NULL).contents;
-	cont = SV_PointContents (v);
+	cont = World_PointContents (&sv.world, v);
 	if (cont & FTECONTENTS_SOLID)
 		G_FLOAT(OFS_RETURN) = Q1CONTENTS_SOLID;
 	else if (cont & FTECONTENTS_SKY)
@@ -3699,7 +3902,7 @@ vector aim(entity, missilespeed)
 */
 //cvar_t	sv_aim = {"sv_aim", "0.93"};
 cvar_t	sv_aim = SCVAR("sv_aim", "2");
-void PF_aim (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_aim (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*ent, *check, *bestent;
 	vec3_t	start, dir, end, bestdir;
@@ -3730,7 +3933,7 @@ void PF_aim (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 // try sending a trace straight
 	VectorCopy (P_VEC(v_forward), dir);
 	VectorMA (start, 2048, dir, end);
-	tr = SV_Move (start, vec3_origin, vec3_origin, end, false, ent);
+	tr = World_Move (&sv.world, start, vec3_origin, vec3_origin, end, false, (wedict_t*)ent);
 	if (tr.ent && ((edict_t *)tr.ent)->v->takedamage == DAMAGE_AIM
 	&& (!teamplay.value || ent->v->team <=0 || ent->v->team != ((edict_t *)tr.ent)->v->team) )
 	{
@@ -3744,7 +3947,7 @@ void PF_aim (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	bestdist = sv_aim.value;
 	bestent = NULL;
 
-	for (i=1 ; i<sv.num_edicts ; i++ )
+	for (i=1 ; i<sv.world.num_edicts ; i++ )
 	{
 		check = EDICT_NUM(prinst, i);
 		if (check->v->takedamage != DAMAGE_AIM)
@@ -3761,7 +3964,7 @@ void PF_aim (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		dist = DotProduct (dir, P_VEC(v_forward));
 		if (dist < bestdist)
 			continue;	// to far to turn
-		tr = SV_Move (start, vec3_origin, vec3_origin, end, false, ent);
+		tr = World_Move (&sv.world, start, vec3_origin, vec3_origin, end, false, (wedict_t*)ent);
 		if (tr.ent == check)
 		{	// can shoot at this one
 			bestdist = dist;
@@ -3791,7 +3994,7 @@ PF_changeyaw
 This was a major timewaster in progs, so it was converted to C
 ==============
 */
-void PF_changeyaw (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_changeyaw (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t		*ent;
 	float		ideal, current, move, speed;
@@ -3829,7 +4032,7 @@ void PF_changeyaw (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //void() changepitch = #63;
-static void PF_changepitch (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_changepitch (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t		*ent;
 	float		ideal, current, move, speed;
@@ -3907,7 +4110,7 @@ sizebuf_t *QWWriteDest (int		dest)
 #if 0
 		ent = PROG_TO_EDICT(pr_global_struct->msg_entity);
 		entnum = NUM_FOR_EDICT(ent);
-		if (entnum < 1 || entnum > MAX_CLIENTS)
+		if (entnum < 1 || entnum > sv.allocated_client_slots)
 		{
 			PR_BIError ("WriteDest: not a client");
 			return &sv.reliable_datagram;
@@ -3956,7 +4159,7 @@ sizebuf_t *NQWriteDest (int dest)
 #if 0
 		ent = PROG_TO_EDICT(pr_global_struct->msg_entity);
 		entnum = NUM_FOR_EDICT(ent);
-		if (entnum < 1 || entnum > MAX_CLIENTS)
+		if (entnum < 1 || entnum > sv.allocated_client_slots)
 		{
 			PR_BIError (prinst, "WriteDest: not a client");
 			return &sv.nqreliable_datagram;
@@ -4000,7 +4203,7 @@ client_t *Write_GetClient(void)
 }
 
 extern sizebuf_t csqcmsgbuffer;
-void PF_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
 	{	//csqc buffers are always written.
@@ -4008,8 +4211,13 @@ void PF_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-	if (qc_nonetaccess.value || sv.demofile)
+	if (qc_nonetaccess.value)
 		return;
+
+#ifdef SERVER_DEMO_PLAYBACK
+	if (sv.demofile)
+		return;
+#endif
 
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
@@ -4036,7 +4244,7 @@ void PF_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 #endif
 }
 
-void PF_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
 	{	//csqc buffers are always written.
@@ -4044,8 +4252,13 @@ void PF_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-	if (qc_nonetaccess.value || sv.demofile)
+	if (qc_nonetaccess.value)
 		return;
+#ifdef SERVER_DEMO_PLAYBACK
+	if (sv.demofile)
+		return;
+#endif
+
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
 		NPP_NQWriteChar(G_FLOAT(OFS_PARM0), (char)G_FLOAT(OFS_PARM1));
@@ -4071,7 +4284,7 @@ void PF_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 #endif
 }
 
-void PF_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
 	{	//csqc buffers are always written.
@@ -4079,8 +4292,12 @@ void PF_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-	if (qc_nonetaccess.value || sv.demofile)
+	if (qc_nonetaccess.value)
 		return;
+#ifdef SERVER_DEMO_PLAYBACK
+	if (sv.demofile)
+		return;
+#endif
 
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
@@ -4107,7 +4324,7 @@ void PF_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 #endif
 }
 
-void PF_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
 	{	//csqc buffers are always written.
@@ -4115,8 +4332,12 @@ void PF_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-	if (qc_nonetaccess.value || sv.demofile)
+	if (qc_nonetaccess.value)
 		return;
+#ifdef SERVER_DEMO_PLAYBACK
+	if (sv.demofile)
+		return;
+#endif
 
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
@@ -4143,7 +4364,7 @@ void PF_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 #endif
 }
 
-void PF_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
 	{	//csqc buffers are always written.
@@ -4151,8 +4372,13 @@ void PF_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-	if (qc_nonetaccess.value || sv.demofile)
+	if (qc_nonetaccess.value)
 		return;
+#ifdef SERVER_DEMO_PLAYBACK
+	if (sv.demofile)
+		return;
+#endif
+
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
 		NPP_NQWriteAngle(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
@@ -4178,7 +4404,7 @@ void PF_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 #endif
 }
 
-void PF_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
 	{	//csqc buffers are always written.
@@ -4186,8 +4412,12 @@ void PF_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-	if (qc_nonetaccess.value || sv.demofile)
+	if (qc_nonetaccess.value)
 		return;
+#ifdef SERVER_DEMO_PLAYBACK
+	if (sv.demofile)
+		return;
+#endif
 
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
@@ -4222,7 +4452,11 @@ void PF_WriteString_Internal (int target, char *str)
 		return;
 	}
 
-	if (qc_nonetaccess.value || sv.demofile)
+	if (qc_nonetaccess.value
+#ifdef SERVER_DEMO_PLAYBACK
+		|| sv.demofile
+#endif
+		)
 		return;
 
 	if (progstype == PROG_NQ || progstype == PROG_H2)
@@ -4250,14 +4484,14 @@ void PF_WriteString_Internal (int target, char *str)
 #endif
 }
 
-void PF_WriteString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_WriteString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *str = PF_VarString(prinst, 1, pr_globals);
 	PF_WriteString_Internal(G_FLOAT(OFS_PARM0), str);
 }
 
 
-void PF_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
 	{	//csqc buffers are always written.
@@ -4265,7 +4499,11 @@ void PF_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-	if (qc_nonetaccess.value || sv.demofile)
+	if (qc_nonetaccess.value
+#ifdef SERVER_DEMO_PLAYBACK
+		|| sv.demofile
+#endif
+		)
 		return;
 
 	if (progstype == PROG_NQ || progstype == PROG_H2)
@@ -4295,12 +4533,16 @@ void PF_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //small wrapper function.
 //void(float target, string str, ...) WriteString2 = #33;
-void PF_WriteString2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_WriteString2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int old;
 	char *str;
 
-	if (G_FLOAT(OFS_PARM0) != MSG_CSQC && (qc_nonetaccess.value || sv.demofile))
+	if (G_FLOAT(OFS_PARM0) != MSG_CSQC && (qc_nonetaccess.value
+#ifdef SERVER_DEMO_PLAYBACK
+		|| sv.demofile
+#endif
+		))
 		return;
 
 	str = PF_VarString(prinst, 1, pr_globals);
@@ -4314,68 +4556,68 @@ void PF_WriteString2 (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_PARM1) = old;
 }
 
-void PF_Single_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_qtSingle_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteByte(MSG_PRERELONE, (qbyte)G_FLOAT(OFS_PARM1));
 }
-void PF_Single_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_qtSingle_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteChar(MSG_PRERELONE, (char)G_FLOAT(OFS_PARM1));
 }
-void PF_Single_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_qtSingle_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteShort(MSG_PRERELONE, (short)G_FLOAT(OFS_PARM1));
 }
-void PF_Single_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_qtSingle_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteLong(MSG_PRERELONE, G_FLOAT(OFS_PARM1));
 }
-void PF_Single_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_qtSingle_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteAngle(MSG_PRERELONE, G_FLOAT(OFS_PARM1));
 }
-void PF_Single_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_qtSingle_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteCoord(MSG_PRERELONE, G_FLOAT(OFS_PARM1));
 }
-void PF_Single_WriteString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_qtSingle_WriteString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteString(MSG_PRERELONE, PF_VarString(prinst, 1, pr_globals));
 }
-void PF_Single_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_qtSingle_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteEntity(MSG_PRERELONE, (short)G_EDICTNUM(prinst, OFS_PARM1));
 }
 
-void PF_Broadcast_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_qtBroadcast_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteByte(MSG_BROADCAST, (qbyte)G_FLOAT(OFS_PARM0));
 }
-void PF_Broadcast_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_qtBroadcast_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteChar(MSG_BROADCAST, (char)G_FLOAT(OFS_PARM0));
 }
-void PF_Broadcast_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_qtBroadcast_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteShort(MSG_BROADCAST, (short)G_FLOAT(OFS_PARM0));
 }
-void PF_Broadcast_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_qtBroadcast_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteLong(MSG_BROADCAST, G_FLOAT(OFS_PARM0));
 }
-void PF_Broadcast_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_qtBroadcast_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteAngle(MSG_BROADCAST, G_FLOAT(OFS_PARM0));
 }
-void PF_Broadcast_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_qtBroadcast_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteCoord(MSG_BROADCAST, G_FLOAT(OFS_PARM0));
 }
-void PF_Broadcast_WriteString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_qtBroadcast_WriteString (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteString(MSG_BROADCAST, PF_VarString(prinst, 0, pr_globals));
 }
-void PF_Broadcast_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_qtBroadcast_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	NPP_NQWriteEntity(MSG_BROADCAST, (short)G_EDICTNUM(prinst, OFS_PARM0));
 }
@@ -4387,9 +4629,10 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 {
 	int split=0;
 
+#ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demofile)
 		return;
-
+#endif
 
 	if (type > TE_SUPERBULLET)	//pick a new effect, cos this one we don't know about.
 		type = TE_SPIKE;
@@ -4417,7 +4660,7 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 		type = TE_SUPERBULLET;
 		split = PEXT_TE_BULLET;
 		break;
-	case TE_BLOOD:
+	case TEQW_BLOOD:
 	case TE_GUNSHOT:
 		MSG_WriteByte (&sv.multicast, type);
 		MSG_WriteByte (&sv.multicast, count);
@@ -4443,7 +4686,7 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 	MSG_WriteCoord (&sv.nqmulticast, o[1]);
 	MSG_WriteCoord (&sv.nqmulticast, o[2]);
 #endif
-	if (type == TE_BLOOD || type == TE_LIGHTNINGBLOOD)
+	if (type == TEQW_BLOOD || type == TEQW_LIGHTNINGBLOOD)
 	{
 #ifdef NQPROT
 		sv.nqmulticast.cursize = 0;	//don't send a te_blood or lightningblood to an nq client - they'll die horribly.
@@ -4458,7 +4701,7 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 		MSG_WriteChar (&sv.nqmulticast, 0);
 		MSG_WriteChar (&sv.nqmulticast, 0);
 		MSG_WriteByte (&sv.nqmulticast, count*20);
-		if (type == TE_BLOOD)
+		if (type == TEQW_BLOOD)
 			MSG_WriteByte (&sv.nqmulticast, 73);
 		else
 			MSG_WriteByte (&sv.nqmulticast, 225);
@@ -4495,7 +4738,7 @@ void SV_beam_tempentity (int ownerent, vec3_t start, vec3_t end, int type)
 	if (type == TE_LIGHTNING2 && ownerent<0)	//special handling for TE_BEAM (don't do TE_RAILGUN - it's a tomaz extension)
 	{
 		MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
-		MSG_WriteByte (&sv.nqmulticast, NQTE_BEAM);
+		MSG_WriteByte (&sv.nqmulticast, TENQ_BEAM);
 		MSG_WriteShort (&sv.nqmulticast, -1-ownerent);
 		MSG_WriteCoord (&sv.nqmulticast, start[0]);
 		MSG_WriteCoord (&sv.nqmulticast, start[1]);
@@ -4531,62 +4774,45 @@ void PF_tempentity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 int SV_ModelIndex (char *name);
 
-void PF_makestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_makestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*ent;
-	int		mdlindex, i;
+	int		mdlindex;
 	entity_state_t *state;
 
 	ent = G_EDICT(prinst, OFS_PARM0);
 
-	SV_FlushSignon ();
-
 	mdlindex = SV_ModelIndex(PR_GetString(prinst, ent->v->model));
 
-	if (ent->xv->drawflags || ent->xv->alpha || mdlindex > 255 || ent->v->frame > 255 || ent->xv->scale || ent->xv->abslight)
+	if (sv.num_static_entities == sv_max_staticentities)
 	{
-		if (sv.numextrastatics==sizeof(sv.extendedstatics)/sizeof(sv.extendedstatics[0]))
-			return;	//fail the whole makestatic thing.
-
-		state = &sv.extendedstatics[sv.numextrastatics++];
-		memset(state, 0, sizeof(*state));
-		state->number = sv.numextrastatics;
-		state->flags = 0;
-		VectorCopy (ent->v->origin, state->origin);
-		VectorCopy (ent->v->angles, state->angles);
-		state->modelindex = mdlindex;//ent->v->modelindex;
-		state->frame = ent->v->frame;
-		state->colormap = ent->v->colormap;
-		state->skinnum = ent->v->skin;
-		state->effects = ent->v->effects;
-		state->hexen2flags = ent->xv->drawflags;
-		state->abslight = (int)(ent->xv->abslight*255) & 255;
-		state->trans = ent->xv->alpha*255;
-		if (!ent->xv->alpha)
-			state->trans = 255;
-		state->fatness = ent->xv->fatness;
-		state->scale = ent->xv->scale*16.0;
-		if (!ent->xv->scale)
-			state->scale = 1*16;
-
-		if (progstype != PROG_QW)	//don't send extra nq effects to a qw client.
-			state->effects &= EF_BRIGHTLIGHT | EF_DIMLIGHT;
+		sv_max_staticentities += 16;
+		sv_staticentities = BZ_Realloc(sv_staticentities, sizeof(*sv_staticentities) * sv_max_staticentities);
 	}
-	else
-	{
-		MSG_WriteByte (&sv.signon,svc_spawnstatic);
 
-		MSG_WriteByte (&sv.signon, mdlindex&255);
+	state = &sv_staticentities[sv.num_static_entities++];
+	memset(state, 0, sizeof(*state));
+	state->number = sv.num_static_entities;
+	state->flags = 0;
+	VectorCopy (ent->v->origin, state->origin);
+	VectorCopy (ent->v->angles, state->angles);
+	state->modelindex = mdlindex;//ent->v->modelindex;
+	state->frame = ent->v->frame;
+	state->colormap = ent->v->colormap;
+	state->skinnum = ent->v->skin;
+	state->effects = ent->v->effects;
+	state->hexen2flags = ent->xv->drawflags;
+	state->abslight = (int)(ent->xv->abslight*255) & 255;
+	state->trans = ent->xv->alpha*255;
+	if (!ent->xv->alpha)
+		state->trans = 255;
+	state->fatness = ent->xv->fatness;
+	state->scale = ent->xv->scale*16.0;
+	if (!ent->xv->scale)
+		state->scale = 1*16;
 
-		MSG_WriteByte (&sv.signon, ent->v->frame);
-		MSG_WriteByte (&sv.signon, (int)ent->v->colormap);
-		MSG_WriteByte (&sv.signon, (int)ent->v->skin);
-		for (i=0 ; i<3 ; i++)
-		{
-			MSG_WriteCoord(&sv.signon, ent->v->origin[i]);
-			MSG_WriteAngle(&sv.signon, ent->v->angles[i]);
-		}
-	}
+	if (progstype != PROG_QW)	//don't send extra nq effects to a qw client.
+		state->effects &= EF_BRIGHTLIGHT | EF_DIMLIGHT;
 
 // throw the entity away now
 	ED_Free (svprogfuncs, ent);
@@ -4599,7 +4825,7 @@ void PF_makestatic (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 PF_setspawnparms
 ==============
 */
-void PF_setspawnparms (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_setspawnparms (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*ent;
 	int		i;
@@ -4626,7 +4852,7 @@ void PF_setspawnparms (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 PF_changelevel
 ==============
 */
-void PF_changelevel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_changelevel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char	*s, *spot;
 
@@ -4656,7 +4882,7 @@ PF_logfrag
 logfrag (killer, killee)
 ==============
 */
-void PF_logfrag (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_logfrag (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*ent1, *ent2;
 	int		e1, e2;
@@ -4699,7 +4925,7 @@ string(entity e, string key) infokey
 char *PF_infokey_Internal (int entnum, char *key)
 {
 	char	*value;
-	char ov[256];
+	static char ov[256];
 	char adr[MAX_ADR_SIZE];
 
 	if (entnum == 0)
@@ -4712,13 +4938,15 @@ char *PF_infokey_Internal (int entnum, char *key)
 				value = Info_ValueForKey(localinfo, key);
 		}
 	}
-	else if (entnum <= MAX_CLIENTS)
+	else if (entnum <= sv.allocated_client_slots)
 	{
 		value = ov;
 		if (!strcmp(key, "ip") || !strcmp(key, "realip"))	//note: FTE doesn't support mvdsv's realip stuff, so pretend that we do if the mod asks
 			value = strcpy(ov, NET_BaseAdrToString (adr, sizeof(adr), svs.clients[entnum-1].netchan.remote_address));
 		else if (!strcmp(key, "ping"))
-			sprintf(ov, "%d", SV_CalcPing (&svs.clients[entnum-1]));
+			sprintf(ov, "%d", SV_CalcPing (&svs.clients[entnum-1], false));
+		else if (!strcmp(key, "svping"))
+			sprintf(ov, "%d", SV_CalcPing (&svs.clients[entnum-1], true));
 		else if (!strcmp(key, "*userid"))
 			sprintf(ov, "%d", svs.clients[entnum-1].userid);
 		else if (!strcmp(key, "download"))
@@ -4745,7 +4973,7 @@ char *PF_infokey_Internal (int entnum, char *key)
 	return value;
 }
 
-void PF_infokey (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_infokey (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*e;
 	int		e1;
@@ -4769,7 +4997,7 @@ PF_multicast
 void(vector where, float set) multicast
 ==============
 */
-void PF_multicast (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_multicast (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float	*o;
 	int		to;
@@ -4781,7 +5009,7 @@ void PF_multicast (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 
-static void PF_Fixme (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_Fixme (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 int i;
 qboolean printedheader = false;
@@ -4813,32 +5041,13 @@ qboolean printedheader = false;
 	PR_BIError (prinst, "builtin not implemented");
 }
 
-void PF_Ignore(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_Ignore(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_INT(OFS_RETURN) = 0;
 }
 
-/*
-==============
-PF_logfrag
-
-logfrag (killer, killee)
-==============
-*/
-void PF_logstring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char	*s;
-
-	s = PF_VarString(prinst, 0, pr_globals);
-
-	if (sv_fraglogfile)
-	{
-		VFS_WRITE(sv_fraglogfile, s, strlen(s));
-		VFS_FLUSH(sv_fraglogfile);
-	}
-}
 #define PRSTR	0xa6ffb3d7
-void PF_newstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)	//mvdsv
+static void QCBUILTIN PF_newstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)	//mvdsv
 {
 	char *s;
 	int len;
@@ -4857,7 +5066,9 @@ void PF_newstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)	//mvdsv
 	RETURN_SSTRING(s+8);
 }
 
-void PF_strcatp(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+// warning: ‘PF_strcatp’ defined but not used
+/*
+static void QCBUILTIN PF_strcatp(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *buf = PR_GetStringOfs(prinst, OFS_PARM0); char *add = PR_GetStringOfs(prinst, OFS_PARM1);
 	int wantedlen = G_FLOAT(OFS_PARM2);
@@ -4879,8 +5090,11 @@ void PF_strcatp(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
 }
+*/
 
-void PF_redstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+// warning: ‘PF_redstring’ defined but not used
+/*
+static void QCBUILTIN PF_redstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *string = PR_GetStringOfs(prinst, OFS_PARM0), *s;
 	static char buf[1024];
@@ -4891,36 +5105,11 @@ void PF_redstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	RETURN_TSTRING(buf);
 }
-
-#ifdef PEXT_BULLETENS
-void PF_bulleten (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int j;
-	client_t  *client;
-	char *msg = PF_VarString(prinst, 1, pr_globals);
-	int board = G_FLOAT(OFS_PARM0);
-	int msglen = strlen(msg);
-
-	// send the data to all relevent clients
-	for (j = 0, client = svs.clients; j < MAX_CLIENTS; j++, client++)
-	{
-		if (client->state < cs_connected)	//so a call can be used in client connected.
-			continue;
-
-		if (client->fteprotocolextensions & PEXT_BULLETENS)
-		{
-			ClientReliableCheckBlock(client, msglen+1);
-			ClientReliableWrite_Byte(client, svcfte_bulletentext);
-			ClientReliableWrite_Byte(client, board);
-			ClientReliableWrite_String(client, msg);
-		}
-	}
-}
-#endif
+*/
 
 #ifdef SVCHAT
 void SV_Chat(char *filename, float starttag, edict_t *edict);
-void PF_chat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_chat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	SV_Chat(PR_GetStringOfs(prinst, OFS_PARM0), G_FLOAT(OFS_PARM1), G_EDICT(prinst, OFS_PARM2));
 }
@@ -4933,302 +5122,15 @@ void PF_chat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-// FTE SQL functions
+/* FTE_SQL builtins */
 #ifdef SQL
-#define SQL_CONNECT_STRUCTPARAMS 2
-#define SQL_CONNECT_PARAMS 4
-
-typedef enum 
-{
-	SQLDRV_MYSQL,
-//	SQLDRV_SQLITE, NOT IN YET
-	SQLDRV_INVALID
-} sqldrv_t;
-
-typedef struct queryrequest_s
-{
-	int num; // query number reference
-	qboolean persistant; // persistant query
-	struct queryrequest_s *next; // next request in queue
-	int callback; // callback function reference
-	int selfent; // self entity on call
-	float selfid; // self entity id on call
-	int otherent; // other entity on call
-	float otherid; // other entity id on call
-	char query[1]; // query to run (struct hack)
-} queryrequest_t;
-
-typedef struct queryresult_s
-{
-	struct queryrequest_s *request; // corresponding request
-	struct queryresult_s *next; // next result in queue
-	int rows; // rows contained in single result set
-	int columns; // fields
-	qboolean eof; // end of query reached
-	MYSQL_RES *result; // result set from mysql
-//	char **resultset; // stored result set from partial fetch
-	char error[1]; // error string, "" if none (struct hack)
-} queryresult_t;
-
-typedef struct sqlserver_s
-{
-	void *thread; // worker thread for server
-	MYSQL *mysql; // mysql server
-	volatile qboolean active; // set to false to kill thread
-	void *requestcondv; // lock and conditional variable for queue read/write
-	void *resultlock; // mutex for queue read/write
-	int querynum; // next reference number for queries
-	queryrequest_t *requests; // query requests queue
-	queryrequest_t *requestslast; // query requests queue last link
-	queryresult_t *results; // query results queue
-	queryresult_t *resultslast; // query results queue last link
-	queryresult_t *currentresult; // current called result
-	queryresult_t *persistresults; // list of persistant results
-	queryresult_t *serverresult; // server error results
-	char **connectparams; // connect parameters (0 = host, 1 = user, 2 = pass, 3 = defaultdb)
-} sqlserver_t;
-
-void SQL_PushResult(sqlserver_t *server, queryresult_t *qres)
-{
-	Sys_LockMutex(server->resultlock);
-	qres->next = NULL;
-	if (!server->resultslast)
-		server->results = server->resultslast = qres;
-	else
-		server->resultslast = server->resultslast->next = qres;
-	Sys_UnlockMutex(server->resultlock);
-}
-
-queryresult_t *SQL_PullResult(sqlserver_t *server)
-{
-	queryresult_t *qres;
-	Sys_LockMutex(server->resultlock);
-	qres = server->results;
-	if (qres)
-	{
-		server->results = qres->next;
-		if (!server->results)
-			server->resultslast = NULL;
-	}
-	Sys_UnlockMutex(server->resultlock);
-
-	return qres;
-}
-
-void SQL_PushRequest(sqlserver_t *server, queryrequest_t *qreq)
-{
-	Sys_LockConditional(server->requestcondv);
-	qreq->next = NULL;
-	if (!server->requestslast)
-		server->requests = server->requestslast = qreq;
-	else
-		server->requestslast = server->requestslast->next = qreq;
-	Sys_UnlockConditional(server->requestcondv);
-}
-
-queryrequest_t *SQL_PullRequest(sqlserver_t *server, qboolean lock)
-{
-	queryrequest_t *qreq;
-	if (lock)
-		Sys_LockConditional(server->requestcondv);
-	qreq = server->requests;
-	if (qreq)
-	{
-		server->requests = qreq->next;
-		if (!server->requests)
-			server->requestslast = NULL;
-	}
-	Sys_UnlockConditional(server->requestcondv);
-
-	return qreq;
-}
-
-sqlserver_t **sqlservers;
-int sqlservercount;
-qboolean sqlavailable;
-
-int sql_serverworker(void *sref)
-{
-	sqlserver_t *server = (sqlserver_t *)sref;
-	char *error = NULL;
-	my_bool reconnect = 1;
-	int tinit, i;
-	qboolean needlock = false;
-
-	if (tinit = mysql_thread_init())
-		error = "MYSQL thread init failed";
-	else if (!(server->mysql = mysql_init(NULL)))
-		error = "MYSQL init failed";
-	else if (mysql_options(server->mysql, MYSQL_OPT_RECONNECT, &reconnect))
-		error = "MYSQL reconnect options set failed";
-	else
-	{	
-		int port = 0;
-		char *colon;
-
-		colon = strchr(server->connectparams[0], ':');
-		if (colon)
-		{
-			*colon = '\0';
-			port = atoi(colon + 1);
-		}
-
-		if (!(server->mysql = mysql_real_connect(server->mysql, server->connectparams[0], server->connectparams[1], server->connectparams[2], server->connectparams[3], port, 0, 0)))
-		error = "MYSQL initial connect attempt failed";
-
-		if (colon)
-			*colon = ':';
-	}
-
-	for (i = SQL_CONNECT_STRUCTPARAMS; i < SQL_CONNECT_PARAMS; i++)
-		Z_Free(server->connectparams[i]);
-
-	BZ_Realloc(server->connectparams, sizeof(char *) * SQL_CONNECT_STRUCTPARAMS);
-
-	if (error)
-		server->active = false;
-
-	while (server->active)
-	{	
-		Sys_LockConditional(server->requestcondv);
-		if (!server->requests) // this is needed for thread startup and to catch any "lost" changes
-		Sys_ConditionWait(server->requestcondv);
-		needlock = false; // so we don't try to relock first round
-
-		while (1)
-		{
-			queryrequest_t *qreq = NULL;
-			queryresult_t *qres;
-			const char *qerror = NULL;
-			MYSQL_RES *mysqlres = NULL;
-			int rows = -1;
-			int columns = -1;
-			int qesize = 0;
-
-			if (!(qreq = SQL_PullRequest(server, needlock)))
-				break;
-
-			// pullrequest makes sure our condition is unlocked but we'll need
-			// a lock next round
-			needlock = true;
-
-			// perform the query and fill out the result structure
-			if (mysql_query(server->mysql, qreq->query))
-				qerror = mysql_error(server->mysql);
-			else // query succeeded
-			{
-				mysqlres = mysql_store_result(server->mysql);
-				if (mysqlres) // result set returned
-				{
-					rows = mysql_num_rows(mysqlres);
-					columns = mysql_num_fields(mysqlres);
-				}
-				else if (mysql_field_count(server->mysql) == 0) // no result set
-				{
-					rows = mysql_affected_rows(server->mysql);
-					if (rows < 0)
-						rows = 0;
-					columns = 0;
-				}
-				else // error
-					qerror = mysql_error(server->mysql);
-			}
-
-			if (qerror)
-				qesize = Q_strlen(qerror);
-			qres = (queryresult_t *)ZF_Malloc(sizeof(queryresult_t) + qesize);
-			if (qres)
-			{
-				if (qerror)
-					Q_strncpy(qres->error, qerror, qesize);
-				qres->result = mysqlres;
-				qres->rows = rows;
-				qres->columns = columns;
-				qres->request = qreq;
-				qres->eof = true; // store result has no more rows to read afterwards
-				qreq->next = NULL;
-
-				SQL_PushResult(server, qres);
-			}
-			else // we're screwed here so bomb out
-			{
-				server->active = false;
-				error = "MALLOC ERROR! Unable to allocate query result!";
-				break;
-			}
-		}
-	}
-
-	if (server->mysql)
-		mysql_close(server->mysql);
-
-	// if we have a server error we still need to put it on the queue
-	if (error)
-	{ 
-		int esize = Q_strlen(error);
-		queryresult_t *qres = (queryresult_t *)Z_Malloc(sizeof(queryresult_t) + esize);
-		if (qres)
-		{ // hopefully the mysql_close gained us some memory otherwise we're pretty screwed
-			qres->rows = qres->columns = -1;
-			Q_strncpy(qres->error, error, esize);
-
-			SQL_PushResult(server, qres);
-		}
-	}
-
-	if (!tinit)
-		mysql_thread_end();
-
-	return 0;
-}
-
-sqlserver_t *SQL_GetServer (int serveridx, qboolean inactives)
-{
-	if (serveridx < 0 || serveridx >= sqlservercount)
-		return NULL;
-	if (!inactives && sqlservers[serveridx]->active == false)
-		return NULL;
-	return sqlservers[serveridx];
-}
-
-queryresult_t *SQL_GetQueryResult (sqlserver_t *server, int queryidx)
-{
-	queryresult_t *qres;
-
-	qres = server->currentresult;
-	if (qres && qres->request && qres->request->num == queryidx)
-		return qres;
-
-	for (qres = server->persistresults; qres; qres = qres->next)
-		if (qres->request && qres->request->num == queryidx)
-			return qres;
-
-	return NULL;
-}
-
 void PF_sqlconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int serverref;
 	char *paramstr[SQL_CONNECT_PARAMS];
-	int paramsize[SQL_CONNECT_PARAMS];
-	sqlserver_t *server;
-	int i, tsize;
 	char *driver;
-	int drvchoice;
+	int i;
 
-	if (!sqlavailable)
+	if (!SQL_Available())
 	{
 		G_FLOAT(OFS_RETURN) = -1;
 		return;
@@ -5252,9 +5154,6 @@ void PF_sqlconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (!paramstr[3][0])
 		paramstr[3] = sql_defaultdb.string;
 
-	for (i = 0; i < SQL_CONNECT_PARAMS; i++)
-		paramsize[i] = Q_strlen(paramstr[i]);
-
 	// verify/switch driver choice
 	if (*svprogfuncs->callargc > (SQL_CONNECT_PARAMS + 1))
 		driver = PR_GetStringOfs(prinst, OFS_PARM0 + SQL_CONNECT_PARAMS * 3);
@@ -5264,96 +5163,19 @@ void PF_sqlconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (!driver[0])
 		driver = sql_driver.string;
 
-	if (Q_strcasecmp(driver, "mysql") == 0)
-		drvchoice = SQLDRV_MYSQL;
-	else // invalid driver choice so we bomb out
-	{ 
-		G_FLOAT(OFS_RETURN) = -1;
-		return;
-	}
-
-	// alloc or realloc sql servers array
-	if (sqlservers == NULL)
-	{
-		serverref = 0;
-		sqlservercount = 1;
-		sqlservers = (sqlserver_t **)BZ_Malloc(sizeof(sqlserver_t *));
-	}
-	else
-	{
-		serverref = sqlservercount;
-		sqlservercount++;
-		sqlservers = (sqlserver_t **)BZ_Realloc(sqlservers, sizeof(sqlserver_t *) * sqlservercount);
-	}
-
-	// assemble server structure
-	tsize = 0;
-	for (i = 0; i < SQL_CONNECT_STRUCTPARAMS; i++)
-		tsize += paramsize[i] + 1;	// allocate extra space for host and user only
-
-	server = (sqlserver_t *)Z_Malloc(sizeof(sqlserver_t) + tsize);
-	server->connectparams = BZ_Malloc(sizeof(char *) * SQL_CONNECT_PARAMS);
-
-	tsize = 0;
-	for (i = 0; i < SQL_CONNECT_STRUCTPARAMS; i++)
-	{
-		server->connectparams[i] = ((char *)(server + 1)) + tsize;
-		Q_strncpy(server->connectparams[i], paramstr[i], paramsize[i]);
-		// string should be null-terminated due to Z_Malloc
-		tsize += paramsize[i] + 1;
-	}
-	for (i = SQL_CONNECT_STRUCTPARAMS; i < SQL_CONNECT_PARAMS; i++)
-	{
-		server->connectparams[i] = Z_Malloc(sizeof(char) * (paramsize[i] + 1));
-		Q_strncpy(server->connectparams[i], paramstr[i], paramsize[i]);
-		// string should be null-terminated due to Z_Malloc
-	}
-
-	sqlservers[serverref] = server;
-
-	server->querynum = 1;
-	server->active = true;
-	server->requestcondv = Sys_CreateConditional();
-	server->resultlock = Sys_CreateMutex();
-
-	if (!server->requestcondv || !server->resultlock)
-	{
-		if (server->requestcondv)
-			Sys_DestroyConditional(server->requestcondv);
-		if (server->resultlock)
-			Sys_DestroyMutex(server->resultlock);
-		Z_Free(server);
-		sqlservercount--;
-		G_FLOAT(OFS_RETURN) = -1;
-		return;
-	}
-
-	server->thread = Sys_CreateThread(sql_serverworker, (void *)server, 1024);
-	
-	if (!server->thread)
-	{
-		Z_Free(server);
-		sqlservercount--;
-		G_FLOAT(OFS_RETURN) = -1;
-		return;
-	}
-	
-	G_FLOAT(OFS_RETURN) = serverref;
+	G_FLOAT(OFS_RETURN) = SQL_NewServer(driver, paramstr);
 }
 
 void PF_sqldisconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	sqlserver_t *server;
 
-	if (sqlavailable)
+	if (SQL_Available())
 	{
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
-			server->active = false;
-
-			// force the threads to reiterate requests and hopefully terminate
-			Sys_ConditionBroadcast(server->requestcondv);
+			SQL_Disconnect(server);
 			return;
 		}
 	}
@@ -5361,151 +5183,50 @@ void PF_sqldisconnect (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 void PF_sqlopenquery (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	sqlserver_t *server;
 	int callfunc = G_INT(OFS_PARM1);
 	int querytype = G_FLOAT(OFS_PARM2);
 	char *querystr = PF_VarString(prinst, 3, pr_globals);
-	int qsize = Q_strlen(querystr);
-	queryrequest_t *qreq;
-	sqlserver_t *server;
-	int querynum;
+	int qself, qother;
+	float qselfid, qotherid;
 
-	if (sqlavailable)
+	if (SQL_Available())
 	{
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
-			qreq = (queryrequest_t *)ZF_Malloc(sizeof(queryrequest_t) + qsize);
-			if (qreq)
-			{
-				qreq->persistant = (querytype == 1);
-				qreq->callback = callfunc;
+			// save self and other references
+			if (PROG_TO_EDICT(prinst, pr_global_struct->self)->isfree)
+				qself = pr_global_struct->world;
+			else
+				qself = pr_global_struct->self;
+			qselfid = PROG_TO_EDICT(prinst, qself)->xv->uniquespawnid;
+			if (PROG_TO_EDICT(prinst, pr_global_struct->other)->isfree)
+				qother = pr_global_struct->world;
+			else
+				qother = pr_global_struct->other;
+			qotherid = PROG_TO_EDICT(prinst, qother)->xv->uniquespawnid;
 
-				// save self and other references
-				if (PROG_TO_EDICT(prinst, pr_global_struct->self)->isfree)
-					qreq->selfent = pr_global_struct->world;
-				else
-					qreq->selfent = pr_global_struct->self;
-				qreq->selfid = PROG_TO_EDICT(prinst, qreq->selfent)->xv->uniquespawnid;
-				if (PROG_TO_EDICT(prinst, pr_global_struct->other)->isfree)
-					qreq->otherent = pr_global_struct->world;
-				else
-					qreq->otherent = pr_global_struct->other;
-				qreq->otherid = PROG_TO_EDICT(prinst, qreq->otherent)->xv->uniquespawnid;
-
-				querynum = qreq->num = server->querynum;
-				// prevent the reference num from getting too big to prevent FP problems
-				if (++server->querynum > 1000000)
-					server->querynum = 1; 
-				
-				Q_strncpy(qreq->query, querystr, qsize);
-
-				SQL_PushRequest(server, qreq);
-				Sys_ConditionSignal(server->requestcondv);
-
-				G_FLOAT(OFS_RETURN) = querynum;
-				return;
-			}
+			G_FLOAT(OFS_RETURN) = SQL_NewQuery(server, callfunc, querytype, qself, qselfid, qother, qotherid, querystr);
+			return;
 		}
 	}
 	// else we failed so return the error
 	G_FLOAT(OFS_RETURN) = -1;
 }
 
-void SQL_DeallocResult(queryresult_t *qres)
-{
-	// deallocate current result
-	if (qres->result)
-		mysql_free_result(qres->result);
-	if (qres->request)
-		Z_Free(qres->request);
-
-	Z_Free(qres);
-}
-
-void SQL_ClosePersistantResult(sqlserver_t *server, queryresult_t *qres)
-{
-	queryresult_t *prev, *cur;
-
-	prev = server->persistresults;
-	if (prev == qres)
-	{
-		server->persistresults = prev->next;
-		SQL_DeallocResult(prev);
-		return;
-	}
-
-	for (cur = prev->next; cur; prev = cur, cur = prev->next)
-	{
-		if (cur == qres)
-		{
-			prev = cur->next;
-			SQL_DeallocResult(cur);
-			return;
-		}
-	}
-}
-
-void SQL_CloseResult(sqlserver_t *server, queryresult_t *qres)
-{
-	if (!qres)
-		return;
-	if (qres == server->currentresult)
-	{
-		SQL_DeallocResult(server->currentresult);
-		server->currentresult = NULL;
-		return;
-	}
-	// else we have a persistant query
-	SQL_ClosePersistantResult(server, qres);
-}
-
-void SQL_CloseAllResults(sqlserver_t *server)
-{
-	queryresult_t *oldqres, *qres;
-
-	// close orphaned results (we assume the lock is active or non-existant at this point)
-	qres = server->results;
-	while (qres)
-	{
-		oldqres = qres;
-		qres = qres->next;
-		SQL_DeallocResult(oldqres);
-	}
-	// close current
-	if (server->currentresult)
-	{
-		SQL_DeallocResult(server->currentresult);
-		server->currentresult = NULL;
-	}
-	// close persistant results
-	qres = server->persistresults;
-	while (qres)
-	{
-		oldqres = qres;
-		qres = qres->next;
-		SQL_DeallocResult(oldqres);
-	}
-	server->persistresults = NULL;
-	// close server result
-	if (server->serverresult)
-	{
-		SQL_DeallocResult(server->serverresult);
-		server->serverresult = NULL;
-	}
-}
-
 void PF_sqlclosequery (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	sqlserver_t *server;
 	queryresult_t *qres;
-	
-	if (sqlavailable)
+
+	if (SQL_Available())
 	{
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
 			qres = SQL_GetQueryResult(server, G_FLOAT(OFS_PARM1));
-			if (qres) 
+			if (qres)
 			{
 				// TODO: partial resultset logic not implemented yet
 				SQL_CloseResult(server, qres);
@@ -5516,53 +5237,14 @@ void PF_sqlclosequery (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	// else nothing to close
 }
 
-char *SQL_ReadField (sqlserver_t *server, queryresult_t *qres, int row, int col, qboolean fields)
-{
-	if (!qres->result) // TODO: partial resultset logic not implemented yet
-		return NULL;
-	else
-	{ // store_result query
-		if (qres->rows < row || qres->columns < col || col < 0)
-			return NULL;
-
-		if (row < 0)
-		{ // fetch field name
-			if (fields) // but only if we asked for them
-			{
-				MYSQL_FIELD *field;
-
-				field = mysql_fetch_field_direct(qres->result, col);
-
-				if (!field)
-					return NULL;
-				else
-					return field->name;
-			}
-			else
-				return NULL;
-		}
-		else
-		{ // fetch data
-			MYSQL_ROW sqlrow;
-
-			mysql_data_seek(qres->result, row);
-			sqlrow = mysql_fetch_row(qres->result);
-			if (!sqlrow || !sqlrow[col])
-				return NULL;
-			else
-				return sqlrow[col];
-		}
-	}
-}
-
 void PF_sqlreadfield (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	sqlserver_t *server;
 	queryresult_t *qres;
 	char *data;
 
-	if (sqlavailable)
-	{	
+	if (SQL_Available())
+	{
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
@@ -5588,8 +5270,8 @@ void PF_sqlreadfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	queryresult_t *qres;
 	char *data;
 
-	if (sqlavailable)
-	{	
+	if (SQL_Available())
+	{
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
@@ -5609,13 +5291,12 @@ void PF_sqlreadfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = 0;
 }
 
-
 void PF_sqlerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	sqlserver_t *server;
 	int serverref = G_FLOAT(OFS_PARM0);
 
-	if (sqlavailable)
+	if (SQL_Available())
 	{
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), true);
 		if (server)
@@ -5623,7 +5304,7 @@ void PF_sqlerror (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			if (*svprogfuncs->callargc == 2)
 			{ // query-specific error request
 				if (server->active) // didn't check this earlier so check it now
-				{ 
+				{
 					queryresult_t *qres = SQL_GetQueryResult(server, G_FLOAT(OFS_PARM1));
 					if (qres)
 					{
@@ -5649,7 +5330,7 @@ void PF_sqlescape (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	char *toescape;
 	char escaped[4096];
 
-	if (sqlavailable)
+	if (SQL_Available())
 	{
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
 		if (server)
@@ -5657,8 +5338,7 @@ void PF_sqlescape (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			toescape = PR_GetStringOfs(prinst, OFS_PARM1);
 			if (toescape)
 			{
-				mysql_real_escape_string(server->mysql, escaped, toescape, strlen(toescape));
-
+				SQL_Escape(server, toescape, escaped, sizeof(escaped));
 				RETURN_TSTRING(escaped);
 				return;
 			}
@@ -5671,13 +5351,13 @@ void PF_sqlescape (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 void PF_sqlversion (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	sqlserver_t *server;
-	
-	if (sqlavailable)
+
+	if (SQL_Available())
 	{
 		server = SQL_GetServer(G_FLOAT(OFS_PARM0), false);
 		if (server)
 		{
-			RETURN_TSTRING(va("mysql: %s", mysql_get_client_info()));
+			RETURN_TSTRING(SQL_Info(server));
 			return;
 		}
 	}
@@ -5685,269 +5365,18 @@ void PF_sqlversion (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_TSTRING("");
 }
 
-// SQL related commands
-void SQL_Status_f(void)
-{
-	int i;
-
-	Con_Printf("%i connections\n", sqlservercount);
-	for (i = 0; i < sqlservercount; i++)
-	{
-		int reqnum = 0;
-		int resnum = 0;
-		queryrequest_t *qreq;
-		queryresult_t *qres;
-
-		sqlserver_t *server = sqlservers[i];
-
-		Sys_LockMutex(server->resultlock);
-		Sys_LockConditional(server->requestcondv);
-		for (qreq = server->requests; qreq; qreq = qreq->next)
-			reqnum++;
-		for (qres = server->results; qres; qres = qres->next)
-			resnum++;
-
-		Con_Printf("#%i %s@%s: %s\n",
-			i,
-			server->connectparams[1],
-			server->connectparams[0],
-			server->active ? "active" : "inactive");
-
-		if (reqnum)
-		{
-			Con_Printf ("- %i requests\n");
-			for (qreq = server->requests; qreq; qreq = qreq->next)
-			{
-				Con_Printf ("  query #%i: %s\n",
-					qreq->num,
-					qreq->query);
-				// TODO: function lookup?
-			}
-		}
-
-		if (resnum)
-		{
-			Con_Printf ("- %i results\n");
-			for (qres = server->results; qres; qres = qres->next)
-			{
-				Con_Printf ("  * %i rows, %i columns", 
-					qres->rows,
-					qres->columns);
-				if (qres->error[0])
-					Con_Printf(", error %s\n", qres->error);
-				else
-					Con_Printf("\n");
-				// TODO: request info?
-			}
-		}
-
-		if (server->serverresult)
-			Con_Printf ("server result: error %s\n", server->serverresult->error);
-
-		// TODO: list all requests, results here
-		Sys_UnlockMutex(server->resultlock);
-		Sys_UnlockConditional(server->requestcondv);
-	}
-}
-
-void SQL_Kill_f (void)
-{
-	sqlserver_t *server;
-
-	if (Cmd_Argc() < 2)
-	{
-		Con_Printf ("Syntax: %s serverid\n", Cmd_Argv(0));
-		return;
-	}
-
-	server = SQL_GetServer(atoi(Cmd_Argv(1)), false);
-	if (server)
-	{
-		server->active = false;
-		Sys_ConditionBroadcast(server->requestcondv);
-		return;
-	}
-}
-
-void SQL_Killall_f (void)
-{
-	SQL_KillServers();
-}
-
-// SQL cycle logic
-void SQL_Cycle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int i;
-
-	for (i = 0; i < sqlservercount; i++)
-	{
-		sqlserver_t *server = sqlservers[i];
-		queryresult_t *qres;
-
-		while (qres = SQL_PullResult(server))
-		{
-			qres->next = NULL;
-			if (qres->request && qres->request->callback)
-			{
-				if (server->active)
-				{ // only process results to callback if server is active
-					edict_t *ent;
-
-					server->currentresult = qres;
-					G_FLOAT(OFS_PARM0) = i;
-					G_FLOAT(OFS_PARM1) = qres->request->num;
-					G_FLOAT(OFS_PARM2) = qres->rows;
-					G_FLOAT(OFS_PARM3) = qres->columns;
-					G_FLOAT(OFS_PARM4) = qres->eof;
-
-					// recall self and other references
-					ent = PROG_TO_EDICT(prinst, qres->request->selfent);
-					if (ent->isfree || ent->xv->uniquespawnid != qres->request->selfid)
-						pr_global_struct->self = pr_global_struct->world;
-					else
-						pr_global_struct->self = qres->request->selfent;
-					ent = PROG_TO_EDICT(prinst, qres->request->otherent);
-					if (ent->isfree || ent->xv->uniquespawnid != qres->request->otherid)
-						pr_global_struct->other = pr_global_struct->world;
-					else
-						pr_global_struct->other = qres->request->otherent;
-
-					PR_ExecuteProgram(prinst, qres->request->callback);
-
-					if (qres->eof)
-					{
-						if (server->currentresult)
-						{
-							if (server->currentresult->request && server->currentresult->request->persistant)
-							{
-								// move into persistant list
-								server->currentresult->next = server->persistresults;
-								server->persistresults = server->currentresult;
-							}
-							else // just close the query
-								SQL_CloseResult(server, server->currentresult);
-						}
-					}
-					// TODO: else we move a request back into the queue?
-				}
-			}
-			else // error or server-only result
-			{
-				if (server->serverresult)
-					Z_Free(server->serverresult);
-				server->serverresult = qres;
-			}
-		}
-		server->currentresult = NULL;
-	}
-}
-
 void PR_SQLCycle(void)
 {
 	globalvars_t *pr_globals;
 
-	if (!sqlavailable || !svprogfuncs)
+	if (!SQL_Available() || !svprogfuncs)
 		return;
 
 	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 
-	SQL_Cycle(svprogfuncs, pr_globals);
-}
-
-void SQL_MYSQLInit(void)
-{
-#ifdef WIN32
-	if (!mysql_dll_init())
-	{
-		Con_Printf("mysqlclient.dll didn't load\n");
-		return;
-	}
-#endif
-
-	if (mysql_thread_safe())
-	{
-		if (!mysql_library_init(0, NULL, NULL))
-		{
-			Con_Printf("MYSQL backend loaded\n");
-			sqlavailable = true;
-			return;
-		}
-		else
-			Con_Printf("MYSQL library init failed!\n");
-	}
-	else
-		Con_Printf("MYSQL client is not thread safe!\n");
-
-	mysql_dll_close();
-	sqlavailable = false;
-}
-
-void SQL_Init(void)
-{
-	Cmd_AddCommand ("sqlstatus", SQL_Status_f);
-	Cmd_AddCommand ("sqlkill", SQL_Kill_f);
-	Cmd_AddCommand ("sqlkillall", SQL_Killall_f);
-
-	Cvar_Register(&sql_driver, SQLCVAROPTIONS);
-	Cvar_Register(&sql_host, SQLCVAROPTIONS);
-	Cvar_Register(&sql_username, SQLCVAROPTIONS);
-	Cvar_Register(&sql_password, SQLCVAROPTIONS);
-	Cvar_Register(&sql_defaultdb, SQLCVAROPTIONS);
-
-	SQL_MYSQLInit();
-}
-
-void SQL_KillServers(void)
-{
-	int i;
-	for (i = 0; i < sqlservercount; i++)
-	{
-		sqlserver_t *server = sqlservers[i];
-		queryrequest_t *qreq, *oldqreq;
-
-		server->active = false; // set thread to kill itself
-		Sys_ConditionBroadcast(server->requestcondv); // force condition check
-		Sys_WaitOnThread(server->thread); // wait on thread to die
-
-		// server resource deallocation (TODO: should this be done in the thread itself?)
-		Sys_DestroyConditional(server->requestcondv);
-		Sys_DestroyMutex(server->resultlock);
-		
-		// close orphaned requests
-		qreq = server->requests;
-		while (qreq)
-		{
-			oldqreq = qreq;
-			qreq = qreq->next;
-			Z_Free(oldqreq);
-		}
-
-		SQL_CloseAllResults(server);
-
-		// the alloc'ed connect params should get deallocated by the thread
-		if (server->connectparams)
-			BZ_Free(server->connectparams);
-
-		Z_Free(server);
-	}
-	if (sqlservers)
-		Z_Free(sqlservers);
-	sqlservers = NULL;
-	sqlservercount = 0;
-}
-
-void SQL_DeInit(void)
-{
-	sqlavailable = false;
-
-	SQL_KillServers();
-
-	mysql_library_end();
-
-	mysql_dll_close();
+	SQL_ServerCycle(svprogfuncs, pr_globals);
 }
 #endif
-
 
 
 
@@ -6037,7 +5466,7 @@ returns true if the extension is supported by the server
 checkextension(string extensionname, [entity client])
 =================
 */
-void PF_checkextension (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_checkextension (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	lh_extension_t *ext = NULL;
 	char *s = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -6048,7 +5477,7 @@ void PF_checkextension (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		if (*svprogfuncs->callargc == 2)
 		{
 			int clnum = NUM_FOR_EDICT(prinst, G_EDICT(prinst, OFS_PARM1));
-			if (clnum >= 1 && clnum <= MAX_CLIENTS)	//valid client as second parameter
+			if (clnum >= 1 && clnum <= sv.allocated_client_slots)	//valid client as second parameter
 			{
 				ext = checkfteextensioncl(svs.clients[clnum-1].fteprotocolextensions, s);
 			}
@@ -6079,8 +5508,8 @@ void PF_checkextension (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			}
 		}
 
-		if (ext->enabled)
-			*ext->enabled = true;
+		if (ext->queried)
+			*ext->queried = true;
 
 		G_FLOAT(OFS_RETURN) = true;
 		Con_DPrintf("Extension %s is supported\n", s);
@@ -6090,7 +5519,7 @@ void PF_checkextension (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 
-void PF_builtinsupported (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_builtinsupported (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *s = PR_GetStringOfs(prinst, OFS_PARM0);
 
@@ -6101,7 +5530,7 @@ void PF_builtinsupported (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 
 //mvdsv builtins.
-void PF_ExecuteCommand  (progfuncs_t *prinst, struct globalvars_s *pr_globals)	//83		//void() exec;
+void QCBUILTIN PF_ExecuteCommand  (progfuncs_t *prinst, struct globalvars_s *pr_globals)	//83		//void() exec;
 {
 	int old_other, old_self; // mod_consolecmd will be executed, so we need to store this
 
@@ -6122,7 +5551,7 @@ string teamfield(.string field)
 =================
 */
 
-void PF_teamfield (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_teamfield (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	pr_teamfield = G_INT(OFS_PARM0)+prinst->fieldadjust;
 }
@@ -6135,7 +5564,7 @@ string substr(string str, float start, float len)
 =================
 */
 
-void PF_substr (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_substr (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char dest[4096];
 	char *s;
@@ -6176,7 +5605,7 @@ float str2byte (string str)
 =================
 */
 
-void PF_str2byte (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_str2byte (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_FLOAT(OFS_RETURN) = (float) *PR_GetStringOfs(prinst, OFS_PARM0);
 }
@@ -6189,7 +5618,7 @@ float str2short (string str)
 =================
 */
 
-void PF_str2short (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_str2short (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_FLOAT(OFS_RETURN) = (float) LittleShort(*(short*)PR_GetStringOfs(prinst, OFS_PARM0));
 }
@@ -6202,7 +5631,7 @@ string readmcmd (string str)
 =================
 */
 
-void PF_readcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_readcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *s;
 	static char output[8000];
@@ -6242,7 +5671,7 @@ void redirectcmd (entity to, string str)
 =================
 */
 /*
-void PF_redirectcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_redirectcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *s;
 	int entnum;
@@ -6252,7 +5681,7 @@ void PF_redirectcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 
 	entnum = G_EDICTNUM(OFS_PARM0);
-	if (entnum < 1 || entnum > MAX_CLIENTS)
+	if (entnum < 1 || entnum > sv.allocated_client_slots)
 		PR_RunError ("Parm 0 not a client");
 
 	s = G_STRING(OFS_PARM1);
@@ -6264,7 +5693,7 @@ void PF_redirectcmd (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	SV_EndRedirect();
 }*/
 
-void PF_calltimeofday (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_calltimeofday (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	date_t date;
 	func_t f;
@@ -6297,7 +5726,7 @@ if argument 'now' is set, frame is written instantly
 =================
 */
 
-void PF_forcedemoframe (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_forcedemoframe (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	demo.forceFrame = 1;
 //	if (G_FLOAT(OFS_PARM0) == 1)
@@ -6314,7 +5743,7 @@ FIXME: check for null pointers first?
 =================
 */
 
-void PF_MVDSV_strcpy (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_MVDSV_strcpy (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *src = PR_GetStringOfs(prinst, OFS_PARM1);
 	char *dest = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -6345,7 +5774,7 @@ FIXME: check for null pointers first?
 =================
 */
 
-void PF_MVDSV_strncpy (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_MVDSV_strncpy (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	strncpy(PR_GetStringOfs(prinst, OFS_PARM0), PR_GetStringOfs(prinst, OFS_PARM1), (int) G_FLOAT(OFS_PARM2));
 }
@@ -6359,7 +5788,7 @@ string strstr(string str, string sub)
 =================
 */
 
-void PF_strstr (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_strstr (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *str, *sub, *p;
 
@@ -6375,39 +5804,39 @@ void PF_strstr (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_TSTRING(p);
 }
 
-char readable2[256] = 
+char readable2[256] =
 {
-	'.', '_', '_', '_', '_', '.', '_', '_', 
-	'_', '_', '\n', '_', '\n', '>', '.', '.', 
-	'[', ']', '0', '1', '2', '3', '4', '5', 
-	'6', '7', '8', '9', '.', '_', '_', '_', 
-	' ', '!', '\"', '#', '$', '%', '&', '\'', 
-	'(', ')', '*', '+', ',', '-', '.', '/', 
-	'0', '1', '2', '3', '4', '5', '6', '7', 
-	'8', '9', ':', ';', '<', '=', '>', '?', 
-	'@', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 
-	'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 
-	'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 
-	'X', 'Y', 'Z', '[', '\\', ']', '^', '_', 
-	'`', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 
-	'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 
-	'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 
-	'x', 'y', 'z', '{', '|', '}', '~', '_', 
-	'_', '_', '_', '_', '_', '.', '_', '_', 
-	'_', '_', '_', '_', '_', '>', '.', '.', 
-	'[', ']', '0', '1', '2', '3', '4', '5', 
-	'6', '7', '8', '9', '.', '_', '_', '_', 
-	' ', '!', '\"', '#', '$', '%', '&', '\'', 
-	'(', ')', '*', '+', ',', '-', '.', '/', 
-	'0', '1', '2', '3', '4', '5', '6', '7', 
-	'8', '9', ':', ';', '<', '=', '>', '?', 
-	'@', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 
-	'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 
-	'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 
-	'X', 'Y', 'Z', '[', '\\', ']', '^', '_', 
-	'`', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 
-	'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 
-	'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 
+	'.', '_', '_', '_', '_', '.', '_', '_',
+	'_', '_', '\n', '_', '\n', '>', '.', '.',
+	'[', ']', '0', '1', '2', '3', '4', '5',
+	'6', '7', '8', '9', '.', '_', '_', '_',
+	' ', '!', '\"', '#', '$', '%', '&', '\'',
+	'(', ')', '*', '+', ',', '-', '.', '/',
+	'0', '1', '2', '3', '4', '5', '6', '7',
+	'8', '9', ':', ';', '<', '=', '>', '?',
+	'@', 'A', 'B', 'C', 'D', 'E', 'F', 'G',
+	'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
+	'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
+	'X', 'Y', 'Z', '[', '\\', ']', '^', '_',
+	'`', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
+	'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
+	'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
+	'x', 'y', 'z', '{', '|', '}', '~', '_',
+	'_', '_', '_', '_', '_', '.', '_', '_',
+	'_', '_', '_', '_', '_', '>', '.', '.',
+	'[', ']', '0', '1', '2', '3', '4', '5',
+	'6', '7', '8', '9', '.', '_', '_', '_',
+	' ', '!', '\"', '#', '$', '%', '&', '\'',
+	'(', ')', '*', '+', ',', '-', '.', '/',
+	'0', '1', '2', '3', '4', '5', '6', '7',
+	'8', '9', ':', ';', '<', '=', '>', '?',
+	'@', 'A', 'B', 'C', 'D', 'E', 'F', 'G',
+	'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
+	'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
+	'X', 'Y', 'Z', '[', '\\', ']', '^', '_',
+	'`', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
+	'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
+	'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
 	'x', 'y', 'z', '{', '|', '}', '~', '_'
 };
 
@@ -6425,7 +5854,7 @@ void log(string name, float console, string text)
 =================
 */
 
-void PF_log(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_log(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char name[MAX_OSPATH], *text;
 	vfsfile_t *file;
@@ -6451,9 +5880,9 @@ void PF_log(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 
 #ifdef Q2BSPS
-void PF_OpenPortal	(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_OpenPortal	(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	if (sv.worldmodel->fromgame == fg_quake2)
+	if (sv.world.worldmodel->fromgame == fg_quake2)
 	{
 		int i, portal	= G_FLOAT(OFS_PARM0);
 		int state	= G_FLOAT(OFS_PARM1)!=0;
@@ -6479,15 +5908,15 @@ void PF_OpenPortal	(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //void(entity from, entity to) copyentity = #400
 //copies data from one entity to another
-static void PF_copyentity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_copyentity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t *in, *out;
 
 	in = G_EDICT(prinst, OFS_PARM0);
 	out = G_EDICT(prinst, OFS_PARM1);
 
-	memcpy(out->v, in->v, pr_edict_size);
-	SV_LinkEdict(out, false);
+	memcpy(out->v, in->v, sv.world.edict_size);
+	World_LinkEdict(&sv.world, (wedict_t*)out, false);
 }
 
 
@@ -6495,7 +5924,7 @@ static void PF_copyentity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //entity(string field, string match) findchain = #402
 //chained search for strings in entity fields
-void PF_sv_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_sv_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i, f;
 	char *s;
@@ -6529,7 +5958,7 @@ void PF_sv_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //entity(string field, float match) findchainfloat = #403
 //chained search for float, int, and entity reference fields
-void PF_sv_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_sv_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i, f;
 	float s;
@@ -6559,7 +5988,7 @@ void PF_sv_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //entity(string field, float match) findchainflags = #450
 //chained search for float, int, and entity reference fields
-void PF_sv_findchainflags (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_sv_findchainflags (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int i, f;
 	int s;
@@ -6589,7 +6018,7 @@ void PF_sv_findchainflags (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //void(vector dir) vectorvectors = #432
 //Writes new values for v_forward, v_up, and v_right based on the given forward vector
-static void PF_vectorvectors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_vectorvectors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	VectorCopy(G_VECTOR(OFS_PARM0), P_VEC(v_forward));
 	VectorNormalize(P_VEC(v_forward));
@@ -6600,7 +6029,7 @@ static void PF_vectorvectors (progfuncs_t *prinst, struct globalvars_s *pr_globa
 
 //void(entity e, string s) clientcommand = #440
 //executes a command string as if it came from the specified client
-void PF_clientcommand (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_clientcommand (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	client_t *temp_client;
 	int i;
@@ -6627,12 +6056,7 @@ void PF_clientcommand (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 
-
-
-
-
-
-void PF_AdvanceFrame(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_h2AdvanceFrame(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t *Ent;
 	float Start,End,Result;
@@ -6677,7 +6101,7 @@ void PF_AdvanceFrame(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = Result;
 }
 
-void PF_RewindFrame(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_h2RewindFrame(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t *Ent;
 	float Start,End,Result;
@@ -6711,7 +6135,7 @@ void PF_RewindFrame(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 #define WF_CYCLE_WRAPPED 2
 #define WF_LAST_FRAME 3
 
-void PF_advanceweaponframe (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_h2advanceweaponframe (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t *ent;
 	float startframe,endframe;
@@ -6748,13 +6172,18 @@ void PF_advanceweaponframe (progfuncs_t *prinst, struct globalvars_s *pr_globals
 	G_FLOAT(OFS_RETURN) = state;
 }
 
-void PR_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc)
+void PRH2_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc)
 {
 	char		temp[16];
 	if (classnum < 1)
 		return;	//reject it (it would crash the (standard hexen2) mod)
 	if (classnum > 5)
 		return;
+
+	/*ignore it if they already have a class, this fixes some h2mp crashes*/
+	if (cl->playerclass)
+		return;
+
 	if (cl->playerclass != classnum)
 	{
 		cl->edict->xv->playerclass = classnum;
@@ -6775,7 +6204,7 @@ void PR_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc)
 	}
 }
 
-void PF_setclass (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_h2setclass (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float		NewClass;
 	int			entnum;
@@ -6800,11 +6229,11 @@ void PF_setclass (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	client->playerclass = NewClass;
 
 	sprintf(temp,"%d",(int)NewClass);
-	Info_SetValueForKey (client->userinfo, "playerclass", temp, sizeof(client->userinfo));
+	Info_SetValueForKey (client->userinfo, "cl_playerclass", temp, sizeof(client->userinfo));
 	client->sendinfo = true;
 }
 
-void PF_v_factor(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_h2v_factor(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 // returns (v_right * factor_x) + (v_forward * factor_y) + (v_up * factor_z)
 {
 	float *range;
@@ -6827,7 +6256,7 @@ void PF_v_factor(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	VectorCopy (result, G_VECTOR(OFS_RETURN));
 }
 
-void PF_v_factorrange(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_h2v_factorrange(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 // returns (v_right * factor_x) + (v_forward * factor_y) + (v_up * factor_z)
 {
 	float num,*minv,*maxv;
@@ -6859,30 +6288,27 @@ void PF_v_factorrange(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 char *T_GetString(int num);
-void PF_plaque_draw(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_h2plaque_draw(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char		*s;
 
+#ifdef SERVER_DEMO_PLAYBACK
 	if (sv.demofile)
 		return;
+#endif
 
 	if (G_FLOAT(OFS_PARM1) == 0)
 		s = "";
 	else
+	{
 		s = T_GetString(G_FLOAT(OFS_PARM1)-1);
+	}
 
 	if (G_FLOAT(OFS_PARM0) == MSG_ONE)
 	{
-		client_t *cl = Write_GetClient();
-		if (!cl)
-			return;
-		ClientReliableWrite_Begin (cl, svc_centerprint, 4 + strlen(s));
-		if (*s)
-		{
-			ClientReliableWrite_Byte (cl, '/');
-			ClientReliableWrite_Byte (cl, 'P');
-		}
-		ClientReliableWrite_String (cl, s);
+		edict_t *ent;
+		ent = PROG_TO_EDICT(svprogfuncs, pr_global_struct->msg_entity);
+		PF_centerprint_Internal(NUM_FOR_EDICT(svprogfuncs, ent), true, s);
 	}
 	else
 	{
@@ -6905,7 +6331,7 @@ void PF_plaque_draw(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 }
 
-void PF_movestep (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_h2movestep (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	vec3_t v;
 	edict_t	*ent;
@@ -6922,13 +6348,13 @@ void PF_movestep (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 // save program state, because SV_movestep may call other progs
 	oldself = pr_global_struct->self;
 
-	G_INT(OFS_RETURN) = SV_movestep (ent, v, false, true, set_trace?pr_globals:NULL);
+	G_INT(OFS_RETURN) = World_movestep (&sv.world, (wedict_t*)ent, v, false, true, set_trace?set_trace_globals:NULL, pr_globals);
 
 // restore program state
 	pr_global_struct->self = oldself;
 }
 
-void PF_concatv(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_h2concatv(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *in,*range;
 	vec3_t result;
@@ -6947,7 +6373,7 @@ void PF_concatv(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	VectorCopy (result, G_VECTOR(OFS_RETURN));
 }
 
-void PF_matchAngleToSlope(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_h2matchAngleToSlope(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*actor;
 	vec3_t v_forward, old_forward, old_right, new_angles2 = { 0, 0, 0 };
@@ -6978,32 +6404,591 @@ void PF_matchAngleToSlope(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	actor->v->angles[0] = dot*pitch;
 	actor->v->angles[2] = (1-fabs(dot))*pitch*mod;
 }
-
-void PF_starteffect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+/*objective type stuff, this goes into a stat*/
+static void QCBUILTIN PF_h2updateinfoplaque(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	Con_DPrintf("Start effect %i\n", (int)G_FLOAT(OFS_PARM0));
+	unsigned int idx = G_FLOAT(OFS_PARM0);
+	int mode = G_FLOAT(OFS_PARM1);	/*0=toggle, 1=force, 2=clear*/
+
+	if (idx >= sizeof(h2infoplaque)*8)
+		return;
+
+	if ((mode & 3) == 3)
+		/*idiot*/;
+	else if (mode & 1)
+		h2infoplaque[idx/32] |= 1<<(idx&31);
+	else if (mode & 2)
+		h2infoplaque[idx/32] &=~(1<<(idx&31));
+	else
+		h2infoplaque[idx/32] ^= 1<<(idx&31);
 }
 
-void PF_endeffect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+enum
+{
+	ce_none,
+	ce_rain,
+	ce_fountain,
+	ce_quake,
+	ce_white_smoke,
+	ce_bluespark,
+	ce_yellowspark,
+	ce_sm_circle_exp,
+	ce_bg_circle_exp,
+	ce_sm_white_flash,
+	ce_white_flash		= 10,
+	ce_yellowred_flash,
+	ce_blue_flash,
+	ce_sm_blue_flash,
+	ce_red_flash,
+	ce_sm_explosion,
+	ce_lg_explosion,
+	ce_floor_explosion,
+	ce_rider_death,
+	ce_blue_explosion,
+	ce_green_smoke		= 20,
+	ce_grey_smoke,
+	ce_red_smoke,
+	ce_slow_white_smoke,
+	ce_redspark,
+	ce_greenspark,
+	ce_telesmk1,
+	ce_telesmk2,
+	ce_icehit,
+	ce_medusa_hit,
+	ce_mezzo_reflect	= 30,
+	ce_floor_explosion2,
+	ce_xbow_explosion,
+	ce_new_explosion,
+	ce_magic_missile_explosion,
+	ce_ghost,
+	ce_bone_explosion,
+	ce_redcloud,
+	ce_teleporterpuffs,
+	ce_teleporterbody,
+	ce_boneshard		= 40,
+	ce_boneshrapnel,
+	ce_flamestream,
+	ce_snow,
+	ce_gravitywell,
+	ce_bldrn_expl,
+	ce_acid_muzzfl,
+	ce_acid_hit,
+	ce_firewall_small,
+	ce_firewall_medium,
+	ce_firewall_large	= 50,
+	ce_lball_expl,
+	ce_acid_splat,
+	ce_acid_expl,
+	ce_fboom,
+	ce_chunk,
+	ce_bomb,
+	ce_brn_bounce,
+	ce_lshock,
+	ce_flamewall,
+	ce_flamewall2		= 60,
+	ce_floor_explosion3,
+	ce_onfire,
+
+
+	/*internal effects, here for indexes*/
+
+	ce_teleporterbody_1,	/*de-sheeped*/
+	ce_white_smoke_05,
+	ce_white_smoke_10,
+	ce_white_smoke_15,
+	ce_white_smoke_20,
+	ce_white_smoke_50,
+	ce_green_smoke_05,
+	ce_green_smoke_10,
+	ce_green_smoke_15,
+	ce_green_smoke_20,
+	ce_grey_smoke_15,
+	ce_grey_smoke_100,
+
+	ce_max
+};
+int h2customtents[ce_max];
+void SV_RegisterH2CustomTents(void)
+{
+	int i;
+	for (i = 0; i < ce_max; i++)
+		h2customtents[i] = -1;
+
+	if (progstype == PROG_H2)
+	{
+
+//	ce_rain
+//	ce_fountain
+		h2customtents[ce_quake]				= SV_CustomTEnt_Register("ce_quake",			0, NULL, 0, NULL, 0, 0, NULL);
+//	ce_white_smoke
+		h2customtents[ce_bluespark]			= SV_CustomTEnt_Register("ce_bluespark",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_yellowspark]		= SV_CustomTEnt_Register("ce_yellowspark",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_sm_circle_exp]		= SV_CustomTEnt_Register("ce_sm_circle_exp",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_bg_circle_exp]		= SV_CustomTEnt_Register("ce_bg_circle_exp",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_sm_white_flash]	= SV_CustomTEnt_Register("ce_sm_white_flash",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_white_flash]		= SV_CustomTEnt_Register("ce_white_flash",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_yellowred_flash]	= SV_CustomTEnt_Register("ce_yellowred_flash",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_blue_flash]		= SV_CustomTEnt_Register("ce_blue_flash",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_sm_blue_flash]		= SV_CustomTEnt_Register("ce_sm_blue_flash",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_red_flash]			= SV_CustomTEnt_Register("ce_red_flash",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_sm_explosion]		= SV_CustomTEnt_Register("ce_sm_explosion",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_lg_explosion]		= SV_CustomTEnt_Register("ce_lg_explosion",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_floor_explosion]	= SV_CustomTEnt_Register("ce_floor_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_rider_death]		= SV_CustomTEnt_Register("ce_rider_death",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_blue_explosion]	= SV_CustomTEnt_Register("ce_blue_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
+//	ce_green_smoke
+//	ce_grey_smoke
+		h2customtents[ce_red_smoke]			= SV_CustomTEnt_Register("ce_red_smoke",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_slow_white_smoke]	= SV_CustomTEnt_Register("ce_slow_white_smoke",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_redspark]			= SV_CustomTEnt_Register("ce_redspark",			0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_greenspark]		= SV_CustomTEnt_Register("ce_greenspark",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_telesmk1]			= SV_CustomTEnt_Register("ce_telesmk1",			CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_telesmk2]			= SV_CustomTEnt_Register("ce_telesmk2",			CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_icehit]			= SV_CustomTEnt_Register("ce_icehit",			0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_medusa_hit]		= SV_CustomTEnt_Register("ce_medusa_hit",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_mezzo_reflect]		= SV_CustomTEnt_Register("ce_mezzo_reflect",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_floor_explosion2]	= SV_CustomTEnt_Register("ce_floor_explosion2",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_xbow_explosion]	= SV_CustomTEnt_Register("ce_xbow_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_new_explosion]		= SV_CustomTEnt_Register("ce_new_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_magic_missile_explosion]	= SV_CustomTEnt_Register("ce_magic_missile_explosion", 0, NULL, 0, NULL, 0, 0, NULL);
+//	ce_ghost
+		h2customtents[ce_bone_explosion]	= SV_CustomTEnt_Register("ce_bone_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
+//	ce_redcloud
+		h2customtents[ce_teleporterpuffs]	= SV_CustomTEnt_Register("ce_teleporterpuffs",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_teleporterbody]	= SV_CustomTEnt_Register("ce_teleporterbody",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+//	ce_boneshard
+//	ce_boneshrapnel
+		h2customtents[ce_flamestream]		= SV_CustomTEnt_Register("ce_flamestream",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+//	ce_snow,
+		h2customtents[ce_gravitywell]		= SV_CustomTEnt_Register("ce_gravitywell",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_bldrn_expl]		= SV_CustomTEnt_Register("ce_bldrn_expl",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_acid_muzzfl]		= SV_CustomTEnt_Register("ce_acid_muzzfl",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_acid_hit]			= SV_CustomTEnt_Register("ce_acid_hit",			0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_firewall_small]	= SV_CustomTEnt_Register("ce_firewall_small",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_firewall_medium]	= SV_CustomTEnt_Register("ce_firewall_medium",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_firewall_large]	= SV_CustomTEnt_Register("ce_firewall_large",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_lball_expl]		= SV_CustomTEnt_Register("ce_lball_expl",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_acid_splat]		= SV_CustomTEnt_Register("ce_acid_splat",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_acid_expl]			= SV_CustomTEnt_Register("ce_acid_expl",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_fboom]				= SV_CustomTEnt_Register("ce_fboom",			0, NULL, 0, NULL, 0, 0, NULL);
+//	ce_chunk
+		h2customtents[ce_bomb]				= SV_CustomTEnt_Register("ce_bomb",				0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_brn_bounce]		= SV_CustomTEnt_Register("ce_brn_bounce",		0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_lshock]			= SV_CustomTEnt_Register("ce_lshock",			0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_flamewall]			= SV_CustomTEnt_Register("ce_flamewall",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_flamewall2]		= SV_CustomTEnt_Register("ce_flamewall2",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_floor_explosion3]	= SV_CustomTEnt_Register("ce_floor_explosion3",	0, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_onfire]			= SV_CustomTEnt_Register("ce_onfire",			CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+
+
+
+		h2customtents[ce_teleporterbody_1]	= SV_CustomTEnt_Register("ce_teleporterbody_1",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_white_smoke_05]	= SV_CustomTEnt_Register("ce_white_smoke_05",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_white_smoke_10]	= SV_CustomTEnt_Register("ce_white_smoke_10",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_white_smoke_15]	= SV_CustomTEnt_Register("ce_white_smoke_15",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_white_smoke_20]	= SV_CustomTEnt_Register("ce_white_smoke_20",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_white_smoke_50]	= SV_CustomTEnt_Register("ce_white_smoke_50",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_green_smoke_05]	= SV_CustomTEnt_Register("ce_green_smoke_05",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_green_smoke_10]	= SV_CustomTEnt_Register("ce_green_smoke_10",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_green_smoke_15]	= SV_CustomTEnt_Register("ce_green_smoke_15",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_green_smoke_20]	= SV_CustomTEnt_Register("ce_green_smoke_20",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_grey_smoke_15]		= SV_CustomTEnt_Register("ce_grey_smoke_15",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_grey_smoke_100]	= SV_CustomTEnt_Register("ce_grey_smoke_100",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+	}
+}
+static void QCBUILTIN PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+//	float *min, *max, *angle, *size;
+//	float colour, wait, radius, frame, framelength, duration;
+//	int flags, type, skin;
+	float *org, *dir;
+	int count;
+
+	int efnum = G_FLOAT(OFS_PARM0);
+	G_FLOAT(OFS_RETURN) = 0;
+	switch(efnum)
+	{
+	case ce_rain:
+		//min = G_VECTOR(OFS_PARM1);
+		//max = G_VECTOR(OFS_PARM2);
+		//size = G_VECTOR(OFS_PARM3);
+		//dir = G_VECTOR(OFS_PARM4);
+		//colour = G_FLOAT(OFS_PARM5);
+		//count = G_FLOAT(OFS_PARM6);
+		//wait = G_FLOAT(OFS_PARM7);
+		/*FIXME: not spawned - this persistant effect is created by a map object, all attributes are custom.*/
+
+		Con_Printf("FTE-H2 FIXME: ce_rain not supported!\n");
+		return;
+		break;
+	case ce_snow:
+		//min = G_VECTOR(OFS_PARM1);
+		//max = G_VECTOR(OFS_PARM2);
+		//flags = G_FLOAT(OFS_PARM3);
+		//dir = G_VECTOR(OFS_PARM4);
+		//count = G_FLOAT(OFS_PARM5);
+		/*FIXME: not spawned - this persistant effect is created by a map object (might be delay-spawned), all attributes are custom.*/
+		Con_Printf("FTE-H2 FIXME: ce_snow not supported!\n");
+		return;
+		break;
+	case ce_fountain:
+		//org = G_VECTOR(OFS_PARM1);
+		//angle = G_VECTOR(OFS_PARM2);
+		//dir = G_VECTOR(OFS_PARM3);
+		//colour = G_FLOAT(OFS_PARM4);
+		//count = G_FLOAT(OFS_PARM5);
+		/*FIXME: not spawned - this persistant effect is created by a map object, all attributes are custom.*/
+		Con_Printf("FTE-H2 FIXME: ce_fountain not supported!\n");
+		return;
+		break;
+	case ce_quake:
+		org = G_VECTOR(OFS_PARM1);
+		//radius = G_FLOAT(OFS_PARM2);	/*discard: always 500/3 */
+
+		if (h2customtents[efnum] != -1)
+		{
+			SV_CustomTEnt_Spawn(h2customtents[efnum], org, NULL, 1, NULL);
+			return;
+		}
+		break;
+	case ce_white_smoke:		//(1,2,3,4,10)*0.05
+	case ce_green_smoke:		//(1,2,3,4)*0.05
+	case ce_grey_smoke:			//(3,20)*0.05
+		/*transform them to the correct durations*/
+		if (efnum == ce_white_smoke)
+		{
+			int ifl = G_FLOAT(OFS_PARM3) * 100;
+			if (ifl == 5)
+				efnum = ce_white_smoke_05;
+			else if (ifl == 10)
+				efnum = ce_white_smoke_10;
+			else if (ifl == 15)
+				efnum = ce_white_smoke_15;
+			else if (ifl == 20)
+				efnum = ce_white_smoke_20;
+			else if (ifl == 50)
+				efnum = ce_white_smoke_50;
+		}
+		else if (efnum == ce_green_smoke)
+		{
+			int ifl = G_FLOAT(OFS_PARM3) * 100;
+			if (ifl == 05)
+				efnum = ce_green_smoke_05;
+			else if (ifl == 10)
+				efnum = ce_green_smoke_10;
+			else if (ifl == 15)
+				efnum = ce_green_smoke_15;
+			else if (ifl == 20)
+				efnum = ce_green_smoke_20;
+		}
+		else
+		{
+			int ifl = G_FLOAT(OFS_PARM3) * 100;
+			if (ifl == 15)
+				efnum = ce_grey_smoke_15;
+			if (ifl == 100)
+				efnum = ce_grey_smoke_100;
+		}
+		/*fallthrough*/
+	case ce_red_smoke:			//0.15
+	case ce_slow_white_smoke:	//0
+	case ce_telesmk1:			//0.15
+	case ce_telesmk2:			//not used
+	case ce_ghost:				//0.1
+	case ce_redcloud:			//0.05
+		org = G_VECTOR(OFS_PARM1);
+		dir = G_VECTOR(OFS_PARM2);
+		//framelength = G_FLOAT(OFS_PARM3);	/*FIXME: validate for the other effects?*/
+
+		if (h2customtents[efnum] != -1)
+		{
+			SV_CustomTEnt_Spawn(h2customtents[efnum], org, NULL, 1, dir);
+			return;
+		}
+		break;
+	case ce_acid_muzzfl:
+	case ce_flamestream:
+	case ce_flamewall:
+	case ce_flamewall2:
+	case ce_onfire:
+		org = G_VECTOR(OFS_PARM1);
+		dir = G_VECTOR(OFS_PARM2);
+		//frame = G_FLOAT(OFS_PARM3);			/*discard: h2 uses a fixed value for each effect (0, except for acid_muzzfl which is 0.05)*/
+
+		if (h2customtents[efnum] != -1)
+		{
+			SV_CustomTEnt_Spawn(h2customtents[efnum], org, NULL, 1, dir);
+			return;
+		}
+		break;
+	case ce_sm_white_flash:
+	case ce_yellowred_flash:
+	case ce_bluespark:
+	case ce_yellowspark:
+	case ce_sm_circle_exp:
+	case ce_bg_circle_exp:
+	case ce_sm_explosion:
+	case ce_lg_explosion:
+	case ce_floor_explosion:
+	case ce_floor_explosion3:
+	case ce_blue_explosion:
+	case ce_redspark:
+	case ce_greenspark:
+	case ce_icehit:
+	case ce_medusa_hit:
+	case ce_mezzo_reflect:
+	case ce_floor_explosion2:
+	case ce_xbow_explosion:
+	case ce_new_explosion:
+	case ce_magic_missile_explosion:
+	case ce_bone_explosion:
+	case ce_bldrn_expl:
+	case ce_acid_hit:
+	case ce_acid_splat:
+	case ce_acid_expl:
+	case ce_lball_expl:
+	case ce_firewall_small:
+	case ce_firewall_medium:
+	case ce_firewall_large:
+	case ce_fboom:
+	case ce_bomb:
+	case ce_brn_bounce:
+	case ce_lshock:
+	case ce_white_flash:
+	case ce_blue_flash:
+	case ce_sm_blue_flash:
+	case ce_red_flash:
+	case ce_rider_death:
+	case ce_teleporterpuffs:
+		org = G_VECTOR(OFS_PARM1);
+		if (h2customtents[efnum] != -1)
+		{
+			SV_CustomTEnt_Spawn(h2customtents[efnum], org, NULL, 1, NULL);
+			return;
+		}
+		break;
+	case ce_gravitywell:
+		org = G_VECTOR(OFS_PARM1);
+		//colour = G_FLOAT(OFS_PARM2);		/*discard: h2 uses a fixed random range*/
+		//duration = G_FLOAT(OFS_PARM3);	/*discard: h2 uses a fixed time limit*/
+
+		if (h2customtents[efnum] != -1)
+		{
+			SV_CustomTEnt_Spawn(h2customtents[efnum], org, NULL, 1, NULL);
+			return;
+		}
+		break;
+	case ce_teleporterbody:
+		org = G_VECTOR(OFS_PARM1);
+		dir = G_VECTOR(OFS_PARM2);
+		if (G_FLOAT(OFS_PARM3))	/*alternate*/
+			efnum = ce_teleporterbody_1;
+
+		if (h2customtents[efnum] != -1)
+		{
+			SV_CustomTEnt_Spawn(h2customtents[efnum], org, NULL, 1, dir);
+			return;
+		}
+		break;
+	case ce_boneshard:
+	case ce_boneshrapnel:
+		org = G_VECTOR(OFS_PARM1);
+		dir = G_VECTOR(OFS_PARM2);
+		//angle = G_VECTOR(OFS_PARM3);	/*discard: angle is a function of the dir*/
+		//avelocity = G_VECTOR(OFS_PARM4);/*discard: avelocity is a function of the dir*/
+
+		/*FIXME: persistant until removed*/
+		if (h2customtents[efnum] != -1)
+		{
+			SV_CustomTEnt_Spawn(h2customtents[efnum], org, NULL, 1, dir);
+			return;
+		}
+		break;
+	case ce_chunk:
+		org = G_VECTOR(OFS_PARM1);
+		//type = G_FLOAT(OFS_PARM2);	/*FIXME: discarded*/
+		dir = G_VECTOR(OFS_PARM3);
+		count = G_FLOAT(OFS_PARM4);
+
+		if (h2customtents[efnum] != -1)
+		{
+			SV_CustomTEnt_Spawn(h2customtents[efnum], org, NULL, count, dir);
+			return;
+		}
+
+		Con_Printf("FTE-H2 FIXME: ce_chunk not supported!\n");
+		return;
+
+
+		break;
+	default:
+		PR_BIError (prinst, "PF_h2starteffect: bad effect");
+		break;
+	}
+
+	Con_Printf("FTE-H2 FIXME: Effect %i doesn't have an effect registered\nTell Spike!\n", efnum);
+
+#if 0
+
+	switch((int)G_FLOAT(OFS_PARM0))
+	{
+	case 4:	//white_smoke
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/whtsmk1.spr"), 0, 5, 1/G_FLOAT(OFS_PARM3));
+		break;
+	case 6:	//yellowspark
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/spark.spr"), 0, 10, 20);
+		break;
+	case 7:	//sm_circle
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/fcircle.spr"), 0, 6, 20);
+		break;
+	case 9:	//sm_white_flash
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/sm_white.spr"), 0, 3, 20);
+		break;
+	case 11:	//yellowred_flash
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/yr_flsh.spr"), 0, 21, 20);
+		break;
+	case 13:	//sm_blue_flash
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/bluflash.spr"), 0, 5, 20);
+		break;
+	case 14:	//red_flash
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/redspt.spr"), 0, 5, 20);
+		break;
+	case 15:	//sm_explosion
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/sm_expld.spr"), 0, 12, 20);
+		break;
+	case 16:	//lg_explosion
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/bg_expld.spr"), 0, 12, 20);
+		break;
+	case 17:	//floor_explosion
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/fl_expld.spr"), 0, 20, 20);
+		break;
+	case 20:	//green_smoke
+		//parm1 = vel
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/grnsmk1.spr"), 0, 8, 1/G_FLOAT(OFS_PARM3));
+		break;
+	case 24:	//redspark
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/rspark.spr"), 0, 10, 20);
+		break;
+	case 25:	//greenspark
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/gspark.spr"), 0, 10, 20);
+		break;
+	case 26:	//telesmk1
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/telesmk1.spr"), 0, 4, 1/G_FLOAT(OFS_PARM3));
+		break;
+	case 28:	//icehit
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/icehit.spr"), 0, 6, 20);
+		break;
+	case 33:	//new_explosion
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/gen_expl.spr"), 0, 14, 20);
+		break;
+	case 34:	//magic_missile_explosion
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/mm_explod.spr"), 0, 50, 20);
+		break;
+	case 42:	//flamestream
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/flamestr.spr"), 0, 12, 20);
+		break;
+	case 45:	//bldrn_expl
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/xplsn_1.spr"), 0, 7, 20);
+		break;
+	case 47:	//acid_hit
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/axplsn_2.spr"), 0, 14, 20);
+		break;
+	case 48:	//firewall_small
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/firewal1.spr"), 0, 18, 20);
+		break;
+	case 49:	//firewall_medium
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/firewal5.spr"), 0, 30, 20);
+		break;
+	case 50:	//firewall_large
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/firewal4.spr"), 0, 29, 20);
+		break;
+	case 54:	//fboom
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/fboom.spr"), 0, 14, 20);
+		break;
+	case 56:	//bomb
+		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/pow.spr"), 0, 6, 20);
+		break;
+	case 5:		//bluespark
+	case 43:	//snow
+	case 46:	//acid_muzzfl
+	case 51:	//lball_expl
+	case 52:	//acid_splat
+	case 53:	//acid_expl
+	case 57:	//brn_bounce
+	case 58:	//lshock
+	case 38:	//teleporterpuffs
+	case 39:	//teleporterbody
+	case 62:	//onfire
+		break;
+
+
+	case 40:	//boneshard
+//		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/boneshot.mdl"), 0, 50, 20);
+//		break;
+
+	case 2:		//fountain
+	case 55:	//chunk
+		Con_DPrintf("Start unsupported effect %i\n", (int)G_FLOAT(OFS_PARM0));
+		break;
+
+
+	default:
+		Con_Printf("Start effect %i\n", (int)G_FLOAT(OFS_PARM0));
+		break;
+	}
+#endif
+}
+
+static void QCBUILTIN PF_h2endeffect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	Con_DPrintf("Stop effect %i\n", (int)G_FLOAT(OFS_PARM0));
 }
 
-void PF_rain_go(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_h2rain_go(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	/*
+	float *min = G_VECTOR(OFS_PARM0);
+	float *max = G_VECTOR(OFS_PMAR1);
+	float *size = G_VECTOR(OFS_PARM2);
+	float *dir = G_VECTOR(OFS_PARM3);
+	float colour = G_FLOAT(OFS_PARM4);
+	float count = G_FLOAT(OFS_PARM5);
+	*/
+	Con_DPrintf("rain go\n");
 }
 
-void PF_StopSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_h2StopSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	int			channel;
+	edict_t		*entity;
+
+	entity = G_EDICT(prinst, OFS_PARM0);
+	channel = G_FLOAT(OFS_PARM1);
+
+	SVQ1_StartSound (entity, channel, "", 1, 0, 0);
 }
 
-void PF_getstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_h2updatesoundpos(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	Con_DPrintf("updatesoundpos\n");
+}
+
+static void QCBUILTIN PF_h2whiteflash(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	/*
+	broadcast a stuffcmd, I guess, to flash the screen white
+	Only seen this occur once: after killing pravus.
+	*/
+	Con_DPrintf("white flash\n");
+}
+
+static void QCBUILTIN PF_h2getstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *s = T_GetString(G_FLOAT(OFS_PARM0)-1);
 	RETURN_PSTRING(s);
 }
 
-void PF_RegisterTEnt(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_RegisterTEnt(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int arg;
 	int i;
@@ -7064,7 +7049,7 @@ void PF_RegisterTEnt(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_FLOAT(OFS_RETURN) = i;
 }
 
-void PF_CustomTEnt(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_CustomTEnt(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int type;
 	int arg;
@@ -7099,9 +7084,19 @@ void PF_CustomTEnt(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			MSG_WriteByte(&sv.multicast, G_FLOAT(OFS_PARM0+arg*3));
 			arg++;
 		}
-		if (type & CTE_CUSTOMDIRECTION)
+		if (type & CTE_CUSTOMVELOCITY)
 		{
-			MSG_WriteDir(&sv.multicast, G_VECTOR(OFS_PARM0+arg*3));
+			float *vel = G_VECTOR(OFS_PARM0+arg*3);
+			MSG_WriteCoord(&sv.multicast, vel[0]);
+			MSG_WriteCoord(&sv.multicast, vel[1]);
+			MSG_WriteCoord(&sv.multicast, vel[2]);
+			arg++;
+		}
+		else if (type & CTE_CUSTOMDIRECTION)
+		{
+			vec3_t norm;
+			VectorNormalize2(G_VECTOR(OFS_PARM0+arg*3), norm);
+			MSG_WriteDir(&sv.multicast, norm);
 			arg++;
 		}
 	}
@@ -7112,21 +7107,38 @@ void PF_CustomTEnt(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //float(string effectname) particleeffectnum (EXT_CSQC)
-void PF_sv_particleeffectnum(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-#pragma message("PF_sv_particleeffectnum: which effect index values to use?")
-	char *efname = PR_GetStringOfs(prinst, OFS_PARM0);
-	G_FLOAT(OFS_RETURN) = COM_Effectinfo_ForName(efname);
-}
-//void(float effectnum, entity ent, vector start, vector end) trailparticles (EXT_CSQC),
-void PF_sv_trailparticles(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_sv_particleeffectnum(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 #ifdef PEXT_CSQC
-#pragma message("PF_sv_trailparticles: first two parameters differ from dp, but comply with spec")
-	int efnum = G_FLOAT(OFS_PARM0);
-	int ednum = G_EDICTNUM(prinst, OFS_PARM1);
+#ifdef _MSC_VER
+#pragma message("PF_sv_particleeffectnum: which effect index values to use?")
+#endif
+	char *efname = PR_GetStringOfs(prinst, OFS_PARM0);
+	G_FLOAT(OFS_RETURN) = COM_Effectinfo_ForName(efname);
+#else
+	G_FLOAT(OFS_RETURN) = -1;
+#endif
+}
+//void(float effectnum, entity ent, vector start, vector end) trailparticles (EXT_CSQC),
+static void QCBUILTIN PF_sv_trailparticles(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+#ifdef PEXT_CSQC
+	int efnum;
+	int ednum;
 	float *start = G_VECTOR(OFS_PARM2);
 	float *end = G_VECTOR(OFS_PARM3);
+
+	/*DP gets this wrong*/
+	if (dpcompat_trailparticles.ival)
+	{
+		ednum = G_EDICTNUM(prinst, OFS_PARM0);
+		efnum = G_FLOAT(OFS_PARM1);
+	}
+	else
+	{
+		efnum = G_FLOAT(OFS_PARM0);
+		ednum = G_EDICTNUM(prinst, OFS_PARM1);
+	}
 
 	MSG_WriteByte(&sv.multicast, svcfte_trailparticles);
 	MSG_WriteShort(&sv.multicast, ednum);
@@ -7152,7 +7164,7 @@ void PF_sv_trailparticles(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 #endif
 }
 //void(float effectnum, vector origin [, vector dir, float count]) pointparticles (EXT_CSQC)
-void PF_sv_pointparticles(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_sv_pointparticles(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 #ifdef PEXT_CSQC
 	int efnum = G_FLOAT(OFS_PARM0);
@@ -7214,7 +7226,7 @@ typedef struct qcstate_s {
 } qcstate_t;
 
 qcstate_t *qcthreads;
-void PR_RunThreads(void)
+void PRSV_RunThreads(void)
 {
 	struct globalvars_s *pr_globals;
 
@@ -7246,7 +7258,7 @@ void PR_RunThreads(void)
 	}
 }
 
-void PR_ClearThreads(void)
+static void PRSV_ClearThreads(void)
 {
 	qcstate_t *state = qcthreads, *next;
 	qcthreads = NULL;
@@ -7261,7 +7273,7 @@ void PR_ClearThreads(void)
 	}
 }
 
-void PF_Sleep(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_Sleep(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	qcstate_t *state;
 	struct qcthread_s *thread;
@@ -7282,7 +7294,7 @@ void PF_Sleep(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	svprogfuncs->AbortStack(svprogfuncs);
 }
 
-void PF_Fork(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_Fork(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	qcstate_t *state;
 	struct qcthread_s *thread;
@@ -7298,14 +7310,14 @@ void PF_Fork(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	state->other = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, pr_global_struct->other));
 	state->thread = thread;
 
-	PR_RunThreads();
+	PRSV_RunThreads();
 
 	G_FLOAT(OFS_RETURN) = 0;
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
 //void(vector org) te_gunshot = #418;
-void PF_te_gunshot(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_gunshot(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int count;
 	if (*svprogfuncs->callargc >= 2)
@@ -7315,108 +7327,108 @@ void PF_te_gunshot(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_GUNSHOT, count);
 }
 //DP_TE_QUADEFFECTS1
-void PF_te_gunshotquad(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_gunshotquad(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int count;
 	if (*svprogfuncs->callargc >= 2)
 		count = G_FLOAT(OFS_PARM1);
 	else
 		count = 1;
-	SV_point_tempentity(G_VECTOR(OFS_PARM0), DPTE_GUNSHOTQUAD, count);
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TEDP_GUNSHOTQUAD, count);
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
 //void(vector org) te_spike = #419;
-void PF_te_spike(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_spike(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_SPIKE, 1);
 }
 
 //DP_TE_QUADEFFECTS1
-void PF_te_spikequad(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_spikequad(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	SV_point_tempentity(G_VECTOR(OFS_PARM0), DPTE_SPIKEQUAD, 1);
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TEDP_SPIKEQUAD, 1);
 }
 
 // FTE_TE_STANDARDEFFECTBUILTINS
-void PF_te_lightningblood(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_lightningblood(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_LIGHTNINGBLOOD, 1);
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TEQW_LIGHTNINGBLOOD, 1);
 }
 
 // FTE_TE_STANDARDEFFECTBUILTINS
-void PF_te_bloodqw(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_bloodqw(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int count;
 	if (*svprogfuncs->callargc >= 2)
 		count = G_FLOAT(OFS_PARM1);
 	else
 		count = 1;
-	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_BLOOD, count);
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TEQW_BLOOD, count);
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
 //void(vector org) te_superspike = #420;
-void PF_te_superspike(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_superspike(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_SUPERSPIKE, 1);
 }
 //DP_TE_QUADEFFECTS1
-void PF_te_superspikequad(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_superspikequad(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	SV_point_tempentity(G_VECTOR(OFS_PARM0), DPTE_SUPERSPIKEQUAD, 1);
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TEDP_SUPERSPIKEQUAD, 1);
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
 //void(vector org) te_explosion = #421;
-void PF_te_explosion(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_explosion(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_EXPLOSION, 1);
 }
 //DP_TE_QUADEFFECTS1
-void PF_te_explosionquad(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_explosionquad(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	SV_point_tempentity(G_VECTOR(OFS_PARM0), DPTE_EXPLOSIONQUAD, 1);
+	SV_point_tempentity(G_VECTOR(OFS_PARM0), TEDP_EXPLOSIONQUAD, 1);
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
 //void(vector org) te_tarexplosion = #422;
-void PF_te_tarexplosion(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_tarexplosion(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_TAREXPLOSION, 1);
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
 //void(vector org) te_wizspike = #423;
-void PF_te_wizspike(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_wizspike(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_WIZSPIKE, 1);
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
 //void(vector org) te_knightspike = #424;
-void PF_te_knightspike(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_knightspike(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_KNIGHTSPIKE, 1);
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
 //void(vector org) te_lavasplash = #425;
-void PF_te_lavasplash(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_lavasplash(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_LAVASPLASH, 1);
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
 //void(vector org) te_teleport = #426;
-void PF_te_teleport(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_teleport(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_TELEPORT, 1);
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
 //void(vector org, float color) te_explosion2 = #427;
-void PF_te_explosion2(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_explosion2(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	//FIXME: QW doesn't support TE_EXPLOSION2...
 	SV_point_tempentity(G_VECTOR(OFS_PARM0), TE_EXPLOSION, 1);
@@ -7424,34 +7436,34 @@ void PF_te_explosion2(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //DP_TE_STANDARDEFFECTBUILTINS
 //void(entity own, vector start, vector end) te_lightning1 = #428;
-void PF_te_lightning1(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_lightning1(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	SV_beam_tempentity(G_EDICTNUM(prinst, OFS_PARM0), G_VECTOR(OFS_PARM1), G_VECTOR(OFS_PARM2), TE_LIGHTNING1);
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
 //void(entity own, vector start, vector end) te_lightning2 = #429;
-void PF_te_lightning2(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_lightning2(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	SV_beam_tempentity(G_EDICTNUM(prinst, OFS_PARM0), G_VECTOR(OFS_PARM1), G_VECTOR(OFS_PARM2), TE_LIGHTNING2);
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
 //void(entity own, vector start, vector end) te_lightning3 = #430;
-void PF_te_lightning3(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_lightning3(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	SV_beam_tempentity(G_EDICTNUM(prinst, OFS_PARM0), G_VECTOR(OFS_PARM1), G_VECTOR(OFS_PARM2), TE_LIGHTNING3);
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS
 //void(entity own, vector start, vector end) te_beam = #431;
-void PF_te_beam(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_beam(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	SV_beam_tempentity(-1 -G_EDICTNUM(prinst, OFS_PARM0), G_VECTOR(OFS_PARM1), G_VECTOR(OFS_PARM2), TE_LIGHTNING2);
 }
 
 //DP_TE_SPARK
-void PF_te_spark(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_spark(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *org = G_VECTOR(OFS_PARM0);
 
@@ -7459,7 +7471,7 @@ void PF_te_spark(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 
 	MSG_WriteByte(&sv.multicast, svc_temp_entity);
-	MSG_WriteByte(&sv.multicast, DPTE_SPARK);
+	MSG_WriteByte(&sv.multicast, TEDP_SPARK);
 	// origin
 	MSG_WriteCoord(&sv.multicast, org[0]);
 	MSG_WriteCoord(&sv.multicast, org[1]);
@@ -7474,7 +7486,7 @@ void PF_te_spark(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //the nq version
 #ifdef NQPROT
 	MSG_WriteByte(&sv.nqmulticast, svc_temp_entity);
-	MSG_WriteByte(&sv.nqmulticast, DPTE_SPARK);
+	MSG_WriteByte(&sv.nqmulticast, TEDP_SPARK);
 	// origin
 	MSG_WriteCoord(&sv.nqmulticast, org[0]);
 	MSG_WriteCoord(&sv.nqmulticast, org[1]);
@@ -7490,21 +7502,21 @@ void PF_te_spark(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 // #416 void(vector org) te_smallflash (DP_TE_SMALLFLASH)
-void PF_te_smallflash(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_smallflash(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *org = G_VECTOR(OFS_PARM0);
-	SV_point_tempentity(org, DPTE_SMALLFLASH, 0);
+	SV_point_tempentity(org, TEDP_SMALLFLASH, 0);
 }
 
 // #417 void(vector org, float radius, float lifetime, vector color) te_customflash (DP_TE_CUSTOMFLASH)
-void PF_te_customflash(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_customflash(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *org = G_VECTOR(OFS_PARM0);
 
 	if (G_FLOAT(OFS_PARM1) < 8 || G_FLOAT(OFS_PARM2) < (1.0 / 256.0))
 		return;
 	MSG_WriteByte(&sv.multicast, svc_temp_entity);
-	MSG_WriteByte(&sv.multicast, DPTE_CUSTOMFLASH);
+	MSG_WriteByte(&sv.multicast, TEDP_CUSTOMFLASH);
 	// origin
 	MSG_WriteCoord(&sv.multicast, G_VECTOR(OFS_PARM0)[0]);
 	MSG_WriteCoord(&sv.multicast, G_VECTOR(OFS_PARM0)[1]);
@@ -7520,7 +7532,7 @@ void PF_te_customflash(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 #ifdef NQPROT
 	MSG_WriteByte(&sv.nqmulticast, svc_temp_entity);
-	MSG_WriteByte(&sv.nqmulticast, DPTE_CUSTOMFLASH);
+	MSG_WriteByte(&sv.nqmulticast, TEDP_CUSTOMFLASH);
 	// origin
 	MSG_WriteCoord(&sv.nqmulticast, G_VECTOR(OFS_PARM0)[0]);
 	MSG_WriteCoord(&sv.nqmulticast, G_VECTOR(OFS_PARM0)[1]);
@@ -7538,7 +7550,7 @@ void PF_te_customflash(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //#408 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter) te_particlecube (DP_TE_PARTICLECUBE)
-void PF_te_particlecube(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_particlecube(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *min = G_VECTOR(OFS_PARM0);
 	float *max = G_VECTOR(OFS_PARM1);
@@ -7556,7 +7568,7 @@ void PF_te_particlecube(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	// [vector] min [vector] max [vector] dir [short] count [byte] color [byte] gravity [coord] randomvel
 
 	MSG_WriteByte (&sv.multicast, svc_temp_entity);
-	MSG_WriteByte (&sv.multicast, DPTE_PARTICLECUBE);
+	MSG_WriteByte (&sv.multicast, TEDP_PARTICLECUBE);
 	MSG_WriteCoord(&sv.multicast, min[0]);
 	MSG_WriteCoord(&sv.multicast, min[1]);
 	MSG_WriteCoord(&sv.multicast, min[2]);
@@ -7573,7 +7585,7 @@ void PF_te_particlecube(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 #ifdef NQPROT
 	MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
-	MSG_WriteByte (&sv.nqmulticast, DPTE_PARTICLECUBE);
+	MSG_WriteByte (&sv.nqmulticast, TEDP_PARTICLECUBE);
 	MSG_WriteCoord(&sv.nqmulticast, min[0]);
 	MSG_WriteCoord(&sv.nqmulticast, min[1]);
 	MSG_WriteCoord(&sv.nqmulticast, min[2]);
@@ -7594,13 +7606,13 @@ void PF_te_particlecube(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	SV_Multicast(org, MULTICAST_PVS);
 }
 
-void PF_te_explosionrgb(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_explosionrgb(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *org = G_VECTOR(OFS_PARM0);
 	float *colour = G_VECTOR(OFS_PARM0);
 
 	MSG_WriteByte(&sv.multicast, svc_temp_entity);
-	MSG_WriteByte(&sv.multicast, DPTE_EXPLOSIONRGB);
+	MSG_WriteByte(&sv.multicast, TEDP_EXPLOSIONRGB);
 	// origin
 	MSG_WriteCoord(&sv.multicast, org[0]);
 	MSG_WriteCoord(&sv.multicast, org[1]);
@@ -7611,7 +7623,7 @@ void PF_te_explosionrgb(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	MSG_WriteByte(&sv.multicast, bound(0, (int) (colour[2] * 255), 255));
 #ifdef NQPROT
 	MSG_WriteByte(&sv.nqmulticast, svc_temp_entity);
-	MSG_WriteByte(&sv.nqmulticast, DPTE_EXPLOSIONRGB);
+	MSG_WriteByte(&sv.nqmulticast, TEDP_EXPLOSIONRGB);
 	// origin
 	MSG_WriteCoord(&sv.nqmulticast, org[0]);
 	MSG_WriteCoord(&sv.nqmulticast, org[1]);
@@ -7624,7 +7636,7 @@ void PF_te_explosionrgb(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	SV_Multicast(org, MULTICAST_PVS);
 }
 
-void PF_te_particlerain(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_particlerain(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *min = G_VECTOR(OFS_PARM0);
 	float *max = G_VECTOR(OFS_PARM1);
@@ -7636,7 +7648,7 @@ void PF_te_particlerain(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 
 	MSG_WriteByte(&sv.multicast, svc_temp_entity);
-	MSG_WriteByte(&sv.multicast, DPTE_PARTICLERAIN);
+	MSG_WriteByte(&sv.multicast, TEDP_PARTICLERAIN);
 	// min
 	MSG_WriteCoord(&sv.multicast, min[0]);
 	MSG_WriteCoord(&sv.multicast, min[1]);
@@ -7656,7 +7668,7 @@ void PF_te_particlerain(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 #ifdef NQPROT
 	MSG_WriteByte(&sv.nqmulticast, svc_temp_entity);
-	MSG_WriteByte(&sv.nqmulticast, DPTE_PARTICLERAIN);
+	MSG_WriteByte(&sv.nqmulticast, TEDP_PARTICLERAIN);
 	// min
 	MSG_WriteCoord(&sv.nqmulticast, min[0]);
 	MSG_WriteCoord(&sv.nqmulticast, min[1]);
@@ -7678,7 +7690,7 @@ void PF_te_particlerain(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	SV_Multicast(NULL, MULTICAST_ALL);
 }
 
-void PF_te_particlesnow(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_particlesnow(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *min = G_VECTOR(OFS_PARM0);
 	float *max = G_VECTOR(OFS_PARM1);
@@ -7690,7 +7702,7 @@ void PF_te_particlesnow(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 
 	MSG_WriteByte(&sv.multicast, svc_temp_entity);
-	MSG_WriteByte(&sv.multicast, DPTE_PARTICLESNOW);
+	MSG_WriteByte(&sv.multicast, TEDP_PARTICLESNOW);
 	// min
 	MSG_WriteCoord(&sv.multicast, min[0]);
 	MSG_WriteCoord(&sv.multicast, min[1]);
@@ -7710,7 +7722,7 @@ void PF_te_particlesnow(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 #ifdef NQPROT
 	MSG_WriteByte(&sv.nqmulticast, svc_temp_entity);
-	MSG_WriteByte(&sv.nqmulticast, DPTE_PARTICLESNOW);
+	MSG_WriteByte(&sv.nqmulticast, TEDP_PARTICLESNOW);
 	// min
 	MSG_WriteCoord(&sv.nqmulticast, min[0]);
 	MSG_WriteCoord(&sv.nqmulticast, min[1]);
@@ -7733,7 +7745,7 @@ void PF_te_particlesnow(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 // #406 void(vector mincorner, vector maxcorner, float explosionspeed, float howmany) te_bloodshower (DP_TE_BLOODSHOWER)
-void PF_te_bloodshower(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_bloodshower(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	// [vector] min [vector] max [coord] explosionspeed [short] count
 	float *min = G_VECTOR(OFS_PARM0);
@@ -7743,7 +7755,7 @@ void PF_te_bloodshower(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	vec3_t org;
 
 	MSG_WriteByte(&sv.multicast, svc_temp_entity);
-	MSG_WriteByte(&sv.multicast, DPTE_BLOODSHOWER);
+	MSG_WriteByte(&sv.multicast, TEDP_BLOODSHOWER);
 	// min
 	MSG_WriteCoord(&sv.multicast, min[0]);
 	MSG_WriteCoord(&sv.multicast, min[1]);
@@ -7759,7 +7771,7 @@ void PF_te_bloodshower(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 #ifdef NQPROT
 	MSG_WriteByte(&sv.nqmulticast, svc_temp_entity);
-	MSG_WriteByte(&sv.nqmulticast, DPTE_BLOODSHOWER);
+	MSG_WriteByte(&sv.nqmulticast, TEDP_BLOODSHOWER);
 	// min
 	MSG_WriteCoord(&sv.nqmulticast, min[0]);
 	MSG_WriteCoord(&sv.nqmulticast, min[1]);
@@ -7781,7 +7793,7 @@ void PF_te_bloodshower(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 //DP_SV_EFFECT
 //void(vector org, string modelname, float startframe, float endframe, float framerate) effect = #404;
-static void PF_effect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_effect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *org = G_VECTOR(OFS_PARM0);
 	char *name = PR_GetStringOfs(prinst, OFS_PARM1);
@@ -7790,64 +7802,19 @@ static void PF_effect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	float framerate = G_FLOAT(OFS_PARM4);
 	int index = SV_ModelIndex(name);
 
-	if (startframe>255 || index>255)
-	{
-		MSG_WriteByte (&sv.multicast, svcfte_effect2);
-		MSG_WriteCoord (&sv.multicast, org[0]);
-		MSG_WriteCoord (&sv.multicast, org[1]);
-		MSG_WriteCoord (&sv.multicast, org[2]);
-		MSG_WriteShort (&sv.multicast, index);
-		MSG_WriteShort (&sv.multicast, startframe);
-		MSG_WriteByte (&sv.multicast, endframe);
-		MSG_WriteByte (&sv.multicast, framerate);
-
-#ifdef NQPROT
-		MSG_WriteByte (&sv.nqmulticast, svcnq_effect2);
-		MSG_WriteCoord (&sv.nqmulticast, org[0]);
-		MSG_WriteCoord (&sv.nqmulticast, org[1]);
-		MSG_WriteCoord (&sv.nqmulticast, org[2]);
-		MSG_WriteShort (&sv.nqmulticast, index);
-		MSG_WriteShort (&sv.nqmulticast, startframe);
-		MSG_WriteByte (&sv.nqmulticast, endframe);
-		MSG_WriteByte (&sv.nqmulticast, framerate);
-#endif
-	}
-	else
-	{
-		MSG_WriteByte (&sv.multicast, svcfte_effect);
-		MSG_WriteCoord (&sv.multicast, org[0]);
-		MSG_WriteCoord (&sv.multicast, org[1]);
-		MSG_WriteCoord (&sv.multicast, org[2]);
-		MSG_WriteByte (&sv.multicast, index);
-		MSG_WriteByte (&sv.multicast, startframe);
-		MSG_WriteByte (&sv.multicast, endframe);
-		MSG_WriteByte (&sv.multicast, framerate);
-
-#ifdef NQPROT
-		MSG_WriteByte (&sv.nqmulticast, svcnq_effect);
-		MSG_WriteCoord (&sv.nqmulticast, org[0]);
-		MSG_WriteCoord (&sv.nqmulticast, org[1]);
-		MSG_WriteCoord (&sv.nqmulticast, org[2]);
-		MSG_WriteByte (&sv.nqmulticast, index);
-		MSG_WriteByte (&sv.nqmulticast, startframe);
-		MSG_WriteByte (&sv.nqmulticast, endframe);
-		MSG_WriteByte (&sv.nqmulticast, framerate);
-#endif
-	}
-
-	SV_Multicast(org, MULTICAST_PVS);
+	SV_Effect(org, index, startframe, endframe, framerate);
 }
 
 //DP_TE_PLASMABURN
 //void(vector org) te_plasmaburn = #433;
-void PF_te_plasmaburn(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_te_plasmaburn(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *org = G_VECTOR(OFS_PARM0);
 	SV_point_tempentity(org, 75, 0);
 }
 
 
-void PF_ForceInfoKey(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_ForceInfoKey(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t	*e;
 	int		e1;
@@ -7898,7 +7865,7 @@ setcolors(clientent, value)
 */
 
 //from lh
-void PF_setcolors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_setcolors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	client_t	*client;
 	int			entnum, i;
@@ -7907,7 +7874,7 @@ void PF_setcolors (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	entnum = G_EDICTNUM(prinst, OFS_PARM0);
 	i = G_FLOAT(OFS_PARM1);
 
-	if (entnum < 1 || entnum > MAX_CLIENTS)
+	if (entnum < 1 || entnum > sv.allocated_client_slots)
 	{
 		Con_Printf ("tried to setcolor a non-client\n");
 		return;
@@ -7984,7 +7951,7 @@ static void ParamNegateFix ( float * xx, float * yy, int Zone )
 	xx[0] = x;
 	yy[0] = y;
 }
-void PF_ShowPic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_ShowPic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *slot	= PR_GetStringOfs(prinst, OFS_PARM0);
 	char *picname = PR_GetStringOfs(prinst, OFS_PARM1);
@@ -8024,7 +7991,7 @@ void PF_ShowPic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 };
 
-void PF_HidePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_HidePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	client_t *cl;
 	char *slot	= PR_GetStringOfs(prinst, OFS_PARM0);
@@ -8054,7 +8021,7 @@ void PF_HidePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 };
 
 
-void PF_MovePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_MovePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *slot	= PR_GetStringOfs(prinst, OFS_PARM0);
 	float x		= G_FLOAT(OFS_PARM1);
@@ -8091,7 +8058,7 @@ void PF_MovePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 };
 
-void PF_ChangePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_ChangePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *slot	= PR_GetStringOfs(prinst, OFS_PARM0);
 	char *newpic= PR_GetStringOfs(prinst, OFS_PARM1);
@@ -8126,71 +8093,8 @@ void PF_ChangePic(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 
 
-#if 0
-typedef struct {
-	int			ident;
-	int			version;
-
-	char		name[MAX_QPATH];
-
-	int			flags;	//Does anyone know what these are?
-
-	int			numFrames;
-	int			numTags;
-	int			numSurfaces;
-
-	int			numSkins;
-
-	int			ofsFrames;
-	int			ofsTags;
-	int			ofsSurfaces;
-	int			ofsEnd;
-} md3Header_t;
-typedef struct {
-	char name[MAX_QPATH];
-	vec3_t org;
-	float ang[3][3];
-} md3tag_t;
-
-typedef struct zymlump_s
-{
-	int start;
-	int length;
-} zymlump_t;
-typedef struct zymtype1header_s
-{
-	char id[12]; // "ZYMOTICMODEL", length 12, no termination
-	int type; // 0 (vertex morph) 1 (skeletal pose) or 2 (skeletal scripted)
-	int filesize; // size of entire model file
-	float mins[3], maxs[3], radius; // for clipping uses
-	int numverts;
-	int numtris;
-	int numsurfaces;
-	int numbones; // this may be zero in the vertex morph format (undecided)
-	int numscenes; // 0 in skeletal scripted models
-
-// skeletal pose header
-	// lump offsets are relative to the file
-	zymlump_t lump_scenes; // zymscene_t scene[numscenes]; // name and other information for each scene (see zymscene struct)
-	zymlump_t lump_poses; // float pose[numposes][numbones][6]; // animation data
-	zymlump_t lump_bones; // zymbone_t bone[numbones];
-	zymlump_t lump_vertbonecounts; // int vertbonecounts[numvertices]; // how many bones influence each vertex (separate mainly to make this compress better)
-	zymlump_t lump_verts; // zymvertex_t vert[numvertices]; // see vertex struct
-	zymlump_t lump_texcoords; // float texcoords[numvertices][2];
-	zymlump_t lump_render; // int renderlist[rendersize]; // sorted by shader with run lengths (int count), shaders are sequentially used, each run can be used with glDrawElements (each triangle is 3 int indices)
-	zymlump_t lump_surfnames; // char shadername[numsurfaces][32]; // shaders used on this model
-	zymlump_t lump_trizone; // byte trizone[numtris]; // see trizone explanation
-} zymtype1header_t;
-typedef struct zymbone_s
-{
-	char name[32];
-	int flags;
-	int parent; // parent bone number
-} zymbone_t;
-#endif
 int SV_TagForName(int modelindex, char *tagname)
 {
-#if 1
 	model_t *model = sv.models[modelindex];
 	if (!model)
 		model = Mod_ForName(sv.strings.model_precache[modelindex], false);
@@ -8198,54 +8102,9 @@ int SV_TagForName(int modelindex, char *tagname)
 		return 0;
 
 	return Mod_TagNumForName(model, tagname);
-#else
-	int i;
-	unsigned int *file;
-
-	file = (void*)COM_LoadTempFile(sv.model_precache[modelindex]);
-	if (!file)
-	{
-		Con_Printf("setattachment: \"%s\" is missing\n", sv.model_precache[modelindex]);
-		return 0;
-	}
-
-	if (*file == MD3_IDENT)
-	{
-		md3Header_t *md3 = (md3Header_t*)file;
-		md3tag_t *tag;
-
-		tag = (md3tag_t*)((char*)md3 + md3->ofsTags);
-
-		for (i = 0;i < md3->numTags;i++)
-		{
-			if (!strcmp(tagname, tag[i].name))
-			{
-				return i + 1;
-			}
-		}
-	}
-	else if (!strncmp((char*)file, "ZYMOTICMODEL", 12) && BigLong(file[3]) == 1)
-	{
-		zymtype1header_t *zym = (zymtype1header_t*)file;
-		zymbone_t *tag;
-
-		tag = (zymbone_t*)((char*)zym + BigLong(zym->lump_bones.start));
-
-		for (i = BigLong(zym->numbones)-1;i >=0;i--)
-		{
-			if (!strcmp(tagname, tag[i].name))
-			{
-				return i + 1;
-			}
-		}
-	}
-	else
-		Con_DPrintf("setattachment: %s not supported\n", sv.model_precache[modelindex]);
-	return 0;
-#endif
 }
 
-void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t *e = G_EDICT(prinst, OFS_PARM0);
 	edict_t *tagentity = G_EDICT(prinst, OFS_PARM1);
@@ -8257,7 +8116,7 @@ void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	tagidx = 0;
 
-	if (tagentity != sv.edicts && tagname && tagname[0])
+	if (tagentity != (edict_t*)sv.world.edicts && tagname && tagname[0])
 	{
 		modelindex = (int)tagentity->v->modelindex;
 		if (modelindex > 0 && modelindex < MAX_MODELS)
@@ -8271,7 +8130,7 @@ void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 					Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, tagname, NUM_FOR_EDICT(prinst, tagentity), sv.models[modelindex]->name);
 			}
 			else
-				Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): Couldn't load model %s\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, sv.modelname[modelindex]);
+				Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): Couldn't load model %s\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, sv.strings.model_precache[modelindex]);
 		}
 		else
 			Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i but it has no model\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, tagname, NUM_FOR_EDICT(prinst, tagentity));
@@ -8283,7 +8142,7 @@ void PF_setattachment(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 // #451 float(entity ent, string tagname) gettagindex (DP_MD3_TAGSINFO)
-void PF_gettagindex(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_gettagindex(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	edict_t *e = G_EDICT(prinst, OFS_PARM0);
 	char *tagname = PR_GetStringOfs(prinst, OFS_PARM1);
@@ -8322,7 +8181,7 @@ static void EdictToTransform(edict_t *ed, float *trans)
 }
 
 // #452 vector(entity ent, float tagindex) gettaginfo (DP_MD3_TAGSINFO)
-void PF_sv_gettaginfo(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_sv_gettaginfo(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	framestate_t fstate;
 	float transtag[12];
@@ -8349,7 +8208,14 @@ void PF_sv_gettaginfo(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;
 	}
 
-#pragma message("This function doesn't honour attachments")
+	if (ent->xv->tag_entity)
+	{
+#ifdef _MSC_VER
+		#pragma message("PF_sv_gettaginfo: This function doesn't honour attachments")
+#endif
+		Con_Printf("PF_sv_gettaginfo doesn't support attachments\n");
+	}
+
 	EdictToTransform(ent, transent);
 	R_ConcatTransforms((void*)transent, (void*)transtag, (void*)result);
 
@@ -8364,7 +8230,7 @@ void PF_sv_gettaginfo(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //the first implementation of this function was (float type, float num, string name)
 //it is now float num, float type, .field
 //EXT_CSQC_1
-void PF_clientstat(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_clientstat(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 #if 0 //this is the old code
 	char *name = PF_VarString(prinst, 2, pr_globals);
@@ -8375,7 +8241,7 @@ void PF_clientstat(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 //EXT_CSQC_1
 //void(float num, float type, string name) globalstat
-void PF_globalstat(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_globalstat(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *name = PF_VarString(prinst, 2, pr_globals);
 #if 0 //this is the old code
@@ -8386,8 +8252,8 @@ void PF_globalstat(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 }
 
 //EXT_CSQC_1
-void PF_runclientphys(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{	
+static void QCBUILTIN PF_runclientphys(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
 	unsigned int i, n;
 	extern vec3_t player_maxs, player_mins;
 	extern qbyte playertouch[];
@@ -8411,7 +8277,6 @@ void PF_runclientphys(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 //set up the movement command
 	msecs = pr_global_struct->input_timelength*1000 + 0.5f;
 	//precision inaccuracies. :(
-#define ANGLE2SHORT(x) (x) * (65536/360.0)
 	pmove.cmd.angles[0] = ANGLE2SHORT((pr_global_struct->input_angles)[0]);
 	pmove.cmd.angles[1] = ANGLE2SHORT((pr_global_struct->input_angles)[1]);
 	pmove.cmd.angles[2] = ANGLE2SHORT((pr_global_struct->input_angles)[2]);
@@ -8429,7 +8294,7 @@ void PF_runclientphys(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	pmove.hullnum = SV_HullNumForPlayer(ent->xv->hull, ent->v->mins, ent->v->maxs);
 
 	pmove.numphysent = 1;
-	pmove.physents[0].model = sv.worldmodel;
+	pmove.physents[0].model = sv.world.worldmodel;
 
 	for (i=0 ; i<3 ; i++)
 	{
@@ -8437,9 +8302,10 @@ void PF_runclientphys(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		pmove_mins[i] = pmove.origin[i] - 256;
 		pmove_maxs[i] = pmove.origin[i] + 256;
 	}
-	AddLinksToPmove(ent, sv_areanodes);
+	AddLinksToPmove(ent, sv.world.areanodes);
 //	AddAllEntsToPmove();
 
+	SV_PreRunCmd();
 
 	while(msecs)	//break up longer commands
 	{
@@ -8448,61 +8314,62 @@ void PF_runclientphys(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			pmove.cmd.msec = 50;
 		msecs -= pmove.cmd.msec;
 		PM_PlayerMove(1);
-	}
 
-	ent->xv->pmove_flags = 0;
-	ent->xv->pmove_flags += ((int)pmove.jump_held?PMF_JUMP_HELD:0);
-	ent->xv->pmove_flags += ((int)pmove.onladder?PMF_LADDER:0);
-	ent->v->teleport_time = pmove.waterjumptime;
-	VectorCopy(pmove.origin, ent->v->origin);
-	VectorCopy(pmove.velocity, ent->v->velocity);
-
+		ent->xv->pmove_flags = 0;
+		ent->xv->pmove_flags += ((int)pmove.jump_held?PMF_JUMP_HELD:0);
+		ent->xv->pmove_flags += ((int)pmove.onladder?PMF_LADDER:0);
+		ent->v->teleport_time = pmove.waterjumptime;
+		VectorCopy(pmove.origin, ent->v->origin);
+		VectorCopy(pmove.velocity, ent->v->velocity);
 
 
-	ent->v->waterlevel = pmove.waterlevel;
 
-	if (pmove.watertype & FTECONTENTS_SOLID)
-		ent->v->watertype = Q1CONTENTS_SOLID;
-	else if (pmove.watertype & FTECONTENTS_SKY)
-		ent->v->watertype = Q1CONTENTS_SKY;
-	else if (pmove.watertype & FTECONTENTS_LAVA)
-		ent->v->watertype = Q1CONTENTS_LAVA;
-	else if (pmove.watertype & FTECONTENTS_SLIME)
-		ent->v->watertype = Q1CONTENTS_SLIME;
-	else if (pmove.watertype & FTECONTENTS_WATER)
-		ent->v->watertype = Q1CONTENTS_WATER;
-	else
-		ent->v->watertype = Q1CONTENTS_EMPTY;
+		ent->v->waterlevel = pmove.waterlevel;
 
-	if (pmove.onground)
-	{
-		ent->v->flags = (int)sv_player->v->flags | FL_ONGROUND;
-		ent->v->groundentity = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, pmove.physents[pmove.groundent].info));
-	}
-	else
-		ent->v->flags = (int)ent->v->flags & ~FL_ONGROUND;
-
-
-	SV_LinkEdict(ent, true);
-	for (i=0 ; i<pmove.numtouch ; i++)
-	{
-		if (pmove.physents[pmove.touchindex[i]].notouch)
-			continue;
-		n = pmove.physents[pmove.touchindex[i]].info;
-		touched = EDICT_NUM(svprogfuncs, n);
-		if (!ent->v->touch || (playertouch[n/8]&(1<<(n%8))))
-			continue;
-
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, touched);
-		pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, ent);
-		pr_global_struct->time = sv.time;
-#ifdef VM_Q1
-		if (svs.gametype == GT_Q1QVM)
-			Q1QVM_Touch();
+		if (pmove.watertype & FTECONTENTS_SOLID)
+			ent->v->watertype = Q1CONTENTS_SOLID;
+		else if (pmove.watertype & FTECONTENTS_SKY)
+			ent->v->watertype = Q1CONTENTS_SKY;
+		else if (pmove.watertype & FTECONTENTS_LAVA)
+			ent->v->watertype = Q1CONTENTS_LAVA;
+		else if (pmove.watertype & FTECONTENTS_SLIME)
+			ent->v->watertype = Q1CONTENTS_SLIME;
+		else if (pmove.watertype & FTECONTENTS_WATER)
+			ent->v->watertype = Q1CONTENTS_WATER;
 		else
-#endif
-			PR_ExecuteProgram (svprogfuncs, touched->v->touch);
-		playertouch[n/8] |= 1 << (n%8);
+			ent->v->watertype = Q1CONTENTS_EMPTY;
+
+		if (pmove.onground)
+		{
+			ent->v->flags = (int)sv_player->v->flags | FL_ONGROUND;
+			ent->v->groundentity = EDICT_TO_PROG(svprogfuncs, EDICT_NUM(svprogfuncs, pmove.physents[pmove.groundent].info));
+		}
+		else
+			ent->v->flags = (int)ent->v->flags & ~FL_ONGROUND;
+
+
+
+		World_LinkEdict(&sv.world, (wedict_t*)ent, true);
+		for (i=0 ; i<pmove.numtouch ; i++)
+		{
+			if (pmove.physents[pmove.touchindex[i]].notouch)
+				continue;
+			n = pmove.physents[pmove.touchindex[i]].info;
+			touched = EDICT_NUM(svprogfuncs, n);
+			if (!touched->v->touch || (playertouch[n/8]&(1<<(n%8))))
+				continue;
+
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, touched);
+			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, ent);
+			pr_global_struct->time = sv.time;
+	#ifdef VM_Q1
+			if (svs.gametype == GT_Q1QVM)
+				Q1QVM_Touch();
+			else
+	#endif
+				PR_ExecuteProgram (svprogfuncs, touched->v->touch);
+			playertouch[n/8] |= 1 << (n%8);
+		}
 	}
 }
 
@@ -8540,7 +8407,7 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 		sv_player->xv->button6 = ((ucmd->buttons >> 5) & 1);
 		sv_player->xv->button7 = ((ucmd->buttons >> 6) & 1);
 		sv_player->xv->button8 = ((ucmd->buttons >> 7) & 1);
-		if (ucmd->impulse && SV_FiltureImpulse(ucmd->impulse, host_client->trustlevel))
+		if (ucmd->impulse && SV_FilterImpulse(ucmd->impulse, host_client->trustlevel))
 			sv_player->v->impulse = ucmd->impulse;
 
 		if (host_client->iscuffed)
@@ -8608,7 +8475,7 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 
 //DP_QC_GETSURFACE
 // #434 float(entity e, float s) getsurfacenumpoints (DP_QC_GETSURFACE)
-void PF_getsurfacenumpoints(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_getsurfacenumpoints(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	unsigned int surfnum;
 	model_t *model;
@@ -8630,7 +8497,7 @@ void PF_getsurfacenumpoints(progfuncs_t *prinst, struct globalvars_s *pr_globals
 		G_FLOAT(OFS_RETURN) = model->surfaces[surfnum].mesh->numvertexes;
 }
 // #435 vector(entity e, float s, float n) getsurfacepoint (DP_QC_GETSURFACE)
-void PF_getsurfacepoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_getsurfacepoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	unsigned int surfnum, pointnum;
 	model_t *model;
@@ -8661,7 +8528,7 @@ void PF_getsurfacepoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	}
 }
 // #436 vector(entity e, float s) getsurfacenormal (DP_QC_GETSURFACE)
-void PF_getsurfacenormal(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_getsurfacenormal(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	unsigned int surfnum, pointnum;
 	model_t *model;
@@ -8722,7 +8589,7 @@ void PF_getsurfacetexture(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_INT(OFS_RETURN) = PR_TempString(prinst, surf->texinfo->texture->name);
 }
 // #438 float(entity e, vector p) getsurfacenearpoint (DP_QC_GETSURFACE)
-void PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	model_t *model;
 	edict_t *ent;
@@ -8804,27 +8671,27 @@ void PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals
 	}
 }
 // #439 vector(entity e, float s, vector p) getsurfaceclippedpoint (DP_QC_GETSURFACE)
-void PF_getsurfaceclippedpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_getsurfaceclippedpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 }
 
 qbyte qcpvs[(MAX_MAP_LEAFS+7)/8];
 //#240 float(vector viewpos, entity viewee) checkpvs (FTE_QC_CHECKPVS)
 //note: this requires a correctly setorigined entity.
-void PF_checkpvs(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_checkpvs(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *viewpos = G_VECTOR(OFS_PARM0);
 	edict_t *ent = G_EDICT(prinst, OFS_PARM1);
 
 	//FIXME: Make all alternatives of FatPVS not recalulate the pvs.
 	//and yeah, this is overkill what with the whole fat thing and all.
-	sv.worldmodel->funcs.FatPVS(sv.worldmodel, viewpos, qcpvs, sizeof(qcpvs), false);
+	sv.world.worldmodel->funcs.FatPVS(sv.world.worldmodel, viewpos, qcpvs, sizeof(qcpvs), false);
 
-	G_FLOAT(OFS_RETURN) = sv.worldmodel->funcs.EdictInFatPVS(sv.worldmodel, ent, qcpvs);
+	G_FLOAT(OFS_RETURN) = sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &((wedict_t*)ent)->pvsinfo, qcpvs);
 }
 
 //entity(string match [, float matchnum]) matchclient = #241;
-void PF_matchclient(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_matchclient(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int clnum=-1;
 	char *name = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -8857,7 +8724,7 @@ void PF_matchclient(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	G_INT(OFS_RETURN) = 0;	//world
 }
 
-void PF_SendPacket(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_SendPacket(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	netadr_t to;
 	char *address = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -8867,6 +8734,19 @@ void PF_SendPacket(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	NET_SendPacket(NS_SERVER, strlen(contents), contents, to);
 }
 
+static void QCBUILTIN PF_sv_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int action = G_FLOAT(OFS_PARM0);
+	float *pos = G_VECTOR(OFS_PARM1);
+	float radius = G_FLOAT(OFS_PARM2);
+	float quant = G_FLOAT(OFS_PARM3);
+#if defined(TERRAIN)
+	G_FLOAT(OFS_RETURN) = Heightmap_Edit(sv.world.worldmodel, action, pos, radius, quant);
+#else
+	G_FLOAT(OFS_RETURN) = false;
+#endif
+}
+
 BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"fixme",			PF_Fixme,			0,		0,		0},
 	{"ignore",			PF_Ignore,			0,		0,		0},
@@ -8874,7 +8754,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"setorigin",		PF_setorigin,		2,		2,		2},	// void(entity e, vector o) setorigin	= #2;
 	{"setmodel",		PF_setmodel,		3,		3,		3},	// void(entity e, string m) setmodel	= #3;
 	{"setsize",			PF_setsize,			4,		4,		4},	// void(entity e, vector min, vector max) setsize = #4;
-//	{"qtest_setabssize",NULL,				5},
+	{"qtest_setabssize",PF_setsize,			5}, // void(entity e, vector min, vector max) setabssize = #5;
 	{"lightstylestatic",PF_lightstylestatic,0,		0,		5,		5},
 	{"break",			PF_break,			6,		6,		6},	// void() break						= #6;
 	{"random",			PF_random,			7,		7,		7},	// float() random						= #7;
@@ -8906,16 +8786,16 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"eprint",			PF_eprint,			31,		31,		31},	//31 // void(entity e) debug print an entire entity
 	{"walkmove",		PF_walkmove,		32,		32,		32},	//32 // float(float yaw, float dist) walkmove
 	{"tracearea",		PF_traceboxh2,		0,		0,		33},	//33 //
-//	{"qtest_flymove",	NULL,	33},	//vector
+//	{"qtest_flymove",	NULL,	33},	// float(vector dir) flymove = #33;
 	{"droptofloor",		PF_droptofloor,		34,		34,		34},	//34
 	{"lightstyle",		PF_lightstyle,		35,		35,		35},	//35
 	{"rint",			PF_rint,			36,		36,		36},	//36
 	{"floor",			PF_floor,			37,		37,		37},	//37
 	{"ceil",			PF_ceil,			38,		38,		38},	//38
-//	{"qtest_canreach",	NULL,				39},
+	{"qtest_canreach",	PF_Ignore,			39},					// float(vector v) canreach = #39; // QTest builtin called in effectless statement
 	{"checkbottom",		PF_checkbottom,		40,		40,		40},	//40
 	{"pointcontents",	PF_pointcontents,	41,		41,		41},	//41
-//	{"qtest_stopsound",	NULL,				42},
+//	{"qtest_stopsound",	NULL,				42}, // defined QTest builtin that is never called
 	{"fabs",			PF_fabs,			43,		43,		43},	//43
 	{"aim",				PF_aim,				44,		44,		44},	//44
 	{"cvar",			PF_cvar,			45,		45,		45},	//45
@@ -8923,7 +8803,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"nextent",			PF_nextent,			47,		47,		47},	//47
 	{"particle",		PF_particle,		48,		0,		48,		48},		//48 nq readded. This isn't present in QW protocol (fte added it back).
 	{"changeyaw",		PF_changeyaw,		49,		49,		49},	//49
-//	{"qtest_precacheitem", NULL,			50},	//1 1
+//	{"qtest_precacheitem", NULL,			50}, // defined QTest builtin that is never called
 	{"vhlen",			PF_vhlen,			0,		0,		50},	//49
 	{"vectoangles",		PF_vectoangles,		51,		51,		51},	//51
 
@@ -8936,45 +8816,45 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"writestring",		PF_WriteString,		58,		58,		58},	//58
 	{"writeentity",		PF_WriteEntity,		59,		59,		59},	//59
 
-	{"swritebyte",		PF_Single_WriteByte},	//52
-	{"swritechar",		PF_Single_WriteChar},	//53
-	{"swriteshort",		PF_Single_WriteShort},	//54
-	{"swritelong",		PF_Single_WriteLong},	//55
-	{"swritecoord",		PF_Single_WriteCoord},	//56
-	{"swriteangle",		PF_Single_WriteAngle},	//57
-	{"swritestring",	PF_Single_WriteString},	//58
-	{"swriteentity",	PF_Single_WriteEntity},
+	{"swritebyte",		PF_qtSingle_WriteByte},	//52
+	{"swritechar",		PF_qtSingle_WriteChar},	//53
+	{"swriteshort",		PF_qtSingle_WriteShort},	//54
+	{"swritelong",		PF_qtSingle_WriteLong},	//55
+	{"swritecoord",		PF_qtSingle_WriteCoord},	//56
+	{"swriteangle",		PF_qtSingle_WriteAngle},	//57
+	{"swritestring",	PF_qtSingle_WriteString},	//58
+	{"swriteentity",	PF_qtSingle_WriteEntity},
 
-	{"bwritebyte",		PF_Broadcast_WriteByte},	//59
-	{"bwritechar",		PF_Broadcast_WriteChar},	//60
-	{"bwriteshort",		PF_Broadcast_WriteShort},	//61
-	{"bwritelong",		PF_Broadcast_WriteLong},	//62
-	{"bwritecoord",		PF_Broadcast_WriteCoord},	//63
-	{"bwriteangle",		PF_Broadcast_WriteAngle},	//64
-	{"bwritestring",	PF_Broadcast_WriteString},	//65
-	{"bwriteentity",	PF_Broadcast_WriteEntity},	//66
+	{"bwritebyte",		PF_qtBroadcast_WriteByte},	//59
+	{"bwritechar",		PF_qtBroadcast_WriteChar},	//60
+	{"bwriteshort",		PF_qtBroadcast_WriteShort},	//61
+	{"bwritelong",		PF_qtBroadcast_WriteLong},	//62
+	{"bwritecoord",		PF_qtBroadcast_WriteCoord},	//63
+	{"bwriteangle",		PF_qtBroadcast_WriteAngle},	//64
+	{"bwritestring",	PF_qtBroadcast_WriteString},	//65
+	{"bwriteentity",	PF_qtBroadcast_WriteEntity},	//66
 
 
-	{"printfloat",		PF_printf,			0,		0,		60},	//60
+	{"printfloat",		PF_h2printf,			0,		0,		60},	//60
 
 	{"sin",				PF_Sin,				0,		0,		62,		60},	//60
 	{"cos",				PF_Cos,				0,		0,		61,		61},	//61
 	{"sqrt",			PF_Sqrt,			0,		0,		84,		62},	//62
 
-	{"AdvanceFrame",	PF_AdvanceFrame,	0,		0,		63,		0},
-	{"printvec",		PF_printv,			0,		0,		64,		0},	//64
-	{"RewindFrame",		PF_RewindFrame,		0,		0,		65,		0},
+	{"AdvanceFrame",	PF_h2AdvanceFrame,	0,		0,		63,		0},
+	{"printvec",		PF_h2printv,			0,		0,		64,		0},	//64
+	{"RewindFrame",		PF_h2RewindFrame,		0,		0,		65,		0},
 	{"particleexplosion",PF_h2particleexplosion,0,	0,		81,		0},
-	{"movestep",		PF_movestep,		0,		0,		82,		0},
-	{"advanceweaponframe",PF_advanceweaponframe,0,	0,		83,		0},
+	{"movestep",		PF_h2movestep,		0,		0,		82,		0},
+	{"advanceweaponframe",PF_h2advanceweaponframe,0,	0,		83,		0},
 
-	{"setclass",		PF_setclass,		0,		0,		66,		0},
+	{"setclass",		PF_h2setclass,		0,		0,		66,		0},
 
 	{"changepitch",		PF_changepitch,		0,		0,		0,		63},
 	{"tracetoss",		PF_TraceToss,		0,		0,		0,		64},
 	{"etos",			PF_etos,			0,		0,		0,		65},
 
-	{"movetogoal",		SV_MoveToGoal,		67,		67,		67},	//67
+	{"movetogoal",		PF_sv_movetogoal,		67,		67,		67},	//67
 	{"precache_file",	PF_precache_file,	68,		68,		68},	//68
 	{"makestatic",		PF_makestatic,		69,		69,		69},	//69
 
@@ -8991,7 +8871,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"precache_file2",	PF_precache_file,	77,		77,		0},	//77
 
 	{"setspawnparms",	PF_setspawnparms,	78,		78,		78},	//78
-	{"plaque_draw",		PF_plaque_draw,		0,		0,		79},	//79
+	{"plaque_draw",		PF_h2plaque_draw,	0,		0,		79},	//79
 	{"logfrag",			PF_logfrag,			0,		79,		0,		79},	//79
 
 // Tomaz - QuakeC String Manipulation Begin
@@ -9011,7 +8891,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"tq_fputs",		PF_fputs,			0,		0,		0,		89, true},// #89 void(float fhandle, string s) fputs (QSG_FILE)
 // Tomaz - QuakeC File System End
 
-	{"rain_go",			PF_rain_go,			0,		0,		80,		0},	//80
+	{"rain_go",			PF_h2rain_go,		0,		0,		80,		0},	//80
 
 	{"infokey",			PF_infokey,			0,		80,		0,		80},	//80
 	{"stof",			PF_stof,			0,		81,		0,		81},	//81
@@ -9048,25 +8928,27 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"forcedemoframe",	PF_forcedemoframe,	0,		0,		0,		103, true},
 //end of mvdsv
 
-	{"setpuzzlemodel",	PF_set_puzzle_model,0,		0,		87,		0},
-	{"starteffect",		PF_starteffect,		0,		0,		88,		0},	//FIXME
-	{"endeffect",		PF_endeffect,		0,		0,		89,		0},	//FIXME
-	{"getstring",		PF_getstring,		0,		0,		92,		0},	//FIXME
-	{"spawntemp",		PF_spawn_temp,		0,		0,		93,		0},
+	{"setpuzzlemodel",	PF_h2set_puzzle_model,0,		0,		87,		0},
+	{"starteffect",		PF_h2starteffect,		0,		0,		88,		0},	//FIXME
+	{"endeffect",		PF_h2endeffect,		0,		0,		89,		0},	//FIXME
+	{"getstring",		PF_h2getstring,		0,		0,		92,		0},	//FIXME
+	{"spawntemp",		PF_h2spawn_temp,		0,		0,		93,		0},
 
-	{"v_factor",		PF_v_factor,		0,		0,		94,		0},
-	{"v_factorrange",	PF_v_factorrange,	0,		0,		95,		0},
+	{"v_factor",		PF_h2v_factor,		0,		0,		94,		0},
+	{"v_factorrange",	PF_h2v_factorrange,	0,		0,		95,		0},
 
-	{"precache_puzzle_model", PF_precache_puzzle_model,	0,		0,		90,		0},
-	{"concatv",			PF_concatv,			0,		0,		91,		0},
+	{"precache_puzzle_model", PF_h2precache_puzzle_model,	0,		0,		90,		0},
+	{"concatv",			PF_h2concatv,			0,		0,		91,		0},
 	{"precache_sound3",	PF_precache_sound,	0,		0,		96,		0},
 	{"precache_model3",	PF_precache_model,	0,		0,		97,		0},//please don't use...
-	{"matchangletoslope",PF_matchAngleToSlope,0,	0,		99,		0},
-
+	{"matchangletoslope",PF_h2matchAngleToSlope,0,	0,		99,		0},
+	{"updateinfoplaque",PF_h2updateinfoplaque,0,	0,		100,	0},
 	{"precache_sound4",	PF_precache_sound,	0,		0,		101,	0},
 	{"precache_model4",	PF_precache_model,	0,		0,		102,	0},
 	{"precache_file4",	PF_precache_file,	0,		0,		103,	0},
-	{"stopsound",		PF_StopSound,		0,		0,		106,	0},
+	{"dowhiteflash",	PF_h2whiteflash,	0,		0,		104,	0},
+	{"updatesoundpos",	PF_h2updatesoundpos,0,		0,		105,	0},
+	{"stopsound",		PF_h2StopSound,		0,		0,		106,	0},
 
 	{"precache_model4",	PF_precache_model,	0,		0,		116,	0},//please don't use...
 	{"precache_sound4",	PF_precache_sound,	0,		0,		117,	0},
@@ -9171,15 +9053,17 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"globalstat",		PF_globalstat,		0,		0,		0,		233},	//EXT_CSQC_1 actually
 //END EXT_CSQC
 	{"isbackbuffered",	PF_isbackbuffered,	0,		0,		0,		234},
+	//{"rotatevectorsbyangle",	PF_rotatevectorsbyangles,0,0,0,		235}, // #235
+	//{"rotatevectorsbymatrix",	PF_rotatevectorsbymatrix,0,0,0,		236}, // #236
 	{"skinforname",		PF_skinforname,		0,		0,		0,		237},		// #237
+	{"shaderforname",	PF_Fixme,			0,		0,		0,		238},
 	{"te_bloodqw",		PF_te_bloodqw,		0,		0,		0,		239},
 
 	{"checkpvs",		PF_checkpvs,		0,		0,		0,		240},
 	{"matchclientname",	PF_matchclient,		0,		0,		0,		241},
 	{"sendpacket",		PF_SendPacket,		0,		0,		0,		242},	//void(string dest, string content) sendpacket = #242; (FTE_QC_SENDPACKET)
-#ifdef PEXT_BULLETENS
-	{"bulleten",		PF_bulleten,		0,		0,		0,		243},
-#endif
+
+//	{"bulleten",		PF_bulleten,		0,		0,		0,		243}, (removed builtin)
 
 #ifdef SQL
 	{"sqlconnect",		PF_sqlconnect,		0,		0,		0,		250},	// #250 float([string host], [string user], [string pass], [string defaultdb], [string driver]) sqlconnect (FTE_SQL)
@@ -9197,9 +9081,25 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"stoh",			PF_stoh,			0,		0,		0,		261},
 	{"htos",			PF_htos,			0,		0,		0,		262},
 
+#if 0
+	{"skel_create",		PF_skel_create,		0,		0,		0,		263},//float(float modlindex) skel_create = #263; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_build",		PF_skel_build,		0,		0,		0,		264},//float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone) skel_build = #264; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_numbones",PF_skel_get_numbones,0,	0,		0,		265},//float(float skel) skel_get_numbones = #265; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_bonename",PF_skel_get_bonename,0,	0,		0,		266},//string(float skel, float bonenum) skel_get_bonename = #266; // (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
+	{"skel_get_boneparent",PF_skel_get_boneparent,0,0,		0,		267},//float(float skel, float bonenum) skel_get_boneparent = #267; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_find_bone",	PF_skel_find_bone,	0,		0,		0,		268},//float(float skel, string tagname) skel_get_boneidx = #268; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_bonerel",PF_skel_get_bonerel,0,		0,		0,		269},//vector(float skel, float bonenum) skel_get_bonerel = #269; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+	{"skel_get_boneabs",PF_skel_get_boneabs,0,		0,		0,		270},//vector(float skel, float bonenum) skel_get_boneabs = #270; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+	{"skel_set_bone",	PF_skel_set_bone,	0,		0,		0,		271},//void(float skel, float bonenum, vector org) skel_set_bone = #271; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_mul_bone",	PF_skel_mul_bone,	0,		0,		0,		272},//void(float skel, float bonenum, vector org) skel_mul_bone = #272; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_mul_bones",	PF_skel_mul_bones,	0,		0,		0,		273},//void(float skel, float startbone, float endbone, vector org) skel_mul_bone = #273; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_copybones",	PF_skel_copybones,	0,		0,		0,		274},//void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones = #274; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_delete",		PF_skel_delete,		0,		0,		0,		275},//void(float skel) skel_delete = #275; // (FTE_CSQC_SKELETONOBJECTS)
+#endif
 	{"frameforname",	PF_frameforname,	0,		0,		0,		276},//void(float modidx, string framename) frameforname = #276 (FTE_CSQC_SKELETONOBJECTS)
 	{"frameduration",	PF_frameduration,	0,		0,		0,		277},//float(float modidx, float framenum) frameduration = #277 (FTE_CSQC_SKELETONOBJECTS)
 
+	{"terrain_edit",	PF_sv_terrain_edit,	0,		0,		0,		278},//void(float action, vector pos, float radius, float quant) terrain_edit = #278 (??FTE_TERRAIN_EDIT??
 
 //EXT_CSQC
 //	{"setmodelindex",	PF_sv_SetModelIndex,0,		0,		0,		333},	// #333 void(entity e, float mdlindex) setmodelindex (EXT_CSQC)
@@ -9402,6 +9302,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 //DP_QC_WHICHPACK
 	{"whichpack",		PF_whichpack,		0,		0,		0,		503},	// #503 string(string filename) whichpack
+	//no 504
 
 //DP_QC_URI_ESCAPE
 	{"uri_escape",		PF_uri_escape,		0,		0,		0,		510},	// #510 string(string in) uri_escape
@@ -9413,10 +9314,16 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //DP_QC_URI_GET
 	{"uri_get",			PF_uri_get,			0,		0,		0,		513},	// #513 float(string uril, float id) uri_get
 
-	//no 504
+	{"tokenize_console",PF_tokenize_console,0,		0,		0,		514},
+	{"argv_start_index",PF_argv_start_index,0,		0,		0,		515},
+	{"argv_end_index",	PF_argv_end_index,	0,		0,		0,		516},
+	{"buf_cvarlist",	PF_buf_cvarlist,	0,		0,		0,		517},
+	{"cvar_description",PF_cvar_description,0,		0,		0,		518},
 //end dp extras
 
 	{"precache_vwep_model",PF_precache_vwep_model,0,0,		0,		532},	// #532 float(string mname) precache_vwep_model
+
+	{"sprintf",			PF_sprintf,			0,		0,		0,		627},
 
 	//don't exceed sizeof(pr_builtin)/sizeof(pr_builtin[0]) (currently 1024) without modifing the size of pr_builtin
 
@@ -9482,23 +9389,23 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 
 	if (type == PROG_PREREL)
 	{
-		pr_builtin[52] = PF_Single_WriteByte;
-		pr_builtin[53] = PF_Single_WriteChar;
-		pr_builtin[54] = PF_Single_WriteShort;
-		pr_builtin[55] = PF_Single_WriteLong;
-		pr_builtin[56] = PF_Single_WriteCoord;
-		pr_builtin[57] = PF_Single_WriteAngle;
-		pr_builtin[58] = PF_Single_WriteString;
+		pr_builtin[52] = PF_qtSingle_WriteByte;
+		pr_builtin[53] = PF_qtSingle_WriteChar;
+		pr_builtin[54] = PF_qtSingle_WriteShort;
+		pr_builtin[55] = PF_qtSingle_WriteLong;
+		pr_builtin[56] = PF_qtSingle_WriteCoord;
+		pr_builtin[57] = PF_qtSingle_WriteAngle;
+		pr_builtin[58] = PF_qtSingle_WriteString;
 		//lack of writeentity is intentional (prerel doesn't have it.
 
-		pr_builtin[59] = PF_Broadcast_WriteByte;
-		pr_builtin[60] = PF_Broadcast_WriteChar;
-		pr_builtin[61] = PF_Broadcast_WriteShort;
-		pr_builtin[62] = PF_Broadcast_WriteLong;
-		pr_builtin[63] = PF_Broadcast_WriteCoord;
-		pr_builtin[64] = PF_Broadcast_WriteAngle;
-		pr_builtin[65] = PF_Broadcast_WriteString;
-		pr_builtin[66] = PF_Broadcast_WriteEntity;
+		pr_builtin[59] = PF_qtBroadcast_WriteByte;
+		pr_builtin[60] = PF_qtBroadcast_WriteChar;
+		pr_builtin[61] = PF_qtBroadcast_WriteShort;
+		pr_builtin[62] = PF_qtBroadcast_WriteLong;
+		pr_builtin[63] = PF_qtBroadcast_WriteCoord;
+		pr_builtin[64] = PF_qtBroadcast_WriteAngle;
+		pr_builtin[65] = PF_qtBroadcast_WriteString;
+		pr_builtin[66] = PF_qtBroadcast_WriteEntity;
 	}
 
 	if (!pr_compatabilitytest.value)
@@ -9551,8 +9458,8 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 
 	for (i = 0; i < QSG_Extensions_count; i++)
 	{
-		if (QSG_Extensions[i].enabled)
-			*QSG_Extensions[i].enabled = false;
+		if (QSG_Extensions[i].queried)
+			*QSG_Extensions[i].queried = false;
 	}
 
 	if (type == PROG_QW && pr_imitatemvdsv.value>0)	//pretend to be mvdsv for a bit.
@@ -9683,178 +9590,39 @@ int pr_numbuiltins = sizeof(pr_builtin)/sizeof(pr_builtin[0]);
 
 void PR_RegisterFields(void)	//it's just easier to do it this way.
 {
-#define fieldfloat(name) PR_RegisterFieldVar(svprogfuncs, ev_float, #name, (int)&((stdentvars_t*)0)->name, -1)
-#define fieldvector(name) PR_RegisterFieldVar(svprogfuncs, ev_vector, #name, (int)&((stdentvars_t*)0)->name, -1)
-#define fieldentity(name) PR_RegisterFieldVar(svprogfuncs, ev_entity, #name, (int)&((stdentvars_t*)0)->name, -1)
-#define fieldstring(name) PR_RegisterFieldVar(svprogfuncs, ev_string, #name, (int)&((stdentvars_t*)0)->name, -1)
-#define fieldfunction(name) PR_RegisterFieldVar(svprogfuncs, ev_function, #name, (int)&((stdentvars_t*)0)->name, -1)
-
+#define comfieldfloat(ssqcname,sharedname,csqcname) PR_RegisterFieldVar(svprogfuncs, ev_float, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1)
+#define comfieldvector(ssqcname,sharedname,csqcname) PR_RegisterFieldVar(svprogfuncs, ev_vector, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1)
+#define comfieldentity(ssqcname,sharedname,csqcname) PR_RegisterFieldVar(svprogfuncs, ev_entity, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1)
+#define comfieldstring(ssqcname,sharedname,csqcname) PR_RegisterFieldVar(svprogfuncs, ev_string, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1)
+#define comfieldfunction(ssqcname,sharedname,csqcname) PR_RegisterFieldVar(svprogfuncs, ev_function, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1)
+comqcfields
+#undef comfieldfloat
+#undef comfieldvector
+#undef comfieldentity
+#undef comfieldstring
+#undef comfieldfunction
 #ifdef VM_Q1
-#define fieldxfloat(name) PR_RegisterFieldVar(svprogfuncs, ev_float, #name, sizeof(stdentvars_t) + (int)&((extentvars_t*)0)->name, -1)
-#define fieldxvector(name) PR_RegisterFieldVar(svprogfuncs, ev_vector, #name, sizeof(stdentvars_t) + (int)&((extentvars_t*)0)->name, -1)
-#define fieldxentity(name) PR_RegisterFieldVar(svprogfuncs, ev_entity, #name, sizeof(stdentvars_t) + (int)&((extentvars_t*)0)->name, -1)
-#define fieldxstring(name) PR_RegisterFieldVar(svprogfuncs, ev_string, #name, sizeof(stdentvars_t) + (int)&((extentvars_t*)0)->name, -1)
-#define fieldxfunction(name) PR_RegisterFieldVar(svprogfuncs, ev_function, #name, sizeof(stdentvars_t) + (int)&((extentvars_t*)0)->name, -1)
+#define comfieldfloat(name) PR_RegisterFieldVar(svprogfuncs, ev_float, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1)
+#define comfieldvector(name) PR_RegisterFieldVar(svprogfuncs, ev_vector, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1)
+#define comfieldentity(name) PR_RegisterFieldVar(svprogfuncs, ev_entity, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1)
+#define comfieldstring(name) PR_RegisterFieldVar(svprogfuncs, ev_string, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1)
+#define comfieldfunction(name) PR_RegisterFieldVar(svprogfuncs, ev_function, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1)
 #else
-#define fieldxfloat fieldfloat
-#define fieldxvector fieldvector
-#define fieldxentity fieldentity
-#define fieldxstring fieldstring
-#define fieldxfunction fieldfunction
+#define comfieldfloat(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_float, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1)
+#define comfieldvector(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_vector, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1)
+#define comfieldentity(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_entity, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1)
+#define comfieldstring(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_string, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1)
+#define comfieldfunction(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_function, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1)
 #endif
 
-	fieldfloat(modelindex);
-	fieldvector(absmin);
-	fieldvector(absmax);
-	fieldfloat(ltime);
-	fieldfloat(lastruntime);
-	fieldfloat(movetype);
-	fieldfloat(solid);
-	fieldvector(origin);
-	fieldvector(oldorigin);
-	fieldvector(velocity);
-	fieldvector(angles);
-	fieldvector(avelocity);
-	fieldstring(classname);
-	fieldstring(model);
-	fieldfloat(frame);
-	fieldfloat(skin);
-	fieldfloat(effects);
-	fieldvector(mins);
-	fieldvector(maxs);
-	fieldvector(size);
-	fieldfunction(touch);
-	fieldfunction(use);
-	fieldfunction(think);
-	fieldfunction(blocked);
-	fieldfloat(nextthink);
-	fieldentity(groundentity);
-	fieldfloat(health);
-	fieldfloat(frags);
-	fieldfloat(weapon);
-	fieldstring(weaponmodel);
-	fieldfloat(weaponframe);
-	fieldfloat(currentammo);
-	fieldfloat(ammo_shells);
-	fieldfloat(ammo_nails);
-	fieldfloat(ammo_rockets);
-	fieldfloat(ammo_cells);
-	fieldfloat(items);
-	fieldfloat(takedamage);
-	fieldentity(chain);
-	fieldfloat(deadflag);
-	fieldvector(view_ofs);
-	fieldfloat(button0);
-	fieldfloat(button1);
-	fieldfloat(button2);
-	fieldfloat(impulse);
-	fieldfloat(fixangle);
-	fieldvector(v_angle);
-	fieldstring(netname);
-	fieldentity(enemy);
-	fieldfloat(flags);
-	fieldfloat(colormap);
-	fieldfloat(team);
-	fieldfloat(max_health);
-	fieldfloat(teleport_time);
-	fieldfloat(armortype);
-	fieldfloat(armorvalue);
-	fieldfloat(waterlevel);
-	fieldfloat(watertype);
-	fieldfloat(ideal_yaw);
-	fieldfloat(yaw_speed);
-	fieldentity(aiment);
-	fieldentity(goalentity);
-	fieldfloat(spawnflags);
-	fieldstring(target);
-	fieldstring(targetname);
-	fieldfloat(dmg_take);
-	fieldfloat(dmg_save);
-	fieldentity(dmg_inflictor);
-	fieldentity(owner);
-	fieldvector(movedir);
-	fieldfloat(sounds);
-	fieldstring(noise);
-	fieldstring(noise1);
-	fieldstring(noise2);
-	fieldstring(noise3);
+comextqcfields
+svextqcfields
 
-//the rest are extras. (not in header)
-	fieldxfloat(button3);
-	fieldxfloat(button4);
-	fieldxfloat(button5);
-	fieldxfloat(button6);
-	fieldxfloat(button7);
-	fieldxfloat(button8);
-	fieldxfloat(gravity);		//standard extension
-	fieldxfloat(maxspeed);	//standard extension
-	fieldxfloat(items2);	//standard nq
-	fieldxvector(punchangle);//standard nq
-	fieldxfloat(scale);
-	fieldxfloat(alpha);
-	fieldxfloat(fatness);
-	fieldxentity(view2);
-	fieldxvector(movement);
-	fieldxfloat(pmove_flags);
-	fieldxfloat(vw_index);
-
-	//dp extra fields
-	fieldxentity(nodrawtoclient);
-	fieldxentity(drawonlytoclient);
-	fieldxentity(viewmodelforclient);
-	fieldxentity(exteriormodeltoclient);
-
-	fieldxfloat(viewzoom);
-
-	fieldxentity(tag_entity);
-	fieldxfloat(tag_index);
-
-	fieldxfloat(glow_size);
-	fieldxfloat(glow_color);
-	fieldxfloat(glow_trail);
-
-	fieldxvector(colormod);
-
-//	if (progstype == PROG_H2)
-	{
-		fieldxvector(color);
-	}
-	fieldxfloat(light_lev);
-	fieldxfloat(style);
-	fieldxfloat(pflags);
-
-	fieldxfloat(clientcolors);
-
-//hexen 2 stuff
-	fieldxfloat(playerclass);
-	fieldxfloat(hull);
-	fieldxfloat(hasted);
-
-	fieldxfloat(light_level);
-	fieldxfloat(abslight);
-	fieldxfloat(drawflags);
-	fieldxentity(movechain);
-	fieldxfunction(chainmoved);
-
-	//QSG_DIMENSION_PLANES
-	fieldxfloat(dimension_see);
-	fieldxfloat(dimension_seen);
-	fieldxfloat(dimension_ghost);
-	fieldxfloat(dimension_ghost_alpha);
-	fieldxfloat(dimension_solid);
-	fieldxfloat(dimension_hit);
-
-
-	// EXT_CSQC
-	fieldxfunction(SendEntity);
-	fieldxfloat(SendFlags);
-	fieldxfloat(Version);
-	fieldxfloat(pvsflags);
-
-	// FTE_ENT_UNIQUESPAWNID
-	fieldxfloat(uniquespawnid);
-
-	fieldxfunction(customizeentityforclient);
+#undef comfieldfloat
+#undef comfieldvector
+#undef comfieldentity
+#undef comfieldstring
+#undef comfieldfunction
 
 	//Tell the qc library to split the entity fields each side.
 	//the fields above become < 0, the remaining fields specified by the qc stay where the mod specified, as far as possible (with addons at least).

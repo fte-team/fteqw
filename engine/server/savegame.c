@@ -274,8 +274,10 @@ void SV_Loadgame_f(void)
 		cl->connection_started = realtime+20;
 		cl->istobeloaded = true;
 
-		for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
+		for (i=0 ; i<16 ; i++)
 			fscanf (f, "%f\n", &cl->spawn_parms[i]);
+		for (; i < NUM_SPAWN_PARMS; i++)
+			cl->spawn_parms[i] = 0;
 	}
 	else	//fte QuakeWorld saves ALL the clients on the server.
 	{
@@ -500,7 +502,7 @@ void LoadModelsAndSounds(vfsfile_t *f)
 		*sv.strings.sound_precache[i] = 0;
 }
 
-qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
+qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolean ignoreplayers)
 {
 	eval_t *eval, *e2;
 
@@ -540,7 +542,10 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 
 	gametype = cache->gametype;
 
-	sprintf (name, "saves/%s", level);
+	if (savename)
+		sprintf (name, "saves/%s/%s", savename, level);
+	else
+		sprintf (name, "saves/%s", level);
 	COM_DefaultExtension (name, ".lvc", sizeof(name));
 
 //	Con_TPrintf (STL_LOADGAMEFROM, name);
@@ -551,7 +556,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 		char syspath[MAX_OSPATH];
 		SV_SpawnServer (level, startspot, false, false);
 
-		SV_ClearWorld();
+		World_ClearWorld(&sv.world);
 		if (!ge)
 		{
 			Con_Printf("Incorrect gamecode type.\n");
@@ -654,7 +659,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 
 	PR_Configure(svprogfuncs, -1, MAX_PROGS);
 	PR_RegisterFields();
-	PR_InitEnts(svprogfuncs, sv.max_edicts);
+	PR_InitEnts(svprogfuncs, sv.world.max_edicts);
 
 	modelpos = VFS_TELL(f);
 	LoadModelsAndSounds(f);
@@ -666,14 +671,14 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 	memset(file, 0, filelen+1);
 	clnum=VFS_READ(f, file, filelen);
 	file[filelen]='\0';
-	pr_edict_size=svprogfuncs->load_ents(svprogfuncs, file, 0);
+	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, 0);
 	BZ_Free(file);
 
 	progstype = pt;
 
 	PR_LoadGlabalStruct();
 
-	pr_global_struct->time = sv.time = sv.physicstime = time;
+	pr_global_struct->time = sv.time = sv.world.physicstime = time;
 	sv.starttime = Sys_DoubleTime() - sv.time;
 
 	VFS_SEEK(f, modelpos);
@@ -683,7 +688,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 
 	PF_InitTempStrings(svprogfuncs);
 
-	SV_ClearWorld ();
+	World_ClearWorld (&sv.world);
 
 	for (i=0 ; i<MAX_CLIENTS ; i++)
 	{
@@ -698,10 +703,10 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 
 	if (!ignoreplayers)
 	{
-		eval = PR_FindGlobal(svprogfuncs, "startspot", 0);
+		eval = PR_FindGlobal(svprogfuncs, "startspot", 0, NULL);
 		if (eval) eval->_int = (int)PR_NewString(svprogfuncs, startspot, 0);
 
-		eval = PR_FindGlobal(svprogfuncs, "ClientReEnter", 0);
+		eval = PR_FindGlobal(svprogfuncs, "ClientReEnter", 0, NULL);
 		if (eval)
 		for (i=0 ; i<MAX_CLIENTS ; i++)
 		{
@@ -720,7 +725,7 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 					if (spawnparamglobals[j])
 						*spawnparamglobals[j] = host_client->spawn_parms[j];
 				}
-				pr_global_struct->time = sv.physicstime;
+				pr_global_struct->time = sv.world.physicstime;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 				ent->area.next = ent->area.prev = NULL;
 				G_FLOAT(OFS_PARM0) = sv.time-host_client->spawninfotime;
@@ -729,19 +734,19 @@ qboolean SV_LoadLevelCache(char *level, char *startspot, qboolean ignoreplayers)
 		}
 	}
 
-	for (i=0 ; i<sv.num_edicts ; i++)
+	for (i=0 ; i<sv.world.num_edicts ; i++)
 	{
 		ent = EDICT_NUM(svprogfuncs, i);
 		if (ent->isfree)
 			continue;
 
-		SV_LinkEdict (ent, false);	// force retouch even for stationary
+		World_LinkEdict (&sv.world, (wedict_t*)ent, false);	// force retouch even for stationary
 	}
 
 	return true;	//yay
 }
 
-void SV_SaveLevelCache(qboolean dontharmgame)
+void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 {
 	int len;
 	char *s;
@@ -777,7 +782,10 @@ void SV_SaveLevelCache(qboolean dontharmgame)
 	}
 
 
-	sprintf (name, "saves/%s", cache->mapname);
+	if (savedir)
+		sprintf (name, "saves/%s/%s", savedir, cache->mapname);
+	else
+		sprintf (name, "saves/%s", cache->mapname);
 	COM_DefaultExtension (name, ".lvc", sizeof(name));
 
 	FS_CreatePath(name, FS_GAMEONLY);
@@ -793,6 +801,7 @@ void SV_SaveLevelCache(qboolean dontharmgame)
 		if (!FS_NativePath(name, FS_GAMEONLY, syspath, sizeof(syspath)))
 			return;
 		ge->WriteLevel(syspath);
+		FS_FlushFSHash();
 		return;
 	}
 #endif
@@ -873,10 +882,13 @@ void SV_SaveLevelCache(qboolean dontharmgame)
 	VFS_PRINTF (f,"\n");
 
 	s = PR_SaveEnts(svprogfuncs, NULL, &len, 1);
-	VFS_PRINTF(f, "%s\n", s);
+	VFS_PUTS(f, s);
+	VFS_PUTS(f, "\n");
 	svprogfuncs->parms->memfree(s);
 
 	VFS_CLOSE (f);
+
+	FS_FlushFSHash();
 }
 
 #ifdef NEWSAVEFORMAT
@@ -925,7 +937,7 @@ void SV_Savegame_f (void)
 
 	savefilename = va("saves/%s/info.fsv", savename);
 	FS_CreatePath(savefilename, FS_GAMEONLY);
-	f = FS_OpenVFS(savefilename, "wt", FS_GAMEONLY);
+	f = FS_OpenVFS(savefilename, "wb", FS_GAMEONLY);
 	if (!f)
 	{
 		Con_Printf("Couldn't open file saves/%s/info.fsv\n", savename);
@@ -953,7 +965,7 @@ void SV_Savegame_f (void)
 
 	Q_strncpyz(str, svs.info, sizeof(str));
 	Info_RemovePrefixedKeys(str, '*');
-	VFS_PRINTF (f, "%s\"\n",	str);
+	VFS_PRINTF (f, "%s\n",	str);
 
 	Q_strncpyz(str, localinfo, sizeof(str));
 	Info_RemovePrefixedKeys(str, '*');
@@ -983,16 +995,17 @@ void SV_Savegame_f (void)
 	VFS_PRINTF (f, "set nextserver		\"%s\"\n",	Cvar_Get("nextserver", "", 0, "")->string);
 	VFS_PRINTF (f, "}\n");
 
-	SV_SaveLevelCache(true);	//add the current level. Note that this can cause reentry problems.
+	SV_SaveLevelCache(savename, true);	//add the current level.
 
 	cache = svs.levcache;	//state from previous levels - just copy it all accross.
 	VFS_PRINTF(f, "{\n");
 	while(cache)
 	{
 		VFS_PRINTF(f, "%s\n", cache->mapname);
-
-		FS_Copy(va("saves/%s.lvc", cache->mapname), va("saves/%s/%s.lvc", savename, cache->mapname), FS_GAME, FS_GAME);
-
+		if (strcmp(cache->mapname, sv.name))
+		{
+			FS_Copy(va("saves/%s.lvc", cache->mapname), va("saves/%s/%s.lvc", savename, cache->mapname), FS_GAME, FS_GAME);
+		}
 		cache = cache->next;
 	}
 	VFS_PRINTF(f, "}\n");
@@ -1000,6 +1013,8 @@ void SV_Savegame_f (void)
 	VFS_PRINTF (f, "%s\n", sv.name);
 
 	VFS_CLOSE(f);
+
+	FS_FlushFSHash();
 }
 
 void SV_Loadgame_f (void)
@@ -1023,7 +1038,7 @@ void SV_Loadgame_f (void)
 		strcpy(savename, "quicksav");
 
 	sprintf (filename, "saves/%s/info.fsv", savename);
-	f = FS_OpenVFS (filename, "rt", FS_GAME);
+	f = FS_OpenVFS (filename, "rb", FS_GAME);
 	if (!f)
 	{
 		Con_TPrintf (STL_ERRORCOULDNTOPEN);
@@ -1187,7 +1202,7 @@ void SV_Loadgame_f (void)
 
 	VFS_CLOSE(f);
 
-	SV_LoadLevelCache(str, "", true);
+	SV_LoadLevelCache(savename, str, "", true);
 	sv.allocated_client_slots = slots;
 }
 #endif

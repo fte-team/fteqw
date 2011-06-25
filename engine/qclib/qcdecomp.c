@@ -5,6 +5,22 @@
 
 #define	MAX_PARMS	8
 
+// I put the following here to resolve "undefined reference to `__imp__vsnprintf'" with MinGW64 ~ Moodles
+#ifdef _WIN32
+	#if (_MSC_VER >= 1400)
+		//with MSVC 8, use MS extensions
+		#define snprintf linuxlike_snprintf_vc8
+		int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
+		#define vsnprintf(a, b, c, d) vsnprintf_s(a, b, _TRUNCATE, c, d)
+	#else
+		//msvc crap
+		#define snprintf linuxlike_snprintf
+		int VARGS linuxlike_snprintf(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
+		#define vsnprintf linuxlike_vsnprintf
+		int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_list argptr);
+	#endif
+#endif
+
 typedef struct QCC_type_s
 {
 	etype_t			type;
@@ -13,7 +29,7 @@ typedef struct QCC_type_s
 // function types are more complex
 	struct QCC_type_s	*aux_type;	// return type or field type
 	int				num_parms;	// -1 = variable args
-//	struct QCC_type_s	*parm_types[MAX_PARMS];	// only [num_parms] allocated	
+//	struct QCC_type_s	*parm_types[MAX_PARMS];	// only [num_parms] allocated
 
 	int ofs;	//inside a structure.
 	int size;
@@ -107,7 +123,7 @@ char *VarAtOfs(progfuncs_t *progfuncs, int ofs)
 			typen = current_progstate->types[def->type & ~DEF_SHARED].type;
 		else
 			typen = def->type & ~(DEF_SHARED|DEF_SAVEGLOBAL);
-		
+
 evaluateimmediate:
 //		return PR_UglyValueString(def->type, (eval_t *)&current_progstate->globals[def->ofs]);
 		switch(typen)
@@ -173,7 +189,7 @@ int ImmediateReadLater(progfuncs_t *progfuncs, progstate_t *progs, unsigned int 
 	dstatement16_t *st;
 	if (ofsflags[ofs] & 8)
 		return false;	//this is a global/local/pramater, not a temp
-	if (!(ofsflags[ofs] & 3))	
+	if (!(ofsflags[ofs] & 3))
 		return false;	//this is a constant.
 	for (st = &((dstatement16_t*)progs->statements)[firstst]; ; st++,firstst++)
 	{	//if written, return false, if read, return true.
@@ -453,7 +469,7 @@ void WriteAsmStatements(progfuncs_t *progfuncs, progstate_t *progs, int num, int
 				def->s_name = (char*)malloc(strlen(mem)+1)-progfuncs->stringtable;
 				strcpy(def->s_name+progfuncs->stringtable, mem);
 			}
-			
+
 			if (current_progstate->types)
 				writes(f, "%s %s", current_progstate->types[def->type&~(DEF_SHARED|DEF_SAVEGLOBAL)].name, def->s_name);
 			else
@@ -471,7 +487,7 @@ void WriteAsmStatements(progfuncs_t *progfuncs, progstate_t *progs, int num, int
 				case ev_vector:
 					writes(f, "%s %s", "vector", progfuncs->stringtable+def->s_name);
 					break;
-				default:					
+				default:
 					writes(f, "%s %s", "randomtype", progfuncs->stringtable+def->s_name);
 					break;
 				}
@@ -542,7 +558,7 @@ void WriteAsmStatements(progfuncs_t *progfuncs, progstate_t *progs, int num, int
 		writes(f, ";\r\n");
 		return;
 	}
-	
+
 	fileofs = SafeSeek(f, 0, SEEK_CUR);
 	if (setjmp(decompilestatementfailure))
 	{
@@ -555,7 +571,7 @@ void WriteAsmStatements(progfuncs_t *progfuncs, progstate_t *progs, int num, int
 		{
 			def = ED_GlobalAtOfs16(progfuncs, ofs);
 			if (def)
-			{	
+			{
 				v = (eval_t *)&((int *)progs->globals)[def->ofs];
 				if (current_progstate->types)
 					writes(f, "\tlocal %s %s;\r\n", current_progstate->types[def->type&~(DEF_SHARED|DEF_SAVEGLOBAL)].name, def->s_name);
@@ -583,11 +599,11 @@ void WriteAsmStatements(progfuncs_t *progfuncs, progstate_t *progs, int num, int
 					case ev_vector:
 						if (v->_vector[0] || v->_vector[1] || v->_vector[2])
 							writes(f, "\tlocal vector %s = '%f %f %f';\r\n", progfuncs->stringtable+def->s_name, v->_vector[0], v->_vector[1], v->_vector[2]);
-						else						
+						else
 							writes(f, "\tlocal %s %s;\r\n", "vector", progfuncs->stringtable+def->s_name);
 						ofs+=2;	//skip floats;
 						break;
-					default:					
+					default:
 						writes(f, "\tlocal %s %s;\r\n", "randomtype", progfuncs->stringtable+def->s_name);
 						break;
 					}
@@ -600,7 +616,7 @@ void WriteAsmStatements(progfuncs_t *progfuncs, progstate_t *progs, int num, int
 			st = &((dstatement16_t*)progs->statements)[stn];
 			if (!st->op)	//end of function statement!
 				break;
-			op = &pr_opcodes[st->op];		
+			op = &pr_opcodes[st->op];
 			writes(f, "\t%s", op->opname);
 
 			if (op->priority==-1&&op->associative==ASSOC_RIGHT)	//last param is a goto
@@ -651,7 +667,7 @@ void WriteAsmStatements(progfuncs_t *progfuncs, progstate_t *progs, int num, int
 						writes(f, " %s", VarAtOfs(progfuncs, st->c));
 				}
 			}
-				
+
 			writes(f, ";\r\n");
 
 			stn++;
@@ -671,7 +687,7 @@ void WriteAsmStatements(progfuncs_t *progfuncs, progstate_t *progs, int num, int
 		{
 			def = ED_GlobalAtOfs16(progfuncs, ofs);
 			if (def)
-			{	
+			{
 				v = (eval_t *)&((int *)progs->globals)[def->ofs];
 				if (current_progstate->types)
 					writes(f, "\tlocal %s %s;\r\n", current_progstate->types[def->type&~(DEF_SHARED|DEF_SAVEGLOBAL)].name, def->s_name);
@@ -699,11 +715,11 @@ void WriteAsmStatements(progfuncs_t *progfuncs, progstate_t *progs, int num, int
 					case ev_vector:
 						if (v->_vector[0] || v->_vector[1] || v->_vector[2])
 							writes(f, "\tlocal vector %s = '%f %f %f';\r\n", def->s_name, v->_vector[0], v->_vector[1], v->_vector[2]);
-						else						
+						else
 							writes(f, "\tlocal %s %s;\r\n", "vector",progfuncs->stringtable+def->s_name);
 						ofs+=2;	//skip floats;
 						break;
-					default:					
+					default:
 						writes(f, "\tlocal %s %s;\r\n", "randomtype", progfuncs->stringtable+def->s_name);
 						break;
 					}
@@ -736,7 +752,7 @@ void FigureOutTypes(progfuncs_t *progfuncs)
 	dstatement16_t *st;
 
 	int parmofs[8];
-	
+
 	ofstype		= realloc(ofstype,		sizeof(*ofstype)*65535);
 	ofsflags	= realloc(ofsflags,	sizeof(*ofsflags)*65535);
 
@@ -752,9 +768,9 @@ void FigureOutTypes(progfuncs_t *progfuncs)
 	type_float = QCC_PR_NewType("float", ev_float);
 	type_vector = QCC_PR_NewType("vector", ev_vector);
 	type_entity = QCC_PR_NewType("entity", ev_entity);
-	type_field = QCC_PR_NewType("field", ev_field);	
+	type_field = QCC_PR_NewType("field", ev_field);
 	type_function = QCC_PR_NewType("function", ev_function);
-	type_pointer = QCC_PR_NewType("pointer", ev_pointer);	
+	type_pointer = QCC_PR_NewType("pointer", ev_pointer);
 	type_integer = QCC_PR_NewType("integer", ev_integer);
 
 //	type_variant = QCC_PR_NewType("__variant", ev_variant);
@@ -843,7 +859,7 @@ pbool Decompile(progfuncs_t *progfuncs, char *fname)
 
 	qccprogfuncs = progfuncs;
 	op=current_progstate;
-	
+
 	if (!PR_ReallyLoadProgs(progfuncs, fname, -1, &progs, false))
 	{
 		return false;
@@ -892,7 +908,7 @@ pbool Decompile(progfuncs_t *progfuncs, char *fname)
 			if (v->string && *(pr_strings+v->_int))
 				writes(f, "string %s = \"%s\";\r\n", progfuncs->stringtable+pr_globaldefs16[i].s_name, pr_strings+v->_int);
 			else
-				writes(f, "string %s;\r\n", pr_globaldefs16[i].s_name);
+				writes(f, "string %s;\r\n", progfuncs->stringtable+pr_globaldefs16[i].s_name);
 			break;
 		case ev_float:
 			if (v->_float)
@@ -947,10 +963,10 @@ pbool Decompile(progfuncs_t *progfuncs, char *fname)
 			break;
 
 		case ev_function:
-//wierd			
+//wierd
 			WriteAsmStatements(progfuncs, &progs, ((int *)progs.globals)[pr_globaldefs16[i].ofs], f, pr_globaldefs16[i].s_name+progfuncs->stringtable);
 			break;
-			
+
 		case ev_pointer:
 			writes(f, "pointer %s;\r\n", progfuncs->stringtable+pr_globaldefs16[i].s_name);
 			break;
@@ -964,9 +980,9 @@ pbool Decompile(progfuncs_t *progfuncs, char *fname)
 		case ev_struct:
 			writes(f, "struct %s;\r\n", progfuncs->stringtable+pr_globaldefs16[i].s_name);
 			break;
-		default:			
+		default:
 			break;
-			
+
 		}
 	}
 

@@ -29,9 +29,10 @@ The engine has a few builtins.
 
 #ifdef PSET_SCRIPT
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"//hack
 #endif
+#include "shader.h"
 
 #ifdef D3DQUAKE
 //d3d is awkward
@@ -44,7 +45,22 @@ extern void *d3dballtexture;
 
 #include "r_partset.h"
 
+struct
+{
+	char *name;
+	char **data;
+} partset_list[] =
+{
+	{"none", NULL},
+	R_PARTSET_BUILTINS
+	{NULL}
+};
+
 extern qbyte *host_basepal;
+
+extern particleengine_t pe_classic;
+particleengine_t *fallback = NULL; //does this really need to be 'extern'?
+#define FALLBACKBIAS 0x1000000
 
 static int pt_pointfile = P_INVALID;
 static int pe_default = P_INVALID;
@@ -52,19 +68,17 @@ static int pe_size2 = P_INVALID;
 static int pe_size3 = P_INVALID;
 static int pe_defaulttrail = P_INVALID;
 
-static float psintable[64];
+static float psintable[256];
 
 static void buildsintable(void)
 {
 	int i;
-	for (i = 0; i < 64; i++)
-		psintable[i] = sin((i*M_PI)/32);
+	for (i = 0; i < 256; i++)
+		psintable[i] = sin((i*M_PI)/128);
 }
-#define sin(x) (psintable[(int)(x*(64/M_PI)) & 63])
-#define cos(x) (psintable[((int)(x*(64/M_PI)) + 16) & 63])
+#define sin(x) (psintable[(int)((x)*(128/M_PI)) & 255])
+#define cos(x) (psintable[((int)((x)*(128/M_PI)) + 64) & 255])
 
-
-// !!! if this is changed, it must be changed in d_ifacea.h too !!!
 typedef struct particle_s
 {
 	struct particle_s	*next;
@@ -72,9 +86,7 @@ typedef struct particle_s
 
 // driver-usable fields
 	vec3_t		org;
-	float		color;	//used by sw renderer. To be removed.
-	vec3_t		rgb;
-	float		alpha;
+	vec4_t		rgba;
 	float		scale;
 	float		s1, t1, s2, t2;
 
@@ -97,8 +109,7 @@ typedef struct clippeddecal_s
 	vec3_t		vertex[3];
 	vec2_t		texcoords[3];
 
-	vec3_t		rgb;
-	float		alpha;
+	vec4_t		rgba;
 } clippeddecal_t;
 
 #define BS_LASTSEG 0x1 // no draw to next, no delete
@@ -109,7 +120,7 @@ typedef struct beamseg_s
 {
 	struct beamseg_s *next;  // next in beamseg list
 
-	particle_t *p; 
+	particle_t *p;
 	int    flags;            // flags for beamseg
 	vec3_t dir;
 
@@ -134,14 +145,11 @@ typedef struct {
 	enum {PT_NORMAL, PT_SPARK, PT_SPARKFAN, PT_TEXTUREDSPARK, PT_BEAM, PT_DECAL} type;
 
 	blendmode_t blendmode;
-
-	int texturenum;
-#ifdef D3DQUAKE
-	void *d3dtexture;
-#endif
+	shader_t *shader;
 
 	float scalefactor;
 	float invscalefactor;
+	float stretch;
 } plooks_t;
 
 //these could be deltas or absolutes depending on ramping mode.
@@ -155,38 +163,47 @@ typedef struct {
 typedef struct part_type_s {
 	char name[MAX_QPATH];
 	char texname[MAX_QPATH];
-	vec3_t rgb;
+	char modelname[MAX_QPATH];
+
+	model_t *model;
+	float modelframestart;
+	float modelframeend;
+	float modelframerate;
+	float modelalpha;
+
+	vec3_t rgb;	//initial colour
 	float alpha;
-	vec3_t rgbchange;
+	vec3_t rgbchange;	//colour delta (per second)
 	float alphachange;
-	vec3_t rgbrand;
-	int colorindex;
-	int colorrand;
-	float rgbchangetime;
-	vec3_t rgbrandsync;
-	float scale;
-	float die, randdie;
-	float randomvel, veladd;
-	float orgadd;
-	float offsetspread;
-	float offsetspreadvert;
-	float randomvelvert;
-	float randscale;
-	
-	float s1, t1, s2, t2;
+	vec3_t rgbrand;		//random rgb colour to start with
+	float alpharand;
+	int colorindex;		//get colour from a palette
+	int colorrand;		//and add up to this amount
+	float rgbchangetime;//colour stops changing at this time
+	vec3_t rgbrandsync;	//like rgbrand, but a single random value instead of separate (can mix)
+	float scale;		//initial scale
+	float scalerand;	//with up to this much extra
+	float die, randdie;	//how long it lasts (plus some rand)
+	float randomvel, randomvelvert; //random velocity (unaligned)
+	float veladd;		//scale the incoming velocity by this much
+	float orgadd;		//spawn the particle this far along its velocity direction
+	float spawnvel, spawnvelvert; //spawn the particle with a velocity based upon its spawn type (generally so it flies outwards)
+
+	float s1, t1, s2, t2;	//texture coords
 	float texsstride;	//addition for s for each random slot.
 	int randsmax;	//max times the stride can be added
 
 	plooks_t *slooks;	//shared looks, so state switches don't apply between particles so much
 	plooks_t looks;
 
-	float spawntime;
-	float spawnchance;
+	float spawntime;	//time limit for trails
+	float spawnchance;	//if < 0, particles might not spawn so many
 
 	float rotationstartmin, rotationstartrand;
 	float rotationmin, rotationrand;
 
 	float scaledelta;
+	int countextra;
 	float count;
 	float countrand;
 
@@ -224,7 +241,14 @@ typedef struct part_type_s {
 	float gravity;
 	vec3_t friction;
 	float clipbounce;
-	int stains;
+	int stainonimpact;
+
+	vec3_t dl_rgb;
+	float dl_radius;
+	float dl_time;
+	vec3_t dl_decay;
+	vec3_t stain_rgb;
+	float stain_radius;
 
 	enum {RAMP_NONE, RAMP_DELTA, RAMP_ABSOLUTE} rampmode;
 	int rampindexes;
@@ -247,21 +271,20 @@ typedef struct part_type_s {
 #define PT_NOSTATE       0x040 // don't use trailstate for this emitter (careful with assoc...)
 #define PT_NOSPREADFIRST 0x080 // don't randomize org/vel for first generated particle
 #define PT_NOSPREADLAST  0x100 // don't randomize org/vel for last generated particle
+
 	unsigned int state;
 #define PS_INRUNLIST 0x1 // particle type is currently in execution list
 } part_type_t;
 
-void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t **,plooks_t*), void (*sparklineparticles)(int count, particle_t **,plooks_t*), void (*sparkfanparticles)(int count, particle_t **,plooks_t*), void (*sparktexturedparticles)(int count, particle_t **,plooks_t*), void (*beamparticlest)(int count, beamseg_t**,plooks_t*), void (*beamparticlesut)(int count, beamseg_t**,plooks_t*), void (*drawdecalparticles)(int count, clippeddecal_t**,plooks_t*));
+static void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t **,plooks_t*), void (*sparklineparticles)(int count, particle_t **,plooks_t*), void (*sparkfanparticles)(int count, particle_t **,plooks_t*), void (*sparktexturedparticles)(int count, particle_t **,plooks_t*), void (*beamparticles)(int count, beamseg_t**,plooks_t*), void (*drawdecalparticles)(int count, clippeddecal_t**,plooks_t*));
 
 #ifndef TYPESONLY
 
-//triangle fan sparks use these.
-static double sint[7] = {0.000000, 0.781832,  0.974928,  0.433884, -0.433884, -0.974928, -0.781832};
-static double cost[7] = {1.000000, 0.623490, -0.222521, -0.900969, -0.900969, -0.222521,  0.623490};
+//triangle fan sparks use these. // defined but not used
+//static double sint[7] = {0.000000, 0.781832,  0.974928,  0.433884, -0.433884, -0.974928, -0.781832};
+//static double cost[7] = {1.000000, 0.623490, -0.222521, -0.900969, -0.900969, -0.222521,  0.623490};
 
 #define crand() (rand()%32767/16383.5f-1)
-
-void D_DrawParticleTrans (vec3_t porg, float palpha, float pscale, unsigned int pcolour, blendmode_t blendmode);
 
 static void P_ReadPointFile_f (void);
 static void P_ExportBuiltinSet_f(void);
@@ -300,37 +323,27 @@ extern cvar_t r_bloodstains;
 extern cvar_t gl_part_flame;
 
 // callbacks
-static void R_ParticlesDesc_Callback(struct cvar_s *var, char *oldvalue);
+static void R_ParticleDesc_Callback(struct cvar_s *var, char *oldvalue);
 
-extern cvar_t r_particlesdesc;
+extern cvar_t r_particledesc;
 extern cvar_t r_part_rain_quantity;
 extern cvar_t r_particle_tracelimit;
 extern cvar_t r_part_sparks;
 extern cvar_t r_part_sparks_trifan;
 extern cvar_t r_part_sparks_textured;
 extern cvar_t r_part_beams;
-extern cvar_t r_part_beams_textured;
 extern cvar_t r_part_contentswitch;
 
 static float particletime;
 
-#define APPLYBLEND(bm)	\
-		switch (bm)												\
-		{														\
-		case BM_ADD:											\
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE);					\
-			break;												\
-		case BM_SUBTRACT:										\
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_COLOR);	\
-			break;												\
-		case BM_BLENDCOLOUR:										\
-			qglBlendFunc(GL_SRC_COLOR, GL_ONE_MINUS_SRC_COLOR);	\
-			break;												\
-		case BM_BLEND:											\
-		default:												\
-			qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);	\
-			break;												\
-		}
+#define BUFFERVERTS 2048*4
+static vecV_t pscriptverts[BUFFERVERTS];
+static avec4_t pscriptcolours[BUFFERVERTS];
+static vec2_t pscripttexcoords[BUFFERVERTS];
+static index_t pscriptquadindexes[(BUFFERVERTS/4)*6];
+static index_t pscripttriindexes[BUFFERVERTS];
+static mesh_t pscriptmesh;
+static mesh_t pscripttmesh;
 
 static int numparticletypes;
 static part_type_t *part_type;
@@ -339,13 +352,11 @@ static part_type_t *part_run_list;
 static struct {
 	char *oldn;
 	char *newn;
-} legacynames[] = 
+} legacynames[] =
 {
 	{"t_rocket", "TR_ROCKET"},
-	{"te_explosion", "TE_EXPLOSION"},
 
-	{"t_blastertrail", "TR_BLASTERTRAIL"},
-	{"t_rocket", "TR_ROCKET"},
+	//{"t_blastertrail", "TR_BLASTERTRAIL"},
 	{"t_grenade", "TR_GRENADE"},
 	{"t_gib", "TR_BLOOD"},
 
@@ -378,13 +389,15 @@ static part_type_t *P_GetParticleType(char *name)
 	ptype = &part_type[numparticletypes++];
 	memset(ptype, 0, sizeof(*ptype));
 	strcpy(ptype->name, name);
-	ptype->assoc=P_INVALID;
+	ptype->assoc = P_INVALID;
+	ptype->inwater = P_INVALID;
 	ptype->cliptype = P_INVALID;
 	ptype->emit = P_INVALID;
 
 	if (oldlist)
 	{
-		part_run_list=NULL;
+		if (part_run_list)
+			part_run_list = (part_type_t*)((char*)part_run_list - (char*)oldlist + (char*)part_type);
 
 		for (i = 0; i < numparticletypes; i++)
 			if (part_type[i].nexttorun)
@@ -441,10 +454,19 @@ static int PScript_FindParticleType(char *name)
 			break;
 		}
 	}
-	if (!ptype)
+	if (!ptype || !ptype->loaded)
+	{
+		if (fallback)
+		{
+			if (!strncmp(name, "classic_", 8))
+				i = fallback->FindParticleType(name+8);
+			else
+				i = fallback->FindParticleType(name);
+			if (i != P_INVALID)
+				return i+FALLBACKBIAS;
+		}
 		return P_INVALID;
-	if (!ptype->loaded)
-		return P_INVALID;
+	}
 	return i;
 }
 
@@ -481,59 +503,149 @@ static int CheckAssosiation(char *name, int from)
 
 static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 {
-	switch (qrenderer)
+	texnums_t tn;
+	char *defaultshader;
+	char *namepostfix;
+	if (qrenderer == QR_NONE)
+		return;
+
+	ptype->model = NULL;
+
+	if (*ptype->texname)
 	{
-#ifdef RGLQUAKE
-	case QR_OPENGL:
-		if (*ptype->texname && strcmp(ptype->texname, "default"))
+		/*try and load the shader, fail if we would need to generate one*/
+		ptype->looks.shader = R_RegisterCustom(ptype->texname, NULL, NULL);
+	}
+	else
+		ptype->looks.shader = NULL;
+
+	if (!ptype->looks.shader)
+	{
+		/*okay, so no shader, generate a shader that matches the legacy/shaderless mode*/
+		switch(ptype->looks.blendmode)
 		{
-			ptype->looks.texturenum = Mod_LoadHiResTexture(ptype->texname, "particles", true, true, true);
+		case BM_BLEND:
+		default:
+			namepostfix = "_blend";
+			defaultshader =
+				"{\n"
+					"nomipmaps\n"
+					"{\n"
+						"map $diffuse\n"
+						"blendfunc blend\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+					"}\n"
+					"polygonoffset\n"
+				"}\n"
+				;
+			break;
+		case BM_BLENDCOLOUR:
+			namepostfix = "_bc";
+			defaultshader =
+				"{\n"
+					"nomipmaps\n"
+					"{\n"
+						"map $diffuse\n"
+						"blendfunc GL_SRC_COLOR GL_ONE_MINUS_SRC_COLOR\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+					"}\n"
+					"polygonoffset\n"
+				"}\n"
+				;
+			break;
+		case BM_ADD:
+			namepostfix = "_add";
+			defaultshader =
+				"{\n"
+					"nomipmaps\n"
+					"{\n"
+						"map $diffuse\n"
+						"blendfunc GL_SRC_ALPHA GL_ONE\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+					"}\n"
+					"polygonoffset\n"
+				"}\n"
+				;
+			break;
+		case BM_INVMOD:
+			namepostfix = "_invmod";
+			defaultshader =
+				"{\n"
+					"nomipmaps\n"
+					"{\n"
+						"map $diffuse\n"
+						"blendfunc GL_ZERO GL_ONE_MINUS_SRC_COLOR\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+					"}\n"
+					"polygonoffset\n"
+				"}\n"
+				;
+			break;
+		case BM_SUBTRACT:
+			namepostfix = "_sub";
+			defaultshader =
+				"{\n"
+					"nomipmaps\n"
+					"{\n"
+						"map $diffuse\n"
+						"blendfunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_COLOR\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+					"}\n"
+					"polygonoffset\n"
+				"}\n"
+				;
+			break;
+		}
 
-			if (!ptype->looks.texturenum)
+		memset(&tn, 0, sizeof(tn));
+		tn.base = R_LoadHiResTexture(ptype->texname, "particles", 0);
+		if (!TEXVALID(tn.base))
+		{
+			/*okay, so the texture they specified wasn't valid either. use a fully default one*/
+
+			//note that this could get messy if you depend upon vid_restart to reload your effect without re-execing it after.
+			ptype->s1 = 0;
+			ptype->t1 = 0;
+			ptype->s2 = 1;
+			ptype->t2 = 1;
+			ptype->randsmax = 1;
+			if (ptype->looks.type == PT_BEAM)
 			{
-				//note that this could get messy if you depend upon vid_restart to reload your effect without re-execing it after.
-				ptype->s1 = 0;
-				ptype->t1 = 0;
-				ptype->s2 = 1;
-				ptype->t2 = 1;
-				ptype->randsmax = 1;
-
-				if (warn)
-					Con_DPrintf("Couldn't load texture %s for particle effect %s\n", ptype->texname, ptype->name);
-
-				if (strstr(ptype->texname, "glow") || strstr(ptype->texname, "ball") || ptype->looks.type == PT_TEXTUREDSPARK)
-					ptype->looks.texturenum = balltexture;
-				else
-					ptype->looks.texturenum = explosiontexture;
+				/*untextured beams get a single continuous blob*/
+				ptype->looks.shader = R_RegisterShader(va("beam%s", namepostfix), defaultshader);
+				tn.base = beamtexture;
+			}
+			else if (ptype->looks.type == PT_SPARKFAN)
+			{
+				/*untextured beams get a single continuous blob*/
+				ptype->looks.shader = R_RegisterShader(va("fan%s", namepostfix), defaultshader);
+				tn.base = ptritexture;
+			}
+			else if (strstr(ptype->texname, "glow") || strstr(ptype->texname, "ball") || ptype->looks.type == PT_TEXTUREDSPARK)
+			{
+				/*sparks and special names get a nice circular texture.
+				as these are fully default, we can basically discard the texture name in the shader, and get better batching*/
+				ptype->looks.shader = R_RegisterShader(va("ball%s", namepostfix), defaultshader);
+				tn.base = balltexture;
+			}
+			else
+			{
+				/*anything else gets a fuzzy texture*/
+				ptype->looks.shader = R_RegisterShader(va("default%s", namepostfix), defaultshader);
+				tn.base = explosiontexture;
 			}
 		}
 		else
-			ptype->looks.texturenum = explosiontexture;
-		break;
-#endif
-#ifdef D3DQUAKE
-	case QR_DIRECT3D:
-		if (*ptype->texname && strcmp(ptype->texname, "default"))
 		{
-			ptype->looks.d3dtexture = NULL;//Mod_LoadHiResTexture(ptype->texname, "particles", true, true, true);
-
-			if (!ptype->looks.d3dtexture)
-			{
-				if (warn)
-					Con_DPrintf("Couldn't load texture %s for particle effect %s\n", ptype->texname, ptype->name);
-
-				if (strstr(ptype->texname, "glow") || strstr(ptype->texname, "ball"))
-					ptype->looks.d3dtexture = d3dballtexture;
-				else
-					ptype->looks.d3dtexture = d3dexplosiontexture;
-			}
+			/*texture looks good, make a shader, and give it the texture as a diffuse stage*/
+			ptype->looks.shader = R_RegisterShader(va("%s%s", ptype->texname, namepostfix), defaultshader);
 		}
-		else
-			ptype->looks.d3dtexture = d3dexplosiontexture;
-		break;
-#endif
-	default:
-		break;
+		R_BuildDefaultTexnums(&tn, ptype->looks.shader);
 	}
 }
 
@@ -711,10 +823,10 @@ static void P_ParticleEffect_f(void)
 		{
 			ptype->scale = atof(value);
 			if (Cmd_Argc()>2)
-				ptype->randscale = atof(Cmd_Argv(2)) - ptype->scale;
+				ptype->scalerand = atof(Cmd_Argv(2)) - ptype->scale;
 		}
 		else if (!strcmp(var, "scalerand"))
-			ptype->randscale = atof(value);
+			ptype->scalerand = atof(value);
 
 		else if (!strcmp(var, "scalefactor"))
 			ptype->looks.scalefactor = atof(value);
@@ -733,6 +845,8 @@ static void P_ParticleEffect_f(void)
 			ptype->count = atof(value);
 			if (Cmd_Argc()>2)
 				ptype->countrand = atof(Cmd_Argv(2));
+			if (Cmd_Argc()>3)
+				ptype->countextra = atof(Cmd_Argv(3));
 		}
 
 		else if (!strcmp(var, "alpha"))
@@ -796,6 +910,14 @@ static void P_ParticleEffect_f(void)
 			assoc = CheckAssosiation(value, pnum);
 			ptype = &part_type[pnum];
 			ptype->inwater = assoc;
+		}
+		else if (!strcmp(var, "model"))
+		{
+			Q_strncpyz(ptype->modelname, Cmd_Argv(1), sizeof(ptype->modelname));
+			ptype->modelframestart = atof(Cmd_Argv(2));
+			ptype->modelframeend = atof(Cmd_Argv(3));
+			ptype->modelframerate = atof(Cmd_Argv(4));
+			ptype->modelalpha = atof(Cmd_Argv(5));
 		}
 		else if (!strcmp(var, "colorindex"))
 		{
@@ -889,7 +1011,7 @@ static void P_ParticleEffect_f(void)
 			ptype->rgbrandsync[2] = atof(value);
 
 		else if (!strcmp(var, "stains"))
-			ptype->stains = atoi(value);
+			ptype->stainonimpact = atoi(value);
 		else if (!strcmp(var, "blend"))
 		{
 			if (!strcmp(value, "add"))
@@ -958,7 +1080,7 @@ static void P_ParticleEffect_f(void)
 			ptype->spawnchance = atof(value);
 		else if (!strcmp(var, "cliptype"))
 		{
-			assoc = P_ParticleTypeForName(value);//careful - this can realloc all the particle types
+			assoc = PScript_ParticleTypeForName(value);//careful - this can realloc all the particle types
 			ptype = &part_type[pnum];
 			ptype->cliptype = assoc;
 		}
@@ -967,7 +1089,7 @@ static void P_ParticleEffect_f(void)
 
 		else if (!strcmp(var, "emit"))
 		{
-			assoc = P_ParticleTypeForName(value);//careful - this can realloc all the particle types
+			assoc = PScript_ParticleTypeForName(value);//careful - this can realloc all the particle types
 			ptype = &part_type[pnum];
 			ptype->emit = assoc;
 		}
@@ -992,15 +1114,15 @@ static void P_ParticleEffect_f(void)
 		else if (!strcmp(var, "offsetspread"))
 		{
 			Con_DPrintf("offsetspread is deprechiated, use spawnvel\n");
-			ptype->offsetspread = atof(value);
+			ptype->spawnvel = atof(value);
 		}
 		else if (!strcmp(var, "offsetspreadvert"))
 		{
 			Con_DPrintf("offsetspreadvert is deprechiated, use spawnvel\n");
-			ptype->offsetspreadvert  = atof(value);
+			ptype->spawnvelvert  = atof(value);
 		}
 
-		// new names
+		// current names
 		else if (!strcmp(var, "spawnorg"))
 		{
 			ptype->areaspreadvert = ptype->areaspread = atof(value);
@@ -1010,10 +1132,10 @@ static void P_ParticleEffect_f(void)
 		}
 		else if (!strcmp(var, "spawnvel"))
 		{
-			ptype->offsetspreadvert = ptype->offsetspread = atof(value);
+			ptype->spawnvelvert = ptype->spawnvel = atof(value);
 
 			if (Cmd_Argc()>2)
-				ptype->offsetspreadvert = atof(Cmd_Argv(2));
+				ptype->spawnvelvert = atof(Cmd_Argv(2));
 		}
 
 		// spawn mode param fields
@@ -1136,10 +1258,10 @@ static void P_ParticleEffect_f(void)
 		ptype->clipcount = 1;
 
 	//if there is a chance that it moves
-	if (ptype->randomvel || ptype->gravity || ptype->veladd || ptype->offsetspread || ptype->offsetspreadvert)
+	if (ptype->randomvel || ptype->gravity || ptype->veladd || ptype->spawnvel || ptype->spawnvelvert)
 		ptype->flags |= PT_VELOCITY;
 	//if it has friction
-	if (ptype->friction)
+	if (ptype->friction[0] || ptype->friction[1] || ptype->friction[2])
 		ptype->flags |= PT_FRICTION;
 
 	if (!settype)
@@ -1175,73 +1297,6 @@ static void P_ParticleEffect_f(void)
 	P_LoadTexture(ptype, true);
 
 	r_plooksdirty = true;
-}
-
-//assosiate a point effect with a model.
-//the effect will be spawned every frame with count*frametime
-//has the capability to hide models.
-static void P_AssosiateEffect_f (void)
-{
-	char *modelname = Cmd_Argv(1);
-	char *effectname = Cmd_Argv(2);
-	int effectnum;
-	model_t *model;
-
-	if (!cls.demoplayback && (
-		strstr(modelname, "player") ||
-		strstr(modelname, "eyes") ||
-		strstr(modelname, "flag") ||
-		strstr(modelname, "tf_stan") ||
-		strstr(modelname, ".bsp") ||
-		strstr(modelname, "turr")))
-	{
-		Con_Printf("Sorry: Not allowed to attach effects to model \"%s\"\n", modelname);
-		return;
-	}
-
-	model = Mod_FindName(modelname);
-	if (!model)
-		return;
-	if (!cls.demoplayback && (model->flags & EF_ROTATE))
-	{
-		Con_Printf("Sorry: You may not assosiate effects with item model \"%s\"\n", modelname);
-		return;
-	}
-	effectnum = P_AllocateParticleType(effectname);
-	model->particleeffect = effectnum;
-	if (atoi(Cmd_Argv(3)))
-		model->engineflags |= MDLF_ENGULPHS;
-
-	P_SetModified();	//make it appear in f_modified.
-}
-
-//assosiate a particle trail with a model.
-//the effect will be spawned between two points when an entity with the model moves.
-static void P_AssosiateTrail_f (void)
-{
-	char *modelname = Cmd_Argv(1);
-	char *effectname = Cmd_Argv(2);
-	int effectnum;
-	model_t *model;
-
-	if (!cls.demoplayback && (
-		strstr(modelname, "player") ||
-		strstr(modelname, "eyes") ||
-		strstr(modelname, "flag") ||
-		strstr(modelname, "tf_stan")))
-	{
-		Con_Printf("Sorry, you can't assosiate trails with model \"%s\"\n", modelname);
-		return;
-	}
-
-	model = Mod_FindName(modelname);
-	if (!model)
-		return;
-	effectnum = P_AllocateParticleType(effectname);
-	model->particletrail = effectnum;
-	model->engineflags |= MDLF_NODEFAULTTRAIL;	//we could have assigned the trail to a model that wasn't loaded.
-
-	P_SetModified();	//make it appear in f_modified.
 }
 
 #if _DEBUG
@@ -1283,6 +1338,7 @@ static void P_BeamInfo_f (void)
 static void P_PartInfo_f (void)
 {
 	particle_t *p;
+	part_type_t *ptype;
 
 	int i, j;
 
@@ -1300,22 +1356,341 @@ static void P_PartInfo_f (void)
 			j++;
 
 		if (j)
+		{
 			Con_Printf("Type %s = %i total\n", part_type[i].name, j);
+			if (!(part_type[i].state & PS_INRUNLIST))
+				Con_Printf("  NOT RUNNING\n");
+		}
 	}
+
+	Con_Printf("Running effects:\n");
+	// maintain run list
+	for (ptype = part_run_list; ptype; ptype = ptype->nexttorun)
+	{
+		j = 0;
+		for (p = ptype->particles; p; p = p->next)
+			j++;
+
+
+		Con_Printf("Type %s = %i total\n", ptype->name, j);
+	}
+	Con_Printf("End of list\n");
 }
 #endif
+
+void FinishParticleType(part_type_t *ptype)
+{
+	//if there is a chance that it moves
+	if (ptype->randomvel || ptype->gravity || ptype->veladd || ptype->spawnvel || ptype->spawnvelvert)
+		ptype->flags |= PT_VELOCITY;
+	//if it has friction
+	if (ptype->friction[0] || ptype->friction[1] || ptype->friction[2])
+		ptype->flags |= PT_FRICTION;
+
+	P_LoadTexture(ptype, true);
+	if (ptype->die == 9999)
+	{
+		if (ptype->alphachange)
+			ptype->die = (ptype->alpha+ptype->alpharand)/-ptype->alphachange;
+		else
+			ptype->die = 15;
+	}
+	if (ptype->looks.scalefactor > 1 && !ptype->looks.invscalefactor)
+	{
+		ptype->scale *= ptype->looks.scalefactor;
+		ptype->scalerand *= ptype->looks.scalefactor;
+		/*too lazy to go through ramps*/
+		ptype->looks.scalefactor = 1;
+	}
+	if (ptype->looks.type == PT_TEXTUREDSPARK)
+		ptype->looks.stretch *= 0.04;
+}
+
+static void P_ImportEffectInfo_f(void)
+{
+	part_type_t *ptype = NULL;
+	int parenttype;
+	char *file, *line;
+	char *cmd;
+	char arg[8][1024];
+	int args = 0;
+	FS_LoadFile("effectinfo.txt", (void**)&file);
+
+	if (!file)
+	{
+		Con_Printf("effectinfo.txt not found\n");
+		return;
+	}
+	line = file;
+	for (;;)
+	{
+		if (!*line)
+			break;
+		if (args == 8)
+		{
+			Con_Printf("Too many args!\n");
+			args--;
+		}
+		line = COM_StringParse(line, com_token, sizeof(com_token), false, false);
+		Q_strncpyz(arg[args], com_token, sizeof(arg[args]));
+		args++;
+		if (*com_token == '\n')
+			args--;
+		else if (*line)
+			continue;
+
+		if (args <= 0)
+			continue;
+
+		cmd = arg[0];
+		if (!strcmp(arg[0], "effect"))
+		{
+			char newname[64];
+			int i;
+
+			if (ptype)
+			{
+				FinishParticleType(ptype);
+			}
+
+			ptype = P_GetParticleType(arg[1]);
+			if (ptype->loaded)
+			{
+				for (i = 0; i < 64; i++)
+				{
+					parenttype = ptype - part_type;
+					snprintf(newname, sizeof(newname), "%i+%s", i, arg[1]);
+					ptype = P_GetParticleType(newname);
+					if (!ptype->loaded)
+					{
+						part_type[parenttype].assoc = ptype - part_type;
+						break;
+					}
+				}
+				if (i == 64)
+				{
+					Con_Printf("Too many duplicate names, gave up\n");
+					break;
+				}
+			}
+			ptype->loaded = true;
+			ptype->scale = 1;
+			ptype->alpha = 0;
+			ptype->alpharand = 1;
+			ptype->alphachange = -1;
+			ptype->die = 9999;
+			strcpy(ptype->texname, "particles/particlefont.tga");
+			ptype->rgb[0] = 1;
+			ptype->rgb[1] = 1;
+			ptype->rgb[2] = 1;
+			ptype->colorindex = -1;
+
+			ptype->spawnmode = SM_BOX;
+
+			ptype->spawnchance = 1;
+			ptype->randsmax = 1;
+			ptype->looks.scalefactor = 2;
+			ptype->looks.invscalefactor = 0;
+			ptype->looks.type = PT_NORMAL;
+			ptype->looks.blendmode = BM_BLEND;
+			ptype->looks.stretch = 1;
+		}
+		else if (!ptype)
+		{
+			Con_Printf("Bad effectinfo file\n");
+			break;
+		}
+		else if (!strcmp(arg[0], "countabsolute") && args == 2)
+			ptype->countextra = atof(arg[1]);
+		else if (!strcmp(arg[0], "count") && args == 2)
+			ptype->count = atof(arg[1]);
+		else if (!strcmp(arg[0], "type") && args == 2)
+		{
+			if (!strcmp(arg[1], "decal"))
+			{
+				ptype->looks.type = PT_DECAL;
+				ptype->looks.blendmode = BM_INVMOD;
+			}
+			else if (!strcmp(arg[1], "alphastatic"))
+			{
+				ptype->looks.type = PT_NORMAL;
+				ptype->looks.blendmode = BM_BLEND;
+			}
+			else if (!strcmp(arg[1], "static"))
+			{
+				ptype->looks.type = PT_NORMAL;
+				ptype->looks.blendmode = BM_ADD;
+			}
+			else if (!strcmp(arg[1], "smoke"))
+			{
+				ptype->looks.type = PT_NORMAL;
+				ptype->looks.blendmode = BM_ADD;
+			}
+			else if (!strcmp(arg[1], "spark"))
+			{
+				ptype->looks.type = PT_TEXTUREDSPARK;
+			}
+			else if (!strcmp(arg[1], "bubble"))
+			{
+				ptype->looks.type = PT_NORMAL;
+				ptype->looks.blendmode = BM_ADD;
+			}
+			else if (!strcmp(arg[1], "blood"))
+			{
+				ptype->looks.type = PT_NORMAL;
+				ptype->looks.blendmode = BM_INVMOD;
+			}
+			else if (!strcmp(arg[1], "beam"))
+			{
+				ptype->looks.type = PT_BEAM;
+				ptype->looks.blendmode = BM_ADD;
+			}
+			else
+			{
+				Con_Printf("effectinfo type %s not supported\n", arg[1]);
+			}
+		}
+		else if (!strcmp(arg[0], "tex") && args == 3)
+		{
+			int mini = atoi(arg[1]);
+			int maxi = atoi(arg[2]);
+			/*number range between 0 and 63*/
+			ptype->s1 = 1/8.0 * (mini & 7);
+			ptype->s2 = 1/8.0 * (1+(mini & 7));
+			ptype->t1 = 1/8.0 * (mini>>3);
+			ptype->t2 = 1/8.0 * (1+(mini>>3));
+			ptype->texsstride = 1/8.0;
+			ptype->randsmax = (maxi - mini);
+			if (ptype->randsmax < 1)
+				ptype->randsmax = 1;
+		}
+		else if (!strcmp(arg[0], "size") && args == 3)
+		{
+			float s1 = atof(arg[1]), s2 = atof(arg[2]);
+			ptype->scale = s1;
+			ptype->scalerand = s2-s1;
+		}
+		else if (!strcmp(arg[0], "sizeincrease") && args == 2)
+			ptype->scaledelta = atof(arg[1]);
+		else if (!strcmp(arg[0], "color") && args == 3)
+		{
+			unsigned int rgb1 = strtoul(arg[1], NULL, 0), rgb2 = strtoul(arg[2], NULL, 0);
+			int i;
+			for (i = 0; i < 3; i++)
+			{
+				ptype->rgb[i] = ((rgb1>>(16-i*8)) & 0xff)/255.0;
+				ptype->rgbrandsync[i] = (((rgb2>>(16-i*8)) & 0xff) - ((rgb1>>(16-i*8)) & 0xff))/255.0;
+			}
+		}
+		else if (!strcmp(arg[0], "alpha") && args == 4)
+		{
+			float a1 = atof(arg[1]), a2 = atof(arg[2]), f = atof(arg[3]);
+			ptype->alpha = a1/255;
+			ptype->alpharand = (a2-a1)/255;
+			ptype->alphachange = -f/255;
+		}
+		else if (!strcmp(arg[0], "velocityoffset") && args == 4)
+			; /*a 3d world-coord addition*/
+		else if (!strcmp(arg[0], "velocityjitter") && args == 4)
+		{
+			ptype->spawnvel = (atof(arg[1]) + atof(arg[2]))*0.5;
+			ptype->spawnvelvert = atof(arg[3]);
+		}
+		else if (!strcmp(arg[0], "originoffset") && args == 4)
+			; /*a 3d world-coord addition*/
+		else if (!strcmp(arg[0], "originjitter") && args == 4)
+		{
+			ptype->areaspread = (atof(arg[1]) + atof(arg[2]))*0.5;
+			ptype->areaspreadvert = atof(arg[3]);
+		}
+		else if (!strcmp(arg[0], "gravity") && args == 2)
+		{
+			ptype->gravity = 800*atof(arg[1]);
+		}
+		else if (!strcmp(arg[0], "bounce") && args == 2)
+		{
+			ptype->clipbounce = atof(arg[1]);
+			ptype->cliptype = ptype - part_type;
+		}
+		else if (!strcmp(arg[0], "airfriction") && args == 2)
+			ptype->friction[2] = ptype->friction[1] = ptype->friction[0] = atof(arg[1]);
+		else if (!strcmp(arg[0], "liquidfriction") && args == 2)
+			;
+		else if (!strcmp(arg[0], "underwater") && args == 1)
+			;
+		else if (!strcmp(arg[0], "notunderwater") && args == 1)
+			;
+		else if (!strcmp(arg[0], "velocitymultiplier") && args == 2)
+			ptype->veladd = atof(arg[1]);
+		else if (!strcmp(arg[0], "lightradius") && args == 2)
+			;
+		else if (!strcmp(arg[0], "lightradiusfade") && args == 2)
+			;
+		else if (!strcmp(arg[0], "lightcolor") && args == 4)
+			;
+		else if (!strcmp(arg[0], "lighttime") && args == 2)
+			;
+		else if (!strcmp(arg[0], "trailspacing") && args == 2)
+			ptype->count = 1 / atof(arg[1]);
+		else if (!strcmp(arg[0], "time") && args == 3)
+		{
+			ptype->die = atof(arg[1]);
+			ptype->randdie = atof(arg[2]) - ptype->die;
+			if (ptype->randdie < 0)
+			{
+				ptype->die = atof(arg[2]);
+				ptype->randdie = atof(arg[1]) - ptype->die;
+			}
+		}
+		else if (!strcmp(arg[0], "stretchfactor") && args == 2)
+			ptype->looks.stretch = atof(arg[1]);
+#if 0
+		else if (!strcmp(arg[0], "blend") && args == 2)
+			; /*overrides blendmode*/
+		else if (!strcmp(arg[0], "orientation") && args == 2)
+			; /*overrides type*/
+		else if (!strcmp(arg[0], "lightshadow") && args == 2)
+			;
+		else if (!strcmp(arg[0], "lightcubemapnum") && args == 2)
+			;
+		else if (!strcmp(arg[0], "staincolor") && args == 2)
+			;
+		else if (!strcmp(arg[0], "stainalpha") && args == 2)
+			;
+		else if (!strcmp(arg[0], "stainsize") && args == 2)
+			;
+		else if (!strcmp(arg[0], "staintex") && args == 2)
+			;
+		else if (!strcmp(arg[0], "stainless") && args == 1)
+			;
+		else if (!strcmp(arg[0], "rotate") && args == 2)
+			;
+#endif
+		else
+			Con_Printf("Particle effect token not recognised, or invalid args: %s %s %s %s %s %s\n", arg[0], args<2?"":arg[1], args<3?"":arg[2], args<4?"":arg[3], args<5?"":arg[4], args<6?"":arg[5]);
+		args = 0;
+	}
+
+	if (ptype)
+	{
+		FinishParticleType(ptype);
+	}
+
+	FS_FreeFile(file);
+	r_plooksdirty = true;
+}
 
 /*
 ===============
 R_InitParticles
 ===============
 */
-static void PScript_InitParticles (void)
+static qboolean PScript_InitParticles (void)
 {
 	int		i;
 
 	if (r_numparticles)	//already inited
-		return;
+		return true;
 
 	buildsintable();
 
@@ -1353,17 +1728,15 @@ static void PScript_InitParticles (void)
 	Cmd_AddRemCommand("pointfile", P_ReadPointFile_f);	//load the leak info produced from qbsp into the particle system to show a line. :)
 
 	Cmd_AddRemCommand("r_part", P_ParticleEffect_f);
-	Cmd_AddRemCommand("r_effect", P_AssosiateEffect_f);
-	Cmd_AddRemCommand("r_trail", P_AssosiateTrail_f);
 
 	Cmd_AddRemCommand("r_exportbuiltinparticles", P_ExportBuiltinSet_f);
+	Cmd_AddRemCommand("r_importeffectinfo", P_ImportEffectInfo_f);
 
 #if _DEBUG
 	Cmd_AddRemCommand("r_partinfo", P_PartInfo_f);
 	Cmd_AddRemCommand("r_beaminfo", P_BeamInfo_f);
 #endif
 
-	CL_RegisterParticles();
 
 	pt_pointfile		= P_AllocateParticleType("PT_POINTFILE");
 	pe_default			= P_AllocateParticleType("PE_DEFAULT");
@@ -1371,21 +1744,50 @@ static void PScript_InitParticles (void)
 	pe_size3			= P_AllocateParticleType("PE_SIZE3");
 	pe_defaulttrail		= P_AllocateParticleType("PE_DEFAULTTRAIL");
 
-	Cvar_Hook(&r_particlesdesc, R_ParticlesDesc_Callback);
-	Cvar_ForceCallback(&r_particlesdesc);
+	Cvar_Hook(&r_particledesc, R_ParticleDesc_Callback);
+	Cvar_ForceCallback(&r_particledesc);
+
+
+	for (i = 0; i < (BUFFERVERTS>>2)*6; i += 6)
+	{
+		pscriptquadindexes[i+0] = ((i/6)<<2)+0;
+		pscriptquadindexes[i+1] = ((i/6)<<2)+1;
+		pscriptquadindexes[i+2] = ((i/6)<<2)+2;
+		pscriptquadindexes[i+3] = ((i/6)<<2)+0;
+		pscriptquadindexes[i+4] = ((i/6)<<2)+2;
+		pscriptquadindexes[i+5] = ((i/6)<<2)+3;
+	}
+	pscriptmesh.xyz_array = pscriptverts;
+	pscriptmesh.st_array = pscripttexcoords;
+	pscriptmesh.colors4f_array = pscriptcolours;
+	pscriptmesh.indexes = pscriptquadindexes;
+	for (i = 0; i < BUFFERVERTS; i++)
+	{
+		pscripttriindexes[i] = i;
+	}
+	pscripttmesh.xyz_array = pscriptverts;
+	pscripttmesh.st_array = pscripttexcoords;
+	pscripttmesh.colors4f_array = pscriptcolours;
+	pscripttmesh.indexes = pscripttriindexes;
+
+	if (fallback)
+		fallback->InitParticles();
+	return true;
 }
 
 static void PScript_Shutdown (void)
 {
-	Cvar_Unhook(&r_particlesdesc);
+	if (fallback)
+		fallback->ShutdownParticles();
+
+	Cvar_Unhook(&r_particledesc);
 
 	Cmd_RemoveCommand("pointfile");	//load the leak info produced from qbsp into the particle system to show a line. :)
 
 	Cmd_RemoveCommand("r_part");
-	Cmd_RemoveCommand("r_effect");
-	Cmd_RemoveCommand("r_trail");
 
 	Cmd_RemoveCommand("r_exportbuiltinparticles");
+	Cmd_RemoveCommand("r_importeffectinfo");
 
 #if _DEBUG
 	Cmd_RemoveCommand("r_partinfo");
@@ -1409,6 +1811,9 @@ P_ClearParticles
 static void PScript_ClearParticles (void)
 {
 	int		i;
+
+	if (fallback)
+		fallback->ClearParticles();
 
 	free_particles = &particles[0];
 	for (i=0 ;i<r_numparticles ; i++)
@@ -1448,89 +1853,94 @@ static void PScript_ClearParticles (void)
 static void P_ExportBuiltinSet_f(void)
 {
 	char *efname = Cmd_Argv(1);
-	char *file;
+	char *file = NULL;
+	int i;
 
 	if (!*efname)
 	{
 		Con_Printf("Please name the built in effect (faithful, spikeset, tsshaft, minimal or highfps)\n");
 		return;
 	}
-	else if (!stricmp(efname, "faithful"))
-		file = particle_set_faithful;
-	else if (!stricmp(efname, "spikeset"))
-		file = particle_set_spikeset;
-	else if (!stricmp(efname, "highfps"))
-		file = particle_set_highfps;
-	else if (!stricmp(efname, "minimal"))
-		file = particle_set_minimal;
-	else if (!stricmp(efname, "tsshaft"))
-		file = particle_set_tsshaft;
-	else
+
+	for (i = 0; partset_list[i].name; i++)
 	{
-		if (!stricmp(efname, "none"))
+		if (!stricmp(efname, partset_list[i].name))
 		{
-			Con_Printf("nothing to export\n");
+			file = *partset_list[i].data;
+			if (file)
+			{
+				COM_WriteFile(va("particles/%s.cfg", efname), file, strlen(file));
+				Con_Printf("Written particles/%s.cfg\n", efname);
+			}
+			else
+				Con_Printf("nothing to export\n");
 			return;
 		}
-		Con_Printf("'%s' is not a built in particle set\n", efname);
-		return;
 	}
 
-	COM_WriteFile(va("particles/%s.cfg", efname), file, strlen(file));
-	Con_Printf("Written particles/%s.cfg\n", efname);
+	Con_Printf("'%s' is not a built in particle set\n", efname);
 }
 
 static void P_LoadParticleSet(char *name, qboolean first)
 {
-	int restrictlevel = Cmd_FromGamecode() ? RESTRICT_SERVER : RESTRICT_LOCAL; 
+	char *file;
+	int i;
+	int restrictlevel = Cmd_FromGamecode() ? RESTRICT_SERVER : RESTRICT_LOCAL;
 
-	//particle descriptions submitted by the server are deemed to not be cheats but game configs.
-	if (!stricmp(name, "none"))
-		return;
-	else if (!stricmp(name, "faithful") || (first && !*name))
-		Cbuf_AddText(particle_set_faithful, RESTRICT_LOCAL);
-	else if (!stricmp(name, "spikeset"))
-		Cbuf_AddText(particle_set_spikeset, RESTRICT_LOCAL);
-	else if (!stricmp(name, "highfps"))
-		Cbuf_AddText(particle_set_highfps, RESTRICT_LOCAL);
-	else if (!stricmp(name, "minimal"))
-		Cbuf_AddText(particle_set_minimal, RESTRICT_LOCAL);
-	else if (!stricmp(name, "tsshaft"))
-		Cbuf_AddText(particle_set_tsshaft, RESTRICT_LOCAL);
-	else
+	/*set up a default*/
+	if (first && !*name)
+		name = "faithful";
+
+	if (!strcmp(name, "classic"))
 	{
-		char *file;
-		FS_LoadFile(va("particles/%s.cfg", name), (void**)&file);
-		if (!file)
-			FS_LoadFile(va("%s.cfg", name), (void**)&file);
-		if (file)
-		{
-			Cbuf_AddText(file, restrictlevel);
-			Cbuf_AddText("\n", restrictlevel);
-			FS_FreeFile(file);
-		}
-		else if (first)
-		{
-			Con_Printf(CON_WARNING "Couldn't find particle description %s, using spikeset\n", name);
-			Cbuf_AddText(particle_set_spikeset, RESTRICT_LOCAL);
-		}
-		else
-			Con_Printf(CON_WARNING "Couldn't find particle description %s\n", name);
+		if (fallback)
+			fallback->ShutdownParticles();
+		fallback = &pe_classic;
+		if (fallback)
+			fallback->InitParticles();
+		return;
 	}
+
+	for (i = 0; partset_list[i].name; i++)
+	{
+		if (!stricmp(name, partset_list[i].name))
+		{
+			if (partset_list[i].data)
+			{
+				Cbuf_AddText(*partset_list[i].data, RESTRICT_LOCAL);
+			}
+			return;
+		}
+	}
+
+	if (!strcmp(name, "effectinfo"))
+	{
+		P_ImportEffectInfo_f();
+		return;
+	}
+
+
+	FS_LoadFile(va("particles/%s.cfg", name), (void**)&file);
+	if (!file)
+		FS_LoadFile(va("%s.cfg", name), (void**)&file);
+	if (file)
+	{
+		Cbuf_AddText(file, restrictlevel);
+		Cbuf_AddText("\n", restrictlevel);
+		FS_FreeFile(file);
+	}
+	else if (first)
+	{
+		Con_Printf(CON_WARNING "Couldn't find particle description %s, using spikeset\n", name);
+		Cbuf_AddText(particle_set_spikeset, RESTRICT_LOCAL);
+	}
+	else
+		Con_Printf(CON_WARNING "Couldn't find particle description %s\n", name);
 }
 
-static void R_ParticlesDesc_Callback(struct cvar_s *var, char *oldvalue)
+static void R_Particles_KillAllEffects(void)
 {
-	extern model_t	mod_known[];
-	extern int		mod_numknown;
-	qboolean		first;
-
-	model_t *mod;
 	int i;
-	char *c;
-
-	if (cls.state == ca_disconnected)
-		return; // don't bother parsing while disconnected
 
 	for (i = 0; i < numparticletypes; i++)
 	{
@@ -1541,17 +1951,29 @@ static void R_ParticlesDesc_Callback(struct cvar_s *var, char *oldvalue)
 			BZ_Free(part_type->ramp);
 		part_type->ramp = NULL;
 	}
-
-	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
-	{
-		mod->particleeffect = P_INVALID;
-		mod->particletrail = P_INVALID;
-		mod->engineflags &= ~(MDLF_NODEFAULTTRAIL | MDLF_ENGULPHS);
-
-		P_DefaultTrail(mod);
-	}
+//	numparticletypes = 0;
+//	BZ_Free(part_type);
+//	part_type = NULL;
 
 	f_modified_particles = false;
+
+	if (fallback)
+	{
+		fallback->ShutdownParticles();
+		fallback = NULL;
+	}
+}
+
+static void R_ParticleDesc_Callback(struct cvar_s *var, char *oldvalue)
+{
+	qboolean		first;
+
+	char *c;
+
+	if (qrenderer == QR_NONE)
+		return; // don't bother parsing early
+
+	R_Particles_KillAllEffects();
 
 	first = true;
 	for (c = COM_ParseStringSet(var->string); com_token[0]; c = COM_ParseStringSet(c))
@@ -1559,6 +1981,9 @@ static void R_ParticlesDesc_Callback(struct cvar_s *var, char *oldvalue)
 		P_LoadParticleSet(com_token, first);
 		first = false;
 	}
+
+	Cbuf_AddText("r_effect\n", RESTRICT_LOCAL);
+	CL_RegisterParticles();
 }
 
 static void P_ReadPointFile_f (void)
@@ -1633,7 +2058,7 @@ static void P_AddRainParticles(void)
 
 	skytris_t *st;
 
-	if (!r_part_rain.value || !r_part_rain_quantity.value)
+	if (!r_part_rain.ival || !r_part_rain_quantity.ival)
 	{
 		skipped = true;
 		return;
@@ -1655,37 +2080,7 @@ static void P_AddRainParticles(void)
 	skipped = false;
 
 	lastrendered = particletime;
-/*
-{
-	int i;
 
-glDisable(GL_TEXTURE_2D);
-glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-glDisable(GL_DEPTH_TEST);
-glBegin(GL_TRIANGLES);
-
-	st = skytris;
-	for (i = 0; i < r_part_rain_quantity.value; i++)
-		st = st->next;
-		glVertex3f(st->org[0], st->org[1], st->org[2]);
-		glVertex3f(st->org[0]+st->x[0], st->org[1]+st->x[1], st->org[2]+st->x[2]);
-		glVertex3f(st->org[0]+st->y[0], st->org[1]+st->y[1], st->org[2]+st->y[2]);
-glEnd();
-glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-glBegin(GL_POINTS);
-		for (i = 0; i < 1000; i++)
-		{
-			x = frandom()*frandom();
-			y = frandom() * (1-x);
-			VectorMA(st->org, x, st->x, org);
-			VectorMA(org, y, st->y, org);
-
-			glVertex3f(org[0], org[1], org[2]);
-		}
-glEnd();
-glEnable(GL_DEPTH_TEST);
-}
-*/
 	for (ptype = 0; ptype<numparticletypes; ptype++)
 	{
 		if (!part_type[ptype].loaded)	//woo, batch skipping.
@@ -1693,9 +2088,6 @@ glEnable(GL_DEPTH_TEST);
 
 		for (st = part_type[ptype].skytris; st; st = st->next)
 		{
-	//		if (st->face->visframe != r_framecount)
-	//			continue;
-
 			if (st->face->visframe != r_framecount)
 			{
 				st->nexttime = particletime;
@@ -1725,7 +2117,7 @@ glEnable(GL_DEPTH_TEST);
 				else
 					VectorMA(org, 0.5, st->face->plane->normal, org);
 
-				if (!(cl.worldmodel->funcs.PointContents(cl.worldmodel, org) & FTECONTENTS_SOLID))
+				if (!(cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, org) & FTECONTENTS_SOLID))
 				{
 					if (st->face->flags & SURF_PLANEBACK)
 					{
@@ -1742,8 +2134,7 @@ glEnable(GL_DEPTH_TEST);
 	}
 }
 
-
-static void R_Part_SkyTri(float *v1, float *v2, float *v3, msurface_t *surf)
+static void R_Part_SkyTri(float *v1, float *v2, float *v3, msurface_t *surf, int ptype)
 {
 	float dot;
 	float xm;
@@ -1755,7 +2146,7 @@ static void R_Part_SkyTri(float *v1, float *v2, float *v3, msurface_t *surf)
 	skytris_t *st;
 
 	st = Hunk_Alloc(sizeof(skytris_t));
-	st->next = part_type[surf->texinfo->texture->parttype].skytris;
+	st->next = part_type[ptype].skytris;
 	VectorCopy(v1, st->org);
 	VectorSubtract(v2, st->org, st->x);
 	VectorSubtract(v3, st->org, st->y);
@@ -1778,12 +2169,12 @@ static void R_Part_SkyTri(float *v1, float *v2, float *v3, msurface_t *surf)
 	if (st->area<=0)
 		return;//bummer.
 
-	part_type[surf->texinfo->texture->parttype].skytris = st;
+	part_type[ptype].skytris = st;
 }
 
 
 
-static void PScript_EmitSkyEffectTris(model_t *mod, msurface_t 	*fa)
+static void PScript_EmitSkyEffectTris(model_t *mod, msurface_t 	*fa, int ptype)
 {
 	vec3_t		verts[64];
 	int v1;
@@ -1792,6 +2183,9 @@ static void PScript_EmitSkyEffectTris(model_t *mod, msurface_t 	*fa)
 	int numverts;
 	int i, lindex;
 	float *vec;
+
+	if (ptype < 0 || ptype >= numparticletypes)
+		return;
 
 	//
 	// convert edges back to a normal polygon
@@ -1819,7 +2213,7 @@ static void PScript_EmitSkyEffectTris(model_t *mod, msurface_t 	*fa)
 	v2 = 1;
 	for (v3 = 2; v3 < numverts; v3++)
 	{
-		R_Part_SkyTri(verts[v1], verts[v2], verts[v3], fa);
+		R_Part_SkyTri(verts[v1], verts[v2], verts[v3], fa, ptype);
 
 		v2 = v3;
 	}
@@ -1899,6 +2293,27 @@ static vec2_t	avelocities[NUMVERTEXNORMALS];
 // float	partstep = 0.01;
 // float	timescale = 0.01;
 
+
+static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t dir)
+{
+	if (*ptype->modelname)
+	{
+		if (!ptype->model)
+			ptype->model = Mod_ForName(ptype->modelname, false);
+		if (ptype->model && !ptype->model->needload)
+			CL_SpawnSpriteEffect(org, dir, ptype->model, ptype->modelframestart, (ptype->modelframeend?ptype->modelframeend:(ptype->model->numframes - ptype->modelframestart)), ptype->modelframerate?ptype->modelframerate:10, ptype->modelalpha?ptype->modelalpha:1);
+	}
+	if (ptype->dl_radius)
+	{
+		dlight_t *dl = CL_NewDlightRGB(0, org, ptype->dl_radius, ptype->dl_time, ptype->dl_rgb[0], ptype->dl_rgb[1], ptype->dl_rgb[2]);
+		dl->channelfade[0] = ptype->dl_decay[0];
+		dl->channelfade[1] = ptype->dl_decay[1];
+		dl->channelfade[2] = ptype->dl_decay[2];
+	}
+	if (ptype->stain_radius)
+		R_AddStain(org, ptype->stain_rgb[0], ptype->stain_rgb[1], ptype->stain_rgb[2], ptype->stain_radius);
+}
+
 int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent, vec3_t tangent2, float size, float **out);
 static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, trailstate_t **tsk)
 {
@@ -1910,6 +2325,9 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 	vec3_t ofsvec, arsvec; // offsetspread vec, areaspread vec
 	trailstate_t *ts;
 
+	if (typenum >= FALLBACKBIAS && fallback)
+		return fallback->RunParticleEffectState(org, dir, count, typenum-FALLBACKBIAS, NULL);
+
 	if (typenum < 0 || typenum >= numparticletypes)
 		return 1;
 
@@ -1917,10 +2335,10 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 		return 1;
 
 	// inwater check, switch only once
-	if (r_part_contentswitch.value && ptype->inwater >= 0 && cl.worldmodel)
+	if (r_part_contentswitch.ival && ptype->inwater >= 0 && cl.worldmodel)
 	{
 		int cont;
-		cont = cl.worldmodel->funcs.PointContents(cl.worldmodel, org);
+		cont = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, org);
 
 		if (cont & FTECONTENTS_WATER)
 			ptype = &part_type[ptype->inwater];
@@ -1953,143 +2371,157 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 	else
 		ts = NULL;
 
-	if (ptype->looks.type == PT_DECAL)
-	{
-		clippeddecal_t *d;
-		int decalcount;
-		float dist;
-		vec3_t tangent, t2;
-		vec3_t vec={0.5, 0.5, 0.5};
-		float *decverts;
-		int i;
-		trace_t tr;
-
-		vec3_t bestdir;
-
-		if (!free_decals)
-			return 0;
-
-		if (!dir)
-		{
-			bestdir[0] = 0;
-			bestdir[1] = 0.73;
-			bestdir[2] = 0.73;
-			dist = 1;
-			for (i = 0; i < 6; i++)
-			{
-				if (i >= 3)
-				{
-					t2[0] = ((i&3)==0)*8;
-					t2[1] = ((i&3)==1)*8;
-					t2[2] = ((i&3)==2)*8;
-				}
-				else
-				{
-					t2[0] = -((i&3)==0)*8;
-					t2[1] = -((i&3)==1)*8;
-					t2[2] = -((i&3)==2)*8;
-				}
-				VectorSubtract(org, t2, tangent);
-				VectorAdd(org, t2, t2);
-
-				if (cl.worldmodel->funcs.Trace (cl.worldmodel, 0, 0,tangent, t2, vec3_origin, vec3_origin, &tr))
-				{
-					if (tr.fraction < dist)
-					{
-						dist = tr.fraction;
-						VectorCopy(tr.plane.normal, bestdir);
-					}
-				}
-			}
-			dir = bestdir;
-		}
-		VectorInverse(dir);
-		VectorNormalize(dir);
-
-		VectorNormalize(vec);
-		CrossProduct(dir, vec, tangent);
-		CrossProduct(dir, tangent, t2);
-
-		decalcount = Q1BSP_ClipDecal(org, dir, tangent, t2, ptype->scale, &decverts);
-		while(decalcount)
-		{
-			if (!free_decals)
-				break;
-
-			d = free_decals;
-			free_decals = d->next;
-			d->next = ptype->clippeddecals;
-			ptype->clippeddecals = d;
-
-			VectorCopy((decverts+0), d->vertex[0]);
-			VectorCopy((decverts+3), d->vertex[1]);
-			VectorCopy((decverts+6), d->vertex[2]);
-
-			for (i = 0; i < 3; i++)
-			{
-				VectorSubtract(d->vertex[i], org, vec);
-				d->texcoords[i][0] = (DotProduct(vec, t2)/ptype->scale)+0.5;
-				d->texcoords[i][1] = (DotProduct(vec, tangent)/ptype->scale)+0.5;
-			}
-
-			d->die = ptype->randdie*frandom();
-
-			if (ptype->die)
-				d->alpha = ptype->alpha+d->die*ptype->alphachange;
-			else
-				d->alpha = ptype->alpha;
-
-			if (ptype->colorindex >= 0)
-			{
-				int cidx;
-				cidx = ptype->colorrand > 0 ? rand() % ptype->colorrand : 0;
-				cidx = ptype->colorindex + cidx;
-				if (cidx > 255)
-					d->alpha = d->alpha / 2; // Hexen 2 style transparency
-				cidx = (cidx & 0xff) * 3;
-				d->rgb[0] = host_basepal[cidx] * (1/255.0);
-				d->rgb[1] = host_basepal[cidx+1] * (1/255.0);
-				d->rgb[2] = host_basepal[cidx+2] * (1/255.0);
-			}
-			else
-				VectorCopy(ptype->rgb, d->rgb);
-
-			vec[2] = frandom();
-			vec[0] = vec[2]*ptype->rgbrandsync[0] + frandom()*(1-ptype->rgbrandsync[0]);
-			vec[1] = vec[2]*ptype->rgbrandsync[1] + frandom()*(1-ptype->rgbrandsync[1]);
-			vec[2] = vec[2]*ptype->rgbrandsync[2] + frandom()*(1-ptype->rgbrandsync[2]);
-			d->rgb[0] += vec[0]*ptype->rgbrand[0] + ptype->rgbchange[0]*d->die;
-			d->rgb[1] += vec[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*d->die;
-			d->rgb[2] += vec[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*d->die;
-
-			d->die = particletime + ptype->die - d->die;
-
-			decverts += 3*3;
-			decalcount--;
-
-
-			// maintain run list
-			if (!(ptype->state & PS_INRUNLIST))
-			{
-				ptype->nexttorun = part_run_list;
-				part_run_list = ptype;
-				ptype->state |= PS_INRUNLIST;
-			}
-		}
-
-		return 0;
-	}
-
 	// get msvc to shut up
 	j = k = l = 0;
 	m = 0;
 
 	while(ptype)
 	{
+		PScript_EffectSpawned(ptype, org, dir);
+
+		if (ptype->looks.type == PT_DECAL)
+		{
+			clippeddecal_t *d;
+			int decalcount;
+			float dist;
+			vec3_t tangent, t2;
+			vec3_t vec={0.5, 0.5, 0.5};
+			float *decverts;
+			int i;
+			trace_t tr;
+			float sb,sw,tb,tw;
+
+			vec3_t bestdir;
+
+			if (!free_decals)
+				return 0;
+
+			if (!dir || (dir[0] == 0 && dir[1] == 0 && dir[2] == 0))
+			{
+				bestdir[0] = 0;
+				bestdir[1] = 0.73;
+				bestdir[2] = 0.73;
+				dist = 1;
+				for (i = 0; i < 6; i++)
+				{
+					if (i >= 3)
+					{
+						t2[0] = ((i&3)==0)*8;
+						t2[1] = ((i&3)==1)*8;
+						t2[2] = ((i&3)==2)*8;
+					}
+					else
+					{
+						t2[0] = -((i&3)==0)*8;
+						t2[1] = -((i&3)==1)*8;
+						t2[2] = -((i&3)==2)*8;
+					}
+					VectorSubtract(org, t2, tangent);
+					VectorAdd(org, t2, t2);
+
+					if (cl.worldmodel->funcs.Trace (cl.worldmodel, 0, 0, NULL, tangent, t2, vec3_origin, vec3_origin, &tr))
+					{
+						if (tr.fraction < dist)
+						{
+							dist = tr.fraction;
+							VectorCopy(tr.plane.normal, bestdir);
+						}
+					}
+				}
+				dir = bestdir;
+			}
+			VectorInverse(dir);
+			VectorNormalize(dir);
+
+			VectorNormalize(vec);
+			CrossProduct(dir, vec, tangent);
+			CrossProduct(dir, tangent, t2);
+
+			sw = ptype->s2 - ptype->s1;
+			sb = ptype->s1 + sw/2;
+			tw = ptype->t2 - ptype->t1;
+			tb = ptype->t1 + tw/2;
+			sw /= ptype->scale;
+			tw /= ptype->scale;
+
+			decalcount = Q1BSP_ClipDecal(org, dir, tangent, t2, ptype->scale, &decverts);
+			while(decalcount)
+			{
+				if (!free_decals)
+					break;
+
+				d = free_decals;
+				free_decals = d->next;
+				d->next = ptype->clippeddecals;
+				ptype->clippeddecals = d;
+
+				VectorCopy((decverts+0*(sizeof(vec3_t)/sizeof(vec_t))), d->vertex[0]);
+				VectorCopy((decverts+1*(sizeof(vec3_t)/sizeof(vec_t))), d->vertex[1]);
+				VectorCopy((decverts+2*(sizeof(vec3_t)/sizeof(vec_t))), d->vertex[2]);
+
+				for (i = 0; i < 3; i++)
+				{
+					VectorSubtract(d->vertex[i], org, vec);
+					d->texcoords[i][0] = (DotProduct(vec, t2)*sw)+sb;
+					d->texcoords[i][1] = (DotProduct(vec, tangent)*tw)+tb;
+				}
+
+				d->die = ptype->randdie*frandom();
+
+				if (ptype->die)
+					d->rgba[3] = ptype->alpha + d->die*ptype->alphachange;
+				else
+					d->rgba[3] = ptype->alpha;
+				d->rgba[3] += ptype->alpharand*frandom();
+
+				if (ptype->colorindex >= 0)
+				{
+					int cidx;
+					cidx = ptype->colorrand > 0 ? rand() % ptype->colorrand : 0;
+					cidx = ptype->colorindex + cidx;
+					if (cidx > 255)
+						d->rgba[3] = d->rgba[3] / 2; // Hexen 2 style transparency
+					cidx = (cidx & 0xff) * 3;
+					d->rgba[0] = host_basepal[cidx] * (1/255.0);
+					d->rgba[1] = host_basepal[cidx+1] * (1/255.0);
+					d->rgba[2] = host_basepal[cidx+2] * (1/255.0);
+				}
+				else
+					VectorCopy(ptype->rgb, d->rgba);
+
+				vec[2] = frandom();
+				vec[0] = vec[2]*ptype->rgbrandsync[0] + frandom()*(1-ptype->rgbrandsync[0]);
+				vec[1] = vec[2]*ptype->rgbrandsync[1] + frandom()*(1-ptype->rgbrandsync[1]);
+				vec[2] = vec[2]*ptype->rgbrandsync[2] + frandom()*(1-ptype->rgbrandsync[2]);
+				d->rgba[0] += vec[0]*ptype->rgbrand[0] + ptype->rgbchange[0]*d->die;
+				d->rgba[1] += vec[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*d->die;
+				d->rgba[2] += vec[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*d->die;
+
+				d->die = particletime + ptype->die - d->die;
+
+				decverts += (sizeof(vec3_t)/sizeof(vec_t))*3;
+				decalcount--;
+
+
+				// maintain run list
+				if (!(ptype->state & PS_INRUNLIST))
+				{
+					ptype->nexttorun = part_run_list;
+					part_run_list = ptype;
+					ptype->state |= PS_INRUNLIST;
+				}
+			}
+
+			if (ptype->assoc < 0)
+				break;
+
+			ptype = &part_type[ptype->assoc];
+			continue;
+		}
 		// init spawn specific variables
 		b = bfirst = NULL;
 		spawnspc = 8;
-		pcount = count*(ptype->count+ptype->countrand*frandom());
+		pcount = ptype->countextra + count*(ptype->count+ptype->countrand*frandom());
 		if (ptype->flags & PT_INVFRAMETIME)
 			pcount /= host_frametime;
 		if (ts)
@@ -2153,6 +2585,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			break;
 		}
 
+		/*this is a hack, use countextra=1, count=0*/
 		if (!ptype->die && ptype->count == 1 && ptype->countrand == 0)
 		{
 			i = 0;
@@ -2189,11 +2622,12 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			ptype->particles = p;
 
 			p->die = ptype->randdie*frandom();
-			p->scale = ptype->scale+ptype->randscale*frandom();
+			p->scale = ptype->scale+ptype->scalerand*frandom();
 			if (ptype->die)
-				p->alpha = ptype->alpha+p->die*ptype->alphachange;
+				p->rgba[3] = ptype->alpha+p->die*ptype->alphachange;
 			else
-				p->alpha = ptype->alpha;
+				p->rgba[3] = ptype->alpha;
+			p->rgba[3] += ptype->alpharand*frandom();
 			// p->color = 0;
 			if (ptype->emittime < 0)
 				p->state.trailstate = NULL;
@@ -2219,14 +2653,14 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 				cidx = ptype->colorrand > 0 ? rand() % ptype->colorrand : 0;
 				cidx = ptype->colorindex + cidx;
 				if (cidx > 255)
-					p->alpha = p->alpha / 2; // Hexen 2 style transparency
+					p->rgba[3] = p->rgba[3] / 2; // Hexen 2 style transparency
 				cidx = (cidx & 0xff) * 3;
-				p->rgb[0] = host_basepal[cidx] * (1/255.0);
-				p->rgb[1] = host_basepal[cidx+1] * (1/255.0);
-				p->rgb[2] = host_basepal[cidx+2] * (1/255.0);
+				p->rgba[0] = host_basepal[cidx] * (1/255.0);
+				p->rgba[1] = host_basepal[cidx+1] * (1/255.0);
+				p->rgba[2] = host_basepal[cidx+2] * (1/255.0);
 			}
 			else
-				VectorCopy(ptype->rgb, p->rgb);
+				VectorCopy(ptype->rgb, p->rgba);
 
 			// use org temporarily for rgbsync
 			p->org[2] = frandom();
@@ -2234,9 +2668,9 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			p->org[1] = p->org[2]*ptype->rgbrandsync[1] + frandom()*(1-ptype->rgbrandsync[1]);
 			p->org[2] = p->org[2]*ptype->rgbrandsync[2] + frandom()*(1-ptype->rgbrandsync[2]);
 
-			p->rgb[0] += p->org[0]*ptype->rgbrand[0] + ptype->rgbchange[0]*p->die;
-			p->rgb[1] += p->org[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*p->die;
-			p->rgb[2] += p->org[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*p->die;
+			p->rgba[0] += p->org[0]*ptype->rgbrand[0] + ptype->rgbchange[0]*p->die;
+			p->rgba[1] += p->org[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*p->die;
+			p->rgba[2] += p->org[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*p->die;
 
 			// randomvel
 			p->vel[0] = crandom()*ptype->randomvel;
@@ -2382,9 +2816,9 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			// apply arsvec+ofsvec
 			if (dir)
 			{
-				p->vel[0] += dir[0]*ptype->veladd+ofsvec[0]*ptype->offsetspread;
-				p->vel[1] += dir[1]*ptype->veladd+ofsvec[1]*ptype->offsetspread;
-				p->vel[2] += dir[2]*ptype->veladd+ofsvec[2]*ptype->offsetspreadvert;
+				p->vel[0] += dir[0]*ptype->veladd+ofsvec[0]*ptype->spawnvel;
+				p->vel[1] += dir[1]*ptype->veladd+ofsvec[1]*ptype->spawnvel;
+				p->vel[2] += dir[2]*ptype->veladd+ofsvec[2]*ptype->spawnvelvert;
 
 				p->org[0] += dir[0]*ptype->orgadd;
 				p->org[1] += dir[1]*ptype->orgadd;
@@ -2392,9 +2826,9 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			}
 			else
 			{
-				p->vel[0] += ofsvec[0]*ptype->offsetspread;
-				p->vel[1] += ofsvec[1]*ptype->offsetspread;
-				p->vel[2] += ofsvec[2]*ptype->offsetspreadvert - ptype->veladd;
+				p->vel[0] += ofsvec[0]*ptype->spawnvel;
+				p->vel[1] += ofsvec[1]*ptype->spawnvel;
+				p->vel[2] += ofsvec[2]*ptype->spawnvelvert - ptype->veladd;
 
 				p->org[2] -= ptype->orgadd;
 			}
@@ -2494,25 +2928,26 @@ static void PScript_RunParticleEffect (vec3_t org, vec3_t dir, int color, int co
 	ptype = P_FindParticleType(va("pe_%i", color));
 	if (P_RunParticleEffectType(org, dir, count, ptype))
 	{
-		color &= ~0x7;
 		if (count > 130 && part_type[pe_size3].loaded)
 		{
-			part_type[pe_size3].colorindex = color;
+			part_type[pe_size3].colorindex = color & ~0x7;
 			part_type[pe_size3].colorrand = 8;
 			P_RunParticleEffectType(org, dir, count, pe_size3);
-			return;
 		}
-		if (count > 20 && part_type[pe_size2].loaded)
+		else if (count > 20 && part_type[pe_size2].loaded)
 		{
-			part_type[pe_size2].colorindex = color;
+			part_type[pe_size2].colorindex = color & ~0x7;
 			part_type[pe_size2].colorrand = 8;
 			P_RunParticleEffectType(org, dir, count, pe_size2);
-			return;
 		}
-		part_type[pe_default].colorindex = color;
-		part_type[pe_default].colorrand = 8;
-		P_RunParticleEffectType(org, dir, count, pe_default);
-		return;
+		else if (part_type[pe_default].loaded || !fallback)
+		{
+			part_type[pe_default].colorindex = color & ~0x7;
+			part_type[pe_default].colorrand = 8;
+			P_RunParticleEffectType(org, dir, count, pe_default);
+		}
+		else
+			fallback->RunParticleEffect(org, dir, color, count);
 	}
 }
 
@@ -2718,7 +3153,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 	float randvelvert = ptype->randomvelvert;
 	float step;
 	float stop;
-	float tdegree = 2*M_PI/256; /* MSVC whine */
+	float tdegree = 2.0*M_PI/256; /* MSVC whine */
 	float sdegree = 0;
 	float nrfirst, nrlast;
 
@@ -2750,6 +3185,8 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 	}
 	else
 		ts = NULL;
+
+	PScript_EffectSpawned(ptype, start, vec3_origin);
 
 	if (ptype->assoc>=0)
 	{
@@ -2807,7 +3244,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 
 		// precalculate degree of rotation
 		if (ptype->spawnparam1)
-			tdegree = 2*M_PI/ptype->spawnparam1; /* distance per rotation inversed */
+			tdegree = 2.0*M_PI/ptype->spawnparam1; /* distance per rotation inversed */
 		sdegree = ptype->spawnparam2*(M_PI/180);
 	}
 	else if (ptype->spawnmode == SM_CIRCLE)
@@ -2882,11 +3319,12 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 		ptype->particles = p;
 
 		p->die = ptype->randdie*frandom();
-		p->scale = ptype->scale+ptype->randscale*frandom();
+		p->scale = ptype->scale+ptype->scalerand*frandom();
 		if (ptype->die)
-			p->alpha = ptype->alpha+p->die*ptype->alphachange;
+			p->rgba[3] = ptype->alpha+p->die*ptype->alphachange;
 		else
-			p->alpha = ptype->alpha;
+			p->rgba[3] = ptype->alpha;
+		p->rgba[3] += ptype->alpharand*frandom();
 //		p->color = 0;
 
 //		if (ptype->spawnmode == SM_TRACER)
@@ -2904,30 +3342,24 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 
 			cidx = ptype->colorindex + cidx;
 			if (cidx > 255)
-				p->alpha = p->alpha / 2;
+				p->rgba[3] = p->rgba[3] / 2;
 			cidx = (cidx & 0xff) * 3;
-			p->rgb[0] = host_basepal[cidx] * (1/255.0);
-			p->rgb[1] = host_basepal[cidx+1] * (1/255.0);
-			p->rgb[2] = host_basepal[cidx+2] * (1/255.0);
+			p->rgba[0] = host_basepal[cidx] * (1/255.0);
+			p->rgba[1] = host_basepal[cidx+1] * (1/255.0);
+			p->rgba[2] = host_basepal[cidx+2] * (1/255.0);
 		}
 		else
-			VectorCopy(ptype->rgb, p->rgb);
+			VectorCopy(ptype->rgb, p->rgba);
 
 		// use org temporarily for rgbsync
 		p->org[2] = frandom();
 		p->org[0] = p->org[2]*ptype->rgbrandsync[0] + frandom()*(1-ptype->rgbrandsync[0]);
 		p->org[1] = p->org[2]*ptype->rgbrandsync[1] + frandom()*(1-ptype->rgbrandsync[1]);
 		p->org[2] = p->org[2]*ptype->rgbrandsync[2] + frandom()*(1-ptype->rgbrandsync[2]);
-		if (ptype->orgadd)
-		{
-			p->org[0] += vec[0]*ptype->orgadd;
-			p->org[1] += vec[1]*ptype->orgadd;
-			p->org[2] += vec[2]*ptype->orgadd;
-		}
 
-		p->rgb[0] += p->org[0]*ptype->rgbrand[0] + ptype->rgbchange[0]*p->die;
-		p->rgb[1] += p->org[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*p->die;
-		p->rgb[2] += p->org[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*p->die;
+		p->rgba[0] += p->org[0]*ptype->rgbrand[0] + ptype->rgbchange[0]*p->die;
+		p->rgba[1] += p->org[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*p->die;
+		p->rgba[2] += p->org[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*p->die;
 
 		VectorClear (p->vel);
 		if (ptype->emittime < 0)
@@ -2947,6 +3379,13 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 			offs = ptype->texsstride * (rand()%ptype->randsmax);
 			p->s1 += offs;
 			p->s2 += offs;
+			while (p->s1 >= 1)
+			{
+				p->s1 -= 1;
+				p->s2 -= 1;
+				p->t1 += ptype->texsstride;
+				p->t2 += ptype->texsstride;
+			}
 		}
 
 		if (len < nrfirst || len >= nrlast)
@@ -2965,15 +3404,15 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 			case SM_TRACER:
 				if (tcount & 1)
 				{
-					p->vel[0] = vec[1]*ptype->offsetspread;
-					p->vel[1] = -vec[0]*ptype->offsetspread;
+					p->vel[0] = vec[1]*ptype->spawnvel;
+					p->vel[1] = -vec[0]*ptype->spawnvel;
 					p->org[0] = vec[1]*ptype->areaspread;
 					p->org[1] = -vec[0]*ptype->areaspread;
 				}
 				else
 				{
-					p->vel[0] = -vec[1]*ptype->offsetspread;
-					p->vel[1] = vec[0]*ptype->offsetspread;
+					p->vel[0] = -vec[1]*ptype->spawnvel;
+					p->vel[1] = vec[0]*ptype->spawnvel;
 					p->org[0] = -vec[1]*ptype->areaspread;
 					p->org[1] = vec[0]*ptype->areaspread;
 				}
@@ -3001,8 +3440,8 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 					p->org[1] = start[1] + right[1]*tright + up[1]*tup;
 					p->org[2] = start[2] + right[2]*tright + up[2]*tup;
 
-					tright = tcos*ptype->offsetspread;
-					tup = tsin*ptype->offsetspread;
+					tright = tcos*ptype->spawnvel;
+					tup = tsin*ptype->spawnvel;
 
 					p->vel[0] = vec[0]*veladd+crandom()*randvel + right[0]*tright + up[0]*tup;
 					p->vel[1] = vec[1]*veladd+crandom()*randvel + right[1]*tright + up[1]*tup;
@@ -3017,9 +3456,9 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 				VectorNormalize(p->org);
 				VectorScale(p->org, frandom(), p->org);
 
-				p->vel[0] = vec[0]*veladd+crandom()*randvel + p->org[0]*ptype->offsetspread;
-				p->vel[1] = vec[1]*veladd+crandom()*randvel + p->org[1]*ptype->offsetspread;
-				p->vel[2] = vec[2]*veladd+crandom()*randvelvert + p->org[2]*ptype->offsetspreadvert;
+				p->vel[0] = vec[0]*veladd+crandom()*randvel + p->org[0]*ptype->spawnvel;
+				p->vel[1] = vec[1]*veladd+crandom()*randvel + p->org[1]*ptype->spawnvel;
+				p->vel[2] = vec[2]*veladd+crandom()*randvelvert + p->org[2]*ptype->spawnvelvert;
 
 				p->org[0] = p->org[0]*ptype->areaspread + start[0];
 				p->org[1] = p->org[1]*ptype->areaspread + start[1];
@@ -3037,8 +3476,8 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 					p->org[1] = start[1] + right[1]*tcos + up[1]*tsin + vstep[1] * (len*tdegree);
 					p->org[2] = start[2] + right[2]*tcos + up[2]*tsin + vstep[2] * (len*tdegree)*50;
 
-					tcos = cos(len*tdegree)*ptype->offsetspread;
-					tsin = sin(len*tdegree)*ptype->offsetspread;
+					tcos = cos(len*tdegree)*ptype->spawnvel;
+					tsin = sin(len*tdegree)*ptype->spawnvel;
 
 					p->vel[0] = vec[0]*veladd+crandom()*randvel + right[0]*tcos + up[0]*tsin;
 					p->vel[1] = vec[1]*veladd+crandom()*randvel + right[1]*tcos + up[1]*tsin;
@@ -3062,9 +3501,9 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 					VectorNormalize(p->org);
 					VectorScale(p->org, rdist, p->org);
 
-					p->vel[0] = vec[0]*veladd+crandom()*randvel + p->org[0]*ptype->offsetspread;
-					p->vel[1] = vec[1]*veladd+crandom()*randvel + p->org[1]*ptype->offsetspread;
-					p->vel[2] = vec[2]*veladd+crandom()*randvelvert + p->org[2]*ptype->offsetspreadvert;
+					p->vel[0] = vec[0]*veladd+crandom()*randvel + p->org[0]*ptype->spawnvel;
+					p->vel[1] = vec[1]*veladd+crandom()*randvel + p->org[1]*ptype->spawnvel;
+					p->vel[2] = vec[2]*veladd+crandom()*randvelvert + p->org[2]*ptype->spawnvelvert;
 
 					p->org[0] = p->org[0]*ptype->areaspread + start[0];
 					p->org[1] = p->org[1]*ptype->areaspread + start[1];
@@ -3076,14 +3515,21 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 				p->org[1] = crandom();
 				p->org[2] = crandom();
 
-				p->vel[0] = vec[0]*veladd+crandom()*randvel + p->org[0]*ptype->offsetspread;
-				p->vel[1] = vec[1]*veladd+crandom()*randvel + p->org[1]*ptype->offsetspread;
-				p->vel[2] = vec[2]*veladd+crandom()*randvelvert + p->org[2]*ptype->offsetspreadvert;
+				p->vel[0] = vec[0]*veladd+crandom()*randvel + p->org[0]*ptype->spawnvel;
+				p->vel[1] = vec[1]*veladd+crandom()*randvel + p->org[1]*ptype->spawnvel;
+				p->vel[2] = vec[2]*veladd+crandom()*randvelvert + p->org[2]*ptype->spawnvelvert;
 
 				p->org[0] = p->org[0]*ptype->areaspread + start[0];
 				p->org[1] = p->org[1]*ptype->areaspread + start[1];
 				p->org[2] = p->org[2]*ptype->areaspreadvert + start[2];
 				break;
+			}
+
+			if (ptype->orgadd)
+			{
+				p->org[0] += vec[0]*ptype->orgadd;
+				p->org[1] += vec[1]*ptype->orgadd;
+				p->org[2] += vec[2]*ptype->orgadd;
 			}
 		}
 
@@ -3165,6 +3611,11 @@ static int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailst
 {
 	part_type_t *ptype = &part_type[type];
 
+	// TODO: fallback particle system won't have a decent trailstate which will mess up
+	// high fps trails
+	if (type >= FALLBACKBIAS && fallback)
+		return fallback->ParticleTrail(startpos, end, type-FALLBACKBIAS, NULL);
+
 	if (type < 0 || type >= numparticletypes)
 		return 1;	//bad value
 
@@ -3172,10 +3623,10 @@ static int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailst
 		return 1;
 
 	// inwater check, switch only once
-	if (r_part_contentswitch.value && ptype->inwater >= 0)
+	if (r_part_contentswitch.ival && ptype->inwater >= 0)
 	{
 		int cont;
-		cont = cl.worldmodel->funcs.PointContents(cl.worldmodel, startpos);
+		cont = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, startpos);
 
 		if (cont & FTECONTENTS_WATER)
 			ptype = &part_type[ptype->inwater];
@@ -3192,28 +3643,29 @@ static void PScript_ParticleTrailIndex (vec3_t start, vec3_t end, int color, int
 	P_ParticleTrail(start, end, pe_defaulttrail, tsk);
 }
 
-vec3_t pright, pup;
+static vec3_t pright, pup;
 static float pframetime;
-#ifdef RGLQUAKE
+
 static void GL_DrawTexturedParticle(int count, particle_t **plist, plooks_t *type)
 {
 	particle_t *p;
 	float x,y;
 	float scale;
 
-
-	qglEnable(GL_TEXTURE_2D);
-	GL_Bind(type->texturenum);
-	APPLYBLEND(type->blendmode);
-	qglShadeModel(GL_FLAT);
-	qglBegin(GL_QUADS);
-
-
 	while (count--)
 	{
 		p = *plist++;
 
+		if (pscriptmesh.numvertexes >= BUFFERVERTS-4)
+		{
+			pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
+			BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures, 0);
+			pscriptmesh.numvertexes = 0;
+		}
+
 		if (type->scalefactor == 1)
+			scale = p->scale*0.25;
+		else
 		{
 			scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
 				+ (p->org[2] - r_origin[2])*vpn[2];
@@ -3223,116 +3675,69 @@ static void GL_DrawTexturedParticle(int count, particle_t **plist, plooks_t *typ
 			else
 				scale = 0.25 + scale * 0.001;
 		}
-		else
-			scale = 1;
 
-		qglColor4f (p->rgb[0],
-					p->rgb[1],
-					p->rgb[2],
-					p->alpha);
+		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+0]);
+		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+1]);
+		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+2]);
+		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+3]);
+
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+0], p->s1, p->t1);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+1], p->s1, p->t2);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+2], p->s2, p->t2);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+3], p->s2, p->t1);
 
 		if (p->angle)
 		{
 			x = sin(p->angle)*scale;
 			y = cos(p->angle)*scale;
 
-			qglTexCoord2f(p->s1,p->t1);
-			qglVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
-			qglTexCoord2f(p->s1,p->t2);
-			qglVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
-			qglTexCoord2f(p->s2,p->t2);
-			qglVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
-			qglTexCoord2f(p->s2,p->t1);
-			qglVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
+			pscriptverts[pscriptmesh.numvertexes+0][0] = p->org[0] - x*pright[0] - y*pup[0];
+			pscriptverts[pscriptmesh.numvertexes+0][1] = p->org[1] - x*pright[1] - y*pup[1];
+			pscriptverts[pscriptmesh.numvertexes+0][2] = p->org[2] - x*pright[2] - y*pup[2];
+			pscriptverts[pscriptmesh.numvertexes+1][0] = p->org[0] - y*pright[0] + x*pup[0];
+			pscriptverts[pscriptmesh.numvertexes+1][1] = p->org[1] - y*pright[1] + x*pup[1];
+			pscriptverts[pscriptmesh.numvertexes+1][2] = p->org[2] - y*pright[2] + x*pup[2];
+			pscriptverts[pscriptmesh.numvertexes+2][0] = p->org[0] + x*pright[0] + y*pup[0];
+			pscriptverts[pscriptmesh.numvertexes+2][1] = p->org[1] + x*pright[1] + y*pup[1];
+			pscriptverts[pscriptmesh.numvertexes+2][2] = p->org[2] + x*pright[2] + y*pup[2];
+			pscriptverts[pscriptmesh.numvertexes+3][0] = p->org[0] + y*pright[0] - x*pup[0];
+			pscriptverts[pscriptmesh.numvertexes+3][1] = p->org[1] + y*pright[1] - x*pup[1];
+			pscriptverts[pscriptmesh.numvertexes+3][2] = p->org[2] + y*pright[2] - x*pup[2];
 		}
 		else
 		{
-			qglTexCoord2f(p->s1,p->t1);
-			qglVertex3f (p->org[0] - scale*pup[0], p->org[1] - scale*pup[1], p->org[2] - scale*pup[2]);
-			qglTexCoord2f(p->s1,p->t2);
-			qglVertex3f (p->org[0] - scale*pright[0], p->org[1] - scale*pright[1], p->org[2] - scale*pright[2]);
-			qglTexCoord2f(p->s2,p->t2);
-			qglVertex3f (p->org[0] + scale*pup[0], p->org[1] + scale*pup[1], p->org[2] + scale*pup[2]);
-			qglTexCoord2f(p->s2,p->t1);
-			qglVertex3f (p->org[0] + scale*pright[0], p->org[1] + scale*pright[1], p->org[2] + scale*pright[2]);
+			VectorMA(p->org, -scale, pup, pscriptverts[pscriptmesh.numvertexes+0]);
+			VectorMA(p->org, -scale, pright, pscriptverts[pscriptmesh.numvertexes+1]);
+			VectorMA(p->org, scale, pup, pscriptverts[pscriptmesh.numvertexes+2]);
+			VectorMA(p->org, scale, pright, pscriptverts[pscriptmesh.numvertexes+3]);
 		}
+		pscriptmesh.numvertexes += 4;
 	}
-	qglEnd();
-}
 
-
-static void GL_DrawSketchParticle(int count, particle_t **plist, plooks_t *type)
-{
-	particle_t *p;
-	float x,y;
-	float scale;
-
-	int quant;
-
-	qglDisable(GL_TEXTURE_2D);
-//	if (type->blendmode == BM_ADD)		//addative
-//		glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-//	else if (type->blendmode == BM_SUBTRACT)	//subtractive
-//		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-//	else
-		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	qglShadeModel(GL_SMOOTH);
-	qglBegin(GL_LINES);
-
-	while (count--)
+	if (pscriptmesh.numvertexes)
 	{
-		p = *plist++;
-
-		scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
-			+ (p->org[2] - r_origin[2])*vpn[2];
-		scale = (scale*p->scale)*(type->invscalefactor) + p->scale * (type->scalefactor*250);
-		if (scale < 20)
-			scale = 0.25;
-		else
-			scale = 0.25 + scale * 0.001;
-
-		qglColor4f (p->rgb[0]/2,
-					p->rgb[1]/2,
-					p->rgb[2]/2,
-					p->alpha*2);
-
-		quant = scale;
-
-		if (p->angle)
-		{
-			x = sin(p->angle)*scale;
-			y = cos(p->angle)*scale;
-
-			qglVertex3f (p->org[0] - x*pright[0] - y*pup[0], p->org[1] - x*pright[1] - y*pup[1], p->org[2] - x*pright[2] - y*pup[2]);
-			qglVertex3f (p->org[0] + x*pright[0] + y*pup[0], p->org[1] + x*pright[1] + y*pup[1], p->org[2] + x*pright[2] + y*pup[2]);
-			qglVertex3f (p->org[0] + y*pright[0] - x*pup[0], p->org[1] + y*pright[1] - x*pup[1], p->org[2] + y*pright[2] - x*pup[2]);
-			qglVertex3f (p->org[0] - y*pright[0] + x*pup[0], p->org[1] - y*pright[1] + x*pup[1], p->org[2] - y*pright[2] + x*pup[2]);
-		}
-		else
-		{
-			qglVertex3f (p->org[0] - scale*pup[0], p->org[1] - scale*pup[1], p->org[2] - scale*pup[2]);
-			qglVertex3f (p->org[0] + scale*pup[0], p->org[1] + scale*pup[1], p->org[2] + scale*pup[2]);
-			qglVertex3f (p->org[0] + scale*pright[0], p->org[1] + scale*pright[1], p->org[2] + scale*pright[2]);
-			qglVertex3f (p->org[0] - scale*pright[0], p->org[1] - scale*pright[1], p->org[2] - scale*pright[2]);
-		}
+		pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
+		BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures, 0);
+		pscriptmesh.numvertexes = 0;
 	}
-	qglEnd();
 }
 
 static void GL_DrawTrifanParticle(int count, particle_t **plist, plooks_t *type)
 {
 	particle_t *p;
-	int i;
-	vec3_t v;
+	vec3_t v, cr, o2;
 	float scale;
-
-	qglDisable(GL_TEXTURE_2D);
-	APPLYBLEND(type->blendmode);
-	qglShadeModel(GL_SMOOTH);
 
 	while (count--)
 	{
 		p = *plist++;
+
+		if (pscripttmesh.numvertexes >= BUFFERVERTS-3)
+		{
+			pscripttmesh.numindexes = pscripttmesh.numvertexes;
+			BE_DrawMesh_Single(type->shader, &pscripttmesh, NULL, &type->shader->defaulttextures, 0);
+			pscripttmesh.numvertexes = 0;
+		}
 
 		scale = (p->org[0] - r_origin[0])*vpn[0] + (p->org[1] - r_origin[1])*vpn[1]
 			+ (p->org[2] - r_origin[2])*vpn[2];
@@ -3341,40 +3746,49 @@ static void GL_DrawTrifanParticle(int count, particle_t **plist, plooks_t *type)
 			scale = 0.05;
 		else
 			scale = 0.05 + scale * 0.0001;
-	/*
-		if ((p->vel[0]*p->vel[0]+p->vel[1]*p->vel[1]+p->vel[2]*p->vel[2])*2*scale > 30*30)
-			scale = 1+1/30/Length(p->vel)*2;*/
 
-		qglBegin (GL_TRIANGLE_FAN);
-		qglColor4f (p->rgb[0],
-					p->rgb[1],
-					p->rgb[2],
-					p->alpha);
-		qglVertex3fv (p->org);
-		qglColor4f (p->rgb[0]/2,
-					p->rgb[1]/2,
-					p->rgb[2]/2,
-					0);
-		for (i=7 ; i>=0 ; i--)
-		{
-			v[0] = p->org[0] - p->vel[0]*scale + vright[0]*cost[i%7]*p->scale + vup[0]*sint[i%7]*p->scale;
-			v[1] = p->org[1] - p->vel[1]*scale + vright[1]*cost[i%7]*p->scale + vup[1]*sint[i%7]*p->scale;
-			v[2] = p->org[2] - p->vel[2]*scale + vright[2]*cost[i%7]*p->scale + vup[2]*sint[i%7]*p->scale;
-			qglVertex3fv (v);
-		}
-		qglEnd ();
+		Vector4Copy(p->rgba, pscriptcolours[pscripttmesh.numvertexes+0]);
+		Vector4Copy(p->rgba, pscriptcolours[pscripttmesh.numvertexes+1]);
+		Vector4Copy(p->rgba, pscriptcolours[pscripttmesh.numvertexes+2]);
+
+		Vector2Set(pscripttexcoords[pscripttmesh.numvertexes+0], p->s1, p->t1);
+		Vector2Set(pscripttexcoords[pscripttmesh.numvertexes+1], p->s1, p->t2);
+		Vector2Set(pscripttexcoords[pscripttmesh.numvertexes+2], p->s2, p->t1);
+
+
+		VectorMA(p->org, -scale, p->vel, o2);
+		VectorSubtract(r_refdef.vieworg, o2, v);
+		CrossProduct(v, p->vel, cr);
+		VectorNormalize(cr);
+
+		VectorCopy(p->org, pscriptverts[pscripttmesh.numvertexes+0]);
+		VectorMA(o2, -p->scale, cr, pscriptverts[pscripttmesh.numvertexes+1]);
+		VectorMA(o2, p->scale, cr, pscriptverts[pscripttmesh.numvertexes+2]);
+
+		pscripttmesh.numvertexes += 3;
+	}
+
+	if (pscripttmesh.numvertexes)
+	{
+		pscripttmesh.numindexes = pscripttmesh.numvertexes;
+		BE_DrawMesh_Single(type->shader, &pscripttmesh, NULL, &type->shader->defaulttextures, 0);
+		pscripttmesh.numvertexes = 0;
 	}
 }
 
 static void GL_DrawLineSparkParticle(int count, particle_t **plist, plooks_t *type)
 {
+#ifdef _MSC_VER
+#pragma message("fixme: no line sparks")
+#endif
+#if 0
 	particle_t *p;
 
 	qglDisable(GL_TEXTURE_2D);
 	APPLYBLEND(type->blendmode);
 	qglShadeModel(GL_SMOOTH);
 	qglBegin(GL_LINES);
-	
+
 	while (count--)
 	{
 		p = *plist++;
@@ -3392,293 +3806,171 @@ static void GL_DrawLineSparkParticle(int count, particle_t **plist, plooks_t *ty
 		qglVertex3f (p->org[0]-p->vel[0]/10, p->org[1]-p->vel[1]/10, p->org[2]-p->vel[2]/10);
 	}
 	qglEnd();
+#endif
 }
 
 static void GL_DrawTexturedSparkParticle(int count, particle_t **plist, plooks_t *type)
 {
 	particle_t *p;
-	vec3_t v, cr, o2, point;
+	vec3_t v, cr, o2;
 
-	qglEnable(GL_TEXTURE_2D);
-	GL_Bind(type->texturenum);
-	APPLYBLEND(type->blendmode);
-	qglShadeModel(GL_SMOOTH);
-	qglBegin(GL_QUADS);
-
-
-	while(count--)
+	while (count--)
 	{
 		p = *plist++;
 
-		qglColor4f (p->rgb[0],
-					p->rgb[1],
-					p->rgb[2],
-					p->alpha);
+		if (pscriptmesh.numvertexes >= BUFFERVERTS-4)
+		{
+			pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
+			BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures, 0);
+			pscriptmesh.numvertexes = 0;
+		}
 
-		VectorSubtract(r_refdef.vieworg, p->org, v);
+		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+0]);
+		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+1]);
+		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+2]);
+		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+3]);
+
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+0], p->s1, p->t1);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+1], p->s1, p->t2);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+2], p->s2, p->t2);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+3], p->s2, p->t1);
+
+
+		if (type->stretch)
+		{
+			VectorMA(p->org, type->stretch, p->vel, o2);
+			VectorMA(p->org, -type->stretch, p->vel, v);
+			VectorSubtract(r_refdef.vieworg, v, v);
+		}
+		else
+		{
+			VectorMA(p->org, 0.1, p->vel, o2);
+			VectorSubtract(r_refdef.vieworg, p->org, v);
+		}
+
 		CrossProduct(v, p->vel, cr);
 		VectorNormalize(cr);
 
-		VectorMA(p->org, -p->scale/2, cr, point);
-		qglTexCoord2f(p->s1, p->t1);
-		qglVertex3fv(point);
-		VectorMA(p->org, p->scale/2, cr, point);
-		qglTexCoord2f(p->s1, p->t2);
-		qglVertex3fv(point);
-
-
-		VectorMA(p->org, 0.1, p->vel, o2);
+		VectorMA(p->org, -p->scale/2, cr, pscriptverts[pscriptmesh.numvertexes+0]);
+		VectorMA(p->org, p->scale/2, cr, pscriptverts[pscriptmesh.numvertexes+1]);
 
 		VectorSubtract(r_refdef.vieworg, o2, v);
 		CrossProduct(v, p->vel, cr);
 		VectorNormalize(cr);
 
-		VectorMA(o2, p->scale/2, cr, point);
-		qglTexCoord2f(p->s2, p->t2);
-		qglVertex3fv(point);
-		VectorMA(o2, -p->scale/2, cr, point);
-		qglTexCoord2f(p->s2, p->t1);
-		qglVertex3fv(point);
+		VectorMA(o2, p->scale/2, cr, pscriptverts[pscriptmesh.numvertexes+2]);
+		VectorMA(o2, -p->scale/2, cr, pscriptverts[pscriptmesh.numvertexes+3]);
+
+		pscriptmesh.numvertexes += 4;
 	}
-	qglEnd();
-}
 
-static void GL_DrawSketchSparkParticle(int count, particle_t **plist, plooks_t *type)
-{
-	particle_t *p;
-
-	qglDisable(GL_TEXTURE_2D);
-	APPLYBLEND(type->blendmode);
-	qglShadeModel(GL_SMOOTH);
-	qglBegin(GL_LINES);
-
-	while(count--)
+	if (pscriptmesh.numvertexes)
 	{
-		p = *plist++;
-		qglColor4f (p->rgb[0],
-					p->rgb[1],
-					p->rgb[2],
-					p->alpha);
-		qglVertex3f (p->org[0], p->org[1], p->org[2]);
-
-		qglColor4f (p->rgb[0],
-					p->rgb[1],
-					p->rgb[2],
-					0);
-		qglVertex3f (p->org[0]-p->vel[0]/10, p->org[1]-p->vel[1]/10, p->org[2]-p->vel[2]/10);
+		pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
+		BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures, 0);
+		pscriptmesh.numvertexes = 0;
 	}
-	qglEnd();
 }
 
-static void GL_DrawParticleBeam_Textured(int count, beamseg_t **blist, plooks_t *type)
+static void GL_DrawParticleBeam(int count, beamseg_t **blist, plooks_t *type)
 {
 	beamseg_t *b;
-	vec3_t v, point;
+	vec3_t v;
 	vec3_t cr;
 	beamseg_t *c;
 	particle_t *p;
 	particle_t *q;
 	float ts;
 
-	qglEnable(GL_TEXTURE_2D);
-	GL_Bind(type->texturenum);
-	APPLYBLEND(type->blendmode);
-	qglShadeModel(GL_SMOOTH);
-	qglBegin(GL_QUADS);
-	
 	while(count--)
 	{
 		b = *blist++;
 
+		if (pscriptmesh.numvertexes >= BUFFERVERTS-4)
+		{
+			pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
+			BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures, 0);
+			pscriptmesh.numvertexes = 0;
+		}
+
 		c = b->next;
 
 		q = c->p;
-//		if (!q)
-//			continue;
-
 		p = b->p;
-//		if (!p)
-//			continue;
 
-		qglColor4f(q->rgb[0],
-				  q->rgb[1],
-				  q->rgb[2],
-				  q->alpha);
-	//	qglBegin(GL_LINE_LOOP);
 		VectorSubtract(r_refdef.vieworg, q->org, v);
 		VectorNormalize(v);
 		CrossProduct(c->dir, v, cr);
 		ts = c->texture_s*q->angle + particletime*q->rotationspeed;
-
-		VectorMA(q->org, -q->scale, cr, point);
-		qglTexCoord2f(ts, p->t1);
-		qglVertex3fv(point);
-		VectorMA(q->org, q->scale, cr, point);
-		qglTexCoord2f(ts, p->t2);
-		qglVertex3fv(point);
-
-		qglColor4f(p->rgb[0],
-				  p->rgb[1],
-				  p->rgb[2],
-				  p->alpha);
+		Vector4Copy(q->rgba, pscriptcolours[pscriptmesh.numvertexes+0]);
+		Vector4Copy(q->rgba, pscriptcolours[pscriptmesh.numvertexes+1]);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+0], ts, p->t1);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+1], ts, p->t2);
+		VectorMA(q->org, -q->scale, cr, pscriptverts[pscriptmesh.numvertexes+0]);
+		VectorMA(q->org, q->scale, cr, pscriptverts[pscriptmesh.numvertexes+1]);
 
 		VectorSubtract(r_refdef.vieworg, p->org, v);
 		VectorNormalize(v);
 		CrossProduct(b->dir, v, cr); // replace with old p->dir?
 		ts = b->texture_s*p->angle + particletime*p->rotationspeed;
+		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+2]);
+		Vector4Copy(p->rgba, pscriptcolours[pscriptmesh.numvertexes+3]);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+2], ts, p->t2);
+		Vector2Set(pscripttexcoords[pscriptmesh.numvertexes+3], ts, p->t1);
+		VectorMA(p->org, p->scale, cr, pscriptverts[pscriptmesh.numvertexes+2]);
+		VectorMA(p->org, -p->scale, cr, pscriptverts[pscriptmesh.numvertexes+3]);
 
-		VectorMA(p->org, p->scale, cr, point);
-		qglTexCoord2f(ts, p->t2);
-		qglVertex3fv(point);
-		VectorMA(p->org, -p->scale, cr, point);
-		qglTexCoord2f(ts, p->t1);
-		qglVertex3fv(point);
+		pscriptmesh.numvertexes += 4;
 	}
-	qglEnd();
-}
 
-static void GL_DrawParticleBeam_Untextured(int count, beamseg_t **blist, plooks_t *type)
-{
-	vec3_t v;
-	vec3_t cr;
-	beamseg_t *c;
-	particle_t *p;
-	particle_t *q;
-	beamseg_t *b;
-
-	vec3_t point[4];
-
-
-	qglDisable(GL_TEXTURE_2D);
-	APPLYBLEND(type->blendmode);
-	qglShadeModel(GL_SMOOTH);
-	qglBegin(GL_QUADS);
-
-	while(count--)
+	if (pscriptmesh.numvertexes)
 	{
-		b = *blist++;
-
-		c = b->next;
-
-		q = c->p;
-	//	if (!q)
-	//		continue;
-
-		p = b->p;
-	//	if (!p)
-	//		continue;
-
-		VectorSubtract(r_refdef.vieworg, q->org, v);
-		VectorNormalize(v);
-		CrossProduct(c->dir, v, cr);
-
-		VectorMA(q->org, -q->scale, cr, point[0]);
-		VectorMA(q->org, q->scale, cr, point[1]);
-
-
-		VectorSubtract(r_refdef.vieworg, p->org, v);
-		VectorNormalize(v);
-		CrossProduct(b->dir, v, cr); // replace with old p->dir?
-
-		VectorMA(p->org, p->scale, cr, point[2]);
-		VectorMA(p->org, -p->scale, cr, point[3]);
-
-
-		//one half
-		//back out
-		//back in
-		//front in
-		//front out
-		qglColor4f(q->rgb[0],
-			  q->rgb[1],
-			  q->rgb[2],
-			  0);
-		qglVertex3fv(point[0]);
-		qglColor4f(q->rgb[0],
-			  q->rgb[1],
-			  q->rgb[2],
-			  q->alpha);
-		qglVertex3fv(q->org);
-
-		qglColor4f(p->rgb[0],
-			  p->rgb[1],
-			  p->rgb[2],
-			  p->alpha);
-		qglVertex3fv(p->org);
-		qglColor4f(p->rgb[0],
-			  p->rgb[1],
-			  p->rgb[2],
-			  0);
-		qglVertex3fv(point[3]);
-
-		//front out
-		//front in
-		//back in
-		//back out
-		qglColor4f(p->rgb[0],
-			  p->rgb[1],
-			  p->rgb[2],
-			  0);
-		qglVertex3fv(point[2]);
-		qglColor4f(p->rgb[0],
-			  p->rgb[1],
-			  p->rgb[2],
-			  p->alpha);
-		qglVertex3fv(p->org);
-
-		qglColor4f(q->rgb[0],
-			  q->rgb[1],
-			  q->rgb[2],
-			  q->alpha);
-		qglVertex3fv(q->org);
-		qglColor4f(q->rgb[0],
-			  q->rgb[1],
-			  q->rgb[2],
-			  0);
-		qglVertex3fv(point[1]);
+		pscriptmesh.numindexes = pscriptmesh.numvertexes/4*6;
+		BE_DrawMesh_Single(type->shader, &pscriptmesh, NULL, &type->shader->defaulttextures, 0);
+		pscriptmesh.numvertexes = 0;
 	}
-	qglEnd();
 }
 
 static void GL_DrawClippedDecal(int count, clippeddecal_t **dlist, plooks_t *type)
 {
 	clippeddecal_t *d;
 
-	qglEnable(GL_TEXTURE_2D);
-	GL_Bind(type->texturenum);
-	APPLYBLEND(type->blendmode);
-	qglShadeModel(GL_SMOOTH);
-
-//	qglDisable(GL_TEXTURE_2D);
-//	qglBegin(GL_LINE_LOOP);
-
-	qglBegin(GL_TRIANGLES);
-
 	while (count--)
 	{
 		d = *dlist++;
 
-		qglColor4f(d->rgb[0],
-			  d->rgb[1],
-			  d->rgb[2],
-			  d->alpha);
+		if (pscripttmesh.numvertexes >= BUFFERVERTS-3)
+		{
+			pscripttmesh.numindexes = pscripttmesh.numvertexes;
+			BE_DrawMesh_Single(type->shader, &pscripttmesh, NULL, &type->shader->defaulttextures, 0);
+			pscripttmesh.numvertexes = 0;
+		}
 
-		qglTexCoord2fv(d->texcoords[0]);
-		qglVertex3fv(d->vertex[0]);
-		qglTexCoord2fv(d->texcoords[1]);
-		qglVertex3fv(d->vertex[1]);
-		qglTexCoord2fv(d->texcoords[2]);
-		qglVertex3fv(d->vertex[2]);
+		Vector4Copy(d->rgba, pscriptcolours[pscripttmesh.numvertexes+0]);
+		Vector4Copy(d->rgba, pscriptcolours[pscripttmesh.numvertexes+1]);
+		Vector4Copy(d->rgba, pscriptcolours[pscripttmesh.numvertexes+2]);
+
+		Vector2Copy(d->texcoords[0], pscripttexcoords[pscripttmesh.numvertexes+0]);
+		Vector2Copy(d->texcoords[1], pscripttexcoords[pscripttmesh.numvertexes+1]);
+		Vector2Copy(d->texcoords[2], pscripttexcoords[pscripttmesh.numvertexes+2]);
+
+		VectorCopy(d->vertex[0], pscriptverts[pscripttmesh.numvertexes+0]);
+		VectorCopy(d->vertex[1], pscriptverts[pscripttmesh.numvertexes+1]);
+		VectorCopy(d->vertex[2], pscriptverts[pscripttmesh.numvertexes+2]);
+
+		pscripttmesh.numvertexes += 3;
 	}
-	qglEnd();
+
+	if (pscripttmesh.numvertexes)
+	{
+		pscripttmesh.numindexes = pscripttmesh.numvertexes;
+		BE_DrawMesh_Single(type->shader, &pscripttmesh, NULL, &type->shader->defaulttextures, 0);
+		pscripttmesh.numvertexes = 0;
+	}
 }
 
-#endif
-
-void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t **,plooks_t*), void (*sparklineparticles)(int count, particle_t **,plooks_t*), void (*sparkfanparticles)(int count, particle_t **,plooks_t*), void (*sparktexturedparticles)(int count, particle_t **,plooks_t*), void (*beamparticlest)(int count, beamseg_t**,plooks_t*), void (*beamparticlesut)(int count, beamseg_t**,plooks_t*), void (*drawdecalparticles)(int count, clippeddecal_t**,plooks_t*))
+static void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t **,plooks_t*), void (*sparklineparticles)(int count, particle_t **,plooks_t*), void (*sparkfanparticles)(int count, particle_t **,plooks_t*), void (*sparktexturedparticles)(int count, particle_t **,plooks_t*), void (*beamparticles)(int count, beamseg_t**,plooks_t*), void (*drawdecalparticles)(int count, clippeddecal_t**,plooks_t*))
 {
-	RSpeedMark();
-
 	qboolean (*tr) (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
 	void *pdraw, *bdraw;
 
@@ -3696,8 +3988,9 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 										//remember that they're not drawn instantly either.
 	beamseg_t *b, *bkill;
 
-	int traces=r_particle_tracelimit.value;
+	int traces=r_particle_tracelimit.ival;
 	int rampind;
+	RSpeedMark();
 
 	if (r_plooksdirty)
 	{
@@ -3716,10 +4009,11 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 			}
 		}
 		r_plooksdirty = false;
+		CL_RegisterParticles();
 	}
 
 	pframetime = host_frametime;
-	if (cl.paused || r_secondaryview)
+	if (cl.paused || r_secondaryview || r_refdef.recurse)
 		pframetime = 0;
 
 	VectorScale (vup, 1.5, pup);
@@ -3734,33 +4028,24 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 
 	kill_list = kill_first = NULL;
 
-	// reassign drawing methods by cvars
-	if (r_part_beams_textured.value < 0)
-		beamparticlest = NULL;
-	else if (!r_part_beams_textured.value)
-		beamparticlest = beamparticlesut;
+	if (r_part_beams.ival < 0)
+		beamparticles = NULL;
+	else if (!r_part_beams.ival)
+		beamparticles = NULL;
 
-	if (r_part_beams.value < 0)
-		beamparticlesut = NULL;
-	else if (!r_part_beams.value)
-	{
-		beamparticlest = NULL;
-		beamparticlesut = NULL;
-	}
-
-	if (r_part_sparks_textured.value < 0)
+	if (r_part_sparks_textured.ival < 0)
 		sparktexturedparticles = NULL;
-	else if (!r_part_sparks_textured.value)
+	else if (!r_part_sparks_textured.ival)
 		sparktexturedparticles = sparklineparticles;
 
-	if (r_part_sparks_trifan.value < 0)
+	if (r_part_sparks_trifan.ival < 0)
 		sparkfanparticles = NULL;
-	else if (!r_part_sparks_trifan.value)
+	else if (!r_part_sparks_trifan.ival)
 		sparkfanparticles = sparklineparticles;
 
-	if (r_part_sparks.value < 0)
+	if (r_part_sparks.ival < 0)
 		sparklineparticles = NULL;
-	else if (!r_part_sparks.value)
+	else if (!r_part_sparks.ival)
 	{
 		sparktexturedparticles = NULL;
 		sparkfanparticles = NULL;
@@ -3807,22 +4092,22 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 					if (rampind >= type->rampindexes)
 						rampind = type->rampindexes - 1;
 					ramp = type->ramp + rampind;
-					VectorCopy(ramp->rgb, d->rgb);
-					d->alpha = ramp->alpha;
+					VectorCopy(ramp->rgb, d->rgba);
+					d->rgba[3] = ramp->alpha;
 					break;
 				case RAMP_DELTA:	//particle ramps
 					ramp = type->ramp + (int)(type->rampindexes * (type->die - (d->die - particletime)) / type->die);
-					VectorMA(d->rgb, pframetime, ramp->rgb, d->rgb);
-					d->alpha -= pframetime*ramp->alpha;
+					VectorMA(d->rgba, pframetime, ramp->rgb, d->rgba);
+					d->rgba[3] -= pframetime*ramp->alpha;
 					break;
 				case RAMP_NONE:	//particle changes acording to it's preset properties.
 					if (particletime < (d->die-type->die+type->rgbchangetime))
 					{
-						d->rgb[0] += pframetime*type->rgbchange[0];
-						d->rgb[1] += pframetime*type->rgbchange[1];
-						d->rgb[2] += pframetime*type->rgbchange[2];
+						d->rgba[0] += pframetime*type->rgbchange[0];
+						d->rgba[1] += pframetime*type->rgbchange[1];
+						d->rgba[2] += pframetime*type->rgbchange[2];
 					}
-					d->alpha += pframetime*type->alphachange;
+					d->rgba[3] += pframetime*type->alphachange;
 				}
 
 				drawdecalparticles(1, &d, &type->looks);
@@ -3837,10 +4122,7 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 		switch(type->looks.type)
 		{
 		case PT_BEAM:
-			if (*type->texname)
-				bdraw = beamparticlest;
-			else
-				bdraw = beamparticlesut;
+			bdraw = beamparticles;
 			break;
 		case PT_DECAL:
 			break;
@@ -3870,14 +4152,14 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 					P_RunParticleEffectType(p->org, p->vel, 1, type->emit);
 
 				// make sure stain effect runs
-				if (type->stains && r_bloodstains.value)
+				if (type->stainonimpact && r_bloodstains.ival)
 				{
 					if (traces-->0&&tr(oldorg, p->org, stop, normal))
 					{
-						R_AddStain(stop,	(p->rgb[1]*-10+p->rgb[2]*-10),
-											(p->rgb[0]*-10+p->rgb[2]*-10),
-											(p->rgb[0]*-10+p->rgb[1]*-10),
-											30*p->alpha*type->stains);
+						R_AddStain(stop,	(p->rgba[1]*-10+p->rgba[2]*-10),
+											(p->rgba[0]*-10+p->rgba[2]*-10),
+											(p->rgba[0]*-10+p->rgba[1]*-10),
+											30*p->rgba[3]*type->stainonimpact);
 					}
 				}
 
@@ -3939,7 +4221,7 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 				b = b->next;
 			}
 
-			continue;
+			goto endtype;
 		}
 
 		//kill off early ones.
@@ -3980,7 +4262,9 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 		}
 
 		grav = type->gravity*pframetime;
-		VectorScale(type->friction, pframetime, friction);
+		friction[0] = 1 - type->friction[0]*pframetime;
+		friction[1] = 1 - type->friction[1]*pframetime;
+		friction[2] = 1 - type->friction[2]*pframetime;
 
 		for (p=type->particles ; p ; p=p->next)
 		{
@@ -4028,9 +4312,9 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 				p->org[2] += p->vel[2]*pframetime;
 				if (type->flags & PT_FRICTION)
 				{
-					p->vel[0] -= friction[0]*p->vel[0];
-					p->vel[1] -= friction[1]*p->vel[1];
-					p->vel[2] -= friction[2]*p->vel[2];
+					p->vel[0] *= friction[0];
+					p->vel[1] *= friction[1];
+					p->vel[2] *= friction[2];
 				}
 				p->vel[2] -= grav;
 			}
@@ -4044,8 +4328,8 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 				if (rampind >= type->rampindexes)
 					rampind = type->rampindexes - 1;
 				ramp = type->ramp + rampind;
-				VectorCopy(ramp->rgb, p->rgb);
-				p->alpha = ramp->alpha;
+				VectorCopy(ramp->rgb, p->rgba);
+				p->rgba[3] = ramp->alpha;
 				p->scale = ramp->scale;
 				break;
 			case RAMP_DELTA:	//particle ramps
@@ -4053,18 +4337,18 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 				if (rampind >= type->rampindexes)
 					rampind = type->rampindexes - 1;
 				ramp = type->ramp + rampind;
-				VectorMA(p->rgb, pframetime, ramp->rgb, p->rgb);
-				p->alpha -= pframetime*ramp->alpha;
+				VectorMA(p->rgba, pframetime, ramp->rgb, p->rgba);
+				p->rgba[3] -= pframetime*ramp->alpha;
 				p->scale += pframetime*ramp->scale;
 				break;
 			case RAMP_NONE:	//particle changes acording to it's preset properties.
 				if (particletime < (p->die-type->die+type->rgbchangetime))
 				{
-					p->rgb[0] += pframetime*type->rgbchange[0];
-					p->rgb[1] += pframetime*type->rgbchange[1];
-					p->rgb[2] += pframetime*type->rgbchange[2];
+					p->rgba[0] += pframetime*type->rgbchange[0];
+					p->rgba[1] += pframetime*type->rgbchange[1];
+					p->rgba[2] += pframetime*type->rgbchange[2];
 				}
-				p->alpha += pframetime*type->alphachange;
+				p->rgba[3] += pframetime*type->alphachange;
 				p->scale += pframetime*type->scaledelta;
 			}
 
@@ -4079,15 +4363,15 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 				}
 			}
 
-			if (type->cliptype>=0 && r_bouncysparks.value)
+			if (type->cliptype>=0 && r_bouncysparks.ival)
 			{
 				if (traces-->0&&tr(oldorg, p->org, stop, normal))
 				{
-					if (type->stains && r_bloodstains.value)
-						R_AddStain(stop,	p->rgb[1]*-10+p->rgb[2]*-10,
-											p->rgb[0]*-10+p->rgb[2]*-10,
-											p->rgb[0]*-10+p->rgb[1]*-10,
-											30*p->alpha);
+					if (type->stainonimpact && r_bloodstains.ival)
+						R_AddStain(stop,	p->rgba[1]*-10+p->rgba[2]*-10,
+											p->rgba[0]*-10+p->rgba[2]*-10,
+											p->rgba[0]*-10+p->rgba[1]*-10,
+											30*p->rgba[3]);
 
 					if (part_type + type->cliptype == type)
 					{	//bounce
@@ -4112,14 +4396,14 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 					continue;
 				}
 			}
-			else if (type->stains && r_bloodstains.value)
+			else if (type->stainonimpact && r_bloodstains.ival)
 			{
 				if (traces-->0&&tr(oldorg, p->org, stop, normal))
 				{
-					R_AddStain(stop,	(p->rgb[1]*-10+p->rgb[2]*-10),
-										(p->rgb[0]*-10+p->rgb[2]*-10),
-										(p->rgb[0]*-10+p->rgb[1]*-10),
-										30*p->alpha*type->stains);
+					R_AddStain(stop,	(p->rgba[1]*-10+p->rgba[2]*-10),
+										(p->rgba[0]*-10+p->rgba[2]*-10),
+										(p->rgba[0]*-10+p->rgba[1]*-10),
+										30*p->rgba[3]*type->stainonimpact);
 					p->die = -1;
 					continue;
 				}
@@ -4190,8 +4474,8 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 							}
 						}
 
-	//					if (b->p->die < particletime)
-	//						b->flags |= BS_DEAD;
+						if (b->p->die < particletime)
+							b->flags |= BS_DEAD;
 					}
 				}
 				else
@@ -4209,14 +4493,16 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 			}
 		}
 
+endtype:
+
 		// delete from run list if necessary
 		if (!type->particles && !type->beams && !type->clippeddecals)
 		{
-//			if (!lastvalidtype)
-//				part_run_list = type->nexttorun;
-//			else
-//				lastvalidtype->nexttorun = type->nexttorun;
-//			type->state &= ~PS_INRUNLIST;
+			if (!lastvalidtype)
+				part_run_list = type->nexttorun;
+			else
+				lastvalidtype->nexttorun = type->nexttorun;
+			type->state &= ~PS_INRUNLIST;
 		}
 		else
 			lastvalidtype = type;
@@ -4234,17 +4520,6 @@ void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t 
 	particletime += pframetime;
 }
 
-static void PScript_FlushRenderer(void)
-{
-#ifdef RGLQUAKE
-	qglDepthMask(0);	//primarily to stop close particles from obscuring each other
-	qglDisable(GL_ALPHA_TEST);
-	qglEnable (GL_BLEND);
-	GL_TexEnv(GL_MODULATE);
-	qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-#endif
-}
-
 /*
 ===============
 R_DrawParticles
@@ -4252,60 +4527,12 @@ R_DrawParticles
 */
 static void PScript_DrawParticles (void)
 {
-	RSpeedMark();
-
 	P_AddRainParticles();
-#if defined(RGLQUAKE)
-	if (qrenderer == QR_OPENGL)
-	{
-		extern int gldepthfunc;
-		extern cvar_t r_drawflat;
 
-		P_FlushRenderer();
+	PScript_DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawLineSparkParticle, GL_DrawTrifanParticle, GL_DrawTexturedSparkParticle, GL_DrawParticleBeam, GL_DrawClippedDecal);
 
-		if (qglPolygonOffset)
-			qglPolygonOffset(-1, 0);
-		qglEnable(GL_POLYGON_OFFSET_FILL);
-		qglEnable(GL_BLEND);
-
-		qglDepthFunc(gldepthfunc);
-
-		qglDisable(GL_ALPHA_TEST);
-		if (r_drawflat.value == 2)
-			PScript_DrawParticleTypes(GL_DrawSketchParticle, GL_DrawSketchSparkParticle, GL_DrawSketchSparkParticle, GL_DrawSketchSparkParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured, GL_DrawClippedDecal);
-		else
-			PScript_DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawLineSparkParticle, GL_DrawTrifanParticle, GL_DrawTexturedSparkParticle, GL_DrawParticleBeam_Textured, GL_DrawParticleBeam_Untextured, GL_DrawClippedDecal);
-		qglDisable(GL_POLYGON_OFFSET_FILL);
-
-
-
-		RSpeedRemark();
-		RQ_RenderBatchClear();
-		RSpeedEnd(RSPEED_PARTICLESDRAW);
-
-		qglEnable(GL_TEXTURE_2D);
-
-		GL_TexEnv(GL_MODULATE);
-		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-		qglDepthMask(1);
-		return;
-	}
-#endif
-#if defined(D3DQUAKE)
-	if (qrenderer == QR_DIRECT3D)
-	{
-		if (!D3D7_DrawParticles(particletime))
-			D3D9_DrawParticles(particletime);
-	}
-#endif
-
-	if (qrenderer)
-	{
-			RSpeedRemark();
-			RQ_RenderDistAndClear();
-			RSpeedEnd(RSPEED_PARTICLESDRAW);
-	}
+	if (fallback)
+		fallback->DrawParticles();
 }
 
 
@@ -4333,8 +4560,7 @@ particleengine_t pe_script =
 	PScript_Shutdown,
 	PScript_DelinkTrailstate,
 	PScript_ClearParticles,
-	PScript_DrawParticles,
-	PScript_FlushRenderer
+	PScript_DrawParticles
 };
 
 #endif

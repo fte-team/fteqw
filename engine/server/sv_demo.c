@@ -1,6 +1,7 @@
 #include "qwsvdef.h"
 
 #ifndef CLIENTONLY
+#ifdef SERVER_DEMO_PLAYBACK
 
 void NPP_MVDWriteByte(qbyte data, client_t *to, int broadcast);
 
@@ -359,7 +360,8 @@ readnext:
 	}
 
 // decide if it is time to grab the next message
-	if (!sv.paused) {	// always grab until fully connected
+	if (!sv.paused)
+	{	// always grab until fully connected
 		if (!svd.mvdplayback)
 		{
 			if (svd.realtime + 1.0 < demotime) {
@@ -602,10 +604,11 @@ qboolean SV_ReadMVD (void)
 
 void SV_Demo_Init(void)
 {
-	//Cmd_AddCommand("playmvd", SV_LoadClientDemo_f);
-	//Cmd_AddCommand("mvdplay", SV_LoadClientDemo_f);
-//	Cmd_AddCommand("svplay", SV_PlayDemo_f);
-//	Cmd_AddCommand("svrecord", SV_RecordDemo_f);
+	Cmd_AddCommand("playmvd", SV_LoadClientDemo_f);
+	Cmd_AddCommand("mvdplay", SV_LoadClientDemo_f);
+	Cmd_AddCommand("svplay", SV_PlayDemo_f);
+	Cmd_AddCommand("svrecord", SV_RecordDemo_f);
 }
 
-#endif
+#endif //SERVER_DEMO_PLAYBACK
+#endif //CLIENTONLY

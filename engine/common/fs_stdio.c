@@ -1,11 +1,17 @@
 #include "quakedef.h"
 #include "fs.h"
+#include "errno.h"
 
+#ifdef WEBSVONLY
+#define Z_Free free
+#define Z_Malloc malloc
+#else
 #if !defined(_WIN32) || defined(_SDL)
 #define VFSSTDIO_Open VFSOS_Open
 #define stdiofilefuncs osfilefuncs
 #endif
 #define FSSTDIO_OpenTemp FS_OpenTemp
+#endif
 
 typedef struct {
 	vfsfile_t funcs;
@@ -118,6 +124,8 @@ vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode)
 	return (vfsfile_t*)file;
 }
 
+
+#ifndef WEBSVONLY
 static vfsfile_t *FSSTDIO_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 {
 	char diskname[MAX_OSPATH];
@@ -131,7 +139,7 @@ static vfsfile_t *FSSTDIO_OpenVFS(void *handle, flocation_t *loc, const char *mo
 
 static void FSSTDIO_PrintPath(void *handle)
 {
-	Con_Printf("%s\n", handle);
+	Con_Printf("%s\n", (char*)handle);
 }
 static void FSSTDIO_ClosePath(void *handle)
 {
@@ -207,11 +215,17 @@ static qboolean FSSTDIO_FLocate(void *handle, flocation_t *loc, const char *file
 static void FSSTDIO_ReadFile(void *handle, flocation_t *loc, char *buffer)
 {
 	FILE *f;
+	size_t result;
+
 	f = fopen(loc->rawname, "rb");
 	if (!f)	//err...
 		return;
 	fseek(f, loc->offset, SEEK_SET);
-	fread(buffer, 1, loc->len, f);
+	result = fread(buffer, 1, loc->len, f); // do soemthing with result
+
+	if (result != loc->len)
+		Con_Printf("FSSTDIO_ReadFile() fread: Filename: %s, expected %i, result was %u (%s)\n",loc->rawname,loc->len,(unsigned int)result,strerror(errno));
+
 	fclose(f);
 }
 static int FSSTDIO_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *), void *parm)
@@ -230,3 +244,4 @@ searchpathfuncs_t stdiofilefuncs = {
 	NULL,
 	FSSTDIO_OpenVFS
 };
+#endif

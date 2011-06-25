@@ -30,7 +30,7 @@ void Editor_Key(int key, int unicode);
 
 #define		KEY_MODIFIERSTATES 8
 #define		MAXCMDLINE	256
-char	key_lines[32][MAXCMDLINE];
+unsigned char	key_lines[32][MAXCMDLINE];
 int		key_linepos;
 int		shift_down=false;
 int		key_lastpress;
@@ -57,8 +57,8 @@ qboolean deltaused[K_MAX][KEY_MODIFIERSTATES];
 void Con_Selectioncolour_Callback(struct cvar_s *var, char *oldvalue);
 
 extern cvar_t con_displaypossibilities;
-cvar_t con_selectioncolour = SCVARFC("con_selectioncolour", "0", CVAR_RENDERERCALLBACK, Con_Selectioncolour_Callback);
-cvar_t con_echochat = SCVAR("con_echochat", "0");
+cvar_t con_selectioncolour = CVARFC("con_selectioncolour", "0", CVAR_RENDERERCALLBACK, Con_Selectioncolour_Callback);
+cvar_t con_echochat = CVAR("con_echochat", "0");
 extern cvar_t cl_chatmode;
 
 static int KeyModifier (qboolean shift, qboolean alt, qboolean ctrl)
@@ -251,29 +251,7 @@ qboolean Cmd_IsCommand (char *line)
 
 int PaddedPrint (char *s, int x)
 {
-	int	nextcolx = 0;
-
-/*	if (x)
-		nextcolx = (int)((x + COLUMNWIDTH)/COLUMNWIDTH)*COLUMNWIDTH;
-
-	if (nextcolx > con_main.linewidth - MINCOLUMNWIDTH
-		|| (x && nextcolx + strlen(s) >= con_main.linewidth))
-	{
-		Con_Printf ("\n");
-		x=0;
-	}
-*/
-	if (x)
-	{
-		Con_Printf (" ");
-		x++;
-	}
-	while (x % COLUMNWIDTH)
-	{
-		Con_Printf (" ");
-		x++;
-	}
-	Con_Printf ("%s", s);
+	Con_Printf ("%s\t", s);
 	x+=strlen(s);
 
 	return x;
@@ -416,23 +394,9 @@ vec3_t sccolor;
 
 void Con_Selectioncolour_Callback(struct cvar_s *var, char *oldvalue)
 {
-	if (qrenderer != QR_NONE && qrenderer != -1)
+	if (qrenderer != QR_NONE)
 		SCR_StringToRGB(var->string, sccolor, 1);
 }
-
-/*
-// TODO: fix this to be used as the common coord function for selection logic
-void GetSelectionCoords(int *selectcoords)
-{
-	extern cvar_t vid_conwidth, vid_conheight;
-	extern int mousecursor_x, mousecursor_y;
-	int xpos, ypos;
-
-	// convert to console coords
-	xpos = (int)(mousecursor_x*vid_conwidth.value)/vid.width;
-	ypos = (int)(mousecursor_y*vid_conheight.value)/vid.height;
-}
-*/
 
 qboolean Key_GetConsoleSelectionBox(int *sx, int *sy, int *ex, int *ey)
 {
@@ -478,6 +442,7 @@ Interactive line editing and console scrollback
 */
 void Key_Console (unsigned int unicode, int key)
 {
+	extern cvar_t com_parseutf8;
 	char	*clipText;
 
 	if (con_current->redirect)
@@ -499,8 +464,8 @@ void Key_Console (unsigned int unicode, int key)
 		extern cvar_t vid_conwidth, vid_conheight;
 		extern int mousecursor_x, mousecursor_y;
 		int xpos, ypos;
-		xpos = (int)((mousecursor_x*vid_conwidth.value)/(vid.width*8));
-		ypos = (int)((mousecursor_y*vid_conheight.value)/(vid.height*8));
+		xpos = (int)((mousecursor_x*vid.width)/(vid.pixelwidth*8));
+		ypos = (int)((mousecursor_y*vid.height)/(vid.pixelheight*8));
 		con_mousedown[0] = mousecursor_x;
 		con_mousedown[1] = mousecursor_y;
 		if (ypos == 0 && con_main.next)
@@ -590,9 +555,17 @@ void Key_Console (unsigned int unicode, int key)
 
 	if (key == K_DEL)
 	{
-		if (strlen(key_lines[edit_line]+key_linepos))
+		if (key_lines[edit_line][key_linepos])
 		{
-			memmove(key_lines[edit_line]+key_linepos, key_lines[edit_line]+key_linepos+1, strlen(key_lines[edit_line]+key_linepos+1)+1);
+			int charlen = 1;
+			if (com_parseutf8.ival &&
+				(key_lines[edit_line][key_linepos] & 0xc0) != 0x80)
+			{
+				while((key_lines[edit_line][key_linepos+charlen] & 0xc0) == 0x80)
+					charlen++;
+			}
+
+			memmove(key_lines[edit_line]+key_linepos, key_lines[edit_line]+key_linepos+charlen, strlen(key_lines[edit_line]+key_linepos+charlen)+charlen);
 			return;
 		}
 		else
@@ -603,8 +576,14 @@ void Key_Console (unsigned int unicode, int key)
 	{
 		if (key_linepos > 1)
 		{
-			memmove(key_lines[edit_line]+key_linepos-1, key_lines[edit_line]+key_linepos, strlen(key_lines[edit_line]+key_linepos)+1);
-			key_linepos--;
+			int charlen = 1;
+			if (com_parseutf8.ival)
+			{
+				while (key_linepos > charlen && (key_lines[edit_line][key_linepos-charlen] & 0xc0) == 0x80)
+					charlen++;
+			}
+			memmove(key_lines[edit_line]+key_linepos-charlen, key_lines[edit_line]+key_linepos, strlen(key_lines[edit_line]+key_linepos)+charlen);
+			key_linepos -= charlen;
 		}
 		return;
 	}
@@ -659,6 +638,8 @@ void Key_Console (unsigned int unicode, int key)
 		int i = 2;
 		if (keydown[K_CTRL])
 			i = 8;
+		if (!con_current->display)
+			return;
 		if (con_current->display == con_current->current)
 			i+=2;	//skip over the blank input line, and extra so we actually move despite the addition of the ^^^^^ line
 		while (i-->0)
@@ -674,6 +655,8 @@ void Key_Console (unsigned int unicode, int key)
 		int i = 2;
 		if (keydown[K_CTRL])
 			i = 8;
+		if (!con_current->display)
+			return;
 		while (i-->0)
 		{
 			if (con_current->display->newer == NULL)
@@ -745,57 +728,82 @@ void Key_Console (unsigned int unicode, int key)
 	{
 		unsigned char c1;
 		unsigned char c2;
+		unsigned char c3;
 
 		if (unicode > 127)
 		{
 			extern cvar_t com_parseutf8;
-			if (com_parseutf8.value)
+			if (com_parseutf8.ival)
 			{
-				c1 = 0xc0 | ((unicode>>6)&0x1f);
-				c2 = 0x80 | (unicode&0x3f);
-				if (key_linepos < MAXCMDLINE-2)
+				if (unicode > 0xffff)
 				{
-					memmove(key_lines[edit_line]+key_linepos+2, key_lines[edit_line]+key_linepos, strlen(key_lines[edit_line]+key_linepos)+1);
-					key_lines[edit_line][key_linepos] = c1;
-					key_linepos++;
-					key_lines[edit_line][key_linepos] = c2;
-					key_linepos++;
-			//		key_lines[edit_line][key_linepos] = 0;
 				}
-				return;
+				else if (unicode > 0x7ff)
+				{
+					c1 = 0xe0 | ((unicode>>12)&0x0f);
+					c2 = 0x80 | ((unicode>> 6)&0x3f);
+					c3 = 0x80 | ((unicode>> 0)&0x3f);
+					if (key_linepos < MAXCMDLINE-3)
+					{
+						memmove(key_lines[edit_line]+key_linepos+2, key_lines[edit_line]+key_linepos, strlen(key_lines[edit_line]+key_linepos)+1);
+						key_lines[edit_line][key_linepos] = c1;
+						key_linepos++;
+						key_lines[edit_line][key_linepos] = c2;
+						key_linepos++;
+						key_lines[edit_line][key_linepos] = c3;
+						key_linepos++;
+					}
+					return;
+				}
+				else
+				{
+					c1 = 0xc0 | ((unicode>>6)&0x1f);
+					c2 = 0x80 | ((unicode>>0)&0x3f);
+					if (key_linepos < MAXCMDLINE-2)
+					{
+						memmove(key_lines[edit_line]+key_linepos+2, key_lines[edit_line]+key_linepos, strlen(key_lines[edit_line]+key_linepos)+1);
+						key_lines[edit_line][key_linepos] = c1;
+						key_linepos++;
+						key_lines[edit_line][key_linepos] = c2;
+						key_linepos++;
+					}
+					return;
+				}
 			}
 			unicode = '?';	//sorry
 		}
 	}
 
-	if (keydown[K_CTRL]) {
-		if (key >= '0' && key <= '9')
-				key = key - '0' + 0x12;	// yellow number
-		else switch (key) {
-			case '[': key = 0x10; break;
-			case ']': key = 0x11; break;
-			case 'g': key = 0x86; break;
-			case 'r': key = 0x87; break;
-			case 'y': key = 0x88; break;
-			case 'b': key = 0x89; break;
-			case '(': key = 0x80; break;
-			case '=': key = 0x81; break;
-			case ')': key = 0x82; break;
-			case 'a': key = 0x83; break;
-			case '<': key = 0x1d; break;
-			case '-': key = 0x1e; break;
-			case '>': key = 0x1f; break;
-			case ',': key = 0x1c; break;
-			case '.': key = 0x9c; break;
-			case 'B': key = 0x8b; break;
-			case 'C': key = 0x8d; break;
-			case 'n': key = '\r'; break;
+	if (!com_parseutf8.ival)
+	{
+		if (keydown[K_CTRL]) {
+			if (key >= '0' && key <= '9')
+					key = key - '0' + 0x12;	// yellow number
+			else switch (key) {
+				case '[': key = 0x10; break;
+				case ']': key = 0x11; break;
+				case 'g': key = 0x86; break;
+				case 'r': key = 0x87; break;
+				case 'y': key = 0x88; break;
+				case 'b': key = 0x89; break;
+				case '(': key = 0x80; break;
+				case '=': key = 0x81; break;
+				case ')': key = 0x82; break;
+				case 'a': key = 0x83; break;
+				case '<': key = 0x1d; break;
+				case '-': key = 0x1e; break;
+				case '>': key = 0x1f; break;
+				case ',': key = 0x1c; break;
+				case '.': key = 0x9c; break;
+				case 'B': key = 0x8b; break;
+				case 'C': key = 0x8d; break;
+				case 'n': key = '\r'; break;
+			}
 		}
+
+		if (keydown[K_ALT])
+			key |= 128;		// red char
 	}
-
-	if (keydown[K_ALT])
-		key |= 128;		// red char
-
 
 		
 	if (strlen(key_lines[edit_line])+1 < MAXCMDLINE-1)
@@ -803,7 +811,6 @@ void Key_Console (unsigned int unicode, int key)
 		memmove(key_lines[edit_line]+key_linepos+1, key_lines[edit_line]+key_linepos, strlen(key_lines[edit_line]+key_linepos)+1);
 		key_lines[edit_line][key_linepos] = key;
 		key_linepos++;
-//		key_lines[edit_line][key_linepos] = 0;
 	}
 
 }
@@ -1300,7 +1307,7 @@ qboolean Key_MouseShouldBeFree(void)
 
 	//if true, the input code is expected to return mouse cursor positions rather than deltas
 	extern cvar_t cl_prydoncursor;
-	extern int mouseusedforgui;
+//	extern int mouseusedforgui;
 //	if (mouseusedforgui)	//I don't like this
 //		return true;
 
@@ -1309,7 +1316,7 @@ qboolean Key_MouseShouldBeFree(void)
 		if (m_state == m_complex || m_state == m_plugin /*|| m_state == m_menu_dat*/)
 			return true;
 	}
-	if (key_dest == key_console)
+	if (key_dest == key_console || key_dest == key_editor)
 		return true;
 
 #ifdef VM_UI
@@ -1331,7 +1338,7 @@ Called by the system between frames for both key up and key down events
 Should NOT be called during an interrupt!
 ===================
 */
-void Key_Event (int key, unsigned int unicode, qboolean down)
+void Key_Event (int pnum, int key, unsigned int unicode, qboolean down)
 {
 	char	*kb;
 	char	cmd[1024];
@@ -1484,6 +1491,11 @@ void Key_Event (int key, unsigned int unicode, qboolean down)
 		if (key_dest == key_game)
 #endif
 		{
+			if (Media_PlayingFullScreen())
+			{
+				Media_PlayFilm("");
+				return;
+			}
 			if (UI_KeyPress(key, unicode, down))	//Allow the UI to see the escape key. It is possible that a developer may get stuck at a menu.
 				return;
 		}
@@ -1557,18 +1569,38 @@ void Key_Event (int key, unsigned int unicode, qboolean down)
 		deltaused[key][keystate] = false;
 
 		kb = keybindings[key][keystate];
-		if (kb && kb[0] == '+')
+		if (pnum)
 		{
-			sprintf (cmd, "-%s %i\n", kb+1, key+oldstate*256);
-			Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
+			if (kb && kb[0] == '+')
+			{
+				sprintf (cmd, "-p%i %s %i\n", pnum+1, kb+1, key+oldstate*256);
+				Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
+			}
+			if (keyshift[key] != key)
+			{
+				kb = keybindings[keyshift[key]][keystate];
+				if (kb && kb[0] == '+')
+				{
+					sprintf (cmd, "-p%i %s %i\n", pnum+1, kb+1, key+oldstate*256);
+					Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
+				}
+			}
 		}
-		if (keyshift[key] != key)
+		else
 		{
-			kb = keybindings[keyshift[key]][keystate];
 			if (kb && kb[0] == '+')
 			{
 				sprintf (cmd, "-%s %i\n", kb+1, key+oldstate*256);
 				Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
+			}
+			if (keyshift[key] != key)
+			{
+				kb = keybindings[keyshift[key]][keystate];
+				if (kb && kb[0] == '+')
+				{
+					sprintf (cmd, "-%s %i\n", kb+1, key+oldstate*256);
+					Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
+				}
 			}
 		}
 		return;
@@ -1577,7 +1609,6 @@ void Key_Event (int key, unsigned int unicode, qboolean down)
 //
 // during demo playback, most keys bring up the main menu
 //
-
 	if (cls.demoplayback && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV && down && consolekeys[key] && key != K_TAB && key_dest == key_game)
 	{
 		M_ToggleMenu_f ();
@@ -1602,17 +1633,36 @@ void Key_Event (int key, unsigned int unicode, qboolean down)
 	{
 		deltaused[key][keystate] = true;
 		kb = keybindings[key][keystate];
-		if (kb)
+		if (pnum)
 		{
-			if (kb[0] == '+')
-			{	// button commands add keynum as a parm
-				sprintf (cmd, "%s %i\n", kb, key+oldstate*256);
-				Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
-			}
-			else
+			if (kb)
 			{
-				Cbuf_AddText (kb, bindcmdlevel[key][keystate]);
-				Cbuf_AddText ("\n", bindcmdlevel[key][keystate]);
+				if (kb[0] == '+')
+				{	// button commands add keynum as a parm
+					sprintf (cmd, "+p%i %s %i\n", pnum+1, kb+1, key+oldstate*256);
+					Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
+				}
+				else
+				{
+					sprintf (cmd, "p%i %s\n", pnum+1, kb);
+					Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
+				}
+			}
+		}
+		else
+		{
+			if (kb)
+			{
+				if (kb[0] == '+')
+				{	// button commands add keynum as a parm
+					sprintf (cmd, "%s %i\n", kb, key+oldstate*256);
+					Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
+				}
+				else
+				{
+					Cbuf_AddText (kb, bindcmdlevel[key][keystate]);
+					Cbuf_AddText ("\n", bindcmdlevel[key][keystate]);
+				}
 			}
 		}
 

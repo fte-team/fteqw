@@ -27,6 +27,7 @@ char	loadname[32];	// for hunk tags
 
 qboolean Mod_LoadBrushModel (model_t *mod, void *buffer);
 qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
+qboolean D3_LoadMap_CollisionMap(model_t *mod, char *buf);
 
 qboolean Mod_LoadQ1Model (model_t *mod, void *buffer);
 qboolean Mod_LoadQ2Model (model_t *mod, void *buffer);
@@ -439,7 +440,7 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 			goto couldntload;
 		break;
 
-
+	case RAPOLYHEADER:
 	case IDPOLYHEADER:
 		if (!Mod_LoadQ1Model(mod, buf))
 			goto couldntload;
@@ -470,6 +471,16 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 #endif
 
 	default:
+		COM_Parse((char*)buf);
+#ifdef MAP_PROC
+		if (!strcmp(com_token, "CM"))	//doom3 map.
+		{
+			if (!D3_LoadMap_CollisionMap (mod, (char*)buf))
+				goto couldntload;
+			break;
+		}
+#endif
+
 		Con_Printf (CON_ERROR "Mod_NumForName: %s: format not recognised\n", mod->name);
 couldntload:
 		if (crash)
@@ -1201,7 +1212,6 @@ qboolean Mod_LoadLeafs (lump_t *l)
 			out->compressed_vis = NULL;
 		else
 			out->compressed_vis = loadmodel->visdata + p;
-		out->efrags = NULL;
 
 		for (j=0 ; j<4 ; j++)
 			out->ambient_sound_level[j] = in->ambient_level[j];
@@ -1578,12 +1588,13 @@ qboolean Mod_LoadBrushModel (model_t *mod, void *buffer)
 		bm = &mod->submodels[i];
 
 		mod->hulls[0].firstclipnode = bm->headnode[0];
-		Q1BSP_SetHullFuncs(&mod->hulls[0]);
+		Q1BSP_CheckHullNodes(&mod->hulls[0]);
 		for (j=1 ; j<MAX_MAP_HULLSM ; j++)
 		{
 			mod->hulls[j].firstclipnode = bm->headnode[j];
 			mod->hulls[j].lastclipnode = mod->numclipnodes-1;
-			Q1BSP_SetHullFuncs(&mod->hulls[j]);
+			if (mod->hulls[j].available)
+				Q1BSP_CheckHullNodes(&mod->hulls[j]);
 		}
 
 		mod->firstmodelsurface = bm->firstface;

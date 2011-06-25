@@ -1848,6 +1848,8 @@ int Plug_Init(int *args)
 
 	Con_Printf("XServer plugin started\n");
 
+	Cmd_AddCommand("startx");
+
 
 	K_CTRL			= Key_GetKeyCode("ctrl");
 	K_ALT			= Key_GetKeyCode("alt");

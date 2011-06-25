@@ -292,9 +292,9 @@ void VARGS SV_ClientPrintf (client_t *cl, int level, char *fmt, ...)
 	if (sv.mvdrecording)
 	{
 		MVDWrite_Begin (dem_single, cl - svs.clients, strlen(string)+3);
-		MSG_WriteByte ((sizebuf_t *)demo.dbuf, svc_print);
-		MSG_WriteByte ((sizebuf_t *)demo.dbuf, level);
-		MSG_WriteString ((sizebuf_t *)demo.dbuf, string);
+		MSG_WriteByte (&demo.dbuf->sb, svc_print);
+		MSG_WriteByte (&demo.dbuf->sb, level);
+		MSG_WriteString (&demo.dbuf->sb, string);
 	}
 
 	if (cl->controller)
@@ -322,9 +322,9 @@ void VARGS SV_ClientTPrintf (client_t *cl, int level, translation_t stringnum, .
 	if (sv.mvdrecording)
 	{
 		MVDWrite_Begin (dem_single, cl - svs.clients, strlen(string)+3);
-		MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_print);
-		MSG_WriteByte ((sizebuf_t*)demo.dbuf, level);
-		MSG_WriteString ((sizebuf_t*)demo.dbuf, string);
+		MSG_WriteByte (&demo.dbuf->sb, svc_print);
+		MSG_WriteByte (&demo.dbuf->sb, level);
+		MSG_WriteString (&demo.dbuf->sb, string);
 	}
 
 	SV_PrintToClient(cl, level, string);
@@ -371,9 +371,9 @@ void VARGS SV_BroadcastPrintf (int level, char *fmt, ...)
 	if (sv.mvdrecording)
 	{
 		MVDWrite_Begin (dem_all, 0, strlen(string)+3);
-		MSG_WriteByte ((sizebuf_t*)demo.dbuf, svc_print);
-		MSG_WriteByte ((sizebuf_t*)demo.dbuf, level);
-		MSG_WriteString ((sizebuf_t*)demo.dbuf, string);
+		MSG_WriteByte (&demo.dbuf->sb, svc_print);
+		MSG_WriteByte (&demo.dbuf->sb, level);
+		MSG_WriteString (&demo.dbuf->sb, string);
 	}
 }
 
@@ -485,7 +485,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 
 //	to = MULTICAST_ALL;
 #ifdef Q2BSPS
-	if (sv.worldmodel->fromgame == fg_quake2 || sv.worldmodel->fromgame == fg_quake3)
+	if (sv.world.worldmodel->fromgame == fg_quake2 || sv.world.worldmodel->fromgame == fg_quake3)
 	{
 		int			area1, area2, cluster;
 
@@ -493,8 +493,8 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 
 		if (to != MULTICAST_ALL_R && to != MULTICAST_ALL)
 		{
-			leafnum = CM_PointLeafnum (sv.worldmodel, origin);
-			area1 = CM_LeafArea (sv.worldmodel, leafnum);
+			leafnum = CM_PointLeafnum (sv.world.worldmodel, origin);
+			area1 = CM_LeafArea (sv.world.worldmodel, leafnum);
 		}
 		else
 		{
@@ -514,17 +514,17 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		case MULTICAST_PHS_R:
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_PHS:
-			leafnum = CM_PointLeafnum (sv.worldmodel, origin);
-			cluster = CM_LeafCluster (sv.worldmodel, leafnum);
-			mask = CM_ClusterPHS (sv.worldmodel, cluster);
+			leafnum = CM_PointLeafnum (sv.world.worldmodel, origin);
+			cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
+			mask = CM_ClusterPHS (sv.world.worldmodel, cluster);
 			break;
 
 		case MULTICAST_PVS_R:
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_PVS:
-			leafnum = CM_PointLeafnum (sv.worldmodel, origin);
-			cluster = CM_LeafCluster (sv.worldmodel, leafnum);
-			mask = CM_ClusterPVS (sv.worldmodel, cluster, NULL, 0);
+			leafnum = CM_PointLeafnum (sv.world.worldmodel, origin);
+			cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
+			mask = CM_ClusterPVS (sv.world.worldmodel, cluster, NULL, 0);
 			break;
 
 		default:
@@ -556,13 +556,13 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			{
 #ifdef Q2SERVER
 				if (ge)
-					leafnum = CM_PointLeafnum (sv.worldmodel, client->q2edict->s.origin);
+					leafnum = CM_PointLeafnum (sv.world.worldmodel, client->q2edict->s.origin);
 				else
 #endif
-					leafnum = CM_PointLeafnum (sv.worldmodel, client->edict->v->origin);
-				cluster = CM_LeafCluster (sv.worldmodel, leafnum);
-				area2 = CM_LeafArea (sv.worldmodel, leafnum);
-				if (!CM_AreasConnected (sv.worldmodel, area1, area2))
+					leafnum = CM_PointLeafnum (sv.world.worldmodel, client->edict->v->origin);
+				cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
+				area2 = CM_LeafArea (sv.world.worldmodel, leafnum);
+				if (!CM_AreasConnected (sv.world.worldmodel, area1, area2))
 					continue;
 				if ( mask && (!(mask[cluster>>3] & (1<<(cluster&7)) ) ) )
 					continue;
@@ -618,7 +618,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 	else
 #endif
 	{
-		leafnum = sv.worldmodel->funcs.LeafnumForPoint(sv.worldmodel, origin);
+		leafnum = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, origin);
 
 		reliable = false;
 
@@ -633,13 +633,16 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		case MULTICAST_PHS_R:
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_PHS:
-			mask = sv.phs + leafnum * 4*((sv.worldmodel->numleafs+31)>>5);
+			if (!sv.phs)	/*broadcast if no pvs*/
+				mask = sv.pvs;
+			else
+				mask = sv.phs + leafnum * 4*((sv.world.worldmodel->numleafs+31)>>5);
 			break;
 
 		case MULTICAST_PVS_R:
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_PVS:
-			mask = sv.pvs + leafnum * 4*((sv.worldmodel->numleafs+31)>>5);
+			mask = sv.pvs + leafnum * 4*((sv.world.worldmodel->numleafs+31)>>5);
 			break;
 
 		default:
@@ -686,7 +689,9 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				// -1 is because pvs rows are 1 based, not 0 based like leafs
 				if (mask != sv.pvs)
 				{
-					leafnum = sv.worldmodel->funcs.LeafnumForPoint (sv.worldmodel, client->edict->v->origin)-1;
+					vec3_t pos;
+					VectorAdd(client->edict->v->origin, client->edict->v->view_ofs, pos);
+					leafnum = sv.world.worldmodel->funcs.LeafnumForPoint (sv.world.worldmodel, pos)-1;
 					if ( !(mask[leafnum>>3] & (1<<(leafnum&7)) ) )
 					{
 		//				Con_Printf ("PVS supressed multicast\n");
@@ -750,7 +755,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		if (reliable)
 		{
 			MVDWrite_Begin(dem_all, 0, sv.multicast.cursize);
-			SZ_Write((sizebuf_t*)demo.dbuf, sv.multicast.data, sv.multicast.cursize);
+			SZ_Write(&demo.dbuf->sb, sv.multicast.data, sv.multicast.cursize);
 		} else
 			SZ_Write(&demo.datagram, sv.multicast.data, sv.multicast.cursize);
 	}
@@ -785,7 +790,7 @@ Larger attenuations will drop off.  (max 4 attenuation)
 
 ==================
 */
-void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sample, int volume, float attenuation)
+void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sample, int volume, float attenuation, int pitchadj)
 {
     int         sound_num;
     int			extfield_mask;
@@ -814,10 +819,15 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 	}
 
 // find precache number for sound
-    for (sound_num=1 ; sound_num<MAX_SOUNDS
-        && sv.strings.sound_precache[sound_num] ; sound_num++)
-        if (!strcmp(sample, sv.strings.sound_precache[sound_num]))
-            break;
+	if (!*sample)
+		sound_num = 0;
+	else
+	{
+		for (sound_num=1 ; sound_num<MAX_SOUNDS
+			&& sv.strings.sound_precache[sound_num] ; sound_num++)
+			if (!strcmp(sample, sv.strings.sound_precache[sound_num]))
+				break;
+	}
 
     if ( sound_num == MAX_SOUNDS || !sv.strings.sound_precache[sound_num] )
     {
@@ -833,7 +843,7 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 		channel &= 7;
 	}
 	else
-		use_phs = true;
+		use_phs = attenuation!=0;
 
 //	if (channel == CHAN_BODY || channel == CHAN_VOICE)
 //		reliable = true;
@@ -847,9 +857,11 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 		extfield_mask |= DPSND_LARGEENTITY;
 	if (sound_num > 0xff)
 		extfield_mask |= DPSND_LARGESOUND;
+	if (pitchadj && (pitchadj != 100))
+		extfield_mask |= FTESND_PITCHADJ;
 
 #ifdef PEXT_SOUNDDBL
-	if (channel >= 8 || ent >= 2048 || sound_num > 0xff)
+	if (channel >= 8 || ent >= 2048 || sound_num > 0xff || pitchadj)
 	{
 		//if any of the above conditions evaluates to true, then we can't use standard qw protocols
 		MSG_WriteByte (&sv.multicast, svcfte_soundextended);
@@ -858,6 +870,8 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 			MSG_WriteByte (&sv.multicast, volume);
 		if (extfield_mask & NQSND_ATTENUATION)
 			MSG_WriteByte (&sv.multicast, attenuation*64);
+		if (extfield_mask & FTESND_PITCHADJ)
+			MSG_WriteByte (&sv.multicast, pitchadj);
 		if (extfield_mask & DPSND_LARGEENTITY)
 		{
 			MSG_WriteShort (&sv.multicast, ent);
@@ -911,6 +925,8 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 		MSG_WriteByte (&sv.nqmulticast, volume);
 	if (extfield_mask & NQSND_ATTENUATION)
 		MSG_WriteByte (&sv.nqmulticast, attenuation*64);
+	if (extfield_mask & FTESND_PITCHADJ)
+		MSG_WriteByte (&sv.nqmulticast, pitchadj);
 	if (extfield_mask & DPSND_LARGEENTITY)
 	{
 		MSG_WriteShort (&sv.nqmulticast, ent);
@@ -931,7 +947,7 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 		SV_MulticastProtExt(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, seenmask, requiredextensions, 0);
 }
 
-void SVQ1_StartSound (edict_t *entity, int channel, char *sample, int volume, float attenuation)
+void SVQ1_StartSound (edict_t *entity, int channel, char *sample, int volume, float attenuation, int pitchadj)
 {
 	int i;
 	vec3_t origin;
@@ -945,7 +961,7 @@ void SVQ1_StartSound (edict_t *entity, int channel, char *sample, int volume, fl
 		VectorCopy (entity->v->origin, origin);
 	}
 
-	SV_StartSound(NUM_FOR_EDICT(svprogfuncs, entity), origin, entity->xv->dimension_seen, channel, sample, volume, attenuation);
+	SV_StartSound(NUM_FOR_EDICT(svprogfuncs, entity), origin, entity->xv->dimension_seen, channel, sample, volume, attenuation, pitchadj);
 }
 
 /*
@@ -984,6 +1000,7 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 	edict_t	*other;
 	edict_t	*ent;
 	int i;
+	float newa;
 
 	ent = client->edict;
 
@@ -1010,17 +1027,64 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 	}
 
 	// a fixangle might get lost in a dropped packet.  Oh well.
-	if ( ent->v->fixangle )
+	if (ent->v->fixangle)
 	{
 		if (pnum)
 		{
 			MSG_WriteByte(msg, svcfte_choosesplitclient);
 			MSG_WriteByte(msg, pnum);
 		}
-		MSG_WriteByte (msg, svc_setangle);
-		for (i=0 ; i < 3 ; i++)
-			MSG_WriteAngle (msg, ent->v->angles[i] );
+		if (client->fteprotocolextensions2 & PEXT2_SETANGLEDELTA && client->delta_sequence != -1)
+		{
+			MSG_WriteByte (msg, svcfte_setangledelta);
+			for (i=0 ; i < 3 ; i++)
+			{
+				newa = ent->v->angles[i] - SHORT2ANGLE(client->lastcmd.angles[i]);
+				MSG_WriteAngle16 (msg, newa);
+				client->lastcmd.angles[i] = ANGLE2SHORT(ent->v->angles[i]);
+			}
+		}
+		else
+		{
+			MSG_WriteByte (msg, svc_setangle);
+			for (i=0 ; i < 3 ; i++)
+				MSG_WriteAngle (msg, ent->v->angles[i]);
+		}
 		ent->v->fixangle = 0;
+	}
+}
+
+/*sends the a centerprint string directly to the client*/
+void SV_WriteCenterPrint(client_t *cl, char *s)
+{
+	if (cl->controller)
+	{	//this is a slave client.
+		//find the right number and send.
+		int pnum = 0;
+		client_t *sp;
+		for (sp = cl->controller; sp; sp = sp->controlled)
+		{
+			if (sp == cl)
+				break;
+			pnum++;
+		}
+		cl = cl->controller;
+
+		ClientReliableWrite_Begin (cl, svcfte_choosesplitclient, 4 + strlen(s));
+		ClientReliableWrite_Byte (cl, pnum);
+		ClientReliableWrite_Byte (cl, svc_centerprint);
+	}
+	else
+	{
+		ClientReliableWrite_Begin (cl, svc_centerprint, 2 + strlen(s));
+	}
+	ClientReliableWrite_String (cl, s);
+
+	if (sv.mvdrecording)
+	{
+		MVDWrite_Begin (dem_single, cl - svs.clients, 2 + strlen(s));
+		MSG_WriteByte (&demo.dbuf->sb, svc_centerprint);
+		MSG_WriteString (&demo.dbuf->sb, s);
 	}
 }
 
@@ -1040,7 +1104,12 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	client_t *split;
 	int pnum=0;
 
-
+	if (client->centerprintstring && ! client->num_backbuf)
+	{
+		SV_WriteCenterPrint(client, client->centerprintstring);
+		Z_Free(client->centerprintstring);
+		client->centerprintstring = NULL;
+	}
 
 	// send the chokecount for r_netgraph
 	if (ISQWCLIENT(client))
@@ -1063,21 +1132,21 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	// on client side doesn't stray too far off
 	if (ISQWCLIENT(client))
 	{
-		if (client->fteprotocolextensions & PEXT_ACCURATETIMINGS && sv.physicstime - client->nextservertimeupdate > 0)
+		if (client->fteprotocolextensions & PEXT_ACCURATETIMINGS && sv.world.physicstime - client->nextservertimeupdate > 0)
 		{	//the fte pext causes the server to send out accurate timings, allowing for perfect interpolation.
 			MSG_WriteByte (msg, svc_updatestatlong);
 			MSG_WriteByte (msg, STAT_TIME);
-			MSG_WriteLong (msg, (int)(sv.physicstime * 1000));
+			MSG_WriteLong (msg, (int)(sv.world.physicstime * 1000));
 
-			client->nextservertimeupdate = sv.physicstime;//+10;
+			client->nextservertimeupdate = sv.world.physicstime;//+10;
 		}
-		else if (client->zquake_extensions & Z_EXT_SERVERTIME && sv.physicstime - client->nextservertimeupdate > 0)
+		else if (client->zquake_extensions & Z_EXT_SERVERTIME && sv.world.physicstime - client->nextservertimeupdate > 0)
 		{	//the zquake ext causes the server to send out peridoic timings, allowing for moderatly accurate game time.
 			MSG_WriteByte (msg, svc_updatestatlong);
 			MSG_WriteByte (msg, STAT_TIME);
-			MSG_WriteLong (msg, (int)(sv.physicstime * 1000));
+			MSG_WriteLong (msg, (int)(sv.world.physicstime * 1000));
 
-			client->nextservertimeupdate = sv.physicstime+10;
+			client->nextservertimeupdate = sv.world.physicstime+10;
 		}
 	}
 
@@ -1089,9 +1158,9 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 
 
 	MSG_WriteByte (msg, svc_time);
-	MSG_WriteFloat(msg, sv.physicstime);
-	client->nextservertimeupdate = sv.physicstime;
-//	Con_Printf("%f\n", sv.physicstime);
+	MSG_WriteFloat(msg, sv.world.physicstime);
+	client->nextservertimeupdate = sv.world.physicstime;
+//	Con_Printf("%f\n", sv.world.physicstime);
 
 
 	bits = 0;
@@ -1277,13 +1346,21 @@ void SV_QCStatGlobal(int type, char *globalname, int statnum)
 {
 	eval_t *glob;
 
-	glob = svprogfuncs->FindGlobal(svprogfuncs, globalname, PR_ANY);
+	if (type < 0)
+		return;
+
+	glob = svprogfuncs->FindGlobal(svprogfuncs, globalname, PR_ANY, NULL);
 	if (!glob)
 	{
 		Con_Printf("couldn't find named global for csqc stat (%s)\n", globalname);
 		return;
 	}
-	SV_QCStatEval(type, globalname, NULL, glob, statnum);
+	SV_QCStatEval(-type, globalname, NULL, glob, statnum);
+}
+
+void SV_QCStatPtr(int type, void *ptr, int statnum)
+{
+	SV_QCStatEval(-type, "", NULL, ptr, statnum);
 }
 
 void SV_QCStatName(int type, char *name, int statnum)
@@ -1321,6 +1398,7 @@ void SV_ClearQCStats(void)
 	numqcstats = 0;
 }
 
+extern cvar_t dpcompat_stats;
 void SV_UpdateQCStats(edict_t	*ent, int *statsi, char **statss, float *statsf)
 {
 	char *s;
@@ -1347,6 +1425,11 @@ void SV_UpdateQCStats(edict_t	*ent, int *statsi, char **statss, float *statsf)
 		{
 		case ev_float:
 			statsf[qcstats[i].statnum] = eval->_float;
+			break;
+		case ev_vector:
+			statsf[qcstats[i].statnum+0] = eval->_vector[0];
+			statsf[qcstats[i].statnum+1] = eval->_vector[1];
+			statsf[qcstats[i].statnum+2] = eval->_vector[2];
 			break;
 		case ev_integer:
 			statsi[qcstats[i].statnum] = eval->_int;
@@ -1497,6 +1580,7 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 			PR_ExecuteProgram(svprogfuncs, getplayerstat[i]);
 			statsf[i] = G_FLOAT(OFS_RETURN);
 		}
+#ifdef SERVER_DEMO_PLAYBACK
 		if (sv.demofile)
 		{
 			if (!client->spec_track)
@@ -1511,6 +1595,7 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 				statsi[i] = sv.recordedplayer[client->spec_track - 1].stats[i];
 			}
 		}
+#endif
 		if (!ISQWCLIENT(client))
 		{
 			if (!statsi[i])
@@ -1526,33 +1611,8 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 		else
 		{
 #ifdef PEXT_CSQC
-			if ((client->fteprotocolextensions & PEXT_CSQC) && (sv.csqcchecksum || progstype == PROG_H2))
+			if (client->fteprotocolextensions & PEXT_CSQC)
 			{
-				if (statsf[i] && statsf[i] - (float)(int)statsf[i] == 0)
-				{
-					statsi[i] = statsf[i];
-					statsf[i] = 0;
-				}
-				else if (statsf[i] != client->statsf[i])
-				{
-					client->statsf[i] = statsf[i];
-//					client->statsi[i] = statsi[i];
-					if (pnum)
-					{
-						ClientReliableWrite_Begin(client->controller, svcfte_choosesplitclient, 8);
-						ClientReliableWrite_Byte(client->controller, pnum);
-						ClientReliableWrite_Byte(client->controller, svcfte_updatestatfloat);
-						ClientReliableWrite_Byte(client->controller, i);
-						ClientReliableWrite_Float(client->controller, statsf[i]);
-					}
-					else
-					{
-						ClientReliableWrite_Begin(client, svcfte_updatestatfloat, 6);
-						ClientReliableWrite_Byte(client, i);
-						ClientReliableWrite_Float(client, statsf[i]);
-					}
-				}
-
 				if (statss[i] || client->statss[i])
 				if (strcmp(statss[i]?statss[i]:"", client->statss[i]?client->statss[i]:""))
 				{
@@ -1573,14 +1633,71 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 					}
 				}
 			}
-			else
+			if (dpcompat_stats.ival)
+			{
+				if (statsf[i])
+				{
+					statsi[i] = statsf[i];
+					statsf[i] = 0;
+				}
+			}
 #endif
-				if (!statsi[i])
-				statsi[i] = statsf[i];
+
+			if (statsf[i])
+			{
+				if (client->fteprotocolextensions & PEXT_CSQC)
+				{
+					if (statsf[i] != client->statsf[i])
+					{
+						if (statsf[i] - (float)(int)statsf[i] == 0 && statsf[i] >= 0 && statsf[i] <= 255)
+						{
+							if (pnum)
+							{
+								ClientReliableWrite_Begin(client->controller, svcfte_choosesplitclient, 5);
+								ClientReliableWrite_Byte(client->controller, pnum);
+								ClientReliableWrite_Byte(client->controller, svc_updatestat);
+								ClientReliableWrite_Byte(client->controller, i);
+								ClientReliableWrite_Byte(client->controller, statsf[i]);
+							}
+							else
+							{
+								ClientReliableWrite_Begin(client, svc_updatestat, 3);
+								ClientReliableWrite_Byte(client, i);
+								ClientReliableWrite_Byte(client, statsf[i]);
+							}
+						}
+						else
+						{
+							if (pnum)
+							{
+								ClientReliableWrite_Begin(client->controller, svcfte_choosesplitclient, 8);
+								ClientReliableWrite_Byte(client->controller, pnum);
+								ClientReliableWrite_Byte(client->controller, svcfte_updatestatfloat);
+								ClientReliableWrite_Byte(client->controller, i);
+								ClientReliableWrite_Float(client->controller, statsf[i]);
+							}
+							else
+							{
+								ClientReliableWrite_Begin(client, svcfte_updatestatfloat, 6);
+								ClientReliableWrite_Byte(client, i);
+								ClientReliableWrite_Float(client, statsf[i]);
+							}
+						}
+						client->statsf[i] = statsf[i];
+						/*make sure statsf is correct*/
+						client->statsi[i] = statsf[i];
+					}
+					continue;
+				}
+				else
+				{
+					statsi[i] = statsf[i];
+				}
+			}
 			if (statsi[i] != client->statsi[i])
 			{
 				client->statsi[i] = statsi[i];
-				client->statsf[i] = 0;
+				client->statsf[i] = statsi[i];
 
 				if (statsi[i] >=0 && statsi[i] <= 255)
 				{
@@ -1637,8 +1754,9 @@ qboolean SV_SendClientDatagram (client_t *client)
 	msg.cursize = 0;
 	msg.allowoverflow = true;
 	msg.overflowed = false;
+	msg.prim = client->datagram.prim;
 
-	if (sv.worldmodel && !client->controller)
+	if (sv.world.worldmodel && !client->controller)
 	{
 		if (ISQ2CLIENT(client))
 		{
@@ -1658,6 +1776,9 @@ qboolean SV_SendClientDatagram (client_t *client)
 			// possibly a nails update
 			SV_WriteEntitiesToClient (client, &msg, false);
 		}
+#ifdef PEXT2_VOICECHAT
+		SV_VoiceSendPacket(client, &msg);
+#endif
 	}
 
 	// copy the accumulated multicast datagram
@@ -1669,7 +1790,7 @@ qboolean SV_SendClientDatagram (client_t *client)
 	SZ_Clear (&client->datagram);
 
 	// send deltas over reliable stream
-	if (sv.worldmodel)
+	if (sv.world.worldmodel)
 		if (!ISQ2CLIENT(client) && Netchan_CanReliable (&client->netchan, SV_RateForClient(client)))
 		{
 			int pnum=1;
@@ -1802,9 +1923,9 @@ void SV_UpdateToReliableMessages (void)
 					if (sv.mvdrecording)
 					{
 						MVDWrite_Begin(dem_all, 0, 4);
-						MSG_WriteByte((sizebuf_t*)demo.dbuf, svc_updatefrags);
-						MSG_WriteByte((sizebuf_t*)demo.dbuf, i);
-						MSG_WriteShort((sizebuf_t*)demo.dbuf, host_client->edict->v->frags);
+						MSG_WriteByte(&demo.dbuf->sb, svc_updatefrags);
+						MSG_WriteByte(&demo.dbuf->sb, i);
+						MSG_WriteShort(&demo.dbuf->sb, host_client->edict->v->frags);
 					}
 
 					host_client->old_frags = host_client->edict->v->frags;
@@ -1822,7 +1943,7 @@ void SV_UpdateToReliableMessages (void)
 			if (progstype != PROG_QW)
 			{
 				if (!curgrav)
-					curgrav = 1;
+					curgrav = sv_gravity.value;
 				if (!curspeed)
 					curspeed = sv_maxspeed.value;
 			}
@@ -1863,9 +1984,9 @@ void SV_UpdateToReliableMessages (void)
 				if (sv.mvdrecording)
 				{
 					MVDWrite_Begin(dem_all, 0, 4);
-					MSG_WriteByte((sizebuf_t*)demo.dbuf, svc_updatefrags);
-					MSG_WriteByte((sizebuf_t*)demo.dbuf, i);
-					MSG_WriteShort((sizebuf_t*)demo.dbuf, curfrags);
+					MSG_WriteByte(&demo.dbuf->sb, svc_updatefrags);
+					MSG_WriteByte(&demo.dbuf->sb, i);
+					MSG_WriteShort(&demo.dbuf->sb, curfrags);
 				}
 
 				host_client->old_frags = curfrags;
@@ -1962,9 +2083,11 @@ void SV_UpdateToReliableMessages (void)
 #ifdef NQPROT
 		if (!ISQWCLIENT(client))
 		{
-			ClientReliableCheckBlock(client, sv.nqreliable_datagram.cursize);
-			ClientReliableWrite_SZ(client, sv.nqreliable_datagram.data, sv.nqreliable_datagram.cursize);
-
+			if (client->pextknown)
+			{
+				ClientReliableCheckBlock(client, sv.nqreliable_datagram.cursize);
+				ClientReliableWrite_SZ(client, sv.nqreliable_datagram.data, sv.nqreliable_datagram.cursize);
+			}
 			if (client->state != cs_spawned)
 				continue;	// datagrams only go to spawned
 			SZ_Write (&client->datagram
@@ -2011,7 +2134,7 @@ void SV_SendClientMessages (void)
 	int			i, j;
 	client_t	*c;
 	int sentbytes, fnum;
-	float pt = sv.physicstime;
+	float pt = sv.world.physicstime;
 
 #ifdef Q3SERVER
 	if (svs.gametype == GT_QUAKE3)
@@ -2147,18 +2270,18 @@ void SV_SendClientMessages (void)
 			c->send_message = false;
 			if (c->nextservertimeupdate != pt && c->state != cs_zombie)
 			{
-				c->send_message = true;
+				c->send_message = c->netchan.nqreliable_allowed = true;
 
 				if (c->state == cs_connected && !c->datagram.cursize && !c->netchan.message.cursize)
 				{
-					if (c->nextservertimeupdate < sv.physicstime)
+					if (c->nextservertimeupdate < sv.world.physicstime)
 					{	//part of the nq protocols allowed downloading content over isdn
 						//the nop requirement of the protocol persisted to prevent timeouts when content loading is otherwise slow..
 						//aditionally we might need this for lost packets, not sure
 						//but the client isn't able to respond unless we send an occasional datagram
 						if (c->nextservertimeupdate)
 							MSG_WriteByte(&c->datagram, svc_nop);
-						c->nextservertimeupdate = sv.physicstime+5;
+						c->nextservertimeupdate = sv.world.physicstime+5;
 					}
 				}
 			}
@@ -2166,6 +2289,10 @@ void SV_SendClientMessages (void)
 		if (!c->send_message)
 			continue;
 		c->send_message = false;	// try putting this after choke?
+
+		if (c->controller)
+			continue;	/*shouldn't have been set*/
+
 		if (!sv.paused && !Netchan_CanPacket (&c->netchan, SV_RateForClient(c)))
 		{
 			c->chokecount++;
@@ -2290,16 +2417,16 @@ void SV_SendMVDMessage(void)
 				if (stats[j] >=0 && stats[j] <= 255)
 				{
 					MVDWrite_Begin(dem_stats, i, 3);
-					MSG_WriteByte((sizebuf_t*)demo.dbuf, svc_updatestat);
-					MSG_WriteByte((sizebuf_t*)demo.dbuf, j);
-					MSG_WriteByte((sizebuf_t*)demo.dbuf, stats[j]);
+					MSG_WriteByte(&demo.dbuf->sb, svc_updatestat);
+					MSG_WriteByte(&demo.dbuf->sb, j);
+					MSG_WriteByte(&demo.dbuf->sb, stats[j]);
 				}
 				else
 				{
 					MVDWrite_Begin(dem_stats, i, 6);
-					MSG_WriteByte((sizebuf_t*)demo.dbuf, svc_updatestatlong);
-					MSG_WriteByte((sizebuf_t*)demo.dbuf, j);
-					MSG_WriteLong((sizebuf_t*)demo.dbuf, stats[j]);
+					MSG_WriteByte(&demo.dbuf->sb, svc_updatestatlong);
+					MSG_WriteByte(&demo.dbuf->sb, j);
+					MSG_WriteLong(&demo.dbuf->sb, stats[j]);
 				}
 			}
 	}
@@ -2308,6 +2435,7 @@ void SV_SendMVDMessage(void)
 	// this will include clients, a packetentities, and
 	// possibly a nails update
 	msg.cursize = 0;
+	msg.prim = demo.recorder.netchan.netprim;
 	if (!demo.recorder.delta_sequence)
 		demo.recorder.delta_sequence = -1;
 
@@ -2316,12 +2444,12 @@ void SV_SendMVDMessage(void)
 	if (!MVDWrite_Begin(dem_all, 0, msg.cursize))
 		return;
 
-	SZ_Write ((sizebuf_t*)demo.dbuf, msg.data, msg.cursize);
+	SZ_Write (&demo.dbuf->sb, msg.data, msg.cursize);
 	// copy the accumulated multicast datagram
 	// for this client out to the message
 	if (demo.datagram.cursize) {
 		MVDWrite_Begin(dem_all, 0, demo.datagram.cursize);
-		SZ_Write ((sizebuf_t*)demo.dbuf, demo.datagram.data, demo.datagram.cursize);
+		SZ_Write (&demo.dbuf->sb, demo.datagram.data, demo.datagram.cursize);
 		SZ_Clear (&demo.datagram);
 	}
 

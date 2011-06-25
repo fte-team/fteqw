@@ -1,5 +1,6 @@
 #include "quakedef.h"
 
+#include "pr_common.h"
 /*
 
 ============================================================================
@@ -7,7 +8,20 @@
 Physics functions (common)
 */
 
-#if	!id386
+void Q1BSP_CheckHullNodes(hull_t *hull)
+{
+	int num, c;
+	dclipnode_t	*node;
+	for (num = hull->firstclipnode; num < hull->lastclipnode; num++)
+	{
+		node = hull->clipnodes + num;
+		for (c = 0; c < 2; c++)
+			if (node->children[c] >= 0)
+				if (node->children[c] < hull->firstclipnode || node->children[c] > hull->lastclipnode)
+					Sys_Error ("Q1BSP_CheckHull: bad node number");
+
+	}
+}
 
 /*
 ==================
@@ -23,9 +37,6 @@ static int Q1_HullPointContents (hull_t *hull, int num, vec3_t p)
 
 	while (num >= 0)
 	{
-		if (num < hull->firstclipnode || num > hull->lastclipnode)
-			Sys_Error ("SV_HullPointContents: bad node number");
-
 		node = hull->clipnodes + num;
 		plane = hull->planes + node->planenum;
 
@@ -41,13 +52,157 @@ static int Q1_HullPointContents (hull_t *hull, int num, vec3_t p)
 
 	return num;
 }
-#else
-int VARGS Q1_HullPointContents (hull_t *hull, int num, vec3_t p);
-#endif	// !id386
 
 
 
 #define	DIST_EPSILON	(0.03125)
+#if 0
+enum
+{
+	rht_solid,
+	rht_empty,
+	rht_impact
+};
+vec3_t rht_start, rht_end;
+static int Q1BSP_RecursiveHullTrace (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t *trace)
+{
+	dclipnode_t	*node;
+	mplane_t	*plane;
+	float		t1, t2;
+	vec3_t		mid;
+	int			side;
+	float		midf;
+	int rht;
+
+reenter:
+
+	if (num < 0)
+	{
+		/*hit a leaf*/
+		if (num == Q1CONTENTS_SOLID)
+		{
+			if (trace->allsolid)
+				trace->startsolid = true;
+			return rht_solid;
+		}
+		else
+		{
+			trace->allsolid = false;
+			if (num == Q1CONTENTS_EMPTY)
+				trace->inopen = true;
+			else
+				trace->inwater = true;
+			return rht_empty;
+		}
+	}
+
+	/*its a node*/
+
+	/*get the node info*/
+	node = hull->clipnodes + num;
+	plane = hull->planes + node->planenum;
+
+	if (plane->type < 3)
+	{
+		t1 = p1[plane->type] - plane->dist;
+		t2 = p2[plane->type] - plane->dist;
+	}
+	else
+	{
+		t1 = DotProduct (plane->normal, p1) - plane->dist;
+		t2 = DotProduct (plane->normal, p2) - plane->dist;
+	}
+
+	/*if its completely on one side, resume on that side*/
+	if (t1 >= 0 && t2 >= 0)
+	{
+		//return Q1BSP_RecursiveHullTrace (hull, node->children[0], p1f, p2f, p1, p2, trace);
+		num = node->children[0];
+		goto reenter;
+	}
+	if (t1 < 0 && t2 < 0)
+	{
+		//return Q1BSP_RecursiveHullTrace (hull, node->children[1], p1f, p2f, p1, p2, trace);
+		num = node->children[1];
+		goto reenter;
+	}
+
+	if (plane->type < 3)
+	{
+		t1 = rht_start[plane->type] - plane->dist;
+		t2 = rht_end[plane->type] - plane->dist;
+	}
+	else
+	{
+		t1 = DotProduct (plane->normal, rht_start) - plane->dist;
+		t2 = DotProduct (plane->normal, rht_end) - plane->dist;
+	}
+
+	side = t1 < 0;
+
+	midf = t1 / (t1 - t2);
+	if (midf < p1f) midf = p1f;
+	if (midf > p2f) midf = p2f;
+	VectorInterpolate(rht_start, midf, rht_end, mid);
+
+	rht = Q1BSP_RecursiveHullTrace(hull, node->children[side], p1f, midf, p1, mid, trace);
+	if (rht != rht_empty)
+		return rht;
+	rht = Q1BSP_RecursiveHullTrace(hull, node->children[side^1], midf, p2f, mid, p2, trace);
+	if (rht != rht_solid)
+		return rht;
+
+	trace->fraction = midf;
+	if (side)
+	{
+		/*we impacted the back of the node, so flip the plane*/
+		trace->plane.dist = -plane->dist;
+		VectorNegate(plane->normal, trace->plane.normal);
+		midf = (t1 + DIST_EPSILON) / (t1 - t2);
+	}
+	else
+	{
+		/*we impacted the front of the node*/
+		trace->plane.dist = plane->dist;
+		VectorCopy(plane->normal, trace->plane.normal);
+		midf = (t1 - DIST_EPSILON) / (t1 - t2);
+	}
+	VectorCopy (mid, trace->endpos);
+	VectorInterpolate(rht_start, midf, rht_end, trace->endpos);
+
+	return rht_impact;
+}
+
+qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t *trace)
+{
+	if (VectorEquals(p1, p2))
+	{
+		/*points cannot cross planes, so do it faster*/
+		switch(Q1_HullPointContents(hull, num, p1))
+		{
+		case Q1CONTENTS_SOLID:
+			trace->startsolid = true;
+			break;
+		case Q1CONTENTS_EMPTY:
+			trace->allsolid = false;
+			trace->inopen = true;
+			break;
+		default:
+			trace->allsolid = false;
+			trace->inwater = true;
+			break;
+		}
+		return true;
+	}
+	else
+	{
+		VectorCopy(p1, rht_start);
+		VectorCopy(p2, rht_end);
+		return Q1BSP_RecursiveHullTrace(hull, num, p1f, p2f, p1, p2, trace) != rht_impact;
+	}
+}
+
+#else
 qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t *trace)
 {
 	dclipnode_t	*node;
@@ -74,9 +229,6 @@ qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 			trace->startsolid = true;
 		return true;		// empty
 	}
-
-	if (num < hull->firstclipnode || num > hull->lastclipnode)
-		Sys_Error ("Q1BSP_RecursiveHullCheck: bad node number");
 
 //
 // find the point distances
@@ -186,6 +338,7 @@ qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 
 	return false;
 }
+#endif
 
 int Q1BSP_HullPointContents(hull_t *hull, vec3_t p)
 {
@@ -209,17 +362,20 @@ int Q1BSP_HullPointContents(hull_t *hull, vec3_t p)
 	}
 }
 
-void Q1BSP_SetHullFuncs(hull_t *hull)
+unsigned int Q1BSP_PointContents(model_t *model, vec3_t axis[3], vec3_t point)
 {
-//	hull->funcs.HullPointContents = Q1BSP_HullPointContents;
-}
-
-unsigned int Q1BSP_PointContents(model_t *model, vec3_t point)
-{
+	if (axis)
+	{
+		vec3_t transformed;
+		transformed[0] = DotProduct(point, axis[0]);
+		transformed[1] = DotProduct(point, axis[1]);
+		transformed[2] = DotProduct(point, axis[2]);
+		return Q1BSP_HullPointContents(&model->hulls[0], transformed);
+	}
 	return Q1BSP_HullPointContents(&model->hulls[0], point);
 }
 
-qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
+qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
 {
 	hull_t *hull;
 	vec3_t size;
@@ -240,6 +396,8 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, 
 
 			if (size[0] < 3) // Point
 				hull = &model->hulls[0];
+			else if (size[0] <= 8 && model->hulls[4].available)
+				hull = &model->hulls[4];	//Pentacles
 			else if (size[0] <= 32 && size[2] <= 28)  // Half Player
 				hull = &model->hulls[3];
 			else if (size[0] <= 32)  // Full Player
@@ -265,16 +423,51 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, 
 
 // calculate an offset value to center the origin
 	VectorSubtract (hull->clip_mins, mins, offset);
-	VectorSubtract(start, offset, start_l);
-	VectorSubtract(end, offset, end_l);
-	Q1BSP_RecursiveHullCheck(hull, hull->firstclipnode, 0, 1, start_l, end_l, trace);
-	if (trace->fraction == 1)
+	if (axis)
 	{
-		VectorCopy (end, trace->endpos);
+		vec3_t tmp;
+		VectorSubtract(start, offset, tmp);
+		start_l[0] = DotProduct(tmp, axis[0]);
+		start_l[1] = DotProduct(tmp, axis[1]);
+		start_l[2] = DotProduct(tmp, axis[2]);
+		VectorSubtract(end, offset, tmp);
+		end_l[0] = DotProduct(tmp, axis[0]);
+		end_l[1] = DotProduct(tmp, axis[1]);
+		end_l[2] = DotProduct(tmp, axis[2]);
+		Q1BSP_RecursiveHullCheck(hull, hull->firstclipnode, 0, 1, start_l, end_l, trace);
+
+		if (trace->fraction == 1)
+		{
+			VectorCopy (end, trace->endpos);
+		}
+		else
+		{
+			vec3_t iaxis[3];
+			vec3_t norm;
+			Matrix3_Invert_Simple((void *)axis, iaxis);
+			VectorCopy(trace->plane.normal, norm);
+			trace->plane.normal[0] = DotProduct(norm, iaxis[0]);
+			trace->plane.normal[1] = DotProduct(norm, iaxis[1]);
+			trace->plane.normal[2] = DotProduct(norm, iaxis[2]);
+
+			/*just interpolate it, its easier than inverse matrix rotations*/
+			VectorInterpolate(start, trace->fraction, end, trace->endpos);
+		}
 	}
 	else
 	{
-		VectorAdd (trace->endpos, offset, trace->endpos);
+		VectorSubtract(start, offset, start_l);
+		VectorSubtract(end, offset, end_l);
+		Q1BSP_RecursiveHullCheck(hull, hull->firstclipnode, 0, 1, start_l, end_l, trace);
+
+		if (trace->fraction == 1)
+		{
+			VectorCopy (end, trace->endpos);
+		}
+		else
+		{
+			VectorAdd (trace->endpos, offset, trace->endpos);
+		}
 	}
 
 	return trace->fraction != 1;
@@ -375,9 +568,6 @@ typedef struct {
 	int numtris;
 
 } fragmentdecal_t;
-
-#define FloatInterpolate(a, bness, b, c) (c) = (a)*(1-bness) + (b)*bness
-#define VectorInterpolate(a, bness, b, c) FloatInterpolate((a)[0], bness, (b)[0], (c)[0]),FloatInterpolate((a)[1], bness, (b)[1], (c)[1]),FloatInterpolate((a)[2], bness, (b)[2], (c)[2])
 
 //#define SHOWCLIPS
 //#define FRAGMENTASTRIANGLES	//works, but produces more fragments.
@@ -551,11 +741,12 @@ void Fragment_ClipTriangle(fragmentdecal_t *dec, float *a, float *b, float *c)
 #define MAXFRAGMENTVERTS 360
 int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float *plane, float planedist)
 {
+#define C 4
 	float dotv[MAXFRAGMENTVERTS+1];
 	char keep[MAXFRAGMENTVERTS+1];
 #define KEEP_KILL 0
 #define KEEP_KEEP 1
-#define KEEP_BORDER 2 
+#define KEEP_BORDER 2
 	int i;
 	int outcount = 0;
 	int clippedcount = 0;
@@ -564,7 +755,7 @@ int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float
 
 	for (i = 0; i < incount; i++)
 	{
-		dotv[i] = DotProduct((inverts+i*3), plane) - planedist;
+		dotv[i] = DotProduct((inverts+i*C), plane) - planedist;
 		if (dotv[i]<-FRAG_EPSILON)
 		{
 			keep[i] = KEEP_KILL;
@@ -582,32 +773,33 @@ int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float
 		return 0;	//all were clipped
 	if (clippedcount == 0)
 	{	//none were clipped
-		memcpy(outverts, inverts, sizeof(float)*3*incount);
+		for (i = 0; i < incount; i++)
+			VectorCopy((inverts+i*C), (outverts+i*C));
 		return incount;
 	}
 
 	for (i = 0; i < incount; i++)
 	{
-		p1 = inverts+i*3;
+		p1 = inverts+i*C;
 		if (keep[i] == KEEP_BORDER)
 		{
-			out = outverts+outcount++*3;
+			out = outverts+outcount++*C;
 			VectorCopy(p1, out);
 			continue;
 		}
 		if (keep[i] == KEEP_KEEP)
 		{
-			out = outverts+outcount++*3;
+			out = outverts+outcount++*C;
 			VectorCopy(p1, out);
 		}
 		if (keep[i+1] == KEEP_BORDER || keep[i] == keep[i+1])
 			continue;
-		p2 = inverts+((i+1)%incount)*3;
+		p2 = inverts+((i+1)%incount)*C;
 		d = dotv[i] - dotv[i+1];
 		if (d)
 			d = dotv[i] / d;
 
-		out = outverts+outcount++*3;
+		out = outverts+outcount++*C;
 		VectorInterpolate(p1, d, p2, out);
 	}
 	return outcount;
@@ -617,8 +809,8 @@ void Fragment_ClipPoly(fragmentdecal_t *dec, int numverts, float *inverts)
 {
 	//emit the triangle, and clip it's fragments.
 	int p;
-	float verts[MAXFRAGMENTVERTS*3];
-	float verts2[MAXFRAGMENTVERTS*3];
+	float verts[MAXFRAGMENTVERTS*C];
+	float verts2[MAXFRAGMENTVERTS*C];
 	float *cverts;
 	int flip;
 
@@ -658,9 +850,9 @@ void Fragment_ClipPoly(fragmentdecal_t *dec, int numverts, float *inverts)
 
 		numverts--;
 
-		VectorCopy((cverts+3*0),			decalfragmentverts[dec->numtris*3+0]);
-		VectorCopy((cverts+3*(numverts-1)),	decalfragmentverts[dec->numtris*3+1]);
-		VectorCopy((cverts+3*numverts),		decalfragmentverts[dec->numtris*3+2]);
+		VectorCopy((cverts+C*0),			decalfragmentverts[dec->numtris*3+0]);
+		VectorCopy((cverts+C*(numverts-1)),	decalfragmentverts[dec->numtris*3+1]);
+		VectorCopy((cverts+C*numverts),		decalfragmentverts[dec->numtris*3+2]);
 		dec->numtris++;
 	}
 }
@@ -672,16 +864,16 @@ void Fragment_Mesh (fragmentdecal_t *dec, mesh_t *mesh)
 {
 	int i;
 
-	vec3_t verts[3];
+	vecV_t verts[3];
 
 	/*if its a triangle fan/poly/quad then we can just submit the entire thing without generating extra fragments*/
-	if (0)//mesh->istrifan)
+	if (mesh->istrifan)
 	{
 		Fragment_ClipPoly(dec, mesh->numvertexes, mesh->xyz_array[0]);
 		return;
 	}
 
-	//Fixme: optimise q3 patches
+	//Fixme: optimise q3 patches (quad strips with bends between each strip)
 
 	/*otherwise it goes in and out in weird places*/
 	for (i = 0; i < mesh->numindexes; i+=3)
@@ -741,6 +933,12 @@ void Q1BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 	Q1BSP_ClipDecalToNodes (dec, node->children[1]);
 }
 
+#ifdef RTLIGHTS
+extern int sh_shadowframe;
+#else
+static int sh_shadowframe;
+#endif
+#ifdef Q3BSPS
 void Q3BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 {
 	mplane_t	*splitplane;
@@ -758,16 +956,12 @@ void Q3BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 		for (i=0 ; i<leaf->nummarksurfaces ; i++, msurf++)
 		{
 			surf = *msurf;
-			/*if (surf->flags & SURF_PLANEBACK)
-			{
-				if (-DotProduct(surf->plane->normal, dec->normal) > -0.5)
-					continue;
-			}
-			else
-			{
-				if (DotProduct(surf->plane->normal, dec->normal) > -0.5)
-					continue;
-			}*/
+
+			//only check each surface once. it can appear in multiple leafs.
+			if (surf->shadowframe == sh_shadowframe)
+				continue;
+			surf->shadowframe = sh_shadowframe;
+
 			Fragment_Mesh(dec, surf->mesh);
 		}
 		return;
@@ -789,6 +983,7 @@ void Q3BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 	Q3BSP_ClipDecalToNodes (dec, node->children[0]);
 	Q3BSP_ClipDecalToNodes (dec, node->children[1]);
 }
+#endif
 
 int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, float **out)
 {	//quad marks a full, independant quad
@@ -810,10 +1005,14 @@ int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangen
 		dec.planedist[p] = -(dec.radius - DotProduct(dec.center, dec.planenorm[p]));
 	dec.numplanes = 6;
 
-	if (cl.worldmodel->fromgame == fg_quake3)
-		Q3BSP_ClipDecalToNodes(&dec, cl.worldmodel->nodes);
-	else
+	sh_shadowframe++;
+
+	if (cl.worldmodel->fromgame == fg_quake)
 		Q1BSP_ClipDecalToNodes(&dec, cl.worldmodel->nodes);
+#ifdef Q3BSPS
+	else if (cl.worldmodel->fromgame == fg_quake3)
+		Q3BSP_ClipDecalToNodes(&dec, cl.worldmodel->nodes);
+#endif
 
 	*out = (float *)decalfragmentverts;
 	return dec.numtris;
@@ -970,7 +1169,8 @@ unsigned int Q1BSP_FatPVS (model_t *mod, vec3_t org, qbyte *pvsbuffer, unsigned 
 	return fatbytes;
 }
 
-qboolean Q1BSP_EdictInFatPVS(model_t *mod, edict_t *ent, qbyte *pvs)
+#endif
+qboolean Q1BSP_EdictInFatPVS(model_t *mod, struct pvscache_s *ent, qbyte *pvs)
 {
 	int i;
 
@@ -991,7 +1191,7 @@ SV_FindTouchedLeafs
 Links the edict to the right leafs so we can get it's potential visability.
 ===============
 */
-void Q1BSP_RFindTouchedLeafs (edict_t *ent, mnode_t *node, float *mins, float *maxs)
+void Q1BSP_RFindTouchedLeafs (model_t *wm, struct pvscache_s *ent, mnode_t *node, float *mins, float *maxs)
 {
 	mplane_t	*splitplane;
 	mleaf_t		*leaf;
@@ -1012,7 +1212,7 @@ void Q1BSP_RFindTouchedLeafs (edict_t *ent, mnode_t *node, float *mins, float *m
 		}
 
 		leaf = (mleaf_t *)node;
-		leafnum = leaf - sv.worldmodel->leafs - 1;
+		leafnum = leaf - wm->leafs - 1;
 
 		ent->leafnums[ent->num_leafs] = leafnum;
 		ent->num_leafs++;
@@ -1026,19 +1226,18 @@ void Q1BSP_RFindTouchedLeafs (edict_t *ent, mnode_t *node, float *mins, float *m
 
 // recurse down the contacted sides
 	if (sides & 1)
-		Q1BSP_RFindTouchedLeafs (ent, node->children[0], mins, maxs);
+		Q1BSP_RFindTouchedLeafs (wm, ent, node->children[0], mins, maxs);
 
 	if (sides & 2)
-		Q1BSP_RFindTouchedLeafs (ent, node->children[1], mins, maxs);
+		Q1BSP_RFindTouchedLeafs (wm, ent, node->children[1], mins, maxs);
 }
-void Q1BSP_FindTouchedLeafs(model_t *mod, edict_t *ent, float *mins, float *maxs)
+void Q1BSP_FindTouchedLeafs(model_t *mod, struct pvscache_s *ent, float *mins, float *maxs)
 {
 	ent->num_leafs = 0;
-	if (ent->v->modelindex)
-		Q1BSP_RFindTouchedLeafs (ent, mod->nodes, mins, maxs);
+	if (mins && maxs)
+		Q1BSP_RFindTouchedLeafs (mod, ent, mod->nodes, mins, maxs);
 }
 
-#endif
 
 /*
 Server only functions
@@ -1180,9 +1379,9 @@ void Q1BSP_SetModelFuncs(model_t *mod)
 {
 #ifndef CLIENTONLY
 	mod->funcs.FatPVS				= Q1BSP_FatPVS;
-	mod->funcs.EdictInFatPVS		= Q1BSP_EdictInFatPVS;
-	mod->funcs.FindTouchedLeafs_Q1	= Q1BSP_FindTouchedLeafs;
 #endif
+	mod->funcs.EdictInFatPVS		= Q1BSP_EdictInFatPVS;
+	mod->funcs.FindTouchedLeafs		= Q1BSP_FindTouchedLeafs;
 	mod->funcs.LightPointValues		= NULL;
 	mod->funcs.StainNode			= NULL;
 	mod->funcs.MarkLights			= NULL;

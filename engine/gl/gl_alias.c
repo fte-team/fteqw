@@ -14,10 +14,8 @@
 
 
 #include "quakedef.h"
-#ifdef RGLQUAKE
-	#include "glquake.h"
-#endif
-#if defined(RGLQUAKE)
+#include "glquake.h"
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 
 #ifdef _WIN32
 	#include <malloc.h>
@@ -26,8 +24,6 @@
 #endif
 
 #define MAX_BONES 256
-
-static model_t *loadmodel;
 
 #include "com_mesh.h"
 
@@ -42,49 +38,13 @@ typedef struct
 
 
 
-// entity_state_t->renderfx flags
-#define	Q2RF_MINLIGHT			1		// always have some light (viewmodel)
-#define	Q2RF_VIEWERMODEL		2		// don't draw through eyes, only mirrors
-#define	Q2RF_WEAPONMODEL		4		// only draw through eyes
-#define	Q2RF_FULLBRIGHT			8		// always draw full intensity
-#define	Q2RF_DEPTHHACK			16		// for view weapon Z crunching
-#define	Q2RF_TRANSLUCENT		32
-#define	Q2RF_FRAMELERP			64
-#define Q2RF_BEAM				128
-#define	Q2RF_CUSTOMSKIN			256		// skin is an index in image_precache
-#define	Q2RF_GLOW				512		// pulse lighting for bonus items
-#define Q2RF_SHELL_RED			1024
-#define	Q2RF_SHELL_GREEN		2048
-#define Q2RF_SHELL_BLUE			4096
-
-//ROGUE
-#define Q2RF_IR_VISIBLE			0x00008000		// 32768
-#define	Q2RF_SHELL_DOUBLE		0x00010000		// 65536
-#define	Q2RF_SHELL_HALF_DAM		0x00020000
-#define Q2RF_USE_DISGUISE		0x00040000
-//ROGUE
-
-
-
-
 extern cvar_t gl_part_flame, r_fullbrightSkins, r_fb_models;
 extern cvar_t r_noaliasshadows;
-void R_TorchEffect (vec3_t pos, int type);
-void GLMod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight );
 
 
 
 extern char	loadname[32];	// for hunk tags
 
-
-int numTempColours;
-byte_vec4_t *tempColours;
-
-int numTempVertexCoords;
-vec3_t *tempVertexCoords;
-
-int numTempNormals;
-vec3_t *tempNormals;
 
 extern cvar_t gl_ati_truform;
 extern cvar_t r_vertexdlights;
@@ -93,28 +53,28 @@ extern cvar_t r_skin_overlays;
 
 #ifndef SERVERONLY
 static hashtable_t skincolourmapped;
-extern vec3_t shadevector, shadelight, ambientlight; 
 
 //changes vertex lighting values
+#if 0
 static void R_GAliasApplyLighting(mesh_t *mesh, vec3_t org, vec3_t angles, float *colormod)
 {
 	int l, v;
 	vec3_t rel;
 	vec3_t dir;
-	float dot, d, a, f;
+	float dot, d, a;
 
-	if (mesh->colors_array)
+	if (mesh->colors4f_array)
 	{
 		float l;
 		int temp;
 		int i;
-		byte_vec4_t *colours = mesh->colors_array;
+		avec4_t *colours = mesh->colors4f_array;
 		vec3_t *normals = mesh->normals_array;
 		vec3_t ambient, shade;
-		qbyte alphab = bound(0, colormod[3]*255, 255);
+		qbyte alphab = bound(0, colormod[3], 1);
 		if (!mesh->normals_array)
 		{
-			mesh->colors_array = NULL;
+			mesh->colors4f_array = NULL;
 			return;
 		}
 
@@ -133,27 +93,22 @@ static void R_GAliasApplyLighting(mesh_t *mesh, vec3_t org, vec3_t angles, float
 			l = DotProduct(normals[i], shadevector);
 
 			temp = l*ambient[0]+shade[0];
-			if (temp < 0) temp = 0;
-			else if (temp > 255) temp = 255;
 			colours[i][0] = temp;
 
 			temp = l*ambient[1]+shade[1];
-			if (temp < 0) temp = 0;
-			else if (temp > 255) temp = 255;
 			colours[i][1] = temp;
 
 			temp = l*ambient[2]+shade[2];
-			if (temp < 0) temp = 0;
-			else if (temp > 255) temp = 255;
 			colours[i][2] = temp;
 
 			colours[i][3] = alphab;
 		}
 	}
 
-	if (r_vertexdlights.value && mesh->colors_array)
+	if (r_vertexdlights.value && mesh->colors4f_array)
 	{
-		for (l=0 ; l<dlights_running ; l++)
+		//don't include world lights
+		for (l=rtlights_first ; l<RTL_FIRST; l++)
 		{
 			if (cl_dlights[l].radius)
 			{
@@ -183,37 +138,21 @@ static void R_GAliasApplyLighting(mesh_t *mesh, vec3_t org, vec3_t angles, float
 						if (a>0)
 						{
 							a *= 10000000*dot/sqrt(d);
-							f = mesh->colors_array[v][0] + a*cl_dlights[l].color[0];
-							if (f > 255)
-								f = 255;
-							else if (f < 0)
-								f = 0;
-							mesh->colors_array[v][0] = f;
-
-							f = mesh->colors_array[v][1] + a*cl_dlights[l].color[1];
-							if (f > 255)
-								f = 255;
-							else if (f < 0)
-								f = 0;
-							mesh->colors_array[v][1] = f;
-
-							f = mesh->colors_array[v][2] + a*cl_dlights[l].color[2];
-							if (f > 255)
-								f = 255;
-							else if (f < 0)
-								f = 0;
-							mesh->colors_array[v][2] = f;
+							mesh->colors4f_array[v][0] += a*cl_dlights[l].color[0];
+							mesh->colors4f_array[v][1] += a*cl_dlights[l].color[1];
+							mesh->colors4f_array[v][2] += a*cl_dlights[l].color[2];
 						}
 	//					else
-	//						mesh->colors_array[v][1] =255;
+	//						mesh->colors4f_array[v][1] = 1;
 					}
 	//				else
-	//					mesh->colors_array[v][2] =255;
+	//					mesh->colors4f_array[v][2] = 1;
 				}
 			}
 		}
 	}
 }
+#endif
 
 void GL_GAliasFlushSkinCache(void)
 {
@@ -233,21 +172,34 @@ void GL_GAliasFlushSkinCache(void)
 	skincolourmapped.numbuckets = 0;
 }
 
-static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int surfnum, entity_t *e)
+static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, entity_t *e)
 {
 	galiasskin_t *skins;
-	galiastexnum_t *texnums;
+	texnums_t *texnums;
 	int frame;
+	unsigned int subframe;
+	extern int cl_playerindex;	//so I don't have to strcmp
 
-	unsigned int tc, bc;
+	unsigned int tc, bc, pc;
 	qboolean forced;
 
-	if ((e->model->engineflags & MDLF_NOTREPLACEMENTS) && !ruleset_allow_sensative_texture_replacements.value)
+	if (e->skinnum >= 100 && e->skinnum < 110)
+	{
+		shader_t *s;
+		s = R_RegisterSkin(va("gfx/skin%d.lmp", e->skinnum));
+		if (!TEXVALID(s->defaulttextures.base))
+			s->defaulttextures.base = R_LoadHiResTexture(va("gfx/skin%d.lmp", e->skinnum), NULL, 0);
+		s->defaulttextures.shader = s;
+		return &s->defaulttextures;
+	}
+
+
+	if ((e->model->engineflags & MDLF_NOTREPLACEMENTS) && !ruleset_allow_sensative_texture_replacements.ival)
 		forced = true;
 	else
 		forced = false;
 
-	if (!gl_nocolors.value || forced)
+	if (!gl_nocolors.ival || forced)
 	{
 		if (e->scoreboard)
 		{
@@ -255,11 +207,13 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 				Skin_Find(e->scoreboard);
 			tc = e->scoreboard->ttopcolor;
 			bc = e->scoreboard->tbottomcolor;
+			pc = e->scoreboard->h2playerclass;
 		}
 		else
 		{
 			tc = 1;
 			bc = 1;
+			pc = 0;
 		}
 
 		if (forced || tc != 1 || bc != 1 || (e->scoreboard && e->scoreboard->skin))
@@ -271,7 +225,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 			galiascolourmapped_t *cm;
 			char hashname[512];
 
-//			if (e->scoreboard->skin->cachedbpp 
+//			if (e->scoreboard->skin->cachedbpp
 
 	/*		if (cls.protocol == CP_QUAKE2)
 			{
@@ -285,16 +239,16 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 			{
 				if (e->scoreboard && e->scoreboard->skin)
 				{
-					snprintf(hashname, sizeof(hashname), "%s$%s$%i", modelname, e->scoreboard->skin->name, surfnum);
+					snprintf(hashname, sizeof(hashname), "%s$%s$%i", model->name, e->scoreboard->skin->name, surfnum);
 					skinname = hashname;
 				}
 				else if (surfnum)
 				{
-					snprintf(hashname, sizeof(hashname), "%s$%i", modelname, surfnum);
+					snprintf(hashname, sizeof(hashname), "%s$%i", model->name, surfnum);
 					skinname = hashname;
 				}
 				else
-					skinname = modelname;
+					skinname = model->name;
 			}
 
 			if (!skincolourmapped.numbuckets)
@@ -304,27 +258,39 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 				Hash_InitTable(&skincolourmapped, 256, buckets);
 			}
 
-			for (cm = Hash_Get(&skincolourmapped, skinname); cm; cm = Hash_GetNext(&skincolourmapped, skinname, cm))
-			{
-				if (cm->tcolour == tc && cm->bcolour == bc && cm->skinnum == e->skinnum)
-				{
-					return &cm->texnum;
-				}
-			}
-
 			if (!inf->numskins)
 			{
 				skins = NULL;
+				subframe = 0;
 				texnums = NULL;
 			}
 			else
 			{
 				skins = (galiasskin_t*)((char *)inf + inf->ofsskins);
 				if (!skins->texnums)
-					return NULL;
-				if (e->skinnum >= 0 && e->skinnum < inf->numskins)
-					skins += e->skinnum;
-				texnums = (galiastexnum_t*)((char *)skins + skins->ofstexnums);
+				{
+					skins = NULL;
+					subframe = 0;
+					texnums = NULL;
+				}
+				else
+				{
+					if (e->skinnum >= 0 && e->skinnum < inf->numskins)
+						skins += e->skinnum;
+
+					subframe = cl.time*skins->skinspeed;
+					subframe = subframe%skins->texnums;
+
+					texnums = (texnums_t*)((char *)skins + skins->ofstexnums + subframe*sizeof(texnums_t));
+				}
+			}
+
+			for (cm = Hash_Get(&skincolourmapped, skinname); cm; cm = Hash_GetNext(&skincolourmapped, skinname, cm))
+			{
+				if (cm->tcolour == tc && cm->bcolour == bc && cm->skinnum == e->skinnum && cm->subframe == subframe && cm->pclass == pc)
+				{
+					return &cm->texnum;
+				}
 			}
 
 			//colourmap isn't present yet.
@@ -333,12 +299,14 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 			Hash_Add(&skincolourmapped, cm->name, cm, &cm->bucket);
 			cm->tcolour = tc;
 			cm->bcolour = bc;
+			cm->pclass = pc;
 			cm->skinnum = e->skinnum;
-			cm->texnum.fullbright = 0;
-			cm->texnum.base = 0;
-#ifdef Q3SHADERS
-			cm->texnum.shader = NULL;
-#endif
+			cm->subframe = subframe;
+			cm->texnum.fullbright = r_nulltex;
+			cm->texnum.base = r_nulltex;
+			cm->texnum.loweroverlay = r_nulltex;
+			cm->texnum.upperoverlay = r_nulltex;
+			cm->texnum.shader = texnums?texnums->shader:R_RegisterSkin(skinname);
 
 			if (!texnums)
 			{	//load just the skin
@@ -351,7 +319,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 						{
 							inwidth = e->scoreboard->skin->width;
 							inheight = e->scoreboard->skin->height;
-							cm->texnum.base = cm->texnum.fullbright = GL_LoadTexture32(e->scoreboard->skin->name, inwidth, inheight, (unsigned int*)original, true, false);
+							cm->texnum.base = R_LoadTexture32(e->scoreboard->skin->name, inwidth, inheight, (unsigned int*)original, IF_NOALPHA|IF_NOGAMMA);
 							return &cm->texnum;
 						}
 					}
@@ -362,12 +330,12 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 						{
 							inwidth = e->scoreboard->skin->width;
 							inheight = e->scoreboard->skin->height;
-							cm->texnum.base = cm->texnum.fullbright = GL_LoadTexture(e->scoreboard->skin->name, inwidth, inheight, original, true, false);
+							cm->texnum.base = R_LoadTexture8(e->scoreboard->skin->name, inwidth, inheight, original, IF_NOALPHA|IF_NOGAMMA, 1);
 							return &cm->texnum;
 						}
 					}
 
-					if (e->scoreboard->skin->tex_base)
+					if (TEXVALID(e->scoreboard->skin->tex_base))
 					{
 						texnums = &cm->texnum;
 						texnums->loweroverlay = e->scoreboard->skin->tex_lower;
@@ -375,21 +343,21 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 						texnums->base = e->scoreboard->skin->tex_base;
 						return texnums;
 					}
-				
-					cm->texnum.base = Mod_LoadHiResTexture(e->scoreboard->skin->name, "skins", true, false, true);
+
+					cm->texnum.base = R_LoadHiResTexture(e->scoreboard->skin->name, "skins", IF_NOALPHA);
 					return &cm->texnum;
 				}
 				return NULL;
 			}
 
 			cm->texnum.bump = texnums[cm->skinnum].bump;	//can't colour bumpmapping
-			if (cls.protocol != CP_QUAKE2 && ((!texnums || !strcmp(modelname, "progs/player.mdl")) && e->scoreboard && e->scoreboard->skin))
+			if (cls.protocol != CP_QUAKE2 && ((!texnums || (model==cl.model_precache[cl_playerindex] || model==cl.model_precache_vwep[0])) && e->scoreboard && e->scoreboard->skin))
 			{
 				original = Skin_Cache8(e->scoreboard->skin);
 				inwidth = e->scoreboard->skin->width;
 				inheight = e->scoreboard->skin->height;
 
-				if (!original && e->scoreboard->skin->tex_base)
+				if (!original && TEXVALID(e->scoreboard->skin->tex_base))
 				{
 					texnums = &cm->texnum;
 					texnums->loweroverlay = e->scoreboard->skin->tex_lower;
@@ -434,8 +402,8 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 
 				texnums = &cm->texnum;
 
-				texnums->base = 0;
-				texnums->fullbright = 0;
+				texnums->base = r_nulltex;
+				texnums->fullbright = r_nulltex;
 
 				scaled_width = gl_max_size.value < 512 ? gl_max_size.value : 512;
 				scaled_height = gl_max_size.value < 512 ? gl_max_size.value : 512;
@@ -466,6 +434,30 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 				if (scaled_height > gl_max_size.value)
 					scaled_height = gl_max_size.value;	//whoops, we made it too big
 
+				if (scaled_width < 4)
+					scaled_width = 4;
+				if (scaled_height < 4)
+					scaled_height = 4;
+
+				if (h2playertranslations && pc)
+				{
+					unsigned int color_offsets[5] = {2*14*256,0,1*14*256,2*14*256,2*14*256};
+					unsigned char *colorA, *colorB, *sourceA, *sourceB;
+					colorA = h2playertranslations + 256 + color_offsets[pc-1];
+					colorB = colorA + 256;
+					sourceA = colorB + (tc * 256);
+					sourceB = colorB + (bc * 256);
+					for(i=0;i<256;i++)
+					{
+						translate32[i] = d_8to24rgbtable[i];
+						if (tc > 0 && (colorA[i] != 255))
+							translate32[i] = d_8to24rgbtable[sourceA[i]];
+						if (bc > 0 && (colorB[i] != 255))
+							translate32[i] = d_8to24rgbtable[sourceB[i]];
+					}
+					translate32[0] = 0;
+				}
+				else
 				{
 					for (i=0 ; i<256 ; i++)
 						translate32[i] = d_8to24rgbtable[i];
@@ -522,34 +514,42 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 						frac += fracstep;
 					}
 				}
-				texnums->base = GL_AllocNewTexture();
-				GL_Bind(texnums->base);
-				qglTexImage2D (GL_TEXTURE_2D, 0, gl_solid_format, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-
-				qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-				qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-
-				//now do the fullbrights.
-				out = pixels;
-				fracstep = tinwidth*0x10000/scaled_width;
-				for (i=0 ; i<scaled_height ; i++, out += scaled_width)
+				if (qrenderer == QR_OPENGL)
 				{
-					inrow = original + inwidth*(i*inheight/scaled_height);
-					frac = fracstep >> 1;
-					for (j=0 ; j<scaled_width ; j+=1)
+					texnums->base = R_AllocNewTexture(scaled_width, scaled_height);
+					R_Upload(texnums->base, "", h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, NULL, scaled_width, scaled_height, IF_NOMIPMAP);
+				}
+				else
+				{
+					texnums->base = R_LoadTexture(NULL, scaled_width, scaled_height, h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, 0);
+				}
+
+				if (!h2playertranslations)
+				{
+					//now do the fullbrights.
+					out = pixels;
+					fracstep = tinwidth*0x10000/scaled_width;
+					for (i=0 ; i<scaled_height ; i++, out += scaled_width)
 					{
-						if (inrow[frac>>16] < 255-vid.fullbright)
-							((char *) (&out[j]))[3] = 0;	//alpha 0
-						frac += fracstep;
+						inrow = original + inwidth*(i*inheight/scaled_height);
+						frac = fracstep >> 1;
+						for (j=0 ; j<scaled_width ; j+=1)
+						{
+							if (inrow[frac>>16] < 255-vid.fullbright)
+								((char *) (&out[j]))[3] = 0;	//alpha 0
+							frac += fracstep;
+						}
+					}
+					if (qrenderer == QR_OPENGL)
+					{
+						texnums->fullbright = R_AllocNewTexture(scaled_width, scaled_height);
+						R_Upload(texnums->fullbright, "", TF_RGBA32, pixels, NULL, scaled_width, scaled_height, IF_NOMIPMAP);
+					}
+					else
+					{
+						texnums->fullbright = R_LoadTexture(NULL, scaled_width, scaled_height, h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, 0);
 					}
 				}
-				texnums->fullbright = GL_AllocNewTexture();
-				GL_Bind(texnums->fullbright);
-				qglTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-
-				qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-				qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 			}
 			else
 			{
@@ -562,7 +562,7 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 
 				frame = cl.time*skins->skinspeed;
 				frame = frame%skins->texnums;
-				texnums = (galiastexnum_t*)((char *)skins + skins->ofstexnums + frame*sizeof(galiastexnum_t));
+				texnums = (texnums_t*)((char *)skins + skins->ofstexnums + frame*sizeof(texnums_t));
 				memcpy(&cm->texnum, texnums, sizeof(cm->texnum));
 			}
 			return &cm->texnum;
@@ -587,12 +587,12 @@ static galiastexnum_t *GL_ChooseSkin(galiasinfo_t *inf, char *modelname, int sur
 
 	frame = cl.time*skins->skinspeed;
 	frame = frame%skins->texnums;
-	texnums = (galiastexnum_t*)((char *)skins + skins->ofstexnums + frame*sizeof(galiastexnum_t));
+	texnums = (texnums_t*)((char *)skins + skins->ofstexnums + frame*sizeof(texnums_t));
 
 	return texnums;
 }
 
-
+#if defined(RTLIGHTS) && defined(GLQUAKE)
 static int numFacing;
 static qbyte *triangleFacing;
 static void R_CalcFacing(mesh_t *mesh, vec3_t lightpos)
@@ -635,7 +635,7 @@ static void R_ProjectShadowVolume(mesh_t *mesh, vec3_t lightpos)
 {
 	int numverts = mesh->numvertexes;
 	int i;
-	vec3_t *input = mesh->xyz_array;
+	vecV_t *input = mesh->xyz_array;
 	vec3_t *projected;
 	if (numProjectedShadowVerts < numverts)
 	{
@@ -657,7 +657,7 @@ static void R_DrawShadowVolume(mesh_t *mesh)
 {
 	int t;
 	vec3_t *proj = ProjectedShadowVerts;
-	vec3_t *verts = mesh->xyz_array;
+	vecV_t *verts = mesh->xyz_array;
 	index_t *indexes = mesh->indexes;
 	int *neighbours = mesh->trneighbors;
 	int numtris = mesh->numindexes/3;
@@ -711,238 +711,72 @@ static void R_DrawShadowVolume(mesh_t *mesh)
 	}
 	qglEnd();
 }
+#endif
 
-void GL_DrawAliasMesh_Sketch (mesh_t *mesh, float linejitter)
+//true if no shading is to be used.
+static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 {
-	int i;
-	extern int gldepthfunc;
-#ifdef Q3SHADERS
-	R_UnlockArrays();
-#endif
-
-	qglDepthFunc(gldepthfunc);
-	qglDepthMask(1);
-
-	if (gldepthmin == 0.5)
-		qglCullFace ( GL_BACK );
-	else
-		qglCullFace ( GL_FRONT );
-
-	GL_TexEnv(GL_MODULATE);
-
-	qglDisable(GL_TEXTURE_2D);
-
-	qglVertexPointer(3, GL_FLOAT, 0, mesh->xyz_array);
-	qglEnableClientState( GL_VERTEX_ARRAY );
-
-	if (mesh->normals_array && qglNormalPointer)	//d3d wrapper doesn't support normals, and this is only really needed for truform
-	{
-		qglNormalPointer(GL_FLOAT, 0, mesh->normals_array);
-		qglEnableClientState( GL_NORMAL_ARRAY );
-	}
-
-	qglColor3f(1,1,1);
-/*	if (mesh->colors_array)
-	{
-		qglColorPointer(4, GL_UNSIGNED_BYTE, 0, mesh->colors_array);
-		qglEnableClientState( GL_COLOR_ARRAY );
-	}
-	else
-*/		qglDisableClientState( GL_COLOR_ARRAY );
-
-	qglDrawElements(GL_TRIANGLES, mesh->numindexes, GL_INDEX_TYPE, mesh->indexes);
-
-	qglDisableClientState( GL_VERTEX_ARRAY );
-	qglDisableClientState( GL_COLOR_ARRAY );
-	qglDisableClientState( GL_NORMAL_ARRAY );
-
-	if (mesh->colors_array)
-		qglColor4ub(0, 0, 0, mesh->colors_array[0][3]);
-	else
-		qglColor3f(0, 0, 0);
-	qglBegin(GL_LINES);
-	for (i = 0; i < mesh->numindexes; i+=3)
-	{
-		float *v1, *v2, *v3;
-		int n;
-		v1 = mesh->xyz_array[mesh->indexes[i+0]];
-		v2 = mesh->xyz_array[mesh->indexes[i+1]];
-		v3 = mesh->xyz_array[mesh->indexes[i+2]];
-		for (n = 0; n < 3; n++)	//rember we do this triangle AND the neighbours
-		{
-			qglVertex3f(v1[0]+linejitter*(rand()/(float)RAND_MAX-0.5),
-						v1[1]+linejitter*(rand()/(float)RAND_MAX-0.5),
-						v1[2]+linejitter*(rand()/(float)RAND_MAX-0.5));
-			qglVertex3f(v2[0]+linejitter*(rand()/(float)RAND_MAX-0.5),
-						v2[1]+linejitter*(rand()/(float)RAND_MAX-0.5),
-						v2[2]+linejitter*(rand()/(float)RAND_MAX-0.5));
-
-			qglVertex3f(v2[0]+linejitter*(rand()/(float)RAND_MAX-0.5),
-						v2[1]+linejitter*(rand()/(float)RAND_MAX-0.5),
-						v2[2]+linejitter*(rand()/(float)RAND_MAX-0.5));
-			qglVertex3f(v3[0]+linejitter*(rand()/(float)RAND_MAX-0.5),
-						v3[1]+linejitter*(rand()/(float)RAND_MAX-0.5),
-						v3[2]+linejitter*(rand()/(float)RAND_MAX-0.5));
-
-			qglVertex3f(v3[0]+linejitter*(rand()/(float)RAND_MAX-0.5),
-						v3[1]+linejitter*(rand()/(float)RAND_MAX-0.5),
-						v3[2]+linejitter*(rand()/(float)RAND_MAX-0.5));
-			qglVertex3f(v1[0]+linejitter*(rand()/(float)RAND_MAX-0.5),
-						v1[1]+linejitter*(rand()/(float)RAND_MAX-0.5),
-						v1[2]+linejitter*(rand()/(float)RAND_MAX-0.5));
-		}
-	}
-	qglEnd();
-
-#ifdef Q3SHADERS
-	R_IBrokeTheArrays();
-#endif
-}
-
-//called from sprite code.
-/*
-void GL_KnownState(void)
-{
-	extern int gldepthfunc;
-	qglDepthFunc(gldepthfunc);
-	qglDepthMask(1);
-	if (gldepthmin == 0.5)
-		qglCullFace ( GL_BACK );
-	else
-		qglCullFace ( GL_FRONT );
-
-	GL_TexEnv(GL_MODULATE);
-
-	qglEnable (GL_BLEND);
-	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-}
-*/
-
-void GL_DrawAliasMesh (mesh_t *mesh, int texnum)
-{
-	extern int gldepthfunc;
-#ifdef Q3SHADERS
-	R_UnlockArrays();
-#endif
-
-	qglDepthFunc(gldepthfunc);
-	qglDepthMask(1);
-
-	GL_Bind(texnum);
-	if (gldepthmin == 0.5)
-		qglCullFace ( GL_BACK );
-	else
-		qglCullFace ( GL_FRONT );
-
-	GL_TexEnv(GL_MODULATE);
-
-	qglVertexPointer(3, GL_FLOAT, 0, mesh->xyz_array);
-	qglEnableClientState( GL_VERTEX_ARRAY );
-
-	if (mesh->normals_array && qglNormalPointer)	//d3d wrapper doesn't support normals, and this is only really needed for truform
-	{
-		qglNormalPointer(GL_FLOAT, 0, mesh->normals_array);
-		qglEnableClientState( GL_NORMAL_ARRAY );
-	}
-
-	if (mesh->colors_array)
-	{
-		qglColorPointer(4, GL_UNSIGNED_BYTE, 0, mesh->colors_array);
-		qglEnableClientState( GL_COLOR_ARRAY );
-	}
-	else
-		qglDisableClientState( GL_COLOR_ARRAY );
-
-	qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
-	qglTexCoordPointer(2, GL_FLOAT, 0, mesh->st_array);
-
-	qglDrawRangeElements(GL_TRIANGLES, 0, mesh->numvertexes, mesh->numindexes, GL_INDEX_TYPE, mesh->indexes);
-
-	qglDisableClientState( GL_VERTEX_ARRAY );
-	qglDisableClientState( GL_COLOR_ARRAY );
-	qglDisableClientState( GL_NORMAL_ARRAY );
-	qglDisableClientState( GL_TEXTURE_COORD_ARRAY );
-
-#ifdef Q3SHADERS
-	R_IBrokeTheArrays();
-#endif
-}
-
-#ifdef Q3SHADERS
-mfog_t *CM_FogForOrigin(vec3_t org);
-#endif
-void R_DrawGAliasModel (entity_t *e)
-{
-	extern cvar_t r_drawflat;
-	model_t *clmodel;
-	vec3_t dist;
-	vec_t add;
-	int i;
-	galiasinfo_t *inf;
-	mesh_t mesh;
-	galiastexnum_t *skin;
-	float entScale;
 	vec3_t lightdir;
+	int i;
+	vec3_t dist;
+	float add;
+	vec3_t shadelight, ambientlight;
 
-	vec3_t saveorg;
-#ifdef Q3SHADERS
-	mfog_t *fog;
-#endif
-	int surfnum;
+	if (e->light_known)
+		return e->light_known-1;
 
-	float	tmatrix[3][4];
-
-	qboolean needrecolour;
-	qboolean nolightdir;
-
-	currententity = e;
-
-//	if (e->flags & Q2RF_VIEWERMODEL && e->keynum == cl.playernum[r_refdef.currentplayernum]+1)
-//		return;
-
-	if (r_secondaryview && e->flags & Q2RF_WEAPONMODEL)
-		return;
-
+	e->light_dir[0] = 0; e->light_dir[1] = 1; e->light_dir[2] = 0;
+	if (clmodel->engineflags & MDLF_FLAME || r_fullbright.ival)
 	{
-		extern int cl_playerindex;
-	if (e->scoreboard && e->model == cl.model_precache[cl_playerindex])
+		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;
+		e->light_range[0] = e->light_range[1] = e->light_range[2] = 0;
+		e->light_known = 2;
+		return e->light_known-1;
+	}
+	if ((e->drawflags & MLS_MASKIN) == MLS_FULLBRIGHT || (e->flags & Q2RF_FULLBRIGHT))
 	{
-		clmodel = e->scoreboard->model;
-		if (!clmodel || clmodel->type != mod_alias)
-			clmodel = e->model;
+		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;
+		e->light_range[0] = e->light_range[1] = e->light_range[2] = 0;
+		e->light_known = 2;
+		return e->light_known-1;
 	}
-	else
-		clmodel = e->model;
-	}
-
-	if (clmodel->tainted)
-	{
-		if (!ruleset_allow_modified_eyes.value && !strcmp(clmodel->name, "progs/eyes.mdl"))
-			return;
-	}
-
-	if (!(e->flags & Q2RF_WEAPONMODEL))
-		if (R_CullEntityBox (e, clmodel->mins, clmodel->maxs))
-			return;
 
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 	{
 		if (e->flags & Q2RF_WEAPONMODEL)
+		{
 			cl.worldmodel->funcs.LightPointValues(cl.worldmodel, r_refdef.vieworg, shadelight, ambientlight, lightdir);
+			for (i = 0; i < 3; i++)
+			{	/*viewmodels may not be pure black*/
+				if (ambientlight[i] < 24)
+					ambientlight[i] = 24;
+			}
+		}
 		else
-			cl.worldmodel->funcs.LightPointValues(cl.worldmodel, e->origin, shadelight, ambientlight, lightdir);
+		{
+			vec3_t center;
+			#if 0 /*hexen2*/
+			VectorAvg(clmodel->mins, clmodel->maxs, center);
+			VectorAdd(e->origin, center, center);
+			#else
+			VectorCopy(e->origin, center);
+			center[2] += 8;
+			#endif
+			cl.worldmodel->funcs.LightPointValues(cl.worldmodel, center, shadelight, ambientlight, lightdir);
+		}
 	}
 	else
 	{
-		ambientlight[0] = ambientlight[1] = ambientlight[2] = shadelight[0] = shadelight[1] = shadelight[2] = 255;
+		ambientlight[0] = ambientlight[1] = ambientlight[2] = shadelight[0] = shadelight[1] = shadelight[2] = 128;
 		lightdir[0] = 0;
 		lightdir[1] = 1;
 		lightdir[2] = 1;
 	}
 
-	if (!r_vertexdlights.value)
+	if (!r_vertexdlights.ival && r_dynamic.ival)
 	{
-		for (i=0 ; i<dlights_running ; i++)
+		//don't do world lights, although that might be funny
+		for (i=rtlights_first; i<RTL_FIRST; i++)
 		{
 			if (cl_dlights[i].radius)
 			{
@@ -964,31 +798,18 @@ void R_DrawGAliasModel (entity_t *e)
 			}
 		}
 	}
-	else
-	{
-	}
 
 	for (i = 0; i < 3; i++)	//clamp light so it doesn't get vulgar.
 	{
 		if (ambientlight[i] > 128)
 			ambientlight[i] = 128;
-		if (ambientlight[i] + shadelight[i] > 192)
-			shadelight[i] = 192 - ambientlight[i];
-	}
-
-	if (e->flags & Q2RF_WEAPONMODEL)
-	{
-		for (i = 0; i < 3; i++)
-		{
-			if (ambientlight[i] < 24)
-				ambientlight[i] = shadelight[i] = 24;
-		}
+		if (shadelight[i] > 192)
+			shadelight[i] = 192;
 	}
 
 //MORE HUGE HACKS! WHEN WILL THEY CEASE!
 	// clamp lighting so it doesn't overbright as much
 	// ZOID: never allow players to go totally black
-	nolightdir = false;
 	if (clmodel->engineflags & MDLF_PLAYER)
 	{
 		float fb = r_fullbrightSkins.value;
@@ -1002,9 +823,11 @@ void R_DrawGAliasModel (entity_t *e)
 
 			if (fb >= 1 && r_fb_models.value)
 			{
-				ambientlight[0] = ambientlight[1] = ambientlight[2] = 4096;
-				shadelight[0] = shadelight[1] = shadelight[2] = 4096;
-				nolightdir = true;
+				ambientlight[0] = ambientlight[1] = ambientlight[2] = 1;
+				shadelight[0] = shadelight[1] = shadelight[2] = 1;
+
+				e->light_known = 2;
+				return e->light_known-1;
 			}
 			else
 			{
@@ -1018,66 +841,57 @@ void R_DrawGAliasModel (entity_t *e)
 		for (i = 0; i < 3; i++)
 		{
 			if (ambientlight[i] < 8)
-				ambientlight[i] = shadelight[i] = 8;
+				ambientlight[i] = 8;
 		}
 	}
-	if (clmodel->engineflags & MDLF_FLAME)
-	{
-		shadelight[0] = shadelight[1] = shadelight[2] = 4096;
-		ambientlight[0] = ambientlight[1] = ambientlight[2] = 4096;
-		nolightdir = true;
-	}
-	else
-	{
-		for (i = 0; i < 3; i++)
-		{
-			if (ambientlight[i] > 128)
-				ambientlight[i] = 128;
 
-			shadelight[i] /= 200.0/255;
-			ambientlight[i] /= 200.0/255;
-		}
+
+	for (i = 0; i < 3; i++)
+	{
+		if (ambientlight[i] > 128)
+			ambientlight[i] = 128;
+
+		shadelight[i] /= 200.0/255;
+		ambientlight[i] /= 200.0/255;
 	}
 
 	if ((e->model->flags & EF_ROTATE) && cl.hexen2pickups)
 	{
-		shadelight[0] = shadelight[1] = shadelight[2] = 
-		ambientlight[0] = ambientlight[1] = ambientlight[2] = 128+sin(cl.time*4)*64;
+		shadelight[0] = shadelight[1] = shadelight[2] =
+		ambientlight[0] = ambientlight[1] = ambientlight[2] = 128+sin(cl.servertime*4)*64;
 	}
 	if ((e->drawflags & MLS_MASKIN) == MLS_ABSLIGHT)
 	{
 		shadelight[0] = shadelight[1] = shadelight[2] = e->abslight;
-		ambientlight[0] = ambientlight[1] = ambientlight[2] = 0;
-	}
-	if ((e->drawflags & MLS_MASKIN) == MLS_FULLBRIGHT || (e->flags & Q2RF_FULLBRIGHT))
-	{
-		shadelight[0] = shadelight[1] = shadelight[2] = 255;
-		ambientlight[0] = ambientlight[1] = ambientlight[2] = 0;
-		nolightdir = true;
+		ambientlight[0] = ambientlight[1] = ambientlight[2] = e->abslight;
 	}
 
 //#define SHOWLIGHTDIR
 	{	//lightdir is absolute, shadevector is relative
-		shadevector[0] = DotProduct(lightdir, e->axis[0]);
-		shadevector[1] = DotProduct(lightdir, e->axis[1]);
-		shadevector[2] = DotProduct(lightdir, e->axis[2]);
+		e->light_dir[0] = DotProduct(lightdir, e->axis[0]);
+		e->light_dir[1] = DotProduct(lightdir, e->axis[1]);
+		e->light_dir[2] = DotProduct(lightdir, e->axis[2]);
 
 		if (e->flags & Q2RF_WEAPONMODEL)
 		{
 			vec3_t temp;
-			temp[0] = DotProduct(shadevector, vpn);
-			temp[1] = DotProduct(shadevector, vright);
-			temp[2] = DotProduct(shadevector, vup);
+			temp[0] = DotProduct(e->light_dir, vpn);
+			temp[1] = -DotProduct(e->light_dir, vright);
+			temp[2] = DotProduct(e->light_dir, vup);
 
-			VectorCopy(temp, shadevector);
+			VectorCopy(temp, e->light_dir);
 		}
 
-		VectorNormalize(shadevector);
+		VectorNormalize(e->light_dir);
 
-		VectorCopy(shadevector, mesh.lightaxis[2]);
-		VectorVectors(mesh.lightaxis[2], mesh.lightaxis[1], mesh.lightaxis[0]);
-		VectorInverse(mesh.lightaxis[1]);
 	}
+
+	shadelight[0] *= 1/255.0f;
+	shadelight[1] *= 1/255.0f;
+	shadelight[2] *= 1/255.0f;
+	ambientlight[0] *= 1/255.0f;
+	ambientlight[1] *= 1/255.0f;
+	ambientlight[2] *= 1/255.0f;
 
 	if (e->flags & Q2RF_GLOW)
 	{
@@ -1086,442 +900,230 @@ void R_DrawGAliasModel (entity_t *e)
 		shadelight[2] += sin(cl.time)*0.25;
 	}
 
-/*
-	VectorClear(ambientlight);
-	VectorClear(shadelight);
-*/
+	VectorMA(ambientlight, 0.5, shadelight, e->light_avg);
+	VectorSubtract(shadelight, ambientlight, e->light_range);
 
-	/*
-	an = e->angles[1]/180*M_PI;
-	shadevector[0] = cos(-an);
-	shadevector[1] = sin(-an);
-	shadevector[2] = 1;
-	VectorNormalize (shadevector);
-	*/
+	e->light_known = 1;
+	return e->light_known-1;
+}
 
-	GL_DisableMultitexture();
-	GL_TexEnv(GL_MODULATE);
-	if (gl_smoothmodels.value)
-		qglShadeModel (GL_SMOOTH);
-	if (gl_affinemodels.value)
-		qglHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
+void R_GAlias_DrawBatch(batch_t *batch)
+{
+	entity_t *e;
 
-	qglDisable (GL_ALPHA_TEST);
+	galiasinfo_t *inf;
+	model_t *clmodel;
+	int surfnum;
 
-	if (e->flags & Q2RF_DEPTHHACK)
-		qglDepthRange (gldepthmin, gldepthmin + 0.3*(gldepthmax-gldepthmin));
+	static mesh_t mesh;
+	static mesh_t *meshl = &mesh;
 
-//	glColor3f( 1,1,1);
-	if (e->flags & Q2RF_ADDATIVE)
+	qboolean needrecolour;
+	qboolean nolightdir;
+
+	e = batch->ent;
+	clmodel = e->model;
+
+	currententity = e;
+	nolightdir = R_CalcModelLighting(e, clmodel);
+
+	inf = RMod_Extradata (clmodel);
+	if (inf)
 	{
-		qglEnable (GL_BLEND);
-		qglBlendFunc(GL_ONE, GL_ONE);
+		memset(&mesh, 0, sizeof(mesh));
+		for(surfnum=0; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)), surfnum++)
+		{
+			if (batch->surf_first == surfnum)
+			{
+				needrecolour = Alias_GAliasBuildMesh(&mesh, inf, e, e->shaderRGBAf[3], nolightdir);
+				batch->mesh = &meshl;
+				return;
+			}
+		}
 	}
-	else if ((e->model->flags & EFH2_SPECIAL_TRANS))	//hexen2 flags.
+	batch->meshes = 0;
+	Con_Printf("Broken model surfaces mid-frame\n");
+	return;
+}
+
+void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
+{
+	galiasinfo_t *inf;
+	model_t *clmodel;
+	shader_t *shader;
+	batch_t *b;
+	int surfnum;
+	shadersort_t sort;
+
+	texnums_t *skin;
+
+	if (r_refdef.externalview && e->flags & Q2RF_WEAPONMODEL)
+		return;
+
+	/*switch model if we're the player model, and the player skin says a new model*/
 	{
-		qglEnable (GL_BLEND);
-		qglBlendFunc (GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA);
-//		glColor3f( 1,1,1);
-		qglDisable( GL_CULL_FACE );
+		extern int cl_playerindex;
+		if (e->scoreboard && e->model == cl.model_precache[cl_playerindex])
+		{
+			clmodel = e->scoreboard->model;
+			if (clmodel && clmodel->type == mod_alias)
+				e->model = clmodel;
+		}
 	}
-	else if (e->drawflags & DRF_TRANSLUCENT)
+
+	clmodel = e->model;
+
+	if (!(e->flags & Q2RF_WEAPONMODEL))
 	{
-		qglEnable (GL_BLEND);
-		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		e->shaderRGBAf[3] = r_wateralpha.value;
-	}
-	else if ((e->model->flags & EFH2_TRANSPARENT))
-	{
-		qglEnable (GL_BLEND);
-		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	}
-	else if ((e->model->flags & EFH2_HOLEY))
-	{
-		qglEnable (GL_ALPHA_TEST);
-//		qglEnable (GL_BLEND);
-		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	}
-	else if (e->shaderRGBAf[3] < 1)
-	{
-		qglEnable(GL_BLEND);
-		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		if (R_CullEntityBox (e, clmodel->mins, clmodel->maxs))
+			return;
+#ifdef RTLIGHTS
+		if (BE_LightCullModel(e->origin, clmodel))
+			return;
 	}
 	else
 	{
-		qglDisable(GL_BLEND);
-		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	}
-	//	qglEnable (GL_ALPHA_TEST);
-
-	qglPushMatrix();
-	R_RotateForEntity(e);
-
-	if (e->scale != 1 && e->scale != 0)	//hexen 2 stuff
-	{
-		vec3_t scale;
-		vec3_t scale_origin;
-		float xyfact, zfact;
-		scale[0] = (clmodel->maxs[0]-clmodel->mins[0])/255;
-		scale[1] = (clmodel->maxs[1]-clmodel->mins[1])/255;
-		scale[2] = (clmodel->maxs[2]-clmodel->mins[2])/255;
-		scale_origin[0] = clmodel->mins[0];
-		scale_origin[1] = clmodel->mins[1];
-		scale_origin[2] = clmodel->mins[2];
-
-/*		qglScalef(	1/scale[0],
-					1/scale[1],
-					1/scale[2]);
-		qglTranslatef (	-scale_origin[0],
-						-scale_origin[1],
-						-scale_origin[2]);
-*/
-
-		if(e->scale != 0 && e->scale != 1)
-		{
-			entScale = (float)e->scale;
-			switch(e->drawflags&SCALE_TYPE_MASKIN)
-			{
-			default:
-			case SCALE_TYPE_UNIFORM:
-				tmatrix[0][0] = scale[0]*entScale;
-				tmatrix[1][1] = scale[1]*entScale;
-				tmatrix[2][2] = scale[2]*entScale;
-				xyfact = zfact = (entScale-1.0)*127.95;
-				break;
-			case SCALE_TYPE_XYONLY:
-				tmatrix[0][0] = scale[0]*entScale;
-				tmatrix[1][1] = scale[1]*entScale;
-				tmatrix[2][2] = scale[2];
-				xyfact = (entScale-1.0)*127.95;
-				zfact = 1.0;
-				break;
-			case SCALE_TYPE_ZONLY:
-				tmatrix[0][0] = scale[0];
-				tmatrix[1][1] = scale[1];
-				tmatrix[2][2] = scale[2]*entScale;
-				xyfact = 1.0;
-				zfact = (entScale-1.0)*127.95;
-				break;
-			}
-			switch(currententity->drawflags&SCALE_ORIGIN_MASKIN)
-			{
-			default:
-			case SCALE_ORIGIN_CENTER:
-				tmatrix[0][3] = scale_origin[0]-scale[0]*xyfact;
-				tmatrix[1][3] = scale_origin[1]-scale[1]*xyfact;
-				tmatrix[2][3] = scale_origin[2]-scale[2]*zfact;
-				break;
-			case SCALE_ORIGIN_BOTTOM:
-				tmatrix[0][3] = scale_origin[0]-scale[0]*xyfact;
-				tmatrix[1][3] = scale_origin[1]-scale[1]*xyfact;
-				tmatrix[2][3] = scale_origin[2];
-				break;
-			case SCALE_ORIGIN_TOP:
-				tmatrix[0][3] = scale_origin[0]-scale[0]*xyfact;
-				tmatrix[1][3] = scale_origin[1]-scale[1]*xyfact;
-				tmatrix[2][3] = scale_origin[2]-scale[2]*zfact*2.0;
-				break;
-			}
-		}
-		else
-		{
-			tmatrix[0][0] = scale[0];
-			tmatrix[1][1] = scale[1];
-			tmatrix[2][2] = scale[2];
-			tmatrix[0][3] = scale_origin[0];
-			tmatrix[1][3] = scale_origin[1];
-			tmatrix[2][3] = scale_origin[2];
-		}
-
-/*		if(clmodel->flags&EF_ROTATE)
-		{ // Floating motion
-			tmatrix[2][3] += sin(currententity->origin[0]
-				+currententity->origin[1]+(cl.time*3))*5.5;
-		}*/
-
-		qglTranslatef (tmatrix[0][3],tmatrix[1][3],tmatrix[2][3]);
-		qglScalef (tmatrix[0][0],tmatrix[1][1],tmatrix[2][2]);
-
-		qglScalef(	1/scale[0],
-					1/scale[1],
-					1/scale[2]);
-		qglTranslatef (	-scale_origin[0],
-						-scale_origin[1],
-						-scale_origin[2]);
-	}
-	else if (!strcmp(clmodel->name, "progs/eyes.mdl"))
-	{
-		// double size of eyes, since they are really hard to see in gl
-		qglTranslatef (0, 0, 0 - (22 + 8));
-		qglScalef (2, 2, 2);
-	}
-
-	if (!ruleset_allow_larger_models.value && clmodel->clampscale != 1)
-	{	//possibly this should be on a per-frame basis, but that's a real pain to do
-		Con_DPrintf("Rescaling %s by %f\n", clmodel->name, clmodel->clampscale);
-		qglScalef(clmodel->clampscale, clmodel->clampscale, clmodel->clampscale);
-	}
-
-	inf = GLMod_Extradata (clmodel);
-	if (qglPNTrianglesfATI && gl_ati_truform.value)
-		qglEnable(GL_PN_TRIANGLES_ATI);
-
-	if (clmodel == cl.model_precache_vwep[0])
-	{
-		extern int cl_playerindex;
-		clmodel = cl.model_precache[cl_playerindex];
-	}
-
-	if (e->flags & Q2RF_WEAPONMODEL)
-	{
-		VectorCopy(currententity->origin, saveorg);
-		VectorCopy(r_refdef.vieworg, currententity->origin);
-	}
-
-#if defined(Q3SHADERS) && defined(Q2BSPS)
-	fog = CM_FogForOrigin(currententity->origin);
-#elif defined(Q3SHADERS)
-	fog = NULL;
+		if (BE_LightCullModel(r_origin, clmodel))
+			return;
 #endif
+	}
 
-	qglColor4f(shadelight[0]/255, shadelight[1]/255, shadelight[2]/255, e->shaderRGBAf[3]);
+	if (clmodel->tainted)
+	{
+		if (!ruleset_allow_modified_eyes.ival && !strcmp(clmodel->name, "progs/eyes.mdl"))
+			return;
+	}
 
-	memset(&mesh, 0, sizeof(mesh));
+	inf = RMod_Extradata (clmodel);
+
 	for(surfnum=0; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)), surfnum++)
 	{
-		needrecolour = Alias_GAliasBuildMesh(&mesh, inf, e, e->shaderRGBAf[3], nolightdir);
-
-		c_alias_polys += mesh.numindexes/3;
-
-		if (r_drawflat.value == 2)
-		{
-			if (needrecolour)
-				R_GAliasApplyLighting(&mesh, e->origin, e->angles, e->shaderRGBAf);
-			GL_DrawAliasMesh_Sketch(&mesh, 0.5);
+		skin = GL_ChooseSkin(inf, clmodel, surfnum, e);
+		if (!skin)
 			continue;
-		}
-#ifdef Q3SHADERS
-		else if (currententity->forcedshader)
+		shader = e->forcedshader?e->forcedshader:skin->shader;
+		if (shader)
 		{
-			meshbuffer_t mb;
+			b = BE_GetTempBatch();
+			if (!b)
+				break;
 
-			R_IBrokeTheArrays();
-
-			mb.entity = currententity;
-			mb.shader = currententity->forcedshader;
-			mb.fog = fog;
-			mb.mesh = &mesh;
-			mb.infokey = -1;//currententity->keynum;
-			mb.dlightbits = 0;
-
-			R_PushMesh(&mesh, mb.shader->features | MF_NONBATCHED | MF_COLORS);
-
-			R_RenderMeshBuffer ( &mb, false );
-
-			continue;
-		}
-#endif
-
-		skin = GL_ChooseSkin(inf, clmodel->name, surfnum, e);
-
-		if (!skin || ((void*)skin->base == NULL
-#ifdef Q3SHADERS
-			&& skin->shader == NULL
-#endif
-			))
-		{
-			if (needrecolour)
-				R_GAliasApplyLighting(&mesh, e->origin, e->angles, e->shaderRGBAf);
-			GL_DrawAliasMesh_Sketch(&mesh, 0);
-		}
-#ifdef Q3SHADERS
-		else if (skin->shader)
-		{
-			meshbuffer_t mb;
-			int olddst = skin->shader->numpasses?skin->shader->passes[0].blenddst:0;
-
-			if (e->flags & Q2RF_ADDATIVE && skin->shader->numpasses)
-			{	//hack the shader into submition.
-				skin->shader->passes[0].blenddst = GL_ONE;
-				skin->shader->passes[0].flags &= ~SHADER_PASS_DEPTHWRITE;
-			}
-
-			mb.entity = currententity;
-			mb.shader = skin->shader;
-			mb.fog = fog;
-			mb.mesh = &mesh;
-			mb.infokey = -1;//currententity->keynum;
-			mb.dlightbits = 0;
-
-			R_IBrokeTheArrays();
-
-			R_PushMesh(&mesh, skin->shader->features | MF_NONBATCHED | MF_COLORS);
-
-			R_RenderMeshBuffer ( &mb, false );
-
-			if (e->flags & Q2RF_ADDATIVE && skin->shader->numpasses)
-			{	//hack the shader into submition.
-				skin->shader->passes[0].blenddst = olddst;
-			}
-		}
-#endif
-		else
-		{
-			if (needrecolour)
-				R_GAliasApplyLighting(&mesh, e->origin, e->angles, e->shaderRGBAf);
-
-			qglEnable(GL_TEXTURE_2D);
-//			if (skin->bump)
-//				GL_DrawMeshBump(&mesh, skin->base, 0, skin->bump, 0);
-//			else
-				GL_DrawAliasMesh(&mesh, skin->base);
-
-			if (skin->loweroverlay && r_skin_overlays.value)
+			b->buildmeshes = R_GAlias_DrawBatch;
+			b->ent = e;
+			b->mesh = NULL;
+			b->firstmesh = 0;
+			b->meshes = 1;
+			b->skin = skin;
+			b->texture = NULL;
+			b->shader = shader;
+			b->lightmap = -1;
+			b->surf_first = surfnum;
+			b->flags = 0;
+			sort = shader->sort;
+			if (e->flags & Q2RF_ADDITIVE)
 			{
-				qglEnable(GL_BLEND);
-				qglBlendFunc (GL_SRC_ALPHA, GL_ONE);
-				mesh.colors_array = NULL;
-				if (e->scoreboard)
-				{
-					int c = e->scoreboard->tbottomcolor;
-					if (c >= 16)
-						qglColor4f(shadelight[0]/255, shadelight[1]/255, shadelight[2]/255, e->shaderRGBAf[3]);
-					else if (c >= 8)
-						qglColor4f(host_basepal[c*16*3]/255.0f, host_basepal[c*16*3+1]/255.0f, host_basepal[c*16*3+2]/255.0f, e->shaderRGBAf[3]);
-					else
-						qglColor4f(host_basepal[15+c*16*3]/255.0f, host_basepal[15+c*16*3+1]/255.0f, host_basepal[15+c*16*3+2]/255.0f, e->shaderRGBAf[3]);
-				}
-				c_alias_polys += mesh.numindexes/3;
-				GL_DrawAliasMesh(&mesh, skin->loweroverlay);
+				b->flags |= BEF_FORCEADDITIVE;
+				if (sort < SHADER_SORT_ADDITIVE)
+					sort = SHADER_SORT_ADDITIVE;
 			}
-			if (skin->upperoverlay && r_skin_overlays.value)
+			if (e->flags & Q2RF_TRANSLUCENT)
 			{
-				qglEnable(GL_BLEND);
-				qglBlendFunc (GL_SRC_ALPHA, GL_ONE);
-				mesh.colors_array = NULL;
-				if (e->scoreboard)
-				{
-					int c = e->scoreboard->ttopcolor;
-					if (c >= 16)
-						qglColor4f(shadelight[0]/255, shadelight[1]/255, shadelight[2]/255, e->shaderRGBAf[3]);
-					else if (c >= 8)
-						qglColor4f(host_basepal[c*16*3]/255.0f, host_basepal[c*16*3+1]/255.0f, host_basepal[c*16*3+2]/255.0f, e->shaderRGBAf[3]);
-					else
-						qglColor4f(host_basepal[15+c*16*3]/255.0f, host_basepal[15+c*16*3+1]/255.0f, host_basepal[15+c*16*3+2]/255.0f, e->shaderRGBAf[3]);
-				}
-				c_alias_polys += mesh.numindexes/3;
-				GL_DrawAliasMesh(&mesh, skin->upperoverlay);
+				b->flags |= BEF_FORCETRANSPARENT;
+				if (sort < SHADER_SORT_BLEND)
+					sort = SHADER_SORT_BLEND;
 			}
-			if (skin->fullbright && r_fb_models.value && cls.allow_luma)
+			if (e->flags & RF_NODEPTHTEST)
 			{
-				mesh.colors_array = NULL;
-				qglEnable(GL_BLEND);
-				qglColor4f(e->shaderRGBAf[0], e->shaderRGBAf[1], e->shaderRGBAf[2], e->shaderRGBAf[3]*r_fb_models.value);
-				c_alias_polys += mesh.numindexes/3;
-
-				qglBlendFunc (GL_SRC_ALPHA, GL_ONE);
-				GL_DrawAliasMesh(&mesh, skin->fullbright);
-				qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+				b->flags |= BEF_FORCENODEPTH;
+				if (sort < SHADER_SORT_NEAREST)
+					sort = SHADER_SORT_NEAREST;
 			}
-#ifdef Q3BSPS
-			if (fog)
-			{
-				meshbuffer_t mb;
-				shader_t dummyshader = {0};
-
-				R_IBrokeTheArrays();
-
-				mb.entity = currententity;
-				mb.shader = &dummyshader;
-				mb.fog = fog;
-				mb.mesh = &mesh;
-				mb.infokey = -1;//currententity->keynum;
-				mb.dlightbits = 0;
-
-				R_PushMesh(&mesh, mb.shader->features | MF_NONBATCHED | MF_COLORS);
-
-				R_RenderMeshBuffer ( &mb, false );
-
-		
-				R_ClearArrays();
-			}
-#endif
+			if (e->flags & RF_NOSHADOW)
+				b->flags |= BEF_NOSHADOWS;
+			b->vbo = 0;
+			b->next = batches[sort];
+			batches[sort] = b;
 		}
 	}
-
-	if (e->flags & Q2RF_WEAPONMODEL)
-		VectorCopy(saveorg, currententity->origin);
-
-	if (qglPNTrianglesfATI && gl_ati_truform.value)
-		qglDisable(GL_PN_TRIANGLES_ATI);
-
-#ifdef SHOWLIGHTDIR	//testing
-	qglDisable(GL_TEXTURE_2D);
-	qglBegin(GL_LINES);
-	qglColor3f(1,0,0);
-	qglVertex3f(	0,
-				0,
-				0);
-	qglVertex3f(	100*mesh.lightaxis[0][0],
-				100*mesh.lightaxis[0][1],
-				100*mesh.lightaxis[0][2]);
-
-qglColor3f(0,1,0);
-	qglVertex3f(	0,
-				0,
-				0);
-	qglVertex3f(	100*mesh.lightaxis[1][0],
-				100*mesh.lightaxis[1][1],
-				100*mesh.lightaxis[1][2]);
-
-qglColor3f(0,0,1);
-	qglVertex3f(	0,
-				0,
-				0);
-	qglVertex3f(	100*mesh.lightaxis[2][0],
-				100*mesh.lightaxis[2][1],
-				100*mesh.lightaxis[2][2]);
-	qglEnd();
-	qglEnable(GL_TEXTURE_2D);
-#endif
-
-	qglPopMatrix();
-
-	qglDisable(GL_BLEND);
-
-	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	GL_TexEnv(GL_REPLACE);
-
-	qglEnable(GL_TEXTURE_2D);
-
-	qglShadeModel (GL_FLAT);
-	if (gl_affinemodels.value)
-		qglHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
-
-	if (e->flags & Q2RF_DEPTHHACK)
-		qglDepthRange (gldepthmin, gldepthmax);
-
-	if ((currententity->model->flags & EFH2_SPECIAL_TRANS) && gl_cull.value)
-		qglEnable( GL_CULL_FACE );
-	if ((currententity->model->flags & EFH2_HOLEY))
-		qglDisable( GL_ALPHA_TEST );
-
-#ifdef SHOWLIGHTDIR	//testing
-	qglDisable(GL_TEXTURE_2D);
-	qglColor3f(1,1,1);
-	qglBegin(GL_LINES);
-	qglVertex3f(	currententity->origin[0],
-				currententity->origin[1],
-				currententity->origin[2]);
-	qglVertex3f(	currententity->origin[0]+100*lightdir[0],
-				currententity->origin[1]+100*lightdir[1],
-				currententity->origin[2]+100*lightdir[2]);
-	qglEnd();
-	qglEnable(GL_TEXTURE_2D);
-#endif
 }
 
-//returns result in the form of the result vector
+#if 0
+void R_Sprite_GenerateBatches(entity_t *e, batch_t **batches)
+{
+	galiasinfo_t *inf;
+	model_t *clmodel;
+	shader_t *shader;
+	batch_t *b;
+	int surfnum;
+
+	texnums_t *skin;
+
+	if (r_refdef.externalview && e->flags & Q2RF_WEAPONMODEL)
+		return;
+
+	clmodel = e->model;
+
+	if (!(e->flags & Q2RF_WEAPONMODEL))
+	{
+		if (R_CullEntityBox (e, clmodel->mins, clmodel->maxs))
+			return;
+#ifdef RTLIGHTS
+		if (BE_LightCullModel(e->origin, clmodel))
+			return;
+	}
+	else
+	{
+		if (BE_LightCullModel(r_origin, clmodel))
+			return;
+#endif
+	}
+
+	if (clmodel->tainted)
+	{
+		if (!ruleset_allow_modified_eyes.ival && !strcmp(clmodel->name, "progs/eyes.mdl"))
+			return;
+	}
+
+	inf = RMod_Extradata (clmodel);
+
+	if (!e->model || e->forcedshader)
+	{
+		//fixme
+		return;
+	}
+	else
+	{
+		frame = R_GetSpriteFrame (e);
+		psprite = e->model->cache.data;
+		sprtype = psprite->type;
+		shader = frame->shader;
+	}
+
+	if (shader)
+	{
+		b = BE_GetTempBatch();
+		if (!b)
+			break;
+
+		b->buildmeshes = R_Sprite_DrawBatch;
+		b->ent = e;
+		b->mesh = NULL;
+		b->firstmesh = 0;
+		b->meshes = 1;
+		b->skin = frame-;
+		b->texture = NULL;
+		b->shader = frame->shader;
+		b->lightmap = -1;
+		b->surf_first = surfnum;
+		b->flags = 0;
+		b->vbo = 0;
+		b->next = batches[shader->sort];
+		batches[shader->sort] = b;
+	}
+}
+#endif
+
+//returns the rotated offset of the two points in result
 void RotateLightVector(const vec3_t *axis, const vec3_t origin, const vec3_t lightpoint, vec3_t result)
 {
 	vec3_t offs;
@@ -1535,20 +1137,16 @@ void RotateLightVector(const vec3_t *axis, const vec3_t origin, const vec3_t lig
 	result[2] = DotProduct (offs, axis[2]);
 }
 
+#if defined(RTLIGHTS) && defined(GLQUAKE)
 void GL_LightMesh (mesh_t *mesh, vec3_t lightpos, vec3_t colours, float radius)
 {
 	vec3_t dir;
 	int i;
 	float dot, d, f, a;
-	vec3_t bcolours;
 
-	vec3_t *xyz = mesh->xyz_array;
+	vecV_t *xyz = mesh->xyz_array;
 	vec3_t *normals = mesh->normals_array;
-	byte_vec4_t *out = mesh->colors_array;
-
-	bcolours[0] = colours[0]*255;
-	bcolours[1] = colours[1]*255;
-	bcolours[2] = colours[2]*255;
+	vec4_t *out = mesh->colors4f_array;
 
 	if (!out)
 		return;	//urm..
@@ -1566,25 +1164,13 @@ void GL_LightMesh (mesh_t *mesh, vec3_t lightpos, vec3_t colours, float radius)
 				if (a>0)
 				{
 					a *= dot/sqrt(d);
-					f = a*bcolours[0];
-					if (f > 255)
-						f = 255;
-					else if (f < 0)
-						f = 0;
+					f = a*colours[0];
 					out[i][0] = f;
 
-					f = a*bcolours[1];
-					if (f > 255)
-						f = 255;
-					else if (f < 0)
-						f = 0;
+					f = a*colours[1];
 					out[i][1] = f;
 
-					f = a*bcolours[2];
-					if (f > 255)
-						f = 255;
-					else if (f < 0)
-						f = 0;
+					f = a*colours[2];
 					out[i][2] = f;
 				}
 				else
@@ -1600,24 +1186,18 @@ void GL_LightMesh (mesh_t *mesh, vec3_t lightpos, vec3_t colours, float radius)
 				out[i][1] = 0;
 				out[i][2] = 0;
 			}
-			out[i][3] = 255;
+			out[i][3] = 1;
 		}
 	}
 	else
 	{
-		if (bcolours[0] > 255)
-			bcolours[0] = 255;
-		if (bcolours[1] > 255)
-			bcolours[1] = 255;
-		if (bcolours[2] > 255)
-			bcolours[2] = 255;
 		for (i = 0; i < mesh->numvertexes; i++)
 		{
 			VectorSubtract(lightpos, xyz[i], dir);
-			out[i][0] = bcolours[0];
-			out[i][1] = bcolours[1];
-			out[i][2] = bcolours[2];
-			out[i][3] = 255;
+			out[i][0] = colours[0];
+			out[i][1] = colours[1];
+			out[i][2] = colours[2];
+			out[i][3] = 1;
 		}
 	}
 }
@@ -1733,238 +1313,6 @@ void R_AliasGenerateVertexLightDirs(mesh_t *mesh, vec3_t lightdir, vec3_t *resul
 	}
 }
 
-
-void R_DrawMeshBumpmap(mesh_t *mesh, galiastexnum_t *skin, vec3_t lightdir)
-{
-	extern int gldepthfunc;
-	static vec3_t *lightdirs;
-	static int maxlightdirs;
-	extern int normalisationCubeMap;
-
-#ifdef Q3SHADERS
-	R_UnlockArrays();
-#endif
-
-
-	//(bumpmap dot cubemap)*texture
-
-	//why no luma?
-	//that's thrown on last.
-
-	//why a cubemap?
-	//we need to pass colours as a normal somehow
-	//we could use the fragment colour for it, however, we then wouldn't be able to colour the light.
-	//so we use a cubemap, which has the added advantage of normalizing the light dir for us.
-
-	//the bumpmap we use is tangent-space (so I'm told)
-	qglDepthFunc(gldepthfunc);
-	qglDepthMask(0);
-	if (gldepthmin == 0.5)
-		qglCullFace ( GL_BACK );
-	else
-		qglCullFace ( GL_FRONT );
-
-	qglEnable(GL_BLEND);
-
-	qglVertexPointer(3, GL_FLOAT, 0, mesh->xyz_array);
-	qglEnableClientState( GL_VERTEX_ARRAY );
-
-	if (mesh->normals_array && qglNormalPointer)	//d3d wrapper doesn't support normals, and this is only really needed for truform
-	{
-		qglNormalPointer(GL_FLOAT, 0, mesh->normals_array);
-		qglEnableClientState( GL_NORMAL_ARRAY );
-	}
-
-	if (mesh->colors_array)
-	{
-		qglColorPointer(4, GL_UNSIGNED_BYTE, 0, mesh->colors_array);
-		qglEnableClientState( GL_COLOR_ARRAY );
-	}
-	else
-		qglDisableClientState( GL_COLOR_ARRAY );
-
-
-	if (maxlightdirs < mesh->numvertexes)
-	{
-		maxlightdirs = mesh->numvertexes;
-		lightdirs = BZ_Malloc(sizeof(vec3_t)*maxlightdirs*4);
-	}
-
-	R_AliasGenerateVertexLightDirs(mesh, lightdir,
-				lightdirs + maxlightdirs*0,
-				lightdirs + maxlightdirs*1,
-				lightdirs + maxlightdirs*2,
-				lightdirs + maxlightdirs*3);
-
-	GL_MBind(mtexid0, skin->bump);
-	GL_TexEnv(GL_REPLACE);
-	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
-	qglTexCoordPointer(2, GL_FLOAT, 0, mesh->st_array);
-	qglEnable(GL_TEXTURE_2D);
-
-	GL_SelectTexture(mtexid1);
-	GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, normalisationCubeMap);
-	qglEnable(GL_TEXTURE_CUBE_MAP_ARB);
-	qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
-	qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
-	qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_DOT3_RGB_ARB);
-	GL_TexEnv(GL_COMBINE_ARB);
-
-	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
-	qglTexCoordPointer(3, GL_FLOAT, 0, lightdirs);
-
-	if (gl_mtexarbable>=3)
-	{
-		GL_MBind(mtexid0+2, skin->base);
-		qglEnable(GL_TEXTURE_2D);
-	}
-	else
-	{	//we don't support 3tmus, so draw the bumps, and multiply the rest over the top
-		qglDrawElements(GL_TRIANGLES, mesh->numindexes, GL_INDEX_TYPE, mesh->indexes);
-		qglDisable(GL_TEXTURE_CUBE_MAP_ARB);
-		GL_MBind(mtexid0, skin->base);
-	}
-	GL_TexEnv(GL_MODULATE);
-	qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
-	qglTexCoordPointer(2, GL_FLOAT, 0, mesh->st_array);
-
-	qglDrawElements(GL_TRIANGLES, mesh->numindexes, GL_INDEX_TYPE, mesh->indexes);
-
-
-
-
-//	GL_SelectTexture(mtexid2);
-	qglDisableClientState( GL_TEXTURE_COORD_ARRAY );
-	qglDisable(GL_TEXTURE_2D);
-
-	GL_SelectTexture(mtexid1);
-	qglDisable(GL_TEXTURE_CUBE_MAP_ARB);
-	qglDisableClientState( GL_TEXTURE_COORD_ARRAY );
-	GL_TexEnv(GL_MODULATE);
-
-	GL_SelectTexture(mtexid0);
-	qglEnable(GL_TEXTURE_2D);
-	qglDisableClientState( GL_TEXTURE_COORD_ARRAY );
-
-	qglDisableClientState( GL_VERTEX_ARRAY );
-	qglDisableClientState( GL_COLOR_ARRAY );
-	qglDisableClientState( GL_NORMAL_ARRAY );
-
-#ifdef Q3SHADERS
-	R_IBrokeTheArrays();
-#endif
-}
-
-void R_DrawGAliasModelLighting (entity_t *e, vec3_t lightpos, vec3_t colours, float radius)
-{
-#if 0	//glitches, no attenuation... :(
-
-	model_t *clmodel = e->model;
-	vec3_t mins, maxs;
-	vec3_t lightdir;
-	galiasinfo_t *inf;
-	galiastexnum_t *tex;
-	mesh_t mesh;
-	int surfnum;
-	extern cvar_t r_nolightdir;
-
-	if (e->flags & Q2RF_VIEWERMODEL)
-		return;
-	if (r_nolightdir.value)	//are you crazy?
-		return;
-
-	//Total insanity with r_shadows 2...
-//	if (!strcmp (clmodel->name, "progs/flame2.mdl"))
-//		CL_NewDlight (e, e->origin[0]-1, e->origin[1]+1, e->origin[2]+24, 200 + (rand()&31), host_frametime*2, 3);
-
-//	if (!strcmp (clmodel->name, "progs/armor.mdl"))
-//		CL_NewDlight (e->keynum, e->origin[0]-1, e->origin[1]+1, e->origin[2]+25, 200 + (rand()&31), host_frametime*2, 3);
-
-	VectorAdd (e->origin, clmodel->mins, mins);
-	VectorAdd (e->origin, clmodel->maxs, maxs);
-
-//	if (!(e->flags & Q2RF_WEAPONMODEL))
-//		if (R_CullBox (mins, maxs))
-//			return;
-
-
-	RotateLightVector(e->axis, e->origin, lightpos, lightdir);
-
-
-	GL_DisableMultitexture();
-	GL_TexEnv(GL_MODULATE);
-	if (gl_smoothmodels.value)
-		qglShadeModel (GL_SMOOTH);
-	if (gl_affinemodels.value)
-		qglHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
-
-
-	if (e->flags & Q2RF_DEPTHHACK)
-		qglDepthRange (gldepthmin, gldepthmin + 0.3*(gldepthmax-gldepthmin));
-
-	qglColor3f(colours[0], colours[1], colours[2]);
-	qglColor4f(1, 1, 1, 1);
-
-	qglPushMatrix();
-	R_RotateForEntity(e);
-	inf = GLMod_Extradata (clmodel);
-	if (gl_ati_truform.value)
-		qglEnable(GL_PN_TRIANGLES_ATI);
-	qglEnable(GL_TEXTURE_2D);
-
-	qglEnable(GL_POLYGON_OFFSET_FILL);
-
-		GL_TexEnv(GL_REPLACE);
-//	qglDisable(GL_STENCIL_TEST);
-	qglEnable(GL_BLEND);
-	qglDisable(GL_ALPHA_TEST);	//if you used an alpha channel where you shouldn't have, more fool you.
-	qglBlendFunc(GL_ONE, GL_ONE);
-//	qglDepthFunc(GL_ALWAYS);
-	for(surfnum=0;inf;surfnum++)
-	{
-		R_GAliasBuildMesh(&mesh, inf, e->alpha, false);
-		mesh.colors_array = tempColours;
-
-		tex = GL_ChooseSkin(inf, clmodel->name, surfnum, e);
-
-		if (tex->bump && e->alpha==1)
-		{
-			R_DrawMeshBumpmap(&mesh, tex, lightdir);
-		}
-		else
-		{
-			GL_LightMesh(&mesh, lightdir, colours, radius);
-			GL_DrawAliasMesh(&mesh, tex->base);
-		}
-
-		if (inf->nextsurf)
-			inf = (galiasinfo_t*)((char *)inf + inf->nextsurf);
-		else
-			inf = NULL;
-	}
-	currententity->fatness=0;
-	qglPopMatrix();
-	if (gl_ati_truform.value)
-		qglDisable(GL_PN_TRIANGLES_ATI);
-
-	GL_TexEnv(GL_REPLACE);
-
-	qglShadeModel (GL_FLAT);
-	if (gl_affinemodels.value)
-		qglHint (GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
-	qglDisable(GL_POLYGON_OFFSET_FILL);
-
-	if (e->flags & Q2RF_DEPTHHACK)
-		qglDepthRange (gldepthmin, gldepthmax);
-
-	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	qglDisable(GL_BLEND);
-	qglDisable(GL_TEXTURE_2D);
-
-	R_IBrokeTheArrays();
-#endif
-}
-
 //FIXME: Be less agressive.
 //This function will have to be called twice (for geforce cards), with the same data, so do the building once and rendering twice.
 void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
@@ -1976,22 +1324,20 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 
 	if (clmodel->engineflags & (MDLF_FLAME | MDLF_BOLT))
 		return;
-	if (r_noaliasshadows.value)
+	if (r_noaliasshadows.ival)
 		return;
 
-	if (e->shaderRGBAf[3] < 0.5)
-		return;
+//	if (e->shaderRGBAf[3] < 0.5)
+//		return;
 
-	RotateLightVector(e->axis, e->origin, lightpos, lightorg);
+	RotateLightVector((void *)e->axis, e->origin, lightpos, lightorg);
 
 	if (Length(lightorg) > radius + clmodel->radius)
 		return;
 
-	qglPushMatrix();
-	R_RotateForEntity(e);
+	BE_SelectEntity(e);
 
-
-	inf = GLMod_Extradata (clmodel);
+	inf = RMod_Extradata (clmodel);
 	while(inf)
 	{
 		if (inf->ofs_trineighbours)
@@ -2007,10 +1353,8 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 		else
 			inf = NULL;
 	}
-
-	qglPopMatrix();
 }
-
+#endif
 
 
 
@@ -2066,7 +1410,7 @@ static void R_BuildTriangleNeighbours ( int *neighbours, index_t *indexes, int n
 
 
 
-
+#if 0
 void GL_GenerateNormals(float *orgs, float *normals, int *indicies, int numtris, int numverts)
 {
 	vec3_t d1, d2;
@@ -2135,5 +1479,517 @@ void GL_GenerateNormals(float *orgs, float *normals, int *indicies, int numtris,
 	}
 }
 #endif
+#endif
 
-#endif	// defined(RGLQUAKE)
+
+
+
+
+
+
+qboolean BE_ShouldDraw(entity_t *e)
+{
+	if (!r_refdef.externalview && (e->externalmodelview & (1<<r_refdef.currentplayernum)))
+		return false;
+	if (!Cam_DrawPlayer(r_refdef.currentplayernum, e->keynum-1))
+		return false;
+	return true;
+}
+
+#ifdef Q3CLIENT
+//q3 lightning gun
+static void R_DB_LightningBeam(batch_t *batch)
+{
+	entity_t *e = batch->ent;
+	vec3_t v;
+	vec3_t dir, cr;
+	float scale = e->scale;
+	float length;
+
+	static vecV_t points[4];
+	static vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
+	static index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
+	static vec4_t colors[4];
+
+	static mesh_t mesh;
+	static mesh_t *meshptr = &mesh;
+
+	if (batch->ent == &r_worldentity)
+	{
+		mesh.numindexes = 0;
+		mesh.numindexes = 0;
+		return;
+	}
+
+	scale *= -10;
+	if (!scale)
+		scale = 10;
+
+
+	VectorSubtract(e->origin, e->oldorigin, dir);
+	length = Length(dir);
+
+	//this seems to be about right.
+	texcoords[2][0] = length/128;
+	texcoords[3][0] = length/128;
+
+	VectorSubtract(r_refdef.vieworg, e->origin, v);
+	CrossProduct(v, dir, cr);
+	VectorNormalize(cr);
+
+	VectorMA(e->origin, -scale/2, cr, points[0]);
+	VectorMA(e->origin, scale/2, cr, points[1]);
+
+	VectorSubtract(r_refdef.vieworg, e->oldorigin, v);
+	CrossProduct(v, dir, cr);
+	VectorNormalize(cr);
+
+	VectorMA(e->oldorigin, scale/2, cr, points[2]);
+	VectorMA(e->oldorigin, -scale/2, cr, points[3]);
+
+	/*this is actually meant to be 4 separate quads at 45 degrees from each other*/
+
+	Vector4Copy(e->shaderRGBAf, colors[0]);
+	Vector4Copy(e->shaderRGBAf, colors[1]);
+	Vector4Copy(e->shaderRGBAf, colors[2]);
+	Vector4Copy(e->shaderRGBAf, colors[3]);
+
+	batch->ent = &r_worldentity;
+	batch->mesh = &meshptr;
+
+	memset(&mesh, 0, sizeof(mesh));
+	mesh.vbofirstelement = 0;
+	mesh.vbofirstvert = 0;
+	mesh.xyz_array = points;
+	mesh.indexes = indexarray;
+	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
+	mesh.colors4f_array = (vec4_t*)colors;
+	mesh.lmst_array = NULL;
+	mesh.normals_array = NULL;
+	mesh.numvertexes = 4;
+	mesh.st_array = texcoords;
+}
+//q3 railgun beam
+static void R_DB_RailgunBeam(batch_t *batch)
+{
+	entity_t *e = batch->ent;
+	vec3_t v;
+	vec3_t dir, cr;
+	float scale = e->scale;
+	float length;
+
+	static mesh_t mesh;
+	static mesh_t *meshptr = &mesh;
+	static vecV_t points[4];
+	static vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
+	static index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
+	static vec4_t colors[4];
+
+	if (batch->ent == &r_worldentity)
+	{
+		mesh.numindexes = 0;
+		mesh.numindexes = 0;
+		return;
+	}
+
+	if (!e->forcedshader)
+		return;
+
+	if (!scale)
+		scale = 10;
+
+
+	VectorSubtract(e->origin, e->oldorigin, dir);
+	length = Length(dir);
+
+	//this seems to be about right.
+	texcoords[2][0] = length/128;
+	texcoords[3][0] = length/128;
+
+	VectorSubtract(r_refdef.vieworg, e->origin, v);
+	CrossProduct(v, dir, cr);
+	VectorNormalize(cr);
+
+	VectorMA(e->origin, -scale/2, cr, points[0]);
+	VectorMA(e->origin, scale/2, cr, points[1]);
+
+	VectorSubtract(r_refdef.vieworg, e->oldorigin, v);
+	CrossProduct(v, dir, cr);
+	VectorNormalize(cr);
+
+	VectorMA(e->oldorigin, scale/2, cr, points[2]);
+	VectorMA(e->oldorigin, -scale/2, cr, points[3]);
+
+	Vector4Copy(e->shaderRGBAf, colors[0]);
+	Vector4Copy(e->shaderRGBAf, colors[1]);
+	Vector4Copy(e->shaderRGBAf, colors[2]);
+	Vector4Copy(e->shaderRGBAf, colors[3]);
+
+	batch->ent = &r_worldentity;
+	batch->mesh = &meshptr;
+
+	memset(&mesh, 0, sizeof(mesh));
+	mesh.vbofirstelement = 0;
+	mesh.vbofirstvert = 0;
+	mesh.xyz_array = points;
+	mesh.indexes = indexarray;
+	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
+	mesh.colors4f_array = (vec4_t*)colors;
+	mesh.lmst_array = NULL;
+	mesh.normals_array = NULL;
+	mesh.numvertexes = 4;
+	mesh.st_array = texcoords;
+
+}
+#endif
+static void R_DB_Sprite(batch_t *batch)
+{
+	entity_t *e = batch->ent;
+	vec3_t	point;
+	mspriteframe_t	*frame, genframe;
+	vec3_t		forward, right, up;
+	msprite_t		*psprite;
+	vec3_t sprorigin;
+	unsigned int sprtype;
+
+	static vec2_t texcoords[4]={{0, 1},{0,0},{1,0},{1,1}};
+	static index_t indexes[6] = {0, 1, 2, 0, 2, 3};
+	static vecV_t vertcoords[4];
+	static avec4_t colours[4];
+	static mesh_t mesh;
+	static mesh_t *meshptr = &mesh;
+
+	if (batch->ent == &r_worldentity)
+	{
+		mesh.numindexes = 0;
+		mesh.numindexes = 0;
+		return;
+	}
+
+	if (e->flags & Q2RF_WEAPONMODEL && r_refdef.currentplayernum >= 0)
+	{
+		sprorigin[0] = cl.viewent[r_refdef.currentplayernum].origin[0];
+		sprorigin[1] = cl.viewent[r_refdef.currentplayernum].origin[1];
+		sprorigin[2] = cl.viewent[r_refdef.currentplayernum].origin[2];
+		VectorMA(sprorigin, e->origin[0], cl.viewent[r_refdef.currentplayernum].axis[0], sprorigin);
+		VectorMA(sprorigin, e->origin[1], cl.viewent[r_refdef.currentplayernum].axis[1], sprorigin);
+		VectorMA(sprorigin, e->origin[2], cl.viewent[r_refdef.currentplayernum].axis[2], sprorigin);
+		VectorMA(sprorigin, 12, vpn, sprorigin);
+
+		batch->flags |= BEF_FORCENODEPTH;
+	}
+	else
+		VectorCopy(e->origin, sprorigin);
+
+	if (!e->model || e->forcedshader)
+	{
+		genframe.shader = e->forcedshader;
+		genframe.up = genframe.left = -1;
+		genframe.down = genframe.right = 1;
+		sprtype = SPR_VP_PARALLEL;
+		frame = &genframe;
+	}
+	else
+	{
+		// don't even bother culling, because it's just a single
+		// polygon without a surface cache
+		frame = R_GetSpriteFrame (e);
+		psprite = e->model->cache.data;
+		sprtype = psprite->type;
+	}
+	if (!frame->shader)
+		return;
+
+	switch(sprtype)
+	{
+	case SPR_ORIENTED:
+		// bullet marks on walls
+		AngleVectors (e->angles, forward, right, up);
+		break;
+
+	case SPR_FACING_UPRIGHT:
+		up[0] = 0;up[1] = 0;up[2]=1;
+		right[0] = sprorigin[1] - r_origin[1];
+		right[1] = -(sprorigin[0] - r_origin[0]);
+		right[2] = 0;
+		VectorNormalize (right);
+		break;
+	case SPR_VP_PARALLEL_UPRIGHT:
+		up[0] = 0;up[1] = 0;up[2]=1;
+		VectorCopy (vright, right);
+		break;
+
+	default:
+	case SPR_VP_PARALLEL:
+		//normal sprite
+		VectorCopy(vup, up);
+		VectorCopy(vright, right);
+		break;
+	}
+	up[0]*=e->scale;
+	up[1]*=e->scale;
+	up[2]*=e->scale;
+	right[0]*=e->scale;
+	right[1]*=e->scale;
+	right[2]*=e->scale;
+
+	if (e->shaderRGBAf[0] > 1)
+		e->shaderRGBAf[0] = 1;
+	if (e->shaderRGBAf[1] > 1)
+		e->shaderRGBAf[1] = 1;
+	if (e->shaderRGBAf[2] > 1)
+		e->shaderRGBAf[2] = 1;
+
+	Vector4Copy(e->shaderRGBAf, colours[0]);
+	Vector4Copy(e->shaderRGBAf, colours[1]);
+	Vector4Copy(e->shaderRGBAf, colours[2]);
+	Vector4Copy(e->shaderRGBAf, colours[3]);
+
+	VectorMA (sprorigin, frame->down, up, point);
+	VectorMA (point, frame->left, right, vertcoords[0]);
+
+	VectorMA (sprorigin, frame->up, up, point);
+	VectorMA (point, frame->left, right, vertcoords[1]);
+
+	VectorMA (sprorigin, frame->up, up, point);
+	VectorMA (point, frame->right, right, vertcoords[2]);
+
+	VectorMA (sprorigin, frame->down, up, point);
+	VectorMA (point, frame->right, right, vertcoords[3]);
+
+	batch->ent = &r_worldentity;
+	batch->mesh = &meshptr;
+
+	memset(&mesh, 0, sizeof(mesh));
+	mesh.vbofirstelement = 0;
+	mesh.vbofirstvert = 0;
+	mesh.xyz_array = vertcoords;
+	mesh.indexes = indexes;
+	mesh.numindexes = sizeof(indexes)/sizeof(indexes[0]);
+	mesh.colors4f_array = colours;
+	mesh.lmst_array = NULL;
+	mesh.normals_array = NULL;
+	mesh.numvertexes = 4;
+	mesh.st_array = texcoords;
+	mesh.istrifan = true;
+}
+static void R_Sprite_GenerateBatch(entity_t *e, batch_t **batches, void (*drawfunc)(batch_t *batch))
+{
+	extern cvar_t gl_blendsprites;
+	shader_t *shader = NULL;
+	batch_t *b;
+	shadersort_t sort;
+
+	if (!e->model || e->model->type != mod_sprite || e->forcedshader)
+	{
+		shader = e->forcedshader;
+		if (!shader)
+			shader = R_RegisterShader("q2beam",
+				"{\n"
+					"{\n"
+						"map $whiteimage\n"
+						"rgbgen vertex\n"
+						"alphagen vertex\n"
+						"blendfunc blend\n"
+					"}\n"
+				"}\n"
+				);
+	}
+	else
+	{
+		// don't even bother culling, because it's just a single
+		// polygon without a surface cache
+		shader = R_GetSpriteFrame(e)->shader;
+	}
+
+	if (!shader)
+		return;
+
+	b = BE_GetTempBatch();
+	if (!b)
+		return;
+
+	b->flags = 0;
+	sort = shader->sort;
+	if (e->flags & Q2RF_ADDITIVE)
+	{
+		b->flags |= BEF_FORCEADDITIVE;
+		if (sort < SHADER_SORT_ADDITIVE)
+			sort = SHADER_SORT_ADDITIVE;
+	}
+	if (e->flags & Q2RF_TRANSLUCENT || (gl_blendsprites.ival && drawfunc == R_DB_Sprite))
+	{
+		b->flags |= BEF_FORCETRANSPARENT;
+		if (sort < SHADER_SORT_BLEND)
+			sort = SHADER_SORT_BLEND;
+	}
+	if (e->flags & RF_NODEPTHTEST)
+	{
+		b->flags |= BEF_FORCENODEPTH;
+		if (sort < SHADER_SORT_BANNER)
+			sort = SHADER_SORT_BANNER;
+	}
+
+	b->buildmeshes = drawfunc;
+	b->ent = e;
+	b->mesh = NULL;
+	b->firstmesh = 0;
+	b->meshes = 1;
+	b->skin = &shader->defaulttextures;
+	b->texture = NULL;
+	b->shader = shader;
+	b->lightmap = -1;
+	b->surf_first = 0;
+	b->flags |= BEF_NODLIGHT|BEF_NOSHADOWS;
+	b->vbo = 0;
+	b->next = batches[sort];
+	batches[sort] = b;
+}
+
+static void R_DB_Poly(batch_t *batch)
+{
+	static mesh_t mesh;
+	static mesh_t *meshptr = &mesh;
+	unsigned int i = batch->surf_first;
+
+	batch->mesh = &meshptr;
+
+	mesh.xyz_array = cl_strisvertv + cl_stris[i].firstvert;
+	mesh.st_array = cl_strisvertt + cl_stris[i].firstvert;
+	mesh.colors4f_array = cl_strisvertc + cl_stris[i].firstvert;
+	mesh.indexes = cl_strisidx + cl_stris[i].firstidx;
+	mesh.numindexes = cl_stris[i].numidx;
+	mesh.numvertexes = cl_stris[i].numvert;
+}
+void BE_GenPolyBatches(batch_t **batches)
+{
+	shader_t *shader = NULL;
+	batch_t *b;
+	unsigned int i;
+
+	for (i = 0; i < cl_numstris; i++)
+	{
+		b = BE_GetTempBatch();
+		if (!b)
+			return;
+
+		shader = cl_stris[i].shader;
+
+		b->buildmeshes = R_DB_Poly;
+		b->ent = &r_worldentity;
+		b->mesh = NULL;
+		b->firstmesh = 0;
+		b->meshes = 1;
+		b->skin = &shader->defaulttextures;
+		b->texture = NULL;
+		b->shader = shader;
+		b->lightmap = -1;
+		b->surf_first = i;
+		b->flags = BEF_NODLIGHT|BEF_NOSHADOWS;
+		b->vbo = 0;
+		b->next = batches[shader->sort];
+		batches[shader->sort] = b;
+	}
+}
+
+void BE_GenModelBatches(batch_t **batches)
+{
+	int		i;
+	entity_t *ent;
+
+	/*clear the batch list*/
+	for (i = 0; i < SHADER_SORT_COUNT; i++)
+		batches[i] = NULL;
+
+	if (!r_drawentities.ival)
+		return;
+
+#if defined(TERRAIN)
+	if (cl.worldmodel && cl.worldmodel->type == mod_heightmap)
+		GL_DrawHeightmapModel(batches, &r_worldentity);
+#endif
+
+	// draw sprites seperately, because of alpha blending
+	for (i=0 ; i<cl_numvisedicts ; i++)
+	{
+		ent = &cl_visedicts[i];
+
+		if (!BE_ShouldDraw(ent))
+			continue;
+
+		switch(ent->rtype)
+		{
+		case RT_MODEL:
+		default:
+			if (!ent->model)
+				continue;
+			if (ent->model->needload)
+				continue;
+
+			if (cl.lerpents && (cls.allow_anyparticles || ent->visframe))	//allowed or static
+			{
+				if (gl_part_flame.value)
+				{
+					if (ent->model->engineflags & MDLF_ENGULPHS)
+						continue;
+				}
+			}
+
+			if (ent->model->engineflags & MDLF_NOTREPLACEMENTS)
+			{
+				if (ent->model->fromgame != fg_quake || ent->model->type != mod_alias)
+					if (!ruleset_allow_sensative_texture_replacements.value)
+						continue;
+			}
+
+			switch(ent->model->type)
+			{
+			case mod_brush:
+				if (r_drawentities.ival == 2)
+					continue;
+				Surf_GenBrushBatches(batches, ent);
+				break;
+			case mod_alias:
+				if (r_drawentities.ival == 3)
+					continue;
+				R_GAlias_GenerateBatches(ent, batches);
+				break;
+			case mod_sprite:
+				R_Sprite_GenerateBatch(ent, batches, R_DB_Sprite);
+				break;
+			// warning: enumeration value ‘mod_*’ not handled in switch
+			case mod_dummy:
+			case mod_halflife:
+			case mod_heightmap:
+				break;
+			}
+			break;
+		case RT_SPRITE:
+			R_Sprite_GenerateBatch(ent, batches, R_DB_Sprite);
+			break;
+
+#ifdef Q3CLIENT
+		case RT_BEAM:
+		case RT_RAIL_RINGS:
+		case RT_LIGHTNING:
+			R_Sprite_GenerateBatch(ent, batches, R_DB_LightningBeam);
+			continue;
+		case RT_RAIL_CORE:
+			R_Sprite_GenerateBatch(ent, batches, R_DB_RailgunBeam);
+			continue;
+#endif
+
+		case RT_POLY:
+			/*not implemented*/
+			break;
+		case RT_PORTALSURFACE:
+			/*nothing*/
+			break;
+		}
+	}
+
+	if (cl_numstris)
+		BE_GenPolyBatches(batches);
+}
+
+#endif	// defined(GLQUAKE)

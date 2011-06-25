@@ -25,20 +25,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
-
-#if defined(RGLQUAKE)
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 #include "glquake.h"
-#endif
-
-#ifdef D3DQUAKE
-#include "d3dquake.h"
-#endif
-
 #include "com_mesh.h"
 
 extern cvar_t r_shadow_bumpscale_basetexture;
 extern cvar_t r_replacemodels;
+extern cvar_t r_deluxemapping;
 
 extern int gl_bumpmappingpossible;
 qboolean isnotmap = true;	//used to not warp ammo models.
@@ -49,21 +42,21 @@ char	loadname[32];	// for hunk tags
 void CM_Init(void);
 
 qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer);
-qboolean GLMod_LoadSpriteModel (model_t *mod, void *buffer);
-qboolean GLMod_LoadSprite2Model (model_t *mod, void *buffer);
-qboolean GLMod_LoadBrushModel (model_t *mod, void *buffer);
+qboolean RMod_LoadSpriteModel (model_t *mod, void *buffer);
+qboolean RMod_LoadSprite2Model (model_t *mod, void *buffer);
+qboolean RMod_LoadBrushModel (model_t *mod, void *buffer);
 #ifdef Q2BSPS
 qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
 #endif
 qboolean Mod_LoadHLModel (model_t *mod, void *buffer);
-model_t *GLMod_LoadModel (model_t *mod, qboolean crash);
+model_t *RMod_LoadModel (model_t *mod, qboolean crash);
 
-#ifdef DOOMWADS
+#ifdef MAP_DOOM
 qboolean Mod_LoadDoomLevel(model_t *mod);
 #endif
 
 #ifdef DOOMWADS
-void GLMod_LoadDoomSprite (model_t *mod);
+void RMod_LoadDoomSprite (model_t *mod);
 #endif
 
 #define	MAX_MOD_KNOWN	2048
@@ -75,7 +68,8 @@ extern cvar_t r_loadlits;
 extern cvar_t gl_specular;
 #endif
 extern cvar_t r_fb_bmodels;
-
+mesh_t nullmesh;
+void Mod_SortShaders(void);
 
 #ifdef RUNTIMELIGHTING
 model_t *lightmodel;
@@ -83,7 +77,7 @@ int numlightdata;
 qboolean writelitfile;
 
 int relitsurface;
-void GLMod_UpdateLightmap(int snum)
+void RMod_UpdateLightmap(int snum)
 {
 	msurface_t *s;	
 	if (lightmodel)
@@ -104,7 +98,7 @@ void GLMod_UpdateLightmap(int snum)
 #endif
 
 
-void GLMod_TextureList_f(void)
+void RMod_TextureList_f(void)
 {
 	int m, i;
 	texture_t *tx;
@@ -135,22 +129,33 @@ void GLMod_TextureList_f(void)
 	}
 }
 
-void GLMod_BlockTextureColour_f (void)
+void RMod_BlockTextureColour_f (void)
 {
 	char texname[64];
 	model_t *mod;
 	texture_t *tx;
+	shader_t *s;
 	char *match = Cmd_Argv(1);
 
 	int i, m;
 	unsigned int colour[8*8];
 	unsigned int rgba;
+	texnums_t tn;
+
 	((char *)&rgba)[0] = atoi(Cmd_Argv(2));
 	((char *)&rgba)[1] = atoi(Cmd_Argv(3));
 	((char *)&rgba)[2] = atoi(Cmd_Argv(4));
 	((char *)&rgba)[3] = 255;
 
 	sprintf(texname, "8*8_%i_%i_%i", (int)((char *)&rgba)[0], (int)((char *)&rgba)[1], (int)((char *)&rgba)[2]);
+
+	s = R_RegisterCustom(Cmd_Argv(2), NULL, NULL);
+	if (!s)
+	{
+		memset(&tn, 0, sizeof(tn));
+		tn.base = R_LoadTexture32(texname, 8, 8, colour, IF_NOALPHA|IF_NOGAMMA);
+		s = R_RegisterCustom (texname, Shader_DefaultBSPQ1, NULL);
+	}
 
 	for (i = 0; i < sizeof(colour)/sizeof(colour[0]); i++)
 		colour[i] = rgba;
@@ -167,34 +172,211 @@ void GLMod_BlockTextureColour_f (void)
 
 				if (!stricmp(tx->name, match))
 				{
-					tx->tn.base = R_LoadTexture32(texname, 8, 8, colour, true, false);
+					tx->shader = s;
 				}
 			}
 		}
 	}
 }
+
+
+
+#if defined(RUNTIMELIGHTING) && defined(MULTITHREAD)
+void *relightthread[8];
+unsigned int relightthreads;
+volatile qboolean wantrelight;
+
+int RelightThread(void *arg)
+{
+	int surf;
+	while (wantrelight)
+	{
+#ifdef _WIN32
+		surf = InterlockedIncrement(&relitsurface);
+#else
+		surf = relightthreads++;
+#endif
+		if (surf >= lightmodel->numsurfaces)
+			break;
+		LightFace(surf);
+		lightmodel->surfaces[surf].cached_dlight = -1;
+	}
+	return 0;
+}
+#endif
+
+void RMod_Think (void)
+{
+#ifdef RUNTIMELIGHTING
+	if (lightmodel)
+	{
+		if (relitsurface >= lightmodel->numsurfaces)
+		{
+			return;
+		}
+#ifdef MULTITHREAD
+		if (!relightthreads)
+		{
+			int i;
+#ifdef _WIN32
+			HANDLE me = GetCurrentProcess();
+			DWORD_PTR proc, sys;
+			/*count cpus*/
+			GetProcessAffinityMask(me, &proc, &sys);
+			relightthreads = 0;
+			for (i = 0; i < sizeof(proc)*8; i++)
+				if (proc & ((size_t)1u<<i))
+					relightthreads++;
+			/*subtract 1*/
+			if (relightthreads <= 1)
+				relightthreads = 1;
+			else
+				relightthreads--;
+#else
+			/*can't do atomics*/
+			relightthreads = 1;
+#endif
+			if (relightthreads > sizeof(relightthread)/sizeof(relightthread[0]))
+				relightthreads = sizeof(relightthread)/sizeof(relightthread[0]);
+			wantrelight = true;
+			for (i = 0; i < relightthreads; i++)
+				relightthread[i] = Sys_CreateThread(RelightThread, lightmodel, 0);
+		}
+#else
+		LightFace(relitsurface);
+		RMod_UpdateLightmap(relitsurface);
+
+		relitsurface++;
+#endif
+		if (relitsurface >= lightmodel->numsurfaces)
+		{
+			char filename[MAX_QPATH];
+			Con_Printf("Finished lighting %s\n", lightmodel->name);
+
+#ifdef MULTITHREAD
+			if (relightthread)
+			{
+				int i;
+				wantrelight = false;
+				for (i = 0; i < relightthreads; i++)
+				{
+					Sys_WaitOnThread(relightthread[i]);
+					relightthread[i] = NULL;
+				}
+				relightthreads = 0;
+			}
+#endif
+
+			if (lightmodel->deluxdata)
+			{
+				COM_StripExtension(lightmodel->name, filename, sizeof(filename));
+				COM_DefaultExtension(filename, ".lux", sizeof(filename));
+				FS_WriteFile(filename, lightmodel->deluxdata-8, numlightdata*3+8, FS_GAME);
+			}
+
+			if (writelitfile)	//the user might already have a lit file (don't overwrite it).
+			{
+				COM_StripExtension(lightmodel->name, filename, sizeof(filename));
+				COM_DefaultExtension(filename, ".lit", sizeof(filename));
+				FS_WriteFile(filename, lightmodel->lightdata-8, numlightdata*3+8, FS_GAME);
+			}
+		}
+	}
+#endif
+}
+
+void Mod_RebuildLightmaps (void)
+{
+	int i, j;
+	msurface_t *surf;
+	model_t	*mod;
+
+	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
+	{
+		if (mod->needload)
+			continue;
+
+		if (mod->type == mod_brush)
+		{
+			for (j=0, surf = mod->surfaces; j<mod->numsurfaces ; j++, surf++)
+				surf->cached_dlight=-1;//force it
+		}
+	}
+}
+
+/*
+===================
+Mod_ClearAll
+===================
+*/
+void RMod_ClearAll (void)
+{
+	int		i;
+	int	t;
+	model_t	*mod;
+
+#ifdef RUNTIMELIGHTING
+#ifdef MULTITHREAD
+	if (relightthread)
+	{
+		wantrelight = false;
+		for (i = 0; i < relightthreads; i++)
+		{
+			Sys_WaitOnThread(relightthread[i]);
+			relightthread[i] = NULL;
+		}
+		relightthreads = 0;
+	}
+#endif
+	lightmodel = NULL;
+#endif
+
+	//when the hunk is reset, all bsp models need to be reloaded
+	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
+	{
+		if (mod->needload)
+			continue;
+
+		if (mod->type == mod_brush)
+		{
+			Surf_Clear(mod);
+			for (t = 0; t < mod->numtextures; t++)
+			{
+				if (!mod->textures[t])
+					continue;
+				BE_ClearVBO(&mod->textures[t]->vbo);
+			}
+		}
+
+		if (mod->type != mod_alias
+			&& mod->type != mod_halflife
+			)
+			mod->needload = true;
+	}
+}
+
 /*
 ===============
 Mod_Init
 ===============
 */
-void GLMod_Init (void)
+void RMod_Init (void)
 {
+	RMod_ClearAll();
 	mod_numknown = 0;
 	Q1BSP_Init();
 
-	Cmd_AddRemCommand("mod_texturelist", GLMod_TextureList_f);
-	Cmd_AddRemCommand("mod_usetexture", GLMod_BlockTextureColour_f);
+	Cmd_AddRemCommand("mod_texturelist", RMod_TextureList_f);
+	Cmd_AddRemCommand("mod_usetexture", RMod_BlockTextureColour_f);
 }
 
-void GLMod_Shutdown (void)
+void RMod_Shutdown (void)
 {
+	RMod_ClearAll();
 	mod_numknown = 0;
 
 	Cmd_RemoveCommand("mod_texturelist");
 	Cmd_RemoveCommand("mod_usetexture");
-
-	GLMod_ClearAll();
 }
 
 /*
@@ -204,7 +386,7 @@ Mod_Init
 Caches the data if needed
 ===============
 */
-void *GLMod_Extradata (model_t *mod)
+void *RMod_Extradata (model_t *mod)
 {
 	void	*r;
 	
@@ -212,7 +394,7 @@ void *GLMod_Extradata (model_t *mod)
 	if (r)
 		return r;
 
-	GLMod_LoadModel (mod, true);
+	RMod_LoadModel (mod, true);
 	
 	if (!mod->cache.data)
 		Sys_Error ("Mod_Extradata: caching failed");
@@ -224,7 +406,7 @@ void *GLMod_Extradata (model_t *mod)
 Mod_PointInLeaf
 ===============
 */
-mleaf_t *GLMod_PointInLeaf (model_t *model, vec3_t p)
+mleaf_t *RMod_PointInLeaf (model_t *model, vec3_t p)
 {
 	mnode_t		*node;
 	float		d;
@@ -263,131 +445,13 @@ mleaf_t *GLMod_PointInLeaf (model_t *model, vec3_t p)
 	return NULL;	// never reached
 }
 
-#if defined(RUNTIMELIGHTING) && defined(MULTITHREAD)
-void *relightthread;
-volatile qboolean wantrelight;
-
-int RelightThread(void *arg)
-{
-	while (wantrelight && relitsurface < lightmodel->numsurfaces)
-	{
-		LightFace(relitsurface);
-		lightmodel->surfaces[relitsurface].cached_dlight = -1;
-
-		relitsurface++;
-
-		lightmodel->surfaces[relitsurface].cached_dlight = -1;
-	}
-	return 0;
-}
-#endif
-
-/*
-===================
-Mod_ClearAll
-===================
-*/
-void GLMod_ClearAll (void)
-{
-	int		i;
-	int	t;
-	model_t	*mod;
-
-#ifdef RUNTIMELIGHTING
-#ifdef MULTITHREAD
-	if (relightthread)
-	{
-		wantrelight = false;
-		Sys_WaitOnThread(relightthread);
-		relightthread = NULL;
-	}
-#endif
-	lightmodel = NULL;
-#endif
-
-	//when the hunk is reset, all bsp models need to be reloaded
-	for (i=0 , mod=mod_known ; i<mod_numknown ; i++, mod++)
-	{
-		if (mod->needload)
-			continue;
-
-		if (mod->type == mod_brush)
-		{
-			for (t = 0; t < mod->numtextures; t++)
-			{
-				if (!mod->textures[t])
-					continue;
-				GL_ClearVBO(&mod->textures[t]->vbo);
-			}
-		}
-
-		if (mod->type != mod_alias
-			&& mod->type != mod_halflife
-			)
-			mod->needload = true;
-	}
-}
-
-void GLMod_Think (void)
-{
-#ifdef RUNTIMELIGHTING
-	if (lightmodel)
-	{
-		if (relitsurface >= lightmodel->numsurfaces)
-		{
-			return;
-		}
-#ifdef MULTITHREAD
-		if (!relightthread)
-		{
-			wantrelight = true;
-			relightthread = Sys_CreateThread(RelightThread, lightmodel, 0);
-		}
-#else
-		LightFace(relitsurface);
-		GLMod_UpdateLightmap(relitsurface);
-
-		relitsurface++;
-#endif
-		if (relitsurface >= lightmodel->numsurfaces)
-		{
-			char filename[MAX_QPATH];
-			Con_Printf("Finished lighting %s\n", lightmodel->name);
-
-#ifdef MULTITHREAD
-			if (relightthread)
-			{
-				wantrelight = false;
-				Sys_WaitOnThread(relightthread);
-				relightthread = NULL;
-			}
-#endif
-
-			if (lightmodel->deluxdata)
-			{
-				COM_StripExtension(lightmodel->name, filename, sizeof(filename));
-				COM_DefaultExtension(filename, ".lux", sizeof(filename));
-				FS_WriteFile(filename, lightmodel->deluxdata-8, numlightdata*3+8, FS_GAME);
-			}
-
-			if (writelitfile)	//the user might already have a lit file (don't overwrite it).
-			{
-				COM_StripExtension(lightmodel->name, filename, sizeof(filename));
-				COM_DefaultExtension(filename, ".lit", sizeof(filename));
-				FS_WriteFile(filename, lightmodel->lightdata-8, numlightdata*3+8, FS_GAME);
-			}
-		}
-	}
-#endif
-}
-
 /*
 ==================
 Mod_FindName
 
 ==================
 */
-model_t *GLMod_FindName (char *name)
+model_t *RMod_FindName (char *name)
 {
 	int		i;
 	model_t	*mod;
@@ -423,11 +487,11 @@ Mod_TouchModel
 
 ==================
 */
-void GLMod_TouchModel (char *name)
+void RMod_TouchModel (char *name)
 {
 	model_t	*mod;
 	
-	mod = GLMod_FindName (name);
+	mod = RMod_FindName (name);
 	
 	if (!mod->needload)
 	{
@@ -445,7 +509,7 @@ Mod_LoadModel
 Loads a model into the cache
 ==================
 */
-model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
+model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 {
 	void	*d;
 	unsigned *buf = NULL;
@@ -478,7 +542,6 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 		if (!Mod_LoadQ2BrushModel (mod, buf))
 			goto couldntload;
 		mod->needload = false;
-		P_DefaultTrail(mod);
 		return mod;
 	}
 #endif
@@ -490,7 +553,10 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 	if (!strcmp(mod->name, "progs/player.mdl"))
 		mod->engineflags |= MDLF_PLAYER | MDLF_DOCRC;
 	else if (!strcmp(mod->name, "progs/flame.mdl") || 
-		!strcmp(mod->name, "progs/flame2.mdl"))
+		!strcmp(mod->name, "progs/flame2.mdl") ||
+		!strcmp(mod->name, "models/flame1.mdl") ||	//hexen2 small standing flame
+		!strcmp(mod->name, "models/flame2.mdl") ||	//hexen2 large standing flame
+		!strcmp(mod->name, "models/cflmtrch.mdl"))	//hexen2 wall torch
 		mod->engineflags |= MDLF_FLAME;
 	else if (!strcmp(mod->name, "progs/bolt.mdl") ||
 		!strcmp(mod->name, "progs/bolt2.mdl") ||
@@ -540,8 +606,7 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 				if (doomsprite) // special case needed for doom sprites
 				{
 					mod->needload = false;
-					GLMod_LoadDoomSprite(mod);
-					P_DefaultTrail(mod);
+					RMod_LoadDoomSprite(mod);
 					return mod;
 				}
 #endif
@@ -560,15 +625,16 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 // fill it in
 //
 		Mod_DoCRC(mod, (char*)buf, com_filesize);
-		
+
 		switch (LittleLong(*(unsigned *)buf))
 		{
 //The binary 3d mesh model formats
+		case RAPOLYHEADER:
 		case IDPOLYHEADER:
 			if (!Mod_LoadQ1Model(mod, buf))
 				continue;
 			break;
-		
+
 #ifdef MD2MODELS
 		case MD2IDALIASHEADER:
 			if (!Mod_LoadQ2Model(mod, buf))
@@ -596,36 +662,52 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 			if (!Mod_LoadZymoticModel(mod, buf))
 				continue;
 			break;
+#endif
+#ifdef DPMMODELS
 		case (('K'<<24)+('R'<<16)+('A'<<8)+'D'):
 			if (!Mod_LoadDarkPlacesModel(mod, buf))
 				continue;
 			break;
 #endif
 
+#ifdef PSKMODELS
+		case ('A'<<0)+('C'<<8)+('T'<<16)+('R'<<24):
+			if (!Mod_LoadPSKModel (mod, buf))
+				continue;
+			break;
+#endif
+
+#ifdef INTERQUAKEMODELS
+		case ('I'<<0)+('N'<<8)+('T'<<16)+('E'<<24):
+			if (!Mod_LoadInterQuakeModel (mod, buf))
+				continue;
+			break;
+#endif
 
 //Binary Sprites
 #ifdef SP2MODELS
 		case IDSPRITE2HEADER:
-			if (!GLMod_LoadSprite2Model (mod, buf))
+			if (!RMod_LoadSprite2Model (mod, buf))
 				continue;
 			break;
 #endif
 
 		case IDSPRITEHEADER:
-			if (!GLMod_LoadSpriteModel (mod, buf))
+			if (!RMod_LoadSpriteModel (mod, buf))
 				continue;
 			break;
 
 
 	//Binary Map formats
-#ifdef Q2BSPS
+#if defined(Q2BSPS) || defined(Q3BSPS)
+		case ('F'<<0)+('B'<<8)+('S'<<16)+('P'<<24):
 		case ('R'<<0)+('B'<<8)+('S'<<16)+('P'<<24):
 		case IDBSPHEADER:	//looks like id switched to have proper ids
 			if (!Mod_LoadQ2BrushModel (mod, buf))
 				continue;
 			break;
 #endif
-#ifdef DOOMWADS
+#ifdef MAP_DOOM
 		case (('D'<<24)+('A'<<16)+('W'<<8)+'I'):	//the id is hacked by the FS .wad loader (main wad).
 		case (('D'<<24)+('A'<<16)+('W'<<8)+'P'):	//the id is hacked by the FS .wad loader (patch wad).
 			if (!Mod_LoadDoomLevel (mod))
@@ -636,7 +718,7 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 		case 30:	//hl
 		case 29:	//q1
 		case 28:	//prerel
-			if (!GLMod_LoadBrushModel (mod, buf))
+			if (!RMod_LoadBrushModel (mod, buf))
 				continue;
 			break;
 
@@ -658,6 +740,14 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 				break;
 			}
 #endif
+#ifdef MAP_PROC
+			if (!strcmp(com_token, "CM"))	//doom3 map.
+			{
+				if (!D3_LoadMap_CollisionMap (mod, (char*)buf))
+					continue;
+				break;
+			}
+#endif
 #ifdef TERRAIN
 			if (!strcmp(com_token, "terrain"))	//custom format, text based.
 			{
@@ -671,13 +761,15 @@ model_t *GLMod_LoadModel (model_t *mod, qboolean crash)
 			continue;
 		}
 
-		P_DefaultTrail(mod);
+		P_LoadedModel(mod);
 		Validation_IncludeFile(mod->name, (char *)buf, com_filesize);
 
 		return mod;
 	}
 
+#ifdef Q2BSPS
 couldntload:
+#endif
 	if (crash)
 		Host_EndGame ("Mod_NumForName: %s not found or couldn't load", mod->name);
 
@@ -691,7 +783,7 @@ couldntload:
 	mod->maxs[2] = 16;
 	mod->needload = true;
 	mod->engineflags = 0;
-	P_DefaultTrail(mod);
+	P_LoadedModel(mod);
 	return mod;
 }
 
@@ -702,13 +794,13 @@ Mod_ForName
 Loads in a model for the given name
 ==================
 */
-model_t *GLMod_ForName (char *name, qboolean crash)
+model_t *RMod_ForName (char *name, qboolean crash)
 {
 	model_t	*mod;
 	
-	mod = GLMod_FindName (name);
+	mod = RMod_FindName (name);
 	
-	return GLMod_LoadModel (mod, crash);
+	return RMod_LoadModel (mod, crash);
 }
 
 
@@ -722,24 +814,25 @@ model_t *GLMod_ForName (char *name, qboolean crash)
 
 qbyte	*mod_base;
 
+#if 0
 char *advtexturedesc;
 char *mapsection;
 char *defaultsection;
 
-static char *GLMod_TD_LeaveSection(char *file)
+static char *RMod_TD_LeaveSection(char *file)
 {	//recursive routine to find the next }
 	while(file)
 	{
 		file = COM_Parse(file);
 		if (*com_token == '{')
-			file = GLMod_TD_LeaveSection(file);
+			file = RMod_TD_LeaveSection(file);
 		else if (*com_token == '}')
 			return file;
 	}
 	return NULL;
 }
 
-static char *GLMod_TD_Section(char *file, const char *sectionname)
+static char *RMod_TD_Section(char *file, const char *sectionname)
 {	//position within the open brace.
 	while(file)
 	{
@@ -759,11 +852,11 @@ static char *GLMod_TD_Section(char *file, const char *sectionname)
 		}
 
 		if (*com_token == '{')
-			file = GLMod_TD_LeaveSection(file);
+			file = RMod_TD_LeaveSection(file);
 	}
 	return NULL;
 }
-void GLMod_InitTextureDescs(char *mapname)
+void RMod_InitTextureDescs(char *mapname)
 {
 	if (advtexturedesc)
 		FS_FreeFile(advtexturedesc);
@@ -778,11 +871,11 @@ void GLMod_InitTextureDescs(char *mapname)
 	else
 	{
 		FS_LoadFile(va("map.shaders", mapname), (void**)&advtexturedesc);
-		mapsection = GLMod_TD_Section(advtexturedesc, mapname);
-		defaultsection = GLMod_TD_Section(advtexturedesc, "default");
+		mapsection = RMod_TD_Section(advtexturedesc, mapname);
+		defaultsection = RMod_TD_Section(advtexturedesc, "default");
 	}
 }
-void GLMod_LoadAdvancedTextureSection(char *section, char *name, int *base, int *norm, int *luma, int *gloss, int *alphamode, qboolean *cull) //fixme: add gloss
+void RMod_LoadAdvancedTextureSection(char *section, char *name, int *base, int *norm, int *luma, int *gloss, int *alphamode, qboolean *cull) //fixme: add gloss
 {
 	char stdname[MAX_QPATH] = "";
 	char flatname[MAX_QPATH] = "";
@@ -791,7 +884,7 @@ void GLMod_LoadAdvancedTextureSection(char *section, char *name, int *base, int 
 	char lumaname[MAX_QPATH] = "";
 	char glossname[MAX_QPATH] = "";
 
-	section = GLMod_TD_Section(section, name);
+	section = RMod_TD_Section(section, name);
 
 	while(section)
 	{
@@ -860,19 +953,19 @@ void GLMod_LoadAdvancedTextureSection(char *section, char *name, int *base, int 
 
 	if (!*stdname && !*flatname)
 		return;
-TRACE(("dbg: GLMod_LoadAdvancedTextureSection: %s\n", name));
+TRACE(("dbg: RMod_LoadAdvancedTextureSection: %s\n", name));
 
 	if (norm && gl_bumpmappingpossible && cls.allow_bump)
 	{
 		*base = 0;
 		*norm = 0;
 		if (!*norm && *normname)
-			*norm = Mod_LoadHiResTexture(normname, NULL, true, false, false);
+			*norm = Mod_LoadHiResTexture(normname, NULL, IF_NOALPHA|IF_NOGAMMA);
 		if (!*norm && *bumpname)
 			*norm = Mod_LoadBumpmapTexture(bumpname, NULL);
 
 		if (*norm && *flatname)
-			*base = Mod_LoadHiResTexture(flatname, NULL, true, false, true);
+			*base = Mod_LoadHiResTexture(flatname, NULL, IF_NOALPHA);
 	}
 	else
 	{
@@ -881,29 +974,55 @@ TRACE(("dbg: GLMod_LoadAdvancedTextureSection: %s\n", name));
 			*norm = 0;
 	}
 	if (!*base && *stdname)
-		*base = Mod_LoadHiResTexture(stdname, NULL, true, false, true);
+		*base = Mod_LoadHiResTexture(stdname, NULL, IF_NOALPHA);
 	if (!*base && *flatname)
-		*base = Mod_LoadHiResTexture(flatname, NULL, true, false, true);
+		*base = Mod_LoadHiResTexture(flatname, NULL, IF_NOALPHA);
 	if (luma && *lumaname)
-		*luma = Mod_LoadHiResTexture(lumaname, NULL, true, true, true);
+		*luma = Mod_LoadHiResTexture(lumaname, NULL, 0);
 
 	if (*norm && gloss && *glossname && gl_specular.value)
-		*gloss = Mod_LoadHiResTexture(glossname, NULL, true, false, true);
+		*gloss = Mod_LoadHiResTexture(glossname, NULL, 0);
 }
 
-void GLMod_LoadAdvancedTexture(char *name, int *base, int *norm, int *luma, int *gloss, int *alphamode, qboolean *cull)	//fixme: add gloss
+void RMod_LoadAdvancedTexture(char *name, int *base, int *norm, int *luma, int *gloss, int *alphamode, qboolean *cull)	//fixme: add gloss
 {
 	if (!gl_load24bit.value)
 		return;
 
 	if (mapsection)
 	{
-		GLMod_LoadAdvancedTextureSection(mapsection, name,base,norm,luma,gloss,alphamode,cull);
+		RMod_LoadAdvancedTextureSection(mapsection, name,base,norm,luma,gloss,alphamode,cull);
 		if (*base)
 			return;
 	}
 	if (defaultsection)
-		GLMod_LoadAdvancedTextureSection(defaultsection, name,base,norm,luma,gloss,alphamode,cull);
+		RMod_LoadAdvancedTextureSection(defaultsection, name,base,norm,luma,gloss,alphamode,cull);
+}
+#endif
+
+void Mod_FinishTexture(texture_t *tx, texnums_t tn)
+{
+	extern cvar_t gl_shadeq1_name;
+	char altname[MAX_QPATH];
+	char *star;
+	/*skies? just replace with the override sky*/
+	if (!strncmp(tx->name, "sky", 3) && *cl.skyname)
+		tx->shader = R_RegisterCustom (va("skybox_%s", cl.skyname), Shader_DefaultSkybox, NULL);	//just load the regular name.
+	//find the *
+	else if (!*gl_shadeq1_name.string || !strcmp(gl_shadeq1_name.string, "*"))
+		tx->shader = R_RegisterCustom (tx->name, Shader_DefaultBSPQ1, NULL);	//just load the regular name.
+	else if (!(star = strchr(gl_shadeq1_name.string, '*')) || (strlen(gl_shadeq1_name.string)+strlen(tx->name)+1>=sizeof(altname)))	//it's got to fit.
+		tx->shader = R_RegisterCustom (gl_shadeq1_name.string, Shader_DefaultBSPQ1, NULL);
+	else
+	{
+		strncpy(altname, gl_shadeq1_name.string, star-gl_shadeq1_name.string);	//copy the left
+		altname[star-gl_shadeq1_name.string] = '\0';
+		strcat(altname, tx->name);	//insert the *
+		strcat(altname, star+1);	//add any final text.
+		tx->shader = R_RegisterCustom (altname, Shader_DefaultBSPQ1, NULL);
+	}
+
+	R_BuildDefaultTexnums(&tn, tx->shader);
 }
 
 /*
@@ -911,7 +1030,7 @@ void GLMod_LoadAdvancedTexture(char *name, int *base, int *norm, int *luma, int 
 Mod_LoadTextures
 =================
 */
-qboolean GLMod_LoadTextures (lump_t *l)
+qboolean RMod_LoadTextures (lump_t *l)
 {
 	extern int gl_bumpmappingpossible;
 	int		i, j, pixels, num, max, altmax;
@@ -923,10 +1042,11 @@ qboolean GLMod_LoadTextures (lump_t *l)
 	dmiptexlump_t *m;
 	qboolean alphaed;
 	qbyte *base;
+	texnums_t tn;
 
-TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
+TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 
-	GLMod_InitTextureDescs(loadname);
+//	RMod_InitTextureDescs(loadname);
 
 	if (!l->filelen)
 	{
@@ -947,14 +1067,13 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 		{
 			tx = Hunk_AllocName (sizeof(texture_t), loadname );
 			memcpy(tx, r_notexture_mip, sizeof(texture_t));
-			tx->parttype = -1;
 			sprintf(tx->name, "unnamed%i", i);
 			loadmodel->textures[i] = tx;
 			continue;
 		}
 		mt = (miptex_t *)((qbyte *)m + m->dataofs[i]);
 
-	TRACE(("dbg: GLMod_LoadTextures: texture %s\n", loadname));
+	TRACE(("dbg: RMod_LoadTextures: texture %s\n", loadname));
 
 		if (!*mt->name)	//I HATE MAPPERS!
 		{
@@ -979,27 +1098,24 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 		tx->width = mt->width;
 		tx->height = mt->height;
 
-		tx->parttype = P_ParticleTypeForName(va("tex_%s", tx->name));
-
 		if (!mt->offsets[0])	//this is a hl external style texture, load it a little later (from a wad)
 		{
 			continue;
 		}
 
+		memset(&tn, 0, sizeof(tn));
+
 		if (!Q_strncmp(mt->name,"sky",3))
 		{
-			tx->offsets[0] = (char *)mt + mt->offsets[0] - (char *)tx;
-			R_InitSky (tx);
+			R_InitSky (&tn, tx, (char *)mt + mt->offsets[0]);
 		}
 		else
-#ifdef PEXT_BULLETENS
-			if (!R_AddBulleten(tx))
-#endif
 		{
-			tx->tn.base = 0;
-			GLMod_LoadAdvancedTexture(tx->name, &tx->tn.base, &tx->tn.bump, &tx->tn.fullbright, &tx->tn.specular, NULL, NULL);
-			if (tx->tn.base)
+/*
+			RMod_LoadAdvancedTexture(tx->name, &tn.base, &tn.bump, &tn.fullbright, &tn.specular, NULL, NULL);
+			if (tn.base)
 				continue;
+*/
 
 			base = (qbyte *)(mt+1);
 
@@ -1007,75 +1123,101 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 			{//external textures have already been filtered.
 				base = W_ConvertWAD3Texture(mt, &mt->width, &mt->height, &alphaed);	//convert texture to 32 bit.
 				tx->alphaed = alphaed;
-				if (!(tx->tn.base = Mod_LoadReplacementTexture(mt->name, loadname, true, alphaed, true)))
-					if (!(tx->tn.base = Mod_LoadReplacementTexture(mt->name, "bmodels", true, alphaed, true)))
-						tx->tn.base = R_LoadTexture32 (mt->name, tx->width, tx->height, (unsigned int *)base, true, alphaed);
+				tn.base = R_LoadReplacementTexture(mt->name, loadname, alphaed?0:IF_NOALPHA);
+				if (!TEXVALID(tn.base))
+				{
+					tn.base = R_LoadReplacementTexture(mt->name, "bmodels", alphaed?0:IF_NOALPHA);
+					if (!TEXVALID(tn.base))
+						tn.base = R_LoadTexture32 (mt->name, tx->width, tx->height, (unsigned int *)base, (alphaed?0:IF_NOALPHA));
+				}
 
 				*tx->name = *mt->name;
 			}
 			else
 			{
-				if (!(tx->tn.base = Mod_LoadReplacementTexture(mt->name, loadname, true, false, true)))
-					if (!(tx->tn.base = Mod_LoadReplacementTexture(mt->name, "bmodels", true, false, true)))
-						tx->tn.base = R_LoadTexture8 (mt->name, tx->width, tx->height, base, true, false);
+				qbyte *mipbase;
+				unsigned int mipwidth, mipheight;
+				extern cvar_t gl_miptexLevel;
+				if ((unsigned int)gl_miptexLevel.ival < 4 && mt->offsets[gl_miptexLevel.ival])
+				{
+					mipbase = (qbyte*)mt + mt->offsets[gl_miptexLevel.ival];
+					mipwidth = tx->width>>gl_miptexLevel.ival;
+					mipheight = tx->height>>gl_miptexLevel.ival;
+				}
+				else
+				{
+					mipbase = base;
+					mipwidth = tx->width;
+					mipheight = tx->height;
+				}
+
+				tn.base = R_LoadReplacementTexture(mt->name, loadname, IF_NOALPHA|IF_SUBDIRONLY);
+				if (!TEXVALID(tn.base))
+				{
+					tn.base = R_LoadReplacementTexture(mt->name, "bmodels", (*mt->name == '{')?0:IF_NOALPHA);
+					if (!TEXVALID(tn.base))
+						tn.base = R_LoadTexture8 (mt->name, mipwidth, mipheight, mipbase, (*mt->name == '{')?0:IF_NOALPHA, 1);
+				}
 
 				if (r_fb_bmodels.value)
 				{
 					snprintf(altname, sizeof(altname)-1, "%s_luma", mt->name);
 					if (gl_load24bit.value)
 					{
-						tx->tn.fullbright = Mod_LoadReplacementTexture(altname, loadname, true, false, true);
-						if (!tx->tn.fullbright)
-							tx->tn.fullbright = Mod_LoadReplacementTexture(altname, "bmodels", true, false, true);
+						tn.fullbright = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA|IF_SUBDIRONLY);
+						if (!TEXVALID(tn.fullbright))
+							tn.fullbright = R_LoadReplacementTexture(altname, "bmodels", IF_NOGAMMA);
 					}
-					if (!tx->tn.fullbright)	//generate one (if possible).
-						tx->tn.fullbright = R_LoadTextureFB(altname, tx->width, tx->height, base, true, true);
+					if ((*mt->name != '{') && !TEXVALID(tn.fullbright))	//generate one (if possible).
+						tn.fullbright = R_LoadTextureFB(altname, mipwidth, mipheight, mipbase, IF_NOGAMMA);
 				}
 			}
 
-			tx->tn.bump = 0;
+			tn.bump = r_nulltex;
 			if (gl_bumpmappingpossible && cls.allow_bump)
 			{
 				extern cvar_t gl_bump;
-				if (gl_bump.value<2)	//set to 2 to have faster loading.
+				if (gl_bump.ival<2)	//set to 2 to have faster loading.
 				{
 					snprintf(altname, sizeof(altname)-1, "%s_norm", mt->name);
-					tx->tn.bump = Mod_LoadHiResTexture(altname, loadname, true, false, false);
-					if (!tx->tn.bump)
-						tx->tn.bump = Mod_LoadHiResTexture(altname, "bmodels", true, false, false);
+					tn.bump = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA|IF_SUBDIRONLY);
+					if (!TEXVALID(tn.bump))
+						tn.bump = R_LoadReplacementTexture(altname, "bmodels", IF_NOGAMMA);
 				}
-				if (!tx->tn.bump)
+				if (!TEXVALID(tn.bump))
 				{
 					if (gl_load24bit.value)
 					{
 						snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
-						tx->tn.bump = Mod_LoadBumpmapTexture(altname, loadname);
-						if (!tx->tn.bump)
-							tx->tn.bump = Mod_LoadBumpmapTexture(altname, "bmodels");
+						tn.bump = R_LoadBumpmapTexture(altname, loadname);
+						if (!TEXVALID(tn.bump))
+							tn.bump = R_LoadBumpmapTexture(altname, "bmodels");
 					}
 					else
 						snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
 				}
 
-				if (!(tx->tn.bump) && loadmodel->fromgame != fg_halflife)
+				if (!TEXVALID(tn.bump) && loadmodel->fromgame != fg_halflife)
 				{
+					//no mip levels here, would be absurd.
 					base = (qbyte *)(mt+1);	//convert to greyscale.
 					for (j = 0; j < pixels; j++)
 						base[j] = (host_basepal[base[j]*3] + host_basepal[base[j]*3+1] + host_basepal[base[j]*3+2]) / 3;
 
-					tx->tn.bump = R_LoadTexture8Bump(altname, tx->width, tx->height, base, true, r_shadow_bumpscale_basetexture.value);	//normalise it and then bump it.
+					tn.bump = R_LoadTexture8BumpPal(altname, tx->width, tx->height, base, true);	//normalise it and then bump it.
 				}
 
 				//don't do any complex quake 8bit -> glossmap. It would likly look a little ugly...
 				if (gl_specular.value && gl_load24bit.value)
 				{
 					snprintf(altname, sizeof(altname)-1, "%s_gloss", mt->name);
-					tx->tn.specular = Mod_LoadHiResTexture(altname, loadname, true, false, false);
-					if (!tx->tn.specular)
-						tx->tn.specular = Mod_LoadHiResTexture(altname, "bmodels", true, false, false);
+					tn.specular = R_LoadHiResTexture(altname, loadname, IF_NOALPHA|IF_NOGAMMA|IF_SUBDIRONLY);
+					if (!TEXVALID(tn.specular))
+						tn.specular = R_LoadHiResTexture(altname, "bmodels", IF_NOALPHA|IF_NOGAMMA);
 				}
 			}
 		}
+		Mod_FinishTexture(tx, tn);
 	}
 //
 // sequence the animations
@@ -1185,14 +1327,13 @@ TRACE(("dbg: GLMod_LoadTextures: inittexturedescs\n"));
 	return true;
 }
 
-void GLMod_NowLoadExternal(void)
+void RMod_NowLoadExternal(void)
 {
-	extern cvar_t gl_shadeq1, gl_shadeq1_name;
-
 	extern int gl_bumpmappingpossible;
 	int i, width, height;
 	qboolean alphaed;
 	texture_t	*tx;
+	texnums_t tn;
 
 	for (i=0 ; i<loadmodel->numtextures ; i++)
 	{
@@ -1200,31 +1341,35 @@ void GLMod_NowLoadExternal(void)
 		if (!tx)	//e1m2, this happens
 			continue;
 
-		if (!tx->tn.base)
-		{
-#ifdef PEXT_BULLETENS
-			if (!R_AddBulleten(tx))
-#endif
-			{
-				qbyte * data;
+		if (tx->shader)
+			continue;
 
-				data = W_GetTexture(tx->name, &width, &height, &alphaed);
-				if (data)
-				{	//data is from temp hunk, so no need to free.
-					tx->alphaed = alphaed;
-				}
-				
-				if (!(tx->tn.base = Mod_LoadHiResTexture(tx->name, loadname, true, false, true)))
-					if (!(tx->tn.base = Mod_LoadHiResTexture(tx->name, "bmodels", true, false, true)))
-						tx->tn.base = Mod_LoadReplacementTexture("light1_4", NULL, true, false, true);	//a fallback. :/
+		memset (&tn, 0, sizeof(tn));
+
+		if (!TEXVALID(tn.base))
+		{
+			qbyte * data;
+
+			data = W_GetTexture(tx->name, &width, &height, &alphaed);
+			if (data)
+			{	//data is from temp hunk, so no need to free.
+				tx->alphaed = alphaed;
+			}
+
+			tn.base = R_LoadHiResTexture(tx->name, loadname, IF_NOALPHA);
+			if (!TEXVALID(tn.base))
+			{
+				tn.base = R_LoadHiResTexture(tx->name, "bmodels", IF_NOALPHA);
+				if (!TEXVALID(tn.base))
+					tn.base = R_LoadReplacementTexture("light1_4", NULL, IF_NOALPHA);	//a fallback. :/
 			}
 		}
-		if (!tx->tn.bump && *tx->name != '{' && gl_bumpmappingpossible && cls.allow_bump)
+		if (!TEXVALID(tn.bump) && *tx->name != '{' && gl_bumpmappingpossible && cls.allow_bump)
 		{
-			tx->tn.bump = Mod_LoadBumpmapTexture(va("%s_bump", tx->name), loadname);
-			if (!tx->tn.bump)
-				tx->tn.bump = Mod_LoadBumpmapTexture(va("%s_bump", tx->name), "bmodels");
-			if (!tx->tn.bump)
+			tn.bump = R_LoadBumpmapTexture(va("%s_bump", tx->name), loadname);
+			if (!TEXVALID(tn.bump))
+				tn.bump = R_LoadBumpmapTexture(va("%s_bump", tx->name), "bmodels");
+			if (!TEXVALID(tn.bump))
 			{
 				qbyte *data;
 				qbyte *heightmap;
@@ -1232,45 +1377,19 @@ void GLMod_NowLoadExternal(void)
 				int j;
 
 				data = W_GetTexture(tx->name, &width, &height, &alphaed);
-				if (!data)
-					continue;
-
-				heightmap = Hunk_TempAllocMore(width*height);
-				for (j = 0; j < width*height; j++)
+				if (data)
 				{
-					*heightmap++ = (data[j*4+0] + data[j*4+1] + data[j*4+2])/3;
+					heightmap = Hunk_TempAllocMore(width*height);
+					for (j = 0; j < width*height; j++)
+					{
+						*heightmap++ = (data[j*4+0] + data[j*4+1] + data[j*4+2])/3;
+					}
+					
+					tn.bump = R_LoadTexture8BumpPal (va("%s_bump", tx->name), width, height, heightmap-j, true);
 				}
-				
-				tx->tn.bump = R_LoadTexture8Bump (va("%s_bump", tx->name), width, height, heightmap-j, true, r_shadow_bumpscale_basetexture.value);
 			}
 		}
-
-
-#ifdef NEWBACKEND
-		tx->shader = R_RegisterCustom(tx->name, Shader_DefaultBSP, &tx->tn);
-#pragma message("warning: fix the following block")
-#endif
-#ifdef Q3SHADERS	//load q3 syntax shader last, after the textures inside the bsp have been loaded and stuff.
-		if (cls.allow_shaders && gl_shadeq1.value && *gl_shadeq1_name.string)
-		{
-			char altname[MAX_QPATH];
-			char *star;
-			//find the *
-			if (!strcmp(gl_shadeq1_name.string, "*"))
-			//	tx->shader = R_RegisterCustom(mt->name, NULL);	//just load the regular name.
-				tx->shader = R_RegisterShader(tx->name);	//just load the regular name.
-			else if (!(star = strchr(gl_shadeq1_name.string, '*')) || (strlen(gl_shadeq1_name.string)+strlen(tx->name)+1>=sizeof(altname)))	//it's got to fit.
-				tx->shader = R_RegisterCustom(gl_shadeq1_name.string, NULL, NULL);
-			else
-			{
-				strncpy(altname, gl_shadeq1_name.string, star-gl_shadeq1_name.string);	//copy the left
-				altname[star-gl_shadeq1_name.string] = '\0';
-				strcat(altname, tx->name);	//insert the *
-				strcat(altname, star+1);	//add any final text.
-				tx->shader = R_RegisterCustom(altname, NULL, NULL);
-			}
-		}
-#endif
+		Mod_FinishTexture(tx, tn);
 	}
 }
 
@@ -1306,7 +1425,7 @@ void BuildLightMapGammaTable (float g, float c)
 Mod_LoadLighting
 =================
 */
-void GLMod_LoadLighting (lump_t *l)
+void RMod_LoadLighting (lump_t *l)
 {	
 	qbyte *luxdata = NULL;
 	int mapcomeswith24bitcolouredlighting = false;
@@ -1328,7 +1447,7 @@ void GLMod_LoadLighting (lump_t *l)
 	if (loadmodel->fromgame == fg_halflife || loadmodel->fromgame == fg_quake2 || loadmodel->fromgame == fg_quake3)
 		mapcomeswith24bitcolouredlighting = true;
 
-	if (!mapcomeswith24bitcolouredlighting && r_loadlits.value && gl_bumpmappingpossible)	//fixme: adjust the light intensities.
+	if (!mapcomeswith24bitcolouredlighting && r_loadlits.ival && gl_bumpmappingpossible && r_deluxemapping.ival)	//fixme: adjust the light intensities.
 	{	//the map util has a '-scalecos X' parameter. use 0 if you're going to use only just lux. without lux scalecos 0 is hideous.
 		char luxname[MAX_QPATH];		
 		if (!luxdata)
@@ -1346,8 +1465,13 @@ void GLMod_LoadLighting (lump_t *l)
 
 			luxdata = COM_LoadHunkFile(luxname);
 		}
-		COM_StripExtension(COM_SkipPath(loadmodel->name), luxname+5, sizeof(luxname)-5);
-		strcat(luxname, ".lux");
+		if (!luxdata)
+		{
+			COM_StripExtension(COM_SkipPath(loadmodel->name), luxname+5, sizeof(luxname)-5);
+			COM_DefaultExtension(luxname, ".dlit", sizeof(luxname));
+			luxdata = COM_LoadHunkFile(luxname);
+		}
+
 		if (luxdata)
 		{
 			if (l->filelen && l->filelen != (com_filesize-8)/3)
@@ -1494,8 +1618,12 @@ void GLMod_LoadLighting (lump_t *l)
 			loadmodel->deluxdata += 8;
 			litdata = loadmodel->deluxdata;
 			{
-				for (i = 0; i < l->filelen*3; i++)
+				for (i = 0; i < l->filelen; i++)
+				{
 					*litdata++ = 0.5f*255;
+					*litdata++ = 0.5f*255;
+					*litdata++ = 255;
+				}
 			}
 		}
 
@@ -1541,7 +1669,7 @@ void GLMod_LoadLighting (lump_t *l)
 Mod_LoadVisibility
 =================
 */
-void GLMod_LoadVisibility (lump_t *l)
+void RMod_LoadVisibility (lump_t *l)
 {
 	if (!l->filelen)
 	{
@@ -1558,7 +1686,7 @@ void GLMod_LoadVisibility (lump_t *l)
 Mod_LoadEntities
 =================
 */
-void GLMod_LoadEntities (lump_t *l)
+void RMod_LoadEntities (lump_t *l)
 {
 	if (!l->filelen)
 	{
@@ -1576,7 +1704,7 @@ void GLMod_LoadEntities (lump_t *l)
 Mod_LoadVertexes
 =================
 */
-qboolean GLMod_LoadVertexes (lump_t *l)
+qboolean RMod_LoadVertexes (lump_t *l)
 {
 	dvertex_t	*in;
 	mvertex_t	*out;
@@ -1610,7 +1738,7 @@ Mod_LoadSubmodels
 =================
 */
 static qboolean hexen2map;
-qboolean GLMod_LoadSubmodels (lump_t *l)
+qboolean RMod_LoadSubmodels (lump_t *l)
 {
 	dq1model_t	*inq;
 	dh2model_t	*inh;
@@ -1705,7 +1833,7 @@ qboolean GLMod_LoadSubmodels (lump_t *l)
 Mod_LoadEdges
 =================
 */
-qboolean GLMod_LoadEdges (lump_t *l)
+qboolean RMod_LoadEdges (lump_t *l)
 {
 	dedge_t *in;
 	medge_t *out;
@@ -1737,7 +1865,7 @@ qboolean GLMod_LoadEdges (lump_t *l)
 Mod_LoadTexinfo
 =================
 */
-qboolean GLMod_LoadTexinfo (lump_t *l)
+qboolean RMod_LoadTexinfo (lump_t *l)
 {
 	texinfo_t *in;
 	mtexinfo_t *out;
@@ -1863,7 +1991,7 @@ void CalcSurfaceExtents (msurface_t *s);
 Mod_LoadFaces
 =================
 */
-qboolean GLMod_LoadFaces (lump_t *l)
+qboolean RMod_LoadFaces (lump_t *l)
 {
 	dface_t		*in;
 	msurface_t 	*out;
@@ -1943,7 +2071,6 @@ qboolean GLMod_LoadFaces (lump_t *l)
 		}*/
 		if (!Q_strncmp(out->texinfo->texture->name,"{",1))		// alpha
 		{
-			out->texinfo->flags |= SURF_ALPHATEST;
 			out->flags |= (SURF_DRAWALPHA);
 			continue;
 		}
@@ -1965,15 +2092,15 @@ qboolean GLMod_LoadFaces (lump_t *l)
 Mod_SetParent
 =================
 */
-void GLMod_SetParent (mnode_t *node, mnode_t *parent)
+void RMod_SetParent (mnode_t *node, mnode_t *parent)
 {
 	if (!node)
 		return;
 	node->parent = parent;
 	if (node->contents < 0)
 		return;
-	GLMod_SetParent (node->children[0], node);
-	GLMod_SetParent (node->children[1], node);
+	RMod_SetParent (node->children[0], node);
+	RMod_SetParent (node->children[1], node);
 }
 
 /*
@@ -1981,7 +2108,7 @@ void GLMod_SetParent (mnode_t *node, mnode_t *parent)
 Mod_LoadNodes
 =================
 */
-qboolean GLMod_LoadNodes (lump_t *l)
+qboolean RMod_LoadNodes (lump_t *l)
 {
 	int			i, j, count, p;
 	dnode_t		*in;
@@ -2023,7 +2150,7 @@ qboolean GLMod_LoadNodes (lump_t *l)
 		}
 	}
 	
-	GLMod_SetParent (loadmodel->nodes, NULL);	// sets nodes and leafs
+	RMod_SetParent (loadmodel->nodes, NULL);	// sets nodes and leafs
 	return true;
 }
 
@@ -2032,7 +2159,7 @@ qboolean GLMod_LoadNodes (lump_t *l)
 Mod_LoadLeafs
 =================
 */
-qboolean GLMod_LoadLeafs (lump_t *l)
+qboolean RMod_LoadLeafs (lump_t *l)
 {
 	dleaf_t 	*in;
 	mleaf_t 	*out;
@@ -2071,7 +2198,6 @@ qboolean GLMod_LoadLeafs (lump_t *l)
 			out->compressed_vis = NULL;
 		else
 			out->compressed_vis = loadmodel->visdata + p;
-		out->efrags = NULL;
 		
 		for (j=0 ; j<4 ; j++)
 			out->ambient_sound_level[j] = in->ambient_level[j];
@@ -2107,7 +2233,7 @@ void *suplementryclipnodes;
 void *suplementryplanes;
 void *crouchhullfile;
 
-void GLMod_LoadCrouchHull(void)
+void RMod_LoadCrouchHull(void)
 {
 	int i, h;
 	int numsm;
@@ -2178,7 +2304,7 @@ void GLMod_LoadCrouchHull(void)
 Mod_LoadClipnodes
 =================
 */
-qboolean GLMod_LoadClipnodes (lump_t *l)
+qboolean RMod_LoadClipnodes (lump_t *l)
 {
 	dclipnode_t *in, *out;
 	int			i, count;
@@ -2239,17 +2365,22 @@ qboolean GLMod_LoadClipnodes (lump_t *l)
 		hull->clip_maxs[2] = 16;
 		hull->available = true;
 
+		/*
+		There is some mission-pack weirdness here
+		in the missionpack, hull 4 is meant to be '-8 -8 -8' '8 8 8'
+		in the original game, hull 4 is '-40 -40 -42' '40 40 42'
+		*/
 		hull = &loadmodel->hulls[4];
 		hull->clipnodes = out;
 		hull->firstclipnode = 0;
 		hull->lastclipnode = count-1;
 		hull->planes = loadmodel->planes;
-		hull->clip_mins[0] = -40;
-		hull->clip_mins[1] = -40;
-		hull->clip_mins[2] = -42;
-		hull->clip_maxs[0] = 40;
-		hull->clip_maxs[1] = 40;
-		hull->clip_maxs[2] = 42;
+		hull->clip_mins[0] = -8;
+		hull->clip_mins[1] = -8;
+		hull->clip_mins[2] = -8;
+		hull->clip_maxs[0] = 8;
+		hull->clip_maxs[1] = 8;
+		hull->clip_maxs[2] = 8;
 		hull->available = true;
 
 		hull = &loadmodel->hulls[5];
@@ -2259,7 +2390,7 @@ qboolean GLMod_LoadClipnodes (lump_t *l)
 		hull->planes = loadmodel->planes;
 		hull->clip_mins[0] = -48;
 		hull->clip_mins[1] = -48;
-		hull->clip_mins[2] = -50 - 24;
+		hull->clip_mins[2] = -50;
 		hull->clip_maxs[0] = 48;
 		hull->clip_maxs[1] = 48;
 		hull->clip_maxs[2] = 50;
@@ -2360,6 +2491,7 @@ qboolean GLMod_LoadClipnodes (lump_t *l)
 
 	if (numsuplementryclipnodes)	//now load the crouch ones.
 	{
+/*This looks buggy*/
 		for (i = 3; i < MAX_MAP_HULLSM; i++)
 		{
 			hull = &loadmodel->hulls[i];
@@ -2392,7 +2524,7 @@ Mod_MakeHull0
 Deplicate the drawing hull structure as a clipping hull
 =================
 */
-void GLMod_MakeHull0 (void)
+void RMod_MakeHull0 (void)
 {
 	mnode_t		*in, *child;
 	dclipnode_t *out;
@@ -2429,7 +2561,7 @@ void GLMod_MakeHull0 (void)
 Mod_LoadMarksurfaces
 =================
 */
-qboolean GLMod_LoadMarksurfaces (lump_t *l)
+qboolean RMod_LoadMarksurfaces (lump_t *l)
 {	
 	int		i, j, count;
 	short		*in;
@@ -2466,7 +2598,7 @@ qboolean GLMod_LoadMarksurfaces (lump_t *l)
 Mod_LoadSurfedges
 =================
 */
-qboolean GLMod_LoadSurfedges (lump_t *l)
+qboolean RMod_LoadSurfedges (lump_t *l)
 {	
 	int		i, count;
 	int		*in, *out;
@@ -2495,7 +2627,7 @@ qboolean GLMod_LoadSurfedges (lump_t *l)
 Mod_LoadPlanes
 =================
 */
-qboolean GLMod_LoadPlanes (lump_t *l)
+qboolean RMod_LoadPlanes (lump_t *l)
 {
 	int			i, j;
 	mplane_t	*out;
@@ -2575,10 +2707,8 @@ float RadiusFromBounds (vec3_t mins, vec3_t maxs);
 */
 
 //combination of R_AddDynamicLights and R_MarkLights
-void GLR_StainSurf (msurface_t *surf, float *parms);
 static void Q1BSP_StainNode (mnode_t *node, float *parms)
 {
-#ifdef RGLQUAKE
 	mplane_t	*splitplane;
 	float		dist;
 	msurface_t	*surf;
@@ -2605,31 +2735,24 @@ static void Q1BSP_StainNode (mnode_t *node, float *parms)
 	surf = cl.worldmodel->surfaces + node->firstsurface;
 	for (i=0 ; i<node->numsurfaces ; i++, surf++)
 	{
-		if (surf->flags&~(SURF_DONTWARP|SURF_PLANEBACK))
+		if (surf->flags&~(SURF_DRAWALPHA|SURF_DONTWARP|SURF_PLANEBACK))
 			continue;
-		GLR_StainSurf(surf, parms);
+		Surf_StainSurf(surf, parms);
 	}
 
 	Q1BSP_StainNode (node->children[0], parms);
 	Q1BSP_StainNode (node->children[1], parms);
-#endif
 }
 
-
-void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node);
-qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace);
-void GLQ1BSP_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
-
-
-void GLMod_FixupNodeMinsMaxs (mnode_t *node, mnode_t *parent)
+void RMod_FixupNodeMinsMaxs (mnode_t *node, mnode_t *parent)
 {
 	if (!node)
 		return;
 
 	if (node->contents >= 0)
 	{
-		GLMod_FixupNodeMinsMaxs (node->children[0], node);
-		GLMod_FixupNodeMinsMaxs (node->children[1], node);
+		RMod_FixupNodeMinsMaxs (node->children[0], node);
+		RMod_FixupNodeMinsMaxs (node->children[1], node);
 	}
 
 	if (parent)
@@ -2650,7 +2773,7 @@ void GLMod_FixupNodeMinsMaxs (mnode_t *node, mnode_t *parent)
 	}
 
 }
-void GLMod_FixupMinsMaxs(void)
+void RMod_FixupMinsMaxs(void)
 {
 	//q1 bsps are capped to +/- 32767 by the nodes/leafs
 	//verts arn't though
@@ -2733,7 +2856,7 @@ void GLMod_FixupMinsMaxs(void)
 			} while (--c);
 		}
 	}
-	GLMod_FixupNodeMinsMaxs (loadmodel->nodes, NULL);	// sets nodes and leafs
+	RMod_FixupNodeMinsMaxs (loadmodel->nodes, NULL);	// sets nodes and leafs
 }
 
 /*
@@ -2741,7 +2864,7 @@ void GLMod_FixupMinsMaxs(void)
 Mod_LoadBrushModel
 =================
 */
-qboolean GLMod_LoadBrushModel (model_t *mod, void *buffer)
+qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 {
 	int			i, j;
 	dheader_t	*header;
@@ -2750,6 +2873,11 @@ qboolean GLMod_LoadBrushModel (model_t *mod, void *buffer)
 	unsigned int chksum;
 	int start;
 	qboolean noerrors;
+#if (defined(ODE_STATIC) || defined(ODE_DYNAMIC))
+	qboolean ode = true;
+#else
+#define ode true
+#endif
 	
 	start = Hunk_LowMark();
 
@@ -2759,7 +2887,7 @@ qboolean GLMod_LoadBrushModel (model_t *mod, void *buffer)
 
 	if ((!cl.worldmodel && cls.state>=ca_connected)
 #ifndef CLIENTONLY
-		|| (!sv.worldmodel && sv.active)
+		|| (!sv.world.worldmodel && sv.active)
 #endif
 		)
 		isnotmap = false;
@@ -2823,40 +2951,56 @@ qboolean GLMod_LoadBrushModel (model_t *mod, void *buffer)
 
 	crouchhullfile = NULL;
 
+#ifndef CLIENTONLY
+	if (sv.state)	//if the server is running
+	{
+		if (!strcmp(loadmodel->name, va("maps/%s.bsp", sv.name)))
+			Mod_ParseInfoFromEntityLump(loadmodel, mod_base + header->lumps[LUMP_ENTITIES].fileofs, loadname);
+	}
+	else
+#endif
+	{
+		if (!cl.model_precache[1])	//not copied across yet
+			Mod_ParseInfoFromEntityLump(loadmodel, mod_base + header->lumps[LUMP_ENTITIES].fileofs, loadname);
+	}
+
 // load into heap
-#ifndef CLIENTONLY
-	if (!isDedicated)
-#endif
+	if (!isDedicated || ode)
 	{
-		noerrors = noerrors && GLMod_LoadVertexes (&header->lumps[LUMP_VERTEXES]);
-		noerrors = noerrors && GLMod_LoadEdges (&header->lumps[LUMP_EDGES]);
-		noerrors = noerrors && GLMod_LoadSurfedges (&header->lumps[LUMP_SURFEDGES]);
-		noerrors = noerrors && GLMod_LoadTextures (&header->lumps[LUMP_TEXTURES]);
+		noerrors = noerrors && RMod_LoadVertexes (&header->lumps[LUMP_VERTEXES]);
+		noerrors = noerrors && RMod_LoadEdges (&header->lumps[LUMP_EDGES]);
+		noerrors = noerrors && RMod_LoadSurfedges (&header->lumps[LUMP_SURFEDGES]);
+	}
+	if (!isDedicated)
+	{
+		noerrors = noerrors && RMod_LoadTextures (&header->lumps[LUMP_TEXTURES]);
 		if (noerrors)
-			GLMod_LoadLighting (&header->lumps[LUMP_LIGHTING]);	
+			RMod_LoadLighting (&header->lumps[LUMP_LIGHTING]);	
 	}
-	noerrors = noerrors && GLMod_LoadSubmodels (&header->lumps[LUMP_MODELS]);
+	noerrors = noerrors && RMod_LoadSubmodels (&header->lumps[LUMP_MODELS]);
 	if (noerrors)
-		GLMod_LoadCrouchHull();
-	noerrors = noerrors && GLMod_LoadPlanes (&header->lumps[LUMP_PLANES]);
-#ifndef CLIENTONLY
+		RMod_LoadCrouchHull();
+	noerrors = noerrors && RMod_LoadPlanes (&header->lumps[LUMP_PLANES]);
+	if (!isDedicated || ode)
+	{
+		noerrors = noerrors && RMod_LoadTexinfo (&header->lumps[LUMP_TEXINFO]);
+		noerrors = noerrors && RMod_LoadFaces (&header->lumps[LUMP_FACES]);
+	}
 	if (!isDedicated)
-#endif
-	{
-		noerrors = noerrors && GLMod_LoadTexinfo (&header->lumps[LUMP_TEXINFO]);
-		noerrors = noerrors && GLMod_LoadFaces (&header->lumps[LUMP_FACES]);
-		noerrors = noerrors && GLMod_LoadMarksurfaces (&header->lumps[LUMP_MARKSURFACES]);
-	}	
+		noerrors = noerrors && RMod_LoadMarksurfaces (&header->lumps[LUMP_MARKSURFACES]);	
 	if (noerrors)
-		GLMod_LoadVisibility (&header->lumps[LUMP_VISIBILITY]);
-	noerrors = noerrors && GLMod_LoadLeafs (&header->lumps[LUMP_LEAFS]);
-	noerrors = noerrors && GLMod_LoadNodes (&header->lumps[LUMP_NODES]);
-	noerrors = noerrors && GLMod_LoadClipnodes (&header->lumps[LUMP_CLIPNODES]);
+		RMod_LoadVisibility (&header->lumps[LUMP_VISIBILITY]);
+	noerrors = noerrors && RMod_LoadLeafs (&header->lumps[LUMP_LEAFS]);
+	noerrors = noerrors && RMod_LoadNodes (&header->lumps[LUMP_NODES]);
+	noerrors = noerrors && RMod_LoadClipnodes (&header->lumps[LUMP_CLIPNODES]);
 	if (noerrors)
 	{
-		GLMod_LoadEntities (&header->lumps[LUMP_ENTITIES]);
-		GLMod_MakeHull0 ();
+		RMod_LoadEntities (&header->lumps[LUMP_ENTITIES]);
+		RMod_MakeHull0 ();
 	}
+
+	if (!isDedicated && noerrors)
+		Mod_SortShaders();
 
 	if (crouchhullfile)
 	{
@@ -2870,19 +3014,6 @@ qboolean GLMod_LoadBrushModel (model_t *mod, void *buffer)
 		return false;
 	}
 
-#ifndef CLIENTONLY
-	if (sv.state)	//if the server is running
-	{
-		if (!strcmp(loadmodel->name, va("maps/%s.bsp", sv.name)))
-			Mod_ParseInfoFromEntityLump(mod_base + header->lumps[LUMP_ENTITIES].fileofs, loadname);
-	}
-	else
-#endif
-	{
-		if (!cl.model_precache[1])	//not copied across yet
-			Mod_ParseInfoFromEntityLump(mod_base + header->lumps[LUMP_ENTITIES].fileofs, loadname);
-	}
-
 	Q1BSP_SetModelFuncs(mod);
 	mod->funcs.LightPointValues		= GLQ1BSP_LightPointValues;
 	mod->funcs.StainNode			= Q1BSP_StainNode;
@@ -2890,6 +3021,13 @@ qboolean GLMod_LoadBrushModel (model_t *mod, void *buffer)
 
 	mod->numframes = 2;		// regular and alternate animation
 	
+	/*FIXME: move mesh_t and lightmap allocation out of r_surf
+	for (i=0 ; i<mod->numsurfaces ; i++)
+	{
+		Surf_BuildSurfaceDisplayList (mod, mod->surfaces + i);
+	}
+	*/
+
 //
 // set up the submodels (FIXME: this is confusing)
 //
@@ -2899,18 +3037,20 @@ qboolean GLMod_LoadBrushModel (model_t *mod, void *buffer)
 
 		mod->hulls[0].firstclipnode = bm->headnode[0];
 		mod->hulls[0].available = true;
-		Q1BSP_SetHullFuncs(&mod->hulls[0]);
+		Q1BSP_CheckHullNodes(&mod->hulls[0]);
+
 
 		for (j=1 ; j<MAX_MAP_HULLSM ; j++)
 		{
 			mod->hulls[j].firstclipnode = bm->headnode[j];
 			mod->hulls[j].lastclipnode = mod->numclipnodes-1;
 
-			mod->hulls[j].available = bm->hullavailable[j];
+			mod->hulls[j].available &= bm->hullavailable[j];
 			if (mod->hulls[j].firstclipnode > mod->hulls[j].lastclipnode)
 				mod->hulls[j].available = false;
 
-			Q1BSP_SetHullFuncs(&mod->hulls[j]);
+			if (mod->hulls[j].available)
+				Q1BSP_CheckHullNodes(&mod->hulls[j]);
 		}
 		
 		mod->firstmodelsurface = bm->firstface;
@@ -2932,8 +3072,6 @@ qboolean GLMod_LoadBrushModel (model_t *mod, void *buffer)
 			*loadmodel = *mod;
 			strcpy (loadmodel->name, name);
 			mod = loadmodel;
-
-			P_DefaultTrail(mod);
 		}
 	}
 #ifdef RUNTIMELIGHTING
@@ -2942,7 +3080,7 @@ qboolean GLMod_LoadBrushModel (model_t *mod, void *buffer)
 #endif
 
 	if (1)
-		GLMod_FixupMinsMaxs();
+		RMod_FixupMinsMaxs();
 
 	return true;
 }
@@ -2998,7 +3136,7 @@ typedef struct
 	else if (pos[off] != 255) fdc = pos[off]; \
 }
 
-void GLMod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight )
+void RMod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight )
 {
 	qbyte				fillcolor = *skin; // assume this is the pixel to fill
 	floodfill_t			fifo[FLOODFILL_FIFO_SIZE];
@@ -3051,12 +3189,13 @@ void GLMod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight )
 Mod_LoadSpriteFrame
 =================
 */
-void * GLMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum, int version, unsigned char *palette)
+void * RMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum, int version, unsigned char *palette)
 {
 	dspriteframe_t		*pinframe;
 	mspriteframe_t		*pspriteframe;
 	int					width, height, size, origin[2];
 	char				name[64];
+	texid_t texnum;
 
 	pinframe = (dspriteframe_t *)pin;
 
@@ -3070,8 +3209,6 @@ void * GLMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum
 
 	*ppframe = pspriteframe;
 
-	pspriteframe->p.width = width;
-	pspriteframe->p.height = height;
 	origin[0] = LittleLong (pinframe->origin[0]);
 	origin[1] = LittleLong (pinframe->origin[1]);
 
@@ -3080,47 +3217,60 @@ void * GLMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum
 	pspriteframe->left = origin[0];
 	pspriteframe->right = width + origin[0];
 
-	pspriteframe->p.d.gl.texnum = 0;
-	pspriteframe->p.d.gl.sl = 0;
-	pspriteframe->p.d.gl.sh = 1;
-	pspriteframe->p.d.gl.tl = 0;
-	pspriteframe->p.d.gl.th = 1;
+	texnum = r_nulltex;
 
-	if (!pspriteframe->p.d.gl.texnum)
+	if (!TEXVALID(texnum))
 	{	//the dp way
-		COM_StripExtension(loadmodel->name, name, sizeof(name));
-		Q_strncatz(name, va("_%i", framenum), sizeof(name));
-		pspriteframe->p.d.gl.texnum = Mod_LoadReplacementTexture(name, "sprites", true, true, true);
+		Q_strncpyz(name, loadmodel->name, sizeof(name));
+		Q_strncatz(name, va("_%i.tga", framenum), sizeof(name));
+		texnum = R_LoadReplacementTexture(name, "sprites", 0);
 	}
-	if (!pspriteframe->p.d.gl.texnum)
+	if (!TEXVALID(texnum))
 	{	//the older fte way.
 		COM_StripExtension(loadmodel->name, name, sizeof(name));
-		Q_strncatz(name, va("_%i", framenum), sizeof(name));
-		pspriteframe->p.d.gl.texnum = Mod_LoadReplacementTexture(name, "sprites", true, true, true);
+		Q_strncatz(name, va("_%i.tga", framenum), sizeof(name));
+		texnum = R_LoadReplacementTexture(name, "sprites", 0);
 	}
-	if (!pspriteframe->p.d.gl.texnum)
+	if (!TEXVALID(texnum))
 	{	//the fuhquake way
 		COM_StripExtension(COM_SkipPath(loadmodel->name), name, sizeof(name));
-		Q_strncatz(name, va("_%i", framenum), sizeof(name));
-		pspriteframe->p.d.gl.texnum = Mod_LoadReplacementTexture(name, "sprites", true, true, true);
+		Q_strncatz(name, va("_%i.tga", framenum), sizeof(name));
+		texnum = R_LoadReplacementTexture(name, "sprites", 0);
 	}
 
 	if (version == SPRITE32_VERSION)
 	{
 		size *= 4;
-		if (!pspriteframe->p.d.gl.texnum)
-			pspriteframe->p.d.gl.texnum = R_LoadTexture32 (name, width, height, (unsigned *)(pinframe + 1), true, true);
+		if (!TEXVALID(texnum))
+			texnum = R_LoadTexture32 (name, width, height, (unsigned *)(pinframe + 1), IF_NOGAMMA|IF_CLAMP);
 	}
 	else if (version == SPRITEHL_VERSION)
 	{
-		if (!pspriteframe->p.d.gl.texnum)
-			pspriteframe->p.d.gl.texnum = R_LoadTexture8Pal32 (name, width, height, (qbyte *)(pinframe + 1), (qbyte*)palette, true, true);
+		if (!TEXVALID(texnum))
+			texnum = R_LoadTexture8Pal32 (name, width, height, (qbyte *)(pinframe + 1), (qbyte*)palette, IF_NOGAMMA|IF_CLAMP);
 	}
 	else
 	{
-		if (!pspriteframe->p.d.gl.texnum)
-			pspriteframe->p.d.gl.texnum = R_LoadTexture8 (name, width, height, (qbyte *)(pinframe + 1), true, true);
+		if (!TEXVALID(texnum))
+			texnum = R_LoadTexture8 (name, width, height, (qbyte *)(pinframe + 1), IF_NOMIPMAP|IF_NOGAMMA|IF_CLAMP, 1);
 	}
+
+	Q_strncpyz(name, loadmodel->name, sizeof(name));
+	Q_strncatz(name, va("_%i.tga", framenum), sizeof(name));
+	pspriteframe->shader = R_RegisterShader(name,
+			"{\n"
+				"{\n"
+							"map $diffuse\n"
+							"alphafunc ge128\n"
+							"depthwrite\n"
+					"rgbgen entity\n"
+					"alphagen entity\n"
+				"}\n"
+			"}\n"
+			);
+	pspriteframe->shader->defaulttextures.base = texnum;
+	pspriteframe->shader->width = width;
+	pspriteframe->shader->height = height;
 
 	return (void *)((qbyte *)(pinframe+1) + size);
 }
@@ -3131,7 +3281,7 @@ void * GLMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum
 Mod_LoadSpriteGroup
 =================
 */
-void * GLMod_LoadSpriteGroup (void * pin, mspriteframe_t **ppframe, int framenum, int version, unsigned char *palette)
+void * RMod_LoadSpriteGroup (void * pin, mspriteframe_t **ppframe, int framenum, int version, unsigned char *palette)
 {
 	dspritegroup_t		*pingroup;
 	mspritegroup_t		*pspritegroup;
@@ -3174,7 +3324,7 @@ void * GLMod_LoadSpriteGroup (void * pin, mspriteframe_t **ppframe, int framenum
 
 	for (i=0 ; i<numframes ; i++)
 	{
-		ptemp = GLMod_LoadSpriteFrame (ptemp, &pspritegroup->frames[i], framenum * 100 + i, version, palette);
+		ptemp = RMod_LoadSpriteFrame (ptemp, &pspritegroup->frames[i], framenum * 100 + i, version, palette);
 	}
 
 	return ptemp;
@@ -3185,7 +3335,7 @@ void * GLMod_LoadSpriteGroup (void * pin, mspriteframe_t **ppframe, int framenum
 Mod_LoadSpriteModel
 =================
 */
-qboolean GLMod_LoadSpriteModel (model_t *mod, void *buffer)
+qboolean RMod_LoadSpriteModel (model_t *mod, void *buffer)
 {
 	int					i;
 	int					version;
@@ -3239,6 +3389,11 @@ qboolean GLMod_LoadSpriteModel (model_t *mod, void *buffer)
 	mod->maxs[0] = mod->maxs[1] = psprite->maxwidth/2;
 	mod->mins[2] = -psprite->maxheight/2;
 	mod->maxs[2] = psprite->maxheight/2;
+	if (qrenderer == QR_NONE)
+	{
+		mod->type = mod_dummy;
+		return true;
+	}
 
 	if (version == SPRITEHL_VERSION)
 	{
@@ -3287,13 +3442,13 @@ qboolean GLMod_LoadSpriteModel (model_t *mod, void *buffer)
 		if (frametype == SPR_SINGLE)
 		{
 			pframetype = (dspriteframetype_t *)
-					GLMod_LoadSpriteFrame (pframetype + 1,
+					RMod_LoadSpriteFrame (pframetype + 1,
 										 &psprite->frames[i].frameptr, i, version, pal);
 		}
 		else
 		{
 			pframetype = (dspriteframetype_t *)
-					GLMod_LoadSpriteGroup (pframetype + 1,
+					RMod_LoadSpriteGroup (pframetype + 1,
 										 &psprite->frames[i].frameptr, i, version, pal);
 		}
 		if (pframetype == NULL)
@@ -3308,7 +3463,7 @@ qboolean GLMod_LoadSpriteModel (model_t *mod, void *buffer)
 	return true;
 }
 
-qboolean GLMod_LoadSprite2Model (model_t *mod, void *buffer)
+qboolean RMod_LoadSprite2Model (model_t *mod, void *buffer)
 {
 	int					i;
 	int					version;
@@ -3318,6 +3473,7 @@ qboolean GLMod_LoadSprite2Model (model_t *mod, void *buffer)
 	int					size;
 	dmd2sprframe_t		*pframetype;
 	mspriteframe_t		*frame;
+	int w, h;
 	float origin[2];
 	int hunkstart;
 
@@ -3376,17 +3532,17 @@ qboolean GLMod_LoadSprite2Model (model_t *mod, void *buffer)
 
 		frame = psprite->frames[i].frameptr = Hunk_AllocName(sizeof(mspriteframe_t), loadname);
 
-		frame->p.d.gl.texnum = Mod_LoadHiResTexture(pframetype->name, NULL, true, true, true);
+		frame->shader = R_RegisterPic(pframetype->name);
 
-		frame->p.width = LittleLong(pframetype->width);
-		frame->p.height = LittleLong(pframetype->height);
+		w = LittleLong(pframetype->width);
+		h = LittleLong(pframetype->height);
 		origin[0] = LittleLong (pframetype->origin_x);
 		origin[1] = LittleLong (pframetype->origin_y);
 
-		frame->up = -origin[1];
-		frame->down = frame->p.height - origin[1];
+		frame->down = -origin[1];
+		frame->up = h - origin[1];
 		frame->left = -origin[0];
-		frame->right = frame->p.width - origin[0];
+		frame->right = w - origin[0];
 
 		pframetype++;
 	}
@@ -3405,7 +3561,7 @@ typedef struct {
 	short xpos;
 	short ypos;
 } doomimage_t;
-static int FindDoomSprites(char *name, int size, void *param)
+static int FindDoomSprites(const char *name, int size, void *param)
 {
 	if (*(int *)param + strlen(name)+1 > 16000)
 		Sys_Error("Too many doom sprites\n");
@@ -3457,8 +3613,6 @@ static void LoadDoomSpriteFrame(char *imagename, mspriteframedesc_t *pdesc, int 
 	palette = COM_LoadTempFile("wad/playpal");
 	header = (doomimage_t *)COM_LoadTempFile2(imagename);
 	data = (qbyte *)header;
-	pframe->width = header->width;
-	pframe->height = header->height;
 	pframe->up = +header->ypos;
 	pframe->down = -header->height + header->ypos;
 
@@ -3507,7 +3661,10 @@ static void LoadDoomSpriteFrame(char *imagename, mspriteframedesc_t *pdesc, int 
 		}
 	}
 
-	pframe->gl_texturenum = GL_LoadTexture8Pal24(imagename, pframe->width, pframe->height, image, palette, true, true);
+	pframe->shader = R_RegisterShader(imagename,
+		"{\n{\nmap $diffuse\nblendfunc blend\n}\n}\n");
+	pframe->shader->defaulttextures.base = R_LoadTexture8Pal24(imagename, header->width, header->height, image, palette, IF_CLAMP);
+	R_BuildDefaultTexnums(&pframe->shader->defaulttextures, pframe->shader);
 }
 
 /*
@@ -3515,7 +3672,7 @@ static void LoadDoomSpriteFrame(char *imagename, mspriteframedesc_t *pdesc, int 
 Doom Sprites
 =================
 */
-void GLMod_LoadDoomSprite (model_t *mod)
+void RMod_LoadDoomSprite (model_t *mod)
 {
 	char files[16384];
 	char basename[MAX_QPATH];
@@ -3612,7 +3769,7 @@ void GLMod_LoadDoomSprite (model_t *mod)
 Mod_Print
 ================
 */
-void GLMod_Print (void)
+void RMod_Print (void)
 {
 	int		i;
 	model_t	*mod;

@@ -20,12 +20,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // gl_ngraph.c
 
 #include "quakedef.h"
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"
 
 extern qbyte		*draw_chars;				// 8*8 graphic characters
 
-int	netgraphtexture;	// netgraph texture
+texid_t	netgraphtexture;	// netgraph texture
 
 #define NET_GRAPHHEIGHT 32
 
@@ -115,18 +115,18 @@ void GLR_NetGraph (void)
 	y += 8;
 
 	sprintf(st, "%3i%% packet loss", lost);
-	Draw_String(8, y, st);
+	Draw_FunString(8, y, st);
 	y += 8;
 	
-    GL_Bind(netgraphtexture);
+    GL_MTBind(0, GL_TEXTURE_2D, netgraphtexture);
 
-	qglTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, 
+	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 
 		NET_TIMINGS, NET_GRAPHHEIGHT, 0, GL_RGBA, 
 		GL_UNSIGNED_BYTE, ngraph_pixels);
 
 	GL_TexEnv(GL_MODULATE);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	x = 8;
 	qglColor3f (1,1,1);
@@ -175,18 +175,18 @@ void GLR_FrameTimeGraph (int frametime)
 	y += 8;
 
 	sprintf(st, "%3i%% packet loss", lost);
-	Draw_String(8, y, st);
+	Draw_FunString(8, y, st);
 	y += 8;
 	
-    GL_Bind(netgraphtexture);
+    GL_MTBind(0, GL_TEXTURE_2D, netgraphtexture);
 
-	qglTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, 
+	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 
 		NET_TIMINGS, NET_GRAPHHEIGHT, 0, GL_RGBA, 
 		GL_UNSIGNED_BYTE, ngraph_pixels);
 
 	GL_TexEnv(GL_MODULATE);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	x = 8;
 	qglColor3f (1,1,1);

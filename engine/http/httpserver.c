@@ -17,21 +17,21 @@ typedef enum {HTTP_WAITINGFORREQUEST,HTTP_SENDING} http_mode_t;
 
 
 qboolean HTTP_ServerInit(int port)
-{	
+{
 	struct sockaddr_in address;
 	unsigned long _true = true;
 	int i;
 
 	if ((httpserversocket = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
 	{
-		Con_Printf ("HTTP_ServerInit: socket: %s\n", strerror(qerrno));
+		IWebPrintf ("HTTP_ServerInit: socket: %s\n", strerror(qerrno));
 		httpserverfailed = true;
 		return false;
 	}
 
 	if (ioctlsocket (httpserversocket, FIONBIO, &_true) == -1)
 	{
-		Con_Printf ("HTTP_ServerInit: ioctl FIONBIO: %s\n", strerror(qerrno));
+		IWebPrintf ("HTTP_ServerInit: ioctl FIONBIO: %s\n", strerror(qerrno));
 		httpserverfailed = true;
 		return false;
 	}
@@ -51,15 +51,15 @@ qboolean HTTP_ServerInit(int port)
 		address.sin_port = 0;
 	else
 		address.sin_port = htons((short)port);
-	
+
 	if( bind (httpserversocket, (void *)&address, sizeof(address)) == -1)
 	{
 		closesocket(httpserversocket);
-		Con_Printf("HTTP_ServerInit: failed to bind to socket\n");
+		IWebPrintf("HTTP_ServerInit: failed to bind to socket\n");
 		httpserverfailed = true;
 		return false;
 	}
-	
+
 	listen(httpserversocket, 3);
 
 	httpserverinitied = true;
@@ -271,7 +271,7 @@ cont:
 						msg++;
 						break;	//that was our blank line.
 					}
-					
+
 					while(*msg == ' ')
 						msg++;
 
@@ -312,7 +312,7 @@ cont:
 
 			if (contentlen)
 			{
-				content = BZ_Malloc(contentlen+1);
+				content = IWebMalloc(contentlen+1);
 				memcpy(content, msg, contentlen+1);
 			}
 
@@ -337,7 +337,7 @@ cont:
 					resource[0] = '/';
 					resource[1] = 0;	//I'm lazy, they need to comply
 				}
-				Con_Printf("Download request for \"%s\"\n", resource+1);
+				IWebPrintf("Download request for \"%s\"\n", resource+1);
 				if (!strnicmp(mode, "P", 1))	//when stuff is posted, data is provided. Give an error message if we couldn't do anything with that data.
 					cl->file = IWebGenerateFile(resource+1, content, contentlen);
 				else
@@ -346,7 +346,7 @@ cont:
 						cl->file = NULL;
 					else
 						cl->file = FS_OpenVFS(resource+1, "rb", FS_GAME);
-				
+
 					if (!cl->file)
 					{
 						cl->file = IWebGenerateFile(resource+1, content, contentlen);
@@ -384,7 +384,7 @@ cont:
 
 					if (*mode == 'H' || *mode == 'h')
 					{
-						
+
 						VFS_CLOSE(cl->file);
 						cl->file = NULL;
 					}
@@ -427,7 +427,7 @@ notimplemented:
 			}
 
 			if (content)
-				BZ_Free(content);
+				IWebFree(content);
 			break;
 
 		case HTTP_SENDING:
@@ -542,22 +542,24 @@ qboolean HTTP_ServerPoll(qboolean httpserverwanted, int portnum)	//loop while tr
 		return false;
 	}
 
-	if (ioctlsocket (clientsock, FIONBIO, &_true) == -1)
+	if (ioctlsocket (clientsock, FIONBIO, (u_long *)&_true) == -1)
 	{
-		Con_Printf ("HTTP_ServerInit: ioctl FIONBIO: %s\n", strerror(qerrno));
+		IWebPrintf ("HTTP_ServerInit: ioctl FIONBIO: %s\n", strerror(qerrno));
 		closesocket(clientsock);
 		return false;
 	}
 
+#ifndef WEBSVONLY
 	SockadrToNetadr(&from, &na);
-	Con_Printf("New http connection from %s\n", NET_AdrToString(buf, sizeof(buf), na));
+	IWebPrintf("New http connection from %s\n", NET_AdrToString(buf, sizeof(buf), na));
+#endif
 
 	cl = IWebMalloc(sizeof(HTTP_active_connections_t));
 
 	cl->datasock = clientsock;
 
 	cl->next = HTTP_ServerConnections;
-	HTTP_ServerConnections = cl; 
+	HTTP_ServerConnections = cl;
 	httpconnectioncount++;
 
 	return true;

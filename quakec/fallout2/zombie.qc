@@ -50,27 +50,13 @@ $frame paine29 paine30
 
 $frame cruc_1 cruc_2 cruc_3 cruc_4 cruc_5 cruc_6
 
-$frame rise1 rise2 rise3
-
 float	SPAWN_CRUCIFIED	= 1;
 
 //=============================================================================
 
 .float inpain;
 
-void() zombie_stand1	=[	$stand1,		zombie_stand2	] {ai_stand();
-
-if ((pointcontents(self.origin) <= -2) && (self.owner.netname == "lair"))
-{
-	remove(self.owner);
-	remove(self);
-}
-else if ((pointcontents(self.origin) <= -2))
-{
-	remove(self);
-}
-
-};
+void() zombie_stand1	=[	$stand1,		zombie_stand2	] {ai_stand();};
 void() zombie_stand2	=[	$stand2,		zombie_stand3	] {ai_stand();};
 void() zombie_stand3	=[	$stand3,		zombie_stand4	] {ai_stand();};
 void() zombie_stand4	=[	$stand4,		zombie_stand5	] {ai_stand();};
@@ -95,88 +81,53 @@ void() zombie_cruc4	=	[	$cruc_4,		zombie_cruc5	] {self.nextthink = time + 0.1 + 
 void() zombie_cruc5	=	[	$cruc_5,		zombie_cruc6	] {self.nextthink = time + 0.1 + random()*0.1;};
 void() zombie_cruc6	=	[	$cruc_6,		zombie_cruc1	] {self.nextthink = time + 0.1 + random()*0.1;};
 
-void() zombie_walk1		=[	$walk1,		zombie_walk2	] {ai_walk(3);};
-void() zombie_walk2		=[	$walk2,		zombie_walk3	] {ai_walk(3);};
-void() zombie_walk3		=[	$walk3,		zombie_walk4	] {ai_walk(3);
+void() zombie_walk1		=[	$walk1,		zombie_walk2	] {ai_walk(0);};
+void() zombie_walk2		=[	$walk2,		zombie_walk3	] {ai_walk(2);};
+void() zombie_walk3		=[	$walk3,		zombie_walk4	] {ai_walk(3);};
+void() zombie_walk4		=[	$walk4,		zombie_walk5	] {ai_walk(2);};
+void() zombie_walk5		=[	$walk5,		zombie_walk6	] {ai_walk(1);};
+void() zombie_walk6		=[	$walk6,		zombie_walk7	] {ai_walk(0);};
+void() zombie_walk7		=[	$walk7,		zombie_walk8	] {ai_walk(0);};
+void() zombie_walk8		=[	$walk8,		zombie_walk9	] {ai_walk(0);};
+void() zombie_walk9		=[	$walk9,		zombie_walk10	] {ai_walk(0);};
+void() zombie_walk10	=[	$walk10,	zombie_walk11	] {ai_walk(0);};
+void() zombie_walk11	=[	$walk11,	zombie_walk12	] {ai_walk(2);};
+void() zombie_walk12	=[	$walk12,	zombie_walk13	] {ai_walk(2);};
+void() zombie_walk13	=[	$walk13,	zombie_walk14	] {ai_walk(1);};
+void() zombie_walk14	=[	$walk14,	zombie_walk15	] {ai_walk(0);};
+void() zombie_walk15	=[	$walk15,	zombie_walk16	] {ai_walk(0);};
+void() zombie_walk16	=[	$walk16,	zombie_walk17	] {ai_walk(0);};
+void() zombie_walk17	=[	$walk17,	zombie_walk18	] {ai_walk(0);};
+void() zombie_walk18	=[	$walk18,	zombie_walk19	] {ai_walk(0);};
+void() zombie_walk19	=[	$walk19,	zombie_walk1	] {
+ai_walk(0);
+if (random() < 0.2)
+	sound (self, CHAN_VOICE, "zombie/z_idle.wav", 1, ATTN_IDLE);};
 
-if (self.takedamage == DAMAGE_NO)
-{
-	remove(self);
-	return;
-}
-};
-void() zombie_walk4		=[	$walk4,		zombie_walk5	] {ai_walk(3);};
-void() zombie_walk5		=[	$walk5,		zombie_walk6	] {ai_walk(3);};
-void() zombie_walk6		=[	$walk6,		zombie_walk7	] {ai_walk(3);};
-void() zombie_walk7		=[	$walk7,		zombie_walk8	] {ai_walk(3);};
-void() zombie_walk8		=[	$walk8,		zombie_walk9	] {ai_walk(3);};
-void() zombie_walk9		=[	$walk9,		zombie_walk10	] {ai_walk(3);};
-void() zombie_walk10	=[	$walk10,	zombie_walk11	] {ai_walk(3);};
-void() zombie_walk11	=[	$walk11,	zombie_walk12	] {ai_walk(3);};
-void() zombie_walk12	=[	$walk12,	zombie_walk13	] {ai_walk(3);};
-void() zombie_walk13	=[	$walk13,	zombie_walk14	] {ai_walk(3);};
-void() zombie_walk14	=[	$walk14,	zombie_walk15	] {ai_walk(3);};
-void() zombie_walk15	=[	$walk15,	zombie_walk16	] {ai_walk(3);};
-void() zombie_walk16	=[	$walk16,	zombie_walk17	] {ai_walk(3);};
-void() zombie_walk17	=[	$walk17,	zombie_walk18	] {ai_walk(3);};
-void() zombie_walk18	=[	$walk18,	zombie_walk19	] {ai_walk(3);};
-void() zombie_walk19	=[	$walk19,	zombie_walk1	] {ai_walk(6);};
-
-void() zombie_run1		=[	$run1,		zombie_run2	] {ai_run(4);self.inpain = 0;};
-void() zombie_run2		=[	$run2,		zombie_run3	] {ai_run(4);
-
-if (self.takedamage == DAMAGE_NO)
-{
-	remove(self);
-	return;
-}
-
-};
-void() zombie_run3		=[	$run3,		zombie_run4	] {ai_run(4);};
-void() zombie_run4		=[	$run4,		zombie_run5	] {ai_run(4);};
-void() zombie_run5		=[	$run5,		zombie_run6	] {ai_run(4);};
-void() zombie_run6		=[	$run6,		zombie_run7	] {ai_run(4);};
+void() zombie_run1		=[	$run1,		zombie_run2	] {ai_run(1);self.inpain = 0;};
+void() zombie_run2		=[	$run2,		zombie_run3	] {ai_run(1);};
+void() zombie_run3		=[	$run3,		zombie_run4	] {ai_run(0);};
+void() zombie_run4		=[	$run4,		zombie_run5	] {ai_run(1);};
+void() zombie_run5		=[	$run5,		zombie_run6	] {ai_run(2);};
+void() zombie_run6		=[	$run6,		zombie_run7	] {ai_run(3);};
 void() zombie_run7		=[	$run7,		zombie_run8	] {ai_run(4);};
 void() zombie_run8		=[	$run8,		zombie_run9	] {ai_run(4);};
-void() zombie_run9		=[	$run9,		zombie_run10	] {ai_run(4);};
-void() zombie_run10		=[	$run10,		zombie_run11	] {ai_run(4);};
-void() zombie_run11		=[	$run11,		zombie_run12	] {ai_run(4);};
-void() zombie_run12		=[	$run12,		zombie_run13	] {ai_run(4);};
-void() zombie_run13		=[	$run13,		zombie_run14	] {ai_run(4);};
+void() zombie_run9		=[	$run9,		zombie_run10	] {ai_run(2);};
+void() zombie_run10		=[	$run10,		zombie_run11	] {ai_run(0);};
+void() zombie_run11		=[	$run11,		zombie_run12	] {ai_run(0);};
+void() zombie_run12		=[	$run12,		zombie_run13	] {ai_run(0);};
+void() zombie_run13		=[	$run13,		zombie_run14	] {ai_run(2);};
 void() zombie_run14		=[	$run14,		zombie_run15	] {ai_run(4);};
-void() zombie_run15		=[	$run15,		zombie_run16	] {ai_run(4);};
-void() zombie_run16		=[	$run16,		zombie_run17	] {ai_run(4);};
-void() zombie_run17		=[	$run17,		zombie_run18	] {ai_run(4);};
-void() zombie_run18		=[	$run18,		zombie_run1	] {ai_run(8);};
-
-
-
-void() zombie_rise1		=[	$rise1,		zombie_rise2	] {};
-void() zombie_rise2		=[	$rise2,		zombie_rise3	] {};
-void() zombie_rise3		=[	$rise3,		zombie_rise4	] {};
-void() zombie_rise4		=[	$paine12,	zombie_rise5	] {};
-void() zombie_rise5		=[	$paine13,	zombie_rise6	] {};
-void() zombie_rise6		=[	$paine14,	zombie_rise7	] {};
-void() zombie_rise7		=[	$paine15,	zombie_rise8	] {};
-void() zombie_rise8		=[	$paine16,	zombie_rise9	] {};
-void() zombie_rise9		=[	$paine17,	zombie_rise10	] {};
-void() zombie_rise10		=[	$paine18,	zombie_rise11	] {};
-void() zombie_rise11		=[	$paine19,	zombie_rise12	] {};
-void() zombie_rise12		=[	$paine20,	zombie_rise13	] {};
-void() zombie_rise13		=[	$paine21,	zombie_rise14	] {};
-void() zombie_rise14		=[	$paine22,	zombie_rise15	] {};
-void() zombie_rise15		=[	$paine23,	zombie_rise16	] {};
-void() zombie_rise16		=[	$paine24,	zombie_rise17	] {};
-void() zombie_rise17		=[	$paine25,	zombie_rise18	] {};
-void() zombie_rise18		=[	$paine26,	zombie_rise19	] {};
-void() zombie_rise19		=[	$paine27,	zombie_rise20	] {};
-void() zombie_rise20		=[	$paine28,	zombie_rise21	] {};
-void() zombie_rise21		=[	$paine29,	zombie_rise22	] {};
-void() zombie_rise22		=[	$paine30,	zombie_stand1	] {
-
-	
+void() zombie_run15		=[	$run15,		zombie_run16	] {ai_run(6);};
+void() zombie_run16		=[	$run16,		zombie_run17	] {ai_run(7);};
+void() zombie_run17		=[	$run17,		zombie_run18	] {ai_run(3);};
+void() zombie_run18		=[	$run18,		zombie_run1	] {
+ai_run(8);
+if (random() < 0.2)
+	sound (self, CHAN_VOICE, "zombie/z_idle.wav", 1, ATTN_IDLE);
+if (random() > 0.8)
+	sound (self, CHAN_VOICE, "zombie/z_idle1.wav", 1, ATTN_IDLE);
 };
-
 
 /*
 =============================================================================
@@ -190,35 +141,17 @@ void() ZombieGrenadeTouch =
 {
 	if (other == self.owner)
 		return;		// don't explode on owner
-	if (other.netname == "ghoul")
-		return;		// don't explode on owner
-
 	if (other.takedamage)
 	{
-		T_Damage (other, self, self.owner, 8+random()*8 );
-
-		self.velocity = self.velocity * 0.50;
-		self.touch = SUB_Null;
-		self.solid = SOLID_NOT;
+		T_Damage (other, self, self.owner, 10 );
+		sound (self, CHAN_WEAPON, "zombie/z_hit.wav", 1, ATTN_NORM);
+		remove (self);
 		return;
 	}
-	if (random() < 0.5)
-		sound (self, CHAN_WEAPON, "misc/rock1.wav", 0.5, ATTN_NORM);
-	else
-		sound (self, CHAN_WEAPON, "misc/rock2.wav", 0.5, ATTN_NORM);
-
-	self.velocity = self.velocity * 0.50;
-};
-
-
-void() Molotov =
-{
-	if (random()<0.75)
-		return;		// don't explode every time
-
-	Explosion();
-	T_RadiusDamage2 (self, self.owner, 25+random()*25, world, 300);
-
+	sound (self, CHAN_WEAPON, "zombie/z_miss.wav", 1, ATTN_NORM);	// bounce sound
+	self.velocity = '0 0 0';
+	self.avelocity = '0 0 0';
+	self.touch = SUB_Remove;
 };
 
 /*
@@ -229,16 +162,9 @@ ZombieFireGrenade
 void(vector st) ZombieFireGrenade =
 {
 	local	entity missile;
-	local	vector	org, t;
-	local float fire;
+	local	vector	org;
 
-
-	if (random()<0.15)
-		fire = 1;
-	else
-		fire = 0;
-
-	sound (self, CHAN_WEAPON, "weapons/ax1.wav", 1, ATTN_NORM);
+	sound (self, CHAN_WEAPON, "zombie/z_shot1.wav", 1, ATTN_NORM);
 
 	missile = spawn ();
 	missile.owner = self;
@@ -247,47 +173,24 @@ void(vector st) ZombieFireGrenade =
 
 // calc org
 	org = self.origin + st_x * v_forward + st_y * v_right + (st_z - 24) * v_up;
-	t = self.enemy.origin;
+	
 // set missile speed	
 
 	makevectors (self.angles);
 
-
-	if (self.enemy.sneak > 0)
-		t = t + v_right*crandom()*128;
-
-	missile.velocity = normalize(t - org);
+	missile.velocity = normalize(self.enemy.origin - org);
 	missile.velocity = missile.velocity * 600;
 	missile.velocity_z = 200;
-
-	if ((self.enemy.origin_z - 32) > (self.origin_z))
-		missile.velocity_z += 128;
-	else if ((self.enemy.origin_z - 64) > (self.origin_z))
-		missile.velocity_z += 256;
 
 	missile.avelocity = '3000 1000 2000';
 
 	missile.touch = ZombieGrenadeTouch;
 	
-	if (random()*9 <= 8)
-		fire = 0;
-	else
-		fire = 1;
-
-	if (fire == 0)
-	{
 // set missile duration
-		setmodel (missile, "progs/rock.mdl");
-		missile.nextthink = time + 2.5;
-		missile.think = SUB_Remove;
-	}
-	else if (fire == 1)
-	{
-		setmodel (missile, "progs/homemade.mdl");
-		missile.nextthink = time + 2.5;
-		missile.think = SUB_Remove;
-		missile.touch = Molotov;
-	}
+	missile.nextthink = time + 2.5;
+	missile.think = SUB_Remove;
+
+	setmodel (missile, "progs/zom_gib.mdl");
 	setsize (missile, '0 0 0', '0 0 0');		
 	setorigin (missile, org);
 };
@@ -335,93 +238,8 @@ void() zombie_attc10	=[	$attc10,	zombie_attc11	] {ai_face();};
 void() zombie_attc11	=[	$attc11,	zombie_attc12	] {ai_face();};
 void() zombie_attc12	=[	$attc12,	zombie_run1		] {ai_face();ZombieFireGrenade('-12 -19 29');};
 
-
-void() zombie_claw =
-{
-local vector	delta, dir;
-local float 	ldmg;
-
-	if (!self.enemy)
-		return;
-
-	self.goalentity = self.enemy;
-
-	ai_charge(10);
-
-	if (!CanDamage (self.enemy, self))
-		return;
-
-	delta = self.enemy.origin - self.origin;
-
-	if (self.scale == 1.5 && vlen(delta) > (90))
-		return;
-	else if (vlen(delta) > (60))
-		return;	
-
-	ldmg = 5+random()*15;
-
-	if (self.scale == 1.5)
-	{
-		ldmg = 10+random()*15;
-		dir = normalize(self.enemy.origin - self.origin);
-		self.enemy.radiation = self.enemy.radiation + 50;
-		self.enemy.velocity = dir * 300;
-		self.enemy.velocity_z = 300;
-		self.enemy.avelocity_y = (random()* 300);
-	}
-	T_Damage (self.enemy, self, self, ldmg);
-};
-
-void() zombie_attm1		=[	$attb12,		zombie_attm2	] {ai_face();};
-void() zombie_attm2		=[	$attb12,		zombie_attm3	] {ai_face();};
-void() zombie_attm3		=[	$attb12,		zombie_attm4	] {ai_face();};
-void() zombie_attm4		=[	$attb12,		zombie_attm5	] {ai_face();};
-void() zombie_attm5		=[	$attb13,		zombie_attm6	] {ai_face();};
-void() zombie_attm6		=[	$attb13,		zombie_attm7	] {ai_face();};
-void() zombie_attm7		=[	$attb14,		zombie_run1		] {ai_face();
-zombie_claw();
-};
-
-void() zombie_attn1		=[	$attc11,		zombie_attn2	] {ai_face();};
-void() zombie_attn2		=[	$attc11,		zombie_attn3	] {ai_face();};
-void() zombie_attn3		=[	$attc11,		zombie_attn4	] {ai_face();};
-void() zombie_attn4		=[	$attc12,		zombie_attn5	] {ai_face();};
-void() zombie_attn5		=[	$attc12,		zombie_attn6	] {ai_face();};
-void() zombie_attn6		=[	$attc12,		zombie_attn7	] {ai_face();};
-void() zombie_attn7		=[	$attc12,		zombie_run1		] {ai_face();
-zombie_claw();
-};
-
-
-
-
-void() zombie_melee =
-{
-	local float	r;
-
-	r = random();
-	
-	if (r < 0.5)
-	{
-		sound (self, CHAN_WEAPON, "effects/axe_swing.wav", 1, ATTN_NORM);
-		zombie_attm1 ();
-	}
-	else
-	{
-		sound (self, CHAN_WEAPON, "weapons/ax1.wav", 1, ATTN_NORM);
-		zombie_attn1 ();
-	}
-};
-
 void() zombie_missile =
 {
-	local float x;
-
-	x = vlen(self.origin - self.enemy.origin);
-
-	if (x > 400)
-		return;
-
 	local float	r;
 	
 	r = random();
@@ -520,6 +338,7 @@ void() zombie_paind13	=[	$paind13,	zombie_run1	] {};
 
 void() zombie_paine1	=[	$paine1,	zombie_paine2	] {
 sound (self, CHAN_VOICE, "zombie/z_pain.wav", 1, ATTN_NORM);
+self.health = 60;
 };
 void() zombie_paine2	=[	$paine2,	zombie_paine3	] {ai_pain(8);};
 void() zombie_paine3	=[	$paine3,	zombie_paine4	] {ai_pain(5);};
@@ -536,6 +355,7 @@ self.solid = SOLID_NOT;
 void() zombie_paine11	=[	$paine11,	zombie_paine12	] {self.nextthink = self.nextthink + 5;self.health = 60;};
 void() zombie_paine12	=[	$paine12,	zombie_paine13	]{
 // see if ok to stand up
+self.health = 60;
 sound (self, CHAN_VOICE, "zombie/z_idle.wav", 1, ATTN_IDLE);
 self.solid = SOLID_SLIDEBOX;
 if (!walkmove (0, 0))
@@ -564,119 +384,16 @@ void() zombie_paine28	=[	$paine28,	zombie_paine29	] {ai_pain(1);};
 void() zombie_paine29	=[	$paine29,	zombie_paine30	] {};
 void() zombie_paine30	=[	$paine30,	zombie_run1		] {};
 
-
-void() zdie1	=[	$painb1,	zdie2	] {};
-void() zdie2	=[	$painb2,	zdie3	] {
-self.rtime = 1;
-setsize (self, '-8 -8 -24', '8 8 -20');
-};
-void() zdie3	=[	$painb3,	zdie4	] {};
-void() zdie4	=[	$painb4,	zdie5	] {};
-void() zdie5	=[	$painb5,	zdie6	] {};
-void() zdie6	=[	$painb6,	zdie7	] {};
-void() zdie7	=[	$painb7,	zdie8	] {};
-void() zdie8	=[	$painb8,	zdie9	] {};
-void() zdie9	=[	$painb9,	zdie10] {};
-void() zdie10     =[	$painb10,	zdie10] {
-self.think = SUB_Remove;
-self.nextthink = time + 20;
-};
-
-
-void () zombie_death =
-{
-	if (self.rtime > 0)
-	{
-		if (random()*100<10)
-		{
-			remove(self);
-			return;
-		}
-
-		if (random()*100<50)
-			sound (self, CHAN_VOICE, "player/headshot.wav", 0.75, ATTN_NORM);
-		else
-			sound (self, CHAN_VOICE, "misc/thud.wav", 1, ATTN_NORM);
-
-		SpawnBlood (self.origin + '0 0 4', 4);
-
-		self.think = SUB_Remove;
-		self.nextthink = time + 10;
-		self.health = 180;
-		return;
-	}
-	if (self.frame == 153)
-	{
-		self.frame = 152;
-		self.health = 180;
-		self.think = zdie1;
-		self.nextthink = time + 0.12;
-	}
-	else
-	{
-		ThrowGib ("progs/zom_gib.mdl", -40);
-		self.frame = 153;
-		self.health = 180;
-		self.think = zdie1;
-		self.nextthink = time + 0.12;
-	}
-
-	self.attack = self.attack + 1;
-};
-
-void (vector stuff, vector ang, float bodysize) spawn_live_zombie =
-{
-	local entity zombie;
-
-	zombie = spawn ();
-	zombie.origin = stuff;
-	zombie.enemy = world;
-	zombie.attack_finished = time + 10;
-	zombie.solid = SOLID_SLIDEBOX;
-	zombie.movetype = MOVETYPE_STEP;
-	zombie.takedamage = DAMAGE_YES;
-	setmodel (zombie, "progs/ghoul.mdl");
-	setsize (zombie, '-8 -8 -24', '8 8 24');
-	zombie.classname = "body";
-	zombie.netname = "dead";
-	zombie.health = 180;
-	zombie.angles = ang;
-	zombie.max_health = zombie.health;
-	zombie.th_pain = zombie_death;
-	zombie.think = zombie_death;
-	zombie.th_die = corpse_gib;
-	zombie.nextthink = time + 0.12;
-	zombie.scale = bodysize;
-};
-
-void() DropBackpack;
-
 void() zombie_die =
 {
-	local float r;
-
-
-	r = random();
-
-	if (r <= 0.50)
-		sound (self, CHAN_VOICE, "zombie/z_pain.wav", 1, ATTN_NORM);
-	else
-		sound (self, CHAN_VOICE, "zombie/z_pain1.wav", 1, ATTN_NORM);
-
-
-	if (self.scale == 1)
-	{
-		spawn_live_zombie(self.origin, self.angles, self.scale);
-		remove(self);
-	}
-	else
-		zdie1();
-
-	return;
+	sound (self, CHAN_VOICE, "zombie/z_gib.wav", 1, ATTN_NORM);
+	ThrowHead ("progs/h_zombie.mdl", self.health);
+	ThrowGib ("progs/gib1.mdl", self.health);
+	ThrowGib ("progs/gib2.mdl", self.health);
+	ThrowGib ("progs/gib3.mdl", self.health);
 };
 
 /*
-
 =================
 zombie_pain
 
@@ -699,11 +416,21 @@ void(entity attacker, float take) zombie_pain =
 {
 	local float r;
 
-	if (take < 50)
+	self.health = 60;		// allways reset health
+
+	if (take < 9)
 		return;				// totally ignore
 
 	if (self.inpain == 2)
 		return;			// down on ground, so don't reset any counters
+
+// go down immediately if a big enough hit
+	if (take >= 25)
+	{
+		self.inpain = 2;
+		zombie_paine1 ();
+		return;
+	}
 	
 	if (self.inpain)
 	{
@@ -712,18 +439,26 @@ void(entity attacker, float take) zombie_pain =
 		return;			// currently going through an animation, don't change
 	}
 	
+	if (self.pain_finished > time)
+	{
+// hit again, so drop down
+		self.inpain = 2;
+		zombie_paine1 ();
+		return;
+	}
 
 // gp into one of the fast pain animations	
 	self.inpain = 1;
 
 	r = random();
-	if (r < 0.33)
+	if (r < 0.25)
 		zombie_paina1 ();
-	else if (r <  0.66)
+	else if (r <  0.5)
+		zombie_painb1 ();
+	else if (r <  0.75)
 		zombie_painc1 ();
-	else 
+	else
 		zombie_paind1 ();
-
 };
 
 //============================================================================
@@ -748,8 +483,8 @@ void (entity stuff) spawn_zombie =
 	self.solid = SOLID_SLIDEBOX;
 	self.movetype = MOVETYPE_STEP;
 	setmodel (self, "progs/tehghoul.mdl");
-	setsize (self, '-8 -8 -24', '8 8 24');
-	self.health = 60;
+	setsize (self, VEC_HULL_MIN, '16 16 40');
+	self.health = 180;
 	self.classname = "ighoul";
 	self.netname = "ghoul";
 	self.max_health = self.health;
@@ -758,206 +493,16 @@ void (entity stuff) spawn_zombie =
 	self.th_run = zombie_run1;
 	self.th_pain = zombie_pain;
 	self.th_die = zombie_die;
-	self.th_melee = zombie_melee;
 	self.th_missile = zombie_missile;
 	self.target = stuff.target;
 	walkmonster_start_go ();
 };
 
-void () spawn_ghoul_copy =
-{
-	local entity zombie, lair;
-	local entity te, ze;
-	local vector jojo;
-	local float zomc, pcount, loadzombie;
-	local string finder, waterlev, diag, errmsg;
-	local vector stuff;
-
-
-
-
-	self.think = spawn_ghoul_copy;
-	self.nextthink = time + 7 + random()*7;
-
-	if (total_players == 2)
-		self.nextthink = time + 5 = random()*5;
-
-	stuff = self.origin;
-
-
-
-
-	loadzombie = 1;
-
-
-	te = findradius (self.origin, 900);
-	while (te)
-	{
-		if (te.classname == "player")
-			loadzombie = 0;
-
-		te = te.chain;
-	}
-
-
-
-
-	if (loadzombie == 1)
-		return;
-
-
-	ze = find (world, netname, "feral ghoul");
-
-	zomc = 0;
-	pcount = 0;
-
-	while (ze)
-	{
-	
-		zomc = zomc + 1;
-
-		ze = find (ze, classname, "monster");
-	}
-
-	ze = find(world, classname, "player");
-	while (ze)
-	{
-		if (ze.health > 0)
-			pcount = pcount + 1;
-
-		ze = find(ze, classname, "player");
-	}
-
-	if (zomc > (30 + (30*pcount)))
-		return;
-
-
-	zomc = 0;
-/*
-	te = findradius (self.origin, 1000);
-	while (te)
-	{
-		if (te.classname == "monster")
-			zomc = zomc + 1;
-
-		te = te.chain;
-	}
-
-	if (zomc >= 15+(15*pcount))
-		return;*/
-
-
-	zombie = spawn ();
-	zombie.owner = self;
-	self = zombie;
-	self.solid = SOLID_SLIDEBOX;
-	self.frame = 115;
-	self.movetype = MOVETYPE_STEP;		
-	setmodel (self, "progs/ghoul.mdl");
-	setsize (self, '-8 -8 -24', '8 8 24');
-	self.health = 90;
-	self.takedamage = DAMAGE_AIM;
-	self.netname = "feral ghoul";
-	self.max_health = self.health;
-	self.th_stand = zombie_stand1;
-	self.th_walk = zombie_walk1;
-	self.th_run = zombie_run1;
-	self.th_pain = zombie_pain;
-	self.th_die = zombie_die;
-	self.th_melee = zombie_melee;
-
-	self.skin = 0;
-
-	self.angles_y = random()*360;
-
-	if (random()*100 <= 8)
-	{
-		setsize (self, '-16 -16 -40	', '16 16 32');
-		self.health = 1200;
-		self.netname = "glowing one";
-		self.max_health = self.health;
-		self.scale = 1.5;
-		self.effects = EF_BLUE;
-		self.skin = 1;
-	}
-
-	self.origin = stuff + '0 64 0';
-	self.origin_z = self.origin_z + 1;
-	droptofloor();
-
-	if (!walkmove(0, 0))
-	{
-		self.origin = self.origin + '0 -64 0';
-		self.origin_z = self.origin_z + 1;
-		droptofloor();
-		if (!walkmove(0, 0))
-		{
-			self.origin = self.origin + '64 0 0';
-			self.origin_z = self.origin_z + 1;
-			droptofloor();
-			if (!walkmove(0, 0))
-			{
-				self.origin = self.origin + '-64 0 0';
-				self.origin_z = self.origin_z + 1;
-				droptofloor();
-				if (!walkmove(0, 0))
-				{
-					remove(self);
-					return;
-				}
-			}
-		}
-	}
-
-	te = findradius (self.origin, 30);
-	while (te)
-	{
-		if (te != self)
-		{
-			if (te.classname == "player" || te.classname == "monster" && te.health > 0)
-			{
-				remove(self);
-				return;
-			}
-		}
-		te = te.chain;
-	}
-
-	self.takedamage = DAMAGE_AIM;
-
-	self.ideal_yaw = self.angles * '0 1 0';
-	if (!self.yaw_speed)
-		self.yaw_speed = 20;
-	self.view_ofs = '0 0 25';
-	self.use = monster_use;
-	
-	self.flags = self.flags | FL_MONSTER;
-
-	self.classname = "monster";
-	zombie_rise1();
-};
-
-
 void() monster_zombie =
 {
-	local entity zombie, lair;
-	local entity te, ze;
-	local float stop;
-	local vector spot;
-	local float zomc, pcount;
-
-	if (self.zone == 0)
-	{
-		load_monster();
-		return;
-	}
-
-
-	precache_model ("progs/ghoul.mdl");
+	precache_model ("progs/zombie.mdl");
 	precache_model ("progs/h_zombie.mdl");
 	precache_model ("progs/zom_gib.mdl");
-	precache_model ("progs/rock.mdl");
-	precache_model ("progs/homemade.mdl");
 
 	precache_sound ("zombie/z_idle.wav");
 	precache_sound ("zombie/z_idle1.wav");
@@ -969,98 +514,27 @@ void() monster_zombie =
 	precache_sound ("zombie/z_miss.wav");
 	precache_sound ("zombie/z_hit.wav");
 	precache_sound ("zombie/idle_w2.wav");
-	precache_sound ("misc/rock1.wav");
-	precache_sound ("misc/rock2.wav");
-
-
-	if (world.map_obj == OBJ_DEADTOWN)
-	{
-		ze = findradius(self.origin, 256);
-		while (ze)
-		{
-
-			if (ze.classname == "lair")
-				stop = 1;
-
-			ze = ze.chain;
-		}
-
-		if (stop == 0)
-		{
-			spot = self.origin;
-			lair = spawn ();
-			setorigin(lair, spot);
-			lair.origin = spot;
-			lair.solid = SOLID_NOT;
-			lair.health = 1000;
-			lair.max_health = 1000;
-			setmodel (lair, "");
-			lair.movetype = MOVETYPE_STEP;
-			setsize (lair, '-8 -8 -24', '8 8 24');
-			lair.netname = "lair";
-			lair.classname = "lair";
-			lair.think = spawn_ghoul_copy;
-			lair.nextthink = time + 1*random();
-		}
-	}
 
 	self.solid = SOLID_SLIDEBOX;
 	self.movetype = MOVETYPE_STEP;
 
-	setmodel (self, "progs/ghoul.mdl");
+	setmodel (self, "progs/zombie.mdl");
 
-	setsize (self, '-8 -8 -24', '8 8 24');
-	self.health = 90;
-	self.classname = "monster";
-	self.netname = "ghoul";
+	setsize (self, '-16 -16 -24', '16 16 40');
+	self.health = 60;
+
 	self.th_stand = zombie_stand1;
 	self.th_walk = zombie_walk1;
 	self.th_run = zombie_run1;
+	self.th_pain = zombie_pain;
 	self.th_die = zombie_die;
-	self.th_melee = zombie_melee;
+	self.th_missile = zombie_missile;
 
-	self.angles_y = random()*360;
-
-	walkmonster_start();
-
-
-
-	if (random()<0.25 && world.map_obj == 1)
-		spawn_civilian(self.origin);
-
-	if (random()<0.25 && world.map_obj == 4)
-		spawn_civilian(self.origin);
-};
-
-
-
-
-void() zombie_generator =
-{
-	local entity zombie, lair;
-	local entity te, ze;
-	local float stop;
-	local vector spot;
-	local float zomc, pcount;
-
-
-
-
-
-			spot = self.origin;
-			lair = spawn ();
-			setorigin(lair, spot);
-			lair.origin = spot;
-			lair.solid = SOLID_NOT;
-			lair.health = 1000;
-			lair.max_health = 1000;
-			setmodel (lair, "");
-			lair.movetype = MOVETYPE_STEP;
-			setsize (lair, '-8 -8 -24', '8 8 24');
-			lair.netname = "lair";
-			lair.classname = "lair";
-			lair.think = spawn_ghoul_copy;
-			lair.nextthink = time + 1*random();
-
-
+	if (self.spawnflags & SPAWN_CRUCIFIED)
+	{
+		self.movetype = MOVETYPE_NONE;
+		zombie_cruc1 ();
+	}
+	else
+		walkmonster_start();
 };

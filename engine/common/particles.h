@@ -77,7 +77,7 @@ typedef struct trailstate_s {
 
 #define PARTICLE_Z_CLIP	8.0
 
-typedef enum { BM_BLEND, BM_BLENDCOLOUR, BM_ADD, BM_SUBTRACT } blendmode_t;
+typedef enum { BM_BLEND, BM_BLENDCOLOUR, BM_ADD, BM_SUBTRACT, BM_INVMOD } blendmode_t;
 
 #define frandom() (rand()*(1.0f/RAND_MAX))
 #define crandom() (rand()*(2.0f/RAND_MAX)-1.0f)
@@ -89,15 +89,17 @@ typedef enum { BM_BLEND, BM_BLENDCOLOUR, BM_ADD, BM_SUBTRACT } blendmode_t;
 
 // used for callback
 extern cvar_t r_particlesdesc;
+extern cvar_t r_particlesystem;
 
 struct model_s;
 struct msurface_s;
 
 void P_InitParticleSystem(void);
+void P_Shutdown(void);
+void P_LoadedModel(struct model_s *mod);	/*checks a model's various effects*/
 void P_DefaultTrail (struct model_s *model);
 void P_EmitEffect (vec3_t pos, int type, trailstate_t **tsk);//this is just a wrapper
 
-#define P_ParticleTypeForName pe->ParticleTypeForName
 #define P_FindParticleType pe->FindParticleType
 
 #define P_RunParticleEffectTypeString pe->RunParticleEffectTypeString
@@ -116,7 +118,6 @@ void P_EmitEffect (vec3_t pos, int type, trailstate_t **tsk);//this is just a wr
 #define P_DelinkTrailstate pe->DelinkTrailstate
 #define P_ClearParticles pe->ClearParticles
 #define P_DrawParticles pe->DrawParticles
-#define P_FlushRenderer pe->FlushRenderer
 
 typedef struct {
 	char *name1;
@@ -137,13 +138,12 @@ typedef struct {
 	void (*RunParticleEffect4) (vec3_t org, float radius, int color, int effect, int count);
 
 	void (*ParticleTrailIndex) (vec3_t start, vec3_t end, int color, int crnd, trailstate_t **tsk);
-	void (*EmitSkyEffectTris) (struct model_s *mod, struct msurface_s 	*fa);
-	void (*InitParticles) (void);
+	void (*EmitSkyEffectTris) (struct model_s *mod, struct msurface_s *fa, int ptype);
+	qboolean (*InitParticles) (void);
 	void (*ShutdownParticles) (void);
 	void (*DelinkTrailstate) (trailstate_t **tsk);
 	void (*ClearParticles) (void);
 	void (*DrawParticles) (void);
-	void (*FlushRenderer) (void);
 } particleengine_t;
 extern particleengine_t *pe;
 

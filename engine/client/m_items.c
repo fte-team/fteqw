@@ -1,6 +1,7 @@
 //read menu.h
 
 #include "quakedef.h"
+#include "shader.h"
 
 int omousex;
 int omousey;
@@ -19,73 +20,79 @@ void Draw_TextBox (int x, int y, int width, int lines)
 	// draw left side
 	cx = x;
 	cy = y;
-	p = Draw_SafeCachePic ("gfx/box_tl.lmp");
+	p = R2D_SafeCachePic ("gfx/box_tl.lmp");
 
 	if (!p)	//assume none exist
 	{
-		Draw_FillRGB(x, y, width + 16, 8 * (2 + lines), 0.0, 0.0, 0.0);
+		R2D_ImageColours(0.0, 0.0, 0.0, 1.0);
+		R2D_FillBlock(x, y, width + 16, 8 * (2 + lines));
+		R2D_ImageColours(1.0, 1.0, 1.0, 1.0);
 		return;
 	}
 
 	if (p)
-		Draw_TransPic (cx, cy, p);
-	p = Draw_SafeCachePic ("gfx/box_ml.lmp");
+		R2D_ScalePic (cx, cy, 8, 8, p);
+	p = R2D_SafeCachePic ("gfx/box_ml.lmp");
 	for (n = 0; n < lines; n++)
 	{
 		cy += 8;
 		if (p)
-			Draw_TransPic (cx, cy, p);
+			R2D_ScalePic (cx, cy, 8, 8, p);
 	}
-	p = Draw_SafeCachePic ("gfx/box_bl.lmp");
+	p = R2D_SafeCachePic ("gfx/box_bl.lmp");
 	if (p)
-		Draw_TransPic (cx, cy+8, p);
+		R2D_ScalePic (cx, cy+8, 8, 8, p);
 
 	// draw middle
 	cx += 8;
 	while (width > 0)
 	{
 		cy = y;
-		p = Draw_SafeCachePic ("gfx/box_tm.lmp");
+		p = R2D_SafeCachePic ("gfx/box_tm.lmp");
 		if (p)
-			Draw_TransPic (cx, cy, p);
-		p = Draw_SafeCachePic ("gfx/box_mm.lmp");
+			R2D_ScalePic (cx, cy, 16, 8, p);
+		p = R2D_SafeCachePic ("gfx/box_mm.lmp");
 		for (n = 0; n < lines; n++)
 		{
 			cy += 8;
 			if (n == 1)
-				p = Draw_SafeCachePic ("gfx/box_mm2.lmp");
+				p = R2D_SafeCachePic ("gfx/box_mm2.lmp");
 			if (p)
-				Draw_TransPic (cx, cy, p);
+				R2D_ScalePic (cx, cy, 16, 8, p);
 		}
-		p = Draw_SafeCachePic ("gfx/box_bm.lmp");
+		p = R2D_SafeCachePic ("gfx/box_bm.lmp");
 		if (p)
-			Draw_TransPic (cx, cy+8, p);
+			R2D_ScalePic (cx, cy+8, 16, 8, p);
 		width -= 2;
 		cx += 16;
 	}
 
 	// draw right side
 	cy = y;
-	p = Draw_SafeCachePic ("gfx/box_tr.lmp");
+	p = R2D_SafeCachePic ("gfx/box_tr.lmp");
 	if (p)
-		Draw_TransPic (cx, cy, p);
-	p = Draw_SafeCachePic ("gfx/box_mr.lmp");
+		R2D_ScalePic (cx, cy, 8, 8, p);
+	p = R2D_SafeCachePic ("gfx/box_mr.lmp");
 	for (n = 0; n < lines; n++)
 	{
 		cy += 8;
 		if (p)
-			Draw_TransPic (cx, cy, p);
+			R2D_ScalePic (cx, cy, 8, 8, p);
 	}
-	p = Draw_SafeCachePic ("gfx/box_br.lmp");
+	p = R2D_SafeCachePic ("gfx/box_br.lmp");
 	if (p)
-		Draw_TransPic (cx, cy+8, p);
+		R2D_ScalePic (cx, cy+8, 8, 8, p);
 }
 
 void Draw_Hexen2BigFontString(int x, int y, const char *text)
 {
 	int sx, sy;
 	mpic_t *p;
-	p = Draw_SafeCachePic ("gfx/menu/bigfont.lmp");
+	unsigned int hack;
+	hack = d_8to24rgbtable[0];
+	d_8to24rgbtable[0] = 0;
+	p = R2D_SafeCachePic ("gfx/menu/bigfont.lmp");
+	d_8to24rgbtable[0] = hack;
 
 	while(*text)
 	{
@@ -105,7 +112,7 @@ void Draw_Hexen2BigFontString(int x, int y, const char *text)
 			sy=-1;
 		}
 		if(sx>=0)
-			Draw_SubPic(x, y, p, sx, sy, 20, 20);
+			R2D_SubPic(x, y, 20, 20, p, sx, sy, 20*8, 20*4);
 		x+=20;
 		text++;
 	}
@@ -114,16 +121,16 @@ void Draw_Hexen2BigFontString(int x, int y, const char *text)
 mpic_t *QBigFontWorks(void)
 {
 	mpic_t *p;
-	p = Draw_SafeCachePic ("gfx/mcharset.lmp");
+	p = R2D_SafeCachePic ("gfx/mcharset.lmp");
 	if (p)
 		return p;
-	p = Draw_SafeCachePic ("mcharset.lmp");
+	p = R2D_SafeCachePic ("mcharset.lmp");
 	if (p)
 		return p;
-	p = Draw_SafeCachePic ("textures/gfx/mcharset.lmp");
+	p = R2D_SafeCachePic ("textures/gfx/mcharset.lmp");
 	if (p)
 		return p;
-	p = Draw_SafeCachePic ("textures/mcharset.lmp");
+	p = R2D_SafeCachePic ("textures/mcharset.lmp");
 	if (p)
 		return p;
 	return NULL;
@@ -175,7 +182,7 @@ void Draw_BigFontString(int x, int y, const char *text)
 			sy=-1;
 		}
 		if(sx>=0)
-			Draw_SubPic(x, y, p, sx, sy, (p->width>>3), (p->height>>3));
+			R2D_SubPic(x, y, 20, 20, p, sx, sy, 20*8, 20*8);
 		x+=(p->width>>3);
 		text++;
 	}
@@ -286,6 +293,45 @@ void MenuTooltipSplit(menu_t *menu, const char *text)
 	menu->tooltip = mtt;
 }
 
+qboolean MI_Selectable(menuoption_t *op)
+{
+	switch(op->common.type)
+	{
+	case mt_text:
+		return false;
+	case mt_button:
+		return true;
+	case mt_hexen2buttonbigfont:
+		return true;
+	case mt_qbuttonbigfont:
+		return true;
+	case mt_menudot:
+		return false;
+	case mt_picturesel:
+		return true;
+	case mt_picture:
+		return false;
+	case mt_childwindow:
+		return true;
+	case mt_box:
+		return false;
+	case mt_slider:
+		return true;
+	case mt_checkbox:
+		return true;
+	case mt_edit:
+		return true;
+	case mt_bind:
+		return true;
+	case mt_combo:
+		return true;
+	case mt_custom:
+		return true;
+	default:
+		return false;
+	}
+}
+
 void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 {
 	int i;
@@ -297,43 +343,53 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 
 	while (option)
 	{
-		if (mousemoved && !bindingactive)
+		if (mousemoved && !bindingactive && !option->common.ishidden)
 		{
-			if (omousex > xpos+option->common.posx && omousex < xpos+option->common.posx+option->common.width)
+			if (omousex > xpos+option->common.posx-option->common.extracollide && omousex < xpos+option->common.posx+option->common.width)
+			{
 				if (omousey > ypos+option->common.posy && omousey < ypos+option->common.posy+option->common.height)
 				{
-					if (menu->selecteditem != option)
+					if (MI_Selectable(option))
 					{
-						if (!option->common.noselectionsound)
-								if (mgt == MGT_HEXEN2)
-									S_LocalSound ("raven/menu1.wav");
-								else
-									S_LocalSound ("misc/menu1.wav");
+						if (menu->selecteditem != option)
+						{
+							if (!option->common.noselectionsound)
+							{
+									if (mgt == MGT_HEXEN2)
+										S_LocalSound ("raven/menu1.wav");
+									else
+										S_LocalSound ("misc/menu1.wav");
+							}
 
-						menu->selecteditem = option;
-						menu->tooltiptime = realtime + 1;
-						MenuTooltipSplit(menu, menu->selecteditem->common.tooltip);
+							menu->selecteditem = option;
+							menu->tooltiptime = realtime + 1;
+							MenuTooltipSplit(menu, menu->selecteditem->common.tooltip);
+						}
+						if (menu->cursoritem)
+							menu->cursoritem->common.posy = menu->selecteditem->common.posy;
 					}
-					if (menu->cursoritem)
-						menu->cursoritem->common.posy = menu->selecteditem->common.posy;
 				}
+			}
 		}
 		if (!option->common.ishidden)
 		switch(option->common.type)
 		{
 		case mt_text:
 			if (!option->text.text)
-				Draw_Character (xpos+option->common.posx, ypos+option->common.posy, 12+((int)(realtime*4)&1));
+			{
+				if ((int)(realtime*4)&1)
+					Draw_FunString(xpos+option->common.posx, ypos+option->common.posy, "^Ue00d");
+			}
 			else if (option->text.isred)
-				Draw_Alt_String(xpos+option->common.posx, ypos+option->common.posy, option->text.text);
+				Draw_AltFunString(xpos+option->common.posx, ypos+option->common.posy, option->text.text);
 			else
-				Draw_String(xpos+option->common.posx, ypos+option->common.posy, option->text.text);
+				Draw_FunString(xpos+option->common.posx, ypos+option->common.posy, option->text.text);
 			break;
 		case mt_button:
 			if (!menu->cursoritem && menu->selecteditem == option)
-				Draw_Alt_String(xpos+option->common.posx, ypos+option->common.posy, option->button.text);
+				Draw_AltFunString(xpos+option->common.posx, ypos+option->common.posy, option->button.text);
 			else
-				Draw_String(xpos+option->common.posx, ypos+option->common.posy, option->button.text);
+				Draw_FunString(xpos+option->common.posx, ypos+option->common.posy, option->button.text);
 			break;
 		case mt_hexen2buttonbigfont:
 			Draw_Hexen2BigFontString(xpos+option->common.posx, ypos+option->common.posy, option->button.text);
@@ -343,8 +399,8 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 			break;
 		case mt_menudot:
 			i = (int)(realtime * 10)%maxdots;
-			p = Draw_SafeCachePic(va(menudotstyle, i+mindot ));
-			Draw_TransPic(xpos+option->common.posx, ypos+option->common.posy+dotofs, p);
+			p = R2D_SafeCachePic(va(menudotstyle, i+mindot ));
+			R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy+dotofs, 20, 20, p);
 			break;
 		case mt_picturesel:
 			p = NULL;
@@ -354,20 +410,16 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 				Q_strncpyz(selname, option->picture.picturename, sizeof(selname));
 				COM_StripExtension(selname, selname, sizeof(selname));
 				Q_strncatz(selname, "_sel", sizeof(selname));
-				p = Draw_SafeCachePic(selname);
+				p = R2D_SafeCachePic(selname);
 			}
 			if (!p)
-				p = Draw_SafeCachePic(option->picture.picturename);
+				p = R2D_SafeCachePic(option->picture.picturename);
 
-			Draw_TransPic (xpos+option->common.posx, ypos+option->common.posy, p);
+			R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy, option->common.width?option->common.width:p->width, option->common.height?option->common.height:p->height, p);
 			break;
 		case mt_picture:
-			p = Draw_SafeCachePic(option->picture.picturename);
-			Draw_TransPic (xpos+option->common.posx, ypos+option->common.posy, p);
-			break;
-		case mt_strechpic:
-			p = Draw_SafeCachePic(option->picture.picturename);
-			if (p) Draw_ScalePic(xpos+option->common.posx, ypos+option->common.posy, option->common.width, option->common.height, p);
+			p = R2D_SafeCachePic(option->picture.picturename);
+			if (p) R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy, option->common.width, option->common.height, p);
 			break;
 		case mt_childwindow:
 			MenuDrawItems(xpos+option->common.posx, ypos+option->common.posy, ((menu_t *)option->custom.data)->options, (menu_t *)option->custom.data);
@@ -383,15 +435,16 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 				int	i;
 				int x = xpos+option->common.posx;
 				int y = ypos+option->common.posy;
+				int s;
 
 				range = (option->slider.current - option->slider.min)/(option->slider.max-option->slider.min);
 
 				if (option->slider.text)
 				{
 					if (!menu->cursoritem && menu->selecteditem == option)
-						Draw_Alt_String(x, y, option->slider.text);
+						Draw_AltFunString(x, y, option->slider.text);
 					else
-						Draw_String(x, y, option->slider.text);
+						Draw_FunString(x, y, option->slider.text);
 					x += strlen(option->slider.text)*8+28;
 				}
 
@@ -399,11 +452,15 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 					range = 0;
 				if (range > 1)
 					range = 1;
-				Draw_Character (x-8, y, 128);
+				x -= 8;
+				Font_BeginString(font_conchar, x, y, &x, &y);
+				x = Font_DrawChar(x, y, 0xe080 | CON_WHITEMASK);
+				s = x;
 				for (i=0 ; i<SLIDER_RANGE ; i++)
-					Draw_Character (x + i*8, y, 129);
-				Draw_Character (x+i*8, y, 130);
-				Draw_Character (x + (SLIDER_RANGE-1)*8 * range, y, 131);
+					x = Font_DrawChar(x, y, 0xe081 | CON_WHITEMASK);
+				Font_DrawChar(x, y, 0xe082 | CON_WHITEMASK);
+				Font_DrawChar(s + (x-s) * range - Font_CharWidth(0xe083 | CON_WHITEMASK)/2, y, 0xe083 | CON_WHITEMASK);
+				Font_EndString(font_conchar);
 			}
 			break;
 		case mt_checkbox:
@@ -433,9 +490,9 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 				if (option->check.text)
 				{
 					if (!menu->cursoritem && menu->selecteditem == option)
-						Draw_Alt_String(x, y, option->check.text);
+						Draw_AltFunString(x, y, option->check.text);
 					else
-						Draw_String(x, y, option->check.text);
+						Draw_FunString(x, y, option->check.text);
 					x += strlen(option->check.text)*8+28;
 				}
 #if 0
@@ -445,9 +502,9 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 					Draw_Character (x, y, 129);
 #endif
 				if (!menu->cursoritem && menu->selecteditem == option)
-					Draw_Alt_String (x, y, on ? "on" : "off");
+					Draw_AltFunString (x, y, on ? "on" : "off");
 				else
-					Draw_String (x, y, on ? "on" : "off");
+					Draw_FunString (x, y, on ? "on" : "off");
 			}
 			break;
 		case mt_edit:
@@ -455,18 +512,22 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 				int x = xpos+option->common.posx;
 				int y = ypos+option->common.posy;
 
+				//Fixme: variable width fonts
 				if (!menu->cursoritem && menu->selecteditem == option)
-					Draw_Alt_String(x, y, option->edit.caption);
+					Draw_AltFunString(x, y, option->edit.caption);
 				else
-					Draw_String(x, y, option->edit.caption);
+					Draw_FunString(x, y, option->edit.caption);
 				x+=strlen(option->edit.caption)*8+8;
-				Draw_TextBox(x-8, y-8, 16, 1);
-				Draw_String(x, y, option->edit.text);
+				if (option->edit.slim)
+					x += 8; // more space for cursor
+				else
+					Draw_TextBox(x-8, y-8, 16, 1);
+				Draw_FunString(x, y, option->edit.text);
 
 				if (menu->selecteditem == option && (int)(realtime*4) & 1)
 				{
 					x += strlen(option->edit.text)*8;
-					Draw_Character(x, y, 11);
+					Draw_FunString(x, y, "^Ue00b");
 				}
 			}
 			break;
@@ -479,32 +540,33 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 				char *keyname;
 
 				if (!menu->cursoritem && menu->selecteditem == option)
-					Draw_Alt_String(x, y, option->bind.caption);
+					Draw_AltFunString(x, y, option->bind.caption);
 				else
-					Draw_String(x, y, option->bind.caption);
+					Draw_FunString(x, y, option->bind.caption);
 				x += strlen(option->bind.caption)*8+28;
 				{
+					extern cvar_t cl_forcesplitclient;
 					l = strlen (option->bind.command);
 
-					M_FindKeysForCommand (option->bind.command, keys);
+					M_FindKeysForCommand (cl_forcesplitclient.ival, option->bind.command, keys);
 
 					if (bindingactive && menu->selecteditem == option)
 					{
-						Draw_String (x, y, "Press key");
+						Draw_FunString (x, y, "Press key");
 					}
 					else if (keys[0] == -1)
 					{
-						Draw_String (x, y, "???");
+						Draw_FunString (x, y, "???");
 					}
 					else
 					{
 						keyname = Key_KeynumToString (keys[0]);
-						Draw_String (x, y, keyname);
+						Draw_FunString (x, y, keyname);
 						x += strlen(keyname) * 8;
 						if (keys[1] != -1)
-						{
-							Draw_String (x + 8, y, "or");
-							Draw_String (x + 32, y, Key_KeynumToString (keys[1]));
+						{	/*these offsets are wrong*/
+							Draw_FunString (x + 8, y, "or");
+							Draw_FunString (x + 32, y, Key_KeynumToString (keys[1]));
 						}
 					}
 				}
@@ -517,16 +579,16 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 				int y = ypos+option->common.posy;
 
 				if (!menu->cursoritem && menu->selecteditem == option)
-					Draw_Alt_String(x, y, option->combo.caption);
+					Draw_AltFunString(x, y, option->combo.caption);
 				else
-					Draw_String(x, y, option->combo.caption);
+					Draw_FunString(x, y, option->combo.caption);
 				x += strlen(option->combo.caption)*8+24;
 				if (option->combo.numoptions)
 				{
 					if (!menu->cursoritem && menu->selecteditem == option)
-						Draw_Alt_String(x, y, option->combo.options[option->combo.selectedoption]);
+						Draw_AltFunString(x, y, option->combo.options[option->combo.selectedoption]);
 					else
-						Draw_String(x, y, option->combo.options[option->combo.selectedoption]);
+						Draw_FunString(x, y, option->combo.options[option->combo.selectedoption]);
 				}
 			}
 			break;
@@ -574,7 +636,7 @@ void MenuDraw(menu_t *menu)
 				y += 8;
 				for (l = 0; l < lines; l++)
 				{
-					Draw_String(x, y, menu->tooltip->lines[l]);
+					Draw_FunString(x, y, menu->tooltip->lines[l]);
 					y += 8;
 				}
 			}
@@ -650,15 +712,15 @@ menupicture_t *MC_AddSelectablePicture(menu_t *menu, int x, int y, char *picname
 	char selname[MAX_QPATH];
 	menupicture_t *n;
 
-	if (!qrenderer)
+	if (qrenderer == QR_NONE)
 		return NULL;
 
 	Q_strncpyz(selname, picname, sizeof(selname));
 	COM_StripExtension(selname, selname, sizeof(selname));
 	Q_strncatz(selname, "_sel", sizeof(selname));
 
-	Draw_SafeCachePic(picname);
-	Draw_SafeCachePic(selname);
+	R2D_SafeCachePic(picname);
+	R2D_SafeCachePic(selname);
 
 	n = Z_Malloc(sizeof(menupicture_t) + strlen(picname)+1);
 	n->common.type = mt_picturesel;
@@ -673,37 +735,16 @@ menupicture_t *MC_AddSelectablePicture(menu_t *menu, int x, int y, char *picname
 	return n;
 }
 
-menupicture_t *MC_AddPicture(menu_t *menu, int x, int y, char *picname)
+menupicture_t *MC_AddPicture(menu_t *menu, int x, int y, int width, int height, char *picname)
 {
 	menupicture_t *n;
-	if (!qrenderer)
+	if (qrenderer == QR_NONE)
 		return NULL;
 
-	Draw_SafeCachePic(picname);
+	R2D_SafeCachePic(picname);
 
 	n = Z_Malloc(sizeof(menupicture_t) + strlen(picname)+1);
 	n->common.type = mt_picture;
-	n->common.iszone = true;
-	n->common.posx = x;
-	n->common.posy = y;
-	n->picturename = (char *)(n+1);
-	strcpy(n->picturename, picname);
-
-	n->common.next = menu->options;
-	menu->options = (menuoption_t *)n;
-	return n;
-}
-
-menupicture_t *MC_AddStrechPicture(menu_t *menu, int x, int y, int width, int height, char *picname)
-{
-	menupicture_t *n;
-	if (!qrenderer)
-		return NULL;
-
-	Draw_SafeCachePic(picname);
-
-	n = Z_Malloc(sizeof(menupicture_t) + strlen(picname)+1);
-	n->common.type = mt_strechpic;
 	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
@@ -717,20 +758,27 @@ menupicture_t *MC_AddStrechPicture(menu_t *menu, int x, int y, int width, int he
 	return n;
 }
 
-menupicture_t *MC_AddCenterPicture(menu_t *menu, int y, char *picname)
+menupicture_t *MC_AddCenterPicture(menu_t *menu, int y, int height, char *picname)
 {
 	int x;
+	int width;
 	mpic_t *p;
 
-	if (!qrenderer)
+	if (qrenderer == QR_NONE)
 		return NULL;
-	p = Draw_SafeCachePic(picname);
+	p = R2D_SafeCachePic(picname);
 	if (!p)
+	{
 		x = 320/2;
+		width = 64;
+	}
 	else
-		x = (320-p->width)/2;
+	{
+		width = (p->width * (float)height) / p->height;
+		x = (320-(int)width)/2;
+	}
 
-	return MC_AddPicture(menu, x, y, picname);
+	return MC_AddPicture(menu, x, y, width, height, picname);
 }
 
 menupicture_t *MC_AddCursor(menu_t *menu, int x, int y)
@@ -759,7 +807,7 @@ menupicture_t *MC_AddCursor(menu_t *menu, int x, int y)
 		menudotstyle = "gfx/menu/menudot%i.lmp";
 		mindot = 1;
 		maxdots = 8;
-		dotofs=-5;
+		dotofs=-2;
 	}
 	else
 	{	//QUAKE 1 WINS BY DEFAULT!
@@ -787,7 +835,7 @@ menuedit_t *MC_AddEdit(menu_t *menu, int x, int y, char *text, char *def)
 	return n;
 }
 
-menuedit_t *MC_AddEditCvar(menu_t *menu, int x, int y, char *text, char *name)
+menuedit_t *MC_AddEditCvar_Full(menu_t *menu, int x, int y, char *text, char *name, qboolean isslim)
 {
 	menuedit_t *n = Z_Malloc(sizeof(menuedit_t)+strlen(text)+1);
 	cvar_t *cvar;
@@ -798,17 +846,31 @@ menuedit_t *MC_AddEditCvar(menu_t *menu, int x, int y, char *text, char *name)
 	n->common.posy = y;
 	n->common.width = (strlen(text)+17)*8;
 	n->common.height = 8;
+	n->common.tooltip = cvar->description;
 	n->modified = true;
 	n->caption = (char *)(n+1);
 	strcpy((char *)(n+1), text);
 	n->cvar = cvar;
+#ifdef _DEBUG
 	if (!(cvar->flags & CVAR_ARCHIVE))
 		Con_Printf("Warning: %s is not set for archiving\n", cvar->name);
+#endif
 	Q_strncpyz(n->text, cvar->string, sizeof(n->text));
 
 	n->common.next = menu->options;
+	n->slim = isslim;
 	menu->options = (menuoption_t *)n;
 	return n;
+}
+
+menuedit_t *MC_AddEditCvarSlim(menu_t *menu, int x, int y, char *text, char *name)
+{
+	return MC_AddEditCvar_Full(menu, x, y, text, name, true);
+}
+
+menuedit_t *MC_AddEditCvar(menu_t *menu, int x, int y, char *text, char *name)
+{
+	return MC_AddEditCvar_Full(menu, x, y, text, name, false);
 }
 
 menubox_t *MC_AddBox(menu_t *menu, int x, int y, int width, int height)
@@ -849,18 +911,19 @@ menucheck_t *MC_AddCheckBox(menu_t *menu, int x, int y, const char *text, cvar_t
 	n->common.posy = y;
 	n->common.height = 8;
 	n->common.width = (strlen(text)+7)*8;
+	n->common.tooltip = var?var->description:NULL;
 	n->text = (char *)(n+1);
 	strcpy((char *)(n+1), text);
 	n->var = var;
 	n->bits = bits;
 
-	#ifdef _DEBUG
+#ifdef _DEBUG
 	if (var)
 		if (!(var->flags & CVAR_ARCHIVE))
 			Con_Printf("Warning: %s is not set for archiving\n", var->name);
 		else if (var->flags & CVAR_RENDERERLATCH)
 			Con_Printf("Warning: %s requires a vid_restart\n", var->name);
-	#endif
+#endif
 
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;
@@ -895,6 +958,7 @@ menuslider_t *MC_AddSlider(menu_t *menu, int x, int y, const char *text, cvar_t 
 	n->common.posy = y;
 	n->common.height = 8;
 	n->common.width = (strlen(text)+SLIDER_RANGE+5)*8;
+	n->common.tooltip = var->description;
 	n->var = var;
 	n->text = (char *)(n+1);
 	strcpy((char *)(n+1), text);
@@ -1016,6 +1080,7 @@ menucombo_t *MC_AddCvarCombo(menu_t *menu, int x, int y, const char *caption, cv
 	n->common.posy = y;
 	n->common.height = 8;
 	n->common.width = strlen(caption)*8 + maxoptlen*8;
+	n->common.tooltip = cvar->description;
 
 	strcpy(optbuf, caption);
 	n->caption = optbuf;
@@ -1097,8 +1162,8 @@ menubutton_t *MC_AddConsoleCommandHexen2BigFont(menu_t *menu, int x, int y, cons
 	n->common.iszone = true;
 	n->common.posx = x;
 	n->common.posy = y;
-	n->common.height = 8;
-	n->common.width = strlen(text)*8;
+	n->common.height = 20;
+	n->common.width = strlen(text)*20;
 	n->text = (char *)(n+1);
 	strcpy((char *)(n+1), text);
 	n->command = n->text + strlen(n->text)+1;
@@ -1231,7 +1296,7 @@ void MC_CheckBox_Key(menucheck_t *option, menu_t *menu, int key)
 	}
 }
 
-void MC_EditBox_Key(menuedit_t *edit, int key)
+void MC_EditBox_Key(menuedit_t *edit, int key, unsigned int unicode)
 {
 	int len = strlen(edit->text);
 	if (key == K_DEL || key == K_BACKSPACE)
@@ -1240,12 +1305,18 @@ void MC_EditBox_Key(menuedit_t *edit, int key)
 			return;
 		edit->text[len-1] = '\0';
 	}
-	else if (key < 32 || key > 127)
+	else if (!unicode)
 		return;
 	else
 	{
-		edit->text[len] = key;
-		edit->text[len+1] = '\0';
+		if (unicode < 128)
+		{
+			if (len < sizeof(edit->text))
+			{
+				edit->text[len] = unicode;
+				edit->text[len+1] = '\0';
+			}
+		}
 	}
 
 	edit->modified = true;
@@ -1393,22 +1464,28 @@ void M_RemoveAllMenus (void)
 }
 
 
-void DrawCursor(void)
+void DrawCursor(int prydoncursornum)
 {
 	extern int mousecursor_x, mousecursor_y;
 	mpic_t *p;
 	if (!*cl_cursor.string)
 		p = NULL;
 	else
-		p = Draw_SafeCachePic(cl_cursor.string);
+		p = R2D_SafeCachePic(cl_cursor.string);
 	if (p)
 	{
-		Draw_ImageColours(1, 1, 1, 1);
-		Draw_Image(mousecursor_x-cl_cursorbias.value, mousecursor_y-cl_cursorbias.value, cl_cursorsize.value, cl_cursorsize.value, 0, 0, 1, 1, p);
-//		Draw_TransPic(mousecursor_x-4, mousecursor_y-4, p);
+		R2D_ImageColours(1, 1, 1, 1);
+		R2D_Image(mousecursor_x-cl_cursorbias.value, mousecursor_y-cl_cursorbias.value, cl_cursorsize.value, cl_cursorsize.value, 0, 0, 1, 1, p);
 	}
 	else
-		Draw_Character(mousecursor_x-4, mousecursor_y-4, '+');
+	{
+		int x, y;
+		Font_BeginString(font_conchar, mousecursor_x, mousecursor_y, &x, &y);
+		x -= Font_CharWidth('+' | 0xe000 | CON_WHITEMASK)/2;
+		y -= Font_CharHeight()/2;
+		Font_DrawChar(x, y, '+' | 0xe000 | CON_WHITEMASK);
+		Font_EndString(font_conchar);
+	}
 
 }
 
@@ -1446,7 +1523,7 @@ void M_Complex_Draw(void)
 		MenuDraw(cmenu);
 	}
 
-	DrawCursor();
+	SCR_DrawCursor(0);
 }
 
 menuoption_t *M_NextItem(menu_t *m, menuoption_t *old)
@@ -1481,12 +1558,12 @@ menuoption_t *M_NextSelectableItem(menu_t *m, menuoption_t *old)
 
 		if (op == old)
 		{
-			if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_hexen2buttonbigfont || op->common.type == mt_qbuttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind || op->common.type == mt_custom)
+			if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_hexen2buttonbigfont || op->common.type == mt_qbuttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind || (op->common.type == mt_custom && op->custom.key))
 				return op;
 			return NULL;	//whoops.
 		}
 
-		if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_hexen2buttonbigfont || op->common.type == mt_qbuttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind || op->common.type == mt_custom)
+		if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_hexen2buttonbigfont || op->common.type == mt_qbuttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind || (op->common.type == mt_custom && op->custom.key))
 			if (!op->common.ishidden)
 				return op;
 	}
@@ -1513,13 +1590,13 @@ menuoption_t *M_PrevSelectableItem(menu_t *m, menuoption_t *old)
 		if (op == old)
 			return old;	//whoops.
 
-		if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_hexen2buttonbigfont || op->common.type == mt_qbuttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind || op->common.type == mt_custom)
+		if (op->common.type == mt_slider || op->common.type == mt_checkbox || op->common.type == mt_button || op->common.type == mt_hexen2buttonbigfont || op->common.type == mt_qbuttonbigfont || op->common.type == mt_edit || op->common.type == mt_combo || op->common.type == mt_bind || (op->common.type == mt_custom && op->custom.key))
 			if (!op->common.ishidden)
 				return op;
 	}
 }
 
-void M_Complex_Key(int key)
+void M_Complex_Key(int key, int unicode)
 {
 	int mgt;
 	mgt = M_GameType();
@@ -1628,7 +1705,7 @@ void M_Complex_Key(int key)
 				currentmenu->selecteditem->custom.key(&currentmenu->selecteditem->custom, currentmenu, key);
 			break;
 		case mt_edit:
-			MC_EditBox_Key(&currentmenu->selecteditem->edit, key);
+			MC_EditBox_Key(&currentmenu->selecteditem->edit, key, unicode);
 			break;
 		case mt_combo:
 			MC_Combo_Key(&currentmenu->selecteditem->combo, key);
@@ -1768,12 +1845,6 @@ void M_Menu_Main_f (void)
 
 	SCR_EndLoadingPlaque();	//just in case...
 
-	if (!Draw_SafeCachePic)
-	{
-		Con_ToggleConsole_f();
-		return;
-	}
-
 /*
 	if (0)
 	{
@@ -1804,7 +1875,7 @@ void M_Menu_Main_f (void)
 	mgt = M_GameType();
 	if (mgt == MGT_QUAKE2)	//quake2 main menu.
 	{
-		if (Draw_SafeCachePic("pics/m_main_game"))
+		if (R2D_SafeCachePic("pics/m_main_game"))
 		{
 			m_state = m_complex;
 			key_dest = key_menu;
@@ -1812,11 +1883,11 @@ void M_Menu_Main_f (void)
 			mainm = M_CreateMenu(0);
 			mainm->key = MC_Main_Key;
 
-			MC_AddPicture(mainm, 0, 4, "pics/m_main_plaque");
-			p = Draw_SafeCachePic("pics/m_main_logo");
+			MC_AddPicture(mainm, 0, 4, 38, 166, "pics/m_main_plaque");
+			p = R2D_SafeCachePic("pics/m_main_logo");
 			if (!p)
 				return;
-			MC_AddPicture(mainm, 0, 173, "pics/m_main_logo");
+			MC_AddPicture(mainm, 0, 173, 36, 42, "pics/m_main_logo");
 #ifndef CLIENTONLY
 			MC_AddSelectablePicture(mainm, 68, 13, "pics/m_main_game");
 #endif
@@ -1858,16 +1929,22 @@ void M_Menu_Main_f (void)
 		mainm = M_CreateMenu(0);
 		mainm->key = MC_Main_Key;
 
-		MC_AddPicture(mainm, 16, 0, "gfx/menu/hplaque.lmp");
-		p = Draw_SafeCachePic("gfx/menu/title0.lmp");
+		MC_AddPicture(mainm, 16, 0, 35, 176, "gfx/menu/hplaque.lmp");
+		p = R2D_SafeCachePic("gfx/menu/title0.lmp");
 		if (!p)
 			return;
-		MC_AddPicture(mainm, (320-p->width)/2, 0, "gfx/menu/title0.lmp");
+		MC_AddCenterPicture(mainm, 0, 60, "gfx/menu/title0.lmp");
 
+#ifndef CLIENTONLY
 		b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64,	"Single Player", "menu_single\n");
+		mainm->selecteditem = (menuoption_t *)b;
 		b->common.width = 12*20;
 		b->common.height = 20;
+#endif
 		b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64+20,	"MultiPlayer", "menu_multi\n");
+#ifdef CLIENTONLY
+		mainm->selecteditem = (menuoption_t *)b;
+#endif
 		b->common.width = 12*20;
 		b->common.height = 20;
 		b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, 64+40,	"Options", "menu_options\n");
@@ -1883,7 +1960,7 @@ void M_Menu_Main_f (void)
 		b->common.width = 12*20;
 		b->common.height = 20;
 
-		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, 48, 64);
+		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, 56, mainm->selecteditem->common.posy);
 	}
 	else if (QBigFontWorks())
 	{
@@ -1891,7 +1968,7 @@ void M_Menu_Main_f (void)
 		key_dest = key_menu;
 		mainm = M_CreateMenu(0);
 
-		p = Draw_SafeCachePic("gfx/ttl_main.lmp");
+		p = R2D_SafeCachePic("gfx/ttl_main.lmp");
 		if (!p)
 		{
 			MC_AddRedText(mainm, 16, 0,				"MAIN MENU", false);
@@ -1903,9 +1980,9 @@ void M_Menu_Main_f (void)
 			return;
 		}
 		mainm->key = MC_Main_Key;
-		MC_AddPicture(mainm, 16, 4, "gfx/qplaque.lmp");
+		MC_AddPicture(mainm, 16, 4, 32, 144, "gfx/qplaque.lmp");
 
-		MC_AddPicture(mainm, (320-p->width)/2, 4, "gfx/ttl_main.lmp");
+		MC_AddCenterPicture(mainm, 4, 24, "gfx/ttl_main.lmp");
 
 		mainm->selecteditem = (menuoption_t *)
 		MC_AddConsoleCommandQBigFont	(mainm, 72, 32,	"Single     ", "menu_single\n");
@@ -1925,7 +2002,7 @@ void M_Menu_Main_f (void)
 		key_dest = key_menu;
 		mainm = M_CreateMenu(0);
 
-		p = Draw_SafeCachePic("gfx/ttl_main.lmp");
+		p = R2D_SafeCachePic("gfx/ttl_main.lmp");
 		if (!p)
 		{
 			MC_AddRedText(mainm, 16, 0,				"MAIN MENU", false);
@@ -1937,13 +2014,13 @@ void M_Menu_Main_f (void)
 			return;
 		}
 		mainm->key = MC_Main_Key;
-		MC_AddPicture(mainm, 16, 4, "gfx/qplaque.lmp");
+		MC_AddPicture(mainm, 16, 4, 32, 144, "gfx/qplaque.lmp");
 
-		MC_AddPicture(mainm, (320-p->width)/2, 4, "gfx/ttl_main.lmp");
-		MC_AddPicture(mainm, 72, 32, "gfx/mainmenu.lmp");
+		MC_AddCenterPicture(mainm, 4, 24, "gfx/ttl_main.lmp");
+		MC_AddPicture(mainm, 72, 32, 240, 112, "gfx/mainmenu.lmp");
 
 
-		p = Draw_SafeCachePic("gfx/mainmenu.lmp");
+		p = R2D_SafeCachePic("gfx/mainmenu.lmp");
 
 		b=MC_AddConsoleCommand	(mainm, 72, 32,	"", "menu_single\n");
 		mainm->selecteditem = (menuoption_t *)b;
@@ -1973,3 +2050,108 @@ void M_Menu_Main_f (void)
 	}
 }
 
+int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, int y)
+{
+	int selectedy = y;
+	menuoption_t *selected = NULL;
+
+	while (bulk)
+	{
+		menuoption_t *control;
+		int x = xtextend;
+		int xleft;
+		int spacing = 8;
+		
+		if (bulk->text)
+			x -= strlen(bulk->text) * 8;
+		xleft = x - xstart;
+
+		switch (bulk->type)
+		{
+		case mt_text:
+			switch (bulk->variant)
+			{
+			case -1: // end of menu
+				bulk = NULL;
+				continue;
+			case 0: // white text
+				control = (union menuoption_s *)MC_AddWhiteText(menu, x, y, bulk->text, bulk->rightalign);
+				break;
+			case 1: // red text
+				control = (union menuoption_s *)MC_AddRedText(menu, x, y, bulk->text, bulk->rightalign);
+				break;
+			case 2: // spacing
+				spacing = bulk->spacing;
+				break;
+			}
+			break;
+		case mt_button:
+			switch (bulk->variant)
+			{
+			default:
+			case 0: // console command
+				control = (union menuoption_s *)MC_AddConsoleCommand(menu, x, y, bulk->text, bulk->consolecmd);
+				break;
+			case 1: // function command
+				control = (union menuoption_s *)MC_AddCommand(menu, x, y, bulk->text, bulk->command);
+				break;
+			}
+			break;
+		case mt_checkbox:
+			control = (union menuoption_s *)MC_AddCheckBox(menu, x, y, bulk->text, bulk->cvar, bulk->flags);
+			control->check.func = bulk->func;
+			break;
+		case mt_slider:
+			control = (union menuoption_s *)MC_AddSlider(menu, x, y, bulk->text, bulk->cvar, bulk->min, bulk->max, bulk->delta);
+			break;
+		case mt_combo:
+			switch (bulk->variant)
+			{
+			default:
+			case 0: // cvar combo
+				control = (union menuoption_s *)MC_AddCvarCombo(menu, x, y, bulk->text, bulk->cvar, bulk->options, bulk->values);
+				break;
+			case 1: // combo with return value
+				control = (union menuoption_s *)MC_AddCombo(menu, x, y, bulk->text, bulk->options, bulk->selectedoption);
+				break;
+			}
+			break;
+		case mt_edit:
+			switch (bulk->variant)
+			{
+			default:
+			case 0:
+				y += 4;
+				control = (union menuoption_s *)MC_AddEditCvar(menu, x, y, bulk->text, bulk->cvarname);
+				spacing += 4;
+				break;
+			case 1:
+				control = (union menuoption_s *)MC_AddEditCvarSlim(menu, x, y, bulk->text, bulk->cvarname);
+				break;
+			}
+			break;
+		default:
+			Con_Printf(CON_ERROR "Invalid type in bulk menu!\n");
+			bulk = NULL;
+			continue;
+		}
+
+		if (bulk->ret)
+			*bulk->ret = control;
+		if (MI_Selectable(control) && !selected)
+			selected = control;
+		if (bulk->tooltip)
+			control->common.tooltip = bulk->tooltip;
+		if (xleft > 0)
+			control->common.extracollide = xleft;
+		y += spacing;
+
+		bulk++;
+	}
+
+	menu->selecteditem = selected;
+	if (selected)
+		selectedy = selected->common.posy;
+	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, xtextend + 8, selectedy, NULL, false);
+	return y;
+}

@@ -156,3 +156,6 @@ void(entity own, vector start, vector end) te_lightning1 = #428;
 void(entity own, vector start, vector end) te_lightning2 = #429;
 void(entity own, vector start, vector end) te_lightning3 = #430;
 void(entity own, vector start, vector end) te_beam = #431;
+
+//DP_QC_WHICHPACK
+string(string filename) whichpack = #503;

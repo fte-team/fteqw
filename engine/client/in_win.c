@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -32,9 +32,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef AVAIL_DINPUT
 
-#ifdef _MSC_VER
-#pragma comment (lib, "dxguid.lib")
-#else
+#ifndef _MSC_VER
 #define DIRECTINPUT_VERSION 0x0500
 #endif
 
@@ -56,7 +54,6 @@ cvar_t	m_filter = SCVAR("m_filter","0");
 cvar_t  m_accel = SCVAR("m_accel", "0");
 cvar_t	m_forcewheel = SCVAR("m_forcewheel", "1");
 cvar_t	m_forcewheel_threshold = SCVAR("m_forcewheel_threshold", "32");
-cvar_t	in_mwhook = SCVARF("in_mwhook","0", CVAR_ARCHIVE);
 cvar_t	in_dinput = SCVARF("in_dinput","0", CVAR_ARCHIVE);
 cvar_t	in_builtinkeymap = SCVARF("in_builtinkeymap", "1", CVAR_ARCHIVE);
 
@@ -64,21 +61,23 @@ cvar_t	m_accel_noforce = SCVAR("m_accel_noforce", "0");
 cvar_t  m_threshold_noforce = SCVAR("m_threshold_noforce", "0");
 
 cvar_t	cl_keypad = SCVAR("cl_keypad", "0");
-
-qboolean CSQC_MouseMove(float xdelta, float ydelta);
-qboolean Key_MouseShouldBeFree(void);
+extern cvar_t cl_forcesplitclient;
 
 typedef struct {
 	union {
-		struct { // serial mouse
-			HANDLE comhandle;
-			HANDLE threadhandle;
-			DWORD threadid;
-		};
+		HANDLE rawinputhandle;
+	} handles;
+
+	int playerid;
+} keyboard_t;
+
+typedef struct {
+	union {
 		HANDLE rawinputhandle; // raw input
 	} handles;
 
 	int numbuttons;
+	int playerid;
 
 	volatile int buttons;
 	volatile int oldbuttons;
@@ -92,13 +91,6 @@ typedef struct {
 } mouse_t;
 
 mouse_t sysmouse;
-#ifdef SERIALMOUSE
-mouse_t serialmouse;
-#endif
-
-//int			mouse_buttons;
-//int			mouse_oldbuttonstate;
-//int			mouse_x, mouse_y, old_mouse_x, old_mouse_y, mx_accum, my_accum;
 
 static qboolean	restore_spi;
 static int		originalmouseparms[3], newmouseparms[3] = {0, 0, 0};
@@ -173,6 +165,14 @@ DWORD		joy_flags;
 DWORD		joy_numbuttons;
 
 #ifdef AVAIL_DINPUT
+static const GUID fGUID_XAxis	= {0xA36D02E0, 0xC9F3, 0x11CF, {0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
+static const GUID fGUID_YAxis	= {0xA36D02E1, 0xC9F3, 0x11CF, {0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
+static const GUID fGUID_ZAxis	= {0xA36D02E2, 0xC9F3, 0x11CF, {0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
+static const GUID fGUID_SysMouse	= {0x6F1D2B60, 0xD5A0, 0x11CF, {0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
+
+static const GUID fIID_IDirectInputDevice7A	= {0x57d7c6bc, 0x2356, 0x11d3, {0x8e, 0x9d, 0x00, 0xC0, 0x4f, 0x68, 0x44, 0xae}};
+static const GUID fIID_IDirectInput7A		= {0x9a4cb684, 0x236d, 0x11d3, {0x8e, 0x9d, 0x00, 0xc0, 0x4f, 0x68, 0x44, 0xae}};
+
 // devices
 LPDIRECTINPUT		g_pdi;
 LPDIRECTINPUTDEVICE	g_pMouse;
@@ -180,7 +180,7 @@ LPDIRECTINPUTDEVICE	g_pMouse;
 static HINSTANCE hInstDI;
 
 // current DirectInput version in use, 0 means using no DirectInput
-static int dinput; 
+static int dinput;
 
 typedef struct MYDATA {
 	LONG  lX;                   // X axis goes here
@@ -192,16 +192,16 @@ typedef struct MYDATA {
 	BYTE  bButtonD;             // Another button goes here
 #if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
 	BYTE  bButtonE;             // DX7 buttons
-	BYTE  bButtonF;             
-	BYTE  bButtonG;             
+	BYTE  bButtonF;
+	BYTE  bButtonG;
 	BYTE  bButtonH;
 #endif
 } MYDATA;
 
 static DIOBJECTDATAFORMAT rgodf[] = {
-  { &GUID_XAxis,    FIELD_OFFSET(MYDATA, lX),       DIDFT_AXIS | DIDFT_ANYINSTANCE,   0,},
-  { &GUID_YAxis,    FIELD_OFFSET(MYDATA, lY),       DIDFT_AXIS | DIDFT_ANYINSTANCE,   0,},
-  { &GUID_ZAxis,    FIELD_OFFSET(MYDATA, lZ),       0x80000000 | DIDFT_AXIS | DIDFT_ANYINSTANCE,   0,},
+  { &fGUID_XAxis,    FIELD_OFFSET(MYDATA, lX),       DIDFT_AXIS | DIDFT_ANYINSTANCE,   0,},
+  { &fGUID_YAxis,    FIELD_OFFSET(MYDATA, lY),       DIDFT_AXIS | DIDFT_ANYINSTANCE,   0,},
+  { &fGUID_ZAxis,    FIELD_OFFSET(MYDATA, lZ),       0x80000000 | DIDFT_AXIS | DIDFT_ANYINSTANCE,   0,},
   { 0,              FIELD_OFFSET(MYDATA, bButtonA), DIDFT_BUTTON | DIDFT_ANYINSTANCE, 0,},
   { 0,              FIELD_OFFSET(MYDATA, bButtonB), DIDFT_BUTTON | DIDFT_ANYINSTANCE, 0,},
   { 0,              FIELD_OFFSET(MYDATA, bButtonC), 0x80000000 | DIDFT_BUTTON | DIDFT_ANYINSTANCE, 0,},
@@ -263,17 +263,21 @@ pGetRawInputData _GRID;
 pGetRawInputDeviceInfoA _GRIDIA;
 pRegisterRawInputDevices _RRID;
 
+keyboard_t *rawkbd;
 mouse_t *rawmice;
 int rawmicecount;
+int rawkbdcount;
 RAWINPUT *raw;
 int ribuffersize;
 
 cvar_t in_rawinput = SCVAR("in_rawinput", "0");
-cvar_t in_rawinput_combine = SCVAR("in_rawinput_combine", "0");
+cvar_t in_rawinput_keyboard = SCVAR("in_rawinput_keyboard", "0");
 cvar_t in_rawinput_rdp = SCVAR("in_rawinput_rdp", "0");
 
-void IN_RawInput_DeRegister(void);
-int IN_RawInput_Register(void);
+void IN_RawInput_MouseDeRegister(void);
+int IN_RawInput_MouseRegister(void);
+void IN_RawInput_KeyboardDeRegister(void);
+int IN_RawInput_KeyboardRegister(void);
 void IN_RawInput_DeInit(void);
 
 #endif
@@ -291,95 +295,6 @@ Force_CenterView_f
 void Force_CenterView_f (void)
 {
 	cl.viewangles[0][PITCH] = 0;
-}
-
-typedef void (*MW_DllFunc1)(void);
-typedef int (*MW_DllFunc2)(HWND);
-
-MW_DllFunc1 DLL_MW_RemoveHook = NULL;
-MW_DllFunc2 DLL_MW_SetHook = NULL;
-qboolean MW_Hook_enabled = false;
-HINSTANCE mw_hDLL;
-qboolean MW_Hook_allowed;
-
-static void MW_Set_Hook (void)
-{
-	if (!mainwindow)
-		return;
-	if (!MW_Hook_allowed && !in_mwhook.value)
-		return;
-
-	if (MW_Hook_enabled)
-	{
-		Con_Printf("MouseWare hook already loaded\n");
-		return;
-	}
-
-	if (!(mw_hDLL = LoadLibrary("mw_hook.dll")))
-	{
-		Con_Printf("Couldn't find mw_hook.dll\n");
-		in_mwhook.value = 0;
-		MW_Hook_allowed=0;
-		return;
-	}
-	DLL_MW_RemoveHook = (MW_DllFunc1) GetProcAddress(mw_hDLL, "MW_RemoveHook");
-	DLL_MW_SetHook = (MW_DllFunc2) GetProcAddress(mw_hDLL, "MW_SetHook");
-	if (!DLL_MW_SetHook || !DLL_MW_RemoveHook)
-	{
-		Con_Printf("Error initializing MouseWare hook\n");
-		FreeLibrary(mw_hDLL);
-		in_mwhook.value = 0;
-		MW_Hook_allowed=0;
-		return;
-	}
-	if (!DLL_MW_SetHook(mainwindow))
-	{
-		Con_Printf("Couldn't initialize MouseWare hook\n");
-		FreeLibrary(mw_hDLL);
-		in_mwhook.value = 0;
-		MW_Hook_allowed=0;
-		return;
-	}
-	MW_Hook_enabled = true;
-//	Con_Printf("MouseWare hook initialized\n");
-}
-
-static void MW_Remove_Hook (void)
-{
-	if (MW_Hook_enabled)
-	{
-		DLL_MW_RemoveHook();
-		FreeLibrary(mw_hDLL);
-		MW_Hook_enabled = false;
-//		Con_Printf("MouseWare hook removed\n");
-		return;
-	}
-	Con_Printf("MouseWare hook not loaded\n");
-}
-
-static void MW_Shutdown(void)
-{
-	if (!MW_Hook_enabled)
-		return;
-	MW_Remove_Hook();
-}
-
-void MW_Hook_Message (long buttons)
-{
-	static long old_buttons = 0;
-
-	buttons &= 0xFFFF;
-	switch (buttons ^ old_buttons)
-	{
-		case 8:		Key_Event(K_MOUSE4, 0, buttons > old_buttons ? true : false); break;
-		case 16:	Key_Event(K_MOUSE5, 0, buttons > old_buttons ? true : false); break;
-		case 32:	Key_Event(K_MOUSE6, 0, buttons > old_buttons ? true : false); break;
-		case 64:	Key_Event(K_MOUSE7, 0, buttons > old_buttons ? true : false); break;
-		case 128:	Key_Event(K_MOUSE8, 0, buttons > old_buttons ? true : false); break;
-		default:	break;
-	}
-
-	old_buttons = buttons;
 }
 
 /*
@@ -481,9 +396,18 @@ static void IN_ActivateMouse (void)
 #ifdef USINGRAWINPUT
 			if (rawmicecount > 0)
 			{
-				if (IN_RawInput_Register()) {
-					Con_SafePrintf("Raw input: unable to register raw input, deinitializing\n");
-					IN_RawInput_DeInit();
+				if (IN_RawInput_MouseRegister())
+				{
+					Con_SafePrintf("Raw input: unable to register raw input for mice, deinitializing\n");
+					IN_RawInput_MouseDeRegister();
+				}
+			}
+			if (rawkbdcount > 0)
+			{
+				if (IN_RawInput_KeyboardRegister())
+				{
+					Con_SafePrintf("Raw input: unable to register raw input for keyboard, deinitializing\n");
+					IN_RawInput_KeyboardDeRegister();
 				}
 			}
 #endif
@@ -495,8 +419,6 @@ static void IN_ActivateMouse (void)
 			SetCapture (mainwindow);
 			ClipCursor (&window_rect);
 		}
-
-		MW_Set_Hook();
 
 		mouseactive = true;
 	}
@@ -550,7 +472,7 @@ static void IN_DeactivateMouse (void)
 		{
 #ifdef USINGRAWINPUT
 			if (rawmicecount > 0)
-				IN_RawInput_DeRegister();
+				IN_RawInput_MouseDeRegister();
 #endif
 
 			if (restore_spi)
@@ -559,8 +481,6 @@ static void IN_DeactivateMouse (void)
 			ClipCursor (NULL);
 			ReleaseCapture ();
 		}
-
-		MW_Shutdown();
 
 		mouseactive = false;
 	}
@@ -682,7 +602,7 @@ int IN_InitDInput (void)
 	if (!hInstDI)
 	{
 		hInstDI = LoadLibrary("dinput.dll");
-		
+
 		if (hInstDI == NULL)
 		{
 			Con_SafePrintf ("Couldn't load dinput.dll\n");
@@ -697,7 +617,7 @@ int IN_InitDInput (void)
 	if (pDirectInputCreateEx) // use DirectInput 7
 	{
 		// register with DirectInput and get an IDirectInput to play with.
-		hr = iDirectInputCreateEx(global_hInstance, DINPUT_VERSION_DX7, &IID_IDirectInput7, &g_pdi7, NULL);
+		hr = iDirectInputCreateEx(global_hInstance, DINPUT_VERSION_DX7, &fIID_IDirectInput7A, &g_pdi7, NULL);
 
 		if (FAILED(hr))
 			return 0;
@@ -705,7 +625,7 @@ int IN_InitDInput (void)
 		IDirectInput7_EnumDevices(g_pdi7, 0, &IN_EnumerateDevices, NULL, DIEDFL_ATTACHEDONLY);
 
 		// obtain an interface to the system mouse device.
-		hr = IDirectInput7_CreateDeviceEx(g_pdi7, &GUID_SysMouse, &IID_IDirectInputDevice7, &g_pMouse7, NULL);
+		hr = IDirectInput7_CreateDeviceEx(g_pdi7, &fGUID_SysMouse, &fIID_IDirectInputDevice7A, &g_pMouse7, NULL);
 
 		if (FAILED(hr)) {
 			Con_SafePrintf ("Couldn't open DI7 mouse device\n");
@@ -763,7 +683,7 @@ int IN_InitDInput (void)
 	IDirectInput_EnumDevices(g_pdi, 0, &IN_EnumerateDevices, NULL, DIEDFL_ATTACHEDONLY);
 
 // obtain an interface to the system mouse device.
-	hr = IDirectInput_CreateDevice(g_pdi, &GUID_SysMouse, &g_pMouse, NULL);
+	hr = IDirectInput_CreateDevice(g_pdi, &fGUID_SysMouse, &g_pMouse, NULL);
 
 	if (FAILED(hr))
 	{
@@ -839,13 +759,26 @@ void IN_CloseDInput (void)
 #endif
 
 #ifdef USINGRAWINPUT
-void IN_RawInput_DeRegister(void)
+void IN_RawInput_MouseDeRegister(void)
 {
 	RAWINPUTDEVICE Rid;
 
 	// deregister raw input
-	Rid.usUsagePage = 0x01; 
-	Rid.usUsage = 0x02; 
+	Rid.usUsagePage = 0x01;
+	Rid.usUsage = 0x02;
+	Rid.dwFlags = RIDEV_REMOVE;
+	Rid.hwndTarget = NULL;
+
+	(*_RRID)(&Rid, 1, sizeof(Rid));
+}
+
+void IN_RawInput_KeyboardDeRegister(void)
+{
+	RAWINPUTDEVICE Rid;
+
+	// deregister raw input
+	Rid.usUsagePage = 0x01;
+	Rid.usUsage = 0x02;
 	Rid.dwFlags = RIDEV_REMOVE;
 	Rid.hwndTarget = NULL;
 
@@ -854,143 +787,31 @@ void IN_RawInput_DeRegister(void)
 
 void IN_RawInput_DeInit(void)
 {
-	if (rawmicecount < 1)
-		return;
-
-	IN_RawInput_DeRegister();
-
-	Z_Free(rawmice);
-
-	// dealloc mouse structure
-	rawmicecount = 0;
+	if (rawmicecount > 0)
+	{
+		IN_RawInput_MouseDeRegister();
+		Z_Free(rawmice);
+		rawmicecount = 0;
+	}
+	if (rawkbdcount > 0)
+	{
+		IN_RawInput_KeyboardDeRegister();
+		Z_Free(rawkbd);
+		rawkbdcount = 0;
+	}
 }
 #endif
 
-void IN_SetSerialBoad(HANDLE port, int boadrate)
-{
-	DCB dcb;
-	memset(&dcb, 0, sizeof(dcb));
-
-	dcb.DCBlength = sizeof(dcb);
-	GetCommState(port, &dcb);
-
-	dcb.fBinary = TRUE;
-	dcb.fParity = FALSE;
-	dcb.fOutxCtsFlow = 0;
-	dcb.fOutxDsrFlow = 0;
-	dcb.fDtrControl = DTR_CONTROL_DISABLE;
-	dcb.fDsrSensitivity = 0;
-	dcb.fTXContinueOnXoff = FALSE;
-	dcb.fOutX = 0; 
-	dcb.fInX = 0;
-	dcb.fErrorChar = 0;
-	dcb.fNull = 0;
-	dcb.fRtsControl = RTS_CONTROL_DISABLE;
-	dcb.fAbortOnError = 0;
-	dcb.ByteSize = 7;
-	dcb.StopBits = ONESTOPBIT;
-	dcb.Parity = NOPARITY;
-	dcb.ErrorChar = 0;
-	dcb.EvtChar = 0;
-	dcb.EofChar = 0;
-
-	dcb.BaudRate = boadrate;     // set the baud rate
-	SetCommState(port, &dcb);
-
-	//now get the com port to electricute the mouse... powering up...
-	EscapeCommFunction(port, SETDTR);
-	EscapeCommFunction(port, SETRTS);
-}
-
-//microsoft's 2 button mouse protocol
-unsigned int _stdcall IN_SerialMSRun(void *param)
-{
-	mouse_t *mouse = param;
-	char code[3];
-	DWORD read;
-	int total=0;
-	IN_SetSerialBoad(mouse->handles.comhandle, 1200);
-	total=0;
-	while(1)
-	{
-		ReadFile(mouse->handles.comhandle, code, sizeof(code)-total, &read, NULL);
-		total+=read;
-		if (total == 3)
-		{
-			mouse->buttons = 0; /* No button - should only happen on an error */
-			if ((code[0] & 0x20) != 0)
-				mouse->buttons |= 1;
-			else if ((code[0] & 0x10) != 0)
-				mouse->buttons |= 2;
-			mouse->delta[0] = (code[0] & 0x03) * 64 + (code[1] & 0x3F);
-			if (mouse->delta[0] > 127)
-				mouse->delta[0] = mouse->delta[0] - 256;
-			mouse->delta[1] = (code[0] & 0x0C) * 16 + (code[2] & 0x3F);
-			if (mouse->delta[1] > 127)
-				mouse->delta[1] = mouse->delta[1] - 256;
-
-//			Con_Printf("%i %i %i\n", serialmousexmove, serialmouseymove, serialmousebuttons);
-			total=0;
-		}
-	}
-	return true;
-}
-
-//microsofts's intellimouse protocol
-//used by most wheel mice.
-unsigned long __stdcall IN_SerialMSIntelliRun(void *param)
-{
-	mouse_t *mouse = param;
-	unsigned char code[80];
-	DWORD read, total=0;
-	IN_SetSerialBoad(mouse->handles.comhandle, 1200);
-
-	ReadFile(mouse->handles.comhandle, code, 11*4+2, &read, NULL);	//header info which we choose to ignore
-
-	mouse->numbuttons = 3;
-
-	while(1)
-	{
-		ReadFile(mouse->handles.comhandle, code+total, 4-total, &read, NULL);
-		total+=read;
-		if (total >= 4)
-		{
-//			if (mouse->oldbuttons == mouse->buttons)
-//				mouse->buttons=0;	//don't clear prematurly.
-			mouse->buttons =	((code[0] & 0x20) >> 5)	/* left */
-								| ((code[3] & 0x10) >> 2)	/* middle */
-								| ((code[0] & 0x10) >> 3);	/* right */
-			mouse->delta[0] +=	(signed char)(((code[0] & 0x03) << 6) | (code[1]/* & 0x3F*/));
-			mouse->delta[1] +=	(signed char)(((code[0] & 0x0C) << 4) | (code[2]/* & 0x3F*/));
-
-			if (m_forcewheel.value)
-			{
-				int wdv;
-				wdv = (signed char)((code[3] & 0x0f)<<4)/16;
-				mouse->wheeldelta += wdv * m_forcewheel_threshold.value;
-			}
-
-			total=0;
-		}
-		else		//an else shouldn't happen...
-		{
-			Sleep(4);
-	//		return false;
-		}
-	}
-	return true;
-}
-
 #ifdef USINGRAWINPUT
 // raw input registration functions
-int IN_RawInput_Register(void)
+int IN_RawInput_MouseRegister(void)
 {
 	// This function registers to receive the WM_INPUT messages
-	RAWINPUTDEVICE Rid; // Register only for mouse messages from wm_input.  
+	RAWINPUTDEVICE Rid; // Register only for mouse messages from wm_input.
 
 	//register to get wm_input messages
-	Rid.usUsagePage = 0x01; 
-	Rid.usUsage = 0x02; 
+	Rid.usUsagePage = 0x01;
+	Rid.usUsage = 0x02;
 	Rid.dwFlags = RIDEV_NOLEGACY; // adds HID mouse and also ignores legacy mouse messages
 	Rid.hwndTarget = NULL;
 
@@ -1001,9 +822,32 @@ int IN_RawInput_Register(void)
 	return 0;
 }
 
-int IN_RawInput_IsRDPMouse(char *cDeviceString)
+int IN_RawInput_KeyboardRegister(void)
 {
-	char cRDPString[] = "\\??\\Root#RDP_MOU#";
+	RAWINPUTDEVICE Rid;
+
+	Rid.usUsagePage = 0x01;
+	Rid.usUsage = 0x06;
+	Rid.dwFlags = RIDEV_NOLEGACY | RIDEV_APPKEYS | RIDEV_NOHOTKEYS; // fetch everything, disable hotkey behavior (should cvar?)
+	Rid.hwndTarget = NULL;
+
+	if (!(*_RRID)(&Rid, 1, sizeof(Rid)))
+		return 1;
+
+	return 0;
+}
+
+int IN_RawInput_Register(void)
+{
+	if (IN_RawInput_MouseRegister())
+		return !in_rawinput_keyboard.ival || IN_RawInput_KeyboardRegister();
+	return 0;
+}
+
+int IN_RawInput_IsRDPDevice(char *cDeviceString)
+{
+	// mouse is \\?\Root#RDP_MOU#, keyboard is \\?\Root#RDP_KBD#"
+	char cRDPString[] = "\\\\?\\Root#RDP_";
 	int i;
 
 	if (strlen(cDeviceString) < strlen(cRDPString)) {
@@ -1016,14 +860,14 @@ int IN_RawInput_IsRDPMouse(char *cDeviceString)
 			return 0;
 	}
 
-	return 1; // is RDP mouse
+	return 1;
 }
 
 void IN_RawInput_Init(void)
 {
 	  // "0" to exclude, "1" to include
 	PRAWINPUTDEVICELIST pRawInputDeviceList;
-	int inputdevices, i, j, mtemp;
+	int inputdevices, i, j, mtemp, ktemp;
 	char dname[MAX_RI_DEVICE_SIZE];
 
 	// Return 0 if rawinput is not available
@@ -1081,67 +925,90 @@ void IN_RawInput_Init(void)
 	}
 
 	// Loop through all devices and count the mice
-	for (i = 0, mtemp = 0; i < inputdevices; i++)
+	for (i = 0, mtemp = 0, ktemp = 0; i < inputdevices; i++)
 	{
-		if (pRawInputDeviceList[i].dwType == RIM_TYPEMOUSE) 
+		j = MAX_RI_DEVICE_SIZE;
+
+		// Get the device name and use it to determine if it's the RDP Terminal Services virtual device.
+		if ((*_GRIDIA)(pRawInputDeviceList[i].hDevice, RIDI_DEVICENAME, dname, &j) < 0)
+			dname[0] = 0;
+
+		if (!(in_rawinput_rdp.value) && IN_RawInput_IsRDPDevice(dname)) // use rdp (cvar)
+			continue;
+
+		switch (pRawInputDeviceList[i].dwType)
 		{
-			j = MAX_RI_DEVICE_SIZE;
-
-			// Get the device name and use it to determine if it's the RDP Terminal Services virtual device.
-			if ((*_GRIDIA)(pRawInputDeviceList[i].hDevice, RIDI_DEVICENAME, dname, &j) < 0)
-				dname[0] = 0;
-
-			if (!(in_rawinput_rdp.value) && IN_RawInput_IsRDPMouse(dname)) // use rdp mouse (cvar)
+		case RIM_TYPEMOUSE:
+			mtemp++;
+			break;
+		case RIM_TYPEKEYBOARD:
+			if (!in_rawinput_keyboard.ival)
 				continue;
 
-			// advance temp device count
-			mtemp++;
+			ktemp++;
+			break;
+		default: // (RIM_TYPEHID) support joysticks?
+			break;
 		}
 	}
 
 	// exit out if no devices found
-	if (!mtemp)
+	if (!mtemp && !ktemp)
 	{
 		Con_SafePrintf("Raw input: no usable device found\n");
 		return;
 	}
 
 	// Loop again and bind devices
-	rawmice = Z_Malloc(sizeof(mouse_t) * mtemp);
+	rawmice = (mouse_t *)Z_Malloc(sizeof(mouse_t) * mtemp);
+	rawkbd = (keyboard_t *)Z_Malloc(sizeof(keyboard_t) * ktemp);
 	for (i = 0; i < inputdevices; i++)
 	{
-		if (pRawInputDeviceList[i].dwType == RIM_TYPEMOUSE)
+		j = MAX_RI_DEVICE_SIZE;
+
+		// Get the device name and use it to determine if it's the RDP Terminal Services virtual device.
+		if ((*_GRIDIA)(pRawInputDeviceList[i].hDevice, RIDI_DEVICENAME, dname, &j) < 0)
+			dname[0] = 0;
+
+		if (!(in_rawinput_rdp.value) && IN_RawInput_IsRDPDevice(dname)) // use rdp (cvar)
+			continue;
+
+		switch (pRawInputDeviceList[i].dwType)
 		{
-			j = MAX_RI_DEVICE_SIZE;
-
-			// Get the device name and use it to determine if it's the RDP Terminal Services virtual device.
-			if ((*_GRIDIA)(pRawInputDeviceList[i].hDevice, RIDI_DEVICENAME, dname, &j) < 0)
-				dname[0] = 0;
-
-			if (!(in_rawinput_rdp.value) && IN_RawInput_IsRDPMouse(dname)) // use rdp mouse (cvar)
-				continue;
-
-			// print pretty message about the mouse
-			dname[MAX_RI_DEVICE_SIZE - 1] = 0;
-			for (mtemp = strlen(dname); mtemp >= 0; mtemp--)
-			{
-				if (dname[mtemp] == '#')
-				{
-					dname[mtemp + 1] = 0;
-					break;
-				}
-			}
-			Con_SafePrintf("Raw input: [%i] %s\n", i, dname);
-
+		case RIM_TYPEMOUSE:
 			// set handle
 			rawmice[rawmicecount].handles.rawinputhandle = pRawInputDeviceList[i].hDevice;
 			rawmice[rawmicecount].numbuttons = 10;
 			rawmice[rawmicecount].pos[0] = RI_INVALID_POS;
+			rawmice[rawmicecount].playerid = rawmicecount;
 			rawmicecount++;
+			break;
+		case RIM_TYPEKEYBOARD:
+			if (!in_rawinput_keyboard.ival)
+				continue;
+
+			rawkbd[rawkbdcount].handles.rawinputhandle = pRawInputDeviceList[i].hDevice;
+			rawkbd[rawkbdcount].playerid = rawmicecount;
+			rawkbdcount++;
+			break;
+		default:
+			continue;
 		}
+
+		// print pretty message about device
+		dname[MAX_RI_DEVICE_SIZE - 1] = 0;
+		for (mtemp = strlen(dname); mtemp >= 0; mtemp--)
+		{
+			if (dname[mtemp] == '#')
+			{
+				dname[mtemp + 1] = 0;
+				break;
+			}
+		}
+		Con_SafePrintf("Raw input type %i: [%i] %s\n", (int)pRawInputDeviceList[i].dwType, i, dname);
 	}
 
-   
+
 	// free the RAWINPUTDEVICELIST
 	Z_Free(pRawInputDeviceList);
 
@@ -1149,7 +1016,7 @@ void IN_RawInput_Init(void)
 	raw = BZ_Malloc(INIT_RIBUFFER_SIZE);
 	ribuffersize = INIT_RIBUFFER_SIZE;
 
-	Con_SafePrintf("Raw input: initialized with %i mice\n", rawmicecount);
+	Con_SafePrintf("Raw input: initialized with %i mice and %i keyboards\n", rawmicecount, rawkbdcount);
 
 	return; // success
 }
@@ -1162,8 +1029,8 @@ IN_StartupMouse
 */
 void IN_StartupMouse (void)
 {
-	if ( COM_CheckParm ("-nomouse") ) 
-		return; 
+	if ( COM_CheckParm ("-nomouse") )
+		return;
 
 	mouseinitialized = true;
 
@@ -1195,26 +1062,16 @@ void IN_StartupMouse (void)
 
 		if (mouseparmsvalid)
 		{
-			if ( m_accel_noforce.value ) 
+			if ( m_accel_noforce.value )
 				newmouseparms[2] = originalmouseparms[2];
 
-			if ( m_threshold_noforce.value ) 
+			if ( m_threshold_noforce.value )
 			{
 				newmouseparms[0] = originalmouseparms[0];
 				newmouseparms[1] = originalmouseparms[1];
 			}
 		}
-
-#ifdef USINGRAWINPUT
-		if (in_rawinput.value)
-		{
-			IN_RawInput_Init();
-		}
-#endif
 	}
-
-	if (COM_CheckParm("-m_mwhook"))
-		MW_Hook_allowed = true;
 
 	sysmouse.numbuttons = 10;
 
@@ -1222,38 +1079,6 @@ void IN_StartupMouse (void)
 // set the mouse state appropriately
 	if (mouseactivatetoggle)
 		IN_ActivateMouse ();
-
-#ifdef SERIALMOUSE
-	if (serialmouse.handles.comhandle)
-	{
-		TerminateThread(serialmouse.handles.threadhandle, 0);
-		CloseHandle(serialmouse.handles.threadhandle);
-		CloseHandle(serialmouse.handles.comhandle);
-	}
-	serialmouse.numbuttons = 0;
-
-	if (COM_CheckParm("-mouse2"))
-	{
-		serialmouse.handles.comhandle = CreateFile("\\\\.\\COM2",
-				GENERIC_READ,
-				0,           // share for reading 
-                NULL,                      // default security 
-                OPEN_EXISTING,             // existing file only 
-                FILE_ATTRIBUTE_NORMAL,     // normal file 
-                NULL);                     // no attr. template 
-
-		if (serialmouse.handles.comhandle == INVALID_HANDLE_VALUE)
-		{
-			serialmouse.handles.comhandle = NULL;
-			return;
-		}
-		serialmouse.handles.threadhandle = CreateThread(NULL, 1024, IN_SerialMSIntelliRun, (void *)&serialmouse, CREATE_SUSPENDED, &serialmouse.handles.threadid);
-		SetThreadPriority(serialmouse.handles.threadhandle, THREAD_PRIORITY_HIGHEST);
-		ResumeThread(serialmouse.handles.threadhandle);
-	}
-	else
-		serialmouse.handles.comhandle = NULL;
-#endif
 }
 
 
@@ -1264,6 +1089,13 @@ IN_Init
 */
 void IN_ReInit (void)
 {
+#ifdef USINGRAWINPUT
+	if (in_rawinput.value)
+	{
+		IN_RawInput_Init();
+	}
+#endif
+
 	IN_StartupMouse ();
 	IN_StartupJoystick ();
 //	IN_ActivateMouse();
@@ -1279,7 +1111,6 @@ void IN_Init (void)
 	Cvar_Register (&m_accel, "Input Controls");
 	Cvar_Register (&m_forcewheel, "Input Controls");
 	Cvar_Register (&m_forcewheel_threshold, "Input Controls");
-	Cvar_Register (&in_mwhook, "Input Controls");
 
 	Cvar_Register (&in_dinput, "Input Controls");
 	Cvar_Register (&in_builtinkeymap, "Input Controls");
@@ -1308,7 +1139,7 @@ void IN_Init (void)
 	Cvar_Register (&in_xflip, "Input stuff");
 #endif
 
-	// joystick variables		
+	// joystick variables
 	Cvar_Register (&in_joystick, "Joystick variables");
 
 	Cvar_Register (&joy_name, "Joystick variables");
@@ -1337,11 +1168,9 @@ void IN_Init (void)
 
 #ifdef USINGRAWINPUT
 	Cvar_Register (&in_rawinput, "Input Controls");
-	Cvar_Register (&in_rawinput_combine, "Input Controls");
+	Cvar_Register (&in_rawinput_keyboard, "Input Controls");
 	Cvar_Register (&in_rawinput_rdp, "Input Controls");
 #endif
-
-	IN_ReInit();
 }
 
 /*
@@ -1392,16 +1221,16 @@ void IN_MouseEvent (int mstate)
 			if ( (mstate & (1<<i)) &&
 				!(sysmouse.oldbuttons & (1<<i)) )
 			{
-				Key_Event (K_MOUSE1 + i, 0, true);
+				Key_Event (0, K_MOUSE1 + i, 0, true);
 			}
 
 			if ( !(mstate & (1<<i)) &&
 				(sysmouse.oldbuttons & (1<<i)) )
 			{
-				Key_Event (K_MOUSE1 + i, 0, false);
+				Key_Event (0, K_MOUSE1 + i, 0, false);
 			}
-		}	
-			
+		}
+
 		sysmouse.oldbuttons = mstate;
 	}
 }
@@ -1417,19 +1246,30 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 
 	int i;
 
+	int wpnum;
+	wpnum = cl.splitclients;
+	if (wpnum < 1)
+		wpnum = 1;
+	if (cl_forcesplitclient.ival)
+		wpnum = (cl_forcesplitclient.ival-1) % wpnum;
+	else
+		wpnum = mouse->playerid % wpnum;
+	if (wpnum != pnum)
+		return;
+
 	// perform button actions
 	for (i=0 ; i<mouse->numbuttons ; i++)
 	{
 		if ( (mouse->buttons & (1<<i)) &&
 			!(mouse->oldbuttons & (1<<i)) )
 		{
-			Key_Event (K_MOUSE1 + i, 0, true);
+			Key_Event (pnum, K_MOUSE1 + i, 0, true);
 		}
 
 		if ( !(mouse->buttons & (1<<i)) &&
 			(mouse->oldbuttons & (1<<i)) )
 		{
-			Key_Event (K_MOUSE1 + i, 0, false);
+			Key_Event (pnum, K_MOUSE1 + i, 0, false);
 		}
 	}
 	mouse->oldbuttons = mouse->buttons;
@@ -1441,15 +1281,15 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 		{
 			while(mouse->wheeldelta <= -mfwt)
 			{
-				Key_Event (K_MWHEELUP, 0, true);
-				Key_Event (K_MWHEELUP, 0, false);
+				Key_Event (pnum, K_MWHEELUP, 0, true);
+				Key_Event (pnum, K_MWHEELUP, 0, false);
 				mouse->wheeldelta += mfwt;
 			}
 
 			while(mouse->wheeldelta >= mfwt)
 			{
-				Key_Event (K_MWHEELDOWN, 0, true);
-				Key_Event (K_MWHEELDOWN, 0, false);
+				Key_Event (pnum, K_MWHEELDOWN, 0, true);
+				Key_Event (pnum, K_MWHEELDOWN, 0, false);
 				mouse->wheeldelta -= mfwt;
 			}
 		}
@@ -1487,13 +1327,20 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 		if (mousecursor_y >= vid.height)
 			mousecursor_y = vid.height - 1;
 		mx=my=0;
-
-#ifdef VM_UI
-		UI_MousePosition(mousecursor_x, mousecursor_y);
-#endif
 	}
+#ifdef VM_UI
+	else
+	{
+		if (UI_MousePosition(mx, my))
+		{
+			mx = 0;
+			my = 0;
+		}
+	}
+#endif
 
 #ifdef PEXT_CSQC
+	if (mx || my)
 	if (CSQC_MouseMove(mx, my))
 	{
 		mx = 0;
@@ -1537,8 +1384,8 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 		return;
 	}
 
-	if (cl.paused)
-		return;
+//	if (cl.paused)
+//		return;
 
 // add mouse X/Y movement to cmd
 	if ( (in_strafe.state[pnum] & 1) || (lookstrafe.value && (in_mlook.state[pnum] & 1) ))
@@ -1552,7 +1399,7 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 
 	if (in_mlook.state[pnum] & 1)
 		V_StopPitchDrift (pnum);
-		
+
 	if ( (in_mlook.state[pnum] & 1) && !(in_strafe.state[pnum] & 1))
 	{
 		cl.viewangles[pnum][PITCH] += m_pitch.value * mouse_y;
@@ -1577,9 +1424,6 @@ IN_MouseMove
 */
 void IN_MouseMove (float *movements, int pnum)
 {
-#ifdef RGLQUAKE
-	extern int glwidth, glheight;
-#endif
 	POINT		current_pos;
 
 	extern int mousecursor_x, mousecursor_y;
@@ -1591,16 +1435,12 @@ void IN_MouseMove (float *movements, int pnum)
 		mousecursor_x = current_pos.x-window_x;
 		mousecursor_y = current_pos.y-window_y;
 
-#ifdef RGLQUAKE
-		if (qrenderer == QR_OPENGL)	//2d res scaling.
-		{
-			mousecursor_x *= vid.width/(float)glwidth;
-			mousecursor_y *= vid.height/(float)glheight;
-		}
-#endif
+		mousecursor_x *= vid.width/(float)vid.pixelwidth;
+		mousecursor_y *= vid.height/(float)vid.pixelheight;
 
 #ifdef VM_UI
-		UI_MousePosition(mousecursor_x, mousecursor_y);
+		if (!Key_MouseShouldBeFree())
+			UI_MousePosition(mousecursor_x, mousecursor_y);
 #endif
 
 		return;
@@ -1678,59 +1518,59 @@ void IN_MouseMove (float *movements, int pnum)
 
 				case DIMOFS_BUTTON0:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= 1; 
-					else 
-						sysmouse.buttons &= ~1; 
+						sysmouse.buttons |= 1;
+					else
+						sysmouse.buttons &= ~1;
 					break;
 
 				case DIMOFS_BUTTON1:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1 << 1); 
-					else 
-						sysmouse.buttons &= ~(1 << 1); 
+						sysmouse.buttons |= (1 << 1);
+					else
+						sysmouse.buttons &= ~(1 << 1);
 					break;
 
 				case DIMOFS_BUTTON2:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1 << 2); 
-					else 
-						sysmouse.buttons &= ~(1 << 2); 
+						sysmouse.buttons |= (1 << 2);
+					else
+						sysmouse.buttons &= ~(1 << 2);
 					break;
 
 				case DIMOFS_BUTTON3:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1 << 3); 
-					else 
-						sysmouse.buttons &= ~(1 << 3); 
+						sysmouse.buttons |= (1 << 3);
+					else
+						sysmouse.buttons &= ~(1 << 3);
 					break;
 
 #if (DIRECTINPUT_VERSION >= DINPUT_VERSION_DX7)
 				case DIMOFS_BUTTON4:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1 << 4); 
-					else 
-						sysmouse.buttons &= ~(1 << 4); 
+						sysmouse.buttons |= (1 << 4);
+					else
+						sysmouse.buttons &= ~(1 << 4);
 					break;
 
 				case DIMOFS_BUTTON5:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1 << 5); 
-					else 
-						sysmouse.buttons &= ~(1 << 5); 
+						sysmouse.buttons |= (1 << 5);
+					else
+						sysmouse.buttons &= ~(1 << 5);
 					break;
 
 				case DIMOFS_BUTTON6:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1 << 6); 
-					else 
-						sysmouse.buttons &= ~(1 << 6); 
+						sysmouse.buttons |= (1 << 6);
+					else
+						sysmouse.buttons &= ~(1 << 6);
 					break;
 
 				case DIMOFS_BUTTON7:
 					if (od.dwData & 0x80)
-						sysmouse.buttons |= (1 << 7); 
-					else 
-						sysmouse.buttons &= ~(1 << 7); 
+						sysmouse.buttons |= (1 << 7);
+					else
+						sysmouse.buttons &= ~(1 << 7);
 					break;
 #endif
 			}
@@ -1747,30 +1587,15 @@ void IN_MouseMove (float *movements, int pnum)
 #ifdef USINGRAWINPUT
 	if (rawmicecount)
 	{
-		if ((in_rawinput_combine.value && pnum == 0) || cl.splitclients <= 1)
+		int x;
+		for (x = 0; x < rawmicecount; x++)
 		{
-			// not the right way to do this but it'll work for now
-			int x;
-
-			for (x = 0; x < rawmicecount; x++)
-			{
-				ProcessMouse(rawmice + x, movements, 0);
-			}
-		}
-		else if (pnum < rawmicecount)
-		{
-			ProcessMouse(rawmice + pnum, movements, pnum);
+			ProcessMouse(rawmice + x, movements, pnum);
 		}
 	}
 #endif
 
-	if (pnum == 0)
-		ProcessMouse(&sysmouse,		movements, pnum);
-
-#ifdef SERIALMOUSE
-	if (pnum == 1 || cl.splitclients<2)
-		ProcessMouse(&serialmouse,	movements, pnum);
-#endif
+	ProcessMouse(&sysmouse,		movements, pnum);
 }
 
 
@@ -1821,38 +1646,28 @@ void IN_Accumulate (void)
 }
 
 #ifdef USINGRAWINPUT
-void IN_RawInput_MouseRead(HANDLE in_device_handle)
+void IN_RawInput_MouseRead(void)
 {
-	int i = 0, tbuttons, j;
-	int dwSize;
-
-	// get raw input
-	if ((*_GRID)((HRAWINPUT)in_device_handle, RID_INPUT, NULL, &dwSize, sizeof(RAWINPUTHEADER)) == -1) 
-	{
-		Con_Printf("Raw input: unable to add to get size of raw input header.\n");
-		return;
-	}
-
-	if (dwSize > ribuffersize)
-	{
-		ribuffersize = dwSize;
-		raw = BZ_Realloc(raw, dwSize);
-	}
-		
-	if ((*_GRID)((HRAWINPUT)in_device_handle, RID_INPUT, raw, &dwSize, sizeof(RAWINPUTHEADER)) != dwSize ) {
-		Con_Printf("Raw input: unable to add to get raw input header.\n");
-		return;
-	} 
+	int pnum;
+	int i, tbuttons, j;
 
 	// find mouse in our mouse list
-	for (; i < rawmicecount; i++)
+	for (i = 0; i < rawmicecount; i++)
 	{
 		if (rawmice[i].handles.rawinputhandle == raw->header.hDevice)
 			break;
 	}
 
-	if (i == rawmicecount) // we're not tracking this mouse
+	if (i == rawmicecount) // we're not tracking this device
 		return;
+
+	pnum = cl.splitclients;
+	if (pnum < 1)
+		pnum = 1;
+	if (cl_forcesplitclient.ival)
+		pnum = (cl_forcesplitclient.ival-1) % pnum;
+	else
+		pnum = rawmice[i].playerid % pnum;
 
 	// movement
 	if (raw->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE)
@@ -1873,39 +1688,39 @@ void IN_RawInput_MouseRead(HANDLE in_device_handle)
 	}
 
 	// buttons
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN) 
-		Key_Event(K_MOUSE1, 0, true);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_UP)   
-		Key_Event(K_MOUSE1, 0, false);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN) 
-		Key_Event(K_MOUSE2, 0, true);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_UP)   
-		Key_Event(K_MOUSE2, 0, false);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_DOWN) 
-		Key_Event(K_MOUSE3, 0, true);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_UP)   
-		Key_Event(K_MOUSE3, 0, false);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_4_DOWN) 
-		Key_Event(K_MOUSE4, 0, true);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_4_UP)   
-		Key_Event(K_MOUSE4, 0, false);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_5_DOWN) 
-		Key_Event(K_MOUSE5, 0, true);
-	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_5_UP)   
-		Key_Event(K_MOUSE5, 0, false);
+	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN)
+		Key_Event(pnum, K_MOUSE1, 0, true);
+	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_UP)
+		Key_Event(pnum, K_MOUSE1, 0, false);
+	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN)
+		Key_Event(pnum, K_MOUSE2, 0, true);
+	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_UP)
+		Key_Event(pnum, K_MOUSE2, 0, false);
+	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_DOWN)
+		Key_Event(pnum, K_MOUSE3, 0, true);
+	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_UP)
+		Key_Event(pnum, K_MOUSE3, 0, false);
+	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_4_DOWN)
+		Key_Event(pnum, K_MOUSE4, 0, true);
+	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_4_UP)
+		Key_Event(pnum, K_MOUSE4, 0, false);
+	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_5_DOWN)
+		Key_Event(pnum, K_MOUSE5, 0, true);
+	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_5_UP)
+		Key_Event(pnum, K_MOUSE5, 0, false);
 
 	// mouse wheel
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_WHEEL)
 	{      // If the current message has a mouse_wheel message
-		if ((SHORT)raw->data.mouse.usButtonData > 0) 
+		if ((SHORT)raw->data.mouse.usButtonData > 0)
 		{
-			Key_Event(K_MWHEELUP, 0, true);
-			Key_Event(K_MWHEELUP, 0, false);
+			Key_Event(pnum, K_MWHEELUP, 0, true);
+			Key_Event(pnum, K_MWHEELUP, 0, false);
 		}
 		if ((SHORT)raw->data.mouse.usButtonData < 0)
 		{
-			Key_Event(K_MWHEELDOWN, 0, true);
-			Key_Event(K_MWHEELDOWN, 0, false);
+			Key_Event(pnum, K_MWHEELDOWN, 0, true);
+			Key_Event(pnum, K_MWHEELDOWN, 0, false);
 		}
 	}
 
@@ -1915,12 +1730,12 @@ void IN_RawInput_MouseRead(HANDLE in_device_handle)
 	{
 		if ( (tbuttons & (1<<j)) && !(rawmice[i].buttons & (1<<j)) )
 		{
-			Key_Event (K_MOUSE1 + j, 0, true);
+			Key_Event (pnum, K_MOUSE1 + j, 0, true);
 		}
 
 		if ( !(tbuttons & (1<<j)) && (rawmice[i].buttons & (1<<j)) )
 		{
-			Key_Event (K_MOUSE1 + j, 0, false);
+			Key_Event (pnum, K_MOUSE1 + j, 0, false);
 		}
 
 	}
@@ -1928,8 +1743,66 @@ void IN_RawInput_MouseRead(HANDLE in_device_handle)
 	rawmice[i].buttons &= ~RI_RAWBUTTON_MASK;
 	rawmice[i].buttons |= tbuttons;
 }
+
+void IN_RawInput_KeyboardRead(void)
+{
+	int i;
+	int pnum;
+	qboolean down;
+	WPARAM wParam;
+	LPARAM lParam;
+
+	for (i = 0; i < rawkbdcount; i++)
+	{
+		if (rawkbd[i].handles.rawinputhandle == raw->header.hDevice)
+			break;
+	}
+
+	if (i == rawkbdcount) // not tracking this device
+		return;
+
+	down = !(raw->data.keyboard.Flags & RI_KEY_BREAK);
+	wParam = (-down) & 0xC0000000;
+	lParam = MapVirtualKey(raw->data.keyboard.VKey, 0)<<16;
+
+	pnum = cl.splitclients;
+	if (pnum < 1)
+		pnum = 1;
+	if (cl_forcesplitclient.ival)
+		pnum = (cl_forcesplitclient.ival-1) % pnum;
+	else
+		pnum = rawkbd[i].playerid % pnum;
+
+ 	IN_TranslateKeyEvent(wParam, lParam, down, pnum);
+}
+
+void IN_RawInput_Read(HANDLE in_device_handle)
+{
+	int dwSize;
+
+	// get raw input
+	if ((*_GRID)((HRAWINPUT)in_device_handle, RID_INPUT, NULL, &dwSize, sizeof(RAWINPUTHEADER)) == -1)
+	{
+		Con_Printf("Raw input: unable to add to get size of raw input header.\n");
+		return;
+	}
+
+	if (dwSize > ribuffersize)
+	{
+		ribuffersize = dwSize;
+		raw = (RAWINPUT *)BZ_Realloc(raw, dwSize);
+	}
+
+	if ((*_GRID)((HRAWINPUT)in_device_handle, RID_INPUT, raw, &dwSize, sizeof(RAWINPUTHEADER)) != dwSize ) {
+		Con_Printf("Raw input: unable to add to get raw input header.\n");
+		return;
+	}
+
+	IN_RawInput_MouseRead();
+	IN_RawInput_KeyboardRead();
+}
 #else
-void IN_RawInput_MouseRead(HANDLE in_device_handle)
+void IN_RawInput_Read(HANDLE in_device_handle)
 {
 }
 #endif
@@ -1950,24 +1823,24 @@ void IN_ClearStates (void)
 }
 
 
-/* 
-=============== 
-IN_StartupJoystick 
-=============== 
-*/  
-void IN_StartupJoystick (void) 
-{ 
+/*
+===============
+IN_StartupJoystick
+===============
+*/
+void IN_StartupJoystick (void)
+{
 	int			numdevs;
 	JOYCAPS		jc;
 	MMRESULT	mmr;
- 
+
  	// assume no joystick
-	joy_avail = false; 
+	joy_avail = false;
 
 	// abort startup if user requests no joystick
-	if ( COM_CheckParm ("-nojoy") ) 
-		return; 
- 
+	if ( COM_CheckParm ("-nojoy") )
+		return;
+
 	// verify joystick driver is present
 	if ((numdevs = joyGetNumDevs ()) == 0)
 	{
@@ -1986,12 +1859,12 @@ void IN_StartupJoystick (void)
 
 		if ((mmr = joyGetPosEx (joy_id, &ji)) == JOYERR_NOERROR)
 			break;
-	} 
+	}
 
 	// abort startup if we didn't find a valid joystick
 	if (mmr != JOYERR_NOERROR)
 	{
-		Con_Printf ("joystick not found -- no valid joysticks (%x)\n", mmr);
+//		Con_Printf ("joystick not found -- no valid joysticks (%x)\n", mmr);
 		return;
 	}
 
@@ -2000,7 +1873,7 @@ void IN_StartupJoystick (void)
 	memset (&jc, 0, sizeof(jc));
 	if ((mmr = joyGetDevCaps (joy_id, &jc, sizeof(jc))) != JOYERR_NOERROR)
 	{
-		Con_Printf ("joystick not found -- invalid joystick capabilities (%x)\n", mmr); 
+		Con_Printf ("joystick not found -- invalid joystick capabilities (%x)\n", mmr);
 		return;
 	}
 
@@ -2014,10 +1887,10 @@ void IN_StartupJoystick (void)
 	// mark the joystick as available and advanced initialization not completed
 	// this is needed as cvars are not available during initialization
 
-	joy_avail = true; 
+	joy_avail = true;
 	joy_advancedinit = false;
 
-	Con_Printf ("joystick detected\n"); 
+	Con_Printf ("joystick detected\n");
 }
 
 
@@ -2134,7 +2007,7 @@ void IN_Commands (void)
 		return;
 	}
 
-	
+
 	// loop through the joystick buttons
 	// key a joystick event or auxillary event for higher number buttons for each state change
 	buttonstate = ji.dwButtons;
@@ -2143,13 +2016,13 @@ void IN_Commands (void)
 		if ( (buttonstate & (1<<i)) && !(joy_oldbuttonstate & (1<<i)) )
 		{
 			key_index = (i < 4) ? K_JOY1 : K_AUX1;
-			Key_Event (key_index + i, 0, true);
+			Key_Event (0, key_index + i, 0, true);
 		}
 
 		if ( !(buttonstate & (1<<i)) && (joy_oldbuttonstate & (1<<i)) )
 		{
 			key_index = (i < 4) ? K_JOY1 : K_AUX1;
-			Key_Event (key_index + i, 0, false);
+			Key_Event (0, key_index + i, 0, false);
 		}
 	}
 	joy_oldbuttonstate = buttonstate;
@@ -2176,12 +2049,12 @@ void IN_Commands (void)
 		{
 			if ( (povstate & (1<<i)) && !(joy_oldpovstate & (1<<i)) )
 			{
-				Key_Event (K_AUX29 + i, 0, true);
+				Key_Event (0, K_AUX29 + i, 0, true);
 			}
 
 			if ( !(povstate & (1<<i)) && (joy_oldpovstate & (1<<i)) )
 			{
-				Key_Event (K_AUX29 + i, 0, false);
+				Key_Event (0, K_AUX29 + i, 0, false);
 			}
 		}
 		joy_oldpovstate = povstate;
@@ -2189,11 +2062,11 @@ void IN_Commands (void)
 }
 
 
-/* 
-=============== 
+/*
+===============
 IN_ReadJoystick
-=============== 
-*/  
+===============
+*/
 qboolean IN_ReadJoystick (void)
 {
 
@@ -2246,9 +2119,9 @@ void IN_JoyMove (float *movements, int pnum)
 	// verify joystick is available and that the user wants to use it
 	if (!joy_avail || !in_joystick.value)
 	{
-		return; 
+		return;
 	}
- 
+
 	// collect the joystick data, if possible
 	if (IN_ReadJoystick () != true)
 	{
@@ -2285,7 +2158,7 @@ void IN_JoyMove (float *movements, int pnum)
 			}
 		}
 
-		// convert range from -32768..32767 to -1..1 
+		// convert range from -32768..32767 to -1..1
 		fAxisValue /= 32768.0;
 
 		switch (dwAxisMap[i])
@@ -2295,7 +2168,7 @@ void IN_JoyMove (float *movements, int pnum)
 			{
 				// user wants forward control to become look control
 				if (fabs(fAxisValue) > joy_pitchthreshold.value)
-				{		
+				{
 					// if mouse invert is on, invert the joystick pitch value
 					// only absolute control support here (joy_advanced is false)
 					if (m_pitch.value < 0.0)
@@ -2398,49 +2271,49 @@ void IN_JoyMove (float *movements, int pnum)
 	CL_ClampPitch(pnum);
 }
 
-static qbyte        scantokey[128] = 
-					{ 
-//  0           1       2       3       4       5       6       7 
-//  8           9       A       B       C       D       E       F 
-	0  ,		27,		'1',		'2',		'3',	'4',		'5',			'6', 
-	'7',		'8',	'9',		'0',		'-',	'=',		K_BACKSPACE,	9,			// 0 
-	'q',		'w',	'e',		'r',		't',	'y',		'u',			'i', 
-	'o',		'p',	'[',		']',		13 ,	K_CTRL,		'a',			's',		// 1 
-	'd',		'f',	'g',		'h',		'j',	'k',		'l',			';', 
-	'\'',		'`',	K_SHIFT,	'\\',		'z',	'x',		'c',			'v',		// 2 
-	'b',		'n',	'm',		',',		'.',	'/',		K_SHIFT,		'*', 
-	K_ALT,		' ',	K_CAPSLOCK,	K_F1,		K_F2,	K_F3,		K_F4,			K_F5,		// 3 
-	K_F6,		K_F7,	K_F8,		K_F9,		K_F10,	K_PAUSE,	K_SCRLCK,		K_HOME, 
-	K_UPARROW,	K_PGUP,	'-',		K_LEFTARROW,'5',	K_RIGHTARROW,'+',			K_END,		// 4 
-	K_DOWNARROW,K_PGDN,	K_INS,		K_DEL,		0,      0,			0,				K_F11, 
-	K_F12,		0,		0,			0,			0,		0,			0,				0,			// 5 
-	0,			0,		0,			0,			0,		0,			0,				0, 
-	0,			0,		0,			0,			0,		0,			0,				0,			// 6 
-	0,			0,		0,			0,			0,		0,			0,				0, 
-	0,			0,		0,			0,			0,		0,			0,				0			// 7 
-					}; 
+static qbyte        scantokey[128] =
+					{
+//  0           1       2       3       4       5       6       7
+//  8           9       A       B       C       D       E       F
+	0  ,		27,		'1',		'2',		'3',	'4',		'5',			'6',
+	'7',		'8',	'9',		'0',		'-',	'=',		K_BACKSPACE,	9,			// 0
+	'q',		'w',	'e',		'r',		't',	'y',		'u',			'i',
+	'o',		'p',	'[',		']',		13 ,	K_CTRL,		'a',			's',		// 1
+	'd',		'f',	'g',		'h',		'j',	'k',		'l',			';',
+	'\'',		'`',	K_SHIFT,	'\\',		'z',	'x',		'c',			'v',		// 2
+	'b',		'n',	'm',		',',		'.',	'/',		K_SHIFT,		'*',
+	K_ALT,		' ',	K_CAPSLOCK,	K_F1,		K_F2,	K_F3,		K_F4,			K_F5,		// 3
+	K_F6,		K_F7,	K_F8,		K_F9,		K_F10,	K_PAUSE,	K_SCRLCK,		K_HOME,
+	K_UPARROW,	K_PGUP,	'-',		K_LEFTARROW,'5',	K_RIGHTARROW,'+',			K_END,		// 4
+	K_DOWNARROW,K_PGDN,	K_INS,		K_DEL,		0,      0,			0,				K_F11,
+	K_F12,		0,		0,			0,			0,		0,			0,				0,			// 5
+	0,			0,		0,			0,			0,		0,			0,				0,
+	0,			0,		0,			0,			0,		0,			0,				0,			// 6
+	0,			0,		0,			0,			0,		0,			0,				0,
+	0,			0,		0,			0,			0,		0,			0,				0			// 7
+					};
 /*
-static qbyte        shiftscantokey[128] = 
-					{ 
-//  0           1       2       3       4       5       6       7 
-//  8           9       A       B       C       D       E       F 
-	0  ,    27,     '!',    '@',    '#',    '$',    '%',    '^', 
-	'&',    '*',    '(',    ')',    '_',    '+',    K_BACKSPACE, 9, // 0 
-	'Q',    'W',    'E',    'R',    'T',    'Y',    'U',    'I', 
-	'O',    'P',    '{',    '}',    13 ,    K_CTRL,'A',  'S',      // 1 
-	'D',    'F',    'G',    'H',    'J',    'K',    'L',    ':', 
-	'"' ,    '~',    K_SHIFT,'|',  'Z',    'X',    'C',    'V',      // 2 
-	'B',    'N',    'M',    '<',    '>',    '?',    K_SHIFT,'*', 
-	K_ALT,' ',   K_CAPSLOCK  ,    K_F1, K_F2, K_F3, K_F4, K_F5,   // 3 
-	K_F6, K_F7, K_F8, K_F9, K_F10, K_PAUSE  ,    K_SCRLCK  , K_HOME, 
-	K_UPARROW,K_PGUP,'_',K_LEFTARROW,'%',K_RIGHTARROW,'+',K_END, //4 
-	K_DOWNARROW,K_PGDN,K_INS,K_DEL,0,0,             0,              K_F11, 
-	K_F12,  0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0,        // 5 
-	0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0, 
-	0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0,        // 6 
-	0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0, 
-	0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0         // 7 
-					}; 
+static qbyte        shiftscantokey[128] =
+					{
+//  0           1       2       3       4       5       6       7
+//  8           9       A       B       C       D       E       F
+	0  ,    27,     '!',    '@',    '#',    '$',    '%',    '^',
+	'&',    '*',    '(',    ')',    '_',    '+',    K_BACKSPACE, 9, // 0
+	'Q',    'W',    'E',    'R',    'T',    'Y',    'U',    'I',
+	'O',    'P',    '{',    '}',    13 ,    K_CTRL,'A',  'S',      // 1
+	'D',    'F',    'G',    'H',    'J',    'K',    'L',    ':',
+	'"' ,    '~',    K_SHIFT,'|',  'Z',    'X',    'C',    'V',      // 2
+	'B',    'N',    'M',    '<',    '>',    '?',    K_SHIFT,'*',
+	K_ALT,' ',   K_CAPSLOCK  ,    K_F1, K_F2, K_F3, K_F4, K_F5,   // 3
+	K_F6, K_F7, K_F8, K_F9, K_F10, K_PAUSE  ,    K_SCRLCK  , K_HOME,
+	K_UPARROW,K_PGUP,'_',K_LEFTARROW,'%',K_RIGHTARROW,'+',K_END, //4
+	K_DOWNARROW,K_PGDN,K_INS,K_DEL,0,0,             0,              K_F11,
+	K_F12,  0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0,        // 5
+	0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0,
+	0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0,        // 6
+	0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0,
+	0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0  ,    0         // 7
+					};
 */
 
 /*
@@ -2530,7 +2403,7 @@ static int MapKey (int vkey)
 	return scantokey[key];
 }
 
-void IN_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down)
+void IN_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int pnum)
 {
 	extern cvar_t in_builtinkeymap;
 	int qcode;
@@ -2551,6 +2424,6 @@ void IN_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down)
 				unicode = wchars[0];
 		}
 	}
-	
-	Key_Event (qcode, unicode, down);
+
+	Key_Event (pnum, qcode, unicode, down);
 }

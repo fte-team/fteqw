@@ -89,18 +89,31 @@ extern conchar_t q3codemasks[MAXQ3COLOURS];
 
 typedef struct conline_s {
 	struct conline_s *older;
-	unsigned int length;
 	struct conline_s *newer;
+	unsigned short length;
+	unsigned short lines;
+	float time;
 } conline_t;
 
+#define CONF_HIDDEN			1
+#define CONF_NOTIFY			2
+#define CONF_NOTIFY_BOTTOM	4 /*align the bottom*/
+#define CONF_NOTIMES		8
 typedef struct console_s
 {
 	char name[64];
 	int linecount;
+	unsigned int flags;
+	int notif_x;
+	int notif_y;
+	int notif_w;
+	int notif_l;
+	float notif_t;
 	conline_t *oldest;
 	conline_t *current;		// line where next message will be printed
 	int		x;				// offset in current line for next print
 	conline_t *display;		// bottom of console displays this line
+	int		subline;
 	int		vislines;		// pixel lines
 	int		linesprinted;	// for notify times
 	qboolean unseentext;
@@ -113,24 +126,27 @@ typedef struct console_s
 
 extern	console_t	con_main;
 extern	console_t	*con_current;			// point to either con_main or con_chat
+extern	console_t	*con_chat;
 
 extern int scr_chatmode;
 
 //extern int con_totallines;
 extern qboolean con_initialized;
 extern qbyte *con_chars;
-extern	int	con_notifylines;		// scan lines to clear for notify lines
 
 void Con_DrawCharacter (int cx, int line, int num);
 
 void Con_CheckResize (void);
+void Con_ForceActiveNow(void);
 void Con_Init (void);
+void Con_Shutdown (void);
 void Con_DrawConsole (int lines, qboolean noback);
+char *Con_CopyConsole(void);
 void Con_Print (char *txt);
-void VARGS Con_Printf (const char *fmt, ...);
+void VARGS Con_Printf (const char *fmt, ...) LIKEPRINTF(1);
 void VARGS Con_TPrintf (translation_t text, ...);
-void VARGS Con_DPrintf (char *fmt, ...);
-void VARGS Con_SafePrintf (char *fmt, ...);
+void VARGS Con_DPrintf (char *fmt, ...) LIKEPRINTF(1);
+void VARGS Con_SafePrintf (char *fmt, ...) LIKEPRINTF(1);
 void Con_Clear_f (void);
 void Con_DrawNotify (void);
 void Con_ClearNotify (void);
@@ -140,12 +156,12 @@ void Con_ExecuteLine(console_t *con, char *line);	//takes normal console command
 
 
 void Con_CycleConsole (void);
-qboolean Con_IsActive (console_t *con);
+int Con_IsActive (console_t *con);
 void Con_Destroy (console_t *con);
 void Con_SetActive (console_t *con);
 qboolean Con_NameForNum(int num, char *buffer, int buffersize);
 console_t *Con_FindConsole(char *name);
-console_t *Con_Create(char *name);
+console_t *Con_Create(char *name, unsigned int flags);
 void Con_SetVisible (console_t *con);
 void Con_PrintCon (console_t *con, char *txt);
 

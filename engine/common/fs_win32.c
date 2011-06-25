@@ -112,6 +112,8 @@ vfsfile_t *VFSW32_Open(const char *osname, const char *mode)
 	qboolean append = !!strchr(mode, 'a');
 	qboolean text = !!strchr(mode, 't');
 	write |= append;
+	if (strchr(mode, '+'))
+		read = write = true;
 
 	if (write && read)
 		h = CreateFileA(osname, GENERIC_READ|GENERIC_WRITE, FILE_SHARE_READ|FILE_SHARE_DELETE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -177,7 +179,7 @@ static vfsfile_t *VFSW32_OpenVFS(void *handle, flocation_t *loc, const char *mod
 
 static void VFSW32_PrintPath(void *handle)
 {
-	Con_Printf("%s\n", handle);
+	Con_Printf("%s\n", (char *)handle);
 }
 static void VFSW32_ClosePath(void *handle)
 {

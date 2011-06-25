@@ -3,9 +3,6 @@ void() W_SetCurrentAmmo;
 BE .8 .3 .4 IN COLOR */
 
 void(entity to, float iid, float count) AddStackable;
-void (entity jeb, float time) spawn_excla;
-void() AmmoTouch;
-void() shop_face;
 
 void() SUB_regen =
 {
@@ -15,464 +12,10 @@ void() SUB_regen =
 	setorigin (self, self.origin);
 };
 
-float() crandom;
 
-void () Levelshake =
-{
-	local entity te;
-
-	te = findradius (self.origin, 1400);
-	while (te)
-	{
-		if (te.classname == "player")
-			stuffcmd (te, "v_idlescale 4\n");
-
-		if (te.classname == "monster")
-			te.alert = 120;
-
-		te = te.chain;
-	}
-};
-
-void(vector pos) throw_debris =
-{
-	local entity tank, oself;
-	local float oldz;
-
-	oself = self;
-	tank = spawn();
-	self = tank;
-
-	self.origin = pos;
-	
-	self.solid = SOLID_NOT;
-	self.movetype = MOVETYPE_BOUNCE;
-	self.takedamage = DAMAGE_NO;
-
-	if (random()<0.5)
-		setmodel (self, "progs/junk1.mdl");
-	else
-		setmodel (self, "progs/junk2.mdl");
-
-	setsize (self, '0 0 0', '0 0 0');
-
-	self.velocity_y = random()*900 - random()*900;
-	self.velocity_x = random()*900 - random()*900;
-	self.velocity_z = 400 + random()*400;
-
-	self.avelocity_x = random()*600;
-	self.avelocity_y = random()*600;
-	self.avelocity_z = random()*600;
-
-	self.think = SUB_Remove;
-	self.nextthink = time + 2+random()*2;
-
-	self = oself;
-
-};
-
-void() fueltank_explode =
-{
-	throw_debris(self.origin);
-	throw_debris(self.origin);
-	throw_debris(self.origin);
-	throw_debris(self.origin);
-	throw_debris(self.origin);
-
-	bprint(2, "an enemy fuel tank has been destroyed!\n");
-	self.takedamage = DAMAGE_NO;
-	self.classname = "explo_box";
-	Levelshake();
-	T_RadiusDamage2 (self, self.owner, 50+random()*100, other, 200);
-	WriteByte (MSG_MULTICAST, SVC_TEMPENTITY);
-	WriteByte (MSG_MULTICAST, TE_EXPLOSION);
-	WriteCoord (MSG_MULTICAST, self.origin_x);
-	WriteCoord (MSG_MULTICAST, self.origin_y);
-	WriteCoord (MSG_MULTICAST, self.origin_z+32);
-	multicast (self.origin, MULTICAST_PHS);
-	supplies = supplies - 1;
-	remove (self);
-};
-
-void(vector pos) FuelTankSmall =
-{
-	local entity item, oself;
-	precache_model ("maps/b_exbox2.bsp");
-
-	item = spawn();
-	oself = self;
-	self = item;
-	setorigin (self, pos);
-	setmodel (self, "maps/b_exbox2.bsp");
-	supplies += 1;
-	self.rtime = 1;
-	self.solid = SOLID_SLIDEBOX;
-	setsize (self, '-16 -16 -16', '16 16 24');
-	self.health = 50;
-	self.th_die = fueltank_explode;
-	self.takedamage = DAMAGE_AIM;
-	self.classname = "fueltank";
-	self.netname = "fuel tank";
-	self.movetype = MOVETYPE_STEP;
-	self = oself;
-};
-
-void() FuelTankLarge =
-{
-	local entity item, oself;
-	precache_model ("maps/b_explob.bsp");
-
-	item = spawn();
-	oself = self;
-	self = item;
-	setmodel (self, "maps/b_explob.bsp");
-	supplies += 1;
-	self.rtime = 1;
-	self.solid = SOLID_SLIDEBOX;
-	setsize (self, '-16 -16 -16', '16 16 48');
-	self.health = 50;
-	self.th_die = fueltank_explode;
-	self.takedamage = DAMAGE_AIM;
-	self.classname = "fueltank";
-	self.netname = "fuel tank";
-	self.movetype = MOVETYPE_STEP;
-	self = oself;
-};
-
-
-void(vector pos) obj_fueltank =
-{
-	FuelTankLarge();
-
-	if (random()<0.25)
-		FuelTankSmall(pos + '0 64 0');
-	if (random()<0.25)
-		FuelTankSmall(pos + '0 -64 0');
-	if (random()<0.25)
-		FuelTankSmall(pos + '64 0 0');
-	if (random()<0.25)
-		FuelTankSmall(pos + '-64 0 0');
-};
-
-
-void () food_touch =
-{
-	if (other.classname != "player")
-		return;
-
-	if (self.rtime > 0)
-	{
-		self.rtime = 0;
-		bprint(2, "food crate has been secured.\n");
-
-		other.score = other.score + 10;
-
-		if (random()<0.25)
-			sound (self, CHAN_BODY, "effects/radio1.wav", 1, ATTN_NONE);
-		else if (random()<0.25)
-			sound (self, CHAN_BODY, "effects/radio2.wav", 1, ATTN_NONE);
-		else if (random()<0.25)
-			sound (self, CHAN_BODY, "effects/radio3.wav", 1, ATTN_NONE);
-		else
-			sound (self, CHAN_BODY, "effects/radio4.wav", 1, ATTN_NONE);
-
-		supplies = supplies - 1;
-		spawn_excla(self, 3000);
-	}
-
-};
-
-void() FoodCrate =
-{
-	setmodel (self, "maps/crate.bsp");
-	self.touch = food_touch;
-	supplies += 1;
-	self.rtime = 1;
-	self.solid = SOLID_SLIDEBOX;
-	setsize (self, '-16 -16 0', '16 16 16');
-	self.takedamage = DAMAGE_NO;
-	self.touch = food_touch;
-	self.movetype = MOVETYPE_STEP;
-	self.classname = "foodcrate";
-};
-
-void() treasure_touch =
-{
-	if (other.classname != "player")
-		return;
-	if (self.picking > 0)
-		return;
-
-	if (self.attack_finished < time)
-	{
-		sound (self, CHAN_BODY, "items/locked.wav", 1, ATTN_NORM);
-		sprint(other, 2, "this metal box is locked.\n");
-		if (other.skill_sneak >= 1)
-		{
-			sprint(other, 2, "you may attempt to pick this\n");
-			sprint(other, 2, "by pressing your 'action' key\n");
-		}
-	}
-	self.attack_finished = time + 2;
-	return;
-};
-
-
-void() bomb_touch =
-{
-	if (other.classname != "player")
-		return;
-	if (self.picking > 0)
-		return;
-
-	if (self.attack_finished < time)
-	{
-		sound (self, CHAN_BODY, "items/locked.wav", 1, ATTN_NORM);
-		sprint(other, 2, "this is a high-tech bomb.\n");
-		if (other.skill_science > 0)
-		{
-			sprint(other, 2, "you may attempt to deactivate this\n");
-			sprint(other, 2, "bomb by pressing your 'action' key\n");
-		}
-	}
-	self.attack_finished = time + 2;
-	return;
-};
-
-void() Explosive =
-{
-	if (random()*100<=25)
-	{
-		remove(self);
-		return;
-	}
-
-	setmodel (self, "progs/bomb.mdl");
-	self.touch = bomb_touch;
-	self.solid = SOLID_SLIDEBOX;
-	setsize (self, '-16 -16 0', '16 16 16');
-	self.takedamage = DAMAGE_NO;
-	self.movetype = MOVETYPE_STEP;
-	self.classname = "bomb";
-	droptofloor();
-};
-
-float (entity to, float iid, float quant) TryGiveStackable;
-void() junk_touch =
-{
-	local float junktype;
-
-	if (other.skill_science <= 0)
-		return;
-	if (other.classname != "player")
-		return;
-	if (other.health <= 0)
-		return;
-
-
-
-	if (!TryGiveStackable(other, ToIID(self.islot1), self.flash))
-	{	
-		sprint(other, PRINT_MEDIUM, "inventory full.\n");
-		return;
-	}
-
-	sound (other, CHAN_BODY, "misc/item1.wav", 1, ATTN_NORM);
-
-	sprint(other, PRINT_MEDIUM, "found ");
-	sprint(other, PRINT_MEDIUM, GetItemName(ToIID(self.islot1)));
-	sprint(other, PRINT_MEDIUM, ".\n");
-
-	remove (self);
-
-};
-
-void(vector loc) SpawnJunk =
-{
-	local entity junk;
-
-	junk = spawn ();
-
-	setorigin(junk, loc + '0 0 96');
-
-
-	junk.movetype = MOVETYPE_BOUNCE;
-	junk.velocity_x = crandom()*600;
-	junk.velocity_y = crandom()*600;
-	junk.velocity_z = -100;
-
-	junk.avelocity_y = crandom()*300;
-
-	if (random()*100 < 50)
-		setmodel (junk, "progs/junk1.mdl");
-	else
-		setmodel (junk, "progs/junk2.mdl");
-
-	junk.touch = junk_touch;
-	junk.solid = SOLID_TRIGGER;
-	setsize (junk, '-12 -12 0', '12 12 12');
-	junk.takedamage = DAMAGE_NO;
-	junk.classname = "random_junk";
-
-
-
-	if (random()*100 <= 25)
-		junk.islot1 = SlotVal(IID_MISC_HMXCOMPOUND, 1);
-	else if (random()*100 <= 25)
-		junk.islot1 = SlotVal(IID_MISC_CHEMICALS, 1);
-	else if (random()*100 <= 25)
-		junk.islot1 = SlotVal(IID_MISC_NUKACOLA, 1);
-	else if (random()*100 <= 25)
-		junk.islot1 = SlotVal(IID_MISC_AEROSOL, 1);
-	else if (random()*100 <= 10)
-		junk.islot1 = SlotVal(IID_MISC_RDXCRYSTAL, 1);
-	else if (random()*100 <= 10)
-		junk.islot1 = SlotVal(IID_MISC_STEELPIPE, 1);
-	else if (random()*100 <= 10)
-		junk.islot1 = SlotVal(IID_MISC_DUCKTAPE, 1);
-	else if (random()*100 <= 10)
-		junk.islot1 = SlotVal(IID_MISC_LCD, 1);
-	else if (random()*100 <= 10)
-		junk.islot1 = SlotVal(IID_MISC_CIRCUITBOARD, 1);
-	else if (random()*100 <= 10)
-		junk.islot1 = SlotVal(IID_MISC_COPPERWIRE, 1);
-	else if (random()*100 <= 10)
-		junk.islot1 = SlotVal(IID_MISC_GUM, 1);
-	else
-		junk.islot1 = SlotVal(IID_MISC_JUNK, 1);
-
-	if (random()*100 <= 10)
-		junk.flash = 2;
-	else
-		junk.flash = 1;
-};
-void() TreasureChest =
-{
-	setorigin(self, self.origin + '0 0 64');
-	self.movetype = MOVETYPE_BOUNCE;
-	self.velocity_x = crandom()*200;
-	self.velocity_y = crandom()*200;
-	self.velocity_z = -200;
-
-	self.avelocity_y = crandom()*200;
-
-	setmodel (self, "progs/ammobox2.mdl");
-	self.touch = treasure_touch;
-	self.solid = SOLID_BBOX;
-	setsize (self, '-12 -12 0', '12 12 12');
-	self.takedamage = DAMAGE_NO;
-	self.classname = "treasure_chest";
-};
-
-
-void() rad_think =
-{
-	local entity te;
-
-	self.think = rad_think;
-	self.nextthink = time + 4;
-
-	WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
-	WriteByte (MSG_BROADCAST, TE_LAVASPLASH);
-	WriteCoord (MSG_BROADCAST, self.origin_x);
-	WriteCoord (MSG_BROADCAST, self.origin_y);
-	WriteCoord (MSG_BROADCAST, self.origin_z);
-
-
-	te = findradius (self.origin, 700);
-	while (te)
-	{
-
-
-
-		if (te.classname == "player")
-			te.radiation = te.radiation + 1;
-
-		te = te.chain;
-	}
-};
-
-void(vector spot) spawn_radiation =
-{
-	local entity rad;
-
-	rad = spawn();
-
-	setorigin(rad, spot + '0 0 64');
-	rad.movetype = MOVETYPE_BOUNCE;
-	rad.velocity_x = crandom()*200;
-	rad.velocity_y = crandom()*200;
-	rad.velocity_z = -200;
-
-	rad.avelocity_y = crandom()*200;
-
-	setmodel (rad, "");
-	rad.solid = SOLID_NOT;
-	setsize (rad, '-12 -12 0', '12 12 12');
-	rad.takedamage = DAMAGE_NO;
-	rad.classname = "rad";
-	
-	rad.think = rad_think;
-	rad.nextthink = time + 1;
-};
-
-
-
-void() car_rock =
-{
-	self.frame = self.frame + 1;
-
-	if (self.frame >= 11)
-		self.frame = 0;
-
-	self.nextthink = time + 0.1 + (self.cnt*0.025);
-	self.think = car_rock;
-	self.cnt = self.cnt + 1;
-};
-
-void() car_rock2 =
-{
-	if (random()<0.5)
-		sound (self, CHAN_BODY, "effects/metal-1.wav", 1, ATTN_NORM);
-	else
-		sound (self, CHAN_BODY, "effects/metal-2.wav", 1, ATTN_NORM);
-};
-
-void() car_touch =
-{
-	if (other.classname != "player")
-		return;
-
-	if (self.attack_finished < time)
-	{
-		self.think = car_rock;
-		self.nextthink = time + 0.1;
-		self.cnt = 1;
-	}
-	self.attack_finished = time + 4;
-	return;
-};
-
-void() BlownUpCar =
-{
-	setmodel (self, "progs/BlownUp.mdl");
-	self.origin = self.origin + '0 0 32';
-	self.touch = car_touch;
-	self.solid = SOLID_SLIDEBOX;
-	self.helmet = 2;
-	setsize (self, '-32 -32 0', '32 32 32');
-      self.islot3 = SlotVal(IID_ARM_METAL, 1);
-	self.takedamage = DAMAGE_AIM;
-	self.health = 90000;
-	self.th_pain = car_rock2;
-	self.movetype = MOVETYPE_BOUNCE;
-	self.classname = "car";
-};
 
 /*QUAKED noclass (0 0 0) (-8 -8 -8) (8 8 8)
 prints a warning message when spawned
-376 5857
-354 8501
 */
 void() noclass =
 {
@@ -551,182 +94,6 @@ void(float timeleft) DropQuad =
 
 
 void() r_touch;
-
-void () BombBeep =
-{
-	local float r;
-
-	r = range (self.enemy);
-
-	if (r != RANGE_MELEE || self.enemy.health <= 0)
-	{
-		self.owner.picking = 0;
-		self.enemy.picking = 0;
-		self.enemy.currentmenu = "none";
-		remove(self.tumbler1);
-		remove(self.tumbler2);
-		remove(self);
-		return;
-	}
-
-	self.inplace = 0;
-	self.tumbler1.inplace = 0;
-	self.tumbler2.inplace = 0;
-	self.model = "";
-	self.tumbler1.model = "";
-	self.tumbler2.model = "";
-
-	if (random() < 0.75)
-	{
-		self.inplace = 1;
-		self.model = "progs/radio.spr";
-	}
-	if (random() < 0.75)
-	{
-		self.tumbler1.inplace = 1;
-		self.tumbler1.model = "progs/radio.spr";
-	}
-	if (random() < 0.75)
-	{
-		self.tumbler2.inplace = 1;
-		self.tumbler2.model = "progs/radio.spr";
-	}
-
-
-	self.think = BombBeep;
-	self.nextthink = time + 0.3+random()*0.6;
-	self.enemy.chest = self;
-	self.enemy.currentmenu = "menu_defuse";
-
-	if (random() < 0.5)
-		sound (self, CHAN_BODY, "items/lockpick1.wav", 1, ATTN_NORM);
-	else
-		sound (self, CHAN_BODY, "items/lockpick2.wav", 1, ATTN_NORM);
-
-};
-
-
-void (entity portal, entity toucher) SpawnBomb =
-{
-	local entity open, t1, t2;
-
-	makevectors (toucher.v_angle);
-
-	open = spawn();
-	setmodel(open, "progs/radio.spr");
-	setorigin (open, toucher.origin + '0 0 48' + v_forward*64);
-	setsize (open, VEC_ORIGIN, VEC_ORIGIN);
-	open.think = BombBeep;
-	open.nextthink = time + random()*0.2;
-	open.enemy = toucher;
-	open.owner = portal;
-	open.owner.rtime = 3;
-
-	t1 = spawn();
-	setmodel(t1, "progs/radio.spr");
-	setorigin (t1, toucher.origin + '0 0 48' + v_forward*64 + v_right*32);
-	setsize (t1, VEC_ORIGIN, VEC_ORIGIN);
-	t1.enemy = toucher;
-	t1.owner = portal;
-
-	t2 = spawn();
-	setmodel(t2, "progs/radio.spr");
-	setorigin (t2, toucher.origin + '0 0 48' + v_forward*64 - v_right*32);
-	setsize (t2, VEC_ORIGIN, VEC_ORIGIN);
-	t2.enemy = toucher;
-	t2.owner = portal;
-
-	open.tumbler1 = t1;
-	open.tumbler2 = t2;
-};
-
-void () OpenChestBeep =
-{
-	local float r;
-
-	r = range (self.enemy);
-
-	if (r != RANGE_MELEE || self.enemy.health <= 0)
-	{
-		self.owner.picking = 0;
-		self.enemy.picking = 0;
-		self.enemy.currentmenu = "none";
-		remove(self.tumbler1);
-		remove(self.tumbler2);
-		remove(self);
-		return;
-	}
-
-	self.inplace = 0;
-	self.tumbler1.inplace = 0;
-	self.tumbler2.inplace = 0;
-	self.model = "";
-	self.tumbler1.model = "";
-	self.tumbler2.model = "";
-
-	if (random() < 0.5)
-	{
-		self.inplace = 1;
-		self.model = "progs/radio.spr";
-	}
-	if (random() < 0.5)
-	{
-		self.tumbler1.inplace = 1;
-		self.tumbler1.model = "progs/radio.spr";
-	}
-	if (random() < 0.5)
-	{
-		self.tumbler2.inplace = 1;
-		self.tumbler2.model = "progs/radio.spr";
-	}
-
-
-	self.think = OpenChestBeep;
-	self.nextthink = time + 0.1+random()*0.4 + (0.02*self.enemy.skill_sneak);
-	self.enemy.chest = self;
-	self.enemy.currentmenu = "menu_lockpick";
-
-	if (random() < 0.5)
-		sound (self, CHAN_BODY, "items/lockpick1.wav", 1, ATTN_NORM);
-	else
-		sound (self, CHAN_BODY, "items/lockpick2.wav", 1, ATTN_NORM);
-
-};
-
-
-void (entity portal, entity toucher) SpawnOpenChest =
-{
-	local entity open, t1, t2;
-
-	makevectors (toucher.v_angle);
-
-	open = spawn();
-	setmodel(open, "progs/radio.spr");
-	setorigin (open, toucher.origin + '0 0 48' + v_forward*64);
-	setsize (open, VEC_ORIGIN, VEC_ORIGIN);
-	open.think = OpenChestBeep;
-	open.nextthink = time + random()*0.2;
-	open.enemy = toucher;
-	open.owner = portal;
-
-	t1 = spawn();
-	setmodel(t1, "progs/radio.spr");
-	setorigin (t1, toucher.origin + '0 0 48' + v_forward*64 + v_right*32);
-	setsize (t1, VEC_ORIGIN, VEC_ORIGIN);
-	t1.enemy = toucher;
-	t1.owner = portal;
-
-	t2 = spawn();
-	setmodel(t2, "progs/radio.spr");
-	setorigin (t2, toucher.origin + '0 0 48' + v_forward*64 - v_right*32);
-	setsize (t2, VEC_ORIGIN, VEC_ORIGIN);
-	t2.enemy = toucher;
-	t2.owner = portal;
-
-	open.tumbler1 = t1;
-	open.tumbler2 = t2;
-};
-
 
 void() r_touch =
 {
@@ -868,30 +235,39 @@ void() item_megahealth_rot;
 
 void() item_health =
 {       
+	self.touch = health_touch;
 
+	if (self.spawnflags & H_ROTTEN)
+	{
+		precache_model("maps/b_bh10.bsp");
+
+		precache_sound("items/r_item1.wav");
+		setmodel(self, "maps/b_bh10.bsp");
+		self.noise = "items/r_item1.wav";
+		self.healamount = 15;
+		self.healtype = 0;
+	}
+	else
 	if (self.spawnflags & H_MEGA)
-		TreasureChest();
+	{
+		precache_model("maps/b_bh100.bsp");
+		precache_sound("items/r_item2.wav");
+		setmodel(self, "maps/b_bh100.bsp");
+		self.noise = "items/r_item2.wav";
+		self.healamount = 100;
+		self.healtype = 2;
+	}
 	else
 	{
-		if (random()*100<=75)
-		{
-			remove(self);
-			return;
-		}
-
-		self.touch = health_touch;
 		precache_model("maps/b_bh25.bsp");
 		precache_sound("items/health1.wav");
 		setmodel(self, "maps/b_bh25.bsp");
 		self.noise = "items/health1.wav";
 		self.healamount = 25;
 		self.healtype = 1;
-		setsize (self, '0 0 0', '32 32 56');
-		StartItem ();
 	}
-
-	if (random()*100 <= 2)
-		spawn_radiation(self.origin);
+	setsize (self, '0 0 0', '32 32 56');
+	StartItem ();
 };
 
 
@@ -899,21 +275,14 @@ float (entity to, float iid, float quant) TryGiveStackable =
 {
 	local float slot;
 	local float item;
-	local float x;
-
-	x = 400;
-
-	if (ToIID(self.islot4) == IID_EQUIP_BACKPACK)
-		x = 600;
-
 	slot = SlotOfItem(to, iid);
-	if (slot > 4)
+	if (slot > 2)
 	{
 		item = ItemInSlot(to, slot);
-		if (ToStatus(item) + quant > x)	//300 is our maxstack value here
+		if (ToStatus(item) + quant > 500)	//500 is our maxstack value here
 		{
-			quant = quant + ToStatus(item) - x;
-			SetItemSlot(to, slot, SlotVal(iid, x));
+			quant = quant + ToStatus(item) - 500;
+			SetItemSlot(to, slot, SlotVal(iid, 500));
 			slot = 0;
 			return false;
 		}
@@ -934,7 +303,6 @@ float (entity to, float iid, float quant) TryGiveStackable =
 	return true;
 };
 
-
 void () health_touch =
 {
 	if (!triggercantouch(self, other))
@@ -951,9 +319,13 @@ void () health_touch =
 		if (other.ghost != 0)
 			return;
 
-		if (!TryGiveStackable(other, IID_CHEM_STIMPACK, 1))	
+		if (!TryGiveStackable(other, IID_CHEM_STIMPACK, 1))
+		{
+			if (self.spamdelay < time)
+				sprint(other, 2, "full inventory.\n");
+			self.spamdelay = time + 1;
 			return;
-
+		}
 		sprint (other, PRINT_HIGH, "picked up a stimpack.\n");
 
 		if (random()*4 <= 2)
@@ -1062,36 +434,6 @@ void() armor_touch =
 /*QUAKED item_armor1 (0 .5 .8) (-16 -16 0) (16 16 32)
 */
 
-void() buyzone1 =
-{
-	SUB_UseTargets ();
-
-
-	self.touch = SUB_Null;
-	self.solid = SOLID_BBOX;
-	self.movetype = MOVETYPE_STEP;
-	setmodel (self, "progs/enforcer.mdl");
-	self.skin = 0;
-	setsize (self, '-16 -16 -24', '16 16 32');
-	setorigin(self, self.origin + '0 0 24');
-	self.classname = "merchant";
-
-};
-
-void() buyzone2 =
-{
-	SUB_UseTargets ();
-
-
-	self.touch = SUB_Null;
-	self.solid = SOLID_BBOX;
-	setmodel (self, "progs/enforcer.mdl");
-	self.skin = 0;
-	setsize (self, '-16 -16 -24', '16 16 32');
-	setorigin(self, self.origin + '0 0 24');
-	self.classname = "merchant";
-};
-
 void() item_armor1_finish =
 {
 	SUB_UseTargets ();
@@ -1099,26 +441,17 @@ void() item_armor1_finish =
 
 	self.touch = SUB_Null;
 	self.solid = SOLID_BBOX;
-	self.movetype = MOVETYPE_STEP;
 	setmodel (self, "progs/enforcer.mdl");
 	self.skin = 0;
 	setsize (self, '-16 -16 -24', '16 16 32');
 	setorigin(self, self.origin + '0 0 24');
 	self.classname = "merchant";
-	self.think = shop_face;
-	self.nextthink = time + 0.5;
 };
 void() item_armor1 =
 {
-	if (random()*100 <= 2)
-		spawn_radiation(self.origin);
-
-	if (random()<0.50)
-	{
-		precache_model ("progs/enforcer.mdl");
-		self.think = item_armor1_finish;
-		self.nextthink = time + 0.1;
-	}
+	precache_model ("progs/enforcer.mdl");
+	self.think = item_armor1_finish;
+	self.nextthink = time + 0.1;
 };
 
 /*QUAKED item_armor2 (0 .5 .8) (-16 -16 0) (16 16 32)
@@ -1126,22 +459,12 @@ void() item_armor1 =
 
 void() item_armor2 =
 {
-	if (random()*100 <= 2)
-		spawn_radiation(self.origin);
-
-	if (random()<0.50)
-	{
-		precache_model ("progs/enforcer.mdl");
-		self.touch = SUB_Null;
-		self.solid = SOLID_BBOX;
-		setmodel (self, "progs/enforcer.mdl");
-		self.skin = 0;
-		setsize (self, '-16 -16 -24', '16 16 32');
-		setorigin(self, self.origin + '0 0 24');
-		self.classname = "merchant";
-		self.think = shop_face;
-		self.nextthink = time + 0.5;
-	}
+	self.touch = armor_touch;
+	precache_model ("progs/armor.mdl");
+	setmodel (self, "progs/armor.mdl");
+	self.skin = 1;
+	setsize (self, '-16 -16 0', '16 16 56');
+	StartItem ();
 };
 
 /*QUAKED item_armorInv (0 .5 .8) (-16 -16 0) (16 16 32)
@@ -1149,22 +472,12 @@ void() item_armor2 =
 
 void() item_armorInv =
 {
-	if (random()*100 <= 2)
-		spawn_radiation(self.origin);
-
-	if (random()<0.50)
-	{
-		precache_model ("progs/enforcer.mdl");
-		self.touch = SUB_Null;
-		self.solid = SOLID_BBOX;
-		setmodel (self, "progs/enforcer.mdl");
-		self.skin = 0;
-		setsize (self, '-16 -16 -24', '16 16 32');
-		setorigin(self, self.origin + '0 0 24');
-		self.classname = "merchant";
-		self.think = shop_face;
-		self.nextthink = time + 0.5;
-	}
+	self.touch = armor_touch;
+	precache_model ("progs/armor.mdl");
+	setmodel (self, "progs/armor.mdl");
+	self.skin = 2;
+	setsize (self, '-16 -16 0', '16 16 56');
+	StartItem ();
 };
 
 /*
@@ -1177,7 +490,14 @@ WEAPONS
 
 void() bound_other_ammo =
 {
-         
+	if (other.ammo_shells > 100)
+		other.ammo_shells = 100;
+	if (other.ammo_nails > 200)
+		other.ammo_nails = 200;
+	if (other.ammo_rockets > 100)
+		other.ammo_rockets = 100;               
+	if (other.ammo_cells > 100)
+		other.ammo_cells = 100;         
 };
 
 
@@ -1376,29 +696,21 @@ void() weapon_touch =
 };
 
 
-void(vector place) hostage_new;
-
 /*QUAKED weapon_supershotgun (0 .5 .8) (-16 -16 0) (16 16 32)
 */
 
-
-
 void() weapon_supershotgun =
 {
-	//weapon spawns are now either treasure chests
-	//or hostages that need to be rescued
-
-	if (random()<0.25)
-		TreasureChest();
-
-
-	if (random()*100 <= 100)
-		spawn_radiation(self.origin);
-
-		SpawnJunk(self.origin);
-		SpawnJunk(self.origin);
-		SpawnJunk(self.origin);
-		SpawnJunk(self.origin);
+if (deathmatch <= 3)
+{
+	precache_model ("progs/g_shot.mdl");
+	setmodel (self, "progs/g_shot.mdl");
+	self.weapon = IT_SUPER_SHOTGUN;
+	self.netname = "Double-barrelled Shotgun";
+	self.touch = weapon_touch;
+	setsize (self, '-16 -16 0', '16 16 56');
+	StartItem ();
+}
 };
 
 /*QUAKED weapon_nailgun (0 .5 .8) (-16 -16 0) (16 16 32)
@@ -1406,24 +718,16 @@ void() weapon_supershotgun =
 
 void() weapon_nailgun =
 {
-	if (world.map_obj == 2)
-		FoodCrate();
-	else if (world.map_obj == 5)
-		obj_fueltank(self.origin);
-	else if (world.map_obj == 6)
-		Explosive();
-	else
-		TreasureChest();
-
-
-	if (random()*100 <= 10)
-		spawn_radiation(self.origin);
-
-
-		SpawnJunk(self.origin);
-		SpawnJunk(self.origin);
-		SpawnJunk(self.origin);
-		SpawnJunk(self.origin);
+if (deathmatch <= 3)
+{
+	precache_model ("progs/g_nail.mdl");
+	setmodel (self, "progs/g_nail.mdl");
+	self.weapon = IT_NAILGUN;
+	self.netname = "nailgun";
+	self.touch = weapon_touch;
+	setsize (self, '-16 -16 0', '16 16 56');
+	StartItem ();
+}
 };
 
 /*QUAKED weapon_supernailgun (0 .5 .8) (-16 -16 0) (16 16 32)
@@ -1431,23 +735,16 @@ void() weapon_nailgun =
 
 void() weapon_supernailgun =
 {
-	if (world.map_obj == 2)
-		FoodCrate();
-	else if (world.map_obj == 5)
-		obj_fueltank(self.origin);
-	else if (world.map_obj == 6)
-		Explosive();
-	else if (random()*100 <= 40)
-		TreasureChest();
-
-
-	if (random()*100 <= 10)
-		spawn_radiation(self.origin);
-
-		SpawnJunk(self.origin);
-		SpawnJunk(self.origin);
-		SpawnJunk(self.origin);
-		SpawnJunk(self.origin);
+if (deathmatch <= 3)
+{
+	precache_model ("progs/g_nail2.mdl");
+	setmodel (self, "progs/g_nail2.mdl");
+	self.weapon = IT_SUPER_NAILGUN;
+	self.netname = "Super Nailgun";
+	self.touch = weapon_touch;
+	setsize (self, '-16 -16 0', '16 16 56');
+	StartItem ();
+}
 };
 
 /*QUAKED weapon_grenadelauncher (0 .5 .8) (-16 -16 0) (16 16 32)
@@ -1455,25 +752,16 @@ void() weapon_supernailgun =
 
 void() weapon_grenadelauncher =
 {
-
-	if (world.map_obj == 2)
-		FoodCrate();
-	else if (world.map_obj == 5)
-		obj_fueltank(self.origin);
-	else if (world.map_obj == 6)
-		Explosive();
-	else if (random()*100 <= 40)
-		TreasureChest();
-
-
-	if (random()*100 <= 5)
-		spawn_radiation(self.origin);
-
-		SpawnJunk(self.origin);
-		SpawnJunk(self.origin);
-		SpawnJunk(self.origin);
-		SpawnJunk(self.origin);
-
+if (deathmatch <= 3)
+{
+	precache_model ("progs/g_rock.mdl");
+	setmodel (self, "progs/g_rock.mdl");
+	self.weapon = 3;
+	self.netname = "Grenade Launcher";
+	self.touch = weapon_touch;
+	setsize (self, '-16 -16 0', '16 16 56');
+	StartItem ();
+}
 };
 
 /*QUAKED weapon_rocketlauncher (0 .5 .8) (-16 -16 0) (16 16 32)
@@ -1481,24 +769,16 @@ void() weapon_grenadelauncher =
 
 void() weapon_rocketlauncher =
 {
-	if (world.map_obj == 2)
-		FoodCrate();
-	else if (world.map_obj == 5)
-		obj_fueltank(self.origin);
-	else if (world.map_obj == 6)
-		Explosive();
-	else if (random()*100 <= 40)
-		TreasureChest();
-
-
-	if (random()*100 <= 10)
-		spawn_radiation(self.origin);
-
-
-		SpawnJunk(self.origin);
-		SpawnJunk(self.origin);
-		SpawnJunk(self.origin);
-		SpawnJunk(self.origin);
+if (deathmatch <= 3)
+{
+	precache_model ("progs/g_rock2.mdl");
+	setmodel (self, "progs/g_rock2.mdl");
+	self.weapon = 3;
+	self.netname = "Rocket Launcher";
+	self.touch = weapon_touch;
+	setsize (self, '-16 -16 0', '16 16 56');
+	StartItem ();
+}
 };
 
 
@@ -1507,25 +787,16 @@ void() weapon_rocketlauncher =
 
 void() weapon_lightning =
 {
-
-	if (world.map_obj == 2)
-		FoodCrate();
-	else if (world.map_obj == 5)
-		obj_fueltank(self.origin);
-	else if (world.map_obj == 6)
-		Explosive();
-	else if (random()*100 <= 40)
-		TreasureChest();
-
-
-	if (random()*100 <= 10)
-		spawn_radiation(self.origin);
-
-
-		SpawnJunk(self.origin);
-		SpawnJunk(self.origin);
-		SpawnJunk(self.origin);
-		SpawnJunk(self.origin);
+if (deathmatch <= 3)
+{
+	precache_model ("progs/g_light.mdl");
+	setmodel (self, "progs/g_light.mdl");
+	self.weapon = 3;
+	self.netname = "Thunderbolt";
+	self.touch = weapon_touch;
+	setsize (self, '-16 -16 0', '16 16 56');
+	StartItem ();
+}
 };
 
 
@@ -1541,30 +812,29 @@ float() GetRandomAmmo =
 {
 	local float r;
 
-	r = random()*42;
+	r = random()*20;
 
-	if (r <= 5)
-		return IID_AM_10MM;
-	else if (r <= 10)
-		return IID_AM_45ACP;
-	else if (r <= 15)
-		return IID_AM_12GAUGESHELLS;
-	else if (r <= 20)
-		return IID_AM_44MAGNUM;
-	else if (r <= 24)
-		return IID_AM_556MM;
-	else if (r <= 28)
-		return IID_AM_5MMHIGHVEL;
-	else if (r <= 32)
-		return IID_AM_762MM;
-	else if (r <= 36)
+	if (r <= 2)
 		return IID_AM_NEEDLER;
-	else if (r <= 38)
+	else if (r <= 6)
+		return IID_AM_10MM;
+	else if (r <= 8)
+		return IID_AM_556MM;
+	else if (r <= 10)
+		return IID_AM_5MMHIGHVEL;
+	else if (r <= 13)
+		return IID_AM_12GAUGESHELLS;
+	else if (r <= 14)
 		return IID_AM_ENERGYCELL;
-	else if (r <= 40)
+	else if (r <= 15)
 		return IID_AM_2MMEC;
+	else if (r <= 16)
+		return IID_AM_762MM;
+	else if (r <= 18)
+		return IID_AM_44MAGNUM;
 	else
-		return IID_AM_CASELESS;
+		return IID_AM_10MM;
+
 };
 
 float(float ammotype) GetAmmoCount =
@@ -1574,11 +844,11 @@ float(float ammotype) GetAmmoCount =
 	if (ammotype == IID_AM_NEEDLER)
 		ammocount = 2 + random()*7;
 	if (ammotype == IID_AM_10MM)
-		ammocount = 5 + random()*5;
+		ammocount = 5 + random()*10;
 	if (ammotype == IID_AM_556MM)
 		ammocount = 3 + random()*8;
 	if (ammotype == IID_AM_5MMHIGHVEL)
-		ammocount = 5 + random()*8;
+		ammocount = 5 + random()*10;
 	if (ammotype == IID_AM_12GAUGESHELLS)
 		ammocount = 2 + random()*6;
 	if (ammotype == IID_AM_ENERGYCELL)
@@ -1629,10 +899,6 @@ void() ammo_touch =
 	ammoname = GetItemName(ammotype);
 	ammocountftos = ftos(ammocount);
 
-		if (random()*4 <= 2)
-			sound (other, CHAN_ITEM, "misc/item1.wav", 1, ATTN_NORM);
-		else
-			sound (other, CHAN_ITEM, "misc/item2.wav", 1, ATTN_NORM);
 
 // shotgun
 	if (self.weapon == 1)
@@ -1646,8 +912,11 @@ void() ammo_touch =
 
 		if (random()*20 <= 10)
 		{
-			other.ammo_shells = other.ammo_shells + ceil(10+random()*10);
-			sprint (other, 2, "& money.\n");
+			other.ammo_shells = other.ammo_shells + 2;
+				if (coop == 1 && total_players == 1)
+					other.ammo_shells = other.ammo_shells + 2;
+
+			sprint (other, 2, " and bottle caps.\n");
 		}
 		else
 			sprint (other, 2, "\n");
@@ -1666,8 +935,8 @@ void() ammo_touch =
 
 		if (random()*20 <= 10)
 		{
-			other.ammo_shells = other.ammo_shells + ceil(10+random()*10);
-			sprint (other, 2, " & money.\n");
+			other.ammo_shells = other.ammo_shells + 2;
+			sprint (other, 2, " and bottle caps.\n");
 		}
 		else
 			sprint (other, 2, "\n");
@@ -1685,8 +954,8 @@ void() ammo_touch =
 
 		if (random()*20 <= 10)
 		{
-			other.ammo_shells = other.ammo_shells + ceil(5+random()*25);
-			sprint (other, 2, " & money.\n");
+			other.ammo_shells = other.ammo_shells + 2;
+			sprint (other, 2, " and bottle caps.\n");
 		}
 		else
 			sprint (other, 2, "\n");
@@ -1705,8 +974,8 @@ void() ammo_touch =
 
 		if (random()*20 <= 10)
 		{
-			other.ammo_shells = other.ammo_shells + ceil(5+random()*25);
-			sprint (other, 2, " & money.\n");
+			other.ammo_shells = other.ammo_shells + 2;
+			sprint (other, 2, " and bottle caps.\n");
 		}
 		else
 			sprint (other, 2, "\n");
@@ -1762,14 +1031,7 @@ void() item_shells =
 	if (coop == 1 && random()*4 <= 2)
 		return;
 
-	self.islot1 = GetRandomAmmo();
-	self.islot1 = self.islot1 * 512;
-	self.flash = ceil(random()*30);
-	self.touch = AmmoTouch;
-	if (random()<0.5)
-		self.islot2 = ceil(random()*20);
-
-
+	self.touch = ammo_touch;
 
 	if (self.spawnflags & WEAPON_BIG2)
 	{
@@ -1800,13 +1062,7 @@ void() item_spikes =
 	if (coop == 1 && random()*4 <= 1)
 		return;
 
-	self.islot1 = GetRandomAmmo();
-	self.islot1 = self.islot1 * 512;
-	self.flash = ceil(random()*30);
-	self.touch = AmmoTouch;
-	if (random()<0.5)
-		self.islot2 = ceil(random()*20);
-
+	self.touch = ammo_touch;
 
 	if (self.spawnflags & WEAPON_BIG2)
 	{
@@ -1838,13 +1094,7 @@ void() item_rockets =
 	if (coop == 1 && random()*4 <= 3)
 		return;
 
-	self.islot1 = GetRandomAmmo();
-	self.islot1 = self.islot1 * 512;
-	self.flash = ceil(random()*30);
-	self.touch = AmmoTouch;
-	if (random()<0.5)
-		self.islot2 = ceil(random()*20);
-
+	self.touch = ammo_touch;
 
 	if (self.spawnflags & WEAPON_BIG2)
 	{
@@ -1863,9 +1113,6 @@ void() item_rockets =
 	setsize (self, '0 0 0', '32 32 56');
 	StartItem ();
 
-	if (random()*100 <= 2)
-		spawn_radiation(self.origin);
-
 };
 
 
@@ -1880,13 +1127,7 @@ void() item_cells =
 	if (coop == 1 && random()*4 <= 2)
 		return;
 
-	self.islot1 = GetRandomAmmo();
-	self.islot1 = self.islot1 * 512;
-	self.flash = ceil(random()*30);
-	self.touch = AmmoTouch;
-	if (random()<0.5)
-		self.islot2 = ceil(random()*20);
-
+	self.touch = ammo_touch;
 
 	if (self.spawnflags & WEAPON_BIG2)
 	{
@@ -1905,9 +1146,6 @@ void() item_cells =
 	setsize (self, '0 0 0', '32 32 56');
 	StartItem ();
 
-	if (random()*100 <= 2)
-		spawn_radiation(self.origin);
-
 };
 
 
@@ -1924,16 +1162,11 @@ void() item_weapon =
 	if (coop == 1 && random()*4 <= 3)
 		return;
 
-	self.islot1 = GetRandomAmmo();
-	self.islot1 = self.islot1 * 512;
-	self.flash = ceil(random()*30);
-	self.touch = AmmoTouch;
-	if (random()<0.5)
-		self.islot2 = ceil(random()*20);
+	self.touch = ammo_touch;
 
-	precache_model ("progs/ammobox.mdl");
-	setmodel (self, "progs/ammobox.mdl");
-	self.skin = 2;
+	precache_model ("maps/b_shell0.bsp");
+	setmodel (self, "maps/b_shell0.bsp");
+
 	
 	setsize (self, '0 0 0', '32 32 56');
 	StartItem ();
@@ -2246,8 +1479,17 @@ Player takes no damage from water or slime for 30 seconds
 */
 void() item_artifact_envirosuit =
 {
-	remove(self);
-	return;
+	self.touch = powerup_touch;
+
+	precache_model ("progs/suit.mdl");
+	precache_sound ("items/suit.wav");
+	precache_sound ("items/suit2.wav");
+	self.noise = "items/suit.wav";
+	setmodel (self, "progs/suit.mdl");
+	self.netname = "Biosuit";
+	self.items = IT_SUIT;
+	setsize (self, '-16 -16 -24', '16 16 32');
+	StartItem ();
 };
 
 
@@ -2256,8 +1498,18 @@ Player is invisible for 30 seconds
 */
 void() item_artifact_invisibility =
 {
-	remove(self);
-	return;
+	self.touch = powerup_touch;
+
+	precache_model ("progs/invisibl.mdl");
+	precache_sound ("items/inv1.wav");
+	precache_sound ("items/inv2.wav");
+	precache_sound ("items/inv3.wav");
+	self.noise = "items/inv1.wav";
+	setmodel (self, "progs/invisibl.mdl");
+	self.netname = "Ring of Shadows";
+	self.items = IT_INVISIBILITY;
+	setsize (self, '-16 -16 -24', '16 16 32');
+	StartItem ();
 };
 
 
@@ -2266,8 +1518,22 @@ The next attack from the player will do 4x damage
 */
 void() item_artifact_super_damage =
 {
+	self.touch = powerup_touch;
 
-	remove(self);
+	precache_model ("progs/quaddama.mdl");
+	precache_sound ("items/damage.wav");
+	precache_sound ("items/damage2.wav");
+	precache_sound ("items/damage3.wav");
+	self.noise = "items/damage.wav";
+	setmodel (self, "progs/quaddama.mdl");
+	if (deathmatch == 4)
+		self.netname = "OctaPower";	
+	else
+		self.netname = "Quad Damage";
+	self.items = IT_QUAD;
+	self.effects = self.effects | EF_BLUE;
+	setsize (self, '-16 -16 -24', '16 16 32');
+	StartItem ();
 };
 
 
@@ -2292,22 +1558,22 @@ void() BackpackTouch =
 
 	if (self.weapon == 1)
 	{
-		TryGiveStackable(other, IID_AM_10MM, floor(9+random()*20));
+		TryGiveStackable(other, IID_AM_10MM, floor(9+random()*9));
 		sprint(other, 2, " 10mm ammo");
 	}
 	else if (self.weapon == 2)
 	{
-		TryGiveStackable(other, IID_AM_556MM, floor(5+random()*15));
+		TryGiveStackable(other, IID_AM_556MM, floor(5+random()*5));
 		sprint(other, 2, " 5mm ammo");
 	}
 	else if (self.weapon == 3)
 	{
-		TryGiveStackable(other, IID_AM_12GAUGESHELLS, floor(3+random()*6));
+		TryGiveStackable(other, IID_AM_12GAUGESHELLS, floor(3+random()*3));
 		sprint(other, 2, " 12 gauge ammo");
 	}
 	else if (self.weapon == 4)
 	{
-		TryGiveStackable(other, IID_AM_10MM, floor(9+random()*20));
+		TryGiveStackable(other, IID_AM_10MM, floor(9+random()*9));
 		sprint(other, 2, " 10mm ammo");
 	}
 	else
@@ -2317,15 +1583,16 @@ void() BackpackTouch =
 		ammoname = GetItemName(ammotype);
 		sprint(other, 2, " ");
 		sprint(other, 2, ammoname);
-		TryGiveStackable(other, ammotype, ammocount);
 
 	}
 
 
 	if (random()*4 <= 2)
 	{
-		other.ammo_shells = other.ammo_shells + ceil(5+random()*20);
-		sprint(other, 2, " & money.\n");
+		self.ammo_shells = self.ammo_shells + 3;
+		sprint(other, 2, " and some caps.\n");
+		if (total_players == 1)
+			self.ammo_shells = self.ammo_shells + 3;
 	}
 	else
 		sprint(other, 2, ".\n");
@@ -2333,64 +1600,6 @@ void() BackpackTouch =
 	remove(self);
 	return;
 };
-
-
-/*
-===============
-DropMoney
-===============
-*/
-
-void() MoneyTouch =
-{
-	local float x, y;
-
-	if (other.classname != "player")
-		return;
-
-	if (other.health <= 0)
-		return;
-
-	sound (self, CHAN_VOICE, "items/item1.wav", 1, ATTN_IDLE);
-
-	x = ToIID(self.islot1);
-	y = ToStatus(self.islot1);
-
-	if (TryGiveStackable(other, x, y))
-	{
-		sprint(other, 2, "found some bottle caps.\n");
-		remove(self);
-	}
-};
-
-void() DropMoney =
-{
-	local entity    item;
-
-	item = spawn();
-	item.origin = self.origin - '0 0 24';
-	
-	item.weapon = self.weapon;
-
-	item.velocity_z = 300;
-	item.velocity_x = -100 + (random() * 200);
-	item.velocity_y = -100 + (random() * 200);
-	
-	item.flags = FL_ITEM;
-	item.solid = SOLID_TRIGGER;
-	item.movetype = MOVETYPE_TOSS;
-	setmodel (item, "progs/money.mdl");
-	setsize (item, '-16 -16 0', '16 16 56');
-	item.islot1 = SlotVal(IID_MONEY, 1);
-	item.skin = ToIID(item.islot1) - 506;
-
-	item.touch = MoneyTouch;
-
-	item.nextthink = time + 120;    // remove after 2 minutes
-	item.think = SUB_Remove;
-};
-
-
 
 /*
 ===============
@@ -2401,7 +1610,6 @@ void() DropBackpack =
 {
 	local entity    item;
 
-
 	item = spawn();
 	item.origin = self.origin - '0 0 24';
 	
@@ -2414,15 +1622,10 @@ void() DropBackpack =
 	item.flags = FL_ITEM;
 	item.solid = SOLID_TRIGGER;
 	item.movetype = MOVETYPE_TOSS;
-	setmodel (item, "progs/ammobox.mdl");
+	setmodel (item, "progs/backpack.mdl");
 	setsize (item, '-16 -16 0', '16 16 56');
-	item.islot1 = GetRandomAmmo();
-	item.islot1 = item.islot1 * 512;
-	item.skin = ToIID(item.islot1) - 506;
-
-	item.flash = ceil(random()*30);
-	item.touch = AmmoTouch;
-
+	item.touch = BackpackTouch;
+	
 	item.nextthink = time + 120;    // remove after 2 minutes
 	item.think = SUB_Remove;
 };

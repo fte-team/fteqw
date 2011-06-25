@@ -54,17 +54,20 @@ int (*psnd_pcm_sw_params)			(snd_pcm_t *pcm, snd_pcm_sw_params_t *params);
 int (*psnd_pcm_hw_params_get_buffer_size)	(const snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val);
 int (*psnd_pcm_hw_params_set_buffer_size_near)	(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val);
 snd_pcm_sframes_t (*psnd_pcm_avail_update)	(snd_pcm_t *pcm);
-int (*psnd_pcm_mmap_begin)			(snd_pcm_t *pcm, const snd_pcm_channel_area_t **areas, snd_pcm_uframes_t *offset, snd_pcm_uframes_t *frames);
-snd_pcm_sframes_t (*psnd_pcm_mmap_commit)	(snd_pcm_t *pcm, snd_pcm_uframes_t offset, snd_pcm_uframes_t frames);
 snd_pcm_state_t (*psnd_pcm_state)		(snd_pcm_t *pcm);
 int (*psnd_pcm_start)				(snd_pcm_t *pcm);
 
 size_t (*psnd_pcm_hw_params_sizeof)		(void);
 size_t (*psnd_pcm_sw_params_sizeof)		(void);
 
+int (*psnd_pcm_mmap_begin)			(snd_pcm_t *pcm, const snd_pcm_channel_area_t **areas, snd_pcm_uframes_t *offset, snd_pcm_uframes_t *frames);
+snd_pcm_sframes_t (*psnd_pcm_mmap_commit)	(snd_pcm_t *pcm, snd_pcm_uframes_t offset, snd_pcm_uframes_t frames);
+
+snd_pcm_sframes_t (*psnd_pcm_writei)		(snd_pcm_t *pcm, const void *buffer, snd_pcm_uframes_t size);
+int (*psnd_pcm_prepare)				(snd_pcm_t *pcm);
 
 
-static unsigned int ALSA_GetDMAPos (soundcardinfo_t *sc)
+static unsigned int ALSA_MMap_GetDMAPos (soundcardinfo_t *sc)
 {
 	const snd_pcm_channel_area_t *areas;
 	snd_pcm_uframes_t offset;
@@ -79,16 +82,10 @@ static unsigned int ALSA_GetDMAPos (soundcardinfo_t *sc)
 	return sc->sn.samplepos;
 }
 
-static void ALSA_Shutdown (soundcardinfo_t *sc)
+static void ALSA_MMap_Submit (soundcardinfo_t *sc, int start, int end)
 {
-	psnd_pcm_close (sc->handle);
-}
-
-static void ALSA_Submit (soundcardinfo_t *sc)
-{
-	extern int soundtime;
 	int			state;
-	int			count = sc->paintedtime - soundtime;
+	int			count = end - start;
 	const snd_pcm_channel_area_t *areas;
 	snd_pcm_uframes_t nframes;
 	snd_pcm_uframes_t offset;
@@ -111,6 +108,66 @@ static void ALSA_Submit (soundcardinfo_t *sc)
 		default:
 			break;
 	}
+}
+static unsigned int ALSA_RW_GetDMAPos (soundcardinfo_t *sc)
+{
+	int frames;
+	frames = psnd_pcm_avail_update(sc->handle);
+	if (frames >= 0)
+	{
+		sc->sn.samplepos = (sc->snd_sent + frames) * sc->sn.numchannels;
+	}
+	return sc->sn.samplepos;
+}
+static void ALSA_RW_Submit (soundcardinfo_t *sc, int start, int end)
+{
+	int			state;
+        unsigned int frames, offset, ringsize;
+        unsigned chunk;
+        int result;
+	int stride = sc->sn.numchannels * (sc->sn.samplebits/8);
+
+        /*we can't change the data that was already written*/
+        frames = end - sc->snd_sent;
+        if (!frames)
+                return;
+
+	state = psnd_pcm_state (sc->handle);
+
+        ringsize = sc->sn.samples / sc->sn.numchannels;
+
+        chunk = frames;
+        offset = sc->snd_sent % ringsize;
+
+        if (offset + chunk >= ringsize)
+                chunk = ringsize - offset;
+	result = psnd_pcm_writei(sc->handle, sc->sn.buffer + offset*stride, chunk);
+        if (result < chunk)
+        {
+                if (result >= 0)
+                        sc->snd_sent += result;
+                return;
+        }
+        sc->snd_sent += chunk;
+
+        chunk = frames - chunk;
+        if (chunk)
+        {
+		result = psnd_pcm_writei(sc->handle, sc->sn.buffer, chunk);
+                if (result > 0)
+                        sc->snd_sent += result;
+        }
+
+	if (state == SND_PCM_STATE_PREPARED)
+		psnd_pcm_start (sc->handle);
+}
+
+static void ALSA_Shutdown (soundcardinfo_t *sc)
+{
+	psnd_pcm_close (sc->handle);
+
+	if (sc->Submit == ALSA_RW_Submit)
+		free(sc->sn.buffer);
 }
 
 static void *ALSA_LockBuffer(soundcardinfo_t *sc)
@@ -162,13 +219,17 @@ static qboolean Alsa_InitAlsa(void)
 	psnd_pcm_sw_params			= dlsym(alsasharedobject, "snd_pcm_sw_params");
 	psnd_pcm_hw_params_get_buffer_size	= dlsym(alsasharedobject, "snd_pcm_hw_params_get_buffer_size");
 	psnd_pcm_avail_update			= dlsym(alsasharedobject, "snd_pcm_avail_update");
-	psnd_pcm_mmap_begin			= dlsym(alsasharedobject, "snd_pcm_mmap_begin");
 	psnd_pcm_state				= dlsym(alsasharedobject, "snd_pcm_state");
-	psnd_pcm_mmap_commit			= dlsym(alsasharedobject, "snd_pcm_mmap_commit");
 	psnd_pcm_start				= dlsym(alsasharedobject, "snd_pcm_start");
 	psnd_pcm_hw_params_sizeof		= dlsym(alsasharedobject, "snd_pcm_hw_params_sizeof");
 	psnd_pcm_sw_params_sizeof		= dlsym(alsasharedobject, "snd_pcm_sw_params_sizeof");
 	psnd_pcm_hw_params_set_buffer_size_near = dlsym(alsasharedobject, "snd_pcm_hw_params_set_buffer_size_near");
+
+	psnd_pcm_mmap_begin			= dlsym(alsasharedobject, "snd_pcm_mmap_begin");
+	psnd_pcm_mmap_commit			= dlsym(alsasharedobject, "snd_pcm_mmap_commit");
+
+	psnd_pcm_writei				= dlsym(alsasharedobject, "snd_pcm_writei");
+	psnd_pcm_prepare			= dlsym(alsasharedobject, "snd_pcm_prepare");
 
 	alsaworks = psnd_pcm_open
 		&& psnd_pcm_close
@@ -186,13 +247,15 @@ static qboolean Alsa_InitAlsa(void)
 		&& psnd_pcm_sw_params
 		&& psnd_pcm_hw_params_get_buffer_size
 		&& psnd_pcm_avail_update
-		&& psnd_pcm_mmap_begin
 		&& psnd_pcm_state
-		&& psnd_pcm_mmap_commit
 		&& psnd_pcm_start
 		&& psnd_pcm_hw_params_sizeof
 		&& psnd_pcm_sw_params_sizeof
-		&& psnd_pcm_hw_params_set_buffer_size_near;
+		&& psnd_pcm_hw_params_set_buffer_size_near
+		&& psnd_pcm_mmap_begin
+		&& psnd_pcm_mmap_commit
+		&& psnd_pcm_writei && psnd_pcm_prepare
+		;
 
 	return alsaworks;
 }
@@ -212,6 +275,7 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 	snd_pcm_hw_params_t	*hw;
 	snd_pcm_sw_params_t	*sw;
 	snd_pcm_uframes_t	 frag_size;
+	qboolean mmap = false;
 
 	if (!Alsa_InitAlsa())
 	{
@@ -257,11 +321,10 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 		goto error;
 	}
 
-	err = psnd_pcm_hw_params_set_access (pcm, hw,  SND_PCM_ACCESS_MMAP_INTERLEAVED);
-	if (0 > err) 
+	err = psnd_pcm_hw_params_set_access (pcm, hw,  mmap?SND_PCM_ACCESS_MMAP_INTERLEAVED:SND_PCM_ACCESS_RW_INTERLEAVED);
+	if (0 > err)
 	{
-		Con_Printf (CON_ERROR "ALSA: Failure to set noninterleaved PCM access. %s\n"
-					"Note: Interleaved is not supported\n",
+		Con_Printf (CON_ERROR "ALSA: Failure to set interleaved PCM access. %s\n",
 					psnd_strerror (err));
 		goto error;
 	}
@@ -295,7 +358,7 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 	// get speaker channels
 	stereo = sc->sn.numchannels;
 	err = psnd_pcm_hw_params_set_channels (pcm, hw, stereo);
-	while (err < 0) 
+	while (err < 0)
 	{
 		if (stereo > 2)
 			stereo = 2;
@@ -396,32 +459,51 @@ static int ALSA_InitCard (soundcardinfo_t *sc, int cardnum)
 		goto error;
 	}
 
-	sc->Lock		= ALSA_LockBuffer;
-	sc->Unlock		= ALSA_UnlockBuffer;
-	sc->SetWaterDistortion = ALSA_SetUnderWater;
-	sc->Submit		= ALSA_Submit;
-	sc->Shutdown	= ALSA_Shutdown;
-	sc->GetDMAPos	= ALSA_GetDMAPos;
-
 	sc->sn.samples = buffer_size * sc->sn.numchannels;		// mono samples in buffer
 	sc->sn.speed = rate;
 	sc->handle = pcm;
-	ALSA_GetDMAPos (sc);		// sets shm->buffer
 
-
-	//alsa doesn't seem to like high mixahead values
-	//(maybe it tells us above somehow...)
-	//so force it lower
-	//quake's default of 0.2 was for 10fps rendering anyway
-	//so force it down to 0.1 which is the default for halflife at least, and should give better latency
+	sc->Lock		= ALSA_LockBuffer;
+	sc->Unlock		= ALSA_UnlockBuffer;
+	sc->SetWaterDistortion	= ALSA_SetUnderWater;
+	sc->Shutdown		= ALSA_Shutdown;
+	if (mmap)
 	{
-		extern cvar_t _snd_mixahead;
-		if (_snd_mixahead.value >= 0.2)
+		sc->GetDMAPos	= ALSA_MMap_GetDMAPos;
+		sc->Submit	= ALSA_MMap_Submit;
+		sc->GetDMAPos(sc);		// sets shm->buffer
+
+		//alsa doesn't seem to like high mixahead values
+		//(maybe it tells us above somehow...)
+		//so force it lower
+		//quake's default of 0.2 was for 10fps rendering anyway
+		//so force it down to 0.1 which is the default for halflife at least, and should give better latency
 		{
-			Con_Printf("Alsa Hack: _snd_mixahead forced lower\n");
-			_snd_mixahead.value = 0.1;
+			extern cvar_t _snd_mixahead;
+			if (_snd_mixahead.value >= 0.2)
+			{
+				Con_Printf("Alsa Hack: _snd_mixahead forced lower\n");
+				_snd_mixahead.value = 0.1;
+			}
 		}
 	}
+	else
+	{
+		sc->GetDMAPos	= ALSA_RW_GetDMAPos;
+		sc->Submit	= ALSA_RW_Submit;
+
+		sc->samplequeue = sc->sn.samples;
+		sc->sn.buffer = malloc(sc->sn.samples * (sc->sn.samplebits/8));
+
+		err = psnd_pcm_prepare(pcm);
+		if (0 > err)
+		{
+			Con_Printf (CON_ERROR "ALSA: unable to prepare for use. %s\n",
+					psnd_strerror (err));
+			goto error;
+		}
+	}
+
 	return true;
 
 error:

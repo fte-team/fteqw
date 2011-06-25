@@ -1,6 +1,6 @@
 #include "quakedef.h"
 
-#ifdef WEBCLIENT
+#if 0//def WEBCLIENT
 
 #include "iweb.h"
 
@@ -28,7 +28,7 @@ typedef struct FTPclientconn_s{
 
 	struct FTPclientconn_s *next;
 
-	void (*NotifyFunction)(char *localfile, qboolean sucess);	//called when failed or succeeded, and only if it got a connection in the first place.
+	void (*NotifyFunction)(vfsfile_t *file, char *localfile, qboolean sucess);	//called when failed or succeeded, and only if it got a connection in the first place.
 																//ftp doesn't guarentee it for anything other than getting though. :(
 } FTPclientconn_t;
 
@@ -126,12 +126,12 @@ int FTP_CL_makelistensocket(void)
 
 	if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
 	{
-		Sys_Error ("FTP_TCP_OpenSocket: socket:", strerror(qerrno));
+		Sys_Error ("FTP_TCP_OpenSocket: socket: %s", strerror(qerrno));
 	}
 
 	if (ioctlsocket (sock, FIONBIO, &_true) == -1)
 	{
-		Sys_Error ("FTP_TCP_OpenSocket: ioctl FIONBIO:", strerror(qerrno));
+		Sys_Error ("FTP_TCP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
 	}
 	
 	if( bind (sock, (void *)&address, sizeof(address)) == -1)
@@ -158,14 +158,14 @@ int FTP_CL_makeconnectsocket(char *ftpdest)
 
 	if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
 	{
-		IWebWarnPrintf ("FTP_UDP_OpenSocket: socket:", strerror(qerrno));
+		IWebWarnPrintf ("FTP_UDP_OpenSocket: socket: %s", strerror(qerrno));
 		return INVALID_SOCKET;
 	}
 
 	if (ioctlsocket (sock, FIONBIO, &_true) == -1)
 	{
 		closesocket(sock);
-		IWebWarnPrintf ("FTTP_UDP_OpenSocket: ioctl FIONBIO:", strerror(qerrno));
+		IWebWarnPrintf ("FTTP_UDP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
 		return INVALID_SOCKET;
 	}
 
@@ -179,7 +179,7 @@ int FTP_CL_makeconnectsocket(char *ftpdest)
 	{
 		closesocket(sock);
 
-		IWebWarnPrintf ("FTTP_UDP_OpenSocket: bind:", strerror(qerrno));
+		IWebWarnPrintf ("FTTP_UDP_OpenSocket: bind: %s", strerror(qerrno));
 		return INVALID_SOCKET;
 	}
 
@@ -191,7 +191,7 @@ int FTP_CL_makeconnectsocket(char *ftpdest)
 /*	{
 		closesocket(sock);
 
-		Con_Printf ("FTTP_UDP_OpenSocket: ioctl FIONBIO:", strerror(qerrno));
+		Con_Printf ("FTTP_UDP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
 		return INVALID_SOCKET;
 	}
 */

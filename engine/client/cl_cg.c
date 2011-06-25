@@ -2,8 +2,6 @@
 //#include "cg_public.h"
 #ifdef VM_CG
 
-#ifdef RGLQUAKE
-
 #include "shader.h"
 
 #if 1
@@ -15,13 +13,7 @@ typedef float m3by3_t[3][3];
 #include "clq3defs.h"
 
 //cl_ui.c
-typedef struct q3refEntity_s q3refEntity_t;
-void VQ3_AddEntity(const q3refEntity_t *q3);
-typedef struct q3refdef_s q3refdef_t;
-void VQ3_RenderView(const q3refdef_t *ref);
 void CG_Command_f(void);
-
-void GLDraw_ShaderImage (int x, int y, int w, int h, float s1, float t1, float s2, float t2, shader_t *pic);
 
 #define	CGAME_IMPORT_API_VERSION	4
 
@@ -37,7 +29,6 @@ extern int mod_numknown;
 #define VM_FROMMHANDLE(a) ((a&&((unsigned int)a)<=mod_numknown)?mod_known+a-1:NULL)
 #define VM_TOMHANDLE(a) (a?a-mod_known+1:0)
 
-extern shader_t r_shaders[];
 #define VM_FROMSHANDLE(a) (a?r_shaders+a-1:NULL)
 #define VM_TOSHANDLE(a) (a?a-r_shaders+1:0)
 
@@ -201,7 +192,7 @@ typedef enum {
 	CG_LAST_ATTACKER,
 //	int (*CG_LastAttacker)( void );
 
-	CG_KEY_EVENT, 
+	CG_KEY_EVENT,
 //	void	(*CG_KeyEvent)( int key, qboolean down );
 
 	CG_MOUSE_EVENT,
@@ -268,6 +259,12 @@ void CG_InsertIntoGameState(int num, char *str)
 		Con_DPrintf("%i: %s", num, str);
 	}
 
+	if (num == CFGSTR_SYSINFO)
+	{
+		//check some things.
+		cl.servercount = atoi(Info_ValueForKey(str, "sv_serverid"));
+	}
+
 	if (cggamestate.dataCount + strlen(str)+1 > MAX_GAMESTATE_CHARS)
 	{
 		char oldstringData[MAX_GAMESTATE_CHARS];
@@ -323,7 +320,7 @@ typedef struct {
 	int				serverTime;
 	int				angles[3];
 	int 			buttons;
-	qbyte			weapon;           // weapon 
+	qbyte			weapon;           // weapon
 	signed char	forwardmove, rightmove, upmove;
 } q3usercmd_t;
 #define CMD_MASK Q3UPDATE_MASK
@@ -378,16 +375,15 @@ typedef struct {
 	int		numPoints;
 } markFragment_t;
 int CG_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projection,
-				   int maxPoints, vec3_t pointBuffer, int maxFragments, markFragment_t *fragmentBuffer )
+				   int maxPoints, float *pointBuffer, int maxFragments, markFragment_t *fragmentBuffer )
 {
-#if 1	//FIXME: make work
-	return 0;
-#else
 	vec3_t center;
 	vec3_t axis[3];
 	vec3_t p[4];
 	int i;
+	float *clippedpoints;
 	float radius;
+	int numtris;
 
 	if (numPoints != 4)
 		return 0;
@@ -407,10 +403,10 @@ int CG_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projecti
 	*/
 
 	VectorClear(center);
-	VectorAdd(center, points[0], center);
-	VectorAdd(center, points[1], center);
-	VectorAdd(center, points[2], center);
-	VectorAdd(center, points[3], center);
+	VectorMA(center, 0.25, points[0], center);
+	VectorMA(center, 0.25, points[1], center);
+	VectorMA(center, 0.25, points[2], center);
+	VectorMA(center, 0.25, points[3], center);
 
 	VectorSubtract(points[0], center, p[0]);
 	VectorSubtract(points[1], center, p[1]);
@@ -419,33 +415,43 @@ int CG_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projecti
 
 	for (i = 0; i < 3; i++)
 	{
-		axis[1][i] = (p[2][i]+p[1][i])/2;
-		axis[2][i] = (p[2][i]+p[3][i])/2;
+		axis[1][i] = (p[2][i]-p[1][i]);
+		axis[2][i] = (p[3][i]-p[2][i]);
 	}
 
 	radius = VectorNormalize(axis[1]);
 	VectorNormalize(axis[2]);
-	VectorNormalize(projection);
+	VectorNormalize2(projection, axis[0]);
 
-	
+	numtris = Q1BSP_ClipDecal(center, axis[0], axis[1], axis[2], radius, &clippedpoints);
+	if (numtris > maxFragments)
+		numtris = maxFragments;
+	if (numtris > maxPoints/3)
+		numtris = maxPoints/3;
+	for (i = 0; i < numtris; i++)
+	{
+		fragmentBuffer[i].numPoints = 3;
+		fragmentBuffer[i].firstPoint = i*3;
 
-
-	Q1BSP_ClipDecal(center, axis[0], axis[1], axis[2], radius, pointBuffer, maxPoints);
-	fragmentBuffer->firstPoint = 0;
-	fragmentBuffer->numPoints = 0;
-
-	return 1;
-#endif
+		pointBuffer[i*9+0] = clippedpoints[i*9+0];
+		pointBuffer[i*9+1] = clippedpoints[i*9+1];
+		pointBuffer[i*9+2] = clippedpoints[i*9+2];
+		pointBuffer[i*9+3] = clippedpoints[i*9+3];
+		pointBuffer[i*9+4] = clippedpoints[i*9+4];
+		pointBuffer[i*9+5] = clippedpoints[i*9+5];
+		pointBuffer[i*9+6] = clippedpoints[i*9+6];
+		pointBuffer[i*9+7] = clippedpoints[i*9+7];
+		pointBuffer[i*9+8] = clippedpoints[i*9+8];
+	}
+	return numtris;
 }
 
-
-void GLDraw_Image(float x, float y, float w, float h, float s1, float t1, float s2, float t2, qpic_t *pic);
 int VM_LerpTag(void *out, model_t *model, int f1, int f2, float l2, char *tagname);
 
 
-#define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) Host_EndGame("Call to cgame trap %i passes invalid pointer\n", fn);	//out of bounds.
+#define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) Host_EndGame("Call to cgame trap %u passes invalid pointer\n", (unsigned int)fn);	//out of bounds.
 
-static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *arg)
+static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, const qintptr_t *arg)
 {
 	int ret=0;
 
@@ -462,10 +468,10 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 	switch(fn)
 	{
 	case CG_PRINT:
-		Con_Printf("%s", VM_POINTER(arg[0]));
+		Con_Printf("%s", (char*)VM_POINTER(arg[0]));
 		break;
 	case CG_ERROR:
-		Host_EndGame("cgame: %s", VM_POINTER(arg[0]));
+		Host_EndGame("cgame: %s", (char*)VM_POINTER(arg[0]));
 		break;
 
 	case CG_ARGC:
@@ -518,23 +524,21 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 		break;
 
 	case CG_SENDCONSOLECOMMAND:
-		Con_DPrintf("CG_SENDCONSOLECOMMAND: %s", VM_POINTER(arg[0]));
+		Con_DPrintf("CG_SENDCONSOLECOMMAND: %s", (char*)VM_POINTER(arg[0]));
 		Cbuf_AddText(VM_POINTER(arg[0]), RESTRICT_SERVER);
 		break;
 	case CG_ADDCOMMAND:
 		Cmd_AddRemCommand(VM_POINTER(arg[0]), NULL);
 		break;
 	case CG_SENDCLIENTCOMMAND:
-		Con_DPrintf("CG_SENDCLIENTCOMMAND: %s", VM_POINTER(arg[0]));
-		CL_SendClientCommand(true, "%s", VM_POINTER(arg[0]));
+		Con_DPrintf("CG_SENDCLIENTCOMMAND: %s", (char*)VM_POINTER(arg[0]));
+		CL_SendClientCommand(true, "%s", (char*)VM_POINTER(arg[0]));
 		break;
 
 	case CG_UPDATESCREEN:	//force a buffer swap cos loading won't refresh it soon.
 		SCR_BeginLoadingPlaque();
 		SCR_UpdateScreen();
 		SCR_EndLoadingPlaque();
-//		GL_EndRendering();
-//		GL_DoSwap();
 		break;
 
 	case CG_FS_FOPENFILE: //fopen
@@ -560,7 +564,7 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 			if (!mod)
 				mod = cl.worldmodel;
 			if (mod)
-				pc = cl.worldmodel->funcs.NativeContents(mod, 0, 0, VM_POINTER(arg[0]), vec3_origin, vec3_origin);
+				pc = cl.worldmodel->funcs.NativeContents(mod, 0, 0, NULL, VM_POINTER(arg[0]), vec3_origin, vec3_origin);
 			else
 				pc = 1;//FTECONTENTS_SOLID;
 			VM_LONG(ret) = pc;//Contents_To_Q3(pc);
@@ -578,10 +582,10 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 			if (!mod)
 				mod = cl.worldmodel;
 
+			if (mod)
 			{
 				vec3_t		p_l;
-				vec3_t		temp;
-				vec3_t		forward, right, up;
+				vec3_t		axis[3];
 
 				// subtract origin offset
 				VectorSubtract (p, origin, p_l);
@@ -589,20 +593,16 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 				// rotate start and end into the models frame of reference
 				if (angles[0] || angles[1] || angles[2])
 				{
-					AngleVectors (angles, forward, right, up);
-
-					VectorCopy (p_l, temp);
-					p_l[0] = DotProduct (temp, forward);
-					p_l[1] = -DotProduct (temp, right);
-					p_l[2] = DotProduct (temp, up);
+					AngleVectors (angles, axis[0], axis[1], axis[2]);
+					VectorNegate(axis[1], axis[1]);
+					pc = mod->funcs.NativeContents(mod, 0, 0, axis, p_l, vec3_origin, vec3_origin);
 				}
-
-				if (mod)
-					pc = mod->funcs.NativeContents(mod, 0, 0, VM_POINTER(arg[0]), vec3_origin, vec3_origin);
 				else
-					pc = 1;//FTECONTENTS_SOLID;
+					pc = mod->funcs.NativeContents(mod, 0, 0, NULL, p_l, vec3_origin, vec3_origin);
 			}
-			VM_LONG(ret) = pc;//Contents_To_Q3(pc);
+			else
+				pc = Q3CONTENTS_SOLID;
+			VM_LONG(ret) = pc;
 		}
 		break;
 
@@ -637,7 +637,9 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 				TransformedNativeTrace(mod, 0, 0, start, end, mins, maxs, brushmask, &tr, origin, angles);
 #else
 			{
+#ifdef _MSC_VER
 #pragma message("FIXME: G3 CGame requires TransformedNativeTrace!")
+#endif
 								memset(&tr, 0, sizeof(tr));
 				tr.allsolid = tr.startsolid = true;
 				tr.contents = 1;
@@ -681,7 +683,7 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 				maxs = vec3_origin;
 			if (mod)
 			{
-				mod->funcs.NativeTrace(mod, 0, 0, start, end, mins, maxs, brushmask, &tr);
+				mod->funcs.NativeTrace(mod, 0, 0, NULL, start, end, mins, maxs, brushmask, &tr);
 			}
 			else
 			{
@@ -762,27 +764,25 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 	case CG_R_REGISTERSHADER:
 		if (!*(char*)VM_POINTER(arg[0]))
 			VM_LONG(ret) = 0;
-		else if (qrenderer == QR_OPENGL)
+		else
 			VM_LONG(ret) = VM_TOSHANDLE(R_RegisterPic(VM_POINTER(arg[0])));
-//FIXME: 64bit		else
-//			VM_LONG(ret) = VM_TOHANDLE(Draw_SafeCachePic(VM_POINTER(arg[0])));
 		break;
 	case CG_R_REGISTERSHADERNOMIP:
 		if (!*(char*)VM_POINTER(arg[0]))
 			VM_LONG(ret) = 0;
-		else if (qrenderer == QR_OPENGL)
+		else
 			VM_LONG(ret) = VM_TOSHANDLE(R_RegisterPic(VM_POINTER(arg[0])));
-//FIXME: 64bit		else
-//			VM_LONG(ret) = VM_TOHANDLE(Draw_SafeCachePic(VM_POINTER(arg[0])));
 		break;
 
-	case CG_R_CLEARSCENE:	//clear scene
-		cl_numvisedicts=0;
-		dlights_running=0;
-		dlights_software=0;
+	case CG_R_CLEARSCENE:	//clear scene (not rtlights, only dynamic ones)
+		cl_numvisedicts = 0;
+		cl_numstrisidx = 0;
+		cl_numstrisvert = 0;
+		cl_numstris = 0;
+		rtlights_first = RTL_FIRST;
 		break;
 	case CG_R_ADDPOLYTOSCENE:
-		// ...
+		VQ3_AddPoly(VM_FROMSHANDLE(arg[0]), VM_LONG(arg[1]), VM_POINTER(arg[2]));
 		break;
 	case CG_R_ADDREFENTITYTOSCENE:	//add ent to scene
 		VQ3_AddEntity(VM_POINTER(arg[0]));
@@ -791,11 +791,11 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 	case CG_R_ADDLIGHTTOSCENE:	//add light to scene.
 		{
 			float *org = VM_POINTER(arg[0]);
-			CL_NewDlightRGB(-1, org[0], org[1], org[2], VM_FLOAT(arg[1]), 0, VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]));
+			CL_NewDlightRGB(-1, org, VM_FLOAT(arg[1]), 0, VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]));
 		}
 		break;
 	case CG_R_RENDERSCENE:	//render scene
-		GLR_PushDlights();
+		R_PushDlights();
 		VQ3_RenderView(VM_POINTER(arg[0]));
 		break;
 
@@ -803,17 +803,14 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 		{
 			float *f = VM_POINTER(arg[0]);
 			if (f)
-				Draw_ImageColours(f[0], f[1], f[2], f[3]);
+				R2D_ImageColours(f[0], f[1], f[2], f[3]);
 			else
-				Draw_ImageColours(1, 1, 1, 1);
+				R2D_ImageColours(1, 1, 1, 1);
 		}
 		break;
 
 	case CG_R_DRAWSTRETCHPIC:
-		if (qrenderer == QR_OPENGL)
-			GLDraw_ShaderImage(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), VM_FROMSHANDLE(arg[8]));
-//		else
-//			Draw_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), (mpic_t *)VM_LONG(arg[8]));
+		R2D_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), VM_FROMSHANDLE(VM_LONG(arg[8])));
 		break;
 
 	case CG_R_LERPTAG:	//Lerp tag...
@@ -838,7 +835,7 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 		break;
 
 	case CG_S_STARTSOUND:// ( vec3_t origin, int entityNum, int entchannel, sfxHandle_t sfx )
-		S_StartSound(VM_LONG(arg[1]), VM_LONG(arg[2]), S_PrecacheSound(VM_FROMSTRCACHE(arg[3])), VM_POINTER(arg[0]), 1, 1);
+		S_StartSound(VM_LONG(arg[1]), VM_LONG(arg[2]), S_PrecacheSound(VM_FROMSTRCACHE(arg[3])), VM_POINTER(arg[0]), 1, 1, 0);
 		break;
 
 	case CG_S_ADDLOOPINGSOUND:
@@ -858,7 +855,7 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 			float *org = VM_POINTER(arg[1]);
 			vec3_t *axis = VM_POINTER(arg[2]);
 
-			S_UpdateListener(org, axis[0], axis[1], axis[2], false);
+			S_UpdateListener(org, axis[0], axis[1], axis[2]);
 		}
 		break;
 
@@ -878,7 +875,7 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 	case CG_KEY_GETKEY:
 		{
 			int ret[2];
-			M_FindKeysForCommand (VM_POINTER(arg[0]), ret);
+			M_FindKeysForCommand (0, VM_POINTER(arg[0]), ret);
 			return ret[0];
 		}
 		break;
@@ -1041,47 +1038,60 @@ static int CG_SystemCallsEx(void *offset, unsigned int mask, int fn, const int *
 		pe->DelinkTrailstate(VM_POINTER(arg[0]));
 		break;
 	default:
-		Con_Printf("Q3CG: Bad system trap: %d\n", fn);
+		Con_Printf("Q3CG: Bad system trap: %i\n", (int)fn);
 	}
 
 	return ret;
 }
-#ifdef _DEBUG
-static int CG_SystemCallsExWrapper(void *offset, unsigned int mask, int fn, const int *arg)
-{	//this is so we can use edit and continue properly (vc doesn't like function pointers for edit+continue)
-	return CG_SystemCallsEx(offset, mask, fn, arg);
+
+static int CG_SystemCallsVM(void *offset, quintptr_t mask, int fn, const int *arg)
+{
+	if (sizeof(qintptr_t) == sizeof(int))
+		return CG_SystemCalls(offset, mask, fn, (qintptr_t*)arg);
+	else
+	{
+		qintptr_t args[10];
+
+		args[0]=arg[0];
+		args[1]=arg[1];
+		args[2]=arg[2];
+		args[3]=arg[3];
+		args[4]=arg[4];
+		args[5]=arg[5];
+		args[6]=arg[6];
+		args[7]=arg[7];
+		args[8]=arg[8];
+		args[9]=arg[9];
+
+		return CG_SystemCalls(offset, mask, fn, args);
+	}
 }
-#define CG_SystemCallsEx CG_SystemCallsExWrapper
-#endif
 
 //I'm not keen on this.
 //but dlls call it without saying what sort of vm it comes from, so I've got to have them as specifics
-static int EXPORT_FN CG_SystemCalls(int arg, ...)
+static qintptr_t EXPORT_FN CG_SystemCallsNative(qintptr_t arg, ...)
 {
-	int args[10];
+	qintptr_t args[10];
 	va_list argptr;
 
 	va_start(argptr, arg);
-	args[0]=va_arg(argptr, int);
-	args[1]=va_arg(argptr, int);
-	args[2]=va_arg(argptr, int);
-	args[3]=va_arg(argptr, int);
-	args[4]=va_arg(argptr, int);
-	args[5]=va_arg(argptr, int);
-	args[6]=va_arg(argptr, int);
-	args[7]=va_arg(argptr, int);
-	args[8]=va_arg(argptr, int);
-	args[9]=va_arg(argptr, int);
+	args[0]=va_arg(argptr, qintptr_t);
+	args[1]=va_arg(argptr, qintptr_t);
+	args[2]=va_arg(argptr, qintptr_t);
+	args[3]=va_arg(argptr, qintptr_t);
+	args[4]=va_arg(argptr, qintptr_t);
+	args[5]=va_arg(argptr, qintptr_t);
+	args[6]=va_arg(argptr, qintptr_t);
+	args[7]=va_arg(argptr, qintptr_t);
+	args[8]=va_arg(argptr, qintptr_t);
+	args[9]=va_arg(argptr, qintptr_t);
 	va_end(argptr);
 
-	return CG_SystemCallsEx(NULL, (unsigned)~0, arg, args);
+	return CG_SystemCalls(NULL, (unsigned)~0, arg, args);
 }
-
-#endif
 
 int CG_Refresh(void)
 {
-#ifdef RGLQUAKE
 	int time;
 	if (!cgvm)
 		return false;
@@ -1089,19 +1099,15 @@ int CG_Refresh(void)
 	time = ccs.serverTime;
 	VM_Call(cgvm, CG_DRAW_ACTIVE_FRAME, time, 0, false);
 
-	Draw_ImageColours(1, 1, 1, 1);
+	R2D_ImageColours(1, 1, 1, 1);
 
 	return true;
-#else
-	return false;
-#endif
 }
 
 
 
 void CG_Stop (void)
 {
-#ifdef RGLQUAKE
 	keycatcher &= ~2;
 	if (cgvm)
 	{
@@ -1110,7 +1116,6 @@ void CG_Stop (void)
 		VM_fcloseall(1);
 		cgvm = NULL;
 	}
-#endif
 }
 
 void CG_Start (void)
@@ -1122,24 +1127,10 @@ void CG_Start (void)
 		return;
 	}
 
-#if defined(RGLQUAKE) || defined(DIRECT3D)
-	if (!Draw_SafeCachePic)	//no renderer loaded
-	{
-		CG_Stop();
-		return;
-	}
-
-	if (qrenderer != QR_OPENGL && qrenderer != QR_DIRECT3D)
-	{	//sorry.
-		CG_Stop();
-		Host_EndGame("Unable to connect to q3 servers without opengl or d3d.\n");
-		return;
-	}
-
 	Z_FreeTags(CGTAGNUM);
 	SCR_BeginLoadingPlaque();
 
-	cgvm = VM_Create(NULL, "vm/cgame", CG_SystemCalls, CG_SystemCallsEx);
+	cgvm = VM_Create(NULL, "vm/cgame", CG_SystemCallsNative, CG_SystemCallsVM);
 	if (cgvm)
 	{	//hu... cgame doesn't appear to have a query version call!
 		SCR_EndLoadingPlaque();
@@ -1150,21 +1141,14 @@ void CG_Start (void)
 		SCR_EndLoadingPlaque();
 		Host_EndGame("Failed to initialise cgame module\n");
 	}
-#else
-	Host_EndGame("Unable to connect to q3 servers without opengl.\n");
-#endif
 }
 
 qboolean CG_Command(void)
 {
-#ifdef RGLQUAKE
 	if (!cgvm)
 		return false;
 	Con_DPrintf("CG_Command: %s %s\n", Cmd_Argv(0), Cmd_Args());
 	return VM_Call(cgvm, CG_CONSOLE_COMMAND);
-#else
-	return false;
-#endif
 }
 
 void CG_Command_f(void)

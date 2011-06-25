@@ -93,7 +93,6 @@ query "Do you want to enable the text editor ?" TEXTEDITOR
 query "Do you want to enable the plugin support ?" PLUGINS
 query "Do you want to enable csqc support ?" CSQC_DAT
 query "Do you want to enable menu.dat support (used by nexuiz) ?" MENU_DAT
-query "Do you want to enable quake3 shader support ?" Q3SHADERS
 query "Do you want to enable the built in irc client (note that there is also a plugin irc client, which cooler) ?" IRCCLIENT
 
 

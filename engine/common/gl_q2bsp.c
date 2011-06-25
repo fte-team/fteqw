@@ -1,11 +1,9 @@
 #include "quakedef.h"
-#ifdef RGLQUAKE
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 #include "glquake.h"
-#include "shader.h"
 #endif
-#ifdef D3DQUAKE
-#include "d3dquake.h"
-#endif
+#include "com_mesh.h"
+#include "errno.h"
 
 #define MAX_Q3MAP_INDICES 0x80000
 #define	MAX_Q3MAP_VERTEXES	0x80000
@@ -22,33 +20,25 @@
 #define	Q3SURF_SKIP				0x200	// completely ignore, allowing non-closed brushes
 #define	Q3SURF_NONSOLID			0x4000	// don't collide against curves with this set
 
-#if Q3SURF_NODRAW != SURF_NODRAW
+#if Q3SURF_NODRAW != TI_NODRAW
 #error "nodraw isn't constant"
 #endif
 
 extern cvar_t r_shadow_bumpscale_basetexture;
 
 //these are in model.c (or gl_model.c)
-qboolean GLMod_LoadVertexes (lump_t *l);
-qboolean GLMod_LoadEdges (lump_t *l);
-qboolean GLMod_LoadMarksurfaces (lump_t *l);
-qboolean GLMod_LoadSurfedges (lump_t *l);
-void GLMod_LoadLighting (lump_t *l);
-
-qboolean SWMod_LoadVertexes (lump_t *l);
-qboolean SWMod_LoadEdges (lump_t *l);
-qboolean SWMod_LoadMarksurfaces (lump_t *l);
-qboolean SWMod_LoadSurfedges (lump_t *l);
-void SWMod_LoadLighting (lump_t *l);
+qboolean RMod_LoadVertexes (lump_t *l);
+qboolean RMod_LoadEdges (lump_t *l);
+qboolean RMod_LoadMarksurfaces (lump_t *l);
+qboolean RMod_LoadSurfedges (lump_t *l);
+void RMod_LoadLighting (lump_t *l);
 
 
-void Q2BSP_SetHullFuncs(hull_t *hull);
-qboolean CM_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace);
-qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace);
-unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t p, vec3_t mins, vec3_t maxs);
-unsigned int Q2BSP_PointContents(model_t *mod, vec3_t p);
+qboolean CM_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace);
+qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace);
+unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
+unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p);
 
-qbyte			areabits[MAX_Q2MAP_AREAS/8];
 
 
 extern char	loadname[32];
@@ -135,6 +125,28 @@ void ClearBounds (vec3_t mins, vec3_t maxs)
 }
 
 
+void Mod_SortShaders(void)
+{
+	texture_t *textemp;
+	int i, j;
+
+	//sort loadmodel->textures
+	for (i = 0; i < loadmodel->numtextures; i++)
+	{
+		for (j = i+1; j < loadmodel->numtextures; j++)
+		{
+			if ((loadmodel->textures[i]->shader && loadmodel->textures[j]->shader) && (loadmodel->textures[j]->shader->sort < loadmodel->textures[i]->shader->sort))
+			{
+				textemp = loadmodel->textures[j];
+				loadmodel->textures[j] = loadmodel->textures[i];
+				loadmodel->textures[i] = textemp;
+			}
+		}
+	}
+}
+
+
+
 #ifdef Q2BSPS
 
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
@@ -219,7 +231,7 @@ typedef struct
 {
 	int			contents;
 	int			numsides;
-	int			firstbrushside;
+	q2cbrushside_t *brushside;
 	int			checkcount;		// to avoid repeated testings
 } q2cbrush_t;
 
@@ -240,8 +252,10 @@ typedef struct
 {
 	vec3_t		absmins, absmaxs;
 
-	int			numbrushes;
-	q2cbrush_t	*brushes;
+	int			numfacets;
+	q2cbrush_t	*facets;
+#define numbrushes numfacets
+#define brushes facets
 
 	q2mapsurface_t	*surface;
 	int			checkcount;		// to avoid repeated testings
@@ -258,15 +272,13 @@ typedef struct
 	int		patch_cp[2];
 } q3cface_t;
 
+/*used to trace*/
 int			checkcount;
-
-//FIXME: Unlimit these.
-char		map_name[MAX_QPATH];
 
 int			numbrushsides;
 q2cbrushside_t map_brushsides[MAX_Q2MAP_BRUSHSIDES];
 
-int			numtexinfo;
+int numtexinfo;
 q2mapsurface_t	*map_surfaces;
 
 int			numplanes;
@@ -333,15 +345,16 @@ int		c_pointcontents;
 int		c_traces, c_brush_traces;
 
 
-vec3_t		*map_verts;	//3points
+vecV_t		*map_verts;	//3points
 int			numvertexes;
 
 vec2_t		*map_vertstmexcoords;
 vec2_t		*map_vertlstmexcoords;
-byte_vec4_t *map_colors_array;
+vec4_t		*map_colors4f_array;
 vec3_t		*map_normals_array;
+vec3_t		*map_svector_array;
+vec3_t		*map_tvector_array;
 
-#ifdef Q3SHADERS
 typedef struct {
 	char		shader[MAX_QPATH];
 	int			brushNum;
@@ -350,7 +363,6 @@ typedef struct {
 
 mfog_t		*map_fogs;
 int			map_numfogs;
-#endif
 
 q3cface_t	*map_faces;
 int			numfaces;
@@ -360,10 +372,6 @@ int	map_numsurfindexes;
 
 int			*map_leaffaces;
 int			numleaffaces;
-
-
-
-
 
 
 
@@ -425,48 +433,36 @@ qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2
 		 maxs1[0] >= mins2[0] && maxs1[1] >= mins2[1] && maxs1[2] >= mins2[2]);
 }
 
-
-#define VectorAvg(a,b,c)		((c)[0]=((a)[0]+(b)[0])*0.5f,(c)[1]=((a)[1]+(b)[1])*0.5f, (c)[2]=((a)[2]+(b)[2])*0.5f)
-#define Vector4Copy(a,b)		((b)[0]=(a)[0],(b)[1]=(a)[1],(b)[2]=(a)[2],(b)[3]=(a)[3])
-#define Vector4Scale(in,scale,out)		((out)[0]=(in)[0]*scale,(out)[1]=(in)[1]*scale,(out)[2]=(in)[2]*scale,(out)[3]=(in)[3]*scale)
-#define Vector4Add(a,b,c)		((c)[0]=(((a[0])+(b[0]))),(c)[1]=(((a[1])+(b[1]))),(c)[2]=(((a[2])+(b[2]))),(c)[3]=(((a[3])+(b[3]))))
-
 /*
 ===============
 Patch_FlatnessTest
 ===============
 */
-static int Patch_FlatnessTest ( float maxflat, const vec3_t point0, const vec3_t point1, const vec3_t point2 )
+static int Patch_FlatnessTest( float maxflat2, const float *point0, const float *point1, const float *point2 )
 {
-	vec3_t v1, v2, v3;
-	vec3_t t, n;
-	float dist, d, l;
+	float d;
 	int ft0, ft1;
+	vec3_t t, n;
+	vec3_t v1, v2, v3;
 
-	VectorSubtract ( point2, point0, n );
-	l = VectorNormalize ( n );
-
-	if ( !l ) {
+	VectorSubtract( point2, point0, n );
+	if( !VectorNormalize( n ) )
 		return 0;
-	}
 
-	VectorSubtract ( point1, point0, t );
-	d = -DotProduct ( t, n );
-	VectorMA ( t, d, n, t );
-	dist = VectorLength ( t );
-
-	if ( fabs(dist) <= maxflat ) {
+	VectorSubtract( point1, point0, t );
+	d = -DotProduct( t, n );
+	VectorMA( t, d, n, t );
+	if( DotProduct( t, t ) < maxflat2 )
 		return 0;
-	}
 
-	VectorAvg ( point1, point0, v1 );
-	VectorAvg ( point2, point1, v2 );
-	VectorAvg ( v1, v2, v3 );
+	VectorAvg( point1, point0, v1 );
+	VectorAvg( point2, point1, v2 );
+	VectorAvg( v1, v2, v3 );
 
-	ft0 = Patch_FlatnessTest ( maxflat, point0, v1, v3 );
-	ft1 = Patch_FlatnessTest ( maxflat, v3, v2, point2 );
+	ft0 = Patch_FlatnessTest( maxflat2, point0, v1, v3 );
+	ft1 = Patch_FlatnessTest( maxflat2, v3, v2, point2 );
 
-	return 1 + (int)floor( max ( ft0, ft1 ) + 0.5f );
+	return 1 + (int)( floor( max( ft0, ft1 ) ) + 0.5f );
 }
 
 /*
@@ -474,30 +470,31 @@ static int Patch_FlatnessTest ( float maxflat, const vec3_t point0, const vec3_t
 Patch_GetFlatness
 ===============
 */
-void Patch_GetFlatness ( float maxflat, const vec3_t *points, int *patch_cp, int *flat )
+void Patch_GetFlatness( float maxflat, const float *points, int comp, const int *patch_cp, int *flat )
 {
 	int i, p, u, v;
+	float maxflat2 = maxflat * maxflat;
 
 	flat[0] = flat[1] = 0;
-	for (v = 0; v < patch_cp[1] - 1; v += 2)
+	for( v = 0; v < patch_cp[1] - 1; v += 2 )
 	{
-		for (u = 0; u < patch_cp[0] - 1; u += 2)
+		for( u = 0; u < patch_cp[0] - 1; u += 2 )
 		{
 			p = v * patch_cp[0] + u;
 
-			i = Patch_FlatnessTest ( maxflat, points[p], points[p+1], points[p+2] );
-			flat[0] = max ( flat[0], i );
-			i = Patch_FlatnessTest ( maxflat, points[p+patch_cp[0]], points[p+patch_cp[0]+1], points[p+patch_cp[0]+2] );
-			flat[0] = max ( flat[0], i );
-			i = Patch_FlatnessTest ( maxflat, points[p+2*patch_cp[0]], points[p+2*patch_cp[0]+1], points[p+2*patch_cp[0]+2] );
-			flat[0] = max ( flat[0], i );
+			i = Patch_FlatnessTest( maxflat2, &points[p*comp], &points[( p+1 )*comp], &points[( p+2 )*comp] );
+			flat[0] = max( flat[0], i );
+			i = Patch_FlatnessTest( maxflat2, &points[( p+patch_cp[0] )*comp], &points[( p+patch_cp[0]+1 )*comp], &points[( p+patch_cp[0]+2 )*comp] );
+			flat[0] = max( flat[0], i );
+			i = Patch_FlatnessTest( maxflat2, &points[( p+2*patch_cp[0] )*comp], &points[( p+2*patch_cp[0]+1 )*comp], &points[( p+2*patch_cp[0]+2 )*comp] );
+			flat[0] = max( flat[0], i );
 
-			i = Patch_FlatnessTest ( maxflat, points[p], points[p+patch_cp[0]], points[p+2*patch_cp[0]] );
-			flat[1] = max ( flat[1], i );
-			i = Patch_FlatnessTest ( maxflat, points[p+1], points[p+patch_cp[0]+1], points[p+2*patch_cp[0]+1] );
-			flat[1] = max ( flat[1], i );
-			i = Patch_FlatnessTest ( maxflat, points[p+2], points[p+patch_cp[0]+2], points[p+2*patch_cp[0]+2] );
-			flat[1] = max ( flat[1], i );
+			i = Patch_FlatnessTest( maxflat2, &points[p*comp], &points[( p+patch_cp[0] )*comp], &points[( p+2*patch_cp[0] )*comp] );
+			flat[1] = max( flat[1], i );
+			i = Patch_FlatnessTest( maxflat2, &points[( p+1 )*comp], &points[( p+patch_cp[0]+1 )*comp], &points[( p+2*patch_cp[0]+1 )*comp] );
+			flat[1] = max( flat[1], i );
+			i = Patch_FlatnessTest( maxflat2, &points[( p+2 )*comp], &points[( p+patch_cp[0]+2 )*comp], &points[( p+2*patch_cp[0]+2 )*comp] );
+			flat[1] = max( flat[1], i );
 		}
 	}
 }
@@ -507,21 +504,17 @@ void Patch_GetFlatness ( float maxflat, const vec3_t *points, int *patch_cp, int
 Patch_Evaluate_QuadricBezier
 ===============
 */
-static void Patch_Evaluate_QuadricBezier ( float t, vec4_t point0, vec4_t point1, vec3_t point2, vec4_t out )
+static void Patch_Evaluate_QuadricBezier( float t, const vec_t *point0, const vec_t *point1, const vec_t *point2, vec_t *out, int comp )
 {
-	float qt = t * t;
-	float dt = 2.0f * t, tt;
-	vec4_t tvec4;
+	int i;
+	vec_t qt = t * t;
+	vec_t dt = 2.0f * t, tt, tt2;
 
 	tt = 1.0f - dt + qt;
-	Vector4Scale ( point0, tt, out );
+	tt2 = dt - 2.0f * qt;
 
-	tt = dt - 2.0f * qt;
-	Vector4Scale ( point1, tt, tvec4 );
-	Vector4Add ( out, tvec4, out );
-
-	Vector4Scale ( point2, qt, tvec4 );
-	Vector4Add ( out, tvec4, out );
+	for( i = 0; i < comp; i++ )
+		out[i] = point0[i] * tt + point1[i] * tt2 + point2[i] * qt;
 }
 
 /*
@@ -529,73 +522,109 @@ static void Patch_Evaluate_QuadricBezier ( float t, vec4_t point0, vec4_t point1
 Patch_Evaluate
 ===============
 */
-void Patch_Evaluate ( const vec4_t *p, const int *numcp, const int *tess, vec4_t *dest )
+void Patch_Evaluate( const vec_t *p, const int *numcp, const int *tess, vec_t *dest, int comp )
 {
 	int num_patches[2], num_tess[2];
 	int index[3], dstpitch, i, u, v, x, y;
 	float s, t, step[2];
-	vec4_t *tvec, pv[3][3], v1, v2, v3;
+	vec_t *tvec, *tvec2;
+	const vec_t *pv[3][3];
+	vec4_t v1, v2, v3;
 
 	num_patches[0] = numcp[0] / 2;
 	num_patches[1] = numcp[1] / 2;
-	dstpitch = num_patches[0] * tess[0] + 1;
+	dstpitch = ( num_patches[0] * tess[0] + 1 ) * comp;
 
 	step[0] = 1.0f / (float)tess[0];
 	step[1] = 1.0f / (float)tess[1];
 
-	for ( v = 0; v < num_patches[1]; v++ )
+	for( v = 0; v < num_patches[1]; v++ )
 	{
 		// last patch has one more row
-		if ( v < num_patches[1] - 1 ) {
+		if( v < num_patches[1] - 1 )
 			num_tess[1] = tess[1];
-		} else {
+		else
 			num_tess[1] = tess[1] + 1;
-		}
 
-		for ( u = 0; u < num_patches[0]; u++ )
+		for( u = 0; u < num_patches[0]; u++ )
 		{
 			// last patch has one more column
-			if ( u < num_patches[0] - 1 ) {
+			if( u < num_patches[0] - 1 )
 				num_tess[0] = tess[0];
-			} else {
+			else
 				num_tess[0] = tess[0] + 1;
-			}
 
-			index[0] = (v * numcp[0] + u) * 2;
+			index[0] = ( v * numcp[0] + u ) * 2;
 			index[1] = index[0] + numcp[0];
 			index[2] = index[1] + numcp[0];
 
 			// current 3x3 patch control points
-			for ( i = 0; i < 3; i++ )
+			for( i = 0; i < 3; i++ )
 			{
-				Vector4Copy ( p[index[0]+i], pv[i][0] );
-				Vector4Copy ( p[index[1]+i], pv[i][1] );
-				Vector4Copy ( p[index[2]+i], pv[i][2] );
+				pv[i][0] = &p[( index[0]+i ) * comp];
+				pv[i][1] = &p[( index[1]+i ) * comp];
+				pv[i][2] = &p[( index[2]+i ) * comp];
 			}
 
-			t = 0.0f;
-			tvec = dest + v * tess[1] * dstpitch + u * tess[0];
-
-			for ( y = 0; y < num_tess[1]; y++, t += step[1] )
+			tvec = dest + v * tess[1] * dstpitch + u * tess[0] * comp;
+			for( y = 0, t = 0.0f; y < num_tess[1]; y++, t += step[1], tvec += dstpitch )
 			{
-				Patch_Evaluate_QuadricBezier ( t, pv[0][0], pv[0][1], pv[0][2], v1 );
-				Patch_Evaluate_QuadricBezier ( t, pv[1][0], pv[1][1], pv[1][2], v2 );
-				Patch_Evaluate_QuadricBezier ( t, pv[2][0], pv[2][1], pv[2][2], v3 );
+				Patch_Evaluate_QuadricBezier( t, pv[0][0], pv[0][1], pv[0][2], v1, comp );
+				Patch_Evaluate_QuadricBezier( t, pv[1][0], pv[1][1], pv[1][2], v2, comp );
+				Patch_Evaluate_QuadricBezier( t, pv[2][0], pv[2][1], pv[2][2], v3, comp );
 
-				s = 0.0f;
-				for ( x = 0; x < num_tess[0]; x++, s += step[0] )
-				{
-					Patch_Evaluate_QuadricBezier ( s, v1, v2, v3, tvec[x] );
-				}
-
-				tvec += dstpitch;
+				for( x = 0, tvec2 = tvec, s = 0.0f; x < num_tess[0]; x++, s += step[0], tvec2 += comp )
+					Patch_Evaluate_QuadricBezier( s, v1, v2, v3, tvec2, comp );
 			}
 		}
 	}
 }
 
 
+#define	PLANE_NORMAL_EPSILON	0.00001
+#define	PLANE_DIST_EPSILON	0.01
+static qboolean ComparePlanes( const vec3_t p1normal, vec_t p1dist, const vec3_t p2normal, vec_t p2dist )
+{
+	if( fabs( p1normal[0] - p2normal[0] ) < PLANE_NORMAL_EPSILON
+	    && fabs( p1normal[1] - p2normal[1] ) < PLANE_NORMAL_EPSILON
+	    && fabs( p1normal[2] - p2normal[2] ) < PLANE_NORMAL_EPSILON
+	    && fabs( p1dist - p2dist ) < PLANE_DIST_EPSILON )
+		return true;
 
+	return false;
+}
+
+static void SnapVector( vec3_t normal )
+{
+	int i;
+
+	for( i = 0; i < 3; i++ )
+	{
+		if( fabs( normal[i] - 1 ) < PLANE_NORMAL_EPSILON )
+		{
+			VectorClear( normal );
+			normal[i] = 1;
+			break;
+		}
+		if( fabs( normal[i] - -1 ) < PLANE_NORMAL_EPSILON )
+		{
+			VectorClear( normal );
+			normal[i] = -1;
+			break;
+		}
+	}
+}
+
+#define Q_rint( x )   ( ( x ) < 0 ? ( (int)( ( x )-0.5f ) ) : ( (int)( ( x )+0.5f ) ) )
+static void SnapPlane( vec3_t normal, vec_t *dist )
+{
+	SnapVector( normal );
+
+	if( fabs( *dist - Q_rint( *dist ) ) < PLANE_DIST_EPSILON )
+	{
+		*dist = Q_rint( *dist );
+	}
+}
 
 /*
 ===============================================================================
@@ -605,236 +634,279 @@ void Patch_Evaluate ( const vec4_t *p, const int *numcp, const int *tess, vec4_t
 ===============================================================================
 */
 
+#define MAX_FACET_PLANES 32
 #define cm_subdivlevel	15
 
-qboolean CM_CreateBrush ( q2cbrush_t *brush, vec3_t *verts, q2mapsurface_t *surface )
+/*
+* CM_CreateFacetFromPoints
+*/
+static int CM_CreateFacetFromPoints(q2cbrush_t *facet, vec3_t *verts, int numverts, q2mapsurface_t *shaderref, mplane_t *brushplanes )
 {
-	int	i, j, k, sign;
-	vec3_t v1, v2;
-	vec3_t	absmins, absmaxs;
-	q2cbrushside_t	*side;
-	mplane_t *plane;
-	static mplane_t mainplane, patchplanes[20];
-	qboolean skip[20];
-	int	numpatchplanes = 0;
-	float dot;
+	int i, j, k;
+	int axis, dir;
+	vec3_t normal, mins, maxs;
+	float d, dist;
+	mplane_t mainplane;
+	vec3_t vec, vec2;
+	int numbrushplanes;
 
-	int matchplane;
+	// set default values for brush
+	facet->numsides = 0;
+	facet->brushside = NULL;
+	facet->contents = shaderref->c.value;
 
-	// calc absmins & absmaxs
-	ClearBounds ( absmins, absmaxs );
-	for (i = 0; i < 3; i++)
-		AddPointToBounds ( verts[i], absmins, absmaxs );
+	// calculate plane for this triangle
+	PlaneFromPoints( verts, &mainplane );
+	if( ComparePlanes( mainplane.normal, mainplane.dist, vec3_origin, 0 ) )
+		return 0;
 
-	PlaneFromPoints ( verts, &mainplane );
-
-	// front plane
-	plane = &patchplanes[numpatchplanes++];
-	*plane = mainplane;
-
-	// back plane
-	plane = &patchplanes[numpatchplanes++];
-	VectorNegate (mainplane.normal, plane->normal);
-	plane->dist = -mainplane.dist;
-
-	// axial planes
-	for ( i = 0; i < 3; i++ ) {
-		for (sign = -1; sign <= 1; sign += 2) {
-			plane = &patchplanes[numpatchplanes++];
-			VectorClear ( plane->normal );
-			plane->normal[i] = sign;
-			plane->dist = sign > 0 ? absmaxs[i] : -absmins[i];
-		}
-	}
-
-	// edge planes
-	for ( i = 0; i < 3; i++ ) {
-		vec3_t	normal;
-
-		VectorCopy (verts[i], v1);
-		VectorCopy (verts[(i + 1) % 3], v2);
-
-		for ( k = 0; k < 3; k++ ) {
-			normal[k] = 0;
-			normal[(k+1)%3] = v1[(k+2)%3] - v2[(k+2)%3];
-			normal[(k+2)%3] = -(v1[(k+1)%3] - v2[(k+1)%3]);
-
-			if (VectorEquals (normal, vec3_origin))
-				continue;
-
-			plane = &patchplanes[numpatchplanes++];
-
-			VectorNormalize ( normal );
-			VectorCopy ( normal, plane->normal );
-			plane->dist = DotProduct (plane->normal, v1);
-
-			if ( DotProduct(verts[(i + 2) % 3], normal) - plane->dist > 0 )
-			{	// invert
-				VectorInverse ( plane->normal );
-				plane->dist = -plane->dist;
-			}
-		}
-	}
-
-	// set plane->type and mark duplicate planes for removal
-	for (i = 0; i < numpatchplanes; i++)
+	// test a quad case
+	if( numverts > 3 )
 	{
-		CategorizePlane ( &patchplanes[i] );
-		skip[i] = false;
+		d = DotProduct( verts[3], mainplane.normal ) - mainplane.dist;
+		if( d < -0.1 || d > 0.1 )
+			return 0;
 
-		for (j = i + 1; j < numpatchplanes; j++)
-			if ( patchplanes[j].dist == patchplanes[i].dist
-				&& VectorEquals (patchplanes[j].normal, patchplanes[i].normal) )
+		if( 0 )
+		{
+			vec3_t v[3];
+			mplane_t plane;
+
+			// try different combinations of planes
+			for( i = 1; i < 4; i++ )
 			{
-				skip[i] = true;
-				break;
+				VectorCopy( verts[i], v[0] );
+				VectorCopy( verts[( i+1 )%4], v[1] );
+				VectorCopy( verts[( i+2 )%4], v[2] );
+				PlaneFromPoints( v, &plane );
+
+				if( fabs( DotProduct( mainplane.normal, plane.normal ) ) < 0.9 )
+					return 0;
 			}
+		}
 	}
 
-	brush->numsides = 0;
-	brush->firstbrushside = numbrushsides;
+	numbrushplanes = 0;
 
-	for (k = 0; k < 2; k++) {
-		for (i = 0; i < numpatchplanes; i++)	{
-			if (skip[i])
-				continue;
+	// add front plane
+	SnapPlane( mainplane.normal, &mainplane.dist );
+	VectorCopy( mainplane.normal, brushplanes[numbrushplanes].normal );
+	brushplanes[numbrushplanes].dist = mainplane.dist; numbrushplanes++;
 
-			// first, store all axially aligned planes
-			// then store everything else
-			// does it give a noticeable speedup?
-			if (!k && patchplanes[i].type >= 3)
-				continue;
+	// calculate mins & maxs
+	ClearBounds( mins, maxs );
+	for( i = 0; i < numverts; i++ )
+		AddPointToBounds( verts[i], mins, maxs );
 
-			skip[i] = true;
-
-			for (matchplane = 0; matchplane < numplanes; matchplane++)
+	// add the axial planes
+	for( axis = 0; axis < 3; axis++ )
+	{
+		for( dir = -1; dir <= 1; dir += 2 )
+		{
+			for( i = 0; i < numbrushplanes; i++ )
 			{
-				if (map_planes[matchplane].dist+0.1 > patchplanes[i].dist && map_planes[matchplane].dist-0.1 < patchplanes[i].dist)
+				if( brushplanes[i].normal[axis] == dir )
+					break;
+			}
+
+			if( i == numbrushplanes )
+			{
+				VectorClear( normal );
+				normal[axis] = dir;
+				if( dir == 1 )
+					dist = maxs[axis];
+				else
+					dist = -mins[axis];
+
+				VectorCopy( normal, brushplanes[numbrushplanes].normal );
+				brushplanes[numbrushplanes].dist = dist; numbrushplanes++;
+			}
+		}
+	}
+
+	// add the edge bevels
+	for( i = 0; i < numverts; i++ )
+	{
+		j = ( i + 1 ) % numverts;
+		k = ( i + 2 ) % numverts;
+
+		VectorSubtract( verts[i], verts[j], vec );
+		if( VectorNormalize( vec ) < 0.5 )
+			continue;
+
+		SnapVector( vec );
+		for( j = 0; j < 3; j++ )
+		{
+			if( vec[j] == 1 || vec[j] == -1 )
+				break; // axial
+		}
+		if( j != 3 )
+			continue; // only test non-axial edges
+
+		// try the six possible slanted axials from this edge
+		for( axis = 0; axis < 3; axis++ )
+		{
+			for( dir = -1; dir <= 1; dir += 2 )
+			{
+				// construct a plane
+				VectorClear( vec2 );
+				vec2[axis] = dir;
+				CrossProduct( vec, vec2, normal );
+				if( VectorNormalize( normal ) < 0.5 )
+					continue;
+				dist = DotProduct( verts[i], normal );
+
+				for( j = 0; j < numbrushplanes; j++ )
 				{
-					dot = DotProduct(map_planes[matchplane].normal, patchplanes[i].normal);
-					if (dot >= 0.98)
-					{
-						plane = &map_planes[matchplane];
+					// if this plane has already been used, skip it
+					if( ComparePlanes( brushplanes[j].normal, brushplanes[j].dist, normal, dist ) )
 						break;
+				}
+				if( j != numbrushplanes )
+					continue;
+
+				// if all other points are behind this plane, it is a proper edge bevel
+				for( j = 0; j < numverts; j++ )
+				{
+					if( j != i )
+					{
+						d = DotProduct( verts[j], normal ) - dist;
+						if( d > 0.1 )
+							break; // point in front: this plane isn't part of the outer hull
 					}
 				}
+				if( j != numverts )
+					continue;
+
+				// add this plane
+				VectorCopy( normal, brushplanes[numbrushplanes].normal );
+				brushplanes[numbrushplanes].dist = dist; numbrushplanes++;
+				if( numbrushplanes == MAX_FACET_PLANES )
+					break;
 			}
-			if (matchplane == numplanes)
-			{
-				if (numplanes == MAX_Q2MAP_PLANES)
+		}
+	}
+
+	return ( facet->numsides = numbrushplanes );
+}
+
+/*
+* CM_CreatePatch
+*/
+static void CM_CreatePatch( q3cpatch_t *patch, q2mapsurface_t *shaderref, const vec_t *verts, const int *patch_cp )
+{
+	int step[2], size[2], flat[2];
+	int i, j, k ,u, v;
+	int numsides, totalsides;
+	q2cbrush_t *facets, *facet;
+	vecV_t *points;
+	vec3_t tverts[4];
+	qbyte *data;
+	mplane_t *brushplanes;
+
+	patch->surface = shaderref;
+
+	// find the degree of subdivision in the u and v directions
+	Patch_GetFlatness( cm_subdivlevel, verts, sizeof(vecV_t)/sizeof(vec_t), patch_cp, flat );
+
+	step[0] = 1 << flat[0];
+	step[1] = 1 << flat[1];
+	size[0] = ( patch_cp[0] >> 1 ) * step[0] + 1;
+	size[1] = ( patch_cp[1] >> 1 ) * step[1] + 1;
+	if( size[0] <= 0 || size[1] <= 0 )
+		return;
+
+	data = BZ_Malloc( size[0] * size[1] * sizeof( vecV_t ) +
+		( size[0]-1 ) * ( size[1]-1 ) * 2 * ( sizeof( q2cbrush_t ) + 32 * sizeof( mplane_t ) ) );
+
+	points = ( vecV_t * )data; data += size[0] * size[1] * sizeof( vecV_t );
+	facets = ( q2cbrush_t * )data; data += ( size[0]-1 ) * ( size[1]-1 ) * 2 * sizeof( q2cbrush_t );
+	brushplanes = ( mplane_t * )data; data += ( size[0]-1 ) * ( size[1]-1 ) * 2 * MAX_FACET_PLANES * sizeof( mplane_t );
+
+	// fill in
+	Patch_Evaluate(verts, patch_cp, step, points[0], sizeof(vecV_t)/sizeof(vec_t));
+
+	totalsides = 0;
+	patch->numfacets = 0;
+	patch->facets = NULL;
+	ClearBounds( patch->absmins, patch->absmaxs );
+
+	// create a set of facets
+	for( v = 0; v < size[1]-1; v++ )
+	{
+		for( u = 0; u < size[0]-1; u++ )
+		{
+			i = v * size[0] + u;
+			VectorCopy( points[i], tverts[0] );
+			VectorCopy( points[i + size[0]], tverts[1] );
+			VectorCopy( points[i + size[0] + 1], tverts[2] );
+			VectorCopy( points[i + 1], tverts[3] );
+
+			for( i = 0; i < 4; i++ )
+				AddPointToBounds( tverts[i], patch->absmins, patch->absmaxs );
+
+			// try to create one facet from a quad
+			numsides = CM_CreateFacetFromPoints( &facets[patch->numfacets], tverts, 4, shaderref, brushplanes + totalsides );
+			if( !numsides )
+			{	// create two facets from triangles
+				VectorCopy( tverts[3], tverts[2] );
+				numsides = CM_CreateFacetFromPoints( &facets[patch->numfacets], tverts, 3, shaderref, brushplanes + totalsides );
+				if( numsides )
 				{
-					Con_Printf (CON_ERROR "CM_CreateBrush: numplanes == MAX_CM_PLANES");
-					return false;
+					totalsides += numsides;
+					patch->numfacets++;
 				}
 
-				plane = &map_planes[numplanes++];
-				*plane = patchplanes[i];
+				VectorCopy( tverts[2], tverts[0] );
+				VectorCopy( points[v *size[0] + u + size[0] + 1], tverts[2] );
+				numsides = CM_CreateFacetFromPoints( &facets[patch->numfacets], tverts, 3, shaderref, brushplanes + totalsides );
 			}
 
-			if (numbrushsides == MAX_CM_BRUSHSIDES)
+			if( numsides )
 			{
-				Con_Printf (CON_ERROR "CM_CreateBrush: numbrushsides == MAX_CM_BRUSHSIDES\n");
-				return false;
+				totalsides += numsides;
+				patch->numfacets++;
 			}
-
-			side = &map_brushsides[numbrushsides++];
-			side->plane = plane;
-
-			if (DotProduct(plane->normal, mainplane.normal) >= 0)
-				side->surface = surface;
-			else
-				side->surface = NULL;	// don't clip against this side
-
-			brush->numsides++;
 		}
 	}
 
-	return true;
-}
-
-qboolean CM_CreatePatch ( q3cpatch_t *patch, int numverts, const vec3_t *verts, int *patch_cp )
-{
-    int step[2], size[2], flat[2], i, u, v;
-	vec4_t points[MAX_CM_PATCH_VERTS], pointss[MAX_CM_PATCH_VERTS];
-	vec3_t tverts[4], tverts2[4];
-	q2cbrush_t *brush;
-	mplane_t mainplane;
-
-// find the degree of subdivision in the u and v directions
-	Patch_GetFlatness ( cm_subdivlevel, verts, patch_cp, flat );
-
-	step[0] = (1 << flat[0]);
-	step[1] = (1 << flat[1]);
-	size[0] = (patch_cp[0] / 2) * step[0] + 1;
-	size[1] = (patch_cp[1] / 2) * step[1] + 1;
-
-	if ( size[0] * size[1] > MAX_CM_PATCH_VERTS ) 
+	if (patch->numfacets)
 	{
-		Con_Printf (CON_ERROR "CM_CreatePatch: patch has too many vertices\n");
-		return false;
-	}
+		qbyte *data;
 
-	for (i = 0; i < numverts; i++)
-		VectorCopy(verts[i], pointss[i]);
-// fill in
-//gcc warns without this cast
-	Patch_Evaluate ( (const vec4_t *)pointss, patch_cp, step, points );
-/*
-	for (i = 0; i < numverts; i++)
-	{
-		points[i][0] = (int)(points[i][0]*20)/20.0f;
-		points[i][1] = (int)(points[i][1]*20)/20.0f;
-		points[i][2] = (int)(points[i][2]*20)/20.0f;
-	}
-*/
-	patch->brushes = brush = map_brushes + numbrushes;
-	patch->numbrushes = 0;
+		data = Hunk_Alloc( patch->numfacets * sizeof( q2cbrush_t ) + totalsides * ( sizeof( q2cbrushside_t ) + sizeof( mplane_t ) ) );
 
-	ClearBounds (patch->absmins, patch->absmaxs);
-
-// create a set of brushes
-    for (v = 0; v < size[1]-1; v++)
-    {
-		for (u = 0; u < size[0]-1; u++)
+		patch->facets = ( q2cbrush_t * )data; data += patch->numfacets * sizeof( q2cbrush_t );
+		memcpy( patch->facets, facets, patch->numfacets * sizeof( q2cbrush_t ) );
+		for( i = 0, k = 0, facet = patch->facets; i < patch->numfacets; i++, facet++ )
 		{
-			if (numbrushes >= MAX_CM_BRUSHES)
+			mplane_t *planes;
+			q2cbrushside_t *s;
+
+			facet->brushside = ( q2cbrushside_t * )data; data += facet->numsides * sizeof( q2cbrushside_t );
+			planes = ( mplane_t * )data; data += facet->numsides * sizeof( mplane_t );
+
+			for( j = 0, s = facet->brushside; j < facet->numsides; j++, s++ )
 			{
-				Con_Printf (CON_ERROR "CM_CreatePatch: too many patch brushes\n");
-				return false;
+				planes[j] = brushplanes[k++];
+
+				s->plane = &planes[j];
+				SnapPlane( s->plane->normal, &s->plane->dist );
+				CategorizePlane( s->plane );
+				s->surface = shaderref;
 			}
-
-			i = v * size[0] + u;
-			VectorCopy (points[i], tverts[0]);
-			VectorCopy (points[i + size[0]], tverts[1]);
-			VectorCopy (points[i + 1], tverts[2]);
-			VectorCopy (points[i + size[0] + 1], tverts[3]);
-
-			for (i = 0; i < 4; i++)
-				AddPointToBounds (tverts[i], patch->absmins, patch->absmaxs);
-
-			PlaneFromPoints (tverts, &mainplane);
-
-			// create two brushes
-			if (!CM_CreateBrush (brush, tverts, patch->surface))
-				return false;
-
-			brush->contents = patch->surface->c.value;
-			brush++; numbrushes++; patch->numbrushes++;
-
-			VectorCopy (tverts[2], tverts2[0]);
-			VectorCopy (tverts[1], tverts2[1]);
-			VectorCopy (tverts[3], tverts2[2]);
-			if (!CM_CreateBrush (brush, tverts2, patch->surface))
-				return false;
-
-			brush->contents = patch->surface->c.value;
-			brush++; numbrushes++; patch->numbrushes++;
 		}
-    }
 
-	return true;
+		for( i = 0; i < 3; i++ )
+		{
+			// spread the mins / maxs by a pixel
+			patch->absmins[i] -= 1;
+			patch->absmaxs[i] += 1;
+		}
+	}
+
+	BZ_Free( points );
 }
-
 
 //======================================================
 
@@ -852,6 +924,9 @@ qboolean CM_CreatePatchesForLeafs (void)
 	q3cpatch_t *patch;
 	int checkout[MAX_CM_FACES];
 
+	if (map_noCurves.ival)
+		return true;
+
 	memset (checkout, -1, sizeof(int)*MAX_CM_FACES);
 
 	for (i = 0, leaf = map_leafs; i < numleafs; i++, leaf++)
@@ -859,7 +934,7 @@ qboolean CM_CreatePatchesForLeafs (void)
 		leaf->numleafpatches = 0;
 		leaf->firstleafpatch = numleafpatches;
 
-		if (leaf->cluster == -1 || map_noCurves.value)
+		if (leaf->cluster == -1)
 			continue;
 
 		for (j=0 ; j<leaf->numleaffaces ; j++)
@@ -876,7 +951,7 @@ qboolean CM_CreatePatchesForLeafs (void)
 				continue;
 			if (face->patch_cp[0] <= 0 || face->patch_cp[1] <= 0)
 				continue;
-			if (face->shadernum < 0 || face->shadernum >= numtexinfo)
+			if (face->shadernum < 0 || face->shadernum >= loadmodel->numtextures)
 				continue;
 
 			surf = &map_surfaces[face->shadernum];
@@ -904,13 +979,11 @@ qboolean CM_CreatePatchesForLeafs (void)
 				}
 
 				patch = &map_patches[numpatches];
-				patch->surface = surf;
 				map_leafpatches[numleafpatches] = numpatches;
 				checkout[k] = numpatches++;
 
 //gcc warns without this cast
-				if (!CM_CreatePatch ( patch, face->numverts, (const vec3_t *)map_verts + face->firstvert, face->patch_cp ))
-					return false;
+				CM_CreatePatch ( patch, surf, (const vec_t *)(map_verts + face->firstvert), face->patch_cp );
 			}
 
 			leaf->contents |= patch->surface->c.value;
@@ -1026,29 +1099,31 @@ qboolean CMod_LoadSurfaces (lump_t *l)
 	return true;
 }
 #ifndef SERVERONLY
-qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height);
-qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey);
-
-
-qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey);
-qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height);
-void *Mod_LoadWall(char *name)
+texture_t *Mod_LoadWall(char *name, char *sname)
 {
+	q2miptex_t replacementwal;
 	qbyte *in, *oin;
 	texture_t *tex;
 	q2miptex_t *wal;
-	int width, height;
+	int j;
 	char ln[32];
+	texnums_t tn;
+	memset(&tn, 0, sizeof(tn));
 
 	COM_FileBase(name, ln, sizeof(ln));
 
-	wal = (void *)COM_LoadMallocFile (name);
+	wal = (void *)FS_LoadMallocFile (name);
 	if (!wal)
 	{
-		//they will download eventually...
-		CL_CheckOrEnqueDownloadFile(name, NULL, 0);
-		return NULL;
+		tn.base = R_LoadReplacementTexture(name, loadname, 0);
+		wal = &replacementwal;
+		memset(wal, 0, sizeof(*wal));
+		Q_strncpyz(wal->name, name, sizeof(wal->name));
+		wal->width = image_width;
+		wal->height = image_height;
 	}
+	else
+		tn.base = R_LoadReplacementTexture(wal->name, loadname, IF_NOALPHA);
 
 	wal->width = LittleLong(wal->width);
 	wal->height = LittleLong(wal->height);
@@ -1063,77 +1138,52 @@ void *Mod_LoadWall(char *name)
 	wal->contents = LittleLong(wal->contents);
 	wal->value = LittleLong(wal->value);
 
-//FIXME: Is this needed?
-	oin = in = ReadPCXFile((qbyte *)wal, com_filesize, &width, &height);
-	if (!in)
-		oin = in = ReadTargaFile((qbyte *)wal, com_filesize, &width, &height, false);
-	if (in)	//this is a pcx.
+	tex = Hunk_AllocName(sizeof(texture_t), ln);
+
+	tex->offsets[0] = wal->offsets[0];
+	tex->width = wal->width;
+	tex->height = wal->height;
+
+	if (!TEXVALID(tn.base))
 	{
-#ifdef RGLQUAKE
-		if (qrenderer == QR_OPENGL || qrenderer == QR_DIRECT3D)
+		tn.base = R_LoadReplacementTexture(wal->name, "bmodels", IF_NOALPHA);
+		if (!TEXVALID(tn.base))
 		{
-			tex = Hunk_AllocName(sizeof(texture_t), ln);
-
-			tex->offsets[0] = sizeof(*tex);
-			tex->width = width;
-			tex->height = height;
-
-			if (!(tex->tn.base = Mod_LoadReplacementTexture(name, loadname, true, false, true)))
-				if (!(tex->tn.base = Mod_LoadReplacementTexture(name, "bmodels", true, false, true)))
-					tex->tn.base = GL_LoadTexture32 (name, width, height, (unsigned int *)in, true, false);
+			if (!wal->offsets[0])
+			{
+				//they will download eventually...
+				CL_CheckOrEnqueDownloadFile(name, NULL, 0);
+				return NULL;
+			}
+			tn.base = R_LoadTexture8Pal24 (wal->name, tex->width, tex->height, (qbyte *)wal+wal->offsets[0], d_q28to24table, IF_NOALPHA|IF_NOGAMMA);
 		}
-		else
-#endif
-		{
-			Sys_Error("Mod_LoadWall with bad renderer\n");
-			tex = NULL;
-		}
-
-		BZ_Free(oin);
-		BZ_Free(wal);
-
-		return tex;
 	}
 
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
-	if (qrenderer == QR_OPENGL || qrenderer == QR_DIRECT3D)
+	if (wal->offsets[0])
 	{
-		int j;
-		tex = Hunk_AllocName(sizeof(texture_t), ln);
-
-		tex->offsets[0] = wal->offsets[0];
-		tex->width = wal->width;
-		tex->height = wal->height;
-
-		if (!(tex->tn.base = Mod_LoadReplacementTexture(wal->name, loadname, true, false, true)))
-			if (!(tex->tn.base = Mod_LoadReplacementTexture(wal->name, "bmodels", true, false, true)))
-				tex->tn.base = R_LoadTexture8Pal24 (wal->name, tex->width, tex->height, (qbyte *)wal+wal->offsets[0], d_q28to24table, true, false);
-
 		in = Hunk_TempAllocMore(wal->width*wal->height);
 		oin = (qbyte *)wal+wal->offsets[0];
 		for (j = 0; j < wal->width*wal->height; j++)
 			in[j] = (d_q28to24table[oin[j]*3+0] + d_q28to24table[oin[j]*3+1] + d_q28to24table[oin[j]*3+2])/3;
-		tex->tn.bump = R_LoadTexture8Bump (va("%s_bump", wal->name), tex->width, tex->height, in, true, r_shadow_bumpscale_basetexture.value);
-	}
-	else
-#endif
-	{
-		Sys_Error("Mod_LoadWall with bad renderer\n");
-		tex = NULL;
+		tn.bump = R_LoadTexture8BumpPal (va("%s_bump", wal->name), tex->width, tex->height, in, true);
 	}
 
-	BZ_Free(wal);
+	if (wal != &replacementwal)
+		BZ_Free(wal);
+
+	tex->shader = R_RegisterCustom (sname, Shader_DefaultBSPQ2, NULL);
+	R_BuildDefaultTexnums(&tn, tex->shader);
 
 	return tex;
 }
 
 qboolean CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same place
 {
-	extern cvar_t gl_shadeq2;
 	q2texinfo_t *in;
 	mtexinfo_t *out;
 	int 	i, j, count;
 	char	name[MAX_QPATH], *lwr;
+	char	sname[MAX_QPATH];
 	float	len1, len2;
 	int texcount;
 
@@ -1151,10 +1201,6 @@ qboolean CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same plac
 
 	loadmodel->texinfo = out;
 	loadmodel->numtexinfo = count;
-
-#if !defined(SERVERONLY) && (defined(RGLQUAKE) || defined(D3DQUAKE))
-	skytexturenum = -1;
-#endif
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
@@ -1174,10 +1220,17 @@ qboolean CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same plac
 		else
 			out->mipadjust = 1;
 
-		//damn q2...
+		if (out->flags & TI_SKY)
+			snprintf(sname, sizeof(sname), "sky/%s", in->texture);
+		else if (out->flags & (TI_WARP|TI_TRANS33|TI_TRANS66))
+			snprintf(sname, sizeof(sname), "%s%s/%s", ((out->flags&TI_WARP)?"warp":"trans"), ((out->flags&TI_TRANS66)?"66":(out->flags&TI_TRANS33?"33":"")), in->texture);
+		else
+			snprintf(sname, sizeof(sname), "wall/%s", in->texture);
+
+		//compact the textures.
 		for (j=0; j < texcount; j++)
 		{
-			if (!strcmp(in->texture, loadmodel->textures[j]->name))
+			if (!strcmp(sname, loadmodel->textures[j]->name))
 			{
 				out->texture = loadmodel->textures[j];
 				break;
@@ -1192,49 +1245,24 @@ qboolean CMod_LoadTexInfo (lump_t *l)	//yes I know these load from the same plac
 			}
 			snprintf (name, sizeof(name), "textures/%s.wal", in->texture);
 
-			out->texture = Mod_LoadWall (name);
+			out->texture = Mod_LoadWall (name, sname);
 			if (!out->texture || !out->texture->width || !out->texture->height)
 			{
 				out->texture = Hunk_Alloc(sizeof(texture_t) + 16*16+8*8+4*4+2*2);
 
 				Con_Printf (CON_WARNING "Couldn't load %s\n", name);
 				memcpy(out->texture, r_notexture_mip, sizeof(texture_t) + 16*16+8*8+4*4+2*2);
-	//			out->texture = r_notexture_mip; // texture not found
-	//			out->flags = 0;
 			}
 
-#ifdef RGLQUAKE
-			if (qrenderer == QR_OPENGL)
-				if (gl_shadeq2.value)
-					out->texture->shader = R_RegisterCustom (name, NULL, NULL);
-#endif
-			Q_strncpyz(out->texture->name, in->texture, sizeof(out->texture->name));
+			Q_strncpyz(out->texture->name, sname, sizeof(out->texture->name));
 
-#if !defined(SERVERONLY) && defined(RGLQUAKE)
-			if (out->flags & SURF_SKY)
-				skytexturenum = texcount;
-#endif
 			loadmodel->textures[texcount++] = out->texture;
 		}
-#if !defined(SERVERONLY) && defined(RGLQUAKE)
-		else if (out->flags & SURF_SKY && skytexturenum>=0)
-			out->texture = loadmodel->textures[skytexturenum];
-#endif
 	}
 
 	loadmodel->numtextures = texcount;
 
-	// count animation frames
-	/*
-	for (i=0 ; i<count ; i++)
-	{
-		out = &loadmodel->texinfo[i];
-//		out->numframes = 1;
-//		for (step = out->next ; step && step != out ; step=step->next)
-//			out->numframes++;
-	}
-	*/
-
+	Mod_SortShaders();
 	return true;
 }
 #endif
@@ -1335,11 +1363,11 @@ qboolean CMod_LoadFaces (lump_t *l)
 		out->texinfo = loadmodel->texinfo + ti;
 
 #ifndef SERVERONLY
-		if (out->texinfo->flags & SURF_SKY)
+		if (out->texinfo->flags & TI_SKY)
 		{
 			out->flags |= SURF_DRAWSKY;
 		}
-		if (out->texinfo->flags & SURF_WARP)
+		if (out->texinfo->flags & TI_WARP)
 		{
 			out->flags |= SURF_DRAWTURB|SURF_DRAWTILED;
 		}
@@ -1354,7 +1382,7 @@ qboolean CMod_LoadFaces (lump_t *l)
 		i = LittleLong(in->lightofs);
 		if (i == -1)
 			out->samples = NULL;
-#ifdef RGLQUAKE
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 		else if (qrenderer == QR_OPENGL || qrenderer == QR_DIRECT3D)
 			out->samples = loadmodel->lightdata + i;
 #endif
@@ -1363,7 +1391,7 @@ qboolean CMod_LoadFaces (lump_t *l)
 
 	// set the drawing flags
 
-		if (out->texinfo->flags & SURF_WARP)
+		if (out->texinfo->flags & TI_WARP)
 		{
 			out->flags |= SURF_DRAWTURB;
 			for (i=0 ; i<2 ; i++)
@@ -1489,7 +1517,8 @@ qboolean CMod_LoadBrushes (lump_t *l)
 
 	for (i=0 ; i<count ; i++, out++, in++)
 	{
-		out->firstbrushside = LittleLong(in->firstside);
+		//FIXME: missing bounds checks
+		out->brushside = &map_brushsides[LittleLong(in->firstside)];
 		out->numsides = LittleLong(in->numsides);
 		out->contents = LittleLong(in->contents);
 	}
@@ -1550,6 +1579,7 @@ qboolean CMod_LoadLeafs (lump_t *l)
 		out->cluster = (unsigned short)LittleShort (in->cluster);
 		if (out->cluster == 0xffff)
 			out->cluster = -1;
+
 		out->area = LittleShort (in->area);
 		out->firstleafbrush = (unsigned short)LittleShort (in->firstleafbrush);
 		out->numleafbrushes = (unsigned short)LittleShort (in->numleafbrushes);
@@ -1965,7 +1995,7 @@ qboolean CModQ3_LoadSubmodels (lump_t *l)
 	return true;
 }
 
-qboolean CModQ3_LoadShaders (lump_t *l, qboolean useshaders)
+qboolean CModQ3_LoadShaders (lump_t *l)
 {
 	dq3shader_t	*in;
 	q2mapsurface_t	*out;
@@ -1990,10 +2020,6 @@ qboolean CModQ3_LoadShaders (lump_t *l, qboolean useshaders)
 	numtexinfo = count;
 	out = map_surfaces = Hunk_Alloc(count*sizeof(*out));
 
-#if !defined(SERVERONLY) && (defined(RGLQUAKE) || defined(D3DQUAKE))
-	skytexturenum = -1;
-#endif
-
 	loadmodel->texinfo = Hunk_Alloc(sizeof(mtexinfo_t)*count);
 	loadmodel->numtextures = count;
 	loadmodel->textures = Hunk_Alloc(sizeof(texture_t*)*count);
@@ -2002,22 +2028,6 @@ qboolean CModQ3_LoadShaders (lump_t *l, qboolean useshaders)
 	{
 		loadmodel->texinfo[i].texture = Hunk_Alloc(sizeof(texture_t));
 		Q_strncpyz(loadmodel->texinfo[i].texture->name, in->shadername, sizeof(loadmodel->texinfo[i].texture->name));
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
-		if ((qrenderer == QR_OPENGL || qrenderer == QR_DIRECT3D) && !useshaders)
-		{
-			loadmodel->texinfo[i].texture->tn.base = Mod_LoadHiResTexture(in->shadername, loadname, true, false, true);
-			if (!loadmodel->texinfo[i].texture->tn.base)
-				loadmodel->texinfo[i].texture->tn.base = Mod_LoadHiResTexture(in->shadername, "bmodels", true, false, true);
-			loadmodel->texinfo[i].texture->tn.fullbright = 0;
-			loadmodel->texinfo[i].texture->tn.bump = 0;
-
-			if (!strncmp(in->shadername, "textures/skies/", 15))
-			{
-				loadmodel->texinfo[i].flags |= SURF_SKY;
-				skytexturenum = i;
-			}
-		}
-#endif
 		loadmodel->textures[i] = loadmodel->texinfo[i].texture;
 
 		out->c.flags = LittleLong ( in->surfflags );
@@ -2030,11 +2040,11 @@ qboolean CModQ3_LoadShaders (lump_t *l, qboolean useshaders)
 qboolean CModQ3_LoadVertexes (lump_t *l)
 {
 	q3dvertex_t	*in;
-	vec3_t		*out;
-	vec3_t		*nout;
+	vecV_t		*out;
+	vec3_t		*nout, *sout, *tout;
 	int			i, count, j;
 	vec2_t		*lmout, *stout;
-	byte_vec4_t *cout;
+	vec4_t *cout;
 
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
@@ -2055,11 +2065,15 @@ qboolean CModQ3_LoadVertexes (lump_t *l)
 	lmout = Hunk_Alloc ( count*sizeof(*lmout) );
 	cout = Hunk_Alloc ( count*sizeof(*cout) );
 	nout = Hunk_Alloc ( count*sizeof(*nout) );
+	sout = Hunk_Alloc ( count*sizeof(*nout) );
+	tout = Hunk_Alloc ( count*sizeof(*nout) );
 	map_verts = out;
 	map_vertstmexcoords = stout;
 	map_vertlstmexcoords = lmout;
-	map_colors_array = cout;
+	map_colors4f_array = cout;
 	map_normals_array = nout;
+	map_svector_array = sout;
+	map_tvector_array = tout;
 	numvertexes = count;
 
 	for ( i=0 ; i<count ; i++, in++)
@@ -2076,7 +2090,7 @@ qboolean CModQ3_LoadVertexes (lump_t *l)
 		}
 		for ( j=0 ; j < 4 ; j++)
 		{
-			cout[i][j] = in->color[j];
+			cout[i][j] = in->color[j]/255.0f;
 		}
 	}
 
@@ -2086,11 +2100,11 @@ qboolean CModQ3_LoadVertexes (lump_t *l)
 qboolean CModRBSP_LoadVertexes (lump_t *l)
 {
 	rbspvertex_t	*in;
-	vec3_t		*out;
-	vec3_t		*nout;
+	vecV_t		*out;
+	vec3_t		*nout, *sout, *tout;
 	int			i, count, j;
 	vec2_t		*lmout, *stout;
-	byte_vec4_t *cout;
+	vec4_t *cout;
 
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
@@ -2111,11 +2125,15 @@ qboolean CModRBSP_LoadVertexes (lump_t *l)
 	lmout = Hunk_Alloc ( count*sizeof(*lmout) );
 	cout = Hunk_Alloc ( count*sizeof(*cout) );
 	nout = Hunk_Alloc ( count*sizeof(*nout) );
+	sout = Hunk_Alloc ( count*sizeof(*sout) );
+	tout = Hunk_Alloc ( count*sizeof(*tout) );
 	map_verts = out;
 	map_vertstmexcoords = stout;
 	map_vertlstmexcoords = lmout;
-	map_colors_array = cout;
+	map_colors4f_array = cout;
 	map_normals_array = nout;
+	map_svector_array = sout;
+	map_tvector_array = tout;
 	numvertexes = count;
 
 	for ( i=0 ; i<count ; i++, in++)
@@ -2153,10 +2171,10 @@ qboolean CModQ3_LoadIndexes (lump_t *l)
 		return false;
 	}
 	count = l->filelen / sizeof(*in);
-	if (count < 1 || count >= MAX_Q3MAP_INDICES)
+	if (count < 1 || count >= MAX_Q3MAP_INDICES || count > MAX_INDICIES)
 	{
-		Con_Printf (CON_ERROR "MOD_LoadBmodel: bad surfedges count in %s: %i\n",
-		loadmodel->name, count);
+		Con_Printf (CON_ERROR "MOD_LoadBmodel: too many indicies in %s: %i\n",
+					loadmodel->name, count);
 		return false;
 	}
 
@@ -2257,14 +2275,13 @@ qboolean CModRBSP_LoadFaces (lump_t *l)
 	return true;
 }
 
-#ifdef RGLQUAKE
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 
 /*
 =================
 Mod_LoadFogs
 =================
 */
-#ifdef Q3SHADERS
 qboolean CModQ3_LoadFogs (lump_t *l)
 {
 	dfog_t 	*in;
@@ -2293,11 +2310,12 @@ qboolean CModQ3_LoadFogs (lump_t *l)
 		}
 
 		brush = map_brushes + LittleLong ( in->brushNum );
-		brushsides = map_brushsides + brush->firstbrushside;
+		brushsides = brush->brushside;
 		visibleside = brushsides + LittleLong ( in->visibleSide );
 
 		out->visibleplane = visibleside->plane;
-		out->shader = R_RegisterShader ( in->shader );
+		out->shader = R_RegisterShader_Lightmap ( in->shader );
+		R_BuildDefaultTexnums(&out->shader->defaulttextures, out->shader);
 		out->numplanes = brush->numsides;
 		out->planes = Hunk_Alloc ( out->numplanes*sizeof(cplane_t *) );
 
@@ -2336,82 +2354,32 @@ mfog_t *CM_FogForOrigin(vec3_t org)
 
 	return NULL;
 }
-#endif
 
 //Convert a patch in to a list of glpolys
 
 #define MAX_ARRAY_VERTS 2048
 
-
-glpoly_t *GL_MeshToGLPoly(mesh_t *mesh)
-{
-	int polysize = sizeof(glpoly_t) - (VERTEXSIZE)*sizeof(float);
-	int gv;
-	int v;
-	int rv;
-	glpoly_t *p, *ret;
-
-	int numindx;
-	if (!mesh)
-		return NULL;
-
-	numindx = mesh->numindexes;
-	ret = NULL;
-
-	p = Hunk_Alloc(polysize * numindx/3);
-
-	for (gv = 0; gv < numindx; )
-	{
-		for (v = gv; v < gv+3; v++)
-		{
-			rv = mesh->indexes[v];
-			p->verts[v%3][0] = mesh->xyz_array[rv][0];
-			p->verts[v%3][1] = mesh->xyz_array[rv][1];
-			p->verts[v%3][2] = mesh->xyz_array[rv][2];
-			p->verts[v%3][3] = mesh->st_array[rv][0];
-			p->verts[v%3][4] = mesh->st_array[rv][1];
-			p->verts[v%3][5] = mesh->lmst_array[rv][0];
-			p->verts[v%3][6] = mesh->lmst_array[rv][1];
-		}
-		gv+=3;
-
-		p->next = ret;
-		p->numverts = 3;
-		ret = p;
-		p = (glpoly_t *)((char *)p + polysize);
-	}
-
-	return ret;
-}
-
-#define Vector2Copy(a,b) {(b)[0]=(a)[0];(b)[1]=(a)[1];}
-
 index_t tempIndexesArray[MAX_ARRAY_VERTS*3];
-vec4_t			tempxyz_array[MAX_ARRAY_VERTS];	//structure is used only at load.
+vecV_t			tempxyz_array[MAX_ARRAY_VERTS];	//structure is used only at load.
 vec3_t			tempnormals_array[MAX_ARRAY_VERTS];	//so what harm is there in doing this?
 vec2_t			tempst_array[MAX_ARRAY_VERTS];
 vec2_t			templmst_array[MAX_ARRAY_VERTS];
 byte_vec4_t		tempcolors_array[MAX_ARRAY_VERTS];
 
-#ifdef Q3SHADERS
-#define Hunk_TempAllocMore Hunk_Alloc
-#endif
-
 //mesh_t *GL_CreateMeshForPatch ( model_t *mod, q3dface_t *surf )
 mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, int numverts, int firstvert)
 {
     int numindexes, patch_cp[2], step[2], size[2], flat[2], i, u, v, p;
-	vec4_t colors[MAX_ARRAY_VERTS], points[MAX_ARRAY_VERTS], normals[MAX_ARRAY_VERTS],
-		lm_st[MAX_ARRAY_VERTS], tex_st[MAX_ARRAY_VERTS];
-	vec4_t c, colors2[MAX_ARRAY_VERTS], points2[MAX_ARRAY_VERTS], normals2[MAX_ARRAY_VERTS], lm_st2[MAX_ARRAY_VERTS], tex_st2[MAX_ARRAY_VERTS];
 	mesh_t *mesh;
 	index_t	*indexes;
 	float subdivlevel;
+	char *allocbuf;
+	int sz;
 
 	patch_cp[0] = patchwidth;
 	patch_cp[1] = patchheight;
 
-	if ( !patch_cp[0] || !patch_cp[1] )
+	if (patch_cp[0] <= 0 || patch_cp[1] <= 0 )
 	{
 		return NULL;
 	}
@@ -2420,16 +2388,8 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 	if ( subdivlevel < 1 )
 		subdivlevel = 1;
 
-	for ( i = 0; i < numverts; i++ ) {
-		VectorCopy ( map_verts[firstvert + i], points[i] );
-		VectorCopy ( map_normals_array[firstvert + i], normals[i] );
-		Vector4Scale ( map_colors_array[firstvert + i], (1.0 / 255.0), colors[i] );
-		Vector2Copy ( map_vertstmexcoords[firstvert + i], tex_st[i] );
-		Vector2Copy ( map_vertlstmexcoords[firstvert + i], lm_st[i] );
-	}
-
 // find the degree of subdivision in the u and v directions
-	Patch_GetFlatness ( subdivlevel, (const vec3_t *)map_verts+firstvert, patch_cp, flat );
+	Patch_GetFlatness ( subdivlevel, map_verts[firstvert], sizeof(vecV_t)/sizeof(vec_t), patch_cp, flat );
 
 // allocate space for mesh
 	step[0] = (1 << flat[0]);
@@ -2438,38 +2398,43 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 	size[1] = (patch_cp[1] / 2) * step[1] + 1;
 	numverts = size[0] * size[1];
 
-	if ( numverts > MAX_ARRAY_VERTS ) {
+	if ( numverts < 0 || numverts > MAX_ARRAY_VERTS )
 		return NULL;
-	}
 
-	mesh = (mesh_t *)Hunk_TempAllocMore ( sizeof(mesh_t));
-
+	sz = sizeof(mesh_t) + numverts * (
+						sizeof(vecV_t)+
+						sizeof(vec3_t)+
+						sizeof(vec3_t)+
+						sizeof(vec3_t)+
+						sizeof(vec2_t)+
+						sizeof(vec2_t)+
+						sizeof(vec4_t));
+	allocbuf = Hunk_Alloc(sz);
+	sz-=sizeof(mesh_t);
+	mesh = (mesh_t *)(allocbuf+sz);
+	sz-=numverts*sizeof(vecV_t);
+	mesh->xyz_array = (vecV_t *)(allocbuf+sz);
+	sz-=numverts*sizeof(vec3_t);
+	mesh->normals_array = (vec3_t *)(allocbuf+sz);
+	sz-=numverts*sizeof(vec3_t);
+	mesh->snormals_array = (vec3_t *)(allocbuf+sz);
+	sz-=numverts*sizeof(vec3_t);
+	mesh->tnormals_array = (vec3_t *)(allocbuf+sz);
+	sz-=numverts*sizeof(vec2_t);
+	mesh->st_array = (vec2_t *)(allocbuf+sz);
+	sz-=numverts*sizeof(vec2_t);
+	mesh->lmst_array = (vec2_t *)(allocbuf+sz);
+	sz-=numverts*sizeof(vec4_t);
+	mesh->colors4f_array = (vec4_t *)(allocbuf+sz);
 	mesh->numvertexes = numverts;
-	mesh->xyz_array = Hunk_TempAllocMore ( numverts * sizeof(vec3_t));
-	mesh->normals_array = Hunk_TempAllocMore ( numverts * sizeof(vec3_t));
-	mesh->st_array = Hunk_TempAllocMore ( numverts * sizeof(vec2_t));
-	mesh->lmst_array = Hunk_TempAllocMore ( numverts * sizeof(vec2_t));
-	mesh->colors_array = Hunk_TempAllocMore ( numverts * sizeof(byte_vec4_t));
-
-	mesh->patchWidth = size[0];
-	mesh->patchHeight = size[1];
 
 // fill in
-	Patch_Evaluate ( (const vec4_t *)points, patch_cp, step, points2 );
-	Patch_Evaluate ( (const vec4_t *)colors, patch_cp, step, colors2 );
-	Patch_Evaluate ( (const vec4_t *)normals, patch_cp, step, normals2 );
-	Patch_Evaluate ( (const vec4_t *)lm_st, patch_cp, step, lm_st2 );
-	Patch_Evaluate ( (const vec4_t *)tex_st, patch_cp, step, tex_st2 );
 
-	for (i = 0; i < numverts; i++)
-	{
-		VectorCopy ( points2[i], mesh->xyz_array[i] );
-		VectorNormalize2 ( normals2[i], mesh->normals_array[i] );
-		ColorNormalize ( colors2[i], c );
-		Vector4Scale ( c, 255.0, mesh->colors_array[i] );
-		Vector2Copy ( tex_st2[i], mesh->st_array[i] );
-		Vector2Copy ( lm_st2[i], mesh->lmst_array[i] );
-    }
+	Patch_Evaluate ( map_verts[firstvert], patch_cp, step, mesh->xyz_array[0], sizeof(vecV_t)/sizeof(vec_t));
+	Patch_Evaluate ( map_colors4f_array[firstvert], patch_cp, step, mesh->colors4f_array[0], 4 );
+	Patch_Evaluate ( map_normals_array[firstvert], patch_cp, step, mesh->normals_array[0], 3 );
+	Patch_Evaluate ( map_vertstmexcoords[firstvert], patch_cp, step, mesh->st_array[0], 2 );
+	Patch_Evaluate ( map_vertlstmexcoords[firstvert], patch_cp, step, mesh->lmst_array[0], 2 );
 
 // compute new indexes avoiding adding invalid triangles
 	numindexes = 0;
@@ -2505,52 +2470,14 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 // allocate and fill index table
 	mesh->numindexes = numindexes;
 
-	mesh->indexes = (index_t *)Hunk_TempAllocMore ( numindexes * sizeof(index_t));
+	mesh->indexes = (index_t *)Hunk_Alloc ( numindexes * sizeof(index_t));
 	memcpy (mesh->indexes, tempIndexesArray, numindexes * sizeof(index_t) );
 
 	return mesh;
 }
 
-#ifdef Q3SHADERS
-#undef Hunk_TempAllocMore
-#endif
-
-
-void CModQ3_SortShaders(void)
+qboolean CModQ3_LoadRFaces (lump_t *l)
 {
-	texture_t *textemp;
-	int i, j;
-	//sort loadmodel->textures
-	//correct pointers in loadmodel->texinfo
-
-	for (i = 0; i < numtexinfo; i++)
-	{
-		for (j = i+1; j < numtexinfo; j++)
-		{
-			if ((loadmodel->textures[i]->shader && loadmodel->textures[j]->shader) && (loadmodel->textures[j]->shader->sort < loadmodel->textures[i]->shader->sort))
-			{
-				textemp = loadmodel->textures[j];
-				loadmodel->textures[j] = loadmodel->textures[i];
-				loadmodel->textures[i] = textemp;
-
-				if (skytexturenum==i)
-					skytexturenum=j;
-				else if (skytexturenum==j)
-					skytexturenum=i;
-			}
-		}
-	}
-}
-
-mesh_t nullmesh;
-qboolean CModQ3_LoadRFaces (lump_t *l, qboolean useshaders)
-{
-#ifndef Q3SHADERS
-	int polysize = sizeof(glpoly_t) - VERTEXSIZE*sizeof(float);
-	glpoly_t *p;
-	int rv, fi;
-	int gv, v;
-#endif
 	q3dface_t *in;
 	msurface_t *out;
 	mplane_t *pl;
@@ -2607,11 +2534,10 @@ qboolean CModQ3_LoadRFaces (lump_t *l, qboolean useshaders)
 				//q3dm10's thingie is 0
 			out->flags |= SURF_DRAWALPHA;
 
-		if (loadmodel->texinfo[LittleLong(in->shadernum)].flags & SURF_SKY)
+		if (loadmodel->texinfo[LittleLong(in->shadernum)].flags & TI_SKY)
 			out->flags |= SURF_DRAWSKY;
 
-#ifdef Q3SHADERS
-		if (!out->texinfo->texture->shader && useshaders)
+		if (!out->texinfo->texture->shader)
 		{
 			extern cvar_t r_vertexlight;
 			if (LittleLong(in->facetype) == MST_FLARE)
@@ -2619,21 +2545,16 @@ qboolean CModQ3_LoadRFaces (lump_t *l, qboolean useshaders)
 			else if (LittleLong(in->facetype) == MST_TRIANGLE_SOUP || r_vertexlight.value)
 				out->texinfo->texture->shader = R_RegisterShader_Vertex (out->texinfo->texture->name);
 			else
-				out->texinfo->texture->shader = R_RegisterShader(out->texinfo->texture->name);
+				out->texinfo->texture->shader = R_RegisterShader_Lightmap(out->texinfo->texture->name);
 
-
-			if (out->texinfo->texture->shader->flags & SHADER_SKY)
-			{
-				out->texinfo->flags |= SURF_SKY;
-				skytexturenum = out->texinfo - loadmodel->texinfo;
-			}
+			R_BuildDefaultTexnums(&out->texinfo->texture->shader->defaulttextures, out->texinfo->texture->shader);
 		}
 
 		if (LittleLong(in->fognum) == -1 || !map_numfogs)
 			out->fog = NULL;
 		else
 			out->fog = map_fogs + LittleLong(in->fognum);
-#endif
+
 		if (map_surfaces[LittleLong(in->shadernum)].c.flags & (Q3SURF_NODRAW | Q3SURF_SKIP))
 		{
 			out->mesh = &nullmesh;
@@ -2641,25 +2562,28 @@ qboolean CModQ3_LoadRFaces (lump_t *l, qboolean useshaders)
 		else if (LittleLong(in->facetype) == MST_PATCH)
 		{
 			out->mesh = GL_CreateMeshForPatch(loadmodel, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
+			if (out->mesh)
+			{
+				Mod_AccumulateMeshTextureVectors(out->mesh);
+				Mod_NormaliseTextureVectors(out->mesh->normals_array, out->mesh->snormals_array, out->mesh->tnormals_array, out->mesh->numvertexes);
+			}
 		}
 		else if (LittleLong(in->facetype) == MST_PLANAR || LittleLong(in->facetype) == MST_TRIANGLE_SOUP)
 		{
 			numindexes = LittleLong(in->num_indexes);
 			numverts = LittleLong(in->num_vertices);
-			if (numindexes%3)
+			if (numindexes%3 || numindexes < 0 || numverts < 0)
 			{
 				Con_Printf(CON_ERROR "mesh indexes should be multiples of 3\n");
 				return false;
 			}
 
-			out->mesh = Hunk_Alloc(sizeof(mesh_t) + (sizeof(vec3_t)) * numverts);
+			out->mesh = Hunk_Alloc(sizeof(mesh_t));
 			out->mesh->normals_array= map_normals_array + LittleLong(in->firstvertex);
+			out->mesh->snormals_array = map_svector_array + LittleLong(in->firstvertex);
+			out->mesh->tnormals_array = map_tvector_array + LittleLong(in->firstvertex);
 
-#pragma message("s/t vectors not calculated for q3bsp")
-			out->mesh->snormals_array = out->mesh->normals_array;
-			out->mesh->tnormals_array = out->mesh->normals_array;
-
-			out->mesh->colors_array	= map_colors_array + LittleLong(in->firstvertex);
+			out->mesh->colors4f_array	= map_colors4f_array + LittleLong(in->firstvertex);
 			out->mesh->indexes		= map_surfindexes + LittleLong(in->firstindex);
 			out->mesh->xyz_array	= map_verts + LittleLong(in->firstvertex);
 			out->mesh->st_array		= map_vertstmexcoords + LittleLong(in->firstvertex);
@@ -2667,47 +2591,59 @@ qboolean CModQ3_LoadRFaces (lump_t *l, qboolean useshaders)
 
 			out->mesh->numindexes = numindexes;
 			out->mesh->numvertexes = numverts;
+
+			if (LittleLong(in->facetype) == MST_PLANAR)
+				if (out->mesh->numindexes == (out->mesh->numvertexes-2)*3)
+					out->mesh->istrifan = true;
+
+			Mod_AccumulateMeshTextureVectors(out->mesh);
 		}
 		else
 		{
-//			int r, g, b;
+			//flare
+			int r, g, b;
 			extern index_t r_quad_indexes[6];
+			static vec2_t	st[4] = {{0,0},{0,1},{1,1},{1,0}};
 
-			mesh = out->mesh = (mesh_t *)Hunk_Alloc ( sizeof(mesh_t));
-			mesh->xyz_array = (vec3_t *)Hunk_Alloc ( sizeof(vec3_t));
-			mesh->numvertexes = 1;
+			mesh = out->mesh = (mesh_t *)Hunk_Alloc(sizeof(mesh_t));
+			mesh->xyz_array = (vecV_t *)Hunk_Alloc(sizeof(vecV_t)*4);
+			mesh->colors4b_array = (byte_vec4_t *)Hunk_Alloc(sizeof(byte_vec4_t)*4);
+			mesh->numvertexes = 4;
 			mesh->indexes = r_quad_indexes;
+			mesh->st_array = st;
 			mesh->numindexes = 6;
 
-			VectorCopy ( in->lightmap_origin, mesh->xyz_array[0] );
+			VectorCopy (in->lightmap_origin, mesh->xyz_array[0]);
+			VectorCopy (in->lightmap_origin, mesh->xyz_array[1]);
+			VectorCopy (in->lightmap_origin, mesh->xyz_array[2]);
+			VectorCopy (in->lightmap_origin, mesh->xyz_array[3]);
 
-/*			r = LittleFloat ( in->lightmapVecs[0][0] ) * 255.0f;
-			r = bound ( 0, r, 255 );
+			r = LittleFloat(in->lightmap_vecs[0][0]) * 255.0f;
+			r = bound (0, r, 255);
+			g = LittleFloat(in->lightmap_vecs[0][1]) * 255.0f;
+			g = bound (0, g, 255);
+			b = LittleFloat(in->lightmap_vecs[0][2]) * 255.0f;
+			b = bound (0, b, 255);
 
-			g = LittleFloat ( in->lightmapVecs[0][1] ) * 255.0f;
-			g = bound ( 0, g, 255 );
-
-			b = LittleFloat ( in->lightmapVecs[0][2] ) * 255.0f;
-			b = bound ( 0, b, 255 );
-
-			out->dlightbits = (unsigned int)COLOR_RGB ( r, g, b );
-*/		}
+			mesh->colors4b_array[0][0] = r;
+			mesh->colors4b_array[0][1] = g;
+			mesh->colors4b_array[0][2] = b;
+			mesh->colors4b_array[0][3] = 255;
+			Vector4Copy(mesh->colors4b_array[0], mesh->colors4b_array[1]);
+			Vector4Copy(mesh->colors4b_array[0], mesh->colors4b_array[2]);
+			Vector4Copy(mesh->colors4b_array[0], mesh->colors4b_array[3]);
+		}
 	}
 
-	if (useshaders)
-		CModQ3_SortShaders();
+	Mod_NormaliseTextureVectors(map_normals_array, map_svector_array, map_tvector_array, numvertexes);
+
+	Mod_SortShaders();
 
 	return true;
 }
 
-qboolean CModRBSP_LoadRFaces (lump_t *l, qboolean useshaders)
+qboolean CModRBSP_LoadRFaces (lump_t *l)
 {
-#ifndef Q3SHADERS
-	int polysize = sizeof(glpoly_t) - VERTEXSIZE*sizeof(float);
-	glpoly_t *p;
-	int rv, fi;
-	int gv, v;
-#endif
 	rbspface_t *in;
 	msurface_t *out;
 	mplane_t *pl;
@@ -2766,11 +2702,11 @@ qboolean CModRBSP_LoadRFaces (lump_t *l, qboolean useshaders)
 				//q3dm10's thingie is 0
 			out->flags |= SURF_DRAWALPHA;
 
-		if (loadmodel->texinfo[in->shadernum].flags & SURF_SKY)
+		if (loadmodel->texinfo[in->shadernum].flags & TI_SKY)
 			out->flags |= SURF_DRAWSKY;
 
 #ifdef Q3SHADERS
-		if (!out->texinfo->texture->shader && useshaders)
+		if (!out->texinfo->texture->shader)
 		{
 			extern cvar_t r_vertexlight;
 			if (in->facetype == MST_FLARE)
@@ -2778,7 +2714,9 @@ qboolean CModRBSP_LoadRFaces (lump_t *l, qboolean useshaders)
 			else if (in->facetype == MST_TRIANGLE_SOUP || r_vertexlight.value)
 				out->texinfo->texture->shader = R_RegisterShader_Vertex (out->texinfo->texture->name);
 			else
-				out->texinfo->texture->shader = R_RegisterShader(out->texinfo->texture->name);
+				out->texinfo->texture->shader = R_RegisterShader_Lightmap(out->texinfo->texture->name);
+
+			R_BuildDefaultTexnums(&out->texinfo->texture->shader->defaulttextures, out->texinfo->texture->shader);
 		}
 
 		if (in->fognum < 0 || in->fognum >= map_numfogs)
@@ -2808,7 +2746,7 @@ qboolean CModRBSP_LoadRFaces (lump_t *l, qboolean useshaders)
 
 			out->mesh = Hunk_Alloc(sizeof(mesh_t) + (sizeof(vec3_t)) * numverts);
 			out->mesh->normals_array= map_normals_array + LittleLong(in->firstvertex);
-			out->mesh->colors_array	= map_colors_array + LittleLong(in->firstvertex);
+			out->mesh->colors4f_array	= map_colors4f_array + LittleLong(in->firstvertex);
 			out->mesh->indexes		= map_surfindexes + LittleLong(in->firstindex);
 			out->mesh->xyz_array	= map_verts + LittleLong(in->firstvertex);
 			out->mesh->st_array		= map_vertstmexcoords + LittleLong(in->firstvertex);
@@ -2821,11 +2759,13 @@ qboolean CModRBSP_LoadRFaces (lump_t *l, qboolean useshaders)
 		{
 //			int r, g, b;
 			extern index_t r_quad_indexes[6];
+			static vec2_t	st[4] = {{0,0},{0,1},{1,1},{1,0}};
 
 			mesh = out->mesh = (mesh_t *)Hunk_Alloc ( sizeof(mesh_t));
-			mesh->xyz_array = (vec3_t *)Hunk_Alloc ( sizeof(vec3_t));
+			mesh->xyz_array = (vecV_t *)Hunk_Alloc ( sizeof(vecV_t));
 			mesh->numvertexes = 1;
 			mesh->indexes = r_quad_indexes;
+			mesh->st_array = st;
 			mesh->numindexes = 6;
 		//	VectorCopy ( out->origin, mesh->xyz_array[0] );
 
@@ -2842,8 +2782,7 @@ qboolean CModRBSP_LoadRFaces (lump_t *l, qboolean useshaders)
 */		}
 	}
 
-	if (useshaders)
-		CModQ3_SortShaders();
+	Mod_SortShaders();
 
 	return true;
 }
@@ -2977,7 +2916,7 @@ qboolean CModQ3_LoadBrushes (lump_t *l)
 	{
 		shaderref = LittleLong ( in->shadernum );
 		out->contents = map_surfaces[shaderref].c.value;
-		out->firstbrushside = LittleLong ( in->firstside );
+		out->brushside = &map_brushsides[LittleLong ( in->firstside )];
 		out->numsides = LittleLong ( in->num_sides );
 	}
 
@@ -3355,7 +3294,8 @@ qboolean CModRBSP_LoadLightgrid (lump_t *elements, lump_t *indexes)
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
 int CM_GetQ2Palette (void)
 {
-	char *f = (void *)COM_LoadMallocFile("pics/colormap.pcx");
+	char *f;
+	FS_LoadFile("pics/colormap.pcx", (void**)&f);
 	if (!f)
 	{
 		Con_Printf (CON_WARNING "Couldn't find pics/colormap.pcx\n");
@@ -3364,13 +3304,13 @@ int CM_GetQ2Palette (void)
 	if (!ReadPCXPalette(f, com_filesize, d_q28to24table))
 	{
 		Con_Printf (CON_WARNING "Couldn't read pics/colormap.pcx\n");
-		BZ_Free(f);
+		FS_FreeFile(f);
 		return -1;
 	}
-	BZ_Free(f);
+	FS_FreeFile(f);
 
 
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 	{
 		float	inf;
 		qbyte	palette[768];
@@ -3471,7 +3411,7 @@ void CMQ3_CalcPHS (void)
 	vcount = 0;
 	for (i=0 ; i<numclusters ; i++)
 	{
-		scan = CM_ClusterPVS (sv.worldmodel, i, NULL, 0);
+		scan = CM_ClusterPVS (sv.world.worldmodel, i, NULL, 0);
 		for (j=0 ; j<numclusters ; j++)
 		{
 			if ( scan[j>>3] & (1<<(j&7)) )
@@ -3584,8 +3524,6 @@ void Q2BSP_MarkLights (dlight_t *light, int bit, mnode_t *node)
 }
 
 #ifndef SERVERONLY
-#ifdef RGLQUAKE
-void GLR_StainSurf (msurface_t *surf, float *parms);
 void GLR_Q2BSP_StainNode (mnode_t *node, float *parms)
 {
 	mplane_t	*splitplane;
@@ -3616,22 +3554,16 @@ void GLR_Q2BSP_StainNode (mnode_t *node, float *parms)
 	{
 		if (surf->flags&~(SURF_DONTWARP|SURF_PLANEBACK))
 			continue;
-		GLR_StainSurf(surf, parms);
+		Surf_StainSurf(surf, parms);
 	}
 
 	GLR_Q2BSP_StainNode (node->children[0], parms);
 	GLR_Q2BSP_StainNode (node->children[1], parms);
 }
 #endif
-#endif
 
 #endif
 
-#ifndef CLIENTONLY
-unsigned int Q2BSP_FatPVS (model_t *mod, vec3_t org, qbyte *buffer, unsigned int buffersize, qboolean add);
-qboolean Q2BSP_EdictInFatPVS(model_t *mod, edict_t *ent, qbyte *pvs);
-void Q2BSP_FindTouchedLeafs(model_t *mod, edict_t *ent, float *mins, float *maxs);
-#endif
 void GLQ2BSP_LightPointValues(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 void SWQ2BSP_LightPointValues(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 
@@ -3649,7 +3581,6 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 	q2dheader_t		header;
 	int				length;
 	static unsigned	last_checksum;
-	qboolean useshaders;
 	qboolean noerrors = true;
 	int start;
 
@@ -3660,7 +3591,6 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 	numvisibility = 0;
 	numentitychars = 0;
 	map_entitystring = NULL;
-	map_name[0] = 0;
 
 	loadmodel->type = mod_brush;
 
@@ -3697,7 +3627,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 	switch(header.version)
 	{
 	default:
-		Con_Printf (CON_ERROR "Quake 2 or Quake 3 based BSP with unknown header (%i should be %i or %i)\n"
+		Con_Printf (CON_ERROR "Quake 2 or Quake 3 based BSP with unknown header (%s: %i should be %i or %i)\n"
 			, name, header.version, Q2BSPVERSION, Q3BSPVERSION);
 		return NULL;
 		break;
@@ -3705,16 +3635,6 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 	case 1: //rbsp
 	case Q3BSPVERSION+1:	//rtcw
 	case Q3BSPVERSION:
-
-#ifdef Q3SHADERS
-		{
-			extern cvar_t gl_shadeq3;
-			useshaders = qrenderer == QR_OPENGL && gl_shadeq3.value;
-		}
-#else
-		useshaders = false;
-#endif
-
 		mapisq3 = true;
 		loadmodel->fromgame = fg_quake3;
 		for (i=0 ; i<Q3LUMPS_TOTAL ; i++)
@@ -3753,7 +3673,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 
 		switch(qrenderer)
 		{
-#if defined(RGLQUAKE)
+#if defined(GLQUAKE)
 		case QR_OPENGL:
 #endif
 #if defined(D3DQUAKE)
@@ -3761,7 +3681,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 #endif
 		case QR_NONE:	//dedicated only
 			mapisq3 = true;
-			noerrors = noerrors && CModQ3_LoadShaders		(&header.lumps[Q3LUMP_SHADERS], useshaders);
+			noerrors = noerrors && CModQ3_LoadShaders		(&header.lumps[Q3LUMP_SHADERS]);
 			noerrors = noerrors && CModQ3_LoadPlanes		(&header.lumps[Q3LUMP_PLANES]);
 			noerrors = noerrors && CModQ3_LoadLeafBrushes	(&header.lumps[Q3LUMP_LEAFBRUSHES]);
 			noerrors = noerrors && CModQ3_LoadBrushes		(&header.lumps[Q3LUMP_BRUSHES]);
@@ -3779,27 +3699,34 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 				noerrors = noerrors && CModRBSP_LoadFaces		(&header.lumps[Q3LUMP_SURFACES]);
 			else
 				noerrors = noerrors && CModQ3_LoadFaces		(&header.lumps[Q3LUMP_SURFACES]);
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 			if (qrenderer != QR_NONE)
 			{
 				if (noerrors)
-					GLMod_LoadLighting		(&header.lumps[Q3LUMP_LIGHTMAPS]);	//fixme: duplicated loading.
+					RMod_LoadLighting		(&header.lumps[Q3LUMP_LIGHTMAPS]);	//fixme: duplicated loading.
 				if (header.version == 1)
 					noerrors = noerrors && CModRBSP_LoadLightgrid	(&header.lumps[Q3LUMP_LIGHTGRID], &header.lumps[RBSPLUMP_LIGHTINDEXES]);
 				else
 					noerrors = noerrors && CModQ3_LoadLightgrid	(&header.lumps[Q3LUMP_LIGHTGRID]);
 				noerrors = noerrors && CModQ3_LoadIndexes		(&header.lumps[Q3LUMP_DRAWINDEXES]);
-#ifdef Q3SHADERS
+
 				if (header.version != Q3BSPVERSION+1)
 					noerrors = noerrors && CModQ3_LoadFogs			(&header.lumps[Q3LUMP_FOGS]);
 				else
 					map_numfogs = 0;
-#endif
+
 				if (header.version == 1)
-					noerrors = noerrors && CModRBSP_LoadRFaces	(&header.lumps[Q3LUMP_SURFACES], useshaders);
+					noerrors = noerrors && CModRBSP_LoadRFaces	(&header.lumps[Q3LUMP_SURFACES]);
 				else
-					noerrors = noerrors && CModQ3_LoadRFaces	(&header.lumps[Q3LUMP_SURFACES], useshaders);
+					noerrors = noerrors && CModQ3_LoadRFaces	(&header.lumps[Q3LUMP_SURFACES]);
 				noerrors = noerrors && CModQ3_LoadMarksurfaces (&header.lumps[Q3LUMP_LEAFSURFACES]);	//fixme: duplicated loading.
+
+				/*make sure all textures have a shader*/
+				for (i=0; i<loadmodel->numtextures; i++)
+				{
+					if (!loadmodel->textures[i]->shader)
+						loadmodel->textures[i]->shader = R_RegisterShader_Lightmap(loadmodel->textures[i]->name);
+				}
 			}
 #endif
 			noerrors = noerrors && CModQ3_LoadLeafFaces	(&header.lumps[Q3LUMP_LEAFSURFACES]);
@@ -3824,12 +3751,12 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 #ifndef CLIENTONLY
 			loadmodel->funcs.FatPVS					= Q2BSP_FatPVS;
 			loadmodel->funcs.EdictInFatPVS			= Q2BSP_EdictInFatPVS;
-			loadmodel->funcs.FindTouchedLeafs_Q1	= Q2BSP_FindTouchedLeafs;
+			loadmodel->funcs.FindTouchedLeafs		= Q2BSP_FindTouchedLeafs;
 #endif
 			loadmodel->funcs.LeafPVS				= CM_LeafnumPVS;
 			loadmodel->funcs.LeafnumForPoint			= CM_PointLeafnum;
 
-#if defined(RGLQUAKE) || defined(D3DQUAKE)
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 			loadmodel->funcs.LightPointValues		= GLQ3_LightGrid;
 			loadmodel->funcs.StainNode				= GLR_Q2BSP_StainNode;
 			loadmodel->funcs.MarkLights				= Q2BSP_MarkLights;
@@ -3924,7 +3851,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 #ifndef CLIENTONLY
 			loadmodel->funcs.FatPVS					= Q2BSP_FatPVS;
 			loadmodel->funcs.EdictInFatPVS			= Q2BSP_EdictInFatPVS;
-			loadmodel->funcs.FindTouchedLeafs_Q1	= Q2BSP_FindTouchedLeafs;
+			loadmodel->funcs.FindTouchedLeafs		= Q2BSP_FindTouchedLeafs;
 #endif
 			loadmodel->funcs.LightPointValues		= NULL;
 			loadmodel->funcs.StainNode				= NULL;
@@ -3937,15 +3864,16 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 			loadmodel->funcs.NativeContents			= CM_NativeContents;
 
 			break;
-#if defined(RGLQUAKE)
+#if defined(GLQUAKE) || defined(D3DQUAKE)
+		case QR_DIRECT3D:
 		case QR_OPENGL:
 		// load into heap
 		#ifndef SERVERONLY
-			noerrors = noerrors && GLMod_LoadVertexes		(&header.lumps[Q2LUMP_VERTEXES]);
-			noerrors = noerrors && GLMod_LoadEdges			(&header.lumps[Q2LUMP_EDGES]);
-			noerrors = noerrors && GLMod_LoadSurfedges		(&header.lumps[Q2LUMP_SURFEDGES]);
+			noerrors = noerrors && RMod_LoadVertexes		(&header.lumps[Q2LUMP_VERTEXES]);
+			noerrors = noerrors && RMod_LoadEdges			(&header.lumps[Q2LUMP_EDGES]);
+			noerrors = noerrors && RMod_LoadSurfedges		(&header.lumps[Q2LUMP_SURFEDGES]);
 			if (noerrors)
-				GLMod_LoadLighting		(&header.lumps[Q2LUMP_LIGHTING]);
+				RMod_LoadLighting		(&header.lumps[Q2LUMP_LIGHTING]);
 		#endif
 			noerrors = noerrors && CMod_LoadSurfaces		(&header.lumps[Q2LUMP_TEXINFO]);
 			noerrors = noerrors && CMod_LoadLeafBrushes	(&header.lumps[Q2LUMP_LEAFBRUSHES]);
@@ -3953,7 +3881,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 		#ifndef SERVERONLY
 			noerrors = noerrors && CMod_LoadTexInfo		(&header.lumps[Q2LUMP_TEXINFO]);
 			noerrors = noerrors && CMod_LoadFaces			(&header.lumps[Q2LUMP_FACES]);
-			noerrors = noerrors && GLMod_LoadMarksurfaces	(&header.lumps[Q2LUMP_LEAFFACES]);
+			noerrors = noerrors && RMod_LoadMarksurfaces	(&header.lumps[Q2LUMP_LEAFFACES]);
 		#endif
 			noerrors = noerrors && CMod_LoadVisibility		(&header.lumps[Q2LUMP_VISIBILITY]);
 			noerrors = noerrors && CMod_LoadBrushes		(&header.lumps[Q2LUMP_BRUSHES]);
@@ -3974,7 +3902,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 #ifndef CLIENTONLY
 			loadmodel->funcs.FatPVS					= Q2BSP_FatPVS;
 			loadmodel->funcs.EdictInFatPVS			= Q2BSP_EdictInFatPVS;
-			loadmodel->funcs.FindTouchedLeafs_Q1	= Q2BSP_FindTouchedLeafs;
+			loadmodel->funcs.FindTouchedLeafs		= Q2BSP_FindTouchedLeafs;
 #endif
 			loadmodel->funcs.LightPointValues		= GLQ2BSP_LightPointValues;
 			loadmodel->funcs.StainNode				= GLR_Q2BSP_StainNode;
@@ -3995,7 +3923,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 	}
 
 #ifndef SERVERONLY
-	Mod_ParseInfoFromEntityLump(loadmodel->entities, loadname);	//only done for client's world model (or server if the server is loading it for client)
+	Mod_ParseInfoFromEntityLump(loadmodel, loadmodel->entities, loadname);	//only done for client's world model (or server if the server is loading it for client)
 #endif
 
 	CM_InitBoxHull ();
@@ -4006,10 +3934,6 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 		memset (portalopen, 0, sizeof(portalopen));	//make them start closed.
 	FloodAreaConnections ();
 
-	strcpy (map_name, name);
-
-
-
 	loadmodel->checksum = loadmodel->checksum2 = *checksum;
 
 
@@ -4019,13 +3943,11 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 
 		mod->hulls[0].firstclipnode = map_cmodels[0].headnode;
 		mod->hulls[0].available = true;
-		Q2BSP_SetHullFuncs(&mod->hulls[0]);
 
 		for (j=1 ; j<MAX_MAP_HULLSM ; j++)
 		{
 			mod->hulls[j].firstclipnode = map_cmodels[0].headnode;
 			mod->hulls[j].available = false;
-			Q2BSP_SetHullFuncs(&mod->hulls[j]);
 		}
 
 		for (i=1 ; i< loadmodel->numsubmodels ; i++)
@@ -4044,16 +3966,14 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 
 
 			mod->hulls[0].firstclipnode = bm->headnode;
-			mod->hulls[j].available = true;
+			mod->hulls[0].available = true;
 			mod->nummodelsurfaces = bm->numsurfaces;
 			mod->firstmodelsurface = bm->firstsurface;
-			Q2BSP_SetHullFuncs(&mod->hulls[0]);
 			for (j=1 ; j<MAX_MAP_HULLSM ; j++)
 			{
 				mod->hulls[j].firstclipnode = bm->headnode;
 				mod->hulls[j].lastclipnode = mod->numclipnodes-1;
 				mod->hulls[j].available = false;
-				Q2BSP_SetHullFuncs(&mod->hulls[j]);
 			}
 
 			VectorCopy (bm->maxs, mod->maxs);
@@ -4162,7 +4082,7 @@ void CM_InitBoxHull (void)
 #ifndef CLIENTONLY
 	box_model.funcs.FatPVS				= Q2BSP_FatPVS;
 	box_model.funcs.EdictInFatPVS		= Q2BSP_EdictInFatPVS;
-	box_model.funcs.FindTouchedLeafs_Q1	= Q2BSP_FindTouchedLeafs;
+	box_model.funcs.FindTouchedLeafs	= Q2BSP_FindTouchedLeafs;
 #endif
 
 #ifndef SERVERONLY
@@ -4175,7 +4095,6 @@ void CM_InitBoxHull (void)
 	box_model.funcs.NativeTrace			= CM_NativeTrace;
 
 	box_model.hulls[0].available = true;
-	Q2BSP_SetHullFuncs(&box_model.hulls[0]);
 
 	box_model.nodes = Hunk_Alloc(sizeof(mnode_t)*6);
 	box_planes = &map_planes[numplanes];
@@ -4187,7 +4106,7 @@ void CM_InitBoxHull (void)
 
 	box_brush = &map_brushes[numbrushes];
 	box_brush->numsides = 6;
-	box_brush->firstbrushside = numbrushsides;
+	box_brush->brushside = &map_brushsides[numbrushsides];
 	box_brush->contents = Q2CONTENTS_MONSTER;
 
 	box_leaf = &map_leafs[numleafs];
@@ -4417,7 +4336,7 @@ int CM_PointContents (model_t *mod, vec3_t p)
 			continue;
 		}
 
-		brushside = &map_brushsides[brush->firstbrushside];
+		brushside = brush->brushside;
 		for ( j = 0; j < brush->numsides; j++, brushside++ )
 		{
 			if ( PlaneDiff (p, brushside->plane) > 0 )
@@ -4431,7 +4350,7 @@ int CM_PointContents (model_t *mod, vec3_t p)
 	return contents;
 }
 
-unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t p, vec3_t mins, vec3_t maxs)
+unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs)
 {
 	int	contents;
 	if (!DotProduct(mins, mins) && !DotProduct(maxs, maxs))
@@ -4466,15 +4385,15 @@ unsigned int CM_NativeContents(struct model_s *model, int hulloverride, int fram
 					if ( (contents & brush->contents) == brush->contents ) {
 						continue;
 					}
-					
-					brushside = &map_brushsides[brush->firstbrushside];
+
+					brushside = brush->brushside;
 					for ( j = 0; j < brush->numsides; j++, brushside++ )
 					{
 						if ( PlaneDiff (p, brushside->plane) > 0 )
 							break;
 					}
 
-					if (j == brush->numsides) 
+					if (j == brush->numsides)
 						contents |= brush->contents;
 				}
 			}
@@ -4575,7 +4494,7 @@ void CM_ClipBoxToBrush (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 
 	for (i=0 ; i<brush->numsides ; i++)
 	{
-		side = &map_brushsides[brush->firstbrushside+i];
+		side = brush->brushside+i;
 		plane = side->plane;
 
 		// FIXME: special case for axial
@@ -4687,7 +4606,7 @@ void CM_ClipBoxToPatch (vec3_t mins, vec3_t maxs, vec3_t p1, vec3_t p2,
 
 	for (i=0 ; i<brush->numsides ; i++)
 	{
-		side = &map_brushsides[brush->firstbrushside+i];
+		side = brush->brushside+i;
 		plane = side->plane;
 
 		if (!trace_ispoint)
@@ -4790,7 +4709,7 @@ void CM_TestBoxInBrush (vec3_t mins, vec3_t maxs, vec3_t p1,
 
 	for (i=0 ; i<brush->numsides ; i++)
 	{
-		side = &map_brushsides[brush->firstbrushside+i];
+		side = brush->brushside+i;
 		plane = side->plane;
 
 		// FIXME: special case for axial
@@ -4819,7 +4738,6 @@ void CM_TestBoxInBrush (vec3_t mins, vec3_t maxs, vec3_t p1,
 
 	// inside this brush
 	trace->startsolid = trace->allsolid = true;
-	trace->fraction = 0;
 	trace->contents |= brush->contents;
 }
 
@@ -4840,7 +4758,7 @@ void CM_TestBoxInPatch (vec3_t mins, vec3_t maxs, vec3_t p1,
 
 	for (i=0 ; i<brush->numsides ; i++)
 	{
-		side = &map_brushsides[brush->firstbrushside+i];
+		side = brush->brushside+i;
 		plane = side->plane;
 
 		// general box case
@@ -4875,7 +4793,6 @@ void CM_TestBoxInPatch (vec3_t mins, vec3_t maxs, vec3_t p1,
 
 	// inside this patch
 	trace->startsolid = trace->allsolid = true;
-	trace->fraction = 0;
 	trace->contents = brush->contents;
 }
 
@@ -5274,12 +5191,12 @@ trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 	return trace_trace;
 }
 
-qboolean CM_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
+qboolean CM_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
 {
 	*trace = CM_BoxTrace(model, start, end, mins, maxs, MASK_PLAYERSOLID);
 	return trace->fraction != 1;
 }
-qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace)
+qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace)
 {
 	*trace = CM_BoxTrace(model, start, end, mins, maxs, contents);
 	return trace->fraction != 1;
@@ -5744,7 +5661,13 @@ and recalculates the area connections
 */
 void	CM_ReadPortalState (FILE *f)
 {
-	fread (portalopen, 1, sizeof(portalopen), f);
+	size_t result;
+
+	result = fread (portalopen, 1, sizeof(portalopen), f); // do something with result
+
+	if (result != sizeof(portalopen))
+		Con_Printf("CM_ReadPortalState() fread: expected %lu, result was %u (%s)\n",(long unsigned int)sizeof(portalopen),(unsigned int)result,strerror(errno));
+
 	FloodAreaConnections ();
 }
 
@@ -5788,7 +5711,7 @@ qboolean Q2BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 		return true;
 	return false;
 }*/
-unsigned int Q2BSP_PointContents(model_t *mod, vec3_t p)
+unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p)
 {
 	int pc, ret = FTECONTENTS_EMPTY;
 	pc = CM_PointContents (mod, p);
@@ -5805,11 +5728,6 @@ unsigned int Q2BSP_PointContents(model_t *mod, vec3_t p)
 
 	return ret;
 }
-void Q2BSP_SetHullFuncs(hull_t *hull)
-{
-//	hull->funcs.HullPointContents = Q2BSP_HullPointContents;
-}
-
 
 
 
@@ -5833,3 +5751,4 @@ void CM_Init(void)	//register cvars.
 	Cvar_Register(&r_subdivisions, MAPOPTIONS);
 }
 #endif
+

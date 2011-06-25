@@ -29,8 +29,6 @@ $frame death1 death2 death3 death4 death5 death6 death7 death8 death9
 $frame attacka1 attacka2 attacka3 attacka4 attacka5 attacka6 attacka7 attacka8
 $frame attacka9 attacka10 attacka11 attacka12 attacka13 attacka14 attacka15
 
-$frame ram1 ram2 ram3 ram4 ram5 ram6
-
 //============================================================================
 
 void(float side)	Demon_Melee;
@@ -151,11 +149,6 @@ void(entity attacker, float damage)	demon1_pain =
 	if (self.pain_finished > time)
 		return;
 
-	if (self.health < (self.max_health*0.30))
-		self.skin = 2;
-	else if (self.health < (self.max_health*0.60))
-		self.skin = 1;
-
 	self.pain_finished = time + 10;
     sound (self, CHAN_VOICE, "demon/dpain1.wav", 1, ATTN_NORM);
 
@@ -165,114 +158,33 @@ void(entity attacker, float damage)	demon1_pain =
 	demon1_pain1 ();
 };
 
-void()	demon1_die1		=[	$death1,		demon1_die2	] {};
+void()	demon1_die1		=[	$death1,		demon1_die2	] {
+sound (self, CHAN_VOICE, "demon/death1.wav", 1, ATTN_NORM);};
 void()	demon1_die2		=[	$death2,		demon1_die3	] {};
-void()	demon1_die3		=[	$death3,		demon1_die4	] {
-self.rtime = 1;
-setsize (self, '-24 -24 -24', '24 24 -8');
-};
+void()	demon1_die3		=[	$death3,		demon1_die4	] {};
 void()	demon1_die4		=[	$death4,		demon1_die5	] {};
 void()	demon1_die5		=[	$death5,		demon1_die6	] {};
-void()	demon1_die6		=[	$death6,		demon1_die7	] {};
+void()	demon1_die6		=[	$death6,		demon1_die7	]
+{self.solid = SOLID_NOT;};
 void()	demon1_die7		=[	$death7,		demon1_die8	] {};
 void()	demon1_die8		=[	$death8,		demon1_die9	] {};
 void()	demon1_die9		=[	$death9,		demon1_die9 ] {};
 
-void() demon1_splat1 =
+void() demon_die =
 {
-	self.rtime = 1;
-	setsize (self, '-24 -24 -24', '24 24 -8');
-	if (self.frame < 8)
-		self.frame = self.frame + 1;
-
-	self.think = demon1_splat1;
-	self.nextthink = time + 0.1;
-
-	if (self.frame == 8)
-		self.think = SUB_Null;
-
-};
-
-
-void () demon_pain =
-{
-	local vector dir;
-
-	if (self.rtime > 0)
+// check for gib
+	if (self.health < -80)
 	{
-		self.health = 180;
+		sound (self, CHAN_VOICE, "demon/death2.wav", 1, ATTN_NORM);
+		ThrowHead ("progs/h_demon.mdl", self.health);
+		ThrowGib ("progs/gib1.mdl", self.health);
+		ThrowGib ("progs/gib1.mdl", self.health);
+		ThrowGib ("progs/gib1.mdl", self.health);
 		return;
 	}
 
-	dir = normalize(self.origin - self.enemy.origin);
-	self.velocity = dir * 120;
-
-	if (self.frame == 69)
-	{
-		self.health = 180;
-		self.frame = 42;
-		self.think = demon1_die1;
-		self.nextthink = time + 0.25;
-	}
-	else
-	{
-		self.health = 180;
-		ThrowGib ("progs/zom_gib.mdl", -40);
-		self.frame = 43;
-		self.think = demon1_die1;
-		self.nextthink = time + 0.25;
-	}
-
-	self.attack = self.attack + 1;
-
-	if (self.attack >= 8)
-	{
-			self.attack = 0;
-			self.health = 180;
-			ThrowGib ("progs/zom_gib.mdl", -40);
-			ThrowGib ("progs/zom_gib.mdl", -40);
-			ThrowGib ("progs/gib1.mdl", -40);
-			ThrowGib ("progs/h_demon.mdl", -40);
-			ThrowGib ("progs/zom_gib.mdl", -90);
-			ThrowGib ("progs/gib1.mdl", -90);
-			setmodel(self, "progs/x_demon.mdl");
-			sound (self, CHAN_VOICE, "player/gib1.wav", 1, ATTN_NORM);
-			self.think = demon1_splat1;
-			self.nextthink = time + 0.1;
-
-	}
-};
-
-void (vector stuff, vector ang) spawn_live_demon =
-{
-	local entity demon;
-
-	demon = spawn ();
-	demon.origin = stuff;
-	demon.enemy = world;
-	demon.attack_finished = time + 10;
-	demon.solid = SOLID_SLIDEBOX;
-	demon.movetype = MOVETYPE_STEP;
-	demon.takedamage = DAMAGE_YES;
-	setmodel (demon, "progs/demon.mdl");
-	setsize (demon, '-20 -20 -24', '20 20 64');
-	demon.classname = "body";
-	demon.netname = "dead";
-	demon.health = 180;
-	demon.angles = ang;
-	demon.max_health = demon.health;
-	demon.th_pain = demon_pain;
-	demon.think = demon_pain;
-	demon.nextthink = time + 0.15;
-};
-
-void() demon_die =
-{
-	self.solid = SOLID_NOT;
-
-	spawn_live_demon(self.origin, self.angles);
-	sound (self, CHAN_VOICE, "demon/death1.wav", 1, ATTN_NORM);
-	remove(self);
+// regular death
+	demon1_die1 ();
 };
 
 
@@ -283,15 +195,8 @@ void() Demon_MeleeAttack =
 
 void() monster_demon1 =
 {
-	if (self.zone == 0)
-	{
-		load_monster();
-		return;
-	}
-
 	precache_model ("progs/demon.mdl");
 	precache_model ("progs/h_demon.mdl");
-	precache_model ("progs/x_demon.mdl");
 
 	precache_sound ("demon/dhit2.wav");
 	precache_sound ("demon/djump.wav");
@@ -310,7 +215,7 @@ void() monster_demon1 =
 	setmodel (self, "progs/demon.mdl");
 
 	setsize (self, VEC_HULL2_MIN, VEC_HULL2_MAX);
-	self.health = 600;
+	self.health = 1200;
 	self.team = 3;
 	self.classname = "monster";
 	self.netname = "deathclaw";
@@ -321,7 +226,6 @@ void() monster_demon1 =
 	self.th_melee = Demon_MeleeAttack;		// one of two attacks
 	self.th_missile = demon1_jump1;			// jump attack
 	self.th_pain = demon1_pain;
-	self.armornoise = "misc/thud.wav";
 		
 	walkmonster_start();
 };
@@ -376,7 +280,7 @@ float()	CheckDemonJump =
 	
 	d = vlen(dist);
 	
-	if (d < 200)
+	if (d < 100)
 		return FALSE;
 		
 	if (d > 200)
@@ -425,7 +329,7 @@ void(float side)	Demon_Melee =
 		return;
 		
     sound (self, CHAN_WEAPON, "demon/dhit2.wav", 1, ATTN_NORM);
-	ldmg = 5 + 20*random();
+	ldmg = 10 + 5*random();
 	T_Damage (self.enemy, self, self, ldmg);	
 
 	makevectors (self.angles);
@@ -444,8 +348,13 @@ void()	Demon_JumpTouch =
 	{
 		if ( vlen(self.velocity) > 400 )
 		{
-			ldmg = 20 + 20*random();
+			ldmg = 40 + 10*random();
+			ldmg = ldmg / 4;
 			T_Damage (other, self, self, ldmg);
+			T_Damage (other, self, self, ldmg);	
+			T_Damage (other, self, self, ldmg);	
+			T_Damage (other, self, self, ldmg);	
+
 		}
 	}
 

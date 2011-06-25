@@ -3,297 +3,14 @@ void () make_bubbles;
 void () bubble_remove;
 void () PlayerDead;
 void () player_diea1;
-void () player_walk;
-void () player_slow;
-
-$cd /raid/quake/id1/models/enforcer
-$origin 0 -6 24
-$base base		
-$skin skin
-
-void() corpse_gib =
-{
-	self.solid = SOLID_NOT;
-};
-
-
-//
-// running
-//
-$frame axrun1 axrun2 axrun3 axrun4 axrun5 axrun6
-
-$frame rockrun1 rockrun2 rockrun3 rockrun4 rockrun5 rockrun6
-
-//
-// standing
-//
-$frame stand1 stand2 stand3 stand4 stand5
-
-$frame axstnd1 axstnd2 axstnd3 axstnd4 axstnd5 axstnd6
-$frame axstnd7 axstnd8 axstnd9 axstnd10 axstnd11 axstnd12
-
-
-//
-// pain
-//
-$frame axpain1 axpain2 axpain3 axpain4 axpain5 axpain6
-
-$frame pain1 pain2 pain3 pain4 pain5 pain6
-
-
-//
-// death
-//
-
-$frame axdeth1 axdeth2 axdeth3 axdeth4 axdeth5 axdeth6
-$frame axdeth7 axdeth8 axdeth9
-
-$frame deatha1 deatha2 deatha3 deatha4 deatha5 deatha6 deatha7 deatha8
-$frame deatha9 deatha10 deatha11
-
-$frame deathb1 deathb2 deathb3 deathb4 deathb5 deathb6 deathb7 deathb8
-$frame deathb9
-
-$frame deathc1 deathc2 deathc3 deathc4 deathc5 deathc6 deathc7 deathc8
-$frame deathc9 deathc10 deathc11 deathc12 deathc13 deathc14 deathc15
-
-$frame deathd1 deathd2 deathd3 deathd4 deathd5 deathd6 deathd7
-$frame deathd8 deathd9
-
-$frame deathe1 deathe2 deathe3 deathe4 deathe5 deathe6 deathe7
-$frame deathe8 deathe9
-
-//
-// attacks
-//
-$frame nailatt1 nailatt2
-
-$frame light1 light2
-
-$frame rockatt1 rockatt2 rockatt3 rockatt4 rockatt5 rockatt6
-
-$frame shotatt1 shotatt2 shotatt3 shotatt4 shotatt5 shotatt6
-
-$frame axatt1 axatt2 axatt3 axatt4 axatt5 axatt6
-
-$frame axattb1 axattb2 axattb3 axattb4 axattb5 axattb6
-
-$frame axattc1 axattc2 axattc3 axattc4 axattc5 axattc6
-
-$frame axattd1 axattd2 axattd3 axattd4 axattd5 axattd6
-
 
 void () player_duck = [ 45, player_run ]
 {
 };
 
-
-void () CrawlSound =
-{
-	local float rand;
-	local float r;
-
-
-
-
-	rand = random ();
-
-
-	if (self.velocity == '0 0 0')
-	{
-		self.crawltime = 0;
-		return;
-	}
-
-	self.rtime = time + 1;
-
-
-	r = 0.5;
-	if (self.sneak > 0)
-		r = r / 2;
-
-	if ((rand < 0.25))
-		sound (self, CHAN_ITEM, "player/prone1.wav", r, ATTN_NORM);
-	else if ((rand < 0.5))
-		sound (self, CHAN_ITEM, "player/prone2.wav", r, ATTN_NORM);
-	else if ((rand < 0.75))
-		sound (self, CHAN_ITEM, "player/prone3.wav", r, ATTN_NORM);
-	else
-		sound (self, CHAN_ITEM, "player/prone4.wav", r, ATTN_NORM);
-
-
-};
-
-void() idle_frames =
-{
-
-
-	self.weaponframe = 0;
-
-};
-
-
 void () player_lay = [ 45, player_run ]
 {
-	idle_frames();
-
-	if (self.velocity != '0 0 0')
-		self.frame = 8 - self.crawltime;
-	else if (self.velocity == '0 0 0')
-	{
-		self.frame = 0;
-		return;
-	}
-
-	self.crawltime = self.crawltime - 1;
-
-	if (self.crawltime <= 0)
-	{
-		CrawlSound();
-		self.crawltime = 8;
-	}
-
-
 };
-
-void () player_single_shot       = [ 89, player_single_shot2       ]{};
-void () player_single_shot2      = [ 90, player_run                ]{};
-void () player_single_shot_duck  = [ 183, player_single_shot_duck2 ]{};
-void () player_single_shot_duck2 = [ 184, player_run               ]{};
-
-
-
-
-
-
-void() army_radio1;
-void (vector org) spawn_tracer;
-
-void (float db) loud_noise =
-{
-	//db is loudness factor
-	//10 is low and 50 is high
-	//10 would be a footstep
-	//50 would be a gunshot
-
-	local vector dir, start, org;
-	local entity te;
-	local string z, dt;
-	local float x, y, d, t, v, md;
-
-	if (db >= 50)//big rifles and guns can be heard through thick walls
-		md = 3;
-	else if (db >= 30)//things like SMGs and pistols, a little less
-		md = 2;
-	else if (db >= 15)//miscellaneous, richochets, silenced guns
-		md = 1;
-	else//very quiet things cannot be heard through doors
-		md = 0;
-
-	te = findradius(self.origin, db*40);
-
-	while (te)
-	{
-		if (te.classname == "monster" && (te.enemy.classname != "player" && te.charmed <= 0))
-		{
-			dir = normalize(te.origin - self.origin);
-			v = vlen(te.origin - self.origin);
-			t = 32;
-			d = 0;
-
-			while (t < v)
-			{
-				start = (self.origin + (dir*t));
-
-				if (pointcontents (start) == CONTENT_SOLID)
-					d = d + 1;
-
-				//spawn_tracer(start);
-				t = t + 32;
-			}
-
-			if (x < db*20 && d <= md && (te.friend != self))
-			{
-				te.enemy = self;
-				te.think = HuntTarget;
-				te.nextthink = time + 0.25;
-				te.alert = 20;
-
-				if (world.map_obj == OBJ_SHADOW && self.has_radio == 1)
-				{
-					spawn_excla(self, 8);
-					bprint(2, self.netname);
-					bprint(2, " is calling for help! silence him!\n");
-					self.rtime = 0;
-					army_radio1();
-					return;
-				}
-			}
-			else
-				te.alert = 20;
-		}
-
-		te = te.chain;
-	}
-
-	traceline (self.origin, te.origin, FALSE, self);
-	if (trace_fraction == 1.0)
-		return;
-
-};
-
-void (float db) monster_noise =
-{
-	//db is loudness factor
-	//10 is low and 50 is high
-	//10 would be a footstep
-	//50 would be a gunshot
-
-	local vector dir, start, org;
-	local entity te;
-	local string z, dt;
-	local float x, y, d, t, v, md;
-
-	if (db >= 50)
-		md = 3;
-	else if (db >= 30)
-		md = 2;
-	else if (db >= 15)
-		md = 1;
-	else
-		md = 0;
-
-	te = findradius(self.origin, db*40);
-
-	while (te)
-	{
-		if (te.classname == "monster" && te.enemy.classname == "world")
-		{
-			dir = normalize(te.origin - self.origin);
-			v = vlen(te.origin - self.origin);
-			t = 32;
-			d = 0;
-
-			while (t < v)
-			{
-				start = (self.origin + (dir*t));
-
-				if (pointcontents (start) == CONTENT_SOLID)
-					d = d + 1;
-
-				t = t + 32;
-			}
-		}
-
-		te = te.chain;
-	}
-
-	traceline (self.origin, te.origin, FALSE, self);
-	if (trace_fraction == 1.0)
-		return;
-
-};
-
 
 void () Footstep =
 {
@@ -302,33 +19,40 @@ void () Footstep =
 
 	rand = random ();
 
+	if (self.sneak != 0)
+		return;
 
-
-
-
-
-
-
-	if (self.sneak <= 0)
+	if (self.perk == 5)
+		r = 0.5;
+	else
 	{
-		loud_noise(20 - self.skill_sneak);
-		r = 1 - (self.skill_sneak/40);
+		r = 1;
+		if (random()*4<=1)
+			self.show_hostile = time + 0.1;
 	}
-	else
-		r = 0.25;
 
-	if (self.position == 1)
-		r = r * 0.5;
-
-	if (rand < 0.25)
-		sound (self, CHAN_ITEM, "player/step1.wav", r, ATTN_NORM);
-	else if (rand < 0.5)
-		sound (self, CHAN_ITEM, "player/step2.wav", r, ATTN_NORM);
-	else if (rand < 0.75)
-		sound (self, CHAN_ITEM, "player/step3.wav", r, ATTN_NORM);
-	else
-		sound (self, CHAN_ITEM, "player/step4.wav", r, ATTN_NORM);
-
+	if (world.worldtype == 1 || world.worldtype == 2)
+	{
+		if ((rand < 0.25))
+			sound (self, CHAN_ITEM, "player/step1.wav", r, ATTN_NORM);
+		else if ((rand < 0.5))
+			sound (self, CHAN_ITEM, "player/step2.wav", r, ATTN_NORM);
+		else if ((rand < 0.75))
+			sound (self, CHAN_ITEM, "player/step3.wav", r, ATTN_NORM);
+		else
+			sound (self, CHAN_ITEM, "player/step4.wav", r, ATTN_NORM);
+	}
+	if (world.worldtype == 0)
+	{
+		if ((rand < 0.25))
+			sound (self, CHAN_ITEM, "player/step1a.wav", r, ATTN_NORM);
+		else if ((rand < 0.5))
+			sound (self, CHAN_ITEM, "player/step2a.wav", r, ATTN_NORM);
+		else if ((rand < 0.75))
+			sound (self, CHAN_ITEM, "player/step3a.wav", r, ATTN_NORM);
+		else
+			sound (self, CHAN_ITEM, "player/step4a.wav", r, ATTN_NORM);
+	}
 };
 
 float (entity guy) holding_melee =
@@ -338,9 +62,9 @@ float (entity guy) holding_melee =
 
 	if (iid == IID_NONE ||
 	    iid == IID_WP_KNIFE ||
-	    iid == IID_WP_SLEDGE ||
-	    iid == IID_WP_SPEAR ||
-	    iid == IID_WP_WRENCH)
+	    iid == IID_WP_AXE ||
+	    iid == IID_WP_VIBROBLADE ||
+	    iid == IID_WP_POWERAXE)
 		return true;
 	return false;
 };
@@ -349,18 +73,20 @@ void () player_crouch;
 void () player_stand1 = [ 149, player_stand1 ]
 {
 	if (self.rtime < time && self.attack == 0)
-		idle_frames();
-
+		self.weaponframe = 0;
 
 	if (self.position == 1)
 	{
 		player_crouch ();
 		return;
 	}
-	else if (self.position == 2)
+	else
 	{
-		player_lay ();
-		return;
+		if (self.position == 2)
+		{
+			player_lay ();
+			return;
+		}
 	}
 	if (self.velocity_x || self.velocity_y)
 	{
@@ -368,7 +94,7 @@ void () player_stand1 = [ 149, player_stand1 ]
 		player_run ();
 		return;
 	}
-	if (self.walkframe >= 4)
+	if (self.walkframe >= 5)
 		self.walkframe = 0;
 
 	self.frame = 149 + self.walkframe;
@@ -385,26 +111,20 @@ void () player_crouch = [ 45, player_run ]
 		self.frame = 45;
 		return;
 	}
-	else if (self.position == 2)
+	else
 	{
-		player_lay ();
-		return;
+		if (self.position == 2)
+		{
+			player_lay ();
+			return;
+		}
 	}
-
-	idle_frames();
-
-	self.frame = (35 + self.walkframe);
-
-
-	if (self.walkframe == 3 && self.ghost == 0 && self.velocity_z == 0)
-		Footstep ();
-	if (self.walkframe == 8 && self.ghost == 0 && self.velocity_z == 0)
-		Footstep ();
-
-	if (self.walkframe == 11)
-		self.walkframe = 0;
-
-	self.walkframe = (self.walkframe + 1);
+	self.frame = (36 + self.walkframe);
+	if ((self.walkframe >= TE_TELEPORT))
+	{
+		self.walkframe = MULTICAST_ALL;
+	}
+	self.walkframe = (self.walkframe + WEAPON_SHOTGUN);
 };
 
 void () player_climb = [ 23, player_run ]
@@ -425,178 +145,45 @@ void () player_climb = [ 23, player_run ]
 
 void () player_run = [ 137, player_run ]
 {
-	if (self.rtime <= time)
-		idle_frames();
-
-	if (self.equipment_slot)
-		if ((ToIID(ItemInSlot(self, self.equipment_slot))) == IID_EQUIP_CLIMBINGGEAR)
-		{
-			if (self.gravity == 0)
-			{
-				player_climb();
-				return;
-			}
-		}
-
-	if (!self.velocity_x && !self.velocity_y)
-	{
-		player_stand1 ();
-		return;
-	}
-	else if (self.position == 1)
-	{
-		player_crouch ();
-		return;
-	}
-	else if (self.position == 2)
-	{
-		player_lay ();
-		return;
-	}
-
-	if (self.speedmulti <= 0.60)
-	{
-		player_slow ();
-		return;
-	}
-	else if (self.speedmulti <= 0.80)
-	{
-		player_walk ();
-		return;
-	}
-
-	if (self.walkframe == 2 && self.ghost == 0 && self.position == 0 && self.velocity_z == 0)
-		Footstep ();
-	if (self.walkframe == 5 && self.ghost == 0 && self.position == 0 && self.velocity_z == 0)
-		Footstep ();
-
-	idle_frames();
-
-	self.frame = (137 + self.walkframe*2);
-
-	self.walkframe = self.walkframe + 1;
-
-	if (self.walkframe >= 6)
-		self.walkframe = 0;
-};
-
-void () player_walk = [ 170, player_walk ]
-{
-	if (self.rtime <= time)
+	if (self.rtime < time)
 		self.weaponframe = 0;
 
 	if (self.equipment_slot)
 		if ((ToIID(ItemInSlot(self, self.equipment_slot))) == IID_EQUIP_CLIMBINGGEAR)
 		{
-			if (self.gravity == 0)
-			{
-				player_climb();
-				return;
-			}
+			player_climb();
+			return;
 		}
 
-	if (!self.velocity_x && !self.velocity_y)
+	if ((!self.velocity_x && !self.velocity_y))
 	{
 		player_stand1 ();
 		return;
 	}
-	if (self.position == 1)
+	if ((self.position == 1))
 	{
 		player_crouch ();
 		return;
 	}
 	else
 	{
-		if (self.position == 2)
+		if ((self.position == 2))
 		{
 			player_lay ();
 			return;
 		}
 	}
-
-	if (self.speedmulti > 0.80)
-	{
-		player_run ();
-		return;
-	}
-	else if (self.speedmulti <= 0.60)
-	{
-		player_slow ();
-		return;
-	}
-
-	if (self.walkframe == 3 && self.ghost == 0 && self.position == 0 && self.velocity_z == 0)
+	if (self.walkframe == 1 && self.ghost == 0 && self.position == 0 && self.velocity_z == 0)
 		Footstep ();
 
-	if (self.walkframe == 8 && self.ghost == 0 && self.position == 0 && self.velocity_z == 0)
+	if (self.walkframe == 4 && self.ghost == 0 && self.position == 0 && self.velocity_z == 0)
 		Footstep ();
 
-	idle_frames();
-
-	self.frame = (170 + self.walkframe);
-
-	if (self.walkframe >= 11)
-		self.walkframe = 0;
-
-	self.walkframe = (self.walkframe + 1);
-};
-
-void () player_slow = [ 170, player_slow ]
-{
-	if (self.rtime <= time)
-		self.weaponframe = 0;
-
-	if (self.equipment_slot)
-		if ((ToIID(ItemInSlot(self, self.equipment_slot))) == IID_EQUIP_CLIMBINGGEAR)
-		{
-			if (self.gravity == 0)
-			{
-				player_climb();
-				return;
-			}
-		}
-
-	if (!self.velocity_x && !self.velocity_y)
-	{
-		player_stand1 ();
-		return;
-	}
-	if (self.position == 1)
-	{
-		player_crouch ();
-		return;
-	}
-	else
-	{
-		if (self.position == 2)
-		{
-			player_lay ();
-			return;
-		}
-	}
-
-	if (self.speedmulti > 0.80)
-	{
-		player_run ();
-		return;
-	}
-	else if (self.speedmulti > 0.60)
-	{
-		player_walk ();
-		return;
-	}
-
-	if (self.walkframe == 6 && self.ghost == 0 && self.position == 0 && self.velocity_z == 0)
+	if (self.walkframe == 7 && self.ghost == 0 && self.position == 0 && self.velocity_z == 0)
 		Footstep ();
 
-	if (self.walkframe == 18 && self.ghost == 0 && self.position == 0 && self.velocity_z == 0)
-		Footstep ();
-
-	idle_frames();
-
-	self.frame = (170 + floor(self.walkframe/2));
-
-	if (self.walkframe >= 22)
+	self.frame = (137 + self.walkframe);
+	if (self.walkframe >= 9)
 		self.walkframe = 0;
 
 	self.walkframe = (self.walkframe + 1);
@@ -862,23 +449,6 @@ void () player_jump8 = [ 49, player_jump9 ]
 void () player_jump9 = [ 48, player_run ]
 {
 };
-void()  player_singlex =  [89, player_singlex2       ] {muzzleflash();};
-void()  player_singlex2 = [89, player_run            ] {muzzleflash();};
-
-void()  player_singley =  [90, player_singley2       ] {muzzleflash();};
-void()  player_singley2 = [90, player_run            ] {muzzleflash();};
-
-void()  player_auto_duck1 = [182, player_auto_duck2  ] {muzzleflash();};
-void()  player_auto_duck2 = [182, player_run         ] {muzzleflash();};
-
-void()  player_auto_ducka1 = [183, player_auto_ducka2    ] {muzzleflash();};
-void()  player_auto_ducka2 = [183, player_run            ] {muzzleflash();};
-
-void()  player_auto_prone1 = [1, player_auto_prone2  ] {muzzleflash();};
-void()  player_auto_prone2 = [1, player_run         ] {muzzleflash();};
-
-void()  player_auto_pronea1 = [0, player_auto_pronea2  ] {muzzleflash();};
-void()  player_auto_pronea2 = [0, player_run         ] {muzzleflash();};
 
 void () player_single1_left = [ 88, player_single2_left ]
 {
@@ -960,13 +530,12 @@ void () player_shotty4 = [ 91, player_run ]
 
 void () player_pull1 = [ 155, player_pull2 ]
 {
-	self.weaponframe = 1;
+	self.weaponframe = WEAPON_SHOTGUN;
 };
 
 void () player_pull2 = [ 156, player_pull3 ]
 {
-	self.weaponframe = 2;
-	sound (self, CHAN_WEAPON, "weapons/gpull.wav", WEAPON_SHOTGUN, ATTN_IDLE);
+	self.weaponframe = WEAPON_ROCKET;
 };
 
 void () player_pull3 = [ 157, player_pull4 ]
@@ -987,6 +556,7 @@ void () player_pull5 = [ 157, player_pull6 ]
 void () player_pull6 = [ 156, player_pull7 ]
 {
 	self.weaponframe = TE_LIGHTNING2;
+	sound (self, CHAN_WEAPON, "weapons/gpull.wav", WEAPON_SHOTGUN, ATTN_IDLE);
 };
 
 void () player_pull7 = [ 155, player_pull8 ]
@@ -1010,33 +580,81 @@ void () player_pull10 = [ 155, player_pull11 ]
 	self.weaponframe = 10;
 };
 
-void () player_pull11 = [ 155, player_throw1 ]
+void () player_pull11 = [ 155, player_run ]
 {
 	self.weaponframe = 11;
 };
 
 void () player_throw1 = [ 155, player_throw2 ]
 {
-	if (self.attack_finished > time)
-		return;
-
 	self.attack_finished = time + 1;
 
-	self.weaponframe = 13;
+	self.weaponframe = 12;
 	if (((random () * WEAPON_BIG) <= WEAPON_SPIKES))
 		sound (self, CHAN_VOICE, "radio/grenade.wav", 0.7, ATTN_NORM);
 	else
 		sound (self, CHAN_VOICE, "radio/lookout.wav", 0.7, ATTN_NORM);
 };
 
-void () player_throw2 = [ 156, player_run ]
+void () player_throw2 = [ 156, player_throw3 ]
 {
-	self.weaponframe = 14;
-	if (self.grenslot == 0)
-		self.grenslot = self.current_slot;
-
+	self.weaponframe = TE_LIGHTNINGBLOOD;
 	FireHandGrenade ();
 	self.attack_finished = time + 1;
+};
+
+void () player_throw3 = [ 157, player_throw4 ]
+{
+	self.weaponframe = IDLE2A;
+	self.attack_finished = time + 1;
+};
+
+void () player_throw4 = [ 158, player_throw5 ]
+{
+	self.weaponframe = IDLE3A;
+	self.attack_finished = time + 1;
+};
+
+void () player_throw5 = [ 157, player_throw6 ]
+{
+	self.weaponframe = EF_FLAG1;
+	self.attack_finished = time + 1;
+};
+
+void () player_throw6 = [ 156, player_throw7 ]
+{
+	self.weaponframe = IDLE5A;
+	self.attack_finished = time + 1;
+};
+
+void () player_throw7 = [ 155, player_throw8 ]
+{
+	self.weaponframe = IDLE6A;
+	self.attack_finished = time + 1;	
+};
+
+void () player_throw8 = [ 159, player_throw9 ]
+{
+	self.weaponframe = IDLE7A;
+	self.attack_finished = time + 1;
+};
+
+void () player_throw9 = [ 160, player_throw10 ]
+{
+	self.weaponframe = IDLE8A;
+	self.attack_finished = time + 1;
+};
+
+void () player_throw10 = [ 161, player_throw11 ]
+{
+	self.weaponframe = IDLE9A;
+	self.attack_finished = time + 1;
+};
+
+void () player_throw11 = [ 162, player_run ]
+{
+	self.weaponframe = IDLE10A;
+	self.attack_finished = self.nextthink;
 	W_SetCurrentAmmo();
 };
 
@@ -1060,220 +678,36 @@ void () player_shotty4b = [ 184, player_run ]
 	self.weaponframe = WEAPON_ROCKET;
 };
 
-void () player_punch1 = [ 155, player_run ]
+void () player_knife1 = [ 155, player_knife2 ]
 {
-	self.weaponframe = 1;
-	W_FireMelee ();
-};
-void () player_punch2 = [ 156, player_run ]
-{
-	self.weaponframe = 2;
-	W_FireMelee ();
+	self.weaponframe = WEAPON_SHOTGUN;
 };
 
-
-void () player_swing1 = [ 155, player_run ]
+void () player_knife2 = [ 156, player_knife3 ]
 {
-	self.attack_finished = time + 0.30;
-	self.weaponframe = 1;
+	self.weaponframe = WEAPON_ROCKET;
 	W_FireMelee ();
 };
 
-void () player_swing1a = [ 155, player_run ]
+void () player_knife3 = [ 157, player_run ]
 {
-	self.attack_finished = time + 0.30;
-	self.weaponframe = 2;
+	self.weaponframe = AS_MELEE;
+};
+
+void () player_knifea = [ 155, player_knifeb ]
+{
+	self.weaponframe = WEAPON_SPIKES;
+};
+
+void () player_knifeb = [ 156, player_knifec ]
+{
+	self.weaponframe = MULTICAST_PVS_R;
 	W_FireMelee ();
 };
 
-
-void () player_kick1 = [ 155, player_kick2 ]
+void () player_knifec = [ 157, player_run ]
 {
-	self.attack_finished = time + 0.40;
-	self.weaponframe = 7;
-};
-void () player_kick2 = [ 156, player_kick3 ]
-{
-	self.weaponframe = 8;
-	W_FireMelee ();
-	W_FireMelee ();
-};
-void () player_kick3 = [ 157, player_run ]
-{
-	self.weaponframe = 9;
-};
-
-
-
-
-void () player_kick1a = [ 155, player_kick2a ]
-{
-	self.attack_finished = time + 0.40;
-	self.weaponframe = 10;
-};
-void () player_kick2a = [ 156, player_kick3a ]
-{
-	self.weaponframe = 11;
-	W_FireMelee ();
-	W_FireMelee ();
-};
-void () player_kick3a = [ 157, player_run ]
-{
-	self.weaponframe = 12;
-};
-
-void () player_kick1b = [ 155, player_kick2b ]
-{
-	self.attack_finished = time + 1;
-	self.weaponframe = 10;
-};
-void () player_kick2b = [ 156, player_kick3b ]
-{
-	self.weaponframe = 10;
-
-};
-void () player_kick3b = [ 155, player_kick4b ]
-{
-	self.weaponframe = 11;
-	W_FireMelee ();
-	W_FireMelee ();
-};
-void () player_kick4b = [ 156, player_kick5b ]
-{
-	self.weaponframe = 11;
-	W_FireMelee ();
-	W_FireMelee ();
-};
-void () player_kick5b = [ 155, player_kick6b ]
-{
-	self.weaponframe = 12;
-	W_FireMelee ();
-	W_FireMelee ();
-};
-void () player_kick6b = [ 156, player_run ]
-{
-	W_FireMelee ();
-	W_FireMelee ();
-	self.attack_finished = time + 1;
-	self.weaponframe = 12;
-};
-
-void () player_dragon_kick =
-{
-	self.velocity = self.velocity * 1.50;
-	self.velocity_x = self.velocity_x * 1.50;
-	self.velocity_y = self.velocity_y * 1.50;
-
-	self.recoil = 30;
-	player_kick1b();
-};
-
-void () player_knife1 = [ 91, player_knife2 ]
-{
-	self.weaponframe = 5;
-};
-
-void () player_knife2 = [ 92, player_knife3]
-{
-	self.weaponframe = 6;
-};
-
-void () player_knife3 = [ 93, player_run ]
-{
-	self.weaponframe = 7;
-	W_FireMelee ();
-};
-
-void () player_spear1 = [ 89, player_spear2 ]
-{
-	self.weaponframe = 5;
-};
-
-void () player_spear2 = [ 90, player_spear3 ]
-{
-	self.weaponframe = 6;
-};
-
-void () player_spear3 = [ 89, player_run ]
-{
-	self.weaponframe = 7;
-	W_FireMelee ();
-};
-
-void () player_spear1a = [ 89, player_spear2a ]
-{
-	self.weaponframe = 5;
-};
-void () player_spear2a = [ 90, player_spear3a ]
-{
-	self.weaponframe = 6;
-};
-void () player_spear3a = [ 89, player_run ]
-{
-	self.weaponframe = 7;
-	W_FireMelee ();
-};
-
-void () player_knifea = [ 91, player_knifeb ]
-{
-	self.weaponframe = 8;
-};
-
-void () player_knifeb = [ 92, player_knifec ]
-{
-	self.weaponframe = 9;
-};
-
-void () player_knifec = [ 93, player_run ]
-{
-	self.weaponframe = 10;
-	W_FireMelee ();
-};
-
-void () player_axe1 = [ 89, player_axe2 ]
-{
-	self.weaponframe = 1;
-};
-void () player_axe2 = [ 89, player_axe3 ]
-{
-	self.weaponframe = 1;
-};
-void () player_axe3 = [ 90, player_axe4 ]
-{
-	sound (self, CHAN_WEAPON, "effects/axe_swing.wav", TRUE, ATTN_NORM);
-	self.weaponframe = 2;
-};
-void () player_axe4 = [ 90, player_axe5 ]
-{
-	self.weaponframe = 3;
-	W_FireMelee ();
-};
-void () player_axe5 = [ 89, player_run ]
-{
-	self.weaponframe = 7;
-};
-
-void () player_axeb1 = [ 89, player_axeb2 ]
-{
-	self.weaponframe = 4;
-};
-void () player_axeb2 = [ 89, player_axeb3 ]
-{
-	self.weaponframe = 4;
-};
-void () player_axeb3 = [ 90, player_axeb4 ]
-{
-	sound (self, CHAN_WEAPON, "effects/axe_swing.wav", TRUE, ATTN_NORM);
-	self.weaponframe = 5;
-};
-void () player_axeb4 = [ 90, player_axeb5 ]
-{
-	self.weaponframe = 6;
-	W_FireMelee ();
-};
-void () player_axeb5 = [ 89, player_run ]
-{
-	self.weaponframe = 8;
+	self.weaponframe = TE_LIGHTNING2;
 };
 
 void () player_nail1 = [ 88, player_nail2 ]
@@ -1443,24 +877,16 @@ void () player_pain6 = [ 19, player_run ]
 
 void () player_pain =
 {
-	self.pain_finished = time + 0.1;
-	self.missionbrief = 6;
-
 	if (self.pain_finished > time)
 	{
 		sound (self, CHAN_VOICE, self.armornoise, 1, ATTN_NORM);
 		return;
 	}
 
-	if ((self.health <= 40) && (getperk(9)) && (random()<=0.10))
-	{
-		sprint(self, 2, "THE ZONE!\n");
-		self.rage = 255;
-		self.ragetime = 10;
-	}
+	self.pain_finished = time + 0.5;
 
-
-	self.pain_finished = time + 0.1;
+	if (self.weaponframe)
+		return;
 
 	if (random () * WEAPON_BIG < WEAPON_SPIKES)
 		sound (self, CHAN_VOICE, "player/paina.wav", WEAPON_SHOTGUN, ATTN_NORM);
@@ -1471,14 +897,9 @@ void () player_pain =
 	if (self.invisible_finished > time)
 		return;
 
-	if (getperk(1))
-		self.maxspeed = (self.maxspeed * 0.9);
-	else
-		self.maxspeed = (self.maxspeed * 0.6);
-
+	self.maxspeed = (self.maxspeed * 0.6);
 	player_pain1 ();
 };
-
 void () player_dieb1;
 void () player_diec1;
 
@@ -1723,23 +1144,42 @@ void () PlayerDie =
 	local float i;
 	local float r;
 
+	//self.solid = SOLID_NOT;
+	self.dead = self.dead + 1;
+	if ((self.deathtype == "fall"))
+	{
+		sound (self, CHAN_VOICE, "player/agdie4.wav", WEAPON_SHOTGUN, ATTN_NONE);
+		self.deathtype = "";
+	}
+	if ((self.waterlevel == AS_MELEE))
+	{
+		DeathBubbles (IDLE8A);
+		sound (self, CHAN_VOICE, "player/drown2.wav", WEAPON_SHOTGUN, ATTN_NONE);
+	}
 	r = random ();
 	self.noise = "player/agdie2.wav";
 
 	sound (self, CHAN_VOICE, self.noise, 1, ATTN_NORM);
 	self.items = (self.items - (self.items & IT_INVISIBILITY));
-	self.invisible_finished = 0;
-	self.invincible_finished = 0;
-	self.super_damage_finished = 0;
-	self.radsuit_finished = 0;
+	self.invisible_finished = MULTICAST_ALL;
+	self.invincible_finished = MULTICAST_ALL;
+	self.super_damage_finished = MULTICAST_ALL;
+	self.radsuit_finished = MULTICAST_ALL;
 	self.modelindex = modelindex_player;
 	self.weaponmodel = "";
 	self.view_ofs = '0 0 -8';
 	self.deadflag = DEAD_DYING;
 	self.flags = (self.flags - (self.flags & FL_ONGROUND));
-	self.movetype = MOVETYPE_WALK;
-
+	self.movetype = MOVETYPE_TOSS;
+	if ((self.velocity_z < TE_LAVASPLASH))
+	{
+		self.velocity_z = (self.velocity_z + (random () * 300));
+	}
+	self.angles_x = 0;
+	self.angles_y = 0;
 	self.angles_z = 0;
+	i = (WEAPON_SHOTGUN + floor ((random () * WEAPON_ROCKET)));
+	self.angles_z = MULTICAST_ALL;
 	if (self.position == 1 || self.position == 2)
 		player_diec1 ();
 	else

@@ -1,9 +1,10 @@
 #include "quakedef.h"
+#include "errno.h"
 
 #undef malloc
 #undef free
 
-static char *defaultlanguagetext = 
+static char *defaultlanguagetext =
 "STL_LANGUAGENAME \"English\"\n"
 "TL_NL \"\\n\"\n"
 "TL_STNL \"%s\\n\"\n"
@@ -141,7 +142,6 @@ static char *defaultlanguagetext =
 "TL_NETSENDERROR \"NET_SendPacket ERROR: %i\\n\"\n"
 "TL_NETBINDINTERFACE \"Binding to IP Interface Address of %s\\n\"\n"
 "TL_IPADDRESSIS \"IP address %s\\n\"\n"
-"TL_UDPINITED \"UDP Initialized\\n\"\n"
 "TL_SERVERPORTINITED \"Server port Initialized\\n\"\n"
 "TL_CLIENTPORTINITED \"Client port Initialized\\n\"\n"
 "TL_OUTMESSAGEOVERFLOW \"%s:Outgoing message overflow\\n\"\n"
@@ -243,7 +243,7 @@ static char *defaultlanguagetext =
 "TL_FAILEDTOOPEN \"Failed to open %s\\n\"\n"
 "TL_RENAMEFAILED \"failed to rename.\\n\"\n"
 "TL_UPLOADCOMPLEATE \"Upload completed\\n\"\n"
-"TL_FTEEXTENSIONS \"Using FTE extensions 0x%x\\n\"\n"
+"TL_FTEEXTENSIONS \"Using FTE extensions 0x%x%x\\n\"\n"
 "TLC_LINEBREAK_NEWLEVEL \"\\n\\n\35\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\36\37\\n\\n\"\n"
 "TLC_PC_PS_NL \"%c%s\\n\"\n"
 "TLC_NOQ2CINEMATICSSUPPORT \"Cinematics on q2 levels is not yet supported\\nType 'cmd nextserver %i' to proceed.\"\n"
@@ -312,7 +312,7 @@ void TranslateReset(void)
 
 						s++;
 					}
-					fputc('"', F);				
+					fputc('"', F);
 				}
 				else
 					fprintf(F, "\"%s\"", trans->english);
@@ -454,7 +454,7 @@ void TranslateReset(void)
 											s2++;
 										}
 //										strcpy(trans->foreign, fore);
-										goto next;							
+										goto next;
 									}
 									else if (*s == '\\')	//skip
 										s++;
@@ -464,7 +464,7 @@ void TranslateReset(void)
 							else if (*s == '\\')	//skip
 								s++;
 							s++;
-						}				
+						}
 					}
 					else if (*s == '\\')	//skip
 						s++;
@@ -540,7 +540,7 @@ char *languagetext[STL_MAXSTL][MAX_LANGUAGES];
 
 void TL_ParseLanguage (char *name, char *data, int num)	//this is one of the first functions to be called. so it mustn't use any quake subsystem routines
 {
-	int i;			
+	int i;
 	char *s;
 
 	s = data;
@@ -554,8 +554,8 @@ void TL_ParseLanguage (char *name, char *data, int num)	//this is one of the fir
 		{
 			if (!strcmp(com_token, langtext(i, 0)))	//lang 0 is actually the string names.
 				break;
-		}		
-		
+		}
+
 		s = COM_ParseCString(s);
 		if (i == STL_MAXSTL)	//silently ignore - allow other servers or clients to add stuff
 			continue;
@@ -571,6 +571,7 @@ void TL_LoadLanguage (char *name, char *shortname, int num)	//this is one of the
 	FILE *f;
 	int size;
 	char *buffer;
+	size_t result;
 
 	f = fopen(va("%s.trl", shortname), "rb");
 	if (!f)
@@ -580,7 +581,11 @@ void TL_LoadLanguage (char *name, char *shortname, int num)	//this is one of the
 	fseek(f, 0, SEEK_SET);
 	buffer = malloc(size+1);
 	buffer[size] = '\0';
-	fread(buffer, 1, size, f);
+	result = fread(buffer, 1, size, f); // do something with result
+
+	if (result != size)
+		Con_Printf("TL_LoadLanguage() fread: Filename: %s, expected %i, result was %u (%s)\n",va("%s.trl", shortname),size,(unsigned int)result,strerror(errno));
+
 	fclose(f);
 
 	TL_ParseLanguage(name, buffer, num);
@@ -630,7 +635,7 @@ char *TL_ExpandToCString(char *in)
 		in++;
 	}
 	*out = '\0';
-	
+
 	return buffer;
 }
 char *TL_ExpandToDoubleCString(char *in) //TL_ExpandToCString twice
@@ -659,7 +664,7 @@ char *TL_ExpandToDoubleCString(char *in) //TL_ExpandToCString twice
 		in++;
 	}
 	*out = '\0';
-	
+
 	return TL_ExpandToCString(buffer);
 }
 void TL_WriteTLHeader(void)
@@ -691,7 +696,7 @@ void TL_InitLanguages(void)
 	#include "translate.h"
 	#undef NAME
 /*
-	#define ENGLISH(i, s) (languagetext[i][1] = s)	
+	#define ENGLISH(i, s) (languagetext[i][1] = s)
 	#undef ENGLISH
 */
 	TL_ParseLanguage("English", defaultlanguagetext, 1);
@@ -757,12 +762,13 @@ void TL_InitLanguages(void)
 
 
 
+#ifndef CLIENTONLY
 //this stuff is for hexen2 translation strings.
 //(hexen2 is uuuuggllyyyy...)
-char *strings_list;
-char **strings_table;
-int strings_count;
-qboolean strings_loaded;
+static char *strings_list;
+static char **strings_table;
+static int strings_count;
+static qboolean strings_loaded;
 void T_FreeStrings(void)
 {	//on map change, following gamedir change
 	if (strings_loaded)
@@ -780,7 +786,7 @@ void T_LoadString(void)
 	//count new lines
 	strings_loaded = true;
 	strings_count = 0;
-	strings_list = COM_LoadMallocFile("strings.txt");
+	strings_list = FS_LoadMallocFile("strings.txt");
 	if (!strings_list)
 		return;
 
@@ -822,4 +828,70 @@ char *T_GetString(int num)
 
 	return strings_table[num];
 }
+#endif
 
+#ifndef SERVERONLY
+static char *info_strings_list;
+static char **info_strings_table;
+static int info_strings_count;
+static qboolean info_strings_loaded;
+void T_FreeInfoStrings(void)
+{	//on map change, following gamedir change
+	if (info_strings_loaded)
+	{
+		BZ_Free(info_strings_list);
+		BZ_Free(info_strings_table);
+		info_strings_count = 0;
+		info_strings_loaded = false;
+	}
+}
+void T_LoadInfoString(void)
+{
+	int i;
+	char *s, *s2;
+	//count new lines
+	info_strings_loaded = true;
+	info_strings_count = 0;
+	info_strings_list = FS_LoadMallocFile("infolist.txt");
+	if (!info_strings_list)
+		return;
+
+	for (s = info_strings_list; *s; s++)
+	{
+		if (*s == '\n')
+			info_strings_count++;
+	}
+	info_strings_table = BZ_Malloc(sizeof(char*)*info_strings_count);
+
+	s = info_strings_list;
+	for (i = 0; i < info_strings_count; i++)
+	{
+		info_strings_table[i] = s;
+		s2 = strchr(s, '\n');
+		if (!s2)
+			break;
+
+		while (s < s2)
+		{
+			if (*s == '\r')
+				*s = '\0';
+			else if (*s == '^' || *s == '@')	//becomes new line
+				*s = '\n';
+			s++;
+		}
+		s = s2+1;
+		*s2 = '\0';
+	}
+}
+char *T_GetInfoString(int num)
+{
+	if (!info_strings_loaded)
+	{
+		T_LoadInfoString();
+	}
+	if (num<0 || num >= info_strings_count)
+		return "BAD STRING";
+
+	return info_strings_table[num];
+}
+#endif

@@ -244,7 +244,7 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 	int sequence;
 	int drop;
 
-	MSG_BeginReading ();
+	MSG_BeginReading (chan->netprim);
 
 	header = LongSwap(MSG_ReadLong());
 	if (net_message.cursize != (header & NETFLAG_LENGTH_MASK))
@@ -326,7 +326,7 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 				SZ_Clear(&net_message);
 				SZ_Write(&net_message, chan->in_fragment_buf, chan->in_fragment_length);
 				chan->in_fragment_length = 0;
-				MSG_BeginReading();
+				MSG_BeginReading(chan->netprim);
 				return NQP_RELIABLE;	//we can read it now
 			}
 		}
@@ -367,41 +367,53 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 		send.maxsize = MAX_NQMSGLEN + PACKET_HEADER;
 		send.cursize = 0;
 
-		if (!chan->reliable_length && chan->message.cursize)
+		/*unreliables flood out, but reliables are tied to server sequences*/
+		if (chan->nqreliable_allowed)
 		{
-			memcpy (chan->reliable_buf, chan->message_buf, chan->message.cursize);
-			chan->reliable_length = chan->message.cursize;
-			chan->reliable_start = 0;
-			chan->message.cursize = 0;
-		}
-
-		i = chan->reliable_length - chan->reliable_start;
-		if (i>0)
-		{
-			MSG_WriteLong(&send, 0);
-			MSG_WriteLong(&send, LongSwap(chan->reliable_sequence));
-			if (i > MAX_NQDATAGRAM)
-				i = MAX_NQDATAGRAM;
-
-			SZ_Write (&send, chan->reliable_buf+chan->reliable_start, i);
-
-			if (chan->reliable_start+i == chan->reliable_length)
+			if (!chan->reliable_length && chan->message.cursize)
 			{
-				if (send.cursize + length < send.maxsize)
-				{	//throw the unreliable packet into the same one as the reliable (but not sent reliably)
-					SZ_Write (&send, data, length);
-					length = 0;
-				}
-
-				*(int*)send_buf = BigLong(NETFLAG_DATA | NETFLAG_EOM | send.cursize);
+				memcpy (chan->reliable_buf, chan->message_buf, chan->message.cursize);
+				chan->reliable_length = chan->message.cursize;
+				chan->reliable_start = 0;
+				chan->message.cursize = 0;
 			}
-			else
-				*(int*)send_buf = BigLong(NETFLAG_DATA | send.cursize);
-			NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);
 
-			Netchan_Block(chan, send.cursize, rate);
-			sentsize += send.cursize;
-			send.cursize = 0;
+			i = chan->reliable_length - chan->reliable_start;
+			if (i>0)
+			{
+				MSG_WriteLong(&send, 0);
+				MSG_WriteLong(&send, LongSwap(chan->reliable_sequence));
+				if (i > MAX_NQDATAGRAM)
+					i = MAX_NQDATAGRAM;
+
+				SZ_Write (&send, chan->reliable_buf+chan->reliable_start, i);
+
+				if (chan->reliable_start+i == chan->reliable_length)
+				{
+					if (send.cursize + length < send.maxsize)
+					{	//throw the unreliable packet into the same one as the reliable (but not sent reliably)
+						SZ_Write (&send, data, length);
+						length = 0;
+					}
+
+					*(int*)send_buf = BigLong(NETFLAG_DATA | NETFLAG_EOM | send.cursize);
+				}
+				else
+					*(int*)send_buf = BigLong(NETFLAG_DATA | send.cursize);
+				NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);
+
+				Netchan_Block(chan, send.cursize, rate);
+				sentsize += send.cursize;
+
+				if (showpackets.value)
+					Con_Printf ("--> r s=%i a=%i(%i) %i\n"
+						, chan->outgoing_sequence
+						, chan->incoming_sequence
+						, chan->incoming_reliable_sequence
+						, send.cursize);
+				send.cursize = 0;
+			}
+			chan->nqreliable_allowed = false;
 		}
 
 		//send out the unreliable (if still unsent)
@@ -418,6 +430,11 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 
 			Netchan_Block(chan, send.cursize, rate);
 			sentsize += send.cursize;
+
+			if (showpackets.value)
+				Con_Printf ("--> u s=%i %i\n"
+						, chan->outgoing_unreliable
+						, send.cursize);
 			send.cursize = 0;
 		}
 		return sentsize;
@@ -548,7 +565,7 @@ qboolean Netchan_Process (netchan_t *chan)
 		return false;
 
 // get sequence numbers		
-	MSG_BeginReading ();
+	MSG_BeginReading (chan->netprim);
 	sequence = MSG_ReadLong ();
 	sequence_ack = MSG_ReadLong ();
 

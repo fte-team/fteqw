@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -20,7 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // gl_vidnt.c -- NT GL vid component
 
 #include "quakedef.h"
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"
 #include "winquake.h"
 #include "resource.h"
@@ -71,7 +71,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef LWA_ALPHA
 	#define LWA_ALPHA 0x00000002
 #endif
-typedef BOOL (WINAPI *lpfnSetLayeredWindowAttributes)(HWND hwnd, COLORREF crKey, BYTE bAlpha, DWORD dwFlags); 
+typedef BOOL (WINAPI *lpfnSetLayeredWindowAttributes)(HWND hwnd, COLORREF crKey, BYTE bAlpha, DWORD dwFlags);
 
 extern cvar_t vid_conwidth, vid_conautoscale;
 
@@ -93,10 +93,6 @@ extern cvar_t vid_wndalpha;
 
 typedef enum {MS_WINDOWED, MS_FULLSCREEN, MS_FULLDIB, MS_UNINIT} modestate_t;
 
-#ifdef USE_D3D
-void D3DInitialize(void);
-void d3dSetMode(int fullscreen, int width, int height, int bpp, int zbpp);
-#endif
 BOOL bSetupPixelFormat(HDC hDC);
 
 //qboolean VID_SetWindowedMode (int modenum);
@@ -132,8 +128,6 @@ unsigned char	vid_curpal[256*3];
 HGLRC	baseRC;
 HDC		maindc;
 
-glvert_t glv;
-
 
 HWND WINAPI InitializeWindow (HINSTANCE hInstance, int nCmdShow);
 
@@ -149,7 +143,6 @@ modestate_t	modestate = MS_UNINIT;
 
 LONG WINAPI GLMainWndProc (HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 qboolean GLAppActivate(BOOL fActive, BOOL minimize);
-char *VID_GetModeDescription (int mode);
 void ClearAllStates (void);
 void VID_UpdateWindowStatus (HWND hWnd);
 void GL_Init(void *(*getglfunction) (char *name));
@@ -170,11 +163,18 @@ extern cvar_t		vid_desktopgamma;
 extern cvar_t		gl_lateswap;
 extern cvar_t		vid_preservegamma;
 
+extern cvar_t		vid_gl_context_version;
+extern cvar_t		vid_gl_context_debug;
+extern cvar_t		vid_gl_context_es2;
+extern cvar_t		vid_gl_context_forwardcompatible;
+extern cvar_t		vid_gl_context_compatibility;
+
 int			window_center_x, window_center_y, window_x, window_y, window_width, window_height;
 RECT		window_rect;
 
 HMODULE hInstGL = NULL;
 HMODULE hInstwgl = NULL;
+char reqminidriver[MAX_OSPATH];
 char opengldllname[MAX_OSPATH];
 
 //just GetProcAddress with a safty net.
@@ -195,6 +195,7 @@ void *getwglfunc(char *name)
 {
 	FARPROC proc;
 	TRACE(("dbg: getwglfunc: %s: getting\n", name));
+
 	proc = GetProcAddress(hInstGL, name);
 	if (!proc)
 	{
@@ -228,47 +229,75 @@ BOOL (APIENTRY *qSetDeviceGammaRamp)(HDC hDC, GLvoid *ramp);
 
 BOOL (APIENTRY *qwglChoosePixelFormatARB)(HDC hdc, const int *piAttribIList, const FLOAT *pfAttribFList, UINT nMaxFormats, int* piFormats, UINT* nNumFormats);
 
+HGLRC (APIENTRY *qwglCreateContextAttribsARB)(HDC hDC, HGLRC hShareContext, const int *attribList);
+#define WGL_CONTEXT_MAJOR_VERSION_ARB		0x2091
+#define WGL_CONTEXT_MINOR_VERSION_ARB		0x2092
+#define WGL_CONTEXT_LAYER_PLANE_ARB			0x2093
+#define WGL_CONTEXT_FLAGS_ARB				0x2094
+#define		WGL_CONTEXT_DEBUG_BIT_ARB					0x0001
+#define		WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB		0x0002
+#define WGL_CONTEXT_PROFILE_MASK_ARB		0x9126
+#define		WGL_CONTEXT_CORE_PROFILE_BIT_ARB			0x00000001
+#define		WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB	0x00000002
+#define		WGL_CONTEXT_ES2_PROFILE_BIT_EXT				0x00000004	/*WGL_CONTEXT_ES2_PROFILE_BIT_EXT*/
+#define ERROR_INVALID_VERSION_ARB			0x2095
+#define	ERROR_INVALID_PROFILE_ARB		0x2096
+
+
+
 qboolean GLInitialise (char *renderer)
 {
-	if (hInstGL)
-		FreeModule(hInstGL);
-	if (hInstwgl)
-		FreeModule(hInstwgl);
-	hInstwgl=NULL;
-
-	strcpy(opengldllname, renderer);
-
-	if (*renderer)
+	if (!hInstGL || strcmp(reqminidriver, renderer))
 	{
-		Con_DPrintf ("Loading renderer dll \"%s\"", renderer);
-		hInstGL = LoadLibrary(opengldllname);
-
 		if (hInstGL)
-			Con_DPrintf (" Success\n");
+			FreeLibrary(hInstGL);
+		hInstGL=NULL;
+		if (hInstwgl)
+			FreeLibrary(hInstwgl);
+		hInstwgl=NULL;
+
+		Q_strncpyz(reqminidriver, renderer, sizeof(reqminidriver));
+		Q_strncpyz(opengldllname, renderer, sizeof(opengldllname));
+
+		if (*renderer)
+		{
+			Con_DPrintf ("Loading renderer dll \"%s\"", renderer);
+			hInstGL = LoadLibrary(opengldllname);
+
+			if (hInstGL)
+				Con_DPrintf (" Success\n");
+			else
+				Con_DPrintf (" Failed\n");
+		}
 		else
-			Con_DPrintf (" Failed\n");
+			hInstGL = NULL;
+
+		if (!hInstGL)
+		{
+			unsigned int emode;
+			strcpy(opengldllname, "opengl32");
+			Con_DPrintf ("Loading renderer dll \"%s\"", opengldllname);
+			emode = SetErrorMode(SEM_FAILCRITICALERRORS); /*no annoying errors if they use glide*/
+			hInstGL = LoadLibrary(opengldllname);
+			SetErrorMode(emode);
+
+			if (hInstGL)
+				Con_DPrintf (" Success\n");
+			else
+				Con_DPrintf (" Failed\n");
+		}
+		if (!hInstGL)
+		{
+			if (*renderer)
+				Con_Printf ("Couldn't load %s or %s\n", renderer, opengldllname);
+			else
+				Con_Printf ("Couldn't load %s\n", opengldllname);
+			return false;
+		}
 	}
 	else
-		hInstGL = NULL;
-	
-	if (!hInstGL)
 	{
-		strcpy(opengldllname, "opengl32");
-		Con_DPrintf ("Loading renderer dll \"%s\"", opengldllname);
-		hInstGL = LoadLibrary(opengldllname);
-
-		if (hInstGL)
-			Con_DPrintf (" Success\n");
-		else
-			Con_DPrintf (" Failed\n");
-	}
-	if (!hInstGL)
-	{
-		if (*renderer)
-			Con_Printf ("Couldn't load %s or %s\n", renderer, opengldllname);
-		else
-			Con_Printf ("Couldn't load %s\n", opengldllname);
-		return false;
+		Con_DPrintf ("Reusing renderer dll %s\n", opengldllname);
 	}
 
 	Con_DPrintf ("Loaded renderer dll %s\n", opengldllname);
@@ -290,47 +319,38 @@ qboolean GLInitialise (char *renderer)
 	return true;
 }
 
-// direct draw software compatability stuff
-
-void GLVID_ForceLockState (int lk)
+/*doesn't consider parent offsets*/
+RECT centerrect(unsigned int parentwidth, unsigned int parentheight, unsigned int cwidth, unsigned int cheight)
 {
-}
+	RECT r;
+	if (!vid_width.ival)
+		cwidth = parentwidth;
+	if (!vid_height.ival)
+		cheight = parentwidth;
 
-void GLVID_LockBuffer (void)
-{
-}
+	if (parentwidth < cwidth)
+	{
+		r.left = 0;
+		r.right = parentwidth;
+	}
+	else
+	{
+		r.left = (parentwidth - cwidth) / 2;
+		r.right = r.left + cwidth;
+	}
 
-void GLVID_UnlockBuffer (void)
-{
-}
+	if (parentheight < cheight)
+	{
+		r.top = 0;
+		r.bottom = parentheight;
+	}
+	else
+	{
+		r.top = (parentheight - cheight) / 2;
+		r.bottom = r.top + cheight;
+	}
 
-int GLVID_ForceUnlockedAndReturnState (void)
-{
-	return 0;
-}
-
-void GLD_BeginDirectRect (int x, int y, qbyte *pbitmap, int width, int height)
-{
-}
-
-void GLD_EndDirectRect (int x, int y, int width, int height)
-{
-}
-
-
-void CenterWindow(HWND hWndCenter, int width, int height, BOOL lefttopjustify)
-{
-//    RECT    rect;
-    int     CenterX, CenterY;
-
-	CenterX = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
-	CenterY = (GetSystemMetrics(SM_CYSCREEN) - height) / 2;
-	if (CenterX > CenterY*2)
-		CenterX >>= 1;	// dual screens
-	CenterX = (CenterX < 0) ? 0: CenterX;
-	CenterY = (CenterY < 0) ? 0: CenterY;
-	SetWindowPos (hWndCenter, NULL, CenterX, CenterY, 0, 0,
-			SWP_NOSIZE | SWP_NOZORDER | SWP_SHOWWINDOW | SWP_DRAWFRAME);
+	return r;
 }
 
 qboolean VID_SetWindowedMode (rendererstate_t *info)
@@ -338,7 +358,7 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 {
 	int i;
 	HDC				hdc;
-	int				lastmodestate, wwidth, wheight;
+	int				lastmodestate, wwidth, wheight, pwidth, pheight;
 	RECT			rect;
 
 	hdc = GetDC(NULL);
@@ -358,33 +378,31 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 	WindowRect.bottom = info->height;
 
 
+#ifndef _SDL
 	if (sys_parentwindow)
 	{
 		SetWindowLong(sys_parentwindow, GWL_STYLE, GetWindowLong(sys_parentwindow, GWL_STYLE)|WS_OVERLAPPED);
 		WindowStyle = WS_CHILDWINDOW|WS_OVERLAPPED;
 		ExWindowStyle = 0;
 
-		if (info->width > sys_parentwidth)
-			WindowRect.right = sys_parentwidth;
-		else if (info->width < sys_parentwidth)
-			WindowRect.left = (sys_parentwidth - info->width)/2;
-
-		if (info->height > sys_parentheight)
-			WindowRect.bottom = sys_parentheight;
-		else if (info->height < sys_parentheight)
-			WindowRect.top = (sys_parentheight - info->height)/2;
-
-
-		WindowRect.right += WindowRect.left;
-		WindowRect.bottom += WindowRect.top;
+		pwidth = sys_parentwidth;
+		pheight = sys_parentheight;
 	}
 	else
+#endif
 	{
 		WindowStyle = WS_OVERLAPPED | WS_BORDER | WS_CAPTION | WS_SYSMENU |
 					  WS_MINIMIZEBOX;
 		ExWindowStyle = 0;
 
 		WindowStyle |= WS_SIZEBOX | WS_MAXIMIZEBOX;
+
+		pwidth = GetSystemMetrics(SM_CXSCREEN);
+		pheight = GetSystemMetrics(SM_CYSCREEN);
+
+		/*Assume dual monitors, and chop the width to try to put it on only one screen*/
+		if (pwidth >= pheight*2)
+			pwidth /= 2;
 	}
 
 	DIBWidth = WindowRect.right - WindowRect.left;
@@ -396,15 +414,17 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 	wwidth = rect.right - rect.left;
 	wheight = rect.bottom - rect.top;
 
+	WindowRect = centerrect(pwidth, pheight, wwidth, wheight);
+
 	// Create the DIB window
 	dibwindow = CreateWindowEx (
 		 ExWindowStyle,
 		 WINDOW_CLASS_NAME,
 		 FULLENGINENAME,
 		 WindowStyle,
-		 rect.left, rect.top,
-		 wwidth,
-		 wheight,
+		 WindowRect.left, WindowRect.top,
+		 WindowRect.right - WindowRect.left,
+		 WindowRect.bottom - WindowRect.top,
 		 sys_parentwindow,
 		 NULL,
 		 global_hInstance,
@@ -431,7 +451,7 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 
 			if (pSetLayeredWindowAttributes)
 			{
-				// Set WS_EX_LAYERED on this window 
+				// Set WS_EX_LAYERED on this window
 				SetWindowLong(dibwindow, GWL_EXSTYLE, GetWindowLong(dibwindow, GWL_EXSTYLE) | WS_EX_LAYERED);
 
 				// Make this window 70% alpha
@@ -439,13 +459,10 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 			}
 		}
 #endif
-
-		// Center and show the DIB window
-		CenterWindow(dibwindow, WindowRect.right - WindowRect.left,
-					 WindowRect.bottom - WindowRect.top, false);
 	}
-	else
-		SetFocus(dibwindow);
+
+	ShowWindow (dibwindow, SW_SHOWDEFAULT);
+	SetFocus(dibwindow);
 
 //	ShowWindow (dibwindow, SW_SHOWDEFAULT);
 //	UpdateWindow (dibwindow);
@@ -460,33 +477,30 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 	PatBlt(hdc,0,0,WindowRect.right,WindowRect.bottom,BLACKNESS);
 	ReleaseDC(dibwindow, hdc);
 
-
 	if ((i = COM_CheckParm("-conwidth")) != 0)
-		vid.conwidth = Q_atoi(com_argv[i+1]);
+		vid.width = Q_atoi(com_argv[i+1]);
 	else
 	{
-		vid.conwidth = 640;
+		vid.width = 640;
 	}
 
-	vid.conwidth &= 0xfff8; // make it a multiple of eight
+	vid.width &= 0xfff8; // make it a multiple of eight
 
-	if (vid.conwidth < 320)
-		vid.conwidth = 320;
+	if (vid.width < 320)
+		vid.width = 320;
 
 	// pick a conheight that matches with correct aspect
-	vid.conheight = vid.conwidth*3 / 4;
+	vid.height = vid.width*3 / 4;
 
 	if ((i = COM_CheckParm("-conheight")) != 0)
-		vid.conheight = Q_atoi(com_argv[i+1]);
-	if (vid.conheight < 200)
-		vid.conheight = 200;
+		vid.height = Q_atoi(com_argv[i+1]);
+	if (vid.height < 200)
+		vid.height = 200;
 
-	if (vid.conheight > info->height)
-		vid.conheight = info->height;
-	if (vid.conwidth > info->width)
-		vid.conwidth = info->width;
-	vid.width = vid.conwidth;
-	vid.height = vid.conheight;
+	if (vid.height > info->height)
+		vid.height = info->height;
+	if (vid.width > info->width)
+		vid.width = info->width;
 
 	vid.numpages = 2;
 
@@ -512,7 +526,7 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 	int				lastmodestate, wwidth, wheight;
 	RECT			rect;
 
-	if (leavecurrentmode && Q_strcasecmp(info->glrenderer, "D3D"))	//don't do this with d3d - d3d should set it's own video mode.
+	if (leavecurrentmode)	//don't do this with d3d - d3d should set it's own video mode.
 	{	//make windows change res.
 		gdevmode.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT;
 		if (info->bpp)
@@ -532,7 +546,7 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 
 		if (ChangeDisplaySettings (&gdevmode, CDS_FULLSCREEN) != DISP_CHANGE_SUCCESSFUL)
 		{
-			Con_SafePrintf((gdevmode.dmFields&DM_DISPLAYFREQUENCY)?"Windows rejected mode %i*%i*%i*%i\n":"Windows rejected mode %i*%i*%i\n", gdevmode.dmPelsWidth, gdevmode.dmPelsHeight, gdevmode.dmBitsPerPel, gdevmode.dmDisplayFrequency);
+			Con_SafePrintf((gdevmode.dmFields&DM_DISPLAYFREQUENCY)?"Windows rejected mode %i*%i*%i*%i\n":"Windows rejected mode %i*%i*%i\n", (int)gdevmode.dmPelsWidth, (int)gdevmode.dmPelsHeight, (int)gdevmode.dmBitsPerPel, (int)gdevmode.dmDisplayFrequency);
 			return false;
 		}
 	}
@@ -587,29 +601,27 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 
 
 	if ((i = COM_CheckParm("-conwidth")) != 0)
-		vid.conwidth = Q_atoi(com_argv[i+1]);
+		vid.width = Q_atoi(com_argv[i+1]);
 	else
-		vid.conwidth = 640;
+		vid.width = 640;
 
-	vid.conwidth &= 0xfff8; // make it a multiple of eight
+	vid.width &= 0xfff8; // make it a multiple of eight
 
-	if (vid.conwidth < 320)
-		vid.conwidth = 320;
+	if (vid.width < 320)
+		vid.width = 320;
 
 	// pick a conheight that matches with correct aspect
-	vid.conheight = vid.conwidth*3 / 4;
+	vid.height = vid.width*3 / 4;
 
 	if ((i = COM_CheckParm("-conheight")) != 0)
-		vid.conheight = Q_atoi(com_argv[i+1]);
-	if (vid.conheight < 200)
-		vid.conheight = 200;
+		vid.height = Q_atoi(com_argv[i+1]);
+	if (vid.height < 200)
+		vid.height = 200;
 
-	if (vid.conheight > info->height)
-		vid.conheight = info->height;
-	if (vid.conwidth > info->width)
-		vid.conwidth = info->width;
-	vid.width = vid.conwidth;
-	vid.height = vid.conheight;
+	if (vid.height > info->height)
+		vid.height = info->height;
+	if (vid.width > info->width)
+		vid.width = info->width;
 
 	vid.numpages = 2;
 
@@ -626,7 +638,7 @@ qboolean VID_SetFullDIBMode (rendererstate_t *info)
 	return true;
 }
 
-extern int gammaworks;
+extern qboolean gammaworks;
 static void ReleaseGL(void);
 static qboolean CreateMainWindow(rendererstate_t *info)
 {
@@ -675,6 +687,7 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 
 	// Set either the fullscreen or windowed mode
 	qwglChoosePixelFormatARB = NULL;
+	qwglCreateContextAttribsARB = NULL;
 	stat = CreateMainWindow(info);
 	if (stat)
 	{
@@ -735,13 +748,14 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 	VID_SetPalette (palette);
 
 #ifndef NPQTV
+	/*I don't like this, but if we */
 	while (PeekMessage (&msg, mainwindow, 0, 0, PM_REMOVE))
 	{
       	TranslateMessage (&msg);
       	DispatchMessage (&msg);
 	}
-#endif
 	Sleep (100);
+#endif
 
 	SetWindowPos (mainwindow, HWND_TOP, 0, 0, 0, 0,
 				  SWP_DRAWFRAME | SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW |
@@ -815,11 +829,23 @@ void VID_UnSetMode (void)
 		DestroyWindow(mainwindow);
 		mainwindow = NULL;
 	}
+
+#if 0
+	//Logically this code should be active. However...
+	//1: vid_restarts are slightly slower if we don't reuse the old dll
+	//2: nvidia drivers crash if we shut it down+reload!
 	if (hInstGL)
 	{
 		FreeLibrary(hInstGL);
-		hInstGL = NULL;
+		hInstGL=NULL;
 	}
+	if (hInstwgl)
+	{
+		FreeLibrary(hInstwgl);
+		hInstwgl=NULL;
+	}
+	*opengldllname = 0;
+#endif
 }
 
 
@@ -848,8 +874,8 @@ void VID_UpdateWindowStatus (HWND hWnd)
 	window_y = p.y;
 	window_width = WindowRect.right - WindowRect.left;
 	window_height = WindowRect.bottom - WindowRect.top;
-	glwidth = window_width;
-	glheight = window_height;
+	vid.pixelwidth = window_width;
+	vid.pixelheight = window_height;
 
 	window_rect.left = window_x;
 	window_rect.top = window_y;
@@ -868,31 +894,6 @@ qboolean VID_AttachGL (rendererstate_t *info)
 {	//make sure we can get a valid renderer.
 	do
 	{
-#ifdef USE_D3D
-		if (!Q_strcasecmp(info->glrenderer, "D3D"))
-		{
-			extern cvar_t gl_ztrick;
-			int zbpp = info->bpp > 16 ? 24 : 16;
-			gl_canstencil = false;
-			TRACE(("dbg: VID_AttachGL: D3DInitialize\n"));
-			D3DInitialize();	//replacement of GLInitialise, to get the function pointers set up.
-			if (COM_CheckParm("-zbpp"))
-			{
-				zbpp = Q_atoi(com_argv[COM_CheckParm("-zbpp")+1]);
-			}
-			TRACE(("dbg: VID_AttachGL: d3dSetMode\n"));
-			d3dSetMode(info->fullscreen, info->width, info->height, info->bpp, zbpp);	//d3d cheats to get it's dimensions and stuff... One that we can currently live with though.
-
-			gl_ztrickdisabled |= 2;	//ztrick does funny things.
-			Cvar_Set(&gl_ztrick, "0");
-
-			maindc = GetDC(mainwindow);
-
-			Con_Printf(CON_NOTICE "OpenGL to Direct3D wrapper enabled\n");	//green to make it show.
-			break;
-		}
-#endif
-		gl_ztrickdisabled &= ~2;
 		TRACE(("dbg: VID_AttachGL: GLInitialise\n"));
 		if (GLInitialise(info->glrenderer))
 		{
@@ -900,6 +901,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 			TRACE(("dbg: VID_AttachGL: bSetupPixelFormat\n"));
 			if (bSetupPixelFormat(maindc))
 				break;
+			ReleaseDC(mainwindow, maindc);
 		}
 
 		if (!*info->glrenderer || !stricmp(info->glrenderer, "opengl32.dll") || !stricmp(info->glrenderer, "opengl32"))	//go for windows system dir if we failed with the default. Should help to avoid the 3dfx problem.
@@ -918,31 +920,134 @@ qboolean VID_AttachGL (rendererstate_t *info)
 				TRACE(("dbg: VID_AttachGL: bSetupPixelFormat\n"));
 				if (bSetupPixelFormat(maindc))
 					break;
+				ReleaseDC(mainwindow, maindc);
 			}
 		}
 
 		TRACE(("dbg: VID_AttachGL: failed to find a valid dll\n"));
 		return false;
 	} while(1);
-	
+
 	TRACE(("dbg: VID_AttachGL: qwglCreateContext\n"));
 
-    baseRC = qwglCreateContext( maindc );
+    baseRC = qwglCreateContext(maindc);
 	if (!baseRC)
 	{
 		Con_SafePrintf(CON_ERROR "Could not initialize GL (wglCreateContext failed).\n\nMake sure you in are 65535 color mode, and try running -window.\n");	//green to make it show.
 		return false;
 	}
 	TRACE(("dbg: VID_AttachGL: qwglMakeCurrent\n"));
-    if (!qwglMakeCurrent( maindc, baseRC ))
+    if (!qwglMakeCurrent(maindc, baseRC))
 	{
 		Con_SafePrintf(CON_ERROR "wglMakeCurrent failed\n");	//green to make it show.
 		return false;
 	}
 
+	if (developer.ival)
+	{
+		char *(WINAPI *wglGetExtensionsString)(HDC hdc) = NULL;
+		if (!wglGetExtensionsString)
+			wglGetExtensionsString = getglfunc("wglGetExtensionsString");
+		if (!wglGetExtensionsString)
+			wglGetExtensionsString = getglfunc("wglGetExtensionsStringARB");
+		if (!wglGetExtensionsString)
+			wglGetExtensionsString = getglfunc("wglGetExtensionsStringEXT");
+		if (wglGetExtensionsString)
+			Con_SafePrintf("WGL extensions: %s\n", wglGetExtensionsString(maindc));
+	}
+
+	qwglCreateContextAttribsARB = getglfunc("wglCreateContextAttribsARB");
+#ifdef _DEBUG
+	//attempt to promote that to opengl3.
+	if (qwglCreateContextAttribsARB)
+	{
+		HGLRC opengl3;
+		int attribs[9];
+		char *mv;
+		int i = 0;
+		char *ver;
+
+		ver = vid_gl_context_version.string;
+		if (!*ver && vid_gl_context_es2.ival)
+			ver = "2.0";
+
+		mv = ver;
+		while (*mv)
+		{
+			if (*mv++ == '.')
+				break;
+		}
+
+		if (*ver)
+		{
+			attribs[i++] = WGL_CONTEXT_MAJOR_VERSION_ARB;
+			attribs[i++] = atoi(ver);
+		}
+		if (*mv)
+		{
+			attribs[i++] = WGL_CONTEXT_MINOR_VERSION_ARB;
+			attribs[i++] = atoi(mv);
+		}
+
+		//flags
+		attribs[i+1] = 0;
+		if (vid_gl_context_debug.ival)
+			attribs[i+1] |= WGL_CONTEXT_DEBUG_BIT_ARB;
+		if (vid_gl_context_forwardcompatible.ival)
+			attribs[i+1] |= WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB;
+
+		if (attribs[i+1])
+		{
+			attribs[i] = WGL_CONTEXT_FLAGS_ARB;
+			i += 2;
+		}
+
+		/*only switch contexts if there's actually a point*/
+		if (i || !vid_gl_context_compatibility.ival || vid_gl_context_es2.ival)
+		{
+			attribs[i+1] = 0;
+			if (vid_gl_context_es2.ival)
+				attribs[i+1] |= WGL_CONTEXT_ES2_PROFILE_BIT_EXT;
+			else if (vid_gl_context_compatibility.ival)
+				attribs[i+1] |= WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB;
+			else
+				attribs[i+1] |= WGL_CONTEXT_CORE_PROFILE_BIT_ARB;
+			attribs[i] = WGL_CONTEXT_PROFILE_MASK_ARB;
+			i+=2;
+
+			attribs[i] = 0;
+
+			if ((opengl3 = qwglCreateContextAttribsARB(maindc, NULL, attribs)))
+			{
+				qwglMakeCurrent(maindc, NULL);
+				qwglDeleteContext(baseRC);
+
+				baseRC = opengl3;
+				if (!qwglMakeCurrent( maindc, baseRC ))
+				{
+					Con_SafePrintf(CON_ERROR "wglMakeCurrent failed\n");	//green to make it show.
+					return false;
+				}
+			}
+			else
+			{
+				DWORD error = GetLastError();
+				if (error == (0xc0070000 | ERROR_INVALID_VERSION_ARB))
+					Con_Printf("Unsupported OpenGL context version (%s).\n", vid_gl_context_version.string);
+				else if (error == (0xc0070000 | ERROR_INVALID_PROFILE_ARB))
+					Con_Printf("Unsupported OpenGL profile (%s).\n", vid_gl_context_es2.ival?"gles":(vid_gl_context_compatibility.ival?"compat":"core"));
+				else
+					Con_Printf("Unknown error creating an OpenGL (%s) Context.\n", vid_gl_context_version.string);
+			}
+		}
+	}
+#endif
+
 	TRACE(("dbg: VID_AttachGL: GL_Init\n"));
 	GL_Init(getglfunc);
+
 	qwglChoosePixelFormatARB	= getglfunc("wglChoosePixelFormatARB");
+
 	qwglSwapIntervalEXT		= getglfunc("wglSwapIntervalEXT");
 	if (qwglSwapIntervalEXT && *_vid_wait_override.string)
 	{
@@ -966,11 +1071,10 @@ GL_BeginRendering
 
 =================
 */
-void GL_BeginRendering (int *x, int *y, int *width, int *height)
+void GL_BeginRendering (void)
 {
-	*x = *y = 0;
-	*width = WindowRect.right - WindowRect.left;
-	*height = WindowRect.bottom - WindowRect.top;
+	vid.pixelwidth = WindowRect.right - WindowRect.left;
+	vid.pixelheight = WindowRect.bottom - WindowRect.top;
 
 //    if (!wglMakeCurrent( maindc, baseRC ))
 //		Sys_Error ("wglMakeCurrent failed");
@@ -984,25 +1088,22 @@ void VID_Wait_Override_Callback(struct cvar_s *var, char *oldvalue)
 		qwglSwapIntervalEXT(_vid_wait_override.value);
 }
 
-void VID_Size_Override_Callback(struct cvar_s *var, char *oldvalue)
+void GLVID_Recenter_f(void)
 {
-	int nw = vid_width.value;
-	int nh = vid_height.value;
-	int nx = 0;
-	int ny = 0;
+	// 4 unused variables
+	//int nw = vid_width.value;
+	//int nh = vid_height.value;
+	//int nx = 0;
+	//int ny = 0;
 
 	if (sys_parentwindow && modestate==MS_WINDOWED)
 	{
-		if (nw > sys_parentwidth)
-			nw = sys_parentwidth;
-		else
-			nx = (sys_parentwidth - nw)/2;
-		if (nh > sys_parentheight)
-			nh = sys_parentheight;
-		else
-			ny = (sys_parentheight - nh)/2;
+		WindowRect = centerrect(sys_parentwidth, sys_parentheight, vid_width.value, vid_height.value);
+		MoveWindow(mainwindow, WindowRect.left, WindowRect.top, WindowRect.right - WindowRect.left, WindowRect.bottom - WindowRect.top, FALSE);
 
-		MoveWindow(mainwindow, nx, ny, nw, nh, FALSE);
+		Cvar_ForceCallback(&vid_conautoscale);
+		Cvar_ForceCallback(&vid_conwidth);
+		VID_UpdateWindowStatus (mainwindow);
 	}
 }
 
@@ -1024,7 +1125,7 @@ void VID_WndAlpha_Override_Callback(struct cvar_s *var, char *oldvalue)
 
 		if (pSetLayeredWindowAttributes)
 		{
-			// Set WS_EX_LAYERED on this window 
+			// Set WS_EX_LAYERED on this window
 
 			if (av < 255)
 			{
@@ -1100,7 +1201,7 @@ void	GLVID_SetPalette (unsigned char *palette)
 			g = pal[1];
 			b = pal[2];
 			pal += 3;
-			
+
 	//		v = (255<<24) + (r<<16) + (g<<8) + (b<<0);
 	//		v = (255<<0) + (r<<8) + (g<<16) + (b<<24);
 			v = (255<<24) + (r<<0) + (g<<8) + (b<<16);
@@ -1120,7 +1221,7 @@ void	GLVID_SetPalette (unsigned char *palette)
 			g = gammatable[pal[1]];
 			b = gammatable[pal[2]];
 			pal += 3;
-			
+
 	//		v = (255<<24) + (r<<16) + (g<<8) + (b<<0);
 	//		v = (255<<0) + (r<<8) + (g<<16) + (b<<24);
 			v = (255<<24) + (r<<0) + (g<<8) + (b<<16);
@@ -1150,6 +1251,15 @@ void	GLVID_ShiftPalette (unsigned char *palette)
 			}
 			return;
 		}
+	}
+}
+
+void GLVID_Crashed(void)
+{
+	if (qSetDeviceGammaRamp && gammaworks)
+	{
+		OblitterateOldGamma();
+		qSetDeviceGammaRamp(maindc, originalgammaramps);
 	}
 }
 
@@ -1316,8 +1426,13 @@ BOOL bSetupPixelFormat(HDC hDC)
 	0,				// shift bit ignored
 	0,				// no accumulation buffer
 	0, 0, 0, 0, 			// accum bits ignored
-	32,				// 32-bit z-buffer	
+#ifndef RTLIGHTS
+	32,				// 32-bit z-buffer
+	0,				// 0 stencil, don't need it unless we're using rtlights
+#else
+	24,				// 24-bit z-buffer
 	8,				// stencil buffer
+#endif
 	0,				// no auxiliary buffer
 	PFD_MAIN_PLANE,			// main layer
 	0,				// reserved
@@ -1341,7 +1456,7 @@ BOOL bSetupPixelFormat(HDC hDC)
 			if (SetPixelFormat(hDC, pixelformat, &pfd))
 			{
 				TRACE(("dbg: bSetupPixelFormat: we can use the stencil buffer. woot\n"));
-				DescribePixelFormat(hDC, pixelformat, sizeof(pfd), &pfd); 
+				DescribePixelFormat(hDC, pixelformat, sizeof(pfd), &pfd);
 				FixPaletteInDescriptor(hDC, &pfd);
 				gl_canstencil = pfd.cStencilBits;
 				return TRUE;
@@ -1354,14 +1469,14 @@ BOOL bSetupPixelFormat(HDC hDC)
 
 		if ( (pixelformat = ChoosePixelFormat(hDC, &pfd)) == 0 )
 		{
-			Con_Printf("bSetupPixelFormat: ChoosePixelFormat failed (%i)\n", GetLastError());
+			Con_Printf("bSetupPixelFormat: ChoosePixelFormat failed (%i)\n", (int)GetLastError());
 			return FALSE;
 		}
 	}
 
     if (SetPixelFormat(hDC, pixelformat, &pfd) == FALSE)
     {
-        Con_Printf("bSetupPixelFormat: SetPixelFormat failed (%i)\n", GetLastError());
+        Con_Printf("bSetupPixelFormat: SetPixelFormat failed (%i)\n", (int)GetLastError());
         return FALSE;
     }
 
@@ -1385,11 +1500,11 @@ ClearAllStates
 void ClearAllStates (void)
 {
 	int		i;
-	
+
 // send an up event for each key, to make sure the server clears them all
 	for (i=0 ; i<256 ; i++)
 	{
-		Key_Event (i, 0, false);
+		Key_Event (0, i, 0, false);
 	}
 
 	Key_ClearStates ();
@@ -1451,7 +1566,7 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 	{
 		if (modestate != MS_WINDOWED)
 		{
-			if (vid_canalttab) { 
+			if (vid_canalttab) {
 				ChangeDisplaySettings (NULL, 0);
 				vid_wassuspended = true;
 			}
@@ -1517,9 +1632,7 @@ LONG WINAPI GLMainWndProc (
 		case WM_KEYDOWN:
 		case WM_SYSKEYDOWN:
 			if (!vid_initializing)
-			{
-				IN_TranslateKeyEvent(wParam, lParam, true);
-			}
+				IN_TranslateKeyEvent(wParam, lParam, true, 0);
 			break;
 
 //		case WM_UNICHAR:
@@ -1534,9 +1647,7 @@ LONG WINAPI GLMainWndProc (
 		case WM_KEYUP:
 		case WM_SYSKEYUP:
 			if (!vid_initializing)
-			{
-				IN_TranslateKeyEvent(wParam, lParam, false);
-			}
+				IN_TranslateKeyEvent(wParam, lParam, false, 0);
 			break;
 
 	// this is complicated because Win32 seems to pack multiple mouse events into
@@ -1595,27 +1706,41 @@ LONG WINAPI GLMainWndProc (
 		// JACK: This is the mouse wheel with the Intellimouse
 		// Its delta is either positive or neg, and we generate the proper
 		// Event.
-		case WM_MOUSEWHEEL: 
+		case WM_MOUSEWHEEL:
 			if (!vid_initializing)
 			{
 				if ((short) HIWORD(wParam) > 0)
 				{
-					Key_Event(K_MWHEELUP, 0, true);
-					Key_Event(K_MWHEELUP, 0, false);
+					Key_Event(0, K_MWHEELUP, 0, true);
+					Key_Event(0, K_MWHEELUP, 0, false);
 				}
 				else
 				{
-					Key_Event(K_MWHEELDOWN, 0, true);
-					Key_Event(K_MWHEELDOWN, 0, false);
+					Key_Event(0, K_MWHEELDOWN, 0, true);
+					Key_Event(0, K_MWHEELDOWN, 0, false);
 				}
 			}
 			break;
 
 		case WM_INPUT:
 			// raw input handling
-			IN_RawInput_MouseRead((HANDLE)lParam);
+			if (!vid_initializing)
+				IN_RawInput_Read((HANDLE)lParam);
 			break;
 
+		case WM_GETMINMAXINFO:
+			{
+				RECT windowrect;
+				RECT clientrect;
+				MINMAXINFO *mmi = (MINMAXINFO *) lParam;
+
+				GetWindowRect (hWnd, &windowrect);
+				GetClientRect (hWnd, &clientrect);
+
+				mmi->ptMinTrackSize.x = 320 + ((windowrect.right - windowrect.left) - (clientrect.right - clientrect.left));
+				mmi->ptMinTrackSize.y = 200 + ((windowrect.bottom - windowrect.top) - (clientrect.bottom - clientrect.top));
+			}
+			return 0;
     	case WM_SIZE:
 			if (!vid_initializing)
 			{
@@ -1659,12 +1784,6 @@ LONG WINAPI GLMainWndProc (
             lRet = CDAudio_MessageHandler (hWnd, uMsg, wParam, lParam);
 			break;
 
-			
-		case WM_MWHOOK:
-			if (!vid_initializing)
-				MW_Hook_Message (lParam);
-			break;
-		
     	default:
             /* pass all unhandled messages to DefWindowProc */
             lRet = DefWindowProc (hWnd, uMsg, wParam, lParam);
@@ -1676,12 +1795,12 @@ LONG WINAPI GLMainWndProc (
 }
 
 
-qboolean GLVID_Is8bit() {
+qboolean GLVID_Is8bit(void) {
 	return is8bit;
 }
 
 
-void VID_Init8bitPalette() 
+void VID_Init8bitPalette(void)
 {
 #ifdef GL_USE8BITTEX
 #ifdef GL_EXT_paletted_texture
@@ -1693,15 +1812,15 @@ void VID_Init8bitPalette()
 	char *oldPalette, *newPalette;
 
 	qglColorTableEXT = (void *)qwglGetProcAddress("glColorTableEXT");
-    if (!qglColorTableEXT || !strstr(gl_extensions, "GL_EXT_shared_texture_palette") ||
-		COM_CheckParm("-no8bit"))
+	if (!qglColorTableEXT || !GL_CheckExtension("GL_EXT_shared_texture_palette") || COM_CheckParm("-no8bit"))
 		return;
 
 	Con_SafePrintf("8-bit GL extensions enabled.\n");
-    qglEnable( GL_SHARED_TEXTURE_PALETTE_EXT );
+	qglEnable(GL_SHARED_TEXTURE_PALETTE_EXT);
 	oldPalette = (char *) d_8to24rgbtable; //d_8to24table3dfx;
 	newPalette = thePalette;
-	for (i=0;i<256;i++) {
+	for (i=0;i<256;i++)
+	{
 		*newPalette++ = *oldPalette++;
 		*newPalette++ = *oldPalette++;
 		*newPalette++ = *oldPalette++;
@@ -1722,9 +1841,11 @@ void GLVID_DeInit (void)
 
 	Cvar_Unhook(&_vid_wait_override);
 	Cvar_Unhook(&vid_wndalpha);
+	Cmd_RemoveCommand("vid_recenter");
 
 	UnregisterClass(WINDOW_CLASS_NAME, global_hInstance);
 }
+
 /*
 ===================
 VID_Init
@@ -1753,13 +1874,11 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	if (!RegisterClass (&wc))	//this isn't really fatal, we'll let the CreateWindow fail instead.
 		MessageBox(NULL, "RegisterClass failed", "GAH", 0);
 
-	hIcon = LoadIcon (global_hInstance, MAKEINTRESOURCE (IDI_ICON2));
+	hIcon = LoadIcon (global_hInstance, MAKEINTRESOURCE (IDI_ICON1));
 
 	vid_initialized = false;
 	vid_initializing = true;
 
-	vid.maxwarpwidth = WARP_WIDTH;
-	vid.maxwarpheight = WARP_HEIGHT;
 	vid.colormap = host_colormap;
 
 	if (hwnd_dialog)
@@ -1781,9 +1900,9 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	S_Restart_f();
 
 	Cvar_Hook(&_vid_wait_override, VID_Wait_Override_Callback);
-	Cvar_Hook(&vid_width, VID_Size_Override_Callback);
-	Cvar_Hook(&vid_height, VID_Size_Override_Callback);
 	Cvar_Hook(&vid_wndalpha, VID_WndAlpha_Override_Callback);
+
+	Cmd_AddRemCommand("vid_recenter", GLVID_Recenter_f);
 
 	vid_initialized = true;
 	vid_initializing = false;

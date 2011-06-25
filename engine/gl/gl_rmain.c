@@ -21,13 +21,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"
 #include "renderque.h"
-
-#ifdef Q3SHADERS
 #include "shader.h"
-#endif
+#include "gl_draw.h"
 
 void R_RenderBrushPoly (msurface_t *fa);
 
@@ -36,41 +34,21 @@ void R_RenderBrushPoly (msurface_t *fa);
 
 extern int		gl_canstencil;
 
-vrect_t gl_truescreenrect;
-
 FTEPFNGLCOMPRESSEDTEXIMAGE2DARBPROC qglCompressedTexImage2DARB;
 FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImageARB;
-
-#define	Q2RF_WEAPONMODEL		4		// only draw through eyes
-#define Q2RF_DEPTHHACK 16
 
 entity_t	r_worldentity;
 
 vec3_t		modelorg, r_entorigin;
-entity_t	*currententity;
 
 int			r_visframecount;	// bumped when going to a new PVS
-int			r_framecount;		// used for dlight push checking
+extern int			r_framecount;		// used for dlight push checking
 
 float		r_wateralphaval;	//allowed or not...
 
 //mplane_t	frustum[4];
 
 int			c_brush_polys, c_alias_polys;
-
-qboolean	envmap;				// true during envmap command capture
-
-int			particletexture;	// little dot for particles
-int			particlecqtexture;	// little dot for particles
-int			explosiontexture;
-int			balltexture;
-
-int			mirrortexturenum;	// quake texturenum, not gltexturenum
-qboolean	mirror;
-mplane_t	*mirror_plane;
-msurface_t	*r_mirror_chain;
-qboolean	r_inmirror;	//or out-of-body
-extern msurface_t  *r_alpha_surfaces;
 
 //
 // view origin
@@ -79,9 +57,6 @@ vec3_t	vup;
 vec3_t	vpn;
 vec3_t	vright;
 vec3_t	r_origin;
-
-extern float	r_projection_matrix[16];
-extern float	r_view_matrix[16];
 
 //
 // screen size info
@@ -94,35 +69,18 @@ int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;
 
 texture_t	*r_notexture_mip;
 
-//void R_MarkLeaves (void);
-
 cvar_t	r_norefresh = SCVAR("r_norefresh","0");
-//cvar_t	r_drawentities = SCVAR("r_drawentities","1");
-//cvar_t	r_drawviewmodel = SCVAR("r_drawviewmodel","1");
-//cvar_t	r_speeds = SCVAR("r_speeds","0");
-//cvar_t	r_fullbright = SCVAR("r_fullbright","0");
-cvar_t	r_mirroralpha = SCVARF("r_mirroralpha","1", CVAR_CHEAT);
-//cvar_t	r_waterwarp = SCVAR("r_waterwarp", "0");
-//cvar_t	r_novis = SCVAR("r_novis","0");
-//cvar_t	r_netgraph = SCVAR("r_netgraph","0");
 
 extern cvar_t	gl_part_flame;
+extern cvar_t	r_bloom;
 
-cvar_t	gl_clear = SCVAR("gl_clear","0");
-cvar_t	gl_cull = SCVAR("gl_cull","1");
-cvar_t	gl_smoothmodels = SCVAR("gl_smoothmodels","1");
 cvar_t	gl_affinemodels = SCVAR("gl_affinemodels","0");
-cvar_t	gl_playermip = SCVAR("gl_playermip","0");
-cvar_t	gl_keeptjunctions = SCVAR("gl_keeptjunctions","1");
 cvar_t	gl_reporttjunctions = SCVAR("gl_reporttjunctions","0");
 cvar_t	gl_finish = SCVAR("gl_finish","0");
 cvar_t	gl_dither = SCVAR("gl_dither", "1");
-cvar_t	gl_maxdist = SCVAR("gl_maxdist", "8192");
 
-cvar_t	r_polygonoffset_submodel_factor = SCVAR("r_polygonoffset_submodel_factor", "0.05");
-cvar_t	r_polygonoffset_submodel_offset = SCVAR("r_polygonoffset_submodel_offset", "25");
+extern cvar_t	gl_screenangle;
 
-extern cvar_t	gl_contrast;
 extern cvar_t	gl_mindist;
 
 extern cvar_t	ffov;
@@ -140,27 +98,21 @@ extern cvar_t gl_blendsprites;
 cvar_t	r_xflip = SCVAR("leftisright", "0");
 #endif
 
-extern	cvar_t	gl_ztrick;
 extern	cvar_t	scr_fov;
 
-// post processing stuff
-int sceneblur_texture;
-int scenepp_texture;
-int scenepp_texture_warp;
-int scenepp_texture_edge;
+shader_t *scenepp_waterwarp;
 
-int scenepp_ww_program;
-int scenepp_ww_parm_texture0i;
-int scenepp_ww_parm_texture1i;
-int scenepp_ww_parm_texture2i;
-int scenepp_ww_parm_ampscalef;
+// post processing stuff
+texid_t sceneblur_texture;
+texid_t scenepp_texture_warp;
+texid_t scenepp_texture_edge;
 
 int scenepp_mt_program;
 int scenepp_mt_parm_texture0i;
 int scenepp_mt_parm_colorf;
 int scenepp_mt_parm_inverti;
 
-int scenepp_fisheye_texture;
+texid_t scenepp_fisheye_texture;
 int scenepp_fisheye_program;
 int scenepp_fisheye_parm_fov;
 int scenepp_panorama_program;
@@ -171,68 +123,82 @@ int scenepp_panorama_parm_fov;
 // processing shaders
 void GL_InitSceneProcessingShaders_WaterWarp (void)
 {
-	char *genericvert = "\
-		varying vec2 v_texCoord0;\
-		varying vec2 v_texCoord1;\
-		varying vec2 v_texCoord2;\
-		void main (void)\
-		{\
-			vec4 v = vec4( gl_Vertex.x, gl_Vertex.y, gl_Vertex.z, 1.0 );\
-			gl_Position = gl_ModelViewProjectionMatrix * v;\
-			v_texCoord0 = gl_MultiTexCoord0.xy;\
-			v_texCoord1 = gl_MultiTexCoord1.xy;\
-			v_texCoord2 = gl_MultiTexCoord2.xy;\
-		}\
-		";
+	/*
+	inputs:
+	texcoords: edge points
+	coords: vertex coords (duh)
+	time
+	ampscale (cvar = r_waterwarp)
 
-	char *wwfrag = "\
-		varying vec2 v_texCoord0;\
-		varying vec2 v_texCoord1;\
-		varying vec2 v_texCoord2;\
-		uniform sampler2D theTexture0;\
-		uniform sampler2D theTexture1;\
-		uniform sampler2D theTexture2;\
-		uniform float ampscale;\
-		void main (void)\
-		{\
-			float amptemp;\
-			vec3 edge;\
-			edge = texture2D( theTexture2, v_texCoord2 ).rgb;\
-			amptemp = ampscale * edge.x;\
-			vec3 offset;\
-			offset = texture2D( theTexture1, v_texCoord1 ).rgb;\
-			offset.x = (offset.x - 0.5) * 2.0;\
-			offset.y = (offset.y - 0.5) * 2.0;\
-			vec2 temp;\
-			temp.x = v_texCoord0.x + offset.x * amptemp;\
-			temp.y = v_texCoord0.y + offset.y * amptemp;\
-			gl_FragColor = texture2D( theTexture0, temp );\
-		}\
-		";
-
-	if (qglGetError())
-		Con_Printf("GL Error before initing shader object\n");
-
-	scenepp_ww_program = GLSlang_CreateProgram(NULL, genericvert, wwfrag);
-
-	if (!scenepp_ww_program)
-		return;
-
-	scenepp_ww_parm_texture0i	= GLSlang_GetUniformLocation(scenepp_ww_program, "theTexture0");
-	scenepp_ww_parm_texture1i	= GLSlang_GetUniformLocation(scenepp_ww_program, "theTexture1");
-	scenepp_ww_parm_texture2i	= GLSlang_GetUniformLocation(scenepp_ww_program, "theTexture2");
-	scenepp_ww_parm_ampscalef	= GLSlang_GetUniformLocation(scenepp_ww_program, "ampscale");
-
-	GLSlang_UseProgram(scenepp_ww_program);
-
-	GLSlang_SetUniform1i(scenepp_ww_parm_texture0i, 0);
-	GLSlang_SetUniform1i(scenepp_ww_parm_texture1i, 1);
-	GLSlang_SetUniform1i(scenepp_ww_parm_texture2i, 2);
-
-	GLSlang_UseProgram(0);
-
-	if (qglGetError())
-		Con_Printf(CON_ERROR "GL Error initing shader object\n");
+	use ifs instead of an edge map?
+	*/
+	if (gl_config.arb_shader_objects)
+	{
+		scenepp_waterwarp = R_RegisterShader("waterwarp",
+			"{\n"
+			"glslprogram\n"
+			"{\n"
+			"#ifdef VERTEX_SHADER\n"
+			"\
+			attribute vec2 v_texcoord;\
+			varying vec2 v_stc;\
+			varying vec2 v_warp;\
+			varying vec2 v_edge;\
+			uniform float e_time;\
+			void main (void)\
+			{\
+				gl_Position = ftetransform();\
+				v_stc = (1.0+(gl_Position.xy / gl_Position.w))/2.0;\
+				v_warp.s = e_time * 0.25 + v_texcoord.s;\
+				v_warp.t = e_time * 0.25 + v_texcoord.t;\
+				v_edge = v_texcoord.xy;\
+			}\
+			\n"
+			"#endif\n"
+			"#ifdef FRAGMENT_SHADER\n"
+			"\
+			varying vec2 v_stc;\
+			varying vec2 v_warp;\
+			varying vec2 v_edge;\
+			uniform sampler2D s_t0;\
+			uniform sampler2D s_t1;\
+			uniform sampler2D s_t2;\
+			uniform float ampscale;\
+			uniform vec3 rendertexturescale;\
+			void main (void)\
+			{\
+				float amptemp;\
+				vec3 edge;\
+				edge = texture2D( s_t2, v_edge ).rgb;\
+				amptemp = (0.010 / 0.625) * ampscale * edge.x;\
+				vec3 offset;\
+				offset = texture2D( s_t1, v_warp ).rgb;\
+				offset.x = (offset.x - 0.5) * 2.0;\
+				offset.y = (offset.y - 0.5) * 2.0;\
+				vec2 temp;\
+				temp.x = v_stc.x + offset.x * amptemp;\
+				temp.y = v_stc.y + offset.y * amptemp;\
+				gl_FragColor = texture2D( s_t0, temp*rendertexturescale.st );\
+			}\
+			\n"
+			"#endif\n"
+			"}\n"
+			"param cvarf r_waterwarp ampscale\n"
+			"param rendertexturescale rendertexturescale\n"
+			"{\n"
+			"map $currentrender\n"
+			"}\n"
+			"{\n"
+			"map $upperoverlay\n"
+			"}\n"
+			"{\n"
+			"map $loweroverlay\n"
+			"}\n"
+			"}\n"
+			);
+		scenepp_waterwarp->defaulttextures.upperoverlay = scenepp_texture_warp;
+		scenepp_waterwarp->defaulttextures.loweroverlay = scenepp_texture_edge;
+	}
 }
 
 void GL_InitFisheyeFov(void)
@@ -277,7 +243,10 @@ void GL_InitFisheyeFov(void)
 			gl_FragColor = textureCube(source, tc);\
 		}";
 
-	scenepp_fisheye_program = GLSlang_CreateProgram(NULL, vshader, fisheyefshader);
+	if (gl_config.gles)
+		return;
+
+	scenepp_fisheye_program = GLSlang_CreateProgram("fisheye", "#version 110\n", NULL, vshader, fisheyefshader);
 	if (scenepp_fisheye_program)
 	{
 		GLSlang_UseProgram(scenepp_fisheye_program);
@@ -286,7 +255,7 @@ void GL_InitFisheyeFov(void)
 		GLSlang_UseProgram(0);
 	}
 
-	scenepp_panorama_program = GLSlang_CreateProgram(NULL, vshader, panoramafshader);
+	scenepp_panorama_program = GLSlang_CreateProgram("panorama", "#version 110\n", NULL, vshader, panoramafshader);
 	if (scenepp_panorama_program)
 	{
 		GLSlang_UseProgram(scenepp_panorama_program);
@@ -296,58 +265,13 @@ void GL_InitFisheyeFov(void)
 	}
 }
 
-void GL_InitSceneProcessingShaders_MenuTint(void)
-{
-	char *vshader = "\
-		varying vec2 texcoord;\
-		void main(void)\
-		{\
-			texcoord = gl_MultiTexCoord0.xy;\
-			gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;\
-		}";
-	char *fshader = "\
-		varying vec2 texcoord;\
-		uniform vec3 colorparam;\
-		uniform sampler2D source;\
-		uniform int invert;\
-		const vec3 lumfactors = vec3(0.299, 0.587, 0.114);\
-		const vec3 invertvec = vec3(1.0, 1.0, 1.0);\
-		void main(void)\
-		{\
-			vec3 texcolor = texture2D(source, texcoord).rgb;\
-			float luminance = dot(lumfactors, texcolor);\
-			texcolor = vec3(luminance, luminance, luminance);\
-			texcolor *= colorparam;\
-			texcolor = invert > 0 ? (invertvec - texcolor) : texcolor;\
-			gl_FragColor = vec4(texcolor, 1.0);\
-		}";
-
-	if (qglGetError())
-		Con_Printf("GL Error before initing shader object\n");
-
-	scenepp_mt_program = GLSlang_CreateProgram(NULL, vshader, fshader);
-
-	if (!scenepp_mt_program)
-		return;
-
-	scenepp_mt_parm_texture0i	= GLSlang_GetUniformLocation(scenepp_mt_program, "source");
-	scenepp_mt_parm_colorf		= GLSlang_GetUniformLocation(scenepp_mt_program, "colorparam");
-	scenepp_mt_parm_inverti		= GLSlang_GetUniformLocation(scenepp_mt_program, "invert");
-
-	GLSlang_UseProgram(scenepp_mt_program);
-	GLSlang_SetUniform1i(scenepp_mt_parm_texture0i, 0);
-
-	GLSlang_UseProgram(0);
-
-	if (qglGetError())
-		Con_Printf(CON_ERROR "GL Error initing shader object\n");
-}
-
 void GL_InitSceneProcessingShaders (void)
 {
-	GL_InitSceneProcessingShaders_WaterWarp();
-	GL_InitFisheyeFov();
-	GL_InitSceneProcessingShaders_MenuTint();
+	if (gl_config.arb_shader_objects)
+	{
+		GL_InitSceneProcessingShaders_WaterWarp();
+		GL_InitFisheyeFov();
+	}
 }
 
 #define PP_WARP_TEX_SIZE 64
@@ -359,16 +283,15 @@ void GL_SetupSceneProcessingTextures (void)
 	unsigned char pp_warp_tex[PP_WARP_TEX_SIZE*PP_WARP_TEX_SIZE*3];
 	unsigned char pp_edge_tex[PP_AMP_TEX_SIZE*PP_AMP_TEX_SIZE*3];
 
-	scenepp_fisheye_texture = 0;
+	scenepp_fisheye_texture = r_nulltex;
 
-	sceneblur_texture = GL_AllocNewTexture();
+	sceneblur_texture = GL_AllocNewTexture(0, 0);
 
 	if (!gl_config.arb_shader_objects)
 		return;
 
-	scenepp_texture = GL_AllocNewTexture();
-	scenepp_texture_warp = GL_AllocNewTexture();
-	scenepp_texture_edge = GL_AllocNewTexture();
+	scenepp_texture_warp = GL_AllocNewTexture(0, 0);
+	scenepp_texture_edge = GL_AllocNewTexture(0, 0);
 
 	// init warp texture - this specifies offset in
 	for (y=0; y<PP_WARP_TEX_SIZE; y++)
@@ -388,10 +311,10 @@ void GL_SetupSceneProcessingTextures (void)
 		}
 	}
 
-	GL_Bind(scenepp_texture_warp);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	qglTexImage2D(GL_TEXTURE_2D, 0, 3, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, pp_warp_tex);
+	GL_MTBind(0, GL_TEXTURE_2D, scenepp_texture_warp);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, pp_warp_tex);
 
 	// TODO: init edge texture - this is ampscale * 2, with ampscale calculated
 	// init warp texture - this specifies offset in
@@ -432,39 +355,15 @@ void GL_SetupSceneProcessingTextures (void)
 		}
 	}
 
-	GL_Bind(scenepp_texture_edge);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	GL_MTBind(0, GL_TEXTURE_2D, scenepp_texture_edge);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, pp_edge_tex);
 }
 
-void R_RotateForEntity (entity_t *e)
+void R_RotateForEntity (float *modelview, const entity_t *e, const model_t *mod)
 {
 	float m[16];
-	if (e->flags & Q2RF_WEAPONMODEL && r_refdef.currentplayernum>=0)
-	{	//rotate to view first
-		m[0] = cl.viewent[r_refdef.currentplayernum].axis[0][0];
-		m[1] = cl.viewent[r_refdef.currentplayernum].axis[0][1];
-		m[2] = cl.viewent[r_refdef.currentplayernum].axis[0][2];
-		m[3] = 0;
-
-		m[4] = cl.viewent[r_refdef.currentplayernum].axis[1][0];
-		m[5] = cl.viewent[r_refdef.currentplayernum].axis[1][1];
-		m[6] = cl.viewent[r_refdef.currentplayernum].axis[1][2];
-		m[7] = 0;
-
-		m[8] = cl.viewent[r_refdef.currentplayernum].axis[2][0];
-		m[9] = cl.viewent[r_refdef.currentplayernum].axis[2][1];
-		m[10] = cl.viewent[r_refdef.currentplayernum].axis[2][2];
-		m[11] = 0;
-
-		m[12] = cl.viewent[r_refdef.currentplayernum].origin[0];
-		m[13] = cl.viewent[r_refdef.currentplayernum].origin[1];
-		m[14] = cl.viewent[r_refdef.currentplayernum].origin[2];
-		m[15] = 1;
-
-		qglMultMatrixf(m);
-	}
 
 	m[0] = e->axis[0][0];
 	m[1] = e->axis[0][1];
@@ -486,782 +385,78 @@ void R_RotateForEntity (entity_t *e)
 	m[14] = e->origin[2];
 	m[15] = 1;
 
-	qglMultMatrixf(m);
-}
-
-/*
-=============================================================
-
-  SPRITE MODELS
-
-=============================================================
-*/
-
-
-/*
-=================
-R_DrawSpriteModel
-
-=================
-*/
-void R_DrawSpriteModel (entity_t *e)
-{
-	vec3_t	point;
-	mspriteframe_t	*frame;
-	vec3_t		forward, right, up;
-	msprite_t		*psprite;
-	vec3_t sprorigin;
-	qbyte coloursb[4];
-
-	if (e->flags & Q2RF_WEAPONMODEL && r_refdef.currentplayernum >= 0)
+	if (e->scale != 1 && e->scale != 0)	//hexen 2 stuff
 	{
-		sprorigin[0] = cl.viewent[r_refdef.currentplayernum].origin[0];
-		sprorigin[1] = cl.viewent[r_refdef.currentplayernum].origin[1];
-		sprorigin[2] = cl.viewent[r_refdef.currentplayernum].origin[2];
-		VectorMA(sprorigin, e->origin[0], cl.viewent[r_refdef.currentplayernum].axis[0], sprorigin);
-		VectorMA(sprorigin, e->origin[1], cl.viewent[r_refdef.currentplayernum].axis[1], sprorigin);
-		VectorMA(sprorigin, e->origin[2], cl.viewent[r_refdef.currentplayernum].axis[2], sprorigin);
-		VectorMA(sprorigin, 12, vpn, sprorigin);
+		float z;
+		float escale;
+		escale = e->scale;
+		switch(e->drawflags&SCALE_TYPE_MASKIN)
+		{
+		default:
+		case SCALE_TYPE_UNIFORM:
+			VectorScale((m+0), escale, (m+0));
+			VectorScale((m+4), escale, (m+4));
+			VectorScale((m+8), escale, (m+8));
+			break;
+		case SCALE_TYPE_XYONLY:
+			VectorScale((m+0), escale, (m+0));
+			VectorScale((m+4), escale, (m+4));
+			break;
+		case SCALE_TYPE_ZONLY:
+			VectorScale((m+8), escale, (m+8));
+			break;
+		}
+		if (mod && (e->drawflags&SCALE_TYPE_MASKIN) != SCALE_TYPE_XYONLY)
+		{
+			switch(e->drawflags&SCALE_ORIGIN_MASKIN)
+			{
+			case SCALE_ORIGIN_CENTER:
+				z = ((mod->maxs[2] + mod->mins[2]) * (1-escale))/2;
+				VectorMA((m+12), z, e->axis[2], (m+12));
+				break;
+			case SCALE_ORIGIN_BOTTOM:
+				VectorMA((m+12), mod->mins[2]*(1-escale), e->axis[2], (m+12));
+				break;
+			case SCALE_ORIGIN_TOP:
+				VectorMA((m+12), -mod->maxs[2], e->axis[2], (m+12));
+				break;
+			}
+		}
+	}
+	else if (mod && !strcmp(mod->name, "progs/eyes.mdl"))
+	{
+		/*resize eyes, to make them easier to see*/
+		m[14] -= (22 + 8);
+		VectorScale((m+0), 2, (m+0));
+		VectorScale((m+4), 2, (m+4));
+		VectorScale((m+8), 2, (m+8));
+	}
+	if (mod && !ruleset_allow_larger_models.ival && mod->clampscale != 1)
+	{	//possibly this should be on a per-frame basis, but that's a real pain to do
+		Con_DPrintf("Rescaling %s by %f\n", mod->name, mod->clampscale);
+		VectorScale((m+0), mod->clampscale, (m+0));
+		VectorScale((m+4), mod->clampscale, (m+4));
+		VectorScale((m+8), mod->clampscale, (m+8));
+	}
 
-		e->flags |= RF_NODEPTHTEST;
+	if (e->flags & Q2RF_WEAPONMODEL && r_refdef.currentplayernum>=0)
+	{
+		/*FIXME: no bob*/
+		float simpleview[16];
+		vec3_t ang;
+		ang[0] = 0;
+		ang[1] = 0;
+		ang[2] = gl_screenangle.value;
+		Matrix4_ModelViewMatrix(simpleview, ang, vec3_origin);
+		Matrix4_Multiply(simpleview, m, modelview);
 	}
 	else
-		VectorCopy(e->origin, sprorigin);
-
-#ifdef Q3SHADERS
-
-	if (e->forcedshader)
 	{
-		meshbuffer_t mb;
-		mesh_t mesh;
-		vec2_t texcoords[4]={{0, 1},{0,0},{1,0},{1,1}};
-		vec3_t vertcoords[4];
-		index_t indexes[6] = {0, 1, 2, 0, 2, 3};
-		byte_vec4_t colours[4];
-		float x, y;
-
-#define VectorSet(a,b,c,v) {v[0]=a;v[1]=b;v[2]=c;}
-		x = cos(e->rotation+225*M_PI/180)*e->scale;
-		y = sin(e->rotation+225*M_PI/180)*e->scale;
-		VectorSet (sprorigin[0] - y*vright[0] + x*vup[0], sprorigin[1] - y*vright[1] + x*vup[1], sprorigin[2] - y*vright[2] + x*vup[2], vertcoords[3]);
-		VectorSet (sprorigin[0] - x*vright[0] - y*vup[0], sprorigin[1] - x*vright[1] - y*vup[1], sprorigin[2] - x*vright[2] - y*vup[2], vertcoords[2]);
-		VectorSet (sprorigin[0] + y*vright[0] - x*vup[0], sprorigin[1] + y*vright[1] - x*vup[1], sprorigin[2] + y*vright[2] - x*vup[2], vertcoords[1]);
-		VectorSet (sprorigin[0] + x*vright[0] + y*vup[0], sprorigin[1] + x*vright[1] + y*vup[1], sprorigin[2] + x*vright[2] + y*vup[2], vertcoords[0]);
-
-		coloursb[0] = e->shaderRGBAf[0]*255;
-		coloursb[1] = e->shaderRGBAf[1]*255;
-		coloursb[2] = e->shaderRGBAf[2]*255;
-		coloursb[3] = e->shaderRGBAf[3]*255;
-		*(int*)colours[0] = *(int*)colours[1] = *(int*)colours[2] = *(int*)colours[3] = *(int*)coloursb;
-
-		mesh.vbofirstelement = 0;
-		mesh.vbofirstvert = 0;
-
-		mesh.colors_array = colours;
-		mesh.indexes = indexes;
-		mesh.lmst_array = NULL;
-		mesh.st_array = texcoords;
-		mesh.normals_array = NULL;
-		mesh.xyz_array = vertcoords;
-		mesh.numvertexes = 4;
-		mesh.numindexes = 6;
-		mesh.radius = e->scale;
-
-
-		R_IBrokeTheArrays();
-
-		mb.entity = e;
-		mb.shader = e->forcedshader;
-		mb.fog = NULL;//fog;
-		mb.mesh = &mesh;
-		mb.infokey = -1;
-		mb.dlightbits = 0;
-
-		R_PushMesh(&mesh, mb.shader->features | MF_NONBATCHED|MF_COLORS);
-
-		R_RenderMeshBuffer ( &mb, false );
-		return;
+		Matrix4_Multiply(r_refdef.m_view, m, modelview);
 	}
-#endif
-	if (!e->model)
-		return;
-
-	if (e->flags & RF_NODEPTHTEST)
-		qglDisable(GL_DEPTH_TEST);
-
-	// don't even bother culling, because it's just a single
-	// polygon without a surface cache
-	frame = R_GetSpriteFrame (e);
-	psprite = e->model->cache.data;
-//	frame = 0x05b94140;
-
-	switch(psprite->type)
-	{
-	case SPR_ORIENTED:
-		// bullet marks on walls
-		AngleVectors (e->angles, forward, right, up);
-		break;
-
-	case SPR_FACING_UPRIGHT:
-		up[0] = 0;up[1] = 0;up[2]=1;
-		right[0] = sprorigin[1] - r_origin[1];
-		right[1] = -(sprorigin[0] - r_origin[0]);
-		right[2] = 0;
-		VectorNormalize (right);
-		break;
-	case SPR_VP_PARALLEL_UPRIGHT:
-		up[0] = 0;up[1] = 0;up[2]=1;
-		VectorCopy (vright, right);
-		break;
-
-	default:
-	case SPR_VP_PARALLEL:
-		//normal sprite
-		VectorCopy(vup, up);
-		VectorCopy(vright, right);
-		break;
-	}
-	up[0]*=e->scale;
-	up[1]*=e->scale;
-	up[2]*=e->scale;
-	right[0]*=e->scale;
-	right[1]*=e->scale;
-	right[2]*=e->scale;
-
-	qglColor4fv (e->shaderRGBAf);
-
-	GL_DisableMultitexture();
-
-    GL_Bind(frame->p.d.gl.texnum);
-
-	{
-		extern int gldepthfunc;
-		qglDepthFunc(gldepthfunc);
-		qglDepthMask(0);
-		if (gldepthmin == 0.5)
-			qglCullFace ( GL_BACK );
-		else
-			qglCullFace ( GL_FRONT );
-
-		GL_TexEnv(GL_MODULATE);
-
-		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		qglDisable (GL_ALPHA_TEST);
-		qglDisable(GL_BLEND);
-	}
-
-	if (e->flags & Q2RF_ADDATIVE)
-	{
-		qglEnable(GL_BLEND);
-		qglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-		qglBlendFunc(GL_SRC_ALPHA, GL_ONE);
-	}
-	else if (e->shaderRGBAf[3]<1 || gl_blendsprites.value)
-	{
-		qglEnable(GL_BLEND);
-		qglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	}
-	else
-		qglEnable (GL_ALPHA_TEST);
-
-	qglDisable(GL_CULL_FACE);
-	qglBegin (GL_QUADS);
-
-	qglTexCoord2f (0, 1);
-	VectorMA (sprorigin, frame->down, up, point);
-	VectorMA (point, frame->left, right, point);
-	qglVertex3fv (point);
-
-	qglTexCoord2f (0, 0);
-	VectorMA (sprorigin, frame->up, up, point);
-	VectorMA (point, frame->left, right, point);
-	qglVertex3fv (point);
-
-	qglTexCoord2f (1, 0);
-	VectorMA (sprorigin, frame->up, up, point);
-	VectorMA (point, frame->right, right, point);
-	qglVertex3fv (point);
-
-	qglTexCoord2f (1, 1);
-	VectorMA (sprorigin, frame->down, up, point);
-	VectorMA (point, frame->right, right, point);
-	qglVertex3fv (point);
-
-	qglEnd ();
-
-	qglDisable(GL_BLEND);
-	qglDisable (GL_ALPHA_TEST);
-	qglEnable(GL_DEPTH_TEST);
-
-	qglEnable(GL_CULL_FACE);
-	qglEnable(GL_BLEND);
-
-	if (e->flags & Q2RF_ADDATIVE)	//back to regular blending for us!
-		qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
 //==================================================================================
-#ifdef NEWBACKEND
-static void R_DrawShadedSpriteModels(int count, void **entlist, void *parm)
-{
-	vec3_t	point;
-	mspriteframe_t	*frame;
-	vec3_t		forward, right, up;
-	msprite_t		*psprite;
-
-	qbyte coloursb[4];
-
-	meshbuffer_t mb;
-	mesh_t mesh;
-	vec2_t texcoords[4]={{0, 1},{0,0},{1,0},{1,1}};
-	vec3_t vertcoords[4];
-	index_t indexes[6] = {0, 1, 2, 0, 2, 3};
-	byte_vec4_t colours[4];
-	float x, y;
-
-	int vnum = 0, inum = 0;
-
-	shader_t *lastshader = NULL;
-
-	mesh.vbofirstelement = 0;
-	mesh.vbofirstvert = 0;
-
-	mesh.colors_array = colours;
-	mesh.indexes = indexes;
-	mesh.lmst_array = NULL;
-	mesh.st_array = texcoords;
-	mesh.normals_array = NULL;
-	mesh.xyz_array = vertcoords;
-
-	mb.fog = NULL;//fog;
-	mb.mesh = NULL;
-	mb.infokey = -1;
-	mb.dlightbits = 0;
-
-	R_IBrokeTheArrays();
-
-	while (count--)
-	{
-		currententity = *entlist++;
-		if (currententity->forcedshader != lastshader || 1)
-		{
-			if (lastshader)
-			{
-				mesh.numvertexes = vnum;
-				mesh.numindexes = inum;
-				mesh.radius = currententity->scale;
-				R_PushMesh(&mesh, lastshader->features | MF_NONBATCHED|MF_COLORS);
-
-				mb.entity = currententity;
-				mb.shader = currententity->forcedshader;
-				R_RenderMeshBuffer (&mb, false);
-			}
-
-			lastshader = currententity->forcedshader;
-		}
-
-
-	#define VectorSet(a,b,c,v) {v[0]=a;v[1]=b;v[2]=c;}
-		x = cos(currententity->rotation+225*M_PI/180)*currententity->scale;
-		y = sin(currententity->rotation+225*M_PI/180)*currententity->scale;
-		VectorSet (currententity->origin[0] - y*vright[0] + x*vup[0], currententity->origin[1] - y*vright[1] + x*vup[1], currententity->origin[2] - y*vright[2] + x*vup[2], vertcoords[3]);
-		VectorSet (currententity->origin[0] - x*vright[0] - y*vup[0], currententity->origin[1] - x*vright[1] - y*vup[1], currententity->origin[2] - x*vright[2] - y*vup[2], vertcoords[2]);
-		VectorSet (currententity->origin[0] + y*vright[0] - x*vup[0], currententity->origin[1] + y*vright[1] - x*vup[1], currententity->origin[2] + y*vright[2] - x*vup[2], vertcoords[1]);
-		VectorSet (currententity->origin[0] + x*vright[0] + y*vup[0], currententity->origin[1] + x*vright[1] + y*vup[1], currententity->origin[2] + x*vright[2] + y*vup[2], vertcoords[0]);
-
-		coloursb[0] = currententity->shaderRGBAf[0]*255;
-		coloursb[1] = currententity->shaderRGBAf[1]*255;
-		coloursb[2] = currententity->shaderRGBAf[2]*255;
-		coloursb[3] = currententity->shaderRGBAf[3]*255;
-		*(int*)colours[0] = *(int*)colours[1] = *(int*)colours[2] = *(int*)colours[3] = *(int*)coloursb;
-
-		vnum += 4;
-		inum += 6;
-	}
-
-	if (lastshader)
-	{
-		mesh.numvertexes = vnum;
-		mesh.numindexes = inum;
-		mesh.radius = currententity->scale;
-		R_PushMesh(&mesh, lastshader->features | MF_NONBATCHED|MF_COLORS);
-
-		mb.entity = currententity;
-		mb.shader = currententity->forcedshader;
-		R_RenderMeshBuffer (&mb, false);
-	}
-}
-#endif
-
-void GLR_DrawSprite(int count, void **e, void *parm)
-{
-//	R_DrawShadedSpriteModels(count, e, parm);
-//	return;
-
-	while(count--)
-	{
-		currententity = *e++;
-		qglEnable(GL_TEXTURE_2D);
-
-		R_DrawSpriteModel (currententity);
-	}
-}
-
-
-#ifdef Q3SHADERS
-
-//q3 lightning gun
-void R_DrawLightning(entity_t *e)
-{
-	vec3_t v;
-	vec3_t dir, cr;
-	float scale = e->scale;
-	float length;
-
-	vec3_t points[4];
-	vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
-	index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
-
-	mesh_t mesh;
-	meshbuffer_t mb;
-
-	if (!e->forcedshader)
-		return;
-
-	if (!scale)
-		scale = 10;
-
-
-	VectorSubtract(e->origin, e->oldorigin, dir);
-	length = Length(dir);
-
-	//this seems to be about right.
-	texcoords[2][0] = length/128;
-	texcoords[3][0] = length/128;
-
-	VectorSubtract(r_refdef.vieworg, e->origin, v);
-	CrossProduct(v, dir, cr);
-	VectorNormalize(cr);
-
-	VectorMA(e->origin, -scale/2, cr, points[0]);
-	VectorMA(e->origin, scale/2, cr, points[1]);
-
-	VectorSubtract(r_refdef.vieworg, e->oldorigin, v);
-	CrossProduct(v, dir, cr);
-	VectorNormalize(cr);
-
-	VectorMA(e->oldorigin, scale/2, cr, points[2]);
-	VectorMA(e->oldorigin, -scale/2, cr, points[3]);
-
-	mesh.vbofirstelement = 0;
-	mesh.vbofirstvert = 0;
-	mesh.xyz_array = points;
-	mesh.indexes = indexarray;
-	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
-	mesh.colors_array = NULL;
-	mesh.lmst_array = NULL;
-	mesh.normals_array = NULL;
-	mesh.numvertexes = 4;
-	mesh.st_array = texcoords;
-
-	mb.entity = e;
-	mb.mesh = &mesh;
-	mb.shader = e->forcedshader;
-	mb.infokey = 0;
-	mb.fog = NULL;
-	mb.infokey = currententity->keynum;
-	mb.dlightbits = 0;
-
-
-	R_IBrokeTheArrays();
-
-	R_PushMesh(&mesh, mb.shader->features | MF_NONBATCHED);
-
-	R_RenderMeshBuffer ( &mb, false );
-}
-//q3 railgun beam
-void R_DrawRailCore(entity_t *e)
-{
-	vec3_t v;
-	vec3_t dir, cr;
-	float scale = e->scale;
-	float length;
-
-	mesh_t mesh;
-	meshbuffer_t mb;
-	vec3_t points[4];
-	vec2_t texcoords[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
-	index_t indexarray[6] = {0, 1, 2, 0, 2, 3};
-	int colors[4];
-	qbyte colorsb[4];
-
-	if (!e->forcedshader)
-		return;
-
-	if (!scale)
-		scale = 10;
-
-
-	VectorSubtract(e->origin, e->oldorigin, dir);
-	length = Length(dir);
-
-	//this seems to be about right.
-	texcoords[2][0] = length/128;
-	texcoords[3][0] = length/128;
-
-	VectorSubtract(r_refdef.vieworg, e->origin, v);
-	CrossProduct(v, dir, cr);
-	VectorNormalize(cr);
-
-	VectorMA(e->origin, -scale/2, cr, points[0]);
-	VectorMA(e->origin, scale/2, cr, points[1]);
-
-	VectorSubtract(r_refdef.vieworg, e->oldorigin, v);
-	CrossProduct(v, dir, cr);
-	VectorNormalize(cr);
-
-	VectorMA(e->oldorigin, scale/2, cr, points[2]);
-	VectorMA(e->oldorigin, -scale/2, cr, points[3]);
-
-	colorsb[0] = e->shaderRGBAf[0]*255;
-	colorsb[1] = e->shaderRGBAf[1]*255;
-	colorsb[2] = e->shaderRGBAf[2]*255;
-	colorsb[3] = e->shaderRGBAf[3]*255;
-	colors[0] = colors[1] = colors[2] = colors[3] = *(int*)colorsb;
-
-	mesh.vbofirstelement = 0;
-	mesh.vbofirstvert = 0;
-	mesh.xyz_array = points;
-	mesh.indexes = indexarray;
-	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
-	mesh.colors_array = (byte_vec4_t*)colors;
-	mesh.lmst_array = NULL;
-	mesh.normals_array = NULL;
-	mesh.numvertexes = 4;
-	mesh.st_array = texcoords;
-
-	mb.entity = e;
-	mb.mesh = &mesh;
-	mb.shader = e->forcedshader;
-	mb.infokey = 0;
-	mb.fog = NULL;
-	mb.infokey = currententity->keynum;
-	mb.dlightbits = 0;
-
-
-	R_IBrokeTheArrays();
-
-	R_PushMesh(&mesh, mb.shader->features | MF_NONBATCHED | MF_COLORS);
-
-	R_RenderMeshBuffer ( &mb, false );
-}
-#endif
-
-/*
-=============
-R_DrawEntitiesOnList
-=============
-*/
-void GLR_DrawEntitiesOnList (void)
-{
-	int		i;
-
-	if (!r_drawentities.value)
-		return;
-
-	// draw sprites seperately, because of alpha blending
-	for (i=0 ; i<cl_numvisedicts ; i++)
-	{
-		currententity = &cl_visedicts[i];
-
-		if (!PPL_ShouldDraw())
-			continue;
-
-
-		switch (currententity->rtype)
-		{
-		case RT_SPRITE:
-			RQ_AddDistReorder(GLR_DrawSprite, currententity, NULL, currententity->origin);
-//			R_DrawSpriteModel(currententity);
-			continue;
-#ifdef Q3SHADERS
-		case RT_BEAM:
-		case RT_RAIL_RINGS:
-		case RT_LIGHTNING:
-			R_DrawLightning(currententity);
-			continue;
-		case RT_RAIL_CORE:
-			R_DrawRailCore(currententity);
-			continue;
-#endif
-		case RT_MODEL:	//regular model
-			break;
-		case RT_PORTALSURFACE:
-			continue;	//this doesn't do anything anyway, does it?
-		default:
-		case RT_POLY:	//these are a little painful, we need to do them some time... just not yet.
-			continue;
-		}
-		if (currententity->flags & Q2RF_BEAM)
-		{
-			R_DrawBeam(currententity);
-			continue;
-		}
-		if (!currententity->model)
-			continue;
-
-
-		if (cl.lerpents && (cls.allow_anyparticles || currententity->visframe))	//allowed or static
-		{
-			if (gl_part_flame.value)
-			{
-				if (currententity->model->engineflags & MDLF_ENGULPHS)
-					continue;
-			}
-		}
-
-		if (currententity->model->engineflags & MDLF_NOTREPLACEMENTS)
-		{
-			if (currententity->model->fromgame != fg_quake || currententity->model->type != mod_alias)
-				if (!ruleset_allow_sensative_texture_replacements.value)
-					continue;
-		}
-
-		switch (currententity->model->type)
-		{
-		case mod_alias:
-			if (r_refdef.flags & Q2RDF_NOWORLDMODEL || !cl.worldmodel || cl.worldmodel->type != mod_brush || cl.worldmodel->fromgame == fg_doom)
-				R_DrawGAliasModel (currententity);
-			break;
-
-#ifdef HALFLIFEMODELS
-		case mod_halflife:
-			R_DrawHLModel (currententity);
-			break;
-#endif
-
-		case mod_brush:
-			if (!cl.worldmodel || cl.worldmodel->type != mod_brush || cl.worldmodel->fromgame == fg_doom)
-				PPL_BaseBModelTextures (currententity);
-			break;
-
-		case mod_sprite:
-			RQ_AddDistReorder(GLR_DrawSprite, currententity, NULL, currententity->origin);
-			break;
-
-#ifdef TERRAIN
-		case mod_heightmap:
-			GL_DrawHeightmapModel(currententity);
-			break;
-#endif
-
-		default:
-			break;
-		}
-	}
-}
-
-/*
-============
-R_PolyBlend
-============
-*/
-void GLV_CalcBlendServer (float colors[4]);
-void R_PolyBlend (void)
-{
-	float shift[4];
-	extern qboolean gammaworks;
-	if ((!v_blend[3] || !gl_nohwblend.value) && !cl.cshifts[CSHIFT_SERVER].percent)
-		return;
-
-	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
-		return;
-
-	GLV_CalcBlendServer(shift);	//figure out the shift we need (normally just the server specified one)
-
-//Con_Printf("R_PolyBlend(): %4.2f %4.2f %4.2f %4.2f\n",shift[0], shift[1],	shift[2],	shift[3]);
-
-	GL_DisableMultitexture();
-
-	qglDisable (GL_ALPHA_TEST);
-	qglEnable (GL_BLEND);
-	qglDisable (GL_DEPTH_TEST);
-	qglDisable (GL_TEXTURE_2D);
-
-	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-	qglLoadIdentity ();
-
-	qglRotatef (-90,  1, 0, 0);	    // put Z going up
-	 qglRotatef (90,  0, 0, 1);	    // put Z going up
-
-	qglColor4fv (shift);
-
-	qglBegin (GL_QUADS);
-
-	qglVertex3f (10, 100, 100);
-	qglVertex3f (10, -100, 100);
-	qglVertex3f (10, -100, -100);
-	qglVertex3f (10, 100, -100);
-	qglEnd ();
-
-	qglDisable (GL_BLEND);
-	qglEnable (GL_TEXTURE_2D);
-	qglEnable (GL_ALPHA_TEST);
-}
-
-void GLR_BrightenScreen (void)
-{
-	float f;
-
-	RSpeedMark();
-
-	if (gl_contrast.value <= 1.0)
-		return;
-
-	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
-		return;
-
-	f = gl_contrast.value;
-	f = min (f, 3);
-
-	qglDisable (GL_TEXTURE_2D);
-	qglEnable (GL_BLEND);
-	qglBlendFunc (GL_DST_COLOR, GL_ONE);
-	qglBegin (GL_QUADS);
-	while (f > 1) {
-		if (f >= 2)
-			qglColor3f (1,1,1);
-		else
-			qglColor3f (f - 1, f - 1, f - 1);
-		qglVertex2f (0, 0);
-		qglVertex2f (vid.width, 0);
-		qglVertex2f (vid.width, vid.height);
-		qglVertex2f (0, vid.height);
-		f *= 0.5;
-	}
-	qglEnd ();
-	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	qglEnable (GL_TEXTURE_2D);
-	qglDisable (GL_BLEND);
-	qglColor3f(1, 1, 1);
-
-	RSpeedEnd(RSPEED_PALETTEFLASHES);
-}
-
-/*
-===============
-R_SetupFrame
-===============
-*/
-void GLR_SetupFrame (void)
-{
-// don't allow cheats in multiplayer
-	r_wateralphaval = r_wateralpha.value;
-	if (!cls.allow_watervis)
-		r_wateralphaval = 1;
-
-	if (!mirror)
-	{
-		GLR_AnimateLight ();
-
-	// build the transformation matrix for the given view angles
-
-		AngleVectors (r_refdef.viewangles, vpn, vright, vup);
-
-		r_framecount++;
-	}
-	VectorCopy (r_refdef.vieworg, r_origin);
-
-// current viewleaf
-	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
-	{
-	}
-#ifdef Q2BSPS
-	else if (cl.worldmodel && (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3))
-	{
-		static mleaf_t fakeleaf;
-		mleaf_t	*leaf;
-
-		r_viewleaf = &fakeleaf;	//so we can use quake1 rendering routines for q2 bsps.
-		r_viewleaf->contents = Q1CONTENTS_EMPTY;
-		r_viewleaf2 = NULL;
-
-		r_oldviewcluster = r_viewcluster;
-		r_oldviewcluster2 = r_viewcluster2;
-		leaf = GLMod_PointInLeaf (cl.worldmodel, r_origin);
-		r_viewcluster = r_viewcluster2 = leaf->cluster;
-
-		// check above and below so crossing solid water doesn't draw wrong
-		if (!leaf->contents)
-		{	// look down a bit
-			vec3_t	temp;
-
-			VectorCopy (r_origin, temp);
-			temp[2] -= 16;
-			leaf = GLMod_PointInLeaf (cl.worldmodel, temp);
-			if ( !(leaf->contents & Q2CONTENTS_SOLID) &&
-				(leaf->cluster != r_viewcluster2) )
-				r_viewcluster2 = leaf->cluster;
-		}
-		else
-		{	// look up a bit
-			vec3_t	temp;
-
-			VectorCopy (r_origin, temp);
-			temp[2] += 16;
-			leaf = GLMod_PointInLeaf (cl.worldmodel, temp);
-			if ( !(leaf->contents & Q2CONTENTS_SOLID) &&
-				(leaf->cluster != r_viewcluster2) )
-				r_viewcluster2 = leaf->cluster;
-		}
-	}
-#endif
-	else
-	{
-		mleaf_t	*leaf;
-		vec3_t	temp;
-
-		r_oldviewleaf = r_viewleaf;
-		r_oldviewleaf2 = r_viewleaf2;
-		r_viewleaf = GLMod_PointInLeaf (cl.worldmodel, r_origin);
-
-		if (!r_viewleaf)
-		{
-		}
-		else if (r_viewleaf->contents == Q1CONTENTS_EMPTY)
-		{	//look down a bit
-			VectorCopy (r_origin, temp);
-			temp[2] -= 16;
-			leaf = GLMod_PointInLeaf (cl.worldmodel, temp);
-			if (leaf->contents <= Q1CONTENTS_WATER && leaf->contents >= Q1CONTENTS_LAVA)
-				r_viewleaf2 = leaf;
-			else
-				r_viewleaf2 = NULL;
-		}
-		else if (r_viewleaf->contents <= Q1CONTENTS_WATER && r_viewleaf->contents >= Q1CONTENTS_LAVA)
-		{	//in water, look up a bit.
-
-			VectorCopy (r_origin, temp);
-			temp[2] += 16;
-			leaf = GLMod_PointInLeaf (cl.worldmodel, temp);
-			if (leaf->contents == Q1CONTENTS_EMPTY)
-				r_viewleaf2 = leaf;
-			else
-				r_viewleaf2 = NULL;
-		}
-		else
-			r_viewleaf2 = NULL;
-
-		if (r_viewleaf)
-			V_SetContentsColor (r_viewleaf->contents);
-	}
-	GLV_CalcBlend ();
-
-	c_brush_polys = 0;
-	c_alias_polys = 0;
-
-}
 
 /*
 =============
@@ -1271,150 +466,111 @@ R_SetupGL
 void R_SetupGL (void)
 {
 	float	screenaspect;
-	extern	int glwidth, glheight;
 	int		x, x2, y2, y, w, h;
+	vec3_t newa;
 
 	float fov_x, fov_y;
-	//
-	// set up viewpoint
-	//
-	x = r_refdef.vrect.x * glwidth/(int)vid.width;
-	x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * glwidth/(int)vid.width;
-	y = (vid.height-r_refdef.vrect.y) * glheight/(int)vid.height;
-	y2 = ((int)vid.height - (r_refdef.vrect.y + r_refdef.vrect.height)) * glheight/(int)vid.height;
 
-	// fudge around because of frac screen scale
-	if (x > 0)
-		x--;
-	if (x2 < glwidth)
-		x2++;
-	if (y2 < 0)
-		y2--;
-	if (y < glheight)
-		y++;
-
-	w = x2 - x;
-	h = y - y2;
-
-	if (envmap)
+	if (!r_refdef.recurse)
 	{
-		x = y2 = 0;
-		w = h = 256;
-	}
+		AngleVectors (r_refdef.viewangles, vpn, vright, vup);
+		VectorCopy (r_refdef.vieworg, r_origin);
 
-	gl_truescreenrect.x = x;
-	gl_truescreenrect.y = y;
-	gl_truescreenrect.width = w;
-	gl_truescreenrect.height = h;
+		//
+		// set up viewpoint
+		//
+		x = r_refdef.vrect.x * vid.pixelwidth/(int)vid.width;
+		x2 = (r_refdef.vrect.x + r_refdef.vrect.width) * vid.pixelwidth/(int)vid.width;
+		y = (vid.height-r_refdef.vrect.y) * vid.pixelheight/(int)vid.height;
+		y2 = ((int)vid.height - (r_refdef.vrect.y + r_refdef.vrect.height)) * (int)vid.pixelheight/(int)vid.height;
 
-	qglViewport (glx + x, gly + y2, w, h);
+		// fudge around because of frac screen scale
+		if (x > 0)
+			x--;
+		if (x2 < vid.pixelwidth)
+			x2++;
+		if (y2 < 0)
+			y2--;
+		if (y < vid.pixelheight)
+			y++;
 
-	qglMatrixMode(GL_PROJECTION);
+		w = x2 - x;
+		h = y - y2;
 
-	fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
-	fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
+		r_refdef.pxrect.x = x;
+		r_refdef.pxrect.y = y;
+		r_refdef.pxrect.width = w;
+		r_refdef.pxrect.height = h;
 
-	if (r_waterwarp.value<0 && r_viewleaf->contents <= Q1CONTENTS_WATER)
-	{
-		fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
-		fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
-	}
+		qglViewport (x, y2, w, h);
 
-	screenaspect = (float)r_refdef.vrect.width/r_refdef.vrect.height;
-	if (r_refdef.useperspective)
-	{
-		if ((!r_shadows.value || !gl_canstencil) && gl_maxdist.value>=100)//gl_nv_range_clamp)
+		fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
+		fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
+
+		if (r_waterwarp.value<0 && r_viewleaf && r_viewleaf->contents <= Q1CONTENTS_WATER)
 		{
-	//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*180/M_PI;
-	//		yfov = (2.0 * tan (scr_fov.value/360*M_PI)) / screenaspect;
-	//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*(scr_fov.value*2)/M_PI;
-	//		MYgluPerspective (yfov,  screenaspect,  4,  4096);
+			fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
+			fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
+		}
 
-			Matrix4_Projection_Far(r_projection_matrix, fov_x, fov_y, gl_mindist.value, gl_maxdist.value);
+		screenaspect = (float)r_refdef.vrect.width/r_refdef.vrect.height;
+		if (r_refdef.useperspective)
+		{
+			int stencilshadows = 0;
+	#ifdef RTLIGHTS
+			stencilshadows |= r_shadow_realtime_dlight.ival && r_shadow_realtime_dlight_shadows.ival;
+			stencilshadows |= r_shadow_realtime_world.ival && r_shadow_realtime_world_shadows.ival;
+	#endif
+
+			if ((!stencilshadows || !gl_canstencil) && gl_maxdist.value>=100)//gl_nv_range_clamp)
+			{
+		//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*180/M_PI;
+		//		yfov = (2.0 * tan (scr_fov.value/360*M_PI)) / screenaspect;
+		//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*(scr_fov.value*2)/M_PI;
+		//		MYgluPerspective (yfov,  screenaspect,  4,  4096);
+
+				Matrix4_Projection_Far(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value, gl_maxdist.value);
+			}
+			else
+			{
+				Matrix4_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value);
+			}
 		}
 		else
 		{
-			Matrix4_Projection_Inf(r_projection_matrix, fov_x, fov_y, gl_mindist.value);
+			if (gl_maxdist.value>=1)
+				Matrix4_Orthographic(r_refdef.m_projection, -fov_x/2, fov_x/2, fov_y/2, -fov_y/2, -gl_maxdist.value, gl_maxdist.value);
+			else
+				Matrix4_Orthographic(r_refdef.m_projection, 0, r_refdef.vrect.width, 0, r_refdef.vrect.height, -9999, 9999);
 		}
-	}
-	else
-	{
-		if (gl_maxdist.value>=1)
-			GL_ParallelPerspective(-fov_x/2, fov_x/2, fov_y/2, -fov_y/2, -gl_maxdist.value, gl_maxdist.value);
-		else
-			GL_ParallelPerspective(0, r_refdef.vrect.width, 0, r_refdef.vrect.height, -9999, 9999);
-	}
-	qglLoadMatrixf(r_projection_matrix);
 
-	if (mirror)
-	{
-//		if (mirror_plane->normal[2])
-//			qglScalef (1, -1, 1);
-//		else
-//			qglScalef (-1, 1, 1);
-		qglCullFace(GL_BACK);
+		VectorCopy(r_refdef.viewangles, newa);
+		newa[0] = r_refdef.viewangles[0];
+		newa[1] = r_refdef.viewangles[1];
+		newa[2] = r_refdef.viewangles[2] + gl_screenangle.value;
+		Matrix4_ModelViewMatrix(r_refdef.m_view, newa, r_refdef.vieworg);
 	}
-	else
+
+	if (qglLoadMatrixf)
 	{
-#ifdef R_XFLIP
-		if (r_xflip.value)
+		qglMatrixMode(GL_PROJECTION);
+		qglLoadMatrixf(r_refdef.m_projection);
+
+		qglMatrixMode(GL_MODELVIEW);
+		qglLoadMatrixf(r_refdef.m_view);
+	}
+
+	if (!gl_config.gles)
+	{
+		if (gl_dither.ival)
 		{
-			qglScalef (1, -1, 1);
-			qglCullFace(GL_BACK);
+			qglEnable(GL_DITHER);
 		}
 		else
-#endif
-		qglCullFace(GL_FRONT);
+		{
+			qglDisable(GL_DITHER);
+		}
 	}
-
-	qglMatrixMode(GL_MODELVIEW);
-
-
-	Matrix4_ModelViewMatrixFromAxis(r_view_matrix, vpn, vright, vup, r_refdef.vieworg);
-	qglLoadMatrixf(r_view_matrix);
-
-	//
-	// set drawing parms
-	//
-	if (gl_cull.value)
-		qglEnable(GL_CULL_FACE);
-	else
-		qglDisable(GL_CULL_FACE);
-
-	qglDisable(GL_BLEND);
-	qglDisable(GL_ALPHA_TEST);
-	qglEnable(GL_DEPTH_TEST);
-
-//#ifndef D3DQUAKE
-//	glClearDepth(1.0f);
-//#endif
-
-//		if (gl_lightmap_format == GL_LUMINANCE)
-//		glBlendFunc (GL_ZERO, GL_ONE_MINUS_SRC_COLOR);
-/*	else if (gl_lightmap_format == GL_INTENSITY)
-	{
-		glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-		glColor4f (0,0,0,1);
-		glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	}
-	else if (gl_lightmap_format == GL_RGBA)
-	{
-		glBlendFunc (GL_ZERO, GL_ONE_MINUS_SRC_COLOR);
-	}
-
-  */
-	if (gl_dither.value)
-	{
-		qglEnable(GL_DITHER);
-	}
-	else
-	{
-		qglDisable(GL_DITHER);
-	}
-
-	qglPolygonOffset(r_polygonoffset_submodel_factor.value, r_polygonoffset_submodel_offset.value);
-
-	GL_DisableMultitexture();
 }
 
 /*
@@ -1426,43 +582,29 @@ r_refdef must be set before the first call
 */
 void R_RenderScene (void)
 {
-	qboolean GLR_DoomWorld(void);
-
+	int tmpvisents = cl_numvisedicts;	/*world rendering is allowed to add additional ents, but we don't want to keep them for recursive views*/
 	if (!cl.worldmodel || (!cl.worldmodel->nodes && cl.worldmodel->type != mod_heightmap))
 		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
-
-#ifdef NEWBACKEND
-	Sh_GenShadowMaps();
-#endif
-
-	GLR_SetupFrame ();
 
 	TRACE(("dbg: calling R_SetupGL\n"));
 	R_SetupGL ();
 
 	TRACE(("dbg: calling R_SetFrustrum\n"));
-	R_SetFrustum ();
+	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+
+	RQ_BeginFrame();
 
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 	{
-#ifdef DOOMWADS
-		if (!GLR_DoomWorld ())
-#endif
-		{
-			TRACE(("dbg: calling R_DrawWorld\n"));
-			R_DrawWorld ();		// adds static entities to the list
-		}
+		TRACE(("dbg: calling R_DrawWorld\n"));
+		Surf_DrawWorld ();		// adds static entities to the list
 	}
+	else
+		BE_DrawNonWorld();
 
 	S_ExtraUpdate ();	// don't let sound get messed up if going slow
 
-	TRACE(("dbg: calling GLR_DrawEntitiesOnList\n"));
-	GLR_DrawEntitiesOnList ();
-
 //	R_DrawDecals();
-
-	TRACE(("dbg: calling GL_DisableMultitexture\n"));
-	GL_DisableMultitexture();
 
 	TRACE(("dbg: calling R_RenderDlights\n"));
 	GLR_RenderDlights ();
@@ -1472,11 +614,255 @@ void R_RenderScene (void)
 		TRACE(("dbg: calling R_DrawParticles\n"));
 		P_DrawParticles ();
 	}
+	RQ_RenderBatchClear();
 
-#ifdef GLTEST
-	Test_Draw ();
+	cl_numvisedicts = tmpvisents;
+}
+/*generates a new modelview matrix, as well as vpn vectors*/
+static void R_MirrorMatrix(plane_t *plane)
+{
+	float mirror[16];
+	float view[16];
+	float result[16];
+
+	vec3_t pnorm;
+	VectorNegate(plane->normal, pnorm);
+
+	mirror[0] = 1-2*pnorm[0]*pnorm[0];
+	mirror[1] = -2*pnorm[0]*pnorm[1];
+	mirror[2] = -2*pnorm[0]*pnorm[2];
+	mirror[3] = 0;
+
+	mirror[4] = -2*pnorm[1]*pnorm[0];
+	mirror[5] = 1-2*pnorm[1]*pnorm[1];
+	mirror[6] = -2*pnorm[1]*pnorm[2] ;
+	mirror[7] = 0;
+
+	mirror[8]  = -2*pnorm[2]*pnorm[0];
+	mirror[9]  = -2*pnorm[2]*pnorm[1];
+	mirror[10] = 1-2*pnorm[2]*pnorm[2];
+	mirror[11] = 0;
+
+	mirror[12] = -2*pnorm[0]*plane->dist;
+	mirror[13] = -2*pnorm[1]*plane->dist;
+	mirror[14] = -2*pnorm[2]*plane->dist;
+	mirror[15] = 1;
+
+	view[0] = vpn[0];
+	view[1] = vpn[1];
+	view[2] = vpn[2];
+	view[3] = 0;
+
+	view[4] = -vright[0];
+	view[5] = -vright[1];
+	view[6] = -vright[2];
+	view[7] = 0;
+
+	view[8]  = vup[0];
+	view[9]  = vup[1];
+	view[10] = vup[2];
+	view[11] = 0;
+
+	view[12] = r_refdef.vieworg[0];
+	view[13] = r_refdef.vieworg[1];
+	view[14] = r_refdef.vieworg[2];
+	view[15] = 1;
+
+	VectorMA(r_refdef.vieworg, 0.25, plane->normal, r_refdef.pvsorigin);
+
+	Matrix4_Multiply(mirror, view, result);
+
+	vpn[0] = result[0];
+	vpn[1] = result[1];
+	vpn[2] = result[2];
+
+	vright[0] = -result[4];
+	vright[1] = -result[5];
+	vright[2] = -result[6];
+
+	vup[0] = result[8];
+	vup[1] = result[9];
+	vup[2] = result[10];
+
+	r_refdef.vieworg[0] = result[12];
+	r_refdef.vieworg[1] = result[13];
+	r_refdef.vieworg[2] = result[14];
+}
+static entity_t *R_NearestPortal(plane_t *plane)
+{
+	int i;
+	entity_t *best = NULL;
+	float dist, bestd = 0;
+	for (i = 0; i < cl_numvisedicts; i++)
+	{
+		if (cl_visedicts[i].rtype == RT_PORTALSURFACE)
+		{
+			dist = DotProduct(cl_visedicts[i].origin, plane->normal)-plane->dist;
+			dist = fabs(dist);
+			if (dist < 64 && (!best || dist < bestd))
+				best = &cl_visedicts[i];
+		}
+	}
+	return best;
+}
+
+static void TransformCoord(vec3_t in, vec3_t planea[3], vec3_t planeo, vec3_t viewa[3], vec3_t viewo, vec3_t result)
+{
+	int		i;
+	vec3_t	local;
+	vec3_t	transformed;
+	float	d;
+
+	local[0] = in[0] - planeo[0];
+	local[1] = in[1] - planeo[1];
+	local[2] = in[2] - planeo[2];
+
+	VectorClear(transformed);
+	for ( i = 0 ; i < 3 ; i++ )
+	{
+		d = DotProduct(local, planea[i]);
+		VectorMA(transformed, d, viewa[i], transformed);
+	}
+
+	result[0] = transformed[0] + viewo[0];
+	result[1] = transformed[1] + viewo[1];
+	result[2] = transformed[2] + viewo[2];
+}
+static void TransformDir(vec3_t in, vec3_t planea[3], vec3_t viewa[3], vec3_t result)
+{
+	int		i;
+	float	d;
+	vec3_t tmp;
+
+	VectorCopy(in, tmp);
+
+	VectorClear(result);
+	for ( i = 0 ; i < 3 ; i++ )
+	{
+		d = DotProduct(tmp, planea[i]);
+		VectorMA(result, d, viewa[i], result);
+	}
+}
+void GLR_DrawPortal(batch_t *batch, batch_t **blist)
+{
+	entity_t *view;
+	GLdouble glplane[4];
+	plane_t plane;
+	refdef_t oldrefdef;
+	mesh_t *mesh = batch->mesh[batch->firstmesh];
+	int sort;
+
+	if (r_refdef.recurse)
+		return;
+
+	VectorCopy(mesh->normals_array[0], plane.normal);
+	plane.dist = DotProduct(mesh->xyz_array[0], plane.normal);
+
+	//if we're too far away from the surface, don't draw anything
+	if (batch->shader->flags & SHADER_AGEN_PORTAL)
+	{
+		/*there's a portal alpha blend on that surface, that fades out after this distance*/
+		if (DotProduct(r_refdef.vieworg, plane.normal)-plane.dist > batch->shader->portaldist)
+			return;
+	}
+	//if we're behind it, then also don't draw anything.
+	if (DotProduct(r_refdef.vieworg, plane.normal)-plane.dist < 0)
+		return;
+
+	view = R_NearestPortal(&plane);
+	//if (!view)
+	//	return;
+
+	oldrefdef = r_refdef;
+	r_refdef.recurse = true;
+
+	r_refdef.externalview = true;
+
+	if (!view || VectorCompare(view->origin, view->oldorigin))
+	{
+		r_refdef.flipcull ^= true;
+		R_MirrorMatrix(&plane);
+	}
+	else
+	{
+		float d;
+		vec3_t paxis[3], porigin, vaxis[3], vorg;
+		void PerpendicularVector( vec3_t dst, const vec3_t src );
+
+		/*calculate where the surface is meant to be*/
+		VectorCopy(mesh->normals_array[0], paxis[0]);
+		PerpendicularVector(paxis[1], paxis[0]);
+		CrossProduct(paxis[0], paxis[1], paxis[2]);
+		d = DotProduct(view->origin, plane.normal) - plane.dist;
+		VectorMA(view->origin, -d, paxis[0], porigin);
+
+		/*grab the camera origin*/
+		VectorNegate(view->axis[0], vaxis[0]);
+		VectorNegate(view->axis[1], vaxis[1]);
+		VectorCopy(view->axis[2], vaxis[2]);
+		VectorCopy(view->oldorigin, vorg);
+
+		VectorCopy(vorg, r_refdef.pvsorigin);
+
+		/*rotate it a bit*/
+		RotatePointAroundVector(vaxis[1], vaxis[0], view->axis[1], sin(realtime)*4);
+		CrossProduct(vaxis[0], vaxis[1], vaxis[2]);
+
+		TransformCoord(oldrefdef.vieworg, paxis, porigin, vaxis, vorg, r_refdef.vieworg);
+		TransformDir(vpn, paxis, vaxis, vpn);
+		TransformDir(vright, paxis, vaxis, vright);
+		TransformDir(vup, paxis, vaxis, vup);
+	}
+	Matrix4_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
+	VectorAngles(vpn, vup, r_refdef.viewangles);
+	VectorCopy(r_refdef.vieworg, r_origin);
+
+/*FIXME: the batch stuff should be done in renderscene*/
+
+	/*fixup the first mesh index*/
+	for (sort = 0; sort < SHADER_SORT_COUNT; sort++)
+	for (batch = blist[sort]; batch; batch = batch->next)
+	{
+		batch->firstmesh = batch->meshes;
+	}
+
+	GL_CullFace(0);
+
+	/*FIXME: can we get away with stenciling the screen?*/
+	/*Add to frustum culling instead of clip planes?*/
+	glplane[0] = -plane.normal[0];
+	glplane[1] = -plane.normal[1];
+	glplane[2] = -plane.normal[2];
+	glplane[3] = plane.dist;
+	qglClipPlane(GL_CLIP_PLANE0, glplane);
+	qglEnable(GL_CLIP_PLANE0);
+	R_RenderScene();
+	qglDisable(GL_CLIP_PLANE0);
+
+	for (sort = 0; sort < SHADER_SORT_COUNT; sort++)
+	for (batch = blist[sort]; batch; batch = batch->next)
+	{
+		batch->firstmesh = 0;
+	}
+	r_refdef = oldrefdef;
+
+	/*broken stuff*/
+	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
+	VectorCopy (r_refdef.vieworg, r_origin);
+	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
+
+	/*put GL back the way it was*/
+	qglMatrixMode(GL_PROJECTION);
+	qglLoadMatrixf(r_refdef.m_projection);
+
+	qglMatrixMode(GL_MODELVIEW);
+	qglLoadMatrixf(r_refdef.m_view);
+
+	GL_CullFace(0);
+
+#ifdef _MSC_VER
+#pragma message("warning: there's a bug with rtlights in portals, culling is broken or something. May also be loading the wrong matrix")
 #endif
-
 }
 
 
@@ -1488,45 +874,10 @@ R_Clear
 int gldepthfunc = GL_LEQUAL;
 void R_Clear (void)
 {
-	qglDepthMask(1);
-	if (r_mirroralpha.value != 1.0)
+	/*tbh, this entire function should be in the backend*/
+	GL_ForceDepthWritable();
 	{
-		if (gl_clear.value && !r_secondaryview)
-			qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		else
-			qglClear (GL_DEPTH_BUFFER_BIT);
-		gldepthmin = 0;
-		gldepthmax = 0.5;
-		gldepthfunc=GL_LEQUAL;
-	}
-#ifdef SIDEVIEWS
-	else if (gl_ztrick.value && !gl_ztrickdisabled)
-#else
-	else if (gl_ztrick.value)
-#endif
-	{
-		static int trickframe;
-
-		if (gl_clear.value && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
-			qglClear (GL_COLOR_BUFFER_BIT);
-
-		trickframe++;
-		if (trickframe & 1)
-		{
-			gldepthmin = 0;
-			gldepthmax = 0.49999;
-			gldepthfunc=GL_LEQUAL;
-		}
-		else
-		{
-			gldepthmin = 1;
-			gldepthmax = 0.5;
-			gldepthfunc=GL_GEQUAL;
-		}
-	}
-	else
-	{
-		if (gl_clear.value && !r_secondaryview && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+		if (r_clear.ival && !r_secondaryview && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 			qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		else
 			qglClear (GL_DEPTH_BUFFER_BIT);
@@ -1534,266 +885,9 @@ void R_Clear (void)
 		gldepthmax = 1;
 		gldepthfunc=GL_LEQUAL;
 	}
-
-	qglDepthFunc (gldepthfunc);
-	qglDepthRange (gldepthmin, gldepthmax);
+	if (qglDepthRange)
+		qglDepthRange (gldepthmin, gldepthmax);
 }
-
-void R_Mirror (void)
-{
-	msurface_t	*s, *prevs, *prevr, *rejects;
-//	entity_t	*ent;
-	mplane_t *mirror_plane;
-
-	vec3_t oldangles, oldorg, oldvpn, oldvright, oldvup;	//cache - for rear view mirror and stuff.
-	float	base_view_matrix[16];
-
-	if (!mirror)
-	{
-		r_inmirror = false;
-		return;
-	}
-
-	r_inmirror = true;
-
-	memcpy(oldangles, r_refdef.viewangles, sizeof(vec3_t));
-	memcpy(oldorg, r_refdef.vieworg, sizeof(vec3_t));
-	memcpy(oldvpn, vpn, sizeof(vec3_t));
-	memcpy(oldvright, vright, sizeof(vec3_t));
-	memcpy(oldvup, vup, sizeof(vec3_t));
-	memcpy (base_view_matrix, r_view_matrix, sizeof(base_view_matrix));
-
-	s = r_mirror_chain;
-	while(s)	//okay, so this is a hack
-	{
-		s->nextalphasurface = s->texturechain;
-		s = s->nextalphasurface;
-	}
-	cl.worldmodel->textures[mirrortexturenum]->texturechain = NULL;
-
-	while(r_mirror_chain)
-	{
-		s = r_mirror_chain;
-		r_mirror_chain = r_mirror_chain->nextalphasurface;
-#if 0
-		s->nextalphasurface = NULL;
-
-#else
-		//this loop figures out all surfaces with the same plane.
-		//yes, this can mean that the list is reversed a few times, but we do have depth testing to solve that anyway.
-		for(prevs = s,prevr=NULL,rejects=NULL;r_mirror_chain;r_mirror_chain=r_mirror_chain->nextalphasurface)
-		{
-			if (s->plane->dist != r_mirror_chain->plane->dist || s->plane->signbits != r_mirror_chain->plane->signbits
-				|| s->plane->normal[0] != r_mirror_chain->plane->normal[0] || s->plane->normal[1] != r_mirror_chain->plane->normal[1] || s->plane->normal[2] != r_mirror_chain->plane->normal[2])
-			{	//reject
-				if (prevr)
-					prevr->nextalphasurface = r_mirror_chain;
-				else
-					rejects = r_mirror_chain;
-				prevr = r_mirror_chain;
-			}
-			else
-			{	//matches
-				prevs->nextalphasurface = r_mirror_chain;
-				prevs = r_mirror_chain;
-			}
-		}
-		prevs->nextalphasurface = NULL;
-		if (prevr)
-			prevr->nextalphasurface = NULL;
-
-		r_mirror_chain = rejects;
-#endif
-		mirror_plane = s->plane;
-
-		//enable stencil writing
-		qglClearStencil(0);
-		qglClear(GL_STENCIL_BUFFER_BIT);
-		qglDisable(GL_ALPHA_TEST);
-		qglDisable(GL_STENCIL_TEST);
-		qglEnable(GL_STENCIL_TEST);
-		qglStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);	//replace where it passes
-		qglStencilFunc( GL_ALWAYS, 1, ~0 );	//always pass (where z passes set to 1)
-		qglDisable(GL_TEXTURE_2D);
-		qglColorMask( GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE );
-		qglDepthMask( GL_FALSE );
-
-		qglEnableClientState( GL_VERTEX_ARRAY );
-		for (prevs = s; s; s=s->nextalphasurface)	//write the polys to the stencil buffer.
-		{
-			qglVertexPointer(3, GL_FLOAT, 0, s->mesh->xyz_array);
-			qglDrawElements(GL_TRIANGLES, s->mesh->numindexes, GL_INDEX_TYPE, s->mesh->indexes);
-		}
-
-
-		qglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-		qglStencilFunc( GL_EQUAL, 1, ~0 );	//pass if equal to 1
-
-//now clear the depth buffer where the stencil passed
-//we achieve this by changing the projection matrix underneath.
-//the stencil only shows where the final surface will appear, and only where not obscured
-//we rewrite the depth with the blending pass after.
-		qglEnable(GL_DEPTH_TEST);	//use only the stencil test
-		qglDepthRange(1, 1);
-		qglDepthFunc (GL_ALWAYS);
-		qglDepthMask( GL_TRUE );
-		qglColorMask( GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE );
-
-		qglMatrixMode(GL_PROJECTION);
-		qglLoadIdentity();
-		qglOrtho  (0, 1, 1, 0, -99999, 99999);
-		qglMatrixMode(GL_MODELVIEW);
-		qglLoadIdentity ();
-
-		qglBegin(GL_QUADS);
-		qglVertex3f(0, 0, -99999);
-		qglVertex3f(1, 0, -99999);
-		qglVertex3f(1, 1, -99999);
-		qglVertex3f(0, 1, -99999);
-		qglEnd();
-
-		qglEnable(GL_DEPTH_TEST);	//use only the stencil test
-		qglColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE );
-/*
-Thus the final mirror matrix for any given plane p*<nx,ny,nz>+k=0 is:
-
-| 1-2*nx*nx    -2*nx*ny     -2*nx*nz     -2*nx*k |
-
-|  -2*ny*nx   1-2*ny*ny     -2*ny*nz     -2*ny*k |
-
-|  -2*nz*nx    -2*nz*ny    1-2*nz*nz     -2*nz*k |
-
-|      0           0            0            1   |
-*/
-	{
-		float mirror[16];
-		float view[16];
-		float result[16];
-		float nx = mirror_plane->normal[0];
-		float ny = mirror_plane->normal[1];
-		float nz = mirror_plane->normal[2];
-		float k = -mirror_plane->dist;
-
-		mirror[0] = 1-2*nx*nx;
-		mirror[1] = -2*nx*ny;
-		mirror[2] = -2*nx*nz;
-		mirror[3] = 0;
-
-		mirror[4] = -2*ny*nx;
-		mirror[5] = 1-2*ny*ny;
-		mirror[6] = -2*ny*nz;
-		mirror[7] = 0;
-
-		mirror[8]  = -2*nz*nx;
-		mirror[9]  = -2*nz*ny;
-		mirror[10] = 1-2*nz*nz;
-		mirror[11] = 0;
-
-		mirror[12] = -2*nx*k;
-		mirror[13] = -2*ny*k;
-		mirror[14] = -2*nz*k;
-		mirror[15] = 1;
-
-		view[0] = oldvpn[0];
-		view[1] = oldvpn[1];
-		view[2] = oldvpn[2];
-		view[3] = 0;
-
-		view[4] = -oldvright[0];
-		view[5] = -oldvright[1];
-		view[6] = -oldvright[2];
-		view[7] = 0;
-
-		view[8]  = oldvup[0];
-		view[9]  = oldvup[1];
-		view[10] = oldvup[2];
-		view[11] = 0;
-
-		view[12] = oldorg[0];
-		view[13] = oldorg[1];
-		view[14] = oldorg[2];
-		view[15] = 1;
-
-		Matrix4_Multiply(mirror, view, result);
-
-		vpn[0] = result[0];
-		vpn[1] = result[1];
-		vpn[2] = result[2];
-
-		vright[0] = -result[4];
-		vright[1] = -result[5];
-		vright[2] = -result[6];
-
-		vup[0] = result[8];
-		vup[1] = result[9];
-		vup[2] = result[10];
-
-		r_refdef.vieworg[0] = result[12];
-		r_refdef.vieworg[1] = result[13];
-		r_refdef.vieworg[2] = result[14];
-	}
-
-	r_refdef.viewangles[0] = 0;
-	r_refdef.viewangles[1] = 0;
-	r_refdef.viewangles[2] = 0;
-
-
-	gldepthmin = 0.5;
-	gldepthmax = 1;
-	qglDepthRange (gldepthmin, gldepthmax);
-	qglDepthFunc (gldepthfunc);
-
-	R_RenderScene ();
-
-//	GLR_DrawWaterSurfaces ();
-
-
-	gldepthmin = 0;
-	gldepthmax = 0.5;
-	qglDepthRange (gldepthmin, gldepthmax);
-	qglDepthFunc (gldepthfunc);
-
-
-	memcpy(r_refdef.viewangles, oldangles, sizeof(vec3_t));
-	memcpy(r_refdef.vieworg, oldorg, sizeof(vec3_t));
-
-	qglCullFace(GL_FRONT);
-	qglMatrixMode(GL_MODELVIEW);
-
-	qglLoadMatrixf (base_view_matrix);
-
-	qglDisable(GL_STENCIL_TEST);
-
-	// blend on top
-	qglDisable(GL_ALPHA_TEST);
-	qglEnable (GL_BLEND);
-	qglEnable(GL_TEXTURE_2D);
-	qglBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	qglColor4f (1,1,1,r_mirroralpha.value);
-qglDisable(GL_STENCIL_TEST);
-qglPolygonOffset(1, 0);
-qglEnable(GL_POLYGON_OFFSET_FILL);
-		for (s=prevs ; s ; s=s->nextalphasurface)
-		{
-			qglEnable (GL_BLEND);
-			R_RenderBrushPoly (s);
-		}
-qglDisable(GL_POLYGON_OFFSET_FILL);
-qglPolygonOffset(0, 0);
-	qglEnable(GL_TEXTURE_2D);
-	qglDisable (GL_BLEND);
-	qglColor4f (1,1,1,1);
-	}
-	qglDisable(GL_STENCIL_TEST);
-
-	memcpy(r_refdef.viewangles, oldangles, sizeof(vec3_t));
-	memcpy(r_refdef.vieworg, oldorg, sizeof(vec3_t));
-
-	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
-
-	r_inmirror = false;
-}
-//#endif
 
 #if 0
 void GLR_SetupFog (void)
@@ -1855,42 +949,48 @@ static void R_RenderMotionBlur(void)
 {
 	int vwidth = 1, vheight = 1;
 	float vs, vt, cs, ct;
+#ifdef _MSC_VER
+#pragma message("backend fixme")
+#endif
+	Con_Printf("motionblur is not updated for the backend\n");
 
 	if (gl_config.arb_texture_non_power_of_two)
 	{	//we can use any size, supposedly
-		vwidth = glwidth;
-		vheight = glheight;
+		vwidth = vid.pixelwidth;
+		vheight = vid.pixelheight;
 	}
 	else
 	{	//limit the texture size to square and use padding.
-		while (vwidth < glwidth)
+		while (vwidth < vid.pixelwidth)
 			vwidth *= 2;
-		while (vheight < glheight)
+		while (vheight < vid.pixelheight)
 			vheight *= 2;
 	}
 
-	qglViewport (glx, gly, glwidth, glheight);
+	qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
 
-	GL_Bind(sceneblur_texture);
+	PPL_RevertToKnownState();
+
+	GL_LazyBind(0, GL_TEXTURE_2D, sceneblur_texture, false);
 
 	// go 2d
 	qglMatrixMode(GL_PROJECTION);
 	qglPushMatrix();
 	qglLoadIdentity ();
-	qglOrtho  (0, glwidth, 0, glheight, -99999, 99999);
+	qglOrtho  (0, vid.pixelwidth, 0, vid.pixelheight, -99999, 99999);
 	qglMatrixMode(GL_MODELVIEW);
 	qglPushMatrix();
 	qglLoadIdentity ();
 
 	//blend the last frame onto the scene
 	//the maths is because our texture is over-sized (must be power of two)
-	cs = vs = (float)glwidth / vwidth * 0.5;
-	ct = vt = (float)glheight / vheight * 0.5;
+	cs = vs = (float)vid.pixelwidth / vwidth * 0.5;
+	ct = vt = (float)vid.pixelheight / vheight * 0.5;
 	vs *= gl_motionblurscale.value;
 	vt *= gl_motionblurscale.value;
 
 	qglDisable (GL_DEPTH_TEST);
-	qglDisable (GL_CULL_FACE);
+	GL_CullFace(0);
 	qglDisable (GL_ALPHA_TEST);
 	qglEnable(GL_BLEND);
 	qglColor4f(1, 1, 1, gl_motionblur.value);
@@ -1898,11 +998,11 @@ static void R_RenderMotionBlur(void)
 	qglTexCoord2f(cs-vs, ct-vt);
 	qglVertex2f(0, 0);
 	qglTexCoord2f(cs+vs, ct-vt);
-	qglVertex2f(glwidth, 0);
+	qglVertex2f(vid.pixelwidth, 0);
 	qglTexCoord2f(cs+vs, ct+vt);
-	qglVertex2f(glwidth, glheight);
+	qglVertex2f(vid.pixelwidth, vid.pixelheight);
 	qglTexCoord2f(cs-vs, ct+vt);
-	qglVertex2f(0, glheight);
+	qglVertex2f(0, vid.pixelheight);
 	qglEnd();
 
 	qglMatrixMode(GL_PROJECTION);
@@ -1912,145 +1012,15 @@ static void R_RenderMotionBlur(void)
 
 
 	//copy the image into the texture so that we can play with it next frame too!
-	qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, glx, gly, vwidth, vheight, 0);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-}
+	qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 0, 0, vwidth, vheight, 0);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-static void R_RenderWaterWarp(void)
-{
-	float vwidth = 1, vheight = 1;
-	float vs, vt;
-
-	// get the powers of 2 for the size of the texture that will hold the scene
-
-	if (gl_config.arb_texture_non_power_of_two)
-	{
-		vwidth = glwidth;
-		vheight = glheight;
-	}
-	else
-	{
-		while (vwidth < glwidth)
-		{
-			vwidth *= 2;
-		}
-		while (vheight < glheight)
-		{
-			vheight *= 2;
-		}
-	}
-
-	// get the maxtexcoords while we're at it
-	vs = glwidth / vwidth;
-	vt = glheight / vheight;
-
-	// 2d mode, but upside down to quake's normal 2d drawing
-	// this makes grabbing the sreen a lot easier
-	qglViewport (glx, gly, glwidth, glheight);
-
-	qglMatrixMode(GL_PROJECTION);
-	// Push the matrices to go into 2d mode, that matches opengl's mode
-	qglPushMatrix();
-	qglLoadIdentity ();
-	// TODO: use actual window width and height
-	qglOrtho  (0, glwidth, 0, glheight, -99999, 99999);
-
-	qglMatrixMode(GL_MODELVIEW);
-	qglPushMatrix();
-	qglLoadIdentity ();
-
-	qglDisable (GL_DEPTH_TEST);
-	qglDisable (GL_CULL_FACE);
-	qglDisable (GL_BLEND);
-	qglEnable (GL_ALPHA_TEST);
-
-	// copy the scene to texture
-	GL_Bind(scenepp_texture);
-	qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, glx, gly, vwidth, vheight, 0);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	if (qglGetError())
-		Con_Printf(CON_ERROR "GL Error after qglCopyTexImage2D\n");
-
-	// Here we apply the shaders - currently just waterwarp
-	GLSlang_UseProgram(scenepp_ww_program);
-	//keep the amp proportional to the size of the scene in texture coords
-	// WARNING - waterwarp can change the amplitude, but if it's too big it'll exceed
-	// the size determined by the edge texture, after which black bits will be shown.
-	// Suggest clamping to a suitable range.
-	if (r_waterwarp.value<0)
-	{
-		GLSlang_SetUniform1f(scenepp_ww_parm_ampscalef, (0.005 / 0.625) * vs*(-r_waterwarp.value));
-	}
-	else
-	{
-		GLSlang_SetUniform1f(scenepp_ww_parm_ampscalef, (0.005 / 0.625) * vs*r_waterwarp.value);
-	}
-
-	if (qglGetError())
-		Con_Printf("GL Error after GLSlang_UseProgram\n");
-
-	{
-		float xmin, xmax, ymin, ymax;
-
-		xmin = cl.time * 0.25;
-		ymin = cl.time * 0.25;
-		xmax = xmin + 1;
-		ymax = ymin + 1/vt*vs;
-
-		GL_EnableMultitexture();
-		GL_Bind (scenepp_texture_warp);
-
-		GL_SelectTexture(mtexid1+1);
-		qglEnable(GL_TEXTURE_2D);
-		GL_Bind(scenepp_texture_edge);
-
-		qglBegin(GL_QUADS);
-
-		qglMTexCoord2fSGIS (mtexid0, 0, 0);
-		qglMTexCoord2fSGIS (mtexid1, xmin, ymin);
-		qglMTexCoord2fSGIS (mtexid1+1, 0, 0);
-		qglVertex2f(0, 0);
-
-		qglMTexCoord2fSGIS (mtexid0, vs, 0);
-		qglMTexCoord2fSGIS (mtexid1, xmax, ymin);
-		qglMTexCoord2fSGIS (mtexid1+1, 1, 0);
-		qglVertex2f(glwidth, 0);
-
-		qglMTexCoord2fSGIS (mtexid0, vs, vt);
-		qglMTexCoord2fSGIS (mtexid1, xmax, ymax);
-		qglMTexCoord2fSGIS (mtexid1+1, 1, 1);
-		qglVertex2f(glwidth, glheight);
-
-		qglMTexCoord2fSGIS (mtexid0, 0, vt);
-		qglMTexCoord2fSGIS (mtexid1, xmin, ymax);
-		qglMTexCoord2fSGIS (mtexid1+1, 0, 1);
-		qglVertex2f(0, glheight);
-
-		qglEnd();
-
-		qglDisable(GL_TEXTURE_2D);
-		GL_SelectTexture(mtexid1);
-
-		GL_DisableMultitexture();
-	}
-
-	// Disable shaders
-	GLSlang_UseProgram(0);
-
-	// After all the post processing, pop the matrices
-	qglMatrixMode(GL_PROJECTION);
-	qglPopMatrix();
-	qglMatrixMode(GL_MODELVIEW);
-	qglPopMatrix();
-
-	if (qglGetError())
-		Con_Printf("GL Error after drawing with shaderobjects\n");
+	PPL_RevertToKnownState();
 }
 
 #ifdef FISH
+/*FIXME: we could use geometry shaders to draw to all 6 faces at once*/
 qboolean R_RenderScene_Fish(void)
 {
 	int cmapsize = 512;
@@ -2062,21 +1032,29 @@ qboolean R_RenderScene_Fish(void)
 	int order[6] = {4, 0, 1, 5, 3, 2};
 	int numsides = 4;
 	vec3_t saveang;
-	int rot45 = 0;
+
+	vrect_t vrect;
+	vrect_t prect;
+
+	SCR_VRectForPlayer(&vrect, r_refdef.currentplayernum);
+	prect.x = (vrect.x * vid.pixelwidth)/vid.width;
+	prect.width = (vrect.width * vid.pixelwidth)/vid.width;
+	prect.y = (vrect.y * vid.pixelheight)/vid.height;
+	prect.height = (vrect.height * vid.pixelheight)/vid.height;
 
 	if (!scenepp_panorama_program)
 		return false;
 
 	if (gl_config.arb_texture_non_power_of_two)
 	{
-		if (glwidth < glheight)
-			cmapsize = glwidth;
+		if (prect.width < prect.height)
+			cmapsize = prect.width;
 		else
-			cmapsize = glheight;
+			cmapsize = prect.height;
 	}
 	else
 	{
-		while (cmapsize > glwidth || cmapsize > glheight)
+		while (cmapsize > prect.width || cmapsize > prect.height)
 		{
 			cmapsize /= 2;
 		}
@@ -2129,16 +1107,14 @@ qboolean R_RenderScene_Fish(void)
 		order[5] = 5;
 	}
 
-	qglViewport (glx, gly+glheight - cmapsize, cmapsize, cmapsize);
-
-	if (!scenepp_fisheye_texture)
+	if (!TEXVALID(scenepp_fisheye_texture))
 	{
-		scenepp_fisheye_texture = GL_AllocNewTexture();
+		scenepp_fisheye_texture = GL_AllocNewTexture(cmapsize, cmapsize);
 
 		qglDisable(GL_TEXTURE_2D);
 		qglEnable(GL_TEXTURE_CUBE_MAP_ARB);
 
-		bindTexFunc(GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture);
+		GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture);
 		for (i = 0; i < 6; i++)
 			qglCopyTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + i, 0, GL_RGB, 0, 0, cmapsize, cmapsize, 0);
 		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -2150,10 +1126,10 @@ qboolean R_RenderScene_Fish(void)
 		qglDisable(GL_TEXTURE_CUBE_MAP_ARB);
 	}
 
-	r_refdef.vrect.width = (cmapsize+0.99)*vid.width/glwidth;
-	r_refdef.vrect.height = (cmapsize+0.99)*vid.height/glheight;
+	r_refdef.vrect.width = cmapsize;
+	r_refdef.vrect.height = cmapsize;
 	r_refdef.vrect.x = 0;
-	r_refdef.vrect.y = vid.height - r_refdef.vrect.height;
+	r_refdef.vrect.y = prect.y;
 
 	ang[0][0] = -saveang[0];
 	ang[0][1] = -90;
@@ -2165,8 +1141,6 @@ qboolean R_RenderScene_Fish(void)
 	ang[5][0] = -saveang[0]*2;
 	for (i = 0; i < numsides; i++)
 	{
-		mirror = false;
-
 		r_refdef.fov_x = 90;
 		r_refdef.fov_y = 90;
 		r_refdef.viewangles[0] = saveang[0]+ang[order[i]][0];
@@ -2177,33 +1151,19 @@ qboolean R_RenderScene_Fish(void)
 
 	//	GLR_SetupFog ();
 
-		r_alpha_surfaces = NULL;
-
 		GL_SetShaderState2D(false);
 
 		// render normal view
 		R_RenderScene ();
 
-		GLR_DrawWaterSurfaces ();
-		GLR_DrawAlphaSurfaces ();
-
-		// render mirror view
-		R_Mirror ();
-
-		qglDisable(GL_TEXTURE_2D);
-		qglEnable(GL_TEXTURE_CUBE_MAP_ARB);
-		GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture);
-		qglCopyTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + order[i], 0, 0, 0, 0, 0, cmapsize, cmapsize);
-		qglEnable(GL_TEXTURE_2D);
-		qglDisable(GL_TEXTURE_CUBE_MAP_ARB);
+		GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture);
+		qglCopyTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + order[i], 0, 0, 0, 0, vid.pixelheight - (prect.y + cmapsize), cmapsize, cmapsize);
 	}
 
 //qglClear (GL_COLOR_BUFFER_BIT);
-	qglViewport (glx, gly, glwidth, glheight);
+	qglViewport (prect.x, vid.pixelheight - (prect.y+prect.height), prect.width, prect.height);
 
-	qglDisable(GL_TEXTURE_2D);
-	GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture);
-	qglEnable(GL_TEXTURE_CUBE_MAP_ARB);
+	GL_LazyBind(0, GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture, false);
 
 	if (scenepp_panorama_program && ffov.value < 0)
 	{
@@ -2221,24 +1181,24 @@ qboolean R_RenderScene_Fish(void)
 	qglMatrixMode(GL_PROJECTION);
 	qglPushMatrix();
 	qglLoadIdentity ();
-	qglOrtho  (0, glwidth, 0, glheight, -99999, 99999);
+	qglOrtho  (0, vid.width, vid.height, 0, -99999, 99999);
 	qglMatrixMode(GL_MODELVIEW);
 	qglPushMatrix();
 	qglLoadIdentity ();
 
 	qglDisable (GL_DEPTH_TEST);
-	qglDisable (GL_CULL_FACE);
+	GL_CullFace(0);
 	qglDisable (GL_ALPHA_TEST);
 	qglDisable(GL_BLEND);
 	qglBegin(GL_QUADS);
-	qglTexCoord2f(-0.5, -0.5);
-	qglVertex2f(0, 0);
-	qglTexCoord2f(0.5, -0.5);
-	qglVertex2f(glwidth, 0);
-	qglTexCoord2f(0.5, 0.5);
-	qglVertex2f(glwidth, glheight);
 	qglTexCoord2f(-0.5, 0.5);
-	qglVertex2f(0, glheight);
+	qglVertex2f(0, 0);
+	qglTexCoord2f(0.5, 0.5);
+	qglVertex2f(vid.width, 0);
+	qglTexCoord2f(0.5, -0.5);
+	qglVertex2f(vid.width, vid.height);
+	qglTexCoord2f(-0.5, -0.5);
+	qglVertex2f(0, vid.height);
 	qglEnd();
 
 	qglMatrixMode(GL_PROJECTION);
@@ -2250,6 +1210,9 @@ qboolean R_RenderScene_Fish(void)
 	qglEnable(GL_TEXTURE_2D);
 
 	GLSlang_UseProgram(0);
+
+	qglEnable (GL_DEPTH_TEST);
+	PPL_RevertToKnownState();
 
 	return true;
 }
@@ -2269,7 +1232,7 @@ void GLR_RenderView (void)
 	if (qglGetError())
 		Con_Printf("GL Error before drawing scene\n");
 
-	if (r_norefresh.value || !glwidth || !glheight)
+	if (r_norefresh.value || !vid.pixelwidth || !vid.pixelheight)
 	{
 		GL_DoSwap();
 		return;
@@ -2287,7 +1250,7 @@ void GLR_RenderView (void)
 
 	if (qglPNTrianglesiATI)
 	{
-		if (gl_ati_truform_type.value)
+		if (gl_ati_truform_type.ival)
 		{	//linear
 			qglPNTrianglesiATI(GL_PN_TRIANGLES_NORMAL_MODE_ATI, GL_PN_TRIANGLES_NORMAL_MODE_LINEAR_ATI);
 			qglPNTrianglesiATI(GL_PN_TRIANGLES_POINT_MODE_ATI, GL_PN_TRIANGLES_POINT_MODE_CUBIC_ATI);
@@ -2300,14 +1263,14 @@ void GLR_RenderView (void)
 	    qglPNTrianglesfATI(GL_PN_TRIANGLES_TESSELATION_LEVEL_ATI, gl_ati_truform_tesselation.value);
 	}
 
-	if (gl_finish.value)
+	if (gl_finish.ival)
 	{
 		RSpeedMark();
 		qglFinish ();
 		RSpeedEnd(RSPEED_FINISH);
 	}
 
-	if (r_speeds.value)
+	if (r_speeds.ival)
 	{
 		time1 = Sys_DoubleTime ();
 		c_brush_polys = 0;
@@ -2322,33 +1285,19 @@ void GLR_RenderView (void)
 	else
 #endif
 	{
-		mirror = false;
+		GL_SetShaderState2D(false);
 
 		R_Clear ();
 
 	//	GLR_SetupFog ();
 
-		r_alpha_surfaces = NULL;
-
-		GL_SetShaderState2D(false);
-
 		// render normal view
 		R_RenderScene ();
-
-		GLR_DrawWaterSurfaces ();
-		GLR_DrawAlphaSurfaces ();
-
-		// render mirror view
-		R_Mirror ();
 	}
-
-	R_BloomBlend();
-
-	R_PolyBlend ();
 
 //	qglDisable(GL_FOG);
 
-	if (r_speeds.value)
+	if (r_speeds.ival)
 	{
 //		glFinish ();
 		time2 = Sys_DoubleTime ();
@@ -2366,16 +1315,25 @@ void GLR_RenderView (void)
 	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
 		return;
 
+	if (r_bloom.ival)
+		R_BloomBlend();
+
 	// SCENE POST PROCESSING
 	// we check if we need to use any shaders - currently it's just waterwarp
-	if (scenepp_ww_program)
 	if ((r_waterwarp.value>0 && r_viewleaf && r_viewleaf->contents <= Q1CONTENTS_WATER))
-		R_RenderWaterWarp();
+	{
+		GL_Set2D();
+		if (scenepp_waterwarp)
+			R2D_ScalePic(0, 0, vid.width, vid.height, scenepp_waterwarp);
+	}
 
 
 
 	if (gl_motionblur.value>0 && gl_motionblur.value < 1 && qglCopyTexImage2D)
 		R_RenderMotionBlur();
+
+	if (qglGetError())
+		Con_Printf("GL Error drawing post processing\n");
 }
 
 #endif

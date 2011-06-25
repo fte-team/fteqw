@@ -67,6 +67,9 @@ void Sys_CloseTerminal (void)
 {
 }
 
+void Sys_RecentServer(char *command, char *target, char *title, char *desc)
+{
+}
 
 #ifndef CLIENTONLY
 qboolean isDedicated;
@@ -75,6 +78,119 @@ qboolean isDedicated;
 // General routines
 // =======================================================================
 
+#if 1
+static int ansiremap[8] = {0, 4, 2, 6, 1, 5, 3, 7};
+static void ApplyColour(unsigned int chr)
+{
+	static int oldchar = CON_WHITEMASK;
+	int bg, fg;
+	chr &= CON_FLAGSMASK;
+
+	if (oldchar == chr)
+		return;
+	oldchar = chr;
+
+	printf("\e[0;"); // reset
+
+	if (chr & CON_BLINKTEXT)
+		printf("5;"); // set blink
+
+	bg = (chr & CON_BGMASK) >> CON_BGSHIFT;
+	fg = (chr & CON_FGMASK) >> CON_FGSHIFT;
+
+	// don't handle intensive bit for background
+	// as terminals differ too much in displaying \e[1;7;3?m
+	bg &= 0x7;
+
+	if (chr & CON_NONCLEARBG)
+	{
+		if (fg & 0x8) // intensive bit set for foreground
+		{
+			printf("1;"); // set bold/intensity ansi flag
+			fg &= 0x7; // strip intensive bit
+		}
+
+		// set foreground and background colors
+		printf("3%i;4%im", ansiremap[fg], ansiremap[bg]);
+	}
+	else
+	{
+		switch(fg)
+		{
+		//to get around wierd defaults (like a white background) we have these special hacks for colours 0 and 7
+		case COLOR_BLACK:
+			printf("7m"); // set inverse
+			break;
+		case COLOR_GREY:
+			printf("1;30m"); // treat as dark grey
+			break;
+		case COLOR_WHITE:
+			printf("m"); // set nothing else
+			break;
+		default:
+			if (fg & 0x8) // intensive bit set for foreground
+			{
+				printf("1;"); // set bold/intensity ansi flag
+				fg &= 0x7; // strip intensive bit
+			}
+
+			printf("3%im", ansiremap[fg]); // set foreground
+			break;
+		}
+	}
+}
+
+#include <wchar.h>
+void Sys_Printf (char *fmt, ...)
+{
+	va_list		argptr;
+	char		text[2048];
+	conchar_t	ctext[2048];
+	conchar_t       *c, *e;
+	wchar_t		w;
+
+	if (nostdout)
+		return;
+
+	va_start (argptr,fmt);
+	_vsnprintf (text,sizeof(text)-1, fmt,argptr);
+	va_end (argptr);
+
+	if (strlen(text) > sizeof(text))
+		Sys_Error("memory overwrite in Sys_Printf");
+
+	e = COM_ParseFunString(CON_WHITEMASK, text, ctext, sizeof(ctext), false);
+
+	for (c = ctext; c < e; c++)
+	{
+		ApplyColour(*c);
+		w = *c & 0x0ffff;
+		if (w >= 0xe000 && w < 0xe100)
+		{
+			putc(w&0x7f, stdout);
+		}
+		else
+		{
+			/*putwc doesn't like me. force it in utf8*/
+			if (w >= 0x80)
+			{
+				if (w > 0x800)
+				{
+					putc(0xe0 | ((w>>12)&0x0f), stdout);
+					putc(0x80 | ((w>>6)&0x3f), stdout);
+				}
+				else
+					putc(0xc0 | ((w>>6)&0x1f), stdout);
+				putc(0x80 | (w&0x3f), stdout);
+			}
+			else
+				putc(w, stdout);
+		}
+	}
+
+	ApplyColour(CON_WHITEMASK);
+}
+#else
 void Sys_Printf (char *fmt, ...)
 {
 	va_list		argptr;
@@ -97,6 +213,7 @@ void Sys_Printf (char *fmt, ...)
 		else
 			putc(*p, stdout);
 }
+#endif
 
 void Sys_Quit (void)
 {
@@ -107,9 +224,9 @@ void Sys_Quit (void)
 
 void Sys_Init(void)
 {
-#if id386
-	Sys_SetFPCW();
-#endif
+}
+void Sys_Shutdown(void)
+{
 }
 
 void Sys_Error (const char *error, ...)
@@ -224,6 +341,7 @@ int Sys_DebugLog(char *file, char *fmt, ...)
 	va_list argptr;
 	static char data[1024];
 	int fd;
+	size_t result;
 
 	va_start(argptr, fmt);
 	_vsnprintf (data,sizeof(data)-1, fmt, argptr);
@@ -236,7 +354,11 @@ int Sys_DebugLog(char *file, char *fmt, ...)
 	fd = open(file, O_WRONLY | O_CREAT | O_APPEND, 0666);
 	if (fd)
 	{
-		write(fd, data, strlen(data));
+		result = write(fd, data, strlen(data)); // do something with result
+
+		if (result != strlen(data))
+			Con_SafePrintf("Sys_DebugLog() write: Filename: %s, expected %lu, result was %lu (%s)\n",file,(unsigned long)strlen(data),(unsigned long)result,strerror(errno));
+
 		close(fd);
 		return 0;
 	}
@@ -319,20 +441,6 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 
 
 int secbase;
-unsigned int Sys_Milliseconds (void)
-{
-	struct timeval tp;
-	struct timezone tzp;
-
-	gettimeofday(&tp, &tzp);
-
-	if (!secbase)
-	{
-		secbase = tp.tv_sec;
-		return tp.tv_usec/1000;
-	}
-	return (tp.tv_sec - secbase)*1000 + tp.tv_usec/1000;
-}
 
 double Sys_DoubleTime (void)
 {
@@ -350,11 +458,16 @@ double Sys_DoubleTime (void)
 	return (tp.tv_sec - secbase) + tp.tv_usec/1000000.0;
 }
 
+unsigned int Sys_Milliseconds (void)
+{
+	return Sys_DoubleTime() * 1000;
+}
+
 static void *game_library;
 
 void Sys_UnloadGame(void)
 {
-	if (game_library) 
+	if (game_library)
 	{
 		dlclose(game_library);
 		game_library = 0;
@@ -369,11 +482,14 @@ void *Sys_GetGameAPI(void *parms)
 	char curpath[MAX_OSPATH];
 	char *searchpath;
 	const char *gamename = "gamei386.so";
+	char *result;
 
 	void *ret;
 
-	getcwd(curpath, sizeof(curpath));
-	
+	result = getcwd(curpath, sizeof(curpath)); // do something with result?
+
+	Con_DPrintf("Searching for %s\n", gamename);
+
 	searchpath = 0;
 	while((searchpath = COM_NextPath(searchpath)))
 	{
@@ -403,28 +519,43 @@ void Sys_CloseLibrary(dllhandle_t *lib)
 {
 	dlclose((void*)lib);
 }
-dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs)
+
+dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 {
 	int i;
 	dllhandle_t lib;
 
-	lib = dlopen (name, RTLD_LAZY);
+	lib = NULL;
+	if (!lib)
+		lib = dlopen (name, RTLD_LAZY);
+	if (!lib)
+		lib = dlopen (va("%s.so", name), RTLD_LAZY);
 	if (!lib)
 		return NULL;
 
-	for (i = 0; funcs[i].name; i++)
+	if (funcs)
 	{
-		*funcs[i].funcptr = dlsym(lib, funcs[i].name);
-		if (!*funcs[i].funcptr)
-			break;
-	}
-	if (funcs[i].name)
-	{
-		Sys_CloseLibrary((dllhandle_t*)lib);
-		lib = NULL;
+		for (i = 0; funcs[i].name; i++)
+		{
+			*funcs[i].funcptr = dlsym(lib, funcs[i].name);
+			if (!*funcs[i].funcptr)
+				break;
+		}
+		if (funcs[i].name)
+		{
+			Sys_CloseLibrary((dllhandle_t*)lib);
+			lib = NULL;
+		}
 	}
 
 	return (dllhandle_t*)lib;
+}
+
+void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname)
+{
+	if (!module)
+		return NULL;
+	return dlsym(module, exportname);
 }
 
 // =======================================================================
@@ -458,7 +589,6 @@ char *Sys_ConsoleInput(void)
 	return NULL;
 }
 
-#if !id386
 void Sys_HighFPPrecision (void)
 {
 }
@@ -466,9 +596,8 @@ void Sys_HighFPPrecision (void)
 void Sys_LowFPPrecision (void)
 {
 }
-#endif
 
-int main (int c, char **v)
+int main (int c, const char **v)
 {
 	double time, oldtime, newtime;
 	quakeparms_t parms;
@@ -481,10 +610,10 @@ int main (int c, char **v)
 
 	memset(&parms, 0, sizeof(parms));
 
-	COM_InitArgv(c, v);
+	parms.argc = c;
+	parms.argv = v;
+	COM_InitArgv(parms.argc, parms.argv);
 	TL_InitLanguages();
-	parms.argc = com_argc;
-	parms.argv = com_argv;
 
 	parms.memsize = 16*1024*1024;
 
@@ -512,14 +641,6 @@ int main (int c, char **v)
 		//wow, not even windows was this absurd.
 #ifdef RGLQUAKE
 		if (glcocoaRunLoop())
-		{
-			oldtime = Sys_DoubleTime ();
-			continue;
-		}
-#endif
-#ifdef SWQUAKE
-#warning don't worry if this causes linker errors - we don't have a macos sw renderer yet!
-		if (swcocoaRunLoop())
 		{
 			oldtime = Sys_DoubleTime ();
 			continue;
@@ -577,7 +698,7 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 
 	Display *xtemp;
 	int scr;
-	
+
 	xtemp = XOpenDisplay(NULL);
 
 	if (!xtemp)
@@ -619,11 +740,11 @@ void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
 {
 	pthread_t *thread;
 	pthread_attr_t attr;
-	
+
 	thread = (pthread_t *)malloc(sizeof(pthread_t));
 	if (!thread)
 		return NULL;
-	
+
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 	if (stacksize < PTHREAD_STACK_MIN)
@@ -641,7 +762,7 @@ void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
 
 void Sys_WaitOnThread(void *thread)
 {
-	pthread_join((pthread_t *)thread, NULL); 
+	pthread_join((pthread_t *)thread, NULL);
 	free(thread);
 }
 
@@ -649,7 +770,7 @@ void Sys_WaitOnThread(void *thread)
 void *Sys_CreateMutex(void)
 {
 	pthread_mutex_t *mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
-	
+
 	if (mutex && !pthread_mutex_init(mutex, NULL))
 		return mutex;
 	return NULL;
@@ -688,36 +809,36 @@ void *Sys_CreateConditional(void)
 	condvar_t *condv;
 	pthread_mutex_t *mutex;
 	pthread_cond_t *cond;
-	
+
 	condv = (condvar_t *)malloc(sizeof(condvar_t));
 	if (!condv)
 		return NULL;
-	
+
 	mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
 	if (!mutex)
 		return NULL;
-		
+
 	cond = (pthread_cond_t *)malloc(sizeof(pthread_cond_t));
 	if (!cond)
 		return NULL;
-		
+
 	if (!pthread_mutex_init(mutex, NULL))
 	{
 		if (!pthread_cond_init(cond, NULL))
 		{
 			condv->cond = cond;
 			condv->mutex = mutex;
-			
+
 			return (void *)condv;
 		}
 		else
 			pthread_mutex_destroy(mutex);
 	}
-	
+
 	free(cond);
 	free(mutex);
 	free(condv);
-	return NULL;	
+	return NULL;
 }
 
 qboolean Sys_LockConditional(void *condv)
@@ -748,7 +869,7 @@ qboolean Sys_ConditionBroadcast(void *condv)
 void Sys_DestroyConditional(void *condv)
 {
 	condvar_t *cv = (condvar_t *)condv;
-	
+
 	pthread_cond_destroy(cv->cond);
 	pthread_mutex_destroy(cv->mutex);
 	free(cv->cond);

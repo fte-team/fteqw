@@ -44,11 +44,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // callbacks
 void Sys_Linebuffer_Callback (struct cvar_s *var, char *oldvalue);
 
-cvar_t sys_nostdout = SCVAR("sys_nostdout","0");
-cvar_t sys_extrasleep = SCVAR("sys_extrasleep","0");
-cvar_t sys_maxtic = SCVAR("sys_maxtic", "100");
-cvar_t sys_colorconsole = SCVAR("sys_colorconsole", "0");
-cvar_t sys_linebuffer = SCVARC("sys_linebuffer", "1", Sys_Linebuffer_Callback);
+cvar_t sys_nostdout = CVAR("sys_nostdout","0");
+cvar_t sys_extrasleep = CVAR("sys_extrasleep","0");
+cvar_t sys_colorconsole = CVAR("sys_colorconsole", "0");
+cvar_t sys_linebuffer = CVARC("sys_linebuffer", "1", Sys_Linebuffer_Callback);
 
 qboolean	stdin_ready;
 
@@ -104,6 +103,7 @@ int Sys_DebugLog(char *file, char *fmt, ...)
 	va_list argptr;
 	char data[1024];
 	int fd;
+	size_t result;
 
 	va_start(argptr, fmt);
 	_vsnprintf (data,sizeof(data)-1, fmt, argptr);
@@ -115,7 +115,11 @@ int Sys_DebugLog(char *file, char *fmt, ...)
 	fd = open(file, O_WRONLY | O_CREAT | O_APPEND, 0666);
 	if (fd)
 	{
-		write(fd, data, strlen(data));
+		result = write(fd, data, strlen(data)); // do something with the result
+
+		if (result != strlen(data))
+			Con_Printf("Sys_DebugLog() write: Filename: %s, expected %lu, result was %lu (%s)\n",file,(unsigned long)strlen(data),(unsigned long)result,strerror(errno));
+
 		close(fd);
 		return 0;
 	}
@@ -204,7 +208,7 @@ void ApplyColour(unsigned int chr)
 
 	bg = (chr & CON_BGMASK) >> CON_BGSHIFT;
 	fg = (chr & CON_FGMASK) >> CON_FGSHIFT;
-	
+
 	// don't handle intensive bit for background
 	// as terminals differ too much in displaying \e[1;7;3?m
 	bg &= 0x7;
@@ -272,7 +276,7 @@ char	coninput_text[256];
 int		coninput_len;
 void Sys_Printf (char *fmt, ...)
 {
-	va_list		argptr;	
+	va_list		argptr;
 
 	if (sys_nostdout.value)
 		return;
@@ -289,7 +293,7 @@ void Sys_Printf (char *fmt, ...)
 		if (!sys_linebuffer.value)
 		{
 			int i;
-			
+
 			for (i = 0; i < coninput_len; i++)
 				putch('\b');
 			putch('\b');
@@ -624,11 +628,42 @@ void Sys_Init (void)
 {
 	Cvar_Register (&sys_nostdout, "System configuration");
 	Cvar_Register (&sys_extrasleep,	"System configuration");
-	Cvar_Register (&sys_maxtic, "System configuration");
 
 	Cvar_Register (&sys_colorconsole, "System configuration");
 	Cvar_Register (&sys_linebuffer, "System configuration");
 }
+
+void Sys_Shutdown (void)
+{
+}
+
+#ifdef __linux__ /*should probably be GNUC but whatever*/
+#include <execinfo.h>
+static void Friendly_Crash_Handler(int sig)
+{
+	int fd;
+	void *array[10];
+	size_t size;
+
+	// get void*'s for all entries on the stack
+	size = backtrace(array, 10);
+
+	// print out all the frames to stderr
+	fprintf(stderr, "Error: signal %d:\n", sig);
+	backtrace_symbols_fd(array, size, 2);
+
+	fd = open("crash.log", O_WRONLY|O_CREAT|O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP);
+	if (fd != -1)
+	{
+		write(fd, "Crash Log:\n", 11);
+		size = backtrace(array, 10);
+		backtrace_symbols_fd(array, size, fd);
+		write(fd, "\n", 1);
+		close(fd);
+	}
+	exit(1);
+}
+#endif
 
 /*
 =============
@@ -637,6 +672,7 @@ main
 */
 int main(int argc, char *argv[])
 {
+	int maxsleep;
 	quakeparms_t	parms;
 //	fd_set	fdset;
 //	extern	int		net_socket;
@@ -648,11 +684,20 @@ int main(int argc, char *argv[])
 
 	memset (&parms, 0, sizeof(parms));
 
-	COM_InitArgv (argc, argv);
+	COM_InitArgv (argc, (const char **)argv);
 	TL_InitLanguages();
 	parms.argc = com_argc;
 	parms.argv = com_argv;
 
+#ifdef __linux__
+	if (COM_CheckParm("-dumpstack"))
+	{
+		signal(SIGILL, Friendly_Crash_Handler);
+		signal(SIGFPE, Friendly_Crash_Handler);
+		signal(SIGSEGV, Friendly_Crash_Handler);
+		signal(SIGBUS, Friendly_Crash_Handler);
+	}
+#endif
 
 	parms.memsize = 16*1024*1024;
 
@@ -660,14 +705,14 @@ int main(int argc, char *argv[])
 	if (j)
 		parms.memsize = (int) (Q_atof(com_argv[j+1]) * 1024 * 1024);
 	if ((parms.membase = malloc (parms.memsize)) == NULL)
-		Sys_Error("Can't allocate %ld\n", parms.memsize);
+		Sys_Error("Can't allocate %u\n", parms.memsize);
 
 	parms.basedir = ".";
 
 	SV_Init (&parms);
 
 // run one frame immediately for first heartbeat
-	SV_Frame ();
+	maxsleep = SV_Frame()*1000;
 
 //
 // main loop
@@ -675,14 +720,14 @@ int main(int argc, char *argv[])
 	while (1)
 	{
 		if (do_stdin)
-			stdin_ready = NET_Sleep(sys_maxtic.value, true);
+			stdin_ready = NET_Sleep(maxsleep, true);
 		else
 		{
-			NET_Sleep(sys_maxtic.value, false);
+			NET_Sleep(maxsleep, false);
 			stdin_ready = false;
 		}
 
-		SV_Frame ();
+		maxsleep = SV_Frame()*1000;
 
 	// extrasleep is just a way to generate a fucked up connection on purpose
 		if (sys_extrasleep.value)
@@ -776,7 +821,7 @@ void Sys_CloseLibrary(dllhandle_t *lib)
 {
 	dlclose((void*)lib);
 }
-dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs)
+dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 {
 	int i;
 	dllhandle_t lib;
@@ -785,28 +830,36 @@ dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs)
 	if (!lib)
 		return NULL;
 
-	for (i = 0; funcs[i].name; i++)
+	if (funcs)
 	{
-		*funcs[i].funcptr = dlsym(lib, funcs[i].name);
-		if (!*funcs[i].funcptr)
-			break;
-	}
-	if (funcs[i].name)
-	{
-		Sys_CloseLibrary((dllhandle_t*)lib);
-		lib = NULL;
+		for (i = 0; funcs[i].name; i++)
+		{
+			*funcs[i].funcptr = dlsym(lib, funcs[i].name);
+			if (!*funcs[i].funcptr)
+				break;
+		}
+		if (funcs[i].name)
+		{
+			Sys_CloseLibrary((dllhandle_t*)lib);
+			lib = NULL;
+		}
 	}
 
 	return (dllhandle_t*)lib;
 }
-
+void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname)
+{
+	if (!module)
+		return NULL;
+	return dlsym(module, exportname);
+}
 
 
 static void *game_library;
 
 void Sys_UnloadGame(void)
 {
-	if (game_library) 
+	if (game_library)
 	{
 		dlclose(game_library);
 		game_library = 0;
@@ -821,10 +874,11 @@ void *Sys_GetGameAPI(void *parms)
 	char curpath[MAX_OSPATH];
 	char *searchpath;
 	const char *gamename = "gamei386.so";
+	char *result;
 
 	void *ret;
 
-	getcwd(curpath, sizeof(curpath));
+	result = getcwd(curpath, sizeof(curpath)); // do soemthing with the result
 
 	searchpath = 0;
 	while((searchpath = COM_NextPath(searchpath)))
@@ -859,11 +913,11 @@ void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
 {
 	pthread_t *thread;
 	pthread_attr_t attr;
-	
+
 	thread = (pthread_t *)malloc(sizeof(pthread_t));
 	if (!thread)
 		return NULL;
-	
+
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 	if (stacksize < PTHREAD_STACK_MIN)
@@ -881,7 +935,7 @@ void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
 
 void Sys_WaitOnThread(void *thread)
 {
-	pthread_join((pthread_t *)thread, NULL); 
+	pthread_join((pthread_t *)thread, NULL);
 	free(thread);
 }
 
@@ -889,7 +943,7 @@ void Sys_WaitOnThread(void *thread)
 void *Sys_CreateMutex(void)
 {
 	pthread_mutex_t *mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
-	
+
 	if (mutex && !pthread_mutex_init(mutex, NULL))
 		return mutex;
 	return NULL;
@@ -928,36 +982,36 @@ void *Sys_CreateConditional(void)
 	condvar_t *condv;
 	pthread_mutex_t *mutex;
 	pthread_cond_t *cond;
-	
+
 	condv = (condvar_t *)malloc(sizeof(condvar_t));
 	if (!condv)
 		return NULL;
-	
+
 	mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
 	if (!mutex)
 		return NULL;
-		
+
 	cond = (pthread_cond_t *)malloc(sizeof(pthread_cond_t));
 	if (!cond)
 		return NULL;
-		
+
 	if (!pthread_mutex_init(mutex, NULL))
 	{
 		if (!pthread_cond_init(cond, NULL))
 		{
 			condv->cond = cond;
 			condv->mutex = mutex;
-			
+
 			return (void *)condv;
 		}
 		else
 			pthread_mutex_destroy(mutex);
 	}
-	
+
 	free(cond);
 	free(mutex);
 	free(condv);
-	return NULL;	
+	return NULL;
 }
 
 qboolean Sys_LockConditional(void *condv)
@@ -988,7 +1042,7 @@ qboolean Sys_ConditionBroadcast(void *condv)
 void Sys_DestroyConditional(void *condv)
 {
 	condvar_t *cv = (condvar_t *)condv;
-	
+
 	pthread_cond_destroy(cv->cond);
 	pthread_mutex_destroy(cv->mutex);
 	free(cv->cond);

@@ -1,5 +1,6 @@
 #ifdef _WIN32
-
+	#define _CRT_SECURE_NO_WARNINGS
+	#define _CRT_NONSTDC_NO_WARNINGS
 	#ifndef AVAIL_ZLIB
 		#ifdef _MSC_VER
 			//#define AVAIL_ZLIB
@@ -28,10 +29,6 @@
 typedef unsigned char qbyte;
 #include <stdio.h>
 
-#if defined(_M_IX86) || defined(__i386__)
-//#define QCJIT
-#endif
-
 #define DLL_PROG
 #ifndef PROGSUSED
 #define PROGSUSED
@@ -43,6 +40,11 @@ extern int hunksize;
 
 #include "progtype.h"
 #include "progslib.h"
+
+#ifdef _MSC_VER
+#pragma warning(disable : 4244)
+#pragma warning(disable : 4267)
+#endif
 
 //extern progfuncs_t *progfuncs;
 
@@ -100,7 +102,7 @@ void QC_InitShares(progfuncs_t *progfuncs);
 void QC_StartShares(progfuncs_t *progfuncs);
 void QC_AddSharedVar(progfuncs_t *progfuncs, int num, int type);
 void QC_AddSharedFieldVar(progfuncs_t *progfuncs, int num, char *stringtable);
-int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, int requestedpos, int originalofs);
+int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, signed long requestedpos, signed long originalofs);
 pbool Decompile(progfuncs_t *progfuncs, char *fname);
 int PR_ToggleBreakpoint(progfuncs_t *progfuncs, char *filename, int linenum, int flag);
 void    StripExtension (char *path);
@@ -155,10 +157,17 @@ char *SaveEnts(progfuncs_t *progfuncs, char *mem, int *size, int mode);
 int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags);
 char *SaveEnt (progfuncs_t *progfuncs, char *buf, int *size, struct edict_s *ed);
 struct edict_s *RestoreEnt (progfuncs_t *progfuncs, char *buf, int *size, struct edict_s *ed);
-char *PF_VarString (int	first);
 void PR_StackTrace (progfuncs_t *progfuncs);
 
 extern int noextensions;
+
+typedef enum
+{
+	PST_DEFAULT, //16
+	PST_FTE32, //32
+	PST_KKQWSV, //24
+	PST_QTEST,
+} progstructtype_t;
 
 #ifndef COMPILER
 typedef struct progstate_s
@@ -191,7 +200,7 @@ typedef struct progstate_s
 
 	int *linenums;	//debug versions only
 
-	int intsize;	//16 for standard (more limiting) versions
+	progstructtype_t structtype;
 } progstate_t;
 
 typedef struct extensionbuiltin_s {
@@ -438,7 +447,7 @@ var(unsigned int, addressablesize);
 } prinst_t;
 extern vec3_t vec3_origin;
 
-eval_t *PR_FindGlobal(progfuncs_t *prfuncs, char *globname, progsnum_t pnum);
+eval_t *PR_FindGlobal(progfuncs_t *prfuncs, char *globname, progsnum_t pnum, etype_t *type);
 ddef16_t *ED_FindTypeGlobalFromProgs16 (progfuncs_t *progfuncs, char *name, progsnum_t prnum, int type);
 ddef32_t *ED_FindTypeGlobalFromProgs32 (progfuncs_t *progfuncs, char *name, progsnum_t prnum, int type);
 ddef16_t *ED_FindGlobalFromProgs16 (progfuncs_t *progfuncs, char *name, progsnum_t prnum);
@@ -460,7 +469,7 @@ ddef32_t *ED_FindGlobal32 (progfuncs_t *progfuncs, char *name);
 ddef32_t *ED_GlobalAtOfs32 (progfuncs_t *progfuncs, unsigned int ofs);
 
 string_t PR_StringToProgs			(progfuncs_t *inst, char *str);
-char *PR_StringToNative				(progfuncs_t *inst, string_t str);
+char *ASMCALL PR_StringToNative				(progfuncs_t *inst, string_t str);
 
 void PR_FreeTemps			(progfuncs_t *progfuncs, int depth);
 

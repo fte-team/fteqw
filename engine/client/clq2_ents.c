@@ -113,6 +113,11 @@ entity_state_t	cl_parse_entities[MAX_PARSE_ENTITIES];
 void Q2S_StartSound(vec3_t origin, int entnum, int entchannel, sfx_t *sfx, float fvol, float attenuation, float timeofs);
 void CL_SmokeAndFlash(vec3_t origin);
 
+void CLQ2_ClearState(void)
+{
+	memset(cl_entities, 0, sizeof(cl_entities));
+}
+
 //extern	struct model_s	*cl_mod_powerscreen;
 
 //PGM
@@ -894,7 +899,7 @@ void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 
 		while (oldnum < newnum)
 		{	// one or more entities from the old packet are unchanged
-			if (cl_shownet.value == 3)
+			if (cl_shownet.ival == 3)
 				Con_Printf ("   unchanged: %i\n", oldnum);
 			CLQ2_DeltaEntity (newframe, oldnum, oldstate, 0);
 			
@@ -911,7 +916,7 @@ void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 
 		if (bits & Q2U_REMOVE)
 		{	// the entity present in oldframe is not in the current frame
-			if (cl_shownet.value == 3)
+			if (cl_shownet.ival == 3)
 				Con_Printf ("   remove: %i\n", newnum);
 			if (oldnum != newnum)
 				Con_Printf ("U_REMOVE: oldnum != newnum\n");
@@ -930,7 +935,7 @@ void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 
 		if (oldnum == newnum)
 		{	// delta from previous state
-			if (cl_shownet.value == 3)
+			if (cl_shownet.ival == 3)
 				Con_Printf ("   delta: %i\n", newnum);
 			CLQ2_DeltaEntity (newframe, newnum, oldstate, bits);
 
@@ -948,7 +953,7 @@ void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 
 		if (oldnum > newnum)
 		{	// delta from baseline
-			if (cl_shownet.value == 3)
+			if (cl_shownet.ival == 3)
 				Con_Printf ("   baseline: %i\n", newnum);
 			CLQ2_DeltaEntity (newframe, newnum, &cl_entities[newnum].baseline, bits);
 			continue;
@@ -959,7 +964,7 @@ void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 	// any remaining entities in the old frame are copied over
 	while (oldnum != 99999)
 	{	// one or more entities from the old packet are unchanged
-		if (cl_shownet.value == 3)
+		if (cl_shownet.ival == 3)
 			Con_Printf ("   unchanged: %i\n", oldnum);
 		CLQ2_DeltaEntity (newframe, oldnum, oldstate, 0);
 		
@@ -1148,6 +1153,7 @@ void CLQ2_ParseFrame (void)
 	int			cmd;
 	int			len;
 	q2frame_t		*old;
+	int i,j;
 
 	memset (&cl.q2frame, 0, sizeof(cl.q2frame));
 
@@ -1159,7 +1165,10 @@ void CLQ2_ParseFrame (void)
 	cl.q2frame.deltaframe = MSG_ReadLong ();
 	cl.q2frame.servertime = cl.q2frame.serverframe*100;
 
-	cl.surpressCount = MSG_ReadByte ();
+	i = MSG_ReadByte ();
+
+	for (j=0 ; j<i ; j++)
+		cl.frames[ (cls.netchan.incoming_acknowledged-1-j)&UPDATE_MASK ].receivedtime = -2;
 
 	if (cl_shownet.value == 3)
 		Con_Printf ("   frame:%i  delta:%i\n", cl.q2frame.serverframe,
@@ -1342,6 +1351,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		effects = s1->effects;
 		renderfx = s1->renderfx;
 
+		ent.rtype = RT_MODEL;
 		ent.keynum = s1->number;
 
 		ent.scale = 1;
@@ -1418,10 +1428,14 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		// tweak the color of beams
 		if ( renderfx & Q2RF_BEAM )
 		{	// the four beam colors are encoded in 32 bits of skinnum (hack)
-			ent.shaderRGBAf[3] = 0.30;
 			ent.skinnum = (s1->skinnum >> ((rand() % 4)*8)) & 0xff;
+			ent.shaderRGBAf[0] = ((d_8to24rgbtable[ent.skinnum & 0xFF] >>  0) & 0xFF)/255.0;
+			ent.shaderRGBAf[1] = ((d_8to24rgbtable[ent.skinnum & 0xFF] >>  8) & 0xFF)/255.0;
+			ent.shaderRGBAf[2] = ((d_8to24rgbtable[ent.skinnum & 0xFF] >> 16) & 0xFF)/255.0;
+			ent.shaderRGBAf[3] = 0.30;
 			ent.model = NULL;
 			ent.framestate.g[FS_REG].lerpfrac = 1;
+			ent.rtype = RT_BEAM;
 		}
 		else
 		{
@@ -1492,6 +1506,9 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		else
 			ent.flags = renderfx;
 
+		if (renderfx & Q2RF_EXTERNALMODEL)
+			ent.externalmodelview = ~0;
+
 		// calculate angles
 		if (effects & Q2EF_ROTATE)
 		{	// some bonus items auto-rotate
@@ -1511,7 +1528,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 
 				AngleVectors (ent.angles, forward, NULL, NULL);
 				VectorMA (ent.origin, 64, forward, start);
-				V_AddLight (start, 100, 0.2, 0, 0);
+				V_AddLight (ent.keynum, start, 100, 0.2, 0, 0);
 			}
 		}
 		else
@@ -1535,13 +1552,13 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 //			ent.flags |= Q2RF_EXTERNALMODEL;	// only draw from mirrors
 
 			if (effects & Q2EF_FLAG1)
-				V_AddLight (ent.origin, 225, 0.2, 0.05, 0.05);
+				V_AddLight (ent.keynum, ent.origin, 225, 0.2, 0.05, 0.05);
 			else if (effects & Q2EF_FLAG2)
-				V_AddLight (ent.origin, 225, 0.05, 0.05, 0.2);
+				V_AddLight (ent.keynum, ent.origin, 225, 0.05, 0.05, 0.2);
 			else if (effects & Q2EF_TAGTRAIL)						//PGM
-				V_AddLight (ent.origin, 225, 0.2, 0.2, 0.0);	//PGM
+				V_AddLight (ent.keynum, ent.origin, 225, 0.2, 0.2, 0.0);	//PGM
 			else if (effects & Q2EF_TRACKERTRAIL)					//PGM
-				V_AddLight (ent.origin, 225, -0.2, -0.2, -0.2);	//PGM
+				V_AddLight (ent.keynum, ent.origin, 225, -0.2, -0.2, -0.2);	//PGM
 		}
 
 		// if set to invisible, skip
@@ -1617,24 +1634,15 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				}
 			}
 			// pmm
-			ent.flags = renderfx | Q2RF_TRANSLUCENT;
+			ent.flags = renderfx;
 			ent.shaderRGBAf[3] = 0.30;
-			ent.fatness = 1;
 			ent.shaderRGBAf[0] = (!!(renderfx & Q2RF_SHELL_RED));
 			ent.shaderRGBAf[1] = (!!(renderfx & Q2RF_SHELL_GREEN));
 			ent.shaderRGBAf[2] = (!!(renderfx & Q2RF_SHELL_BLUE));
-#ifdef Q3SHADERS	//fixme: do better.
-			//fixme: this is woefully gl specific. :(
-			if (qrenderer == QR_OPENGL)
-			{
-				ent.forcedshader = R_RegisterCustom("q2/shell", Shader_DefaultSkinShell, NULL);
-			}
-#endif
+			ent.forcedshader = R_RegisterCustom("q2/shell", Shader_DefaultSkinShell, NULL);
 			VQ2_AddLerpEntity (&ent);
 		}
-#ifdef Q3SHADERS
 		ent.forcedshader = NULL;
-#endif
 
 //		ent.skin = NULL;		// never use a custom skin on others
 		ent.skinnum = 0;
@@ -1723,7 +1731,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_rocket, &cent->trailstate))
 						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xdc, 4, &cent->trailstate);
 
-				V_AddLight (ent.origin, 200, 0.2, 0.2, 0);
+				V_AddLight (ent.keynum, ent.origin, 200, 0.2, 0.2, 0);
 			}
 			// PGM - Do not reorder EF_BLASTER and EF_HYPERBLASTER. 
 			// EF_BLASTER | EF_TRACKER is a special case for EF_BLASTER2... Cheese!
@@ -1733,22 +1741,22 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				if (effects & Q2EF_TRACKER)	// lame... problematic?
 				{
 					CLQ2_BlasterTrail2 (cent->lerp_origin, ent.origin);
-					V_AddLight (ent.origin, 200, 0, 0.2, 0);		
+					V_AddLight (ent.keynum, ent.origin, 200, 0, 0.2, 0);		
 				}
 				else
 				{
 					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_blastertrail, &cent->trailstate))
 						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xe0, 1, &cent->trailstate);
-					V_AddLight (ent.origin, 200, 0.2, 0.2, 0);
+					V_AddLight (ent.keynum, ent.origin, 200, 0.2, 0.2, 0);
 				}
 //PGM
 			}
 			else if (effects & Q2EF_HYPERBLASTER)
 			{
 				if (effects & Q2EF_TRACKER)						// PGM	overloaded for blaster2.
-					V_AddLight (ent.origin, 200, 0, 0.2, 0);		// PGM
+					V_AddLight (ent.keynum, ent.origin, 200, 0, 0.2, 0);		// PGM
 				else											// PGM
-					V_AddLight (ent.origin, 200, 0.2, 0.2, 0);
+					V_AddLight (ent.keynum, ent.origin, 200, 0.2, 0.2, 0);
 			}
 			else if (effects & Q2EF_GIB)
 			{
@@ -1779,7 +1787,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				{
 					i = bfg_lightramp[s1->frame];
 				}
-				V_AddLight (ent.origin, i, 0, 0.2, 0);
+				V_AddLight (ent.keynum, ent.origin, i, 0, 0.2, 0);
 			}
 			// RAFAEL
 			else if (effects & Q2EF_TRAP)
@@ -1787,19 +1795,19 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				ent.origin[2] += 32;
 				CLQ2_TrapParticles (&ent);
 				i = (rand()%100) + 100;
-				V_AddLight (ent.origin, i, 0.2, 0.16, 0.05);
+				V_AddLight (ent.keynum, ent.origin, i, 0.2, 0.16, 0.05);
 			}
 			else if (effects & Q2EF_FLAG1)
 			{
 				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_flag1"), &cent->trailstate))
 					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 242, 1, &cent->trailstate);
-				V_AddLight (ent.origin, 225, 0.2, 0.05, 0.05);
+				V_AddLight (ent.keynum, ent.origin, 225, 0.2, 0.05, 0.05);
 			}
 			else if (effects & Q2EF_FLAG2)
 			{
 				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_flag2"), &cent->trailstate))
 					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 115, 1, &cent->trailstate);
-				V_AddLight (ent.origin, 225, 0.05, 0.05, 0.2);
+				V_AddLight (ent.keynum, ent.origin, 225, 0.05, 0.05, 0.2);
 			}
 //======
 //ROGUE
@@ -1807,7 +1815,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			{
 				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_tagtrail"), &cent->trailstate))
 					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 220, 1, &cent->trailstate);
-				V_AddLight (ent.origin, 225, 0.2, 0.2, 0.0);
+				V_AddLight (ent.keynum, ent.origin, 225, 0.2, 0.2, 0.0);
 			}
 			else if (effects & Q2EF_TRACKERTRAIL)
 			{
@@ -1818,19 +1826,19 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 					intensity = 50 + (500 * (sin(cl.time/500.0) + 1.0));
 
 					// FIXME - check out this effect in rendition
-					V_AddLight (ent.origin, intensity, -0.2, -0.2, -0.2);
+					V_AddLight (ent.keynum, ent.origin, intensity, -0.2, -0.2, -0.2);
 				}
 				else
 				{
 					CLQ2_Tracker_Shell (cent->lerp_origin);
-					V_AddLight (ent.origin, 155, -0.2, -0.2, -0.2);
+					V_AddLight (ent.keynum, ent.origin, 155, -0.2, -0.2, -0.2);
 				}
 			}
 			else if (effects & Q2EF_TRACKER)
 			{
 				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_tracker"), &cent->trailstate))
 					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0, 1, &cent->trailstate);
-				V_AddLight (ent.origin, 200, -0.2, -0.2, -0.2);
+				V_AddLight (ent.keynum, ent.origin, 200, -0.2, -0.2, -0.2);
 			}
 //ROGUE
 //======
@@ -1845,12 +1853,12 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			{
 				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_ionripper"), &cent->trailstate))
 					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 228, 4, &cent->trailstate);
-				V_AddLight (ent.origin, 100, 0.2, 0.1, 0.1);
+				V_AddLight (ent.keynum, ent.origin, 100, 0.2, 0.1, 0.1);
 			}
 			// RAFAEL
 			else if (effects & Q2EF_BLUEHYPERBLASTER)
 			{
-				V_AddLight (ent.origin, 200, 0, 0, 0.2);
+				V_AddLight (ent.keynum, ent.origin, 200, 0, 0, 0.2);
 			}
 			// RAFAEL
 			else if (effects & Q2EF_PLASMA)
@@ -1859,7 +1867,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				{
 					P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_blastertrail, &cent->trailstate);
 				}
-				V_AddLight (ent.origin, 130, 0.2, 0.1, 0.1);
+				V_AddLight (ent.keynum, ent.origin, 130, 0.2, 0.1, 0.1);
 			}
 		}
 
@@ -1950,7 +1958,7 @@ Sets r_refdef view values
 */
 void CLQ2_CalcViewValues (void)
 {
-	extern cvar_t v_gunkick;
+	extern cvar_t v_gunkick_q2;
 	int			i;
 	float		lerp, backlerp;
 	q2centity_t	*ent;
@@ -2018,7 +2026,7 @@ void CLQ2_CalcViewValues (void)
 	}
 
 	for (i=0 ; i<3 ; i++)
-		r_refdef.viewangles[i] += v_gunkick.value * LerpAngle (ops->kick_angles[i], ps->kick_angles[i], lerp);
+		r_refdef.viewangles[i] += v_gunkick_q2.value * LerpAngle (ops->kick_angles[i], ps->kick_angles[i], lerp);
 
 	VectorCopy(r_refdef.vieworg, cl.simorg[0]);
 	VectorCopy(r_refdef.viewangles, cl.simangles[0]);
@@ -2031,7 +2039,7 @@ void CLQ2_CalcViewValues (void)
 
 	// don't interpolate blend color
 	for (i=0 ; i<4 ; i++)
-		v_blend[i] = ps->blend[i];
+		sw_blend[i] = ps->blend[i];
 
 	// add the weapon
 	CLQ2_AddViewWeapon (ps, ops);
@@ -2053,9 +2061,12 @@ void CLQ2_AddEntities (void)
 	r_refdef.currentplayernum = 0;
 
 
-	cl_visedicts = cl_visedicts_list[cls.netchan.incoming_sequence&1];
+	cl_visedicts = cl_visedicts_list;
 
 	cl_numvisedicts = 0;
+	cl_numstrisidx = 0;
+	cl_numstrisvert = 0;
+	cl_numstris = 0;
 
 	if (cl.time*1000 > cl.q2frame.servertime)
 	{
@@ -2074,25 +2085,12 @@ void CLQ2_AddEntities (void)
 	else
 		cl.lerpfrac = 1.0 - (cl.q2frame.servertime - cl.time*1000) * 0.01;
 
-//	if (cl_timedemo.value)
-//		cl.lerpfrac = 1.0;
-
-//	CLQ2_AddPacketEntities (&cl.qwframe);
-//	CLQ2_AddTEnts ();
-//	CLQ2_AddParticles ();
-//	CLQ2_AddDLights ();
-//	CLQ2_AddLightStyles ();
-
 	CLQ2_CalcViewValues ();
-	// PMM - moved this here so the heat beam has the right values for the vieworg, and can lock the beam to the gun
 	CLQ2_AddPacketEntities (&cl.q2frame);
 #if 0
 	CLQ2_AddProjectiles ();
 #endif
 	CL_UpdateTEnts ();
-//	CLQ2_AddParticles ();
-//	CLQ2_AddDLights ();
-//	CLQ2_AddLightStyles ();
 }
 
 void CL_GetNumberedEntityInfo (int num, float *org, float *ang)

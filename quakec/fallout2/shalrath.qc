@@ -175,36 +175,28 @@ void() ShalMissileTouch =
 	if (other == self.owner)
 		return;		// don't explode on owner
 
-	if (random()<0.1)
-	{
-      	other.islot3 = SlotVal(IID_ARM_LEATHER, 1);
-		WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
-		WriteByte (MSG_BROADCAST, TE_TAREXPLOSION);
-		WriteCoord (MSG_BROADCAST, self.origin_x);
-		WriteCoord (MSG_BROADCAST, self.origin_y);
-		WriteCoord (MSG_BROADCAST, self.origin_z);
-		T_Damage (other, self, self, 25+random()*25);	
-		other.hold = 20;
-		remove(self);
-	}
-	else
-	{
-		T_Damage (other, self, self, 25+random()*25);	
-		te_smallflash(other.origin);
-		remove(self);
-	}
+	if (other.classname == "monster_zombie")
+		T_Damage (other, self, self, 110);	
+	T_RadiusDamage (self, self.owner, 40, world, "vore");
+	sound (self, CHAN_WEAPON, "weapons/r_exp3.wav", 1, ATTN_NORM);
+
+	WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
+	WriteByte (MSG_BROADCAST, TE_EXPLOSION);
+	WriteCoord (MSG_BROADCAST, self.origin_x);
+	WriteCoord (MSG_BROADCAST, self.origin_y);
+	WriteCoord (MSG_BROADCAST, self.origin_z);
+
+	self.velocity = '0 0 0';
+	self.touch = SUB_Null;
+	setmodel (self, "progs/s_explod.spr");
+	self.solid = SOLID_NOT;
+	Explosion(2);
 };
 
 //=================================================================
 
 void() monster_shalrath =
 {
-	if (self.zone == 0)
-	{
-		load_monster();
-		return;
-	}
-
 	precache_model2 ("progs/shalrath.mdl");
 	precache_model2 ("progs/h_shal.mdl");
 	precache_model2 ("progs/v_spike.mdl");
@@ -221,9 +213,10 @@ void() monster_shalrath =
 	
 	setmodel (self, "progs/shalrath.mdl");
 	setsize (self, VEC_HULL2_MIN, VEC_HULL2_MAX);
-	self.health = 300;
+	self.health = 800;
 	self.team = 3;
-      self.islot3 = SlotVal(IID_ARM_FORCE, 1);
+	self.islot3 = 11; //vore armor
+	self.armortype = 0.1;
 	self.helmet = 1;
 	self.classname = "monster";
 	self.netname = "experiment";

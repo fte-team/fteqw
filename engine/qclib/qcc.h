@@ -60,11 +60,10 @@ extern int	MAX_FUNCTIONS;
 
 extern int MAX_CONSTANTS;
 #define MAXCONSTANTLENGTH 64
-#define MAXCONSTANTVALUELENGTH 1024
 #define MAXCONSTANTPARAMLENGTH 32
 #define MAXCONSTANTPARAMS 32
 
-typedef enum {QCF_STANDARD, QCF_HEXEN2, QCF_DARKPLACES, QCF_FTE, QCF_FTEDEBUG, QCF_KK7} qcc_targetformat_t;
+typedef enum {QCF_STANDARD, QCF_HEXEN2, QCF_DARKPLACES, QCF_FTE, QCF_FTEDEBUG, QCF_KK7, QCF_QTEST} qcc_targetformat_t;
 extern qcc_targetformat_t qcc_targetformat;
 
 
@@ -320,6 +319,7 @@ typedef struct temp_s {
 	pbool used;
 	unsigned int size;
 } temp_t;
+void QCC_PurgeTemps(void);
 
 //not written
 typedef struct QCC_def_s
@@ -343,6 +343,7 @@ typedef struct QCC_def_s
 	pbool shared;
 	pbool saved;
 	pbool isstatic;
+	pbool subscoped_away;
 
 	temp_t *temp;
 } QCC_def_t;
@@ -406,7 +407,7 @@ extern	QCC_pr_info_t	pr;
 typedef struct
 {
 	char name[MAXCONSTANTLENGTH];
-	char value[MAXCONSTANTVALUELENGTH];
+	char *value;
 	char params[MAXCONSTANTPARAMS][MAXCONSTANTPARAMLENGTH];
 	int numparams;
 	pbool used;
@@ -469,6 +470,7 @@ extern pbool keyword_union;	//you surly know what a union is!
 extern pbool keywords_coexist;
 extern pbool output_parms;
 extern pbool autoprototype;
+extern pbool pr_subscopedlocals;
 extern pbool flag_ifstring;
 extern pbool flag_iffloat;
 extern pbool flag_acc;
@@ -478,6 +480,7 @@ extern pbool flag_hashonly;
 extern pbool flag_fasttrackarrays;
 extern pbool flag_assume_integer;
 extern pbool flag_msvcstyle;
+extern pbool flag_filetimes;
 
 extern pbool opt_overlaptemps;
 extern pbool opt_shortenifnots;
@@ -540,6 +543,7 @@ CompilerConstant_t *QCC_PR_DefineName(char *name);
 void QCC_RemapOffsets(unsigned int firststatement, unsigned int laststatement, unsigned int min, unsigned int max, unsigned int newmin);
 
 #ifndef COMMONINLINES
+pbool QCC_PR_CheckImmediate (char *string);
 pbool QCC_PR_CheckToken (char *string);
 pbool QCC_PR_CheckName (char *string);
 void QCC_PR_Expect (char *string);
@@ -548,6 +552,7 @@ pbool QCC_PR_CheckKeyword(int keywordenabled, char *string);
 void VARGS QCC_PR_ParseError (int errortype, char *error, ...);
 void VARGS QCC_PR_ParseWarning (int warningtype, char *error, ...);
 void VARGS QCC_PR_Warning (int type, char *file, int line, char *error, ...);
+void VARGS QCC_PR_Note (int type, char *file, int line, char *error, ...);
 void QCC_PR_ParsePrintDef (int warningtype, QCC_def_t *def);
 void VARGS QCC_PR_ParseErrorPrintDef (int errortype, QCC_def_t *def, char *error, ...);
 
@@ -623,7 +628,6 @@ enum {
 	ERR_TOOMANYPAKFILES,
 	ERR_PRECOMPILERCONSTANTTOOLONG,
 	ERR_MACROTOOMANYPARMS,
-	ERR_CONSTANTTOOLONG,
 	ERR_TOOMANYFRAMEMACROS,
 
 	//limitations, some are imposed by compiler, some arn't.
@@ -797,6 +801,9 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, char *arrayname);
 void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, char *arrayname);
 void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname);
 
+void PostCompile(void);
+pbool PreCompile(void);
+
 //=============================================================================
 
 extern char	pr_immediate_string[8192];
@@ -827,6 +834,7 @@ extern int numtypeinfos;
 extern int maxtypeinfos;
 
 extern int ForcedCRC;
+extern pbool defaultnoref;
 extern pbool defaultstatic;
 
 extern int *qcc_tempofs;
@@ -900,6 +908,6 @@ char *TypeName(QCC_type_t *type);
 void QCC_PR_IncludeChunk (char *data, pbool duplicate, char *filename);
 void QCC_PR_IncludeChunkEx(char *data, pbool duplicate, char *filename, CompilerConstant_t *cnst);
 pbool QCC_PR_UnInclude(void);
-extern void *(*pHash_Get)(hashtable_t *table, char *name);
-extern void *(*pHash_GetNext)(hashtable_t *table, char *name, void *old);
-extern void *(*pHash_Add)(hashtable_t *table, char *name, void *data, bucket_t *);
+extern void *(*pHash_Get)(hashtable_t *table, const char *name);
+extern void *(*pHash_GetNext)(hashtable_t *table, const char *name, void *old);
+extern void *(*pHash_Add)(hashtable_t *table, const char *name, void *data, bucket_t *);

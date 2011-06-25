@@ -45,52 +45,53 @@ cvar_t	cl_timeout = SCVAR("cl_timeout", "60");
 
 cvar_t	cl_shownet = SCVAR("cl_shownet","0");	// can be 0, 1, or 2
 
-cvar_t	cl_sbar		= SCVARFC("cl_sbar", "0", CVAR_ARCHIVE, CL_Sbar_Callback);
-cvar_t	cl_hudswap	= SCVARF("cl_hudswap", "0", CVAR_ARCHIVE);
-cvar_t	cl_maxfps	= SCVARF("cl_maxfps", "1000", CVAR_ARCHIVE);
-cvar_t	cl_nopext	= SCVARF("cl_nopext", "0", CVAR_ARCHIVE);
-cvar_t	cl_pext_mask = SCVAR("cl_pext_mask", "0xffffffff");
-cvar_t	cl_nolerp	= SCVAR("cl_nolerp", "1");
-cvar_t	cl_nolerp_netquake = SCVAR("cl_nolerp_netquake", "0");
-cvar_t	hud_tracking_show = SCVAR("hud_tracking_show", "1");
+cvar_t	cl_sbar		= CVARFC("cl_sbar", "0", CVAR_ARCHIVE, CL_Sbar_Callback);
+cvar_t	cl_hudswap	= CVARF("cl_hudswap", "0", CVAR_ARCHIVE);
+cvar_t	cl_maxfps	= CVARF("cl_maxfps", "500", CVAR_ARCHIVE);
+cvar_t	cl_nopext	= CVARF("cl_nopext", "0", CVAR_ARCHIVE);
+cvar_t	cl_pext_mask = CVAR("cl_pext_mask", "0xffffffff");
+cvar_t	cl_nolerp	= CVAR("cl_nolerp", "2");
+cvar_t	cl_nolerp_netquake = CVAR("cl_nolerp_netquake", "0");
+cvar_t	hud_tracking_show = CVAR("hud_tracking_show", "1");
 
-cvar_t	cfg_save_name = SCVARF("cfg_save_name", "fte", CVAR_ARCHIVE);
+cvar_t	cl_defaultport		= CVARAF("cl_defaultport", STRINGIFY(PORT_QWSERVER), "port", 0);
 
-cvar_t	cl_splitscreen = SCVAR("cl_splitscreen", "0");
+cvar_t	cfg_save_name = CVARF("cfg_save_name", "fte", CVAR_ARCHIVE);
 
-cvar_t	lookspring = SCVARF("lookspring","0", CVAR_ARCHIVE);
-cvar_t	lookstrafe = SCVARF("lookstrafe","0", CVAR_ARCHIVE);
-cvar_t	sensitivity = SCVARF("sensitivity","10", CVAR_ARCHIVE);
+cvar_t	cl_splitscreen = CVAR("cl_splitscreen", "0");
 
-cvar_t cl_staticsounds = SCVAR("cl_staticsounds", "1");
+cvar_t	lookspring = CVARF("lookspring","0", CVAR_ARCHIVE);
+cvar_t	lookstrafe = CVARF("lookstrafe","0", CVAR_ARCHIVE);
+cvar_t	sensitivity = CVARF("sensitivity","10", CVAR_ARCHIVE);
 
-cvar_t	m_pitch = SCVARF("m_pitch","0.022", CVAR_ARCHIVE);
-cvar_t	m_yaw = SCVARF("m_yaw","0.022", CVAR_ARCHIVE);
-cvar_t	m_forward = SCVARF("m_forward","1", CVAR_ARCHIVE);
-cvar_t	m_side = SCVARF("m_side","0.8", CVAR_ARCHIVE);
+cvar_t cl_staticsounds = CVAR("cl_staticsounds", "1");
 
-cvar_t	entlatency = SCVAR("entlatency", "20");
-cvar_t	cl_predict_players = SCVAR("cl_predict_players", "1");
-cvar_t	cl_predict_players2 = SCVAR("cl_predict_players2", "1");
-cvar_t	cl_solid_players = SCVAR("cl_solid_players", "1");
-cvar_t	cl_noblink = SCVAR("cl_noblink", "0");
-cvar_t	cl_servername = SCVAR("cl_servername", "none");
-cvar_t	cl_serveraddress = SCVAR("cl_serveraddress", "none");
-cvar_t	qtvcl_forceversion1 = SCVAR("qtvcl_forceversion1", "0");
-cvar_t	qtvcl_eztvextensions = SCVAR("qtvcl_eztvextensions", "0");
+cvar_t	m_pitch = CVARF("m_pitch","0.022", CVAR_ARCHIVE);
+cvar_t	m_yaw = CVARF("m_yaw","0.022", CVAR_ARCHIVE);
+cvar_t	m_forward = CVARF("m_forward","1", CVAR_ARCHIVE);
+cvar_t	m_side = CVARF("m_side","0.8", CVAR_ARCHIVE);
 
-cvar_t cl_demospeed = FCVAR("cl_demospeed", "demo_setspeed", "1", 0);
+cvar_t	entlatency = CVAR("entlatency", "20");
+cvar_t	cl_predict_players = CVAR("cl_predict_players", "1");
+cvar_t	cl_solid_players = CVAR("cl_solid_players", "1");
+cvar_t	cl_noblink = CVAR("cl_noblink", "0");
+cvar_t	cl_servername = CVAR("cl_servername", "none");
+cvar_t	cl_serveraddress = CVAR("cl_serveraddress", "none");
+cvar_t	qtvcl_forceversion1 = CVAR("qtvcl_forceversion1", "0");
+cvar_t	qtvcl_eztvextensions = CVAR("qtvcl_eztvextensions", "0");
 
-cvar_t cl_loopbackprotocol = SCVAR("cl_loopbackprotocol", "qw");
+cvar_t cl_demospeed = CVARAF("cl_demospeed", "1", "demo_setspeed", 0);
+
+cvar_t cl_loopbackprotocol = CVAR("cl_loopbackprotocol", "qw");
 
 
-cvar_t	cl_indepphysics = SCVAR("cl_indepphysics", "0");
+cvar_t	cl_threadedphysics = CVAR("cl_threadedphysics", "0");
 
 cvar_t  localid = SCVAR("localid", "");
 
-cvar_t	cl_antibunch = SCVAR("cl_antibunch", "0");
+cvar_t	cl_antibunch = CVAR("cl_antibunch", "0");
 
-cvar_t	r_drawflame = SCVAR("r_drawflame", "1");
+cvar_t	r_drawflame = CVAR("r_drawflame", "1");
 
 static qboolean allowremotecmd = true;
 
@@ -99,32 +100,33 @@ extern int			total_loading_size, current_loading_size, loading_stage;
 //
 // info mirrors
 //
-cvar_t	password = SCVARF("password",		"",			CVAR_USERINFO | CVAR_NOUNSAFEEXPAND); //this is parhaps slightly dodgy...
-cvar_t	spectator = SCVARF("spectator",		"",			CVAR_USERINFO);
-cvar_t	name = SCVARFC("name",				"unnamed",	CVAR_ARCHIVE | CVAR_USERINFO, Name_Callback);
-cvar_t	team = SCVARF("team",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	skin = SCVARF("skin",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	model = SCVARF("model",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	topcolor = SCVARF("topcolor",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	bottomcolor = SCVARF("bottomcolor",	"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	rate = SCVARF("rate",				"10000"/*"6480"*/,		CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	drate = SCVARF("drate",				"100000",	CVAR_ARCHIVE | CVAR_USERINFO);		// :)
-cvar_t	noaim = SCVARF("noaim",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	msg = SCVARF("msg",					"1",		CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	b_switch = SCVARF("b_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	w_switch = SCVARF("w_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	cl_nofake = SCVAR("cl_nofake",		"2");
-cvar_t	cl_chatsound = SCVAR("cl_chatsound","1");
-cvar_t	cl_enemychatsound = SCVAR("cl_enemychatsound", "misc/talk.wav");
-cvar_t	cl_teamchatsound = SCVAR("cl_teamchatsound", "misc/talk.wav");
+cvar_t	password = CVARF("password",		"",			CVAR_USERINFO | CVAR_NOUNSAFEEXPAND); //this is parhaps slightly dodgy...
+cvar_t	spectator = CVARF("spectator",		"",			CVAR_USERINFO);
+cvar_t	name = CVARFC("name",				"unnamed",	CVAR_ARCHIVE | CVAR_USERINFO, Name_Callback);
+cvar_t	team = CVARF("team",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	skin = CVARF("skin",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	model = CVARF("model",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	topcolor = CVARF("topcolor",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	bottomcolor = CVARF("bottomcolor",	"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	rate = CVARF("rate",				"10000"/*"6480"*/,		CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	drate = CVARF("drate",				"100000",	CVAR_ARCHIVE | CVAR_USERINFO);		// :)
+cvar_t	noaim = CVARF("noaim",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	msg = CVARF("msg",					"1",		CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	b_switch = CVARF("b_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	w_switch = CVARF("w_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
+cvar_t	cl_nofake = CVAR("cl_nofake",		"2");
+cvar_t	cl_chatsound = CVAR("cl_chatsound","1");
+cvar_t	cl_enemychatsound = CVAR("cl_enemychatsound", "misc/talk.wav");
+cvar_t	cl_teamchatsound = CVAR("cl_teamchatsound", "misc/talk.wav");
 
-cvar_t	r_rocketlight	= SCVARC("r_rocketlight",	"1", Cvar_Limiter_ZeroToOne_Callback);
-cvar_t	r_lightflicker	= SCVAR("r_lightflicker",	"1");
-cvar_t	cl_r2g			= SCVAR("cl_r2g",	"0");
-cvar_t	r_powerupglow	= SCVAR("r_powerupglow", "1");
-cvar_t	v_powerupshell	= SCVAR("v_powerupshell", "0");
-cvar_t	cl_gibfilter	= SCVAR("cl_gibfilter", "0");
-cvar_t	cl_deadbodyfilter	= SCVAR("cl_deadbodyfilter", "0");
+cvar_t	r_torch			= CVARF("r_torch",	"0",	CVAR_CHEAT);
+cvar_t	r_rocketlight	= CVARC("r_rocketlight",	"1", Cvar_Limiter_ZeroToOne_Callback);
+cvar_t	r_lightflicker	= CVAR("r_lightflicker",	"1");
+cvar_t	cl_r2g			= CVAR("cl_r2g",	"0");
+cvar_t	r_powerupglow	= CVAR("r_powerupglow", "1");
+cvar_t	v_powerupshell	= CVAR("v_powerupshell", "0");
+cvar_t	cl_gibfilter	= CVAR("cl_gibfilter", "0");
+cvar_t	cl_deadbodyfilter	= CVAR("cl_deadbodyfilter", "0");
 
 cvar_t  cl_gunx = SCVAR("cl_gunx", "0");
 cvar_t  cl_guny = SCVAR("cl_guny", "0");
@@ -134,7 +136,7 @@ cvar_t  cl_gunanglex = SCVAR("cl_gunanglex", "0");
 cvar_t  cl_gunangley = SCVAR("cl_gunangley", "0");
 cvar_t  cl_gunanglez = SCVAR("cl_gunanglez", "0");
 
-cvar_t	allow_download_csprogs = SCVARF("allow_download_csprogs", "0", CVAR_NOTFROMSERVER);
+cvar_t	allow_download_csprogs = SCVARF("allow_download_csprogs", "1", CVAR_NOTFROMSERVER);
 cvar_t	allow_download_redirection = SCVARF("allow_download_redirection", "0", CVAR_NOTFROMSERVER);
 cvar_t	requiredownloads = SCVARF("requiredownloads","1", CVAR_ARCHIVE);
 
@@ -143,6 +145,8 @@ cvar_t	cl_muzzleflash = SCVAR("cl_muzzleflash", "1");
 cvar_t	cl_item_bobbing = SCVAR("cl_model_bobbing", "0");
 cvar_t	cl_countpendingpl = SCVAR("cl_countpendingpl", "0");
 
+cvar_t  cl_download_mapsrc = SCVAR("cl_download_mapsrc", ""); //EG: "http://bigfoot.morphos-team.net/misc/quakemaps/"
+
 cvar_t	cl_standardchat = SCVARF("cl_standardchat", "0", CVAR_ARCHIVE);
 cvar_t	msg_filter = SCVAR("msg_filter", "0");	//0 for neither, 1 for mm1, 2 for mm2, 3 for both
 cvar_t  cl_standardmsg = SCVARF("cl_standardmsg", "0", CVAR_ARCHIVE);
@@ -150,7 +154,8 @@ cvar_t  cl_parsewhitetext = SCVAR("cl_parsewhitetext", "1");
 
 cvar_t	cl_dlemptyterminate = SCVAR("cl_dlemptyterminate", "1");
 
-cvar_t	host_mapname = FCVAR("mapname", "host_mapname", "", 0);
+cvar_t	host_mapname = CVARAF("mapname", "",
+							  "host_mapname", 0);
 
 cvar_t	ruleset_allow_playercount	= SCVAR("ruleset_allow_playercount", "1");
 cvar_t	ruleset_allow_frj		= SCVAR("ruleset_allow_frj", "1");
@@ -162,6 +167,7 @@ cvar_t	ruleset_allow_larger_models	= SCVAR("ruleset_allow_larger_models", "1");
 cvar_t	ruleset_allow_modified_eyes = SCVAR("ruleset_allow_modified_eyes", "0");
 cvar_t	ruleset_allow_sensative_texture_replacements = SCVAR("ruleset_allow_sensative_texture_replacements", "1");
 cvar_t	ruleset_allow_localvolume	= SCVAR("ruleset_allow_localvolume", "1");
+cvar_t  ruleset_allow_shaders	= SCVARF("ruleset_allow_shaders", "1", CVAR_SHADERSYSTEM);
 
 extern cvar_t cl_hightrack;
 extern cvar_t	vid_renderer;
@@ -177,25 +183,37 @@ client_state_t	cl;
 
 // alot of this should probably be dynamically allocated
 entity_state_t	*cl_baselines;
-efrag_t			cl_efrags[MAX_EFRAGS];
-entity_t		cl_static_entities[MAX_STATIC_ENTITIES];
-trailstate_t   *cl_static_emit[MAX_STATIC_ENTITIES];
+static_entity_t *cl_static_entities;
+unsigned int    cl_max_static_entities;
 lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
 //lightstyle_t	cl_lightstyle[MAX_LIGHTSTYLES];
-dlight_t		cl_dlights[MAX_DLIGHTS];
+dlight_t		*cl_dlights;
+unsigned int	cl_maxdlights; /*size of cl_dlights array*/
 
 int cl_baselines_count;
-int dlights_running, dlights_software;
+int rtlights_first, rtlights_max;
 
 // refresh list
 // this is double buffered so the last frame
 // can be scanned for oldorigins of trailing objects
-int				cl_numvisedicts, cl_oldnumvisedicts;
-entity_t		*cl_visedicts, *cl_oldvisedicts;
-entity_t		cl_visedicts_list[2][MAX_VISEDICTS];
+int				cl_numvisedicts;
+entity_t		*cl_visedicts;
+entity_t		cl_visedicts_list[MAX_VISEDICTS];
+
+scenetris_t		*cl_stris;
+vecV_t			*cl_strisvertv;
+vec4_t			*cl_strisvertc;
+vec2_t			*cl_strisvertt;
+index_t			*cl_strisidx;
+unsigned int cl_numstrisidx;
+unsigned int cl_maxstrisidx;
+unsigned int cl_numstrisvert;
+unsigned int cl_maxstrisvert;
+unsigned int cl_numstris;
+unsigned int cl_maxstris;
 
 double			connect_time = -1;		// for connection retransmits
-int				connect_type = 0;
+int				connect_defaultport = 0;
 int				connect_tries = 0;	//increased each try, every fourth trys nq connect packets.
 
 quakeparms_t host_parms;
@@ -212,6 +230,7 @@ int			host_hunklevel;
 
 qbyte		*host_basepal;
 qbyte		*host_colormap;
+qbyte		*h2playertranslations;
 
 cvar_t	host_speeds = SCVAR("host_speeds","0");		// set for running times
 #ifdef CRAZYDEBUGGING
@@ -279,6 +298,7 @@ void CL_ConnectToDarkPlaces(char *challenge, netadr_t adr)
 {
 	char	data[2048];
 	cls.fteprotocolextensions = 0;
+	cls.fteprotocolextensions2 = 0;
 
 	cls.resendinfo = false;
 
@@ -292,9 +312,10 @@ void CL_ConnectToDarkPlaces(char *challenge, netadr_t adr)
 }
 
 #ifdef PROTOCOL_VERSION_FTE
-unsigned int CL_SupportedFTEExtensions(void)
+void CL_SupportedFTEExtensions(int *pext1, int *pext2)
 {
 	unsigned int fteprotextsupported = 0;
+	unsigned int fteprotextsupported2 = 0;
 
 #ifdef PEXT_SCALE	//dmw - protocol extensions
 	fteprotextsupported |= PEXT_SCALE;
@@ -307,9 +328,6 @@ unsigned int CL_SupportedFTEExtensions(void)
 #endif
 #ifdef PEXT_VIEW2
 	fteprotextsupported |= PEXT_VIEW2;
-#endif
-#ifdef PEXT_BULLETENS
-	fteprotextsupported |= PEXT_BULLETENS;
 #endif
 #ifdef PEXT_ACCURATETIMINGS
 	fteprotextsupported |= PEXT_ACCURATETIMINGS;
@@ -373,12 +391,23 @@ unsigned int CL_SupportedFTEExtensions(void)
 	fteprotextsupported |= PEXT_DPFLAGS;
 #endif
 
+	fteprotextsupported2 |= PEXT2_PRYDONCURSOR;
+#ifdef PEXT2_VOICECHAT
+	fteprotextsupported2 |= PEXT2_VOICECHAT;
+#endif
+	fteprotextsupported2 |= PEXT2_SETANGLEDELTA;
+
 	fteprotextsupported &= strtoul(cl_pext_mask.string, NULL, 16);
+//	fteprotextsupported2 &= strtoul(cl_pext2_mask.string, NULL, 16);
 
-	if (cl_nopext.value)
+	if (cl_nopext.ival)
+	{
 		fteprotextsupported = 0;
+		fteprotextsupported2 = 0;
+	}
 
-	return fteprotextsupported;
+	*pext1 = fteprotextsupported;
+	*pext2 = fteprotextsupported2;
 }
 #endif
 
@@ -391,7 +420,7 @@ called by CL_Connect_f and CL_CheckResend
 */
 void CL_SendConnectPacket (
 #ifdef PROTOCOL_VERSION_FTE
-						   int ftepext,
+						   int ftepext, int ftepext2,
 #endif
 						   int compressioncrc
 						  /*, ...*/)	//dmw new parms
@@ -399,10 +428,10 @@ void CL_SendConnectPacket (
 	extern cvar_t qport;
 	netadr_t	adr;
 	char	data[2048];
-	char playerinfo2[MAX_INFO_STRING];
 	double t1, t2;
 #ifdef PROTOCOL_VERSION_FTE
 	int fteprotextsupported=0;
+	int fteprotextsupported2=0;
 #endif
 	int clients;
 	int c;
@@ -414,15 +443,16 @@ void CL_SendConnectPacket (
 	if (cls.state != ca_disconnected)
 		return;
 
-	if (cl_nopext.value)	//imagine it's an unenhanced server
+	if (cl_nopext.ival)	//imagine it's an unenhanced server
 	{
 		compressioncrc = 0;
 	}
 
 #ifdef PROTOCOL_VERSION_FTE
-	fteprotextsupported = CL_SupportedFTEExtensions();
+	CL_SupportedFTEExtensions(&fteprotextsupported, &fteprotextsupported2);
 
 	fteprotextsupported &= ftepext;
+	fteprotextsupported2 &= ftepext2;
 
 #ifdef Q2CLIENT
 	if (cls.protocol != CP_QUAKEWORLD)
@@ -430,6 +460,7 @@ void CL_SendConnectPacket (
 #endif
 
 	cls.fteprotocolextensions = fteprotextsupported;
+	cls.fteprotocolextensions2 = fteprotextsupported2;
 #endif
 
 	t1 = Sys_DoubleTime ();
@@ -463,9 +494,6 @@ void CL_SendConnectPacket (
 	Cvar_SetValue(&qport, (cls.qport+1)&0xffff);
 
 //	Info_SetValueForStarKey (cls.userinfo, "*ip", NET_AdrToString(adr), MAX_INFO_STRING);
-
-	Q_strncpyz(playerinfo2, cls.userinfo, sizeof(playerinfo2)-1);
-	Info_SetValueForStarKey (playerinfo2, "name", "Second player", MAX_INFO_STRING);
 
 	clients = 1;
 	if (cl_splitscreen.value && (fteprotextsupported & PEXT_SPLITSCREEN))
@@ -511,13 +539,12 @@ void CL_SendConnectPacket (
 
 	//userinfo 0 + zquake extension info.
 	if (cls.protocol == CP_QUAKEWORLD)
-		Q_strncatz(data, va(" \"%s\\*z_ext\\%i\"", cls.userinfo, SUPPORTED_Z_EXTENSIONS), sizeof(data));
+		Q_strncatz(data, va(" \"%s\\*z_ext\\%i\"", cls.userinfo[0], SUPPORTED_Z_EXTENSIONS), sizeof(data));
 	else
-		Q_strncatz(data, va(" \"%s\"", cls.userinfo), sizeof(data));
+		Q_strncatz(data, va(" \"%s\"", cls.userinfo[0]), sizeof(data));
 	for (c = 1; c < clients; c++)
 	{
-		Info_SetValueForStarKey (playerinfo2, "name", va("%s%i", name.string, c+1), MAX_INFO_STRING);
-		Q_strncatz(data, va(" \"%s\"", playerinfo2), sizeof(data));
+		Q_strncatz(data, va(" \"%s\"", cls.userinfo[c]), sizeof(data));
 	}
 
 	Q_strncatz(data, "\n", sizeof(data));
@@ -525,6 +552,10 @@ void CL_SendConnectPacket (
 #ifdef PROTOCOL_VERSION_FTE
 	if (ftepext)
 		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_FTE, fteprotextsupported), sizeof(data));
+#endif
+#ifdef PROTOCOL_VERSION_FTE2
+	if (ftepext2)
+		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_FTE2, fteprotextsupported2), sizeof(data));
 #endif
 
 #ifdef HUFFNETWORK
@@ -540,7 +571,6 @@ void CL_SendConnectPacket (
 	NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
 
 	cl.splitclients = 0;
-	CL_RegisterSplitCommands();
 }
 
 char *CL_TryingToConnect(void)
@@ -616,7 +646,7 @@ void CL_CheckForResend (void)
 			CL_ConnectToDarkPlaces("", adr);
 		}
 		else
-			CL_SendConnectPacket (svs.fteprotocolextensions, false);
+			CL_SendConnectPacket (svs.fteprotocolextensions, svs.fteprotocolextensions2, false);
 		return;
 	}
 #endif
@@ -660,10 +690,12 @@ void CL_CheckForResend (void)
 
 	if (adr.port == 0)
 	{
-		if (connect_type)
-			adr.port = BigShort (26000);	//assume a different port for nq
-		else
-			adr.port = BigShort (27500);
+		adr.port = BigShort (connect_defaultport);	//assume a different port for nq
+
+		if (!strchr(cls.servername, ':'))
+		{
+			Q_strncatz(cls.servername, va(":%u", connect_defaultport), sizeof(cls.servername));
+		}
 	}
 	t2 = Sys_DoubleTime ();
 
@@ -681,26 +713,41 @@ void CL_CheckForResend (void)
 	if (connect_tries == 0)
 		NET_EnsureRoute(cls.sockets, "conn", cls.servername, false);
 
+	Con_TPrintf (TLC_CONNECTINGTO, cls.servername);
+
 #ifdef NQPROT
-	if (connect_type || ((connect_tries&3)==3))
+	if (((connect_tries&3)==3) != (connect_defaultport==26000))
 	{
 		sizebuf_t sb;
 		memset(&sb, 0, sizeof(sb));
 		sb.data = data;
 		sb.maxsize = sizeof(data);
 
-		Con_TPrintf (TLC_CONNECTINGTO, cls.servername);
-
 		MSG_WriteLong(&sb, LongSwap(NETFLAG_CTL | (strlen(NET_GAMENAME_NQ)+7)));
 		MSG_WriteByte(&sb, CCREQ_CONNECT);
 		MSG_WriteString(&sb, NET_GAMENAME_NQ);
 		MSG_WriteByte(&sb, NET_PROTOCOL_VERSION);
+
+		/*NQ engines have a few extra bits on the end*/
+		/*proquake servers wait for us to send them a packet before anything happens,
+		  which means it corrects for our public port if our nat uses different public ports for different remote ports
+		  thus all nq engines claim to be proquake
+		*/
+
+		MSG_WriteByte(&sb, 1); /*'mod'*/
+		MSG_WriteByte(&sb, 34); /*'mod' version*/
+		MSG_WriteByte(&sb, 0); /*flags*/
+		MSG_WriteLong(&sb, strtoul(password.string, NULL, 0)); /*password*/
+
+		/*so dual-protocol servers can send a more useful reply*/
+		MSG_WriteString(&sb, "getchallenge");
+
+		*(int*)sb.data = LongSwap(NETFLAG_CTL | sb.cursize);
 		NET_SendPacket (NS_CLIENT, sb.cursize, sb.data, adr);
 	}
 	else
 #endif
 	{
-		Con_TPrintf (TLC_CONNECTINGTO, cls.servername);
 		sprintf (data, "%c%c%c%cgetchallenge\n", 255, 255, 255, 255);
 		NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
 	}
@@ -708,24 +755,17 @@ void CL_CheckForResend (void)
 	connect_tries++;
 }
 
-void CL_BeginServerConnect(void)
+void CL_BeginServerConnect(int port)
 {
+	if (!port)
+		port = cl_defaultport.value;
 	SCR_SetLoadingStage(LS_CONNECTION);
 	connect_time = 0;
-	connect_type = 0;
+	connect_defaultport = port;
 	connect_tries = 0;
 	CL_CheckForResend();
 }
-#ifdef NQPROT
-void CLNQ_BeginServerConnect(void)
-{
-	SCR_SetLoadingStage(LS_CONNECTION);
-	connect_time = 0;
-	connect_type = 1;
-	connect_tries = 0;
-	CL_CheckForResend();
-}
-#endif
+
 void CL_BeginServerReconnect(void)
 {
 #ifndef CLIENTONLY
@@ -759,7 +799,7 @@ void CL_Connect_f (void)
 	CL_Disconnect_f ();
 
 	Q_strncpyz (cls.servername, server, sizeof(cls.servername));
-	CL_BeginServerConnect();
+	CL_BeginServerConnect(0);
 }
 
 void CL_Join_f (void)
@@ -787,7 +827,7 @@ void CL_Join_f (void)
 	Cvar_Set(&spectator, "0");
 
 	Q_strncpyz (cls.servername, server, sizeof(cls.servername));
-	CL_BeginServerConnect();
+	CL_BeginServerConnect(0);
 }
 
 void CL_Observe_f (void)
@@ -815,7 +855,7 @@ void CL_Observe_f (void)
 	Cvar_Set(&spectator, "1");
 
 	Q_strncpyz (cls.servername, server, sizeof(cls.servername));
-	CL_BeginServerConnect();
+	CL_BeginServerConnect(0);
 }
 
 #ifdef NQPROT
@@ -834,12 +874,11 @@ void CLNQ_Connect_f (void)
 	CL_Disconnect_f ();
 
 	Q_strncpyz (cls.servername, server, sizeof(cls.servername));
-	CLNQ_BeginServerConnect();
+	CL_BeginServerConnect(26000);
 }
 #endif
 
 #ifdef IRCCONNECT
-struct ftenet_generic_connection_s *FTENET_IRCConnect_EstablishConnection(qboolean isserver, char *address);
 void CL_IRCConnect_f (void)
 {
 	CL_Disconnect_f ();
@@ -851,7 +890,7 @@ void CL_IRCConnect_f (void)
 
 		strcpy(cls.servername, "irc://");
 		Q_strncpyz (cls.servername+6, server, sizeof(cls.servername)-6);
-		CL_BeginServerConnect();
+		CL_BeginServerConnect(0);
 	}
 }
 #endif
@@ -960,9 +999,6 @@ void CL_ClearState (void)
 	Cvar_ApplyLatches(CVAR_SERVEROVERRIDE);
 
 	Con_DPrintf ("Clearing memory\n");
-#ifdef PEXT_BULLETENS
-	WipeBulletenTextures ();
-#endif
 	if (!serverrunning || !tolocalserver)
 	{
 		if (serverrunning)
@@ -978,6 +1014,7 @@ void CL_ClearState (void)
 	CL_ClearParseState();
 	CL_ClearTEnts();
 	CL_ClearCustomTEnts();
+	T_FreeInfoStrings();
 	SCR_ShowPic_Clear();
 
 	if (cl.playernum[0] == -1)
@@ -1016,16 +1053,28 @@ void CL_ClearState (void)
 // wipe the entire cl structure
 	memset (&cl, 0, sizeof(cl));
 
+	cl.fog_density = 0;
+	cl.fog_colour[0] = 0.3;
+	cl.fog_colour[1] = 0.3;
+	cl.fog_colour[2] = 0.3;
+
+	cl.allocated_client_slots = MAX_CLIENTS;
+#ifndef CLIENTONLY
+	if (sv.state)
+		cl.allocated_client_slots = sv.allocated_client_slots;
+#endif
+
 	SZ_Clear (&cls.netchan.message);
 
 	r_worldentity.model = NULL;
 
 // clear other arrays
-	memset (cl_efrags, 0, sizeof(cl_efrags));
 //	memset (cl_dlights, 0, sizeof(cl_dlights));
 	memset (cl_lightstyle, 0, sizeof(cl_lightstyle));
+	for (i = 0; i < MAX_LIGHTSTYLES; i++)
+		cl_lightstyle[i].colour = 7;
 
-	dlights_running = 0;
+	rtlights_first = rtlights_max = RTL_FIRST;
 
 	if (cl_baselines)
 	{
@@ -1033,14 +1082,6 @@ void CL_ClearState (void)
 		cl_baselines = NULL;
 	}
 	cl_baselines_count = 0;
-
-//
-// allocate the efrags and chain together into a free list
-//
-	cl.free_efrags = cl_efrags;
-	for (i=0 ; i<MAX_EFRAGS-1 ; i++)
-		cl.free_efrags[i].entnext = &cl.free_efrags[i+1];
-	cl.free_efrags[i].entnext = NULL;
 
 	for (i = 0; i < MAX_SPLITS; i++)
 		cl.viewheight[i] = DEFAULT_VIEWHEIGHT;
@@ -1050,8 +1091,6 @@ void CL_ClearState (void)
 	cl.oldgametime = 0;
 	cl.gametime = 0;
 	cl.gametimemark = 0;
-
-	CL_RegisterParticles();
 }
 
 /*
@@ -1144,13 +1183,8 @@ void CL_Disconnect (void)
 
 	if (cl.worldmodel)
 	{
-#if defined(RUNTIMELIGHTING) && defined(RGLQUAKE)
-		extern model_t *lightmodel;
-		lightmodel = NULL;
-#endif
-
-		cl.worldmodel->needload=true;
-		cl.worldmodel=NULL;
+		Mod_ClearAll();
+		cl.worldmodel = NULL;
 	}
 
 	if (cls.downloadmethod <= DL_QWPENDING)
@@ -1188,6 +1222,7 @@ void CL_Disconnect (void)
 	cl.spectator = 0;
 	cl.sendprespawn = false;
 	cl.intermission = 0;
+	cl.oldgametime = 0;
 
 #ifdef NQPROT
 	cls.signon=0;
@@ -1244,6 +1279,7 @@ void CL_User_f (void)
 {
 	int		uid;
 	int		i;
+	qboolean found = false;
 
 #ifndef CLIENTONLY
 	if (sv.state)
@@ -1272,10 +1308,11 @@ void CL_User_f (void)
 				Con_Printf("name: %s\ncolour %i %i\nping: %i\n", cl.players[i].name, cl.players[i].rbottomcolor, cl.players[i].rtopcolor, cl.players[i].ping);
 			else
 				Info_Print (cl.players[i].userinfo);
-			return;
+			found = true;
 		}
 	}
-	Con_TPrintf (TLC_USER_NOUSER);
+	if (!found)
+		Con_TPrintf (TLC_USER_NOUSER);
 }
 
 /*
@@ -1310,14 +1347,15 @@ void CL_Color_f (void)
 	// just for quake compatability...
 	int		top, bottom;
 	char	num[16];
+	int  pnum = CL_TargettedSplit(true);
 
 	qboolean server_owns_colour;
 
 	if (Cmd_Argc() == 1)
 	{
 		Con_TPrintf (TLC_COLOURCURRENT,
-			Info_ValueForKey (cls.userinfo, "topcolor"),
-			Info_ValueForKey (cls.userinfo, "bottomcolor") );
+			Info_ValueForKey (cls.userinfo[pnum], "topcolor"),
+			Info_ValueForKey (cls.userinfo[pnum], "bottomcolor") );
 		Con_TPrintf (TLC_SYNTAX_COLOUR);
 		return;
 	}
@@ -1374,9 +1412,6 @@ void CL_CheckServerInfo(void)
 	unsigned int allowed;
 	int oldstate;
 	int oldteamplay;
-	qboolean oldallowshaders;
-
-	oldallowshaders = cls.allow_shaders;
 
 	oldteamplay = cl.teamplay;
 	cl.teamplay = atoi(Info_ValueForKey(cl.serverinfo, "teamplay"));
@@ -1388,7 +1423,6 @@ void CL_CheckServerInfo(void)
 	cls.allow_watervis=false;
 	cls.allow_skyboxes=false;
 	cls.allow_mirrors=false;
-	cls.allow_shaders=false;
 	cls.allow_luma=false;
 	cls.allow_bump=false;
 #ifdef FISH
@@ -1435,17 +1469,11 @@ void CL_CheckServerInfo(void)
 		cls.allow_cheats = true;
 
 	s = Info_ValueForKey(cl.serverinfo, "strict");
-	if ((!cl.spectator && !cls.demoplayback && *s && strcmp(s, "0")) || !ruleset_allow_semicheats.value)
+	if ((!cl.spectator && !cls.demoplayback && *s && strcmp(s, "0")) || !ruleset_allow_semicheats.ival)
 	{
 		cls.allow_semicheats = false;
 		cls.allow_cheats	= false;
 	}
-
-	cls.allow_shaders = cls.allow_cheats;
-
-	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_shaders")))
-		cls.allow_shaders=true;
-
 
 	cls.maxfps = atof(Info_ValueForKey(cl.serverinfo, "maxfps"));
 	if (cls.maxfps < 20)
@@ -1471,10 +1499,20 @@ void CL_CheckServerInfo(void)
 		movevars.stepheight = PM_DEFAULTSTEPHEIGHT;
 
 	// Initialize cl.maxpitch & cl.minpitch
-	s = (cls.z_ext & Z_EXT_PITCHLIMITS) ? Info_ValueForKey (cl.serverinfo, "maxpitch") : "";
-	cl.maxpitch = *s ? Q_atof(s) : 80.0f;
-	s = (cls.z_ext & Z_EXT_PITCHLIMITS) ? Info_ValueForKey (cl.serverinfo, "minpitch") : "";
-	cl.minpitch = *s ? Q_atof(s) : -70.0f;
+	if (cls.protocol == CP_QUAKEWORLD || cls.protocol == CP_NETQUAKE)
+	{
+		s = (cls.z_ext & Z_EXT_PITCHLIMITS) ? Info_ValueForKey (cl.serverinfo, "maxpitch") : "";
+		cl.maxpitch = *s ? Q_atof(s) : 80.0f;
+		s = (cls.z_ext & Z_EXT_PITCHLIMITS) ? Info_ValueForKey (cl.serverinfo, "minpitch") : "";
+		cl.minpitch = *s ? Q_atof(s) : -70.0f;
+	}
+	else
+	{
+		cl.maxpitch = 89.9;
+		cl.minpitch = -89.9;
+	}
+
+	cl.hexen2pickups = atoi(Info_ValueForKey(cl.serverinfo, "sv_pupglow"));
 
 	allowed = atoi(Info_ValueForKey(cl.serverinfo, "allow"));
 	if (allowed & 1)
@@ -1485,8 +1523,7 @@ void CL_CheckServerInfo(void)
 		cls.allow_skyboxes = true;
 	if (allowed & 8)
 		cls.allow_mirrors = true;
-	if (allowed & 16)
-		cls.allow_shaders = true;
+	//16
 	if (allowed & 32)
 		cls.allow_luma = true;
 	if (allowed & 64)
@@ -1513,21 +1550,19 @@ void CL_CheckServerInfo(void)
 
 
 	s = Info_ValueForKey(cl.serverinfo, "status");
-	oldstate = cl.ktprostate;
+	oldstate = cl.matchstate;
 	if (!stricmp(s, "standby"))
-		cl.ktprostate = KTPRO_STANDBY;
+		cl.matchstate = MATCH_STANDBY;
 	else if (!stricmp(s, "countdown"))
-		cl.ktprostate = KTPRO_COUNTDOWN;
+		cl.matchstate = MATCH_COUNTDOWN;
 	else
-		cl.ktprostate = KTPRO_DONTKNOW;
-	if (oldstate != cl.ktprostate)
-		cl.ktprogametime = 0;
+		cl.matchstate = MATCH_DONTKNOW;
+	if (oldstate != cl.matchstate)
+		cl.matchgametime = 0;
 
 	Cvar_ForceCheatVars(cls.allow_semicheats, cls.allow_cheats);
 	Validation_Apply_Ruleset();
 
-	if (oldallowshaders != cls.allow_shaders)
-		Cache_Flush();	//this will cause all models to be reloaded.
 	if (oldteamplay != cl.teamplay)
 		Skin_FlushPlayers();
 }
@@ -1587,6 +1622,7 @@ void CL_FullInfo_f (void)
 	char	value[512];
 	char	*o;
 	char	*s;
+	int pnum = CL_TargettedSplit(true);
 
 	if (Cmd_Argc() != 2)
 	{
@@ -1622,29 +1658,37 @@ void CL_FullInfo_f (void)
 		if (!stricmp(key, pmodel_name) || !stricmp(key, emodel_name))
 			continue;
 
-		Info_SetValueForKey (cls.userinfo, key, value, MAX_INFO_STRING);
+		Info_SetValueForKey (cls.userinfo[pnum], key, value, sizeof(cls.userinfo[pnum]));
 	}
 }
 
-void CL_SetInfo (char *key, char *value)
+void CL_SetInfo (int pnum, char *key, char *value)
 {
 	cvar_t *var;
-	var = Cvar_FindVar(key);
-	if (var && (var->flags & CVAR_USERINFO))
-	{	//get the cvar code to set it. the server might have locked it.
-		Cvar_Set(var, value);
-		return;
+	if (!pnum)
+	{
+		var = Cvar_FindVar(key);
+		if (var && (var->flags & CVAR_USERINFO))
+		{	//get the cvar code to set it. the server might have locked it.
+			Cvar_Set(var, value);
+			return;
+		}
 	}
 
-	Info_SetValueForStarKey (cls.userinfo, key, value, MAX_INFO_STRING);
-	if (cls.state >= ca_connected)
+	Info_SetValueForStarKey (cls.userinfo[pnum], key, value, sizeof(cls.userinfo[pnum]));
+	if (cls.state >= ca_connected && !cls.demoplayback)
 	{
 #ifdef Q2CLIENT
 		if (cls.protocol == CP_QUAKE2 || cls.protocol == CP_QUAKE3)
 			cls.resendinfo = true;
 		else
 #endif
-			Cmd_ForwardToServer ();
+		{
+			if (pnum)
+				CL_SendClientCommand(true, "%i setinfo %s \"%s\"", pnum+1, key, value);
+			else
+				CL_SendClientCommand(true, "setinfo %s \"%s\"", key, value);
+		}
 	}
 }
 /*
@@ -1657,9 +1701,10 @@ Allow clients to change userinfo
 void CL_SetInfo_f (void)
 {
 	cvar_t *var;
+	int pnum = CL_TargettedSplit(true);
 	if (Cmd_Argc() == 1)
 	{
-		Info_Print (cls.userinfo);
+		Info_Print (cls.userinfo[pnum]);
 		return;
 	}
 	if (Cmd_Argc() != 3)
@@ -1679,7 +1724,7 @@ void CL_SetInfo_f (void)
 				char *k;
 				for(i=0;;)
 				{
-					k = Info_KeyForNumber(cls.userinfo, i);
+					k = Info_KeyForNumber(cls.userinfo[pnum], i);
 					if (!*k)
 						break;	//no more.
 					else if (*k == '*')
@@ -1687,7 +1732,7 @@ void CL_SetInfo_f (void)
 					else if ((var = Cvar_FindVar(k)) && var->flags&CVAR_USERINFO)
 						i++;	//this one is a cvar.
 					else
-						Info_RemoveKey(cls.userinfo, k);	//we can remove this one though, so yay.
+						Info_RemoveKey(cls.userinfo[pnum], k);	//we can remove this one though, so yay.
 				}
 
 				return;
@@ -1697,14 +1742,21 @@ void CL_SetInfo_f (void)
 	}
 
 
-	CL_SetInfo(Cmd_Argv(1), Cmd_Argv(2));
+	CL_SetInfo(pnum, Cmd_Argv(1), Cmd_Argv(2));
 }
 
 void CL_SaveInfo(vfsfile_t *f)
 {
+	int i;
 	VFS_WRITE(f, "\n", 1);
-	VFS_WRITE(f, "setinfo * \"\"\n", 13);
-	Info_WriteToFile(f, cls.userinfo, "setinfo", CVAR_USERINFO);
+	for (i = 0; i < MAX_SPLITS; i++)
+	{
+		if (i)
+			VFS_WRITE(f, va("p%i setinfo * \"\"\n", i+1), 16);
+		else
+			VFS_WRITE(f, "setinfo * \"\"\n", 13);
+		Info_WriteToFile(f, cls.userinfo[i], "setinfo", CVAR_USERINFO);
+	}
 }
 
 /*
@@ -1731,7 +1783,7 @@ void CL_Packet_f (void)
 
 	if (!NET_StringToAdr (Cmd_Argv(1), &adr))
 	{
-		Con_TPrintf (TLC_BADADDRESS);
+		Con_Printf ("Bad address: %s\n", Cmd_Argv(1));
 		return;
 	}
 
@@ -1755,7 +1807,7 @@ void CL_Packet_f (void)
 		cls.realserverip = adr;
 		Con_DPrintf ("Sending realip packet\n");
 	}
-	else if (!ruleset_allow_packet.value)
+	else if (!ruleset_allow_packet.ival)
 	{
 		Con_Printf("Sorry, the %s command is disallowed\n", Cmd_Argv(0));
 		return;
@@ -1772,6 +1824,26 @@ void CL_Packet_f (void)
 		if (in[i] == '\\' && in[i+1] == 'n')
 		{
 			*out++ = '\n';
+			i++;
+		}
+		else if (in[i] == '\\' && in[i+1] == '\\')
+		{
+			*out++ = '\\';
+			i++;
+		}
+		else if (in[i] == '\\' && in[i+1] == 'r')
+		{
+			*out++ = '\r';
+			i++;
+		}
+		else if (in[i] == '\\' && in[i+1] == '\"')
+		{
+			*out++ = '\"';
+			i++;
+		}
+		else if (in[i] == '\\' && in[i+1] == '0')
+		{
+			*out++ = '\0';
 			i++;
 		}
 		else
@@ -1818,7 +1890,10 @@ void CL_NextDemo (void)
 		}
 	}
 
-	sprintf (str,"playdemo %s\n", cls.demos[cls.demonum]);
+	if (!strcmp(cls.demos[cls.demonum], "quit"))
+		sprintf (str,"quit\n");
+	else
+		sprintf (str,"playdemo %s\n", cls.demos[cls.demonum]);
 	Cbuf_InsertText (str, RESTRICT_LOCAL, false);
 	cls.demonum++;
 }
@@ -1945,7 +2020,7 @@ void CL_Reconnect_f (void)
 	if (cls.downloadqw)  // don't change when downloading
 		return;
 #ifdef NQPROT
-	if (cls.protocol == CP_NETQUAKE)
+	if (cls.protocol == CP_NETQUAKE && Cmd_FromGamecode())
 	{
 		CL_Changing_f();
 		return;
@@ -1983,7 +2058,7 @@ void CL_ConnectionlessPacket (void)
 	int		c;
 	char	adr[MAX_ADR_SIZE];
 
-    MSG_BeginReading ();
+    MSG_BeginReading (msg_nullnetprim);
     MSG_ReadLong ();        // skip the -1
 
 	Cmd_TokenizeString(net_message.data+4, false, false);
@@ -2060,7 +2135,7 @@ void CL_ConnectionlessPacket (void)
 
 	if (c == S2C_CHALLENGE)
 	{
-		unsigned long pext = 0, huffcrc=0;
+		unsigned long pext = 0, pext2 = 0, huffcrc=0;
 		Con_TPrintf (TLC_S2C_CHALLENGE);
 
 		s = MSG_ReadString ();
@@ -2072,7 +2147,7 @@ void CL_ConnectionlessPacket (void)
 			{
 				cls.protocol = CP_QUAKE3;
 				cls.challenge = atoi(s+17);
-				CL_SendConnectPacket (0, 0/*, ...*/);
+				CL_SendConnectPacket (0, 0, 0/*, ...*/);
 			}
 			else
 			{
@@ -2150,6 +2225,16 @@ void CL_ConnectionlessPacket (void)
 				break;
 			if (c == PROTOCOL_VERSION_FTE)
 				pext = MSG_ReadLong ();
+			else if (c == PROTOCOL_VERSION_FTE2)
+				pext2 = MSG_ReadLong ();
+			else if (c == PROTOCOL_VERSION_VARLENGTH)
+			{
+				int len = MSG_ReadLong();
+				if (len < 0 || len > 8192)
+					break;
+				c = MSG_ReadLong();/*ident*/
+				MSG_ReadSkip(len); /*payload*/
+			}
 #ifdef HUFFNETWORK
 			else if (c == (('H'<<0) + ('U'<<8) + ('F'<<16) + ('F' << 24)))
 				huffcrc = MSG_ReadLong ();
@@ -2158,7 +2243,7 @@ void CL_ConnectionlessPacket (void)
 			else
 				MSG_ReadLong ();
 		}
-		CL_SendConnectPacket (pext, huffcrc/*, ...*/);
+		CL_SendConnectPacket (pext, pext2, huffcrc/*, ...*/);
 		return;
 	}
 #ifdef Q2CLIENT
@@ -2227,6 +2312,7 @@ void CL_ConnectionlessPacket (void)
 
 			cls.netchan.isnqprotocol = true;
 			cls.protocol = CP_NETQUAKE;
+			cls.protocol_nq = CPNQ_ID;
 
 			cls.demonum = -1;			// not in the demo loop now
 			cls.state = ca_connected;
@@ -2365,7 +2451,7 @@ void CLNQ_ConnectionlessPacket(void)
 	char *s;
 	int length;
 
-	MSG_BeginReading ();
+	MSG_BeginReading (msg_nullnetprim);
 	length = LongSwap(MSG_ReadLong ());
 	if (!(length & NETFLAG_CTL))
 		return;	//not an nq control packet.
@@ -2385,15 +2471,18 @@ void CLNQ_ConnectionlessPacket(void)
 		//this is the port that we're meant to respond to.
 		net_from.port = htons((short)MSG_ReadLong());
 
+		cls.protocol_nq = CPNQ_ID;
 		if (MSG_ReadByte() == 1)	//a proquake server adds a little extra info
 		{
 			int ver = MSG_ReadByte();
 			Con_Printf("ProQuake server %i.%i\n", ver/10, ver%10);
 
+			if (ver >= 34)
+				cls.protocol_nq = CPNQ_PROQUAKE3_4;
 			if (MSG_ReadByte() == 1)
 			{
 				//its a 'pure' server.
-				Con_Printf("ProQuake sucks\nGo play on a decent server.\n");
+				Con_Printf("pure ProQuake server\n");
 				return;
 			}
 		}
@@ -2416,7 +2505,7 @@ void CLNQ_ConnectionlessPacket(void)
 
 		//send a dummy packet.
 		//this makes our local nat think we initialised the conversation.
-		NET_SendPacket(NS_CLIENT, 0, "", net_from);
+		Netchan_Transmit(&cls.netchan, 1, "\x01", 2500);
 		return;
 
 	case CCREP_REJECT:
@@ -2477,7 +2566,7 @@ void CL_ReadPackets (void)
 #ifdef NQPROT
 		if (cls.demoplayback == DPB_NETQUAKE)
 		{
-			MSG_BeginReading ();
+			MSG_BeginReading (cls.netchan.netprim);
 			cls.netchan.last_received = realtime;
 			CLNQ_ParseServerMessage ();
 
@@ -2489,7 +2578,7 @@ void CL_ReadPackets (void)
 #ifdef Q2CLIENT
 		if (cls.demoplayback == DPB_QUAKE2)
 		{
-			MSG_BeginReading ();
+			MSG_BeginReading (cls.netchan.netprim);
 			cls.netchan.last_received = realtime;
 			CLQ2_ParseServerMessage ();
 			continue;
@@ -2540,6 +2629,7 @@ void CL_ReadPackets (void)
 			case NQP_DATAGRAM://datagram
 				cls.netchan.incoming_sequence = cls.netchan.outgoing_sequence - 3;
 			case NQP_RELIABLE://reliable
+				MSG_ChangePrimitives(cls.netchan.netprim);
 				CLNQ_ParseServerMessage ();
 				break;
 			}
@@ -2552,17 +2642,17 @@ void CL_ReadPackets (void)
 			if (!Netchan_Process(&cls.netchan))
 				continue;		// wasn't accepted for some reason
 			CLQ2_ParseServerMessage ();
+			break;
 #endif
 		case CP_QUAKE3:
 #ifdef Q3CLIENT
 			CLQ3_ParseServerMessage();
 #endif
 			break;
-			break;
 		case CP_QUAKEWORLD:
 			if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 			{
-				MSG_BeginReading();
+				MSG_BeginReading(cls.netchan.netprim);
 				cls.netchan.last_received = realtime;
 				cls.netchan.outgoing_sequence = cls.netchan.incoming_sequence;
 			}
@@ -2574,6 +2664,7 @@ void CL_ReadPackets (void)
 				Con_Printf("Server is from the future! (%i packets)\n", cls.netchan.incoming_sequence - cls.netchan.outgoing_sequence);
 				cls.netchan.outgoing_sequence = cls.netchan.incoming_sequence;
 			}
+			MSG_ChangePrimitives(cls.netchan.netprim);
 			CL_ParseServerMessage ();
 			break;
 		case CP_UNKNOWN:
@@ -2590,9 +2681,15 @@ void CL_ReadPackets (void)
 	if (cls.state >= ca_connected
 	 && realtime - cls.netchan.last_received > cl_timeout.value)
 	{
-		Con_TPrintf (TLC_SERVERTIMEOUT);
-		CL_Disconnect ();
-		return;
+#ifndef CLIENTONLY
+		/*don't timeout when we're the actual server*/
+		if (!sv.state)
+#endif
+		{
+			Con_TPrintf (TLC_SERVERTIMEOUT);
+			CL_Disconnect ();
+			return;
+		}
 	}
 
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
@@ -2682,8 +2779,11 @@ void CL_DownloadSize_f(void)
 	}
 	else if (!strcmp(size, "p"))
 	{
-		Con_Printf("Download of \"%s\" failed. Not allowed.\n", rname);
-		CL_DownloadFailed(rname);
+		if (stricmp(cls.downloadremotename, rname))
+		{
+			Con_Printf("Download of \"%s\" failed. Not allowed.\n", rname);
+			CL_DownloadFailed(rname);
+		}
 	}
 	else if (!strcmp(size, "r"))
 	{
@@ -2691,7 +2791,7 @@ void CL_DownloadSize_f(void)
 
 		dl = CL_DownloadFailed(rname);
 
-		if (allow_download_redirection.value)
+		if (allow_download_redirection.ival)
 		{
 			Con_DPrintf("Download of \"%s\" redirected to \"%s\".\n", rname, redirection);
 			CL_CheckOrEnqueDownloadFile(redirection, NULL, dl->flags);
@@ -2706,6 +2806,7 @@ void CL_DownloadSize_f(void)
 			if (!strcmp(dl->rname, rname))
 			{
 				dl->size = strtoul(size, NULL, 0);
+				dl->flags &= ~DLLF_SIZEUNKNOWN;
 				return;
 			}
 		}
@@ -2809,13 +2910,32 @@ void CL_ServerInfo_f(void)
 }
 #endif
 
-
+/*
 #ifdef WEBCLIENT
 void CL_FTP_f(void)
 {
 	FTP_Client_Command(Cmd_Args(), NULL);
 }
 #endif
+*/
+
+void CL_Fog_f(void)
+{
+	if (Cmd_Argc() <= 1)
+	{
+		Con_Printf("Current fog %f (r:%f g:%f b:%f)\n", cl.fog_density, cl.fog_colour[0], cl.fog_colour[1], cl.fog_colour[2]);
+	}
+	else
+	{
+		cl.fog_density = atof(Cmd_Argv(1));
+		if (Cmd_Argc() > 5)
+		{
+			cl.fog_colour[0] = atof(Cmd_Argv(2));
+			cl.fog_colour[1] = atof(Cmd_Argv(3));
+			cl.fog_colour[2] = atof(Cmd_Argv(4));
+		}
+	}
+}
 
 void CL_Skygroup_f(void);
 void SCR_ShowPic_Script_f(void);
@@ -2831,12 +2951,13 @@ void CL_Init (void)
 	extern void CL_SayTeam_f (void);
 	extern	cvar_t		baseskin;
 	extern	cvar_t		noskins;
-	char st[80];
 
 	cls.state = ca_disconnected;
 
-	sprintf (st, "%s %i", DISTRIBUTION, build_number());
-	Info_SetValueForStarKey (cls.userinfo, "*ver", st, MAX_INFO_STRING);
+	Info_SetValueForStarKey (cls.userinfo[0], "*ver", version_string(), sizeof(cls.userinfo[0]));
+	Info_SetValueForStarKey (cls.userinfo[1], "*ss", "1", sizeof(cls.userinfo[1]));
+	Info_SetValueForStarKey (cls.userinfo[2], "*ss", "1", sizeof(cls.userinfo[2]));
+	Info_SetValueForStarKey (cls.userinfo[3], "*ss", "1", sizeof(cls.userinfo[3]));
 
 	InitValidation();
 
@@ -2844,6 +2965,7 @@ void CL_Init (void)
 	CL_InitTEnts ();
 	CL_InitPrediction ();
 	CL_InitCam ();
+	CL_InitDlights();
 	PM_Init ();
 	TP_Init();
 
@@ -2862,6 +2984,7 @@ void CL_Init (void)
 
 	Cvar_Register (&cfg_save_name, cl_controlgroup);
 
+	Cvar_Register (&cl_defaultport, cl_controlgroup);
 	Cvar_Register (&cl_servername, cl_controlgroup);
 	Cvar_Register (&cl_serveraddress, cl_controlgroup);
 	Cvar_Register (&cl_demospeed, "Demo playback");
@@ -2892,7 +3015,6 @@ void CL_Init (void)
 	Cvar_Register (&rcon_address,	cl_controlgroup);
 
 	Cvar_Register (&entlatency,	cl_predictiongroup);
-	Cvar_Register (&cl_predict_players2,	cl_predictiongroup);
 	Cvar_Register (&cl_predict_players,	cl_predictiongroup);
 	Cvar_Register (&cl_solid_players,	cl_predictiongroup);
 
@@ -2908,6 +3030,7 @@ void CL_Init (void)
 
 	Cvar_Register (&cl_staticsounds, "Item effects");
 
+	Cvar_Register (&r_torch, "Item effects");
 	Cvar_Register (&r_rocketlight, "Item effects");
 	Cvar_Register (&r_lightflicker, "Item effects");
 	Cvar_Register (&cl_r2g, "Item effects");
@@ -2923,6 +3046,7 @@ void CL_Init (void)
 	Cvar_Register (&r_drawflame, "Item effects");
 
 	Cvar_Register (&allow_download_csprogs, cl_controlgroup);
+	Cvar_Register (&allow_download_redirection, cl_controlgroup);
 
 	//
 	// info mirrors
@@ -2963,9 +3087,10 @@ void CL_Init (void)
 	Cvar_Register (&cl_loopbackprotocol,				cl_controlgroup);
 #endif
 	Cvar_Register (&cl_countpendingpl,				cl_controlgroup);
-	Cvar_Register (&cl_indepphysics,				cl_controlgroup);
+	Cvar_Register (&cl_threadedphysics,				cl_controlgroup);
 	Cvar_Register (&cl_antibunch,					"evil hacks");
 	Cvar_Register (&hud_tracking_show,				"statusbar");
+	Cvar_Register (&cl_download_mapsrc,				cl_controlgroup);
 
 	Cvar_Register (&cl_dlemptyterminate,				cl_controlgroup);
 
@@ -2987,12 +3112,13 @@ void CL_Init (void)
 	Cvar_Register (&ruleset_allow_modified_eyes,			cl_controlgroup);
 	Cvar_Register (&ruleset_allow_sensative_texture_replacements,	cl_controlgroup);
 	Cvar_Register (&ruleset_allow_localvolume,			cl_controlgroup);
+	Cvar_Register (&ruleset_allow_shaders,			cl_controlgroup);
 
 	Cvar_Register (&qtvcl_forceversion1,				cl_controlgroup);
 	Cvar_Register (&qtvcl_eztvextensions,				cl_controlgroup);
-#ifdef WEBCLIENT
-	Cmd_AddCommand ("ftp", CL_FTP_f);
-#endif
+//#ifdef WEBCLIENT
+//	Cmd_AddCommand ("ftp", CL_FTP_f);
+//#endif
 
 	Cmd_AddCommand ("changing", CL_Changing_f);
 	Cmd_AddCommand ("disconnect", CL_Disconnect_f);
@@ -3061,6 +3187,7 @@ void CL_Init (void)
 
 	Cmd_AddCommand ("topten", NULL);
 
+	Cmd_AddCommand ("fog", CL_Fog_f);
 	Cmd_AddCommand ("kill", NULL);
 	Cmd_AddCommand ("pause", NULL);
 	Cmd_AddCommand ("say", CL_Say_f);
@@ -3222,8 +3349,7 @@ extern cvar_t cl_sparemsec;
 
 int		nopacketcount;
 void SNDDMA_SetUnderWater(qboolean underwater);
-float CL_FilterTime (double time, float wantfps);
-void Host_Frame (double time)
+float Host_Frame (double time)
 {
 	static double		time1 = 0;
 	static double		time2 = 0;
@@ -3232,11 +3358,13 @@ void Host_Frame (double time)
 //	float fps;
 	double realframetime;
 	static double spare;
+	float maxfps;
+	qboolean maxfpsignoreserver;
 
 	RSpeedLocals();
 
 	if (setjmp (host_abort) )
-		return;			// something bad happened, or the server disconnected
+		return 0;			// something bad happened, or the server disconnected
 
 	realframetime = time = Media_TweekCaptureFrameTime(time);
 
@@ -3244,9 +3372,12 @@ void Host_Frame (double time)
 //		realframetime *= cl_demospeed.value; // this probably screws up other timings
 
 #ifndef CLIENTONLY
-	RSpeedRemark();
-	SV_Frame();
-	RSpeedEnd(RSPEED_SERVER);
+	if (sv.state)
+	{
+		RSpeedRemark();
+		SV_Frame();
+		RSpeedEnd(RSPEED_SERVER);
+	}
 #endif
 
 	if (cl.gamespeed<0.1)
@@ -3254,7 +3385,7 @@ void Host_Frame (double time)
 	time *= cl.gamespeed;
 
 #ifdef WEBCLIENT
-	FTP_ClientThink();
+//	FTP_ClientThink();
 	HTTP_CL_Think();
 #endif
 
@@ -3270,11 +3401,6 @@ void Host_Frame (double time)
 	if (cl.paused)
 		cl.gametimemark += time;
 
-
-#ifdef VOICECHAT
-	CLVC_Poll();
-#endif
-
 /*
 	if (cl_maxfps.value)
 		fps = cl_maxfps.value;//max(30.0, min(cl_maxfps.value, 72.0));
@@ -3286,30 +3412,41 @@ void Host_Frame (double time)
 
 	*/
 	Mod_Think();	//think even on idle (which means small walls and a fast cpu can get more surfaces done.
-	if ((cl_netfps.value>0 || cls.demoplayback || cl_indepphysics.value))
+
+	if ((cl_netfps.value>0 || cls.demoplayback || cl_threadedphysics.ival))
 	{	//limit the fps freely, and expect the netfps to cope.
-		if (cl_maxfps.value > 0)
-			if ((realtime - oldrealtime) < 1/cl_maxfps.value)
-				return;
+		maxfpsignoreserver = true;
+		maxfps = cl_maxfps.ival;
 	}
 	else
 	{
+		maxfpsignoreserver = false;
+		maxfps = (cl_maxfps.ival>0||cls.protocol!=CP_QUAKEWORLD)?cl_maxfps.value:((cl_netfps.value>0)?cl_netfps.value:cls.maxfps);
+		/*gets buggy at times longer than 250ms (and 0/negative, obviously)*/
+		if (maxfps < 4)
+			maxfps = 4;
+	}
+
+	if (maxfps > 0)
+	{
 		realtime += spare/1000;	//don't use it all!
-		spare = CL_FilterTime((realtime - oldrealtime)*1000, (cl_maxfps.value>0||cls.protocol!=CP_QUAKEWORLD)?cl_maxfps.value:cl_netfps.value);
+		spare = CL_FilterTime((realtime - oldrealtime)*1000, maxfps, maxfpsignoreserver);
 		if (!spare)
-			return;
+			return 1;
 		if (spare < 0 || cls.state < ca_onserver)
 			spare = 0;	//uncapped.
-		if (spare > cl_sparemsec.value)
-			spare = cl_sparemsec.value;
+		if (spare > cl_sparemsec.ival)
+			spare = cl_sparemsec.ival;
 
 		realtime -= spare/1000;	//don't use it all!
 	}
+	else
+		spare = 0;
 
 	host_frametime = (realtime - oldrealtime)*cl.gamespeed;
 	if (!cl.paused)
 	{
-		cl.ktprogametime += host_frametime;
+		cl.matchgametime += host_frametime;
 	}
 	oldrealtime = realtime;
 
@@ -3336,14 +3473,14 @@ void Host_Frame (double time)
 
 #ifndef CLIENTONLY
 	if (isDedicated)	//someone changed it.
-		return;
+		return true;
 #endif
 
 	cls.framecount++;
 
 	RSpeedRemark();
 
-	CL_UseIndepPhysics(!!cl_indepphysics.value);
+	CL_UseIndepPhysics(!!cl_threadedphysics.ival);
 
 	CL_AllowIndependantSendCmd(false);
 
@@ -3359,7 +3496,7 @@ void Host_Frame (double time)
 	}
 	else
 	{
-		CL_SendCmd (host_frametime/cl.gamespeed, true);
+		CL_SendCmd (cl.gamespeed?host_frametime/cl.gamespeed:host_frametime, true);
 
 		if (cls.state == ca_onserver && cl.validsequence && cl.worldmodel)
 		{	// first update is the final signon stage
@@ -3371,7 +3508,7 @@ void Host_Frame (double time)
 	RSpeedEnd(RSPEED_PROTOCOL);
 
 	// update video
-	if (host_speeds.value)
+	if (host_speeds.ival)
 		time1 = Sys_DoubleTime ();
 
 	if (SCR_UpdateScreen)
@@ -3379,7 +3516,7 @@ void Host_Frame (double time)
 		extern mleaf_t	*r_viewleaf;
 		extern cvar_t scr_chatmodecvar;
 
-		if (scr_chatmodecvar.value && !cl.intermission)
+		if (scr_chatmodecvar.ival && !cl.intermission)
 			scr_chatmode = (cl.spectator&&cl.splitclients<2&&cls.state == ca_active)?2:1;
 		else
 			scr_chatmode = 0;
@@ -3391,7 +3528,7 @@ void Host_Frame (double time)
 			SNDDMA_SetUnderWater(false);
 	}
 
-	if (host_speeds.value)
+	if (host_speeds.ival)
 		time2 = Sys_DoubleTime ();
 
 	// update audio
@@ -3402,17 +3539,17 @@ void Host_Frame (double time)
 		if (cls.state == ca_active)
 		{
 			if (cls.protocol != CP_QUAKE3)
-				S_UpdateListener (r_origin, vpn, vright, vup, false);
+				S_UpdateListener (r_origin, vpn, vright, vup);
 		}
 		else
-			S_UpdateListener (vec3_origin, vec3_origin, vec3_origin, vec3_origin, false);
-	}
+			S_UpdateListener (vec3_origin, vec3_origin, vec3_origin, vec3_origin);
 
-	S_ExtraUpdate ();
+		S_Update ();
+	}
 
 	CDAudio_Update();
 
-	if (host_speeds.value)
+	if (host_speeds.ival)
 	{
 		pass1 = (time1 - time3)*1000;
 		time3 = Sys_DoubleTime ();
@@ -3436,6 +3573,8 @@ void Host_Frame (double time)
 	CL_QTVPoll();
 
 	TP_UpdateAutoStatus();
+
+	return 0;
 }
 
 static void simple_crypt(char *buf, int len)
@@ -3508,7 +3647,11 @@ void Host_Init (quakeparms_t *parms)
 	if (parms->memsize < MINIMUM_MEMORY)
 		Sys_Error ("Only %4.1f megs of memory reported, can't execute game", parms->memsize / (float)0x100000);
 
+	Cvar_Init();
 	Memory_Init (parms->membase, parms->memsize);
+
+	/*memory is working, its safe to printf*/
+	Con_Init ();
 
 	Sys_Init();
 
@@ -3529,28 +3672,13 @@ void Host_Init (quakeparms_t *parms)
 
 //	W_LoadWadFile ("gfx.wad");
 	Key_Init ();
-	Con_Init ();
 	M_Init ();
-
-	//fixme: this difference needs to go.
-#ifndef _WIN32
 	IN_Init ();
-	CDAudio_Init ();
-
 	S_Init ();
-
-	cls.state = ca_disconnected;
-	Sbar_Init ();
-	CL_Init ();
-#else
-	S_Init ();
-
 	cls.state = ca_disconnected;
 	CDAudio_Init ();
 	Sbar_Init ();
 	CL_Init ();
-	IN_Init ();
-#endif
 
 	TranslateInit();
 #ifndef CLIENTONLY
@@ -3563,6 +3691,9 @@ void Host_Init (quakeparms_t *parms)
 #ifdef PLUGINS
 	Plug_Init();
 #endif
+#ifdef VM_UI
+	UI_Init();
+#endif
 
 #ifdef CL_MASTER
 	Master_SetupSockets();
@@ -3573,12 +3704,12 @@ void Host_Init (quakeparms_t *parms)
 #endif
 
 	//	Con_Printf ("Exe: "__TIME__" "__DATE__"\n");
-	Con_TPrintf (TL_HEAPSIZE, parms->memsize/ (1024*1024.0));
+	//Con_TPrintf (TL_HEAPSIZE, parms->memsize/ (1024*1024.0));
 
 	Hunk_AllocName (0, "-HOST_HUNKLEVEL-");
 	host_hunklevel = Hunk_LowMark ();
 
-	R_SetRenderer(-1);//set the renderer stuff to unset...
+	R_SetRenderer(NULL);//set the renderer stuff to unset...
 
 	host_initialized = true;
 
@@ -3591,10 +3722,7 @@ void Host_FinishInit(void)
 	int qrc, hrc, def;
 #endif
 
-
 	Cbuf_AddText ("cl_warncmd 0\n", RESTRICT_LOCAL);
-
-	Cbuf_AddText ("+mlook\n", RESTRICT_LOCAL);		//fixme: this is bulky, only exec one of these.
 
 	//who should we imitate?
 	qrc = COM_FDepthFile("quake.rc", true);	//q1
@@ -3609,15 +3737,22 @@ void Host_FinishInit(void)
 	{	//they didn't give us an rc file!
 		Cbuf_AddText ("bind ~ toggleconsole\n", RESTRICT_LOCAL);	//we expect default.cfg to not exist. :(
 		Cbuf_AddText ("exec default.cfg\n", RESTRICT_LOCAL);
-		Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);
+		if (COM_FCheckExists ("config.cfg"))
+			Cbuf_AddText ("exec config.cfg\n", RESTRICT_LOCAL);
 		if (COM_FCheckExists ("q3config.cfg"))
 			Cbuf_AddText ("exec q3config.cfg\n", RESTRICT_LOCAL);
 		Cbuf_AddText ("exec autoexec.cfg\n", RESTRICT_LOCAL);
 	}
 	Cbuf_AddText ("exec fte.cfg\n", RESTRICT_LOCAL);
+
+	if (COM_FCheckExists ("frontend.cfg"))
+		Cbuf_AddText ("exec frontend.cfg\n", RESTRICT_LOCAL);
 	Cbuf_AddText ("cl_warncmd 1\n", RESTRICT_LOCAL);	//and then it's allowed to start moaning.
 
-
+	{
+		extern cvar_t com_parseutf8;
+		com_parseutf8.ival = com_parseutf8.value;
+	}
 
 	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
 
@@ -3657,31 +3792,14 @@ void Host_FinishInit(void)
 	Cmd_StuffCmds();
 	Cbuf_Execute ();	//if the server initialisation causes a problem, give it a place to abort to
 
-
-	Cvar_ApplyLatches(CVAR_RENDERERLATCH);
-
-//-1 means 'never set'
-	if (qrenderer == -1 && *vid_renderer.string)
-	{
-		Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
-	}
-	if (qrenderer == -1)
-	{	//we still failed. Try again, but use the default renderer.
-		Cvar_Set(&vid_renderer, "");
-		Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
-	}
-	if (qrenderer == -1)
-		Sys_Error("No renderer was set!\n");
-
-	if (qrenderer == QR_NONE)
-		Con_Printf("Use the setrenderer command to use a gui\n");
+	Renderer_Start();
 
 #ifdef VM_UI
-	UI_Init();
+	UI_Start();
 #endif
 
 #ifndef NOMEDIA
-	if (!cls.demofile && !cls.state && !Media_PlayingFullScreen())
+	if (!cls.demoinfile && !cls.state && !Media_PlayingFullScreen())
 	{
 		int ol_depth;
 		int idcin_depth;
@@ -3701,7 +3819,7 @@ void Host_FinishInit(void)
 #endif
 
 Con_TPrintf (TL_NL);
-	Con_TPrintf (TL_VERSION, DISTRIBUTION, build_number());
+	Con_Printf ("%s", version_string());
 Con_TPrintf (TL_NL);
 
 	Con_TPrintf (TLC_QUAKEWORLD_INITED);
@@ -3717,8 +3835,10 @@ Con_TPrintf (TL_NL);
 				"\n"
 				"See the GNU General Public License for more details.\n");
 
+	realtime+=1;
+	Cbuf_Execute ();	//server may have been waiting for the renderer
 
-	if (!*cls.servername)
+	if (!cls.demoinfile && !*cls.servername)
 	{
 #ifndef CLIENTONLY
 		if (!sv.state)
@@ -3748,6 +3868,11 @@ void Host_Shutdown(void)
 	}
 	host_initialized = false;
 
+	//disconnect server/client/etc
+	CL_Disconnect_f();
+	//Kill renderer
+	R_ShutdownRenderer();
+
 #ifdef VM_UI
 	UI_Stop();
 #endif
@@ -3758,6 +3883,8 @@ void Host_Shutdown(void)
 	S_Shutdown();
 	IN_Shutdown ();
 	R_ShutdownRenderer();
+	CL_FreeDlights();
+	M_Shutdown();
 #ifndef CLIENTONLY
 	SV_Shutdown();
 #else
@@ -3769,12 +3896,14 @@ void Host_Shutdown(void)
 	Validation_FlushFileList();
 
 	Cmd_Shutdown();
+	Con_Shutdown();
 	Memory_DeInit();
 
 #ifndef CLIENTONLY
 	memset(&sv, 0, sizeof(sv));
 	memset(&svs, 0, sizeof(svs));
 #endif
+	Sys_Shutdown();
 }
 
 #ifdef CLIENTONLY

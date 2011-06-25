@@ -23,6 +23,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <stdlib.h>
 #include <stdarg.h>
 
+#if _MSC_VER >= 1300
+	#define vsnprintf q_vsnprintf /*msvc doesn't null terminate. its insecute and thus useless*/
+#endif
+
 static int vsnprintf_calcsize(const char *fmt, va_list va)
 {
 	void *mem;

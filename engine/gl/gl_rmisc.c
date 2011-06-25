@@ -20,48 +20,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // r_misc.c
 
 #include "quakedef.h"
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 #include "glquake.h"
 #include "gl_draw.h"
 
-void R_ReloadRTLights_f(void);
-
-
-#ifdef WATERLAYERS
-cvar_t	r_waterlayers = SCVAR("r_waterlayers","");
-#endif
+static void R_ReloadRTLights_f(void);
+static void R_SaveRTLights_f(void);
 
 extern void R_InitBubble();
-
-//SW rendering has a faster method, which takes more memory and stuff.
-//We need this for minor things though, so we'5ll just use the slow accurate method.
-//this is unlikly to be called very often.			
-qbyte GetPaletteIndex(int red, int green, int blue)
-{
-	//slow, horrible method.
-	{
-		int i, best=15;
-		int bestdif=256*256*256, curdif;
-		extern qbyte *host_basepal;
-		qbyte *pa;
-
-	#define _abs(x) ((x)*(x))
-
-		pa = host_basepal;
-		for (i = 0; i < 256; i++, pa+=3)
-		{
-			curdif = _abs(red - pa[0]) + _abs(green - pa[1]) + _abs(blue - pa[2]);
-			if (curdif < bestdif)
-			{
-				if (curdif<1)
-					return i;
-				bestdif = curdif;
-				best = i;
-			}
-		}
-		return best;
-	}
-}
 
 /*
 ==================
@@ -95,210 +61,6 @@ void	GLR_InitTextures (void)
 			}
 	}	
 }*/
-//we could go for nice smooth round particles... but then we would loose a little bit of the chaotic nature of the particles.
-static qbyte	dottexture[8][8] =
-{
-	{0,0,0,0,0,0,0,0},
-	{0,0,0,1,1,0,0,0},
-	{0,0,1,1,1,1,0,0},
-	{0,1,1,1,1,1,1,0},
-	{0,1,1,1,1,1,1,0},
-	{0,0,1,1,1,1,0,0},
-	{0,0,0,1,1,0,0,0},
-	{0,0,0,0,0,0,0,0},
-};
-static qbyte	exptexture[16][16] =
-{
-	{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-	{0,0,0,0,1,0,0,0,1,0,0,1,0,0,0,0},
-	{0,0,0,1,1,1,1,1,3,1,1,2,1,0,0,0},
-	{0,0,0,1,1,1,1,4,4,4,5,4,2,1,1,0},
-	{0,0,1,1,6,5,5,8,6,8,3,6,3,2,1,0},
-	{0,0,1,5,6,7,5,6,8,8,8,3,3,1,0,0},
-	{0,0,0,1,6,8,9,9,9,9,4,6,3,1,0,0},
-	{0,0,2,1,7,7,9,9,9,9,5,3,1,0,0,0},
-	{0,0,2,4,6,8,9,9,9,9,8,6,1,0,0,0},
-	{0,0,2,2,3,5,6,8,9,8,8,4,4,1,0,0},
-	{0,0,1,2,4,1,8,7,8,8,6,5,4,1,0,0},
-	{0,1,1,1,7,8,1,6,7,5,4,7,1,0,0,0},
-	{0,1,2,1,1,5,1,3,4,3,1,1,0,0,0,0},
-	{0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0},
-	{0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0},
-	{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
-};
-
-void R_InitParticleTexture (void)
-{
-#define PARTICLETEXTURESIZE 64
-	int		x,y;
-	float dx, dy, d;
-	qbyte	data[PARTICLETEXTURESIZE*PARTICLETEXTURESIZE][4];
-
-	//
-	// particle texture
-	//
-	particletexture = GL_AllocNewTexture();
-    GL_Bind(particletexture);
-
-	for (x=0 ; x<8 ; x++)
-	{
-		for (y=0 ; y<8 ; y++)
-		{
-			data[y*8+x][0] = 255;
-			data[y*8+x][1] = 255;
-			data[y*8+x][2] = 255;
-			data[y*8+x][3] = dottexture[x][y]*255;
-		}
-	}
-	qglTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, 8, 8, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-
-	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-
-	//
-	// particle triangle texture
-	//
-	particlecqtexture = GL_AllocNewTexture();
-    GL_Bind(particlecqtexture);
-
-	// clear to transparent white
-	for (x = 0; x < 32 * 32; x++)
-	{
-			data[x][0] = 255;
-			data[x][1] = 255;
-			data[x][2] = 255;
-			data[x][3] = 0;
-	}
-	//draw a circle in the top left.
-	for (x=0 ; x<16 ; x++)
-	{
-		for (y=0 ; y<16 ; y++)
-		{
-			if ((x - 7.5) * (x - 7.5) + (y - 7.5) * (y - 7.5) <= 8 * 8)
-				data[y*32+x][3] = 255;
-		}
-	}
-	qglTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, 32, 32, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-
-	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-
-
-
-
-	explosiontexture = GL_AllocNewTexture();
-    GL_Bind(explosiontexture);
-
-	for (x=0 ; x<16 ; x++)
-	{
-		for (y=0 ; y<16 ; y++)
-		{
-			data[y*16+x][0] = 255;
-			data[y*16+x][1] = 255;
-			data[y*16+x][2] = 255;
-			data[y*16+x][3] = exptexture[x][y]*255/9.0;
-		}
-	}
-	qglTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, 16, 16, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-
-	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-
-	memset(data, 255, sizeof(data));
-	for (y = 0;y < PARTICLETEXTURESIZE;y++)
-	{
-		dy = (y - 0.5f*PARTICLETEXTURESIZE) / (PARTICLETEXTURESIZE*0.5f-1);
-		for (x = 0;x < PARTICLETEXTURESIZE;x++)
-		{
-			dx = (x - 0.5f*PARTICLETEXTURESIZE) / (PARTICLETEXTURESIZE*0.5f-1);
-			d = 256 * (1 - (dx*dx+dy*dy));
-			d = bound(0, d, 255);
-			data[y*PARTICLETEXTURESIZE+x][3] = (qbyte) d;
-		}
-	}
-	balltexture = GL_AllocNewTexture();
-    GL_Bind(balltexture);
-	qglTexImage2D (GL_TEXTURE_2D, 0, gl_alpha_format, PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-	qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-}
-
-/*
-===============
-R_Envmap_f
-
-Grab six views for environment mapping tests
-===============
-*/
-void R_Envmap_f (void)
-{
-	qbyte	buffer[256*256*4];
-
-	qglDrawBuffer  (GL_FRONT);
-	qglReadBuffer  (GL_FRONT);
-	envmap = true;
-
-	r_refdef.vrect.x = 0;
-	r_refdef.vrect.y = 0;
-	r_refdef.vrect.width = 256;
-	r_refdef.vrect.height = 256;
-
-	r_refdef.viewangles[0] = 0;
-	r_refdef.viewangles[1] = 0;
-	r_refdef.viewangles[2] = 0;
-	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
-	R_RenderView ();
-	qglReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
-	COM_WriteFile ("env0.rgb", buffer, sizeof(buffer));		
-
-	r_refdef.viewangles[1] = 90;
-	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
-	R_RenderView ();
-	qglReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
-	COM_WriteFile ("env1.rgb", buffer, sizeof(buffer));		
-
-	r_refdef.viewangles[1] = 180;
-	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
-	R_RenderView ();
-	qglReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
-	COM_WriteFile ("env2.rgb", buffer, sizeof(buffer));		
-
-	r_refdef.viewangles[1] = 270;
-	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
-	R_RenderView ();
-	qglReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
-	COM_WriteFile ("env3.rgb", buffer, sizeof(buffer));		
-
-	r_refdef.viewangles[0] = -90;
-	r_refdef.viewangles[1] = 0;
-	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
-	R_RenderView ();
-	qglReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
-	COM_WriteFile ("env4.rgb", buffer, sizeof(buffer));		
-
-	r_refdef.viewangles[0] = 90;
-	r_refdef.viewangles[1] = 0;
-	GL_BeginRendering (&glx, &gly, &glwidth, &glheight);
-	R_RenderView ();
-	qglReadPixels (0, 0, 256, 256, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
-	COM_WriteFile ("env5.rgb", buffer, sizeof(buffer));		
-
-	envmap = false;
-	qglDrawBuffer  (GL_BACK);
-	qglReadBuffer  (GL_BACK);
-	GL_EndRendering ();
-	GL_DoSwap();
-}
 
 
 
@@ -309,8 +71,7 @@ void R_Envmap_f (void)
 
 
 
-
-
+#if 0
 qboolean GenerateNormalisationCubeMap()
 {
 	unsigned char data[32*32*3];
@@ -323,6 +84,9 @@ qboolean GenerateNormalisationCubeMap()
 	unsigned char * bytePtr;
 
 	int i, j;
+	
+	normalisationCubeMap = GL_AllocNewTexture();
+	GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, normalisationCubeMap);
 
 	//positive x
 	bytePtr=data;
@@ -461,12 +225,21 @@ qboolean GenerateNormalisationCubeMap()
 	}
 	qglTexImage2D(	GL_TEXTURE_CUBE_MAP_NEGATIVE_Z_ARB,
 					0, GL_RGBA8, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);	
+		
+
+	qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
 	return true;
 }
 
 
-int normalisationCubeMap;
+texid_t normalisationCubeMap;
+#endif
+
 /*
 ===============
 R_Init
@@ -474,32 +247,17 @@ R_Init
 */
 void GLR_ReInit (void)
 {		
+#if 0
 	extern int gl_bumpmappingpossible;
-	R_InitParticleTexture ();
-
-#ifdef GLTEST
-	Test_Init ();
-#endif
-
-	netgraphtexture = GL_AllocNewTexture();
-
 	if (gl_bumpmappingpossible)
-	{
-		//Create normalisation cube map
-		normalisationCubeMap = GL_AllocNewTexture();
-		GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, normalisationCubeMap);
 		GenerateNormalisationCubeMap();
-		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	}
 	else
 		normalisationCubeMap = 0;
+#endif
+	netgraphtexture = GL_AllocNewTexture(0, 0);
 
 	R_InitBloomTextures();
-
+	R_InitFlashblends();
 }
 /*
 typedef struct
@@ -688,49 +446,22 @@ extern cvar_t gl_bump, v_contrast, r_drawflat;
 extern cvar_t r_stains, r_stainfadetime, r_stainfadeammount;
 
 // callback defines
-extern cvar_t gl_conback, gl_font, gl_smoothfont, gl_fontinwardstep, r_menutint;
+extern cvar_t gl_font;
 extern cvar_t vid_conautoscale, vid_conheight, vid_conwidth;
 extern cvar_t crosshair, crosshairimage, crosshaircolor, r_skyboxname;
 extern cvar_t r_floorcolour, r_wallcolour, r_floortexture, r_walltexture;
 extern cvar_t r_fastskycolour;
-void GLCrosshairimage_Callback(struct cvar_s *var, char *oldvalue);
-void GLCrosshair_Callback(struct cvar_s *var, char *oldvalue);
-void GLCrosshaircolor_Callback(struct cvar_s *var, char *oldvalue);
-void GLR_Skyboxname_Callback(struct cvar_s *var, char *oldvalue);
-void GLR_Menutint_Callback (struct cvar_s *var, char *oldvalue);
-void GL_Conback_Callback (struct cvar_s *var, char *oldvalue);
-void GL_Font_Callback (struct cvar_s *var, char *oldvalue);
-void GL_Smoothfont_Callback (struct cvar_s *var, char *oldvalue);
-void GL_Fontinwardstep_Callback (struct cvar_s *var, char *oldvalue);
-void GLVID_Conwidth_Callback(struct cvar_s *var, char *oldvalue);
-void GLVID_Conautoscale_Callback(struct cvar_s *var, char *oldvalue);
-void GLVID_Conheight_Callback(struct cvar_s *var, char *oldvalue);
-void GLR_Wallcolour_Callback(struct cvar_s *var, char *oldvalue);
-void GLR_Floorcolour_Callback(struct cvar_s *var, char *oldvalue);
-void GLR_Walltexture_Callback(struct cvar_s *var, char *oldvalue);
-void GLR_Floortexture_Callback(struct cvar_s *var, char *oldvalue);
-void GLR_Drawflat_Callback(struct cvar_s *var, char *oldvalue);
 void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue);
-void GLR_Fastskycolour_Callback(struct cvar_s *var, char *oldvalue);
 
 void GLR_DeInit (void)
 {
 	Cmd_RemoveCommand ("timerefresh");
-	Cmd_RemoveCommand ("envmap");
 	Cmd_RemoveCommand ("r_editlights_reload");
-	Cmd_RemoveCommand ("pointfile");
+	Cmd_RemoveCommand ("r_editlights_save");
 
 	Cmd_RemoveCommand ("makewad");
 
-	Cvar_Unhook(&crosshair);
-	Cvar_Unhook(&crosshairimage);
-	Cvar_Unhook(&crosshaircolor);
 	Cvar_Unhook(&r_skyboxname);
-	Cvar_Unhook(&r_menutint);
-	Cvar_Unhook(&gl_conback);
-	Cvar_Unhook(&gl_font);
-	Cvar_Unhook(&gl_smoothfont);
-	Cvar_Unhook(&gl_fontinwardstep);
 	Cvar_Unhook(&vid_conautoscale);
 	Cvar_Unhook(&vid_conheight);
 	Cvar_Unhook(&vid_conwidth);
@@ -745,35 +476,25 @@ void GLR_DeInit (void)
 
 	GLDraw_DeInit();
 
-	GLSurf_DeInit();
+	Surf_DeInit();
 }
 
 void GLR_Init (void)
 {	
 	Cmd_AddRemCommand ("timerefresh", GLR_TimeRefresh_f);
-	Cmd_AddRemCommand ("envmap", R_Envmap_f);
+#ifdef RTLIGHTS
 	Cmd_AddRemCommand ("r_editlights_reload", R_ReloadRTLights_f);
+	Cmd_AddRemCommand ("r_editlights_save", R_SaveRTLights_f);
+#endif
 
 //	Cmd_AddRemCommand ("makewad", R_MakeTexWad_f);
 
-	Cvar_Hook(&crosshair, GLCrosshair_Callback);
-	Cvar_Hook(&crosshairimage, GLCrosshairimage_Callback);
-	Cvar_Hook(&crosshaircolor, GLCrosshaircolor_Callback);
-	Cvar_Hook(&r_skyboxname, GLR_Skyboxname_Callback);
-	Cvar_Hook(&r_menutint, GLR_Menutint_Callback);
-	Cvar_Hook(&gl_conback, GL_Conback_Callback);
-	Cvar_Hook(&gl_font, GL_Font_Callback);
-	Cvar_Hook(&gl_smoothfont, GL_Smoothfont_Callback);
-	Cvar_Hook(&gl_fontinwardstep, GL_Fontinwardstep_Callback);
-	Cvar_Hook(&vid_conautoscale, GLVID_Conautoscale_Callback);
-	Cvar_Hook(&vid_conheight, GLVID_Conheight_Callback);
-	Cvar_Hook(&vid_conwidth, GLVID_Conwidth_Callback);
-	Cvar_Hook(&r_floorcolour, GLR_Floorcolour_Callback);
-	Cvar_Hook(&r_fastskycolour, GLR_Fastskycolour_Callback);
-	Cvar_Hook(&r_wallcolour, GLR_Wallcolour_Callback);
-	Cvar_Hook(&r_floortexture, GLR_Floortexture_Callback);
-	Cvar_Hook(&r_walltexture, GLR_Walltexture_Callback);
-	Cvar_Hook(&r_drawflat, GLR_Drawflat_Callback);
+//	Cvar_Hook(&r_floorcolour, GLR_Floorcolour_Callback);
+//	Cvar_Hook(&r_fastskycolour, GLR_Fastskycolour_Callback);
+//	Cvar_Hook(&r_wallcolour, GLR_Wallcolour_Callback);
+//	Cvar_Hook(&r_floortexture, GLR_Floortexture_Callback);
+//	Cvar_Hook(&r_walltexture, GLR_Walltexture_Callback);
+//	Cvar_Hook(&r_drawflat, GLR_Drawflat_Callback);
 	Cvar_Hook(&v_gamma, GLV_Gamma_Callback);
 	Cvar_Hook(&v_contrast, GLV_Gamma_Callback);
 
@@ -782,7 +503,8 @@ void GLR_Init (void)
 	GLR_ReInit();
 }
 
-void R_ImportRTLights(char *entlump)
+#ifdef RTLIGHTS
+static void R_ImportRTLights(char *entlump)
 {
 	typedef enum lighttype_e {LIGHTTYPE_MINUSX, LIGHTTYPE_RECIPX, LIGHTTYPE_RECIPXX, LIGHTTYPE_NONE, LIGHTTYPE_SUN, LIGHTTYPE_MINUSXX} lighttype_t;
 
@@ -986,11 +708,14 @@ void R_ImportRTLights(char *entlump)
 		VectorAdd(origin, originhack, origin);
 		if (radius >= 1)
 		{
-			dlight_t *dl = CL_AllocDlight(0);
+			dlight_t *dl = CL_AllocSlight();
+			if (!dl)
+				break;
 			VectorCopy(origin, dl->origin);
 			AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
 			dl->radius = radius;
 			VectorCopy(color, dl->color);
+			dl->flags = 0;
 			dl->flags |= LFLAG_REALTIMEMODE;
 			dl->flags |= (pflags & PFLAGS_CORONA)?LFLAG_ALLOW_FLASH:0;
 			dl->flags |= (pflags & PFLAGS_NOSHADOW)?LFLAG_NOSHADOWS:0;
@@ -1002,10 +727,11 @@ void R_ImportRTLights(char *entlump)
 	}
 }
 
-void R_LoadRTLights(void)
+static void R_LoadRTLights(void)
 {
 	dlight_t *dl;
 	char fname[MAX_QPATH];
+	char cubename[MAX_QPATH];
 	char *file;
 	char *end;
 	int style;
@@ -1017,9 +743,9 @@ void R_LoadRTLights(void)
 
 	vec3_t angles;
 
-	//delete all old lights
-	dlights_running = 0;
-	dlights_software = 0;
+	//delete all old lights, even dynamic ones
+	rtlights_first = RTL_FIRST;
+	rtlights_max = RTL_FIRST;
 
 	COM_StripExtension(cl.worldmodel->name, fname, sizeof(fname));
 	strncat(fname, ".rtlights", MAX_QPATH-1);
@@ -1034,6 +760,16 @@ void R_LoadRTLights(void)
 		if (end == file)
 			break;
 		*end = '\0';
+
+		while(*file == ' ' || *file == '\t')
+			file++;
+		if (*file == '!')
+		{
+			flags = LFLAG_NOSHADOWS;
+			file++;
+		}
+		else
+			flags = 0;
 
 		file = COM_Parse(file);
 		org[0] = atof(com_token);
@@ -1057,6 +793,7 @@ void R_LoadRTLights(void)
 
 		file = COM_Parse(file);
 		//cubemap
+		Q_strncpyz(cubename, com_token, sizeof(cubename));
 
 		file = COM_Parse(file);
 		//corona
@@ -1082,24 +819,75 @@ void R_LoadRTLights(void)
 
 		file = COM_Parse(file);
 		if (*com_token)
-			flags = atoi(com_token);
+			flags |= atoi(com_token);
 		else
-			flags = LFLAG_REALTIMEMODE;
+			flags |= LFLAG_REALTIMEMODE;
 
 		if (radius)
 		{
-			dl = CL_AllocDlight(0);
+			dl = CL_AllocSlight();
+			if (!dl)
+				break;
+
 			VectorCopy(org, dl->origin);
 			dl->radius = radius;
 			VectorCopy(rgb, dl->color);
 			dl->die = 0;
 			dl->flags = flags|LFLAG_ALLOW_PPL;
+			/*if (*cubename)
+			{
+				dl->fov = 90;
+				dl->flags |= LFLAG_SHADOWMAP;
+			}*/
 			AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
 
 			dl->style = style+1;
 		}
 		file = end+1;
 	}
+}
+
+static void R_SaveRTLights_f(void)
+{
+	dlight_t *light;
+	vfsfile_t *f;
+	unsigned int i;
+	char fname[MAX_QPATH];
+	COM_StripExtension(cl.worldmodel->name, fname, sizeof(fname));
+	strncat(fname, ".rtlights", MAX_QPATH-1);
+
+	FS_CreatePath(fname, FS_GAMEONLY);
+	f = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
+	if (!f)
+	{
+		Con_Printf("couldn't open %s\n", fname);
+		return;
+	}
+	for (light = cl_dlights+rtlights_first, i=rtlights_first; i<rtlights_max; i++, light++)
+	{
+		if (light->die)
+			continue;
+		if (!light->radius)
+			continue;
+		VFS_PUTS(f, va(
+			"%s%f %f %f "
+			"%f %f %f %f "
+			"%i "
+			"\"%s\" %f "
+			"%f %f %f "
+			"%f %f %f %i "
+			"\n"
+			,
+			(light->flags & LFLAG_NOSHADOWS)?"!":"", light->origin[0], light->origin[1], light->origin[2],
+			light->radius, light->color[0], light->color[1], light->color[2], 
+			light->style-1,
+			"", 0.0f,
+			0.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, 0.0f, light->flags&(LFLAG_NORMALMODE|LFLAG_REALTIMEMODE)
+			));
+	}
+	VFS_CLOSE(f);
+	Con_Printf("rtlights saved to %s\n", fname);
 }
 
 void R_ReloadRTLights_f(void)
@@ -1109,17 +897,20 @@ void R_ReloadRTLights_f(void)
 		Con_Printf("Cannot reload lights at this time\n");
 		return;
 	}
-	dlights_running = 0;
-	dlights_software = 0;
-	if (strcmp(Cmd_Argv(1), "bsp"))
-		R_LoadRTLights();
-
-	if (!dlights_running)
-	{
-		Con_Printf("Importing rtlights from BSP\n");
+	rtlights_first = RTL_FIRST;
+	rtlights_max = RTL_FIRST;
+	if (!strcmp(Cmd_Argv(1), "bsp"))
 		R_ImportRTLights(cl.worldmodel->entities);
+	else if (!strcmp(Cmd_Argv(1), "rtlights"))
+		R_LoadRTLights();
+	else if (strcmp(Cmd_Argv(1), "none"))
+	{
+		R_LoadRTLights();
+		if (rtlights_first == rtlights_max)
+			R_ImportRTLights(cl.worldmodel->entities);
 	}
 }
+#endif
 
 /*
 ===============
@@ -1129,21 +920,8 @@ R_NewMap
 void GLR_NewMap (void)
 {
 	char namebuf[MAX_QPATH];
-	extern cvar_t host_mapname;
+	extern cvar_t host_mapname, r_shadow_realtime_dlight, r_shadow_realtime_world;
 	int		i;
-
-/*
-	if (cl.worldmodel->fromgame == fg_quake3 && cls.netchan.remote_address.type != NA_LOOPBACK)
-	{
-		if (!cls.allow_cheats)
-		{
-			CL_Disconnect();
-			Host_EndGame("\n\nThe quake3 map implementation is still experimental and contains many bugs that could be considered cheats. Therefore, the engine is handicapped to quake3 maps only when hosting - it's single player only.\n\nYou can allow it on the server by activating cheats, at which point this check will be ignored\n");
-			return;
-		}
-//		Cbuf_AddText("disconnect\n", RESTRICT_LOCAL);
-	}
-*/
 	
 	for (i=0 ; i<256 ; i++)
 		d_lightstylevalue[i] = 264;		// normal light value
@@ -1157,55 +935,45 @@ void GLR_NewMap (void)
 	COM_StripExtension(COM_SkipPath(cl.worldmodel->name), namebuf, sizeof(namebuf));
 	Cvar_Set(&host_mapname, namebuf);
 
-// clear out efrags in case the level hasn't been reloaded
-// FIXME: is this one short?
-	for (i=0 ; i<cl.worldmodel->numleafs ; i++)
-		cl.worldmodel->leafs[i].efrags = NULL;
-
-	GLSurf_DeInit();
+	Surf_DeInit();
 
 	r_viewleaf = NULL;
 	r_viewcluster = -1;
 	r_oldviewcluster = 0;
 	r_viewcluster2 = -1;
+
+	Mod_ParseInfoFromEntityLump(cl.worldmodel, cl.worldmodel->entities, cl.worldmodel->name);
+
 TRACE(("dbg: GLR_NewMap: clear particles\n"));
 	P_ClearParticles ();
 TRACE(("dbg: GLR_NewMap: wiping them stains (getting the cloth out)\n"));
-	GLR_WipeStains();
+	Surf_WipeStains();
+	CL_RegisterParticles();
 TRACE(("dbg: GLR_NewMap: building lightmaps\n"));
-	GL_BuildLightmaps ();
-TRACE(("dbg: GLR_NewMap: figuring out skys and mirrors\n"));
-	// identify sky texture
-	if (cl.worldmodel->fromgame != fg_quake2 && cl.worldmodel->fromgame != fg_quake3)
-	{
-		skytexturenum = -1;
-		mirrortexturenum = -1;
-	}
-	for (i=0 ; i<cl.worldmodel->numtextures ; i++)
-	{
-		if (!cl.worldmodel->textures[i])
-			continue;
-		if (!Q_strncmp(cl.worldmodel->textures[i]->name,"sky",3) )
-			skytexturenum = i;
-		if (!Q_strncmp(cl.worldmodel->textures[i]->name,"window02_1",10) )
-			mirrortexturenum = i;
- 		cl.worldmodel->textures[i]->texturechain = NULL;
-	}
-TRACE(("dbg: GLR_NewMap: that skybox thang\n"));
-//#ifdef QUAKE2
-	GLR_LoadSkys ();
-//#endif
+	Surf_BuildLightmaps ();
+
+
 TRACE(("dbg: GLR_NewMap: ui\n"));
 #ifdef VM_UI
 	UI_Reset();
 #endif
 TRACE(("dbg: GLR_NewMap: tp\n"));
 	TP_NewMap();
+	R_SetSky(cl.skyname);
 
-	if (r_shadows.value)
+#ifdef MAP_PROC
+	if (cl.worldmodel->fromgame == fg_doom3)
+		D3_GenerateAreas(cl.worldmodel);
+#endif
+
+#ifdef RTLIGHTS
+	if (r_shadow_realtime_dlight.ival || r_shadow_realtime_world.ival)
 	{
 		R_LoadRTLights();
+		if (rtlights_first == rtlights_max)
+			R_ImportRTLights(cl.worldmodel->entities);
 	}
+#endif
 }
 
 void GLR_PreNewMap(void)
@@ -1224,21 +992,46 @@ void GLR_TimeRefresh_f (void)
 {
 	int			i;
 	float		start, stop, time;
+	qboolean	finish;
+	int			frames = 128;
 
-	qglDrawBuffer  (GL_FRONT);
-	qglFinish ();
+	finish = atoi(Cmd_Argv(1));
+	frames = atoi(Cmd_Argv(2));
+	if (frames < 1)
+		frames = 128;
 
-	start = Sys_DoubleTime ();
-	for (i=0 ; i<128 ; i++)
+#if defined(_WIN32) && !defined(_SDL)
+	if (finish == 2)
 	{
-		r_refdef.viewangles[1] = i/128.0*360.0;
-		R_RenderView ();
+		extern HDC		maindc;
+		qglFinish ();
+		start = Sys_DoubleTime ();
+		for (i=0 ; i<frames ; i++)
+		{
+			r_refdef.viewangles[1] = i/(float)frames*360.0;
+			R_RenderView ();
+			qSwapBuffers(maindc);
+		}
 	}
+	else
+#endif
+	{
+		qglDrawBuffer  (GL_FRONT);
+		qglFinish ();
 
+		start = Sys_DoubleTime ();
+		for (i=0 ; i<frames ; i++)
+		{
+			r_refdef.viewangles[1] = i/(float)frames*360.0;
+			R_RenderView ();
+			if (finish)
+				qglFinish ();
+		}
+	}
 	qglFinish ();
 	stop = Sys_DoubleTime ();
 	time = stop-start;
-	Con_Printf ("%f seconds (%f fps)\n", time, 128/time);
+	Con_Printf ("%f seconds (%f fps)\n", time, frames/time);
 
 	qglDrawBuffer  (GL_BACK);
 	GL_EndRendering ();

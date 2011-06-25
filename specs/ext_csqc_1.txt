@@ -327,8 +327,7 @@ float() readangle = #365;
 string() readstring = #366;
 float() readfloat = #367;
 float() readentitynum = #368;
-	Reads a part of a network message.
-	Note that these builtins are only valid when the engine directs the csqc to start reading. Valid only during that call.
+	Reads a part of a network message.	Note that these builtins are only valid when the engine directs the csqc to start reading. Valid only during that call.
 	In the case of readstring, it is returned within a temporary string.
 	It is up to the engine exactly how big coords and angles are, so the csqc must ensure correct matching.
 	For entities, readentitynum reads only an entity number. This must be matched to an entity with a matching .entnum field. The given entity may not always be known, so matching up in the parse function may not be advantageous.
@@ -350,8 +349,7 @@ string(float statnum) getstats = #332;
 string(float playernum, string keyname) getplayerkey = #348;
 	Obtains various player specific things. Items that must be supported are:
 	name, frags, bottomcolor, topcolor.
-	This info is required for scoreboards.
-	Negative player indexes are interpreted as frag-sorted. -1 is the leading player, -2 is the second best player. There is no explicit teamplay support.
+	This info is required for scoreboards.	Negative player indexes are interpreted as frag-sorted. -1 is the leading player, -2 is the second best player. There is no explicit teamplay support.
 	This is akin to quakeworld's infokey builtin with a player number.
 	Note: QuakeWorld engines normally provide a team field. NQ engines typically use bottomcolor.
 
@@ -409,16 +407,19 @@ void(float index, float type, .void field) clientstat = #232;
 	This affects all clients.
 	There are two stat namespaces. Strings and numbers. Strings use independant indexes from numbers. Eg, stat 64 can hold "hello world" and the number 53.6 at the same time, depending on which you query.
 	Index should not be less than 32. An engine is not required to support more than 128.
+	Sending a float is more efficient if it is rounded in advance. However, if it is not rounded, the stat will be sent with full precision.
 	Type is a value equating to the ev_ values found in qcc to dictate types. Valid ones are:
 		1: string
 		2: float (if rounded between 0 and 255, this is sent compacted)
-		3: vector (actually registers 3 consecutive floats)
+		3: vector (actually registers 3 consecutive floats. Note rounding efficiencies.)
 		4: entity (actually the server's entity number, to match .entnum on the client, clients should read this as a whole number).
+		8: integer (applicable only if your qcc and qcvm support integer types).
+	Certain other type values have meaning, but are not practical and thus are not valid arguments.
 
 void(float index, float type, string globalname) globalstat = #233;
-	Sets up a stat based on a global.
+	Sets up a stat based upon a global.
 	Works the same way as clientstat, except that the global is passed by way of the name of the global, so beware of typos.
-	All clients will receive this stat.
+	All clients will receive the same stat value.
 
 .float(entity viewer, float sendflags) SendEntity;
 	Field used to store which function is responsible for sending the current (self) entity data.

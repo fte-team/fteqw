@@ -220,6 +220,16 @@ qboolean Master_ServerIsGreater(serverinfo_t *a, serverinfo_t *b)
 		return Master_CompareInteger(a->tl, b->tl, SLIST_TEST_LESS);
 	case SLKEY_TOOMANY:
 		break;
+
+	// warning: enumeration value ‘SLKEY_*’ not handled in switch
+	case SLKEY_MOD:
+	case SLKEY_PROTOCOL:
+	case SLKEY_NUMBOTS:
+	case SLKEY_NUMHUMANS:
+	case SLKEY_QCSTATUS:
+	case SLKEY_ISFAVORITE:
+		break;
+
 	}
 	return false;
 }
@@ -413,7 +423,8 @@ void Master_SortServers(void)
 		Master_ResortServer(server);
 	}
 
-	nextsort = Sys_DoubleTime() + 8;
+	if (nextsort < Sys_DoubleTime())
+		nextsort = Sys_DoubleTime() + 8;
 }
 
 serverinfo_t *Master_SortedServer(int idx)
@@ -434,7 +445,6 @@ int Master_NumSorted(void)
 
 	return numvisibleservers;
 }
-
 
 
 float Master_ReadKeyFloat(serverinfo_t *server, int keynum)
@@ -560,7 +570,7 @@ int Master_KeyForName(char *keyname)
 			}
 		}
 		Q_strncpyz(slist_keyname[slist_customkeys], keyname, MAX_INFO_KEY);
-	
+
 		slist_customkeys++;
 
 		return slist_customkeys-1 + SLKEY_CUSTOM;
@@ -581,10 +591,12 @@ void Master_AddMaster (char *address, int type, char *description)
 		return;
 	}
 
+#ifdef _MSC_VER
 #pragma message("Master_AddMaster: add ipv6. don't care about tcp/irc.")
+#endif
 	if (adr.type != NA_IP && adr.type != NA_IPX)
 	{
-		Con_Printf("Fixme: unable to poll address family\n", address);
+		Con_Printf("Fixme: unable to poll address family for \"%s\"\n", address);
 		return;
 	}
 
@@ -702,8 +714,8 @@ qboolean Master_LoadMasterList (char *filename, int defaulttype, int depth)
 			servertype = MT_MASTERQ2;
 		else if (!strcmp(com_token, "master:q3"))
 			servertype = MT_MASTERQ3;
-		else if (!strcmp(com_token, "master:http"))
-			servertype = MT_MASTERHTTP;
+		else if (!strcmp(com_token, "master:httpnq"))
+			servertype = MT_MASTERHTTPNQ;
 		else if (!strcmp(com_token, "master:httpqw"))
 			servertype = MT_MASTERHTTPQW;
 		else if (!strcmp(com_token, "master"))	//any other sort of master, assume it's a qw master.
@@ -764,14 +776,14 @@ qboolean Master_LoadMasterList (char *filename, int defaulttype, int depth)
 		{
 			switch (servertype)
 			{
-			case MT_MASTERHTTP:
+			case MT_MASTERHTTPNQ:
 			case MT_MASTERHTTPQW:
 				Master_AddMasterHTTP(line, servertype, name);
 				break;
 			default:
 				Master_AddMaster(line, servertype, name);
 			}
-			
+
 		}
 	}
 	VFS_CLOSE(f);
@@ -785,7 +797,9 @@ void NET_SendPollPacket(int len, void *data, netadr_t to)
 	int ret;
 	struct sockaddr_qstorage	addr;
 
+#ifdef _MSC_VER
 #pragma message("NET_SendPollPacket: no support for ipv6")
+#endif
 
 	NetadrToSockadr (&to, &addr);
 #ifdef USEIPX
@@ -848,8 +862,6 @@ void NET_SendPollPacket(int len, void *data, netadr_t to)
 
 int NET_CheckPollSockets(void)
 {
-	#define	MAX_UDP_PACKET	8192	// one more than msg + header
-	extern qbyte		net_message_buffer[MAX_UDP_PACKET];
 	int sock;
 	SOCKET usesocket;
 	char adr[MAX_ADR_SIZE];
@@ -902,7 +914,7 @@ int NET_CheckPollSockets(void)
 			int c;
 			char *s;
 
-			MSG_BeginReading ();
+			MSG_BeginReading (msg_nullnetprim);
 			MSG_ReadLong ();        // skip the -1
 
 			c = msg_readcount;
@@ -981,7 +993,7 @@ int NET_CheckPollSockets(void)
 			}
 
 			if (c == M2C_MASTER_REPLY)	//qw master reply.
-			{		
+			{
 				CL_MasterListParse(NA_IP, SS_GENERICQUAKEWORLD, false);
 				continue;
 			}
@@ -995,7 +1007,7 @@ int NET_CheckPollSockets(void)
 
 			int control;
 
-			MSG_BeginReading ();
+			MSG_BeginReading (msg_nullnetprim);
 			control = BigLong(*((int *)net_message.data));
 			MSG_ReadLong();
 			if (control == -1)
@@ -1008,7 +1020,8 @@ int NET_CheckPollSockets(void)
 			if (MSG_ReadByte() != CCREP_SERVER_INFO)
 				continue;
 
-			NET_StringToAdr(MSG_ReadString(), &net_from);
+			/*this is an address string sent from the server. its not usable. if its replying to serverinfos, its possible to send it connect requests, while the address that it claims is 50% bugged*/
+			MSG_ReadString();
 
 			Q_strncpyz(name, MSG_ReadString(), sizeof(name));
 			Q_strncpyz(map, MSG_ReadString(), sizeof(map));
@@ -1023,7 +1036,7 @@ int NET_CheckPollSockets(void)
 			CL_ReadServerInfo(va("\\hostname\\%s\\map\\%s\\maxclients\\%i\\clients\\%i", name, map, maxusers, users), MT_SINGLENQ, false);
 		}
 #endif
-		continue;		
+		continue;
 	}
 	return 0;
 }
@@ -1074,7 +1087,7 @@ void SListOptionChanged(serverinfo_t *newserver)
 		}
 //we don't know all the info, so send a request for it.
 		selectedserver.detail = newserver->moreinfo = Z_Malloc(sizeof(serverdetailedinfo_t));
-		
+
 		newserver->moreinfo->numplayers = newserver->players;
 		strcpy(newserver->moreinfo->info, "");
 		Info_SetValueForKey(newserver->moreinfo->info, "hostname", newserver->name, sizeof(newserver->moreinfo->info));
@@ -1086,35 +1099,30 @@ void SListOptionChanged(serverinfo_t *newserver)
 }
 
 #ifdef WEBCLIENT
-void MasterInfo_ProcessHTTP(char *name, qboolean success, int type)
+void MasterInfo_ProcessHTTP(vfsfile_t *file, int type)
 {
 	netadr_t adr;
 	char *s;
 	char *el;
 	serverinfo_t *info;
 	char adrbuf[MAX_ADR_SIZE];
+	char linebuffer[2048];
 
-	if (!success)
+	if (!file)
 		return;
 
-	el = COM_LoadTempFile(name);
-	if (!el)
-		return;
-	while(*el)
+	while(VFS_GETS(file, linebuffer, sizeof(linebuffer)))
 	{
-		s = el;
-		while(*s <= ' ' && *s != '\n' && *s)
+		s = linebuffer;
+		while (*s == '\t' || *s == ' ')
 			s++;
-		el = strchr(s, '\n');
-		if (!el)
-			el = s + strlen(s);
-		else if (el>s && el[-1] == '\r')
+
+		el = s + strlen(s);
+		if (el>s && el[-1] == '\r')
 			el[-1] = '\0';
 
 		if (*s == '#')	//hash is a comment, apparently.
 			continue;
-		*el = '\0';
-		el++;
 
 		if (!NET_StringToAdr(s, &adr))
 			continue;
@@ -1139,28 +1147,30 @@ void MasterInfo_ProcessHTTP(char *name, qboolean success, int type)
 			Master_ResortServer(info);
 		}
 	}
-
-	FS_Remove(name, FS_GAME);
 }
 
 // wrapper functions for the different server types
-void MasterInfo_ProcessHTTPNQ(char *name, qboolean success)
+void MasterInfo_ProcessHTTPNQ(struct dl_download *dl)
 {
-	MasterInfo_ProcessHTTP(name, success, SS_NETQUAKE);
+	MasterInfo_ProcessHTTP(dl->file, SS_NETQUAKE);
 }
 
-void MasterInfo_ProcessHTTPQW(char *name, qboolean success)
+void MasterInfo_ProcessHTTPQW(struct dl_download *dl)
 {
-	MasterInfo_ProcessHTTP(name, success, 0);
+	MasterInfo_ProcessHTTP(dl->file, SS_GENERICQUAKEWORLD);
 }
 #endif
 
 //don't try sending to servers we don't support
 void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles)
 {
-	static int mastersequence;
+	//static int mastersequence; // warning: unused variable âmastersequenceâ
 	if (!mast)
 		return;
+
+	if (mast->sends)
+		mast->sends--;
+
 	switch(mast->type)
 	{
 #ifdef Q3CLIENT
@@ -1224,11 +1234,11 @@ void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles)
 		break;
 #endif
 #ifdef WEBCLIENT
-	case MT_MASTERHTTP:
-		HTTP_CL_Get(mast->address, va("master_%i_%i.tmp", mastersequence++, mast->servertype), MasterInfo_ProcessHTTPNQ);
+	case MT_MASTERHTTPNQ:
+		HTTP_CL_Get(mast->address, NULL, MasterInfo_ProcessHTTPNQ);
 		break;
 	case MT_MASTERHTTPQW:
-		HTTP_CL_Get(mast->address, va("master_%i_%i.tmp", mastersequence++, mast->servertype), MasterInfo_ProcessHTTPQW);
+		HTTP_CL_Get(mast->address, NULL, MasterInfo_ProcessHTTPQW);
 		break;
 #endif
 	}
@@ -1242,14 +1252,14 @@ void MasterInfo_WriteServers(void)
 	serverinfo_t *server;
 	vfsfile_t *mf, *qws;
 	char adr[MAX_ADR_SIZE];
-	
+
 	mf = FS_OpenVFS("masters.txt", "wt", FS_ROOT);
 	if (!mf)
 	{
 		Con_Printf("Couldn't write masters.txt");
 		return;
 	}
-	
+
 	for (mast = master; mast; mast=mast->next)
 	{
 		switch(mast->type)
@@ -1266,8 +1276,8 @@ void MasterInfo_WriteServers(void)
 		case MT_MASTERDP:
 			typename = "master:dp";
 			break;
-		case MT_MASTERHTTP:
-			typename = "master:http";
+		case MT_MASTERHTTPNQ:
+			typename = "master:httpnq";
 			break;
 		case MT_MASTERHTTPQW:
 			typename = "master:httpqw";
@@ -1307,14 +1317,14 @@ void MasterInfo_WriteServers(void)
 		else
 			VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), mast->adr), typename, mast->name));
 	}
-	
+
 	if (slist_writeserverstxt.value)
 		qws = FS_OpenVFS("servers.txt", "wt", FS_ROOT);
 	else
 		qws = NULL;
 	if (qws)
 		VFS_PUTS(mf, va("\n%s\t%s\t%s\n\n", "file servers.txt", "favorite:qw", "personal server list"));
-		
+
 	for (server = firstserver; server; server = server->next)
 	{
 		if (server->special & SS_FAVORITE)
@@ -1331,16 +1341,16 @@ void MasterInfo_WriteServers(void)
 				VFS_PUTS(mf, va("%s\t%s\t%s\n", NET_AdrToString(adr, sizeof(adr), server->adr), "favorite:qw", server->name));
 		}
 	}
-	
+
 	if (qws)
 		VFS_CLOSE(qws);
-	
-	
+
+
 	VFS_CLOSE(mf);
 }
 
 //poll master servers for server lists.
-void MasterInfo_Begin(void)
+void MasterInfo_Refresh(void)
 {
 	master_t *mast;
 	if (!Master_LoadMasterList("masters.txt",			MT_MASTERQW, 5))
@@ -1373,7 +1383,7 @@ void MasterInfo_Begin(void)
 
 //		if (q1servers)	//nq master servers
 		{
-			Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake", MT_MASTERHTTP, "gameaholic's NQ master");
+			Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake", MT_MASTERHTTPNQ, "gameaholic's NQ master");
 			Master_AddMaster("255.255.255.255:26000",		MT_BCASTNQ, "Nearby Quake1 servers");
 
 			Master_AddMaster("ghdigital.com:27950",				MT_MASTERDP, "DarkPlaces Master 1");
@@ -1386,7 +1396,9 @@ void MasterInfo_Begin(void)
 //		if (q2servers)	//q2
 		{
 			Master_AddMaster("255.255.255.255:27910",		MT_BCASTQ2, "Nearby Quake2 UDP servers.");
+#ifdef USEIPX
 			Master_AddMaster("00000000:ffffffffffff:27910",	MT_BCASTQ2, "Nearby Quake2 IPX servers.");
+#endif
 			Master_AddMaster("192.246.40.37:27900",			MT_MASTERQ2, "id q2 Master.");
 		}
 
@@ -1400,8 +1412,11 @@ void MasterInfo_Begin(void)
 
 	for (mast = master; mast; mast=mast->next)
 	{
-		MasterInfo_Request(mast, false);
+		mast->sends = 1;
 	}
+
+	Master_SortServers();
+	nextsort = Sys_DoubleTime() + 2;
 }
 
 void Master_QueryServer(serverinfo_t *server)
@@ -1438,7 +1453,8 @@ void CL_QueryServers(void)
 {
 	static int poll;
 	int op;
-	serverinfo_t *server;	
+	serverinfo_t *server;
+	master_t *mast;
 
 	extern cvar_t	sb_hidequake2;
 	extern cvar_t	sb_hidequake3;
@@ -1446,7 +1462,47 @@ void CL_QueryServers(void)
 	extern cvar_t	sb_hidequakeworld;
 
 	op = poll;
-	
+
+	for (mast = master; mast; mast=mast->next)
+	{
+		switch (mast->type)
+		{
+		case MT_BAD:
+			continue;
+		case MT_MASTERHTTPNQ:
+		case MT_BCASTNQ:
+		case MT_SINGLENQ:
+		case MT_BCASTDP:
+		case MT_SINGLEDP:
+		case MT_MASTERDP:
+			if (sb_hidenetquake.value)
+				continue;
+			break;
+		case MT_MASTERHTTPQW:
+		case MT_BCASTQW:
+		case MT_SINGLEQW:
+		case MT_MASTERQW:
+			if (sb_hidequakeworld.value)
+				continue;
+			break;
+		case MT_BCASTQ2:
+		case MT_SINGLEQ2:
+		case MT_MASTERQ2:
+			if (sb_hidequake2.value)
+				continue;
+			break;
+		case MT_BCASTQ3:
+		case MT_MASTERQ3:
+		case MT_SINGLEQ3:
+			if (sb_hidequake3.value)
+				continue;
+			break;
+		}
+
+		if (mast->sends > 0)
+			MasterInfo_Request(mast, false);
+	}
+
 
 	for (server = firstserver; op>0 && server; server=server->next, op--);
 
@@ -1498,19 +1554,32 @@ void CL_QueryServers(void)
 		poll++;
 		return;
 	}
-	
+
 
 	poll = 0;
 }
 
-int Master_TotalCount(void)
+unsigned int Master_TotalCount(void)
 {
-	int count=0;
+	unsigned int count=0;
 	serverinfo_t *info;
 
 	for (info = firstserver; info; info = info->next)
 	{
 		count++;
+	}
+	return count;
+}
+
+unsigned int Master_NumPolled(void)
+{
+	unsigned int count=0;
+	serverinfo_t *info;
+
+	for (info = firstserver; info; info = info->next)
+	{
+		if (info->maxplayers)
+			count++;
 	}
 	return count;
 }
@@ -1583,7 +1652,7 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 
 	char *token;
 	char *nl;
-	char *name;	
+	char *name;
 	int ping;
 	int len;
 	serverinfo_t *info;
@@ -1595,8 +1664,8 @@ int CL_ReadServerInfo(char *msg, int servertype, qboolean favorite)
 	{
 		if (atoi(Info_ValueForKey(msg, "sv_punkbuster")))
 			return false;	//never add servers that require punkbuster. :(
-		if (atoi(Info_ValueForKey(msg, "sv_pure")))
-			return false;	//we don't support the filesystem hashing. :(
+//		if (atoi(Info_ValueForKey(msg, "sv_pure")))
+//			return false;	//we don't support the filesystem hashing. :(
 
 		info = Z_Malloc(sizeof(serverinfo_t));
 
@@ -1853,6 +1922,17 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 			for (i = 0; i < adrlen; i++)
 				((qbyte *)&info->adr.address)[i] = MSG_ReadByte();
 			break;
+
+		// warning: enumeration value ‘NA_*’ not handled in switch
+		case NA_INVALID:
+		case NA_LOOPBACK:
+		case NA_BROADCAST_IP:
+		case NA_BROADCAST_IP6:
+		case NA_BROADCAST_IPX:
+		case NA_TCP:
+		case NA_TCPV6:
+		case NA_IRC:
+			break;
 		}
 
 		p1 = MSG_ReadByte();
@@ -1880,10 +1960,11 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 			last = info;
 
 			Master_ResortServer(info);
-		}		
+		}
 	}
 
 	firstserver = last;
 }
 
 #endif
+

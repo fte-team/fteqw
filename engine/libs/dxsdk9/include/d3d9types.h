@@ -22,7 +22,7 @@
 
 #if (DIRECT3D_VERSION >= 0x0900)
 
-#include <pshpack4.h>
+//#include <pshpack4.h>
 
 #define D3DCLEAR_TARGET	0x01
 #define D3DCLEAR_ZBUFFER	0x02
@@ -1266,7 +1266,7 @@ typedef struct _D3DVOLUME_DESC {
 	UINT Depth;
 } D3DVOLUME_DESC;
 
-#include <poppack.h>
+//#include <poppack.h>
 
 #endif
 #endif

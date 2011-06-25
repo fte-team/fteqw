@@ -74,8 +74,6 @@ int OV_DecodeSome(sfx_t *s, int minlength);
 void OV_CancelDecoder(sfx_t *s);
 qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuffer_t *buffer);
 
-qbyte *COM_LoadFile (char *path, int usehunk);
-
 sfxcache_t *S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
 	//char	namebuffer[MAX_OSPATH]; //unreferenced
@@ -209,7 +207,7 @@ int OV_DecodeSome(sfx_t *s, int minlength)
 				snd_speed,
 				2,
 				dec->mediasc.numchannels,
-				(int)snd_linearresample_stream.value);
+				snd_linearresample_stream.ival);
 
 			bytesread = (int)floor(bytesread / scale) & ~0x1;
 		}
@@ -255,7 +253,7 @@ void OV_CancelDecoder(sfx_t *s)
 	//and it's now indistinguisable from a wav
 }
 
-static size_t read_func (void *ptr, size_t size, size_t nmemb, void *datasource)
+static size_t VARGS read_func (void *ptr, size_t size, size_t nmemb, void *datasource)
 {	
 	ovdecoderbuffer_t *buffer = datasource;
 	int spare = buffer->length - buffer->pos;
@@ -267,7 +265,7 @@ static size_t read_func (void *ptr, size_t size, size_t nmemb, void *datasource)
 	return nmemb;
 }
 
-static int seek_func (void *datasource, ogg_int64_t offset, int whence)
+static int VARGS seek_func (void *datasource, ogg_int64_t offset, int whence)
 {	
 	ovdecoderbuffer_t *buffer = datasource;
 	switch(whence)
@@ -285,7 +283,7 @@ static int seek_func (void *datasource, ogg_int64_t offset, int whence)
 	return 0;
 }
 
-static int close_func (void *datasource)
+static int VARGS close_func (void *datasource)
 {
 	ovdecoderbuffer_t *buffer = datasource;
 	BZ_Free(buffer->start);
@@ -293,7 +291,7 @@ static int close_func (void *datasource)
 	return 0;
 }
 
-static long tell_func (void *datasource)
+static long VARGS tell_func (void *datasource)
 {
 	ovdecoderbuffer_t *buffer = datasource;
 	return buffer->pos;

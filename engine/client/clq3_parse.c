@@ -194,8 +194,8 @@ static void CLQ3_ParsePacketEntities( clientSnap_t *oldframe, clientSnap_t *newf
 			{
 				oldstate = &ccs.parseEntities[(oldframe->firstEntity + numentities) & PARSE_ENTITIES_MASK];
 				oldnum = oldstate->number;
-			} 
-		}	
+			}
+		}
 
 		if( oldnum == newnum )
 		{
@@ -267,7 +267,7 @@ void CLQ3_ParseSnapshot(void)
 
 	// If the frame is delta compressed from data that we
 	// no longer have available, we must suck up the rest of
-	// the frame, but not use it, then ask for a non-compressed message 
+	// the frame, but not use it, then ask for a non-compressed message
 	delta = MSG_ReadByte();
 	if(delta)
 	{
@@ -559,11 +559,6 @@ void CLQ3_ParseGameState(void)
 				Host_EndGame("CLQ3_ParseGameState: configString index %i out of range", index);
 			}
 			configString = MSG_ReadString();
-			if (index == CFGSTR_SYSINFO)
-			{
-				//check some things.
-				cl.servercount = atoi(Info_ValueForKey(configString, "sv_serverid"));
-			}
 
 			CG_InsertIntoGameState(index, configString);
 			break;
@@ -601,13 +596,12 @@ void CLQ3_ParseGameState(void)
 	CL_MakeActive("Quake3Arena");
 
 	cl.splitclients = 1;
-	CL_RegisterSplitCommands();
 
 	{
 		char buffer[2048];
 		strcpy(buffer, va("cp %i ", cl.servercount));
 		FSQ3_GenerateClientPacksList(buffer, sizeof(buffer), ccs.fs_key);
-		CLQ3_SendClientCommand(buffer);
+		CLQ3_SendClientCommand("%s", buffer); // warning: format not a string literal and no format arguments
 	}
 
 	// load cgame, etc
@@ -628,7 +622,7 @@ void CLQ3_ParseServerMessage (void)
 		Con_TPrintf (TLC_LINEBREAK_MINUS);
 
 	net_message.packing = SZ_RAWBYTES;
-	MSG_BeginReading();
+	MSG_BeginReading(msg_nullnetprim);
 	ccs.serverMessageNum = MSG_ReadLong();
 	net_message.packing = SZ_HUFFMAN;	//the rest is huffman compressed.
 	net_message.currentbit = msg_readcount*8;
@@ -664,7 +658,7 @@ void CLQ3_ParseServerMessage (void)
 		}
 
 		SHOWNET(va("%i", cmd));
-	
+
 	// other commands
 		switch(cmd)
 		{
@@ -714,13 +708,13 @@ qboolean CLQ3_Netchan_Process(void)
 	net_message.packing = SZ_HUFFMAN;
 	net_message.currentbit = 32;
 
-	lastClientCommandNum = MSG_ReadLong(); 
+	lastClientCommandNum = MSG_ReadLong();
 	sequence = LittleLong(*(int *)net_message.data);
 
 	// restore buffer state
 	net_message.currentbit = bit;
 	msg_readcount = readcount;
-	
+
 	// calculate bitmask
 	bitmask = sequence ^ cls.challenge;
 	string = ccs.clientCommands[lastClientCommandNum & TEXTCMD_MASK];
@@ -808,7 +802,7 @@ static void MSG_WriteDeltaKey( sizebuf_t *msg, int key, int from, int to, int bi
 		MSG_WriteBits( msg, 0, 1 );
 		return; // unchanged
 	}
-	
+
 	MSG_WriteBits( msg, 1, 1 );
 	MSG_WriteBits( msg, to ^ key, bits );
 }
@@ -882,10 +876,11 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 	if (cls.resendinfo)
 	{
 		cls.resendinfo = false;
-		CLQ3_SendClientCommand("userinfo \"%s\"", cls.userinfo);
+		CLQ3_SendClientCommand("userinfo \"%s\"", cls.userinfo[0]);
 	}
 
-	cl.gametime = ccs.serverTime = ccs.snap.serverTime + (Sys_Milliseconds()-ccs.snap.localTime);
+	ccs.serverTime = ccs.snap.serverTime + (Sys_Milliseconds()-ccs.snap.localTime);
+	cl.servertime = ccs.serverTime / 1000.0f;
 
 	//reuse the q1 array
 	cmd->servertime = ccs.serverTime;
@@ -948,7 +943,7 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 				ccs.snap.serverMessageNum != ccs.serverMessageNum)
 			MSG_WriteBits(&msg, clcq3_nodeltaMove, 8); // no compression
 		else
-			MSG_WriteBits(&msg, clcq3_move, 8);		
+			MSG_WriteBits(&msg, clcq3_move, 8);
 
 		// write cmdcount
 		MSG_WriteBits(&msg, cmdcount, 8);
@@ -1024,13 +1019,12 @@ void CLQ3_SendConnectPacket(netadr_t to)
 	memset(&ccs, 0, sizeof(ccs));
 
 	cl.splitclients = 1;
-	CL_RegisterSplitCommands();
 	msg.data = data;
 	msg.cursize = 0;
 	msg.overflowed = msg.allowoverflow = 0;
 	msg.maxsize = sizeof(data);
 	MSG_WriteLong(&msg, -1);
-	MSG_WriteString(&msg, va("connect \"\\challenge\\%i\\qport\\%i\\protocol\\%i\\ip\\%s%s\"", cls.challenge, cls.qport, PROTOCOL_VERSION_Q3, NET_AdrToString (adrbuf, sizeof(adrbuf), net_local_cl_ipadr), cls.userinfo));
+	MSG_WriteString(&msg, va("connect \"\\challenge\\%i\\qport\\%i\\protocol\\%i\\ip\\%s%s\"", cls.challenge, cls.qport, PROTOCOL_VERSION_Q3, NET_AdrToString (adrbuf, sizeof(adrbuf), net_local_cl_ipadr), cls.userinfo[0]));
 	Huff_EncryptPacket(&msg, 12);
 	Huff_PreferedCompressionCRC();
 	NET_SendPacket (NS_CLIENT, msg.cursize, msg.data, to);

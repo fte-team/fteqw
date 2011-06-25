@@ -37,19 +37,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <windows.h>
 #include <winsock2.h>
 #include <mmsystem.h>
+#include <mmreg.h>
 #define _LPCWAVEFORMATEX_DEFINED
 
 
 #ifndef WM_MOUSEWHEEL
 #define WM_MOUSEWHEEL                   0x020A
-#endif
-
-#define WM_MWHOOK (WM_USER + 1)
-
-#ifndef SERVERONLY
-#ifdef AVAIL_DDRAW
-#include <ddraw.h>
-#endif
 #endif
 
 #undef byte
@@ -67,69 +60,6 @@ extern unsigned int sys_parentheight;
 LONG CDAudio_MessageHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 #endif
 
-/*
-struct soundcardinfo_s {
-	int snd_linear_count;	//change in asm_i386.h. MUST be first
-
-	float pitch[MAXSOUNDCHANNELS];
-	float yaw[MAXSOUNDCHANNELS];
-	float dist[MAXSOUNDCHANNELS];
-
-	void *handle;
-	void *(*Lock) (soundcardinfo_t *sc);
-	void (*Unlock) (soundcardinfo_t *sc, void *buffer);
-	void (*Submit) (soundcardinfo_t *sc);
-	void (*Shutdown) (soundcardinfo_t *sc);
-	unsigned int (*GetDMAPos) (soundcardinfo_t *sc);
-	void (*SetWaterDistortion) (soundcardinfo_t *sc, qboolean underwater);
-
-#ifdef AVAIL_DSOUND
-	LPDIRECTSOUND pDS;
-	LPDIRECTSOUNDBUFFER pDSBuf;
-	LPDIRECTSOUNDBUFFER pDSPBuf;
-#endif
-	HWAVEOUT hWaveOut;
-	HANDLE hData;
-	HGLOBAL hWaveHdr;
-	HPSTR lpData;
-	LPWAVEHDR lpWaveHdr;
-	DWORD		mmstarttime;
-	DWORD gSndBufSize;
-
-	qboolean selfpainting;
-
-	qboolean inactive_sound;
-
-
-	int   		paintedtime;
-	int			oldpaintedtime;
-	int	oldsamplepos;
-	int buffers;
-
-	dma_t sn;
-
-
-	char name[128];
-
-	int snd_sent;
-	int snd_completed;
-
-channel_t   channel[MAX_CHANNELS];
-int			total_chans;
-
-#ifdef AVAIL_DSOUND
-#ifdef _IKsPropertySet_
-	LPKSPROPERTYSET	EaxKsPropertiesSet;
-#endif
-#endif
-
-	int rawstart;
-	int rawend;
-
-	struct soundcardinfo_s *next;
-};
-*/
-
 
 //void	VID_LockBuffer (void);
 //void	VID_UnlockBuffer (void);
@@ -145,7 +75,7 @@ void IN_UpdateGrabs(int fullscreen, int activeapp);
 void IN_RestoreOriginalMouseState (void);
 void IN_SetQuakeMouseState (void);
 void IN_MouseEvent (int mstate);
-void IN_RawInput_MouseRead(HANDLE in_device_handle);
+void IN_RawInput_Read(HANDLE in_device_handle);
 
 extern qboolean	winsock_lib_initialized;
 
@@ -159,8 +89,7 @@ extern HWND		hwnd_dialog;
 
 void IN_UpdateClipCursor (void);
 void CenterWindow(HWND hWndCenter, int width, int height, BOOL lefttopjustify);
-void IN_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down);
-void MW_Hook_Message (long buttons);
+void IN_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int pnum);
 
 void S_BlockSound (void);
 void S_UnblockSound (void);

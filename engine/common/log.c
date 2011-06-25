@@ -8,16 +8,16 @@ void Log_Name_Callback (struct cvar_s *var, char *oldvalue);
 
 // cvars
 #define CONLOGGROUP "Console logging"
-cvar_t		log_enable[LOG_TYPES]	= {	SCVARF("log_enable", "0", CVAR_NOTFROMSERVER),
-								SCVARF("log_enable_players", "0", CVAR_NOTFROMSERVER)};
-cvar_t		log_name[LOG_TYPES] = { SCVARFC("log_name", "", CVAR_NOTFROMSERVER, Log_Name_Callback),
-							SCVARFC("log_name_players", "", CVAR_NOTFROMSERVER, Log_Name_Callback)};
-cvar_t		log_dir = SCVARFC("log_dir", "", CVAR_NOTFROMSERVER, Log_Dir_Callback);
-cvar_t		log_readable = SCVARF("log_readable", "0", CVAR_NOTFROMSERVER);
-cvar_t		log_developer = SCVARF("log_developer", "0", CVAR_NOTFROMSERVER);
-cvar_t		log_rotate_files = SCVARF("log_rotate_files", "0", CVAR_NOTFROMSERVER);
-cvar_t		log_rotate_size = SCVARF("log_rotate_size", "131072", CVAR_NOTFROMSERVER);
-cvar_t		log_dosformat = SCVARF("log_dosformat", "0", CVAR_NOTFROMSERVER);
+cvar_t		log_enable[LOG_TYPES]	= {	CVARF("log_enable", "0", CVAR_NOTFROMSERVER),
+								CVARF("log_enable_players", "0", CVAR_NOTFROMSERVER)};
+cvar_t		log_name[LOG_TYPES] = { CVARFC("log_name", "", CVAR_NOTFROMSERVER, Log_Name_Callback),
+							CVARFC("log_name_players", "", CVAR_NOTFROMSERVER, Log_Name_Callback)};
+cvar_t		log_dir = CVARFC("log_dir", "", CVAR_NOTFROMSERVER, Log_Dir_Callback);
+cvar_t		log_readable = CVARF("log_readable", "0", CVAR_NOTFROMSERVER);
+cvar_t		log_developer = CVARF("log_developer", "0", CVAR_NOTFROMSERVER);
+cvar_t		log_rotate_files = CVARF("log_rotate_files", "0", CVAR_NOTFROMSERVER);
+cvar_t		log_rotate_size = CVARF("log_rotate_size", "131072", CVAR_NOTFROMSERVER);
+cvar_t		log_dosformat = CVARF("log_dosformat", "0", CVAR_NOTFROMSERVER);
 
 // externals
 extern char gamedirfile[];
@@ -277,8 +277,8 @@ void SV_LogPlayer(client_t *cl, char *msg)
 		return;	//don't log botclients
 
 	snprintf(line, sizeof(line),
-			"%s\\%s\\%i\\%s\\%s\\%i%s\n", 
-			msg, cl->name, cl->userid, 
+			"%s\\%s\\%i\\%s\\%s\\%i%s\n",
+			msg, cl->name, cl->userid,
 			NET_BaseAdrToString(remote_adr, sizeof(remote_adr), cl->netchan.remote_address), (cl->realip_status > 0 ? NET_BaseAdrToString(realip_adr, sizeof(realip_adr), cl->realip) : "??"),
 			cl->netchan.remote_address.port, cl->userinfo);
 
@@ -311,7 +311,7 @@ void Log_Logfile_f (void)
 		if (log_name[LOG_CONSOLE].string[0])
 			f = log_name[LOG_CONSOLE].string;
 
-		Con_Printf(va("Logging to %s/%s.log.\n", d, f));
+		Con_Printf("%s", va("Logging to %s/%s.log.\n", d, f));
 		Cvar_SetValue(&log_enable[LOG_CONSOLE], 1);
 	}
 

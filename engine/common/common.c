@@ -22,11 +22,55 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 
 #include <ctype.h>
+#include <errno.h>
 
+// These 4 libraries required for the version command
 
-
-
-
+#if defined(MINGW)
+	#if defined(AVAIL_PNGLIB)  && !defined(SERVERONLY)
+		#include "./mingw-libs/png.h"
+	#endif
+	#ifdef AVAIL_ZLIB
+		#include "./mingw-libs/zlib.h"
+	#endif
+	#if defined(AVAIL_JPEGLIB) && !defined(SERVERONLY)
+		#define JPEG_API VARGS
+		//#include "./mingw-libs/jversion.h"
+		#include "./mingw-libs/jpeglib.h"
+	#endif
+	#ifdef _SDL
+		#include "./mingw-libs/SDL_version.h"
+	#endif
+#elif defined(_WIN32)
+	#if defined(AVAIL_PNGLIB)  && !defined(SERVERONLY)
+		#include "png.h"
+	#endif
+	#ifdef AVAIL_ZLIB
+		#include "zlib.h"
+	#endif
+	#if defined(AVAIL_JPEGLIB) && !defined(SERVERONLY)
+		#define JPEG_API VARGS
+		//#include "jversion.h"
+		#include "jpeglib.h"
+	#endif
+	#ifdef _SDL
+		#include "SDL_version.h"
+	#endif
+#else
+	#if defined(AVAIL_PNGLIB) && !defined(SERVERONLY)
+		#include <png.h>
+	#endif
+	#ifdef AVAIL_ZLIB
+		#include <zlib.h>
+	#endif
+	#if defined(AVAIL_JPEGLIB) && !defined(SERVERONLY)
+		//#include <jversion.h>
+		#include <jpeglib.h>
+	#endif
+	#ifdef _SDL
+		#include <SDL_version.h>
+	#endif
+#endif
 
 #undef malloc
 #undef free
@@ -44,11 +88,13 @@ static char	*argvdummy = " ";
 static char	*safeargvs[NUM_SAFE_ARGVS] =
 	{"-stdvid", "-nolan", "-nosound", "-nocdaudio", "-nojoy", "-nomouse"};
 
-cvar_t	registered = SCVAR("registered","0");
-cvar_t	gameversion = SCVARF("gameversion","", CVAR_SERVERINFO);
-cvar_t	com_gamename = SCVAR("com_gamename", "");
-cvar_t	com_modname = SCVAR("com_modname", "");
-cvar_t	com_parseutf8 = SCVAR("com_parseutf8", "0");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
+cvar_t	registered = CVARD("registered","0","Set if quake's pak1.pak is available");
+cvar_t	gameversion = CVARFD("gameversion","", CVAR_SERVERINFO, "gamecode version for server browsers");
+cvar_t	gameversion_min = CVARD("gameversion_min","", "gamecode version for server browsers");
+cvar_t	gameversion_max = CVARD("gameversion_max","", "gamecode version for server browsers");
+cvar_t	com_gamename = CVARD("com_gamename", "", "The game name used for dpmaster queries");
+cvar_t	com_modname = CVARD("com_modname", "", "dpmaster information");
+cvar_t	com_parseutf8 = CVARD("com_parseutf8", "0", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts.");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
 
 qboolean	com_modified;	// set true if using non-id files
 
@@ -56,7 +102,6 @@ qboolean		static_registered = true;	// only for startup check, then set
 
 qboolean		msg_suppress_1 = false;
 
-void COM_InitFilesystem (void);
 void COM_Path_f (void);
 void COM_Dir_f (void);
 void COM_Locate_f (void);
@@ -364,6 +409,9 @@ int wildcmp(const char *wild, const char *string)
 		{
 			if (!*++wild)	//a * at the end of the wild string matches anything the checked string has
 			{
+				string = strchr(string, '/');
+				if (string && string[1])	/*don't match it if there's a / with something after it*/
+					return 0;
 				return 1;
 			}
 			mp = wild;
@@ -760,8 +808,6 @@ void MSG_WriteString (sizebuf_t *sb, const char *s)
 		SZ_Write (sb, s, Q_strlen(s)+1);
 }
 
-int sizeofcoord=2;
-int sizeofangle=1;
 float MSG_FromCoord(coorddata c, int bytes)
 {
 	switch(bytes)
@@ -781,7 +827,41 @@ coorddata MSG_ToCoord(float f, int bytes)	//return value should be treated as (c
 	switch(bytes)
 	{
 	case 2:
-		r.b2 = LittleShort((short)(f*8));
+		r.b4 = 0;
+		if (f >= 0)
+			r.b2 = LittleShort((short)(f*8+0.5f));
+		else
+			r.b2 = LittleShort((short)(f*8-0.5f));
+		break;
+	case 4:
+		r.f = LittleFloat(f);
+		break;
+	default:
+		Sys_Error("MSG_ToCoord: not a sane coordsize");
+		r.b4 = 0;
+	}
+
+	return r;
+}
+
+coorddata MSG_ToAngle(float f, int bytes)	//return value is NOT byteswapped.
+{
+	coorddata r;
+	switch(bytes)
+	{
+	case 1:
+		r.b4 = 0;
+		if (f >= 0)
+			r.b[0] = (int)(f*(256.0f/360.0f) + 0.5f) & 255;
+		else
+			r.b[0] = (int)(f*(256.0f/360.0f) - 0.5f) & 255;
+		break;
+	case 2:
+		r.b4 = 0;
+		if (f >= 0)
+			r.b2 = LittleShort((int)(f*(65536.0f/360.0f) + 0.5f) & 65535);
+		else
+			r.b2 = LittleShort((int)(f*(65536.0f/360.0f) - 0.5f) & 65535);
 		break;
 	case 4:
 		r.f = LittleFloat(f);
@@ -796,23 +876,31 @@ coorddata MSG_ToCoord(float f, int bytes)	//return value should be treated as (c
 
 void MSG_WriteCoord (sizebuf_t *sb, float f)
 {
-	coorddata i = MSG_ToCoord(f, sizeofcoord);
-	SZ_Write (sb, (void*)&i, sizeofcoord);
+	coorddata i = MSG_ToCoord(f, sb->prim.coordsize);
+	SZ_Write (sb, (void*)&i, sb->prim.coordsize);
 }
 
 void MSG_WriteAngle16 (sizebuf_t *sb, float f)
 {
-	MSG_WriteShort (sb, (int)(f*65536/360) & 65535);
+	if (f >= 0)
+		MSG_WriteShort (sb, (int)(f*(65536.0f/360.0f) + 0.5f) & 65535);
+	else
+		MSG_WriteShort (sb, (int)(f*(65536.0f/360.0f) - 0.5f) & 65535);
 }
 void MSG_WriteAngle8 (sizebuf_t *sb, float f)
 {
-	MSG_WriteByte (sb, (int)(f*256/360) & 255);
+	if (f >= 0)
+		MSG_WriteByte (sb, (int)(f*(256.0f/360.0f) + 0.5f) & 255);
+	else
+		MSG_WriteByte (sb, (int)(f*(256.0f/360.0f) - 0.5f) & 255);
 }
 
 void MSG_WriteAngle (sizebuf_t *sb, float f)
 {
-	if (sizeofangle==2)
+	if (sb->prim.anglesize==2)
 		MSG_WriteAngle16(sb, f);
+	else if (sb->prim.anglesize==4)
+		MSG_WriteFloat(sb, f);
 	else
 		MSG_WriteAngle8 (sb, f);
 }
@@ -920,13 +1008,20 @@ void MSG_WriteDeltaUsercmd (sizebuf_t *buf, usercmd_t *from, usercmd_t *cmd)
 //
 int			msg_readcount;
 qboolean	msg_badread;
+struct netprim_s msg_nullnetprim;
 
-void MSG_BeginReading (void)
+void MSG_BeginReading (struct netprim_s prim)
 {
 	msg_readcount = 0;
 	msg_badread = false;
 	net_message.currentbit = 0;
 	net_message.packing = SZ_RAWBYTES;
+	net_message.prim = prim;
+}
+
+void MSG_ChangePrimitives(struct netprim_s prim)
+{
+	net_message.prim = prim;
 }
 
 int MSG_GetReadCount(void)
@@ -1063,6 +1158,31 @@ int MSG_ReadBits(int bits)
 
 	return bitmask;
 }
+
+void MSG_ReadSkip(int bytes)
+{
+	if (net_message.packing!=SZ_RAWBYTES)
+	{
+		while (bytes > 4)
+		{
+			MSG_ReadBits(32);
+			bytes-=4;
+		}
+		while (bytes > 0)
+		{
+			MSG_ReadBits(8);
+			bytes--;
+		}
+	}
+	if (msg_readcount+bytes > net_message.cursize)
+	{
+		msg_readcount = net_message.cursize;
+		msg_badread = true;
+		return;
+	}
+	msg_readcount += bytes;
+}
+
 
 // returns -1 and sets msg_badread if no more characters are available
 int MSG_ReadChar (void)
@@ -1222,8 +1342,10 @@ char *MSG_ReadStringLine (void)
 float MSG_ReadCoord (void)
 {
 	coorddata c = {{0}};
-	MSG_ReadData(&c, sizeofcoord);
-	return MSG_FromCoord(c, sizeofcoord);
+	if (!net_message.prim.coordsize)
+		net_message.prim.coordsize = 2;
+	MSG_ReadData(&c, net_message.prim.coordsize);
+	return MSG_FromCoord(c, net_message.prim.coordsize);
 }
 
 void MSG_ReadPos (vec3_t pos)
@@ -1233,11 +1355,13 @@ void MSG_ReadPos (vec3_t pos)
 	pos[2] = MSG_ReadCoord();
 }
 
+#if defined(Q2SERVER) || !defined(SERVERONLY)
 #define Q2NUMVERTEXNORMALS	162
 vec3_t	bytedirs[Q2NUMVERTEXNORMALS] =
 {
 #include "../client/q2anorms.h"
 };
+#endif
 #ifndef SERVERONLY
 void MSG_ReadDir (vec3_t dir)
 {
@@ -1252,6 +1376,7 @@ void MSG_ReadDir (vec3_t dir)
 	VectorCopy (bytedirs[b], dir);
 }
 #endif
+#ifdef Q2SERVER
 void MSG_WriteDir (sizebuf_t *sb, vec3_t dir)
 {
 	int		i, best;
@@ -1276,6 +1401,7 @@ void MSG_WriteDir (sizebuf_t *sb, vec3_t dir)
 	}
 	MSG_WriteByte (sb, best);
 }
+#endif
 
 float MSG_ReadAngle16 (void)
 {
@@ -1283,9 +1409,21 @@ float MSG_ReadAngle16 (void)
 }
 float MSG_ReadAngle (void)
 {
-	if (sizeofangle==2)
+	if (!net_message.prim.anglesize)
+		net_message.prim.anglesize = 1;
+
+	switch(net_message.prim.anglesize)
+	{
+	case 2:
 		return MSG_ReadAngle16();
-	return MSG_ReadChar() * (360.0/256);
+	case 4:
+		return MSG_ReadFloat();
+	case 1:
+		return MSG_ReadChar() * (360.0/256);
+	default:
+		Host_Error("Bad angle size\n");
+		return 0;
+	}
 }
 
 void MSG_ReadDeltaUsercmd (usercmd_t *from, usercmd_t *move)
@@ -1619,6 +1757,8 @@ void COM_DefaultExtension (char *path, char *extension, int maxlen)
 		src--;
 	}
 
+	if (*extension != '.')
+		Q_strncatz (path, ".", maxlen);
 	Q_strncatz (path, extension, maxlen);
 }
 
@@ -1755,12 +1895,12 @@ static int dehex(int i)
 
 //Takes a q3-style fun string, and returns an expanded string-with-flags (actual return value is the null terminator)
 //outsize parameter is in _BYTES_ (so sizeof is safe).
-conchar_t *COM_ParseFunString(conchar_t defaultflags, char *str, conchar_t *out, int outsize, qboolean keepmarkup)
+conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t *out, int outsize, qboolean keepmarkup)
 {
 	conchar_t extstack[4];
 	int extstackdepth = 0;
 	unsigned int uc, l;
-	int utf8 = com_parseutf8.value;
+	int utf8 = com_parseutf8.ival;
 
 	conchar_t ext;
 
@@ -1780,7 +1920,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, char *str, conchar_t *out,
 
 	if (*str == 1 || *str == 2)
 	{
-		if (com_parseutf8.value)
+		if (com_parseutf8.ival)
 			defaultflags = (defaultflags&~CON_FGMASK) | (COLOR_MAGENTA<<CON_FGSHIFT);
 		else
 			defaultflags |= CON_HIGHCHARSMASK;
@@ -1908,7 +2048,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, char *str, conchar_t *out,
 						ext = ((str[3] - ('A' - 10)) << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
 					else
 						ext = ((str[3] - '0') << CON_BGSHIFT) | (ext&~CON_BGMASK) | CON_NONCLEARBG;
-					
+
 					if (!keepmarkup)
 					{
 						str += 4;
@@ -1932,7 +2072,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, char *str, conchar_t *out,
 			}
 			else if (str[1] == 'm')
 			{
-				if (com_parseutf8.value)
+				if (com_parseutf8.ival)
 				{
 					if ((ext & CON_FGMASK) != (COLOR_MAGENTA<<CON_FGSHIFT))
 						ext = (ext&~CON_FGMASK) | (COLOR_MAGENTA<<CON_FGSHIFT);
@@ -1962,7 +2102,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, char *str, conchar_t *out,
 					ext = extstack[extstackdepth];
 				}
 			}
-			else if (str[1] == 'U')	//restore from stack (it's great for names)
+			else if (str[1] == 'U')	//unicode (16bit) char ^Uxxxx
 			{
 				if (!keepmarkup)
 				{
@@ -1986,7 +2126,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, char *str, conchar_t *out,
 				{
 					if (!--outsize)
 						break;
-					if (com_parseutf8.value)
+					if (com_parseutf8.ival)
 						*out++ = (unsigned char)(*str) | ext;
 					else
 						*out++ = (unsigned char)(*str) | ext | 0xe000;
@@ -2066,7 +2206,7 @@ messedup:
 			*out++ = (unsigned char)(*str++) | ext;
 		else
 		{
-			if (strchr("\n\r ", *str))
+			if (strchr("\n\r\t ", *str))
 				*out++ = (unsigned char)(*str++) | (ext&~CON_HIGHCHARSMASK);
 			else
 				*out++ = (unsigned char)(*str++) | ext | 0xe000;
@@ -2078,6 +2218,7 @@ messedup:
 
 int COM_FunStringLength(unsigned char *str)
 {
+	//FIXME:
 	int len = 0;
 
 	while(*str)
@@ -2287,6 +2428,21 @@ skipwhite:
 		}
 	}
 
+//skip / * comments
+	if (c == '/' && data[1] == '*')
+	{
+		data+=2;
+		while(*data)
+		{
+			if (*data == '*' && data[1] == '/')
+			{
+				data+=2;
+				goto skipwhite;
+			}
+			data++;
+		}
+		goto skipwhite;
+	}
 
 // handle quoted strings specially
 	if (c == '\"')
@@ -2331,14 +2487,14 @@ skipwhite:
 }
 
 //same as COM_Parse, but parses two quotes next to each other as a single quote as part of the string
-char *COM_StringParse (const char *data, qboolean expandmacros, qboolean qctokenize)
+char *COM_StringParse (const char *data, char *token, unsigned int tokenlen, qboolean expandmacros, qboolean qctokenize)
 {
 	int		c;
 	int		len;
 	char *s;
 
 	len = 0;
-	com_token[0] = 0;
+	token[0] = 0;
 
 	if (!data)
 		return NULL;
@@ -2350,6 +2506,12 @@ skipwhite:
 		if (c == 0)
 			return NULL;			// end of file;
 		data++;
+	}
+	if (c == '\n')
+	{
+		token[len++] = c;
+		token[len] = 0;
+		return (char*)data+1;
 	}
 
 // skip // comments
@@ -2386,9 +2548,9 @@ skipwhite:
 		data++;
 		while (1)
 		{
-			if (len >= TOKENSIZE-1)
+			if (len >= tokenlen-1)
 			{
-				com_token[len] = '\0';
+				token[len] = '\0';
 				return (char*)data;
 			}
 
@@ -2399,12 +2561,12 @@ skipwhite:
 				c = *(data);
 				if (c!='\"')
 				{
-					com_token[len] = 0;
+					token[len] = 0;
 					return (char*)data;
 				}
 				while (c=='\"')
 				{
-					com_token[len] = c;
+					token[len] = c;
 					len++;
 					data++;
 					c = *(data+1);
@@ -2412,10 +2574,10 @@ skipwhite:
 			}
 			if (!c)
 			{
-				com_token[len] = 0;
+				token[len] = 0;
 				return (char*)data-1;
 			}
-			com_token[len] = c;
+			token[len] = c;
 			len++;
 		}
 	}
@@ -2426,9 +2588,9 @@ skipwhite:
 		data++;
 		while (1)
 		{
-			if (len >= TOKENSIZE-1)
+			if (len >= tokenlen-1)
 			{
-				com_token[len] = '\0';
+				token[len] = '\0';
 				return (char*)data;
 			}
 
@@ -2439,12 +2601,12 @@ skipwhite:
 				c = *(data);
 				if (c!='\'')
 				{
-					com_token[len] = 0;
+					token[len] = 0;
 					return (char*)data;
 				}
 				while (c=='\'')
 				{
-					com_token[len] = c;
+					token[len] = c;
 					len++;
 					data++;
 					c = *(data+1);
@@ -2452,10 +2614,10 @@ skipwhite:
 			}
 			if (!c)
 			{
-				com_token[len] = 0;
+				token[len] = 0;
 				return (char*)data;
 			}
-			com_token[len] = c;
+			token[len] = c;
 			len++;
 		}
 	}
@@ -2463,33 +2625,33 @@ skipwhite:
 	if (qctokenize && (c == '\n' || c == '{' || c == '}' || c == ')' || c == '(' || c == ']' || c == '[' || c == '\'' || c == ':' || c == ',' || c == ';'))
 	{
 		// single character
-		com_token[len++] = c;
-		com_token[len] = 0;
+		token[len++] = c;
+		token[len] = 0;
 		return (char*)data+1;
 	}
 
 // parse a regular word
 	do
 	{
-		if (len >= TOKENSIZE-1)
+		if (len >= tokenlen-1)
 		{
-			com_token[len] = '\0';
+			token[len] = '\0';
 			return (char*)data;
 		}
 
-		com_token[len] = c;
+		token[len] = c;
 		data++;
 		len++;
 		c = *data;
 	} while ((unsigned)c>32 && !(qctokenize && (c == '\n' || c == '{' || c == '}' || c == ')' || c == '(' || c == ']' || c == '[' || c == '\'' || c == ':' || c == ',' || c == ';')));
 
-	com_token[len] = 0;
+	token[len] = 0;
 
 	if (!expandmacros)
 		return (char*)data;
 
 	//now we check for macros.
-	for (s = com_token, c= 0; c < len; c++, s++)	//this isn't a quoted token by the way.
+	for (s = token, c= 0; c < len; c++, s++)	//this isn't a quoted token by the way.
 	{
 		if (*s == '$')
 		{
@@ -2509,9 +2671,9 @@ skipwhite:
 			macro = Cvar_FindVar(name);
 			if (macro)	//got one...
 			{
-				if (len+strlen(macro->string)-(i+1) >= TOKENSIZE-1)	//give up.
+				if (len+strlen(macro->string)-(i+1) >= tokenlen-1)	//give up.
 				{
-					com_token[len] = '\0';
+					token[len] = '\0';
 					return (char*)data;
 				}
 				memmove(s+strlen(macro->string), s+i+1, len-c-i);
@@ -2856,6 +3018,7 @@ void COM_InitArgv (int argc, const char **argv)	//not allowed to tprint
 {
 	qboolean	safe;
 	int			i;
+	size_t result;
 
 	FILE *f;
 
@@ -2869,7 +3032,11 @@ void COM_InitArgv (int argc, const char **argv)	//not allowed to tprint
 		fseek(f, 0, SEEK_SET);
 
 		buffer = (char*)malloc(len+1);
-		fread(buffer, 1, len, f);
+		result = fread(buffer, 1, len, f); // do something with result
+
+		if (result != len)
+			Con_Printf("COM_InitArgv() fread: Filename: %s, expected %i, result was %u (%s)\n",va("%s_p.txt", argv[0]),len,(unsigned int)result,strerror(errno));
+
 		buffer[len] = '\0';
 
 		while (*buffer && (argc < MAX_NUM_ARGVS))
@@ -2942,7 +3109,7 @@ COM_Version_f
 */
 void COM_Version_f (void)
 {
-	Con_TPrintf (TLC_VERSIONST, DISTRIBUTION, build_number());
+	Con_Printf("%s\n", version_string());
 
 	Con_TPrintf (TL_EXEDATETIME, __DATE__, __TIME__);
 
@@ -2955,7 +3122,9 @@ void COM_Version_f (void)
 #ifdef _DEBUG
 	Con_Printf("debug build\n");
 #endif
-
+#ifdef MINIMAL
+	Con_Printf("minimal build\n");
+#endif
 #ifdef CLIENTONLY
 	Con_Printf("client-only build\n");
 #endif
@@ -2963,12 +3132,20 @@ void COM_Version_f (void)
 	Con_Printf("dedicated server build\n");
 #endif
 
-#ifdef __MINGW32__
-	Con_Printf("Compiled with MinGW32 version: %i.%i\n",__MINGW32_MAJOR_VERSION, __MINGW32_MINOR_VERSION);
+#ifdef GLQUAKE
+	Con_Printf("OpenGL available\n");
+#endif
+#ifdef D3DQUAKE
+	Con_Printf("Direct3D available\n");
 #endif
 
-#ifdef __MINGW64__
-	Con_Printf("Compiled with MinGW64 version: %i.%i\n",__MINGW64_MAJOR_VERSION, __MINGW64_MINOR_VERSION);
+#ifdef _SDL
+	Con_Printf("SDL version: %d.%d.%d\n", SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_PATCHLEVEL);
+#endif
+
+// Don't print both as a 64bit MinGW built client
+#if defined(__MINGW32__)
+	Con_Printf("Compiled with MinGW32/64 version: %i.%i\n",__MINGW32_MAJOR_VERSION, __MINGW32_MINOR_VERSION);
 #endif
 
 #ifdef __CYGWIN__
@@ -2976,7 +3153,7 @@ void COM_Version_f (void)
 #endif
 
 #ifdef __GNUC__
-	Con_Printf("Compiled with GCC version: %i.%i.%i (%i)\n",__GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__, __VERSION__);
+	Con_Printf("Compiled with GCC version: %i.%i.%i (%s)\n",__GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__, __VERSION__);
 
 	#ifdef __OPTIMIZE__
 		#ifdef __OPTIMIZE_SIZE__
@@ -2993,10 +3170,17 @@ void COM_Version_f (void)
 	#endif
 #endif
 
+#ifdef _WIN64
+		Con_Printf("Compiled for 64bit windows\n");
+#endif
+#if defined(_M_AMD64) || defined(__amd64__)
+		Con_Printf("Compiled for AMD64 compatible cpus\n");
+#endif
+
 #ifdef _M_IX86
 	Con_Printf("x86 optimized for: ");
 
-	if (_M_IX86 == 600) { Con_Printf("Pentium Pro, Pentium II and Pentium III"); }
+	if (_M_IX86 == 600) { Con_Printf("Blend or Pentium Pro, Pentium II and Pentium III"); }
 	else if (_M_IX86 == 500) { Con_Printf("Pentium"); }
 	else if (_M_IX86 == 400) { Con_Printf("486"); }
 	else if (_M_IX86 == 300) { Con_Printf("386"); }
@@ -3031,6 +3215,7 @@ void COM_Version_f (void)
 	else if (_MSC_VER == 1310) { Con_Printf("Visual C++ 2003, version 7.1\n"); }
 	else if (_MSC_VER == 1400) { Con_Printf("Visual C++ 2005, version 8.0\n"); }
 	else if (_MSC_VER == 1500) { Con_Printf("Visual C++ 2008, version 9.0\n"); }
+	else if (_MSC_VER == 1600) { Con_Printf("Visual C++ 2010, version 10.0\n"); }
 	else
 	{
 #ifdef _MSC_BUILD
@@ -3044,15 +3229,23 @@ void COM_Version_f (void)
 	//print out which libraries are disabled
 #ifndef AVAIL_ZLIB
 	Con_Printf("zlib disabled\n");
+#else
+	Con_Printf("zlib: %s\n", ZLIB_VERSION);
 #endif
+
+
 
 	//but print client ones only if we're not dedicated
 #ifndef SERVERONLY
 #ifndef AVAIL_PNGLIB
 	Con_Printf("libpng disabled\n");
+#else
+	Con_Printf("libPNG %s -%s", PNG_LIBPNG_VER_STRING, PNG_HEADER_VERSION_STRING);
 #endif
 #ifndef AVAIL_JPEGLIB
 	Con_Printf("libjpeg disabled\n");
+#else
+	Con_Printf("libjpeg: %i (%d series)\n", JPEG_LIB_VERSION, ( JPEG_LIB_VERSION / 10 ) );
 #endif
 #ifndef AVAIL_OGGVORBIS
 	Con_Printf("libvorbis disabled\n");
@@ -3060,12 +3253,22 @@ void COM_Version_f (void)
 #ifndef AVAIL_FREETYPE
 	Con_Printf("freetype2 disabled\n");
 #endif
+#ifndef AVAIL_OPENAL
+	Con_Printf("openal disabled\n");
+#endif
+
 #ifdef _WIN32
 	#ifndef AVAIL_DINPUT
-		Con_Printf("dinput disabled\n");
+		Con_Printf("DirectInput disabled\n");
 	#endif
 	#ifndef AVAIL_DSOUND
-		Con_Printf("dsound disabled\n");
+		Con_Printf("DirectSound disabled\n");
+	#endif
+	#ifndef AVAIL_D3D
+		Con_Printf("Direct3D disabled\n");
+	#endif
+	#ifndef AVAIL_DDRAW
+		Con_Printf("DirectDraw disabled\n");
 	#endif
 #endif
 #endif
@@ -3106,6 +3309,8 @@ void COM_Init (void)
 	Cmd_AddCommand ("dir", COM_Dir_f);			//q3 like
 	Cmd_AddCommand ("flocate", COM_Locate_f);	//prints the pak or whatever where this file can be found.
 	Cmd_AddCommand ("version", COM_Version_f);	//prints the pak or whatever where this file can be found.
+	
+	Cmd_AddCommand ("crashme", (void*)1); //debugging feature, makes it jump to an invalid address
 
 	COM_InitFilesystem ();
 
@@ -3117,7 +3322,10 @@ void COM_Init (void)
 
 	Cvar_Register (&registered, "Copy protection");
 	Cvar_Register (&gameversion, "Gamecode");
+	Cvar_Register (&gameversion_min, "Gamecode");
+	Cvar_Register (&gameversion_max, "Gamecode");
 	Cvar_Register (&com_parseutf8, "Internationalisation");
+	com_parseutf8.ival = 1;
 
 
 
@@ -3213,7 +3421,7 @@ int COM_Effectinfo_Add(const char *effectname)
 void COM_Effectinfo_Reload(void)
 {
 	int i;
-	char *f;
+	char *f, *buf;
 	static const char *dpnames[] =
 	{
 		"TE_GUNSHOT",
@@ -3260,9 +3468,10 @@ void COM_Effectinfo_Reload(void)
 		COM_Effectinfo_Add(dpnames[i]);
 
 
-	FS_LoadFile("effectinfo.txt", &f);
+	FS_LoadFile("effectinfo.txt", (void **)&f);
 	if (!f)
 		return;
+	buf = f;
 	while (*f)
 	{
 		f = COM_ParseToken(f, NULL);
@@ -3281,7 +3490,7 @@ void COM_Effectinfo_Reload(void)
 			} while(*f && strcmp(com_token, "\n"));
 		}
 	}
-	FS_FreeFile(f);
+	FS_FreeFile(buf);
 }
 
 unsigned int COM_Effectinfo_ForName(const char *efname)
@@ -3314,6 +3523,71 @@ char *COM_Effectinfo_ForNumber(unsigned int efnum)
 	return "";
 }
 
+/*************************************************************************/
+
+/*remaps map checksums from known non-cheat GPL maps to authentic id1 maps*/
+unsigned int COM_RemapMapChecksum(unsigned int checksum)
+{
+	static const struct {
+		char *name;
+		unsigned int gpl2;
+		unsigned int id11;
+		unsigned int id12;
+	} sums[] =
+	{
+		{"maps/start.bsp", -603735309, 714749795, 493454459},
+
+		{"maps/e1m1.bsp", -1213097692, 523840258, -1391994750},
+		{"maps/e1m2.bsp", -2134038629, 1561595172, 1729102119},
+		{"maps/e1m3.bsp", 526593427, 1008794158, 893792842},
+		{"maps/e1m4.bsp", -1218723400, -442162482, -304478603},
+		{"maps/e1m5.bsp", 1709090059, 1856217547, -1473504118},
+		{"maps/e1m6.bsp", 1014375998, 1304756164, 738207971},
+		{"maps/e1m7.bsp", 1375393448, -1396746908, -1747518694},
+		{"maps/e1m8.bsp", 1470379688, -163803419, 79095617},
+
+		{"maps/e2m1.bsp", -1725230579, -797758554, -587894734},
+		{"maps/e2m2.bsp", -1573837115, -355822557, -1349116595},
+		{"maps/e2m3.bsp", 156655662, 1203005272, -57072303},
+		{"maps/e2m4.bsp", -1530012474, -1629664024, -1021928503},
+		{"maps/e3m5.bsp", -594001393, -1405673977, -1854273999},
+		{"maps/e2m6.bsp", 1041933133, 583875451, -1851573375},
+		{"maps/e2m7.bsp", -1583122652, 1814005234, 2051006488},
+
+		{"maps/e3m1.bsp", -1118143869, -457270773, -1867379423},
+		{"maps/e3m2.bsp", -469484146, 723435606, -1670613704},
+		{"maps/e3m3.bsp", -300762423, -540030088, -1009754856},
+		{"maps/e3m4.bsp", -214067894, 1107310161, -1317466952},
+		{"maps/e3m5.bsp", -594001393, -1405673977, -1854273999},
+		{"maps/e3m6.bsp", -1664550468, 1631142730, 767655416},
+		{"maps/e3m7.bsp", 781051658, -1513131760, 272220593},
+
+		{"maps/e4m1.bsp", 1548541253, 1254243660, -1141873840},
+		{"maps/e4m2.bsp", -1400585206, 92253388, -472296},
+		{"maps/e4m3.bsp", -1230693918, 1961442781, 1505685644},
+		{"maps/e4m4.bsp", 842253404, -374904516, 758847551},
+		{"maps/e4m5.bsp", -439098147, 389110272, 1771890676},
+		{"maps/e4m6.bsp", 1518024640, 1714857656, 102825880},
+		{"maps/e4m7.bsp", -381063035, -585362206, -1645477460},
+		{"maps/e4m8.bsp", 844770132, 1063417045, 1018457175},
+
+		{"maps/gpl_dm1.bsp", 2100781454, -1548219590, -976758093},
+		{"maps/gpl_dm2.bsp", 2066969664, 392410074, 1710634548},
+		{"maps/gpl_dm3.bsp", -1859681874, 2060033246, 367136248},
+		{"maps/gpl_dm4.bsp", -1015750775, 326737183, -1670388545},
+		{"maps/gpl_dm5.bsp", 2009758949, 766929852, -1339209475},
+		{"maps/gpl_dm6.bsp", 537693021, 247150701, 1376311851},
+
+		{"maps/end.bsp", -124054866, -1503553320, -1143688027}
+	};
+	unsigned int i;
+	for (i = 0; i < sizeof(sums)/sizeof(sums[0]); i++)
+	{
+		if (checksum == sums[i].gpl2)
+			return sums[i].id12;
+	}
+	return checksum;
+}
 
 /*
 =====================================================================
@@ -3989,48 +4263,6 @@ qbyte	Q2COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence)
 
 #endif
 
-// char *date = "Oct 24 1996";
-static char *date = __DATE__ ;
-static char *mon[12] =
-{ "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-static char mond[12] =
-{ 31,    28,    31,    30,    31,    30,    31,    31,    30,    31,    30,    31 };
-
-// returns days since Oct 24 1996
-int build_number( void )
-{
-	int m = 0;
-	int d = 0;
-	int y = 0;
-	static int b = 0;
-
-	if (b != 0)
-		return b;
-
-	for (m = 0; m < 11; m++)
-	{
-		if (Q_strncasecmp( &date[0], mon[m], 3 ) == 0)
-			break;
-		d += mond[m];
-	}
-
-	d += atoi( &date[4] ) - 1;
-
-	y = atoi( &date[7] ) - 1900;
-
-	b = d + (int)((y - 1) * 365.25);
-
-	if (((y % 4) == 0) && m > 1)
-	{
-		b += 1;
-	}
-
-	b -= 35778; // Dec 16 1998
-
-	return b;
-}
-
-
 #ifdef _WIN32
 // don't use these functions in MSVC8
 #if (_MSC_VER < 1400)
@@ -4091,3 +4323,38 @@ int __mingw_vfprintf (FILE *__stream, const char *__format, __VALIST __local_arg
   return vfprintf( __stream, __format, __local_argv );
 }
 #endif
+
+int version_number(void)
+{
+	int base = FTE_VER_MAJOR * 10000 + FTE_VER_MINOR * 100;
+
+#ifdef OFFICIAL_RELEASE
+	base -= 1;
+#endif
+
+	return base;
+}
+
+char *version_string(void)
+{
+	static char s[128];
+	static qboolean done;
+
+	if (!done)
+	{
+#ifdef OFFICIAL_RELEASE
+		Q_snprintfz(s, sizeof(s), "%s v%i.%02i", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR);
+#elif defined(SVNREVISION)
+#define STRINGIFY2(arg) #arg
+#define STRINGIFY(arg) STRINGIFY2(arg)
+		Q_snprintfz(s, sizeof(s), "%s SVN %s", DISTRIBUTION, STRINGIFY(SVNREVISION));
+#undef STRINGIFY
+#undef STRINGIFY2
+#else
+		Q_snprintfz(s, sizeof(s), "%s build %s", DISTRIBUTION, __DATE__);
+#endif
+		done = true;
+	}
+
+	return s;
+}

@@ -55,6 +55,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "cmd.h"
 #include "model.h"
 #include "crc.h"
+#include "progtype.h"
+#include "progdefs.h"
 #include "progs.h"
 #include "q2game.h"
 
@@ -93,12 +95,12 @@ extern	double		host_frametime;
 extern	double		realtime;			// not bounded in any way, changed at
 										// start of every frame, never reset
 
-void SV_Error (char *error, ...);
+void SV_Error (char *error, ...) LIKEPRINTF(1);
 void SV_Init (struct quakeparms_s *parms);
 
-void Con_Printf (char *fmt, ...);
+void Con_Printf (char *fmt, ...) LIKEPRINTF(1);
 void Con_TPrintf (translation_t fmt, ...);
-void Con_DPrintf (char *fmt, ...);
+void Con_DPrintf (char *fmt, ...) LIKEPRINTF(1);
 
 #endif
 

@@ -3,8 +3,6 @@ void() t_movetarget;
 void() knight_walk1;
 void() knight_bow6;
 void() knight_bow1;
-void() walkmonster_start;
-
 void(entity etemp, entity stemp, entity stemp, float dmg) T_Damage;
 /*
 
@@ -151,7 +149,7 @@ local float		r;
 	spot2 = targ.origin + targ.view_ofs;
 	
 	r = vlen (spot1 - spot2);
-	if (r < 80)
+	if (r < 120)
 		return RANGE_MELEE;
 	if (r < 500)
 		return RANGE_NEAR;
@@ -268,9 +266,6 @@ void() ChangeYaw =
 
 void() HuntTarget =
 {
-
-
-
 	self.goalentity = self.enemy;
 	self.think = self.th_run;
 	self.ideal_yaw = vectoyaw(self.enemy.origin - self.origin);
@@ -353,28 +348,15 @@ slower noticing monsters.
 */
 float() FindTarget =
 {
-	local entity	client, te;
-	local float		r, x;
-	local string y;
+	local entity	client;
+	local float		r;
 
 // if the first spawnflag bit is set, the monster will only wake up on
 // really seeing the player, not another monster getting angry
+
 // spawnflags & 3 is a big hack, because zombie crucified used the first
 // spawn flag prior to the ambush flag, and I forgot about it, so the second
 // spawn flag works as well
-
-
-
-	if (self.charmed >= 1)
-	{
-		self.charmed = self.charmed - 1;
-		return FALSE;
-	}
-	if (self.charmed <= 0)
-	{
-		self.friend = world;
-		return FALSE;
-	}
 
 	if (sight_entity_time >= time - 0.1 && !(self.spawnflags & 3) )
 	{
@@ -389,29 +371,22 @@ float() FindTarget =
 			return FALSE;	// current check entity isn't in PVS
 	}
 
-
-	if (client == self.friend)//friends will not be attacked
-		return FALSE;
 	if (client == self.enemy)
 		return FALSE;
-
-	if (self.flash > 0)
-		return;
 
 	if (client.flags & FL_NOTARGET)
 		return FALSE;
 	if (client.items & IT_INVISIBILITY)
 		return FALSE;
-	if ((client.sneak > 75) && (client.velocity == '0 0 0'))//if you are standing still, hiding, there's no chance
-		return FALSE;                                 //they will see you, unless they turn into you
 
 	r = range (client);
+	if (r == RANGE_FAR)
+		return FALSE;
 		
 	if (!visible (client))
 		return FALSE;
 
-
-	if (client.team == 0)//client connecting
+	if (client.sneak != 0)//sneaking players are invisible
 		return FALSE;
 
 
@@ -422,40 +397,14 @@ float() FindTarget =
 	}
 	else if (r == RANGE_MID)
 	{
-		if (!infront (client))
+		if ( /* client.show_hostile < time || */ !infront (client))
 			return FALSE;
 	}
 	
-	if ((self.search_time < time))
-	{
-		if (self.alert == 0 && client.sneak > 5)
-			self.search_time = time + 2;
-		else if (self.alert == 0 && client.sneak <= 5)
-			self.search_time = time + 1;
-		else if (self.alert > 0)
-		{
-			self.search_time = time + 2;
-			self.alert = self.alert - 1;
-		}
-
-
-		if ((client.sneak <= 1) && (client.sneak > 0))
-		{
-			sprint(client, 2, "you've been detected!\n");
-			client.sneak = 0;
-		}
-
-	}
-
-	if (client.sneak > 0)//sneaking players are invisible
-		return FALSE;
-
 //
 // got one
 //
 	self.enemy = client;
-
-/*
 	if (self.enemy.classname != "player")
 	{
 		self.enemy = self.enemy.enemy;
@@ -464,7 +413,7 @@ float() FindTarget =
 			self.enemy = world;
 			return FALSE;
 		}
-	}*/
+	}
 	
 	FoundTarget ();
 
@@ -526,20 +475,13 @@ The monster is walking it's beat
 */
 void(float dist) ai_walk =
 {
-	if (self.hold == 1)
-	{
-		self.hold = 0;
-		return;
-	}
-	if (self.hold > 1)
-	{
-		self.hold = self.hold - 1;
-		return;
-	}
-
-
 	movedist = dist;
 	
+	if (self.classname == "monster_dragon")
+	{
+		movetogoal (dist);
+		return;
+	}
 	// check for noticing a player
 	if (FindTarget ())
 		return;
@@ -557,17 +499,6 @@ The monster is staying in one place for a while, with slight angle turns
 */
 void() ai_stand =
 {
-	if (self.hold == 1)
-	{
-		self.hold = 0;
-		return;
-	}
-	if (self.hold > 1)
-	{
-		self.hold = self.hold - 1;
-		return;
-	}
-
 	if (FindTarget ())
 		return;
 	
@@ -652,12 +583,6 @@ float()	DogCheckAttack;
 
 float() CheckAnyAttack =
 {
-
-	if (self.charmed >= 1 && self.enemy == self.friend)
-		return;
-
-
-
 	if (!enemy_vis)
 		return FALSE;
 	if (self.classname == "monster_army")
@@ -688,13 +613,8 @@ void() ai_run_melee =
 	self.ideal_yaw = enemy_yaw;
 	ChangeYaw ();
 
-
 	if (FacingIdeal())
 	{
-
-		if (self.enemy == self.friend)
-			return;
-
 		self.th_melee ();
 		self.attack_state = AS_STRAIGHT;
 	}
@@ -710,15 +630,10 @@ Turn in place until within an angle to launch a missile attack
 */
 void() ai_run_missile =
 {
-
 	self.ideal_yaw = enemy_yaw;
 	ChangeYaw ();
 	if (FacingIdeal())
 	{
-
-		if (self.enemy == self.friend)
-			return;
-
 		self.th_missile ();
 		self.attack_state = AS_STRAIGHT;
 	}
@@ -761,34 +676,6 @@ The monster has an enemy it is trying to kill
 */
 void(float dist) ai_run =
 {
-	if (self.hold == 1)
-	{
-		self.th_stand;
-		self.hold = 0;
-		return;
-	}
-	if (self.hold > 1)
-	{
-		self.th_stand ();
-		self.hold = self.hold - 1;
-		self.think = self.th_run;
-		self.nextthink = time + 0.1;
-		return;
-	}
-
-
-	if (self.charmed >= 1)
-	{
-		if (self.enemy.classname != "monster" || (self.enemy.classname == "monster" && self.enemy.health <= 0))
-		{
-			self.enemy = self.friend;
-			self.movetarget = self.friend;
-			self.goalentity = self.friend;
-			self.pausetime = time + 0.1;
-		}
-	}
-
-
 	movedist = dist;
 // see if the enemy is dead
 	if (self.enemy.health <= 0)
@@ -824,12 +711,10 @@ void(float dist) ai_run =
 			return;
 	}
 
-
 	enemy_infront = infront(self.enemy);
 	enemy_range = range(self.enemy);
 	enemy_yaw = vectoyaw(self.enemy.origin - self.origin);
 	
-
 	if (self.attack_state == AS_MISSILE)
 	{
 //dprint ("ai_run_missile\n");

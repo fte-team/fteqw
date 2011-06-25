@@ -10,6 +10,8 @@
 
 #ifndef WIN32
 #include <fcntl.h>
+#else
+#include <direct.h>
 #endif
 
 #ifndef isDedicated
@@ -35,6 +37,10 @@ void Sys_Error (const char *error, ...)
 
 	Host_Shutdown ();
 	exit (1);
+}
+
+void Sys_RecentServer(char *command, char *target, char *title, char *desc)
+{
 }
 
 //print into stdout
@@ -118,9 +124,6 @@ qboolean Sys_remove (char *path)
 //someone used the 'quit' command
 void Sys_Quit (void)
 {
-	if (VID_ForceUnlockedAndReturnState)
-		VID_ForceUnlockedAndReturnState ();
-
 	Host_Shutdown();
 
 	exit (0);
@@ -129,10 +132,154 @@ void Sys_Quit (void)
 //enumerate the files in a directory (of both gpath and match - match may not contain ..)
 //calls the callback for each one until the callback returns 0
 //SDL provides no file enumeration facilities.
+#if defined(_WIN32)
+#include <windows.h>
 int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
 {
-	return 1;
+	HANDLE r;
+	WIN32_FIND_DATA fd;	
+	char apath[MAX_OSPATH];
+	char apath2[MAX_OSPATH];
+	char file[MAX_OSPATH];
+	char *s;
+	int go;
+	if (!gpath)
+		return 0;
+//	strcpy(apath, match);
+	Q_snprintfz(apath, sizeof(apath), "%s/%s", gpath, match);
+	for (s = apath+strlen(apath)-1; s> apath; s--)
+	{
+		if (*s == '/')			
+			break;
+	}
+	*s = '\0';
+
+	//this is what we ask windows for.
+	Q_snprintfz(file, sizeof(file), "%s/*.*", apath);
+
+	//we need to make apath contain the path in match but not gpath
+	Q_strncpyz(apath2, match, sizeof(apath));
+	match = s+1;
+	for (s = apath2+strlen(apath2)-1; s> apath2; s--)
+	{
+		if (*s == '/')			
+			break;
+	}
+	*s = '\0';
+	if (s != apath2)
+		strcat(apath2, "/");
+
+	r = FindFirstFile(file, &fd);
+	if (r==(HANDLE)-1)
+		return 1;
+    go = true;
+	do
+	{
+		if (*fd.cFileName == '.');	//don't ever find files with a name starting with '.'
+		else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)	//is a directory
+		{
+			if (wildcmp(match, fd.cFileName))
+			{
+				Q_snprintfz(file, sizeof(file), "%s%s/", apath2, fd.cFileName);
+				go = func(file, fd.nFileSizeLow, parm);
+			}
+		}
+		else
+		{
+			if (wildcmp(match, fd.cFileName))
+			{
+				Q_snprintfz(file, sizeof(file), "%s%s", apath2, fd.cFileName);
+				go = func(file, fd.nFileSizeLow, parm);
+			}
+		}
+	}
+	while(FindNextFile(r, &fd) && go);
+	FindClose(r);
+
+	return go;
 }
+#elif defined(linux) || defined(__unix__)
+#include <dirent.h>
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
+{
+	DIR *dir;
+	char apath[MAX_OSPATH];
+	char file[MAX_OSPATH];
+	char truepath[MAX_OSPATH];
+	char *s;
+	struct dirent *ent;
+	struct stat st;
+
+//printf("path = %s\n", gpath);
+//printf("match = %s\n", match);
+
+	if (!gpath)
+		gpath = "";
+	*apath = '\0';
+
+	Q_strncpyz(apath, match, sizeof(apath));
+	for (s = apath+strlen(apath)-1; s >= apath; s--)
+	{
+		if (*s == '/')
+		{
+			s[1] = '\0';
+			match += s - apath+1;
+			break;
+		}
+	}
+	if (s < apath)	//didn't find a '/'
+		*apath = '\0';
+
+	Q_snprintfz(truepath, sizeof(truepath), "%s/%s", gpath, apath);
+
+
+//printf("truepath = %s\n", truepath);
+//printf("gamepath = %s\n", gpath);
+//printf("apppath = %s\n", apath);
+//printf("match = %s\n", match);
+	dir = opendir(truepath);
+	if (!dir)
+	{
+		Con_DPrintf("Failed to open dir %s\n", truepath);
+		return true;
+	}
+	do
+	{
+		ent = readdir(dir);
+		if (!ent)
+			break;
+		if (*ent->d_name != '.')
+		{
+			if (wildcmp(match, ent->d_name))
+			{
+				Q_snprintfz(file, sizeof(file), "%s/%s", truepath, ent->d_name);
+
+				if (stat(file, &st) == 0)
+				{
+					Q_snprintfz(file, sizeof(file), "%s%s%s", apath, ent->d_name, S_ISDIR(st.st_mode)?"/":"");
+
+					if (!func(file, st.st_size, parm))
+					{
+						closedir(dir);
+						return false;
+					}
+				}
+				else
+					printf("Stat failed for \"%s\"\n", file);
+			}
+		}
+	} while(1);
+	closedir(dir);
+
+	return true;
+}
+#else
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
+{
+	Con_Printf("Warning: Sys_EnumerateFiles not implemented\n");
+	return false;
+}
+#endif
 
 //blink window if possible (it's not)
 void Sys_ServerActivity(void)
@@ -143,7 +290,7 @@ void Sys_CloseLibrary(dllhandle_t *lib)
 {
 	SDL_UnloadObject((void*)lib);
 }
-dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs)
+dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 {
 	int i;
 	void *lib;
@@ -152,19 +299,28 @@ dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs)
 	if (!lib)
 		return NULL;
 
-	for (i = 0; funcs[i].name; i++)
+	if (funcs)
 	{
-		*funcs[i].funcptr = SDL_LoadFunction(lib, funcs[i].name);
-		if (!*funcs[i].funcptr)
-			break;
-	}
-	if (funcs[i].name)
-	{
-		Sys_CloseLibrary((dllhandle_t*)lib);
-		lib = NULL;
+		for (i = 0; funcs[i].name; i++)
+		{
+			*funcs[i].funcptr = SDL_LoadFunction(lib, funcs[i].name);
+			if (!*funcs[i].funcptr)
+				break;
+		}
+		if (funcs[i].name)
+		{
+			Sys_CloseLibrary((dllhandle_t*)lib);
+			lib = NULL;
+		}
 	}
 
 	return (dllhandle_t*)lib;
+}
+void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname)
+{
+	if (!module)
+		return NULL;
+	return SDL_LoadFunction((void *)module, exportname);
 }
 
 //Without these two we cannot run Q2 gamecode.
@@ -180,14 +336,14 @@ void *Sys_GetGameAPI (void *parms)
 	void *(*GetGameAPI)(void *);
 	dllfunction_t funcs[] =
 	{
-		{(void**)GetGameAPI, "GetGameAPI"},
+		{(void**)&GetGameAPI, "GetGameAPI"},
 		{NULL,NULL}
 	};
 
 	char name[MAX_OSPATH];
 	char curpath[MAX_OSPATH];
 	char *searchpath;
-	const char *gamename = "gamei386.so";
+	const char *gamename = "gamesdl.so";
 
 	void *ret;
 
@@ -241,7 +397,10 @@ void Sys_Init(void)
 {
 	SDL_Init(SDL_INIT_TIMER | SDL_INIT_VIDEO | SDL_INIT_CDROM | SDL_INIT_NOPARACHUTE);
 }
-
+void Sys_Shutdown(void)
+{
+	SDL_Quit();
+}
 
 
 
@@ -252,7 +411,7 @@ int VARGS Sys_DebugLog(char *file, char *fmt, ...)
 	static char data[1024];
     
 	va_start(argptr, fmt);
-	_vsnprintf(data, sizeof(data)-1, fmt, argptr);
+	vsnprintf(data, sizeof(data)-1, fmt, argptr);
 	va_end(argptr);
 
 #if defined(CRAZYDEBUGGING) && CRAZYDEBUGGING > 1
@@ -312,6 +471,7 @@ int main(int argc, char **argv)
 	float time, newtime, oldtime;
 	quakeparms_t	parms;
 	int				t;
+	int delay = 1;
 
 	parms.argv = argv;
 
@@ -370,14 +530,14 @@ int main(int argc, char **argv)
 #ifndef CLIENTONLY
 		if (isDedicated)
 		{
-			NET_Sleep(100, false);
+			NET_Sleep(delay, false);
 
 		// find time passed since last cycle
 			newtime = Sys_DoubleTime ();
 			time = newtime - oldtime;
 			oldtime = newtime;
 			
-			SV_Frame ();
+			delay = SV_Frame()*1000;
 		}
 		else
 #endif

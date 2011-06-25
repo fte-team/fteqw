@@ -2,6 +2,7 @@
 
 #include "quakedef.h"
 #include "winquake.h"
+#include "shader.h"
 
 extern cvar_t maxclients;
 
@@ -15,17 +16,17 @@ void M_Menu_MultiPlayer_f (void)
 	mpic_t *p;
 	int mgt;
 
-	p = NULL; 
+	p = NULL;
 	key_dest = key_menu;
 	m_state = m_complex;
 
 	mgt = M_GameType();
 
 	menu = M_CreateMenu(0);
-	
+
 	if (mgt == MGT_QUAKE2)
 	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_multiplayer");
+		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_multiplayer");
 
 		menu->selecteditem = (menuoption_t*)
 		MC_AddConsoleCommand	(menu, 64, 40,	"Join network server", "menu_slist\n");
@@ -39,12 +40,11 @@ void M_Menu_MultiPlayer_f (void)
 	}
 	else if (mgt == MGT_HEXEN2)
 	{
-		MC_AddCenterPicture(menu, 0, "gfx/menu/title4.lmp");
+		MC_AddCenterPicture(menu, 0, 60, "gfx/menu/title4.lmp");
 
 		mgt=64;
 		menu->selecteditem = (menuoption_t*)
 		MC_AddConsoleCommandHexen2BigFont	(menu, 80, mgt,	"Join A Game ",	"menu_slist\n");mgt+=20;
-		MC_AddConsoleCommandHexen2BigFont	(menu, 80, mgt,	"Old Browser ",	"menu_serversold\n");mgt+=20;
 		MC_AddConsoleCommandHexen2BigFont	(menu, 80, mgt,	"New Server  ",	"menu_newmulti\n");mgt+=20;
 		MC_AddConsoleCommandHexen2BigFont	(menu, 80, mgt,	"Player Setup",	"menu_setup\n");mgt+=20;
 		MC_AddConsoleCommandHexen2BigFont	(menu, 80, mgt,	"Demos       ",	"menu_demo\n");mgt+=20;
@@ -54,14 +54,13 @@ void M_Menu_MultiPlayer_f (void)
 	}
 	else if (QBigFontWorks())
 	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_multi.lmp");
+		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, 24, "gfx/p_multi.lmp");
 
 		mgt=32;
 		menu->selecteditem = (menuoption_t*)
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Join A Game ",	"menu_slist\n");mgt+=20;
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Quick Connect", "quickconnect qw\n");mgt+=20;
-		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Old Browser ",	"menu_serversold\n");mgt+=20;
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"New Server  ",	"menu_newmulti\n");mgt+=20;
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Player Setup",	"menu_setup\n");mgt+=20;
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Demos       ",	"menu_demo\n");mgt+=20;
@@ -71,16 +70,16 @@ void M_Menu_MultiPlayer_f (void)
 	}
 	else
 	{
-		p = Draw_SafeCachePic("gfx/mp_menu.lmp");
+		p = R2D_SafeCachePic("gfx/mp_menu.lmp");
 		if (p)
 		{
-			MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-			MC_AddCenterPicture(menu, 4, "gfx/p_multi.lmp");
-			MC_AddPicture(menu, 72, 32, "gfx/mp_menu.lmp");
+			MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+			MC_AddCenterPicture(menu, 4, 24, "gfx/p_multi.lmp");
+			MC_AddPicture(menu, 72, 32, 232, 64, "gfx/mp_menu.lmp");
 		}
 	}
 
-	b = MC_AddConsoleCommand(menu, 72, 32, "", "menu_slist\n"); 
+	b = MC_AddConsoleCommand(menu, 72, 32, "", "menu_slist\n");
 	menu->selecteditem = (menuoption_t*)b;
 	b->common.height = 20;
 	b->common.width = p?p->width:320;
@@ -112,12 +111,14 @@ typedef struct {
 	menuedit_t *nameedit;
 	menuedit_t *teamedit;
 	menuedit_t *skinedit;
+	menucombo_t *classedit;
 	menucombo_t *modeledit;
 	int topcolour;
 	int lowercolour;
 
+	int ticlass;
 	int tiwidth, tiheight;
-	qbyte translationimage[64*64];
+	qbyte translationimage[128*128];
 } setupmenu_t;
 qboolean ApplySetupMenu (union menuoption_s *option,struct menu_s *menu, int key)
 {
@@ -126,7 +127,10 @@ qboolean ApplySetupMenu (union menuoption_s *option,struct menu_s *menu, int key
 		return false;
 	Cvar_Set(&name, info->nameedit->text);
 	Cvar_Set(&team, info->teamedit->text);
-	Cvar_Set(&skin, info->skinedit->text);
+	if (info->skinedit)
+		Cvar_Set(&skin, info->skinedit->text);
+	if (info->classedit)
+		Cvar_SetValue(Cvar_FindVar("cl_playerclass"), info->classedit->selectedoption+1);
 	Cbuf_AddText(va("color %i %i\n", info->lowercolour, info->topcolour), RESTRICT_LOCAL);
 	S_LocalSound ("misc/menu2.wav");
 	M_RemoveMenu(menu);
@@ -248,7 +252,7 @@ void MSetupQ2_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 	mpic_t	*p;
 
 
-	p = Draw_SafeCachePic (va("players/%s_i", skin.string));
+	p = R2D_SafeCachePic (va("players/%s_i", skin.string));
 	if (!p)
 	{
 		q2skinsearch_t *s = Z_Malloc(sizeof(*s));
@@ -257,56 +261,86 @@ void MSetupQ2_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 			Cvar_Set(&skin, s->names[rand()%s->entries]);
 		q2skin_destroy(s);
 
-		p = Draw_SafeCachePic (va("players/%s_i", skin.string));
+		p = R2D_SafeCachePic (va("players/%s_i", skin.string));
 	}
 	if (p)
-		Draw_TransPic (x-12, y-8, p);
+		R2D_ScalePic (x-12, y-8, p->width, p->height, p);
 }
 
 void MSetup_TransDraw (int x, int y, menucustom_t *option, menu_t *menu)
 {
-	extern qbyte translationTable[256];
+	qbyte translationTable[256];
 	setupmenu_t *info = menu->data;
 	mpic_t	*p;
 	void *f;
+	qboolean reloadtimage = false;
 
-	if (info->skinedit->modified)
+	if (info->skinedit && info->skinedit->modified)
 	{
 		info->skinedit->modified = false;
+		reloadtimage = true;
+	}
+	if (info->classedit && info->classedit->selectedoption != info->ticlass)
+	{
+		info->ticlass = info->classedit->selectedoption;
+		reloadtimage = true;
+	}
 
-		FS_LoadFile(va("gfx/player/%s.lmp", info->skinedit->text), &f);
-		if (!f)
-			FS_LoadFile("gfx/menuplyr.lmp", &f);
+	if (reloadtimage)
+	{
+		if (info->classedit)	//quake2 main menu.
+		{
+			FS_LoadFile(va("gfx/menu/netp%i.lmp", info->ticlass+1), &f);
+		}
+		else
+		{
+			FS_LoadFile(va("gfx/player/%s.lmp", info->skinedit->text), &f);
+			if (!f)
+				FS_LoadFile("gfx/menuplyr.lmp", &f);
+		}
 
 		if (f)
 		{
 			info->tiwidth = ((int*)f)[0];
 			info->tiheight = ((int*)f)[1];
+			if (info->tiwidth * info->tiheight > sizeof(info->translationimage))
+				info->tiwidth = info->tiheight = 0;
 			memcpy(info->translationimage, (char*)f+8, info->tiwidth*info->tiheight);
 			FS_FreeFile(f);
 		}
 	}
 
-	p = Draw_SafeCachePic ("gfx/bigbox.lmp");
+	p = R2D_SafeCachePic ("gfx/bigbox.lmp");
 	if (p)
-		Draw_TransPic (x-12, y-8, p);
+		R2D_ScalePic (x-12, y-8, 72, 72, p);
 
-	M_BuildTranslationTable(info->topcolour*16, info->lowercolour*16);
-	Draw_TransPicTranslate (x, y, info->tiwidth, info->tiheight, info->translationimage, translationTable);	
+	M_BuildTranslationTable(info->topcolour, info->lowercolour, translationTable);
+	R2D_TransPicTranslate (x, y, info->tiwidth, info->tiheight, info->translationimage, translationTable);
 }
 
 void M_Menu_Setup_f (void)
 {
 	int mgt;
 	setupmenu_t *info;
-	menu_t *menu;	
+	menu_t *menu;
+	menucustom_t *ci;
+	menubutton_t *b;
+	static const char *classnames[] =
+	{
+		"Paladin",
+		"Crusader",
+		"Necromancer",
+		"Assasin",
+		"Demoness",
+		NULL
+	};
 
 	mgt = M_GameType();
 	if (mgt == MGT_QUAKE2)	//quake2 main menu.
 	{
-		if (Draw_SafeCachePic("pics/m_banner_plauer_setup"))
+		if (R2D_SafeCachePic("pics/m_banner_plauer_setup"))
 		{
-			char *modeloptions[] =
+			static const char *modeloptions[] =
 			{
 				"male",
 				"female",
@@ -319,17 +353,17 @@ void M_Menu_Setup_f (void)
 
 			menu = M_CreateMenu(sizeof(setupmenu_t));
 			info = menu->data;
-//			menu->key = MC_Main_Key;	
+//			menu->key = MC_Main_Key;
 
-			MC_AddPicture(menu, 0, 4, "pics/m_main_plaque");
-			p = Draw_SafeCachePic("pics/m_main_logo");
+			MC_AddPicture(menu, 0, 4, 38, 166, "pics/m_main_plaque");
+			p = R2D_SafeCachePic("pics/m_main_logo");
 			if (!p)
 				return;
-			MC_AddPicture(menu, 0, 173, "pics/m_main_logo");
+			MC_AddPicture(menu, 0, 173, 36, 42, "pics/m_main_logo");
 
 			menu->selecteditem = (menuoption_t*)
 			(info->nameedit = MC_AddEdit(menu, 64, 40, "Your name", name.string));
-			(info->modeledit = MC_AddCvarCombo(menu, 64, 72, "model", &skin, modeloptions, modeloptions));
+			(info->modeledit = MC_AddCvarCombo(menu, 64, 72, "model", &skin, (const char **)modeloptions, (const char **)modeloptions));
 			info->modeledit->selectedoption = !strncmp(skin.string, "female", 6);
 			cu = MC_AddCustom(menu, 172-16, 88+16, NULL);
 			cu->draw = MSetupQ2_TransDraw;
@@ -366,11 +400,11 @@ void M_Menu_Setup_f (void)
 	key_dest = key_menu;
 	m_state = m_complex;
 
-	menu = M_CreateMenu(sizeof(setupmenu_t));	
+	menu = M_CreateMenu(sizeof(setupmenu_t));
 	info = menu->data;
-	
-	MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-	MC_AddCenterPicture(menu, 4, "gfx/p_multi.lmp");
+
+	MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+	MC_AddCenterPicture(menu, 4, 24, "gfx/p_multi.lmp");
 
 
 //	MC_AddPicture(menu, 72, 32, Draw_CachePic ("gfx/mp_menu.lmp") );
@@ -378,21 +412,34 @@ void M_Menu_Setup_f (void)
 	menu->selecteditem = (menuoption_t*)
 	(info->nameedit = MC_AddEdit(menu, 64, 40, "Your name", name.string));
 	(info->teamedit = MC_AddEdit(menu, 64, 56, "Your team", team.string));
-	(info->skinedit = MC_AddEdit(menu, 64, 72, "Your skin", skin.string));
+	if (mgt == MGT_HEXEN2)
+	{
+		cvar_t *pc = Cvar_Get("cl_playerclass", "1", CVAR_USERINFO|CVAR_ARCHIVE, "Hexen2");
+		(info->classedit = MC_AddCombo(menu, 64, 72, "Your class", (const char **)classnames, pc->ival-1));
+	}
+	else
+		(info->skinedit = MC_AddEdit(menu, 64, 72, "Your skin", skin.string));
 
-	MC_AddCustom(menu, 172, 88, NULL)->draw = MSetup_TransDraw;
+	ci = MC_AddCustom(menu, 172+32, 88, NULL);
+	ci->draw = MSetup_TransDraw;
+	ci->key = NULL;
 
 	MC_AddCommand(menu, 64, 96, "Top colour", SetupMenuColour);
 	MC_AddCommand(menu, 64, 120, "Lower colour", SetupMenuColour);
 
 	MC_AddCommand(menu, 64, 152, "Accept changes", ApplySetupMenu);
-
+	b = MC_AddConsoleCommand(menu, 64, 168, "Network Settings", "menu_network\n");
+	b->common.tooltip = "Change network and client prediction settings.";
+	b = MC_AddConsoleCommand(menu, 64, 176, "Teamplay Settings", "menu_teamplay\n");
+	b->common.tooltip = "Change teamplay macro settings.";
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 54, 32, NULL, false);
 
 
 	info->lowercolour = bottomcolor.value;
 	info->topcolour = topcolor.value;
-	info->skinedit->modified = true;
+	if (info->skinedit)
+		info->skinedit->modified = true;
+	info->ticlass = -1;
 }
 
 
@@ -403,7 +450,7 @@ void M_Menu_ServerList_f (void)
 	key_dest = key_menu;
 	m_state = m_slist;
 
-	MasterInfo_Begin();
+	MasterInfo_Refresh();
 }
 #endif
 
@@ -438,7 +485,7 @@ typedef struct {
 	menucombo_t *teamplay;
 	menucombo_t *skill;
 	menucombo_t *timelimit;
-	menucombo_t *fraglimit;	
+	menucombo_t *fraglimit;
 	menuedit_t *mapnameedit;
 	menucheck_t *rundedicated;
 
@@ -446,7 +493,7 @@ typedef struct {
 	int lowercolour;
 } newmultimenu_t;
 
-static char *numplayeroptions[] = {
+static const char *numplayeroptions[] = {
 	"2",
 	"3",
 	"4",
@@ -495,7 +542,7 @@ qboolean MultiBeginGame (union menuoption_s *option,struct menu_s *menu, int key
 void M_Menu_GameOptions_f (void)
 {
 	extern cvar_t pr_maxedicts;
-	static char *deathmatchoptions[] = {
+	static const char *deathmatchoptions[] = {
 		"Cooperative",
 		"Deathmatch 1",
 		"Deathmatch 2",
@@ -504,20 +551,20 @@ void M_Menu_GameOptions_f (void)
 		"Deathmatch 5",
 		NULL
 	};
-	static char *teamplayoptions[] = {
+	static const char *teamplayoptions[] = {
 		"off",
 		"friendly fire",
 		"no friendly fire",
 		NULL
 	};
-	static char *skilloptions[] = {
+	static const char *skilloptions[] = {
 		"Easy",
 		"Medium",
 		"Hard",
 		"NIGHTMARE",
 		NULL
 	};
-	static char *timelimitoptions[] = {
+	static const char *timelimitoptions[] = {
 		"no limit",
 		"5 minutes",
 		"10 minutes",
@@ -533,7 +580,7 @@ void M_Menu_GameOptions_f (void)
 		"1 hour",
 		NULL
 	};
-	static char *fraglimitoptions[] = {
+	static const char *fraglimitoptions[] = {
 		"no limit",
 		"10 frags",
 		"20 frags",
@@ -556,14 +603,14 @@ void M_Menu_GameOptions_f (void)
 	key_dest = key_menu;
 	m_state = m_complex;
 
-	menu = M_CreateMenu(sizeof(newmultimenu_t));	
+	menu = M_CreateMenu(sizeof(newmultimenu_t));
 	info = menu->data;
 
 	mgt = M_GameType();
 
 	if (mgt == MGT_QUAKE2)
 	{
-		MC_AddCenterPicture(menu, 4, "pics/m_banner_start_server");
+		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_start_server");
 		y += 8;
 	}
 	else if (mgt == MGT_HEXEN2)
@@ -571,8 +618,8 @@ void M_Menu_GameOptions_f (void)
 	}
 	else
 	{
-		MC_AddPicture(menu, 16, 4, "gfx/qplaque.lmp");
-		MC_AddCenterPicture(menu, 4, "gfx/p_multi.lmp");
+		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+		MC_AddCenterPicture(menu, 4, 24, "gfx/p_multi.lmp");
 	}
 
 //	MC_AddPicture(menu, 72, 32, ("gfx/mp_menu.lmp") );
@@ -614,3 +661,301 @@ void M_Menu_GameOptions_f (void)
 }
 #endif
 
+void M_Menu_Teamplay_f (void)
+{
+	static const char *noskinsoptions[] =
+	{
+		"Enabled",
+		"Disabled",
+		"No Download",
+		NULL
+	};
+	static const char *noskinsvalues[] =
+	{
+		"0",
+		"1",
+		"2",
+		NULL
+	};
+
+	extern cvar_t cl_parseSay, cl_triggers, tp_forceTriggers, tp_loadlocs, cl_parseFunChars, cl_noblink, noskins;
+	int y;
+	menubulk_t bulk[] =
+	{
+		MB_REDTEXT("Teamplay Options", false),
+		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_COMBOCVAR("Skins", noskins, noskinsoptions, noskinsvalues, "Enable or disable player skin usage. No download will use skins but will not download them from the server."),
+		MB_EDITCVAR("Enemy Skin", "cl_enemyskin"),
+		MB_EDITCVAR("Team Skin", "cl_teamskin"),
+		MB_EDITCVAR("Fake Name", "cl_fakename"),
+		MB_CHECKBOXCVAR("Parse Fun Chars", cl_parseFunChars, 0),
+		MB_CHECKBOXCVAR("Parse Macros", cl_parseSay, 0),
+		MB_CHECKBOXCVAR("Load Locs", tp_loadlocs, 0),
+		MB_CHECKBOXCVAR("No Blink", cl_noblink, 0),
+		MB_EDITCVAR("Sound Trigger", "tp_soundtrigger"),
+		MB_EDITCVAR("Weapon Order", "tp_weapon_order"),
+		MB_CHECKBOXCVAR("Teamplay Triggers", cl_triggers, 0),
+		MB_CHECKBOXCVAR("Force Triggers", tp_forceTriggers, 0),
+		MB_SPACING(4),
+		MB_CONSOLECMD("Location Names", "menu_teamplay_locations\n", "Modify team play location settings."),
+		MB_CONSOLECMD("Item Needs", "menu_teamplay_needs\n", "Modify messages for item needs in team play macros."),
+		MB_CONSOLECMD("Item Names", "menu_teamplay_items\n", "Modify messages for items in team play macros."),
+		MB_END()
+	};
+	menu_t *menu = M_Options_Title(&y, 0);
+	MC_AddBulk(menu, bulk, 16, 200, y);
+}
+
+void M_Menu_Teamplay_Locations_f (void)
+{
+	menu_t *menu;
+	int y;
+	menubulk_t bulk[] =
+	{
+		MB_REDTEXT("Teamplay Location Names", false),
+		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_EDITCVARSLIM("Separator", "loc_name_separator"),
+		MB_SPACING(4),
+		MB_EDITCVARSLIM("Super Shotgun", "loc_name_ssg"),
+		MB_EDITCVARSLIM("Nailgun", "loc_name_ng"),
+		MB_EDITCVARSLIM("Super Nailgun", "loc_name_sng"),
+		MB_EDITCVARSLIM("Grenade Launcher", "loc_name_gl"),
+		MB_EDITCVARSLIM("Rocket Launcher", "loc_name_rl"),
+		MB_EDITCVARSLIM("Lightning Gun", "loc_name_lg"),
+		MB_SPACING(4),
+		MB_EDITCVARSLIM("Quad Damage", "loc_name_quad"),
+		MB_EDITCVARSLIM("Pentagram", "loc_name_pent"),
+		MB_EDITCVARSLIM("Ring of Invis", "loc_name_ring"),
+		MB_EDITCVARSLIM("Suit", "loc_name_suit"),
+		MB_SPACING(4),
+		MB_EDITCVARSLIM("Green Armor", "loc_name_ga"),
+		MB_EDITCVARSLIM("Yellow Armor", "loc_name_ya"),
+		MB_EDITCVARSLIM("Red Armor", "loc_name_ra"),
+		// TODO: we probably need an actual back button or some such
+		//MB_SPACING(4),
+		//MB_CONSOLECMD("\x7f Teamplay", "menu_teamplay\n", "Return to the teamplay menu."),
+		MB_END()
+	};
+	menu = M_Options_Title(&y, 0);
+	MC_AddBulk(menu, bulk, 16, 200, y);
+}
+
+void M_Menu_Teamplay_Needs_f (void)
+{
+	menu_t *menu;
+	int y;
+	menubulk_t bulk[] =
+	{
+		MB_REDTEXT("Teamplay Needed Items", false),
+		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_EDITCVARSLIM("Shells", "tp_need_shells"),
+		MB_EDITCVARSLIM("Nails", "tp_need_nails"),
+		MB_EDITCVARSLIM("Rockets", "tp_need_rockets"),
+		MB_EDITCVARSLIM("Cells", "tp_need_cells"),
+		MB_EDITCVARSLIM("Rocket Launcher", "tp_need_rl"),
+		MB_SPACING(4),
+		MB_EDITCVARSLIM("Green Armor", "tp_need_ga"),
+		MB_EDITCVARSLIM("Yellow Armor", "tp_need_ya"),
+		MB_EDITCVARSLIM("Red Armor", "tp_need_ra"),
+		MB_SPACING(4),
+		MB_EDITCVARSLIM("Health", "tp_need_health"),
+		MB_EDITCVARSLIM("Weapon", "tp_need_weapon"),
+		MB_END()
+	};
+	menu = M_Options_Title(&y, 0);
+	MC_AddBulk(menu, bulk, 16, 200, y);
+}
+
+void M_Menu_Teamplay_Items_f (void)
+{
+	menu_t *menu;
+	int y;
+	menubulk_t bulk[] =
+	{
+		MB_REDTEXT("Teamplay Item Names", false),
+		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_CONSOLECMD("Armor", "menu_teamplay_armor\n", "Modify team play macro armor names."),
+		MB_CONSOLECMD("Weapon", "menu_teamplay_weapons\n", "Modify team play macro weapon names."),
+		MB_CONSOLECMD("Powerups", "menu_teamplay_powerups\n", "Modify team play macro powerup names."),
+		MB_CONSOLECMD("Ammo/Health", "menu_teamplay_ammo_health\n", "Modify team play macro ammo and health names."),
+		MB_CONSOLECMD("Team Fortress", "menu_teamplay_team_fortress\n", "Modify Team Fortress exclusive team play macro names."),
+		MB_CONSOLECMD("Status/Location/Misc", "menu_teamplay_status_location_misc\n", "Modify status, location, and miscellaneous team play macro names."),
+		MB_END()
+	};
+	menu = M_Options_Title(&y, 0);
+	MC_AddBulk(menu, bulk, 16, 224, y);
+}
+
+void M_Menu_Teamplay_Items_Armor_f (void)
+{
+	menu_t *menu;
+	int y;
+	menubulk_t bulk[] =
+	{
+		MB_REDTEXT("Teamplay Armor Names", false),
+		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_EDITCVARSLIM("Armor", "tp_name_armor"),
+		MB_EDITCVARSLIM("Green Type -", "tp_name_armortype_ga"),
+		MB_EDITCVARSLIM("Yellow Type -", "tp_name_armortype_ya"),
+		MB_EDITCVARSLIM("Red Type -", "tp_name_armortype_ra"),
+		MB_SPACING(4),
+		MB_EDITCVARSLIM("Green Armor", "tp_name_ga"),
+		MB_EDITCVARSLIM("Yellow Armor", "tp_name_ya"),
+		MB_EDITCVARSLIM("Red Armor", "tp_name_ra"),
+		MB_END()
+	};
+	menu = M_Options_Title(&y, 0);
+	MC_AddBulk(menu, bulk, 16, 200, y);
+}
+
+void M_Menu_Teamplay_Items_Weapons_f (void)
+{
+	menu_t *menu;
+	int y;
+	menubulk_t bulk[] =
+	{
+		MB_REDTEXT("Teamplay Weapon Names", false),
+		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_EDITCVARSLIM("Weapon", "tp_name_weapon"),
+		MB_SPACING(4),
+		MB_EDITCVARSLIM("Axe", "tp_name_axe"),
+		MB_EDITCVARSLIM("Shotgun", "tp_name_sg"),
+		MB_EDITCVARSLIM("Super Shotgun", "tp_name_ssg"),
+		MB_EDITCVARSLIM("Nailgun", "tp_name_ng"),
+		MB_EDITCVARSLIM("Super Nailgun", "tp_name_sng"),
+		MB_EDITCVARSLIM("Grenade Launcher", "tp_name_gl"),
+		MB_EDITCVARSLIM("Rocket Launcher", "tp_name_rl"),
+		MB_EDITCVARSLIM("Lightning Gun", "tp_name_lg"),
+		MB_END()
+	};
+	menu = M_Options_Title(&y, 0);
+	MC_AddBulk(menu, bulk, 16, 200, y);
+}
+
+void M_Menu_Teamplay_Items_Powerups_f (void)
+{
+	menu_t *menu;
+	int y;
+	menubulk_t bulk[] =
+	{
+		MB_REDTEXT("Teamplay Powerup Names", false),
+		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_EDITCVARSLIM("Quad Damage", "tp_name_quad"),
+		MB_EDITCVARSLIM("Pentagram", "tp_name_pent"),
+		MB_EDITCVARSLIM("Ring of Invis", "tp_name_ring"),
+		MB_EDITCVARSLIM("Suit", "tp_name_suit"),
+		MB_SPACING(4),
+		MB_EDITCVARSLIM("Quaded", "tp_name_quaded"),
+		MB_EDITCVARSLIM("Pented", "tp_name_pented"),
+		MB_EDITCVARSLIM("Eyes (Ringed)", "tp_name_eyes"),
+		MB_SPACING(4),
+		MB_EDITCVARSLIM("Resistance Rune", "tp_name_rune_1"),
+		MB_EDITCVARSLIM("Strength Rune", "tp_name_rune_2"),
+		MB_EDITCVARSLIM("Haste Rune", "tp_name_rune_3"),
+		MB_EDITCVARSLIM("Regen Rune", "tp_name_rune_4"),
+		MB_END()
+	};
+	menu = M_Options_Title(&y, 0);
+	MC_AddBulk(menu, bulk, 16, 200, y);
+}
+
+void M_Menu_Teamplay_Items_Ammo_Health_f (void)
+{
+	menu_t *menu;
+	int y;
+	menubulk_t bulk[] = 
+	{
+		MB_REDTEXT("Teamplay Ammo/Health", false),
+		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_EDITCVARSLIM("Shells", "tp_name_shells"),
+		MB_EDITCVARSLIM("Nails", "tp_name_nails"),
+		MB_EDITCVARSLIM("Rockets", "tp_name_rockets"),
+		MB_EDITCVARSLIM("Cells", "tp_name_cells"),
+		MB_SPACING(4),
+		MB_EDITCVARSLIM("Backpack", "tp_name_backpack"),
+		MB_EDITCVARSLIM("Health", "tp_name_health"),
+		MB_EDITCVARSLIM("Mega Health", "tp_name_mh"),
+		MB_END()
+	};
+	menu = M_Options_Title(&y, 0);
+	MC_AddBulk(menu, bulk, 16, 200, y);
+}
+
+void M_Menu_Teamplay_Items_Team_Fortress_f (void)
+{
+	menu_t *menu;
+	int y;
+	menubulk_t bulk[] =
+	{
+		MB_REDTEXT("Teamplay Team Fortress", false),
+		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_EDITCVARSLIM("Sentry Gun", "tp_name_sentry"),
+		MB_EDITCVARSLIM("Dispenser", "tp_name_disp"),
+		MB_EDITCVARSLIM("Flag", "tp_name_flag"),
+		MB_END()
+	};
+	menu = M_Options_Title(&y, 0);
+	MC_AddBulk(menu, bulk, 16, 200, y);
+}
+
+void M_Menu_Teamplay_Items_Status_Location_Misc_f (void)
+{
+	menu_t *menu;
+	int y;
+	menubulk_t bulk[] =
+	{
+		MB_REDTEXT("Teamplay Misc", false),
+		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_EDITCVARSLIM("Enemy", "tp_name_enemy"),
+		MB_EDITCVARSLIM("Teammate", "tp_name_teammate"),
+		MB_SPACING(4),
+		MB_EDITCVARSLIM("At (Location)", "tp_name_at"),
+		MB_EDITCVARSLIM("None", "tp_name_none"),
+		MB_EDITCVARSLIM("Nothing", "tp_name_nothing"),
+		MB_EDITCVARSLIM("Separator", "tp_name_separator"),
+		MB_EDITCVARSLIM("Some place", "tp_name_someplace"),
+		MB_SPACING(4),
+		MB_EDITCVARSLIM("Red Status", "tp_name_status_red"),
+		MB_EDITCVARSLIM("Green Status", "tp_name_status_green"),
+		MB_EDITCVARSLIM("Blue Status", "tp_name_status_blue"),
+		MB_EDITCVARSLIM("Yellow Status", "tp_name_status_yellow"),
+		MB_END()
+	};
+	menu = M_Options_Title(&y, 0);
+	MC_AddBulk(menu, bulk, 16, 200, y);
+}
+
+void M_Menu_Network_f (void)
+{
+	static const char *splitopts[] = {
+		"Disabled",
+		"2 Screens",
+		"3 Screens",
+		"4 Screens",
+		NULL
+	};
+	static const char *splitvalues[] = {"0", "1", "2", "3", NULL};
+	extern cvar_t allow_download_csprogs, allow_download_redirection, requiredownloads, cl_solid_players;
+	extern cvar_t cl_splitscreen, cl_predict_players;
+	menu_t *menu;
+	int y;
+	menubulk_t bulk[] =
+	{
+		MB_REDTEXT("Network Settings", false),
+		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_EDITCVARSLIM("Network FPS", "cl_netfps"),
+		MB_EDITCVARSLIM("Rate", "rate"),
+		MB_EDITCVARSLIM("Download Rate", "drate"),
+		MB_SPACING(4),
+		MB_CHECKBOXCVAR("Require Download", requiredownloads, 0),
+		MB_CHECKBOXCVAR("Redirect Download", allow_download_redirection, 0),
+		MB_CHECKBOXCVAR("Download CSQC", allow_download_redirection, 0),
+		MB_SPACING(4),
+		MB_CHECKBOXCVAR("Predict Players", cl_predict_players, 0),
+		MB_CHECKBOXCVAR("Solid Players", cl_solid_players, 0),
+		MB_COMBOCVAR("Split-screen", cl_splitscreen, splitopts, splitvalues, "Enables split screen with a number of clients. This feature requires server support."),
+		MB_END()
+	};
+	menu = M_Options_Title(&y, 0);
+	MC_AddBulk(menu, bulk, 16, 200, y);
+}

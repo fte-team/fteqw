@@ -595,7 +595,7 @@ beginning from specified offset
 void Huff_EncryptPacket(sizebuf_t *msg, int offset)
 {
 	tree_t	tree;
-	qbyte	buffer[MAX_NQMSGLEN];
+	qbyte	buffer[MAX_OVERALLMSGLEN];
 	qbyte	*data;
 	int		outLen;
 	int		inLen;
@@ -603,7 +603,7 @@ void Huff_EncryptPacket(sizebuf_t *msg, int offset)
 
 	data = msg->data + offset;
 	inLen = msg->cursize - offset;
-	if (inLen <= 0 || inLen >= MAX_NQMSGLEN)
+	if (inLen <= 0 || inLen >= MAX_OVERALLMSGLEN)
 	{
 		return;
 	}
@@ -638,7 +638,7 @@ beginning from specified offset
 void Huff_DecryptPacket(sizebuf_t *msg, int offset)
 {
 	tree_t	tree;
-	qbyte	buffer[MAX_NQMSGLEN];
+	qbyte	buffer[MAX_OVERALLMSGLEN];
 	qbyte	*data;
 	int		outLen;
 	int		inLen;
@@ -784,7 +784,7 @@ beginning from specified offset
 */
 void Huff_CompressPacket( sizebuf_t *msg, int offset )
 {
-	qbyte	buffer[MAX_NQMSGLEN];
+	qbyte	buffer[MAX_OVERALLMSGLEN];
 	qbyte	*data;
 	int		outLen;
 	int		inLen;
@@ -795,7 +795,7 @@ void Huff_CompressPacket( sizebuf_t *msg, int offset )
 
 	data = msg->data + offset;
 	inLen = msg->cursize - offset;	
-	if (inLen <= 0 || inLen >= MAX_NQMSGLEN)
+	if (inLen <= 0 || inLen >= MAX_OVERALLMSGLEN)
 	{
 		return;
 	}
@@ -803,7 +803,7 @@ void Huff_CompressPacket( sizebuf_t *msg, int offset )
 	outLen = 0;
 	for (i=0; i < inLen; i++)
 	{
-		if (i == MAX_NQMSGLEN)
+		if (i == MAX_OVERALLMSGLEN)
 			Sys_Error("Compression became too large\n");
 		Huff_EmitByte(data[i], buffer, &outLen);
 
@@ -841,7 +841,7 @@ beginning from specified offset
 */
 void Huff_DecompressPacket(sizebuf_t *msg, int offset)
 {
-	qbyte	buffer[MAX_NQMSGLEN];
+	qbyte	buffer[MAX_OVERALLMSGLEN];
 	qbyte	*data;
 	int		outLen;
 	int		inLen;
@@ -852,7 +852,7 @@ void Huff_DecompressPacket(sizebuf_t *msg, int offset)
 
 	data = msg->data + offset;
 	inLen = msg->cursize - offset;	
-	if (inLen <= 0 || inLen >= MAX_NQMSGLEN)
+	if (inLen <= 0 || inLen >= MAX_OVERALLMSGLEN)
 	{
 		return;
 	}
@@ -872,7 +872,7 @@ void Huff_DecompressPacket(sizebuf_t *msg, int offset)
 	outLen = 0;
 	for(i=0; outLen < inLen; i++)
 	{
-		if (i == MAX_NQMSGLEN)
+		if (i == MAX_OVERALLMSGLEN)
 			Sys_Error("Decompression became too large\n");
 		buffer[i] = Huff_GetByte(data, &outLen);
 	}

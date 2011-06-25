@@ -13,7 +13,7 @@
 //despite not supporting nq or q2, we still load them. We just filter them. This is to make sure we properly write the listing files.
 enum {
 	MT_BAD,			//this would be an error
-	MT_MASTERHTTP,  //an http/ftp based master server with NQ servers
+	MT_MASTERHTTPNQ,  //an http/ftp based master server with NQ servers
 	MT_MASTERHTTPQW,//an http/ftp based master server with QW servers
 	MT_BCASTQW,		//-1status
 	MT_BCASTQ2,		//-1status
@@ -130,6 +130,7 @@ typedef struct master_s{
 	char *address;	//text based address (http servers
 	int type;
 	int servertype;	//filled in for http servers
+	int sends; /*needs to resend?*/
 	char name[1];
 } master_t;
 
@@ -164,7 +165,8 @@ int NET_CheckPollSockets(void);
 void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles);
 serverinfo_t *Master_InfoForServer (netadr_t addr);
 serverinfo_t *Master_InfoForNum (int num);
-int Master_TotalCount(void);
+unsigned int Master_TotalCount(void);
+unsigned int Master_NumPolled(void);
 void Master_SetupSockets(void);
 void Master_QueryServer(serverinfo_t *server);
 void MasterInfo_WriteServers(void);

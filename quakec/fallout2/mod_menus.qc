@@ -225,9 +225,8 @@ string () SmallArmString2 =
 */
 string () SmallArmString3 =
 {
-	return ("rifles\n   RIFLE | TYPE | WEIGHT | PRICE \n\nê1ë rangemaster 7mm  03      11$\nê2ë ak-112      5mm  04      21$\nê3ë fn-fal     .308  08      27$\nê4ë widowmaker .308  09      24$\nê5ë moonlight  .223  05      36$\nê6ë hk g11      5mm  05      23$\n");
+	return ("rifles\n   RIFLE | TYPE | WEIGHT | PRICE \n\nê1ë rangemaster 7mm  03      11$\nê2ë ak-112      5mm  04      21$\nê3ë remington  .308  05      24$\nê4ë ak-74       5mm  04      27$\nê5ë moonlight  .223  05      36$\nê6ë sa-80       5mm  05      23$\nê7ë plasma rifle     07      41$\nê8ë gauss rifle 2mm  08      51$\n");
 };
-
 
 string () DrugString1 =
 {

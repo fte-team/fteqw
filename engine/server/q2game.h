@@ -139,7 +139,6 @@ typedef struct q2entity_state_s
 } q2entity_state_t;
 
 
-typedef struct q2edict_s q2edict_t;
 struct q2edict_s
 {
 	q2entity_state_t	s;
@@ -179,10 +178,10 @@ struct q2edict_s
 typedef struct
 {
 	// special messages
-	void	(VARGS *bprintf) (int printlevel, char *fmt, ...);
-	void	(VARGS *dprintf) (char *fmt, ...);
-	void	(VARGS *cprintf) (q2edict_t *ent, int printlevel, char *fmt, ...);
-	void	(VARGS *centerprintf) (q2edict_t *ent, char *fmt, ...);
+	void	(VARGS *bprintf) (int printlevel, char *fmt, ...) LIKEPRINTF(2);
+	void	(VARGS *dprintf) (char *fmt, ...) LIKEPRINTF(1);
+	void	(VARGS *cprintf) (q2edict_t *ent, int printlevel, char *fmt, ...) LIKEPRINTF(3);
+	void	(VARGS *centerprintf) (q2edict_t *ent, char *fmt, ...) LIKEPRINTF(2);
 	void	(VARGS *sound) (q2edict_t *ent, int channel, int soundindex, float volume, float attenuation, float timeofs);
 	void	(VARGS *positioned_sound) (vec3_t origin, q2edict_t *ent, int channel, int soundinedex, float volume, float attenuation, float timeofs);
 
@@ -192,7 +191,7 @@ typedef struct
 	// they connect, and changes are sent to all connected clients.
 	void	(VARGS *configstring) (int num, char *string);
 
-	void	(VARGS *error) (char *fmt, ...);
+	void	(VARGS *error) (char *fmt, ...) LIKEPRINTF(1);
 
 	// the *index functions create configstrings and some internal server state
 	int		(VARGS *modelindex) (char *name);
@@ -314,5 +313,6 @@ game_export_t *GetGameApi (game_import_t *import);
 
 
 extern game_export_t	*ge;
+extern int svq2_maxclients;
 
 #endif

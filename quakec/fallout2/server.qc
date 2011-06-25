@@ -1,4 +1,5 @@
 
+void() monster_tarbaby = {remove(self);};
 void() monster_oldone = {remove(self);};
 void() event_lightning = {remove(self);};
 

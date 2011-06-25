@@ -34,12 +34,13 @@ typedef struct {
 	qboolean fullscreen;
 	int bpp;
 	int rate;
+	int wait;	//-1 = default, 0 = off, 1 = on, 2 = every other
 	int multisample;	//for opengl antialiasing (which requires context stuff)
-	float stretch;
+	int triplebuffer;
 	char glrenderer[MAX_QPATH];
-	r_qrenderer_t renderer;
-	qboolean allow_modex;
+	struct rendererinfo_s *renderer;
 } rendererstate_t;
+extern rendererstate_t currentrendererstate;
 
 typedef struct vrect_s
 {
@@ -49,32 +50,25 @@ typedef struct vrect_s
 
 typedef struct
 {
-	pixel_t			*buffer;		// invisible buffer
 	pixel_t			*colormap;		// 256 * VID_GRADES size
 	int				fullbright;		// index of first fullbright color
-	unsigned		rowbytes;	// may be > width if displayed in a window
-	unsigned		width;		
-	unsigned		height;
-	float			aspect;		// width / height -- < 0 is taller than wide
+
+	unsigned		width; /*virtual 2d width*/
+	unsigned		height; /*virtual 2d height*/
 	int				numpages;
 	int				recalc_refdef;	// if true, recalc vid-based stuff
 
-	pixel_t			*conbuffer;
-	int				conrowbytes;
-	unsigned		conwidth;
-	unsigned		conheight;
-
-	int				maxwarpwidth;
-	int				maxwarpheight;
-	pixel_t			*direct;		// direct drawing to framebuffer, if not
-									//  NULL
+	unsigned		rotpixelwidth; /*width after rotation in pixels*/
+	unsigned		rotpixelheight; /*pixel after rotation in pixels*/
+	unsigned		pixelwidth; /*true height in pixels*/
+	unsigned		pixelheight; /*true width in pixels*/
 } viddef_t;
 
 extern	viddef_t	vid;				// global video state
 
 extern unsigned int	d_8to24rgbtable[256];
 
-#ifdef RGLQUAKE
+#ifdef GLQUAKE
 void	GLVID_SetPalette (unsigned char *palette);
 // called at startup and after any gamma correction
 
@@ -89,6 +83,8 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette);
 void	GLVID_Shutdown (void);
 // Called at shutdown
 
+void GLVID_Crashed(void);
+
 void	GLVID_Update (vrect_t *rects);
 // flushes the given rectangles from the view buffer to the screen
 
@@ -96,16 +92,8 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette);
 // sets the mode; only used by the Quake engine for resetting to mode 0 (the
 // base mode) on memory allocation failures
 
-void GLVID_LockBuffer (void);
-void GLVID_UnlockBuffer (void);
-
-int GLVID_ForceUnlockedAndReturnState (void);
-void GLVID_ForceLockState (int lk);
-
 qboolean GLVID_Is8bit();
 
-void GLD_BeginDirectRect (int x, int y, qbyte *pbitmap, int width, int height);
-void GLD_EndDirectRect (int x, int y, int width, int height);
 char *GLVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight);
 void GLVID_SetCaption(char *caption);
 #endif

@@ -1,169 +1,3 @@
-#define mag1 currentammo
-#define maxmag1 cnt
-
-void () OgreFirePlasma =
-{
-
-	local float x;
-	local vector dist, vec;
-
-	newmis = spawn ();
-	newmis.owner = self;
-	newmis.movetype = MOVETYPE_FLYMISSILE;
-	newmis.solid = SOLID_BBOX;
-	newmis.classname = "grenade";
-
-	newmis.skin = 0;
-	makevectors (self.angles);
-	sound (self, CHAN_WEAPON, "weapons/energy2.wav", PLAT_LOW_TRIGGER, ATTN_NORM);
-
-	newmis.touch = PlasmaBolt;
-	newmis.velocity = v_forward * 1200;
-	newmis.angles = vectoangles (newmis.velocity);
-	newmis.touch = PlasmaBolt;
-	newmis.voided = 0;
-	
-
-	makevectors (self.enemy.angles);	
-	dist = self.enemy.origin - x*self.movedir;
-
-	vec = normalize(dist - self.origin);
-	sound (self, CHAN_WEAPON, "wizard/wattack.wav", 1, ATTN_NORM);
-	launch_spike (self.origin, vec);
-	newmis.velocity = vec*600;
-	newmis.owner = self.owner;
-	newmis.classname = "wizspike";
-	newmis.touch = wizspike_touch;
-	setmodel (newmis, "progs/w_spike.mdl");
-	setsize (newmis, VEC_ORIGIN, VEC_ORIGIN);		
-
-
-	newmis.nextthink = time + 5;
-	newmis.think = SUB_Remove;
-	newmis.nextthink = (time + 1.5);
-
-	newmis.effects = EF_BLUE;
-	setmodel (newmis, "progs/plasma.mdl");
-	setsize (newmis, VEC_ORIGIN, VEC_ORIGIN);
-	setorigin (newmis, ((self.origin + (v_right * TE_BLOOD)) + (v_up * TE_BLOOD)));
-};
-
-
-void () ogre_load1 = [ 136, ogre_load2 ]
-{
-};
-void () ogre_load2 = [ 136, ogre_load3 ]
-{
-};
-void () ogre_load3 = [ 137, ogre_load4 ]
-{
-};
-void () ogre_load4 = [ 137, ogre_load5 ]
-{
-};
-void () ogre_load5 = [ 138, ogre_load6 ]
-{
-};
-void () ogre_load6 = [ 138, ogre_load7 ]
-{
-};
-void () ogre_load7 = [ 139, ogre_load8 ]
-{
-};
-void () ogre_load8 = [ 139, ogre_load9 ]
-{
-};
-void () ogre_load9 = [ 140, ogre_load10 ]
-{
-};
-void () ogre_load10 = [ 140, ogre_load11 ]
-{
-};
-void () ogre_load11 = [ 141, ogre_load12 ]
-{
-};
-void () ogre_load12 = [ 141, ogre_load13 ]
-{
-};
-void () ogre_load13 = [ 142, ogre_load14 ]
-{
-};
-void () ogre_load14 = [ 142, ogre_load16 ]
-{
-};
-void () ogre_load15 = [ 143, ogre_load16 ]
-{
-};
-void () ogre_load16 = [ 143, ogre_run1 ]
-{
-};
-
-//SMG
-void (float tmp, float dam) ogre_smg =
-{
-	local vector src;
-	local vector dir;
-	local vector direction;
-	local entity en;
-	local vector org;
-
-	if (self.mag1 <= 0)
-	{
-		sound (self, CHAN_WEAPON, "misc/greload.wav", PLAT_LOW_TRIGGER, ATTN_NORM);
-		ogre_load1();
-		self.mag1 = 60;
-		return;
-	}
-
-	muzzleflash ();
-
-	self.weapon = 5;
-
-	sound (self, CHAN_WEAPON, "weapons/mp9.wav", 1, ATTN_NORM);
-
-
-	tmp = 300;
-
-
-	dam = 10;
-
-	if (self.enemy.sneak == 1)
-		tmp = tmp * 2;
-
-	self.mag1 = self.mag1 - 1;
-
-	makevectors (self.angles);
-
-	src = self.origin + v_forward*10;
-	src_z = self.absmin_z + self.size_z * 0.7;
-
-	en = self.enemy;
-	
-	dir = en.origin - en.velocity*0.2;
-	if (en.position == 1)
-		dir = dir - '0 0 16';
-	if (en.position == 2)
-		dir = dir - '0 0 32';
-	dir = normalize (dir - self.origin);
-
-	direction = dir;
-
-
-	traceline (src, src + direction*2000 + v_right*crandom()*tmp + v_up*crandom()*tmp, FALSE, self);
-
-	if (trace_fraction == PLAT_LOW_TRIGGER)
-		return;
-
-	if (trace_ent.takedamage)
-	{
-		SpawnBlood (org, PLAT_LOW_TRIGGER);
-		dam = 1 + random()*dam + random()*dam;
-		dam = dam * (1 - (trace_fraction));
-		T_Damage (trace_ent, self, self, dam);
-	}
-	else
-		bullet_hole (trace_endpos);
-};
 
 void () OgreGrenadeExplode =
 {
@@ -191,30 +25,24 @@ void () LobAGrenade =
 	newmis.skin = 0;
 	makevectors (self.angles);
 
+	newmis.velocity = v_forward * 800;
+	newmis.velocity_z = (newmis.velocity_z + 200);
+	newmis.angles = vectoangles (newmis.velocity);
+	newmis.avelocity_x = (random () * 300);
+	newmis.avelocity_y = (random () * 300);
+	newmis.avelocity_z = (random () * 300);
+	newmis.touch = HandGrenBounce;
+	newmis.nextthink = (time + 2.5);
+
+//	if (iid == IID_GREN_FRAG)
+//		newmis.think = FragExplode;
+//	else if (iid == IID_GREN_EMP)
+//		newmis.think = EMPExplode;
+//	else if (iid == IID_GREN_SMOKE)
+
+	newmis.think = SmokeThink;
 	if (random() < 0.5)
-	{
-		newmis.think = StunExplode;
-		newmis.velocity = v_forward * 600;
-		newmis.velocity_z = (newmis.velocity_z + 200);
-		newmis.angles = vectoangles (newmis.velocity);
-		newmis.avelocity_x = (random () * 200);
-		newmis.avelocity_y = (random () * 200);
-		newmis.avelocity_z = (random () * 200);
-		newmis.touch = HandGrenBounce;
-		newmis.nextthink = (time + 1.5);
-	}
-	else
-	{
 		newmis.think = FlashExplode;
-		newmis.velocity = v_forward * 80;
-		newmis.velocity_z = (newmis.velocity_z + 20);
-		newmis.angles = vectoangles (newmis.velocity);
-		newmis.avelocity_x = (random () * 30);
-		newmis.avelocity_y = (random () * 30);
-		newmis.avelocity_z = (random () * 30);
-		newmis.touch = HandGrenBounce;
-		newmis.nextthink = (time + 3);
-	}
 
 	newmis.frame = 1;
 	setmodel (newmis, "progs/handgren.mdl");
@@ -231,19 +59,33 @@ void (float side) chainsaw =
 	local float ldmg;
 
 	if (!self.enemy)
+	{
 		return;
-
+	}
 	if (!CanDamage (self.enemy, self))
+	{
 		return;
-
+	}
 	ai_charge (TE_LAVASPLASH);
 	delta = (self.enemy.origin - self.origin);
 	if ((vlen (delta) > 100))
+	{
 		return;
-
-	ldmg = (6 + (random()*6));
+	}
+	ldmg = (TE_LIGHTNING3 + (random () * IDLE6A));
 	T_Damage (self.enemy, self, self, ldmg);
-	T_Damage (self.enemy, self, self, ldmg);
+	if (side)
+	{
+		makevectors (self.angles);
+		if ((side == PLAT_LOW_TRIGGER))
+		{
+			SpawnMeatSpray ((self.origin + (v_forward * SECRET_YES_SHOOT)), ((crandom () * 100) * v_right));
+		}
+		else
+		{
+			SpawnMeatSpray ((self.origin + (v_forward * SECRET_YES_SHOOT)), (side * v_right));
+		}
+	}
 };
 
 void () ogre_stand1 = [ 0, ogre_stand2 ]
@@ -585,7 +427,6 @@ void () ogre_nail2 = [ 62, ogre_nail3 ]
 
 void () ogre_nail3 = [ 62, ogre_nail4 ]
 {
-	OgreFirePlasma();
 	ai_face ();
 };
 
@@ -602,6 +443,7 @@ void () ogre_nail5 = [ 64, ogre_nail6 ]
 void () ogre_nail6 = [ 65, ogre_nail7 ]
 {
 	ai_face ();
+	LobAGrenade();
 };
 
 void () ogre_nail7 = [ 66, ogre_run1 ]
@@ -621,69 +463,26 @@ void () ogre_nailb = [ 62, ogre_nailc ]
 
 void () ogre_nailc = [ 62, ogre_naild ]
 {
-	ogre_smg(110, 17);
-
-	if (visible(self.enemy))
-		ai_face ();
+	ai_face ();
 };
 
-void () ogre_naild = [ 63, ogre_nailc ]
+void () ogre_naild = [ 63, ogre_naile ]
 {
-	ogre_smg(110, 17);
-
-	if (visible(self.enemy))
-		ai_face ();
+	ai_face ();
 };
 
-void () ogre_naile = [ 63, ogre_nailf ]
+void () ogre_naile = [ 64, ogre_nailf ]
 {
-	ogre_smg(120, 17);
-	if (visible(self.enemy))
-		ai_face ();
+	ai_face ();
+	LobAGrenade();
 };
 
-void () ogre_nailf = [ 62, ogre_nailg ]
+void () ogre_nailf = [ 65, ogre_nailg ]
 {
-	ogre_smg(120, 17);
-	if (visible(self.enemy))
-		ai_face ();
+	ai_face ();
 };
 
-void () ogre_nailg = [ 62, ogre_nailh ]
-{
-	ogre_smg(130, 17);
-	if (visible(self.enemy))
-		ai_face ();
-};
-
-void () ogre_nailh = [ 63, ogre_naili ]
-{
-	ogre_smg(130, 17);
-	if (visible(self.enemy))
-		ai_face ();
-};
-void () ogre_naili = [ 63, ogre_nailj ]
-{
-	ogre_smg(140, 17);
-	if (visible(self.enemy))
-		ai_face ();
-};
-
-void () ogre_nailj = [ 63, ogre_nailk ]
-{
-	ogre_smg(140, 17);
-	if (visible(self.enemy))
-		ai_face ();
-};
-
-void () ogre_nailk = [ 63, ogre_naill ]
-{
-	ogre_smg(150, 17);
-	if (visible(self.enemy))
-		ai_face ();
-};
-
-void () ogre_naill = [ 64, ogre_run1 ]
+void () ogre_nailg = [ 66, ogre_run1 ]
 {
 	ai_face ();
 };
@@ -879,7 +678,7 @@ void (entity attacker, float damage) ogre_pain =
 	if (self.pain_finished > time)
 		return;
 
-	if (random()*100 <= 1)
+	if (random()*8 <= 1)
 	{
 		ogre_paind1();
 		self.pain_finished = time + 7;
@@ -890,6 +689,7 @@ void (entity attacker, float damage) ogre_pain =
 
 void () ogre_die1 = [ 112, ogre_die2 ]
 {
+	self.solid = SOLID_NOT;
 };
 
 void () ogre_die2 = [ 113, ogre_die3 ]
@@ -898,8 +698,9 @@ void () ogre_die2 = [ 113, ogre_die3 ]
 
 void () ogre_die3 = [ 114, ogre_die4 ]
 {
-
-	self.rtime = 1;
+	DropBackpack ();
+	DropBackpack ();
+	DropBackpack ();
 };
 
 void () ogre_die4 = [ 115, ogre_die5 ]
@@ -957,8 +758,9 @@ void () ogre_bdie2 = [ 127, ogre_bdie3 ]
 
 void () ogre_bdie3 = [ 128, ogre_bdie4 ]
 {
-	self.rtime = 1;
+	self.solid = SOLID_NOT;
 	self.ammo_rockets = SILENT;
+	DropBackpack ();
 };
 
 void () ogre_bdie4 = [ 129, ogre_bdie5 ]
@@ -996,35 +798,43 @@ void () ogre_bdie10 = [ 135, ogre_bdie10 ]
 
 void () mutant_pain =
 {
-	local vector dir;
-
-	if (self.rtime > 0)
-	{
-		self.health = 180;
-		return;
-	}
-
-	dir = normalize(self.origin - self.enemy.origin);
-	self.velocity = dir * 10;
-
 	if (self.frame == 69)
 	{
-		self.health = 180;
 		self.frame = 70;
-		self.think = ogre_die1;
+		self.health = 180;
+		self.think = army_die1;
 		self.nextthink = time + 0.12;
+		self.think = ogre_die1;
 	}
 	else
 	{
-		self.health = 180;
 		ThrowGib ("progs/zom_gib.mdl", -40);
 		self.frame = 69;
-		self.think = ogre_bdie1;
+		self.health = 180;
+		self.think = ogre_die1;
 		self.nextthink = time + 0.12;
 	}
 
 	self.attack = self.attack + 1;
+
+	if (self.attack == 8)
+	{
+		if (random()*4 <= 2)
+			sound (self, CHAN_VOICE, "player/agdie1.wav", 1, ATTN_NORM);
+		else
+			sound (self, CHAN_VOICE, "player/udeath.wav", 1, ATTN_NORM);
+	}
+	if (self.attack >= 16)
+	{
+		self.solid = SOLID_NOT;
+
+		self.think = ogre_bdie1;
+		ThrowGib ("progs/zom_gib.mdl", -35);
+		ThrowGib ("progs/zom_gib.mdl", -35);
+		ThrowGib ("progs/gib1.mdl", -35);
+	}
 };
+
 
 void (vector stuff, vector ang) spawn_live_ogre =
 {
@@ -1032,13 +842,13 @@ void (vector stuff, vector ang) spawn_live_ogre =
 
 	ogre = spawn ();
 	ogre.origin = stuff;
-	ogre.enemy = self.enemy;
+	ogre.enemy = world;
 	ogre.attack_finished = time + 10;
 	ogre.solid = SOLID_SLIDEBOX;
 	ogre.movetype = MOVETYPE_STEP;
 	ogre.takedamage = DAMAGE_YES;
 	setmodel (ogre, "progs/ogre.mdl");
-	setsize (self, '-16 -16 -24', '16 16 48');
+	setsize (ogre, '-20 -20 -24', '20 20 36');
 	ogre.classname = "body";
 	ogre.netname = "dead";
 	ogre.health = 180;
@@ -1046,44 +856,30 @@ void (vector stuff, vector ang) spawn_live_ogre =
 	ogre.max_health = ogre.health;
 	ogre.th_pain = mutant_pain;
 	ogre.think = mutant_pain;
-	ogre.th_die = corpse_gib;
 	ogre.nextthink = time + 0.05;
 };
 
 void () ogre_die =
 {
+	if (self.enemy.classname == "player")
+		self.enemy.frags = self.enemy.frags + 1;
 
-	if (random()<0.75)
-		DropMoney();
-	if (random()<0.50)
-		DropMoney();
-	if (random()<0.25)
-		DropMoney();
-
-	sound (self, CHAN_VOICE, "ogre/ogdth.wav", PLAT_LOW_TRIGGER, ATTN_IDLE);
-
-/*
-	spawn_live_ogre(self.origin, self.angles);
-	remove(self);*/
-
-
-	self.solid = SOLID_NOT;
-
-	if (self.frame == 69)
+	if (self.health <= -35)
 	{
-		self.health = 180;
-		self.frame = 70;
-		self.think = ogre_die1;
-		self.nextthink = time + 0.05;
+		self.solid = SOLID_NOT;
+		sound (self, CHAN_VOICE, "player/udeath.wav", 1, ATTN_NORM);
+		ThrowGib ("progs/zom_gib.mdl", -30);
+		ThrowGib ("progs/zom_gib.mdl", -35);
+		ogre_bdie1 ();
 	}
 	else
 	{
-		self.health = 180;
-		ThrowGib ("progs/zom_gib.mdl", -40);
-		self.frame = 69;
-		self.think = ogre_bdie1;
-		self.nextthink = time + 0.05;
+		self.solid = SOLID_NOT;
+		spawn_live_ogre(self.origin, self.angles);
+		remove(self);
 	}
+
+	sound (self, CHAN_VOICE, "ogre/ogpain1.wav", 1, ATTN_NORM);
 };
 
 void () ogre_melee =
@@ -1100,11 +896,6 @@ void () ogre_melee =
 
 void () monster_ogre =
 {
-	if (self.zone == 0)
-	{
-		load_monster();
-		return;
-	}
 	precache_model ("progs/ogre.mdl");
 	precache_model ("progs/h_ogre.mdl");
 	precache_model ("progs/grenade.mdl");
@@ -1115,36 +906,24 @@ void () monster_ogre =
 	precache_sound ("ogre/ogpain1.wav");
 	precache_sound ("ogre/ogsawatk.wav");
 	precache_sound ("ogre/ogwake.wav");
-
-
-	self.weapon = 1;//ak47
-
-
 	self.solid = SOLID_SLIDEBOX;
 	self.movetype = MOVETYPE_STEP;
 	setmodel (self, "progs/ogre.mdl");
 	self.netname = "mutant";
 	self.classname = "monster";
-	setsize (self, '-16 -16 -24', '16 16 48');
-	self.health = 300;
+	setsize (self, '-24 -24 -24', '24 24 48');
+	self.health = 280;
 	self.team = 3;
-      self.islot3 = SlotVal(IID_ARM_LEATHER, 1);
+	self.armorvalue = 0;
 	self.armornoise = "misc/thud.wav";
 	self.th_stand = ogre_stand1;
 	self.th_walk = ogre_walk1;
 	self.th_run = ogre_run1;
 	self.th_die = ogre_die;
 	self.th_melee = ogre_melee;
+	self.th_missile = ogre_nail1;
 	self.th_pain = ogre_pain;
-
-	if (self.weapon == 1)
-		self.th_missile = ogre_naila;
-	else if (self.weapon == 2)
-		self.th_missile = ogre_nail1;
-
-	self.mag1 = 30;
-	self.maxmag1 = 30;
-	self.weapon = ceil(random()*3);
+	self.armortype = 0;
 	walkmonster_start ();
 };
 

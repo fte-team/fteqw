@@ -36,25 +36,30 @@ void Sys_MakeCodeWriteable (unsigned long startaddr, unsigned long length);
 //
 // system IO
 //
-int VARGS Sys_DebugLog(char *file, char *fmt, ...);
+int VARGS Sys_DebugLog(char *file, char *fmt, ...) LIKEPRINTF(2);
 
-void VARGS Sys_Error (const char *error, ...);
+NORETURN void VARGS Sys_Error (const char *error, ...) LIKEPRINTF(1);
 // an error will cause the entire program to exit
 
-void VARGS Sys_Printf (char *fmt, ...);
+void VARGS Sys_Printf (char *fmt, ...) LIKEPRINTF(1);
 // send text to the console
 
 void Sys_Quit (void);
+void Sys_RecentServer(char *command, char *target, char *title, char *desc);
 
 typedef struct {
 	void **funcptr;
 	char *name;
 } dllfunction_t;
 typedef void *dllhandle_t;
-dllhandle_t *Sys_LoadLibrary(char *name, dllfunction_t *funcs);
+dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs);
 void Sys_CloseLibrary(dllhandle_t *lib);
-void *Sys_GetAddressForName(dllhandle_t *module, char *exportname);
+void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname);
 char *Sys_GetNameForAddress(dllhandle_t *module, void *address);
+
+qboolean LibZ_Init(void);
+qboolean LibJPEG_Init(void);
+qboolean LibPNG_Init(void);
 
 unsigned int Sys_Milliseconds (void);
 double Sys_DoubleTime (void);
@@ -80,10 +85,6 @@ void Sys_ServerActivity(void);
 void Sys_SendKeyEvents (void);
 // Perform Key_Event () callbacks until the input que is empty
 
-void Sys_LowFPPrecision (void);
-void Sys_HighFPPrecision (void);
-void VARGS Sys_SetFPCW (void);
-
 int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm);
 
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate);
@@ -108,8 +109,15 @@ qboolean Sys_ConditionBroadcast(void *condv);
 void Sys_DestroyConditional(void *condv);
 #endif
 
+#ifdef NPQTV
+qboolean NPQTV_Sys_Startup(int argc, char *argv[]);
+void NPQTV_Sys_MainLoop(void);
+#endif
+
 #ifdef _WIN32
 int StartLocalServer(int close);
 #endif
 
 void Sys_Init (void);
+void Sys_Shutdown(void);
+

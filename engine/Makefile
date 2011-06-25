@@ -34,6 +34,20 @@ ifeq ($(FTE_TARGET),win32)
 endif
 
 #correct the gcc build when cross compiling
+ifeq ($(FTE_TARGET),win64)
+	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
+		#CC didn't state that it was mingw... so try fixing that up
+		ifneq ($(shell which amd64-mingw32msvc-gcc 2> /dev/null),)
+			#yup, the alternative exists (this matches the one debian has)
+			CC=amd64-mingw32msvc-gcc -m64
+			WINDRES=amd64-mingw32msvc-windres
+			STRIP=amd64-mingw32msvc-strip
+#			BITS?=64
+		endif
+	endif
+endif
+
+#correct the gcc build when cross compiling
 ifeq ($(FTE_TARGET),win32_SDL)
 	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
 		#CC didn't state that it was mingw... so try fixing that up
@@ -43,6 +57,20 @@ ifeq ($(FTE_TARGET),win32_SDL)
 			WINDRES=i586-mingw32msvc-windres
 			STRIP=i586-mingw32msvc-strip
 #			BITS?=32
+		endif
+	endif
+endif
+
+#correct the gcc build when cross compiling
+ifeq ($(FTE_TARGET),win64_SDL)
+	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
+		#CC didn't state that it was mingw... so try fixing that up
+		ifneq ($(shell which amd64-mingw32msvc-gcc 2> /dev/null),)
+			#yup, the alternative exists (this matches the one debian has)
+			CC=amd64-mingw32msvc-gcc -m64
+			WINDRES=amd64-mingw32msvc-windres
+			STRIP=amd64-mingw32msvc-strip
+#			BITS?=64
 		endif
 	endif
 endif
@@ -152,8 +180,7 @@ endif
 
 CLIENT_DIR=$(BASE_DIR)/client
 GL_DIR=$(BASE_DIR)/gl
-D3D7_DIR=$(BASE_DIR)/d3d
-D3D9_DIR=$(BASE_DIR)/d3d9
+D3D_DIR=$(BASE_DIR)/d3d
 SERVER_DIR=$(BASE_DIR)/server
 COMMON_DIR=$(BASE_DIR)/common
 HTTP_DIR=$(BASE_DIR)/http
@@ -168,19 +195,34 @@ PROFILE_DIR=$(BASE_DIR)/profile
 
 ALL_CFLAGS=$(HAVECONFIG) $(CFLAGS) $(BASE_CFLAGS) $(WCFLAGS)
 
-DO_CC=$(CC) $(ALL_CFLAGS) -o $@ -c $<
-ifeq ($(USEASM),true)
-	ifdef windir
-		DO_AS=$(CC) $(BASE_CFLAGS) $(WCFLAGS) -x assembler-with-cpp -o $@ -c $< $(CFLAGS)
-	else
-		DO_AS=$(CC) $(BASE_CFLAGS) $(WCFLAGS) -x assembler-with-cpp -DELF -o $@ -c $< $(CFLAGS)
-	endif
+#cheap compile-everything-in-one-unit (compile becomes preprocess only)
+ifneq ($(WPO),)
+	LTO_CC= -E
+	LTO_LD= -combine -fwhole-program -x c
+	LTO_END=ltoxnone
+	LTO_START=ltoxc
+endif
+#proper/consistant link-time optimisations (requires gcc 4.5+ or so)
+ifneq ($(LTO),)
+	LTO_CC=-flto
+	LTO_LD=-flto
 endif
 
+DO_CC=@echo $< && $(CC) $(LTO_CC) $(ALL_CFLAGS) -o $@ -c $<
+
+ifeq ($(FTE_TARGET),vc)
+	BASELDFLAGS=
+endif
 ifeq ($(FTE_TARGET),win32)
 	BASELDFLAGS=-lm
 endif
+ifeq ($(FTE_TARGET),win64)
+	BASELDFLAGS=-lm
+endif
 ifeq ($(FTE_TARGET),win32_SDL)
+	BASELDFLAGS=-lm
+endif
+ifeq ($(FTE_TARGET),win64_SDL)
 	BASELDFLAGS=-lm
 endif
 ifeq ($(FTE_TARGET),cygwin)
@@ -197,8 +239,14 @@ BASELDFLAGS ?= -lm -ldl -lpthread
 ifeq ($(FTE_TARGET),win32)
 	IMAGELDFLAGS=$(LIBS_DIR)/mingw-libs/libpng.a $(LIBS_DIR)/mingw-libs/libz.a $(LIBS_DIR)/mingw-libs/libjpeg.a
 endif
+ifeq ($(FTE_TARGET),win64)
+	IMAGELDFLAGS=$(LIBS_DIR)/mingw64-libs/libpng.a $(LIBS_DIR)/mingw64-libs/libz.a $(LIBS_DIR)/mingw64-libs/libjpeg.a
+endif
 ifeq ($(FTE_TARGET),win32_SDL)
 	IMAGELDFLAGS=./libs/mingw-libs/libpng.a ./libs/mingw-libs/libz.a ./libs/mingw-libs/libjpeg.a
+endif
+ifeq ($(FTE_TARGET),win64_SDL)
+	IMAGELDFLAGS=./libs/mingw64-libs/libpng.a ./libs/mingw64-libs/libz.a ./libs/mingw64-libs/libjpeg.a
 endif
 IMAGELDFLAGS ?= -lpng -ljpeg
 
@@ -208,39 +256,21 @@ GLSLDFLAGS=-L/usr/X11R6/lib -lMesaGL -lglide -lvga
 XLDFLAGS=-L/usr/X11R6/lib -lX11 -lXext $(IMAGELDFLAGS)
 SLDFLAGS=-lvga
 
-ifeq ($(USEASM),true)
-	COMMON_ASM_OBJS = 	\
-		worlda.o 		\
-		math.o
-
-	CLIENT_ASM_OBJS = 	\
-		snd_mixa.o
-
-	SOFTWARE_ASM_OBJS =	\
-		r_aclipa.o	\
-		r_aliasa.o	\
-		r_drawa.o	\
-		r_edgea.o	\
-		r_varsa.o	\
-		d_draw.o	\
-		d_draw16.o	\
-		d_parta.o	\
-		d_polysa.o	\
-		d_scana.o	\
-		d_spr8.o	\
-		d_varsa.o	\
-		surf16.o	\
-		surf8.o
-
+ifeq ($(FTE_TARGET),vc)
+	WARNINGFLAGS=-W3 -D_CRT_SECURE_NO_WARNINGS
+	GNUC_FUNCS=
 else
-	BASE_ASM_CFLAGS = -DNOASM
+	WARNINGFLAGS=-Wall -Wno-pointer-sign
+
+	GNUC_FUNCS= -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp -D_vsnprintf=vsnprintf -D_snprintf=snprintf
 endif
 
-BASE_CFLAGS=$(BASE_ASM_CFLAGS) -Wall -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(GL_DIR) -I$(D3D9_DIR) -I$(D3D7_DIR) -I$(PROGS_DIR) -I$(LIBS_DIR) -I$(LIBS_DIR)/dxsdk7/include -I$(LIBS_DIR)/sdl/include -I$(LIBS_DIR)/sdl/include/SDL -I./libs/freetype2/include -I./libs/freetype2/include/freetype -D_vsnprintf=vsnprintf -D_snprintf=snprintf $(SVNREVISION)
+BASE_CFLAGS=$(WARNINGFLAGS) $(GNUC_FUNCS) -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(GL_DIR) -I$(D3D_DIR) -I$(PROGS_DIR) -I$(LIBS_DIR) -I$(LIBS_DIR)/dxsdk9/include -I$(LIBS_DIR)/sdl/include -I/usr/include/SDL -I$(LIBS_DIR)/sdl/include/SDL -I./libs/freetype2/include -I./libs/freetype2/include/freetype -I./libs/speex $(SVNREVISION)
 CLIENT_ONLY_CFLAGS=-DCLIENTONLY
 SERVER_ONLY_CFLAGS=-DSERVERONLY
 JOINT_CFLAGS=
 DEBUG_CFLAGS=-ggdb -g
+DEBUG_CFLAGS=-rdynamic
 PROFILE_CFLAGS=-pg
 
 ifeq ($(FTE_TARGET),win32)
@@ -248,7 +278,17 @@ ifeq ($(FTE_TARGET),win32)
 	#RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS)
 	RELEASE_CFLAGS=$(CPUOPTIMIZATIONS)
 endif
+ifeq ($(FTE_TARGET),win64)
+	# Let's make sure we're not chasing our tails with MinGW32 compiler bugs
+	#RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS)
+	RELEASE_CFLAGS=$(CPUOPTIMIZATIONS)
+endif
 ifeq ($(FTE_TARGET),win32_SDL)
+	# Let's make sure we're not chasing our tails with MinGW32 compiler bugs
+	#RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS) -D_SDL
+	RELEASE_CFLAGS=$(CPUOPTIMIZATIONS) -D_SDL
+endif
+ifeq ($(FTE_TARGET),win64_SDL)
 	# Let's make sure we're not chasing our tails with MinGW32 compiler bugs
 	#RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS) -D_SDL
 	RELEASE_CFLAGS=$(CPUOPTIMIZATIONS) -D_SDL
@@ -261,12 +301,18 @@ ifneq ($(FTE_TARGET),win32)
 		#RELEASE_CFLAGS=-O6 -fno-strict-aliasing -ffast-math -funroll-loops -fexpensive-optimizations $(CPUOPTIMIZATIONS)
 	endif
 endif
+ifneq ($(FTE_TARGET),win64)
+	ifneq ($(FTE_TARGET),win64_SDL)
+		RELEASE_CFLAGS ?= -O2 -fno-strict-aliasing $(CPUOPTIMIZATIONS)
+		#RELEASE_CFLAGS=-O6 -fno-strict-aliasing -ffast-math -funroll-loops -fexpensive-optimizations $(CPUOPTIMIZATIONS)
+	endif
+endif
 
 GLCFLAGS=-DGLQUAKE
 D3DCFLAGS=-DD3DQUAKE
 NPQTVCFLAGS=-DNPQTV
 
-CLIENT_OBJS = $(CLIENT_ASM_OBJS) \
+CLIENT_OBJS = \
 	textedit.o	\
 	fragstats.o	\
 	teamplay.o	\
@@ -301,17 +347,16 @@ CLIENT_OBJS = $(CLIENT_ASM_OBJS) \
 	roq_read.o	\
 	clq2_cin.o	\
 	net_master.o	\
-	r_bulleten.o	\
 	r_part.o	\
 	p_script.o	\
 	p_null.o	\
 	p_classic.o	\
 	r_partset.o	\
-	r_efrag.o	\
 	renderer.o	\
 	renderque.o	\
 	sbar.o	\
 	skin.o	\
+	snd_al.o	\
 	snd_dma.o	\
 	snd_mem.o	\
 	snd_mix.o	\
@@ -332,33 +377,40 @@ GLQUAKE_OBJS =		\
 	gl_draw.o		\
 	gl_model.o		\
 	gl_ngraph.o		\
+	gl_backend.o		\
 	gl_rlight.o		\
 	gl_rmain.o		\
 	gl_rmisc.o		\
 	gl_font.o		\
 	gl_heightmap.o		\
 	gl_rsurf.o		\
+	r_surf.o		\
 	ltface.o		\
+	r_2d.o			\
 	gl_screen.o		\
 	gl_bloom.o		\
-	gl_backend.o	\
+	gl_shadow.o	\
 	gl_shader.o		\
 	gl_warp.o		\
-	gl_ppl.o		\
 	gl_vidcommon.o	\
 	gl_hlmdl.o
 
 D3DQUAKE_OBJS =		\
-	d3d_draw.o	\
-	d3d_mesh.o	\
-	d3d_rmain.o	\
-	d3d_rsurf.o	\
-	vid_d3d.o	\
-	d3d9_draw.o	\
-	d3d9_mesh.o	\
-	d3d9_rmain.o	\
-	d3d9_rsurf.o	\
-	vid_d3d9.o
+	d3d_backend.o \
+	d3d_image.o	\
+	d3d_shader.o	\
+	vid_d3d.o
+	
+D3DONLY_OBJS =		\
+	gl_font.o \
+	gl_model.o	\
+	gl_shader.o	\
+	gl_rlight.o	\
+	gl_alias.o	\
+	gl_warp.o	\
+	ltface.o	\
+	r_surf.o	\
+	r_2d.o
 
 MP3_OBJS =			\
 	fixed.o		\
@@ -398,7 +450,6 @@ SERVER_OBJS = 		\
 	sv_nchan.o 		\
 	sv_ents.o 		\
 	sv_send.o 		\
-	sv_move.o 		\
 	sv_phys.o 		\
 	sv_user.o		\
 	sv_mvd.o		\
@@ -406,19 +457,11 @@ SERVER_OBJS = 		\
 	sv_rankin.o 	\
 	sv_chat.o 		\
 	sv_demo.o		\
-	world.o 		\
 	net_preparse.o 	\
 	savegame.o		\
 	svq2_ents.o 	\
 	svq2_game.o 	\
 	svq3_game.o	\
-	snd_vc.o		\
-	snd_voicecodecs.o	\
-	g711.o		\
-	g721.o		\
-	g723_24.o		\
-	g723_40.o		\
-	g72x.o		\
 	webgen.o		\
 	ftpserver.o		\
 	httpserver.o
@@ -433,8 +476,9 @@ WINDOWSSERVERONLY_OBJS = \
 	svmodel.o	\
 	sv_sys_win.o
 
-COMMON_OBJS = $(COMMON_ASM_OBJS) \
+COMMON_OBJS = \
 	com_mesh.o	\
+	com_phys_ode.o	\
 	common.o 		\
 	cvar.o 		\
 	cmd.o 		\
@@ -451,9 +495,12 @@ COMMON_OBJS = $(COMMON_ASM_OBJS) \
 	net_wins.o 		\
 	zone.o 		\
 	qvm.o	\
+	r_d3.o	\
 	gl_q2bsp.o		\
 	glmod_doom.o 	\
 	q3common.o	\
+	world.o 		\
+	sv_move.o 		\
 	pmove.o		\
 	pmovetst.o		\
 	iwebiface.o		\
@@ -461,7 +508,6 @@ COMMON_OBJS = $(COMMON_ASM_OBJS) \
 	plugin.o		\
 	q1bsp.o		\
 	q2pmove.o
-
 
 #the defaults for sdl come first
 GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o
@@ -478,7 +524,8 @@ GLCL_DIR=glcl_sdl$(BITS)
 
 SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
 SV_EXE_NAME=../fteqw_sdl.sv$(BITS)
-SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -lz
+SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
+SV_LDFLAGS=-lz
 
 MINGL_DIR=mingl_sdl$(BITS)
 MINGL_EXE_NAME=../fteqw_sdl.mingl$(BITS)
@@ -503,7 +550,7 @@ ifeq ($(FTE_TARGET),win32_SDL)
 	LIBS_DIR=./libs/
 	
 	#the defaults for sdl come first
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o resources.o
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
 	GL_EXE_NAME=../fteqw_sdl_gl.exe
 	GLCL_EXE_NAME=../fteqwcl_sdl.exe
 	ifdef windir
@@ -511,11 +558,11 @@ ifeq ($(FTE_TARGET),win32_SDL)
 	else
 		GL_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 ./libs/mingw-libs/libSDL.a ./libs/mingw-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `sdl-config --libs` 
 	endif
-	GL_CFLAGS=-D_MINGW_VFPRINTF -D_SDL -I./libs/ -I./libs/mingw-libs/  -I./libs/dxsdk7/include/ -I./libs/mingw-libs $(GLCFLAGS) `sdl-config --cflags`
+	GL_CFLAGS=-D_MINGW_VFPRINTF -D_SDL -I./libs/ -I./libs/mingw-libs/ -I./libs/mingw-libs $(GLCFLAGS) `sdl-config --cflags` -I./libs/dxsdk7/include/
 	GLB_DIR=gl_mgw_sdl$(BITS)
 	GLCL_DIR=glcl_mgw_sdl$(BITS)
 	
-	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) resources.o
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) $(LTO_END) resources.o $(LTO_START)
 	SV_EXE_NAME=../fteqw_sdl_sv.exe
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -D_SDL
 	SV_LDFLAGS=./libs/mingw-libs/libz.a -lm -lmingw32 -lws2_32 -lwinmm
@@ -525,8 +572,8 @@ ifeq ($(FTE_TARGET),win32_SDL)
 
 	MB_DIR=m_mgw_sdl$(BITS)
 	M_EXE_NAME=../fteqw_sdl.exe
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o resources.o
-	M_CFLAGS=-D_MINGW_VFPRINTF -D_SDL -I./libs/ -I./libs/mingw-libs/  -I./libs/dxsdk7/include/ -I./libs/mingw-libs $(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
+	M_CFLAGS=$(D3DCFLAGS) -D_MINGW_VFPRINTF -D_SDL -I./libs/ -I./libs/mingw-libs/ -I./libs/mingw-libs $(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL -I./libs/dxsdk7/include/
 	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS)
 	
 	ifdef windir
@@ -535,6 +582,81 @@ ifeq ($(FTE_TARGET),win32_SDL)
 		#pthread is needed because of SDL.
 		M_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 ./libs/mingw-libs/libSDL.a ./libs/mingw-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS)
 	endif
+
+	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DONLY_OBJS) $(LTO_END) resources.o $(LTO_START)
+	D3D_EXE_NAME=../fted3dqw.exe
+	D3DCL_EXE_NAME=../fted3dclqw.exe
+	D3D_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 ./libs/mingw-libs/libSDL.a ./libs/mingw-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32
+	D3D_CFLAGS=$(D3DCFLAGS) -D_MINGW_VFPRINTF -D_SDL -DNO_XFLIP -I./libs/ -I./libs/mingw-libs/  -I./libs/mingw-libs `sdl-config --cflags` -I./libs/dxsdk7/include/
+	D3DB_DIR=d3d_mgw
+	D3DCL_DIR=d3dcl_mgw
+	
+endif
+ifeq ($(FTE_TARGET),win64_SDL)
+	LIBS_DIR=./libs/
+	
+	#the defaults for sdl come first
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
+	GL_EXE_NAME=../fteqw_sdl_gl64.exe
+	GLCL_EXE_NAME=../fteqwcl_sdl64.exe
+	ifdef windir
+		GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `sdl-config --libs`
+	else
+		GL_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 ./libs/mingw64-libs/libSDL.a ./libs/mingw64-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `sdl-config --libs` 
+	endif
+	GL_CFLAGS=-D_SDL -I./libs/ -I./libs/mingw64-libs/ -I./libs/mingw64-libs $(GLCFLAGS) `sdl-config --cflags` -I./libs/dxsdk7/include/
+	GLB_DIR=gl_mgw_sdl$(BITS)
+	GLCL_DIR=glcl_mgw_sdl$(BITS)
+	
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) $(LTO_END) resources.o $(LTO_START)
+	SV_EXE_NAME=../fteqw_sdl_sv64.exe
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -D_SDL
+	SV_LDFLAGS=./libs/mingw64-libs/libz.a -lm -lmingw32 -lws2_32 -lwinmm
+
+	MINGL_DIR=mingl_sdl$(BITS)
+	MINGL_EXE_NAME=../fteqw_sdl_mingl64.exe
+
+	MB_DIR=m_mgw_sdl$(BITS)
+	M_EXE_NAME=../fteqw_sdl64.exe
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
+	M_CFLAGS= $(D3DCFLAGS) -D_MINGW_VFPRINTF -D_SDL -I./libs/ -I./libs/mingw64-libs/ -I./libs/mingw64-libs $(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL -I./libs/dxsdk7/include/
+	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS)
+	
+	ifdef windir
+		M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 -lSDLmain -lSDL
+	else
+		#pthread is needed because of SDL.
+		M_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 ./libs/mingw64-libs/libSDL.a ./libs/mingw64-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS)
+	endif
+endif
+
+ifeq ($(FTE_TARGET),vc)
+	CC=cl
+	DEBUG_CFLAGS ?= -Od $(CPUOPTIMIZATIONS) /fp:fast
+	PROFILE_CFLAGS = -O2 -Ot -Ox -GL $(CPUOPTIMISATIONS) /fp:fast 
+	PROFILE_LDFLAGS = /LTCG:PGINSTRUMENT
+	RELEASE_CFLAGS = -O2 -Ot -Ox -GL $(CPUOPTIMIZATIONS) /fp:fast
+	RELEASE_LDFLAGS = /LTCG:PGOPTIMIZE
+	
+
+	DO_CC=@$(CC) /nologo $(ALL_CFLAGS) -Fo$@ -c $<
+	DO_LD=link /nologo /out:$@ wsock32.lib user32.lib advapi32.lib winmm.lib libs/zlib.lib shell32.lib /nodefaultlib:libc.lib /nodefaultlib:MSVCRT /manifest:no /OPT:REF 
+	PRECOMPHEADERS = 
+	NODEPS = 1
+
+	LIBS_DIR=./libs/
+
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)
+	SV_EXE_NAME=../fteqwsv.exe
+	SV_DIR=sv_vc
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) fs_win32.o resources.o
+	SV_LDFLAGS=/subsystem:console
+	
+	M_EXE_NAME=../fteqw.exe
+	MCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o resources.o
+	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS)
+	MB_DIR=m_vc
+	M_LDFLAGS=$(GLLDFLAGS) libs/jpeg.lib libs/libpng.lib libs/zlib.lib uuid.lib gdi32.lib ole32.lib /subsystem:windows
 endif
 
 ifeq ($(FTE_TARGET),win32)
@@ -550,58 +672,101 @@ ifeq ($(FTE_TARGET),win32)
 
 	LIBS_DIR = $(BASE_DIR)/libs
 	SV_EXE_NAME=../fteqwsv.exe
-	SV_LDFLAGS=libs/zlib.lib -lws2_32 -lwinmm
-	SV_DIR=sv_mingw
-	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) fs_win32.o resources.o
+	SV_LDFLAGS=$(LIBS_DIR)/mingw-libs/zlib.lib -lws2_32 -lwinmm
+	V_DIR=sv_mingw
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
 
 
-ifeq ($(USEASM),true)
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o resources.o
-else
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o resources.o
-endif
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o $(LTO_END) resources.o $(LTO_START)
 	GL_EXE_NAME=../fteglqw.exe
 	GLCL_EXE_NAME=../fteglqwcl.exe
 	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
-	GL_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS)
+	GL_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) -I./libs/dxsdk7/include/
 	GLB_DIR=gl_mgw
 	GLCL_DIR=glcl_mgw
 
-ifeq ($(USEASM),true)
-	NPQTVCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o npplug.o sys_npqtv.o ../../ftequake/npapi.def
-else
-	NPQTVCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o npplug.o sys_npqtv.o ../../ftequake/npapi.def
-endif
+	NPQTVCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_npqtv.o sys_plugfte.o $(LTO_END) npplug.o ../../ftequake/npapi.def $(LTO_START)
 	NPQTV_DLL_NAME=../npqtv.dll
 	NPQTVCL_DLL_NAME=../npqtvcl.dll
 	NPQTV_LDFLAGS=--enable-stdcall-fixup $(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -shared
-	NPQTV_CFLAGS=$(NPQTVCFLAGS) $(GLCFLAGS) $(W32_CFLAGS)
+	NPQTV_CFLAGS=$(NPQTVCFLAGS) $(GLCFLAGS) $(W32_CFLAGS) -I./libs/dxsdk7/include/
 	NPQTVB_DIR=npqtv_mgw
 	NPQTVCL_DIR=npqtvcl_mgw
 
-ifeq ($(USEASM),true)
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) fs_win32.o gl_vidnt.o vid_ddraw.o vid_dib.o vid_win2.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_dosa.o resources.o
-else
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) fs_win32.o gl_vidnt.o vid_ddraw.o vid_dib.o vid_win2.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o resources.o
-endif
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o $(LTO_END) resources.o $(LTO_START)
 	M_EXE_NAME=../fteqw.exe
 	MCL_EXE_NAME=../fteqwcl.exe
 	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
-	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS)
+	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS) -I./libs/dxsdk7/include/
 	MB_DIR=m_mgw
 	MCL_DIR=mcl_mgw
 
-	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o resources.o
+	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o $(D3DONLY_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
 	D3D_EXE_NAME=../fted3dqw.exe
 	D3DCL_EXE_NAME=../fted3dclqw.exe
-	D3D_LDFLAGS= -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
-	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS) -DMINIMAL
+	D3D_LDFLAGS=$(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
+	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS) -I./libs/dxsdk7/include/
 	D3DB_DIR=d3d_mgw
 	D3DCL_DIR=d3dcl_mgw
 
 	MINGL_EXE_NAME=../fteminglqw.exe
 	MINGL_DIR=mingl_mgw
 endif
+
+ifeq ($(FTE_TARGET),win64)
+	# The extra object file called resources.o is specific for MinGW to link the icon in
+
+	#cygwin's gcc requires an extra command to use mingw instead of cygwin (default paths, etc).
+	ifneq ($(shell $(CC) -v 2>&1 | grep cygwin),)
+		W32_CFLAGS=-mno-cygwin
+	endif
+
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)
+
+
+	LIBS_DIR = $(BASE_DIR)/libs
+	SV_EXE_NAME=../fteqwsv64.exe
+	SV_LDFLAGS=$(LIBS_DIR)/mingw64-libs/libz.a -lws2_32 -lwinmm 
+	SV_DIR=sv_mingw64
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
+
+
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o $(LTO_END) resources.o $(LTO_START)
+	GL_EXE_NAME=../fteglqw64.exe
+	GLCL_EXE_NAME=../fteglqwcl64.exe
+	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
+	GL_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) -I./libs/dxsdk7/include/
+	GLB_DIR=gl_mgw64
+	GLCL_DIR=glcl_mgw64
+
+	NPQTVCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_npqtv.o sys_plugfte.o $(LTO_END) npplug.o ../../ftequake/npapi.def $(LTO_START)
+	NPQTV_DLL_NAME=../npqtv64.dll
+	NPQTVCL_DLL_NAME=../npqtvcl64.dll
+	NPQTV_LDFLAGS=--enable-stdcall-fixup $(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -shared
+	NPQTV_CFLAGS=$(NPQTVCFLAGS) $(GLCFLAGS) $(W32_CFLAGS) -I./libs/dxsdk7/include/
+	NPQTVB_DIR=npqtv_mgw64
+	NPQTVCL_DIR=npqtvcl_mgw64
+
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o $(LTO_END) resources.o $(LTO_START)
+	M_EXE_NAME=../fteqw64.exe
+	MCL_EXE_NAME=../fteqwcl64.exe
+	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
+	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS) -I./libs/dxsdk7/include/
+	MB_DIR=m_mgw64
+	MCL_DIR=mcl_mgw64
+
+	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o $(D3DONLY_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
+	D3D_EXE_NAME=../fted3dqw64.exe
+	D3DCL_EXE_NAME=../fted3dclqw64.exe
+	D3D_LDFLAGS=$(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
+	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS) -I./libs/dxsdk7/include/
+	D3DB_DIR=d3d_mgw64
+	D3DCL_DIR=d3dcl_mgw64
+
+	MINGL_EXE_NAME=../fteminglqw64.exe
+	MINGL_DIR=mingl_mgw64
+endif
+
 ifeq ($(FTE_TARGET),bsd)
 	#mostly uses the linux stuff.
 	#oss, X, etc.
@@ -609,23 +774,15 @@ ifeq ($(FTE_TARGET),bsd)
 	SV_DIR=sv_linux
 	SV_LDFLAGS=-lz -ldl
 
-ifeq ($(USEASM),true)
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_dosa.o
-else
 	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o
-endif
 	GL_EXE_NAME=../fteqw.gl
 	GLCL_EXE_NAME=../fteqwcl.gl
 	GL_LDFLAGS= -L/usr/local/lib $(GLLDFLAGS) $(GLXLDFLAGS) -lXxf86vm -lpthread
-	GL_CFLAGS=$(GLCFLAGS) -I/usr/local/include -I/usr/X11R6/include
+	GL_CFLAGS=$(GLCFLAGS) -I/usr/local/include -I/usr/X11R6/include 
 	GLB_DIR=gl_bsd
 	GLCL_DIR=glcl_bsd
 
-ifeq ($(USEASM),true)
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_dosa.o
-else
 	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o
-endif
 	M_EXE_NAME=../fteqw
 	MCL_EXE_NAME=../fteqwcl
 	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) -lXxf86vm -lpthread
@@ -642,21 +799,15 @@ ifneq ($(shell echo $(FTE_TARGET)|grep linux),)
 	SV_LDFLAGS=-lz
 	SV_EXE_NAME=../fteqw.sv$(BITS)
 
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o snd_alsa.oo cd_linux.o sys_linux.o
-ifeq ($(USEASM),true)
-	GLCL_OBJS+= sys_dosa.o
-endif
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_alsa.o snd_linux.o cd_linux.o sys_linux.o
 	GL_EXE_NAME=../fteqw.gl$(BITS)
 	GLCL_EXE_NAME=../fteqwcl.gl$(BITS)
-	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)  -lXxf86vm -lXxf86dga
+	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)  -lXxf86vm -lXxf86dga 
 	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include -DUSE_DGA
 	GLB_DIR=gl_linux$(BITS)
 	GLCL_DIR=glcl_linux$(BITS)
 
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o snd_linux.o snd_alsa.oo cd_linux.o sys_linux.o
-ifeq ($(USEASM),true)
-	MCL_OBJS+= sys_dosa.o
-endif
+	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o snd_linux.o snd_alsa.o cd_linux.o sys_linux.o
 	M_EXE_NAME=../fteqw$(BITS)
 	MCL_EXE_NAME=../fteqwcl$(BITS)
 	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) -lXxf86vm -lXxf86dga
@@ -675,7 +826,11 @@ ifneq ($(shell echo $(FTE_TARGET)|grep macosx),)
 	GLCL_DIR=glcl_macosx$(EXTENSION)$(BITS)
 	MINGL_DIR=mingl_macosx$(EXTENSION)$(BITS)
 
-	GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include
+	GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I/home/moodles/mac/include/ -L/home/moodles/mac/lib -I./libs/
+	ifeq ($(FTE_TARGET),macosx_x86)
+		GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I/home/moodles/mac/x86/include/ -L/home/moodles/mac/x86/lib -I./libs/
+	endif
+
 	GL_LDFLAGS=-framework AGL -framework OpenGL -framework Cocoa -framework AudioUnit -lz -lpng -ljpeg
 	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidcocoa.mo gl_vidmacos.o sys_linux.o in_macos.o cd_null.o snd_macos.o
 
@@ -695,15 +850,17 @@ ifneq ($(shell echo $(FTE_TARGET)|grep macosx),)
 	STRIPFLAGS=
 endif
 ifeq ($(FTE_TARGET),morphos)
+	#-Wno-pointer-sign unrecognised 
+	WARNINGFLAGS=-Wall
 
 	SV_DIR=sv_morphos
-	SV_LDFLAGS=-lz
+	SV_LDFLAGS=-ldl -lz
 
 	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidmorphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
 	GL_EXE_NAME=../morphos_fteqw.gl
 	GLCL_EXE_NAME=../morphos_fteqwcl.gl
 	GL_LDFLAGS=$(GLLDFLAGS) -ldl $(IMAGELDFLAGS) -lz
-	GL_CFLAGS=$(GLCFLAGS) -noixemul
+	GL_CFLAGS=$(GLCFLAGS) -noixemul -I./libs/speex -I./
 	GLB_DIR=gl_morphos
 	GLCL_DIR=glcl_morphos
 
@@ -719,9 +876,9 @@ ifeq ($(FTE_TARGET),morphos)
 	MINGL_DIR=mingl_morphos
 	
 	#morphos dedicated server doesnt compile: alloca.h: No such file or directory
-	#SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
-	#SV_EXE_NAME=../morphos_fteqw.sv$(BITS)
-	#SV_CFLAGS=$(SERVER_ONLY_CFLAGS)	
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
+	SV_EXE_NAME=../morphos_fteqw.sv$(BITS)
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)	-I/home/moodles/zlib/zlib-1.2.5 -L/home/moodles/zlib/zlib-1.2.5 -I/home/moodles/wip/wip/engine/libs
 endif
 
 
@@ -730,11 +887,7 @@ ifeq ($(FTE_TARGET),cygwin)
 	SV_DIR=sv_cygwin
 	SV_LDFLAGS=-lz
 
-ifeq ($(USEASM),true)
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_dosa.o
-else
 	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o
-endif
 	GL_EXE_NAME=../fteqwglcyg.exe
 	GLCL_EXE_NAME=../fteqwclglcyg.exe
 	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)
@@ -742,11 +895,7 @@ endif
 	GLB_DIR=gl_cygwin
 	GLCL_DIR=glcl_cygwin
 
-ifeq ($(USEASM),true)
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_dosa.o
-else
 	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o
-endif
 	M_EXE_NAME=../fteqwcyg.exe
 	MCL_EXE_NAME=../fteqwclcyg.exe
 	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)
@@ -775,6 +924,11 @@ releases:
 	-$(MAKE) FTE_TARGET=linux32 rel
 	-$(MAKE) FTE_TARGET=linux64 rel
 	-$(MAKE) FTE_TARGET=win32 rel
+	-$(MAKE) FTE_TARGET=win64 rel
+	-$(MAKE) FTE_TARGET=win32_SDL rel
+	-$(MAKE) FTE_TARGET=win64_SDL rel
+	-$(MAKE) FTE_TARGET=morphos rel
+	-$(MAKE) FTE_TARGET=macosx rel
 #	-$(MAKE) FTE_TARGET=linux32 relcl
 #	-$(MAKE) FTE_TARGET=linux64 relcl
 #	-$(MAKE) FTE_TARGET=win32 relcl
@@ -786,11 +940,11 @@ config: clean
 	/bin/bash makeconfig.sh
 
 ifneq ($(OUT_DIR),)
-	-include $(OUT_DIR)/*.d
+-include $(OUT_DIR)/*.o.d
 endif
 
 
-VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(BASE_DIR)/irc : $(BASE_DIR)/email : $(QUX_DIR) : $(PROGS_DIR) : $(SNDCODEC_DIR) : $(D3D7_DIR) : $(D3D9_DIR)
+VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(BASE_DIR)/irc : $(BASE_DIR)/email : $(QUX_DIR) : $(PROGS_DIR) : $(SNDCODEC_DIR) : $(D3D_DIR)
 
 # This is for linking the FTE icon to the MinGW target
 $(OUT_DIR)/resources.o : winquake.rc
@@ -808,29 +962,37 @@ $(OUT_DIR)/npplug.o : ftequake/npplug.rc
 #	rm -f $@.$$$$
 
 $(OUT_DIR)/%.o $(OUT_DIR)/%.d : %.c
+ifeq ($(NODEPS),)
 	@set -e; rm -f $@.d; \
 	 $(CC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
-	 sed 's,\($*\)\.o[ :]*,\1.o $@.d : ,g' < $@.d.$$$$ > $@.d; \
+	 sed 's,\($*\)\.o[ :]*,$@ $@.d : ,g' < $@.d.$$$$ > $@.d; \
+	 sed -e 's/.*://' -e 's/\\$$//' < $@.d.$$$$ | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $@.d; \
 	 rm -f $@.d.$$$$
+endif
 	$(DO_CC) -I$(OUT_DIR)
 
 $(OUT_DIR)/%.oo $(OUT_DIR)/%.d : %.c
+ifeq ($(NODEPS),)
 	@set -e; rm -f $@.d; \
 	 $(CC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
-	 sed 's,\($*\)\.oo[ :]*,\1.oo $@.d : ,g' < $@.d.$$$$ > $@.d; \
+	 sed 's,\($*\)\.oo[ :]*,$@ $@.d : ,g' < $@.d.$$$$ > $@.d; \
+	 sed -e 's/.*://' -e 's/\\$$//' < $@.d.$$$$ | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $@.d; \
 	 rm -f $@.d.$$$$
+endif
 	$(DO_CC) -I$(OUT_DIR)
 
 $(OUT_DIR)/%.mo $(OUT_DIR)/%.d : %.m
 	@set -e; rm -f $@.d; \
 	 $(CC) -MM $(ALL_CFLAGS) $< > $@.d.$$$$; \
-	 sed 's,\($*\)\.mo[ :]*,\1.mo $@.d : ,g' < $@.d.$$$$ > $@.d; \
+	 sed 's,\($*\)\.mo[ :]*,$@ $@.d : ,g' < $@.d.$$$$ > $@.d; \
+	 sed -e 's/.*://' -e 's/\\$$//' < $@.d.$$$$ | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $@.d; \
 	 rm -f $@.d.$$$$
 	$(DO_CC) -I$(OUT_DIR)
 
 #enables use of precompiled headers in gcc 3.4 onwards.
 $(OUT_DIR)/quakedef.h.gch : quakedef.h
 	$(CC) -x c $(BASE_CFLAGS) $(WCFLAGS) -o $@ -c $< $(CFLAGS)
+PRECOMPHEADERS ?= $(OUT_DIR)/quakedef.h.gch
 
 #addprefix is to add the ./release/server/ part of the object name
 #foreach is needed as the OBJS is a list of variable names containing object lists.
@@ -838,18 +1000,19 @@ $(OUT_DIR)/quakedef.h.gch : quakedef.h
 #god knows how gcc loads the list properly.
 #or at least I hope he does. It makes no sence to mortals.
 
-$(OUT_DIR)/$(EXE_NAME):   $(OUT_DIR)/quakedef.h.gch    $(addprefix $(OUT_DIR)/, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol))))
-	$(CC) $(WCFLAGS) -o $@ $(addprefix $(OUT_DIR)/, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol)))) $(LDFLAGS) $(CFLAGS)
+DO_LD ?= $(CC) -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS)
+$(OUT_DIR)/$(EXE_NAME):   $(PRECOMPHEADERS) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol))),$(if $(findstring ltox,$(fn)),,$(OUT_DIR)/$(fn)))
+	$(DO_LD) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS) $(LTO_END), $($(ol))),$(if $(findstring ltox,$(fn)),$(subst ltox,-x ,$(fn)),$(OUT_DIR)/$(fn)) ) -x none $(LDFLAGS)
 
 _out-rel:
-	$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(RELEASE_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS)" OBJS="$(OBJS)"
+	$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(RELEASE_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS) $(RELEASE_LDFLAGS)" OBJS="$(OBJS)"
 	$(STRIP) $(STRIPFLAGS) $(OUT_DIR)/$(EXE_NAME)
 
 _out-dbg:
-	$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(DEBUG_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS)" OBJS="$(OBJS)"
+	$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(DEBUG_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS) $(DEBUG_LDFLAGS)" OBJS="$(OBJS)"
 
 _out-profile:
-	$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(PROFILE_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS)" OBJS="$(OBJS)"
+	$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(PROFILE_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS) $(PROFILE_LDFLAGS)" OBJS="$(OBJS)"
 
 _cl-rel: reldir
 	$(MAKE) _out-rel EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(CLIENT_ONLY_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS)" SOBJS="$(SOBJS)" OBJS="SOBJS COMMON_OBJS CLIENT_OBJS PROGS_OBJS"
@@ -1003,6 +1166,12 @@ help:
 	@-echo "'d3d-???' (for windows builds)"
 	@-echo "'mcl-???' (currently broken)"
 	@-echo "'glcl-???' (currently broken)"
+	@-echo ""
+	@-echo "Cross targets can be specified with FTE_TARGET=blah"
+	@-echo "linux32, linux64 specify specific x86 archs"
+	@-echo "SDL - Attempt to use sdl for the current target"
+	@-echo "win32 - Mingw compile for win32"
+	@-echo "vc - Attempts to use msvc8+ to compile. Note: uses profile guided optimisations. You must build+run the relevent profile target before a release target will compile properly. Debug doesn't care."
 
 install:
 	-cp debug/*.* /opt/quake/

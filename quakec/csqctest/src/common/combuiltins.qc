@@ -8,6 +8,7 @@ void(entity e, vector min, vector max) setsize = #4;
 void() break						= #6;
 float() random						= #7;		// returns 0 - 1
 void(entity e, float chan, string samp, float vol, float atten) sound = #8;
+void(entity e, float chan, string samp, float vol, float atten, float ppct) soundp = #8;
 vector(vector v) normalize			= #9;
 void(string e) error				= #10;
 void(string e) objerror				= #11;
@@ -26,7 +27,7 @@ void(vector v1, vector v2, float nomonsters, entity forent) traceline = #16;
 
 entity(entity start, .string fld, string match) find = #18;
 string(string s) precache_sound		= #19;
-string(string s) precache_model		= #20;
+float(string s) precache_model		= #20;
 void(entity client, string s)stuffcmd = #21;
 entity(vector org, float rad) findradius = #22;
 

@@ -45,7 +45,7 @@ int VM_fopen (char *name, int *handle, int fmode, int owner)
 	switch (fmode)
 	{
 	case VM_FS_READ:
-		vm_fopen_files[i].data = COM_LoadMallocFile(name);
+		vm_fopen_files[i].data = FS_LoadMallocFile(name);
 		vm_fopen_files[i].bufferlen = vm_fopen_files[i].len = com_filesize;
 		vm_fopen_files[i].ofs = 0;
 		if (vm_fopen_files[i].data)
@@ -56,7 +56,7 @@ int VM_fopen (char *name, int *handle, int fmode, int owner)
 		/*
 	case VM_FS_APPEND:
 	case VM_FS_APPEND2:
-		vm_fopen_files[i].data = COM_LoadMallocFile(name);
+		vm_fopen_files[i].data = FS_LoadMallocFile(name);
 		vm_fopen_files[i].ofs = vm_fopen_files[i].bufferlen = vm_fopen_files[i].len = com_filesize;
 		if (vm_fopen_files[i].data)
 			break;
@@ -358,7 +358,7 @@ int VMQ3_Cvar_Update(vmcvar_t *v)
 	if (!c)
 		return 0;	//that slot isn't active yet
 
-	v->integer = c->value;
+	v->integer = c->ival;
 	v->value = c->value;
 	v->modificationCount = c->modified;
 	Q_strncpyz(v->string, c->string, sizeof(v->string));
@@ -545,7 +545,7 @@ qboolean Netchan_ProcessQ3 (netchan_t *chan)
 	char		adr[MAX_ADR_SIZE];
 
 	// Get sequence number
-	MSG_BeginReading();
+	MSG_BeginReading(msg_nullnetprim);
 	sequence = MSG_ReadBits(32);
 
 	// Read the qport if we are a server
@@ -657,7 +657,7 @@ qboolean Netchan_ProcessQ3 (netchan_t *chan)
 	MSG_WriteLong(&net_message, sequence);
 	SZ_Write(&net_message, chan->in_fragment_buf, chan->in_fragment_length);
 
-	MSG_BeginReading();
+	MSG_BeginReading(msg_nullnetprim);
 	MSG_ReadLong();
 
 	// No more fragments
@@ -714,9 +714,9 @@ void Netchan_TransmitNextFragment( netchan_t *chan )
 	NET_SendPacket( chan->sock, send.cursize, send.data, chan->remote_address );
 
 //	if( net_showpackets->integer )
-	{
-		Con_Printf( "%s send %4i : s=%i fragment=%i,%i\n", (chan->sock == NS_CLIENT) ? "client" : "server", send.cursize, chan->outgoing_sequence, chan->reliable_start, fragmentLength );
-	}
+//	{
+//		Con_Printf( "%s send %4i : s=%i fragment=%i,%i\n", (chan->sock == NS_CLIENT) ? "client" : "server", send.cursize, chan->outgoing_sequence, chan->reliable_start, fragmentLength );
+//	}
 
 	// Even if we have sent the whole message,
 	// but if fragmentLength == FRAGMENTATION_TRESHOLD we have to write empty
@@ -855,11 +855,11 @@ typedef struct {
 
 // field declarations
 #ifdef MSG_SHOWNET
-#	define PS_FIELD(n,b)	{ #n, ((int)&(((q3playerState_t *)0)->n)), b }
-#	define ES_FIELD(n,b)	{ #n, ((int)&(((q3entityState_t *)0)->n)), b }
+#	define PS_FIELD(n,b)	{ #n, ((size_t)&(((q3playerState_t *)0)->n)), b }
+#	define ES_FIELD(n,b)	{ #n, ((size_t)&(((q3entityState_t *)0)->n)), b }
 #else
-#	define PS_FIELD(n,b)	{ ((int)&(((q3playerState_t *)0)->n)), b }
-#	define ES_FIELD(n,b)	{ ((int)&(((q3entityState_t *)0)->n)), b }
+#	define PS_FIELD(n,b)	{ ((size_t)&(((q3playerState_t *)0)->n)), b }
+#	define ES_FIELD(n,b)	{ ((size_t)&(((q3entityState_t *)0)->n)), b }
 #endif
 
 // field data accessing

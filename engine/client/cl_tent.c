@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -25,7 +25,7 @@ entity_state_t *CL_FindPacketEntity(int num);
 
 #define R_AddDecals(a)	//disabled for now
 
-int 
+int
 	pt_gunshot=P_INVALID,
 	ptdp_gunshotquad=P_INVALID,
 	pt_spike=P_INVALID,
@@ -63,7 +63,7 @@ int
 
 	ptqw_blood=P_INVALID,
 	ptqw_lightningblood=P_INVALID,
-	
+
 	ptq2_blood=P_INVALID,
 	rtq2_railtrail=P_INVALID,
 	rtq2_blastertrail=P_INVALID,
@@ -440,7 +440,7 @@ void CL_RegisterParticles(void)
 
 	ptqw_blood				= P_FindParticleType("TE_BLOOD");
 	ptqw_lightningblood		= P_FindParticleType("TE_LIGHTNINGBLOOD");
-	
+
 	ptq2_blood				= P_FindParticleType("TE_BLOOD");
 	rtq2_railtrail			= P_FindParticleType("TR_RAILTRAIL");
 	rtq2_blastertrail		= P_FindParticleType("TR_BLASTERTRAIL");
@@ -498,7 +498,7 @@ int CLQ2_RegisterTEntModels (void)
 //			return false;
 
 	return true;
-}	
+}
 #endif
 /*
 =================
@@ -521,7 +521,7 @@ explosion_t *CL_AllocExplosion (void)
 	int		i;
 	float	time;
 	int		index;
-	
+
 	for (i=0; i < explosions_running; i++)
 	{
 		if (!cl_explosions[i].model)
@@ -689,7 +689,7 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 	b = CL_NewBeam(ent, -1);
 	if (!b)
 	{
-		Con_Printf ("beam list overflow!\n");	
+		Con_Printf ("beam list overflow!\n");
 		return;
 	}
 
@@ -716,11 +716,11 @@ void CL_ParseBeam (int tent)
 	vec3_t	start, end;
 
 	ent = MSG_ReadShort ();
-	
+
 	start[0] = MSG_ReadCoord ();
 	start[1] = MSG_ReadCoord ();
 	start[2] = MSG_ReadCoord ();
-	
+
 	end[0] = MSG_ReadCoord ();
 	end[1] = MSG_ReadCoord ();
 	end[2] = MSG_ReadCoord ();
@@ -736,7 +736,7 @@ void CL_ParseStream (int type)
 	int tag;
 	float duration;
 	int skin;
-	
+
 	ent = MSG_ReadShort();
 	flags = MSG_ReadByte();
 	tag = flags&15;
@@ -757,7 +757,7 @@ void CL_ParseStream (int type)
 	b = CL_NewBeam(ent, tag);
 	if (!b)
 	{
-		Con_Printf ("beam list overflow!\n");	
+		Con_Printf ("beam list overflow!\n");
 		return;
 	}
 
@@ -813,7 +813,7 @@ void CL_ParseStream (int type)
 		b->particleeffect = P_FindParticleType("te_stream_colorbeam");
 		break;
 	case TEH2_STREAM_GAZE:
-		b->model = Mod_ForName("stmedgaz.mdl", true);
+		b->model = Mod_ForName("models/stmedgaz.mdl", true);
 		b->particleeffect = P_FindParticleType("te_stream_gaze");
 		break;
 	default:
@@ -870,7 +870,7 @@ void CL_ParseTEnt (void)
 
 		S_StartSound (-2, 0, cl_sfx_wizhit, pos, 1, 1, 0);
 		break;
-		
+
 	case TE_KNIGHTSPIKE:			// spike hitting wall
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -883,7 +883,7 @@ void CL_ParseTEnt (void)
 
 		S_StartSound (-2, 0, cl_sfx_knighthit, pos, 1, 1, 0);
 		break;
-		
+
 	case TEDP_SPIKEQUAD:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -988,7 +988,7 @@ void CL_ParseTEnt (void)
 				S_StartSound (-2, 0, cl_sfx_ric3, pos, 1, 1, 0);
 		}
 		break;
-	
+
 #ifdef PEXT_TE_BULLET
 	case TE_BULLET:
 		if (!(cls.fteprotocolextensions & PEXT_TE_BULLET))
@@ -1041,7 +1041,7 @@ void CL_ParseTEnt (void)
 				S_StartSound (-2, 0, cl_sfx_ric2, pos, 1, 1, 0);
 			else
 				S_StartSound (-2, 0, cl_sfx_ric3, pos, 1, 1, 0);
-		}		
+		}
 		break;
 #endif
 
@@ -1055,7 +1055,7 @@ void CL_ParseTEnt (void)
 				P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
 
 		R_AddStain(pos, -1, -1, -1, 100);
-		
+
 	// light
 		if (r_explosionlight.value)
 		{
@@ -1064,7 +1064,7 @@ void CL_ParseTEnt (void)
 			dl->radius = 150 + r_explosionlight.value*200;
 			dl->die = cl.time + 1;
 			dl->decay = 300;
-		
+
 			dl->color[0] = 0.2;
 			dl->color[1] = 0.155;
 			dl->color[2] = 0.05;
@@ -1076,8 +1076,8 @@ void CL_ParseTEnt (void)
 
 	// sound
 		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1, 0);
-	
-	// sprite		
+
+	// sprite
 		if (cl_expsprite.ival) // temp hopefully
 		{
 			explosion_t *ex = CL_AllocExplosion ();
@@ -1095,7 +1095,7 @@ void CL_ParseTEnt (void)
 			P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
 
 		R_AddStain(pos, -1, -1, -1, 100);
-		
+
 	// light
 		if (r_explosionlight.value)
 		{
@@ -1104,7 +1104,7 @@ void CL_ParseTEnt (void)
 			dl->radius = 150 + r_explosionlight.value*200;
 			dl->die = cl.time + 1;
 			dl->decay = 300;
-			
+
 			dl->color[0] = 0.2;
 			dl->color[1] = 0.155;
 			dl->color[2] = 0.05;
@@ -1116,8 +1116,8 @@ void CL_ParseTEnt (void)
 
 	// sound
 		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1, 0);
-	
-	// sprite		
+
+	// sprite
 		if (cl_expsprite.ival && !nqprot) // temp hopefully
 		{
 			explosion_t *ex = CL_AllocExplosion ();
@@ -1135,8 +1135,8 @@ void CL_ParseTEnt (void)
 			P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
 
 		R_AddStain(pos, -1, -1, -1, 100);
-		
-		
+
+
 	// light
 		if (r_explosionlight.value)
 		{
@@ -1145,7 +1145,7 @@ void CL_ParseTEnt (void)
 			dl->radius = 150 + r_explosionlight.value*200;
 			dl->die = cl.time + 0.5;
 			dl->decay = 300;
-		
+
 			dl->color[0] = 0.4f*MSG_ReadByte()/255.0f;
 			dl->color[1] = 0.4f*MSG_ReadByte()/255.0f;
 			dl->color[2] = 0.4f*MSG_ReadByte()/255.0f;
@@ -1166,17 +1166,17 @@ void CL_ParseTEnt (void)
 				P_RunParticleEffect(pos, NULL, 107, 1024); // should be 97-111
 
 		R_AddStain(pos, -1, -1, -1, 100);
-		
+
 	// light
 		if (r_explosionlight.value)
 		{
 			dl = CL_AllocDlight (0);
 			VectorCopy (pos, dl->origin);
 			// no point in doing this the fuh/ez way
-			dl->radius = 500*r_explosionlight.value; 
+			dl->radius = 500*r_explosionlight.value;
 			dl->die = cl.time + 1;
 			dl->decay = 500;
-			
+
 			dl->color[0] = 0.4f;
 			dl->color[1] = 0.3f;
 			dl->color[2] = 0.15f;
@@ -1187,7 +1187,7 @@ void CL_ParseTEnt (void)
 
 		S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1, 0);
 		break;
-		
+
 	case TE_TAREXPLOSION:			// tarbaby explosion
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -1204,14 +1204,14 @@ void CL_ParseTEnt (void)
 	case TE_LIGHTNING3:				// lightning bolts
 		CL_ParseBeam (2);
 		break;
-	
-	case TE_LAVASPLASH:	
+
+	case TE_LAVASPLASH:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
 		pos[2] = MSG_ReadCoord ();
 		P_RunParticleEffectType(pos, NULL, 1, pt_lavasplash);
 		break;
-	
+
 	case TE_TELEPORT:
 		pos[0] = MSG_ReadCoord ();
 		pos[1] = MSG_ReadCoord ();
@@ -1246,7 +1246,7 @@ void CL_ParseTEnt (void)
 			P_RunParticleEffect (pos, vec3_origin, 0, 20*cnt);
 
 		break;
-		
+
 	case TEQW_BLOOD:				// bullets hitting body
 		cnt = MSG_ReadByte ();
 		pos[0] = MSG_ReadCoord ();
@@ -1376,12 +1376,12 @@ void CL_ParseTEnt (void)
 		pos2[0] = (MSG_ReadByte() + 1) * (1.0 / 256.0);
 		dl->die = cl.time + pos2[0];
 		dl->decay = dl->radius / pos2[0];
-	
+
 		// DP's range is 0-2 for lights, FTE is 0-0.4.. 255/637.5 = 0.4
 		dl->color[0] = MSG_ReadByte()*(1.0f/637.5f);
 		dl->color[1] = MSG_ReadByte()*(1.0f/637.5f);
 		dl->color[2] = MSG_ReadByte()*(1.0f/637.5f);
-		
+
 		break;
 
 	case TEDP_FLAMEJET:
@@ -1676,7 +1676,7 @@ void CL_ParseCustomTEnt(void)
 		dl->radius = t->dlightradius*4;
 		dl->die = cl.time + t->dlighttime;
 		dl->decay = t->radius/t->dlighttime;
-		
+
 		dl->color[0] = t->dlightrgb[0];
 		dl->color[1] = t->dlightrgb[1];
 		dl->color[2] = t->dlightrgb[2];
@@ -1771,7 +1771,7 @@ void CLNQ_ParseParticleEffect (void)
 {
 	vec3_t		org, dir;
 	int			i, msgcount, color;
-	
+
 	for (i=0 ; i<3 ; i++)
 		org[i] = MSG_ReadCoord ();
 	for (i=0 ; i<3 ; i++)
@@ -1792,7 +1792,7 @@ void CL_ParseParticleEffect2 (void)
 {
 	vec3_t		org, dmin, dmax;
 	int			i, msgcount, color, effect;
-	
+
 	for (i=0 ; i<3 ; i++)
 		org[i] = MSG_ReadCoord ();
 	for (i=0 ; i<3 ; i++)
@@ -1809,7 +1809,7 @@ void CL_ParseParticleEffect3 (void)
 {
 	vec3_t		org, box;
 	int			i, msgcount, color, effect;
-	
+
 	for (i=0 ; i<3 ; i++)
 		org[i] = MSG_ReadCoord ();
 	for (i=0 ; i<3 ; i++)
@@ -1825,7 +1825,7 @@ void CL_ParseParticleEffect4 (void)
 	vec3_t		org;
 	int			i, msgcount, color, effect;
 	float		radius;
-	
+
 	for (i=0 ; i<3 ; i++)
 		org[i] = MSG_ReadCoord ();
 	radius = MSG_ReadByte();
@@ -1978,7 +1978,7 @@ void CLQ2_ParseTEnt (void)
 		if (type != Q2TE_SPARKS)
 		{
 			CL_SmokeAndFlash(pos);
-			
+
 			// impact sound (nope, not the same as Q1...)
 			cnt = rand()&15;
 			if (cnt == 1)
@@ -2074,7 +2074,7 @@ void CLQ2_ParseTEnt (void)
 		ex->numframes = 4;
 		ex->flags = Q2RF_FULLBRIGHT|Q2RF_ADDITIVE|RF_NOSHADOW|Q2RF_TRANSLUCENT;
 		ex->alpha = 1;
-		
+
 		ex->angles[0] = acos(dir[2])/M_PI*180;
 	// PMM - fixed to correct for pitch of 0
 		if (dir[0])
@@ -2125,7 +2125,7 @@ void CLQ2_ParseTEnt (void)
 			P_RunParticleEffect(pos, NULL, 0xe0, 256);
 
 		R_AddStain(pos, -1, -1, -1, 100);
-			
+
 	// light
 		if (r_explosionlight.value)
 		{
@@ -2142,15 +2142,15 @@ void CLQ2_ParseTEnt (void)
 			dl->channelfade[1] = 0.19;
 			dl->channelfade[2] = 0.19;
 		}
-	
+
 	// sound
 		if (type == Q2TE_GRENADE_EXPLOSION_WATER)
 			S_StartSound (-2, 0, S_PrecacheSound ("weapons/xpld_wat.wav"), pos, 1, 1, 0);
 		else
 			S_StartSound (-2, 0, S_PrecacheSound ("weapons/grenlx1a.wav"), pos, 1, 1, 0);
-	
+
 	// sprite
-		
+
 //		if (!R_ParticleExplosionHeart(pos))
 		{
 			ex = CL_AllocExplosion ();
@@ -2194,7 +2194,7 @@ void CLQ2_ParseTEnt (void)
 		ex->ent.flags = RF_FULLBRIGHT;
 		ex->start = cl.frame.servertime - 100;
 		ex->light = 350;
-		ex->lightcolor[0] = 1.0; 
+		ex->lightcolor[0] = 1.0;
 		ex->lightcolor[1] = 0.5;
 		ex->lightcolor[2] = 0.5;
 		ex->ent.angles[1] = rand() % 360;
@@ -2245,7 +2245,7 @@ void CLQ2_ParseTEnt (void)
 		else
 			S_StartSound (-2, 0, S_PrecacheSound ("weapons/rocklx1a.wav"), pos, 1, 1, 0);
 
-	// sprite		
+	// sprite
 //		if (!R_ParticleExplosionHeart(pos))
 		{
 			ex = CL_AllocExplosion ();
@@ -2404,7 +2404,7 @@ void CLQ2_ParseTEnt (void)
 		ex->firstframe = 0;
 		ex->numframes = 4;
 		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
-		
+
 		ex->angles[0] = acos(dir[2])/M_PI*180;
 	// PMM - fixed to correct for pitch of 0
 		if (dir[0])
@@ -2454,7 +2454,7 @@ void CLQ2_ParseTEnt (void)
 		ex->firstframe = 0;
 		ex->numframes = 4;
 		ex->flags = Q2RF_FULLBRIGHT|RF_NOSHADOW;
-		
+
 		ex->angles[0] = acos(dir[2])/M_PI*180;
 	// PMM - fixed to correct for pitch of 0
 		if (dir[0])
@@ -2569,7 +2569,7 @@ void CLQ2_ParseTEnt (void)
 		CL_ParticleSteamEffect (pos, dir, color, cnt, magnitude);
 		S_StartSound (pos,  0, 0, cl_sfx_lashit, 1, ATTN_NORM, 0);
 		break;
-	
+
 	case Q2TE_HEATBEAM_STEAM:
 //		cnt = MSG_ReadByte (&net_message);
 		cnt = 20;
@@ -2664,7 +2664,7 @@ void CLQ2_ParseTEnt (void)
 		// sort of how beams have ents associated
 		MSG_ReadShort(); // id
 		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_widowbeamout"))
-			P_RunParticleEffect(pos, NULL, 13*8, 300); 
+			P_RunParticleEffect(pos, NULL, 13*8, 300);
 		break;
 
 	case Q2TE_NUKEBLAST:
@@ -2672,7 +2672,7 @@ void CLQ2_ParseTEnt (void)
 		// and there's no id to read in
 		MSG_ReadPos (pos);
 		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_nukeblast"))
-			P_RunParticleEffect(pos, NULL, 110, 700); 
+			P_RunParticleEffect(pos, NULL, 110, 700);
 		break;
 
 	case Q2TE_WIDOWSPLASH:
@@ -2681,7 +2681,7 @@ void CLQ2_ParseTEnt (void)
 		// easier to manage
 		MSG_ReadPos (pos);
 		if (P_RunParticleEffectTypeString(pos, NULL, 1, "te_widowsplash"))
-			P_RunParticleEffect(pos, NULL, 13*8, 256); 
+			P_RunParticleEffect(pos, NULL, 13*8, 256);
 		break;
 //PGM
 //==============
@@ -2762,7 +2762,7 @@ entity_t *CL_NewTempEntity (void)
 	ent = &cl_visedicts[cl_numvisedicts];
 	cl_numvisedicts++;
 	ent->keynum = 0;
-	
+
 	memset (ent, 0, sizeof(*ent));
 
 #ifdef PEXT_SCALE
@@ -2802,7 +2802,7 @@ void CL_UpdateBeams (void)
 	{
 		if (!b->model)
 			continue;
-		
+
 		if (b->endtime < cl.time)
 		{
 			if (!cl.paused)
@@ -2919,7 +2919,7 @@ void CL_UpdateBeams (void)
 			yaw = (int) (atan2(dist[1], dist[0]) * 180 / M_PI);
 			if (yaw < 0)
 				yaw += 360;
-	
+
 			forward = sqrt (dist[0]*dist[0] + dist[1]*dist[1]);
 			pitch = (int) (atan2(dist[2], forward) * 180 / M_PI);
 			if (pitch < 0)
@@ -2965,7 +2965,7 @@ void CL_UpdateBeams (void)
 			d -= 30;
 		}
 	}
-	
+
 	beams_running = lastrunningbeam+1;
 }
 

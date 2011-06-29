@@ -7,15 +7,6 @@
 
 int keycatcher;
 
-#define MAX_TOKENLENGTH		1024
-typedef struct pc_token_s
-{
-	int type;
-	int subtype;
-	int intvalue;
-	float floatvalue;
-	char string[MAX_TOKENLENGTH];
-} pc_token_t;
 #define TT_STRING					1			// string
 #define TT_LITERAL					2			// literal
 #define TT_NUMBER					3			// number
@@ -599,23 +590,11 @@ void VQ3_RenderView(const q3refdef_t *ref)
 	}
 
 	memcpy(cl.q2frame.areabits, ref->areamask, sizeof(cl.q2frame.areabits));
-#ifdef GLQUAKE
-	if (qrenderer == QR_OPENGL)
-	{
-		qglDisable(GL_ALPHA_TEST);
-		qglDisable(GL_BLEND);
-	}
-#endif
 	R_RenderView();
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
 		GL_Set2D ();
-		qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		GL_TexEnv(GL_MODULATE);
-
-		qglDisable(GL_ALPHA_TEST);
-		qglEnable(GL_BLEND);
 	}
 #endif
 

@@ -798,14 +798,15 @@ typedef struct usercmd_s
 {
 	//the first members of this structure MUST match the q2 version
 	qbyte	msec;
-	qbyte	buttons;
+	qbyte	buttons_compat;
 	short	angles[3];
 	short	forwardmove, sidemove, upmove;
 	qbyte	impulse;
 	qbyte lightlevel;
 
 	//freestyle
-	qbyte weapon;
+	int buttons;
+	int weapon;
 	int servertime;
 	float fservertime;
 	float fclienttime;

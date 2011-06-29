@@ -518,6 +518,7 @@ void CLQ3_ParseGameState(void)
 	int		c;
 	int		index;
 	char	*configString;
+	cvar_t *cl_paused;
 
 //
 // wipe the client_state_t struct
@@ -606,6 +607,10 @@ void CLQ3_ParseGameState(void)
 
 	// load cgame, etc
 //	CL_ChangeLevel();
+
+	cl_paused = Cvar_FindVar("cl_paused");
+	if (cl_paused && cl_paused->ival)
+		Cvar_ForceSet(cl_paused, "0");
 
 }
 
@@ -716,7 +721,7 @@ qboolean CLQ3_Netchan_Process(void)
 	msg_readcount = readcount;
 
 	// calculate bitmask
-	bitmask = sequence ^ cls.challenge;
+	bitmask = (sequence ^ cls.challenge) & 0xff;
 	string = ccs.clientCommands[lastClientCommandNum & TEXTCMD_MASK];
 
 #ifndef Q3_NOENCRYPT
@@ -767,7 +772,7 @@ void CL_Netchan_Transmit( int length, const qbyte *data )
 	lastServerCommandNum = MSG_ReadLong();
 
 	// calculate bitmask
-	bitmask = lastSequence ^ serverid ^ cls.challenge;
+	bitmask = (lastSequence ^ serverid ^ cls.challenge) & 0xff;
 	string = ccs.serverCommands[lastServerCommandNum & TEXTCMD_MASK];
 
 #ifndef Q3_NOENCRYPT

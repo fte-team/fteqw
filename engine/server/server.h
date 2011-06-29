@@ -936,6 +936,7 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 
 void SV_SaveSpawnparms (qboolean);
 void SV_SaveLevelCache(char *savename, qboolean dontharmgame);
+void SV_Savegame (char *savename);
 qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolean ignoreplayers);
 
 void SV_Physics_Client (edict_t	*ent, int num);

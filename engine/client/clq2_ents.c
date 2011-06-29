@@ -504,164 +504,6 @@ FRAME PARSING
 =========================================================================
 */
 
-#if 0
-
-typedef struct
-{
-	int		modelindex;
-	int		num; // entity number
-	int		effects;
-	vec3_t	origin;
-	vec3_t	oldorigin;
-	vec3_t	angles;
-	qboolean present;
-} projectile_t;
-
-#define	MAX_PROJECTILES	64
-projectile_t	cl_projectiles[MAX_PROJECTILES];
-
-void CLQ2_ClearProjectiles (void)
-{
-	int i;
-
-	for (i = 0; i < MAX_PROJECTILES; i++) {
-//		if (cl_projectiles[i].present)
-//			Com_DPrintf("PROJ: %d CLEARED\n", cl_projectiles[i].num);
-		cl_projectiles[i].present = false;
-	}
-}
-
-/*
-=====================
-CL_ParseProjectiles
-
-Flechettes are passed as efficient temporary entities
-=====================
-*/
-void CLQ2_ParseProjectiles (void)
-{
-	int		i, c, j;
-	byte	bits[8];
-	byte	b;
-	projectile_t	pr;
-	int lastempty = -1;
-	qboolean old = false;
-
-	c = MSG_ReadByte (&net_message);
-	for (i=0 ; i<c ; i++)
-	{
-		bits[0] = MSG_ReadByte (&net_message);
-		bits[1] = MSG_ReadByte (&net_message);
-		bits[2] = MSG_ReadByte (&net_message);
-		bits[3] = MSG_ReadByte (&net_message);
-		bits[4] = MSG_ReadByte (&net_message);
-		pr.origin[0] = ( ( bits[0] + ((bits[1]&15)<<8) ) <<1) - 4096;
-		pr.origin[1] = ( ( (bits[1]>>4) + (bits[2]<<4) ) <<1) - 4096;
-		pr.origin[2] = ( ( bits[3] + ((bits[4]&15)<<8) ) <<1) - 4096;
-		VectorCopy(pr.origin, pr.oldorigin);
-
-		if (bits[4] & 64)
-			pr.effects = EF_BLASTER;
-		else
-			pr.effects = 0;
-
-		if (bits[4] & 128) {
-			old = true;
-			bits[0] = MSG_ReadByte (&net_message);
-			bits[1] = MSG_ReadByte (&net_message);
-			bits[2] = MSG_ReadByte (&net_message);
-			bits[3] = MSG_ReadByte (&net_message);
-			bits[4] = MSG_ReadByte (&net_message);
-			pr.oldorigin[0] = ( ( bits[0] + ((bits[1]&15)<<8) ) <<1) - 4096;
-			pr.oldorigin[1] = ( ( (bits[1]>>4) + (bits[2]<<4) ) <<1) - 4096;
-			pr.oldorigin[2] = ( ( bits[3] + ((bits[4]&15)<<8) ) <<1) - 4096;
-		}
-
-		bits[0] = MSG_ReadByte (&net_message);
-		bits[1] = MSG_ReadByte (&net_message);
-		bits[2] = MSG_ReadByte (&net_message);
-
-		pr.angles[0] = 360*bits[0]/256;
-		pr.angles[1] = 360*bits[1]/256;
-		pr.modelindex = bits[2];
-
-		b = MSG_ReadByte (&net_message);
-		pr.num = (b & 0x7f);
-		if (b & 128) // extra entity number byte
-			pr.num |= (MSG_ReadByte (&net_message) << 7);
-
-		pr.present = true;
-
-		// find if this projectile already exists from previous frame 
-		for (j = 0; j < MAX_PROJECTILES; j++) {
-			if (cl_projectiles[j].modelindex) {
-				if (cl_projectiles[j].num == pr.num) {
-					// already present, set up oldorigin for interpolation
-					if (!old)
-						VectorCopy(cl_projectiles[j].origin, pr.oldorigin);
-					cl_projectiles[j] = pr;
-					break;
-				}
-			} else
-				lastempty = j;
-		}
-
-		// not present previous frame, add it
-		if (j == MAX_PROJECTILES) {
-			if (lastempty != -1) {
-				cl_projectiles[lastempty] = pr;
-			}
-		}
-	}
-}
-
-/*
-=============
-CL_LinkProjectiles
-
-=============
-*/
-void CLQ2_AddProjectiles (void)
-{
-	int		i, j;
-	projectile_t	*pr;
-	entity_t		ent;
-
-	memset (&ent, 0, sizeof(ent));
-
-	for (i=0, pr=cl_projectiles ; i < MAX_PROJECTILES ; i++, pr++)
-	{
-		// grab an entity to fill in
-		if (pr->modelindex < 1)
-			continue;
-		if (!pr->present) {
-			pr->modelindex = 0;
-			continue; // not present this frame (it was in the previous frame)
-		}
-
-		ent.model = cl.model_draw[pr->modelindex];
-
-		// interpolate origin
-		for (j=0 ; j<3 ; j++)
-		{
-			ent.origin[j] = ent.oldorigin[j] = pr->oldorigin[j] + cl.lerpfrac * 
-				(pr->origin[j] - pr->oldorigin[j]);
-
-		}
-
-		if (pr->effects & EF_BLASTER)
-		{
-			if (P_ParticleTrail(pr->oldorigin, ent.origin, rt_blastertrail, NULL))
-				P_ParticleTrailIndex(pr->oldorigin, ent.origin, 0xe0, 1, NULL);
-		}
-		V_AddLight (pr->origin, 200, 0.2, 0.2, 0);
-
-		VectorCopy (pr->angles, ent.angles);
-		VQ2_AddLerpEntity (&ent);
-	}
-}
-#endif
-
 /*
 =================
 CL_ParseEntityBits
@@ -1333,6 +1175,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 //	q2clientinfo_t		*ci;
 	player_info_t		*player;
 	unsigned int		effects, renderfx;
+	float back, fwds;
 
 	// bonus items rotate at a fixed rate
 	autorotate = anglemod(cl.time*100);
@@ -1589,8 +1432,17 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		}
 //pmm
 
+		/*lerp the ent now*/
+		fwds = ent.framestate.g[FS_REG].lerpfrac;
+		back = 1 - ent.framestate.g[FS_REG].lerpfrac;
+		for (i = 0; i < 3; i++)
+		{
+			ent.origin[i] = ent.origin[i]*fwds + ent.oldorigin[i]*back;
+		}
+		ent.framestate.g[FS_REG].lerpfrac = back;
+
 		// add to refresh list
-		VQ2_AddLerpEntity (&ent);
+		V_AddEntity (&ent);
 
 
 		// color shells generate a seperate entity for the main model
@@ -1640,7 +1492,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			ent.shaderRGBAf[1] = (!!(renderfx & Q2RF_SHELL_GREEN));
 			ent.shaderRGBAf[2] = (!!(renderfx & Q2RF_SHELL_BLUE));
 			ent.forcedshader = R_RegisterCustom("q2/shell", Shader_DefaultSkinShell, NULL);
-			VQ2_AddLerpEntity (&ent);
+			V_AddEntity (&ent);
 		}
 		ent.forcedshader = NULL;
 
@@ -1694,7 +1546,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			}
 */			// pmm
 
-			VQ2_AddLerpEntity (&ent);
+			V_AddEntity (&ent);
 
 			//PGM - make sure these get reset.
 			ent.flags = 0;
@@ -1704,12 +1556,12 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		if (s1->modelindex3)
 		{
 			ent.model = cl.model_precache[s1->modelindex3];
-			VQ2_AddLerpEntity (&ent);
+			V_AddEntity (&ent);
 		}
 		if (s1->modelindex4)
 		{
 			ent.model = cl.model_precache[s1->modelindex4];
-			VQ2_AddLerpEntity (&ent);
+			V_AddEntity (&ent);
 		}
 
 		if ( effects & Q2EF_POWERSCREEN )
@@ -1719,7 +1571,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			ent.frame = 0;
 			ent.flags |= (Q2RF_TRANSLUCENT | Q2RF_SHELL_GREEN);
 			ent.alpha = 0.30;
-			VQ2_AddLerpEntity (&ent);
+			V_AddLerpEntity (&ent);
 */		}
 
 		// add automatic particle trails

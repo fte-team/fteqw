@@ -945,7 +945,7 @@ void SV_Soundlist_f (void)
 	MSG_WriteByte (&host_client->netchan.message, 0);
 
 	// next msg
-	MSG_WriteByte (&host_client->netchan.message, n);
+	MSG_WriteByte (&host_client->netchan.message, n & 0xff);
 }
 
 /*
@@ -1079,7 +1079,7 @@ void SV_Modellist_f (void)
 	MSG_WriteByte (&host_client->netchan.message, 0);
 
 	// next msg
-	MSG_WriteByte (&host_client->netchan.message, n);
+	MSG_WriteByte (&host_client->netchan.message, n & 0xff);
 }
 
 /*
@@ -1706,6 +1706,8 @@ void SV_Begin_f (void)
 
 	if (host_client->istobeloaded)
 		sendangles = true;
+	if (host_client->protocol == SCP_QUAKE2)
+		sendangles = false;
 
 
 	for (split = host_client; split; split = split->controlled)
@@ -5026,7 +5028,7 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 	pl = EDICT_TO_PROG(svprogfuncs, player);
 
 	// touch linked edicts
-	for (l = node->solid_edicts.next ; l != &node->solid_edicts ; l = next)
+	for (l = node->edicts.next ; l != &node->edicts ; l = next)
 	{
 		next = l->next;
 		check = (edict_t*)EDICT_FROM_AREA(l);
@@ -5076,7 +5078,7 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 		}
 	}
 	if (player->v->mins[2] != 24)	//crouching/dead
-	for (l = node->trigger_edicts.next ; l != &node->trigger_edicts ; l = next)
+	for (l = node->edicts.next ; l != &node->edicts ; l = next)
 	{
 		next = l->next;
 		check = (edict_t*)EDICT_FROM_AREA(l);

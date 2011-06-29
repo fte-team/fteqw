@@ -1227,7 +1227,8 @@ Mod_LoadClipnodes
 */
 qboolean Mod_LoadClipnodes (lump_t *l)
 {
-	dclipnode_t *in, *out;
+	dclipnode_t *in;
+	mclipnode_t *out;
 	int			i, count;
 	hull_t		*hull;
 
@@ -1346,7 +1347,7 @@ Deplicate the drawing hull structure as a clipping hull
 void Mod_MakeHull0 (void)
 {
 	mnode_t		*in, *child;
-	dclipnode_t *out;
+	mclipnode_t *out;
 	int			i, j, count;
 	hull_t		*hull;
 

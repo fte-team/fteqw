@@ -2258,7 +2258,8 @@ void Media_RecordFilm_f (void)
 		BITMAPINFOHEADER bitmap_info_header;
 		AVISTREAMINFO stream_header;
 		FILE *f;
-		char filename[256];
+		char aviname[256];
+		char nativepath[256];
 
 		if (strlen(fourcc) == 4)
 			recordavi_codec_fourcc = mmioFOURCC(*(fourcc+0), *(fourcc+1), *(fourcc+2), *(fourcc+3));
@@ -2271,23 +2272,24 @@ void Media_RecordFilm_f (void)
 			AVIFileInit();
 		}
 
-
-		snprintf(filename, sizeof(filename) - 5, "%s%s", com_quakedir, Cmd_Argv(1));
-		COM_StripExtension(filename, filename, sizeof(filename));
-		COM_DefaultExtension (filename, ".avi", sizeof(filename));
+		/*convert to foo.avi*/
+		COM_StripExtension(Cmd_Argv(1), aviname, sizeof(aviname));
+		COM_DefaultExtension (aviname, ".avi", sizeof(aviname));
+		/*find the system location of that*/
+		FS_NativePath(aviname, FS_ROOT, nativepath, sizeof(nativepath));
 
 		//wipe it.
-		f = fopen(filename, "rb");
+		f = fopen(nativepath, "rb");
 		if (f)
 		{
 			fclose(f);
-			unlink(filename);
+			unlink(nativepath);
 		}
 
-		hr = AVIFileOpen(&recordavi_file, filename, OF_WRITE | OF_CREATE, NULL);
+		hr = AVIFileOpen(&recordavi_file, nativepath, OF_WRITE | OF_CREATE, NULL);
 		if (FAILED(hr))
 		{
-			Con_Printf("Failed to open\n");
+			Con_Printf("Failed to open %s\n", nativepath);
 			return;
 		}
 
@@ -2312,7 +2314,7 @@ void Media_RecordFilm_f (void)
 		hr = AVIFileCreateStream(recordavi_file, &recordavi_uncompressed_video_stream, &stream_header);
 		if (FAILED(hr))
 		{
-			Con_Printf("Couldn't initialise the stream\n");
+			Con_Printf("Couldn't initialise the stream, check codec\n");
 			Media_StopRecordFilm_f();
 			return;
 		}

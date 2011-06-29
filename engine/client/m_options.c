@@ -1783,7 +1783,7 @@ qboolean M_Vid_GetMode(int num, int *w, int *h)
 			v++;
 			num--;
 		}
-		if (v)
+		if (*v)
 		{
 			const char *c = *v;
 			const char *s = strchr(c, 'x');

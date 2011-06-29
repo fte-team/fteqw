@@ -150,9 +150,9 @@ void M_Menu_SinglePlayer_f (void)
 		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_game");
 
 		menu->selecteditem = (menuoption_t*)
-		MC_AddConsoleCommand	(menu, 64, 40,	"Easy",		"skill 0;deathmatch 0; coop 0;newgame\n");
-		MC_AddConsoleCommand	(menu, 64, 48,	"Medium",	"skill 1;deathmatch 0; coop 0;newgame\n");
-		MC_AddConsoleCommand	(menu, 64, 56,	"Hard",		"skill 2;deathmatch 0; coop 0;newgame\n");
+		MC_AddConsoleCommand	(menu, 64, 40,	"Easy",		"closemenu; skill 0;deathmatch 0; coop 0;newgame\n");
+		MC_AddConsoleCommand	(menu, 64, 48,	"Medium",	"closemenu; skill 1;deathmatch 0; coop 0;newgame\n");
+		MC_AddConsoleCommand	(menu, 64, 56,	"Hard",		"closemenu; skill 2;deathmatch 0; coop 0;newgame\n");
 
 		MC_AddConsoleCommand	(menu, 64, 72,	"Load Game", "menu_load\n");
 		MC_AddConsoleCommand	(menu, 64, 80,	"Save Game", "menu_save\n");

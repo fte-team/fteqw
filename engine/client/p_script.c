@@ -1897,7 +1897,10 @@ static void P_LoadParticleSet(char *name, qboolean first)
 			fallback->ShutdownParticles();
 		fallback = &pe_classic;
 		if (fallback)
+		{
 			fallback->InitParticles();
+			fallback->ClearParticles();
+		}
 		return;
 	}
 

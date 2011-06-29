@@ -293,8 +293,6 @@ typedef struct
 	int		APIversion;
 } gameData32_t;
 
-typedef int		fileHandle_t;
-
 typedef enum {
 	FS_READ_BIN,
 	FS_READ_TXT,
@@ -302,7 +300,7 @@ typedef enum {
 	FS_WRITE_TXT,
 	FS_APPEND_BIN,
 	FS_APPEND_TXT
-} fsMode_t;
+} q1qvmfsMode_t;
 
 typedef enum {
 	FS_SEEK_CUR,
@@ -940,8 +938,28 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 		//ret = filesize or -1
 		
 	//	Con_Printf("G_FSOpenFile: %s (mode %i)\n", VM_POINTER(arg[0]), arg[2]);
-
-		return VM_fopen(VM_POINTER(arg[0]), VM_POINTER(arg[1]), arg[2]/2, VMFSID_Q1QVM);
+		{
+			int mode;
+			switch((q1qvmfsMode_t)arg[2])
+			{
+			default:
+				return -1;
+			case FS_READ_BIN:
+			case FS_READ_TXT:
+				mode = VM_FS_READ;
+				break;
+			case FS_WRITE_BIN:
+			case FS_WRITE_TXT:
+				mode = VM_FS_WRITE;
+				break;
+			case FS_APPEND_BIN:
+			case FS_APPEND_TXT:
+				mode = VM_FS_APPEND;
+				break;
+			}
+			return VM_fopen(VM_POINTER(arg[0]), VM_POINTER(arg[1]), mode, VMFSID_Q1QVM);
+		}
+		break;
 
 	case G_FS_CloseFile:
 		VM_fclose(arg[0], VMFSID_Q1QVM);

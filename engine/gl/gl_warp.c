@@ -459,7 +459,6 @@ static void R_DrawSkyMesh(batch_t *batch, mesh_t *m, shader_t *shader)
 {
 	static entity_t skyent;
 	batch_t b;
-	//float time = cl.gametime+realtime-cl.gametimemark; //warning: unused variable ‘time’
 
 	float skydist = gl_skyboxdist.value;
 	if (skydist<1)

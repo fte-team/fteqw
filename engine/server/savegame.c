@@ -563,7 +563,7 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 			return false;
 		}
 
-		if (!FS_NativePath(name, FS_GAMEONLY, syspath, sizeof(syspath)))
+		if (!FS_NativePath(name, FS_GAME, syspath, sizeof(syspath)))
 			return false;
 
 		ge->ReadLevel(syspath);
@@ -895,7 +895,7 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 
 #define FTESAVEGAME_VERSION 25000
 
-void SV_Savegame_f (void)
+void SV_Savegame (char *savename)
 {
 	extern cvar_t	nomonsters;
 	extern cvar_t	gamecfg;
@@ -919,7 +919,6 @@ void SV_Savegame_f (void)
 	char	comment[SAVEGAME_COMMENT_LENGTH+1];
 	vfsfile_t *f;
 	int len;
-	char *savename;
 	levelcache_t *cache;
 	char str[MAX_LOCALINFO_STRING+1];
 	char *savefilename;
@@ -930,8 +929,7 @@ void SV_Savegame_f (void)
 		return;
 	}
 
-	savename = Cmd_Argv(1);
-
+	/*catch invalid names*/
 	if (!*savename || strstr(savename, ".."))
 		savename = "quicksav";
 
@@ -1015,6 +1013,11 @@ void SV_Savegame_f (void)
 	VFS_CLOSE(f);
 
 	FS_FlushFSHash();
+}
+
+void SV_Savegame_f (void)
+{
+	SV_Savegame(Cmd_Argv(1));
 }
 
 void SV_Loadgame_f (void)

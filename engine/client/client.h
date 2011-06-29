@@ -1094,7 +1094,7 @@ void Cam_TrackPlayer(int pnum, char *cmdname, char *plrarg);
 void Cam_Lock(int pnum, int playernum);
 void CL_InitCam(void);
 
-void vectoangles(vec3_t vec, vec3_t ang);
+void QDECL vectoangles(vec3_t vec, vec3_t ang);
 
 //
 //zqtp.c

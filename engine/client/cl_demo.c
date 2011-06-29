@@ -167,7 +167,7 @@ int demo_preparsedemo(unsigned char *buffer, int bytes)
 		switch(buffer[1]&dem_mask)
 		{
 		case dem_cmd:
-			ofs = -(sizeof(q1usercmd_t));
+			ofs = -(int)(sizeof(q1usercmd_t));
 			ofs = 0;
 			break;
 		case dem_set:

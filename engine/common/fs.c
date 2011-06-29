@@ -1632,10 +1632,16 @@ void COM_Gamedir (const char *dir)
 #endif
 }
 
+/*stuff that makes dp-only mods work a bit better*/
 #define DPCOMPAT "set _cl_playermodel \"\"\n set dpcompat_set 1\n set dpcompat_trailparticles 1\nset dpcompat_corruptglobals 1\nset vid_pixelheight 1\n"
-#define NEXCFG DPCOMPAT "set r_particlesdesc effectinfo\nset sv_maxairspeed \"400\"\nset sv_jumpvelocity 270\nset sv_mintic \"0.01\"\ncl_nolerp 0\nset r_particlesdesc effectinfo\n"
+/*nexuiz/xonotic has a few quirks...*/
+#define NEXCFG DPCOMPAT "set r_particlesdesc effectinfo\nset sv_maxairspeed \"400\"\nset sv_jumpvelocity 270\nset sv_mintic \"0.01\"\ncl_nolerp 0\n"
+/*some modern non-compat settings*/
 #define DMFCFG "set com_parseutf8 1\npm_airstep 1\n"
+/*set some stuff so our regular qw client appears more like hexen2*/
 #define HEX2CFG "set r_particlesdesc \"spikeset tsshaft h2part\"\nset sv_maxspeed 640\nset watervis 1\nset r_wateralpha 0.5\nset sv_pupglow 1\nset cl_model_bobbing 1\n"
+/*Q3's ui doesn't like empty model/headmodel/handicap cvars, even if the gamecode copes*/
+#define Q3CFG "seta model sarge\nseta headmodel sarge\nseta handicap 100\n"
 
 typedef struct {
 	const char *protocolname;	//sent to the master server when this is the current gamemode.
@@ -1666,7 +1672,7 @@ const gamemode_info_t gamemode_info[] = {
 															 "portals/pak3.pak"},	HEX2CFG,{"data1",	"portals",			"fteh2"},		"Hexen II MP"},
 	{"FTE-Hexen2",			"hexen2",		"-hexen2",		{"data1/pak0.pak"},		HEX2CFG,{"data1",						"fteh2"},		"Hexen II"},
 	{"FTE-Quake2",			"q2",			"-q2",			{"baseq2/pak0.pak"},	NULL,	{"baseq2",						"fteq2"},	"Quake II"},
-	{"FTE-Quake3",			"q3",			"-q3",			{"baseq3/pak0.pk3"},	NULL,	{"baseq3",						"fteq3"},	"Quake III Arena"},
+	{"FTE-Quake3",			"q3",			"-q3",			{"baseq3/pak0.pk3"},	Q3CFG,	{"baseq3",						"fteq3"},	"Quake III Arena"},
 	{"FTE-Quake4",			"q4",			"-q4",			{"q4base/pak00.pk4"},	NULL,	{"q4base",						"fteq4"},	"Quake 4"},
 	{"FTE-EnemyTerritory",	"et",			"-et",			{"etmain/pak0.pk3"},	NULL,	{"etmain",						"fteet"},	"Wolfenstein - Enemy Territory"},
 

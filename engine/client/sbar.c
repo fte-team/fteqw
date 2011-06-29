@@ -2373,7 +2373,7 @@ void Sbar_Draw (void)
 			Sbar_ExecuteLayoutString(cl.q2statusbar);
 		if (*cl.q2layout)
 		{
-			if (cl.q2frame.playerstate.stats[Q2STAT_LAYOUTS])
+			if (cl.q2frame.playerstate.stats[Q2STAT_LAYOUTS] & 1)
 				Sbar_ExecuteLayoutString(cl.q2layout);
 		}
 		return;

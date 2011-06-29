@@ -368,7 +368,7 @@ void VectorAngles(float *forward, float *up, float *result)	//up may be NULL
 	result[2] = roll;
 }
 
-void AngleVectors (const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up)
+void QDECL AngleVectors (const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up)
 {
 	float		angle;
 	float		sr, sp, sy, cr, cp, cy;
@@ -401,6 +401,36 @@ void AngleVectors (const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up)
 		up[1] = (cr*sp*sy+-sr*cy);
 		up[2] = cr*cp;
 	}
+}
+
+void QDECL vectoangles(vec3_t vec, vec3_t ang)
+{
+	float	forward;
+	float	yaw, pitch;
+	
+	if (vec[1] == 0 && vec[0] == 0)
+	{
+		yaw = 0;
+		if (vec[2] > 0)
+			pitch = 90;
+		else
+			pitch = 270;
+	}
+	else
+	{
+		yaw = /*(int)*/ (atan2(vec[1], vec[0]) * 180 / M_PI);
+		if (yaw < 0)
+			yaw += 360;
+
+		forward = sqrt (vec[0]*vec[0] + vec[1]*vec[1]);
+		pitch = /*(int)*/ (atan2(vec[2], forward) * 180 / M_PI);
+		if (pitch < 0)
+			pitch += 360;
+	}
+
+	ang[0] = pitch;
+	ang[1] = yaw;
+	ang[2] = 0;
 }
 
 int VectorCompare (const vec3_t v1, const vec3_t v2)
@@ -485,7 +515,7 @@ float Q_rsqrt(float number)
 	return y;
 }
 
-float VectorNormalize (vec3_t v)
+float QDECL VectorNormalize (vec3_t v)
 {
 	float	length, ilength;
 
@@ -1637,7 +1667,7 @@ void Matrix3_Multiply (vec3_t *in1, vec3_t *in2, vec3_t *out)
 	out[2][2] = in1[2][0]*in2[0][2] + in1[2][1]*in2[1][2] +	in1[2][2]*in2[2][2];
 }
 
-vec_t VectorNormalize2 (const vec3_t v, vec3_t out)
+vec_t QDECL VectorNormalize2 (const vec3_t v, vec3_t out)
 {
 	float	length, ilength;
 

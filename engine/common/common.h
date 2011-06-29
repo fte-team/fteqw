@@ -19,6 +19,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // comndef.h  -- general definitions
 
+#include <stdio.h>
+
+//make shared
+#ifndef QDECL
+	#ifdef _MSC_VER
+		#define QDECL _cdecl
+	#else
+		#define QDECL
+	#endif
+#endif
+
 typedef unsigned char 		qbyte;
 
 // KJB Undefined true and false defined in SciTech's DEBUG.H header
@@ -208,7 +219,7 @@ void VARGS Q_snprintfz (char *dest, size_t size, char *fmt, ...) LIKEPRINTF(3);
 #if 0
 #define Q_strncpyz(d, s, n) Q_strncpyN(d, s, (n)-1)
 #else
-void Q_strncpyz(char*d, const char*s, int n);
+void QDECL Q_strncpyz(char*d, const char*s, int n);
 #define Q_strncatz(dest, src, sizeofdest)	\
 	do {	\
 		strncat(dest, src, sizeofdest - strlen(dest) - 1);	\
@@ -221,18 +232,10 @@ void Q_strncpyz(char*d, const char*s, int n);
 #define strncpy Q_strncpy
 #endif*/
 
-#ifdef _WIN32
 
-#define Q_strcasecmp(s1, s2) _stricmp((s1), (s2))
-#define Q_strncasecmp(s1, s2, n) _strnicmp((s1), (s2), (n))
-
-#else
-
-#define Q_strcasecmp(s1, s2) strcasecmp((s1), (s2))
-#define Q_strncasecmp(s1, s2, n) strncasecmp((s1), (s2), (n))
-
-#endif
-
+/*replacement functions which do not care for locale in text formatting ('C' locale)*/
+int Q_strncasecmp (const char *s1, const char *s2, int n);
+int Q_strcasecmp (const char *s1, const char *s2);
 int	Q_atoi (const char *str);
 float Q_atof (const char *str);
 
@@ -458,3 +461,17 @@ void Log_String (logtype_t lognum, char *s);
 void Con_Log (char *s);
 void Log_Logfile_f (void);
 void Log_Init(void);
+
+
+/*used by and for botlib and q3 gamecode*/
+#define MAX_TOKENLENGTH		1024
+typedef struct pc_token_s
+{
+	int type;
+	int subtype;
+	int intvalue;
+	float floatvalue;
+	char string[MAX_TOKENLENGTH];
+} pc_token_t;
+#define fileHandle_t int
+#define fsMode_t int

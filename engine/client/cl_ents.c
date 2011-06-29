@@ -1356,7 +1356,7 @@ entity_t *V_AddEntity(entity_t *in)
 
 	return ent;
 }
-
+/*
 void VQ2_AddLerpEntity(entity_t *in)	//a convienience function
 {
 	entity_t *ent;
@@ -1384,7 +1384,7 @@ void VQ2_AddLerpEntity(entity_t *in)	//a convienience function
 	VectorInverse(ent->axis[1]);
 	ent->angles[0]*=-1;
 }
-
+*/
 int V_AddLight (int entsource, vec3_t org, float quant, float r, float g, float b)
 {
 	return CL_NewDlightRGB (entsource, org, quant, -0.1, r, g, b) - cl_dlights;

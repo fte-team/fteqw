@@ -188,7 +188,7 @@ void InsertLinkAfter (link_t *l, link_t *after)
 ============================================================================
 */
 
-void Q_strncpyz(char *d, const char *s, int n)
+void QDECL Q_strncpyz(char *d, const char *s, int n)
 {
 	int i;
 	n--;
@@ -339,7 +339,9 @@ int Q_strncmp (char *s1, char *s2, int count)
 	return -1;
 }
 
-int Q_strncasecmp (char *s1, char *s2, int n)
+#endif
+
+int Q_strncasecmp (const char *s1, const char *s2, int n)
 {
 	int		c1, c2;
 
@@ -369,12 +371,35 @@ int Q_strncasecmp (char *s1, char *s2, int n)
 	return -1;
 }
 
-int Q_strcasecmp (char *s1, char *s2)
+int Q_strcasecmp (const char *s1, const char *s2)
+{
+	return Q_strncasecmp (s1, s2, 99999);
+}
+int QDECL Q_stricmp (const char *s1, const char *s2)
 {
 	return Q_strncasecmp (s1, s2, 99999);
 }
 
-#endif
+int QDECL Q_vsnprintf(char *buffer, int size, const char *format, va_list argptr)
+{
+	return vsnprintf(buffer, size, format, argptr);
+}
+
+int VARGS Com_sprintf(char *buffer, int size, const char *format, ...) LIKEPRINTF(3)
+{
+	int ret;
+	va_list		argptr;
+
+	va_start (argptr, format);
+	ret = vsnprintf (buffer, size, format, argptr);
+	va_end (argptr);
+
+	return ret;
+}
+void	QDECL Com_Error( int level, const char *error, ... )
+{
+	Sys_Error("%s", error);
+}
 
 char *Q_strlwr(char *s)
 {
@@ -1488,6 +1513,7 @@ void MSGQ2_ReadDeltaUsercmd (usercmd_t *from, usercmd_t *move)
 // read buttons
 	if (bits & Q2CM_BUTTONS)
 		move->buttons = MSG_ReadByte ();
+	move->buttons_compat = move->buttons & 0xff;
 
 	if (bits & Q2CM_IMPULSE)
 		move->impulse = MSG_ReadByte ();

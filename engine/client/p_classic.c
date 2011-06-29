@@ -66,7 +66,7 @@ typedef struct cparticle_s
 		pt_grav,
 		pt_slowgrav
 	} type;
-	unsigned char color;
+	unsigned int rgb;
 	struct cparticle_s *next;
 } cparticle_t;
 
@@ -76,10 +76,11 @@ typedef struct cparticle_s
 static int r_numparticles;
 static cparticle_t	*particles, *active_particles, *free_particles;
 
+extern qbyte default_quakepal[]; /*for ramps more than anything else*/
 static int	ramp1[8] = {0x6f, 0x6d, 0x6b, 0x69, 0x67, 0x65, 0x63, 0x61};
 static int	ramp2[8] = {0x6f, 0x6e, 0x6d, 0x6c, 0x6b, 0x6a, 0x68, 0x66};
 static int	ramp3[8] = {0x6d, 0x6b, 6, 5, 4, 3};
-
+#define qpal(q) ((default_quakepal[(q)*3+0]<<0) | (default_quakepal[(q)*3+1]<<8) | (default_quakepal[(q)*3+2]<<16))
 
 
 #define BUFFERVERTS 2048*3
@@ -350,7 +351,7 @@ static void PClassic_DrawParticles(void)
 		scale = 1 + dist * r_partscale;
 
 
-		usecolours.i = palette[(int)p->color];
+		usecolours.i = p->rgb;
 		if (p->type == pt_fire)
 			usecolours.b[3] = 255 * (6 - p->ramp) / 6;
 		else
@@ -381,7 +382,7 @@ static void PClassic_DrawParticles(void)
 			if (p->ramp >= 6)
 				p->die = -1;
 			else
-				p->color = ramp3[(int) p->ramp];
+				p->rgb = qpal(ramp3[(int) p->ramp]);
 			p->vel[2] += grav;
 			break;
 		case pt_explode:
@@ -389,7 +390,7 @@ static void PClassic_DrawParticles(void)
 			if (p->ramp >=8)
 				p->die = -1;
 			else
-				p->color = ramp1[(int) p->ramp];
+				p->rgb = qpal(ramp1[(int) p->ramp]);
 			for (i = 0; i < 3; i++)
 				p->vel[i] += p->vel[i] * dvel;
 			p->vel[2] -= grav*10;
@@ -399,7 +400,7 @@ static void PClassic_DrawParticles(void)
 			if (p->ramp >=8)
 				p->die = -1;
 			else
-				p->color = ramp2[(int) p->ramp];
+				p->rgb = qpal(ramp2[(int) p->ramp]);
 			for (i = 0; i < 3; i++)
 				p->vel[i] -= p->vel[i] * frametime;
 			p->vel[2] -= grav*10;
@@ -447,7 +448,7 @@ static void Classic_ParticleExplosion (vec3_t org)
 		active_particles = p;
 
 		p->die = cl.time + 5;
-		p->color = ramp1[0];
+		p->rgb = d_8to24rgbtable[ramp1[0]];
 		p->ramp = rand() & 3;
 		if (i & 1)
 		{
@@ -489,7 +490,7 @@ static void Classic_BlobExplosion (vec3_t org)
 		if (i & 1)
 		{
 			p->type = pt_blob;
-			p->color = 66 + rand() % 6;
+			p->rgb = d_8to24rgbtable[66 + rand() % 6];
 			for (j = 0; j < 3; j++)
 			{
 				p->org[j] = org[j] + ((rand() % 32) - 16);
@@ -499,7 +500,7 @@ static void Classic_BlobExplosion (vec3_t org)
 		else
 		{
 			p->type = pt_blob2;
-			p->color = 150 + rand() % 6;
+			p->rgb = d_8to24rgbtable[150 + rand() % 6];
 			for (j = 0; j < 3; j++)
 			{
 				p->org[j] = org[j] + ((rand() % 32) - 16);
@@ -529,7 +530,7 @@ static void Classic_RunParticleEffect (vec3_t org, vec3_t dir, int color, int co
 		active_particles = p;
 
 		p->die = cl.time + 0.1 * (rand() % 5);
-		p->color = (color & ~7) + (rand() & 7);
+		p->rgb = d_8to24rgbtable[(color & ~7) + (rand() & 7)];
 		p->type = pt_grav;
 		for (j = 0; j < 3; j++)
 		{
@@ -560,7 +561,7 @@ static void Classic_LavaSplash (vec3_t org)
 				active_particles = p;
 
 				p->die = cl.time + 2 + (rand() & 31) * 0.02;
-				p->color = 224 + (rand() & 7);
+				p->rgb = d_8to24rgbtable[224 + (rand() & 7)];
 				p->type = pt_grav;
 
 				dir[0] = j * 8 + (rand() & 7);
@@ -600,7 +601,7 @@ static void Classic_TeleportSplash (vec3_t org)
 				active_particles = p;
 
 				p->die = cl.time + 0.2 + (rand() & 7) * 0.02;
-				p->color = 7 + (rand() & 7);
+				p->rgb = d_8to24rgbtable[7 + (rand() & 7)];
 				p->type = pt_grav;
 
 				dir[0] = j * 8;
@@ -671,20 +672,20 @@ static float Classic_ParticleTrail (vec3_t start, vec3_t end, float leftover, ef
 		{		
 		case GRENADE_TRAIL:
 			p->ramp = (rand() & 3) + 2;
-			p->color = ramp3[(int) p->ramp];
+			p->rgb = d_8to24rgbtable[ramp3[(int) p->ramp]];
 			p->type = pt_fire;
 			for (j = 0; j < 3; j++)
 				p->org[j] = point[j] + ((rand() % 6) - 3);
 			break;
 		case BLOOD_TRAIL:
 			p->type = pt_slowgrav;
-			p->color = 67 + (rand() & 3);
+			p->rgb = d_8to24rgbtable[67 + (rand() & 3)];
 			for (j = 0; j < 3; j++)
 				p->org[j] = point[j] + ((rand() % 6) - 3);
 			break;
 		case BIG_BLOOD_TRAIL:
 			p->type = pt_slowgrav;
-			p->color = 67 + (rand() & 3);
+			p->rgb = d_8to24rgbtable[67 + (rand() & 3)];
 			for (j = 0; j < 3; j++)
 				p->org[j] = point[j] + ((rand() % 6) - 3);
 			break;
@@ -693,9 +694,9 @@ static float Classic_ParticleTrail (vec3_t start, vec3_t end, float leftover, ef
 			p->die = cl.time + 0.5;
 			p->type = pt_static;
 			if (type == TRACER1_TRAIL)
-				p->color = 52 + ((tracercount & 4) << 1);
+				p->rgb = d_8to24rgbtable[52 + ((tracercount & 4) << 1)];
 			else
-				p->color = 230 + ((tracercount & 4) << 1);
+				p->rgb = d_8to24rgbtable[230 + ((tracercount & 4) << 1)];
 
 			tracercount++;
 
@@ -712,7 +713,7 @@ static float Classic_ParticleTrail (vec3_t start, vec3_t end, float leftover, ef
 			}
 			break;
 		case VOOR_TRAIL:
-			p->color = 9 * 16 + 8 + (rand() & 3);
+			p->rgb = d_8to24rgbtable[9 * 16 + 8 + (rand() & 3)];
 			p->type = pt_static;
 			p->die = cl.time + 0.3;
 			for (j = 0; j < 3; j++)
@@ -720,7 +721,7 @@ static float Classic_ParticleTrail (vec3_t start, vec3_t end, float leftover, ef
 			break;
 		case ALT_ROCKET_TRAIL:
 			p->ramp = (rand() & 3);
-			p->color = ramp3[(int) p->ramp];
+			p->rgb = d_8to24rgbtable[ramp3[(int) p->ramp]];
 			p->type = pt_fire;
 			for (j = 0; j < 3; j++)
 				p->org[j] = point[j] + ((rand() % 6) - 3);
@@ -728,7 +729,7 @@ static float Classic_ParticleTrail (vec3_t start, vec3_t end, float leftover, ef
 		case ROCKET_TRAIL:
 		default:		
 			p->ramp = (rand() & 3);
-			p->color = ramp3[(int) p->ramp];
+			p->rgb = d_8to24rgbtable[ramp3[(int) p->ramp]];
 			p->type = pt_fire;
 			for (j = 0; j < 3; j++)
 				p->org[j] = point[j] + ((rand() % 6) - 3);

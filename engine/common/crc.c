@@ -73,7 +73,7 @@ void QCRC_Init(unsigned short *crcvalue)
 
 void QCRC_ProcessByte(unsigned short *crcvalue, qbyte data)
 {
-	*crcvalue = (*crcvalue << 8) ^ crctable[(*crcvalue >> 8) ^ data];
+	*crcvalue = ((*crcvalue << 8)&0xffff) ^ crctable[(*crcvalue >> 8) ^ data];
 }
 
 unsigned short QCRC_Value(unsigned short crcvalue)
@@ -87,7 +87,7 @@ unsigned short QCRC_Block (qbyte *start, int count)
 
 	QCRC_Init (&crc);
 	while (count--)
-		crc = (crc << 8) ^ crctable[(crc >> 8) ^ *start++];
+		crc = ((crc << 8) & 0xffff) ^ crctable[(crc >> 8) ^ *start++];
 
 	return crc;
 }

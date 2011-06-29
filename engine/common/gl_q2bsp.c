@@ -2357,14 +2357,9 @@ mfog_t *CM_FogForOrigin(vec3_t org)
 
 //Convert a patch in to a list of glpolys
 
-#define MAX_ARRAY_VERTS 2048
+#define MAX_ARRAY_VERTS 65535
 
-index_t tempIndexesArray[MAX_ARRAY_VERTS*3];
-vecV_t			tempxyz_array[MAX_ARRAY_VERTS];	//structure is used only at load.
-vec3_t			tempnormals_array[MAX_ARRAY_VERTS];	//so what harm is there in doing this?
-vec2_t			tempst_array[MAX_ARRAY_VERTS];
-vec2_t			templmst_array[MAX_ARRAY_VERTS];
-byte_vec4_t		tempcolors_array[MAX_ARRAY_VERTS];
+index_t tempIndexesArray[MAX_ARRAY_VERTS*6];
 
 //mesh_t *GL_CreateMeshForPatch ( model_t *mod, q3dface_t *surf )
 mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, int numverts, int firstvert)
@@ -2633,6 +2628,8 @@ qboolean CModQ3_LoadRFaces (lump_t *l)
 			Vector4Copy(mesh->colors4b_array[0], mesh->colors4b_array[2]);
 			Vector4Copy(mesh->colors4b_array[0], mesh->colors4b_array[3]);
 		}
+					if (out->mesh->numindexes == 0)
+				Con_Printf("foo\n");
 	}
 
 	Mod_NormaliseTextureVectors(map_normals_array, map_svector_array, map_tvector_array, numvertexes);

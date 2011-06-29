@@ -799,7 +799,7 @@ void pscript_property_curserver_sets(struct context *ctx, const char *val)
 	}
 
 	Q_strncpyz(cls.servername, val, sizeof(cls.servername));
-	CL_BeginServerConnect();
+	CL_BeginServerConnect(0);
 }
 
 void pscript_property_stream_sets(struct context *ctx, const char *val)

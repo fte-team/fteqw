@@ -11,7 +11,7 @@ Physics functions (common)
 void Q1BSP_CheckHullNodes(hull_t *hull)
 {
 	int num, c;
-	dclipnode_t	*node;
+	mclipnode_t	*node;
 	for (num = hull->firstclipnode; num < hull->lastclipnode; num++)
 	{
 		node = hull->clipnodes + num;
@@ -32,7 +32,7 @@ SV_HullPointContents
 static int Q1_HullPointContents (hull_t *hull, int num, vec3_t p)
 {
 	float		d;
-	dclipnode_t	*node;
+	mclipnode_t	*node;
 	mplane_t	*plane;
 
 	while (num >= 0)
@@ -205,7 +205,7 @@ qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 #else
 qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t *trace)
 {
-	dclipnode_t	*node;
+	mclipnode_t	*node;
 	mplane_t	*plane;
 	float		t1, t2;
 	float		frac;
@@ -1007,7 +1007,9 @@ int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangen
 
 	sh_shadowframe++;
 
-	if (cl.worldmodel->fromgame == fg_quake)
+	if (!cl.worldmodel)
+		return 0;
+	else if (cl.worldmodel->fromgame == fg_quake)
 		Q1BSP_ClipDecalToNodes(&dec, cl.worldmodel->nodes);
 #ifdef Q3BSPS
 	else if (cl.worldmodel->fromgame == fg_quake3)

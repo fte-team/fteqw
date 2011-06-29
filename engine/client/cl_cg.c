@@ -32,6 +32,8 @@ extern int mod_numknown;
 #define VM_FROMSHANDLE(a) (a?r_shaders+a-1:NULL)
 #define VM_TOSHANDLE(a) (a?a-r_shaders+1:0)
 
+extern model_t		box_model;
+
 typedef enum {
 	CG_PRINT,
 	CG_ERROR,
@@ -560,9 +562,12 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 	case CG_CM_POINTCONTENTS: //int			trap_CM_PointContents( const vec3_t p, clipHandle_t model );
 		{
 			unsigned int pc;
-			model_t *mod = VM_FROMMHANDLE(arg[1]);
-			if (!mod)
-				mod = cl.worldmodel;
+			unsigned int modhandle = VM_LONG(arg[1]);
+			model_t *mod;
+			if (modhandle >= MAX_MODELS)
+				mod = &box_model;
+			else
+				mod = cl.model_precache[modhandle+1];
 			if (mod)
 				pc = cl.worldmodel->funcs.NativeContents(mod, 0, 0, NULL, VM_POINTER(arg[0]), vec3_origin, vec3_origin);
 			else
@@ -575,12 +580,14 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		{
 			unsigned int pc;
 			float *p = VM_POINTER(arg[0]);
-			model_t *mod = VM_FROMMHANDLE(arg[1]);
+			unsigned int modhandle = VM_LONG(arg[1]);
 			float *origin = VM_POINTER(arg[2]);
 			float *angles = VM_POINTER(arg[3]);
-
-			if (!mod)
-				mod = cl.worldmodel;
+			model_t *mod;
+			if (modhandle >= MAX_MODELS)
+				mod = &box_model;
+			else
+				mod = cl.model_precache[modhandle+1];
 
 			if (mod)
 			{
@@ -618,12 +625,16 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			float *end			= VM_POINTER(arg[2]);
 			float *mins			= VM_POINTER(arg[3]);
 			float *maxs			= VM_POINTER(arg[4]);
-			model_t *mod		= VM_FROMMHANDLE(arg[5]);
-			int brushmask			= VM_LONG(arg[6]);
+			unsigned int modhandle		= VM_LONG(arg[5]);
+			int brushmask		= VM_LONG(arg[6]);
 			float *origin		= VM_POINTER(arg[7]);
 			float *angles		= VM_POINTER(arg[8]);
-			if (!mod)
-				mod = cl.worldmodel;
+			model_t *mod;
+			if (modhandle >= MAX_MODELS)
+				mod = &box_model;
+			else
+				mod = cl.model_precache[modhandle+1];
+
 			if (!mins)
 				mins = vec3_origin;
 			if (!maxs)
@@ -673,24 +684,19 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			float *end			= VM_POINTER(arg[2]);
 			float *mins			= VM_POINTER(arg[3]);
 			float *maxs			= VM_POINTER(arg[4]);
-			model_t *mod		= VM_FROMMHANDLE(arg[5]);
+			unsigned int modhandle		= VM_LONG(arg[5]);
 			int brushmask			= VM_LONG(arg[6]);
-			if (!mod)
-				mod = cl.worldmodel;
+			model_t *mod;
+			if (modhandle >= MAX_MODELS)
+				mod = &box_model;
+			else
+				mod = cl.model_precache[modhandle+1];
+
 			if (!mins)
 				mins = vec3_origin;
 			if (!maxs)
 				maxs = vec3_origin;
-			if (mod)
-			{
-				mod->funcs.NativeTrace(mod, 0, 0, NULL, start, end, mins, maxs, brushmask, &tr);
-			}
-			else
-			{
-				memset(&tr, 0, sizeof(tr));
-				tr.allsolid = tr.startsolid = true;
-				tr.contents = 1;
-			}
+			mod->funcs.NativeTrace(mod, 0, 0, NULL, start, end, mins, maxs, brushmask, &tr);
 			results->allsolid = tr.allsolid;
 			results->contents = tr.contents;
 			results->fraction = tr.fraction;
@@ -724,14 +730,17 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case CG_CM_INLINEMODEL:
-		VM_LONG(ret) = VM_TOMHANDLE(cl.model_precache[VM_LONG(arg[0])+1]);
+		if ((unsigned int)VM_LONG(arg[0]) > (cl.worldmodel?cl.worldmodel->numsubmodels:0))
+			Host_EndGame("cgame asked for invalid model number\n");
+		VM_LONG(ret) = VM_LONG(arg[0]);
 		break;
 	case CG_CM_NUMINLINEMODELS:
 		VM_LONG(ret) = cl.worldmodel?cl.worldmodel->numsubmodels:0;
 		break;
 
 	case CG_CM_TEMPBOXMODEL:
-		VM_LONG(ret) = VM_TOMHANDLE(CM_TempBoxModel(VM_POINTER(arg[0]), VM_POINTER(arg[1])));
+		CM_TempBoxModel(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
+		VM_LONG(ret) = MAX_MODELS;
 		break;
 
 	case CG_R_MODELBOUNDS:

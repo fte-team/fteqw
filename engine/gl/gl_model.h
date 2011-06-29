@@ -446,7 +446,7 @@ typedef struct
 // !!! if this is changed, it must be changed in asm_i386.h too !!!
 typedef struct hull_s
 {
-	dclipnode_t	*clipnodes;
+	mclipnode_t	*clipnodes;
 	mplane_t	*planes;
 	int			firstclipnode;
 	int			lastclipnode;
@@ -859,7 +859,7 @@ typedef struct model_s
 	int			*surfedges;
 
 	int			numclipnodes;
-	dclipnode_t	*clipnodes;
+	mclipnode_t	*clipnodes;
 
 	int			nummarksurfaces;
 	msurface_t	**marksurfaces;

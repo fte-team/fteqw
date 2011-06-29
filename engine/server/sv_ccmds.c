@@ -424,6 +424,16 @@ SV_Map_f
 handle a
 map <mapname>
 command from the console or progs.
+
+quirks:
+a leading '*' means new unit, meaning all old state is flushed regardless of startspot
+a '+' means 'set nextmap cvar to the following value and otherwise ignore, for q2 compat. only applies if there's also a '.' and the specified bsp doesn't exist, for q1 compat.
+just a '.' is taken to mean 'restart'. parms are not changed from their current values, startspot is also unchanged.
+
+'map' will change map, for most games. note that NQ kicks everyone (NQ expects you to use changelevel for that).
+'changelevel' will not flush the level cache, for h2 compat (won't save current level state in such a situation, as nq would prefer not)
+'gamemap' will save the game to 'save0' after loading, for q2 compat
+'spmap' is for q3 and sets 'gametype' to '2', otherwise identical to 'map'. all other map commands will reset it to '0' if its '2' at the time.
 ======================
 */
 void SV_Map_f (void)
@@ -437,6 +447,7 @@ void SV_Map_f (void)
 	qboolean cinematic = false;
 	qboolean waschangelevel = false;
 	qboolean wasspmap = false;
+	qboolean wasgamemap = false;
 	int i;
 	char *startspot;
 
@@ -463,6 +474,7 @@ void SV_Map_f (void)
 
 	waschangelevel = !strcmp(Cmd_Argv(0), "changelevel");
 	wasspmap = !strcmp(Cmd_Argv(0), "spmap");
+	wasgamemap = !strcmp(Cmd_Argv(0), "gamemap");
 
 	if (strcmp(level, "."))	//restart current
 	{
@@ -659,6 +671,11 @@ void SV_Map_f (void)
 			Cvar_Set(nsv, va("gamemap \"%s\"", nextserver));
 		else
 			Cvar_Set(nsv, "");
+	}
+
+	if (wasgamemap)
+	{
+		SV_Savegame("s0");
 	}
 }
 

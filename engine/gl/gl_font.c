@@ -929,7 +929,7 @@ struct font_s *Font_LoadFont(int height, char *fontfilename)
 		f->chars[i].bmh = PLANEWIDTH/16;
 		f->chars[i].bmw = PLANEWIDTH/16;
 		f->chars[i].bmx = (i&15)*(PLANEWIDTH/16);
-		f->chars[i].bmy = (i/16)*(PLANEWIDTH/16);
+		f->chars[i].bmy = ((i/16)*(PLANEWIDTH/16)) & 0xff;
 		f->chars[i].left = 0;
 		f->chars[i].top = 0;
 		f->chars[i].nextchar = 0;	//these chars are not linked in

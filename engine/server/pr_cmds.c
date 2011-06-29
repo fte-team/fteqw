@@ -2497,7 +2497,7 @@ static void QCBUILTIN PF_particle (progfuncs_t *prinst, globalvars_t *pr_globals
 			v = -128;
 		MSG_WriteChar (&sv.nqmulticast, v);
 	}
-	MSG_WriteByte (&sv.nqmulticast, count*20);
+	MSG_WriteByte (&sv.nqmulticast, count);
 	MSG_WriteByte (&sv.nqmulticast, color);
 #endif
 	//for qw users (and not fte)
@@ -2742,6 +2742,9 @@ void PF_ambientsound_Internal (float *pos, char *samp, float vol, float attenuat
 	}
 
 	SV_FlushSignon();
+
+	if (soundnum > 255)
+		return;
 
 // add an svc_spawnambient command to the level signon packet
 

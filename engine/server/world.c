@@ -58,7 +58,7 @@ HULL BOXES
 
 
 static	hull_t		box_hull;
-static	dclipnode_t	box_clipnodes[6];
+static	mclipnode_t	box_clipnodes[6];
 static	mplane_t	box_planes[6];
 
 /*
@@ -141,8 +141,7 @@ static areanode_t *World_CreateAreaNode (world_t *w, int depth, vec3_t mins, vec
 	anode = &w->areanodes[w->numareanodes];
 	w->numareanodes++;
 
-	ClearLink (&anode->trigger_edicts);
-	ClearLink (&anode->solid_edicts);
+	ClearLink (&anode->edicts);
 	
 	if (depth == AREA_DEPTH)
 	{
@@ -225,7 +224,7 @@ void World_TouchLinks (world_t *w, wedict_t *ent, areanode_t *node)
 	int linkcount = 0, ln;
 
 	//work out who they are first.
-	for (l = node->trigger_edicts.next ; l != &node->trigger_edicts ; l = next)
+	for (l = node->edicts.next ; l != &node->edicts ; l = next)
 	{
 		if (linkcount == MAX_NODELINKS)
 			break;
@@ -495,10 +494,7 @@ void World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 	
 // link it in	
 
-	if (ent->v->solid == SOLID_TRIGGER || ent->v->solid == SOLID_LADDER)
-		InsertLinkBefore (&ent->area, &node->trigger_edicts);
-	else
-		InsertLinkBefore (&ent->area, &node->solid_edicts);
+	InsertLinkBefore (&ent->area, &node->edicts);
 	
 // if touch_triggers, touch all entities at this node and decend for more
 	if (touch_triggers)
@@ -685,11 +681,7 @@ void VARGS WorldQ2_LinkEdict(world_t *w, q2edict_t *ent)
 	}
 
 	// link it in	
-	if (ent->solid == Q2SOLID_TRIGGER)
-		InsertLinkBefore (&ent->area, &node->trigger_edicts);
-	else
-		InsertLinkBefore (&ent->area, &node->solid_edicts);
-
+	InsertLinkBefore (&ent->area, &node->edicts);
 }
 
 void WorldQ2_Q1BSP_LinkEdict(world_t *w, q2edict_t *ent)
@@ -862,11 +854,8 @@ void WorldQ2_Q1BSP_LinkEdict(world_t *w, q2edict_t *ent)
 			break;		// crosses the node
 	}
 
-	// link it in	
-	if (ent->solid == Q2SOLID_TRIGGER)
-		InsertLinkBefore (&ent->area, &node->trigger_edicts);
-	else
-		InsertLinkBefore (&ent->area, &node->solid_edicts);
+	// link it in
+	InsertLinkBefore (&ent->area, &node->edicts);
 }
 #endif
 
@@ -1127,6 +1116,7 @@ q2edict_t	**area_q2list;
 int		area_count, area_maxcount;
 int		area_type;
 #define AREA_SOLID 1
+#define AREA_TRIGGER 2
 static void World_AreaEdicts_r (areanode_t *node)
 {
 	link_t		*l, *next, *start;
@@ -1136,10 +1126,7 @@ static void World_AreaEdicts_r (areanode_t *node)
 	count = 0;
 
 	// touch linked edicts
-	if (area_type == AREA_SOLID)
-		start = &node->solid_edicts;
-	else
-		start = &node->trigger_edicts;
+	start = &node->edicts;
 
 	for (l=start->next  ; l != start ; l = next)
 	{
@@ -1148,6 +1135,11 @@ static void World_AreaEdicts_r (areanode_t *node)
 
 		if (check->v->solid == SOLID_NOT)
 			continue;		// deactivated
+
+		/*q2 still has solid/trigger lists, emulate that here*/
+		if ((check->v->solid == SOLID_TRIGGER) != (area_type == AREA_TRIGGER))
+			continue;
+
 		if (check->v->absmin[0] > area_maxs[0]
 		|| check->v->absmin[1] > area_maxs[1]
 		|| check->v->absmin[2] > area_maxs[2]
@@ -1206,10 +1198,7 @@ static void WorldQ2_AreaEdicts_r (areanode_t *node)
 	count = 0;
 
 	// touch linked edicts
-	if (area_type == AREA_SOLID)
-		start = &node->solid_edicts;
-	else
-		start = &node->trigger_edicts;
+	start = &node->edicts;
 
 	for (l=start->next  ; l != start ; l = next)
 	{
@@ -1228,6 +1217,11 @@ static void WorldQ2_AreaEdicts_r (areanode_t *node)
 
 		if (check->solid == Q2SOLID_NOT)
 			continue;		// deactivated
+
+		/*q2 still has solid/trigger lists, emulate that here*/
+		if ((check->solid == Q2SOLID_TRIGGER) != (area_type == AREA_TRIGGER))
+			continue;
+
 		if (check->absmin[0] > area_maxs[0]
 		|| check->absmin[1] > area_maxs[1]
 		|| check->absmin[2] > area_maxs[2]
@@ -1470,73 +1464,8 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 	wedict_t		*touch;
 	trace_t		trace;
 
-	if (clip->type & MOVE_TRIGGERS)
-	{
-		for (l = node->trigger_edicts.next ; l != &node->trigger_edicts ; l = next)
-		{
-			next = l->next;
-			touch = EDICT_FROM_AREA(l);
-			if (!((int)touch->v->flags & FL_FINDABLE_NONSOLID))
-				continue;
-			if (touch->v->solid != SOLID_TRIGGER)
-				continue;
-			if (touch == clip->passedict)
-				continue;
-
-			if (clip->type & MOVE_NOMONSTERS && touch->v->solid != SOLID_BSP)
-				continue;
-
-			if (clip->passedict)
-			{
-	/* These can never happen, touch is a SOLID_TRIGGER
-				// don't clip corpse against character
-				if (clip->passedict->v->solid == SOLID_CORPSE && (touch->v->solid == SOLID_SLIDEBOX || touch->v->solid == SOLID_CORPSE))
-					continue;
-				// don't clip character against corpse
-				if (clip->passedict->v->solid == SOLID_SLIDEBOX && touch->v->solid == SOLID_CORPSE)
-					continue;
-	*/
-				if (!((int)clip->passedict->xv->dimension_hit & (int)touch->xv->dimension_solid))
-					continue;
-			}
-
-			if (clip->boxmins[0] > touch->v->absmax[0]
-			|| clip->boxmins[1] > touch->v->absmax[1]
-			|| clip->boxmins[2] > touch->v->absmax[2]
-			|| clip->boxmaxs[0] < touch->v->absmin[0]
-			|| clip->boxmaxs[1] < touch->v->absmin[1]
-			|| clip->boxmaxs[2] < touch->v->absmin[2] )
-				continue;
-
-			if (clip->passedict && clip->passedict->v->size[0] && !touch->v->size[0])
-				continue;	// points never interact
-
-		// might intersect, so do an exact clip
-			if (clip->trace.allsolid)
-				return;
-			if (clip->passedict)
-			{
-		 		if ((wedict_t*)PROG_TO_EDICT(w->progs, touch->v->owner) == clip->passedict)
-					continue;	// don't clip against own missiles
-				if ((wedict_t*)PROG_TO_EDICT(w->progs, clip->passedict->v->owner) == touch)
-					continue;	// don't clip against owner
-			}
-
-			if ((int)touch->v->flags & FL_MONSTER)
-				trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins2, clip->maxs2, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL);
-			else
-				trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL);
-			if (trace.allsolid || trace.startsolid ||
-					trace.fraction < clip->trace.fraction)
-			{
-				trace.ent = touch;
-				clip->trace = trace;
-			}
-		}
-	}
-
 // touch linked edicts
-	for (l = node->solid_edicts.next ; l != &node->solid_edicts ; l = next)
+	for (l = node->edicts.next ; l != &node->edicts ; l = next)
 	{
 		next = l->next;
 		touch = EDICT_FROM_AREA(l);
@@ -1544,10 +1473,14 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 			continue;
 		if (touch == clip->passedict)
 			continue;
+
+		/*if its a trigger, we only clip against it if the flags are aligned*/
 		if (touch->v->solid == SOLID_TRIGGER || touch->v->solid == SOLID_LADDER)
 		{
-			Con_Printf ("Trigger (%s) in clipping list\n", PR_GetString(w->progs, touch->v->classname));
-			continue;
+			if (!(clip->type & MOVE_TRIGGERS))
+				continue;
+			if (!((int)touch->v->flags & FL_FINDABLE_NONSOLID))
+				continue;
 		}
 
 		if (clip->type & MOVE_LAGGED)
@@ -1627,7 +1560,7 @@ static void WorldQ2_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 	trace_t		trace;
 
 // touch linked edicts
-	for (l = node->solid_edicts.next ; l != &node->solid_edicts ; l = next)
+	for (l = node->edicts.next ; l != &node->edicts ; l = next)
 	{
 		next = l->next;
 		touch = Q2EDICT_FROM_AREA(l);

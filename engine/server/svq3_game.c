@@ -8,17 +8,10 @@ float RadiusFromBounds (vec3_t mins, vec3_t maxs);
 
 
 #define USEBOTLIB
-//#define BOTLIB_STATIC
 
 #ifdef USEBOTLIB
 
 
-
-#ifdef _WIN32
-#define QDECL __cdecl
-#else
-#define QDECL
-#endif
 #define fileHandle_t int
 #define fsMode_t int
 #define pc_token_t void
@@ -342,7 +335,7 @@ static void Q3G_LinkEntity(q3sharedEntity_t *ent)
 			break;		// crosses the node
 	}
 	// link it in
-	InsertLinkBefore((link_t *)&sent->area, &node->solid_edicts);
+	InsertLinkBefore((link_t *)&sent->area, &node->edicts);
 }
 
 static int SVQ3_EntitiesInBoxNode(areanode_t *node, vec3_t mins, vec3_t maxs, int *list, int maxcount)
@@ -354,7 +347,7 @@ static int SVQ3_EntitiesInBoxNode(areanode_t *node, vec3_t mins, vec3_t maxs, in
 	int linkcount = 0;
 
 	//work out who they are first.
-	for (l = node->solid_edicts.next ; l != &node->solid_edicts ; l = next)
+	for (l = node->edicts.next ; l != &node->edicts ; l = next)
 	{
 		if (maxcount == linkcount)
 			return linkcount;
@@ -388,6 +381,7 @@ static int SVQ3_EntitiesInBox(vec3_t mins, vec3_t maxs, int *list, int maxcount)
 	return SVQ3_EntitiesInBoxNode(sv.world.areanodes, mins, maxs, list, maxcount);
 }
 
+#define	ENTITYNUM_NONE		(MAX_GENTITIES-1)
 #define	ENTITYNUM_WORLD		(MAX_GENTITIES-2)
 static void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int entnum, int contentmask)
 {
@@ -408,7 +402,7 @@ static void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs
 	result->allsolid = tr.allsolid;
 	result->contents = tr.contents;
 	VectorCopy(tr.endpos, result->endpos);
-	result->entityNum = ENTITYNUM_WORLD;
+	result->entityNum = (tr.fraction==1.0)?ENTITYNUM_NONE:ENTITYNUM_WORLD;
 	result->fraction = tr.fraction;
 	result->plane = tr.plane;
 	result->startsolid = tr.startsolid;
@@ -436,7 +430,7 @@ static void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs
 	else if ( entnum != ENTITYNUM_WORLD )
 	{
 		ourowner = GENTITY_FOR_NUM(entnum)->r.ownerNum;
-		if (ourowner == ENTITYNUM_WORLD)
+		if (ourowner == ENTITYNUM_NONE)
 			ourowner = -1;
 	}
 	else
@@ -2715,7 +2709,7 @@ static qboolean SVQ3_Netchan_Process(client_t *client)
 	net_message.packing = SZ_RAWBYTES;
 
 	// calculate bitmask
-	bitmask = serverid ^ lastSequence ^ client->challenge;
+	bitmask = (serverid ^ lastSequence ^ client->challenge) & 0xff;
 	string = client->server_commands[lastServerCommandNum & TEXTCMD_MASK];
 
 #ifndef Q3_NOENCRYPT
@@ -2748,7 +2742,7 @@ void SVQ3_Netchan_Transmit(client_t *client, int length, qbyte *data)
 	char		*string;
 
 	// calculate bitmask
-	bitmask = client->netchan.outgoing_sequence ^ client->challenge;
+	bitmask = (client->netchan.outgoing_sequence ^ client->challenge) & 0xff;
 	string = client->last_client_command;
 
 #ifndef Q3_NOENCRYPT
@@ -3210,6 +3204,7 @@ int SVQ3_AddBot(void)
 	cl->challenge = 0;
 	cl->userid = (cl - svs.clients)+1;
 	cl->state = cs_spawned;
+	memset(&cl->netchan.remote_address, 0, sizeof(cl->netchan.remote_address));
 
 	return cl - svs.clients;
 }

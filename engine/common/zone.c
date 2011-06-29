@@ -2142,7 +2142,7 @@ void Memory_Init (void *buf, int size)
 
 #if ZONEDEBUG>0 || HUNKDEBUG>0 || TEMPDEBUG>0||CACHEDEBUG>0
 	srand(time(0));
-	sentinalkey = rand();
+	sentinalkey = rand() & 0xff;
 #endif
 
 	Cache_Init ();

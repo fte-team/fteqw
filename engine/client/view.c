@@ -1335,7 +1335,6 @@ void V_RenderPlayerViews(int plnum)
 	{
 		extern vec3_t desired_position[MAX_SPLITS];
 		vec3_t dir;
-		extern void vectoangles(vec3_t vec, vec3_t ang);
 
 		r_refdef.vrect.y -= r_refdef.vrect.height;
 		vid.recalc_refdef=true;

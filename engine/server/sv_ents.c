@@ -211,12 +211,12 @@ void SV_EmitNailUpdate (sizebuf_t *msg, qboolean recorder)
 		p = (int)(16*ent->v->angles[0]/360)&15;
 		yaw = (int)(256*ent->v->angles[1]/360)&255;
 
-		bits[0] = x;
-		bits[1] = (x>>8) | (y<<4);
-		bits[2] = (y>>4);
-		bits[3] = z;
-		bits[4] = (z>>8) | (p<<4);
-		bits[5] = yaw;
+		bits[0] = x					& 0xff;
+		bits[1] = ((x>>8) | (y<<4))	& 0xff;
+		bits[2] = (y>>4)			& 0xff;
+		bits[3] = z					& 0xff;
+		bits[4] = ((z>>8) | (p<<4))	& 0xff;
+		bits[5] = yaw				& 0xff;
 
 		for (i=0 ; i<6 ; i++)
 			MSG_WriteByte (msg, bits[i]);

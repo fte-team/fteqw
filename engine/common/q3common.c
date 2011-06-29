@@ -1642,7 +1642,8 @@ void MSG_Q3_ReadDeltaPlayerstate( const q3playerState_t *from, q3playerState_t *
 ////////////////////////////////////////////////////////////
 //user commands
 
-int kbitmask[32] = {
+int kbitmask[] = {
+	0,
 	0x00000001, 0x00000003, 0x00000007, 0x0000000F,
 	0x0000001F,	0x0000003F,	0x0000007F,	0x000000FF,
 	0x000001FF,	0x000003FF,	0x000007FF,	0x00000FFF,
@@ -1656,7 +1657,7 @@ int kbitmask[32] = {
 static int MSG_ReadDeltaKey(int key, int from, int bits)
 {
 	if (MSG_ReadBits(1))
-		return MSG_ReadBits(bits)^ (key & kbitmask[bits]);
+		return MSG_ReadBits(bits) ^ (key & kbitmask[bits]);
 	else
 		return from;
 }
@@ -1666,7 +1667,14 @@ void MSG_Q3_ReadDeltaUsercmd(int key, const usercmd_t *from, usercmd_t *to)
 		to->servertime = MSG_ReadBits(8) + from->servertime;
 	else
 		to->servertime = MSG_ReadBits(32);
-	to->msec = to->servertime - from->servertime;
+
+	if ((unsigned int)(to->servertime - from->servertime) > 255)
+	{
+		Con_DPrintf("msecs clamped\n");
+		to->msec = 255;
+	}
+	else
+		to->msec = to->servertime - from->servertime;
 
 	if (!MSG_ReadBits(1))
 	{

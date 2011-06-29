@@ -2,15 +2,6 @@
 #include "glquake.h"
 
 #ifdef HLCLIENT
-
-//make shared
-#ifndef QDECL
-	#ifdef _MSC_VER
-		#define QDECL _cdecl
-	#else
-		#define QDECL
-	#endif
-#endif
 struct hlcvar_s *QDECL GHL_CVarGetPointer(char *varname);
 
 

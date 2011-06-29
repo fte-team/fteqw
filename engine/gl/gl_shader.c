@@ -1122,7 +1122,7 @@ struct sbuiltin_s
 			"}\n"
 		"#endif\n"
 	},
-	{QR_OPENGL, 110, "defaultsky",
+/*	{QR_OPENGL, 110, "defaultsky",
 		"#ifdef VERTEX_SHADER\n"
 			"varying vec3 pos;\n"
 
@@ -1156,10 +1156,10 @@ struct sbuiltin_s
 			"	vec4 clouds = texture2D(s_t1, tccoord);\n"
 
 			"	gl_FragColor.rgb = (solid.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb);\n"
-//			"	gl_FragColor.rgb = solid.rgb;/*gl_FragColor.g = clouds.r;*/gl_FragColor.b = clouds.a;\n"
 			"}\n"
 		"#endif\n"
 	},
+*/
 /*draws a model. there's lots of extra stuff for light shading calcs and upper/lower textures*/
 	{QR_OPENGL/*ES*/, 100, "defaultskin",
 		"!!permu FULLBRIGHT\n"

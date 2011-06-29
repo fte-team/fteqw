@@ -177,6 +177,11 @@ typedef struct
 	short		children[2];	// negative numbers are contents
 } dclipnode_t;
 
+typedef struct
+{
+	int			planenum;
+	short		children[2];	// negative numbers are contents
+} mclipnode_t;
 
 typedef struct texinfo_s
 {

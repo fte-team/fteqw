@@ -489,15 +489,16 @@ void *Sys_GetGameAPI(void *parms)
 
 	result = getcwd(curpath, sizeof(curpath)); // do something with result?
 
-	Con_DPrintf("Searching for %s\n", gamename);
+#warning Search for both gamei386.so and game.so
+	Con_DPrintf("Searching for %s but not %s\n", agamename, ggamename);
 
 	searchpath = 0;
 	while((searchpath = COM_NextPath(searchpath)))
 	{
 		if (searchpath[0] == '/')
-			snprintf(name, sizeof(name), "%s/%s", searchpath, gamename);
+			snprintf(name, sizeof(name), "%s/%s", searchpath, agamename);
 		else
-			snprintf(name, sizeof(name), "%s/%s/%s", curpath, searchpath, gamename);
+			snprintf(name, sizeof(name), "%s/%s/%s", curpath, searchpath, agamename);
 
 		game_library = dlopen (name, RTLD_LAZY);
 		if (game_library)

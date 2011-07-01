@@ -385,7 +385,7 @@ int QDECL Q_vsnprintf(char *buffer, int size, const char *format, va_list argptr
 	return vsnprintf(buffer, size, format, argptr);
 }
 
-int VARGS Com_sprintf(char *buffer, int size, const char *format, ...) LIKEPRINTF(3)
+int VARGS Com_sprintf(char *buffer, int size, const char *format, ...)
 {
 	int ret;
 	va_list		argptr;
@@ -3335,7 +3335,7 @@ void COM_Init (void)
 	Cmd_AddCommand ("dir", COM_Dir_f);			//q3 like
 	Cmd_AddCommand ("flocate", COM_Locate_f);	//prints the pak or whatever where this file can be found.
 	Cmd_AddCommand ("version", COM_Version_f);	//prints the pak or whatever where this file can be found.
-	
+
 	Cmd_AddCommand ("crashme", (void*)1); //debugging feature, makes it jump to an invalid address
 
 	COM_InitFilesystem ();

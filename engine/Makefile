@@ -277,11 +277,13 @@ ifeq ($(FTE_TARGET),win32)
 	# Let's make sure we're not chasing our tails with MinGW32 compiler bugs
 	#RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS)
 	RELEASE_CFLAGS=$(CPUOPTIMIZATIONS)
+	DEBUG_CFLAGS=-ggdb -g
 endif
 ifeq ($(FTE_TARGET),win64)
 	# Let's make sure we're not chasing our tails with MinGW32 compiler bugs
 	#RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS)
 	RELEASE_CFLAGS=$(CPUOPTIMIZATIONS)
+	DEBUG_CFLAGS=-ggdb -g
 endif
 ifeq ($(FTE_TARGET),win32_SDL)
 	# Let's make sure we're not chasing our tails with MinGW32 compiler bugs

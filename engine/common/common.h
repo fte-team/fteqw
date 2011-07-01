@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -212,6 +212,7 @@ int wildcmp(const char *wild, const char *string);	//1 if match
 #define Q_strncmp(s1, s2, n) strncmp((s1), (s2), (n))
 
 void VARGS Q_snprintfz (char *dest, size_t size, char *fmt, ...) LIKEPRINTF(3);
+int VARGS Com_sprintf(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
 
 #define Q_strncpyS(d, s, n) do{const char *____in=(s);char *____out=(d);int ____i; for (____i=0;*(____in); ____i++){if (____i == (n))break;*____out++ = *____in++;}if (____i < (n))*____out='\0';}while(0)	//only use this when it should be used. If undiciided, use N
 #define Q_strncpyN(d, s, n) do{if (n < 0)Sys_Error("Bad length in strncpyz");Q_strncpyS((d), (s), (n));((char *)(d))[n] = '\0';}while(0)	//this'll stop me doing buffer overflows. (guarenteed to overflow if you tried the wrong size.)
@@ -228,7 +229,7 @@ void QDECL Q_strncpyz(char*d, const char*s, int n);
 #define Q_strncatz2(dest, src)	Q_strncatz(dest, src, sizeof(dest))
 #endif
 //#define Q_strncpy Please remove all strncpys
-/*#ifndef strncpy 
+/*#ifndef strncpy
 #define strncpy Q_strncpy
 #endif*/
 

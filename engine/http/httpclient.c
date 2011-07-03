@@ -503,7 +503,7 @@ qboolean DL_CreateThread(struct dl_download *dl, vfsfile_t *file, void (*NotifyF
 	dl->file = file;
 	dl->notify = NotifyFunction;
 
-	dl->threadctx = Sys_CreateThread(DL_Thread_Work, dl, 0);
+	dl->threadctx = Sys_CreateThread(DL_Thread_Work, dl, THREADP_NORMAL, 0);
 	if (!dl->threadctx)
 		return false;
 

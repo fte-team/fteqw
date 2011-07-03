@@ -584,7 +584,7 @@ void Sys_SaveClipboard(char *text)
 
 #ifdef MULTITHREAD
 /* Thread creation calls */
-void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
+void *Sys_CreateThread(int (*func)(void *), void *args, int priority, int stacksize)
 {
 	// SDL threads do not support setting thread stack size
 	return (void *)SDL_CreateThread(func, args);
@@ -692,6 +692,11 @@ void Sys_DestroyConditional(void *condv)
 	SDL_DestroyCond(cv->cond);
 	SDL_DestroyMutex(cv->mutex);
 	free(cv);
+}
+
+void Sys_Sleep (unsigned int microseconds)
+{
+	SDL_Delay(microseconds / 1000000);
 }
 #endif
 

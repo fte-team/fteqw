@@ -480,7 +480,7 @@ void Sys_LowFPPrecision (void)
 #ifdef MULTITHREAD
 /* Everything here is stubbed because I don't know MorphOS */
 /* Thread creation calls */
-void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize) { return NULL; }
+void *Sys_CreateThread(int (*func)(void *), void *args, int priority, int stacksize) { return NULL; }
 void Sys_WaitOnThread(void *thread) {}
 /* Mutex calls */
 void *Sys_CreateMutex(void) { return NULL; }
@@ -496,4 +496,6 @@ qboolean Sys_ConditionWait(void *condv) { return false; }
 qboolean Sys_ConditionSignal(void *condv) { return false; }
 qboolean Sys_ConditionBroadcast(void *condv) { return false; }
 void Sys_DestroyConditional(void *condv) {}
+
+void Sys_Sleep(int microseconds) {}
 #endif

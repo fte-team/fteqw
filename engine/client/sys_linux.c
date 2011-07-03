@@ -738,7 +738,7 @@ void Sys_SaveClipboard(char *text) {
 /* Thread creation calls */
 typedef void *(*pfunction_t)(void *);
 
-void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
+void *Sys_CreateThread(int (*func)(void *), void *args, int priority, int stacksize)
 {
 	pthread_t *thread;
 	pthread_attr_t attr;
@@ -877,5 +877,10 @@ void Sys_DestroyConditional(void *condv)
 	free(cv->cond);
 	free(cv->mutex);
 	free(cv);
+}
+
+void Sys_Sleep (unsigned int microseconds)
+{
+	usleep(microseconds);
 }
 #endif

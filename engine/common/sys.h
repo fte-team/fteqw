@@ -75,10 +75,6 @@ void Sys_CloseTerminal (void);
 qboolean Sys_InitTerminal (void);
 void Con_PrintToSys(void);
 
-void Sys_Sleep (void);
-// called to yield for a little bit so as
-// not to hog cpu when paused or debugging
-
 void Sys_ServerActivity(void);
 //make window flash on the taskbar - someone said something/connected
 
@@ -90,8 +86,12 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate);
 
 #ifdef MULTITHREAD
-void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize);
+void *Sys_CreateThread(int (*func)(void *), void *args, int priority, int stacksize);
 void Sys_WaitOnThread(void *thread);
+
+#define THREADP_IDLE -5
+#define THREADP_NORMAL 0
+#define THREADP_HIGHEST 5
 
 void *Sys_CreateMutex(void);
 qboolean Sys_TryLockMutex(void *mutex);
@@ -107,6 +107,8 @@ qboolean Sys_ConditionWait(void *condv);
 qboolean Sys_ConditionSignal(void *condv);
 qboolean Sys_ConditionBroadcast(void *condv);
 void Sys_DestroyConditional(void *condv);
+
+void Sys_Sleep(unsigned int microseconds);
 #endif
 
 #ifdef NPQTV

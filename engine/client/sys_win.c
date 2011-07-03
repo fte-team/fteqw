@@ -1087,10 +1087,6 @@ void Sys_CloseTerminal (void)
 //
 ////////////////////////////
 
-void Sys_Sleep (void)
-{
-}
-
 void Sys_SendKeyEvents (void)
 {
     MSG        msg;
@@ -1834,7 +1830,7 @@ DWORD WINAPI threadwrapper(void *args)
 	return 0;
 }
 
-void *Sys_CreateThread(int (*func)(void *), void *args, int stacksize)
+void *Sys_CreateThread(int (*func)(void *), void *args, int priority, int stacksize)
 {
 	threadwrap_t *tw = (threadwrap_t *)malloc(sizeof(threadwrap_t));
 	HANDLE handle;
@@ -2053,5 +2049,10 @@ void Sys_DestroyConditional(void *condv)
 	DeleteCriticalSection(&cv->countlock);
 	DeleteCriticalSection(&cv->mainlock);
 	free(cv);
+}
+
+void Sys_Sleep (unsigned int microseconds)
+{
+	Sleep(microseconds / 1000000);
 }
 #endif

@@ -1008,108 +1008,9 @@ void CL_FlushClientCommands(void)
 }
 
 qboolean runningindepphys;
-#ifdef _WIN32
-CRITICAL_SECTION indepcriticialsection;
-HANDLE indepphysicsthread;
-void CL_AllowIndependantSendCmd(qboolean allow)
-{
-	if (!runningindepphys)
-		return;
-
-	if (allowindepphys != allow && runningindepphys)
-	{
-		if (allow)
-			LeaveCriticalSection(&indepcriticialsection);
-		else
-			EnterCriticalSection(&indepcriticialsection);
-		allowindepphys = allow;
-	}
-}
-
-unsigned long _stdcall CL_IndepPhysicsThread(void *param)
-{
-	int sleeptime;
-	float fps;
-	unsigned int time, lasttime;
-	float spare;
-	lasttime = Sys_Milliseconds();
-	while(1)
-	{
-		time = Sys_Milliseconds();
-		spare = CL_FilterTime((time - lasttime), cl_netfps.value, false);
-		if (spare)
-		{
-			//don't let them bank too much and get sudden bursts
-			if (spare > 15)
-				spare = 15;
-
-			time -= spare;
-			EnterCriticalSection(&indepcriticialsection);
-			if (cls.state)
-			{
-				Sys_SendKeyEvents();
-				CL_SendCmd(time - lasttime, false);
-			}
-			lasttime = time;
-			LeaveCriticalSection(&indepcriticialsection);
-		}
-
-		fps = cl_netfps.value;
-		if (fps < 4)
-			fps = 4;
-		while (fps < 100)
-			fps*=2;
-
-		sleeptime = 1000/fps;
-
-		if (sleeptime)
-			Sleep(sleeptime);
-		else
-			Sleep(1);
-	}
-}
-
-void CL_UseIndepPhysics(qboolean allow)
-{
-	if (runningindepphys == allow)
-		return;
-
-	if (allow)
-	{	//enable it
-		DWORD tid;	//*sigh*...
-
-//		TIMECAPS tc;
-//		timeGetDevCaps(&tc, sizeof(TIMECAPS));
-//		Con_Printf("Timer has a resolution of %i millisecond%s\n", tc.wPeriodMin, tc.wPeriodMin!=1?"s":"");
-
-		InitializeCriticalSection(&indepcriticialsection);
-		runningindepphys = true;
-
-		indepphysicsthread = CreateThread(NULL, 8192, CL_IndepPhysicsThread, NULL, 0, &tid);
-		allowindepphys = 1;
-
-		SetThreadPriority(independantphysics, HIGH_PRIORITY_CLASS);
-	}
-	else
-	{
-		//shut it down.
-
-		EnterCriticalSection(&indepcriticialsection);
-		TerminateThread(indepphysicsthread, 0);
-		CloseHandle(indepphysicsthread);
-		LeaveCriticalSection(&indepcriticialsection);
-		DeleteCriticalSection(&indepcriticialsection);
-
-		runningindepphys = false;
-	}
-}
-
-#elif defined(__linux__)
-
-#include <pthread.h>
-
-pthread_mutex_t indepcriticalsection;
-pthread_t indepphysicsthread;
+#ifdef MULTITHREAD
+void *indeplock;
+void *indepthread;
 
 void CL_AllowIndependantSendCmd(qboolean allow)
 {
@@ -1119,16 +1020,16 @@ void CL_AllowIndependantSendCmd(qboolean allow)
 	if (allowindepphys != allow && runningindepphys)
 	{
 		if (allow)
-			pthread_mutex_unlock(&indepcriticalsection);
+			Sys_UnlockMutex(&indeplock);
 		else
-			pthread_mutex_lock(&indepcriticalsection);
+			Sys_LockMutex(&indeplock);
 		allowindepphys = allow;
 	}
 }
 
-void *CL_IndepPhysicsThread(void *param)
+int CL_IndepPhysicsThread(void *param)
 {
-	int sleeptime;
+	unsigned int sleeptime;
 	double fps;
 	double time, lasttime;
 	double spare;
@@ -1144,11 +1045,11 @@ void *CL_IndepPhysicsThread(void *param)
 				spare = 15;
 
 			time -= spare/1000.0f;
-			pthread_mutex_lock(&indepcriticalsection);
+			Sys_LockMutex(&indeplock);
 			if (cls.state)
 				CL_SendCmd(time - lasttime, false);
 			lasttime = time;
-			pthread_mutex_unlock(&indepcriticalsection);
+			Sys_UnlockMutex(&indeplock);
 		}
 
 		fps = cl_netfps.value;
@@ -1159,12 +1060,9 @@ void *CL_IndepPhysicsThread(void *param)
 
 		sleeptime = (1000*1000)/fps;
 
-		if (sleeptime)
-			usleep(sleeptime);
-		else
-			usleep(1);
+		Sys_Sleep(sleeptime);
 	}
-	return NULL;
+	return 0;
 }
 
 void CL_UseIndepPhysics(qboolean allow)
@@ -1174,26 +1072,20 @@ void CL_UseIndepPhysics(qboolean allow)
 
 	if (allow)
 	{	//enable it
-		pthread_mutex_init(&indepcriticalsection, NULL);
+		indeplock = Sys_CreateMutex();
 		runningindepphys = true;
 
-		pthread_create(&indepphysicsthread, NULL, CL_IndepPhysicsThread, NULL);
-		allowindepphys = 1;
-
-		//now this would be awesome, but would require root permissions... which is plain wrong!
-		//however, lack of this line means its really duel-core only.
-		//pthread_setschedparam(indepthread, SCHED_*, ?);
-		//is there anything to weight the thread up a bit against the main thread? (considering that most of the time we'll be idling)
+		indepthread = Sys_CreateThread(CL_IndepPhysicsThread, NULL, THREADP_HIGHEST, 8192);
+		allowindepphys = true;
 	}
 	else
 	{
 		//shut it down.
 		runningindepphys = false;	//tell thread to exit gracefully
-
-		pthread_mutex_lock(&indepcriticalsection);
-		pthread_join(indepphysicsthread, 0);
-		pthread_mutex_unlock(&indepcriticalsection);
-		pthread_mutex_destroy(&indepcriticalsection);
+		Sys_LockMutex(indeplock);
+		Sys_WaitOnThread(indepthread);
+		Sys_UnlockMutex(indeplock);
+		Sys_DestroyMutex(indeplock);
 	}
 }
 #else

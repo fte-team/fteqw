@@ -476,7 +476,7 @@ int SQL_NewServer(char *driver, char **paramstr)
 		return -1;
 	}
 
-	server->thread = Sys_CreateThread(sql_serverworker, (void *)server, 1024);
+	server->thread = Sys_CreateThread(sql_serverworker, (void *)server, THREADP_NORMAL, 1024);
 	
 	if (!server->thread)
 	{

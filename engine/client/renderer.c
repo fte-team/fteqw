@@ -939,8 +939,6 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 
 		if (host_basepal)
 			BZ_Free(host_basepal);
-		if (host_colormap)
-			BZ_Free(host_colormap);
 		host_basepal = (qbyte *)FS_LoadMallocFile ("gfx/palette.lmp");
 		if (!host_basepal)
 		{
@@ -953,28 +951,31 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 			}
 			else
 			{
-				host_colormap = BZ_Malloc(256*VID_GRADES);
-				if (ReadPCXData(pcx, com_filesize, 256, VID_GRADES, host_colormap))
-					goto q2colormap;	//skip the colormap.lmp file as we already read it
+				//if (ReadPCXData(pcx, com_filesize, 256, VID_GRADES, colormap))
+				goto q2colormap;	//skip the colormap.lmp file as we already read it
 			}
 		}
-		host_colormap = (qbyte *)FS_LoadMallocFile ("gfx/colormap.lmp");
-		if (!host_colormap)
+
 		{
-			vid.fullbright=0;
-		}
-		else
-		{
-			j = VID_GRADES-1;
-			data = host_colormap + j*256;
-			vid.fullbright=0;
-			for (i = 255; i >= 0; i--)
+			qbyte *colormap = (qbyte *)FS_LoadMallocFile ("gfx/colormap.lmp");
+			if (!colormap)
 			{
-				if (host_colormap[i] == data[i])
-					vid.fullbright++;
-				else
-					break;
+				vid.fullbright=0;
 			}
+			else
+			{
+				j = VID_GRADES-1;
+				data = colormap + j*256;
+				vid.fullbright = 0;
+				for (i = 255; i >= 0; i--)
+				{
+					if (colormap[i] == data[i])
+						vid.fullbright++;
+					else
+						break;
+				}
+			}
+			BZ_Free(colormap);
 		}
 
 		if (h2playertranslations)

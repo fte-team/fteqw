@@ -66,8 +66,6 @@ qboolean GLVID_Init(rendererstate_t *info, unsigned char *palette)
 	//don't care if opengl failed.
 
 	vid.numpages = 2;
-	vid.colormap = host_colormap;
-	vid.fullbright = 256 - LittleLong (*((int *)vid.colormap + 2048));
 
     // initialise the NSApplication and the screen
 	initCocoa(info);

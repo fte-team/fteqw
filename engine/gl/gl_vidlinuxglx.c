@@ -806,8 +806,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	}
 #endif
 
-	vid.colormap = host_colormap;
-
 // interpret command-line params
 
 // set vid parameters

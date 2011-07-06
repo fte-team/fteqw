@@ -230,7 +230,6 @@ int			host_framecount;
 int			host_hunklevel;
 
 qbyte		*host_basepal;
-qbyte		*host_colormap;
 qbyte		*h2playertranslations;
 
 cvar_t	host_speeds = SCVAR("host_speeds","0");		// set for running times

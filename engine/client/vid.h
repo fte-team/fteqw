@@ -50,7 +50,6 @@ typedef struct vrect_s
 
 typedef struct
 {
-	pixel_t			*colormap;		// 256 * VID_GRADES size
 	int				fullbright;		// index of first fullbright color
 
 	unsigned		width; /*virtual 2d width*/

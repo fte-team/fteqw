@@ -238,7 +238,6 @@ extern	cvar_t	password;
 extern	qboolean	host_initialized;		// true if into command execution
 extern	double		host_frametime;
 extern	qbyte		*host_basepal;
-extern	qbyte		*host_colormap;
 extern	qbyte		*h2playertranslations;
 extern	int			host_framecount;	// incremented every frame, never reset
 extern	double		realtime;			// not bounded in any way, changed at

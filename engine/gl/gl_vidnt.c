@@ -1879,8 +1879,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	vid_initialized = false;
 	vid_initializing = true;
 
-	vid.colormap = host_colormap;
-
 	VID_SetPalette (palette);
 
 	if (!GLVID_SetMode (info, palette))

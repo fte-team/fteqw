@@ -29,45 +29,23 @@ portable_samplegroup_t paintbuffer[PAINTBUFFER_SIZE];
 int 	*snd_p, snd_vol;
 short	*snd_out;
 
-static int paintskip[6][6] =
-{
-	{6},
-	{1, 5},
-	{1, 1, 4},
-	{1, 1, 1, 3},
-	{1, 1, 1, 1, 2},
-	{1, 1, 1, 1, 1, 1}
-};
-
-static int chnskip[6][6] =
-{
-	{0},
-	{1, -1},
-	{1, 1, -2},
-	{1, 1, 1, -3},
-	{1, 1, 1, 1, -4},
-	{1, 1, 1, 1, 1, -5}
-};
-
 void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 {
 	unsigned int 	startidx, out_idx;
 	unsigned int 	count;
 	unsigned int 	outlimit;
 	int 			*p;
-	int 			*skip;
-	int				*cskip;
 	int				val;
 	int				snd_vol;
 	short			*pbuf;
+	int				i, numc;
 
 	p = (int *) paintbuffer;
-	skip = paintskip[sc->sn.numchannels-1];
-	cskip = chnskip[sc->sn.numchannels-1];
 	count = (endtime - sc->paintedtime) * sc->sn.numchannels;
 	outlimit = sc->sn.samples;
 	startidx = out_idx = (sc->paintedtime * sc->sn.numchannels) % outlimit;
 	snd_vol = (volume.value*voicevolumemod)*256;
+	numc = sc->sn.numchannels;
 
 	pbuf = sc->Lock(sc);
 	if (!pbuf)
@@ -76,35 +54,41 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 	if (sc->sn.samplebits == 16)
 	{
 		short *out = (short *) pbuf;
-		while (count--)
+		while (count)
 		{
-			val = (*p * snd_vol) >> 8;
-			p += *skip;
-			if (val > 0x7fff)
-				val = 0x7fff;
-			else if (val < (short)0x8000)
-				val = (short)0x8000;
-			out[out_idx] = val;
-			out_idx = (out_idx + 1) % outlimit;
-			skip += *cskip;
-			cskip += *cskip;
+			for (i = 0; i < numc; i++)
+			{
+				val = (*p * snd_vol) >> 8;
+				p++;
+				if (val > 0x7fff)
+					val = 0x7fff;
+				else if (val < (short)0x8000)
+					val = (short)0x8000;
+				out[out_idx] = val;
+				out_idx = (out_idx + 1) % outlimit;
+			}
+			p += MAXSOUNDCHANNELS - numc;
+			count -= numc;
 		}
 	}
 	else if (sc->sn.samplebits == 8)
 	{
 		unsigned char *out = (unsigned char *) pbuf;
-		while (count--)
+		while (count)
 		{
-			val = (*p * snd_vol) >> 8;
-			p += *skip;
-			if (val > 0x7fff)
-				val = 0x7fff;
-			else if (val < (short)0x8000)
-				val = (short)0x8000;
-			out[out_idx] = (val>>8) + 128;
-			out_idx = (out_idx + 1) % outlimit;
-			skip += *cskip;
-			cskip += *cskip;
+			for (i = 0; i < numc; i++)
+			{
+				val = (*p * snd_vol) >> 8;
+				p++;
+				if (val > 0x7fff)
+					val = 0x7fff;
+				else if (val < (short)0x8000)
+					val = (short)0x8000;
+				out[out_idx] = (val>>8) + 128;
+				out_idx = (out_idx + 1) % outlimit;
+			}
+			p += MAXSOUNDCHANNELS - numc;
+			count -= numc;
 		}
 	}
 
@@ -126,6 +110,8 @@ void SND_PaintChannelFrom8_4Speaker (channel_t *ch, sfxcache_t *sc, int count);
 void SND_PaintChannelFrom16_4Speaker (channel_t *ch, sfxcache_t *sc, int count);
 void SND_PaintChannelFrom8_6Speaker (channel_t *ch, sfxcache_t *sc, int count);
 void SND_PaintChannelFrom16_6Speaker (channel_t *ch, sfxcache_t *sc, int count);
+void SND_PaintChannelFrom8_8Speaker (channel_t *ch, sfxcache_t *sc, int count);
+void SND_PaintChannelFrom16_8Speaker (channel_t *ch, sfxcache_t *sc, int count);
 void SND_PaintChannelFrom8Stereo (channel_t *ch, sfxcache_t *sc, int count);
 void SND_PaintChannelFrom16Stereo (channel_t *ch, sfxcache_t *sc, int count);
 
@@ -224,6 +210,8 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 					{
 						if (scache->numchannels==2)
 							SND_PaintChannelFrom8Stereo(ch, scache, count);
+						else if (sc->sn.numchannels == 8)
+							SND_PaintChannelFrom8_8Speaker(ch, scache, count);
 						else if (sc->sn.numchannels == 6)
 							SND_PaintChannelFrom8_6Speaker(ch, scache, count);
 						else if (sc->sn.numchannels == 4)
@@ -235,6 +223,8 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 					{
 						if (scache->numchannels==2)
 							SND_PaintChannelFrom16Stereo(ch, scache, count);
+						else if (sc->sn.numchannels == 8)
+							SND_PaintChannelFrom16_8Speaker(ch, scache, count);
 						else if (sc->sn.numchannels == 6)
 							SND_PaintChannelFrom16_6Speaker(ch, scache, count);
 						else if (sc->sn.numchannels == 4)
@@ -446,6 +436,63 @@ void SND_PaintChannelFrom8_6Speaker (channel_t *ch, sfxcache_t *sc, int count)
 	}
 }
 
+void SND_PaintChannelFrom8_8Speaker (channel_t *ch, sfxcache_t *sc, int count)
+{
+	signed char *sfx;
+	int		i;
+
+	if (ch->vol[0] > 255)
+		ch->vol[0] = 255;
+	if (ch->vol[1] > 255)
+		ch->vol[1] = 255;
+	if (ch->vol[2] > 255)
+		ch->vol[2] = 255;
+	if (ch->vol[3] > 255)
+		ch->vol[3] = 255;
+	if (ch->vol[4] > 255)
+		ch->vol[4] = 255;
+	if (ch->vol[5] > 255)
+		ch->vol[5] = 255;
+	if (ch->vol[6] > 255)
+		ch->vol[6] = 255;
+	if (ch->vol[7] > 255)
+		ch->vol[7] = 255;
+
+	if (ch->rate != (1<<PITCHSHIFT))
+	{
+		signed char data;
+		sfx = (signed char *)sc->data;
+		for (i=0 ; i<count ; i++)
+		{
+			data = sfx[ch->pos>>PITCHSHIFT];
+			ch->pos += ch->rate;
+			paintbuffer[i].s[0] += ch->vol[0] * data;
+			paintbuffer[i].s[1] += ch->vol[1] * data;
+			paintbuffer[i].s[2] += ch->vol[2] * data;
+			paintbuffer[i].s[3] += ch->vol[3] * data;
+			paintbuffer[i].s[4] += ch->vol[4] * data;
+			paintbuffer[i].s[5] += ch->vol[5] * data;
+			paintbuffer[i].s[6] += ch->vol[6] * data;
+			paintbuffer[i].s[7] += ch->vol[7] * data;
+		}
+	}
+	else
+	{
+		sfx = (signed char *)sc->data + (ch->pos>>PITCHSHIFT);
+		for (i=0 ; i<count ; i++)
+		{
+			paintbuffer[i].s[0] += ch->vol[0] * sfx[i];
+			paintbuffer[i].s[1] += ch->vol[1] * sfx[i];
+			paintbuffer[i].s[2] += ch->vol[2] * sfx[i];
+			paintbuffer[i].s[3] += ch->vol[3] * sfx[i];
+			paintbuffer[i].s[4] += ch->vol[4] * sfx[i];
+			paintbuffer[i].s[5] += ch->vol[5] * sfx[i];
+			paintbuffer[i].s[6] += ch->vol[6] * sfx[i];
+			paintbuffer[i].s[7] += ch->vol[7] * sfx[i];
+		}
+		ch->pos += count<<PITCHSHIFT;
+	}
+}
 
 
 void SND_PaintChannelFrom16 (channel_t *ch, sfxcache_t *sc, int count)
@@ -520,6 +567,45 @@ void SND_PaintChannelFrom16Stereo (channel_t *ch, sfxcache_t *sc, int count)
 	}
 }
 
+void SND_PaintChannelFrom16_4Speaker (channel_t *ch, sfxcache_t *sc, int count)
+{
+	int vol[4];
+	signed short *sfx;
+	int	i;
+
+	vol[0] = ch->vol[0];
+	vol[1] = ch->vol[1];
+	vol[2] = ch->vol[2];
+	vol[3] = ch->vol[3];
+
+	if (ch->rate != (1<<PITCHSHIFT))
+	{
+		signed short data;
+		sfx = (signed short *)sc->data;
+		for (i=0 ; i<count ; i++)
+		{
+			data = sfx[ch->pos>>PITCHSHIFT];
+			ch->pos += ch->rate;
+			paintbuffer[i].s[0] += (vol[0] * data)>>8;
+			paintbuffer[i].s[1] += (vol[1] * data)>>8;
+			paintbuffer[i].s[2] += (vol[2] * data)>>8;
+			paintbuffer[i].s[3] += (vol[3] * data)>>8;
+		}
+	}
+	else
+	{
+		sfx = (signed short *)sc->data + ch->pos;
+		for (i=0 ; i<count ; i++)
+		{
+			paintbuffer[i].s[0] += (sfx[i] * vol[0]) >> 8;
+			paintbuffer[i].s[1] += (sfx[i] * vol[1]) >> 8;
+			paintbuffer[i].s[2] += (sfx[i] * vol[2]) >> 8;
+			paintbuffer[i].s[3] += (sfx[i] * vol[3]) >> 8;
+		}
+		ch->pos += count<<PITCHSHIFT;
+	}
+}
+
 void SND_PaintChannelFrom16_6Speaker (channel_t *ch, sfxcache_t *sc, int count)
 {
 	int vol[6];
@@ -565,9 +651,9 @@ void SND_PaintChannelFrom16_6Speaker (channel_t *ch, sfxcache_t *sc, int count)
 	}
 }
 
-void SND_PaintChannelFrom16_4Speaker (channel_t *ch, sfxcache_t *sc, int count)
+void SND_PaintChannelFrom16_8Speaker (channel_t *ch, sfxcache_t *sc, int count)
 {
-	int vol[4];
+	int vol[8];
 	signed short *sfx;
 	int	i;
 
@@ -575,6 +661,10 @@ void SND_PaintChannelFrom16_4Speaker (channel_t *ch, sfxcache_t *sc, int count)
 	vol[1] = ch->vol[1];
 	vol[2] = ch->vol[2];
 	vol[3] = ch->vol[3];
+	vol[4] = ch->vol[4];
+	vol[5] = ch->vol[5];
+	vol[6] = ch->vol[6];
+	vol[7] = ch->vol[7];
 
 	if (ch->rate != (1<<PITCHSHIFT))
 	{
@@ -588,17 +678,25 @@ void SND_PaintChannelFrom16_4Speaker (channel_t *ch, sfxcache_t *sc, int count)
 			paintbuffer[i].s[1] += (vol[1] * data)>>8;
 			paintbuffer[i].s[2] += (vol[2] * data)>>8;
 			paintbuffer[i].s[3] += (vol[3] * data)>>8;
+			paintbuffer[i].s[4] += (vol[4] * data)>>8;
+			paintbuffer[i].s[5] += (vol[5] * data)>>8;
+			paintbuffer[i].s[6] += (vol[6] * data)>>8;
+			paintbuffer[i].s[7] += (vol[7] * data)>>8;
 		}
 	}
 	else
 	{
-		sfx = (signed short *)sc->data + ch->pos;
+		sfx = (signed short *)sc->data + (ch->pos>>PITCHSHIFT);
 		for (i=0 ; i<count ; i++)
 		{
 			paintbuffer[i].s[0] += (sfx[i] * vol[0]) >> 8;
 			paintbuffer[i].s[1] += (sfx[i] * vol[1]) >> 8;
 			paintbuffer[i].s[2] += (sfx[i] * vol[2]) >> 8;
 			paintbuffer[i].s[3] += (sfx[i] * vol[3]) >> 8;
+			paintbuffer[i].s[4] += (sfx[i] * vol[4]) >> 8;
+			paintbuffer[i].s[5] += (sfx[i] * vol[5]) >> 8;
+			paintbuffer[i].s[6] += (sfx[i] * vol[6]) >> 8;
+			paintbuffer[i].s[7] += (sfx[i] * vol[7]) >> 8;
 		}
 		ch->pos += count<<PITCHSHIFT;
 	}

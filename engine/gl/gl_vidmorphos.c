@@ -363,7 +363,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	vid.pixelwidth = info->width;
 	vid.pixelheight = info->height;
 	vid.numpages = 3;
-	vid.colormap = host_colormap;
 
 	if (vid.pixelwidth <= 640)
 	{

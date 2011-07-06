@@ -545,7 +545,16 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 
 	memset (&format, 0, sizeof(format));
 
-	if (sc->sn.numchannels >= 6)	//5.1 surround
+	if (sc->sn.numchannels >= 8) // 7.1 surround
+	{
+		format.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+		format.Format.cbSize = 22;
+		memcpy(&format.SubFormat, &KSDATAFORMAT_SUBTYPE_PCM, sizeof(GUID));
+
+		format.dwChannelMask = KSAUDIO_SPEAKER_7POINT1;
+		sc->sn.numchannels = 8;
+	}
+	else if (sc->sn.numchannels >= 6)	//5.1 surround
 	{
 		format.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
 		format.Format.cbSize = 22;

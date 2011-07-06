@@ -23,7 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define __SOUND__
 
 // !!! if this is changed, it much be changed in asm_i386.h too !!!
-#define MAXSOUNDCHANNELS 6	//on a per device basis
+#define MAXSOUNDCHANNELS 8	//on a per device basis
 
 // !!! if this is changed, it much be changed in asm_i386.h too !!!
 struct sfx_s;

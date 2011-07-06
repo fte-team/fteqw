@@ -3405,7 +3405,9 @@ double Host_Frame (double time)
 		cl.gametimemark += time;
 
 	idle = (cls.state == ca_disconnected) || 
+#ifdef VM_UI
 		UI_MenuState() != 0 || 
+#endif
 		key_dest == key_menu || 
 		key_dest == key_editor ||
 		cl.paused;

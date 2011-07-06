@@ -728,26 +728,46 @@ void S_DefaultSpeakerConfiguration(soundcardinfo_t *sc)
 	sc->dist[4] = 1;
 	sc->dist[5] = 1;
 
-	if (sc->sn.numchannels < 3)
+	switch (sc->sn.numchannels)
 	{
+	case 1:
+		VectorSet(sc->speakerdir[0], 0, 0, 0);
+		break;
+	case 2:
+	case 3:
 		VectorSet(sc->speakerdir[0], 0, -1, 0);
 		VectorSet(sc->speakerdir[1], 0, 1, 0);
-	}
-	else if (sc->sn.numchannels < 5)
-	{
+		VectorSet(sc->speakerdir[2], 0, 0, 0);
+		break;
+	case 4: // quad
+	case 5:
 		VectorSet(sc->speakerdir[0], 0.7, -0.7, 0);
 		VectorSet(sc->speakerdir[1], 0.7, 0.7, 0);
 		VectorSet(sc->speakerdir[2], -0.7, -0.7, 0);
 		VectorSet(sc->speakerdir[3], -0.7, 0.7, 0);
-	}
-	else
-	{
+		VectorSet(sc->speakerdir[4], 0, 0, 0);
+		break;
+	case 6: // 5.1
+	case 7:
 		VectorSet(sc->speakerdir[0], 0.7, -0.7, 0);
 		VectorSet(sc->speakerdir[1], 0.7, 0.7, 0);
-		VectorSet(sc->speakerdir[2], 0, 0, 0);
+		VectorSet(sc->speakerdir[2], 1, 0, 0);
 		VectorSet(sc->speakerdir[3], 0, 0, 0);
 		VectorSet(sc->speakerdir[4], -0.7, -0.7, 0);
 		VectorSet(sc->speakerdir[5], -0.7, 0.7, 0);
+		VectorSet(sc->speakerdir[6], 0, 0, 0);
+		break;
+	case 8: // 7.1
+	default:
+		VectorSet(sc->speakerdir[0], 0.7, -0.7, 0);
+		VectorSet(sc->speakerdir[1], 0.7, 0.7, 0);
+		VectorSet(sc->speakerdir[2], 1, 0, 0);
+		VectorSet(sc->speakerdir[3], 0, 0, 0);
+		VectorSet(sc->speakerdir[4], -0.7, -0.7, 0);
+		VectorSet(sc->speakerdir[5], -0.7, 0.7, 0);
+		VectorSet(sc->speakerdir[6], 0, -1, 0);
+		VectorSet(sc->speakerdir[7], 0, 1, 0);
+		break;
 	}
 }
 

@@ -1029,7 +1029,7 @@ void CL_AllowIndependantSendCmd(qboolean allow)
 
 int CL_IndepPhysicsThread(void *param)
 {
-	unsigned int sleeptime;
+	double sleeptime;
 	double fps;
 	double time, lasttime;
 	double spare;
@@ -1058,7 +1058,7 @@ int CL_IndepPhysicsThread(void *param)
 		while (fps < 100)
 			fps*=2;
 
-		sleeptime = (1000*1000)/fps;
+		sleeptime = 1/fps;
 
 		Sys_Sleep(sleeptime);
 	}

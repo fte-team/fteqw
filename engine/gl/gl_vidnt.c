@@ -1881,9 +1881,6 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	vid.colormap = host_colormap;
 
-	if (hwnd_dialog)
-		DestroyWindow (hwnd_dialog);
-
 	VID_SetPalette (palette);
 
 	if (!GLVID_SetMode (info, palette))

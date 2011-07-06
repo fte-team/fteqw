@@ -267,8 +267,6 @@ int		starttime;
 qboolean ActiveApp, Minimized;
 qboolean	WinNT;
 
-HWND	hwnd_dialog;		// startup dialog box
-
 static HANDLE		hinput, houtput;
 
 HANDLE		qwclsemaphore;
@@ -1063,11 +1061,6 @@ qboolean Sys_InitTerminal (void)
 	}
 #endif
 
-	//if we still have the splash screen, kill it
-	if (hwnd_dialog)
-		DestroyWindow(hwnd_dialog);
-	hwnd_dialog = NULL;
-
 	SetConsoleCtrlHandler (HandlerRoutine, TRUE);
 	SetConsoleTitle (FULLENGINENAME " dedicated server");
 	hinput = GetStdHandle (STD_INPUT_HANDLE);
@@ -1239,13 +1232,16 @@ void NPQTV_Sys_MainLoop(void)
 	else
 	{
 #ifndef SERVERONLY
+		double sleeptime;
+
 		newtime = Sys_DoubleTime ();
 		duratrion = newtime - lastlooptime;
-		Host_Frame (duratrion);
+		sleeptime = Host_Frame (duratrion);
 		lastlooptime = newtime;
 
 		SetHookState(sys_disableWinKeys.ival);
 
+		Sys_Sleep(sleeptime);
 //			Sleep(0);
 #else
 		Sys_Error("wut?");
@@ -1595,35 +1591,10 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		if (isDedicated)
 		{
 	#if !defined(CLIENTONLY)
-			hwnd_dialog=NULL;
-
 			if (!Sys_InitTerminal())
 				Sys_Error ("Couldn't allocate dedicated server console");
 	#endif
 		}
-	#ifdef IDD_DIALOG1
-		else
-			hwnd_dialog = CreateDialog(hInstance, MAKEINTRESOURCE(IDD_DIALOG1), NULL, NULL);
-
-		if (hwnd_dialog)
-		{
-			RECT			rect;
-			if (GetWindowRect (hwnd_dialog, &rect))
-			{
-				if (rect.left > (rect.top * 2))
-				{
-					SetWindowPos (hwnd_dialog, 0,
-						(rect.left / 2) - ((rect.right - rect.left) / 2),
-						rect.top, 0, 0,
-						SWP_NOZORDER | SWP_NOSIZE);
-				}
-			}
-
-			ShowWindow (hwnd_dialog, SW_SHOWDEFAULT);
-			UpdateWindow (hwnd_dialog);
-			SetForegroundWindow (hwnd_dialog);
-		}
-	#endif
 
 		if (!Sys_Startup_CheckMem(&parms))
 			Sys_Error ("Not enough memory free; check disk space\n");
@@ -1715,7 +1686,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			else
 			{
 	#ifndef SERVERONLY
-				int sleeptime;
+				double sleeptime;
 				newtime = Sys_DoubleTime ();
 				time = newtime - oldtime;
 				sleeptime = Host_Frame (time);
@@ -1724,8 +1695,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				SetHookState(sys_disableWinKeys.ival);
 
 				/*sleep if its not yet time for a frame*/
-				//if (sleeptime > 0)
-				//	Sleep(sleeptime);
+				Sys_Sleep(sleeptime);
 	#else
 				Sys_Error("wut?");
 	#endif
@@ -1787,23 +1757,6 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 	ReleaseDC(NULL, hdc);
 
 	return true;
-}
-
-
-void Sys_HighFPPrecision (void)
-{
-}
-
-void Sys_LowFPPrecision (void)
-{
-}
-
-void VARGS Sys_SetFPCW (void)
-{
-}
-
-void VARGS MaskExceptions (void)
-{
 }
 
 #ifdef MULTITHREAD
@@ -2050,9 +2003,9 @@ void Sys_DestroyConditional(void *condv)
 	DeleteCriticalSection(&cv->mainlock);
 	free(cv);
 }
-
-void Sys_Sleep (unsigned int microseconds)
-{
-	Sleep(microseconds / 1000000);
-}
 #endif
+
+void Sys_Sleep (double seconds)
+{
+	Sleep(seconds * 1000);
+}

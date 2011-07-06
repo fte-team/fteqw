@@ -36,6 +36,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <errno.h>
 #include <fcntl.h>
 #include <dirent.h>
+#include <time.h>
 
 #ifdef MULTITHREAD
 #include <pthread.h>
@@ -1049,10 +1050,15 @@ void Sys_DestroyConditional(void *condv)
 	free(cv->mutex);
 	free(cv);
 }
-
-void Sys_Sleep (unsigned int microseconds)
-{
-	usleep(microseconds);
-}
 #endif
 
+void Sys_Sleep (double seconds)
+{
+	struct timespec ts;
+
+	ts.tv_sec = (time_t)seconds;
+	seconds -= ts.tv_sec;
+	ts.tv_nsec = seconds * 1000000000.0;
+
+	nanosleep(&ts, NULL);
+}

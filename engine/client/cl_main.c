@@ -48,6 +48,7 @@ cvar_t	cl_shownet = SCVAR("cl_shownet","0");	// can be 0, 1, or 2
 cvar_t	cl_sbar		= CVARFC("cl_sbar", "0", CVAR_ARCHIVE, CL_Sbar_Callback);
 cvar_t	cl_hudswap	= CVARF("cl_hudswap", "0", CVAR_ARCHIVE);
 cvar_t	cl_maxfps	= CVARF("cl_maxfps", "500", CVAR_ARCHIVE);
+cvar_t	cl_idlefps	= CVARF("cl_idlefps", "0", CVAR_ARCHIVE);
 cvar_t	cl_nopext	= CVARF("cl_nopext", "0", CVAR_ARCHIVE);
 cvar_t	cl_pext_mask = CVAR("cl_pext_mask", "0xffffffff");
 cvar_t	cl_nolerp	= CVAR("cl_nolerp", "2");
@@ -3001,6 +3002,7 @@ void CL_Init (void)
 	Cvar_Register (&cl_sbar,	cl_screengroup);
 	Cvar_Register (&cl_hudswap,	cl_screengroup);
 	Cvar_Register (&cl_maxfps,	cl_screengroup);
+	Cvar_Register (&cl_idlefps, cl_screengroup);
 	Cvar_Register (&cl_timeout, cl_controlgroup);
 	Cvar_Register (&lookspring, cl_inputgroup);
 	Cvar_Register (&lookstrafe, cl_inputgroup);
@@ -3349,7 +3351,7 @@ extern cvar_t cl_sparemsec;
 
 int		nopacketcount;
 void SNDDMA_SetUnderWater(qboolean underwater);
-float Host_Frame (double time)
+double Host_Frame (double time)
 {
 	static double		time1 = 0;
 	static double		time2 = 0;
@@ -3360,6 +3362,7 @@ float Host_Frame (double time)
 	static double spare;
 	float maxfps;
 	qboolean maxfpsignoreserver;
+	qboolean idle;
 
 	RSpeedLocals();
 
@@ -3401,6 +3404,22 @@ float Host_Frame (double time)
 	if (cl.paused)
 		cl.gametimemark += time;
 
+	idle = (cls.state == ca_disconnected) || 
+		UI_MenuState() != 0 || 
+		key_dest == key_menu || 
+		key_dest == key_editor ||
+		cl.paused;
+	// TODO: check if minimized or unfocused
+
+	if (idle && cl_idlefps.value > 0)
+	{
+		double idlesec = 1.0 / cl_idlefps.value;
+		if (idlesec > 0.1)
+			idlesec = 0.1; // limit to at least 10 fps
+		if ((realtime - oldrealtime) < idlesec)
+			return idlesec - (realtime - oldrealtime);
+	}
+
 /*
 	if (cl_maxfps.value)
 		fps = cl_maxfps.value;//max(30.0, min(cl_maxfps.value, 72.0));
@@ -3432,7 +3451,7 @@ float Host_Frame (double time)
 		realtime += spare/1000;	//don't use it all!
 		spare = CL_FilterTime((realtime - oldrealtime)*1000, maxfps, maxfpsignoreserver);
 		if (!spare)
-			return 1;
+			return 0;
 		if (spare < 0 || cls.state < ca_onserver)
 			spare = 0;	//uncapped.
 		if (spare > cl_sparemsec.ival)
@@ -3473,7 +3492,7 @@ float Host_Frame (double time)
 
 #ifndef CLIENTONLY
 	if (isDedicated)	//someone changed it.
-		return true;
+		return 0;
 #endif
 
 	cls.framecount++;

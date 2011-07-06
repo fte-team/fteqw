@@ -542,14 +542,18 @@ int main(int argc, char **argv)
 		else
 #endif
 		{
+			double sleeptime;
+
 	// yield the CPU for a little while when paused, minimized, or not the focus
 			if (!(SDL_GetAppState() & SDL_APPACTIVE))
 				SDL_Delay(1);
 
 			newtime = Sys_DoubleTime ();
 			time = newtime - oldtime;
-			Host_Frame (time);
+			sleeptime = Host_Frame (time);
 			oldtime = newtime;
+
+			Sys_Sleep(sleeptime);
 		}
 	}
 	return 0;
@@ -558,14 +562,6 @@ int main(int argc, char **argv)
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)
 {
 	return false;
-}
-
-void Sys_HighFPPrecision(void)
-{
-}
-
-void Sys_LowFPPrecision(void)
-{
 }
 
 
@@ -694,9 +690,9 @@ void Sys_DestroyConditional(void *condv)
 	free(cv);
 }
 
-void Sys_Sleep (unsigned int microseconds)
+void Sys_Sleep (double seconds)
 {
-	SDL_Delay(microseconds / 1000000);
+	SDL_Delay(seconds * 1000);
 }
 #endif
 

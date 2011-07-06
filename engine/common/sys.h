@@ -107,9 +107,9 @@ qboolean Sys_ConditionWait(void *condv);
 qboolean Sys_ConditionSignal(void *condv);
 qboolean Sys_ConditionBroadcast(void *condv);
 void Sys_DestroyConditional(void *condv);
-
-void Sys_Sleep(unsigned int microseconds);
 #endif
+
+void Sys_Sleep(double seconds);
 
 #ifdef NPQTV
 qboolean NPQTV_Sys_Startup(int argc, char *argv[]);

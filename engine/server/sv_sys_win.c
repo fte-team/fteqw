@@ -1634,11 +1634,10 @@ void Sys_DestroyConditional(void *condv)
 	DeleteCriticalSection(&cv->mainlock);
 	free(cv);
 }
-
-void Sys_Sleep (unsigned int microseconds)
-{
-	Sleep(microseconds / 1000000);
-}
 #endif
 
+void Sys_Sleep (double seconds)
+{
+	Sleep(seconds * 1000);
+}
 #endif

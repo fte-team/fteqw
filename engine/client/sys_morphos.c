@@ -423,9 +423,13 @@ int main(int argc, char **argv)
 	oldtime = Sys_DoubleTime ();
 	while(!(SetSignal(0, 0)&SIGBREAKF_CTRL_C))
 	{
+		double sleeptime;
+
 		newtime = Sys_DoubleTime ();
-		Host_Frame(newtime - oldtime);
+		sleeptime = Host_Frame(newtime - oldtime);
 		oldtime = newtime;
+
+		Sys_Sleep(sleeptime);
 	}
 }
 
@@ -468,14 +472,7 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 	return false;
 }
 
-/* x86 crap */
-void Sys_HighFPPrecision (void)
-{
-}
 
-void Sys_LowFPPrecision (void)
-{
-}
 
 #ifdef MULTITHREAD
 /* Everything here is stubbed because I don't know MorphOS */
@@ -496,6 +493,6 @@ qboolean Sys_ConditionWait(void *condv) { return false; }
 qboolean Sys_ConditionSignal(void *condv) { return false; }
 qboolean Sys_ConditionBroadcast(void *condv) { return false; }
 void Sys_DestroyConditional(void *condv) {}
-
-void Sys_Sleep(int microseconds) {}
 #endif
+
+void Sys_Sleep(double seconds) {}

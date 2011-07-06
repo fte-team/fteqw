@@ -714,7 +714,7 @@ void WriteAsmStatements(progfuncs_t *progfuncs, progstate_t *progs, int num, int
 						break;
 					case ev_vector:
 						if (v->_vector[0] || v->_vector[1] || v->_vector[2])
-							writes(f, "\tlocal vector %s = '%f %f %f';\r\n", def->s_name, v->_vector[0], v->_vector[1], v->_vector[2]);
+							writes(f, "\tlocal vector %s = '%f %f %f';\r\n", progfuncs->stringtable+def->s_name, v->_vector[0], v->_vector[1], v->_vector[2]);
 						else
 							writes(f, "\tlocal %s %s;\r\n", "vector",progfuncs->stringtable+def->s_name);
 						ofs+=2;	//skip floats;

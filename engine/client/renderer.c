@@ -988,16 +988,6 @@ q2colormap:
 
 TRACE(("dbg: R_ApplyRenderer: Palette loaded\n"));
 
-#ifdef _WIN32
-#ifndef _SDL
-		if (hwnd_dialog)
-		{
-			DestroyWindow (hwnd_dialog);
-			hwnd_dialog = NULL;
-		}
-#endif
-#endif
-
 		if (newr)
 			if (!VID_Init(newr, host_basepal))
 			{

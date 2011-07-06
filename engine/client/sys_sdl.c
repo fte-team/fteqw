@@ -689,10 +689,10 @@ void Sys_DestroyConditional(void *condv)
 	SDL_DestroyMutex(cv->mutex);
 	free(cv);
 }
+#endif
 
 void Sys_Sleep (double seconds)
 {
 	SDL_Delay(seconds * 1000);
 }
-#endif
 

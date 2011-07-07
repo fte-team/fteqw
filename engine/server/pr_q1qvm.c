@@ -1394,6 +1394,7 @@ qboolean PR_LoadQ1QVM(void)
 #define globalstring(required, name) pr_nqglobal_struct->name = (string_t*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
 #define globalvec(required, name) pr_nqglobal_struct->V_##name = (vec3_t*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
 #define globalfunc(required, name) pr_nqglobal_struct->name = (int*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
+#define globalfloatnull(required, name) pr_nqglobal_struct->name = NULL
 	globalint		(true, self);	//we need the qw ones, but any in standard quake and not quakeworld, we don't really care about.
 	globalint		(true, other);
 	globalint		(true, world);
@@ -1402,9 +1403,9 @@ qboolean PR_LoadQ1QVM(void)
 	globalint		(false, newmis);	//not always in nq.
 	globalfloat		(false, force_retouch);
 	globalstring	(true, mapname);
-//	globalfloat		(false, deathmatch);
-//	globalfloat		(false, coop);
-//	globalfloat		(false, teamplay);
+	globalfloatnull	(false, deathmatch);
+	globalfloatnull	(false, coop);
+	globalfloatnull	(false, teamplay);
 	globalfloat		(true, serverflags);
 	globalfloat		(true, total_secrets);
 	globalfloat		(true, total_monsters);
@@ -1422,9 +1423,9 @@ qboolean PR_LoadQ1QVM(void)
 	globalint		(true, trace_ent);
 	globalfloat		(true, trace_inopen);
 	globalfloat		(true, trace_inwater);
-//	globalfloat		(false, trace_endcontents);
-//	globalfloat		(false, trace_surfaceflags);
-//	globalfloat		(false, cycle_wrapped);
+	globalfloatnull	(false, trace_endcontents);
+	globalfloatnull	(false, trace_surfaceflags);
+	globalfloatnull	(false, cycle_wrapped);
 	globalint		(false, msg_entity);
 	globalfunc		(false, main);
 	globalfunc		(true, StartFrame);

@@ -615,10 +615,9 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -v "win(32|64)$$"),)
 
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)
 
-
 	LIBS_DIR = $(BASE_DIR)/libs
 	SV_EXE_NAME=../fteqwsv$(BITS).exe
-	SV_LDFLAGS=$(LIBS_DIR)/mingw-libs/zlib.lib -lws2_32 -lwinmm
+	SV_LDFLAGS=$(MINGW_LIBS_DIR)/zlib.lib -lws2_32 -lwinmm
 	V_DIR=sv_mingw
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
 

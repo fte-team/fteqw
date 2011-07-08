@@ -816,7 +816,7 @@ void NPP_NQCheckDest(int dest)
 		sizebuf_t	*ndest = QWWriteDest(dest);
 		if (cldest || (writedest && writedest != ndest))
 		{
-			Con_Printf("NQCheckDest: MSG destination changed in the middle of a packet %i.\n", (int)*buffer);
+			Con_DPrintf("NQCheckDest: MSG destination changed in the middle of a packet %i.\n", (int)*buffer);
 			NPP_NQFlush();
 		}
 		writedest = ndest;
@@ -931,7 +931,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			ignoreprotocol = true;
 			break;
 		default:
-			Con_Printf("NQWriteByte: bad protocol %i\n", (int)data);
+			Con_DPrintf("NQWriteByte: bad protocol %i\n", (int)data);
 			protocollen = sizeof(buffer);
 			break;
 		}
@@ -1640,7 +1640,7 @@ void NPP_QWCheckDest(int dest)
 		sizebuf_t	*ndest = NQWriteDest(dest);
 		if (cldest || (writedest && writedest != ndest))
 		{
-			Con_Printf("QWCheckDest: MSG destination changed in the middle of a packet %i.\n", (int)*buffer);
+			Con_DPrintf("QWCheckDest: MSG destination changed in the middle of a packet %i.\n", (int)*buffer);
 			NPP_QWFlush();
 		}
 		writedest = ndest;
@@ -1748,7 +1748,7 @@ void NPP_QWWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			protocollen = 2;
 			break;
 		default:
-			Con_Printf("QWWriteByte: bad protocol %i\n", (int)data);
+			Con_DPrintf("QWWriteByte: bad protocol %i\n", (int)data);
 			protocollen = sizeof(buffer);
 			break;
 		}

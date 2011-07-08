@@ -10,6 +10,8 @@ BASE_DIR=.
 
 SVNREVISION:=-DSVNREVISION=$(shell test -d .svn && svnversion || echo -)
 
+WHOAMI=$(shell whoami)
+
 #only limited forms of cross-making is supported
 #only the following 3 are supported
 #linux->win32 (FTE_TARGET=win32) RPM Package: "mingw32-gcc", DEB Package: "mingw32"
@@ -42,13 +44,13 @@ ifeq ($(FTE_TARGET),win64)
 			CC=amd64-mingw32msvc-gcc -m64
 			WINDRES=amd64-mingw32msvc-windres
 			STRIP=amd64-mingw32msvc-strip
-#			BITS?=64
+#			BITS=64
 		endif
 	endif
 endif
 
 #correct the gcc build when cross compiling
-ifeq ($(FTE_TARGET),win32_SDL)
+ifeq ($(shell echo $(FTE_TARGET)|grep -v -i win32_SDL),)
 	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
 		#CC didn't state that it was mingw... so try fixing that up
 		ifneq ($(shell which i586-mingw32msvc-gcc 2> /dev/null),)
@@ -56,13 +58,13 @@ ifeq ($(FTE_TARGET),win32_SDL)
 			CC=i586-mingw32msvc-gcc
 			WINDRES=i586-mingw32msvc-windres
 			STRIP=i586-mingw32msvc-strip
-#			BITS?=32
+#			BITS=32
 		endif
 	endif
 endif
 
 #correct the gcc build when cross compiling
-ifeq ($(FTE_TARGET),win64_SDL)
+ifeq ($(shell echo $(FTE_TARGET)|grep -v -i win64_SDL),)
 	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
 		#CC didn't state that it was mingw... so try fixing that up
 		ifneq ($(shell which amd64-mingw32msvc-gcc 2> /dev/null),)
@@ -70,7 +72,7 @@ ifeq ($(FTE_TARGET),win64_SDL)
 			CC=amd64-mingw32msvc-gcc -m64
 			WINDRES=amd64-mingw32msvc-windres
 			STRIP=amd64-mingw32msvc-strip
-#			BITS?=64
+#			BITS=64
 		endif
 	endif
 endif
@@ -213,18 +215,6 @@ DO_CC=@echo $< && $(CC) $(LTO_CC) $(ALL_CFLAGS) -o $@ -c $<
 ifeq ($(FTE_TARGET),vc)
 	BASELDFLAGS=
 endif
-ifeq ($(FTE_TARGET),win32)
-	BASELDFLAGS=-lm
-endif
-ifeq ($(FTE_TARGET),win64)
-	BASELDFLAGS=-lm
-endif
-ifeq ($(FTE_TARGET),win32_SDL)
-	BASELDFLAGS=-lm
-endif
-ifeq ($(FTE_TARGET),win64_SDL)
-	BASELDFLAGS=-lm
-endif
 ifeq ($(FTE_TARGET),cygwin)
 	BASELDFLAGS=-lm
 endif
@@ -236,18 +226,23 @@ ifeq ($(FTE_TARGET),bsd)
 endif
 BASELDFLAGS ?= -lm -ldl -lpthread
 
-ifeq ($(FTE_TARGET),win32)
-	IMAGELDFLAGS=$(LIBS_DIR)/mingw-libs/libpng.a $(LIBS_DIR)/mingw-libs/libz.a $(LIBS_DIR)/mingw-libs/libjpeg.a
+ifeq ($(shell echo $(FTE_TARGET)|grep -v win),)
+	BASELDFLAGS=-lm
+	MINGW_LIBS_DIR=$(LIBS_DIR)/mingw-libs
+
+	ifeq ($(shell echo $(FTE_TARGET)|grep -v win64),)
+		MINGW_LIBS_DIR=$(LIBS_DIR)/mingw64-libs
+	endif
+
+	IMAGELDFLAGS=$(MINGW_LIBS_DIR)/libpng.a $(MINGW_LIBS_DIR)/libz.a $(MINGW_LIBS_DIR)/libjpeg.a
+	RELEASE_CFLAGS=$(CPUOPTIMIZATIONS)
+
+	ifeq ($(shell echo $(FTE_TARGET)|grep -v -i _SDL),)
+		RELEASE_CFLAGS+= -D_SDL
+		SDL_LDFLAGS=$(MINGW_LIBS_DIR)/libSDL.a $(MINGW_LIBS_DIR)/libSDLmain.a
+	endif
 endif
-ifeq ($(FTE_TARGET),win64)
-	IMAGELDFLAGS=$(LIBS_DIR)/mingw64-libs/libpng.a $(LIBS_DIR)/mingw64-libs/libz.a $(LIBS_DIR)/mingw64-libs/libjpeg.a
-endif
-ifeq ($(FTE_TARGET),win32_SDL)
-	IMAGELDFLAGS=./libs/mingw-libs/libpng.a ./libs/mingw-libs/libz.a ./libs/mingw-libs/libjpeg.a
-endif
-ifeq ($(FTE_TARGET),win64_SDL)
-	IMAGELDFLAGS=./libs/mingw64-libs/libpng.a ./libs/mingw64-libs/libz.a ./libs/mingw64-libs/libjpeg.a
-endif
+
 IMAGELDFLAGS ?= -lpng -ljpeg
 
 #BASELDFLAGS=-lm  -lz
@@ -270,45 +265,15 @@ CLIENT_ONLY_CFLAGS=-DCLIENTONLY
 SERVER_ONLY_CFLAGS=-DSERVERONLY
 JOINT_CFLAGS=
 DEBUG_CFLAGS=-ggdb -g
-DEBUG_CFLAGS?=-rdynamic
+
+#incase our compiler doesn't support it (mingw)
+ifeq ($(shell $(CC) -v 2>&1 | grep -v unrecognised),)
+	DEBUG_CFLAGS+= -rdynamic
+endif
+
 PROFILE_CFLAGS=-pg
 
-ifeq ($(FTE_TARGET),win32)
-	# Let's make sure we're not chasing our tails with MinGW32 compiler bugs
-	#RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS)
-	RELEASE_CFLAGS=$(CPUOPTIMIZATIONS)
-	DEBUG_CFLAGS=-ggdb -g
-endif
-ifeq ($(FTE_TARGET),win64)
-	# Let's make sure we're not chasing our tails with MinGW32 compiler bugs
-	#RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS)
-	RELEASE_CFLAGS=$(CPUOPTIMIZATIONS)
-	DEBUG_CFLAGS=-ggdb -g
-endif
-ifeq ($(FTE_TARGET),win32_SDL)
-	# Let's make sure we're not chasing our tails with MinGW32 compiler bugs
-	#RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS) -D_SDL
-	RELEASE_CFLAGS=$(CPUOPTIMIZATIONS) -D_SDL
-endif
-ifeq ($(FTE_TARGET),win64_SDL)
-	# Let's make sure we're not chasing our tails with MinGW32 compiler bugs
-	#RELEASE_CFLAGS=-fno-strict-aliasing -ffast-math -fexpensive-optimizations $(CPUOPTIMIZATIONS) -D_SDL
-	RELEASE_CFLAGS=$(CPUOPTIMIZATIONS) -D_SDL
-endif
-
-# Make sure the Win32 targets don't get these added on
-ifneq ($(FTE_TARGET),win32)
-	ifneq ($(FTE_TARGET),win32_SDL)
-		RELEASE_CFLAGS ?= -O2 -fno-strict-aliasing $(CPUOPTIMIZATIONS)
-		#RELEASE_CFLAGS=-O6 -fno-strict-aliasing -ffast-math -funroll-loops -fexpensive-optimizations $(CPUOPTIMIZATIONS)
-	endif
-endif
-ifneq ($(FTE_TARGET),win64)
-	ifneq ($(FTE_TARGET),win64_SDL)
-		RELEASE_CFLAGS ?= -O2 -fno-strict-aliasing $(CPUOPTIMIZATIONS)
-		#RELEASE_CFLAGS=-O6 -fno-strict-aliasing -ffast-math -funroll-loops -fexpensive-optimizations $(CPUOPTIMIZATIONS)
-	endif
-endif
+DX7SDK=-I./libs/dxsdk7/include/
 
 GLCFLAGS=-DGLQUAKE
 D3DCFLAGS=-DD3DQUAKE
@@ -548,90 +513,64 @@ endif
 
 #specific targets override those defaults as needed.
 
-ifeq ($(FTE_TARGET),win32_SDL)
-	LIBS_DIR=./libs/
+#FTE_TARGET=win32_SDL | FTE_TARGET=win64_SDL (MinGW32 + SDL | MinGW64 + SDL)
+ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_SDL"),)	
+	LIBS_DIR=./libs
+	
+	ifeq ($(shell echo $(CC)|grep -v "m64"),)
+		BITS=64
+	endif
 	
 	#the defaults for sdl come first
 	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
-	GL_EXE_NAME=../fteqw_sdl_gl.exe
-	GLCL_EXE_NAME=../fteqwcl_sdl.exe
+	GL_EXE_NAME=../fteqw_sdl_gl$(BITS).exe
+	GLCL_EXE_NAME=../fteqwcl_sdl$(BITS).exe
 	ifdef windir
 		GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `sdl-config --libs`
 	else
-		GL_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 ./libs/mingw-libs/libSDL.a ./libs/mingw-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `sdl-config --libs` 
+		GL_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `sdl-config --libs` 
 	endif
-	GL_CFLAGS=-D_MINGW_VFPRINTF -D_SDL -I./libs/ -I./libs/mingw-libs/ -I./libs/mingw-libs $(GLCFLAGS) `sdl-config --cflags` -I./libs/dxsdk7/include/
+	
+	GL_CFLAGS=-D_SDL -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) $(GLCFLAGS) `sdl-config --cflags` $(DX7SDK)
+	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
+		GL_CFLAGS+= -D_MINGW_VFPRINTF
+	endif
+	
 	GLB_DIR=gl_mgw_sdl$(BITS)
 	GLCL_DIR=glcl_mgw_sdl$(BITS)
 	
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) $(LTO_END) resources.o $(LTO_START)
-	SV_EXE_NAME=../fteqw_sdl_sv.exe
+	SV_EXE_NAME=../fteqw_sdl_sv$(BITS).exe
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -D_SDL
-	SV_LDFLAGS=./libs/mingw-libs/libz.a -lm -lmingw32 -lws2_32 -lwinmm
+	SV_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a -lm -lmingw32 -lws2_32 -lwinmm
 
 	MINGL_DIR=mingl_sdl$(BITS)
-	MINGL_EXE_NAME=../fteqw_sdl_mingl.exe
+	MINGL_EXE_NAME=../fteqw_sdl_mingl$(BITS).exe
 
 	MB_DIR=m_mgw_sdl$(BITS)
-	M_EXE_NAME=../fteqw_sdl.exe
+	M_EXE_NAME=../fteqw_sdl$(BITS).exe
 	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
-	M_CFLAGS=$(D3DCFLAGS) -D_MINGW_VFPRINTF -D_SDL -I./libs/ -I./libs/mingw-libs/ -I./libs/mingw-libs $(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL -I./libs/dxsdk7/include/
+	M_CFLAGS=$(D3DCFLAGS) -D_MINGW_VFPRINTF -D_SDL -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) $(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL $(DX7SDK)
 	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS)
 	
 	ifdef windir
 		M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 -lSDLmain -lSDL
 	else
 		#pthread is needed because of SDL.
-		M_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 ./libs/mingw-libs/libSDL.a ./libs/mingw-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS)
+		M_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(MINGW_LIBS_DIR)/libSDL.a $(MINGW_LIBS_DIR)/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS)
 	endif
 
 	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DONLY_OBJS) $(LTO_END) resources.o $(LTO_START)
-	D3D_EXE_NAME=../fted3dqw.exe
-	D3DCL_EXE_NAME=../fted3dclqw.exe
-	D3D_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 ./libs/mingw-libs/libSDL.a ./libs/mingw-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32
-	D3D_CFLAGS=$(D3DCFLAGS) -D_MINGW_VFPRINTF -D_SDL -DNO_XFLIP -I./libs/ -I./libs/mingw-libs/  -I./libs/mingw-libs `sdl-config --cflags` -I./libs/dxsdk7/include/
+	D3D_EXE_NAME=../fted3dqw$(BITS).exe
+	D3DCL_EXE_NAME=../fted3dclqw$(BITS).exe
+	D3D_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32
+	D3D_CFLAGS=$(D3DCFLAGS) -D_MINGW_VFPRINTF -D_SDL -DNO_XFLIP -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/  -I$(MINGW_LIBS_DIR) `sdl-config --cflags` $(DX7SDK)
 	D3DB_DIR=d3d_mgw
 	D3DCL_DIR=d3dcl_mgw
 	
 endif
-ifeq ($(FTE_TARGET),win64_SDL)
-	LIBS_DIR=./libs/
-	
-	#the defaults for sdl come first
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
-	GL_EXE_NAME=../fteqw_sdl_gl64.exe
-	GLCL_EXE_NAME=../fteqwcl_sdl64.exe
-	ifdef windir
-		GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `sdl-config --libs`
-	else
-		GL_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 ./libs/mingw64-libs/libSDL.a ./libs/mingw64-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `sdl-config --libs` 
-	endif
-	GL_CFLAGS=-D_SDL -I./libs/ -I./libs/mingw64-libs/ -I./libs/mingw64-libs $(GLCFLAGS) `sdl-config --cflags` -I./libs/dxsdk7/include/
-	GLB_DIR=gl_mgw_sdl$(BITS)
-	GLCL_DIR=glcl_mgw_sdl$(BITS)
-	
-	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) $(LTO_END) resources.o $(LTO_START)
-	SV_EXE_NAME=../fteqw_sdl_sv64.exe
-	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -D_SDL
-	SV_LDFLAGS=./libs/mingw64-libs/libz.a -lm -lmingw32 -lws2_32 -lwinmm
 
-	MINGL_DIR=mingl_sdl$(BITS)
-	MINGL_EXE_NAME=../fteqw_sdl_mingl64.exe
-
-	MB_DIR=m_mgw_sdl$(BITS)
-	M_EXE_NAME=../fteqw_sdl64.exe
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
-	M_CFLAGS= $(D3DCFLAGS) -D_MINGW_VFPRINTF -D_SDL -I./libs/ -I./libs/mingw64-libs/ -I./libs/mingw64-libs $(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL -I./libs/dxsdk7/include/
-	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS)
-	
-	ifdef windir
-		M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 -lSDLmain -lSDL
-	else
-		#pthread is needed because of SDL.
-		M_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 ./libs/mingw64-libs/libSDL.a ./libs/mingw64-libs/libSDLmain.a -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `sdl-config --libs` $(IMAGELDFLAGS)
-	endif
-endif
-
+#FTE_TARGET=vc (Visual C)
 ifeq ($(FTE_TARGET),vc)
 	CC=cl
 	DEBUG_CFLAGS ?= -Od $(CPUOPTIMIZATIONS) /fp:fast
@@ -661,112 +600,63 @@ ifeq ($(FTE_TARGET),vc)
 	M_LDFLAGS=$(GLLDFLAGS) libs/jpeg.lib libs/libpng.lib libs/zlib.lib uuid.lib gdi32.lib ole32.lib /subsystem:windows
 endif
 
-ifeq ($(FTE_TARGET),win32)
+#FTE_TARGET=win32 | FTE_TARGET=win64 (MinGW32 | MinGW64)
+ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)"),)
 	# The extra object file called resources.o is specific for MinGW to link the icon in
 
 	#cygwin's gcc requires an extra command to use mingw instead of cygwin (default paths, etc).
 	ifneq ($(shell $(CC) -v 2>&1 | grep cygwin),)
 		W32_CFLAGS=-mno-cygwin
 	endif
+	
+	ifeq ($(shell echo $(CC)|grep -v "m64"),)
+		BITS=64
+	endif
 
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)
 
 
 	LIBS_DIR = $(BASE_DIR)/libs
-	SV_EXE_NAME=../fteqwsv.exe
+	SV_EXE_NAME=../fteqwsv$(BITS).exe
 	SV_LDFLAGS=$(LIBS_DIR)/mingw-libs/zlib.lib -lws2_32 -lwinmm
 	V_DIR=sv_mingw
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
 
 
 	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o $(LTO_END) resources.o $(LTO_START)
-	GL_EXE_NAME=../fteglqw.exe
-	GLCL_EXE_NAME=../fteglqwcl.exe
+	GL_EXE_NAME=../fteglqw$(BITS).exe
+	GLCL_EXE_NAME=../fteglqwcl$(BITS).exe
 	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
-	GL_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) -I./libs/dxsdk7/include/
+	GL_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(DX7SDK)
 	GLB_DIR=gl_mgw
 	GLCL_DIR=glcl_mgw
 
 	NPQTVCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_npqtv.o sys_plugfte.o $(LTO_END) npplug.o ../../ftequake/npapi.def $(LTO_START)
-	NPQTV_DLL_NAME=../npqtv.dll
-	NPQTVCL_DLL_NAME=../npqtvcl.dll
+	NPQTV_DLL_NAME=../npqtv$(BITS).dll
+	NPQTVCL_DLL_NAME=../npqtvcl$(BITS).dll
 	NPQTV_LDFLAGS=--enable-stdcall-fixup $(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -shared
-	NPQTV_CFLAGS=$(NPQTVCFLAGS) $(GLCFLAGS) $(W32_CFLAGS) -I./libs/dxsdk7/include/
+	NPQTV_CFLAGS=$(NPQTVCFLAGS) $(GLCFLAGS) $(W32_CFLAGS) $(DX7SDK)
 	NPQTVB_DIR=npqtv_mgw
 	NPQTVCL_DIR=npqtvcl_mgw
 
 	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o $(LTO_END) resources.o $(LTO_START)
-	M_EXE_NAME=../fteqw.exe
-	MCL_EXE_NAME=../fteqwcl.exe
+	M_EXE_NAME=../fteqw$(BITS).exe
+	MCL_EXE_NAME=../fteqwcl$(BITS).exe
 	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
-	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS) -I./libs/dxsdk7/include/
+	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS) $(DX7SDK)
 	MB_DIR=m_mgw
 	MCL_DIR=mcl_mgw
 
 	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o $(D3DONLY_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
-	D3D_EXE_NAME=../fted3dqw.exe
-	D3DCL_EXE_NAME=../fted3dclqw.exe
+	D3D_EXE_NAME=../fted3dqw$(BITS).exe
+	D3DCL_EXE_NAME=../fted3dclqw$(BITS).exe
 	D3D_LDFLAGS=$(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
-	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS) -I./libs/dxsdk7/include/
+	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS) $(DX7SDK)
 	D3DB_DIR=d3d_mgw
 	D3DCL_DIR=d3dcl_mgw
 
 	MINGL_EXE_NAME=../fteminglqw.exe
 	MINGL_DIR=mingl_mgw
-endif
-
-ifeq ($(FTE_TARGET),win64)
-	# The extra object file called resources.o is specific for MinGW to link the icon in
-
-	#cygwin's gcc requires an extra command to use mingw instead of cygwin (default paths, etc).
-	ifneq ($(shell $(CC) -v 2>&1 | grep cygwin),)
-		W32_CFLAGS=-mno-cygwin
-	endif
-
-	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)
-
-
-	LIBS_DIR = $(BASE_DIR)/libs
-	SV_EXE_NAME=../fteqwsv64.exe
-	SV_LDFLAGS=$(LIBS_DIR)/mingw64-libs/libz.a -lws2_32 -lwinmm 
-	SV_DIR=sv_mingw64
-	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
-
-
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o $(LTO_END) resources.o $(LTO_START)
-	GL_EXE_NAME=../fteglqw64.exe
-	GLCL_EXE_NAME=../fteglqwcl64.exe
-	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
-	GL_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) -I./libs/dxsdk7/include/
-	GLB_DIR=gl_mgw64
-	GLCL_DIR=glcl_mgw64
-
-	NPQTVCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_npqtv.o sys_plugfte.o $(LTO_END) npplug.o ../../ftequake/npapi.def $(LTO_START)
-	NPQTV_DLL_NAME=../npqtv64.dll
-	NPQTVCL_DLL_NAME=../npqtvcl64.dll
-	NPQTV_LDFLAGS=--enable-stdcall-fixup $(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -shared
-	NPQTV_CFLAGS=$(NPQTVCFLAGS) $(GLCFLAGS) $(W32_CFLAGS) -I./libs/dxsdk7/include/
-	NPQTVB_DIR=npqtv_mgw64
-	NPQTVCL_DIR=npqtvcl_mgw64
-
-	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o $(LTO_END) resources.o $(LTO_START)
-	M_EXE_NAME=../fteqw64.exe
-	MCL_EXE_NAME=../fteqwcl64.exe
-	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
-	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS) -I./libs/dxsdk7/include/
-	MB_DIR=m_mgw64
-	MCL_DIR=mcl_mgw64
-
-	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o $(D3DONLY_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
-	D3D_EXE_NAME=../fted3dqw64.exe
-	D3DCL_EXE_NAME=../fted3dclqw64.exe
-	D3D_LDFLAGS=$(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
-	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS) -I./libs/dxsdk7/include/
-	D3DB_DIR=d3d_mgw64
-	D3DCL_DIR=d3dcl_mgw64
-
-	MINGL_EXE_NAME=../fteminglqw64.exe
-	MINGL_DIR=mingl_mgw64
 endif
 
 ifeq ($(FTE_TARGET),bsd)
@@ -828,9 +718,16 @@ ifneq ($(shell echo $(FTE_TARGET)|grep macosx),)
 	GLCL_DIR=glcl_macosx$(EXTENSION)$(BITS)
 	MINGL_DIR=mingl_macosx$(EXTENSION)$(BITS)
 
-	GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I/home/moodles/mac/include/ -L/home/moodles/mac/lib -I./libs/
+	GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I$(LIBS_DIR)
+	ifeq ($(WHOAMI),moodles)
+		GL_CFLAGS+= -I/home/moodles/mac/include/ -L/home/moodles/mac/lib 
+	endif
+	
 	ifeq ($(FTE_TARGET),macosx_x86)
-		GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I/home/moodles/mac/x86/include/ -L/home/moodles/mac/x86/lib -I./libs/
+		GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I$(LIBS_DIR)		
+		ifeq ($(WHOAMI),moodles)
+			GL_CFLAGS+= -I/home/moodles/mac/x86/include/ -L/home/moodles/mac/x86/lib
+		endif
 	endif
 
 	GL_LDFLAGS=-framework AGL -framework OpenGL -framework Cocoa -framework AudioUnit -lz -lpng -ljpeg
@@ -877,10 +774,13 @@ ifeq ($(FTE_TARGET),morphos)
 	MINGL_EXE_NAME=../morphos_fteqw.mingl
 	MINGL_DIR=mingl_morphos
 	
-	#morphos dedicated server doesnt compile: alloca.h: No such file or directory
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
 	SV_EXE_NAME=../morphos_fteqw.sv$(BITS)
-	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)	-I/home/moodles/zlib/zlib-1.2.5 -L/home/moodles/zlib/zlib-1.2.5 -I/home/moodles/wip/wip/engine/libs
+	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
+	
+	ifeq ($(WHOAMI),moodles)
+		SV_CFLAGS+=-I/home/moodles/zlib/zlib-1.2.5 -L/home/moodles/zlib/zlib-1.2.5 -I/home/moodles/fteqw/trunk/engine/libs
+	endif
 endif
 
 

@@ -536,8 +536,8 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)
 		GL_CFLAGS+= -D_MINGW_VFPRINTF
 	endif
 	
-	GLB_DIR=gl_mgw_sdl$(BITS)
-	GLCL_DIR=glcl_mgw_sdl$(BITS)
+	GLB_DIR=sdl_gl_mgw_sdl$(BITS)
+	GLCL_DIR=sdl_glcl_mgw_sdl$(BITS)
 	
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) $(LTO_END) resources.o $(LTO_START)
 	SV_EXE_NAME=../fteqw_sdl_sv$(BITS).exe
@@ -561,12 +561,12 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)
 	endif
 
 	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DONLY_OBJS) $(LTO_END) resources.o $(LTO_START)
-	D3D_EXE_NAME=../fted3dqw$(BITS).exe
-	D3DCL_EXE_NAME=../fted3dclqw$(BITS).exe
+	D3D_EXE_NAME=../fted3d_sdl_qw$(BITS).exe
+	D3DCL_EXE_NAME=../fted3d_sdl_clqw$(BITS).exe
 	D3D_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32
 	D3D_CFLAGS=$(D3DCFLAGS) -D_MINGW_VFPRINTF -D_SDL -DNO_XFLIP -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/  -I$(MINGW_LIBS_DIR) `sdl-config --cflags` $(DX7SDK)
-	D3DB_DIR=d3d_mgw
-	D3DCL_DIR=d3dcl_mgw
+	D3DB_DIR=sdl_d3d_mgw$(BITS)
+	D3DCL_DIR=sdl_d3dcl_mgw$(BITS)
 	
 endif
 
@@ -617,8 +617,8 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -v "win(32|64)$$"),)
 
 	LIBS_DIR = $(BASE_DIR)/libs
 	SV_EXE_NAME=../fteqwsv$(BITS).exe
-	SV_LDFLAGS=$(MINGW_LIBS_DIR)/zlib.lib -lws2_32 -lwinmm
-	V_DIR=sv_mingw
+	SV_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a -lws2_32 -lwinmm
+	SV_DIR=sv_mingw$(BITS)
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
 
 
@@ -627,35 +627,35 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -v "win(32|64)$$"),)
 	GLCL_EXE_NAME=../fteglqwcl$(BITS).exe
 	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
 	GL_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(DX7SDK)
-	GLB_DIR=gl_mgw
-	GLCL_DIR=glcl_mgw
+	GLB_DIR=gl_mgw$(BITS)
+	GLCL_DIR=glcl_mgw$(BITS)
 
 	NPQTVCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_npqtv.o sys_plugfte.o $(LTO_END) npplug.o ../../ftequake/npapi.def $(LTO_START)
 	NPQTV_DLL_NAME=../npqtv$(BITS).dll
 	NPQTVCL_DLL_NAME=../npqtvcl$(BITS).dll
 	NPQTV_LDFLAGS=--enable-stdcall-fixup $(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -shared
 	NPQTV_CFLAGS=$(NPQTVCFLAGS) $(GLCFLAGS) $(W32_CFLAGS) $(DX7SDK)
-	NPQTVB_DIR=npqtv_mgw
-	NPQTVCL_DIR=npqtvcl_mgw
+	NPQTVB_DIR=npqtv_mgw$(BITS)
+	NPQTVCL_DIR=npqtvcl_mgw$(BITS)
 
 	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o $(LTO_END) resources.o $(LTO_START)
 	M_EXE_NAME=../fteqw$(BITS).exe
 	MCL_EXE_NAME=../fteqwcl$(BITS).exe
 	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
 	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS) $(DX7SDK)
-	MB_DIR=m_mgw
-	MCL_DIR=mcl_mgw
+	MB_DIR=m_mgw$(BITS)
+	MCL_DIR=mcl_mgw$(BITS)
 
 	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o $(D3DONLY_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
 	D3D_EXE_NAME=../fted3dqw$(BITS).exe
 	D3DCL_EXE_NAME=../fted3dclqw$(BITS).exe
 	D3D_LDFLAGS=$(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32
 	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS) $(DX7SDK)
-	D3DB_DIR=d3d_mgw
-	D3DCL_DIR=d3dcl_mgw
+	D3DB_DIR=d3d_mgw$(BITS)
+	D3DCL_DIR=d3dcl_mgw$(BITS)
 
-	MINGL_EXE_NAME=../fteminglqw.exe
-	MINGL_DIR=mingl_mgw
+	MINGL_EXE_NAME=../fteminglqw.exe$(BITS)
+	MINGL_DIR=mingl_mgw$(BITS)
 endif
 
 ifeq ($(FTE_TARGET),bsd)

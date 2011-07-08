@@ -49,8 +49,12 @@ ifeq ($(FTE_TARGET),win64)
 	endif
 endif
 
+ifeq ($(FTE_TARGET),win32_sdl)
+	FTE_TARGET=win32_SDL
+endif
+
 #correct the gcc build when cross compiling
-ifeq ($(shell echo $(FTE_TARGET)|grep -v -i win32_SDL),)
+ifeq ($(FTE_TARGET),win32_SDL)
 	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
 		#CC didn't state that it was mingw... so try fixing that up
 		ifneq ($(shell which i586-mingw32msvc-gcc 2> /dev/null),)
@@ -63,8 +67,12 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -v -i win32_SDL),)
 	endif
 endif
 
+ifeq ($(FTE_TARGET),win64_sdl)
+	FTE_TARGET=win64_SDL
+endif
+
 #correct the gcc build when cross compiling
-ifeq ($(shell echo $(FTE_TARGET)|grep -v -i win64_SDL),)
+ifeq ($(FTE_TARGET),win64_SDL)
 	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
 		#CC didn't state that it was mingw... so try fixing that up
 		ifneq ($(shell which amd64-mingw32msvc-gcc 2> /dev/null),)
@@ -267,7 +275,7 @@ JOINT_CFLAGS=
 DEBUG_CFLAGS=-ggdb -g
 
 #incase our compiler doesn't support it (mingw)
-ifeq ($(shell $(CC) -v 2>&1 | grep -v unrecognised),)
+ifeq ($(shell $(CC) -rdynamic 2>&1 | grep unrecognised),)
 	DEBUG_CFLAGS+= -rdynamic
 endif
 
@@ -550,7 +558,12 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)
 	MB_DIR=m_mgw_sdl$(BITS)
 	M_EXE_NAME=../fteqw_sdl$(BITS).exe
 	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
-	M_CFLAGS=$(D3DCFLAGS) -D_MINGW_VFPRINTF -D_SDL -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) $(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL $(DX7SDK)
+	M_CFLAGS=$(D3DCFLAGS) -D_SDL -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/ -I$(MINGW_LIBS_DIR) $(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL $(DX7SDK)
+
+	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
+		M_CFLAGS+= -D_MINGW_VFPRINTF
+	endif
+
 	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS)
 	
 	ifdef windir
@@ -564,7 +577,10 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)
 	D3D_EXE_NAME=../fted3d_sdl_qw$(BITS).exe
 	D3DCL_EXE_NAME=../fted3d_sdl_clqw$(BITS).exe
 	D3D_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32
-	D3D_CFLAGS=$(D3DCFLAGS) -D_MINGW_VFPRINTF -D_SDL -DNO_XFLIP -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/  -I$(MINGW_LIBS_DIR) `sdl-config --cflags` $(DX7SDK)
+	D3D_CFLAGS=$(D3DCFLAGS) -D_SDL -DNO_XFLIP -I$(LIBS_DIR) -I$(MINGW_LIBS_DIR)/  -I$(MINGW_LIBS_DIR) `sdl-config --cflags` $(DX7SDK)
+	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
+		D3D_CFLAGS+= -D_MINGW_VFPRINTF
+	endif
 	D3DB_DIR=sdl_d3d_mgw$(BITS)
 	D3DCL_DIR=sdl_d3dcl_mgw$(BITS)
 	
@@ -654,7 +670,7 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -v "win(32|64)$$"),)
 	D3DB_DIR=d3d_mgw$(BITS)
 	D3DCL_DIR=d3dcl_mgw$(BITS)
 
-	MINGL_EXE_NAME=../fteminglqw($BITS).exe
+	MINGL_EXE_NAME=../fteminglqw$(BITS).exe
 	MINGL_DIR=mingl_mgw$(BITS)
 endif
 
@@ -717,13 +733,13 @@ ifneq ($(shell echo $(FTE_TARGET)|grep macosx),)
 	GLCL_DIR=glcl_macosx$(EXTENSION)$(BITS)
 	MINGL_DIR=mingl_macosx$(EXTENSION)$(BITS)
 
-	GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I$(LIBS_DIR) -I./libs/speex
+	GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I$(LIBS_DIR) -I./libs/speex -I./libs/
 	ifeq ($(WHOAMI),moodles)
 		GL_CFLAGS+= -I/home/moodles/mac/include/ -L/home/moodles/mac/lib 
 	endif
 	
 	ifeq ($(FTE_TARGET),macosx_x86)
-		GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I$(LIBS_DIR) -I./libs/speex	
+		GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I$(LIBS_DIR) -I./libs/speex -I./libs/
 		ifeq ($(WHOAMI),moodles)
 			GL_CFLAGS+= -I/home/moodles/mac/x86/include/ -L/home/moodles/mac/x86/lib
 		endif

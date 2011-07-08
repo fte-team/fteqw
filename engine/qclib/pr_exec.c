@@ -859,9 +859,9 @@ void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 
 	prinst->continuestatement = -1;
 #ifdef QCJIT
-	if (prinst->usejit)
+	if (prinst->jit)
 	{
-		PR_EnterJIT(progfuncs, s);
+		PR_EnterJIT(progfuncs, prinst->jit, s);
 		return;
 	}
 #endif

@@ -94,8 +94,7 @@ progsnum_t PR_LoadProgs(progfuncs_t *progfuncs, char *s, int headercrc, builtin_
 					progfuncs->numprogs = a+1;
 
 #ifdef QCJIT
-				if (prinst->usejit)
-					prinst->usejit = PR_GenerateJit(progfuncs);
+				prinst->jit = PR_GenerateJit(progfuncs);
 #endif
 				if (oldtype>=0)
 					PR_SwitchProgs(progfuncs, oldtype);

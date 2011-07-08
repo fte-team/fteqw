@@ -344,7 +344,7 @@ void PR_SetBuiltins(int type);
 
 typedef struct prinst_s {
 #ifdef QCJIT
-	pbool usejit;
+	struct jitstate *jit;
 #endif
 	char **tempstrings;
 	int maxtempstrings;
@@ -478,8 +478,9 @@ char *PR_GlobalStringNoContents (progfuncs_t *progfuncs, int ofs);
 
 pbool CompileFile(progfuncs_t *progfuncs, char *filename);
 
-pbool PR_GenerateJit(progfuncs_t *progfuncs);
-void PR_EnterJIT(progfuncs_t *progfuncs, int statement);
+struct jitstate;
+struct jitstate *PR_GenerateJit(progfuncs_t *progfuncs);
+void PR_EnterJIT(progfuncs_t *progfuncs, struct jitstate *jitstate, int statement);
 
 char *QCC_COM_Parse (char *data);
 extern char	qcc_token[1024];

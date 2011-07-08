@@ -329,7 +329,7 @@ int WriteStatement(progfuncs_t *progfuncs, progstate_t *progs, int stnum, int fi
 	st = &((dstatement16_t*)progs->statements)[stnum];
 	switch(st->op)
 	{
-	case OP_IFNOT:
+	case OP_IFNOT_I:
 		count = (signed short)st->b;
 		writes(file, "if (");
 		WriteStatementProducingOfs(progfuncs, progs, stnum, firstpossible, st->a);
@@ -375,7 +375,7 @@ int WriteStatement(progfuncs_t *progfuncs, progstate_t *progs, int stnum, int fi
 			writes(file, "}\r\n");
 		}
 		break;
-	case OP_IF:
+	case OP_IF_I:
 		longjmp(decompilestatementfailure, 1);
 		break;
 	case OP_GOTO:

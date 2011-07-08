@@ -1712,6 +1712,7 @@ int QCC_PR_FinishCompilation (void)
 //			if (!f || (!f->code && !f->builtin) )
 			if (d->initialized==0)
 			{
+				s_file = d->s_file;
 				if (!strncmp(d->name, "ArrayGet*", 9))
 				{
 					QCC_PR_EmitArrayGetFunction(d, d->name+9);
@@ -1733,6 +1734,7 @@ int QCC_PR_FinishCompilation (void)
 					bodylessfuncs = true;
 					errors = true;
 				}
+				s_file = NULL;
 //				errors = true;
 			}
 			else if (d->initialized==2)

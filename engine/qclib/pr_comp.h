@@ -31,7 +31,7 @@ typedef int QCC_string_t;
 #define	RESERVED_OFS	28
 
 
-enum {
+enum qcop_e {
 	OP_DONE,	//0
 	OP_MUL_F,
 	OP_MUL_V,
@@ -55,10 +55,10 @@ enum {
 	OP_NE_E,
 	OP_NE_FNC,
 	
-	OP_LE,	//20
-	OP_GE,
-	OP_LT,
-	OP_GT,
+	OP_LE_F,	//20
+	OP_GE_F,
+	OP_LT_F,
+	OP_GT_F,
 
 	OP_LOAD_F,
 	OP_LOAD_V,
@@ -89,8 +89,8 @@ enum {
 	OP_NOT_S,
 	OP_NOT_ENT,
 	OP_NOT_FNC,
-	OP_IF,
-	OP_IFNOT,		//50
+	OP_IF_I,
+	OP_IFNOT_I,		//50
 	OP_CALL0,		//careful... hexen2 and q1 have different calling conventions
 	OP_CALL1,		//remap hexen2 calls to OP_CALL2H
 	OP_CALL2,
@@ -102,11 +102,11 @@ enum {
 	OP_CALL8,
 	OP_STATE,		//60
 	OP_GOTO,
-	OP_AND,
-	OP_OR,
+	OP_AND_F,
+	OP_OR_F,
 	
-	OP_BITAND,
-	OP_BITOR,
+	OP_BITAND_F,
+	OP_BITOR_F,
 
 	
 	//these following ones are Hexen 2 constants.
@@ -184,10 +184,10 @@ enum {
 	
 	OP_ADD_I,
 	OP_ADD_FI,
-	OP_ADD_IF,		//110
+	OP_ADD_IF,
   
 	OP_SUB_I,
-	OP_SUB_FI,
+	OP_SUB_FI,		//120
 	OP_SUB_IF,
 
 	OP_CONV_ITOF,
@@ -196,10 +196,10 @@ enum {
 	OP_CP_FTOI,
 	OP_LOAD_I,
 	OP_STOREP_I,
-	OP_STOREP_IF,	//120
+	OP_STOREP_IF,
 	OP_STOREP_FI,
 
-	OP_BITAND_I,
+	OP_BITAND_I,	//130
 	OP_BITOR_I,
 
 	OP_MUL_I,
@@ -210,11 +210,11 @@ enum {
 	OP_IFNOT_S,
 	OP_IF_S,
 
-	OP_NOT_I,		//130
+	OP_NOT_I,
 
 	OP_DIV_VF,
 
-	OP_XOR_I,
+	OP_XOR_I,		//140
 	OP_RSHIFT_I,
 	OP_LSHIFT_I,
 
@@ -224,9 +224,9 @@ enum {
 	OP_LOADA_F,
 	OP_LOADA_V,	
 	OP_LOADA_S,
-	OP_LOADA_ENT,	//140
-	OP_LOADA_FLD,		
-	OP_LOADA_FNC,
+	OP_LOADA_ENT,
+	OP_LOADA_FLD,
+	OP_LOADA_FNC,	//150
 	OP_LOADA_I,
 
 	OP_STORE_P,	//152... erm.. wait...
@@ -236,9 +236,9 @@ enum {
 	OP_LOADP_V,	
 	OP_LOADP_S,
 	OP_LOADP_ENT,
-	OP_LOADP_FLD,	//150
+	OP_LOADP_FLD,
 	OP_LOADP_FNC,
-	OP_LOADP_I,
+	OP_LOADP_I,		//160
 
 	OP_LE_I,
 	OP_GE_I,
@@ -248,10 +248,10 @@ enum {
 	OP_LE_IF,
 	OP_GE_IF,
 	OP_LT_IF,
-	OP_GT_IF,		//160
+	OP_GT_IF,
 
 	OP_LE_FI,
-	OP_GE_FI,
+	OP_GE_FI,		//170
 	OP_LT_FI,
 	OP_GT_FI,
 
@@ -263,12 +263,12 @@ enum {
 	OP_ADD_SF,	//(char*)c = (char*)a + (float)b
 	OP_SUB_S,	//(float)c = (char*)a - (char*)b
 	OP_STOREP_C,//(float)c = *(char*)b = (float)a
-	OP_LOADP_C,	//(float)c = *(char*)					//170
+	OP_LOADP_C,	//(float)c = *(char*)
 	//-------------------------------------
 
 
 	OP_MUL_IF,
-	OP_MUL_FI,
+	OP_MUL_FI,		//180
 	OP_MUL_VI,
 	OP_MUL_IV,
 	OP_DIV_IF,
@@ -276,9 +276,9 @@ enum {
 	OP_BITAND_IF,
 	OP_BITOR_IF,
 	OP_BITAND_FI,
-	OP_BITOR_FI,		//180
+	OP_BITOR_FI,
 	OP_AND_I,
-	OP_OR_I,
+	OP_OR_I,		//190
 	OP_AND_IF,
 	OP_OR_IF,
 	OP_AND_FI,
@@ -288,9 +288,9 @@ enum {
 
 //erm... FTEQCC doesn't make use of these... These are for DP.
 	OP_GSTOREP_I,
-	OP_GSTOREP_F,		//190
+	OP_GSTOREP_F,
 	OP_GSTOREP_ENT,
-	OP_GSTOREP_FLD,		// integers
+	OP_GSTOREP_FLD,		// integers   //200
 	OP_GSTOREP_S,
 	OP_GSTOREP_FNC,		// pointers
 	OP_GSTOREP_V,
@@ -298,9 +298,9 @@ enum {
 	OP_GLOAD_I,
 	OP_GLOAD_F,
 	OP_GLOAD_FLD,
-	OP_GLOAD_ENT,		//200
+	OP_GLOAD_ENT,
 	OP_GLOAD_S,
-	OP_GLOAD_FNC,
+	OP_GLOAD_FNC,		//210
 	OP_BOUNDCHECK,
 
 //back to ones that we do use.
@@ -320,7 +320,7 @@ enum {
 	These ops are emulated out, always, and are only present in the compiler.
 	*/
 
-	OP_BITSET_I,
+	OP_BITSET_I,	//220
 	OP_BITSETP_I,
 
 	OP_MULSTORE_I,
@@ -332,7 +332,7 @@ enum {
 	OP_ADDSTOREP_I,
 	OP_SUBSTOREP_I,
 
-	OP_MULSTORE_IF,
+	OP_MULSTORE_IF,	//230
 	OP_MULSTOREP_IF,
 	OP_DIVSTORE_IF,
 	OP_DIVSTOREP_IF,
@@ -343,14 +343,14 @@ enum {
 
 	OP_MULSTORE_FI,
 	OP_MULSTOREP_FI,
-	OP_DIVSTORE_FI,
+	OP_DIVSTORE_FI,		//240
 	OP_DIVSTOREP_FI,
 	OP_ADDSTORE_FI,
 	OP_ADDSTOREP_FI,
 	OP_SUBSTORE_FI,
 	OP_SUBSTOREP_FI,
 
-	OP_NUMOPS
+	OP_NUMOPS			//246
 };
 
 #define	MAX_PARMS	8

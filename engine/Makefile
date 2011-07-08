@@ -514,10 +514,10 @@ endif
 #specific targets override those defaults as needed.
 
 #FTE_TARGET=win32_SDL | FTE_TARGET=win64_SDL (MinGW32 + SDL | MinGW64 + SDL)
-ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_SDL"),)	
+ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)	
 	LIBS_DIR=./libs
 	
-	ifeq ($(shell echo $(CC)|grep -v "m64"),)
+	ifeq ($(shell echo $(FTE_TARGET)|grep -i -v "win64_sdl"),)
 		BITS=64
 	endif
 	
@@ -601,7 +601,7 @@ ifeq ($(FTE_TARGET),vc)
 endif
 
 #FTE_TARGET=win32 | FTE_TARGET=win64 (MinGW32 | MinGW64)
-ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)"),)
+ifeq ($(shell echo $(FTE_TARGET)|grep -E -v "win(32|64)$$"),)
 	# The extra object file called resources.o is specific for MinGW to link the icon in
 
 	#cygwin's gcc requires an extra command to use mingw instead of cygwin (default paths, etc).
@@ -609,7 +609,7 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)"),)
 		W32_CFLAGS=-mno-cygwin
 	endif
 	
-	ifeq ($(shell echo $(CC)|grep -v "m64"),)
+	ifeq ($(FTE_TARGET),win64)
 		BITS=64
 	endif
 

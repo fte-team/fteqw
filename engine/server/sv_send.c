@@ -2261,6 +2261,7 @@ void SV_SendClientMessages (void)
 			SV_DropClient (c);
 			c->send_message = true;
 			c->netchan.cleartime = 0;	// don't choke this message
+			continue;
 		}
 
 		// only send messages if the client has sent one

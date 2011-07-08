@@ -4107,7 +4107,7 @@ void Master_Heartbeat (void)
 	qboolean	madeqwstring = false;
 	char		adr[MAX_ADR_SIZE];
 
-	if (!sv_public.value)
+	if (!sv_public.ival)
 		return;
 
 	if (realtime-HEARTBEAT_SECONDS - svs.last_heartbeat < HEARTBEAT_SECONDS)
@@ -4579,6 +4579,7 @@ void SV_InitNet (void)
 
 	for (i = 0; sv_masterlist[i].cv.name; i++)
 		Cvar_Register(&sv_masterlist[i].cv, "master servers");
+	Master_ReResolve();
 
 	// heartbeats will always be sent to the id master
 	svs.last_heartbeat = -99999;		// send immediately

@@ -654,7 +654,7 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -v "win(32|64)$$"),)
 	D3DB_DIR=d3d_mgw$(BITS)
 	D3DCL_DIR=d3dcl_mgw$(BITS)
 
-	MINGL_EXE_NAME=../fteminglqw.exe$(BITS)
+	MINGL_EXE_NAME=../fteminglqw($BITS).exe
 	MINGL_DIR=mingl_mgw$(BITS)
 endif
 

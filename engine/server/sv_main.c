@@ -75,7 +75,7 @@ sv_masterlist_t sv_masterlist[] = {
 
 	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra1", "qwmaster.ocrana.de:27000", SV_Masterlist_Callback)},	//german. admin unknown
 	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra2", "masterserver.exhale.de:27000", SV_Masterlist_Callback)},	//german. admin unknown
-	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra3", "kubus.rulez.pl:27000", SV_Masterlist_Callback)},	//poland. admin unknown
+	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra3", "asgaard.morphos-team.net:27000", SV_Masterlist_Callback)},	//german. admin bigfoot
 	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra4", "master.quakeservers.net:27000", SV_Masterlist_Callback)},	//european. admin: raz0?
 	{MP_QUAKEWORLD, CVARC("sv_qwmasterextra5", "qwmaster.fodquake.net:27000", SV_Masterlist_Callback)},
 

@@ -733,13 +733,13 @@ ifneq ($(shell echo $(FTE_TARGET)|grep macosx),)
 	GLCL_DIR=glcl_macosx$(EXTENSION)$(BITS)
 	MINGL_DIR=mingl_macosx$(EXTENSION)$(BITS)
 
-	GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I$(LIBS_DIR) -I./libs/speex -I./libs/
+	GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I$(LIBS_DIR)
 	ifeq ($(WHOAMI),moodles)
 		GL_CFLAGS+= -I/home/moodles/mac/include/ -L/home/moodles/mac/lib 
 	endif
 	
 	ifeq ($(FTE_TARGET),macosx_x86)
-		GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I$(LIBS_DIR) -I./libs/speex -I./libs/
+		GL_CFLAGS=$(GLCFLAGS) -D__MACOSX__ -L/sw/lib -I/sw/include -L/opt/local/lib -I/opt/local/include -I$(LIBS_DIR)
 		ifeq ($(WHOAMI),moodles)
 			GL_CFLAGS+= -I/home/moodles/mac/x86/include/ -L/home/moodles/mac/x86/lib
 		endif

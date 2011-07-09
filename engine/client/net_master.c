@@ -1360,11 +1360,11 @@ void MasterInfo_Refresh(void)
 //		if (q1servers)	//qw master servers
 		{
 			Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quakeworld", MT_MASTERHTTPQW, "gameaholic's QW master");
-			Master_AddMaster("192.246.40.37:27000",			MT_MASTERQW, "id Limbo");
-			Master_AddMaster("192.246.40.37:27002",			MT_MASTERQW, "id CTF");
-			Master_AddMaster("192.246.40.37:27003",			MT_MASTERQW, "id TeamFortress");
-			Master_AddMaster("192.246.40.37:27004",			MT_MASTERQW, "id Miscilaneous");
-			Master_AddMaster("192.246.40.37:27006",			MT_MASTERQW, "id Deathmatch Only");
+			Master_AddMaster("satan.idsoftware.com:27000",			MT_MASTERQW, "id Limbo");
+			Master_AddMaster("satan.idsoftware.com:27002",			MT_MASTERQW, "id CTF");
+			Master_AddMaster("satan.idsoftware.com:27003",			MT_MASTERQW, "id TeamFortress");
+			Master_AddMaster("satan.idsoftware.com:27004",			MT_MASTERQW, "id Miscilaneous");
+			Master_AddMaster("satan.idsoftware.com:27006",			MT_MASTERQW, "id Deathmatch Only");
 			Master_AddMaster("150.254.66.120:27000",		MT_MASTERQW, "Poland's master server.");
 			Master_AddMaster("62.112.145.129:27000",		MT_MASTERQW, "Ocrana master server.");
 
@@ -1375,8 +1375,12 @@ void MasterInfo_Refresh(void)
 			Master_AddMaster("195.74.0.8",					MT_MASTERQW, "unknown2 master server.");
 			Master_AddMaster("204.182.161.2",				MT_MASTERQW, "unknown5 master server.");
 
-			Master_AddMaster("asgaard.morphos-team.net:27000",MT_MASTERQW, "Asgaard");
+			Master_AddMaster("masterserver.exhale.de:27000",MT_MASTERQW, "team exhale");
+			Master_AddMaster("qwmaster.fodquake.net:27000",MT_MASTERQW, "Fodquake.net");
 			Master_AddMaster("master.quakeservers.net:27000",MT_MASTERQW, "QuakeServers.net");
+			Master_AddMaster("master.teamdamage.com:27000",MT_MASTERQW, "TeamDamage");
+			Master_AddMaster("kubus.rulez.pl:27000",MT_MASTERQW, "Kubus");
+			Master_AddMaster("telefrag.me:27000",MT_MASTERQW, "Telefrag.ME");
 
 			Master_AddMaster("255.255.255.255:27500",		MT_BCASTQW, "Nearby QuakeWorld UDP servers.");
 		}
@@ -1399,13 +1403,19 @@ void MasterInfo_Refresh(void)
 #ifdef USEIPX
 			Master_AddMaster("00000000:ffffffffffff:27910",	MT_BCASTQ2, "Nearby Quake2 IPX servers.");
 #endif
-			Master_AddMaster("192.246.40.37:27900",			MT_MASTERQ2, "id q2 Master.");
+			Master_AddMaster("satan.idsoftware.com:27900",			MT_MASTERQ2, "id q2 Master.");
+			Master_AddMaster("netdome.biz:27900",			MT_MASTERQ2, "Netdome.biz");
+			Master_AddMaster("master.q2servers.com:27900",	MT_MASTERQ2, "q2servers.com");
+			Master_AddMaster("masterserver.exhale.de:27900",MT_MASTERQ2, "team exhale");
+			Master_AddMaster("master.planetgloom.com:27900",MT_MASTERQ2, "Planetgloom.com");
 		}
 
 		//q3
 		{
 		Master_AddMaster("255.255.255.255:27960",			MT_BCASTQ3, "Nearby Quake3 UDP servers.");
 		Master_AddMaster("master.quake3arena.com:27950",	MT_MASTERQ3, "Quake3 master server.");
+		Master_AddMaster("master3.quake3arena.com:27950",	MT_MASTERQ3, "Quake3 master3 server.");
+		Master_AddMaster("masterserver.exhale.de:27950",	MT_MASTERQ3, "team exhale");
 		}
 	}
 

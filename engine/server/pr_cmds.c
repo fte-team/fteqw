@@ -533,7 +533,7 @@ void PR_LoadGlabalStruct(void)
 #define globalstring(need,name) ((nqglobalvars_t*)pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
 #define globalvec(need,name) ((nqglobalvars_t*)pr_globals)->V_##name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !((nqglobalvars_t*)pr_globals)->V_##name) SV_Error("Could not find export \""#name"\" in progs\n");
 #define globalvec_(need,name) ((nqglobalvars_t*)pr_globals)->name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
-#define globalfunc(need,name) ((nqglobalvars_t*)pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !((nqglobalvars_t*)pr_globals)->name) {static func_t strippedout; strippedout = PR_FindFunction(svprogfuncs, #name, 0); if (strippedout) ((nqglobalvars_t*)pr_globals)->name = &strippedout; else SV_Error("Could not find function \""#name"\" in progs\n"); }
+#define globalfunc(need,name) ((nqglobalvars_t*)pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (!((nqglobalvars_t*)pr_globals)->name) {static func_t stripped##name; stripped##name = PR_FindFunction(svprogfuncs, #name, 0); if (stripped##name) ((nqglobalvars_t*)pr_globals)->name = &stripped##name; else if (need) SV_Error("Could not find function \""#name"\" in progs\n"); }
 //			globalint(pad);
 	globalint		(true, self);	//we need the qw ones, but any in standard quake and not quakeworld, we don't really care about.
 	globalint		(true, other);
@@ -1596,6 +1596,7 @@ qboolean PR_KrimzonParseCommand(char *s)
 
 	return false;
 }
+int tokenizeqc(char *str, qboolean dpfuckage);
 qboolean PR_UserCmd(char *s)
 {
 	globalvars_t *pr_globals;
@@ -1649,6 +1650,8 @@ qboolean PR_UserCmd(char *s)
 		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 		pr_global_struct->time = sv.world.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+
+		tokenizeqc(s, true);
 
 		G_INT(OFS_PARM0) = (int)PR_TempString(svprogfuncs, s);
 		PR_ExecuteProgram (svprogfuncs, gfuncs.UserCmd);
@@ -9467,7 +9470,11 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 
 	if (type == PROG_QW && pr_imitatemvdsv.value>0)	//pretend to be mvdsv for a bit.
 	{
-		if (PR_EnableEBFSBuiltin("teamfield",		87) != 87 ||
+		if (PR_EnableEBFSBuiltin("executecommand",	83) != 83 ||
+			PR_EnableEBFSBuiltin("mvdtokenize",		84) != 84 ||
+			PR_EnableEBFSBuiltin("mvdargc",			85) != 85 ||
+			PR_EnableEBFSBuiltin("mvdargv",			86) != 86 ||
+			PR_EnableEBFSBuiltin("teamfield",		87) != 87 ||
 			PR_EnableEBFSBuiltin("substr",			88) != 88 ||
 			PR_EnableEBFSBuiltin("mvdstrcat",		89) != 89 ||
 			PR_EnableEBFSBuiltin("mvdstrlen",		90) != 90 ||

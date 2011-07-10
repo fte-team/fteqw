@@ -1257,12 +1257,15 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			// run the frame start qc function to let progs check cvars
 			SV_ProgStartFrame ();	//prydon gate seems to fail because of this allowance
 
-		for (i = 0; i < svs.numprogs; i++)	//do this AFTER precaches have been played with...
+		if (svs.gametype != GT_Q1QVM) //we cannot do this with qvm
 		{
-			f = PR_FindFunction (svprogfuncs, "initents", svs.progsnum[i]);
-			if (f)
+			for (i = 0; i < svs.numprogs; i++)	//do this AFTER precaches have been played with...
 			{
-				PR_ExecuteProgram(svprogfuncs, f);
+				f = PR_FindFunction (svprogfuncs, "initents", svs.progsnum[i]);
+				if (f)
+				{
+					PR_ExecuteProgram(svprogfuncs, f);
+				}
 			}
 		}
 	}

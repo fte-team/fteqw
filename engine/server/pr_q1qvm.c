@@ -994,7 +994,7 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 	case G_CVAR_SET_FLOAT:
 		{
 			cvar_t *var;
-			var = Cvar_Get(VM_POINTER(arg[0]), VM_POINTER(arg[1]), 0, "Gamecode variables");
+			var = Cvar_Get(VM_POINTER(arg[0]), va("%f", VM_FLOAT(arg[1])), 0, "Gamecode variables");
 			if (!var)
 				return -1;
 			Cvar_SetValue (var, VM_FLOAT(arg[1]));

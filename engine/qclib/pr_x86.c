@@ -42,6 +42,10 @@ optimisations:
 
 #ifdef QCJIT
 
+#ifndef _WIN32
+#include <sys/mman.h>
+#endif
+
 static float ta, tb, nullfloat=0;
 
 struct jitstate
@@ -206,7 +210,11 @@ void PR_CloseJit(struct jitstate *jit)
 {
 	free(jit->statementjumps);
 	free(jit->statementoffsets);
+#ifndef _WIN32
+	munmap(jit->code, jit->jitstatements * 500);
+#else
 	free(jit->code);
+#endif
 }
 
 #define EmitByte(v) EmitByte(jit, v)
@@ -238,7 +246,11 @@ struct jitstate *PR_GenerateJit(progfuncs_t *progfuncs)
 
 	jit->statementjumps = malloc(numstatements*12);
 	jit->statementoffsets = malloc(numstatements*4);
+#ifndef _WIN32
+	jit->code = mmap(NULL, numstatements*500, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+#else
 	jit->code = malloc(numstatements*500);
+#endif
 	if (!jit->code)
 		return NULL;
 
@@ -1256,6 +1268,7 @@ LOADREG(glob + op[i].b, REG_EDI);
 
 	FixupJumps(jit);
 
+	/* most likely want executable memory calls somewhere else more common */
 #ifdef _WIN32
 	{
 		DWORD old;
@@ -1264,6 +1277,8 @@ LOADREG(glob + op[i].b, REG_EDI);
 		//this means that we must maintain read/write protection, or libc will crash us
 		VirtualProtect(jit->code, jit->codesize, PAGE_EXECUTE_READWRITE, &old);
 	}
+#else
+	mprotect(jit->code, jit->codesize, PROT_READ|PROT_EXEC);
 #endif
 
 //	externs->WriteFile("jit.x86", jit->code, jit->codesize);

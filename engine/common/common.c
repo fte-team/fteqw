@@ -3165,6 +3165,10 @@ void COM_Version_f (void)
 	Con_Printf("Direct3D available\n");
 #endif
 
+#ifdef QCJIT
+	Con_Printf("QuakeC just-in-time compiler (QCJIT) enabled\n");
+#endif
+
 #ifdef _SDL
 	Con_Printf("SDL version: %d.%d.%d\n", SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_PATCHLEVEL);
 #endif

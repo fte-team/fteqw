@@ -303,7 +303,7 @@
     <OutDir Condition="'$(Configuration)|$(Platform)'=='MRelease|x64'">$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='MRelease|x64'">$(Platform)\$(Configuration)\</IntDir>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='MRelease|x64'">false</LinkIncremental>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|Win32'">$(SolutionDir)$(Configuration)\</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|Win32'">d:\d drive\games\qwserver\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|Win32'">$(Configuration)\</IntDir>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|Win32'">true</LinkIncremental>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|x64'">$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
@@ -391,6 +391,7 @@
     <CodeAnalysisRuleSet Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|x64'">AllRules.ruleset</CodeAnalysisRuleSet>
     <CodeAnalysisRules Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|x64'" />
     <CodeAnalysisRuleAssemblies Condition="'$(Configuration)|$(Platform)'=='Release Dedicated Server|x64'" />
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug Dedicated Server|Win32'">fteqwsv</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinGLDebug|Win32'">
     <Midl>
@@ -991,7 +992,7 @@
     <ClCompile>
       <Optimization>Disabled</Optimization>
       <AdditionalIncludeDirectories>../libs/speex;..\client;../libs/freetype2/include;../common;../server;../gl;../sw;../qclib;../libs;../libs/dxsdk7/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_DEBUG;WIN32;_WINDOWS;SERVERONLY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>QCJIT;_DEBUG;WIN32;_WINDOWS;SERVERONLY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FloatingPointModel>Fast</FloatingPointModel>
@@ -1013,7 +1014,7 @@
     </ResourceCompile>
     <Link>
       <AdditionalDependencies>comctl32.lib;wsock32.lib;odbc32.lib;odbccp32.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <OutputFile>../../fteqwsv.exe</OutputFile>
+      <OutputFile>d:\d drive\games\qwserver\fteqwsv.exe</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <AdditionalLibraryDirectories>../libs/dxsdk7/lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>libc.lib;msvcrt.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>

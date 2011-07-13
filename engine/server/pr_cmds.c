@@ -2132,7 +2132,7 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 	e->v->modelindex = i;
 
 	// if it is an inline model, get the size information for it
-	if (m[0] == '*' || (*m&&progstype == PROG_H2))
+	if (m && (m[0] == '*' || (*m&&progstype == PROG_H2)))
 	{
 		mod = Mod_ForName (m, false);
 		if (mod)

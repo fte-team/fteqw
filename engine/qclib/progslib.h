@@ -15,7 +15,7 @@
 #endif
 
 #if defined(_M_IX86) || defined(__i386__)
-//#define QCJIT
+#define QCJIT
 #endif
 
 #ifdef QCJIT

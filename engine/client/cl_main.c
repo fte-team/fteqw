@@ -49,6 +49,7 @@ cvar_t	cl_sbar		= CVARFC("cl_sbar", "0", CVAR_ARCHIVE, CL_Sbar_Callback);
 cvar_t	cl_hudswap	= CVARF("cl_hudswap", "0", CVAR_ARCHIVE);
 cvar_t	cl_maxfps	= CVARF("cl_maxfps", "500", CVAR_ARCHIVE);
 cvar_t	cl_idlefps	= CVARF("cl_idlefps", "0", CVAR_ARCHIVE);
+cvar_t	cl_yieldcpu = CVARF("cl_yieldcpu", "0", CVAR_ARCHIVE);
 cvar_t	cl_nopext	= CVARF("cl_nopext", "0", CVAR_ARCHIVE);
 cvar_t	cl_pext_mask = CVAR("cl_pext_mask", "0xffffffff");
 cvar_t	cl_nolerp	= CVAR("cl_nolerp", "2");
@@ -3002,6 +3003,7 @@ void CL_Init (void)
 	Cvar_Register (&cl_hudswap,	cl_screengroup);
 	Cvar_Register (&cl_maxfps,	cl_screengroup);
 	Cvar_Register (&cl_idlefps, cl_screengroup);
+	Cvar_Register (&cl_yieldcpu, cl_screengroup);
 	Cvar_Register (&cl_timeout, cl_controlgroup);
 	Cvar_Register (&lookspring, cl_inputgroup);
 	Cvar_Register (&lookstrafe, cl_inputgroup);
@@ -3452,7 +3454,7 @@ double Host_Frame (double time)
 		realtime += spare/1000;	//don't use it all!
 		spare = CL_FilterTime((realtime - oldrealtime)*1000, maxfps, maxfpsignoreserver);
 		if (!spare)
-			return 0;
+			return cl_yieldcpu.ival ? (1.0 / maxfps - (realtime - oldrealtime)) : 0;
 		if (spare < 0 || cls.state < ca_onserver)
 			spare = 0;	//uncapped.
 		if (spare > cl_sparemsec.ival)

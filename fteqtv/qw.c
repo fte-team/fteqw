@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 #include "qtv.h"
+#include <string.h>
 
 #include "bsd_string.h"
 
@@ -200,7 +201,7 @@ SOCKET QW_InitUDPSocket(int port, qboolean ipv6)
 
 	if( bind (sock, (void *)address, addrlen) == -1)
 	{
-		printf("socket bind error %i\n", qerrno);
+		printf("socket bind error %i (%s)\n", qerrno, strerror(qerrno));
 		closesocket(sock);
 		return INVALID_SOCKET;
 	}
@@ -439,7 +440,7 @@ void SendNQSpawnInfoToViewer(cluster_t *cluster, viewer_t *viewer, netmsg_t *msg
 int SendCurrentUserinfos(sv_t *tv, int cursize, netmsg_t *msg, int i, int thisplayer)
 {
 	char name[MAX_QPATH];
-	
+
 	if (i < 0)
 		return i;
 	if (i >= MAX_CLIENTS)
@@ -677,7 +678,7 @@ void QW_StreamStuffcmd(cluster_t *cluster, sv_t *server, char *fmt, ...)
 	InitNetMsg(&msg, buf, sizeof(buf));
 	WriteByte(&msg, svc_stufftext);
 	WriteString(&msg, cmd);
-	
+
 
 	for (v = cluster->viewers; v; v = v->next)
 	{
@@ -798,14 +799,14 @@ void ParseUserInfo(cluster_t *cluster, viewer_t *viewer)
 	{
 		if (*viewer->name)
 		{
-			snprintf(buf, sizeof(buf), "%cQTV%c%s changed name to %cQTV%c%s\n", 
+			snprintf(buf, sizeof(buf), "%cQTV%c%s changed name to %cQTV%c%s\n",
 					91+128, 93+128, viewer->name,
 					91+128, 93+128, temp
 					);
 		}
 		else
 		{
-			snprintf(buf, sizeof(buf), "%cQTV%c%s joins the stream\n", 
+			snprintf(buf, sizeof(buf), "%cQTV%c%s joins the stream\n",
 					91+128, 93+128, temp
 					);
 
@@ -1161,7 +1162,7 @@ void QTV_Status(cluster_t *cluster, netadr_t *from)
 //			sprintf(elem, " (%s)", sv->serveraddress);
 //			WriteString2(&msg, elem);
 		}
-		
+
 		WriteString2(&msg, "\n");
 	}
 
@@ -1176,7 +1177,7 @@ void QTV_StatusResponse(cluster_t *cluster, char *msg, netadr_t *from)
 	sv_t *sv;
 
 	char *eol;
-	
+
 	for (sv = cluster->servers; sv; sv = sv->next)
 	{
 		/*ignore connected streams*/
@@ -1606,21 +1607,21 @@ void SendNQClientData(sv_t *tv, viewer_t *v, netmsg_t *msg)
 		pl = &tv->map.players[v->trackplayer];
 
 	bits = 0;
-	
+
 	if (!pl->dead)
 		bits |= SU_VIEWHEIGHT;
-		
+
 	if (0)
 		bits |= SU_IDEALPITCH;
 
 	bits |= SU_ITEMS;
-	
+
 	if ( 0)
 		bits |= SU_ONGROUND;
-	
+
 	if ( 0 )
 		bits |= SU_INWATER;
-	
+
 	for (i=0 ; i<3 ; i++)
 	{
 		if (0)
@@ -1628,7 +1629,7 @@ void SendNQClientData(sv_t *tv, viewer_t *v, netmsg_t *msg)
 		if (0)
 			bits |= (SU_VELOCITY1<<i);
 	}
-	
+
 	if (pl->current.weaponframe)
 		bits |= SU_WEAPONFRAME;
 
@@ -1666,7 +1667,7 @@ void SendNQClientData(sv_t *tv, viewer_t *v, netmsg_t *msg)
 		WriteByte (msg, pl->stats[STAT_ARMOR]);
 	if (bits & SU_WEAPON)
 		WriteByte (msg, pl->stats[STAT_WEAPON]);
-	
+
 	WriteShort (msg, pl->stats[STAT_HEALTH]);
 	WriteByte (msg, pl->stats[STAT_AMMO]);
 	WriteByte (msg, pl->stats[STAT_SHELLS]);
@@ -1718,7 +1719,7 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 
 	if (tv)
 	{
-		
+
 		if (v->trackplayer >= 0)
 		{
 			WriteByte(msg, svc_nqsetview);
@@ -1748,7 +1749,7 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 
   				if (e+1 >= 256)
 					bits |= UNQ_LONGENTITY;
-					
+
 				if (bits >= 256)
 					bits |= UNQ_MOREBITS;
 				WriteByte (msg,bits | UNQ_SIGNAL);
@@ -1770,7 +1771,7 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 				if (bits & UNQ_EFFECTS)
 					WriteByte (msg, 0);
 				if (bits & UNQ_ORIGIN1)
-					WriteShort (msg, v->origin[0]*8);		
+					WriteShort (msg, v->origin[0]*8);
 				if (bits & UNQ_ANGLE1)
 					WriteByte(msg, -(v->ucmds[2].angles[0]>>8));
 				if (bits & UNQ_ORIGIN2)
@@ -1791,10 +1792,10 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 				continue;
 
 			pl->current.modelindex = 8;
-			
+
 // send an update
 			bits = 0;
-			
+
 			for (i=0 ; i<3 ; i++)
 			{
 				org[i] = (lerp)*pl->current.origin[i] + (1-lerp)*pl->old.origin[i];
@@ -1803,34 +1804,34 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 
 			if ( pl->current.angles[0]>>8 != ent->baseline.angles[0] )
 				bits |= UNQ_ANGLE1;
-				
+
 			if ( pl->current.angles[1]>>8 != ent->baseline.angles[1] )
 				bits |= UNQ_ANGLE2;
-				
+
 			if ( pl->current.angles[2]>>8 != ent->baseline.angles[2] )
 				bits |= UNQ_ANGLE3;
-				
+
 //			if (pl->v.movetype == MOVETYPE_STEP)
 //				bits |= UNQ_NOLERP;	// don't mess up the step animation
-		
+
 			if (ent->baseline.colormap != e+1 || ent->baseline.colormap > 15)
 				bits |= UNQ_COLORMAP;
-				
+
 			if (ent->baseline.skinnum != pl->current.skinnum)
 				bits |= UNQ_SKIN;
-				
+
 			if (ent->baseline.frame != pl->current.frame)
 				bits |= UNQ_FRAME;
-			
+
 			if (ent->baseline.effects != pl->current.effects)
 				bits |= UNQ_EFFECTS;
-			
+
 			if (ent->baseline.modelindex != pl->current.modelindex)
 				bits |= UNQ_MODEL;
 
 			if (e+1 >= 256)
 				bits |= UNQ_LONGENTITY;
-				
+
 			if (bits >= 256)
 				bits |= UNQ_MOREBITS;
 
@@ -1838,7 +1839,7 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 		// write the message
 		//
 			WriteByte (msg,bits | UNQ_SIGNAL);
-			
+
 			if (bits & UNQ_MOREBITS)
 				WriteByte (msg, bits>>8);
 			if (bits & UNQ_LONGENTITY)
@@ -1857,7 +1858,7 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 			if (bits & UNQ_EFFECTS)
 				WriteByte (msg, pl->current.effects);
 			if (bits & UNQ_ORIGIN1)
-				WriteShort (msg, org[0]);		
+				WriteShort (msg, org[0]);
 			if (bits & UNQ_ANGLE1)
 				WriteByte(msg, -(pl->current.angles[0]>>8));
 			if (bits & UNQ_ORIGIN2)
@@ -1870,7 +1871,7 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 				WriteByte(msg, pl->current.angles[2]>>8);
 		}
 
-		
+
 		{
 			int newindex = 0;
 			entity_state_t *newstate;
@@ -1908,34 +1909,34 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 
 				if (newstate->angles[0] != ent->baseline.angles[0])
 					bits |= UNQ_ANGLE1;
-					
+
 				if (newstate->angles[1] != ent->baseline.angles[1])
 					bits |= UNQ_ANGLE2;
-					
+
 				if (newstate->angles[2] != ent->baseline.angles[2])
 					bits |= UNQ_ANGLE3;
-					
+
 		//			if (ent->v.movetype == MOVETYPE_STEP)
 		//				bits |= UNQ_NOLERP;	// don't mess up the step animation
-			
+
 				if (newstate->colormap != ent->baseline.colormap || ent->baseline.colormap > 15)
 					bits |= UNQ_COLORMAP;
-					
+
 				if (newstate->skinnum != ent->baseline.skinnum)
 					bits |= UNQ_SKIN;
-					
+
 				if (newstate->frame != ent->baseline.frame)
 					bits |= UNQ_FRAME;
-				
+
 				if (newstate->effects != ent->baseline.effects)
 					bits |= UNQ_EFFECTS;
-				
+
 				if (newstate->modelindex != ent->baseline.modelindex)
 					bits |= UNQ_MODEL;
 
 				if (newnum >= 256)
 					bits |= UNQ_LONGENTITY;
-					
+
 				if (bits >= 256)
 					bits |= UNQ_MOREBITS;
 
@@ -1943,7 +1944,7 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 			// write the message
 			//
 				WriteByte (msg,bits | UNQ_SIGNAL);
-				
+
 				if (bits & UNQ_MOREBITS)
 					WriteByte (msg, bits>>8);
 				if (bits & UNQ_LONGENTITY)
@@ -1962,7 +1963,7 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 				if (bits & UNQ_EFFECTS)
 					WriteByte (msg, newstate->effects);
 				if (bits & UNQ_ORIGIN1)
-					WriteShort (msg, newstate->origin[0]);		
+					WriteShort (msg, newstate->origin[0]);
 				if (bits & UNQ_ANGLE1)
 					WriteByte(msg, newstate->angles[0]);
 				if (bits & UNQ_ORIGIN2)
@@ -2224,7 +2225,7 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 				if (oldindex < frompacket->numents)
 				{
 					oldnum = frompacket->entnums[oldindex];
-				
+
 					while(oldnum < newnum)
 					{
 						oldindex++;
@@ -2609,7 +2610,7 @@ guimenu:
 
 		shownheader = false;
 
-		QW_StuffcmdToViewer(v, 
+		QW_StuffcmdToViewer(v,
 
 			"alias menucallback\n"
 			"{\n"
@@ -2670,7 +2671,7 @@ guimenu:
 		}
 		if (!shownheader)
 			QW_StuffcmdToViewer(v, "menutext 72 %i \"There are no active games\"\n", y);
-		
+
 	}
 
 	else if (!strcmp(command, "demos"))
@@ -2696,7 +2697,7 @@ guidemos:
 		start = atoi(args);	//FIXME
 		QW_SetMenu(v, MENU_NONE);
 
-		QW_StuffcmdToViewer(v, 
+		QW_StuffcmdToViewer(v,
 
 			"alias menucallback\n"
 			"{\n"
@@ -2765,7 +2766,7 @@ tuidemos:
 guiadmin:
 		if (!*cluster->adminpassword)
 		{
-			QW_StuffcmdToViewer(v, 
+			QW_StuffcmdToViewer(v,
 
 				"alias menucallback\n"
 				"{\n"
@@ -2785,7 +2786,7 @@ guiadmin:
 			QW_SetMenu(v, MENU_ADMIN);
 		else
 		{
-			QW_StuffcmdToViewer(v, 
+			QW_StuffcmdToViewer(v,
 
 				"alias menucallback\n"
 				"{\n"
@@ -2845,7 +2846,7 @@ tuiadmin:
 
 		if (!strcmp(command, "join") || !strcmp(command, "connect"))
 			isjoin = true;
-		
+
 		snprintf(buf, sizeof(buf), "udp:%s", args);
 		qtv = QTV_NewServerConnection(cluster, 0, buf, "", false, AD_WHENEMPTY, !isjoin, false);
 		if (qtv)
@@ -2881,7 +2882,7 @@ tuiadmin:
 	else if (!strcmp(command, "qtvinfo"))
 	{
 		char buf[256];
-		
+
 		snprintf(buf, sizeof(buf), "[QuakeTV] %s\n", qtv->serveraddress);
 		// Print a short line with info about the server
 		QW_PrintfToViewer(v, buf);
@@ -3129,7 +3130,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 				QW_PrintfToViewer(v, "Opened demo file \"%s\".\n", message);
 			}
 		}
-		
+
 		else if (!strcmp(v->expectcommand, "adddemo"))
 		{
 			snprintf(buf, sizeof(buf), "file:%s", message);
@@ -3149,7 +3150,7 @@ void QTV_Say(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *message, qboolean
 
 			newp = atoi(message);
 
-			
+
 			if (newp)
 			{
 				news = Net_TCPListen(newp, true);
@@ -3547,7 +3548,7 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 				if(v->server)
 				{
 					int t;
-					
+
 					for (t = v->trackplayer+1; t < MAX_CLIENTS; t++)
 					{
 						if (v->server->map.players[t].active)
@@ -3581,7 +3582,7 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			{
 				if (!v->server && !v->menunum)
 					QW_SetMenu(v, MENU_DEFAULT);
-				
+
 				if(v->server)
 				{
 					int t;
@@ -3821,7 +3822,7 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 					oldmenu = v->menunum;
 					QW_SetMenu(v, MENU_NONE);
 					QW_SetMenu(v, oldmenu);
-				
+
 
 					com = v->commentator;
 					v->commentator = NULL;

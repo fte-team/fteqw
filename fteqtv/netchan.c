@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 #include "qtv.h"
+#include <string.h>
 
 #define curtime Sys_Milliseconds()
 
@@ -43,7 +44,7 @@ void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, void *data, net
 		if (er == EWOULDBLOCK || er == EAGAIN)
 			return;
 
-		Sys_Printf(cluster, "udp send error %i\n", er);
+		Sys_Printf(cluster, "udp send error %i (%s)\n", er, strerror(er));
 	}
 }
 
@@ -160,7 +161,7 @@ void Netchan_OutOfBand (cluster_t *cluster, SOCKET sock, netadr_t adr, int lengt
 
 // write the packet header
 	InitNetMsg (&send, send_buf, sizeof(send_buf));
-	
+
 	WriteLong (&send, -1);	// -1 sequence means out of band
 	WriteData (&send, data, length);
 
@@ -180,7 +181,7 @@ void Netchan_OutOfBandPrint (cluster_t *cluster, SOCKET sock[], netadr_t adr, ch
 {
 	va_list		argptr;
 	char		string[8192];
-	
+
 	va_start (argptr, format);
 #ifdef _WIN32
 	_vsnprintf (string, sizeof(string) - 1, format, argptr);
@@ -215,7 +216,7 @@ called to open a channel to a remote system
 void Netchan_Setup (SOCKET sock, netchan_t *chan, netadr_t adr, int qport, qboolean isclient)
 {
 	memset (chan, 0, sizeof(*chan));
-	
+
 	chan->sock = sock;
 	memcpy(&chan->remote_address, &adr, sizeof(netadr_t));
 	chan->qport = qport;
@@ -226,7 +227,7 @@ void Netchan_Setup (SOCKET sock, netchan_t *chan, netadr_t adr, int qport, qbool
 	InitNetMsg(&chan->message, chan->message_buf, sizeof(chan->message_buf));
 
 	chan->message.allowoverflow = true;
-	
+
 	chan->rate = 1000.0f/2500;
 }
 
@@ -256,7 +257,7 @@ qboolean Netchan_CanPacket (netchan_t *chan)
 ===============
 Netchan_CanReliable
 
-Returns true if the bandwidth choke isn't 
+Returns true if the bandwidth choke isn't
 ================
 */
 qboolean Netchan_CanReliable (netchan_t *chan)
@@ -404,7 +405,7 @@ void Netchan_Transmit (cluster_t *cluster, netchan_t *chan, int length, const vo
 		WriteData (&send, chan->reliable_buf, chan->reliable_length);
 		chan->last_reliable_sequence = chan->outgoing_sequence;
 	}
-	
+
 // add the unreliable part if space is available
 	if (send.maxsize - send.cursize >= length)
 		WriteData (&send, data, length);
@@ -553,7 +554,7 @@ qboolean Netchan_Process (netchan_t *chan, netmsg_t *msg)
 	unsigned		sequence, sequence_ack;
 	unsigned		reliable_ack, reliable_message;
 
-// get sequence numbers		
+// get sequence numbers
 	msg->readpos = 0;
 	sequence = ReadLong (msg);
 	sequence_ack = ReadLong (msg);
@@ -565,8 +566,8 @@ qboolean Netchan_Process (netchan_t *chan, netmsg_t *msg)
 	reliable_message = sequence >> 31;
 	reliable_ack = sequence_ack >> 31;
 
-	sequence &= ~(1<<31);	
-	sequence_ack &= ~(1<<31);	
+	sequence &= ~(1<<31);
+	sequence_ack &= ~(1<<31);
 
 /*	if (showpackets.value)
 		Com_Printf ("<-- s=%i(%i) a=%i(%i) %i\n"
@@ -614,9 +615,9 @@ qboolean Netchan_Process (netchan_t *chan, netmsg_t *msg)
 //
 	if (reliable_ack == (unsigned)chan->reliable_sequence)
 		chan->reliable_length = 0;	// it has been received
-	
+
 //
-// if this message contains a reliable message, bump incoming_reliable_sequence 
+// if this message contains a reliable message, bump incoming_reliable_sequence
 //
 	chan->incoming_sequence = sequence;
 	chan->incoming_acknowledged = sequence_ack;
@@ -631,7 +632,7 @@ qboolean Netchan_Process (netchan_t *chan, netmsg_t *msg)
 //	chan->frame_latency = chan->frame_latency*OLD_AVG
 //		+ (chan->outgoing_sequence-sequence_ack)*(1.0-OLD_AVG);
 //	chan->frame_rate = chan->frame_rate*OLD_AVG
-//		+ (curtime - chan->last_received)*(1.0-OLD_AVG);		
+//		+ (curtime - chan->last_received)*(1.0-OLD_AVG);
 //	chan->good_count += 1;
 
 	chan->last_received = curtime;

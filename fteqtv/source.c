@@ -53,6 +53,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 #include "qtv.h"
+#include <string.h>
 
 #include "bsd_string.h"
 
@@ -260,7 +261,7 @@ SOCKET Net_TCPListen(int port, qboolean ipv6)
 
 	if( bind (sock, address, addrsize) == -1)
 	{
-		printf("socket bind error %i\n", qerrno);
+		printf("socket bind error %i (%s)\n", qerrno, strerror(qerrno));
 		closesocket(sock);
 		return INVALID_SOCKET;
 	}
@@ -648,10 +649,10 @@ qboolean Net_ConnectToServer(sv_t *qtv)
 	case SRC_UDP:
 		qtv->usequakeworldprotocols = true;
 		return Net_ConnectToUDPServer(qtv, ip);
-	
+
 	case SRC_TCP:
 		return Net_ConnectToTCPServer(qtv, ip);
-	
+
 	default:
 		Sys_Printf(qtv->cluster, "Unknown source type %s\n", ip);
 		return false;
@@ -692,7 +693,7 @@ qboolean Net_WriteUpstream(sv_t *qtv)
 				err = qerrno;
 				if (qerrno)
 				{
-					Sys_Printf(qtv->cluster, "Stream %i: Error: source socket error %i\n", qtv->streamid, qerrno);
+					Sys_Printf(qtv->cluster, "Stream %i: Error: source socket error %i (%s)\n", qtv->streamid, qerrno, strerror(qerrno));
 					strcpy(qtv->status, "Network error\n");
 				}
 				else
@@ -731,7 +732,7 @@ int SV_SayToUpstream(sv_t *qtv, char *message)
 #ifndef _MSC_VER
 #warning This is incomplete!
 #endif
-		//Sys_Printf(qtv->cluster, "not forwarding say\n"); 
+		//Sys_Printf(qtv->cluster, "not forwarding say\n");
 		return 0;
 	}
 
@@ -802,7 +803,7 @@ int SV_EarlyParse(sv_t *qtv, unsigned char *buffer, int remaining)
 		{
 			ParseMessage(qtv, buffer+lengthofs+4, length - (lengthofs+4), buffer[1], 0xffffffff);
 		}
-		
+
 		remaining -= length;
 		available += length;
 		buffer += length;
@@ -879,7 +880,7 @@ qboolean Net_ReadStream(sv_t *qtv)
 			if (qtv->sourcefile)
 				Sys_Printf(qtv->cluster, "Stream %i: Error: End of file\n", qtv->streamid);
 			else if (read)
-				Sys_Printf(qtv->cluster, "Stream %i: Error: source socket error %i\n", qtv->streamid, qerrno);
+				Sys_Printf(qtv->cluster, "Stream %i: Error: source socket error %i (%s)\n", qtv->streamid, qerrno, strerror(qerrno));
 			else
 				Sys_Printf(qtv->cluster, "Stream %i: Error: server %s disconnected\n", qtv->streamid, qtv->server);
 			if (qtv->sourcesock != INVALID_SOCKET)
@@ -1168,7 +1169,7 @@ void QTV_Cleanup(sv_t *qtv, qboolean leaveadmins)
 	oproxy_t *old;
 
 	cluster = qtv->cluster;
-	
+
 	//set connected viewers to a different stream
 	if (cluster->viewserver == qtv)
 		cluster->viewserver = NULL;
@@ -1455,7 +1456,7 @@ void QTV_ParseQWStream(sv_t *qtv)
 }
 
 #ifdef COMMENTARY
-#include <speex/speex.h> 
+#include <speex/speex.h>
 #endif
 
 void QTV_CollectCommentry(sv_t *qtv)
@@ -1492,8 +1493,8 @@ void QTV_CollectCommentry(sv_t *qtv)
 	/*	if (usespeex)
 		{
 
-			SpeexBits bits; 
-			void *enc_state; 
+			SpeexBits bits;
+			void *enc_state;
 
 			int frame_size;
 
@@ -1504,22 +1505,22 @@ void QTV_CollectCommentry(sv_t *qtv)
 
 			speex_bits_init(&bits);
 
-			enc_state = speex_encoder_init(&speex_nb_mode); 
+			enc_state = speex_encoder_init(&speex_nb_mode);
 
 
-			speex_encoder_ctl(enc_state,SPEEX_GET_FRAME_SIZE,&frame_size); 
+			speex_encoder_ctl(enc_state,SPEEX_GET_FRAME_SIZE,&frame_size);
 
 
 			speex_bits_reset(&bits);
 
 			speex_encode_int(enc_state, (spx_int16_t*)pcmdata, &bits);
 
-			samps = speex_bits_write(&bits, buffer+6, sizeof(buffer)-6); 
+			samps = speex_bits_write(&bits, buffer+6, sizeof(buffer)-6);
 
 
 			speex_bits_destroy(&bits);
 
-			speex_encoder_destroy(enc_state); 
+			speex_encoder_destroy(enc_state);
 
 		}
 		else*/

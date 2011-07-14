@@ -131,6 +131,10 @@ vfsfile_t *VFSW32_Open(const char *osname, const char *mode)
 		fsize = 0;
 		mh = INVALID_HANDLE_VALUE;
 		mmap = NULL;
+
+		/*if appending, set the access position to the end of the file*/
+		if (append)
+			SetFilePointer(h, GetFileSize(h, NULL), NULL, FILE_BEGIN);
 	}
 	else
 	{
@@ -168,13 +172,9 @@ vfsfile_t *VFSW32_Open(const char *osname, const char *mode)
 
 static vfsfile_t *VFSW32_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 {
-	char diskname[MAX_OSPATH];
-
 	//path is already cleaned, as anything that gets a valid loc needs cleaning up first.
 
-	snprintf(diskname, sizeof(diskname), "%s/%s", (char*)handle, loc->rawname);
-
-	return VFSW32_Open(diskname, mode);
+	return VFSW32_Open(loc->rawname, mode);
 }
 
 static void VFSW32_PrintPath(void *handle)
@@ -247,7 +247,7 @@ static qboolean VFSW32_FLocate(void *handle, flocation_t *loc, const char *filen
 		loc->len = len;
 		loc->offset = 0;
 		loc->index = 0;
-		Q_strncpyz(loc->rawname, filename, sizeof(loc->rawname));
+		snprintf(loc->rawname, sizeof(loc->rawname), "%s/%s", (char*)handle, filename);
 	}
 
 	return true;

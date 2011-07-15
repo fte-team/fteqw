@@ -166,7 +166,7 @@ unsigned char *FS_ReadFile(char *gamedir, char *filename, unsigned int *size)
 }
 
 
-int SortFilesByDate(const void *a, const void *b) 
+int SortFilesByDate(const void *a, const void *b)
 {
 	if (((availdemo_t*)a)->time < ((availdemo_t*)b)->time)
 		return 1;
@@ -213,7 +213,7 @@ void Cluster_BuildAvailableDemoList(cluster_t *cluster)
 		struct stat sb;
 		char fullname[512];
 		dir = opendir(cluster->demodir);	//yeek!
-		if (dir)	
+		if (dir)
 		{
 			for(;;)
 			{
@@ -526,22 +526,22 @@ int main(int argc, char **argv)
 			if (cluster->qwdsocket[0] == INVALID_SOCKET && cluster->qwdsocket[1] == INVALID_SOCKET && !cluster->qwlistenportnum)
 			{
 				cluster->qwlistenportnum = 27599;
-				cluster->qwdsocket[1] = QW_InitUDPSocket(cluster->qwlistenportnum, true);
-				if (cluster->qwdsocket[1] != INVALID_SOCKET)
-					Sys_Printf(cluster, "opened udp6 port %i\n", cluster->qwlistenportnum);
 				cluster->qwdsocket[0] = QW_InitUDPSocket(cluster->qwlistenportnum, false);
 				if (cluster->qwdsocket[0] != INVALID_SOCKET)
 					Sys_Printf(cluster, "opened udp4 port %i\n", cluster->qwlistenportnum);
+				cluster->qwdsocket[1] = QW_InitUDPSocket(cluster->qwlistenportnum, true);
+				if (cluster->qwdsocket[1] != INVALID_SOCKET)
+					Sys_Printf(cluster, "opened udp6 port %i\n", cluster->qwlistenportnum);
 			}
 			if (cluster->tcpsocket[0] == INVALID_SOCKET && cluster->tcpsocket[1] == INVALID_SOCKET && !cluster->tcplistenportnum)
 			{
 				cluster->tcplistenportnum = 27599;
-				cluster->tcpsocket[1] = Net_TCPListen(cluster->tcplistenportnum, true);
-				if (cluster->tcpsocket[1] != INVALID_SOCKET)
-					Sys_Printf(cluster, "opened tcp6 port %i\n", cluster->tcplistenportnum);
 				cluster->tcpsocket[0] = Net_TCPListen(cluster->tcplistenportnum, false);
 				if (cluster->tcpsocket[0] != INVALID_SOCKET)
 					Sys_Printf(cluster, "opened tcp4 port %i\n", cluster->tcplistenportnum);
+				cluster->tcpsocket[1] = Net_TCPListen(cluster->tcplistenportnum, true);
+				if (cluster->tcpsocket[1] != INVALID_SOCKET)
+					Sys_Printf(cluster, "opened tcp6 port %i\n", cluster->tcplistenportnum);
 			}
 
 			Sys_Printf(cluster, "\n"
@@ -576,7 +576,7 @@ void QTV_Printf(sv_t *qtv, char *fmt, ...)
 {
 	va_list		argptr;
 	char		string[2048];
-	
+
 	va_start (argptr, fmt);
 	vsnprintf (string, sizeof(string)-1, fmt,argptr);
 	string[sizeof(string)-1] = 0;
@@ -593,7 +593,7 @@ void Sys_Printf(cluster_t *cluster, char *fmt, ...)
 	va_list		argptr;
 	char		string[2048];
 	unsigned char *t;
-	
+
 	va_start (argptr, fmt);
 	vsnprintf (string, sizeof(string)-1, fmt,argptr);
 	string[sizeof(string)-1] = 0;

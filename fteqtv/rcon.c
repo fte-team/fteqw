@@ -330,7 +330,7 @@ void Cmd_Printf(cmdctxt_t *ctx, char *fmt, ...)
 {
 	va_list		argptr;
 	char		string[2048];
-	
+
 	va_start (argptr, fmt);
 	vsnprintf (string, sizeof(string)-1, fmt,argptr);
 	string[sizeof(string)-1] = 0;
@@ -400,6 +400,19 @@ void Cmd_UDPPort(cmdctxt_t *ctx)
 {
 	int news;
 	int newp = atoi(Cmd_Argv(ctx, 1));
+	news = QW_InitUDPSocket(newp, false);
+	if (news != INVALID_SOCKET)
+	{
+		ctx->cluster->mastersendtime = ctx->cluster->curtime;
+		closesocket(ctx->cluster->qwdsocket[0]);
+		ctx->cluster->qwdsocket[0] = news;
+		ctx->cluster->qwlistenportnum = newp;
+
+		Cmd_Printf(ctx, "Opened udp4 port %i (all connected qw clients will time out)\n", newp);
+	}
+	else
+		Cmd_Printf(ctx, "Failed to open udp4 port %i\n", newp);
+
 	news = QW_InitUDPSocket(newp, true);
 
 	if (news != INVALID_SOCKET)
@@ -413,19 +426,6 @@ void Cmd_UDPPort(cmdctxt_t *ctx)
 	}
 	else
 		Cmd_Printf(ctx, "Failed to open udp6 port %i\n", newp);
-
-	news = QW_InitUDPSocket(newp, false);
-	if (news != INVALID_SOCKET)
-	{
-		ctx->cluster->mastersendtime = ctx->cluster->curtime;
-		closesocket(ctx->cluster->qwdsocket[0]);
-		ctx->cluster->qwdsocket[0] = news;
-		ctx->cluster->qwlistenportnum = newp;
-
-		Cmd_Printf(ctx, "Opened udp4 port %i (all connected qw clients will time out)\n", newp);
-	}
-	else
-		Cmd_Printf(ctx, "Failed to open udp4 port %i\n", newp);
 }
 void Cmd_AdminPassword(cmdctxt_t *ctx)
 {
@@ -613,7 +613,7 @@ void Cmd_Status(cmdctxt_t *ctx)
 
 	Cmd_Printf(ctx, "Common Options:\n");
 	Cmd_Printf(ctx, " Hostname %s\n", ctx->cluster->hostname);
-	
+
 	if (ctx->cluster->chokeonnotupdated)
 		Cmd_Printf(ctx, " Choke\n");
 	if (ctx->cluster->lateforward)
@@ -819,7 +819,7 @@ void Cmd_Echo(cmdctxt_t *ctx)
 {
 	Cmd_Printf(ctx, "%s", Cmd_Argv(ctx, 1));
 }
-	
+
 void Cmd_Quit(cmdctxt_t *ctx)
 {
 	if (!Cmd_IsLocal(ctx))
@@ -1029,6 +1029,20 @@ void Cmd_MVDPort(cmdctxt_t *ctx)
 	else
 	{
 
+		news = Net_TCPListen(newp, false);
+
+		if (news != INVALID_SOCKET)
+		{
+			if (ctx->cluster->tcpsocket[0] != INVALID_SOCKET)
+				closesocket(ctx->cluster->tcpsocket[0]);
+			ctx->cluster->tcpsocket[0] = news;
+			ctx->cluster->tcplistenportnum = newp;
+
+			Cmd_Printf(ctx, "Opened tcp4 port %i\n", newp);
+		}
+		else
+			Cmd_Printf(ctx, "Failed to open tcp4 port %i\n", newp);
+
 		news = Net_TCPListen(newp, true);
 
 		if (news != INVALID_SOCKET)
@@ -1043,19 +1057,6 @@ void Cmd_MVDPort(cmdctxt_t *ctx)
 		else
 			Cmd_Printf(ctx, "Failed to open tcp6 port %i\n", newp);
 
-		news = Net_TCPListen(newp, false);
-
-		if (news != INVALID_SOCKET)
-		{
-			if (ctx->cluster->tcpsocket[0] != INVALID_SOCKET)
-				closesocket(ctx->cluster->tcpsocket[0]);
-			ctx->cluster->tcpsocket[0] = news;
-			ctx->cluster->tcplistenportnum = newp;
-
-			Cmd_Printf(ctx, "Opened tcp4 port %i\n", newp);
-		}
-		else
-			Cmd_Printf(ctx, "Failed to open tcp4 port %i\n", newp);
 	}
 }
 
@@ -1327,7 +1328,7 @@ const rconcommands_t rconcommands[] =
 #ifdef VIEWER
 	{"watch",		1, 0, Cmd_Watch,	"specifies to watch that stream in the built-in viewer"},
 #endif
-	 
+
 	{NULL}
 };
 
@@ -1351,7 +1352,7 @@ void Cmd_ExecuteNow(cmdctxt_t *ctx, char *command)
 	{
 		i = atoi(command);
 		command = sid+1;
-		
+
 		ctx->streamid = i;
 
 		for (ctx->qtv = ctx->cluster->servers; ctx->qtv; ctx->qtv = ctx->qtv->next)

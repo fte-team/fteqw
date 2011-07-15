@@ -2610,6 +2610,11 @@ guimenu:
 
 		shownheader = false;
 
+/*
+I've removed the following from this function as it covered the menu (~Moodles):
+			"menupic 0 4 gfx/qplaque.lmp\n"
+			"menupic 96 4 gfx/p_option.lmp\n"
+*/
 		QW_StuffcmdToViewer(v,
 
 			"alias menucallback\n"
@@ -2630,8 +2635,6 @@ guimenu:
 			"}\n"
 
 			"conmenu menucallback\n"
-			"menupic 0 4 gfx/qplaque.lmp\n"
-			"menupic 96 4 gfx/p_option.lmp\n"
 
 			"menuedit 48 36 \"Óåòöåòº\" \"_server\"\n"
 
@@ -2697,6 +2700,11 @@ guidemos:
 		start = atoi(args);	//FIXME
 		QW_SetMenu(v, MENU_NONE);
 
+/*
+I've removed the following from this function as it covered the menu (~Moodles):
+			"menupic 0 4 gfx/qplaque.lmp\n"
+			"menupic 96 4 gfx/p_option.lmp\n"
+*/
 		QW_StuffcmdToViewer(v,
 
 			"alias menucallback\n"
@@ -2710,9 +2718,7 @@ guidemos:
 					"{\necho Changing stream\nsay .$option\n}\n"
 			"}\n"
 
-			"conmenu menucallback\n"
-			"menupic 0 4 gfx/qplaque.lmp\n"
-			"menupic 96 4 gfx/p_option.lmp\n",
+			"conmenu menucallback\n",
 			start - maxshowndemos, start + maxshowndemos
 		);
 
@@ -2766,6 +2772,11 @@ tuidemos:
 guiadmin:
 		if (!*cluster->adminpassword)
 		{
+/*
+I've removed the following from this function as it covered the menu (~Moodles):
+			"menupic 16 4 gfx/qplaque.lmp\n"
+			"menupic - 4 gfx/p_option.lmp\n"
+*/
 			QW_StuffcmdToViewer(v,
 
 				"alias menucallback\n"
@@ -2774,8 +2785,6 @@ guiadmin:
 				"}\n"
 
 				"conmenu menucallback\n"
-				"menupic 16 4 gfx/qplaque.lmp\n"
-				"menupic - 4 gfx/p_option.lmp\n"
 
 				"menutext 72 48 \"No admin password is set\"\n"
 				"menutext 72 56 \"Admin access is prohibited\"\n"
@@ -2786,6 +2795,11 @@ guiadmin:
 			QW_SetMenu(v, MENU_ADMIN);
 		else
 		{
+/*
+I've removed the following from this function as it covered the menu (~Moodles):
+				"menupic 16 4 gfx/qplaque.lmp\n"
+				"menupic - 4 gfx/p_option.lmp\n"
+*/
 			QW_StuffcmdToViewer(v,
 
 				"alias menucallback\n"
@@ -2797,8 +2811,6 @@ guiadmin:
 				"}\n"
 
 				"conmenu menucallback\n"
-				"menupic 16 4 gfx/qplaque.lmp\n"
-				"menupic - 4 gfx/p_option.lmp\n"
 
 				"menuedit 16 32 \"        Password\" \"_password\"\n"
 

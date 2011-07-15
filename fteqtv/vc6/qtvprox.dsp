@@ -120,7 +120,7 @@ LINK32=link.exe
 # PROP Default_Filter ""
 # Begin Source File
 
-SOURCE=.\viewer\d3drend\d3d_backend.cpp
+SOURCE=..\viewer\d3drend\d3d_backend.cpp
 
 !IF  "$(CFG)" == "qtvprox - Win32 Release"
 
@@ -143,7 +143,7 @@ SOURCE=.\viewer\d3drend\d3d_backend.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\viewer\d3drend\d3d_image.cpp
+SOURCE=..\viewer\d3drend\d3d_image.cpp
 
 !IF  "$(CFG)" == "qtvprox - Win32 Release"
 
@@ -165,7 +165,7 @@ SOURCE=.\viewer\d3drend\d3d_image.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\viewer\d3drend\d3d_video.cpp
+SOURCE=..\viewer\d3drend\d3d_video.cpp
 
 !IF  "$(CFG)" == "qtvprox - Win32 Release"
 
@@ -188,7 +188,7 @@ SOURCE=.\viewer\d3drend\d3d_video.cpp
 # End Group
 # Begin Source File
 
-SOURCE=.\viewer\cvar.cpp
+SOURCE=..\viewer\cvar.cpp
 
 !IF  "$(CFG)" == "qtvprox - Win32 Release"
 
@@ -210,7 +210,7 @@ SOURCE=.\viewer\cvar.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\viewer\gl_backend.cpp
+SOURCE=..\viewer\gl_backend.cpp
 
 !IF  "$(CFG)" == "qtvprox - Win32 Release"
 
@@ -232,7 +232,7 @@ SOURCE=.\viewer\gl_backend.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\viewer\gl_bsp29.cpp
+SOURCE=..\viewer\gl_bsp29.cpp
 
 !IF  "$(CFG)" == "qtvprox - Win32 Release"
 
@@ -254,7 +254,7 @@ SOURCE=.\viewer\gl_bsp29.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\viewer\gl_image.cpp
+SOURCE=..\viewer\gl_image.cpp
 
 !IF  "$(CFG)" == "qtvprox - Win32 Release"
 
@@ -276,7 +276,7 @@ SOURCE=.\viewer\gl_image.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\viewer\gl_mdl.cpp
+SOURCE=..\viewer\gl_mdl.cpp
 
 !IF  "$(CFG)" == "qtvprox - Win32 Release"
 
@@ -298,7 +298,7 @@ SOURCE=.\viewer\gl_mdl.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\viewer\gl_testgrid.cpp
+SOURCE=..\viewer\gl_testgrid.cpp
 
 !IF  "$(CFG)" == "qtvprox - Win32 Release"
 
@@ -320,7 +320,7 @@ SOURCE=.\viewer\gl_testgrid.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\viewer\gl_vidsdl.cpp
+SOURCE=..\viewer\gl_vidsdl.cpp
 
 !IF  "$(CFG)" == "qtvprox - Win32 Release"
 
@@ -342,7 +342,7 @@ SOURCE=.\viewer\gl_vidsdl.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\viewer\matrix.cpp
+SOURCE=..\viewer\matrix.cpp
 
 !IF  "$(CFG)" == "qtvprox - Win32 Release"
 
@@ -364,7 +364,7 @@ SOURCE=.\viewer\matrix.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\viewer\model.cpp
+SOURCE=..\viewer\model.cpp
 
 !IF  "$(CFG)" == "qtvprox - Win32 Release"
 
@@ -386,7 +386,7 @@ SOURCE=.\viewer\model.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\viewer\renderer.cpp
+SOURCE=..\viewer\renderer.cpp
 
 !IF  "$(CFG)" == "qtvprox - Win32 Release"
 
@@ -412,32 +412,32 @@ SOURCE=.\viewer\renderer.cpp
 # PROP Default_Filter ""
 # Begin Source File
 
-SOURCE=.\sc_dsound.c
+SOURCE=..\sc_dsound.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\sp_dsound.c
+SOURCE=..\sp_dsound.c
 # End Source File
 # End Group
 # Begin Source File
 
-SOURCE=.\bsp.c
+SOURCE=..\bsp.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\control.c
+SOURCE=..\control.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\crc.c
+SOURCE=..\crc.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\forward.c
+SOURCE=..\forward.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\libqtvc\glibc_sucks.c
+SOURCE=..\libqtvc\glibc_sucks.c
 
 !IF  "$(CFG)" == "qtvprox - Win32 Release"
 
@@ -452,23 +452,23 @@ SOURCE=.\libqtvc\glibc_sucks.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\httpsv.c
+SOURCE=..\httpsv.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\mdfour.c
+SOURCE=..\mdfour.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\menu.c
+SOURCE=..\menu.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\msg.c
+SOURCE=..\msg.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\libqtvc\msvc_sucks.c
+SOURCE=..\libqtvc\msvc_sucks.c
 
 !IF  "$(CFG)" == "qtvprox - Win32 Release"
 
@@ -483,7 +483,7 @@ SOURCE=.\libqtvc\msvc_sucks.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\netchan.c
+SOURCE=..\netchan.c
 
 !IF  "$(CFG)" == "qtvprox - Win32 Release"
 
@@ -501,7 +501,7 @@ SOURCE=.\netchan.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\parse.c
+SOURCE=..\parse.c
 
 !IF  "$(CFG)" == "qtvprox - Win32 Release"
 
@@ -519,11 +519,11 @@ SOURCE=.\parse.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\pmove.c
+SOURCE=..\pmove.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\qw.c
+SOURCE=..\qw.c
 
 !IF  "$(CFG)" == "qtvprox - Win32 Release"
 
@@ -541,11 +541,11 @@ SOURCE=.\qw.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\rcon.c
+SOURCE=..\rcon.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\source.c
+SOURCE=..\source.c
 
 !IF  "$(CFG)" == "qtvprox - Win32 Release"
 
@@ -567,31 +567,31 @@ SOURCE=.\source.c
 # PROP Default_Filter "h;hpp;hxx;hm;inl"
 # Begin Source File
 
-SOURCE=.\viewer\common.h
+SOURCE=..\viewer\common.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\viewer\cvar.h
+SOURCE=..\viewer\cvar.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\viewer\d3drend\d3drenderer.h
+SOURCE=..\viewer\d3drend\d3drenderer.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\viewer\glrenderer.h
+SOURCE=..\viewer\glrenderer.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\viewer\maths.h
+SOURCE=..\viewer\maths.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\qtv.h
+SOURCE=..\qtv.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\viewer\renderer.h
+SOURCE=..\viewer\renderer.h
 # End Source File
 # End Group
 # Begin Group "Resource Files"

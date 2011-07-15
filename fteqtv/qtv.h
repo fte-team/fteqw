@@ -100,18 +100,19 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 				struct ip6_scope_id  sin6_scope_struct; 
 			};
 		};
-
-		struct addrinfo
-		{
-		  int ai_flags;
-		  int ai_family;
-		  int ai_socktype;
-		  int ai_protocol;
-		  size_t ai_addrlen;
-		  char* ai_canonname;
-		  struct sockaddr * ai_addr;
-		  struct addrinfo * ai_next;
-		};
+		#if !(_MSC_VER >= 1500)
+			struct addrinfo
+			{
+			  int ai_flags;
+			  int ai_family;
+			  int ai_socktype;
+			  int ai_protocol;
+			  size_t ai_addrlen;
+			  char* ai_canonname;
+			  struct sockaddr * ai_addr;
+			  struct addrinfo * ai_next;
+			};
+		#endif
 	#endif
 	#ifdef _MSC_VER
 		#pragma comment (lib, "wsock32.lib")

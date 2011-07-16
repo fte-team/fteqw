@@ -52,7 +52,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /machine:I386
-# ADD LINK32 ../libs/zlib.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /machine:I386 /out:"../../fteqcc.exe"
+# ADD LINK32 ../../libs/zlib.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /machine:I386 /out:"../../fteqcc.exe"
 
 !ELSEIF  "$(CFG)" == "qcc - Win32 Debug"
 
@@ -76,7 +76,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
-# ADD LINK32 ..\libs\zlib.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /out:"../../fteqcc_dbg.exe" /pdbtype:sept
+# ADD LINK32 ../../libs/zlib.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /out:"../../fteqcc_dbg.exe" /pdbtype:sept
 
 !ELSEIF  "$(CFG)" == "qcc - Win32 GUIDebug"
 
@@ -100,8 +100,8 @@ BSC32=bscmake.exe
 # ADD BASE BSC32 /nologo
 # ADD BSC32 /nologo
 LINK32=link.exe
-# ADD BASE LINK32 ..\libs\zlib.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /out:"../../../fteqcc.exe" /pdbtype:sept
-# ADD LINK32 ..\libs\zlib.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib comctl32.lib comdlg32.lib /nologo /subsystem:windows /debug /machine:I386 /out:"..\..\fteqcc.exe" /pdbtype:sept
+# ADD BASE LINK32 ../../libs/zlib.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /out:"../../../fteqcc.exe" /pdbtype:sept
+# ADD LINK32 ../../libs/zlib.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib comctl32.lib comdlg32.lib /nologo /subsystem:windows /debug /machine:I386 /out:"..\..\fteqcc.exe" /pdbtype:sept
 # SUBTRACT LINK32 /pdb:none
 
 !ELSEIF  "$(CFG)" == "qcc - Win32 GUIRelease"
@@ -126,8 +126,8 @@ BSC32=bscmake.exe
 # ADD BASE BSC32 /nologo
 # ADD BSC32 /nologo
 LINK32=link.exe
-# ADD BASE LINK32 ../libs/zlib.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /machine:I386 /out:"../../../fteqcc.exe"
-# ADD LINK32 ../libs/zlib.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib comctl32.lib /nologo /subsystem:windows /machine:I386 /out:"../../fteqccgui.exe"
+# ADD BASE LINK32 ../../libs/zlib.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /machine:I386 /out:"../../../fteqcc.exe"
+# ADD LINK32 ../../libs/zlib.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib comctl32.lib /nologo /subsystem:windows /machine:I386 /out:"../../fteqccgui.exe"
 # SUBTRACT LINK32 /pdb:none
 
 !ENDIF 
@@ -143,32 +143,32 @@ LINK32=link.exe
 # PROP Default_Filter "cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
 # Begin Source File
 
-SOURCE=.\Comprout.c
+SOURCE=..\Comprout.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\hash.c
+SOURCE=..\hash.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\qcc_cmdlib.c
+SOURCE=..\qcc_cmdlib.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\qcc_gtk.c
+SOURCE=..\qcc_gtk.c
 # PROP Exclude_From_Build 1
 # End Source File
 # Begin Source File
 
-SOURCE=.\qcc_pr_comp.c
+SOURCE=..\qcc_pr_comp.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\qcc_pr_lex.c
+SOURCE=..\qcc_pr_lex.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\qccgui.c
+SOURCE=..\qccgui.c
 
 !IF  "$(CFG)" == "qcc - Win32 Release"
 
@@ -187,7 +187,7 @@ SOURCE=.\qccgui.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\qccguistuff.c
+SOURCE=..\qccguistuff.c
 
 !IF  "$(CFG)" == "qcc - Win32 Release"
 
@@ -206,11 +206,11 @@ SOURCE=.\qccguistuff.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\QccMain.c
+SOURCE=..\QccMain.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\qcctui.c
+SOURCE=..\qcctui.c
 
 !IF  "$(CFG)" == "qcc - Win32 Release"
 
@@ -229,7 +229,7 @@ SOURCE=.\qcctui.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\qcd_main.c
+SOURCE=..\qcd_main.c
 # End Source File
 # End Group
 # Begin Group "Header Files"
@@ -237,15 +237,15 @@ SOURCE=.\qcd_main.c
 # PROP Default_Filter "h;hpp;hxx;hm;inl"
 # Begin Source File
 
-SOURCE=.\gui.h
+SOURCE=..\gui.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\pr_comp.h
+SOURCE=..\pr_comp.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\qcc.h
+SOURCE=..\qcc.h
 # End Source File
 # End Group
 # Begin Group "Resource Files"

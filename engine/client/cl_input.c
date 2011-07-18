@@ -1447,10 +1447,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	else if (msecstouse > 50)
 		msecstouse &= ~1; // align to 2
 
-	wantfps = cl_netfps.value<=0?cl_maxfps.value:cl_netfps.value;
-	if (wantfps < cls.maxfps ? max (30.0, cls.maxfps) : 0x7fff)
-		wantfps = cls.maxfps ? max (30.0, cls.maxfps) : 0x7fff;
-
+	wantfps = cl_netfps.value;
 	fullsend = true;
 
 	if (!runningindepphys)

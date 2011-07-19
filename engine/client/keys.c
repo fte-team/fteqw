@@ -1434,19 +1434,6 @@ void Key_Event (int pnum, int key, unsigned int unicode, qboolean down)
 	if (down)
 	{
 		key_repeats[key]++;
-		/*
-		if (key != K_BACKSPACE 
-			&& key != K_DEL
-			&& key != K_PAUSE 
-			&& key != K_PGUP 
-			&& key != K_PGDN
-			&& key != K_LEFTARROW 
-			&& key != K_RIGHTARROW
-			&& key != K_UPARROW 
-			&& key != K_DOWNARROW
-			&& key_repeats[key] > 1)
-			return;	// ignore most autorepeats
-		*/
 			
 //		if (key >= 200 && !keybindings[key])	//is this too annoying?
 //			Con_Printf ("%s is unbound, hit F4 to set.\n", Key_KeynumToString (key) );
@@ -1631,6 +1618,10 @@ void Key_Event (int pnum, int key, unsigned int unicode, qboolean down)
 	|| (key_dest == key_console && !consolekeys[key])
 	|| (key_dest == key_game && ( cls.state == ca_active || !consolekeys[key] ) ) )
 	{
+		/*don't auto-repeat binds as it breaks too many scripts*/
+		if (key_repeats[key] > 1)
+			return;
+
 		deltaused[key][keystate] = true;
 		kb = keybindings[key][keystate];
 		if (pnum)

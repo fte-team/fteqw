@@ -337,9 +337,9 @@ void BGMVolume_Callback(struct cvar_s *var, char *oldvalue)
 
 	cdvolume = atof(oldvalue);
 
-	if (cdvolume && !var->value)
+	if (cdvolume && !var->ival)
 		CDAudio_Pause ();
-	else if (!cdvolume && var->value)
+	else if (!cdvolume && var->ival)
 		CDAudio_Resume ();
 }
 

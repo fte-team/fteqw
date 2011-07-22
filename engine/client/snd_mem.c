@@ -791,7 +791,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 		FILE *f;
 #ifndef _WIN32	//convert from windows to a suitable alternative.
 		char unixname[128];
-		sprintf(unixname, "/mnt/%c/%s", name[0]-'A'+'a', name+3);
+		snprintf(unixname, sizeof(unixname), "/mnt/%c/%s", name[0]-'A'+'a', name+3);
 		name = unixname;
 		while (*name)
 		{

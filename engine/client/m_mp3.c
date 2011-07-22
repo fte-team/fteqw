@@ -1230,11 +1230,11 @@ cin_t *Media_Static_TryLoad(char *name)
 		char fullname[MAX_QPATH];
 		qbyte *file;
 
-		sprintf(fullname, "%s", name);
+		Q_snprintfz(fullname, sizeof(fullname), "%s", name);
 		fsize = FS_LoadFile(fullname, (void **)&file);
 		if (!file)
 		{
-			sprintf(fullname, "pics/%s", name);
+			Q_snprintfz(fullname, sizeof(fullname), "pics/%s", name);
 			fsize = FS_LoadFile(fullname, (void **)&file);
 			if (!file)
 				return NULL;
@@ -1995,7 +1995,7 @@ void Media_RecordFrame (void)
 	case CT_SCREENSHOT:
 		{
 			char filename[MAX_OSPATH];
-			sprintf(filename, "%s/%8.8i.%s", capturefilenameprefix, captureframe++, capturecodec.string);
+			Q_snprintfz(filename, sizeof(filename), "%s/%8.8i.%s", capturefilenameprefix, captureframe++, capturecodec.string);
 			SCR_ScreenShot(filename);
 		}
 		break;
@@ -2244,7 +2244,7 @@ void Media_RecordFilm_f (void)
 				sbits = 16;
 			if (chans > 6)
 				chans = 6;
-			sprintf(filename, "%s/audio_%ichan_%ikhz_%ib.raw", capturefilenameprefix, chans, snd_speed/1000, sbits);
+			Q_snprintfz(filename, sizeof(filename), "%s/audio_%ichan_%ikhz_%ib.raw", capturefilenameprefix, chans, snd_speed/1000, sbits);
 			captureaudiorawfile = FS_OpenVFS(filename, "wb", FS_GAMEONLY);
 
 			if (captureaudiorawfile)

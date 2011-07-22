@@ -275,7 +275,7 @@ void M_MenuS_Comboi_f (void)
 	for (opt = 0; opt < sizeof(opts)/sizeof(opts[0])-2 && *(line=Cmd_Argv(5+opt)); opt++)
 	{
 		opts[opt] = line;
-		sprintf(valuesb[opt], "%i", opt);
+		Q_snprintfz(valuesb[opt], sizeof(valuesb[opt]), "%i", opt);
 		values[opt] = valuesb[opt];
 	}
 	opts[opt] = NULL;

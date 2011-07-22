@@ -840,7 +840,7 @@ void Model_CheckDownloads (void)
 			char picname[256];
 			if (!*cl.image_name[i])
 				continue;
-			sprintf(picname, "pics/%s.pcx", cl.image_name[i]);
+			Q_snprintfz(picname, sizeof(picname), "pics/%s.pcx", cl.image_name[i]);
 			CL_CheckOrEnqueDownloadFile(picname, picname, 0);
 		}
 		if (!CLQ2_RegisterTEntModels())
@@ -1704,13 +1704,13 @@ void CL_ParseDownload (void)
 	{
 		if (strncmp(cls.downloadtempname,"skins/",6))
 		{
-			sprintf (name, "%s", cls.downloadtempname);
+			Q_snprintfz(name, sizeof(name), "%s", cls.downloadtempname);
 			FS_CreatePath (name, FS_GAME);
 			cls.downloadqw = FS_OpenVFS (name, "wb", FS_GAME);
 		}
 		else
 		{
-			sprintf (name, "%s", cls.downloadtempname+6);
+			Q_snprintfz(name, sizeof(name)-6, "%s", cls.downloadtempname+6);
 			FS_CreatePath (name, FS_SKINS);
 			cls.downloadqw = FS_OpenVFS (name, "wb", FS_SKINS);
 		}

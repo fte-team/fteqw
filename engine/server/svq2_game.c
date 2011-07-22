@@ -61,7 +61,7 @@ static void VARGS PFQ2_dprintf (char *fmt, ...)
 	va_list		argptr;
 	
 	va_start (argptr,fmt);
-	vsprintf (msg, fmt, argptr);
+	vsnprintf (msg, sizeof(msg), fmt, argptr);
 	va_end (argptr);
 
 	Con_Printf ("%s", msg);
@@ -98,7 +98,7 @@ static void VARGS PFQ2_cprintf (q2edict_t *ent, int level, char *fmt, ...)
 	}
 
 	va_start (argptr,fmt);
-	vsprintf (msg, fmt, argptr);
+	vsnprintf (msg, sizeof(msg), fmt, argptr);
 	va_end (argptr);
 
 	if (ent)
@@ -151,7 +151,7 @@ static void VARGS PFQ2_error (char *fmt, ...)
 	va_list		argptr;
 	
 	va_start (argptr,fmt);
-	vsprintf (msg, fmt, argptr);
+	vsnprintf (msg, sizeof(msg), fmt, argptr);
 	va_end (argptr);
 
 	SV_Error("Game Error: %s", msg);

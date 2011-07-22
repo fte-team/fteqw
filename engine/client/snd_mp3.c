@@ -109,7 +109,7 @@ sfxcache_t *S_LoadMP3Sound (sfx_t *s)
 	if (name[0] == '#')
 		strcpy(namebuffer, &name[1]);
 	else
-		sprintf (namebuffer, "sound/%s", name);
+		Q_snprintfz (namebuffer, sizeof(namebuffer), "sound/%s", name);
 
 	len = strlen(namebuffer);
 	telluser = strcmp(namebuffer+len-4, ".wav");
@@ -128,7 +128,7 @@ sfxcache_t *S_LoadMP3Sound (sfx_t *s)
 		char unixname[128];
 		if (name[1] == ':' && name[2] == '\\')	//convert from windows to a suitable alternative.
 		{			
-			sprintf(unixname, "/mnt/%c/%s", name[0]-'A'+'a', name+3);
+			snprintf(unixname, sizeof(unixname), "/mnt/%c/%s", name[0]-'A'+'a', name+3);
 			name = unixname;
 			while (*name)
 			{

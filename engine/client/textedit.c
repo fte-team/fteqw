@@ -266,7 +266,7 @@ static void EditorOpenFile(char *name)
 
 	if (!(F = FS_OpenVFS(OpenEditorFile, "rb", FS_GAME)))
 	{
-		sprintf(OpenEditorFile, "src/%s", name);
+		Q_snprintfz(OpenEditorFile, sizeof(OpenEditorFile), "src/%s", name);
 		if (!(F = FS_OpenVFS(OpenEditorFile, "rb", FS_GAME)))
 		{
 			Con_Printf("Couldn't open file \"%s\"\nA new file will be created\n", name);

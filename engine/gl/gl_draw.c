@@ -1063,7 +1063,7 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 		qglGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_COMPRESSED_ARB, &compressed);
 		if (compressed == GL_TRUE && !strstr(name, ".."))	//is there any point in bothering with the whole endian thing?
 		{
-			sprintf(outname, "tex/%s.tex", name);
+			Q_snprintfz(outname, sizeof(outname), "tex/%s.tex", name);
 			FS_CreatePath(outname, FS_GAME);
 			out = FS_OpenVFS(outname, "wb", FS_GAME);
 			if (out)

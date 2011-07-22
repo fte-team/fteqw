@@ -339,7 +339,7 @@ qvm_t *QVM_LoadVM(const char *name, sys_callqvm_t syscall)
 	int n;
 	unsigned int i;
 
-	sprintf(path, "%s.qvm", name);
+	Q_snprintfz(path, sizeof(path), "%s.qvm", name);
 	FS_LoadFile(path, (void **)&raw);
 // file not found
 	if(!raw) return NULL;

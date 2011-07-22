@@ -497,7 +497,7 @@ static char *Macro_BestAmmo (void)
 static char *Macro_BestWeaponAndAmmo (void)
 {
 	char buf[MAX_MACRO_VALUE];
-	sprintf (buf, "%s:%s", Macro_BestWeapon(), Macro_BestAmmo());
+	Q_snprintfz (buf, sizeof(buf), "%s:%s", Macro_BestWeapon(), Macro_BestAmmo());
 	strcpy (macro_buf, buf);
 	return macro_buf;
 }
@@ -1217,17 +1217,17 @@ static char *TP_ParseMacroString (char *s)
 				if (!macro_string[0])
 					macro_string = "a";
 				if (cl.stats[SP][STAT_ARMOR] < 30)
-					sprintf (mbuf, "\x10%s:%i\x11", macro_string, cl.stats[SP][STAT_ARMOR]);
+					Q_snprintfz (mbuf, sizeof(mbuf), "\x10%s:%i\x11", macro_string, cl.stats[SP][STAT_ARMOR]);
 				else
-					sprintf (mbuf, "%s:%i", macro_string, cl.stats[SP][STAT_ARMOR]);
+					Q_snprintfz (mbuf, sizeof(mbuf), "%s:%i", macro_string, cl.stats[SP][STAT_ARMOR]);
 				macro_string = mbuf;
 				break;
 
 			case 'h':
 				if (cl.stats[SP][STAT_HEALTH] >= 50)
-					sprintf (macro_buf, "%i", cl.stats[SP][STAT_HEALTH]);
+					Q_snprintfz (macro_buf, sizeof(macro_buf), "%i", cl.stats[SP][STAT_HEALTH]);
 				else
-					sprintf (macro_buf, "\x10%i\x11", cl.stats[SP][STAT_HEALTH]);
+					Q_snprintfz (macro_buf, sizeof(macro_buf), "\x10%i\x11", cl.stats[SP][STAT_HEALTH]);
 				macro_string = macro_buf;
 				break;
 
@@ -1235,7 +1235,7 @@ static char *TP_ParseMacroString (char *s)
 			case 'P':
 				macro_string = Macro_Powerups();
 				if (macro_string[0])
-					sprintf (mbuf, "\x10%s\x11", macro_string);
+					Q_snprintfz (mbuf, sizeof(mbuf), "\x10%s\x11", macro_string);
 				else
 					mbuf[0] = 0;
 				macro_string = mbuf;

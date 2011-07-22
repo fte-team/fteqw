@@ -543,9 +543,9 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 	gametype = cache->gametype;
 
 	if (savename)
-		sprintf (name, "saves/%s/%s", savename, level);
+		Q_snprintfz (name, sizeof(name), "saves/%s/%s", savename, level);
 	else
-		sprintf (name, "saves/%s", level);
+		Q_snprintfz (name, sizeof(name), "saves/%s", level);
 	COM_DefaultExtension (name, ".lvc", sizeof(name));
 
 //	Con_TPrintf (STL_LOADGAMEFROM, name);
@@ -783,9 +783,9 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 
 
 	if (savedir)
-		sprintf (name, "saves/%s/%s", savedir, cache->mapname);
+		Q_snprintfz (name, sizeof(name), "saves/%s/%s", savedir, cache->mapname);
 	else
-		sprintf (name, "saves/%s", cache->mapname);
+		Q_snprintfz (name, sizeof(name), "saves/%s", cache->mapname);
 	COM_DefaultExtension (name, ".lvc", sizeof(name));
 
 	FS_CreatePath(name, FS_GAMEONLY);
@@ -1040,7 +1040,7 @@ void SV_Loadgame_f (void)
 	if (!*savename || strstr(savename, ".."))
 		strcpy(savename, "quicksav");
 
-	sprintf (filename, "saves/%s/info.fsv", savename);
+	Q_snprintfz (filename, sizeof(filename), "saves/%s/info.fsv", savename);
 	f = FS_OpenVFS (filename, "rb", FS_GAME);
 	if (!f)
 	{

@@ -161,7 +161,7 @@ void VARGS PR_BIError(progfuncs_t *progfuncs, char *format, ...)
 pbool QC_WriteFile(const char *name, void *data, int len)
 {
 	char buffer[256];
-	sprintf(buffer, "%s", name);
+	Q_snprintfz(buffer, sizeof(buffer), "%s", name);
 	COM_WriteFile(buffer, data, len);
 	return true;
 }

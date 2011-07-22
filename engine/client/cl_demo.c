@@ -1355,7 +1355,7 @@ void CL_ReRecord_f (void)
 		return;
 	}
 
-	sprintf (name, "%s", s);
+	Q_snprintfz (name, sizeof(name), "%s", s);
 
 //
 // open the demo file

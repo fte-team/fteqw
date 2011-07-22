@@ -305,7 +305,7 @@ void CL_ConnectToDarkPlaces(char *challenge, netadr_t adr)
 
 	connect_time = realtime;	// for retransmit requests
 
-	sprintf(data, "%c%c%c%cconnect\\protocol\\darkplaces 3\\challenge\\%s", 255, 255, 255, 255, challenge);
+	Q_snprintfz(data, sizeof(data), "%c%c%c%cconnect\\protocol\\darkplaces 3\\challenge\\%s", 255, 255, 255, 255, challenge);
 
 	NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
 
@@ -523,7 +523,7 @@ void CL_SendConnectPacket (
 	}
 #endif
 
-	sprintf(data, "%c%c%c%cconnect", 255, 255, 255, 255);
+	Q_snprintfz(data, sizeof(data), "%c%c%c%cconnect", 255, 255, 255, 255);
 
 	if (clients>1)	//splitscreen 'connect' command specifies the number of userinfos sent.
 		Q_strncatz(data, va("%i", clients), sizeof(data));
@@ -749,7 +749,7 @@ void CL_CheckForResend (void)
 	else
 #endif
 	{
-		sprintf (data, "%c%c%c%cgetchallenge\n", 255, 255, 255, 255);
+		Q_snprintfz (data, sizeof(data), "%c%c%c%cgetchallenge\n", 255, 255, 255, 255);
 		NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
 	}
 
@@ -1382,7 +1382,7 @@ void CL_Color_f (void)
 	if (bottom > 13)
 		bottom = 13;
 
-	sprintf (num, "%i", top);
+	Q_snprintfz (num, sizeof(num), "%i", top);
 	if (top == 0)
 		*num = '\0';
 	if (Cmd_ExecLevel>RESTRICT_SERVER) //colour command came from server for a split client
@@ -1391,7 +1391,7 @@ void CL_Color_f (void)
 //		Cvar_LockFromServer(&topcolor, num);
 	else
 		Cvar_Set (&topcolor, num);
-	sprintf (num, "%i", bottom);
+	Q_snprintfz (num, sizeof(num), "%i", bottom);
 	if (bottom == 0)
 		*num = '\0';
 	if (Cmd_ExecLevel>RESTRICT_SERVER) //colour command came from server for a split client
@@ -1892,9 +1892,9 @@ void CL_NextDemo (void)
 	}
 
 	if (!strcmp(cls.demos[cls.demonum], "quit"))
-		sprintf (str,"quit\n");
+		Q_snprintfz (str, sizeof(str), "quit\n");
 	else
-		sprintf (str,"playdemo %s\n", cls.demos[cls.demonum]);
+		Q_snprintfz (str, sizeof(str), "playdemo %s\n", cls.demos[cls.demonum]);
 	Cbuf_InsertText (str, RESTRICT_LOCAL, false);
 	cls.demonum++;
 }
@@ -2099,7 +2099,7 @@ void CL_ConnectionlessPacket (void)
 		//firstly it needs an auth message, so it can't be spoofed.
 		//secondly, it needs a copy of the realip ident, so you can't report a different player's client (you would need access to their ip).
 		data[5] = ' ';
-		sprintf(data+6, "%i %i", atoi(MSG_ReadString()), cls.realip_ident);
+		Q_snprintfz(data+6, sizeof(data)-6, "%i %i", atoi(MSG_ReadString()), cls.realip_ident);
 		len = strlen(data);
 
 		NET_SendPacket (NS_CLIENT, len, &data, net_from);

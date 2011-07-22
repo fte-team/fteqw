@@ -151,7 +151,7 @@ static int FSSTDIO_RebuildFSHash(const char *filename, int filesize, void *data)
 	{	//this is actually a directory
 
 		char childpath[256];
-		sprintf(childpath, "%s*", filename);
+		Q_snprintfz(childpath, sizeof(childpath), "%s*", filename);
 		Sys_EnumerateFiles((char*)data, childpath, FSSTDIO_RebuildFSHash, data);
 		return true;
 	}

@@ -1252,7 +1252,7 @@ static int FS_AddWildDataFiles (const char *descriptor, int size, void *vparam)
 	char			purefile[MAX_OSPATH];
 	flocation_t loc;
 
-	sprintf (pakfile, "%s%s", param->parentdesc, descriptor);
+	Q_snprintfz (pakfile, sizeof(pakfile), "%s%s", param->parentdesc, descriptor);
 
 	for (search = com_searchpaths; search; search = search->next)
 	{
@@ -1271,7 +1271,7 @@ static int FS_AddWildDataFiles (const char *descriptor, int size, void *vparam)
 	if (!pak)
 		return true;
 
-	sprintf (pakfile, "%s%s/", param->parentdesc, descriptor);
+	Q_snprintfz (pakfile, sizeof(pakfile), "%s%s/", param->parentdesc, descriptor);
 	if (*param->puredesc)
 		snprintf (purefile, sizeof(purefile), "%s/%s", param->puredesc, descriptor);
 	else
@@ -1312,7 +1312,7 @@ static void FS_AddDataFiles(const char *purepath, const char *pathto, searchpath
 	}
 
 	//now load the random ones
-	sprintf (pakfile, "*.%s", extension);
+	Q_snprintfz (pakfile, sizeof(pakfile), "*.%s", extension);
 	wp.funcs = funcs;
 	wp.parentdesc = pathto;
 	wp.parentpath = search;

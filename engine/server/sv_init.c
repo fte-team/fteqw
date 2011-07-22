@@ -846,13 +846,13 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	{
 		char *exts[] = {"maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", NULL};
 		strcpy (sv.name, server);
-		sprintf (sv.modelname, exts[0], server);
+		Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[0], server);
 		if (!COM_FCheckExists(sv.modelname))
 		{
 			if (COM_FCheckExists(va(exts[1], server)))
-				sprintf (sv.modelname,exts[1], server);
+				Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[1], server);
 			else if (COM_FCheckExists(va(exts[2], server)))
-				sprintf (sv.modelname,exts[2], server);
+				Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[2], server);
 		}
 	}
 	sv.state = ss_loading;

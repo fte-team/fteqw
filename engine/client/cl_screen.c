@@ -1883,7 +1883,7 @@ void SCR_ScreenShot_f (void)
 	//
 	// find a file name to save it to
 	//
-		sprintf(pcxname,"screenshots/fte00000.%s", scr_sshot_type.string);
+		Q_snprintfz(pcxname, sizeof(pcxname), "screenshots/fte00000.%s", scr_sshot_type.string);
 
 		for (i=0 ; i<=100000 ; i++)
 		{

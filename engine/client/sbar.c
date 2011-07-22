@@ -2471,7 +2471,7 @@ void Sbar_Draw (void)
 
 					if (hud_tracking_show.ival)
 					{
-						sprintf(st, "Tracking %-.64s",
+						Q_snprintfz(st, sizeof(st), "Tracking %-.64s",
 							cl.players[spec_track[pnum]].name);
 						Sbar_DrawString(0, -8, st);
 					}

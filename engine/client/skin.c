@@ -267,10 +267,10 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
-		sprintf (name, "players/%s.pcx", skin->name);
+		Q_snprintfz (name, sizeof(name), "players/%s.pcx", skin->name);
 	else
 #endif
-		sprintf (name, "skins/%s.pcx", skin->name);
+		Q_snprintfz (name, sizeof(name), "skins/%s.pcx", skin->name);
 	raw = COM_LoadTempFile (name);
 	if (!raw)
 	{
@@ -282,9 +282,9 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 				skin->tex_base = R_LoadReplacementTexture(skin->name, "skins", IF_NOALPHA);
 				if (TEXVALID(skin->tex_base))
 				{
-					sprintf (name, "%s_shirt", skin->name);
+					Q_snprintfz (name, sizeof(name), "%s_shirt", skin->name);
 					skin->tex_upper = R_LoadReplacementTexture(name, "skins", 0);
-					sprintf (name, "%s_pants", skin->name);
+					Q_snprintfz (name, sizeof(name), "%s_pants", skin->name);
 					skin->tex_lower = R_LoadReplacementTexture(name, "skins", 0);
 
 					skin->failedload = true;
@@ -294,7 +294,7 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 #endif
 			//if its not already the base skin, try the base (and warn if anything not base couldn't load).
 			Con_Printf ("Couldn't load skin %s\n", name);
-			sprintf (name, "skins/%s.pcx", baseskin.string);
+			Q_snprintfz (name, sizeof(name), "skins/%s.pcx", baseskin.string);
 			raw = COM_LoadTempFile (name);
 		}
 		if (!raw)
@@ -437,7 +437,7 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 //
 // load the pic from disk
 //
-	sprintf (name, "%s%s.tga", path, skin->name);
+	Q_snprintfz (name, sizeof(name), "%s%s.tga", path, skin->name);
 	raw = COM_LoadTempFile (name);
 	if (raw)
 	{
@@ -450,7 +450,7 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 			return out;
 		}
 	}
-	sprintf (name, "%s%s.pcx", path, skin->name);
+	Q_snprintfz (name, sizeof(name), "%s%s.pcx", path, skin->name);
 	raw = COM_LoadTempFile (name);
 	if (raw)
 	{
@@ -464,7 +464,7 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 		}
 	}
 #ifdef AVAIL_PNGLIB
-	sprintf (name, "%s%s.png", path, skin->name);
+	Q_snprintfz (name, sizeof(name), "%s%s.png", path, skin->name);
 	raw = COM_LoadTempFile (name);
 	if (raw)
 	{
@@ -479,7 +479,7 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 	}
 #endif
 #ifdef AVAIL_JPEGLIB
-	sprintf (name, "%s%s.jpeg", path, skin->name);
+	Q_snprintfz (name, sizeof(name), "%s%s.jpeg", path, skin->name);
 	raw = COM_LoadTempFile (name);
 	if (raw)
 	{
@@ -492,7 +492,7 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 			return out;
 		}
 	}
-	sprintf (name, "%s%s.jpg", path, skin->name);	//jpegs are gready with 2 extensions...
+	Q_snprintfz (name, sizeof(name), "%s%s.jpg", path, skin->name);	//jpegs are gready with 2 extensions...
 	raw = COM_LoadTempFile (name);
 	if (raw)
 	{

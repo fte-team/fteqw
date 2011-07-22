@@ -1437,9 +1437,9 @@ void Master_QueryServer(serverinfo_t *server)
 	server->sends--;
 	server->refreshtime = Sys_DoubleTime();
 	if (server->special & SS_QUAKE3)
-		sprintf(data, "%c%c%c%cgetstatus", 255, 255, 255, 255);
+		Q_snprintfz(data, sizeof(data), "%c%c%c%cgetstatus", 255, 255, 255, 255);
 	else if (server->special & SS_DARKPLACES)
-		sprintf(data, "%c%c%c%cgetinfo", 255, 255, 255, 255);
+		Q_snprintfz(data, sizeof(data), "%c%c%c%cgetinfo", 255, 255, 255, 255);
 	else if (server->special & SS_NETQUAKE)
 	{
 #ifdef NQPROT
@@ -1457,7 +1457,7 @@ void Master_QueryServer(serverinfo_t *server)
 		return;
 	}
 	else
-		sprintf(data, "%c%c%c%cstatus", 255, 255, 255, 255);
+		Q_snprintfz(data, sizeof(data), "%c%c%c%cstatus", 255, 255, 255, 255);
 	NET_SendPollPacket (strlen(data), data, server->adr);
 }
 //send a packet to each server in sequence.

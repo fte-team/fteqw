@@ -414,7 +414,7 @@ void SVNQ_New_f (void)
 	}
 
 	MSG_WriteByte (&host_client->netchan.message, svc_print);
-	sprintf (message, "%c\n%s server\n", 2, version_string());
+	Q_snprintfz (message, sizeof(message), "%c\n%s server\n", 2, version_string());
 	MSG_WriteString (&host_client->netchan.message,message);
 
 	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
@@ -2046,7 +2046,7 @@ void VARGS OutofBandPrintf(netadr_t where, char *fmt, ...)
 	send[3] = 0xff;
 	send[4] = A2C_PRINT;
 	va_start (argptr, fmt);
-	vsprintf (send+5, fmt, argptr);
+	vsnprintf (send+5, sizeof(send)-5, fmt, argptr);
 	va_end (argptr);
 
 	NET_SendPacket (NS_SERVER, strlen(send)+1, send, where);
@@ -2792,12 +2792,12 @@ void SV_SayOne_f (void)
 		if (host_client->spectator)
 		{
 			if (!sv_spectalk.value || to->spectator)
-				sprintf (text, "[SPEC] {%s}:", host_client->name);
+				Q_snprintfz (text, sizeof(text), "[SPEC] {%s}:", host_client->name);
 			else
 				continue;
 		}
 		else
-			sprintf (text, "{%s}:", host_client->name);
+			Q_snprintfz (text, sizeof(text), "{%s}:", host_client->name);
 
 		if (host_client->ismuted)
 		{
@@ -2927,11 +2927,11 @@ void SV_Say (qboolean team)
 	}
 
 	if (host_client->spectator && (!sv_spectalk.value || team))
-		sprintf (text, "[SPEC] %s: ", host_client->name);
+		Q_snprintfz (text, sizeof(text), "[SPEC] %s: ", host_client->name);
 	else if (team)
-		sprintf (text, "(%s): ", host_client->name);
+		Q_snprintfz (text, sizeof(text), "(%s): ", host_client->name);
 	else
-		sprintf (text, "%s: ", host_client->name);
+		Q_snprintfz (text, sizeof(text), "%s: ", host_client->name);
 
 	if (host_client->ismuted)
 	{

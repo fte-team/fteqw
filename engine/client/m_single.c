@@ -666,10 +666,10 @@ static void ShowDemoMenu (menu_t *menu, char *path)
 	M_Demo_Flush(menu->data);
 	if (*path)
 	{
-		sprintf(match, "%s../", path);
+		Q_snprintfz(match, sizeof(match), "%s../", path);
 		DemoAddItem(match, 0, menu->data);
 	}
-	sprintf(match, "%s*", path);
+	Q_snprintfz(match, sizeof(match), "%s*", path);
 
 	COM_EnumerateFiles(match, DemoAddItem, menu->data);
 	M_Demo_Flatten(menu->data);

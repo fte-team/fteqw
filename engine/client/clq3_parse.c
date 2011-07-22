@@ -853,7 +853,7 @@ void VARGS CLQ3_SendClientCommand(const char *fmt, ...)
 	char	command[MAX_STRING_CHARS];
 
 	va_start( argptr, fmt );
-	vsprintf( command, fmt, argptr );
+	vsnprintf( command, sizeof(command), fmt, argptr );
 	va_end( argptr );
 
 	// create new clientCommand

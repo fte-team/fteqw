@@ -2205,7 +2205,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 
 
 
-			sprintf(skinname, "%s_%i", loadname, i);
+			Q_snprintfz(skinname, sizeof(skinname), "%s_%i", loadname, i);
 			if (skintranstype == 4)
 				texnums->shader = R_RegisterShader(skinname,
 					"{\n"
@@ -2284,24 +2284,24 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 				//LH naming scheme
 				if (!TEXVALID(texture))
 				{
-					sprintf(skinname, "%s_%i_%i", loadmodel->name, i, t);
+					Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i", loadmodel->name, i, t);
 					texture = R_LoadReplacementTexture(skinname, "models", IF_NOALPHA);
 				}
 				if (!TEXVALID(fbtexture) && r_fb_models.ival)
 				{
-					sprintf(skinname, "%s_%i_%i_luma", loadmodel->name, i, t);
+					Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_luma", loadmodel->name, i, t);
 					fbtexture = R_LoadReplacementTexture(skinname, "models", 0);
 				}
 
 				//Fuhquake naming scheme
 				if (!TEXVALID(texture))
 				{
-					sprintf(skinname, "%s_%i_%i", loadname, i, t);
+					Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i", loadname, i, t);
 					texture = R_LoadReplacementTexture(skinname, "models", IF_NOALPHA);
 				}
 				if (!TEXVALID(fbtexture) && r_fb_models.ival)
 				{
-					sprintf(skinname, "%s_%i_%i_luma", loadname, i, t);
+					Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_luma", loadname, i, t);
 					fbtexture = R_LoadReplacementTexture(skinname, "models", 0);
 				}
 
@@ -2318,14 +2318,14 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 					Mod_FloodFillSkin(saved, outskin->skinwidth, outskin->skinheight);
 					if (!TEXVALID(texture))
 					{
-						sprintf(skinname, "%s_%i_%i", loadname, i, t);
+						Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i", loadname, i, t);
 						texture = R_LoadTexture8(skinname, outskin->skinwidth, outskin->skinheight, saved, (skintranstype?0:IF_NOALPHA)|IF_NOGAMMA, skintranstype);
 					}
 
 
 					if (!TEXVALID(fbtexture) && r_fb_models.value)
 					{
-						sprintf(skinname, "%s_%i_%i_luma", loadname, i, t);
+						Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i_luma", loadname, i, t);
 						fbtexture = R_LoadTextureFB(skinname, outskin->skinwidth, outskin->skinheight, saved, IF_NOGAMMA);
 					}
 
@@ -2333,7 +2333,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 						BZ_Free(saved);
 				}
 
-				sprintf(skinname, "%s_%i_%i", loadname, i, t);
+				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i", loadname, i, t);
 				texnums->shader = R_RegisterSkin(skinname);
 
 				texnums->base = texture;

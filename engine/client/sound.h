@@ -199,7 +199,7 @@ void OpenAL_CvarInit(void);
 // ====================================================================
 
 #define	MAX_CHANNELS			1024/*tracked sounds (including statics)*/
-#define	MAX_DYNAMIC_CHANNELS	8	/*playing sounds (identical ones merge)*/
+#define	MAX_DYNAMIC_CHANNELS	64	/*playing sounds (identical ones merge)*/
 
 
 #define NUM_MUSICS				1

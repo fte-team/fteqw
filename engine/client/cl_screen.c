@@ -1341,7 +1341,6 @@ void SCR_DrawGameClock(void)
 		showtime *= -1;
 		minutes = showtime/60;
 		seconds = (int)showtime - (minutes*60);
-		minutes *= -1;
 	}
 	else
 	{

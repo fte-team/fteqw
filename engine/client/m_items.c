@@ -1898,23 +1898,28 @@ void M_Menu_Main_f (void)
 
 #ifndef CLIENTONLY
 			b = MC_AddConsoleCommand	(mainm, 68, 13,	"", "menu_single\n");
+			b->common.tooltip = "Singleplayer.";
 			mainm->selecteditem = (menuoption_t *)b;
 			b->common.width = 12*20;
 			b->common.height = 20;
 #endif
 			b = MC_AddConsoleCommand	(mainm, 68, 53,	"", "menu_multi\n");
+			b->common.tooltip = "Multiplayer.";
 #ifdef CLIENTONLY
 			mainm->selecteditem = (menuoption_t *)b;
 #endif
 			b->common.width = 12*20;
 			b->common.height = 20;
 			b = MC_AddConsoleCommand	(mainm, 68, 93,	"", "menu_options\n");
+			b->common.tooltip = "Options.";
 			b->common.width = 12*20;
 			b->common.height = 20;
 			b = MC_AddConsoleCommand	(mainm, 68, 133,	"", "menu_video\n");
+			b->common.tooltip = "Video Options.";
 			b->common.width = 12*20;
 			b->common.height = 20;
 			b = MC_AddConsoleCommand	(mainm, 68, 173,	"", "menu_quit\n");
+			b->common.tooltip = "Quit to DOS.";
 			b->common.width = 12*20;
 			b->common.height = 20;
 
@@ -2023,26 +2028,32 @@ void M_Menu_Main_f (void)
 		p = R2D_SafeCachePic("gfx/mainmenu.lmp");
 
 		b=MC_AddConsoleCommand	(mainm, 72, 32,	"", "menu_single\n");
+		b->common.tooltip = "Start singleplayer Quake game.";
 		mainm->selecteditem = (menuoption_t *)b;
 		b->common.width = p->width;
 		b->common.height = 20;
 		b=MC_AddConsoleCommand	(mainm, 72, 52,	"", "menu_multi\n");
+		b->common.tooltip = "Multiplayer menu.";
 		b->common.width = p->width;
 		b->common.height = 20;
 		b=MC_AddConsoleCommand	(mainm, 72, 72,	"", "menu_options\n");
+		b->common.tooltip = "Options menu.";
 		b->common.width = p->width;
 		b->common.height = 20;
 		if (m_helpismedia.value)
 		{
 			b=MC_AddConsoleCommand(mainm, 72, 92,	"", "menu_media\n");
+			b->common.tooltip = "Media menu.";
 		}
 		else
 		{
 			b=MC_AddConsoleCommand(mainm, 72, 92,	"", "help\n");
+			b->common.tooltip = "Help menu.";
 		}
 		b->common.width = p->width;
 		b->common.height = 20;
 		b=MC_AddConsoleCommand	(mainm, 72, 112,	"", "menu_quit\n");
+		b->common.tooltip = "Exit to DOS.";
 		b->common.width = p->width;
 		b->common.height = 20;
 
@@ -2061,7 +2072,7 @@ int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, 
 		int x = xtextend;
 		int xleft;
 		int spacing = 8;
-		
+
 		if (bulk->text)
 			x -= strlen(bulk->text) * 8;
 		xleft = x - xstart;

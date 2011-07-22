@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -40,7 +40,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //If you're creating your own quake menu, there should be little need to go in there.
 //These are the item types:
 
-//mt_childwindow	- 
+//mt_childwindow	-
 //mt_button			- Executes a console command or callback on enter. Uses conchars.
 //mt_buttonbigfont	- Used by hexen2's menus. Uses gfx/menu/bigfont.lmp as it's characters.
 //mt_box			- A 2d box. The same one as the quit dialog from q1, but resized.
@@ -119,21 +119,21 @@ typedef enum {m_none, m_complex, m_help, m_slist, m_media, m_plugin, m_menu_dat}
 extern m_state_t m_state;
 
 typedef enum {
-	mt_childwindow, 
-	mt_button, 
+	mt_childwindow,
+	mt_button,
 	mt_qbuttonbigfont,
 	mt_hexen2buttonbigfont,
 	mt_box,
 	mt_colouredbox,
 	mt_line,
 	mt_edit,
-	mt_text, 
+	mt_text,
 	mt_slider,
-	mt_combo, 
-	mt_bind, 
+	mt_combo,
+	mt_bind,
 	mt_checkbox,
-	mt_picture, 
-	mt_picturesel, 
+	mt_picture,
+	mt_picturesel,
 	mt_menudot,
 	mt_custom
 } menutype_t;
@@ -274,7 +274,7 @@ typedef struct menu_s {
 
 	menutooltip_t *tooltip;
 	double tooltiptime;
-	
+
 	struct menu_s *child;
 	struct menu_s *parent;
 
@@ -330,22 +330,24 @@ typedef struct menubulk_s {
 	int spacing; // spacing
 } menubulk_t;
 
-#define MB_CONSOLECMD(text, cmd, tip) {mt_button, 0, text, tip, cmd}
-#define MB_CHECKBOXCVAR(text, cvar, flags) {mt_checkbox, 0, text, NULL, NULL, &cvar, flags}
-#define MB_CHECKBOXCVARRETURN(text, cvar, flags, ret) {mt_checkbox, 0, text, NULL, NULL, &cvar, flags, NULL, 0, 0, 0, false, NULL, NULL, NULL, NULL, 0, (union menuoption_s **)&ret}
-#define MB_CHECKBOXFUNC(text, func, flags, tip) {mt_checkbox, 0, text, tip, NULL, NULL, flags, func}
-#define MB_SLIDER(text, cvar, min, max, delta, tip) {mt_slider, 0, text, tip, NULL, &cvar, 0, NULL, min, max, delta}
-#define MB_TEXT(text, align) {mt_text, 0, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, align}
-#define MB_REDTEXT(text, align) {mt_text, 1, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, align}
-#define MB_CMD(text, cmdfunc, tip) {mt_button, 1, text, tip, NULL, NULL, 0, NULL, 0, 0, 0, false, cmdfunc}
-#define MB_EDITCVAR(text, cvarname) {mt_edit, 0, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname}
-#define MB_EDITCVARSLIM(text, cvarname) {mt_edit, 1, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname}
-#define MB_EDITCVARSLIMRETURN(text, cvarname, ret) {mt_edit, 1, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname, NULL, NULL, 0, (union menuoption_s **)&ret}
-#define MB_COMBOCVAR(text, cvar, options, values, tip) {mt_combo, 0, text, tip, NULL, &cvar, 0, NULL, 0, 0, 0, false, NULL, NULL, options, values}
-#define MB_COMBORETURN(text, options, selected, ret, tip) {mt_combo, 1, text, tip, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, NULL, options, NULL, selected, (union menuoption_s **)&ret}
-#define MB_COMBOCVARRETURN(text, cvar, options, values, ret, tip) {mt_combo, 0, text, tip, NULL, &cvar, 0, NULL, 0, 0, 0, false, NULL, NULL, options, values, 0, (union menuoption_s **)&ret}
-#define MB_SPACING(space) {mt_text, 2, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, NULL, NULL, NULL, 0, NULL, space}
-#define MB_END() {mt_text, -1}
+#define MB_CONSOLECMD(text, cmd, tip) 								{mt_button, 0, text, tip, cmd}
+#define MB_CHECKBOXCVAR(text, cvar, flags) 							{mt_checkbox, 0, text, NULL, NULL, &cvar, flags}
+#define MB_CHECKBOXCVARTIP(text, cvar, flags, tip) 					{mt_checkbox, 0, text, tip, NULL, &cvar, flags}
+#define MB_CHECKBOXCVARRETURN(text, cvar, flags, ret) 				{mt_checkbox, 0, text, NULL, NULL, &cvar, flags, NULL, 0, 0, 0, false, NULL, NULL, NULL, NULL, 0, (union menuoption_s **)&ret}
+#define MB_CHECKBOXFUNC(text, func, flags, tip) 					{mt_checkbox, 0, text, tip, NULL, NULL, flags, func}
+#define MB_SLIDER(text, cvar, min, max, delta, tip) 				{mt_slider, 0, text, tip, NULL, &cvar, 0, NULL, min, max, delta}
+#define MB_TEXT(text, align) 										{mt_text, 0, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, align}
+#define MB_REDTEXT(text, align) 									{mt_text, 1, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, align}
+#define MB_CMD(text, cmdfunc, tip) 									{mt_button, 1, text, tip, NULL, NULL, 0, NULL, 0, 0, 0, false, cmdfunc}
+#define MB_EDITCVARTIP(text, cvarname, tip) 						{mt_edit, 0, text, tip, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname}
+#define MB_EDITCVAR(text, cvarname, tip) 							{mt_edit, 0, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname}
+#define MB_EDITCVARSLIM(text, cvarname, tip) 						{mt_edit, 1, text, tip, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname}
+#define MB_EDITCVARSLIMRETURN(text, cvarname, ret) 					{mt_edit, 1, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname, NULL, NULL, 0, (union menuoption_s **)&ret}
+#define MB_COMBOCVAR(text, cvar, options, values, tip) 				{mt_combo, 0, text, tip, NULL, &cvar, 0, NULL, 0, 0, 0, false, NULL, NULL, options, values}
+#define MB_COMBORETURN(text, options, selected, ret, tip) 			{mt_combo, 1, text, tip, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, NULL, options, NULL, selected, (union menuoption_s **)&ret}
+#define MB_COMBOCVARRETURN(text, cvar, options, values, ret, tip) 	{mt_combo, 0, text, tip, NULL, &cvar, 0, NULL, 0, 0, 0, false, NULL, NULL, options, values, 0, (union menuoption_s **)&ret}
+#define MB_SPACING(space) 											{mt_text, 2, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, NULL, NULL, NULL, 0, NULL, space}
+#define MB_END() 													{mt_text, -1}
 
 int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, int y);
 

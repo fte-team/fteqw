@@ -358,11 +358,11 @@ void M_Menu_SinglePlayer_f (void)
 
 
 typedef struct demoitem_s {
-	char name[MAX_QPATH];
 	qboolean isdir;
 	int size;
 	struct demoitem_s *next;
 	struct demoitem_s *prev;
+	char name[1];
 } demoitem_t;
 
 typedef struct {
@@ -530,7 +530,7 @@ static int DemoAddItem(const char *filename, int size, void *parm)
 	}
 
 	if (!menu->items)
-		menu->items = newi = BZ_Malloc(sizeof(*newi));
+		menu->items = newi = BZ_Malloc(sizeof(*newi) + strlen(filename));
 	else
 	{
 		link = menu->items;
@@ -546,7 +546,7 @@ static int DemoAddItem(const char *filename, int size, void *parm)
 			{
 				if (!link->prev)
 				{
-					link->prev = newi = BZ_Malloc(sizeof(*newi));
+					link->prev = newi = BZ_Malloc(sizeof(*newi) + strlen(filename));
 					break;
 				}
 				link = link->prev;
@@ -555,7 +555,7 @@ static int DemoAddItem(const char *filename, int size, void *parm)
 			{
 				if (!link->next)
 				{
-					link->next = newi = BZ_Malloc(sizeof(*newi));
+					link->next = newi = BZ_Malloc(sizeof(*newi) + strlen(filename));
 					break;
 				}
 				link = link->next;
@@ -563,7 +563,7 @@ static int DemoAddItem(const char *filename, int size, void *parm)
 		}
 	}
 	
-	Q_strncpyz(newi->name, filename, sizeof(newi->name));
+	strcpy(newi->name, filename);
 	newi->size = size;
 	newi->isdir = isdir;
 	newi->prev = NULL;

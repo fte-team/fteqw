@@ -340,7 +340,7 @@ typedef struct menubulk_s {
 #define MB_REDTEXT(text, align) 									{mt_text, 1, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, align}
 #define MB_CMD(text, cmdfunc, tip) 									{mt_button, 1, text, tip, NULL, NULL, 0, NULL, 0, 0, 0, false, cmdfunc}
 #define MB_EDITCVARTIP(text, cvarname, tip) 						{mt_edit, 0, text, tip, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname}
-#define MB_EDITCVAR(text, cvarname, tip) 							{mt_edit, 0, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname}
+#define MB_EDITCVAR(text, cvarname) 								{mt_edit, 0, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname}
 #define MB_EDITCVARSLIM(text, cvarname, tip) 						{mt_edit, 1, text, tip, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname}
 #define MB_EDITCVARSLIMRETURN(text, cvarname, ret) 					{mt_edit, 1, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname, NULL, NULL, 0, (union menuoption_s **)&ret}
 #define MB_COMBOCVAR(text, cvar, options, values, tip) 				{mt_combo, 0, text, tip, NULL, &cvar, 0, NULL, 0, 0, 0, false, NULL, NULL, options, values}

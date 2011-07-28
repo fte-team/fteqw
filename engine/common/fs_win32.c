@@ -115,7 +115,7 @@ vfsfile_t *VFSW32_Open(const char *osname, const char *mode)
 	if (strchr(mode, '+'))
 		read = write = true;
 
-	if (write && read)
+	if ((write && read) || append)
 		h = CreateFileA(osname, GENERIC_READ|GENERIC_WRITE, FILE_SHARE_READ|FILE_SHARE_DELETE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 	else if (write)
 		h = CreateFileA(osname, GENERIC_READ|GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -134,7 +134,7 @@ vfsfile_t *VFSW32_Open(const char *osname, const char *mode)
 
 		/*if appending, set the access position to the end of the file*/
 		if (append)
-			SetFilePointer(h, GetFileSize(h, NULL), NULL, FILE_BEGIN);
+			SetFilePointer(h, 0, NULL, FILE_END);
 	}
 	else
 	{

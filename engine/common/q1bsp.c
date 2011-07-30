@@ -444,7 +444,7 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3]
 		{
 			vec3_t iaxis[3];
 			vec3_t norm;
-			Matrix3_Invert_Simple((void *)axis, iaxis);
+			Matrix3x3_RM_Invert_Simple((void *)axis, iaxis);
 			VectorCopy(trace->plane.normal, norm);
 			trace->plane.normal[0] = DotProduct(norm, iaxis[0]);
 			trace->plane.normal[1] = DotProduct(norm, iaxis[1]);

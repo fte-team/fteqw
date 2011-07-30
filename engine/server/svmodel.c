@@ -111,7 +111,7 @@ int SVQ1_RecursiveLightPoint3C (model_t *model, mnode_t *node, vec3_t start, vec
 		tex = surf->texinfo;
 		
 		s = DotProduct (mid, tex->vecs[0]) + tex->vecs[0][3];
-		t = DotProduct (mid, tex->vecs[1]) + tex->vecs[1][3];;
+		t = DotProduct (mid, tex->vecs[1]) + tex->vecs[1][3];
 
 		if (s < surf->texturemins[0] ||
 		t < surf->texturemins[1])
@@ -126,23 +126,20 @@ int SVQ1_RecursiveLightPoint3C (model_t *model, mnode_t *node, vec3_t start, vec
 		if (!surf->samples)
 			return 0;
 
-		ds >>= 4;
-		dt >>= 4;
-
 		lightmap = surf->samples;
 		r = 0;
 		if (lightmap)
 		{
 
-			lightmap += (dt * ((surf->extents[0]>>4)+1) + ds)*3;
+			lightmap += (dt * ((surf->extents[0])+1) + ds)*3;
 
 			for (maps = 0 ; maps < MAXLIGHTMAPS && surf->styles[maps] != 255 ;
 					maps++)
 			{
 				scale = sv.strings.lightstyles[surf->styles[maps]][0];
 				r += (lightmap[0]+lightmap[1]+lightmap[2])/3 * scale;
-				lightmap += ((surf->extents[0]>>4)+1) *
-						((surf->extents[1]>>4)+1)*3;
+				lightmap += ((surf->extents[0])+1) *
+						((surf->extents[1])+1)*3;
 			}
 			
 			r >>= 8;
@@ -1018,8 +1015,8 @@ void CalcSurfaceExtents (msurface_t *s);
 		bmins[i] = floor(mins[i]/16);
 		bmaxs[i] = ceil(maxs[i]/16);
 
-		s->texturemins[i] = bmins[i] * 16;
-		s->extents[i] = (bmaxs[i] - bmins[i]) * 16;
+		s->texturemins[i] = bmins[i];
+		s->extents[i] = (bmaxs[i] - bmins[i]);
 //		if ( !(tex->flags & TEX_SPECIAL) && s->extents[i] > 256)
 //			SV_Error ("Bad surface extents");
 	}

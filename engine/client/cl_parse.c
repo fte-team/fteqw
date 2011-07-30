@@ -2067,7 +2067,7 @@ void CL_ClearParseState(void)
 CL_ParseServerData
 ==================
 */
-void CL_ParseServerData (void)
+void CLQW_ParseServerData (void)
 {
 	int pnum;
 	int clnum;
@@ -3537,6 +3537,9 @@ void CLNQ_ParseStartSoundPacket(void)
 		channel &= 7;
 	}
 
+	/*unpack mangling*/
+	channel = (channel & 7) | ((channel & 0x0f1) << 1);
+
 	if (field_mask & DPSND_LARGESOUND)
 		sound_num = (unsigned short)MSG_ReadShort();
 	else
@@ -4760,10 +4763,12 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 
 void CL_ParsePrecache(void)
 {
-	int i = (unsigned short)MSG_ReadShort();
+	int i, code = (unsigned short)MSG_ReadShort();
 	char *s = MSG_ReadString();
-	if (i < 32768)
+	i = code & 0x1fff;
+	switch(code & 0xe000)
 	{
+	case 0x0000:
 		if (i >= 1 && i < MAX_MODELS)
 		{
 			model_t *model;
@@ -4778,10 +4783,8 @@ void CL_ParsePrecache(void)
 		}
 		else
 			Con_Printf("svc_precache: model index %i outside range %i...%i\n", i, 1, MAX_MODELS);
-	}
-	else
-	{
-		i -= 32768;
+		break;
+	case 0x8000:
 		if (i >= 1 && i < MAX_SOUNDS)
 		{
 			sfx_t *sfx;
@@ -4795,6 +4798,7 @@ void CL_ParsePrecache(void)
 		}
 		else
 			Con_Printf("svc_precache: sound index %i outside range %i...%i\n", i, 1, MAX_SOUNDS);
+		break;
 	}
 }
 
@@ -4985,7 +4989,7 @@ void CL_ParseServerMessage (void)
 
 		case svc_serverdata:
 			Cbuf_Execute ();		// make sure any stuffed commands are done
- 			CL_ParseServerData ();
+ 			CLQW_ParseServerData ();
 			vid.recalc_refdef = true;	// leave full screen intermission
 			break;
 #ifdef PEXT_SETVIEW

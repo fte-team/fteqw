@@ -79,7 +79,7 @@ void W_LoadWadFile (char *filename)
 	if (!wad_base)
 	{
 		wad_numlumps = 0;
-		Con_Printf ("W_LoadWadFile: couldn't load %s\n", filename);
+		Con_DPrintf ("W_LoadWadFile: couldn't load %s\n", filename);
 		return;
 	}
 

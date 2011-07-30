@@ -582,7 +582,7 @@ void VQ3_RenderView(const q3refdef_t *ref)
 	{
 		dlight_t *dl;
 		dl = CL_NewDlightRGB(0, ref->vieworg, 300, r_torch.ival, 0.05, 0.05, 0.02);
-		dl->flags |= LFLAG_SHADOWMAP|LFLAG_ALLOW_FLASH;
+		dl->flags |= LFLAG_SHADOWMAP|LFLAG_FLASHBLEND;
 		dl->fov = 60;
 		VectorCopy(ref->viewaxis[0], dl->axis[0]);
 		VectorCopy(ref->viewaxis[1], dl->axis[1]);

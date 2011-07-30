@@ -53,7 +53,8 @@ static qboolean csqc_isdarkplaces;
 static char csqc_printbuffer[8192];
 
 #define CSQCPROGSGROUP "CSQC progs control"
-cvar_t	pr_csmaxedicts = CVAR("pr_csmaxedicts", "3072");	//not tied to protocol nor server.
+cvar_t	pr_csqc_maxedicts = CVAR("pr_csqc_maxedicts", "3072");	//not tied to protocol nor server.
+cvar_t	pr_csqc_memsize = CVAR("pr_csqc_memsize", "-1");
 cvar_t	cl_csqcdebug = CVAR("cl_csqcdebug", "0");	//prints entity numbers which arrive (so I can tell people not to apply it to players...)
 cvar_t  cl_nocsqc = CVAR("cl_nocsqc", "0");
 cvar_t  pr_csqc_coreonerror = CVAR("pr_csqc_coreonerror", "1");
@@ -767,8 +768,12 @@ static void QCBUILTIN PF_R_DynamicLight_Set(progfuncs_t *prinst, struct globalva
 	dlight_t *l;
 	unsigned int lno = G_FLOAT(OFS_PARM0);
 	int field = G_FLOAT(OFS_PARM1);
-	if (lno >= cl_maxdlights)
-		return;
+	while (lno >= cl_maxdlights)
+	{
+		if (lno > 1000)
+			return;
+		CL_AllocSlight();
+	}
 	l = cl_dlights+lno;
 	switch (field)
 	{
@@ -782,6 +787,8 @@ static void QCBUILTIN PF_R_DynamicLight_Set(progfuncs_t *prinst, struct globalva
 	case 2:
 		l->radius = G_FLOAT(OFS_PARM2);
 		l->rebuildcache = true;
+		if (lno >= rtlights_max)
+			rtlights_max = lno+1;
 		break;
 	case 3:
 		l->flags = G_FLOAT(OFS_PARM2);
@@ -789,6 +796,12 @@ static void QCBUILTIN PF_R_DynamicLight_Set(progfuncs_t *prinst, struct globalva
 		break;
 	case 4:
 		l->style = G_FLOAT(OFS_PARM2);
+		break;
+	case 5:
+		AngleVectors(G_VECTOR(OFS_PARM2), l->axis[0], l->axis[1], l->axis[2]);
+		break;
+	case 6:
+		l->fov = G_FLOAT(OFS_PARM2);
 		break;
 	default:
 		break;
@@ -824,6 +837,12 @@ static void QCBUILTIN PF_R_DynamicLight_Get(progfuncs_t *prinst, struct globalva
 		break;
 	case 4:
 		G_FLOAT(OFS_RETURN) = l->style;
+		break;
+	case 5:
+		VectorAngles(l->axis[0], l->axis[2], G_VECTOR(OFS_RETURN));
+		break;
+	case 6:
+		G_FLOAT(OFS_RETURN) = l->fov;
 		break;
 	default:
 		G_INT(OFS_RETURN) = 0;
@@ -907,7 +926,7 @@ static int csqc_startpolyvert;
 // #306 void(string texturename) R_BeginPolygon (EXT_CSQC_???)
 static void QCBUILTIN PF_R_PolygonBegin(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	csqc_shadern = R_RegisterSkin(PR_GetStringOfs(prinst, OFS_PARM0));
+	csqc_shadern = R_RegisterSkin(PR_GetStringOfs(prinst, OFS_PARM0), NULL);
 	csqc_startpolyvert = cl_numstrisvert;
 }
 
@@ -984,8 +1003,8 @@ float csqc_proj_matrix_inverse[16];
 	float proj[16];
 
 	/*build modelview and projection*/
-	Matrix4_ModelViewMatrix(modelview, r_refdef.viewangles, r_refdef.vieworg);
-	Matrix4_Projection2(proj, r_refdef.fov_x, r_refdef.fov_y, 4);
+	Matrix4x4_CM_ModelViewMatrix(modelview, r_refdef.viewangles, r_refdef.vieworg);
+	Matrix4x4_CM_Projection2(proj, r_refdef.fov_x, r_refdef.fov_y, 4);
 
 	/*build the project matrix*/
 	Matrix4_Multiply(proj, modelview, csqc_proj_matrix);
@@ -1011,7 +1030,7 @@ static void QCBUILTIN PF_cs_project (progfuncs_t *prinst, struct globalvars_s *p
 		v[2] = in[2];
 		v[3] = 1;
 
-		Matrix4_Transform4(csqc_proj_matrix, v, tempv);
+		Matrix4x4_CM_Transform4(csqc_proj_matrix, v, tempv);
 
 		tempv[0] /= tempv[3];
 		tempv[1] /= tempv[3];
@@ -1052,7 +1071,7 @@ static void QCBUILTIN PF_cs_unproject (progfuncs_t *prinst, struct globalvars_s 
 		if (v[2] >= 1)
 			v[2] = 0.999999;
 
-		Matrix4_Transform4(csqc_proj_matrix_inverse, v, tempv);
+		Matrix4x4_CM_Transform4(csqc_proj_matrix_inverse, v, tempv);
 
 		out[0] = tempv[0]/tempv[3];
 		out[1] = tempv[1]/tempv[3];
@@ -1529,18 +1548,7 @@ static void QCBUILTIN PF_cs_tracebox(progfuncs_t *prinst, struct globalvars_s *p
 	trace = World_Move (&csqc_world, v1, mins, maxs, v2, nomonsters, (wedict_t*)ent);
 	ent->xv->hull = savedhull;
 
-	*csqcg.trace_allsolid = trace.allsolid;
-	*csqcg.trace_startsolid = trace.startsolid;
-	*csqcg.trace_fraction = trace.fraction;
-	*csqcg.trace_inwater = trace.inwater;
-	*csqcg.trace_inopen = trace.inopen;
-	VectorCopy (trace.endpos, csqcg.trace_endpos);
-	VectorCopy (trace.plane.normal, csqcg.trace_plane_normal);
-	*csqcg.trace_plane_dist =  trace.plane.dist;
-	if (trace.ent)
-		*csqcg.trace_ent = EDICT_TO_PROG(prinst, (void*)trace.ent);
-	else
-		*csqcg.trace_ent = EDICT_TO_PROG(prinst, (void*)csqc_world.edicts);
+	cs_settracevars(&trace);
 }
 
 static trace_t CS_Trace_Toss (csqcedict_t *tossent, csqcedict_t *ignore)
@@ -1598,18 +1606,7 @@ static void QCBUILTIN PF_cs_tracetoss (progfuncs_t *prinst, struct globalvars_s 
 
 	trace = CS_Trace_Toss (ent, ignore);
 
-	*csqcg.trace_allsolid = trace.allsolid;
-	*csqcg.trace_startsolid = trace.startsolid;
-	*csqcg.trace_fraction = trace.fraction;
-	*csqcg.trace_inwater = trace.inwater;
-	*csqcg.trace_inopen = trace.inopen;
-	VectorCopy (trace.endpos, csqcg.trace_endpos);
-	VectorCopy (trace.plane.normal, csqcg.trace_plane_normal);
-	*csqcg.trace_plane_dist =  trace.plane.dist;
-	if (trace.ent)
-		*csqcg.trace_ent = EDICT_TO_PROG(prinst, trace.ent);
-	else
-		*csqcg.trace_ent = EDICT_TO_PROG(prinst, (void*)csqc_world.edicts);
+	cs_settracevars(&trace);
 }
 
 static int CS_PointContents(vec3_t org)
@@ -3412,7 +3409,7 @@ static void QCBUILTIN PF_shaderforname (progfuncs_t *prinst, struct globalvars_s
 	char *str = PF_VarString(prinst, 0, pr_globals);
 
 	shader_t *shad;
-	shad = R_RegisterSkin(str);
+	shad = R_RegisterSkin(str, NULL);
 	if (shad)
 		G_FLOAT(OFS_RETURN) = shad-r_shaders + 1;
 	else
@@ -3525,7 +3522,6 @@ static void QCBUILTIN PF_skel_create (progfuncs_t *prinst, struct globalvars_s *
 //float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone) skel_build (FTE_CSQC_SKELETONOBJECTS)
 static void QCBUILTIN PF_skel_build(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	#define MAX_BONES 256
 	int skelidx = G_FLOAT(OFS_PARM0);
 	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM1);
 	int midx = G_FLOAT(OFS_PARM2);
@@ -3953,6 +3949,12 @@ static void QCBUILTIN PF_cs_walkmove (progfuncs_t *prinst, struct globalvars_s *
 
 // restore program state
 	*csqcg.self = oldself;
+}
+
+void PF_cs_touchtriggers(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	wedict_t *ent = (wedict_t*)PROG_TO_EDICT(prinst, *csqcg.self);
+	World_LinkEdict (&csqc_world, ent, true);
 }
 
 static void QCBUILTIN PF_cs_movetogoal (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -4746,6 +4748,7 @@ static struct {
 	{"frameduration",		PF_frameduration,		277},//void(float modidx, float framenum) frameduration = #277 (FTE_CSQC_SKELETONOBJECTS)
 
 	{"terrain_edit",		PF_cs_terrain_edit,		278},//void(float action, vector pos, float radius, float quant) terrain_edit = #278 (??FTE_TERRAIN_EDIT??)
+	{"touchtriggers",		PF_cs_touchtriggers,	279},//void() touchtriggers = #279;
 //300
 	{"clearscene",	PF_R_ClearScene,	300},				// #300 void() clearscene (EXT_CSQC)
 	{"addentities",	PF_R_AddEntityMask,	301},				// #301 void(float mask) addentities (EXT_CSQC)
@@ -5355,7 +5358,7 @@ qboolean CSQC_Init (unsigned int checksum)
 		csqcprogs = InitProgs(&csqcprogparms);
 		csqc_world.progs = csqcprogs;
 		csqc_world.usesolidcorpse = true;
-		PR_Configure(csqcprogs, -1, 16);
+		PR_Configure(csqcprogs, pr_csqc_memsize.ival, 16);
 		csqc_world.worldmodel = cl.worldmodel;
 		csqc_world.Event_Touch = CSQC_Event_Touch;
 		csqc_world.GetCModel = CSQC_World_ModelForIndex;
@@ -5396,7 +5399,7 @@ qboolean CSQC_Init (unsigned int checksum)
 		csqc_fakereadbyte = -1;
 		memset(csqcent, 0, sizeof(*csqcent)*maxcsqcentities);	//clear the server->csqc entity translations.
 
-		csqcentsize = PR_InitEnts(csqcprogs, pr_csmaxedicts.value);
+		csqcentsize = PR_InitEnts(csqcprogs, pr_csqc_maxedicts.value);
 
 		ED_Alloc(csqcprogs);	//we need a world entity.
 
@@ -5625,7 +5628,8 @@ void CSQC_RegisterCvarsAndThings(void)
 	Cmd_AddCommand("cl_cmd", CSQC_GameCommand_f);
 	Cmd_AddCommand("breakpoint_csqc", CSQC_Breakpoint_f);
 
-	Cvar_Register(&pr_csmaxedicts, CSQCPROGSGROUP);
+	Cvar_Register(&pr_csqc_memsize, CSQCPROGSGROUP);
+	Cvar_Register(&pr_csqc_maxedicts, CSQCPROGSGROUP);
 	Cvar_Register(&cl_csqcdebug, CSQCPROGSGROUP);
 	Cvar_Register(&cl_nocsqc, CSQCPROGSGROUP);
 	Cvar_Register(&pr_csqc_coreonerror, CSQCPROGSGROUP);
@@ -5685,10 +5689,13 @@ qboolean CSQC_DrawView(void)
 
 	csqc_resortfrags = true;
 
-	if (csqcg.clientcommandframe)
-		*csqcg.clientcommandframe = cls.netchan.outgoing_sequence;
-	if (csqcg.servercommandframe)
-		*csqcg.servercommandframe = cl.ackedinputsequence;
+	if (!cl.paused)
+	{
+		if (csqcg.clientcommandframe)
+			*csqcg.clientcommandframe = cls.netchan.outgoing_sequence;
+		if (csqcg.servercommandframe)
+			*csqcg.servercommandframe = cl.ackedinputsequence;
+	}
 	if (csqcg.intermission)
 		*csqcg.intermission = cl.intermission;
 

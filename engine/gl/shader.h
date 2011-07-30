@@ -253,8 +253,9 @@ enum{
 	PERMUTATION_LOWER = 8,
 	PERMUTATION_UPPER = 16,
 	PERMUTATION_OFFSET = 32,
+	PERMUTATION_SKELETAL = 64,
 
-	PERMUTATIONS = 64
+	PERMUTATIONS = 128
 };
 
 typedef struct {
@@ -268,6 +269,8 @@ typedef struct {
 		SP_ATTR_NORMALS,
 		SP_ATTR_SNORMALS,
 		SP_ATTR_TNORMALS,
+		SP_ATTR_BONENUMS, /*skeletal only*/
+		SP_ATTR_BONEWEIGHTS, /*skeletal only*/
 
 		SP_FIRSTUNIFORM,	//never set
 
@@ -281,6 +284,7 @@ typedef struct {
 		SP_E_L_MUL,
 		SP_E_L_AMBIENT,
 
+		SP_ENTBONEMATRICIES,
 		SP_EYEPOS,
 		SP_ENTMATRIX,
 		SP_VIEWMATRIX,
@@ -405,7 +409,7 @@ shader_t *R_RegisterShader (char *name, const char *shaderscript);
 shader_t *R_RegisterShader_Lightmap (char *name);
 shader_t *R_RegisterShader_Vertex (char *name);
 shader_t *R_RegisterShader_Flare (char *name);
-shader_t *R_RegisterSkin (char *name);
+shader_t *R_RegisterSkin  (char *shadername, char *modname);
 shader_t *R_RegisterCustom (char *name, shader_gen_t *defaultgen, const void *args);
 void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader);
 

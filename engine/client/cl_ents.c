@@ -114,6 +114,9 @@ static void CL_ClearDlight(dlight_t *dl, int key)
 	dl->axis[2][2] = 1;
 	dl->key = key;
 	dl->flags = LFLAG_DYNAMIC;
+	dl->color[0] = 1;
+	dl->color[1] = 1;
+	dl->color[2] = 1;
 //	if (r_shadow_realtime_dlight_shadowmap.value)
 //		dl->flags |= LFLAG_SHADOWMAP;
 }
@@ -335,7 +338,13 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 #endif
 
 	if (bits & U_MODEL)
+	{
 		to->modelindex = MSG_ReadByte ();
+		if (morebits & U_MODELDBL && cls.fteprotocolextensions & PEXT_MODELDBL)
+			to->modelindex += 256;
+	}
+	else if (morebits & U_MODELDBL && cls.fteprotocolextensions & PEXT_MODELDBL)
+		to->modelindex = MSG_ReadShort();
 
 	if (bits & U_FRAME)
 		to->frame = MSG_ReadByte ();
@@ -401,8 +410,6 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 		to->number += 512;
 	if (morebits & U_ENTITYDBL2 && cls.fteprotocolextensions & PEXT_ENTITYDBL2)
 		to->number += 1024;
-	if (morebits & U_MODELDBL && cls.fteprotocolextensions & PEXT_MODELDBL)
-		to->modelindex += 256;
 
 	if (morebits & U_DPFLAGS)// && cls.fteprotocolextensions & PEXT_DPFLAGS)
 	{
@@ -2961,7 +2968,7 @@ void CL_LinkPlayers (void)
 					}
 					radius += (flicker+j)&31;
 				}
-				CL_NewDlightRGB(j+1, org, radius, 0.1, colour[0], colour[1], colour[2])->flags &= ~LFLAG_ALLOW_FLASH;
+				CL_NewDlightRGB(j+1, org, radius, 0.1, colour[0], colour[1], colour[2])->flags &= ~LFLAG_FLASHBLEND;
 			}
 		}
 
@@ -3096,7 +3103,7 @@ void CL_LinkPlayers (void)
 			CL_AddFlagModels (ent, 0);
 		else if (state->effects & QWEF_FLAG2)
 			CL_AddFlagModels (ent, 1);
-		else if (info->vweapindex)
+		if (info->vweapindex)
 			CL_AddVWeapModel (ent, cl.model_precache[info->vweapindex]);
 		else if (state->command.impulse)
 			CL_AddVWeapModel (ent, cl.model_precache_vwep[state->command.impulse]);
@@ -3108,7 +3115,7 @@ void CL_LinkPlayers (void)
 		{
 			dlight_t *dl;
 			dl = CL_NewDlightRGB(j+1, ent->origin, 300, r_torch.ival, 0.05, 0.05, 0.02);
-			dl->flags |= LFLAG_SHADOWMAP|LFLAG_ALLOW_FLASH;
+			dl->flags |= LFLAG_SHADOWMAP|LFLAG_FLASHBLEND;
 			dl->fov = 60;
 			angles[0] *= 3;
 			angles[1] += sin(realtime)*8;

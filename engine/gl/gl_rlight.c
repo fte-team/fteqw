@@ -116,7 +116,6 @@ void R_InitBubble(void)
 	}
 }
 
-#ifdef GLQUAKE
 #define FLASHBLEND_VERTS 16
 avec4_t flashblend_colours[FLASHBLEND_VERTS+1]; 
 vecV_t flashblend_vcoords[FLASHBLEND_VERTS+1];
@@ -238,7 +237,7 @@ void GLR_RenderDlights (void)
 	l = cl_dlights+rtlights_first;
 	for (i=rtlights_first; i<rtlights_max; i++, l++)
 	{
-		if (!l->radius || !(l->flags & LFLAG_ALLOW_FLASH))
+		if (!l->radius || !(l->flags & LFLAG_FLASHBLEND))
 			continue;
 
 		//dlights emitting from the local player are not visible as flashblends
@@ -255,7 +254,6 @@ void GLR_RenderDlights (void)
 		R_RenderDlight (l, beflags);
 	}
 }
-#endif
 
 /*
 =============================================================================
@@ -264,154 +262,6 @@ DYNAMIC LIGHTS
 
 =============================================================================
 */
-
-/*
-=============
-R_MarkLights
-=============
-*/
-/*void GLR_MarkLights (dlight_t *light, int bit, mnode_t *node)
-{
-	mplane_t	*splitplane;
-	float		dist;
-	msurface_t	*surf;
-	int			i;
-	
-	if (node->contents < 0)
-		return;	
-
-	splitplane = node->plane;
-	dist = DotProduct (light->origin, splitplane->normal) - splitplane->dist;
-	
-	if (dist > light->radius)
-	{
-		GLR_MarkLights (light, bit, node->children[0]);
-		return;
-	}
-	if (dist < -light->radius)
-	{
-		GLR_MarkLights (light, bit, node->children[1]);
-		return;
-	}
-		
-// mark the polygons
-	surf = cl.worldmodel->surfaces + node->firstsurface;
-	for (i=0 ; i<node->numsurfaces ; i++, surf++)
-	{
-		if (surf->dlightframe != r_dlightframecount)
-		{
-			surf->dlightbits = 0;
-			surf->dlightframe = r_dlightframecount;
-		}
-		surf->dlightbits |= bit;
-	}
-
-	GLR_MarkLights (light, bit, node->children[0]);
-	GLR_MarkLights (light, bit, node->children[1]);
-}*/
-/*void Q2BSP_MarkLights (dlight_t *light, int bit, mnode_t *node)
-{
-	mplane_t	*splitplane;
-	float		dist;
-	msurface_t	*surf;
-	int			i;
-	
-	if (node->contents != -1)
-		return;	
-
-	splitplane = node->plane;
-	dist = DotProduct (light->origin, splitplane->normal) - splitplane->dist;
-	
-	if (dist > light->radius)
-	{
-		Q2BSP_MarkLights (light, bit, node->children[0]);
-		return;
-	}
-	if (dist < -light->radius)
-	{
-		Q2BSP_MarkLights (light, bit, node->children[1]);
-		return;
-	}
-		
-// mark the polygons
-	surf = cl.worldmodel->surfaces + node->firstsurface;
-	for (i=0 ; i<node->numsurfaces ; i++, surf++)
-	{
-		if (surf->dlightframe != r_dlightframecount)
-		{
-			surf->dlightbits = 0;
-			surf->dlightframe = r_dlightframecount;
-		}
-		surf->dlightbits |= bit;
-	}
-
-	Q2BSP_MarkLights (light, bit, node->children[0]);
-	Q2BSP_MarkLights (light, bit, node->children[1]);
-}*/
-
-void GLR_MarkQ3Lights (dlight_t *light, int bit, mnode_t *node)
-{
-	mplane_t	*splitplane;
-	float		dist;
-	msurface_t	*surf;
-	int			i;
-
-	return;	//we need to get the texinfos right first.
-
-/*
-	//mark all
-	for (surf = cl.worldmodel->surfaces, i = 0;  i < cl.worldmodel->numsurfaces; i++, surf++)
-	{
-		if (surf->dlightframe != r_dlightframecount)
-		{
-			surf->dlightbits = 0;
-			surf->dlightframe = r_dlightframecount;
-		}
-		surf->dlightbits |= bit;
-	}
-	return;
-*/
-	if (node->contents != -1)
-	{
-		msurface_t	**mark;
-		mleaf_t *leaf;
-
-		// mark the polygons
-		leaf = (mleaf_t *)node;
-		mark = leaf->firstmarksurface;
-		for (i=0 ; i<leaf->nummarksurfaces ; i++, surf++)
-		{
-			surf = *mark++;
-			if (surf->dlightframe != r_dlightframecount)
-			{
-				surf->dlightbits = 0;
-				surf->dlightframe = r_dlightframecount;
-			}
-			surf->dlightbits |= bit;
-		}
-
-		return;	
-	}
-
-	splitplane = node->plane;
-	dist = DotProduct (light->origin, splitplane->normal) - splitplane->dist;
-	
-	if (dist > light->radius)
-	{
-		GLR_MarkQ3Lights (light, bit, node->children[0]);
-		return;
-	}
-	if (dist < -light->radius)
-	{
-		GLR_MarkQ3Lights (light, bit, node->children[1]);
-		return;
-	}
-
-	GLR_MarkQ3Lights (light, bit, node->children[0]);
-	GLR_MarkQ3Lights (light, bit, node->children[1]);
-}
-
-
 
 /*
 =============
@@ -437,7 +287,7 @@ void R_PushDlights (void)
 	l = cl_dlights+rtlights_first;
 	for (i=rtlights_first ; i <= DL_LAST ; i++, l++)
 	{
-		if (!l->radius || !(l->flags & LFLAG_ALLOW_LMHACK))
+		if (!l->radius || !(l->flags & LFLAG_LIGHTMAP))
 			continue;
 		currentmodel->funcs.MarkLights( l, 1<<i, currentmodel->nodes );
 	}
@@ -632,8 +482,7 @@ int GLRecursiveLightPoint (mnode_t *node, vec3_t start, vec3_t end)
 		s = DotProduct (mid, tex->vecs[0]) + tex->vecs[0][3];
 		t = DotProduct (mid, tex->vecs[1]) + tex->vecs[1][3];;
 
-		if (s < surf->texturemins[0] ||
-		t < surf->texturemins[1])
+		if (s < surf->texturemins[0] || t < surf->texturemins[1])
 			continue;
 		
 		ds = s - surf->texturemins[0];

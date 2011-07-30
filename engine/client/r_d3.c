@@ -310,8 +310,8 @@ static qboolean D3_PolyBounds(vec_t result[4], int count, vec4_t *vlist)
 	result[3] = -10000;
 	for (i = 0; i < count; i++)
 	{
-		Matrix4_Transform4(r_refdef.m_view, vlist[i], tempv); 
-		Matrix4_Transform4(r_refdef.m_projection, tempv, v);
+		Matrix4x4_CM_Transform4(r_refdef.m_view, vlist[i], tempv); 
+		Matrix4x4_CM_Transform4(r_refdef.m_projection, tempv, v);
 
 		v[0] /= v[3];
 		v[1] /= v[3];

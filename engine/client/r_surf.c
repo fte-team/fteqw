@@ -340,7 +340,7 @@ static void Surf_AddDynamicLights (msurface_t *surf)
 		if ( !(surf->dlightbits & (1<<lnum) ) )
 			continue;		// not lit by this light
 
-		if (!(cl_dlights[lnum].flags & LFLAG_ALLOW_LMHACK))
+		if (!(cl_dlights[lnum].flags & LFLAG_LIGHTMAP))
 			continue;
 
 		rad = cl_dlights[lnum].radius;
@@ -1884,7 +1884,7 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 			{
 				if (!cl_dlights[k].radius)
 					continue;
-				if (!(cl_dlights[k].flags & LFLAG_ALLOW_LMHACK))
+				if (!(cl_dlights[k].flags & LFLAG_LIGHTMAP))
 					continue;
 
 				model->funcs.MarkLights (&cl_dlights[k], 1<<k,
@@ -2263,7 +2263,35 @@ static int Surf_LM_FillBlock (int texnum, int w, int h, int x, int y)
 
 			if (cl.worldmodel->lightdata)
 			{
-				memcpy(lightmap[i]->lightmaps, cl.worldmodel->lightdata+3*LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*i, LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*3);
+				if (lightmap_bytes == 4)
+				{
+					int j;
+					if (lightmap_bgra)
+					{
+						for (j = 0; j < LMBLOCK_HEIGHT*LMBLOCK_HEIGHT; j++)
+						{
+							lightmap[i]->lightmaps[(j<<2)+0] = (cl.worldmodel->lightdata+3*(j + LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*i))[2];
+							lightmap[i]->lightmaps[(j<<2)+1] = (cl.worldmodel->lightdata+3*(j + LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*i))[1];
+							lightmap[i]->lightmaps[(j<<2)+2] = (cl.worldmodel->lightdata+3*(j + LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*i))[0];
+							lightmap[i]->lightmaps[(j<<2)+3] = 255;
+						}
+					}
+					else
+					{
+						for (j = 0; j < LMBLOCK_HEIGHT*LMBLOCK_HEIGHT; j++)
+						{
+							lightmap[i]->lightmaps[(j<<2)+0] = (cl.worldmodel->lightdata+3*(j + LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*i))[0];
+							lightmap[i]->lightmaps[(j<<2)+1] = (cl.worldmodel->lightdata+3*(j + LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*i))[1];
+							lightmap[i]->lightmaps[(j<<2)+2] = (cl.worldmodel->lightdata+3*(j + LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*i))[2];
+							lightmap[i]->lightmaps[(j<<2)+3] = 255;
+						}
+					}
+				}
+				else
+				{
+					/*BUG: assumes RGB. if its BGR then wrong colours, but whys that going to happen*/
+					memcpy(lightmap[i]->lightmaps, cl.worldmodel->lightdata+3*LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*i, LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*3);
+				}
 			}
 			else
 			{
@@ -2300,7 +2328,6 @@ void Surf_BuildSurfaceDisplayList (model_t *model, msurface_t *fa)
 	int			vertpage;
 	float		*vec;
 	float		s, t;
-	int	lm;
 
 // reconstruct the polygon
 	pedges = model->edges;
@@ -2361,13 +2388,11 @@ void Surf_BuildSurfaceDisplayList (model_t *model, msurface_t *fa)
 			mesh->st_array[i][1] = t/fa->texinfo->texture->height;
 
 			s -= fa->texturemins[0];
-			lm = s*fa->light_t;
 			s += fa->light_s*16;
 			s += 8;
 			s /= LMBLOCK_WIDTH*16;
 
 			t -= fa->texturemins[1];
-			lm += t;
 			t += fa->light_t*16;
 			t += 8;
 			t /= LMBLOCK_HEIGHT*16;

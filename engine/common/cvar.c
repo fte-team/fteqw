@@ -659,8 +659,8 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 #ifndef CLIENTONLY
 	if (var->flags & CVAR_SERVERINFO)
 	{
-		char *old = Info_ValueForKey(svs.info, var->name);
-		if (strcmp(old, value))	//only spam the server if it actually changed
+//		char *old = Info_ValueForKey(svs.info, var->name);
+//		if (strcmp(old, value))	//only spam the server if it actually changed
 		{
 			Info_SetValueForKey (svs.info, var->name, value, MAX_SERVERINFO_STRING);
 			SV_SendServerInfoChange(var->name, value);

@@ -179,8 +179,8 @@ void BE_GenModelBatches(struct batch_s **batches);
 //gl_alias.c
 void R_GAlias_DrawBatch(struct batch_s *batch);
 void R_GAlias_GenerateBatches(entity_t *e, struct batch_s **batches);
-void R_LightArraysByte_BGR(vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3_t *normals);
-void R_LightArrays(vecV_t *coords, vec4_t *colours, int vertcount, vec3_t *normals);
+void R_LightArraysByte_BGR(const entity_t *entity, vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3_t *normals);
+void R_LightArrays(const entity_t *entity, vecV_t *coords, vec4_t *colours, int vertcount, vec3_t *normals);
 
 void R_DrawSkyChain (struct batch_s *batch); /*called from the backend, and calls back into it*/
 void R_InitSky (struct texnums_s *ret, struct texture_s *mt, qbyte *src); /*generate q1 sky texnums*/

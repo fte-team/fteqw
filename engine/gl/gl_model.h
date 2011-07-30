@@ -47,6 +47,8 @@ typedef enum {
 	SHADER_SORT_COUNT
 } shadersort_t;
 
+#define MAX_BONES 128
+
 typedef struct mesh_s
 {
 	int				numvertexes;
@@ -73,6 +75,10 @@ typedef struct mesh_s
 	vec3_t			*trnormals;
 
 	qboolean		istrifan;	/*if its a fan/poly/single quad  (permits optimisations)*/
+	float			*bones;
+	int				numbones;
+	byte_vec4_t		*bonenums;
+	vec4_t			*boneweights;
 } mesh_t;
 extern mesh_t nullmesh;
 
@@ -235,6 +241,16 @@ typedef struct vbo_s
 	int vbocolours;
 	vec4_t	*colours4f;
 	byte_vec4_t	*colours4ub;
+
+	int vbobonenums;
+	byte_vec4_t *bonenums;
+
+	int vboboneweights;
+	vec4_t *boneweights;
+
+	int vbobones;
+	float *bones;
+	int numbones;
 } vbo_t;
 void GL_SelectVBO(int vbo);
 void GL_SelectEBO(int vbo);

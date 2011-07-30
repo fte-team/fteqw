@@ -436,6 +436,7 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 	int type;
 	ddef32_t fakedef;
 	eval_t fakeval;
+	edictrun_t *ed;
 
 	assignment = strchr(key, '=');
 	if (assignment)
@@ -478,7 +479,10 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 		if (c)*c = '.';
 		if (!fdef)
 			return "(Bad string)";
-		val = (eval_t *) (((char *)PROG_TO_EDICT(progfuncs, val->_int)->fields) + fdef->ofs*4);
+		ed = PROG_TO_EDICT(progfuncs, val->_int);
+		if (!ed)
+			return "(Invalid Entity)";
+		val = (eval_t *) (((char *)ed->fields) + fdef->ofs*4);
 		type = fdef->type;
 	}
 
@@ -859,9 +863,9 @@ void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 
 	prinst->continuestatement = -1;
 #ifdef QCJIT
-	if (prinst->jit)
+	if (current_progstate->jit)
 	{
-		PR_EnterJIT(progfuncs, prinst->jit, s);
+		PR_EnterJIT(progfuncs, current_progstate->jit, s);
 		return;
 	}
 #endif

@@ -65,7 +65,7 @@
 "STL_VOTE \"%s casts a vote for '%s'\\n\"\n"
 "STL_SPEEDCHEATKICKED \"%s was kicked for speedcheating (%s)\\n\"\n"
 "STL_SPEEDCHEATPOSSIBLE \"Speed cheat possibility, analyzing:\\n  %d %.1f %d for: %s\\n\"\n"
-"STL_INITED \"======== QuakeWorld Initialized ========\\n\"\n"
+"STL_INITED \"======== %s Initialized ========\\n\"\n"
 "STL_BACKBUFSET \"WARNING %s: [SV_New] Back buffered (%d0, clearing)\\n\"\n"
 "STL_MESSAGEOVERFLOW \"WARNING: backbuf [%d] reliable overflow for %s\\n\"\n"
 "STL_BUILDINGPHS \"Building PHS...\\n\"\n"

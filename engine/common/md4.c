@@ -300,3 +300,16 @@ void Com_BlockFullChecksum (void *buffer, int len, unsigned char *outbuf)
 	MD4Update (&ctx, (unsigned char *)buffer, len);
 	MD4Final ( outbuf, &ctx);
 }
+
+
+void Com_BlocksChecksum (int blocks, void **buffer, int *len, unsigned char *outbuf)
+{
+	MD4_CTX		ctx;
+
+	MD4Init (&ctx);
+	while(blocks --> 0)
+	{
+		MD4Update (&ctx, (unsigned char *)*buffer++, *len++);
+	}
+	MD4Final (outbuf, &ctx);
+}

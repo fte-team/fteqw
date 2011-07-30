@@ -59,6 +59,7 @@ qboolean VM_Restart(vm_t *vm);
 qintptr_t VARGS VM_Call(vm_t *vm, qintptr_t instruction, ...);
 qboolean VM_NonNative(vm_t *vm);
 void *VM_MemoryBase(vm_t *vm);
+quintptr_t VM_MemoryMask(vm_t *vm);
 
 
 

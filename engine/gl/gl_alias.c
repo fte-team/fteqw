@@ -23,8 +23,6 @@
 	#include <alloca.h>
 #endif
 
-#define MAX_BONES 256
-
 #include "com_mesh.h"
 
 //FIXME
@@ -186,7 +184,7 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, 
 	if (e->skinnum >= 100 && e->skinnum < 110)
 	{
 		shader_t *s;
-		s = R_RegisterSkin(va("gfx/skin%d.lmp", e->skinnum));
+		s = R_RegisterSkin(va("gfx/skin%d.lmp", e->skinnum), NULL);
 		if (!TEXVALID(s->defaulttextures.base))
 			s->defaulttextures.base = R_LoadHiResTexture(va("gfx/skin%d.lmp", e->skinnum), NULL, 0);
 		s->defaulttextures.shader = s;
@@ -306,7 +304,7 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, 
 			cm->texnum.base = r_nulltex;
 			cm->texnum.loweroverlay = r_nulltex;
 			cm->texnum.upperoverlay = r_nulltex;
-			cm->texnum.shader = texnums?texnums->shader:R_RegisterSkin(skinname);
+			cm->texnum.shader = texnums?texnums->shader:R_RegisterSkin(skinname, NULL);
 
 			if (!texnums)
 			{	//load just the skin
@@ -935,7 +933,7 @@ void R_GAlias_DrawBatch(batch_t *batch)
 		{
 			if (batch->surf_first == surfnum)
 			{
-				needrecolour = Alias_GAliasBuildMesh(&mesh, inf, e, e->shaderRGBAf[3], nolightdir);
+				needrecolour = Alias_GAliasBuildMesh(&mesh, inf, surfnum, e, true);
 				batch->mesh = &meshl;
 				return;
 			}
@@ -1321,6 +1319,7 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 	galiasinfo_t *inf;
 	mesh_t mesh;
 	vec3_t lightorg;
+	int surfnum = 0;
 
 	if (clmodel->engineflags & (MDLF_FLAME | MDLF_BOLT))
 		return;
@@ -1342,7 +1341,7 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 	{
 		if (inf->ofs_trineighbours)
 		{
-			Alias_GAliasBuildMesh(&mesh, inf, e, 1, true);
+			Alias_GAliasBuildMesh(&mesh, inf, surfnum, e, false);
 			R_CalcFacing(&mesh, lightorg);
 			R_ProjectShadowVolume(&mesh, lightorg);
 			R_DrawShadowVolume(&mesh);
@@ -1352,6 +1351,8 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 			inf = (galiasinfo_t*)((char *)inf + inf->nextsurf);
 		else
 			inf = NULL;
+
+		surfnum++;
 	}
 }
 #endif
@@ -1903,6 +1904,8 @@ void BE_GenModelBatches(batch_t **batches)
 
 	if (!r_drawentities.ival)
 		return;
+
+	Alias_FlushCache();
 
 #if defined(TERRAIN)
 	if (cl.worldmodel && cl.worldmodel->type == mod_heightmap)

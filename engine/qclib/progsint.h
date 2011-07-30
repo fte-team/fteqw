@@ -201,6 +201,10 @@ typedef struct progstate_s
 	int *linenums;	//debug versions only
 
 	progstructtype_t structtype;
+
+#ifdef QCJIT
+	struct jitstate *jit;
+#endif
 } progstate_t;
 
 typedef struct extensionbuiltin_s {
@@ -343,9 +347,6 @@ void PR_SetBuiltins(int type);
 #define vars(type, name, size) type name[size]
 
 typedef struct prinst_s {
-#ifdef QCJIT
-	struct jitstate *jit;
-#endif
 	char **tempstrings;
 	int maxtempstrings;
 	int numtempstrings;
@@ -481,6 +482,7 @@ pbool CompileFile(progfuncs_t *progfuncs, char *filename);
 struct jitstate;
 struct jitstate *PR_GenerateJit(progfuncs_t *progfuncs);
 void PR_EnterJIT(progfuncs_t *progfuncs, struct jitstate *jitstate, int statement);
+void PR_CloseJit(struct jitstate *jit);
 
 char *QCC_COM_Parse (char *data);
 extern char	qcc_token[1024];

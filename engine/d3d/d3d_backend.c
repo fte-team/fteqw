@@ -1,4 +1,5 @@
 #include "quakedef.h"
+#include "glquake.h"
 #ifdef D3DQUAKE
 #include "shader.h"
 #if !defined(HMONITOR_DECLARED) && (WINVER < 0x0500)
@@ -780,7 +781,7 @@ static void colourgenbyte(const shaderpass_t *pass, int cnt, byte_vec4_t *src, b
 		}
 		else
 		{
-			R_LightArraysByte_BGR(mesh->xyz_array, dst, cnt, mesh->normals_array);
+			R_LightArraysByte_BGR(shaderstate.curentity , mesh->xyz_array, dst, cnt, mesh->normals_array);
 		}
 		break;
 	case RGB_GEN_WAVE:
@@ -1979,7 +1980,6 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 
 	if (e->flags & Q2RF_WEAPONMODEL && r_refdef.currentplayernum>=0)
 	{
-		float *Matrix4_NewRotation(float a, float x, float y, float z);
 		/*FIXME: no bob*/
 		float iv[16];
 		Matrix4_Invert(r_refdef.m_view, iv);
@@ -2437,6 +2437,8 @@ void D3DBE_DrawWorld (qbyte *vis)
 		BE_SubmitMeshes(false, batches);
 		RSpeedEnd(RSPEED_DRAWENTITIES);
 	}
+
+	GLR_RenderDlights ();
 
 	BE_RotateForEntity(&r_worldentity, NULL);
 }

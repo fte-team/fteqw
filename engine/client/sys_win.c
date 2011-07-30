@@ -49,6 +49,32 @@ HWND sys_parentwindow;
 unsigned int sys_parentwidth;	//valid if sys_parentwindow is set
 unsigned int sys_parentheight;
 
+
+/*
+================
+Sys_RandomBytes
+================
+*/
+#include <wincrypt.h>
+qboolean Sys_RandomBytes(qbyte *string, int len)
+{
+	HCRYPTPROV  prov;
+
+	if(!CryptAcquireContext( &prov, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
+	{
+		return false;
+	}
+
+	if(!CryptGenRandom(prov, len, (BYTE *)string))
+	{
+		CryptReleaseContext( prov, 0);
+		return false;
+	}
+	CryptReleaseContext(prov, 0);
+	return true;
+}
+
+
 void Sys_CloseLibrary(dllhandle_t *lib)
 {
 	FreeLibrary((HMODULE)lib);

@@ -432,6 +432,7 @@ void Info_SetValueForStarKey (char *s, const char *key, const char *value, int m
 void Info_Print (char *s);
 void Info_WriteToFile(vfsfile_t *f, char *info, char *commandname, int cvarflags);
 
+void Com_BlocksChecksum (int blocks, void **buffer, int *len, unsigned char *outbuf);
 unsigned int Com_BlockChecksum (void *buffer, int length);
 void Com_BlockFullChecksum (void *buffer, int len, unsigned char *outbuf);
 qbyte	COM_BlockSequenceCheckByte (qbyte *base, int length, int sequence, unsigned mapchecksum);

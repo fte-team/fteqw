@@ -160,7 +160,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define DPMMODELS		//darkplaces model format (which I've never seen anyone use)
 		#define PSKMODELS		//PSK model format (ActorX stuff from UT, though not the format the game itself uses)
 		#define HALFLIFEMODELS	//halflife model support (experimental)
-//		#define INTERQUAKEMODELS
+		#define INTERQUAKEMODELS
 
 		#define HUFFNETWORK		//huffman network compression
 		//#define DOOMWADS		//doom wad/sprite support
@@ -444,8 +444,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	MAX_EDICTS		32767			// FIXME: ouch! ouch! ouch!
 #define	MAX_LIGHTSTYLES	255
 #define MAX_STANDARDLIGHTSTYLES 64
-#define	MAX_MODELS		512			// these are sent over the net as bytes
-#define	MAX_SOUNDS		512			// so they cannot be blindly increased
+#define	MAX_MODELS		1024			// these are sent over the net as bytes
+#define	MAX_SOUNDS		1024			// so they cannot be blindly increased
 #define MAX_VWEP_MODELS 32
 
 #define	MAX_CSQCMODELS		256			// these live entirly clientside

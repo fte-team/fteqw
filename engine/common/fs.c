@@ -1665,7 +1665,9 @@ const gamemode_info_t gamemode_info[] = {
 	{"Darkplaces-Rogue",	"rogue",		"-rogue",		{NULL},					NULL,	{"id1",		"qw",	"rogue",	"fte"},		"Quake: Dissolution of Eternity"},
 	{"Nexuiz",				"nexuiz",		"-nexuiz",		{"nexuiz.exe"},			NEXCFG,	{"data",						"ftedata"},	"Nexuiz"},
 	{"Xonotic",				"xonotic",		"-xonotic",		{"xonotic.exe"},		NEXCFG,	{"data",						"ftedata"},	"Xonotic"},
-	{"DMF",					"dmf",			"-dmf",			{"base/src/progs.src"},	DMFCFG,	{"base",						         },		"DMF"},
+	{"DMF",					"dmf",			"-dmf",			{"base/src/progs.src",
+															 "base/qwprogs.dat",
+															 "base/pak0.pak"},		DMFCFG,	{"base",						         },		"DMF"},
 
 	//supported commercial mods (some are currently only partially supported)
 	{"FTE-H2MP",			"h2mp",			"-portals",		{"portals/hexen.rc",
@@ -1673,12 +1675,14 @@ const gamemode_info_t gamemode_info[] = {
 	{"FTE-Hexen2",			"hexen2",		"-hexen2",		{"data1/pak0.pak"},		HEX2CFG,{"data1",						"fteh2"},		"Hexen II"},
 	{"FTE-Quake2",			"q2",			"-q2",			{"baseq2/pak0.pak"},	NULL,	{"baseq2",						"fteq2"},	"Quake II"},
 	{"FTE-Quake3",			"q3",			"-q3",			{"baseq3/pak0.pk3"},	Q3CFG,	{"baseq3",						"fteq3"},	"Quake III Arena"},
+
+	//the rest are not officially supported.
 	{"FTE-Quake4",			"q4",			"-q4",			{"q4base/pak00.pk4"},	NULL,	{"q4base",						"fteq4"},	"Quake 4"},
 	{"FTE-EnemyTerritory",	"et",			"-et",			{"etmain/pak0.pk3"},	NULL,	{"etmain",						"fteet"},	"Wolfenstein - Enemy Territory"},
 
 	{"FTE-JK2",				"jk2",			"-jk2",			{"base/assets0.pk3"},	NULL,	{"base",						"fte"},		"Jedi Knight II: Jedi Outcast"},
 
-	{"FTE-HalfLife",		"hl",			"-halflife",	{"valve/liblist.gam"}	,NULL,	{"valve",						"ftehl"},	"Half-Life"},
+	{"FTE-HalfLife",		"hl",			"-halflife",	{"valve/liblist.gam"},	NULL,	{"valve",						"ftehl"},	"Half-Life"},
 
 	{NULL}
 };
@@ -2145,7 +2149,8 @@ void FS_StartupWithGame(int gamenum)
 	LibZ_Init();
 #endif
 
-	Cvar_Set(&com_gamename, gamemode_info[gamenum].protocolname);
+	Cvar_Set(&com_protocolname, gamemode_info[gamenum].protocolname);
+	Cvar_ForceSet(&fs_gamename, gamemode_info[gamenum].poshname);
 
 //
 // start up with id1 by default
@@ -2258,8 +2263,9 @@ void COM_InitFilesystem (void)
 
 
 
-	Cvar_Register(&com_gamename, "evil hacks");
-	Cvar_Register(&com_modname, "evil hacks");
+	Cvar_Register(&fs_gamename, "FS");
+	Cvar_Register(&com_protocolname, "Server Info");
+	Cvar_Register(&com_modname, "Server Info");
 	//identify the game from a telling file
 	for (i = 0; gamemode_info[i].argname && gamenum==-1; i++)
 	{

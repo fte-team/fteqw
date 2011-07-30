@@ -155,7 +155,9 @@ FTEPFNGLGETVERTEXATTRIBIV			qglGetVertexAttribiv;
 FTEPFNGLENABLEVERTEXATTRIBARRAY		qglEnableVertexAttribArray;
 FTEPFNGLDISABLEVERTEXATTRIBARRAY	qglDisableVertexAttribArray;
 FTEPFNGLGETUNIFORMLOCATIONARBPROC   qglGetUniformLocationARB;
-FTEPFNGLUNIFORMMATRIX4FVARBPROC		qglUniformMatrix4fvARB;
+FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix4fvARB;
+FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix3x4fv;
+FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix4x3fv;
 FTEPFNGLUNIFORM4FARBPROC            qglUniform4fARB;
 FTEPFNGLUNIFORM4FVARBPROC           qglUniform4fvARB;
 FTEPFNGLUNIFORM3FARBPROC            qglUniform3fARB;
@@ -569,7 +571,42 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 	// glslang
 	//the gf2 to gf4 cards emulate vertex_shader and thus supports shader_objects.
 	//but our code kinda requires both for clean workings.
-	if (GL_CheckExtension("GL_ARB_fragment_shader")
+	if (gl_config.glversion >= 2)
+	{
+		/*core names are different from extension names (more functions too)*/
+		gl_config.arb_shader_objects = true;
+		qglCreateProgramObjectARB	= (void *)getglext( "glCreateProgram");
+		qglDeleteProgramObject_		= (void *)getglext( "glDeleteProgram");
+		qglDeleteShaderObject_		= (void *)getglext( "glDeleteShader");
+		qglUseProgramObjectARB		= (void *)getglext( "glUseProgram");
+		qglCreateShaderObjectARB	= (void *)getglext( "glCreateShader");
+		qglGetProgramParameteriv_	= (void *)getglext( "glGetProgramiv");
+		qglGetShaderParameteriv_	= (void *)getglext( "glGetShaderiv");
+		qglAttachObjectARB			= (void *)getglext( "glAttachShader");
+		qglGetProgramInfoLog_		= (void *)getglext( "glGetProgramInfoLog");
+		qglGetShaderInfoLog_		= (void *)getglext( "glGetShaderInfoLog");
+		qglShaderSourceARB			= (void *)getglext("glShaderSource");
+		qglCompileShaderARB			= (void *)getglext("glCompileShader");
+		qglLinkProgramARB			= (void *)getglext("glLinkProgram");
+		qglBindAttribLocationARB	= (void *)getglext("glBindAttribLocation");
+		qglGetAttribLocationARB		= (void *)getglext("glGetAttribLocation");
+		qglVertexAttribPointer		= (void *)getglext("glVertexAttribPointer");
+		qglGetVertexAttribiv		= (void *)getglext("glGetVertexAttribiv");
+		qglEnableVertexAttribArray	= (void *)getglext("glEnableVertexAttribArray");
+		qglDisableVertexAttribArray	= (void *)getglext("glDisableVertexAttribArray");
+		qglGetUniformLocationARB	= (void *)getglext("glGetUniformLocation");
+		qglUniformMatrix4fvARB		= (void *)getglext("glUniformMatrix4fv");
+		qglUniformMatrix3x4fv		= (void *)getglext("glUniformMatrix3x4fv");
+		qglUniformMatrix4x3fv		= (void *)getglext("glUniformMatrix4x3fv");
+		qglUniform4fARB				= (void *)getglext("glUniform4f");
+		qglUniform4fvARB			= (void *)getglext("glUniform4fv");
+		qglUniform3fARB				= (void *)getglext("glUniform3f");
+		qglUniform3fvARB			= (void *)getglext("glUniform3fv");
+		qglUniform1iARB				= (void *)getglext("glUniform1i");
+		qglUniform1fARB				= (void *)getglext("glUniform1f");
+		Con_DPrintf("GLSL available\n");
+	}
+	else if (GL_CheckExtension("GL_ARB_fragment_shader")
 		&& GL_CheckExtension("GL_ARB_vertex_shader")
 		&& GL_CheckExtension("GL_ARB_shader_objects"))
 	{
@@ -595,6 +632,8 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 		qglDisableVertexAttribArray	= (void *)getglext("glDisableVertexAttribArrayARB");
 		qglGetUniformLocationARB	= (void *)getglext("glGetUniformLocationARB");
 		qglUniformMatrix4fvARB		= (void *)getglext("glUniformMatrix4fvARB");
+		qglUniformMatrix3x4fv		= (void *)getglext("glUniformMatrix3x4fvARB");
+		qglUniformMatrix4x3fv		= (void *)getglext("glUniformMatrix4x3fvARB");
 		qglUniform4fARB				= (void *)getglext("glUniform4fARB");
 		qglUniform4fvARB			= (void *)getglext("glUniform4fvARB");
 		qglUniform3fARB				= (void *)getglext("glUniform3fARB");
@@ -602,39 +641,6 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 		qglUniform1iARB				= (void *)getglext("glUniform1iARB");
 		qglUniform1fARB				= (void *)getglext("glUniform1fARB");
 
-		Con_DPrintf("GLSL available\n");
-	}
-	else if (gl_config.gles && gl_config.glversion >= 2)
-	{
-		/*core names are different from extension names (more functions too)*/
-		gl_config.arb_shader_objects = true;
-		qglCreateProgramObjectARB	= (void *)getglext( "glCreateProgram");
-		qglDeleteProgramObject_		= (void *)getglext( "glDeleteProgram");
-		qglDeleteShaderObject_		= (void *)getglext( "glDeleteShader");
-		qglUseProgramObjectARB		= (void *)getglext( "glUseProgram");
-		qglCreateShaderObjectARB	= (void *)getglext( "glCreateShader");
-		qglGetProgramParameteriv_	= (void *)getglext( "glGetProgramiv");
-		qglGetShaderParameteriv_	= (void *)getglext( "glGetShaderiv");
-		qglAttachObjectARB			= (void *)getglext( "glAttachShader");
-		qglGetProgramInfoLog_		= (void *)getglext( "glGetProgramInfoLog");
-		qglGetShaderInfoLog_		= (void *)getglext( "glGetShaderInfoLog");
-		qglShaderSourceARB			= (void *)getglext("glShaderSource");
-		qglCompileShaderARB			= (void *)getglext("glCompileShader");
-		qglLinkProgramARB			= (void *)getglext("glLinkProgram");
-		qglBindAttribLocationARB	= (void *)getglext("glBindAttribLocation");
-		qglGetAttribLocationARB		= (void *)getglext("glGetAttribLocation");
-		qglVertexAttribPointer		= (void *)getglext("glVertexAttribPointer");
-		qglGetVertexAttribiv		= (void *)getglext("glGetVertexAttribiv");
-		qglEnableVertexAttribArray	= (void *)getglext("glEnableVertexAttribArray");
-		qglDisableVertexAttribArray	= (void *)getglext("glDisableVertexAttribArray");
-		qglGetUniformLocationARB	= (void *)getglext("glGetUniformLocation");
-		qglUniformMatrix4fvARB		= (void *)getglext("glUniformMatrix4fv");
-		qglUniform4fARB				= (void *)getglext("glUniform4f");
-		qglUniform4fvARB			= (void *)getglext("glUniform4fv");
-		qglUniform3fARB				= (void *)getglext("glUniform3f");
-		qglUniform3fvARB			= (void *)getglext("glUniform3fv");
-		qglUniform1iARB				= (void *)getglext("glUniform1i");
-		qglUniform1fARB				= (void *)getglext("glUniform1f");
 		Con_DPrintf("GLSL available\n");
 	}
 
@@ -683,6 +689,9 @@ GLhandleARB GLSlang_CreateShader (char *name, char *versionline, char **precompi
 	if (versionline)
 		prstrings[strings++] = versionline;
 
+	while(*precompilerconstants)
+		prstrings[strings++] = *precompilerconstants++;
+
 	prstrings[strings++] = "#define ENGINE_"DISTRIBUTION"\n";
 	switch (shadertype)
 	{
@@ -697,22 +706,44 @@ GLhandleARB GLSlang_CreateShader (char *name, char *versionline, char **precompi
 		prstrings[strings++] = "#define VERTEX_SHADER\n";
 		if (gl_config.gles)
 		{
-			prstrings[strings++] =	"#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
-									"precision highp float;\n"
-									"#else\n"
-									"precision mediump float;\n"
-									"#endif\n";
+			prstrings[strings++] =
+					"#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
+					"precision highp float;\n"
+					"#else\n"
+					"precision mediump float;\n"
+					"#endif\n";
 		}
 		if (gl_config.nofixedfunc)
 		{
-			prstrings[strings++] =	"#define ftetransform() (m_projection * m_modelview * vec4(v_position, 1.0))\n"
-									"uniform mat4 m_modelview, m_projection;\n"
-									"attribute vec3 v_position;\n";
+			prstrings[strings++] =
+					"#define ftetransform() (m_projection * m_modelview * vec4(v_position, 1.0))\n"
+					"uniform mat4 m_modelview, m_projection;\n"
+					"attribute vec3 v_position;\n";
 		}
 		else
 		{
-			prstrings[strings++] =	"#define ftetransform() ftransform()\n"
-									"#define v_position gl_Vertex\n";
+			prstrings[strings++] =
+					"#ifdef SKELETAL\n"
+						"attribute vec4 v_bone;\n"
+						"attribute vec4 v_weight;\n"
+						"uniform mat4 m_modelview, m_projection;\n"
+						"uniform mat3x4 m_bones["STRINGIFY(MAX_BONES)"];\n"
+						"#define v_position gl_Vertex\n"
+
+						"vec4 skeletaltransform()\n"
+						"{"
+						"	mat3x4 wmat;\n"
+						"	wmat = m_bones[int(v_bone.x)] * v_weight.x;\n"
+						"	wmat += m_bones[int(v_bone.y)] * v_weight.y;\n"
+						"	wmat += m_bones[int(v_bone.z)] * v_weight.z;\n"
+						"	wmat += m_bones[int(v_bone.w)] * v_weight.w;\n"
+						"	return m_projection * m_modelview * vec4(v_position * wmat, v_position.w);\n"
+						"}\n"
+						"#define ftetransform() skeletaltransform()\n"
+					"#else\n"
+						"#define ftetransform() ftransform()\n"
+						"#define v_position gl_Vertex\n"
+					"#endif\n";
 		}
 
 		break;
@@ -720,8 +751,6 @@ GLhandleARB GLSlang_CreateShader (char *name, char *versionline, char **precompi
 		prstrings[strings++] = "#define UNKNOWN_SHADER\n";
 		break;
 	}
-	while(*precompilerconstants)
-		prstrings[strings++] = *precompilerconstants++;
 	prstrings[strings++] = shadersource;
 
 	shader = qglCreateShaderObjectARB(shadertype);
@@ -789,6 +818,8 @@ GLhandleARB GLSlang_CreateProgramObject (GLhandleARB vert, GLhandleARB frag)
 	qglBindAttribLocationARB(program, 4, "v_normal");
 	qglBindAttribLocationARB(program, 5, "v_snormal");
 	qglBindAttribLocationARB(program, 6, "v_tnormal");
+	qglBindAttribLocationARB(program, 8, "v_bone");
+	qglBindAttribLocationARB(program, 9, "v_weight");
 
 	qglLinkProgramARB(program);
 

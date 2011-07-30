@@ -62,10 +62,6 @@ void QuaternionGLAngle(const vec3_t angles, vec4_t quaternion)
     quaternion[3] = cosr * cosp * cosy + sinr * sinp * siny;
 }
 
-#define MAX_BONES 128
-
-
-
 matrix3x4 transform_matrix[MAX_BONES];	/* Vertex transformation matrix */
 
 void GL_Draw_HL_AliasFrame(short *order, vec3_t *transformed, float tex_w, float tex_h);

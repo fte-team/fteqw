@@ -1405,9 +1405,9 @@ static void World_Physics_Frame_BodyToEntity(world_t *world, wedict_t *ed)
 	up[2] = r[10];
 	VectorCopy(vel, velocity);
 	VectorCopy(avel, spinvelocity);
-	Matrix4Q_FromVectors(bodymatrix, forward, left, up, origin);
+	Matrix4x4_RM_FromVectors(bodymatrix, forward, left, up, origin);
 	Matrix4_Multiply(ed->ode.ode_offsetimatrix, bodymatrix, entitymatrix);
-	Matrix4Q_ToVectors(entitymatrix, forward, left, up, origin);
+	Matrix3x4_RM_ToVectors(entitymatrix, forward, left, up, origin);
 
 	VectorAngles(forward, up, angles);
 	angles[0]*=-1;
@@ -1847,7 +1847,7 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		switch(solid)
 		{
 		case SOLID_BSP:
-			Matrix4_Identity(ed->ode.ode_offsetmatrix);
+			Matrix4x4_Identity(ed->ode.ode_offsetmatrix);
 			ed->ode.ode_geom = NULL;
 			if (!model)
 			{
@@ -1863,7 +1863,7 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 				return;
 			}
 
-			Matrix4Q_CreateTranslate(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
+			Matrix4x4_RM_CreateTranslate(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
 			// now create the geom
 			dataID = dGeomTriMeshDataCreate();
 			dGeomTriMeshDataBuildSingle(dataID, (void*)ed->ode.ode_vertex3f, sizeof(float[3]), ed->ode.ode_numvertices, ed->ode.ode_element3i, ed->ode.ode_numtriangles*3, sizeof(int[3]));
@@ -1874,12 +1874,12 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		case SOLID_SLIDEBOX:
 		case SOLID_CORPSE:
 		case SOLID_PHYSICS_BOX:
-			Matrix4Q_CreateTranslate(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
+			Matrix4x4_RM_CreateTranslate(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
 			ed->ode.ode_geom = (void *)dCreateBox(world->ode.ode_space, geomsize[0], geomsize[1], geomsize[2]);
 			dMassSetBoxTotal(&mass, massval, geomsize[0], geomsize[1], geomsize[2]);
 			break;
 		case SOLID_PHYSICS_SPHERE:
-			Matrix4Q_CreateTranslate(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
+			Matrix4x4_RM_CreateTranslate(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2]);
 			ed->ode.ode_geom = (void *)dCreateSphere(world->ode.ode_space, geomsize[0] * 0.5f);
 			dMassSetSphereTotal(&mass, massval, geomsize[0] * 0.5f);
 			break;
@@ -1895,11 +1895,11 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			// transform to it
 			memset(capsulerot, 0, sizeof(capsulerot));
 			if (axisindex == 0)
-				Matrix4_ModelMatrix(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 0, 0, 90, 1);
+				Matrix4x4_CM_ModelMatrix(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 0, 0, 90, 1);
 			else if (axisindex == 1)
-				Matrix4_ModelMatrix(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 90, 0, 0, 1);
+				Matrix4x4_CM_ModelMatrix(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 90, 0, 0, 1);
 			else
-				Matrix4_ModelMatrix(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 0, 0, 0, 1);
+				Matrix4x4_CM_ModelMatrix(ed->ode.ode_offsetmatrix, geomcenter[0], geomcenter[1], geomcenter[2], 0, 0, 0, 1);
 			radius = geomsize[!axisindex] * 0.5f; // any other axis is the radius
 			length = geomsize[axisindex] - radius*2;
 			// because we want to support more than one axisindex, we have to
@@ -1911,7 +1911,7 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		default:
 			Sys_Error("World_Physics_BodyFromEntity: unrecognized solid value %i was accepted by filter\n", solid);
 		}
-		Matrix4Q_Invert_Simple(ed->ode.ode_offsetmatrix, ed->ode.ode_offsetimatrix);
+		Matrix3x4_InvertTo4x4_Simple(ed->ode.ode_offsetmatrix, ed->ode.ode_offsetimatrix);
 		ed->ode.ode_massbuf = BZ_Malloc(sizeof(dMass));
 		memcpy(ed->ode.ode_massbuf, &mass, sizeof(dMass));
 	}
@@ -2065,9 +2065,9 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		VectorCopy(avelocity, ed->ode.ode_avelocity);
 		ed->ode.ode_gravity = gravity;
 
-		Matrix4Q_FromVectors(entitymatrix, forward, left, up, origin);
+		Matrix4x4_RM_FromVectors(entitymatrix, forward, left, up, origin);
 		Matrix4_Multiply(ed->ode.ode_offsetmatrix, entitymatrix, bodymatrix);
-		Matrix4Q_ToVectors(bodymatrix, forward, left, up, origin);
+		Matrix3x4_RM_ToVectors(bodymatrix, forward, left, up, origin);
 		r[0][0] = forward[0];
 		r[1][0] = forward[1];
 		r[2][0] = forward[2];

@@ -773,7 +773,8 @@ couldntload:
 	if (crash)
 		Host_EndGame ("Mod_NumForName: %s not found or couldn't load", mod->name);
 
-	Con_Printf(CON_ERROR "Unable to load or replace %s\n", mod->name);
+	if (*mod->name != '*')
+		Con_Printf(CON_ERROR "Unable to load or replace %s\n", mod->name);
 	mod->type = mod_dummy;
 	mod->mins[0] = -16;
 	mod->mins[1] = -16;
@@ -1050,7 +1051,15 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 
 	if (!l->filelen)
 	{
-		loadmodel->textures = NULL;
+		loadmodel->numtextures = 1;
+		loadmodel->textures = Hunk_AllocName (1 * sizeof(*loadmodel->textures), loadname);
+
+		i = 0;
+		tx = Hunk_AllocName (sizeof(texture_t), loadname );
+		memcpy(tx, r_notexture_mip, sizeof(texture_t));
+		sprintf(tx->name, "unnamed%i", i);
+		loadmodel->textures[i] = tx;
+
 		return true;
 	}
 	m = (dmiptexlump_t *)(mod_base + l->fileofs);
@@ -1388,6 +1397,10 @@ void RMod_NowLoadExternal(void)
 					tn.bump = R_LoadTexture8BumpPal (va("%s_bump", tx->name), width, height, heightmap-j, true);
 				}
 			}
+		}
+		if (!TEXVALID(tn.base))
+		{
+			tn.base = R_LoadTexture8("notexture", 16, 16, r_notexture_mip+1, IF_NOALPHA, 0);
 		}
 		Mod_FinishTexture(tx, tn);
 	}
@@ -1910,19 +1923,11 @@ qboolean RMod_LoadTexinfo (lump_t *l)
 		miptex = LittleLong (in->miptex);
 		out->flags = LittleLong (in->flags);
 	
-		if (!loadmodel->textures || miptex < 0 || miptex >= loadmodel->numtextures)
+		out->texture = loadmodel->textures[miptex % loadmodel->numtextures];
+		if (!out->texture)
 		{
-			out->texture = r_notexture_mip;	// checkerboard texture
+			out->texture = r_notexture_mip; // texture not found
 			out->flags = 0;
-		}
-		else
-		{
-			out->texture = loadmodel->textures[miptex];
-			if (!out->texture)
-			{
-				out->texture = r_notexture_mip; // texture not found
-				out->flags = 0;
-			}
 		}
 	}
 
@@ -1977,8 +1982,8 @@ void CalcSurfaceExtents (msurface_t *s);
 		bmins[i] = floor(mins[i]/16);
 		bmaxs[i] = ceil(maxs[i]/16);
 
-		s->texturemins[i] = bmins[i] * 16;
-		s->extents[i] = (bmaxs[i] - bmins[i]) * 16;
+		s->texturemins[i] = bmins[i];
+		s->extents[i] = (bmaxs[i] - bmins[i]);
 
 //		if ( !(tex->flags & TEX_SPECIAL) && s->extents[i] > 512 )	//q2 uses 512.
 //			Sys_Error ("Bad surface extents");
@@ -2310,6 +2315,7 @@ qboolean RMod_LoadClipnodes (lump_t *l)
 	mclipnode_t *out;
 	int			i, count;
 	hull_t		*hull;
+	short cn, c;
 
 	in = (void *)(mod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
@@ -2483,11 +2489,34 @@ qboolean RMod_LoadClipnodes (lump_t *l)
 		hull->available = false;
 	}
 
-	for (i=0 ; i<count ; i++, out++, in++)
+	if (count > 32767)
 	{
-		out->planenum = LittleLong(in->planenum);
-		out->children[0] = LittleShort(in->children[0]);
-		out->children[1] = LittleShort(in->children[1]);
+		/*
+		if the map contains more than 32767 clipnodes, some of them will overflow
+		typically this will happen in the second hull, and you thus might not notice it.
+		
+		*/
+		for (i=0 ; i<count ; i++, out++, in++)
+		{
+			out->planenum = LittleLong(in->planenum);
+			for (c = 0; c < 2; c++)
+			{
+				cn = LittleShort(in->children[c]);
+				if (cn < -10)
+					out->children[c] = (unsigned short)cn;
+				else
+					out->children[c] = cn;
+			}
+		}
+	}
+	else
+	{
+		for (i=0 ; i<count ; i++, out++, in++)
+		{
+			out->planenum = LittleLong(in->planenum);
+			out->children[0] = LittleShort(in->children[0]);
+			out->children[1] = LittleShort(in->children[1]);
+		}
 	}
 
 	if (numsuplementryclipnodes)	//now load the crouch ones.

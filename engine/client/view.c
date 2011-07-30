@@ -1286,7 +1286,7 @@ void R_DrawNameTags(void)
 		{
 			VectorCopy(nametagorg[i], tagcenter);
 			tagcenter[2] += 32;
-			Matrix4_Project(tagcenter, center, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y);
+			Matrix4x4_CM_Project(tagcenter, center, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y);
 			if (center[2] > 1)
 				continue;
 

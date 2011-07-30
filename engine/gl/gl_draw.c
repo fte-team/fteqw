@@ -445,8 +445,6 @@ void GL_Set2D (void)
 	extern cvar_t gl_screenangle;
 	float rad, ang;
 	float tmp[16], tmp2[16];
-	float *Matrix4_NewRotation(float a, float x, float y, float z);
-	float *Matrix4_NewTranslation(float x, float y, float z);
 	float w = vid.width, h = vid.height;
 
 	ang = (gl_screenangle.value>0?(gl_screenangle.value+45):(gl_screenangle.value-45))/90;
@@ -458,16 +456,16 @@ void GL_Set2D (void)
 		w = fabs(cos(rad)) * (vid.width) + fabs(sin(rad)) * (vid.height);
 		h = fabs(sin(rad)) * (vid.width) + fabs(cos(rad)) * (vid.height);
 
-		Matrix4_Orthographic(r_refdef.m_projection, w/-2.0f, w/2.0f, h/2.0f, h/-2.0f, -99999, 99999);
+		Matrix4x4_CM_Orthographic(r_refdef.m_projection, w/-2.0f, w/2.0f, h/2.0f, h/-2.0f, -99999, 99999);
 
-		Matrix4_Identity(tmp);
-		Matrix4_Multiply(Matrix4_NewTranslation((vid.width/-2.0f), (vid.height/-2.0f), 0), tmp, tmp2);
-		Matrix4_Multiply(Matrix4_NewRotation(-ang,  0, 0, 1), tmp2, r_refdef.m_view);
+		Matrix4x4_Identity(tmp);
+		Matrix4_Multiply(Matrix4x4_CM_NewTranslation((vid.width/-2.0f), (vid.height/-2.0f), 0), tmp, tmp2);
+		Matrix4_Multiply(Matrix4x4_CM_NewRotation(-ang,  0, 0, 1), tmp2, r_refdef.m_view);
 	}
 	else
 	{
-		Matrix4_Orthographic(r_refdef.m_projection, 0, vid.width, vid.height, 0, -99999, 99999);
-		Matrix4_Identity(r_refdef.m_view);
+		Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0, vid.width, vid.height, 0, -99999, 99999);
+		Matrix4x4_Identity(r_refdef.m_view);
 	}
 	r_refdef.time = realtime;
 	/*flush that gl state*/

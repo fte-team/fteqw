@@ -36,46 +36,47 @@ void ED_Print (struct progfuncs_s *progfuncs, struct edict_s *ed);
 int PR_EnableEBFSBuiltin(char *name, int binum);
 
 /*cvars for the gamecode only*/
-cvar_t	nomonsters = SCVAR("nomonsters", "0");
-cvar_t	gamecfg = SCVAR("gamecfg", "0");
-cvar_t	scratch1 = SCVAR("scratch1", "0");
-cvar_t	scratch2 = SCVAR("scratch2", "0");
-cvar_t	scratch3 = SCVAR("scratch3", "0");
-cvar_t	scratch4 = SCVAR("scratch4", "0");
-cvar_t	savedgamecfg = SCVARF("savedgamecfg", "0", CVAR_ARCHIVE);
-cvar_t	saved1 = SCVARF("saved1", "0", CVAR_ARCHIVE);
-cvar_t	saved2 = SCVARF("saved2", "0", CVAR_ARCHIVE);
-cvar_t	saved3 = SCVARF("saved3", "0", CVAR_ARCHIVE);
-cvar_t	saved4 = SCVARF("saved4", "0", CVAR_ARCHIVE);
-cvar_t	temp1 = SCVARF("temp1", "0", CVAR_ARCHIVE);
-cvar_t	noexit = SCVAR("noexit", "0");
+cvar_t	nomonsters = CVAR("nomonsters", "0");
+cvar_t	gamecfg = CVAR("gamecfg", "0");
+cvar_t	scratch1 = CVAR("scratch1", "0");
+cvar_t	scratch2 = CVAR("scratch2", "0");
+cvar_t	scratch3 = CVAR("scratch3", "0");
+cvar_t	scratch4 = CVAR("scratch4", "0");
+cvar_t	savedgamecfg = CVARF("savedgamecfg", "0", CVAR_ARCHIVE);
+cvar_t	saved1 = CVARF("saved1", "0", CVAR_ARCHIVE);
+cvar_t	saved2 = CVARF("saved2", "0", CVAR_ARCHIVE);
+cvar_t	saved3 = CVARF("saved3", "0", CVAR_ARCHIVE);
+cvar_t	saved4 = CVARF("saved4", "0", CVAR_ARCHIVE);
+cvar_t	temp1 = CVARF("temp1", "0", CVAR_ARCHIVE);
+cvar_t	noexit = CVAR("noexit", "0");
+cvar_t	pr_ssqc_memsize = CVAR("pr_ssqc_memsize", "-1");
 
 /*cvars purely for compat with others*/
-cvar_t	dpcompat_trailparticles = SCVAR("dpcompat_trailparticles", "0");
-cvar_t	pr_imitatemvdsv = SCVARF("pr_imitatemvdsv", "0", CVAR_LATCH);
+cvar_t	dpcompat_trailparticles = CVAR("dpcompat_trailparticles", "0");
+cvar_t	pr_imitatemvdsv = CVARF("pr_imitatemvdsv", "0", CVAR_LATCH);
 
 /*compat with frikqcc's arrays (ensures that unknown fields are at the same offsets*/
-cvar_t	pr_fixbrokenqccarrays = SCVARF("pr_fixbrokenqccarrays", "1", CVAR_LATCH);
+cvar_t	pr_fixbrokenqccarrays = CVARF("pr_fixbrokenqccarrays", "1", CVAR_LATCH);
 
 /*other stuff*/
-cvar_t	pr_maxedicts = SCVARF("pr_maxedicts", "2048", CVAR_LATCH);
+cvar_t	pr_maxedicts = CVARF("pr_maxedicts", "2048", CVAR_LATCH);
 
-cvar_t	pr_no_playerphysics = SCVARF("pr_no_playerphysics", "0", CVAR_LATCH);
-cvar_t	pr_no_parsecommand = SCVARF("pr_no_parsecommand", "0", 0);
+cvar_t	pr_no_playerphysics = CVARF("pr_no_playerphysics", "0", CVAR_LATCH);
+cvar_t	pr_no_parsecommand = CVARF("pr_no_parsecommand", "0", 0);
 
 cvar_t	progs = CVARAF("progs", "", "sv_progs", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_NOTFROMSERVER);
-cvar_t	qc_nonetaccess = SCVAR("qc_nonetaccess", "0");	//prevent write_... builtins from doing anything. This means we can run any mod, specific to any engine, on the condition that it also has a qw or nq crc.
+cvar_t	qc_nonetaccess = CVAR("qc_nonetaccess", "0");	//prevent write_... builtins from doing anything. This means we can run any mod, specific to any engine, on the condition that it also has a qw or nq crc.
 
-cvar_t pr_overridebuiltins = SCVAR("pr_overridebuiltins", "1");
+cvar_t pr_overridebuiltins = CVAR("pr_overridebuiltins", "1");
 
-cvar_t pr_compatabilitytest = SCVARF("pr_compatabilitytest", "0", CVAR_LATCH);
+cvar_t pr_compatabilitytest = CVARF("pr_compatabilitytest", "0", CVAR_LATCH);
 
-cvar_t pr_ssqc_coreonerror = SCVAR("pr_coreonerror", "1");
+cvar_t pr_ssqc_coreonerror = CVAR("pr_coreonerror", "1");
 
-cvar_t pr_droptofloorunits = SCVAR("pr_droptofloorunits", "");
+cvar_t pr_droptofloorunits = CVAR("pr_droptofloorunits", "");
 
-cvar_t sv_gameplayfix_honest_tracelines = SCVAR("sv_gameplayfix_honest_tracelines", "1");
-cvar_t sv_gameplayfix_blowupfallenzombies = SCVAR("sv_gameplayfix_blowupfallenzombies", "0");
+cvar_t sv_gameplayfix_honest_tracelines = CVAR("sv_gameplayfix_honest_tracelines", "1");
+cvar_t sv_gameplayfix_blowupfallenzombies = CVAR("sv_gameplayfix_blowupfallenzombies", "0");
 extern cvar_t sv_gameplayfix_noairborncorpse;
 
 cvar_t sv_addon[MAXADDONS];
@@ -525,6 +526,10 @@ void PR_LoadGlabalStruct(void)
 	static float dimension_send_default;
 	static float zero_default;
 	//static vec3_t vecwriteonly; // 523:16: warning: unused variable ‘vecwriteonly’
+	static float input_buttons_default;
+	static float input_timelength_default;
+	static vec3_t input_angles_default;
+	static vec3_t input_movevalues_default;
 	int i;
 	int *v;
 	nqglobalvars_t *pr_globals = pr_nqglobal_struct;
@@ -593,12 +598,17 @@ void PR_LoadGlabalStruct(void)
 	for (i = 0; i < NUM_SPAWN_PARMS; i++)
 		spawnparamglobals[i] = (float *)PR_FindGlobal(svprogfuncs, va("parm%i", i+1), 0, NULL);
 
-#define ensurefloat(name,var) if (!((nqglobalvars_t*)pr_globals)->name) ((nqglobalvars_t*)pr_globals)->name = &var;
+#define ensureglobal(name,var) if (!((nqglobalvars_t*)pr_globals)->name) ((nqglobalvars_t*)pr_globals)->name = &var;
 
 	// make sure these entries are always valid pointers
-	ensurefloat(dimension_send, dimension_send_default);
-	ensurefloat(trace_endcontents, writeonly);
-	ensurefloat(trace_surfaceflags, writeonly);
+	ensureglobal(dimension_send, dimension_send_default);
+	ensureglobal(trace_endcontents, writeonly);
+	ensureglobal(trace_surfaceflags, writeonly);
+
+	ensureglobal(input_timelength, input_timelength_default);
+	ensureglobal(input_angles, input_angles_default);
+	ensureglobal(input_movevalues, input_movevalues_default);
+	ensureglobal(input_buttons, input_buttons_default);
 
 	// qtest renames and missing variables
 	if (!((nqglobalvars_t*)pr_globals)->V_trace_plane_normal)
@@ -619,16 +629,16 @@ void PR_LoadGlabalStruct(void)
 		if (!((nqglobalvars_t*)pr_globals)->trace_fraction)
 			SV_Error("Could not find export trace_fraction in progs\n");
 	}
-	ensurefloat(serverflags, zero_default);
-	ensurefloat(total_secrets, zero_default);
-	ensurefloat(total_monsters, zero_default);
-	ensurefloat(found_secrets, zero_default);
-	ensurefloat(killed_monsters, zero_default);
-	ensurefloat(trace_allsolid, writeonly);
-	ensurefloat(trace_startsolid, writeonly);
-	ensurefloat(trace_plane_dist, writeonly);
-	ensurefloat(trace_inopen, writeonly);
-	ensurefloat(trace_inwater, writeonly);
+	ensureglobal(serverflags, zero_default);
+	ensureglobal(total_secrets, zero_default);
+	ensureglobal(total_monsters, zero_default);
+	ensureglobal(found_secrets, zero_default);
+	ensureglobal(killed_monsters, zero_default);
+	ensureglobal(trace_allsolid, writeonly);
+	ensureglobal(trace_startsolid, writeonly);
+	ensureglobal(trace_plane_dist, writeonly);
+	ensureglobal(trace_inopen, writeonly);
+	ensureglobal(trace_inwater, writeonly);
 
 	pr_global_struct->dimension_send = 255;
 	pr_global_struct->serverflags = 0;
@@ -871,7 +881,7 @@ void PR_Decompile_f(void)
 	if (!svprogfuncs)
 	{
 		Q_SetProgsParms(false);
-		PR_Configure(svprogfuncs, -1, MAX_PROGS);
+		PR_Configure(svprogfuncs, pr_ssqc_memsize.ival, MAX_PROGS);
 	}
 
 
@@ -884,7 +894,7 @@ void PR_Compile_f(void)
 {
 	int argc=3;
 	double time = Sys_DoubleTime();
-	char *argv[64] = {"", "-src", "src", "-srcfile", "qwprogs.src"};
+	char *argv[64] = {"", "-src", "src", "-srcfile", "progs.src"};
 
 	if (Cmd_Argc()>2)
 	{
@@ -943,7 +953,7 @@ void PR_ApplyCompilation_f (void)
 	s = PR_SaveEnts(svprogfuncs, NULL, &len, 1);
 
 
-	PR_Configure(svprogfuncs, -1, MAX_PROGS);
+	PR_Configure(svprogfuncs, pr_ssqc_memsize.ival, MAX_PROGS);
 	PR_RegisterFields();
 	PR_InitEnts(svprogfuncs, sv.world.max_edicts);
 
@@ -1093,6 +1103,7 @@ void PR_Init(void)
 	Cvar_Register (&pr_overridebuiltins, cvargroup_progs);
 
 	Cvar_Register (&pr_ssqc_coreonerror, cvargroup_progs);
+	Cvar_Register (&pr_ssqc_memsize, cvargroup_progs);
 
 	Cvar_Register (&pr_droptofloorunits, cvargroup_progs);
 
@@ -1131,7 +1142,7 @@ void Q_InitProgs(void)
 
 
 // load progs to get entity field count
-	PR_Configure(svprogfuncs, -1, MAX_PROGS);
+	PR_Configure(svprogfuncs, pr_ssqc_memsize.ival, MAX_PROGS);
 
 	PR_RegisterFields();
 
@@ -3683,6 +3694,12 @@ static void QCBUILTIN PF_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_
 	pr_global_struct->self = oldself;
 }
 
+void PF_sv_touchtriggers(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	wedict_t *ent = (wedict_t*)PROG_TO_EDICT(prinst, pr_global_struct->self);
+	World_LinkEdict (&sv.world, ent, true);
+}
+
 /*
 ===============
 PF_droptofloor
@@ -4953,6 +4970,8 @@ char *PF_infokey_Internal (int entnum, char *key)
 			sprintf(ov, "%d", SV_CalcPing (&svs.clients[entnum-1], false));
 		else if (!strcmp(key, "svping"))
 			sprintf(ov, "%d", SV_CalcPing (&svs.clients[entnum-1], true));
+		else if (!strcmp(key, "guid"))
+			sprintf(ov, "%s", svs.clients[entnum-1].guid);
 		else if (!strcmp(key, "*userid"))
 			sprintf(ov, "%d", svs.clients[entnum-1].userid);
 		else if (!strcmp(key, "download"))
@@ -8424,9 +8443,9 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 
 		if (host_client->state && host_client->protocol != SCP_BAD)
 		{
-			sv_player->xv->movement[0] = ucmd->forwardmove * host_frametime;
-			sv_player->xv->movement[1] = ucmd->sidemove * host_frametime;
-			sv_player->xv->movement[2] = ucmd->upmove * host_frametime;
+			sv_player->xv->movement[0] = ucmd->forwardmove;
+			sv_player->xv->movement[1] = ucmd->sidemove;
+			sv_player->xv->movement[2] = ucmd->upmove;
 		}
 
 		SV_CheckVelocity(sv_player);
@@ -9106,6 +9125,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"frameduration",	PF_frameduration,	0,		0,		0,		277},//float(float modidx, float framenum) frameduration = #277 (FTE_CSQC_SKELETONOBJECTS)
 
 	{"terrain_edit",	PF_sv_terrain_edit,	0,		0,		0,		278},//void(float action, vector pos, float radius, float quant) terrain_edit = #278 (??FTE_TERRAIN_EDIT??
+	{"touchtriggers",	PF_sv_touchtriggers,0,		0,		0,		279},//void() touchtriggers = #279;
 
 //EXT_CSQC
 //	{"setmodelindex",	PF_sv_SetModelIndex,0,		0,		0,		333},	// #333 void(entity e, float mdlindex) setmodelindex (EXT_CSQC)
@@ -9470,7 +9490,8 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 
 	if (type == PROG_QW && pr_imitatemvdsv.value>0)	//pretend to be mvdsv for a bit.
 	{
-		if (PR_EnableEBFSBuiltin("executecommand",	83) != 83 ||
+		if (
+			PR_EnableEBFSBuiltin("executecommand",	83) != 83 ||
 			PR_EnableEBFSBuiltin("mvdtokenize",		84) != 84 ||
 			PR_EnableEBFSBuiltin("mvdargc",			85) != 85 ||
 			PR_EnableEBFSBuiltin("mvdargv",			86) != 86 ||

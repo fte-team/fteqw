@@ -129,34 +129,46 @@ vec_t		Length (vec3_t v);
 void		MakeNormalVectors (vec3_t forward, vec3_t right, vec3_t up);
 float		Q_rsqrt(float number);
 
-//used for crosshair stuff.
+/*
+_CM means column major.
+_RM means row major
+Note that openGL is column-major.
+Logical C code uses row-major.
+mat3x4 is always row-major (and functions can accept many RM mat4x4)
+*/
+
 void		Matrix3_Multiply (vec3_t *in1, vec3_t *in2, vec3_t *out);
-void		Matrix4_Identity(float *outm);
+void		Matrix4x4_Identity(float *outm);
 qboolean	Matrix4_Invert(const float *m, float *out);
-void		Matrix4Q_Invert_Simple (const float *in1, float *out);
-void		Matrix3_Invert_Simple(const vec3_t in[3], vec3_t out[3]);
-void		Matrix4_CreateTranslate (float *out, float x, float y, float z);
-void		Matrix4Q_CreateTranslate (float *out, float x, float y, float z);
-void		Matrix4_ModelMatrixFromAxis (float *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg);
-void		Matrix4_ModelMatrix(float *modelview, vec_t x, vec_t y, vec_t z, vec_t pitch, vec_t yaw, vec_t roll, vec_t scale);
-void		Matrix4_ModelViewMatrix (float *modelview, const vec3_t viewangles, const vec3_t vieworg);
-void		Matrix4_ModelViewMatrixFromAxis (float *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg);
+void		Matrix3x4_Invert_Simple (const float *in1, float *out);
+void		Matrix3x4_InvertTo4x4_Simple (const float *in1, float *out);
+void		Matrix3x3_RM_Invert_Simple(const vec3_t in[3], vec3_t out[3]);
+void		Matrix4x4_RM_CreateTranslate (float *out, float x, float y, float z);
+void		Matrix4x4_CM_CreateTranslate (float *out, float x, float y, float z);
+void		Matrix4x4_CM_ModelMatrixFromAxis (float *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg);
+void		Matrix4x4_CM_ModelMatrix(float *modelview, vec_t x, vec_t y, vec_t z, vec_t pitch, vec_t yaw, vec_t roll, vec_t scale);
+void		Matrix4x4_CM_ModelViewMatrix (float *modelview, const vec3_t viewangles, const vec3_t vieworg);
+void		Matrix4x4_CM_ModelViewMatrixFromAxis (float *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg);
 void		Matrix4_CreateFromQuakeEntity (float *matrix, float x, float y, float z, float pitch, float yaw, float roll, float scale);
 void		Matrix4_Multiply (const float *a, const float *b, float *out);
-void		Matrix4_Project (const vec3_t in, vec3_t out, const vec3_t viewangles, const vec3_t vieworg, float fovx, float fovy);
-void		Matrix4_Transform3 (const float *matrix, const float *vector, float *product);
-void		Matrix4_Transform4 (const float *matrix, const float *vector, float *product);
-void		Matrix4_UnProject (const vec3_t in, vec3_t out, const vec3_t viewangles, const vec3_t vieworg, float fovx, float fovy);
-void		Matrix4Q_FromVectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3]);
-void		Matrix4Q_ToVectors(const float *in, float vx[3], float vy[3], float vz[3], float t[3]);
+void		Matrix4x4_CM_Project (const vec3_t in, vec3_t out, const vec3_t viewangles, const vec3_t vieworg, float fovx, float fovy);
+void		Matrix4x4_CM_Transform3 (const float *matrix, const float *vector, float *product);
+void		Matrix4x4_CM_Transform4 (const float *matrix, const float *vector, float *product);
+void		Matrix4x4_CM_UnProject (const vec3_t in, vec3_t out, const vec3_t viewangles, const vec3_t vieworg, float fovx, float fovy);
+void		Matrix3x4_RM_FromVectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3]);
+void		Matrix4x4_RM_FromVectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3]);
+void		Matrix3x4_RM_ToVectors(const float *in, float vx[3], float vy[3], float vz[3], float t[3]);
+
+float		*Matrix4x4_CM_NewRotation(float a, float x, float y, float z);
+float		*Matrix4x4_CM_NewTranslation(float x, float y, float z);
 
 #define AngleVectorsFLU(a,f,l,u) do{AngleVectors(a,f,l,u);VectorNegate(l,l);}while(0)
 
 //projection matricies of different types... gesh
-void		Matrix4_Orthographic (float *proj, float xmin, float xmax, float ymax, float ymin, float znear, float zfar);
-void		Matrix4_Projection_Far(float *proj, float fovx, float fovy, float neard, float fard);
-void		Matrix4_Projection2 (float *proj, float fovx, float fovy, float neard);
-void		Matrix4_Projection_Inf(float *proj, float fovx, float fovy, float neard);
+void		Matrix4x4_CM_Orthographic (float *proj, float xmin, float xmax, float ymax, float ymin, float znear, float zfar);
+void		Matrix4x4_CM_Projection_Far(float *proj, float fovx, float fovy, float neard, float fard);
+void		Matrix4x4_CM_Projection2 (float *proj, float fovx, float fovy, float neard);
+void		Matrix4x4_CM_Projection_Inf(float *proj, float fovx, float fovy, float neard);
 
 fixed16_t	Mul16_30 (fixed16_t multiplier, fixed16_t multiplicand);
 int			Q_log2 (int val);

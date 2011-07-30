@@ -27,6 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	GAME_API_VERSION	13
 #define MAX_Q1QVM_EDICTS	768 //according to ktx at api version 12 (fte's protocols go to 2048)
+#define MAPNAME_LEN 64
 
 #define VMFSID_Q1QVM 57235	//a cookie
 
@@ -1452,6 +1453,9 @@ qboolean PR_LoadQ1QVM(void)
 	sv.world.progs = &q1qvmprogfuncs;
 	sv.world.edicts = (wedict_t*)EDICT_NUM(svprogfuncs, 0);
 	sv.world.usesolidcorpse = true;
+
+	if ((unsigned)gd->global->mapname && (unsigned)gd->global->mapname+MAPNAME_LEN < VM_MemoryMask(q1qvm))
+		Q_strncpyz((char*)VM_MemoryBase(q1qvm) + gd->global->mapname, sv.mapname, MAPNAME_LEN);
 	return true;
 }
 

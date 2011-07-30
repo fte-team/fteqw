@@ -754,6 +754,7 @@ static void Shader_LoadPermutations(char *name, program_t *prog, char *script, i
 		"#define LOWER\n",
 		"#define UPPER\n",
 		"#define OFFSETMAPPING\n",
+		"#define SKELETAL\n",
 		NULL
 	};
 	char *permutationdefines[sizeof(permutationname)/sizeof(permutationname[0])];
@@ -1165,6 +1166,7 @@ struct sbuiltin_s
 		"!!permu FULLBRIGHT\n"
 		"!!permu LOWER\n"
 		"!!permu UPPER\n"
+		"!!permu SKELETAL\n"
 		"#ifdef VERTEX_SHADER\n"
 			"attribute vec2 v_texcoord;\n"
 			"varying vec2 tc;\n"
@@ -1177,9 +1179,9 @@ struct sbuiltin_s
 
 			"void main (void)\n"
 			"{\n"
+			"	gl_Position = ftetransform();\n"
 			"	light = e_light_ambient + (dot(v_normal,e_light_dir)*e_light_mul);\n"
 			"	tc = v_texcoord;\n"
-			"	gl_Position = ftetransform();\n"
 			"}\n"
 		"#endif\n"
 
@@ -1221,10 +1223,11 @@ struct sbuiltin_s
 			"}\n"
 		"#endif\n"
 	},
-	{QR_OPENGL, 110, "defaultskin",
+	{QR_OPENGL, 120, "defaultskin",
 		"!!permu FULLBRIGHT\n"
 		"!!permu LOWER\n"
 		"!!permu UPPER\n"
+		"!!permu SKELETAL\n"
 		"#ifdef VERTEX_SHADER\n"
 			"attribute vec2 v_texcoord;\n"
 			"varying vec2 tc;\n"
@@ -1234,12 +1237,12 @@ struct sbuiltin_s
 			"uniform vec3 e_light_mul;\n"
 			"uniform vec3 e_light_ambient;\n"
 			"varying vec3 light;\n"
-
+			"#ifndef SKELETAL\nattribute vec4 v_weight;\n#endif\n"
 			"void main (void)\n"
 			"{\n"
+			"	gl_Position = ftetransform();\n"
 			"	light = e_light_ambient + (dot(v_normal,e_light_dir)*e_light_mul);\n"
 			"	tc = v_texcoord;\n"
-			"	gl_Position = ftetransform();\n"
 			"}\n"
 		"#endif\n"
 
@@ -1455,6 +1458,8 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarfnames)
 		{"v_normal",				SP_ATTR_NORMALS},
 		{"v_svector",				SP_ATTR_SNORMALS},
 		{"v_tvector",				SP_ATTR_TNORMALS},
+		{"v_bone",					SP_ATTR_BONENUMS},
+		{"v_weight",				SP_ATTR_BONEWEIGHTS},
 
 		/*matricies*/
 		{"m_model",					SP_MODELMATRIX},
@@ -1462,6 +1467,7 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarfnames)
 		{"m_modelview",				SP_MODELVIEWMATRIX},
 		{"m_projection",			SP_PROJECTIONMATRIX},
 		{"m_modelviewprojection",	SP_MODELVIEWPROJECTIONMATRIX},
+		{"m_bones",					SP_ENTBONEMATRICIES},
 
 		/*ent properties*/
 		{"e_time",					SP_TIME},
@@ -3146,7 +3152,7 @@ void Shader_Finish (shader_t *s)
 	if (TEXVALID(s->defaulttextures.base))
 		s->flags &= ~SHADER_NOIMAGE;
 
-	if (!s->numpasses && !(s->flags & (SHADER_NODRAW|SHADER_SKY)) && !s->fog_dist)
+	if (!s->numpasses && s->sort != SHADER_SORT_PORTAL && !(s->flags & (SHADER_NODRAW|SHADER_SKY)) && !s->fog_dist)
 	{
 		pass = &s->passes[s->numpasses++];
 		pass = &s->passes[0];
@@ -4350,9 +4356,29 @@ shader_t *R_RegisterShader_Flare (char *name)
 	return &r_shaders[R_LoadShader (name, Shader_DefaultBSPFlare, NULL)];
 }
 
-shader_t *R_RegisterSkin (char *name)
+shader_t *R_RegisterSkin (char *shadername, char *modname)
 {
-	return &r_shaders[R_LoadShader (name, Shader_DefaultSkin, NULL)];
+	shader_t *shader;
+	if (modname && !strchr(shadername, '/'))
+	{
+		char newsname[MAX_QPATH];
+		char *b = COM_SkipPath(modname);
+		if (b != modname && b-modname + strlen(shadername)+1 < sizeof(newsname))
+		{
+			memcpy(newsname, modname, b - modname);
+			memcpy(newsname + (b-modname), shadername, strlen(shadername)+1);
+			/*if the specified shader does not contain a path, try and load one relative to the name of the model*/
+			shader = &r_shaders[R_LoadShader (newsname, Shader_DefaultSkin, NULL)];
+
+			R_BuildDefaultTexnums(&shader->defaulttextures, shader);
+
+			/*if its a valid shader with valid textures, use it*/
+			if (!(shader->flags & SHADER_NOIMAGE))
+				return shader;
+		}
+	}
+	shader = &r_shaders[R_LoadShader (shadername, Shader_DefaultSkin, NULL)];
+	return shader;
 }
 shader_t *R_RegisterCustom (char *name, shader_gen_t *defaultgen, const void *args)
 {

@@ -2581,8 +2581,19 @@ QCC_def_t	*QCC_PR_ParseImmediate (void)
 
 	if (pr_immediate_type == type_string)
 	{
-		cn = QCC_MakeStringDef(pr_immediate_string);
-		QCC_PR_Lex ();
+		char tmp[8192];
+		strcpy(tmp, pr_immediate_string);
+
+		for(;;)
+		{
+			QCC_PR_Lex ();
+			if (pr_token_type == tt_immediate && pr_token_type == tt_immediate)
+				strcat(tmp, pr_immediate_string);
+			else
+				break;
+		} 
+
+		cn = QCC_MakeStringDef(tmp);
 		return cn;
 	}
 
@@ -9395,6 +9406,11 @@ void QCC_PR_ParseDefs (char *classname)
 								else
 									G_FUNCTION(def->ofs+arraypart*type->size+parttype->ofs) = G_FUNCTION(d->ofs);
 							}
+							break;
+						case ev_struct:
+						case ev_union:
+							QCC_PR_ParseError(ERR_TYPEINVALIDINSTRUCT, "nested struct intializers are not supported");
+							QCC_PR_Lex();
 							break;
 						default:
 							QCC_PR_ParseError(ERR_TYPEINVALIDINSTRUCT, "type %i not valid in a struct", parttype->type);

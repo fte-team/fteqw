@@ -503,7 +503,11 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 		if (to->modelindex > 255)
 		{
 			if (protext & PEXT_MODELDBL)
+			{
+				if (to->modelindex > 512)
+					bits &= ~U_MODEL;
 				evenmorebits |= U_MODELDBL;
+			}
 			else
 				return;
 		}
@@ -602,6 +606,9 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 
 	if (bits & U_MODEL)
 		MSG_WriteByte (msg,	to->modelindex&255);
+	else if (evenmorebits & U_MODELDBL)
+		MSG_WriteShort(msg, to->modelindex);
+
 	if (bits & U_FRAME)
 		MSG_WriteByte (msg, to->frame);
 	if (bits & U_COLORMAP)

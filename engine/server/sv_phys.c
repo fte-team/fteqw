@@ -2176,8 +2176,8 @@ qboolean SV_Physics (void)
 					SV_RunEntity(ent);
 					SV_RunNewmis ();
 				}
-				else
-					World_LinkEdict(&sv.world, (wedict_t*)ent, true);
+//				else
+//					World_LinkEdict(&sv.world, (wedict_t*)ent, true);
 				continue;		// clients are run directly from packets
 			}
 

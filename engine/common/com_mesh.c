@@ -211,6 +211,35 @@ void Mod_NormaliseTextureVectors(vec3_t *n, vec3_t *s, vec3_t *t, int v)
 
 #ifdef SKELETALMODELS
 
+static void GenMatrixPosQuat4Scale(vec3_t pos, vec4_t quat, vec3_t scale, float result[12])
+{
+	   float xx, xy, xz, xw, yy, yz, yw, zz, zw;
+	   float x2, y2, z2;
+	   x2 = quat[0] + quat[0];
+	   y2 = quat[1] + quat[1];
+	   z2 = quat[2] + quat[2];
+
+	   xx = quat[0] * x2;   xy = quat[0] * y2;   xz = quat[0] * z2;
+	   yy = quat[1] * y2;   yz = quat[1] * z2;   zz = quat[2] * z2;
+	   xw = quat[3] * x2;   yw = quat[3] * y2;   zw = quat[3] * z2;
+
+	   result[0*4+0] = 1.0f - (yy + zz);
+	   result[1*4+0] = xy + zw;
+	   result[2*4+0] = xz - yw;
+
+	   result[0*4+1] = xy - zw;
+	   result[1*4+1] = 1.0f - (xx + zz);
+	   result[2*4+1] = yz + xw;
+
+	   result[0*4+2] = xz + yw;
+	   result[1*4+2] = yz - xw;
+	   result[2*4+2] = 1.0f - (xx + yy);
+
+	   result[0*4+3]  =     pos[0];
+	   result[1*4+3]  =     pos[1];
+	   result[2*4+3]  =     pos[2];
+}
+
 static void GenMatrix(float x, float y, float z, float qx, float qy, float qz, float result[12])
 {
 	float qw;
@@ -304,7 +333,132 @@ static void PSKGenMatrix(float x, float y, float z, float qx, float qy, float qz
 	result[2*4+3]  =     z;
 }
 
-void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, vecV_t *xyzout, vec3_t *normout)
+#define restrict
+
+/*transforms some skeletal vecV_t values*/
+static void Alias_TransformVerticies_V(float *bonepose, int vertcount, qbyte *bidx, float *weights, float *xyzin, float *restrict xyzout)
+{
+	int i;
+	float *matrix;
+	for (i = 0; i < vertcount; i++, xyzout+=sizeof(vecV_t)/sizeof(vec_t), xyzin+=sizeof(vecV_t)/sizeof(vec_t), bidx+=4, weights+=4)
+	{
+		matrix = &bonepose[12*bidx[0]];
+		xyzout[0] = weights[0] * (xyzin[0] * matrix[0] + xyzin[1] * matrix[1] + xyzin[2] * matrix[ 2] + xyzin[3] * matrix[ 3]);
+		xyzout[1] = weights[0] * (xyzin[0] * matrix[4] + xyzin[1] * matrix[5] + xyzin[2] * matrix[ 6] + xyzin[3] * matrix[ 7]);
+		xyzout[2] = weights[0] * (xyzin[0] * matrix[8] + xyzin[1] * matrix[9] + xyzin[2] * matrix[10] + xyzin[3] * matrix[11]);
+
+		if (bidx[1] != ~(qbyte)0)
+		{
+			matrix = &bonepose[12*bidx[1]];
+			xyzout[0] += weights[1] * (xyzin[0] * matrix[0] + xyzin[1] * matrix[1] + xyzin[2] * matrix[ 2] + xyzin[3] * matrix[ 3]);
+			xyzout[1] += weights[1] * (xyzin[0] * matrix[4] + xyzin[1] * matrix[5] + xyzin[2] * matrix[ 6] + xyzin[3] * matrix[ 7]);
+			xyzout[2] += weights[1] * (xyzin[0] * matrix[8] + xyzin[1] * matrix[9] + xyzin[2] * matrix[10] + xyzin[3] * matrix[11]);
+
+			if (bidx[2] != ~(qbyte)0)
+			{
+				matrix = &bonepose[12*bidx[2]];
+				xyzout[0] += weights[2] * (xyzin[0] * matrix[0] + xyzin[1] * matrix[1] + xyzin[2] * matrix[ 2] + xyzin[3] * matrix[ 3]);
+				xyzout[1] += weights[2] * (xyzin[0] * matrix[4] + xyzin[1] * matrix[5] + xyzin[2] * matrix[ 6] + xyzin[3] * matrix[ 7]);
+				xyzout[2] += weights[2] * (xyzin[0] * matrix[8] + xyzin[1] * matrix[9] + xyzin[2] * matrix[10] + xyzin[3] * matrix[11]);
+
+				if (bidx[3] != ~(qbyte)0)
+				{
+					matrix = &bonepose[12*bidx[3]];
+					xyzout[0] += weights[3] * (xyzin[0] * matrix[0] + xyzin[1] * matrix[1] + xyzin[2] * matrix[ 2] + xyzin[3] * matrix[ 3]);
+					xyzout[1] += weights[3] * (xyzin[0] * matrix[4] + xyzin[1] * matrix[5] + xyzin[2] * matrix[ 6] + xyzin[3] * matrix[ 7]);
+					xyzout[2] += weights[3] * (xyzin[0] * matrix[8] + xyzin[1] * matrix[9] + xyzin[2] * matrix[10] + xyzin[3] * matrix[11]);
+				}
+			}
+		}
+	}
+}
+
+/*transforms some skeletal vecV_t values*/
+static void Alias_TransformVerticies_VN(float *bonepose, int vertcount, qbyte *bidx, float *weights,
+										float *xyzin, float *restrict xyzout,
+										float *normin, float *restrict normout)
+{
+	int i, j;
+	float *matrix;
+	float mat[12];
+	for (i = 0; i < vertcount; i++, 
+		xyzout+=sizeof(vecV_t)/sizeof(vec_t), xyzin+=sizeof(vecV_t)/sizeof(vec_t),
+		normout+=sizeof(vec3_t)/sizeof(vec_t), normin+=sizeof(vec3_t)/sizeof(vec_t),
+		bidx+=4, weights+=4)
+	{
+		matrix = &bonepose[12*bidx[0]];
+		for (j = 0; j < 12; j++)
+			mat[j] = weights[0] * matrix[j];
+		if (weights[1])
+		{
+			matrix = &bonepose[12*bidx[1]];
+			for (j = 0; j < 12; j++)
+				mat[j] += weights[1] * matrix[j];
+			if (weights[2])
+			{
+				matrix = &bonepose[12*bidx[2]];
+				for (j = 0; j < 12; j++)
+					mat[j] += weights[2] * matrix[j];
+				if (weights[3])
+				{
+					matrix = &bonepose[12*bidx[3]];
+					for (j = 0; j < 12; j++)
+						mat[j] += weights[3] * matrix[j];
+				}
+			}
+		}
+
+		matrix = mat;
+		xyzout[0] = (xyzin[0] * matrix[0] + xyzin[1] * matrix[1] + xyzin[2] * matrix[ 2] + matrix[ 3]);
+		xyzout[1] = (xyzin[0] * matrix[4] + xyzin[1] * matrix[5] + xyzin[2] * matrix[ 6] + matrix[ 7]);
+		xyzout[2] = (xyzin[0] * matrix[8] + xyzin[1] * matrix[9] + xyzin[2] * matrix[10] + matrix[11]);
+
+		normout[0] = (normin[0] * matrix[0] + normin[1] * matrix[1] + normin[2] * matrix[ 2]);
+		normout[1] = (normin[0] * matrix[4] + normin[1] * matrix[5] + normin[2] * matrix[ 6]);
+		normout[2] = (normin[0] * matrix[8] + normin[1] * matrix[9] + normin[2] * matrix[10]);
+	}
+}
+
+
+/*transforms some skeletal vec3_t values*/
+static void Alias_TransformVerticies_3(float *bonepose, int vertcount, qbyte *bidx, float *weights, float *xyzin, float *restrict xyzout)
+{
+	int i;
+	float *matrix;
+	for (i = 0; i < vertcount; i++, xyzout+=sizeof(vec3_t)/sizeof(vec_t), xyzin+=sizeof(vec3_t)/sizeof(vec_t), bidx+=4, weights+=4)
+	{
+		matrix = &bonepose[12*bidx[0]];
+		xyzout[0] = weights[0] * (xyzin[0] * matrix[0] + xyzin[1] * matrix[1] + xyzin[2] * matrix[ 2] + xyzin[3] * matrix[ 3]);
+		xyzout[1] = weights[0] * (xyzin[0] * matrix[4] + xyzin[1] * matrix[5] + xyzin[2] * matrix[ 6] + xyzin[3] * matrix[ 7]);
+		xyzout[2] = weights[0] * (xyzin[0] * matrix[8] + xyzin[1] * matrix[9] + xyzin[2] * matrix[10] + xyzin[3] * matrix[11]);
+
+		if (bidx[1] != ~(qbyte)0)
+		{
+			matrix = &bonepose[12*bidx[1]];
+			xyzout[0] += weights[1] * (xyzin[0] * matrix[0] + xyzin[1] * matrix[1] + xyzin[2] * matrix[ 2] + xyzin[3] * matrix[ 3]);
+			xyzout[1] += weights[1] * (xyzin[0] * matrix[4] + xyzin[1] * matrix[5] + xyzin[2] * matrix[ 6] + xyzin[3] * matrix[ 7]);
+			xyzout[2] += weights[1] * (xyzin[0] * matrix[8] + xyzin[1] * matrix[9] + xyzin[2] * matrix[10] + xyzin[3] * matrix[11]);
+
+			if (bidx[2] != ~(qbyte)0)
+			{
+				matrix = &bonepose[12*bidx[2]];
+				xyzout[0] += weights[2] * (xyzin[0] * matrix[0] + xyzin[1] * matrix[1] + xyzin[2] * matrix[ 2] + xyzin[3] * matrix[ 3]);
+				xyzout[1] += weights[2] * (xyzin[0] * matrix[4] + xyzin[1] * matrix[5] + xyzin[2] * matrix[ 6] + xyzin[3] * matrix[ 7]);
+				xyzout[2] += weights[2] * (xyzin[0] * matrix[8] + xyzin[1] * matrix[9] + xyzin[2] * matrix[10] + xyzin[3] * matrix[11]);
+
+				if (bidx[3] != ~(qbyte)0)
+				{
+					matrix = &bonepose[12*bidx[3]];
+					xyzout[0] += weights[3] * (xyzin[0] * matrix[0] + xyzin[1] * matrix[1] + xyzin[2] * matrix[ 2] + xyzin[3] * matrix[ 3]);
+					xyzout[1] += weights[3] * (xyzin[0] * matrix[4] + xyzin[1] * matrix[5] + xyzin[2] * matrix[ 6] + xyzin[3] * matrix[ 7]);
+					xyzout[2] += weights[3] * (xyzin[0] * matrix[8] + xyzin[1] * matrix[9] + xyzin[2] * matrix[10] + xyzin[3] * matrix[11]);
+				}
+			}
+		}
+	}
+}
+
+static void Alias_TransformVerticies_SW(float *bonepose, galisskeletaltransforms_t *weights, int numweights, vecV_t *xyzout, vec3_t *normout)
 {
 	int i;
 	float *out, *matrix;
@@ -316,7 +470,7 @@ void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weight
 		for (i = 0;i < numweights;i++, v++)
 		{
 			out = xyzout[v->vertexindex];
-			normo = normout[ + v->vertexindex];
+			normo = normout[v->vertexindex];
 			matrix = bonepose+v->boneindex*12;
 			// FIXME: this can very easily be optimized with SSE or 3DNow
 			out[0] += v->org[0] * matrix[0] + v->org[1] * matrix[1] + v->org[2] * matrix[ 2] + v->org[3] * matrix[ 3];
@@ -370,12 +524,15 @@ static float Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 	float maxvdist = 0, d, maxbdist = 0;
 	float absmatrix[MAX_BONES*12];
 	float bonedist[MAX_BONES];
+	int modnum = 0;
+	int bcmodnum = -1;
+	int vcmodnum = -1;
 
 	while (model)
 	{
 		int numbones = model->numbones;
-		galisskeletaltransforms_t *v = (galisskeletaltransforms_t*)((char*)model+model->ofstransforms);
-		int numweights = model->numtransforms;
+		galisskeletaltransforms_t *v = (galisskeletaltransforms_t*)((char*)model+model->ofsswtransforms);
+		int numweights = model->numswtransforms;
 		int numverts = model->numverts;
 
 		if (model->nextsurf)
@@ -388,10 +545,11 @@ static float Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 		inversepose = Z_Malloc(numbones*sizeof(float)*9);
 		mvert = Z_Malloc(numverts*sizeof(*mvert));
 
-		if (!model->sharesbones || !bonepose)
+		if (bcmodnum != model->shares_bones)
 		{
 			galiasgroup_t *g;
 			galiasbone_t *bones = (galiasbone_t *)((char*)model + model->ofsbones);
+			bcmodnum = model->shares_bones;
 			if (model->baseframeofs)
 				bonepose = (float*)((char*)model + model->baseframeofs);
 			else
@@ -450,7 +608,7 @@ static float Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 		}
 
 		//build the actual base pose positions
-		Alias_TransformVerticies(bonepose, v, numweights, xyz, NULL);
+		Alias_TransformVerticies_SW(bonepose, v, numweights, xyz, NULL);
 
 		//work out which verticies are identical
 		//this is needed as two verts can have same origin but different tex coords
@@ -472,36 +630,39 @@ static float Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 
 		//use that base pose to calculate the normals
 		memset(normals, 0, numverts*sizeof(vec3_t));
+		vcmodnum = modnum;
+		idx = (index_t*)((char*)model + model->ofs_indexes);
+
+		//calculate the triangle normal and accumulate them
+		for (i = 0; i < model->numindexes; i+=3, idx+=3)
+		{
+			TriangleNormal(xyz[idx[0]], xyz[idx[1]], xyz[idx[2]], tn);
+			//note that tn is relative to the size of the triangle
+
+			//Imagine a cube, each side made of two triangles
+
+			VectorSubtract(xyz[idx[1]], xyz[idx[0]], d1);
+			VectorSubtract(xyz[idx[2]], xyz[idx[0]], d2);
+			angle = acos(DotProduct(d1, d2)/(Length(d1)*Length(d2)));
+			VectorMA(normals[mvert[idx[0]]], angle, tn, normals[mvert[idx[0]]]);
+
+			VectorSubtract(xyz[idx[0]], xyz[idx[1]], d1);
+			VectorSubtract(xyz[idx[2]], xyz[idx[1]], d2);
+			angle = acos(DotProduct(d1, d2)/(Length(d1)*Length(d2)));
+			VectorMA(normals[mvert[idx[1]]], angle, tn, normals[mvert[idx[1]]]);
+
+			VectorSubtract(xyz[idx[0]], xyz[idx[2]], d1);
+			VectorSubtract(xyz[idx[1]], xyz[idx[2]], d2);
+			angle = acos(DotProduct(d1, d2)/(Length(d1)*Length(d2)));
+			VectorMA(normals[mvert[idx[2]]], angle, tn, normals[mvert[idx[2]]]);
+		}
+
+		/*skip over each additional surface that shares the same verts*/
 		for(;;)
 		{
-			idx = (index_t*)((char*)model + model->ofs_indexes);
-
-			//calculate the triangle normal and accumulate them
-			for (i = 0; i < model->numindexes; i+=3, idx+=3)
+			if (next && next->shares_verts == vcmodnum)
 			{
-				TriangleNormal(xyz[idx[0]], xyz[idx[1]], xyz[idx[2]], tn);
-				//note that tn is relative to the size of the triangle
-
-				//Imagine a cube, each side made of two triangles
-
-				VectorSubtract(xyz[idx[1]], xyz[idx[0]], d1);
-				VectorSubtract(xyz[idx[2]], xyz[idx[0]], d2);
-				angle = acos(DotProduct(d1, d2)/(Length(d1)*Length(d2)));
-				VectorMA(normals[mvert[idx[0]]], angle, tn, normals[mvert[idx[0]]]);
-
-				VectorSubtract(xyz[idx[0]], xyz[idx[1]], d1);
-				VectorSubtract(xyz[idx[2]], xyz[idx[1]], d2);
-				angle = acos(DotProduct(d1, d2)/(Length(d1)*Length(d2)));
-				VectorMA(normals[mvert[idx[1]]], angle, tn, normals[mvert[idx[1]]]);
-
-				VectorSubtract(xyz[idx[0]], xyz[idx[2]], d1);
-				VectorSubtract(xyz[idx[1]], xyz[idx[2]], d2);
-				angle = acos(DotProduct(d1, d2)/(Length(d1)*Length(d2)));
-				VectorMA(normals[mvert[idx[2]]], angle, tn, normals[mvert[idx[2]]]);
-			}
-
-			if (next && next->sharesverts && next->sharesbones)
-			{
+				modnum++;
 				model = next;
 				if (model->nextsurf)
 					next = (galiasinfo_t*)((char*)model + model->nextsurf);
@@ -511,6 +672,7 @@ static float Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 			else
 				break;
 		}
+
 		//the normals are not normalized yet.
 		for (i = 0; i < numverts; i++)
 		{
@@ -524,12 +686,16 @@ static float Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 			v->normal[2] = DotProduct(normals[mvert[v->vertexindex]], inversepose+9*v->boneindex+6) * v->org[3];
 		}
 
+		if (model->ofs_skel_norm)
+			memcpy((char*)model + model->ofs_skel_norm, normals, numverts*sizeof(vec3_t));
+
 		//FIXME: save off the xyz+normals for this base pose as an optimisation for world objects.
 		Z_Free(inversepose);
 		Z_Free(normals);
 		Z_Free(xyz);
 
 		model = next;
+		modnum++;
 	}
 	return maxvdist+maxbdist;
 #else
@@ -880,22 +1046,36 @@ static void R_LerpBones(float *plerp, float **pose, int poses, galiasbone_t *bon
 
 #if defined(D3DQUAKE) || defined(GLQUAKE)
 
-extern entity_t *currententity;
-int numTempColours;
-avec4_t *tempColours;
+struct
+{
+	int numcolours;
+	avec4_t *colours;
 
-int numTempVertexCoords;
-vecV_t *tempVertexCoords;
+	int numcoords;
+	vecV_t *coords;
 
-int numTempNormals;
-vec3_t *tempNormals;
+	int numnorm;
+	vec3_t *norm;
+
+	int surfnum;
+	entity_t *ent;
+
+	float bonepose[MAX_BONES*12];
+	float *usebonepose;
+	int bonecount;
+
+	vecV_t *acoords;
+	vec3_t *anorm;
+	vec3_t *anorms;
+	vec3_t *anormt;
+} meshcache;
 
 //#define SSE_INTRINSICS
 #ifdef SSE_INTRINSICS
 #include <xmmintrin.h>
 #endif
 
-void R_LightArraysByte_BGR(vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3_t *normals)
+void R_LightArraysByte_BGR(const entity_t *entity, vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3_t *normals)
 {
 	//extern cvar_t r_vertexdlights; //unused
 	int i;
@@ -904,13 +1084,13 @@ void R_LightArraysByte_BGR(vecV_t *coords, byte_vec4_t *colours, int vertcount, 
 
 	byte_vec4_t ambientlightb;
 	byte_vec4_t shadelightb;
-	float *lightdir = currententity->light_dir;
+	const float *lightdir = entity->light_dir;
 
 	for (i = 0; i < 3; i++)
 	{
-		l = currententity->light_avg[2-i]*255;
+		l = entity->light_avg[2-i]*255;
 		ambientlightb[i] = bound(0, l, 255);
-		l = currententity->light_range[2-i]*255;
+		l = entity->light_range[2-i]*255;
 		shadelightb[i] = bound(0, l, 255);
 	}
 
@@ -942,7 +1122,7 @@ void R_LightArraysByte_BGR(vecV_t *coords, byte_vec4_t *colours, int vertcount, 
 	}
 }
 
-void R_LightArrays(vecV_t *coords, avec4_t *colours, int vertcount, vec3_t *normals)
+void R_LightArrays(const entity_t *entity, vecV_t *coords, avec4_t *colours, int vertcount, vec3_t *normals)
 {
 	extern cvar_t r_vertexdlights;
 	int i;
@@ -950,13 +1130,13 @@ void R_LightArrays(vecV_t *coords, avec4_t *colours, int vertcount, vec3_t *norm
 
 	//float *lightdir = currententity->light_dir; //unused variable
 
-	if (!currententity->light_range[0] && !currententity->light_range[1] && !currententity->light_range[2])
+	if (!entity->light_range[0] && !entity->light_range[1] && !entity->light_range[2])
 	{
 		for (i = vertcount-1; i >= 0; i--)
 		{
-			colours[i][0] = currententity->light_avg[0];
-			colours[i][1] = currententity->light_avg[1];
-			colours[i][2] = currententity->light_avg[2];
+			colours[i][0] = entity->light_avg[0];
+			colours[i][1] = entity->light_avg[1];
+			colours[i][2] = entity->light_avg[2];
 		}
 	}
 	else
@@ -971,7 +1151,7 @@ void R_LightArrays(vecV_t *coords, avec4_t *colours, int vertcount, vec3_t *norm
 		/*dotproduct will return a value between 1 and -1, so increase the ambient to be correct for normals facing away from the light*/
 		for (i = vertcount-1; i >= 0; i--)
 		{
-			l = DotProduct(normals[i], currententity->light_dir);
+			l = DotProduct(normals[i], entity->light_dir);
 	#ifdef SSE_INTRINSICS
 			vl = _mm_load1_ps(&l);
 			vr = _mm_mul_ss(va,vl);
@@ -980,9 +1160,9 @@ void R_LightArrays(vecV_t *coords, avec4_t *colours, int vertcount, vec3_t *norm
 			_mm_storeu_ps(colours[i], vr);
 			//stomp on colour[i][3] (will be set to 1)
 	#else
-			colours[i][0] = l*currententity->light_range[0]+currententity->light_avg[0];
-			colours[i][1] = l*currententity->light_range[1]+currententity->light_avg[1];
-			colours[i][2] = l*currententity->light_range[2]+currententity->light_avg[2];
+			colours[i][0] = l*entity->light_range[0]+entity->light_avg[0];
+			colours[i][1] = l*entity->light_range[1]+entity->light_avg[1];
+			colours[i][2] = l*entity->light_range[2]+entity->light_avg[2];
 	#endif
 		}
 	}
@@ -998,14 +1178,14 @@ void R_LightArrays(vecV_t *coords, avec4_t *colours, int vertcount, vec3_t *norm
 			if (cl_dlights[lno].radius)
 			{
 				VectorSubtract (cl_dlights[lno].origin,
-								currententity->origin,
+								entity->origin,
 								dir);
 				if (Length(dir)>cl_dlights[lno].radius+256)	//far out man!
 					continue;
 
-				rel[0] = -DotProduct(dir, currententity->axis[0]);
-				rel[1] = -DotProduct(dir, currententity->axis[1]);
-				rel[2] = -DotProduct(dir, currententity->axis[2]);
+				rel[0] = -DotProduct(dir, entity->axis[0]);
+				rel[1] = -DotProduct(dir, entity->axis[1]);
+				rel[2] = -DotProduct(dir, entity->axis[2]);
 
 				for (v = 0; v < vertcount; v++)
 				{
@@ -1029,7 +1209,7 @@ void R_LightArrays(vecV_t *coords, avec4_t *colours, int vertcount, vec3_t *norm
 	}
 }
 
-static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float lerp, qbyte alpha, float expand, qboolean nolightdir)
+static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float lerp, float expand)
 {
 	extern cvar_t r_nolerp; // r_nolightdir is unused
 	float blerp = 1-lerp;
@@ -1080,7 +1260,6 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 	{
 		if (mesh->xyz_array == p1v)
 		{
-			mesh->xyz_array = tempVertexCoords;
 			for (i = 0; i < mesh->numvertexes; i++)
 			{
 				mesh->xyz_array[i][0] = p1v[i][0] + mesh->normals_array[i][0]*expand;
@@ -1103,11 +1282,33 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 
 #ifdef SKELETALMODELS
 #ifndef SERVERONLY
-static void Alias_BuildSkeletalMesh(mesh_t *mesh, float *bonepose, galisskeletaltransforms_t *weights, int numweights)
+static void Alias_BuildSkeletalMesh(mesh_t *mesh, float *bonepose, galiasinfo_t *inf)
 {
-	memset(mesh->xyz_array, 0, mesh->numvertexes*sizeof(vecV_t));
-	memset(mesh->normals_array, 0, mesh->numvertexes*sizeof(vec3_t));
-	Alias_TransformVerticies(bonepose, weights, numweights, mesh->xyz_array, mesh->normals_array);
+	galisskeletaltransforms_t *weights = (galisskeletaltransforms_t *)((char*)inf+inf->ofsswtransforms);
+	int numweights = inf->numswtransforms;
+
+	if (inf->ofs_skel_idx)
+	{
+		float *restrict xyzout = mesh->xyz_array[0];
+		float *restrict normout = mesh->normals_array[0];
+		qbyte *restrict bidx = (qbyte*)((char*)inf + inf->ofs_skel_idx);
+		float *restrict xyzin = (float*)((char*)inf + inf->ofs_skel_xyz);
+		float *restrict normin = (float*)((char*)inf + inf->ofs_skel_norm);
+		float *restrict svect = (float*)((char*)inf + inf->ofs_skel_svect);
+		float *restrict tvect = (float*)((char*)inf + inf->ofs_skel_tvect);
+		float *restrict weight = (float*)((char*)inf + inf->ofs_skel_weight);
+
+		Alias_TransformVerticies_VN(bonepose, inf->numverts, bidx, weight, xyzin, xyzout, normin, normout);
+//		Alias_TransformVerticies_3(bonepose, inf->numverts, bidx, weight, svect, mesh->snormals_array[0]);
+//		Alias_TransformVerticies_3(bonepose, inf->numverts, bidx, weight, tvect, mesh->tnormals_array[0]);
+
+	}
+	else
+	{
+		memset(mesh->xyz_array, 0, mesh->numvertexes*sizeof(vecV_t));
+		memset(mesh->normals_array, 0, mesh->numvertexes*sizeof(vec3_t));
+		Alias_TransformVerticies_SW(bonepose, weights, numweights, mesh->xyz_array, mesh->normals_array);
+	}
 }
 
 #ifdef GLQUAKE
@@ -1172,9 +1373,12 @@ static void Alias_GLDrawSkeletalBones(galiasbone_t *bones, float *bonepose, int 
 #endif	//!SERVERONLY
 #endif	//SKELETALMODELS
 
-qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf,
-									entity_t *e,
-								  float alpha, qboolean nolightdir)
+void Alias_FlushCache(void)
+{
+	meshcache.ent = NULL;
+}
+
+qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, entity_t *e, qboolean usebones)
 {
 	galiasgroup_t *g1, *g2;
 
@@ -1186,147 +1390,190 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf,
 
 	if (!inf->groups)
 	{
-		Con_DPrintf("Model with no frames (%s)\n", currententity->model->name);
+		Con_DPrintf("Model with no frames (%s)\n", e->model->name);
 		return false;
 	}
 
-	if (numTempColours < inf->numverts)
+	if (meshcache.numcolours < inf->numverts)
 	{
-		if (tempColours)
-			BZ_Free(tempColours);
-		tempColours = BZ_Malloc(sizeof(*tempColours)*inf->numverts);
-		numTempColours = inf->numverts;
+		if (meshcache.colours)
+			BZ_Free(meshcache.colours);
+		meshcache.colours = BZ_Malloc(sizeof(*meshcache.colours)*inf->numverts);
+		meshcache.numcolours = inf->numverts;
 	}
-	if (numTempNormals < inf->numverts)
+	if (meshcache.numnorm < inf->numverts)
 	{
-		if (tempNormals)
-			BZ_Free(tempNormals);
-		tempNormals = BZ_Malloc(sizeof(*tempNormals)*inf->numverts);
-		numTempNormals = inf->numverts;
+		if (meshcache.norm)
+			BZ_Free(meshcache.norm);
+		meshcache.norm = BZ_Malloc(sizeof(*meshcache.norm)*inf->numverts*3);
+		meshcache.numnorm = inf->numverts;
 	}
-	if (numTempVertexCoords < inf->numverts)
+	if (meshcache.numcoords < inf->numverts)
 	{
-		if (tempVertexCoords)
-			BZ_Free(tempVertexCoords);
-		tempVertexCoords = BZ_Malloc(sizeof(*tempVertexCoords)*inf->numverts*3);
-		numTempVertexCoords = inf->numverts;
+		if (meshcache.coords)
+			BZ_Free(meshcache.coords);
+		meshcache.coords = BZ_Malloc(sizeof(*meshcache.coords)*inf->numverts);
+		meshcache.numcoords = inf->numverts;
 	}
 
 	mesh->numvertexes = inf->numverts;
 	mesh->indexes = (index_t*)((char *)inf + inf->ofs_indexes);
 	mesh->numindexes = inf->numindexes;
 
-	if (inf->sharesverts)
+	mesh->st_array = (vec2_t*)((char *)inf + inf->ofs_st_array);
+	mesh->lmst_array = NULL;
+	mesh->trneighbors = (int *)((char *)inf + inf->ofs_trineighbours);
+	mesh->colors4f_array = meshcache.colours;
+
+	if (meshcache.surfnum == inf->shares_verts && meshcache.ent == e)
+	{
+		mesh->xyz_array = meshcache.acoords;
+		mesh->normals_array = meshcache.anorm;
+		mesh->snormals_array = meshcache.anorms;
+		mesh->tnormals_array = meshcache.anormt;
+
+		if (meshcache.usebonepose)
+		{
+			mesh->bonenums = (byte_vec4_t*)((char*)inf + inf->ofs_skel_idx);
+			mesh->boneweights = (vec4_t*)((char*)inf + inf->ofs_skel_weight);
+			mesh->bones = meshcache.usebonepose;
+			mesh->numbones = inf->numbones;
+		}
 		return false;	//don't generate the new vertex positions. We still have them all.
+	}
+	meshcache.surfnum = inf->shares_verts;
+	meshcache.ent = e;
+
 
 #ifndef SERVERONLY
 	mesh->st_array = (vec2_t*)((char *)inf + inf->ofs_st_array);
 	mesh->lmst_array = NULL;
-	mesh->colors4f_array = tempColours;
 	mesh->trneighbors = (int *)((char *)inf + inf->ofs_trineighbours);
-	mesh->normals_array = tempNormals;
-	mesh->snormals_array = tempNormals+numTempVertexCoords;
-	mesh->tnormals_array = tempNormals+numTempVertexCoords*2;
+	mesh->normals_array = meshcache.norm;
+	mesh->snormals_array = meshcache.norm+meshcache.numnorm;
+	mesh->tnormals_array = meshcache.norm+meshcache.numnorm*2;
 #endif
-	mesh->xyz_array = tempVertexCoords;
+	mesh->xyz_array = meshcache.coords;
 
 //we don't support meshes with one pose skeletal and annother not.
 //we don't support meshes with one group skeletal and annother not.
 
+	meshcache.usebonepose = NULL;
 #ifdef SKELETALMODELS
 	if (inf->numbones)
 	{
-		float bonepose[MAX_BONES][12];
-		float *usebonepose;
-		usebonepose = Alias_GetBonePositions(inf, &e->framestate, (float*)bonepose, MAX_BONES);
-		Alias_BuildSkeletalMesh(mesh, usebonepose, (galisskeletaltransforms_t *)((char*)inf+inf->ofstransforms), inf->numtransforms);
+		meshcache.usebonepose = Alias_GetBonePositions(inf, &e->framestate, meshcache.bonepose, MAX_BONES);
+
+		if (1)//e->fatness || !inf->ofs_skel_idx || !usebones)
+		{
+			Alias_BuildSkeletalMesh(mesh, meshcache.usebonepose, inf);
 
 #ifdef PEXT_FATNESS
-		if (currententity->fatness)
-		{
-			if (mesh->xyz_array == tempVertexCoords)
+			if (e->fatness)
 			{
 				int i;
 				for (i = 0; i < mesh->numvertexes; i++)
 				{
-					VectorMA(mesh->xyz_array[i], currententity->fatness, mesh->normals_array[i], mesh->xyz_array[i]);
+					VectorMA(mesh->xyz_array[i], e->fatness, mesh->normals_array[i], meshcache.coords[i]);
 				}
+
+				mesh->xyz_array = meshcache.coords;
 			}
-		}
 #endif
+
 #ifdef GLQUAKE
-		if (!inf->numtransforms && qrenderer == QR_OPENGL)
-			Alias_GLDrawSkeletalBones((galiasbone_t*)((char*)inf + inf->ofsbones), (float *)usebonepose, inf->numbones);
+			if (!inf->numswtransforms && qrenderer == QR_OPENGL)
+				Alias_GLDrawSkeletalBones((galiasbone_t*)((char*)inf + inf->ofsbones), (float *)meshcache.usebonepose, inf->numbones);
 #endif
-
-		if (mesh->colors4f_array)
-			R_LightArrays(mesh->xyz_array, mesh->colors4f_array, mesh->numvertexes, mesh->normals_array);
-		return true;
-	}
-#endif
-
-	frame1 = e->framestate.g[FS_REG].frame[0];
-	frame2 = e->framestate.g[FS_REG].frame[1];
-	lerp = e->framestate.g[FS_REG].lerpfrac;
-	fg1time = e->framestate.g[FS_REG].frametime[0];
-	fg2time = e->framestate.g[FS_REG].frametime[1];
-
-	if (frame1 < 0)
-	{
-		Con_DPrintf("Negative frame (%s)\n", currententity->model->name);
-		frame1 = 0;
-	}
-	if (frame2 < 0)
-	{
-		Con_DPrintf("Negative frame (%s)\n", currententity->model->name);
-		frame2 = frame1;
-	}
-	if (frame1 >= inf->groups)
-	{
-		Con_DPrintf("Too high frame %i (%s)\n", frame1, currententity->model->name);
-		frame1 %= inf->groups;
-	}
-	if (frame2 >= inf->groups)
-	{
- 		Con_DPrintf("Too high frame %i (%s)\n", frame2, currententity->model->name);
-		frame2 = frame1;
-	}
-
-	if (lerp <= 0)
-		frame2 = frame1;
-	else  if (lerp >= 1)
-		frame1 = frame2;
-
-	g1 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame1);
-	g2 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame2);
-
-	if (g1 == g2)	//lerping within group is only done if not changing group
-	{
-		lerp = fg1time*g1->rate;
-		if (lerp < 0) lerp = 0;	//hrm
-		frame1=lerp;
-		frame2=frame1+1;
-		lerp-=frame1;
-		if (g1->loop)
-		{
-			frame1=frame1%g1->numposes;
-			frame2=frame2%g1->numposes;
+			meshcache.usebonepose = NULL;
 		}
 		else
 		{
-			frame1=(frame1>g1->numposes-1)?g1->numposes-1:frame1;
-			frame2=(frame2>g1->numposes-1)?g1->numposes-1:frame2;
+			mesh->xyz_array = (vecV_t*)((char*)inf + inf->ofs_skel_xyz);
+			mesh->normals_array = (vec3_t*)((char*)inf + inf->ofs_skel_norm);
+			mesh->snormals_array = (vec3_t*)((char*)inf + inf->ofs_skel_svect);
+			mesh->tnormals_array = (vec3_t*)((char*)inf + inf->ofs_skel_tvect);
 		}
 	}
-	else	//don't bother with a four way lerp. Yeah, this will produce jerkyness with models with just framegroups.
+	else
+#endif
 	{
-		frame1=0;
-		frame2=0;
+		frame1 = e->framestate.g[FS_REG].frame[0];
+		frame2 = e->framestate.g[FS_REG].frame[1];
+		lerp = e->framestate.g[FS_REG].lerpfrac;
+		fg1time = e->framestate.g[FS_REG].frametime[0];
+		fg2time = e->framestate.g[FS_REG].frametime[1];
+
+		if (frame1 < 0)
+		{
+			Con_DPrintf("Negative frame (%s)\n", e->model->name);
+			frame1 = 0;
+		}
+		if (frame2 < 0)
+		{
+			Con_DPrintf("Negative frame (%s)\n", e->model->name);
+			frame2 = frame1;
+		}
+		if (frame1 >= inf->groups)
+		{
+			Con_DPrintf("Too high frame %i (%s)\n", frame1, e->model->name);
+			frame1 %= inf->groups;
+		}
+		if (frame2 >= inf->groups)
+		{
+ 			Con_DPrintf("Too high frame %i (%s)\n", frame2, e->model->name);
+			frame2 = frame1;
+		}
+
+		if (lerp <= 0)
+			frame2 = frame1;
+		else  if (lerp >= 1)
+			frame1 = frame2;
+
+		g1 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame1);
+		g2 = (galiasgroup_t*)((char *)inf + inf->groupofs + sizeof(galiasgroup_t)*frame2);
+
+		if (g1 == g2)	//lerping within group is only done if not changing group
+		{
+			lerp = fg1time*g1->rate;
+			if (lerp < 0) lerp = 0;	//hrm
+			frame1=lerp;
+			frame2=frame1+1;
+			lerp-=frame1;
+			if (g1->loop)
+			{
+				frame1=frame1%g1->numposes;
+				frame2=frame2%g1->numposes;
+			}
+			else
+			{
+				frame1=(frame1>g1->numposes-1)?g1->numposes-1:frame1;
+				frame2=(frame2>g1->numposes-1)?g1->numposes-1:frame2;
+			}
+		}
+		else	//don't bother with a four way lerp. Yeah, this will produce jerkyness with models with just framegroups.
+		{
+			frame1=0;
+			frame2=0;
+		}
+
+		R_LerpFrames(mesh,	(galiaspose_t *)((char *)g1 + g1->poseofs + sizeof(galiaspose_t)*frame1),
+							(galiaspose_t *)((char *)g2 + g2->poseofs + sizeof(galiaspose_t)*frame2),
+							1-lerp, e->fatness);
 	}
 
-	R_LerpFrames(mesh,	(galiaspose_t *)((char *)g1 + g1->poseofs + sizeof(galiaspose_t)*frame1),
-						(galiaspose_t *)((char *)g2 + g2->poseofs + sizeof(galiaspose_t)*frame2),
-						1-lerp, (qbyte)(alpha*255), e->fatness, nolightdir);
+	meshcache.acoords = mesh->xyz_array;
+	meshcache.anorm = mesh->normals_array;
+	meshcache.anorms = mesh->snormals_array;
+	meshcache.anormt = mesh->tnormals_array;
+
+	if (meshcache.usebonepose)
+	{
+		mesh->bonenums = (byte_vec4_t*)((char*)inf + inf->ofs_skel_idx);
+		mesh->boneweights = (vec4_t*)((char*)inf + inf->ofs_skel_weight);
+		mesh->bones = meshcache.usebonepose;
+		mesh->numbones = inf->numbones;
+	}
 
 	return true;	//to allow the mesh to be dlighted.
 }
@@ -1366,6 +1613,8 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], 
 
 	vecV_t *posedata;
 	index_t *indexes;
+	int surfnum = 0;
+	int cursurfnum = -1;
 
 	while(mod)
 	{
@@ -1374,19 +1623,21 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], 
 		pose = (galiaspose_t*)((char*)&group[0] + group[0].poseofs);
 		posedata = (vecV_t*)((char*)pose + pose->ofsverts);
 #ifdef SKELETALMODELS
-		if (mod->numbones && !mod->sharesverts)
+		if (mod->numbones && mod->shares_verts != cursurfnum)
 		{
 			float bonepose[MAX_BONES][12];
 			posedata = alloca(mod->numverts*sizeof(vecV_t));
 			frac = 1;
 			if (group->isheirachical)
 			{
-				if (!mod->sharesbones)
+				if (mod->shares_bones != cursurfnum)
 					R_LerpBones(&frac, (float**)posedata, 1, (galiasbone_t*)((char*)mod + mod->ofsbones), mod->numbones, bonepose);
-				Alias_TransformVerticies((float*)bonepose, (galisskeletaltransforms_t*)((char*)mod + mod->ofstransforms), mod->numtransforms, posedata, NULL);
+				Alias_TransformVerticies_SW((float*)bonepose, (galisskeletaltransforms_t*)((char*)mod + mod->ofsswtransforms), mod->numswtransforms, posedata, NULL);
 			}
 			else
-				Alias_TransformVerticies((float*)posedata, (galisskeletaltransforms_t*)((char*)mod + mod->ofstransforms), mod->numtransforms, posedata, NULL);
+				Alias_TransformVerticies_SW((float*)posedata, (galisskeletaltransforms_t*)((char*)mod + mod->ofsswtransforms), mod->numswtransforms, posedata, NULL);
+
+			cursurfnum = mod->shares_verts;
 		}
 #endif
 
@@ -1442,6 +1693,7 @@ qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], 
 			mod = (galiasinfo_t*)((char*)mod + mod->nextsurf);
 		else
 			mod = NULL;
+		surfnum++;
 	}
 
 	trace->allsolid = false;
@@ -1845,7 +2097,7 @@ void Mod_LoadSkinFile(texnums_t *texnum, char *surfacename, int skinnumber, unsi
 
 	Mod_ParseQ3SkinFile(shadername, surfacename, loadmodel->name, skinnumber, NULL);
 
-	texnum->shader = R_RegisterSkin(shadername);
+	texnum->shader = R_RegisterSkin(shadername, loadmodel->name);
 
 	R_BuildDefaultTexnums(texnum, texnum->shader);
 	if (texnum->shader->flags & SHADER_NOIMAGE)
@@ -2238,7 +2490,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 						"}\n"
 					"}\n");
 			else
-				texnums->shader = R_RegisterSkin(skinname);
+				texnums->shader = R_RegisterSkin(skinname, loadmodel->name);
 			R_BuildDefaultTexnums(texnums, texnums->shader);
 
 			texnums->loweroverlay = r_nulltex;
@@ -2334,7 +2586,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 				}
 
 				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i", loadname, i, t);
-				texnums->shader = R_RegisterSkin(skinname);
+				texnums->shader = R_RegisterSkin(skinname, loadmodel->name);
 
 				texnums->base = texture;
 				texnums->fullbright = fbtexture;
@@ -2720,7 +2972,7 @@ static void Q2_LoadSkins(md2_t *pq2inmodel, char *skins)
 
 		COM_CleanUpPath(skins);	//blooming tanks.
 		texnums->base = R_LoadReplacementTexture(skins, "models", IF_NOALPHA);
-		texnums->shader = R_RegisterSkin(skins);
+		texnums->shader = R_RegisterSkin(skins, loadmodel->name);
 		R_BuildDefaultTexnums(texnums, texnums->shader);
 
 		outskin->skinwidth = 0;
@@ -3653,7 +3905,7 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 
 				if (qrenderer != QR_NONE)
 				{
-					texnum->shader = R_RegisterSkin(shadname);
+					texnum->shader = R_RegisterSkin(shadname, mod->name);
 					R_BuildDefaultTexnums(texnum, texnum->shader);
 
 					if (texnum->shader->flags & SHADER_NOIMAGE)
@@ -3885,16 +4137,16 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 
 	root = Hunk_AllocName(sizeof(galiasinfo_t)*header->numsurfaces, loadname);
 
-	root->numtransforms = header->lump_verts.length/sizeof(zymvertex_t);
-	transforms = Hunk_Alloc(root->numtransforms*sizeof(*transforms));
-	root->ofstransforms = (char*)transforms - (char*)root;
+	root->numswtransforms = header->lump_verts.length/sizeof(zymvertex_t);
+	transforms = Hunk_Alloc(root->numswtransforms*sizeof(*transforms));
+	root->ofsswtransforms = (char*)transforms - (char*)root;
 
 	vertbonecounts = (int *)((char*)header + header->lump_vertbonecounts.start);
 	intrans = (zymvertex_t *)((char*)header + header->lump_verts.start);
 
 	vertbonecounts[0] = BigLong(vertbonecounts[0]);
 	multiplier = 1.0f / vertbonecounts[0];
-	for (i = 0, v=0; i < root->numtransforms; i++)
+	for (i = 0, v=0; i < root->numswtransforms; i++)
 	{
 		while(!vertbonecounts[v])
 		{
@@ -3932,7 +4184,7 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 	root->numverts = v+1;
 
 	root->numbones = header->numbones;
-	bone = Hunk_Alloc(root->numtransforms*sizeof(*transforms));
+	bone = Hunk_Alloc(root->numswtransforms*sizeof(*transforms));
 	inbone = (zymbone_t*)((char*)header + header->lump_bones.start);
 	for (i = 0; i < root->numbones; i++)
 	{
@@ -4036,7 +4288,7 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 		root[i].nextsurf = sizeof(galiasinfo_t);
 	for (i = 1; i < header->numsurfaces; i++)
 	{
-		root[i].sharesverts = true;
+		root[i].shares_verts = 0;
 		root[i].numbones = root[0].numbones;
 		root[i].numverts = root[0].numverts;
 
@@ -4222,6 +4474,11 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 
 	int hunkstart, hunkend, hunktotal;
 	//extern cvar_t temp1; //unused variable
+
+	vecV_t *skel_xyz;
+	vec3_t *skel_norm;
+	byte_vec4_t *skel_idx;
+	vec4_t *skel_weights;
 
 	/*load the psk*/
 	while (pos < com_filesize && !fail)
@@ -4486,7 +4743,7 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 	basematrix_inverse = Hunk_TempAllocMore(num_boneinfo*sizeof(float)*16);
 	for (i = 0; i < num_boneinfo; i++)
 	{
-		Matrix4Q_Invert_Simple(basematrix+i*12, basematrix_inverse+i*16);
+		Matrix3x4_InvertTo4x4_Simple(basematrix+i*12, basematrix_inverse+i*16);
 	}
 
 	/*expand the translations*/
@@ -4519,10 +4776,45 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 				num_trans++;
 			}
 		}
-//		for (j = 0; j < num_trans-first_trans; j++)
-//		{
-//			VectorScale(pnts[rawweights[j].pntsindex].origin, rawweights[j].weight, trans[num_trans].org);
-//		}
+	}
+
+	skel_xyz = Hunk_Alloc(sizeof(*skel_xyz) * num_vtxw);
+	skel_norm = Hunk_Alloc(sizeof(*skel_norm) * num_vtxw);
+	skel_idx = Hunk_Alloc(sizeof(*skel_idx) * num_vtxw);
+	skel_weights = Hunk_Alloc(sizeof(*skel_weights) * num_vtxw);
+	for (i = 0; i < num_vtxw; i++)
+	{
+		float t;
+		*(unsigned int*)skel_idx[i] = ~0;
+		for (j = 0; j < num_rawweights; j++)
+		{
+			if (rawweights[j].pntsindex == vtxw[i].pntsindex)
+			{
+				int in, lin = -1;
+				float liv = rawweights[j].weight;
+				for (in = 0; in < 4; in++)
+				{
+					if (liv > skel_weights[i][in])
+					{
+						liv = skel_weights[i][in];
+						lin = in;
+						if (!liv)
+							break;
+					}
+				}
+				if (lin >= 0)
+				{
+					skel_idx[i][lin] = rawweights[j].boneindex;
+					skel_weights[i][lin] = rawweights[j].weight;
+				}
+			}
+		}
+		t = 0;
+		for (j = 0; j < 4; j++)
+			t += skel_weights[i][j];
+		if (t != 1)
+			for (j = 0; j < 4; j++)
+				skel_weights[i][j] *= 1/t;
 	}
 
 #ifndef SERVERONLY
@@ -4530,6 +4822,9 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 	stcoord = Hunk_Alloc(sizeof(vec2_t)*num_vtxw);
 	for (i = 0; i < num_vtxw; i++)
 	{
+		skel_xyz[i][0] = pnts[vtxw[i].pntsindex].origin[0];
+		skel_xyz[i][1] = pnts[vtxw[i].pntsindex].origin[1];
+		skel_xyz[i][2] = pnts[vtxw[i].pntsindex].origin[2];
 		stcoord[i*2+0] = vtxw[i].texcoord[0];
 		stcoord[i*2+1] = vtxw[i].texcoord[1];
 	}
@@ -4611,7 +4906,7 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 		skin->texnums = 1;
 		skin->skinspeed = 10;
 		Q_strncpyz(skin->name, matt[i].name, sizeof(skin->name));
-		gtexnums->shader = R_RegisterSkin(matt[i].name);
+		gtexnums->shader = R_RegisterSkin(matt[i].name, mod->name);
 		R_BuildDefaultTexnums(gtexnums, gtexnums->shader);
 		if (gtexnums->shader->flags & SHADER_NOIMAGE)
 			Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", gtexnums->shader->name, loadmodel->name);
@@ -4644,11 +4939,16 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 		gmdl[i].ofsbones = (char*)bones - (char*)&gmdl[i];
 		gmdl[i].numbones = num_boneinfo;
 
-		gmdl[i].ofstransforms = (char*)trans - (char*)&gmdl[i];
-		gmdl[i].numtransforms = num_trans;
-
-		gmdl[i].sharesverts = i!=0;
-		gmdl[i].sharesbones = i!=0;
+		gmdl[i].ofsswtransforms = (char*)trans - (char*)&gmdl[i];
+		gmdl[i].numswtransforms = num_trans;
+/*
+		gmdl[i].ofs_skel_idx = (char*)skel_idx - (char*)&gmdl[i];
+		gmdl[i].ofs_skel_weight = (char*)skel_weights - (char*)&gmdl[i];
+		gmdl[i].ofs_skel_xyz = (char*)skel_xyz - (char*)&gmdl[i];
+		gmdl[i].ofs_skel_norm = (char*)skel_norm - (char*)&gmdl[i];
+*/
+		gmdl[i].shares_verts = 0;
+		gmdl[i].shares_bones = 0;
 		gmdl[i].nextsurf = (i != num_matt-1)?sizeof(*gmdl):0;
 	}
 
@@ -4901,8 +5201,8 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 #endif
 
 		//build the transform list.
-		m->ofstransforms = (char*)transforms - (char*)m;
-		m->numtransforms = numtransforms;
+		m->ofsswtransforms = (char*)transforms - (char*)m;
+		m->numswtransforms = numtransforms;
 		vert = (dpmvertex_t*)((char *)buffer+mesh->ofs_verts);
 		for (j = 0; j < mesh->num_verts; j++)
 		{
@@ -4986,7 +5286,7 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 		m = &root[i];
 		if (i < header->num_meshs-1)
 			m->nextsurf = sizeof(galiasinfo_t);
-		m->sharesbones = true;
+		m->shares_bones = 0;
 
 		m->ofsbones = (char*)outbone-(char*)m;
 		m->numbones = header->num_bones;
@@ -5014,7 +5314,6 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 		m->ofsskins = (char *)skin - (char *)m;
 #endif
 	}
-	root[0].sharesbones = false;
 
 
 	Alias_CalculateSkeletalNormals(root);
@@ -5054,7 +5353,8 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 
 #ifdef INTERQUAKEMODELS
 #define IQM_MAGIC "INTERQUAKEMODEL"
-#define IQM_VERSION 1
+#define IQM_VERSION1 1
+#define IQM_VERSION2 2
 
 struct iqmheader
 {
@@ -5112,19 +5412,32 @@ struct iqmtriangle
     unsigned int vertex[3];
 };
 
-struct iqmjoint
+struct iqmjoint1
 {
     unsigned int name;
     int parent;
     float translate[3], rotate[3], scale[3];
 };
+struct iqmjoint2
+{
+    unsigned int name;
+    int parent;
+    float translate[3], rotate[4], scale[3];
+};
 
-struct iqmpose
+struct iqmpose1
 {
     int parent;
     unsigned int mask;
     float channeloffset[9];
     float channelscale[9];
+};
+struct iqmpose2
+{
+    int parent;
+    unsigned int mask;
+    float channeloffset[10];
+    float channelscale[10];
 };
 
 struct iqmanim
@@ -5155,6 +5468,7 @@ struct iqmbounds
     float xyradius, radius;
 };
 
+/*
 galisskeletaltransforms_t *IQM_ImportTransforms(int *resultcount, int inverts, float *vpos, float *tcoord, float *vnorm, float *vtang, unsigned char *vbone, unsigned char *vweight)
 {
 	galisskeletaltransforms_t *t, *r;
@@ -5182,35 +5496,48 @@ galisskeletaltransforms_t *IQM_ImportTransforms(int *resultcount, int inverts, f
 	}
 	return r;
 }
+*/
 
 galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 {
 	struct iqmheader *h = (struct iqmheader *)buffer;
-	struct iqmjoint *joint;
 	struct iqmmesh *mesh;
 	struct iqmvertexarray *varray;
 	struct iqmtriangle *tris;
-	unsigned int i, t, nt;
+	struct iqmanim *anim;
+	unsigned int i, j, t, nt;
 
 	char *strings;
 
 	float *vpos = NULL, *tcoord = NULL, *vnorm = NULL, *vtang = NULL;
 	unsigned char *vbone = NULL, *vweight = NULL;
 	unsigned int type, fmt, size, offset;
+	unsigned short *framedata;
+
+	vecV_t *opos;
+	vec3_t *onorm;
+	vec4_t *oweight;
+	byte_vec4_t *oindex;
+	float *opose;
+
 
 	galiasinfo_t *gai;
 	galiasskin_t *skin;
+	galiasgroup_t *fgroup;
+	galiasbone_t *bones;
 	texnums_t *texnum;
 	index_t *idx;
+	float basepose[12 * MAX_BONES];
+	float invbasepose[12 * MAX_BONES];
 
 	if (memcmp(h->magic, IQM_MAGIC, sizeof(h->magic)))
 	{
 		Con_Printf("%s: format not recognised\n", mod->name);
 		return NULL;
 	}
-	if (h->version != IQM_VERSION)
+	if (h->version != IQM_VERSION1 && h->version != IQM_VERSION2)
 	{
-		Con_Printf("%s: unsupported version\n", mod->name);
+		Con_Printf("%s: unsupported IQM version\n", mod->name);
 		return NULL;
 	}
 	if (h->filesize != com_filesize)
@@ -5249,6 +5576,8 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 			vbone = (unsigned char *)(buffer + offset);
 		else if (type == IQM_BLENDWEIGHTS && fmt == IQM_UBYTE && size == 4)
 			vweight = (unsigned char *)(buffer + offset);
+		else
+			Con_Printf("Unrecognised iqm info\n");
 	}
 
 	if (!h->num_meshes)
@@ -5256,38 +5585,142 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 
 	strings = buffer + h->ofs_text;
 
-	mesh = buffer + h->ofs_meshes;
-	tris = buffer + h->ofs_triangles;
+	mesh = (struct iqmmesh*)(buffer + h->ofs_meshes);
 
-	gai = Hunk_Alloc(sizeof(*gai)*h->num_meshes + sizeof(*skin)*h->num_meshes + sizeof(*texnum)*h->num_meshes);
-	skin = (galiasskin_t*)(gai + h->num_meshes);
+	/*allocate a nice big block of memory and figure out where stuff is*/
+	gai = Hunk_Alloc(sizeof(*gai)*h->num_meshes + sizeof(*skin)*h->num_meshes + sizeof(*texnum)*h->num_meshes + 
+		sizeof(*fgroup)*h->num_anims + sizeof(float)*12*h->num_poses*h->num_frames + sizeof(*bones)*h->num_joints +
+		(sizeof(*opos) + sizeof(*onorm) + sizeof(*oweight) + sizeof(*oindex)) * h->num_vertexes);
+	bones = (galiasbone_t*)(gai + h->num_meshes);
+	skin = (galiasskin_t*)(bones + h->num_joints);
 	texnum = (texnums_t*)(skin + h->num_meshes);
+	opos = (vecV_t*)(texnum + h->num_meshes);
+	onorm = (vec3_t*)(opos + h->num_vertexes);
+	oindex = (byte_vec4_t*)(onorm + h->num_vertexes);
+	oweight = (vec4_t*)(oindex + h->num_vertexes);
+	fgroup = (galiasgroup_t*)(oweight + h->num_vertexes);
+	opose = (float*)(fgroup + h->num_anims);
+
+//no code to load animations or bones
+	framedata = (unsigned short*)(buffer + h->ofs_frames);
+
+	/*Version 1 supports only normalized quaternions, version 2 uses complete quaternions. Some struct sizes change for this, otherwise functionally identical.*/
+	if (h->version == IQM_VERSION1)
+	{
+		struct iqmpose1 *p, *ipose = (struct iqmpose1*)(buffer + h->ofs_poses);
+		struct iqmjoint1 *ijoint = (struct iqmjoint1*)(buffer + h->ofs_joints);
+		vec3_t pos;
+		vec4_t quat;
+		vec3_t scale;
+
+		for (i = 0; i < h->num_joints; i++)
+		{
+			Q_strncpyz(bones[i].name, strings+ijoint[i].name, sizeof(ijoint[i].name));
+			bones[i].parent = ijoint[i].parent;
+
+			GenMatrixPosQuat4Scale(ijoint[i].translate, ijoint[i].rotate, ijoint[i].scale, &basepose[i*12]);
+		}
+
+		for (i = 0; i < h->num_frames; i++)
+		{
+			for (j = 0, p = ipose; j < h->num_poses; j++, p++)
+			{
+				pos[0]   = p->channeloffset[0]; if (p->mask &   1) pos[0]   += *framedata++ + p->channelscale[0];
+				pos[1]   = p->channeloffset[1]; if (p->mask &   2) pos[1]   += *framedata++ + p->channelscale[1];
+				pos[2]   = p->channeloffset[2]; if (p->mask &   4) pos[2]   += *framedata++ + p->channelscale[2];
+				quat[0]  = p->channeloffset[3]; if (p->mask &   8) quat[0]  += *framedata++ + p->channelscale[3];
+				quat[1]  = p->channeloffset[4]; if (p->mask &  16) quat[1]  += *framedata++ + p->channelscale[4];
+				quat[2]  = p->channeloffset[5]; if (p->mask &  32) quat[2]  += *framedata++ + p->channelscale[5];
+				scale[0] = p->channeloffset[6]; if (p->mask &  64) scale[0] += *framedata++ + p->channelscale[6];
+				scale[1] = p->channeloffset[7]; if (p->mask & 128) scale[1] += *framedata++ + p->channelscale[7];
+				scale[2] = p->channeloffset[8]; if (p->mask & 256) scale[2] += *framedata++ + p->channelscale[8];
+
+				quat[3] = -sqrt(max(1.0 - pow(VectorLength(quat),2), 0.0));
+
+				GenMatrixPosQuat4Scale(pos, quat, scale, opose + (i*h->num_poses+j)*12);
+			}
+		}
+	}
+	else
+	{
+		struct iqmpose2 *p, *ipose = (struct iqmpose2*)(buffer + h->ofs_poses);
+		struct iqmjoint2 *ijoint = (struct iqmjoint2*)(buffer + h->ofs_joints);
+		vec3_t pos;
+		vec4_t quat;
+		vec3_t scale;
+		float mat[12];
+
+		for (i = 0; i < h->num_joints; i++)
+		{
+			Q_strncpyz(bones[i].name, strings+ijoint[i].name, sizeof(bones[i].name));
+			bones[i].parent = ijoint[i].parent;
+
+			GenMatrixPosQuat4Scale(ijoint[i].translate, ijoint[i].rotate, ijoint[i].scale, &basepose[i*12]);
+
+//				Mod_Skel_Invert(bones, basepose, h->num_joints, invbonepose);
+		}
+
+		for (i = 0; i < h->num_frames; i++)
+		{
+			for (j = 0, p = ipose; j < h->num_poses; j++, p++)
+			{
+				pos[0]   = p->channeloffset[0]; if (p->mask &   1) pos[0]   += *framedata++ + p->channelscale[0];
+				pos[1]   = p->channeloffset[1]; if (p->mask &   2) pos[1]   += *framedata++ + p->channelscale[1];
+				pos[2]   = p->channeloffset[2]; if (p->mask &   4) pos[2]   += *framedata++ + p->channelscale[2];
+				quat[0]  = p->channeloffset[3]; if (p->mask &   8) quat[0]  += *framedata++ + p->channelscale[3];
+				quat[1]  = p->channeloffset[4]; if (p->mask &  16) quat[1]  += *framedata++ + p->channelscale[4];
+				quat[2]  = p->channeloffset[5]; if (p->mask &  32) quat[2]  += *framedata++ + p->channelscale[5];
+				quat[3]  = p->channeloffset[6]; if (p->mask &  64) quat[3]  += *framedata++ + p->channelscale[6];
+				scale[0] = p->channeloffset[7]; if (p->mask & 128) scale[0] += *framedata++ + p->channelscale[7];
+				scale[1] = p->channeloffset[8]; if (p->mask & 256) scale[1] += *framedata++ + p->channelscale[8];
+				scale[2] = p->channeloffset[9]; if (p->mask & 512) scale[2] += *framedata++ + p->channelscale[9];
+
+				GenMatrixPosQuat4Scale(pos, quat, scale, &opose[(i*h->num_poses+j)*12]);
+			}
+		}
+	}
+
+//	Mod_Skel_PreSkin(basepose, invbonepose
+
+	/*load the framegroup info*/
+	anim = (struct iqmanim*)(buffer + h->ofs_anims);
+	for (i = 0; i < h->num_anims; i++)
+	{
+		fgroup[i].isheirachical = true;
+		fgroup[i].loop = LittleLong(anim[i].flags) & IQM_LOOP;
+		Q_strncpyz(fgroup[i].name, strings+anim[i].name, sizeof(fgroup[i].name));
+		fgroup[i].numposes = LittleLong(anim[i].num_frames);
+		fgroup[i].poseofs = (char*)(opose+LittleLong(anim[i].first_frame)*12*h->num_poses) - (char*)&fgroup[i];
+		fgroup[i].rate = LittleFloat(anim[i].framerate);
+	}
+
 	for (i = 0; i < h->num_meshes; i++)
 	{
 		gai[i].nextsurf = (i == (h->num_meshes-1))?0:sizeof(*gai);
-		gai[i].sharesverts = false;	//used with models with two shaders using the same vertex - use last mesh's verts
-		gai[i].sharesbones = i != 0;
-		gai[i].numverts = LittleLong(mesh[i].num_vertexes);
+
+		/*animation info*/
+		gai[i].shares_bones = 0;
+		gai[i].numbones = h->num_joints;
+		gai[i].ofsbones = (char*)bones - (char*)&gai[i];
+		gai[i].groups = h->num_frames;
+		gai[i].groupofs = (char*)fgroup - (char*)&gai[i];
+
+		/*skins*/
 		gai[i].numskins = 1;
 		gai[i].ofsskins = (char*)&skin[i] - (char*)&gai[i];
-
 		Q_strncpyz(skin[i].name, strings+mesh[i].material, sizeof(skin[i].name));
 		skin[i].skinwidth = 1;
 		skin[i].skinheight = 1;
-		skin[i].ofstexels = NULL; /*doesn't support 8bit colourmapping*/
+		skin[i].ofstexels = 0; /*doesn't support 8bit colourmapping*/
 		skin[i].skinspeed = 10; /*something to avoid div by 0*/
 		skin[i].texnums = 1;
 		skin[i].ofstexnums = (char*)&texnum[i] - (char*)&skin[i];
-		texnum[i].shader = R_RegisterSkin(skin[i].name);
+		texnum[i].shader = R_RegisterSkin(skin[i].name, mod->name);
 
 		offset = LittleLong(mesh[i].first_vertex);
 
-		/*generate transforms for each vertex*/
-		gai[i].ofstransforms = (char*)IQM_ImportTransforms(&gai[i].numtransforms, gai[i].numverts, vpos+offset*3, tcoord+offset*2, vnorm+offset*3, vtang+offset*4, vbone+offset*4, vweight+offset*4) - (char*)gai;
-
-
-		nt = 0;//LittleLong(mesh[i].num_triangles);
-		tris = buffer + LittleLong(h->ofs_triangles);
+		nt = LittleLong(mesh[i].num_triangles);
+		tris = (struct iqmtriangle*)(buffer + LittleLong(h->ofs_triangles));
 		tris += LittleLong(mesh[i].first_triangle);
 		gai[i].numindexes = nt*3;
 		idx = Hunk_Alloc(sizeof(*idx)*gai[i].numindexes);
@@ -5298,12 +5731,30 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 			*idx++ = LittleShort(tris[t].vertex[1]);
 			*idx++ = LittleShort(tris[t].vertex[2]);
 		}
+
+		/*verts*/
+		gai[i].shares_verts = i;
+		gai[i].numverts = LittleLong(mesh[i].num_vertexes);
+		gai[i].ofs_skel_xyz = (char*)(opos+offset) - (char*)&gai[i];
+		gai[i].ofs_skel_norm = (char*)(onorm+offset) - (char*)&gai[i];
+		gai[i].ofs_skel_svect = 0;
+		gai[i].ofs_skel_tvect = 0;
+		gai[i].ofs_skel_idx = (char*)(oindex+offset) - (char*)&gai[i];
+		gai[i].ofs_skel_weight = (char*)(oweight+offset) - (char*)&gai[i];
+	}
+	for (i = 0; i < h->num_vertexes; i++)
+	{
+		VectorCopy(vpos+i*3, opos[i]);
+		VectorCopy(vnorm+i*4, onorm[i]);
+		VectorCopy(vbone+i*4, oindex[i]);
+		VectorCopy(vweight+i*4, oweight[i]);
 	}
 	return gai;
 }
 
 qboolean Mod_ParseIQMAnim(char *buffer, galiasinfo_t *prototype, void**poseofs, galiasgroup_t *gat)
 {
+	return false;
 }
 
 
@@ -5317,7 +5768,10 @@ qboolean Mod_LoadInterQuakeModel(model_t *mod, void *buffer)
 	hunkstart = Hunk_LowMark();
 	root = Mod_ParseIQMMeshModel(mod, buffer);
 	if (!root)
+	{
+		Hunk_FreeToLowMark (hunkstart);
 		return false;
+	}
 	hunkend = Hunk_LowMark();
 
 	mod->flags = h->flags;
@@ -5557,7 +6011,7 @@ qboolean Mod_ParseMD5Anim(char *buffer, galiasinfo_t *prototype, void**poseofs, 
 #undef EXPECT
 }
 
-galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer)
+galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 {
 #define MD5ERROR0PARAM(x) { Con_Printf(CON_ERROR x "\n"); return NULL; }
 #define MD5ERROR1PARAM(x, y) { Con_Printf(CON_ERROR x "\n", y); return NULL; }
@@ -5751,7 +6205,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer)
 				{
 					buffer = COM_Parse(buffer);
 #ifndef SERVERONLY
-					texnum->shader = R_RegisterSkin(com_token);
+					texnum->shader = R_RegisterSkin(com_token, modname);
 					R_BuildDefaultTexnums(texnum, texnum->shader);
 					if (texnum->shader->flags & SHADER_NOIMAGE)
 						Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", texnum->shader->name, loadmodel->name);
@@ -5871,7 +6325,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer)
 			}
 
 			trans = Hunk_Alloc(sizeof(*trans)*numusableweights);
-			inf->ofstransforms = (char*)trans - (char*)inf;
+			inf->ofsswtransforms = (char*)trans - (char*)inf;
 
 			for (num = 0, vnum = 0; num < numverts; num++)
 			{
@@ -5890,7 +6344,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer)
 					numweightslist[num]--;
 				}
 			}
-			inf->numtransforms = vnum;
+			inf->numswtransforms = vnum;
 
 			if (firstweightlist)
 				Z_Free(firstweightlist);
@@ -5926,7 +6380,7 @@ qboolean Mod_LoadMD5MeshModel(model_t *mod, void *buffer)
 
 	hunkstart = Hunk_LowMark ();
 
-	root = Mod_ParseMD5MeshModel(buffer);
+	root = Mod_ParseMD5MeshModel(buffer, mod->name);
 	if (root == NULL)
 	{
 		Hunk_FreeToLowMark(hunkstart);
@@ -6012,7 +6466,7 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 			return false;
 		}
 
-		root = Mod_ParseMD5MeshModel(file);
+		root = Mod_ParseMD5MeshModel(file, mod->name);
 		if (root == NULL)
 		{
 			Hunk_FreeToLowMark(hunkstart);

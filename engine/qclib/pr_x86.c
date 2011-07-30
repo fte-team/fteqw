@@ -208,13 +208,17 @@ int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, dfunction_t *f, int progsn
 
 void PR_CloseJit(struct jitstate *jit)
 {
-	free(jit->statementjumps);
-	free(jit->statementoffsets);
+	if (jit)
+	{
+		free(jit->statementjumps);
+		free(jit->statementoffsets);
 #ifndef _WIN32
-	munmap(jit->code, jit->jitstatements * 500);
+		munmap(jit->code, jit->jitstatements * 500);
 #else
-	free(jit->code);
+		free(jit->code);
 #endif
+		free(jit)
+	}
 }
 
 #define EmitByte(v) EmitByte(jit, v)

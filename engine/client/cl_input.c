@@ -755,7 +755,7 @@ void CL_UpdatePrydonCursor(usercmd_t *from, float cursor_screen[2], vec3_t curso
 	temp[2] = 1;
 
 	VectorCopy(r_origin, cursor_start);
-	Matrix4_UnProject(temp, cursor_end, cl.viewangles[0], cursor_start, r_refdef.fov_x, r_refdef.fov_y);
+	Matrix4x4_CM_UnProject(temp, cursor_end, cl.viewangles[0], cursor_start, r_refdef.fov_x, r_refdef.fov_y);
 
 	CL_SetSolidEntities();
 	//don't bother with players, they don't exist in NQ...

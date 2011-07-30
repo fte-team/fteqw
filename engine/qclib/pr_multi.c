@@ -94,7 +94,7 @@ progsnum_t PR_LoadProgs(progfuncs_t *progfuncs, char *s, int headercrc, builtin_
 					progfuncs->numprogs = a+1;
 
 #ifdef QCJIT
-				prinst->jit = PR_GenerateJit(progfuncs);
+				current_progstate->jit = PR_GenerateJit(progfuncs);
 #endif
 				if (oldtype>=0)
 					PR_SwitchProgs(progfuncs, oldtype);
@@ -122,6 +122,10 @@ void PR_Clear(progfuncs_t *progfuncs)
 	unsigned int a;
 	for (a = 0; a < maxprogs; a++)
 	{
+#ifdef QCJIT
+		if (pr_progstate[a].jit)
+			PR_CloseJit(pr_progstate[a].jit);
+#endif
 		pr_progstate[a].progs = NULL;
 	}
 }

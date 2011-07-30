@@ -957,7 +957,6 @@ void SV_Modellist_f (void)
 {
 	unsigned int i;
 	unsigned int n;
-	unsigned int maxclientsupportedmodels;
 
 	if (host_client->state != cs_connected)
 	{
@@ -1041,10 +1040,10 @@ void SV_Modellist_f (void)
 		MSG_WriteByte (&host_client->netchan.message, n);
 	}
 
-	maxclientsupportedmodels = 256;
+	host_client->maxmodels = 256;
 #ifdef PEXT_MODELDBL
 	if (host_client->fteprotocolextensions & PEXT_MODELDBL)
-		maxclientsupportedmodels *= 2;
+		host_client->maxmodels = MAX_MODELS;
 #endif
 
 #ifdef SERVER_DEMO_PLAYBACK
@@ -1062,7 +1061,7 @@ void SV_Modellist_f (void)
 #endif
 	{
 		for (i = 1+n;
-			i < maxclientsupportedmodels && sv.strings.model_precache[i] && (((i-1)&255)==0 || host_client->netchan.message.cursize < (MAX_QWMSGLEN/2));	//make sure we don't send a 0 next...
+			i < host_client->maxmodels && sv.strings.model_precache[i] && (((i-1)&255)==0 || host_client->netchan.message.cursize < (MAX_QWMSGLEN/2));	//make sure we don't send a 0 next...
 			i++)
 		{
 			MSG_WriteString (&host_client->netchan.message, sv.strings.model_precache[i]);
@@ -1073,7 +1072,7 @@ void SV_Modellist_f (void)
 			n = 0;
 	}
 
-	if (i == maxclientsupportedmodels)
+	if (i == host_client->maxmodels)
 		n = 0;	//doh!
 
 	MSG_WriteByte (&host_client->netchan.message, 0);
@@ -4188,242 +4187,6 @@ void SV_STFU_f(void)
 	ClientReliableWrite_String(host_client, msg);
 }
 
-void SV_MVDList_f (void);
-void SV_MVDInfo_f (void);
-typedef struct
-{
-	char	*name;
-	void	(*func) (void);
-	qboolean	noqchandling;
-} ucmd_t;
-
-ucmd_t ucmds[] =
-{
-	{"new", SV_New_f, true},
-	{"pk3list",	SV_PK3List_f, true},
-	{"modellist", SV_Modellist_f, true},
-	{"soundlist", SV_Soundlist_f, true},
-	{"prespawn", SV_PreSpawn_f, true},
-	{"spawn", SV_Spawn_f, true},
-	{"begin", SV_Begin_f, true},
-
-	{"al", SV_STFU_f, true},
-
-	{"join", Cmd_Join_f},
-	{"observe", Cmd_Observe_f},
-
-	{"drop", SV_Drop_f},
-	{"disconnect", SV_Drop_f},
-	{"pings", SV_Pings_f},
-
-// issued by hand at client consoles
-	{"rate", SV_Rate_f},
-	{"kill", SV_Kill_f},
-	{"pause", SV_Pause_f},
-	{"msg", SV_Msg_f},
-
-	{"sayone", SV_SayOne_f},
-	{"say", SV_Say_f},
-	{"say_team", SV_Say_Team_f},
-
-	{"setinfo", SV_SetInfo_f},
-
-	{"serverinfo", SV_ShowServerinfo_f},
-
-	{"dlsize", SV_DownloadSize_f},
-	{"download", SV_BeginDownload_f},
-	{"nextdl", SV_NextDownload_f},
-
-	{"ptrack", SV_PTrack_f}, //ZOID - used with autocam
-	{"enablecsqc", SV_EnableClientsCSQC},
-	{"disablecsqc", SV_DisableClientsCSQC},
-
-	{"snap", SV_NoSnap_f},
-	{"vote", SV_Vote_f},
-
-#ifdef SVRANKING
-	{"topten", Rank_ListTop10_f},
-#endif
-
-	{"efpslist", Cmd_FPSList_f},	//don't conflict with the ktpro one
-	{"god", Cmd_God_f},
-	{"give", Cmd_Give_f},
-	{"noclip", Cmd_Noclip_f},
-	{"fly", Cmd_Fly_f},
-	{"notarget", Cmd_Notarget_f},
-	{"setpos", Cmd_SetPos_f},
-
-	{"stopdownload", SV_StopDownload_f},
-	{"demolist", SV_UserCmdMVDList_f},
-	{"demoinfo", SV_MVDInfo_f},
-
-#ifdef VOICECHAT
-	{"voicetarg", SV_Voice_Target_f},
-	{"vignore", SV_Voice_Ignore_f},	/*ignore/mute specific player*/
-	{"muteall", SV_Voice_MuteAll_f},	/*disables*/
-	{"unmuteall", SV_Voice_UnmuteAll_f}, /*reenables*/
-#endif
-
-	{NULL, NULL}
-};
-
-#ifdef Q2SERVER
-ucmd_t ucmdsq2[] = {
-	{"new", SV_New_f, true},
-	{"configstrings", SVQ2_ConfigStrings_f, true},
-	{"baselines", SVQ2_BaseLines_f, true},
-	{"begin", SV_Begin_f, true},
-
-//	{"setinfo", SV_SetInfo_f, true},
-
-	{"serverinfo", SV_ShowServerinfo_f, true},
-	{"info", SV_ShowServerinfo_f, true},
-
-	{"download", SV_BeginDownload_f, true},
-	{"nextdl", SV_NextDownload_f, true},
-
-	{"nextserver", SVQ2_NextServer_f, true},
-
-	{"vote", SV_Vote_f, true},
-
-//#ifdef SVRANKING
-//	{"topten", Rank_ListTop10_f, true},
-//#endif
-
-	{"drop", SV_Drop_f, true},
-	{"disconnect", SV_Drop_f, true},
-
-	{NULL, NULL}
-};
-#endif
-
-extern ucmd_t nqucmds[];
-/*
-==================
-SV_ExecuteUserCommand
-==================
-*/
-void SV_ExecuteUserCommand (char *s, qboolean fromQC)
-{
-	ucmd_t	*u;
-	client_t *oldhost = host_client;
-	char adr[MAX_ADR_SIZE];
-
-	Con_DPrintf("Client command: %s\n", s);
-
-	Cmd_TokenizeString (s, false, false);
-	sv_player = host_client->edict;
-
-	Cmd_ExecLevel=1;
-
-	if (host_client->controlled && atoi(Cmd_Argv(0))>0)	//now see if it's meant to be from a slave client
-	{
-		int pnum = atoi(Cmd_Argv(0));
-		client_t *s;
-		for (s = host_client; s; s = s->controlled)
-		{
-			if (!--pnum)
-			{
-				host_client = s;
-				break;
-			}
-		}
-		sv_player = host_client->edict;
-		Cmd_ShiftArgs(1, false);
-	}
-
-#ifdef Q2SERVER
-	if (ISQ2CLIENT(host_client))
-		u = ucmdsq2;
-	else
-#endif
-#ifdef NQPROT
-	if (ISNQCLIENT(host_client))
-		u = nqucmds;
-	else
-#endif
-		u=ucmds;
-
-	for ( ; u->name ; u++)
-		if (!strcmp (Cmd_Argv(0), u->name) )
-		{
-			if (!fromQC && !u->noqchandling)
-				if (PR_KrimzonParseCommand(s))	//KRIMZON_SV_PARSECLIENTCOMMAND has the opertunity to parse out certain commands.
-				{
-					host_client = oldhost;
-					return;
-				}
-//			SV_BeginRedirect (RD_CLIENT, host_client->language);
-			if (u->func)
-				u->func ();
-			host_client = oldhost;
-//			SV_EndRedirect ();
-			return;
-		}
-
-	if (!u->name)
-	{
-#ifdef HLSERVER
-		if (HLSV_ClientCommand(host_client))
-		{
-			host_client = oldhost;
-			return;
-		}
-#endif
-
-		if (!fromQC)
-			if (PR_UserCmd(s))			//Q2 and MVDSV command handling only happens if the engine didn't recognise it.
-			{
-				host_client = oldhost;
-				return;
-			}
-#ifdef SVRANKING
-		if (sv_cmdlikercon.value && host_client->rankid)
-		{
-			char remaining[1024];
-			int i;
-			rankstats_t stats;
-
-			if (!Rank_GetPlayerStats(host_client->rankid, &stats))
-			{
-				host_client = oldhost;
-				return;
-			}
-
-			Con_Printf ("cmd from %s:\n%s\n"
-				, host_client->name, net_message.data+4);
-
-			SV_BeginRedirect (RD_CLIENT, host_client->language);
-
-			remaining[0] = 0;
-
-			for (i=0 ; i<Cmd_Argc() ; i++)
-			{
-				if (strlen(remaining)+strlen(Cmd_Argv(i))>=sizeof(remaining)-1)
-				{
-					Con_Printf("cmd was too long\n");
-					host_client = oldhost;
-					SV_EndRedirect ();
-					Con_Printf ("cmd from %s:\n%s\n"
-						, NET_AdrToString (adr, sizeof(adr), net_from), "Was too long - possible buffer overflow attempt");
-					return;
-				}
-				strcat (remaining, Cmd_Argv(i) );
-				strcat (remaining, " ");
-			}
-
-			Cmd_ExecuteString (remaining, stats.trustlevel);
-			host_client = oldhost;
-			SV_EndRedirect ();
-			return;
-		}
-#endif
-		Con_Printf ("Bad user command: %s\n", Cmd_Argv(0));
-	}
-
-	host_client = oldhost;
-	SV_EndRedirect ();
-}
 #ifdef NQPROT
 void SVNQ_Spawn_f (void)
 {
@@ -4822,6 +4585,163 @@ void SV_Pext_f(void)
 		SV_New_f();
 }
 
+/*
+void SVNQ_ExecuteUserCommand (char *s)
+{
+	client_t *oldhost = host_client;
+	ucmd_t	*u;
+
+	Cmd_TokenizeString (s, false, false);
+	sv_player = host_client->edict;
+
+	Cmd_ExecLevel=1;
+
+	for (u=nqucmds ; u->name ; u++)
+	{
+		if (!strcmp (Cmd_Argv(0), u->name) )
+		{
+			if (/ *!fromQC && * /!u->noqchandling)
+				if (PR_UserCmd(s))
+				{
+					host_client = oldhost;
+					return;
+				}
+
+			if (!u->func)
+			{
+				SV_BeginRedirect (RD_CLIENT, host_client->language);
+				Con_Printf("Command was disabled\n");
+				SV_EndRedirect ();
+			}
+			else
+			{
+				SV_BeginRedirect (RD_CLIENT, host_client->language);
+				u->func ();
+				SV_EndRedirect ();
+			}
+
+			host_client = oldhost;
+			return;
+		}
+	}
+
+	if (!u->name)
+		Con_Printf("%s tried to \"%s\"\n", host_client->name, s);
+}
+*/
+#endif
+
+
+void SV_MVDList_f (void);
+void SV_MVDInfo_f (void);
+typedef struct
+{
+	char	*name;
+	void	(*func) (void);
+	qboolean	noqchandling;
+} ucmd_t;
+
+ucmd_t ucmds[] =
+{
+	{"new", SV_New_f, true},
+	{"pk3list",	SV_PK3List_f, true},
+	{"modellist", SV_Modellist_f, true},
+	{"soundlist", SV_Soundlist_f, true},
+	{"prespawn", SV_PreSpawn_f, true},
+	{"spawn", SV_Spawn_f, true},
+	{"begin", SV_Begin_f, true},
+
+	{"al", SV_STFU_f, true},
+
+	{"join", Cmd_Join_f},
+	{"observe", Cmd_Observe_f},
+
+	{"drop", SV_Drop_f},
+	{"disconnect", SV_Drop_f},
+	{"pings", SV_Pings_f},
+
+// issued by hand at client consoles
+	{"rate", SV_Rate_f},
+	{"kill", SV_Kill_f},
+	{"pause", SV_Pause_f},
+	{"msg", SV_Msg_f},
+
+	{"sayone", SV_SayOne_f},
+	{"say", SV_Say_f},
+	{"say_team", SV_Say_Team_f},
+
+	{"setinfo", SV_SetInfo_f},
+
+	{"serverinfo", SV_ShowServerinfo_f},
+
+	{"dlsize", SV_DownloadSize_f},
+	{"download", SV_BeginDownload_f},
+	{"nextdl", SV_NextDownload_f},
+
+	{"ptrack", SV_PTrack_f}, //ZOID - used with autocam
+	{"enablecsqc", SV_EnableClientsCSQC},
+	{"disablecsqc", SV_DisableClientsCSQC},
+
+	{"snap", SV_NoSnap_f},
+	{"vote", SV_Vote_f},
+
+#ifdef SVRANKING
+	{"topten", Rank_ListTop10_f},
+#endif
+
+	{"efpslist", Cmd_FPSList_f},	//don't conflict with the ktpro one
+	{"god", Cmd_God_f},
+	{"give", Cmd_Give_f},
+	{"noclip", Cmd_Noclip_f},
+	{"fly", Cmd_Fly_f},
+	{"notarget", Cmd_Notarget_f},
+	{"setpos", Cmd_SetPos_f},
+
+	{"stopdownload", SV_StopDownload_f},
+	{"demolist", SV_UserCmdMVDList_f},
+	{"demoinfo", SV_MVDInfo_f},
+
+#ifdef VOICECHAT
+	{"voicetarg", SV_Voice_Target_f},
+	{"vignore", SV_Voice_Ignore_f},	/*ignore/mute specific player*/
+	{"muteall", SV_Voice_MuteAll_f},	/*disables*/
+	{"unmuteall", SV_Voice_UnmuteAll_f}, /*reenables*/
+#endif
+
+	{NULL, NULL}
+};
+
+#ifdef Q2SERVER
+ucmd_t ucmdsq2[] = {
+	{"new", SV_New_f, true},
+	{"configstrings", SVQ2_ConfigStrings_f, true},
+	{"baselines", SVQ2_BaseLines_f, true},
+	{"begin", SV_Begin_f, true},
+
+//	{"setinfo", SV_SetInfo_f, true},
+
+	{"serverinfo", SV_ShowServerinfo_f, true},
+	{"info", SV_ShowServerinfo_f, true},
+
+	{"download", SV_BeginDownload_f, true},
+	{"nextdl", SV_NextDownload_f, true},
+
+	{"nextserver", SVQ2_NextServer_f, true},
+
+	{"vote", SV_Vote_f, true},
+
+//#ifdef SVRANKING
+//	{"topten", Rank_ListTop10_f, true},
+//#endif
+
+	{"drop", SV_Drop_f, true},
+	{"disconnect", SV_Drop_f, true},
+
+	{NULL, NULL}
+};
+#endif
+
+#ifdef NQPROT
 ucmd_t nqucmds[] =
 {
 	{"new",			SVNQ_New_f, true},
@@ -4874,52 +4794,134 @@ ucmd_t nqucmds[] =
 
 	{NULL, NULL}
 };
+#endif
+
 /*
-void SVNQ_ExecuteUserCommand (char *s)
+==================
+SV_ExecuteUserCommand
+==================
+*/
+void SV_ExecuteUserCommand (char *s, qboolean fromQC)
 {
-	client_t *oldhost = host_client;
 	ucmd_t	*u;
+	client_t *oldhost = host_client;
+	char adr[MAX_ADR_SIZE];
+
+	Con_DPrintf("Client command: %s\n", s);
 
 	Cmd_TokenizeString (s, false, false);
 	sv_player = host_client->edict;
 
 	Cmd_ExecLevel=1;
 
-	for (u=nqucmds ; u->name ; u++)
+	if (host_client->controlled && atoi(Cmd_Argv(0))>0)	//now see if it's meant to be from a slave client
 	{
+		int pnum = atoi(Cmd_Argv(0));
+		client_t *s;
+		for (s = host_client; s; s = s->controlled)
+		{
+			if (!--pnum)
+			{
+				host_client = s;
+				break;
+			}
+		}
+		sv_player = host_client->edict;
+		Cmd_ShiftArgs(1, false);
+	}
+
+#ifdef Q2SERVER
+	if (ISQ2CLIENT(host_client))
+		u = ucmdsq2;
+	else
+#endif
+#ifdef NQPROT
+	if (ISNQCLIENT(host_client))
+		u = nqucmds;
+	else
+#endif
+		u=ucmds;
+
+	for ( ; u->name ; u++)
 		if (!strcmp (Cmd_Argv(0), u->name) )
 		{
-			if (/ *!fromQC && * /!u->noqchandling)
-				if (PR_UserCmd(s))
+			if (!fromQC && !u->noqchandling)
+				if (PR_KrimzonParseCommand(s))	//KRIMZON_SV_PARSECLIENTCOMMAND has the opertunity to parse out certain commands.
 				{
 					host_client = oldhost;
 					return;
 				}
-
-			if (!u->func)
-			{
-				SV_BeginRedirect (RD_CLIENT, host_client->language);
-				Con_Printf("Command was disabled\n");
-				SV_EndRedirect ();
-			}
-			else
-			{
-				SV_BeginRedirect (RD_CLIENT, host_client->language);
+//			SV_BeginRedirect (RD_CLIENT, host_client->language);
+			if (u->func)
 				u->func ();
-				SV_EndRedirect ();
-			}
+			host_client = oldhost;
+//			SV_EndRedirect ();
+			return;
+		}
 
+	if (!u->name)
+	{
+#ifdef HLSERVER
+		if (HLSV_ClientCommand(host_client))
+		{
 			host_client = oldhost;
 			return;
 		}
-	}
-
-	if (!u->name)
-		Con_Printf("%s tried to \"%s\"\n", host_client->name, s);
-}
-*/
 #endif
 
+		if (!fromQC)
+			if (PR_UserCmd(s))			//Q2 and MVDSV command handling only happens if the engine didn't recognise it.
+			{
+				host_client = oldhost;
+				return;
+			}
+#ifdef SVRANKING
+		if (sv_cmdlikercon.value && host_client->rankid)
+		{
+			char remaining[1024];
+			int i;
+			rankstats_t stats;
+
+			if (!Rank_GetPlayerStats(host_client->rankid, &stats))
+			{
+				host_client = oldhost;
+				return;
+			}
+
+			Con_Printf ("cmd from %s:\n%s\n"
+				, host_client->name, net_message.data+4);
+
+			SV_BeginRedirect (RD_CLIENT, host_client->language);
+
+			remaining[0] = 0;
+
+			for (i=0 ; i<Cmd_Argc() ; i++)
+			{
+				if (strlen(remaining)+strlen(Cmd_Argv(i))>=sizeof(remaining)-1)
+				{
+					Con_Printf("cmd was too long\n");
+					host_client = oldhost;
+					SV_EndRedirect ();
+					Con_Printf ("cmd from %s:\n%s\n"
+						, NET_AdrToString (adr, sizeof(adr), net_from), "Was too long - possible buffer overflow attempt");
+					return;
+				}
+				strcat (remaining, Cmd_Argv(i) );
+				strcat (remaining, " ");
+			}
+
+			Cmd_ExecuteString (remaining, stats.trustlevel);
+			host_client = oldhost;
+			SV_EndRedirect ();
+			return;
+		}
+#endif
+		Con_Printf ("Bad user command: %s\n", Cmd_Argv(0));
+	}
+
+	host_client = oldhost;
+	SV_EndRedirect ();
+}
 
 int implevels[256];
 qboolean SV_FilterImpulse(int imp, int level)

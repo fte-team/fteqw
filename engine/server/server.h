@@ -370,6 +370,7 @@ typedef struct client_s
 	char			*name;
 	char			namebuf[32];			// for printing to other people
 										// extracted from userinfo
+	char			guid[32];
 	int				messagelevel;		// for filtering printed messages
 
 	// the datagram is written to after every frame, but only cleared
@@ -504,6 +505,7 @@ typedef struct client_s
 #endif
 	unsigned long	zquake_extensions;
 	unsigned int    max_net_ents;
+	unsigned int	maxmodels; /*max models supported by whatever the protocol is*/
 
 	enum {
 		SCP_BAD,	//don't send (a bot)

@@ -1061,6 +1061,16 @@ void *VM_MemoryBase(vm_t *vm)
 		return NULL;
 	}
 }
+quintptr_t VM_MemoryMask(vm_t *vm)
+{
+	switch(vm->type)
+	{
+	case VM_BYTECODE:
+		return ((qvm_t*)vm->hInst)->ds_mask;
+	default:
+		return ~(quintptr_t)0;
+	}
+}
 
 /*returns true if we're running a 32bit vm on a 64bit host (in case we need workarounds)*/
 qboolean VM_NonNative(vm_t *vm)

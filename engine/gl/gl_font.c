@@ -37,6 +37,7 @@ FT_Error (VARGS *pFT_Init_FreeType)		(FT_Library  *alibrary);
 FT_Error (VARGS *pFT_Load_Char)			(FT_Face face, FT_ULong char_code, FT_Int32 load_flags);
 FT_Error (VARGS *pFT_Set_Pixel_Sizes)	(FT_Face face, FT_UInt pixel_width, FT_UInt pixel_height);
 FT_Error (VARGS *pFT_New_Face)			(FT_Library library, const char *pathname, FT_Long face_index, FT_Face *aface);
+FT_Error (VARGS *pFT_New_Memory_Face)	(FT_Library library, const FT_Byte* file_base, FT_Long file_size, FT_Long face_index, FT_Face *aface);
 FT_Error (VARGS *pFT_Done_Face)			(FT_Face face);
 #endif
 
@@ -185,6 +186,7 @@ typedef struct font_s
 	texid_t singletexture;
 #ifdef AVAIL_FREETYPE
 	FT_Face face;
+	void *membuf;
 #endif
 } font_t;
 
@@ -601,8 +603,10 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, char *fontfilename)
 {
 #ifdef AVAIL_FREETYPE
-	FT_Face face;
-	int error;
+	FT_Face face = NULL;
+	FT_Error error;
+	flocation_t loc;
+	void *fbase = NULL;
 	if (!fontlib)
 	{
 		dllfunction_t ft2funcs[] =
@@ -611,6 +615,7 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, char *fontfilename)
 			{(void**)&pFT_Load_Char, "FT_Load_Char"},
 			{(void**)&pFT_Set_Pixel_Sizes, "FT_Set_Pixel_Sizes"},
 			{(void**)&pFT_New_Face, "FT_New_Face"},
+			{(void**)&pFT_New_Memory_Face, "FT_New_Memory_Face"},
 			{(void**)&pFT_Init_FreeType, "FT_Init_FreeType"},
 			{(void**)&pFT_Done_Face, "FT_Done_Face"},
 			{NULL, NULL}
@@ -631,8 +636,31 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, char *fontfilename)
 		/*any other errors leave freetype open*/
 	}
 
-	//fixme: use FT_Open_Face eventually
-	error = pFT_New_Face(fontlib, fontfilename, 0, &face);
+	error = FT_Err_Cannot_Open_Resource;
+	if (FS_FLocateFile(fontfilename, FSLFRT_LENGTH, &loc)>0)
+	{
+		if (*loc.rawname && !loc.offset)
+		{
+			fbase = NULL;
+			/*File is directly fopenable with no bias (not in a pk3/pak). Use the system-path form, so we don't have to eat the memory cost*/
+			error = pFT_New_Face(fontlib, loc.rawname, 0, &face);
+		}
+		else
+		{
+			/*File is inside an archive, we need to read it and pass it as memory (and keep it available)*/
+			vfsfile_t *f;
+			f = FS_OpenReadLocation(&loc);
+			if (f && loc.len > 0)
+			{
+				fbase = malloc(loc.len);
+				VFS_READ(f, fbase, loc.len);
+				VFS_CLOSE(f);
+
+				error = pFT_New_Memory_Face(fontlib, fbase, loc.len, 0, &face);
+			}
+		}
+	}
+
 #ifdef _WIN32
 	if (error)
 	{
@@ -664,20 +692,22 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, char *fontfilename)
 		}
 	}
 #endif
-	if (error)
-		return false;
-
-	error = pFT_Set_Pixel_Sizes(face, 0, height);
-	if (error)
+	if (!error)
 	{
-		return false;
+		error = pFT_Set_Pixel_Sizes(face, 0, height);
+		if (!error)
+		{
+			/*success!*/
+			f->membuf = fbase;
+			f->face = face;
+			return true;
+		}
 	}
-
-	f->face = face;
-	return true;
-#else
-	return false;
+	if (fbase)
+		free(fbase);
 #endif
+
+	return false;
 }
 
 static texid_t Font_LoadReplacementConchars(void)
@@ -958,6 +988,8 @@ void Font_Free(struct font_s *f)
 #ifdef AVAIL_FREETYPE
 	if (f->face)
 		pFT_Done_Face(f->face);
+	if (f->membuf)
+		free(f->membuf);
 #endif
 	free(f);
 }

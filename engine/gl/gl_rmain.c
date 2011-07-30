@@ -447,7 +447,7 @@ void R_RotateForEntity (float *modelview, const entity_t *e, const model_t *mod)
 		ang[0] = 0;
 		ang[1] = 0;
 		ang[2] = gl_screenangle.value;
-		Matrix4_ModelViewMatrix(simpleview, ang, vec3_origin);
+		Matrix4x4_CM_ModelViewMatrix(simpleview, ang, vec3_origin);
 		Matrix4_Multiply(simpleview, m, modelview);
 	}
 	else
@@ -529,26 +529,26 @@ void R_SetupGL (void)
 		//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*(scr_fov.value*2)/M_PI;
 		//		MYgluPerspective (yfov,  screenaspect,  4,  4096);
 
-				Matrix4_Projection_Far(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value, gl_maxdist.value);
+				Matrix4x4_CM_Projection_Far(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value, gl_maxdist.value);
 			}
 			else
 			{
-				Matrix4_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value);
+				Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value);
 			}
 		}
 		else
 		{
 			if (gl_maxdist.value>=1)
-				Matrix4_Orthographic(r_refdef.m_projection, -fov_x/2, fov_x/2, fov_y/2, -fov_y/2, -gl_maxdist.value, gl_maxdist.value);
+				Matrix4x4_CM_Orthographic(r_refdef.m_projection, -fov_x/2, fov_x/2, fov_y/2, -fov_y/2, -gl_maxdist.value, gl_maxdist.value);
 			else
-				Matrix4_Orthographic(r_refdef.m_projection, 0, r_refdef.vrect.width, 0, r_refdef.vrect.height, -9999, 9999);
+				Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0, r_refdef.vrect.width, 0, r_refdef.vrect.height, -9999, 9999);
 		}
 
 		VectorCopy(r_refdef.viewangles, newa);
 		newa[0] = r_refdef.viewangles[0];
 		newa[1] = r_refdef.viewangles[1];
 		newa[2] = r_refdef.viewangles[2] + gl_screenangle.value;
-		Matrix4_ModelViewMatrix(r_refdef.m_view, newa, r_refdef.vieworg);
+		Matrix4x4_CM_ModelViewMatrix(r_refdef.m_view, newa, r_refdef.vieworg);
 	}
 
 	if (qglLoadMatrixf)
@@ -813,7 +813,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist)
 		TransformDir(vright, paxis, vaxis, vright);
 		TransformDir(vup, paxis, vaxis, vup);
 	}
-	Matrix4_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
+	Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
 	VectorAngles(vpn, vup, r_refdef.viewangles);
 	VectorCopy(r_refdef.vieworg, r_origin);
 

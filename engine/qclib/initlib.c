@@ -69,12 +69,16 @@ void PRAddressableFlush(progfuncs_t *progfuncs, int totalammount)
 //		return;
 	}
 
-	if (addressablehunk)
 #ifdef _WIN32
-	VirtualFree(addressablehunk, 0, MEM_RELEASE);	//doesn't this look complicated? :p
-	addressablehunk = VirtualAlloc (NULL, totalammount, MEM_RESERVE, PAGE_NOACCESS);
+	if (addressablehunk && addressablesize != totalammount)
+	{
+		VirtualFree(addressablehunk, 0, MEM_RELEASE);	//doesn't this look complicated? :p
+		addressablehunk = NULL;
+	}
+	addressablehunk = VirtualAlloc (addressablehunk, totalammount, MEM_RESERVE, PAGE_NOACCESS);
 #else
-	free(addressablehunk);
+	if (addressablehunk)
+		free(addressablehunk);
 	addressablehunk = malloc(totalammount);	//linux will allocate-on-use anyway, which is handy.
 //	memset(addressablehunk, 0xff, totalammount);
 #endif
@@ -507,6 +511,7 @@ char *ASMCALL PR_StringToNative				(progfuncs_t *progfuncs, string_t str)
 			int i = str & ~0x80000000;
 			if (i >= prinst->numallocedstrings)
 			{
+				printf("invalid string %x\n", str);
 				pr_trace = 1;
 				return "";
 			}
@@ -514,6 +519,7 @@ char *ASMCALL PR_StringToNative				(progfuncs_t *progfuncs, string_t str)
 				return prinst->allocedstrings[i];
 			else
 			{
+				printf("invalid string %x\n", str);
 				pr_trace = 1;
 				return "";	//urm, was freed...
 			}
@@ -523,6 +529,7 @@ char *ASMCALL PR_StringToNative				(progfuncs_t *progfuncs, string_t str)
 			int i = str & ~0x40000000;
 			if (i >= prinst->numtempstrings)
 			{
+				printf("invalid temp string %x\n", str);
 				pr_trace = 1;
 				return "";
 			}
@@ -532,6 +539,7 @@ char *ASMCALL PR_StringToNative				(progfuncs_t *progfuncs, string_t str)
 
 	if (str >= progfuncs->stringtablesize)
 	{
+		printf("invalid string offset %x\n", str);
 		pr_trace = 1;
 		return "";
 	}
@@ -774,8 +782,8 @@ void CloseProgs(progfuncs_t *inst)
 #endif
 
 	if (inst->prinst->allocedstrings)
-                f(inst->prinst->allocedstrings);
-       	inst->prinst->allocedstrings = NULL;
+		f(inst->prinst->allocedstrings);
+	inst->prinst->allocedstrings = NULL;
 	if (inst->prinst->tempstrings)
 		f(inst->prinst->tempstrings);
 	inst->prinst->tempstrings = NULL;

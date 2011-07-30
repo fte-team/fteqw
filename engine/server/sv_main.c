@@ -1116,7 +1116,7 @@ void SVC_GetInfo (char *challenge, int fullstatus)
 	//this is a DP protocol, so some QW fields are not needed
 	Info_RemoveKey(resp, "maxclients");
 	Info_RemoveKey(resp, "map");
-	Info_SetValueForKey(resp, "gamename", com_gamename.string, sizeof(response) - (resp-response));
+	Info_SetValueForKey(resp, "gamename", com_protocolname.string, sizeof(response) - (resp-response));
 	Info_SetValueForKey(resp, "modname", com_modname.string, sizeof(response) - (resp-response));
 	Info_SetValueForKey(resp, "protocol", va("%d", NET_PROTOCOL_VERSION), sizeof(response) - (resp-response));
 	Info_SetValueForKey(resp, "clients", va("%d", numclients), sizeof(response) - (resp-response));
@@ -1673,6 +1673,7 @@ client_t *SVC_DirectConnect(void)
 	int			version;
 	int			challenge;
 	int			huffcrc = 0;
+	char guid[128] = "";
 
 	int maxpacketentities;
 
@@ -1838,6 +1839,10 @@ client_t *SVC_DirectConnect(void)
 				huffcrc = Q_atoi(Cmd_Argv(1));
 				Con_DPrintf("Client supports huffman compression. crc 0x%x\n", huffcrc);
 				break;
+			case PROTOCOL_INFO_GUID:
+				Q_strncpyz(guid, Cmd_Argv(1), sizeof(guid));
+				Con_DPrintf("GUID %s\n", Cmd_Argv(1));
+				break;
 			}
 		}
 		msg_badread=false;
@@ -1914,6 +1919,7 @@ client_t *SVC_DirectConnect(void)
 	newcl->fteprotocolextensions = protextsupported;
 	newcl->fteprotocolextensions2 = protextsupported2;
 	newcl->protocol = protocol;
+	Q_strncpyz(newcl->guid, guid, sizeof(newcl->guid));
 
 	if (protocol == SCP_QUAKEWORLD)	//readd?
 	{
@@ -4681,7 +4687,7 @@ void SV_Init (quakeparms_t *parms)
 
 		Con_Printf ("%s\n", version_string());
 
-		Con_TPrintf (STL_INITED);
+		Con_TPrintf (STL_INITED, fs_gamename.string);
 
 		i = COM_CheckParm("+gamedir");
 		if (i)

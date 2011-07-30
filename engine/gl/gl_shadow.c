@@ -114,7 +114,7 @@ static void SHM_Vertex3fv (const GLfloat *v)
 	}
 }
 
-void SHM_TriangleFan(int numverts, vecV_t *verts, vec3_t lightorg, float pd)
+static void SHM_TriangleFan(int numverts, vecV_t *verts, vec3_t lightorg, float pd)
 {
 	int v, i, idxs;
 	float *v1;
@@ -196,7 +196,7 @@ static void SHM_Shadow_Cache_Leaf(mleaf_t *leaf)
 	sh_shmesh->litleaves[i>>3] |= 1<<(i&7);
 }
 
-void SH_FreeShadowMesh(shadowmesh_t *sm)
+static void SH_FreeShadowMesh(shadowmesh_t *sm)
 {
 	unsigned int i;
 	for (i = 0; i < sm->numsurftextures; i++)
@@ -738,7 +738,7 @@ static void SHM_MarkLeavesQ1(dlight_t *dl, unsigned char *lvis)
 }
 
 #ifdef Q3BSPS
-void SHM_RecursiveWorldNodeQ3_r (dlight_t *dl, mnode_t *node)
+static void SHM_RecursiveWorldNodeQ3_r (dlight_t *dl, mnode_t *node)
 {
 	mplane_t	*splitplane;
 	float		dist;
@@ -788,6 +788,7 @@ void SHM_RecursiveWorldNodeQ3_r (dlight_t *dl, mnode_t *node)
 
 static void SHM_ComposeVolume_BruteForce(dlight_t *dl)
 {
+	/*FIXME: This function is not complete*/
 	shadowmeshsurfs_t *sms;
 	unsigned int tno;
 	unsigned int sno;
@@ -859,7 +860,7 @@ static void SHM_ComposeVolume_BruteForce(dlight_t *dl)
 	*/
 }
 
-static struct shadowmesh_s *SHM_BuildShadowVolumeMesh(dlight_t *dl, unsigned char *lvis, unsigned char *vvis)
+static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvis, unsigned char *vvis, qboolean surfonly)
 {
 	float *v1, *v2;
 	vec3_t v3, v4;
@@ -879,7 +880,8 @@ static struct shadowmesh_s *SHM_BuildShadowVolumeMesh(dlight_t *dl, unsigned cha
 		SHM_BeginShadowMesh(dl);
 		sh_shadowframe++;
 		SHM_RecursiveWorldNodeQ3_r(dl, cl.worldmodel->nodes);
-		SHM_ComposeVolume_BruteForce(dl);
+		if (!surfonly)
+			SHM_ComposeVolume_BruteForce(dl);
 		return SHM_FinishShadowMesh(dl);
 //		SHM_RecursiveWorldNodeQ3_r(cl.worldmodel->nodes);
 
@@ -901,41 +903,44 @@ static struct shadowmesh_s *SHM_BuildShadowVolumeMesh(dlight_t *dl, unsigned cha
 	else
 		return NULL;
 
-	SHM_BeginQuads();
-	while(firstedge)
+	if (!surfonly)
 	{
-		//border
-		v1 = cl.worldmodel->vertexes[cl.worldmodel->edges[firstedge].v[0]].position;
-		v2 = cl.worldmodel->vertexes[cl.worldmodel->edges[firstedge].v[1]].position;
-
-		//get positions of v3 and v4 based on the light position
-		v3[0] = v1[0] + ( v1[0]-dl->origin[0] )*PROJECTION_DISTANCE;
-		v3[1] = v1[1] + ( v1[1]-dl->origin[1] )*PROJECTION_DISTANCE;
-		v3[2] = v1[2] + ( v1[2]-dl->origin[2] )*PROJECTION_DISTANCE;
-
-		v4[0] = v2[0] + ( v2[0]-dl->origin[0] )*PROJECTION_DISTANCE;
-		v4[1] = v2[1] + ( v2[1]-dl->origin[1] )*PROJECTION_DISTANCE;
-		v4[2] = v2[2] + ( v2[2]-dl->origin[2] )*PROJECTION_DISTANCE;
-
-		if (edge[firstedge].count > 0)
+		SHM_BeginQuads();
+		while(firstedge)
 		{
-			SHM_Vertex3fv(v3);
-			SHM_Vertex3fv(v4);
-			SHM_Vertex3fv(v2);
-			SHM_Vertex3fv(v1);
-		}
-		else
-		{
-			SHM_Vertex3fv(v1);
-			SHM_Vertex3fv(v2);
-			SHM_Vertex3fv(v4);
-			SHM_Vertex3fv(v3);
-		}
-		edge[firstedge].count=0;
+			//border
+			v1 = cl.worldmodel->vertexes[cl.worldmodel->edges[firstedge].v[0]].position;
+			v2 = cl.worldmodel->vertexes[cl.worldmodel->edges[firstedge].v[1]].position;
 
-		firstedge = edge[firstedge].next;
+			//get positions of v3 and v4 based on the light position
+			v3[0] = v1[0] + ( v1[0]-dl->origin[0] )*PROJECTION_DISTANCE;
+			v3[1] = v1[1] + ( v1[1]-dl->origin[1] )*PROJECTION_DISTANCE;
+			v3[2] = v1[2] + ( v1[2]-dl->origin[2] )*PROJECTION_DISTANCE;
+
+			v4[0] = v2[0] + ( v2[0]-dl->origin[0] )*PROJECTION_DISTANCE;
+			v4[1] = v2[1] + ( v2[1]-dl->origin[1] )*PROJECTION_DISTANCE;
+			v4[2] = v2[2] + ( v2[2]-dl->origin[2] )*PROJECTION_DISTANCE;
+
+			if (edge[firstedge].count > 0)
+			{
+				SHM_Vertex3fv(v3);
+				SHM_Vertex3fv(v4);
+				SHM_Vertex3fv(v2);
+				SHM_Vertex3fv(v1);
+			}
+			else
+			{
+				SHM_Vertex3fv(v1);
+				SHM_Vertex3fv(v2);
+				SHM_Vertex3fv(v4);
+				SHM_Vertex3fv(v3);
+			}
+			edge[firstedge].count=0;
+
+			firstedge = edge[firstedge].next;
+		}
+		SHM_End();
 	}
-	SHM_End();
 
 	firstedge=0;
 
@@ -1082,7 +1087,7 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs)
 			v[1] = (i & 2) ? mins[1] : maxs[1];
 			v[2] = (i & 4) ? mins[2] : maxs[2];
 			v[3] = 1.0f;
-			Matrix4_Project(v, v2, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y);
+			Matrix4x4_CM_Project(v, v2, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y);
 			v2[0]*=r_view_width;
 			v2[1]*=r_view_height;
 //			GL_TransformToScreen(v, v2);
@@ -1154,7 +1159,7 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs)
 			v[1] = v2[0] * vright[1] + v2[1] * vup[1] + v2[2] * vpn[1] + r_refdef.vieworg[1];
 			v[2] = v2[0] * vright[2] + v2[1] * vup[2] + v2[2] * vpn[2] + r_refdef.vieworg[2];
 			v[3] = 1.0f;
-			Matrix4_Project(v, v2, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y);
+			Matrix4x4_CM_Project(v, v2, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y);
 			v2[0]*=r_view_width;
 			v2[1]*=r_view_height;
 			//Con_Printf("%.3f %.3f %.3f %.3f transformed to %.3f %.3f %.3f %.3f\n", v[0], v[1], v[2], v[3], v2[0], v2[1], v2[2], v2[3]);
@@ -1183,7 +1188,7 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs)
 			v[1] = (i & 2) ? mins[1] : maxs[1];
 			v[2] = (i & 4) ? mins[2] : maxs[2];
 			v[3] = 1.0f;
-			Matrix4_Project(v, v2, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y);
+			Matrix4x4_CM_Project(v, v2, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y);
 			v2[0]*=r_view_width;
 			v2[1]*=r_view_height;
 			//Con_Printf("%.3f %.3f %.3f %.3f transformed to %.3f %.3f %.3f %.3f\n", v[0], v[1], v[2], v[3], v2[0], v2[1], v2[2], v2[3]);
@@ -1251,7 +1256,8 @@ void GL_EndRenderBuffer_DepthOnly(texid_t depthtexture, int texsize)
 
 static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, float proj[16])
 {
-	float mvm[16];
+	qboolean oxv;
+	float mvm[16], sav[16];
 	vec3_t t1,t2;
 
 	int smsize = SHADOWMAP_SIZE;
@@ -1270,38 +1276,40 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, float p
 	{
 	case 0:
 		//forward
-		Matrix4_ModelViewMatrixFromAxis(mvm, l->axis[0], l->axis[1], l->axis[2], l->origin);
+		Matrix4x4_CM_ModelViewMatrixFromAxis(mvm, l->axis[0], l->axis[1], l->axis[2], l->origin);
 		break;
 	case 1:
 		//back
 		VectorNegate(l->axis[0], t1);
 		VectorNegate(l->axis[1], t2);
-		Matrix4_ModelViewMatrixFromAxis(mvm, t1, t2, l->axis[2], l->origin);
+		Matrix4x4_CM_ModelViewMatrixFromAxis(mvm, t1, t2, l->axis[2], l->origin);
 		break;
 	case 2:
 		//left
 		VectorNegate(l->axis[1], t1);
 		VectorNegate(l->axis[0], t2);
-		Matrix4_ModelViewMatrixFromAxis(mvm, l->axis[1], t2, l->axis[2], l->origin);
+		Matrix4x4_CM_ModelViewMatrixFromAxis(mvm, l->axis[1], t2, l->axis[2], l->origin);
 		break;
 	case 3:
 		//right
 		VectorNegate(l->axis[1], t1);
-		Matrix4_ModelViewMatrixFromAxis(mvm, t1, l->axis[0], l->axis[2], l->origin);
+		Matrix4x4_CM_ModelViewMatrixFromAxis(mvm, t1, l->axis[0], l->axis[2], l->origin);
 		break;
 	case 4:
 		//up
 		VectorNegate(l->axis[0], t2);
-		Matrix4_ModelViewMatrixFromAxis(mvm, l->axis[2], l->axis[1], t2, l->origin);
+		Matrix4x4_CM_ModelViewMatrixFromAxis(mvm, l->axis[2], l->axis[1], t2, l->origin);
 		break;
 	case 5:
 		//down
 		VectorNegate(l->axis[2], t1);
-		Matrix4_ModelViewMatrixFromAxis(mvm, t1, l->axis[1], l->axis[0], l->origin);
+		Matrix4x4_CM_ModelViewMatrixFromAxis(mvm, t1, l->axis[1], l->axis[0], l->origin);
 		break;
 	}
 
 	qglMatrixMode(GL_MODELVIEW);
+	memcpy(sav, r_refdef.m_view, sizeof(r_refdef.m_view));
+	memcpy(r_refdef.m_view, mvm, sizeof(r_refdef.m_view));
 	qglLoadMatrixf(mvm);
 
 	R_SetFrustum(proj, mvm);
@@ -1317,7 +1325,11 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, float p
 	}
 
 	BE_SelectMode(BEM_DEPTHONLY);
+	/*shadow meshes are always drawn as an external view*/
+	oxv = r_refdef.externalview;
+	r_refdef.externalview = true;
 	BE_BaseEntTextures();
+	r_refdef.externalview = oxv;
 
 	if (0)
 	{
@@ -1341,6 +1353,8 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, float p
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 	}
+
+	memcpy(r_refdef.m_view, sav, sizeof(r_refdef.m_view));
 }
 
 void Sh_Shutdown(void)
@@ -1373,7 +1387,7 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 	}
 
-	smesh = SHM_BuildShadowVolumeMesh(l, lvis, NULL);
+	smesh = SHM_BuildShadowMesh(l, lvis, NULL, true);
 
 	/*polygon offsets. urgh.*/
 	qglEnable(GL_POLYGON_OFFSET_FILL);
@@ -1386,7 +1400,7 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 
 	if (l->fov)
 	{
-		Matrix4_Projection_Far(proj, l->fov, l->fov, nearplane, l->radius);
+		Matrix4x4_CM_Projection_Far(proj, l->fov, l->fov, nearplane, l->radius);
 		qglMatrixMode(GL_PROJECTION);
 		qglLoadMatrixf(proj);
 
@@ -1395,7 +1409,7 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 	}
 	else
 	{
-		Matrix4_Projection_Far(proj, 90, 90, nearplane, l->radius);
+		Matrix4x4_CM_Projection_Far(proj, 90, 90, nearplane, l->radius);
 		qglMatrixMode(GL_PROJECTION);
 		qglLoadMatrixf(proj);
 
@@ -1485,11 +1499,11 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 	Sh_GenShadowMap(l, lvis);
 
 	if (l->fov)
-		Matrix4_Projection_Far(proj, l->fov, l->fov, nearplane, l->radius);
+		Matrix4x4_CM_Projection_Far(proj, l->fov, l->fov, nearplane, l->radius);
 	else
-		Matrix4_Projection_Far(proj, 90, 90, nearplane, l->radius);
+		Matrix4x4_CM_Projection_Far(proj, 90, 90, nearplane, l->radius);
 	VectorMA(l->origin, 0, l->axis[0], biasorg);
-	Matrix4_ModelViewMatrixFromAxis(view, l->axis[0], l->axis[1], l->axis[2], l->origin);
+	Matrix4x4_CM_ModelViewMatrixFromAxis(view, l->axis[0], l->axis[1], l->axis[2], l->origin);
 
 	//bp = shadowprojectionbias*proj*view;
 	Matrix4_Multiply(shadowprojectionbias, proj, t);
@@ -1716,7 +1730,7 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 
 	BE_PushOffsetShadow(false);
 
-	sm = SHM_BuildShadowVolumeMesh(dl, lvis, vvis);
+	sm = SHM_BuildShadowMesh(dl, lvis, vvis, false);
 	if (!sm)
 		Sh_DrawBrushModelShadow(dl, &r_worldentity);
 	else
@@ -2009,8 +2023,7 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 		leaf = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, dl->origin);
 		lvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, leaf, lvisb, sizeof(lvisb));
 
-		if (!dl->die)
-			SHM_BuildShadowVolumeMesh(dl, lvis, vvis);
+		SHM_BuildShadowMesh(dl, lvis, vvis, false);
 
 		if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
 		{

@@ -1024,7 +1024,7 @@ void SCR_CrosshairPosition(int pnum, int *x, int *y)
 				adj+=v_viewheight.value;
 
 			start[2]+=adj;
-			Matrix4_Project(tr.endpos, end, cl.simangles[pnum], start, r_refdef.fov_x, r_refdef.fov_y);
+			Matrix4x4_CM_Project(tr.endpos, end, cl.simangles[pnum], start, r_refdef.fov_x, r_refdef.fov_y);
 			*x = rect.x+rect.width*end[0];
 			*y = rect.y+rect.height*(1-end[1]);
 			return;

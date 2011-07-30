@@ -248,6 +248,7 @@ static const char LIGHTPASS_SHADER[] = "\
 		!!permu SPECULAR\n\
 		!!permu FULLBRIGHT\n\
 		!!permu OFFSETMAPPING\n\
+		!!permu SKELETAL\n\
 	#define LIGHTPASS\n\
 	%s\n\
 	}\n\
@@ -640,7 +641,7 @@ static void BE_EnableShaderAttributes(unsigned int newm)
 	unsigned int i;
 	if (newm == shaderstate.sha_attr)
 		return;
-	for (i = 0; i < 8; i++)
+	for (i = 0; i < 10; i++)
 	{
 #ifndef FORCESTATE
 		if ((newm^shaderstate.sha_attr) & (1u<<i))
@@ -791,6 +792,8 @@ static void RevertToKnownState(void)
 	qglDepthMask(GL_TRUE);
 
 	qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+
+	GL_DeSelectProgram();
 }
 
 void PPL_RevertToKnownState(void)
@@ -1459,7 +1462,7 @@ static void colourgen(const shaderpass_t *pass, int cnt, vec4_t *src, vec4_t *ds
 		}
 		else
 		{
-			R_LightArrays(mesh->xyz_array, dst, cnt, mesh->normals_array);
+			R_LightArrays(shaderstate.curentity, mesh->xyz_array, dst, cnt, mesh->normals_array);
 		}
 		break;
 	case RGB_GEN_WAVE:
@@ -2366,6 +2369,14 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 		GL_SelectVBO(shaderstate.sourcevbo->vbotvector);
 		qglVertexAttribPointer(p->handle[perm], 3, GL_FLOAT, GL_FALSE, sizeof(vec3_t), shaderstate.sourcevbo->tvector);
 		return 1u<<p->handle[perm];
+	case SP_ATTR_BONENUMS:
+		GL_SelectVBO(shaderstate.sourcevbo->vbobonenums);
+		qglVertexAttribPointer(p->handle[perm], 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(byte_vec4_t), shaderstate.sourcevbo->bonenums);
+		return 1u<<p->handle[perm];
+	case SP_ATTR_BONEWEIGHTS:
+		GL_SelectVBO(shaderstate.sourcevbo->vboboneweights);
+		qglVertexAttribPointer(p->handle[perm], 4, GL_FLOAT, GL_FALSE, sizeof(vec4_t), shaderstate.sourcevbo->boneweights);
+		return 1u<<p->handle[perm];
 
 	case SP_VIEWMATRIX:
 		qglUniformMatrix4fvARB(p->handle[perm], 1, false, r_refdef.m_view);
@@ -2383,7 +2394,7 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 	case SP_ENTMATRIX:
 		{
 			float m16[16];
-			Matrix4_ModelMatrixFromAxis(m16, shaderstate.curentity->axis[0], shaderstate.curentity->axis[1], shaderstate.curentity->axis[2], shaderstate.curentity->origin);
+			Matrix4x4_CM_ModelMatrixFromAxis(m16, shaderstate.curentity->axis[0], shaderstate.curentity->axis[1], shaderstate.curentity->axis[2], shaderstate.curentity->origin);
 /*			VectorCopy(shaderstate.curentity->axis[0], m16+0);
 			m16[3] = 0;
 			VectorCopy(shaderstate.curentity->axis[1], m16+1);
@@ -2396,7 +2407,11 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 			qglUniformMatrix4fvARB(p->handle[perm], 1, false, m16);
 		}
 		break;
-
+	case SP_ENTBONEMATRICIES:
+		{
+			qglUniformMatrix3x4fv(p->handle[perm], shaderstate.sourcevbo->numbones, false, shaderstate.sourcevbo->bones);
+		}
+		break;
 
 	case SP_ENTCOLOURS:
 		qglUniform4fvARB(p->handle[perm], 1, (GLfloat*)shaderstate.curentity->shaderRGBAf);
@@ -2457,8 +2472,8 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 #endif
 //			vec3_t t1;
 			vec3_t t2;
-			Matrix4_ModelMatrixFromAxis(m16, shaderstate.curentity->axis[0], shaderstate.curentity->axis[1], shaderstate.curentity->axis[2], shaderstate.curentity->origin);
-			Matrix4_Transform3(m16, r_origin, t2);
+			Matrix4x4_CM_ModelMatrixFromAxis(m16, shaderstate.curentity->axis[0], shaderstate.curentity->axis[1], shaderstate.curentity->axis[2], shaderstate.curentity->origin);
+			Matrix4x4_CM_Transform3(m16, r_origin, t2);
 //			VectorSubtract(r_origin, shaderstate.curentity->origin, t1);
 //			Matrix3_Multiply_Vec3(shaderstate.curentity->axis, t1, t2);
 			qglUniform3fvARB(p->handle[perm], 1, t2);
@@ -2475,9 +2490,9 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 			vec3_t t2;
 			qboolean Matrix4_Invert(const float *m, float *out);
 
-			Matrix4_ModelMatrixFromAxis(m16, shaderstate.curentity->axis[0], shaderstate.curentity->axis[1], shaderstate.curentity->axis[2], shaderstate.curentity->origin);
+			Matrix4x4_CM_ModelMatrixFromAxis(m16, shaderstate.curentity->axis[0], shaderstate.curentity->axis[1], shaderstate.curentity->axis[2], shaderstate.curentity->origin);
 			Matrix4_Invert(m16, inv);
-			Matrix4_Transform3(inv, shaderstate.lightorg, t2);
+			Matrix4x4_CM_Transform3(inv, shaderstate.lightorg, t2);
 //			VectorSubtract(shaderstate.lightorg, shaderstate.curentity->origin, t1);
 //			Matrix3_Multiply_Vec3(shaderstate.curentity->axis, t1, t2);
 			qglUniform3fvARB(p->handle[perm], 1, t2);
@@ -2538,6 +2553,13 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 	int perm;
 
 	perm = 0;
+	if (shaderstate.sourcevbo->numbones)
+	{
+		if (p->handle[perm|PERMUTATION_SKELETAL].glsl)
+			perm |= PERMUTATION_SKELETAL;
+		else
+			return;
+	}
 	if (TEXVALID(shaderstate.curtexnums->bump) && p->handle[perm|PERMUTATION_BUMPMAP].glsl)
 		perm |= PERMUTATION_BUMPMAP;
 	if (TEXVALID(shaderstate.curtexnums->specular) && p->handle[perm|PERMUTATION_SPECULAR].glsl)
@@ -3001,6 +3023,10 @@ void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_
 			shaderstate.dummyvbo.tvector = m->tnormals_array;
 			shaderstate.dummyvbo.colours4f = m->colors4f_array;
 			shaderstate.dummyvbo.colours4ub = m->colors4b_array;
+			shaderstate.dummyvbo.bones = m->bones;
+			shaderstate.dummyvbo.numbones = m->numbones;
+			shaderstate.dummyvbo.bonenums = m->bonenums;
+			shaderstate.dummyvbo.boneweights = m->boneweights;
 
 			shaderstate.meshcount = 1;
 			shaderstate.meshes = &m;
@@ -3051,6 +3077,10 @@ void GLBE_SubmitBatch(batch_t *batch)
 		shaderstate.dummyvbo.tvector = batch->mesh[0]->tnormals_array;
 		shaderstate.dummyvbo.colours4f = batch->mesh[0]->colors4f_array;
 		shaderstate.dummyvbo.colours4ub = batch->mesh[0]->colors4b_array;
+		shaderstate.dummyvbo.bones = batch->mesh[0]->bones;
+		shaderstate.dummyvbo.numbones = batch->mesh[0]->numbones;
+		shaderstate.dummyvbo.bonenums = batch->mesh[0]->bonenums;
+		shaderstate.dummyvbo.boneweights = batch->mesh[0]->boneweights;
 		shaderstate.sourcevbo = &shaderstate.dummyvbo;
 		lm = -1;
 	}

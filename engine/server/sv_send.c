@@ -840,10 +840,11 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 		if (channel & 8)
 			reliable = true; // sounds that break the phs are reliable
 		use_phs = false;
-		channel &= 7;
 	}
 	else
 		use_phs = attenuation!=0;
+
+	channel = (channel & 7) | ((channel & 0x1f0) >> 1);
 
 //	if (channel == CHAN_BODY || channel == CHAN_VOICE)
 //		reliable = true;
@@ -1491,7 +1492,7 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 		statsi[STAT_WEAPON] = SV_ModelIndex(PR_GetString(svprogfuncs, ent->v->weaponmodel));
 		if (host_client->fteprotocolextensions & PEXT_MODELDBL)
 		{
-			if ((unsigned)statsi[STAT_WEAPON] >= 512)
+			if ((unsigned)statsi[STAT_WEAPON] >= MAX_MODELS)
 				statsi[STAT_WEAPON] = 0;
 		}
 		else

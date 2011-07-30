@@ -2230,7 +2230,7 @@ qboolean CModQ3_LoadFaces (lump_t *l)
 		out->patch_cp[1] = LittleLong ( in->patchheight );
 	}
 
-	loadmodel->numsurfaces = i;\
+	loadmodel->numsurfaces = i;
 
 	return true;
 }
@@ -2507,9 +2507,7 @@ qboolean CModQ3_LoadRFaces (lump_t *l)
 		out->light_t = LittleLong(in->lightmap_y);
 		out->extents[0] = (LittleLong(in->lightmap_width)-1)<<4;
 		out->extents[1] = (LittleLong(in->lightmap_height)-1)<<4;
-		out->samples = loadmodel->lightdata + 3*(out->light_s + out->light_t*128 + out->lightmaptexturenum*128*128);
-		if (out->lightmaptexturenum<0)
-			out->samples=NULL;
+		out->samples=NULL;
 
 		fv = LittleLong(in->firstvertex);
 		{
@@ -2628,8 +2626,8 @@ qboolean CModQ3_LoadRFaces (lump_t *l)
 			Vector4Copy(mesh->colors4b_array[0], mesh->colors4b_array[2]);
 			Vector4Copy(mesh->colors4b_array[0], mesh->colors4b_array[3]);
 		}
-					if (out->mesh->numindexes == 0)
-				Con_Printf("foo\n");
+		if (out->mesh->numindexes == 0)
+			Con_Printf("foo\n");
 	}
 
 	Mod_NormaliseTextureVectors(map_normals_array, map_svector_array, map_tvector_array, numvertexes);
@@ -2677,9 +2675,7 @@ qboolean CModRBSP_LoadRFaces (lump_t *l)
 		out->light_t = in->lightmap_offs[0][0];
 		out->extents[0] = (in->lightmap_width-1)<<4;
 		out->extents[1] = (in->lightmap_height-1)<<4;
-		out->samples = loadmodel->lightdata + 3*(out->light_s + out->light_t*128 + out->lightmaptexturenum*128*128);
-		if (out->lightmaptexturenum<0)
-			out->samples=NULL;
+		out->samples=NULL;
 
 		fv = LittleLong(in->firstvertex);
 		{

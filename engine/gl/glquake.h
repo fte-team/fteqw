@@ -98,7 +98,7 @@ typedef void		(APIENTRYP FTEPFNGLDISABLEVERTEXATTRIBARRAY)	(GLuint index);
 typedef GLint		(APIENTRYP FTEPFNGLGETUNIFORMLOCATIONARBPROC)	(GLhandleARB programObj, const GLcharARB *name);
 typedef void		(APIENTRYP FTEPFNGLGETVERTEXATTRIBIV)			(GLuint index, GLenum pname, GLint *params);
 typedef void		(APIENTRYP FTEPFNGLUNIFORM4FARBPROC)			(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
-typedef void		(APIENTRYP FTEPFNGLUNIFORMMATRIX4FVARBPROC)		(GLint location, GLsizei count, GLboolean transpose, GLfloat *value);
+typedef void		(APIENTRYP FTEPFNGLUNIFORMMATRIXPROC)		(GLint location, GLsizei count, GLboolean transpose, GLfloat *value);
 typedef void		(APIENTRYP FTEPFNGLUNIFORM4FVARBPROC)			(GLint location, GLsizei count, GLfloat *value);
 typedef void		(APIENTRYP FTEPFNGLUNIFORM3FARBPROC)			(GLint location, GLfloat v0, GLfloat v1, GLfloat v2);
 typedef void		(APIENTRYP FTEPFNGLUNIFORM3FVARBPROC)			(GLint location, GLsizei count, GLfloat *value);
@@ -332,10 +332,9 @@ void R_DrawHLModel(entity_t	*curent);
 //
 // gl_rlight.c
 //
-#ifdef GLQUAKE
-void GLR_MarkLights (dlight_t *light, int bit, mnode_t *node);
-void GLR_MarkQ2Lights (dlight_t *light, int bit, mnode_t *node);
 void GLR_RenderDlights (void);
+#ifdef GLQUAKE
+void GLR_MarkQ2Lights (dlight_t *light, int bit, mnode_t *node);
 void R_InitFlashblends (void);
 int GLR_LightPoint (vec3_t p);
 #endif
@@ -781,7 +780,9 @@ extern FTEPFNGLGETVERTEXATTRIBIV			qglGetVertexAttribiv;
 extern FTEPFNGLENABLEVERTEXATTRIBARRAY		qglEnableVertexAttribArray;
 extern FTEPFNGLDISABLEVERTEXATTRIBARRAY	qglDisableVertexAttribArray;
 extern FTEPFNGLGETUNIFORMLOCATIONARBPROC	qglGetUniformLocationARB;
-extern FTEPFNGLUNIFORMMATRIX4FVARBPROC		qglUniformMatrix4fvARB;
+extern FTEPFNGLUNIFORMMATRIXPROC		qglUniformMatrix4fvARB;
+extern FTEPFNGLUNIFORMMATRIXPROC		qglUniformMatrix4x3fv;
+extern FTEPFNGLUNIFORMMATRIXPROC		qglUniformMatrix3x4fv;
 extern FTEPFNGLUNIFORM4FARBPROC			qglUniform4fARB;
 extern FTEPFNGLUNIFORM4FVARBPROC			qglUniform4fvARB;
 extern FTEPFNGLUNIFORM3FARBPROC			qglUniform3fARB;

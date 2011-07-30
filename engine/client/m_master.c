@@ -558,7 +558,7 @@ void M_DrawSources (void)
 		{"Max ping",		&sb_maxping,	1},
 		{"GameDir",			&sb_gamedir,	2},
 		{"Using map",		&sb_mapname,	2},
-		{"Game name",		&com_gamename,	2}
+		{"Game",			&com_protocolname,	2}
 	};
 
 void M_DrawSListOptions (void)

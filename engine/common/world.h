@@ -91,7 +91,7 @@ typedef struct q2trace_s
 #define	MOVE_HITMODEL	4
 #define MOVE_RESERVED	8	//so we are less likly to get into tricky situations when we want to steal annother future DP extension.
 #define MOVE_TRIGGERS	16	//triggers must be marked with FINDABLE_NONSOLID	(an alternative to solid-corpse)
-#define MOVE_EVERYTHING	32	//doesn't use the area grid stuff, and can return triggers and non-solid items if they're marked with FINDABLE_NONSOLID
+#define MOVE_EVERYTHING	32	//can return triggers and non-solid items if they're marked with FINDABLE_NONSOLID (works even if the items are not properly linked)
 #define MOVE_LAGGED		64	//trace touches current last-known-state, instead of actual ents (just affects players for now)
 
 typedef struct areanode_s

@@ -63,6 +63,7 @@ qboolean LibPNG_Init(void);
 
 unsigned int Sys_Milliseconds (void);
 double Sys_DoubleTime (void);
+qboolean Sys_RandomBytes(qbyte *string, int len);
 
 char *Sys_ConsoleInput (void);
 

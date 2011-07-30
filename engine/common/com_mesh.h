@@ -7,8 +7,6 @@
 #include <stdlib.h>
 #endif
 
-#define MAX_BONES 256
-
 int HLMod_BoneForName(model_t *mod, char *name);
 int HLMod_FrameForName(model_t *mod, char *name);
 
@@ -23,8 +21,8 @@ typedef struct {
 	int ofsskins;
 #endif
 
-	qboolean sharesverts;	//used with models with two shaders using the same vertex - use last mesh's verts
-	qboolean sharesbones;	//use last mesh's bones (please, never set this on the first mesh!)
+	int shares_verts;	//used with models with two shaders using the same vertex. set to the surface number to inherit from (or itself).
+	int shares_bones;	//use last mesh's bones. set to the surface number to inherit from (or itself).
 
 	int numverts;
 
@@ -41,8 +39,15 @@ typedef struct {
 #ifdef SKELETALMODELS
 	int numbones;
 	int ofsbones;
-	int numtransforms;
-	int ofstransforms;
+	int numswtransforms;
+	int ofsswtransforms;
+
+	int ofs_skel_xyz;
+	int ofs_skel_norm;
+	int ofs_skel_svect;
+	int ofs_skel_tvect;
+	int ofs_skel_idx;
+	int ofs_skel_weight;
 #endif
 
 //these exist only in the root mesh.
@@ -122,9 +127,8 @@ float *Alias_GetBonePositions(galiasinfo_t *inf, framestate_t *fstate, float *bu
 #ifdef SKELETALMODELS
 void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, vecV_t *xyzout, vec3_t *normout);
 #endif
-qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, 
-									entity_t *e,
-								  float alpha, qboolean nolightdir);
+qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, entity_t *e, qboolean allowskel);
+void Alias_FlushCache(void);
 
 void Mod_DoCRC(model_t *mod, char *buffer, int buffersize);
 

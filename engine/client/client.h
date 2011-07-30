@@ -240,16 +240,15 @@ typedef struct
 #define DL_LAST				(sizeof(unsigned int)*8-1)
 #define RTL_FIRST			(sizeof(unsigned int)*8)
 
-#define LFLAG_NORMALMODE (1<<0)
-#define LFLAG_REALTIMEMODE (1<<1)
+#define LFLAG_NORMALMODE	(1<<0) /*ppl with r_shadow_realtime_dlight*/
+#define LFLAG_REALTIMEMODE	(1<<1) /*ppl with r_shadow_realtime_world*/
+#define LFLAG_LIGHTMAP		(1<<2)
+#define LFLAG_FLASHBLEND	(1<<3)
 
-#define LFLAG_NOSHADOWS (1<<15)
-#define LFLAG_ALLOW_LMHACK (1<<16)
-#define LFLAG_ALLOW_FLASH (1<<17)
-#define LFLAG_ALLOW_PPL (1<<18)
-#define LFLAG_SHADOWMAP (1<<19)
+#define LFLAG_NOSHADOWS		(1<<8)
+#define LFLAG_SHADOWMAP		(1<<9)
 
-#define LFLAG_DYNAMIC (LFLAG_ALLOW_PPL | LFLAG_ALLOW_LMHACK | LFLAG_ALLOW_FLASH | LFLAG_NORMALMODE | LFLAG_REALTIMEMODE)
+#define LFLAG_DYNAMIC (LFLAG_LIGHTMAP | LFLAG_FLASHBLEND | LFLAG_NORMALMODE | LFLAG_REALTIMEMODE)
 
 typedef struct dlight_s
 {

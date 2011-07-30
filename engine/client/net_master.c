@@ -1211,7 +1211,7 @@ void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles)
 	case MT_MASTERDP:
 		{
 			char *str;
-			str = va("%c%c%c%cgetservers %s %u empty full\x0A\n", 255, 255, 255, 255, com_gamename.string, 3);
+			str = va("%c%c%c%cgetservers %s %u empty full\x0A\n", 255, 255, 255, 255, com_protocolname.string, 3);
 			NET_SendPollPacket (strlen(str), str, mast->adr);
 		}
 		break;

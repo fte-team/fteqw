@@ -412,6 +412,54 @@ void CL_SupportedFTEExtensions(int *pext1, int *pext2)
 }
 #endif
 
+char *CL_GUIDString(void)
+{
+	static qbyte buf[2048];
+	static int buflen;
+	unsigned int digest[4];
+	char serveraddr[256];
+	void *blocks[2];
+	int lens[2];
+	if (!buflen)
+	{
+		vfsfile_t *f;
+		f = FS_OpenVFS("qkey", "rb", FS_ROOT);
+		if (f)
+		{
+			buflen = VFS_GETLEN(f);
+			if (buflen > 2048)
+				buflen = 2048;
+			buflen = VFS_READ(f, buf, buflen);
+			VFS_CLOSE(f);
+		}
+		if (buflen < 16)
+		{
+			buflen = sizeof(buf);
+			if (!Sys_RandomBytes(buf, buflen))
+			{
+				int i;
+				srand(time(NULL));
+				for (i = 0; i < buflen; i++)
+					buf[i] = rand() & 0xff;
+			}
+			f = FS_OpenVFS("qkey", "wb", FS_ROOT);
+			if (f)
+			{
+				VFS_WRITE(f, buf, buflen);
+				VFS_CLOSE(f);
+			}
+		}
+	}
+
+	NET_AdrToString(serveraddr, sizeof(serveraddr), cls.netchan.remote_address);
+
+	blocks[0] = buf;lens[0] = buflen;
+	blocks[1] = serveraddr;lens[1] = strlen(serveraddr);
+	Com_BlocksChecksum(2, blocks, lens, (void*)digest);
+
+	return va("%08x%08x%08x%08x", digest[0], digest[1], digest[2], digest[3]);
+}
+
 /*
 =======================
 CL_SendConnectPacket
@@ -429,6 +477,7 @@ void CL_SendConnectPacket (
 	extern cvar_t qport;
 	netadr_t	adr;
 	char	data[2048];
+	char *info;
 	double t1, t2;
 #ifdef PROTOCOL_VERSION_FTE
 	int fteprotextsupported=0;
@@ -568,6 +617,10 @@ void CL_SendConnectPacket (
 	else
 #endif
 		cls.netchan.compress = false;
+
+	info = CL_GUIDString();
+	if (info)
+		Q_strncatz(data, va("0x%x \"%s\"\n", PROTOCOL_INFO_GUID, info), sizeof(data));
 
 	NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
 
@@ -3844,7 +3897,7 @@ Con_TPrintf (TL_NL);
 	Con_Printf ("%s", version_string());
 Con_TPrintf (TL_NL);
 
-	Con_TPrintf (TLC_QUAKEWORLD_INITED);
+	Con_TPrintf (TLC_QUAKEWORLD_INITED, fs_gamename.string);
 
 	Con_DPrintf("This program is free software; you can redistribute it and/or "
 				"modify it under the terms of the GNU General Public License "

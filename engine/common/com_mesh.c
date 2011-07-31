@@ -1060,9 +1060,11 @@ struct
 	int surfnum;
 	entity_t *ent;
 
+#ifdef SKELETALMODELS
 	float bonepose[MAX_BONES*12];
 	float *usebonepose;
 	int bonecount;
+#endif
 
 	vecV_t *acoords;
 	vec3_t *anorm;
@@ -1432,6 +1434,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 		mesh->snormals_array = meshcache.anorms;
 		mesh->tnormals_array = meshcache.anormt;
 
+#ifdef SKELETALMODELS
 		if (meshcache.usebonepose)
 		{
 			mesh->bonenums = (byte_vec4_t*)((char*)inf + inf->ofs_skel_idx);
@@ -1439,6 +1442,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 			mesh->bones = meshcache.usebonepose;
 			mesh->numbones = inf->numbones;
 		}
+#endif
 		return false;	//don't generate the new vertex positions. We still have them all.
 	}
 	meshcache.surfnum = inf->shares_verts;
@@ -1458,8 +1462,8 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 //we don't support meshes with one pose skeletal and annother not.
 //we don't support meshes with one group skeletal and annother not.
 
-	meshcache.usebonepose = NULL;
 #ifdef SKELETALMODELS
+	meshcache.usebonepose = NULL;
 	if (inf->numbones)
 	{
 		meshcache.usebonepose = Alias_GetBonePositions(inf, &e->framestate, meshcache.bonepose, MAX_BONES);
@@ -1567,6 +1571,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 	meshcache.anorms = mesh->snormals_array;
 	meshcache.anormt = mesh->tnormals_array;
 
+#ifdef SKELETALMODELS
 	if (meshcache.usebonepose)
 	{
 		mesh->bonenums = (byte_vec4_t*)((char*)inf + inf->ofs_skel_idx);
@@ -1574,6 +1579,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 		mesh->bones = meshcache.usebonepose;
 		mesh->numbones = inf->numbones;
 	}
+#endif
 
 	return true;	//to allow the mesh to be dlighted.
 }

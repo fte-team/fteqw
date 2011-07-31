@@ -850,8 +850,6 @@ static void	(D3D9_VID_SetWindowCaption)		(char *msg)
 	SetWindowText(mainwindow, msg);
 }
 
-void Matrix4_OrthographicD3D(float *proj, float xmin, float xmax, float ymax, float ymin,
-		     float znear, float zfar);
 void d3dx_ortho(float *m);
 
 void D3D9_Set2D (void)
@@ -860,13 +858,13 @@ void D3D9_Set2D (void)
 	D3DVIEWPORT9 vport;
 //	IDirect3DDevice9_EndScene(pD3DDev9);
 
-	Matrix4_OrthographicD3D(m, 0 + (0.5*vid.width/vid.pixelwidth), vid.width + (0.5*vid.width/vid.pixelwidth), 0 + (0.5*vid.height/vid.pixelheight), vid.height + (0.5*vid.height/vid.pixelheight), 0, 100);
+	Matrix4x4_CM_OrthographicD3D(m, 0 + (0.5*vid.width/vid.pixelwidth), vid.width + (0.5*vid.width/vid.pixelwidth), 0 + (0.5*vid.height/vid.pixelheight), vid.height + (0.5*vid.height/vid.pixelheight), 0, 100);
 	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)m);
 
-	Matrix4_Identity(m);
+	Matrix4x4_Identity(m);
 	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_WORLD, (D3DMATRIX*)m);
 
-	Matrix4_Identity(m);
+	Matrix4x4_Identity(m);
 	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)m);
 
 	vport.X = 0;
@@ -1165,14 +1163,14 @@ static void D3D9_SetupViewPort(void)
 	screenaspect = (float)r_refdef.vrect.width/r_refdef.vrect.height;
 
 	/*view matrix*/
-	Matrix4_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
+	Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
 	d3d9error(IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)r_refdef.m_view));
 
 	/*d3d projection matricies scale depth to 0 to 1*/
-	Matrix4_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value/2);
+	Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value/2);
 	d3d9error(IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)r_refdef.m_projection));
 	/*ogl projection matricies scale depth to -1 to 1, and I would rather my code used consistant culling*/
-	Matrix4_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value);
+	Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value);
 }
 
 static void	(D3D9_R_RenderView)				(void)

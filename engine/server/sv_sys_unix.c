@@ -1062,3 +1062,13 @@ void Sys_Sleep (double seconds)
 
 	nanosleep(&ts, NULL);
 }
+
+qboolean Sys_RandomBytes(qbyte *string, int len)
+{
+	qboolean res;
+	int fd = open("/dev/urandom", 0);
+	res = (read(fd, string, len) == len);
+	close(fd);
+
+	return res;
+}

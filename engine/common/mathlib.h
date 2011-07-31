@@ -166,6 +166,7 @@ float		*Matrix4x4_CM_NewTranslation(float x, float y, float z);
 
 //projection matricies of different types... gesh
 void		Matrix4x4_CM_Orthographic (float *proj, float xmin, float xmax, float ymax, float ymin, float znear, float zfar);
+void Matrix4x4_CM_OrthographicD3D(float *proj, float xmin, float xmax, float ymax, float ymin, float znear, float zfar);
 void		Matrix4x4_CM_Projection_Far(float *proj, float fovx, float fovy, float neard, float fard);
 void		Matrix4x4_CM_Projection2 (float *proj, float fovx, float fovy, float neard);
 void		Matrix4x4_CM_Projection_Inf(float *proj, float fovx, float fovy, float neard);

@@ -1983,10 +1983,10 @@ static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 		/*FIXME: no bob*/
 		float iv[16];
 		Matrix4_Invert(r_refdef.m_view, iv);
-		Matrix4_NewRotation(90, 1, 0, 0);
+		Matrix4x4_CM_NewRotation(90, 1, 0, 0);
 		Matrix4_Multiply(iv, m, mv);
-		Matrix4_Multiply(mv, Matrix4_NewRotation(-90, 1, 0, 0), iv);
-		Matrix4_Multiply(iv, Matrix4_NewRotation(90, 0, 0, 1), mv);
+		Matrix4_Multiply(mv, Matrix4x4_CM_NewRotation(-90, 1, 0, 0), iv);
+		Matrix4_Multiply(iv, Matrix4x4_CM_NewRotation(90, 0, 0, 1), mv);
 
 		IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_WORLD, (D3DMATRIX*)mv);
 	}
@@ -2285,7 +2285,7 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist)
 		TransformDir(vright, paxis, vaxis, vright);
 		TransformDir(vup, paxis, vaxis, vup);
 	}
-	Matrix4_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
+	Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
 	VectorAngles(vpn, vup, r_refdef.viewangles);
 	VectorCopy(r_refdef.vieworg, r_origin);
 

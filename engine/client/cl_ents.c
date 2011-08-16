@@ -382,33 +382,33 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 	}
 
 #ifdef PEXT_SCALE
-	if (morebits & U_SCALE && cls.fteprotocolextensions & PEXT_SCALE)
+	if ((morebits & U_SCALE) && (cls.fteprotocolextensions & PEXT_SCALE))
 		to->scale = MSG_ReadByte();
 #endif
 #ifdef PEXT_TRANS
-	if (morebits & U_TRANS && cls.fteprotocolextensions & PEXT_TRANS)
+	if ((morebits & U_TRANS) && (cls.fteprotocolextensions & PEXT_TRANS))
 		to->trans = MSG_ReadByte();
 #endif
 #ifdef PEXT_FATNESS
-	if (morebits & U_FATNESS && cls.fteprotocolextensions & PEXT_FATNESS)
+	if ((morebits & U_FATNESS) && (cls.fteprotocolextensions & PEXT_FATNESS))
 		to->fatness = MSG_ReadChar();
 #endif
 
-	if (morebits & U_DRAWFLAGS && cls.fteprotocolextensions & PEXT_HEXEN2)
+	if ((morebits & U_DRAWFLAGS) && (cls.fteprotocolextensions & PEXT_HEXEN2))
 		to->hexen2flags = MSG_ReadByte();
-	if (morebits & U_ABSLIGHT && cls.fteprotocolextensions & PEXT_HEXEN2)
+	if ((morebits & U_ABSLIGHT) && (cls.fteprotocolextensions & PEXT_HEXEN2))
 		to->abslight = MSG_ReadByte();
 
-	if (morebits & U_COLOURMOD && cls.fteprotocolextensions & PEXT_COLOURMOD)
+	if ((morebits & U_COLOURMOD) && (cls.fteprotocolextensions & PEXT_COLOURMOD))
 	{
 		to->colormod[0] = MSG_ReadByte();
 		to->colormod[1] = MSG_ReadByte();
 		to->colormod[2] = MSG_ReadByte();
 	}
 
-	if (morebits & U_ENTITYDBL && cls.fteprotocolextensions & PEXT_ENTITYDBL)
+	if ((morebits & U_ENTITYDBL) && (cls.fteprotocolextensions & PEXT_ENTITYDBL))
 		to->number += 512;
-	if (morebits & U_ENTITYDBL2 && cls.fteprotocolextensions & PEXT_ENTITYDBL2)
+	if ((morebits & U_ENTITYDBL2) && (cls.fteprotocolextensions & PEXT_ENTITYDBL2))
 		to->number += 1024;
 
 	if (morebits & U_DPFLAGS)// && cls.fteprotocolextensions & PEXT_DPFLAGS)

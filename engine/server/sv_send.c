@@ -44,9 +44,6 @@ char	outputbuf[8000];
 redirect_t	sv_redirected;
 int sv_redirectedlang;
 
-extern func_t getplayerstat[MAX_CL_STATS];
-extern func_t getplayerstati[MAX_CL_STATS];
-
 extern cvar_t sv_phs;
 
 /*
@@ -1450,28 +1447,15 @@ void SV_UpdateQCStats(edict_t	*ent, int *statsi, char **statss, float *statsf)
 	}
 }
 
-/*
-=======================
-SV_UpdateClientStats
-
-Performs a delta update of the stats array.  This should only be performed
-when a reliable message can be delivered this frame.
-=======================
-*/
-void SV_UpdateClientStats (client_t *client, int pnum)
+/*this function calculates the current stat values for the given client*/
+void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf[MAX_CL_STATS], char *statss[MAX_CL_STATS])
 {
-	edict_t	*ent;
-	int		statsi[MAX_CL_STATS];
-	float	statsf[MAX_CL_STATS];
-	char	*statss[MAX_CL_STATS];
-	int		i, m;
-	globalvars_t *pr_globals;
 	extern qboolean pr_items2;
-
+	edict_t *ent;
 	ent = client->edict;
-	memset (statsi, 0, sizeof(statsi));
-	memset (statsf, 0, sizeof(statsf));
-	memset (statss, 0, sizeof(statss));
+	memset (statsi, 0, sizeof(int)*MAX_CL_STATS);
+	memset (statsf, 0, sizeof(float)*MAX_CL_STATS);
+	memset (statss, 0, sizeof(char*)*MAX_CL_STATS);
 
 	// if we are a spectator and we are tracking a player, we get his stats
 	// so our status bar reflects his
@@ -1482,15 +1466,13 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 	if (svs.gametype == GT_HALFLIFE)
 	{
 		SVHL_BuildStats(client, statsi, statsf, statss);
-
-		pr_globals = NULL;
 	}
 	else
 #endif
 	{
 		statsf[STAT_HEALTH] = ent->v->health;	//sorry, but mneh
 		statsi[STAT_WEAPON] = SV_ModelIndex(PR_GetString(svprogfuncs, ent->v->weaponmodel));
-		if (host_client->fteprotocolextensions & PEXT_MODELDBL)
+		if (client->fteprotocolextensions & PEXT_MODELDBL)
 		{
 			if ((unsigned)statsi[STAT_WEAPON] >= MAX_MODELS)
 				statsi[STAT_WEAPON] = 0;
@@ -1532,7 +1514,7 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 		else
 			statsi[STAT_VIEWZOOM] = ent->xv->viewzoom*255;
 
-		if (host_client->protocol == SCP_DARKPLACES7)
+		if (client->protocol == SCP_DARKPLACES7)
 		{
 			float	*statsfi = (float*)statsi;
 	//		statsfi[STAT_MOVEVARS_WALLFRICTION] = sv_wall
@@ -1557,30 +1539,33 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 		}
 
 		SV_UpdateQCStats(ent, statsi, statss, statsf);
-
-		//dmw tweek for stats
-		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 	}
+}
+
+/*
+=======================
+SV_UpdateClientStats
+
+Performs a delta update of the stats array.  This should only be performed
+when a reliable message can be delivered this frame.
+=======================
+*/
+void SV_UpdateClientStats (client_t *client, int pnum)
+{
+	int		statsi[MAX_CL_STATS];
+	float	statsf[MAX_CL_STATS];
+	char	*statss[MAX_CL_STATS];
+	int		i, m;
+
+	/*figure out what the stat values should be*/
+	SV_CalcClientStats(client, statsi, statsf, statss);
+
 	m = MAX_QW_STATS;
 	if (client->fteprotocolextensions & PEXT_HEXEN2)
 		m = MAX_CL_STATS;
 
 	for (i=0 ; i<m ; i++)
 	{
-		//dmw tweek for stats
-		if (getplayerstati[i])
-		{
-			G_INT(OFS_PARM0) = statsf[i];
-			PR_ExecuteProgram(svprogfuncs, getplayerstati[i]);
-			statsf[i] = G_INT(OFS_RETURN);
-		}
-		else if (getplayerstat[i])
-		{
-			G_FLOAT(OFS_PARM0) = statsf[i];
-			PR_ExecuteProgram(svprogfuncs, getplayerstat[i]);
-			statsf[i] = G_FLOAT(OFS_RETURN);
-		}
 #ifdef SERVER_DEMO_PLAYBACK
 		if (sv.demofile)
 		{
@@ -2329,12 +2314,13 @@ void DemoWriteQTVTimePad(int msecs);
 #define Max(a, b) ((a>b)?a:b)
 void SV_SendMVDMessage(void)
 {
-	int			i, j, cls = 0;
+	int			i, j, m, cls = 0;
 	client_t	*c;
 	qbyte		buf[MAX_DATAGRAM];
 	sizebuf_t	msg;
-	edict_t		*ent;
-	int			stats[MAX_QW_STATS];
+	int		statsi[MAX_CL_STATS];
+	float	statsf[MAX_CL_STATS];
+	char	*statss[MAX_CL_STATS];
 	float		min_fps;
 	extern		cvar_t sv_demofps;
 	extern		cvar_t sv_demoPings;
@@ -2355,7 +2341,7 @@ void SV_SendMVDMessage(void)
 	}
 
 
-	if (!sv_demofps.value)
+	if (sv_demofps.value <= 1)
 		min_fps = 30.0;
 	else
 		min_fps = sv_demofps.value;
@@ -2387,6 +2373,10 @@ void SV_SendMVDMessage(void)
 	msg.allowoverflow = true;
 	msg.overflowed = false;
 
+	m = MAX_QW_STATS;
+	if (demo.recorder.fteprotocolextensions & PEXT_HEXEN2)
+		m = MAX_CL_STATS;
+
 	for (i=0, c = svs.clients ; i<MAX_CLIENTS ; i++, c++)
 	{
 		if (c->state != cs_spawned)
@@ -2395,42 +2385,74 @@ void SV_SendMVDMessage(void)
 		if (c->spectator)
 			continue;
 
-		ent = c->edict;
-		memset (stats, 0, sizeof(stats));
+		/*figure out what the stat values should be*/
+		SV_CalcClientStats(c, statsi, statsf, statss);
 
-		stats[STAT_HEALTH] = ent->v->health;
-		stats[STAT_WEAPON] = SV_ModelIndex(PR_GetString(svprogfuncs, ent->v->weaponmodel));
-		stats[STAT_AMMO] = ent->v->currentammo;
-		stats[STAT_ARMOR] = ent->v->armorvalue;
-		stats[STAT_SHELLS] = ent->v->ammo_shells;
-		stats[STAT_NAILS] = ent->v->ammo_nails;
-		stats[STAT_ROCKETS] = ent->v->ammo_rockets;
-		stats[STAT_CELLS] = ent->v->ammo_cells;
-		stats[STAT_ACTIVEWEAPON] = ent->v->weapon;
-
-
-		// stuff the sigil bits into the high bits of items for sbar
-		stats[STAT_ITEMS] = (int)ent->v->items | ((int)pr_global_struct->serverflags << 28);
-
-		for (j=0 ; j<MAX_QW_STATS ; j++)
-			if (stats[j] != demo.stats[i][j])
+		for (j=0 ; j<m ; j++)
+		{
+			if (demo.recorder.fteprotocolextensions & PEXT_CSQC)
 			{
-				demo.stats[i][j] = stats[j];
-				if (stats[j] >=0 && stats[j] <= 255)
+				if (statss[j] || demo.statss[i][j])
+				if (strcmp(statss[j]?statss[j]:"", demo.statss[i][j]?demo.statss[i][j]:""))
+				{
+					MVDWrite_Begin(dem_stats, i, 3+strlen(statss[j]));
+					demo.statss[i][j] = statss[j];
+					MSG_WriteByte(&demo.dbuf->sb, svcfte_updatestatstring);
+					MSG_WriteByte(&demo.dbuf->sb, j);
+					MSG_WriteString(&demo.dbuf->sb, statss[j]);
+				}
+			}
+
+			if (statsf[j])
+			{
+				if (demo.recorder.fteprotocolextensions & PEXT_CSQC)
+				{
+					if (statsf[j] != demo.statsf[i][j])
+					{
+						if (statsf[j] - (float)(int)statsf[j] == 0 && statsf[j] >= 0 && statsf[j] <= 255)
+						{
+							MVDWrite_Begin(dem_stats, i, 3);
+							MSG_WriteByte(&demo.dbuf->sb, svc_updatestat);
+							MSG_WriteByte(&demo.dbuf->sb, j);
+							MSG_WriteByte(&demo.dbuf->sb, statsf[j]);
+						}
+						else
+						{
+							MVDWrite_Begin(dem_stats, i, 6);
+							MSG_WriteByte(&demo.dbuf->sb, svcfte_updatestatfloat);
+							MSG_WriteByte(&demo.dbuf->sb, j);
+							MSG_WriteFloat(&demo.dbuf->sb, statsf[j]);
+						}
+						demo.statsf[i][j] = statsf[j];
+						/*make sure statsf is correct*/
+						demo.statsi[i][j] = statsf[j];
+					}
+					continue;
+				}
+				else
+					statsi[j] = statsf[j];
+			}
+
+			if (statsi[j] != demo.statsi[i][j])
+			{
+				demo.statsi[i][j] = statsi[j];
+				demo.statsf[i][j] = statsi[j];
+				if (statsi[j] >=0 && statsi[j] <= 255)
 				{
 					MVDWrite_Begin(dem_stats, i, 3);
 					MSG_WriteByte(&demo.dbuf->sb, svc_updatestat);
 					MSG_WriteByte(&demo.dbuf->sb, j);
-					MSG_WriteByte(&demo.dbuf->sb, stats[j]);
+					MSG_WriteByte(&demo.dbuf->sb, statsi[j]);
 				}
 				else
 				{
 					MVDWrite_Begin(dem_stats, i, 6);
 					MSG_WriteByte(&demo.dbuf->sb, svc_updatestatlong);
 					MSG_WriteByte(&demo.dbuf->sb, j);
-					MSG_WriteLong(&demo.dbuf->sb, stats[j]);
+					MSG_WriteLong(&demo.dbuf->sb, statsi[j]);
 				}
 			}
+		}
 	}
 
 	// send over all the objects that are in the PVS

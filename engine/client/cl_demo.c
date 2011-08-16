@@ -1054,6 +1054,7 @@ void CL_Record_f (void)
 	memset(&buf, 0, sizeof(buf));
 	buf.data = buf_data;
 	buf.maxsize = sizeof(buf_data);
+	buf.prim = cls.netchan.netprim;
 
 // send the serverdata
 	MSG_WriteByte (&buf, svc_serverdata);
@@ -1289,9 +1290,21 @@ void CL_Record_f (void)
 			if (!*cl_lightstyle[i].map)
 				continue;
 
-		MSG_WriteByte (&buf, svc_lightstyle);
-		MSG_WriteByte (&buf, (char)i);
-		MSG_WriteString (&buf, cl_lightstyle[i].map);
+#ifdef PEXT_LIGHTSTYLECOL
+		if ((cls.fteprotocolextensions & PEXT_LIGHTSTYLECOL) && cl_lightstyle[i].colour!=7)
+		{
+			MSG_WriteByte (&buf, svcfte_lightstylecol);
+			MSG_WriteByte (&buf, (unsigned char)i);
+			MSG_WriteByte (&buf, cl_lightstyle[i].colour);
+			MSG_WriteString (&buf, cl_lightstyle[i].map);
+		}
+		else
+#endif
+		{
+			MSG_WriteByte (&buf, svc_lightstyle);
+			MSG_WriteByte (&buf, (unsigned char)i);
+			MSG_WriteString (&buf, cl_lightstyle[i].map);
+		}
 	}
 
 	for (i = ((cls.fteprotocolextensions&PEXT_HEXEN2)?MAX_QW_STATS:MAX_CL_STATS); i >= 0; i--)

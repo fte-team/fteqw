@@ -30,6 +30,43 @@ void SV_MVDStop_f (void);
 
 #define demo_size_padding 0x1000
 
+
+#define MIN_MVD_MEMORY 0x100000
+#define MAXSIZE (demobuffer->end < demobuffer->last ? \
+				demobuffer->start - demobuffer->end : \
+				demobuffer->maxsize - demobuffer->end)
+
+static void SV_DemoDir_Callback(struct cvar_s *var, char *oldvalue);
+
+cvar_t	sv_demoUseCache = CVARD("sv_demoUseCache", "0", "If set, demo data will be flushed only periodically");
+cvar_t	sv_demoCacheSize = CVAR("sv_demoCacheSize", "0x80000"); //half a meg
+cvar_t	sv_demoMaxDirSize = CVAR("sv_demoMaxDirSize", "102400");	//so ktpro autorecords.
+cvar_t	sv_demoDir = CVARC("sv_demoDir", "demos", SV_DemoDir_Callback);
+cvar_t	sv_demofps = CVAR("sv_demofps", "30");
+cvar_t	sv_demoPings = CVARD("sv_demoPings", "10", "Interval between ping updates in mvds");
+cvar_t	sv_demoMaxSize = CVARD("sv_demoMaxSize", "", "Demos will be truncated to be no larger than this size.");
+cvar_t	sv_demoExtraNames = CVAR("sv_demoExtraNames", "");
+cvar_t	sv_demoExtensions = CVARD("sv_demoExtensions", "0", "Enables protocol extensions within MVDs. This will cause older/non-fte clients to error upon playback");
+
+cvar_t qtv_password		= CVAR(		"qtv_password", "");
+cvar_t qtv_streamport	= CVARAF(	"qtv_streamport", "0",
+									"mvd_streamport", 0);
+cvar_t qtv_maxstreams	= CVARAF(	"qtv_maxstreams", "1",
+									"mvd_maxstreams",  0);
+
+cvar_t			sv_demoPrefix = CVAR("sv_demoPrefix", "");
+cvar_t			sv_demoSuffix = CVAR("sv_demoSuffix", "");
+cvar_t			sv_demotxt = CVAR("sv_demotxt", "1");
+
+void SV_WriteMVDMessage (sizebuf_t *msg, int type, int to, float time);
+
+demo_t			demo;
+static dbuffer_t	*demobuffer;
+static int	header = (char *)&((header_t*)0)->data - (char *)NULL;
+
+entity_state_t demo_entities[UPDATE_MASK+1][MAX_MVDPACKET_ENTITIES];
+client_frame_t demo_frames[UPDATE_MASK+1];
+
 mvddest_t *singledest;
 
 mvddest_t *SV_InitStream(int socket);
@@ -699,42 +736,6 @@ void Sys_freedir(dir_t *dir)
 
 
 
-#define MIN_MVD_MEMORY 0x100000
-#define MAXSIZE (demobuffer->end < demobuffer->last ? \
-				demobuffer->start - demobuffer->end : \
-				demobuffer->maxsize - demobuffer->end)
-
-static void SV_DemoDir_Callback(struct cvar_s *var, char *oldvalue);
-
-cvar_t	sv_demoUseCache = CVAR("sv_demoUseCache", "");
-cvar_t	sv_demoCacheSize = CVAR("sv_demoCacheSize", "");
-cvar_t	sv_demoMaxDirSize = CVAR("sv_demoMaxDirSize", "102400");	//so ktpro autorecords.
-cvar_t	sv_demoDir = CVARC("sv_demoDir", "demos", SV_DemoDir_Callback);
-cvar_t	sv_demofps = CVAR("sv_demofps", "");
-cvar_t	sv_demoPings = CVAR("sv_demoPings", "");
-cvar_t	sv_demoNoVis = CVAR("sv_demoNoVis", "");
-cvar_t	sv_demoMaxSize = CVAR("sv_demoMaxSize", "");
-cvar_t	sv_demoExtraNames = CVAR("sv_demoExtraNames", "");
-
-cvar_t qtv_password		= CVAR(		"qtv_password", "");
-cvar_t qtv_streamport	= CVARAF(	"qtv_streamport", "0",
-									"mvd_streamport", 0);
-cvar_t qtv_maxstreams	= CVARAF(	"qtv_maxstreams", "1",
-									"mvd_maxstreams",  0);
-
-cvar_t			sv_demoPrefix = CVAR("sv_demoPrefix", "");
-cvar_t			sv_demoSuffix = CVAR("sv_demoSuffix", "");
-cvar_t			sv_demotxt = CVAR("sv_demotxt", "1");
-
-void SV_WriteMVDMessage (sizebuf_t *msg, int type, int to, float time);
-
-demo_t			demo;
-static dbuffer_t	*demobuffer;
-static int	header = (char *)&((header_t*)0)->data - (char *)NULL;
-
-entity_state_t demo_entities[UPDATE_MASK+1][MAX_MVDPACKET_ENTITIES];
-client_frame_t demo_frames[UPDATE_MASK+1];
-
 // only one .. is allowed (so we can get to the same dir as the quake exe)
 static void SV_DemoDir_Callback(struct cvar_s *var, char *oldvalue)
 {
@@ -1296,7 +1297,6 @@ void MVD_Init (void)
 
 	Cvar_Register (&sv_demofps,		MVDVARGROUP);
 	Cvar_Register (&sv_demoPings,		MVDVARGROUP);
-	Cvar_Register (&sv_demoNoVis,		MVDVARGROUP);
 	Cvar_Register (&sv_demoUseCache,	MVDVARGROUP);
 	Cvar_Register (&sv_demoCacheSize,	MVDVARGROUP);
 	Cvar_Register (&sv_demoMaxSize,		MVDVARGROUP);
@@ -1306,6 +1306,7 @@ void MVD_Init (void)
 	Cvar_Register (&sv_demoSuffix,		MVDVARGROUP);
 	Cvar_Register (&sv_demotxt,		MVDVARGROUP);
 	Cvar_Register (&sv_demoExtraNames,	MVDVARGROUP);
+	Cvar_Register (&sv_demoExtensions,	MVDVARGROUP);
 }
 
 static char *SV_PrintTeams(void)
@@ -1398,7 +1399,10 @@ mvddest_t *SV_InitRecordFile (char *name)
 	{
 		dst->desttype = DEST_BUFFEREDFILE;
 		dst->file = file;
-		dst->maxcachesize = 0x81000;
+		if (sv_demoCacheSize.ival < 0x8000)
+			dst->maxcachesize = 0x8000;
+		else
+			dst->maxcachesize = sv_demoCacheSize.ival;
 		dst->cache = BZ_Malloc(dst->maxcachesize);
 	}
 	dst->droponmapchange = true;
@@ -1656,6 +1660,16 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 		demo.datagram.maxsize = sizeof(demo.datagram_data);
 		demo.datagram.data = demo.datagram_data;
 		demo.datagram.prim = demo.recorder.netchan.netprim;
+
+		if (sv_demoExtensions.ival)
+		{
+			demo.recorder.fteprotocolextensions = PEXT_CSQC | PEXT_COLOURMOD | PEXT_DPFLAGS | PEXT_CUSTOMTEMPEFFECTS | PEXT_ENTITYDBL | PEXT_ENTITYDBL2 | PEXT_FATNESS | PEXT_HEXEN2 | PEXT_HULLSIZE | PEXT_LIGHTSTYLECOL | PEXT_MODELDBL | PEXT_SCALE | PEXT_SETATTACHMENT | PEXT_SETVIEW | PEXT_SOUNDDBL | PEXT_SPAWNSTATIC2 | PEXT_TRANS | PEXT_VIEW2;
+			demo.recorder.fteprotocolextensions2 = PEXT2_VOICECHAT | PEXT2_SETANGLEDELTA | PEXT2_PRYDONCURSOR;
+			/*assume that all playback will be done with a valid csprogs that can correctly decode*/
+			demo.recorder.csqcactive = true;
+			/*enable these, because we might as well (stat ones are always useful)*/
+			demo.recorder.zquake_extensions = Z_EXT_PM_TYPE | Z_EXT_PM_TYPE_NEW | Z_EXT_VIEWHEIGHT | Z_EXT_SERVERTIME | Z_EXT_PITCHLIMITS | Z_EXT_JOIN_OBSERVE | Z_EXT_VWEP;
+		}
 	}
 //	else
 //		SV_WriteRecordMVDMessage(&buf, dem_read);
@@ -1701,13 +1715,29 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 
 	gamedir = Info_ValueForKey (svs.info, "*gamedir");
 	if (!gamedir[0])
+		gamedir = FS_GetGamedir();
+
+	/*the gamedir shouldn't be fte - that should be hidden from clients*/
+	if (!strncmp(gamedir, "fte", 3))
 		gamedir = "qw";
 
 	MSG_WriteByte (&buf, svc_serverdata);
-	if (buf.prim.coordsize == 4)	//sorry.
+
+	//fix up extensions to match sv_bigcoords correctly. sorry for old clients not working.
+	if (buf.prim.coordsize == 4)
+		demo.recorder.fteprotocolextensions |= PEXT_FLOATCOORDS;
+	else
+		demo.recorder.fteprotocolextensions &= ~PEXT_FLOATCOORDS;
+
+	if (demo.recorder.fteprotocolextensions)
 	{
-		MSG_WriteLong (&buf, PROTOCOL_VERSION_FTE);
-		MSG_WriteLong (&buf, PEXT_FLOATCOORDS);
+		MSG_WriteLong(&buf, PROTOCOL_VERSION_FTE);
+		MSG_WriteLong(&buf, demo.recorder.fteprotocolextensions);
+	}
+	if (demo.recorder.fteprotocolextensions2)
+	{
+		MSG_WriteLong(&buf, PROTOCOL_VERSION_FTE2);
+		MSG_WriteLong(&buf, demo.recorder.fteprotocolextensions2);
 	}
 	MSG_WriteLong (&buf, PROTOCOL_VERSION_QW);
 	MSG_WriteLong (&buf, svs.spawncount);
@@ -1744,7 +1774,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	SZ_Clear (&buf);
 
 // soundlist
-	MSG_WriteByte (&buf, svc_soundlist);
+	MSG_WriteByte (&buf, svc_soundlist); /*FIXME: soundlist2*/
 	MSG_WriteByte (&buf, 0);
 
 	n = 0;
@@ -1774,7 +1804,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	}
 
 // modellist
-	MSG_WriteByte (&buf, svc_modellist);
+	MSG_WriteByte (&buf, svc_modellist); /*FIXME: modellist2*/
 	MSG_WriteByte (&buf, 0);
 
 	n = 0;
@@ -1837,11 +1867,11 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 					MSG_WriteAngle(&buf, 0);
 				}
 			}
-	/*		else if (host_client->fteprotocolextensions & PEXT_SPAWNSTATIC2)
+			else if (demo.recorder.fteprotocolextensions & PEXT_SPAWNSTATIC2)
 			{
-				MSG_WriteByte(&buf, svc_spawnbaseline2);
-				SV_WriteDelta(&from, state, &buf, true, host_client->fteprotocolextensions);
-			}*/
+				MSG_WriteByte(&buf, svcfte_spawnbaseline2);
+				SV_WriteDelta(&from, state, &buf, true, demo.recorder.fteprotocolextensions);
+			}
 			else
 			{
 				MSG_WriteByte(&buf, svc_spawnbaseline);
@@ -1912,11 +1942,26 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	}
 
 // send all current light styles
-	for (i=0 ; i<MAX_STANDARDLIGHTSTYLES ; i++)
+	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
 	{
-		MSG_WriteByte (&buf, svc_lightstyle);
-		MSG_WriteByte (&buf, (char)i);
-		MSG_WriteString (&buf, sv.strings.lightstyles[i]);
+		if (i >= MAX_STANDARDLIGHTSTYLES)
+			if (!sv.strings.lightstyles[i])
+				continue;
+#ifdef PEXT_LIGHTSTYLECOL
+		if ((demo.recorder.fteprotocolextensions & PEXT_LIGHTSTYLECOL) && sv.strings.lightstylecolours[i]!=7)
+		{
+			MSG_WriteByte (&buf, svcfte_lightstylecol);
+			MSG_WriteByte (&buf, (unsigned char)i);
+			MSG_WriteByte (&buf, sv.strings.lightstylecolours[i]);
+			MSG_WriteString (&buf, sv.strings.lightstyles[i]);
+		}
+		else
+#endif
+		{
+			MSG_WriteByte (&buf, svc_lightstyle);
+			MSG_WriteByte (&buf, (unsigned char)i);
+			MSG_WriteString (&buf, sv.strings.lightstyles[i]);
+		}
 	}
 
 	// get the client to check and download skins

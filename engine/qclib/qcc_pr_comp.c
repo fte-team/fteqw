@@ -189,7 +189,7 @@ int num_labels;
 
 QCC_def_t *extra_parms[MAX_EXTRA_PARMS];
 
-#define ASSOC_RIGHT_RESULT ASSOC_RIGHT
+//#define ASSOC_RIGHT_RESULT ASSOC_RIGHT
 
 //========================================
 
@@ -1750,6 +1750,12 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 				//a is const, b is not
 				switch (op - pr_opcodes)
 				{
+				case OP_CONV_FTOI:
+					optres_constantarithmatic++;
+					return QCC_MakeIntDef(G_FLOAT(var_a->ofs));
+				case OP_CONV_ITOF:
+					optres_constantarithmatic++;
+					return QCC_MakeFloatDef(G_INT(var_a->ofs));
 				case OP_BITOR_F:
 				case OP_OR_F:
 				case OP_ADD_F:
@@ -3709,10 +3715,15 @@ QCC_def_t *QCC_MakeIntDef(int value)
 	cn->scope = NULL;		// always share immediates
 	cn->arraysize = 1;
 
-// copy the immediate to the global area
-	cn->ofs = QCC_GetFreeOffsetSpace (type_size[type_integer->type]);
+	if (!value)
+		G_INT(cn->ofs) = 0;
+	else
+	{
+	// copy the immediate to the global area
+		cn->ofs = QCC_GetFreeOffsetSpace (type_size[type_integer->type]);
 
-	G_INT(cn->ofs) = value;
+		G_INT(cn->ofs) = value;
+	}
 
 
 	return cn;
@@ -4019,6 +4030,8 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname)
 	if (!basetype)
 		QCC_PR_ParseError(ERR_INTERNAL, "Type %s was not defined...", tname);
 
+	if (numfunctions >= MAX_FUNCTIONS)
+		QCC_Error(ERR_INTERNAL, "Too many function defs");
 
 	pr_scope = NULL;
 	memset(basictypefield, 0, sizeof(basictypefield));
@@ -4279,27 +4292,28 @@ reloop:
 				if (d->arraysize>1)	//use the array
 				{
 					nd = QCC_PR_Statement(&pr_opcodes[OP_LOADA_I], d, ao, NULL);	//get pointer to precise def.
-					nd->type = d->type->aux_type;
+					newtype = d->type->aux_type;
 				}
 				else
 				{	//dereference the pointer.
+					ao = QCC_PR_Statement(&pr_opcodes[OP_MUL_I], ao, QCC_MakeIntDef(4), NULL);
 					switch(newtype->aux_type->type)
 					{
 					case ev_pointer:
 						nd = QCC_PR_Statement(&pr_opcodes[OP_LOADP_I], d, ao, NULL);	//get pointer to precise def.
-						nd->type = d->type->aux_type;
+						newtype = d->type->aux_type;
 						break;
 					case ev_float:
 						nd = QCC_PR_Statement(&pr_opcodes[OP_LOADP_F], d, ao, NULL);	//get pointer to precise def.
-						nd->type = d->type->aux_type;
+						newtype = d->type->aux_type;
 						break;
 					case ev_vector:
 						nd = QCC_PR_Statement(&pr_opcodes[OP_LOADP_V], d, ao, NULL);	//get pointer to precise def.
-						nd->type = d->type->aux_type;
+						newtype = d->type->aux_type;
 						break;
 					case ev_integer:
 						nd = QCC_PR_Statement(&pr_opcodes[OP_LOADP_I], d, ao, NULL);	//get pointer to precise def.
-						nd->type = d->type->aux_type;
+						newtype = d->type->aux_type;
 						break;
 					default:
 						QCC_PR_ParseError(ERR_NOVALIDOPCODES, "No op available. Try assembler");
@@ -4429,19 +4443,19 @@ reloop:
 							{
 							case ev_pointer:
 								nd = QCC_PR_Statement(&pr_opcodes[OP_LOADP_I], d, QCC_PR_Statement (&pr_opcodes[OP_CONV_FTOI], ao, 0, NULL), NULL);	//get pointer to precise def.
-								nd->type = d->type->aux_type;
+								newtype = d->type->aux_type;
 								break;
 							case ev_float:
 								nd = QCC_PR_Statement(&pr_opcodes[OP_LOADP_F], d, QCC_PR_Statement (&pr_opcodes[OP_CONV_FTOI], ao, 0, NULL), NULL);	//get pointer to precise def.
-								nd->type = d->type->aux_type;
+								newtype = d->type->aux_type;
 								break;
 							case ev_vector:
 								nd = QCC_PR_Statement(&pr_opcodes[OP_LOADP_V], d, QCC_PR_Statement (&pr_opcodes[OP_CONV_FTOI], ao, 0, NULL), NULL);	//get pointer to precise def.
-								nd->type = d->type->aux_type;
+								newtype = d->type->aux_type;
 								break;
 							case ev_integer:
 								nd = QCC_PR_Statement(&pr_opcodes[OP_LOADP_I], d, QCC_PR_Statement (&pr_opcodes[OP_CONV_FTOI], ao, 0, NULL), NULL);	//get pointer to precise def.
-								nd->type = d->type->aux_type;
+								newtype = d->type->aux_type;
 								break;
 							default:
 								QCC_PR_ParseError(ERR_NOVALIDOPCODES, "No op available. Try assembler");
@@ -4858,6 +4872,8 @@ QCC_def_t *QCC_PR_Term (void)
 			if (t != ev_pointer)
 				QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch for *");
 
+
+
 			switch(e->type->aux_type->type)
 			{
 			case ev_float:
@@ -4941,7 +4957,19 @@ QCC_def_t *QCC_PR_Term (void)
 
 		if (QCC_PR_CheckToken ("("))
 		{
-			if (QCC_PR_CheckKeyword(keyword_float, "float"))	//check for type casts
+			if (QCC_PR_CheckToken("*"))
+			{
+				QCC_PR_Expect (")");
+				e = QCC_PR_Term();
+				e2 = (void *)qccHunkAlloc (sizeof(QCC_def_t));
+				memset (e2, 0, sizeof(QCC_def_t));
+				e2->type = type_pointer;
+				e2->ofs = e->ofs;
+				e2->constant = true;
+				e2->temp = e->temp;
+				return e2;
+			}
+			else if (QCC_PR_CheckKeyword(keyword_float, "float"))	//check for type casts
 			{
 				QCC_PR_Expect (")");
 				e = QCC_PR_Term();
@@ -7557,6 +7585,9 @@ QCC_def_t *QCC_PR_EmitArrayGetVector(QCC_def_t *array)
 
 	pr_scope = func;
 
+	if (numfunctions >= MAX_FUNCTIONS)
+		QCC_Error(ERR_INTERNAL, "Too many function defs");
+
 	df = &functions[numfunctions];
 	numfunctions++;
 
@@ -7610,6 +7641,9 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, char *arrayname)
 		vectortrick = NULL;
 
 	pr_scope = scope;
+
+	if (numfunctions >= MAX_FUNCTIONS)
+		QCC_Error(ERR_INTERNAL, "Too many function defs");
 
 	df = &functions[numfunctions];
 	numfunctions++;
@@ -7763,6 +7797,9 @@ void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, char *arrayname)
 
 	def = QCC_PR_GetDef(NULL, arrayname, NULL, false, 0, false);
 	pr_scope = scope;
+
+	if (numfunctions >= MAX_FUNCTIONS)
+		QCC_Error(ERR_INTERNAL, "Too many function defs");
 
 	df = &functions[numfunctions];
 	numfunctions++;
@@ -8816,6 +8853,9 @@ void QCC_PR_ParseDefs (char *classname)
 //				if (pr_dumpasm)
 //					PR_PrintFunction (def);
 
+		if (numfunctions >= MAX_FUNCTIONS)
+			QCC_Error(ERR_INTERNAL, "Too many function defs");
+
 // fill in the dfunction
 		df = &functions[numfunctions];
 		numfunctions++;
@@ -9225,6 +9265,9 @@ void QCC_PR_ParseDefs (char *classname)
 				f->def = def;
 //				if (pr_dumpasm)
 //					PR_PrintFunction (def);
+
+				if (numfunctions >= MAX_FUNCTIONS)
+					QCC_Error(ERR_INTERNAL, "Too many function defs");
 
 		// fill in the dfunction
 				df = &functions[numfunctions];

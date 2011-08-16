@@ -831,6 +831,18 @@ pbool QCC_PR_Precompiler(void)
 			{
 				defaultstatic = atoi(msg);
 			}
+			else if (!strncmp(qcc_token, "wrasm", 5))
+			{
+				pbool on = atoi(msg);
+
+				if (asmfile && !on)
+				{
+					fclose(asmfile);
+					asmfile = NULL;
+				}			
+				if (!asmfile && on)
+					asmfile = fopen("qc.asm", "wb");
+			}
 			else if (!strncmp(qcc_token, "sourcefile", 10))
 			{
 	#define MAXSOURCEFILESLIST 8

@@ -180,8 +180,9 @@ typedef enum
 	globalfloat(clientcommandframe,		"clientcommandframe");	/*float		the next frame that will be sent*/ \
 	globalfloat(servercommandframe,		"servercommandframe");	/*float		the most recent frame received from the server*/ \
 	\
+	globalfloat(player_tracknum,		"player_trackentnum");	/*float		the player number of the player being tracked*/	\
 	globalfloat(player_localentnum,		"player_localentnum");	/*float		the entity number of the local player*/	\
-	globalfloat(player_localnum,		"player_localnum");		/*float		the entity number of the local player*/	\
+	globalfloat(player_localnum,		"player_localnum");		/*float		the player number of the local player*/	\
 	globalfloat(intermission,			"intermission");		/*float		set when the client receives svc_intermission*/	\
 	globalvector(view_angles,			"view_angles");			/*float		set to the view angles at the start of each new frame (EXT_CSQC_1)*/ \
 	\
@@ -224,8 +225,19 @@ static csqcglobals_t csqcg;
 static void CSQC_ChangeLocalPlayer(int lplayernum)
 {
 	csqc_lplayernum = lplayernum;
+	if (csqcg.player_tracknum)
+	{
+		*csqcg.player_tracknum = Cam_TrackNum(csqc_lplayernum);
+	}
 	if (csqcg.player_localentnum)
-		*csqcg.player_localentnum = cl.playernum[lplayernum]+1;
+	{
+		if (cl.viewentity[lplayernum])
+			*csqcg.player_localentnum = cl.viewentity[lplayernum];
+		else if (cl.spectator && Cam_TrackNum(csqc_lplayernum) >= 0)
+			*csqcg.player_localentnum = Cam_TrackNum(csqc_lplayernum) + 1;
+		else
+			*csqcg.player_localentnum = cl.playernum[lplayernum]+1;
+	}
 	if (csqcg.player_localnum)
 		*csqcg.player_localnum = cl.playernum[lplayernum];
 

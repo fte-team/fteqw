@@ -126,8 +126,6 @@ struct {
 
 	func_t ClassChangeWeapon;//hexen2 support
 } gfuncs;
-func_t getplayerstat[MAX_CL_STATS];	//unnamed FTE extension
-func_t getplayerstati[MAX_CL_STATS];//unnamed FTE extension
 func_t SpectatorConnect;	//QW
 func_t SpectatorThink;	//QW
 func_t SpectatorDisconnect;	//QW
@@ -505,8 +503,6 @@ void PR_Deinit(void)
 
 	//clear out function pointers (so changing game modes cannot lead to confusions)
 	memset(&gfuncs, 0, sizeof(gfuncs));
-	memset(&getplayerstat, 0, sizeof(getplayerstat));
-	memset(&getplayerstati, 0, sizeof(getplayerstati));
 	SpectatorConnect = 0;
 	SpectatorThink = 0;
 	SpectatorDisconnect = 0;
@@ -652,11 +648,6 @@ void PR_LoadGlabalStruct(void)
 	SpectatorConnect = PR_FindFunction(svprogfuncs, "SpectatorConnect", PR_ANY);
 	SpectatorDisconnect = PR_FindFunction(svprogfuncs, "SpectatorDisconnect", PR_ANY);
 	SpectatorThink = PR_FindFunction(svprogfuncs, "SpectatorThink", PR_ANY);
-	for (i = 0; i < MAX_CL_STATS; i++)
-	{
-		getplayerstat[i] = PR_FindFunction(svprogfuncs, va("SetPlayerStat%i", i), PR_ANY);
-		getplayerstati[i] = PR_FindFunction(svprogfuncs, va("SetPlayerStat%ii", i), PR_ANY);
-	}
 
 	gfuncs.ParseClientCommand = PR_FindFunction(svprogfuncs, "SV_ParseClientCommand", PR_ANY);
 	gfuncs.ParseConnectionlessPacket = PR_FindFunction(svprogfuncs, "SV_ParseConnectionlessPacket", PR_ANY);

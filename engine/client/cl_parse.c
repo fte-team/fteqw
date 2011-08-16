@@ -3200,7 +3200,7 @@ void CL_ParseBaseline2 (void)
 {
 	entity_state_t es;
 
-	CL_ParseDelta(&nullentitystate, &es, MSG_ReadShort(), true);
+	CL_ParseDelta(&nullentitystate, &es, (unsigned short)MSG_ReadShort(), true);
 	if (!CL_CheckBaselines(es.number))
 		Host_EndGame("CL_ParseBaseline2: check baselines failed with size %i", es.number);
 	memcpy(cl_baselines + es.number, &es, sizeof(es));

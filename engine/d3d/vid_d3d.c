@@ -619,6 +619,16 @@ static void initD3D9(HWND hWnd, rendererstate_t *info)
 		if (initD3D9Device(hWnd, info, i, D3DDEVTYPE_HAL))
 			return;
 	}
+	for (i = 0; i < numadaptors; i++)
+	{	//try each adaptor in turn until we get one that actually works
+		if (initD3D9Device(hWnd, info, i, D3DDEVTYPE_SW))
+			return;
+	}
+	for (i = 0; i < numadaptors; i++)
+	{	//try each adaptor in turn until we get one that actually works
+		if (initD3D9Device(hWnd, info, i, D3DDEVTYPE_REF))
+			return;
+	}
 }
 
 static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
@@ -673,7 +683,10 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 
 	initD3D9(mainwindow, info);
 	if (!pD3DDev9)
+	{
+		Con_Printf("No suitable D3D device found\n");
 		return false;
+	}
 
 
 

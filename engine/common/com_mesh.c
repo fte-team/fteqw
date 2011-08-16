@@ -5528,7 +5528,9 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 
 
 	galiasinfo_t *gai;
+#ifndef SERVERONLY
 	galiasskin_t *skin;
+#endif
 	galiasgroup_t *fgroup;
 	galiasbone_t *bones;
 	texnums_t *texnum;
@@ -5594,18 +5596,23 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	mesh = (struct iqmmesh*)(buffer + h->ofs_meshes);
 
 	/*allocate a nice big block of memory and figure out where stuff is*/
-	gai = Hunk_Alloc(sizeof(*gai)*h->num_meshes + sizeof(*skin)*h->num_meshes + sizeof(*texnum)*h->num_meshes + 
+	gai = Hunk_Alloc(sizeof(*gai)*h->num_meshes +
+#ifndef SERVERONLY
+		sizeof(*skin)*h->num_meshes + sizeof(*texnum)*h->num_meshes + 
+#endif
 		sizeof(*fgroup)*h->num_anims + sizeof(float)*12*h->num_poses*h->num_frames + sizeof(*bones)*h->num_joints +
 		(sizeof(*opos) + sizeof(*onorm) + sizeof(*oweight) + sizeof(*oindex)) * h->num_vertexes);
 	bones = (galiasbone_t*)(gai + h->num_meshes);
-	skin = (galiasskin_t*)(bones + h->num_joints);
-	texnum = (texnums_t*)(skin + h->num_meshes);
-	opos = (vecV_t*)(texnum + h->num_meshes);
+	opos = (vecV_t*)(bones + h->num_joints);
 	onorm = (vec3_t*)(opos + h->num_vertexes);
 	oindex = (byte_vec4_t*)(onorm + h->num_vertexes);
 	oweight = (vec4_t*)(oindex + h->num_vertexes);
 	fgroup = (galiasgroup_t*)(oweight + h->num_vertexes);
 	opose = (float*)(fgroup + h->num_anims);
+#ifndef SERVERONLY
+	skin = (galiasskin_t*)(opose + 12*h->num_poses*h->num_frames);
+	texnum = (texnums_t*)(skin + h->num_meshes);
+#endif
 
 //no code to load animations or bones
 	framedata = (unsigned short*)(buffer + h->ofs_frames);
@@ -5711,6 +5718,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		gai[i].groups = h->num_frames;
 		gai[i].groupofs = (char*)fgroup - (char*)&gai[i];
 
+#ifndef SERVERONLY
 		/*skins*/
 		gai[i].numskins = 1;
 		gai[i].ofsskins = (char*)&skin[i] - (char*)&gai[i];
@@ -5722,6 +5730,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		skin[i].texnums = 1;
 		skin[i].ofstexnums = (char*)&texnum[i] - (char*)&skin[i];
 		texnum[i].shader = R_RegisterSkin(skin[i].name, mod->name);
+#endif
 
 		offset = LittleLong(mesh[i].first_vertex);
 

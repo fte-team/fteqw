@@ -956,12 +956,11 @@ void QCBUILTIN PF_cl_setkeydest (progfuncs_t *prinst, struct globalvars_s *pr_gl
 	{
 	case 0:
 		// key_game
-		key_dest = key_game;
+		key_dest = ((cls.state == ca_active)?key_game:key_console);
 		break;
 	case 2:
 		// key_menu
-		if (key_dest != key_console)
-			key_dest = key_menu;
+		key_dest = key_menu;
 		m_state = m_menu_dat;
 		break;
 	case 1:

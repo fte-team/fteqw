@@ -572,6 +572,9 @@ void SV_UnspawnServer (void)	//terminate the running server.
 		Con_TPrintf(STL_SERVERUNSPAWNED);
 		SV_FinalMessage("Server unspawned\n");
 
+		if (sv.mvdrecording)
+			SV_MVDStop (0, false);
+
 		for (i = 0; i < sv.allocated_client_slots; i++)
 		{
 			if (svs.clients[i].state)

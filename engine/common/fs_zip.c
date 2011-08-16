@@ -86,6 +86,11 @@ vfsfile_t *FS_DecompressGZip(vfsfile_t *infile)
 			return infile;
 		}
 	}
+	else
+	{
+		VFS_SEEK(infile, 0);
+		return infile;
+	}
 	if (header.flags & GZ_FEXTRA)
 	{
 		VFS_READ(infile, &inshort, sizeof(inshort));
@@ -169,6 +174,8 @@ vfsfile_t *FS_DecompressGZip(vfsfile_t *infile)
 				{
 					strm.avail_in = VFS_READ(infile, inbuffer, sizeof(inbuffer));
 					strm.next_in = inbuffer;
+					if (!strm.avail_in)
+						break;
 				}
 
 				if (strm.avail_out == 0)
@@ -182,9 +189,9 @@ vfsfile_t *FS_DecompressGZip(vfsfile_t *infile)
 			}
 
 			//doh, it terminated for no reason
-			qinflateEnd(&strm);
 			if (ret != Z_STREAM_END)
 			{
+				qinflateEnd(&strm);
 				Con_Printf("Couldn't decompress gz file\n");
 				VFS_CLOSE(temp);
 				VFS_CLOSE(infile);

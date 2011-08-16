@@ -639,7 +639,9 @@ typedef struct
 	int			lastto;
 	int			lasttype;
 	double		time, pingtime;
-	int			stats[MAX_CLIENTS][MAX_CL_STATS]; // ouch!
+	int			statsi[MAX_CLIENTS][MAX_CL_STATS]; // ouch!
+	float		statsf[MAX_CLIENTS][MAX_CL_STATS]; // ouch!
+	char		*statss[MAX_CLIENTS][MAX_CL_STATS]; // ouch!
 	client_t	recorder;
 	qboolean	fixangle[MAX_CLIENTS];
 	float		fixangletime[MAX_CLIENTS];
@@ -1286,7 +1288,6 @@ extern demo_t			demo;				// server demo struct
 
 extern cvar_t	sv_demofps;
 extern cvar_t	sv_demoPings;
-extern cvar_t	sv_demoNoVis;
 extern cvar_t	sv_demoUseCache;
 extern cvar_t	sv_demoMaxSize;
 extern cvar_t	sv_demoMaxDirSize;

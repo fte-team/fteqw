@@ -1893,7 +1893,7 @@ int GUIprintf(const char *msg, ...)
 void Sys_Error(const char *text, ...);
 void RunCompiler(char *args)
 {
-	char *argv[64];
+	char *argv[128];
 	int argc;
 	progexterns_t ext;
 	progfuncs_t funcs;

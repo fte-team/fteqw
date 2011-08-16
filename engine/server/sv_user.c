@@ -1870,14 +1870,14 @@ void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezfilenum)
 	qbyte oobdata[1+ (sizeof("\\chunk")-1) + 4 + 1 + 4 + CHUNKSIZE];
 	sizebuf_t *msg, msg_oob;
 	int i;
-	qboolean error = false;
+	int error = false;
 
 	msg = &host_client->datagram;
 
 	if (chunknum*CHUNKSIZE > host_client->downloadsize)
 	{
 		SV_ClientPrintf (host_client, PRINT_HIGH, "Invalid file chunk requested %u to %u of %u.\n", chunknum*CHUNKSIZE, (chunknum+1)*CHUNKSIZE, host_client->downloadsize);
-		error = true;
+		error = 2;
 	}
 
 	if (!error && VFS_SEEK (host_client->download, chunknum*CHUNKSIZE) == false)
@@ -1946,10 +1946,13 @@ void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezfilenum)
 		VFS_CLOSE (host_client->download);
 		host_client->download = NULL;
 
-		ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(host_client->downloadfn));
-		ClientReliableWrite_Long (host_client, -1);
-		ClientReliableWrite_Long (host_client, -3);
-		ClientReliableWrite_String (host_client, host_client->downloadfn);
+		if (error != 2)
+		{/*work around for ezquake*/
+			ClientReliableWrite_Begin (host_client, svc_download, 10+strlen(host_client->downloadfn));
+			ClientReliableWrite_Long (host_client, -1);
+			ClientReliableWrite_Long (host_client, -3);
+			ClientReliableWrite_String (host_client, host_client->downloadfn);
+		}
 
 
 		host_client->downloadstarted = false;

@@ -262,6 +262,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 	globalvars_t *pr_globals;
 	edict_t *ent;
 	qboolean writtenheader = false;
+	int viewerent;
 
 	//we don't check that we got some already - because this is delta compressed!
 
@@ -269,6 +270,11 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 		return;
 
 	pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+
+	if (client->edict)
+		viewerent = EDICT_TO_PROG(svprogfuncs, client->edict);
+	else
+		viewerent = 0; /*for mvds, its as if world is looking*/
 
 	//FIXME: prioritise the list of csqc ents somehow
 
@@ -300,7 +306,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 		csqcmsgbuffer.cursize = 0;
 		csqcmsgbuffer.currentbit = 0;
 		//Ask CSQC to write a buffer for it.
-		G_INT(OFS_PARM0) = EDICT_TO_PROG(svprogfuncs, client->edict);
+		G_INT(OFS_PARM0) = viewerent;
 		G_FLOAT(OFS_PARM1) = 0xffffff;	//psudo compatibility with SendFlags (fte doesn't support properly)
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 		PR_ExecuteProgram(svprogfuncs, ent->xv->SendEntity);
@@ -1476,6 +1482,9 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 					}
 				}
 			}
+
+			if (SV_AddCSQCUpdate(client, ent))
+				continue;
 
 			if (cl->spectator)
 				continue;

@@ -260,7 +260,7 @@ void SV_Shutdown (void)
 #endif
 
 	if (sv.mvdrecording)
-		SV_MVDStop_f();
+		SV_MVDStop (0, false);
 
 	NET_Shutdown ();
 #ifdef WEBSERVER

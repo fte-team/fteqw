@@ -138,6 +138,8 @@ struct progfuncs_s {
 
 	void (*EntClear)					(progfuncs_t *progfuncs, struct edict_s *e);
 	void (*FindPrefixGlobals)			(progfuncs_t *progfuncs, char *prefix, void (*found) (progfuncs_t *progfuncs, char *name, union eval_s *val, etype_t type) );
+
+	void *(*AddressableAlloc)			(progfuncs_t *progfuncs, int ammount); /*returns memory within the qc block, use stringtoprogs to get a usable qc pointer/string*/
 };
 
 typedef struct progexterns_s {
@@ -252,7 +254,8 @@ typedef union eval_s
 #define PR_FindFunction(pf, name, num)						(*pf->FindFunction)			(pf, name, num)
 #define PR_FindGlobal(pf, name, progs, type)				(*pf->FindGlobal)			(pf, name, progs, type)
 #define PR_AddString(pf, ed, len)							(*pf->AddString)			(pf, ed, len)
-#define PR_Alloc(pf,size)									(*pf->Tempmem)				(pf, size)
+#define PR_Alloc(pf,size,whatfor)							(*pf->Tempmem)				(pf, size, whatfor)
+#define PR_AddressableAlloc(pf,size)						(*pf->AddressableAlloc)		(pf, size)
 
 #define PROG_TO_EDICT(pf, ed)								(*pf->ProgsToEdict)			(pf, ed)
 #define EDICT_TO_PROG(pf, ed)								(*pf->EdictToProgs)			(pf, (struct edict_s*)ed)

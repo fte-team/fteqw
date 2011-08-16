@@ -323,7 +323,7 @@ reeval:
 		if ((unsigned int)OPB->_int >= addressableused)
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (progfuncs, "bad pointer write in %s", progfuncs->stringtable + pr_xfunction->s_name);
+			PR_RunError (progfuncs, "bad pointer write in %s (%x >= %x)", progfuncs->stringtable + pr_xfunction->s_name, OPB->_int, addressableused);
 		}
 		ptr = QCPOINTER(OPB);
 		ptr->_int = OPA->_int;

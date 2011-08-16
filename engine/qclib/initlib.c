@@ -430,8 +430,8 @@ string_t PR_StringToProgs			(progfuncs_t *progfuncs, char *str)
 	if (!str)
 		return 0;
 
-//	if (str-progfuncs->stringtable < progfuncs->stringtablesize)
-//		return str - progfuncs->stringtable;
+	if (str-progfuncs->stringtable < addressableused)
+		return str - progfuncs->stringtable;
 
 	for (i = prinst->numallocedstrings-1; i >= 0; i--)
 	{
@@ -537,7 +537,7 @@ char *ASMCALL PR_StringToNative				(progfuncs_t *progfuncs, string_t str)
 		}
 	}
 
-	if (str >= progfuncs->stringtablesize)
+	if (str >= addressableused)
 	{
 		printf("invalid string offset %x\n", str);
 		pr_trace = 1;
@@ -691,7 +691,8 @@ progfuncs_t deffuncs = {
 	0,
 	PR_QueryField,
 	QC_ClearEdict,
-	QC_FindPrefixedGlobals
+	QC_FindPrefixedGlobals,
+	PRAddressableAlloc
 };
 #undef printf
 

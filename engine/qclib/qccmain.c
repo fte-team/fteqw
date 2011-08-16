@@ -767,6 +767,8 @@ pbool QCC_WriteData (int crc)
 		}
 		else if (def->type->type == ev_field && def->constant)
 		{
+			if (numfielddefs >= MAX_FIELDS)
+				QCC_PR_ParseError(0, "Too many fields. Limit is %u\n", MAX_FIELDS);
 			dd = &fields[numfielddefs];
 			numfielddefs++;
 			dd->type = def->type->aux_type->type;

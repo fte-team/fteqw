@@ -494,10 +494,20 @@ typedef struct {
 } pf_fopen_files_t;
 pf_fopen_files_t pf_fopen_files[MAX_QC_FILES];
 
+/*only read+append+write are standard frik_file*/
+#define FRIK_FILE_READ		0 /*read-only*/
+#define FRIK_FILE_APPEND	1 /*append (write-only, but offset begins at end of previous file)*/
+#define FRIK_FILE_WRITE		2 /*write-only*/
+#define FRIK_FILE_INVALID	3 /*no idea what this is for, presume placeholder*/
+#define FRIK_FILE_READNL	4 /*fgets ignores newline chars, returning the entire thing in one lump*/
+#define FRIK_FILE_MMAP_READ	5 /*fgets returns a pointer. memory is not guarenteed to be released.*/
+#define FRIK_FILE_MMAP_RW	6 /*fgets returns a pointer. file is written upon close. memory is not guarenteed to be released.*/
+
 void QCBUILTIN PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char *name = PR_GetStringOfs(prinst, OFS_PARM0);
 	int fmode = G_FLOAT(OFS_PARM1);
+	int fsize = G_FLOAT(OFS_PARM2);
 	int i;
 
 	for (i = 0; i < MAX_QC_FILES; i++)
@@ -524,8 +534,39 @@ void QCBUILTIN PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	pf_fopen_files[i].accessmode = fmode;
 	switch (fmode)
 	{
-	case 0:	//read
-	case 4:	//read whole file
+	case FRIK_FILE_MMAP_READ:
+	case FRIK_FILE_MMAP_RW:
+		{
+			vfsfile_t *f = FS_OpenVFS(pf_fopen_files[i].name, "rb", FS_GAME);
+			if (f)
+			{
+				pf_fopen_files[i].bufferlen = pf_fopen_files[i].len = VFS_GETLEN(f);
+				if (pf_fopen_files[i].bufferlen < fsize)
+					pf_fopen_files[i].bufferlen = fsize;
+				pf_fopen_files[i].data = PR_AddressableAlloc(prinst, pf_fopen_files[i].bufferlen);
+				VFS_READ(f, pf_fopen_files[i].data, pf_fopen_files[i].len);
+				VFS_CLOSE(f);
+			}
+			else
+			{
+				pf_fopen_files[i].bufferlen = fsize;
+				pf_fopen_files[i].data = PR_AddressableAlloc(prinst, pf_fopen_files[i].bufferlen);
+			}
+
+			if (!pf_fopen_files[i].data)
+			{
+				G_FLOAT(OFS_RETURN) = -1;
+				break;
+			}
+
+			pf_fopen_files[i].len = pf_fopen_files[i].bufferlen;
+			pf_fopen_files[i].ofs = 0;
+			G_FLOAT(OFS_RETURN) = i + FIRST_QC_FILE_INDEX;
+			pf_fopen_files[i].prinst = prinst;
+		}
+		break;
+	case FRIK_FILE_READ:	//read
+	case FRIK_FILE_READNL:	//read whole file
 		pf_fopen_files[i].data = FS_LoadMallocFile(pf_fopen_files[i].name);
 		if (!pf_fopen_files[i].data)
 		{
@@ -544,7 +585,7 @@ void QCBUILTIN PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		pf_fopen_files[i].bufferlen = pf_fopen_files[i].len = com_filesize;
 		pf_fopen_files[i].ofs = 0;
 		break;
-	case 1:	//append
+	case FRIK_FILE_APPEND:	//append
 		pf_fopen_files[i].data = FS_LoadMallocFile(pf_fopen_files[i].name);
 		pf_fopen_files[i].ofs = pf_fopen_files[i].bufferlen = pf_fopen_files[i].len = com_filesize;
 		if (pf_fopen_files[i].data)
@@ -554,7 +595,7 @@ void QCBUILTIN PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			break;
 		}
 		//file didn't exist - fall through
-	case 2:	//write
+	case FRIK_FILE_WRITE:	//write
 		pf_fopen_files[i].bufferlen = 8192;
 		pf_fopen_files[i].data = BZ_Malloc(pf_fopen_files[i].bufferlen);
 		pf_fopen_files[i].len = 0;
@@ -562,7 +603,7 @@ void QCBUILTIN PF_fopen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		G_FLOAT(OFS_RETURN) = i + FIRST_QC_FILE_INDEX;
 		pf_fopen_files[i].prinst = prinst;
 		break;
-	case 3:
+	case FRIK_FILE_INVALID:
 		pf_fopen_files[i].bufferlen = 0;
 		pf_fopen_files[i].data = "";
 		pf_fopen_files[i].len = 0;
@@ -592,7 +633,14 @@ void PF_fclose_i (int fnum)
 
 	switch(pf_fopen_files[fnum].accessmode)
 	{
-	case 0:
+	case FRIK_FILE_MMAP_RW:
+		COM_WriteFile(pf_fopen_files[fnum].name, pf_fopen_files[fnum].data, pf_fopen_files[fnum].len);
+		/*fall through*/
+	case FRIK_FILE_MMAP_READ:
+		/*cannot free accessible mem*/
+		break;
+
+	case FRIK_FILE_READ:
 	case 4:
 		BZ_Free(pf_fopen_files[fnum].data);
 		break;
@@ -653,6 +701,12 @@ void QCBUILTIN PF_fgets (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		return;	//this just isn't ours.
 	}
 
+	if (pf_fopen_files[fnum].accessmode == FRIK_FILE_MMAP_READ || pf_fopen_files[fnum].accessmode == FRIK_FILE_MMAP_RW)
+	{
+		G_INT(OFS_RETURN) = PR_SetString(prinst, pf_fopen_files[fnum].data);
+		return;
+	}
+
 	//read up to the next \n, ignoring any \rs.
 	o = pr_string_temp;
 	max = o + sizeof(pr_string_temp)-1;
@@ -661,9 +715,9 @@ void QCBUILTIN PF_fgets (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	while(s < eof)
 	{
 		c = *s++;
-		if (c == '\n' && pf_fopen_files[fnum].accessmode != 4)
+		if (c == '\n' && pf_fopen_files[fnum].accessmode != FRIK_FILE_READNL)
 			break;
-		if (c == '\r' && pf_fopen_files[fnum].accessmode != 4)
+		if (c == '\r' && pf_fopen_files[fnum].accessmode != FRIK_FILE_READNL)
 			continue;
 
 		if (o == max)
@@ -707,8 +761,8 @@ void QCBUILTIN PF_fputs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	{
 	default:
 		break;
-	case 1:
-	case 2:
+	case FRIK_FILE_APPEND:
+	case FRIK_FILE_WRITE:
 		if (pf_fopen_files[fnum].bufferlen < pf_fopen_files[fnum].ofs + len)
 		{
 			char *newbuf;

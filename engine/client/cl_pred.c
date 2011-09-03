@@ -848,7 +848,10 @@ fixedorg:
 		from = &cl.frames[cl.oldvalidsequence & UPDATE_MASK];
 
 		//figure out the lerp factor
-		f = (cl.gametime-cl.servertime)/(cl.gametime-cl.oldgametime);//f = (cl.time-cl.lerpents[state->number].lerptime)/cl.lerpents[state->number].lerprate;
+		if (cl.gametime == cl.servertime)
+			f = 0;
+		else
+			f = (cl.gametime-cl.servertime)/(cl.gametime-cl.oldgametime);//f = (cl.time-cl.lerpents[state->number].lerptime)/cl.lerpents[state->number].lerprate;
 		if (f<0)
 			f=0;
 		if (f>1)

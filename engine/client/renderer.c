@@ -2,6 +2,7 @@
 #include "winquake.h"
 #include "pr_common.h"
 #include "gl_draw.h"
+#include "shader.h"
 #include <string.h>
 
 
@@ -88,6 +89,8 @@ cvar_t r_fb_models							= CVARAF  ("r_fb_models", "1",
 cvar_t r_skin_overlays						= SCVARF  ("r_skin_overlays", "1",
 												CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
 cvar_t r_flashblend							= SCVARF ("gl_flashblend", "0",
+												CVAR_ARCHIVE);
+cvar_t r_flashblendscale					= SCVARF ("gl_flashblendscale", "0.35",
 												CVAR_ARCHIVE);
 cvar_t r_floorcolour						= SCVARF ("r_floorcolour", "255 255 255",
 												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
@@ -295,6 +298,7 @@ cvar_t r_noaliasshadows						= SCVARF ("r_noaliasshadows", "0",
 												CVAR_ARCHIVE);
 cvar_t r_shadows						= SCVARF ("r_shadows", "0",
 												CVAR_ARCHIVE);
+cvar_t r_lightprepass						= CVARFD("r_lightprepass", "0", CVAR_SHADERSYSTEM, "Experimental. Attempt to use a different lighting mechanism.");
 
 cvar_t r_shadow_bumpscale_basetexture		= SCVAR  ("r_shadow_bumpscale_basetexture", "4");
 cvar_t r_shadow_bumpscale_bumpmap			= SCVAR  ("r_shadow_bumpscale_bumpmap", "10");
@@ -352,6 +356,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_affinemodels, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_nohwblend, GLRENDEREROPTIONS);
 	Cvar_Register (&r_flashblend, GLRENDEREROPTIONS);
+	Cvar_Register (&r_flashblendscale, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_nocolors, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_finish, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_lateswap, GLRENDEREROPTIONS);
@@ -483,6 +488,8 @@ void Renderer_Init(void)
 	Cmd_AddCommand("setrenderer", R_SetRenderer_f);
 	Cmd_AddCommand("vid_restart", R_RestartRenderer_f);
 
+	Cmd_AddCommand("r_dumpshaders", Shader_WriteOutGenerics_f);
+
 #if defined(GLQUAKE) || defined(D3DQUAKE)
 	GLD3DRenderer_Init();
 #endif
@@ -531,6 +538,7 @@ void Renderer_Init(void)
 	Cvar_Register(&r_stains, GRAPHICALNICETIES);
 	Cvar_Register(&r_stainfadetime, GRAPHICALNICETIES);
 	Cvar_Register(&r_stainfadeammount, GRAPHICALNICETIES);
+	Cvar_Register(&r_lightprepass, GRAPHICALNICETIES);
 
 	Cvar_Register(&scr_viewsize, SCREENOPTIONS);
 	Cvar_Register(&scr_fov, SCREENOPTIONS);

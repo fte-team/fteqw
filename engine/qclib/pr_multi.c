@@ -45,9 +45,9 @@ void PR_MoveParms(progfuncs_t *progfuncs, progsnum_t progs1, progsnum_t progs2)	
 	p2 = &pr_progstate[(int)progs2];
 
 	if ((unsigned)progs1 >= maxprogs || !p1->globals)
-		Sys_Error("QCLIB: Bad prog type - %i", progs1);
+		PR_RunError(progfuncs, "QCLIB: Bad prog type - %i", progs1);
 	if ((unsigned)progs2 >= maxprogs || !p2->globals)
-		Sys_Error("QCLIB: Bad prog type - %i", progs2);
+		PR_RunError(progfuncs, "QCLIB: Bad prog type - %i", progs2);
 
 	//copy parms.
 	for (a = 0; a < MAX_PARMS;a++)

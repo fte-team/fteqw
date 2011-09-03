@@ -634,6 +634,7 @@ static float Classic_ParticleTrail (vec3_t start, vec3_t end, float leftover, ef
 		goto done;
 	VectorScale(delta, 1 / len, dir);	//unit vector in direction of trail
 
+	VectorMA(point, -leftover, dir, point);
 	len += leftover;
 	rlen = len;
 
@@ -647,16 +648,12 @@ static float Classic_ParticleTrail (vec3_t start, vec3_t end, float leftover, ef
 		scale = 3; break;
 	}
 
-	leftover = scale - leftover;
-	VectorMA(point, leftover, delta, point);
+	VectorScale (dir, scale, dir);
 
 	len /= scale;
 	leftover = rlen - ((int)(len) * scale);
 
-	if (!(num_particles = (int) len))
-		goto done;
-
-	VectorScale (delta, scale, delta);
+	num_particles = (int) len;
 
 	for (i = 0; i < num_particles && free_particles; i++)
 	{
@@ -735,7 +732,7 @@ static float Classic_ParticleTrail (vec3_t start, vec3_t end, float leftover, ef
 				p->org[j] = point[j] + ((rand() % 6) - 3);
 			break;
 		}
-		VectorAdd (point, delta, point);
+		VectorAdd (point, dir, point);
 	}
 done:
 	return leftover;

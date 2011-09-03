@@ -395,35 +395,30 @@ void QCBUILTIN PF_CL_drawcolouredstring (progfuncs_t *prinst, struct globalvars_
 
 void QCBUILTIN PF_CL_stringwidth(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	conchar_t buffer[2048], *end;
+	float px, py;
 	char *text = PR_GetStringOfs(prinst, OFS_PARM0);
 	int usecolours = G_FLOAT(OFS_PARM1);
 	float fontsize;
 	if (*prinst->callargc > 2)
-		fontsize = G_FLOAT(OFS_PARM2);
+		fontsize = G_FLOAT(OFS_PARM2+1);
 	else
-		fontsize = 1;
+		fontsize = 8;
 
 	if (mp_globs.drawfontscale)
 		fontsize *= mp_globs.drawfontscale[1];
-	if (usecolours)
-	{
-		conchar_t buffer[2048], *end;
-		float px, py;
-		end = COM_ParseFunString(CON_WHITEMASK, text, buffer, sizeof(buffer), false);
 
-		Font_BeginScaledString(font_conchar, 0, 0, &px, &py);
-		px = Font_LineWidth(buffer, end);
-		Font_EndString(font_conchar);
+	end = COM_ParseFunString(CON_WHITEMASK, text, buffer, sizeof(buffer), !usecolours);
 
-		if (mp_globs.drawfontscale)
-			px *= mp_globs.drawfontscale[1];
+	Font_BeginScaledString(font_conchar, 0, 0, &px, &py);
+	fontsize /= Font_CharHeight();
+	px = Font_LineWidth(buffer, end);
+	Font_EndString(font_conchar);
 
-		G_FLOAT(OFS_RETURN) = px;
-	}
-	else
-	{
-		G_FLOAT(OFS_RETURN) = strlen(text)*fontsize;
-	}
+	if (mp_globs.drawfontscale)
+		px *= mp_globs.drawfontscale[1];
+
+	G_FLOAT(OFS_RETURN) = px * fontsize;
 }
 
 #define DRAWFLAG_NORMAL 0
@@ -442,7 +437,7 @@ static unsigned int PF_SelectDPDrawFlag(int flag)
 	if (flag == 1)
 		return BEF_FORCEADDITIVE;
 	else
-		return BEF_FORCETRANSPARENT;
+		return 0;
 }
 
 //float	drawpic(vector position, string pic, vector size, vector rgb, float alpha, float flag) = #456;

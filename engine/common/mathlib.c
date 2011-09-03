@@ -622,6 +622,24 @@ void R_ConcatTransforms (float in1[3][4], float in2[3][4], float out[3][4])
 				in1[2][2] * in2[2][3] + in1[2][3];
 }
 
+void Matrix3x4_Multiply(const float *a, const float *b, float *out)
+{
+	out[0]  = a[0] * b[0] + a[4] * b[1] + a[8] * b[2];
+	out[1]  = a[1] * b[0] + a[5] * b[1] + a[9] * b[2];
+	out[2]  = a[2] * b[0] + a[6] * b[1] + a[10] * b[2];
+	out[3]  = a[3] * b[0] + a[7] * b[1] + a[11] * b[2] + b[3];
+
+	out[4]  = a[0] * b[4] + a[4] * b[5] + a[8] * b[6];
+	out[5]  = a[1] * b[4] + a[5] * b[5] + a[9] * b[6];
+	out[6]  = a[2] * b[4] + a[6] * b[5] + a[10] * b[6];
+	out[7]  = a[3] * b[4] + a[7] * b[5] + a[11] * b[6] + b[7];
+
+	out[8]  = a[0] * b[8] + a[4] * b[9] + a[8] * b[10];
+	out[9]  = a[1] * b[8] + a[5] * b[9] + a[9] * b[10];
+	out[10] = a[2] * b[8] + a[6] * b[9] + a[10] * b[10];
+	out[11] = a[3] * b[8] + a[7] * b[9] + a[11] * b[10] + b[11];
+}
+
 void R_ConcatRotationsPad (float in1[3][4], float in2[3][4], float out[3][4])
 {
 	out[0][0] = in1[0][0] * in2[0][0] + in1[0][1] * in2[1][0] +
@@ -1535,6 +1553,25 @@ void Matrix3x3_RM_Invert_Simple (const vec3_t in1[3], vec3_t out[3])
 	out[2][0] = in1[0][2] * scale;
 	out[2][1] = in1[1][2] * scale;
 	out[2][2] = in1[2][2] * scale;
+}
+
+void Matrix3x4_Invert (const float *in1, float *out)
+{
+	vec3_t a, b, c, trans;
+
+	VectorSet (a, in1[0], in1[4], in1[8]);
+	VectorSet (b, in1[1], in1[5], in1[9]);
+	VectorSet (c, in1[2], in1[6], in1[10]);
+
+	VectorScale (a, 1 / DotProduct (a, a), a);
+	VectorScale (b, 1 / DotProduct (b, b), b);
+	VectorScale (c, 1 / DotProduct (c, c), c);
+
+	VectorSet (trans, in1[3], in1[7], in1[11]);
+
+	Vector4Set (out+0, a[0], a[1], a[2], -DotProduct (a, trans));
+	Vector4Set (out+4, b[0], b[1], b[2], -DotProduct (b, trans));
+	Vector4Set (out+8, c[0], c[1], c[2], -DotProduct (c, trans));
 }
 
 void Matrix3x4_Invert_Simple (const float *in1, float *out)

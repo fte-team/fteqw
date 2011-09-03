@@ -93,6 +93,7 @@ typedef struct q2trace_s
 #define MOVE_TRIGGERS	16	//triggers must be marked with FINDABLE_NONSOLID	(an alternative to solid-corpse)
 #define MOVE_EVERYTHING	32	//can return triggers and non-solid items if they're marked with FINDABLE_NONSOLID (works even if the items are not properly linked)
 #define MOVE_LAGGED		64	//trace touches current last-known-state, instead of actual ents (just affects players for now)
+#define MOVE_ENTCHAIN	128 //chain of impacted ents, otherwise result shows only world
 
 typedef struct areanode_s
 {
@@ -107,6 +108,8 @@ typedef struct areanode_s
 #define	EDICT_FROM_AREA(l) STRUCT_FROM_LINK(l,wedict_t,area)
 
 typedef struct wedict_s wedict_t;
+#define PROG_TO_WEDICT (wedict_t*)PROG_TO_EDICT
+#define WEDICT_NUM (wedict_t *)EDICT_NUM
 
 typedef struct
 {
@@ -117,9 +120,10 @@ typedef struct
 struct world_s
 {
 	void (*Event_Touch)(struct world_s *w, wedict_t *s, wedict_t *o);
+	void (*Event_Think)(struct world_s *w, wedict_t *s);
+	void (*Event_Sound) (wedict_t *entity, int channel, char *sample, int volume, float attenuation, int pitchadj);
 	model_t *(*GetCModel)(struct world_s *w, int modelindex);
 
-	int				*global_self;
 	unsigned int	max_edicts;	//limiting factor... 1024 fields*4*MAX_EDICTS == a heck of a lot.
 	unsigned int	num_edicts;			// increases towards MAX_EDICTS
 /*FTE_DEPRECATED*/	unsigned int	edict_size; //still used in copyentity
@@ -138,6 +142,15 @@ struct world_s
 	laggedentinfo_t *lagents;
 	unsigned int maxlagents;
 
+	struct {
+		int     *self;
+		int     *other;
+		int     *newmis;
+		float	*time;
+		float	*frametime;
+		float	*force_retouch;
+	} g;
+
 #ifdef USEODE
 	worldode_t ode;
 #endif
@@ -145,13 +158,13 @@ struct world_s
 typedef struct world_s world_t;
 
 #ifdef USEODE
-void World_Physics_RemoveFromEntity(world_t *world, wedict_t *ed);
-void World_Physics_RemoveJointFromEntity(world_t *world, wedict_t *ed);
-void World_Physics_Frame(world_t *world, double frametime, double gravity);
-void World_Physics_Init(void);
-void World_Physics_Start(world_t *world);
-void World_Physics_End(world_t *world);
-void World_Physics_Shutdown(void);
+void World_ODE_RemoveFromEntity(world_t *world, wedict_t *ed);
+void World_ODE_RemoveJointFromEntity(world_t *world, wedict_t *ed);
+void World_ODE_Frame(world_t *world, double frametime, double gravity);
+void World_ODE_Init(void);
+void World_ODE_Start(world_t *world);
+void World_ODE_End(world_t *world);
+void World_ODE_Shutdown(void);
 #endif
 
 void World_ClearWorld (world_t *w);

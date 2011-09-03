@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="8,00"
+	Version="8.00"
 	Name="qtvprox"
 	ProjectGUID="{62669E6C-7E18-4E4D-BA54-DFBE29E7D24E}"
 	>
@@ -221,6 +221,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\libqtvc\glibc_sucks.c"
+				>
+			</File>
+			<File
 				RelativePath="..\httpsv.c"
 				>
 			</File>
@@ -229,7 +233,15 @@
 				>
 			</File>
 			<File
+				RelativePath="..\menu.c"
+				>
+			</File>
+			<File
 				RelativePath="..\msg.c"
+				>
+			</File>
+			<File
+				RelativePath="..\libqtvc\msvc_sucks.c"
 				>
 			</File>
 			<File

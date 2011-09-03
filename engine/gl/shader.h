@@ -53,7 +53,6 @@ typedef struct
 		SHADER_TCMOD_SCROLL,	//boring moving texcoords with time
 		SHADER_TCMOD_STRETCH,	//constant factor
 		SHADER_TCMOD_ROTATE,
-		SHADER_TCMOD_MAX,
 		SHADER_TCMOD_TRANSFORM,
 		SHADER_TCMOD_TURB
 	} type;
@@ -221,6 +220,9 @@ typedef struct shaderpass_s {
 
 		T_GEN_CURRENTRENDER,//copy the current screen to a texture, and draw that
 
+		T_GEN_SOURCECOLOUR, //used for render-to-texture targets
+		T_GEN_SOURCEDEPTH,	//used for render-to-texture targets
+
 		T_GEN_VIDEOMAP,		//use the media playback as an image source, updating each frame for which it is visible
 		T_GEN_SKYBOX,		//use a skybox instead, otherwise T_GEN_SINGLEMAP
 	} texgen;
@@ -275,23 +277,27 @@ typedef struct {
 		SP_FIRSTUNIFORM,	//never set
 
 		/*entity properties*/
-		SP_ENTCOLOURS,
-		SP_ENTCOLOURSIDENT,
-		SP_TOPCOLOURS,
-		SP_BOTTOMCOLOURS,
-		SP_TIME,
+		SP_E_ORIGIN,
+		SP_E_COLOURS,
+		SP_E_COLOURSIDENT,
+		SP_E_GLOWMOD,
+		SP_E_TOPCOLOURS,
+		SP_E_BOTTOMCOLOURS,
+		SP_E_TIME,
 		SP_E_L_DIR, /*these light values are non-dynamic light as in classic quake*/
 		SP_E_L_MUL,
 		SP_E_L_AMBIENT,
+		SP_E_EYEPOS, /*viewer's eyepos, in model space*/
+		SP_V_EYEPOS, /*viewer's eyepos, in world space*/
 
-		SP_ENTBONEMATRICIES,
-		SP_EYEPOS,
-		SP_ENTMATRIX,
-		SP_VIEWMATRIX,
-		SP_MODELMATRIX,
-		SP_MODELVIEWMATRIX,
-		SP_PROJECTIONMATRIX,
-		SP_MODELVIEWPROJECTIONMATRIX,
+		SP_M_ENTBONES,
+		SP_M_VIEW,
+		SP_M_MODEL,
+		SP_M_MODELVIEW,
+		SP_M_PROJECTION,
+		SP_M_MODELVIEWPROJECTION,
+		SP_M_INVVIEWPROJECTION,
+		SP_M_INVMODELVIEWPROJECTION,
 
 		SP_RENDERTEXTURESCALE,	/*multiplier for currentrender->texcoord*/
 
@@ -325,6 +331,8 @@ union programhandle_u
 	{
 		void *vert;
 		void *frag;
+		void *ctabf;
+		void *ctabv;
 	} hlsl;
 #endif
 };
@@ -429,6 +437,7 @@ void R_BackendInit (void);
 void Shader_Shutdown (void);
 qboolean Shader_Init (void);
 void Shader_NeedReload(void);
+void Shader_WriteOutGenerics_f(void);
 
 mfog_t *CM_FogForOrigin(vec3_t org);
 
@@ -470,7 +479,8 @@ void D3DBE_DrawWorld (qbyte *vis);
 qboolean D3DBE_LightCullModel(vec3_t org, model_t *model);
 void D3DBE_SelectEntity(entity_t *ent);
 
-union programhandle_u D3DShader_CreateProgram (char **precompilerconstants, char *vert, char *frag);
+void D3DShader_CreateProgram (program_t *prog, int permu, char **precompilerconstants, char *vert, char *frag);
+int D3DShader_FindUniform(union programhandle_u *h, int type, char *name);
 void D3DShader_Init(void);
 #endif
 
@@ -496,4 +506,10 @@ void BE_BaseEntShadowDepth(void);
 //Sets the given light+colour to be the current one that everything is to be lit/culled by.
 void BE_SelectDLight(dlight_t *dl, vec3_t colour);
 #endif
+
+struct shader_field_names_s
+{
+	char *name;
+	enum shaderprogparmtype_e ptype;
+} shader_field_names[];
 #endif

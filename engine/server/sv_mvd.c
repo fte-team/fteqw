@@ -1416,7 +1416,7 @@ mvddest_t *SV_InitRecordFile (char *name)
 		Q_strncpyz(demo.path, ".", MAX_OSPATH);
 
 	SV_BroadcastPrintf (PRINT_CHAT, "Server starts recording (%s):\n%s\n", (dst->desttype == DEST_BUFFEREDFILE) ? "memory" : "disk", name);
-	Cvar_ForceSet(Cvar_Get("serverdemo", "", CVAR_NOSET, ""), demo.name);
+	Cvar_ForceSet(Cvar_Get("serverdemo", "", CVAR_NOSET, ""), SV_Demo_CurrentOutput());
 
 	Q_strncpyz(path, name, MAX_OSPATH);
 	Q_strncpyz(path + strlen(path) - 3, "txt", MAX_OSPATH - strlen(path) + 3);
@@ -1445,6 +1445,17 @@ mvddest_t *SV_InitRecordFile (char *name)
 	FS_FlushFSHash();
 
 	return dst;
+}
+
+char *SV_Demo_CurrentOutput(void)
+{
+	mvddest_t *d;
+	for (d = demo.dest; d; d = d->nextdest)
+	{
+		if (d->desttype == DEST_FILE || d->desttype == DEST_BUFFEREDFILE)
+			return d->name;
+	}
+	return "QTV";
 }
 
 mvddest_t *SV_InitStream(int socket)
@@ -2916,8 +2927,8 @@ void SV_MVDInit(void)
 #ifdef SERVERONLY	//client command would conflict otherwise.
 	Cmd_AddCommand ("record", SV_MVD_Record_f);
 	Cmd_AddCommand ("stop", SV_MVDStop_f);
-	Cmd_AddCommand ("cancel", SV_MVD_Cancel_f);
 #endif
+	Cmd_AddCommand ("cancel", SV_MVD_Cancel_f);
 	Cmd_AddCommand ("qtvreverse", SV_MVD_QTVReverse_f);
 	Cmd_AddCommand ("mvdrecord", SV_MVD_Record_f);
 	Cmd_AddCommand ("easyrecord", SV_MVDEasyRecord_f);

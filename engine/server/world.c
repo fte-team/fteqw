@@ -469,10 +469,7 @@ void World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 // link to PVS leafs
 	if (w->worldmodel)
 	{
-		if (ent->v->modelindex)
-			w->worldmodel->funcs.FindTouchedLeafs(w->worldmodel, &ent->pvsinfo, ent->v->absmin, ent->v->absmax);
-		else
-			w->worldmodel->funcs.FindTouchedLeafs(w->worldmodel, &ent->pvsinfo, NULL, NULL);
+		w->worldmodel->funcs.FindTouchedLeafs(w->worldmodel, &ent->pvsinfo, ent->v->absmin, ent->v->absmax);
 	}
 
 	if (ent->v->solid == SOLID_NOT)
@@ -1445,8 +1442,16 @@ static void World_ClipToEverything (world_t *w, moveclip_t *clip)
 		if (trace.allsolid || trace.startsolid ||
 				trace.fraction < clip->trace.fraction)
 		{
-			trace.ent = touch;
-			clip->trace = trace;
+			if (clip->type & MOVE_ENTCHAIN)
+			{
+				touch->v->chain = EDICT_TO_PROG(w->progs, clip->trace.ent?clip->trace.ent:w->edicts);
+				clip->trace.ent = touch;
+			}
+			else
+			{
+				trace.ent = touch;
+				clip->trace = trace;
+			}
 		}
 	}
 }
@@ -1535,11 +1540,20 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins2, clip->maxs2, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL);
 		else
 			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL);
+
 		if (trace.allsolid || trace.startsolid ||
 		trace.fraction < clip->trace.fraction)
 		{
-			trace.ent = touch;
-			clip->trace = trace;
+			if (clip->type & MOVE_ENTCHAIN)
+			{
+				touch->v->chain = EDICT_TO_PROG(w->progs, clip->trace.ent?clip->trace.ent:w->edicts);
+				clip->trace.ent = touch;
+			}
+			else
+			{
+				trace.ent = touch;
+				clip->trace = trace;
+			}
 		}
 	}
 	
@@ -1822,8 +1836,16 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 
 				if (trace.allsolid || trace.startsolid || trace.fraction < clip.trace.fraction)
 				{
-					trace.ent = touch;
-					clip.trace = trace;
+					if (clip.type & MOVE_ENTCHAIN)
+					{
+						touch->v->chain = EDICT_TO_PROG(w->progs, clip.trace.ent?clip.trace.ent:w->edicts);
+						clip.trace.ent = touch;
+					}
+					else
+					{
+						trace.ent = touch;
+						clip.trace = trace;
+					}
 				}
 			}
 		}

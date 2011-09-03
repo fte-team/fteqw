@@ -26,9 +26,11 @@ typedef struct {
 rankfileheader_t rankfileheader;
 FILE *rankfile;
 
-cvar_t rank_autoadd = SCVAR("rank_autoadd", "1");
-cvar_t rank_needlogin = SCVAR("rank_needlogin", "0");
-cvar_t rank_filename = SCVAR("rank_filename", "");
+cvar_t rank_autoadd = CVARD("rank_autoadd", "1", "Automatically register players into the ranking system");
+cvar_t rank_needlogin = CVARD("rank_needlogin", "0", "If set to 1, prohibits players from joining if they're not already registered.");
+cvar_t rank_filename = CVARD("rank_filename", "", "Specifies which file to use as a rankings database. Enables the ranking system if set.");
+cvar_t rank_parms_first = CVARD("rank_parms_first", "0", "Mod setting: first parm saved");
+cvar_t rank_parms_last = CVARD("rank_parms_last", "31", "Mod setting: the index of the last parm to be saved. Clamped to 32.");
 char rank_cvargroup[] = "server rankings";
 
 #define RANKFILE_VERSION ((NUM_RANK_SPAWN_PARMS==32)?0:0x00000001)
@@ -40,7 +42,7 @@ void inline READ_PLAYERSTATS(int x, rankstats_t *os)
 	size_t result;
 
 	fseek(rankfile, sizeof(rankfileheader_t)+sizeof(rankheader_t)+((x-1)*sizeof(rankinfo_t)), SEEK_SET);
-	result = fread(os, sizeof(rankstats_t), 1, rankfile);
+	result = fread(os, 1, sizeof(rankstats_t), rankfile);
 
 	if (result != sizeof(rankstats_t))
 		Con_Printf("READ_PLAYERSTATS() fread: expected %lu, result was %u (%s)\n",(long unsigned int)sizeof(rankstats_t),(unsigned int)result,strerror(errno));
@@ -73,7 +75,7 @@ void inline WRITE_PLAYERSTATS(int x, rankstats_t *os)
 	ns.pad2 = (os->pad2);
 	ns.pad3 = (os->pad3);
 
-	fwrite(&ns, sizeof(rankstats_t), 1, rankfile);
+	fwrite(&ns, 1, sizeof(rankstats_t), rankfile);
 }
 
 void inline READ_PLAYERHEADER(int x, rankheader_t *oh)
@@ -82,7 +84,7 @@ void inline READ_PLAYERHEADER(int x, rankheader_t *oh)
 
 	fseek(rankfile, sizeof(rankfileheader_t)+((x-1)*sizeof(rankinfo_t)), SEEK_SET);
 
-	result = fread(oh, sizeof(rankheader_t), 1, rankfile);
+	result = fread(oh, 1, sizeof(rankheader_t), rankfile);
 
 	if (result != sizeof(rankheader_t))
 		Con_Printf("READ_PLAYERHEADER() fread: expected %lu, result was %u (%s)\n",(long unsigned int)sizeof(rankheader_t),(unsigned int)result,strerror(errno));
@@ -106,7 +108,7 @@ void inline WRITE_PLAYERHEADER(int x, rankheader_t *oh)
 	nh.pwd = swaplong(oh->pwd);
 	nh.score = swapfloat(oh->score);
 
-	fwrite(&nh, sizeof(rankheader_t), 1, rankfile);
+	fwrite(&nh, 1, sizeof(rankheader_t), rankfile);
 }
 
 void inline READ_PLAYERINFO(int x, rankinfo_t *inf)
@@ -126,9 +128,9 @@ void inline WRITEHEADER(void)
 	nh.freeslot		= swaplong(rankfileheader.freeslot);
 
 	fseek(rankfile, 0, SEEK_SET);
-	fwrite(&nh, sizeof(rankfileheader_t), 1, rankfile);
+	fwrite(&nh, 1, sizeof(rankfileheader_t), rankfile);
 }
-//#define WRITEHEADER() 	{fseek(rankfile, 0, SEEK_SET);fwrite(&rankfileheader, sizeof(rankfileheader_t), 1, rankfile);}
+//#define WRITEHEADER() 	{fseek(rankfile, 0, SEEK_SET);fwrite(&rankfileheader, 1, sizeof(rankfileheader_t), rankfile);}
 
 #define NAMECMP(saved, against)	Q_strncasecmp(saved, against, 31)
 
@@ -161,7 +163,7 @@ qboolean Rank_OpenRankings(void)
 		memset(&rankfileheader, 0, sizeof(rankfileheader));
 
 		fseek(rankfile, 0, SEEK_SET);
-		result = fread(&rankfileheader, sizeof(rankfileheader_t), 1, rankfile);
+		result = fread(&rankfileheader, 1, sizeof(rankfileheader_t), rankfile);
 
 		if (result != sizeof(rankfileheader_t))
 			Con_Printf("Rank_OpenRankings() fread: expected %lu, result was %u (%s)\n",(long unsigned int)sizeof(rankfileheader_t),(unsigned int)result,strerror(errno));
@@ -388,7 +390,7 @@ void Rank_SetPlayerStats(int id, rankstats_t *stats)
 	}
 }
 
-int Rank_GetPlayerID(char *name, int pwd, qboolean allowadd, qboolean requirepasswordtobeset)
+int Rank_GetPlayerID(char *guid, char *name, int pwd, qboolean allowadd, qboolean requirepasswordtobeset)
 {
 	rankstats_t rs;
 	rankheader_t rh;
@@ -902,6 +904,9 @@ void Rank_RegisterCommands(void)
 	Cvar_Register(&rank_autoadd, rank_cvargroup);
 	Cvar_Register(&rank_needlogin, rank_cvargroup);
 	Cvar_Register(&rank_filename, rank_cvargroup);
+
+	Cvar_Register(&rank_parms_first, rank_cvargroup);
+	Cvar_Register(&rank_parms_last, rank_cvargroup);
 }
 void Rank_Flush (void)	//new game dir?
 {

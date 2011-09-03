@@ -2922,6 +2922,9 @@ retry:
 					break;
 				}
 			}
+			if (st16[i].op >= OP_RAND0 && st16[i].op <= OP_RANDV2)
+				if (!st16[i].c)
+					st16[i].c = OFS_RETURN;
 		}
 		if (hexencalling)
 		{
@@ -2951,6 +2954,9 @@ retry:
 					break;
 				}
 			}
+			if (st16[i].op >= OP_RAND0 && st16[i].op <= OP_RANDV2)
+				if (!st16[i].c)
+					st16[i].c = OFS_RETURN;
 		}
 		if (hexencalling)
 		{

@@ -639,7 +639,9 @@ static int SNDDMA_Init(soundcardinfo_t *sc, int *cardnum, int *drivernum)
 	memset(sc, 0, sizeof(*sc));
 
 	// set requested rate
-	if (!snd_khz.ival)
+	if (snd_khz.ival >= 1000)
+		sc->sn.speed = snd_khz.ival;
+	else if (snd_khz.ival <= 0)
 		sc->sn.speed = 22050;
 /*	else if (snd_khz.ival >= 195)
 		sc->sn.speed = 200000;
@@ -1064,10 +1066,14 @@ void S_Init (void)
 	}
 
 	p = COM_CheckParm ("-soundspeed");
+	if (!p)
+		p = COM_CheckParm ("-sspeed");
+	if (!p)
+		p = COM_CheckParm ("-sndspeed");
 	if (p)
 	{
 		if (p < com_argc-1)
-			Cvar_SetValue(&snd_khz, atof(com_argv[p+1])/1000);
+			Cvar_SetValue(&snd_khz, atof(com_argv[p+1]));
 		else
 			Sys_Error ("S_Init: you must specify a speed in KB after -soundspeed");
 	}

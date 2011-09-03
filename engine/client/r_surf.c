@@ -2447,7 +2447,10 @@ static void Surf_CreateSurfaceLightmap (msurface_t *surf, int shift)
 	}
 
 	if (currentmodel->fromgame == fg_quake3)
+	{
 		Surf_LM_FillBlock(surf->lightmaptexturenum, smax, tmax, surf->light_s, surf->light_t);
+		return;
+	}
 	else
 		surf->lightmaptexturenum = Surf_LM_AllocBlock (smax, tmax, &surf->light_s, &surf->light_t, surf->texinfo->texture->shader);
 	base = lightmap[surf->lightmaptexturenum]->lightmaps;

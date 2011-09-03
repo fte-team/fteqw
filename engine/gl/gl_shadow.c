@@ -1218,7 +1218,7 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs)
 		return true;
 	// set up the scissor rectangle
 	qglScissor(ix1, iy1, ix2 - ix1, iy2 - iy1);
-	//qglEnable(GL_SCISSOR_TEST);
+//	qglEnable(GL_SCISSOR_TEST);
 	return false;
 }
 
@@ -1229,7 +1229,7 @@ void GL_BeginRenderBuffer_DepthOnly(texid_t depthtexture)
 	{
 		if (!shadow_fbo_id)
 		{
-			qglGenRenderbuffersEXT(1, &shadow_fbo_id);
+			qglGenFramebuffersEXT(1, &shadow_fbo_id);
 			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shadow_fbo_id);
 			qglDrawBuffer(GL_NONE);
 			qglReadBuffer(GL_NONE);
@@ -1855,7 +1855,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	BE_SelectMode(BEM_STENCIL);
 
 	//The backend doesn't maintain scissor state.
-//	qglEnable(GL_SCISSOR_TEST);
+	//qglEnable(GL_SCISSOR_TEST);
 	//The backend doesn't maintain stencil test state either - it needs to be active for more than just stencils, or disabled. its awkward.
 	qglEnable(GL_STENCIL_TEST);
 
@@ -2065,7 +2065,9 @@ void Sh_DrawLights(qbyte *vis)
 	extern cvar_t r_shadow_realtime_world_shadows, r_shadow_realtime_dlight_shadows;
 
 	if (!r_shadow_realtime_world.ival && !r_shadow_realtime_dlight.ival)
+	{
 		return;
+	}
 
 	/*no stencil?*/
 	if (gl_config.nofixedfunc)

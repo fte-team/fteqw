@@ -215,6 +215,7 @@ static void GenMatrixPosQuat4Scale(vec3_t pos, vec4_t quat, vec3_t scale, float 
 {
 	   float xx, xy, xz, xw, yy, yz, yw, zz, zw;
 	   float x2, y2, z2;
+	   float s;
 	   x2 = quat[0] + quat[0];
 	   y2 = quat[1] + quat[1];
 	   z2 = quat[2] + quat[2];
@@ -223,17 +224,20 @@ static void GenMatrixPosQuat4Scale(vec3_t pos, vec4_t quat, vec3_t scale, float 
 	   yy = quat[1] * y2;   yz = quat[1] * z2;   zz = quat[2] * z2;
 	   xw = quat[3] * x2;   yw = quat[3] * y2;   zw = quat[3] * z2;
 
-	   result[0*4+0] = 1.0f - (yy + zz);
-	   result[1*4+0] = xy + zw;
-	   result[2*4+0] = xz - yw;
+	   s = scale[0];
+	   result[0*4+0] = s*(1.0f - (yy + zz));
+	   result[1*4+0] = s*(xy + zw);
+	   result[2*4+0] = s*(xz - yw);
 
-	   result[0*4+1] = xy - zw;
-	   result[1*4+1] = 1.0f - (xx + zz);
-	   result[2*4+1] = yz + xw;
+	   s = scale[1];
+	   result[0*4+1] = s*(xy - zw);
+	   result[1*4+1] = s*(1.0f - (xx + zz));
+	   result[2*4+1] = s*(yz + xw);
 
-	   result[0*4+2] = xz + yw;
-	   result[1*4+2] = yz - xw;
-	   result[2*4+2] = 1.0f - (xx + yy);
+	   s = scale[2];
+	   result[0*4+2] = s*(xz + yw);
+	   result[1*4+2] = s*(yz - xw);
+	   result[2*4+2] = s*(1.0f - (xx + yy));
 
 	   result[0*4+3]  =     pos[0];
 	   result[1*4+3]  =     pos[1];
@@ -727,6 +731,7 @@ static int Alias_BuildLerps(float plerp[4], float *pose[4], int numbones, galias
 		frame1=(frame1>g1->numposes-1)?g1->numposes-1:frame1;
 		frame2=(frame2>g1->numposes-1)?g1->numposes-1:frame2;
 	}
+
 	if (frame1 == frame2)
 		mlerp = 0;
 	plerp[l] = (1-mlerp)*(1-lerpfrac);
@@ -1468,7 +1473,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 	{
 		meshcache.usebonepose = Alias_GetBonePositions(inf, &e->framestate, meshcache.bonepose, MAX_BONES);
 
-		if (1)//e->fatness || !inf->ofs_skel_idx || !usebones)
+		if (e->fatness || !inf->ofs_skel_idx || !usebones)
 		{
 			Alias_BuildSkeletalMesh(mesh, meshcache.usebonepose, inf);
 
@@ -1487,7 +1492,9 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 
 #ifdef GLQUAKE
 			if (!inf->numswtransforms && qrenderer == QR_OPENGL)
+			{
 				Alias_GLDrawSkeletalBones((galiasbone_t*)((char*)inf + inf->ofsbones), (float *)meshcache.usebonepose, inf->numbones);
+			}
 #endif
 			meshcache.usebonepose = NULL;
 		}
@@ -3789,6 +3796,7 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 		galias->groups = LittleLong(header->numFrames);
 		galias->numverts = LittleLong(surf->numVerts);
 		galias->numindexes = LittleLong(surf->numTriangles)*3;
+		galias->shares_verts = s;
 		if (parent)
 			parent->nextsurf = (qbyte *)galias - (qbyte *)parent;
 		else
@@ -4931,7 +4939,7 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 		gmdl[i].numindexes = 0;
 		for (j = 0; j < num_face; j++)
 		{
-			if (face[j].mattindex == i)
+			if (face[j].mattindex%num_matt == i)
 			{
 				indexes[gmdl[i].numindexes+0] = face[j].vtxwindex[0];
 				indexes[gmdl[i].numindexes+1] = face[j].vtxwindex[1];
@@ -5525,6 +5533,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	vec4_t *oweight;
 	byte_vec4_t *oindex;
 	float *opose;
+	vec2_t *otcoords;
 
 
 	galiasinfo_t *gai;
@@ -5601,13 +5610,14 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		sizeof(*skin)*h->num_meshes + sizeof(*texnum)*h->num_meshes + 
 #endif
 		sizeof(*fgroup)*h->num_anims + sizeof(float)*12*h->num_poses*h->num_frames + sizeof(*bones)*h->num_joints +
-		(sizeof(*opos) + sizeof(*onorm) + sizeof(*oweight) + sizeof(*oindex)) * h->num_vertexes);
+		(sizeof(*opos) + sizeof(*onorm) + sizeof(*oweight) + sizeof(*otcoords) + sizeof(*oindex)) * h->num_vertexes);
 	bones = (galiasbone_t*)(gai + h->num_meshes);
 	opos = (vecV_t*)(bones + h->num_joints);
 	onorm = (vec3_t*)(opos + h->num_vertexes);
 	oindex = (byte_vec4_t*)(onorm + h->num_vertexes);
 	oweight = (vec4_t*)(oindex + h->num_vertexes);
-	fgroup = (galiasgroup_t*)(oweight + h->num_vertexes);
+	otcoords = (vec2_t*)(oweight + h->num_vertexes);
+	fgroup = (galiasgroup_t*)(otcoords + h->num_vertexes);
 	opose = (float*)(fgroup + h->num_anims);
 #ifndef SERVERONLY
 	skin = (galiasskin_t*)(opose + 12*h->num_poses*h->num_frames);
@@ -5625,6 +5635,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		vec3_t pos;
 		vec4_t quat;
 		vec3_t scale;
+		float mat[12], mat2[12];
 
 		for (i = 0; i < h->num_joints; i++)
 		{
@@ -5632,25 +5643,42 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 			bones[i].parent = ijoint[i].parent;
 
 			GenMatrixPosQuat4Scale(ijoint[i].translate, ijoint[i].rotate, ijoint[i].scale, &basepose[i*12]);
+
+			Matrix3x4_Invert(&basepose[i*12], &invbasepose[12*i]);
+			if (ijoint[i].parent >= 0)
+			{
+				Matrix3x4_Multiply(&basepose[i*12], &basepose[ijoint[i].parent*12], mat);
+				memcpy(&basepose[i*12], mat, sizeof(mat));
+				Matrix3x4_Multiply(&invbasepose[ijoint[i].parent*12], &invbasepose[i*12], mat);
+				memcpy(&invbasepose[i*12], mat, sizeof(mat));
+			}
 		}
 
 		for (i = 0; i < h->num_frames; i++)
 		{
 			for (j = 0, p = ipose; j < h->num_poses; j++, p++)
 			{
-				pos[0]   = p->channeloffset[0]; if (p->mask &   1) pos[0]   += *framedata++ + p->channelscale[0];
-				pos[1]   = p->channeloffset[1]; if (p->mask &   2) pos[1]   += *framedata++ + p->channelscale[1];
-				pos[2]   = p->channeloffset[2]; if (p->mask &   4) pos[2]   += *framedata++ + p->channelscale[2];
-				quat[0]  = p->channeloffset[3]; if (p->mask &   8) quat[0]  += *framedata++ + p->channelscale[3];
-				quat[1]  = p->channeloffset[4]; if (p->mask &  16) quat[1]  += *framedata++ + p->channelscale[4];
-				quat[2]  = p->channeloffset[5]; if (p->mask &  32) quat[2]  += *framedata++ + p->channelscale[5];
-				scale[0] = p->channeloffset[6]; if (p->mask &  64) scale[0] += *framedata++ + p->channelscale[6];
-				scale[1] = p->channeloffset[7]; if (p->mask & 128) scale[1] += *framedata++ + p->channelscale[7];
-				scale[2] = p->channeloffset[8]; if (p->mask & 256) scale[2] += *framedata++ + p->channelscale[8];
+				pos[0]   = p->channeloffset[0]; if (p->mask &   1) pos[0]   += *framedata++ * p->channelscale[0];
+				pos[1]   = p->channeloffset[1]; if (p->mask &   2) pos[1]   += *framedata++ * p->channelscale[1];
+				pos[2]   = p->channeloffset[2]; if (p->mask &   4) pos[2]   += *framedata++ * p->channelscale[2];
+				quat[0]  = p->channeloffset[3]; if (p->mask &   8) quat[0]  += *framedata++ * p->channelscale[3];
+				quat[1]  = p->channeloffset[4]; if (p->mask &  16) quat[1]  += *framedata++ * p->channelscale[4];
+				quat[2]  = p->channeloffset[5]; if (p->mask &  32) quat[2]  += *framedata++ * p->channelscale[5];
+				scale[0] = p->channeloffset[6]; if (p->mask &  64) scale[0] += *framedata++ * p->channelscale[6];
+				scale[1] = p->channeloffset[7]; if (p->mask & 128) scale[1] += *framedata++ * p->channelscale[7];
+				scale[2] = p->channeloffset[8]; if (p->mask & 256) scale[2] += *framedata++ * p->channelscale[8];
 
 				quat[3] = -sqrt(max(1.0 - pow(VectorLength(quat),2), 0.0));
 
 				GenMatrixPosQuat4Scale(pos, quat, scale, opose + (i*h->num_poses+j)*12);
+
+				if (ijoint[j].parent >= 0)
+				{
+					Matrix3x4_Multiply(mat, &basepose[ijoint[j].parent*12], mat2);
+					Matrix3x4_Multiply(&invbasepose[j*12], mat2, &opose[(i*h->num_poses+j)*12]);
+				}
+				else
+					Matrix3x4_Multiply(&invbasepose[j*12], mat, &opose[(i*h->num_poses+j)*12]);
 			}
 		}
 	}
@@ -5661,7 +5689,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		vec3_t pos;
 		vec4_t quat;
 		vec3_t scale;
-		float mat[12];
+		float mat[12], mat2[12];
 
 		for (i = 0; i < h->num_joints; i++)
 		{
@@ -5670,30 +5698,43 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 
 			GenMatrixPosQuat4Scale(ijoint[i].translate, ijoint[i].rotate, ijoint[i].scale, &basepose[i*12]);
 
-//				Mod_Skel_Invert(bones, basepose, h->num_joints, invbonepose);
+			Matrix3x4_Invert(&basepose[i*12], &invbasepose[12*i]);
+			if (ijoint[i].parent >= 0)
+			{
+				Matrix3x4_Multiply(&basepose[i*12], &basepose[ijoint[i].parent*12], mat);
+				memcpy(&basepose[i*12], mat, sizeof(mat));
+				Matrix3x4_Multiply(&invbasepose[ijoint[i].parent*12], &invbasepose[i*12], mat);
+				memcpy(&invbasepose[i*12], mat, sizeof(mat));
+			}
 		}
 
 		for (i = 0; i < h->num_frames; i++)
 		{
 			for (j = 0, p = ipose; j < h->num_poses; j++, p++)
 			{
-				pos[0]   = p->channeloffset[0]; if (p->mask &   1) pos[0]   += *framedata++ + p->channelscale[0];
-				pos[1]   = p->channeloffset[1]; if (p->mask &   2) pos[1]   += *framedata++ + p->channelscale[1];
-				pos[2]   = p->channeloffset[2]; if (p->mask &   4) pos[2]   += *framedata++ + p->channelscale[2];
-				quat[0]  = p->channeloffset[3]; if (p->mask &   8) quat[0]  += *framedata++ + p->channelscale[3];
-				quat[1]  = p->channeloffset[4]; if (p->mask &  16) quat[1]  += *framedata++ + p->channelscale[4];
-				quat[2]  = p->channeloffset[5]; if (p->mask &  32) quat[2]  += *framedata++ + p->channelscale[5];
-				quat[3]  = p->channeloffset[6]; if (p->mask &  64) quat[3]  += *framedata++ + p->channelscale[6];
-				scale[0] = p->channeloffset[7]; if (p->mask & 128) scale[0] += *framedata++ + p->channelscale[7];
-				scale[1] = p->channeloffset[8]; if (p->mask & 256) scale[1] += *framedata++ + p->channelscale[8];
-				scale[2] = p->channeloffset[9]; if (p->mask & 512) scale[2] += *framedata++ + p->channelscale[9];
+				pos[0]   = p->channeloffset[0]; if (p->mask &   1) pos[0]   += *framedata++ * p->channelscale[0];
+				pos[1]   = p->channeloffset[1]; if (p->mask &   2) pos[1]   += *framedata++ * p->channelscale[1];
+				pos[2]   = p->channeloffset[2]; if (p->mask &   4) pos[2]   += *framedata++ * p->channelscale[2];
+				quat[0]  = p->channeloffset[3]; if (p->mask &   8) quat[0]  += *framedata++ * p->channelscale[3];
+				quat[1]  = p->channeloffset[4]; if (p->mask &  16) quat[1]  += *framedata++ * p->channelscale[4];
+				quat[2]  = p->channeloffset[5]; if (p->mask &  32) quat[2]  += *framedata++ * p->channelscale[5];
+				quat[3]  = p->channeloffset[6]; if (p->mask &  64) quat[3]  += *framedata++ * p->channelscale[6];
+				scale[0] = p->channeloffset[7]; if (p->mask & 128) scale[0] += *framedata++ * p->channelscale[7];
+				scale[1] = p->channeloffset[8]; if (p->mask & 256) scale[1] += *framedata++ * p->channelscale[8];
+				scale[2] = p->channeloffset[9]; if (p->mask & 512) scale[2] += *framedata++ * p->channelscale[9];
 
-				GenMatrixPosQuat4Scale(pos, quat, scale, &opose[(i*h->num_poses+j)*12]);
+				GenMatrixPosQuat4Scale(pos, quat, scale, mat);
+
+				if (ijoint[j].parent >= 0)
+				{
+					Matrix3x4_Multiply(mat, &basepose[ijoint[j].parent*12], mat2);
+					Matrix3x4_Multiply(&invbasepose[j*12], mat2, &opose[(i*h->num_poses+j)*12]);
+				}
+				else
+					Matrix3x4_Multiply(&invbasepose[j*12], mat, &opose[(i*h->num_poses+j)*12]);
 			}
 		}
 	}
-
-//	Mod_Skel_PreSkin(basepose, invbonepose
 
 	/*load the framegroup info*/
 	anim = (struct iqmanim*)(buffer + h->ofs_anims);
@@ -5715,7 +5756,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		gai[i].shares_bones = 0;
 		gai[i].numbones = h->num_joints;
 		gai[i].ofsbones = (char*)bones - (char*)&gai[i];
-		gai[i].groups = h->num_frames;
+		gai[i].groups = h->num_anims;
 		gai[i].groupofs = (char*)fgroup - (char*)&gai[i];
 
 #ifndef SERVERONLY
@@ -5730,6 +5771,9 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		skin[i].texnums = 1;
 		skin[i].ofstexnums = (char*)&texnum[i] - (char*)&skin[i];
 		texnum[i].shader = R_RegisterSkin(skin[i].name, mod->name);
+		R_BuildDefaultTexnums(&texnum[i], texnum[i].shader);
+		if (texnum[i].shader->flags & SHADER_NOIMAGE)
+			Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", texnum[i].shader->name, loadmodel->name);
 #endif
 
 		offset = LittleLong(mesh[i].first_vertex);
@@ -5742,11 +5786,12 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		gai[i].ofs_indexes = (char*)idx - (char*)&gai[i];
 		for (t = 0; t < nt; t++)
 		{
-			*idx++ = LittleShort(tris[t].vertex[0]);
-			*idx++ = LittleShort(tris[t].vertex[1]);
-			*idx++ = LittleShort(tris[t].vertex[2]);
+			*idx++ = LittleShort(tris[t].vertex[0]) - offset;
+			*idx++ = LittleShort(tris[t].vertex[1]) - offset;
+			*idx++ = LittleShort(tris[t].vertex[2]) - offset;
 		}
 
+		gai[i].ofs_st_array = (char*)(otcoords+offset) - (char*)&gai[i];
 		/*verts*/
 		gai[i].shares_verts = i;
 		gai[i].numverts = LittleLong(mesh[i].num_vertexes);
@@ -5759,10 +5804,11 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	}
 	for (i = 0; i < h->num_vertexes; i++)
 	{
+		Vector2Copy(tcoord+i*2, otcoords[i]);
 		VectorCopy(vpos+i*3, opos[i]);
 		VectorCopy(vnorm+i*4, onorm[i]);
-		VectorCopy(vbone+i*4, oindex[i]);
-		VectorCopy(vweight+i*4, oweight[i]);
+		Vector4Copy(vbone+i*4, oindex[i]);
+		Vector4Scale(vweight+i*4, 1/255.0, oweight[i]);
 	}
 	return gai;
 }

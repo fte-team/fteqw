@@ -208,7 +208,7 @@ void GL_InitFisheyeFov(void)
 		void main(void)\
 		{\
 			texcoord = gl_MultiTexCoord0.xy;\
-			gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;\
+			gl_Position = ftetransform();\
 		}";
 	char *fisheyefshader = "\
 		uniform samplerCube source;\
@@ -600,7 +600,7 @@ void R_RenderScene (void)
 		Surf_DrawWorld ();		// adds static entities to the list
 	}
 	else
-		BE_DrawNonWorld();
+		BE_DrawWorld(NULL);
 
 	S_ExtraUpdate ();	// don't let sound get messed up if going slow
 

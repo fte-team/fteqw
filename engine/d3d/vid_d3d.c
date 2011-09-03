@@ -58,6 +58,7 @@ static void resetD3D9(void);
 static LPDIRECT3D9 pD3D;
 LPDIRECT3DDEVICE9 pD3DDev9;
 static D3DPRESENT_PARAMETERS d3dpp;
+float d3d_trueprojection[16];
 
 static qboolean vid_initializing;
 
@@ -1180,8 +1181,8 @@ static void D3D9_SetupViewPort(void)
 	d3d9error(IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)r_refdef.m_view));
 
 	/*d3d projection matricies scale depth to 0 to 1*/
-	Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value/2);
-	d3d9error(IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)r_refdef.m_projection));
+	Matrix4x4_CM_Projection_Inf(d3d_trueprojection, fov_x, fov_y, gl_mindist.value/2);
+	d3d9error(IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)d3d_trueprojection));
 	/*ogl projection matricies scale depth to -1 to 1, and I would rather my code used consistant culling*/
 	Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value);
 }

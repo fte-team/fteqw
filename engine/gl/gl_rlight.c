@@ -121,8 +121,11 @@ avec4_t flashblend_colours[FLASHBLEND_VERTS+1];
 vecV_t flashblend_vcoords[FLASHBLEND_VERTS+1];
 vec2_t flashblend_tccoords[FLASHBLEND_VERTS+1];
 index_t flashblend_indexes[FLASHBLEND_VERTS*3];
+index_t flashblend_fsindexes[6] = {0, 1, 2, 0, 2, 3};
 mesh_t flashblend_mesh;
+mesh_t flashblend_fsmesh;
 shader_t *flashblend_shader;
+shader_t *lpplight_shader;
 void R_InitFlashblends(void)
 {
 	int i;
@@ -143,6 +146,14 @@ void R_InitFlashblends(void)
 	flashblend_mesh.numindexes = FLASHBLEND_VERTS*3;
 	flashblend_mesh.istrifan = true;
 
+	flashblend_fsmesh.numvertexes = 4;
+	flashblend_fsmesh.xyz_array = flashblend_vcoords;
+	flashblend_fsmesh.st_array = flashblend_tccoords;
+	flashblend_fsmesh.colors4f_array = flashblend_colours;
+	flashblend_fsmesh.indexes = flashblend_fsindexes;
+	flashblend_fsmesh.numindexes = 6;
+	flashblend_fsmesh.istrifan = true;
+
 	flashblend_shader = R_RegisterShader("flashblend", 
 		"{\n"
 			"{\n"
@@ -153,9 +164,10 @@ void R_InitFlashblends(void)
 			"}\n"
 		"}\n"
 		);
+	lpplight_shader = NULL;
 }
 
-void R_RenderDlight (dlight_t *light, unsigned int beflags)
+static qboolean R_BuildDlightMesh(dlight_t *light, float radscale, qboolean expand)
 {
 	int		i, j;
 //	float	a;
@@ -163,11 +175,11 @@ void R_RenderDlight (dlight_t *light, unsigned int beflags)
 	float	rad;
 	float	*bub_sin, *bub_cos;
 	vec3_t colour;
+	extern cvar_t gl_mindist;
 
 	bub_sin = bubble_sintable;
 	bub_cos = bubble_costable;
-	rad = light->radius * 0.35;
-	rad = 16;
+	rad = light->radius * radscale;
 
 	VectorCopy(light->color, colour);
 
@@ -182,19 +194,17 @@ void R_RenderDlight (dlight_t *light, unsigned int beflags)
 	}
 
 	VectorSubtract (light->origin, r_origin, v);
-	if (Length (v) < rad)
+	if (Length (v) < rad + gl_mindist.value*2)
 	{	// view is inside the dlight
-		AddLightBlend (colour[0]*5, colour[1]*5, colour[2]*5, light->radius * 0.0003);
-		return;
+		return false;
 	}
 
 	flashblend_colours[0][0] = colour[0]*2;
 	flashblend_colours[0][1] = colour[1]*2;
 	flashblend_colours[0][2] = colour[2]*2;
 	flashblend_colours[0][3] = 1;
-	
-	for (i=0 ; i<3 ; i++)
-		flashblend_vcoords[0][i] = light->origin[i] - vpn[i]*rad/1.5;
+
+	VectorCopy(light->origin, flashblend_vcoords[0]);
 	for (i=16 ; i>0 ; i--)
 	{
 		for (j=0 ; j<3 ; j++)
@@ -203,8 +213,17 @@ void R_RenderDlight (dlight_t *light, unsigned int beflags)
 		bub_sin++; 
 		bub_cos++;
 	}
-
-	BE_DrawMesh_Single(flashblend_shader, &flashblend_mesh, NULL, &flashblend_shader->defaulttextures, beflags);
+	if (!expand)
+		VectorMA(flashblend_vcoords[0], -rad/1.5, vpn, flashblend_vcoords[0]);
+	else
+	{
+		vec3_t diff;
+		VectorSubtract(r_origin, light->origin, diff);
+		VectorNormalize(diff);
+		for (i=0 ; i<=16 ; i++)
+			VectorMA(flashblend_vcoords[i], rad, diff, flashblend_vcoords[i]);
+	}
+	return true;
 }
 
 /*
@@ -251,7 +270,88 @@ void GLR_RenderDlights (void)
 			if (TraceLineN(r_refdef.vieworg, l->origin, waste1, waste2))
 				continue;
 		}
-		R_RenderDlight (l, beflags);
+		if (!R_BuildDlightMesh (l, r_flashblendscale.value, false))
+			AddLightBlend (l->color[0]*5, l->color[1]*5, l->color[2]*5, l->radius * 0.0003);
+		else
+			BE_DrawMesh_Single(flashblend_shader, &flashblend_mesh, NULL, &flashblend_shader->defaulttextures, beflags);
+	}
+}
+
+
+void R_GenDlightMesh(struct batch_s *batch)
+{
+	static mesh_t *meshptr;
+	dlight_t	*l = cl_dlights + batch->surf_first;
+
+	BE_SelectDLight(l, l->color);
+
+	if (!R_BuildDlightMesh (l, 1, true))
+	{
+		int i;
+		static vec2_t s[4] = {{1, -1}, {-1, -1}, {-1, 1}, {1, 1}};
+		batch->flags |= BEF_FORCENODEPTH;
+		for (i = 0; i < 4; i++)
+		{
+			VectorMA(r_origin, 32, vpn, flashblend_vcoords[i]);
+			VectorMA(flashblend_vcoords[i], s[i][0]*320, vright, flashblend_vcoords[i]);
+			VectorMA(flashblend_vcoords[i], s[i][1]*320, vup, flashblend_vcoords[i]);
+		}
+
+		meshptr = &flashblend_fsmesh;
+	}
+	else
+	{
+		meshptr = &flashblend_mesh;
+	}
+	batch->mesh = &meshptr;
+}
+void R_GenDlightBatches(batch_t *batches[])
+{
+	int i, sort;
+	dlight_t	*l;
+	batch_t		*b;
+	if (!lpplight_shader)
+		lpplight_shader = R_RegisterShader("lpp_light", 
+						"{\n"
+							"program lpp_light\n"
+							"{\n"
+								"map $sourcecolour\n"
+								"blendfunc gl_one gl_one\n"
+							"}\n"
+							"surfaceparm nodlight\n"
+							"lpp_light\n"
+						"}\n"
+					);
+
+	l = cl_dlights+rtlights_first;
+	for (i=rtlights_first; i<rtlights_max; i++, l++)
+	{
+		if (!l->radius)
+			continue;
+
+		if (R_CullSphere(l->origin, l->radius))
+			continue;
+
+		b = BE_GetTempBatch();
+		if (!b)
+			return;
+
+		b->flags = 0;
+		sort = lpplight_shader->sort;
+		b->buildmeshes = R_GenDlightMesh;
+		b->ent = &r_worldentity;
+		b->mesh = NULL;
+		b->firstmesh = 0;
+		b->meshes = 1;
+		b->skin = &lpplight_shader->defaulttextures;
+		b->texture = NULL;
+		b->shader = lpplight_shader;
+		b->lightmap = -1;
+		b->surf_first = i;
+		b->flags |= BEF_NOSHADOWS;
+		b->vbo = 0;
+		b->next = batches[sort];
+		batches[sort] = b;
 	}
 }
 

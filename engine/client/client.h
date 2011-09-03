@@ -787,10 +787,9 @@ void CL_SetInfo (int pnum, char *key, char *value);
 void CL_BeginServerConnect(int port);
 char *CL_TryingToConnect(void);
 
-#define			MAX_VISEDICTS	1024
+#define			MAX_VISEDICTS	2048
 extern	int				cl_numvisedicts;
-extern	entity_t		*cl_visedicts;
-extern	entity_t		cl_visedicts_list[MAX_VISEDICTS];
+extern	entity_t		cl_visedicts[];
 
 /*these are for q3 really*/
 typedef struct {
@@ -924,7 +923,7 @@ int CL_CalcNet (void);
 void CL_ClearParseState(void);
 void CL_DumpPacket(void);
 void CL_ParseEstablished(void);
-void CL_ParseServerMessage (void);
+void CLQW_ParseServerMessage (void);
 void CLNQ_ParseServerMessage (void);
 #ifdef Q2CLIENT
 void CLQ2_ParseServerMessage (void);
@@ -1031,6 +1030,7 @@ char *CG_GetConfigString(int num);
 //pr_csqc.c
 //
 #ifdef CSQC_DAT
+qboolean CSQC_Inited(void);
 qboolean CSQC_Init (unsigned int checksum);
 void CSQC_RegisterCvarsAndThings(void);
 qboolean CSQC_DrawView(void);
@@ -1046,6 +1046,7 @@ qboolean CSQC_ParseTempEntity(unsigned char firstbyte);
 qboolean CSQC_ConsoleCommand(char *cmd);
 qboolean CSQC_KeyPress(int key, int unicode, qboolean down);
 qboolean CSQC_MouseMove(float xdelta, float ydelta);
+qboolean CSQC_MousePosition(float xabs, float yabs);
 int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation);
 void CSQC_ParseEntities(void);
 qboolean CSQC_SettingListener(void);

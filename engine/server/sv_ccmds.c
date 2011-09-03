@@ -1151,7 +1151,7 @@ void SV_CripplePlayer_f (void)
 		if (!cl->iscrippled)
 		{
 			SV_LogPlayer(cl, "crippled");
-			if (persist)
+			if (persist && cl->rankid)
 			{
 				cl->iscrippled = 2;
 				SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTISCRIPPLEDPERMANENTLY, cl->name);
@@ -1186,7 +1186,7 @@ void SV_Mute_f (void)
 		if (!cl->ismuted)
 		{
 			SV_LogPlayer(cl, "muted");
-			if (persist)
+			if (persist && cl->rankid)
 			{
 				cl->ismuted = 2;
 				SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTISMUTEDPERMANENTLY, cl->name);
@@ -1221,7 +1221,7 @@ void SV_Cuff_f (void)
 		if (!cl->iscuffed)
 		{
 			SV_LogPlayer(cl, "cuffed");
-			if (persist)
+			if (persist && cl->rankid)
 			{
 				cl->iscuffed = 2;
 				SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTISCUFFEDPERMANENTLY, cl->name);
@@ -1437,20 +1437,23 @@ void SV_Status_f (void)
 
 	NET_PrintAddresses(svs.sockets);
 
-	Con_Printf ("cpu utilization  : %3i%%\n",(int)cpu);
-	Con_Printf ("avg response time: %i ms\n",(int)avg);
-	Con_Printf ("packets/frame    : %5.2f\n", pak);	//not relevent as a limit.
-
+	Con_Printf("cpu utilization  : %3i%%\n",(int)cpu);
+	Con_Printf("avg response time: %i ms\n",(int)avg);
+	Con_Printf("packets/frame    : %5.2f\n", pak);	//not relevent as a limit.
+	Con_Printf("server uptime    : %s\n", ShowTime(realtime));
+	Con_Printf("map uptime       : %s\n", ShowTime(sv.world.physicstime));
 	//show the current map+name (but hide name if its too long or would be ugly)
 	if (columns >= 80 && *sv.mapname && strlen(sv.mapname) < 45 && !strchr(sv.mapname, '\n'))
 		Con_Printf ("current map      : %s (%s)\n", sv.name, sv.mapname);
 	else
 		Con_Printf ("current map      : %s\n", sv.name);
 
-	Con_Printf("map uptime       : %s\n", ShowTime(sv.world.physicstime));
-	Con_Printf("server uptime    : %s\n", ShowTime(realtime));
+	Con_Printf("entities         : %i/%i\n", sv.world.num_edicts, sv.world.max_edicts);
+	Con_Printf("gamedir          : %s\n", FS_GetGamedir());
 	if (sv.csqcdebug)
 		Con_Printf("csqc debug       : true\n");
+	if (sv.mvdrecording)
+		Con_Printf("recording        : %s\n", SV_Demo_CurrentOutput());
 	Con_Printf("public           : %s\n", sv_public.value?"yes":"no");
 	Con_Printf("client types     :%s%s%s%s\n", sv_listen_qw.ival?" QW":"", sv_listen_nq.ival?" NQ":"", sv_listen_dp.ival?" DP":"", sv_listen_q3.ival?" Q3":"");
 

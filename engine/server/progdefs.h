@@ -109,17 +109,17 @@ if the middle has a valid name, both left+right must have valid names too.
 so the base fields are a fixed size
 and the extension fields are added on the end and can have extra vm-specific stuff added on the end
 */
-/*DO NOT ADD TO THIS STRUCTURE*/
+/*DO NOT ADD TO THIS STRUCTURE (base-qw-compat for q1qvm)*/
 #define comqcfields	\
 	comfieldfloat(modelindex,modelindex,modelindex);\
 	comfieldvector(absmin,absmin,absmin);\
 	comfieldvector(absmax,absmax,absmax);\
-	comfieldfloat(ltime,_ltime,_ltime);\
-	comfieldfloat(lastruntime,_lastruntime,_lastruntime);	/*type doesn't match the qc, we use a hidden double instead. this is dead.*/ 	\
+	comfieldfloat(ltime,ltime,_ltime);\
+	comfieldfloat(_lastruntime,lastruntime,_lastruntime);	/*type doesn't match the qc, we use a hidden double instead. this is dead.*/ 	\
 	comfieldfloat(movetype,movetype,movetype);\
 	comfieldfloat(solid,solid,solid);\
 	comfieldvector(origin,origin,origin);\
-	comfieldvector(oldorigin,_oldorigin,_oldorigin);\
+	comfieldvector(oldorigin,oldorigin,_oldorigin);\
 	comfieldvector(velocity,velocity,velocity);\
 	comfieldvector(angles,angles,angles);\
 	comfieldvector(avelocity,avelocity,avelocity);\
@@ -133,9 +133,9 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldvector(size,size,size);\
 	comfieldfunction(touch,touch,touch);\
 	comfieldfunction(_use,_use,_use);\
-	comfieldfunction(think,_think,think);\
-	comfieldfunction(blocked,_blocked,_blocked);\
-	comfieldfloat(nextthink,_nextthink,nextthink);\
+	comfieldfunction(think,think,think);\
+	comfieldfunction(blocked,blocked,_blocked);\
+	comfieldfloat(nextthink,nextthink,nextthink);\
 	comfieldentity(groundentity,groundentity,groundentity);\
 	comfieldfloat(health,_health,_health);\
 	comfieldfloat(frags,_frags,_frags);\
@@ -151,13 +151,13 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(takedamage,_takedamage,_takedamage);\
 	comfieldentity(chain,chain,chain);\
 	comfieldfloat(_deadflag,_deadflag,_deadflag);\
-	comfieldvector(view_ofs,_view_ofs,_view_ofs);\
+	comfieldvector(view_ofs,view_ofs,_view_ofs);\
 	comfieldfloat(button0,_button0,_button0);\
 	comfieldfloat(button1,_button1,_button1);	/*dead field in nq mode*/	\
 	comfieldfloat(button2,_button2,_button2);\
 	comfieldfloat(impulse,_impulse,_impulse);\
 	comfieldfloat(fixangle,_fixangle,_fixangle);\
-	comfieldvector(v_angle,_v_angle,_v_angle);\
+	comfieldvector(v_angle,v_angle,_v_angle);\
 	comfieldstring(netname,_netname,_netname);\
 	comfieldentity(enemy,enemy,enemy);\
 	comfieldfloat(flags,flags,flags);\
@@ -167,8 +167,8 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(teleport_time,_teleport_time,_teleport_time);\
 	comfieldfloat(_armortype,_armortype,_armortype);\
 	comfieldfloat(armorvalue,_armorvalue,_armorvalue);\
-	comfieldfloat(waterlevel,_waterlevel,_waterlevel);\
-	comfieldfloat(watertype,_watertype,_watertype);\
+	comfieldfloat(waterlevel,waterlevel,_waterlevel);\
+	comfieldfloat(watertype,watertype,_watertype);\
 	comfieldfloat(ideal_yaw,ideal_yaw,ideal_yaw);\
 	comfieldfloat(yaw_speed,yaw_speed,yaw_speed);\
 	comfieldentity(aiment,aiment,aiment);\
@@ -190,13 +190,17 @@ and the extension fields are added on the end and can have extra vm-specific stu
 /*DO NOT ADD TO THE ABOVE STRUCTURE*/
 
 #define comextqcfields	\
+	comfieldvector(punchangle); /*std in nq*/\
 	comfieldfloat(gravity);	/*added in quake 1.09 (for hipnotic)*/\
 	comfieldfloat(hull);/*PEXT_HEXEN2*/\
+	comfieldentity(movechain);/*hexen2*/\
+	comfieldfunction(chainmoved);/*hexen2*/\
 	comfieldfloat(dimension_solid);/*EXT_DIMENSION_PHYSICS*/\
 	comfieldfloat(dimension_hit);/*EXT_DIMENSION_PHYSICS*/\
 	comfieldfloat(scale);/*DP_ENT_SCALE*/\
 	comfieldfloat(fatness);/*FTE_PEXT_FATNESS*/\
 	comfieldfloat(alpha);/*DP_ENT_ALPHA*/\
+	comfieldvector(colormod);\
 	comfieldfloat(pmove_flags);/*EXT_CSQC_1*/\
 	comfieldfloat(jointtype);/*DP_...PHYSICS*/\
 	comfieldfloat(mass);/*DP_...PHYSICS*/\
@@ -206,7 +210,6 @@ and the extension fields are added on the end and can have extra vm-specific stu
 #define svextqcfields \
 	comfieldfloat(maxspeed);/*added in quake 1.09*/\
 	comfieldfloat(items2);		/*added in quake 1.09 (for hipnotic)*/\
-	comfieldvector(punchangle); /*std in nq*/\
 	comfieldentity(view2);/*FTE_PEXT_VIEW2*/\
 	comfieldvector(movement);\
 	comfieldfloat(vw_index);\
@@ -227,7 +230,6 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(glow_color);\
 	comfieldfloat(glow_trail);\
 	comfieldvector(color);\
-	comfieldvector(colormod);\
 	comfieldfloat(light_lev);\
 	comfieldfloat(style);\
 	comfieldfloat(pflags);\
@@ -238,8 +240,6 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(dimension_ghost_alpha);/*EXT_DIMENSION_GHOST*/\
 	comfieldfloat(playerclass);/*hexen2 requirements*/\
 	comfieldfloat(drawflags);/*hexen2*/\
-	comfieldentity(movechain);/*hexen2*/\
-	comfieldfunction(chainmoved);/*hexen2*/\
 	comfieldfloat(hasted);/*hexen2 uses this AS WELL as maxspeed*/\
 	comfieldfloat(light_level);/*hexen2's grabbing light level from client*/\
 	comfieldfloat(abslight);/*hexen2's force a lightlevel*/\

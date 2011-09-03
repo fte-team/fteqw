@@ -31,6 +31,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <ctype.h>
 
+#ifdef D3DQUAKE
+#include <d3d9.h>
+extern LPDIRECT3DDEVICE9 pD3DDev9;
+#endif
+
 extern texid_t missing_texture;
 static qboolean shader_reload_needed;
 static qboolean shader_rescan_needed;
@@ -218,7 +223,9 @@ static qboolean Shader_EvaluateCondition(char **ptr)
 	{
 		extern cvar_t gl_bump;
 		token++;
-		if (!Q_stricmp(token, "lightmap"))
+		if (!Q_stricmp(token, "lpp"))
+			conditiontrue = conditiontrue == !r_lightprepass.ival;
+		else if (!Q_stricmp(token, "lightmap"))
 			conditiontrue = conditiontrue == !r_fullbright.value;
 		else if (!Q_stricmp(token, "deluxmap") )
 			conditiontrue = conditiontrue == (r_deluxemapping.value && gl_bump.value);
@@ -697,32 +704,39 @@ static void Shader_Sort ( shader_t *shader, shaderpass_t *pass, char **ptr )
 {
 	char *token;
 
-
 	token = Shader_ParseString ( ptr );
-	if ( !Q_stricmp( token, "portal" ) ) {
+	if ( !Q_stricmp( token, "portal" ) )
 		shader->sort = SHADER_SORT_PORTAL;
-	} else if( !Q_stricmp( token, "sky" ) ) {
+	else if( !Q_stricmp( token, "sky" ) )
 		shader->sort = SHADER_SORT_SKY;
-	} else if( !Q_stricmp( token, "opaque" ) ) {
+	else if( !Q_stricmp( token, "opaque" ) )
 		shader->sort = SHADER_SORT_OPAQUE;
-	} else if( !Q_stricmp( token, "decal" ) ) {
+	else if( !Q_stricmp( token, "decal" ) )
 		shader->sort = SHADER_SORT_DECAL;
-	} else if( !Q_stricmp( token, "seethrough" ) ) {
+	else if( !Q_stricmp( token, "seethrough" ) )
 		shader->sort = SHADER_SORT_SEETHROUGH;
-	} else if( !Q_stricmp( token, "banner" ) ) {
+	else if( !Q_stricmp( token, "banner" ) )
 		shader->sort = SHADER_SORT_BANNER;
-	} else if( !Q_stricmp( token, "additive" ) ) {
+	else if( !Q_stricmp( token, "additive" ) )
 		shader->sort = SHADER_SORT_ADDITIVE;
-	} else if( !Q_stricmp( token, "underwater" ) ) {
+	else if( !Q_stricmp( token, "underwater" ) )
 		shader->sort = SHADER_SORT_UNDERWATER;
-	} else if( !Q_stricmp( token, "nearest" ) ) {
+	else if( !Q_stricmp( token, "nearest" ) )
 		shader->sort = SHADER_SORT_NEAREST;
-	} else if( !Q_stricmp( token, "blend" ) ) {
+	else if( !Q_stricmp( token, "blend" ) )
 		shader->sort = SHADER_SORT_BLEND;
-	} else {
+	else if ( !Q_stricmp( token, "lpp_light" ) )
+		shader->sort = SHADER_SORT_PRELIGHT;
+	else
+	{
 		shader->sort = atoi ( token );
 		clamp ( shader->sort, SHADER_SORT_NONE, SHADER_SORT_NEAREST );
 	}
+}
+
+static void Shader_Prelight ( shader_t *shader, shaderpass_t *pass, char **ptr )
+{
+	shader->sort = SHADER_SORT_PRELIGHT;
 }
 
 static void Shader_Portal ( shader_t *shader, shaderpass_t *pass, char **ptr )
@@ -856,7 +870,7 @@ static void Shader_LoadPermutations(char *name, program_t *prog, char *script, i
 					permutationdefines[pn++] = permutationname[n];
 			}
 			permutationdefines[pn++] = NULL;
-			prog->handle[p] = D3DShader_CreateProgram(permutationdefines, script, script);
+			D3DShader_CreateProgram(prog, p, permutationdefines, script, script);
 		}
 #endif
 	}
@@ -1123,7 +1137,7 @@ struct sbuiltin_s
 			"}\n"
 		"#endif\n"
 	},
-/*	{QR_OPENGL, 110, "defaultsky",
+	{QR_OPENGL, 110, "defaultsky",
 		"#ifdef VERTEX_SHADER\n"
 			"varying vec3 pos;\n"
 
@@ -1160,7 +1174,6 @@ struct sbuiltin_s
 			"}\n"
 		"#endif\n"
 	},
-*/
 /*draws a model. there's lots of extra stuff for light shading calcs and upper/lower textures*/
 	{QR_OPENGL/*ES*/, 100, "defaultskin",
 		"!!permu FULLBRIGHT\n"
@@ -1284,26 +1297,180 @@ struct sbuiltin_s
 			"}\n"
 		"#endif\n"
 	},
+	{QR_OPENGL, 110, "lpp_depthnorm",
+		"!!permu BUMP\n"
+		"varying vec2 pos;\n"
+		"varying vec3 norm, tang, bitang;\n"
+		"#if defined(BUMP)\n"
+			"varying vec2 tc;\n"
+		"#endif\n"
+		"#ifdef VERTEX_SHADER\n"
+			"attribute vec2 v_texcoord;\n"
+			"attribute vec3 v_normal;\n"
+			"attribute vec3 v_svector;\n"
+			"attribute vec3 v_tvector;\n"
+			"uniform mat4 m_modelviewprojection;\n"
+			"void main(void)\n"
+			"{\n"
+				"gl_Position = ftetransform();\n"
+				"pos = gl_Position.zw;\n"
+				"norm = v_normal;\n"
+		"#if defined(BUMP)\n"
+				"tang = v_svector;\n"
+				"bitang = v_tvector;\n"
+				"tc = v_texcoord;\n"
+		"#endif\n"
+			"}\n"
+		"#endif\n"
+		"#ifdef FRAGMENT_SHADER\n"
+			"#if defined(BUMP)\n"
+				"uniform sampler2D s_t0;\n"
+			"#endif\n"
+			"void main(void)\n"
+			"{\n"
+				"vec3 onorm;\n"
+		"#if defined(BUMP)\n"
+				/*transform by the normalmap*/
+				"vec3 bm = 2.0*texture2D(s_t0, tc).xyz - 1.0;\n"
+				"onorm = normalize(bm.x * tang + bm.y * bitang + bm.z * norm);\n"
+		"#else\n"
+				"onorm = norm;\n"
+		"#endif\n"
+				"gl_FragColor = vec4(onorm.xyz, pos.x/pos.y);\n"
+			"}\n"
+		"#endif\n"
+	},
+	{QR_OPENGL, 110, "lpp_light",
+		"varying vec4 tf;\n"
+		"#ifdef VERTEX_SHADER\n"
+		"void main(void)\n"
+		"{\n"
+			"gl_Position = tf = ftetransform();\n"
+		"}\n"
+		"#endif\n"
+		"#ifdef FRAGMENT_SHADER\n"
+		"uniform sampler2D s_t0;\n"
+		"uniform vec3 l_lightposition;\n"
+		"uniform mat4 m_invviewprojection;\n"
+
+		"uniform vec3 l_lightcolour;\n"
+		"uniform float l_lightradius;\n"
+
+		"vec3 calcLightWorldPos(vec2 screenPos, float depth)\n"
+		"{\n"
+			"vec4 pos;\n"
+
+			"pos.x	= screenPos.x;\n"
+			"pos.y	= screenPos.y;\n"
+			"pos.z	= depth;\n"
+			"pos.w	= 1.0;\n"
+			"pos	= m_invviewprojection * pos;\n"
+			"return pos.xyz / pos.w;\n"
+		"}\n"
+
+		"void main (void)\n"
+		"{\n"
+			"vec3 lightColour		= l_lightcolour.rgb;\n"
+			"float lightIntensity	= 1.0;\n"
+			"float lightAttenuation	= l_lightradius;\n"					// fixme: just use the light radius for now, use better near/far att math separately once working
+			"float radiusFar		= l_lightradius;\n"
+			"float radiusNear		= l_lightradius*0.5;\n"
+
+			"vec2 fc;\n"
+			"fc = tf.xy / tf.w;\n"
+			"vec4 data = texture2D(s_t0, (1.0 + fc) / 2.0);\n"
+			"float depth = data.a;\n"
+			"vec3 norm = data.xyz;\n"
+
+			/* calc where the wall that generated this sample came from */
+			"vec3 worldPos	= calcLightWorldPos(fc, depth);\n"
+
+			/*calc diffuse lighting term*/
+			"vec3 lightDir = l_lightposition - worldPos;\n"
+			"float zdiff = 1.0 - saturate( length(lightDir) / lightAttenuation );\n"
+			"float atten = (radiusFar * zdiff) / (radiusFar - radiusNear);\n"
+			"atten = pow(atten, 2.0);\n"
+			"lightDir = normalize(lightDir);\n"
+			
+			"float nDotL = dot(norm, lightDir) * atten;\n"
+			
+			"float lightDiffuse = max(0.0, nDotL);\n"
+
+			/*calc specular term*/
+			// todo: specular term in its own buffer for full coloured specular
+
+			"gl_FragColor = vec4(lightDiffuse * (lightColour * lightIntensity), 1.0);\n"
+//			gl_FragColor = vec4(normalize(lightDir), 0.0);
+		"}\n"
+		"#endif\n"
+	},
+	{QR_OPENGL, 110, "lpp_wall",
+		"!!cvarf gl_overbright\n"
+		"varying vec2 tc, lm;\n"
+		"varying vec4 tf;\n"
+		"#ifdef VERTEX_SHADER\n"
+			"attribute vec2 v_texcoord;\n"
+			"attribute vec2 v_lmcoord;\n"
+
+			"void main (void)\n"
+			"{\n"
+				"tc = v_texcoord;\n"
+				"lm = v_lmcoord;\n"
+				"gl_Position = tf = ftetransform();\n"
+			"}\n"
+		"#endif\n"
+
+		"#ifdef FRAGMENT_SHADER\n"
+			"uniform sampler2D s_t0;\n" /*lpp lighting*/
+			"uniform sampler2D s_t1;\n" /*tex_diffuse*/
+			"uniform sampler2D s_t2;\n" /*tex_lightmap*/
+			//"uniform sampler2D s_t3;\n" /*tex_normalmap*/
+			//"uniform sampler2D s_t4;\n" /*tex_deluxmap*/
+			//"uniform sampler2D s_t5;\n" /*tex_fullbright*/
+			"uniform float cvar_gl_overbright;\n"
+
+			"void main (void)\n"
+			"{\n"
+				"float lmscale = exp2(floor(clamp(cvar_gl_overbright, 0.0, 2.0)));\n"
+				//"gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm) * vec4(scale, scale, scale, 1.0);\n"
+
+				"vec2 nst;\n"
+				"nst = tf.xy / tf.w;\n"
+				"nst = (1.0 + nst) / 2.0;\n"
+				"vec4 l = texture2D(s_t0, nst)*5.0;\n"
+				"vec4 c = texture2D(s_t1, tc);\n"
+				"vec3 lmsamp = texture2D(s_t2, lm).rgb*lmscale;\n"
+				"vec3 diff = l.rgb;\n"
+				"vec3 chrom = diff / (0.001 + dot(diff, vec3(0.3, 0.59, 0.11)));\n"
+				"vec3 spec = chrom * l.a;\n"
+
+				"gl_FragColor = vec4((diff + lmsamp) * c.xyz, 1.0);\n" // + 0.6 * spec, 1.0);
+			"}\n"
+		"#endif\n"
+	},
+
+
+
 #endif
-#if 0//def D3DQUAKE
-		{QR_DIRECT3D, 9, "defaultsky",
+#ifdef D3DQUAKE
+	{QR_DIRECT3D, 9, "defaultsky",
 
 			"struct a2v {\n"
 				"float4 pos: POSITION;\n"
 			"};\n"
 			"struct v2f {\n"
-		"#ifdef VERTEX_SHADER\n"
+				"#ifndef FRAGMENT_SHADER\n"
 				"float4 pos: POSITION;\n"
-		"#endif\n"
-				"float3 vpos: COLOR;\n"
+				"#endif\n"
+				"float3 vpos: TEXCOORD0;\n"
 			"};\n"
 
 		"#ifdef VERTEX_SHADER\n"
-			"float4x4  ModelViewProj;\n"
+			"float4x4  m_modelviewprojection;\n"
 			"v2f main (a2v inp)\n"
 			"{\n"
 			"	v2f outp;\n"
-			"	outp.pos = mul(inp.pos, ModelViewProj);\n"
+			"	outp.pos = mul(m_modelviewprojection, inp.pos);\n"
 			"	outp.vpos = inp.pos;\n"
 			"	return outp;\n"
 			"}\n"
@@ -1312,8 +1479,8 @@ struct sbuiltin_s
 		"#ifdef FRAGMENT_SHADER\n"
 			"float e_time;\n"
 			"float3 e_eyepos;\n"
-			"sampler2D s_t0;\n"
-			"sampler2D s_t1;\n"
+			"sampler s_t0;\n"
+			"sampler s_t1;\n"
 			"float4 main (v2f inp) : COLOR0\n"
 			"{\n"
 			"	float2 tccoord;\n"
@@ -1330,7 +1497,46 @@ struct sbuiltin_s
 			"	float4 clouds = tex2D(s_t1, tccoord);\n"
 
 			"	return float4((solid.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb), 1);\n"
-//			"	return solid.rgb;/*gl_FragColor.g = clouds.r;*/gl_FragColor.b = clouds.a;\n"
+//			"	return float4(solid.rgb, 1);"///*gl_FragColor.g = clouds.r;*/gl_FragColor.b = clouds.a;\n"
+			"}\n"
+		"#endif\n"
+	},
+
+	{QR_DIRECT3D, 9, "defaultwarp",
+		"!!cvarf r_wateralpha\n"
+		"struct a2v {\n"
+			"float4 pos: POSITION;\n"
+			"float2 tc: TEXCOORD0;\n"
+		"};\n"
+		"struct v2f {\n"
+			"#ifndef FRAGMENT_SHADER\n"
+			"float4 pos: POSITION;\n"
+			"#endif\n"
+			"float2 tc: TEXCOORD0;\n"
+		"};\n"
+		"#ifdef VERTEX_SHADER\n"
+			"float4x4  m_modelviewprojection;\n"
+			"v2f main (a2v inp)\n"
+			"{\n"
+			"	v2f outp;\n"
+			"	outp.pos = mul(m_modelviewprojection, inp.pos);\n"
+			"	outp.tc = inp.tc;\n"
+			"	return outp;\n"
+			"}\n"
+		"#endif\n"
+
+		"#ifdef FRAGMENT_SHADER\n"
+			"float cvar_r_wateralpha;\n"
+			"float e_time;\n"
+			"sampler s_t0;\n"
+			"float4 main (v2f inp) : COLOR0\n"
+			"{\n"
+			"	float2 ntc;\n"
+			"	ntc.x = inp.tc.x + sin(inp.tc.y+e_time)*0.125;\n"
+			"	ntc.y = inp.tc.y + sin(inp.tc.x+e_time)*0.125;\n"
+			"	float3 ts = tex2D(s_t0, ntc).xyz;\n"
+
+			"	return float4(ts, cvar_r_wateralpha);\n"
 			"}\n"
 		"#endif\n"
 	},
@@ -1399,9 +1605,24 @@ static program_t *Shader_LoadGeneric(char *name, int qrtype)
 
 	g->prog.refs = 1;
 
-	FS_LoadFile(name, &file);
+	if (strchr(name, '/') || strchr(name, '.'))
+		FS_LoadFile(name, &file);
+	else if (qrenderer == QR_DIRECT3D)
+		FS_LoadFile(va("hlsl/%s.hlsl", name), &file);
+	else if (qrenderer == QR_OPENGL)
+	{
+#ifdef GLQUAKE
+		if (gl_config.gles)
+			FS_LoadFile(va("gles/%s.glsl", name), &file);
+		else
+#endif
+			FS_LoadFile(va("glsl/%s.glsl", name), &file);
+	}
+	else
+		file = NULL;
 	if (file)
 	{
+		Con_DPrintf("Loaded %s from disk\n", name);
 		Shader_LoadPermutations(name, &g->prog, file, qrtype, 0);
 		FS_FreeFile(file);
 
@@ -1437,6 +1658,92 @@ static program_t *Shader_LoadGeneric(char *name, int qrtype)
 	return NULL;
 }
 
+void Shader_WriteOutGenerics_f(void)
+{
+	int i;
+	char *name;
+	for (i = 0; *sbuiltins[i].name; i++)
+	{
+		name = NULL;
+		if (sbuiltins[i].qrtype == QR_OPENGL)
+		{
+			if (sbuiltins[i].apiver == 100)
+				name = va("gles/%s.glsl", sbuiltins[i].name);
+			else
+				name = va("glsl/%s.glsl", sbuiltins[i].name);
+		}
+		else if (sbuiltins[i].qrtype == QR_DIRECT3D)
+			name = va("hlsl/%s.hlsl", sbuiltins[i].name);
+
+		if (name)
+		{
+			vfsfile_t *f = FS_OpenVFS(name, "rb", FS_GAMEONLY);
+			if (f)
+			{
+				int len = VFS_GETLEN(f);
+				char *buf = Hunk_TempAlloc(len);
+				VFS_READ(f, buf, len);
+				if (len != strlen(sbuiltins[i].body) || memcmp(buf, sbuiltins[i].body, len))
+					Con_Printf("Not writing %s - modified version in the way\n", name);
+				else
+					Con_Printf("%s is unmodified\n", name);
+				VFS_CLOSE(f);
+			}
+			else
+			{
+				Con_Printf("Writing %s\n", name);
+				FS_WriteFile(name, sbuiltins[i].body, strlen(sbuiltins[i].body), FS_GAMEONLY);
+			}
+		}
+	}
+}
+
+struct shader_field_names_s shader_field_names[] =
+{
+	/*vertex attributes*/
+	{"v_position",				SP_ATTR_VERTEX},
+	{"v_colour",				SP_ATTR_COLOUR},
+	{"v_texcoord",				SP_ATTR_TEXCOORD},
+	{"v_lmcoord",				SP_ATTR_LMCOORD},
+	{"v_normal",				SP_ATTR_NORMALS},
+	{"v_svector",				SP_ATTR_SNORMALS},
+	{"v_tvector",				SP_ATTR_TNORMALS},
+	{"v_bone",					SP_ATTR_BONENUMS},
+	{"v_weight",				SP_ATTR_BONEWEIGHTS},
+
+	/*matricies*/
+	{"m_model",					SP_M_MODEL},
+	{"m_view",					SP_M_VIEW},
+	{"m_modelview",				SP_M_MODELVIEW},
+	{"m_projection",			SP_M_PROJECTION},
+	{"m_modelviewprojection",	SP_M_MODELVIEWPROJECTION},
+	{"m_bones",					SP_M_ENTBONES},
+	{"m_invviewprojection",		SP_M_INVVIEWPROJECTION},
+	{"m_invmodelviewprojection",SP_M_INVMODELVIEWPROJECTION},
+
+	/*viewer properties*/
+	{"v_eyepos",				SP_V_EYEPOS},
+
+	/*ent properties*/
+	{"e_origin",				SP_E_ORIGIN},
+	{"e_time",					SP_E_TIME},
+	{"e_eyepos",				SP_E_EYEPOS},
+	{"e_colour",				SP_E_COLOURS},
+	{"e_colourident",			SP_E_COLOURSIDENT},
+	{"e_glowmod",				SP_E_GLOWMOD},
+	{"e_topcolour",				SP_E_TOPCOLOURS},
+	{"e_bottomcolour",			SP_E_BOTTOMCOLOURS},
+	{"e_light_dir",				SP_E_L_DIR},
+	{"e_light_mul",				SP_E_L_MUL},
+	{"e_light_ambient",			SP_E_L_AMBIENT},
+
+	/*rtlight properties, use with caution*/
+	{"l_lightradius",			SP_LIGHTRADIUS},
+	{"l_lightcolour",			SP_LIGHTCOLOUR},
+	{"l_lightposition",			SP_LIGHTPOSITION},
+	{NULL}
+};
+
 static void Shader_ProgAutoFields(program_t *prog, char **cvarfnames)
 {
 	unsigned int i, p;
@@ -1444,43 +1751,7 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarfnames)
 	int uniformloc;
 	char tmpname[128];
 	cvar_t *cvar;
-	static struct
-	{
-		char *name;
-		enum shaderprogparmtype_e ptype;
-	} u[] =
-	{
-		/*vertex attributes*/
-		{"v_position",				SP_ATTR_VERTEX},
-		{"v_colour",				SP_ATTR_COLOUR},
-		{"v_texcoord",				SP_ATTR_TEXCOORD},
-		{"v_lmcoord",				SP_ATTR_LMCOORD},
-		{"v_normal",				SP_ATTR_NORMALS},
-		{"v_svector",				SP_ATTR_SNORMALS},
-		{"v_tvector",				SP_ATTR_TNORMALS},
-		{"v_bone",					SP_ATTR_BONENUMS},
-		{"v_weight",				SP_ATTR_BONEWEIGHTS},
 
-		/*matricies*/
-		{"m_model",					SP_MODELMATRIX},
-		{"m_view",					SP_VIEWMATRIX},
-		{"m_modelview",				SP_MODELVIEWMATRIX},
-		{"m_projection",			SP_PROJECTIONMATRIX},
-		{"m_modelviewprojection",	SP_MODELVIEWPROJECTIONMATRIX},
-		{"m_bones",					SP_ENTBONEMATRICIES},
-
-		/*ent properties*/
-		{"e_time",					SP_TIME},
-		{"e_eyepos",				SP_EYEPOS},
-		{"e_colour",				SP_ENTCOLOURS},
-		{"e_colourident",			SP_ENTCOLOURSIDENT},
-		{"e_topcolour",				SP_TOPCOLOURS},
-		{"e_bottomcolour",			SP_BOTTOMCOLOURS},
-		{"e_light_dir",				SP_E_L_DIR},
-		{"e_light_mul",				SP_E_L_MUL},
-		{"e_light_ambient",			SP_E_L_AMBIENT},
-		{NULL}
-	};
 	prog->numparams = 0;
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
@@ -1502,13 +1773,13 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarfnames)
 			{
 				if (!prog->handle[p].glsl)
 					continue;
-				GLSlang_UseProgram(prog->handle[p].glsl);
+				GL_SelectProgram(prog->handle[p].glsl);
 				uniformloc = qglGetUniformLocationARB(prog->handle[p].glsl, va("cvar_%s", tmpname));
 				if (uniformloc != -1)
 					qglUniform1fARB(uniformloc, cvar->value);
 			}
 		}
-		for (i = 0; u[i].name; i++)
+		for (i = 0; shader_field_names[i].name; i++)
 		{
 			found = false;
 			for (p = 0; p < PERMUTATIONS; p++)
@@ -1516,20 +1787,20 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarfnames)
 				if (!prog->handle[p].glsl)
 					continue;
 				GLSlang_UseProgram(prog->handle[p].glsl);
-				if (u[i].ptype >= SP_FIRSTUNIFORM)
-					uniformloc = qglGetUniformLocationARB(prog->handle[p].glsl, u[i].name);
+				if (shader_field_names[i].ptype >= SP_FIRSTUNIFORM)
+					uniformloc = qglGetUniformLocationARB(prog->handle[p].glsl, shader_field_names[i].name);
 				else
-					uniformloc = qglGetAttribLocationARB(prog->handle[p].glsl, u[i].name);
+					uniformloc = qglGetAttribLocationARB(prog->handle[p].glsl, shader_field_names[i].name);
 				if (uniformloc != -1)
 					found = true;
 				prog->parm[prog->numparams].handle[p] = uniformloc;
 			}
 			if (found)
 			{
-				prog->parm[prog->numparams].type = u[i].ptype;
+				prog->parm[prog->numparams].type = shader_field_names[i].ptype;
 				prog->numparams++;
 
-				if (u[i].ptype < SP_FIRSTUNIFORM)
+				if (shader_field_names[i].ptype < SP_FIRSTUNIFORM)
 					prog->nofixedcompat = true;
 			}
 		}
@@ -1546,7 +1817,84 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarfnames)
 					qglUniform1iARB(uniformloc, i);
 			}
 		}
-		GLSlang_UseProgram(0);
+		return;
+	}
+#endif
+#ifdef D3DQUAKE
+	if (qrenderer == QR_DIRECT3D)
+	{
+		prog->nofixedcompat = true;
+
+		/*set cvar uniforms*/
+		for (i = 0; cvarfnames[i]; i++)
+		{
+			for (p = 0; cvarfnames[i][p] && (unsigned char)cvarfnames[i][p] > 32 && p < sizeof(tmpname)-1; p++)
+				tmpname[p] = cvarfnames[i][p];
+			tmpname[p] = 0;
+			cvar = Cvar_FindVar(tmpname);
+			if (!cvar)
+				continue;
+			cvar->flags |= CVAR_SHADERSYSTEM;
+			for (p = 0; p < PERMUTATIONS; p++)
+			{
+				if (!prog->handle[p].glsl)
+					continue;
+				uniformloc = D3DShader_FindUniform(&prog->handle[p], 1, va("cvar_%s", tmpname));
+				if (uniformloc != -1)
+				{
+					vec4_t v = {cvar->value, 0, 0, 0};
+					IDirect3DDevice9_SetVertexShader(pD3DDev9, prog->handle[0].hlsl.vert);
+					IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, 0, v, 1);
+				}
+				uniformloc = D3DShader_FindUniform(&prog->handle[p], 2, va("cvar_%s", tmpname));
+				if (uniformloc != -1)
+				{
+					vec4_t v = {cvar->value, 0, 0, 0};
+					IDirect3DDevice9_SetPixelShader(pD3DDev9, prog->handle[0].hlsl.vert);
+					IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, 0, v, 1);
+				}
+			}
+		}
+		for (i = 0; shader_field_names[i].name; i++)
+		{
+			found = false;
+			for (p = 0; p < PERMUTATIONS; p++)
+			{
+				if (shader_field_names[i].ptype >= SP_FIRSTUNIFORM)
+				{
+					uniformloc = D3DShader_FindUniform(&prog->handle[p], 0, shader_field_names[i].name);
+				}
+				else
+					uniformloc = -1;
+				if (uniformloc != -1)
+					found = true;
+				prog->parm[prog->numparams].handle[p] = uniformloc;
+			}
+			if (found)
+			{
+				prog->parm[prog->numparams].type = shader_field_names[i].ptype;
+				prog->numparams++;
+
+				if (shader_field_names[i].ptype < SP_FIRSTUNIFORM)
+					prog->nofixedcompat = true;
+			}
+		}
+		/*set texture uniforms*/
+		for (p = 0; p < PERMUTATIONS; p++)
+		{
+			for (i = 0; i < 8; i++)
+			{
+				uniformloc = D3DShader_FindUniform(&prog->handle[p], 2, va("s_t%i", i));
+				if (uniformloc != -1)
+				{
+					int v[4] = {i};
+					IDirect3DDevice9_SetPixelShader(pD3DDev9, prog->handle[0].hlsl.vert);
+					IDirect3DDevice9_SetPixelShaderConstantI(pD3DDev9, 0, v, 1);
+				}
+			}
+		}
+		IDirect3DDevice9_SetVertexShader(pD3DDev9, NULL);
+		IDirect3DDevice9_SetPixelShader(pD3DDev9, NULL);
 	}
 #endif
 }
@@ -1685,17 +2033,17 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 		parmtype = SP_CVAR3F;
 	}
 	else if (!Q_stricmp(token, "time"))
-		parmtype = SP_TIME;
+		parmtype = SP_E_TIME;
 	else if (!Q_stricmp(token, "eyepos"))
-		parmtype = SP_EYEPOS;
+		parmtype = SP_E_EYEPOS;
 	else if (!Q_stricmp(token, "entmatrix"))
-		parmtype = SP_ENTMATRIX;
+		parmtype = SP_M_MODEL;
 	else if (!Q_stricmp(token, "colours") || !Q_stricmp(token, "colors"))
-		parmtype = SP_ENTCOLOURS;
+		parmtype = SP_E_COLOURS;
 	else if (!Q_stricmp(token, "upper"))
-		parmtype = SP_TOPCOLOURS;
+		parmtype = SP_E_TOPCOLOURS;
 	else if (!Q_stricmp(token, "lower"))
-		parmtype = SP_BOTTOMCOLOURS;
+		parmtype = SP_E_BOTTOMCOLOURS;
 	else if (!Q_stricmp(token, "lightradius"))
 		parmtype = SP_LIGHTRADIUS;
 	else if (!Q_stricmp(token, "lightcolour"))
@@ -1805,6 +2153,7 @@ static shaderkey_t shaderkeys[] =
 	{"sort",			Shader_Sort},
 	{"deformvertexes",	Shader_DeformVertexes},
 	{"portal",			Shader_Portal},
+	{"lpp_light",		Shader_Prelight},
 	{"entitymergable",	Shader_EntityMergable},
 
 	{"glslprogram",		Shader_GLSLProgramName},
@@ -1884,6 +2233,16 @@ static qboolean ShaderPass_MapGen (shader_t *shader, shaderpass_t *pass, char *t
 	else if (!Q_stricmp (tname, "$currentrender"))
 	{
 		pass->texgen = T_GEN_CURRENTRENDER;
+		pass->tcgen = TC_GEN_BASE;	//FIXME: moo!
+	}
+	else if (!Q_stricmp (tname, "$sourcecolour"))
+	{
+		pass->texgen = T_GEN_SOURCECOLOUR;
+		pass->tcgen = TC_GEN_BASE;	//FIXME: moo!
+	}
+	else if (!Q_stricmp (tname, "$sourcedepth"))
+	{
+		pass->texgen = T_GEN_SOURCEDEPTH;
 		pass->tcgen = TC_GEN_BASE;	//FIXME: moo!
 	}
 	else
@@ -2253,7 +2612,7 @@ static void Shaderpass_TcMod (shader_t *shader, shaderpass_t *pass, char **ptr)
 	tcmod_t *tcmod;
 	char *token;
 
-	if (pass->numtcmods >= SHADER_TCMOD_MAX)
+	if (pass->numtcmods >= SHADER_MAX_TC_MODS)
 	{
 		return;
 	}
@@ -3504,6 +3863,32 @@ void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args)
 				"}\n"
 			);
 #ifdef GLQUAKE
+	if (!builtin && r_lightprepass.ival)
+	{
+			builtin = (
+				"{\n"
+					"program lpp_wall\n"
+					"{\n"
+						"map $sourcecolour\n"
+					"}\n"
+					"{\n"
+						"map $diffuse\n"
+					"}\n"
+					"{\n"
+						"map $lightmap\n"
+					"}\n"
+					"{\n"
+						"map $normalmap\n"
+					"}\n"
+					"{\n"
+						"map $deluxmap\n"
+					"}\n"
+					"{\n"
+						"map $fullbright\n"
+					"}\n"
+				"}\n"
+			);
+	}
 	if (!builtin && gl_config.arb_shader_objects && gl_config.nofixedfunc)
 	{
 			builtin = (
@@ -3934,7 +4319,14 @@ void Shader_DefaultSkin(char *shortname, shader_t *s, const void *args)
 {
 	Shader_DefaultScript(shortname, s,
 		"{\n"
-			"program defaultskin\n"
+			"if $lpp\n"
+			"[\n"
+				"program defaultskin\n"
+			"]\n"
+			"else\n"
+			"[\n"
+				"program lpp_skin\n"
+			"]\n"
 			"{\n"
 				"map $diffuse\n"
 				"rgbgen lightingDiffuse\n"

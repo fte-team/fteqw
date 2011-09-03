@@ -533,7 +533,8 @@ void QCC_PR_Lex (void);
 // reads the next token into pr_token and classifies its type
 
 QCC_type_t *QCC_PR_NewType (char *name, int basictype);
-QCC_type_t *QCC_PR_ParseType (int newtype); extern pbool type_inlinefunction;
+QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail);
+extern pbool type_inlinefunction;
 QCC_type_t *QCC_TypeForName(char *name);
 QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype);
 QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype);
@@ -541,6 +542,8 @@ char *QCC_PR_ParseName (void);
 CompilerConstant_t *QCC_PR_DefineName(char *name);
 
 void QCC_RemapOffsets(unsigned int firststatement, unsigned int laststatement, unsigned int min, unsigned int max, unsigned int newmin);
+
+int QCC_PR_IntConstExpr(void);
 
 #ifndef COMMONINLINES
 pbool QCC_PR_CheckImmediate (char *string);

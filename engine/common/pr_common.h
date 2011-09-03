@@ -310,6 +310,20 @@ pbool ED_CanFree (edict_t *ed);
 #endif
 
 #define	MOVETYPE_NONE			0		// never moves
+#define	MOVETYPE_ANGLENOCLIP	1
+#define	MOVETYPE_ANGLECLIP		2
+#define	MOVETYPE_WALK			3		// gravity
+#define	MOVETYPE_STEP			4		// gravity, special edge handling
+#define	MOVETYPE_FLY			5
+#define	MOVETYPE_TOSS			6		// gravity
+#define	MOVETYPE_PUSH			7		// no clip to world, push and crush
+#define	MOVETYPE_NOCLIP			8
+#define	MOVETYPE_FLYMISSILE		9		// extra size to monsters
+#define	MOVETYPE_BOUNCE			10
+#define MOVETYPE_BOUNCEMISSILE	11		// bounce w/o gravity
+#define MOVETYPE_FOLLOW			12		// track movement of aiment
+#define MOVETYPE_H2PUSHPULL		13		// pushable/pullable object
+#define MOVETYPE_H2SWIM			14		// should keep the object in water
 #define MOVETYPE_PHYSICS		32
 
 // edict->solid values
@@ -318,8 +332,8 @@ pbool ED_CanFree (edict_t *ed);
 #define	SOLID_BBOX				2		// touch on edge, block
 #define	SOLID_SLIDEBOX			3		// touch on edge, but not an onground
 #define	SOLID_BSP				4		// bsp clip, touch on edge, block
-#define	SOLID_PHASEH2			5
-#define	SOLID_CORPSE			5
+#define	SOLID_PHASEH2			5		// hexen2 flag - these ents can be freely walked through or something
+#define	SOLID_CORPSE			5		// non-solid to solid_slidebox entities and itself.
 #define SOLID_LADDER			20		//dmw. touch on edge, not blocking. Touching players have different physics. Otherwise a SOLID_TRIGGER
 #define	SOLID_PHYSICS_BOX		32		///< physics object (mins, maxs, mass, origin, axis_forward, axis_left, axis_up, velocity, spinvelocity)
 #define	SOLID_PHYSICS_SPHERE	33		///< physics object (mins, maxs, mass, origin, axis_forward, axis_left, axis_up, velocity, spinvelocity)

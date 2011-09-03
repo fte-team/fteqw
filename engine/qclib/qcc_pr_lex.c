@@ -2828,7 +2828,12 @@ char *QCC_PR_ParseName (void)
 	char *ret;
 
 	if (pr_token_type != tt_name)
-		QCC_PR_ParseError (ERR_NOTANAME, "\"%s\" - not a name", pr_token);
+	{
+		if (pr_token_type == tt_eof)
+			QCC_PR_ParseError (ERR_EOF, "unexpected EOF", pr_token);
+		else
+			QCC_PR_ParseError (ERR_NOTANAME, "\"%s\" - not a name", pr_token);
+	}
 	if (strlen(pr_token) >= MAX_NAME-1)
 		QCC_PR_ParseError (ERR_NAMETOOLONG, "name too long");
 	strcpy (ident, pr_token);
@@ -3105,7 +3110,7 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 					break;
 				}
 
-				nptype = QCC_PR_ParseType(true);
+				nptype = QCC_PR_ParseType(true, false);
 
 				if (nptype->type == ev_void)
 					break;
@@ -3188,7 +3193,7 @@ QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
 				{
 					name = QCC_PR_ParseName();
 					QCC_PR_Expect(":");
-					nptype = QCC_PR_ParseType(true);
+					nptype = QCC_PR_ParseType(true, false);
 				}
 
 				if (nptype->type == ev_void)
@@ -3219,12 +3224,17 @@ QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
 }
 QCC_type_t *QCC_PR_PointerType (QCC_type_t *pointsto)
 {
-	QCC_type_t	*ptype;
-	char name[128];
-	sprintf(name, "*%s", pointsto->name);
-	ptype = QCC_PR_NewType(name, ev_pointer);
+	QCC_type_t	*ptype, *e;
+	ptype = QCC_PR_NewType("ptr", ev_pointer);
 	ptype->aux_type = pointsto;
-	return QCC_PR_FindType (ptype);
+	e = QCC_PR_FindType (ptype);
+	if (e == ptype)
+	{
+		char name[128];
+		sprintf(name, "ptr to %s", pointsto->name);
+		e->name = strdup(name);
+	}
+	return e;
 }
 QCC_type_t *QCC_PR_FieldType (QCC_type_t *pointsto)
 {
@@ -3238,7 +3248,10 @@ QCC_type_t *QCC_PR_FieldType (QCC_type_t *pointsto)
 }
 
 pbool type_inlinefunction;
-QCC_type_t *QCC_PR_ParseType (int newtype)
+/*newtype=true: creates a new type always
+  silentfail=true: function is permitted to return NULL if it was not given a type, otherwise never returns NULL
+*/
+QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 {
 	QCC_type_t	*newparm;
 	QCC_type_t	*newt;
@@ -3253,7 +3266,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 	if (QCC_PR_CheckToken (".."))	//so we don't end up with the user specifying '. .vector blah' (hexen2 added the .. token for array ranges)
 	{
 		newt = QCC_PR_NewType("FIELD TYPE", ev_field);
-		newt->aux_type = QCC_PR_ParseType (false);
+		newt->aux_type = QCC_PR_ParseType (false, false);
 
 		newt->size = newt->aux_type->size;
 
@@ -3271,7 +3284,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 	if (QCC_PR_CheckToken ("."))
 	{
 		newt = QCC_PR_NewType("FIELD TYPE", ev_field);
-		newt->aux_type = QCC_PR_ParseType (false);
+		newt->aux_type = QCC_PR_ParseType (false, false);
 
 		newt->size = newt->aux_type->size;
 
@@ -3345,7 +3358,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 //			if (QCC_PR_CheckToken(","))
 //				type->next = QCC_PR_NewType(type->name, type->type);
 //			else
-				newparm = QCC_PR_ParseType(true);
+				newparm = QCC_PR_ParseType(true, false);
 
 			if (newparm->type == ev_struct || newparm->type == ev_union)	//we wouldn't be able to handle it.
 				QCC_PR_ParseError(ERR_INTERNAL, "Struct or union in class %s", classname);
@@ -3407,7 +3420,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 				newparm = QCC_PR_NewType(newparm->name, newparm->type);
 			}
 			else
-				newparm = QCC_PR_ParseType(true);
+				newparm = QCC_PR_ParseType(true, false);
 
 			if (!QCC_PR_CheckToken(";"))
 			{
@@ -3415,8 +3428,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 				QCC_PR_Lex();
 				if (QCC_PR_CheckToken("["))
 				{
-					newparm->size*=atoi(pr_token);
-					QCC_PR_Lex();
+					newparm->size*=QCC_PR_IntConstExpr();
 					QCC_PR_Expect("]");
 				}
 				QCC_PR_CheckToken(";");
@@ -3454,7 +3466,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 				newparm = QCC_PR_NewType(newparm->name, newparm->type);
 			}
 			else
-				newparm = QCC_PR_ParseType(true);
+				newparm = QCC_PR_ParseType(true, false);
 			if (QCC_PR_CheckToken(";"))
 				newparm->name = QCC_CopyString("")+strings;
 			else
@@ -3504,16 +3516,22 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 			type = type_function;
 		else
 		{
+			if (silentfail)
+				return NULL;
+
 			QCC_PR_ParseError (ERR_NOTATYPE, "\"%s\" is not a type", name);
 			type = type_float;	// shut up compiler warning
 		}
 	}
 	QCC_PR_Lex ();
 
+	while (QCC_PR_CheckToken("*"))
+		type = QCC_PointerTypeTo(type);
+
 	if (QCC_PR_CheckToken ("("))	//this is followed by parameters. Must be a function.
 	{
 		type_inlinefunction = true;
-		return QCC_PR_ParseFunctionType(newtype, type);
+		type = QCC_PR_ParseFunctionType(newtype, type);
 	}
 	else
 	{
@@ -3521,9 +3539,8 @@ QCC_type_t *QCC_PR_ParseType (int newtype)
 		{
 			type = QCC_PR_DuplicateType(type);
 		}
-
-		return type;
 	}
+	return type;
 }
 
 #endif

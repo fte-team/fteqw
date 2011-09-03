@@ -1162,7 +1162,7 @@ static dllfunction_t odefuncs[] =
 dllhandle_t ode_dll = NULL;
 #endif
 
-void World_Physics_Init(void)
+void World_ODE_Init(void)
 {
 #ifdef ODE_DYNAMIC
 	const char* dllname =
@@ -1230,7 +1230,7 @@ void World_Physics_Init(void)
 #endif
 }
 
-void World_Physics_Shutdown(void)
+void World_ODE_Shutdown(void)
 {
 #ifdef ODE_DYNAMIC
 	if (ode_dll)
@@ -1244,7 +1244,7 @@ void World_Physics_Shutdown(void)
 	}
 }
 
-static void World_Physics_EnableODE(world_t *world)
+static void World_ODE_Enable(world_t *world)
 {
 	dVector3 center, extents;
 	if (world->ode.ode)
@@ -1271,14 +1271,14 @@ static void World_Physics_EnableODE(world_t *world)
 //	dWorldSetAutoDisableFlag (world->ode.ode_world, true);
 }
 
-void World_Physics_Start(world_t *world)
+void World_ODE_Start(world_t *world)
 {
 	if (world->ode.ode)
 		return;
-	World_Physics_EnableODE(world);
+	World_ODE_Enable(world);
 }
 
-void World_Physics_End(world_t *world)
+void World_ODE_End(world_t *world)
 {
 	if (world->ode.ode)
 	{
@@ -1289,7 +1289,7 @@ void World_Physics_End(world_t *world)
 	}
 }
 
-void World_Physics_RemoveJointFromEntity(world_t *world, wedict_t *ed)
+void World_ODE_RemoveJointFromEntity(world_t *world, wedict_t *ed)
 {
 	ed->ode.ode_joint_type = 0;
 	if(ed->ode.ode_joint)
@@ -1297,7 +1297,7 @@ void World_Physics_RemoveJointFromEntity(world_t *world, wedict_t *ed)
 	ed->ode.ode_joint = NULL;
 }
 
-void World_Physics_RemoveFromEntity(world_t *world, wedict_t *ed)
+void World_ODE_RemoveFromEntity(world_t *world, wedict_t *ed)
 {
 	if (!ed->ode.ode_physics)
 		return;
@@ -1347,7 +1347,7 @@ void World_Physics_RemoveFromEntity(world_t *world, wedict_t *ed)
 	ed->ode.ode_massbuf = NULL;
 }
 
-static void World_Physics_Frame_BodyToEntity(world_t *world, wedict_t *ed)
+static void World_ODE_Frame_BodyToEntity(world_t *world, wedict_t *ed)
 {
 	model_t *model;
 	const dReal *avel;
@@ -1444,7 +1444,7 @@ static void World_Physics_Frame_BodyToEntity(world_t *world, wedict_t *ed)
 	World_LinkEdict(world, ed, true);
 }
 
-static void World_Physics_Frame_JointFromEntity(world_t *world, wedict_t *ed)
+static void World_ODE_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 {
 	dJointID j = 0;
 	dBodyID b1 = 0;
@@ -1729,7 +1729,7 @@ static qboolean GenerateCollisionMesh(world_t *world, model_t *mod, wedict_t *ed
 	return true;
 }
 
-static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
+static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 {
 	dBodyID body = (dBodyID)ed->ode.ode_body;
 	dMass mass;
@@ -1803,7 +1803,7 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		break;
 	default:
 		if (ed->ode.ode_physics)
-			World_Physics_RemoveFromEntity(world, ed);
+			World_ODE_RemoveFromEntity(world, ed);
 		return;
 	}
 
@@ -1812,7 +1812,7 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	{
 		// we don't allow point-size physics objects...
 		if (ed->ode.ode_physics)
-			World_Physics_RemoveFromEntity(world, ed);
+			World_ODE_RemoveFromEntity(world, ed);
 		return;
 	}
 
@@ -1827,7 +1827,7 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	 || ed->ode.ode_modelindex != modelindex)
 	{
 		modified = true;
-		World_Physics_RemoveFromEntity(world, ed);
+		World_ODE_RemoveFromEntity(world, ed);
 		ed->ode.ode_physics = true;
 		VectorCopy(entmins, ed->ode.ode_mins);
 		VectorCopy(entmaxs, ed->ode.ode_maxs);
@@ -1853,13 +1853,13 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			{
 				Con_Printf("entity %i (classname %s) has no model\n", NUM_FOR_EDICT(world->progs, (edict_t*)ed), PR_GetString(world->progs, ed->v->classname));
 				if (ed->ode.ode_physics)
-					World_Physics_RemoveFromEntity(world, ed);
+					World_ODE_RemoveFromEntity(world, ed);
 				return;
 			}
 			if (!GenerateCollisionMesh(world, model, ed, geomcenter))
 			{
 				if (ed->ode.ode_physics)
-					World_Physics_RemoveFromEntity(world, ed);
+					World_ODE_RemoveFromEntity(world, ed);
 				return;
 			}
 
@@ -1909,7 +1909,7 @@ static void World_Physics_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			dMassSetCapsuleTotal(&mass, massval, axisindex+1, radius, length);
 			break;
 		default:
-			Sys_Error("World_Physics_BodyFromEntity: unrecognized solid value %i was accepted by filter\n", solid);
+			Sys_Error("World_ODE_BodyFromEntity: unrecognized solid value %i was accepted by filter\n", solid);
 		}
 		Matrix3x4_InvertTo4x4_Simple(ed->ode.ode_offsetmatrix, ed->ode.ode_offsetimatrix);
 		ed->ode.ode_massbuf = BZ_Malloc(sizeof(dMass));
@@ -2259,7 +2259,7 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 	}
 }
 
-void World_Physics_Frame(world_t *world, double frametime, double gravity)
+void World_ODE_Frame(world_t *world, double frametime, double gravity)
 {
 	if (world->ode.ode)
 	{
@@ -2275,14 +2275,14 @@ void World_Physics_Frame(world_t *world, double frametime, double gravity)
 		{
 			ed = (wedict_t*)EDICT_NUM(world->progs, i);
 			if (!ed->isfree)
-				World_Physics_Frame_BodyFromEntity(world, ed);
+				World_ODE_Frame_BodyFromEntity(world, ed);
 		}
 		// oh, and it must be called after all bodies were created
 		for (i = 0;i < world->num_edicts;i++)
 		{
 			ed = (wedict_t*)EDICT_NUM(world->progs, i);
 			if (!ed->isfree)
-				World_Physics_Frame_JointFromEntity(world, ed);
+				World_ODE_Frame_JointFromEntity(world, ed);
 		}
 
 		for (i = 0;i < world->ode.ode_iterations;i++)
@@ -2313,7 +2313,7 @@ void World_Physics_Frame(world_t *world, double frametime, double gravity)
 		{
 			ed = (wedict_t*)EDICT_NUM(world->progs, i);
 			if (!ed->isfree)
-				World_Physics_Frame_BodyToEntity(world, ed);
+				World_ODE_Frame_BodyToEntity(world, ed);
 		}
 	}
 }

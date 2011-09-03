@@ -144,8 +144,6 @@ void Q1QVM_PlayerPreThink(void);
 void Q1QVM_RunPlayerThink(void);
 void Q1QVM_PostThink(void);
 void Q1QVM_StartFrame(void);
-void Q1QVM_Touch(void);
-void Q1QVM_Think(void);
 void Q1QVM_Blocked(void);
 void Q1QVM_SetNewParms(void);
 void Q1QVM_SetChangeParms(void);

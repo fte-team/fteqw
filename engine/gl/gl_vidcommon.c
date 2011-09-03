@@ -122,6 +122,8 @@ void (APIENTRY *qglDeleteRenderbuffersEXT)(GLsizei n, const GLuint* ids);
 void (APIENTRY *qglBindRenderbufferEXT)(GLenum target, GLuint id);
 void (APIENTRY *qglRenderbufferStorageEXT)(GLenum target, GLenum internalFormat, GLsizei width, GLsizei height);
 void (APIENTRY *qglFramebufferTexture2DEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId, GLint  level);
+void (APIENTRY *qglFramebufferRenderbufferEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId);
+GLenum (APIENTRY *qglCheckFramebufferStatusEXT)(GLenum target);
 
 /*
 PFNGLPROGRAMSTRINGARBPROC qglProgramStringARB;
@@ -647,14 +649,16 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 	if (GL_CheckExtension("GL_EXT_framebuffer_object"))
 	{
 		gl_config.ext_framebuffer_objects = true;
-		qglGenFramebuffersEXT		= (void *)getglext("glGenFramebuffersEXT");
-		qglDeleteFramebuffersEXT	= (void *)getglext("glDeleteFramebuffersEXT");
-		qglBindFramebufferEXT		= (void *)getglext("glBindFramebufferEXT");
-		qglGenRenderbuffersEXT		= (void *)getglext("glGenRenderbuffersEXT");
-		qglDeleteRenderbuffersEXT	= (void *)getglext("glDeleteRenderbuffersEXT");
-		qglBindRenderbufferEXT		= (void *)getglext("glBindRenderbufferEXT");
-		qglRenderbufferStorageEXT	= (void *)getglext("glRenderbufferStorageEXT");
-		qglFramebufferTexture2DEXT	= (void *)getglext("glFramebufferTexture2DEXT");
+		qglGenFramebuffersEXT			= (void *)getglext("glGenFramebuffersEXT");
+		qglDeleteFramebuffersEXT		= (void *)getglext("glDeleteFramebuffersEXT");
+		qglBindFramebufferEXT			= (void *)getglext("glBindFramebufferEXT");
+		qglGenRenderbuffersEXT			= (void *)getglext("glGenRenderbuffersEXT");
+		qglDeleteRenderbuffersEXT		= (void *)getglext("glDeleteRenderbuffersEXT");
+		qglBindRenderbufferEXT			= (void *)getglext("glBindRenderbufferEXT");
+		qglRenderbufferStorageEXT		= (void *)getglext("glRenderbufferStorageEXT");
+		qglFramebufferTexture2DEXT		= (void *)getglext("glFramebufferTexture2DEXT");
+		qglFramebufferRenderbufferEXT	= (void *)getglext("glFramebufferRenderbufferEXT");
+		qglCheckFramebufferStatusEXT	= (void *)getglext("glCheckFramebufferStatusEXT");
 	}
 
 #ifdef DEBUG
@@ -716,8 +720,8 @@ GLhandleARB GLSlang_CreateShader (char *name, char *versionline, char **precompi
 		if (gl_config.nofixedfunc)
 		{
 			prstrings[strings++] =
-					"#define ftetransform() (m_projection * m_modelview * vec4(v_position, 1.0))\n"
-					"uniform mat4 m_modelview, m_projection;\n"
+					"#define ftetransform() (m_modelviewprojection * vec4(v_position, 1.0))\n"
+					"uniform mat4 m_modelviewprojection;\n"
 					"attribute vec3 v_position;\n";
 		}
 		else
@@ -726,9 +730,9 @@ GLhandleARB GLSlang_CreateShader (char *name, char *versionline, char **precompi
 					"#ifdef SKELETAL\n"
 						"attribute vec4 v_bone;\n"
 						"attribute vec4 v_weight;\n"
-						"uniform mat4 m_modelview, m_projection;\n"
+						"uniform mat4 m_modelviewprojection;\n"
 						"uniform mat3x4 m_bones["STRINGIFY(MAX_BONES)"];\n"
-						"#define v_position gl_Vertex\n"
+						"attribute vec3 v_position;\n"
 
 						"vec4 skeletaltransform()\n"
 						"{"
@@ -737,7 +741,7 @@ GLhandleARB GLSlang_CreateShader (char *name, char *versionline, char **precompi
 						"	wmat += m_bones[int(v_bone.y)] * v_weight.y;\n"
 						"	wmat += m_bones[int(v_bone.z)] * v_weight.z;\n"
 						"	wmat += m_bones[int(v_bone.w)] * v_weight.w;\n"
-						"	return m_projection * m_modelview * vec4(v_position * wmat, v_position.w);\n"
+						"	return m_modelviewprojection * vec4(vec4(v_position.xyz, 1.0) * wmat, 1.0);\n"
 						"}\n"
 						"#define ftetransform() skeletaltransform()\n"
 					"#else\n"

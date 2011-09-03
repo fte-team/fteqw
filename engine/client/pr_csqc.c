@@ -53,7 +53,7 @@ static qboolean csqc_isdarkplaces;
 static char csqc_printbuffer[8192];
 
 #define CSQCPROGSGROUP "CSQC progs control"
-cvar_t	pr_csqc_maxedicts = CVAR("pr_csqc_maxedicts", "3072");	//not tied to protocol nor server.
+cvar_t	pr_csqc_maxedicts = CVAR("pr_csqc_maxedicts", "8192");	//not tied to protocol nor server.
 cvar_t	pr_csqc_memsize = CVAR("pr_csqc_memsize", "-1");
 cvar_t	cl_csqcdebug = CVAR("cl_csqcdebug", "0");	//prints entity numbers which arrive (so I can tell people not to apply it to players...)
 cvar_t  cl_nocsqc = CVAR("cl_nocsqc", "0");
@@ -287,6 +287,13 @@ static void CSQC_FindGlobals(void)
 
 	CSQC_ChangeLocalPlayer(0);
 
+	csqc_world.g.self = csqcg.self;
+	csqc_world.g.other = csqcg.other;
+	csqc_world.g.force_retouch = (float*)PR_FindGlobal(csqcprogs, "force_retouch", 0, NULL);
+	csqc_world.g.frametime = csqcg.frametime;
+	csqc_world.g.newmis = (int*)PR_FindGlobal(csqcprogs, "newmis", 0, NULL);
+	csqc_world.g.time = csqcg.svtime;
+
 	if (csqcg.maxclients)
 		*csqcg.maxclients = cl.allocated_client_slots;
 }
@@ -333,6 +340,7 @@ static void QCBUILTIN PF_cs_gettime (progfuncs_t *prinst, struct globalvars_s *p
 							\
 	comfieldfloat(drawmask);	/*So that the qc can specify all rockets at once or all bannanas at once*/	\
 	comfieldfunction(predraw);	/*If present, is called just before it's drawn.*/	\
+	comfieldvector(glowmod);	\
 							\
 	comfieldfloat(ideal_pitch);\
 	comfieldfloat(pitch_speed);\
@@ -696,15 +704,10 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 		AngleVectors(out->angles, out->axis[0], out->axis[1], out->axis[2]);
 		VectorInverse(out->axis[1]);
 
-		if (!in->xv->scale || in->xv->scale == 1.0f)
+		if (!in->xv->scale)
 			out->scale = 1;
 		else
-		{
-			VectorScale(out->axis[0], in->xv->scale, out->axis[0]);
-			VectorScale(out->axis[1], in->xv->scale, out->axis[1]);
-			VectorScale(out->axis[2], in->xv->scale, out->axis[2]);
 			out->scale = in->xv->scale;
-		}
 	}
 
 	ival = in->v->colormap;
@@ -714,9 +717,18 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	}
 	// TODO: DP COLORMAP extension?
 
-	out->shaderRGBAf[0] = 1;
-	out->shaderRGBAf[1] = 1;
-	out->shaderRGBAf[2] = 1;
+	if (!in->xv->colormod[0] && !in->xv->colormod[1] && !in->xv->colormod[2])
+	{
+		out->shaderRGBAf[0] = 1;
+		out->shaderRGBAf[1] = 1;
+		out->shaderRGBAf[2] = 1;
+	}
+	else
+	{
+		out->shaderRGBAf[0] = in->xv->colormod[0];
+		out->shaderRGBAf[1] = in->xv->colormod[1];
+		out->shaderRGBAf[2] = in->xv->colormod[2];
+	}
 	if (!in->xv->alpha || in->xv->alpha == 1)
 	{
 		out->shaderRGBAf[3] = 1.0f;
@@ -726,6 +738,8 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 		out->flags |= Q2RF_TRANSLUCENT;
 		out->shaderRGBAf[3] = in->xv->alpha;
 	}
+
+	VectorCopy(in->xv->glowmod, out->glowmod);
 
 	out->skinnum = in->v->skin;
 	out->fatness = in->xv->fatness;
@@ -5116,14 +5130,17 @@ pbool CSQC_EntFree (struct edict_s *e)
 {
 	struct csqcedict_s *ent = (csqcedict_t*)e;
 	ent->v->solid = SOLID_NOT;
-	ent->xv->drawmask = 0;
+	ent->v->movetype = 0;
 	ent->v->modelindex = 0;
 	ent->v->think = 0;
 	ent->v->nextthink = 0;
+	ent->xv->predraw = 0;
+	ent->xv->drawmask = 0;
+	ent->xv->renderflags = 0;
 
 #ifdef USEODE
-	World_Physics_RemoveFromEntity(&csqc_world, (wedict_t*)ent);
-	World_Physics_RemoveJointFromEntity(&csqc_world, (wedict_t*)ent);
+	World_ODE_RemoveFromEntity(&csqc_world, (wedict_t*)ent);
+	World_ODE_RemoveJointFromEntity(&csqc_world, (wedict_t*)ent);
 #endif
 
 	return true;
@@ -5141,6 +5158,14 @@ void CSQC_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
 
 	*csqcg.self = oself;
 	*csqcg.other = oother;
+}
+
+void CSQC_Event_Think(world_t *w, wedict_t *s)
+{
+	*csqcg.self = EDICT_TO_PROG(w->progs, (edict_t*)s);
+	*csqcg.other = EDICT_TO_PROG(w->progs, (edict_t*)w->edicts);
+
+	PR_ExecuteProgram (w->progs, s->v->think);
 }
 
 model_t *CSQC_World_ModelForIndex(world_t *w, int modelindex)
@@ -5162,7 +5187,7 @@ void CSQC_Shutdown(void)
 	csqcprogs = NULL;
 
 #ifdef USEODE
-	World_Physics_End(&csqc_world);
+	World_ODE_End(&csqc_world);
 #endif
 
 	Z_Free(csqcdelta_pack_new.e);
@@ -5291,6 +5316,13 @@ int CSQC_PRFileSize (const char *path)
 	return COM_FileSize(path);
 }
 
+qboolean CSQC_Inited(void)
+{
+	if (csqcprogs)
+		return true;
+	return false;
+}
+
 double  csqctime;
 qboolean CSQC_Init (unsigned int checksum)
 {
@@ -5373,6 +5405,7 @@ qboolean CSQC_Init (unsigned int checksum)
 		PR_Configure(csqcprogs, pr_csqc_memsize.ival, 16);
 		csqc_world.worldmodel = cl.worldmodel;
 		csqc_world.Event_Touch = CSQC_Event_Touch;
+		csqc_world.Event_Think = CSQC_Event_Think;
 		csqc_world.GetCModel = CSQC_World_ModelForIndex;
 		World_ClearWorld(&csqc_world);
 		CSQC_InitFields();	//let the qclib know the field order that the engine needs.
@@ -5462,7 +5495,7 @@ void CSQC_WorldLoaded(void)
 
 	csqc_world.worldmodel = cl.worldmodel;
 #ifdef USEODE
-	World_Physics_Start(&csqc_world);
+	World_ODE_Start(&csqc_world);
 #endif
 
 	worldent = (csqcedict_t *)EDICT_NUM(csqcprogs, 0);
@@ -5689,7 +5722,9 @@ qboolean CSQC_DrawView(void)
 			ft = mintic;
 		csqc_world.physicstime += ft;
 
-		World_Physics_Frame(&csqc_world, ft, 800);
+		World_ODE_Frame(&csqc_world, ft, 800);
+
+		//World_Physics_Frame(&csqc_world);
 	}
 #else
 	csqc_world.physicstime = cl.servertime;
@@ -5744,6 +5779,22 @@ qboolean CSQC_KeyPress(int key, int unicode, qboolean down)
 	G_FLOAT(OFS_PARM0) = !down;
 	G_FLOAT(OFS_PARM1) = MP_TranslateFTEtoDPCodes(key);
 	G_FLOAT(OFS_PARM2) = unicode;
+
+	PR_ExecuteProgram (csqcprogs, csqcg.input_event);
+
+	return G_FLOAT(OFS_RETURN);
+}
+qboolean CSQC_MousePosition(float xabs, float yabs)
+{
+	void *pr_globals;
+
+	if (!csqcprogs || !csqcg.input_event)
+		return false;
+
+	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+	G_FLOAT(OFS_PARM0) = 3;
+	G_FLOAT(OFS_PARM1) = xabs;
+	G_FLOAT(OFS_PARM2) = yabs;
 
 	PR_ExecuteProgram (csqcprogs, csqcg.input_event);
 
@@ -6030,7 +6081,7 @@ void CSQC_ParseEntities(void)
 	if (!csqcprogs)
 		Host_EndGame("CSQC needs to be initialized for this server.\n");
 
-	if (!csqcg.ent_update || !csqcg.self)
+	if (!csqcg.ent_update || !csqcg.self || !csqc_world.worldmodel || csqc_world.worldmodel->needload)
 		Host_EndGame("CSQC is unable to parse entities\n");
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);

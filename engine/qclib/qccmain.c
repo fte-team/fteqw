@@ -238,7 +238,8 @@ compiler_flag_t compiler_flag[] = {
 	{&flag_filetimes,		0,				"filetimes",	"Check Filetimes",		"Recompiles the progs only if the file times are modified."},
 	{&flag_fasttrackarrays,	FLAG_MIDCOMPILE|FLAG_ASDEFAULT,"fastarrays","fast arrays where possible",	"Generates extra instructions inside array handling functions to detect engine and use extension opcodes only in supporting engines.\nAdds a global which is set by the engine if the engine supports the extra opcodes. Note that this applies to all arrays or none."},
 	{&flag_assume_integer,	FLAG_MIDCOMPILE,"assumeint",	"Assume Integers",		"Numerical constants are assumed to be integers, instead of floats."},
-	{&pr_subscopedlocals,		FLAG_MIDCOMPILE,		"subscope",	"Subscoped Locals",		"Restrict the scope of locals to the block they are actually defined within, as in C."},
+	{&pr_subscopedlocals,	FLAG_MIDCOMPILE,"subscope",		"Subscoped Locals",		"Restrict the scope of locals to the block they are actually defined within, as in C."},
+	{&verbose,				FLAG_MIDCOMPILE,"verbose",		"Verbose",				"Lots of extra compiler messages."},
 	{NULL}
 };
 
@@ -2865,10 +2866,10 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 	pHash_GetNext = &Hash_GetNext;
 	pHash_Add = &Hash_Add;
 
-	MAX_REGS		= 65536;
+	MAX_REGS		= 1<<17;
 	MAX_STRINGS		= 1000000;
-	MAX_GLOBALS		= 65535;
-	MAX_FIELDS		= 2048;
+	MAX_GLOBALS		= 1<<17;
+	MAX_FIELDS		= 1<<12;
 	MAX_STATEMENTS	= 0x80000;
 	MAX_FUNCTIONS	= 16384;
 	maxtypeinfos	= 16384;

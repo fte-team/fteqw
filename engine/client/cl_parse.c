@@ -943,13 +943,8 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 		if (anycsqc || *s || cls.demoplayback)	//only allow csqc if the server says so, and the 'checksum' matches.
 		{
 			unsigned int chksum = anycsqc?0:strtoul(s, NULL, 0);
-			if (CSQC_Init(chksum))
+			if (!CSQC_Init(chksum))
 			{
-				CL_SendClientCommand(true, "enablecsqc");
-			}
-			else
-			{
-				CL_SendClientCommand(true, "disablecsqc");
 				Sbar_Start();	//try and start this before we're actually on the server,
 								//this'll stop the mod from sending so much stuffed data at us, whilst we're frozen while trying to load.
 								//hopefully this'll make it more robust.
@@ -1089,6 +1084,19 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 
 		pmove.physents[0].model = cl.worldmodel;
 
+		endstage();
+	}
+
+	if (atstage())
+	{
+		if (CSQC_Inited())
+		{
+			CL_SendClientCommand(true, "enablecsqc");
+		}
+		else
+		{
+			CL_SendClientCommand(true, "disablecsqc");
+		}
 		endstage();
 	}
 
@@ -1631,7 +1639,7 @@ int CL_RequestADownloadChunk(void)
 	CL_SendClientCommand(true, "stopdownload");
 	CL_DownloadFinished();
 
-	Con_Printf("Download took %i seconds (%i more)\n", (int)(Sys_DoubleTime() - downloadstarttime), CL_CountQueuedDownloads());
+	Con_DPrintf("Download took %i seconds (%i more)\n", (int)(Sys_DoubleTime() - downloadstarttime), CL_CountQueuedDownloads());
 
 	*cls.downloadlocalname = '\0';
 	*cls.downloadremotename = '\0';
@@ -1776,7 +1784,7 @@ void CL_ParseDownload (void)
 		cls.downloadqw = NULL;
 		cls.downloadpercent = 0;
 
-		Con_Printf("Download took %i seconds\n", (int)(Sys_DoubleTime() - downloadstarttime));
+		Con_DPrintf("Download took %i seconds\n", (int)(Sys_DoubleTime() - downloadstarttime));
 
 		// get another file if needed
 
@@ -1916,7 +1924,7 @@ void CLDP_ParseDownloadFinished(char *s)
 	cls.downloadqw = NULL;
 	cls.downloadpercent = 0;
 
-	Con_Printf("Download took %i seconds\n", (int)(Sys_DoubleTime() - downloadstarttime));
+	Con_DPrintf("Download took %i seconds\n", (int)(Sys_DoubleTime() - downloadstarttime));
 
 	// get another file if needed
 
@@ -2488,7 +2496,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	}
 	else if (protover == H2_PROTOCOL_VERSION)
 	{
-		Host_EndGame ("\nUnable to connect to Hexen2 servers.\n");
+		Host_EndGame ("\nUnable to connect to standard Hexen2 servers. Host the game with "DISTRIBUTION"\n");
 	}
 	else if (protover != NQ_PROTOCOL_VERSION)
 	{
@@ -2587,6 +2595,10 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 
 	//allow some things by default that quakeworld bans by default
 	Info_SetValueForStarKey(cl.serverinfo, "watervis", "1", sizeof(cl.serverinfo));
+	Info_SetValueForStarKey(cl.serverinfo, "mirrors", "1", sizeof(cl.serverinfo));
+
+	//prohibit some things that QW/FTE has enabled by default
+	Info_SetValueForStarKey(cl.serverinfo, "fbskins", "0", sizeof(cl.serverinfo));
 
 	//pretend it came from the server, and update cheat/permissions/etc
 	CL_CheckServerInfo();
@@ -4843,7 +4855,7 @@ CL_ParseServerMessage
 =====================
 */
 int	received_framecount;
-void CL_ParseServerMessage (void)
+void CLQW_ParseServerMessage (void)
 {
 	int			cmd;
 	char		*s;

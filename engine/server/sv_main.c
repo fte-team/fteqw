@@ -256,7 +256,7 @@ void SV_Shutdown (void)
 
 	PR_Deinit();
 #ifdef USEODE
-	World_Physics_Shutdown();
+	World_ODE_Shutdown();
 #endif
 
 	if (sv.mvdrecording)
@@ -2344,10 +2344,14 @@ client_t *SVC_DirectConnect(void)
 				}
 				else
 				{
-					for (i=0 ; i<NUM_RANK_SPAWN_PARMS ; i++)
-						newcl->spawn_parms[i] = rs.parm[i];
-					for (; i < NUM_SPAWN_PARMS; i++)
-						newcl->spawn_parms[i] = 0;
+					extern cvar_t rank_parms_first, rank_parms_last;
+					for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
+					{
+						if (i < NUM_RANK_SPAWN_PARMS && i >= rank_parms_first.ival && i <= rank_parms_last.ival)
+							newcl->spawn_parms[i] = rs.parm[i];
+						else
+							newcl->spawn_parms[i] = 0;
+					}
 				}
 
 				if (rs.timeonserver > 3*60)	//woo. Ages.
@@ -2435,6 +2439,7 @@ client_t *SVC_DirectConnect(void)
 		temp.frameunion.frames = cl->frameunion.frames;	//don't touch these.
 		temp.edict = cl->edict;
 		memcpy(cl, newcl, sizeof(client_t));
+		Q_strncatz(cl->guid, va("%i", clients), sizeof(cl->guid));
 		cl->name = cl->namebuf;
 		cl->team = cl->teambuf;
 
@@ -2552,7 +2557,7 @@ void SVC_RemoteCommand (void)
 			{
 				*colon = '\0';
 				colon++;
-				rid = Rank_GetPlayerID(s, atoi(colon), false, true);
+				rid = Rank_GetPlayerID(NULL, s, atoi(colon), false, true);
 				if (rid)
 				{
 					if (!Rank_GetPlayerStats(rid, &stats))
@@ -4342,9 +4347,9 @@ qboolean ReloadRanking(client_t *cl, char *newname)
 	int newid;
 	int j;
 	rankstats_t rs;
-	newid = Rank_GetPlayerID(newname, atoi(Info_ValueForKey (cl->userinfo, "_pwd")), true, false);	//'_' keys are always stripped. On any server. So try and use that so persistant data won't give out the password when connecting to a different server
+	newid = Rank_GetPlayerID(cl->guid, newname, atoi(Info_ValueForKey (cl->userinfo, "_pwd")), true, false);	//'_' keys are always stripped. On any server. So try and use that so persistant data won't give out the password when connecting to a different server
 	if (!newid)
-		newid = Rank_GetPlayerID(newname, atoi(Info_ValueForKey (cl->userinfo, "password")), true, false);
+		newid = Rank_GetPlayerID(cl->guid, newname, atoi(Info_ValueForKey (cl->userinfo, "password")), true, false);
 	if (newid)
 	{
 		if (cl->rankid && cl->state >= cs_spawned)//apply current stats
@@ -4372,6 +4377,7 @@ qboolean ReloadRanking(client_t *cl, char *newname)
 				if (spawnparamglobals[j])
 					rs.parm[j] = *spawnparamglobals[j];
 			Rank_SetPlayerStats(cl->rankid, &rs);
+			cl->rankid = 0;
 		}
 		if (!Rank_GetPlayerStats(newid, &rs))
 			return false;
@@ -4656,7 +4662,7 @@ void SV_Init (quakeparms_t *parms)
 #endif
 
 #ifdef USEODE
-	World_Physics_Init();
+	World_ODE_Init();
 #endif
 
 #ifdef SVRANKING

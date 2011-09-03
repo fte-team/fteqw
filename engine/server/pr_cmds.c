@@ -166,7 +166,7 @@ void ED_Spawned (struct edict_s *ent, int loading)
 		ent->xv->dimension_solid = 255;
 		ent->xv->dimension_hit = 255;
 
-		ent->xv->Version = sv.csqcentversion[ent->entnum]+1;
+		ent->xv->Version = sv.csqcentversion[ent->entnum];
 		ent->xv->uniquespawnid = sv.csqcentversion[ent->entnum];
 	}
 }
@@ -202,6 +202,7 @@ pbool ED_CanFree (edict_t *ed)
 	VectorClear (ed->v->angles);
 	ed->v->nextthink = 0;
 	ed->v->solid = 0;
+	ed->xv->pvsflags = 0;
 
 	ed->v->classname = 0;
 
@@ -216,12 +217,13 @@ pbool ED_CanFree (edict_t *ed)
 		ed->v->think = 0;
 	}
 
+	ed->xv->Version+=1;
 	ed->xv->SendEntity = 0;
-	sv.csqcentversion[ed->entnum] = ed->xv->Version+1;
+	sv.csqcentversion[ed->entnum] += 1;
 
 #ifdef USEODE
-	World_Physics_RemoveFromEntity(&sv.world, (wedict_t*)ed);
-	World_Physics_RemoveJointFromEntity(&sv.world, (wedict_t*)ed);
+	World_ODE_RemoveFromEntity(&sv.world, (wedict_t*)ed);
+	World_ODE_RemoveJointFromEntity(&sv.world, (wedict_t*)ed);
 #endif
 
 
@@ -413,15 +415,17 @@ void SVPR_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
 	pr_global_struct->self = EDICT_TO_PROG(w->progs, s);
 	pr_global_struct->other = EDICT_TO_PROG(w->progs, o);
 	pr_global_struct->time = w->physicstime;
-#ifdef VM_Q1
-	if (w==&sv.world && svs.gametype == GT_Q1QVM)
-		Q1QVM_Touch();
-	else
-#endif
-		PR_ExecuteProgram (w->progs, s->v->touch);
+	PR_ExecuteProgram (w->progs, s->v->touch);
 
 	pr_global_struct->self = oself;
 	pr_global_struct->other = oother;
+}
+
+void SVPR_Event_Think(world_t *w, wedict_t *s)
+{
+	pr_global_struct->self = EDICT_TO_PROG(w->progs, s);
+	pr_global_struct->other = EDICT_TO_PROG(w->progs, w->edicts);
+	PR_ExecuteProgram (w->progs, s->v->think);
 }
 
 void Q_SetProgsParms(qboolean forcompiler)
@@ -469,6 +473,8 @@ void Q_SetProgsParms(qboolean forcompiler)
 		sv.world.progs = svprogfuncs = InitProgs(&svprogparms);
 	}
 	sv.world.Event_Touch = SVPR_Event_Touch;
+	sv.world.Event_Think = SVPR_Event_Think;
+	sv.world.Event_Sound = SVQ1_StartSound;
 	sv.world.GetCModel = SVPR_GetCModel;
 	PRSV_ClearThreads();
 	PR_fclose_progs(svprogfuncs);
@@ -480,7 +486,7 @@ void Q_SetProgsParms(qboolean forcompiler)
 void PR_Deinit(void)
 {
 #ifdef USEODE
-	World_Physics_End(&sv.world);
+	World_ODE_End(&sv.world);
 #endif
 
 #ifdef SQL
@@ -678,6 +684,14 @@ void PR_LoadGlabalStruct(void)
 
 	SV_ClearQCStats();
 
+	sv.world.g.self = pr_nqglobal_struct->self;
+	sv.world.g.other = pr_nqglobal_struct->other;
+	sv.world.g.force_retouch = pr_nqglobal_struct->force_retouch;
+	sv.world.g.frametime = pr_nqglobal_struct->frametime;
+	sv.world.g.newmis = pr_nqglobal_struct->newmis;
+	sv.world.g.time = pr_nqglobal_struct->time;
+
+	/*Hexen2 has lots of extra stats, which I don't want special support for, so list them here and send them as for csqc*/
 	if (progstype == PROG_H2)
 	{
 		SV_QCStatName(ev_float, "level", STAT_H2_LEVEL);
@@ -1476,7 +1490,7 @@ void Q_InitProgs(void)
 	SV_RegisterH2CustomTents();
 
 #ifdef USEODE
-	World_Physics_Start(&sv.world);
+	World_ODE_Start(&sv.world);
 #endif
 }
 
@@ -2819,7 +2833,7 @@ static void QCBUILTIN PF_sound (progfuncs_t *prinst, struct globalvars_s *pr_glo
 	if (volume > 255)
 		volume = 255;
 
-	SVQ1_StartSound (entity, channel, sample, volume, attenuation, pitchadj);
+	SVQ1_StartSound ((wedict_t*)entity, channel, sample, volume, attenuation, pitchadj);
 }
 
 //an evil one from telejano.
@@ -2960,7 +2974,6 @@ static void QCBUILTIN PF_traceboxdp (progfuncs_t *prinst, struct globalvars_s *p
 	set_trace_globals(&trace, pr_globals);
 }
 
-extern trace_t SV_Trace_Toss (edict_t *ent, edict_t *ignore);
 static void QCBUILTIN PF_TraceToss (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	trace_t	trace;
@@ -2972,7 +2985,7 @@ static void QCBUILTIN PF_TraceToss (progfuncs_t *prinst, struct globalvars_s *pr
 		Con_DPrintf("tracetoss: can not use world entity\n");
 	ignore = G_EDICT(prinst, OFS_PARM1);
 
-	trace = SV_Trace_Toss (ent, ignore);
+	trace = WPhys_Trace_Toss (&sv.world, (wedict_t*)ent, (wedict_t*)ignore);
 
 	set_trace_globals(&trace, pr_globals);
 }
@@ -4456,6 +4469,17 @@ void QCBUILTIN PF_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	else
 		MSG_WriteCoord (QWWriteDest(G_FLOAT(OFS_PARM0)), G_FLOAT(OFS_PARM1));
 #endif
+}
+
+void QCBUILTIN PF_WriteFloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
+	{	//csqc buffers are always written.
+		MSG_WriteFloat(&csqcmsgbuffer, G_FLOAT(OFS_PARM1));
+		return;
+	}
+
+	return;
 }
 
 void PF_WriteString_Internal (int target, char *str)
@@ -6981,7 +7005,7 @@ static void QCBUILTIN PF_h2StopSound(progfuncs_t *prinst, struct globalvars_s *p
 	entity = G_EDICT(prinst, OFS_PARM0);
 	channel = G_FLOAT(OFS_PARM1);
 
-	SVQ1_StartSound (entity, channel, "", 1, 0, 0);
+	SVQ1_StartSound ((wedict_t*)entity, channel, "", 1, 0, 0);
 }
 
 static void QCBUILTIN PF_h2updatesoundpos(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -8375,15 +8399,7 @@ static void QCBUILTIN PF_runclientphys(progfuncs_t *prinst, struct globalvars_s 
 			if (!touched->v->touch || (playertouch[n/8]&(1<<(n%8))))
 				continue;
 
-			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, touched);
-			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, ent);
-			pr_global_struct->time = sv.time;
-	#ifdef VM_Q1
-			if (svs.gametype == GT_Q1QVM)
-				Q1QVM_Touch();
-			else
-	#endif
-				PR_ExecuteProgram (svprogfuncs, touched->v->touch);
+			sv.world.Event_Touch(&sv.world, (wedict_t*)touched, (wedict_t*)ent);
 			playertouch[n/8] |= 1 << (n%8);
 		}
 	}
@@ -8439,7 +8455,7 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 			sv_player->xv->movement[2] = ucmd->upmove;
 		}
 
-		SV_CheckVelocity(sv_player);
+		WPhys_CheckVelocity(&sv.world, (wedict_t*)sv_player);
 
 	//
 	// angles
@@ -8458,7 +8474,7 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 		//prethink should be consistant with what the engine normally does
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, client->edict);
 		PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPreThink);
-		SV_RunThink (client->edict);
+		WPhys_RunThink (&sv.world, (wedict_t*)client->edict);
 
 
 
@@ -8472,9 +8488,18 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 		pr_global_struct->input_timelength = ucmd->msec/1000.0f;
 	//precision inaccuracies. :(
 #define ANGLE2SHORT(x) (x) * (65536/360.0)
-		(pr_global_struct->input_angles)[0] = SHORT2ANGLE(ucmd->angles[0]);
-		(pr_global_struct->input_angles)[1] = SHORT2ANGLE(ucmd->angles[1]);
-		(pr_global_struct->input_angles)[2] = SHORT2ANGLE(ucmd->angles[2]);
+		if (sv_player->v->fixangle)
+		{
+			(pr_global_struct->input_angles)[0] = sv_player->v->v_angle[0];
+			(pr_global_struct->input_angles)[1] = sv_player->v->v_angle[1];
+			(pr_global_struct->input_angles)[2] = sv_player->v->v_angle[2];
+		}
+		else
+		{
+			(pr_global_struct->input_angles)[0] = SHORT2ANGLE(ucmd->angles[0]);
+			(pr_global_struct->input_angles)[1] = SHORT2ANGLE(ucmd->angles[1]);
+			(pr_global_struct->input_angles)[2] = SHORT2ANGLE(ucmd->angles[2]);
+		}
 
 		(pr_global_struct->input_movevalues)[0] = ucmd->forwardmove;
 		(pr_global_struct->input_movevalues)[1] = ucmd->sidemove;
@@ -9117,6 +9142,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"terrain_edit",	PF_sv_terrain_edit,	0,		0,		0,		278},//void(float action, vector pos, float radius, float quant) terrain_edit = #278 (??FTE_TERRAIN_EDIT??
 	{"touchtriggers",	PF_sv_touchtriggers,0,		0,		0,		279},//void() touchtriggers = #279;
+	{"writefloat",		PF_WriteFloat,		0,		0,		0,		280},//void(float buf, float fl) writefloat = #280;
 
 //EXT_CSQC
 //	{"setmodelindex",	PF_sv_SetModelIndex,0,		0,		0,		333},	// #333 void(entity e, float mdlindex) setmodelindex (EXT_CSQC)
@@ -9198,7 +9224,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"getsurfacenumpoints",PF_getsurfacenumpoints,0,0,		0,		434},// #434 float(entity e, float s) getsurfacenumpoints (DP_QC_GETSURFACE)
 	{"getsurfacepoint",PF_getsurfacepoint,	0,		0,		0,		435},// #435 vector(entity e, float s, float n) getsurfacepoint (DP_QC_GETSURFACE)
 	{"getsurfacenormal",PF_getsurfacenormal,0,		0,		0,		436},// #436 vector(entity e, float s) getsurfacenormal (DP_QC_GETSURFACE)
-//	{"getsurfacetexture",PF_getsurfacetexture,0,	0,		0,		437},// #437 string(entity e, float s) getsurfacetexture (DP_QC_GETSURFACE)
+	{"getsurfacetexture",PF_getsurfacetexture,0,	0,		0,		437},// #437 string(entity e, float s) getsurfacetexture (DP_QC_GETSURFACE)
 	{"getsurfacenearpoint",PF_getsurfacenearpoint,0,0,		0,		438},// #438 float(entity e, vector p) getsurfacenearpoint (DP_QC_GETSURFACE)
 	{"getsurfaceclippedpoint",PF_getsurfaceclippedpoint,0,0,0,		439},// #439 vector(entity e, float s, vector p) getsurfaceclippedpoint (DP_QC_GETSURFACE)
 

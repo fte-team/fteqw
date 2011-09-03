@@ -377,8 +377,6 @@ int VMQ3_StringToHandle(char *str)
 void VQ3_AddEntity(const q3refEntity_t *q3)
 {
 	entity_t ent;
-	if (!cl_visedicts)
-		cl_visedicts = cl_visedicts_list;
 	memset(&ent, 0, sizeof(ent));
 	ent.model = VM_FROMMHANDLE(q3->hModel);
 	ent.framestate.g[FS_REG].frame[0] = q3->frame;

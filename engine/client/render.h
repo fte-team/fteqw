@@ -83,11 +83,12 @@ typedef struct entity_s
 	vec3_t					angles;
 	vec3_t					axis[3];
 
-	vec4_t					shaderRGBAf;
-	float					shaderTime;
+	vec4_t					shaderRGBAf; /*colormod+alpha, available for shaders to mix*/
+	float					shaderTime;  /*timestamp, for syncing shader times to spawns*/
+	vec3_t					glowmod;     /*meant to be a multiplier for the fullbrights*/
 
-	int						light_known;
-	vec3_t                  light_avg; /*midpoint level*/
+	int						light_known; /*bsp lighting has been caled*/
+	vec3_t                  light_avg;   /*midpoint level*/
 	vec3_t                  light_range; /*avg + this = max, avg - this = min*/
 	vec3_t                  light_dir;
 
@@ -435,13 +436,14 @@ extern	cvar_t	r_netgraph;
 extern cvar_t	r_xflip;
 #endif
 
+extern cvar_t r_lightprepass;
 extern cvar_t gl_maxdist;
 extern	cvar_t	r_clear;
 extern	cvar_t	gl_poly;
 extern	cvar_t	gl_affinemodels;
 extern	cvar_t	gl_nohwblend;
 extern	cvar_t	gl_reporttjunctions;
-extern	cvar_t	r_flashblend;
+extern	cvar_t	r_flashblend, r_flashblendscale;
 extern	cvar_t	r_lightstylesmooth;
 extern	cvar_t	r_lightstylesmooth_limit;
 extern	cvar_t	r_lightstylespeed;

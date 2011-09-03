@@ -3444,7 +3444,7 @@ void CMQ3_CalcPHS (void)
 				count++;
 	}
 
-	Con_Printf ("Average clusters visible / hearable / total: %i / %i / %i\n"
+	Con_DPrintf ("Average clusters visible / hearable / total: %i / %i / %i\n"
 		, vcount/numclusters, count/numclusters, numclusters);
 }
 #endif
@@ -5186,7 +5186,10 @@ trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 
 qboolean CM_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
 {
-	*trace = CM_BoxTrace(model, start, end, mins, maxs, MASK_PLAYERSOLID);
+	if (maxs[0] - mins[0])
+		*trace = CM_BoxTrace(model, start, end, mins, maxs, MASK_PLAYERSOLID);
+	else
+		*trace = CM_BoxTrace(model, start, end, mins, maxs, MASK_SOLID);
 	return trace->fraction != 1;
 }
 qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace)

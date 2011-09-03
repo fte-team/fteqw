@@ -945,8 +945,9 @@ void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sam
 		SV_MulticastProtExt(origin, reliable ? MULTICAST_ALL_R : MULTICAST_ALL, seenmask, requiredextensions, 0);
 }
 
-void SVQ1_StartSound (edict_t *entity, int channel, char *sample, int volume, float attenuation, int pitchadj)
+void SVQ1_StartSound (wedict_t *wentity, int channel, char *sample, int volume, float attenuation, int pitchadj)
 {
+	edict_t *entity = (edict_t*)wentity;
 	int i;
 	vec3_t origin;
 	if (entity->v->solid == SOLID_BSP)
@@ -1561,7 +1562,7 @@ void SV_UpdateClientStats (client_t *client, int pnum)
 	SV_CalcClientStats(client, statsi, statsf, statss);
 
 	m = MAX_QW_STATS;
-	if (client->fteprotocolextensions & PEXT_HEXEN2)
+	if (client->fteprotocolextensions & (PEXT_HEXEN2|PEXT_CSQC))
 		m = MAX_CL_STATS;
 
 	for (i=0 ; i<m ; i++)
@@ -2374,7 +2375,7 @@ void SV_SendMVDMessage(void)
 	msg.overflowed = false;
 
 	m = MAX_QW_STATS;
-	if (demo.recorder.fteprotocolextensions & PEXT_HEXEN2)
+	if (demo.recorder.fteprotocolextensions & (PEXT_HEXEN2|PEXT_CSQC))
 		m = MAX_CL_STATS;
 
 	for (i=0, c = svs.clients ; i<MAX_CLIENTS ; i++, c++)

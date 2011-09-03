@@ -15,6 +15,8 @@ extern LPDIRECT3DDEVICE9 pD3DDev9;
 
 #define MAX_TMUS 4
 
+extern float d3d_trueprojection[16];
+
 /*========================================== tables for deforms =====================================*/
 #define frand() (rand()*(1.0/RAND_MAX))
 #define FTABLE_SIZE		1024
@@ -126,6 +128,7 @@ typedef struct
 	unsigned int curcull;
 	float depthbias;
 	float depthfactor;
+	float m_model[16];
 	unsigned int lastpasscount;
 
 	texid_t		curtex[MAX_TMUS];
@@ -169,13 +172,26 @@ extern int be_maxpasses;
 enum
 {
 	D3D_VDEC_COL4B = 1<<0,
-	//D3D_VDEC_NORMS = 1<<1,
 	D3D_VDEC_ST0 = 1<<1,
 	D3D_VDEC_ST1 = 1<<2,
 	D3D_VDEC_ST2 = 1<<3,
 	D3D_VDEC_ST3 = 1<<4,
-	D3D_VDEC_MAX = 1<<5
+	D3D_VDEC_NORM = 1<<5,
+	D3D_VDEC_SKEL = 1<<6,
+	D3D_VDEC_MAX = 1<<7
 };
+#define STRM_VERT	0
+#define STRM_COL	1
+#define STRM_TC0	2
+#define STRM_TC1	3
+#define STRM_TC2	4
+#define STRM_TC3	5
+#define STRM_NORM	6
+#define STRM_NORMS	7
+#define STRM_NORMT	8
+#define STRM_BONENUM	9
+#define STRM_BONEWEIGHT	10
+#define STRM_MAX 11
 IDirect3DVertexDeclaration9 *vertexdecls[D3D_VDEC_MAX];
 
 static void BE_ApplyTMUState(unsigned int tu, unsigned int flags)
@@ -355,7 +371,7 @@ void D3DBE_Reset(qboolean before)
 	{
 		IDirect3DDevice9_SetVertexDeclaration(pD3DDev9, NULL);
 		shaderstate.curvertdecl = 0;
-		for (i = 0; i < 5+MAX_TMUS; i++)
+		for (i = 0; i < STRM_MAX; i++)
 			IDirect3DDevice9_SetStreamSource(pD3DDev9, i, NULL, 0, 0);
 		IDirect3DDevice9_SetIndices(pD3DDev9, NULL);
 
@@ -384,13 +400,13 @@ void D3DBE_Reset(qboolean before)
 	}
 	else
 	{
-		D3DVERTEXELEMENT9 decl[8], declend=D3DDECL_END();
+		D3DVERTEXELEMENT9 decl[13], declend=D3DDECL_END();
 		int elements;
 
 		for (i = 0; i < D3D_VDEC_MAX; i++)
 		{
 			elements = 0;
-			decl[elements].Stream = 0;
+			decl[elements].Stream = STRM_VERT;
 			decl[elements].Offset = 0;
 			decl[elements].Type = D3DDECLTYPE_FLOAT3;
 			decl[elements].Method = D3DDECLMETHOD_DEFAULT;
@@ -400,7 +416,7 @@ void D3DBE_Reset(qboolean before)
 
 			if (i & D3D_VDEC_COL4B)
 			{
-				decl[elements].Stream = 1;
+				decl[elements].Stream = STRM_COL;
 				decl[elements].Offset = 0;
 				decl[elements].Type = D3DDECLTYPE_D3DCOLOR;
 				decl[elements].Method = D3DDECLMETHOD_DEFAULT;
@@ -409,38 +425,38 @@ void D3DBE_Reset(qboolean before)
 				elements++;
 			}
 
-/*			if (i & D3D_VDEC_NORMS)
+			if (i & D3D_VDEC_NORM)
 			{
-				decl[elements].Stream = 2;
+				decl[elements].Stream = STRM_NORM;
 				decl[elements].Offset = 0;
-				decl[elements].Type = D3DDECLTYPE_FLOAT2;
+				decl[elements].Type = D3DDECLTYPE_FLOAT3;
 				decl[elements].Method = D3DDECLMETHOD_DEFAULT;
-				decl[elements].Usage = D3DDECLUSAGE_TEXCOORD;
-				decl[elements].UsageIndex = 1;
+				decl[elements].Usage = D3DDECLUSAGE_NORMAL;
+				decl[elements].UsageIndex = 0;
 				elements++;
 
-				decl[elements].Stream = 3;
+				decl[elements].Stream = STRM_NORMS;
 				decl[elements].Offset = 0;
-				decl[elements].Type = D3DDECLTYPE_FLOAT2;
+				decl[elements].Type = D3DDECLTYPE_FLOAT3;
 				decl[elements].Method = D3DDECLMETHOD_DEFAULT;
-				decl[elements].Usage = D3DDECLUSAGE_TEXCOORD;
-				decl[elements].UsageIndex = 1;
+				decl[elements].Usage = D3DDECLUSAGE_TANGENT;
+				decl[elements].UsageIndex = 0;
 				elements++;
 
-				decl[elements].Stream = 4;
+				decl[elements].Stream = STRM_NORMT;
 				decl[elements].Offset = 0;
-				decl[elements].Type = D3DDECLTYPE_FLOAT2;
+				decl[elements].Type = D3DDECLTYPE_FLOAT3;
 				decl[elements].Method = D3DDECLMETHOD_DEFAULT;
-				decl[elements].Usage = D3DDECLUSAGE_TEXCOORD;
-				decl[elements].UsageIndex = 1;
+				decl[elements].Usage = D3DDECLUSAGE_BINORMAL;
+				decl[elements].UsageIndex = 0;
 				elements++;
 			}
-*/
+
 			for (tmu = 0; tmu < MAX_TMUS; tmu++)
 			{
 				if (i & (D3D_VDEC_ST0<<tmu))
 				{
-					decl[elements].Stream = 5+tmu;
+					decl[elements].Stream = STRM_TC0+tmu;
 					decl[elements].Offset = 0;
 					decl[elements].Type = D3DDECLTYPE_FLOAT2;
 					decl[elements].Method = D3DDECLMETHOD_DEFAULT;
@@ -448,6 +464,25 @@ void D3DBE_Reset(qboolean before)
 					decl[elements].UsageIndex = tmu;
 					elements++;
 				}
+			}
+
+			if (i & D3D_VDEC_SKEL)
+			{
+				decl[elements].Stream = STRM_BONEWEIGHT;
+				decl[elements].Offset = 0;
+				decl[elements].Type = D3DDECLTYPE_FLOAT3;
+				decl[elements].Method = D3DDECLMETHOD_DEFAULT;
+				decl[elements].Usage = D3DDECLUSAGE_BLENDWEIGHT;
+				decl[elements].UsageIndex = 0;
+				elements++;
+
+				decl[elements].Stream = STRM_BONENUM;
+				decl[elements].Offset = 0;
+				decl[elements].Type = D3DDECLTYPE_FLOAT3;
+				decl[elements].Method = D3DDECLMETHOD_DEFAULT;
+				decl[elements].Usage = D3DDECLUSAGE_BLENDINDICES;
+				decl[elements].UsageIndex = 0;
+				elements++;
 			}
 
 			decl[elements] = declend;
@@ -940,7 +975,7 @@ static unsigned int BE_GenerateColourMods(unsigned int vertcount, const shaderpa
 		colourgenbyte(pass, 1, (byte_vec4_t*)&shaderstate.passcolour, (byte_vec4_t*)&shaderstate.passcolour, m);
 		alphagenbyte(pass, 1, (byte_vec4_t*)&shaderstate.passcolour, (byte_vec4_t*)&shaderstate.passcolour, m);
 		/*FIXME: just because there's no rgba set, there's no reason to assume it should be a single colour (unshaded ents)*/
-		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, 1, NULL, 0, 0));
+		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_COL, NULL, 0, 0));
 	}
 	else
 	{
@@ -1005,7 +1040,7 @@ static unsigned int BE_GenerateColourMods(unsigned int vertcount, const shaderpa
 			}
 		}
 		d3dcheck(IDirect3DVertexBuffer9_Unlock(shaderstate.dyncol_buff));
-		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, 1, shaderstate.dyncol_buff, shaderstate.dyncol_offs - vertcount*sizeof(D3DCOLOR), sizeof(D3DCOLOR)));
+		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_COL, shaderstate.dyncol_buff, shaderstate.dyncol_offs - vertcount*sizeof(D3DCOLOR), sizeof(D3DCOLOR)));
 	}
 	return ret;
 }
@@ -1478,13 +1513,13 @@ static qboolean BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vert
 		allocvertexbuffer(shaderstate.dynst_buff[tmu], shaderstate.dynst_size, &shaderstate.dynst_offs[tmu], &map, vertcount*sizeof(vec2_t));
 		GenerateTCMods(pass+passno, map);
 		d3dcheck(IDirect3DVertexBuffer9_Unlock(shaderstate.dynst_buff[tmu]));
-		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, 5+tmu, shaderstate.dynst_buff[tmu], shaderstate.dynst_offs[tmu] - vertcount*sizeof(vec2_t), sizeof(vec2_t)));
+		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+tmu, shaderstate.dynst_buff[tmu], shaderstate.dynst_offs[tmu] - vertcount*sizeof(vec2_t), sizeof(vec2_t)));
 		tmu++;
 	}
 	/*deactivate any extras*/
 	for (; tmu < shaderstate.lastpasscount; )
 	{
-		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, 5+tmu, NULL, 0, 0));
+		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+tmu, NULL, 0, 0));
 		BindTexture(tmu, NULL);
 		d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, tmu, D3DTSS_COLOROP, D3DTOP_DISABLE));
 		tmu++;
@@ -1506,13 +1541,193 @@ static qboolean BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vert
 	return true;
 }
 
+static void BE_ApplyUniforms(program_t *prog, int permu)
+{
+	int i;
+	IDirect3DDevice9_SetVertexShader(pD3DDev9, prog->handle[permu].hlsl.vert);
+	IDirect3DDevice9_SetPixelShader(pD3DDev9, prog->handle[permu].hlsl.frag);
+	for (i = 0; i < prog->numparams; i++)
+	{
+		switch (prog->parm[i].type)
+		{
+		case SP_M_PROJECTION:
+			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, prog->parm[i].handle[permu], d3d_trueprojection, 4);
+			break;
+		case SP_M_VIEW:
+			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, prog->parm[i].handle[permu], r_refdef.m_view, 4);
+			break;
+//		case SP_M_MODEL:
+//			IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, prog->parm[i].handle[permu], r_refdef.m_view, 4);
+//			break;
+
+		case SP_V_EYEPOS:
+			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, prog->parm[i].handle[permu], r_origin, 1);
+			break;
+		case SP_E_EYEPOS:
+			{
+				vec4_t t2;
+				float m16[16];
+				Matrix4x4_CM_ModelMatrixFromAxis(m16, shaderstate.curentity->axis[0], shaderstate.curentity->axis[1], shaderstate.curentity->axis[2], shaderstate.curentity->origin);
+				Matrix4x4_CM_Transform3(m16, r_origin, t2);
+				IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, prog->parm[i].handle[permu], t2, 1);
+			}
+			break;
+		case SP_E_TIME:
+			{
+				vec4_t t1 = {shaderstate.curtime};
+				IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, prog->parm[i].handle[permu], t1, 1);
+			}
+			break;
+		case SP_M_MODELVIEWPROJECTION:
+			{
+				float mv[16], mvp[16];
+				Matrix4_Multiply(r_refdef.m_view, shaderstate.m_model, mv);
+				Matrix4_Multiply(d3d_trueprojection, mv, mvp);
+				IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, prog->parm[i].handle[permu], mvp, 4);
+			}
+			break;
+		case SP_E_COLOURS:
+		case SP_E_COLOURSIDENT:
+		case SP_E_TOPCOLOURS:
+		case SP_E_BOTTOMCOLOURS:
+		case SP_E_L_DIR:
+		case SP_E_L_MUL:
+		case SP_E_L_AMBIENT:
+
+		case SP_M_ENTBONES:
+		case SP_M_MODEL:
+		case SP_M_MODELVIEW:
+
+		case SP_RENDERTEXTURESCALE:
+
+		case SP_LIGHTRADIUS:
+		case SP_LIGHTCOLOUR:
+		case SP_LIGHTPOSITION:
+
+		case SP_FIRSTIMMEDIATE:
+		case SP_CONSTI:
+		case SP_CONSTF:
+		case SP_CVARI:
+		case SP_CVARF:
+		case SP_CVAR3F:
+		case SP_TEXTURE:
+			Con_Printf("shader property %i not implemented\n", prog->parm[i].type);
+			break;
+		}
+	}
+}
+
 static void BE_RenderMeshProgram(unsigned int vertcount, unsigned int idxfirst, unsigned int idxcount)
 {
+	int vdec = D3D_VDEC_ST0;
+	int passno;
 	shader_t *s = shaderstate.curshader;
 	//shaderpass_t *pass = s->passes; //unused variable
 
-	IDirect3DDevice9_SetVertexShader(pD3DDev9, s->prog->handle[0].hlsl.vert);
-	IDirect3DDevice9_SetPixelShader(pD3DDev9, s->prog->handle[0].hlsl.frag);
+	D3DBE_ApplyShaderBits(shaderstate.curshader->passes->shaderbits);
+
+	BE_ApplyUniforms(s->prog, 0);
+
+	
+
+	/*activate tmus*/
+	for (passno = 0; passno < s->numpasses; passno++)
+	{
+		SelectPassTexture(passno, s->passes+passno);
+	}
+	/*deactivate any extras*/
+	for (; passno < shaderstate.lastpasscount; passno++)
+	{
+		BindTexture(passno, NULL);
+		d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_COLOROP, D3DTOP_DISABLE));
+	}
+	shaderstate.lastpasscount = passno;
+
+	/*colours*/
+	if (vdec & D3D_VDEC_COL4B)
+	{
+		int mno,v;
+		void *map;
+		mesh_t *m;
+		allocvertexbuffer(shaderstate.dynst_buff[0], shaderstate.dynst_size, &shaderstate.dynst_offs[0], &map, vertcount*sizeof(byte_vec4_t));
+		for (mno = 0, vertcount = 0; mno < shaderstate.nummeshes; mno++)
+		{
+			byte_vec4_t *dest = (byte_vec4_t*)((char*)map+vertcount*sizeof(byte_vec4_t));
+			m = shaderstate.meshlist[mno];
+			if (m->colors4f_array)
+			{
+				for (v = 0; v < m->numvertexes; v++)
+				{
+					dest[v][0] = bound(0, m->colors4f_array[v][0] * 255, 255);
+					dest[v][1] = bound(0, m->colors4f_array[v][1] * 255, 255);
+					dest[v][2] = bound(0, m->colors4f_array[v][2] * 255, 255);
+					dest[v][3] = bound(0, m->colors4f_array[v][3] * 255, 255);
+				}
+			}
+			else if (m->colors4b_array)
+				memcpy(dest, m->colors4b_array, m->numvertexes*sizeof(byte_vec4_t));
+			else
+				memset(dest, 0, m->numvertexes*sizeof(byte_vec4_t));
+			vertcount += m->numvertexes;
+		}
+		d3dcheck(IDirect3DVertexBuffer9_Unlock(shaderstate.dynst_buff[0]));
+		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0, shaderstate.dynst_buff[0], shaderstate.dynst_offs[0] - vertcount*sizeof(byte_vec4_t), sizeof(byte_vec4_t)));
+	}
+
+	/*texture coords*/
+	if (vdec & D3D_VDEC_ST0)
+	{
+		int mno;
+		void *map;
+		mesh_t *m;
+		allocvertexbuffer(shaderstate.dynst_buff[0], shaderstate.dynst_size, &shaderstate.dynst_offs[0], &map, vertcount*sizeof(vec2_t));
+		for (mno = 0, vertcount = 0; mno < shaderstate.nummeshes; mno++)
+		{
+			vec2_t *dest = (vec2_t*)((char*)map+vertcount*sizeof(vec2_t));
+			m = shaderstate.meshlist[mno];
+			memcpy(dest, m->st_array, m->numvertexes*sizeof(vec2_t));
+			vertcount += m->numvertexes;
+		}
+		d3dcheck(IDirect3DVertexBuffer9_Unlock(shaderstate.dynst_buff[0]));
+		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0, shaderstate.dynst_buff[0], shaderstate.dynst_offs[0] - vertcount*sizeof(vec2_t), sizeof(vec2_t)));
+	}
+	/*lm coords*/
+	if (vdec & D3D_VDEC_ST1)
+	{
+		int mno;
+		void *map;
+		mesh_t *m;
+		allocvertexbuffer(shaderstate.dynst_buff[1], shaderstate.dynst_size, &shaderstate.dynst_offs[1], &map, vertcount*sizeof(vec2_t));
+		for (mno = 0, vertcount = 0; mno < shaderstate.nummeshes; mno++)
+		{
+			vec2_t *dest = (vec2_t*)((char*)map+vertcount*sizeof(vec2_t));
+			m = shaderstate.meshlist[mno];
+			memcpy(dest, m->lmst_array, m->numvertexes*sizeof(vec2_t));
+			vertcount += m->numvertexes;
+		}
+		d3dcheck(IDirect3DVertexBuffer9_Unlock(shaderstate.dynst_buff[1]));
+		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0, shaderstate.dynst_buff[1], shaderstate.dynst_offs[1] - vertcount*sizeof(vec2_t), sizeof(vec2_t)));
+	}
+
+	/*normals/tangents/bitangents*/
+	if (vdec & D3D_VDEC_NORM)
+	{
+		/*FIXME*/
+		vdec &= ~D3D_VDEC_NORM;
+	}
+
+	/*bone weights+indexes*/
+	if (vdec & D3D_VDEC_SKEL)
+	{
+		/*FIXME*/
+		vdec &= ~D3D_VDEC_NORM;
+	}
+
+	if (vdec != shaderstate.curvertdecl)
+	{
+		shaderstate.curvertdecl = vdec;
+		d3dcheck(IDirect3DDevice9_SetVertexDeclaration(pD3DDev9, vertexdecls[shaderstate.curvertdecl]));
+	}
 
 //	IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9,
 	d3dcheck(IDirect3DDevice9_DrawIndexedPrimitive(pD3DDev9, D3DPT_TRIANGLELIST, 0, 0, vertcount, idxfirst, idxcount/3));
@@ -1597,7 +1812,7 @@ static void BE_DrawMeshChain_Internal(void)
 		vertcount += m->numvertexes;
 	}
 	d3dcheck(IDirect3DVertexBuffer9_Unlock(shaderstate.dynxyz_buff));
-	d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, 0, shaderstate.dynxyz_buff, shaderstate.dynxyz_offs - vertcount*sizeof(vecV_t), sizeof(vecV_t)));
+	d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_VERT, shaderstate.dynxyz_buff, shaderstate.dynxyz_offs - vertcount*sizeof(vecV_t), sizeof(vecV_t)));
 
 	/*so are index buffers*/
 	idxfirst = allocindexbuffer(&map, idxcount);
@@ -1626,7 +1841,7 @@ static void BE_DrawMeshChain_Internal(void)
 		/*deactivate any extras*/
 		for (passno = 0; passno < shaderstate.lastpasscount; )
 		{
-			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, 5+passno, NULL, 0, 0));
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+passno, NULL, 0, 0));
 			BindTexture(passno, NULL);
 			d3dcheck(IDirect3DDevice9_SetTextureStageState(pD3DDev9, passno, D3DTSS_COLOROP, D3DTOP_DISABLE));
 			passno++;
@@ -1900,7 +2115,7 @@ batch_t *D3DBE_GetTempBatch(void)
 static void BE_RotateForEntity (const entity_t *e, const model_t *mod)
 {
 	float mv[16];
-	float m[16];
+	float *m = shaderstate.m_model;
 
 	shaderstate.curentity = e;
 
@@ -2072,9 +2287,12 @@ static void BE_SubmitMeshesSortList(batch_t *sortlist)
 
 		if (batch->shader->flags & SHADER_SKY)
 		{
-			if (shaderstate.mode == BEM_STANDARD)
-				R_DrawSkyChain (batch);
-			continue;
+			if (!batch->shader->prog)
+			{
+				if (shaderstate.mode == BEM_STANDARD)
+					R_DrawSkyChain (batch);
+				continue;
+			}
 		}
 
 		BE_SubmitBatch(batch);
@@ -2209,7 +2427,7 @@ static void TransformDir(vec3_t in, vec3_t planea[3], vec3_t viewa[3], vec3_t re
 }
 static void R_RenderScene(void)
 {
-	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)r_refdef.m_projection);
+	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)d3d_trueprojection);
 	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)r_refdef.m_view);
 	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
 	Surf_DrawWorld();
@@ -2320,7 +2538,7 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist)
 	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
 	VectorCopy (r_refdef.vieworg, r_origin);
 
-	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)r_refdef.m_projection);
+	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_PROJECTION, (D3DMATRIX*)d3d_trueprojection);
 	IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)r_refdef.m_view);
 	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
 }

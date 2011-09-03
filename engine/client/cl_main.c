@@ -199,8 +199,7 @@ int rtlights_first, rtlights_max;
 // this is double buffered so the last frame
 // can be scanned for oldorigins of trailing objects
 int				cl_numvisedicts;
-entity_t		*cl_visedicts;
-entity_t		cl_visedicts_list[MAX_VISEDICTS];
+entity_t		cl_visedicts[MAX_VISEDICTS];
 
 scenetris_t		*cl_stris;
 vecV_t			*cl_strisvertv;
@@ -2719,7 +2718,7 @@ void CL_ReadPackets (void)
 				cls.netchan.outgoing_sequence = cls.netchan.incoming_sequence;
 			}
 			MSG_ChangePrimitives(cls.netchan.netprim);
-			CL_ParseServerMessage ();
+			CLQW_ParseServerMessage ();
 			break;
 		case CP_UNKNOWN:
 			break;

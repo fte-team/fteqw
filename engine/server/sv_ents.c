@@ -357,10 +357,10 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 	for (en = 1; en < sv.world.num_edicts; en++)
 	{
 		ent = EDICT_NUM(svprogfuncs, en);
-		if (client->csqcentversions[en] > 0 && (client->csqcentversions[en] != sv.csqcentversion[en]) && !((int)ent->xv->pvsflags & PVSF_NOREMOVE))
+		if (client->csqcentversions[en] > 0 && client->csqcentversions[en] != ent->xv->Version)
 		{
-		//	if (!ent->isfree)
-		//		continue;
+			if (((int)ent->xv->pvsflags & PVSF_NOREMOVE))
+				continue;
 
 			if (msg->cursize + 5 >= msg->maxsize)	//try removing next frame instead.
 			{
@@ -2542,10 +2542,8 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 		{
 			if (e >= client->max_net_ents)
 				continue;
-#ifdef PEXT_MODELDBL
-			if (ent->v->modelindex >= 256 && !(client->fteprotocolextensions & PEXT_MODELDBL))
+			if (ent->v->modelindex >= client->maxmodels)
 				continue;
-#endif
 		}
 
 #ifdef DEPTHOPTIMISE

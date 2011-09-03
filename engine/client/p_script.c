@@ -276,8 +276,6 @@ typedef struct part_type_s {
 #define PS_INRUNLIST 0x1 // particle type is currently in execution list
 } part_type_t;
 
-static void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t **,plooks_t*), void (*sparklineparticles)(int count, particle_t **,plooks_t*), void (*sparkfanparticles)(int count, particle_t **,plooks_t*), void (*sparktexturedparticles)(int count, particle_t **,plooks_t*), void (*beamparticles)(int count, beamseg_t**,plooks_t*), void (*drawdecalparticles)(int count, clippeddecal_t**,plooks_t*));
-
 #ifndef TYPESONLY
 
 //triangle fan sparks use these. // defined but not used
@@ -3972,8 +3970,12 @@ static void GL_DrawClippedDecal(int count, clippeddecal_t **dlist, plooks_t *typ
 	}
 }
 
-static void PScript_DrawParticleTypes (void (*texturedparticles)(int count, particle_t **,plooks_t*), void (*sparklineparticles)(int count, particle_t **,plooks_t*), void (*sparkfanparticles)(int count, particle_t **,plooks_t*), void (*sparktexturedparticles)(int count, particle_t **,plooks_t*), void (*beamparticles)(int count, beamseg_t**,plooks_t*), void (*drawdecalparticles)(int count, clippeddecal_t**,plooks_t*))
+static void PScript_DrawParticleTypes (void)
 {
+	void (*sparklineparticles)(int count, particle_t **,plooks_t*)=GL_DrawLineSparkParticle;
+	void (*sparkfanparticles)(int count, particle_t **,plooks_t*)=GL_DrawTrifanParticle;
+	void (*sparktexturedparticles)(int count, particle_t **,plooks_t*)=GL_DrawTexturedSparkParticle;
+
 	qboolean (*tr) (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
 	void *pdraw, *bdraw;
 
@@ -4030,11 +4032,6 @@ static void PScript_DrawParticleTypes (void (*texturedparticles)(int count, part
 		tr = TraceLineN;
 
 	kill_list = kill_first = NULL;
-
-	if (r_part_beams.ival < 0)
-		beamparticles = NULL;
-	else if (!r_part_beams.ival)
-		beamparticles = NULL;
 
 	if (r_part_sparks_textured.ival < 0)
 		sparktexturedparticles = NULL;
@@ -4113,7 +4110,7 @@ static void PScript_DrawParticleTypes (void (*texturedparticles)(int count, part
 					d->rgba[3] += pframetime*type->alphachange;
 				}
 
-				drawdecalparticles(1, &d, &type->looks);
+				GL_DrawClippedDecal(1, &d, &type->looks);
 			}
 		}
 
@@ -4125,12 +4122,15 @@ static void PScript_DrawParticleTypes (void (*texturedparticles)(int count, part
 		switch(type->looks.type)
 		{
 		case PT_BEAM:
-			bdraw = beamparticles;
+			if (r_part_beams.ival <= 0)
+				bdraw = NULL;
+			else
+				bdraw = GL_DrawParticleBeam;
 			break;
 		case PT_DECAL:
 			break;
 		case PT_NORMAL:
-			pdraw = texturedparticles;
+			pdraw = GL_DrawTexturedParticle;
 			break;
 		case PT_SPARK:
 			pdraw = sparklineparticles;
@@ -4532,7 +4532,7 @@ static void PScript_DrawParticles (void)
 {
 	P_AddRainParticles();
 
-	PScript_DrawParticleTypes(GL_DrawTexturedParticle, GL_DrawLineSparkParticle, GL_DrawTrifanParticle, GL_DrawTexturedSparkParticle, GL_DrawParticleBeam, GL_DrawClippedDecal);
+	PScript_DrawParticleTypes();
 
 	if (fallback)
 		fallback->DrawParticles();

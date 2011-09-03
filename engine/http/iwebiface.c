@@ -463,7 +463,7 @@ int IWebAuthorize(char *name, char *password)
 	return IWEBACC_READ;
 #else
 #ifndef CLIENTONLY
-	int id = Rank_GetPlayerID(name, atoi(password), false, true);
+	int id = Rank_GetPlayerID(NULL, name, atoi(password), false, true);
 	rankinfo_t info;
 	if (!id)
 	{

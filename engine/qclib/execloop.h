@@ -35,6 +35,12 @@
 #error Bad cont size
 #endif
 
+#ifdef DEBUGABLE
+#define OPCODE (st->op & ~0x8000)
+#else
+#define OPCODE (st->op)
+#endif
+
 #define ENGINEPOINTER(p) ((char*)(p) - progfuncs->stringtable)
 #define QCPOINTER(p) (eval_t *)(p->_int+progfuncs->stringtable)
 #define QCPOINTERM(p) (eval_t *)((p)+progfuncs->stringtable)
@@ -49,11 +55,10 @@ cont:	//last statement may have been a breakpoint
 	st = pr_statements + s;
 
 reeval:
-	switch (st->op & ~0x8000)
 #else
 	st++;
-	switch (st->op)
 #endif
+	switch (OPCODE)
 	{
 	case OP_ADD_F:
 		OPC->_float = OPA->_float + OPB->_float;
@@ -567,11 +572,10 @@ reeval:
 		RUNAWAYCHECK();
 		pr_xstatement = st-pr_statements;
 
-
-		if (st->op > OP_CALL8)
-			pr_argc = st->op - (OP_CALL1H-1);
+		if (OPCODE > OP_CALL8)
+			pr_argc = OPCODE - (OP_CALL1H-1);
 		else
-			pr_argc = st->op - OP_CALL0;
+			pr_argc = OPCODE - OP_CALL0;
 		fnum = OPA->function;
 		if ((fnum & ~0xff000000)==0)
 		{
@@ -743,7 +747,7 @@ if (pr_typecurrent != 0)
 
 	//array/structure reading/writing.
 	case OP_GLOBALADDRESS:
-		OPC->_int = ENGINEPOINTER(&OPA->_int + OPB->_int);
+		OPC->_int = ENGINEPOINTER(&OPA->_int + OPB->_int); /*pointer arithmatic*/
 		break;
 	case OP_POINTER_ADD:	//pointer to 32 bit (remember to *3 for vectors)
 		OPC->_int = OPA->_int + OPB->_int*4;
@@ -755,7 +759,7 @@ if (pr_typecurrent != 0)
 	case OP_LOADA_ENT:
 	case OP_LOADA_S:
 	case OP_LOADA_FNC:
-		ptr = (eval_t *)(&OPA->_int + OPB->_int);
+		ptr = (eval_t *)(&OPA->_int + OPB->_int); /*pointer arithmatic*/
 		OPC->_int = ptr->_int;
 		break;
 
@@ -784,7 +788,7 @@ if (pr_typecurrent != 0)
 	case OP_LOADP_ENT:
 	case OP_LOADP_S:
 	case OP_LOADP_FNC:
-		ptr = QCPOINTERM(OPA->_int + OPB->_int);
+		ptr = QCPOINTERM(OPA->_int + OPB->_int*p);
 		OPC->_int = ptr->_int;
 		break;
 
@@ -859,44 +863,44 @@ if (pr_typecurrent != 0)
 		break;
 
 	case OP_RAND0:
-		G_FLOAT(OFS_RETURN) = (rand()&0x7fff)/((float)0x7fff);
+		OPC->_float = (rand()&0x7fff)/((float)0x7fff);
 		break;
 	case OP_RAND1:
-		G_FLOAT(OFS_RETURN) = (rand()&0x7fff)/((float)0x7fff)*OPA->_float;
+		OPC->_float = (rand()&0x7fff)/((float)0x7fff)*OPA->_float;
 		break;
 	case OP_RAND2:
 		if(OPA->_float < OPB->_float)
 		{
-			G_FLOAT(OFS_RETURN) = OPA->_float+((rand()&0x7fff)/((float)0x7fff)
+			OPC->_float = OPA->_float+((rand()&0x7fff)/((float)0x7fff)
 				*(OPB->_float-OPA->_float));
 		}
 		else
 		{
-			G_FLOAT(OFS_RETURN) = OPB->_float+((rand()&0x7fff)/((float)0x7fff)
+			OPC->_float = OPB->_float+((rand()&0x7fff)/((float)0x7fff)
 				*(OPA->_float-OPB->_float));
 		}
 		break;
 	case OP_RANDV0:
-		G_FLOAT(OFS_RETURN+0) = (rand()&0x7fff)/((float)0x7fff);
-		G_FLOAT(OFS_RETURN+1) = (rand()&0x7fff)/((float)0x7fff);
-		G_FLOAT(OFS_RETURN+2) = (rand()&0x7fff)/((float)0x7fff);
+		OPC->_vector[0] = (rand()&0x7fff)/((float)0x7fff);
+		OPC->_vector[1] = (rand()&0x7fff)/((float)0x7fff);
+		OPC->_vector[2] = (rand()&0x7fff)/((float)0x7fff);
 		break;
 	case OP_RANDV1:
-		G_FLOAT(OFS_RETURN+0) = (rand()&0x7fff)/((float)0x7fff)*OPA->_vector[0];
-		G_FLOAT(OFS_RETURN+1) = (rand()&0x7fff)/((float)0x7fff)*OPA->_vector[1];
-		G_FLOAT(OFS_RETURN+2) = (rand()&0x7fff)/((float)0x7fff)*OPA->_vector[2];
+		OPC->_vector[0] = (rand()&0x7fff)/((float)0x7fff)*OPA->_vector[0];
+		OPC->_vector[1] = (rand()&0x7fff)/((float)0x7fff)*OPA->_vector[1];
+		OPC->_vector[2] = (rand()&0x7fff)/((float)0x7fff)*OPA->_vector[2];
 		break;
 	case OP_RANDV2:
 		for(i = 0; i < 3; i++)
 		{
 			if(OPA->_vector[i] < OPB->_vector[i])
 			{
-				G_FLOAT(OFS_RETURN+i) = OPA->_vector[i]+((rand()&0x7fff)/((float)0x7fff)
+				OPC->_vector[i] = OPA->_vector[i]+((rand()&0x7fff)/((float)0x7fff)
 					*(OPB->_vector[i]-OPA->_vector[i]));
 			}
 			else
 			{
-				G_FLOAT(OFS_RETURN+i) = OPB->_vector[i]+(rand()*(1.0f/RAND_MAX)
+				OPC->_vector[i] = OPB->_vector[i]+(rand()*(1.0f/RAND_MAX)
 					*(OPA->_vector[i]-OPB->_vector[i]));
 			}
 		}
@@ -909,7 +913,7 @@ if (pr_typecurrent != 0)
 	case OP_SWITCH_E:
 	case OP_SWITCH_FNC:
 		swtch = OPA;
-		swtchtype = st->op;
+		swtchtype = OPCODE;
 		RUNAWAYCHECK();
 		st += (sofs)st->b - 1;	// offset the st++
 		break;
@@ -1072,7 +1076,7 @@ if (pr_typecurrent != 0)
 		if ((unsigned int)OPA->_int < (unsigned int)st->c || (unsigned int)OPA->_int >= (unsigned int)st->b)
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError(progfuncs, "Progs boundcheck failed. Value is %i.", OPA->_int);
+			PR_RunError(progfuncs, "Progs boundcheck failed. Value is %i. Must be between %u and %u", OPA->_int, st->c, st->b);
 		}
 		break;
 /*	case OP_PUSH:
@@ -1124,6 +1128,7 @@ if (pr_typecurrent != 0)
 #undef dstatement_t
 #undef sofs
 #undef uofs
+#undef OPCODE
 
 #undef ENGINEPOINTER
 #undef QCPOINTER

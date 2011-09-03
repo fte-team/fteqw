@@ -333,6 +333,7 @@ void R_DrawHLModel(entity_t	*curent);
 // gl_rlight.c
 //
 void GLR_RenderDlights (void);
+void R_GenDlightBatches(batch_t *batches[]);
 #ifdef GLQUAKE
 void GLR_MarkQ2Lights (dlight_t *light, int bit, mnode_t *node);
 void R_InitFlashblends (void);
@@ -750,6 +751,8 @@ extern void (APIENTRY *qglDeleteRenderbuffersEXT)(GLsizei n, const GLuint* ids);
 extern void (APIENTRY *qglBindRenderbufferEXT)(GLenum target, GLuint id);
 extern void (APIENTRY *qglRenderbufferStorageEXT)(GLenum target, GLenum internalFormat, GLsizei width, GLsizei height);
 extern void (APIENTRY *qglFramebufferTexture2DEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId, GLint  level);
+extern void (APIENTRY *qglFramebufferRenderbufferEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId);
+extern GLenum (APIENTRY *qglCheckFramebufferStatusEXT)(GLenum target);
 
 /*
 extern qboolean gl_arb_fragment_program;

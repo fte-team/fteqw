@@ -82,6 +82,7 @@ extern vec3_t vec3_origin;
 #define Vector4Copy(a,b) do{(b)[0]=(a)[0];(b)[1]=(a)[1];(b)[2]=(a)[2];(b)[3]=(a)[3];}while(0)
 #define Vector4Scale(in,scale,out)		((out)[0]=(in)[0]*scale,(out)[1]=(in)[1]*scale,(out)[2]=(in)[2]*scale,(out)[3]=(in)[3]*scale)
 #define Vector4Add(a,b,c)		((c)[0]=(((a[0])+(b[0]))),(c)[1]=(((a[1])+(b[1]))),(c)[2]=(((a[2])+(b[2]))),(c)[3]=(((a[3])+(b[3]))))
+#define Vector4Set(r,x,y,z,w) {(r)[0] = x; (r)[1] = y;(r)[2] = z;(r)[3]=w;}
 
 typedef float matrix3x4[3][4];
 typedef float matrix3x3[3][3];
@@ -140,6 +141,7 @@ mat3x4 is always row-major (and functions can accept many RM mat4x4)
 void		Matrix3_Multiply (vec3_t *in1, vec3_t *in2, vec3_t *out);
 void		Matrix4x4_Identity(float *outm);
 qboolean	Matrix4_Invert(const float *m, float *out);
+void		Matrix3x4_Invert (const float *in1, float *out);
 void		Matrix3x4_Invert_Simple (const float *in1, float *out);
 void		Matrix3x4_InvertTo4x4_Simple (const float *in1, float *out);
 void		Matrix3x3_RM_Invert_Simple(const vec3_t in[3], vec3_t out[3]);
@@ -151,6 +153,7 @@ void		Matrix4x4_CM_ModelViewMatrix (float *modelview, const vec3_t viewangles, c
 void		Matrix4x4_CM_ModelViewMatrixFromAxis (float *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg);
 void		Matrix4_CreateFromQuakeEntity (float *matrix, float x, float y, float z, float pitch, float yaw, float roll, float scale);
 void		Matrix4_Multiply (const float *a, const float *b, float *out);
+void		Matrix3x4_Multiply(const float *a, const float *b, float *out);
 void		Matrix4x4_CM_Project (const vec3_t in, vec3_t out, const vec3_t viewangles, const vec3_t vieworg, float fovx, float fovy);
 void		Matrix4x4_CM_Transform3 (const float *matrix, const float *vector, float *product);
 void		Matrix4x4_CM_Transform4 (const float *matrix, const float *vector, float *product);

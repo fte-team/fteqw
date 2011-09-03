@@ -1639,7 +1639,7 @@ void COM_Gamedir (const char *dir)
 /*some modern non-compat settings*/
 #define DMFCFG "set com_parseutf8 1\npm_airstep 1\nsv_demoExtensions 1\n"
 /*set some stuff so our regular qw client appears more like hexen2*/
-#define HEX2CFG "set r_particlesdesc \"spikeset tsshaft h2part\"\nset sv_maxspeed 640\nset watervis 1\nset r_wateralpha 0.5\nset sv_pupglow 1\nset cl_model_bobbing 1\n"
+#define HEX2CFG "set r_particlesdesc \"spikeset tsshaft h2part\"\nset sv_maxspeed 640\nset watervis 1\nset r_wateralpha 0.5\nset sv_pupglow 1\nset cl_model_bobbing 1\nsv_sound_land \"fx/thngland.wav\"\n"
 /*Q3's ui doesn't like empty model/headmodel/handicap cvars, even if the gamecode copes*/
 #define Q3CFG "seta model sarge\nseta headmodel sarge\nseta handicap 100\n"
 
@@ -2307,21 +2307,24 @@ void COM_InitFilesystem (void)
 						fclose(f);
 						break;
 					}
+					if (autobasedir)
+					{
 #ifdef _WIN32
-					if (Sys_FindGameData(gamemode_info[i].poshname, gamemode_info[i].exename, com_quakedir, sizeof(com_quakedir)))
-					{
-						if (com_quakedir[strlen(com_quakedir)-1] == '\\')
-							com_quakedir[strlen(com_quakedir)-1] = '/';
-						else if (com_quakedir[strlen(com_quakedir)-1] != '/')
+						if (Sys_FindGameData(gamemode_info[i].poshname, gamemode_info[i].exename, com_quakedir, sizeof(com_quakedir)))
 						{
-							com_quakedir[strlen(com_quakedir)+1] = '\0';
-							com_quakedir[strlen(com_quakedir)] = '/';
+							if (com_quakedir[strlen(com_quakedir)-1] == '\\')
+								com_quakedir[strlen(com_quakedir)-1] = '/';
+							else if (com_quakedir[strlen(com_quakedir)-1] != '/')
+							{
+								com_quakedir[strlen(com_quakedir)+1] = '\0';
+								com_quakedir[strlen(com_quakedir)] = '/';
+							}
 						}
-					}
-					else
+						else
 #endif
-					{
-						Con_Printf("Couldn't find the gamedata for this game mode!\n");
+						{
+							Con_Printf("Couldn't find the gamedata for this game mode!\n");
+						}
 					}
 					break;
 				}

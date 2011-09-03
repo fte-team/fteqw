@@ -1027,7 +1027,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 			if (e->flags & Q2RF_TRANSLUCENT)
 			{
 				b->flags |= BEF_FORCETRANSPARENT;
-				if (sort < SHADER_SORT_BLEND)
+				if (SHADER_SORT_PORTAL < sort && sort < SHADER_SORT_BLEND)
 					sort = SHADER_SORT_BLEND;
 			}
 			if (e->flags & RF_NODEPTHTEST)
@@ -1821,7 +1821,7 @@ static void R_Sprite_GenerateBatch(entity_t *e, batch_t **batches, void (*drawfu
 	if (e->flags & Q2RF_TRANSLUCENT || (gl_blendsprites.ival && drawfunc == R_DB_Sprite))
 	{
 		b->flags |= BEF_FORCETRANSPARENT;
-		if (sort < SHADER_SORT_BLEND)
+		if (SHADER_SORT_PORTAL < sort && sort < SHADER_SORT_BLEND)
 			sort = SHADER_SORT_BLEND;
 	}
 	if (e->flags & RF_NODEPTHTEST)

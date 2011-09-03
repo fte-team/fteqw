@@ -639,7 +639,7 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 
 	case G_SOUND:
 //		( int edn, int channel, char *samp, float vol, float att )
-		SVQ1_StartSound (Q1QVMPF_EdictNum(svprogfuncs, VM_LONG(arg[0])), VM_LONG(arg[1]), VM_POINTER(arg[2]), VM_FLOAT(arg[3])*255, VM_FLOAT(arg[4]), 0);
+		SVQ1_StartSound ((wedict_t*)Q1QVMPF_EdictNum(svprogfuncs, VM_LONG(arg[0])), VM_LONG(arg[1]), VM_POINTER(arg[2]), VM_FLOAT(arg[3])*255, VM_FLOAT(arg[4]), 0);
 		break;
 
 	case G_TRACELINE:
@@ -1302,6 +1302,29 @@ void Q1QVM_Shutdown(void)
 	Z_FreeTags(VMFSID_Q1QVM);
 }
 
+void Q1QVM_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
+{
+	int oself = pr_global_struct->self;
+	int oother = pr_global_struct->other;
+
+	pr_global_struct->self = EDICT_TO_PROG(w->progs, s);
+	pr_global_struct->other = EDICT_TO_PROG(w->progs, o);
+	pr_global_struct->time = w->physicstime;
+	VM_Call(q1qvm, GAME_EDICT_TOUCH);
+
+	pr_global_struct->self = oself;
+	pr_global_struct->other = oother;
+}
+
+void Q1QVM_Event_Think(world_t *w, wedict_t *s)
+{
+	pr_global_struct->self = EDICT_TO_PROG(w->progs, s);
+	pr_global_struct->other = EDICT_TO_PROG(w->progs, w->edicts);
+	VM_Call(q1qvm, GAME_EDICT_THINK);
+
+	PR_ExecuteProgram (w->progs, s->v->think);
+}
+
 qboolean PR_LoadQ1QVM(void)
 {
 	static float writable;
@@ -1343,7 +1366,8 @@ qboolean PR_LoadQ1QVM(void)
 	q1qvmprogfuncs.StringToProgs = Q1QVMPF_StringToProgs;
 	q1qvmprogfuncs.StringToNative = Q1QVMPF_StringToNative;
 
-	sv.world.Event_Touch = SVPR_Event_Touch;
+	sv.world.Event_Touch = Q1QVM_Event_Touch;
+	sv.world.Event_Think = Q1QVM_Event_Think;
 	sv.world.GetCModel = SVPR_GetCModel;
 
 	sv.world.num_edicts = 0;	//we're not ready for most of the builtins yet
@@ -1547,16 +1571,6 @@ void Q1QVM_PostThink(void)
 void Q1QVM_StartFrame(void)
 {
 	VM_Call(q1qvm, GAME_START_FRAME, (qintptr_t)(sv.time*1000));
-}
-
-void Q1QVM_Touch(void)
-{
-	VM_Call(q1qvm, GAME_EDICT_TOUCH);
-}
-
-void Q1QVM_Think(void)
-{
-	VM_Call(q1qvm, GAME_EDICT_THINK);
 }
 
 void Q1QVM_Blocked(void)

@@ -370,7 +370,7 @@ typedef struct client_s
 	char			*name;
 	char			namebuf[32];			// for printing to other people
 										// extracted from userinfo
-	char			guid[32];
+	char			guid[32]; /*+2 for split+pad*/
 	int				messagelevel;		// for filtering printed messages
 
 	// the datagram is written to after every frame, but only cleared
@@ -1000,13 +1000,14 @@ qboolean SVQ3_Command(void);
 // sv_phys.c
 //
 void SV_SetMoveVars(void);
-void SV_RunNewmis (void);
+void WPhys_RunNewmis (world_t *w);
 qboolean SV_Physics (void);
-void SV_CheckVelocity (edict_t *ent);
-trace_t SV_Trace_Toss (edict_t *ent, edict_t *ignore);
+void World_Physics_Frame(world_t *w);
+void WPhys_CheckVelocity (world_t *w, wedict_t *ent);
+trace_t WPhys_Trace_Toss (world_t *w, wedict_t *ent, wedict_t *ignore);
 void SV_ProgStartFrame (void);
-void SV_RunEntity (edict_t *ent);
-qboolean SV_RunThink (edict_t *ent);
+void WPhys_RunEntity (world_t *w, wedict_t *ent);
+qboolean WPhys_RunThink (world_t *w, wedict_t *ent);
 //
 // sv_send.c
 //
@@ -1024,7 +1025,7 @@ void VARGS SV_Multicast (vec3_t origin, multicast_t to);
 void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int with, int without);
 
 void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sample, int volume, float attenuation, int pitchadj);
-void SVQ1_StartSound (edict_t *entity, int channel, char *sample, int volume, float attenuation, int pitchadj);
+void SVQ1_StartSound (wedict_t *entity, int channel, char *sample, int volume, float attenuation, int pitchadj);
 void SV_PrintToClient(client_t *cl, int level, char *string);
 void VARGS SV_ClientPrintf (client_t *cl, int level, char *fmt, ...) LIKEPRINTF(3);
 void VARGS SV_ClientTPrintf (client_t *cl, int level, translation_t text, ...);
@@ -1156,7 +1157,7 @@ typedef struct {
 	rankstats_t s;
 } rankinfo_t;
 
-int Rank_GetPlayerID(char *name, int pwd, qboolean allowcreate, qboolean requirepasswordtobeset);
+int Rank_GetPlayerID(char *guid, char *name, int pwd, qboolean allowcreate, qboolean requirepasswordtobeset);
 void Rank_SetPlayerStats(int id, rankstats_t *stats);
 rankstats_t *Rank_GetPlayerStats(int id, rankstats_t *buffer);
 rankinfo_t *Rank_GetPlayerInfo(int id, rankinfo_t *buffer);
@@ -1292,6 +1293,7 @@ extern cvar_t	sv_demoUseCache;
 extern cvar_t	sv_demoMaxSize;
 extern cvar_t	sv_demoMaxDirSize;
 
+char *SV_Demo_CurrentOutput(void);
 void SV_MVDInit(void);
 char *SV_MVDNum(char *buffer, int bufferlen, int num);
 void SV_SendMVDMessage(void);

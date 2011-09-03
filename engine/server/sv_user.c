@@ -44,7 +44,7 @@ cvar_t	sv_spectalk	= SCVAR("sv_spectalk", "1");
 
 cvar_t	sv_mapcheck	= SCVAR("sv_mapcheck", "1");
 
-cvar_t	sv_antilag			= CVARFD("sv_antilag", "0", CVAR_SERVERINFO, "Attempt to backdate impacts to compensate for lag.");
+cvar_t	sv_antilag			= CVARFD("sv_antilag", "1", CVAR_SERVERINFO, "Attempt to backdate impacts to compensate for lag. 0=completely off. 1=mod-controlled. 2=forced, which might break certain uses of traceline.");
 cvar_t	sv_antilag_frac		= CVARF("sv_antilag_frac", "1", CVAR_SERVERINFO);
 cvar_t	sv_cheatpc				= CVAR("sv_cheatpc", "125");
 cvar_t	sv_cheatspeedchecktime	= CVAR("sv_cheatspeedchecktime", "30");
@@ -58,7 +58,7 @@ cvar_t	sv_nomsec	= CVARD("sv_nomsec", "0", "Ignore client msec times, runs using
 cvar_t	sv_edgefriction	= CVARAF("sv_edgefriction", "2",
 								 "edgefriction", 0);
 
-cvar_t	sv_brokenmovetypes	= SCVAR("sv_brokenmovetypes", "0");
+cvar_t	sv_brokenmovetypes	= CVARD("sv_brokenmovetypes", "0", "Emulate standard quakeworld movetypes. Shouldn't be used for any games other than QuakeWorld.");
 
 cvar_t	sv_chatfilter	= CVAR("sv_chatfilter", "0");
 
@@ -90,8 +90,8 @@ cvar_t sv_pushplayers = SCVAR("sv_pushplayers", "0");
 //yes, realip cvars need to be fully initialised or realip will be disabled
 cvar_t sv_getrealip = CVARD("sv_getrealip", "0", "Attempt to obtain a more reliable IP for clients, rather than just their proxy.");
 cvar_t sv_realip_kick = SCVAR("sv_realip_kick", "0");
-cvar_t sv_realiphostname_ipv4 = SCVAR("sv_realiphostname_ipv4", "");
-cvar_t sv_realiphostname_ipv6 = SCVAR("sv_realiphostname_ipv6", "");
+cvar_t sv_realiphostname_ipv4 = CVARD("sv_realiphostname_ipv4", "", "This is the server's public ip:port. This is needed for realip to work when the autodetected/local ip is not globally routable");
+cvar_t sv_realiphostname_ipv6 = CVARD("sv_realiphostname_ipv6", "", "This is the server's public ip:port. This is needed for realip to work when the autodetected/local ip is not globally routable");
 cvar_t sv_realip_timeout = SCVAR("sv_realip_timeout", "10");
 
 #ifdef VOICECHAT
@@ -5230,9 +5230,6 @@ int SV_PMTypeForClient (client_t *cl)
 }
 
 
-//called for common csqc/server code (supposedly)
-void SV_RunEntity (edict_t *ent);
-
 /*
 ===========
 SV_PreRunCmd
@@ -5422,7 +5419,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		sv_player->xv->movement[2] = ucmd->upmove * host_frametime;
 	}
 
-	SV_CheckVelocity(sv_player);
+	WPhys_CheckVelocity(&sv.world, (wedict_t*)sv_player);
 
 //
 // angles
@@ -5442,7 +5439,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	{	//csqc independant physics support
 		pr_global_struct->frametime = host_frametime;
 		pr_global_struct->time = sv.time;
-		SV_RunEntity(sv_player);
+		WPhys_RunEntity(&sv.world, (wedict_t*)sv_player);
 		return;
 	}
 
@@ -5489,7 +5486,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 				sv_player->v->velocity[2] -= 270;
 		}
 
-		SV_RunThink (sv_player);
+		WPhys_RunThink (&sv.world, (wedict_t*)sv_player);
 	}
 
 //	memset(&pmove, 0, sizeof(pmove));
@@ -5650,32 +5647,11 @@ if (sv_player->v->health > 0 && before && !after )
 				continue;
 
 			if (ent->v->touch)
-			{
-				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
-				pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, sv_player);
-				pr_global_struct->time = sv.time;
-#ifdef VM_Q1
-				if (svs.gametype == GT_Q1QVM)
-					Q1QVM_Touch();
-				else
-#endif
-					PR_ExecuteProgram (svprogfuncs, ent->v->touch);
-			}
+				sv.world.Event_Touch(&sv.world, (wedict_t*)ent, (wedict_t*)sv_player);
 			playertouch[n/8] |= 1 << (n%8);
 
 			if (sv_player->v->touch && !ent->isfree)
-			{
-				pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, ent);
-				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-				pr_global_struct->time = sv.time;
-#ifdef VM_Q1
-				if (svs.gametype == GT_Q1QVM)
-					Q1QVM_Touch();
-				else
-#endif
-					PR_ExecuteProgram (svprogfuncs, sv_player->v->touch);
-			}
-
+				sv.world.Event_Touch(&sv.world, (wedict_t*)sv_player, (wedict_t*)ent);
 		}
 	}
 
@@ -5716,7 +5692,7 @@ void SV_PostRunCmd(void)
 
 			PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPostThink);
 
-			SV_RunNewmis ();
+			WPhys_RunNewmis (&sv.world);
 		}
 		else if (SpectatorThink)
 		{
@@ -6466,7 +6442,7 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	if (host_client->last_sequence)
 	{
 		host_frametime = timesincelast;
-		SV_RunEntity(host_client->edict);
+		WPhys_RunEntity(&sv.world, (wedict_t*)host_client->edict);
 		host_client->isindependant = true;
 	}
 	else

@@ -736,7 +736,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	}
 
 #ifdef USEODE
-	World_Physics_End(&sv.world);
+	World_ODE_End(&sv.world);
 #endif
 
 	// wipe the entire per-level structure
@@ -1256,10 +1256,6 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 				pr_global_struct->deathmatch = deathmatch.value;
 		}
 
-		if (progstype == PROG_QW)
-			// run the frame start qc function to let progs check cvars
-			SV_ProgStartFrame ();	//prydon gate seems to fail because of this allowance
-
 		if (svs.gametype != GT_Q1QVM) //we cannot do this with qvm
 		{
 			for (i = 0; i < svs.numprogs; i++)	//do this AFTER precaches have been played with...
@@ -1271,6 +1267,10 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 				}
 			}
 		}
+		if (progstype == PROG_QW)
+			// run the frame start qc function to let progs check cvars
+			SV_ProgStartFrame ();	//prydon gate seems to fail because of this allowance
+
 	}
 
 	// load and spawn all other entities

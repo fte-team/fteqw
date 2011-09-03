@@ -1912,9 +1912,6 @@ void CLQ2_AddEntities (void)
 
 	r_refdef.currentplayernum = 0;
 
-
-	cl_visedicts = cl_visedicts_list;
-
 	cl_numvisedicts = 0;
 	cl_numstrisidx = 0;
 	cl_numstrisvert = 0;

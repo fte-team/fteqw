@@ -1334,7 +1334,7 @@ void V_AddAxisEntity(entity_t *in)
 
 	if (cl_numvisedicts == MAX_VISEDICTS)
 	{
-		Con_Printf("Visedict list is full!\n");
+		Con_DPrintf("Visedict list is full!\n");
 		return;		// object list is full
 	}
 	ent = &cl_visedicts[cl_numvisedicts];
@@ -1348,7 +1348,7 @@ entity_t *V_AddEntity(entity_t *in)
 
 	if (cl_numvisedicts == MAX_VISEDICTS)
 	{
-		Con_Printf("Visedict list is full!\n");
+		Con_DPrintf("Visedict list is full!\n");
 		return NULL;		// object list is full
 	}
 	ent = &cl_visedicts[cl_numvisedicts];
@@ -3447,8 +3447,6 @@ Made up of: clients, packet_entities, nails, and tents
 */
 void CL_SwapEntityLists(void)
 {
-	cl_visedicts = cl_visedicts_list;
-
 	cl_numvisedicts = 0;
 	cl_numstrisidx = 0;
 	cl_numstrisvert = 0;

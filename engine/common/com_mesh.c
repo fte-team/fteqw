@@ -5758,6 +5758,8 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		gai[i].ofsbones = (char*)bones - (char*)&gai[i];
 		gai[i].groups = h->num_anims;
 		gai[i].groupofs = (char*)fgroup - (char*)&gai[i];
+		
+		offset = LittleLong(mesh[i].first_vertex);
 
 #ifndef SERVERONLY
 		/*skins*/
@@ -5774,9 +5776,8 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		R_BuildDefaultTexnums(&texnum[i], texnum[i].shader);
 		if (texnum[i].shader->flags & SHADER_NOIMAGE)
 			Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", texnum[i].shader->name, loadmodel->name);
+		gai[i].ofs_st_array = (char*)(otcoords+offset) - (char*)&gai[i];
 #endif
-
-		offset = LittleLong(mesh[i].first_vertex);
 
 		nt = LittleLong(mesh[i].num_triangles);
 		tris = (struct iqmtriangle*)(buffer + LittleLong(h->ofs_triangles));
@@ -5791,7 +5792,6 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 			*idx++ = LittleShort(tris[t].vertex[2]) - offset;
 		}
 
-		gai[i].ofs_st_array = (char*)(otcoords+offset) - (char*)&gai[i];
 		/*verts*/
 		gai[i].shares_verts = i;
 		gai[i].numverts = LittleLong(mesh[i].num_vertexes);

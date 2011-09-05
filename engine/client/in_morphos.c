@@ -33,8 +33,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "in_morphos.h"
 
-cvar_t in_xflip = {"in_xflip", "0"};
-
 struct InputEvent imsgs[MAXIMSGS];
 extern struct IntuitionBase *IntuitionBase;
 extern struct Window *window;
@@ -126,7 +124,6 @@ void IN_ReInit()
 
 void IN_Init(void)
 {
-	Cvar_Register (&in_xflip, "input controls");
 	IN_ReInit();
 }
 
@@ -247,9 +244,7 @@ void IN_Move (float *movements, int pnum)
 	old_mouse_x = mouse_x;
 	old_mouse_y = mouse_y;
 
-#ifdef IN_XFLIP
 	if(in_xflip.value) mouse_x *= -1;
-#endif
 
    	if (Key_MouseShouldBeFree())
 	{

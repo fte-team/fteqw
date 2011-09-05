@@ -425,7 +425,12 @@ void GL_TexEnv(GLenum mode)
 	if (mode != shaderstate.texenvmode[shaderstate.currenttmu])
 #endif
 	{
+#ifdef ANDROID
+		/*android appears to have a bug, and requires f and not i*/
+		qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, mode);
+#else
 		qglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, mode);
+#endif
 		shaderstate.texenvmode[shaderstate.currenttmu] = mode;
 	}
 }
@@ -568,7 +573,9 @@ void GL_MTBind(int tmu, int target, texid_t texnum)
 	if (target)
 		bindTexFunc (target, texnum.num);
 
+#ifndef FORCESTATE
 	if (shaderstate.curtexturetype[tmu] != target && !gl_config.nofixedfunc)
+#endif
 	{
 		if (shaderstate.curtexturetype[tmu])
 			qglDisable(shaderstate.curtexturetype[tmu]);
@@ -577,7 +584,9 @@ void GL_MTBind(int tmu, int target, texid_t texnum)
 			qglEnable(target);
 	}
 
+#ifndef FORCESTATE
 	if (((shaderstate.tmuarrayactive>>tmu) & 1) != 0)
+#endif
 	{
 		qglClientActiveTextureARB(tmu + mtexid0);
 		if (0)
@@ -605,7 +614,9 @@ void GL_LazyBind(int tmu, int target, texid_t texnum, qboolean arrays)
 		if (target)
 			bindTexFunc (target, texnum.num);
 
+#ifndef FORCESTATE
 		if (shaderstate.curtexturetype[tmu] != target && !gl_config.nofixedfunc)
+#endif
 		{
 			if (shaderstate.curtexturetype[tmu])
 				qglDisable(shaderstate.curtexturetype[tmu]);
@@ -618,7 +629,9 @@ void GL_LazyBind(int tmu, int target, texid_t texnum, qboolean arrays)
 	if (!target)
 		arrays = false;
 
+#ifndef FORCESTATE
 	if (((shaderstate.tmuarrayactive>>tmu) & 1) != arrays)
+#endif
 	{
 		qglClientActiveTextureARB(mtexid0 + tmu);
 		if (arrays)
@@ -1915,7 +1928,7 @@ static void GenerateColourMods(const shaderpass_t *pass)
 		qglShadeModel(GL_SMOOTH);
 		return;
 	}
-	if (pass->flags & SHADER_PASS_NOCOLORARRAY)
+	if (pass->flags & SHADER_PASS_NOCOLORARRAY && qglColor4fv)
 	{
 		avec4_t scol;
 
@@ -2308,7 +2321,6 @@ static void DrawPass(const shaderpass_t *pass)
 	}
 	if (i == lastpass)
 		return;
-
 	BE_SendPassBlendDepthMask(pass[i].shaderbits);
 	GenerateColourMods(pass+i);
 	tmu = 0;
@@ -2823,15 +2835,15 @@ void BE_SelectFog(vec3_t colour, float alpha, float density)
 	qglColor4f(colour[0], colour[1], colour[2], alpha);
 }
 
-#ifdef RTLIGHTS
 void BE_SelectDLight(dlight_t *dl, vec3_t colour)
 {
 	shaderstate.lightradius = dl->radius;
 	VectorCopy(dl->origin, shaderstate.lightorg);
 	VectorCopy(colour, shaderstate.lightcolours);
+#ifdef RTLIGHTS
 	shaderstate.curshadowmap = dl->stexture;
-}
 #endif
+}
 
 void BE_PushOffsetShadow(qboolean pushdepth)
 {
@@ -3484,8 +3496,11 @@ void GLBE_DrawLightPrePass(qbyte *vis, batch_t **batches)
 	BE_SelectEntity(&r_worldentity);
 	GLBE_SubmitMeshes(true, batches, SHADER_SORT_SKY, SHADER_SORT_NEAREST);
 
+#ifdef RTLIGHTS
 	/*regular lighting now*/
+	BE_SelectEntity(&r_worldentity);
 	Sh_DrawLights(vis);
+#endif
 
 	shaderstate.tex_sourcecol = r_nulltex;
 	shaderstate.tex_sourcedepth = r_nulltex;

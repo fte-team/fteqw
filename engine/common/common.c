@@ -3009,7 +3009,10 @@ void COM_InitArgv (int argc, const char **argv)	//not allowed to tprint
 
 	FILE *f;
 
-	f = fopen(va("%s_p.txt", argv[0]), "rb");
+	if (argv && argv[0])
+		f = fopen(va("%s_p.txt", argv[0]), "rb");
+	else
+		f = NULL;
 	if (f)
 	{
 		char *buffer;

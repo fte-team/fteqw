@@ -84,6 +84,10 @@ vfsfile_t *FSSTDIO_OpenTemp(void)
 	return (vfsfile_t*)file;
 }
 
+#ifdef ANDROID
+vfsfile_t *Sys_OpenAsset(const char *fname);
+#endif
+
 vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode)
 {
 	FILE *f;
@@ -94,6 +98,15 @@ vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode)
 	qboolean text = !!strchr(mode, 't');
 	char newmode[3];
 	int modec = 0;
+
+#ifdef ANDROID
+//	if (!strncmp("asset/", osname, 6))
+	{
+		if (append || write)
+			return NULL;
+		return Sys_OpenAsset(osname);
+	}
+#endif
 
 	if (read)
 		newmode[modec++] = 'r';
@@ -176,7 +189,6 @@ static void FSSTDIO_BuildHash(void *handle)
 }
 static qboolean FSSTDIO_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
-	FILE *f;
 	int len;
 	char netpath[MAX_OSPATH];
 
@@ -195,13 +207,25 @@ static qboolean FSSTDIO_FLocate(void *handle, flocation_t *loc, const char *file
 // check a file in the directory tree
 	snprintf (netpath, sizeof(netpath)-1, "%s/%s",(char*)handle, filename);
 
-	f = fopen(netpath, "rb");
-	if (!f)
-		return false;
+#ifdef ANDROID
+	{
+		vfsfile_t *f = VFSSTDIO_Open(netpath, "rb");
+		if (!f)
+			return false;
+		len = VFS_GETLEN(f);
+		VFS_CLOSE(f);
+	}
+#else
+	{
+		FILE *f = fopen(netpath, "rb");
+		if (!f)
+			return false;
 
-	fseek(f, 0, SEEK_END);
-	len = ftell(f);
-	fclose(f);
+		fseek(f, 0, SEEK_END);
+		len = ftell(f);
+		fclose(f);
+	}
+#endif
 	if (loc)
 	{
 		loc->len = len;

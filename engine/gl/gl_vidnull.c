@@ -1,9 +1,5 @@
 #include "quakedef.h"
 
-#ifdef IN_XFLIP
-cvar_t in_xflip = {"in_xflip", "0"};
-#endif
-
 qboolean GLVID_Init(rendererstate_t *info, unsigned char *palette)
 {
 	return false;
@@ -57,9 +53,6 @@ void IN_ReInit(void)
 
 void IN_Init(void)
 {
-#ifdef IN_XFLIP
-	Cvar_Register (&in_xflip, "Input Controls");
-#endif
 }
 
 void IN_Shutdown(void)

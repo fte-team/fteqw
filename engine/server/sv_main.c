@@ -2417,7 +2417,7 @@ client_t *SVC_DirectConnect(void)
 
 	SV_CheckRecentCrashes(newcl);
 
-#ifdef PEXT2_VOICECHAT
+#ifdef VOICECHAT
 	SV_VoiceInitClient(newcl);
 #endif
 
@@ -4026,7 +4026,7 @@ void SV_InitLocal (void)
 #endif
 
 	svs.fteprotocolextensions2 |= PEXT2_PRYDONCURSOR;
-#ifdef PEXT2_VOICECHAT
+#ifdef VOICECHAT
 	svs.fteprotocolextensions2 |= PEXT2_VOICECHAT;
 #endif
 	svs.fteprotocolextensions2 |= PEXT2_SETANGLEDELTA;

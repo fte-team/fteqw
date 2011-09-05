@@ -53,6 +53,14 @@ ifeq ($(FTE_TARGET),win32_sdl)
 	FTE_TARGET=win32_SDL
 endif
 
+ifeq ($(FTE_TARGET),droid)
+	
+	CC=~/droid/android-ndk-r6b/toolchains/arm-linux-androideabi-4.4.3/prebuilt/linux-x86/bin/arm-linux-androideabi-gcc -I ~/droid/android-ndk-r6b/platforms/android-9/arch-arm/usr/include/ -I ~/droid/android-ndk-r6b/sources/android/native_app_glue/ -DANDROID
+	STRIP=~/droid/android-ndk-r6b/toolchains/arm-linux-androideabi-4.4.3/prebuilt/linux-x86/bin/arm-linux-androideabi-strip
+	DO_LD=~/droid/android-ndk-r6b/toolchains/arm-linux-androideabi-4.4.3/prebuilt/linux-x86/bin/arm-linux-androideabi-ar -r $@
+
+endif
+
 #correct the gcc build when cross compiling
 ifeq ($(FTE_TARGET),win32_SDL)
 	ifeq ($(shell $(CC) -v 2>&1 | grep mingw),)
@@ -348,7 +356,6 @@ CLIENT_OBJS = \
 	pr_menu.o
 
 GLQUAKE_OBJS =		\
-	gl_alias.o		\
 	gl_draw.o		\
 	gl_model.o		\
 	gl_ngraph.o		\
@@ -381,7 +388,6 @@ D3DONLY_OBJS =		\
 	gl_model.o	\
 	gl_shader.o	\
 	gl_rlight.o	\
-	gl_alias.o	\
 	gl_warp.o	\
 	ltface.o	\
 	r_surf.o	\
@@ -442,16 +448,15 @@ SERVER_OBJS = 		\
 	httpserver.o
 
 SERVERONLY_OBJS =		\
-	gl_alias.o		\
 	svmodel.o		\
 	sv_sys_unix.o
 
 WINDOWSSERVERONLY_OBJS = \
-	gl_alias.o		\
 	svmodel.o	\
 	sv_sys_win.o
 
 COMMON_OBJS = \
+	gl_alias.o		\
 	com_mesh.o	\
 	com_phys_ode.o	\
 	common.o 		\
@@ -826,6 +831,22 @@ ifeq ($(FTE_TARGET),cygwin)
 	MINGL_DIR=mingl_cygwin
 endif
 
+ifeq ($(FTE_TARGET),droid)
+	BASELDFLAGS=
+
+	SV_DIR=sv_droid
+	SV_LDFLAGS=-lz
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) svmodel.o sys_droid.o
+	SV_EXE_NAME=../fteqw.a$(BITS)
+
+	SV_LDFLAGS=
+
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_viddroid.o sys_droid.o cd_null.o
+        GL_LDFLAGS=$(GLLDFLAGS)
+	GLB_DIR=gl_droid
+	GL_EXE_NAME=../fteqw.a$(BITS)
+endif
+
 SV_DIR?=sv_sdl
 
 .default: help
@@ -919,7 +940,7 @@ PRECOMPHEADERS ?= $(OUT_DIR)/quakedef.h.gch
 
 DO_LD ?= $(CC) -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS)
 $(OUT_DIR)/$(EXE_NAME):   $(PRECOMPHEADERS) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol))),$(if $(findstring ltox,$(fn)),,$(OUT_DIR)/$(fn)))
-	$(DO_LD) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS) $(LTO_END), $($(ol))),$(if $(findstring ltox,$(fn)),$(subst ltox,-x ,$(fn)),$(OUT_DIR)/$(fn)) ) -x none $(LDFLAGS)
+	$(DO_LD) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS) $(LTO_END), $($(ol))),$(if $(findstring ltox,$(fn)),$(subst ltox,-x ,$(fn)),$(OUT_DIR)/$(fn)) ) $(LDFLAGS)
 
 _out-rel:
 	$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(RELEASE_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS) $(RELEASE_LDFLAGS)" OBJS="$(OBJS)"

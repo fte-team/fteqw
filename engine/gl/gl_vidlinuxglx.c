@@ -92,10 +92,6 @@ extern cvar_t	_windowed_mouse;
 cvar_t	m_filter = {"m_filter", "0"};
 cvar_t  m_accel = {"m_accel", "0"};
 
-#ifdef IN_XFLIP
-cvar_t	in_xflip = {"in_xflip", "0"};
-#endif
-
 static float   mouse_x, mouse_y;
 static float	old_mouse_x, old_mouse_y;
 
@@ -164,6 +160,7 @@ qboolean GLX_InitLibrary(char *driver)
 void *GLX_GetSymbol(char *name)
 {
 	void *symb;
+
 	if (qglXGetProcAddress)
 		symb = qglXGetProcAddress(name);
 	else
@@ -346,7 +343,8 @@ static void uninstall_grabs(void)
 	}
 #endif
 
-	XUngrabPointer(vid_dpy, CurrentTime);
+	if (vid_dpy)
+		XUngrabPointer(vid_dpy, CurrentTime);
 
 //	XSync(vid_dpy, True);
 }
@@ -591,7 +589,7 @@ void GLVID_Shutdown(void)
 	EGL_Shutdown();
 #else
 	printf("GLVID_Shutdown\n");
-	if (!ctx)
+	if (!vid_dpy)
 		return;
 
 	XUngrabKeyboard(vid_dpy, CurrentTime);
@@ -599,7 +597,10 @@ void GLVID_Shutdown(void)
 		uninstall_grabs();
 
 	if (ctx)
+	{
 		qglXDestroyContext(vid_dpy, ctx);
+		ctx = NULL;
+	}
 
 #ifdef WITH_VMODE
 	if (originalapplied)
@@ -1053,9 +1054,6 @@ void IN_ReInit(void)
 
 void IN_Init(void)
 {
-#ifdef IN_XFLIP
-	Cvar_Register (&in_xflip, "Input variables");
-#endif
 	IN_ReInit();
 }
 
@@ -1135,9 +1133,7 @@ void IN_MouseMove (float *movements, int pnum)
 		mouse_y *= sensitivity.value*in_sensitivityscale;
 	}
 
-#ifdef IN_XFLIP
 	if(in_xflip.value) mouse_x *= -1;
-#endif
 
 	if (movements)
 	{

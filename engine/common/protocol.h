@@ -71,9 +71,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif		
 
 #define PEXT2_PRYDONCURSOR			0x00000001
-#ifdef VOICECHAT
 #define PEXT2_VOICECHAT				0x00000002
-#endif
 #define PEXT2_SETANGLEDELTA			0x00000004
 //#define PEXT2_64PLAYERS			0x02000000	//Client is able to cope with 64 players. Wow.
 //#define PEXT2_PK3DOWNLOADS		0x10000000	//retrieve a list of pk3s/pk3s/paks for downloading (with optional URL and crcs)

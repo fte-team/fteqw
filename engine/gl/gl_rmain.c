@@ -830,14 +830,18 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist)
 
 	/*FIXME: can we get away with stenciling the screen?*/
 	/*Add to frustum culling instead of clip planes?*/
-	glplane[0] = -plane.normal[0];
-	glplane[1] = -plane.normal[1];
-	glplane[2] = -plane.normal[2];
-	glplane[3] = plane.dist;
-	qglClipPlane(GL_CLIP_PLANE0, glplane);
-	qglEnable(GL_CLIP_PLANE0);
+	if (qglClipPlane)
+	{
+		glplane[0] = -plane.normal[0];
+		glplane[1] = -plane.normal[1];
+		glplane[2] = -plane.normal[2];
+		glplane[3] = plane.dist;
+		qglClipPlane(GL_CLIP_PLANE0, glplane);
+		qglEnable(GL_CLIP_PLANE0);
+	}
 	R_RenderScene();
-	qglDisable(GL_CLIP_PLANE0);
+	if (qglClipPlane)
+		qglDisable(GL_CLIP_PLANE0);
 
 	for (sort = 0; sort < SHADER_SORT_COUNT; sort++)
 	for (batch = blist[sort]; batch; batch = batch->next)
@@ -851,12 +855,15 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist)
 	VectorCopy (r_refdef.vieworg, r_origin);
 	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
 
-	/*put GL back the way it was*/
-	qglMatrixMode(GL_PROJECTION);
-	qglLoadMatrixf(r_refdef.m_projection);
+	if (qglLoadMatrixf)
+	{
+		/*put GL back the way it was*/
+		qglMatrixMode(GL_PROJECTION);
+		qglLoadMatrixf(r_refdef.m_projection);
 
-	qglMatrixMode(GL_MODELVIEW);
-	qglLoadMatrixf(r_refdef.m_view);
+		qglMatrixMode(GL_MODELVIEW);
+		qglLoadMatrixf(r_refdef.m_view);
+	}
 
 	GL_CullFace(0);
 
@@ -952,6 +959,7 @@ static void R_RenderMotionBlur(void)
 #ifdef _MSC_VER
 #pragma message("backend fixme")
 #endif
+#ifndef ANDROID
 	Con_Printf("motionblur is not updated for the backend\n");
 
 	if (gl_config.arb_texture_non_power_of_two)
@@ -1015,7 +1023,7 @@ static void R_RenderMotionBlur(void)
 	qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 0, 0, vwidth, vheight, 0);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
+#endif
 	PPL_RevertToKnownState();
 }
 

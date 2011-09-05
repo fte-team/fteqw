@@ -36,9 +36,7 @@ void IN_ModeChanged (void);
 
 void IN_ClearStates (void);
 void IN_Accumulate (void);
-#ifdef IN_XFLIP
 extern cvar_t in_xflip;
-#endif
 
 #ifdef _SDL
 void IN_ActivateMouse(void);

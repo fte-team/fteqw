@@ -511,5 +511,6 @@ struct shader_field_names_s
 {
 	char *name;
 	enum shaderprogparmtype_e ptype;
-} shader_field_names[];
+};
+extern struct shader_field_names_s shader_field_names[];
 #endif

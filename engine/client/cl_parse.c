@@ -1087,6 +1087,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 		endstage();
 	}
 
+#ifdef CSQC_DAT
 	if (atstage())
 	{
 		if (CSQC_Inited())
@@ -1099,6 +1100,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 		}
 		endstage();
 	}
+#endif
 
 	return stage;
 }

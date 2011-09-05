@@ -1387,7 +1387,7 @@ struct sbuiltin_s
 
 			/*calc diffuse lighting term*/
 			"vec3 lightDir = l_lightposition - worldPos;\n"
-			"float zdiff = 1.0 - saturate( length(lightDir) / lightAttenuation );\n"
+			"float zdiff = 1.0 - clamp(length(lightDir) / lightAttenuation, 0.0, 1.0);\n"
 			"float atten = (radiusFar * zdiff) / (radiusFar - radiusNear);\n"
 			"atten = pow(atten, 2.0);\n"
 			"lightDir = normalize(lightDir);\n"

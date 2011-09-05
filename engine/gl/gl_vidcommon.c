@@ -458,6 +458,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 	if (gl_config.gles)
 	{
 		qglActiveTextureARB = (void *) getglext("glActiveTexture");
+		qglClientActiveTextureARB = (void *) getglext("glClientActiveTexture");
 		qglSelectTextureSGIS = qglActiveTextureARB;
 		mtexid0 = GL_TEXTURE0_ARB;
 		mtexid1 = GL_TEXTURE1_ARB;
@@ -1101,7 +1102,6 @@ void GL_Init(void *(*getglfunction) (char *name))
 		if (!gl_extensions)
 			Sys_Error("no extensions\n");
 	}
-
 	GL_CheckExtensions (getglfunction, gl_major_version + (gl_minor_version/10.f));
 
 	if (gl_config.gles && gl_config.glversion >= 2)

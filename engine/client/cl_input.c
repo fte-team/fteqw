@@ -40,6 +40,7 @@ cvar_t	cl_smartjump = CVAR("cl_smartjump", "1");
 
 cvar_t	cl_prydoncursor = CVAR("cl_prydoncursor", "");	//for dp protocol
 cvar_t	cl_instantrotate = CVARF("cl_instantrotate", "1", CVAR_SEMICHEAT);
+cvar_t in_xflip = {"in_xflip", "0"};
 
 cvar_t	prox_inmenu = CVAR("prox_inmenu", "0");
 
@@ -572,10 +573,7 @@ void CL_BaseMove (usercmd_t *cmd, int pnum, float extra, float wantfps)
 	cmd->sidemove += scale*cl_sidespeed.value * CL_KeyState (&in_moveright, pnum);
 	cmd->sidemove -= scale*cl_sidespeed.value * CL_KeyState (&in_moveleft, pnum);
 
-#ifdef IN_XFLIP
 	if(in_xflip.ival) cmd->sidemove *= -1;
-#endif
-
 
 	cmd->upmove += scale*cl_upspeed.value * CL_KeyState (&in_up, pnum);
 	cmd->upmove -= scale*cl_upspeed.value * CL_KeyState (&in_down, pnum);
@@ -1653,7 +1651,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		dropcount = 0;
 	}
 
-#ifdef PEXT2_VOICECHAT
+#ifdef VOICECHAT
 	S_Voip_Transmit(clc_voicechat, &buf);
 #endif
 
@@ -1717,6 +1715,7 @@ void CL_InitInput (void)
 	Cmd_AddCommand("in_restart", IN_Restart);
 	Cmd_AddCommand("sendcvar", CL_SendCvar_f);
 
+	Cvar_Register (&in_xflip, inputnetworkcvargroup);
 	Cvar_Register (&cl_nodelta, inputnetworkcvargroup);
 
 	Cvar_Register (&prox_inmenu, inputnetworkcvargroup);

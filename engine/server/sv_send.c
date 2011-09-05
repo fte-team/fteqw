@@ -1763,7 +1763,7 @@ qboolean SV_SendClientDatagram (client_t *client)
 			// possibly a nails update
 			SV_WriteEntitiesToClient (client, &msg, false);
 		}
-#ifdef PEXT2_VOICECHAT
+#ifdef VOICECHAT
 		SV_VoiceSendPacket(client, &msg);
 #endif
 	}

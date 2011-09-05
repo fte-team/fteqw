@@ -128,10 +128,6 @@ DWORD	dwAxisMap[JOY_MAX_AXES];
 DWORD	dwControlMap[JOY_MAX_AXES];
 PDWORD	pdwRawValue[JOY_MAX_AXES];
 
-#ifdef IN_XFLIP
-cvar_t	in_xflip = SCVAR("in_xflip", "0");
-#endif
-
 // none of these cvars are saved over a session
 // this means that advanced controller configuration needs to be executed
 // each time.  this avoids any problems with getting back to a default usage
@@ -1135,10 +1131,6 @@ void IN_Init (void)
 	if (COM_CheckParm ("-dinput"))
 		Cvar_Set(&in_dinput, "1");
 
-#ifdef IN_XFLIP
-	Cvar_Register (&in_xflip, "Input stuff");
-#endif
-
 	// joystick variables
 	Cvar_Register (&in_joystick, "Joystick variables");
 
@@ -1304,9 +1296,7 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 	mouse->delta[1]=0;
 
 
-#ifdef IN_XFLIP
 	if(in_xflip.value) mx *= -1;
-#endif
 
 	mousemove_x += mx;
 	mousemove_y += my;

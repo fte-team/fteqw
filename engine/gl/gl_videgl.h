@@ -2,6 +2,7 @@
 #define __GL_VIDEGL_H__
 
 #include "quakedef.h"
+#define NativeWindowType EGLNativeWindowType
 #include <EGL/egl.h>
 #include <dlfcn.h>
 

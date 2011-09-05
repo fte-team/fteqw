@@ -28,7 +28,6 @@
 
 // note: cocoa code is separated in vid_cocoa.m because of compilation pbs
 
-cvar_t in_xflip = SCVAR("in_xflip", "0");
 extern cvar_t vid_hardwaregamma;
 
 static void *agllibrary;

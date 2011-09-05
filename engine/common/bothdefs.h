@@ -45,6 +45,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define MINGW	//Erm, why is this happening?
 #endif
 
+#ifdef ANDROID
+	#define NO_PNG
+	#define NO_JPEG
+	#define NO_OGG
+#endif
+
 #ifdef HAVE_CONFIG_H	//if it was configured properly, then we have a more correct list of features we want to use.
 	#include "config.h"
 #else
@@ -187,9 +193,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //		#define QTERM			//qterm... adds a console command that allows running programs from within quake - bit like xterm.
 		#define CL_MASTER		//query master servers and stuff for a dynamic server listing.
 		#define R_XFLIP			//allow view to be flipped horizontally
-#ifndef NO_XFLIP
-		#define IN_XFLIP		//allow input to be flipped horizontally.
-#endif
 		#define TEXTEDITOR
 		#define PPL				//per pixel lighting (stencil shadowing)
 		#define DDS				//a sort of image file format.
@@ -215,11 +218,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define PSET_CLASSIC
 		//#define PSET_DARKPLACES
 
-		#define VOICECHAT	//not added yet.
+		#define VOICECHAT
 
 //these things were moved to plugins.
 	#endif
 
+#endif
+
+#ifdef ANDROID
+#undef RTLIGHTS
+#undef VOICECHAT
+#undef TEXTEDITOR
 #endif
 
 

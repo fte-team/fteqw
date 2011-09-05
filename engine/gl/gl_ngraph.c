@@ -117,8 +117,9 @@ void GLR_NetGraph (void)
 	sprintf(st, "%3i%% packet loss", lost);
 	Draw_FunString(8, y, st);
 	y += 8;
-	
-    GL_MTBind(0, GL_TEXTURE_2D, netgraphtexture);
+
+#ifndef ANDROID
+	GL_MTBind(0, GL_TEXTURE_2D, netgraphtexture);
 
 	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 
 		NET_TIMINGS, NET_GRAPHHEIGHT, 0, GL_RGBA, 
@@ -140,6 +141,7 @@ void GLR_NetGraph (void)
 	qglTexCoord2f (0, 1);
 	qglVertex2f (x, y+NET_GRAPHHEIGHT);
 	qglEnd ();
+#endif
 }
 
 void GLR_FrameTimeGraph (int frametime)
@@ -177,7 +179,8 @@ void GLR_FrameTimeGraph (int frametime)
 	sprintf(st, "%3i%% packet loss", lost);
 	Draw_FunString(8, y, st);
 	y += 8;
-	
+
+#ifndef ANDROID	
     GL_MTBind(0, GL_TEXTURE_2D, netgraphtexture);
 
 	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 
@@ -200,6 +203,7 @@ void GLR_FrameTimeGraph (int frametime)
 	qglTexCoord2f (0, 1);
 	qglVertex2f (x, y+NET_GRAPHHEIGHT);
 	qglEnd ();
+#endif
 }
 
 #endif

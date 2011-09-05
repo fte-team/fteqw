@@ -6174,7 +6174,7 @@ haveannothergo:
 		case clc_upload:
 			SV_NextUpload();
 			break;
-#ifdef PEXT2_VOICECHAT
+#ifdef VOICECHAT
 		case clc_voicechat:
 			SV_VoiceReadPacket();
 			break;
@@ -6337,7 +6337,7 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 				return;	// disconnect command
 			break;
 
-#ifdef PEXT2_VOICECHAT
+#ifdef VOICECHAT
 		case clc_voicechat:
 			SV_VoiceReadPacket();
 			break;
@@ -6533,7 +6533,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 			SV_DarkPlacesDownloadAck(host_client);
 			break;
 
-#ifdef PEXT2_VOICECHAT
+#ifdef VOICECHAT
 		case clc_voicechat:
 			SV_VoiceReadPacket();
 			break;

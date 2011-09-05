@@ -995,14 +995,13 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 			}
 		}
 	}
-
 	TRACE(("dbg: GL_Upload32: %i %i\n", scaled_width, scaled_height));
 
 	if (scaled_width * scaled_height > sizeofuploadmemorybuffer/4)
 		Sys_Error ("GL_LoadTexture: too big");
 
 	if (gl_config.gles)
-		samples = GL_RGBA; /* GL ES doesn't allow for format conversion */
+		glcolormode = samples = GL_RGBA; /* GL ES doesn't allow for format conversion */
 	else
 		samples = (flags&IF_NOALPHA) ? GL_RGB : GL_RGBA;
 
@@ -1013,6 +1012,28 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 	{
 		TRACE(("dbg: GL_Upload32: GL_SGIS_generate_mipmap\n"));
 		qglTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
+	}
+	
+	if (!(flags&IF_NOMIPMAP))
+	{
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+	}
+	else
+	{
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
+	}
+
+	if (flags&IF_CLAMP)
+	{
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	}
+	else
+	{
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	}
 
 	if (scaled_width == width && scaled_height == height)
@@ -1100,28 +1121,12 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 		}
 	}
 done:
-	if (gl_config.sgis_generate_mipmap && !(flags&IF_NOMIPMAP))
-		qglTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
 
 	if (gl_anisotropy_factor)
 		qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, gl_anisotropy_factor); // without this, you could loose anisotropy on mapchange
 
-	if (!(flags&IF_NOMIPMAP))
-	{
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
-	}
-	else
-	{
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
-	}
-
-	if (flags&IF_CLAMP)
-	{
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	}
+	if (gl_config.sgis_generate_mipmap && !(flags&IF_NOMIPMAP))
+		qglTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
 }
 
 void GL_Upload32 (char *name, unsigned *data, int width, int height, unsigned int flags)

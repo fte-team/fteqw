@@ -163,6 +163,8 @@ K_MAX			= 256
 #define K_RSHIFT K_SHIFT
 #define K_RCTRL K_CTRL
 #define K_LCTRL K_CTRL
+#define K_RALT K_CTRL
+#define K_LALT K_CTRL
 
 typedef enum {key_game, key_console, key_message, key_menu, key_editor} keydest_t;
 

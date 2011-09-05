@@ -15,10 +15,6 @@ HWND mainwindow;
 
 extern qboolean vid_isfullscreen;
 
-#ifdef IN_XFLIP
-cvar_t	in_xflip = {"in_xflip", "0"};
-#endif
-
 unsigned short intitialgammaramps[3][256];
 
 qboolean ActiveApp;

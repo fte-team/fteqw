@@ -39,7 +39,7 @@ static const texid_t r_nulltex = {0};
 #define TEXVALID(t) ((t).num!=0)
 
 
-#ifdef D3DQUAKE
+#if defined(D3DQUAKE) || defined(ANDROID)
 	#define sizeof_index_t 2
 #endif
 #if sizeof_index_t == 2

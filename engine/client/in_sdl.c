@@ -294,9 +294,6 @@ void IN_ReInit (void)
 
 void IN_Init (void)
 {
-#ifdef IN_XFLIP
-	Cvar_Register (&in_xflip, "Input Controls");
-#endif
 	IN_ReInit();
 }
 void IN_Move (float *movements, int pnum)	//add mouse movement to cmd

@@ -45,7 +45,35 @@ qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2
 void ClearBounds (vec3_t mins, vec3_t maxs);
 
 #ifdef GLQUAKE
-	#ifdef __MACOSX__
+	#if defined(ANDROID) /*FIXME: actually just to use standard GLES headers instead of full GL*/
+		#if 1
+			#include <GLES/gl.h>
+		#else
+			#include <GLES2/gl2.h>
+			/*gles has no fixed function*/
+			#define GL_PROJECTION 0
+			#define GL_MODELVIEW 0
+			#define GL_CLIP_PLANE0 0
+			#define GL_ALPHA_TEST 0
+			#define GL_MODULATE 0
+			#define GL_FLAT 0
+			#define GL_SMOOTH 0
+			#define GL_DECAL 0
+			#define GL_ADD 0
+			#define GL_TEXTURE_ENV 0
+			#define GL_TEXTURE_ENV_MODE 0
+			#define GL_COLOR_ARRAY 0
+			#define GL_VERTEX_ARRAY 0
+			#define GL_TEXTURE_COORD_ARRAY 0
+		#endif
+		/*gles has no doubles*/
+		#define GLclampd GLclampf
+		#define GLdouble GLfloat
+		#define GL_CLAMP GL_CLAMP_TO_EDGE
+
+		#define GL_FILL (Sys_Error("GL_FILL was used"),0)
+		#define GL_QUADS (Sys_Error("GL_QUADS was used"),0)
+	#elif defined(__MACOSX__)
 		//apple, you suck.
 		#include <AGL/agl.h>
 	#else
@@ -395,6 +423,7 @@ extern void (APIENTRY *qglCallLists) (GLsizei n, GLenum type, const GLvoid *list
 extern void (APIENTRY *qglClear) (GLbitfield mask);
 extern void (APIENTRY *qglClearAccum) (GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
 extern void (APIENTRY *qglClearColor) (GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha);
+extern void (APIENTRY *qglClearDepthf) (GLclampf depth);
 extern void (APIENTRY *qglClearDepth) (GLclampd depth);
 extern void (APIENTRY *qglClearIndex) (GLfloat c);
 extern void (APIENTRY *qglClearStencil) (GLint s);

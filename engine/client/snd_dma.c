@@ -307,7 +307,7 @@ static qboolean S_Speex_Init(void)
 void S_Voip_Parse(void)
 {
 	unsigned int sender;
-	int bytes;
+	unsigned int bytes;
 	unsigned char data[1024], *start;
 	short decodebuf[1024];
 	unsigned int decodesamps, len, newseq, drops;
@@ -598,6 +598,17 @@ qboolean S_Voip_Speaking(unsigned int plno)
 	if (plno >= MAX_CLIENTS)
 		return false;
 	return s_speex.lastspoke[plno] > realtime;
+}
+#else
+void S_Voip_Parse(void)
+{
+	unsigned int bytes;
+
+	MSG_ReadByte();
+	MSG_ReadByte();
+	MSG_ReadByte();
+	bytes = MSG_ReadShort();
+	MSG_ReadSkip(bytes);
 }
 #endif
 

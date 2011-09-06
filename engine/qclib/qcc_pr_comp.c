@@ -1760,11 +1760,9 @@ QCC_def_t *QCC_PR_Statement ( QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var
 				//a is const, b is not
 				switch (op - pr_opcodes)
 				{
-				case OP_STORE_FI:
 				case OP_CONV_FTOI:
 					optres_constantarithmatic++;
 					return QCC_MakeIntDef(G_FLOAT(var_a->ofs));
-				case OP_STORE_IF:
 				case OP_CONV_ITOF:
 					optres_constantarithmatic++;
 					return QCC_MakeFloatDef(G_INT(var_a->ofs));
@@ -4417,7 +4415,7 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign)
 				d = QCC_PR_Statement(&pr_opcodes[OP_LOADA_F], d, QCC_SupplyConversion(idx, ev_integer, true), NULL);
 				break;
 			case ev_integer:
-				d = QCC_PR_Statement(&pr_opcodes[OP_LOADA_F], d, QCC_SupplyConversion(idx, ev_integer, true), NULL);
+				d = QCC_PR_Statement(&pr_opcodes[OP_LOADA_I], d, QCC_SupplyConversion(idx, ev_integer, true), NULL);
 				break;
 			case ev_string:
 				d = QCC_PR_Statement(&pr_opcodes[OP_LOADA_S], d, QCC_SupplyConversion(idx, ev_integer, true), NULL);

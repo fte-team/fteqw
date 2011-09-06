@@ -44,6 +44,7 @@ cvar_t	sv_spectalk	= SCVAR("sv_spectalk", "1");
 
 cvar_t	sv_mapcheck	= SCVAR("sv_mapcheck", "1");
 
+cvar_t	sv_fullredirect = CVARD("sv_fullredirect", "", "This is the ip:port to redirect players to when the server is full");
 cvar_t	sv_antilag			= CVARFD("sv_antilag", "1", CVAR_SERVERINFO, "Attempt to backdate impacts to compensate for lag. 0=completely off. 1=mod-controlled. 2=forced, which might break certain uses of traceline.");
 cvar_t	sv_antilag_frac		= CVARF("sv_antilag_frac", "1", CVAR_SERVERINFO);
 cvar_t	sv_cheatpc				= CVAR("sv_cheatpc", "125");
@@ -217,6 +218,14 @@ void SV_New_f (void)
 
 	if (host_client->state == cs_spawned)
 		return;
+
+	if (host_client->redirect)
+	{
+		char *msg = va("connect \"%s\"\n", sv_fullredirect.string);
+		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(msg));
+		ClientReliableWrite_String (host_client, msg);
+		return;
+	}
 
 /*	splitt delay
 	host_client->state = cs_connected;
@@ -405,6 +414,14 @@ void SVNQ_New_f (void)
 	extern cvar_t coop;
 	char			message[2048];
 	int i;
+
+	if (host_client->redirect)
+	{
+		char *msg = va("connect \"%s\"\n", sv_fullredirect.string);
+		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(msg));
+		ClientReliableWrite_String (host_client, msg);
+		return;
+	}
 
 	if (!host_client->pextknown)
 	{
@@ -3252,9 +3269,16 @@ The client is going to disconnect, so remove the connection immediately
 */
 void SV_Drop_f (void)
 {
+	extern cvar_t sv_fullredirect;
+
 	SV_EndRedirect ();
-	if (!host_client->spectator)
-		SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTDROPPED, host_client->name);
+	if (host_client->redirect)
+		SV_BroadcastPrintf (PRINT_HIGH, "%s redirected to %s\n", host_client->name, sv_fullredirect.string);
+	else
+	{
+		if (!host_client->spectator)
+			SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTDROPPED, host_client->name);
+	}
 	SV_DropClient (host_client);
 }
 
@@ -6562,6 +6586,7 @@ void SV_UserInit (void)
 	Cvar_Register (&sv_spectalk, cvargroup_servercontrol);
 	Cvar_Register (&sv_mapcheck, cvargroup_servercontrol);
 
+	Cvar_Register (&sv_fullredirect, cvargroup_servercontrol);
 	Cvar_Register (&sv_antilag, cvargroup_servercontrol);
 	Cvar_Register (&sv_antilag_frac, cvargroup_servercontrol);
 	Cvar_Register (&sv_cheatpc, cvargroup_servercontrol);

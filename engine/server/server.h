@@ -331,6 +331,7 @@ typedef struct client_s
 	client_conn_state_t	state;
 
 	int				spectator;			// non-interactive
+	int				redirect;
 
 	qboolean		sendinfo;			// at end of frame, send info to all
 										// this prevents malicious multiple broadcasts

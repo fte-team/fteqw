@@ -532,10 +532,13 @@ void SV_DropClient (client_t *drop)
 		Z_Free(drop->centerprintstring);
 	drop->centerprintstring = NULL;
 
-	if (drop->spectator)
-		Con_Printf ("Spectator %s removed\n",drop->name);
-	else
-		Con_Printf ("Client %s removed\n",drop->name);
+	if (!drop->redirect)
+	{
+		if (drop->spectator)
+			Con_Printf ("Spectator %s removed\n",drop->name);
+		else
+			Con_Printf ("Client %s removed\n",drop->name);
+	}
 
 	if (drop->download)
 	{
@@ -1674,6 +1677,7 @@ client_t *SVC_DirectConnect(void)
 	int			challenge;
 	int			huffcrc = 0;
 	char guid[128] = "";
+	qboolean	redirect = false;
 
 	int maxpacketentities;
 
@@ -2096,8 +2100,20 @@ client_t *SVC_DirectConnect(void)
 		if (svprogfuncs)
 		{
 			if (spectator && spectators >= maxspectators.ival)
-				newcl = NULL;
+				redirect = true;
 			if (!spectator && clients >= maxclients.ival)
+				redirect = true;
+		}
+		else
+		{
+			if (clients >= maxclients.ival)
+				redirect = true;
+		}
+
+		if (redirect)
+		{
+			extern cvar_t sv_fullredirect;
+			if (!*sv_fullredirect.string)
 				newcl = NULL;
 		}
 
@@ -2383,7 +2399,10 @@ client_t *SVC_DirectConnect(void)
 	{
 		SV_AcceptMessage (protocol);
 
-		if (newcl->spectator)
+		if (redirect)
+		{
+		}
+		else if (newcl->spectator)
 		{
 			SV_BroadcastTPrintf(PRINT_LOW, STL_SPECTATORCONNECTED, newcl->name);
 //			Con_Printf ("Spectator %s connected\n", newcl->name);
@@ -2409,10 +2428,15 @@ client_t *SVC_DirectConnect(void)
 	}
 	newcl->sendinfo = true;
 
-	for (i = 0; i < sizeof(sv_motd)/sizeof(sv_motd[0]); i++)
+	if (redirect)
+		numssclients = 1;
+	else
 	{
-		if (*sv_motd[i].string)
-			SV_ClientPrintf(newcl, PRINT_CHAT, "%s\n", sv_motd[i].string);
+		for (i = 0; i < sizeof(sv_motd)/sizeof(sv_motd[0]); i++)
+		{
+			if (*sv_motd[i].string)
+				SV_ClientPrintf(newcl, PRINT_CHAT, "%s\n", sv_motd[i].string);
+		}
 	}
 
 	SV_CheckRecentCrashes(newcl);
@@ -2482,10 +2506,12 @@ client_t *SVC_DirectConnect(void)
 	}
 	newcl->controller = NULL;
 
+	if (!redirect)
+	{
+		Sys_ServerActivity();
 
-	Sys_ServerActivity();
-
-	PIN_ShowMessages(newcl);
+		PIN_ShowMessages(newcl);
+	}
 
 	if (ISNQCLIENT(newcl))
 	{
@@ -2494,6 +2520,7 @@ client_t *SVC_DirectConnect(void)
 		SVNQ_New_f();
 	}
 
+	newcl->redirect = redirect;
 
 
 	return newcl;

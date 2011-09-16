@@ -2060,7 +2060,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 			return true;
 	}
 
-#if !defined(NPQTV) && !defined(SERVERONLY) //this is *really* unfortunate, but doing this crashes the browser
+#if !defined(NPFTE) && !defined(SERVERONLY) //this is *really* unfortunate, but doing this crashes the browser
 	if (poshname)
 	{
 		char resultpath[MAX_PATH];
@@ -2388,7 +2388,7 @@ void COM_InitFilesystem (void)
 				Q_snprintfz(com_homedir, sizeof(com_homedir), "%s/My Documents/My Games/%s/", ev, FULLENGINENAME);
 		}
 
-#ifdef NPQTV
+#ifdef NPFTE
 		if (!*com_homedir)
 			Q_snprintfz(com_homedir, sizeof(com_homedir), "/%s/", FULLENGINENAME);
 		//as a browser plugin, always use their home directory
@@ -2484,7 +2484,7 @@ extern searchpathfuncs_t doomwadfilefuncs;
 void FS_RegisterDefaultFileSystems(void)
 {
 	FS_RegisterFileSystemType("pak", &packfilefuncs);
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(ANDROID)
 	/*for systems that have case sensitive paths, also include *.PAK */
 	FS_RegisterFileSystemType("PAK", &packfilefuncs);
 #endif

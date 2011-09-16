@@ -1863,9 +1863,9 @@ void VARGS Menu_Abort (char *format, ...)
 
 void MP_CvarChanged(cvar_t *var)
 {
-	if (svprogfuncs)
+	if (menuprogs)
 	{
-		PR_AutoCvar(svprogfuncs, var);
+		PR_AutoCvar(menuprogs, var);
 	}
 }
 

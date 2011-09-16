@@ -750,7 +750,7 @@ void VARGS Sys_Error (const char *error, ...)
 	SetHookState(false);
 #endif
 
-#ifdef NPQTV
+#ifdef NPFTE
 	{
 		extern jmp_buf 	host_abort;
 		/*jump to start of main loop (which exits the main loop)*/
@@ -800,7 +800,7 @@ void Sys_Quit (void)
 	SV_Shutdown();
 #endif
 
-#ifdef NPQTV
+#ifdef NPFTE
 	{
 		extern jmp_buf 	host_abort;
 		/*jump to start of main loop (which exits the main loop)*/
@@ -1211,7 +1211,7 @@ qboolean Sys_Startup_CheckMem(quakeparms_t *parms)
 	return true;
 }
 
-#ifdef NPQTV
+#ifdef NPFTE
 static quakeparms_t	parms;
 double lastlooptime;
 qboolean NPQTV_Sys_Startup(int argc, char *argv[])

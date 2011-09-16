@@ -672,7 +672,7 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 {
 	int				temp;
 	qboolean		stat;
-#ifndef NPQTV
+#ifndef NPFTE
     MSG				msg;
 #endif
 //	HDC				hdc;
@@ -747,7 +747,7 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 	SetForegroundWindow (mainwindow);
 	VID_SetPalette (palette);
 
-#ifndef NPQTV
+#ifndef NPFTE
 	/*I don't like this, but if we */
 	while (PeekMessage (&msg, mainwindow, 0, 0, PM_REMOVE))
 	{
@@ -1666,7 +1666,7 @@ LONG WINAPI GLMainWndProc (
 			if (wParam & MK_LBUTTON)
 			{
 				temp |= 1;
-#ifdef NPQTV
+#ifdef NPFTE
 				SetFocus(hWnd);
 #endif
 			}

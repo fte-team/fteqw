@@ -53,12 +53,16 @@ ifeq ($(FTE_TARGET),win32_sdl)
 	FTE_TARGET=win32_SDL
 endif
 
+DROID_NDK_PATH?=~/droid/android-ndk-r6b
+DROID_SDK_PATH?=~/droid/android-sdk-linux_x86
 ifeq ($(FTE_TARGET),droid)
-	
-	CC=~/droid/android-ndk-r6b/toolchains/arm-linux-androideabi-4.4.3/prebuilt/linux-x86/bin/arm-linux-androideabi-gcc -I ~/droid/android-ndk-r6b/platforms/android-9/arch-arm/usr/include/ -I ~/droid/android-ndk-r6b/sources/android/native_app_glue/ -DANDROID
-	STRIP=~/droid/android-ndk-r6b/toolchains/arm-linux-androideabi-4.4.3/prebuilt/linux-x86/bin/arm-linux-androideabi-strip
-	DO_LD=~/droid/android-ndk-r6b/toolchains/arm-linux-androideabi-4.4.3/prebuilt/linux-x86/bin/arm-linux-androideabi-ar -r $@
 
+	NDK_PATH:=$(shell echo $(DROID_NDK_PATH))
+	SDK_PATH:=$(shell echo $(DROID_SDK_PATH))
+
+	STRIP=$(NDK_PATH)/toolchains/arm-linux-androideabi-4.4.3/prebuilt/linux-x86/bin/arm-linux-androideabi-strip
+	CC=$(NDK_PATH)/toolchains/arm-linux-androideabi-4.4.3/prebuilt/linux-x86/bin/arm-linux-androideabi-gcc -I$(NDK_PATH)/platforms/android-8/arch-arm/usr/include/ -DANDROID
+	DO_LD=$(CC) -Wl,-soname,libftedroid.so -shared -Wl,--no-undefined -Wl,-z,noexecstack --sysroot=$(NDK_PATH)/platforms/android-8/arch-arm -L$(NDK_PATH)/platforms/android-8/arch-arm/usr/lib -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS) -llog -lc -lz -lm
 endif
 
 #correct the gcc build when cross compiling
@@ -293,7 +297,7 @@ DX7SDK=-I./libs/dxsdk7/include/
 
 GLCFLAGS=-DGLQUAKE
 D3DCFLAGS=-DD3DQUAKE
-NPQTVCFLAGS=-DNPQTV
+NPFTECFLAGS=-DNPFTE
 
 CLIENT_OBJS = \
 	textedit.o	\
@@ -499,18 +503,18 @@ else
 	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) `sdl-config --libs`
 endif
 GL_CFLAGS=$(GLCFLAGS) `sdl-config --cflags`
-GLB_DIR=gl_sdl$(BITS)
-GLCL_DIR=glcl_sdl$(BITS)
+GLB_DIR=gl_sdl$(FTE_TARGET)$(BITS)
+GLCL_DIR=glcl_sdl$(FTE_TARGET)$(BITS)
 
 SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
 SV_EXE_NAME=../fteqw_sdl.sv$(BITS)
 SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
 SV_LDFLAGS=-lz
 
-MINGL_DIR=mingl_sdl$(BITS)
+MINGL_DIR=mingl_sdl$(FTE_TARGET)$(BITS)
 MINGL_EXE_NAME=../fteqw_sdl.mingl$(BITS)
 
-MB_DIR=m_sdl$(BITS)
+MB_DIR=m_sdl$(FTE_TARGET)$(BITS)
 M_EXE_NAME=../fteqw_sdl$(BITS)
 MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o 
 M_CFLAGS=$(GLCFLAGS) `sdl-config --cflags` -D_MERGED_SDL
@@ -549,15 +553,15 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)
 		GL_CFLAGS+= -D_MINGW_VFPRINTF
 	endif
 	
-	GLB_DIR=sdl_gl_mgw_sdl$(BITS)
-	GLCL_DIR=sdl_glcl_mgw_sdl$(BITS)
+	GLB_DIR=gl_mgw_sdl$(BITS)
+	GLCL_DIR=glcl_mgw_sdl$(BITS)
 	
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) $(LTO_END) resources.o $(LTO_START)
 	SV_EXE_NAME=../fteqw_sdl_sv$(BITS).exe
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -D_SDL
 	SV_LDFLAGS=$(MINGW_LIBS_DIR)/libz.a -lm -lmingw32 -lws2_32 -lwinmm
 
-	MINGL_DIR=mingl_sdl$(BITS)
+	MINGL_DIR=mingl_sdlwin$(BITS)
 	MINGL_EXE_NAME=../fteqw_sdl_mingl$(BITS).exe
 
 	MB_DIR=m_mgw_sdl$(BITS)
@@ -651,13 +655,13 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -v "win(32|64)$$"),)
 	GLB_DIR=gl_mgw$(BITS)
 	GLCL_DIR=glcl_mgw$(BITS)
 
-	NPQTVCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_npqtv.o sys_plugfte.o $(LTO_END) npplug.o ../../ftequake/npapi.def $(LTO_START)
-	NPQTV_DLL_NAME=../npqtv$(BITS).dll
-	NPQTVCL_DLL_NAME=../npqtvcl$(BITS).dll
-	NPQTV_LDFLAGS=--enable-stdcall-fixup $(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -shared
-	NPQTV_CFLAGS=$(NPQTVCFLAGS) $(GLCFLAGS) $(W32_CFLAGS) $(DX7SDK)
-	NPQTVB_DIR=npqtv_mgw$(BITS)
-	NPQTVCL_DIR=npqtvcl_mgw$(BITS)
+	NPFTECL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_npqtv.o sys_plugfte.o $(LTO_END) npplug.o ../../ftequake/npapi.def $(LTO_START)
+	NPFTE_DLL_NAME=../npfte$(BITS).dll
+	NPFTECL_DLL_NAME=../npftecl$(BITS).dll
+	NPFTE_LDFLAGS=--enable-stdcall-fixup $(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -shared
+	NPFTE_CFLAGS=$(NPFTECFLAGS) $(GLCFLAGS) $(W32_CFLAGS) $(DX7SDK) -DMULTITHREAD
+	NPFTEB_DIR=npfte_mgw$(BITS)
+	NPFTECL_DIR=npqtvcl_mgw$(BITS)
 
 	MCL_OBJS=$(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o $(LTO_END) resources.o $(LTO_START)
 	M_EXE_NAME=../fteqw$(BITS).exe
@@ -837,14 +841,14 @@ ifeq ($(FTE_TARGET),droid)
 	SV_DIR=sv_droid
 	SV_LDFLAGS=-lz
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) svmodel.o sys_droid.o
-	SV_EXE_NAME=../fteqw.a$(BITS)
+	SV_EXE_NAME=../libftedroid.so
 
 	SV_LDFLAGS=
 
 	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_viddroid.o sys_droid.o cd_null.o
         GL_LDFLAGS=$(GLLDFLAGS)
 	GLB_DIR=gl_droid
-	GL_EXE_NAME=../fteqw.a$(BITS)
+	GL_EXE_NAME=../libftedroid.so
 endif
 
 SV_DIR?=sv_sdl
@@ -870,6 +874,8 @@ releases:
 #	-$(MAKE) FTE_TARGET=linux32 relcl
 #	-$(MAKE) FTE_TARGET=linux64 relcl
 #	-$(MAKE) FTE_TARGET=win32 relcl
+	-$(MAKE) droid-rel
+	-$(MAKE) FTE_TARGET=win32 npfte-rel
 
 autoconfig: clean
 	/bin/bash makeconfig.sh y
@@ -1000,22 +1006,24 @@ d3d-profile:
 
 
 npqtvcl-tmp:
-	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(NPQTVCL_DLL_NAME)" WCFLAGS="$(NPQTV_CFLAGS)" LDFLAGS="$(NPQTV_LDFLAGS) $(LDFLAGS)" SOBJS="$(NPQTVCL_OBJS)"
-npqtv-tmp:
-	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(NPQTV_DLL_NAME)" WCFLAGS="$(NPQTV_CFLAGS)" LDFLAGS="$(NPQTV_LDFLAGS) $(LDFLAGS)" SOBJS="$(NPQTVCL_OBJS)"
+	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(NPFTECL_DLL_NAME)" WCFLAGS="$(NPFTE_CFLAGS)" LDFLAGS="$(NPFTE_LDFLAGS) $(LDFLAGS)" SOBJS="$(NPFTECL_OBJS)"
+npfte-tmp:
+	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(NPFTE_DLL_NAME)" WCFLAGS="$(NPFTE_CFLAGS)" LDFLAGS="$(NPFTE_LDFLAGS) $(LDFLAGS)" SOBJS="$(NPFTECL_OBJS)"
 
 npqtvcl-rel:
-	$(MAKE) npqtvcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(NPQTVCL_DIR)"
+	$(MAKE) npqtvcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(NPFTECL_DIR)"
 npqtvcl-dbg:
-	$(MAKE) npqtvcl-tmp TYPE=_cl-dbg OUT_DIR="$(DEBUG_DIR)/$(NPQTVCL_DIR)"
+	$(MAKE) npqtvcl-tmp TYPE=_cl-dbg OUT_DIR="$(DEBUG_DIR)/$(NPFTECL_DIR)"
 npqtvcl-profile:
-	$(MAKE) npqtvcl-tmp TYPE=_cl-profile OUT_DIR="$(PROFILE_DIR)/$(NPQTVCL_DIR)"
-npqtv-rel:
-	$(MAKE) npqtv-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(NPQTVB_DIR)"
-npqtv-dbg:
-	$(MAKE) npqtv-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(NPQTVB_DIR)"
-npqtv-profile:
-	$(MAKE) npqtv-tmp TYPE=_cl-profile OUT_DIR="$(PROFILE_DIR)/$(NPQTVB_DIR)"
+	$(MAKE) npqtvcl-tmp TYPE=_cl-profile OUT_DIR="$(PROFILE_DIR)/$(NPFTECL_DIR)"
+npfte-rel:
+	$(MAKE) npfte-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(NPFTEB_DIR)"
+	cp $(RELEASE_DIR)/npfte.dll npfte/plugins
+	cd npfte && zip $(abspath $(RELEASE_DIR)/npfte.xpi) * plugins/*
+npfte-dbg:
+	$(MAKE) npfte-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(NPFTEB_DIR)"
+npfte-profile:
+	$(MAKE) npfte-tmp TYPE=_cl-profile OUT_DIR="$(PROFILE_DIR)/$(NPFTEB_DIR)"
 
 glcl-tmp:
 	$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(GLCL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS)" LDFLAGS="$(GL_LDFLAGS) $(LDFLAGS)" SOBJS="$(GLCL_OBJS)"
@@ -1100,10 +1108,11 @@ help:
 	@-echo "'gl-???' (OpenGL rendering + Built-in Server)"
 	@-echo "'m-???' (Merged client, OpenGL & D3D rendering + Dedicated server)"
 	@-echo "'mingl-???' (Minimal featured OpenGL render)"
-	@-echo "'npqtv-???' (FTE_TARGET=win32 only, for now) (QuakeTV Firefox/Netscape browser plugin)"
+	@-echo "'npfte-???' (FTE_TARGET=win32 only, for now) (QuakeTV Firefox/Netscape browser plugin)"
 	@-echo "'d3d-???' (for windows builds)"
 	@-echo "'mcl-???' (currently broken)"
 	@-echo "'glcl-???' (currently broken)"
+	@-echo "'droid-???' (build Android package)"
 	@-echo ""
 	@-echo "Cross targets can be specified with FTE_TARGET=blah"
 	@-echo "linux32, linux64 specify specific x86 archs"
@@ -1120,4 +1129,39 @@ clean:
 	-rm -f -r $(RELEASE_DIR)
 	-rm -f -r $(DEBUG_DIR)
 	-rm -f -r $(PROFILE_DIR)
+	-rm -f -r droid/bin
+	-rm -f -r droid/gen
+	-rm -f -r droid/libs
+	-rm -f droid/default.properties
+	-rm -f droid/local.properties
+	-rm -f droid/proguard.cfg
+	-rm -f droid/build.xml
+
+
+#building for android will require:
+#download android sdk+ndk
+#ant installed
+#DROID_NDK_PATH and DROID_SDK_PATH set, if they don't match the paths on my system.
+
+#droid-dbg will install it on 'the current device', if you've got a device plugged in or an emulator running, it should just work.
+
+#makes an ant project for us
+droid/build.xml:
+	cd droid && PATH=$$PATH:$(DROID_SDK_PATH)/tools:$(DROID_NDK_PATH) android update project -t 1 -p . -n FTEDroid
+
+#build FTE as a library, then build the java+package (release)
+droid-rel: droid/build.xml
+	$(MAKE) FTE_TARGET=droid gl-rel
+	mkdir -p droid/libs/armeabi
+	@cp $(RELEASE_DIR)/libftedroid.so droid/libs/armeabi/
+	@cd droid && ant release
+	cp droid/bin/FTEDroid-unsigned.apk $(RELEASE_DIR)/FTEDroid.apk
+
+#build FTE as a library, then build the java+package (release). also installs it onto the 'current' device.
+droid-dbg: droid/build.xml
+	$(MAKE) FTE_TARGET=droid gl-dbg
+	@mkdir -p droid/libs/armeabi
+	@cp $(DEBUG_DIR)/libftedroid.so droid/libs/armeabi/
+	@cd droid && ant debug && ant install
+	cp droid/bin/FTEDroid-debug.apk $(DEBUG_DIR)/FTEDroid.apk
 

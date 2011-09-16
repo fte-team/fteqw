@@ -3703,7 +3703,7 @@ Host_Init
 */
 void Host_Init (quakeparms_t *parms)
 {
-#ifndef NPQTV
+#ifndef NPFTE
 	int i;
 	int qrc, hrc, def;
 #endif
@@ -3787,7 +3787,7 @@ void Host_Init (quakeparms_t *parms)
 
 	host_initialized = true;
 
-#ifdef NPQTV
+#ifdef NPFTE
 }
 
 void Host_FinishInit(void)

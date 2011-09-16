@@ -1,6 +1,11 @@
 #include "quakedef.h"
 
+#ifdef ANDROID
+//FIXME: this shouldn't be defined
+#define FORCESTATE
+#else
 //#define FORCESTATE
+#endif
 //#define WIREFRAME
 
 #ifdef GLQUAKE

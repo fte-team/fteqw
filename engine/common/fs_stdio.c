@@ -84,7 +84,7 @@ vfsfile_t *FSSTDIO_OpenTemp(void)
 	return (vfsfile_t*)file;
 }
 
-#ifdef ANDROID
+#if 0//def ANDROID
 vfsfile_t *Sys_OpenAsset(const char *fname);
 #endif
 
@@ -99,7 +99,7 @@ vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode)
 	char newmode[3];
 	int modec = 0;
 
-#ifdef ANDROID
+#if 0//def ANDROID
 //	if (!strncmp("asset/", osname, 6))
 	{
 		if (append || write)

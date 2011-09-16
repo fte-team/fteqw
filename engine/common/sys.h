@@ -112,7 +112,7 @@ void Sys_DestroyConditional(void *condv);
 
 void Sys_Sleep(double seconds);
 
-#ifdef NPQTV
+#ifdef NPFTE
 qboolean NPQTV_Sys_Startup(int argc, char *argv[]);
 void NPQTV_Sys_MainLoop(void);
 #endif

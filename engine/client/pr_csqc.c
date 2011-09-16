@@ -5651,8 +5651,8 @@ void CSQC_Breakpoint_f(void)
 		Con_Printf("CSQC not running\n");
 		return;
 	}
-	wasset = svprogfuncs->ToggleBreak(csqcprogs, filename, line, 3);
-	isset = svprogfuncs->ToggleBreak(csqcprogs, filename, line, 2);
+	wasset = csqcprogs->ToggleBreak(csqcprogs, filename, line, 3);
+	isset = csqcprogs->ToggleBreak(csqcprogs, filename, line, 2);
 
 	if (wasset == isset)
 		Con_Printf("Breakpoint was not valid\n");

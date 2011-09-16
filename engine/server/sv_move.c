@@ -453,7 +453,7 @@ qboolean World_MoveToGoal (world_t *world, wedict_t *ent, float dist)
 {
 	wedict_t	*goal;
 
-	ent = (wedict_t*)PROG_TO_EDICT(world->progs, pr_global_struct->self);	
+	ent = (wedict_t*)PROG_TO_EDICT(world->progs, *world->g.self);	
 	goal = (wedict_t*)PROG_TO_EDICT(world->progs, ent->v->goalentity);
 
 	if ( !( (int)ent->v->flags & (FL_ONGROUND|FL_FLY|FL_SWIM) ) )

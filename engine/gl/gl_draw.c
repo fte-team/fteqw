@@ -336,10 +336,20 @@ void GLDraw_ReInit (void)
 
 	maxtexsize = gl_max_size.value;
 
-	if (maxtexsize < 2048)	//this needs to be able to hold the image in unscaled form.
-		sizeofuploadmemorybufferintermediate = 2048*2048*4;	//make sure we can load 2048*2048 images whatever happens.
+	if (gl_config.gles)
+	{
+		if (maxtexsize < 512)	//this needs to be able to hold the image in unscaled form.
+			sizeofuploadmemorybufferintermediate = 512*512*4;	//make sure we can load 512*512 images whatever happens.
+		else
+			sizeofuploadmemorybufferintermediate = maxtexsize*maxtexsize*4;	//gl supports huge images, so so shall we.
+	}
 	else
-		sizeofuploadmemorybufferintermediate = maxtexsize*maxtexsize*4;	//gl supports huge images, so so shall we.
+	{
+		if (maxtexsize < 2048)	//this needs to be able to hold the image in unscaled form.
+			sizeofuploadmemorybufferintermediate = 2048*2048*4;	//make sure we can load 2048*2048 images whatever happens.
+		else
+			sizeofuploadmemorybufferintermediate = maxtexsize*maxtexsize*4;	//gl supports huge images, so so shall we.
+	}
 
 	//required to hold the image after scaling has occured
 	sizeofuploadmemorybuffer = maxtexsize*maxtexsize*4;
@@ -936,6 +946,15 @@ void GL_RoundDimensions(int *scaled_width, int *scaled_height, qboolean mipmap)
 			;
 		for (*scaled_height = 1 ; *scaled_height < height ; *scaled_height<<=1)
 			;
+
+		/*round npot textures down if we're running on an embedded system*/
+		if (gl_config.gles)
+		{
+			if (*scaled_width != width)
+				*scaled_width >>= 1;
+			if (*scaled_height != height)
+				*scaled_height >>= 1;
+		}
 	}
 
 	if (mipmap)
@@ -964,6 +983,41 @@ void GL_RoundDimensions(int *scaled_width, int *scaled_height, qboolean mipmap)
 	if (*scaled_height < 1)
 		*scaled_height = 1;
 }
+
+void GL_8888to565(unsigned char *in, unsigned short *out, unsigned int mip, unsigned int w, unsigned int h)
+{
+	unsigned int p = w*h;
+	unsigned short tmp;
+	void *iout = out;
+
+	while(p-->0)
+	{
+		tmp  = ((*in++>>3) << 11);
+		tmp |= ((*in++>>2) << 5);
+		tmp |= ((*in++>>3) << 0);
+		in++;
+		*out++ = tmp;
+	}
+	qglTexImage2D (GL_TEXTURE_2D, mip, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, iout);
+}
+
+void GL_8888to4444(unsigned char *in, unsigned short *out, unsigned int mip, unsigned int w, unsigned int h)
+{
+	unsigned int p = w*h;
+	unsigned short tmp;
+	void *iout = out;
+
+	while(p-->0)
+	{
+		tmp  = ((*in++>>4) << 12);
+		tmp |= ((*in++>>4) << 8);
+		tmp |= ((*in++>>4) << 4);
+		tmp |= ((*in++>>4) << 0);
+		*out++ = tmp;
+	}
+	qglTexImage2D (GL_TEXTURE_2D, mip, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, iout);
+}
+
 /*
 ===============
 GL_Upload32
@@ -975,6 +1029,7 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 	int			samples;
 	unsigned	*scaled = (unsigned *)uploadmemorybuffer;
 	int			scaled_width, scaled_height;
+	int		type;
 
 	TRACE(("dbg: GL_Upload32: %s %i %i\n", name, width, height));
 
@@ -1001,9 +1056,31 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 		Sys_Error ("GL_LoadTexture: too big");
 
 	if (gl_config.gles)
-		glcolormode = samples = GL_RGBA; /* GL ES doesn't allow for format conversion */
+	{
+		glcolormode = GL_RGBA; /*our input is RGBA or RGBX, with the internal format restriction, we must therefore always have an alpha value*/
+		type = GL_UNSIGNED_BYTE;
+
+		if (flags & IF_NOALPHA)
+		{
+			/*no alpha there, yay*/
+			type = GL_UNSIGNED_SHORT_5_6_5;
+			glcolormode = GL_RGB;
+		}
+		else
+		{
+			/*we need an alpha channel, sorry for any banding*/
+			type = GL_UNSIGNED_SHORT_4_4_4_4;
+			glcolormode = GL_RGBA;
+		}
+
+		/*GLES requires that the internal format match the format*/
+		samples = glcolormode;
+	}
 	else
+	{
 		samples = (flags&IF_NOALPHA) ? GL_RGB : GL_RGBA;
+		type = GL_UNSIGNED_BYTE;
+	}
 
 	if (gl_config.arb_texture_compression && gl_compress.value && name && !(flags&IF_NOMIPMAP))
 		samples = (flags&IF_NOALPHA) ? GL_COMPRESSED_RGB_ARB : GL_COMPRESSED_RGBA_ARB;
@@ -1041,7 +1118,12 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 		if ((flags&IF_NOMIPMAP)||gl_config.sgis_generate_mipmap)	//gotta love this with NPOT textures... :)
 		{
 			TRACE(("dbg: GL_Upload32: non-mipmapped/unscaled\n"));
-			qglTexImage2D (GL_TEXTURE_2D, 0, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, data);
+			if (type == GL_UNSIGNED_SHORT_5_6_5)
+				GL_8888to565((unsigned char *)data, (unsigned short*)scaled, 0, scaled_width, scaled_height);
+			else if (type == GL_UNSIGNED_SHORT_4_4_4_4)
+				GL_8888to4444((unsigned char *)data, (unsigned short*)scaled, 0, scaled_width, scaled_height);
+			else
+				qglTexImage2D (GL_TEXTURE_2D, 0, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, data);
 			goto done;
 		}
 		memcpy (scaled, data, width*height*4);
@@ -1050,7 +1132,12 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 		GL_ResampleTexture (data, width, height, scaled, scaled_width, scaled_height);
 
 	TRACE(("dbg: GL_Upload32: recaled\n"));
-	qglTexImage2D (GL_TEXTURE_2D, 0, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, scaled);
+	if (type == GL_UNSIGNED_SHORT_5_6_5)
+		GL_8888to565((unsigned char *)scaled, (unsigned short*)uploadmemorybufferintermediate, 0, scaled_width, scaled_height);
+	else if (type == GL_UNSIGNED_SHORT_4_4_4_4)
+		GL_8888to4444((unsigned char *)scaled, (unsigned short*)uploadmemorybufferintermediate, 0, scaled_width, scaled_height);
+	else
+		qglTexImage2D (GL_TEXTURE_2D, 0, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, scaled);
 	if (!(flags&IF_NOMIPMAP) && !gl_config.sgis_generate_mipmap)
 	{
 		miplevel = 0;
@@ -1065,9 +1152,15 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 			if (scaled_height < 1)
 				scaled_height = 1;
 			miplevel++;
-			qglTexImage2D (GL_TEXTURE_2D, miplevel, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, scaled);
+			if (type == GL_UNSIGNED_SHORT_5_6_5)
+				GL_8888to565((unsigned char *)scaled, (unsigned short*)uploadmemorybufferintermediate, miplevel, scaled_width, scaled_height);
+			else if (type == GL_UNSIGNED_SHORT_4_4_4_4)
+				GL_8888to4444((unsigned char *)scaled, (unsigned short*)uploadmemorybufferintermediate, miplevel, scaled_width, scaled_height);
+			else
+				qglTexImage2D (GL_TEXTURE_2D, miplevel, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, scaled);
 		}
 	}
+
 	if (gl_config.arb_texture_compression && gl_compress.value && gl_savecompressedtex.value && name && !(flags&IF_NOMIPMAP))
 	{
 		vfsfile_t *out;

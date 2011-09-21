@@ -1663,7 +1663,6 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 			demo.recorder.frameunion.frames[i].entities.max_entities = MAX_MVDPACKET_ENTITIES;
 			demo.recorder.frameunion.frames[i].entities.entities = demo_entities[i];
 		}
-		demo.recorder.max_net_ents = MAX_MVDPACKET_ENTITIES;
 
 		MVDBuffer_Init(&demo.dbuffer, demo.buffer, sizeof(demo.buffer));
 		MVDSetMsgBuf(NULL, &demo.frames[0].buf);
@@ -1681,6 +1680,17 @@ static qboolean SV_MVD_Record (mvddest_t *dest)
 			/*enable these, because we might as well (stat ones are always useful)*/
 			demo.recorder.zquake_extensions = Z_EXT_PM_TYPE | Z_EXT_PM_TYPE_NEW | Z_EXT_VIEWHEIGHT | Z_EXT_SERVERTIME | Z_EXT_PITCHLIMITS | Z_EXT_JOIN_OBSERVE | Z_EXT_VWEP;
 		}
+
+		demo.recorder.max_net_ents = 512;
+		if (demo.recorder.fteprotocolextensions & PEXT_ENTITYDBL)
+			demo.recorder.max_net_ents += 512;
+		if (demo.recorder.fteprotocolextensions & PEXT_ENTITYDBL2)
+			demo.recorder.max_net_ents += 1024;
+
+		if (demo.recorder.fteprotocolextensions & PEXT_MODELDBL)
+			demo.recorder.maxmodels = MAX_MODELS;
+		else
+			demo.recorder.maxmodels = 256;
 	}
 //	else
 //		SV_WriteRecordMVDMessage(&buf, dem_read);

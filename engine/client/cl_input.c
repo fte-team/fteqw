@@ -1737,7 +1737,11 @@ void CL_InitInput (void)
 		Cmd_AddCommand (vahunk("p%i",		sp+1),	CL_Split_f);
 		Cmd_AddCommand (vahunk("+p%i",		sp+1),	CL_Split_f);
 		Cmd_AddCommand (vahunk("-p%i",		sp+1),	CL_Split_f);
+
+/*default mlook to pressed, unless on android where we expect a touch-screen and wouldn't be able to move forwards*/
+#ifndef ANDROID
 		in_mlook.state[sp] = 1;
+#endif
 	}
 	
 	Cmd_AddCommand ("+moveup",		IN_UpDown);
@@ -1774,7 +1778,7 @@ void CL_InitInput (void)
 	Cmd_AddCommand ("+klook",		IN_KLookDown);
 	Cmd_AddCommand ("-klook",		IN_KLookUp);
 	Cmd_AddCommand ("+mlook",		IN_MLookDown);
-	Cmd_AddCommand ("-mlooks",		IN_MLookUp);
+	Cmd_AddCommand ("-mlook",		IN_MLookUp);
 
 	Cmd_AddCommand ("+button3",		IN_Button3Down);
 	Cmd_AddCommand ("-button3",		IN_Button3Up);

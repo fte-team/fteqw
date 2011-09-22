@@ -46,7 +46,7 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 	if (!sys_running)
 	{
 		quakeparms_t parms;
-		parms.basedir = "/sdcard";
+		parms.basedir = "/sdcard/fte";
 		parms.argc = 0;
 		parms.argv = NULL;
 		parms.memsize = sys_memheap = 8*1024*1024;
@@ -76,8 +76,9 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_keypress(JNIEnv *env, jobje
 	Key_Event(0, keycode, unicode, down);
 }
 
-float mousecursor_x, mousecursor_y;
+int mousecursor_x, mousecursor_y;
 float mouse_x, mouse_y;
+static float omouse_x, omouse_y;
 JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_motion(JNIEnv *env, jobject obj,
                  jint act, jfloat x, jfloat y)
 {
@@ -85,8 +86,10 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_motion(JNIEnv *env, jobject
 	static qboolean down;
 	float dx, dy;
 
-	dx = x - mousecursor_x;
-	dy = y - mousecursor_y;
+	dx = x - omouse_x;
+	dy = y - omouse_y;
+	omouse_x = x;
+	omouse_y = y;
 	mousecursor_x = x;
 	mousecursor_y = y;
 

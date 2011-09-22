@@ -60,9 +60,17 @@ ifeq ($(FTE_TARGET),droid)
 	NDK_PATH:=$(shell echo $(DROID_NDK_PATH))
 	SDK_PATH:=$(shell echo $(DROID_SDK_PATH))
 
+	DROID_API_LEVEL=3
+
+	#there are 3 ABI targets
+	#armv5 (works on all arm droids)
+	#armv7 (more common on 2.2+ droids)
+	#armv7+neon
+	DROID_ABI?=-mfloat-abi=softfp
+
 	STRIP=$(NDK_PATH)/toolchains/arm-linux-androideabi-4.4.3/prebuilt/linux-x86/bin/arm-linux-androideabi-strip
-	CC=$(NDK_PATH)/toolchains/arm-linux-androideabi-4.4.3/prebuilt/linux-x86/bin/arm-linux-androideabi-gcc -I$(NDK_PATH)/platforms/android-8/arch-arm/usr/include/ -DANDROID
-	DO_LD=$(CC) -Wl,-soname,libftedroid.so -shared -Wl,--no-undefined -Wl,-z,noexecstack --sysroot=$(NDK_PATH)/platforms/android-8/arch-arm -L$(NDK_PATH)/platforms/android-8/arch-arm/usr/lib -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS) -llog -lc -lz -lm
+	CC=$(NDK_PATH)/toolchains/arm-linux-androideabi-4.4.3/prebuilt/linux-x86/bin/arm-linux-androideabi-gcc -I$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/arch-arm/usr/include/ -DANDROID $(DROID_ABI)
+	DO_LD=$(CC) -Wl,-soname,libftedroid.so -shared -Wl,--no-undefined -Wl,-z,noexecstack --sysroot=$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/arch-arm -L$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/arch-arm/usr/lib -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS) -llog -lc -lz -lm
 endif
 
 #correct the gcc build when cross compiling
@@ -845,7 +853,7 @@ ifeq ($(FTE_TARGET),droid)
 
 	SV_LDFLAGS=
 
-	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_viddroid.o sys_droid.o cd_null.o
+	GLCL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) gl_viddroid.o sys_droid.o cd_null.o snd_droid.o
         GL_LDFLAGS=$(GLLDFLAGS)
 	GLB_DIR=gl_droid
 	GL_EXE_NAME=../libftedroid.so

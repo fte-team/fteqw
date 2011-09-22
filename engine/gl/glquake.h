@@ -48,6 +48,9 @@ void ClearBounds (vec3_t mins, vec3_t maxs);
 	#if defined(ANDROID) /*FIXME: actually just to use standard GLES headers instead of full GL*/
 		#if 1
 			#include <GLES/gl.h>
+			#ifndef GL_CLIP_PLANE0
+			#define GL_CLIP_PLANE0 0x3000
+			#endif
 		#else
 			#include <GLES2/gl2.h>
 			/*gles has no fixed function*/

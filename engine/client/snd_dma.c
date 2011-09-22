@@ -620,6 +620,7 @@ sounddriver pOSS_InitCard;
 sounddriver pMacOS_InitCard;
 sounddriver pSDL_InitCard;
 sounddriver pWAV_InitCard;
+sounddriver pDroid_InitCard;
 sounddriver pAHI_InitCard;
 
 typedef struct {
@@ -632,6 +633,7 @@ sdriver_t drivers[] = {
 
 	{"DSound", &pDSOUND_InitCard},	//prefered on windows
 	{"MacOS", &pMacOS_InitCard},	//prefered on mac
+	{"Droid", &pDroid_InitCard},		//prefered on android (java thread)
 	{"AHI", &pAHI_InitCard},		//prefered on morphos
 
 	{"SDL", &pSDL_InitCard},		//prefered on linux

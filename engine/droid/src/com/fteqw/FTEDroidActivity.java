@@ -18,6 +18,10 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 
+import android.media.AudioFormat;
+import android.media.AudioManager;
+import android.media.AudioTrack;
+
 public class FTEDroidActivity extends Activity
 {
 	private SensorManager sensorman;
@@ -50,6 +54,56 @@ public class FTEDroidActivity extends Activity
 	{
 		private final FTERenderer rndr;
 		
+		private byte[] audbuf;
+		private AudioTrack at;
+
+		private void audioInit()
+		{
+			final int notifframes = 2048;
+			if (at != null)
+				at.stop();
+			int sspeed = 11025;
+			int speakers = 1;
+			int sz = 4*AudioTrack.getMinBufferSize(sspeed, ((speakers==2)?AudioFormat.CHANNEL_CONFIGURATION_STEREO:AudioFormat.CHANNEL_CONFIGURATION_MONO), AudioFormat.ENCODING_PCM_16BIT);
+			if (sz < notifframes*2)
+				sz = notifframes*2;
+
+			at = new AudioTrack(AudioManager.STREAM_MUSIC, sspeed, ((speakers==2)?AudioFormat.CHANNEL_CONFIGURATION_STEREO:AudioFormat.CHANNEL_CONFIGURATION_MONO), AudioFormat.ENCODING_PCM_16BIT, sz, AudioTrack.MODE_STREAM);
+			final int framesz = 2; /*mono 16bit*/
+			audbuf = new byte[notifframes*framesz];
+
+			at.setPlaybackPositionUpdateListener(new AudioTrack.OnPlaybackPositionUpdateListener()
+			{
+				@Override
+				public void onMarkerReached(AudioTrack track)
+				{
+				}
+				@Override
+				public void onPeriodicNotification(AudioTrack track)
+				{
+					int avail = FTEDroidEngine.paintaudio(audbuf, audbuf.length);
+					at.write(audbuf, 0, notifframes*framesz);
+				}
+			});
+			at.setPositionNotificationPeriod(notifframes);
+
+			at.setStereoVolume(1, 1);
+			
+			at.play();
+			/*buffer needs to be completely full before it'll start playing*/
+			while(sz > 0)
+			{
+				at.write(audbuf, 0, notifframes*framesz);
+				sz -= notifframes;
+			}
+		}
+		public void resume()
+		{
+			/*poke audio into submission*/
+			if (at != null)
+				at.play();
+		}
+
 		public FTEView(Context context)
 		{
 			super(context);
@@ -58,6 +112,8 @@ public class FTEDroidActivity extends Activity
 			setRenderer(rndr);
 			setFocusable(true);
 			setFocusableInTouchMode(true);
+
+			audioInit();
 		}
 		
 		private void sendKey(final boolean presseddown, final int qcode, final int unicode)
@@ -208,6 +264,8 @@ public class FTEDroidActivity extends Activity
 	{
 		super.onResume();
 		sensorman.registerListener((SensorEventListener)view, sensoracc, SensorManager.SENSOR_DELAY_GAME);
+
+		view.resume();
 	}
 
 	@Override

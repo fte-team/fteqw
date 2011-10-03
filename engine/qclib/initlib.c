@@ -512,6 +512,7 @@ char *ASMCALL PR_StringToNative				(progfuncs_t *progfuncs, string_t str)
 			if (i >= prinst->numallocedstrings)
 			{
 				printf("invalid string %x\n", str);
+				PR_StackTrace(progfuncs);
 				pr_trace = 1;
 				return "";
 			}
@@ -520,6 +521,7 @@ char *ASMCALL PR_StringToNative				(progfuncs_t *progfuncs, string_t str)
 			else
 			{
 				printf("invalid string %x\n", str);
+				PR_StackTrace(progfuncs);
 				pr_trace = 1;
 				return "";	//urm, was freed...
 			}
@@ -530,6 +532,7 @@ char *ASMCALL PR_StringToNative				(progfuncs_t *progfuncs, string_t str)
 			if (i >= prinst->numtempstrings)
 			{
 				printf("invalid temp string %x\n", str);
+				PR_StackTrace(progfuncs);
 				pr_trace = 1;
 				return "";
 			}
@@ -540,6 +543,7 @@ char *ASMCALL PR_StringToNative				(progfuncs_t *progfuncs, string_t str)
 	if (str >= addressableused)
 	{
 		printf("invalid string offset %x\n", str);
+		PR_StackTrace(progfuncs);
 		pr_trace = 1;
 		return "";
 	}

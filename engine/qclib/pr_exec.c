@@ -853,7 +853,6 @@ void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 	dfunction_t	*newf;
 	int		runaway;
 	int		i;
-	int p;
 	edictrun_t	*ed;
 	eval_t	*ptr;
 
@@ -879,7 +878,7 @@ void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 	{											\
 		pr_xstatement = st-pr_statements;		\
 		PR_StackTrace(progfuncs);				\
-		printf ("runaway loop error");			\
+		printf ("runaway loop error\n");		\
 		while(pr_depth > prinst->exitdepth)		\
 			PR_LeaveFunction(progfuncs);		\
 		pr_spushed = 0;							\

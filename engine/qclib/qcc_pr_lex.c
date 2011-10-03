@@ -647,11 +647,6 @@ pbool QCC_PR_Precompiler(void)
 				if (*pr_file_p == '\r')
 					pr_file_p++;
 
-				for (a = 0; a < sizeof(msg)-1 && pr_file_p[a] != '\n' && pr_file_p[a] != '\0'; a++)
-					msg[a] = pr_file_p[a];
-
-				msg[a-1] = '\0';
-
 				while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
 				{
 					pr_file_p++;
@@ -859,7 +854,7 @@ pbool QCC_PR_Precompiler(void)
 					if (!strcmp(sourcefileslist[i], qcc_token))
 						break;
 				}
-				if (i == numsourcefiles)
+				if (i == numsourcefiles && numsourcefiles < MAXSOURCEFILESLIST)
 					strcpy(sourcefileslist[numsourcefiles++], qcc_token);
 			}
 			else if (!QC_strcasecmp(qcc_token, "TARGET"))
@@ -869,7 +864,7 @@ pbool QCC_PR_Precompiler(void)
 				else if (!QC_strcasecmp(msg, "H2") || !QC_strcasecmp(msg, "HEXEN2"))
 				{
 					if (numstatements)
-						QCC_PR_ParseWarning(WARN_BADTARGET, "Cannot switch from hexen2 target \'%s\'. Ignored.", msg);
+						QCC_PR_ParseWarning(WARN_BADTARGET, "Cannot switch to hexen2 target \'%s\'. Ignored.", msg);
 					else
 						qcc_targetformat = QCF_HEXEN2;
 				}
@@ -1692,6 +1687,7 @@ void QCC_PR_LexWhitespace (void)
 				}
 				if (pr_file_p[1] == 0)
 				{
+					QCC_PR_ParseError(0, "EOF inside comment\n");
 					pr_file_p++;
 					return;
 				}
@@ -2700,13 +2696,13 @@ void VARGS QCC_PR_Note (int type, char *file, int line, char *error, ...)
 		printf ("note: %s\n", string);
 }
 
-void VARGS QCC_PR_Warning (int type, char *file, int line, char *error, ...)
+pbool VARGS QCC_PR_Warning (int type, char *file, int line, char *error, ...)
 {
 	va_list		argptr;
 	char		string[1024];
 
 	if (qccwarningdisabled[type])
-		return;
+		return false;
 
 	va_start (argptr,error);
 	QC_vsnprintf (string,sizeof(string)-1, error,argptr);
@@ -2723,6 +2719,8 @@ void VARGS QCC_PR_Warning (int type, char *file, int line, char *error, ...)
 	else
 		printf ("warning: %s\n", string);
 	pr_warning_count++;
+
+	return true;
 }
 
 
@@ -3428,7 +3426,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				QCC_PR_Lex();
 				if (QCC_PR_CheckToken("["))
 				{
-					newparm->size*=QCC_PR_IntConstExpr();
+					newparm->arraysize=QCC_PR_IntConstExpr();
 					QCC_PR_Expect("]");
 				}
 				QCC_PR_CheckToken(";");
@@ -3436,7 +3434,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			else
 				newparm->name = QCC_CopyString("")+strings;
 			newparm->ofs = newt->size;
-			newt->size += newparm->size;
+			newt->size += newparm->size*newparm->arraysize;
 			newt->num_parms++;
 
 			if (type)
@@ -3473,11 +3471,16 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			{
 				newparm->name = QCC_CopyString(pr_token)+strings;
 				QCC_PR_Lex();
+				if (QCC_PR_CheckToken("["))
+				{
+					newparm->arraysize=QCC_PR_IntConstExpr();
+					QCC_PR_Expect("]");
+				}
 				QCC_PR_Expect(";");
 			}
 			newparm->ofs = 0;
-			if (newparm->size > newt->size)
-				newt->size = newparm->size;
+			if (newparm->size > newt->size*newparm->arraysize)
+				newt->size = newparm->size*newparm->arraysize;
 			newt->num_parms++;
 
 			if (type)

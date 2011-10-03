@@ -305,6 +305,7 @@ typedef struct QCC_type_s
 
 	unsigned int ofs;	//inside a structure.
 	unsigned int size;
+	unsigned int arraysize;
 	char *name;
 } QCC_type_t;
 int typecmp(QCC_type_t *a, QCC_type_t *b);
@@ -554,7 +555,7 @@ pbool QCC_PR_CheckKeyword(int keywordenabled, char *string);
 #endif
 void VARGS QCC_PR_ParseError (int errortype, char *error, ...);
 void VARGS QCC_PR_ParseWarning (int warningtype, char *error, ...);
-void VARGS QCC_PR_Warning (int type, char *file, int line, char *error, ...);
+pbool VARGS QCC_PR_Warning (int type, char *file, int line, char *error, ...);
 void VARGS QCC_PR_Note (int type, char *file, int line, char *error, ...);
 void QCC_PR_ParsePrintDef (int warningtype, QCC_def_t *def);
 void VARGS QCC_PR_ParseErrorPrintDef (int errortype, QCC_def_t *def, char *error, ...);

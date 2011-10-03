@@ -98,6 +98,8 @@ hashtable_t globalstable;
 hashtable_t localstable;
 hashtable_t floatconstdefstable;
 hashtable_t stringconstdefstable;
+hashtable_t stringconstdefstable_trans;
+extern int dotranslate_count;
 
 pbool qccwarningdisabled[WARN_MAX];
 
@@ -725,14 +727,14 @@ pbool QCC_WriteData (int crc)
 		}
 		if (def->references<=0)
 		{
-			if (def->constant)
-				QCC_PR_Warning(WARN_NOTREFERENCEDCONST, strings + def->s_file, def->s_line, "%s  no references", def->name);
-			else
-				QCC_PR_Warning(WARN_NOTREFERENCED, strings + def->s_file, def->s_line, "%s  no references", def->name);
-			if (!warnedunref)
+			int wt = def->constant?WARN_NOTREFERENCEDCONST:WARN_NOTREFERENCED;
+			if (QCC_PR_Warning(wt, strings + def->s_file, def->s_line, "%s  no references", def->name))
 			{
-				QCC_PR_Note(WARN_NOTREFERENCED, NULL, 0, "You can use the noref prefix or pragma to silence this message.");
-				warnedunref = true;
+				if (!warnedunref)
+				{
+					QCC_PR_Note(WARN_NOTREFERENCED, NULL, 0, "You can use the noref prefix or pragma to silence this message.");
+					warnedunref = true;
+				}
 			}
 
 			if (opt_unreferenced && def->type->type != ev_field)
@@ -1603,6 +1605,7 @@ QCC_type_t *QCC_PR_NewType (char *name, int basictype)
 	qcc_typeinfo[numtypeinfos].num_parms = 0;
 	qcc_typeinfo[numtypeinfos].param = NULL;
 	qcc_typeinfo[numtypeinfos].size = type_size[basictype];
+	qcc_typeinfo[numtypeinfos].arraysize = 1;
 
 
 	numtypeinfos++;
@@ -1733,7 +1736,8 @@ int QCC_PR_FinishCompilation (void)
 				}
 				else
 				{
-					QCC_PR_ParseErrorPrintDef(ERR_NOFUNC, d, "function %s was not defined",d->name);
+					QCC_PR_ParseWarning(ERR_NOFUNC, "function %s was not defined",d->name);
+					QCC_PR_ParsePrintDef(ERR_NOFUNC, d);
 					bodylessfuncs = true;
 					errors = true;
 				}
@@ -2991,10 +2995,12 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 	qcc_pr_globals = (void *)qccHunkAlloc(sizeof(float) * MAX_REGS);
 	numpr_globals=0;
 
-	Hash_InitTable(&globalstable, MAX_REGS, qccHunkAlloc(Hash_BytesForBuckets(MAX_REGS)));
-	Hash_InitTable(&localstable, MAX_REGS, qccHunkAlloc(Hash_BytesForBuckets(MAX_REGS)));
-	Hash_InitTable(&floatconstdefstable, MAX_REGS+1, qccHunkAlloc(Hash_BytesForBuckets(MAX_REGS+1)));
-	Hash_InitTable(&stringconstdefstable, MAX_REGS, qccHunkAlloc(Hash_BytesForBuckets(MAX_REGS)));
+	Hash_InitTable(&globalstable, MAX_REGS/2, qccHunkAlloc(Hash_BytesForBuckets(MAX_REGS/2)));
+	Hash_InitTable(&localstable, MAX_REGS/2, qccHunkAlloc(Hash_BytesForBuckets(MAX_REGS/2)));
+	Hash_InitTable(&floatconstdefstable, MAX_REGS/2+1, qccHunkAlloc(Hash_BytesForBuckets(MAX_REGS/2+1)));
+	Hash_InitTable(&stringconstdefstable, MAX_REGS/2, qccHunkAlloc(Hash_BytesForBuckets(MAX_REGS/2)));
+	Hash_InitTable(&stringconstdefstable_trans, 1000, qccHunkAlloc(Hash_BytesForBuckets(1000)));
+	dotranslate_count = 0;
 
 //	pr_global_defs = (QCC_def_t **)qccHunkAlloc(sizeof(QCC_def_t *) * MAX_REGS);
 

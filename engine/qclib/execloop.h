@@ -297,7 +297,7 @@ reeval:
 		if ((unsigned int)OPB->_int >= addressableused)
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (progfuncs, "bad pointer write in %s", progfuncs->stringtable + pr_xfunction->s_name);
+			PR_RunError (progfuncs, "bad pointer write in %s", PR_StringToNative(progfuncs, pr_xfunction->s_name));
 		}
 		ptr = QCPOINTER(OPB);
 		ptr->_float = (float)OPA->_int;
@@ -306,7 +306,7 @@ reeval:
 		if ((unsigned int)OPB->_int >= addressableused)
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (progfuncs, "bad pointer write in %s", progfuncs->stringtable + pr_xfunction->s_name);
+			PR_RunError (progfuncs, "bad pointer write in %s", PR_StringToNative(progfuncs, pr_xfunction->s_name));
 		}
 		ptr = QCPOINTER(OPB);
 		ptr->_int = (int)OPA->_float;
@@ -315,7 +315,7 @@ reeval:
 		if ((unsigned int)OPB->_int >= addressableused)
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (progfuncs, "bad pointer write in %s", progfuncs->stringtable + pr_xfunction->s_name);
+			PR_RunError (progfuncs, "bad pointer write in %s", PR_StringToNative(progfuncs, pr_xfunction->s_name));
 		}
 		ptr = QCPOINTER(OPB);
 		ptr->_int = OPA->_int;
@@ -328,7 +328,7 @@ reeval:
 		if ((unsigned int)OPB->_int >= addressableused)
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (progfuncs, "bad pointer write in %s (%x >= %x)", progfuncs->stringtable + pr_xfunction->s_name, OPB->_int, addressableused);
+			PR_RunError (progfuncs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(progfuncs, pr_xfunction->s_name), OPB->_int, addressableused);
 		}
 		ptr = QCPOINTER(OPB);
 		ptr->_int = OPA->_int;
@@ -337,7 +337,7 @@ reeval:
 		if ((unsigned int)OPB->_int >= addressableused)
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (progfuncs, "bad pointer write in %s", progfuncs->stringtable + pr_xfunction->s_name);
+			PR_RunError (progfuncs, "bad pointer write in %s", PR_StringToNative(progfuncs, pr_xfunction->s_name));
 		}
 		ptr = QCPOINTER(OPB);
 		ptr->_vector[0] = OPA->_vector[0];
@@ -349,7 +349,7 @@ reeval:
 		if ((unsigned int)OPB->_int >= addressableused)
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (progfuncs, "bad pointer write in %s", progfuncs->stringtable + pr_xfunction->s_name);
+			PR_RunError (progfuncs, "bad pointer write in %s", PR_StringToNative(progfuncs, pr_xfunction->s_name));
 		}
 		ptr = QCPOINTER(OPB);
 		*(unsigned char *)ptr = (char)OPA->_float;
@@ -367,7 +367,7 @@ reeval:
 		if ((unsigned int)OPB->_int >= addressableused)
 		{
 			pr_xstatement = st-pr_statements;
-			PR_RunError (progfuncs, "bad pointer write in %s", progfuncs->stringtable + pr_xfunction->s_name);
+			PR_RunError (progfuncs, "bad pointer write in %s", PR_StringToNative(progfuncs, pr_xfunction->s_name));
 		}
 		ptr = QCPOINTER(OPB);
 		OPC->_float = (ptr->_float *= OPA->_float);
@@ -432,7 +432,7 @@ reeval:
 		{
 #ifndef DEBUGABLE
 			pr_trace++;
-			printf("OP_ADDRESS references invalid entity in %s", progfuncs->stringtable + pr_xfunction->s_name);
+			printf("OP_ADDRESS references invalid entity in %s", PR_StringToNative(progfuncs, pr_xfunction->s_name));
 			st--;
 			goto cont;
 #else
@@ -449,7 +449,7 @@ reeval:
 #ifndef DEBUGABLE
 			//boot it over to the debugger
 			pr_trace++;
-			printf("assignment to read-only entity in %s", progfuncs->stringtable + pr_xfunction->s_name);
+			printf("assignment to read-only entity in %s", PR_StringToNative(progfuncs, pr_xfunction->s_name));
 			st--;
 			goto cont;
 #else
@@ -458,7 +458,7 @@ reeval:
 				fdef_t *f;
 				d16 = ED_GlobalAtOfs16(progfuncs, st->a);
 				f = ED_FieldAtOfs(progfuncs, OPB->_int + progfuncs->fieldadjust);
-				PR_RunError (progfuncs, "assignment to read-only entity in %s (%s.%s)", PR_StringToNative(progfuncs, pr_xfunction->s_name), PR_StringToNative(progfuncs, d16->s_name), f?f->name:NULL);
+				PR_RunError (progfuncs, "assignment to read-only entity in %s (%s.%s)", PR_StringToNative(progfuncs, pr_xfunction->s_name), d16?PR_StringToNative(progfuncs, d16->s_name):NULL, f?f->name:NULL);
 			}
 #endif
 		}
@@ -467,7 +467,7 @@ reeval:
 //		if (ed->isfree)
 //		{
 //			pr_xstatement = st-pr_statements;
-//			PR_RunError (progfuncs, "assignment to free entitiy in %s", progfuncs->stringtable + pr_xfunction->s_name);
+//			PR_RunError (progfuncs, "assignment to free entitiy in %s", PR_StringToNative(progfuncs, pr_xfunction->s_name));
 //		}
 		OPC->_int = ENGINEPOINTER((((int *)edvars(ed)) + OPB->_int + progfuncs->fieldadjust));
 		break;
@@ -480,7 +480,7 @@ reeval:
 	case OP_LOAD_S:
 	case OP_LOAD_FNC:
 		if ((unsigned)OPA->edict >= (unsigned)maxedicts)
-			PR_RunError (progfuncs, "OP_LOAD references invalid entity in %s", progfuncs->stringtable + pr_xfunction->s_name);
+			PR_RunError (progfuncs, "OP_LOAD references invalid entity in %s", PR_StringToNative(progfuncs, pr_xfunction->s_name));
 		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
 #ifdef PARANOID
 		NUM_FOR_EDICT(ed);		// make sure it's in range
@@ -491,7 +491,7 @@ reeval:
 
 	case OP_LOAD_V:
 		if ((unsigned)OPA->edict >= (unsigned)maxedicts)
-			PR_RunError (progfuncs, "OP_LOAD_V references invalid entity in %s", progfuncs->stringtable + pr_xfunction->s_name);
+			PR_RunError (progfuncs, "OP_LOAD_V references invalid entity in %s", PR_StringToNative(progfuncs, pr_xfunction->s_name));
 		ed = PROG_TO_EDICT(progfuncs, OPA->edict);
 #ifdef PARANOID
 		NUM_FOR_EDICT(ed);		// make sure it's in range
@@ -579,7 +579,7 @@ reeval:
 		fnum = OPA->function;
 		if ((fnum & ~0xff000000)==0)
 		{
-			PR_RunError(progfuncs, "NULL function from qc (%s).\n", progfuncs->stringtable + pr_xfunction->s_name);
+			PR_RunError(progfuncs, "NULL function from qc (%s).\n", PR_StringToNative(progfuncs, pr_xfunction->s_name));
 #ifndef DEBUGABLE
 			goto cont;
 #endif
@@ -592,24 +592,24 @@ reeval:
 		progfuncs->save_ents(progfuncs, buffer, &size, 0);
 }*/
 
-
-		p=pr_typecurrent;
+		{
+		int callerprogs=pr_typecurrent;
 //about to switch. needs caching.
 
 		//if it's an external call, switch now (before any function pointers are used)
-		PR_MoveParms(progfuncs, (fnum & 0xff000000)>>24, p);
+		PR_MoveParms(progfuncs, (fnum & 0xff000000)>>24, callerprogs);
 		PR_SwitchProgs(progfuncs, (fnum & 0xff000000)>>24);
 
 		newf = &pr_functions[fnum & ~0xff000000];
 
 		if (newf->first_statement < 0)
 		{	// negative statements are built in functions
-
-if (pr_typecurrent != 0)
-{
-	PR_MoveParms(progfuncs, 0, pr_typecurrent);
-	PR_SwitchProgs(progfuncs, 0);
-}
+			/*calling a builtin in another progs may affect that other progs' globals instead, is the theory anyway, so args and stuff need to move over*/
+			if (pr_typecurrent != 0)
+			{
+				PR_MoveParms(progfuncs, 0, pr_typecurrent);
+				PR_SwitchProgs(progfuncs, 0);
+			}
 			i = -newf->first_statement;
 //			p = pr_typecurrent;
 			progfuncs->lastcalledbuiltinnumber = i;
@@ -637,9 +637,9 @@ if (pr_typecurrent != 0)
 				else
 					current_progstate->builtins [i] (progfuncs, (struct globalvars_s *)current_progstate->globals);
 			}
-			PR_MoveParms(progfuncs, p, pr_typecurrent);
+			PR_MoveParms(progfuncs, callerprogs, pr_typecurrent);
 //			memcpy(&pr_progstate[p].globals[OFS_RETURN], &current_progstate->globals[OFS_RETURN], sizeof(vec3_t));
-			PR_SwitchProgs(progfuncs, (progsnum_t)p);
+			PR_SwitchProgs(progfuncs, (progsnum_t)callerprogs);
 
 //#ifndef DEBUGABLE	//decide weather non debugger wants to start debugging.
 			s = st-pr_statements;
@@ -649,8 +649,9 @@ if (pr_typecurrent != 0)
 		}
 //		PR_MoveParms((OPA->function & 0xff000000)>>24, pr_typecurrent);
 //		PR_SwitchProgs((OPA->function & 0xff000000)>>24);
-		s = PR_EnterFunction (progfuncs, newf, p);
+		s = PR_EnterFunction (progfuncs, newf, callerprogs);
 		st = &pr_statements[s];
+		}
 		
 		goto restart;
 //		break;
@@ -788,7 +789,7 @@ if (pr_typecurrent != 0)
 	case OP_LOADP_ENT:
 	case OP_LOADP_S:
 	case OP_LOADP_FNC:
-		ptr = QCPOINTERM(OPA->_int + OPB->_int*p);
+		ptr = QCPOINTERM(OPA->_int + OPB->_int*4);
 		OPC->_int = ptr->_int;
 		break;
 
@@ -1104,7 +1105,7 @@ if (pr_typecurrent != 0)
 		{
 			pr_xstatement = s = st-pr_statements;
 
-			printf("Break point hit in %s.\n", pr_xfunction->s_name+progfuncs->stringtable);
+			printf("Break point hit in %s.\n", PR_StringToNative(progfuncs, pr_xfunction->s_name));
 			if (pr_trace<1)
 				pr_trace=1;	//this is what it's for
 

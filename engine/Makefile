@@ -1027,7 +1027,13 @@ npqtvcl-profile:
 npfte-rel:
 	$(MAKE) npfte-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(NPFTEB_DIR)"
 	cp $(RELEASE_DIR)/npfte.dll npfte/plugins
-	cd npfte && zip $(abspath $(RELEASE_DIR)/npfte.xpi) * plugins/*
+	cd npfte && zip $(abspath $(RELEASE_DIR)/npfte.xpi) install.rdf plugins/npfte.dll
+	rm -rf /tmp/npfte
+	mkdir /tmp/npfte
+	cp $(RELEASE_DIR)/npfte.dll /tmp/npfte
+	cp ./npfte/manifest.json /tmp/npfte
+	cd $(RELEASE_DIR)/ && ../npfte/crxmake.sh /tmp/npfte ../npfte/chrome.pem
+	rm -rf /tmp/npfte
 npfte-dbg:
 	$(MAKE) npfte-tmp TYPE=_clsv-dbg OUT_DIR="$(DEBUG_DIR)/$(NPFTEB_DIR)"
 npfte-profile:

@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <proto/exec.h>
 #include <proto/dos.h>
+#include <proto/random.h>
 
 #include <dlfcn.h>
 
@@ -472,7 +473,13 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 	return false;
 }
 
+qboolean Sys_RandomBytes(qbyte *string, int len)
+{
+	while(len--)
+		*string++ = RandomByte();
 
+	return true;
+}
 
 #ifdef MULTITHREAD
 /* Everything here is stubbed because I don't know MorphOS */

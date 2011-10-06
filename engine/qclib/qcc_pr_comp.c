@@ -3904,7 +3904,7 @@ static QCC_def_t *QCC_MakeStringConstInternal(char *value, pbool translate)
 
 	string = QCC_CopyString (value);
 
-	pHash_Add(&stringconstdefstable, strings+string, cn, qccHunkAlloc(sizeof(bucket_t)));
+	pHash_Add(translate?&stringconstdefstable_trans:&stringconstdefstable, strings+string, cn, qccHunkAlloc(sizeof(bucket_t)));
 
 	G_INT(cn->ofs) = string;
 
@@ -8350,7 +8350,7 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *def, QCC_type_t *type
 				else if (type->type == ev_integer && tmp->type->type == ev_float)
 					tmp = QCC_PR_Statement (&pr_opcodes[OP_CONV_FTOI], tmp, 0, NULL);
 				else
-					QCC_PR_ParseError (ERR_BADIMMEDIATETYPE, "wrong initializer type");
+					QCC_PR_ParseErrorPrintDef (ERR_BADIMMEDIATETYPE, def, "wrong initializer type");
 			}
 		}
 

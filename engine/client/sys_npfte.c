@@ -66,9 +66,10 @@ qboolean NPFTE_BeginDownload(void *ctx, struct pipetype *ftype, char *url)
 	return NPERR_NO_ERROR==browserfuncs->geturlnotify(ctx, url, NULL, ftype);
 }
 
-void NPFTE_StatusChanged(struct context *ctx)
+void NPFTE_StatusChanged(void *sysctx)
 {
-	struct contextpublic *pub = (struct contextpublic*)ctx;
+	NPP instance = sysctx;
+	struct contextpublic *pub = instance->pdata;
 	InvalidateRgn(pub->oldwnd, NULL, FALSE);
 }
 
@@ -263,7 +264,7 @@ NPError NP_LOADDS NPP_SetWindow(NPP instance, NPWindow* window)
 		return NPERR_INVALID_INSTANCE_ERROR;
 
 	//if the window changed
-	if (Plug_ChangeWindow(ctx, window->window, window->width, window->height))
+	if (Plug_ChangeWindow(ctx, window->window, 0, 0, window->width, window->height))
 	{
 		//we switched window?
 		if (pub->oldwnd && pub->oldproc)
@@ -501,7 +502,7 @@ bool npscript_getProperty(NPObject *npobj, NPIdentifier name, NPVariant *result)
 	struct npscript *obj = (struct npscript *)npobj;
 	struct context *ctx = obj->ctx;
 	NPUTF8 *pname;
-	struct pscript_property *prop;
+	int prop;
 	bool success = false;
 	char *strval;
 	int intval;
@@ -510,7 +511,7 @@ bool npscript_getProperty(NPObject *npobj, NPIdentifier name, NPVariant *result)
 
 	Plug_LockPlugin(ctx, true);
 	prop = Plug_FindProp(obj->ctx, pname);
-	if (prop)
+	if (prop >= 0)
 	{
 		if (Plug_GetString(ctx, prop, &strval))
 		{
@@ -554,13 +555,13 @@ bool npscript_setProperty(NPObject *npobj, NPIdentifier name, const NPVariant *v
 	struct context *ctx = obj->ctx;
 	NPUTF8 *pname;
 	NPString str;
-	struct pscript_property *prop;
+	int prop;
 	bool success = false;
 	pname = browserfuncs->utf8fromidentifier(name);
 
 	Plug_LockPlugin(ctx, true);
 	prop = Plug_FindProp(obj->ctx, pname);
-	if (prop)
+	if (prop >= 0)
 	{
 		success = true;
 		if (NPVARIANT_IS_STRING(*value))

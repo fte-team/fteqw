@@ -103,8 +103,8 @@ void R2D_Init(void)
 
 	Font_Init();
 
-#ifdef _MSC_VER
-#pragma message("Fixme: move conwidth handling into here")
+#ifdef warningmsg
+#pragma warningmsg("Fixme: move conwidth handling into here")
 #endif
 
 	missing_texture = R_LoadTexture8("no_texture", 16, 16, (unsigned char*)r_notexture_mip + r_notexture_mip->offsets[0], IF_NOALPHA|IF_NOGAMMA, 0);
@@ -214,7 +214,7 @@ void R2D_Init(void)
 				"}\n"
 			"][\n"
 				"{\n"
-					"map $whitetexture\n"
+					"map $whiteimage\n"
 					"blendfunc gl_dst_color gl_zero\n"
 					"rgbgen const $r_menutint\n"
 				"}\n"
@@ -407,7 +407,7 @@ void R2D_TransPicTranslate (int x, int y, int width, int height, qbyte *pic, qby
 
 	if (!TEXVALID(translate_texture))
 	{
-		translate_texture = R_AllocNewTexture(64, 64);
+		translate_texture = R_AllocNewTexture("***translatedpic***", 64, 64);
 		translate_shader = R_RegisterShader("translatedpic", "{\n"
 			"if $nofixed\n"
 			"[\n"
@@ -937,7 +937,7 @@ void R2D_Crosshair_Update(void)
 	c = c % (sizeof(crosshair_pixels) / (CS_HEIGHT*sizeof(*crosshair_pixels)));
 
 	if (!TEXVALID(ch_int_texture))
-		ch_int_texture = R_AllocNewTexture(CS_WIDTH, CS_HEIGHT);
+		ch_int_texture = R_AllocNewTexture("***crosshair***", CS_WIDTH, CS_HEIGHT);
 	shader_crosshair->defaulttextures.base = ch_int_texture;
 
 	Q_memset(crossdata, 0, sizeof(crossdata));

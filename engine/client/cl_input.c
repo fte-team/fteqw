@@ -777,8 +777,11 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 // always dump the first two message, because it may contain leftover inputs
 // from the last level
 //
-	if (++cl.movemessages <= 2)
+	if (++cl.movemessages <= 2 || cls.state == ca_connected)
+	{
+		MSG_WriteByte (buf, clc_nop);
 		return;
+	}
 
 	MSG_WriteByte (buf, clc_move);
 
@@ -1018,9 +1021,9 @@ void CL_AllowIndependantSendCmd(qboolean allow)
 	if (allowindepphys != allow && runningindepphys)
 	{
 		if (allow)
-			Sys_UnlockMutex(&indeplock);
+			Sys_UnlockMutex(indeplock);
 		else
-			Sys_LockMutex(&indeplock);
+			Sys_LockMutex(indeplock);
 		allowindepphys = allow;
 	}
 }
@@ -1043,11 +1046,11 @@ int CL_IndepPhysicsThread(void *param)
 				spare = 15;
 
 			time -= spare/1000.0f;
-			Sys_LockMutex(&indeplock);
+			Sys_LockMutex(indeplock);
 			if (cls.state)
 				CL_SendCmd(time - lasttime, false);
 			lasttime = time;
-			Sys_UnlockMutex(&indeplock);
+			Sys_UnlockMutex(indeplock);
 		}
 
 		fps = cl_netfps.value;
@@ -1225,6 +1228,7 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 	int checksumIndex, firstsize, plnum;
 	int clientcount, lost;
 	int curframe = cls.netchan.outgoing_sequence & UPDATE_MASK;
+	int st = buf->cursize;
 
 	seq_hash = cls.netchan.outgoing_sequence;
 
@@ -1316,7 +1320,7 @@ qboolean CL_SendCmdQW (sizebuf_t *buf)
 		cl.frames[cls.netchan.outgoing_sequence&UPDATE_MASK].delta_sequence = -1;
 
 	if (cl.sendprespawn)
-		buf->cursize = 0;	//tastyspleen.net is alergic.
+		buf->cursize = st;	//tastyspleen.net is alergic.
 
 	return dontdrop;
 }
@@ -1413,6 +1417,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		return; // sendcmds come from the demo
 	}
 
+	memset(&buf, 0, sizeof(buf));
 	buf.maxsize = sizeof(data);
 	buf.cursize = 0;
 	buf.data = data;
@@ -1451,7 +1456,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	if (!runningindepphys)
 	{
 		// while we're not playing send a slow keepalive fullsend to stop mvdsv from screwing up
-		if (cls.state < ca_active)
+		if (cls.state < ca_active && !cls.downloadmethod)
 		{
 			#ifdef IRCCONNECT	//don't spam irc.
 			if (cls.netchan.remote_address.type == NA_IRC)
@@ -1513,7 +1518,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 //	if (skipcmd)
 //		return;
 
-	if (!fullsend && cls.state == ca_active)
+	if (!fullsend)
 		return; // when we're actually playing we try to match netfps exactly to avoid gameplay problems
 
 #ifdef NQPROT
@@ -1527,14 +1532,14 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			next = clientcmdlist->next;
 			if (clientcmdlist->reliable)
 			{
-				if (cls.netchan.message.cursize + 2+strlen(clientcmdlist->command) > cls.netchan.message.maxsize)
+				if (cls.netchan.message.cursize + 2+strlen(clientcmdlist->command)+100 > cls.netchan.message.maxsize)
 					break;
 				MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
 				MSG_WriteString (&cls.netchan.message, clientcmdlist->command);
 			}
 			else
 			{
-				if (buf.cursize + 2+strlen(clientcmdlist->command) <= buf.maxsize)
+				if (buf.cursize + 2+strlen(clientcmdlist->command)+100 <= buf.maxsize)
 				{
 					MSG_WriteByte (&buf, clc_stringcmd);
 					MSG_WriteString (&buf, clientcmdlist->command);

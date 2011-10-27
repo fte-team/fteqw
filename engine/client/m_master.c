@@ -85,8 +85,8 @@ static void NM_PrintWhite (int cx, int cy, qbyte *str)
 
 static void NM_PrintColoured (int cx, int cy, int colour, qbyte *str)
 {
-#ifdef _MSC_VER
-#pragma message("NM_PrintColoured: needs reimplementing")
+#ifdef warningmsg
+#pragma warningmsg("NM_PrintColoured: needs reimplementing")
 #endif
 /*
 	while (*str)
@@ -100,8 +100,8 @@ static void NM_PrintColoured (int cx, int cy, int colour, qbyte *str)
 
 static void NM_PrintHighlighted (int cx, int cy, int colour, int bg, qbyte *str)
 {
-#ifdef _MSC_VER
-#pragma message("NM_PrintHighlighted: needs reimplementing")
+#ifdef warningmsg
+#pragma warningmsg("NM_PrintHighlighted: needs reimplementing")
 #endif
 /*
 	while (*str)
@@ -265,8 +265,8 @@ int M_AddColumn (int right, int y, char *text, int maxchars, int colour, int hig
 
 	right = left;
 
-#ifdef _MSC_VER
-#pragma message("M_AddColumn: needs reimplementing")
+#ifdef warningmsg
+#pragma warningmsg("M_AddColumn: needs reimplementing")
 #endif
 /*
 	if (highlight >= 0)

@@ -85,8 +85,8 @@ qboolean CL_FilterModelindex(int modelindex, int frame)
 
 void CL_FreeDlights(void)
 {
-#ifdef _MSC_VER
-#pragma message("not freeing shadowmeshes")
+#ifdef warningmsg
+#pragma warningmsg("not freeing shadowmeshes")
 #endif
 	rtlights_max = cl_maxdlights = 0;
 	BZ_Free(cl_dlights);
@@ -103,12 +103,12 @@ static void CL_ClearDlight(dlight_t *dl, int key)
 {
 	void *sm;
 	texid_t st;
-	st = dl->stexture;
+	TEXASSIGNF(st, dl->stexture);
 	sm = dl->worldshadowmesh;
 	memset (dl, 0, sizeof(*dl));
 	dl->rebuildcache = true;
 	dl->worldshadowmesh = sm;
-	dl->stexture = st;
+	TEXASSIGNF(dl->stexture, st);
 	dl->axis[0][0] = 1;
 	dl->axis[1][1] = 1;
 	dl->axis[2][2] = 1;
@@ -305,7 +305,7 @@ CL_ParseDelta
 Can go from either a baseline or a previous packet_entity
 ==================
 */
-int	bitcounts[32];	/// just for protocol profiling
+//int	bitcounts[32];	/// just for protocol profiling
 void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean new)
 {
 	int			i;
@@ -326,9 +326,9 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 	}
 
 	// count the bits for net profiling
-	for (i=0 ; i<16 ; i++)
-		if (bits&(1<<i))
-			bitcounts[i]++;
+//	for (i=0 ; i<16 ; i++)
+//		if (bits&(1<<i))
+//			bitcounts[i]++;
 
 #ifdef PROTOCOLEXTENSIONS
 	if (bits & U_EVENMORE && (cls.fteprotocolextensions & (PEXT_SCALE|PEXT_TRANS|PEXT_FATNESS|PEXT_HEXEN2|PEXT_COLOURMOD|PEXT_DPFLAGS|PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2)))
@@ -757,6 +757,7 @@ void DP5_ParseDelta(entity_state_t *s)
 	if (bits & E5_FLAGS)
 	{
 		int i = MSG_ReadByte();
+		s->dpflags = i;
 		s->flags = 0;
 		if (i & RENDER_VIEWMODEL)
 			s->flags |= Q2RF_WEAPONMODEL|Q2RF_MINLIGHT|Q2RF_DEPTHHACK;
@@ -1422,7 +1423,7 @@ void CLQ1_AddShadow(entity_t *ent)
 		"alphagen vertex\n"
 		"}\n"
 		"}\n");
-	s->defaulttextures.base = balltexture;
+	TEXASSIGN(s->defaulttextures.base, balltexture);
 
 	tx = ent->model->maxs[0] - ent->model->mins[0];
 	ty = ent->model->maxs[1] - ent->model->mins[1];
@@ -1530,7 +1531,7 @@ void CLQ1_AddPowerupShell(entity_t *ent, qboolean viewweap, unsigned int effects
 					"noshadows\n"
 					"surfaceparm nodlight\n"
 					"{\n"
-						"map $whitetexture\n"
+						"map $whiteimage\n"
 						"rgbgen entity\n"
 						"alphagen entity\n"
 						"blendfunc src_alpha one\n"
@@ -1548,7 +1549,7 @@ void CLQ1_AddPowerupShell(entity_t *ent, qboolean viewweap, unsigned int effects
 					"noshadows\n"
 					"surfaceparm nodlight\n"
 					"{\n"
-						"map $whitetexture\n"
+						"map $whiteimage\n"
 						"rgbgen entity\n"
 						"alphagen entity\n"
 						"blendfunc src_alpha one\n"
@@ -1756,12 +1757,12 @@ static void CL_TransitionPacketEntities(packet_entities_t *newpack, packet_entit
 				//ignore the old packet entirely, except for maybe its time.
 				if (!VectorEquals(le->neworigin, snew->origin) || !VectorEquals(le->newangle, snew->angles))
 				{
-					le->orglerpdeltatime = bound(0, oldpack->servertime - le->orglerpstarttime, 0.1);	//clamp to 10 tics per second
+					le->orglerpdeltatime = bound(0, oldpack->servertime - le->orglerpstarttime, 0.11);	//clamp to 10 tics per second
 					le->orglerpstarttime = oldpack->servertime;
 
 					VectorCopy(le->neworigin, le->oldorigin);
 					VectorCopy(le->newangle, le->oldangle);
-
+ 
 					VectorCopy(snew->origin, le->neworigin);
 					VectorCopy(snew->angles, le->newangle);
 				}
@@ -1932,7 +1933,6 @@ void CL_LinkPacketEntities (void)
 
 	float servertime;
 
-	CL_CalcClientTime();
 	if (cls.protocol == CP_QUAKEWORLD && (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV))
 	{
 		servertime = cl.servertime;
@@ -1955,7 +1955,10 @@ void CL_LinkPacketEntities (void)
 
 	i = servertime*20;
 	if (flickertime != i)
+	{
+		flickertime = i;
 		flicker = rand();
+	}
 
 	autorotate = anglemod(100*servertime);
 
@@ -2088,6 +2091,8 @@ void CL_LinkPacketEntities (void)
 			ent->flags |= Q2RF_ADDITIVE;
 		if (state->effects & EF_NODEPTHTEST)
 			ent->flags |= RF_NODEPTHTEST;
+		if (state->effects & DPEF_NOSHADOW)
+			ent->flags |= RF_NOSHADOW;
 		if (state->trans != 0xff)
 			ent->flags |= Q2RF_TRANSLUCENT;
 
@@ -2154,7 +2159,7 @@ void CL_LinkPacketEntities (void)
 #endif
 
 		// rotate binary objects locally
-		if (model && model->flags & EF_ROTATE)
+		if (model && model->flags & MF_ROTATE)
 		{
 			angles[0] = 0;
 			angles[1] = autorotate;
@@ -2192,10 +2197,10 @@ void CL_LinkPacketEntities (void)
 		CLQ1_AddPowerupShell(ent, false, state->effects);
 
 		// add automatic particle trails
-		if (!model || (!(model->flags&~EF_ROTATE) && model->particletrail<0 && model->particleeffect<0))
+		if (!model || (!(model->flags&~MF_ROTATE) && model->particletrail<0 && model->particleeffect<0))
 			continue;
 
-		if (!cls.allow_anyparticles && !(model->flags & ~EF_ROTATE))
+		if (!cls.allow_anyparticles && !(model->flags & ~MF_ROTATE))
 			continue;
 
 		if (le->isnew)
@@ -2215,7 +2220,7 @@ void CL_LinkPacketEntities (void)
 			}
 		}
 
-		if (model->particletrail == P_INVALID || pe->ParticleTrail (old_origin, ent->origin, model->particletrail, &(le->trailstate)))
+		if (model->particletrail == P_INVALID || pe->ParticleTrail (old_origin, ent->origin, model->particletrail, ent->keynum, &(le->trailstate)))
 			if (model->traildefaultindex >= 0)
 				pe->ParticleTrailIndex(old_origin, ent->origin, model->traildefaultindex, 0, &(le->trailstate));
 
@@ -2237,28 +2242,29 @@ void CL_LinkPacketEntities (void)
 			dclr[1] = 0.10;
 			dclr[2] = 0;
 
-			if (model->flags & EF_ROCKET)
+			if (model->flags & MF_ROCKET)
 			{
-#ifdef _MSC_VER
-#pragma message("Replace this flag on load for hexen2 models")
+#ifdef warningmsg
+#pragma warningmsg("Replace this flag on load for hexen2 models")
 #endif
 				if (strncmp(model->name, "models/sflesh", 13))
 				{	//hmm. hexen spider gibs...
 					rad = 200;
 					dclr[2] = 0.05;
+					rad += r_lightflicker.value?((flicker + state->number)&31):0;
 				}
 			}
-			else if (model->flags & EFH2_FIREBALL)
+			else if (model->flags & MFH2_FIREBALL)
 			{
 				rad = 120 - (rand() % 20);
 			}
-			else if (model->flags & EFH2_ACIDBALL)
+			else if (model->flags & MFH2_ACIDBALL)
 			{
 				rad = 120 - (rand() % 20);
 				dclr[0] = 0.1;
 				dclr[1] = 0.2;
 			}
-			else if (model->flags & EFH2_SPIT)
+			else if (model->flags & MFH2_SPIT)
 			{
 				// as far as I can tell this effect inverses the light...
 				dclr[0] = -dclr[0];
@@ -2273,7 +2279,7 @@ void CL_LinkPacketEntities (void)
 				memcpy(dl->axis, ent->axis, sizeof(dl->axis));
 				VectorCopy (ent->origin, dl->origin);
 				dl->die = (float)cl.time;
-				if (model->flags & EF_ROCKET)
+				if (model->flags & MF_ROCKET)
 					dl->origin[2] += 1; // is this even necessary
 				dl->radius = rad * r_rocketlight.value;
 				VectorCopy(dclr, dl->color);

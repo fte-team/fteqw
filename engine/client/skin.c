@@ -223,9 +223,9 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 	if (skin->failedload)
 		return NULL;
 
-	skin->tex_base = r_nulltex;
-	skin->tex_lower = r_nulltex;
-	skin->tex_upper = r_nulltex;
+	TEXASSIGN(skin->tex_base, r_nulltex);
+	TEXASSIGN(skin->tex_lower, r_nulltex);
+	TEXASSIGN(skin->tex_upper, r_nulltex);
 
 	out = Cache_Check (&skin->cache);
 	if (out)
@@ -279,13 +279,13 @@ qbyte	*Skin_Cache8 (skin_t *skin)
 #if defined(GLQUAKE) || defined(D3DQUAKE)
 			if (qrenderer == QR_OPENGL || qrenderer == QR_DIRECT3D)
 			{
-				skin->tex_base = R_LoadReplacementTexture(skin->name, "skins", IF_NOALPHA);
+				TEXASSIGN(skin->tex_base, R_LoadReplacementTexture(skin->name, "skins", IF_NOALPHA));
 				if (TEXVALID(skin->tex_base))
 				{
 					Q_snprintfz (name, sizeof(name), "%s_shirt", skin->name);
-					skin->tex_upper = R_LoadReplacementTexture(name, "skins", 0);
+					TEXASSIGN(skin->tex_upper, R_LoadReplacementTexture(name, "skins", 0));
 					Q_snprintfz (name, sizeof(name), "%s_pants", skin->name);
-					skin->tex_lower = R_LoadReplacementTexture(name, "skins", 0);
+					TEXASSIGN(skin->tex_lower, R_LoadReplacementTexture(name, "skins", 0));
 
 					skin->failedload = true;
 					return NULL;

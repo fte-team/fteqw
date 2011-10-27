@@ -183,6 +183,7 @@ extern cvar_t			scr_sshot_type;
 extern cvar_t			scr_sshot_compression;
 extern  		cvar_t  crosshair;
 extern cvar_t			scr_consize;
+cvar_t			scr_neticontimeout = CVAR("scr_neticontimeout", "0.3");
 
 qboolean        scr_initialized;                // ready to draw
 
@@ -238,6 +239,7 @@ void CLSCR_Init(void)
 	Cvar_Register(&show_speed, cl_screengroup);
 	Cvar_Register(&show_speed_x, cl_screengroup);
 	Cvar_Register(&show_speed_y, cl_screengroup);
+	Cvar_Register(&scr_neticontimeout, cl_screengroup);
 }
 
 /*
@@ -987,7 +989,7 @@ void SCR_CrosshairPosition(int pnum, int *x, int *y)
 	extern cvar_t cl_crossx, cl_crossy, crosshaircorrect, v_viewheight;
 
 	vrect_t rect;
-	SCR_VRectForPlayer(&rect, pnum);
+	rect = r_refdef.vrect;
 
 	if (cl.worldmodel && crosshaircorrect.ival)
 	{
@@ -1136,7 +1138,7 @@ SCR_DrawNet
 */
 void SCR_DrawNet (void)
 {
-	if (cls.netchan.outgoing_sequence - cls.netchan.incoming_acknowledged < UPDATE_BACKUP-1)
+	if (realtime - cls.netchan.last_received < scr_neticontimeout.value)
 		return;
 	if (cls.demoplayback || !scr_net)
 		return;
@@ -1776,8 +1778,8 @@ qboolean SCR_ScreenShot (char *filename)
 	ext = COM_FileExtension(filename);
 
 	buffer = VID_GetRGBInfo(MAX_PREPAD, &truewidth, &trueheight);
-#ifdef _MSC_VER
-#pragma message("Need to ensure that the various image writing routines can cope with ((width|height)&3")
+#ifdef warningmsg
+#pragma warningmsg("Need to ensure that the various image writing routines can cope with ((width|height)&3")
 #endif
 
 	if (!buffer)

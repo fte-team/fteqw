@@ -60,6 +60,7 @@ cvar_t	cl_defaultport		= CVARAF("cl_defaultport", STRINGIFY(PORT_QWSERVER), "por
 
 cvar_t	cfg_save_name = CVARF("cfg_save_name", "fte", CVAR_ARCHIVE);
 
+cvar_t	cl_packagedownloads = CVAR("cl_packagedownloads", "1");
 cvar_t	cl_splitscreen = CVAR("cl_splitscreen", "0");
 
 cvar_t	lookspring = CVARF("lookspring","0", CVAR_ARCHIVE);
@@ -73,7 +74,6 @@ cvar_t	m_yaw = CVARF("m_yaw","0.022", CVAR_ARCHIVE);
 cvar_t	m_forward = CVARF("m_forward","1", CVAR_ARCHIVE);
 cvar_t	m_side = CVARF("m_side","0.8", CVAR_ARCHIVE);
 
-cvar_t	entlatency = CVAR("entlatency", "20");
 cvar_t	cl_predict_players = CVAR("cl_predict_players", "1");
 cvar_t	cl_solid_players = CVAR("cl_solid_players", "1");
 cvar_t	cl_noblink = CVAR("cl_noblink", "0");
@@ -90,8 +90,6 @@ cvar_t cl_loopbackprotocol = CVAR("cl_loopbackprotocol", "qw");
 cvar_t	cl_threadedphysics = CVAR("cl_threadedphysics", "0");
 
 cvar_t  localid = SCVAR("localid", "");
-
-cvar_t	cl_antibunch = CVAR("cl_antibunch", "0");
 
 cvar_t	r_drawflame = CVAR("r_drawflame", "1");
 
@@ -138,16 +136,16 @@ cvar_t  cl_gunanglex = SCVAR("cl_gunanglex", "0");
 cvar_t  cl_gunangley = SCVAR("cl_gunangley", "0");
 cvar_t  cl_gunanglez = SCVAR("cl_gunanglez", "0");
 
-cvar_t	allow_download_csprogs = SCVARF("allow_download_csprogs", "1", CVAR_NOTFROMSERVER);
-cvar_t	allow_download_redirection = SCVARF("allow_download_redirection", "0", CVAR_NOTFROMSERVER);
-cvar_t	requiredownloads = SCVARF("requiredownloads","1", CVAR_ARCHIVE);
+cvar_t	cl_download_csprogs = CVARFD("cl_download_csprogs", "1", CVAR_NOTFROMSERVER, "Download updated client gamecode if available.");
+cvar_t	cl_download_redirection = CVARFD("cl_download_redirection", "0", CVAR_NOTFROMSERVER, "Follow download redirection to download packages instead of individual files.");
+cvar_t  cl_download_mapsrc = CVARD("cl_download_mapsrc", "", "Specifies an http location prefix for map downloads. EG: \"http://bigfoot.morphos-team.net/misc/quakemaps/\"");
+cvar_t	cl_download_packages = CVARFD("cl_download_packages", "1", CVAR_NOTFROMSERVER, "0=Do not download packages simply because the server is using them. 1=Do download, but don't use them by default. 2=Do download and install permanently (use with caution!)");
+cvar_t	requiredownloads = CVARFD("requiredownloads","1", CVAR_ARCHIVE, "0=join the game before downloads have even finished (might be laggy). 1=wait for all downloads to complete before joining.");
 
 cvar_t	cl_muzzleflash = SCVAR("cl_muzzleflash", "1");
 
 cvar_t	cl_item_bobbing = SCVAR("cl_model_bobbing", "0");
 cvar_t	cl_countpendingpl = SCVAR("cl_countpendingpl", "0");
-
-cvar_t  cl_download_mapsrc = SCVAR("cl_download_mapsrc", ""); //EG: "http://bigfoot.morphos-team.net/misc/quakemaps/"
 
 cvar_t	cl_standardchat = SCVARF("cl_standardchat", "0", CVAR_ARCHIVE);
 cvar_t	msg_filter = SCVAR("msg_filter", "0");	//0 for neither, 1 for mm1, 2 for mm2, 3 for both
@@ -636,6 +634,9 @@ char *CL_TryingToConnect(void)
 	return cls.servername;
 }
 
+int SV_NewChallenge (void);
+client_t *SVC_DirectConnect(void);
+
 /*
 =================
 CL_CheckForResend
@@ -670,12 +671,26 @@ void CL_CheckForResend (void)
 			break;
 #endif
 		default:
+			cl.movemessages = 0;
 			if (!strcmp(cl_loopbackprotocol.string, "qw"))
 				cls.protocol = CP_QUAKEWORLD;
 			else if (!strcmp(cl_loopbackprotocol.string, "nq"))
+			{
 				cls.protocol = CP_NETQUAKE;
+				cls.protocol_nq = CPNQ_ID;
+			}
 			else if (!strcmp(cl_loopbackprotocol.string, "q3"))
 				cls.protocol = CP_QUAKE3;
+			else if (!strcmp(cl_loopbackprotocol.string, "dp6"))
+			{
+				cls.protocol = CP_NETQUAKE;
+				cls.protocol_nq = CPNQ_DP7;
+			}
+			else if (!strcmp(cl_loopbackprotocol.string, "dp7"))
+			{
+				cls.protocol = CP_NETQUAKE;
+				cls.protocol_nq = CPNQ_DP7;
+			}
 			else if (progstype == PROG_QW)
 				cls.protocol = CP_QUAKEWORLD;
 			else
@@ -695,8 +710,15 @@ void CL_CheckForResend (void)
 			}
 			NET_AdrToString(data, sizeof(data), adr);
 
-			//by NQ, we mean to try using the DP protocol extensions to the underlying NQ protocol
-			CL_ConnectToDarkPlaces("", adr);
+			if (cls.protocol_nq == CPNQ_ID)
+			{
+				net_from = adr;
+				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\"", NET_PROTOCOL_VERSION, 0, SV_NewChallenge()), false, false);
+
+				SVC_DirectConnect();
+			}
+			else
+				CL_ConnectToDarkPlaces("", adr);
 		}
 		else
 			CL_SendConnectPacket (svs.fteprotocolextensions, svs.fteprotocolextensions2, false);
@@ -1458,6 +1480,41 @@ void CL_Color_f (void)
 #endif
 }
 
+void FS_GenCachedPakName(char *pname, char *crc, char *local, int llen);
+qboolean CL_CheckDLFile(char *filename);
+void CL_PakDownloads(int mode)
+{
+	/*
+	mode=0 no downloads (forced to 1 for pure)
+	mode=1 archived names so local stuff is not poluted
+	mode=2 downloaded packages will always be present. Use With Caution.
+	*/
+	char local[256];
+	char *pname;
+	char *s = cl.serverpakcrcs;
+	int i;
+
+	if (!cl.serverpakschanged || !mode)
+		return;
+
+	Cmd_TokenizeString(cl.serverpaknames, false, false);
+	for (i = 0; i < Cmd_Argc(); i++)
+	{
+		s = COM_Parse(s);
+		pname = Cmd_Argv(i);
+
+		if (mode != 2)
+		{
+			/*if we already have such a file, this is a no-op*/
+			if (CL_CheckDLFile(va("package/%s", pname)))
+				continue;
+			FS_GenCachedPakName(pname, com_token, local, sizeof(local));
+		}
+		else
+			Q_strncpyz(local, pname, sizeof(local));
+		CL_CheckOrEnqueDownloadFile(pname, local, DLLF_NONGAME);
+	}
+}
 
 void CL_CheckServerInfo(void)
 {
@@ -1477,10 +1534,7 @@ void CL_CheckServerInfo(void)
 	cls.allow_skyboxes=false;
 	cls.allow_mirrors=false;
 	cls.allow_luma=false;
-	cls.allow_bump=false;
-#ifdef FISH
-	cls.allow_fish=false;
-#endif
+	cls.allow_postproc=false;
 	cls.allow_fbskins = 1;
 //	cls.allow_fbskins = 0;
 //	cls.allow_overbrightlight;
@@ -1503,13 +1557,9 @@ void CL_CheckServerInfo(void)
 	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_lmgamma")))
 		cls.allow_lightmapgamma=true;
 
-	s = Info_ValueForKey(cl.serverinfo, "allow_bump");
-	if (cl.spectator || cls.demoplayback || atoi(s) || !*s)	//admin doesn't care.
-		cls.allow_bump=true;
-#ifdef FISH
-	if (cl.spectator || cls.demoplayback || atoi(Info_ValueForKey(cl.serverinfo, "allow_fish")))
-		cls.allow_fish=true;
-#endif
+	s = Info_ValueForKey(cl.serverinfo, "allow_fish");
+	if (cl.spectator || cls.demoplayback || !*s || atoi(s))
+		cls.allow_postproc=true;
 
 	s = Info_ValueForKey(cl.serverinfo, "fbskins");
 	if (*s)
@@ -1579,12 +1629,8 @@ void CL_CheckServerInfo(void)
 	//16
 	if (allowed & 32)
 		cls.allow_luma = true;
-	if (allowed & 64)
-		cls.allow_bump = true;
-#ifdef FISH
 	if (allowed & 128)
-		cls.allow_fish = true;
-#endif
+		cls.allow_postproc = true;
 	if (allowed & 256)
 		cls.allow_lightmapgamma = true;
 	if (allowed & 512)
@@ -1612,6 +1658,17 @@ void CL_CheckServerInfo(void)
 		cl.matchstate = MATCH_DONTKNOW;
 	if (oldstate != cl.matchstate)
 		cl.matchgametime = 0;
+
+	if (atoi(Info_ValueForKey(cl.serverinfo, "sv_pure")))
+	{
+		CL_PakDownloads((!cl_packagedownloads.ival)?1:cl_packagedownloads.ival);
+		FS_ForceToPure(cl.serverpaknames, cl.serverpakcrcs, cls.challenge);
+	}
+	else
+	{
+		CL_PakDownloads(cl_packagedownloads.ival);
+		FS_ImpurePacks(cl.serverpaknames, cl.serverpakcrcs);
+	}
 
 	Cvar_ForceCheatVars(cls.allow_semicheats, cls.allow_cheats);
 	Validation_Apply_Ruleset();
@@ -2362,7 +2419,7 @@ void CL_ConnectionlessPacket (void)
 			CL_ParseEstablished();
 			Con_DPrintf ("CL_EstablishConnection: connected to %s\n", cls.servername);
 
-
+			/*this is a DP server... but we don't know which version*/
 			cls.netchan.isnqprotocol = true;
 			cls.protocol = CP_NETQUAKE;
 			cls.protocol_nq = CPNQ_ID;
@@ -2503,6 +2560,7 @@ void CLNQ_ConnectionlessPacket(void)
 {
 	char *s;
 	int length;
+	unsigned short port;
 
 	MSG_BeginReading (msg_nullnetprim);
 	length = LongSwap(MSG_ReadLong ());
@@ -2521,8 +2579,11 @@ void CLNQ_ConnectionlessPacket(void)
 				Con_TPrintf (TLC_DUPCONNECTION);
 			return;
 		}
+		port = htons((unsigned short)MSG_ReadLong());
 		//this is the port that we're meant to respond to.
-		net_from.port = htons((short)MSG_ReadLong());
+
+		if (port)
+			net_from.port = port;
 
 		cls.protocol_nq = CPNQ_ID;
 		if (MSG_ReadByte() == 1)	//a proquake server adds a little extra info
@@ -2581,38 +2642,6 @@ void CL_ReadPackets (void)
 //	while (NET_GetPacket ())
 	for(;;)
 	{
-		if (cl.oldgametime && cl_antibunch.value)
-		{
-			float want;
-			static float clamp;
-
-			want = cl.oldgametime + realtime - cl.gametimemark - clamp;
-			if (want>cl.time)	//don't decrease
-			{
-				clamp = 0;
-				cl.time = want;
-			}
-
-			if (cl.time > cl.gametime)
-			{
-				clamp += cl.time - cl.gametime;
-				cl.time = cl.gametime;
-			}
-			if (cl.time < cl.oldgametime)
-			{
-				clamp -= cl.time - cl.gametime;
-				cl.time = cl.oldgametime;
-			}
-
-			if (cl.time < cl.gametime-(1/cl_antibunch.value))
-			{
-//				if (cl.gametime - 2 > cl.time)
-//					cl.gametime = 0;
-				break;
-			}
-
-		}
-
 		if (!CL_GetMessage())
 			break;
 
@@ -2844,7 +2873,7 @@ void CL_DownloadSize_f(void)
 
 		dl = CL_DownloadFailed(rname);
 
-		if (allow_download_redirection.ival)
+		if (cl_download_redirection.ival)
 		{
 			Con_DPrintf("Download of \"%s\" redirected to \"%s\".\n", rname, redirection);
 			CL_CheckOrEnqueDownloadFile(redirection, NULL, dl->flags);
@@ -3069,7 +3098,6 @@ void CL_Init (void)
 	Cvar_Register (&rcon_password,	cl_controlgroup);
 	Cvar_Register (&rcon_address,	cl_controlgroup);
 
-	Cvar_Register (&entlatency,	cl_predictiongroup);
 	Cvar_Register (&cl_predict_players,	cl_predictiongroup);
 	Cvar_Register (&cl_solid_players,	cl_predictiongroup);
 
@@ -3100,8 +3128,8 @@ void CL_Init (void)
 
 	Cvar_Register (&r_drawflame, "Item effects");
 
-	Cvar_Register (&allow_download_csprogs, cl_controlgroup);
-	Cvar_Register (&allow_download_redirection, cl_controlgroup);
+	Cvar_Register (&cl_download_csprogs, cl_controlgroup);
+	Cvar_Register (&cl_download_redirection, cl_controlgroup);
 
 	//
 	// info mirrors
@@ -3113,7 +3141,7 @@ void CL_Init (void)
 	Cvar_Register (&model,						cl_controlgroup);
 	Cvar_Register (&team,						cl_controlgroup);
 	Cvar_Register (&topcolor,					cl_controlgroup);
-	Cvar_Register (&bottomcolor,					cl_controlgroup);
+	Cvar_Register (&bottomcolor,				cl_controlgroup);
 	Cvar_Register (&rate,						cl_controlgroup);
 	Cvar_Register (&drate,						cl_controlgroup);
 	Cvar_Register (&msg,						cl_controlgroup);
@@ -3138,12 +3166,12 @@ void CL_Init (void)
 
 	Cvar_Register (&host_mapname,					"Scripting");
 
+	Cvar_Register (&cl_packagedownloads,				cl_controlgroup);
 #ifndef SERVERONLY
 	Cvar_Register (&cl_loopbackprotocol,				cl_controlgroup);
 #endif
 	Cvar_Register (&cl_countpendingpl,				cl_controlgroup);
 	Cvar_Register (&cl_threadedphysics,				cl_controlgroup);
-	Cvar_Register (&cl_antibunch,					"evil hacks");
 	Cvar_Register (&hud_tracking_show,				"statusbar");
 	Cvar_Register (&cl_download_mapsrc,				cl_controlgroup);
 
@@ -3560,6 +3588,7 @@ double Host_Frame (double time)
 
 	// fetch results from server
 	CL_ReadPackets ();
+	CL_CalcClientTime();
 
 	// send intentions now
 	// resend a connection request if necessary

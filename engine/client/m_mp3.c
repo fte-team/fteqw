@@ -1755,7 +1755,7 @@ qboolean Media_ShowFilm(void)
 }
 
 #if defined(GLQUAKE) || defined(D3DQUAKE)
-texid_t Media_UpdateForShader(cin_t *cin)
+texid_tf Media_UpdateForShader(cin_t *cin)
 {
 	if (!cin)
 		return r_nulltex;
@@ -1767,7 +1767,7 @@ texid_t Media_UpdateForShader(cin_t *cin)
 	if (!cin->outunchanged)
 	{
 		if (!TEXVALID(cin->texture))
-			cin->texture = R_AllocNewTexture(cin->outwidth, cin->outheight);
+			TEXASSIGN(cin->texture, R_AllocNewTexture("***cin***", cin->outwidth, cin->outheight));
 		R_Upload(cin->texture, "cin", cin->outtype, cin->outdata, cin->outpalette, cin->outwidth, cin->outheight, IF_NOMIPMAP|IF_NOALPHA|IF_NOGAMMA);
 	}
 

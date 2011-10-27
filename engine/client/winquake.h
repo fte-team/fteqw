@@ -51,6 +51,8 @@ extern	HINSTANCE	global_hInstance;
 extern	int			global_nCmdShow;
 
 extern HWND sys_parentwindow;
+extern unsigned int sys_parentleft;
+extern unsigned int sys_parenttop;
 extern unsigned int sys_parentwidth;
 extern unsigned int sys_parentheight;
 

@@ -1007,6 +1007,11 @@ void CLQ2_ParseFrame (void)
 	cl.q2frame.deltaframe = MSG_ReadLong ();
 	cl.q2frame.servertime = cl.q2frame.serverframe*100;
 
+	cl.oldgametime = cl.gametime;
+	cl.oldgametimemark = cl.gametimemark;
+	cl.gametime = cl.q2frame.servertime/1000.f;
+	cl.gametimemark = realtime;
+
 	i = MSG_ReadByte ();
 
 	for (j=0 ; j<i ; j++)
@@ -1579,8 +1584,8 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		{
 			if (effects & Q2EF_ROCKET)
 			{
-				if (P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_rocket, &cent->trailstate))
-					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_rocket, &cent->trailstate))
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_rocket, ent.keynum, &cent->trailstate))
+					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_rocket, ent.keynum, &cent->trailstate))
 						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xdc, 4, &cent->trailstate);
 
 				V_AddLight (ent.keynum, ent.origin, 200, 0.2, 0.2, 0);
@@ -1597,7 +1602,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 				}
 				else
 				{
-					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_blastertrail, &cent->trailstate))
+					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_blastertrail, ent.keynum, &cent->trailstate))
 						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xe0, 1, &cent->trailstate);
 					V_AddLight (ent.keynum, ent.origin, 200, 0.2, 0.2, 0);
 				}
@@ -1612,14 +1617,14 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			}
 			else if (effects & Q2EF_GIB)
 			{
-				if (P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_gib, &cent->trailstate))
-					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_blood, &cent->trailstate))
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_gib, ent.keynum, &cent->trailstate))
+					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_blood, ent.keynum, &cent->trailstate))
 						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xe8, 8, &cent->trailstate);
 			}
 			else if (effects & Q2EF_GRENADE)
 			{
-				if (P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_grenade, &cent->trailstate))
-					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_grenade, &cent->trailstate))
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_grenade, ent.keynum, &cent->trailstate))
+					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_grenade, ent.keynum, &cent->trailstate))
 						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 4, 8, &cent->trailstate);
 			}
 			else if (effects & Q2EF_FLIES)
@@ -1651,13 +1656,13 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			}
 			else if (effects & Q2EF_FLAG1)
 			{
-				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_flag1"), &cent->trailstate))
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_flag1"), ent.keynum, &cent->trailstate))
 					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 242, 1, &cent->trailstate);
 				V_AddLight (ent.keynum, ent.origin, 225, 0.2, 0.05, 0.05);
 			}
 			else if (effects & Q2EF_FLAG2)
 			{
-				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_flag2"), &cent->trailstate))
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_flag2"), ent.keynum, &cent->trailstate))
 					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 115, 1, &cent->trailstate);
 				V_AddLight (ent.keynum, ent.origin, 225, 0.05, 0.05, 0.2);
 			}
@@ -1665,7 +1670,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 //ROGUE
 			else if (effects & Q2EF_TAGTRAIL)
 			{
-				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_tagtrail"), &cent->trailstate))
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_tagtrail"), ent.keynum, &cent->trailstate))
 					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 220, 1, &cent->trailstate);
 				V_AddLight (ent.keynum, ent.origin, 225, 0.2, 0.2, 0.0);
 			}
@@ -1688,7 +1693,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			}
 			else if (effects & Q2EF_TRACKER)
 			{
-				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_tracker"), &cent->trailstate))
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_tracker"), ent.keynum, &cent->trailstate))
 					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0, 1, &cent->trailstate);
 				V_AddLight (ent.keynum, ent.origin, 200, -0.2, -0.2, -0.2);
 			}
@@ -1697,13 +1702,13 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			// RAFAEL
 			else if (effects & Q2EF_GREENGIB)
 			{
-				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_greengib"), &cent->trailstate))
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_greengib"), ent.keynum, &cent->trailstate))
 					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 219, 8, &cent->trailstate);
 			}
 			// RAFAEL
 			else if (effects & Q2EF_IONRIPPER)
 			{
-				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_ionripper"), &cent->trailstate))
+				if (P_ParticleTrail(cent->lerp_origin, ent.origin, P_FindParticleType("ef_ionripper"), ent.keynum, &cent->trailstate))
 					P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 228, 4, &cent->trailstate);
 				V_AddLight (ent.keynum, ent.origin, 100, 0.2, 0.1, 0.1);
 			}
@@ -1717,7 +1722,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			{
 				if (effects & Q2EF_ANIM_ALLFAST)
 				{
-					P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_blastertrail, &cent->trailstate);
+					P_ParticleTrail(cent->lerp_origin, ent.origin, rtq2_blastertrail, ent.keynum, &cent->trailstate);
 				}
 				V_AddLight (ent.keynum, ent.origin, 130, 0.2, 0.1, 0.1);
 			}

@@ -167,8 +167,8 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 //				start = ch->end - scache->length;
 //				samples = end - start;
 
-#ifdef _MSC_VER
-#pragma message("pitch fix needed")
+#ifdef warningmsg
+#pragma warningmsg("pitch fix needed")
 #endif
 				ch->sfx->decoder->decodemore(ch->sfx,
 					end - (ch->end - scache->length) + 1);

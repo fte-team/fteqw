@@ -224,8 +224,6 @@ cvar_t gl_ati_truform_type					= CVAR  ("gl_ati_truform_type", "1");
 cvar_t gl_ati_truform_tesselation			= CVAR  ("gl_ati_truform_tesselation", "3");
 cvar_t gl_blend2d							= CVAR  ("gl_blend2d", "1");
 cvar_t gl_blendsprites						= CVAR  ("gl_blendsprites", "1");
-cvar_t gl_bump								= CVARF ("gl_bump", "0",
-												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 cvar_t r_deluxemapping						= CVARAF ("r_deluxemapping", "0", "r_glsl_deluxemapping",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 cvar_t gl_compress							= CVARF ("gl_compress", "0",
@@ -294,6 +292,7 @@ cvar_t vid_triplebuffer						= CVARAF ("vid_triplebuffer", "1",
 												"gl_triplebuffer", CVAR_ARCHIVE);
 
 cvar_t r_noportals							= SCVAR  ("r_noportals", "0");
+cvar_t dpcompat_psa_ungroup					= SCVAR  ("dpcompat_psa_ungroup", "0");
 cvar_t r_noaliasshadows						= SCVARF ("r_noaliasshadows", "0",
 												CVAR_ARCHIVE);
 cvar_t r_shadows						= SCVARF ("r_shadows", "0",
@@ -355,13 +354,12 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&gl_affinemodels, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_nohwblend, GLRENDEREROPTIONS);
-	Cvar_Register (&r_flashblend, GLRENDEREROPTIONS);
-	Cvar_Register (&r_flashblendscale, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_nocolors, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_finish, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_lateswap, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_lerpimages, GLRENDEREROPTIONS);
 
+	Cvar_Register (&dpcompat_psa_ungroup, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noportals, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noaliasshadows, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_maxshadowlights, GLRENDEREROPTIONS);
@@ -381,7 +379,6 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&gl_smoothcrosshair, GRAPHICALNICETIES);
 
-	Cvar_Register (&gl_bump, GRAPHICALNICETIES);
 	Cvar_Register (&r_deluxemapping, GRAPHICALNICETIES);
 	Cvar_Register (&r_glsl_offsetmapping, GRAPHICALNICETIES);
 	Cvar_Register (&r_glsl_offsetmapping_scale, GRAPHICALNICETIES);
@@ -539,6 +536,8 @@ void Renderer_Init(void)
 	Cvar_Register(&r_stainfadetime, GRAPHICALNICETIES);
 	Cvar_Register(&r_stainfadeammount, GRAPHICALNICETIES);
 	Cvar_Register(&r_lightprepass, GRAPHICALNICETIES);
+	Cvar_Register (&r_flashblend, GLRENDEREROPTIONS);
+	Cvar_Register (&r_flashblendscale, GLRENDEREROPTIONS);
 
 	Cvar_Register(&scr_viewsize, SCREENOPTIONS);
 	Cvar_Register(&scr_fov, SCREENOPTIONS);
@@ -761,6 +760,7 @@ rendererinfo_t dedicatedrendererinfo = {
 	NULL,	//SCR_UpdateScreen;
 
 	/*backend*/
+	NULL,
 	NULL,
 	NULL,
 	NULL,
@@ -2147,7 +2147,7 @@ void R_InitParticleTexture (void)
 		}
 	}
 
-	particletexture = R_LoadTexture32("", 8, 8, data, IF_NOMIPMAP|IF_NOPICMIP);
+	TEXASSIGN(particletexture, R_LoadTexture32("", 8, 8, data, IF_NOMIPMAP|IF_NOPICMIP));
 
 
 	//

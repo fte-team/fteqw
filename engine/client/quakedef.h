@@ -24,6 +24,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "bothdefs.h"	//first thing included by ALL files.
 
+//for msvc #pragma message lines
+#if defined(_MSC_VER)
+#define MSVC_LINE   __FILE__"("STRINGIFY(__LINE__)"):"
+#define warningmsg(s) message(MSVC_LINE s)
+#elif __GNUC__ >=4
+#define warningmsg(s) message(s)
+#endif
+
 #ifdef MSVCDISABLEWARNINGS
 //#pragma warning( disable : 4244 4127 4201 4214 4514 4305 4115 4018)
 /*#pragma warning( disable : 4244)	//conversion from const double to float

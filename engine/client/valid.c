@@ -295,8 +295,8 @@ static void Validation_Server(void)
 {
 	char adr[MAX_ADR_SIZE];
 
-#ifndef _MSC_VER
-	#warning is allowing the user to turn this off practical?..
+#ifdef warningmsg
+#pragma warningmsg("is allowing the user to turn this off practical?..")
 #endif
 	if (!allow_f_server.ival)
 		return;
@@ -391,6 +391,8 @@ rulesetrule_t rulesetrules_strict[] = {
 	{"ruleset_allow_localvolume", "0"},
 	{"tp_disputablemacros", "0"},
 	{"cl_instantrotate", "0"},
+	{"v_projectionmode", "0"},	/*no extended fovs*/
+	{"r_shadow_realtime_world", "0"}, /*static lighting can be used to cast shadows around corners*/
 	{NULL}
 };
 
@@ -404,6 +406,7 @@ rulesetrule_t rulesetrules_nqr[] = {
 	{"ruleset_allow_sensative_texture_replacements", "0"},
 	{"ruleset_allow_localvolume", "0"},
 	{"ruleset_allow_shaders", "0"},
+	{"v_projectionmode", "0"},
 	{NULL}
 };
 
@@ -435,11 +438,11 @@ qboolean Validation_GetCurrentRulesetName(char *rsnames, int resultbuflen, qbool
 	rs = rulesets;
 	*rsnames = '\0';
 
-#ifndef _MSC_VER
-#warning "here's a question... Should we latch the ruleset unconditionally, or only when someone actually cares?"
-#warning if we do it only when someone checks, we have a lot more checking, otherwise we have a freer tournament if the users choose to play that way
-#warning "I'm going to do it the old-fashioned way"
-#warning (yes, this is one for molgrum to resolve!)
+#ifdef warningmsg
+#pragma warningmsg("here's a question... Should we latch the ruleset unconditionally, or only when someone actually cares?")
+#pragma warningmsg("if we do it only when someone checks, we have a lot more checking, otherwise we have a freer tournament if the users choose to play that way")
+#pragma warningmsg("I'm going to do it the old-fashioned way")
+#pragma warningmsg("(yes, this is one for molgrum to resolve!)")
 #endif
 	for (rs = rulesets; rs->rulesetname; rs++)
 	{
@@ -537,8 +540,8 @@ void Validation_Apply_Ruleset(void)
 	cvar_t *var;
 	int i;
 
-#ifndef _MSC_VER
-	#warning fixme: the following line should not be needed. ensure this is the case
+#ifdef warningmsg
+#pragma warningmsg("fixme: the following line should not be needed. ensure this is the case")
 #endif
 	Validation_DelatchRulesets();	//make sure there's no old one
 

@@ -45,7 +45,7 @@ extern rendererstate_t currentrendererstate;
 typedef struct vrect_s
 {
 	int				x,y,width,height;
-	struct vrect_s	*pnext;
+//	struct vrect_s	*pnext;
 } vrect_t;
 
 typedef struct

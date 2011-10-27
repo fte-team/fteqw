@@ -36,7 +36,6 @@ struct texnums_s;
 struct texture_s;
 
 static const texid_t r_nulltex = {0};
-#define TEXVALID(t) ((t).num!=0)
 
 
 #if defined(D3DQUAKE) || defined(ANDROID)
@@ -76,6 +75,7 @@ typedef enum {
 	RT_MAX_REF_ENTITY_TYPE
 } refEntityType_t;
 
+struct dlight_s;
 typedef struct entity_s
 {
 	int						keynum;			// for matching entities in different frames
@@ -166,6 +166,9 @@ typedef struct
 	qboolean	recurse;	/*in a mirror/portal/half way through drawing something else*/
 	qboolean	flipcull;	/*reflected/flipped view, requires inverted culling*/
 	qboolean	useperspective; /*not orthographic*/
+
+	int			postprocshader; /*if set, renders to texture then invokes this shader*/
+	int			postproccube; /*postproc shader wants a cubemap, this is the mask of sides required*/
 } refdef_t;
 
 extern	refdef_t	r_refdef;
@@ -181,7 +184,7 @@ void BE_GenModelBatches(struct batch_s **batches);
 void R_GAlias_DrawBatch(struct batch_s *batch);
 void R_GAlias_GenerateBatches(entity_t *e, struct batch_s **batches);
 void R_LightArraysByte_BGR(const entity_t *entity, vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3_t *normals);
-void R_LightArrays(const entity_t *entity, vecV_t *coords, vec4_t *colours, int vertcount, vec3_t *normals);
+void R_LightArrays(const entity_t *entity, vecV_t *coords, vec4_t *colours, int vertcount, vec3_t *normals, float scale);
 
 void R_DrawSkyChain (struct batch_s *batch); /*called from the backend, and calls back into it*/
 void R_InitSky (struct texnums_s *ret, struct texture_s *mt, qbyte *src); /*generate q1 sky texnums*/
@@ -268,6 +271,7 @@ enum imageflags
 	IF_NOMIPMAP = 1<<2,
 	IF_NOALPHA = 1<<3,
 	IF_NOGAMMA = 1<<4,
+	IF_NEAREST = 1<<5,
 
 	IF_SUBDIRONLY = 1<<31
 };
@@ -303,9 +307,9 @@ enum uploadfmt
 
 /*it seems a little excessive to have to include glquake (and windows headers), just to load some textures/shaders for the backend*/
 #ifdef GLQUAKE
-texid_t GL_AllocNewTexture(int w, int h);
+texid_tf GL_AllocNewTexture(char *name, int w, int h);
 void GL_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
-texid_t GL_LoadTextureFmt (char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
+texid_tf GL_LoadTextureFmt (char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
 void GL_DestroyTexture(texid_t tex);
 #endif
 #ifdef D3DQUAKE
@@ -314,15 +318,16 @@ texid_t D3D9_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *
 texid_t D3D9_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
 texid_t D3D9_LoadCompressed (char *name);
 texid_t D3D9_FindTexture (char *identifier);
-texid_t D3D9_AllocNewTexture(int width, int height);
+texid_t D3D9_AllocNewTexture(char *ident, int width, int height);
 void    D3D9_Upload (texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
 void    D3D9_DestroyTexture (texid_t tex);
+void D3D_Image_Shutdown(void);
 #endif
 
 extern int image_width, image_height;
-texid_t R_LoadReplacementTexture(char *name, char *subpath, unsigned int flags);
-texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags);
-texid_t R_LoadBumpmapTexture(char *name, char *subpath);
+texid_tf R_LoadReplacementTexture(char *name, char *subpath, unsigned int flags);
+texid_tf R_LoadHiResTexture(char *name, char *subpath, unsigned int flags);
+texid_tf R_LoadBumpmapTexture(char *name, char *subpath);
 
 extern	texid_t	particletexture;
 extern	texid_t particlecqtexture;
@@ -431,6 +436,7 @@ extern	cvar_t	r_wateralpha;
 extern	cvar_t	r_dynamic;
 extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;
+extern	cvar_t	r_deluxemapping;
 
 #ifdef R_XFLIP
 extern cvar_t	r_xflip;

@@ -25,11 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <ctype.h> // for isdigit();
 
-#ifdef FISH
-void R_RenderView_fisheye(void);
 cvar_t ffov = SCVAR("ffov", "0");
-cvar_t fviews = SCVAR("fviews", "6");
-#endif
 
 /*
 
@@ -96,6 +92,7 @@ cvar_t	v_gunkick = SCVAR("v_gunkick", "0");
 cvar_t	v_gunkick_q2 = SCVAR("v_gunkick_q2", "1");
 
 cvar_t	v_viewheight = SCVAR("v_viewheight", "0");
+cvar_t	v_projectionmode = SCVAR("v_projectionmode", "0");
 
 cvar_t	scr_autoid = SCVAR("scr_autoid", "1");
 
@@ -1201,11 +1198,9 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 	case 3:
 #ifdef GLQUAKE
 		if (qrenderer == QR_OPENGL && vid.rotpixelwidth > vid.rotpixelheight * 2
-#ifdef FISH
-			&& ffov.value >= 0
-#endif
+			&& ffov.value >= 0 /*panoramic view always stacks player views*/
 			)
-		{	//over twice as wide as high, assume duel moniter, horizontal.
+		{	//over twice as wide as high, assume dual moniter, horizontal.
 			vrect->width = vid.width/cl.splitclients;
 			vrect->height = vid.height;
 			vrect->x = 0 + vrect->width*pnum;
@@ -1214,6 +1209,7 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 		else
 #endif
 		{
+			//stack them vertically
 			vrect->width = vid.width;
 			vrect->height = vid.height/cl.splitclients;
 			vrect->x = 0;
@@ -1341,7 +1337,7 @@ void V_RenderPlayerViews(int plnum)
 		r_secondaryview = 2;
 
 		VectorSubtract(r_refdef.vieworg, desired_position[plnum], dir);
-		vectoangles(dir, r_refdef.viewangles);
+		VectorAngles(dir, NULL, r_refdef.viewangles);
 		r_refdef.viewangles[0] = -r_refdef.viewangles[0];	//flip the pitch. :(
 
 
@@ -1579,10 +1575,7 @@ void V_Init (void)
 	}
 #endif
 
-#ifdef FISH
 	Cvar_Register (&ffov, VIEWVARS);
-	Cvar_Register (&fviews, VIEWVARS);
-#endif
 
 	BuildGammaTable (1.0, 1.0);	// no gamma yet
 	Cvar_Register (&v_gamma, VIEWVARS);

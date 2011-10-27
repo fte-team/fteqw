@@ -26,6 +26,7 @@ struct contextpublic
 	void *user;
 };
 
+/*
 #include <windows.h>
 static void VS_DebugLocation(char *fname, int line, char *fmt, ...)
 {
@@ -41,7 +42,7 @@ static void VS_DebugLocation(char *fname, int line, char *fmt, ...)
 	OutputDebugStringA(buffer);
 	OutputDebugStringA("\n");
 }
-
+*/
 
 
 
@@ -58,16 +59,16 @@ void Plug_DestroyContext(struct context *ctx);
 void Plug_LockPlugin(struct context *ctx, qboolean lockstate);
 qboolean Plug_StartContext(struct context *ctx);
 void Plug_StopContext(struct context *ctx);
-qboolean Plug_ChangeWindow(struct context *ctx, void *whnd, int width, int height);
+qboolean Plug_ChangeWindow(struct context *ctx, void *whnd, int left, int top, int width, int height);
 
-struct pscript_property *Plug_FindProp(struct context *ctx, const char *field);
-qboolean Plug_SetString(struct context *ctx, struct pscript_property *field, const char *value);
-qboolean Plug_GetString(struct context *ctx, struct pscript_property *field, const char **value);
+int Plug_FindProp(struct context *ctx, const char *field);
+qboolean Plug_SetString(struct context *ctx, int field, const char *value);
+qboolean Plug_GetString(struct context *ctx, int field, const char **value);
 void Plug_GotString(const char *value);
-qboolean Plug_SetInteger(struct context *ctx, struct pscript_property *field, int value);
-qboolean Plug_GetInteger(struct context *ctx, struct pscript_property *field, int *value);
-qboolean Plug_SetFloat(struct context *ctx, struct pscript_property *field, float value);
-qboolean Plug_GetFloat(struct context *ctx, struct pscript_property *field, float *value);
+qboolean Plug_SetInteger(struct context *ctx, int field, int value);
+qboolean Plug_GetInteger(struct context *ctx, int field, int *value);
+qboolean Plug_SetFloat(struct context *ctx, int field, float value);
+qboolean Plug_GetFloat(struct context *ctx, int field, float *value);
 
 #ifdef _WIN32
 void *Plug_GetSplashBack(struct context *ctx, void *hdc, int *width, int *height);/*returns an HBITMAP*/
@@ -81,22 +82,27 @@ struct plugfuncs
 	void (*LockPlugin)(struct context *ctx, qboolean lockstate);
 	qboolean (*StartContext)(struct context *ctx);
 	void (*StopContext)(struct context *ctx);
-	qboolean (*ChangeWindow)(struct context *ctx, void *whnd, int width, int height);
+	qboolean (*ChangeWindow)(struct context *ctx, void *whnd, int left, int top, int width, int height);
 
-	struct pscript_property *(*FindProp)(struct context *ctx, const char *field);
-	qboolean (*SetString)(struct context *ctx, struct pscript_property *field, const char *value);
-	qboolean (*GetString)(struct context *ctx, struct pscript_property *field, const char **value);
+	int (*FindProp)(struct context *ctx, const char *field);
+	qboolean (*SetString)(struct context *ctx, int  field, const char *value);
+	qboolean (*GetString)(struct context *ctx, int  field, const char **value);
 	void (*GotString)(const char *value);
-	qboolean (*SetInteger)(struct context *ctx, struct pscript_property *field, int value);
-	qboolean (*GetInteger)(struct context *ctx, struct pscript_property *field, int *value);
-	qboolean (*SetFloat)(struct context *ctx, struct pscript_property *field, float value);
-	qboolean (*GetFloat)(struct context *ctx, struct pscript_property *field, float *value);
+	qboolean (*SetInteger)(struct context *ctx, int  field, int value);
+	qboolean (*GetInteger)(struct context *ctx, int  field, int *value);
+	qboolean (*SetFloat)(struct context *ctx, int  field, float value);
+	qboolean (*GetFloat)(struct context *ctx, int  field, float *value);
 
 #ifdef _WIN32
 	void *(*GetSplashBack)(struct context *ctx, void *hdc, int *width, int *height);/*returns an HBITMAP*/
 	void (*ReleaseSplashBack)(struct context *ctx, void *bmp);
 #endif
+
+	qboolean (*SetWString)(struct context *ctx, int  field, const wchar_t *value);
 };
 
 #define PLUG_APIVER 1
+#ifdef __cplusplus
+extern "C"
+#endif
 const struct plugfuncs *Plug_GetFuncs(int ver);

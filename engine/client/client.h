@@ -261,6 +261,11 @@ typedef struct dlight_s
 	float	minlight;			// don't add when contributing less
 	float   color[3];
 	float	channelfade[3];
+	float	ambientscale;
+	float	diffusescale;
+	float	specularscale;
+	float	corona;
+	float	coronascale;
 
 	unsigned int flags;
 
@@ -411,11 +416,8 @@ typedef struct
 	qboolean	allow_mirrors;
 	qboolean	allow_watervis;
 	qboolean	allow_luma;
-	qboolean	allow_bump;
 	float		allow_fbskins;	//fraction of allowance
-#ifdef FISH
-	qboolean	allow_fish;
-#endif
+	qboolean	allow_postproc;
 	qboolean	allow_cheats;
 	qboolean	allow_semicheats;	//defaults to true, but this allows a server to enforce a strict ruleset (smackdown type rules).
 	float		maxfps;	//server capped
@@ -436,11 +438,12 @@ typedef struct downloadlist_s {
 	char localname[128];
 	unsigned int size;
 	unsigned int flags;
-#define DLLF_VERBOSE 1 //tell the user that its downloading
-#define DLLF_REQUIRED 2	//means that it won't load models etc until its downloaded (ie: requiredownloads 0 makes no difference)
-#define DLLF_OVERWRITE 4 //overwrite it even if it already exists
-#define DLLF_SIZEUNKNOWN 8
-#define DLLF_IGNOREFAILED 16
+#define DLLF_VERBOSE 1			//tell the user that its downloading
+#define DLLF_REQUIRED 2			//means that it won't load models etc until its downloaded (ie: requiredownloads 0 makes no difference)
+#define DLLF_OVERWRITE 4		//overwrite it even if it already exists
+#define DLLF_SIZEUNKNOWN 8		//download's size isn't known
+#define DLLF_IGNOREFAILED 16	//
+#define DLLF_NONGAME 32			//means the requested download filename+localname is gamedir explicit (so id1/foo.txt is distinct from qw/foo.txt)
 	struct downloadlist_s *next;
 } downloadlist_t;
 
@@ -487,6 +490,9 @@ typedef struct
 	qboolean	allowsendpacket;
 
 	char		serverinfo[MAX_SERVERINFO_STRING];
+	char		serverpaknames[1024];
+	char		serverpakcrcs[1024];
+	qboolean	serverpakschanged;
 
 	int			parsecount;		// server message counter
 	int			oldparsecount;
@@ -1094,7 +1100,7 @@ void Cam_TrackPlayer(int pnum, char *cmdname, char *plrarg);
 void Cam_Lock(int pnum, int playernum);
 void CL_InitCam(void);
 
-void QDECL vectoangles(vec3_t vec, vec3_t ang);
+void QDECL vectoangles(vec3_t fwd, vec3_t ang);
 
 //
 //zqtp.c
@@ -1237,7 +1243,7 @@ void Media_Init(void);
 qboolean Media_PlayFilm(char *name);
 typedef struct cin_s cin_t;
 struct cin_s *Media_StartCin(char *name);
-texid_t Media_UpdateForShader(cin_t *cin);
+texid_tf Media_UpdateForShader(cin_t *cin);
 void Media_ShutdownCin(cin_t *cin);
 qboolean Media_FakeTrack(int i, qboolean loop);
 

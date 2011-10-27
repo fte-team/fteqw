@@ -490,7 +490,9 @@ void *Sys_GetGameAPI(void *parms)
 
 	result = getcwd(curpath, sizeof(curpath)); // do something with result?
 
-#warning Search for both gamei386.so and game.so
+#ifdef warningmsg
+#pragma warningmsg("Search for both gamei386.so and game.so")
+#endif
 	Con_DPrintf("Searching for %s but not %s\n", agamename, ggamename);
 
 	searchpath = 0;

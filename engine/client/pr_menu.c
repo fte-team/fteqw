@@ -1948,8 +1948,8 @@ qboolean MP_Init (void)
 		if (mp_time)
 			*mp_time = Sys_DoubleTime();
 
-#ifdef _MSC_VER
-#pragma message("disabled until csqc gets forked or some such")
+#ifdef warningmsg
+#pragma warningmsg("disabled until csqc gets forked or some such")
 #endif
 		//mp_globs.drawfont = (float*)PR_FindGlobal(menuprogs, "drawfont", 0, NULL);
 		//mp_globs.drawfontscale = (float*)PR_FindGlobal(menuprogs, "drawfontscale", 0, NULL);

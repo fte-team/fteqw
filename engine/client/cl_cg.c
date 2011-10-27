@@ -568,8 +568,8 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 				mod = &box_model;
 			else
 				mod = cl.model_precache[modhandle+1];
-			if (mod)
-				pc = cl.worldmodel->funcs.NativeContents(mod, 0, 0, NULL, VM_POINTER(arg[0]), vec3_origin, vec3_origin);
+			if (mod && !mod->needload)
+				pc = mod->funcs.NativeContents(mod, 0, 0, NULL, VM_POINTER(arg[0]), vec3_origin, vec3_origin);
 			else
 				pc = 1;//FTECONTENTS_SOLID;
 			VM_LONG(ret) = pc;//Contents_To_Q3(pc);
@@ -648,8 +648,8 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 				TransformedNativeTrace(mod, 0, 0, start, end, mins, maxs, brushmask, &tr, origin, angles);
 #else
 			{
-#ifdef _MSC_VER
-#pragma message("FIXME: G3 CGame requires TransformedNativeTrace!")
+#ifdef warningmsg
+#pragma warningmsg("FIXME: G3 CGame requires TransformedNativeTrace!")
 #endif
 								memset(&tr, 0, sizeof(tr));
 				tr.allsolid = tr.startsolid = true;
@@ -1042,7 +1042,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 	case CG_FTE_SPAWNPARTICLEEFFECT:
 		return pe->RunParticleEffectState(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_FLOAT(arg[2]), VM_LONG(arg[3]), VM_POINTER(arg[4]));
 	case CG_FTE_SPAWNPARTICLETRAIL:
-		return pe->ParticleTrail(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]), VM_POINTER(arg[3]));
+		return pe->ParticleTrail(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]), 0, VM_POINTER(arg[3]));
 	case CG_FTE_FREEPARTICLESTATE:
 		pe->DelinkTrailstate(VM_POINTER(arg[0]));
 		break;

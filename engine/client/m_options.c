@@ -426,7 +426,6 @@ const char *presetexec[] =
 	"r_nolightdir 1;"
 	"r_dynamic 0;"
 	"gl_flashblend 0;"
-	"gl_bump 0;"
 	"gl_specular 0;"
 	"r_loadlit 0;"
 	"r_fastsky 1;"
@@ -466,7 +465,6 @@ const char *presetexec[] =
 	"r_particlesystem script;"
 	"r_particledesc \"spikeset tsshaft\";"
 #endif
-//	"gl_bump 1;" // requires restart
 	"gl_specular 1;"
 	"r_loadlit 2;"
 //	"r_fastsky -1;"
@@ -699,7 +697,7 @@ void M_Menu_Textures_f (void)
 		NULL
 	};
 
-	extern cvar_t gl_load24bit, gl_specular, gl_bump, gl_detail, gl_compress, gl_picmip, gl_picmip2d, gl_max_size, r_drawflat;
+	extern cvar_t gl_load24bit, gl_specular, gl_detail, gl_compress, gl_picmip, gl_picmip2d, gl_max_size, r_drawflat;
 	extern cvar_t gl_texture_anisotropic_filtering, gl_texturemode, gl_texturemode2d;
 	int y;
 	menubulk_t bulk[] =
@@ -712,7 +710,7 @@ void M_Menu_Textures_f (void)
 		MB_COMBOCVAR("2D Filter Mode", gl_texturemode2d, texture2dfilternames, texture2dfiltervalues, "Chooses the texture filtering method used for HUD, menus, and other 2D assets."),
 		MB_COMBOCVAR("Anisotropy", gl_texture_anisotropic_filtering, anisotropylevels, anisotropyvalues, NULL),
 		MB_SPACING(4),
-		MB_CHECKBOXCVAR("Bumpmapping", gl_bump, 0),
+		MB_CHECKBOXCVAR("Deluxemapping", r_deluxemapping, 0),
 		MB_CHECKBOXCVAR("Specular Highlights", gl_specular, 0),
 		MB_CHECKBOXCVAR("Detail Textures", gl_detail, 0),
 		MB_SPACING(4),

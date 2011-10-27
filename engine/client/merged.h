@@ -147,18 +147,41 @@ void Draw_FunString(int x, int y, const void *str);
 void Draw_AltFunString(int x, int y, const void *str);
 void Draw_FunStringWidth(int x, int y, const void *str, int width);
 
+int r_regsequence;
 
 #ifdef SERVERONLY
 #define Mod_Q1LeafPVS Mod_LeafPVS
 // qbyte *Mod_LeafPVS (struct mleaf_s *leaf, struct model_s *model, qbyte *buffer);
 #endif
 
-typedef union {
-	unsigned int num;
+typedef struct
+{
+	int regsequence;
+} texcom_t;
+struct texid_s
+{
+	union
+	{
+		unsigned int num;
 #ifdef D3DQUAKE
-	void *ptr;
+		void *ptr;
 #endif
-} texid_t;
+	};
+	texcom_t *ref;
+};
+#if 1
+typedef struct texid_s texid_t;
+#define texid_tf texid_t
+#define TEXASSIGN(d,s) d=s
+#define TEXASSIGNF(d,s) d=s
+#define TEXVALID(t) ((t).ref!=NULL)
+#else
+typedef struct texid_s texid_t[1];
+typedef struct texid_s texid_tf;
+#define TEXASSIGN(d,s) memcpy(&d,&s,sizeof(d))
+#define TEXASSIGNF(d,s) memcpy(&d,&s,sizeof(d))
+#define TEXVALID(t) 1
+#endif
 typedef enum uploadfmt uploadfmt_t;
 //not all modes accept meshes - STENCIL(intentional) and DEPTHONLY(not implemented)
 typedef enum backendmode_e
@@ -182,12 +205,12 @@ typedef struct rendererinfo_s {
 	void	(*Draw_Init)				(void);
 	void	(*Draw_Shutdown)			(void);
 
-	texid_t (*IMG_LoadTexture)			(char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);
-	texid_t (*IMG_LoadTexture8Pal24)	(char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
-	texid_t (*IMG_LoadTexture8Pal32)	(char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
-	texid_t (*IMG_LoadCompressed)		(char *name);
-	texid_t (*IMG_FindTexture)			(char *identifier);
-	texid_t (*IMG_AllocNewTexture)		(int w, int h);
+	texid_tf (*IMG_LoadTexture)			(char *identifier, int width, int height, uploadfmt_t fmt, void *data, unsigned int flags);
+	texid_tf (*IMG_LoadTexture8Pal24)	(char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
+	texid_tf (*IMG_LoadTexture8Pal32)	(char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
+	texid_tf (*IMG_LoadCompressed)		(char *name);
+	texid_tf (*IMG_FindTexture)			(char *identifier);
+	texid_tf (*IMG_AllocNewTexture)		(char *identifier, int w, int h);
 	void    (*IMG_Upload)				(texid_t tex, char *name, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags);
 	void    (*IMG_DestroyTexture)		(texid_t tex);
 
@@ -248,6 +271,7 @@ typedef struct rendererinfo_s {
 	//Uploads all modified lightmaps
 	void (*BE_UploadAllLightmaps)(void);
 	void (*BE_SelectEntity)(struct entity_s *ent);
+	void (*BE_SelectDLight)(struct dlight_s *dl, vec3_t colour);
 	/*check to see if an ent should be drawn for the selected light*/
 	qboolean (*BE_LightCullModel)(vec3_t org, struct model_s *model);
 
@@ -272,6 +296,7 @@ typedef struct rendererinfo_s {
 #define BE_UploadAllLightmaps	rf->BE_UploadAllLightmaps
 #define BE_LightCullModel		rf->BE_LightCullModel
 #define BE_SelectEntity			rf->BE_SelectEntity
+#define BE_SelectDLight			rf->BE_SelectDLight
 #define BE_GetTempBatch			rf->BE_GetTempBatch
 #define BE_SubmitBatch			rf->BE_SubmitBatch
 #define BE_DrawMesh_List		rf->BE_DrawMesh_List

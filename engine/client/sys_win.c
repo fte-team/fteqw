@@ -46,6 +46,8 @@ qboolean isDedicated = false;
 qboolean debugout;
 
 HWND sys_parentwindow;
+unsigned int sys_parentleft;	//valid if sys_parentwindow is set
+unsigned int sys_parenttop;
 unsigned int sys_parentwidth;	//valid if sys_parentwindow is set
 unsigned int sys_parentheight;
 
@@ -1866,8 +1868,10 @@ qboolean Sys_LockMutex(void *mutex)
 		return true;
 	OutputDebugString("Warning: Suspected mutex deadlock\n");
 	DebugBreak();
-#endif
+	return false;
+#else
 	return WaitForSingleObject(mutex, INFINITE) == WAIT_OBJECT_0;
+#endif
 }
 
 qboolean Sys_UnlockMutex(void *mutex)

@@ -343,6 +343,7 @@ qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
 		return false;
 	}
 
+	/*reject if it already failed*/
 	if (!(flags & DLLF_IGNOREFAILED))
 	{
 #ifdef NQPROT
@@ -362,6 +363,7 @@ qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
 		}
 	}
 
+	/*check for dupes*/
 	for (dl = cl.downloadlist; dl; dl = dl->next)	//It's already on our list. Ignore it.
 	{
 		if (!strcmp(dl->rname, filename))
@@ -398,7 +400,9 @@ qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
 		| PEXT_PK3DOWNLOADS
 #endif
 		)))
+	{
 		CL_SendClientCommand(true, "dlsize \"%s\"", dl->rname);
+	}
 
 	if (flags & DLLF_VERBOSE)
 		Con_Printf("Enqued download of \"%s\"\n", filename);
@@ -406,8 +410,8 @@ qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
 	return true;
 }
 
-#ifdef _MSC_VER
-#pragma message("fix this")
+#ifdef warningmsg
+#pragma warningmsg("fix this")
 #endif
 int downloadsize;
 void CL_GetDownloadSizes(unsigned int *filecount, unsigned int *totalsize, qboolean *somesizesunknown)
@@ -528,7 +532,17 @@ void CL_DownloadFinished(void)
 	{
 		if (strcmp(tempname, filename))
 		{
-			if (strncmp(tempname,"skins/",6))
+			if (!strncmp(tempname,"package/",8))
+			{
+				if (FS_Rename(tempname+8, filename+8, FS_ROOT))
+				{
+					char nativetmp[MAX_OSPATH], nativefinal[MAX_OSPATH];;
+					FS_NativePath(tempname+8, FS_ROOT, nativetmp, sizeof(nativetmp));
+					FS_NativePath(filename+8, FS_ROOT, nativefinal, sizeof(nativefinal));
+					Con_Printf("Couldn't rename %s to %s\n", nativetmp, nativefinal);
+				}
+			}
+			else if (strncmp(tempname,"skins/",6))
 			{
 				if (FS_Rename(tempname, filename, FS_GAME))
 				{
@@ -555,8 +569,11 @@ void CL_DownloadFinished(void)
 
 
 
-	if (!strcmp(ext, "pk3") || !strcmp(ext, "pak"))
+	if (!strncmp(ext, "pk4", 3) || !strncmp(ext, "pk3", 3) || !strncmp(ext, "pak", 3))
+	{
 		FS_ReloadPackFiles();
+		CL_CheckServerInfo();
+	}
 	else if (!strcmp(filename, "gfx/palette.lmp"))
 	{
 		Cbuf_AddText("vid_restart\n", RESTRICT_LOCAL);
@@ -614,6 +631,23 @@ qboolean CL_CheckFile(char *filename)
 	}
 	return false;
 }
+
+qboolean CL_CheckDLFile(char *filename)
+{
+	if (!strncmp(filename, "package/", 8))
+	{
+		vfsfile_t *f;
+		f = FS_OpenVFS(filename+8, "rb", FS_ROOT);
+		if (f)
+		{
+			VFS_CLOSE(f);
+			return true;
+		}
+		return false;
+	}
+	else
+		return COM_FCheckExists(filename);
+}
 /*
 ===============
 CL_CheckOrEnqueDownloadFile
@@ -624,16 +658,31 @@ Returns true if the file exists, returns false if it triggered a download.
 
 qboolean	CL_CheckOrEnqueDownloadFile (char *filename, char *localname, unsigned int flags)
 {	//returns false if we don't have the file yet.
+
+	if (flags & DLLF_NONGAME)
+	{
+		/*pak/pk3 downloads have an explicit leading package/ as an internal/network marker*/
+		filename = va("package/%s", filename);
+		localname = va("package/%s", localname);
+	}
+	/*files with a leading * should not be downloaded (inline models, sexed sounds, etc)*/
+	else if (*filename == '*' || !strncmp(filename, "package/", 8))
+		return true;
+
 	if (!localname)
 		localname = filename;
 
 #ifndef CLIENTONLY
+	/*no downloading if we're the one we'd be downloading from*/
 	if (sv.state)
 		return true;
 #endif
 
-	if (!(flags & DLLF_OVERWRITE) && CL_CheckFile(localname))
-		return true;
+	if (!(flags & DLLF_OVERWRITE))
+	{
+		if (CL_CheckDLFile(localname))
+			return true;
+	}
 
 	//ZOID - can't download when recording
 	if (cls.demorecording)
@@ -886,7 +935,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 	extern model_t *loadmodel;
 	int i;
 
-	float giveuptime = Sys_DoubleTime()+0.1;	//small things get padded into a single frame
+	float giveuptime = Sys_DoubleTime()+0.3;	//small things get padded into a single frame
 
 #define atstage() ((cl.contentstage == stage++ && !dontactuallyload)?++cl.contentstage:false)
 #define endstage() if (!cls.timedemo && giveuptime<Sys_DoubleTime()) return -1;
@@ -903,9 +952,9 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 			s = Info_ValueForKey(cl.serverinfo, "*csprogs");
 			if (*s)	//only allow csqc if the server says so, and the 'checksum' matches.
 			{
-				extern cvar_t allow_download_csprogs;
+				extern cvar_t cl_download_csprogs;
 				unsigned int chksum = strtoul(s, NULL, 0);
-				if (allow_download_csprogs.ival)
+				if (cl_download_csprogs.ival)
 				{
 					char *str = va("csprogsvers/%x.dat", chksum);
 					if (CL_CheckOrEnqueDownloadFile("csprogs.dat", str, DLLF_REQUIRED))
@@ -934,7 +983,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 	{
 		char *s;
 		qboolean anycsqc;
-#if 0//ndef FTE_DEBUG
+#ifdef _DEBUG
 		anycsqc = true;
 #else
 		anycsqc = atoi(Info_ValueForKey(cl.serverinfo, "anycsqc"));
@@ -1187,12 +1236,12 @@ void Sound_CheckDownloads (void)
 		s = Info_ValueForKey(cl.serverinfo, "*csprogs");
 		if (*s)	//only allow csqc if the server says so, and the 'checksum' matches.
 		{
-			extern cvar_t allow_download_csprogs, cl_nocsqc;
+			extern cvar_t cl_download_csprogs, cl_nocsqc;
 			unsigned int chksum = strtoul(s, NULL, 0);
 			if (cl_nocsqc.ival || cls.demoplayback)
 			{
 			}
-			else if (allow_download_csprogs.ival)
+			else if (cl_download_csprogs.ival)
 			{
 				char *str = va("csprogsvers/%x.dat", chksum);
 				CL_CheckOrEnqueDownloadFile("csprogs.dat", str, DLLF_REQUIRED);
@@ -1221,9 +1270,11 @@ void CL_RequestNextDownload (void)
 {
 
 	int stage;
+	/*already downloading*/
 	if (cls.downloadmethod)
 		return;
 
+	/*request downloads only if we're at the point where we've received a complete list of them*/
 	if (cl.sendprespawn || cls.state == ca_active)
 		if (cl.downloadlist)
 		{
@@ -1233,16 +1284,25 @@ void CL_RequestNextDownload (void)
 			//download required downloads first
 			for (dl = cl.downloadlist; dl; dl = dl->next)
 			{
-				if (dl->flags & DLLF_REQUIRED)
+				if (dl->flags & DLLF_NONGAME)
 					break;
 			}
 			if (!dl)
-				dl = cl.downloadlist;
+			{
+				for (dl = cl.downloadlist; dl; dl = dl->next)
+				{
+					if (dl->flags & DLLF_REQUIRED)
+						break;
+				}
+				if (!dl)
+					dl = cl.downloadlist;
+			}
 			fl = dl->flags;
 
+			/*if we don't require downloads don't queue requests until we're actually on the server, slightly more deterministic*/
 			if (cls.state == ca_active || requiredownloads.value || (fl & DLLF_REQUIRED))
 			{
-				if ((fl & DLLF_OVERWRITE) || !COM_FCheckExists (dl->localname))
+				if ((fl & DLLF_OVERWRITE) || !CL_CheckFile (dl->localname))
 				{
 					CL_SendDownloadStartRequest(dl->rname, dl->localname);
 					return;
@@ -1283,10 +1343,8 @@ void CL_RequestNextDownload (void)
 			return;
 
 		cl.sendprespawn = false;
-#ifdef _MSC_VER
-		//FIXME: timedemo timer should start here.
-#else
-#warning timedemo timer should start here
+#ifdef warningmsg
+#pragma warningmsg("timedemo timer should start here")
 #endif
 
 		if (!cl.worldmodel || cl.worldmodel->needload)
@@ -1342,8 +1400,24 @@ void CL_SendDownloadReq(sizebuf_t *msg)
 	if (cls.downloadmethod == DL_QWCHUNKS)
 	{
 		extern int download_file_number;
+		extern cvar_t drate;
+		static float lasttime;
 		int p;
-		for (p = 0; p < 8; p++)
+		if (!drate.ival)
+			p = 64;
+		else
+		{
+			lasttime = fabs(realtime - lasttime);
+			if (lasttime > 1)
+				lasttime = 1;
+			p = lasttime * drate.ival;
+			if (p > 90)
+				p = 90;
+		}
+		lasttime = realtime;
+		if (!p)
+			p = 1;
+		while (p-->0)
 		{
 			int i = CL_RequestADownloadChunk();
 			if (i >= 0)
@@ -1424,6 +1498,12 @@ downloadlist_t *CL_DownloadFailed(char *name)
 		{
 			VFS_CLOSE(cls.downloadqw);
 			cls.downloadqw = NULL;
+			if (!strncmp(cls.downloadtempname, "package/", 8))
+				FS_Remove(cls.downloadtempname, FS_ROOT);
+			else if (!strncmp(cls.downloadtempname,"skins/",6))
+				FS_Remove(va("qw/%s", cls.downloadtempname), FS_ROOT);
+			else
+				FS_Remove(cls.downloadtempname, FS_GAME);
 			CL_SendClientCommand(true, "stopdownload");
 		}
 		*cls.downloadlocalname = 0;
@@ -1449,11 +1529,14 @@ downloadlist_t *CL_DownloadFailed(char *name)
 
 float downloadstarttime;
 #ifdef PEXT_CHUNKEDDOWNLOADS
-#define MAXBLOCKS 64	//must be power of 2
+#define MAXBLOCKS 512	//must be power of 2
 #define DLBLOCKSIZE 1024
 int downloadsize;
 int receivedbytes;
-int recievedblock[MAXBLOCKS];
+struct
+{
+	int chunkno;
+} dlblock[MAXBLOCKS];
 int firstblock;
 int blockcycle;
 int download_file_number;
@@ -1468,7 +1551,7 @@ void CL_ParseChunkedDownload(void)
 	qbyte	*svname;
 	//qbyte	osname[MAX_OSPATH]; //unreferenced
 	int totalsize;
-	int chunknum;
+	int chunknum, ridx;
 	char data[DLBLOCKSIZE];
 
 	chunknum = MSG_ReadLong();
@@ -1527,7 +1610,12 @@ void CL_ParseChunkedDownload(void)
 		COM_DefaultExtension(cls.downloadtempname, ".tmp");
 		*/
 
-		if (!strncmp(cls.downloadtempname,"skins/",6))
+		if (!strncmp(cls.downloadtempname, "package/", 8))
+		{
+			FS_CreatePath(cls.downloadtempname+8, FS_ROOT);
+			cls.downloadqw = FS_OpenVFS(cls.downloadtempname + 8, "wb", FS_ROOT);
+		}
+		else if (!strncmp(cls.downloadtempname,"skins/",6))
 		{
 			FS_CreatePath (va("qw/%s", cls.downloadtempname), FS_ROOT);
 			cls.downloadqw = FS_OpenVFS (va("qw/%s", cls.downloadtempname), "wb", FS_ROOT);
@@ -1548,7 +1636,8 @@ void CL_ParseChunkedDownload(void)
 		firstblock = 0;
 		receivedbytes = 0;
 		blockcycle = -1;	//so it requests 0 first. :)
-		memset(recievedblock, 0, sizeof(recievedblock));
+		for (chunknum = 0; chunknum < MAXBLOCKS; chunknum++)
+			dlblock[chunknum].chunkno = ~0u;
 		return;
 	}
 
@@ -1563,31 +1652,21 @@ void CL_ParseChunkedDownload(void)
 	{	//err, yeah, when playing demos we don't actually pay any attention to this.
 		return;
 	}
-	if (chunknum < firstblock)
-	{
-//		Con_Printf("too old\n", chunknum);
-		return;
-	}
-	if (chunknum-firstblock >= MAXBLOCKS)
-	{
-//		Con_Printf("^1too new!\n", chunknum);
-		return;
-	}
 
-	if (recievedblock[chunknum&(MAXBLOCKS-1)])
+	for (ridx = 0; ridx < MAXBLOCKS; ridx++)
 	{
-//		Con_Printf("duplicated\n", chunknum);
+		if (dlblock[ridx].chunkno == chunknum)
+			break;
+	}
+	if (ridx == MAXBLOCKS)
+	{
+		Con_DPrintf("dupe/invalid chunk received\n", chunknum);
 		return;
 	}
+	dlblock[ridx].chunkno = ~0;
+
 //	Con_Printf("usable\n", chunknum);
 	receivedbytes+=DLBLOCKSIZE;
-	recievedblock[chunknum&(MAXBLOCKS-1)] = true;
-
-	while(recievedblock[firstblock&(MAXBLOCKS-1)])
-	{
-		recievedblock[firstblock&(MAXBLOCKS-1)] = false;
-		firstblock++;
-	}
 
 	VFS_SEEK(cls.downloadqw, chunknum*DLBLOCKSIZE);
 	if (downloadsize - chunknum*DLBLOCKSIZE < DLBLOCKSIZE)	//final block is actually meant to be smaller than we recieve.
@@ -1611,7 +1690,7 @@ int CL_CountQueuedDownloads(void)
 int CL_RequestADownloadChunk(void)
 {
 	int i;
-	int b;
+	int ridx;
 
 	if (cls.downloadmethod != DL_QWCHUNKS)
 	{
@@ -1619,18 +1698,17 @@ int CL_RequestADownloadChunk(void)
 		return -1;
 	}
 
-	blockcycle++;
 	for (i = 0; i < MAXBLOCKS; i++)
 	{
-		b = ((i+blockcycle)&(MAXBLOCKS-1))
-			+ firstblock;
-		if (!recievedblock[b&(MAXBLOCKS-1)])	//don't ask for ones we've already got.
+		blockcycle++;
+		ridx = blockcycle&(MAXBLOCKS-1);
+		if (dlblock[ridx].chunkno == ~0u)
 		{
-			if (b >= (downloadsize+DLBLOCKSIZE-1)/DLBLOCKSIZE)	//don't ask for blocks that are over the size of the file.
+			if (firstblock >= (downloadsize+DLBLOCKSIZE-1)/DLBLOCKSIZE)
 				continue;
-//			Con_Printf("Requesting block %i\n", b);
-			return b;
+			dlblock[ridx].chunkno = firstblock++;
 		}
+		return dlblock[ridx].chunkno;
 	}
 
 //	Con_Printf("^1 EOF?\n");
@@ -2465,6 +2543,24 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 		cls.protocol_nq = CPNQ_FITZ666;
 		Con_DPrintf("FitzQuake 666 protocol\n");
 	}
+	else if (protover == RMQ_PROTOCOL_VERSION)
+	{
+		int fl;
+		cls.protocol_nq = CPNQ_FITZ666;
+		Con_DPrintf("RMQ extensions to FitzQuake's protocol\n");
+		fl = MSG_ReadLong();
+
+		if (fl & RMQFL_SHORTANGLE)
+			netprim.anglesize = 2;
+		if (fl & RMQFL_FLOATANGLE)
+			netprim.anglesize = 4;
+		if (fl & RMQFL_24BITCOORD)
+			netprim.coordsize = 3;
+		if (fl & RMQFL_FLOATCOORD)
+			netprim.coordsize = 4;
+		if (fl & ~(RMQFL_SHORTANGLE|RMQFL_FLOATANGLE|RMQFL_24BITCOORD|RMQFL_FLOATCOORD))
+			Con_Printf("WARNING: Server is using unsupported RMQ extensions\n");
+	}
 	else if (protover == DP5_PROTOCOL_VERSION)
 	{
 		//darkplaces5
@@ -2502,7 +2598,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 	}
 	else if (protover != NQ_PROTOCOL_VERSION)
 	{
-		Host_EndGame ("Server returned version %i, not %i\nYou will need to use a different client.", protover, NQ_PROTOCOL_VERSION);
+		Host_EndGame ("Server is using protocol version %i, which is not supported by this version of " FULLENGINENAME ".", protover);
 	}
 	else
 	{
@@ -2545,7 +2641,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 		}
 		strcpy (cl.model_name[nummodels], str);
 		if (*str != '*')	//not inline models!
-			CL_CheckOrEnqueDownloadFile(str, NULL, 0);
+			CL_CheckOrEnqueDownloadFile(str, NULL, ((nummodels==1)?DLLF_REQUIRED:0));
 		Mod_TouchModel (str);
 	}
 
@@ -2562,10 +2658,8 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 		}
 		strcpy (cl.sound_name[numsounds], str);
 
-#ifdef _MSC_VER
-#pragma message("CLNQ_ParseServerData: no sound autodownloads")
-#endif
-		//CL_CheckOrEnqueDownloadFile(str, NULL, 0);
+		if (*str != '*')	//not inline models!
+			CL_CheckOrEnqueDownloadFile(va("sound/%s", str), NULL, 0);
 
 		S_TouchSound (str);
 	}
@@ -4704,6 +4798,17 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 					Cbuf_AddText (com_token, RESTRICT_SERVER+destsplit);
 					Cbuf_AddText ("\n", RESTRICT_SERVER+destsplit);
 				}
+			}
+			else if (!strncmp(stufftext, "//paknames ", 11))
+			{
+				Q_strncpyz(cl.serverpaknames, stufftext+11, sizeof(cl.serverpaknames));
+				cl.serverpakschanged = true;
+			}
+			else if (!strncmp(stufftext, "//paks ", 7))
+			{
+				Q_strncpyz(cl.serverpakcrcs, stufftext+7, sizeof(cl.serverpakcrcs));
+				cl.serverpakschanged = true;
+				CL_CheckServerInfo();
 			}
 			else if (!strncmp(stufftext, "//vwep ", 7))
 			{

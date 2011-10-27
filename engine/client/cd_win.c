@@ -129,9 +129,6 @@ void CDAudio_Play(int track, qboolean looping)
 		CDAudio_GetAudioDiskInfo();
 		if (!cdValid)
 		{
-#ifndef NOMEDIA
-			Media_FakeTrack(track, looping);
-#endif
 			return;
 		}
 	}
@@ -143,9 +140,6 @@ void CDAudio_Play(int track, qboolean looping)
 
 	if (track < 1 || track > maxTrack)
 	{
-#ifndef NOMEDIA
-		Media_FakeTrack(track, looping);
-#endif
 		Con_DPrintf("CDAudio: Bad track number %u.\n", track);
 		return;
 	}

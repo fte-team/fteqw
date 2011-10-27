@@ -642,7 +642,7 @@ void (PNGAPI *qpng_read_end) PNGARG((png_structp png_ptr, png_infop info_ptr)) P
 void (PNGAPI *qpng_read_image) PNGARG((png_structp png_ptr, png_bytepp image)) PSTATIC(png_read_image);
 png_byte (PNGAPI *qpng_get_bit_depth) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_get_bit_depth);
 png_byte (PNGAPI *qpng_get_channels) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_get_channels);
-png_uint_32 (PNGAPI *qpng_get_rowbytes) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_get_rowbytes);
+png_size_t (PNGAPI *qpng_get_rowbytes) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_get_rowbytes);
 void (PNGAPI *qpng_read_update_info) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_update_info);
 void (PNGAPI *qpng_set_strip_16) PNGARG((png_structp png_ptr)) PSTATIC(png_set_strip_16);
 void (PNGAPI *qpng_set_expand) PNGARG((png_structp png_ptr)) PSTATIC(png_set_expand);
@@ -2168,7 +2168,7 @@ typedef struct {
 } ddsheader;
 
 
-texid_t GL_LoadTextureDDS(unsigned char *buffer, int filesize)
+texid_tf GL_LoadTextureDDS(char *iname, unsigned char *buffer, int filesize)
 {
 	extern int		gl_filter_min;
 	extern int		gl_filter_max;
@@ -2216,7 +2216,7 @@ texid_t GL_LoadTextureDDS(unsigned char *buffer, int filesize)
 	if (!qglCompressedTexImage2DARB)
 		return r_nulltex;
 
-	texnum = GL_AllocNewTexture(fmtheader.dwWidth, fmtheader.dwHeight);
+	texnum = GL_AllocNewTexture(iname, fmtheader.dwWidth, fmtheader.dwHeight);
 	GL_MTBind(0, GL_TEXTURE_2D, texnum);
 
 	datasize = fmtheader.dwPitchOrLinearSize;
@@ -2233,12 +2233,12 @@ texid_t GL_LoadTextureDDS(unsigned char *buffer, int filesize)
 			h = 1;
 		qglCompressedTexImage2DARB(GL_TEXTURE_2D, mipnum, intfmt, w, h, 0, datasize, buffer);
 		if (qglGetError())
-			Con_Printf("Incompatible dds file (mip %i)\n", mipnum);
+			Con_Printf("Incompatible dds file %s (mip %i)\n", iname, mipnum);
 		buffer += datasize;
 		datasize/=4;
 	}
 	if (qglGetError())
-		Con_Printf("Incompatible dds file\n");
+		Con_Printf("Incompatible dds file %s\n", iname);
 
 
 	if (nummips>1)
@@ -2355,7 +2355,7 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 	image_width = 0;
 	image_height = 0;
 
-	COM_StripAllExtensions(name, nicename, sizeof(nicename));
+	COM_StripExtension(name, nicename, sizeof(nicename));
 
 	while((data = strchr(nicename, '*')))
 	{
@@ -2421,7 +2421,7 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 			if ((buf = COM_LoadFile (fname, 5)))
 			{
 #ifdef DDS
-				tex = GL_LoadTextureDDS(buf, com_filesize);
+				tex = GL_LoadTextureDDS(fname, buf, com_filesize);
 				if (TEXVALID(tex))
 				{
 					BZ_Free(buf);
@@ -2494,7 +2494,7 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 		if ((buf = COM_LoadFile (fname, 5)))
 		{
 			extern cvar_t vid_hardwaregamma;
-			tex = r_nulltex;
+			TEXASSIGNF(tex, r_nulltex);
 			if (com_filesize >= 8)
 			{
 				image_width = LittleLong(((int*)buf)[0]);
@@ -2582,7 +2582,7 @@ texid_t R_LoadBumpmapTexture(char *name, char *subpath)
 				if ((data = ReadTargaFile(buf, com_filesize, &image_width, &image_height, 2)))	//Only load a greyscale image.
 				{
 					TRACE(("dbg: Mod_LoadBumpmapTexture: tga %s loaded\n", name));
-					tex = R_LoadTexture8Bump(name, image_width, image_height, data, IF_NOALPHA|IF_NOGAMMA);
+					TEXASSIGNF(tex, R_LoadTexture8Bump(name, image_width, image_height, data, IF_NOALPHA|IF_NOGAMMA));
 					BZ_Free(data);
 				}
 				else

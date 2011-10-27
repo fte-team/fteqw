@@ -105,6 +105,8 @@ struct context
 	struct contextpublic pub;
 
 	void *windowhnd;
+	int windowleft;
+	int windowtop;
 	int windowwidth;
 	int windowheight;
 
@@ -117,7 +119,7 @@ struct context
 	char *onend;
 	char *ondemoend;
 
-	void *nppinstance;
+	void *hostinstance;
 
 	int read;
 	int written;
@@ -299,7 +301,6 @@ int Plug_PluginThread(void *ctxptr)
 				}
 
 				Con_Printf("Attempting to download %s\n", c);
-				VS_DebugLocation(__FILE__, __LINE__, "Queuing Download %s", c);
 
 				dl = DL_Create(c);
 				dl->user_ctx = ctx;
@@ -327,7 +328,7 @@ int Plug_PluginThread(void *ctxptr)
 				ctx->pub.dlsize = total;
 				ctx->pub.dldone = done;
 				if (ctx->bfuncs.StatusChanged)
-					ctx->bfuncs.StatusChanged(&ctx->pub);
+					ctx->bfuncs.StatusChanged(ctx->hostinstance);
 			}
 			if (!dl->file)
 				ctx->packagelist = dl->next;
@@ -347,28 +348,29 @@ int Plug_PluginThread(void *ctxptr)
 			Sys_LockMutex(ctx->mutex);
 			ctx->resetvideo = false;
 			sys_parentwindow = ctx->windowhnd;
+			sys_parentleft = ctx->windowleft;
+			sys_parenttop = ctx->windowtop;
 			sys_parentwidth = ctx->windowwidth;
 			sys_parentheight = ctx->windowheight;
-			VS_DebugLocation(__FILE__, __LINE__, "Host_FinishInit");
 			Host_FinishInit();
 			Sys_UnlockMutex(ctx->mutex);
 		}
 		if (ctx->bfuncs.StatusChanged)
-			ctx->bfuncs.StatusChanged(&ctx->pub);
+			ctx->bfuncs.StatusChanged(ctx->hostinstance);
 
-		VS_DebugLocation(__FILE__, __LINE__, "main loop");
 		while(host_initialized)
 		{
 			Sys_LockMutex(ctx->mutex);
 			if (ctx->shutdown)
 			{
 				ctx->shutdown = false;
-				VS_DebugLocation(__FILE__, __LINE__, "Sys_Shutdown");
 				Host_Shutdown(); /*will shut down the host*/
 			}
 			else if (ctx->resetvideo)
 			{
 				sys_parentwindow = ctx->windowhnd;
+				sys_parentleft = ctx->windowleft;
+				sys_parenttop = ctx->windowtop;
 				sys_parentwidth = ctx->windowwidth;
 				sys_parentheight = ctx->windowheight;
 				if (ctx->resetvideo == 2)
@@ -410,7 +412,7 @@ int Plug_PluginThread(void *ctxptr)
 	ctx->pub.running = false;
 	Sys_UnlockMutex(ctx->mutex);
 	if (ctx->bfuncs.StatusChanged)
-		ctx->bfuncs.StatusChanged(&ctx->pub);
+		ctx->bfuncs.StatusChanged(ctx->hostinstance);
 
 	while(argc-- > 0)
 		free(argv[argc]);
@@ -470,7 +472,7 @@ struct context *Plug_CreateContext(void *sysctx, const struct browserfuncs *func
 	memcpy(&ctx->bfuncs, funcs, sizeof(ctx->bfuncs));
 
 	//link the instance to the context and the context to the instance
-	ctx->nppinstance = sysctx;
+	ctx->hostinstance = sysctx;
 
 	ctx->gamename = strdup("q1");
 
@@ -484,7 +486,7 @@ struct context *Plug_CreateContext(void *sysctx, const struct browserfuncs *func
 }
 
 //change the plugin's parent window, width, and height, returns true if the window handle actually changed, false otherwise
-qboolean Plug_ChangeWindow(struct context *ctx, void *whnd, int width, int height)
+qboolean Plug_ChangeWindow(struct context *ctx, void *whnd, int left, int top, int width, int height)
 {
 	qboolean result = false;
 
@@ -497,11 +499,12 @@ qboolean Plug_ChangeWindow(struct context *ctx, void *whnd, int width, int heigh
 		ctx->windowhnd = whnd;
 		ctx->resetvideo = 2;
 	}
-	if (ctx->windowwidth != width || ctx->windowheight != height)
-	{
-		ctx->windowwidth = width;
-		ctx->windowheight = height;
-	}
+
+	ctx->windowleft = left;
+	ctx->windowtop = top;
+	ctx->windowwidth = width;
+	ctx->windowheight = height;
+
 	if (ctx->pub.running && !ctx->resetvideo)
 		ctx->resetvideo = true;
 	Plug_LockPlugin(ctx, false);
@@ -659,7 +662,7 @@ void LoadSplashImage(struct dl_download *dl)
 	if (!f)
 	{
 		if (ctx->bfuncs.StatusChanged)
-			ctx->bfuncs.StatusChanged(&ctx->pub);
+			ctx->bfuncs.StatusChanged(ctx->hostinstance);
 		return;
 	}
 
@@ -695,7 +698,7 @@ void LoadSplashImage(struct dl_download *dl)
 		BZ_Free(image);
 
 		if (ctx->bfuncs.StatusChanged)
-			ctx->bfuncs.StatusChanged(&ctx->pub);
+			ctx->bfuncs.StatusChanged(ctx->hostinstance);
 	}
 }
 
@@ -887,9 +890,10 @@ char *pscript_property_build_gets(struct context *ctx)
 extern cvar_t skin, team, topcolor, bottomcolor, vid_fullscreen, cl_download_mapsrc;
 static struct pscript_property pscript_properties[] =
 {
+	{"",			false,	NULL,	pscript_property_curserver_gets, pscript_property_curserver_sets},
+	{"server",		false,	NULL,	pscript_property_curserver_gets, pscript_property_curserver_sets},
 	{"running",		false,	NULL,	NULL, NULL, pscript_property_running_getb, pscript_property_running_setb},
 	{"startserver",	false,	NULL,	pscript_property_startserver_gets, pscript_property_startserver_sets},
-	{"server",		false,	NULL,	pscript_property_curserver_gets, pscript_property_curserver_sets},
 	{"join",		false,	NULL,	NULL, pscript_property_curserver_sets},
 	{"playername",	true,	&name},
 	{NULL,			true,	&skin},
@@ -913,68 +917,11 @@ static struct pscript_property pscript_properties[] =
 	{"map",			false,	NULL,	NULL, pscript_property_map_sets},
 
 	{"build",		false,	NULL,	pscript_property_build_gets},
-/*
-		else if (!stricmp(argn[i], "connType"))
-		{
-			if (ctx->qtvf.connectiontype)
-				continue;
-			if (!stricmp(argn[i], "join"))
-				ctx->qtvf.connectiontype = QTVCT_JOIN;
-			else if (!stricmp(argn[i], "qtv"))
-				ctx->qtvf.connectiontype = QTVCT_STREAM;
-			else if (!stricmp(argn[i], "connect"))
-				ctx->qtvf.connectiontype = QTVCT_CONNECT;
-			else if (!stricmp(argn[i], "map"))
-				ctx->qtvf.connectiontype = QTVCT_MAP;
-			else if (!stricmp(argn[i], "join"))
-				ctx->qtvf.connectiontype = QTVCT_JOIN;
-			else if (!stricmp(argn[i], "observe"))
-				ctx->qtvf.connectiontype = QTVCT_OBSERVE;
-			else
-				ctx->qtvf.connectiontype = QTVCT_NONE;
-		}
-		else if (!stricmp(argn[i], "map"))
-		{
-			if (ctx->qtvf.connectiontype)
-				continue;
-			ctx->qtvf.connectiontype = QTVCT_MAP;
-			Q_strncpyz(ctx->qtvf.server, argv[i], sizeof(ctx->qtvf.server));
-		}
-		else if (!stricmp(argn[i], "join"))
-		{
-			if (ctx->qtvf.connectiontype)
-				continue;
-			ctx->qtvf.connectiontype = QTVCT_JOIN;
-			Q_strncpyz(ctx->qtvf.server, argv[i], sizeof(ctx->qtvf.server));
-		}
-		else if (!stricmp(argn[i], "observe"))
-		{
-			if (ctx->qtvf.connectiontype)
-				continue;
-			ctx->qtvf.connectiontype = QTVCT_OBSERVE;
-			Q_strncpyz(ctx->qtvf.server, argv[i], sizeof(ctx->qtvf.server));
-		}
-		else if (!stricmp(argn[i], "password"))
-		{
-			ctx->password = strdup(argv[i]);
-		}
-		else if (!stricmp(argn[i], "onStart"))
-		{
-			ctx->onstart = strdup(argv[i]);
-		}
-		else if (!stricmp(argn[i], "onEnd"))
-		{
-			ctx->onend = strdup(argv[i]);
-		}
-		else if (!stricmp(argn[i], "onDemoEnd"))
-		{
-			ctx->ondemoend = strdup(argv[i]);
-		}
-*/
+
 	{NULL}
 };
 
-struct pscript_property *Plug_FindProp(struct context *ctx, const char *field)
+int Plug_FindProp(struct context *ctx, const char *field)
 {
 	struct pscript_property *prop;
 	for (prop = pscript_properties; prop->name||prop->cvar; prop++)
@@ -984,17 +931,18 @@ struct pscript_property *Plug_FindProp(struct context *ctx, const char *field)
 			if (prop->onlyifactive)
 			{
 				if (!ctx->pub.running)
-					return NULL;
+					return -1;
 			}
-			return prop;
+			return prop - pscript_properties;
 		}
 	}
-	return NULL;
+	return -1;
 }
 
-qboolean Plug_SetString(struct context *ctx, struct pscript_property *field, const char *value)
+qboolean Plug_SetString(struct context *ctx, int fieldidx, const char *value)
 {
-	if (!ctx || !field || !value)
+	struct pscript_property *field = pscript_properties + fieldidx;
+	if (!ctx || fieldidx < 0 || fieldidx >= sizeof(pscript_properties)/sizeof(pscript_properties[0]) || !value)
 		return false;
 	if (field->setstring)
 	{
@@ -1024,9 +972,16 @@ qboolean Plug_SetString(struct context *ctx, struct pscript_property *field, con
 		return false;
 	return true;
 }
-qboolean Plug_SetInteger(struct context *ctx, struct pscript_property *field, int value)
+qboolean Plug_SetWString(struct context *ctx, int fieldidx, const wchar_t *value)
 {
-	if (!ctx || !field)
+	char tmp[1024];
+	wcstombs(tmp, value, sizeof(tmp));
+	return Plug_SetString(ctx, fieldidx, tmp);
+}
+qboolean Plug_SetInteger(struct context *ctx, int fieldidx, int value)
+{
+	struct pscript_property *field = pscript_properties + fieldidx;
+	if (!ctx || fieldidx < 0 || fieldidx >= sizeof(pscript_properties)/sizeof(pscript_properties[0]))
 		return false;
 	if (field->setint)
 	{
@@ -1050,9 +1005,10 @@ qboolean Plug_SetInteger(struct context *ctx, struct pscript_property *field, in
 		return false;
 	return true;
 }
-qboolean Plug_SetFloat(struct context *ctx, struct pscript_property *field, float value)
+qboolean Plug_SetFloat(struct context *ctx, int fieldidx, float value)
 {
-	if (!ctx || !field)
+	struct pscript_property *field = pscript_properties + fieldidx;
+	if (!ctx || fieldidx < 0 || fieldidx >= sizeof(pscript_properties)/sizeof(pscript_properties[0]))
 		return false;
 	if (field->setfloat)
 	{
@@ -1077,8 +1033,12 @@ qboolean Plug_SetFloat(struct context *ctx, struct pscript_property *field, floa
 	return true;
 }
 
-qboolean Plug_GetString(struct context *ctx, struct pscript_property *field, const char **value)
+qboolean Plug_GetString(struct context *ctx, int fieldidx, const char **value)
 {
+	struct pscript_property *field = pscript_properties + fieldidx;
+	if (!ctx || fieldidx < 0 || fieldidx >= sizeof(pscript_properties)/sizeof(pscript_properties[0]))
+		return false;
+
 	if (field->getstring)
 	{
 		*value = field->getstring(ctx);
@@ -1090,8 +1050,12 @@ void Plug_GotString(const char *value)
 {
 	free((char*)value);
 }
-qboolean Plug_GetInteger(struct context *ctx, struct pscript_property *field, int *value)
+qboolean Plug_GetInteger(struct context *ctx, int fieldidx, int *value)
 {
+	struct pscript_property *field = pscript_properties + fieldidx;
+	if (!ctx || fieldidx < 0 || fieldidx >= sizeof(pscript_properties)/sizeof(pscript_properties[0]))
+		return false;
+
 	if (field->getint)
 	{
 		*value = field->getint(ctx);
@@ -1099,8 +1063,12 @@ qboolean Plug_GetInteger(struct context *ctx, struct pscript_property *field, in
 	}
 	return false;
 }
-qboolean Plug_GetFloat(struct context *ctx, struct pscript_property *field, float *value)
+qboolean Plug_GetFloat(struct context *ctx, int fieldidx, float *value)
 {
+	struct pscript_property *field = pscript_properties + fieldidx;
+	if (!ctx || fieldidx < 0 || fieldidx >= sizeof(pscript_properties)/sizeof(pscript_properties[0]))
+		return false;
+
 	if (field->getfloat)
 	{
 		*value = field->getfloat(ctx);
@@ -1161,7 +1129,9 @@ static const struct plugfuncs exportedplugfuncs_1 =
 	Plug_GetFloat,
 
 	Plug_GetSplashBack,
-	Plug_ReleaseSplashBack
+	Plug_ReleaseSplashBack,
+
+	Plug_SetWString
 };
 
 const struct plugfuncs *Plug_GetFuncs(int ver)

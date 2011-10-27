@@ -665,15 +665,35 @@ void CL_CalcClientTime(void)
 		}
 		else
 		{
-			want = cl.oldgametime + (realtime - cl.gametimemark);
-			if (want>cl.servertime)
-				cl.servertime = want;
+			oldst = cl.servertime;
+
+			cl.servertime += host_frametime;
 
 			if (cl.servertime > cl.gametime)
+			{
 				cl.servertime = cl.gametime;
+//				Con_Printf("clamped to new time\n");
+			}
 			if (cl.servertime < cl.oldgametime)
-				cl.servertime = cl.oldgametime;
+			{
+				if (cl.servertime < cl.oldgametime-0.5)
+				{
+					cl.servertime = cl.oldgametime-0.5;
+//					Con_Printf("clamped to old time\n");
+				}
+				else if (cl.servertime < cl.oldgametime-0.3)
+				{
+					cl.servertime += 0.02*(cl.oldgametime - cl.servertime);
+//					Con_Printf("running really slow\n");
+				}
+				else
+				{
+					cl.servertime += 0.01*(cl.oldgametime - cl.servertime);
+//					Con_Printf("running slow\n");
+				}
+			}
 		}
+		cl.time = cl.servertime;
 		if (oldst == 0)
 		{
 			int i;
@@ -682,6 +702,7 @@ void CL_CalcClientTime(void)
 				cl.players[i].entertime += cl.servertime;
 			}
 		}
+		return;
 	}
 
 	if (cls.protocol == CP_NETQUAKE || (cls.demoplayback && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV))
@@ -754,8 +775,6 @@ void CL_PredictMovePNum (int pnum)
 
 	if (cl.paused && !(cls.demoplayback!=DPB_MVD && cls.demoplayback!=DPB_EZTV) && (!cl.spectator || !autocam[pnum]))
 		return;
-
-	CL_CalcClientTime();
 
 	if (cl.intermission && cl.intermission != 3 && cls.protocol == CP_QUAKEWORLD)
 	{
@@ -885,7 +904,7 @@ fixedorg:
 
 			cl.onground[pnum] = pmove.onground;
 
-			if (to->senttime >= cl.time)
+			if (to->senttime >= realtime)
 				break;
 			from = to;
 		}
@@ -895,7 +914,7 @@ fixedorg:
 			from = to;
 			to = &ind;
 			to->cmd[pnum] = independantphysics[pnum];
-			to->senttime = cl.time;
+			to->senttime = realtime;
 				CL_PredictUsercmd (pnum, &from->playerstate[cl.playernum[pnum]]
 				, &to->playerstate[cl.playernum[pnum]], &to->cmd[pnum]);
 
@@ -918,7 +937,7 @@ fixedorg:
 			f = 0;
 		else
 		{
-			f = (cl.time - from->senttime) / (to->senttime - from->senttime);
+			f = (realtime - from->senttime) / (to->senttime - from->senttime);
 
 			if (f < 0)
 				f = 0;

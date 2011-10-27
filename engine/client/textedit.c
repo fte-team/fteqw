@@ -526,7 +526,7 @@ void Editor_Key(int key, int unicode)
 	case K_F4:
 		EditorSaveFile(OpenEditorFile);
 		break;
-	case K_F5:
+	case K_F5:	/*stop debugging*/
 		editormodal = false;
 		if (editprogfuncs)
 			*editprogfuncs->pr_trace = false;
@@ -535,16 +535,16 @@ void Editor_Key(int key, int unicode)
 		if (editprogfuncs)
 			PR_StackTrace(editprogfuncs);
 		break;
-	case K_F7:
+	case K_F7: /*save+recompile*/
 		EditorSaveFile(OpenEditorFile);
 		if (editprogfuncs)
 			Cbuf_AddText("compile\n", RESTRICT_LOCAL);
 		break;
-	case K_F8:
+	case K_F8:	/*move execution point to here - I hope you move to the same function!*/
 		executionlinenum = cursorlinenum;
 		executionblock = cursorblock;
 		break;
-	case K_F9:
+	case K_F9: /*set breakpoint*/
 		{
 			int f = 0;
 			if (editprogfuncs)
@@ -570,11 +570,11 @@ void Editor_Key(int key, int unicode)
 				cursorblock->flags &= ~FB_BREAK;
 		}
 		break;
-	case K_F10:
+	case K_F10: //save+apply changes, supposedly
 		EditorSaveFile(OpenEditorFile);
 		Cbuf_AddText("applycompile\n", RESTRICT_LOCAL);
 		break;
-	case K_F11:
+	case K_F11: //single step
 		editormodal = false;
 		break;
 //	case K_STOP:

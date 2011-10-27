@@ -175,6 +175,7 @@ typedef struct
 {
 	int		entity;
 	short	tag;
+	qbyte	active;
 	qbyte	flags;
 	qbyte	type;
 	qbyte	skin;
@@ -571,6 +572,7 @@ beam_t	*CL_NewBeam (int entity, int tag)
 		for (i=0, b=cl_beams; i < beams_running; i++, b++)
 			if (b->entity == entity && b->tag == tag)
 			{
+				b->active = true;
 				return b;
 			}
 	}
@@ -578,8 +580,9 @@ beam_t	*CL_NewBeam (int entity, int tag)
 // find a free beam
 	for (i=0, b=cl_beams; i < beams_running; i++, b++)
 	{
-		if (!b->model)
+		if (!b->active)
 		{
+			b->active = true;
 			return b;
 		}
 	}
@@ -587,6 +590,7 @@ beam_t	*CL_NewBeam (int entity, int tag)
 	if (i == beams_running && i != MAX_BEAMS)
 	{
 		beams_running++;
+		cl_beams[i].active = true;
 		return &cl_beams[i];
 	}
 
@@ -603,6 +607,7 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 	int i;
 	vec3_t impact, normal;
 	vec3_t extra;
+	char *mname;
 
 	switch(tent)
 	{
@@ -610,12 +615,12 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 		if (ent < 0 && ent >= -512)	//a zquake concept. ent between -1 and -maxplayers is to be taken to be a railtrail from a particular player instead of a beam.
 		{
 			// TODO: add support for those finnicky colored railtrails...
-			if (P_ParticleTrail(start, end, rtqw_railtrail, NULL))
+			if (P_ParticleTrail(start, end, rtqw_railtrail, -ent, NULL))
 				P_ParticleTrailIndex(start, end, 208, 8, NULL);
 			return;
 		}
 	default:
-		m = Mod_ForName("progs/bolt.mdl", false);
+		mname = "progs/bolt.mdl";
 		btype = rtfte_lightning1;
 		etype = ptfte_lightning1_end;
 		break;
@@ -623,37 +628,43 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 		if (ent < 0 && ent >= -MAX_CLIENTS)	//based on the railgun concept - this adds a rogue style TE_BEAM effect.
 		{
 	case 5:
-			m = Mod_ForName("progs/beam.mdl", false);	//remember to precache!
+			mname = "progs/beam.mdl";	//remember to precache!
 			btype = P_FindParticleType("te_beam");
 			etype = P_FindParticleType("te_beam_end");
 		}
 		else
 		{
-			m = Mod_ForName("progs/bolt2.mdl", false);
+			mname = "progs/bolt2.mdl";
 			btype = rtfte_lightning2;
 			etype = ptfte_lightning2_end;
 		}
 		break;
 	case 2:
-		m = Mod_ForName("progs/bolt3.mdl", false);
+		mname = "progs/bolt3.mdl";
 		btype = rtfte_lightning3;
 		etype = ptfte_lightning3_end;
 		break;
 #ifdef Q2CLIENT
 	case 3:
-		m = Mod_ForName(q2tentmodels[q2cl_mod_parasite_segment].modelname, false);
+		mname = q2tentmodels[q2cl_mod_parasite_segment].modelname;
 		btype = P_FindParticleType("te_parasite_attack");
 		etype = P_FindParticleType("te_parasite_attack_end");
 		break;
 	case 4:
-		m = Mod_ForName(q2tentmodels[q2cl_mod_grapple_cable].modelname, false);
+		mname = q2tentmodels[q2cl_mod_grapple_cable].modelname;
 		btype = P_FindParticleType("te_grapple_cable");
 		etype = P_FindParticleType("te_grapple_cable_end");
 		break;
 #endif
 	}
 
-	if (!m || m->needload)
+	/*don't bother loading the model if we have a particle effect for it instead*/
+	if (ruleset_allow_particle_lightning.ival && btype >= 0)
+		m = NULL;
+	else
+		m = Mod_ForName(mname, false);
+
+	if (m && m->needload)
 		CL_CheckOrEnqueDownloadFile(m->name, NULL, 0);
 
 	// save end position for truelightning
@@ -695,11 +706,11 @@ void CL_AddBeam (int tent, int ent, vec3_t start, vec3_t end)	//fixme: use TE_ n
 
 	b->entity = ent;
 	b->model = m;
+	b->particleeffect = btype;
 	b->tag = -1;
 	b->flags |= /*STREAM_ATTACHED|*/1;
 	b->endtime = cl.time + 0.2;
 	b->alpha = 1;
-	b->particleeffect = btype;
 	VectorCopy (start, b->start);
 	VectorCopy (end, b->end);
 
@@ -765,6 +776,7 @@ void CL_ParseStream (int type)
 	b->tag = tag;
 	b->flags = flags;
 	b->model = NULL;
+	b->particleeffect = -1;
 	b->endtime = cl.time + duration;
 	b->alpha = 1;
 	b->skin = skin;
@@ -1282,8 +1294,8 @@ void CL_ParseTEnt (void)
 		pos2[1] = MSG_ReadCoord ();
 		pos2[2] = MSG_ReadCoord ();
 
-		if (P_ParticleTrail(pos, pos2, rtqw_railtrail, NULL))
-			if (P_ParticleTrail(pos, pos2, rtq2_railtrail, NULL))
+		if (P_ParticleTrail(pos, pos2, rtqw_railtrail, 0, NULL))
+			if (P_ParticleTrail(pos, pos2, rtq2_railtrail, 0, NULL))
 				P_ParticleTrailIndex(pos, pos2, 208, 8, NULL);
 		break;
 
@@ -1421,7 +1433,7 @@ void CL_ParseTEnt (void)
 		// stain (Hopefully this is close to how DP does it)
 		R_AddStain(pos, -10, -10, -10, 30);
 
-		if (P_ParticleTrail(pos, pos2, P_FindParticleType("te_plasmaburn"), NULL))
+		if (P_ParticleTrail(pos, pos2, P_FindParticleType("te_plasmaburn"), 0, NULL))
 			P_ParticleTrailIndex(pos, pos2, 15, 0, NULL);
 		break;
 
@@ -1439,7 +1451,7 @@ void CL_ParseTEnt (void)
 		MSG_ReadCoord ();
 		MSG_ReadCoord ();
 
-		if (P_ParticleTrail(pos, pos2, P_FindParticleType("te_nexbeam"), NULL))
+		if (P_ParticleTrail(pos, pos2, P_FindParticleType("te_nexbeam"), 0, NULL))
 			P_ParticleTrailIndex(pos, pos2, 15, 0, NULL);
 		break;
 
@@ -1634,7 +1646,7 @@ void CL_ParseCustomTEnt(void)
 	{
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		failed = P_ParticleTrail(pos, pos2, t->particleeffecttype, NULL);
+		failed = P_ParticleTrail(pos, pos2, t->particleeffecttype, 0, NULL);
 	}
 	else
 	{
@@ -1736,8 +1748,8 @@ void CLDP_ParseTrailParticles(void)
 		ts = NULL;
 
 	effectindex = P_FindParticleType(COM_Effectinfo_ForNumber(effectindex));
-	if (P_ParticleTrail(start, end, effectindex, ts))
-		P_ParticleTrail(start, end, rt_blood, ts);
+	if (P_ParticleTrail(start, end, effectindex, entityindex, ts))
+		P_ParticleTrail(start, end, rt_blood, entityindex, ts);
 }
 
 void CLDP_ParsePointParticles(qboolean compact)
@@ -2111,7 +2123,7 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_RAILTRAIL:			// railgun effect
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		if (P_ParticleTrail(pos, pos2, rtq2_railtrail, NULL))
+		if (P_ParticleTrail(pos, pos2, rtq2_railtrail, 0, NULL))
 			P_ParticleTrailIndex(pos, pos2, 0x74, 8, NULL);
 		Q2S_StartSound (pos, 0, 0, S_PrecacheSound ("weapons/railgf1a.wav"), 1, ATTN_NORM, 0);
 		break;
@@ -2321,7 +2333,7 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_BUBBLETRAIL:
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		if (P_ParticleTrail(pos, pos2, rtq2_bubbletrail, NULL))
+		if (P_ParticleTrail(pos, pos2, rtq2_bubbletrail, 0, NULL))
 			P_ParticleTrailIndex(pos, pos2, 4, 8, NULL);
 		break;
 
@@ -2496,7 +2508,7 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_DEBUGTRAIL:
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
-		if (P_ParticleTrail(pos, pos2, P_FindParticleType("te_debugtrail"), NULL))
+		if (P_ParticleTrail(pos, pos2, P_FindParticleType("te_debugtrail"), 0, NULL))
 			P_ParticleTrailIndex(pos, pos2, 116, 8, NULL);
 		break;
 
@@ -2800,7 +2812,7 @@ void CL_UpdateBeams (void)
 // update lightning
 	for (bnum=0, b=cl_beams; bnum < beams_running; bnum++, b++)
 	{
-		if (!b->model)
+		if (!b->active)
 			continue;
 
 		if (b->endtime < cl.time)
@@ -2809,7 +2821,7 @@ void CL_UpdateBeams (void)
 			{	/*don't let lightning decay while paused*/
 				P_DelinkTrailstate(&b->trailstate);
 				P_DelinkTrailstate(&b->emitstate);
-				b->model = NULL;
+				b->active = false;
 				continue;
 			}
 		}
@@ -2851,7 +2863,7 @@ void CL_UpdateBeams (void)
 						VectorSubtract (playerbeam_end[j], vieworg, org);
 						len = VectorLength(org);
 						org[2] -= 22;		// adjust for view height
-						vectoangles (org, ang);
+						VectorAngles (org, NULL, ang);
 
 						// lerp pitch
 						ang[0] = -ang[0];
@@ -2926,9 +2938,11 @@ void CL_UpdateBeams (void)
 				pitch += 360;
 		}
 
-		if (ruleset_allow_particle_lightning.ival)
-			if (b->particleeffect >= 0 && !P_ParticleTrail(b->start, b->end, b->particleeffect, &b->trailstate))
+		if (ruleset_allow_particle_lightning.ival || !b->model)
+			if (b->particleeffect >= 0 && !P_ParticleTrail(b->start, b->end, b->particleeffect, b->entity, &b->trailstate))
 				continue;
+		if (!b->model)
+			continue;
 
 	// add new entities for the lightning
 		VectorCopy (b->start, org);

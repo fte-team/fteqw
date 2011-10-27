@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 void CL_FinishTimeDemo (void);
 float demtime;
+int demoframe;
 
 int cls_lastto;
 int cls_lasttype;
@@ -430,12 +431,12 @@ qboolean CL_GetDemoMessage (void)
 				olddemotime = 0;
 				return 0;
 			}
-			if ((cls.timedemo && cls.netchan.last_received == (float)realtime) || (!cls.timedemo && demtime<= cl.gametime && cl.gametime))// > dem_lasttime+demtime)
+			cls.netchan.last_received = realtime;
+			if ((cls.timedemo && host_framecount == demoframe) || (!cls.timedemo && demtime<= cl.gametime && cl.gametime))// > dem_lasttime+demtime)
 			{
 				if (demtime <= cl.gametime-1)
 				{
 					demtime = cl.gametime;
-					cls.netchan.last_received = realtime;
 				}
 
 				{
@@ -457,6 +458,7 @@ qboolean CL_GetDemoMessage (void)
 				}
 				return 0;
 			}
+			demoframe = host_framecount;
 		}
 		if (readdemobytes(&demopos, &msglength, 4) != 4)
 		{
@@ -537,13 +539,12 @@ readnext:
 // decide if it is time to grab the next message
 	if (cls.timedemo)
 	{
-		if (cls.state == ca_active)
+		if (cls.state == ca_active || cl.validsequence)
 		{
 			if (cls.td_lastframe < 0)
-				cls.td_lastframe = host_framecount;
+				cls.td_lastframe = demotime;
 			else if (host_framecount == cls.td_lastframe)
 			{
-				cls.td_lastframe = host_framecount;
 				return 0;		// already read this frame's message
 			}
 			if (cls.td_startframe == -1)
@@ -780,6 +781,7 @@ readit:
 	demo_flushbytes(demopos);
 
 	olddemotime = demotime;
+	cls.td_lastframe = host_framecount;
 
 	return 1;
 }
@@ -796,7 +798,7 @@ qboolean CL_GetMessage (void)
 	if	(cls.demoplayback != DPB_NONE)
 		return CL_GetDemoMessage ();
 
-	if (!NET_GetPacket (NS_CLIENT))
+	if (NET_GetPacket (NS_CLIENT, 0) < 0)
 		return false;
 
 	CL_WriteDemoMessage (&net_message);
@@ -1418,8 +1420,8 @@ void CL_PlayDemo_f (void)
 	}
 
 #ifdef WEBCLIENT
-#ifdef _MSC_VER
-#pragma message("playdemo http://blah is broken right now")
+#ifdef warningmsg
+#pragma warningmsg("playdemo http://blah is broken right now")
 #endif
 #if 0
 	if (!strncmp(Cmd_Argv(1), "ftp://", 6) || !strncmp(Cmd_Argv(1), "http://", 7))
@@ -1597,8 +1599,8 @@ void CL_Demo_ClientCommand(char *commandtext)
 {
 	unsigned char b = 1;
 	unsigned short len = LittleShort((unsigned short)(strlen(commandtext) + 4));
-#ifndef _MSC_VER
-#warning "this needs buffering safely"
+#ifdef warningmsg
+#pragma warningmsg("this needs buffering safely")
 #endif
 	if (cls.demoplayback == DPB_EZTV)
 	{

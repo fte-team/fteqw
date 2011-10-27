@@ -692,7 +692,7 @@ void M_Menu_Teamplay_f (void)
 		MB_CHECKBOXCVARTIP("Parse Macros", cl_parseSay, 0, "Whether to parse teamplay macros like %l etc."),
 		MB_CHECKBOXCVARTIP("Load Locs", tp_loadlocs, 0, "Whether to load teamplay locations from .loc files"),
 		MB_CHECKBOXCVARTIP("No Blink", cl_noblink, 0, "No blinking characters"),
-		MB_EDITCVARTIP("Sound Trigger", "tp_soundtrigger", "Character that indicates the following text is a wav file.\nExample:\nsay_team ~location.wav$\me: I'm at %l #a"),
+		MB_EDITCVARTIP("Sound Trigger", "tp_soundtrigger", "Character that indicates the following text is a wav file.\nExample:\nsay_team ~location.wav$\\me: I'm at %l #a"),
 		MB_EDITCVARTIP("Weapon Order", "tp_weapon_order","Weapon preference order:\n8 = Lightning Gun\n7 = Rocket Launcher\n6 = Grenade Launcher\n5 = Super Nailgun\n4 = Nailgun\n3 = Super Shotgun\n2 = Shotgun\n1 = Axe"),
 		MB_CHECKBOXCVARTIP("Teamplay Triggers", cl_triggers, 0, "Enable or disable teamplay triggers"),
 		MB_CHECKBOXCVARTIP("Force Triggers", tp_forceTriggers, 0, "Whether to force teamplay triggers in non-teamplay play like in a 1 on 1 situation"),
@@ -935,7 +935,7 @@ void M_Menu_Network_f (void)
 		NULL
 	};
 	static const char *splitvalues[] = {"0", "1", "2", "3", NULL};
-	extern cvar_t allow_download_csprogs, allow_download_redirection, requiredownloads, cl_solid_players;
+	extern cvar_t cl_download_csprogs, cl_download_redirection, requiredownloads, cl_solid_players;
 	extern cvar_t cl_splitscreen, cl_predict_players;
 	menu_t *menu;
 	int y;
@@ -948,10 +948,10 @@ void M_Menu_Network_f (void)
 		MB_EDITCVARSLIM("Download Rate", "drate", "Maximum bytes per second that the server should send maps and demos to the client"),
 		MB_SPACING(4),
 		MB_CHECKBOXCVARTIP("Require Download", requiredownloads, 0, "Ignore downloaded content sent to the client and connect immediatly"),
-		MB_CHECKBOXCVARTIP("Redirect Download", allow_download_redirection, 0, "Whether the client will ignore download redirection from servers"),
-		MB_CHECKBOXCVARTIP("Download CSQC", allow_download_csprogs, 0, "Whether to allow the client to download CSQC (client-side QuakeC) progs from servers"),
+		MB_CHECKBOXCVARTIP("Redirect Download", cl_download_redirection, 0, "Whether the client will ignore download redirection from servers"),
+		MB_CHECKBOXCVARTIP("Download CSQC", cl_download_csprogs, 0, "Whether to allow the client to download CSQC (client-side QuakeC) progs from servers"),
 		MB_SPACING(4),
-		MB_CHECKBOXCVARTIP("Predict Players", cl_predict_players, 0, "Toggle player prediction"),
+		MB_CHECKBOXCVARTIP("Predict Other Players", cl_predict_players, 0, "Toggle player prediction"),
 		MB_CHECKBOXCVARTIP("Solid Players", cl_solid_players, 0, "When running/clipping into other players, ON make it appear they are solid, OFF will make it appear like running into a marshmellon."),
 		MB_COMBOCVAR("Split-screen", cl_splitscreen, splitopts, splitvalues, "Enables split screen with a number of clients. This feature requires server support."),
 		MB_END()

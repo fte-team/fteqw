@@ -2083,7 +2083,9 @@ int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, 
 			switch (bulk->variant)
 			{
 			case -1: // end of menu
+			default:
 				bulk = NULL;
+				control = NULL;
 				continue;
 			case 0: // white text
 				control = (union menuoption_s *)MC_AddWhiteText(menu, x, y, bulk->text, bulk->rightalign);
@@ -2093,6 +2095,7 @@ int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, 
 				break;
 			case 2: // spacing
 				spacing = bulk->spacing;
+				control = NULL;
 				break;
 			}
 			break;
@@ -2149,11 +2152,11 @@ int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, 
 
 		if (bulk->ret)
 			*bulk->ret = control;
-		if (MI_Selectable(control) && !selected)
+		if (control && MI_Selectable(control) && !selected)
 			selected = control;
-		if (bulk->tooltip)
+		if (control && bulk->tooltip)
 			control->common.tooltip = bulk->tooltip;
-		if (xleft > 0)
+		if (control && xleft > 0)
 			control->common.extracollide = xleft;
 		y += spacing;
 

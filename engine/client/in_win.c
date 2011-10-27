@@ -1317,18 +1317,15 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 		if (mousecursor_y >= vid.height)
 			mousecursor_y = vid.height - 1;
 		mx=my=0;
+
+#ifdef PEXT_CSQC
+		CSQC_MousePosition(mousecursor_x, mousecursor_y);
+#endif
 	}
 	else
 	{
 #ifdef VM_UI
 		if (UI_MousePosition(mx, my))
-		{
-			mx = 0;
-			my = 0;
-		}
-#endif
-#ifdef PEXT_CSQC
-		if (CSQC_MousePosition(mx, my))
 		{
 			mx = 0;
 			my = 0;

@@ -39,7 +39,7 @@ typedef struct csqctreadstate_s {
 	struct csqctreadstate_s *next;
 } csqctreadstate_t;
 
-static unsigned int csqcchecksum;
+static unsigned int csprogs_checksum, csaddon_checksum;
 static csqctreadstate_t *csqcthreads;
 qboolean csqc_resortfrags;
 qboolean csqc_drawsbar;
@@ -49,6 +49,7 @@ world_t csqc_world;
 
 static int csqc_lplayernum;
 static qboolean csqc_isdarkplaces;
+static qboolean csqc_singlecheats; /*single player or cheats active, allowing custom addons*/
 
 static char csqc_printbuffer[8192];
 
@@ -156,6 +157,7 @@ typedef enum
 	globalfloat(svtime,					"time");				/*float		Written before entering most qc functions*/	\
 	globalfloat(frametime,				"frametime");			/*float		Written before entering most qc functions*/	\
 	globalfloat(cltime,					"cltime");				/*float		Written before entering most qc functions*/	\
+	globalfloat(physics_mode,			"physics_mode");		/*float		Written before entering most qc functions*/	\
 	globalentity(self,					"self");				/*entity	Written before entering most qc functions*/	\
 	globalentity(other,					"other");				/*entity	Written before entering most qc functions*/	\
 	\
@@ -266,6 +268,7 @@ static void CSQC_ChangeLocalPlayer(int lplayernum)
 
 static void CSQC_FindGlobals(void)
 {
+	static float csphysicsmode = 0;
 #define globalfloat(name,qcname) csqcg.name = (float*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
 #define globalvector(name,qcname) csqcg.name = (float*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
 #define globalentity(name,qcname) csqcg.name = (int*)PR_FindGlobal(csqcprogs, qcname, 0, NULL);
@@ -290,9 +293,16 @@ static void CSQC_FindGlobals(void)
 	csqc_world.g.self = csqcg.self;
 	csqc_world.g.other = csqcg.other;
 	csqc_world.g.force_retouch = (float*)PR_FindGlobal(csqcprogs, "force_retouch", 0, NULL);
+	csqc_world.g.physics_mode = csqcg.physics_mode;
 	csqc_world.g.frametime = csqcg.frametime;
 	csqc_world.g.newmis = (int*)PR_FindGlobal(csqcprogs, "newmis", 0, NULL);
 	csqc_world.g.time = csqcg.svtime;
+	csqc_world.g.v_forward = csqcg.forward;
+	csqc_world.g.v_right = csqcg.right;
+	csqc_world.g.v_up = csqcg.up;
+
+	if (!csqc_world.g.physics_mode)
+		csqc_world.g.physics_mode = &csphysicsmode;
 
 	if (csqcg.maxclients)
 		*csqcg.maxclients = cl.allocated_client_slots;
@@ -459,27 +469,6 @@ static int csqcentsize;
 static char *csqcmapentitydata;
 static qboolean csqcmapentitydataloaded;
 
-
-
-#define MAX_SKEL_OBJECTS 1024
-
-typedef struct {
-	int inuse;
-
-	model_t *model;
-	qboolean absolute;
-
-	unsigned int numbones;
-	float *bonematrix;
-} skelobject_t;
-
-skelobject_t skelobjects[MAX_SKEL_OBJECTS];
-int numskelobjectsused;
-
-skelobject_t *skel_get(progfuncs_t *prinst, int skelidx, int bonecount);
-void skel_dodelete(void);
-
-
 qboolean csqc_deprecated_warned;
 #define csqc_deprecated(s) do {if (!csqc_deprecated_warned){Con_Printf("csqc warning: %s\n", s); csqc_deprecated_warned = true;}}while(0)
 
@@ -551,13 +540,7 @@ static void cs_getframestate(csqcedict_t *in, unsigned int rflags, framestate_t 
 	out->bonestate = NULL;
 	if (in->xv->skeletonindex)
 	{
-		skelobject_t *so;
-		so = skel_get(csqcprogs, in->xv->skeletonindex, 0);
-		if (so && so->inuse == 1)
-		{
-			out->bonecount = so->numbones;
-			out->bonestate = so->bonematrix;
-		}
+		skel_lookup(csqcprogs, in->xv->skeletonindex, out);
 	}
 }
 
@@ -656,6 +639,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	int ival;
 	model_t *model;
 	unsigned int rflags;
+	unsigned int effects;
 
 	ival = in->v->modelindex;
 	model = CSQC_GetModelForIndex(ival);
@@ -665,7 +649,8 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	memset(out, 0, sizeof(*out));
 	out->model = model;
 
-	if (in->xv->renderflags)
+	rflags = in->xv->renderflags;
+	if (rflags)
 	{
 		rflags = in->xv->renderflags;
 		if (rflags & CSQCRF_VIEWMODEL)
@@ -681,10 +666,13 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 			out->flags |= RF_NOSHADOW;
 		//CSQCRF_FRAMETIMESARESTARTTIMES is below
 	}
-	else
-		rflags = 0;
 
-	if ((int)in->v->effects & EF_NODEPTHTEST)
+	effects = in->v->effects;
+	if (effects & NQEF_ADDITIVE)
+		out->flags |= Q2RF_ADDITIVE;
+	if (effects & DPEF_NOSHADOW)
+		out->flags |= RF_NOSHADOW;
+	if (effects & EF_NODEPTHTEST)
 		out->flags |= RF_NODEPTHTEST;
 
 	cs_getframestate(in, rflags, &out->framestate);
@@ -901,6 +889,7 @@ static void QCBUILTIN PF_R_AddEntityMask(progfuncs_t *prinst, struct globalvars_
 	csqcedict_t *ent;
 	entity_t rent;
 	int e;
+	int maxe;
 
 	int oldself = *csqcg.self;
 
@@ -913,7 +902,8 @@ static void QCBUILTIN PF_R_AddEntityMask(progfuncs_t *prinst, struct globalvars_
 		}
 	}
 
-	for (e=1; e < *prinst->parms->sv_num_edicts; e++)
+	maxe = *prinst->parms->sv_num_edicts;
+	for (e=1; e < maxe; e++)
 	{
 		ent = (void*)EDICT_NUM(prinst, e);
 		if (ent->isfree)
@@ -1134,7 +1124,7 @@ static void QCBUILTIN PF_R_ClearScene (progfuncs_t *prinst, struct globalvars_s 
 		CL_SetUpPlayerPrediction(true);
 	}
 
-	skel_dodelete();
+	skel_dodelete(csqcprogs);
 	CL_SwapEntityLists();
 
 	view_frame = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
@@ -1173,8 +1163,8 @@ static void QCBUILTIN PF_R_GetViewFlag(progfuncs_t *prinst, struct globalvars_s 
 		*r = r_refdef.fov_y;
 		break;
 
-#ifdef _MSC_VER
-#pragma message("fixme: AFOV not retrievable")
+#ifdef warningmsg
+#pragma warningmsg("fixme: AFOV not retrievable")
 #endif
 	case VF_AFOV:
 		*r = r_refdef.fov_x;
@@ -1938,9 +1928,9 @@ static void QCBUILTIN PF_cs_trailparticles (progfuncs_t *prinst, struct globalva
 	}
 
 	if (!ent->entnum)	//world trails are non-state-based.
-		pe->ParticleTrail(start, end, efnum, NULL);
+		pe->ParticleTrail(start, end, efnum, 0, NULL);
 	else
-		pe->ParticleTrail(start, end, efnum, &ent->trailstate);
+		pe->ParticleTrail(start, end, efnum, -ent->entnum, &ent->trailstate);
 }
 
 static void QCBUILTIN PF_cs_particleeffectnum (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2221,7 +2211,15 @@ static void QCBUILTIN PF_cs_serverkey (progfuncs_t *prinst, struct globalvars_s 
 	char adr[MAX_ADR_SIZE];
 
 	if (!strcmp(keyname, "ip"))
-		ret = NET_AdrToString(adr, sizeof(adr), cls.netchan.remote_address);
+	{
+		if (cls.demoplayback)
+		{
+			extern char lastdemoname[];
+			ret = lastdemoname;
+		}
+		else
+			ret = NET_AdrToString(adr, sizeof(adr), cls.netchan.remote_address);
+	}
 	else if (!strcmp(keyname, "protocol"))
 	{	//using this is pretty acedemic, really. Not particuarly portable.
 		switch (cls.protocol)
@@ -3332,8 +3330,8 @@ static void QCBUILTIN PF_cs_gettaginfo (progfuncs_t *prinst, struct globalvars_s
 
 	cs_getframestate(ent, ent->xv->renderflags, &fstate);
 
-#ifdef _MSC_VER
-#pragma message("PF_cs_gettaginfo: This function doesn't honour attachments (but setattachment isn't implemented yet anyway)")
+#ifdef warningmsg
+#pragma warningmsg("PF_cs_gettaginfo: This function doesn't honour attachments (but setattachment isn't implemented yet anyway)")
 #endif
 	if (!Mod_GetTag(mod, tagnum, &fstate, transforms))
 	{
@@ -3442,481 +3440,6 @@ static void QCBUILTIN PF_shaderforname (progfuncs_t *prinst, struct globalvars_s
 		G_FLOAT(OFS_RETURN) = 0;
 }
 
-void skel_reset(void)
-{
-	while (numskelobjectsused > 0)
-	{
-		numskelobjectsused--;
-		skelobjects[numskelobjectsused].numbones = 0;
-		skelobjects[numskelobjectsused].inuse = false;
-	}
-}
-
-void skel_dodelete(void)
-{
-	int skelidx;
-	for (skelidx = 0; skelidx < numskelobjectsused; skelidx++)
-	{
-		if (skelobjects[skelidx].inuse == 2)
-			skelobjects[skelidx].inuse = 0;
-	}
-}
-
-skelobject_t *skel_get(progfuncs_t *prinst, int skelidx, int bonecount)
-{
-	if (skelidx == 0)
-	{
-		//allocation
-		if (!bonecount)
-			return NULL;
-
-		for (skelidx = 0; skelidx < numskelobjectsused; skelidx++)
-		{
-			if (!skelobjects[skelidx].inuse && skelobjects[skelidx].numbones == bonecount)
-				return &skelobjects[skelidx];
-		}
-
-		for (skelidx = 0; skelidx <= numskelobjectsused; skelidx++)
-		{
-			if (!skelobjects[skelidx].inuse && !skelobjects[skelidx].numbones)
-			{
-				skelobjects[skelidx].numbones = bonecount;
-				skelobjects[skelidx].bonematrix = (float*)PR_AddString(prinst, "", sizeof(float)*12*bonecount);
-				if (skelidx <= numskelobjectsused)
-				{
-					numskelobjectsused = skelidx + 1;
-					skelobjects[skelidx].model = NULL;
-					skelobjects[skelidx].inuse = 1;
-				}
-				return &skelobjects[skelidx];
-			}
-		}
-
-		return NULL;
-	}
-	else
-	{
-		skelidx--;
-		if ((unsigned int)skelidx >= numskelobjectsused)
-			return NULL;
-		if (skelobjects[skelidx].inuse != 1)
-			return NULL;
-		if (bonecount && skelobjects[skelidx].numbones != bonecount)
-			return NULL;
-		return &skelobjects[skelidx];
-	}
-}
-
-//float(float modelindex) skel_create (FTE_CSQC_SKELETONOBJECTS)
-static void QCBUILTIN PF_skel_create (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int numbones;
-	skelobject_t *skelobj;
-	qboolean isabs;
-	model_t *model;
-	int midx;
-
-	midx = G_FLOAT(OFS_PARM0);
-
-	//default to failure
-	G_FLOAT(OFS_RETURN) = 0;
-
-	model = CSQC_GetModelForIndex(midx);
-	if (!model)
-		return; //no model set, can't get a skeleton
-
-	isabs = false;
-	numbones = Mod_GetNumBones(model, isabs);
-	if (!numbones)
-	{
-//		isabs = true;
-//		numbones = Mod_GetNumBones(model, isabs);
-//		if (!numbones)
-			return;	//this isn't a skeletal model.
-	}
-
-	skelobj = skel_get(prinst, 0, numbones);
-	if (!skelobj)
-		return;	//couldn't get one, ran out of memory or something?
-
-	skelobj->model = model;
-	skelobj->absolute = isabs;
-
-	G_FLOAT(OFS_RETURN) = (skelobj - skelobjects) + 1;
-}
-
-//float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone) skel_build (FTE_CSQC_SKELETONOBJECTS)
-static void QCBUILTIN PF_skel_build(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int skelidx = G_FLOAT(OFS_PARM0);
-	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM1);
-	int midx = G_FLOAT(OFS_PARM2);
-	float retainfrac = G_FLOAT(OFS_PARM3);
-	int firstbone = G_FLOAT(OFS_PARM4)-1;
-	int lastbone = G_FLOAT(OFS_PARM5)-1;
-	float addition = 1?G_FLOAT(OFS_PARM6):1-retainfrac;
-
-	int i, j;
-	int numbones;
-	framestate_t fstate;
-	skelobject_t *skelobj;
-	model_t *model;
-
-	//default to failure
-	G_FLOAT(OFS_RETURN) = 0;
-
-	model = CSQC_GetModelForIndex(midx);
-	if (!model)
-		return; //invalid model, can't get a skeleton
-
-	cs_getframestate(ent, ent->xv->renderflags, &fstate);
-
-	//heh... don't copy.
-	fstate.bonecount = 0;
-	fstate.bonestate = NULL;
-
-	numbones = Mod_GetNumBones(model, false);
-	if (!numbones)
-	{
-		return;	//this isn't a skeletal model.
-	}
-
-	skelobj = skel_get(prinst, skelidx, 0);
-	if (!skelobj)
-		return;	//couldn't get one, ran out of memory or something?
-
-	if (lastbone < 0)
-		lastbone = numbones;
-	if (lastbone > numbones)
-		lastbone = numbones;
-	if (firstbone < 0)
-		firstbone = 0;
-
-	if (retainfrac == 0 && addition == 1)
-	{
-		/*replace everything*/
-		Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, skelobj->bonematrix);
-	}
-	else
-	{
-		if (retainfrac != 1)
-		{
-			//rescale the existing bones
-			for (i = firstbone; i < lastbone; i++)
-			{
-				for (j = 0; j < 12; j++)
-					skelobj->bonematrix[i*12+j] *= retainfrac;
-			}
-		}
-		if (addition == 1)
-		{
-			//just add
-			float relationsbuf[MAX_BONES*12];
-			Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, relationsbuf);
-			for (i = firstbone; i < lastbone; i++)
-			{
-				for (j = 0; j < 12; j++)
-					skelobj->bonematrix[i*12+j] += relationsbuf[i*12+j];
-			}
-		}
-		else if (addition)
-		{
-			//add+scale
-			float relationsbuf[MAX_BONES*12];
-			Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, relationsbuf);
-			for (i = firstbone; i < lastbone; i++)
-			{
-				for (j = 0; j < 12; j++)
-					skelobj->bonematrix[i*12+j] += addition*relationsbuf[i*12+j];
-			}
-		}
-	}
-
-	G_FLOAT(OFS_RETURN) = (skelobj - skelobjects) + 1;
-}
-
-//float(float skel) skel_get_numbones (FTE_CSQC_SKELETONOBJECTS)
-static void QCBUILTIN PF_skel_get_numbones (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int skelidx = G_FLOAT(OFS_PARM0);
-	skelobject_t *skelobj;
-
-	skelobj = skel_get(prinst, skelidx, 0);
-
-	if (!skelobj)
-		G_FLOAT(OFS_RETURN) = 0;
-	else
-		G_FLOAT(OFS_RETURN) = skelobj->numbones;
-}
-
-//string(float skel, float bonenum) skel_get_bonename (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
-static void QCBUILTIN PF_skel_get_bonename (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int skelidx = G_FLOAT(OFS_PARM0);
-	int boneidx = G_FLOAT(OFS_PARM1);
-	skelobject_t *skelobj;
-
-	skelobj = skel_get(prinst, skelidx, 0);
-
-	if (!skelobj)
-		G_INT(OFS_RETURN) = 0;
-	else
-	{
-		RETURN_TSTRING(Mod_GetBoneName(skelobj->model, boneidx));
-	}
-}
-
-//float(float skel, float bonenum) skel_get_boneparent (FTE_CSQC_SKELETONOBJECTS)
-static void QCBUILTIN PF_skel_get_boneparent (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int skelidx = G_FLOAT(OFS_PARM0);
-	int boneidx = G_FLOAT(OFS_PARM1);
-	skelobject_t *skelobj;
-
-	skelobj = skel_get(prinst, skelidx, 0);
-
-	if (!skelobj)
-		G_FLOAT(OFS_RETURN) = 0;
-	else
-		G_FLOAT(OFS_RETURN) = Mod_GetBoneParent(skelobj->model, boneidx);
-}
-
-//float(float skel, string tagname) gettagindex (DP_MD3_TAGSINFO)
-static void QCBUILTIN PF_skel_find_bone (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int skelidx = G_FLOAT(OFS_PARM0);
-	char *bname = PR_GetStringOfs(prinst, OFS_PARM1);
-	skelobject_t *skelobj;
-
-	skelobj = skel_get(prinst, skelidx, 0);
-	if (!skelobj)
-		G_FLOAT(OFS_RETURN) = 0;
-	else
-		G_FLOAT(OFS_RETURN) = Mod_TagNumForName(skelobj->model, bname);
-}
-
-static void bonemat_fromqcvectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3])
-{
-	out[0] = vx[0];
-	out[1] = -vy[0];
-	out[2] = vz[0];
-	out[3] = t[0];
-	out[4] = vx[1];
-	out[5] = -vy[1];
-	out[6] = vz[1];
-	out[7] = t[1];
-	out[8] = vx[2];
-	out[9] = -vy[2];
-	out[10] = vz[2];
-	out[11] = t[2];
-}
-void bonemat_toqcvectors(const float *in, float vx[3], float vy[3], float vz[3], float t[3])
-{
-	vx[0] = in[0];
-	vx[1] = in[4];
-	vx[2] = in[8];
-	vy[0] = -in[1];
-	vy[1] = -in[5];
-	vy[2] = -in[9];
-	vz[0] = in[2];
-	vz[1] = in[6];
-	vz[2] = in[10];
-	t [0] = in[3];
-	t [1] = in[7];
-	t [2] = in[11];
-}
-
-void bonematident_toqcvectors(float vx[3], float vy[3], float vz[3], float t[3])
-{
-	vx[0] = 1;
-	vx[1] = 0;
-	vx[2] = 0;
-	vy[0] = -0;
-	vy[1] = -1;
-	vy[2] = -0;
-	vz[0] = 0;
-	vz[1] = 0;
-	vz[2] = 1;
-	t [0] = 0;
-	t [1] = 0;
-	t [2] = 0;
-}
-
-//vector(float skel, float bonenum) skel_get_bonerel (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
-static void QCBUILTIN PF_skel_get_bonerel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int skelidx = G_FLOAT(OFS_PARM0);
-	int boneidx = G_FLOAT(OFS_PARM1)-1;
-	skelobject_t *skelobj = skel_get(prinst, skelidx, 0);
-	if (!skelobj || skelobj->absolute || (unsigned int)boneidx >= skelobj->numbones)
-		bonematident_toqcvectors(csqcg.forward, csqcg.right, csqcg.up, G_VECTOR(OFS_RETURN));
-	else
-		bonemat_toqcvectors(skelobj->bonematrix+12*boneidx, csqcg.forward, csqcg.right, csqcg.up, G_VECTOR(OFS_RETURN));
-}
-
-//vector(float skel, float bonenum) skel_get_boneabs (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
-static void QCBUILTIN PF_skel_get_boneabs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int skelidx = G_FLOAT(OFS_PARM0);
-	int boneidx = G_FLOAT(OFS_PARM1)-1;
-	float workingm[12], tempmatrix[3][4];
-	int i;
-	skelobject_t *skelobj = skel_get(prinst, skelidx, 0);
-
-	if (!skelobj || (unsigned int)boneidx >= skelobj->numbones)
-		bonematident_toqcvectors(csqcg.forward, csqcg.right, csqcg.up, G_VECTOR(OFS_RETURN));
-	else if (skelobj->absolute)
-	{
-		//can just copy it out
-		bonemat_toqcvectors(skelobj->bonematrix + boneidx*12, csqcg.forward, csqcg.right, csqcg.up, G_VECTOR(OFS_RETURN));
-	}
-	else
-	{
-		//we need to work out the abs position
-
-		//testme
-
-		//set up an identity matrix
-		for (i = 0;i < 12;i++)
-			workingm[i] = 0;
-		workingm[0] = 1;
-		workingm[5] = 1;
-		workingm[10] = 1;
-
-		while(boneidx >= 0)
-		{
-			//copy out the previous working matrix, so we don't stomp on it
-			memcpy(tempmatrix, workingm, sizeof(tempmatrix));
-			R_ConcatTransforms((void*)(skelobj->bonematrix + boneidx*12), (void*)tempmatrix, (void*)workingm);
-
-			boneidx = Mod_GetBoneParent(skelobj->model, boneidx+1)-1;
-		}
-		bonemat_toqcvectors(workingm, csqcg.forward, csqcg.right, csqcg.up, G_VECTOR(OFS_RETURN));
-	}
-}
-
-//void(float skel, float bonenum, vector org) skel_set_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-static void QCBUILTIN PF_skel_set_bone (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int skelidx = G_FLOAT(OFS_PARM0);
-	unsigned int boneidx = G_FLOAT(OFS_PARM1)-1;
-	float *matrix[3];
-	skelobject_t *skelobj;
-	float *bone;
-
-	if (*prinst->callargc > 5)
-	{
-		matrix[0] = G_VECTOR(OFS_PARM3);
-		matrix[1] = G_VECTOR(OFS_PARM4);
-		matrix[2] = G_VECTOR(OFS_PARM5);
-	}
-	else
-	{
-		matrix[0] = csqcg.forward;
-		matrix[1] = csqcg.right;
-		matrix[2] = csqcg.up;
-	}
-
-	skelobj = skel_get(prinst, skelidx, 0);
-	if (!skelobj || boneidx >= skelobj->numbones)
-		return;
-
-	bone = skelobj->bonematrix+12*boneidx;
-	bonemat_fromqcvectors(skelobj->bonematrix+12*boneidx, matrix[0], matrix[1], matrix[2], G_VECTOR(OFS_PARM2));
-}
-
-//void(float skel, float bonenum, vector org [, vector fwd, vector right, vector up]) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-static void QCBUILTIN PF_skel_mul_bone (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int skelidx = G_FLOAT(OFS_PARM0);
-	int boneidx = G_FLOAT(OFS_PARM1)-1;
-	float temp[3][4];
-	float mult[3][4];
-	skelobject_t *skelobj;
-	if (*prinst->callargc > 5)
-		bonemat_fromqcvectors((float*)mult, G_VECTOR(OFS_PARM3), G_VECTOR(OFS_PARM4), G_VECTOR(OFS_PARM5), G_VECTOR(OFS_PARM2));
-	else
-		bonemat_fromqcvectors((float*)mult, csqcg.forward, csqcg.right, csqcg.up, G_VECTOR(OFS_PARM2));
-
-	skelobj = skel_get(prinst, skelidx, 0);
-	if (!skelobj || boneidx >= skelobj->numbones)
-		return;
-//testme
-	Vector4Copy(skelobj->bonematrix+12*boneidx+0, temp[0]);
-	Vector4Copy(skelobj->bonematrix+12*boneidx+4, temp[1]);
-	Vector4Copy(skelobj->bonematrix+12*boneidx+8, temp[2]);
-	R_ConcatTransforms(mult, temp, (float(*)[4])(skelobj->bonematrix+12*boneidx));
-}
-
-//void(float skel, float startbone, float endbone, vector org) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-static void QCBUILTIN PF_skel_mul_bones (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int skelidx = G_FLOAT(OFS_PARM0);
-	unsigned int startbone = G_FLOAT(OFS_PARM1)-1;
-	unsigned int endbone = G_FLOAT(OFS_PARM2)-1;
-	float temp[3][4];
-	float mult[3][4];
-	skelobject_t *skelobj;
-	if (*prinst->callargc > 6)
-		bonemat_fromqcvectors((float*)mult, G_VECTOR(OFS_PARM4), G_VECTOR(OFS_PARM5), G_VECTOR(OFS_PARM6), G_VECTOR(OFS_PARM3));
-	else
-		bonemat_fromqcvectors((float*)mult, csqcg.forward, csqcg.right, csqcg.up, G_VECTOR(OFS_PARM3));
-
-	skelobj = skel_get(prinst, skelidx, 0);
-	if (!skelobj)
-		return;
-
-	if (startbone == -1)
-		startbone = 0;
-//testme
-	while(startbone < endbone && startbone < skelobj->numbones)
-	{
-		Vector4Copy(skelobj->bonematrix+12*startbone+0, temp[0]);
-		Vector4Copy(skelobj->bonematrix+12*startbone+4, temp[1]);
-		Vector4Copy(skelobj->bonematrix+12*startbone+8, temp[2]);
-		R_ConcatTransforms(mult, temp, (float(*)[4])(skelobj->bonematrix+12*startbone));
-	}
-}
-
-//void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones (FTE_CSQC_SKELETONOBJECTS)
-static void QCBUILTIN PF_skel_copybones (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int skeldst = G_FLOAT(OFS_PARM0);
-	int skelsrc = G_FLOAT(OFS_PARM1);
-	int startbone = G_FLOAT(OFS_PARM2)-1;
-	int endbone = G_FLOAT(OFS_PARM3)-1;
-
-	skelobject_t *skelobjdst;
-	skelobject_t *skelobjsrc;
-
-	skelobjdst = skel_get(prinst, skeldst, 0);
-	skelobjsrc = skel_get(prinst, skelsrc, 0);
-	if (!skelobjdst || !skelobjsrc)
-		return;
-	if (skelobjsrc->absolute != skelobjdst->absolute)
-		return;
-
-	if (startbone == -1)
-		startbone = 0;
-//testme
-	while(startbone < endbone && startbone < skelobjdst->numbones && startbone < skelobjsrc->numbones)
-	{
-		Vector4Copy(skelobjsrc->bonematrix+12*startbone+0, skelobjdst->bonematrix+12*startbone+0);
-		Vector4Copy(skelobjsrc->bonematrix+12*startbone+4, skelobjdst->bonematrix+12*startbone+4);
-		Vector4Copy(skelobjsrc->bonematrix+12*startbone+8, skelobjdst->bonematrix+12*startbone+8);
-	}
-}
-
-//void(float skel) skel_delete (FTE_CSQC_SKELETONOBJECTS)
-static void QCBUILTIN PF_skel_delete (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int skelidx = G_FLOAT(OFS_PARM0);
-	skelobject_t *skelobj;
-
-	skelobj = skel_get(prinst, skelidx, 0);
-	if (skelobj)
-		skelobj->inuse = 2;	//2 means don't reuse yet.
-}
 
 
 
@@ -4079,7 +3602,7 @@ void CSQC_EntStateToCSQC(unsigned int flags, float lerptime, entity_state_t *src
 		//use entnum as a test to see if its new (if the old origin isn't usable)
 		if (ent->xv->entnum)
 		{
-			if (model->particletrail == P_INVALID || pe->ParticleTrail (ent->v->origin, src->origin, model->particletrail, &(le->trailstate)))
+			if (model->particletrail == P_INVALID || pe->ParticleTrail (ent->v->origin, src->origin, model->particletrail, src->number, &(le->trailstate)))
 				if (model->traildefaultindex >= 0)
 					pe->ParticleTrailIndex(ent->v->origin, src->origin, model->traildefaultindex, 0, &(le->trailstate));
 		}
@@ -4118,7 +3641,7 @@ void CSQC_EntStateToCSQC(unsigned int flags, float lerptime, entity_state_t *src
 
 	if (model)
 	{
-		if (!(flags & RSES_NOROTATE) && (model->flags & EF_ROTATE))
+		if (!(flags & RSES_NOROTATE) && (model->flags & MF_ROTATE))
 		{
 			ent->v->angles[0] = 0;
 			ent->v->angles[1] = 100*lerptime;
@@ -4445,8 +3968,8 @@ static void QCBUILTIN PF_ReadServerEntityState(progfuncs_t *prinst, struct globa
 		src = &pack->entities[i];
 // CL_LinkPacketEntities
 
-#ifndef _MSC_VER
-#warning what to do here?
+#ifdef warningmsg
+#pragma warningmsg("what to do here?")
 #endif
 //		if (csqcent[src->number])
 //			continue;	//don't add the entity if we have one sent specially via csqc protocols.
@@ -5172,6 +4695,11 @@ model_t *CSQC_World_ModelForIndex(world_t *w, int modelindex)
 {
 	return CSQC_GetModelForIndex(modelindex);
 }
+void CSQC_World_GetFrameState(world_t *w, wedict_t *win, framestate_t *out)
+{
+	csqcedict_t *in = (csqcedict_t *)win;
+	cs_getframestate(in, in->xv->renderflags, out);
+}
 
 void CSQC_Shutdown(void)
 {
@@ -5215,21 +4743,21 @@ qbyte *CSQC_PRLoadFile (const char *path, void *buffer, int bufsize)
 	if (!strcmp(path, "csprogs.dat"))
 	{
 		char newname[MAX_QPATH];
-		snprintf(newname, MAX_QPATH, "csprogsvers/%x.dat", csqcchecksum);
+		snprintf(newname, MAX_QPATH, "csprogsvers/%x.dat", csprogs_checksum);
 
-		if (csqcchecksum)
+		if (csprogs_checksum)
 		{
 			file = COM_LoadStackFile(newname, buffer, bufsize);
 			if (file)
 			{
 				if (cls.protocol == CP_NETQUAKE)
 				{
-					if (QCRC_Block(file, com_filesize) == csqcchecksum)
+					if (QCRC_Block(file, com_filesize) == csprogs_checksum)
 						return file;
 				}
 				else
 				{
-					if (LittleLong(Com_BlockChecksum(file, com_filesize)) == csqcchecksum)	//and the user wasn't trying to be cunning.
+					if (LittleLong(Com_BlockChecksum(file, com_filesize)) == csprogs_checksum)	//and the user wasn't trying to be cunning.
 						return file;
 				}
 			}
@@ -5238,16 +4766,16 @@ qbyte *CSQC_PRLoadFile (const char *path, void *buffer, int bufsize)
 		file = COM_LoadStackFile(path, buffer, bufsize);
 		if (file && !cls.demoplayback)	//allow them to use csprogs.dat if playing a demo, and don't care about the checksum
 		{
-			if (csqcchecksum)
+			if (csprogs_checksum)
 			{
 				if (cls.protocol == CP_NETQUAKE)
 				{
-					if (QCRC_Block(file, com_filesize) != csqcchecksum)
+					if (QCRC_Block(file, com_filesize) != csprogs_checksum)
 						return NULL;
 				}
 				else
 				{
-					if (LittleLong(Com_BlockChecksum(file, com_filesize)) != csqcchecksum)
+					if (LittleLong(Com_BlockChecksum(file, com_filesize)) != csprogs_checksum)
 						return NULL;	//not valid
 				}
 
@@ -5270,21 +4798,21 @@ int CSQC_PRFileSize (const char *path)
 	if (!strcmp(path, "csprogs.dat"))
 	{
 		char newname[MAX_QPATH];
-		snprintf(newname, MAX_QPATH, "csprogsvers/%x.dat", csqcchecksum);
+		snprintf(newname, MAX_QPATH, "csprogsvers/%x.dat", csprogs_checksum);
 
-		if (csqcchecksum)
+		if (csprogs_checksum)
 		{
 			file = COM_LoadTempFile (newname);
 			if (file)
 			{
 				if (cls.protocol == CP_NETQUAKE)
 				{
-					if (QCRC_Block(file, com_filesize) == csqcchecksum)
+					if (QCRC_Block(file, com_filesize) == csprogs_checksum)
 						return com_filesize+1;
 				}
 				else
 				{
-					if (LittleLong(Com_BlockChecksum(file, com_filesize)) == csqcchecksum)	//and the user wasn't trying to be cunning.
+					if (LittleLong(Com_BlockChecksum(file, com_filesize)) == csprogs_checksum)	//and the user wasn't trying to be cunning.
 						return com_filesize+1;
 				}
 			}
@@ -5293,16 +4821,16 @@ int CSQC_PRFileSize (const char *path)
 		file = COM_LoadTempFile(path);
 		if (file && !cls.demoplayback)	//allow them to use csprogs.dat if playing a demo, and don't care about the checksum
 		{
-			if (csqcchecksum)
+			if (csprogs_checksum)
 			{
 				if (cls.protocol == CP_NETQUAKE)
 				{
-					if (QCRC_Block(file, com_filesize) != csqcchecksum)
+					if (QCRC_Block(file, com_filesize) != csprogs_checksum)
 						return -1;	//not valid
 				}
 				else
 				{
-					if (LittleLong(Com_BlockChecksum(file, com_filesize)) != csqcchecksum)
+					if (LittleLong(Com_BlockChecksum(file, com_filesize)) != csprogs_checksum)
 						return -1;	//not valid
 				}
 			}
@@ -5329,9 +4857,15 @@ qboolean CSQC_Init (unsigned int checksum)
 	int i;
 	string_t *str;
 	csqcedict_t *worldent;
-	csqcchecksum = checksum;
+	qboolean loaded;
+	csprogs_checksum = checksum;
 
 	csqc_usinglistener = false;
+	csqc_singlecheats = false;
+#ifndef CLIENTONLY
+	if ((sv.state == ss_active && sv.allocated_client_slots == 1) || atoi(Info_ValueForKey(cl.serverinfo, "*cheats")))
+		csqc_singlecheats = true;
+#endif
 
 	//its already running...
 	if (csqcprogs)
@@ -5354,7 +4888,7 @@ qboolean CSQC_Init (unsigned int checksum)
 	}
 
 	csqc_deprecated_warned = false;
-	skel_reset();
+	skel_reset(csqcprogs);
 	memset(cl.model_csqcname, 0, sizeof(cl.model_csqcname));
 	memset(cl.model_csqcprecache, 0, sizeof(cl.model_csqcprecache));
 
@@ -5393,6 +4927,7 @@ qboolean CSQC_Init (unsigned int checksum)
 	csqcprogparms.sv_num_edicts = &csqc_world.num_edicts;
 
 	csqcprogparms.useeditor = QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
+	csqcprogparms.user = &csqc_world;
 
 	csqctime = Sys_DoubleTime();
 	if (!csqcprogs)
@@ -5406,28 +4941,45 @@ qboolean CSQC_Init (unsigned int checksum)
 		csqc_world.worldmodel = cl.worldmodel;
 		csqc_world.Event_Touch = CSQC_Event_Touch;
 		csqc_world.Event_Think = CSQC_Event_Think;
-		csqc_world.GetCModel = CSQC_World_ModelForIndex;
+		csqc_world.Get_CModel = CSQC_World_ModelForIndex;
+		csqc_world.Get_FrameState = CSQC_World_GetFrameState;
 		World_ClearWorld(&csqc_world);
 		CSQC_InitFields();	//let the qclib know the field order that the engine needs.
 
-		csqc_isdarkplaces = false;
-		if (PR_LoadProgs(csqcprogs, "csprogs.dat", 22390, NULL, 0) < 0) //no per-progs builtins.
+		if (setjmp(csqc_abort))
 		{
-			if (PR_LoadProgs(csqcprogs, "csprogs.dat", 52195, NULL, 0) < 0) //no per-progs builtins.
-			{
-				if (PR_LoadProgs(csqcprogs, "csprogs.dat", 0, NULL, 0) < 0) //no per-progs builtins.
-				{
-					CSQC_Shutdown();
-					//failed to load or something
-					return false;
-				}
-			}
-			else
-				csqc_isdarkplaces = true;
+			CSQC_Shutdown();
+			return false;
+		}
 
-			Con_Printf(CON_WARNING "Running outdated or unknown csprogs.dat version\n");
+		csqc_isdarkplaces = false;
+		if (PR_LoadProgs(csqcprogs, "csprogs.dat", 22390, NULL, 0) >= 0)
+			loaded = true;
+		else
+		{
+			if (PR_LoadProgs(csqcprogs, "csprogs.dat", 52195, NULL, 0) >= 0)
+				loaded = true;
+			else if (PR_LoadProgs(csqcprogs, "csprogs.dat", 0, NULL, 0) >= 0) 
+				loaded = true;
+			else
+				loaded = false;
+
+			if (loaded)
+				Con_Printf(CON_WARNING "Running outdated or unknown csprogs.dat version\n");
 		}
 		if (setjmp(csqc_abort))
+		{
+			CSQC_Shutdown();
+			return false;
+		}
+
+		if (csqc_singlecheats)
+		{
+			if (PR_LoadProgs(csqcprogs, "csaddon.dat", 0, NULL, 0) >= 0)
+				loaded = true;
+		}
+
+		if (!loaded)
 		{
 			CSQC_Shutdown();
 			return false;
@@ -5678,7 +5230,7 @@ void CSQC_RegisterCvarsAndThings(void)
 	Cvar_Register(&cl_csqcdebug, CSQCPROGSGROUP);
 	Cvar_Register(&cl_nocsqc, CSQCPROGSGROUP);
 	Cvar_Register(&pr_csqc_coreonerror, CSQCPROGSGROUP);
-	Cvar_Register(&dpcompat_corruptglobals, CSQCPROGSGROUP);
+	Cvar_Register(&dpcompat_corruptglobals, "Darkplaces compatibility");
 }
 
 void CSQC_CvarChanged(cvar_t *var)
@@ -5724,11 +5276,14 @@ qboolean CSQC_DrawView(void)
 
 		World_ODE_Frame(&csqc_world, ft, 800);
 
-		//World_Physics_Frame(&csqc_world);
+		World_Physics_Frame(&csqc_world);
 	}
 #else
 	csqc_world.physicstime = cl.servertime;
 #endif
+
+	if (csqcg.frametime)
+		*csqcg.frametime = host_frametime;
 
 	DropPunchAngle (0);
 	if (cl.worldmodel)
@@ -5841,8 +5396,8 @@ static void CSQC_GameCommand_f(void)
 	PR_ExecuteProgram (csqcprogs, csqcg.gamecommand);
 }
 
-#ifdef _MSC_VER
-#pragma message("do we really need the firstbyte parameter here?")
+#ifdef warningmsg
+#pragma warningmsg("do we really need the firstbyte parameter here?")
 #endif
 qboolean CSQC_ParseTempEntity(unsigned char firstbyte)
 {

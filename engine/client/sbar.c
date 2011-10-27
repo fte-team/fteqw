@@ -22,11 +22,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "shader.h"
 
-#ifdef _MSC_VER
-#pragma message("hipnotic/rogue: Find out")
-#endif
-#define FINDOUT 1024
-
 extern cvar_t hud_tracking_show;
 
 extern cvar_t com_parseutf8;
@@ -539,7 +534,7 @@ void Sbar_ExecuteLayoutString (char *s)
 			color = 0;	// green
 
 			if (cl.q2frame.playerstate.stats[Q2STAT_FLASHES] & 2)
-				R2D_ScalePic (x, y, FINDOUT, FINDOUT, R2D_SafeCachePic("field_3"));
+				R2D_ScalePic (x, y, 64, 64, R2D_SafeCachePic("field_3"));
 
 			SCR_DrawField (x, y, color, width, value);
 			continue;

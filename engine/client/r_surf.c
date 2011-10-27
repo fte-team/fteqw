@@ -27,7 +27,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <math.h>
 
 extern cvar_t r_ambient;
-extern cvar_t gl_bump;
 
 static vec3_t			modelorg;	/*set before recursively entering the visible surface finder*/
 static qbyte			areabits[MAX_Q2MAP_AREAS/8];
@@ -1221,7 +1220,7 @@ dynamic:
 		if ((theRect->h + theRect->t) < (fa->light_t + tmax))
 			theRect->h = (fa->light_t-theRect->t)+tmax;
 
-		if (gl_bump.ival)
+		if (r_deluxemapping.ival)
 		{
 			lightmap[fa->lightmaptexturenum]->deluxmodified = true;
 			theRect = &lightmap[fa->lightmaptexturenum]->deluxrectchange;
@@ -1307,7 +1306,7 @@ dynamic:
 		if ((theRect->h + theRect->t) < (fa->light_t + tmax))
 			theRect->h = (fa->light_t-theRect->t)+tmax;
 
-		if (gl_bump.ival)
+		if (r_deluxemapping.ival)
 		{
 			lightmap[fa->lightmaptexturenum]->deluxmodified = true;
 			theRect = &lightmap[fa->lightmaptexturenum]->deluxrectchange;
@@ -2141,16 +2140,10 @@ static int Surf_LM_AllocBlock (int w, int h, int *x, int *y, shader_t *shader)
 			lightmap[numlightmaps+3] = NULL;
 
 			lightmap_textures = BZ_Realloc(lightmap_textures, sizeof(*lightmap_textures)*(numlightmaps+4));
-			lightmap_textures[numlightmaps+0] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
-			lightmap_textures[numlightmaps+1] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
-			lightmap_textures[numlightmaps+2] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
-			lightmap_textures[numlightmaps+3] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
+			memset(lightmap_textures+numlightmaps, 0, sizeof(*lightmap_textures)*(4));
 
 			deluxmap_textures = BZ_Realloc(deluxmap_textures, sizeof(*deluxmap_textures)*(numlightmaps+4));
-			deluxmap_textures[numlightmaps+0] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
-			deluxmap_textures[numlightmaps+1] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
-			deluxmap_textures[numlightmaps+2] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
-			deluxmap_textures[numlightmaps+3] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
+			memset(deluxmap_textures+numlightmaps, 0, sizeof(*deluxmap_textures)*(4));
 			numlightmaps+=4;
 		}
 		if (!lightmap[texnum])
@@ -2159,11 +2152,12 @@ static int Surf_LM_AllocBlock (int w, int h, int *x, int *y, shader_t *shader)
 			lightmap[texnum]->meshchain = NULL;
 			lightmap[texnum]->modified = true;
 			lightmap[texnum]->shader = shader;
+			lightmap[texnum]->external = true;
 			// reset stainmap since it now starts at 255
 			memset(lightmap[texnum]->stainmaps, 255, sizeof(lightmap[texnum]->stainmaps));
 
 			//clear out the deluxmaps incase there is none on the map.
-			for (j = 0; j < LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*3; j+=3)
+			for (j = 0; j < LMBLOCK_WIDTH*LMBLOCK_HEIGHT*3; j+=3)
 			{
 				lightmap[texnum]->deluxmaps[j+0] = 128;
 				lightmap[texnum]->deluxmaps[j+1] = 128;
@@ -2172,7 +2166,11 @@ static int Surf_LM_AllocBlock (int w, int h, int *x, int *y, shader_t *shader)
 		}
 
 		if (lightmap[texnum]->external)
-			lightmap_textures[texnum] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
+		{
+			TEXASSIGN(lightmap_textures[texnum], R_AllocNewTexture("***lightmap***", LMBLOCK_WIDTH, LMBLOCK_HEIGHT));
+			TEXASSIGN(deluxmap_textures[texnum], R_AllocNewTexture("***deluxmap***", LMBLOCK_WIDTH, LMBLOCK_HEIGHT));
+			lightmap[texnum]->external = false;
+		}
 
 		/*not required, but using one lightmap per texture can result in better texture unit switching*/
 		if (lightmap[texnum]->shader != shader)
@@ -2225,16 +2223,10 @@ static int Surf_LM_FillBlock (int texnum, int w, int h, int x, int y)
 		lightmap[numlightmaps+3] = NULL;
 
 		lightmap_textures = BZ_Realloc(lightmap_textures, sizeof(*lightmap_textures)*(numlightmaps+4));
-		lightmap_textures[numlightmaps+0] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
-		lightmap_textures[numlightmaps+1] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
-		lightmap_textures[numlightmaps+2] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
-		lightmap_textures[numlightmaps+3] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
+		memset(lightmap_textures+numlightmaps, 0, sizeof(*lightmap_textures)*(4));
 
 		deluxmap_textures = BZ_Realloc(deluxmap_textures, sizeof(*deluxmap_textures)*(numlightmaps+4));
-		deluxmap_textures[numlightmaps+0] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
-		deluxmap_textures[numlightmaps+1] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
-		deluxmap_textures[numlightmaps+2] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
-		deluxmap_textures[numlightmaps+3] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
+		memset(deluxmap_textures+numlightmaps, 0, sizeof(*deluxmap_textures)*(4));
 		numlightmaps+=4;
 	}
 	for (i = texnum; i >= 0; i--)
@@ -2244,7 +2236,8 @@ static int Surf_LM_FillBlock (int texnum, int w, int h, int x, int y)
 			lightmap[i] = BZ_Malloc(sizeof(*lightmap[i]));
 			lightmap[i]->meshchain = NULL;
 			lightmap[i]->modified = true;
-			for (l=0 ; l<LMBLOCK_HEIGHT ; l++)
+			lightmap[i]->external = true;
+			for (l=0 ; l<LMBLOCK_WIDTH ; l++)
 			{
 				lightmap[i]->allocated[l] = LMBLOCK_HEIGHT;
 			}
@@ -2254,7 +2247,7 @@ static int Surf_LM_FillBlock (int texnum, int w, int h, int x, int y)
 			lightmap[i]->rectchange.h = LMBLOCK_HEIGHT;
 
 			//clear out the deluxmaps incase there is none on the map.
-			for (l = 0; l < LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*3; l+=3)
+			for (l = 0; l < LMBLOCK_WIDTH*LMBLOCK_HEIGHT*3; l+=3)
 			{
 				lightmap[i]->deluxmaps[l+0] = 0;
 				lightmap[i]->deluxmaps[l+1] = 0;
@@ -2263,26 +2256,32 @@ static int Surf_LM_FillBlock (int texnum, int w, int h, int x, int y)
 
 			if (cl.worldmodel->lightdata)
 			{
+				if (lightmap[i]->external)
+				{
+					TEXASSIGN(lightmap_textures[i], R_AllocNewTexture("***lightmap***", LMBLOCK_WIDTH, LMBLOCK_HEIGHT));
+					TEXASSIGN(deluxmap_textures[i], R_AllocNewTexture("***deluxmap***", LMBLOCK_WIDTH, LMBLOCK_HEIGHT));
+					lightmap[i]->external = false;
+				}
 				if (lightmap_bytes == 4)
 				{
 					int j;
 					if (lightmap_bgra)
 					{
-						for (j = 0; j < LMBLOCK_HEIGHT*LMBLOCK_HEIGHT; j++)
+						for (j = 0; j < LMBLOCK_WIDTH*LMBLOCK_HEIGHT; j++)
 						{
-							lightmap[i]->lightmaps[(j<<2)+0] = (cl.worldmodel->lightdata+3*(j + LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*i))[2];
-							lightmap[i]->lightmaps[(j<<2)+1] = (cl.worldmodel->lightdata+3*(j + LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*i))[1];
-							lightmap[i]->lightmaps[(j<<2)+2] = (cl.worldmodel->lightdata+3*(j + LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*i))[0];
+							lightmap[i]->lightmaps[(j<<2)+0] = (cl.worldmodel->lightdata+3*(j + LMBLOCK_WIDTH*LMBLOCK_HEIGHT*i))[2];
+							lightmap[i]->lightmaps[(j<<2)+1] = (cl.worldmodel->lightdata+3*(j + LMBLOCK_WIDTH*LMBLOCK_HEIGHT*i))[1];
+							lightmap[i]->lightmaps[(j<<2)+2] = (cl.worldmodel->lightdata+3*(j + LMBLOCK_WIDTH*LMBLOCK_HEIGHT*i))[0];
 							lightmap[i]->lightmaps[(j<<2)+3] = 255;
 						}
 					}
 					else
 					{
-						for (j = 0; j < LMBLOCK_HEIGHT*LMBLOCK_HEIGHT; j++)
+						for (j = 0; j < LMBLOCK_WIDTH*LMBLOCK_HEIGHT; j++)
 						{
-							lightmap[i]->lightmaps[(j<<2)+0] = (cl.worldmodel->lightdata+3*(j + LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*i))[0];
-							lightmap[i]->lightmaps[(j<<2)+1] = (cl.worldmodel->lightdata+3*(j + LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*i))[1];
-							lightmap[i]->lightmaps[(j<<2)+2] = (cl.worldmodel->lightdata+3*(j + LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*i))[2];
+							lightmap[i]->lightmaps[(j<<2)+0] = (cl.worldmodel->lightdata+3*(j + LMBLOCK_WIDTH*LMBLOCK_HEIGHT*i))[0];
+							lightmap[i]->lightmaps[(j<<2)+1] = (cl.worldmodel->lightdata+3*(j + LMBLOCK_WIDTH*LMBLOCK_HEIGHT*i))[1];
+							lightmap[i]->lightmaps[(j<<2)+2] = (cl.worldmodel->lightdata+3*(j + LMBLOCK_WIDTH*LMBLOCK_HEIGHT*i))[2];
 							lightmap[i]->lightmaps[(j<<2)+3] = 255;
 						}
 					}
@@ -2290,14 +2289,14 @@ static int Surf_LM_FillBlock (int texnum, int w, int h, int x, int y)
 				else
 				{
 					/*BUG: assumes RGB. if its BGR then wrong colours, but whys that going to happen*/
-					memcpy(lightmap[i]->lightmaps, cl.worldmodel->lightdata+3*LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*i, LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*3);
+					memcpy(lightmap[i]->lightmaps, cl.worldmodel->lightdata+3*LMBLOCK_WIDTH*LMBLOCK_HEIGHT*i, LMBLOCK_WIDTH*LMBLOCK_HEIGHT*3);
 				}
 			}
 			else
 			{
 				char basename[MAX_QPATH];
 				//maybe someone screwed with my lightmap...
-				memset(lightmap[i]->lightmaps, 255, LMBLOCK_HEIGHT*LMBLOCK_HEIGHT*3);
+				memset(lightmap[i]->lightmaps, 255, LMBLOCK_WIDTH*LMBLOCK_HEIGHT*3);
 
 				COM_StripExtension(cl.worldmodel->name, basename, sizeof(basename));
 				if (!lightmap[i]->external)
@@ -2474,10 +2473,18 @@ void Surf_DeInit(void)
 	if (lightmap_textures)
 	{
 		for (i = 0; i < numlightmaps; i++)
+		{
 			if (!lightmap[i] || lightmap[i]->external)
+			{
 				R_DestroyTexture(lightmap_textures[i]);
+				R_DestroyTexture(deluxmap_textures[i]);
+			}
+		}
 		BZ_Free(lightmap_textures);
+		BZ_Free(deluxmap_textures);
 	}
+	lightmap_textures=NULL;
+	deluxmap_textures = NULL;
 
 	for (i = 0; i < numlightmaps; i++)
 	{
@@ -2490,7 +2497,6 @@ void Surf_DeInit(void)
 	if (lightmap)
 		BZ_Free(lightmap);
 
-	lightmap_textures=NULL;
 	lightmap=NULL;
 	numlightmaps=0;
 }

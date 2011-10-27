@@ -25,6 +25,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "shader.h"
 #include "renderque.h"
 
+#define POLYS
+
 void D_DrawParticleTrans (vec3_t porg, float palpha, float pscale, unsigned int pcolour, blendmode_t blendmode);
 
 
@@ -82,7 +84,7 @@ static int	ramp2[8] = {0x6f, 0x6e, 0x6d, 0x6c, 0x6b, 0x6a, 0x68, 0x66};
 static int	ramp3[8] = {0x6d, 0x6b, 6, 5, 4, 3};
 #define qpal(q) ((default_quakepal[(q)*3+0]<<0) | (default_quakepal[(q)*3+1]<<8) | (default_quakepal[(q)*3+2]<<16))
 
-
+#ifndef POLYS
 #define BUFFERVERTS 2048*3
 static vecV_t classicverts[BUFFERVERTS];
 static union c
@@ -93,6 +95,7 @@ static union c
 static vec2_t classictexcoords[BUFFERVERTS];
 static index_t classicindexes[BUFFERVERTS];
 mesh_t classicmesh;
+#endif
 static shader_t *classicshader;
 
 
@@ -197,6 +200,7 @@ static qboolean PClassic_InitParticles (void)
 
 	particles = (cparticle_t *) BZ_Malloc (r_numparticles * sizeof(cparticle_t));
 
+#ifndef POLYS
 	for (i = 0; i < BUFFERVERTS; i += 3)
 	{
 		classictexcoords[i+1][0] = 1;
@@ -210,6 +214,7 @@ static qboolean PClassic_InitParticles (void)
 	classicmesh.st_array = classictexcoords;
 	classicmesh.colors4b_array = (byte_vec4_t*)classiccolours;
 	classicmesh.indexes = classicindexes;
+#endif
 	classicshader = R_RegisterShader("particles_classic",
 		"{\n"
 			"nomipmaps\n"
@@ -221,7 +226,7 @@ static qboolean PClassic_InitParticles (void)
 			"}\n"
 		"}\n"
 		);
-	classicshader->defaulttextures.base = particlecqtexture;
+	TEXASSIGN(classicshader->defaulttextures.base, particlecqtexture);
 
 	return true;
 }
@@ -279,8 +284,13 @@ static void PClassic_DrawParticles(void)
 	float time2, time3, time1, dvel, frametime, grav;
 	vec3_t up, right;
 	float dist, scale, r_partscale=0;
-	union c usecolours;
 	unsigned int *palette;
+#ifdef POLYS
+	scenetris_t *scenetri;
+#else
+	union c usecolours;
+#endif
+	static float oldtime;
 	RSpeedMark();
 
 /*#ifdef D3DQUAKE
@@ -302,7 +312,9 @@ static void PClassic_DrawParticles(void)
 	VectorScale (vup, 1.5, up);
 	VectorScale (vright, 1.5, right);
 
-	frametime = host_frametime;
+	frametime = cl.time - oldtime;
+	oldtime = cl.time;
+	frametime = bound(0, frametime, 1);
 	if (cl.paused || r_secondaryview || r_refdef.recurse)
 		frametime = 0;
 	time3 = frametime * 15;
@@ -310,6 +322,25 @@ static void PClassic_DrawParticles(void)
 	time1 = frametime * 5;
 	grav = frametime * 800 * 0.05;
 	dvel = 4 * frametime;
+
+#ifdef POLYS
+	if (cl_numstris && cl_stris[cl_numstris-1].shader == classicshader)
+		scenetri = &cl_stris[cl_numstris-1];
+	else
+	{
+		if (cl_numstris == cl_maxstris)
+		{
+			cl_maxstris+=8;
+			cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+		}
+		scenetri = &cl_stris[cl_numstris++];
+		scenetri->shader = classicshader;
+		scenetri->firstidx = cl_numstrisidx;
+		scenetri->firstvert = cl_numstrisvert;
+		scenetri->numvert = 0;
+		scenetri->numidx = 0;
+	}
+#endif
 
 	while(1)
 	{
@@ -339,17 +370,55 @@ static void PClassic_DrawParticles(void)
 			break;
 		}
 
+		// hack a scale up to keep particles from disapearing
+		dist = (p->org[0] - r_origin[0]) * vpn[0] + (p->org[1] - r_origin[1]) * vpn[1] + (p->org[2] - r_origin[2]) * vpn[2];
+		scale = 1 + dist * r_partscale;
+
+#ifdef POLYS
+		if (cl_numstrisvert+3 > cl_maxstrisvert)
+		{
+			cl_maxstrisvert+=64*3;
+			cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+			cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
+			cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
+		}
+
+		Vector4Set(cl_strisvertc[cl_numstrisvert+0],1,1,1,1);
+		Vector4Set(cl_strisvertc[cl_numstrisvert+1],1,1,1,1);
+		Vector4Set(cl_strisvertc[cl_numstrisvert+2],1,1,1,1);
+
+		Vector4Set(cl_strisvertc[cl_numstrisvert+0], ((p->rgb&0xff)>>0)/256.0, ((p->rgb&0xff00)>>8)/256.0, ((p->rgb&0xff0000)>>16)/256.0, ((p->type == pt_fire)?((6 - p->ramp) *0.166666):1.0));
+		Vector4Copy(cl_strisvertc[cl_numstrisvert+0], cl_strisvertc[cl_numstrisvert+1]);
+		Vector4Copy(cl_strisvertc[cl_numstrisvert+0], cl_strisvertc[cl_numstrisvert+2]);
+
+		Vector2Set(cl_strisvertt[cl_numstrisvert+0], 0, 0);
+		Vector2Set(cl_strisvertt[cl_numstrisvert+1], 1, 0);
+		Vector2Set(cl_strisvertt[cl_numstrisvert+2], 0, 1);
+
+		VectorCopy(p->org, cl_strisvertv[cl_numstrisvert+0]);
+		VectorMA(p->org, scale, up, cl_strisvertv[cl_numstrisvert+1]);
+		VectorMA(p->org, scale, right, cl_strisvertv[cl_numstrisvert+2]);
+
+		if (cl_numstrisidx+3 > cl_maxstrisidx)
+		{
+			cl_maxstrisidx += 64*3;
+			cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+		}
+		cl_strisidx[cl_numstrisidx++] = (cl_numstrisvert - scenetri->firstvert) + 0;
+		cl_strisidx[cl_numstrisidx++] = (cl_numstrisvert - scenetri->firstvert) + 1;
+		cl_strisidx[cl_numstrisidx++] = (cl_numstrisvert - scenetri->firstvert) + 2;
+
+		cl_numstrisvert += 3;
+
+		scenetri->numvert += 3;
+		scenetri->numidx += 3;
+#else
 		if (classicmesh.numvertexes >= BUFFERVERTS-3)
 		{
 			classicmesh.numindexes = classicmesh.numvertexes;
 			BE_DrawMesh_Single(classicshader, &classicmesh, NULL, &classicshader->defaulttextures, 0);
 			classicmesh.numvertexes = 0;
 		}
-
-		// hack a scale up to keep particles from disapearing
-		dist = (p->org[0] - r_origin[0]) * vpn[0] + (p->org[1] - r_origin[1]) * vpn[1] + (p->org[2] - r_origin[2]) * vpn[2];
-		scale = 1 + dist * r_partscale;
-
 
 		usecolours.i = p->rgb;
 		if (p->type == pt_fire)
@@ -365,9 +434,7 @@ static void PClassic_DrawParticles(void)
 		classiccolours[classicmesh.numvertexes].i = usecolours.i;
 		VectorMA(p->org, scale, right, classicverts[classicmesh.numvertexes]);
 		classicmesh.numvertexes++;
-
-
-
+#endif
 
 		p->org[0] += p->vel[0] * frametime;
 		p->org[1] += p->vel[1] * frametime;
@@ -421,14 +488,14 @@ static void PClassic_DrawParticles(void)
 			break;
 		}
 	}
-
+#ifndef POLYS
 	if (classicmesh.numvertexes)
 	{
 		classicmesh.numindexes = classicmesh.numvertexes;
 		BE_DrawMesh_Single(classicshader, &classicmesh, NULL, &classicshader->defaulttextures, 0);
 		classicmesh.numvertexes = 0;
 	}
-
+#endif
 	RSpeedEnd(RSPEED_PARTICLESDRAW);
 }
 
@@ -741,7 +808,7 @@ done:
 
 
 //builds a trail from here to there. The trail state can be used to remember how far you got last frame.
-static int PClassic_ParticleTrail (vec3_t startpos, vec3_t end, int type, trailstate_t **tsk)
+static int PClassic_ParticleTrail (vec3_t startpos, vec3_t end, int type, int dlkey, trailstate_t **tsk)
 {
 	float leftover;
 

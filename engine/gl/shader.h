@@ -156,8 +156,8 @@ typedef struct shaderpass_s {
 		RGB_GEN_WAVE,
 		RGB_GEN_ENTITY,
 		RGB_GEN_ONE_MINUS_ENTITY,
-		RGB_GEN_VERTEX,
-		RGB_GEN_EXACT_VERTEX,
+		RGB_GEN_VERTEX_LIGHTING,
+		RGB_GEN_VERTEX_EXACT,
 		RGB_GEN_ONE_MINUS_VERTEX,
 		RGB_GEN_IDENTITY_LIGHTING,
 		RGB_GEN_IDENTITY,
@@ -222,6 +222,8 @@ typedef struct shaderpass_s {
 
 		T_GEN_SOURCECOLOUR, //used for render-to-texture targets
 		T_GEN_SOURCEDEPTH,	//used for render-to-texture targets
+
+		T_GEN_SOURCECUBE,	//used for render-to-texture targets
 
 		T_GEN_VIDEOMAP,		//use the media playback as an image source, updating each frame for which it is visible
 		T_GEN_SKYBOX,		//use a skybox instead, otherwise T_GEN_SINGLEMAP
@@ -464,6 +466,7 @@ void GLBE_UploadAllLightmaps(void);
 void GLBE_DrawWorld (qbyte *vis);
 qboolean GLBE_LightCullModel(vec3_t org, model_t *model);
 void GLBE_SelectEntity(entity_t *ent);
+void GLBE_SelectDLight(dlight_t *dl, vec3_t colour);
 #endif
 #ifdef D3DQUAKE
 void D3DBE_Init(void);
@@ -478,16 +481,16 @@ void D3DBE_UploadAllLightmaps(void);
 void D3DBE_DrawWorld (qbyte *vis);
 qboolean D3DBE_LightCullModel(vec3_t org, model_t *model);
 void D3DBE_SelectEntity(entity_t *ent);
+void D3DBE_SelectDLight(dlight_t *dl, vec3_t colour);
 
 void D3DShader_CreateProgram (program_t *prog, int permu, char **precompilerconstants, char *vert, char *frag);
 int D3DShader_FindUniform(union programhandle_u *h, int type, char *name);
 void D3DShader_Init(void);
+void D3DBE_Reset(qboolean before);
 #endif
 
 //Asks the backend to invoke DrawMeshChain for each surface, and to upload lightmaps as required
 void BE_DrawNonWorld (void);
-
-void D3DBE_Reset(qboolean before);
 
 //Builds a hardware shader from the software representation
 void BE_GenerateProgram(shader_t *shader);
@@ -503,8 +506,6 @@ void Sh_DrawLights(qbyte *vis);
 void Sh_Shutdown(void);
 //Draws the depth of ents in the world near the current light
 void BE_BaseEntShadowDepth(void);
-//Sets the given light+colour to be the current one that everything is to be lit/culled by.
-void BE_SelectDLight(dlight_t *dl, vec3_t colour);
 #endif
 
 struct shader_field_names_s

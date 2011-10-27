@@ -56,6 +56,10 @@ struct jitstate
 	unsigned char *code;
 	unsigned int codesize;
 	unsigned int jitstatements;
+
+	float *glob;
+	unsigned int cachedglobal;
+	unsigned int cachereg;
 };
 
 static void EmitByte(struct jitstate *jit, unsigned char byte)
@@ -112,7 +116,11 @@ enum
 	REG_ESP,
 	REG_EBP,
 	REG_ESI,
-	REG_EDI
+	REG_EDI,
+
+	/*I'm not going to list S1 here, as that makes things too awkward*/
+	REG_S0,
+	REG_NONE
 };
 #define XOR(sr,dr) EmitByte(0x31);EmitByte(0xc0 | (sr<<3) | dr);
 #define CLEARREG(reg) XOR(reg,reg)
@@ -121,6 +129,117 @@ enum
 #define STOREF(f, addr) EmitByte(0xc7);EmitByte(0x05); EmitAdr(addr);EmitFloat(f);
 #define STOREI(i, addr) EmitByte(0xc7);EmitByte(0x05); EmitAdr(addr);Emit4Byte(i);
 #define SETREGI(val,reg) EmitByte(0xbe);Emit4Byte(val);
+
+#define ARGREGS(a,b,c)	GCache_Load(jit, op[i].a, a, op[i].b, b, op[i].c, c)
+#define RESULTREG(r) GCache_Store(jit, op[i].c, r)
+
+//for the purposes of the cache, 'temp' offsets are only read when they have been written only within the preceeding control block.
+//if they were read at any other time, then we must write them out in full.
+//this logic applies only to locals of a function.
+//#define USECACHE
+
+static void GCache_Load(struct jitstate *jit, int ao, int ar, int bo, int br, int co, int cr)
+{
+#if USECACHE
+	if (jit->cachedreg != REG_NONE)
+	{
+		/*something is cached, if its one of the input offsets then can chain the instruction*/
+
+		if (jit->cachedglobal === ao && ar != REG_NONE)
+		{
+			if (jit->cachedreg == ar)
+				ar = REG_NONE;
+		}
+		if (jit->cachedglobal === bo && br != REG_NONE)
+		{
+			if (jit->cachedreg == br)
+				br = REG_NONE;
+		}
+		if (jit->cachedglobal === co && cr != REG_NONE)
+		{
+			if (jit->cachedreg == cr)
+				cr = REG_NONE;
+		}
+
+		if (!istemp(ao))
+		{
+			/*purge the old cache*/
+			switch(jit->cachedreg)
+			{
+			case REG_NONE:
+				break;
+			case REG_S0:
+				//fstps glob[C]
+				EmitByte(0xd9);EmitByte(0x1d);EmitAdr(jit->glob + jit->cachedglobal);
+				break;
+			default:
+				STOREREG(jit->cachedreg, jit->glob + jit->cachedglobal);
+				break;
+		}
+		jit->cachedglobal = -1;
+		jit->cachedreg = REG_NONE;
+	}
+
+#endif
+	switch(ar)
+	{
+	case REG_NONE:
+		break;
+	case REG_S0:
+		//flds glob[A]
+		EmitByte(0xd9);EmitByte(0x05);EmitAdr(jit->glob + op[i].a);
+		break;
+	default:
+		LOADREG(jit->glob + ao, ar);
+		break;
+	}
+
+	switch(br)
+	{
+	case REG_NONE:
+		break;
+	case REG_S0:
+		//flds glob[A]
+		EmitByte(0xd9);EmitByte(0x05);EmitAdr(jit->glob + op[i].b);
+		break;
+	default:
+		LOADREG(jit->glob + bo, br);
+		break;
+	}
+
+	switch(cr)
+	{
+	case REG_NONE:
+		break;
+	case REG_S0:
+		//flds glob[A]
+		EmitByte(0xd9);EmitByte(0x05);EmitAdr(jit->glob + op[i].c);
+		break;
+	default:
+		LOADREG(jit->glob + co, cr);
+		break;
+	}
+}
+static void GCache_Store(struct jitstate *jit, int ofs, int reg)
+{
+#if USECACHE
+	jit->cachedglobal = ofs;
+	jit->cachedreg = reg;
+#else
+	switch(reg)
+	{
+	case REG_NONE:
+		break;
+	case REG_S0:
+		//fstps glob[C]
+		EmitByte(0xd9);EmitByte(0x1d);EmitAdr(jit->glob + ofs);
+		break;
+	default:
+		STOREREG(reg, jit->glob + ofs);
+		break;
+	}
+#endif
+}
 
 static void *LocalLoc(struct jitstate *jit)
 {
@@ -359,6 +478,9 @@ struct jitstate *PR_GenerateJit(progfuncs_t *progfuncs)
 		case OP_CALL6:
 		case OP_CALL7:
 		case OP_CALL8:
+			//FIXME: the size of this instruction is going to hurt cache performance if every single function call is expanded into this HUGE CHUNK of gibberish!
+			//FIXME: consider the feasability of just calling a C function and just jumping to the address it returns.
+
 		//save the state in place the rest of the engine can cope with
 			//movl $i, pr_xstatement
 			EmitByte( 0xc7);EmitByte(0x05);EmitAdr(&pr_xstatement);Emit4Byte(i);
@@ -721,6 +843,7 @@ struct jitstate *PR_GenerateJit(progfuncs_t *progfuncs)
 
 		case OP_AND_F:
 			//test floats properly, so we don't get confused with -0.0
+			//FIXME: is it feasable to grab the value as an int and test it against 0x7fffffff?
 
 			//flds	glob[A]
 			EmitByte(0xd9); EmitByte(0x05); EmitAdr(glob + op[i].a);

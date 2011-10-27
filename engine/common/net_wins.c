@@ -23,10 +23,7 @@ struct sockaddr;
 #include "quakedef.h"
 #include "netinc.h"
 
-#ifdef _MSC_VER
-#pragma message("these two are never set. A NET_ReplySource function that returns the address a reply would originate from would be sufficient. Note that INADDR_ANY can be multiple however, so these are just a hint.")
-#endif
-netadr_t	net_local_cl_ipadr;	//still used to match local ui requests, and to generate ip reports for q3 servers.
+netadr_t	net_local_cl_ipadr;	//still used to match local ui requests (quake/gamespy), and to generate ip reports for q3 servers (which is probably pointless).
 
 netadr_t	net_from;
 sizebuf_t	net_message;
@@ -64,7 +61,7 @@ void (*pfreeaddrinfo) (struct addrinfo*);
 
 void NET_GetLocalAddress (int socket, netadr_t *out);
 int TCP_OpenListenSocket (int port);
-extern cvar_t sv_port;
+extern cvar_t sv_port_ipv4;
 #ifdef IPPROTO_IPV6
 int UDP6_OpenSocket (int port, qboolean bcast);
 extern cvar_t sv_port_ipv6;
@@ -1024,26 +1021,22 @@ qboolean NET_CompareAdrMasked(netadr_t a, netadr_t b, netadr_t mask)
 	// check to make sure all types match
 	if (a.type != b.type)
 	{
-		if (a.type == NA_IP && b.type == NA_IPV6)
+		if (a.type == NA_IP && b.type == NA_IPV6 && mask.type == NA_IP)
 		{
-#ifndef _MSC_VER
-#warning code me
-#endif
-			//okay, comparing an ipv4 address against an ipv4-as-6
-		/*	for (i = 0; i < 10; i++)
-				if (mask.address.ip[i] != 0)
-					return false;
-
+			for (i = 0; i < 10; i++)
+				if (b.address.ip6[i] != 0)
+					return false;	//only matches if they're 0s, otherwise its not an ipv4 address there
 			for (; i < 12; i++)
+				if (b.address.ip6[i] != 0xff && b.address.ip6[i] != 0x00)	//0x00 is depricated
+					return false;	//only matches if they're 0s or ffs, otherwise its not an ipv4 address there
+			for (i = 0; i < 4; i++)
 			{
-				if (mask.address.ip[i] != 0xff)
+				if ((a.address.ip[i] & mask.address.ip[i]) != (b.address.ip6[12+i] & mask.address.ip[i]))
+					return false;	//mask doesn't match
 			}
-			if (i == 12)
-			{
-
-			}*/
+			return true;	//its an ipv4 address in there, the mask matched the whole way through
 		}
-		if (a.type == NA_IPV6 && b.type == NA_IP)
+		if (a.type == NA_IPV6 && b.type == NA_IP && mask.type == NA_IP)
 		{
 			for (i = 0; i < 10; i++)
 				if (a.address.ip6[i] != 0)
@@ -1696,6 +1689,7 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 	int family;
 	int port;
 	int bindtries;
+	int bufsz;
 
 
 	if (!NET_PortToAdr(adrfamily, address, &adr))
@@ -1710,6 +1704,9 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 	{
 		return NULL;
 	}
+
+	bufsz = 1<<18;
+	setsockopt(newsocket, SOL_SOCKET, SO_RCVBUF, (void*)&bufsz, sizeof(bufsz));
 
 	//try and find an unused port.
 	port = ntohs(((struct sockaddr_in*)&qs)->sin_port);
@@ -1734,6 +1731,13 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 
 	if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
 		Sys_Error ("UDP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
+
+
+	//
+	// determine my name & address if we don't already know it
+	//
+	if (!net_local_cl_ipadr.type == NA_INVALID)
+		NET_GetLocalAddress (newsocket, &net_local_cl_ipadr);
 
 	newcon = Z_Malloc(sizeof(*newcon));
 	if (newcon)
@@ -2669,9 +2673,9 @@ struct ftenet_generic_connection_s *FTENET_IRCConnect_EstablishConnection(qboole
 
 #endif
 
-qboolean NET_GetPacket (netsrc_t netsrc)
+/*firstsock is a cookie*/
+int NET_GetPacket (netsrc_t netsrc, int firstsock)
 {
-	int i;
 	ftenet_connections_t *collection;
 	if (netsrc == NS_SERVER)
 	{
@@ -2693,20 +2697,20 @@ qboolean NET_GetPacket (netsrc_t netsrc)
 	}
 
 	if (!collection)
-		return false;
+		return -1;
 
-	for (i = 0; i < MAX_CONNECTIONS; i++)
+	for (; firstsock < MAX_CONNECTIONS; firstsock+=1)
 	{
-		if (!collection->conn[i])
+		if (!collection->conn[firstsock])
 			break;
-		if (collection->conn[i]->GetPacket(collection->conn[i]))
+		if (collection->conn[firstsock]->GetPacket(collection->conn[firstsock]))
 		{
-			net_from.connum = i+1;
-			return true;
+			net_from.connum = firstsock+1;
+			return firstsock;
 		}
 	}
 
-	return false;
+	return -1;
 }
 
 int NET_LocalAddressForRemote(ftenet_connections_t *collection, netadr_t *remote, netadr_t *local, int idx)
@@ -3314,11 +3318,6 @@ void NET_InitClient(void)
 	net_message.maxsize = sizeof(net_message_buffer);
 	net_message.data = net_message_buffer;
 
-	//
-	// determine my name & address
-	//
-//	NET_GetLocalAddress (cls.socketip, &net_local_cl_ipadr);
-
 	Con_TPrintf(TL_CLIENTPORTINITED);
 }
 #endif
@@ -3381,7 +3380,7 @@ void NET_InitServer(void)
 
 		allowconnects = true;
 
-		Cvar_ForceCallback(&sv_port);
+		Cvar_ForceCallback(&sv_port_ipv4);
 #ifdef IPPROTO_IPV6
 		Cvar_ForceCallback(&sv_port_ipv6);
 #endif

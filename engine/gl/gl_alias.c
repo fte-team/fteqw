@@ -514,12 +514,12 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, 
 				}
 				if (qrenderer == QR_OPENGL)
 				{
-					texnums->base = R_AllocNewTexture(scaled_width, scaled_height);
-					R_Upload(texnums->base, "", h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, NULL, scaled_width, scaled_height, IF_NOMIPMAP);
+					texnums->base = R_AllocNewTexture(cm->name, scaled_width, scaled_height);
+					R_Upload(texnums->base, cm->name, h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, NULL, scaled_width, scaled_height, IF_NOMIPMAP);
 				}
 				else
 				{
-					texnums->base = R_LoadTexture(NULL, scaled_width, scaled_height, h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, 0);
+					texnums->base = R_LoadTexture(cm->name, scaled_width, scaled_height, h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, 0);
 				}
 
 				if (!h2playertranslations)
@@ -540,12 +540,12 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, 
 					}
 					if (qrenderer == QR_OPENGL)
 					{
-						texnums->fullbright = R_AllocNewTexture(scaled_width, scaled_height);
-						R_Upload(texnums->fullbright, "", TF_RGBA32, pixels, NULL, scaled_width, scaled_height, IF_NOMIPMAP);
+						texnums->fullbright = R_AllocNewTexture(cm->name, scaled_width, scaled_height);
+						R_Upload(texnums->fullbright, cm->name, TF_RGBA32, pixels, NULL, scaled_width, scaled_height, IF_NOMIPMAP);
 					}
 					else
 					{
-						texnums->fullbright = R_LoadTexture(NULL, scaled_width, scaled_height, h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, 0);
+						texnums->fullbright = R_LoadTexture(cm->name, scaled_width, scaled_height, h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, 0);
 					}
 				}
 			}
@@ -783,7 +783,8 @@ static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 								dist);
 				add = cl_dlights[i].radius - Length(dist);
 
-				if (add > 0) {
+				if (add > 0)
+				{
 					add*=5;
 					ambientlight[0] += add * cl_dlights[i].color[0];
 					ambientlight[1] += add * cl_dlights[i].color[1];
@@ -853,7 +854,7 @@ static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		ambientlight[i] /= 200.0/255;
 	}
 
-	if ((e->model->flags & EF_ROTATE) && cl.hexen2pickups)
+	if ((e->model->flags & MF_ROTATE) && cl.hexen2pickups)
 	{
 		shadelight[0] = shadelight[1] = shadelight[2] =
 		ambientlight[0] = ambientlight[1] = ambientlight[2] = 128+sin(cl.servertime*4)*64;

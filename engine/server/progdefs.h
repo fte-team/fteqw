@@ -35,6 +35,7 @@ typedef struct globalvars_s
 	} param[8];
 } globalvars_t;
 
+#define	NUM_SPAWN_PARMS			64
 typedef struct nqglobalvars_s
 {
 	int	*self;
@@ -81,13 +82,14 @@ typedef struct nqglobalvars_s
 	float *cycle_wrapped;
 	float *dimension_send;
 
-
+	float *physics_mode;
 	float *clientcommandframe;
 	float *input_timelength;
 	vec3_t *input_angles;
 	vec3_t *input_movevalues;
 	float *input_buttons;
-} nqglobalvars_t;
+	float *spawnparamglobals[NUM_SPAWN_PARMS];
+} globalptrs_t;
 
 #define P_VEC(v) (pr_global_struct->V_##v)
 
@@ -229,7 +231,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(glow_size);\
 	comfieldfloat(glow_color);\
 	comfieldfloat(glow_trail);\
-	comfieldvector(color);\
+	comfieldvector(color);/*Hexen2 has a .float color, the warnings should be benign*/ \
 	comfieldfloat(light_lev);\
 	comfieldfloat(style);\
 	comfieldfloat(pflags);\

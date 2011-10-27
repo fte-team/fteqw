@@ -24,6 +24,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "glquake.h"
 #include "shader.h"
 
+extern cvar_t r_shadow_realtime_world, r_shadow_realtime_world_lightmaps;
+
 
 int	r_dlightframecount;
 int		d_lightstylevalue[256];	// 8.8 fraction of base light value
@@ -97,9 +99,9 @@ void AddLightBlend (float r, float g, float b, float a2)
 //Con_Printf("AddLightBlend(): %4.2f %4.2f %4.2f %4.6f\n", v_blend[0], v_blend[1], v_blend[2], v_blend[3]);
 }
 
-float bubble_sintable[17], bubble_costable[17];
+static float bubble_sintable[17], bubble_costable[17];
 
-void R_InitBubble(void)
+static void R_InitBubble(void)
 {
 	float a;
 	int i;
@@ -157,7 +159,7 @@ void R_InitFlashblends(void)
 	flashblend_shader = R_RegisterShader("flashblend", 
 		"{\n"
 			"{\n"
-				"map $whitetexture\n"
+				"map %whiteimage\n"	
 				"blendfunc gl_one gl_one\n"
 				"rgbgen vertex\n"
 				"alphagen vertex\n"
@@ -165,6 +167,8 @@ void R_InitFlashblends(void)
 		"}\n"
 		);
 	lpplight_shader = NULL;
+
+	R_InitBubble();
 }
 
 static qboolean R_BuildDlightMesh(dlight_t *light, float radscale, qboolean expand)
@@ -205,7 +209,7 @@ static qboolean R_BuildDlightMesh(dlight_t *light, float radscale, qboolean expa
 	flashblend_colours[0][3] = 1;
 
 	VectorCopy(light->origin, flashblend_vcoords[0]);
-	for (i=16 ; i>0 ; i--)
+	for (i=FLASHBLEND_VERTS ; i>0 ; i--)
 	{
 		for (j=0 ; j<3 ; j++)
 			flashblend_vcoords[i][j] = light->origin[j] + (vright[j]*(*bub_cos) +
@@ -220,7 +224,7 @@ static qboolean R_BuildDlightMesh(dlight_t *light, float radscale, qboolean expa
 		vec3_t diff;
 		VectorSubtract(r_origin, light->origin, diff);
 		VectorNormalize(diff);
-		for (i=0 ; i<=16 ; i++)
+		for (i=0 ; i<=FLASHBLEND_VERTS ; i++)
 			VectorMA(flashblend_vcoords[i], rad, diff, flashblend_vcoords[i]);
 	}
 	return true;
@@ -231,7 +235,7 @@ static qboolean R_BuildDlightMesh(dlight_t *light, float radscale, qboolean expa
 R_RenderDlights
 =============
 */
-void GLR_RenderDlights (void)
+void R_RenderDlights (void)
 {
 	int		i;
 	dlight_t	*l;
@@ -376,6 +380,12 @@ void R_PushDlights (void)
 	r_dlightframecount = r_framecount + 1;	// because the count hasn't
 											//  advanced yet for this frame
 
+#ifdef RTLIGHTS
+	/*if we're doing full rtlighting only, then don't bother calculating old-style dlights as they won't be visible anyway*/
+	if (r_shadow_realtime_world.value && r_shadow_realtime_world_lightmaps.value < 0.1)
+		return;
+#endif
+
 	if (!r_dynamic.ival || !cl.worldmodel)
 		return;
 
@@ -509,9 +519,14 @@ void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_a
 		direction_uv[j] = anglemod ( direction_uv[j] );
 	}
 
+	VectorScale(ambient, 4, ambient);
+	VectorScale(diffuse, 4, diffuse);
+
+	/*ambient is the min level*/
+	/*diffuse is the max level*/
 	VectorCopy(ambient, res_ambient);
 	if (res_diffuse)
-		VectorCopy(diffuse, res_diffuse);
+		VectorAdd(diffuse, ambient, res_diffuse);
 	if (res_dir)
 	{
 		vec3_t right, left;

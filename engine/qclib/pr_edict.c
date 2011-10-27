@@ -5,11 +5,6 @@ struct edict_s;
 #include "progsint.h"
 //#include "crc.h"
 
-/*int maxedicts;
-
-evalc_t spawnflagscache;
-*/
-
 #ifdef _WIN32
 //this is windows  all files are written with this endian standard. we do this to try to get a little more speed.
 #define NOENDIAN
@@ -18,30 +13,8 @@ evalc_t spawnflagscache;
 
 vec3_t vec3_origin;
 
-//edictrun_t *sv_edicts;
-//int sv_num_edicts;
-
-//int				pr_edict_size;	// in bytes
-//int				pr_max_edict_size;
-
-//unsigned short		pr_crc;
-
 fdef_t *ED_FieldAtOfs (progfuncs_t *progfuncs, unsigned int ofs);
-pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s, int bits);
-
-
-
-/*
-#define	MAX_FIELD_LEN	64
-#define GEFV_CACHESIZE	5
-
-typedef struct {
-	ddef_t	*pcache;
-	char	field[MAX_FIELD_LEN];
-} gefv_cache;
-
-static gefv_cache	gefvCache[GEFV_CACHESIZE] = {{NULL, ""}, {NULL, ""}};
-*/
+pbool	ED_ParseEpair (progfuncs_t *progfuncs, int qcptr, ddefXX_t *key, char *s, int bits);
 
 /*
 =================
@@ -1052,22 +1025,21 @@ Can parse either fields or globals
 returns false if error
 =============
 */
-pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s, int structtype)
+pbool	ED_ParseEpair (progfuncs_t *progfuncs, int qcptr, ddefXX_t *key, char *s, int structtype)
 {
 	int		i;
 	char	string[128];
 	fdef_t	*def;
 	char	*v, *w;
-	void	*d;
 	string_t st;
 	dfunction_t	*func;
 
-	int type = 0; // warning about beign used without initializing it
+	int type;
 
 	switch(structtype)
 	{
 	case PST_DEFAULT:
-		d = (void *)((int *)base + ((ddef16_t*)key)->ofs);
+		qcptr += ((ddef16_t*)key)->ofs*sizeof(int);
 
 		if (pr_types)
 			type = pr_types[((ddef16_t*)key)->type & ~DEF_SAVEGLOBAL].type;
@@ -1075,7 +1047,7 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s,
 			type = ((ddef16_t*)key)->type & ~DEF_SAVEGLOBAL;
 		break;
 	case PST_FTE32:
-		d = (void *)((int *)base + ((ddef32_t*)key)->ofs);
+		qcptr += ((ddef32_t*)key)->ofs*sizeof(int);
 
 		if (pr_types)
 			type = pr_types[((ddef32_t*)key)->type & ~DEF_SAVEGLOBAL].type;
@@ -1084,22 +1056,22 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s,
 		break;
 	default:
 		Sys_Error("Bad struct type in ED_ParseEpair");
-		d = 0;
+		return false;
 	}
 
 	switch (type)
 	{
 	case ev_string:
 		st = PR_StringToProgs(progfuncs, ED_NewString (progfuncs, s, 0));
-		*(string_t *)d = st;
+		*(string_t *)(progfuncs->stringtable + qcptr) = st;
 		break;
 
 	case ev_float:
-		*(float *)d = (float)atof (s);
+		*(float *)(progfuncs->stringtable + qcptr) = (float)atof (s);
 		break;
 
 	case ev_integer:
-		*(int *)d = atoi (s);
+		*(int *)(progfuncs->stringtable + qcptr) = atoi (s);
 		break;
 
 	case ev_vector:
@@ -1112,20 +1084,20 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s,
 				v++;
 			if (!*v)
 			{
-				((float *)d)[i] = (float)atof (w);
+				((float *)(progfuncs->stringtable + qcptr))[i] = (float)atof (w);
 				w = v;
 			}
 			else
 			{
 				*v = 0;
-				((float *)d)[i] = (float)atof (w);
+				((float *)(progfuncs->stringtable + qcptr))[i] = (float)atof (w);
 				w = v = v+1;
 			}
 		}
 		break;
 
 	case ev_entity:
-		*(int *)d = atoi (s);
+		*(int *)(progfuncs->stringtable + qcptr) = atoi (s);
 		break;
 
 	case ev_field:
@@ -1135,13 +1107,13 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s,
 			printf ("Can't find field %s\n", s);
 			return false;
 		}
-		*(int *)d = def->ofs;
+		*(int *)(progfuncs->stringtable + qcptr) = def->ofs;
 		break;
 
 	case ev_function:
 		if (s[1]==':'&&s[2]=='\0')
 		{
-			*(func_t *)d = 0;
+			*(func_t *)(progfuncs->stringtable + qcptr) = 0;
 			return true;
 		}
 		func = ED_FindFunction (progfuncs, s, &i, -1);
@@ -1150,7 +1122,7 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, void *base, ddefXX_t *key, char *s,
 			printf ("Can't find function %s\n", s);
 			return false;
 		}
-		*(func_t *)d = (func - pr_progstate[i].functions) | (i<<24);
+		*(func_t *)(progfuncs->stringtable + qcptr) = (func - pr_progstate[i].functions) | (i<<24);
 		break;
 
 	default:
@@ -1259,7 +1231,7 @@ char *ED_ParseEdict (progfuncs_t *progfuncs, char *data, edictrun_t *ent)
 		}
 
 cont:
-		if (!ED_ParseEpair (progfuncs, ent->fields, (ddefXX_t*)key, qcc_token, PST_FTE32))
+		if (!ED_ParseEpair (progfuncs, (char*)ent->fields - progfuncs->stringtable, (ddefXX_t*)key, qcc_token, PST_FTE32))
 		{
 			continue;
 //			Sys_Error ("ED_ParseEdict: parse error on entities");
@@ -1905,7 +1877,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					else
 					{
 						file = QCC_COM_Parse(file);
-						ED_ParseEpair(progfuncs, pr_globals, (ddefXX_t*)d16, qcc_token, PST_DEFAULT);
+						ED_ParseEpair(progfuncs, (char*)pr_globals - progfuncs->stringtable, (ddefXX_t*)d16, qcc_token, PST_DEFAULT);
 					}
 					break;
 				case PST_QTEST:
@@ -1918,7 +1890,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					else
 					{
 						file = QCC_COM_Parse(file);
-						ED_ParseEpair(progfuncs, pr_globals, (ddefXX_t*)d32, qcc_token, PST_FTE32);
+						ED_ParseEpair(progfuncs, (char*)pr_globals - progfuncs->stringtable, (ddefXX_t*)d32, qcc_token, PST_FTE32);
 					}
 					break;
 				default:
@@ -2004,7 +1976,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 							else
 							{
 								file = QCC_COM_Parse(file);
-								ED_ParseEpair(progfuncs, pr_globals, (ddefXX_t*)d16, qcc_token, PST_DEFAULT);
+								ED_ParseEpair(progfuncs, (char*)pr_globals - progfuncs->stringtable, (ddefXX_t*)d16, qcc_token, PST_DEFAULT);
 							}
 							break;
 						case PST_QTEST:
@@ -2017,7 +1989,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 							else
 							{
 								file = QCC_COM_Parse(file);
-								ED_ParseEpair(progfuncs, pr_globals, (ddefXX_t*)d32, qcc_token, PST_FTE32);
+								ED_ParseEpair(progfuncs, (char*)pr_globals - progfuncs->stringtable, (ddefXX_t*)d32, qcc_token, PST_FTE32);
 							}
 							break;
 						default:
@@ -2922,9 +2894,6 @@ retry:
 					break;
 				}
 			}
-			if (st16[i].op >= OP_RAND0 && st16[i].op <= OP_RANDV2)
-				if (!st16[i].c)
-					st16[i].c = OFS_RETURN;
 		}
 		if (hexencalling)
 		{
@@ -2932,6 +2901,9 @@ retry:
 			{
 				if (st16[i].op >= OP_CALL1 && st16[i].op <= OP_CALL8)
 					st16[i].op += OP_CALL1H - OP_CALL1;
+				if (st16[i].op >= OP_RAND0 && st16[i].op <= OP_RANDV2)
+					if (!st16[i].c)
+						st16[i].c = OFS_RETURN;
 			}
 		}
 		break;
@@ -2954,9 +2926,6 @@ retry:
 					break;
 				}
 			}
-			if (st16[i].op >= OP_RAND0 && st16[i].op <= OP_RANDV2)
-				if (!st16[i].c)
-					st16[i].c = OFS_RETURN;
 		}
 		if (hexencalling)
 		{
@@ -2964,6 +2933,9 @@ retry:
 			{
 				if (pr_statements32[i].op >= OP_CALL1 && pr_statements32[i].op <= OP_CALL8)
 					pr_statements32[i].op += OP_CALL1H - OP_CALL1;
+				if (pr_statements32[i].op >= OP_RAND0 && pr_statements32[i].op <= OP_RANDV2)
+					if (!pr_statements32[i].c)
+						pr_statements32[i].c = OFS_RETURN;
 			}
 		}
 		break;
@@ -3123,7 +3095,7 @@ retry:
 				d16 = ED_FindGlobal16(progfuncs, s);
 				if (!d16)
 				{
-					printf("Progs requires \"%s\" the external function \"%s\", but the definition was stripped", filename, s);
+					printf("Progs requires \"%s\" the external function \"%s\", but the definition was stripped\n", filename, s);
 					PRHunkFree(progfuncs, hmark);
 					pr_progs=NULL;
 					return false;
@@ -3131,7 +3103,7 @@ retry:
 
 				((int *)glob)[d16->ofs] = PR_FindFunc(progfuncs, s, PR_ANY);
 				if (!((int *)glob)[d16->ofs])
-					printf("Warning: Runtime-linked function %s was not found in primary progs (loading %s)", s, filename);
+					printf("Warning: Runtime-linked function %s could not be found (loading %s)\n", s, filename);
 				/*
 				d2 = ED_FindGlobalOfsFromProgs(progfuncs, s, 0, ev_function);
 				if (!d2)

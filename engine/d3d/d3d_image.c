@@ -9,33 +9,39 @@ extern LPDIRECT3DDEVICE9 pD3DDev9;
 
 typedef struct d3dtexture_s
 {
+	texcom_t com;
 	struct d3dtexture_s *next;
 	texid_t tex;
-	qboolean loaded;
 	char name[1];
 } d3dtexture_t;
 static d3dtexture_t *d3dtextures;
+
+void D3D_Image_Shutdown(void)
+{
+	LPDIRECT3DTEXTURE9 tx;
+	while(d3dtextures)
+	{
+		d3dtexture_t *t = d3dtextures;
+		d3dtextures = t->next;
+
+		tx = t->tex.ptr;
+		if (tx)
+			IDirect3DTexture9_Release(tx);
+	}
+}
 
 static d3dtexture_t *d3d_lookup_texture(char *ident)
 {
 	d3dtexture_t *tex;
 
-	if (ident && *ident)
-	{
-		for (tex = d3dtextures; tex; tex = tex->next)
-			if (!strcmp(tex->name, ident))
-				return tex;
+	for (tex = d3dtextures; tex; tex = tex->next)
+		if (!strcmp(tex->name, ident))
+			return tex;
 
-		tex = malloc(sizeof(*tex)+strlen(ident));
-		strcpy(tex->name, ident);
-	}
-	else
-	{
-		tex = malloc(sizeof(*tex));
-		tex->name[0] = '\0';
-	}
-	tex->loaded = false;
+	tex = calloc(1, sizeof(*tex)+strlen(ident));
+	strcpy(tex->name, ident);
 	tex->tex.ptr = NULL;
+	tex->tex.ref = &tex->com;
 	tex->next = d3dtextures;
 	d3dtextures = tex;
 
@@ -45,7 +51,7 @@ static d3dtexture_t *d3d_lookup_texture(char *ident)
 extern cvar_t gl_picmip;
 extern cvar_t gl_picmip2d;
 
-texid_t D3D9_AllocNewTexture(int width, int height)
+texid_t D3D9_AllocNewTexture(char *ident, int width, int height)
 {
 	IDirect3DTexture9 *tx;
 	texid_t ret = r_nulltex;
@@ -57,7 +63,8 @@ texid_t D3D9_AllocNewTexture(int width, int height)
 void    D3D9_DestroyTexture (texid_t tex)
 {
 	IDirect3DTexture9 *tx = tex.ptr;
-	IDirect3DTexture9_Release(tx);
+	if (tx)
+		IDirect3DTexture9_Release(tx);
 }
 
 static void D3D9_RoundDimensions(int *scaled_width, int *scaled_height, qboolean mipmap)
@@ -197,11 +204,10 @@ static void Upload_Texture_32(LPDIRECT3DTEXTURE9 tex, unsigned int *data, int wi
 }
 
 //create a basic shader from a 32bit image
-static LPDIRECT3DBASETEXTURE9 D3D9_LoadTexture_32(d3dtexture_t *tex, unsigned int *data, int width, int height, int flags)
+static void D3D9_LoadTexture_32(d3dtexture_t *tex, unsigned int *data, int width, int height, int flags)
 {
 	int nwidth, nheight;
 
-	LPDIRECT3DTEXTURE9 newsurf;
 /*
 	if (!(flags & TF_MANDATORY))
 	{
@@ -214,21 +220,19 @@ static LPDIRECT3DBASETEXTURE9 D3D9_LoadTexture_32(d3dtexture_t *tex, unsigned in
 	nheight = height;
 	D3D9_RoundDimensions(&nwidth, &nheight, !(flags & IF_NOMIPMAP));
 
-	newsurf = tex->tex.ptr;
-	if (!newsurf)
+	if (!tex->tex.ptr)
+	{
+		LPDIRECT3DTEXTURE9 newsurf;
 		IDirect3DDevice9_CreateTexture(pD3DDev9, nwidth, nheight, (flags & IF_NOMIPMAP)?1:0, ((flags & IF_NOMIPMAP)?0:D3DUSAGE_AUTOGENMIPMAP), D3DFMT_A8R8G8B8, D3DPOOL_MANAGED, &newsurf, NULL);
+		if (!newsurf)
+			return;
+		tex->tex.ptr = newsurf;
+	}
 
-	if (!newsurf)
-		return NULL;
-
-	Upload_Texture_32(newsurf, data, width, height, flags);
-
-	tex->loaded = true;
-
-	return (LPDIRECT3DBASETEXTURE9)newsurf;
+	Upload_Texture_32(tex->tex.ptr, data, width, height, flags);
 }
 
-static LPDIRECT3DBASETEXTURE9 D3D9_LoadTexture_8(d3dtexture_t *tex, unsigned char *data, unsigned int *pal32, int width, int height, int flags, enum uploadfmt fmt)
+static void D3D9_LoadTexture_8(d3dtexture_t *tex, unsigned char *data, unsigned int *pal32, int width, int height, int flags, enum uploadfmt fmt)
 {
 	static unsigned	trans[1024*1024];
 	int			i, s;
@@ -331,7 +335,7 @@ static LPDIRECT3DBASETEXTURE9 D3D9_LoadTexture_8(d3dtexture_t *tex, unsigned cha
 			trans[i] = pal32[data[i]];
 		}
 	}
-	return D3D9_LoadTexture_32(tex, trans, width, height, flags);
+	D3D9_LoadTexture_32(tex, trans, width, height, flags);
 }
 
 void    D3D9_Upload (texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags)
@@ -352,7 +356,6 @@ void    D3D9_Upload (texid_t tex, char *name, enum uploadfmt fmt, void *data, vo
 
 texid_t D3D9_LoadTexture (char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags)
 {
-	texid_t tid;
 	d3dtexture_t *tex;
 	switch (fmt)
 	{
@@ -399,13 +402,13 @@ texid_t D3D9_LoadTexture (char *identifier, int width, int height, enum uploadfm
 	case TF_H2_TRANS8_0:
 	case TF_H2_T4A4:
 	case TF_TRANS8_FULLBRIGHT:
-		tid.ptr = D3D9_LoadTexture_8(tex, data, d_8to24rgbtable, width, height, flags, fmt);
-		return tid;
+		D3D9_LoadTexture_8(tex, data, d_8to24rgbtable, width, height, flags, fmt);
+		return tex->tex;
 	case TF_RGBX32:
 		flags |= IF_NOALPHA;
 	case TF_RGBA32:
-		tid.ptr = D3D9_LoadTexture_32(tex, data, width, height, flags);
-		return tid;
+		D3D9_LoadTexture_32(tex, data, width, height, flags);
+		return tex->tex;
 	default:
 		OutputDebugString(va("D3D_LoadTexture doesn't support fmt %i", fmt));
 		return r_nulltex;
@@ -420,13 +423,15 @@ texid_t D3D9_LoadCompressed (char *name)
 texid_t D3D9_FindTexture (char *identifier)
 {
 	d3dtexture_t *tex = d3d_lookup_texture(identifier);
-	return tex->tex;
+	if (tex->tex.ptr)
+		return tex->tex;
+	return r_nulltex;
 }
 
 texid_t D3D9_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags)
 {
 	d3dtexture_t *tex = d3d_lookup_texture(identifier);
-	tex->tex.ptr = D3D9_LoadTexture_8(tex, data, (unsigned int *)palette32, width, height, flags, TF_SOLID8);
+	D3D9_LoadTexture_8(tex, data, (unsigned int *)palette32, width, height, flags, TF_SOLID8);
 	return tex->tex;
 }
 texid_t D3D9_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags)

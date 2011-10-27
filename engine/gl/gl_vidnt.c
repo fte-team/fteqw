@@ -174,8 +174,9 @@ RECT		window_rect;
 
 HMODULE hInstGL = NULL;
 HMODULE hInstwgl = NULL;
-char reqminidriver[MAX_OSPATH];
-char opengldllname[MAX_OSPATH];
+static qboolean usingminidriver;
+static char reqminidriver[MAX_OSPATH];
+static char opengldllname[MAX_OSPATH];
 
 //just GetProcAddress with a safty net.
 void *getglfunc(char *name)
@@ -221,6 +222,9 @@ HDC   (WINAPI *qwglGetCurrentDC)(VOID);
 PROC  (WINAPI *qwglGetProcAddress)(LPCSTR);
 BOOL  (WINAPI *qwglMakeCurrent)(HDC, HGLRC);
 BOOL  (WINAPI *qSwapBuffers)(HDC);
+int   (WINAPI *qChoosePixelFormat)(HDC, CONST PIXELFORMATDESCRIPTOR *);
+BOOL  (WINAPI *qSetPixelFormat)(HDC, int, CONST PIXELFORMATDESCRIPTOR *);
+int   (WINAPI *qDescribePixelFormat)(HDC, int, UINT, LPPIXELFORMATDESCRIPTOR);
 
 BOOL (WINAPI *qwglSwapIntervalEXT) (int);
 
@@ -249,6 +253,7 @@ qboolean GLInitialise (char *renderer)
 {
 	if (!hInstGL || strcmp(reqminidriver, renderer))
 	{
+		usingminidriver = false;
 		if (hInstGL)
 			FreeLibrary(hInstGL);
 		hInstGL=NULL;
@@ -265,7 +270,10 @@ qboolean GLInitialise (char *renderer)
 			hInstGL = LoadLibrary(opengldllname);
 
 			if (hInstGL)
+			{
+				usingminidriver = true;
 				Con_DPrintf (" Success\n");
+			}
 			else
 				Con_DPrintf (" Failed\n");
 		}
@@ -309,7 +317,21 @@ qboolean GLInitialise (char *renderer)
 	qwglGetCurrentDC		= (void *)getwglfunc("wglGetCurrentDC");
 	qwglGetProcAddress		= (void *)getwglfunc("wglGetProcAddress");
 	qwglMakeCurrent			= (void *)getwglfunc("wglMakeCurrent");
-	qSwapBuffers			= SwapBuffers;
+
+	if (usingminidriver)
+	{
+		qSwapBuffers			= (void *)getglfunc("wglSwapBuffers");
+		qChoosePixelFormat		= (void *)getglfunc("wglChoosePixelFormat");
+		qSetPixelFormat			= (void *)getglfunc("wglSetPixelFormat");
+		qDescribePixelFormat	= (void *)getglfunc("wglDescribePixelFormat");
+	}
+	else
+	{
+		qSwapBuffers			= SwapBuffers;
+		qChoosePixelFormat		= ChoosePixelFormat;
+		qSetPixelFormat			= SetPixelFormat;
+		qDescribePixelFormat	= DescribePixelFormat;
+	}
 
 	qGetDeviceGammaRamp			= (void *)getglfunc("wglGetDeviceGammaRamp3DFX");
 	qSetDeviceGammaRamp			= (void *)getglfunc("wglSetDeviceGammaRamp3DFX");
@@ -320,7 +342,7 @@ qboolean GLInitialise (char *renderer)
 }
 
 /*doesn't consider parent offsets*/
-RECT centerrect(unsigned int parentwidth, unsigned int parentheight, unsigned int cwidth, unsigned int cheight)
+RECT centerrect(unsigned int parentleft, unsigned int parenttop, unsigned int parentwidth, unsigned int parentheight, unsigned int cwidth, unsigned int cheight)
 {
 	RECT r;
 	if (!vid_width.ival)
@@ -330,23 +352,23 @@ RECT centerrect(unsigned int parentwidth, unsigned int parentheight, unsigned in
 
 	if (parentwidth < cwidth)
 	{
-		r.left = 0;
-		r.right = parentwidth;
+		r.left = parentleft;
+		r.right = r.left+parentwidth;
 	}
 	else
 	{
-		r.left = (parentwidth - cwidth) / 2;
+		r.left = parentleft + (parentwidth - cwidth) / 2;
 		r.right = r.left + cwidth;
 	}
 
 	if (parentheight < cheight)
 	{
-		r.top = 0;
-		r.bottom = parentheight;
+		r.top = parenttop;
+		r.bottom = r.top + parentheight;
 	}
 	else
 	{
-		r.top = (parentheight - cheight) / 2;
+		r.top = parenttop + (parentheight - cheight) / 2;
 		r.bottom = r.top + cheight;
 	}
 
@@ -358,7 +380,7 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 {
 	int i;
 	HDC				hdc;
-	int				lastmodestate, wwidth, wheight, pwidth, pheight;
+	int				lastmodestate, wwidth, wheight, pleft, ptop, pwidth, pheight;
 	RECT			rect;
 
 	hdc = GetDC(NULL);
@@ -385,6 +407,8 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 		WindowStyle = WS_CHILDWINDOW|WS_OVERLAPPED;
 		ExWindowStyle = 0;
 
+		pleft = sys_parentleft;
+		ptop = sys_parenttop;
 		pwidth = sys_parentwidth;
 		pheight = sys_parentheight;
 	}
@@ -397,6 +421,8 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 
 		WindowStyle |= WS_SIZEBOX | WS_MAXIMIZEBOX;
 
+		pleft = 0;
+		ptop = 0;
 		pwidth = GetSystemMetrics(SM_CXSCREEN);
 		pheight = GetSystemMetrics(SM_CYSCREEN);
 
@@ -414,7 +440,7 @@ qboolean VID_SetWindowedMode (rendererstate_t *info)
 	wwidth = rect.right - rect.left;
 	wheight = rect.bottom - rect.top;
 
-	WindowRect = centerrect(pwidth, pheight, wwidth, wheight);
+	WindowRect = centerrect(pleft, ptop, pwidth, pheight, wwidth, wheight);
 
 	// Create the DIB window
 	dibwindow = CreateWindowEx (
@@ -770,7 +796,6 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 
 	vid.recalc_refdef = 1;
 
-	maindc = GetDC(mainwindow);
 	if (vid_desktopgamma.value)
 	{
 		HDC hDC = GetDC(GetDesktopWindow());
@@ -1098,7 +1123,7 @@ void GLVID_Recenter_f(void)
 
 	if (sys_parentwindow && modestate==MS_WINDOWED)
 	{
-		WindowRect = centerrect(sys_parentwidth, sys_parentheight, vid_width.value, vid_height.value);
+		WindowRect = centerrect(sys_parentleft, sys_parenttop, sys_parentwidth, sys_parentheight, vid_width.value, vid_height.value);
 		MoveWindow(mainwindow, WindowRect.left, WindowRect.top, WindowRect.right - WindowRect.left, WindowRect.bottom - WindowRect.top, FALSE);
 
 		Cvar_ForceCallback(&vid_conautoscale);
@@ -1449,14 +1474,14 @@ BOOL bSetupPixelFormat(HDC hDC)
 	}
 	else
 	{
-		if ((pixelformat = ChoosePixelFormat(hDC, &pfd)))
+		if ((pixelformat = qChoosePixelFormat(hDC, &pfd)))
 		{
 			TRACE(("dbg: ChoosePixelFormat 1: worked\n"));
 
-			if (SetPixelFormat(hDC, pixelformat, &pfd))
+			if (qSetPixelFormat(hDC, pixelformat, &pfd))
 			{
 				TRACE(("dbg: bSetupPixelFormat: we can use the stencil buffer. woot\n"));
-				DescribePixelFormat(hDC, pixelformat, sizeof(pfd), &pfd);
+				qDescribePixelFormat(hDC, pixelformat, sizeof(pfd), &pfd);
 				FixPaletteInDescriptor(hDC, &pfd);
 				gl_canstencil = pfd.cStencilBits;
 				return TRUE;
@@ -1467,14 +1492,14 @@ BOOL bSetupPixelFormat(HDC hDC)
 		pfd.cStencilBits = 0;
 		gl_canstencil = false;
 
-		if ( (pixelformat = ChoosePixelFormat(hDC, &pfd)) == 0 )
+		if ( (pixelformat = qChoosePixelFormat(hDC, &pfd)) == 0 )
 		{
 			Con_Printf("bSetupPixelFormat: ChoosePixelFormat failed (%i)\n", (int)GetLastError());
 			return FALSE;
 		}
 	}
 
-    if (SetPixelFormat(hDC, pixelformat, &pfd) == FALSE)
+    if (qSetPixelFormat(hDC, pixelformat, &pfd) == FALSE)
     {
         Con_Printf("bSetupPixelFormat: SetPixelFormat failed (%i)\n", (int)GetLastError());
         return FALSE;
@@ -1755,7 +1780,7 @@ LONG WINAPI GLMainWndProc (
 				if (MessageBox (mainwindow, "Are you sure you want to quit?", "Confirm Exit",
 							MB_YESNO | MB_SETFOREGROUND | MB_ICONQUESTION) == IDYES)
 				{
-					Sys_Quit ();
+					Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
 				}
 
 	        break;
@@ -1770,6 +1795,8 @@ LONG WINAPI GLMainWndProc (
 
 		// fix the leftover Alt from any Alt-Tab or the like that switched us away
 			ClearAllStates ();
+
+			Cvar_ForceCallback(&vid_conautoscale);
 
 			break;
 

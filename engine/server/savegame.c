@@ -330,12 +330,12 @@ void SV_Loadgame_f(void)
 		if (version == 5)
 		{
 			progstype = PROG_NQ;
-			Cvar_Set ("progs", "progs.dat");	//NQ's progs.
+			Cvar_SetVar (pr_ssqc_progs, "progs.dat");	//NQ's progs.
 		}
 		else
 		{
 			progstype = PROG_QW;
-			Cvar_Set ("progs", "spprogs.dat");	//zquake's single player qw progs.
+			Cvar_SetVar (&pr_ssqc_progs, "spprogs.dat");	//zquake's single player qw progs.
 		}
 		pt = 0;
 	}
@@ -722,8 +722,8 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 					e2->_float = 1;
 				for (j=0 ; j< NUM_SPAWN_PARMS ; j++)
 				{
-					if (spawnparamglobals[j])
-						*spawnparamglobals[j] = host_client->spawn_parms[j];
+					if (pr_global_ptrs->spawnparamglobals[j])
+						*pr_global_ptrs->spawnparamglobals[j] = host_client->spawn_parms[j];
 				}
 				pr_global_struct->time = sv.world.physicstime;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
@@ -911,7 +911,6 @@ void SV_Savegame (char *savename)
 	extern cvar_t	temp1;
 	extern cvar_t	noexit;
 	extern cvar_t	pr_maxedicts;
-	extern cvar_t	progs;
 
 
 	client_t *cl;
@@ -989,7 +988,7 @@ void SV_Savegame (char *savename)
 	VFS_PRINTF (f, "temp1			\"%s\"\n",	temp1.string);
 	VFS_PRINTF (f, "noexit			\"%s\"\n",	noexit.string);
 	VFS_PRINTF (f, "pr_maxedicts\t	\"%s\"\n",	pr_maxedicts.string);
-	VFS_PRINTF (f, "progs			\"%s\"\n",	progs.string);
+	VFS_PRINTF (f, "progs			\"%s\"\n",	pr_ssqc_progs.string);
 	VFS_PRINTF (f, "set nextserver		\"%s\"\n",	Cvar_Get("nextserver", "", 0, "")->string);
 	VFS_PRINTF (f, "}\n");
 

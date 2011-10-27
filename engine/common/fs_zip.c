@@ -427,6 +427,7 @@ int FSZIP_GeneratePureCRC(void *handle, int seed, int crctype)
 	zipfile_t *zip = handle;
 	unz_file_info	file_info;
 
+	int result;
 	int *filecrcs;
 	int numcrcs=0;
 	int i;
@@ -446,9 +447,12 @@ int FSZIP_GeneratePureCRC(void *handle, int seed, int crctype)
 	}
 
 	if (crctype)
-		return Com_BlockChecksum(filecrcs, numcrcs*sizeof(int));
+		result = Com_BlockChecksum(filecrcs, numcrcs*sizeof(int));
 	else
-		return Com_BlockChecksum(filecrcs+1, (numcrcs-1)*sizeof(int));
+		result = Com_BlockChecksum(filecrcs+1, (numcrcs-1)*sizeof(int));
+
+	BZ_Free(filecrcs);
+	return result;
 }
 
 typedef struct {

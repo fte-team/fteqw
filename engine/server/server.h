@@ -515,6 +515,7 @@ typedef struct client_s
 		SCP_QUAKE3,
 		//all the below are considered netquake clients.
 		SCP_NETQUAKE,
+		SCP_FITZ666,
 		SCP_DARKPLACES6,
 		SCP_DARKPLACES7	//extra prediction stuff
 		//note, nq is nq+
@@ -842,10 +843,10 @@ typedef struct
 
 //define	EF_BRIGHTFIELD			1
 //define	EF_MUZZLEFLASH 			2
-#define	EF_BRIGHTLIGHT 			4
-#define	EF_DIMLIGHT 			8
+//#define	EF_BRIGHTLIGHT 			(1<<2)
+//#define	EF_DIMLIGHT 			(1<<4)
 
-#define	EF_FULLBRIGHT			512
+//#define	EF_FULLBRIGHT			512
 
 
 #define	SPAWNFLAG_NOT_EASY			(1<<8)
@@ -895,6 +896,7 @@ extern	cvar_t	sv_antilag_frac;
 
 extern	netadr_t	master_adr[MAX_MASTERS];	// address of the master server
 
+extern	cvar_t	pr_ssqc_progs;
 extern	cvar_t	spawn;
 extern	cvar_t	teamplay;
 extern	cvar_t	deathmatch;

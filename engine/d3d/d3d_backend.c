@@ -1,5 +1,6 @@
 #include "quakedef.h"
 #include "glquake.h"
+#include "gl_draw.h"
 #ifdef D3DQUAKE
 #include "shader.h"
 #if !defined(HMONITOR_DECLARED) && (WINVER < 0x0500)
@@ -523,6 +524,8 @@ void D3DBE_Init(void)
 	shaderstate.dynidx_size = sizeof(index_t) * DYNIBUFFSIZE;
 
 	D3DBE_Reset(false);
+
+	R_InitFlashblends();
 }
 
 static void allocvertexbuffer(IDirect3DVertexBuffer9 *buff, unsigned int bmaxsize, unsigned int *offset, void **data, unsigned int bytes)
@@ -744,15 +747,15 @@ static void colourgenbyte(const shaderpass_t *pass, int cnt, byte_vec4_t *src, b
 			((D3DCOLOR*)dst)[cnt] = block;
 		}
 		break;
-	case RGB_GEN_VERTEX:
-	case RGB_GEN_EXACT_VERTEX:
+	case RGB_GEN_VERTEX_LIGHTING:
+	case RGB_GEN_VERTEX_EXACT:
 		if (!src)
 		{
 			while((cnt)--)
 			{
-				dst[cnt][0] = 255;//shaderstate.identitylighting;
-				dst[cnt][1] = 255;//shaderstate.identitylighting;
-				dst[cnt][2] = 255;//shaderstate.identitylighting;
+				dst[cnt][0] = 255;
+				dst[cnt][1] = 255;
+				dst[cnt][2] = 255;
 			}
 		}
 		else
@@ -839,8 +842,8 @@ static void colourgenbyte(const shaderpass_t *pass, int cnt, byte_vec4_t *src, b
 
 	case RGB_GEN_TOPCOLOR:
 	case RGB_GEN_BOTTOMCOLOR:
-#ifdef _MSC_VER
-#pragma message("fix 24bit player colours")
+#ifdef warningmsg
+#pragma warningmsg("fix 24bit player colours")
 #endif
 		block = D3DCOLOR_RGBA(255, 255, 255, 255);
 		while((cnt)--)
@@ -999,8 +1002,8 @@ static unsigned int BE_GenerateColourMods(unsigned int vertcount, const shaderpa
 			}
 		}
 		else if (m->colors4f_array &&
-						((pass->rgbgen == RGB_GEN_VERTEX) ||
-						(pass->rgbgen == RGB_GEN_EXACT_VERTEX) ||
+						((pass->rgbgen == RGB_GEN_VERTEX_LIGHTING) ||
+						(pass->rgbgen == RGB_GEN_VERTEX_EXACT) ||
 						(pass->rgbgen == RGB_GEN_ONE_MINUS_VERTEX) ||
 						(pass->alphagen == ALPHA_GEN_VERTEX)))
 		{
@@ -2060,27 +2063,30 @@ void BE_UploadLightmaps(qboolean force)
 			RECT rect;
 			glRect_t *theRect = &lightmap[i]->rectchange;
 			int r;
-			if (tex)
+			if (!tex)
 			{
-				lightmap[i]->modified = 0;
-				rect.left = theRect->l;
-				rect.right = theRect->l + theRect->w;
-				rect.top = theRect->t;
-				rect.bottom = theRect->t + theRect->h;
-
-				IDirect3DTexture9_LockRect(tex, 0, &lock, &rect, 0);
-				for (r = 0; r < lightmap[i]->rectchange.h; r++)
-				{
-					memcpy((char*)lock.pBits + r*lock.Pitch, lightmap[i]->lightmaps+(theRect->l+((r+theRect->t)*LMBLOCK_WIDTH))*lightmap_bytes, lightmap[i]->rectchange.w*lightmap_bytes);
-				}
-				IDirect3DTexture9_UnlockRect(tex, 0);
-				theRect->l = LMBLOCK_WIDTH;
-				theRect->t = LMBLOCK_HEIGHT;
-				theRect->h = 0;
-				theRect->w = 0;
+				lightmap_textures[i] = R_AllocNewTexture("***lightmap***", LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
+				tex = lightmap_textures[i].ptr;
+				if (!tex)
+					continue;
 			}
-			else
-				lightmap_textures[i] = R_AllocNewTexture(LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
+			
+			lightmap[i]->modified = 0;
+			rect.left = theRect->l;
+			rect.right = theRect->l + theRect->w;
+			rect.top = theRect->t;
+			rect.bottom = theRect->t + theRect->h;
+
+			IDirect3DTexture9_LockRect(tex, 0, &lock, &rect, 0);
+			for (r = 0; r < lightmap[i]->rectchange.h; r++)
+			{
+				memcpy((char*)lock.pBits + r*lock.Pitch, lightmap[i]->lightmaps+(theRect->l+((r+theRect->t)*LMBLOCK_WIDTH))*lightmap_bytes, lightmap[i]->rectchange.w*lightmap_bytes);
+			}
+			IDirect3DTexture9_UnlockRect(tex, 0);
+			theRect->l = LMBLOCK_WIDTH;
+			theRect->t = LMBLOCK_HEIGHT;
+			theRect->h = 0;
+			theRect->w = 0;
 		}
 	}
 }
@@ -2656,7 +2662,7 @@ void D3DBE_DrawWorld (qbyte *vis)
 		RSpeedEnd(RSPEED_DRAWENTITIES);
 	}
 
-	GLR_RenderDlights ();
+	R_RenderDlights ();
 
 	BE_RotateForEntity(&r_worldentity, NULL);
 }

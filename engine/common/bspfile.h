@@ -56,6 +56,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define BSPVERSION	29
 //HalfLife support
 #define BSPVERSIONHL	30
+#define BSPVERSION_LONG (('B' << 24) | ('S' << 16) | ('P' << 8) | '2') /*RMQ support. 32bits instead of shorts for all but bbox sizes*/
 
 typedef struct
 {
@@ -169,13 +170,27 @@ typedef struct
 	short		maxs[3];
 	unsigned short	firstface;
 	unsigned short	numfaces;	// counting both sides
-} dnode_t;
+} dsnode_t;
+typedef struct
+{
+	int			planenum;
+	int			children[2];	// negative numbers are -(leafs+1), not nodes
+	short		mins[3];		// for sphere culling
+	short		maxs[3];
+	unsigned int	firstface;
+	unsigned int	numfaces;	// counting both sides
+} dlnode_t;
 
 typedef struct
 {
 	int			planenum;
 	short		children[2];	// negative numbers are contents
-} dclipnode_t;
+} dsclipnode_t;
+typedef struct
+{
+	int			planenum;
+	int			children[2];	// negative numbers are contents
+} dlclipnode_t;
 
 typedef struct
 {
@@ -196,7 +211,11 @@ typedef struct texinfo_s
 typedef struct
 {
 	unsigned short	v[2];		// vertex numbers
-} dedge_t;
+} dsedge_t;
+typedef struct
+{
+	unsigned short	v[2];		// vertex numbers
+} dledge_t;
 
 #define	MAXLIGHTMAPS	4
 typedef struct
@@ -211,7 +230,20 @@ typedef struct
 // lighting info
 	qbyte		styles[MAXLIGHTMAPS];
 	int			lightofs;		// start of [numstyles*surfsize] samples
-} dface_t;
+} dsface_t;
+typedef struct
+{
+	int			planenum;
+	int			side;
+
+	int			firstedge;		// we must support > 64k edges
+	int			numedges;	
+	int			texinfo;
+
+// lighting info
+	qbyte		styles[MAXLIGHTMAPS];
+	int			lightofs;		// start of [numstyles*surfsize] samples
+} dlface_t;
 
 
 
@@ -236,7 +268,20 @@ typedef struct
 	unsigned short		nummarksurfaces;
 
 	qbyte		ambient_level[NUM_AMBIENTS];
-} dleaf_t;
+} dsleaf_t;
+typedef struct
+{
+	int			contents;
+	int			visofs;				// -1 = no visibility info
+
+	short		mins[3];			// for frustum culling
+	short		maxs[3];
+
+	unsigned int		firstmarksurface;
+	unsigned int		nummarksurfaces;
+
+	qbyte		ambient_level[NUM_AMBIENTS];
+} dlleaf_t;
 
 //============================================================================
 

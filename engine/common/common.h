@@ -239,7 +239,7 @@ int Q_strncasecmp (const char *s1, const char *s2, int n);
 int Q_strcasecmp (const char *s1, const char *s2);
 int	Q_atoi (const char *str);
 float Q_atof (const char *str);
-
+void deleetstring(char *result, char *leet);
 
 
 //============================================================================
@@ -321,7 +321,7 @@ struct vfsfile_s *FS_OpenReadLocation(flocation_t *location);
 char *FS_WhichPackForLocation(flocation_t *loc);
 
 char *FS_GetPackHashes(char *buffer, int buffersize, qboolean referencedonly);
-char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly);
+char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly, qboolean ext);
 
 int COM_FOpenFile (const char *filename, FILE **file);
 int COM_FOpenWriteFile (const char *filename, FILE **file);
@@ -390,6 +390,7 @@ qbyte *COM_LoadHunkFile (const char *path);
 qbyte *COM_LoadMallocFile (const char *path);
 void COM_LoadCacheFile (const char *path, struct cache_user_s *cu);
 void FS_ForceToPure(const char *str, const char *crcs, int seed);
+void FS_ImpurePacks(const char *names, const char *crcs);
 char *COM_GetPathInfo (int i, int *crc);
 char *COM_NextPath (char *prevpath);
 void COM_FlushFSCache(void);	//a file was written using fopen

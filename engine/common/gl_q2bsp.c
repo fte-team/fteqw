@@ -28,7 +28,7 @@ extern cvar_t r_shadow_bumpscale_basetexture;
 
 //these are in model.c (or gl_model.c)
 qboolean RMod_LoadVertexes (lump_t *l);
-qboolean RMod_LoadEdges (lump_t *l);
+qboolean RMod_LoadEdges (lump_t *l, qboolean lm);
 qboolean RMod_LoadMarksurfaces (lump_t *l);
 qboolean RMod_LoadSurfedges (lump_t *l);
 void RMod_LoadLighting (lump_t *l);
@@ -1323,7 +1323,7 @@ Mod_LoadFaces
 #ifndef SERVERONLY
 qboolean CMod_LoadFaces (lump_t *l)
 {
-	dface_t		*in;
+	dsface_t		*in;
 	msurface_t 	*out;
 	int			i, count, surfnum;
 	int			planenum, side;
@@ -3863,7 +3863,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 		// load into heap
 		#ifndef SERVERONLY
 			noerrors = noerrors && RMod_LoadVertexes		(&header.lumps[Q2LUMP_VERTEXES]);
-			noerrors = noerrors && RMod_LoadEdges			(&header.lumps[Q2LUMP_EDGES]);
+			noerrors = noerrors && RMod_LoadEdges			(&header.lumps[Q2LUMP_EDGES], false);
 			noerrors = noerrors && RMod_LoadSurfedges		(&header.lumps[Q2LUMP_SURFEDGES]);
 			if (noerrors)
 				RMod_LoadLighting		(&header.lumps[Q2LUMP_LIGHTING]);

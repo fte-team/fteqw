@@ -176,9 +176,22 @@ void PR_AutoCvar(progfuncs_t *prinst, cvar_t *var);
 
 
 
-
-
-
+void QCBUILTIN PF_skel_create (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_skel_build (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_skel_get_numbones (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_skel_get_bonename (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_skel_get_boneparent (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_skel_find_bone (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_skel_get_bonerel (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_skel_get_boneabs (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_skel_set_bone (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_skel_mul_bone (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_skel_mul_bones (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_skel_copybones (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_skel_delete (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void skel_lookup(progfuncs_t *prinst, int skelidx, framestate_t *out);
+void skel_dodelete(progfuncs_t *prinst);
+void skel_reset(progfuncs_t *prinst);
 
 //pr_cmds.c builtins that need to be moved to a common.
 void VARGS PR_BIError(progfuncs_t *progfuncs, char *format, ...) LIKEPRINTF(2);

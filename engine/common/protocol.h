@@ -736,11 +736,11 @@ typedef struct entity_state_s
 {
 	unsigned short		number;			// edict index
 	unsigned short		modelindex;
-	int		bitmask;		// for dp ents, so lost state can be repeated in replacement packets.
+	unsigned int		bitmask;		// for dp ents, so lost state can be repeated in replacement packets.
 
-	int		flags;			// nolerp, etc
+	unsigned int		flags;			// nolerp, etc
 
-	int		effects;
+	unsigned int		effects;
 
 	vec3_t	origin;
 	vec3_t	angles;

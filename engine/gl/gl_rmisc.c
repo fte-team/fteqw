@@ -27,8 +27,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 static void R_ReloadRTLights_f(void);
 static void R_SaveRTLights_f(void);
 
-extern void R_InitBubble();
-
 /*
 ==================
 R_InitTextures
@@ -246,11 +244,10 @@ R_Init
 ===============
 */
 void GLR_ReInit (void)
-{		
-	netgraphtexture = GL_AllocNewTexture(0, 0);
+{
+	R_NetgraphInit();
 
 	R_InitBloomTextures();
-	R_InitFlashblends();
 }
 /*
 typedef struct
@@ -435,7 +432,7 @@ if (!data)
 */
 void GLR_TimeRefresh_f (void);
 
-extern cvar_t gl_bump, v_contrast, r_drawflat;
+extern cvar_t v_contrast, r_drawflat;
 extern cvar_t r_stains, r_stainfadetime, r_stainfadeammount;
 
 // callback defines
@@ -467,9 +464,9 @@ void GLR_DeInit (void)
 	Cvar_Unhook(&v_gamma);
 	Cvar_Unhook(&v_contrast);
 
-	GLDraw_DeInit();
-
 	Surf_DeInit();
+
+	GLDraw_DeInit();
 }
 
 void GLR_Init (void)
@@ -490,8 +487,6 @@ void GLR_Init (void)
 //	Cvar_Hook(&r_drawflat, GLR_Drawflat_Callback);
 	Cvar_Hook(&v_gamma, GLV_Gamma_Callback);
 	Cvar_Hook(&v_contrast, GLV_Gamma_Callback);
-
-	R_InitBubble();
 
 	GLR_ReInit();
 }
@@ -733,6 +728,9 @@ static void R_LoadRTLights(void)
 	vec3_t rgb;
 	unsigned int flags;
 
+	float coronascale;
+	float corona;
+	float ambientscale, diffusescale, specularscale;
 	vec3_t angles;
 
 	//delete all old lights, even dynamic ones
@@ -789,31 +787,33 @@ static void R_LoadRTLights(void)
 
 		file = COM_Parse(file);
 		//corona
+		corona = file?atof(com_token):0;
 
 		file = COM_Parse(file);
-		angles[0] = atof(com_token);
+		angles[0] = file?atof(com_token):0;
 		file = COM_Parse(file);
-		angles[1] = atof(com_token);
+		angles[1] = file?atof(com_token):0;
 		file = COM_Parse(file);
-		angles[2] = atof(com_token);
+		angles[2] = file?atof(com_token):0;
 
 		file = COM_Parse(file);
 		//corrona scale
+		coronascale = file?atof(com_token):0.25;
 
 		file = COM_Parse(file);
 		//ambient
+		ambientscale = file?atof(com_token):0;
 
 		file = COM_Parse(file);
 		//diffuse
+		diffusescale = file?atof(com_token):1;
 
 		file = COM_Parse(file);
 		//specular
+		specularscale = file?atof(com_token):1;
 
 		file = COM_Parse(file);
-		if (*com_token)
-			flags |= atoi(com_token);
-		else
-			flags |= LFLAG_REALTIMEMODE;
+		flags |= file?atoi(com_token):LFLAG_REALTIMEMODE;
 
 		if (radius)
 		{
@@ -845,6 +845,7 @@ static void R_SaveRTLights_f(void)
 	vfsfile_t *f;
 	unsigned int i;
 	char fname[MAX_QPATH];
+	vec3_t ang;
 	COM_StripExtension(cl.worldmodel->name, fname, sizeof(fname));
 	strncat(fname, ".rtlights", MAX_QPATH-1);
 
@@ -861,21 +862,22 @@ static void R_SaveRTLights_f(void)
 			continue;
 		if (!light->radius)
 			continue;
+		VectorAngles(light->axis[0], light->axis[2], ang);
 		VFS_PUTS(f, va(
 			"%s%f %f %f "
 			"%f %f %f %f "
 			"%i "
 			"\"%s\" %f "
 			"%f %f %f "
-			"%f %f %f %i "
+			"%f %f %f %f %i "
 			"\n"
 			,
 			(light->flags & LFLAG_NOSHADOWS)?"!":"", light->origin[0], light->origin[1], light->origin[2],
 			light->radius, light->color[0], light->color[1], light->color[2], 
 			light->style-1,
-			"", 0.0f,
-			0.0f, 0.0f, 0.0f,
-			0.0f, 0.0f, 0.0f, light->flags&(LFLAG_NORMALMODE|LFLAG_REALTIMEMODE)
+			"", light->corona,
+			ang[0], ang[1], ang[2],
+			light->coronascale, light->ambientscale, light->diffusescale, light->specularscale, light->flags&(LFLAG_NORMALMODE|LFLAG_REALTIMEMODE)
 			));
 	}
 	VFS_CLOSE(f);
@@ -970,6 +972,7 @@ TRACE(("dbg: GLR_NewMap: tp\n"));
 
 void GLR_PreNewMap(void)
 {
+	r_loadbumpmapping = r_deluxemapping.ival || r_shadow_realtime_world.ival || r_shadow_realtime_dlight.ival;
 }
 
 

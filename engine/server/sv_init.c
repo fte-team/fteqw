@@ -380,21 +380,21 @@ void SV_SaveSpawnparms (qboolean dontsave)
 			Q1QVM_SetChangeParms();
 			for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
 			{
-				if (spawnparamglobals[j])
-					host_client->spawn_parms[j] = *spawnparamglobals[j];
+				if (pr_global_ptrs->spawnparamglobals[j])
+					host_client->spawn_parms[j] = *pr_global_ptrs->spawnparamglobals[j];
 				else
 					host_client->spawn_parms[j] = 0;
 			}
 		}
 #endif
-		else if (pr_nqglobal_struct->SetChangeParms)
+		else if (pr_global_ptrs->SetChangeParms)
 		{
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, host_client->edict);
 			PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetChangeParms);
 			for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
 			{
-				if (spawnparamglobals[j])
-					host_client->spawn_parms[j] = *spawnparamglobals[j];
+				if (pr_global_ptrs->spawnparamglobals[j])
+					host_client->spawn_parms[j] = *pr_global_ptrs->spawnparamglobals[j];
 				else
 					host_client->spawn_parms[j] = 0;
 			}
@@ -414,8 +414,8 @@ void SV_SaveSpawnparms (qboolean dontsave)
 				host_client->deaths=0;
 				for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
 				{
-					if (spawnparamglobals[j])
-						rs.parm[j] = *spawnparamglobals[j];
+					if (pr_global_ptrs->spawnparamglobals[j])
+						rs.parm[j] = *pr_global_ptrs->spawnparamglobals[j];
 					else
 						rs.parm[j] = 0;
 				}
@@ -612,7 +612,6 @@ clients along with it.
 This is only called from the SV_Map_f() function.
 ================
 */
-extern cvar_t	progs;
 void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean usecinematic)
 {
 	func_t f;
@@ -713,6 +712,11 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	r_worldentity.model = NULL;
 	if (0)
 	cls.state = ca_connected;
+	if (R_PreNewMap)
+		R_PreNewMap();
+#ifdef VM_CG
+	CG_Stop();
+#endif
 #endif
 
 #ifdef Q3SERVER
@@ -956,7 +960,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	else
 #endif
 #ifdef Q2SERVER
-	if ((sv.world.worldmodel->fromgame == fg_quake2 || sv.world.worldmodel->fromgame == fg_quake3) && !*progs.string && SVQ2_InitGameProgs())	//these are the rules for running a q2 server
+	if ((sv.world.worldmodel->fromgame == fg_quake2 || sv.world.worldmodel->fromgame == fg_quake3) && !*pr_ssqc_progs.string && SVQ2_InitGameProgs())	//these are the rules for running a q2 server
 		newgametype = GT_QUAKE2;	//we loaded the dll
 	else
 #endif
@@ -1250,9 +1254,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		}
 		else
 		{
-			if (pr_nqglobal_struct->coop && coop.value)
+			if (pr_global_ptrs->coop && coop.value)
 				pr_global_struct->coop = coop.value;
-			else if (pr_nqglobal_struct->deathmatch)
+			else if (pr_global_ptrs->deathmatch)
 				pr_global_struct->deathmatch = deathmatch.value;
 		}
 
@@ -1497,8 +1501,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 				// copy spawn parms out of the client_t
 				for (j=0 ; j< NUM_SPAWN_PARMS ; j++)
 				{
-					if (spawnparamglobals[j])
-						*spawnparamglobals[j] = host_client->spawn_parms[j];
+					if (pr_global_ptrs->spawnparamglobals[j])
+						*pr_global_ptrs->spawnparamglobals[j] = host_client->spawn_parms[j];
 				}
 
 				SV_SetUpClientEdict(host_client, sv_player);

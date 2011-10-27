@@ -31,6 +31,9 @@
 			/>
 			<Tool
 				Name="VCCustomBuildTool"
+				Description="Registering ActiveX Control..."
+				CommandLine="regsvr32 /s /c &quot;$(TargetPath)&quot;&#x0D;&#x0A;echo regsvr32 exec. time &gt; &quot;$(OutDir)\regsvr32.trg&quot;&#x0D;&#x0A;"
+				Outputs="$(OutDir)\regsvr32.trg"
 			/>
 			<Tool
 				Name="VCXMLDataGeneratorTool"
@@ -446,6 +449,18 @@
 			<File
 				RelativePath="..\ftequake\npplug.rc"
 				>
+			</File>
+			<File
+				RelativePath="..\client\sys_axfte.cpp"
+				>
+				<FileConfiguration
+					Name="GLDebug|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="0"
+					/>
+				</FileConfiguration>
 			</File>
 			<File
 				RelativePath="..\client\sys_npfte.c"
@@ -11111,6 +11126,10 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+				</File>
+				<File
+					RelativePath="..\client\pr_skelobj.c"
+					>
 				</File>
 				<File
 					RelativePath="..\client\r_part.c"

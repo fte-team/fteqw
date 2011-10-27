@@ -53,6 +53,12 @@ game specifies which game you are trying to target. Explicitly supported values 
 	/*set it to some server*/
 	fte.server = "192.168.0.1:27500";
 	/*explicitly activate it without requiring the user to click on it. only one plugin instance can be active at once. use with caution, or at least not on more than 	one plugin object on page site.*/
-	fte.running = 1;
+//	fte.running = 1;
 	document.write(fte.plugver);
 </script>
+
+<br/>
+<a onclick="script:fte.running=1;">run</a><br/>
+<a onclick="script:fte.width=640;fte.height=480;">640*480</a><br/>
+<a onclick="script:fte.width=800;fte.height=600;">800*600</a><br/>
+<a onclick="script:fte.width=1024;fte.height=768;">1024*768</a><br/>

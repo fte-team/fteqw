@@ -951,8 +951,8 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				protocollen++;
 			if (data & DPSND_LARGESOUND)
 				protocollen++;
-#ifdef _MSC_VER
-#pragma message("NPP_NQWriteByte: this ignores SVC_SOUND from nq mods (nexuiz)")
+#ifdef warningmsg
+#pragma warningmsg("NPP_NQWriteByte: this ignores SVC_SOUND from nq mods (nexuiz)")
 #endif
 			ignoreprotocol = true;
 			break;

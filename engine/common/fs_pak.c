@@ -148,6 +148,36 @@ int FSPAK_EnumerateFiles (void *handle, const char *match, int (*func)(const cha
 
 	return true;
 }
+
+int FSPAK_GeneratePureCRC(void *handle, int seed, int crctype)
+{
+	pack_t *pak = handle;
+
+	int result;
+	int *filecrcs;
+	int numcrcs=0;
+	int i;
+
+	filecrcs = BZ_Malloc((pak->numfiles+1)*sizeof(int));
+	filecrcs[numcrcs++] = seed;
+
+	for (i = 0; i < pak->numfiles; i++)
+	{
+		if (pak->files[i].filelen > 0)
+		{
+			filecrcs[numcrcs++] = pak->files[i].filepos ^ pak->files[i].filelen ^ QCRC_Block(pak->files[i].name, sizeof(56));
+		}
+	}
+
+	if (crctype)
+		result = Com_BlockChecksum(filecrcs, numcrcs*sizeof(int));
+	else
+		result = Com_BlockChecksum(filecrcs+1, (numcrcs-1)*sizeof(int));
+
+	BZ_Free(filecrcs);
+	return result;
+}
+
 /*
 =================
 COM_LoadPackFile
@@ -352,7 +382,7 @@ searchpathfuncs_t packfilefuncs = {
 	FSPAK_ReadFile,
 	FSPAK_EnumerateFiles,
 	FSPAK_LoadPackFile,
-	NULL,
+	FSPAK_GeneratePureCRC,
 	FSPAK_OpenVFS
 };
 

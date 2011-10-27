@@ -784,6 +784,12 @@ void R_InitSky (struct texnums_s *tn, texture_t *mt, qbyte *src)
 	Q_strlwr(name);
 	tn->fullbright = R_LoadReplacementTexture(name, NULL, 0);
 	if (!TEXVALID(tn->fullbright))
+	{
+		Q_snprintfz(name, sizeof(name), "%s_alpha", mt->name);
+		Q_strlwr(name);
+		tn->fullbright = R_LoadReplacementTexture(name, NULL, 0);
+	}
+	if (!TEXVALID(tn->fullbright))
 		tn->fullbright = R_LoadTexture32(name, 128, 128, trans, IF_NOGAMMA);
 }
 #endif

@@ -20,12 +20,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // gl_ngraph.c
 
 #include "quakedef.h"
-#ifdef GLQUAKE
-#include "glquake.h"
+#include "shader.h"
 
 extern qbyte		*draw_chars;				// 8*8 graphic characters
 
-texid_t	netgraphtexture;	// netgraph texture
+static texid_t	netgraphtexture;	// netgraph texture
+static shader_t *netgraphshader;
 
 #define NET_GRAPHHEIGHT 32
 
@@ -61,12 +61,15 @@ static void R_LineGraph (int x, int h)
 		ngraph_texels[NET_GRAPHHEIGHT - i - 1][x] = (qbyte)0xff;
 }
 
-void Draw_CharToNetGraph (int x, int y, int num)
+static void Draw_CharToNetGraph (int x, int y, int num)
 {
 	int		row, col;
 	qbyte	*source;
 	int		drawline;
 	int		nx;
+
+	if (!draw_chars)
+		return;
 
 	row = num>>4;
 	col = num&15;
@@ -118,30 +121,9 @@ void GLR_NetGraph (void)
 	Draw_FunString(8, y, st);
 	y += 8;
 
-#ifndef ANDROID
-	GL_MTBind(0, GL_TEXTURE_2D, netgraphtexture);
-
-	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 
-		NET_TIMINGS, NET_GRAPHHEIGHT, 0, GL_RGBA, 
-		GL_UNSIGNED_BYTE, ngraph_pixels);
-
-	GL_TexEnv(GL_MODULATE);
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	x = 8;
-	qglColor3f (1,1,1);
-	qglBegin (GL_QUADS);
-	qglTexCoord2f (0, 0);
-	qglVertex2f (x, y);
-	qglTexCoord2f (1, 0);
-	qglVertex2f (x+NET_TIMINGS, y);
-	qglTexCoord2f (1, 1);
-	qglVertex2f (x+NET_TIMINGS, y+NET_GRAPHHEIGHT);
-	qglTexCoord2f (0, 1);
-	qglVertex2f (x, y+NET_GRAPHHEIGHT);
-	qglEnd ();
-#endif
+	R_Upload(netgraphtexture, "***netgraph***", TF_RGBA32, ngraph_pixels, NULL, NET_TIMINGS, NET_GRAPHHEIGHT, IF_NOMIPMAP|IF_NOPICMIP);
+	x=8;
+	R2D_Image(x, y, NET_TIMINGS, NET_GRAPHHEIGHT, 0, 0, 1, 1, netgraphshader);
 }
 
 void GLR_FrameTimeGraph (int frametime)
@@ -180,30 +162,21 @@ void GLR_FrameTimeGraph (int frametime)
 	Draw_FunString(8, y, st);
 	y += 8;
 
-#ifndef ANDROID	
-    GL_MTBind(0, GL_TEXTURE_2D, netgraphtexture);
-
-	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, 
-		NET_TIMINGS, NET_GRAPHHEIGHT, 0, GL_RGBA, 
-		GL_UNSIGNED_BYTE, ngraph_pixels);
-
-	GL_TexEnv(GL_MODULATE);
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	x = 8;
-	qglColor3f (1,1,1);
-	qglBegin (GL_QUADS);
-	qglTexCoord2f (0, 0);
-	qglVertex2f (x, y);
-	qglTexCoord2f (1, 0);
-	qglVertex2f (x+NET_TIMINGS, y);
-	qglTexCoord2f (1, 1);
-	qglVertex2f (x+NET_TIMINGS, y+NET_GRAPHHEIGHT);
-	qglTexCoord2f (0, 1);
-	qglVertex2f (x, y+NET_GRAPHHEIGHT);
-	qglEnd ();
-#endif
+	R_Upload(netgraphtexture, "***netgraph***", TF_RGBA32, ngraph_pixels, NULL, NET_TIMINGS, NET_GRAPHHEIGHT, IF_NOMIPMAP|IF_NOPICMIP);
+	x=8;
+	R2D_Image(x, y, NET_TIMINGS, NET_GRAPHHEIGHT, 0, 0, 1, 1, netgraphshader);
 }
 
-#endif
+void R_NetgraphInit(void)
+{
+	TEXASSIGN(netgraphtexture, GL_AllocNewTexture("***netgraph***", NET_TIMINGS, NET_GRAPHHEIGHT));
+	netgraphshader = R_RegisterShader("netgraph",
+		"{\n"
+			"{\n"
+				"map $diffuse\n"
+				"blendfunc blend\n"
+			"}\n"
+		"}\n"
+		);
+	netgraphshader->defaulttextures.base = netgraphtexture;
+}

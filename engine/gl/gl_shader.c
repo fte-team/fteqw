@@ -37,6 +37,7 @@ extern LPDIRECT3DDEVICE9 pD3DDev9;
 #endif
 
 extern texid_t missing_texture;
+static texid_t r_whiteimage;
 static qboolean shader_reload_needed;
 static qboolean shader_rescan_needed;
 
@@ -221,18 +222,17 @@ static qboolean Shader_EvaluateCondition(char **ptr)
 	}
 	if (*token == '$')
 	{
-		extern cvar_t gl_bump;
 		token++;
 		if (!Q_stricmp(token, "lpp"))
 			conditiontrue = conditiontrue == !r_lightprepass.ival;
 		else if (!Q_stricmp(token, "lightmap"))
 			conditiontrue = conditiontrue == !r_fullbright.value;
 		else if (!Q_stricmp(token, "deluxmap") )
-			conditiontrue = conditiontrue == (r_deluxemapping.value && gl_bump.value);
+			conditiontrue = conditiontrue == r_deluxemapping.ival;
 
 		//normalmaps are generated if they're not already known.
 		else if (!Q_stricmp(token, "normalmap") )
-			conditiontrue = conditiontrue == !!gl_bump.value;
+			conditiontrue = conditiontrue == r_loadbumpmapping;
 
 		else if (!Q_stricmp(token, "gles") )
 		{
@@ -265,13 +265,14 @@ static qboolean Shader_EvaluateCondition(char **ptr)
 #else
 			conditiontrue = conditiontrue == false;
 #endif
-		}
+		
 
 
 // GCC hates these within if statements "error: expected '}' before 'else'"
-#ifdef _MSC_VER
-#pragma message("shader fixme")
+#ifdef warningmsg
+#pragma warningmsg("shader fixme")
 #endif
+		}
 		else if (!Q_stricmp(token, "diffuse") )
 			conditiontrue = conditiontrue == true;
 		else if (!Q_stricmp(token, "specular") )
@@ -548,7 +549,7 @@ static int Shader_SetImageFlags ( shader_t *shader )
 static texid_t Shader_FindImage ( char *name, int flags )
 {
 	if (!Q_stricmp (name, "$whiteimage"))
-		return r_nulltex;
+		return r_whiteimage;
 	else
 		return R_LoadHiResTexture(name, NULL, flags);
 }
@@ -775,7 +776,6 @@ static void Shader_LoadPermutations(char *name, program_t *prog, char *script, i
 	unsigned int nopermutation = ~0u;
 	int p, n, pn;
 	char *end;
-	char *vers;
 
 	char *cvarfnames[64];
 	int cvarfcount = 0;
@@ -829,10 +829,6 @@ static void Shader_LoadPermutations(char *name, program_t *prog, char *script, i
 			break;
 	};
 
-	if (ver)
-		vers = va("#version %u\n", ver);
-	else
-		vers = NULL;
 	memset(prog->handle, 0, sizeof(*prog->handle)*PERMUTATIONS);
 	for (p = 0; p < PERMUTATIONS; p++)
 	{
@@ -853,7 +849,7 @@ static void Shader_LoadPermutations(char *name, program_t *prog, char *script, i
 					permutationdefines[pn++] = permutationname[n];
 			}
 			permutationdefines[pn++] = NULL;
-			prog->handle[p].glsl = GLSlang_CreateProgram(name, vers, permutationdefines, script, script);
+			prog->handle[p].glsl = GLSlang_CreateProgram(name, (((p & PERMUTATION_SKELETAL) && ver < 120)?120:ver), permutationdefines, script, script);
 		}
 #endif
 #ifdef D3DQUAKE
@@ -905,11 +901,10 @@ struct sbuiltin_s
 /*defaultfill is a simple shader for block-filling with vertex colours. note that the blendfunc stuff is done after the shader anyway.*/
 	{QR_OPENGL/*ES*/, 100, "defaultfill",
 		"#ifdef VERTEX_SHADER\n"
-			"attribute vec2 v_texcoord;\n"
 			"attribute vec4 v_colour;\n"
 			"varying vec4 vc;\n"
 
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
 			"	vc = v_colour;\n"
 			"	gl_Position = ftetransform();\n"
@@ -918,7 +913,7 @@ struct sbuiltin_s
 
 		"#ifdef FRAGMENT_SHADER\n"
 			"varying lowp vec4 vc;\n"
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
 			"	gl_FragColor = vc;\n"
 			"}\n"
@@ -932,7 +927,7 @@ struct sbuiltin_s
 			"varying vec2 tc;\n"
 			"varying vec4 vc;\n"
 
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
 			"	tc = v_texcoord;\n"
 			"	vc = v_colour;\n"
@@ -945,7 +940,7 @@ struct sbuiltin_s
 			"varying mediump vec2 tc;\n"
 			"varying lowp vec4 vc;\n"
 
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
 			"	gl_FragColor = texture2D(s_t0, tc) * vc;\n"
 			"}\n"
@@ -958,7 +953,7 @@ struct sbuiltin_s
 			"varying vec2 tc;\n"
 			"varying vec4 vc;\n"
 
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
 			"	tc = v_texcoord;\n"
 			"	vc = v_colour;\n"
@@ -971,7 +966,7 @@ struct sbuiltin_s
 			"in vec2 tc;\n"
 			"varying vec4 vc;\n"
 
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
 			"	gl_FragColor = texture2D(s_t0, tc) * vc;\n"
 			"}\n"
@@ -985,7 +980,7 @@ struct sbuiltin_s
 			"attribute vec2 v_lmcoord;\n"
 			"varying vec2 tc, lm;\n"
 
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
 			"	tc = v_texcoord;\n"
 			"	lm = v_lmcoord;\n"
@@ -1002,7 +997,7 @@ struct sbuiltin_s
 			"varying mediump vec2 tc, lm;\n"
 			"uniform mediump float cvar_gl_overbright;\n"
 
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
 			"	mediump float scale = exp2(floor(clamp(cvar_gl_overbright, 0.0, 2.0)));\n"
 			"	gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm) * vec4(scale, scale, scale, 1);\n"
@@ -1016,7 +1011,7 @@ struct sbuiltin_s
 			"attribute vec2 v_lmcoord;\n"
 			"varying vec2 tc, lm;\n"
 
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
 			"	tc = v_texcoord;\n"
 			"	lm = v_lmcoord;\n"
@@ -1033,7 +1028,7 @@ struct sbuiltin_s
 			"varying vec2 tc, lm;\n"
 			"uniform float cvar_gl_overbright;\n"
 
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
 			"	float scale = exp2(floor(clamp(cvar_gl_overbright, 0.0, 2.0)));\n"
 			"	gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm) * vec4(scale, scale, scale, 1);\n"
@@ -1046,7 +1041,7 @@ struct sbuiltin_s
 		"varying mediump vec2 tc;\n"
 		"#ifdef VERTEX_SHADER\n"
 			"attribute vec2 v_texcoord;\n"
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
 			"	tc = v_texcoord;\n"
 			"	gl_Position = ftetransform();\n"
@@ -1058,7 +1053,7 @@ struct sbuiltin_s
 			"uniform mediump float e_time;\n"
 			"uniform lowp float cvar_r_wateralpha;\n"
 
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
 			"	mediump vec2 ntc;\n"
 			"	ntc.s = tc.s + sin(tc.t+e_time)*0.125;\n"
@@ -1074,7 +1069,7 @@ struct sbuiltin_s
 		"varying vec2 tc;\n"
 		"#ifdef VERTEX_SHADER\n"
 			"attribute vec2 v_texcoord;\n"
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
 			"	tc = v_texcoord.st;\n"
 			"	gl_Position = ftetransform();\n"
@@ -1086,7 +1081,7 @@ struct sbuiltin_s
 			"uniform float e_time;\n"
 			"uniform float cvar_r_wateralpha;\n"
 
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
 			"	vec2 ntc;\n"
 			"	ntc.s = tc.s + sin(tc.t+e_time)*0.125;\n"
@@ -1097,12 +1092,122 @@ struct sbuiltin_s
 			"}\n"
 		"#endif\n"
 	},
+	{QR_OPENGL, 110, "underwaterwarp",
+		/*
+		inputs:
+		texcoords: edge points
+		coords: vertex coords (duh)
+		time
+		ampscale (cvar = r_waterwarp)
+
+		use ifs instead of an edge map?
+		*/
+		"!!cvarf r_waterwarp\n"
+		"#ifdef VERTEX_SHADER\n"
+			"attribute vec2 v_texcoord;\n"
+			"varying vec2 v_stc;\n"
+			"varying vec2 v_warp;\n"
+			"varying vec2 v_edge;\n"
+			"uniform float e_time;\n"
+			"void main ()\n"
+			"{\n"
+				"gl_Position = ftetransform();\n"
+				"v_stc = (1.0+(gl_Position.xy / gl_Position.w))/2.0;\n"
+				"v_warp.s = e_time * 0.25 + v_texcoord.s;\n"
+				"v_warp.t = e_time * 0.25 + v_texcoord.t;\n"
+				"v_edge = v_texcoord.xy;\n"
+			"}\n"
+		"#endif\n"
+		"#ifdef FRAGMENT_SHADER\n"
+			"varying vec2 v_stc;\n"
+			"varying vec2 v_warp;\n"
+			"varying vec2 v_edge;\n"
+			"uniform sampler2D s_t0;/*$currentrender*/\n"
+			"uniform sampler2D s_t1;/*warp image*/\n"
+			"uniform sampler2D s_t2;/*edge image*/\n"
+			"uniform vec3 e_rendertexturescale;\n"
+			"uniform float cvar_r_waterwarp;\n"
+			"void main ()\n"
+			"{\n"
+				"float amptemp;\n"
+				"vec3 edge;\n"
+				"edge = texture2D( s_t2, v_edge ).rgb;\n"
+				"amptemp = (0.010 / 0.625) * cvar_r_waterwarp * edge.x;\n"
+				"vec3 offset;\n"
+				"offset = texture2D( s_t1, v_warp ).rgb;\n"
+				"offset.x = (offset.x - 0.5) * 2.0;\n"
+				"offset.y = (offset.y - 0.5) * 2.0;\n"
+				"vec2 temp;\n"
+				"temp.x = v_stc.x + offset.x * amptemp;\n"
+				"temp.y = v_stc.y + offset.y * amptemp;\n"
+				"gl_FragColor = texture2D( s_t0, temp*e_rendertexturescale.st );\n"
+			"}\n"
+		"#endif\n"
+	},
+	{QR_OPENGL, 110, "postproc_panorama",
+		"!!cvarf ffov\n"
+		"#ifdef VERTEX_SHADER\n"
+			"attribute vec2 v_texcoord;\n"
+			"varying vec2 texcoord;\n"
+			"void main()\n"
+			"{\n"
+				"texcoord = v_texcoord.xy;\n"
+				"gl_Position = ftetransform();\n"
+			"}\n"
+		"#endif\n"
+		"#ifdef FRAGMENT_SHADER\n"
+			"uniform samplerCube s_t0;\n"
+			"varying vec2 texcoord;\n"
+			"uniform float cvar_ffov;\n"
+			"void main()\n"
+			"{\n"
+				"vec3 tc;	\n"
+				"float ang;	\n"
+				"ang = texcoord.x*-radians(cvar_ffov);	\n"
+				"tc.x = sin(ang);	\n"
+				"tc.y = -texcoord.y;	\n"
+				"tc.z = cos(ang);	\n"
+				"gl_FragColor = textureCube(s_t0, tc);\n"
+			"}\n"
+		"#endif\n"
+
+	},
+	{QR_OPENGL, 110, "postproc_fisheye",
+		"!!cvarf ffov\n"
+		"#ifdef VERTEX_SHADER\n"
+			"attribute vec2 v_texcoord;\n"
+			"varying vec2 texcoord;\n"
+			"void main()\n"
+			"{\n"
+				"texcoord = v_texcoord.xy;\n"
+				"gl_Position = ftetransform();\n"
+			"}\n"
+		"#endif\n"
+		"#ifdef FRAGMENT_SHADER\n"
+			"uniform samplerCube s_t0;\n"
+			"varying vec2 texcoord;\n"
+			"uniform float cvar_ffov;\n"
+			"void main()\n"
+			"{\n"
+				"vec3 tc;	\n"
+				"vec2 d;	\n"
+				"vec2 ang;	\n"
+				"d = texcoord;	\n"
+				"ang.x = sqrt(d.x*d.x+d.y*d.y)*radians(cvar_ffov);	\n"
+				"ang.y = -atan(d.y, d.x);	\n"
+				"tc.x = sin(ang.x) * cos(ang.y);	\n"
+				"tc.y = sin(ang.x) * sin(ang.y);	\n"
+				"tc.z = cos(ang.x);	\n"
+				"gl_FragColor = textureCube(s_t0, tc);\n"
+			"}\n"
+		"#endif\n"
+	},
 /*defautsky projects the texture in order to match q1 skies, along with two separate layers scrolling at separate speeds*/
 	{QR_OPENGL/*ES*/, 100, "defaultsky",
 		"#ifdef VERTEX_SHADER\n"
 			"varying vec3 pos;\n"
 
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
 			"	pos = v_position.xyz;\n"
 			"	gl_Position = ftetransform();\n"
@@ -1117,7 +1222,7 @@ struct sbuiltin_s
 			"uniform mediump vec3 e_eyepos;\n"
 			"varying mediump vec3 pos;\n"
 
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
 			"	mediump vec2 tccoord;\n"
 
@@ -1141,7 +1246,7 @@ struct sbuiltin_s
 		"#ifdef VERTEX_SHADER\n"
 			"varying vec3 pos;\n"
 
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
 			"	pos = v_position.xyz;\n"
 			"	gl_Position = ftetransform();\n"
@@ -1155,7 +1260,7 @@ struct sbuiltin_s
 			"uniform sampler2D s_t0;\n"
 			"uniform sampler2D s_t1;\n"
 
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
 			"	vec2 tccoord;\n"
 
@@ -1181,19 +1286,20 @@ struct sbuiltin_s
 		"!!permu UPPER\n"
 		"!!permu SKELETAL\n"
 		"#ifdef VERTEX_SHADER\n"
+			"#include \"sys/skeletal.h\"\n"
 			"attribute vec2 v_texcoord;\n"
 			"varying vec2 tc;\n"
 
-			"attribute vec3 v_normal;\n"
 			"uniform vec3 e_light_dir;\n"
 			"uniform vec3 e_light_mul;\n"
 			"uniform vec3 e_light_ambient;\n"
 			"varying vec3 light;\n"
 
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
-			"	gl_Position = ftetransform();\n"
-			"	light = e_light_ambient + (dot(v_normal,e_light_dir)*e_light_mul);\n"
+			"	vec3 n;\n"
+			"	gl_Position = skeletaltransform_n(n);\n"
+			"	light = e_light_ambient + (dot(n,e_light_dir)*e_light_mul);\n"
 			"	tc = v_texcoord;\n"
 			"}\n"
 		"#endif\n"
@@ -1215,7 +1321,7 @@ struct sbuiltin_s
 			"varying lowp vec3 light;\n"
 			"uniform lowp vec4 e_colourident;\n"
 
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
 			"	lowp vec4 col;\n"
 			"	col = texture2D(s_t0, tc);\n"
@@ -1236,25 +1342,25 @@ struct sbuiltin_s
 			"}\n"
 		"#endif\n"
 	},
-	{QR_OPENGL, 120, "defaultskin",
+	{QR_OPENGL, 110, "defaultskin",
 		"!!permu FULLBRIGHT\n"
 		"!!permu LOWER\n"
 		"!!permu UPPER\n"
 		"!!permu SKELETAL\n"
+		"varying vec2 tc;\n"
+		"varying vec3 light;\n"
 		"#ifdef VERTEX_SHADER\n"
+			"#include \"sys/skeletal.h\"\n"
 			"attribute vec2 v_texcoord;\n"
-			"varying vec2 tc;\n"
 
-			"attribute vec3 v_normal;\n"
 			"uniform vec3 e_light_dir;\n"
 			"uniform vec3 e_light_mul;\n"
 			"uniform vec3 e_light_ambient;\n"
-			"varying vec3 light;\n"
-			"#ifndef SKELETAL\nattribute vec4 v_weight;\n#endif\n"
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
-			"	gl_Position = ftetransform();\n"
-			"	light = e_light_ambient + (dot(v_normal,e_light_dir)*e_light_mul);\n"
+			"	vec3 n;\n"
+			"	gl_Position = skeletaltransform_n(n);\n"
+			"	light = e_light_ambient + (dot(n,e_light_dir)*e_light_mul);\n"
 			"	tc = v_texcoord;\n"
 			"}\n"
 		"#endif\n"
@@ -1272,11 +1378,9 @@ struct sbuiltin_s
 			"#ifdef FULLBRIGHT\n"
 			"uniform sampler2D s_t3;\n" /*tex_fullbright*/
 			"#endif\n"
-			"varying vec2 tc;\n"
-			"varying vec3 light;\n"
 			"uniform vec4 e_colourident;\n"
 
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
 			"	vec4 col, sp;\n"
 			"	col = texture2D(s_t0, tc);\n"
@@ -1299,34 +1403,31 @@ struct sbuiltin_s
 	},
 	{QR_OPENGL, 110, "lpp_depthnorm",
 		"!!permu BUMP\n"
+		"!!permu SKELETAL\n"
 		"varying vec2 pos;\n"
 		"varying vec3 norm, tang, bitang;\n"
 		"#if defined(BUMP)\n"
 			"varying vec2 tc;\n"
 		"#endif\n"
 		"#ifdef VERTEX_SHADER\n"
+			"#include \"sys/skeletal.h\"\n"
 			"attribute vec2 v_texcoord;\n"
-			"attribute vec3 v_normal;\n"
-			"attribute vec3 v_svector;\n"
-			"attribute vec3 v_tvector;\n"
-			"uniform mat4 m_modelviewprojection;\n"
-			"void main(void)\n"
+			"void main()\n"
 			"{\n"
-				"gl_Position = ftetransform();\n"
-				"pos = gl_Position.zw;\n"
-				"norm = v_normal;\n"
 		"#if defined(BUMP)\n"
-				"tang = v_svector;\n"
-				"bitang = v_tvector;\n"
+				"gl_Position = skeletaltransform_nst(norm, tang, bitang);\n"
 				"tc = v_texcoord;\n"
+		"#else\n"
+				"gl_Position = skeletaltransform_n(norm);\n"
 		"#endif\n"
+				"pos = gl_Position.zw;\n"
 			"}\n"
 		"#endif\n"
 		"#ifdef FRAGMENT_SHADER\n"
 			"#if defined(BUMP)\n"
 				"uniform sampler2D s_t0;\n"
 			"#endif\n"
-			"void main(void)\n"
+			"void main()\n"
 			"{\n"
 				"vec3 onorm;\n"
 		"#if defined(BUMP)\n"
@@ -1343,9 +1444,9 @@ struct sbuiltin_s
 	{QR_OPENGL, 110, "lpp_light",
 		"varying vec4 tf;\n"
 		"#ifdef VERTEX_SHADER\n"
-		"void main(void)\n"
+		"void main()\n"
 		"{\n"
-			"gl_Position = tf = ftetransform();\n"
+			"tf = ftetransform(); gl_Position = tf;\n"
 		"}\n"
 		"#endif\n"
 		"#ifdef FRAGMENT_SHADER\n"
@@ -1368,7 +1469,7 @@ struct sbuiltin_s
 			"return pos.xyz / pos.w;\n"
 		"}\n"
 
-		"void main (void)\n"
+		"void main ()\n"
 		"{\n"
 			"vec3 lightColour		= l_lightcolour.rgb;\n"
 			"float lightIntensity	= 1.0;\n"
@@ -1412,7 +1513,7 @@ struct sbuiltin_s
 			"attribute vec2 v_texcoord;\n"
 			"attribute vec2 v_lmcoord;\n"
 
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
 				"tc = v_texcoord;\n"
 				"lm = v_lmcoord;\n"
@@ -1429,7 +1530,7 @@ struct sbuiltin_s
 			//"uniform sampler2D s_t5;\n" /*tex_fullbright*/
 			"uniform float cvar_gl_overbright;\n"
 
-			"void main (void)\n"
+			"void main ()\n"
 			"{\n"
 				"float lmscale = exp2(floor(clamp(cvar_gl_overbright, 0.0, 2.0)));\n"
 				//"gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm) * vec4(scale, scale, scale, 1.0);\n"
@@ -1741,6 +1842,8 @@ struct shader_field_names_s shader_field_names[] =
 	{"l_lightradius",			SP_LIGHTRADIUS},
 	{"l_lightcolour",			SP_LIGHTCOLOUR},
 	{"l_lightposition",			SP_LIGHTPOSITION},
+
+	{"e_rendertexturescale",	SP_RENDERTEXTURESCALE},
 	{NULL}
 };
 
@@ -2118,8 +2221,11 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 					}
 				}
 			}
-			if (!foundone && !silent)
-				Con_Printf("shader %s: param \"%s\" not found\n", shader->name, token);
+			if (!foundone)
+			{
+				if (!silent)
+					Con_Printf("shader %s: param \"%s\" not found\n", shader->name, token);
+			}
 			else
 				prog->numparams++;
 
@@ -2238,6 +2344,11 @@ static qboolean ShaderPass_MapGen (shader_t *shader, shaderpass_t *pass, char *t
 	else if (!Q_stricmp (tname, "$sourcecolour"))
 	{
 		pass->texgen = T_GEN_SOURCECOLOUR;
+		pass->tcgen = TC_GEN_BASE;	//FIXME: moo!
+	}
+	else if (!Q_stricmp (tname, "$sourcecube"))
+	{
+		pass->texgen = T_GEN_SOURCECUBE;
 		pass->tcgen = TC_GEN_BASE;	//FIXME: moo!
 	}
 	else if (!Q_stricmp (tname, "$sourcedepth"))
@@ -2383,13 +2494,13 @@ static void Shaderpass_RGBGen (shader_t *shader, shaderpass_t *pass, char **ptr)
 	else if (!Q_stricmp (token, "oneMinusEntity"))
 		pass->rgbgen = RGB_GEN_ONE_MINUS_ENTITY;
 	else if (!Q_stricmp (token, "vertex"))
-		pass->rgbgen = RGB_GEN_VERTEX;
+		pass->rgbgen = RGB_GEN_VERTEX_LIGHTING;
 	else if (!Q_stricmp (token, "oneMinusVertex"))
 		pass->rgbgen = RGB_GEN_ONE_MINUS_VERTEX;
 	else if (!Q_stricmp (token, "lightingDiffuse"))
 		pass->rgbgen = RGB_GEN_LIGHTING_DIFFUSE;
 	else if (!Q_stricmp (token, "exactvertex"))
-		pass->rgbgen = RGB_GEN_EXACT_VERTEX;
+		pass->rgbgen = RGB_GEN_VERTEX_EXACT;
 	else if (!Q_stricmp (token, "const") || !Q_stricmp (token, "constant"))
 	{
 		pass->rgbgen = RGB_GEN_CONST;
@@ -2604,6 +2715,17 @@ static void Shaderpass_DepthWrite (shader_t *shader, shaderpass_t *pass, char **
 {
 	shader->flags |= SHADER_DEPTHWRITE;
 	pass->shaderbits |= SBITS_MISC_DEPTHWRITE;
+}
+
+static void Shaderpass_NoDepthTest (shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	shader->flags |= SHADER_DEPTHWRITE;
+	pass->shaderbits |= SBITS_MISC_NODEPTHTEST;
+}
+
+static void Shaderpass_NoDepth (shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	shader->flags |= SHADER_DEPTHWRITE;
 }
 
 static void Shaderpass_TcMod (shader_t *shader, shaderpass_t *pass, char **ptr)
@@ -2857,6 +2979,8 @@ static shaderkey_t shaderpasskeys[] =
 	{"blendfunc",	Shaderpass_BlendFunc },
 	{"depthfunc",	Shaderpass_DepthFunc },
 	{"depthwrite",	Shaderpass_DepthWrite },
+	{"nodepthtest",	Shaderpass_NoDepthTest },
+	{"nodepth",		Shaderpass_NoDepth },
 	{"alphafunc",	Shaderpass_AlphaFunc },
 	{"tcmod",		Shaderpass_TcMod },
 	{"map",			Shaderpass_Map },
@@ -2941,6 +3065,7 @@ int Shader_InitCallback (const char *name, int size, void *param)
 
 qboolean Shader_Init (void)
 {
+	int wibuf[16];
 	shaderbuflen = 0;
 
 	if (!r_shaders)
@@ -2958,6 +3083,12 @@ qboolean Shader_Init (void)
 	shader_rescan_needed = true;
 	Shader_NeedReload();
 	Shader_DoReload();
+
+	memset(wibuf, 0xff, sizeof(wibuf));
+	if (!qrenderer)
+		r_whiteimage = r_nulltex;
+	else
+		r_whiteimage = R_LoadTexture("$whiteimage", 4, 4, TF_RGBA32, wibuf, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA);
 	return true;
 }
 
@@ -3146,12 +3277,17 @@ void Shader_SetBlendmode (shaderpass_t *pass)
 		if ((pass->rgbgen == RGB_GEN_IDENTITY) && (pass->alphagen == ALPHA_GEN_IDENTITY))
 		{
 			pass->blendmode = PBM_REPLACE;
+			return;
+		}
+		else if ((pass->rgbgen == RGB_GEN_IDENTITY_LIGHTING) && (pass->alphagen == ALPHA_GEN_IDENTITY))
+		{
+			pass->shaderbits &= ~SBITS_BLEND_BITS;
+			pass->shaderbits |= SBITS_SRCBLEND_ONE;
+			pass->shaderbits |= SBITS_DSTBLEND_ZERO;
+			pass->blendmode = PBM_REPLACELIGHT;
 		}
 		else
 		{
-#ifdef _MSC_VER
-#pragma message("is this correct?")
-#endif
 			pass->shaderbits &= ~SBITS_BLEND_BITS;
 			pass->shaderbits |= SBITS_SRCBLEND_ONE;
 			pass->shaderbits |= SBITS_DSTBLEND_ZERO;
@@ -3254,7 +3390,8 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 	// check some things
 	if ( ignore )
 	{
-		Shader_Free ( shader );
+		Shader_FreePass (pass);
+		shader->numpasses--;
 		return;
 	}
 
@@ -3293,8 +3430,8 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 
 	if ((shader->flags & SHADER_SKY) && (shader->flags & SHADER_DEPTHWRITE))
 	{
-#ifdef _MSC_VER
-#pragma message("is this valid?")
+#ifdef warningmsg
+#pragma warningmsg("is this valid?")
 #endif
 		pass->shaderbits &= ~SBITS_MISC_DEPTHWRITE;
 	}
@@ -3434,9 +3571,9 @@ void Shader_SetFeatures ( shader_t *s )
 			case RGB_GEN_LIGHTING_DIFFUSE:
 				s->features |= MF_NORMALS;
 				break;
-			case RGB_GEN_VERTEX:
+			case RGB_GEN_VERTEX_LIGHTING:
 			case RGB_GEN_ONE_MINUS_VERTEX:
-			case RGB_GEN_EXACT_VERTEX:
+			case RGB_GEN_VERTEX_EXACT:
 				s->features |= MF_COLORS;
 				break;
 			default:
@@ -3488,7 +3625,7 @@ void Shader_Finish (shader_t *s)
 		/*or if its purely a skybox and has missing textures*/
 		if (!s->numpasses)
 			for (i = 0; i < 6; i++)
-				if (missing_texture.num == s->skydome->farbox_textures[i].num)
+				if (missing_texture.ref == s->skydome->farbox_textures[i].ref)
 					s->flags = 0;
 		if (!(s->flags & SHADER_SKY))
 		{
@@ -3521,7 +3658,7 @@ void Shader_Finish (shader_t *s)
 		else
 		{
 			pass->texgen = T_GEN_SINGLEMAP;
-			pass->anim_frames[0] = R_LoadHiResTexture(s->name, NULL, IF_NOALPHA);
+			TEXASSIGN(pass->anim_frames[0], R_LoadHiResTexture(s->name, NULL, IF_NOALPHA));
 			if (!TEXVALID(pass->anim_frames[0]))
 			{
 				Con_Printf("Shader %s failed to load default texture\n", s->name);
@@ -3530,7 +3667,7 @@ void Shader_Finish (shader_t *s)
 			Con_Printf("Shader %s with no passes and no surfaceparm nodraw, inserting pass\n", s->name);
 		}
 		pass->shaderbits |= SBITS_MISC_DEPTHWRITE;
-		pass->rgbgen = RGB_GEN_VERTEX;
+		pass->rgbgen = RGB_GEN_VERTEX_LIGHTING;
 		pass->alphagen = ALPHA_GEN_IDENTITY;
 		pass->numMergedPasses = 1;
 		Shader_SetBlendmode(pass);
@@ -3576,7 +3713,7 @@ void Shader_Finish (shader_t *s)
 		pass = s->passes;
 		for (i = 0; i < s->numpasses; i++, pass++)
 		{
-			if (pass->rgbgen == RGB_GEN_VERTEX)
+			if (pass->rgbgen == RGB_GEN_VERTEX_LIGHTING)
 				break;
 		}
 
@@ -3628,7 +3765,7 @@ void Shader_Finish (shader_t *s)
 				memcpy ( &s->passes[0], pass, sizeof(shaderpass_t) );
 			}
 
-			s->passes[0].rgbgen = RGB_GEN_VERTEX;
+			s->passes[0].rgbgen = RGB_GEN_VERTEX_LIGHTING;
 			s->passes[0].alphagen = ALPHA_GEN_IDENTITY;
 			s->passes[0].blendmode = 0;
 			s->passes[0].flags &= ~(SHADER_PASS_ANIMMAP|SHADER_PASS_NOCOLORARRAY);
@@ -3666,7 +3803,9 @@ done:;
 
 			if (pass->rgbgen == RGB_GEN_UNKNOWN)
 			{
-				if (!s->fog_dist && !(pass->flags & SHADER_PASS_LIGHTMAP))
+				if (   (pass->shaderbits & SBITS_SRCBLEND_BITS) == 0
+					|| (pass->shaderbits & SBITS_SRCBLEND_BITS) == SBITS_SRCBLEND_ONE
+					|| (pass->shaderbits & SBITS_SRCBLEND_BITS) == SBITS_SRCBLEND_SRC_ALPHA)
 					pass->rgbgen = RGB_GEN_IDENTITY_LIGHTING;
 				else
 					pass->rgbgen = RGB_GEN_IDENTITY;
@@ -3804,8 +3943,6 @@ void Shader_UpdateRegistration (void)
 
 void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 {
-	extern cvar_t gl_bump;
-
 	/*dlights/realtime lighting needs some stuff*/
 	if (!TEXVALID(tn->base))
 	{
@@ -3814,7 +3951,7 @@ void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 	if (TEXVALID(tn->base))
 		shader->flags &= ~SHADER_NOIMAGE;
 
-	if (gl_bump.ival)
+	if (r_loadbumpmapping)
 	{
 		if (!TEXVALID(tn->bump))
 			tn->bump = R_LoadHiResTexture(va("%s_norm", shader->name), NULL, IF_NOALPHA);
@@ -3832,7 +3969,12 @@ void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 			tn->upperoverlay = R_LoadHiResTexture(va("%s_shirt", shader->name), NULL, 0);
 	}
 
-	shader->defaulttextures = *tn;
+	TEXASSIGN(shader->defaulttextures.base, tn->base);
+	TEXASSIGN(shader->defaulttextures.specular, tn->specular);
+	TEXASSIGN(shader->defaulttextures.fullbright, tn->fullbright);
+	TEXASSIGN(shader->defaulttextures.bump, tn->bump);
+	TEXASSIGN(shader->defaulttextures.loweroverlay, tn->loweroverlay);
+	TEXASSIGN(shader->defaulttextures.upperoverlay, tn->upperoverlay);
 }
 
 void Shader_DefaultScript(char *shortname, shader_t *s, const void *args)
@@ -3936,7 +4078,7 @@ void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args)
 					"{\n"
 						"map $diffuse\n"
 						"tcgen base\n"
-						"if gl_bump\n"
+						"if $deluxmap\n"
 						"[\n"
 							"blendfunc gl_one gl_zero\n"
 						"]\n"
@@ -4268,7 +4410,7 @@ void Shader_DefaultBSPVertex(char *shortname, shader_t *s, const void *args)
 	pass->tcgen = TC_GEN_BASE;
 	pass->anim_frames[0] = R_LoadHiResTexture(shortname, NULL, 0);
 	pass->shaderbits |= SBITS_MISC_DEPTHWRITE;
-	pass->rgbgen = RGB_GEN_VERTEX;
+	pass->rgbgen = RGB_GEN_VERTEX_LIGHTING;
 	pass->alphagen = ALPHA_GEN_IDENTITY;
 	pass->numMergedPasses = 1;
 	Shader_SetBlendmode(pass);
@@ -4293,7 +4435,7 @@ void Shader_DefaultBSPFlare(char *shortname, shader_t *s, const void *args)
 	pass->flags = SHADER_PASS_NOCOLORARRAY;
 	pass->shaderbits |= SBITS_SRCBLEND_ONE|SBITS_DSTBLEND_ONE;
 	pass->anim_frames[0] = R_LoadHiResTexture(shortname, NULL, 0);
-	pass->rgbgen = RGB_GEN_VERTEX;
+	pass->rgbgen = RGB_GEN_VERTEX_LIGHTING;
 	pass->alphagen = ALPHA_GEN_IDENTITY;
 	pass->numtcmods = 0;
 	pass->tcgen = TC_GEN_BASE;
@@ -4322,9 +4464,7 @@ void Shader_DefaultSkin(char *shortname, shader_t *s, const void *args)
 			"if $lpp\n"
 			"[\n"
 				"program defaultskin\n"
-			"]\n"
-			"else\n"
-			"[\n"
+			"][\n"
 				"program lpp_skin\n"
 			"]\n"
 			"{\n"
@@ -4382,11 +4522,11 @@ void Shader_Default2D(char *shortname, shader_t *s, const void *genargs)
 		"}\n"
 		);
 
-	s->defaulttextures.base = R_LoadHiResTexture(shortname, NULL, IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP);
+	TEXASSIGN(s->defaulttextures.base, R_LoadHiResTexture(shortname, NULL, IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP));
 	if (!TEXVALID(s->defaulttextures.base))
 	{
 		unsigned char data[4*4] = {0};
-		s->defaulttextures.base = R_LoadTexture8("black", 4, 4, data, 0, 0);
+		TEXASSIGN(s->defaulttextures.base, R_LoadTexture8("black", 4, 4, data, 0, 0));
 		s->flags |= SHADER_NOIMAGE;
 
 		s->width = 64;

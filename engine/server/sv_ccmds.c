@@ -41,32 +41,6 @@ cvar_t sv_cheats = SCVARF("sv_cheats", "0", CVAR_LATCH);
 
 extern cvar_t sv_public;
 
-void deleetstring(char *match, char *leet)
-{
-	char *s = match;
-	char *s2 = leet;
-	while(*s2)
-	{
-		*s = *s2 & ~128;
-		s2++;
-		if (*s == '3')
-			*s = 'e';
-		else if (*s == '4')
-			*s = 'a';
-		else if (*s == '1' || *s == '7')
-			*s = 'l';
-		else if (*s >= 18 && *s < 27)
-			*s = *s - 18 + '0';
-		else if (*s >= 'A' && *s <= 'Z')
-			*s = *s - 'A' + 'a';
-		else if (*s == ' ' || *s == '~')
-			continue;
-		s++;
-	}
-	*s = '\0';
-
-}
-
 //generic helper function for naming players.
 client_t *SV_GetClientForString(char *name, int *id)
 {
@@ -511,7 +485,15 @@ void SV_Map_f (void)
 		issamelevel = true;
 
 		if (!*level)
+		{
+			sv.mapchangelocked = true;
+			if (Cmd_AliasExist("startmap_dm", RESTRICT_LOCAL))
+			{
+				Cbuf_AddText("startmap_dm", Cmd_ExecLevel);
+				return;
+			}
 			Q_strncpyz(level, "start", sizeof(level));
+		}
 
 		//override the startspot
 		Q_strncpyz(spot, Info_ValueForKey(svs.info, "*startspot"), sizeof(spot));

@@ -41,6 +41,38 @@ void PRHunkFree(progfuncs_t *progfuncs, int mark)
 	return;
 }
 
+/*if we ran out of memory, the vm can allocate a new block, but doing so requires fixing up all sorts of pointers*/
+void PRAddressableRelocate(progfuncs_t *progfuncs, char *oldb, char *newb, int oldlen)
+{
+	unsigned int i;
+	edictrun_t *e;
+	for (i=0 ; i<maxedicts; i++)
+	{
+		e = (edictrun_t *)(prinst->edicttable[i]);
+		if (e && (char*)e->fields >= oldb && (char*)e->fields < oldb+oldlen)
+			e->fields = ((char*)e->fields - oldb) + newb;
+	}
+
+	if (progfuncs->stringtable >= oldb && progfuncs->stringtable < oldb+oldlen)
+		progfuncs->stringtable = (progfuncs->stringtable - oldb) + newb;
+
+	for (i=0; i < maxprogs; i++)
+	{
+		if ((char*)prinst->progstate[i].globals >= oldb && (char*)prinst->progstate[i].globals < oldb+oldlen)
+			prinst->progstate[i].globals = (float*)(((char*)prinst->progstate[i].globals - oldb) + newb);
+		if (prinst->progstate[i].strings >= oldb && prinst->progstate[i].strings < oldb+oldlen)
+			prinst->progstate[i].strings = (prinst->progstate[i].strings - oldb) + newb;
+	}
+
+	for (i = 0; i < numfields; i++)
+	{
+		if (field[i].name >= oldb && field[i].name < oldb+oldlen)
+			field[i].name = (field[i].name - oldb) + newb;
+	}
+
+	externs->addressablerelocated(progfuncs, oldb, newb, oldlen);
+}
+
 //for 64bit systems. :)
 //addressable memory is memory available to the vm itself for writing.
 //once allocated, it cannot be freed for the lifetime of the VM.
@@ -48,7 +80,46 @@ void *PRAddressableAlloc(progfuncs_t *progfuncs, int ammount)
 {
 	ammount = (ammount + 4)&~3;	//round up to 4
 	if (addressableused + ammount > addressablesize)
-		Sys_Error("Not enough addressable memory for progs VM");
+	{
+		/*only do this if the caller states that it can cope with addressable-block relocations/resizes*/
+		if (externs->addressablerelocated)
+		{
+#ifdef _WIN32
+			char *newblock;
+		#if 0//def _DEBUG
+			int oldtot = addressablesize;
+		#endif
+			int newsize = (addressableused + ammount + 4096) & ~(4096-1);
+			newblock = VirtualAlloc (NULL, addressablesize, MEM_RESERVE, PAGE_NOACCESS);
+			if (newblock)
+			{
+				VirtualAlloc (newblock, addressableused, MEM_COMMIT, PAGE_READWRITE);
+				memcpy(newblock, addressablehunk, addressableused);
+		#if 0//def _DEBUG
+				VirtualAlloc (addressablehunk, oldtot, MEM_RESERVE, PAGE_NOACCESS);
+		#else
+				VirtualFree (addressablehunk, 0, MEM_RELEASE);
+		#endif
+				PRAddressableRelocate(progfuncs, addressablehunk, newblock, addressableused);
+				addressablehunk = newblock;
+				addressablesize = newsize;
+			}
+#else
+			char *newblock;
+			addressablesize = (addressableused + ammount + 1024*1024) & ~(1024*1024-1);
+			newblock = realloc(newblock, addressablesize);
+			if (newblock)
+			{
+				PRAddressableRelocate(progfuncs, addressablehunk, newblock, addressableused);
+				addressablehunk = newblock;
+				addressablesize = newsize;
+			}
+#endif
+		}
+
+		if (addressableused + ammount > addressablesize)
+			Sys_Error("Not enough addressable memory for progs VM");
+	}
 
 	addressableused += ammount;
 

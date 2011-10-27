@@ -253,6 +253,7 @@ void SV_PrintToClient(client_t *cl, int level, char *string)
 	case SCP_DARKPLACES6:
 	case SCP_DARKPLACES7:
 	case SCP_NETQUAKE:
+	case SCP_FITZ666:
 #ifdef NQPROT
 		ClientReliableWrite_Begin (cl, svc_print, strlen(string)+3);
 		if (level == PRINT_CHAT)
@@ -578,6 +579,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				break;
 #ifdef NQPROT
 			case SCP_NETQUAKE:
+			case SCP_FITZ666:
 			case SCP_DARKPLACES6:
 			case SCP_DARKPLACES7:
 				if (reliable)
@@ -711,6 +713,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 
 #ifdef NQPROT
 			case SCP_NETQUAKE:
+			case SCP_FITZ666:
 			case SCP_DARKPLACES6:
 			case SCP_DARKPLACES7:	//extra prediction stuff
 				if (reliable)
@@ -985,9 +988,9 @@ void SV_FindModelNumbers (void)
 	{
 		if (!sv.strings.model_precache[i])
 			break;
-		if (!strcmp(sv.strings.model_precache[i],"progs/spike.mdl"))
+		if (!strcmp(sv.strings.model_precache[i],"progs/spike.mdl") && sv.multicast.prim.coordsize == 2)
 			sv_nailmodel = i;
-		if (!strcmp(sv.strings.model_precache[i],"progs/s_spike.mdl"))
+		if (!strcmp(sv.strings.model_precache[i],"progs/s_spike.mdl") && sv.multicast.prim.coordsize == 2)
 			sv_supernailmodel = i;
 		if (!strcmp(sv.strings.model_precache[i],"progs/player.mdl"))
 			sv_playermodel = i;
@@ -1492,7 +1495,7 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 		if (!client->spectator)
 		{
 			statsi[STAT_ACTIVEWEAPON] = ent->v->weapon;
-			if (client->csqcactive)
+			if (client->csqcactive || client->protocol != SCP_QUAKEWORLD)
 				statsi[STAT_WEAPONFRAME] = ent->v->weaponframe;
 		}
 
@@ -2121,7 +2124,7 @@ void SV_SendClientMessages (void)
 	int			i, j;
 	client_t	*c;
 	int sentbytes, fnum;
-	float pt = sv.world.physicstime;
+	float pt = sv.paused?realtime:sv.world.physicstime;
 
 #ifdef Q3SERVER
 	if (svs.gametype == GT_QUAKE3)
@@ -2262,14 +2265,14 @@ void SV_SendClientMessages (void)
 
 				if (c->state == cs_connected && !c->datagram.cursize && !c->netchan.message.cursize)
 				{
-					if (c->nextservertimeupdate < sv.world.physicstime)
+					if (c->nextservertimeupdate < pt)
 					{	//part of the nq protocols allowed downloading content over isdn
 						//the nop requirement of the protocol persisted to prevent timeouts when content loading is otherwise slow..
 						//aditionally we might need this for lost packets, not sure
 						//but the client isn't able to respond unless we send an occasional datagram
 						if (c->nextservertimeupdate)
 							MSG_WriteByte(&c->datagram, svc_nop);
-						c->nextservertimeupdate = sv.world.physicstime+5;
+						c->nextservertimeupdate = pt+5;
 					}
 				}
 			}

@@ -205,6 +205,8 @@ qboolean Netchan_CanPacket (netchan_t *chan, int rate)
 {
 	if (chan->remote_address.type == NA_LOOPBACK)
 		return true;	//don't ever drop packets due to possible routing problems when there is no routing.
+	if (!rate)
+		return true;
 	if (chan->cleartime < realtime + MAX_BACKUP/(float)rate)
 		return true;
 	return false;
@@ -212,10 +214,13 @@ qboolean Netchan_CanPacket (netchan_t *chan, int rate)
 
 void Netchan_Block (netchan_t *chan, int bytes, int rate)
 {
-	if (chan->cleartime < realtime-0.25)	//0.25 allows it to be a little bursty.
-		chan->cleartime = realtime + bytes/(float)rate;
-	else
-		chan->cleartime += bytes/(float)rate;
+	if (rate)
+	{
+		if (chan->cleartime < realtime-0.25)	//0.25 allows it to be a little bursty.
+			chan->cleartime = realtime + bytes/(float)rate;
+		else
+			chan->cleartime += bytes/(float)rate;
+	}
 }
 
 
@@ -275,6 +280,13 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 		else if (sequence > chan->reliable_sequence)
 			Con_Printf("Future ack recieved\n");
 
+		if (showpackets.value)
+			Con_Printf ("<-- a s=%i a=%i(%i) %i\n"
+						, chan->outgoing_sequence
+						, chan->incoming_sequence
+						, chan->incoming_reliable_sequence
+						, 0);
+
 		return NQP_ERROR;	//don't try execing the 'payload'. I hate ack packets.
 	}
 
@@ -297,6 +309,13 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 
 		chan->incoming_acknowledged++;
 		chan->good_count++;
+
+		if (showpackets.value)
+			Con_Printf ("<-- u s=%i a=%i(%i) %i\n"
+						, chan->outgoing_sequence
+						, chan->incoming_sequence
+						, chan->incoming_reliable_sequence
+						, net_message.cursize);
 		return NQP_DATAGRAM;
 	}
 	if (header & NETFLAG_DATA)
@@ -327,11 +346,19 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 				SZ_Write(&net_message, chan->in_fragment_buf, chan->in_fragment_length);
 				chan->in_fragment_length = 0;
 				MSG_BeginReading(chan->netprim);
+
+				if (showpackets.value)
+					Con_Printf ("<-- r s=%i a=%i(%i) %i\n"
+								, chan->outgoing_sequence
+								, chan->incoming_sequence
+								, chan->incoming_reliable_sequence
+								, net_message.cursize);
 				return NQP_RELIABLE;	//we can read it now
 			}
 		}
 		else
 			Con_DPrintf("Stale reliable (%i)\n", sequence);
+
 		return NQP_ERROR;
 	}
 

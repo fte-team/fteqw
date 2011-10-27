@@ -122,7 +122,8 @@ struct world_s
 	void (*Event_Touch)(struct world_s *w, wedict_t *s, wedict_t *o);
 	void (*Event_Think)(struct world_s *w, wedict_t *s);
 	void (*Event_Sound) (wedict_t *entity, int channel, char *sample, int volume, float attenuation, int pitchadj);
-	model_t *(*GetCModel)(struct world_s *w, int modelindex);
+	model_t *(*Get_CModel)(struct world_s *w, int modelindex);
+	void (*Get_FrameState)(struct world_s *w, wedict_t *s, framestate_t *fstate);
 
 	unsigned int	max_edicts;	//limiting factor... 1024 fields*4*MAX_EDICTS == a heck of a lot.
 	unsigned int	num_edicts;			// increases towards MAX_EDICTS
@@ -149,6 +150,10 @@ struct world_s
 		float	*time;
 		float	*frametime;
 		float	*force_retouch;
+		float	*physics_mode;
+		float	*v_forward;
+		float	*v_right;
+		float	*v_up;
 	} g;
 
 #ifdef USEODE

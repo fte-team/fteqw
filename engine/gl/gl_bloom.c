@@ -192,7 +192,7 @@ void R_Bloom_InitTextures(void)
 	data = Z_Malloc(size);
 	memset(data, 255, size);
 	if (!TEXVALID(bs.tx_screen))
-		bs.tx_screen = GL_AllocNewTexture(bs.scr_w, bs.scr_h);
+		bs.tx_screen = GL_AllocNewTexture("***bloom screen***", bs.scr_w, bs.scr_h);
 	GL_MTBind(0, GL_TEXTURE_2D, bs.tx_screen);
 	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGB, bs.scr_w, bs.scr_h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -506,8 +506,8 @@ void R_BloomBlend (void)
 		return;
 
 	PPL_RevertToKnownState();
-#ifdef _MSC_VER
-#pragma message("Note: Bloom doesn't use the backend.")
+#ifdef warningmsg
+#pragma warningmsg("Note: Bloom doesn't use the backend.")
 #endif
 
 	//set up full screen workspace

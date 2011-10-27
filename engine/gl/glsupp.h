@@ -263,6 +263,10 @@ typedef void (APIENTRY *PFNGLPNTRIANGLESIATIPROC)(GLenum pname, GLint param);
 typedef void (APIENTRY *PFNGLPNTRIANGLESFATIPROC)(GLenum pname, GLfloat param);
 #endif
 
+#ifndef GL_EXT_depth_bounds_test
+#define GL_EXT_depth_bounds_test 1
+#define GL_DEPTH_BOUNDS_TEST_EXT					0x8890
+#endif
 
 #ifndef GL_EXT_stencil_two_side
 #define GL_EXT_stencil_two_side 1

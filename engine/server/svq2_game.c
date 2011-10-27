@@ -637,7 +637,7 @@ static model_t *SVQ2_GetCModel(world_t *w, int modelindex)
 
 void SVQ2_InitWorld(void)
 {
-	sv.world.GetCModel = SVQ2_GetCModel;
+	sv.world.Get_CModel = SVQ2_GetCModel;
 }
 
 qboolean SVQ2_InitGameProgs(void)

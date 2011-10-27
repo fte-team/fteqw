@@ -516,7 +516,7 @@ int WriteBodylessFuncs (int handle)
 	{
 		if (d->type->type == ev_function && !d->scope)// function parms are ok
 		{
-			if (d->initialized != 1 && d->references>0)
+			if (!(d->initialized & 1) && d->references>0)
 			{
 				SafeWrite(handle, d->name, strlen(d->name)+1);
 				ret++;
@@ -1646,9 +1646,9 @@ void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	type_float = QCC_PR_NewType("float", ev_float);
 	type_vector = QCC_PR_NewType("vector", ev_vector);
 	type_entity = QCC_PR_NewType("entity", ev_entity);
-	type_field = QCC_PR_NewType("field", ev_field);
-	type_function = QCC_PR_NewType("function", ev_function);
-	type_pointer = QCC_PR_NewType("pointer", ev_pointer);
+	type_field = QCC_PR_NewType("__field", ev_field);
+	type_function = QCC_PR_NewType("__function", ev_function);
+	type_pointer = QCC_PR_NewType("__pointer", ev_pointer);
 	type_integer = QCC_PR_NewType("__integer", ev_integer);
 	type_variant = QCC_PR_NewType("__variant", ev_variant);
 
@@ -1741,7 +1741,7 @@ int QCC_PR_FinishCompilation (void)
 					bodylessfuncs = true;
 					errors = true;
 				}
-				s_file = NULL;
+				s_file = 0;
 //				errors = true;
 			}
 			else if (d->initialized==2)

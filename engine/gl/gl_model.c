@@ -31,9 +31,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern cvar_t r_shadow_bumpscale_basetexture;
 extern cvar_t r_replacemodels;
-extern cvar_t r_deluxemapping;
 
-extern int gl_bumpmappingpossible;
 qboolean isnotmap = true;	//used to not warp ammo models.
 
 model_t	*loadmodel;
@@ -140,7 +138,6 @@ void RMod_BlockTextureColour_f (void)
 	int i, m;
 	unsigned int colour[8*8];
 	unsigned int rgba;
-	texnums_t tn;
 
 	((char *)&rgba)[0] = atoi(Cmd_Argv(2));
 	((char *)&rgba)[1] = atoi(Cmd_Argv(3));
@@ -152,8 +149,6 @@ void RMod_BlockTextureColour_f (void)
 	s = R_RegisterCustom(Cmd_Argv(2), NULL, NULL);
 	if (!s)
 	{
-		memset(&tn, 0, sizeof(tn));
-		tn.base = R_LoadTexture32(texname, 8, 8, colour, IF_NOALPHA|IF_NOGAMMA);
 		s = R_RegisterCustom (texname, Shader_DefaultBSPQ1, NULL);
 	}
 
@@ -1183,10 +1178,9 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 			}
 
 			tn.bump = r_nulltex;
-			if (gl_bumpmappingpossible && cls.allow_bump)
+			if (r_loadbumpmapping)
 			{
-				extern cvar_t gl_bump;
-				if (gl_bump.ival<2)	//set to 2 to have faster loading.
+				if (r_loadbumpmapping)
 				{
 					snprintf(altname, sizeof(altname)-1, "%s_norm", mt->name);
 					tn.bump = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA|IF_SUBDIRONLY);
@@ -1373,7 +1367,7 @@ void RMod_NowLoadExternal(void)
 					tn.base = R_LoadReplacementTexture("light1_4", NULL, IF_NOALPHA);	//a fallback. :/
 			}
 		}
-		if (!TEXVALID(tn.bump) && *tx->name != '{' && gl_bumpmappingpossible && cls.allow_bump)
+		if (!TEXVALID(tn.bump) && *tx->name != '{' && r_loadbumpmapping)
 		{
 			tn.bump = R_LoadBumpmapTexture(va("%s_bump", tx->name), loadname);
 			if (!TEXVALID(tn.bump))
@@ -1442,8 +1436,17 @@ void RMod_LoadLighting (lump_t *l)
 {	
 	qbyte *luxdata = NULL;
 	int mapcomeswith24bitcolouredlighting = false;
+	extern cvar_t gl_overbright;
 	loadmodel->engineflags &= ~MDLF_RGBLIGHTING;
 
+	//q3 maps have built in 4-fold overbright.
+	//if we're not rendering with that, we need to brighten the lightmaps in order to keep the darker parts the same brightness. we loose the 2 upper bits. those bright areas become uniform and indistinct.
+	if (loadmodel->fromgame == fg_quake3)
+	{
+		gl_overbright.flags |= CVAR_LATCH;
+		BuildLightMapGammaTable(1, (1<<(2-gl_overbright.ival)));
+	}
+	else
 	//lit file light intensity is made to match the world's light intensity.
 //	if (cls.allow_lightmapgamma)
 //		BuildLightMapGammaTable(0.6, 2);
@@ -1460,7 +1463,7 @@ void RMod_LoadLighting (lump_t *l)
 	if (loadmodel->fromgame == fg_halflife || loadmodel->fromgame == fg_quake2 || loadmodel->fromgame == fg_quake3)
 		mapcomeswith24bitcolouredlighting = true;
 
-	if (!mapcomeswith24bitcolouredlighting && r_loadlits.ival && gl_bumpmappingpossible && r_deluxemapping.ival)	//fixme: adjust the light intensities.
+	if (!mapcomeswith24bitcolouredlighting && r_loadlits.ival && r_deluxemapping.ival)	//fixme: adjust the light intensities.
 	{	//the map util has a '-scalecos X' parameter. use 0 if you're going to use only just lux. without lux scalecos 0 is hideous.
 		char luxname[MAX_QPATH];		
 		if (!luxdata)
@@ -1601,7 +1604,7 @@ void RMod_LoadLighting (lump_t *l)
 		loadmodel->engineflags |= MDLF_RGBLIGHTING;
 
 #ifdef RUNTIMELIGHTING
-	else if (r_loadlits.value == 2 && !lightmodel && (!(loadmodel->engineflags & MDLF_RGBLIGHTING) || (!luxdata && gl_bumpmappingpossible)))
+	else if (r_loadlits.value == 2 && !lightmodel && (!(loadmodel->engineflags & MDLF_RGBLIGHTING) || (!luxdata && r_deluxemapping.ival)))
 	{
 		qbyte *litdata = NULL;
 		int i;
@@ -1623,7 +1626,7 @@ void RMod_LoadLighting (lump_t *l)
 			normal++;
 		}
 
-		if (gl_bumpmappingpossible)
+		if (r_deluxemapping.ival)
 		{
 			loadmodel->deluxdata = Hunk_AllocName ( l->filelen*3+8, loadname);
 			strcpy(loadmodel->deluxdata, "QLIT");
@@ -1846,28 +1849,50 @@ qboolean RMod_LoadSubmodels (lump_t *l)
 Mod_LoadEdges
 =================
 */
-qboolean RMod_LoadEdges (lump_t *l)
+qboolean RMod_LoadEdges (lump_t *l, qboolean lm)
 {
-	dedge_t *in;
 	medge_t *out;
 	int 	i, count;
-
-	in = (void *)(mod_base + l->fileofs);
-	if (l->filelen % sizeof(*in))
+	
+	if (lm)
 	{
-		Con_Printf ("MOD_LoadBmodel: funny lump size in %s\n", loadmodel->name);
-		return false;
+		dledge_t *in = (void *)(mod_base + l->fileofs);
+		if (l->filelen % sizeof(*in))
+		{
+			Con_Printf ("MOD_LoadBmodel: funny lump size in %s\n", loadmodel->name);
+			return false;
+		}
+		count = l->filelen / sizeof(*in);
+		out = Hunk_AllocName ( (count + 1) * sizeof(*out), loadname);	
+
+		loadmodel->edges = out;
+		loadmodel->numedges = count;
+
+		for ( i=0 ; i<count ; i++, in++, out++)
+		{
+			out->v[0] = LittleLong(in->v[0]);
+			out->v[1] = LittleLong(in->v[1]);
+		}
 	}
-	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( (count + 1) * sizeof(*out), loadname);	
-
-	loadmodel->edges = out;
-	loadmodel->numedges = count;
-
-	for ( i=0 ; i<count ; i++, in++, out++)
+	else
 	{
-		out->v[0] = (unsigned short)LittleShort(in->v[0]);
-		out->v[1] = (unsigned short)LittleShort(in->v[1]);
+		dsedge_t *in = (void *)(mod_base + l->fileofs);
+		if (l->filelen % sizeof(*in))
+		{
+			Con_Printf ("MOD_LoadBmodel: funny lump size in %s\n", loadmodel->name);
+			return false;
+		}
+		count = l->filelen / sizeof(*in);
+		out = Hunk_AllocName ( (count + 1) * sizeof(*out), loadname);	
+
+		loadmodel->edges = out;
+		loadmodel->numedges = count;
+
+		for ( i=0 ; i<count ; i++, in++, out++)
+		{
+			out->v[0] = (unsigned short)LittleShort(in->v[0]);
+			out->v[1] = (unsigned short)LittleShort(in->v[1]);
+		}
 	}
 
 	return true;
@@ -1923,7 +1948,10 @@ qboolean RMod_LoadTexinfo (lump_t *l)
 		miptex = LittleLong (in->miptex);
 		out->flags = LittleLong (in->flags);
 	
-		out->texture = loadmodel->textures[miptex % loadmodel->numtextures];
+		if (loadmodel->numtextures)
+			out->texture = loadmodel->textures[miptex % loadmodel->numtextures];
+		else
+			out->texture = NULL;
 		if (!out->texture)
 		{
 			out->texture = r_notexture_mip; // texture not found
@@ -1996,56 +2024,85 @@ void CalcSurfaceExtents (msurface_t *s);
 Mod_LoadFaces
 =================
 */
-qboolean RMod_LoadFaces (lump_t *l)
+qboolean RMod_LoadFaces (lump_t *l, qboolean lm)
 {
-	dface_t		*in;
+	dsface_t		*ins;
+	dlface_t		*inl;
 	msurface_t 	*out;
-	int			i, count, surfnum;
-	int			planenum, side;
-	int tn;
+	int			count, surfnum;
+	int			i, planenum, side;
+	int tn, lofs;
 
-	in = (void *)(mod_base + l->fileofs);
-	if (l->filelen % sizeof(*in))
+	if (lm)
 	{
-		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
-		return false;
+		ins = NULL;
+		inl = (void *)(mod_base + l->fileofs);
+		if (l->filelen % sizeof(*inl))
+		{
+			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+			return false;
+		}
+		count = l->filelen / sizeof(*inl);
 	}
-	count = l->filelen / sizeof(*in);
+	else
+	{
+		ins = (void *)(mod_base + l->fileofs);
+		inl = NULL;
+		if (l->filelen % sizeof(*ins))
+		{
+			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+			return false;
+		}
+		count = l->filelen / sizeof(*ins);
+	}
 	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
 
 	loadmodel->surfaces = out;
 	loadmodel->numsurfaces = count;
-	for ( surfnum=0 ; surfnum<count ; surfnum++, in++, out++)
+	for ( surfnum=0 ; surfnum<count ; surfnum++, out++)
 	{
-		out->firstedge = LittleLong(in->firstedge);
-		out->numedges = LittleShort(in->numedges);		
+		if (lm)
+		{
+			planenum = LittleLong(inl->planenum);
+			side = LittleLong(inl->side);
+			out->firstedge = LittleLong(inl->firstedge);
+			out->numedges = LittleLong(inl->numedges);
+			tn = LittleLong (inl->texinfo);
+			for (i=0 ; i<MAXLIGHTMAPS ; i++)
+				out->styles[i] = inl->styles[i];
+			lofs = LittleLong(inl->lightofs);
+			inl++;
+		}
+		else
+		{
+			planenum = LittleShort(ins->planenum);
+			side = LittleShort(ins->side);
+			out->firstedge = LittleLong(ins->firstedge);
+			out->numedges = LittleShort(ins->numedges);
+			tn = LittleShort (ins->texinfo);
+			for (i=0 ; i<MAXLIGHTMAPS ; i++)
+				out->styles[i] = ins->styles[i];
+			lofs = LittleLong(ins->lightofs);
+			ins++;
+		}
 		out->flags = 0;
 
-		planenum = LittleShort(in->planenum);
-		side = LittleShort(in->side);
 		if (side)
 			out->flags |= SURF_PLANEBACK;			
 
 		out->plane = loadmodel->planes + planenum;
 
-		tn = LittleShort (in->texinfo);
 		if (tn < 0 || tn >= loadmodel->numtexinfo)
 			Host_EndGame("Hey! That map has texinfos out of bounds!\n");
 		out->texinfo = loadmodel->texinfo + tn;
 
 		CalcSurfaceExtents (out);
-				
-	// lighting info
-
-		for (i=0 ; i<MAXLIGHTMAPS ; i++)
-			out->styles[i] = in->styles[i];
-		i = LittleLong(in->lightofs);
-		if (i == -1)
+		if (lofs == -1)
 			out->samples = NULL;
 		else if ((loadmodel->engineflags & MDLF_RGBLIGHTING) && loadmodel->fromgame != fg_halflife)
-			out->samples = loadmodel->lightdata + i*3;
+			out->samples = loadmodel->lightdata + lofs*3;
 		else
-			out->samples = loadmodel->lightdata + i;
+			out->samples = loadmodel->lightdata + lofs;
 
 		if (!out->texinfo->texture)
 			continue;
@@ -2113,45 +2170,87 @@ void RMod_SetParent (mnode_t *node, mnode_t *parent)
 Mod_LoadNodes
 =================
 */
-qboolean RMod_LoadNodes (lump_t *l)
+qboolean RMod_LoadNodes (lump_t *l, qboolean lm)
 {
 	int			i, j, count, p;
-	dnode_t		*in;
 	mnode_t 	*out;
 
-	in = (void *)(mod_base + l->fileofs);
-	if (l->filelen % sizeof(*in))
+	if (lm)
 	{
-		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
-		return false;
-	}
-	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
-
-	loadmodel->nodes = out;
-	loadmodel->numnodes = count;
-
-	for ( i=0 ; i<count ; i++, in++, out++)
-	{
-		for (j=0 ; j<3 ; j++)
+		dlnode_t		*in;
+		in = (void *)(mod_base + l->fileofs);
+		if (l->filelen % sizeof(*in))
 		{
-			out->minmaxs[j] = LittleShort (in->mins[j]);
-			out->minmaxs[3+j] = LittleShort (in->maxs[j]);
+			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+			return false;
 		}
-	
-		p = LittleLong(in->planenum);
-		out->plane = loadmodel->planes + p;
+		count = l->filelen / sizeof(*in);
+		out = Hunk_AllocName ( count*sizeof(*out), loadname);	
 
-		out->firstsurface = LittleShort (in->firstface);
-		out->numsurfaces = LittleShort (in->numfaces);
-		
-		for (j=0 ; j<2 ; j++)
+		loadmodel->nodes = out;
+		loadmodel->numnodes = count;
+
+		for ( i=0 ; i<count ; i++, in++, out++)
 		{
-			p = LittleShort (in->children[j]);
-			if (p >= 0)
-				out->children[j] = loadmodel->nodes + p;
-			else
-				out->children[j] = (mnode_t *)(loadmodel->leafs + (-1 - p));
+			for (j=0 ; j<3 ; j++)
+			{
+				out->minmaxs[j] = LittleShort (in->mins[j]);
+				out->minmaxs[3+j] = LittleShort (in->maxs[j]);
+			}
+		
+			p = LittleLong(in->planenum);
+			out->plane = loadmodel->planes + p;
+
+			out->firstsurface = LittleLong (in->firstface);
+			out->numsurfaces = LittleLong (in->numfaces);
+			
+			for (j=0 ; j<2 ; j++)
+			{
+				p = LittleShort (in->children[j]);
+				if (p >= 0)
+					out->children[j] = loadmodel->nodes + p;
+				else
+					out->children[j] = (mnode_t *)(loadmodel->leafs + (-1 - p));
+			}
+		}
+	}
+	else
+	{
+		dsnode_t		*in;
+		in = (void *)(mod_base + l->fileofs);
+		if (l->filelen % sizeof(*in))
+		{
+			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+			return false;
+		}
+		count = l->filelen / sizeof(*in);
+		out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+
+		loadmodel->nodes = out;
+		loadmodel->numnodes = count;
+
+		for ( i=0 ; i<count ; i++, in++, out++)
+		{
+			for (j=0 ; j<3 ; j++)
+			{
+				out->minmaxs[j] = LittleShort (in->mins[j]);
+				out->minmaxs[3+j] = LittleShort (in->maxs[j]);
+			}
+		
+			p = LittleLong(in->planenum);
+			out->plane = loadmodel->planes + p;
+
+			out->firstsurface = LittleShort (in->firstface);
+			out->numsurfaces = LittleShort (in->numfaces);
+			
+			for (j=0 ; j<2 ; j++)
+			{
+				p = LittleShort (in->children[j]);
+				if (p >= 0)
+					out->children[j] = loadmodel->nodes + p;
+				else
+					out->children[j] = (mnode_t *)(loadmodel->leafs + (-1 - p));
+			}
 		}
 	}
 	
@@ -2164,66 +2263,125 @@ qboolean RMod_LoadNodes (lump_t *l)
 Mod_LoadLeafs
 =================
 */
-qboolean RMod_LoadLeafs (lump_t *l)
+qboolean RMod_LoadLeafs (lump_t *l, qboolean lm)
 {
-	dleaf_t 	*in;
 	mleaf_t 	*out;
 	int			i, j, count, p;
-//	char s[80];
 
-	in = (void *)(mod_base + l->fileofs);
-	if (l->filelen % sizeof(*in))
+	if (lm)
 	{
-		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
-		return false;
+		dlleaf_t 	*in;
+		in = (void *)(mod_base + l->fileofs);
+		if (l->filelen % sizeof(*in))
+		{
+			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+			return false;
+		}
+		count = l->filelen / sizeof(*in);
+		out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+
+		loadmodel->leafs = out;
+		loadmodel->numleafs = count;
+
+		for ( i=0 ; i<count ; i++, in++, out++)
+		{
+			for (j=0 ; j<3 ; j++)
+			{
+				out->minmaxs[j] = LittleShort (in->mins[j]);
+				out->minmaxs[3+j] = LittleShort (in->maxs[j]);
+			}
+
+			p = LittleLong(in->contents);
+			out->contents = p;
+
+			out->firstmarksurface = loadmodel->marksurfaces +
+				LittleLong(in->firstmarksurface);
+			out->nummarksurfaces = LittleLong(in->nummarksurfaces);
+			
+			p = LittleLong(in->visofs);
+			if (p == -1)
+				out->compressed_vis = NULL;
+			else
+				out->compressed_vis = loadmodel->visdata + p;
+			
+			for (j=0 ; j<4 ; j++)
+				out->ambient_sound_level[j] = in->ambient_level[j];
+
+	#ifndef CLIENTONLY
+			if (!isDedicated)
+	#endif
+			{
+				// gl underwater warp
+				if (out->contents != Q1CONTENTS_EMPTY)
+				{
+					for (j=0 ; j<out->nummarksurfaces ; j++)
+						out->firstmarksurface[j]->flags |= SURF_UNDERWATER;
+				}
+				if (isnotmap)
+				{
+					for (j=0 ; j<out->nummarksurfaces ; j++)
+						out->firstmarksurface[j]->flags |= SURF_DONTWARP;
+				}
+			}
+		}
 	}
-	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
-
-	loadmodel->leafs = out;
-	loadmodel->numleafs = count;
-
-	for ( i=0 ; i<count ; i++, in++, out++)
+	else
 	{
-		for (j=0 ; j<3 ; j++)
+		dsleaf_t 	*in;
+		in = (void *)(mod_base + l->fileofs);
+		if (l->filelen % sizeof(*in))
 		{
-			out->minmaxs[j] = LittleShort (in->mins[j]);
-			out->minmaxs[3+j] = LittleShort (in->maxs[j]);
+			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+			return false;
 		}
+		count = l->filelen / sizeof(*in);
+		out = Hunk_AllocName ( count*sizeof(*out), loadname);	
 
-		p = LittleLong(in->contents);
-		out->contents = p;
+		loadmodel->leafs = out;
+		loadmodel->numleafs = count;
 
-		out->firstmarksurface = loadmodel->marksurfaces +
-			(unsigned short)LittleShort(in->firstmarksurface);
-		out->nummarksurfaces = (unsigned short)LittleShort(in->nummarksurfaces);
-		
-		p = LittleLong(in->visofs);
-		if (p == -1)
-			out->compressed_vis = NULL;
-		else
-			out->compressed_vis = loadmodel->visdata + p;
-		
-		for (j=0 ; j<4 ; j++)
-			out->ambient_sound_level[j] = in->ambient_level[j];
-
-#ifndef CLIENTONLY
-		if (!isDedicated)
-#endif
+		for ( i=0 ; i<count ; i++, in++, out++)
 		{
-			// gl underwater warp
-			if (out->contents != Q1CONTENTS_EMPTY)
+			for (j=0 ; j<3 ; j++)
 			{
-				for (j=0 ; j<out->nummarksurfaces ; j++)
-					out->firstmarksurface[j]->flags |= SURF_UNDERWATER;
+				out->minmaxs[j] = LittleShort (in->mins[j]);
+				out->minmaxs[3+j] = LittleShort (in->maxs[j]);
 			}
-			if (isnotmap)
+
+			p = LittleLong(in->contents);
+			out->contents = p;
+
+			out->firstmarksurface = loadmodel->marksurfaces +
+				(unsigned short)LittleShort(in->firstmarksurface);
+			out->nummarksurfaces = (unsigned short)LittleShort(in->nummarksurfaces);
+			
+			p = LittleLong(in->visofs);
+			if (p == -1)
+				out->compressed_vis = NULL;
+			else
+				out->compressed_vis = loadmodel->visdata + p;
+			
+			for (j=0 ; j<4 ; j++)
+				out->ambient_sound_level[j] = in->ambient_level[j];
+
+	#ifndef CLIENTONLY
+			if (!isDedicated)
+	#endif
 			{
-				for (j=0 ; j<out->nummarksurfaces ; j++)
-					out->firstmarksurface[j]->flags |= SURF_DONTWARP;
+				// gl underwater warp
+				if (out->contents != Q1CONTENTS_EMPTY)
+				{
+					for (j=0 ; j<out->nummarksurfaces ; j++)
+						out->firstmarksurface[j]->flags |= SURF_UNDERWATER;
+				}
+				if (isnotmap)
+				{
+					for (j=0 ; j<out->nummarksurfaces ; j++)
+						out->firstmarksurface[j]->flags |= SURF_DONTWARP;
+				}
 			}
 		}
-	}	
+	}
 
 	return true;
 }
@@ -2309,21 +2467,36 @@ void RMod_LoadCrouchHull(void)
 Mod_LoadClipnodes
 =================
 */
-qboolean RMod_LoadClipnodes (lump_t *l)
+qboolean RMod_LoadClipnodes (lump_t *l, qboolean lm)
 {
-	dclipnode_t *in;
+	dsclipnode_t *ins;
+	dsclipnode_t *inl;
 	mclipnode_t *out;
 	int			i, count;
 	hull_t		*hull;
-	short cn, c;
 
-	in = (void *)(mod_base + l->fileofs);
-	if (l->filelen % sizeof(*in))
+	if (lm)
 	{
-		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
-		return false;
+		ins = NULL;
+		inl = (void *)(mod_base + l->fileofs);
+		if (l->filelen % sizeof(*inl))
+		{
+			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+			return false;
+		}
+		count = l->filelen / sizeof(*inl);
 	}
-	count = l->filelen / sizeof(*in);
+	else
+	{
+		ins = (void *)(mod_base + l->fileofs);
+		inl = NULL;
+		if (l->filelen % sizeof(*ins))
+		{
+			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+			return false;
+		}
+		count = l->filelen / sizeof(*ins);
+	}
 	out = Hunk_AllocName ( (count+numsuplementryclipnodes)*sizeof(*out), loadname);//space for both
 
 	loadmodel->clipnodes = out;
@@ -2489,33 +2662,22 @@ qboolean RMod_LoadClipnodes (lump_t *l)
 		hull->available = false;
 	}
 
-	if (count > 32767)
+	if (lm)
 	{
-		/*
-		if the map contains more than 32767 clipnodes, some of them will overflow
-		typically this will happen in the second hull, and you thus might not notice it.
-		
-		*/
-		for (i=0 ; i<count ; i++, out++, in++)
+		for (i=0 ; i<count ; i++, out++, inl++)
 		{
-			out->planenum = LittleLong(in->planenum);
-			for (c = 0; c < 2; c++)
-			{
-				cn = LittleShort(in->children[c]);
-				if (cn < -10)
-					out->children[c] = (unsigned short)cn;
-				else
-					out->children[c] = cn;
-			}
+			out->planenum = LittleLong(inl->planenum);
+			out->children[0] = LittleLong(inl->children[0]);
+			out->children[1] = LittleLong(inl->children[1]);
 		}
 	}
 	else
 	{
-		for (i=0 ; i<count ; i++, out++, in++)
+		for (i=0 ; i<count ; i++, out++, ins++)
 		{
-			out->planenum = LittleLong(in->planenum);
-			out->children[0] = LittleShort(in->children[0]);
-			out->children[1] = LittleShort(in->children[1]);
+			out->planenum = LittleLong(ins->planenum);
+			out->children[0] = LittleShort(ins->children[0]);
+			out->children[1] = LittleShort(ins->children[1]);
 		}
 	}
 
@@ -2532,14 +2694,14 @@ qboolean RMod_LoadClipnodes (lump_t *l)
 			hull->available = true;
 		}
 
-		in = suplementryclipnodes;
+		ins = suplementryclipnodes;
 
-		for (i=0 ; i<numsuplementryclipnodes ; i++, out++, in++)
+		for (i=0 ; i<numsuplementryclipnodes ; i++, out++, ins++)
 		{
-			out->planenum = LittleLong(in->planenum);
-			out->children[0] = LittleShort(in->children[0]);
+			out->planenum = LittleLong(ins->planenum);
+			out->children[0] = LittleShort(ins->children[0]);
 			out->children[0] += out->children[0]>=0?1:0;
-			out->children[1] = LittleShort(in->children[1]);
+			out->children[1] = LittleShort(ins->children[1]);
 			out->children[1] += out->children[1]>=0?1:0;
 		}
 	}
@@ -2903,6 +3065,7 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 	unsigned int chksum;
 	int start;
 	qboolean noerrors;
+	qboolean longm = false;
 #if (defined(ODE_STATIC) || defined(ODE_DYNAMIC))
 	qboolean ode = true;
 #else
@@ -2928,6 +3091,12 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 
 	if (i == BSPVERSION || i == BSPVERSIONPREREL)
 	{
+		loadmodel->fromgame = fg_quake;
+		loadmodel->engineflags |= MDLF_NEEDOVERBRIGHT;
+	}
+	else if (i == BSPVERSION_LONG)
+	{
+		longm = true;
 		loadmodel->fromgame = fg_quake;
 		loadmodel->engineflags |= MDLF_NEEDOVERBRIGHT;
 	}
@@ -2998,7 +3167,7 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 	if (!isDedicated || ode)
 	{
 		noerrors = noerrors && RMod_LoadVertexes (&header->lumps[LUMP_VERTEXES]);
-		noerrors = noerrors && RMod_LoadEdges (&header->lumps[LUMP_EDGES]);
+		noerrors = noerrors && RMod_LoadEdges (&header->lumps[LUMP_EDGES], longm);
 		noerrors = noerrors && RMod_LoadSurfedges (&header->lumps[LUMP_SURFEDGES]);
 	}
 	if (!isDedicated)
@@ -3014,15 +3183,15 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 	if (!isDedicated || ode)
 	{
 		noerrors = noerrors && RMod_LoadTexinfo (&header->lumps[LUMP_TEXINFO]);
-		noerrors = noerrors && RMod_LoadFaces (&header->lumps[LUMP_FACES]);
+		noerrors = noerrors && RMod_LoadFaces (&header->lumps[LUMP_FACES], longm);
 	}
 	if (!isDedicated)
 		noerrors = noerrors && RMod_LoadMarksurfaces (&header->lumps[LUMP_MARKSURFACES]);	
 	if (noerrors)
 		RMod_LoadVisibility (&header->lumps[LUMP_VISIBILITY]);
-	noerrors = noerrors && RMod_LoadLeafs (&header->lumps[LUMP_LEAFS]);
-	noerrors = noerrors && RMod_LoadNodes (&header->lumps[LUMP_NODES]);
-	noerrors = noerrors && RMod_LoadClipnodes (&header->lumps[LUMP_CLIPNODES]);
+	noerrors = noerrors && RMod_LoadLeafs (&header->lumps[LUMP_LEAFS], longm);
+	noerrors = noerrors && RMod_LoadNodes (&header->lumps[LUMP_NODES], longm);
+	noerrors = noerrors && RMod_LoadClipnodes (&header->lumps[LUMP_CLIPNODES], longm);
 	if (noerrors)
 	{
 		RMod_LoadEntities (&header->lumps[LUMP_ENTITIES]);
@@ -3179,7 +3348,7 @@ void RMod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight )
 		filledcolor = 0;
 		// attempt to find opaque black
 		for (i = 0; i < 256; ++i)
-			if (d_8to24rgbtable[i] == (255 << 0)) // alpha 1.0
+			if (d_8to24rgbtable[i] == (255 << 0)) // rgb 0.0, alpha 1.0
 			{
 				filledcolor = i;
 				break;
@@ -3290,11 +3459,11 @@ void * RMod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum,
 	pspriteframe->shader = R_RegisterShader(name,
 			"{\n"
 				"{\n"
-							"map $diffuse\n"
-							"alphafunc ge128\n"
-							"depthwrite\n"
-					"rgbgen entity\n"
-					"alphagen entity\n"
+					"map $diffuse\n"
+					"alphafunc ge128\n"
+					"depthwrite\n"
+					"rgbgen vertex\n"
+					"alphagen vertex\n"
 				"}\n"
 			"}\n"
 			);

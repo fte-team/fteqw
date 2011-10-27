@@ -26,9 +26,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "renderque.h"
 #include <math.h>
 
-extern cvar_t gl_bump;
-
-
 void GLBE_ClearVBO(vbo_t *vbo)
 {
 	int vboh[7];
@@ -327,7 +324,7 @@ void GLBE_UploadAllLightmaps(void)
 				lightmap[i]->lightmaps);
 			break;
 		}
-		if (gl_bump.ival)
+		if (r_deluxemapping.ival)
 		{
 			lightmap[i]->deluxmodified = false;
 			lightmap[i]->deluxrectchange.l = LMBLOCK_WIDTH;

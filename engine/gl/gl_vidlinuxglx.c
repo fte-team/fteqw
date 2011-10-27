@@ -1105,15 +1105,25 @@ void IN_MouseMove (float *movements, int pnum)
 #ifdef VM_UI
 		UI_MousePosition(mousecursor_x, mousecursor_y);
 #endif
-	}
 
 #ifdef PEXT_CSQC
-	if (CSQC_MouseMove(mx, my))
-	{
-		mx = 0;
-		my = 0;
-	}
+		if (CSQC_MousePosition(mousecursor_x, mousecursor_y))
+		{
+			mx = 0;
+			my = 0;
+		}
 #endif
+	}
+	else
+	{
+#ifdef PEXT_CSQC
+		if (CSQC_MouseMove(mx, my))
+		{
+			mx = 0;
+			my = 0;
+		}
+#endif
+	}
 
 	if (m_filter.value)
 	{

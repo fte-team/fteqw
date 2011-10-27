@@ -50,9 +50,6 @@
 	#define WM_INPUT 255
 #endif
 
-
-int gl_bumpmappingpossible;
-
 //static void D3D9_GetBufferSize(int *width, int *height); //not defined
 static void resetD3D9(void);
 static LPDIRECT3D9 pD3D;
@@ -1082,8 +1079,8 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 
 	RSpeedEnd(RSPEED_TOTALREFRESH);
 	RSpeedShow();
-#ifdef _MSC_VER
-#pragma message("Fixme: ... to here")
+#ifdef warningmsg
+#pragma warningmsg("Fixme: ... to here")
 #endif
 
 
@@ -1119,6 +1116,8 @@ static void	(D3D9_R_Init)					(void)
 static void	(D3D9_R_DeInit)					(void)
 {
 	Surf_DeInit();
+	Shader_Shutdown();
+	D3D_Image_Shutdown();
 }
 
 
@@ -1296,6 +1295,7 @@ rendererinfo_t d3drendererinfo =
 	D3DBE_GenBrushModelVBO,
 	D3DBE_ClearVBO,
 	D3DBE_UploadAllLightmaps,
+	NULL,
 	NULL,
 	D3DBE_LightCullModel,
 

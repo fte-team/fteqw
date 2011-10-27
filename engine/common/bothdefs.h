@@ -185,7 +185,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //		#define HLCLIENT 7		//we can run HL gamecode (not protocol compatible, set to 6 or 7)
 //		#define HLSERVER 140	//we can run HL gamecode (not protocol compatible, set to 138 or 140)
 		#define NQPROT			//server and client are capable of using quake1/netquake protocols. (qw is still prefered. uses the command 'nqconnect')
-		#define FISH			//fisheye distortion stuff
 		#define ZLIB			//zip/pk3 support
 		#define WEBSERVER		//http/ftp servers
 		#define WEBCLIENT		//http/ftp clients.

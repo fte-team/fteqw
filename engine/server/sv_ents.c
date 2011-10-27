@@ -582,7 +582,7 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 
 			evenmorebits |= U_ENTITYDBL2;
 			if (to->number >= 2048)
-				SV_Error ("Entity number >= 2048");
+				return;
 		}
 		else
 			evenmorebits |= U_ENTITYDBL;
@@ -872,16 +872,20 @@ void SV_EmitPacketEntities (client_t *client, packet_entities_t *to, sizebuf_t *
 void SVDP_EmitEntityDelta(entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qboolean isnew)
 {
 	int bits;
-	if (!isnew && !memcmp(from, to, sizeof(entity_state_t)))
-	{
-		return;	//didn't change
-	}
+//	if (!isnew && !memcmp(from, to, sizeof(entity_state_t)))
+//	{
+//		return;	//didn't change
+//	}
 
 	bits = 0;
 	if (isnew)
 	{
 		bits |= E5_FULLUPDATE;
 	}
+
+	bits |= E5_MODEL;
+	bits |= E5_ORIGIN;
+	bits |= E5_FRAME;
 
 	if (!VectorEquals(from->origin, to->origin))
 		bits |= E5_ORIGIN;
@@ -1049,14 +1053,14 @@ void SVDP_EmitEntitiesUpdate (client_t *client, packet_entities_t *to, sizebuf_t
 	client->netchan.incoming_sequence++;
 
 	// this is the frame that we are going to delta update from
-	fromframe = &client->frameunion.frames[(client->netchan.incoming_sequence-2) & UPDATE_MASK];
+	fromframe = &client->frameunion.frames[client->delta_sequence & UPDATE_MASK];
 	from = &fromframe->entities;
 	oldmax = from->num_entities;
 
 //	Con_Printf ("frame %i\n", client->netchan.incoming_sequence);
 
 	MSG_WriteByte(msg, svcdp_entities);
-	MSG_WriteLong(msg, 0);
+	MSG_WriteLong(msg, client->netchan.incoming_sequence);
 	if (client->protocol == SCP_DARKPLACES7)
 		MSG_WriteLong(msg, client->last_sequence);
 
@@ -1841,7 +1845,6 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 			ClientReliableWrite_Short(client, pflags);
 			if (pflags & 1)
 				ClientReliableWrite_Short(client, client->otherclientsknown[j].vweap);
-			ClientReliable_FinishWrite(client);
 		}
 	}
 }
@@ -2256,8 +2259,8 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 		}
 	}
 
-	if (state->effects & 0x00400000)	//DP's EF_LOWPRECISION
-		state->effects &= ~0x00400000;	//we don't support it, nor does dp any more. strip it.
+	if (state->effects & DPEF_LOWPRECISION)
+		state->effects &= DPEF_LOWPRECISION;	//we don't support it, nor does dp any more. strip it.
 
 	if (state->effects & EF_FULLBRIGHT)	//wrap the field for fte clients (this is horrible)
 	{
@@ -2538,14 +2541,10 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 
 		//the entity would mess up the client and possibly disconnect them.
 		//FIXME: add an option to drop clients... entity fog could be killed in this way.
-		if (!ISDPCLIENT(client))
-		{
-			if (e >= client->max_net_ents)
-				continue;
-			if (ent->v->modelindex >= client->maxmodels)
-				continue;
-		}
-
+		if (e >= client->max_net_ents)
+			continue;
+		if (ent->v->modelindex >= client->maxmodels)
+			continue;
 #ifdef DEPTHOPTIMISE
 		if (clent)
 		{

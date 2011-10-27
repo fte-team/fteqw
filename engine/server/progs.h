@@ -26,9 +26,6 @@ struct edict_s;
 #define MAX_PROGS 64
 #define MAXADDONS 16
 
-#define	NUM_SPAWN_PARMS			64	//moved from server.h because of include ordering :(.
-
-
 void SVQ1_CvarChanged(cvar_t *var);
 #define NewGetEdictFieldValue GetEdictFieldValue
 void Q_SetProgsParms(qboolean forcompiler);
@@ -104,12 +101,9 @@ typedef struct edict_s
 #include "progslib.h"
 
 #undef pr_global_struct
-//#define pr_nqglobal_struct *((nqglobalvars_t*)pr_globals)
-#define pr_global_struct *pr_nqglobal_struct
+#define pr_global_struct *pr_global_ptrs
 
-float *spawnparamglobals[NUM_SPAWN_PARMS];
-
-extern nqglobalvars_t *pr_nqglobal_struct;
+extern globalptrs_t *pr_global_ptrs;
 
 extern progfuncs_t *svprogfuncs;	//instance
 extern progparms_t svprogparms;

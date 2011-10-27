@@ -4,7 +4,7 @@
 //FIXME: this shouldn't be defined
 #define FORCESTATE
 #else
-//#define FORCESTATE
+#define FORCESTATE
 #endif
 //#define WIREFRAME
 
@@ -34,37 +34,35 @@ uniform mat4 entmatrix;\n\
 
 #define LIGHTPASS_GLSL_VERTEX	"\
 #ifdef VERTEX_SHADER\n\
+#include \"sys/skeletal.h\"\n\
 \
 uniform vec3 l_lightposition;\n\
+attribute vec2 v_texcoord;\n\
 \
 #if defined(SPECULAR) || defined(OFFSETMAPPING)\n\
-uniform vec3 eyeposition;\n\
+uniform vec3 e_eyepos;\n\
 #endif\n\
 \
-attribute vec2 v_texcoord;\n\
-attribute vec3 v_normal;\n\
-attribute vec3 v_svector;\n\
-attribute vec3 v_tvector;\n\
-\
-void main (void)\n\
+void main ()\n\
 {\n\
-	gl_Position = ftetransform();\n\
+	vec3 n, s, t, w;\n\
+	gl_Position = skeletaltransform_wnst(w,n,s,t);\n\
 \
 	tcbase = v_texcoord;	//pass the texture coords straight through\n\
 \
-	vec3 lightminusvertex = l_lightposition - v_position.xyz;\n\
-	lightvector.x = dot(lightminusvertex, v_svector.xyz);\n\
-	lightvector.y = dot(lightminusvertex, v_tvector.xyz);\n\
-	lightvector.z = dot(lightminusvertex, v_normal.xyz);\n\
+	vec3 lightminusvertex = l_lightposition - w.xyz;\n\
+	lightvector.x = dot(lightminusvertex, s.xyz);\n\
+	lightvector.y = dot(lightminusvertex, t.xyz);\n\
+	lightvector.z = dot(lightminusvertex, n.xyz);\n\
 \
 #if defined(SPECULAR)||defined(OFFSETMAPPING)\n\
-	vec3 eyeminusvertex = eyeposition - v_position.xyz;\n\
-	eyevector.x = dot(eyeminusvertex, v_svector.xyz);\n\
-	eyevector.y = -dot(eyeminusvertex, v_tvector.xyz);\n\
-	eyevector.z = dot(eyeminusvertex, v_normal.xyz);\n\
+	vec3 eyeminusvertex = e_eyepos - w.xyz;\n\
+	eyevector.x = dot(eyeminusvertex, s.xyz);\n\
+	eyevector.y = -dot(eyeminusvertex, t.xyz);\n\
+	eyevector.z = dot(eyeminusvertex, n.xyz);\n\
 #endif\n\
 #if defined(PCF) || defined(SPOT) || defined(PROJECTION)\n\
-	vshadowcoord = gl_TextureMatrix[7] * (entmatrix*vec4(v_position.xyz, 1.0));\n\
+	vshadowcoord = gl_TextureMatrix[7] * (entmatrix*vec4(w.xyz, 1.0));\n\
 #endif\n\
 }\n\
 #endif\n\
@@ -76,25 +74,25 @@ void main (void)\n\
 	float xPixelOffset = (1.0+shadowcoord.b/l_lightradius)/texx;\
 	float yPixelOffset = (1.0+shadowcoord.b/l_lightradius)/texy;\
 	float s = 0.0;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(-1.5 * xPixelOffset * shadowcoord.w, -1.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(-1.5 * xPixelOffset * shadowcoord.w, -0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(-1.5 * xPixelOffset * shadowcoord.w, 0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(-1.5 * xPixelOffset * shadowcoord.w, 1.1 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-1.5 * xPixelOffset * shadowcoord.w, -1.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-1.5 * xPixelOffset * shadowcoord.w, -0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-1.5 * xPixelOffset * shadowcoord.w, 0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-1.5 * xPixelOffset * shadowcoord.w, 1.1 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
 \
-	s += "f"Proj(shadowmap, shadowcoord + vec4(-0.5 * xPixelOffset * shadowcoord.w, -1.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(-0.5 * xPixelOffset * shadowcoord.w, -0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(-0.5 * xPixelOffset * shadowcoord.w, 0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(-0.5 * xPixelOffset * shadowcoord.w, 1.1 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-0.5 * xPixelOffset * shadowcoord.w, -1.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-0.5 * xPixelOffset * shadowcoord.w, -0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-0.5 * xPixelOffset * shadowcoord.w, 0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-0.5 * xPixelOffset * shadowcoord.w, 1.1 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
 \
-	s += "f"Proj(shadowmap, shadowcoord + vec4(0.5 * xPixelOffset * shadowcoord.w, -1.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(0.5 * xPixelOffset * shadowcoord.w, -0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(0.5 * xPixelOffset * shadowcoord.w, 0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(0.5 * xPixelOffset * shadowcoord.w, 1.1 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(0.5 * xPixelOffset * shadowcoord.w, -1.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(0.5 * xPixelOffset * shadowcoord.w, -0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(0.5 * xPixelOffset * shadowcoord.w, 0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(0.5 * xPixelOffset * shadowcoord.w, 1.1 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
 \
-	s += "f"Proj(shadowmap, shadowcoord + vec4(1.5 * xPixelOffset * shadowcoord.w, -1.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(1.5 * xPixelOffset * shadowcoord.w, -0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(1.5 * xPixelOffset * shadowcoord.w, 0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(1.5 * xPixelOffset * shadowcoord.w, 1.1 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(1.5 * xPixelOffset * shadowcoord.w, -1.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(1.5 * xPixelOffset * shadowcoord.w, -0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(1.5 * xPixelOffset * shadowcoord.w, 0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(1.5 * xPixelOffset * shadowcoord.w, 1.1 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
 \
 	colorscale *= s/5.0;\n\
 	"
@@ -105,17 +103,17 @@ void main (void)\n\
 	const float xPixelOffset = 1.0/texx;\
 	const float yPixelOffset = 1.0/texy;\
 	float s = 0.0;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, 0.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, 0.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
 \
-	s += "f"Proj(shadowmap, shadowcoord + vec4(0.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(0.0 * xPixelOffset * shadowcoord.w, 0.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(0.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(0.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(0.0 * xPixelOffset * shadowcoord.w, 0.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(0.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
 \
-	s += "f"Proj(shadowmap, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, 0.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, 0.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
 	colorscale *= s/9.0;\n\
 	"
 
@@ -125,11 +123,11 @@ void main (void)\n\
 	float xPixelOffset = 1.0/texx;\
 	float yPixelOffset = 1.0/texy;\
 	float s = 0.0;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(0.0 * xPixelOffset * shadowcoord.w, 0.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(shadowmap, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(0.0 * xPixelOffset * shadowcoord.w, 0.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
 	colorscale *= s/5.0;\n\
 	"
 
@@ -139,21 +137,21 @@ void main (void)\n\
 
 #define LIGHTPASS_GLSL_FRAGMENT	"\
 #ifdef FRAGMENT_SHADER\n\
-uniform sampler2D baset;\n\
+uniform sampler2D s_t0;\n"/*base texture*/"\
 #if defined(BUMP) || defined(SPECULAR) || defined(OFFSETMAPPING)\n\
-uniform sampler2D bumpt;\n\
+uniform sampler2D s_t1;\n"/*normalmap/height texture*/"\
 #endif\n\
 #ifdef SPECULAR\n\
-uniform sampler2D speculart;\n\
+uniform sampler2D s_t2;\n"/*specularmap texture*/"\
 #endif\n\
 #ifdef PROJECTION\n\
-uniform sampler2D projected;\n\
+uniform sampler2D s_t3;\n"/*projected texture*/"\
 #endif\n\
 #ifdef PCF\n\
 #ifdef CUBE\n\
-uniform samplerCubeShadow shadowmap;\n\
+uniform samplerCubeShadow s_t7;\n\
 #else\n\
-uniform sampler2DShadow shadowmap;\n\
+uniform sampler2DShadow s_t7;\n\
 #endif\n\
 #endif\n\
 \
@@ -166,7 +164,7 @@ uniform float offsetmapping_scale;\n\
 #endif\n\
 \
 \
-void main (void)\n\
+void main ()\n\
 {\n\
 #ifdef OFFSETMAPPING\n\
 	vec2 OffsetVector = normalize(eyevector).xy * offsetmapping_scale * vec2(1, -1);\n\
@@ -174,22 +172,22 @@ void main (void)\n\
 #define tcbase foo\n\
 	tcbase += OffsetVector;\n\
 	OffsetVector *= 0.333;\n\
-	tcbase -= OffsetVector * texture2D(bumpt, tcbase).w;\n\
-	tcbase -= OffsetVector * texture2D(bumpt, tcbase).w;\n\
-	tcbase -= OffsetVector * texture2D(bumpt, tcbase).w;\n\
+	tcbase -= OffsetVector * texture2D(s_t1, tcbase).w;\n\
+	tcbase -= OffsetVector * texture2D(s_t1, tcbase).w;\n\
+	tcbase -= OffsetVector * texture2D(s_t1, tcbase).w;\n\
 #endif\n\
 \
 \
 #ifdef BUMP\n\
-	vec3 bases = vec3(texture2D(baset, tcbase));\n\
+	vec3 bases = vec3(texture2D(s_t0, tcbase));\n\
 #else\n\
-	vec3 diff = vec3(texture2D(baset, tcbase));\n\
+	vec3 diff = vec3(texture2D(s_t0, tcbase));\n\
 #endif\n\
 #if defined(BUMP) || defined(SPECULAR)\n\
-	vec3 bumps = vec3(texture2D(bumpt, tcbase)) * 2.0 - 1.0;\n\
+	vec3 bumps = vec3(texture2D(s_t1, tcbase)) * 2.0 - 1.0;\n\
 #endif\n\
 #ifdef SPECULAR\n\
-	vec3 specs = vec3(texture2D(speculart, tcbase));\n\
+	vec3 specs = vec3(texture2D(s_t2, tcbase));\n\
 #endif\n\
 \
 	vec3 nl = normalize(lightvector);\n\
@@ -229,7 +227,7 @@ if (shadowcoord.w < 0.0) discard;\n\
 vec2 spot = ((shadowcoord.st)/shadowcoord.w - 0.5)*2.0;colorscale*=1.0-(dot(spot,spot));\n\
 #endif\n\
 #if defined(PROJECTION)\n\
-	l_lightcolour *= texture2d(projected, shadowcoord);\n\
+	l_lightcolour *= texture2d(s_t3, shadowcoord);\n\
 #endif\n\
 \n\
 	gl_FragColor.rgb = diff*colorscale*l_lightcolour;\n\
@@ -258,32 +256,18 @@ static const char LIGHTPASS_SHADER[] = "\
 	%s\n\
 	}\n\
 \
-	//incoming fragment\n\
-	param texture 0 baset\n\
-	param opt texture 1 bumpt\n\
-	param opt texture 2 speculart\n\
-\
 	param opt cvarf r_glsl_offsetmapping_bias offsetmapping_bias\n\
 	param opt cvarf r_glsl_offsetmapping_scale offsetmapping_scale\n\
-\
-	//eye pos\n\
-	param opt eyepos eyeposition\n\
 \
 	{\n\
 		map $diffuse\n\
 		blendfunc add\n\
-		tcgen base\n\
 	}\n\
 	{\n\
 		map $normalmap\n\
-		tcgen normal\n\
 	}\n\
 	{\n\
 		map $specular\n\
-		tcgen svector\n\
-	}\n\
-	{\n\
-		tcgen tvector\n\
 	}\n\
 }";
 static const char PCFPASS_SHADER[] = "\
@@ -297,33 +281,24 @@ static const char PCFPASS_SHADER[] = "\
 	}\n\
 \
 	//incoming fragment\n\
-	param texture 7 shadowmap\n\
-	param texture 1 baset\n\
-	param opt texture 2 bumpt\n\
-	param opt texture 3 speculart\n\
 \
 	param opt cvarf r_glsl_offsetmapping_scale offsetmapping_scale\n\
 \
 	//eye pos\n\
-	param opt eyepos EyePosition\n\
 	param opt entmatrix entmatrix\n\
 \
 	{\n\
-		map $shadowmap\n\
-		blendfunc add\n\
-		tcgen base\n\
-	}\n\
-	{\n\
 		map $diffuse\n\
-		tcgen normal\n\
+		blendfunc add\n\
 	}\n\
 	{\n\
 		map $normalmap\n\
-		tcgen svector\n\
 	}\n\
 	{\n\
 		map $specular\n\
-		tcgen tvector\n\
+	}\n\
+	{\n\
+		map $shadowmap\n\
 	}\n\
 }";
 
@@ -379,6 +354,7 @@ struct {
 
 		mesh_t **meshes;
 		unsigned int meshcount;
+		float modelmatrix[16];
 		float modelviewmatrix[16];
 
 		int pendingvertexvbo;
@@ -388,7 +364,7 @@ struct {
 
 		float identitylighting;	//set to how bright lightmaps should be (reduced for overbright or realtime_world_lightmaps)
 
-		texid_t temptexture;
+		texid_t temptexture; //$current
 		texid_t fogtexture;
 		float fogfar;
 	};
@@ -423,6 +399,49 @@ struct {
 	int numlights;
 	int shadowsurfcount;
 } bench;
+
+static void BE_PolyOffset(qboolean pushdepth)
+{
+	if (pushdepth)
+	{
+		/*some quake doors etc are flush with the walls that they're meant to be hidden behind, or plats the same height as the floor, etc
+		we move them back very slightly using polygonoffset to avoid really ugly z-fighting*/
+		extern cvar_t r_polygonoffset_submodel_offset, r_polygonoffset_submodel_factor;
+		polyoffset_t po;
+		po.factor = shaderstate.curshader->polyoffset.factor + r_polygonoffset_submodel_factor.value;
+		po.unit = shaderstate.curshader->polyoffset.unit + r_polygonoffset_submodel_offset.value;
+
+#ifndef FORCESTATE
+		if (((int*)&shaderstate.curpolyoffset)[0] != ((int*)&po)[0] || ((int*)&shaderstate.curpolyoffset)[1] != ((int*)&po)[1])
+#endif
+		{
+			shaderstate.curpolyoffset = po;
+			if (shaderstate.curpolyoffset.factor || shaderstate.curpolyoffset.unit)
+			{
+				qglEnable(GL_POLYGON_OFFSET_FILL);
+				qglPolygonOffset(shaderstate.curpolyoffset.factor, shaderstate.curpolyoffset.unit);
+			}
+			else
+				qglDisable(GL_POLYGON_OFFSET_FILL);
+		}
+	}
+	else
+	{
+#ifndef FORCESTATE
+		if (*(int*)&shaderstate.curpolyoffset != *(int*)&shaderstate.curshader->polyoffset || *(int*)&shaderstate.curpolyoffset != *(int*)&shaderstate.curshader->polyoffset)
+#endif
+		{
+			shaderstate.curpolyoffset = shaderstate.curshader->polyoffset;
+			if (shaderstate.curpolyoffset.factor || shaderstate.curpolyoffset.unit)
+			{
+				qglEnable(GL_POLYGON_OFFSET_FILL);
+				qglPolygonOffset(shaderstate.curpolyoffset.factor, shaderstate.curpolyoffset.unit);
+			}
+			else
+				qglDisable(GL_POLYGON_OFFSET_FILL);
+		}
+	}
+}
 
 void GL_TexEnv(GLenum mode)
 {
@@ -877,7 +896,7 @@ static void T_Gen_CurrentRender(int tmu)
 	}
 	// copy the scene to texture
 	if (!TEXVALID(shaderstate.temptexture))
-		shaderstate.temptexture = GL_AllocNewTexture(vwidth, vheight);
+		TEXASSIGN(shaderstate.temptexture, GL_AllocNewTexture("***$currentrender***", vwidth, vheight));
 	GL_MTBind(tmu, GL_TEXTURE_2D, shaderstate.temptexture);
 	qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 0, 0, vwidth, vheight, 0);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -886,14 +905,11 @@ static void T_Gen_CurrentRender(int tmu)
 
 static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass, qboolean useclientarray)
 {
+	extern texid_t scenepp_postproc_cube;
 	texid_t t;
 	switch(pass->texgen)
 	{
 	default:
-	case T_GEN_SKYBOX:
-		t = pass->anim_frames[0];
-		GL_LazyBind(tmu, GL_TEXTURE_CUBE_MAP_ARB, t, useclientarray);
-		return;
 	case T_GEN_SINGLEMAP:
 		t = pass->anim_frames[0];
 		break;
@@ -927,6 +943,15 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass, qboolea
 	case T_GEN_SHADOWMAP:
 		t = shaderstate.curshadowmap;
 		break;
+
+	case T_GEN_SKYBOX:
+		t = pass->anim_frames[0];
+		GL_LazyBind(tmu, GL_TEXTURE_CUBE_MAP_ARB, t, useclientarray);
+		return;
+	case T_GEN_SOURCECUBE:
+		t = scenepp_postproc_cube;
+		GL_LazyBind(tmu, GL_TEXTURE_CUBE_MAP_ARB, t, useclientarray);
+		return;
 
 	case T_GEN_VIDEOMAP:
 #ifdef NOMEDIA
@@ -1070,7 +1095,7 @@ void GenerateFogTexture(texid_t *tex, float density, float zscale)
 		}
 
 	if (!TEXVALID(*tex))
-		*tex = R_AllocNewTexture(FOGS, FOGT);
+		*tex = R_AllocNewTexture("***fog***", FOGS, FOGT);
 	R_Upload(*tex, "fog", TF_RGBA32, fogdata, NULL, FOGS, FOGT, IF_CLAMP|IF_NOMIPMAP);
 }
 
@@ -1133,6 +1158,8 @@ void GLBE_Init(void)
 	r_worldentity.axis[0][0] = 1;
 	r_worldentity.axis[1][1] = 1;
 	r_worldentity.axis[2][2] = 1;
+
+	R_InitFlashblends();
 }
 
 //end tables
@@ -1428,15 +1455,35 @@ static void colourgen(const shaderpass_t *pass, int cnt, vec4_t *src, vec4_t *ds
 			dst[cnt][2] = 1-shaderstate.curentity->shaderRGBAf[2];
 		}
 		break;
-	case RGB_GEN_VERTEX:
-	case RGB_GEN_EXACT_VERTEX:
+	case RGB_GEN_VERTEX_LIGHTING:
+		if (shaderstate.identitylighting != 1)
+		{
+			if (!src)
+			{
+				while((cnt)--)
+				{
+					dst[cnt][0] = shaderstate.identitylighting;
+					dst[cnt][1] = shaderstate.identitylighting;
+					dst[cnt][2] = shaderstate.identitylighting;
+				}
+				break;
+			}
+			while((cnt)--)
+			{
+				dst[cnt][0] = src[cnt][0]*shaderstate.identitylighting;
+				dst[cnt][1] = src[cnt][1]*shaderstate.identitylighting;
+				dst[cnt][2] = src[cnt][2]*shaderstate.identitylighting;
+			}
+			break;
+		}
+	case RGB_GEN_VERTEX_EXACT:
 		if (!src)
 		{
 			while((cnt)--)
 			{
-				dst[cnt][0] = shaderstate.identitylighting;
-				dst[cnt][1] = shaderstate.identitylighting;
-				dst[cnt][2] = shaderstate.identitylighting;
+				dst[cnt][0] = 1;
+				dst[cnt][1] = 1;
+				dst[cnt][2] = 1;
 			}
 			break;
 		}
@@ -1495,7 +1542,7 @@ static void colourgen(const shaderpass_t *pass, int cnt, vec4_t *src, vec4_t *ds
 		}
 		else
 		{
-			R_LightArrays(shaderstate.curentity, mesh->xyz_array, dst, cnt, mesh->normals_array);
+			R_LightArrays(shaderstate.curentity, mesh->xyz_array, dst, cnt, mesh->normals_array, shaderstate.identitylighting);
 		}
 		break;
 	case RGB_GEN_WAVE:
@@ -1983,7 +2030,7 @@ static void GenerateColourMods(const shaderpass_t *pass)
 		qglShadeModel(GL_SMOOTH);
 
 		//if its vetex lighting, just use the vbo
-		if ((pass->rgbgen == RGB_GEN_VERTEX || pass->rgbgen == RGB_GEN_EXACT_VERTEX) && pass->alphagen == ALPHA_GEN_VERTEX)
+		if (((pass->rgbgen == RGB_GEN_VERTEX_LIGHTING && shaderstate.identitylighting == 1) || pass->rgbgen == RGB_GEN_VERTEX_EXACT) && pass->alphagen == ALPHA_GEN_VERTEX)
 		{
 			GL_SelectVBO(shaderstate.sourcevbo->vbocolours);
 			qglColorPointer(4, GL_FLOAT, 0, shaderstate.sourcevbo->colours4f);
@@ -2061,8 +2108,8 @@ static void BE_SendPassBlendDepthMask(unsigned int sbits)
 	unsigned int delta;
 
 	/*2d mode doesn't depth test or depth write*/
-#ifdef _MSC_VER
-#pragma message("fixme: q3 doesn't seem to have this, why do we need it?")
+#ifdef warningmsg
+#pragma warningmsg("fixme: q3 doesn't seem to have this, why do we need it?")
 #endif
 	if (shaderstate.force2d)
 	{
@@ -2441,20 +2488,7 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 		}
 		break;
 	case SP_M_MODEL:
-		{
-			float m16[16];
-			Matrix4x4_CM_ModelMatrixFromAxis(m16, shaderstate.curentity->axis[0], shaderstate.curentity->axis[1], shaderstate.curentity->axis[2], shaderstate.curentity->origin);
-/*			VectorCopy(shaderstate.curentity->axis[0], m16+0);
-			m16[3] = 0;
-			VectorCopy(shaderstate.curentity->axis[1], m16+1);
-			m16[7] = 0;
-			VectorCopy(shaderstate.curentity->axis[2], m16+2);
-			m16[11] = 0;
-			VectorCopy(shaderstate.curentity->origin, m16+3);
-			m16[15] = 1;
-*/
-			qglUniformMatrix4fvARB(p->handle[perm], 1, false, m16);
-		}
+		qglUniformMatrix4fvARB(p->handle[perm], 1, false, shaderstate.modelmatrix);
 		break;
 	case SP_M_ENTBONES:
 		{
@@ -2532,35 +2566,21 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 		break;
 	case SP_E_EYEPOS:
 		{
-			float m16[16];
-#ifdef _MSC_VER
-#pragma message("is this correct?")
-#endif
-//			vec3_t t1;
+			/*eye position in model space*/
 			vec3_t t2;
-			Matrix4x4_CM_ModelMatrixFromAxis(m16, shaderstate.curentity->axis[0], shaderstate.curentity->axis[1], shaderstate.curentity->axis[2], shaderstate.curentity->origin);
-			Matrix4x4_CM_Transform3(m16, r_origin, t2);
-//			VectorSubtract(r_origin, shaderstate.curentity->origin, t1);
-//			Matrix3_Multiply_Vec3(shaderstate.curentity->axis, t1, t2);
+			Matrix4x4_CM_Transform3(shaderstate.modelmatrix, r_origin, t2);
 			qglUniform3fvARB(p->handle[perm], 1, t2);
 		}
 		break;
 	case SP_LIGHTPOSITION:
 		{
-#ifdef _MSC_VER
-#pragma message("is this correct?")
-#endif
+			/*light position in model space*/
 			float inv[16];
-			float m16[16];
-//			vec3_t t1;
 			vec3_t t2;
 			qboolean Matrix4_Invert(const float *m, float *out);
 
-			Matrix4x4_CM_ModelMatrixFromAxis(m16, shaderstate.curentity->axis[0], shaderstate.curentity->axis[1], shaderstate.curentity->axis[2], shaderstate.curentity->origin);
-			Matrix4_Invert(m16, inv);
+			Matrix4_Invert(shaderstate.modelmatrix, inv);
 			Matrix4x4_CM_Transform3(inv, shaderstate.lightorg, t2);
-//			VectorSubtract(shaderstate.lightorg, shaderstate.curentity->origin, t1);
-//			Matrix3_Multiply_Vec3(shaderstate.curentity->axis, t1, t2);
 			qglUniform3fvARB(p->handle[perm], 1, t2);
 		}
 		break;
@@ -2721,7 +2741,7 @@ qboolean GLBE_LightCullModel(vec3_t org, model_t *model)
 	return false;
 }
 
-//Note: Be cautious about using BEM_LIGHT here.
+//Note: Be cautious about using BEM_LIGHT here, as it won't select the light.
 void GLBE_SelectMode(backendmode_t mode)
 {
 	extern int gldepthfunc;
@@ -2730,10 +2750,36 @@ void GLBE_SelectMode(backendmode_t mode)
 	{
 		shaderstate.mode = mode;
 		shaderstate.flags = 0;
-#ifdef RTLIGHTS
-		if (mode == BEM_STENCIL)
+		switch (mode)
 		{
+		case BEM_DEPTHONLY:
 			GL_DeSelectProgram();
+			/*BEM_DEPTHONLY does support mesh writing, but its not the only way its used... FIXME!*/
+			qglDisableClientState(GL_COLOR_ARRAY);
+			while(shaderstate.lastpasstmus>0)
+			{
+				GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex, false);
+			}
+			qglShadeModel(GL_FLAT);
+
+			//we don't write or blend anything (maybe alpha test... but mneh)
+			BE_SendPassBlendDepthMask(SBITS_MISC_DEPTHWRITE | SBITS_MASK_BITS);
+
+			BE_SetPassBlendMode(0, PBM_REPLACE);
+			GL_CullFace(SHADER_CULL_FRONT);
+			break;
+
+#ifdef RTLIGHTS
+		case BEM_STENCIL:
+			GL_DeSelectProgram();
+
+			if (shaderstate.curpolyoffset.factor || shaderstate.curpolyoffset.unit)
+			{
+				shaderstate.curpolyoffset.factor = 0;
+				shaderstate.curpolyoffset.unit = 0;
+				qglDisable(GL_POLYGON_OFFSET_FILL);
+			}
+
 			/*BEM_STENCIL doesn't support mesh writing*/
 			qglDisableClientState(GL_COLOR_ARRAY);
 			//disable all tmus
@@ -2751,52 +2797,33 @@ void GLBE_SelectMode(backendmode_t mode)
 			//don't change cull stuff, and
 			//don't actually change stencil stuff - caller needs to be
 			//aware of how many times stuff is drawn, so they can do that themselves.
-		}
-#endif
-		if (mode == BEM_DEPTHONLY)
-		{
-			GL_DeSelectProgram();
-			/*BEM_DEPTHONLY does support mesh writing, but its not the only way its used... FIXME!*/
-			qglDisableClientState(GL_COLOR_ARRAY);
-			while(shaderstate.lastpasstmus>0)
-			{
-				GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex, false);
-			}
-			qglShadeModel(GL_FLAT);
+			break;
 
-			//we don't write or blend anything (maybe alpha test... but mneh)
-			BE_SendPassBlendDepthMask(SBITS_MISC_DEPTHWRITE | SBITS_MASK_BITS);
-
-			BE_SetPassBlendMode(0, PBM_REPLACE);
-			GL_CullFace(SHADER_CULL_FRONT);
-		}
-#ifdef RTLIGHTS
-		if (mode == BEM_SMAPLIGHT)
-		{
+		case BEM_SMAPLIGHT:
 			if (!shaderstate.initedpcfpasses)
 			{
 				shaderstate.initedpcfpasses = true;
 				shaderstate.pcfpassshader = R_RegisterCustom("lightpass_pcf", Shader_LightPass_PCF, NULL);
 			}
-		}
-		if (mode == BEM_SMAPLIGHTSPOT)
-		{
+			break;
+
+		case BEM_SMAPLIGHTSPOT:
 			if (!shaderstate.initedspotpasses)
 			{
 				shaderstate.initedspotpasses = true;
 				shaderstate.spotpassshader = R_RegisterCustom("lightpass_spot", Shader_LightPass_Spot, NULL);
 			}
-		}
-		if (mode == BEM_LIGHT)
-		{
+			break;
+
+		case BEM_LIGHT:
 			if (!shaderstate.initedlightpasses)
 			{
 				shaderstate.initedlightpasses = true;
 				shaderstate.lightpassshader = R_RegisterCustom("lightpass", Shader_LightPass_Std, NULL);
 			}
-		}
-		if (mode == BEM_FOG)
-		{
+			break;
+#endif
+		case BEM_FOG:
 			while(shaderstate.lastpasstmus>0)
 			{
 				GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex, false);
@@ -2809,8 +2836,8 @@ void GLBE_SelectMode(backendmode_t mode)
 			qglShadeModel(GL_FLAT);
 			BE_SetPassBlendMode(0, PBM_MODULATE);
 			BE_SendPassBlendDepthMask(SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | SBITS_MISC_DEPTHEQUALONLY);
+			break;
 		}
-#endif
 	}
 }
 
@@ -2820,7 +2847,7 @@ void GLBE_SelectEntity(entity_t *ent)
 		qglDepthRange (gldepthmin, gldepthmax);
 	shaderstate.curentity = ent;
 	currententity = ent;
-	R_RotateForEntity(shaderstate.modelviewmatrix, shaderstate.curentity, shaderstate.curentity->model);
+	R_RotateForEntity(shaderstate.modelmatrix, shaderstate.modelviewmatrix, shaderstate.curentity, shaderstate.curentity->model);
 	if (qglLoadMatrixf)
 		qglLoadMatrixf(shaderstate.modelviewmatrix);
 	if (shaderstate.curentity->flags & Q2RF_DEPTHHACK && qglDepthRange)
@@ -2840,7 +2867,7 @@ void BE_SelectFog(vec3_t colour, float alpha, float density)
 	qglColor4f(colour[0], colour[1], colour[2], alpha);
 }
 
-void BE_SelectDLight(dlight_t *dl, vec3_t colour)
+void GLBE_SelectDLight(dlight_t *dl, vec3_t colour)
 {
 	shaderstate.lightradius = dl->radius;
 	VectorCopy(dl->origin, shaderstate.lightorg);
@@ -2879,49 +2906,6 @@ void BE_PushOffsetShadow(qboolean pushdepth)
 	{
 #ifndef FORCESTATE
 		if (*(int*)&shaderstate.curpolyoffset != 0 || *(int*)&shaderstate.curpolyoffset != 0)
-#endif
-		{
-			shaderstate.curpolyoffset = shaderstate.curshader->polyoffset;
-			if (shaderstate.curpolyoffset.factor || shaderstate.curpolyoffset.unit)
-			{
-				qglEnable(GL_POLYGON_OFFSET_FILL);
-				qglPolygonOffset(shaderstate.curpolyoffset.factor, shaderstate.curpolyoffset.unit);
-			}
-			else
-				qglDisable(GL_POLYGON_OFFSET_FILL);
-		}
-	}
-}
-
-void BE_PolyOffset(qboolean pushdepth)
-{
-	if (pushdepth)
-	{
-		/*some quake doors etc are flush with the walls that they're meant to be hidden behind, or plats the same height as the floor, etc
-		we move them back very slightly using polygonoffset to avoid really ugly z-fighting*/
-		extern cvar_t r_polygonoffset_submodel_offset, r_polygonoffset_submodel_factor;
-		polyoffset_t po;
-		po.factor = shaderstate.curshader->polyoffset.factor + r_polygonoffset_submodel_factor.value;
-		po.unit = shaderstate.curshader->polyoffset.unit + r_polygonoffset_submodel_offset.value;
-
-#ifndef FORCESTATE
-		if (((int*)&shaderstate.curpolyoffset)[0] != ((int*)&po)[0] || ((int*)&shaderstate.curpolyoffset)[1] != ((int*)&po)[1])
-#endif
-		{
-			shaderstate.curpolyoffset = po;
-			if (shaderstate.curpolyoffset.factor || shaderstate.curpolyoffset.unit)
-			{
-				qglEnable(GL_POLYGON_OFFSET_FILL);
-				qglPolygonOffset(shaderstate.curpolyoffset.factor, shaderstate.curpolyoffset.unit);
-			}
-			else
-				qglDisable(GL_POLYGON_OFFSET_FILL);
-		}
-	}
-	else
-	{
-#ifndef FORCESTATE
-		if (*(int*)&shaderstate.curpolyoffset != *(int*)&shaderstate.curshader->polyoffset || *(int*)&shaderstate.curpolyoffset != *(int*)&shaderstate.curshader->polyoffset)
 #endif
 		{
 			shaderstate.curpolyoffset = shaderstate.curshader->polyoffset;
@@ -3007,8 +2991,8 @@ static void DrawMeshes(void)
 #endif
 	case BEM_DEPTHONLY:
 		GL_DeSelectProgram();
-#ifdef _MSC_VER
-#pragma message("fixme: support alpha test")
+#ifdef warningmsg
+#pragma warningmsg("fixme: support alpha test")
 #endif
 		GL_ApplyVertexPointer();
 		BE_SubmitMeshChain();
@@ -3273,7 +3257,7 @@ static void BE_SubmitMeshesSortList(batch_t *sortlist)
 				continue;
 		if (batch->shader->flags & SHADER_SKY)
 		{
-			if (shaderstate.mode == BEM_STANDARD)
+			if (shaderstate.mode == BEM_STANDARD || shaderstate.mode == BEM_DEPTHDARK)
 			{
 				if (!batch->shader->prog)
 				{
@@ -3381,7 +3365,7 @@ void BE_BaseEntTextures(void)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
 	BE_GenModelBatches(batches);
-	GLBE_SubmitMeshes(false, batches, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
+	GLBE_SubmitMeshes(false, batches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
 	BE_SelectEntity(&r_worldentity);
 }
 #endif
@@ -3423,7 +3407,7 @@ void GLBE_DrawLightPrePass(qbyte *vis, batch_t **batches)
 #define GL_RGBA32F_ARB                      0x8814
 	if (!TEXVALID(shaderstate.tex_normals))
 	{
-		shaderstate.tex_normals = GL_AllocNewTexture(vid.pixelwidth, vid.pixelheight);
+		shaderstate.tex_normals = GL_AllocNewTexture("***prepass normals***", vid.pixelwidth, vid.pixelheight);
 		r_lightprepass.modified = true;
 	}
 	if (r_lightprepass.modified)
@@ -3439,7 +3423,7 @@ void GLBE_DrawLightPrePass(qbyte *vis, batch_t **batches)
 	{
 		int drb;
 
-		shaderstate.tex_diffuse = GL_AllocNewTexture(vid.pixelwidth, vid.pixelheight);
+		shaderstate.tex_diffuse = GL_AllocNewTexture("***prepass diffuse***", vid.pixelwidth, vid.pixelheight);
 		GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_diffuse);
 		qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vid.pixelwidth, vid.pixelheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -3469,6 +3453,7 @@ void GLBE_DrawLightPrePass(qbyte *vis, batch_t **batches)
 
 	/*set the FB up to draw surface info*/
 	qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, shaderstate.tex_normals.num, 0);
+	GL_ForceDepthWritable();
 	qglClear(GL_DEPTH_BUFFER_BIT);
 
 	if (GL_FRAMEBUFFER_COMPLETE_EXT != qglCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT))
@@ -3563,7 +3548,7 @@ void GLBE_DrawWorld (qbyte *vis)
 		else
 #endif
 			shaderstate.identitylighting = 1;
-	//	shaderstate.identitylighting /= 1<<gl_overbright.ival;
+//		shaderstate.identitylighting /= 1<<gl_overbright.ival;
 
 #ifdef RTLIGHTS
 		if (r_lightprepass.ival)
@@ -3579,7 +3564,7 @@ void GLBE_DrawWorld (qbyte *vis)
 				BE_SelectMode(BEM_STANDARD);
 
 			RSpeedRemark();
-			GLBE_SubmitMeshes(true, batches, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
+			GLBE_SubmitMeshes(true, batches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
 			RSpeedEnd(RSPEED_WORLD);
 		}
 
@@ -3589,6 +3574,10 @@ void GLBE_DrawWorld (qbyte *vis)
 		Sh_DrawLights(vis);
 		RSpeedEnd(RSPEED_STENCILSHADOWS);
 #endif
+
+		shaderstate.identitylighting = 1;
+
+		GLBE_SubmitMeshes(true, batches, SHADER_SORT_DECAL, SHADER_SORT_NEAREST);
 
 		if (r_refdef.gfog_alpha)
 		{
@@ -3606,5 +3595,7 @@ void GLBE_DrawWorld (qbyte *vis)
 	shaderstate.curtime = shaderstate.updatetime = realtime;
 
 	checkglerror();
+
+	shaderstate.identitylighting = 1;
 }
 #endif

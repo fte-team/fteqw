@@ -124,19 +124,19 @@ cvar_t	allow_download_anymap = CVAR("allow_download_pakmaps", "0");
 cvar_t	allow_download_pakcontents = CVAR("allow_download_pakcontents", "1");
 cvar_t	allow_download_root = CVAR("allow_download_root", "0");
 cvar_t	allow_download_textures = CVAR("allow_download_textures", "1");
-cvar_t	allow_download_pk3s = CVAR("allow_download_pk3s", "1");
+cvar_t	allow_download_packages = CVAR("allow_download_packages", "1");
 cvar_t	allow_download_wads = CVAR("allow_download_wads", "1");
 cvar_t	allow_download_configs = CVAR("allow_download_configs", "0");
 
 cvar_t sv_public = CVAR("sv_public", "0");
 cvar_t sv_listen_qw = CVARAF("sv_listen_qw", "1", "sv_listen", 0);
 cvar_t sv_listen_nq = CVAR("sv_listen_nq", "0");
-cvar_t sv_listen_dp = CVAR("sv_listen_dp", "1");
+cvar_t sv_listen_dp = CVAR("sv_listen_dp", "0"); /*kinda fucked right now*/
 cvar_t sv_listen_q3 = CVAR("sv_listen_q3", "0");
 cvar_t sv_reportheartbeats = CVAR("sv_reportheartbeats", "1");
 cvar_t sv_highchars = CVAR("sv_highchars", "1");
 cvar_t sv_loadentfiles = CVAR("sv_loadentfiles", "1");
-cvar_t sv_maxrate = CVAR("sv_maxrate", "10000");
+cvar_t sv_maxrate = CVAR("sv_maxrate", "30000");
 cvar_t sv_maxdrate = CVARAF("sv_maxdrate", "100000",
 							"sv_maxdownloadrate", 0);
 cvar_t sv_minping = CVARF("sv_minping", "0", CVAR_SERVERINFO);
@@ -162,7 +162,7 @@ cvar_t	sv_port_tcp = CVARC("sv_port_tcp", "", SV_Tcpport_Callback);
 cvar_t	sv_port_tcp6 = CVARC("sv_port_tcp6", "", SV_Tcpport6_Callback);
 #endif
 #endif
-cvar_t  sv_port = CVARC("sv_port", "27500", SV_Port_Callback);
+cvar_t  sv_port_ipv4 = CVARC("sv_port", "27500", SV_Port_Callback);
 #ifdef IPPROTO_IPV6
 cvar_t  sv_port_ipv6 = CVARC("sv_port_ipv6", "27500", SV_PortIPv6_Callback);
 #endif
@@ -193,8 +193,8 @@ cvar_t	skill			= CVARF("skill",			"" ,	CVAR_SERVERINFO);			// 0, 1, 2 or 3
 cvar_t	spawn			= CVARF("spawn",			"" ,	CVAR_SERVERINFO);
 cvar_t	watervis		= CVARF("watervis",		"" ,	CVAR_SERVERINFO);
 cvar_t	rearview		= CVARF("rearview",		"" ,	CVAR_SERVERINFO);
-cvar_t	allow_fish		= CVARF("allow_fish",		"0",	CVAR_SERVERINFO);
 cvar_t	allow_luma		= CVARF("allow_luma",		"1",	CVAR_SERVERINFO);
+#pragma warningmsg("Remove this some time")
 cvar_t	allow_bump		= CVARF("allow_bump",		"1",	CVAR_SERVERINFO);
 cvar_t	allow_skybox	= CVARF("allow_skybox",	"",		CVAR_SERVERINFO);
 cvar_t	sv_allow_splitscreen = CVARF("allow_splitscreen","",CVAR_SERVERINFO);
@@ -418,6 +418,7 @@ void SV_DropClient (client_t *drop)
 				break;
 			case SCP_QUAKEWORLD:
 			case SCP_NETQUAKE:
+			case SCP_FITZ666:
 			case SCP_DARKPLACES6:
 			case SCP_DARKPLACES7:
 				MSG_WriteByte (&drop->netchan.message, svc_disconnect);
@@ -454,11 +455,11 @@ void SV_DropClient (client_t *drop)
 				drop->kills=0;
 				drop->deaths=0;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, drop->edict);
-				if (pr_nqglobal_struct->SetChangeParms)
+				if (pr_global_ptrs->SetChangeParms)
 					PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetChangeParms);
 				for (j=0 ; j<NUM_RANK_SPAWN_PARMS ; j++)
-					if (spawnparamglobals[j])
-						rs.parm[j] = *spawnparamglobals[j];
+					if (pr_global_ptrs->spawnparamglobals[j])
+						rs.parm[j] = *pr_global_ptrs->spawnparamglobals[j];
 				Rank_SetPlayerStats(drop->rankid, &rs);
 			}
 		}
@@ -556,8 +557,8 @@ void SV_DropClient (client_t *drop)
 	if (drop->netchan.remote_address.type == NA_LOOPBACK)
 	{
 		Netchan_Transmit(&drop->netchan, 0, "", SV_RateForClient(drop));
-#ifdef _MSC_VER
-#pragma message("This mans that we may not see the reason we kicked ourselves.")
+#ifdef warningmsg
+#pragma warningmsg("This mans that we may not see the reason we kicked ourselves.")
 #endif
 		CL_Disconnect();
 		drop->state = cs_free;	//don't do zombie stuff
@@ -777,6 +778,7 @@ int SV_CalcPing (client_t *cl, qboolean forcecalc)
 	case SCP_DARKPLACES6:
 	case SCP_DARKPLACES7:
 	case SCP_NETQUAKE:
+	case SCP_FITZ666:
 	case SCP_QUAKEWORLD:
 		ping = 0;
 		count = 0;
@@ -877,8 +879,8 @@ void SV_FullClientUpdate (client_t *client, sizebuf_t *buf, unsigned int ftepext
 	MSG_WriteByte (buf, i);
 	MSG_WriteFloat (buf, realtime - client->connection_started);
 
-#ifdef _MSC_VER
-#pragma message("this is a bug: it can be broadcast to all qw clients")
+#ifdef warningmsg
+#pragma warningmsg("this is a bug: it can be broadcast to all qw clients")
 #endif
 	if (ftepext & PEXT_BIGUSERINFOS)
 		Q_strncpyz (info, client->userinfo, sizeof(info));
@@ -1462,13 +1464,13 @@ void SV_GetNewSpawnParms(client_t *cl)
 		else
 #endif
 		{
-			if (pr_nqglobal_struct->SetNewParms)
+			if (pr_global_ptrs->SetNewParms)
 				PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
 		}
 		for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
 		{
-			if (spawnparamglobals[i])
-				cl->spawn_parms[i] = *spawnparamglobals[i];
+			if (pr_global_ptrs->spawnparamglobals[i])
+				cl->spawn_parms[i] = *pr_global_ptrs->spawnparamglobals[i];
 			else
 				cl->spawn_parms[i] = 0;
 		}
@@ -1546,6 +1548,7 @@ void VARGS SV_RejectMessage(int protocol, char *format, ...)
 	{
 #ifdef NQPROT
 	case SCP_NETQUAKE:
+	case SCP_FITZ666:
 		string[4] = CCREP_REJECT;
 		vsnprintf (string+5,sizeof(string)-1-5, format,argptr);
 		len = strlen(string+4)+1+4;
@@ -1597,14 +1600,18 @@ void SV_AcceptMessage(int protocol)
 	{
 #ifdef NQPROT
 	case SCP_NETQUAKE:
-		SZ_Clear(&sb);
-		MSG_WriteLong(&sb, 0);
-		MSG_WriteByte(&sb, CCREP_ACCEPT);
-		NET_LocalAddressForRemote(svs.sockets, &net_from, &localaddr, 0);
-		MSG_WriteLong(&sb, ShortSwap(localaddr.port));
-		*(int*)sb.data = BigLong(NETFLAG_CTL|sb.cursize);
-		NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
-		return;
+	case SCP_FITZ666:
+		if (net_from.type != NA_LOOPBACK)
+		{
+			SZ_Clear(&sb);
+			MSG_WriteLong(&sb, 0);
+			MSG_WriteByte(&sb, CCREP_ACCEPT);
+			NET_LocalAddressForRemote(svs.sockets, &net_from, &localaddr, 0);
+			MSG_WriteLong(&sb, ShortSwap(localaddr.port));
+			*(int*)sb.data = BigLong(NETFLAG_CTL|sb.cursize);
+			NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
+			return;
+		}
 	case SCP_DARKPLACES6:
 	case SCP_DARKPLACES7:
 		strcpy(string, "accept");
@@ -1677,6 +1684,7 @@ client_t *SVC_DirectConnect(void)
 	int			challenge;
 	int			huffcrc = 0;
 	char guid[128] = "";
+	char basic[80];
 	qboolean	redirect = false;
 
 	int maxpacketentities;
@@ -1925,6 +1933,7 @@ client_t *SVC_DirectConnect(void)
 	newcl->protocol = protocol;
 	Q_strncpyz(newcl->guid, guid, sizeof(newcl->guid));
 
+	newcl->maxmodels = 256;
 	if (protocol == SCP_QUAKEWORLD)	//readd?
 	{
 		newcl->max_net_ents = 512;
@@ -1932,9 +1941,15 @@ client_t *SVC_DirectConnect(void)
 			newcl->max_net_ents += 512;
 		if (newcl->fteprotocolextensions & PEXT_ENTITYDBL2)
 			newcl->max_net_ents += 1024;
+
+		if (newcl->fteprotocolextensions & PEXT_MODELDBL)
+			newcl->maxmodels = MAX_MODELS;
 	}
 	else if (ISDPCLIENT(newcl))
+	{
 		newcl->max_net_ents = 32767;
+		newcl->maxmodels = 1024;
+	}
 	else
 		newcl->max_net_ents = 600;
 
@@ -2025,21 +2040,9 @@ client_t *SVC_DirectConnect(void)
 	SV_FixupName(name, temp.namebuf, sizeof(temp.namebuf));
 	name = temp.namebuf;
 
-	if (!*name)
-	{
-		name = "unnamed";
-	}
-	else if (!stricmp(name, "console"))
-		name = "Not Console";	//have fun dudes.
-	else
-	{
-		char *t = name;
-		//work around an ezquake bug that has been there since the beginning in one form or another.
-		while (*(unsigned char*)t == 0xff)
-			t++;
-		if (!*t)
-			name = "invisible";
-	}
+	deleetstring(basic, name);
+	if (!*basic || strstr(basic, "console"))
+		name = "unnamed";	//have fun dudes.
 
 	// count up the clients and spectators
 	clients = 0;
@@ -2835,8 +2838,16 @@ qboolean SV_ConnectionlessPacket (void)
 	else if (!strcmp(c, "realip"))
 		SVC_RealIP ();
 	else if (!PR_GameCodePacket(net_message.data+4))
-		Con_Printf ("bad connectionless packet from %s:\n%s\n"
-		, NET_AdrToString (adr, sizeof(adr), net_from), s);
+	{
+		static unsigned int lt;
+		unsigned int ct = Sys_Milliseconds();
+		if (ct - lt > 5*1000)
+		{
+			Con_Printf ("bad connectionless packet from %s: \"%s\"\n"
+					, NET_AdrToString (adr, sizeof(adr), net_from), c);
+			lt = ct;
+		}
+	}
 
 	return false;
 }
@@ -2858,8 +2869,6 @@ void SVNQ_ConnectionlessPacket(void)
 
 	if (!sv_listen_nq.value)
 		return;
-	if (svs.netprim.coordsize != 2)
-		return;	//no, start using dp7 instead.
 
 	MSG_BeginReading(svs.netprim);
 	header = LongSwap(MSG_ReadLong());
@@ -3127,6 +3136,8 @@ qboolean SV_ReadPackets (float *delay)
 	laggedpacket_t *lp;
 	char		*banreason;
 	qboolean	received = false;
+	int			giveup = 5000; /*we're fucked if we need this to be this high, but at least we can retain some clients if we're really running that slow*/
+	int			cookie = 0;
 
 	for (i = 0; i < MAX_CLIENTS; i++)	//fixme: shouldn't we be using svs.allocated_client_slots ?
 	{
@@ -3177,9 +3188,9 @@ qboolean SV_ReadPackets (float *delay)
 	}
 
 #ifdef SERVER_DEMO_PLAYBACK
-	while (SV_GetPacket())
+	while (giveup-- > 0 && SV_GetPacket())
 #else
-	while (NET_GetPacket (NS_SERVER))
+	while (giveup-- > 0 && (cookie=NET_GetPacket (NS_SERVER, cookie)) >= 0)
 #endif
 	{
 		banreason = SV_BannedReason (&net_from);
@@ -3241,8 +3252,8 @@ qboolean SV_ReadPackets (float *delay)
 #ifdef Q3SERVER
 			if (ISQ3CLIENT(cl))
 			{
-#ifdef _MSC_VER
-#pragma message("qwoverq3: fixme: this will block qw+q3 clients from the same ip")
+#ifdef warningmsg
+#pragma warningmsg("qwoverq3: fixme: this will block qw+q3 clients from the same ip")
 #endif
 				if (cl->state != cs_zombie)
 				{
@@ -3405,24 +3416,37 @@ void SV_GetConsoleCommands (void)
 	}
 }
 
-
+#define MINDRATE 500
+#define MINRATE 500
 int SV_RateForClient(client_t *cl)
 {
 	int rate;
-	if (cl->download && cl->drate)
+	if (cl->download)
 	{
 		rate = cl->drate;
-		if (rate > sv_maxdrate.value)
-			rate = sv_maxdrate.value;
+		if (sv_maxdrate.ival)
+		{
+			if (!rate || rate > sv_maxdrate.value)
+				rate = sv_maxdrate.value;
+			else if (rate < MINDRATE)
+				rate = MINDRATE;
+		}
+		else if (rate >= 1 && rate < MINDRATE)
+			rate = MINDRATE;
 	}
 	else
 	{
 		rate = cl->rate;
-		if (rate > sv_maxrate.value)
-			rate = sv_maxrate.value;
+		if (sv_maxrate.ival)
+		{
+			if (rate > sv_maxrate.value)
+				rate = sv_maxrate.value;
+			else if (rate < MINRATE)
+				rate = MINRATE;
+		}
+		else if (rate >= 1 && rate < MINRATE)
+			rate = MINRATE;
 	}
-	if (rate < 500)
-		rate = 500;
 
 	return rate;
 }
@@ -3800,7 +3824,7 @@ void SV_InitLocal (void)
 	extern	cvar_t	sv_wateraccelerate;
 	extern	cvar_t	sv_friction;
 	extern	cvar_t	sv_waterfriction;
-	extern	cvar_t sv_sound_watersplash;
+	extern	cvar_t sv_sound_watersplash, sv_sound_land;
 	extern	cvar_t	pr_allowbutton1;
 
 	extern	cvar_t	pm_bunnyspeedcap;
@@ -3848,7 +3872,6 @@ void SV_InitLocal (void)
 	Cvar_Register (&watervis,	cvargroup_serverinfo);
 	Cvar_Register (&rearview,	cvargroup_serverinfo);
 	Cvar_Register (&mirrors,	cvargroup_serverinfo);
-	Cvar_Register (&allow_fish, cvargroup_serverinfo);
 	Cvar_Register (&allow_luma,	cvargroup_serverinfo);
 	Cvar_Register (&allow_bump,	cvargroup_serverinfo);
 	Cvar_Register (&allow_skybox,	cvargroup_serverinfo);
@@ -3871,7 +3894,8 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_wateraccelerate,		cvargroup_serverphysics);
 	Cvar_Register (&sv_friction,			cvargroup_serverphysics);
 	Cvar_Register (&sv_waterfriction,		cvargroup_serverphysics);
-	Cvar_Register (&sv_sound_watersplash,		cvargroup_serverphysics);
+	Cvar_Register (&sv_sound_watersplash,	cvargroup_serverphysics);
+	Cvar_Register (&sv_sound_land,			cvargroup_serverphysics);
 
 	Cvar_Register (&sv_bigcoords,			cvargroup_serverphysics);
 
@@ -3915,8 +3939,8 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_port_ipx,	cvargroup_servercontrol);
 	sv_port_ipx.restriction = RESTRICT_MAX;
 #endif
-	Cvar_Register (&sv_port,	cvargroup_servercontrol);
-	sv_port.restriction = RESTRICT_MAX;
+	Cvar_Register (&sv_port_ipv4,	cvargroup_servercontrol);
+	sv_port_ipv4.restriction = RESTRICT_MAX;
 
 	Cvar_Register (&sv_reportheartbeats, cvargroup_servercontrol);
 
@@ -3940,7 +3964,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&allow_download_pakcontents,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_textures,cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_configs,	cvargroup_serverpermissions);
-	Cvar_Register (&allow_download_pk3s,	cvargroup_serverpermissions);
+	Cvar_Register (&allow_download_packages,cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_wads,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_root,	cvargroup_serverpermissions);
 	Cvar_Register (&secure,	cvargroup_serverpermissions);
@@ -4092,7 +4116,7 @@ void SV_InitLocal (void)
 		int port = atoi(com_argv[p+1]);
 		if (!port)
 			port = PORT_QWSERVER;
-		Cvar_SetValue(&sv_port, port);
+		Cvar_SetValue(&sv_port_ipv4, port);
 #ifdef IPPROTO_IPV6
 		Cvar_SetValue(&sv_port_ipv6, port);
 #endif
@@ -4398,11 +4422,11 @@ qboolean ReloadRanking(client_t *cl, char *newname)
 			cl->kills=0;
 			cl->deaths=0;
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
-			if (pr_nqglobal_struct->SetChangeParms)
+			if (pr_global_ptrs->SetChangeParms)
 				PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetChangeParms);
 			for (j=0 ; j<NUM_RANK_SPAWN_PARMS ; j++)
-				if (spawnparamglobals[j])
-					rs.parm[j] = *spawnparamglobals[j];
+				if (pr_global_ptrs->spawnparamglobals[j])
+					rs.parm[j] = *pr_global_ptrs->spawnparamglobals[j];
 			Rank_SetPlayerStats(cl->rankid, &rs);
 			cl->rankid = 0;
 		}
@@ -4442,7 +4466,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 	int		i;
 	client_t	*client;
 	int		dupc = 1;
-	char	newname[80];
+	char	newname[80], basic[80];
 
 	val = Info_ValueForKey (cl->userinfo, "team");
 	Q_strncpyz (cl->team, val, sizeof(cl->teambuf));
@@ -4459,12 +4483,9 @@ void SV_ExtractFromUserinfo (client_t *cl)
 	else
 		newname[0] = 0;
 
-	if (!newname[0] && cl->protocol != SCP_BAD)
+	deleetstring(basic, newname);
+	if ((!basic[0] && cl->protocol != SCP_BAD) || strstr(basic, "console"))
 		strcpy(newname, "unnamed");
-	else if (!stricmp(val, "console"))
-	{
-		strcpy(newname, "Not Console");
-	}
 
 	// check to see if another user by the same name exists
 	while (1) {
@@ -4561,7 +4582,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 	if (strlen(val))
 		cl->drate = atoi(val);
 	else
-		cl->drate = 0;	//0 disables the downloading check
+		cl->drate = cl->rate;	//0 disables the downloading check
 
 	val = Info_ValueForKey (cl->userinfo, "cl_playerclass");
 	if (val)

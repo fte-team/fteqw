@@ -24,10 +24,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "pr_common.h"
 
-#ifdef _MSC_VER
-#pragma message("fixme, fix this up before adding to csqc")
+#ifdef warningmsg
+#pragma warningmsg("fixme, fix this up before adding to csqc")
 #endif
-extern nqglobalvars_t realpr_nqglobal_struct;
+extern globalptrs_t realpr_global_ptrs;
 
 /*
 
@@ -1899,7 +1899,8 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 			World_LinkEdict (w, ent, true);
 		break;
 	default:
-		SV_Error ("SV_Physics: bad movetype %i on %s", (int)ent->v->movetype, PR_GetString(w->progs, ent->v->classname));
+//		SV_Error ("SV_Physics: bad movetype %i on %s", (int)ent->v->movetype, PR_GetString(w->progs, ent->v->classname));
+		break;
 	}
 
 	if (movechain != w->edicts)
@@ -2003,6 +2004,27 @@ void World_Physics_Frame(world_t *w)
 	qboolean retouch;
 	wedict_t *ent;
 
+	i = *w->g.physics_mode;
+	if (i == 0)
+	{
+		/*physics mode 0 = none*/
+		return;
+	}
+	if (i == 1)
+	{
+		/*physics mode 1 = thinks only*/
+		for (i=0 ; i<w->num_edicts ; i++)
+		{
+			ent = (wedict_t*)EDICT_NUM(w->progs, i);
+			if (ent->isfree)
+				continue;
+
+			WPhys_RunThink (w, ent);
+		}
+		return;
+	}
+	/*physics mode 2 = normal movetypes*/
+
 	retouch = (w->g.force_retouch && (*w->g.force_retouch >= 1));
 
 	//
@@ -2041,7 +2063,7 @@ void World_Physics_Frame(world_t *w)
 	}
 
 	if (retouch)
-		w->g.force_retouch-=1;
+		*w->g.force_retouch-=1;
 }
 
 /*
@@ -2102,13 +2124,16 @@ qboolean SV_Physics (void)
 
 		usercmd_t ucmd;
 		static int old_bot_time;	//I hate using floats for timers.
+		int newbottime, ms;
 		client_t *oldhost;
 		edict_t *oldplayer;
 		host_frametime = (Sys_Milliseconds() - old_bot_time) / 1000.0f;
 		if (1 || host_frametime >= 1 / 72.0f)
 		{
 			memset(&ucmd, 0, sizeof(ucmd));
-			old_bot_time = Sys_Milliseconds();
+			newbottime = Sys_Milliseconds();
+			ms = newbottime - old_bot_time;
+			old_bot_time = newbottime;
 			for (i = 1; i <= sv.allocated_client_slots; i++)
 			{
 				if (svs.clients[i-1].state && svs.clients[i-1].protocol == SCP_BAD)
@@ -2116,6 +2141,7 @@ qboolean SV_Physics (void)
 					oldhost = host_client;
 					oldplayer = sv_player;
 					host_client = &svs.clients[i-1];
+					host_client->isindependant = true;
 					sv_player = host_client->edict;
 
 					SV_PreRunCmd();
@@ -2124,11 +2150,11 @@ qboolean SV_Physics (void)
 					ucmd.msec = host_frametime*1000;
 #else
 					// FIXME: Something very weird is going on here!
-					ucmd.msec = 0;
+					ucmd.msec = ms;
 #endif
-					ucmd.angles[0] = (int)(sv_player->v->angles[0] * (65535/360.0f));
-					ucmd.angles[1] = (int)(sv_player->v->angles[1] * (65535/360.0f));
-					ucmd.angles[2] = (int)(sv_player->v->angles[2] * (65535/360.0f));
+					ucmd.angles[0] = (int)(sv_player->v->v_angle[0] * (65535/360.0f));
+					ucmd.angles[1] = (int)(sv_player->v->v_angle[1] * (65535/360.0f));
+					ucmd.angles[2] = (int)(sv_player->v->v_angle[2] * (65535/360.0f));
 					ucmd.forwardmove = sv_player->xv->movement[0];
 					ucmd.sidemove = sv_player->xv->movement[1];
 					ucmd.upmove = sv_player->xv->movement[2];

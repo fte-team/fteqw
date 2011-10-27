@@ -126,9 +126,11 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 
 #if defined(HLSERVER) && (defined(__powerpc__) || defined(__ppc__))
 //this is to let bigfoot know when he comes to port it all... And I'm lazy.
-#warning "-----------------------------------------"
-#warning "FIXME: No byteswapping on halflife models"
-#warning "-----------------------------------------"
+#ifdef warningmsg
+#pragma warningmsg("-----------------------------------------")
+#pragma warningmsg("FIXME: No byteswapping on halflife models")
+#pragma warningmsg("-----------------------------------------")
+#endif
 #endif
 
 	if (header->version != 10)
@@ -566,7 +568,7 @@ void R_DrawHLModel(entity_t	*curent)
     int						b, m, v;
     short					*skins;
 	int bgroup, cbone, lastbone;
-	float mat[16];
+	float mmat[16], mvmat[16];
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 	//general model
@@ -610,8 +612,8 @@ void R_DrawHLModel(entity_t	*curent)
 		qglColor4f(difuse[0]/255+ambient[0]/255, difuse[1]/255+ambient[1]/255, difuse[2]/255+ambient[2]/255, curent->shaderRGBAf[3]);
 	}
 
-    R_RotateForEntity (mat, curent, curent->model);
-	qglLoadMatrixf(mat);
+    R_RotateForEntity (mmat, mvmat, curent, curent->model);
+	qglLoadMatrixf(mvmat);
 
 	cbone = 0;
 	for (bgroup = 0; bgroup < FS_COUNT; bgroup++)

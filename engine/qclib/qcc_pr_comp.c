@@ -4921,6 +4921,9 @@ int QCC_canConv(QCC_def_t *from, etype_t to)
 		}
 	}
 
+	if (from->type->type == ev_variant)
+		return 5;
+
 /*	if (from->type->type == ev_pointer && from->type->aux_type->type == to)
 		return 1;
 

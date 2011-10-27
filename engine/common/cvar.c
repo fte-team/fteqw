@@ -751,14 +751,14 @@ qboolean Cvar_ApplyLatchFlag(cvar_t *var, char *value, int flag)
 	var->latched_string = NULL;
 	if (!latch)
 	{
-#ifndef _MSC_VER
-		#warning this means the callback will never be called
+#ifdef warningmsg
+#pragma warningmsg("this means the callback will never be called")
 #endif
 		latch = var->string;
 		var->string = NULL;
 	}
-#ifndef _MSC_VER
-#warning set or forceset?
+#ifdef warningmsg
+#pragma warningmsg("set or forceset?")
 #endif
 	Cvar_ForceSet(var, value);
 
@@ -801,8 +801,8 @@ void Cvar_ForceCheatVars(qboolean semicheats, qboolean absolutecheats)
 		var->latched_string = NULL;
 		if (!latch)
 		{
-#ifndef _MSC_VER
-		#warning this means the callback will never be called
+#ifdef warningmsg
+#pragma warningmsg("this means the callback will never be called")
 #endif
 			latch = var->string;
 			var->string = NULL;

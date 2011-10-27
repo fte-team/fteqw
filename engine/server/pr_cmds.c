@@ -24,7 +24,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "sv_sql.h"
 #endif
 
-#define G_PROG G_FLOAT
 #define Z_QC_TAG 2
 
 #ifndef CLIENTONLY
@@ -64,7 +63,7 @@ cvar_t	pr_maxedicts = CVARF("pr_maxedicts", "2048", CVAR_LATCH);
 cvar_t	pr_no_playerphysics = CVARF("pr_no_playerphysics", "0", CVAR_LATCH);
 cvar_t	pr_no_parsecommand = CVARF("pr_no_parsecommand", "0", 0);
 
-cvar_t	progs = CVARAF("progs", "", "sv_progs", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_NOTFROMSERVER);
+cvar_t	pr_ssqc_progs = CVARAF("progs", "", "sv_progs", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_NOTFROMSERVER);
 cvar_t	qc_nonetaccess = CVAR("qc_nonetaccess", "0");	//prevent write_... builtins from doing anything. This means we can run any mod, specific to any engine, on the condition that it also has a qw or nq crc.
 
 cvar_t pr_overridebuiltins = CVAR("pr_overridebuiltins", "1");
@@ -135,8 +134,8 @@ func_t EndFrameQC;	//a common extension
 
 qboolean pr_items2;	//hipnotic (or was it rogue?)
 
-nqglobalvars_t realpr_nqglobal_struct;
-nqglobalvars_t *pr_nqglobal_struct = &realpr_nqglobal_struct;
+globalptrs_t realpr_global_ptrs;
+globalptrs_t *pr_global_ptrs = &realpr_global_ptrs;
 
 progfuncs_t *svprogfuncs;
 progparms_t svprogparms;
@@ -337,6 +336,54 @@ pbool SV_BadField(progfuncs_t *inst, edict_t *foo, const char *keyname, const ch
 	return false;
 }
 
+void PR_SV_FillWorldGlobals(world_t *w)
+{
+	w->g.self = pr_global_ptrs->self;
+	w->g.other = pr_global_ptrs->other;
+	w->g.force_retouch = pr_global_ptrs->force_retouch;
+	w->g.physics_mode = pr_global_ptrs->physics_mode;
+	w->g.frametime = pr_global_ptrs->frametime;
+	w->g.newmis = pr_global_ptrs->newmis;
+	w->g.time = pr_global_ptrs->time;
+}
+
+void PR_SSQC_Relocated(progfuncs_t *pr, char *oldb, char *newb, int oldlen)
+{
+	edict_t *ent;
+	int i;
+	union {
+		globalptrs_t *g;
+		char **c;
+	} b;
+	b.g = pr_global_ptrs;
+	for (i = 0; i < sizeof(*b.g)/sizeof(*b.c); i++)
+	{
+		if (b.c[i] >= oldb && b.c[i] < oldb+oldlen)
+			b.c[i] += newb - oldb;
+	}
+	PR_SV_FillWorldGlobals(&sv.world);
+
+	for (i = 0; i < sv.world.num_edicts; i++)
+	{
+		ent = EDICT_NUM(pr, i);
+		if ((char*)ent->xv >= oldb && (char*)ent->xv < oldb+oldlen)
+			ent->xv = (extentvars_t*)((char*)ent->xv - oldb + newb);
+	}
+
+	for (i = 0; sv.strings.model_precache[i]; i++)
+	{
+		if (sv.strings.model_precache[i] >= oldb && sv.strings.model_precache[i] < oldb+oldlen)
+			sv.strings.model_precache[i] += newb - oldb;
+	}
+	for (i = 0; i < MAX_CLIENTS; i++)
+	{
+		if (svs.clients[i].name >= oldb && svs.clients[i].name < oldb+oldlen)
+			svs.clients[i].name += newb - oldb;
+		if (svs.clients[i].team >= oldb && svs.clients[i].team < oldb+oldlen)
+			svs.clients[i].team += newb - oldb;
+	}
+}
+
 //int QCEditor (char *filename, int line, int nump, char **parms);
 void QC_Clear(void);
 builtin_t pr_builtin[];
@@ -468,6 +515,10 @@ void Q_SetProgsParms(qboolean forcompiler)
 
 	svprogparms.useeditor = QCEditor;//void (*useeditor) (char *filename, int line, int nump, char **parms);
 
+	//until its properly tested
+	if (pr_ssqc_memsize.ival == -2)
+		svprogparms.addressablerelocated = PR_SSQC_Relocated;
+
 	if (!svprogfuncs)
 	{
 		sv.world.progs = svprogfuncs = InitProgs(&svprogparms);
@@ -475,7 +526,7 @@ void Q_SetProgsParms(qboolean forcompiler)
 	sv.world.Event_Touch = SVPR_Event_Touch;
 	sv.world.Event_Think = SVPR_Event_Think;
 	sv.world.Event_Sound = SVQ1_StartSound;
-	sv.world.GetCModel = SVPR_GetCModel;
+	sv.world.Get_CModel = SVPR_GetCModel;
 	PRSV_ClearThreads();
 	PR_fclose_progs(svprogfuncs);
 
@@ -524,6 +575,7 @@ void PR_Deinit(void)
 
 void PR_LoadGlabalStruct(void)
 {
+	static float svphysicsmode = 2;
 	static float writeonly;
 	static float dimension_send_default;
 	static float zero_default;
@@ -534,13 +586,13 @@ void PR_LoadGlabalStruct(void)
 	static vec3_t input_movevalues_default;
 	int i;
 	int *v;
-	nqglobalvars_t *pr_globals = pr_nqglobal_struct;
-#define globalfloat(need,name) ((nqglobalvars_t*)pr_nqglobal_struct)->name = (float *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find \""#name"\" export in progs\n");
-#define globalint(need,name) ((nqglobalvars_t*)pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
-#define globalstring(need,name) ((nqglobalvars_t*)pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
-#define globalvec(need,name) ((nqglobalvars_t*)pr_globals)->V_##name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !((nqglobalvars_t*)pr_globals)->V_##name) SV_Error("Could not find export \""#name"\" in progs\n");
-#define globalvec_(need,name) ((nqglobalvars_t*)pr_globals)->name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !((nqglobalvars_t*)pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
-#define globalfunc(need,name) ((nqglobalvars_t*)pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (!((nqglobalvars_t*)pr_globals)->name) {static func_t stripped##name; stripped##name = PR_FindFunction(svprogfuncs, #name, 0); if (stripped##name) ((nqglobalvars_t*)pr_globals)->name = &stripped##name; else if (need) SV_Error("Could not find function \""#name"\" in progs\n"); }
+	globalptrs_t *pr_globals = pr_global_ptrs;
+#define globalfloat(need,name) (pr_globals)->name = (float *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name) SV_Error("Could not find \""#name"\" export in progs\n");
+#define globalint(need,name) (pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
+#define globalstring(need,name) (pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
+#define globalvec(need,name) (pr_globals)->V_##name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->V_##name) SV_Error("Could not find export \""#name"\" in progs\n");
+#define globalvec_(need,name) (pr_globals)->name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
+#define globalfunc(need,name) (pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (!(pr_globals)->name) {static func_t stripped##name; stripped##name = PR_FindFunction(svprogfuncs, #name, 0); if (stripped##name) (pr_globals)->name = &stripped##name; else if (need) SV_Error("Could not find function \""#name"\" in progs\n"); }
 //			globalint(pad);
 	globalint		(true, self);	//we need the qw ones, but any in standard quake and not quakeworld, we don't really care about.
 	globalint		(true, other);
@@ -598,9 +650,9 @@ void PR_LoadGlabalStruct(void)
 	memset(&evalc_pitch_speed, 0, sizeof(evalc_pitch_speed));
 
 	for (i = 0; i < NUM_SPAWN_PARMS; i++)
-		spawnparamglobals[i] = (float *)PR_FindGlobal(svprogfuncs, va("parm%i", i+1), 0, NULL);
+		pr_global_ptrs->spawnparamglobals[i] = (float *)PR_FindGlobal(svprogfuncs, va("parm%i", i+1), 0, NULL);
 
-#define ensureglobal(name,var) if (!((nqglobalvars_t*)pr_globals)->name) ((nqglobalvars_t*)pr_globals)->name = &var;
+#define ensureglobal(name,var) if (!(pr_globals)->name) (pr_globals)->name = &var;
 
 	// make sure these entries are always valid pointers
 	ensureglobal(dimension_send, dimension_send_default);
@@ -613,22 +665,22 @@ void PR_LoadGlabalStruct(void)
 	ensureglobal(input_buttons, input_buttons_default);
 
 	// qtest renames and missing variables
-	if (!((nqglobalvars_t*)pr_globals)->V_trace_plane_normal)
+	if (!(pr_globals)->V_trace_plane_normal)
 	{
-		((nqglobalvars_t*)pr_globals)->V_trace_plane_normal = (vec3_t *)PR_FindGlobal(svprogfuncs, "trace_normal", 0, NULL);
-		if (!((nqglobalvars_t*)pr_globals)->V_trace_plane_normal)
+		(pr_globals)->V_trace_plane_normal = (vec3_t *)PR_FindGlobal(svprogfuncs, "trace_normal", 0, NULL);
+		if (!(pr_globals)->V_trace_plane_normal)
 			SV_Error("Could not find export trace_plane_normal in progs\n");
 	}
-	if (!((nqglobalvars_t*)pr_globals)->V_trace_endpos)
+	if (!(pr_globals)->V_trace_endpos)
 	{
-		((nqglobalvars_t*)pr_globals)->V_trace_endpos = (vec3_t *)PR_FindGlobal(svprogfuncs, "trace_impact", 0, NULL);
-		if (!((nqglobalvars_t*)pr_globals)->V_trace_endpos)
+		(pr_globals)->V_trace_endpos = (vec3_t *)PR_FindGlobal(svprogfuncs, "trace_impact", 0, NULL);
+		if (!(pr_globals)->V_trace_endpos)
 			SV_Error("Could not find export trace_endpos in progs\n");
 	}
-	if (!((nqglobalvars_t*)pr_globals)->trace_fraction)
+	if (!(pr_globals)->trace_fraction)
 	{
-		((nqglobalvars_t*)pr_globals)->trace_fraction = (float *)PR_FindGlobal(svprogfuncs, "trace_frac", 0, NULL);
-		if (!((nqglobalvars_t*)pr_globals)->trace_fraction)
+		(pr_globals)->trace_fraction = (float *)PR_FindGlobal(svprogfuncs, "trace_frac", 0, NULL);
+		if (!(pr_globals)->trace_fraction)
 			SV_Error("Could not find export trace_fraction in progs\n");
 	}
 	ensureglobal(serverflags, zero_default);
@@ -641,6 +693,7 @@ void PR_LoadGlabalStruct(void)
 	ensureglobal(trace_plane_dist, writeonly);
 	ensureglobal(trace_inopen, writeonly);
 	ensureglobal(trace_inwater, writeonly);
+	ensureglobal(physics_mode, svphysicsmode);
 
 	pr_global_struct->dimension_send = 255;
 	pr_global_struct->serverflags = 0;
@@ -676,20 +729,15 @@ void PR_LoadGlabalStruct(void)
 	EndFrameQC = PR_FindFunction (svprogfuncs, "EndFrame", PR_ANY);
 
 	v = (int *)PR_globals(svprogfuncs, PR_CURRENT);
-	QC_AddSharedVar(svprogfuncs, (int *)((nqglobalvars_t*)pr_nqglobal_struct)->self-v, 1);
-	QC_AddSharedVar(svprogfuncs, (int *)((nqglobalvars_t*)pr_nqglobal_struct)->other-v, 1);
-	QC_AddSharedVar(svprogfuncs, (int *)((nqglobalvars_t*)pr_nqglobal_struct)->time-v, 1);
+	QC_AddSharedVar(svprogfuncs, (int *)(pr_global_ptrs)->self-v, 1);
+	QC_AddSharedVar(svprogfuncs, (int *)(pr_global_ptrs)->other-v, 1);
+	QC_AddSharedVar(svprogfuncs, (int *)(pr_global_ptrs)->time-v, 1);
 
 	pr_items2 = !!PR_FindGlobal(svprogfuncs, "items2", 0, NULL);
 
 	SV_ClearQCStats();
 
-	sv.world.g.self = pr_nqglobal_struct->self;
-	sv.world.g.other = pr_nqglobal_struct->other;
-	sv.world.g.force_retouch = pr_nqglobal_struct->force_retouch;
-	sv.world.g.frametime = pr_nqglobal_struct->frametime;
-	sv.world.g.newmis = pr_nqglobal_struct->newmis;
-	sv.world.g.time = pr_nqglobal_struct->time;
+	PR_SV_FillWorldGlobals(&sv.world);
 
 	/*Hexen2 has lots of extra stats, which I don't want special support for, so list them here and send them as for csqc*/
 	if (progstype == PROG_H2)
@@ -1101,7 +1149,7 @@ void PR_Init(void)
 	Cvar_Register (&temp1, cvargroup_progs);
 	Cvar_Register (&noexit, cvargroup_progs);
 
-	Cvar_Register (&progs, cvargroup_progs);
+	Cvar_Register (&pr_ssqc_progs, cvargroup_progs);
 	Cvar_Register (&pr_compatabilitytest, cvargroup_progs);
 
 	Cvar_Register (&qc_nonetaccess, cvargroup_progs);
@@ -1202,13 +1250,15 @@ void Q_InitProgs(void)
 		}
 	}
 
-	if (*progs.string && strlen(progs.string)<64 && *progs.string != '*')	//a * is a special case to not load a q2 dll.
+	/*if pr_ssqc_progs cvar is set, override the default*/
+	if (*pr_ssqc_progs.string && strlen(pr_ssqc_progs.string)<64 && *pr_ssqc_progs.string != '*')	//a * is a special case to not load a q2 dll.
 	{
-		Q_strncpyz(addons, progs.string, MAX_QPATH);
+		Q_strncpyz(addons, pr_ssqc_progs.string, MAX_QPATH);
 		COM_DefaultExtension(addons, ".dat", sizeof(addons));
 	}
 	oldprnum= AddProgs(addons);
 
+	/*try to load qwprogs.dat if we didn't manage to load one yet*/
 	if (oldprnum < 0 && strcmp(addons, "qwprogs.dat"))
 	{
 #ifndef SERVERONLY
@@ -1218,6 +1268,7 @@ void Q_InitProgs(void)
 		oldprnum= AddProgs("qwprogs.dat");
 	}
 
+	/*try to load qwprogs.dat if we didn't manage to load one yet*/
 	if (oldprnum < 0 && strcmp(addons, "progs.dat"))
 	{
 #ifndef SERVERONLY
@@ -2804,7 +2855,7 @@ already running on that entity/channel pair.
 
 An attenuation of 0 will play full volume everywhere in the level.
 Larger attenuations will drop off.
-pitchadj is a number between -128 and 127. values greater than 0 will result in a higher pitch, less than 0 gives lower pitch.
+pitchadj is a percent. values greater than 100 will result in a lower pitch, less than 100 gives a higher pitch.
 
 =================
 */
@@ -4423,7 +4474,7 @@ void QCBUILTIN PF_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globa
 		client_t *cl = Write_GetClient();
 		if (!cl)
 			return;
-		ClientReliableCheckBlock(cl, 1);
+		ClientReliableCheckBlock(cl, 4);
 		ClientReliableWrite_Angle(cl, G_FLOAT(OFS_PARM1));
 	}
 	else
@@ -4881,8 +4932,8 @@ void QCBUILTIN PF_setspawnparms (progfuncs_t *prinst, struct globalvars_s *pr_gl
 	client = svs.clients + (i-1);
 
 	for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
-		if (spawnparamglobals[i])
-			*spawnparamglobals[i] = client->spawn_parms[i];
+		if (pr_global_ptrs->spawnparamglobals[i])
+			*pr_global_ptrs->spawnparamglobals[i] = client->spawn_parms[i];
 }
 
 /*
@@ -6649,6 +6700,7 @@ static void QCBUILTIN PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s 
 	switch(efnum)
 	{
 	case ce_rain:
+		/*this effect is meant to be persistant (endeffect is never used)*/
 		//min = G_VECTOR(OFS_PARM1);
 		//max = G_VECTOR(OFS_PARM2);
 		//size = G_VECTOR(OFS_PARM3);
@@ -6662,6 +6714,7 @@ static void QCBUILTIN PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s 
 		return;
 		break;
 	case ce_snow:
+		/*this effect is meant to be persistant (endeffect is never used)*/
 		//min = G_VECTOR(OFS_PARM1);
 		//max = G_VECTOR(OFS_PARM2);
 		//flags = G_FLOAT(OFS_PARM3);
@@ -6672,6 +6725,7 @@ static void QCBUILTIN PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s 
 		return;
 		break;
 	case ce_fountain:
+		/*this effect is meant to be persistant (endeffect is never used)*/
 		//org = G_VECTOR(OFS_PARM1);
 		//angle = G_VECTOR(OFS_PARM2);
 		//dir = G_VECTOR(OFS_PARM3);
@@ -6682,6 +6736,7 @@ static void QCBUILTIN PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s 
 		return;
 		break;
 	case ce_quake:
+		/*this effect is meant to be persistant*/
 		org = G_VECTOR(OFS_PARM1);
 		//radius = G_FLOAT(OFS_PARM2);	/*discard: always 500/3 */
 
@@ -6837,7 +6892,7 @@ static void QCBUILTIN PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s 
 		//angle = G_VECTOR(OFS_PARM3);	/*discard: angle is a function of the dir*/
 		//avelocity = G_VECTOR(OFS_PARM4);/*discard: avelocity is a function of the dir*/
 
-		/*FIXME: persistant until removed*/
+		/*FIXME: meant to be persistant until removed*/
 		if (h2customtents[efnum] != -1)
 		{
 			SV_CustomTEnt_Spawn(h2customtents[efnum], org, NULL, 1, dir);
@@ -6867,121 +6922,14 @@ static void QCBUILTIN PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s 
 	}
 
 	Con_Printf("FTE-H2 FIXME: Effect %i doesn't have an effect registered\nTell Spike!\n", efnum);
-
-#if 0
-
-	switch((int)G_FLOAT(OFS_PARM0))
-	{
-	case 4:	//white_smoke
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/whtsmk1.spr"), 0, 5, 1/G_FLOAT(OFS_PARM3));
-		break;
-	case 6:	//yellowspark
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/spark.spr"), 0, 10, 20);
-		break;
-	case 7:	//sm_circle
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/fcircle.spr"), 0, 6, 20);
-		break;
-	case 9:	//sm_white_flash
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/sm_white.spr"), 0, 3, 20);
-		break;
-	case 11:	//yellowred_flash
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/yr_flsh.spr"), 0, 21, 20);
-		break;
-	case 13:	//sm_blue_flash
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/bluflash.spr"), 0, 5, 20);
-		break;
-	case 14:	//red_flash
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/redspt.spr"), 0, 5, 20);
-		break;
-	case 15:	//sm_explosion
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/sm_expld.spr"), 0, 12, 20);
-		break;
-	case 16:	//lg_explosion
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/bg_expld.spr"), 0, 12, 20);
-		break;
-	case 17:	//floor_explosion
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/fl_expld.spr"), 0, 20, 20);
-		break;
-	case 20:	//green_smoke
-		//parm1 = vel
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/grnsmk1.spr"), 0, 8, 1/G_FLOAT(OFS_PARM3));
-		break;
-	case 24:	//redspark
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/rspark.spr"), 0, 10, 20);
-		break;
-	case 25:	//greenspark
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/gspark.spr"), 0, 10, 20);
-		break;
-	case 26:	//telesmk1
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/telesmk1.spr"), 0, 4, 1/G_FLOAT(OFS_PARM3));
-		break;
-	case 28:	//icehit
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/icehit.spr"), 0, 6, 20);
-		break;
-	case 33:	//new_explosion
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/gen_expl.spr"), 0, 14, 20);
-		break;
-	case 34:	//magic_missile_explosion
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/mm_explod.spr"), 0, 50, 20);
-		break;
-	case 42:	//flamestream
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/flamestr.spr"), 0, 12, 20);
-		break;
-	case 45:	//bldrn_expl
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/xplsn_1.spr"), 0, 7, 20);
-		break;
-	case 47:	//acid_hit
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/axplsn_2.spr"), 0, 14, 20);
-		break;
-	case 48:	//firewall_small
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/firewal1.spr"), 0, 18, 20);
-		break;
-	case 49:	//firewall_medium
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/firewal5.spr"), 0, 30, 20);
-		break;
-	case 50:	//firewall_large
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/firewal4.spr"), 0, 29, 20);
-		break;
-	case 54:	//fboom
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/fboom.spr"), 0, 14, 20);
-		break;
-	case 56:	//bomb
-		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/pow.spr"), 0, 6, 20);
-		break;
-	case 5:		//bluespark
-	case 43:	//snow
-	case 46:	//acid_muzzfl
-	case 51:	//lball_expl
-	case 52:	//acid_splat
-	case 53:	//acid_expl
-	case 57:	//brn_bounce
-	case 58:	//lshock
-	case 38:	//teleporterpuffs
-	case 39:	//teleporterbody
-	case 62:	//onfire
-		break;
-
-
-	case 40:	//boneshard
-//		SV_Effect(G_VECTOR(OFS_PARM1), PF_precache_model_Internal(prinst, "models/boneshot.mdl"), 0, 50, 20);
-//		break;
-
-	case 2:		//fountain
-	case 55:	//chunk
-		Con_DPrintf("Start unsupported effect %i\n", (int)G_FLOAT(OFS_PARM0));
-		break;
-
-
-	default:
-		Con_Printf("Start effect %i\n", (int)G_FLOAT(OFS_PARM0));
-		break;
-	}
-#endif
 }
 
 static void QCBUILTIN PF_h2endeffect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	Con_DPrintf("Stop effect %i\n", (int)G_FLOAT(OFS_PARM0));
+	int ign = G_FLOAT(OFS_PARM0);
+	int index = G_FLOAT(OFS_PARM1);
+
+	Con_DPrintf("Stop effect %i\n", index);
 }
 
 static void QCBUILTIN PF_h2rain_go(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -6994,7 +6942,7 @@ static void QCBUILTIN PF_h2rain_go(progfuncs_t *prinst, struct globalvars_s *pr_
 	float colour = G_FLOAT(OFS_PARM4);
 	float count = G_FLOAT(OFS_PARM5);
 	*/
-	Con_DPrintf("rain go\n");
+	Con_DPrintf("FTE-H2 FIXME: rain_go not implemented\n");
 }
 
 static void QCBUILTIN PF_h2StopSound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -7010,7 +6958,7 @@ static void QCBUILTIN PF_h2StopSound(progfuncs_t *prinst, struct globalvars_s *p
 
 static void QCBUILTIN PF_h2updatesoundpos(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	Con_DPrintf("updatesoundpos\n");
+	Con_DPrintf("FTE-H2 FIXME: updatesoundpos not implemented\n");
 }
 
 static void QCBUILTIN PF_h2whiteflash(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -7019,7 +6967,7 @@ static void QCBUILTIN PF_h2whiteflash(progfuncs_t *prinst, struct globalvars_s *
 	broadcast a stuffcmd, I guess, to flash the screen white
 	Only seen this occur once: after killing pravus.
 	*/
-	Con_DPrintf("white flash\n");
+	Con_DPrintf("FTE-H2 FIXME: whiteflash not implemented\n");
 }
 
 static void QCBUILTIN PF_h2getstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -7150,8 +7098,8 @@ static void QCBUILTIN PF_CustomTEnt(progfuncs_t *prinst, struct globalvars_s *pr
 static void QCBUILTIN PF_sv_particleeffectnum(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 #ifdef PEXT_CSQC
-#ifdef _MSC_VER
-#pragma message("PF_sv_particleeffectnum: which effect index values to use?")
+#ifdef warningmsg
+#pragma warningmsg("PF_sv_particleeffectnum: which effect index values to use?")
 #endif
 	char *efname = PR_GetStringOfs(prinst, OFS_PARM0);
 	G_FLOAT(OFS_RETURN) = COM_Effectinfo_ForName(efname);
@@ -7338,14 +7286,19 @@ static void QCBUILTIN PF_Fork(progfuncs_t *prinst, struct globalvars_s *pr_globa
 {
 	qcstate_t *state;
 	struct qcthread_s *thread;
+	float sleeptime;
 
+	if (*svprogfuncs->callargc >= 1)
+		sleeptime = G_FLOAT(OFS_PARM0);
+	else
+		sleeptime = 0;
 
 	thread = svprogfuncs->Fork(svprogfuncs);
 
 	state = svprogfuncs->parms->memalloc(sizeof(qcstate_t));
 	state->next = qcthreads;
 	qcthreads = state;
-	state->resumetime = sv.time;
+	state->resumetime = sv.time + sleeptime;
 	state->self = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, pr_global_struct->self));
 	state->other = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, pr_global_struct->other));
 	state->thread = thread;
@@ -8250,8 +8203,8 @@ static void QCBUILTIN PF_sv_gettaginfo(progfuncs_t *prinst, struct globalvars_s 
 
 	if (ent->xv->tag_entity)
 	{
-#ifdef _MSC_VER
-		#pragma message("PF_sv_gettaginfo: This function doesn't honour attachments")
+#ifdef warningmsg
+		#pragma warningmsg("PF_sv_gettaginfo: This function doesn't honour attachments")
 #endif
 		Con_Printf("PF_sv_gettaginfo doesn't support attachments\n");
 	}
@@ -8300,8 +8253,8 @@ static void QCBUILTIN PF_runclientphys(progfuncs_t *prinst, struct globalvars_s 
 	unsigned int msecs;
 	edict_t *ent = G_EDICT(prinst, OFS_PARM0);
 	edict_t *touched;
-	if (pr_nqglobal_struct->clientcommandframe)
-		pmove.sequence = *pr_nqglobal_struct->clientcommandframe;
+	if (pr_global_ptrs->clientcommandframe)
+		pmove.sequence = *pr_global_ptrs->clientcommandframe;
 	else
 		pmove.sequence = 0;
 	if (host_client && host_client->edict == ent)

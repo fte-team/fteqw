@@ -78,7 +78,7 @@ void		NET_InitServer (void);
 void		NET_CloseServer (void);
 void UDP_CloseSocket (int socket);
 void		NET_Shutdown (void);
-qboolean	NET_GetPacket (netsrc_t socket);
+int			NET_GetPacket (netsrc_t netsrc, int firstsock);
 void		NET_SendPacket (netsrc_t socket, int length, void *data, netadr_t to);
 int			NET_LocalAddressForRemote(struct ftenet_connections_s *collection, netadr_t *remote, netadr_t *local, int idx);
 void		NET_PrintAddresses(struct ftenet_connections_s *collection);
@@ -232,9 +232,20 @@ void Huff_EmitByte(int ch, qbyte *buffer, int *count);
 #define H2_PROTOCOL_VERSION 19
 #define NEHD_PROTOCOL_VERSION 250
 #define FITZ_PROTOCOL_VERSION 666
+#define RMQ_PROTOCOL_VERSION 999
 #define DP5_PROTOCOL_VERSION 3502
 #define DP6_PROTOCOL_VERSION 3503
 #define DP7_PROTOCOL_VERSION 3504
+
+/*RMQ protocol flags*/
+#define RMQFL_SHORTANGLE	(1 << 1)
+#define RMQFL_FLOATANGLE	(1 << 2)
+#define RMQFL_24BITCOORD	(1 << 3)
+#define RMQFL_FLOATCOORD	(1 << 4)
+#define RMQFL_EDICTSCALE	(1 << 5)
+#define RMQFL_ALPHASANITY	(1 << 6)
+#define RMQFL_MOREFLAGS		(1 << 31)
+
 #endif
 
 int UDP_OpenSocket (int port, qboolean bcast);

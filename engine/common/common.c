@@ -627,6 +627,43 @@ float Q_atof (const char *str)
 }
 
 /*
+attempts to remove leet strange chars from a name
+the resulting string is not intended to be visible to humans, but this functions results can be matched against each other.
+*/
+void deleetstring(char *result, char *leet)
+{
+	char *s = result;
+	char *s2 = leet;
+	while(*s2)
+	{
+		if (*s2 == 0xff)
+		{
+			s2++;
+			continue;
+		}
+		*s = *s2 & ~128;
+		s2++;
+		if (*s == '3')
+			*s = 'e';
+		else if (*s == '4')
+			*s = 'a';
+		else if (*s == '0')
+			*s = 'o';
+		else if (*s == '1' || *s == '7')
+			*s = 'l';
+		else if (*s >= 18 && *s < 27)
+			*s = *s - 18 + '0';
+		else if (*s >= 'A' && *s <= 'Z')
+			*s = *s - 'A' + 'a';
+		else if (*s == '_' || *s == ' ' || *s == '~')
+			continue;
+		s++;
+	}
+	*s = '\0';
+}
+
+
+/*
 ============================================================================
 
 					qbyte ORDER FUNCTIONS

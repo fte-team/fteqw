@@ -127,20 +127,41 @@ m*_t structures are in-memory
 
 // entity effects
 
-#define	EF_BRIGHTFIELD			1
-#define	EF_MUZZLEFLASH 			2
-#define	EF_BRIGHTLIGHT 			4
-#define	EF_DIMLIGHT 			8
-#define	QWEF_FLAG1	 			16	//only applies to player entities
-#define NQEF_NODRAW				16	//so packet entities are free to get this instead
-#define	QWEF_FLAG2	 			32	//only applies to player entities
-#define NQEF_ADDITIVE			32	//so packet entities are free to get this instead
-#define EF_BLUE					64
-#define EF_RED					128
-
-#define	H2EF_NODRAW				128	//this is going to get complicated... emulated server side.
-
-#define EF_NODEPTHTEST			8192	//shows through walls. :(
+#define	EF_BRIGHTFIELD			(1<<0)
+#define	EF_MUZZLEFLASH 			(1<<1)
+#define	EF_BRIGHTLIGHT 			(1<<2)
+#define	EF_DIMLIGHT 			(1<<3)
+#define	QWEF_FLAG1	 			(1<<4)	//only applies to qw player entities
+#define NQEF_NODRAW				(1<<4)	//so packet entities are free to get this instead
+#define	QWEF_FLAG2	 			(1<<5)	//only applies to qw player entities
+#define NQEF_ADDITIVE			(1<<5)	//so packet entities are free to get this instead
+#define EF_BLUE					(1<<6)
+#define EF_RED					(1<<7)
+#define	H2EF_NODRAW				(1<<7)	//this is going to get complicated... emulated server side.
+#define _DPEF_NOGUNBOB			(1<<8)	//viewmodel attachment does not bob
+#define EF_FULLBRIGHT			(1<<9)	//abslight=1
+#define _DPEF_FLAME				(1<<10)	//'onfire'
+#define _DPEF_STARDUST			(1<<11)	//'showering sparks'
+#define DPEF_NOSHADOW			(1<<12)	//doesn't cast a shadow
+#define EF_NODEPTHTEST			(1<<13)	//shows through walls.
+#define _DPEF_SELECTABLE		(1<<14)	//highlights when prydoncursored
+#define _DPEF_DOUBLESIDED		(1<<15)	//disables culling
+#define _DPEF_NOSELFSHADOW		(1<<16)	//doesn't cast shadows on any noselfshadow entities.
+#define EF_UNUSED17				(1<<17)
+#define EF_UNUSED18				(1<<18)
+#define EF_UNUSED19				(1<<19)
+#define _DPEF_RESTARTANIM_BIT	(1<<20)	//exact semantics seems odd
+#define _DPEF_TELEPORT_BIT		(1<<21)	//disable lerping while set
+#define DPEF_LOWPRECISION		(1<<22) //part of the protocol/server, not the client itself.
+#define _DPEF_NOMODELFLAGS		(1<<23)
+#define EF_MF_ROCKET			(1<<24)
+#define EF_MF_GRENADE			(1<<25)
+#define EF_MF_GIB				(1<<26)
+#define EF_MF_ROTATE			(1<<27)
+#define EF_MF_TRACER			(1<<28)
+#define EF_MF_ZOMGIB			(1u<<29)
+#define EF_MF_TRACER2			(1u<<30)
+#define EF_MF_TRACER3			(1u<<31)
 
 /*
 ==============================================================================
@@ -764,32 +785,32 @@ typedef struct {
 typedef enum {mod_brush, mod_sprite, mod_alias, mod_dummy, mod_halflife, mod_heightmap} modtype_t;
 typedef enum {fg_quake, fg_quake2, fg_quake3, fg_halflife, fg_new, fg_doom, fg_doom3} fromgame_t;	//useful when we have very similar model types. (eg quake/halflife bsps)
 
-#define	EF_ROCKET	1			// leave a trail
-#define	EF_GRENADE	2			// leave a trail
-#define	EF_GIB		4			// leave a trail
-#define	EF_ROTATE	8			// rotate (bonus items)
-#define	EF_TRACER	16			// green split trail
-#define	EF_ZOMGIB	32			// small blood trail
-#define	EF_TRACER2	64			// orange split trail + rotate
-#define	EF_TRACER3	128			// purple trail
+#define	MF_ROCKET	1			// leave a trail
+#define	MF_GRENADE	2			// leave a trail
+#define	MF_GIB		4			// leave a trail
+#define	MF_ROTATE	8			// rotate (bonus items)
+#define	MF_TRACER	16			// green split trail
+#define	MF_ZOMGIB	32			// small blood trail
+#define	MF_TRACER2	64			// orange split trail + rotate
+#define	MF_TRACER3	128			// purple trail
 
 //hexen2 support.
-#define  EFH2_FIREBALL		 256			// Yellow transparent trail in all directions
-#define  EFH2_ICE				 512			// Blue-white transparent trail, with gravity
-#define  EFH2_MIP_MAP			1024			// This model has mip-maps
-#define  EFH2_SPIT			2048			// Black transparent trail with negative light
-#define  EFH2_TRANSPARENT		4096			// Transparent sprite
-#define  EFH2_SPELL           8192			// Vertical spray of particles
-#define  EFH2_HOLEY		   16384			// Solid model with color 0
-#define  EFH2_SPECIAL_TRANS  32768			// Translucency through the particle table
-#define  EFH2_FACE_VIEW	   65536			// Poly Model always faces you
-#define  EFH2_VORP_MISSILE  131072			// leave a trail at top and bottom of model
-#define  EFH2_SET_STAFF     262144			// slowly move up and left/right
-#define  EFH2_MAGICMISSILE  524288            // a trickle of blue/white particles with gravity
-#define  EFH2_BONESHARD    1048576           // a trickle of brown particles with gravity
-#define  EFH2_SCARAB       2097152           // white transparent particles with little gravity
-#define  EFH2_ACIDBALL	 4194304			// Green drippy acid shit
-#define  EFH2_BLOODSHOT	 8388608			// Blood rain shot trail
+#define  MFH2_FIREBALL		 256			// Yellow transparent trail in all directions
+#define  MFH2_ICE				 512			// Blue-white transparent trail, with gravity
+#define  MFH2_MIP_MAP			1024			// This model has mip-maps
+#define  MFH2_SPIT			2048			// Black transparent trail with negative light
+#define  MFH2_TRANSPARENT		4096			// Transparent sprite
+#define  MFH2_SPELL           8192			// Vertical spray of particles
+#define  MFH2_HOLEY		   16384			// Solid model with color 0
+#define  MFH2_SPECIAL_TRANS  32768			// Translucency through the particle table
+#define  MFH2_FACE_VIEW	   65536			// Poly Model always faces you
+#define  MFH2_VORP_MISSILE  131072			// leave a trail at top and bottom of model
+#define  MFH2_SET_STAFF     262144			// slowly move up and left/right
+#define  MFH2_MAGICMISSILE  524288            // a trickle of blue/white particles with gravity
+#define  MFH2_BONESHARD    1048576           // a trickle of brown particles with gravity
+#define  MFH2_SCARAB       2097152           // white transparent particles with little gravity
+#define  MFH2_ACIDBALL	 4194304			// Green drippy acid shit
+#define  MFH2_BLOODSHOT	 8388608			// Blood rain shot trail
 
 typedef union {
 	struct {
@@ -950,7 +971,7 @@ qboolean Heightmap_Edit(model_t *mod, int action, float *pos, float radius, floa
 void CM_InitBoxHull (void);
 
 #ifdef __cplusplus
-//#pragma message ("                  c++ stinks")
+//#pragma warningmsg ("                  c++ stinks")
 #else
 
 void CM_Init(void);

@@ -4,6 +4,8 @@
 
 extern model_t *loadmodel;
 extern char loadname[];
+qboolean		r_loadbumpmapping;
+extern cvar_t dpcompat_psa_ungroup;
 
 //Common loader function.
 void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
@@ -103,8 +105,8 @@ clampedmodel_t clampedmodel[] = {
 	{"progs/s_explod.spr", 1000},
 
 	//and now TF models
-#ifndef _MSC_VER
-#warning FIXME: these are placeholders
+#ifdef warningmsg
+#pragma warningmsg("FIXME: these are placeholders")
 #endif
 	{"progs/disp.mdl", 3000},
 	{"progs/tf_flag.mdl", 3000},
@@ -339,6 +341,7 @@ static void PSKGenMatrix(float x, float y, float z, float qx, float qy, float qz
 
 #define restrict
 
+#if 0
 /*transforms some skeletal vecV_t values*/
 static void Alias_TransformVerticies_V(float *bonepose, int vertcount, qbyte *bidx, float *weights, float *xyzin, float *restrict xyzout)
 {
@@ -376,6 +379,7 @@ static void Alias_TransformVerticies_V(float *bonepose, int vertcount, qbyte *bi
 		}
 	}
 }
+#endif
 
 /*transforms some skeletal vecV_t values*/
 static void Alias_TransformVerticies_VN(float *bonepose, int vertcount, qbyte *bidx, float *weights,
@@ -423,7 +427,7 @@ static void Alias_TransformVerticies_VN(float *bonepose, int vertcount, qbyte *b
 	}
 }
 
-
+#if 0
 /*transforms some skeletal vec3_t values*/
 static void Alias_TransformVerticies_3(float *bonepose, int vertcount, qbyte *bidx, float *weights, float *xyzin, float *restrict xyzout)
 {
@@ -461,6 +465,7 @@ static void Alias_TransformVerticies_3(float *bonepose, int vertcount, qbyte *bi
 		}
 	}
 }
+#endif
 
 static void Alias_TransformVerticies_SW(float *bonepose, galisskeletaltransforms_t *weights, int numweights, vecV_t *xyzout, vec3_t *normout)
 {
@@ -1084,7 +1089,6 @@ struct
 
 void R_LightArraysByte_BGR(const entity_t *entity, vecV_t *coords, byte_vec4_t *colours, int vertcount, vec3_t *normals)
 {
-	//extern cvar_t r_vertexdlights; //unused
 	int i;
 	int c;
 	float l;
@@ -1129,7 +1133,7 @@ void R_LightArraysByte_BGR(const entity_t *entity, vecV_t *coords, byte_vec4_t *
 	}
 }
 
-void R_LightArrays(const entity_t *entity, vecV_t *coords, avec4_t *colours, int vertcount, vec3_t *normals)
+void R_LightArrays(const entity_t *entity, vecV_t *coords, avec4_t *colours, int vertcount, vec3_t *normals, float scale)
 {
 	extern cvar_t r_vertexdlights;
 	int i;
@@ -1148,6 +1152,9 @@ void R_LightArrays(const entity_t *entity, vecV_t *coords, avec4_t *colours, int
 	}
 	else
 	{
+		vec3_t la, lr;
+		VectorScale(entity->light_avg, scale, la);
+		VectorScale(entity->light_range, scale, lr);
 #ifdef SSE_INTRINSICS
 		__m128 va, vs, vl, vr;
 		va = _mm_load_ps(ambientlight);
@@ -1167,9 +1174,9 @@ void R_LightArrays(const entity_t *entity, vecV_t *coords, avec4_t *colours, int
 			_mm_storeu_ps(colours[i], vr);
 			//stomp on colour[i][3] (will be set to 1)
 	#else
-			colours[i][0] = l*entity->light_range[0]+entity->light_avg[0];
-			colours[i][1] = l*entity->light_range[1]+entity->light_avg[1];
-			colours[i][2] = l*entity->light_range[2]+entity->light_avg[2];
+			colours[i][0] = l*lr[0]+la[0];
+			colours[i][1] = l*lr[1]+la[1];
+			colours[i][2] = l*lr[2]+la[2];
 	#endif
 		}
 	}
@@ -2184,8 +2191,8 @@ static void *Alias_LoadFrameGroup (daliasframetype_t *pframetype, int *seamremap
 			pose->ofssvector = (char *)svec - (char *)pose;
 			pose->ofstvector = (char *)tvec - (char *)pose;
 #else
-#ifdef _MSC_VER
-#pragma message("wasted memory")
+#ifdef warningmsg
+#pragma warningmsg("wasted memory")
 #endif
 #endif
 
@@ -2366,7 +2373,6 @@ static void *Q1_LoadSkins_SV (daliasskintype_t *pskintype, qboolean alpha)
 #if defined(GLQUAKE) || defined(D3DQUAKE)
 static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintranstype)
 {
-	extern cvar_t gl_bump;
 	texnums_t *texnums;
 	char skinname[MAX_QPATH];
 	int i;
@@ -2397,9 +2403,12 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 			texture = R_LoadReplacementTexture(skinname, "models", IF_NOALPHA);
 			if (TEXVALID(texture))
 			{
-				snprintf(skinname, sizeof(skinname), "%s_%i_luma", loadmodel->name, i);
-				fbtexture = R_LoadReplacementTexture(skinname, "models", 0);
-				if (gl_bump.ival)
+				if (TEXVALID(texture) && r_fb_models.ival)
+				{
+					snprintf(skinname, sizeof(skinname), "%s_%i_luma", loadmodel->name, i);
+					fbtexture = R_LoadReplacementTexture(skinname, "models", 0);
+				}
+				if (r_loadbumpmapping)
 				{
 					snprintf(skinname, sizeof(skinname), "%s_%i_bump", loadmodel->name, i);
 					bumptexture = R_LoadBumpmapTexture(skinname, "models");
@@ -2414,7 +2423,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 					snprintf(skinname, sizeof(skinname), "%s_%i_luma", loadname, i);
 					fbtexture = R_LoadReplacementTexture(skinname, "models", 0);
 				}
-				if (TEXVALID(texture) && gl_bump.ival)
+				if (TEXVALID(texture) && r_loadbumpmapping)
 				{
 					snprintf(skinname, sizeof(skinname), "%s_%i_bump", loadname, i);
 					bumptexture = R_LoadBumpmapTexture(skinname, "models");
@@ -2444,7 +2453,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 							snprintf(skinname, sizeof(skinname), "%s__%i_luma", loadname, i);
 							fbtexture = R_LoadTextureFB(skinname, outskin->skinwidth, outskin->skinheight, saved, IF_NOGAMMA);
 						}
-						if (gl_bump.ival)
+						if (r_loadbumpmapping)
 						{
 							snprintf(skinname, sizeof(skinname), "%s__%i_bump", loadname, i);
 							bumptexture = R_LoadTexture8BumpPal(skinname, outskin->skinwidth, outskin->skinheight, saved, IF_NOGAMMA);
@@ -2601,12 +2610,10 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i", loadname, i, t);
 				texnums->shader = R_RegisterSkin(skinname, loadmodel->name);
 
-				texnums->base = texture;
-				texnums->fullbright = fbtexture;
-
-				//13/4/08 IMPLEMENTME
-				texnums->loweroverlay = r_nulltex;
-				texnums->upperoverlay = r_nulltex;
+				TEXASSIGN(texnums->base, texture);
+				TEXASSIGN(texnums->fullbright, fbtexture);
+				TEXASSIGN(texnums->loweroverlay, r_nulltex);
+				TEXASSIGN(texnums->upperoverlay, r_nulltex);
 
 				R_BuildDefaultTexnums(texnums, texnums->shader);
 			}
@@ -2710,11 +2717,11 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 //skins
 	skinstart = (daliasskintype_t *)((char*)pq1inmodel+hdrsize);
 
-	if( mod->flags & EFH2_HOLEY )
+	if( mod->flags & MFH2_HOLEY )
 		skintranstype = 3;	//hexen2
-	else if( mod->flags & EFH2_TRANSPARENT )
+	else if( mod->flags & MFH2_TRANSPARENT )
 		skintranstype = 2;	//hexen2
-	else if( mod->flags & EFH2_SPECIAL_TRANS )
+	else if( mod->flags & MFH2_SPECIAL_TRANS )
 		skintranstype = 4;	//hexen2
 	else
 		skintranstype = 0;
@@ -2984,7 +2991,7 @@ static void Q2_LoadSkins(md2_t *pq2inmodel, char *skins)
 		outskin->texnums=1;
 
 		COM_CleanUpPath(skins);	//blooming tanks.
-		texnums->base = R_LoadReplacementTexture(skins, "models", IF_NOALPHA);
+		TEXASSIGN(texnums->base, R_LoadReplacementTexture(skins, "models", IF_NOALPHA));
 		texnums->shader = R_RegisterSkin(skins, loadmodel->name);
 		R_BuildDefaultTexnums(texnums, texnums->shader);
 
@@ -3389,8 +3396,8 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 		float f1time, f2time;
 		float f2ness;
 
-#ifdef _MSC_VER
-#pragma message("fixme")
+#ifdef warningmsg
+#pragma warningmsg("fixme: no base info")
 #endif
 		frame1 = fstate->g[FS_REG].frame[0];
 		frame2 = fstate->g[FS_REG].frame[1];
@@ -4466,13 +4473,12 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 	galiasskin_t *skin;
 	texnums_t *gtexnums;
 #endif
-	galisskeletaltransforms_t *trans;
 	galiasbone_t *bones;
 	galiasgroup_t *group;
 	float *animmatrix, *basematrix, *basematrix_inverse;
-	unsigned int num_trans;
 	index_t *indexes;
 	float vrad;
+	int bonemap[MAX_BONES];
 
 	pskpnts_t *pnts = NULL;
 	pskvtxw_t *vtxw = NULL;
@@ -4487,12 +4493,17 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 	unsigned int num_animinfo=0, num_animkeys=0;
 
 	int hunkstart, hunkend, hunktotal;
-	//extern cvar_t temp1; //unused variable
 
+//#define PSK_GPU
+#ifndef PSK_GPU
+	unsigned int num_trans;
+	galisskeletaltransforms_t *trans;
+#else
 	vecV_t *skel_xyz;
 	vec3_t *skel_norm;
 	byte_vec4_t *skel_idx;
 	vec4_t *skel_weights;
+#endif
 
 	/*load the psk*/
 	while (pos < com_filesize && !fail)
@@ -4573,7 +4584,7 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 				boneinfo[i].basepose.size[2] = LittleFloat(boneinfo[i].basepose.size[2]);
 
 				/*not sure if this is needed, but mimic DP*/
-				if (i)
+				if (i >= 0)
 				{
 					boneinfo[i].basepose.quat[0] *= -1;
 					boneinfo[i].basepose.quat[2] *= -1;
@@ -4639,21 +4650,46 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 				{
 					for (i = 0; i < num_boneinfo; i++)
 					{
+						/*assumption: 1:1 mapping will be common*/
+						if (!strcmp(boneinfo[i].name, animbones[i].name))
+							bonemap[i] = i;
+						else
+						{
+							/*non 1:1 mapping*/
+							for (j = 0; j < chunk->numrecords; j++)
+							{
+								if (!strcmp(boneinfo[i].name, animbones[j].name))
+								{
+									bonemap[i] = j;
+									break;
+								}
+							}
+							if (j == chunk->numrecords)
+							{
+								fail = true;
+								Con_Printf("PSK bone %s does not exist in PSA %s\n", boneinfo[i].name);
+								break;
+							}
+						}
+					}
+/*
+					for (i = 0; i < num_boneinfo; i++)
+					{
 						animbones[i].parent = LittleLong(animbones[i].parent);
 
 						if (strcmp(boneinfo[i].name, animbones[i].name))
 						{
 							fail = true;
-							Con_Printf("PSK/PSA bone names do not match\n");
+							Con_Printf("PSK/PSA bone names do not match %s vs %s\n", boneinfo[i].name, animbones[i].name);
 							break;
 						}
-						if (boneinfo[i].parent != animbones[i].parent)
+						else if (boneinfo[i].parent != animbones[i].parent)
 						{
 							fail = true;
-							Con_Printf("PSK/PSA bone parents do not match\n");
+							Con_Printf("PSK/PSA bone parents do not match for bone %s\n", boneinfo[i].name);
 							break;
 						}
-					}
+					}*/
 				}
 			}
 			else if (!strcmp("ANIMINFO", chunk->id) && chunk->recordsize == sizeof(pskaniminfo_t))
@@ -4760,6 +4796,8 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 		Matrix3x4_InvertTo4x4_Simple(basematrix+i*12, basematrix_inverse+i*16);
 	}
 
+	
+#ifndef PSK_GPU
 	/*expand the translations*/
 	num_trans = 0;
 	for (i = 0; i < num_vtxw; i++)
@@ -4791,7 +4829,7 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 			}
 		}
 	}
-
+#else
 	skel_xyz = Hunk_Alloc(sizeof(*skel_xyz) * num_vtxw);
 	skel_norm = Hunk_Alloc(sizeof(*skel_norm) * num_vtxw);
 	skel_idx = Hunk_Alloc(sizeof(*skel_idx) * num_vtxw);
@@ -4829,16 +4867,19 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 		if (t != 1)
 			for (j = 0; j < 4; j++)
 				skel_weights[i][j] *= 1/t;
+
+
+		skel_xyz[i][0] = pnts[vtxw[i].pntsindex].origin[0];
+		skel_xyz[i][1] = pnts[vtxw[i].pntsindex].origin[1];
+		skel_xyz[i][2] = pnts[vtxw[i].pntsindex].origin[2];
 	}
+#endif
 
 #ifndef SERVERONLY
 	/*st coords, all share the same list*/
 	stcoord = Hunk_Alloc(sizeof(vec2_t)*num_vtxw);
 	for (i = 0; i < num_vtxw; i++)
 	{
-		skel_xyz[i][0] = pnts[vtxw[i].pntsindex].origin[0];
-		skel_xyz[i][1] = pnts[vtxw[i].pntsindex].origin[1];
-		skel_xyz[i][2] = pnts[vtxw[i].pntsindex].origin[2];
 		stcoord[i*2+0] = vtxw[i].texcoord[0];
 		stcoord[i*2+1] = vtxw[i].texcoord[1];
 	}
@@ -4849,7 +4890,7 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 
 	if (animinfo && animkeys)
 	{
-		if (1/*dpcompat_psa_ungroup.ival*/)
+		if (dpcompat_psa_ungroup.ival)
 		{
 			/*unpack each frame of each animation to be a separate framegroup*/
 			unsigned int iframe;	/*individual frame count*/
@@ -4886,15 +4927,20 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 				Q_strncpyz(group[i].name, animinfo[i].name, sizeof(group[i].name));
 				group[i].loop = true;
 				group[i].rate = animinfo[i].fps;
-				group[i].isheirachical = false;
+				group[i].isheirachical = true;
 			}
 		}
-		for (i = 0; i < num_animkeys; i++)
+		for (j = 0; j < num_animkeys; j += num_boneinfo)
 		{
-			PSKGenMatrix(
-				animkeys[i].origin[0], animkeys[i].origin[1], animkeys[i].origin[2],
-				animkeys[i].quat[0],   animkeys[i].quat[1],   animkeys[i].quat[2], animkeys[i].quat[3],
-				animmatrix + i*12);
+			pskanimkeys_t *sb;
+			for (i = 0; i < num_boneinfo; i++)
+			{
+				sb = &animkeys[j + bonemap[i]];
+				PSKGenMatrix(
+					sb->origin[0], sb->origin[1], sb->origin[2],
+					sb->quat[0],   sb->quat[1],   sb->quat[2],   sb->quat[3],
+					animmatrix + (j+i)*12);
+			}
 		}
 	}
 	else
@@ -4953,14 +4999,16 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 		gmdl[i].ofsbones = (char*)bones - (char*)&gmdl[i];
 		gmdl[i].numbones = num_boneinfo;
 
+#ifndef PSK_GPU
 		gmdl[i].ofsswtransforms = (char*)trans - (char*)&gmdl[i];
 		gmdl[i].numswtransforms = num_trans;
-/*
+#else
 		gmdl[i].ofs_skel_idx = (char*)skel_idx - (char*)&gmdl[i];
 		gmdl[i].ofs_skel_weight = (char*)skel_weights - (char*)&gmdl[i];
 		gmdl[i].ofs_skel_xyz = (char*)skel_xyz - (char*)&gmdl[i];
 		gmdl[i].ofs_skel_norm = (char*)skel_norm - (char*)&gmdl[i];
-*/
+#endif
+
 		gmdl[i].shares_verts = 0;
 		gmdl[i].shares_bones = 0;
 		gmdl[i].nextsurf = (i != num_matt-1)?sizeof(*gmdl):0;

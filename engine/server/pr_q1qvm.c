@@ -1368,7 +1368,7 @@ qboolean PR_LoadQ1QVM(void)
 
 	sv.world.Event_Touch = Q1QVM_Event_Touch;
 	sv.world.Event_Think = Q1QVM_Event_Think;
-	sv.world.GetCModel = SVPR_GetCModel;
+	sv.world.Get_CModel = SVPR_GetCModel;
 
 	sv.world.num_edicts = 0;	//we're not ready for most of the builtins yet
 	sv.world.max_edicts = 0;	//so clear these out, just in case
@@ -1414,12 +1414,12 @@ qboolean PR_LoadQ1QVM(void)
 
 //WARNING: global is not remapped yet...
 //This code is written evilly, but works well enough
-#define globalint(required, name) pr_nqglobal_struct->name = (int*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)	//the logic of this is somewhat crazy
-#define globalfloat(required, name) pr_nqglobal_struct->name = (float*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
-#define globalstring(required, name) pr_nqglobal_struct->name = (string_t*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
-#define globalvec(required, name) pr_nqglobal_struct->V_##name = (vec3_t*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
-#define globalfunc(required, name) pr_nqglobal_struct->name = (int*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
-#define globalfloatnull(required, name) pr_nqglobal_struct->name = NULL
+#define globalint(required, name) pr_global_ptrs->name = (int*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)	//the logic of this is somewhat crazy
+#define globalfloat(required, name) pr_global_ptrs->name = (float*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
+#define globalstring(required, name) pr_global_ptrs->name = (string_t*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
+#define globalvec(required, name) pr_global_ptrs->V_##name = (vec3_t*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
+#define globalfunc(required, name) pr_global_ptrs->name = (int*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
+#define globalfloatnull(required, name) pr_global_ptrs->name = NULL
 	globalint		(true, self);	//we need the qw ones, but any in standard quake and not quakeworld, we don't really care about.
 	globalint		(true, other);
 	globalint		(true, world);
@@ -1463,15 +1463,15 @@ qboolean PR_LoadQ1QVM(void)
 	globalfunc		(false, SetNewParms);
 	globalfunc		(false, SetChangeParms);
 
-	pr_nqglobal_struct->trace_surfaceflags = &writable;
-	pr_nqglobal_struct->trace_endcontents = &writable;
-	pr_nqglobal_struct->dimension_send = &dimensionsend;
+	pr_global_ptrs->trace_surfaceflags = &writable;
+	pr_global_ptrs->trace_endcontents = &writable;
+	pr_global_ptrs->dimension_send = &dimensionsend;
 
 	dimensionsend = 255;
 	for (i = 0; i < 16; i++)
-		spawnparamglobals[i] = (float*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)(&gd->global->parm1 + i));
+		pr_global_ptrs->spawnparamglobals[i] = (float*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)(&gd->global->parm1 + i));
 	for (; i < NUM_SPAWN_PARMS; i++)
-		spawnparamglobals[i] = NULL;
+		pr_global_ptrs->spawnparamglobals[i] = NULL;
 
 
 	sv.world.progs = &q1qvmprogfuncs;

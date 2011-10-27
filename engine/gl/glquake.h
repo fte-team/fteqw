@@ -90,6 +90,7 @@ void GL_InitFogTexture(void);
 void GL_BeginRendering (void);
 void GL_EndRendering (void);
 
+void R_NetgraphInit(void);
 void GLR_NetGraph (void);
 void GLR_FrameTimeGraph (int frametime);
 void GL_FlushSkinCache(void);
@@ -188,15 +189,15 @@ void GL_Upload24BGR (char *name, qbyte *data, int width, int height, unsigned in
 void GL_Upload8_EXT (qbyte *data, int width, int height,  qboolean mipmap, qboolean alpha);
 #endif
 */
-texid_t GL_LoadTexture (char *identifier, int width, int height, qbyte *data, unsigned int flags, unsigned int transtype);
-texid_t GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char *data, unsigned int flags, float bumpscale);
-texid_t GL_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
-texid_t GL_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
-texid_t GL_LoadTexture32 (char *identifier, int width, int height, void *data, unsigned int flags);
-texid_t GL_LoadCompressed(char *name);
-texid_t GL_FindTexture (char *identifier);
+texid_tf GL_LoadTexture (char *identifier, int width, int height, qbyte *data, unsigned int flags, unsigned int transtype);
+texid_tf GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned char *data, unsigned int flags, float bumpscale);
+texid_tf GL_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
+texid_tf GL_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
+texid_tf GL_LoadTexture32 (char *identifier, int width, int height, void *data, unsigned int flags);
+texid_tf GL_LoadCompressed(char *name);
+texid_tf GL_FindTexture (char *identifier);
 
-texid_t GL_LoadTextureFB (char *identifier, int width, int height, qbyte *data, unsigned int flags);
+texid_tf GL_LoadTextureFB (char *identifier, int width, int height, qbyte *data, unsigned int flags);
 void GL_Upload8Pal24 (qbyte *data, qbyte *pal, int width, int height, unsigned int flags);
 /*
 typedef struct
@@ -240,6 +241,7 @@ extern	int			r_framecount;
 extern	mplane_t	frustum[4];
 
 extern float r_wateralphaval;
+extern qboolean		r_loadbumpmapping;
 
 //
 // view origin
@@ -260,10 +262,7 @@ extern	texture_t	*r_notexture_mip;
 extern	int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 
 extern	texid_t	netgraphtexture;	// netgraph texture
-
-extern	int			mirrortexturenum;	// quake texturenum, not gltexturenum
-extern	qboolean	mirror;
-extern	mplane_t	*mirror_plane;
+extern	shader_t *netgraphshader;
 
 extern	const char *gl_vendor;
 extern	const char *gl_renderer;
@@ -332,7 +331,7 @@ void FTE_DEPRECATED R_IBrokeTheArrays(void);
 // gl_draw.c
 //
 #ifdef GLQUAKE
-texid_t GL_LoadPicTexture (qpic_t *pic);
+texid_tf GL_LoadPicTexture (qpic_t *pic);
 void GL_Set2D (void);
 #endif
 
@@ -341,7 +340,7 @@ void GL_Set2D (void);
 //
 qboolean R_ShouldDraw(entity_t *e);
 #ifdef GLQUAKE
-void R_RotateForEntity (float *modelviewmatrix, const entity_t *e, const model_t *mod);
+void R_RotateForEntity (float *modelmatrix, float *modelviewmatrix, const entity_t *e, const model_t *mod);
 
 void GL_InitSceneProcessingShaders (void);
 void GL_SetupSceneProcessingTextures (void);
@@ -363,11 +362,11 @@ void R_DrawHLModel(entity_t	*curent);
 //
 // gl_rlight.c
 //
-void GLR_RenderDlights (void);
+void R_RenderDlights (void);
 void R_GenDlightBatches(batch_t *batches[]);
+void R_InitFlashblends(void);
 #ifdef GLQUAKE
 void GLR_MarkQ2Lights (dlight_t *light, int bit, mnode_t *node);
-void R_InitFlashblends (void);
 int GLR_LightPoint (vec3_t p);
 #endif
 void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
@@ -786,6 +785,8 @@ extern void (APIENTRY *qglFramebufferTexture2DEXT)(GLenum target, GLenum attachm
 extern void (APIENTRY *qglFramebufferRenderbufferEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId);
 extern GLenum (APIENTRY *qglCheckFramebufferStatusEXT)(GLenum target);
 
+void (APIENTRY *qglDepthBoundsEXT) (GLclampd zmin, GLclampd zmax);
+
 /*
 extern qboolean gl_arb_fragment_program;
 extern PFNGLPROGRAMSTRINGARBPROC qglProgramStringARB;
@@ -826,7 +827,7 @@ extern FTEPFNGLUNIFORM1IARBPROC			qglUniform1iARB;
 extern FTEPFNGLUNIFORM1FARBPROC			qglUniform1fARB;
 
 //glslang helper api
-GLhandleARB GLSlang_CreateProgram(char *name, char *versionline, char **precompilerconstants, char *vert, char *frag);
+GLhandleARB GLSlang_CreateProgram(char *name, int ver, char **precompilerconstants, char *vert, char *frag);
 GLint GLSlang_GetUniformLocation (int prog, char *name);
 void GL_SelectProgram(int program);
 #define GLSlang_UseProgram(prog) GL_SelectProgram(prog)

@@ -4,11 +4,10 @@
 #include <commdlg.h>
 #include <richedit.h>
 #include <stdio.h>
+#include <sys/stat.h>
 
 #include "qcc.h"
 #include "gui.h"
-
-
 
 
 /*
@@ -281,11 +280,14 @@ typedef struct editor_s {
 	char filename[MAX_PATH];	//abs
 	HWND window;
 	HWND editpane;
+	pbool modified;
+	time_t filemodifiedtime;
 	struct editor_s *next;
 } editor_t;
 
 editor_t *editors;
 
+void EditorReload(editor_t *editor);
 int EditorSave(editor_t *edit);
 void EditFile(char *name, int line);
 pbool EditorModified(editor_t *e);
@@ -318,7 +320,7 @@ void GenericMenu(WPARAM wParam)
 		break;
 
 	case IDM_ABOUT:
-		MessageBox(NULL, "FTE QuakeC Compiler\nWritten by Forethough Entertainment.\nBasically that means it was written by Spike.\n\nIt has a few cool features, like a useful IDE.\n\nSupports:\nPrecompiler (with macros)\nArrays\n+= / -= / *= / /= operations.\nSwitch statements\nfor loops\nLots of optimisations.", "About", 0);
+		MessageBox(NULL, "FTE QuakeC Compiler\nWritten by Forethough Entertainment.\n\nIt has a few cool features, like a semi-useful IDE.\n\nSupports:\nPrecompiler (with macros)\nArrays\n+= / -= / *= / /= operations.\nSwitch statements\nfor loops\nLots of optimisations.", "About", 0);
 		break;
 
 	case IDM_CASCADE:
@@ -409,7 +411,7 @@ static LONG CALLBACK EditorWndProc(HWND hWnd,UINT message,
 	{
 	case WM_CLOSE:
 	case WM_QUIT:
-		if (EditorModified(editor))
+		if (editor->modified)
 		{
 			switch (MessageBox(hWnd, "Would you like to save?", editor->filename, MB_YESNOCANCEL))
 			{
@@ -478,22 +480,49 @@ static LONG CALLBACK EditorWndProc(HWND hWnd,UINT message,
 		return TRUE;
 		break;
 	case WM_COMMAND:
-		if (mdibox)
-			goto gdefault;
-		EditorMenu(editor, wParam);
+		if (HIWORD(wParam) == EN_CHANGE && (HWND)lParam == editor->editpane)
+		{
+			if (!editor->modified)
+			{
+				char title[2048];
+				CHARRANGE chrg;
+
+				editor->modified = true;
+				if (EditorModified(editor))
+					if (MessageBox(NULL, "warning: file was modified externally. reload?", "Modified!", MB_YESNO) == IDYES)
+						EditorReload(editor);
+
+
+				SendMessage(editor->editpane, EM_EXGETSEL, 0, (LPARAM) &chrg);
+				if (editor->modified)
+					sprintf(title, "*%s:%i - FTEQCC Editor", editor->filename, 1+Edit_LineFromChar(editor->editpane, chrg.cpMin));
+				else
+					sprintf(title, "%s:%i - FTEQCC Editor", editor->filename, 1+Edit_LineFromChar(editor->editpane, chrg.cpMin));
+				SetWindowText(editor->window, title);
+			}
+		}
+		else
+		{
+			if (mdibox)
+				goto gdefault;
+			EditorMenu(editor, wParam);
+		}
 		break;
 	case WM_NOTIFY:
 		{
 		    NMHDR *nmhdr;
 			SELCHANGE *sel;
-			char message[2048];
+			char title[2048];
 			nmhdr = (NMHDR *)lParam;
 			switch(nmhdr->code)
 			{
 			case EN_SELCHANGE:
 				sel = (SELCHANGE *)nmhdr;
-				sprintf(message, "%s:%i - FTEQCC Editor", editor->filename, 1+Edit_LineFromChar(editor->editpane, sel->chrg.cpMin));
-				SetWindowText(editor->window, message);
+				if (editor->modified)
+					sprintf(title, "*%s:%i - FTEQCC Editor", editor->filename, 1+Edit_LineFromChar(editor->editpane, sel->chrg.cpMin));
+				else
+					sprintf(title, "%s:%i - FTEQCC Editor", editor->filename, 1+Edit_LineFromChar(editor->editpane, sel->chrg.cpMin));
+				SetWindowText(editor->window, title);
 				break;
 			}
 		}
@@ -758,7 +787,7 @@ int Rehighlight(editor_t *edit)
 	InvalidateRect(edit->editpane, NULL, true);
 	InvalidateRect(edit->window, NULL, true);
 
-	SendMessage(edit->editpane, EM_SETEVENTMASK, 0, ENM_SELCHANGE);
+	SendMessage(edit->editpane, EM_SETEVENTMASK, 0, ENM_SELCHANGE|ENM_CHANGE);
 
 	SendMessage(edit->editpane, EM_SETSCROLLPOS, 0, (LPARAM)&scrollpos);
 	SendMessage(edit->editpane, EM_EXSETSEL, 0, (LPARAM) &chrg);
@@ -845,11 +874,46 @@ int Rehighlight(editor_t *edit)
 }
 #endif
 
+void EditorReload(editor_t *editor)
+{
+	struct stat sbuf;
+	int flen;
+	char *file;
+
+	flen = QCC_FileSize(editor->filename);
+	if (flen >= 0)
+	{
+		file = malloc(flen+1);
+		QCC_ReadFile(editor->filename, file, flen);
+		file[flen] = 0;
+	}
+
+	SendMessage(editor->editpane, EM_SETEVENTMASK, 0, 0);
+
+	/*clear it out*/
+	Edit_SetSel(editor->editpane,0,Edit_GetTextLength(editor->editpane));
+	Edit_ReplaceSel(editor->editpane,"");
+
+	if (!fl_autohighlight)
+	{
+		GUIPrint(editor->editpane, file);
+	}
+	else
+	{
+		GUIFormattingPrint(editor->editpane, file);
+	}
+	free(file);
+
+	editor->modified = false;
+	stat(editor->filename, &sbuf);
+	editor->filemodifiedtime = sbuf.st_mtime;
+
+	SendMessage(editor->editpane, EM_SETEVENTMASK, 0, ENM_SELCHANGE|ENM_CHANGE);
+}
+
 void EditFile(char *name, int line)
 {
 	char title[1024];
-	int flen;
-	char *file;
 	editor_t *neweditor;
 	WNDCLASS wndclass;
 	HMENU menu, menufile, menuhelp, menunavig;
@@ -871,8 +935,7 @@ void EditFile(char *name, int line)
 		}
 	}
 
-	flen = QCC_FileSize(name);
-	if (flen == -1)
+	if (QCC_FileSize(name) == -1)
 	{
 		MessageBox(NULL, "File not found.", "Error", 0);
 		return;
@@ -959,23 +1022,7 @@ void EditFile(char *name, int line)
 		return;
 	}
 
-	flen = QCC_FileSize(name);
-	file = malloc(flen+1);
-	QCC_ReadFile(name, file, flen);
-	file[flen] = 0;
-
-	SendMessage(neweditor->editpane, EM_SETEVENTMASK, 0, 0);
-
-	if (!fl_autohighlight)
-	{
-		GUIPrint(neweditor->editpane, file);
-	}
-	else
-	{
-		GUIFormattingPrint(neweditor->editpane, file);
-	}
-
-	SendMessage(neweditor->editpane, EM_SETEVENTMASK, 0, ENM_SELCHANGE);
+	EditorReload(neweditor);
 
 	if (line >= 0)
 		Edit_SetSel(neweditor->editpane, Edit_LineIndex(neweditor->editpane, line), Edit_LineIndex(neweditor->editpane, line+1));
@@ -992,6 +1039,7 @@ void EditFile(char *name, int line)
 
 int EditorSave(editor_t *edit)
 {
+	struct stat sbuf;
 	int len;
 	char *file;
 	len = Edit_GetTextLength(edit->editpane);
@@ -1008,6 +1056,11 @@ int EditorSave(editor_t *edit)
 		return false;
 	}
 	free(file);
+
+	/*now whatever is on disk should have the current time*/
+	edit->modified = false;
+	stat(edit->filename, &sbuf);
+	edit->filemodifiedtime = sbuf.st_mtime;
 
 	return true;
 }
@@ -1046,25 +1099,13 @@ int GUIFileSize(char *fname)
 	return QCC_FileSize(fname);
 }
 
+/*checks if the file has been modified externally*/
 pbool EditorModified(editor_t *e)
 {
-	char *buffer;
-	int elen, flen;
-	elen = Edit_GetTextLength(e->editpane);
-	flen = QCC_FileSize(e->filename);
-
-	if (elen != flen)
+	struct stat sbuf;
+	stat(e->filename, &sbuf);
+	if (e->filemodifiedtime != sbuf.st_mtime)
 		return true;
-
-	buffer = malloc(elen+flen);
-	Edit_GetText(e->editpane, buffer, elen);
-	QCC_ReadFile(e->filename, buffer+elen, flen);
-	if (memcmp(buffer, buffer+elen, elen))
-	{
-		free(buffer);
-		return true;
-	}
-	free(buffer);
 
 	return false;
 }
@@ -1897,6 +1938,41 @@ void RunCompiler(char *args)
 	int argc;
 	progexterns_t ext;
 	progfuncs_t funcs;
+
+	editor_t *editor;
+	for (editor = editors; editor; editor = editor->next)
+	{
+		if (editor->modified)
+		{
+			if (EditorModified(editor))
+			{
+				char msg[1024];
+				sprintf(msg, "%s is modified in both memory and on disk. Overwrite external modification? (saying no will reload from disk)", editor->filename);
+				switch(MessageBox(NULL, msg, "Modification conflict", MB_YESNOCANCEL))
+				{
+				case IDYES:
+					EditorSave(editor);
+					break;
+				case IDNO:
+					EditorReload(editor);
+					break;
+				case IDCANCEL:
+					break; /*compiling will use whatever is in memory*/
+				}
+			}
+			else
+			{
+				/*not modified on disk, but modified in memory? try and save it, cos we might as well*/
+				EditorSave(editor);
+			}
+		}
+		else
+		{
+			/*modified on disk but not in memory? just reload it off disk*/
+			if (EditorModified(editor))
+				EditorReload(editor);
+		}
+	}
 
 	memset(&funcs, 0, sizeof(funcs));
 	funcs.parms = &ext;

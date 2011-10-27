@@ -1112,10 +1112,7 @@ void SVHL_Physics_Step (hledict_t *ent)
 		{
 			if (hitsound)
 			{
-				if (progstype == PROG_H2)
-					SVHL_StartSound (ent, 0, "fx/thngland.wav", 255, 1);
-				else
-					SVHL_StartSound (ent, 0, "demon/dland2.wav", 255, 1);
+				SVHL_StartSound (ent, 0, "demon/dland2.wav", 255, 1);
 			}
 		}
 	}

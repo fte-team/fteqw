@@ -1059,6 +1059,7 @@ void QCBUILTIN PF_Spawn (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	struct edict_s	*ed;
 	ed = ED_Alloc(prinst);
+	pr_globals = PR_globals(prinst, PR_CURRENT);
 	RETURN_EDICT(prinst, ed);
 }
 
@@ -2394,7 +2395,6 @@ void QCBUILTIN PF_vlen (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 void QCBUILTIN PF_vectoangles (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float	*value1, *up;
-	float	yaw, pitch, roll;
 
 	value1 = G_VECTOR(OFS_PARM0);
 	if (*prinst->callargc >= 2)
@@ -2402,56 +2402,7 @@ void QCBUILTIN PF_vectoangles (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	else
 		up = NULL;
 
-	
-
-	if (value1[1] == 0 && value1[0] == 0)
-	{
-		if (value1[2] > 0)
-		{
-			pitch = -M_PI*0.5;
-			yaw = up ? atan2(-up[1], -up[0]) : 0;
-		}
-		else
-		{
-			pitch = M_PI*0.5;
-			yaw = up ? atan2(up[1], up[0]) : 0;
-		}
-		roll = 0;
-	}
-	else
-	{
-		yaw = atan2(value1[1], value1[0]);
-		pitch = -atan2(value1[2], sqrt (value1[0]*value1[0] + value1[1]*value1[1]));
-
-		if (up)
-		{
-			vec_t cp = cos(pitch), sp = sin(pitch);
-			vec_t cy = cos(yaw), sy = sin(yaw);
-			vec3_t tleft, tup;
-			tleft[0] = -sy;
-			tleft[1] = cy;
-			tleft[2] = 0;
-			tup[0] = sp*cy;
-			tup[1] = sp*sy;
-			tup[2] = cp;
-			roll = -atan2(DotProduct(up, tleft), DotProduct(up, tup));
-		}
-		else
-			roll = 0;
-	}
-
-	pitch *= -180 / M_PI;
-	yaw *= 180 / M_PI;
-	roll *= 180 / M_PI;
-	if (pitch < 0)
-		pitch += 360;
-	if (yaw < 0)
-		yaw += 360;
-	if (roll < 0)
-		roll += 360;
-	G_FLOAT(OFS_RETURN+0) = pitch;
-	G_FLOAT(OFS_RETURN+1) = yaw;
-	G_FLOAT(OFS_RETURN+2) = roll;
+	VectorAngles(value1, up, G_VECTOR(OFS_RETURN));
 }
 
 //vector normalize(vector)

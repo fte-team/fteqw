@@ -607,7 +607,7 @@ char *FS_GetPackHashes(char *buffer, int buffersize, qboolean referencedonly)
 		return buffer;
 	}
 }
-char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly)
+char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly, qboolean ext)
 {
 	char temp[MAX_OSPATH];
 	searchpath_t	*search;
@@ -618,8 +618,15 @@ char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly)
 	{
 		for (search = com_purepaths ; search ; search = search->nextpure)
 		{
-			COM_StripExtension(search->purepath, temp, sizeof(temp));
-			Q_strncatz(buffer, va("%s ", temp), buffersize);
+			if (!ext)
+			{
+				COM_StripExtension(search->purepath, temp, sizeof(temp));
+				Q_strncatz(buffer, va("%s ", temp), buffersize);
+			}
+			else
+			{
+				Q_strncatz(buffer, va("%s ", search->purepath), buffersize);
+			}
 		}
 		return buffer;
 	}
@@ -631,8 +638,15 @@ char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly)
 				search->crc_check = search->funcs->GeneratePureCRC(search->handle, 0, 0);
 			if (search->crc_check)
 			{
-				COM_StripExtension(search->purepath, temp, sizeof(temp));
-				Q_strncatz(buffer, va("%s ", temp), buffersize);
+				if (!ext)
+				{
+					COM_StripExtension(search->purepath, temp, sizeof(temp));
+					Q_strncatz(buffer, va("%s ", temp), buffersize);
+				}
+				else
+				{
+					Q_strncatz(buffer, va("%s ", search->purepath), buffersize);
+				}
 			}
 		}
 		return buffer;
@@ -815,6 +829,7 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 	return true;
 }
 
+/*locates and opens a file*/
 vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative relativeto)
 {
 	char cleanname[MAX_QPATH];
@@ -906,6 +921,7 @@ vfsfile_t *FS_OpenVFS(const char *filename, const char *mode, enum fs_relative r
 	return NULL;
 }
 
+/*opens a vfsfile from an already discovered location*/
 vfsfile_t *FS_OpenReadLocation(flocation_t *location)
 {
 	if (location->search)
@@ -1138,16 +1154,24 @@ void COM_EnumerateFiles (const char *match, int (*func)(const char *, int, void 
 
 void COM_FlushTempoaryPacks(void)
 {
-	searchpath_t *next;
-	while (com_searchpaths && com_searchpaths->istemporary)
+	searchpath_t *sp, **link;
+	link = &com_searchpaths;
+	while (*link)
 	{
-		com_searchpaths->funcs->ClosePath(com_searchpaths->handle);
-		next = com_searchpaths->next;
-		Z_Free (com_searchpaths);
-		com_searchpaths = next;
+		sp = *link;
+		if (sp->istemporary)
+		{
+			FS_FlushFSHash();
 
-		com_fschanged = true;
+			*link = sp->next;
+
+			sp->funcs->ClosePath(sp->handle);
+			Z_Free (sp);
+		}
+		else
+			link = &sp->next;
 	}
+	com_purepaths = NULL;
 }
 
 qboolean COM_LoadMapPackFile (const char *filename, int ofs)
@@ -1324,7 +1348,7 @@ static searchpath_t *FS_AddPathHandle(const char *purepath, const char *probable
 {
 	unsigned int i;
 
-	searchpath_t *search;
+	searchpath_t *search, **link;
 
 	if (!funcs)
 	{
@@ -1340,19 +1364,35 @@ static searchpath_t *FS_AddPathHandle(const char *purepath, const char *probable
 	search->funcs = funcs;
 	Q_strncpyz(search->purepath, purepath, sizeof(search->purepath));
 
-	search->next = com_searchpaths;
-	com_searchpaths = search;
+	if (istemporary)
+	{
+		//add at end. pureness will reorder if needed.
+		link = &com_searchpaths;
+		while(*link)
+		{
+			link = &(*link)->next;
+		}
+		*link = search;
+	}
+	else
+	{
+		search->next = com_searchpaths;
+		com_searchpaths = search;
+	}
 
 	com_fschanged = true;
 
-
-	for (i = 0; i < sizeof(searchpathformats)/sizeof(searchpathformats[0]); i++)
+	//temp packages also do not nest
+	if (!istemporary)
 	{
-		if (!searchpathformats[i].extension || !searchpathformats[i].funcs || !searchpathformats[i].funcs->OpenNew)
-			continue;
-		if (loadstuff & (1<<i))
+		for (i = 0; i < sizeof(searchpathformats)/sizeof(searchpathformats[0]); i++)
 		{
-			FS_AddDataFiles(purepath, probablepath, search, searchpathformats[i].extension, searchpathformats[i].funcs);
+			if (!searchpathformats[i].extension || !searchpathformats[i].funcs || !searchpathformats[i].funcs->OpenNew)
+				continue;
+			if (loadstuff & (1<<i))
+			{
+				FS_AddDataFiles(purepath, probablepath, search, searchpathformats[i].extension, searchpathformats[i].funcs);
+			}
 		}
 	}
 
@@ -1641,7 +1681,7 @@ void COM_Gamedir (const char *dir)
 /*set some stuff so our regular qw client appears more like hexen2*/
 #define HEX2CFG "set r_particlesdesc \"spikeset tsshaft h2part\"\nset sv_maxspeed 640\nset watervis 1\nset r_wateralpha 0.5\nset sv_pupglow 1\nset cl_model_bobbing 1\nsv_sound_land \"fx/thngland.wav\"\n"
 /*Q3's ui doesn't like empty model/headmodel/handicap cvars, even if the gamecode copes*/
-#define Q3CFG "seta model sarge\nseta headmodel sarge\nseta handicap 100\n"
+#define Q3CFG "gl_overbright 2\nseta model sarge\nseta headmodel sarge\nseta handicap 100\n"
 
 typedef struct {
 	const char *protocolname;	//sent to the master server when this is the current gamemode.
@@ -1665,9 +1705,9 @@ const gamemode_info_t gamemode_info[] = {
 	{"Darkplaces-Rogue",	"rogue",		"-rogue",		{NULL},					NULL,	{"id1",		"qw",	"rogue",	"fte"},		"Quake: Dissolution of Eternity"},
 	{"Nexuiz",				"nexuiz",		"-nexuiz",		{"nexuiz.exe"},			NEXCFG,	{"data",						"ftedata"},	"Nexuiz"},
 	{"Xonotic",				"xonotic",		"-xonotic",		{"xonotic.exe"},		NEXCFG,	{"data",						"ftedata"},	"Xonotic"},
-	{"DMF",					"dmf",			"-dmf",			{"base/src/progs.src",
+	{"Spark",				"spark",		"-spark",		{"base/src/progs.src",
 															 "base/qwprogs.dat",
-															 "base/pak0.pak"},		DMFCFG,	{"base",						         },		"DMF"},
+															 "base/pak0.pak"},		DMFCFG,	{"base",						         },		"Spark"},
 
 	//supported commercial mods (some are currently only partially supported)
 	{"FTE-H2MP",			"h2mp",			"-portals",		{"portals/hexen.rc",
@@ -1687,27 +1727,117 @@ const gamemode_info_t gamemode_info[] = {
 	{NULL}
 };
 
+void FS_GenCachedPakName(char *pname, char *crc, char *local, int llen)
+{
+	char *fn;
+	unsigned int h;
+	if (strstr(pname, "dlcache"))
+	{
+		Q_strncpyz(local, pname, llen);
+		return;
+	}
+
+	fn = COM_SkipPath(pname);
+	Q_strncpyz(local, pname, min((fn - pname) + 1, llen));
+	Q_strncatz(local, "dlcache/", llen);
+	Q_strncatz(local, fn, llen);
+	if (*crc)
+	{
+		Q_strncatz(local, ".", llen);
+		h = atoi(crc);
+		Q_strncatz(local, va("%x", h), llen);
+	}
+}
+
+//if a server is using private pak files then load the same version of those, but deprioritise them
+//crcs are not used, but matched only if the server has a different version from a previous file
+void FS_ImpurePacks(const char *names, const char *crcs)
+{
+	int crc;
+	searchpath_t *sp;
+	char *pname;
+
+	while(names)
+	{
+		crcs = COM_Parse(crcs);
+		crc = atoi(com_token);
+		names = COM_Parse(names);
+
+		if (!crc)
+			continue;
+
+		pname = com_token;
+		if (*pname == '*')
+			pname++;
+
+		for (sp = com_searchpaths; sp; sp = sp->next)
+		{
+			if (!stricmp(sp->purepath, pname))
+			{
+				break;
+			}
+		}
+		if (!sp)
+		{
+			char local[MAX_OSPATH];
+			vfsfile_t *vfs;
+			char *ext = COM_FileExtension(pname);
+			void *handle;
+			int i;
+
+			FS_GenCachedPakName(pname, va("%i", crc), local, sizeof(local));
+			vfs = FS_OpenVFS(local, "rb", FS_ROOT);
+			if (vfs)
+			{
+				for (i = 0; i < sizeof(searchpathformats)/sizeof(searchpathformats[0]); i++)
+				{
+					if (!searchpathformats[i].extension || !searchpathformats[i].funcs || !searchpathformats[i].funcs->OpenNew)
+						continue;
+					if (!strcmp(ext, searchpathformats[i].extension))
+					{
+						handle = searchpathformats[i].funcs->OpenNew (vfs, local);
+						if (!handle)
+							break;
+						sp = FS_AddPathHandle(pname, local, searchpathformats[i].funcs, handle, true, true, false, (unsigned int)-1);
+
+						FS_FlushFSHash();
+						break;
+					}
+				}
+			}
+
+			if (!sp)
+				Con_DPrintf("Unable to load matching package file %s\n", pname);
+		}
+	}
+
+	FS_ForceToPure(NULL, NULL, 0);
+}
+
 //space-seperate pk3 names followed by space-seperated crcs
 //note that we'll need to reorder and filter out files that don't match the crc.
-void FS_ForceToPure(const char *str, const char *crcs, int seed)
+void FS_ForceToPure(const char *names, const char *crcs, int seed)
 {
 	//pure files are more important than non-pure.
 
 	searchpath_t *sp;
 	searchpath_t *lastpure = NULL;
 	int crc;
+	qboolean waspure = com_purepaths != NULL;
+	char *pname;
 
-	if (!str)
+	if (!crcs || !*crcs)
 	{	//pure isn't in use.
 		if (com_purepaths)
+		{
 			Con_Printf("Pure FS deactivated\n");
-		com_purepaths = NULL;
-		FS_FlushFSHash();
+			com_purepaths = NULL;
+			FS_FlushFSHash();
+		}
 		return;
 	}
-	if (!com_purepaths)
-		Con_Printf("Pure FS activated\n");
 
+	com_purepaths = NULL;
 	for (sp = com_searchpaths; sp; sp = sp->next)
 	{
 		if (sp->funcs->GeneratePureCRC)
@@ -1718,6 +1848,7 @@ void FS_ForceToPure(const char *str, const char *crcs, int seed)
 		}
 		else
 		{
+			sp->nextpure = NULL;
 			sp->crc_check = 0;
 			sp->crc_reply = 0;
 		}
@@ -1727,9 +1858,14 @@ void FS_ForceToPure(const char *str, const char *crcs, int seed)
 	{
 		crcs = COM_Parse(crcs);
 		crc = atoi(com_token);
+		names = COM_Parse(names);
 
 		if (!crc)
 			continue;
+
+		pname = com_token;
+		if (*pname == '*')
+			pname++;
 
 		for (sp = com_searchpaths; sp; sp = sp->next)
 		{
@@ -1746,23 +1882,54 @@ void FS_ForceToPure(const char *str, const char *crcs, int seed)
 				}
 		}
 		if (!sp)
-			Con_Printf("Pure crc %i wasn't found\n", crc);
-	}
-
-/* don't add any extras.
-	for (sp = com_searchpaths; sp; sp = sp->next)
-	{
-		if (sp->nextpure == (void*)0x1)
 		{
-			if (lastpure)
-				lastpure->nextpure = sp;
-			sp->nextpure = NULL;
-			lastpure = sp;
+			char local[MAX_OSPATH];
+			vfsfile_t *vfs;
+			char *ext = COM_FileExtension(pname);
+			void *handle;
+			int i;
+
+			FS_GenCachedPakName(pname, va("%i", crc), local, sizeof(local));
+			vfs = FS_OpenVFS(local, "rb", FS_ROOT);
+			if (vfs)
+			{
+				for (i = 0; i < sizeof(searchpathformats)/sizeof(searchpathformats[0]); i++)
+				{
+					if (!searchpathformats[i].extension || !searchpathformats[i].funcs || !searchpathformats[i].funcs->OpenNew)
+						continue;
+					if (!strcmp(ext, searchpathformats[i].extension))
+					{
+						handle = searchpathformats[i].funcs->OpenNew (vfs, local);
+						if (!handle)
+							break;
+						sp = FS_AddPathHandle(pname, local, searchpathformats[i].funcs, handle, true, true, false, (unsigned int)-1);
+
+						sp->crc_check = sp->funcs->GeneratePureCRC(sp->handle, seed, 0);
+						sp->crc_reply = sp->funcs->GeneratePureCRC(sp->handle, seed, 1);
+
+						if (sp->crc_check == crc)
+						{
+							if (lastpure)
+								lastpure->nextpure = sp;
+							else
+								com_purepaths = sp;
+							sp->nextpure = NULL;
+							lastpure = sp;
+						}
+						break;
+					}
+				}
+			}
+
+			if (!sp)
+				Con_DPrintf("Pure crc %i wasn't found\n", crc);
 		}
 	}
-*/
 
 	FS_FlushFSHash();
+
+	if (com_purepaths && !waspure)
+		Con_Printf("Pure FS activated\n");
 }
 
 char *FSQ3_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum)
@@ -1858,6 +2025,8 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 
 	if (!com_base_searchpaths)
 		com_base_searchpaths = com_searchpaths;
+
+	/*sv_pure: Reload pure paths*/
 }
 
 void FS_UnloadPackFiles(void)

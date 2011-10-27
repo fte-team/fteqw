@@ -1417,7 +1417,7 @@ static void World_ODE_Frame_BodyToEntity(world_t *world, wedict_t *ed)
 
 	if (ed->v->modelindex)
 	{
-		model = world->GetCModel(world, ed->v->modelindex);
+		model = world->Get_CModel(world, ed->v->modelindex);
 		if (!model || model->type == mod_alias)
 		{
 			angles[PITCH] *= -1;
@@ -1776,7 +1776,7 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	{
 	case SOLID_BSP:
 		modelindex = (int)ed->v->modelindex;
-		model = world->GetCModel(world, modelindex);
+		model = world->Get_CModel(world, modelindex);
 		if (model)
 		{
 			VectorScale(model->mins, scale, entmins);
@@ -1971,7 +1971,7 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	
 		if (ed->v->modelindex)
 		{
-			model = world->GetCModel(world, ed->v->modelindex);
+			model = world->Get_CModel(world, ed->v->modelindex);
 			if (!model || model->type == mod_alias)
 			{
 				qangles[PITCH] *= -1;

@@ -66,6 +66,7 @@ static int q3_num_snapshot_entities;
 static int q3_next_snapshot_entities;
 static q3entityState_t *q3_snapshot_entities;
 static q3entityState_t *q3_baselines;
+extern cvar_t sv_pure;
 
 #define NUM_FOR_GENTITY(ge) (((char*)ge - (char*)q3_entarray) / sizeofq3gentity)
 #define NUM_FOR_SENTITY(se) (se - q3_sentities)
@@ -1676,8 +1677,6 @@ qboolean SVQ3_InitGame(void)
 	char buffer[8192];
 	char *str;
 	char sysinfo[8192];
-	extern cvar_t progs;
-	cvar_t *sv_pure;
 
 	if (sv.world.worldmodel->type == mod_heightmap)
 	{
@@ -1688,7 +1687,7 @@ qboolean SVQ3_InitGame(void)
 			return false;	//always fail on q1bsp
 	}
 
-	if (*progs.string)	//don't load q3 gamecode if we're explicitally told to load a progs.
+	if (*pr_ssqc_progs.string)	//don't load q3 gamecode if we're explicitally told to load a progs.
 		return false;
 
 
@@ -1705,11 +1704,13 @@ qboolean SVQ3_InitGame(void)
 
 	q3_sentities = Z_Malloc(sizeof(q3serverEntity_t)*MAX_GENTITIES);
 
+	/*qw serverinfo settings are not normally visible in the q3 serverinfo*/
 	strcpy(buffer, svs.info);
 	Info_SetValueForKey(buffer, "map", "", sizeof(buffer));
 	Info_SetValueForKey(buffer, "maxclients", "", sizeof(buffer));
 	Info_SetValueForKey(buffer, "mapname", sv.name, sizeof(buffer));
 	Info_SetValueForKey(buffer, "sv_maxclients", "32", sizeof(buffer));
+	Info_SetValueForKey(buffer, "sv_pure", "", sizeof(buffer));
 	SVQ3_SetConfigString(0, buffer);
 
 	Cvar_Set(Cvar_Get("sv_running", "0", 0, "Q3 compatability"), "1");
@@ -1720,17 +1721,16 @@ qboolean SVQ3_InitGame(void)
 	str = FS_GetPackHashes(buffer, sizeof(buffer), false);
 	Info_SetValueForKey(sysinfo, "sv_paks", str, MAX_SERVERINFO_STRING);
 
-	str = FS_GetPackNames(buffer, sizeof(buffer), false);
+	str = FS_GetPackNames(buffer, sizeof(buffer), false, false);
 	Info_SetValueForKey(sysinfo, "sv_pakNames", str, MAX_SERVERINFO_STRING);
 
 	str = FS_GetPackHashes(buffer, sizeof(buffer), true);
 	Info_SetValueForKey(sysinfo, "sv_referencedPaks", str, MAX_SERVERINFO_STRING);
 
-	str = FS_GetPackNames(buffer, sizeof(buffer), true);
+	str = FS_GetPackNames(buffer, sizeof(buffer), true, false);
 	Info_SetValueForKey(sysinfo, "sv_referencedPakNames", str, MAX_SERVERINFO_STRING);
 
-	sv_pure = Cvar_Get("sv_pure", "1", 0, "Q3 compatability");
-	Info_SetValueForKey(sysinfo, "sv_pure", sv_pure->string, MAX_SERVERINFO_STRING);
+	Info_SetValueForKey(sysinfo, "sv_pure", sv_pure.string, MAX_SERVERINFO_STRING);
 
 	SVQ3_SetConfigString(1, sysinfo);
 
@@ -2133,8 +2133,8 @@ q3playerState_t *SVQ3Q1_BuildPlayerState(client_t *client)
 
 	memset(&state, 0, sizeof(state));
 
-#ifdef _MSC_VER
-#pragma message("qwoverq3: other things will need to be packed into here.")
+#ifdef warningmsg
+#pragma warningmsg("qwoverq3: other things will need to be packed into here.")
 #endif
 
 	state.commandTime = client->lastcmd.servertime;
@@ -2346,8 +2346,8 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 
 void SVQ3Q1_ConvertEntStateQ1ToQ3(entity_state_t *q1, q3entityState_t *q3)
 {
-#ifdef _MSC_VER
-#pragma message("qwoverq3: This _WILL_ need extending")
+#ifdef warningmsg
+#pragma warningmsg("qwoverq3: This _WILL_ need extending")
 #endif
 	q3->number = q1->number;
 
@@ -2862,8 +2862,8 @@ void SVQ3_ParseUsercmd(client_t *client, qboolean delta)
 			{
 				usercmd_t temp;
 				temp = client->lastcmd;
-#ifdef _MSC_VER
-#pragma message("qwoverq3: you need to be aware of this if you're making a compatible cgame")
+#ifdef warningmsg
+#pragma warningmsg("qwoverq3: you need to be aware of this if you're making a compatible cgame")
 #endif
 				//if you read the q3 code, you'll see that the speed value used is 64 for walking, and 127 for running (full speed).
 				//so we map full to full here.

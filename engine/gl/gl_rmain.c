@@ -107,161 +107,31 @@ texid_t sceneblur_texture;
 texid_t scenepp_texture_warp;
 texid_t scenepp_texture_edge;
 
-int scenepp_mt_program;
-int scenepp_mt_parm_texture0i;
-int scenepp_mt_parm_colorf;
-int scenepp_mt_parm_inverti;
-
-texid_t scenepp_fisheye_texture;
-int scenepp_fisheye_program;
-int scenepp_fisheye_parm_fov;
-int scenepp_panorama_program;
-int scenepp_panorama_parm_fov;
+texid_t scenepp_postproc_cube;
 
 // KrimZon - init post processing - called in GL_CheckExtensions, when they're called
 // I put it here so that only this file need be changed when messing with the post
 // processing shaders
 void GL_InitSceneProcessingShaders_WaterWarp (void)
 {
-	/*
-	inputs:
-	texcoords: edge points
-	coords: vertex coords (duh)
-	time
-	ampscale (cvar = r_waterwarp)
-
-	use ifs instead of an edge map?
-	*/
 	if (gl_config.arb_shader_objects)
 	{
 		scenepp_waterwarp = R_RegisterShader("waterwarp",
 			"{\n"
-			"glslprogram\n"
-			"{\n"
-			"#ifdef VERTEX_SHADER\n"
-			"\
-			attribute vec2 v_texcoord;\
-			varying vec2 v_stc;\
-			varying vec2 v_warp;\
-			varying vec2 v_edge;\
-			uniform float e_time;\
-			void main (void)\
-			{\
-				gl_Position = ftetransform();\
-				v_stc = (1.0+(gl_Position.xy / gl_Position.w))/2.0;\
-				v_warp.s = e_time * 0.25 + v_texcoord.s;\
-				v_warp.t = e_time * 0.25 + v_texcoord.t;\
-				v_edge = v_texcoord.xy;\
-			}\
-			\n"
-			"#endif\n"
-			"#ifdef FRAGMENT_SHADER\n"
-			"\
-			varying vec2 v_stc;\
-			varying vec2 v_warp;\
-			varying vec2 v_edge;\
-			uniform sampler2D s_t0;\
-			uniform sampler2D s_t1;\
-			uniform sampler2D s_t2;\
-			uniform float ampscale;\
-			uniform vec3 rendertexturescale;\
-			void main (void)\
-			{\
-				float amptemp;\
-				vec3 edge;\
-				edge = texture2D( s_t2, v_edge ).rgb;\
-				amptemp = (0.010 / 0.625) * ampscale * edge.x;\
-				vec3 offset;\
-				offset = texture2D( s_t1, v_warp ).rgb;\
-				offset.x = (offset.x - 0.5) * 2.0;\
-				offset.y = (offset.y - 0.5) * 2.0;\
-				vec2 temp;\
-				temp.x = v_stc.x + offset.x * amptemp;\
-				temp.y = v_stc.y + offset.y * amptemp;\
-				gl_FragColor = texture2D( s_t0, temp*rendertexturescale.st );\
-			}\
-			\n"
-			"#endif\n"
-			"}\n"
-			"param cvarf r_waterwarp ampscale\n"
-			"param rendertexturescale rendertexturescale\n"
-			"{\n"
-			"map $currentrender\n"
-			"}\n"
-			"{\n"
-			"map $upperoverlay\n"
-			"}\n"
-			"{\n"
-			"map $loweroverlay\n"
-			"}\n"
+				"program underwaterwarp\n"
+				"{\n"
+					"map $currentrender\n"
+				"}\n"
+				"{\n"
+					"map $upperoverlay\n"
+				"}\n"
+				"{\n"
+					"map $loweroverlay\n"
+				"}\n"
 			"}\n"
 			);
 		scenepp_waterwarp->defaulttextures.upperoverlay = scenepp_texture_warp;
 		scenepp_waterwarp->defaulttextures.loweroverlay = scenepp_texture_edge;
-	}
-}
-
-void GL_InitFisheyeFov(void)
-{
-	char *vshader = "\
-		varying vec2 texcoord;\
-		void main(void)\
-		{\
-			texcoord = gl_MultiTexCoord0.xy;\
-			gl_Position = ftetransform();\
-		}";
-	char *fisheyefshader = "\
-		uniform samplerCube source;\
-		varying vec2 texcoord;\
-		uniform float fov;\
-		void main(void)\
-		{\
-			vec3 tc;	\
-			vec2 d;	\
-			vec2 ang;	\
-			d = texcoord;	\
-			ang.x = sqrt(d.x*d.x+d.y*d.y)*fov;	\
-			ang.y = -atan(d.y, d.x);	\
-			tc.x = sin(ang.x) * cos(ang.y);	\
-			tc.y = sin(ang.x) * sin(ang.y);	\
-			tc.z = cos(ang.x);	\
-			gl_FragColor = textureCube(source, tc);\
-		}";
-
-	char *panoramafshader = "\
-		uniform samplerCube source;\
-		varying vec2 texcoord;\
-		uniform float fov;\
-		void main(void)\
-		{\
-			vec3 tc;	\
-			float ang;	\
-			ang = texcoord.x*fov;	\
-			tc.x = sin(ang);	\
-			tc.y = -texcoord.y;	\
-			tc.z = cos(ang);	\
-			gl_FragColor = textureCube(source, tc);\
-		}";
-
-	if (gl_config.gles)
-		return;
-
-	scenepp_fisheye_program = GLSlang_CreateProgram("fisheye", "#version 110\n", NULL, vshader, fisheyefshader);
-	if (scenepp_fisheye_program)
-	{
-		GLSlang_UseProgram(scenepp_fisheye_program);
-		GLSlang_SetUniform1i(GLSlang_GetUniformLocation(scenepp_fisheye_program, "source"), 0);
-		scenepp_fisheye_parm_fov = GLSlang_GetUniformLocation(scenepp_fisheye_program, "fov");
-		GLSlang_UseProgram(0);
-	}
-
-	scenepp_panorama_program = GLSlang_CreateProgram("panorama", "#version 110\n", NULL, vshader, panoramafshader);
-	if (scenepp_panorama_program)
-	{
-		GLSlang_UseProgram(scenepp_panorama_program);
-		GLSlang_SetUniform1i(GLSlang_GetUniformLocation(scenepp_panorama_program, "source"), 0);
-		scenepp_panorama_parm_fov = GLSlang_GetUniformLocation(scenepp_panorama_program, "fov");
-		GLSlang_UseProgram(0);
 	}
 }
 
@@ -270,7 +140,6 @@ void GL_InitSceneProcessingShaders (void)
 	if (gl_config.arb_shader_objects)
 	{
 		GL_InitSceneProcessingShaders_WaterWarp();
-		GL_InitFisheyeFov();
 	}
 }
 
@@ -283,15 +152,15 @@ void GL_SetupSceneProcessingTextures (void)
 	unsigned char pp_warp_tex[PP_WARP_TEX_SIZE*PP_WARP_TEX_SIZE*3];
 	unsigned char pp_edge_tex[PP_AMP_TEX_SIZE*PP_AMP_TEX_SIZE*3];
 
-	scenepp_fisheye_texture = r_nulltex;
+	scenepp_postproc_cube = r_nulltex;
 
-	sceneblur_texture = GL_AllocNewTexture(0, 0);
+	TEXASSIGN(sceneblur_texture, GL_AllocNewTexture("***postprocess_blur***", 0, 0));
 
 	if (!gl_config.arb_shader_objects)
 		return;
 
-	scenepp_texture_warp = GL_AllocNewTexture(0, 0);
-	scenepp_texture_edge = GL_AllocNewTexture(0, 0);
+	TEXASSIGN(scenepp_texture_warp, GL_AllocNewTexture("***postprocess_warp***", 0, 0));
+	TEXASSIGN(scenepp_texture_edge, GL_AllocNewTexture("***postprocess_edge***", 0, 0));
 
 	// init warp texture - this specifies offset in
 	for (y=0; y<PP_WARP_TEX_SIZE; y++)
@@ -361,10 +230,8 @@ void GL_SetupSceneProcessingTextures (void)
 	qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 0, GL_RGB, GL_UNSIGNED_BYTE, pp_edge_tex);
 }
 
-void R_RotateForEntity (float *modelview, const entity_t *e, const model_t *mod)
+void R_RotateForEntity (float *m, float *modelview, const entity_t *e, const model_t *mod)
 {
-	float m[16];
-
 	m[0] = e->axis[0][0];
 	m[1] = e->axis[0][1];
 	m[2] = e->axis[0][2];
@@ -596,6 +463,12 @@ void R_RenderScene (void)
 
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 	{
+		TRACE(("dbg: calling R_DrawParticles\n"));
+		P_DrawParticles ();
+	}
+
+	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+	{
 		TRACE(("dbg: calling R_DrawWorld\n"));
 		Surf_DrawWorld ();		// adds static entities to the list
 	}
@@ -607,13 +480,8 @@ void R_RenderScene (void)
 //	R_DrawDecals();
 
 	TRACE(("dbg: calling R_RenderDlights\n"));
-	GLR_RenderDlights ();
+	R_RenderDlights ();
 
-	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
-	{
-		TRACE(("dbg: calling R_DrawParticles\n"));
-		P_DrawParticles ();
-	}
 	RQ_RenderBatchClear();
 
 	cl_numvisedicts = tmpvisents;
@@ -867,8 +735,8 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist)
 
 	GL_CullFace(0);
 
-#ifdef _MSC_VER
-#pragma message("warning: there's a bug with rtlights in portals, culling is broken or something. May also be loading the wrong matrix")
+#ifdef warningmsg
+#pragma warningmsg("warning: there's a bug with rtlights in portals, culling is broken or something. May also be loading the wrong matrix")
 #endif
 }
 
@@ -956,12 +824,10 @@ static void R_RenderMotionBlur(void)
 {
 	int vwidth = 1, vheight = 1;
 	float vs, vt, cs, ct;
-#ifdef _MSC_VER
-#pragma message("backend fixme")
+#ifdef warningmsg
+#pragma warningmsg("backend fixme")
 #endif
 #ifndef ANDROID
-	Con_Printf("motionblur is not updated for the backend\n");
-
 	if (gl_config.arb_texture_non_power_of_two)
 	{	//we can use any size, supposedly
 		vwidth = vid.pixelwidth;
@@ -1027,9 +893,8 @@ static void R_RenderMotionBlur(void)
 	PPL_RevertToKnownState();
 }
 
-#ifdef FISH
 /*FIXME: we could use geometry shaders to draw to all 6 faces at once*/
-qboolean R_RenderScene_Fish(void)
+qboolean R_RenderScene_Cubemap(void)
 {
 	int cmapsize = 512;
 	int i;
@@ -1037,21 +902,66 @@ qboolean R_RenderScene_Fish(void)
 				{	{0, -90, 0}, {0, 90, 0},
 					{90, 0, 0}, {-90, 0, 0},
 					{0, 0, 0}, {0, -180, 0}	};
-	int order[6] = {4, 0, 1, 5, 3, 2};
-	int numsides = 4;
 	vec3_t saveang;
 
 	vrect_t vrect;
 	vrect_t prect;
 
+	shader_t *shader;
+	int facemask;
+
+	/*needs glsl*/
+	if (!gl_config.arb_shader_objects)
+		return false;
+	if (!ffov.value)
+		return false;
+
+	facemask = 0;
+	if (ffov.value < 0)
+	{
+		shader = R_RegisterShader("postproc_panorama",
+				"{\n"
+					"program postproc_panorama\n"
+					"{\n"
+						"map $sourcecube\n"
+					"}\n"
+				"}\n"
+				);
+
+		//panoramic view needs at most the four sides
+		facemask |= 1<<4; /*front view*/
+		if (ffov.value < -90)
+		{
+			facemask |= (1<<0) | (1<<1); /*side views*/
+			if (ffov.value < -270)
+				facemask |= 1<<5; /*back view*/
+		}
+	}
+	else
+	{
+		shader = R_RegisterShader("postproc_fisheye",
+				"{\n"
+					"program postproc_fisheye\n"
+					"{\n"
+						"map $sourcecube\n"
+					"}\n"
+				"}\n"
+				);
+
+		//fisheye view sees up to a full sphere
+		facemask |= 1<<4; /*front view*/
+		if (ffov.value > 77)
+			facemask |= (1<<0) | (1<<1) | (1<<2) | (1<<3); /*side/top/bottom views*/
+		if (ffov.value > 270)
+			facemask |= 1<<5; /*back view*/
+	}
+
+//fixme: should already have the vrect somewhere.
 	SCR_VRectForPlayer(&vrect, r_refdef.currentplayernum);
 	prect.x = (vrect.x * vid.pixelwidth)/vid.width;
 	prect.width = (vrect.width * vid.pixelwidth)/vid.width;
 	prect.y = (vrect.y * vid.pixelheight)/vid.height;
 	prect.height = (vrect.height * vid.pixelheight)/vid.height;
-
-	if (!scenepp_panorama_program)
-		return false;
 
 	if (gl_config.arb_texture_non_power_of_two)
 	{
@@ -1071,67 +981,17 @@ qboolean R_RenderScene_Fish(void)
 	VectorCopy(r_refdef.viewangles, saveang);
 	saveang[2] = 0;
 
-	if (ffov.value < 0)
+	if (!TEXVALID(scenepp_postproc_cube))
 	{
-		//panoramic view needs at most the four sides
-		if (ffov.value >= -90)
-			numsides = 1;
-//			else if (ffov.value >= -180)
-//			{
-//				numsides = 2;
-//				rot45 = 1;
-//			}
-		else if (ffov.value >= -270)
-			numsides = 3;
-		else
-			numsides = 4;
+		scenepp_postproc_cube = GL_AllocNewTexture("***fish***", cmapsize, cmapsize);
 
-		order[0] = 4;
-		order[1] = 0;
-		order[2] = 1;
-		order[3] = 5;
-	}
-	else
-	{
-		//fisheye view sees a full sphere
-		//
-		if (ffov.value <= 77)
-			numsides = 1;
-//			else if (ffov.value <= 180)
-//			{
-//				numsides = 3;
-//				rot45 = 3;
-//			}
-		else if (ffov.value <= 270)
-			numsides = 5;
-		else
-			numsides = 6;
-
-		order[0] = 4;
-		order[1] = 0;
-		order[2] = 3;
-		order[3] = 1;
-		order[4] = 2;
-		order[5] = 5;
-	}
-
-	if (!TEXVALID(scenepp_fisheye_texture))
-	{
-		scenepp_fisheye_texture = GL_AllocNewTexture(cmapsize, cmapsize);
-
-		qglDisable(GL_TEXTURE_2D);
-		qglEnable(GL_TEXTURE_CUBE_MAP_ARB);
-
-		GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture);
+		GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, scenepp_postproc_cube);
 		for (i = 0; i < 6; i++)
 			qglCopyTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + i, 0, GL_RGB, 0, 0, cmapsize, cmapsize, 0);
 		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-
-		qglEnable(GL_TEXTURE_2D);
-		qglDisable(GL_TEXTURE_CUBE_MAP_ARB);
 	}
 
 	r_refdef.vrect.width = cmapsize;
@@ -1147,43 +1007,29 @@ qboolean R_RenderScene_Fish(void)
 	ang[1][1] = 90;
 	ang[1][2] = saveang[0];
 	ang[5][0] = -saveang[0]*2;
-	for (i = 0; i < numsides; i++)
+	for (i = 0; i < 6; i++)
 	{
+		if (!(facemask & (1<<i)))
+			continue;
+
 		r_refdef.fov_x = 90;
 		r_refdef.fov_y = 90;
-		r_refdef.viewangles[0] = saveang[0]+ang[order[i]][0];
-		r_refdef.viewangles[1] = saveang[1]+ang[order[i]][1];
-		r_refdef.viewangles[2] = saveang[2]+ang[order[i]][2];
+		r_refdef.viewangles[0] = saveang[0]+ang[i][0];
+		r_refdef.viewangles[1] = saveang[1]+ang[i][1];
+		r_refdef.viewangles[2] = saveang[2]+ang[i][2];
 
 		R_Clear ();
-
-	//	GLR_SetupFog ();
 
 		GL_SetShaderState2D(false);
 
 		// render normal view
 		R_RenderScene ();
 
-		GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture);
-		qglCopyTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + order[i], 0, 0, 0, 0, vid.pixelheight - (prect.y + cmapsize), cmapsize, cmapsize);
+		GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, scenepp_postproc_cube);
+		qglCopyTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + i, 0, 0, 0, 0, vid.pixelheight - (prect.y + cmapsize), cmapsize, cmapsize);
 	}
 
-//qglClear (GL_COLOR_BUFFER_BIT);
 	qglViewport (prect.x, vid.pixelheight - (prect.y+prect.height), prect.width, prect.height);
-
-	GL_LazyBind(0, GL_TEXTURE_CUBE_MAP_ARB, scenepp_fisheye_texture, false);
-
-	if (scenepp_panorama_program && ffov.value < 0)
-	{
-		GLSlang_UseProgram(scenepp_panorama_program);
-		GLSlang_SetUniform1f(scenepp_panorama_parm_fov, -ffov.value*3.1415926535897932384626433832795/180);
-	}
-	else
-	{
-		GLSlang_UseProgram(scenepp_fisheye_program);
-		GLSlang_SetUniform1f(scenepp_fisheye_parm_fov, ffov.value*3.1415926535897932384626433832795/180);
-	}
-
 
 	// go 2d
 	qglMatrixMode(GL_PROJECTION);
@@ -1194,37 +1040,17 @@ qboolean R_RenderScene_Fish(void)
 	qglPushMatrix();
 	qglLoadIdentity ();
 
-	qglDisable (GL_DEPTH_TEST);
-	GL_CullFace(0);
-	qglDisable (GL_ALPHA_TEST);
-	qglDisable(GL_BLEND);
-	qglBegin(GL_QUADS);
-	qglTexCoord2f(-0.5, 0.5);
-	qglVertex2f(0, 0);
-	qglTexCoord2f(0.5, 0.5);
-	qglVertex2f(vid.width, 0);
-	qglTexCoord2f(0.5, -0.5);
-	qglVertex2f(vid.width, vid.height);
-	qglTexCoord2f(-0.5, -0.5);
-	qglVertex2f(0, vid.height);
-	qglEnd();
+	// draw it through the shader
+	R2D_Image(0, 0, vid.width, vid.height, -0.5, 0.5, 0.5, -0.5, shader);
 
+	//revert the matricies
 	qglMatrixMode(GL_PROJECTION);
 	qglPopMatrix();
 	qglMatrixMode(GL_MODELVIEW);
 	qglPopMatrix();
 
-	qglDisable(GL_TEXTURE_CUBE_MAP_ARB);
-	qglEnable(GL_TEXTURE_2D);
-
-	GLSlang_UseProgram(0);
-
-	qglEnable (GL_DEPTH_TEST);
-	PPL_RevertToKnownState();
-
 	return true;
 }
-#endif
 
 /*
 ================
@@ -1285,13 +1111,11 @@ void GLR_RenderView (void)
 		c_alias_polys = 0;
 	}
 
-#ifdef FISH
-	if (ffov.value && cls.allow_fish && !(r_refdef.flags & Q2RDF_NOWORLDMODEL) && R_RenderScene_Fish())
+	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL) && R_RenderScene_Cubemap())
 	{
-		//fisheye does its own rendering.
+
 	}
 	else
-#endif
 	{
 		GL_SetShaderState2D(false);
 

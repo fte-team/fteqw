@@ -1001,60 +1001,252 @@ static qboolean Sh_LeafInView(qbyte *lightvis, qbyte *vvis)
 	return false;
 }
 
-static void Sh_Scissor (int x, int y, int width, int height)
+typedef struct
+{
+	int x;
+	int y;
+	int width;
+	int height;
+	double dmin;
+	double dmax;
+} srect_t;
+static void Sh_Scissor (srect_t r)
 {
 #if 0	//visible scissors
-	glMatrixMode(GL_PROJECTION);
-	glPushMatrix();
-	glLoadIdentity();
-	glOrtho  (0, glwidth, glheight, 0, -99999, 99999);
-	glMatrixMode(GL_MODELVIEW);
-	glPushMatrix();
-	glLoadIdentity();
-//	GL_Set2D();
+	extern cvar_t temp1;
+	if (temp1.ival)
+	{
+		qglMatrixMode(GL_PROJECTION);
+		qglPushMatrix();
+		qglLoadIdentity();
+		qglOrtho  (0, vid.pixelwidth, vid.pixelheight, 0, -99999, 99999);
+		qglMatrixMode(GL_MODELVIEW);
+		qglPushMatrix();
+		qglLoadIdentity();
+	//	GL_Set2D();
 
-	glColor4f(1,1,1,1);
-	glDisable(GL_DEPTH_TEST);
-	glDisable(GL_SCISSOR_TEST);
-	glColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE );
-	glDisable(GL_TEXTURE_2D);
-	GL_TexEnv(GL_REPLACE);
+		qglColor4f(1,1,1,1);
+		qglDisable(GL_DEPTH_TEST);
+		qglDisable(GL_SCISSOR_TEST);
+		qglColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE );
+		qglDisable(GL_TEXTURE_2D);
 
-	glBegin(GL_LINE_LOOP);
-	glVertex2f(x, y);
-	glVertex2f(x+glwidth, y);
-	glVertex2f(x+glwidth, y+glheight);
-	glVertex2f(x, y+glheight);
-	glEnd();
+		qglBegin(GL_LINE_LOOP);
+		qglVertex2f(r.x, vid.pixelheight - (r.y + r.height));
+		qglVertex2f(r.x+r.width, vid.pixelheight - (r.y + r.height));
+		qglVertex2f(r.x+r.width, vid.pixelheight - (r.y));
+		qglVertex2f(r.x, vid.pixelheight - (r.y));
+		qglEnd();
 
-	glMatrixMode(GL_PROJECTION);
-	glPopMatrix();
-	glMatrixMode(GL_MODELVIEW);
-	glPopMatrix();
+		qglColorMask( GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE );
+
+		qglMatrixMode(GL_PROJECTION);
+		qglPopMatrix();
+		qglMatrixMode(GL_MODELVIEW);
+		qglPopMatrix();
+	}
 #endif
-	qglScissor(x, vid.pixelheight - (y + height),width,height);
+	qglScissor(r.x, r.y, r.width, r.height);
+
+	if (qglDepthBoundsEXT)
+	{
+		qglDepthBoundsEXT(r.dmin, r.dmax);
+		qglEnable(GL_DEPTH_BOUNDS_TEST_EXT);
+	}
 }
 
+#if 0
+static qboolean Sh_ScissorForSphere(vec3_t center, float radius, vrect_t *rect)
+{
+	/*return false to say that its fully offscreen*/
+
+	float v[4], tempv[4];
+	extern cvar_t temp1;
+	int i;
+	vrect_t r;
+	
+	radius *= temp1.value;
+
+	rect->x = 0;
+	rect->y = 0;
+	rect->width = vid.pixelwidth;
+	rect->height = vid.pixelheight;
+
+
+/*
+	for (i = 0; i < 4; i++)
+	{
+		v[3] = 1;
+		VectorMA(center, radius, frustum[i].normal, v);
+
+		tempv[0] = r_refdef.m_view[0]*v[0] + r_refdef.m_view[4]*v[1] + r_refdef.m_view[8]*v[2] + r_refdef.m_view[12]*v[3];
+		tempv[1] = r_refdef.m_view[1]*v[0] + r_refdef.m_view[5]*v[1] + r_refdef.m_view[9]*v[2] + r_refdef.m_view[13]*v[3];
+		tempv[2] = r_refdef.m_view[2]*v[0] + r_refdef.m_view[6]*v[1] + r_refdef.m_view[10]*v[2] + r_refdef.m_view[14]*v[3];
+		tempv[3] = r_refdef.m_view[3]*v[0] + r_refdef.m_view[7]*v[1] + r_refdef.m_view[11]*v[2] + r_refdef.m_view[15]*v[3];
+
+		product[0] = r_refdef.m_projection[0]*tempv[0] + r_refdef.m_projection[4]*tempv[1] + r_refdef.m_projection[8]*tempv[2] + r_refdef.m_projection[12]*tempv[3];
+		product[1] = r_refdef.m_projection[1]*tempv[0] + r_refdef.m_projection[5]*tempv[1] + r_refdef.m_projection[9]*tempv[2] + r_refdef.m_projection[13]*tempv[3];
+		product[2] = r_refdef.m_projection[2]*tempv[0] + r_refdef.m_projection[6]*tempv[1] + r_refdef.m_projection[10]*tempv[2] + r_refdef.m_projection[14]*tempv[3];
+		product[3] = r_refdef.m_projection[3]*tempv[0] + r_refdef.m_projection[7]*tempv[1] + r_refdef.m_projection[11]*tempv[2] + r_refdef.m_projection[15]*tempv[3];
+
+		v[0] /= v[3];
+		v[1] /= v[3];
+		v[2] /= v[3];
+
+		out[0] = (1+v[0])/2;
+		out[1] = (1+v[1])/2;
+		out[2] = (1+v[2])/2;
+
+		r.x 
+	}
+*/
+	return false;
+}
+#endif
+
 #define BoxesOverlap(a,b,c,d) ((a)[0] <= (d)[0] && (b)[0] >= (c)[0] && (a)[1] <= (d)[1] && (b)[1] >= (c)[1] && (a)[2] <= (d)[2] && (b)[2] >= (c)[2])
-static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs)
+static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs, srect_t *r)
+{
+	static const edge[12][2] =
+	{
+		{0, 1}, {0, 2}, {1, 3}, {2, 3},
+		{4, 5}, {4, 6}, {5, 7}, {6, 7},
+		{0, 4}, {1, 5}, {2, 6}, {3, 7}
+	};
+	//the box is a simple cube.
+	//clip each vert to the near clip plane
+	//insert a replacement vertex for edges that cross the nearclip plane where it crosses
+	//calc the scissor rect from projecting the verts that survived, plus the clipped edge ones.
+	float ncpdist;
+	float dist[8];
+	int sign[8];
+	vec4_t vert[20];
+	vec3_t p[8];
+	int numverts = 0, i, v1, v2;
+	vec4_t v,tv;
+	float frac;
+	float x,x1,x2,y,y1,y2;
+	double z, z1, z2;
+	extern cvar_t gl_mindist;
+
+	r->x = 0;
+	r->y = 0;
+	r->width = vid.pixelwidth;
+	r->height = vid.pixelheight;
+	r->dmin = 0;
+	r->dmax = 1;
+	if (0)//!r_shadow_scissor.integer)
+	{
+		return false;
+	}
+	/*if view is inside the box, then skip this maths*/
+//	if (BoxesOverlap(r_refdef.vieworg, r_refdef.vieworg, mins, maxs))
+//	{
+//		return false;
+//	}
+
+	ncpdist = DotProduct(r_refdef.vieworg, vpn) + gl_mindist.value;
+
+	for (i = 0; i < 8; i++)
+	{
+		p[i][0] = (i & 1) ? mins[0] : maxs[0];
+		p[i][1] = (i & 2) ? mins[1] : maxs[1];
+		p[i][2] = (i & 4) ? mins[2] : maxs[2];
+		dist[i] = ncpdist - DotProduct(p[i], vpn);
+		sign[i] = (dist[i] > 0);
+		if (!sign[i])
+		{
+			VectorCopy(p[i], vert[numverts]);
+			numverts++;
+		}
+	}
+
+	/*fully clipped by near plane*/
+	if (!numverts)
+		return true;
+
+	if (numverts != 8)
+	{
+		/*crosses near clip plane somewhere*/
+		for (i = 0; i < 12; i++)
+		{
+			v1 = edge[i][0];
+			v2 = edge[i][1];
+			if (sign[v1] != sign[v2])
+			{
+				frac = dist[v1] / (dist[v1] - dist[v2]);
+				VectorInterpolate(p[v1], frac, p[v2], vert[numverts]);
+				numverts++;
+			}
+		}
+	}
+	x1 = y1 = z1 = 1;
+	x2 = y2 = z2 = -1;
+	/*transform each vert to get the screen pos*/
+	for (i = 0; i < numverts; i++)
+	{
+		vert[i][3] = 1;
+		Matrix4x4_CM_Transform4(r_refdef.m_view, vert[i], tv); 
+		Matrix4x4_CM_Transform4(r_refdef.m_projection, tv, v);
+
+		x = v[0] / v[3];
+		y = v[1] / v[3];
+		z = (double)v[2] / v[3];
+		if (x < x1) x1 = x;
+		if (x > x2) x2 = x;
+		if (y < y1) y1 = y;
+		if (y > y2) y2 = y;
+		if (z < z1) z1 = z;
+		if (z > z2) z2 = z;
+	}
+	x1 = ((1+x1) * r_refdef.vrect.width * vid.pixelwidth) / (vid.width * 2);
+	x2 = ((1+x2) * r_refdef.vrect.width * vid.pixelwidth) / (vid.width * 2);
+	y1 = ((1+y1) * r_refdef.vrect.height * vid.pixelheight) / (vid.height * 2);
+	y2 = ((1+y2) * r_refdef.vrect.height * vid.pixelheight) / (vid.height * 2);
+	z1 = (1+z1) / 2;
+	z2 = (1+z2) / 2;
+
+	if (x1 < 0)
+		x1 = 0;
+	if (y1 < 0)
+		y1 = 0;
+	if (x2 < 0)
+		x2 = 0;
+	if (y1 > r_refdef.vrect.height * vid.pixelheight / vid.height)
+		y1 = r_refdef.vrect.height * vid.pixelheight / vid.height;
+	if (y2 > r_refdef.vrect.height * vid.pixelheight / vid.height)
+		y2 = r_refdef.vrect.height * vid.pixelheight / vid.height;
+	r->x = floor(x1);
+	r->y = floor(y1);
+	r->width  = ceil(x2) - r->x;
+	r->height = ceil(y2) - r->y;
+
+	r->x += r_refdef.vrect.x;
+	r->y += r_refdef.vrect.y;
+	r->dmin = z1;
+	r->dmax = z2;
+	return false;
+}
+
+#if 0
+static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs, vrect_t *r)
 {
 	int i, ix1, iy1, ix2, iy2;
 	float x1, y1, x2, y2, x, y, f;
 	vec3_t smins, smaxs;
 	vec4_t v, v2;
-	int r_view_x = 0;
-	int r_view_y = 0;
-	int r_view_width = vid.pixelwidth;
-	int r_view_height = vid.pixelheight;
+
+	r->x = 0;
+	r->y = 0;
+	r->width = vid.pixelwidth;
+	r->height = vid.pixelheight;
 	if (0)//!r_shadow_scissor.integer)
 	{
-		Sh_Scissor(r_view_x, r_view_y, r_view_width, r_view_height);
 		return false;
 	}
-	// if view is inside the box, just say yes it's visible
+	// if view is inside the box, just say yes it's fully visible
 	if (BoxesOverlap(r_refdef.vieworg, r_refdef.vieworg, mins, maxs))
 	{
-		Sh_Scissor(r_view_x, r_view_y, r_view_width, r_view_height);
 		return false;
 	}
 	for (i = 0;i < 3;i++)
@@ -1070,11 +1262,10 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs)
 			v2[i] = mins[i];
 		}
 	}
-	f = DotProduct(vpn, r_refdef.vieworg) + 1;
+	f = DotProduct(vpn, r_refdef.vieworg);
 	if (DotProduct(vpn, v2) <= f)
 	{
-		// entirely behind nearclip plane
-		Sh_Scissor(r_view_x, r_view_y, r_view_width, r_view_height);
+		// entirely behind nearclip plane, entirely obscured
 		return true;
 	}
 	if (DotProduct(vpn, v) >= f)
@@ -1088,8 +1279,8 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs)
 			v[2] = (i & 4) ? mins[2] : maxs[2];
 			v[3] = 1.0f;
 			Matrix4x4_CM_Project(v, v2, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y);
-			v2[0]*=r_view_width;
-			v2[1]*=r_view_height;
+			v2[0]*=vid.pixelwidth;
+			v2[1]*=vid.pixelheight;
 //			GL_TransformToScreen(v, v2);
 			//Con_Printf("%.3f %.3f %.3f %.3f transformed to %.3f %.3f %.3f %.3f\n", v[0], v[1], v[2], v[3], v2[0], v2[1], v2[2], v2[3]);
 			x = v2[0];
@@ -1160,8 +1351,8 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs)
 			v[2] = v2[0] * vright[2] + v2[1] * vup[2] + v2[2] * vpn[2] + r_refdef.vieworg[2];
 			v[3] = 1.0f;
 			Matrix4x4_CM_Project(v, v2, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y);
-			v2[0]*=r_view_width;
-			v2[1]*=r_view_height;
+			v2[0]*=vid.pixelwidth;
+			v2[1]*=vid.pixelheight;
 			//Con_Printf("%.3f %.3f %.3f %.3f transformed to %.3f %.3f %.3f %.3f\n", v[0], v[1], v[2], v[3], v2[0], v2[1], v2[2], v2[3]);
 			x = v2[0];
 			y = v2[1];
@@ -1189,8 +1380,8 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs)
 			v[2] = (i & 4) ? mins[2] : maxs[2];
 			v[3] = 1.0f;
 			Matrix4x4_CM_Project(v, v2, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y);
-			v2[0]*=r_view_width;
-			v2[1]*=r_view_height;
+			v2[0]*=vid.pixelwidth;
+			v2[1]*=vid.pixelheight;
 			//Con_Printf("%.3f %.3f %.3f %.3f transformed to %.3f %.3f %.3f %.3f\n", v[0], v[1], v[2], v[3], v2[0], v2[1], v2[2], v2[3]);
 			if (v2[2] > 0)
 			{
@@ -1210,17 +1401,21 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs)
 	ix2 = x2 + 1.0f;
 	iy2 = y2 + 1.0f;
 	//Con_Printf("%f %f %f %f\n", x1, y1, x2, y2);
-	if (ix1 < r_view_x) ix1 = r_view_x;
-	if (iy1 < r_view_y) iy1 = r_view_y;
-	if (ix2 > r_view_x + r_view_width) ix2 = r_view_x + r_view_width;
-	if (iy2 > r_view_y + r_view_height) iy2 = r_view_y + r_view_height;
+	if (ix1 < r->x) ix1 = r->x;
+	if (iy1 < r->y) iy1 = r->y;
+	if (ix2 > r->x + r->width) ix2 = r->x + r->width;
+	if (iy2 > r->y + r->height) iy2 = r->y + r->height;
 	if (ix2 <= ix1 || iy2 <= iy1)
 		return true;
 	// set up the scissor rectangle
-	qglScissor(ix1, iy1, ix2 - ix1, iy2 - iy1);
-//	qglEnable(GL_SCISSOR_TEST);
+	
+	r->x = ix1;
+	r->y = iy1;
+	r->width = ix2 - ix1;
+	r->height = iy2 - iy1;
 	return false;
 }
+#endif
 
 
 void GL_BeginRenderBuffer_DepthOnly(texid_t depthtexture)
@@ -1376,7 +1571,7 @@ void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
 
 	if (!TEXVALID(l->stexture))
 	{
-		l->stexture = GL_AllocNewTexture(smsize, smsize);
+		l->stexture = GL_AllocNewTexture("***shadowmap***", smsize, smsize);
 
 		GL_MTBind(0, GL_TEXTURE_2D, l->stexture);
 		qglTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32_ARB, smsize, smsize, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
@@ -1453,6 +1648,7 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 	vec3_t mins, maxs;
 	qbyte *lvis;
 	qbyte	lvisb[MAX_MAP_LEAFS/8];
+	srect_t rect;
 
 	if (R_CullSphere(l->origin, l->radius))
 	{
@@ -1468,7 +1664,7 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 	maxs[1] = l->origin[1] + l->radius;
 	maxs[2] = l->origin[2] + l->radius;
 
-	if (Sh_ScissorForBox(mins, maxs))
+	if (Sh_ScissorForBox(mins, maxs, &rect))
 	{
 		bench.numscissorculled++;
 		return;
@@ -1528,6 +1724,9 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 
 	bench.numlights++;
 
+	Sh_Scissor(rect);
+	qglEnable(GL_STENCIL_TEST);
+
 	qglMatrixMode(GL_TEXTURE);
 	GL_MTBind(7, GL_TEXTURE_2D, l->stexture);
 
@@ -1542,7 +1741,7 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 
 	ve = 0;
 
-	BE_SelectDLight(l, colour);
+	GLBE_SelectDLight(l, colour);
 	BE_SelectMode(l->fov?BEM_SMAPLIGHTSPOT:BEM_SMAPLIGHT);
 	Sh_DrawEntLighting(l, colour);
 
@@ -1618,8 +1817,8 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 
 #define PROJECTION_DISTANCE (float)(dl->radius*2)//0x7fffffff
 /*Fixme: this is brute forced*/
-#ifdef _MSC_VER
-#pragma message("brush shadows are bruteforced")
+#ifdef warningmsg
+#pragma warningmsg("brush shadows are bruteforced")
 #endif
 static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 {
@@ -1801,6 +2000,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	int sincrw;
 	int leaf;
 	qbyte *lvis;
+	srect_t rect;
 
 	qbyte	lvisb[MAX_MAP_LEAFS/8];
 
@@ -1844,19 +2044,20 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	}
 
 	//sets up the gl scissor (and culls to view)
-	if (Sh_ScissorForBox(mins, maxs))
+	if (Sh_ScissorForBox(mins, maxs, &rect))
 	{
 		bench.numscissorculled++;
 		return false;	//this doesn't cull often.
 	}
 	bench.numlights++;
 
-	BE_SelectDLight(dl, colour);
+	GLBE_SelectDLight(dl, colour);
 	BE_SelectMode(BEM_STENCIL);
 
 	//The backend doesn't maintain scissor state.
-	//qglEnable(GL_SCISSOR_TEST);
 	//The backend doesn't maintain stencil test state either - it needs to be active for more than just stencils, or disabled. its awkward.
+	Sh_Scissor(rect);
+	qglEnable(GL_SCISSOR_TEST);
 	qglEnable(GL_STENCIL_TEST);
 
 	//FIXME: is it practical to test to see if scissors allow not clearing the stencil buffer?
@@ -1998,6 +2199,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 {
 	vec3_t mins, maxs;
+	srect_t rect;
 
 	if (R_CullSphere(dl->origin, dl->radius))
 	{
@@ -2041,16 +2243,19 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	maxs[2] = dl->origin[2] + dl->radius;
 
 
-//sets up the gl scissor (and culls to view)
-	if (Sh_ScissorForBox(mins, maxs))
+//sets up the gl scissor (actually just culls to view)
+	if (Sh_ScissorForBox(mins, maxs, &rect))
 	{
 		bench.numscissorculled++;
 		return;	//was culled.
 	}
+	qglDisable(GL_SCISSOR_TEST);
+	if (qglDepthBoundsEXT)
+		qglDisable(GL_DEPTH_BOUNDS_TEST_EXT);
 
 	bench.numlights++;
 
-	BE_SelectDLight(dl, colour);
+	GLBE_SelectDLight(dl, colour);
 	BE_SelectMode(BEM_LIGHT);
 	Sh_DrawEntLighting(dl, colour);
 }
@@ -2142,6 +2347,8 @@ void Sh_DrawLights(qbyte *vis)
 	}
 
 	qglDisable(GL_SCISSOR_TEST);
+	if (qglDepthBoundsEXT)
+		qglDisable(GL_DEPTH_BOUNDS_TEST_EXT);
 	BE_SelectMode(BEM_STANDARD);
 
 //	if (developer.value)

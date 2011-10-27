@@ -49,12 +49,13 @@ cvar_t	sv_antilag			= CVARFD("sv_antilag", "1", CVAR_SERVERINFO, "Attempt to bac
 cvar_t	sv_antilag_frac		= CVARF("sv_antilag_frac", "1", CVAR_SERVERINFO);
 cvar_t	sv_cheatpc				= CVAR("sv_cheatpc", "125");
 cvar_t	sv_cheatspeedchecktime	= CVAR("sv_cheatspeedchecktime", "30");
-cvar_t	sv_playermodelchecks	= CVAR("sv_playermodelchecks", "1");
+cvar_t	sv_playermodelchecks	= CVAR("sv_playermodelchecks", "0");
 
 cvar_t	sv_cmdlikercon	= SCVAR("sv_cmdlikercon", "0");	//set to 1 to allow a password of username:password instead of the correct rcon password.
 cvar_t cmd_allowaccess	= SCVAR("cmd_allowaccess", "0");	//set to 1 to allow cmd to execute console commands on the server.
 cvar_t cmd_gamecodelevel	= SCVAR("cmd_gamecodelevel", "50");	//execution level which gamecode is told about (for unrecognised commands)
 
+cvar_t	sv_pure	= CVARFD("sv_pure", "", CVAR_SERVERINFO, "The most evil cvar in the world.");
 cvar_t	sv_nomsec	= CVARD("sv_nomsec", "0", "Ignore client msec times, runs using NQ physics instead.");
 cvar_t	sv_edgefriction	= CVARAF("sv_edgefriction", "2",
 								 "edgefriction", 0);
@@ -377,15 +378,13 @@ void SV_New_f (void)
 	// send server info string
 	if (sv.demostatevalid)
 	{
-		ClientReliableCheckBlock(host_client, 20 + strlen(sv.demoinfo));
-		ClientReliableWrite_Byte (host_client, svc_stufftext);
+		ClientReliableWrite_Begin(host_client, svc_stufftext, 20 + strlen(sv.demoinfo));
 		ClientReliableWrite_String (host_client, va("fullserverinfo \"%s\"\n", sv.demoinfo) );
 	}
 	else
 #endif
 	{
-		ClientReliableCheckBlock(host_client, 20 + strlen(svs.info));
-		ClientReliableWrite_Byte (host_client, svc_stufftext);
+		ClientReliableWrite_Begin(host_client, svc_stufftext, 20 + strlen(svs.info));
 		ClientReliableWrite_String (host_client, va("fullserverinfo \"%s\"\n", svs.info) );
 	}
 
@@ -395,9 +394,7 @@ void SV_New_f (void)
 	SV_CheckRealIP(host_client, false);
 
 	// send music
-	ClientReliableCheckBlock(host_client, 2);
-
-	ClientReliableWrite_Byte (host_client, svc_cdtrack);
+	ClientReliableWrite_Begin(host_client, svc_cdtrack, 2);
 	if (progstype == PROG_H2)
 		ClientReliableWrite_Byte (host_client, sv.h2cdtrack);
 	else if (svprogfuncs)
@@ -406,7 +403,26 @@ void SV_New_f (void)
 		ClientReliableWrite_Byte (host_client, 0);
 
 	SV_LogPlayer(host_client, "new (QW)");
+
+
+
+	{
+		char buffer[1024];
+
+		FS_GetPackNames(buffer, sizeof(buffer), false, true); /*retain extensions, or we'd have to assume pk3*/
+		ClientReliableWrite_Begin(host_client, svc_stufftext, 1+11+strlen(buffer)+1+1);
+		ClientReliableWrite_SZ(host_client, "//paknames ", 11);
+		ClientReliableWrite_SZ(host_client, buffer, strlen(buffer));
+		ClientReliableWrite_String(host_client, "\n");
+
+		FS_GetPackHashes(buffer, sizeof(buffer), false);
+		ClientReliableWrite_Begin(host_client, svc_stufftext, 1+7+strlen(buffer)+1+1);
+		ClientReliableWrite_SZ(host_client, "//paks ", 7);
+		ClientReliableWrite_SZ(host_client, buffer, strlen(buffer));
+		ClientReliableWrite_String(host_client, "\n");
+	}
 }
+
 #define GAME_DEATHMATCH 0
 #define GAME_COOP 1
 void SVNQ_New_f (void)
@@ -476,8 +492,30 @@ void SVNQ_New_f (void)
 	{
 #ifdef NQPROT
 	case SCP_NETQUAKE:
+	case SCP_FITZ666:
 		SV_LogPlayer(host_client, "new (NQ)");
-		MSG_WriteLong (&host_client->netchan.message, NQ_PROTOCOL_VERSION);
+		if (sv.nqdatagram.prim.anglesize != 1 || sv.nqdatagram.prim.coordsize != 2)
+		{
+			int rmqfl =
+					((sv.nqdatagram.prim.coordsize==4)?RMQFL_FLOATCOORD:0) |
+					((sv.nqdatagram.prim.anglesize==2)?RMQFL_SHORTANGLE:0);
+			host_client->protocol = SCP_FITZ666; /*mneh, close enough, the rmq stuff is just modifiers*/
+
+			if (rmqfl)
+			{
+				MSG_WriteLong (&host_client->netchan.message, RMQ_PROTOCOL_VERSION);
+				MSG_WriteLong (&host_client->netchan.message, rmqfl);
+			}
+			else
+			{
+				MSG_WriteLong (&host_client->netchan.message, FITZ_PROTOCOL_VERSION);
+			}
+		}
+		else
+		{
+			host_client->protocol = SCP_NETQUAKE;
+			MSG_WriteLong (&host_client->netchan.message, NQ_PROTOCOL_VERSION);
+		}
 		MSG_WriteByte (&host_client->netchan.message, (sv.allocated_client_slots>16)?16:sv.allocated_client_slots);
 		break;
 	case SCP_DARKPLACES6:
@@ -974,6 +1012,7 @@ void SV_Modellist_f (void)
 {
 	unsigned int i;
 	unsigned int n;
+	qboolean initial;
 
 	if (host_client->state != cs_connected)
 	{
@@ -999,40 +1038,6 @@ void SV_Modellist_f (void)
 		return;
 	}
 
-	if (n == 0 && (host_client->zquake_extensions & Z_EXT_VWEP))
-	{
-		char mname[MAX_QPATH];
-		char vweaplist[1024] = "//vwep";
-		//int pos = strlen(vweaplist); // warning: unused variable ‘pos’
-
-		for (i = 0; sv.strings.vw_model_precache[i]; i++)
-		{
-			//grab the model name... without a progs/ prefix if it has one
-			if (!strncmp(sv.strings.vw_model_precache[i], "progs/", 6))
-				Q_strncpy(mname, sv.strings.vw_model_precache[i]+6, sizeof(mname));
-			else
-				Q_strncpy(mname, sv.strings.vw_model_precache[i], sizeof(mname));
-
-			//strip .mdl extensions
-			if (!strcmp(COM_FileExtension(mname), "mdl"))
-				COM_StripExtension(mname, mname, sizeof(mname));
-
-			//add it to the vweap command, taking care of any remaining spaces in names.
-			if (strchr(mname, ' '))
-				Q_strncatz(vweaplist, va(" \"%s\"", mname), sizeof(vweaplist));
-			else
-				Q_strncatz(vweaplist, va(" %s", mname), sizeof(vweaplist));
-		}
-
-		if (strlen(vweaplist) <= sizeof(vweaplist)-2)
-		{
-			Q_strncatz(vweaplist, "\n", sizeof(vweaplist));
-
-			ClientReliableWrite_Begin(host_client, svc_stufftext, 2+strlen(vweaplist));
-			ClientReliableWrite_String(host_client, vweaplist);
-		}
-	}
-
 //NOTE:  This doesn't go through ClientReliableWrite since it's before the user
 //spawns.  These functions are written to not overflow
 	if (host_client->num_backbuf)
@@ -1043,6 +1048,8 @@ void SV_Modellist_f (void)
 		ClientReliableWrite_String(host_client, msg);
 		return;
 	}
+
+	initial = (n==0);
 
 #ifdef PEXT_MODELDBL
 	if (n > 255)
@@ -1056,12 +1063,6 @@ void SV_Modellist_f (void)
 		MSG_WriteByte (&host_client->netchan.message, svc_modellist);
 		MSG_WriteByte (&host_client->netchan.message, n);
 	}
-
-	host_client->maxmodels = 256;
-#ifdef PEXT_MODELDBL
-	if (host_client->fteprotocolextensions & PEXT_MODELDBL)
-		host_client->maxmodels = MAX_MODELS;
-#endif
 
 #ifdef SERVER_DEMO_PLAYBACK
 	if (sv.democausesreconnect)	//read the list from somewhere else
@@ -1096,6 +1097,41 @@ void SV_Modellist_f (void)
 
 	// next msg
 	MSG_WriteByte (&host_client->netchan.message, n & 0xff);
+
+
+	if (initial && (host_client->zquake_extensions & Z_EXT_VWEP))
+	{
+		char mname[MAX_QPATH];
+		char vweaplist[1024] = "//vwep";
+		//int pos = strlen(vweaplist); // warning: unused variable ‘pos’
+
+		for (i = 0; sv.strings.vw_model_precache[i]; i++)
+		{
+			//grab the model name... without a progs/ prefix if it has one
+			if (!strncmp(sv.strings.vw_model_precache[i], "progs/", 6))
+				Q_strncpy(mname, sv.strings.vw_model_precache[i]+6, sizeof(mname));
+			else
+				Q_strncpy(mname, sv.strings.vw_model_precache[i], sizeof(mname));
+
+			//strip .mdl extensions
+			if (!strcmp(COM_FileExtension(mname), "mdl"))
+				COM_StripExtension(mname, mname, sizeof(mname));
+
+			//add it to the vweap command, taking care of any remaining spaces in names.
+			if (strchr(mname, ' '))
+				Q_strncatz(vweaplist, va(" \"%s\"", mname), sizeof(vweaplist));
+			else
+				Q_strncatz(vweaplist, va(" %s", mname), sizeof(vweaplist));
+		}
+
+		if (strlen(vweaplist) <= sizeof(vweaplist)-2)
+		{
+			Q_strncatz(vweaplist, "\n", sizeof(vweaplist));
+
+			ClientReliableWrite_Begin(host_client, svc_stufftext, 2+strlen(vweaplist));
+			ClientReliableWrite_String(host_client, vweaplist);
+		}
+	}
 }
 
 /*
@@ -1103,7 +1139,7 @@ void SV_Modellist_f (void)
 SV_PreSpawn_f
 ==================
 */
-void SV_PreSpawn_f (void)
+void SVQW_PreSpawn_f (void)
 {
 	unsigned	buf, bufs;
 	unsigned	check;
@@ -1261,6 +1297,10 @@ void SV_PreSpawn_f (void)
 					MSG_WriteCoord(&host_client->netchan.message, 0);
 					MSG_WriteAngle(&host_client->netchan.message, 0);
 				}
+			}
+			else if (state->number >= host_client->max_net_ents || state->modelindex >= host_client->maxmodels)
+			{
+				/*can't send this ent*/
 			}
 			else if (host_client->fteprotocolextensions & PEXT_SPAWNSTATIC2)
 			{
@@ -1594,8 +1634,8 @@ void SV_Begin_Core(client_t *split)
 				// copy spawn parms out of the client_t
 				for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
 				{
-					if (spawnparamglobals[i])
-						*spawnparamglobals[i] = split->spawn_parms[i];
+					if (pr_global_ptrs->spawnparamglobals[i])
+						*pr_global_ptrs->spawnparamglobals[i] = split->spawn_parms[i];
 				}
 
 				// call the spawn function
@@ -1625,8 +1665,8 @@ void SV_Begin_Core(client_t *split)
 						eval2->_float = 1;
 					for (j=0 ; j< NUM_SPAWN_PARMS ; j++)
 					{
-						if (spawnparamglobals[j])
-							*spawnparamglobals[j] = split->spawn_parms[j];
+						if (pr_global_ptrs->spawnparamglobals[j])
+							*pr_global_ptrs->spawnparamglobals[j] = split->spawn_parms[j];
 					}
 					pr_global_struct->time = sv.world.physicstime;
 					pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
@@ -1638,8 +1678,8 @@ void SV_Begin_Core(client_t *split)
 					// copy spawn parms out of the client_t
 					for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
 					{
-						if (spawnparamglobals[i])
-							*spawnparamglobals[i] = split->spawn_parms[i];
+						if (pr_global_ptrs->spawnparamglobals[i])
+							*pr_global_ptrs->spawnparamglobals[i] = split->spawn_parms[i];
 					}
 
 					// call the spawn function
@@ -2411,7 +2451,7 @@ qboolean SV_AllowDownload (const char *name)
 	extern	cvar_t	allow_download_demos;
 	extern	cvar_t	allow_download_maps;
 	extern	cvar_t	allow_download_textures;
-	extern	cvar_t	allow_download_pk3s;
+	extern	cvar_t	allow_download_packages;
 	extern	cvar_t	allow_download_wads;
 	extern	cvar_t	allow_download_root;
 	extern	cvar_t	allow_download_configs;
@@ -2429,6 +2469,17 @@ qboolean SV_AllowDownload (const char *name)
 		return false;
 	if (strchr(name, '\\'))	//no windows paths - grow up lame windows users.
 		return false;
+
+	if (!strncmp(name, "package/", 8))
+	{
+		if (!strcmp("pk4", COM_FileExtension(name)) || !strcmp("pk3", COM_FileExtension(name)) || !strcmp("pak", COM_FileExtension(name)))
+		{
+			/*do not permit 'id1/pak1.pak' or 'baseq3/pak0.pk3' or any similarly named packages. such packages would violate copyright, and must be obtained through other means (like buying the damn game)*/
+			//if (!strstr(name, "/pak"))
+				return !!allow_download_packages.value;
+		}
+		return false;
+	}
 
 	if (strncmp(name,	"maps/", 5) == 0)
 		return !!allow_download_maps.value;
@@ -2457,10 +2508,10 @@ qboolean SV_AllowDownload (const char *name)
 	if (!strcmp("wad", COM_FileExtension(name)))
 		return !!allow_download_wads.value;
 
-	//pk3s.
-	if (!strcmp("pk3", COM_FileExtension(name)) || !strcmp("pak", COM_FileExtension(name)))
+	//pak/pk3s.
+	if (!strcmp("pk4", COM_FileExtension(name)) || !strcmp("pk3", COM_FileExtension(name)) || !strcmp("pak", COM_FileExtension(name)))
 		if (strnicmp(name, "pak", 3))	//don't give out q3 pk3 files.
-			return !!allow_download_pk3s.value;
+			return !!allow_download_packages.value;
 
 	if (!strcmp("cfg", COM_FileExtension(name)))
 		return !!allow_download_configs.value;
@@ -2494,6 +2545,8 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 			*p = (char)tolower(*p);
 	}
 
+	
+
 	if (!SV_AllowDownload(name))
 		return -2;	//not permitted (even if it exists).
 
@@ -2519,7 +2572,19 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 	if (!strncmp(name, "demos/", 6))
 		name = va("%s/%s", sv_demoDir.string, name+6);
 
-	found = FS_FLocateFile(name, FSLFRT_IFFOUND, loc);
+	if (!strncmp(name, "package/", 8))
+	{
+		vfsfile_t *f;
+		f = FS_OpenVFS(name+8, "rb", FS_ROOT);
+		if (f)
+		{
+			VFS_CLOSE(f);
+			return -5;	//found package
+		}
+		return -1;	//not found
+	}
+	else
+		found = FS_FLocateFile(name, FSLFRT_IFFOUND, loc);
 
 	//nexuiz names certain files as .wav but they're really .ogg on disk.
 	if (!found && replacementname)
@@ -2604,23 +2669,24 @@ void SV_DownloadSize_f(void)
 
 	switch(SV_LocateDownload(name, &loc, &redirected, true))
 	{
-	case -4:
+	case -4: /*redirect*/
 		name = va("dlsize \"%s\" r \"%s\"\n", name, redirected);
 		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
 		ClientReliableWrite_String (host_client, name);
 		break;
 	default:
-	case -1:
+	case -1: /*not found*/
 		name = va("dlsize \"%s\" e\n", name);
 		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
 		ClientReliableWrite_String (host_client, name);
 		break;
-	case -2:
+	case -2: /*permission*/
 		name = va("dlsize \"%s\" p\n", name);
 		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
 		ClientReliableWrite_String (host_client, name);
 		break;
-	case 0:
+	case -5: /*package*/
+	case 0: /*exists*/
 		name = va("dlsize \"%s\" %u\n", name, loc.len);
 		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
 		ClientReliableWrite_String (host_client, name);
@@ -2648,26 +2714,36 @@ void SV_BeginDownload_f(void)
 		return;
 	}
 
-	result = SV_LocateDownload(name, &loc, &redirection, false);
-
 	*host_client->downloadfn = 0;
+
 	if (host_client->download)
 	{
 		VFS_CLOSE (host_client->download);
 		host_client->download = NULL;
 	}
 
-	//redirection protocol-specific code goes here.
-	if (result == -4)
+	result = SV_LocateDownload(name, &loc, &redirection, false);
+
+	if (result == -5)
 	{
+		result = 0;
+		host_client->download = FS_OpenVFS(name+8, "rb", FS_ROOT);
+	}
+	else
+	{
+		//redirection protocol-specific code goes here.
+		if (result == -4)
+		{
+		}
+
+		if (result == 0)
+		{	//if we are allowed and could find it
+			host_client->download = FS_OpenReadLocation(&loc);
+		}
 	}
 
-	if (result == 0)
-	{	//if we are allowed and could find it
-		host_client->download = FS_OpenReadLocation(&loc);
-		if (!host_client->download)
-			result = -1;	//this isn't likely, but hey.
-	}
+	if (!host_client->download)
+		result = -1;	//this isn't likely, but hey.
 
 	//handle errors
 	if (result != 0)
@@ -3353,7 +3429,8 @@ void SV_Rate_f (void)
 		return;
 	}
 
-	host_client->rate = atoi(Cmd_Argv(1));
+	Info_SetValueForKey (host_client->userinfo, "rate", Cmd_Argv(1), sizeof(host_client->userinfo));
+	SV_ExtractFromUserinfo (host_client);
 
 	SV_ClientTPrintf (host_client, PRINT_HIGH, STL_RATESETTO, SV_RateForClient(host_client));
 }
@@ -4003,12 +4080,12 @@ void Cmd_Join_f (void)
 	// FIXME, bump the client's userid?
 
 	// call the progs to get default spawn parms for the new client
-	if (pr_nqglobal_struct->SetNewParms)
+	if (pr_global_ptrs->SetNewParms)
 		PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
 	for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
 	{
-		if (spawnparamglobals[i])
-			host_client->spawn_parms[i] = *spawnparamglobals[i];
+		if (pr_global_ptrs->spawnparamglobals[i])
+			host_client->spawn_parms[i] = *pr_global_ptrs->spawnparamglobals[i];
 		else
 			host_client->spawn_parms[i] = 0;
 	}
@@ -4095,12 +4172,12 @@ void Cmd_Observe_f (void)
 	// FIXME, bump the client's userid?
 
 	// call the progs to get default spawn parms for the new client
-	if (pr_nqglobal_struct->SetNewParms)
+	if (pr_global_ptrs->SetNewParms)
 		PR_ExecuteProgram (svprogfuncs, pr_global_struct->SetNewParms);
 	for (i=0 ; i<NUM_SPAWN_PARMS ; i++)
 	{
-		if (spawnparamglobals[i])
-			host_client->spawn_parms[i] = *spawnparamglobals[i];
+		if (pr_global_ptrs->spawnparamglobals[i])
+			host_client->spawn_parms[i] = *pr_global_ptrs->spawnparamglobals[i];
 		else
 			host_client->spawn_parms[i] = 0;
 	}
@@ -4333,8 +4410,8 @@ void SVNQ_Begin_f (void)
 				// copy spawn parms out of the client_t
 				for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
 				{
-					if (spawnparamglobals[i])
-						*spawnparamglobals[i] = host_client->spawn_parms[i];
+					if (pr_global_ptrs->spawnparamglobals[i])
+						*pr_global_ptrs->spawnparamglobals[i] = host_client->spawn_parms[i];
 				}
 
 				// call the spawn function
@@ -4348,8 +4425,8 @@ void SVNQ_Begin_f (void)
 			// copy spawn parms out of the client_t
 			for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
 			{
-				if (spawnparamglobals[i])
-					*spawnparamglobals[i] = host_client->spawn_parms[i];
+				if (pr_global_ptrs->spawnparamglobals[i])
+					*pr_global_ptrs->spawnparamglobals[i] = host_client->spawn_parms[i];
 			}
 
 			// call the spawn function
@@ -4423,76 +4500,110 @@ void SVNQ_PreSpawn_f (void)
 	edict_t *ent;
 	entity_state_t *state;
 	int i, e;
+	int buf = atoi(Cmd_Argv(1));
+	int st;
 	if (host_client->state != cs_connected)
 	{
 		Con_Printf ("prespawn not valid -- already spawned\n");
 		return;
 	}
 
-	for (e = 1; e < sv.world.num_edicts && e < host_client->max_net_ents; e++)
+	st = 0;
+	if (buf >= st)
 	{
-		ent = EDICT_NUM(svprogfuncs, e);
-		state = &ent->baseline;
-
-		if (!state->number || !state->modelindex)
-		{	//ent doesn't have a baseline
-			continue;
-		}
-
-		if (!ent)
+		while (host_client->netchan.message.cursize < (host_client->netchan.message.maxsize/2))	//baselines
 		{
-			MSG_WriteByte(&host_client->netchan.message, svc_spawnbaseline);
-
-			MSG_WriteShort (&host_client->netchan.message, e);
-
-			MSG_WriteByte (&host_client->netchan.message, 0);
-
-			MSG_WriteByte (&host_client->netchan.message, 0);
-			MSG_WriteByte (&host_client->netchan.message, 0);
-			MSG_WriteByte (&host_client->netchan.message, 0);
-			for (i=0 ; i<3 ; i++)
+			e = buf-st;
+			if (e >= sv.world.num_edicts)
 			{
-				MSG_WriteCoord(&host_client->netchan.message, 0);
-				MSG_WriteAngle(&host_client->netchan.message, 0);
+				if (e < sv.world.max_edicts)
+					buf += sv.world.max_edicts - sv.world.num_edicts;
+				break;
 			}
-		}
-		else
-		{
-			if (ISDPCLIENT(host_client) && (state->modelindex > 255 || state->frame > 255))
-			{
-				MSG_WriteByte(&host_client->netchan.message, svcdp_spawnbaseline2);
+			buf++;
 
-				MSG_WriteShort (&host_client->netchan.message, e);
+			ent = EDICT_NUM(svprogfuncs, e);
+			state = &ent->baseline;
 
-				MSG_WriteShort (&host_client->netchan.message, state->modelindex);
-				MSG_WriteShort (&host_client->netchan.message, state->frame);
+			if (!state->number || !state->modelindex)
+			{	//ent doesn't have a baseline
+				continue;
 			}
-			else
+
+			if (!ent)
 			{
 				MSG_WriteByte(&host_client->netchan.message, svc_spawnbaseline);
 
 				MSG_WriteShort (&host_client->netchan.message, e);
 
-				MSG_WriteByte (&host_client->netchan.message, state->modelindex&255);
-				MSG_WriteByte (&host_client->netchan.message, state->frame&255);
-			}
+				MSG_WriteByte (&host_client->netchan.message, 0);
 
-			MSG_WriteByte (&host_client->netchan.message, (int)state->colormap);
-			MSG_WriteByte (&host_client->netchan.message, (int)state->skinnum);
-			for (i=0 ; i<3 ; i++)
+				MSG_WriteByte (&host_client->netchan.message, 0);
+				MSG_WriteByte (&host_client->netchan.message, 0);
+				MSG_WriteByte (&host_client->netchan.message, 0);
+				for (i=0 ; i<3 ; i++)
+				{
+					MSG_WriteCoord(&host_client->netchan.message, 0);
+					MSG_WriteAngle(&host_client->netchan.message, 0);
+				}
+			}
+			else
 			{
-				MSG_WriteCoord(&host_client->netchan.message, state->origin[i]);
-				MSG_WriteAngle(&host_client->netchan.message, state->angles[i]);
+				if (ISDPCLIENT(host_client) && (state->modelindex > 255 || state->frame > 255))
+				{
+					MSG_WriteByte(&host_client->netchan.message, svcdp_spawnbaseline2);
+
+					MSG_WriteShort (&host_client->netchan.message, e);
+
+					MSG_WriteShort (&host_client->netchan.message, state->modelindex);
+					MSG_WriteShort (&host_client->netchan.message, state->frame);
+				}
+				else
+				{
+					MSG_WriteByte(&host_client->netchan.message, svc_spawnbaseline);
+
+					MSG_WriteShort (&host_client->netchan.message, e);
+
+					MSG_WriteByte (&host_client->netchan.message, state->modelindex&255);
+					MSG_WriteByte (&host_client->netchan.message, state->frame&255);
+				}
+
+				MSG_WriteByte (&host_client->netchan.message, (int)state->colormap);
+				MSG_WriteByte (&host_client->netchan.message, (int)state->skinnum);
+				for (i=0 ; i<3 ; i++)
+				{
+					MSG_WriteCoord(&host_client->netchan.message, state->origin[i]);
+					MSG_WriteAngle(&host_client->netchan.message, state->angles[i]);
+				}
 			}
 		}
 	}
+	st += sv.world.max_edicts;
 
-	for (i = 0; i < sv.num_signon_buffers; i++)
-		SZ_Write (&host_client->netchan.message, sv.signon_buffers[i], sv.signon_buffer_size[i]);
+	if (buf >= st)
+	{
+		while (host_client->netchan.message.cursize < (host_client->netchan.message.maxsize/2))
+		{
+			i = buf-st;
+			if (i >= sv.num_signon_buffers)
+				break;
+			buf++;
+			SZ_Write (&host_client->netchan.message, sv.signon_buffers[i], sv.signon_buffer_size[i]);
+		}
+	}
+	st += sv.num_signon_buffers;
 
-	MSG_WriteByte (&host_client->netchan.message, svc_signonnum);
-	MSG_WriteByte (&host_client->netchan.message, 2);
-
+	if (st == buf)
+	{
+		MSG_WriteByte (&host_client->netchan.message, svc_signonnum);
+		MSG_WriteByte (&host_client->netchan.message, 2);
+	}
+	else
+	{
+		char *s = va("cmd prespawn %i\n", buf);
+		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(s));
+		ClientReliableWrite_String (host_client, s);
+	}
 
 	host_client->send_message = true;
 }
@@ -4674,7 +4785,7 @@ ucmd_t ucmds[] =
 	{"pk3list",	SV_PK3List_f, true},
 	{"modellist", SV_Modellist_f, true},
 	{"soundlist", SV_Soundlist_f, true},
-	{"prespawn", SV_PreSpawn_f, true},
+	{"prespawn", SVQW_PreSpawn_f, true},
 	{"spawn", SV_Spawn_f, true},
 	{"begin", SV_Begin_f, true},
 
@@ -4778,7 +4889,7 @@ ucmd_t nqucmds[] =
 	{"god",			Cmd_God_f},
 	{"give",		Cmd_Give_f},
 	{"notarget",	Cmd_Notarget_f},
-	{"fly",			NULL},
+	{"fly",			Cmd_Fly_f},
 	{"noclip",		Cmd_Noclip_f},
 	{"pings",		SV_Pings_f},
 
@@ -4798,10 +4909,11 @@ ucmd_t nqucmds[] =
 	{"ban",			NULL},
 	{"vote",		SV_Vote_f},
 
+	{"dlsize",		SV_DownloadSize_f},
 	{"download",	SV_BeginDownload_f},
 	{"sv_startdownload",	SVDP_StartDownload_f},
 
-	{"setinfo", SV_SetInfo_f},
+	{"setinfo",		SV_SetInfo_f},
 	{"playermodel",	NULL},
 	{"playerskin",	NULL},
 	{"rate",		SV_Rate_f},
@@ -4810,13 +4922,14 @@ ucmd_t nqucmds[] =
 	{"topten",		Rank_ListTop10_f},
 #endif
 
-	{"pext",        SV_Pext_f},
-
+	{"pext",		SV_Pext_f},
+	{"enablecsqc",	SV_EnableClientsCSQC},
+	{"disablecsqc",	SV_DisableClientsCSQC},
 #ifdef VOICECHAT
-	{"voicetarg", SV_Voice_Target_f},
-	{"vignore", SV_Voice_Ignore_f},	/*ignore/mute specific player*/
-	{"muteall", SV_Voice_MuteAll_f},	/*disables*/
-	{"unmuteall", SV_Voice_UnmuteAll_f}, /*reenables*/
+	{"voicetarg",	SV_Voice_Target_f},
+	{"vignore",		SV_Voice_Ignore_f},	/*ignore/mute specific player*/
+	{"muteall",		SV_Voice_MuteAll_f},	/*disables*/
+	{"unmuteall",	SV_Voice_UnmuteAll_f}, /*reenables*/
 #endif
 
 	{NULL, NULL}
@@ -5418,7 +5531,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 
 	sv_player->v->button0 = ucmd->buttons & 1;
 	sv_player->v->button2 = (ucmd->buttons >> 1) & 1;
-	if (pr_allowbutton1.value)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
+	if (pr_allowbutton1.ival)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
 		sv_player->v->button1 = ((ucmd->buttons >> 2) & 1);
 // DP_INPUTBUTTONS
 	sv_player->xv->button3 = ((ucmd->buttons >> 2) & 1);
@@ -5843,10 +5956,18 @@ void SV_ReadQCRequest(void)
 	}
 
 done:
+	args[i] = 0;
 	rname = MSG_ReadString();
-	f = PR_FindFunction(svprogfuncs, va("Cmd_%s_%s", rname, args), PR_ANY);
+	if (i)
+		rname = va("Cmd_%s_%s", rname, args);
+	else
+		rname = va("Cmd_%s", rname);
+	f = PR_FindFunction(svprogfuncs, rname, PR_ANY);
 	if (f)
+	{
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 		PR_ExecuteProgram(svprogfuncs, f);
+	}
 	else
 		SV_ClientPrintf(host_client, PRINT_HIGH, "qcrequest \"%s\" not supported\n", rname);
 }
@@ -5916,8 +6037,8 @@ void SV_ExecuteClientMessage (client_t *cl)
 			if (temp1.ival)
 			frame = &cl->frameunion.frames[(cl->netchan.incoming_acknowledged+temp1.ival) & UPDATE_MASK];
 			*/
-#ifdef _MSC_VER
-#pragma message("FIXME: make antilag optionally support non-player ents too")
+#ifdef warningmsg
+#pragma warningmsg("FIXME: make antilag optionally support non-player ents too")
 #endif
 			for (i = 0; i < sv.allocated_client_slots; i++)
 			{
@@ -6082,7 +6203,7 @@ haveannothergo:
 
 							sv_player->v->button0 = newcmd.buttons & 1;
 							sv_player->v->button2 = (newcmd.buttons >> 1) & 1;
-							if (pr_allowbutton1.value)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
+							if (pr_allowbutton1.ival)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
 								sv_player->v->button1 = ((newcmd.buttons >> 2) & 1);
 						// DP_INPUTBUTTONS
 							sv_player->xv->button3 = ((newcmd.buttons >> 2) & 1);
@@ -6453,7 +6574,7 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 
 	host_client->edict->v->button0 = bits & 1;
 	host_client->edict->v->button2 = (bits >> 1) & 1;
-	if (pr_allowbutton1.value)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
+	if (pr_allowbutton1.ival)	//many mods use button1 - it's just a wasted field to many mods. So only work it if the cvar allows.
 		host_client->edict->v->button1 = ((bits >> 2) & 1);
 // DP_INPUTBUTTONS
 	host_client->edict->xv->button3 = ((bits >> 2) & 1);
@@ -6532,9 +6653,9 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 		case clc_nop:
 			break;
 
-		case clc_delta:
-			cl->delta_sequence = MSG_ReadByte ();
-			break;
+//		case clc_delta:
+//			cl->delta_sequence = MSG_ReadByte ();
+//			break;
 
 		case clc_move:
 			SVNQ_ReadClientMove (&host_client->lastcmd);
@@ -6550,11 +6671,11 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 			sv_player = cl->edict;
 			break;
 
-		case 50:
-			MSG_ReadLong();
+		case clcdp_ackframe:
+			cl->delta_sequence = MSG_ReadLong();
 			break;
 		case clcdp_ackdownloaddata:
-			SV_DarkPlacesDownloadAck(host_client);
+			SV_DarkPlacesDownloadAck(cl);
 			break;
 
 #ifdef VOICECHAT
@@ -6601,6 +6722,7 @@ void SV_UserInit (void)
 
 	Cvar_Register (&sv_pushplayers, cvargroup_servercontrol);
 
+	Cvar_Register (&sv_pure, cvargroup_servercontrol);
 	Cvar_Register (&sv_floodprotect, cvargroup_servercontrol);
 	Cvar_Register (&sv_floodprotect_interval, cvargroup_servercontrol);
 	Cvar_Register (&sv_floodprotect_messages, cvargroup_servercontrol);

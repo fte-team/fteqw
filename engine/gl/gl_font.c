@@ -228,7 +228,7 @@ static struct font_s *curfont;
 void Font_Init(void)
 {
 	int i;
-	fontplanes.defaultfont = r_nulltex;
+	TEXASSIGN(fontplanes.defaultfont, r_nulltex);
 
 	font_foremesh.indexes = font_indicies;
 	font_foremesh.xyz_array = font_coord;
@@ -252,7 +252,7 @@ void Font_Init(void)
 
 	for (i = 0; i < FONTPLANES; i++)
 	{
-		fontplanes.texnum[i] = R_AllocNewTexture(PLANEWIDTH, PLANEHEIGHT);
+		TEXASSIGN(fontplanes.texnum[i], R_AllocNewTexture("***fontplane***", PLANEWIDTH, PLANEHEIGHT));
 	}
 
 	fontplanes.shader = R_RegisterShader("ftefont",
@@ -293,7 +293,7 @@ static void Font_Flush(void)
 		return;
 	if (fontplanes.planechanged)
 	{
-		R_Upload(fontplanes.texnum[fontplanes.activeplane], NULL, TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA);
+		R_Upload(fontplanes.texnum[fontplanes.activeplane], NULL, TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA);
 
 		fontplanes.planechanged = false;
 	}
@@ -306,7 +306,7 @@ static void Font_Flush(void)
 
 		BE_DrawMesh_Single(fontplanes.backshader, &font_backmesh, NULL, &fontplanes.backshader->defaulttextures, 0);
 	}
-	fontplanes.shader->defaulttextures.base = font_texture;
+	TEXASSIGN(fontplanes.shader->defaulttextures.base, font_texture);
 	BE_DrawMesh_Single(fontplanes.shader, &font_foremesh, NULL, &fontplanes.shader->defaulttextures, 0);
 	font_foremesh.numindexes = 0;
 	font_foremesh.numvertexes = 0;
@@ -319,7 +319,7 @@ static int Font_BeginChar(texid_t tex)
 	if (font_foremesh.numindexes == FONT_CHAR_BUFFER*6 || memcmp(&font_texture,&tex, sizeof(texid_t)))
 	{
 		Font_Flush();
-		font_texture = tex;
+		TEXASSIGNF(font_texture, tex);
 	}
 
 	fvert = font_foremesh.numvertexes;
@@ -336,7 +336,7 @@ void Font_Shutdown(void)
 	int i;
 
 	for (i = 0; i < FONTPLANES; i++)
-		fontplanes.texnum[i] = r_nulltex;
+		TEXASSIGN(fontplanes.texnum[i], r_nulltex);
 	fontplanes.activeplane = 0;
 	fontplanes.oldestchar = NULL;
 	fontplanes.newestchar = NULL;

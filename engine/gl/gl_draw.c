@@ -136,8 +136,6 @@ unsigned char *d_15to8table;
 qboolean inited15to8;
 #endif
 
-static texid_t filmtexture;
-
 extern cvar_t		gl_max_size;
 extern cvar_t		gl_picmip;
 extern cvar_t		gl_lerpimages;
@@ -164,6 +162,7 @@ int		gl_filter_max_2d = GL_LINEAR;
 
 typedef struct gltexture_s
 {
+	texcom_t com;
 	texid_t	texnum;
 	char	identifier[64];
 	int		width, height, bpp;
@@ -172,6 +171,41 @@ typedef struct gltexture_s
 } gltexture_t;
 
 static gltexture_t	*gltextures;
+
+static gltexture_t *GL_AllocNewGLTexture(char *ident, int w, int h)
+{
+	gltexture_t *glt;
+	glt = BZ_Malloc(sizeof(*glt) + sizeof(bucket_t));
+	glt->next = gltextures;
+	gltextures = glt;
+
+	glt->texnum.ref = &glt->com;
+	Q_strncpyz (glt->identifier, ident, sizeof(glt->identifier));
+	glt->flags = IF_NOMIPMAP;
+	glt->width = w;
+	glt->height = h;
+	glt->bpp = 0;
+	glt->com.regsequence = r_regsequence;
+
+	qglGenTextures(1, &glt->texnum.num);
+
+	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
+	return glt;
+}
+
+texid_t GL_AllocNewTexture(char *name, int w, int h)
+{
+	gltexture_t *glt = GL_AllocNewGLTexture(name, w, h);
+	return glt->texnum;
+}
+
+void GL_DestroyTexture(texid_t tex)
+{
+	if (!tex.ref)
+		return;
+
+	qglDeleteTextures(1, &tex.num);
+}
 
 //=============================================================================
 /* Support Routines */
@@ -259,7 +293,10 @@ void GL_Texturemode_Callback (struct cvar_s *var, char *oldvalue)
 		{
 			GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+			if (glt->flags & IF_NEAREST)
+				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			else
+				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
 		}
 	}
 }
@@ -294,17 +331,49 @@ void GL_Texturemode2d_Callback (struct cvar_s *var, char *oldvalue)
 		{
 			GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
+			if (glt->flags & IF_NEAREST)
+				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			else
+				qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
 		}
 	}
 }
+
+void GLDraw_ImageList_f(void)
+{
+	int count = 0;
+	gltexture_t	*glt;
+	for (glt=gltextures ; glt ; glt=glt->next)
+	{
+		count++;
+		Con_Printf("%s (%i*%i, seq=%i)\n", glt->identifier, glt->width, glt->height, glt->com.regsequence);
+	}
+	Con_Printf("%i images\n", count);
+}
+
+void GLDraw_FlushOldTextures(void)
+{
+	gltexture_t	**link = &gltextures, *t;
+	while (*link)
+	{
+		t = *link;
+		if (t->com.regsequence != r_regsequence)
+		{
+			qglDeleteTextures(1, &t->texnum.num);
+			(*link)->next = t->next;
+			BZ_Free(t);
+		}
+		else
+			link = &(*link)->next;
+	}
+}
+
 /*
 ===============
 Draw_Init
 ===============
 */
-
-void GLDraw_ReInit (void)
+void GLDraw_Init (void)
 {
 	char	ver[40];
 
@@ -318,9 +387,6 @@ void GLDraw_ReInit (void)
 
 	memset(gltexturetablebuckets, 0, sizeof(gltexturetablebuckets));
 	Hash_InitTable(&gltexturetable, sizeof(gltexturetablebuckets)/sizeof(gltexturetablebuckets[0]), gltexturetablebuckets);
-
-	lightmap_textures=NULL;
-	filmtexture=r_nulltex;
 
 	GL_FlushBackEnd();
 //	GL_FlushSkinCache();
@@ -393,18 +459,13 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 
 	TRACE(("dbg: GLDraw_ReInit: PPL_LoadSpecularFragmentProgram\n"));
 	GL_InitSceneProcessingShaders();
+
+	Cmd_AddRemCommand ("r_imagelist", GLDraw_ImageList_f);
 }
 
-void GLDraw_Init (void)
-{
-//	memset(scrap_allocated, 0, sizeof(scrap_allocated));
-//	memset(scrap_texels, 255, sizeof(scrap_texels));
-
-	GLDraw_ReInit();
-}
 void GLDraw_DeInit (void)
 {
-	Cmd_RemoveCommand ("gl_texture_anisotropic_filtering");
+	Cmd_RemoveCommand ("r_imagelist");
 
 	if (font_conchar)
 		Font_Free(font_conchar);
@@ -434,6 +495,7 @@ void GLDraw_DeInit (void)
 		gltexture_t *glt;
 		glt = gltextures;
 		gltextures = gltextures->next;
+
 		BZ_Free(glt);
 	}
 
@@ -921,12 +983,18 @@ qboolean GL_UploadCompressed (qbyte *file, int *out_width, int *out_height, unsi
 	if (!((*out_flags) & IF_NOMIPMAP))
 	{
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+		if (*out_flags & IF_NEAREST)
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		else
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
 	}
 	else
 	{
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
+		if (*out_flags & IF_NEAREST)
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		else
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
 	}
 	return true;
 }
@@ -1090,16 +1158,22 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 		TRACE(("dbg: GL_Upload32: GL_SGIS_generate_mipmap\n"));
 		qglTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
 	}
-	
+
 	if (!(flags&IF_NOMIPMAP))
 	{
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+		if (flags & IF_NEAREST)
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		else
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
 	}
 	else
 	{
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
+		if (flags & IF_NEAREST)
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		else
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
 	}
 
 	if (flags&IF_CLAMP)
@@ -1430,12 +1504,18 @@ done: ;
 	if (!(flags&IF_NOMIPMAP))
 	{
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+		if (flags & IF_NEAREST)
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		else
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
 	}
 	else
 	{
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
+		if (flags & IF_NEAREST)
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		else
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
 	}
 }
 
@@ -1623,12 +1703,18 @@ void GL_UploadBump(qbyte *data, int width, int height, qboolean mipmap, float bu
 	if (mipmap)
 	{
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+		if (0 & IF_NEAREST)
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		else
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
 	}
 	else
 	{
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
+		if (0 & IF_NEAREST)
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		else
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
 	}
 
 //	if (gl_texturefilteranisotropic)
@@ -1713,12 +1799,18 @@ done: ;
 	if (mipmap)
 	{
 		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+		if (flags & IF_NEAREST)
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		else
+			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
 	}
 	else
 	{
 		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
+		if (flags & IF_NEAREST)
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		else
+			glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
 	}
 }
 #endif
@@ -1993,18 +2085,10 @@ TRACE(("dbg: GL_LoadTexture: duplicate %s\n", identifier));
 
 TRACE(("dbg: GL_LoadTexture: new %s\n", identifier));
 
-	glt = BZ_Malloc(sizeof(*glt)+sizeof(bucket_t));
-	glt->next = gltextures;
-	gltextures = glt;
-
-	strcpy (glt->identifier, identifier);
-	glt->texnum = GL_AllocNewTexture(width, height);
-	glt->width = width;
-	glt->height = height;
+	glt = GL_AllocNewGLTexture(identifier, width, height);
 	glt->bpp = 8;
 	glt->flags = flags;
 
-	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 checkglerror();
 	GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 
@@ -2033,18 +2117,9 @@ texid_t GL_LoadTextureFB (char *identifier, int width, int height, qbyte *data, 
 	if (i == width*height)
 		return r_nulltex;	//none found, don't bother uploading.
 
-	glt = BZ_Malloc(sizeof(*glt)+sizeof(bucket_t));
-	glt->next = gltextures;
-	gltextures = glt;
-
-	strcpy (glt->identifier, identifier);
-	glt->texnum = GL_AllocNewTexture(width, height);
-	glt->width = width;
-	glt->height = height;
+	glt = GL_AllocNewGLTexture(identifier, width, height);
 	glt->bpp = 8;
 	glt->flags = flags;
-
-	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
 	GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 
@@ -2065,19 +2140,9 @@ texid_t GL_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *da
 			return glt->texnum;
 	}
 
-	glt = BZ_Malloc(sizeof(*glt)+sizeof(bucket_t));
-	glt->next = gltextures;
-	gltextures = glt;
-
-
-	strcpy (glt->identifier, identifier);
-	glt->texnum = GL_AllocNewTexture(width, height);
-	glt->width = width;
-	glt->height = height;
+	glt = GL_AllocNewGLTexture(identifier, width, height);
 	glt->bpp = 24;
 	glt->flags = flags;
-
-	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
 	GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 
@@ -2097,19 +2162,9 @@ texid_t GL_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *da
 			return glt->texnum;
 	}
 
-	glt = BZ_Malloc(sizeof(*glt)+sizeof(bucket_t));
-	glt->next = gltextures;
-	gltextures = glt;
-
-
-	strcpy (glt->identifier, identifier);
-	glt->texnum = GL_AllocNewTexture(width, height);
-	glt->width = width;
-	glt->height = height;
+	glt = GL_AllocNewGLTexture(identifier, width, height);
 	glt->bpp = 32;
 	glt->flags = flags;
-
-	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
 	GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 
@@ -2132,18 +2187,9 @@ texid_t GL_LoadTexture32 (char *identifier, int width, int height, void *data, u
 			return glt->texnum;
 	}
 
-	glt = BZ_Malloc(sizeof(*glt)+sizeof(bucket_t));
-	glt->next = gltextures;
-	gltextures = glt;
-
-	strcpy (glt->identifier, identifier);
-	glt->texnum = GL_AllocNewTexture(width, height);
-	glt->width = width;
-	glt->height = height;
+	glt = GL_AllocNewGLTexture(identifier, width, height);
 	glt->bpp = 32;
 	glt->flags = flags;
-
-	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
 	GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 
@@ -2166,18 +2212,9 @@ texid_t GL_LoadTexture32_BGRA (char *identifier, int width, int height, unsigned
 			return glt->texnum;
 	}
 
-	glt = BZ_Malloc(sizeof(*glt)+sizeof(bucket_t));
-	glt->next = gltextures;
-	gltextures = glt;
-
-	strcpy (glt->identifier, identifier);
-	glt->texnum = GL_AllocNewTexture(width, height);
-	glt->width = width;
-	glt->height = height;
+	glt = GL_AllocNewGLTexture(identifier, width, height);
 	glt->bpp = 32;
 	glt->flags = flags;
-
-	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
 	GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 
@@ -2212,16 +2249,9 @@ texid_t GL_LoadCompressed(char *name)
 	if (!file)
 		return r_nulltex;
 
-	glt = BZ_Malloc(sizeof(*glt)+sizeof(bucket_t));
-	glt->next = gltextures;
-	gltextures = glt;
-
-	strcpy (glt->identifier, name);
-	glt->texnum = GL_AllocNewTexture(0, 0);
+	glt = GL_AllocNewGLTexture(name, 0, 0);
 	glt->bpp = 32;
 	glt->flags = 0;
-
-	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
 	GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 
@@ -2247,18 +2277,9 @@ texid_t GL_LoadTexture8Grey (char *identifier, int width, int height, unsigned c
 
 	flags |= IF_NOALPHA;
 
-	glt = BZ_Malloc(sizeof(*glt)+sizeof(bucket_t));
-	glt->next = gltextures;
-	gltextures = glt;
-
-	strcpy (glt->identifier, identifier);
-	glt->texnum = GL_AllocNewTexture(width, height);
-	glt->width = width;
-	glt->height = height;
+	glt = GL_AllocNewGLTexture(identifier, width, height);
 	glt->bpp = 8;
 	glt->flags = flags;
-
-	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
 	GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 
@@ -2286,18 +2307,9 @@ texid_t GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned c
 
 	TRACE(("dbg: GL_LoadTexture8Bump: new %s\n", identifier));
 
-	glt = BZ_Malloc(sizeof(*glt)+sizeof(bucket_t));
-	glt->next = gltextures;
-	gltextures = glt;
-
-	strcpy (glt->identifier, identifier);
-	glt->texnum = GL_AllocNewTexture(width, height);
-	glt->width = width;
-	glt->height = height;
+	glt = GL_AllocNewGLTexture(identifier, width, height);
 	glt->bpp = 8;
 	glt->flags = flags;
-
-	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 
 	GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 

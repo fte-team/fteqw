@@ -1,5 +1,7 @@
 #ifdef _WIN32
+	#ifndef _CRT_SECURE_NO_WARNINGS
 	#define _CRT_SECURE_NO_WARNINGS
+	#endif
 	#define _CRT_NONSTDC_NO_WARNINGS
 	#ifndef AVAIL_ZLIB
 		#ifdef _MSC_VER
@@ -33,10 +35,6 @@ typedef unsigned char qbyte;
 #ifndef PROGSUSED
 #define PROGSUSED
 #endif
-
-extern int maxedicts;
-extern int maxprogs;
-extern int hunksize;
 
 #include "progtype.h"
 #include "progslib.h"
@@ -283,7 +281,7 @@ unsigned int NUM_FOR_EDICT(progfuncs_t *progfuncs, struct edict_s *e);
 #define	GQ_STRING(o) (*(QCC_string_t *)&pr_globals[o])
 #define GQ_STRING2(o) ((char*)*(QCC_string_t *)&pr_globals[o])
 #define	G_FUNCTION(o) (*(func_t *)&pr_globals[o])
-#define G_PROG(o) (*(progsnum_t *)&pr_globals[o])	//simply so it's nice and easy to change...
+#define G_PROG(o) G_FLOAT(o)	//simply so it's nice and easy to change...
 
 #define	RETURN_EDICT(e) (((int *)pr_globals)[OFS_RETURN] = EDICT_TO_PROG(e))
 
@@ -356,8 +354,8 @@ typedef struct prinst_s {
 	int maxallocedstrings;
 	int numallocedstrings;
 
-var(progstate_t *, pr_progstate);
-#define pr_progstate prinst->pr_progstate
+var(progstate_t *, progstate);
+#define pr_progstate prinst->progstate
 
 var(progsnum_t, pr_typecurrent);
 #define pr_typecurrent prinst->pr_typecurrent

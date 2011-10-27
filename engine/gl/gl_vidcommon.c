@@ -191,12 +191,11 @@ FTEPFNGLACTIVESTENCILFACEEXTPROC qglActiveStencilFaceEXT;
 //quick hack that made quake work on both 1 and 1.1 gl implementations.
 BINDTEXFUNCPTR bindTexFunc;
 
+#define GLchar char
 #if defined(_DEBUG) && !defined(DEBUG)
 #define DEBUG
 #endif
 #if defined(DEBUG)
-
-#define GLchar char
 typedef void (APIENTRY *GLDEBUGPROCAMD)(GLuint id,
 					GLenum category,
 					GLenum severity,
@@ -279,7 +278,6 @@ void (APIENTRY myGLDEBUGPROCAMD)(GLuint id,
 
 int gl_mtexarbable=0;	//max texture units
 qboolean gl_mtexable = false;
-int gl_bumpmappingpossible;
 
 
 qboolean gammaworks;	//if the gl drivers can set proper gamma.
@@ -318,18 +316,6 @@ qboolean GL_CheckExtension(char *extname)
 	return !!strstr(gl_extensions, extname);
 }
 
-texid_t GL_AllocNewTexture(int w, int h)
-{
-	texid_t r;
-	qglGenTextures(1, &r.num);
-	return r;
-}
-
-void GL_DestroyTexture(texid_t tex)
-{
-	qglDeleteTextures(1, &tex.num);
-}
-
 void APIENTRY GL_DrawRangeElementsEmul(GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices)
 {
 	qglDrawElements(mode, count, type, indices);
@@ -346,8 +332,6 @@ void APIENTRY GL_ClientStateStub(GLenum array)
 #define getglext(name) getglfunction(name)
 void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 {
-	extern cvar_t gl_bump;
-
 	memset(&gl_config, 0, sizeof(gl_config));
 
 	gl_config.glversion = ver;
@@ -396,9 +380,6 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 	qglSelectTextureSGIS = NULL;
 	mtexid0 = 0;
 	mtexid1 = 0;
-
-	//none of them bumpmapping possibilities.
-	gl_bumpmappingpossible = false;
 
 	//no GL_ATI_separate_stencil
 	qglStencilOpSeparateATI = NULL;
@@ -528,6 +509,13 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 			gl_config.arb_texture_compression = true;
 	}
 
+	if (GL_CheckExtension("GL_EXT_depth_bounds_test"))
+		qglDepthBoundsEXT = (void *)getglext("glDepthBoundsEXT");
+	else if (GL_CheckExtension("GL_NV_depth_bounds_test"))
+		qglDepthBoundsEXT = (void *)getglext("glDepthBoundsNV");
+	else
+		qglDepthBoundsEXT = NULL;
+
 	if (GL_CheckExtension("GL_ATI_pn_triangles"))
 	{
 		qglPNTrianglesfATI = (void *)getglext("glPNTrianglesfATI");
@@ -556,9 +544,6 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 
 	gl_config.arb_texture_cube_map = GL_CheckExtension("GL_ARB_texture_cube_map");
 
-	if (gl_mtexarbable && gl_config.arb_texture_cube_map && gl_config.arb_texture_env_combine && gl_config.arb_texture_env_dot3 && !COM_CheckParm("-nobump") && gl_bump.value)
-		gl_bumpmappingpossible = true;
-
 	/*vbos*/
 	if (GL_CheckExtension("GL_ARB_vertex_buffer_object"))
 	{
@@ -574,7 +559,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 	// glslang
 	//the gf2 to gf4 cards emulate vertex_shader and thus supports shader_objects.
 	//but our code kinda requires both for clean workings.
-	if (gl_config.glversion >= 2)
+	if (gl_config.glversion >= 2)// && (gl_config.gles || 0))
 	{
 		/*core names are different from extension names (more functions too)*/
 		gl_config.arb_shader_objects = true;
@@ -680,87 +665,237 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 #endif
 }
 
+static const char *glsl_hdrs[] =
+{
+	"sys/skeletal.h",
+			"attribute vec3 v_normal;\n"
+			"attribute vec3 v_svector;\n"
+			"attribute vec3 v_tvector;\n"
+			"#ifdef SKELETAL\n"
+				"attribute vec4 v_bone;"
+				"attribute vec4 v_weight;"
+				"uniform mat3x4 m_bones["STRINGIFY(MAX_BONES)"];\n"
+				
+				"vec4 skeletaltransform()"
+				"{"
+					"mat3x4 wmat;\n"
+					"wmat = m_bones[int(v_bone.x)] * v_weight.x;\n"
+					"wmat += m_bones[int(v_bone.y)] * v_weight.y;\n"
+					"wmat += m_bones[int(v_bone.z)] * v_weight.z;\n"
+					"wmat += m_bones[int(v_bone.w)] * v_weight.w;\n"
+					"return m_modelviewprojection * vec4(vec4(v_position.xyz, 1.0) * wmat, 1.0);"
+				"}\n"
+				"vec4 skeletaltransform_nst(out vec3 n, out vec3 t, out vec3 b)"
+				"{"
+					"mat3x4 wmat;\n"
+					"wmat = m_bones[int(v_bone.x)] * v_weight.x;"
+					"wmat += m_bones[int(v_bone.y)] * v_weight.y;"
+					"wmat += m_bones[int(v_bone.z)] * v_weight.z;"
+					"wmat += m_bones[int(v_bone.w)] * v_weight.w;"
+					"n = vec4(v_normal.xyz, 1.0) * wmat;"
+					"t = vec4(v_svector.xyz, 1.0) * wmat;"
+					"b = vec4(v_tvector.xyz, 1.0) * wmat;"
+					"return m_modelviewprojection * vec4(vec4(v_position.xyz, 1.0) * wmat, 1.0);"
+				"}\n"
+				"vec4 skeletaltransform_wnst(out vec3 w, out vec3 n, out vec3 t, out vec3 b)"
+				"{"
+					"mat3x4 wmat;\n"
+					"wmat = m_bones[int(v_bone.x)] * v_weight.x;"
+					"wmat += m_bones[int(v_bone.y)] * v_weight.y;"
+					"wmat += m_bones[int(v_bone.z)] * v_weight.z;"
+					"wmat += m_bones[int(v_bone.w)] * v_weight.w;"
+					"n = vec4(v_normal.xyz, 1.0) * wmat;"
+					"t = vec4(v_svector.xyz, 1.0) * wmat;"
+					"b = vec4(v_tvector.xyz, 1.0) * wmat;"
+					"w = vec4(v_position.xyz, 1.0) * wmat;"
+					"return m_modelviewprojection * vec4(w, 1.0);"
+				"}\n"
+				"vec4 skeletaltransform_n(out vec3 n)"
+				"{"
+					"mat3x4 wmat;\n"
+					"wmat = m_bones[int(v_bone.x)] * v_weight.x;"
+					"wmat += m_bones[int(v_bone.y)] * v_weight.y;"
+					"wmat += m_bones[int(v_bone.z)] * v_weight.z;"
+					"wmat += m_bones[int(v_bone.w)] * v_weight.w;"
+					"n = vec4(v_normal.xyz, 1.0) * wmat;"
+					"return m_modelviewprojection * vec4(vec4(v_position.xyz, 1.0) * wmat, 1.0);"
+				"}\n"
+			"#else\n"
+				"#define skeletaltransform() ftetransform()\n"
+				"vec4 skeletaltransform_wnst(out vec3 w, out vec3 n, out vec3 t, out vec3 b)"
+				"{"
+					"n = v_normal;"
+					"t = v_svector;"
+					"b = v_tvector;"
+					"w = v_position.xyz;"
+					"return ftetransform();"
+				"}\n"
+				"vec4 skeletaltransform_nst(out vec3 n, out vec3 t, out vec3 b)"
+				"{"
+					"n = v_normal;"
+					"t = v_svector;"
+					"b = v_tvector;"
+					"return ftetransform();"
+				"}\n"
+				"vec4 skeletaltransform_n(out vec3 n)"
+				"{"
+					"n = v_normal;"
+					"return ftetransform();"
+				"}\n"
+			"#endif\n"
+		,
+	NULL
+};
+
+qboolean GLSlang_GenerateIncludes(int maxstrings, int *strings, const GLchar *prstrings[], GLint length[], const char *shadersource)
+{
+	int i;
+	char *incline, *inc;
+	char incname[256];
+	while((incline=strstr(shadersource, "#include")))
+	{
+		if (*strings == maxstrings)
+			return false;
+
+		/*emit up to the include*/
+		prstrings[*strings] = shadersource;
+		length[*strings] = incline - shadersource;
+		*strings += 1;
+
+		incline += 8;
+		incline = COM_ParseOut (incline, incname, sizeof(incname));
+
+		for (i = 0; glsl_hdrs[i]; i += 2)
+		{
+			if (!strcmp(incname, glsl_hdrs[i]))
+			{
+				if (!GLSlang_GenerateIncludes(maxstrings, strings, prstrings, length, glsl_hdrs[i+1]))
+					return false;
+				break;
+			}
+		}
+		if (!glsl_hdrs[i])
+		{
+			if (FS_LoadFile(incname, &inc) >= 0)
+			{
+				if (!GLSlang_GenerateIncludes(maxstrings, strings, prstrings, length, inc))
+				{
+					FS_FreeFile(inc);
+					return false;
+				}
+				FS_FreeFile(inc);
+			}
+		}
+
+		/*move the pointer past the include*/
+		shadersource = incline;
+	}
+	if (*shadersource)
+	{
+		if (*strings == maxstrings)
+			return false;
+
+		/*dump the remaining shader string*/
+		prstrings[*strings] = shadersource;
+		length[*strings] = strlen(prstrings[*strings]);
+		*strings += 1;
+	}
+	return true;
+}
+
 // glslang helper api function definitions
 // type should be GL_FRAGMENT_SHADER_ARB or GL_VERTEX_SHADER_ARB
-GLhandleARB GLSlang_CreateShader (char *name, char *versionline, char **precompilerconstants, char *shadersource, GLenum shadertype)
+GLhandleARB GLSlang_CreateShader (char *name, int ver, char **precompilerconstants, const char *shadersource, GLenum shadertype)
 {
 	GLhandleARB shader;
 	GLint       compiled;
 	char        str[1024];
 	int loglen, i;
-	char *prstrings[6+16];
+	const GLchar *prstrings[64+16];
+	GLint length[sizeof(prstrings)/sizeof(prstrings[0])];
 	int strings = 0;
 
-	if (versionline)
-		prstrings[strings++] = versionline;
+	if (ver)
+	{
+		prstrings[strings] = va("#version %u\n", ver);
+		length[strings] = strlen(prstrings[strings]);
+		strings++;
+	}
 
 	while(*precompilerconstants)
-		prstrings[strings++] = *precompilerconstants++;
+	{
+		prstrings[strings] = *precompilerconstants++;
+		length[strings] = strlen(prstrings[strings]);
+		strings++;
+	}
 
-	prstrings[strings++] = "#define ENGINE_"DISTRIBUTION"\n";
+	prstrings[strings] = "#define ENGINE_"DISTRIBUTION"\n";
+	length[strings] = strlen(prstrings[strings]);
+	strings++;
+
 	switch (shadertype)
 	{
 	case GL_FRAGMENT_SHADER_ARB:
-		prstrings[strings++] = "#define FRAGMENT_SHADER\n";
+		prstrings[strings] = "#define FRAGMENT_SHADER\n";
+		length[strings] = strlen(prstrings[strings]);
+		strings++;
 		if (gl_config.gles)
 		{
-			prstrings[strings++] =	"precision mediump float;\n";
+			prstrings[strings] =	"precision mediump float;\n";
+			length[strings] = strlen(prstrings[strings]);
+			strings++;
 		}
 		break;
 	case GL_VERTEX_SHADER_ARB:
-		prstrings[strings++] = "#define VERTEX_SHADER\n";
+		prstrings[strings] = "#define VERTEX_SHADER\n";
+		length[strings] = strlen(prstrings[strings]);
+		strings++;
 		if (gl_config.gles)
 		{
-			prstrings[strings++] =
+			prstrings[strings] =
 					"#ifdef GL_FRAGMENT_PRECISION_HIGH\n"
 					"precision highp float;\n"
 					"#else\n"
 					"precision mediump float;\n"
-					"#endif\n";
+					"#endif\n"
+				;
+			length[strings] = strlen(prstrings[strings]);
+			strings++;
 		}
 		if (gl_config.nofixedfunc)
 		{
-			prstrings[strings++] =
+			prstrings[strings] =
+					"attribute vec3 v_position;\n"
 					"#define ftetransform() (m_modelviewprojection * vec4(v_position, 1.0))\n"
 					"uniform mat4 m_modelviewprojection;\n"
-					"attribute vec3 v_position;\n";
+				;
+			length[strings] = strlen(prstrings[strings]);
+			strings++;
 		}
 		else
 		{
-			prstrings[strings++] =
-					"#ifdef SKELETAL\n"
-						"attribute vec4 v_bone;\n"
-						"attribute vec4 v_weight;\n"
-						"uniform mat4 m_modelviewprojection;\n"
-						"uniform mat3x4 m_bones["STRINGIFY(MAX_BONES)"];\n"
-						"attribute vec3 v_position;\n"
-
-						"vec4 skeletaltransform()\n"
-						"{"
-						"	mat3x4 wmat;\n"
-						"	wmat = m_bones[int(v_bone.x)] * v_weight.x;\n"
-						"	wmat += m_bones[int(v_bone.y)] * v_weight.y;\n"
-						"	wmat += m_bones[int(v_bone.z)] * v_weight.z;\n"
-						"	wmat += m_bones[int(v_bone.w)] * v_weight.w;\n"
-						"	return m_modelviewprojection * vec4(vec4(v_position.xyz, 1.0) * wmat, 1.0);\n"
-						"}\n"
-						"#define ftetransform() skeletaltransform()\n"
-					"#else\n"
-						"#define ftetransform() ftransform()\n"
-						"#define v_position gl_Vertex\n"
-					"#endif\n";
+			prstrings[strings] =
+					"#define ftetransform ftransform\n"
+					"#define v_position gl_Vertex\n"
+					"uniform mat4 m_modelviewprojection;\n"
+				;
+			length[strings] = strlen(prstrings[strings]);
+			strings++;
 		}
 
 		break;
 	default:
-		prstrings[strings++] = "#define UNKNOWN_SHADER\n";
+		prstrings[strings] = "#define UNKNOWN_SHADER\n";
+		length[strings] = strlen(prstrings[strings]);
+		strings++;
 		break;
 	}
-	prstrings[strings++] = shadersource;
+
+	GLSlang_GenerateIncludes(sizeof(prstrings)/sizeof(prstrings[0]), &strings, prstrings, length, shadersource);
 
 	shader = qglCreateShaderObjectARB(shadertype);
 
-	qglShaderSourceARB(shader, strings, (const GLcharARB**)prstrings, NULL);
+	qglShaderSourceARB(shader, strings, prstrings, length);
 	qglCompileShaderARB(shader);
 
 	qglGetShaderParameteriv_(shader, GL_OBJECT_COMPILE_STATUS_ARB, &compiled);
@@ -771,19 +906,28 @@ GLhandleARB GLSlang_CreateShader (char *name, char *versionline, char **precompi
 		switch (shadertype)
 		{
 		case GL_FRAGMENT_SHADER_ARB:
-			Con_Printf("Fragment shader compilation error:\n----------\n%s\n----------\n", str);
+			Con_Printf("Fragment shader (%s) compilation error:\n----------\n%s----------\n", name, str);
 			break;
 		case GL_VERTEX_SHADER_ARB:
-			Con_Printf("Vertex shader compilation error:\n----------\n%s\n----------\n", str);
+			Con_Printf("Vertex shader (%s) compilation error:\n----------\n%s----------\n", name, str);
 			break;
 		default:
 			Con_Printf("Shader_CreateShader: This shouldn't happen ever\n");
 			break;
 		}
-		Con_Printf("Shader \"%s\" source:\n", name);
+		Con_DPrintf("Shader \"%s\" source:\n", name);
 		for (i = 0; i < strings; i++)
-			Con_Printf("%s", prstrings[i]);
-		Con_Printf("%s\n", str);
+		{
+			int j;
+			if (length[i] < 0)
+				Con_DPrintf("%s", prstrings[i]);
+			else
+			{
+				for (j = 0; j < length[i]; j++)
+					Con_DPrintf("%c", prstrings[i][j]);
+			}
+		}
+		Con_DPrintf("%s\n", str);
 		return 0;
 	}
 
@@ -840,30 +984,11 @@ GLhandleARB GLSlang_CreateProgramObject (GLhandleARB vert, GLhandleARB frag)
 	return program;
 }
 
-#if HASHPROGRAMS
-struct compiledshaders_s
-{
-	int uses;
-	char *consts;
-	char *vert;
-	char *frag;
-	GLhandleARB handle;
-	bucket_t buck;
-};
-
-bucket_t *compiledshadersbuckets[64];
-static hashtable_t compiledshaderstable;
-#endif
-
-GLhandleARB GLSlang_CreateProgram(char *name, char *versionline, char **precompilerconstants, char *vert, char *frag)
+GLhandleARB GLSlang_CreateProgram(char *name, int ver, char **precompilerconstants, char *vert, char *frag)
 {
 	GLhandleARB handle;
 	GLhandleARB vs;
 	GLhandleARB fs;
-#if HASHPROGRAMS
-	unsigned int hashkey;
-	struct compiledshaders_s *cs;
-#endif
 	char *nullconstants = NULL;
 
 	if (!gl_config.arb_shader_objects)
@@ -872,25 +997,8 @@ GLhandleARB GLSlang_CreateProgram(char *name, char *versionline, char **precompi
 	if (!precompilerconstants)
 		precompilerconstants = &nullconstants;
 
-#if HASHPROGRAMS
-	hashkey = Hash_Key(precompilerconstants, ~0) ^ Hash_Key(frag, ~0);
-
-	cs = Hash_GetKey(&compiledshaderstable, hashkey);
-	while(cs)
-	{
-		if (!strcmp(cs->consts, precompilerconstants))
-		if (!strcmp(cs->vert, vert))
-		if (!strcmp(cs->frag, frag))
-		{
-			cs->uses++;
-			return cs->handle;
-		}
-		cs = Hash_GetNextKey(&compiledshaderstable, hashkey, cs);
-	}
-#endif
-
-	vs = GLSlang_CreateShader(name, versionline, precompilerconstants, vert, GL_VERTEX_SHADER_ARB);
-	fs = GLSlang_CreateShader(name, versionline, precompilerconstants, frag, GL_FRAGMENT_SHADER_ARB);
+	vs = GLSlang_CreateShader(name, ver, precompilerconstants, vert, GL_VERTEX_SHADER_ARB);
+	fs = GLSlang_CreateShader(name, ver, precompilerconstants, frag, GL_FRAGMENT_SHADER_ARB);
 
 	if (!vs || !fs)
 		handle = 0;
@@ -899,19 +1007,6 @@ GLhandleARB GLSlang_CreateProgram(char *name, char *versionline, char **precompi
 	//delete ignores 0s.
 	qglDeleteShaderObject_(vs);
 	qglDeleteShaderObject_(fs);
-
-#if HASHPROGRAMS
-	cs = Z_Malloc(sizeof(*cs) + strlen(precompilerconstants)+1+strlen(vert)+1+strlen(frag)+1);
-	cs->consts = (char*)(cs + 1);
-	cs->vert = cs->consts + strlen(precompilerconstants)+1;
-	cs->frag = cs->vert + strlen(vert)+1;
-	cs->handle = handle;
-	cs->uses = 1;
-	strcpy(cs->consts, precompilerconstants);
-	strcpy(cs->vert, vert);
-	strcpy(cs->frag, frag);
-	Hash_AddKey(&compiledshaderstable, hashkey, cs, &cs->buck);
-#endif
 
 	return handle;
 }
@@ -1148,10 +1243,6 @@ void GL_Init(void *(*getglfunction) (char *name))
 		qglDebugMessageCallbackAMD(myGLDEBUGPROCAMD, NULL);
 	qglGetError();	/*suck up the invalid operation error for non-debug contexts*/
 #endif
-
-#if HASHPROGRAMS
-	Hash_InitTable(&compiledshaderstable, sizeof(compiledshadersbuckets)/Hash_BytesForBuckets(1), compiledshadersbuckets);
-#endif
 }
 
 unsigned int	d_8to24rgbtable[256];
@@ -1171,7 +1262,7 @@ rendererinfo_t openglrendererinfo = {
 
 
 	GLDraw_Init,
-	GLDraw_ReInit,
+	GLDraw_DeInit,
 
 	GL_LoadTextureFmt,
 	GL_LoadTexture8Pal24,
@@ -1234,6 +1325,7 @@ rendererinfo_t openglrendererinfo = {
 	GLBE_ClearVBO,
 	GLBE_UploadAllLightmaps,
 	GLBE_SelectEntity,
+	GLBE_SelectDLight,
 	GLBE_LightCullModel,
 
 	""

@@ -1021,7 +1021,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 // get the clipping hull
 	if (ent->v->solid == SOLID_BSP)
 	{
-		model = w->GetCModel(w, ent->v->modelindex);
+		model = w->Get_CModel(w, ent->v->modelindex);
 		if (!model || (model->type != mod_brush && model->type != mod_heightmap))
 			Host_Error("SOLID_BSP with non bsp model (classname: %s)", PR_GetString(w->progs, ent->v->classname));
 	}
@@ -1056,7 +1056,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 			model_t *model;
 			if (ent->v->modelindex < 1 || ent->v->modelindex >= MAX_MODELS)
 				Host_Error("SV_ClipMoveToEntity: modelindex out of range\n");
-			model = w->GetCModel(w, ent->v->modelindex);
+			model = w->Get_CModel(w, ent->v->modelindex);
 
 			if (model && model->funcs.Trace)
 			{
@@ -1081,7 +1081,7 @@ static trace_t WorldQ2_ClipMoveToEntity (world_t *w, q2edict_t *ent, vec3_t star
 // get the clipping hull
 	if (ent->s.solid == Q2SOLID_BSP)
 	{
-		model = w->GetCModel(w, ent->s.modelindex);
+		model = w->Get_CModel(w, ent->s.modelindex);
 		if (!model || model->type != mod_brush)
 			SV_Error("SOLID_BSP with non bsp model");
 	}
@@ -1282,7 +1282,7 @@ static model_t *WorldQ2_ModelForEntity (world_t *w, q2edict_t *ent)
 // decide which clipping hull to use, based on the size
 	if (ent->solid == Q2SOLID_BSP)
 	{	// explicit hulls in the BSP model
-		model = w->GetCModel(w, ent->s.modelindex);
+		model = w->Get_CModel(w, ent->s.modelindex);
 
 		if (!model)
 			SV_Error ("Q2SOLID_BSP with a non bsp model");

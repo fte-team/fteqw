@@ -181,6 +181,7 @@ typedef struct progexterns_s {
 	unsigned int *sv_num_edicts;		//pointer to the engine's edict count.
 
 	int (*useeditor) (progfuncs_t *prinst, char *filename, int line, int nump, char **parms);	//called on syntax errors or step-by-step debugging.
+	void (*addressablerelocated) (progfuncs_t *progfuncs, char *oldb, char *newb, int oldlen);	//called when the progs memory was resized. you must fix up all pointers to globals, strings, fields, addressable blocks.
 
 	void *user;	/*contains the owner's world reference in FTE*/
 } progparms_t, progexterns_t;
@@ -210,7 +211,7 @@ typedef union eval_s
 	func_t			function;
 	int				_int;
 	int				edict;
-	progsnum_t		prog;	//so it can easily be changed
+	float		prog;	//so it can easily be changed
 } eval_t;
 #endif
 

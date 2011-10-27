@@ -22,6 +22,9 @@ this file deals with qc builtins to apply custom skeletal blending (skeletal obj
 */
 
 #include "quakedef.h"
+
+#ifdef CSQC_DAT
+
 #include "pr_common.h"
 
 #define MAX_SKEL_OBJECTS 1024
@@ -669,3 +672,5 @@ void QCBUILTIN PF_skel_delete (progfuncs_t *prinst, struct globalvars_s *pr_glob
 		pendingkill = true;
 	}
 }
+#endif
+

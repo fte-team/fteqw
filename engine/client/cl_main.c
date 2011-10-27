@@ -634,8 +634,10 @@ char *CL_TryingToConnect(void)
 	return cls.servername;
 }
 
+#ifndef CLIENTONLY
 int SV_NewChallenge (void);
 client_t *SVC_DirectConnect(void);
+#endif
 
 /*
 =================

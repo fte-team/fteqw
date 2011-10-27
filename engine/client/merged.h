@@ -7,6 +7,7 @@ struct vbo_s;
 struct mesh_s;
 struct batch_s;
 struct entity_s;
+struct dlight_s;
 
 
 

@@ -106,7 +106,7 @@ void *PRAddressableAlloc(progfuncs_t *progfuncs, int ammount)
 			}
 #else
 			char *newblock;
-			addressablesize = (addressableused + ammount + 1024*1024) & ~(1024*1024-1);
+			int newsize = (addressableused + ammount + 1024*1024) & ~(1024*1024-1);
 			newblock = realloc(newblock, addressablesize);
 			if (newblock)
 			{

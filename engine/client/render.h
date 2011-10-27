@@ -35,7 +35,7 @@ struct model_s;
 struct texnums_s;
 struct texture_s;
 
-static const texid_t r_nulltex = {0};
+static const texid_t r_nulltex = {{0}};
 
 
 #if defined(D3DQUAKE) || defined(ANDROID)

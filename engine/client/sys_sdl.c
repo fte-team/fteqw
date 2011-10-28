@@ -43,6 +43,11 @@ void Sys_RecentServer(char *command, char *target, char *title, char *desc)
 {
 }
 
+qboolean Sys_RandomBytes(qbyte *string, int len)
+{
+	return false;
+}
+
 //print into stdout
 void Sys_Printf (char *fmt, ...)
 {

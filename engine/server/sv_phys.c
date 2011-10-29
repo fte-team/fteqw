@@ -20,7 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // sv_phys.c
 
 #include "qwsvdef.h"
-#ifndef CLIENTONLY
+#if !defined(CLIENTONLY) || defined(CSQC_DAT)
 
 #include "pr_common.h"
 
@@ -59,8 +59,11 @@ cvar_t	sv_wateraccelerate	 = SCVAR( "sv_wateraccelerate", "10");
 cvar_t	sv_friction			 = SCVAR( "sv_friction", "4");
 cvar_t	sv_waterfriction	 = SCVAR( "sv_waterfriction", "4");
 cvar_t	sv_gameplayfix_noairborncorpse = SCVAR( "sv_gameplayfix_noairborncorpse", "0");
+cvar_t	sv_gameplayfix_multiplethinks = CVARD( "sv_gameplayfix_multiplethinks", "1", "Enables multiple thinks per entity per frame so small nextthink times are accurate. QuakeWorld mods expect a value of 1.");
 cvar_t	sv_sound_watersplash = CVAR( "sv_sound_watersplash", "misc/h2ohit1.wav");
 cvar_t	sv_sound_land		 = CVAR( "sv_sound_land", "demon/dland2.wav");
+cvar_t	sv_stepheight		 = CVARAF("pm_stepheight", "18",
+					  "sv_stepheight", CVAR_SERVERINFO);
 
 cvar_t	pm_ktjump			 = SCVARF("pm_ktjump", "0", CVAR_SERVERINFO);
 cvar_t	pm_bunnyspeedcap	 = SCVARF("pm_bunnyspeedcap", "0", CVAR_SERVERINFO);
@@ -68,15 +71,31 @@ cvar_t	pm_slidefix			 = SCVARF("pm_slidefix", "0", CVAR_SERVERINFO);
 cvar_t	pm_slidyslopes		 = SCVARF("pm_slidyslopes", "0", CVAR_SERVERINFO);
 cvar_t	pm_airstep			 = SCVARF("pm_airstep", "0", CVAR_SERVERINFO);
 cvar_t	pm_walljump			 = SCVARF("pm_walljump", "0", CVAR_SERVERINFO);
-cvar_t	pm_stepheight		 = CVARAF("pm_stepheight", "18",
-									  "sv_stepheight", CVAR_SERVERINFO);
 
-extern cvar_t sv_nomsec;
+#define cvargroup_serverphysics  "server physics variables"
+void WPhys_Init(void)
+{
+        Cvar_Register (&sv_maxvelocity,                 cvargroup_serverphysics);
+        Cvar_Register (&sv_gravity,                             cvargroup_serverphysics);
+        Cvar_Register (&sv_stopspeed,                   cvargroup_serverphysics);
+        Cvar_Register (&sv_maxspeed,                    cvargroup_serverphysics);
+        Cvar_Register (&sv_spectatormaxspeed,   cvargroup_serverphysics);
+        Cvar_Register (&sv_accelerate,                  cvargroup_serverphysics);
+        Cvar_Register (&sv_airaccelerate,               cvargroup_serverphysics);
+        Cvar_Register (&sv_wateraccelerate,             cvargroup_serverphysics);
+        Cvar_Register (&sv_friction,                    cvargroup_serverphysics);
+        Cvar_Register (&sv_waterfriction,               cvargroup_serverphysics);
+        Cvar_Register (&sv_sound_watersplash,   cvargroup_serverphysics);
+        Cvar_Register (&sv_sound_land,                  cvargroup_serverphysics);
+        Cvar_Register (&sv_stepheight,                  cvargroup_serverphysics);
 
+	Cvar_Register (&sv_gameplayfix_noairborncorpse, cvargroup_serverphysics);
+	Cvar_Register (&sv_gameplayfix_multiplethinks,	cvargroup_serverphysics);
+}
 
 #define	MOVE_EPSILON	0.01
 
-static void SV_Physics_Toss (edict_t *ent);
+static void WPhys_Physics_Toss (world_t *w, wedict_t *ent);
 
 // warning: ‘SV_CheckAllEnts’ defined but not used
 /*
@@ -155,7 +174,7 @@ qboolean WPhys_RunThink (world_t *w, wedict_t *ent)
 {
 	float	thinktime;
 
-	if (sv_nomsec.ival>=2)	//try and imitate nq as closeley as possible
+	if (!sv_gameplayfix_multiplethinks.ival)	//try and imitate nq as closeley as possible
 	{
 		thinktime = ent->v->nextthink;
 		if (thinktime <= 0 || thinktime > w->physicstime + host_frametime)
@@ -166,20 +185,8 @@ qboolean WPhys_RunThink (world_t *w, wedict_t *ent)
 									// it is possible to start that way
 									// by a trigger with a local time.
 		ent->v->nextthink = 0;
-#if 1
 		*w->g.time = thinktime;
 		w->Event_Think(w, ent);
-#else
-		pr_global_struct->time = thinktime;
-		pr_global_struct->self = EDICT_TO_PROG(w->progs, ent);
-		pr_global_struct->other = EDICT_TO_PROG(w->progs, w->edicts);
-#ifdef VM_Q1
-		if (svs.gametype == GT_Q1QVM)
-			Q1QVM_Think();
-		else
-#endif
-			PR_ExecuteProgram (svprogfuncs, ent->v->think);
-#endif
 		return !ent->isfree;
 	}
 
@@ -197,20 +204,8 @@ qboolean WPhys_RunThink (world_t *w, wedict_t *ent)
 									// by a trigger with a local time.
 		ent->v->nextthink = 0;
 
-#if 1
 		*w->g.time = thinktime;
 		w->Event_Think(w, ent);
-#else
-		pr_global_struct->time = thinktime;
-		pr_global_struct->self = EDICT_TO_PROG(w->progs, ent);
-		pr_global_struct->other = EDICT_TO_PROG(w->progs, w->edicts);
-#ifdef VM_Q1
-		if (svs.gametype == GT_Q1QVM)
-			Q1QVM_Think();
-		else
-#endif
-			PR_ExecuteProgram (svprogfuncs, ent->v->think);
-#endif
 
 		if (ent->isfree)
 			return false;
@@ -333,12 +328,12 @@ static int WPhys_FlyMove (world_t *w, wedict_t *ent, float time, trace_t *steptr
 			 break;		// moved the entire distance
 
 		if (!trace.ent)
-			SV_Error ("SV_FlyMove: !trace.ent");
+			Host_Error ("SV_FlyMove: !trace.ent");
 
 		if (trace.plane.normal[2] > 0.7)
 		{
 			blocked |= 1;		// floor
-			if (((edict_t *)trace.ent)->v->solid == SOLID_BSP)
+			if (((wedict_t *)trace.ent)->v->solid == SOLID_BSP)
 			{
 				ent->v->flags =	(int)ent->v->flags | FL_ONGROUND;
 				ent->v->groundentity = EDICT_TO_PROG(w->progs, trace.ent);
@@ -451,7 +446,12 @@ SV_AddGravity
 */
 static void WPhys_AddGravity (wedict_t *ent, float scale)
 {
-	if (!scale && progstype != PROG_QW)
+	if (!scale
+#ifndef CLIENTONLY
+#pragma warningmsg("This doesn't do csqc properly")
+ && progstype != PROG_QW
+#endif
+)
 		scale = 1;
 	ent->v->velocity[2] -= scale * sv_gravity.value/*movevars.gravity*/ * host_frametime;
 }
@@ -1075,6 +1075,7 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 	float	backoff;
 
 	vec3_t temporg;
+	int fl;
 
 	WPhys_CheckVelocity (w, ent);
 
@@ -1116,7 +1117,14 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 	VectorCopy(ent->v->origin, temporg);
 	VectorCopy(temporg, ent->v->origin);
 
-	trace = WPhys_PushEntity (w, ent, move, (sv_antilag.ival==2)?MOVE_LAGGED:0);
+	fl = 0;
+#ifndef CLIENTONLY
+	/*doesn't affect csqc, as it has no lagged ents registered anywhere*/
+	if (sv_antilag.ival==2)
+		fl |= MOVE_LAGGED;
+#endif
+
+	trace = WPhys_PushEntity (w, ent, move, fl);
 
 	if (trace.allsolid)
 		trace.fraction = 0;
@@ -1224,6 +1232,7 @@ static void WPhys_Physics_Step (world_t *w, wedict_t *ent)
 
 //============================================================================
 
+#ifndef CLIENTONLY
 void SV_ProgStartFrame (void)
 {
 
@@ -1238,7 +1247,7 @@ void SV_ProgStartFrame (void)
 #endif
 		PR_ExecuteProgram (svprogfuncs, pr_global_struct->StartFrame);
 }
-
+#endif
 
 
 
@@ -1771,10 +1780,10 @@ static void WPhys_MoveChain(world_t *w, wedict_t *ent, wedict_t *movechain, floa
 
 			if (movechain->xv->chainmoved && callfunc)
 			{
-				pr_global_struct->self = EDICT_TO_PROG(w->progs, movechain);
-				pr_global_struct->other = EDICT_TO_PROG(w->progs, ent);
+				*w->g.self = EDICT_TO_PROG(w->progs, movechain);
+				*w->g.other = EDICT_TO_PROG(w->progs, ent);
 #ifdef VM_Q1
-				if (svs.gametype == GT_Q1QVM)
+				if (svs.gametype == GT_Q1QVM && w == &sv.world)
 					Q1QVM_ChainMoved();
 				else
 #endif
@@ -1794,9 +1803,10 @@ SV_RunEntity
 void WPhys_RunEntity (world_t *w, wedict_t *ent)
 {
 	wedict_t	*movechain;
-	edict_t *svent = (edict_t*)ent;
 	vec3_t	initial_origin = {0},initial_angle = {0}; // warning: ‘initial_?[?]’ may be used uninitialized in this function
 
+#ifndef CLIENTONLY
+	edict_t *svent = (edict_t*)ent;
 	if (ent->entnum > 0 && ent->entnum <= sv.allocated_client_slots && w == &sv.world)
 	{	//a client woo.
 		qboolean readyforjump = false;
@@ -1837,11 +1847,14 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 		}
 	}
 	else
+#endif
 	{
-		if ((unsigned int)ent->v->lastruntime == svs.framenum)
+		if ((unsigned int)ent->v->lastruntime == w->framenum)
 			return;
-		ent->v->lastruntime = svs.framenum;
+		ent->v->lastruntime = w->framenum;
+#ifndef CLIENTONLY
 		svent = NULL;
+#endif
 	}
 
 
@@ -1890,8 +1903,10 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 
 		WPhys_WalkMove (w, ent);
 
-		if (!(ent->entnum > 0 && ent->entnum <= sv.allocated_client_slots))
+#ifndef CLIENTONLY
+		if (!(ent->entnum > 0 && ent->entnum <= sv.allocated_client_slots) && w == &sv.world)
 			World_LinkEdict (w, ent, true);
+#endif
 
 		break;
 	case MOVETYPE_PHYSICS:
@@ -1908,6 +1923,7 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 		WPhys_MoveChain(w, ent, movechain, initial_origin, initial_angle);
 	}
 
+#ifndef CLIENTONLY
 	if (svent)
 	{
 		World_LinkEdict (w, (wedict_t*)svent, true);
@@ -1924,6 +1940,7 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 				PR_ExecuteProgram (w->progs, pr_global_struct->PlayerPostThink);
 		}
 	}
+#endif
 }
 
 /*
@@ -1939,7 +1956,7 @@ void WPhys_RunNewmis (world_t *w)
 	if (!w->g.newmis)	//newmis variable is not exported.
 		return;
 
-	if (sv_nomsec.ival >= 2)
+	if (!sv_gameplayfix_multiplethinks.ival)
 		return;
 
 	if (!*w->g.newmis)
@@ -2004,6 +2021,8 @@ void World_Physics_Frame(world_t *w)
 	qboolean retouch;
 	wedict_t *ent;
 
+	w->framenum++;
+
 	i = *w->g.physics_mode;
 	if (i == 0)
 	{
@@ -2040,6 +2059,7 @@ void World_Physics_Frame(world_t *w)
 		if (retouch)
 			World_LinkEdict (w, ent, true);	// force retouch even for stationary
 
+#ifndef CLIENTONLY
 		if (i > 0 && i <= sv.allocated_client_slots && w == &sv.world)
 		{
 			if (!svs.clients[i-1].isindependant)
@@ -2051,6 +2071,7 @@ void World_Physics_Frame(world_t *w)
 //				World_LinkEdict(w, (wedict_t*)ent, true);
 			continue;		// clients are run directly from packets
 		}
+#endif
 
 		WPhys_RunEntity (w, ent);
 		WPhys_RunNewmis (w);
@@ -2066,6 +2087,7 @@ void World_Physics_Frame(world_t *w)
 		*w->g.force_retouch-=1;
 }
 
+#ifndef CLIENTONLY
 /*
 ================
 SV_Physics
@@ -2246,6 +2268,7 @@ qboolean SV_Physics (void)
 	}
 	return moved;
 }
+#endif
 
 void SV_SetMoveVars(void)
 {
@@ -2259,8 +2282,8 @@ void SV_SetMoveVars(void)
 	movevars.friction			= sv_friction.value;
 	movevars.waterfriction	    = sv_waterfriction.value;
 	movevars.entgravity			= 1.0;
-	if (*pm_stepheight.string)
-		movevars.stepheight			= pm_stepheight.value;
+	if (*sv_stepheight.string)
+		movevars.stepheight			= sv_stepheight.value;
 	else
 		movevars.stepheight			= PM_DEFAULTSTEPHEIGHT;
 }

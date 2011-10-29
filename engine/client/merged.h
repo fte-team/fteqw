@@ -183,7 +183,29 @@ typedef struct texid_s texid_tf;
 #define TEXASSIGNF(d,s) memcpy(&d,&s,sizeof(d))
 #define TEXVALID(t) 1
 #endif
-typedef enum uploadfmt uploadfmt_t;
+typedef enum uploadfmt
+{
+        TF_INVALID,
+        TF_RGBA32,              /*rgba byte order*/
+        TF_BGRA32,              /*bgra byte order*/
+        TF_RGBX32,              /*rgb byte order, with extra wasted byte after blue*/
+        TF_RGB24,               /*bgr byte order, no alpha channel nor pad, and top down*/
+        TF_BGR24_FLIP,  /*bgr byte order, no alpha channel nor pad, and bottom up*/
+        TF_SOLID8,      /*8bit quake-palette image*/
+        TF_TRANS8,      /*8bit quake-palette image, index 255=transparent*/
+        TF_TRANS8_FULLBRIGHT,   /*fullbright 8 - fullbright texels have alpha 255, everything else 0*/
+        TF_HEIGHT8,     /*image data is greyscale, convert to a normalmap and load that, uploaded alpha contains the original heights*/
+        TF_HEIGHT8PAL, /*source data is palette values rather than actual heights, generate a fallback heightmap*/
+        TF_H2_T7G1, /*8bit data, odd indexes give greyscale transparence*/
+        TF_H2_TRANS8_0, /*8bit data, 0 is transparent, not 255*/
+        TF_H2_T4A4,     /*8bit data, weird packing*/
+
+        /*anything below requires a palette*/
+        TF_PALETTES,
+        TF_8PAL24,
+        TF_8PAL32
+} uploadfmt_t;
+
 //not all modes accept meshes - STENCIL(intentional) and DEPTHONLY(not implemented)
 typedef enum backendmode_e
 {

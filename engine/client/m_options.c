@@ -442,7 +442,7 @@ const char *presetexec[] =
 	"r_particlesystem classic;"
 #else
 	"r_particlesystem script;"
-	"r_particledesc highfps;"
+	"r_particledesc classic;"
 #endif
 	"r_drawflat 0;"
 	"r_nolerp 0;"

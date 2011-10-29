@@ -263,7 +263,6 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -v win),)
 	endif
 
 	IMAGELDFLAGS=$(MINGW_LIBS_DIR)/libpng.a $(MINGW_LIBS_DIR)/libz.a $(MINGW_LIBS_DIR)/libjpeg.a
-	RELEASE_CFLAGS=$(CPUOPTIMIZATIONS)
 
 	ifeq ($(shell echo $(FTE_TARGET)|grep -v -i _SDL),)
 		RELEASE_CFLAGS+= -D_SDL
@@ -293,6 +292,7 @@ CLIENT_ONLY_CFLAGS=-DCLIENTONLY
 SERVER_ONLY_CFLAGS=-DSERVERONLY
 JOINT_CFLAGS=
 DEBUG_CFLAGS=-ggdb -g
+RELEASE_CFLAGS?=-O3 -ffast-math $(CPUOPTIMIZATIONS)
 
 #incase our compiler doesn't support it (mingw)
 ifeq ($(shell $(CC) -rdynamic 2>&1 | grep unrecognised),)
@@ -444,7 +444,6 @@ SERVER_OBJS = 		\
 	sv_nchan.o 		\
 	sv_ents.o 		\
 	sv_send.o 		\
-	sv_phys.o 		\
 	sv_user.o		\
 	sv_mvd.o		\
 	sv_ccmds.o 		\
@@ -493,6 +492,7 @@ COMMON_OBJS = \
 	glmod_doom.o 	\
 	q3common.o	\
 	world.o 		\
+	sv_phys.o 		\
 	sv_move.o 		\
 	pmove.o		\
 	pmovetst.o		\
@@ -667,7 +667,7 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -E -v "win(32|64)$$"),)
 	NPFTECL_OBJS=$(GL_OBJS) $(GLQUAKE_OBJS) fs_win32.o gl_vidnt.o snd_win.o snd_directx.o cd_win.o in_win.o sys_win.o sys_npfte.o sys_axfte.o sys_plugfte.o $(LTO_END) npplug.o ../../ftequake/npapi.def $(LTO_START)
 	NPFTE_DLL_NAME=../npfte$(BITS).dll
 	NPFTECL_DLL_NAME=../npftecl$(BITS).dll
-	NPFTE_LDFLAGS=--enable-stdcall-fixup $(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -shared
+	NPFTE_LDFLAGS=-Wl,--enable-stdcall-fixup $(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -loleaut32 -luuid -lstdc++ -shared
 	NPFTE_CFLAGS=$(NPFTECFLAGS) $(GLCFLAGS) $(W32_CFLAGS) $(DX7SDK) -DMULTITHREAD
 	NPFTEB_DIR=npfte_mgw$(BITS)
 	NPFTECL_DIR=npqtvcl_mgw$(BITS)

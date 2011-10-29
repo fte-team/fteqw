@@ -3,17 +3,39 @@
 #ifdef _WIN32
 #include "sys_plugfte.h"
 
+#include <windows.h>
 #include <objsafe.h>	/*IObjectSafety*/
 #include <mshtmdid.h>	/*DISPID_SECURITYCTX*/
 
 #include <olectl.h> /*common dispid values*/
 
+#ifndef DISPID_READYSTATE
+/*my oldctl.h is too old*/
+#define DISPID_READYSTATE -525
+#endif
+#ifndef __IOleInPlaceObjectWindowless_INTERFACE_DEFINED__
+/*mshtmdid.h didn't declare this, so fall back*/
+#define IID_IOleInPlaceObjectWindowless IID_IOleInPlaceObject
+#define IOleInPlaceObjectWindowless IOleInPlaceObject
+#endif
+
+#ifndef __IOleInPlaceSiteWindowless_INTERFACE_DEFINED__
+#define IOleInPlaceSiteWindowless IOleInPlaceSite
+#define IID_IOleInPlaceSiteWindowless IID_IOleInPlaceSite
+#endif
+
 const GUID axfte_iid = {0x7d676c9f, 0xfb84, 0x40b6, {0xb3, 0xff, 0xe1, 0x08, 0x31, 0x55, 0x7e, 0xeb}};
 #define axfte_iid_str "7d676c9f-fb84-40b6-b3ff-e10831557eeb"
-extern "C" extern HINSTANCE	global_hInstance;
+extern "C"
+{
+	extern HINSTANCE	global_hInstance;
+}
 
+#ifdef _MSC_VER
 #pragma warning(disable:4584) /*shush now*/
-class axfte : public IUnknown, public IDispatch, public IClassFactory, public IObjectSafety, 
+#endif
+
+class axfte : public IDispatch, public IClassFactory, public IObjectSafety, 
 	public IOleObject, public IOleInPlaceObjectWindowless, public IViewObject, public IPersistPropertyBag2
 {
 private:
@@ -42,7 +64,7 @@ public:
 	}
 	static void statuschanged(void *arg)
 	{
-		axfte *fte = (axfte*)arg;
+		//axfte *fte = (axfte*)arg;
 		InvalidateRect(NULL, NULL, FALSE);
 	}
 
@@ -52,7 +74,7 @@ public:
 		*ppvObject = NULL;
 		if (riid == IID_IUnknown)
 		{
-			*ppvObject = (IUnknown*)this;
+			*ppvObject = (IUnknown*)(IDispatch*)this;
 			((LPUNKNOWN)*ppvObject)->AddRef();
 			return S_OK;
 		}
@@ -165,7 +187,7 @@ public:
 	{
 		char tmp[1024];
 		HRESULT ret = S_OK;
-		int i;
+		UINT i;
 		int prop;
 		for (i = 0; i < cNames; i++)
 		{
@@ -236,7 +258,7 @@ public:
 				else
 				{
 					char tmp[1024];
-					sprintf(tmp, "DISPATCH_PROPERTYGET dispIdMember=%i", dispIdMember);
+					sprintf(tmp, "DISPATCH_PROPERTYGET dispIdMember=%i", (unsigned int)dispIdMember);
 					OutputDebugStringA(tmp);
 					return DISP_E_MEMBERNOTFOUND;
 				}
@@ -270,7 +292,7 @@ public:
 			else
 			{
 				char tmp[1024];
-				sprintf(tmp, "DISPATCH_PROPERTYPUT dispIdMember=%i", dispIdMember);
+				sprintf(tmp, "DISPATCH_PROPERTYPUT dispIdMember=%i", (unsigned int)dispIdMember);
 				OutputDebugStringA(tmp);
 				return DISP_E_MEMBERNOTFOUND;
 			}
@@ -278,7 +300,7 @@ public:
 		else if (wFlags & DISPATCH_PROPERTYPUTREF)
 		{
 			char tmp[1024];
-			sprintf(tmp, "DISPATCH_PROPERTYPUTREF dispIdMember=%i", dispIdMember);
+			sprintf(tmp, "DISPATCH_PROPERTYPUTREF dispIdMember=%i", (unsigned int)dispIdMember);
 			OutputDebugStringA(tmp);
 			return DISP_E_MEMBERNOTFOUND;
 		}
@@ -478,7 +500,11 @@ public:
 
 				phwnd = frameinfo.hwndFrame;
 				funcs->ChangeWindow(plug, frameinfo.hwndFrame, lprcPosRect->left, lprcPosRect->top, lprcPosRect->right - lprcPosRect->left, lprcPosRect->bottom - lprcPosRect->top);
+				#ifndef __IOleInPlaceSiteWindowless_INTERFACE_DEFINED__
+				oipc->OnInPlaceActivate();
+				#else
 				oipc->OnInPlaceActivateEx(NULL, 1);
+				#endif
 				oipc->Release();
 			}
 			break;
@@ -682,9 +708,9 @@ public:
 	{
 		PROPBAG2 prop[] =
 		{
-			{PROPBAG2_TYPE_DATA, VT_BSTR, 0, 0, L"splash", NULL},
-			{PROPBAG2_TYPE_DATA, VT_BSTR, 0, 0, L"game", NULL},
-			{PROPBAG2_TYPE_DATA, VT_BSTR, 0, 0, L"dataDownload", NULL}
+			{PROPBAG2_TYPE_DATA, VT_BSTR, 0, 0, (WCHAR *)L"splash", {0}},
+			{PROPBAG2_TYPE_DATA, VT_BSTR, 0, 0, (WCHAR *)L"game", {0}},
+			{PROPBAG2_TYPE_DATA, VT_BSTR, 0, 0, (WCHAR *)L"dataDownload", {0}}
 		};
 		VARIANT val[sizeof(prop)/sizeof(prop[0])];
 		HRESULT res[sizeof(prop)/sizeof(prop[0])];
@@ -742,8 +768,8 @@ HRESULT WINAPI DllCanUnloadNow(void)
 
 struct
 {
-	char *key;
-	char *value;
+	const char *key;
+	const char *value;
 } regkeys[] = 
 {
 	{"Software\\Classes\\FTE.FTEPlug\\",											"FTEPlug Class"},

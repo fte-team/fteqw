@@ -3814,18 +3814,8 @@ extern void Log_Init (void);
 void SV_InitLocal (void)
 {
 	int		i, p;
-	extern	cvar_t	sv_maxvelocity;
-	extern	cvar_t	sv_gravity;
-	extern	cvar_t	sv_aim;
-	extern	cvar_t	sv_stopspeed;
-	extern	cvar_t	sv_spectatormaxspeed;
-	extern	cvar_t	sv_accelerate;
-	extern	cvar_t	sv_airaccelerate;
-	extern	cvar_t	sv_wateraccelerate;
-	extern	cvar_t	sv_friction;
-	extern	cvar_t	sv_waterfriction;
-	extern	cvar_t sv_sound_watersplash, sv_sound_land;
 	extern	cvar_t	pr_allowbutton1;
+	extern	cvar_t	sv_aim;
 
 	extern	cvar_t	pm_bunnyspeedcap;
 	extern	cvar_t	pm_ktjump;
@@ -3833,7 +3823,6 @@ void SV_InitLocal (void)
 	extern	cvar_t	pm_airstep;
 	extern	cvar_t	pm_walljump;
 	extern	cvar_t	pm_slidyslopes;
-	extern	cvar_t	pm_stepheight;
 
 	SV_InitOperatorCommands	();
 	SV_UserInit ();
@@ -3884,19 +3873,6 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_pupglow,	cvargroup_serverinfo);
 	Cvar_Register (&sv_loadentfiles,	cvargroup_servercontrol);
 
-	Cvar_Register (&sv_maxvelocity,			cvargroup_serverphysics);
-	Cvar_Register (&sv_gravity,				cvargroup_serverphysics);
-	Cvar_Register (&sv_stopspeed,			cvargroup_serverphysics);
-	Cvar_Register (&sv_maxspeed,			cvargroup_serverphysics);
-	Cvar_Register (&sv_spectatormaxspeed,	cvargroup_serverphysics);
-	Cvar_Register (&sv_accelerate,			cvargroup_serverphysics);
-	Cvar_Register (&sv_airaccelerate,		cvargroup_serverphysics);
-	Cvar_Register (&sv_wateraccelerate,		cvargroup_serverphysics);
-	Cvar_Register (&sv_friction,			cvargroup_serverphysics);
-	Cvar_Register (&sv_waterfriction,		cvargroup_serverphysics);
-	Cvar_Register (&sv_sound_watersplash,	cvargroup_serverphysics);
-	Cvar_Register (&sv_sound_land,			cvargroup_serverphysics);
-
 	Cvar_Register (&sv_bigcoords,			cvargroup_serverphysics);
 
 	Cvar_Register (&pm_bunnyspeedcap,		cvargroup_serverphysics);
@@ -3905,7 +3881,6 @@ void SV_InitLocal (void)
 	Cvar_Register (&pm_slidyslopes,			cvargroup_serverphysics);
 	Cvar_Register (&pm_airstep,				cvargroup_serverphysics);
 	Cvar_Register (&pm_walljump,			cvargroup_serverphysics);
-	Cvar_Register (&pm_stepheight,			cvargroup_serverphysics);
 
 	Cvar_Register (&sv_compatiblehulls,		cvargroup_serverphysics);
 

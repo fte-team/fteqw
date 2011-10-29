@@ -56,6 +56,8 @@ void PF_Common_RegisterCvars(void)
 	Cvar_Register (&pr_tempstringcount, cvargroup_progs);
 	Cvar_Register (&pr_tempstringsize, cvargroup_progs);
 	Cvar_Register (&dpcompat_stats, cvargroup_progs);
+
+	WPhys_Init();
 }
 
 char *Translate(char *message);

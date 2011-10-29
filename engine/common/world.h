@@ -136,6 +136,7 @@ struct world_s
 	int			numareanodes;
 
 	double		physicstime;
+	unsigned int    framenum;
 	int			lastcheck;			// used by PF_checkclient
 	double		lastchecktime;		// for monster ai
 

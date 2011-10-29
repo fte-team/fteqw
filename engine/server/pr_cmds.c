@@ -76,7 +76,6 @@ cvar_t pr_droptofloorunits = CVAR("pr_droptofloorunits", "");
 
 cvar_t sv_gameplayfix_honest_tracelines = CVAR("sv_gameplayfix_honest_tracelines", "1");
 cvar_t sv_gameplayfix_blowupfallenzombies = CVAR("sv_gameplayfix_blowupfallenzombies", "0");
-extern cvar_t sv_gameplayfix_noairborncorpse;
 
 cvar_t sv_addon[MAXADDONS];
 char cvargroup_progs[] = "Progs variables";
@@ -1162,7 +1161,6 @@ void PR_Init(void)
 
 	Cvar_Register (&sv_gameplayfix_honest_tracelines, cvargroup_progs);
 	Cvar_Register (&sv_gameplayfix_blowupfallenzombies, cvargroup_progs);
-	Cvar_Register (&sv_gameplayfix_noairborncorpse, cvargroup_progs);
 
 #ifdef SQL
 	SQL_Init();

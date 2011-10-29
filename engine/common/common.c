@@ -3141,8 +3141,6 @@ void COM_Version_f (void)
 	Con_TPrintf (TL_EXEDATETIME, __DATE__, __TIME__);
 
 #ifdef SVNREVISION
-	#define STRINGIFY2(arg) #arg
-	#define STRINGIFY(arg) STRINGIFY2(arg)
 	Con_Printf("SVN Revision: %s\n",STRINGIFY(SVNREVISION));
 #endif
 
@@ -4376,11 +4374,7 @@ char *version_string(void)
 #ifdef OFFICIAL_RELEASE
 		Q_snprintfz(s, sizeof(s), "%s v%i.%02i", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR);
 #elif defined(SVNREVISION)
-#define STRINGIFY2(arg) #arg
-#define STRINGIFY(arg) STRINGIFY2(arg)
 		Q_snprintfz(s, sizeof(s), "%s SVN %s", DISTRIBUTION, STRINGIFY(SVNREVISION));
-#undef STRINGIFY
-#undef STRINGIFY2
 #else
 		Q_snprintfz(s, sizeof(s), "%s build %s", DISTRIBUTION, __DATE__);
 #endif

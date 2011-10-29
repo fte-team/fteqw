@@ -42,7 +42,7 @@ extern float   (*PRLittleFloat) (float l);
 
 #define	MAX_ERRORS		10
 
-#define	MAX_NAME		64		// chars long
+#define	MAX_NAME		256		// chars long
 
 extern unsigned int MAX_REGS;
 

@@ -8485,10 +8485,13 @@ static void QCBUILTIN PF_getsurfacenumpoints(progfuncs_t *prinst, struct globalv
 	else
 		model = NULL;
 
-	if (!model || model->type != mod_brush || surfnum >= model->numsurfaces)
+	if (!model || model->type != mod_brush || surfnum >= model->nummodelsurfaces)
 		G_FLOAT(OFS_RETURN) = 0;
 	else
+	{
+		surfnum += model->firstmodelsurface;
 		G_FLOAT(OFS_RETURN) = model->surfaces[surfnum].mesh->numvertexes;
+	}
 }
 // #435 vector(entity e, float s, float n) getsurfacepoint (DP_QC_GETSURFACE)
 static void QCBUILTIN PF_getsurfacepoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -8508,7 +8511,7 @@ static void QCBUILTIN PF_getsurfacepoint(progfuncs_t *prinst, struct globalvars_
 	else
 		model = NULL;
 
-	if (!model || model->type != mod_brush || surfnum >= model->numsurfaces)
+	if (!model || model->type != mod_brush || surfnum >= model->nummodelsurfaces)
 	{
 		G_FLOAT(OFS_RETURN+0) = 0;
 		G_FLOAT(OFS_RETURN+1) = 0;
@@ -8516,8 +8519,10 @@ static void QCBUILTIN PF_getsurfacepoint(progfuncs_t *prinst, struct globalvars_
 	}
 	else
 	{
-		G_FLOAT(OFS_RETURN+0) = model->surfaces[surfnum].mesh->xyz_array[pointnum][2];
-		G_FLOAT(OFS_RETURN+1) = model->surfaces[surfnum].mesh->xyz_array[pointnum][2];
+		surfnum += model->firstmodelsurface;
+
+		G_FLOAT(OFS_RETURN+0) = model->surfaces[surfnum].mesh->xyz_array[pointnum][0];
+		G_FLOAT(OFS_RETURN+1) = model->surfaces[surfnum].mesh->xyz_array[pointnum][1];
 		G_FLOAT(OFS_RETURN+2) = model->surfaces[surfnum].mesh->xyz_array[pointnum][2];
 	}
 }
@@ -8539,7 +8544,7 @@ static void QCBUILTIN PF_getsurfacenormal(progfuncs_t *prinst, struct globalvars
 	else
 		model = NULL;
 
-	if (!model || model->type != mod_brush || surfnum >= model->numsurfaces)
+	if (!model || model->type != mod_brush || surfnum >= model->nummodelsurfaces)
 	{
 		G_FLOAT(OFS_RETURN+0) = 0;
 		G_FLOAT(OFS_RETURN+1) = 0;
@@ -8547,6 +8552,8 @@ static void QCBUILTIN PF_getsurfacenormal(progfuncs_t *prinst, struct globalvars
 	}
 	else
 	{
+		surfnum += model->firstmodelsurface;
+
 		G_FLOAT(OFS_RETURN+0) = model->surfaces[surfnum].plane->normal[0];
 		G_FLOAT(OFS_RETURN+1) = model->surfaces[surfnum].plane->normal[1];
 		G_FLOAT(OFS_RETURN+2) = model->surfaces[surfnum].plane->normal[2];
@@ -8576,9 +8583,9 @@ void PF_getsurfacetexture(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	if (!model || model->type != mod_brush)
 		return;
 
-	if (surfnum < 0 || surfnum > model->numsurfaces)
+	if (surfnum < 0 || surfnum > model->nummodelsurfaces)
 		return;
-
+	surfnum += model->firstmodelsurface;
 	surf = &model->surfaces[surfnum];
 	G_INT(OFS_RETURN) = PR_TempString(prinst, surf->texinfo->texture->name);
 }
@@ -8595,9 +8602,12 @@ static void QCBUILTIN PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalv
 
 	vec3_t edgedir;
 	vec3_t edgenormal;
+	vec3_t cpoint, temp;
 	mvertex_t *v1, *v2;
 	int edge;
 	int e;
+	float bestdist = 10000000000000, dist;
+	int bestsurf = -1;
 
 	ent = G_EDICT(prinst, OFS_PARM0);
 	point = G_VECTOR(OFS_PARM1);
@@ -8617,19 +8627,19 @@ static void QCBUILTIN PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalv
 		return;
 
 
-	surf = model->surfaces;
-	for (i = model->numsurfaces; i; i--, surf++)
+	surf = model->surfaces + model->firstmodelsurface;
+	for (i = 0; i < model->nummodelsurfaces; i++, surf++)
 	{
-		if (surf->flags & SURF_PLANEBACK)
-			planedist = -DotProduct(point, surf->plane->normal);
-		else
-			planedist = DotProduct(point, surf->plane->normal);
+		planedist = DotProduct(point, surf->plane->normal) - surf->plane->dist;
+		//don't care about SURF_PLANEBACK, the maths works out the same.
 
-		if (planedist*planedist < 8*8)
+		if (planedist*planedist < bestdist)
 		{	//within a specific range
 			//make sure it's within the poly
-			for (e = surf->firstedge+surf->numedges, edge = model->surfedges[surf->firstedge]; e > surf->firstedge; e--, edge++)
+			VectorMA(point, planedist, surf->plane->normal, cpoint);
+			for (e = surf->firstedge+surf->numedges; e > surf->firstedge; edge++)
 			{
+				edge = model->surfedges[--e];
 				if (edge < 0)
 				{
 					v1 = &model->vertexes[model->edges[-edge].v[0]];
@@ -8640,29 +8650,30 @@ static void QCBUILTIN PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalv
 					v2 = &model->vertexes[model->edges[edge].v[0]];
 					v1 = &model->vertexes[model->edges[edge].v[1]];
 				}
+				
+				VectorSubtract(v1->position, v2->position, edgedir);
+				CrossProduct(edgedir, surf->plane->normal, edgenormal);
+				if (!(surf->flags & SURF_PLANEBACK))
+				{
+					VectorNegate(edgenormal, edgenormal);
+				}
+				VectorNormalize(edgenormal);
 
-				if (surf->flags & SURF_PLANEBACK)
-				{
-					VectorSubtract(v1->position, v2->position, edgedir);
-					CrossProduct(edgedir, surf->plane->normal, edgenormal);
-					if (DotProduct(edgenormal, v1->position) > DotProduct(edgenormal, point))
-						break;
-				}
-				else
-				{
-					VectorSubtract(v1->position, v2->position, edgedir);
-					CrossProduct(edgedir, surf->plane->normal, edgenormal);
-					if (DotProduct(edgenormal, v1->position) < DotProduct(edgenormal, point))
-						break;
-				}
+				dist = DotProduct(v1->position, edgenormal) - DotProduct(cpoint, edgenormal);
+				if (dist < 0)
+					VectorMA(cpoint, dist, edgenormal, cpoint);
 			}
-			if (e == surf->firstedge)
+
+			VectorSubtract(cpoint, point, temp);
+			dist = DotProduct(temp, temp);
+			if (dist < bestdist)
 			{
-				G_FLOAT(OFS_RETURN) = i;
-				break;
+				bestsurf = i;
+				bestdist = dist;
 			}
 		}
 	}
+	G_FLOAT(OFS_RETURN) = bestsurf;
 }
 // #439 vector(entity e, float s, vector p) getsurfaceclippedpoint (DP_QC_GETSURFACE)
 static void QCBUILTIN PF_getsurfaceclippedpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -9418,10 +9429,10 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 				if (pr_builtin[BuiltinList[i].ebfsnum] == PF_Fixme && builtincount[BuiltinList[i].ebfsnum] == (BuiltinList[i].obsolete?0:1))
 				{
 					pr_builtin[BuiltinList[i].ebfsnum] = BuiltinList[i].bifunc;
-					Con_DPrintf("Enabled %s\n", BuiltinList[i].name);
+					Con_DPrintf("Enabled %s (%i)\n", BuiltinList[i].name, BuiltinList[i].ebfsnum);
 				}
 				else if (pr_builtin[i] != BuiltinList[i].bifunc)
-					Con_DPrintf("Not enabled %s\n", BuiltinList[i].name);
+					Con_DPrintf("Not enabled %s (%i)\n", BuiltinList[i].name, BuiltinList[i].ebfsnum);
 			}
 		}
 	}

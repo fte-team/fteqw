@@ -6,7 +6,7 @@
 #include <objsafe.h>	/*IObjectSafety*/
 #include <mshtmdid.h>	/*DISPID_SECURITYCTX*/
 
-#include <OleCtl.h> /*common dispid values*/
+#include <olectl.h> /*common dispid values*/
 
 const GUID axfte_iid = {0x7d676c9f, 0xfb84, 0x40b6, {0xb3, 0xff, 0xe1, 0x08, 0x31, 0x55, 0x7e, 0xeb}};
 #define axfte_iid_str "7d676c9f-fb84-40b6-b3ff-e10831557eeb"

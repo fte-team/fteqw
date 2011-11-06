@@ -13,6 +13,6 @@
         <em:maxVersion>9.*</em:maxVersion>
       </Description>
     </em:targetApplication>
-   <em:unpack>false</em:unpack>
+   <em:unpack>true</em:unpack>
   </Description>
 </RDF>

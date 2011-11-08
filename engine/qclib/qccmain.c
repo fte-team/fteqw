@@ -183,7 +183,7 @@ optimisations_t optimisations[] =
 	{&opt_return_only,				"ro",	3,	FLAG_KILLSDEBUGGERS,					"return_only",		"Functions ending in a return statement do not need a done statement at the end of the function. This can confuse some decompilers, making functions appear larger than they were."},
 	{&opt_compound_jumps,			"cj",	3,	FLAG_KILLSDEBUGGERS,					"compound_jumps",	"This optimisation plays an effect mostly with nested if/else statements, instead of jumping to an unconditional jump statement, it'll jump to the final destination instead. This will bewilder decompilers."},
 //	{&opt_comexprremoval,			"cer",	4,	0,						"expression_removal",	"Eliminate common sub-expressions"},	//this would be too hard...
-	{&opt_stripfunctions,			"sf",	3,	0,						"strip_functions",	"Strips out the 'defs' of functions that were only ever called directly. This does not affect saved games."},
+	{&opt_stripfunctions,			"sf",	4,	0,						"strip_functions",	"Strips out the 'defs' of functions that were only ever called directly. This does not affect saved games. This can affect FTE_MULTIPROGS."},
 	{&opt_locals_marshalling,		"lm",	4,	FLAG_KILLSDEBUGGERS,		"locals_marshalling", "Store all locals in one section of the pr_globals. Vastly reducing it. This effectivly does the job of overlaptemps. It's been noticed as buggy by a few, however, and the curcumstances where it causes problems are not yet known."},
 	{&opt_vectorcalls,				"vc",	4,	FLAG_KILLSDEBUGGERS,					"vectorcalls",		"Where a function is called with just a vector, this causes the function call to store three floats instead of one vector. This can save a good number of pr_globals where those vectors contain many duplicate coordinates but do not match entirly."},
 	{NULL}
@@ -214,6 +214,7 @@ compiler_flag_t compiler_flag[] = {
 	{&keyword_nosave,		defaultkeyword, "nosave",		"Keyword: nosave",		"Disables the 'nosave' keyword."},	//don't write the def to the output.
 	{&keyword_shared,		defaultkeyword, "shared",		"Keyword: shared",		"Disables the 'shared' keyword."},	//mark global to be copied over when progs changes (part of FTE_MULTIPROGS)
 	{&keyword_state,		nondefaultkeyword,"state",		"Keyword: state",		"Disables the 'state' keyword."},
+	{&keyword_optional,		defaultkeyword,"optional",		"Keyword: optional",	"Disables the 'optional' keyword."},
 	{&keyword_string,		defaultkeyword, "string",		"Keyword: string",		"Disables the 'string' keyword."},
 	{&keyword_struct,		defaultkeyword, "struct",		"Keyword: struct",		"Disables the 'struct' keyword."},
 	{&keyword_switch,		defaultkeyword, "switch",		"Keyword: switch",		"Disables the 'switch' keyword."},

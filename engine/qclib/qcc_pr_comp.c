@@ -25,6 +25,7 @@ pbool keyword_asm;
 pbool keyword_break;
 pbool keyword_case;
 pbool keyword_class;
+pbool keyword_optional;
 pbool keyword_const;	//fixme
 pbool keyword_continue;
 pbool keyword_default;
@@ -2146,6 +2147,13 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 			var_a = var_c;
 			var_c = var_a;
 			break;
+		case OP_ADDSTORE_I:
+			op = &pr_opcodes[OP_ADD_I];
+			var_c = var_b;
+			var_b = var_a;
+			var_a = var_c;
+			var_c = var_a;
+			break;
 		case OP_ADDSTORE_FI:
 			op = &pr_opcodes[OP_ADD_FI];
 			var_c = var_b;
@@ -3574,7 +3582,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 				QCC_PR_ParseErrorPrintDef (ERR_TOOMANYPARAMETERSVARARGS, func, "More than %i parameters on varargs function", MAX_PARMS);
 			else if (arg >= MAX_PARMS+MAX_EXTRA_PARMS)
 				QCC_PR_ParseErrorPrintDef (ERR_TOOMANYTOTALPARAMETERS, func, "More than %i parameters", MAX_PARMS+MAX_EXTRA_PARMS);
-			if (!extraparms && arg >= t->num_parms)
+			if (!extraparms && arg >= t->num_parms && !p)
 			{
 				QCC_PR_ParseWarning (WARN_TOOMANYPARAMETERSFORFUNC, "too many parameters");
 				QCC_PR_ParsePrintDef(WARN_TOOMANYPARAMETERSFORFUNC, func);
@@ -3920,7 +3928,6 @@ QCC_def_t *QCC_MakeTranslateStringConst(char *value)
 	return QCC_MakeStringConstInternal(value, true);
 }
 
-QCC_type_t *QCC_PR_NewType (char *name, int basictype);
 QCC_type_t *QCC_PointerTypeTo(QCC_type_t *type)
 {
 	QCC_type_t *newtype;
@@ -4922,7 +4929,7 @@ int QCC_canConv(QCC_def_t *from, etype_t to)
 	}
 
 	if (from->type->type == ev_variant)
-		return 5;
+		return 3;
 
 /*	if (from->type->type == ev_pointer && from->type->aux_type->type == to)
 		return 1;
@@ -5388,11 +5395,21 @@ QCC_def_t *QCC_PR_Expression (int priority, int exprflags)
 
 int QCC_PR_IntConstExpr(void)
 {
-	QCC_def_t *def = QCC_PR_Expression(7, 0);
-	if (!def->constant)
-		QCC_PR_ParseError(ERR_BADARRAYSIZE, "Array size is not a constant value");
-	def = QCC_SupplyConversion(def, ev_integer, true);
-	return G_INT(def->ofs);
+	QCC_def_t *def = QCC_PR_Expression(TOP_PRIORITY, 0);
+	if (def->constant)
+	{
+		def->references++;
+		if (def->type->type == ev_integer)
+			return G_INT(def->ofs);
+		if (def->type->type == ev_float)
+		{
+			int i = G_FLOAT(def->ofs);
+			if ((float)i == G_FLOAT(def->ofs))
+				return i;
+		}
+	}
+	QCC_PR_ParseError(ERR_NOTACONSTANT, "Value is not an integer constant");
+	return true;
 }
 
 void QCC_PR_GotoStatement (QCC_dstatement_t *patch2, char *labelname)
@@ -7799,7 +7816,7 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_def_t *scope, int a
 		def->scope = scope;
 		def->saved = saved;
 
-	//	if (arraysize>1)
+		//if (type->type = ev_field)
 			def->constant = true;
 
 		if (ofs + type->size*a >= MAX_REGS)
@@ -7876,6 +7893,7 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_def_t *scope, int a
 				QCC_PR_DummyDef(type_floatfield, newname, scope, 1, ofs + type->size*a+2, referable, false);
 			}
 		}
+		first->deftail = pr.def_tail;
 	}
 
 	if (referable)
@@ -8244,9 +8262,6 @@ void QCC_PR_ExpandUnionToFields(QCC_type_t *type, int *fields)
 }
 
 
-/*
-def -  just debugging
-*/
 void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *def, QCC_type_t *type, int offset)
 {
 	QCC_def_t *tmp;
@@ -8266,7 +8281,86 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *def, QCC_type_t *type
 	}
 	else
 	{
-		if (type->type == ev_string && QCC_PR_CheckName("_"))
+		if (type->type == ev_function && pr_token_type == tt_punct)
+		{
+			/*begin function special case*/
+			QCC_def_t *parentfunc = pr_scope;
+			QCC_function_t *f;
+			QCC_dfunction_t	*df;
+			QCC_type_t *parm;
+
+			tmp = NULL;
+
+			def->references++;
+			pr_scope = def;
+			if (QCC_PR_CheckToken ("#") || QCC_PR_CheckToken (":"))
+			{
+				int binum = 0;
+				if (pr_token_type == tt_immediate
+				&& pr_immediate_type == type_float
+				&& pr_immediate._float == (int)pr_immediate._float)
+					binum = (int)pr_immediate._float;
+				else if (pr_token_type == tt_immediate && pr_immediate_type == type_integer)
+					binum = pr_immediate._int;
+				else
+					QCC_PR_ParseError (ERR_BADBUILTINIMMEDIATE, "Bad builtin immediate");
+				QCC_PR_Lex();
+
+				if (def->initialized)
+				for (i = 0; i < numfunctions; i++)
+				{
+					if (functions[i].first_statement == -binum)
+					{
+						tmp = QCC_MakeIntConst(i);
+						break;
+					}
+				}
+
+				if (!tmp)
+				{
+					f = (void *)qccHunkAlloc (sizeof(QCC_function_t));
+					f->builtin = binum;
+
+					locals_start = locals_end = OFS_PARM0; //hmm...
+				}
+				else
+					f = NULL;
+			}
+			else
+				f = QCC_PR_ParseImmediateStatements (type);
+			if (!tmp)
+			{
+				pr_scope = parentfunc;
+				tmp = QCC_MakeIntConst(numfunctions);
+				f->def = def;
+
+				if (numfunctions >= MAX_FUNCTIONS)
+					QCC_Error(ERR_INTERNAL, "Too many function defs");
+
+		// fill in the dfunction
+				df = &functions[numfunctions];
+				numfunctions++;
+				if (f->builtin)
+					df->first_statement = -f->builtin;
+				else
+					df->first_statement = f->code;
+
+				if (f->builtin && opt_function_names)
+					optres_function_names += strlen(f->def->name);
+				else
+					df->s_name = QCC_CopyString (f->def->name);
+				df->s_file = s_file2;
+				df->numparms =  f->def->type->num_parms;
+				df->locals = locals_end - locals_start;
+				df->parm_start = locals_start;
+				for (i=0,parm = type->param ; i<df->numparms ; i++, parm = parm->next)
+				{
+					df->parm_size[i] = parm->size;
+				}
+				/*end function special case*/
+			}
+		}
+		else if (type->type == ev_string && QCC_PR_CheckName("_"))
 		{
 			char trname[128];
 			QCC_PR_Expect("(");
@@ -8276,66 +8370,15 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *def, QCC_type_t *type
 			QCC_PR_Lex();
 			QCC_PR_Expect(")");
 
-			sprintf(trname, "dotranslate_%i", ++dotranslate_count);
-			QCC_PR_DummyDef(type_string, trname, pr_scope, 1, offset, true, true)->references = 1;
-		}
-		else if (type->type == ev_function && pr_token_type == tt_punct)
-		{
-			/*begin function special case*/
-			QCC_def_t *parentfunc = pr_scope;
-			QCC_function_t *f;
-			QCC_dfunction_t	*df;
-			QCC_type_t *parm;
-
-			def->references++;
-			pr_scope = def;
-			if (QCC_PR_CheckToken ("#") || QCC_PR_CheckToken (":"))
+			if (!pr_scope || def->constant)
 			{
-				int binum = 0;
-				f = (void *)qccHunkAlloc (sizeof(QCC_function_t));
-				if (pr_token_type == tt_immediate
-				&& pr_immediate_type == type_float
-				&& pr_immediate._float == (int)pr_immediate._float)
-					binum = (int)pr_immediate._float;
-				else if (pr_token_type == tt_immediate && pr_immediate_type == type_integer)
-					binum = pr_immediate._int;
-				else
-					QCC_PR_ParseError (ERR_BADBUILTINIMMEDIATE, "Bad builtin immediate");
-				f->builtin = binum;
-				QCC_PR_Lex();
-
-				locals_start = locals_end = OFS_PARM0; //hmm...
+				QCC_def_t *dt;
+				sprintf(trname, "dotranslate_%i", ++dotranslate_count);
+				dt = QCC_PR_DummyDef(type_string, trname, pr_scope, 1, offset, true, true);
+				dt->references = 1;
+				dt->constant = 1;
+				dt->initialized = 1;
 			}
-			else
-				f = QCC_PR_ParseImmediateStatements (type);
-			pr_scope = parentfunc;
-			tmp = QCC_MakeIntConst(numfunctions);
-			f->def = def;
-
-			if (numfunctions >= MAX_FUNCTIONS)
-				QCC_Error(ERR_INTERNAL, "Too many function defs");
-
-	// fill in the dfunction
-			df = &functions[numfunctions];
-			numfunctions++;
-			if (f->builtin)
-				df->first_statement = -f->builtin;
-			else
-				df->first_statement = f->code;
-
-			if (f->builtin && opt_function_names)
-				optres_function_names += strlen(f->def->name);
-			else
-				df->s_name = QCC_CopyString (f->def->name);
-			df->s_file = s_file2;
-			df->numparms =  f->def->type->num_parms;
-			df->locals = locals_end - locals_start;
-			df->parm_start = locals_start;
-			for (i=0,parm = type->param ; i<df->numparms ; i++, parm = parm->next)
-			{
-				df->parm_size[i] = parm->size;
-			}
-			/*end function special case*/
 		}
 		else
 		{
@@ -8362,21 +8405,35 @@ void QCC_PR_ParseInitializerType(int arraysize, QCC_def_t *def, QCC_type_t *type
 			if (!tmp->constant)
 				QCC_PR_ParseErrorPrintDef (ERR_BADIMMEDIATETYPE, def, "initializer is not constant");
 
-			for (i = 0; (unsigned)i < type->size; i++)
-				G_INT(offset+i) = G_INT(tmp->ofs+i);
+			if (def->initialized)
+			{
+				for (i = 0; (unsigned)i < type->size; i++)
+					if (G_INT(offset+i) != G_INT(tmp->ofs+i))
+						QCC_PR_ParseErrorPrintDef (ERR_REDECLARATION, def, "incompatible redeclaration");
+			}
+			else
+			{
+				for (i = 0; (unsigned)i < type->size; i++)
+					G_INT(offset+i) = G_INT(tmp->ofs+i);
+			}
 		}
 		else
 		{
 			QCC_def_t lhs, rhs;
+			if (def->initialized)
+				QCC_PR_ParseErrorPrintDef (ERR_REDECLARATION, def, "%s initialised twice", def->name);
+
 			memset(&lhs, 0, sizeof(lhs));
 			memset(&rhs, 0, sizeof(rhs));
-			for (i = 0; (unsigned)i < def->type->size; )
+			def->references++;
+			for (i = 0; (unsigned)i < type->size; )
 			{
 				rhs.type = lhs.type = type_float;
 				lhs.ofs = offset+i;
+				tmp->references++;
 				rhs.ofs = tmp->ofs+i;
 
-				if (def->type->size - i >= 3)
+				if (type->size - i >= 3)
 				{
 					QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_V], &rhs, &lhs, NULL));
 					i+=3;
@@ -8835,8 +8892,6 @@ void QCC_PR_ParseDefs (char *classname)
 		QCC_PR_Expect("(");
 		type = QCC_PR_ParseFunctionTypeReacc(false, type);
 		QCC_PR_Expect(";");
-		if (!stricmp(name, "null"))
-			printf("null!\n");
 		def = QCC_PR_GetDef (type, name, NULL, true, 1, false);
 
 		if (autoprototype)
@@ -8973,36 +9028,8 @@ void QCC_PR_ParseDefs (char *classname)
 			}
 			else
 			{
-				def = QCC_PR_Expression(TOP_PRIORITY, 0);
-				if (!def->constant)
-					QCC_PR_ParseError(ERR_BADARRAYSIZE, "Array size is not a constant value");
-				else if (def->type->type == ev_integer)
-					arraysize = G_INT(def->ofs);
-				else if (def->type->type == ev_float)
-				{
-					arraysize = (int)G_FLOAT(def->ofs);
-					if ((float)arraysize != G_FLOAT(def->ofs))
-						QCC_PR_ParseError(ERR_BADARRAYSIZE, "Array size is not a constant value");
-				}
-				else
-					QCC_PR_ParseError(ERR_BADARRAYSIZE, "Array size must be of int value");
-/*				if(pr_token_type == tt_name)
-				{
-					def = QCC_PR_GetDef(NULL, QCC_PR_ParseName(), pr_scope, false, 0);
-					if (def && def->arraysize==1)
-					{
-						if (def->type->type == ev_integer)
-							arraysize = G_INT(def->ofs);
-						else if (def->type->type == ev_float && (float)(int)G_FLOAT(def->ofs) == G_FLOAT(def->ofs))
-							arraysize = (int)G_FLOAT(def->ofs);
-					}
-				}
-				else if (pr_token_type == tt_immediate)
-				{
-					arraysize = atoi (pr_token);
-					QCC_PR_Lex();
-				}
-*/				QCC_PR_Expect("]");
+				arraysize = QCC_PR_IntConstExpr();
+				QCC_PR_Expect("]");
 			}
 
 			if (arraysize < 1)
@@ -9072,13 +9099,12 @@ void QCC_PR_ParseDefs (char *classname)
 				QCC_PR_ParseError (ERR_INITIALISEDLOCALFUNCTION, "local functions may not be initialised");
 			}
 
-			arraysize = def->arraysize;
-			d = def;	//apply to ALL elements
-			while(arraysize--)
+			d = def;
+			while (d != def->deftail)
 			{
+				d = d->next;
 				d->initialized = 1;	//fake function
 				G_FUNCTION(d->ofs) = 0;
-				d = d->next;
 			}
 
 			continue;
@@ -9095,14 +9121,14 @@ void QCC_PR_ParseDefs (char *classname)
 				QCC_PR_ParseError (ERR_SHAREDINITIALISED, "shared values may not be assigned an initial value", name);
 			if (def->initialized == 1)
 			{
-				if (def->type->type == ev_function)
-				{
-					i = G_FUNCTION(def->ofs);
-					df = &functions[i];
-					QCC_PR_ParseErrorPrintDef (ERR_REDECLARATION, def, "%s redeclared, prev instance is in %s", name, strings+df->s_file);
-				}
-				else
-					QCC_PR_ParseErrorPrintDef(ERR_REDECLARATION, def, "%s redeclared", name);
+//				if (def->type->type == ev_function)
+//				{
+//					i = G_FUNCTION(def->ofs);
+//					df = &functions[i];
+//					QCC_PR_ParseErrorPrintDef (ERR_REDECLARATION, def, "%s redeclared, prev instance is in %s", name, strings+df->s_file);
+//				}
+//				else
+//					QCC_PR_ParseErrorPrintDef(ERR_REDECLARATION, def, "%s redeclared", name);
 			}
 
 			if (autoprototype)
@@ -9163,7 +9189,13 @@ void QCC_PR_ParseDefs (char *classname)
 				def->constant = isconstant;
 		}
 
-
+		d = def;
+		while (d != def->deftail)
+		{
+			d = d->next;
+			d->constant = def->constant;
+			d->initialized = def->initialized;
+		}
 	} while (QCC_PR_CheckToken (","));
 
 	if (type->type == ev_function)

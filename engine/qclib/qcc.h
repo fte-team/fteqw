@@ -59,7 +59,7 @@ extern int	MAX_FUNCTIONS;
 #define	MAX_DATA_PATH	64
 
 extern int MAX_CONSTANTS;
-#define MAXCONSTANTLENGTH 64
+#define MAXCONSTANTNAMELENGTH 64
 #define MAXCONSTANTPARAMLENGTH 32
 #define MAXCONSTANTPARAMS 32
 
@@ -331,6 +331,7 @@ typedef struct QCC_def_s
 	struct QCC_def_s	*nextlocal;	//provides a chain of local variables for the opt_locals_marshalling optimisation.
 	gofs_t		ofs;
 	struct QCC_def_s	*scope;		// function the var was defined in, or NULL
+	struct QCC_def_s	*deftail;	// arrays and structs create multiple globaldef objects providing different types at the different parts of the single object (struct), or alternative names (vectors). this allows us to correctly set the const type based upon how its initialised.
 	int			initialized;	// 1 when a declaration included "= immediate"
 	int			constant;		// 1 says we can use the value over and over again
 
@@ -407,7 +408,7 @@ extern	QCC_pr_info_t	pr;
 
 typedef struct
 {
-	char name[MAXCONSTANTLENGTH];
+	char name[MAXCONSTANTNAMELENGTH];
 	char *value;
 	char params[MAXCONSTANTPARAMS][MAXCONSTANTPARAMLENGTH];
 	int numparams;
@@ -441,6 +442,7 @@ extern pbool keyword_break;
 extern pbool keyword_case;
 extern pbool keyword_class;
 extern pbool keyword_const;
+extern pbool keyword_optional;
 extern pbool keyword_continue;
 extern pbool keyword_default;
 extern pbool keyword_do;
@@ -534,6 +536,7 @@ void QCC_PR_Lex (void);
 // reads the next token into pr_token and classifies its type
 
 QCC_type_t *QCC_PR_NewType (char *name, int basictype);
+QCC_type_t *QCC_PointerTypeTo(QCC_type_t *type);
 QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail);
 extern pbool type_inlinefunction;
 QCC_type_t *QCC_TypeForName(char *name);
@@ -618,6 +621,7 @@ enum {
 	WARN_SAMENAMEASGLOBAL,
 	WARN_CONSTANTCOMPARISON,
 	WARN_UNSAFEFUNCTIONRETURNTYPE,
+	WARN_MISSINGOPTIONAL,
 
 	ERR_PARSEERRORS,	//caused by qcc_pr_parseerror being called.
 

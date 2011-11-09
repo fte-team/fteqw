@@ -12,13 +12,27 @@ int	D3_LeafnumForPoint (struct model_s *model, vec3_t point);
 qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 {
 	char token[256];
+	int ver = 0;
 	data = COM_ParseOut(data, token, sizeof(token));
-	if (strcmp(token, "mapProcFile003"))
+	if (!strcmp(token, "mapProcFile003"))
+		ver = 3;
+	if (!strcmp(token, "PROC"))
+	{
+		data = COM_ParseOut(data, token, sizeof(token));
+		ver = atoi(token);
+	}
+
+	if (ver != 3 && ver != 4)
 	{
 		Con_Printf("proc format not compatible %s\n", token);
 		return false;
 	}
 	/*FIXME: add sanity checks*/
+
+	if (ver == 4)
+	{
+		data = COM_ParseOut(data, token, sizeof(token));
+	}
 
 	while(1)
 	{
@@ -53,6 +67,20 @@ qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 
 			sub->batches[0] = b;
 
+			//ver4 may have a 'sky' field here
+			vdata = COM_ParseOut(data, token, sizeof(token));
+			if (strcmp(token, "{") && strcmp(token, "}"))
+			{
+				//sky = atoi(token);
+				data = vdata;
+			}
+
+			sub->mins[0] = 99999999;
+			sub->mins[1] = 99999999;
+			sub->mins[2] = 99999999;
+			sub->maxs[0] = -99999999;
+			sub->maxs[1] = -99999999;
+			sub->maxs[2] = -99999999;
 			for (surf = 0; surf < numsurfs; surf++)
 			{
 				data = COM_ParseOut(data, token, sizeof(token));
@@ -73,18 +101,13 @@ qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 
 				m[surf].numvertexes = numverts;
 				m[surf].numindexes = numindicies;
-				vdata = Hunk_Alloc(numverts * (sizeof(vecV_t) + sizeof(vec2_t) + sizeof(vec3_t)) + numindicies * sizeof(index_t));
+				vdata = Hunk_Alloc(numverts * (sizeof(vecV_t) + sizeof(vec2_t) + sizeof(vec3_t) + sizeof(vec4_t)) + numindicies * sizeof(index_t));
 
+				m[surf].colors4f_array = (vec4_t*)vdata;vdata += sizeof(vec4_t)*numverts;
 				m[surf].xyz_array = (vecV_t*)vdata;vdata += sizeof(vecV_t)*numverts;
 				m[surf].st_array = (vec2_t*)vdata;vdata += sizeof(vec2_t)*numverts;
 				m[surf].normals_array = (vec3_t*)vdata;vdata += sizeof(vec3_t)*numverts;
 				m[surf].indexes = (index_t*)vdata;
-				sub->mins[0] = 99999999;
-				sub->mins[1] = 99999999;
-				sub->mins[2] = 99999999;
-				sub->maxs[0] = -99999999;
-				sub->maxs[1] = -99999999;
-				sub->maxs[2] = -99999999;
 
 				for (v = 0; v < numverts; v++)
 				{
@@ -114,13 +137,31 @@ qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 						f = m[surf].xyz_array[v][j];
 						if (f > sub->maxs[j])
 							sub->maxs[j] = f;
-						else if (f < sub->mins[j])
+						if (f < sub->mins[j])
 							sub->mins[j] = f;
 					}
 
+					m[surf].colors4f_array[v][0] = 255;
+					m[surf].colors4f_array[v][1] = 255;
+					m[surf].colors4f_array[v][2] = 255;
+					m[surf].colors4f_array[v][3] = 255;
+
 					data = COM_ParseOut(data, token, sizeof(token));
+					/*if its not closed yet, there's an optional colour value*/
 					if (strcmp(token, ")"))
-						return false;
+					{
+						m[surf].colors4f_array[v][0] = atof(token)/255;
+						data = COM_ParseOut(data, token, sizeof(token));
+						m[surf].colors4f_array[v][1] = atof(token)/255;
+						data = COM_ParseOut(data, token, sizeof(token));
+						m[surf].colors4f_array[v][2] = atof(token)/255;
+						data = COM_ParseOut(data, token, sizeof(token));
+						m[surf].colors4f_array[v][3] = atof(token)/255;
+
+						data = COM_ParseOut(data, token, sizeof(token));
+						if (strcmp(token, ")"))
+							return false;
+					}
 				}
 				for (v = 0; v < numindicies; v++)
 				{
@@ -356,30 +397,10 @@ void D3_WalkPortal(model_t *mod, int start, vec_t bounds[4], unsigned char *vis)
 		else
 			continue;
 
-		R_CullBox(p->min, p->max);
-
-		if (!D3_PolyBounds(newbounds, p->numpoints, p->points))
+		if (R_CullBox(p->min, p->max))
 		{
-			p->walkno = walkno;
 			continue;
 		}
-		/*new poly was to the right of it, or fully to the left*/
-		if (newbounds[1] <= bounds[0] || newbounds[0] >= bounds[1])
-			continue;
-		if (newbounds[3] <= bounds[2] || newbounds[2] >= bounds[3])
-			continue;
-
-		if (newbounds[0] < bounds[0])
-			newbounds[0] = bounds[0];
-		if (newbounds[1] > bounds[1])
-			newbounds[1] = bounds[1];
-
-		if (newbounds[2] < bounds[2])
-			newbounds[2] = bounds[2];
-		if (newbounds[3] > bounds[3])
-			newbounds[3] = bounds[3];
-
-		/*FIXME: clip the new bounds to the old bounds*/
 
 		p->walkno = walkno;
 		D3_WalkPortal(mod, p->area[!side], newbounds, vis);
@@ -490,23 +511,9 @@ void D3_StainNode			(struct mnode_s *node, float *parms)
 {
 }
 
-qboolean D3_Trace (struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, struct trace_s *trace)
-{
-	trace->fraction = 0;
-	VectorCopy(p1, trace->endpos);
-	trace->allsolid = true;
-	trace->startsolid = true;
-	trace->ent = NULL;
-	return false;
-}
-
-unsigned int D3_PointContents (struct model_s *model, vec3_t axis[3], vec3_t p)
-{
-	return FTECONTENTS_SOLID;
-}
-
 void D3_LightPointValues (struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
 {
+	/*basically require rtlighting for any light*/
 	VectorClear(res_diffuse);
 	VectorClear(res_ambient);
 	VectorClear(res_dir);
@@ -516,23 +523,639 @@ void D3_LightPointValues (struct model_s *model, vec3_t point, vec3_t res_diffus
 
 qboolean D3_EdictInFatPVS (struct model_s *model, struct pvscache_s *edict, qbyte *pvsbuffer)
 {
-	int i;
-	for (i = 0; i < edict->num_leafs; i++)
-		if (pvsbuffer[edict->leafnums[i]>>3] & (1u<<(edict->leafnums[i]&7)))
+//	int i;
+//	for (i = 0; i < edict->num_leafs; i++)
+//		if (pvsbuffer[edict->leafnums[i]>>3] & (1u<<(edict->leafnums[i]&7)))
 			return true;
+//	return false;
+}
+
+
+
+
+
+
+typedef struct cm_surface_s
+{
+	vec3_t mins, maxs;
+	vec4_t plane;
+	int numedges;
+	vec4_t *edge;
+
+	shader_t *shader;
+	struct cm_surface_s *next;
+} cm_surface_t;
+
+typedef struct cm_brush_s
+{
+	int numplanes;
+	vec4_t *plane;
+	unsigned int contents;
+	struct cm_brush_s *next;
+} cm_brush_t;
+
+typedef struct cm_node_s
+{
+	int axis; /*0=x,1=y,2=z*/
+	float dist;
+	vec3_t mins, maxs;
+	struct cm_node_s *parent;
+	struct cm_node_s *child[2];
+
+	cm_brush_t **brushlist;
+	cm_surface_t *surfacelist;
+} cm_node_t;
+
+typedef struct
+{
+	cm_node_t *nodes; /*first is root*/
+} cm_model_t;
+
+static struct
+{
+	float truefraction;
+
+	qboolean ispoint;
+	vec3_t start;
+	vec3_t end;
+	vec3_t absmins, absmaxs;
+	vec3_t szmins, szmaxs;
+	vec3_t extents;
+
+	cm_surface_t *surf;
+} traceinfo;
+
+#define	DIST_EPSILON	(0.03125)
+
+static void D3_TraceToLeaf (cm_node_t *leaf)
+{
+	float diststart;
+	float distend;
+	float frac;
+	vec3_t impactpoint;
+	qboolean back;
+	int i, j;
+	float pdist, expand;
+	vec3_t ofs;
+
+	cm_surface_t *surf;
+	for (surf = leaf->surfacelist; surf; surf = surf->next)
+	{
+		/*lots of maths in this function, we should check the surf's bbox*/
+		if (surf->mins[0] > traceinfo.absmaxs[0] || traceinfo.absmins[0] > surf->maxs[0] ||
+			surf->mins[1] > traceinfo.absmaxs[1] || traceinfo.absmins[1] > surf->maxs[1] ||
+			surf->mins[2] > traceinfo.absmaxs[2] || traceinfo.absmins[2] > surf->maxs[2])
+			continue;
+
+		if (!traceinfo.ispoint)
+		{	// general box case
+
+			// push the plane out apropriately for mins/maxs
+
+			// FIXME: use signbits into 8 way lookup for each mins/maxs
+			for (i=0 ; i<3 ; i++)
+			{
+				if (surf->plane[i] < 0)
+					ofs[i] = traceinfo.szmaxs[i];
+				else
+					ofs[i] = traceinfo.szmins[i];
+			}
+			expand = DotProduct (ofs, surf->plane);
+//			pdist = surf->plane[3] - expand;
+		}
+		else
+		{	// special point case
+//			pdist = surf->plane[3];
+			expand = 0;
+		}
+
+		diststart = DotProduct(traceinfo.start, surf->plane);
+		/*started behind?*/
+		back = diststart < surf->plane[3];
+		if (diststart <= surf->plane[3]-expand)
+		{
+			/*the trace started behind our expanded front plane*/
+
+			/*don't stop just because the point is closer than the extended plane*/
+			/*epsilon here please*/
+			if (diststart <= surf->plane[3])
+				continue;
+
+			distend = DotProduct(traceinfo.end, surf->plane);
+			if (distend < diststart)
+				frac = 0; /*don't let us go further into the wall*/
+			else
+				continue;
+		}
+		else
+		{
+			distend = DotProduct(traceinfo.end, surf->plane);
+			/*ended on the other side*/
+			if (back)
+			{
+				if (distend+expand > -surf->plane[3])
+					continue;
+			}
+			else
+			{
+				if (distend+expand > surf->plane[3])
+					continue;
+			}
+
+			if (diststart == distend)
+				frac = 0;
+			else
+				frac = (diststart - (surf->plane[3]-expand)) / (diststart-distend);
+		}
+
+		/*give up if we already found a closer plane*/
+		if (frac >= traceinfo.truefraction)
+			continue;
+
+		/*okay, this is where it hits this plane*/
+		impactpoint[0] = traceinfo.start[0] + frac*(traceinfo.end[0] - traceinfo.start[0]);
+		impactpoint[1] = traceinfo.start[1] + frac*(traceinfo.end[1] - traceinfo.start[1]);
+		impactpoint[2] = traceinfo.start[2] + frac*(traceinfo.end[2] - traceinfo.start[2]);
+
+		/*if the impact was not on the surface*/
+		for (i = 0; i < surf->numedges; i++)
+		{
+			if (!traceinfo.ispoint)
+			{	// general box case
+
+				// push the plane out apropriately for mins/maxs
+
+				// FIXME: use signbits into 8 way lookup for each mins/maxs
+				for (j=0 ; j<3 ; j++)
+				{
+					if (surf->edge[i][j] < 0)
+						ofs[j] = traceinfo.szmaxs[j];
+					else
+						ofs[j] = traceinfo.szmins[j];
+				}
+				pdist = DotProduct (ofs, surf->edge[i]);
+				pdist = surf->edge[i][3] - pdist;
+			}
+			else
+			{	// special point case
+				pdist = surf->edge[i][3];
+			}
+
+			if (DotProduct(impactpoint, surf->edge[i]) > pdist+DIST_EPSILON)
+			{
+				break;
+			}
+		}
+		/*if we were inside all edges, we hit the surface*/
+		if (i == surf->numedges)
+		{
+
+			traceinfo.truefraction = frac;
+			traceinfo.surf = surf;
+			
+			/*we can't early out. there are multiple surfs in each leaf, and they could overlap. earlying out will result in errors if we hit a further one before the nearer*/
+		}
+	}
+}
+
+/*returns the most distant node which contains the entire box*/
+static cm_node_t *D3_ChildNodeForBox(cm_node_t *node, vec3_t mins, vec3_t maxs)
+{
+	float t1, t2;
+/*
+	for(;;)
+	{
+		t1 = p1[node->axis] - node->dist;
+		t2 = p2[node->axis] - node->dist;
+
+		//if its completely to one side, walk down that side
+		if (t1 > maxs[node->axis] && t2 > maxs[node->axis])
+		{
+			//if this is a leaf, we can't insert in a child anyway.
+			if (!node->child[0])
+				break;
+			node = node->child[0];
+			continue;
+		}
+		if (t1 < mins[node->axis] && t2 < mins[node->axis])
+		{
+			//if this is a leaf, we can't insert in a child anyway.
+			if (!node->child[1])
+				break;
+			node = node->child[1];
+			continue;
+		}
+
+		//the box crosses this node
+		break;
+	}
+*/
+	return node;
+}
+
+static void D3_InsertClipSurface(cm_node_t *node, cm_surface_t *surf)
+{
+	node = D3_ChildNodeForBox(node, surf->mins, surf->maxs);
+
+	/*FIXME: walk the nodes to find one the one that holds us*/
+	surf->next = node->surfacelist;
+	node->surfacelist = surf;
+}
+
+static void D3_RecursiveSurfCheck (cm_node_t *node, float p1f, float p2f, vec3_t p1, vec3_t p2)
+{
+	float		t1, t2, offset;
+	float		frac, frac2;
+	float		idist;
+	int			i;
+	vec3_t		mid;
+	int			side;
+	float		midf;
+
+	if (traceinfo.truefraction <= p1f)
+		return;		// already hit something nearer
+
+	/*err, no child here*/
+	if (!node)
+		return;
+
+	D3_TraceToLeaf (node);
+
+	//
+	// find the point distances to the seperating plane
+	// and the offset for the size of the box
+	//
+
+	t1 = p1[node->axis] - node->dist;
+	t2 = p2[node->axis] - node->dist;
+	offset = traceinfo.extents[node->axis];
+
+#if 0
+D3_RecursiveHullCheck (node->childnum[0], p1f, p2f, p1, p2);
+D3_RecursiveHullCheck (node->childnum[1], p1f, p2f, p1, p2);
+return;
+#endif
+
+	// see which sides we need to consider
+	if (t1 >= offset && t2 >= offset)
+	{
+		D3_RecursiveSurfCheck (node->child[0], p1f, p2f, p1, p2);
+		return;
+	}
+	if (t1 < -offset && t2 < -offset)
+	{
+		D3_RecursiveSurfCheck ( node->child[1], p1f, p2f, p1, p2);
+		return;
+	}
+
+	// put the crosspoint DIST_EPSILON pixels on the near side
+	if (t1 < t2)
+	{
+		idist = 1.0/(t1-t2);
+		side = 1;
+		frac2 = (t1 + offset + DIST_EPSILON)*idist;
+		frac = (t1 - offset + DIST_EPSILON)*idist;
+	}
+	else if (t1 > t2)
+	{
+		idist = 1.0/(t1-t2);
+		side = 0;
+		frac2 = (t1 - offset - DIST_EPSILON)*idist;
+		frac = (t1 + offset + DIST_EPSILON)*idist;
+	}
+	else
+	{
+		side = 0;
+		frac = 1;
+		frac2 = 0;
+	}
+
+	// move up to the node
+	if (frac < 0)
+		frac = 0;
+	if (frac > 1)
+		frac = 1;
+
+	midf = p1f + (p2f - p1f)*frac;
+	for (i=0 ; i<3 ; i++)
+		mid[i] = p1[i] + frac*(p2[i] - p1[i]);
+
+	D3_RecursiveSurfCheck (node->child[side], p1f, midf, p1, mid);
+
+
+	// go past the node
+	if (frac2 < 0)
+		frac2 = 0;
+	if (frac2 > 1)
+		frac2 = 1;
+
+	midf = p1f + (p2f - p1f)*frac2;
+	for (i=0 ; i<3 ; i++)
+		mid[i] = p1[i] + frac2*(p2[i] - p1[i]);
+
+	D3_RecursiveSurfCheck (node->child[side^1], midf, p2f, mid, p2);
+}
+
+qboolean D3_Trace (struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, struct trace_s *trace)
+{
+	int i;
+	float e1,e2;
+	traceinfo.truefraction = 1;
+	VectorCopy(p1, traceinfo.start);
+	VectorCopy(p2, traceinfo.end);
+	for (i = 0; i < 3; i++)
+	{
+		e1 = fabs(mins[i]);
+		e2 = fabs(maxs[i]);
+		traceinfo.extents[i] = ((e1>e2)?e1:e2);
+		traceinfo.szmins[i] = mins[i];
+		traceinfo.szmaxs[i] = maxs[i];
+
+		traceinfo.absmins[i] = ((p1[i]<p2[i])?p1[i]:p2[i]) + mins[i];
+		traceinfo.absmaxs[i] = ((p1[i]>p2[i])?p1[i]:p2[i]) + maxs[i];
+	}
+	traceinfo.ispoint = !traceinfo.extents[0] && !traceinfo.extents[1] && !traceinfo.extents[2];
+
+	traceinfo.surf = NULL;
+
+	D3_RecursiveSurfCheck(model->cnodes, 0, 1, p1, p2);
+
+	memset(trace, 0, sizeof(*trace));
+	if (!traceinfo.surf)
+	{
+		trace->fraction = 1;
+		VectorCopy(p2, trace->endpos);
+	}
+	else
+	{
+		float diststart, distend, frac;
+		/*we now know which surface it hit. recalc the impact point, but with an epsilon this time, so we can never get too close to the surface*/
+
+		VectorCopy(traceinfo.surf->plane, trace->plane.normal);
+		if (!traceinfo.ispoint)
+		{	// general box case
+			vec3_t ofs;
+			// push the plane out apropriately for mins/maxs
+
+			// FIXME: use signbits into 8 way lookup for each mins/maxs
+			for (i=0 ; i<3 ; i++)
+			{
+				if (traceinfo.surf->plane[i] < 0)
+					ofs[i] = traceinfo.szmaxs[i];
+				else
+					ofs[i] = traceinfo.szmins[i];
+			}
+			e1 = DotProduct (ofs, traceinfo.surf->plane);
+			trace->plane.dist = traceinfo.surf->plane[3] - e1;
+		}
+		else
+		{	// special point case
+			trace->plane.dist = traceinfo.surf->plane[3];
+		}
+
+		frac = traceinfo.truefraction;
+		/*
+		diststart = DotProduct(traceinfo.start, trace->plane.normal);
+		distend = DotProduct(traceinfo.end, trace->plane.normal);
+		if (diststart == distend)
+			frac = 0;
+		else
+		{
+			frac = (diststart - trace->plane.dist) / (diststart-distend);
+			if (frac < 0)
+				frac = 0;
+			else if (frac > 1)
+				frac = 1;
+		}*/
+
+		/*okay, this is where it hits this plane*/
+		trace->endpos[0] = traceinfo.start[0] + frac*(traceinfo.end[0] - traceinfo.start[0]);
+		trace->endpos[1] = traceinfo.start[1] + frac*(traceinfo.end[1] - traceinfo.start[1]);
+		trace->endpos[2] = traceinfo.start[2] + frac*(traceinfo.end[2] - traceinfo.start[2]);
+		trace->fraction = frac;
+	}
+	trace->ent = NULL;
 	return false;
 }
 
+unsigned int D3_PointContents (struct model_s *model, vec3_t axis[3], vec3_t p)
+{
+	return FTECONTENTS_SOLID;
+}
+
+#define ensurenewtoken(t) buf = COM_ParseOut(buf, token, sizeof(token)); if (strcmp(token, t)) break;
+
+typedef struct
+{
+	int v[2];
+	int fl[2];
+} d3edge_t;
 qboolean D3_LoadMap_CollisionMap(model_t *mod, char *buf)
 {
+	int pedges[64];
+	cm_surface_t *surf;
+	vec3_t *verts;
+	d3edge_t *edges;
+	int i, j;
+	int numverts, numedges, numpedges;
+	model_t *cmod;
 	char token[256];
 	buf = COM_ParseOut(buf, token, sizeof(token));
 	if (strcmp(token, "CM"))
 		return false;
 	
 	buf = COM_ParseOut(buf, token, sizeof(token));
-	if (atof(token) != 1.0)
+	if (atof(token) != 1.0 && atof(token) != 3)
 		return false;
+
+	buf = COM_ParseOut(buf, token, sizeof(token));
+	/*some number, discard*/
+
+	while(buf)
+	{
+		buf = COM_ParseOut(buf, token, sizeof(token));
+		if (!strcmp(token, "collisionModel"))
+		{
+			buf = COM_ParseOut(buf, token, sizeof(token));
+			if (!strcmp(token, "worldMap"))
+				cmod = mod;
+			else
+				cmod = Mod_FindName(token);
+
+			ensurenewtoken("{");
+			ensurenewtoken("vertices");
+			ensurenewtoken("{");
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				numverts = atoi(token);
+				verts = malloc(numverts * sizeof(*verts));
+				for (i = 0; i < numverts; i++)
+				{
+					ensurenewtoken("(");
+					buf = COM_ParseOut(buf, token, sizeof(token));
+					verts[i][0] = atof(token);
+					buf = COM_ParseOut(buf, token, sizeof(token));
+					verts[i][1] = atof(token);
+					buf = COM_ParseOut(buf, token, sizeof(token));
+					verts[i][2] = atof(token);
+					ensurenewtoken(")");
+				}
+			ensurenewtoken("}");
+			ensurenewtoken("edges");
+			ensurenewtoken("{");
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				numedges = atoi(token);
+				edges = malloc(numedges * sizeof(*edges));
+				for (i = 0; i < numedges; i++)
+				{
+					ensurenewtoken("(");
+					buf = COM_ParseOut(buf, token, sizeof(token));
+					edges[i].v[0] = atoi(token);
+					buf = COM_ParseOut(buf, token, sizeof(token));
+					edges[i].v[1] = atoi(token);
+					ensurenewtoken(")");
+					buf = COM_ParseOut(buf, token, sizeof(token));
+					edges[i].fl[0] = atoi(token);
+					buf = COM_ParseOut(buf, token, sizeof(token));
+					edges[i].fl[1] = atoi(token);
+				}
+			ensurenewtoken("}");
+			ensurenewtoken("nodes");
+			ensurenewtoken("{");
+			cmod->cnodes = Hunk_Alloc(sizeof(cm_node_t));
+			for (;;)
+			{
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				if (strcmp(token, "("))
+					break;
+
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				//axis, dist
+				ensurenewtoken(")");
+			}
+			if (strcmp(token, "}"))
+				break;
+
+			ensurenewtoken("polygons");
+			buf = COM_ParseOut(buf, token, sizeof(token));
+			/*'polygonMemory', which is unusable for us*/
+			ensurenewtoken("{");
+			for (;;)
+			{
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				if (!strcmp(token, "}"))
+					break;
+
+				numpedges = atoi(token);
+				surf = Hunk_Alloc(sizeof(*surf) + sizeof(vec4_t)*numpedges);
+				surf->numedges = numpedges;
+				surf->edge = (vec4_t*)(surf+1);
+
+				ensurenewtoken("(");
+				for (j = 0; j < numpedges; j++)
+				{
+					buf = COM_ParseOut(buf, token, sizeof(token));
+					pedges[j] = atoi(token);
+				}
+				ensurenewtoken(")");
+				ensurenewtoken("(");
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				surf->plane[0] = atof(token);
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				surf->plane[1] = atof(token);
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				surf->plane[2] = atof(token);
+				ensurenewtoken(")");
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				surf->plane[3] = atof(token);
+
+				ensurenewtoken("(");
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				surf->mins[0] = atof(token);
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				surf->mins[1] = atof(token);
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				surf->mins[2] = atof(token);
+				ensurenewtoken(")");
+			
+				ensurenewtoken("(");
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				surf->maxs[0] = atof(token);
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				surf->maxs[1] = atof(token);
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				surf->maxs[2] = atof(token);
+				ensurenewtoken(")");
+
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				surf->shader = R_RegisterShader_Vertex(token);
+
+				for (j = 0; j < numpedges; j++)
+				{
+					float *v1, *v2;
+					vec3_t dir;
+					if (pedges[j] < 0)
+					{
+						v2 = verts[edges[-pedges[j]].v[0]];
+						v1 = verts[edges[-pedges[j]].v[1]];
+					}
+					else
+					{
+						v1 = verts[edges[pedges[j]].v[0]];
+						v2 = verts[edges[pedges[j]].v[1]];
+					}
+					VectorSubtract(v1, v2, dir);
+					VectorNormalize(dir);
+					CrossProduct(surf->plane, dir, surf->edge[j]);
+					surf->edge[j][3] = DotProduct(v1, surf->edge[j]);
+				}
+
+				D3_InsertClipSurface(cmod->cnodes, surf);
+			}
+			free(verts);
+			free(edges);
+
+			ensurenewtoken("brushes");
+			buf = COM_ParseOut(buf, token, sizeof(token));
+			/*'polygonMemory', which is unusable for us*/
+			ensurenewtoken("{");
+			for (;;)
+			{
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				if (!strcmp(token, "}"))
+					break;
+				j = atoi(token);
+				ensurenewtoken("{");
+				for (i = 0; i < j; i++)
+				{
+					ensurenewtoken("(");
+					buf = COM_ParseOut(buf, token, sizeof(token));
+					buf = COM_ParseOut(buf, token, sizeof(token));
+					buf = COM_ParseOut(buf, token, sizeof(token));
+					ensurenewtoken(")");
+					buf = COM_ParseOut(buf, token, sizeof(token));
+				}
+				ensurenewtoken("}");
+
+				ensurenewtoken("(");
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				ensurenewtoken(")");
+
+				ensurenewtoken("(");
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				buf = COM_ParseOut(buf, token, sizeof(token));
+				ensurenewtoken(")");
+
+				buf = COM_ParseOut(buf, token, sizeof(token));
+			}
+		}
+		else
+			break;
+	}
+
 
 	/*load up the .map so we can get some entities (anyone going to bother making a qc mod compatible with this?)*/
 	COM_StripExtension(mod->name, token, sizeof(token));

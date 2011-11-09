@@ -886,6 +886,7 @@ typedef struct model_s
 
 	int			numnodes;
 	mnode_t		*nodes;
+	void		*cnodes;
 
 	int			numtexinfo;
 	mtexinfo_t	*texinfo;

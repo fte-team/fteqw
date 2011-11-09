@@ -1939,19 +1939,32 @@ qboolean R_CullEntityBox(entity_t *e, vec3_t modmins, vec3_t modmaxs)
 
 #if 1
 	float mrad = 0, v;
-	for (i = 0; i < 3; i++)
+	static vec3_t	identaxis[3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+
+	if (!memcmp(e->axis, identaxis, sizeof(identaxis)))
 	{
-		v = fabs(modmins[i]);
-		if (mrad < v)
-			mrad = v;
-		v = fabs(modmaxs[i]);
-		if (mrad < v)
-			mrad = v;
+		for (i = 0; i < 3; i++)
+		{
+			wmin[i] = e->origin[i]+modmins[i];
+			wmax[i] = e->origin[i]+modmaxs[i];
+		}
 	}
-	for (i = 0; i < 3; i++)
+	else
 	{
-		wmin[i] = e->origin[i]-mrad;
-		wmax[i] = e->origin[i]+mrad;
+		for (i = 0; i < 3; i++)
+		{
+			v = fabs(modmins[i]);
+			if (mrad < v)
+				mrad = v;
+			v = fabs(modmaxs[i]);
+			if (mrad < v)
+				mrad = v;
+		}
+		for (i = 0; i < 3; i++)
+		{
+			wmin[i] = e->origin[i]-mrad;
+			wmax[i] = e->origin[i]+mrad;
+		}
 	}
 #else
 	float fmin, fmax;

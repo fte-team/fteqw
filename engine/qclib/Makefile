@@ -6,7 +6,8 @@ WIN32GUI_OBJS=qccgui.o qccguistuff.o
 TUI_OBJS=qcctui.o
 LIB_OBJS=
 
-CC=gcc -Wall
+CC?=gcc
+CFLAGS?=-Wall
 
 all: qcc
 

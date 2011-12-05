@@ -183,9 +183,10 @@ typedef struct
 	qbyte		master_buf[MAX_DATAGRAM];
 
 	// the signon buffer will be sent to each client as they connect
-	// includes the entity baselines, the static entities, etc
+	// traditionally includes the entity baselines, the static entities, etc
 	// large levels will have >MAX_DATAGRAM sized signons, so
 	// multiple signon messages are kept
+	// fte only stores writebyted stuff in here. everything else is regenerated based upon the client's extensions.
 	sizebuf_t	signon;
 	int			num_signon_buffers;
 	int			signon_buffer_size[MAX_SIGNON_BUFFERS];
@@ -1002,6 +1003,7 @@ qboolean SVQ3_Command(void);
 //
 // sv_phys.c
 //
+void WPhys_Init(void);
 void SV_SetMoveVars(void);
 void WPhys_RunNewmis (world_t *w);
 qboolean SV_Physics (void);
@@ -1030,6 +1032,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 void SV_StartSound (int ent, vec3_t origin, int seenmask, int channel, char *sample, int volume, float attenuation, int pitchadj);
 void SVQ1_StartSound (wedict_t *entity, int channel, char *sample, int volume, float attenuation, int pitchadj);
 void SV_PrintToClient(client_t *cl, int level, char *string);
+void SV_StuffcmdToClient(client_t *cl, char *string);
 void VARGS SV_ClientPrintf (client_t *cl, int level, char *fmt, ...) LIKEPRINTF(3);
 void VARGS SV_ClientTPrintf (client_t *cl, int level, translation_t text, ...);
 void VARGS SV_BroadcastPrintf (int level, char *fmt, ...) LIKEPRINTF(2);

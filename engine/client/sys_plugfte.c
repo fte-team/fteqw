@@ -509,9 +509,6 @@ qboolean Plug_ChangeWindow(struct context *ctx, void *whnd, int left, int top, i
 		ctx->resetvideo = true;
 	Plug_LockPlugin(ctx, false);
 
-	while(ctx->pub.running && ctx->resetvideo)
-		Sleep(10);
-
 	return result;
 }
 

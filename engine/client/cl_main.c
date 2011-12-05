@@ -26,6 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "netinc.h"
 #include "cl_master.h"
 #include "cl_ignore.h"
+#include "shader.h"
 
 // callbacks
 void CL_Sbar_Callback(struct cvar_s *var, char *oldvalue);
@@ -45,6 +46,7 @@ cvar_t	cl_timeout = SCVAR("cl_timeout", "60");
 
 cvar_t	cl_shownet = SCVAR("cl_shownet","0");	// can be 0, 1, or 2
 
+cvar_t	cl_pure		= CVARD("cl_pure", "0", "If enabled, the filesystem will be restricted to allow only the content of the current server.");
 cvar_t	cl_sbar		= CVARFC("cl_sbar", "0", CVAR_ARCHIVE, CL_Sbar_Callback);
 cvar_t	cl_hudswap	= CVARF("cl_hudswap", "0", CVAR_ARCHIVE);
 cvar_t	cl_maxfps	= CVARF("cl_maxfps", "500", CVAR_ARCHIVE);
@@ -52,15 +54,14 @@ cvar_t	cl_idlefps	= CVARF("cl_idlefps", "0", CVAR_ARCHIVE);
 cvar_t	cl_yieldcpu = CVARF("cl_yieldcpu", "0", CVAR_ARCHIVE);
 cvar_t	cl_nopext	= CVARF("cl_nopext", "0", CVAR_ARCHIVE);
 cvar_t	cl_pext_mask = CVAR("cl_pext_mask", "0xffffffff");
-cvar_t	cl_nolerp	= CVAR("cl_nolerp", "2");
-cvar_t	cl_nolerp_netquake = CVAR("cl_nolerp_netquake", "0");
+cvar_t	cl_nolerp	= CVARD("cl_nolerp", "0", "Disables interpolation. If set, missiles/monsters will be smoother, but they may be more laggy. Does not affect players. A value of 2 means 'interpolate only in single-player/coop'.");
+cvar_t	cl_nolerp_netquake = CVARD("cl_nolerp_netquake", "0", "Disables interpolation when connected to an NQ server. Does affect players, even the local player. You probably don't want to set this.");
 cvar_t	hud_tracking_show = CVAR("hud_tracking_show", "1");
 
 cvar_t	cl_defaultport		= CVARAF("cl_defaultport", STRINGIFY(PORT_QWSERVER), "port", 0);
 
 cvar_t	cfg_save_name = CVARF("cfg_save_name", "fte", CVAR_ARCHIVE);
 
-cvar_t	cl_packagedownloads = CVAR("cl_packagedownloads", "1");
 cvar_t	cl_splitscreen = CVAR("cl_splitscreen", "0");
 
 cvar_t	lookspring = CVARF("lookspring","0", CVAR_ARCHIVE);
@@ -74,9 +75,10 @@ cvar_t	m_yaw = CVARF("m_yaw","0.022", CVAR_ARCHIVE);
 cvar_t	m_forward = CVARF("m_forward","1", CVAR_ARCHIVE);
 cvar_t	m_side = CVARF("m_side","0.8", CVAR_ARCHIVE);
 
-cvar_t	cl_predict_players = CVAR("cl_predict_players", "1");
+cvar_t	cl_lerp_players = CVARD("cl_lerp_players", "1", "Set this to make other players smoother, though it may increase effective latency. Affects only QuakeWorld.");
+cvar_t	cl_predict_players = CVARD("cl_predict_players", "1", "Clear this cvar to see ents exactly how they are on the server.");
 cvar_t	cl_solid_players = CVAR("cl_solid_players", "1");
-cvar_t	cl_noblink = CVAR("cl_noblink", "0");
+cvar_t	cl_noblink = CVARD("cl_noblink", "0", "Disable the ^^b text blinking feature.");
 cvar_t	cl_servername = CVAR("cl_servername", "none");
 cvar_t	cl_serveraddress = CVAR("cl_serveraddress", "none");
 cvar_t	qtvcl_forceversion1 = CVAR("qtvcl_forceversion1", "0");
@@ -139,7 +141,7 @@ cvar_t  cl_gunanglez = SCVAR("cl_gunanglez", "0");
 cvar_t	cl_download_csprogs = CVARFD("cl_download_csprogs", "1", CVAR_NOTFROMSERVER, "Download updated client gamecode if available.");
 cvar_t	cl_download_redirection = CVARFD("cl_download_redirection", "0", CVAR_NOTFROMSERVER, "Follow download redirection to download packages instead of individual files.");
 cvar_t  cl_download_mapsrc = CVARD("cl_download_mapsrc", "", "Specifies an http location prefix for map downloads. EG: \"http://bigfoot.morphos-team.net/misc/quakemaps/\"");
-cvar_t	cl_download_packages = CVARFD("cl_download_packages", "1", CVAR_NOTFROMSERVER, "0=Do not download packages simply because the server is using them. 1=Do download, but don't use them by default. 2=Do download and install permanently (use with caution!)");
+cvar_t	cl_download_packages = CVARFD("cl_download_packages", "1", CVAR_NOTFROMSERVER, "0=Do not download packages simply because the server is using them. 1=Download and load packages as needed (does not affect games which do not use this package). 2=Do download and install permanently (use with caution!)");
 cvar_t	requiredownloads = CVARFD("requiredownloads","1", CVAR_ARCHIVE, "0=join the game before downloads have even finished (might be laggy). 1=wait for all downloads to complete before joining.");
 
 cvar_t	cl_muzzleflash = SCVAR("cl_muzzleflash", "1");
@@ -711,6 +713,11 @@ void CL_CheckForResend (void)
 				return;
 			}
 			NET_AdrToString(data, sizeof(data), adr);
+
+			/*eat up the server's packets, to clear any lingering loopback packets*/
+			while(NET_GetPacket (NS_SERVER, 0) >= 0)
+			{
+			}
 
 			if (cls.protocol_nq == CPNQ_ID)
 			{
@@ -1306,6 +1313,8 @@ void CL_Disconnect (void)
 #endif
 	CL_StopUpload();
 
+	CL_FlushClientCommands();
+
 #ifndef CLIENTONLY
 	if (!isDedicated)
 #endif
@@ -1505,6 +1514,12 @@ void CL_PakDownloads(int mode)
 		s = COM_Parse(s);
 		pname = Cmd_Argv(i);
 
+		//'*' prefix means 'referenced'. so if the server isn't using any files from it, don't bother downloading it.
+		if (*pname == '*')
+			pname++;
+		else
+			continue;
+
 		if (mode != 2)
 		{
 			/*if we already have such a file, this is a no-op*/
@@ -1516,6 +1531,33 @@ void CL_PakDownloads(int mode)
 			Q_strncpyz(local, pname, sizeof(local));
 		CL_CheckOrEnqueDownloadFile(pname, local, DLLF_NONGAME);
 	}
+}
+
+void CL_CheckServerPacks(void)
+{
+	static qboolean oldpure;
+	qboolean pure = cl_pure.ival || atoi(Info_ValueForKey(cl.serverinfo, "sv_pure"));
+
+	if (pure != oldpure || cl.serverpakschanged)
+	{
+		if (pure)
+		{
+			CL_PakDownloads((!cl_download_packages.ival)?1:cl_download_packages.ival);
+			FS_ForceToPure(cl.serverpaknames, cl.serverpakcrcs, cls.challenge);
+
+			/*when enabling pure, kill cached models/sounds/etc*/
+			Cache_Flush();
+			/*make sure cheating lamas can't use old shaders from a different srver*/
+			Shader_NeedReload(true);
+		}
+		else
+		{
+			CL_PakDownloads(cl_download_packages.ival);
+			FS_ImpurePacks(cl.serverpaknames, cl.serverpakcrcs);
+		}
+	}
+	oldpure = pure;
+	cl.serverpakschanged = false;
 }
 
 void CL_CheckServerInfo(void)
@@ -1661,16 +1703,7 @@ void CL_CheckServerInfo(void)
 	if (oldstate != cl.matchstate)
 		cl.matchgametime = 0;
 
-	if (atoi(Info_ValueForKey(cl.serverinfo, "sv_pure")))
-	{
-		CL_PakDownloads((!cl_packagedownloads.ival)?1:cl_packagedownloads.ival);
-		FS_ForceToPure(cl.serverpaknames, cl.serverpakcrcs, cls.challenge);
-	}
-	else
-	{
-		CL_PakDownloads(cl_packagedownloads.ival);
-		FS_ImpurePacks(cl.serverpaknames, cl.serverpakcrcs);
-	}
+	CL_CheckServerPacks();
 
 	Cvar_ForceCheatVars(cls.allow_semicheats, cls.allow_cheats);
 	Validation_Apply_Ruleset();
@@ -2593,8 +2626,8 @@ void CLNQ_ConnectionlessPacket(void)
 			int ver = MSG_ReadByte();
 			Con_Printf("ProQuake server %i.%i\n", ver/10, ver%10);
 
-			if (ver >= 34)
-				cls.protocol_nq = CPNQ_PROQUAKE3_4;
+//			if (ver >= 34)
+			cls.protocol_nq = CPNQ_PROQUAKE3_4;
 			if (MSG_ReadByte() == 1)
 			{
 				//its a 'pure' server.
@@ -3100,6 +3133,7 @@ void CL_Init (void)
 	Cvar_Register (&rcon_password,	cl_controlgroup);
 	Cvar_Register (&rcon_address,	cl_controlgroup);
 
+	Cvar_Register (&cl_lerp_players, cl_controlgroup);
 	Cvar_Register (&cl_predict_players,	cl_predictiongroup);
 	Cvar_Register (&cl_solid_players,	cl_predictiongroup);
 
@@ -3132,6 +3166,7 @@ void CL_Init (void)
 
 	Cvar_Register (&cl_download_csprogs, cl_controlgroup);
 	Cvar_Register (&cl_download_redirection, cl_controlgroup);
+	Cvar_Register (&cl_download_packages, cl_controlgroup);
 
 	//
 	// info mirrors
@@ -3168,7 +3203,6 @@ void CL_Init (void)
 
 	Cvar_Register (&host_mapname,					"Scripting");
 
-	Cvar_Register (&cl_packagedownloads,				cl_controlgroup);
 #ifndef SERVERONLY
 	Cvar_Register (&cl_loopbackprotocol,				cl_controlgroup);
 #endif
@@ -3943,7 +3977,7 @@ Con_TPrintf (TL_NL);
 	realtime+=1;
 	Cbuf_Execute ();	//server may have been waiting for the renderer
 
-	if (!cls.demoinfile && !*cls.servername)
+	if (!cls.demoinfile && !*cls.servername && !Media_Playing())
 	{
 #ifndef CLIENTONLY
 		if (!sv.state)

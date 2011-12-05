@@ -1483,14 +1483,14 @@ BOOL bSetupPixelFormat(HDC hDC)
 				TRACE(("dbg: bSetupPixelFormat: we can use the stencil buffer. woot\n"));
 				qDescribePixelFormat(hDC, pixelformat, sizeof(pfd), &pfd);
 				FixPaletteInDescriptor(hDC, &pfd);
-				gl_canstencil = pfd.cStencilBits;
+				gl_stencilbits = pfd.cStencilBits;
 				return TRUE;
 			}
 		}
 		TRACE(("dbg: ChoosePixelFormat 1: no stencil buffer for us\n"));
 
 		pfd.cStencilBits = 0;
-		gl_canstencil = false;
+		gl_stencilbits = 0;
 
 		if ( (pixelformat = qChoosePixelFormat(hDC, &pfd)) == 0 )
 		{

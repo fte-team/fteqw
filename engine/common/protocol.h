@@ -112,6 +112,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PORT_Q2CLIENT 27901
 #define PORT_Q2SERVER 27910
 
+//hexen2: 26900
+
 //=========================================
 
 // out of band message id bytes

@@ -501,6 +501,14 @@ static void R_ImportRTLights(char *entlump)
 	lighttype_t type;
 	float origin[3], angles[3], radius, color[3], light[4], fadescale, lightscale, originhack[3], overridecolor[3], vec[4];
 	char key[256], value[8192];
+	int nest;
+
+	COM_Parse(entlump);
+	if (!strcmp(com_token, "Version"))
+	{
+		entlump = COM_Parse(entlump);
+		entlump = COM_Parse(entlump);
+	}
 
 	for (entnum = 0; ;entnum++)
 	{
@@ -522,13 +530,26 @@ static void R_ImportRTLights(char *entlump)
 		pflags = 0;
 		effects = 0;
 		islight = false;
+		nest = 1;
 		while (1)
 		{
 			entlump = COM_Parse(entlump);
 			if (!entlump)
 				break; // error
+			if (com_token[0] == '{')
+			{
+				nest++;
+				continue;
+			}
 			if (com_token[0] == '}')
-				break; // end of entity
+			{
+				nest--;
+				if (!nest)
+					break; // end of entity
+				continue;
+			}
+			if (nest!=1)
+				continue;
 			if (com_token[0] == '_')
 				Q_strncpyz(key, com_token + 1, sizeof(key));
 			else
@@ -656,6 +677,14 @@ static void R_ImportRTLights(char *entlump)
 				lightscale = atof(value);
 			else if (!strcmp("fade", key))
 				fadescale = atof(value);
+
+			else if (!strcmp("light_radius", key))
+			{
+				light[0] = 1;
+				light[1] = 1;
+				light[2] = 1;
+				light[3] = atof(value);
+			}
 		}
 		if (!islight)
 			continue;
@@ -877,7 +906,7 @@ static void R_SaveRTLights_f(void)
 			light->style-1,
 			"", light->corona,
 			ang[0], ang[1], ang[2],
-			light->coronascale, light->ambientscale, light->diffusescale, light->specularscale, light->flags&(LFLAG_NORMALMODE|LFLAG_REALTIMEMODE)
+			light->coronascale, light->ambientscale, light->diffusescale, light->specularscale, light->flags&(LFLAG_NORMALMODE|LFLAG_REALTIMEMODE|LFLAG_CREPUSCULAR)
 			));
 	}
 	VFS_CLOSE(f);

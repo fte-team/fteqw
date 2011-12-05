@@ -346,6 +346,9 @@ ddef32_t *ED_FindLocalOrGlobal(progfuncs_t *progfuncs, char *name, eval_t **val)
 	ddef16_t *def16;
 	int i;
 
+	if (pr_typecurrent < 0)
+		return NULL;
+
 	switch (pr_progstate[pr_typecurrent].structtype)
 	{
 	case PST_DEFAULT:
@@ -470,7 +473,7 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 		c2 = c+1;
 		c = strchr(c2, '.');
 		type = type &~DEF_SAVEGLOBAL;
-		if (current_progstate->types)
+		if (current_progstate && current_progstate->types)
 			type = current_progstate->types[type].type;
 		if (type != ev_entity)
 			return "'.' without entity";

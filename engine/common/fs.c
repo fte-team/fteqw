@@ -19,6 +19,7 @@ qboolean com_fschanged = true;
 static unsigned int fs_restarts;
 extern cvar_t com_fs_cache;
 int active_fs_cachetype;
+static int fs_referencetype;
 
 struct
 {
@@ -156,6 +157,7 @@ typedef struct searchpath_s
 	qboolean copyprotected;	//don't allow downloads from here.
 	qboolean istemporary;
 	qboolean isexplicit;	//explicitly loaded (ie: id1|qw|$gamedir|fte)
+	qboolean referenced;
 	void *handle;
 
 	char purepath[256];	//server tracks the path used to load them so it can tell the client
@@ -507,6 +509,7 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 			{
 				if (loc)
 				{
+					search->referenced |= fs_referencetype;
 					loc->search = search;
 					len = loc->len;
 				}
@@ -528,6 +531,7 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 		{
 			if (loc)
 			{
+				search->referenced |= fs_referencetype;
 				loc->search = search;
 				len = loc->len;
 			}
@@ -578,6 +582,19 @@ char *FS_WhichPackForLocation(flocation_t *loc)
 	return ret;
 }
 
+/*requires extension*/
+qboolean FS_GetPackageDownloadable(char *package)
+{
+	searchpath_t	*search;
+
+	for (search = com_purepaths ; search ; search = search->nextpure)
+	{
+		if (!strcmp(package, search->purepath))
+			return !search->copyprotected;
+	}
+
+	return false;
+}
 
 char *FS_GetPackHashes(char *buffer, int buffersize, qboolean referencedonly)
 {
@@ -607,7 +624,14 @@ char *FS_GetPackHashes(char *buffer, int buffersize, qboolean referencedonly)
 		return buffer;
 	}
 }
-char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly, qboolean ext)
+/*
+referencedonly=0: show all paks
+referencedonly=1: show only paks that are referenced (q3-compat)
+referencedonly=2: show all paks, but paks that are referenced are prefixed with a star
+ext=0: hide extensions (q3-compat)
+ext=1: show extensions.
+*/
+char *FS_GetPackNames(char *buffer, int buffersize, int referencedonly, qboolean ext)
 {
 	char temp[MAX_OSPATH];
 	searchpath_t	*search;
@@ -618,6 +642,11 @@ char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly, qbo
 	{
 		for (search = com_purepaths ; search ; search = search->nextpure)
 		{
+			if (referencedonly == 0 && !search->referenced)
+				continue;
+			if (referencedonly == 2 && search->referenced)
+				Q_strncatz(buffer, "*", buffersize);
+
 			if (!ext)
 			{
 				COM_StripExtension(search->purepath, temp, sizeof(temp));
@@ -638,6 +667,11 @@ char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly, qbo
 				search->crc_check = search->funcs->GeneratePureCRC(search->handle, 0, 0);
 			if (search->crc_check)
 			{
+				if (referencedonly == 0 && !search->referenced)
+					continue;
+				if (referencedonly == 2 && search->referenced)
+					Q_strncatz(buffer, "*", sizeof(buffer));
+
 				if (!ext)
 				{
 					COM_StripExtension(search->purepath, temp, sizeof(temp));
@@ -651,6 +685,20 @@ char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly, qbo
 		}
 		return buffer;
 	}
+}
+
+void FS_ReferenceControl(unsigned int refflag, unsigned int resetflags)
+{
+	searchpath_t	*s;
+	if (resetflags)
+	{
+		for (s=com_searchpaths ; s ; s=s->next)
+		{
+			s->referenced &= ~resetflags;
+		}
+	}
+
+	fs_referencetype = refflag;
 }
 
 

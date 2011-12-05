@@ -235,7 +235,10 @@ struct globalvars_s *PR_globals (progfuncs_t *progfuncs, progsnum_t pnum)
 	if (pnum < 0)
 	{
 		if (!current_progstate)
-			return NULL;	//err.. you've not loaded one yet.
+		{
+			static float fallback[RESERVED_OFS];
+			return (struct globalvars_s *)fallback;	//err.. you've not loaded one yet.
+		}
 		return (struct globalvars_s *)current_progstate->globals;
 	}
 	return (struct globalvars_s *)pr_progstate[pnum].globals;

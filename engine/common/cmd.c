@@ -269,7 +269,7 @@ void Cbuf_InsertText (const char *text, int level, qboolean addnl)
 	}
 }
 
-char *Cbuf_GetNext(int level)
+char *Cbuf_GetNext(int level, qboolean ignoresemicolon)
 {
 	int		i;
 	char	*text;
@@ -285,7 +285,7 @@ start:
 	{
 		if (text[i] == '"')
 			quotes++;
-		if ( !(quotes&1) &&  text[i] == ';')
+		if ( !(quotes&1) &&  text[i] == ';' && !ignoresemicolon)
 			break;	// don't break if inside a quoted string
 		if (text[i] == '\n')
 			break;
@@ -707,7 +707,7 @@ void Cmd_Alias_f (void)
 	if (Cmd_Argc() == 2)	//check the next statement for being '{'
 	{
 		char *line, *end;
-		line = Cbuf_GetNext(Cmd_ExecLevel);
+		line = Cbuf_GetNext(Cmd_ExecLevel, false);
 
 		while(*line <= ' ' && *line)	//skip leading whitespace.
 			line++;
@@ -730,7 +730,7 @@ void Cmd_Alias_f (void)
 		a->value = NULL;
 		for(;;)
 		{
-			s = Cbuf_GetNext(Cmd_ExecLevel);
+			s = Cbuf_GetNext(Cmd_ExecLevel, false);
 			if (!*s)
 			{
 				Con_Printf(CON_WARNING "WARNING: Multiline alias was not terminated\n");
@@ -2350,7 +2350,7 @@ void Cbuf_ExecBlock(int level)
 	char *remainingcbuf;
 	char *exectext = NULL;
 	char *line, *end;
-	line = Cbuf_GetNext(level);
+	line = Cbuf_GetNext(level, false);
 
 	while(*line <= ' ' && *line)	//skip leading whitespace.
 		line++;
@@ -2364,7 +2364,7 @@ void Cbuf_ExecBlock(int level)
 
 		for(;;)
 		{
-			line = Cbuf_GetNext(level);
+			line = Cbuf_GetNext(level, false);
 
 			while(*line <= ' ' && *line)	//skip leading whitespace.
 				line++;
@@ -2415,7 +2415,7 @@ void Cbuf_ExecBlock(int level)
 void Cbuf_SkipBlock(int level)
 {
 	char *line, *end;
-	line = Cbuf_GetNext(level);
+	line = Cbuf_GetNext(level, false);
 
 	while(*line <= ' ' && *line)	//skip leading whitespace.
 		line++;
@@ -2429,7 +2429,7 @@ void Cbuf_SkipBlock(int level)
 
 		for(;;)
 		{
-			line = Cbuf_GetNext(level);
+			line = Cbuf_GetNext(level, false);
 
 			while(*line <= ' ' && *line)	//skip leading whitespace.
 				line++;
@@ -2511,7 +2511,7 @@ skipws:
 skipblock:
 			Cbuf_SkipBlock(level);
 		}
-		end = Cbuf_GetNext(level);
+		end = Cbuf_GetNext(level, false);
 		while(*end <= ' ' && *end)
 			end++;
 		if (!strncmp(end, "else", 4))

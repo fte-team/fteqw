@@ -1463,6 +1463,8 @@ void V_RenderView (void)
 
 		CL_AllowIndependantSendCmd(false);
 
+		CL_TransitionEntities();
+
 		//work out which packet entities are solid
 		CL_SetSolidEntities ();
 

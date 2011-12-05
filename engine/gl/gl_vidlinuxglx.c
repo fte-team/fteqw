@@ -109,8 +109,6 @@ qboolean isPermedia = false;
 qboolean mouseactive = false;
 qboolean ActiveApp = false;
 
-int gl_canstencil;
-
 
 /*-----------------------------------------------------------------------*/
 
@@ -1005,7 +1003,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	GLVID_SetPalette(palette);
 	GLVID_ShiftPalette(palette);
 
-	qglGetIntegerv(GL_STENCIL_BITS, &gl_canstencil);
+	qglGetIntegerv(GL_STENCIL_BITS, &gl_stencilbits);
 
 	InitSig(); // trap evil signals
 

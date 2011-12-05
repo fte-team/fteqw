@@ -1145,7 +1145,8 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 		}
 		else
 		{
-			CL_SendClientCommand(true, "disablecsqc");
+			if (cls.fteprotocolextensions & PEXT_CSQC)
+				CL_SendClientCommand(true, "disablecsqc");
 		}
 		endstage();
 	}
@@ -1410,7 +1411,7 @@ void CL_SendDownloadReq(sizebuf_t *msg)
 			lasttime = fabs(realtime - lasttime);
 			if (lasttime > 1)
 				lasttime = 1;
-			p = lasttime * drate.ival;
+			p = lasttime * drate.ival / 1000;
 			if (p > 90)
 				p = 90;
 		}
@@ -3952,9 +3953,6 @@ static void CL_SetStat_Internal (int pnum, int stat, int value)
 				cl.item_gettime[pnum][j] = cl.time;
 	}
 
-	if (stat == STAT_VIEWHEIGHT && cls.z_ext & Z_EXT_VIEWHEIGHT)
-		cl.viewheight[pnum] = value;
-
 	if (stat == STAT_WEAPON)
 	{
 		if (cl.stats[pnum][stat] != value)
@@ -4016,6 +4014,9 @@ void CL_SetStatFloat (int pnum, int stat, float value)
 	}
 	else
 		cl.statsf[pnum][stat] = value;
+
+	if (stat == STAT_VIEWHEIGHT && cls.z_ext & Z_EXT_VIEWHEIGHT)
+		cl.viewheight[pnum] = value;
 }
 void CL_SetStatString (int pnum, int stat, char *value)
 {
@@ -4801,14 +4802,14 @@ void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds from n
 			}
 			else if (!strncmp(stufftext, "//paknames ", 11))
 			{
-				Q_strncpyz(cl.serverpaknames, stufftext+11, sizeof(cl.serverpaknames));
+				Q_strncatz(cl.serverpaknames, stufftext+11, sizeof(cl.serverpaknames));
 				cl.serverpakschanged = true;
 			}
 			else if (!strncmp(stufftext, "//paks ", 7))
 			{
-				Q_strncpyz(cl.serverpakcrcs, stufftext+7, sizeof(cl.serverpakcrcs));
+				Q_strncatz(cl.serverpakcrcs, stufftext+7, sizeof(cl.serverpakcrcs));
 				cl.serverpakschanged = true;
-				CL_CheckServerInfo();
+				CL_CheckServerPacks();
 			}
 			else if (!strncmp(stufftext, "//vwep ", 7))
 			{
@@ -5305,7 +5306,7 @@ void CLQW_ParseServerMessage (void)
 			if (!cl.intermission)
 				TP_ExecTrigger ("f_mapend");
 			cl.intermission = 1;
-			cl.completed_time = cl.servertime;
+			cl.completed_time = cl.gametime;
 			vid.recalc_refdef = true;	// go to full screen
 			for (i=0 ; i<3 ; i++)
 				cl.simorg[0][i] = MSG_ReadCoord ();
@@ -5320,7 +5321,7 @@ void CLQW_ParseServerMessage (void)
 
 		case svc_finale:
 			cl.intermission = 2;
-			cl.completed_time = cl.servertime;
+			cl.completed_time = cl.gametime;
 			vid.recalc_refdef = true;	// go to full screen
 			SCR_CenterPrint (destsplit, MSG_ReadString (), false);
 			break;
@@ -5712,6 +5713,7 @@ void CLNQ_ParseProQuakeMessage (char *s)
 		break;
 
 	case pqc_ping_times:
+		cl.last_ping_request = realtime;
 		while ((ping = MSG_ReadShortPQ(&s)))
 		{
 			if ((ping / 4096) >= MAX_CLIENTS)
@@ -6112,20 +6114,20 @@ void CLNQ_ParseServerMessage (void)
 			if (!cl.intermission)
 				TP_ExecTrigger ("f_mapend");
 			cl.intermission = 1;
-			cl.completed_time = cl.servertime;
+			cl.completed_time = cl.gametime;
 			vid.recalc_refdef = true;	// go to full screen
 			break;
 
 		case svc_finale:
 			cl.intermission = 2;
-			cl.completed_time = cl.servertime;
+			cl.completed_time = cl.gametime;
 			vid.recalc_refdef = true;	// go to full screen
 			SCR_CenterPrint (0, MSG_ReadString (), false);
 			break;
 
 		case svc_cutscene:
 			cl.intermission = 3;
-			cl.completed_time = cl.servertime;
+			cl.completed_time = cl.gametime;
 			vid.recalc_refdef = true;	// go to full screen
 			SCR_CenterPrint (0, MSG_ReadString (), false);
 			break;

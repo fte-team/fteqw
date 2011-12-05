@@ -14,7 +14,7 @@ struct edict_s;
 vec3_t vec3_origin;
 
 fdef_t *ED_FieldAtOfs (progfuncs_t *progfuncs, unsigned int ofs);
-pbool	ED_ParseEpair (progfuncs_t *progfuncs, int qcptr, ddefXX_t *key, char *s, int bits);
+pbool	ED_ParseEpair (progfuncs_t *progfuncs, int qcptr, unsigned int fldofs, int fldtype, char *s);
 
 /*
 =================
@@ -460,7 +460,7 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 	type &= ~DEF_SAVEGLOBAL;
 #endif
 
-	if (pr_types)
+	if (current_progstate && pr_types)
 		type = pr_types[type].type;
 
 	switch (type)
@@ -573,8 +573,8 @@ char *PR_UglyValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 	type &= ~DEF_SAVEGLOBAL;
 #endif
 
-	if (pr_types)
-		type = pr_types[type].type;
+//	if (pr_types)
+//		type = pr_types[type].type;
 
 	switch (type)
 	{
@@ -1025,7 +1025,7 @@ Can parse either fields or globals
 returns false if error
 =============
 */
-pbool	ED_ParseEpair (progfuncs_t *progfuncs, int qcptr, ddefXX_t *key, char *s, int structtype)
+pbool	ED_ParseEpair (progfuncs_t *progfuncs, int qcptr, unsigned int fldofs, int fldtype, char *s)
 {
 	int		i;
 	char	string[128];
@@ -1033,31 +1033,8 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, int qcptr, ddefXX_t *key, char *s, 
 	char	*v, *w;
 	string_t st;
 	dfunction_t	*func;
-
-	int type;
-
-	switch(structtype)
-	{
-	case PST_DEFAULT:
-		qcptr += ((ddef16_t*)key)->ofs*sizeof(int);
-
-		if (pr_types)
-			type = pr_types[((ddef16_t*)key)->type & ~DEF_SAVEGLOBAL].type;
-		else
-			type = ((ddef16_t*)key)->type & ~DEF_SAVEGLOBAL;
-		break;
-	case PST_FTE32:
-		qcptr += ((ddef32_t*)key)->ofs*sizeof(int);
-
-		if (pr_types)
-			type = pr_types[((ddef32_t*)key)->type & ~DEF_SAVEGLOBAL].type;
-		else
-			type = ((ddef32_t*)key)->type & ~DEF_SAVEGLOBAL;
-		break;
-	default:
-		Sys_Error("Bad struct type in ED_ParseEpair");
-		return false;
-	}
+	int type = fldtype & ~DEF_SAVEGLOBAL;
+	qcptr += fldofs*sizeof(int);
 
 	switch (type)
 	{
@@ -1231,7 +1208,7 @@ char *ED_ParseEdict (progfuncs_t *progfuncs, char *data, edictrun_t *ent)
 		}
 
 cont:
-		if (!ED_ParseEpair (progfuncs, (char*)ent->fields - progfuncs->stringtable, (ddefXX_t*)key, qcc_token, PST_FTE32))
+		if (!ED_ParseEpair (progfuncs, (char*)ent->fields - progfuncs->stringtable, key->ofs, key->type, qcc_token))
 		{
 			continue;
 //			Sys_Error ("ED_ParseEdict: parse error on entities");
@@ -1662,6 +1639,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 	eval_t *fulldata;	//this is part of FTE_FULLSPAWNDATA
 	char *datastart;
 
+	eval_t *selfvar = NULL;
 	eval_t *var;
 
 	char filename[128];
@@ -1691,14 +1669,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 	{
 		isloadgame = false;
 
-		if (pr_typecurrent>=0)
-			num = ED_FindGlobalOfs(progfuncs, "__fullspawndata");
-		else
-			num = 0;
-		if (num)
-			fulldata = (eval_t *)((int *)pr_globals + num);
-		else
-			fulldata = NULL;
+		fulldata = PR_FindGlobal(progfuncs, "__fullspawndata", PR_ANY, NULL);
 	}
 
 	while(1)
@@ -1877,7 +1848,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					else
 					{
 						file = QCC_COM_Parse(file);
-						ED_ParseEpair(progfuncs, (char*)pr_globals - progfuncs->stringtable, (ddefXX_t*)d16, qcc_token, PST_DEFAULT);
+						ED_ParseEpair(progfuncs, (char*)pr_globals - progfuncs->stringtable, d16->ofs, d16->type, qcc_token);
 					}
 					break;
 				case PST_QTEST:
@@ -1890,7 +1861,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					else
 					{
 						file = QCC_COM_Parse(file);
-						ED_ParseEpair(progfuncs, (char*)pr_globals - progfuncs->stringtable, (ddefXX_t*)d32, qcc_token, PST_FTE32);
+						ED_ParseEpair(progfuncs, (char*)pr_globals - progfuncs->stringtable, d32->ofs, d32->type, qcc_token);
 					}
 					break;
 				default:
@@ -1976,7 +1947,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 							else
 							{
 								file = QCC_COM_Parse(file);
-								ED_ParseEpair(progfuncs, (char*)pr_globals - progfuncs->stringtable, (ddefXX_t*)d16, qcc_token, PST_DEFAULT);
+								ED_ParseEpair(progfuncs, (char*)pr_globals - progfuncs->stringtable, d16->ofs, d16->type, qcc_token);
 							}
 							break;
 						case PST_QTEST:
@@ -1989,7 +1960,7 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 							else
 							{
 								file = QCC_COM_Parse(file);
-								ED_ParseEpair(progfuncs, (char*)pr_globals - progfuncs->stringtable, (ddefXX_t*)d32, qcc_token, PST_FTE32);
+								ED_ParseEpair(progfuncs, (char*)pr_globals - progfuncs->stringtable, d32->ofs, d32->type, qcc_token);
 							}
 							break;
 						default:
@@ -2069,8 +2040,6 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 				}
 				else
 				{
-					eval_t *selfvar;
-
 					//added by request of Mercury.
 					if (fulldata)	//this is a vital part of HL map support!!!
 					{	//essentually, it passes the ent's spawn info to the ent.
@@ -2085,8 +2054,10 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 						fulldata->string = PR_StringToProgs(progfuncs, spawndata);
 					}
 
-					selfvar = (eval_t *)((int *)pr_globals + ED_FindGlobalOfs(progfuncs, "self"));
-					selfvar->edict = EDICT_TO_PROG(progfuncs, ed);
+					if (!selfvar)
+						selfvar = PR_FindGlobal(progfuncs, "self", PR_ANY, NULL);
+					if (selfvar)
+						selfvar->edict = EDICT_TO_PROG(progfuncs, ed);
 
 					//DP_SV_SPAWNFUNC_PREFIX support
 					eclassname = PR_StringToNative(progfuncs, var->string);

@@ -883,15 +883,20 @@ void Editor_Draw(void)
 			useeval = false;
 		else
 		{
-			char *eq;
+			char *eq, *term;
 			Draw_FunString(0, 8, evalstring);
 
 			eq = strchr(evalstring, '=');
 			if (eq)
 			{
-				if (strchr(eq, ';'))
+				term = strchr(eq, ';');
+				if (!term)
+					term = strchr(eq, '\n');
+				if (!term)
+					term = strchr(eq, '\r');
+				if (term)
 				{
-					*strchr(eq, ';') = '\0';
+					*term = '\0';
 					eq = NULL;
 				}
 				else

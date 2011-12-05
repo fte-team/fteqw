@@ -64,7 +64,7 @@ typedef struct trace_s
 	float		fraction;	// time completed, 1.0 = didn't hit anything
 	vec3_t		endpos;		// final position
 	cplane_t	plane;		// surface normal at impact
-	q2csurface_t	*surface;	// surface hit
+	q2csurface_t	*surface;	// q2-compat surface hit
 	int			contents;	// contents on other side of surface hit
 	void		*ent;		// not set by CM_*() functions
 //AND THIS LINE

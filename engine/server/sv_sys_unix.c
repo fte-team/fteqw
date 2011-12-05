@@ -782,7 +782,7 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 	dir = opendir(truepath);
 	if (!dir)
 	{
-		Con_Printf("Failed to open dir %s\n", truepath);
+		Con_DPrintf("Failed to open dir %s\n", truepath);
 		return true;
 	}
 	do

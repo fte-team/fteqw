@@ -42,7 +42,7 @@ static qboolean shader_reload_needed;
 static qboolean shader_rescan_needed;
 
 //cvars that affect shader generation
-cvar_t r_vertexlight = SCVAR("r_vertexlight", "0");
+cvar_t r_vertexlight = CVARFD("r_vertexlight", "0", CVAR_SHADERSYSTEM, "Hack loaded shaders to remove detail pass and lightmap sampling for faster rendering.");
 extern cvar_t r_deluxemapping;
 extern cvar_t r_fastturb, r_fastsky, r_skyboxname;
 extern cvar_t r_drawflat;
@@ -192,6 +192,11 @@ static shadercache_t **shader_hash;
 static char shaderbuf[MAX_QPATH * 256];
 int shaderbuflen;
 
+static enum {
+	SPM_DEFAULT, /*quake3/fte internal*/
+	SPM_DOOM3,
+} shaderparsemode;
+
 shader_t	*r_shaders;
 static hashtable_t shader_active_hash;
 void *shader_active_hash_mem;
@@ -205,7 +210,7 @@ static qboolean Shader_Parsetok( shader_t *shader, shaderpass_t *pass, shaderkey
 static void Shader_ParseFunc( char **args, shaderfunc_t *func );
 static void Shader_MakeCache( char *path );
 static void Shader_GetPathAndOffset( char *name, char **path, unsigned int *offset );
-static void Shader_ReadShader(shader_t *s, char *shadersource);
+static void Shader_ReadShader(shader_t *s, char *shadersource, int parsemode);
 
 //===========================================================================
 
@@ -548,10 +553,24 @@ static int Shader_SetImageFlags ( shader_t *shader )
 
 static texid_t Shader_FindImage ( char *name, int flags )
 {
-	if (!Q_stricmp (name, "$whiteimage"))
-		return r_whiteimage;
+	if (shaderparsemode == SPM_DOOM3)
+	{
+		if (!Q_stricmp (name, "_default"))
+			return r_whiteimage; /*fixme*/
+		if (!Q_stricmp (name, "_white"))
+			return r_whiteimage;
+		if (!Q_stricmp (name, "_black"))
+		{
+			int wibuf[16] = {0};
+			return R_LoadTexture("$blackimage", 4, 4, TF_RGBA32, wibuf, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA);;
+		}
+	}
 	else
-		return R_LoadHiResTexture(name, NULL, flags);
+	{
+		if (!Q_stricmp (name, "$whiteimage"))
+			return r_whiteimage;
+	}
+	return R_LoadHiResTexture(name, NULL, flags);
 }
 
 
@@ -1550,7 +1569,102 @@ struct sbuiltin_s
 		"#endif\n"
 	},
 
+	{QR_OPENGL, 110, "crepuscular_rays",
+		/*yoinked from http://fabiensanglard.net/lightScattering/index.php*/
+		"!!cvarf crep_decay\n"
+		"!!cvarf crep_density\n"
+		"!!cvarf crep_weight\n"
 
+		"varying vec2 tc;\n"
+		"#ifdef VERTEX_SHADER\n"
+			"attribute vec2 v_texcoord;\n"
+			"void main ()\n"
+			"{\n"
+				"tc = v_texcoord;\n"
+				"gl_Position = v_position;\n"
+			"}\n"
+		"#endif\n"
+
+		"#ifdef FRAGMENT_SHADER\n"
+		"uniform float cvar_crep_decay;\n"
+		"uniform float cvar_crep_density;\n"
+		"uniform float cvar_crep_weight;\n"
+		"uniform float l_lightcolour;\n"
+		"uniform vec3 l_lightscreen;\n"
+		"uniform sampler2D s_t0;\n"
+		"const int NUM_SAMPLES = 100;\n"
+
+		"void main()\n"
+		"{\n"
+		//	"gl_FragColor = texture2D(s_t0, tc.st);\n"
+			"vec2 deltaTextCoord = vec2( tc.st - l_lightscreen.xy );\n"
+			"vec2 textCoo = tc.st;\n"
+			"deltaTextCoord *= 1.0 / float(NUM_SAMPLES) * cvar_crep_density;\n"
+			"float illuminationDecay = 1.0;\n"
+
+			"for(int i=0; i < NUM_SAMPLES ; i++)\n"
+			"{\n"
+				"textCoo -= deltaTextCoord;\n"
+				"vec4 sample = texture2D(s_t0, textCoo);\n"
+				"sample *= illuminationDecay * cvar_crep_weight;\n"
+				"gl_FragColor += sample;\n"
+				"illuminationDecay *= cvar_crep_decay;\n"
+			"}\n"
+			"gl_FragColor *= l_lightcolour;\n"
+		"}\n"
+		"#endif\n"
+	},
+	{QR_OPENGL, 110, "crepuscular_opaque",
+		"#ifdef VERTEX_SHADER\n"
+			"void main ()\n"
+			"{\n"
+				"gl_Position = ftetransform();\n"
+			"}\n"
+		"#endif\n"
+		"#ifdef FRAGMENT_SHADER\n"
+			"void main()\n"
+			"{\n"
+				"gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);\n"
+			"}\n"
+		"#endif\n"
+	},
+	{QR_OPENGL, 110, "crepuscular_sky",
+		"#ifdef VERTEX_SHADER\n"
+			"varying vec3 pos;\n"
+
+			"void main ()\n"
+			"{\n"
+			"	pos = v_position.xyz;\n"
+			"	gl_Position = ftetransform();\n"
+			"}\n"
+		"#endif\n"
+
+		"#ifdef FRAGMENT_SHADER\n"
+			"uniform float e_time;\n"
+			"uniform vec3 e_eyepos;\n"
+			"varying vec3 pos;\n"
+			"uniform sampler2D s_t0;\n"
+			"uniform sampler2D s_t1;\n"
+
+			"void main ()\n"
+			"{\n"
+			"	vec2 tccoord;\n"
+
+			"	vec3 dir = pos - e_eyepos;\n"
+
+			"	dir.z *= 3.0;\n"
+			"	dir.xy /= 0.5*length(dir);\n"
+
+			"	tccoord = (dir.xy + e_time*0.03125);\n"
+			"	vec3 solid = vec3(texture2D(s_t0, tccoord));\n"
+
+			"	tccoord = (dir.xy + e_time*0.0625);\n"
+			"	vec4 clouds = texture2D(s_t1, tccoord);\n"
+
+			"	gl_FragColor.rgb = (solid.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb);\n"
+			"}\n"
+		"#endif\n"
+	},
 
 #endif
 #ifdef D3DQUAKE
@@ -1839,6 +1953,7 @@ struct shader_field_names_s shader_field_names[] =
 	{"e_light_ambient",			SP_E_L_AMBIENT},
 
 	/*rtlight properties, use with caution*/
+	{"l_lightscreen",			SP_LIGHTSCREEN},
 	{"l_lightradius",			SP_LIGHTRADIUS},
 	{"l_lightcolour",			SP_LIGHTCOLOUR},
 	{"l_lightposition",			SP_LIGHTPOSITION},
@@ -1868,7 +1983,7 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarfnames)
 			for (p = 0; cvarfnames[i][p] && (unsigned char)cvarfnames[i][p] > 32 && p < sizeof(tmpname)-1; p++)
 				tmpname[p] = cvarfnames[i][p];
 			tmpname[p] = 0;
-			cvar = Cvar_FindVar(tmpname);
+			cvar = Cvar_Get(tmpname, "0", CVAR_SHADERSYSTEM, "glsl cvars");
 			if (!cvar)
 				continue;
 			cvar->flags |= CVAR_SHADERSYSTEM;
@@ -2911,6 +3026,26 @@ static void Shaderpass_NoLightMap ( shader_t *shader, shaderpass_t *pass, char *
 	pass->rgbgen = RGB_GEN_IDENTITY;
 }
 
+static void Shaderpass_Red(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	pass->rgbgen = RGB_GEN_CONST;
+	pass->rgbgen_func.args[0] = Shader_ParseFloat(ptr);
+}
+static void Shaderpass_Green(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	pass->rgbgen = RGB_GEN_CONST;
+	pass->rgbgen_func.args[1] = Shader_ParseFloat(ptr);
+}
+static void Shaderpass_Blue(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	pass->rgbgen = RGB_GEN_CONST;
+	pass->rgbgen_func.args[2] = Shader_ParseFloat(ptr);
+}
+static void Shaderpass_Alpha(shader_t *shader, shaderpass_t *pass, char **ptr)
+{
+	pass->alphagen = ALPHA_GEN_CONST;
+	pass->alphagen_func.args[0] = Shader_ParseFloat(ptr);
+}
 static void Shaderpass_MaskColor(shader_t *shader, shaderpass_t *pass, char **ptr)
 {
 	pass->shaderbits |= SBITS_MASK_RED|SBITS_MASK_GREEN|SBITS_MASK_BLUE;
@@ -3007,6 +3142,10 @@ static shaderkey_t shaderpasskeys[] =
 	{"alphatest",	Shaderpass_AlphaTest},
 	{"texgen",		Shaderpass_TexGen},
 	{"cameracubemap",Shaderpass_CubeMap},
+	{"red",			Shaderpass_Red},
+	{"green",		Shaderpass_Green},
+	{"blue",		Shaderpass_Blue},
+	{"alpha",		Shaderpass_Alpha},
 	{NULL,			NULL}
 };
 
@@ -3048,6 +3187,13 @@ void Shader_Free (shader_t *shader)
 		Shader_FreePass (pass);
 	}
 	shader->numpasses = 0;
+
+	if (shader->genargs)
+	{
+		free(shader->genargs);
+		shader->genargs = NULL;
+	}
+	shader->uses = 0;
 }
 
 
@@ -3080,8 +3226,7 @@ qboolean Shader_Init (void)
 
 		Shader_FlushGenerics();
 	}
-	shader_rescan_needed = true;
-	Shader_NeedReload();
+	Shader_NeedReload(true);
 	Shader_DoReload();
 
 	memset(wibuf, 0xff, sizeof(wibuf));
@@ -3205,9 +3350,10 @@ void Shader_Reset(shader_t *s)
 	char name[MAX_QPATH];
 	int uses = s->uses;
 	shader_gen_t *defaultgen = s->generator;
-	const char *genargs = s->genargs;
+	char *genargs = s->genargs;
 	texnums_t dt = s->defaulttextures;
 	Q_strncpyz(name, s->name, sizeof(name));
+	s->genargs = NULL;
 	Shader_Free(s);
 	memset(s, 0, sizeof(*s));
 
@@ -3987,7 +4133,7 @@ void Shader_DefaultScript(char *shortname, shader_t *s, const void *args)
 	if (*f == '{')
 	{
 		f++;
-		Shader_ReadShader(s, (void*)f);
+		Shader_ReadShader(s, (void*)f, SPM_DEFAULT);
 	}
 };
 
@@ -4406,19 +4552,29 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 void Shader_DefaultBSPVertex(char *shortname, shader_t *s, const void *args)
 {
 	shaderpass_t *pass;
+
+	s->defaulttextures.base = R_LoadHiResTexture(va("%s_d.tga", shortname), NULL, 0);
+
 	pass = &s->passes[0];
 	pass->tcgen = TC_GEN_BASE;
-	pass->anim_frames[0] = R_LoadHiResTexture(shortname, NULL, 0);
 	pass->shaderbits |= SBITS_MISC_DEPTHWRITE;
 	pass->rgbgen = RGB_GEN_VERTEX_LIGHTING;
 	pass->alphagen = ALPHA_GEN_IDENTITY;
 	pass->numMergedPasses = 1;
 	Shader_SetBlendmode(pass);
 
-	if (!TEXVALID(pass->anim_frames[0]))
+	if (TEXVALID(s->defaulttextures.base))
 	{
-		Con_DPrintf (CON_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
-		pass->anim_frames[0] = missing_texture;
+		pass->texgen = T_GEN_DIFFUSE;
+	}
+	else
+	{
+		pass->anim_frames[0] = R_LoadHiResTexture(shortname, NULL, 0);
+		if (!TEXVALID(pass->anim_frames[0]))
+		{
+			Con_DPrintf (CON_WARNING "Shader %s has a stage with no image: %s.\n", s->name, shortname );
+			pass->anim_frames[0] = missing_texture;
+		}
 	}
 
 	s->numpasses = 1;
@@ -4541,9 +4697,11 @@ void Shader_Default2D(char *shortname, shader_t *s, const void *genargs)
 }
 
 //loads a shader string into an existing shader object, and finalises it and stuff
-static void Shader_ReadShader(shader_t *s, char *shadersource)
+static void Shader_ReadShader(shader_t *s, char *shadersource, int parsemode)
 {
 	char *token;
+
+	shaderparsemode = parsemode;
 
 // set defaults
 	s->flags = SHADER_CULL_FRONT;
@@ -4603,11 +4761,15 @@ static qboolean Shader_ParseShader(char *shortname, char *usename, shader_t *s)
 	unsigned int offset = 0, length;
 	char path[MAX_QPATH];
 	char *buf = NULL, *ts = NULL;
+	int parsemode = SPM_DEFAULT;
 
 	Shader_GetPathAndOffset( shortname, &ts, &offset );
 
 	if ( ts )
 	{
+		if (!strcmp(COM_FileExtension(ts), "mtr"))
+			parsemode = SPM_DOOM3;
+
 		Com_sprintf ( path, sizeof(path), "%s", ts );
 		length = FS_LoadFile ( path, (void **)&buf );
 	}
@@ -4630,7 +4792,7 @@ static qboolean Shader_ParseShader(char *shortname, char *usename, shader_t *s)
 
 		Shader_Reset(s);
 
-		Shader_ReadShader(s, file);
+		Shader_ReadShader(s, file, parsemode);
 
 		FS_FreeFile(buf);
 		return true;
@@ -4692,7 +4854,10 @@ static int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *gena
 
 	Q_strncpyz(s->name, shortname, sizeof(s->name));
 	s->generator = defaultgen;
-	s->genargs = genargs;
+	if (genargs)
+		s->genargs = strdup(genargs);
+	else
+		s->genargs = NULL;
 
 	if (ruleset_allow_shaders.ival)
 	{
@@ -4757,7 +4922,7 @@ static int R_LoadShader ( char *name, shader_gen_t *defaultgen, const char *gena
 	}
 	else
 	{
-		r_shaders[i].uses = 0;
+		Shader_Free(s);
 	}
 	return -1;
 }
@@ -4815,8 +4980,10 @@ void Shader_DoReload(void)
 	}
 }
 
-void Shader_NeedReload(void)
+void Shader_NeedReload(qboolean rescanfs)
 {
+	if (rescanfs)
+		shader_rescan_needed = true;
 	shader_reload_needed = true;
 }
 

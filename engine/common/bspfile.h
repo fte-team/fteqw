@@ -152,14 +152,15 @@ typedef struct
 #define	Q1CONTENTS_LAVA		-5
 #define	Q1CONTENTS_SKY		-6
 
-#define	FTECONTENTS_EMPTY	0
-#define	FTECONTENTS_SOLID	1
-#define	FTECONTENTS_WATER	2
-#define	FTECONTENTS_SLIME	4
-#define	FTECONTENTS_LAVA	8
-#define	FTECONTENTS_SKY		16
-#define FTECONTENTS_LADDER	32
-#define FTECONTENTS_FLUID	(FTECONTENTS_WATER|FTECONTENTS_SLIME|FTECONTENTS_LAVA|FTECONTENTS_SKY)	//sky is a fluid for q1 code.
+#define	FTECONTENTS_EMPTY		0
+#define	FTECONTENTS_SOLID		1
+#define	FTECONTENTS_WATER		2
+#define	FTECONTENTS_SLIME		4
+#define	FTECONTENTS_LAVA		8
+#define	FTECONTENTS_SKY			16
+#define FTECONTENTS_LADDER		32
+#define FTECONTENTS_FLUID		(FTECONTENTS_WATER|FTECONTENTS_SLIME|FTECONTENTS_LAVA|FTECONTENTS_SKY)	//sky is a fluid for q1 code.
+#define FTECONTENTS_PLAYERCLIP	64
 
 // !!! if this is changed, it must be changed in asm_i386.h too !!!
 typedef struct
@@ -214,7 +215,7 @@ typedef struct
 } dsedge_t;
 typedef struct
 {
-	unsigned short	v[2];		// vertex numbers
+	unsigned int	v[2];		// vertex numbers
 } dledge_t;
 
 #define	MAXLIGHTMAPS	4

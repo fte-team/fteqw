@@ -8,6 +8,7 @@ struct mesh_s;
 struct batch_s;
 struct entity_s;
 struct dlight_s;
+struct galiasbone_s;
 
 
 
@@ -33,6 +34,7 @@ typedef struct {
 
 	float *bonestate;
 	int bonecount;
+	qboolean boneabs;
 
 #ifdef HALFLIFEMODELS
 	float bonecontrols[MAX_BONE_CONTROLLERS];	//hl special bone controllers
@@ -142,6 +144,7 @@ extern int Mod_TagNumForName					(struct model_s *model, char *name);
 int Mod_GetNumBones(struct model_s *model, qboolean allowtags);
 int Mod_GetBoneRelations(struct model_s *model, int firstbone, int lastbone, framestate_t *fstate, float *result);
 int Mod_GetBoneParent(struct model_s *model, int bonenum);
+struct galiasbone_s *Mod_GetBoneInfo(struct model_s *model);
 char *Mod_GetBoneName(struct model_s *model, int bonenum);
 
 void Draw_FunString(int x, int y, const void *str);
@@ -213,6 +216,7 @@ typedef enum backendmode_e
         BEM_DEPTHONLY,          //just a quick depth pass. textures used only for alpha test (shadowmaps).
         BEM_STENCIL,            //used for drawing shadow volumes to the stencil buffer.
         BEM_DEPTHDARK,          //a quick depth pass. textures used only for alpha test. additive textures still shown as normal.
+		BEM_CREPUSCULAR,		//sky is special, everything else completely black
 		BEM_DEPTHNORM,			//all opaque stuff drawn using 'depthnorm' shader
         BEM_LIGHT,              //we have a valid light
         BEM_SMAPLIGHTSPOT,      //we have a spot light using a shadowmap
@@ -324,5 +328,5 @@ typedef struct rendererinfo_s {
 #define BE_SubmitBatch			rf->BE_SubmitBatch
 #define BE_DrawMesh_List		rf->BE_DrawMesh_List
 #define BE_DrawMesh_Single		rf->BE_DrawMesh_Single
-#define BE_SubimtMeshes			rf->BE_SubimtMeshes
+#define BE_SubmitMeshes			rf->BE_SubmitMeshes
 #define BE_DrawWorld			rf->BE_DrawWorld

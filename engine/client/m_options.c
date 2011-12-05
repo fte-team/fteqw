@@ -345,6 +345,7 @@ void M_Menu_Particles_f (void)
 		"High FPS",
 		"Fancy",
 		"Fancy+LG",
+		"Snazzy",
 		"Bare bones",
 		NULL
 	};
@@ -354,6 +355,7 @@ void M_Menu_Particles_f (void)
 		"highfps",
 		"spikeset",
 		"spikeset tsshaft",
+		"spikeset high tsshaft",
 		"minimal",
 		NULL
 	};
@@ -545,6 +547,19 @@ void M_Menu_FPS_f (void)
 		NULL
 	};
 	static const char *fpsvalues[] = {"0", "1", "2", "3", "4", "-1", "-2", "-3", "-4", NULL};
+	static const char *entlerpopts[] =
+	{
+		"Enabled (always)",
+		"Disabled",
+		"Enabled (SP only)",
+		NULL
+	};
+	static const char *playerlerpopts[] =
+	{
+		"Disabled",
+		"Enabled",
+		NULL
+	};
 	static const char *bodyopts[] =
 	{
 		"Disabled",
@@ -552,16 +567,19 @@ void M_Menu_FPS_f (void)
 		"All",
 		NULL
 	};
-	static const char *bodyvalues[] = {"0", "1", "2", NULL};
+	static const char *values_0_1_2[] = {"0", "1", "2", NULL};
+	static const char *values_0_1[] = {"0", "1", NULL};
 
 	menu_t *menu;
 	fpsmenuinfo_t *info;
 
-	extern cvar_t v_contentblend, show_fps, cl_r2g, cl_gibfilter, cl_expsprite, cl_deadbodyfilter;
+	extern cvar_t v_contentblend, show_fps, cl_r2g, cl_gibfilter, cl_expsprite, cl_deadbodyfilter, cl_lerp_players, cl_nolerp;
 
 	int y;
 	menu = M_Options_Title(&y, sizeof(fpsmenuinfo_t));
 	info = (fpsmenuinfo_t *)menu->data;
+
+	/*lerping is here because I'm not sure where else to put it. if they care about framerate that much then they'll want to disable interpolation to get as up-to-date stuff as possible*/
 
 	{
 		menubulk_t bulk[] = 
@@ -572,9 +590,11 @@ void M_Menu_FPS_f (void)
 			MB_CMD("Apply", M_PresetApply, "Applies selected preset."),
 			MB_SPACING(4),
 			MB_COMBOCVAR("Show FPS", show_fps, fpsopts, fpsvalues, "Display FPS or frame millisecond values on screen. Settings except immediate are for values across 1 second."),
+			MB_COMBOCVAR("Player lerping", cl_lerp_players, playerlerpopts, values_0_1, "Smooth movement of other players, but will increase effective latency. Does not affect all network protocols."),
+			MB_COMBOCVAR("Entity lerping", cl_nolerp, entlerpopts, values_0_1_2, "Smooth movement of entities, but will increase effective latency."),
 			MB_CHECKBOXCVAR("Content Blend", v_contentblend, 0),
 			MB_CHECKBOXCVAR("Gib Filter", cl_gibfilter, 0),
-			MB_COMBOCVAR("Dead Body Filter", cl_deadbodyfilter, bodyopts, bodyvalues, "Selects which dead player frames to filter out in rendering. Ground frames are those of the player lying on the ground, and all frames include all used in the player dying animation."),
+			MB_COMBOCVAR("Dead Body Filter", cl_deadbodyfilter, bodyopts, values_0_1_2, "Selects which dead player frames to filter out in rendering. Ground frames are those of the player lying on the ground, and all frames include all used in the player dying animation."),
 			MB_CHECKBOXCVAR("Explosion Sprite", cl_expsprite, 0),
 			MB_CHECKBOXCVAR("Rockets to Grenades", cl_r2g, 0),
 			MB_EDITCVAR("Skybox", "r_skybox"),
@@ -928,8 +948,9 @@ void M_Menu_Lighting_f (void)
 			MB_COMBOCVAR("Powerup Glow", r_powerupglow, powerupopts, powerupvalues, "Disables or enables the dynamic light effect for powerups. Non-self will disable the light only for the current player."),
 			MB_CHECKBOXCVAR("Powerup Shell", v_powerupshell, 0),
 			MB_SPACING(4),
-			MB_SLIDER("Stains", r_stains, 0, 1, 0.05, NULL),
-			MB_CHECKBOXCVAR("No Light Direction", r_nolightdir, 0),
+			MB_SLIDER("Blob Shadows", r_shadows, 0, 1, 0.05, "Small blobs underneath monsters and players, to add depth to the scene without excessive rendering."),
+			MB_SLIDER("Stains", r_stains, 0, 1, 0.05, "Allows discolouration of world surfaces, commonly used for blood trails."),
+			MB_CHECKBOXCVARTIP("No Light Direction", r_nolightdir, 0, "Disables shading calculations for uniform light levels on models from all directions."),
 			MB_END()
 		};
 		MC_AddBulk(menu, bulk, 16, 216, y);

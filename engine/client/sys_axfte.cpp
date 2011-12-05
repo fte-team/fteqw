@@ -812,7 +812,7 @@ HRESULT WINAPI DllRegisterServer(void)
 	HKEY h;
 	bool allusers = false;
 	int i;
-	char *ls;
+	const char *ls;
 
 	for (i = 0; regkeys[i].key; i++)
 	{
@@ -841,7 +841,7 @@ HRESULT WINAPI DllUnregisterServer(void)
 {
 	int i;
 	bool allusers = false;
-	char *ls;
+	const char *ls;
 	char tmp[1024];
 	HKEY h;
 

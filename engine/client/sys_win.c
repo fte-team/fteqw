@@ -378,7 +378,11 @@ DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exception
 	if (pIsDebuggerPresent ())
 	{
 		/*if we have a current window, minimize it to bring us out of fullscreen*/
+		extern qboolean vid_initializing;
+		qboolean oldval = vid_initializing;
+		vid_initializing = true;
 		ShowWindow(mainwindow, SW_MINIMIZE);
+		vid_initializing = oldval;
 		return EXCEPTION_CONTINUE_SEARCH;
 	}
 

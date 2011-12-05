@@ -47,7 +47,7 @@ char *particle_set_spikeset =
 "spawnvel 10\n"
 "}\n"
 
-"r_part tr_rocket\n"
+"r_part t_rocket\n"
 "{\n"
 "texture \"particles/fteparticlefont.tga\"\n"
 "tcoords 97 97 191 191 256\n"
@@ -78,7 +78,7 @@ char *particle_set_spikeset =
 "cliptype rockettail\n"
 "}\n"
 
-"r_part tr_altrocket\n"
+"r_part t_altrocket\n"
 "{\n"
 "texture \"particles/fteparticlefont.tga\"\n"
 "tcoords 97 97 191 191 256\n"
@@ -188,7 +188,7 @@ char *particle_set_spikeset =
 "rgb 150 150 150\n"
 "}\n"
 
-"r_part tr_grenade\n"
+"r_part t_grenade\n"
 "{\n"
 "texture \"particles/fteparticlefont.tga\"\n"
 "tcoords 97 97 191 191 256\n"
@@ -207,7 +207,7 @@ char *particle_set_spikeset =
 "}\n"
 
 //cool's blood trails (cos they're cooler)
-"r_part tr_gib\n"
+"r_part t_gib\n"
 "{\n"
 "texture \"particles/fteparticlefont.tga\"\n"
 "tcoords 1 1 63 63 256 2 64\n"
@@ -226,7 +226,7 @@ char *particle_set_spikeset =
 "stains 5\n"
 "}\n"
 
-"r_part tr_slightblood\n"
+"r_part t_zomgib\n"
 "{\n"
 "texture \"particles/fteparticlefont.tga\"\n"
 "tcoords 1 1 63 63 256 2 64\n"
@@ -245,7 +245,7 @@ char *particle_set_spikeset =
 "stains 5\n"
 "}\n"
 
-"r_part tr_wizspike\n"
+"r_part t_tracer\n"
 "{\n"
 "texture \"particles/fteparticlefont.tga\"\n"
 "tcoords 1 97 95 191 256\n"
@@ -260,7 +260,7 @@ char *particle_set_spikeset =
 "scalefactor 0.825\n"
 "}\n"
 
-"r_part tr_knightspike\n"
+"r_part t_tracer2\n"
 "{\n"
 "texture \"particles/fteparticlefont.tga\"\n"
 "tcoords 1 97 95 191 256\n"
@@ -275,7 +275,7 @@ char *particle_set_spikeset =
 "scalefactor 0.825\n"
 "}\n"
 
-"r_part tr_vorespike\n"
+"r_part t_tracer3\n"
 "{\n"
 "texture \"particles/fteparticlefont.tga\"\n"
 "tcoords 1 97 95 191 256\n"
@@ -727,7 +727,7 @@ char *particle_set_spikeset =
 
 char *particle_set_faithful =
 // faithful, by TimeServ
-"r_part tr_gib\n"
+"r_part t_gib\n"
 "{\n"
 "texture \"particles/quake\"\n"
 "step 3\n"
@@ -742,7 +742,7 @@ char *particle_set_faithful =
 "stains 1\n"
 "}\n"
 
-"r_part tr_slightblood\n"
+"r_part t_zomgib\n"
 "{\n"
 "texture \"particles/quake\"\n"
 "step 6\n"
@@ -757,7 +757,7 @@ char *particle_set_faithful =
 "stains 1\n"
 "}\n"
 
-"r_part tr_vorespike\n"
+"r_part t_tracer3\n"
 "{\n"
 "texture \"particles/quake\"\n"
 "step 3\n"
@@ -768,7 +768,7 @@ char *particle_set_faithful =
 "spawnorg 8\n"
 "}\n"
 
-"r_part tr_wizspike\n"
+"r_part t_tracer\n"
 "{\n"
 "texture \"particles/quake\"\n"
 "step 3\n"
@@ -781,7 +781,7 @@ char *particle_set_faithful =
 "spawnmode tracer\n"
 "}\n"
 
-"r_part tr_knightspike\n"
+"r_part t_tracer2\n"
 "{\n"
 "texture \"particles/quake\"\n"
 "step 3\n"
@@ -794,7 +794,7 @@ char *particle_set_faithful =
 "spawnmode tracer\n"
 "}\n"
 
-"r_part tr_rocket\n"
+"r_part t_rocket\n"
 "{\n"
 "texture \"particles/quake\"\n"
 "step 3\n"
@@ -812,7 +812,7 @@ char *particle_set_faithful =
 "gravity -40\n"
 "}\n"
 
-"r_part tr_altrocket\n"
+"r_part t_altrocket\n"
 "{\n"
 "texture \"particles/quake\"\n"
 "step 3\n"
@@ -825,7 +825,7 @@ char *particle_set_faithful =
 "gravity -40\n"
 "}\n"
 
-"r_part tr_grenade\n"
+"r_part t_grenade\n"
 "{\n"
 "texture \"particles/quake\"\n"
 "step 3\n"
@@ -1031,7 +1031,7 @@ char *particle_set_faithful =
 char *particle_set_highfps =
 // highfps, originally submitted by 'ShadowWalker'
 // rehashed by TimeServ
-"r_part tr_gib\n"
+"r_part t_gib\n"
 "{\n"
 "texture \"particles/bloodtrail\"\n"
 "step 12\n"
@@ -1042,7 +1042,7 @@ char *particle_set_highfps =
 "rgb 64 0 0\n"
 "rgbdelta -128 0 0\n"
 "}\n"
-"r_part tr_slightblood\n"
+"r_part t_zomgib\n"
 "{\n"
 "texture \"particles/bloodtrail\"\n"
 "step 16\n"
@@ -1054,7 +1054,7 @@ char *particle_set_highfps =
 "rgbdelta -128 0 0\n"
 "}\n"
 
-"r_part tr_wizspike\n"
+"r_part t_tracer\n"
 "{\n"
 "texture \"particles/tracer\"\n"
 "scale 23\n"
@@ -1063,7 +1063,7 @@ char *particle_set_highfps =
 "die 0.5\n"
 "}\n"
 
-"r_part tr_knightspike\n"
+"r_part t_tracer2\n"
 "{\n"
 "texture \"particles/tracer\"\n"
 "scale 23\n"
@@ -1072,7 +1072,7 @@ char *particle_set_highfps =
 "rgb 192 96 0\n"
 "}\n"
 
-"r_part tr_vorespike\n"
+"r_part t_tracer3\n"
 "{\n"
 "texture \"particles/tracer\"\n"
 "scale 23\n"
@@ -1148,13 +1148,14 @@ char *particle_set_highfps =
 
 "r_part te_railtrail\n"
 "{\n"
-"step 64\n"
+"step 1000000\n"
 "scale 5\n"
 "die 1.2\n"
 "alpha 0.7\n"
 "rgb 16 16 255\n"
 "blend add\n"
 "type beam\n"
+"averageout\n"
 "}\n"
 
 //the blob tempent is used quite a bit with teamfortress emp grenades.
@@ -1211,7 +1212,7 @@ char *particle_set_highfps =
 "spawnvel 25 4\n"
 "}\n"
 
-"r_part tr_grenade\n"
+"r_part t_grenade\n"
 "{\n"
 "texture \"particles/smoke\"\n"
 "step 20\n"
@@ -1221,7 +1222,7 @@ char *particle_set_highfps =
 "rgb 128 128 128\n"
 "}\n"
 
-"r_part tr_rocket\n"
+"r_part t_rocket\n"
 "{\n"
 "texture \"particles/rocket\"\n"
 "step 15\n"
@@ -1232,7 +1233,7 @@ char *particle_set_highfps =
 "assoc t_grenade\n"
 "}\n"
 
-"r_part tr_altrocket\n"
+"r_part t_altrocket\n"
 "{\n"
 "texture \"particles/rocket\"\n"
 "step 15\n"
@@ -1285,6 +1286,474 @@ char *particle_set_highfps =
 "alphadelta 0\n"
 "rgb 255 255 0\n"
 "}\n"
+
+;
+
+
+
+//////////////////////////////////////////////////////
+
+
+char *particle_set_high =
+///////////////////////////////
+//rocket trail
+
+// flame trail
+"r_part tr_rocket\n"
+"{\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 97 97 191 191 256\n"
+"step 1\n"
+"scale 12\n"
+"alpha 0.4\n"
+"die 0.5\n"
+"rgb 255 127 100\n"
+"rgbdelta -14 -300 -300\n"
+"blend add\n"
+"scalefactor 1\n"
+"scaledelta -15\n"
+"}\n"
+
+// smoke puffs
+"r_part +tr_rocket\n"
+"{\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 97 97 191 191 256\n"
+"step 5\n"
+"scale 30\n"
+"alpha 0.2\n"
+"die 1.5\n"
+//diesubrand 10.25
+"randomvel 0.2\n"
+"rgb 5 5 5\n"
+//rgbdelta -230 -45 -9
+"gravity -15\n"
+"scalefactor 1\n"
+"scaledelta 20\n"
+"spawnvel 5\n"
+"}\n"
+
+
+// burst sparks
+"r_part +tr_rocket\n"
+"{\n"
+"type texturedspark\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 65 31 95 256 8 32\n"
+"count 1\n"
+"scale 2\n"
+"scalefactor 1\n"
+"scaledelta -15\n"
+"alpha 0.2\n"
+"die 0.25\n"
+"rgb 255 128 0\n"
+"blend add\n"
+"spawnmode ball\n"
+"spawnorg 1\n"
+"spawnvel 50\n"
+"veladd 500\n"
+"friction 0.01\n"
+"gravity 100\n"
+"}\n"
+
+///////////////////////////////////////////
+//alternate rocket trail, which is used by a handful of qw players.
+//r_part tr_altrocket
+//{
+//}
+
+
+///////////////////////////////////////////
+//grenade trail
+
+"r_part tr_grenade\n"
+"{\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 97 97 191 191 256\n"
+"step 6\n"
+"scale 32\n"
+"scaledelta 12\n"
+"alpha 0.3\n"
+"die 1.25\n"
+"randomvel 2\n"
+"veladd 15\n"
+"rgb 75 75 75\n"
+//rgb 255 50 50
+//rgbdelta -255 -75 -75
+"gravity -25\n"
+"scalefactor 1\n"
+"blend modulate\n"
+"}\n"
+"r_part +tr_grenade\n"
+"{\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 97 97 191 191 256\n"
+"scale 1\n"
+"scaledelta 0.25\n"
+"alpha 0.2\n"
+"step 4\n"
+"die 0.8\n"
+"randomvel 0\n"
+"rgb 255 150 150\n"
+"rgbdelta 0 -150 -150\n"
+"type beam\n"
+"blend add\n"
+"}\n"
+
+//////////////////////////////////
+//shotgun impacts
+"r_part gunshotsmoke\n"
+"{\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 65 31 95 256 8 32\n"
+"count 3\n"
+"scale 25\n"
+"scalefactor 1\n"
+"die 0.8\n"
+"alpha 0.12\n"
+"rgb 32 32 32\n"
+"blend add\n"
+"spawnmode ball\n"
+"spawnorg 2\n"
+"spawnvel 20\n"
+"veladd -20\n"
+"}\n"
+"r_part te_gunshot\n"
+"{\n"
+"type texturedspark\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 65 31 95 256 8 32\n"
+"count 3\n"
+"scale 2\n"
+"scalefactor 1\n"
+"alpha 0.5\n"
+"die 0.8\n"
+"rgb 255 128 0\n"
+"blend add\n"
+"spawnmode ball\n"
+"spawnorg 1\n"
+"spawnvel 100\n"
+"veladd -80\n"
+"friction 0.3\n"
+"gravity 400\n"
+"assoc gunshotsmoke\n"
+"}\n"
+
+//////////////////////////////////
+//nail impacts
+
+"r_part te_spike\n"
+"{\n"
+"type sparkfan\n"
+"count 10\n"
+"scale 1\n"
+"scalefactor 1\n"
+"alpha 0.5\n"
+"die 0.2\n"
+"rgb 255 128 0\n"
+"blend add\n"
+"spawnmode ball\n"
+"spawnorg 12\n"
+"spawnvel 300\n"
+"}\n"
+"r_part +te_spike\n"
+"{\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 97 95 191 256\n"
+"count 1\n"
+"scale 1\n"
+"scalefactor 1\n"
+"scaledelta 190\n"
+"die 0.1\n"
+"alpha 0.6\n"
+"rgb 255 128 0\n"
+"blend add\n"
+"assoc gunshotsmoke\n"
+"}\n"
+
+
+////////////////////////////////////////////////
+//explosion
+
+//red bit
+"r_part te_explosion\n"
+"{\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 97 97 191 191 256\n"
+"count 1\n"
+"scale 500\n"
+"alpha 0.4\n"
+"die 0.2\n"
+"rgb 255 127 100\n"
+"rgbdelta -14 -300 -300\n"
+"blend add\n"
+"scalefactor 1\n"
+"scaledelta -15\n"
+"randomvel 0\n"
+
+"lightradius 350\n"
+"lightrgb    0.4 0.2 0.05\n"
+"lighttime   0.5\n"
+"lightradiusfade 350\n"
+"lightrgbfade 2 2 2 \n"
+"}\n"
+//smoke
+"r_part +te_explosion\n"
+"{\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 97 97 191 191 256\n"
+"count 7\n"
+"scale 300\n"
+"alpha 0.2\n"
+"die 0.8\n"
+//diesubrand 10.25
+"randomvel 100\n"
+"rgb 5 5 5\n"
+//rgbdelta -230 -45 -9
+"gravity -15\n"
+"scalefactor 1\n"
+"scaledelta 40\n"
+"spawnvel 5\n"
+"}\n"
+// burst sparks
+"r_part +te_explosion\n"
+"{\n"
+"type texturedspark\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 65 31 95 256 8 32\n"
+"count 100\n"
+"scale 5\n"
+"scalefactor 1\n"
+"scaledelta -15\n"
+"alpha 0.2\n"
+"die 0.5\n"
+"rgb 255 128 0\n"
+"blend add\n"
+"spawnmode ball\n"
+"spawnorg 1\n"
+"randomvel 1000\n"
+"friction 0.01\n"
+"gravity 100\n"
+"stretchfactor 5\n"
+"}\n"
+
+//hide lights in explosions.
+"r_explosionlight 0\n"
+
+//hide the explosion sprite in nq+qw - WARNING: some mods use this sprite as a flame thrower.
+"cl_expsprite 0\n"
+"r_effect \"progs/s_explod.spr\" hidden 1\n"
+
+//////////////////////////////////////////
+//r_part te_tarexplosion
+//{
+//}
+
+//////////////////////////////////////////
+//r_part te_lavasplash
+//{
+//}
+
+//////////////////////////////////////////
+"r_part te_teleport\n"
+"{\n"
+"scale 250\n"
+"count 1\n"
+"alpha 0.3\n"
+"die 0.5\n"
+"scalefactor 1\n"
+"rotationstart 45\n"
+"rotationspeed 0\n"
+
+"shader\n"
+"{\n"
+"glslprogram\n"
+"{\n"
+"varying vec2 tcoord;\n"
+"varying vec4 scoord;\n"
+"varying float alph;\n"
+"#ifdef VERTEX_SHADER\n"
+"attribute vec2 v_texcoord;\n"
+"attribute vec4 v_colour;\n"
+
+"void main(void)\n"
+"{\n"
+"scoord = ftetransform();\n"
+"tcoord = (v_texcoord.st - 0.5)*2.0;\n"
+"alph = v_colour.a;\n"
+"gl_Position = scoord;\n"
+"}\n"
+"#endif\n"
+"#ifdef FRAGMENT_SHADER\n"
+"uniform sampler2D s_t0;\n"
+"void main(void)\n"
+"{\n"
+"vec2 nst;\n"
+"float f;\n"
+"nst = scoord.xy / scoord.w;\n"
+"nst = (1.0 + nst)/2.0;\n"
+"f = 1 - length(tcoord);\n"
+//				f = 1 - tcoord*tcoord;
+"if (f < 0) discard;\n"
+"f *= alph;\n"
+"gl_FragColor = texture2D(s_t0, nst - tcoord*f);\n"
+"}\n"
+"#endif\n"
+"}\n"
+"{\n"
+"map $currentrender\n"
+"blendfunc blend\n"
+"}\n"
+"}\n"
+"}\n"
+
+
+//////////////////////////////////////////
+//hellknight
+"r_part tr_knightspike\n"
+"{\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 97 95 191 256\n"
+"scale 15\n"
+"step 1\n"
+"alpha 0.6\n"
+"die 0.2\n"
+"rgb 192 96 48\n"
+"veladd 0\n"
+"randomvel 2\n"
+"friction 4\n"
+"scalefactor 0.825\n"
+"blend add\n"
+"}\n"
+
+/////////////////////////////////////////
+//vore missiles
+
+"r_part tr_vorespike\n"
+"{\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 97 95 191 256\n"
+"scale 15\n"
+"step 1\n"
+"alpha 0.6\n"
+"die 0.5\n"
+"rgb 192 96 192\n"
+"veladd 15\n"
+"spawnmode spiral\n"
+"spawnvel 50\n"
+"randomvel 0\n"
+"friction 0\n"
+"scalefactor 1\n"
+"blend add\n"
+
+"lightradius 150\n"
+"lightrgb    0.75 0.37 0.75\n"
+"}\n"
+//rygel's pack sucks
+"r_trail \"progs/v_spike.mdl\" tr_vorespike\n"
+
+/////////////////////////////////////////
+//scrag missiles. just use the default trail cos we're lazy
+//r_part tr_wizspike
+//{
+//}
+
+/////////////////////////////////////////
+//zombie body-part blood trails
+"r_part tr_slightblood\n"
+"{\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 1 63 63 256 2 64\n"
+"step 16\n"
+"scale 64\n"
+"alpha 0.6\n"
+"die 1\n"
+"randomvel 32\n"
+"veladd 10\n"
+"rotationspeed 90\n"
+"rotationstart 0 360\n"
+"rgb 32 0 0\n"
+"gravity 200\n"
+"scalefactor 0.8\n"
+"scaledelta -10\n"
+"stains 5\n"
+"}\n"
+
+//////////////////////////////////////////
+//regular ol' blood trails
+"r_part tr_blood\n"
+"{\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 1 63 63 256 2 64\n"
+"step 4\n"
+"scale 64\n"
+"alpha 0.3\n"
+"die 1\n"
+"randomvel 32\n"
+"veladd 10\n"
+"rotationspeed 90\n"
+"rotationstart 0 360\n"
+"rgb 64 0 0\n"
+"gravity 200\n"
+"scalefactor 0.8\n"
+"scaledelta -10\n"
+"stains 5\n"
+"}\n"
+
+//////////////////////////////////
+//fallbacks
+
+"r_part pe_default\n"
+"{\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 97 95 191 256\n"
+"count 1\n"
+"scale 4\n"
+"veladd 15\n"
+"die 0.4\n"
+"alphadelta 0\n"
+"diesubrand 0.4\n"
+"gravity 40\n"
+"spawnorg 8\n"
+"}\n"
+"r_part pe_defaulttrail\n"
+"{\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 97 95 191 256\n"
+"scale 15\n"
+"step 1\n"
+"alpha 0.6\n"
+"die 0.2\n"
+"rgb 192 96 48\n"
+"veladd 0\n"
+"randomvel 2\n"
+"friction 4\n"
+"scalefactor 0.825\n"
+"blend add\n"
+"}\n"
+
+//////////////////////////////////
+//map debugging
+"r_part pe_pointfile\n"
+"{\n"
+"texture \"particles/fteparticlefont.tga\"\n"
+"tcoords 1 97 95 191 256\n"
+"count 1\n"
+"scale 50\n"
+"die 30\n"
+"alphadelta 0\n"
+"rgb 255 255 0\n"
+"}\n"
+
+
+
+
+
+
+
+
+
+
 
 ;
 

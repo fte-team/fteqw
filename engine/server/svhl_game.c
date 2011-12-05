@@ -61,6 +61,7 @@ int QDECL GHL_PrecacheModel(char *name)
 
 			if (sv.state != ss_loading)
 			{
+				Con_DPrintf("Delayed model precache: %s\n", s);
 				MSG_WriteByte(&sv.reliable_datagram, svcfte_precache);
 				MSG_WriteShort(&sv.reliable_datagram, i);
 				MSG_WriteString(&sv.reliable_datagram, name);
@@ -105,6 +106,7 @@ int QDECL GHL_PrecacheSound(char *name)
 
 			if (sv.state != ss_loading)
 			{
+				Con_DPrintf("Delayed sound precache: %s\n", s);
 				MSG_WriteByte(&sv.reliable_datagram, svcfte_precache);
 				MSG_WriteShort(&sv.reliable_datagram, -i);
 				MSG_WriteString(&sv.reliable_datagram, name);

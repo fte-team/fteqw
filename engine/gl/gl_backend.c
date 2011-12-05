@@ -324,6 +324,9 @@ struct {
 		qboolean initedspotpasses;
 		const shader_t *spotpassshader;
 
+		const shader_t *crepskyshader;
+		const shader_t *crepopaqueshader;
+
 		qboolean initeddepthnorm;
 		const shader_t *depthnormshader;
 		texid_t tex_normals;
@@ -901,6 +904,8 @@ static void T_Gen_CurrentRender(int tmu)
 	qglCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 0, 0, vwidth, vheight, 0);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 }
 
 static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass, qboolean useclientarray)
@@ -2417,13 +2422,13 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 	case SP_ATTR_COLOUR:
 		if (shaderstate.sourcevbo->colours4f)
 		{
-			GL_SelectVBO(shaderstate.curvertexvbo);
+			GL_SelectVBO(shaderstate.sourcevbo->vbocolours);
 			qglVertexAttribPointer(p->handle[perm], 4, GL_FLOAT, GL_FALSE, sizeof(vec4_t), shaderstate.sourcevbo->colours4f);
 			return 1u<<p->handle[perm];
 		}
 		else if (shaderstate.sourcevbo->colours4ub)
 		{
-			GL_SelectVBO(shaderstate.curvertexvbo);
+			GL_SelectVBO(shaderstate.sourcevbo->vbocolours);
 			qglVertexAttribPointer(p->handle[perm], 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(byte_vec4_t), shaderstate.sourcevbo->colours4ub);
 			return 1u<<p->handle[perm];
 		}
@@ -2555,6 +2560,27 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 		qglUniform3fvARB(p->handle[perm], 1, param3);
 		break;
 
+	case SP_LIGHTSCREEN:
+		{
+			float v[4], tempv[4];
+			float out[3];
+
+			v[0] = shaderstate.lightorg[0];
+			v[1] = shaderstate.lightorg[1];
+			v[2] = shaderstate.lightorg[2];
+			v[3] = 1;
+
+			Matrix4x4_CM_Transform4(shaderstate.modelviewmatrix, v, tempv); 
+			Matrix4x4_CM_Transform4(r_refdef.m_projection, tempv, v);
+
+			v[3] *= 2;
+			v[0] = (v[0]/v[3]) + 0.5;
+			v[1] = (v[1]/v[3]) + 0.5;
+			v[2] = (v[2]/v[3]) + 0.5;
+
+			qglUniform3fvARB(p->handle[perm], 1, v);
+		}
+		break;
 	case SP_LIGHTRADIUS:
 		qglUniform1fARB(p->handle[perm], shaderstate.lightradius);
 		break;
@@ -2793,6 +2819,7 @@ void GLBE_SelectMode(backendmode_t mode)
 
 			//we don't write or blend anything (maybe alpha test... but mneh)
 			BE_SendPassBlendDepthMask(SBITS_MISC_DEPTHCLOSERONLY | SBITS_MASK_BITS);
+			GL_CullFace(0);
 
 			//don't change cull stuff, and
 			//don't actually change stencil stuff - caller needs to be
@@ -2820,6 +2847,31 @@ void GLBE_SelectMode(backendmode_t mode)
 			{
 				shaderstate.initedlightpasses = true;
 				shaderstate.lightpassshader = R_RegisterCustom("lightpass", Shader_LightPass_Std, NULL);
+			}
+			break;
+
+		case BEM_CREPUSCULAR:
+			if (!shaderstate.crepopaqueshader)
+			{
+				shaderstate.crepopaqueshader = R_RegisterShader("crepuscular_opaque",
+					"{\n"
+						"program crepuscular_opaque\n"
+					"}\n"
+					);
+			}
+			if (!shaderstate.crepskyshader)
+			{
+				shaderstate.crepskyshader = R_RegisterShader("crepuscular_sky",
+					"{\n"
+						"program crepuscular_sky\n"
+						"{\n"
+							"map $diffuse\n"
+						"}\n"
+						"{\n"
+							"map $fullbright\n"
+						"}\n"
+					"}\n"
+					);
 			}
 			break;
 #endif
@@ -2989,6 +3041,12 @@ static void DrawMeshes(void)
 		BE_RenderMeshProgram(shaderstate.depthnormshader, shaderstate.depthnormshader->passes);
 		break;
 #endif
+	case BEM_CREPUSCULAR:
+		if (shaderstate.curshader->flags & SHADER_SKY)
+			BE_RenderMeshProgram(shaderstate.crepskyshader, shaderstate.crepskyshader->passes);
+		else
+			BE_RenderMeshProgram(shaderstate.crepopaqueshader, shaderstate.crepopaqueshader->passes);
+		break;
 	case BEM_DEPTHONLY:
 		GL_DeSelectProgram();
 #ifdef warningmsg
@@ -3265,7 +3323,7 @@ static void BE_SubmitMeshesSortList(batch_t *sortlist)
 					continue;
 				}
 			}
-			else if (shaderstate.mode != BEM_FOG)
+			else if (shaderstate.mode != BEM_FOG && shaderstate.mode != BEM_CREPUSCULAR)
 				continue;
 		}
 
@@ -3273,7 +3331,7 @@ static void BE_SubmitMeshesSortList(batch_t *sortlist)
 	}
 }
 
-static void GLBE_SubmitMeshes (qboolean drawworld, batch_t **blist, int start, int stop)
+void GLBE_SubmitMeshes (qboolean drawworld, batch_t **blist, int start, int stop)
 {
 	model_t *model = cl.worldmodel;
 	int i;
@@ -3489,7 +3547,7 @@ void GLBE_DrawLightPrePass(qbyte *vis, batch_t **batches)
 #ifdef RTLIGHTS
 	/*regular lighting now*/
 	BE_SelectEntity(&r_worldentity);
-	Sh_DrawLights(vis);
+	Sh_DrawLights(vis, batches);
 #endif
 
 	shaderstate.tex_sourcecol = r_nulltex;
@@ -3571,7 +3629,7 @@ void GLBE_DrawWorld (qbyte *vis)
 #ifdef RTLIGHTS
 		RSpeedRemark();
 		BE_SelectEntity(&r_worldentity);
-		Sh_DrawLights(vis);
+		Sh_DrawLights(vis, batches);
 		RSpeedEnd(RSPEED_STENCILSHADOWS);
 #endif
 

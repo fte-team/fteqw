@@ -409,7 +409,7 @@ void SV_New_f (void)
 	{
 		char buffer[1024];
 
-		FS_GetPackNames(buffer, sizeof(buffer), false, true); /*retain extensions, or we'd have to assume pk3*/
+		FS_GetPackNames(buffer, sizeof(buffer), 2, true); /*retain extensions, or we'd have to assume pk3*/
 		ClientReliableWrite_Begin(host_client, svc_stufftext, 1+11+strlen(buffer)+1+1);
 		ClientReliableWrite_SZ(host_client, "//paknames ", 11);
 		ClientReliableWrite_SZ(host_client, buffer, strlen(buffer));
@@ -1693,13 +1693,26 @@ void SV_Begin_Core(client_t *split)
 
 						pr_global_struct->time = sv.world.physicstime;
 						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
-						G_FLOAT(OFS_PARM0) = split->csqcactive;	//this arg is part of EXT_CSQC_1, but doesn't have to be supported by the mod
-						PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientConnect);
+						if (pr_globals)
+							G_FLOAT(OFS_PARM0) = split->csqcactive;	//this arg is part of EXT_CSQC_1, but doesn't have to be supported by the mod
+						if (pr_global_ptrs->ClientConnect)
+							PR_ExecuteProgram (svprogfuncs, *pr_global_ptrs->ClientConnect);
 
 						// actually spawn the player
 						pr_global_struct->time = sv.world.physicstime;
 						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, split->edict);
-						PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
+						if (pr_global_ptrs->PutClientInServer)
+							PR_ExecuteProgram (svprogfuncs, *pr_global_ptrs->PutClientInServer);
+						else
+						{
+							split->edict->v->health = 100;
+							split->edict->v->mins[0] = -16;
+							split->edict->v->mins[1] = -16;
+							split->edict->v->mins[2] = -24;
+							split->edict->v->maxs[0] = 16;
+							split->edict->v->maxs[1] = 16;
+							split->edict->v->maxs[2] = 32;
+						}
 					}
 
 					oh = host_client;
@@ -2475,7 +2488,7 @@ qboolean SV_AllowDownload (const char *name)
 		if (!strcmp("pk4", COM_FileExtension(name)) || !strcmp("pk3", COM_FileExtension(name)) || !strcmp("pak", COM_FileExtension(name)))
 		{
 			/*do not permit 'id1/pak1.pak' or 'baseq3/pak0.pk3' or any similarly named packages. such packages would violate copyright, and must be obtained through other means (like buying the damn game)*/
-			//if (!strstr(name, "/pak"))
+			if (!strstr(name, "/pak"))
 				return !!allow_download_packages.value;
 		}
 		return false;
@@ -2510,7 +2523,7 @@ qboolean SV_AllowDownload (const char *name)
 
 	//pak/pk3s.
 	if (!strcmp("pk4", COM_FileExtension(name)) || !strcmp("pk3", COM_FileExtension(name)) || !strcmp("pak", COM_FileExtension(name)))
-		if (strnicmp(name, "pak", 3))	//don't give out q3 pk3 files.
+		if (strnicmp(name, "pak", 3))	//don't give out core pak/pk3 files. This matches q3 logic.
 			return !!allow_download_packages.value;
 
 	if (!strcmp("cfg", COM_FileExtension(name)))
@@ -2575,11 +2588,14 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 	if (!strncmp(name, "package/", 8))
 	{
 		vfsfile_t *f;
-		f = FS_OpenVFS(name+8, "rb", FS_ROOT);
-		if (f)
+		if (FS_GetPackageDownloadable(name+8))
 		{
-			VFS_CLOSE(f);
-			return -5;	//found package
+			f = FS_OpenVFS(name+8, "rb", FS_ROOT);
+			if (f)
+			{
+				VFS_CLOSE(f);
+				return -5;	//found package
+			}
 		}
 		return -1;	//not found
 	}
@@ -4226,34 +4242,34 @@ void Cmd_FPSList_f(void)
 		if (!cl->state)
 			continue;
 
-		if (cl->protocol != SCP_QUAKEWORLD)
-			continue;
-
-		if (cl->frameunion.frames)
+		if (ISQWCLIENT(cl) || ISNQCLIENT(cl))
 		{
-			for (f = 0; f < UPDATE_BACKUP; f++)
+			if (cl->frameunion.frames)
 			{
-				if (cl->frameunion.frames[f].move_msecs >= 0)
+				for (f = 0; f < UPDATE_BACKUP; f++)
 				{
-					if (!cl->frameunion.frames[f].move_msecs)
+					if (cl->frameunion.frames[f].move_msecs >= 0)
 					{
-						this = 1001;
-						msecs+=1;
-					}
-					else
-					{
-						this = 1000.0f/cl->frameunion.frames[f].move_msecs;
-						msecs += cl->frameunion.frames[f].move_msecs;
-					}
-					ftime += this;
-					if (minf > this)
-						minf = this;
-					if (maxf < this)
-						maxf = this;
-					frames++;
+						if (!cl->frameunion.frames[f].move_msecs)
+						{
+							this = 1001;
+							msecs+=1;
+						}
+						else
+						{
+							this = 1000.0f/cl->frameunion.frames[f].move_msecs;
+							msecs += cl->frameunion.frames[f].move_msecs;
+						}
+						ftime += this;
+						if (minf > this)
+							minf = this;
+						if (maxf < this)
+							maxf = this;
+						frames++;
 
-					inbytes += cl->frameunion.frames[f].packetsizein;
-					outbytes += cl->frameunion.frames[f].packetsizeout;
+						inbytes += cl->frameunion.frames[f].packetsizein;
+						outbytes += cl->frameunion.frames[f].packetsizeout;
+					}
 				}
 			}
 		}
@@ -4781,18 +4797,19 @@ typedef struct
 
 ucmd_t ucmds[] =
 {
+	/*connection process*/
 	{"new", SV_New_f, true},
+#ifdef PEXT_PK3DOWNLOADS
 	{"pk3list",	SV_PK3List_f, true},
+#endif
 	{"modellist", SV_Modellist_f, true},
 	{"soundlist", SV_Soundlist_f, true},
 	{"prespawn", SVQW_PreSpawn_f, true},
 	{"spawn", SV_Spawn_f, true},
 	{"begin", SV_Begin_f, true},
 
+	/*ezquake warning*/
 	{"al", SV_STFU_f, true},
-
-	{"join", Cmd_Join_f},
-	{"observe", Cmd_Observe_f},
 
 	{"drop", SV_Drop_f},
 	{"disconnect", SV_Drop_f},
@@ -4809,18 +4826,25 @@ ucmd_t ucmds[] =
 	{"say_team", SV_Say_Team_f},
 
 	{"setinfo", SV_SetInfo_f},
-
 	{"serverinfo", SV_ShowServerinfo_f},
 
+	/*demo/download commands*/
+	{"stopdownload", SV_StopDownload_f},
+	{"demolist", SV_UserCmdMVDList_f},
+	{"demoinfo", SV_MVDInfo_f},
 	{"dlsize", SV_DownloadSize_f},
 	{"download", SV_BeginDownload_f},
 	{"nextdl", SV_NextDownload_f},
 
+	/*quakeworld specific things*/
+	{"join", Cmd_Join_f},
+	{"observe", Cmd_Observe_f},
+	{"snap", SV_NoSnap_f},
 	{"ptrack", SV_PTrack_f}, //ZOID - used with autocam
+
 	{"enablecsqc", SV_EnableClientsCSQC},
 	{"disablecsqc", SV_DisableClientsCSQC},
 
-	{"snap", SV_NoSnap_f},
 	{"vote", SV_Vote_f},
 
 #ifdef SVRANKING
@@ -4834,10 +4858,6 @@ ucmd_t ucmds[] =
 	{"fly", Cmd_Fly_f},
 	{"notarget", Cmd_Notarget_f},
 	{"setpos", Cmd_SetPos_f},
-
-	{"stopdownload", SV_StopDownload_f},
-	{"demolist", SV_UserCmdMVDList_f},
-	{"demoinfo", SV_MVDInfo_f},
 
 #ifdef VOICECHAT
 	{"voicetarg", SV_Voice_Target_f},
@@ -4883,37 +4903,42 @@ ucmd_t ucmdsq2[] = {
 ucmd_t nqucmds[] =
 {
 	{"new",			SVNQ_New_f, true},
+	{"spawn",		SVNQ_Spawn_f, true},
+	{"begin",		SVNQ_Begin_f, true},
+	{"prespawn",	SVNQ_PreSpawn_f, true},
 
 	{"status",		NULL},
+
 
 	{"god",			Cmd_God_f},
 	{"give",		Cmd_Give_f},
 	{"notarget",	Cmd_Notarget_f},
 	{"fly",			Cmd_Fly_f},
 	{"noclip",		Cmd_Noclip_f},
-	{"pings",		SV_Pings_f},
 
-
-	{"name",		SVNQ_NQInfo_f},
 	{"say",			SV_Say_f},
 	{"say_team",	SV_Say_Team_f},
 	{"tell",		SV_SayOne_f},
-	{"color",		SVNQ_NQColour_f},
+	{"efpslist",	Cmd_FPSList_f},	//don't conflict with the ktpro one
+
+	{"pings",		SV_Pings_f},
+	{"ping",		SVNQ_Ping_f},
+
 	{"kill",		SV_Kill_f},
 	{"pause",		SV_Pause_f},
-	{"spawn",		SVNQ_Spawn_f, true},
-	{"begin",		SVNQ_Begin_f, true},
-	{"prespawn",	SVNQ_PreSpawn_f, true},
 	{"kick",		NULL},
-	{"ping",		SVNQ_Ping_f},
 	{"ban",			NULL},
 	{"vote",		SV_Vote_f},
 
+	/*DP download protocol*/
 	{"dlsize",		SV_DownloadSize_f},
 	{"download",	SV_BeginDownload_f},
 	{"sv_startdownload",	SVDP_StartDownload_f},
 
+	/*userinfo stuff*/
 	{"setinfo",		SV_SetInfo_f},
+	{"name",		SVNQ_NQInfo_f},
+	{"color",		SVNQ_NQColour_f},
 	{"playermodel",	NULL},
 	{"playerskin",	NULL},
 	{"rate",		SV_Rate_f},
@@ -4922,9 +4947,11 @@ ucmd_t nqucmds[] =
 	{"topten",		Rank_ListTop10_f},
 #endif
 
+	/*various misc extensions*/
 	{"pext",		SV_Pext_f},
 	{"enablecsqc",	SV_EnableClientsCSQC},
 	{"disablecsqc",	SV_DisableClientsCSQC},
+
 #ifdef VOICECHAT
 	{"voicetarg",	SV_Voice_Target_f},
 	{"vignore",		SV_Voice_Ignore_f},	/*ignore/mute specific player*/
@@ -5608,7 +5635,8 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 			Q1QVM_PlayerPreThink();
 		else
 #endif
-			PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPreThink);
+			if (pr_global_ptrs->PlayerPreThink)
+				PR_ExecuteProgram (svprogfuncs, *pr_global_ptrs->PlayerPreThink);
 
 		if (progstype != PROG_QW)
 		{
@@ -5827,7 +5855,8 @@ void SV_PostRunCmd(void)
 			pr_global_struct->time = sv.time;
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 
-			PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPostThink);
+			if (pr_global_ptrs->PlayerPostThink)
+				PR_ExecuteProgram (svprogfuncs, *pr_global_ptrs->PlayerPostThink);
 
 			WPhys_RunNewmis (&sv.world);
 		}
@@ -5946,7 +5975,7 @@ void SV_ReadQCRequest(void)
 			G_INT(OFS_PARM0+i*3) = PR_TempString(svprogfuncs, MSG_ReadString());
 			break;
 		case ev_entity:
-			args[i] = 's';
+			args[i] = 'e';
 			e = MSG_ReadShort();
 			if (e < 0 || e >= sv.world.num_edicts)
 				e = 0;
@@ -6535,6 +6564,9 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 
 	move->msec=timesincelast*1000;//MSG_ReadFloat;
 
+
+	frame->move_msecs = move->msec;
+
 // read buttons
 	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
 		bits = MSG_ReadLong();
@@ -6618,6 +6650,9 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 	// save time for ping calculations
 	cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].senttime = realtime;
 	cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].ping_time = -1;
+	cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].move_msecs = -1;
+	cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].packetsizein = net_message.cursize;
+	cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].packetsizeout = 0;
 
 	host_client = cl;
 	sv_player = host_client->edict;
@@ -6648,7 +6683,9 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 			return;
 
 		case clc_disconnect:
-			SV_DropClient (cl);
+			host_client = cl;
+			sv_player = cl->edict;
+			SV_Drop_f();
 			break;
 		case clc_nop:
 			break;

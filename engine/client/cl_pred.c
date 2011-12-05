@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "winquake.h"
 
 cvar_t	cl_nopred = SCVAR("cl_nopred","0");
+extern cvar_t cl_lerp_players;
 cvar_t	cl_pushlatency = SCVAR("pushlatency","-999");
 
 extern	frame_t		*view_frame;
@@ -652,7 +653,6 @@ short LerpAngles16(short to, short from, float frac)
 void CL_CalcClientTime(void)
 {
 	{
-		float want;
 		float oldst = realtime;
 
 		if (cls.protocol == CP_QUAKEWORLD && cls.demoplayback == DPB_MVD)
@@ -665,30 +665,42 @@ void CL_CalcClientTime(void)
 		}
 		else
 		{
+			float min, max;
+
 			oldst = cl.servertime;
+
+			max = cl.gametime;// - 5;
+			min = cl.oldgametime;// - 5;
 
 			cl.servertime += host_frametime;
 
-			if (cl.servertime > cl.gametime)
+			if (cl.servertime > max)
 			{
-				cl.servertime = cl.gametime;
-//				Con_Printf("clamped to new time\n");
-			}
-			if (cl.servertime < cl.oldgametime)
-			{
-				if (cl.servertime < cl.oldgametime-0.5)
+				if (cl.servertime > cl.gametime)
 				{
-					cl.servertime = cl.oldgametime-0.5;
+					cl.servertime = cl.gametime;
+//					Con_Printf("clamped to new time\n");
+				}
+				else
+				{
+					cl.servertime -= 0.02*(cl.gametime - cl.servertime);
+				}
+			}
+			if (cl.servertime < min)
+			{
+				if (cl.servertime < min-0.5)
+				{
+					cl.servertime = min-0.5;
 //					Con_Printf("clamped to old time\n");
 				}
-				else if (cl.servertime < cl.oldgametime-0.3)
+				else if (cl.servertime < min-0.3)
 				{
-					cl.servertime += 0.02*(cl.oldgametime - cl.servertime);
+					cl.servertime += 0.02*(min - cl.servertime);
 //					Con_Printf("running really slow\n");
 				}
 				else
 				{
-					cl.servertime += 0.01*(cl.oldgametime - cl.servertime);
+					cl.servertime += 0.01*(min - cl.servertime);
 //					Con_Printf("running slow\n");
 				}
 			}
@@ -862,6 +874,14 @@ fixedorg:
 	if (Cam_TrackNum(pnum)>=0 && CL_MayLerp())
 	{
 		float f;
+		if (cl_lerp_players.ival)
+		{
+			lerpents_t *le = &cl.lerpplayers[spec_track[pnum]];
+			org = le->origin;
+			vel = vec3_origin;
+			VectorCopy(le->angles, cl.simangles[pnum]);
+			goto fixedorg;
+		}
 
 		to = &cl.frames[cl.ackedinputsequence & UPDATE_MASK];
 		from = &cl.frames[cl.oldvalidsequence & UPDATE_MASK];
@@ -878,7 +898,7 @@ fixedorg:
 //		f = 1-f;
 
 
-				// calculate origin
+		// calculate origin
 		for (i=0 ; i<3 ; i++)
 		{
 			lrp[i] = to->playerstate[cl.playernum[pnum]].origin[i] +

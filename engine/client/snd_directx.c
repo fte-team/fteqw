@@ -703,7 +703,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	dsbuf.lpwfxFormat = NULL;
 
 #ifdef DSBCAPS_GLOBALFOCUS
-	if (snd_inactive.ival)
+	if (snd_inactive.ival || sys_parentwindow) /*always inactive if we have a parent window, because we can't tell properly otherwise*/
 	{
 		dsbuf.dwFlags |= DSBCAPS_GLOBALFOCUS;
 		sc->inactive_sound = true;

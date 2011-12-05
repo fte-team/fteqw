@@ -47,6 +47,7 @@ typedef struct
 	usercmd_t	command;		// last command for prediction
 
 	vec3_t		origin;
+	vec3_t		predorigin;		// pre-predicted pos
 	vec3_t		viewangles;		// only for demos, not from server
 	vec3_t		velocity;
 	int			weaponframe;
@@ -247,6 +248,7 @@ typedef struct
 
 #define LFLAG_NOSHADOWS		(1<<8)
 #define LFLAG_SHADOWMAP		(1<<9)
+#define LFLAG_CREPUSCULAR	(1<<10)
 
 #define LFLAG_DYNAMIC (LFLAG_LIGHTMAP | LFLAG_FLASHBLEND | LFLAG_NORMALMODE | LFLAG_REALTIMEMODE)
 
@@ -643,6 +645,9 @@ typedef struct
 	float predicted_step_time;
 	float predicted_step;
 
+	packet_entities_t	*currentpackentities;
+	float				currentpacktime;
+
 	// localized movement vars
 	float		entgravity[MAX_SPLITS];
 	float		maxspeed[MAX_SPLITS];
@@ -773,6 +778,7 @@ void CL_ParseDelta (struct entity_state_s *from, struct entity_state_s *to, int 
 void CL_Init (void);
 void Host_WriteConfiguration (void);
 void CL_CheckServerInfo(void);
+void CL_CheckServerPacks(void);
 
 void CL_EstablishConnection (char *host);
 
@@ -997,6 +1003,7 @@ void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, struct model_s *model, int sta
 void CL_SetSolidPlayers (int playernum);
 void CL_SetUpPlayerPrediction(qboolean dopred);
 void CL_LinkStaticEntities(void *pvs);
+void CL_TransitionEntities (void); /*call at the start of the frame*/
 void CL_EmitEntities (void);
 void CL_ClearProjectiles (void);
 void CL_ParseProjectiles (int modelindex, qboolean nails2);
@@ -1237,15 +1244,20 @@ void CIN_StopCinematic (struct cinematics_s *cin);
 struct cinematics_s *CIN_PlayCinematic (char *arg);
 int CIN_RunCinematic (struct cinematics_s *cin, qbyte **outdata, int *outwidth, int *outheight, qbyte **outpalette);
 
+#ifdef NOMEDIA
+#define Media_Playing false
+#else
 /*media playing system*/
 qboolean Media_PlayingFullScreen(void);
 void Media_Init(void);
 qboolean Media_PlayFilm(char *name);
+qboolean Media_Playing(void);
 typedef struct cin_s cin_t;
 struct cin_s *Media_StartCin(char *name);
 texid_tf Media_UpdateForShader(cin_t *cin);
 void Media_ShutdownCin(cin_t *cin);
 qboolean Media_FakeTrack(int i, qboolean loop);
+#endif
 
 //these accept NULL for cin to mean the current fullscreen video
 void Media_Send_Command(cin_t *cin, char *command);

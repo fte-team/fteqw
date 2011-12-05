@@ -19,8 +19,16 @@ int maxshares;
 pbool PR_SwitchProgs(progfuncs_t *progfuncs, progsnum_t type)
 {	
 	if ((unsigned)type >= maxprogs)
+	{
+		if (type == -1)
+		{
+			pr_typecurrent = -1;
+			current_progstate = NULL;
+			return true;
+		}
 		PR_RunError(progfuncs, "QCLIB: Bad prog type - %i", type);
 //		Sys_Error("Bad prog type - %i", type);
+	}
 
 	if (pr_progstate[(unsigned)type].progs == NULL)	//we havn't loaded it yet, for some reason
 		return false;	
@@ -32,38 +40,38 @@ pbool PR_SwitchProgs(progfuncs_t *progfuncs, progsnum_t type)
 	return true;
 }
 
-void PR_MoveParms(progfuncs_t *progfuncs, progsnum_t progs1, progsnum_t progs2)	//from 2 to 1
+void PR_MoveParms(progfuncs_t *progfuncs, progsnum_t newpr, progsnum_t oldpr)	//from 2 to 1
 {
 	unsigned int a;
-	progstate_t *p1;
-	progstate_t *p2;
+	progstate_t *np;
+	progstate_t *op;
 
-	if (progs1 == progs2)
+	if (newpr == oldpr)
 		return;	//don't bother coping variables to themselves...
 
-	p1 = &pr_progstate[(int)progs1];
-	p2 = &pr_progstate[(int)progs2];
+	np = &pr_progstate[(int)newpr];
+	op = &pr_progstate[(int)oldpr];
 
-	if ((unsigned)progs1 >= maxprogs || !p1->globals)
-		PR_RunError(progfuncs, "QCLIB: Bad prog type - %i", progs1);
-	if ((unsigned)progs2 >= maxprogs || !p2->globals)
-		PR_RunError(progfuncs, "QCLIB: Bad prog type - %i", progs2);
+	if ((unsigned)newpr >= maxprogs || !np->globals)
+		PR_RunError(progfuncs, "QCLIB: Bad prog type - %i", newpr);
+	if ((unsigned)oldpr >= maxprogs || !op->globals)
+		return;
 
 	//copy parms.
 	for (a = 0; a < MAX_PARMS;a++)
 	{
-		*(int *)&p1->globals[OFS_PARM0+3*a  ] = *(int *)&p2->globals[OFS_PARM0+3*a  ];
-		*(int *)&p1->globals[OFS_PARM0+3*a+1] = *(int *)&p2->globals[OFS_PARM0+3*a+1];
-		*(int *)&p1->globals[OFS_PARM0+3*a+2] = *(int *)&p2->globals[OFS_PARM0+3*a+2];
+		*(int *)&np->globals[OFS_PARM0+3*a  ] = *(int *)&op->globals[OFS_PARM0+3*a  ];
+		*(int *)&np->globals[OFS_PARM0+3*a+1] = *(int *)&op->globals[OFS_PARM0+3*a+1];
+		*(int *)&np->globals[OFS_PARM0+3*a+2] = *(int *)&op->globals[OFS_PARM0+3*a+2];
 	}
-	p1->globals[OFS_RETURN] = p2->globals[OFS_RETURN];
-	p1->globals[OFS_RETURN+1] = p2->globals[OFS_RETURN+1];
-	p1->globals[OFS_RETURN+2] = p2->globals[OFS_RETURN+2];
+	np->globals[OFS_RETURN] = op->globals[OFS_RETURN];
+	np->globals[OFS_RETURN+1] = op->globals[OFS_RETURN+1];
+	np->globals[OFS_RETURN+2] = op->globals[OFS_RETURN+2];
 
 	//move the vars defined as shared.
 	for (a = 0; a < numshares; a++)//fixme: make offset per progs
 	{
-		memmove(&((int *)p1->globals)[shares[a].varofs], &((int *)p2->globals)[shares[a].varofs], shares[a].size*4);
+		memmove(&((int *)np->globals)[shares[a].varofs], &((int *)op->globals)[shares[a].varofs], shares[a].size*4);
 /*		((int *)p1->globals)[shares[a].varofs] = ((int *)p2->globals)[shares[a].varofs];
 		if (shares[a].size > 1)
 		{
@@ -96,12 +104,11 @@ progsnum_t PR_LoadProgs(progfuncs_t *progfuncs, char *s, int headercrc, builtin_
 #ifdef QCJIT
 				current_progstate->jit = PR_GenerateJit(progfuncs);
 #endif
-				if (oldtype>=0)
+				if (oldtype != -1)
 					PR_SwitchProgs(progfuncs, oldtype);
 				return a;	//we could load it. Yay!
 			}
-			if (oldtype!=-1)
-				PR_SwitchProgs(progfuncs, oldtype);
+			PR_SwitchProgs(progfuncs, oldtype);
 			return -1; // loading failed.
 		}
 	}

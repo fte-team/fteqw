@@ -74,6 +74,7 @@ extern cvar_t sv_port_ipx;
 extern cvar_t sv_port_tcp;
 extern cvar_t sv_port_tcp6;
 #endif
+cvar_t	net_hybriddualstack = CVAR("net_hybriddualstack", "1");
 
 extern cvar_t sv_public, sv_listen_qw, sv_listen_nq, sv_listen_dp, sv_listen_q3;
 
@@ -387,6 +388,27 @@ char	*NET_AdrToString (char *s, int len, netadr_t a)
 #ifdef IPPROTO_IPV6
 	case NA_BROADCAST_IP6:
 	case NA_IPV6:
+
+		if (!*(int*)&a.address.ip6[0] && 
+			!*(int*)&a.address.ip6[4] &&
+			!*(short*)&a.address.ip6[8] &&
+			*(short*)&a.address.ip6[10] == (short)0xffff)
+		{
+			if (a.port)
+				snprintf (s, len, "%i.%i.%i.%i:%i",
+					a.address.ip6[12],
+					a.address.ip6[13],
+					a.address.ip6[14],
+					a.address.ip6[15],
+					ntohs(a.port));
+			else
+				snprintf (s, len, "%i.%i.%i.%i",
+					a.address.ip6[12],
+					a.address.ip6[13],
+					a.address.ip6[14],
+					a.address.ip6[15]);
+			break;
+		}
 		*s = 0;
 		doneblank = false;
 		p = s;
@@ -450,7 +472,7 @@ char	*NET_AdrToString (char *s, int len, netadr_t a)
 		break;
 #endif
 	case NA_LOOPBACK:
-		snprintf (s, len, "LocalHost");
+		snprintf (s, len, "QLoopBack");
 		break;
 
 #ifdef IRCCONNECT
@@ -488,6 +510,18 @@ char	*NET_BaseAdrToString (char *s, int len, netadr_t a)
 #ifdef IPPROTO_IPV6
 	case NA_BROADCAST_IP6:
 	case NA_IPV6:
+		if (!*(int*)&a.address.ip6[0] && 
+			!*(int*)&a.address.ip6[4] &&
+			!*(short*)&a.address.ip6[8] &&
+			*(short*)&a.address.ip6[10] == (short)0xffff)
+		{
+			snprintf (s, len, "%i.%i.%i.%i",
+				a.address.ip6[12],
+				a.address.ip6[13],
+				a.address.ip6[14],
+				a.address.ip6[15]);
+			break;
+		}
 		*s = 0;
 		doneblank = false;
 		p = s;
@@ -1478,41 +1512,95 @@ int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *o
 		memset(&adr, 0, sizeof(adr));
 		SockadrToNetadr(&from, &adr);
 
-		for (b = 0; b < sizeof(adr.address); b++)
-			if (((unsigned char*)&adr.address)[b] != 0)
-				break;
+		if (adr.type == NA_IPV6 &&
+			!*(int*)&adr.address.ip6[0] &&
+			!*(int*)&adr.address.ip6[4] &&
+			!*(short*)&adr.address.ip6[8] &&
+			*(short*)&adr.address.ip6[10]==(short)0xffff && 
+			!*(int*)&adr.address.ip6[12])
+		{
+			/*ipv4-mapped address ANY, pretend we read blank*/
+			b = sizeof(adr.address);
+		}
+		else
+		{
+			for (b = 0; b < sizeof(adr.address); b++)
+				if (((unsigned char*)&adr.address)[b] != 0)
+					break;
+		}
 		if (b == sizeof(adr.address))
 		{
 			gethostname(adrs, sizeof(adrs));
-			h = gethostbyname(adrs);
-			b = 0;
-			if(h && h->h_addrtype == AF_INET)
-			{
-				for (b = 0; h->h_addr_list[b]; b++)
-				{
-					memcpy(&((struct sockaddr_in*)&from)->sin_addr, h->h_addr_list[b], sizeof(((struct sockaddr_in*)&from)->sin_addr));
-					SockadrToNetadr(&from, &adr);
-					if (idx++ == count)
-						*out = adr;
-				}
-			}
 #ifdef IPPROTO_IPV6
-			else if(h && h->h_addrtype == AF_INET6)
+			if (pgetaddrinfo)
 			{
-				for (b = 0; h->h_addr_list[b]; b++)
+				struct addrinfo hints, *result, *itr;
+				memset(&hints, 0, sizeof(struct addrinfo));
+				hints.ai_family = ((struct sockaddr_in*)&from)->sin_family;    /* Allow IPv4 or IPv6 */
+				hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
+				hints.ai_flags = 0;
+				hints.ai_protocol = 0;          /* Any protocol */
+
+				if (pgetaddrinfo(adrs, NULL, &hints, &result) != 0)
 				{
-					memcpy(&((struct sockaddr_in6*)&from)->sin6_addr, h->h_addr_list[b], sizeof(((struct sockaddr_in6*)&from)->sin6_addr));
-					SockadrToNetadr(&from, &adr);
 					if (idx++ == count)
 						*out = adr;
 				}
-			}
-#endif
+				else
+				{
+					for (itr = result; itr; itr = itr->ai_next)
+					{
+						if (idx++ == count)
+						{
+							SockadrToNetadr((struct sockaddr_qstorage*)itr->ai_addr, out);
+							out->port = ((struct sockaddr_in*)&from)->sin_port;
+						}
+					}
+					pfreeaddrinfo(result);
 
-			if (b == 0)
+					/*if none found, fill in the 0.0.0.0 or whatever*/
+					if (!idx)
+					{
+						idx++;
+						*out = adr;
+					}
+				}
+			}
+			else
+#endif
 			{
-				if (idx++ == count)
-					*out = adr;
+				h = gethostbyname(adrs);
+				b = 0;
+				if(h && h->h_addrtype == AF_INET)
+				{
+					for (b = 0; h->h_addr_list[b]; b++)
+					{
+						((struct sockaddr_in*)&from)->sin_family = AF_INET;
+						memcpy(&((struct sockaddr_in*)&from)->sin_addr, h->h_addr_list[b], sizeof(((struct sockaddr_in*)&from)->sin_addr));
+						SockadrToNetadr(&from, &adr);
+						if (idx++ == count)
+							*out = adr;
+					}
+				}
+	#ifdef IPPROTO_IPV6
+				else if(h && h->h_addrtype == AF_INET6)
+				{
+					for (b = 0; h->h_addr_list[b]; b++)
+					{
+						((struct sockaddr_in*)&from)->sin_family = AF_INET6;
+						memcpy(&((struct sockaddr_in6*)&from)->sin6_addr, h->h_addr_list[b], sizeof(((struct sockaddr_in6*)&from)->sin6_addr));
+						SockadrToNetadr(&from, &adr);
+						if (idx++ == count)
+							*out = adr;
+					}
+				}
+	#endif
+
+				if (b == 0)
+				{
+					if (idx++ == count)
+						*out = adr;
+				}
 			}
 		}
 		else
@@ -1598,48 +1686,63 @@ qboolean FTENET_Generic_SendPacket(ftenet_generic_connection_t *con, int length,
 	if (size == FTENET_ADDRTYPES)
 		return false;
 
-
-	NetadrToSockadr (&to, &addr);
-
-	switch(to.type)
-	{
-	default:
-		Con_Printf("Bad address type\n");
-		break;
-#ifdef USEIPX	//who uses ipx nowadays anyway?
-	case NA_BROADCAST_IPX:
-	case NA_IPX:
-		size = sizeof(struct sockaddr_ipx);
-		break;
-#endif
-	case NA_BROADCAST_IP:
-	case NA_IP:
-		size = sizeof(struct sockaddr_in);
-		break;
 #ifdef IPPROTO_IPV6
-	case NA_BROADCAST_IP6:
-	case NA_IPV6:
+	/*special code to handle sending to hybrid sockets*/
+	if (con->addrtype[1] == NA_IPV6 && to.type == NA_IP)
+	{
+		memset(&addr, 0, sizeof(struct sockaddr_in6));
+		((struct sockaddr_in6*)&addr)->sin6_family = AF_INET6;
+		*(short*)&((struct sockaddr_in6*)&addr)->sin6_addr.s6_addr[10] = 0xffff;
+		*(int*)&((struct sockaddr_in6*)&addr)->sin6_addr.s6_addr[12] = *(int*)&to.address.ip;
+		((struct sockaddr_in6*)&addr)->sin6_port = to.port;
 		size = sizeof(struct sockaddr_in6);
-		break;
+	}
+	else
 #endif
+	{
+		NetadrToSockadr (&to, &addr);
+
+		switch(to.type)
+		{
+		default:
+			Con_Printf("Bad address type\n");
+			break;
+#ifdef USEIPX	//who uses ipx nowadays anyway?
+		case NA_BROADCAST_IPX:
+		case NA_IPX:
+			size = sizeof(struct sockaddr_ipx);
+			break;
+#endif
+		case NA_BROADCAST_IP:
+		case NA_IP:
+			size = sizeof(struct sockaddr_in);
+			break;
+#ifdef IPPROTO_IPV6
+		case NA_BROADCAST_IP6:
+		case NA_IPV6:
+			size = sizeof(struct sockaddr_in6);
+			break;
+#endif
+	}
 	}
 
 	ret = sendto (con->thesocket, data, length, 0, (struct sockaddr*)&addr, size );
 	if (ret == -1)
 	{
+		int ecode = qerrno;
 // wouldblock is silent
-		if (qerrno == EWOULDBLOCK)
+		if (ecode == EWOULDBLOCK)
 			return true;
 
-		if (qerrno == ECONNREFUSED)
+		if (ecode == ECONNREFUSED)
 			return true;
 
 #ifndef SERVERONLY
-		if (qerrno == EADDRNOTAVAIL)
-			Con_DPrintf("NET_SendPacket Warning: %i\n", qerrno);
+		if (ecode == EADDRNOTAVAIL)
+			Con_DPrintf("NET_SendPacket Warning: %i\n", ecode);
 		else
 #endif
-			Con_TPrintf (TL_NETSENDERROR, qerrno);
+			Con_TPrintf (TL_NETSENDERROR, ecode);
 	}
 	return true;
 }
@@ -1682,7 +1785,7 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 	ftenet_generic_connection_t *newcon;
 
 	unsigned long _true = true;
-	int newsocket;
+	int newsocket = INVALID_SOCKET;
 	int temp;
 	netadr_t adr;
 	struct sockaddr_qstorage qs;
@@ -1690,6 +1793,7 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 	int port;
 	int bindtries;
 	int bufsz;
+	qboolean hybrid = false;
 
 
 	if (!NET_PortToAdr(adrfamily, address, &adr))
@@ -1698,12 +1802,54 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 		return NULL;	//couldn't resolve the name
 	}
 	temp = NetadrToSockadr(&adr, &qs);
-	family = ((struct sockaddr_in*)&qs)->sin_family;
+	family = ((struct sockaddr*)&qs)->sa_family;
 
-	if ((newsocket = socket (family, SOCK_DGRAM, protocol)) == INVALID_SOCKET)
+#ifdef IPV6_V6ONLY
+	if (isserver && family == AF_INET && net_hybriddualstack.ival && !((struct sockaddr_in*)&qs)->sin_addr.s_addr)
 	{
-		return NULL;
+		unsigned long _false = false;
+		if ((newsocket = socket (AF_INET6, SOCK_DGRAM, protocol)) != INVALID_SOCKET)
+		{
+			if (0 == setsockopt(newsocket, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&_false, sizeof(_false)))
+			{
+				int ip = ((struct sockaddr_in*)&qs)->sin_addr.s_addr;
+				int port = ((struct sockaddr_in*)&qs)->sin_port;
+				ip = ((struct sockaddr_in*)&qs)->sin_addr.s_addr;
+				memset(&qs, 0, sizeof(struct sockaddr_in6));
+				((struct sockaddr_in6*)&qs)->sin6_family = AF_INET6;
+/*
+				if (((struct sockaddr_in*)&qs)->sin_addr.s_addr)
+				{
+					((struct sockaddr_in6*)&qs)->sin6_addr.s6_addr[10] = 0xff;
+					((struct sockaddr_in6*)&qs)->sin6_addr.s6_addr[11] = 0xff;
+					((struct sockaddr_in6*)&qs)->sin6_addr.s6_addr[12] = ((qbyte*)&ip)[0];
+					((struct sockaddr_in6*)&qs)->sin6_addr.s6_addr[13] = ((qbyte*)&ip)[1];
+					((struct sockaddr_in6*)&qs)->sin6_addr.s6_addr[14] = ((qbyte*)&ip)[2];
+					((struct sockaddr_in6*)&qs)->sin6_addr.s6_addr[15] = ((qbyte*)&ip)[3];
+				}
+*/
+				((struct sockaddr_in6*)&qs)->sin6_port = port;
+				temp = sizeof(struct sockaddr_in6);
+				hybrid = true;
+			}
+			else
+			{
+				/*v6only failed... if the option doesn't exist, chances are this is a hybrid system which doesn't support both simultaneously anyway*/
+				closesocket(newsocket);
+				newsocket = INVALID_SOCKET;
+			}
+		}
 	}
+#endif
+
+	if (newsocket == INVALID_SOCKET)
+		if ((newsocket = socket (family, SOCK_DGRAM, protocol)) == INVALID_SOCKET)
+		{
+			return NULL;
+		}
+
+	if (family == AF_INET6 && !net_hybriddualstack.ival)
+		setsockopt(newsocket, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&_true, sizeof(_true));
 
 	bufsz = 1<<18;
 	setsockopt(newsocket, SOL_SOCKET, SO_RCVBUF, (void*)&bufsz, sizeof(bufsz));
@@ -1749,8 +1895,16 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 		newcon->Close = FTENET_Generic_Close;
 
 		newcon->islisten = isserver;
-		newcon->addrtype[0] = adr.type;
-		newcon->addrtype[1] = NA_INVALID;
+		if (hybrid)
+		{
+			newcon->addrtype[0] = NA_IP;
+			newcon->addrtype[1] = NA_IPV6;
+		}
+		else
+		{
+			newcon->addrtype[0] = adr.type;
+			newcon->addrtype[1] = NA_INVALID;
+		}
 
 		newcon->thesocket = newsocket;
 
@@ -3003,6 +3157,10 @@ int maxport = port + 100;
 //		}
 	}
 
+#ifdef IPV6_V6ONLY
+	setsockopt(newsocket, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&_true, sizeof(_true));
+#endif
+
 	address.sin6_family = AF_INET6;
 //ZOID -- check for interface binding option
 //	if ((i = COM_CheckParm("-ip6")) != 0 && i < com_argc) {
@@ -3281,6 +3439,8 @@ void NET_Init (void)
 	if (r)
 		Sys_Error ("Winsock initialization failed.");
 #endif
+
+	Cvar_Register(&net_hybriddualstack, "networking");
 }
 #ifndef SERVERONLY
 void NET_InitClient(void)

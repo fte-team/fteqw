@@ -34,7 +34,6 @@ struct wedict_s
 #ifdef USEODE
 	entityode_t ode;
 #endif
-	qbyte solidtype;
 	/*the above is shared with ssqc*/
 };
 
@@ -175,7 +174,8 @@ void PR_AutoCvarSetup(progfuncs_t *prinst);
 void PR_AutoCvar(progfuncs_t *prinst, cvar_t *var);
 
 
-
+void QCBUILTIN PF_skel_mmap(progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_skel_ragedit(progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_skel_create (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_skel_build (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_skel_get_numbones (progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -279,6 +279,8 @@ void QCBUILTIN PF_bufstr_add  (progfuncs_t *prinst, struct globalvars_s *pr_glob
 void QCBUILTIN PF_bufstr_free  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_buf_cvarlist  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
+void QCBUILTIN PF_calltimeofday (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+
 void QCBUILTIN PF_whichpack (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void PF_fclose_progs (progfuncs_t *prinst);
@@ -314,7 +316,7 @@ void QCBUILTIN PF_ForceInfoKey(progfuncs_t *prinst, struct globalvars_s *pr_glob
 void QCBUILTIN PF_precache_vwep_model(progfuncs_t *prinst, struct globalvars_s *pr_globals);
 int PF_checkclient_Internal (progfuncs_t *prinst);
 void PF_precache_sound_Internal (progfuncs_t *prinst, char *s);
-int PF_precache_model_Internal (progfuncs_t *prinst, char *s);
+int PF_precache_model_Internal (progfuncs_t *prinst, char *s, qboolean queryonly);
 void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m);
 char *PF_infokey_Internal (int entnum, char *value);
 void PF_centerprint_Internal (int entnum, qboolean plaque, char *s);
@@ -391,6 +393,77 @@ pbool ED_CanFree (edict_t *ed);
 
 
 
+//shared constants
+typedef enum
+{
+	VF_MIN = 1,
+	VF_MIN_X = 2,
+	VF_MIN_Y = 3,
+	VF_SIZE = 4,
+	VF_SIZE_X = 5,
+	VF_SIZE_Y = 6,
+	VF_VIEWPORT = 7,
+	VF_FOV = 8,
+	VF_FOVX = 9,
+	VF_FOVY = 10,
+	VF_ORIGIN = 11,
+	VF_ORIGIN_X = 12,
+	VF_ORIGIN_Y = 13,
+	VF_ORIGIN_Z = 14,
+	VF_ANGLES = 15,
+	VF_ANGLES_X = 16,
+	VF_ANGLES_Y = 17,
+	VF_ANGLES_Z = 18,
+	VF_DRAWWORLD = 19,
+	VF_ENGINESBAR = 20,
+	VF_DRAWCROSSHAIR = 21,
+	VF_CARTESIAN_ANGLES = 22,
+
+	//this is a DP-compatibility hack.
+	VF_CL_VIEWANGLES_V = 33,
+	VF_CL_VIEWANGLES_X = 34,
+	VF_CL_VIEWANGLES_Y = 35,
+	VF_CL_VIEWANGLES_Z = 36,
 
 
+	//33-36 used by DP...
+	VF_PERSPECTIVE = 200,
+	//201 used by DP... WTF? CLEARSCREEN
+	VF_LPLAYER = 202,
+	VF_AFOV = 203,	//aproximate fov (match what the engine would normally use for the fov cvar). p0=fov, p1=zoom
+} viewflags;
 
+/*FIXME: this should be changed*/
+#define CSQC_API_VERSION 1.0f
+
+#define CSQCRF_VIEWMODEL		1 //Not drawn in mirrors
+#define CSQCRF_EXTERNALMODEL	2 //drawn ONLY in mirrors
+#define CSQCRF_DEPTHHACK		4 //fun depthhack
+#define CSQCRF_ADDITIVE			8 //add instead of blend
+#define CSQCRF_USEAXIS			16 //use v_forward/v_right/v_up as an axis/matrix - predraw is needed to use this properly
+#define CSQCRF_NOSHADOW			32 //don't cast shadows upon other entities (can still be self shadowing, if the engine wishes, and not additive)
+#define CSQCRF_FRAMETIMESARESTARTTIMES 64 //EXT_CSQC_1: frame times should be read as (time-frametime).
+#define CSQCRF_NOAUTOADD		128 //EXT_CSQC_1: don't automatically add after predraw was called
+
+/*only read+append+write are standard frik_file*/
+#define FRIK_FILE_READ		0 /*read-only*/
+#define FRIK_FILE_APPEND	1 /*append (write-only, but offset begins at end of previous file)*/
+#define FRIK_FILE_WRITE		2 /*write-only*/
+#define FRIK_FILE_INVALID	3 /*no idea what this is for, presume placeholder*/
+#define FRIK_FILE_READNL	4 /*fgets ignores newline chars, returning the entire thing in one lump*/
+#define FRIK_FILE_MMAP_READ	5 /*fgets returns a pointer. memory is not guarenteed to be released.*/
+#define FRIK_FILE_MMAP_RW	6 /*fgets returns a pointer. file is written upon close. memory is not guarenteed to be released.*/
+
+#define MASK_DELTA 1
+#define MASK_STDVIEWMODEL 2
+
+enum lightfield_e
+{
+	lfield_origin=0,
+	lfield_colour=1,
+	lfield_radius=2,
+	lfield_flags=3,
+	lfield_style=4,
+	lfield_angles=5,
+	lfield_fov=6
+};

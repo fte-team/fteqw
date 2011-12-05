@@ -393,6 +393,8 @@ void R_PushDlights (void)
 		return;
 
 	currentmodel = cl.worldmodel;
+	if (!currentmodel->funcs.MarkLights)
+		return;
 	
 	l = cl_dlights+rtlights_first;
 	for (i=rtlights_first ; i <= DL_LAST ; i++, l++)

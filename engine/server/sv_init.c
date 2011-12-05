@@ -61,15 +61,31 @@ int SV_ModelIndex (char *name)
 			return i;
 	if (i==MAX_MODELS || !sv.strings.model_precache[i])
 	{
-		if (i!=MAX_MODELS && sv.state == ss_loading)
+		if (i!=MAX_MODELS)
 		{
-			Q_strncpyz(sv.strings.model_precache[i], name, sizeof(sv.strings.model_precache[i]));
+#ifdef VM_Q1
+			if (svs.gametype == GT_Q1QVM)
+				sv.strings.model_precache[i] = name;
+			else
+#endif
+				sv.strings.model_precache[i] = PR_AddString(svprogfuncs, name, 0);
 			if (!strcmp(name + strlen(name) - 4, ".bsp"))
 				sv.models[i] = Mod_FindName(sv.strings.model_precache[i]);
-			Con_Printf("WARNING: SV_ModelIndex: model %s not precached\n", name);
+
+			Con_DPrintf("WARNING: SV_ModelIndex: model %s not precached\n", name);
+
+			if (sv.state != ss_loading)
+			{
+				MSG_WriteByte(&sv.reliable_datagram, svcfte_precache);
+				MSG_WriteShort(&sv.reliable_datagram, i);
+				MSG_WriteString(&sv.reliable_datagram, sv.strings.model_precache[i]);
+#ifdef NQPROT
+				MSG_WriteByte(&sv.nqreliable_datagram, svcdp_precache);
+				MSG_WriteShort(&sv.nqreliable_datagram, i);
+				MSG_WriteString(&sv.nqreliable_datagram, sv.strings.model_precache[i]);
+#endif
+			}
 		}
-		else
-			SV_Error ("SV_ModelIndex: model %s not precached", name);
 	}
 	return i;
 }
@@ -797,6 +813,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	sv.signon.data = sv.signon_buffers[0];
 	sv.signon.prim = svs.netprim;
 	sv.num_signon_buffers = 1;
+
+	FS_ReferenceControl(1, 1);
 
 	strcpy (sv.name, server);
 #ifndef SERVERONLY
@@ -1527,6 +1545,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 			}
 		}
 	}
+
+	FS_ReferenceControl(0, 0);
 
 
 	SV_MVD_SendInitialGamestate(NULL);

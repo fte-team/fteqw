@@ -82,7 +82,6 @@
 				AdditionalDependencies="comctl32.lib wsock32.lib winmm.lib odbc32.lib odbccp32.lib"
 				OutputFile="../../npfte_dbg.dll"
 				LinkIncremental="2"
-				SuppressStartupBanner="true"
 				AdditionalLibraryDirectories="../libs/dxsdk7/lib"
 				GenerateManifest="false"
 				IgnoreDefaultLibraryNames="libc.lib;msvcrt.lib"
@@ -90,7 +89,6 @@
 				GenerateDebugInformation="true"
 				GenerateMapFile="true"
 				SubSystem="2"
-				TargetMachine="1"
 			/>
 			<Tool
 				Name="VCALinkTool"

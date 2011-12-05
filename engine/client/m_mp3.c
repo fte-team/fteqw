@@ -1674,6 +1674,13 @@ qboolean Media_DecodeFrame(cin_t *cin, qboolean nosound)
 	return cin->decodeframe(cin, nosound);
 }
 
+qboolean Media_Playing(void)
+{
+	if (videoshader)
+		return true;
+	return false;
+}
+
 qboolean Media_PlayFilm(char *name)
 {
 	cin_t *cin;

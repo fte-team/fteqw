@@ -83,10 +83,6 @@ extern cvar_t dpcompat_stats;
 cvar_t  dpcompat_corruptglobals = CVAR("dpcompat_corruptglobals", "0");
 
 
-#define MASK_DELTA 1
-#define MASK_STDVIEWMODEL 2
-
-
 // standard effect cvars/sounds
 extern cvar_t r_explosionlight;
 extern sfx_t			*cl_sfx_wizhit;
@@ -96,59 +92,6 @@ extern sfx_t			*cl_sfx_ric1;
 extern sfx_t			*cl_sfx_ric2;
 extern sfx_t			*cl_sfx_ric3;
 extern sfx_t			*cl_sfx_r_exp3;
-
-
-//shared constants
-typedef enum
-{
-	VF_MIN = 1,
-	VF_MIN_X = 2,
-	VF_MIN_Y = 3,
-	VF_SIZE = 4,
-	VF_SIZE_X = 5,
-	VF_SIZE_Y = 6,
-	VF_VIEWPORT = 7,
-	VF_FOV = 8,
-	VF_FOVX = 9,
-	VF_FOVY = 10,
-	VF_ORIGIN = 11,
-	VF_ORIGIN_X = 12,
-	VF_ORIGIN_Y = 13,
-	VF_ORIGIN_Z = 14,
-	VF_ANGLES = 15,
-	VF_ANGLES_X = 16,
-	VF_ANGLES_Y = 17,
-	VF_ANGLES_Z = 18,
-	VF_DRAWWORLD = 19,
-	VF_ENGINESBAR = 20,
-	VF_DRAWCROSSHAIR = 21,
-	VF_CARTESIAN_ANGLES = 22,
-
-	//this is a DP-compatibility hack.
-	VF_CL_VIEWANGLES_V = 33,
-	VF_CL_VIEWANGLES_X = 34,
-	VF_CL_VIEWANGLES_Y = 35,
-	VF_CL_VIEWANGLES_Z = 36,
-
-
-	//33-36 used by DP...
-	VF_PERSPECTIVE = 200,
-	//201 used by DP... WTF? CLEARSCREEN
-	VF_LPLAYER = 202,
-	VF_AFOV = 203,	//aproximate fov (match what the engine would normally use for the fov cvar). p0=fov, p1=zoom
-} viewflags;
-
-/*FIXME: this should be changed*/
-#define CSQC_API_VERSION 1.0f
-
-#define CSQCRF_VIEWMODEL		1 //Not drawn in mirrors
-#define CSQCRF_EXTERNALMODEL	2 //drawn ONLY in mirrors
-#define CSQCRF_DEPTHHACK		4 //fun depthhack
-#define CSQCRF_ADDITIVE			8 //add instead of blend
-#define CSQCRF_USEAXIS			16 //use v_forward/v_right/v_up as an axis/matrix - predraw is needed to use this properly
-#define CSQCRF_NOSHADOW			32 //don't cast shadows upon other entities (can still be self shadowing, if the engine wishes, and not additive)
-#define CSQCRF_FRAMETIMESARESTARTTIMES 64 //EXT_CSQC_1: frame times should be read as (time-frametime).
-#define CSQCRF_NOAUTOADD		128 //EXT_CSQC_1: don't automatically add after predraw was called
 
 
 //If I do it like this, I'll never forget to register something...
@@ -202,8 +145,7 @@ typedef enum
 	globalfloat(clientcommandframe,		"clientcommandframe");	/*float		the next frame that will be sent*/ \
 	globalfloat(servercommandframe,		"servercommandframe");	/*float		the most recent frame received from the server*/ \
 	\
-	globalfloat(player_tracknum,		"player_trackentnum");	/*float		the player number of the player being tracked*/	\
-	globalfloat(player_localentnum,		"player_localentnum");	/*float		the entity number of the local player*/	\
+	globalfloat(player_localentnum,		"player_localentnum");	/*float		the entity number the local player is looking out from*/	\
 	globalfloat(player_localnum,		"player_localnum");		/*float		the player number of the local player*/	\
 	globalfloat(intermission,			"intermission");		/*float		set when the client receives svc_intermission*/	\
 	globalvector(view_angles,			"view_angles");			/*float		set to the view angles at the start of each new frame (EXT_CSQC_1)*/ \
@@ -247,10 +189,6 @@ static csqcglobals_t csqcg;
 static void CSQC_ChangeLocalPlayer(int lplayernum)
 {
 	csqc_lplayernum = lplayernum;
-	if (csqcg.player_tracknum)
-	{
-		*csqcg.player_tracknum = Cam_TrackNum(csqc_lplayernum);
-	}
 	if (csqcg.player_localentnum)
 	{
 		if (cl.viewentity[lplayernum])
@@ -334,57 +272,29 @@ static void QCBUILTIN PF_cs_gettime (progfuncs_t *prinst, struct globalvars_s *p
 	switch(timer)
 	{
 	default:
+	case 0:
+		G_FLOAT(OFS_RETURN) = realtime;
+		break;
+	case 1:
+		G_FLOAT(OFS_RETURN) = Sys_DoubleTime();
+		break;
+	case 5:
 		G_FLOAT(OFS_RETURN) = cl.time;
 		break;
 	}
 }
 
 
-//this is the list for all the csqc fields.
-//(the #define is so the list always matches the ones pulled out)
-#define csqcextfields	\
-	comfieldfloat(entnum);		\
-	comfieldfloat(frame2);		/*EXT_CSQC_1*/\
-	comfieldfloat(frame1time);	/*EXT_CSQC_1*/\
-	comfieldfloat(frame2time);	/*EXT_CSQC_1*/\
-	comfieldfloat(lerpfrac);	/*EXT_CSQC_1*/\
-	comfieldfloat(renderflags);\
-	comfieldfloat(forceshader);/*FTE_CSQC_SHADERS*/\
-							\
-	comfieldfloat(baseframe);	/*FTE_CSQC_BASEFRAME*/\
-	comfieldfloat(baseframe2);	/*FTE_CSQC_BASEFRAME*/\
-	comfieldfloat(baseframe1time);	/*FTE_CSQC_BASEFRAME*/\
-	comfieldfloat(baseframe2time);	/*FTE_CSQC_BASEFRAME*/\
-	comfieldfloat(baselerpfrac);	/*FTE_CSQC_BASEFRAME*/\
-	comfieldfloat(basebone);	/*FTE_CSQC_BASEFRAME*/\
-							\
-  	comfieldfloat(bonecontrol1);	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	comfieldfloat(bonecontrol2);	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	comfieldfloat(bonecontrol3);	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	comfieldfloat(bonecontrol4);	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	comfieldfloat(bonecontrol5);	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	comfieldfloat(subblendfrac);	/*FTE_CSQC_HALFLIFE_MODELS*/\
-	comfieldfloat(basesubblendfrac);	/*FTE_CSQC_HALFLIFE_MODELS+FTE_CSQC_BASEFRAME*/\
-							\
-	comfieldfloat(skeletonindex);		/*FTE_CSQC_SKELETONOBJECTS*/\
-							\
-	comfieldfloat(drawmask);	/*So that the qc can specify all rockets at once or all bannanas at once*/	\
-	comfieldfunction(predraw);	/*If present, is called just before it's drawn.*/	\
-	comfieldvector(glowmod);	\
-							\
-	comfieldfloat(ideal_pitch);\
-	comfieldfloat(pitch_speed);\
-
 
 
 //note: doesn't even have to match the clprogs.dat :)
 typedef struct {
 
-#define comfieldfloat(ssqcname,sharedname,csqcname) float csqcname
-#define comfieldvector(ssqcname,sharedname,csqcname) vec3_t csqcname
-#define comfieldentity(ssqcname,sharedname,csqcname) int csqcname
-#define comfieldstring(ssqcname,sharedname,csqcname) string_t csqcname
-#define comfieldfunction(ssqcname,sharedname,csqcname) func_t csqcname
+#define comfieldfloat(csqcname) float csqcname;
+#define comfieldvector(csqcname) vec3_t csqcname;
+#define comfieldentity(csqcname) int csqcname;
+#define comfieldstring(csqcname) string_t csqcname;
+#define comfieldfunction(csqcname, typestr) func_t csqcname;
 comqcfields
 #undef comfieldfloat
 #undef comfieldvector
@@ -397,11 +307,11 @@ comqcfields
 typedef struct {
 #endif
 
-#define comfieldfloat(name) float name
-#define comfieldvector(name) vec3_t name
-#define comfieldentity(name) int name
-#define comfieldstring(name) string_t name
-#define comfieldfunction(name) func_t name
+#define comfieldfloat(name) float name;
+#define comfieldvector(name) vec3_t name;
+#define comfieldentity(name) int name;
+#define comfieldstring(name) string_t name;
+#define comfieldfunction(name, typestr) func_t name;
 comextqcfields
 csqcextfields
 #undef comfieldfloat
@@ -447,11 +357,11 @@ typedef struct csqcedict_s
 
 static void CSQC_InitFields(void)
 {	//CHANGING THIS FUNCTION REQUIRES CHANGES TO csqcentvars_t
-#define comfieldfloat(ssqcname,wname,name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (size_t)&((csqcentvars_t*)0)->name, -1)
-#define comfieldvector(ssqcname,wname,name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (size_t)&((csqcentvars_t*)0)->name, -1)
-#define comfieldentity(ssqcname,wname,name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (size_t)&((csqcentvars_t*)0)->name, -1)
-#define comfieldstring(ssqcname,wname,name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (size_t)&((csqcentvars_t*)0)->name, -1)
-#define comfieldfunction(ssqcname,wname,name) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (size_t)&((csqcentvars_t*)0)->name, -1)
+#define comfieldfloat(name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
+#define comfieldvector(name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
+#define comfieldentity(name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
+#define comfieldstring(name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
+#define comfieldfunction(name, typestr) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
 comqcfields
 #undef comfieldfloat
 #undef comfieldvector
@@ -460,17 +370,17 @@ comqcfields
 #undef comfieldfunction
 
 #ifdef VM_Q1
-#define comfieldfloat(name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1)
-#define comfieldvector(name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1)
-#define comfieldentity(name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1)
-#define comfieldstring(name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1)
-#define comfieldfunction(name) PR_RegisterFieldVar(csqcprogs, ev_function, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1)
+#define comfieldfloat(name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1);
+#define comfieldvector(name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1);
+#define comfieldentity(name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1);
+#define comfieldstring(name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1);
+#define comfieldfunction(name, typestr) PR_RegisterFieldVar(csqcprogs, ev_function, #name, sizeof(csqcentvars_t) + (size_t)&((csqcextentvars_t*)0)->name, -1);
 #else
-#define comfieldfloat(name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (size_t)&((csqcentvars_t*)0)->name, -1)
-#define comfieldvector(name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (size_t)&((csqcentvars_t*)0)->name, -1)
-#define comfieldentity(name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (size_t)&((csqcentvars_t*)0)->name, -1)
-#define comfieldstring(name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (size_t)&((csqcentvars_t*)0)->name, -1)
-#define comfieldfunction(name) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (size_t)&((csqcentvars_t*)0)->name, -1)
+#define comfieldfloat(name) PR_RegisterFieldVar(csqcprogs, ev_float, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
+#define comfieldvector(name) PR_RegisterFieldVar(csqcprogs, ev_vector, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
+#define comfieldentity(name) PR_RegisterFieldVar(csqcprogs, ev_entity, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
+#define comfieldstring(name) PR_RegisterFieldVar(csqcprogs, ev_string, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
+#define comfieldfunction(name, typestr) PR_RegisterFieldVar(csqcprogs, ev_function, #name, (size_t)&((csqcentvars_t*)0)->name, -1);
 #endif
 comextqcfields
 csqcextfields
@@ -811,30 +721,30 @@ static void QCBUILTIN PF_R_DynamicLight_Set(progfuncs_t *prinst, struct globalva
 	l = cl_dlights+lno;
 	switch (field)
 	{
-	case 0:
+	case lfield_origin:
 		VectorCopy(G_VECTOR(OFS_PARM2), l->origin);
 		l->rebuildcache = true;
 		break;
-	case 1:
+	case lfield_colour:
 		VectorCopy(G_VECTOR(OFS_PARM2), l->color);
 		break;
-	case 2:
+	case lfield_radius:
 		l->radius = G_FLOAT(OFS_PARM2);
 		l->rebuildcache = true;
 		if (lno >= rtlights_max)
 			rtlights_max = lno+1;
 		break;
-	case 3:
+	case lfield_flags:
 		l->flags = G_FLOAT(OFS_PARM2);
 		l->rebuildcache = true;
 		break;
-	case 4:
+	case lfield_style:
 		l->style = G_FLOAT(OFS_PARM2);
 		break;
-	case 5:
+	case lfield_angles:
 		AngleVectors(G_VECTOR(OFS_PARM2), l->axis[0], l->axis[1], l->axis[2]);
 		break;
-	case 6:
+	case lfield_fov:
 		l->fov = G_FLOAT(OFS_PARM2);
 		break;
 	default:
@@ -845,7 +755,7 @@ static void QCBUILTIN PF_R_DynamicLight_Get(progfuncs_t *prinst, struct globalva
 {
 	dlight_t *l;
 	unsigned int lno = G_FLOAT(OFS_PARM0);
-	int field = G_FLOAT(OFS_PARM1);
+	enum lightfield_e field = G_FLOAT(OFS_PARM1);
 	if (lno >= rtlights_max)
 	{
 		if (field == -1)
@@ -857,25 +767,25 @@ static void QCBUILTIN PF_R_DynamicLight_Get(progfuncs_t *prinst, struct globalva
 	l = cl_dlights+lno;
 	switch (field)
 	{
-	case 0:
+	case lfield_origin:
 		VectorCopy(l->origin, G_VECTOR(OFS_RETURN));
 		break;
-	case 1:
+	case lfield_colour:
 		VectorCopy(l->color, G_VECTOR(OFS_RETURN));
 		break;
-	case 2:
+	case lfield_radius:
 		G_FLOAT(OFS_RETURN) = l->radius;
 		break;
-	case 3:
+	case lfield_flags:
 		G_FLOAT(OFS_RETURN) = l->flags;
 		break;
-	case 4:
+	case lfield_style:
 		G_FLOAT(OFS_RETURN) = l->style;
 		break;
-	case 5:
+	case lfield_angles:
 		VectorAngles(l->axis[0], l->axis[2], G_VECTOR(OFS_RETURN));
 		break;
-	case 6:
+	case lfield_fov:
 		G_FLOAT(OFS_RETURN) = l->fov;
 		break;
 	default:
@@ -952,8 +862,11 @@ static void QCBUILTIN PF_R_AddEntityMask(progfuncs_t *prinst, struct globalvars_
 		{
 			CL_LinkViewModel ();
 		}
-		CL_LinkProjectiles ();
-		CL_UpdateTEnts ();
+		if (mask & MASK_DELTA)
+		{
+			CL_LinkProjectiles ();
+			CL_UpdateTEnts ();
+		}
 	}
 }
 
@@ -1128,6 +1041,7 @@ static void QCBUILTIN PF_R_ClearScene (progfuncs_t *prinst, struct globalvars_s 
 	csqc_rebuildmatricies = true;
 
 	CL_DecayLights ();
+	CL_TransitionEntities();
 
 	if (cl.worldmodel)
 	{
@@ -3054,13 +2968,12 @@ static void QCBUILTIN PF_cl_te_particlesnow (progfuncs_t *prinst, struct globalv
 void CSQC_RunThreads(void)
 {
 	csqctreadstate_t *state = csqcthreads, *next;
-	float ctime = Sys_DoubleTime();
 	csqcthreads = NULL;
 	while(state)
 	{
 		next = state->next;
 
-		if (state->resumetime > ctime)
+		if (state->resumetime > cl.servertime)
 		{	//not time yet, reform original list.
 			state->next = csqcthreads;
 			csqcthreads = state;
@@ -3450,10 +3363,15 @@ static void QCBUILTIN PF_skinforname (progfuncs_t *prinst, struct globalvars_s *
 }
 static void QCBUILTIN PF_shaderforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char *str = PF_VarString(prinst, 0, pr_globals);
+	char *str = PR_GetStringOfs(prinst, OFS_PARM0);
+	char *defaultbody = PF_VarString(prinst, 1, pr_globals);
 
 	shader_t *shad;
-	shad = R_RegisterSkin(str, NULL);
+
+	if (*defaultbody)
+		shad = R_RegisterShader(str, defaultbody);
+	else
+		shad = R_RegisterSkin(str, NULL);
 	if (shad)
 		G_FLOAT(OFS_RETURN) = shad-r_shaders + 1;
 	else
@@ -4119,7 +4037,7 @@ static struct {
 	{"remove",	PF_cs_remove,	15},			// #15 void(entity e) remove (QUAKE)
 	{"traceline",	PF_cs_traceline,	16},		// #16 void(vector v1, vector v2, float nomonst, entity forent) traceline (QUAKE)
 	{"checkclient",	PF_NoCSQC,	17},				// #17 entity() checkclient (QUAKE) (don't support)
-	{"findstring",	PF_FindString,	18},			// #18 entity(entity start, .string fld, string match) findstring (QUAKE)
+	{"find",	PF_FindString,	18},			// #18 entity(entity start, .string fld, string match) findstring (QUAKE)
 	{"precache_sound",	PF_cs_PrecacheSound,	19},	// #19 void(string str) precache_sound (QUAKE)
 //20
 	{"precache_model",	PF_cs_PrecacheModel,	20},	// #20 void(string str) precache_model (QUAKE)
@@ -4186,7 +4104,7 @@ static struct {
 	{"centerprint",	PF_NoCSQC,	73},				// #73 void(entity ent, string text) centerprint (QUAKE) (don't support - cprint is supported instead)
 	{"ambientsound",	PF_cl_ambientsound,	74},		// #74 void (vector pos, string samp, float vol, float atten) ambientsound (QUAKE)
 
-	{"precache_model2",	PF_cs_PrecacheModel,	80},	// #75 void(string str) precache_model2 (QUAKE)
+	{"precache_model2",	PF_cs_PrecacheModel,	75},	// #75 void(string str) precache_model2 (QUAKE)
 	{"precache_sound2",	PF_cs_PrecacheSound,	76},	// #76 void(string str) precache_sound2 (QUAKE)
 	{"precache_file2",	PF_NoCSQC,	77},				// #77 void(string str) precache_file2 (QUAKE)
 	{"setspawnparms",	PF_NoCSQC,	78},				// #78 void() setspawnparms (QUAKE) (don't support)
@@ -4225,8 +4143,8 @@ static struct {
 	{"strunzone",	PF_forgetstring,	119},		// #119 void(string str) freestring (FRIK_FILE)
 
 //200
-	{"precachemodel",	PF_cs_PrecacheModel,	200},
-	{"eterncall",	PF_externcall,	201},
+	{"getmodelindex",	PF_cs_PrecacheModel,	200},
+	{"externcall",	PF_externcall,	201},
 	{"addprogs",	PF_cs_addprogs,	202},
 	{"externvalue",	PF_externvalue,	203},
 	{"externset",	PF_externset,	204},
@@ -4266,13 +4184,15 @@ static struct {
 
 //230
 	{"strncasecmp",	PF_strncasecmp,	230},	// #230 float(string s1, string s2, float len) strncasecmp (FTE_STRINGS)
-	{"clientstat",	PF_NoCSQC,	231},		// #231 clientstat
-	{"runclientphys",	PF_NoCSQC,	232},		// #232 runclientphys
-	{"isbackbuffered",	PF_NoCSQC,	233},		// #233 float(entity ent) isbackbuffered
+	{"calltimeofday",	PF_calltimeofday,	231},
+	{"clientstat",	PF_NoCSQC,	232},		// #231 clientstat
+	{"runclientphys",	PF_NoCSQC,	233},		// #232 runclientphys
+//	{"isbackbuffered",	PF_NoCSQC,	234},		// #233 float(entity ent) isbackbuffered
+//I messed up, 234 is meant to be isbackbuffered. luckily that's not present in csqc, but still, this is messy. Don't document this.
 	{"rotatevectorsbytag",	PF_rotatevectorsbytag,	234},	// #234
 
 	{"rotatevectorsbyangle",	PF_rotatevectorsbyangles,	235}, // #235
-	{"rotatevectorsbymatrix",	PF_rotatevectorsbymatrix,	236}, // #236
+	{"rotatevectorsbyvectors",	PF_rotatevectorsbymatrix,	236}, // #236
 	{"skinforname",	PF_skinforname,	237},		// #237
 	{"shaderforname",	PF_shaderforname,	238},	// #238
 	{"te_bloodqw",	PF_cl_te_bloodqw,	239},	// #239 void te_bloodqw(vector org[, float count]) (FTE_TE_STANDARDEFFECTBUILTINS)
@@ -4282,6 +4202,7 @@ static struct {
 	{"sendpacket",		PF_NoCSQC,			242},	//void(string dest, string content) sendpacket = #242; (FTE_QC_SENDPACKET)
 
 //	{"bulleten",		PF_bulleten,		243}, (removed builtin)
+	{"rotatevectorsbytag",	PF_rotatevectorsbytag,	244},
 
 #ifdef SQL
 	{"sqlconnect",		PF_NoCSQC,			250},	// #250 float([string host], [string user], [string pass], [string defaultdb], [string driver]) sqlconnect (FTE_SQL)
@@ -4318,6 +4239,8 @@ static struct {
 
 	{"terrain_edit",		PF_cs_terrain_edit,		278},//void(float action, vector pos, float radius, float quant) terrain_edit = #278 (??FTE_TERRAIN_EDIT??)
 	{"touchtriggers",		PF_cs_touchtriggers,	279},//void() touchtriggers = #279;
+	{"skel_ragupdate",		PF_skel_ragedit,		281},// (FTE_QC_RAGDOLL)
+	{"skel_mmap",			PF_skel_mmap,			282},// (FTE_QC_RAGDOLL)
 //300
 	{"clearscene",	PF_R_ClearScene,	300},				// #300 void() clearscene (EXT_CSQC)
 	{"addentities",	PF_R_AddEntityMask,	301},				// #301 void(float mask) addentities (EXT_CSQC)
@@ -4418,7 +4341,7 @@ static struct {
 	{"readfloat",	PF_ReadFloat,					367},	// #367 string() readfloat (EXT_CSQC)
 	{"readentitynum",	PF_ReadEntityNum,				368},	// #368 float() readentitynum (EXT_CSQC)
 
-	{"readserverentitystate",	PF_ReadServerEntityState,		369},	// #369 void(float flags, float simtime) readserverentitystate (EXT_CSQC_1)
+//	{"readserverentitystate",	PF_ReadServerEntityState,		369},	// #369 void(float flags, float simtime) readserverentitystate (EXT_CSQC_1)
 //	{"readsingleentitystate",	PF_ReadSingleEntityState,		370},
 	{"deltalisten",	PF_DeltaListen,					371},		// #371 float(string modelname, float flags) deltalisten  (EXT_CSQC_1)
 
@@ -4483,7 +4406,7 @@ static struct {
 	{"search_end",	PF_search_end,			445},	// #445 void	search_end(float handle) (DP_QC_FS_SEARCH)
 	{"search_getsize",	PF_search_getsize,	446},		// #446 float	search_getsize(float handle) (DP_QC_FS_SEARCH)
 	{"search_getfilename",	PF_search_getfilename,447},		// #447 string	search_getfilename(float handle, float num) (DP_QC_FS_SEARCH)
-	{"dp_cvar_string",	PF_cvar_string,		448},		// #448 string(float n) cvar_string (DP_QC_CVAR_STRING)
+	{"cvar_string",	PF_cvar_string,		448},		// #448 string(float n) cvar_string (DP_QC_CVAR_STRING)
 	{"findflags",	PF_FindFlags,		449},		// #449 entity(entity start, .entity fld, float match) findflags (DP_QC_FINDFLAGS)
 
 	{"findchainflags",	PF_cs_findchainflags,	450},		// #450 entity(.float fld, float match) findchainflags (DP_QC_FINDCHAINFLAGS)
@@ -4612,6 +4535,25 @@ static struct {
 
 	{NULL}
 };
+
+int PR_CSQC_BuiltinValid(char *name, int num)
+{
+	int i;
+	for (i = 0; BuiltinList[i].name; i++)
+	{
+		if (BuiltinList[i].ebfsnum == num)
+		{
+			if (!strcmp(BuiltinList[i].name, name))
+			{
+				if (BuiltinList[i].bifunc == PF_NoCSQC || BuiltinList[i].bifunc == PF_Fixme)
+					return false;
+				else
+					return true;
+			}
+		}
+	}
+	return false;
+}
 
 static builtin_t csqc_builtin[800];
 
@@ -5009,12 +4951,23 @@ qboolean CSQC_Init (unsigned int checksum)
 
 		PF_InitTempStrings(csqcprogs);
 
-		CSQC_FindGlobals();
-
 		csqc_world.physicstime = 0;
 
 		csqc_fakereadbyte = -1;
 		memset(csqcent, 0, sizeof(*csqcent)*maxcsqcentities);	//clear the server->csqc entity translations.
+
+		for (i = 0; i < csqcprogs->numprogs; i++)
+		{
+			func_t f = PR_FindFunction (csqcprogs, "init", i);
+			if (f)
+			{
+				void *pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+				G_PROG(OFS_PARM0) = i-1;
+				PR_ExecuteProgram(csqcprogs, f);
+			}
+		}
+
+		CSQC_FindGlobals();
 
 		csqcentsize = PR_InitEnts(csqcprogs, pr_csqc_maxedicts.value);
 
@@ -5273,8 +5226,6 @@ qboolean CSQC_DrawView(void)
 		return false;
 
 	r_secondaryview = 0;
-
-	CL_CalcClientTime();
 
 	if (csqcg.frametime)
 		*csqcg.frametime = host_frametime;
@@ -5571,7 +5522,6 @@ void CSQC_Input_Frame(int lplayernum, usercmd_t *cmd)
 
 	CSQC_ChangeLocalPlayer(lplayernum);
 
-	CL_CalcClientTime();
 	if (csqcg.svtime)
 		*csqcg.svtime = cl.servertime;
 	if (csqcg.cltime)

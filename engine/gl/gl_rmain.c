@@ -32,7 +32,7 @@ void R_RenderBrushPoly (msurface_t *fa);
 #define PROJECTION_DISTANCE			200
 #define MAX_STENCIL_ENTS			128
 
-extern int		gl_canstencil;
+extern int		gl_stencilbits;
 
 FTEPFNGLCOMPRESSEDTEXIMAGE2DARBPROC qglCompressedTexImage2DARB;
 FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC qglGetCompressedTexImageARB;
@@ -298,7 +298,7 @@ void R_RotateForEntity (float *m, float *modelview, const entity_t *e, const mod
 		VectorScale((m+4), 2, (m+4));
 		VectorScale((m+8), 2, (m+8));
 	}
-	if (mod && !ruleset_allow_larger_models.ival && mod->clampscale != 1)
+	if (mod && !ruleset_allow_larger_models.ival && mod->clampscale != 1 && mod->type == mod_alias)
 	{	//possibly this should be on a per-frame basis, but that's a real pain to do
 		Con_DPrintf("Rescaling %s by %f\n", mod->name, mod->clampscale);
 		VectorScale((m+0), mod->clampscale, (m+0));
@@ -389,7 +389,7 @@ void R_SetupGL (void)
 			stencilshadows |= r_shadow_realtime_world.ival && r_shadow_realtime_world_shadows.ival;
 	#endif
 
-			if ((!stencilshadows || !gl_canstencil) && gl_maxdist.value>=100)//gl_nv_range_clamp)
+			if ((!stencilshadows || !gl_stencilbits) && gl_maxdist.value>=100)//gl_nv_range_clamp)
 			{
 		//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*180/M_PI;
 		//		yfov = (2.0 * tan (scr_fov.value/360*M_PI)) / screenaspect;
@@ -397,10 +397,16 @@ void R_SetupGL (void)
 		//		MYgluPerspective (yfov,  screenaspect,  4,  4096);
 
 				Matrix4x4_CM_Projection_Far(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value, gl_maxdist.value);
+
+				if (gl_config.arb_depth_clamp)
+					qglEnable(GL_DEPTH_CLAMP_ARB);
 			}
 			else
 			{
 				Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value);
+
+				if (gl_config.arb_depth_clamp)
+					qglDisable(GL_DEPTH_CLAMP_ARB);
 			}
 		}
 		else

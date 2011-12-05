@@ -264,6 +264,31 @@ void SV_PrintToClient(client_t *cl, int level, char *string)
 	}
 }
 
+void SV_StuffcmdToClient(client_t *cl, char *string)
+{
+	switch (cl->protocol)
+	{
+	case SCP_BAD:	//bot
+		break;
+	case SCP_QUAKE2:
+#ifdef Q2SERVER
+		ClientReliableWrite_Begin (cl, svcq2_stufftext, strlen(string)+3);
+		ClientReliableWrite_String (cl, string);
+#endif
+		break;
+	case SCP_QUAKE3:
+		break;
+	case SCP_QUAKEWORLD:
+	case SCP_DARKPLACES6:
+	case SCP_DARKPLACES7:
+	case SCP_NETQUAKE:
+	case SCP_FITZ666:
+		ClientReliableWrite_Begin (cl, svc_stufftext, strlen(string)+3);
+		ClientReliableWrite_String (cl, string);
+		break;
+	}
+}
+
 
 /*
 =================
@@ -1880,6 +1905,7 @@ void SV_UpdateToReliableMessages (void)
 			{
 				if (strcmp(host_client->name, name))
 				{
+					Con_DPrintf("Client %s programatically renamed to %s\n", host_client->name, name);
 					Info_SetValueForKey(host_client->userinfo, "name", name, sizeof(host_client->userinfo));
 					if (!strcmp(Info_ValueForKey(host_client->userinfo, "name"), name))
 					{

@@ -1245,7 +1245,10 @@ void SV_ProgStartFrame (void)
 		Q1QVM_StartFrame();
 	else
 #endif
-		PR_ExecuteProgram (svprogfuncs, pr_global_struct->StartFrame);
+	{
+		if (pr_global_ptrs->StartFrame)
+			PR_ExecuteProgram (svprogfuncs, *pr_global_ptrs->StartFrame);
+	}
 }
 #endif
 
@@ -1837,8 +1840,8 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 			Q1QVM_PlayerPreThink();
 		else
 #endif
-			if (pr_global_struct->PlayerPreThink)
-				PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPreThink);
+			if (pr_global_ptrs->PlayerPreThink)
+				PR_ExecuteProgram (svprogfuncs, *pr_global_ptrs->PlayerPreThink);
 
 		if (readyforjump)	//qw progs can't jump for themselves...
 		{
@@ -1936,8 +1939,8 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 		else
 #endif
 		{
-			if (pr_global_struct->PlayerPostThink)
-				PR_ExecuteProgram (w->progs, pr_global_struct->PlayerPostThink);
+			if (pr_global_ptrs->PlayerPostThink)
+				PR_ExecuteProgram (w->progs, *pr_global_ptrs->PlayerPostThink);
 		}
 	}
 #endif
@@ -2075,12 +2078,6 @@ void World_Physics_Frame(world_t *w)
 
 		WPhys_RunEntity (w, ent);
 		WPhys_RunNewmis (w);
-
-		if (((!ent->solidtype) != (!(qbyte)ent->v->solid)) && !ent->isfree)
-		{
-			Con_DPrintf("Entity \"%s\" improperly changed solid type\n", PR_GetString(w->progs, ent->v->classname));
-			World_LinkEdict (w, ent, true);	// a change of solidity should always relink the edict. someone messed up.
-		}
 	}
 
 	if (retouch)

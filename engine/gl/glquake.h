@@ -171,6 +171,7 @@ typedef struct {
 	qboolean arb_shader_objects;
 	qboolean ext_framebuffer_objects;
 	qboolean ext_stencil_wrap;
+	qboolean arb_depth_clamp;
 	int ext_texture_filter_anisotropic;
 	int maxtmus;	//max texture units
 } gl_config_t;
@@ -291,7 +292,7 @@ typedef void (APIENTRY *lpSelTexFUNC) (GLenum en);
 extern lpMTexFUNC qglMTexCoord2fSGIS;
 extern lpSelTexFUNC qglSelectTextureSGIS;
 
-extern	int gl_canstencil;
+extern	int gl_stencilbits;
 extern FTEPFNGLACTIVESTENCILFACEEXTPROC qglActiveStencilFaceEXT;
 
 extern lpMTexFUNC qglMTexCoord2fSGIS;

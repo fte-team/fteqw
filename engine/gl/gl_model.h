@@ -324,8 +324,7 @@ typedef struct
 // !!! if this is changed, it must be changed in asm_draw.h too !!!
 typedef struct
 {
-	unsigned short	v[2];
-	unsigned int	cachededgeoffset;
+	unsigned int	v[2];
 } medge_t;
 
 typedef struct mtexinfo_s
@@ -426,8 +425,8 @@ typedef struct mnode_s
 	int childnum[2];
 #endif
 
-	unsigned short		firstsurface;
-	unsigned short		numsurfaces;
+	unsigned int		firstsurface;
+	unsigned int		numsurfaces;
 } mnode_t;
 
 

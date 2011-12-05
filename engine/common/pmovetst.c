@@ -218,7 +218,16 @@ static qboolean PM_TransformedHullCheck (model_t *model, vec3_t start, vec3_t en
 			model->funcs.Trace(model, 0, 0, axis, start_l, end_l, player_mins, player_maxs, trace);
 		}
 		else
+		{
+			for (i = 0; i < 3; i++)
+			{
+				if (start_l[i]+player_mins[i] > model->maxs[i] && end_l[i] + player_mins[i] > model->maxs[i])
+					return false;
+				if (start_l[i]+player_maxs[i] < model->mins[i] && end_l[i] + player_maxs[i] < model->mins[i])
+					return false;
+			}
 			model->funcs.Trace(model, 0, 0, NULL, start_l, end_l, player_mins, player_maxs, trace);
+		}
 	}
 	else
 	{

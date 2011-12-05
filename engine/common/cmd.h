@@ -47,7 +47,7 @@ void Cbuf_InsertText (const char *text, int level, qboolean addnl);
 // inserted at the beginning of the buffer, before any remaining unexecuted
 // commands.
 
-char *Cbuf_GetNext(int level);
+char *Cbuf_GetNext(int level, qboolean ignoresemicolon);
 
 void Cbuf_Execute (void);
 // Pulls off \n terminated lines of text from the command buffer and sends

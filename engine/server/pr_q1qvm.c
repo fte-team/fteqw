@@ -457,7 +457,7 @@ static eval_t *Q1QVMPF_GetEdictFieldValue(progfuncs_t *pf, edict_t *e, char *fie
 {
 	if (!strcmp(fieldname, "message"))
 	{
-		return (eval_t*)&e->v->_message;
+		return (eval_t*)&e->v->message;
 	}
 	return NULL;
 }
@@ -567,7 +567,7 @@ static qintptr_t syscallhandle (void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case G_PRECACHE_MODEL:
-		PF_precache_model_Internal(svprogfuncs, VM_POINTER(arg[0]));
+		PF_precache_model_Internal(svprogfuncs, VM_POINTER(arg[0]), false);
 		break;
 
 	case G_LIGHTSTYLE:
@@ -1417,7 +1417,7 @@ qboolean PR_LoadQ1QVM(void)
 #define globalint(required, name) pr_global_ptrs->name = (int*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)	//the logic of this is somewhat crazy
 #define globalfloat(required, name) pr_global_ptrs->name = (float*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
 #define globalstring(required, name) pr_global_ptrs->name = (string_t*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
-#define globalvec(required, name) pr_global_ptrs->V_##name = (vec3_t*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
+#define globalvec(required, name) pr_global_ptrs->name = (vec3_t*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
 #define globalfunc(required, name) pr_global_ptrs->name = (int*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)&gd->global->name)
 #define globalfloatnull(required, name) pr_global_ptrs->name = NULL
 	globalint		(true, self);	//we need the qw ones, but any in standard quake and not quakeworld, we don't really care about.

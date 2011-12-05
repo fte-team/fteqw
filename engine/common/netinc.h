@@ -62,6 +62,9 @@
 		};
 		#endif
 	#endif
+	#ifndef IPV6_V6ONLY
+		#define IPV6_V6ONLY 27
+	#endif
 
 	#if (_MSC_VER >= 1600)
 		#undef EADDRNOTAVAIL

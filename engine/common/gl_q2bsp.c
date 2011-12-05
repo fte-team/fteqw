@@ -29,7 +29,7 @@ extern cvar_t r_shadow_bumpscale_basetexture;
 //these are in model.c (or gl_model.c)
 qboolean RMod_LoadVertexes (lump_t *l);
 qboolean RMod_LoadEdges (lump_t *l, qboolean lm);
-qboolean RMod_LoadMarksurfaces (lump_t *l);
+qboolean RMod_LoadMarksurfaces (lump_t *l, qboolean lm);
 qboolean RMod_LoadSurfedges (lump_t *l);
 void RMod_LoadLighting (lump_t *l);
 
@@ -98,8 +98,8 @@ void CalcSurfaceExtents (msurface_t *s)
 		s->texturemins[i] = bmins[i] * 16;
 		s->extents[i] = (bmaxs[i] - bmins[i]) * 16;
 
-//		if ( !(tex->flags & TEX_SPECIAL) && s->extents[i] > 512 )	//q2 uses 512. probably for skys.
-//			Sys_Error ("Bad surface extents");
+//		if ( !(tex->flags & TEX_SPECIAL) && s->extents[i] > 8176 )	//q2 uses 512. probably for skys.
+//			Con_Printf ("Bad surface extents (texture %s)\n", s->texinfo->texture->name);
 	}
 }
 
@@ -203,23 +203,11 @@ typedef struct q2mapsurface_s  // used internally due to name len probs //ZOID
 
 
 
-typedef struct cmodel_s
-{
-	vec3_t		mins, maxs;
-	vec3_t		origin;		// for sounds or lights
-	int			headnode;
-	int		numsurfaces;
-	int		firstsurface;
-
-	int firstbrush;	//q3 submodels are considered small enough that you will never need to walk any sort of tree.
-	int num_brushes;//the brushes are checked instead.
-} q2cmodel_t;
-
-
-
-
-
-
+typedef struct {
+	char		shader[MAX_QPATH];
+	int			brushNum;
+	int			visibleSide;	// the brush side that ray tests need to clip against (-1 == none)
+} dfog_t;
 
 typedef struct
 {
@@ -272,61 +260,76 @@ typedef struct
 	int		patch_cp[2];
 } q3cface_t;
 
+typedef struct cmodel_s
+{
+	vec3_t		mins, maxs;
+	vec3_t		origin;		// for sounds or lights
+	int			headnode;
+	int		numsurfaces;
+	int		firstsurface;
+
+	int firstbrush;	//q3 submodels are considered small enough that you will never need to walk any sort of tree.
+	int num_brushes;//the brushes are checked instead.
+} cmodel_t;
+
 /*used to trace*/
-int			checkcount;
+static int			checkcount;
 
-int			numbrushsides;
-q2cbrushside_t map_brushsides[MAX_Q2MAP_BRUSHSIDES];
+static mfog_t		*map_fogs;
+static int			map_numfogs;
 
-int numtexinfo;
-q2mapsurface_t	*map_surfaces;
+static int			numbrushsides;
+static q2cbrushside_t map_brushsides[MAX_Q2MAP_BRUSHSIDES];
 
-int			numplanes;
-mplane_t	map_planes[MAX_Q2MAP_PLANES+6];		// extra for box hull
+static int numtexinfo;
+static q2mapsurface_t	*map_surfaces;
 
-int			numleafs = 1;	// allow leaf funcs to be called without a map
-mleaf_t		map_leafs[MAX_MAP_LEAFS];
-int			emptyleaf;
+static int			numplanes;
+static mplane_t	map_planes[MAX_Q2MAP_PLANES+6];		// extra for box hull
 
-int			numleafbrushes;
-int			map_leafbrushes[MAX_Q2MAP_LEAFBRUSHES];
+static int			numleafs = 1;	// allow leaf funcs to be called without a map
+static mleaf_t		map_leafs[MAX_MAP_LEAFS];
+static int			emptyleaf;
 
-int			numcmodels;
-q2cmodel_t	map_cmodels[MAX_Q2MAP_MODELS];
+static int			numleafbrushes;
+static int			map_leafbrushes[MAX_Q2MAP_LEAFBRUSHES];
 
-int			numbrushes;
-q2cbrush_t	map_brushes[MAX_Q2MAP_BRUSHES];
+static int			numcmodels;
+static cmodel_t		map_cmodels[MAX_Q2MAP_MODELS];
 
-int			numvisibility;
-qbyte		map_visibility[MAX_Q2MAP_VISIBILITY];
-q2dvis_t		*map_q2vis = (q2dvis_t *)map_visibility;
-q3dvis_t		*map_q3pvs = (q3dvis_t *)map_visibility;
-qbyte		map_hearability[MAX_Q2MAP_VISIBILITY];
-q3dvis_t		*map_q3phs = (q3dvis_t *)map_hearability;
+static int			numbrushes;
+static q2cbrush_t	map_brushes[MAX_Q2MAP_BRUSHES];
 
-int			numentitychars;
-char		*map_entitystring;
+static int			numvisibility;
+static qbyte		map_visibility[MAX_Q2MAP_VISIBILITY];
+static q2dvis_t		*map_q2vis = (q2dvis_t *)map_visibility;
+static q3dvis_t		*map_q3pvs = (q3dvis_t *)map_visibility;
+static qbyte		map_hearability[MAX_Q2MAP_VISIBILITY];
+static q3dvis_t		*map_q3phs = (q3dvis_t *)map_hearability;
 
-int			numareas = 1;
-q2carea_t		map_q2areas[MAX_Q2MAP_AREAS];
-q3carea_t		map_q3areas[MAX_CM_AREAS];
+static int			numentitychars;
+static char		*map_entitystring;
 
-int			numareaportals;
-q2dareaportal_t map_areaportals[MAX_Q2MAP_AREAPORTALS];
+static int			numareas = 1;
+static q2carea_t		map_q2areas[MAX_Q2MAP_AREAS];
+static q3carea_t		map_q3areas[MAX_CM_AREAS];
 
-q3cpatch_t	map_patches[MAX_CM_PATCHES];
-int			numpatches;
+static int			numareaportals;
+static q2dareaportal_t map_areaportals[MAX_Q2MAP_AREAPORTALS];
 
-int			map_leafpatches[MAX_CM_LEAFFACES];
-int			numleafpatches;
+static q3cpatch_t	map_patches[MAX_CM_PATCHES];
+static int			numpatches;
 
-int			numclusters = 1;
+static int			map_leafpatches[MAX_CM_LEAFFACES];
+static int			numleafpatches;
 
-q2mapsurface_t	nullsurface;
+static int			numclusters = 1;
 
-int			floodvalid;
+static q2mapsurface_t	nullsurface;
 
-qbyte	portalopen[MAX_Q2MAP_AREAPORTALS];	//memset will work if it's a qbyte, really it should be a qboolean
+static int			floodvalid;
+
+static qbyte	portalopen[MAX_Q2MAP_AREAPORTALS];	//memset will work if it's a qbyte, really it should be a qboolean
 
 
 static int	mapisq3;
@@ -336,42 +339,33 @@ cvar_t		map_autoopenportals	= SCVAR("map_autoopenportals", "1");	//1 for lack of
 cvar_t		r_subdivisions		= SCVAR("r_subdivisions", "2");
 
 int		CM_NumInlineModels (model_t *model);
-q2cmodel_t	*CM_InlineModel (char *name);
+cmodel_t	*CM_InlineModel (char *name);
 void	CM_InitBoxHull (void);
 void	FloodAreaConnections (void);
 
 
-int		c_pointcontents;
-int		c_traces, c_brush_traces;
+static int		c_pointcontents;
+static int		c_traces, c_brush_traces;
 
 
-vecV_t		*map_verts;	//3points
-int			numvertexes;
+static vecV_t		*map_verts;	//3points
+static int			numvertexes;
 
-vec2_t		*map_vertstmexcoords;
-vec2_t		*map_vertlstmexcoords;
-vec4_t		*map_colors4f_array;
-vec3_t		*map_normals_array;
-vec3_t		*map_svector_array;
-vec3_t		*map_tvector_array;
-
-typedef struct {
-	char		shader[MAX_QPATH];
-	int			brushNum;
-	int			visibleSide;	// the brush side that ray tests need to clip against (-1 == none)
-} dfog_t;
-
-mfog_t		*map_fogs;
-int			map_numfogs;
+static vec2_t		*map_vertstmexcoords;
+static vec2_t		*map_vertlstmexcoords;
+static vec4_t		*map_colors4f_array;
+static vec3_t		*map_normals_array;
+static vec3_t		*map_svector_array;
+static vec3_t		*map_tvector_array;
 
 q3cface_t	*map_faces;
-int			numfaces;
+static int			numfaces;
 
-index_t *map_surfindexes;
-int	map_numsurfindexes;
+static index_t *map_surfindexes;
+static int	map_numsurfindexes;
 
-int			*map_leaffaces;
-int			numleaffaces;
+static int			*map_leaffaces;
+static int			numleaffaces;
 
 
 
@@ -1016,7 +1010,7 @@ CMod_LoadSubmodels
 qboolean CMod_LoadSubmodels (lump_t *l)
 {
 	q2dmodel_t	*in;
-	q2cmodel_t	*out;
+	cmodel_t	*out;
 	int			i, j, count;
 
 	in = (void *)(cmod_base + l->fileofs);
@@ -1924,7 +1918,7 @@ qboolean CModQ3_LoadMarksurfaces (lump_t *l)
 qboolean CModQ3_LoadSubmodels (lump_t *l)
 {
 	q3dmodel_t	*in;
-	q2cmodel_t	*out;
+	cmodel_t	*out;
 	int			i, j, count;
 	int			*leafbrush;
 	mleaf_t		*bleaf;
@@ -3567,7 +3561,7 @@ CM_LoadMap
 Loads in the map and all submodels
 ==================
 */
-q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *checksum)
+cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *checksum)
 {
 	unsigned		*buf;
 	int				i,j;
@@ -3874,7 +3868,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 		#ifndef SERVERONLY
 			noerrors = noerrors && CMod_LoadTexInfo		(&header.lumps[Q2LUMP_TEXINFO]);
 			noerrors = noerrors && CMod_LoadFaces			(&header.lumps[Q2LUMP_FACES]);
-			noerrors = noerrors && RMod_LoadMarksurfaces	(&header.lumps[Q2LUMP_LEAFFACES]);
+			noerrors = noerrors && RMod_LoadMarksurfaces	(&header.lumps[Q2LUMP_LEAFFACES], false);
 		#endif
 			noerrors = noerrors && CMod_LoadVisibility		(&header.lumps[Q2LUMP_VISIBILITY]);
 			noerrors = noerrors && CMod_LoadBrushes		(&header.lumps[Q2LUMP_BRUSHES]);
@@ -3945,7 +3939,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 
 		for (i=1 ; i< loadmodel->numsubmodels ; i++)
 		{
-			q2cmodel_t	*bm;
+			cmodel_t	*bm;
 
 			char	name[10];
 
@@ -3988,7 +3982,7 @@ q2cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned 
 CM_InlineModel
 ==================
 */
-q2cmodel_t	*CM_InlineModel (char *name)
+cmodel_t	*CM_InlineModel (char *name)
 {
 	int		num;
 

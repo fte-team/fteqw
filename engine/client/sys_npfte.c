@@ -125,6 +125,8 @@ LRESULT CALLBACK MyPluginWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 */
 		return TRUE;
 
+	case WM_ERASEBKGND:
+		return FALSE;
 	case WM_PAINT:
 		if (pub->downloading)
 		{

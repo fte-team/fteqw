@@ -59,7 +59,6 @@ void GL_DrawHeightmapModel (batch_t **batches, entity_t *e)
 	heightmap_t *hm = m->terrain;
 	mesh_t *mesh;
 	batch_t *b;
-	vbo_t *vbo;
 
 	if (e->model == cl.worldmodel)
 	{

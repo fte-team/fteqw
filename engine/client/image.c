@@ -2179,6 +2179,7 @@ texid_tf GL_LoadTextureDDS(char *iname, unsigned char *buffer, int filesize)
 	int intfmt;
 	int pad;
 	unsigned int w, h;
+	int divsize, blocksize;
 
 	ddsheader fmtheader;
 	if (*(int*)buffer != *(int*)"DDS ")
@@ -2199,16 +2200,22 @@ texid_tf GL_LoadTextureDDS(char *iname, unsigned char *buffer, int filesize)
 	{
 		intfmt = GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;	//alpha or not? Assume yes, and let the drivers decide.
 		pad = 8;
+		divsize = 4;
+		blocksize = 8;
 	}
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT3")
 	{
 		intfmt = GL_COMPRESSED_RGBA_S3TC_DXT3_EXT;
 		pad = 8;
+		divsize = 4;
+		blocksize = 16;
 	}
 	else if (*(int*)&fmtheader.ddpfPixelFormat.dwFourCC == *(int*)"DXT5")
 	{
 		intfmt = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
 		pad = 8;
+		divsize = 4;
+		blocksize = 16;
 	}
 	else
 		return r_nulltex;
@@ -2220,22 +2227,20 @@ texid_tf GL_LoadTextureDDS(char *iname, unsigned char *buffer, int filesize)
 	GL_MTBind(0, GL_TEXTURE_2D, texnum);
 
 	datasize = fmtheader.dwPitchOrLinearSize;
+	w = fmtheader.dwWidth;
+	h = fmtheader.dwHeight;
 	for (mipnum = 0; mipnum < nummips; mipnum++)
 	{
 //	(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const GLvoid* data);
 		if (datasize < pad)
 			datasize = pad;
-		w = fmtheader.dwWidth>>mipnum;
-		if (w < 1)
-			w = 1;
-		h = fmtheader.dwHeight>>mipnum;
-		if (h < 1)
-			h = 1;
+		datasize = max(divsize, w)/divsize * max(divsize, h)/divsize * blocksize;
 		qglCompressedTexImage2DARB(GL_TEXTURE_2D, mipnum, intfmt, w, h, 0, datasize, buffer);
 		if (qglGetError())
 			Con_Printf("Incompatible dds file %s (mip %i)\n", iname, mipnum);
 		buffer += datasize;
-		datasize/=4;
+		w = (w+1)>>1;
+		h = (h+1)>>1;
 	}
 	if (qglGetError())
 		Con_Printf("Incompatible dds file %s\n", iname);

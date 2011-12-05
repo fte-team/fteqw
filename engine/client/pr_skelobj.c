@@ -24,27 +24,33 @@ this file deals with qc builtins to apply custom skeletal blending (skeletal obj
 #include "quakedef.h"
 
 #ifdef CSQC_DAT
+#define RAGDOLL
 
 #include "pr_common.h"
+#include "com_mesh.h"
 
 #define MAX_SKEL_OBJECTS 1024
 
+#ifdef RAGDOLL
 /*this is the description of the ragdoll, it is how the doll flops around*/
 typedef struct doll_s
 {
 	char *name;
+	model_t *model;
 	struct doll_s *next;
 
 	int numbodies;
+	int numjoints;
 	struct
 	{
-		int joint;
+		int bone;
 		char *name;
 	} body[32];
-//	struct
-//	{
-
-//	};
+	struct
+	{
+		int type;
+		int body[2];
+	} joint[32];
 } doll_t;
 
 enum
@@ -52,94 +58,266 @@ enum
 	BF_ACTIVE, /*used to avoid traces if doll is stationary*/
 	BF_INSOLID
 };
-typedef struct {
+typedef struct
+{
 	int jointo;	/*multiple of 12*/
 	int flags;
 	vec3_t vel;
 } body_t;
+#endif
 
 /*this is the skeletal object*/
-typedef struct {
+typedef struct skelobject_s
+{
 	int inuse;
 
 	model_t *model;
+	world_t *world; /*be it ssqc or csqc*/
 	enum
 	{
-		SKOT_HBLEND,
-		SKOT_ABLEND,
-		SKOT_ARAG
+		SKOT_RELATIVE,
+		SKOT_ABSOLUTE
 	} type;
 
 	unsigned int numbones;
 	float *bonematrix;
-/*
+
+#ifdef RAGDOLL
+	struct skelobject_s *animsource;
 	unsigned int numbodies;
 	body_t *body;
 	doll_t *doll;
-	*/
+#endif
 } skelobject_t;
 
 static doll_t *dolllist;
 static skelobject_t skelobjects[MAX_SKEL_OBJECTS];
 static int numskelobjectsused;
 
+static void bonemat_fromqcvectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3])
+{
+	out[0] = vx[0];
+	out[1] = -vy[0];
+	out[2] = vz[0];
+	out[3] = t[0];
+	out[4] = vx[1];
+	out[5] = -vy[1];
+	out[6] = vz[1];
+	out[7] = t[1];
+	out[8] = vx[2];
+	out[9] = -vy[2];
+	out[10] = vz[2];
+	out[11] = t[2];
+}
+static void bonemat_toqcvectors(const float *in, float vx[3], float vy[3], float vz[3], float t[3])
+{
+	vx[0] = in[0];
+	vx[1] = in[4];
+	vx[2] = in[8];
+	vy[0] = -in[1];
+	vy[1] = -in[5];
+	vy[2] = -in[9];
+	vz[0] = in[2];
+	vz[1] = in[6];
+	vz[2] = in[10];
+	t [0] = in[3];
+	t [1] = in[7];
+	t [2] = in[11];
+}
+
+static void bonematident_toqcvectors(float vx[3], float vy[3], float vz[3], float t[3])
+{
+	vx[0] = 1;
+	vx[1] = 0;
+	vx[2] = 0;
+	vy[0] = -0;
+	vy[1] = -1;
+	vy[2] = -0;
+	vz[0] = 0;
+	vz[1] = 0;
+	vz[2] = 1;
+	t [0] = 0;
+	t [1] = 0;
+	t [2] = 0;
+}
+
+
 static qboolean pendingkill; /*states that there is a skel waiting to be killed*/
-#if 0
-doll_t *rag_loaddoll(char *fname)
+#ifdef RAGDOLL
+doll_t *rag_loaddoll(model_t *mod, char *fname)
 {
 	doll_t *d;
 	void *fptr = NULL;
+	char *file;
 	int fsize;
+	int i, j;
 
 	for (d = dolllist; d; d = d->next)
 	{
-		if (!strcmp(d->name, fname))
-			return d;
+		if (d->model == mod)
+			if (!strcmp(d->name, fname))
+				return d;
 	}
 
 	fsize = FS_LoadFile(fname, &fptr);
 	if (!fptr)
 		return NULL;
+	d = malloc(sizeof(*d));
+	d->next = dolllist;
+	dolllist = d;
+	d->name = strdup(fname);
+	d->model = mod;
+	d->numbodies = 0;
+	d->numjoints = 0;
+	file = fptr;
+	while(file)
+	{
+		file = COM_Parse(file);
+		if (!strcmp(com_token, "body"))
+		{
+			file = COM_Parse(file);
+			d->body[d->numbodies].name = strdup(com_token);
+			file = COM_Parse(file);
+			d->body[d->numbodies].bone = Mod_TagNumForName(d->model, com_token);
+			d->numbodies++;
+		}
+		else if (!strcmp(com_token, "joint"))
+		{
+			for (i = 0; i < 2; i++)
+			{
+				file = COM_Parse(file);
+				d->joint[d->numjoints].body[i] = 0;
+				for (j = 0; j < d->numbodies; j++)
+				{
+					if (!strcmp(d->body[j].name, com_token))
+					{
+						d->joint[d->numjoints].body[i] = j;
+						break;
+					}
+				}
+			}
+			d->numjoints++;
+		}
+	}
 	FS_FreeFile(fptr);
+	return d;
 }
 
-void skel_integrate(progfuncs_t *prinst, skelobject_t *sko, float ft)
+void skel_integrate(progfuncs_t *prinst, skelobject_t *sko, skelobject_t *skelobjsrc, float ft, float mmat[12])
 {
-	unsigned int p;
 	trace_t t;
-	vec3_t npos, opos;
+	vec3_t npos, opos, wnpos, wopos;
+	vec3_t move;
+	float wantmat[12];
 	world_t *w = prinst->parms->user;
 	body_t *b;
 	float gravity = 800;
+	int bone, bno;
+	int boffs;
+	galiasbone_t *boneinfo = Mod_GetBoneInfo(sko->model);
+	if (!boneinfo)
+		return;
 
-	for (p = 0, b = sko->body; p < sko->numbodies; p++, b++)
+	for (bone = 0, bno = 0, b = sko->body; bone < sko->numbones; bone++)
 	{
-		/*handle gravity*/
-		b->vel[2] = b->vel[2] - gravity * ft / 2;
+		boffs = bone*12;
+		/*if this bone is positioned using a physical body...*/
+		if (bno < sko->numbodies && b->jointo == boffs)
+		{
+			if (skelobjsrc)
+			{
+				/*attempt to move to target*/
+				if (boneinfo[bone].parent >= 0)
+				{
+					Matrix3x4_Multiply(skelobjsrc->bonematrix+boffs, sko->bonematrix+12*boneinfo[bone].parent, wantmat);
+				}
+				else
+				{
+					Vector4Copy(skelobjsrc->bonematrix+boffs+0, wantmat+0);
+					Vector4Copy(skelobjsrc->bonematrix+boffs+4, wantmat+4);
+					Vector4Copy(skelobjsrc->bonematrix+boffs+8, wantmat+8);
+				}
+				b->vel[0] = (wantmat[3 ] - sko->bonematrix[b->jointo + 3 ])/ft;
+				b->vel[1] = (wantmat[7 ] - sko->bonematrix[b->jointo + 7 ])/ft;
+				b->vel[2] = (wantmat[11] - sko->bonematrix[b->jointo + 11])/ft;
+			}
+			else
+			{
+				/*handle gravity*/
+				b->vel[2] = b->vel[2] - gravity * ft / 2;
+			}
 
-		opos[0] = sko->bonematrix[b->jointo + 3 ];
-		opos[1] = sko->bonematrix[b->jointo + 7 ];
-		opos[2] = sko->bonematrix[b->jointo + 11];
-		npos[0] = opos[0] + b->vel[0]*ft;
-		npos[1] = opos[1] + b->vel[1]*ft;
-		npos[2] = opos[2] + b->vel[2]*ft;
-		t = World_Move(w, opos, vec3_origin, vec3_origin, npos, MOVE_NOMONSTERS, w->edicts);
-		sko->bonematrix[b->jointo + 3 ] = t.endpos[0];
-		sko->bonematrix[b->jointo + 7 ] = t.endpos[1];
-		sko->bonematrix[b->jointo + 11] = t.endpos[2];
+			VectorScale(b->vel, ft, move);
 
-		/*handle gravity again to compensate for framerate*/
-		b->vel[2] = b->vel[2] - gravity * ft / 2;
+			opos[0] = sko->bonematrix[b->jointo + 3 ];
+			opos[1] = sko->bonematrix[b->jointo + 7 ];
+			opos[2] = sko->bonematrix[b->jointo + 11];
+			npos[0] = opos[0] + move[0];
+			npos[1] = opos[1] + move[1];
+			npos[2] = opos[2] + move[2];
+
+			Matrix3x4_RM_Transform3(mmat, opos, wopos);
+			Matrix3x4_RM_Transform3(mmat, npos, wnpos);
+
+			t = World_Move(w, wopos, vec3_origin, vec3_origin, wnpos, MOVE_NOMONSTERS, w->edicts);
+			if (t.startsolid)
+				t.fraction = 1;
+			else if (t.fraction < 1)
+			{
+				/*clip the velocity*/
+				float backoff = -DotProduct (b->vel, t.plane.normal) * 1.9; /*teehee, bouncy corpses*/
+				VectorMA(b->vel, backoff, t.plane.normal, b->vel);
+			}
+			if (skelobjsrc)
+			{
+				VectorCopy(wantmat+0, sko->bonematrix+b->jointo+0);
+				VectorCopy(wantmat+4, sko->bonematrix+b->jointo+4);
+				VectorCopy(wantmat+8, sko->bonematrix+b->jointo+8);
+			}
+
+			sko->bonematrix[b->jointo + 3 ] += move[0] * t.fraction;
+			sko->bonematrix[b->jointo + 7 ] += move[1] * t.fraction;
+			sko->bonematrix[b->jointo + 11] += move[2] * t.fraction;
+
+			if (!skelobjsrc)
+				b->vel[2] = b->vel[2] - gravity * ft / 2;
+
+			b++;
+			bno++;
+		}
+		else if (skelobjsrc)
+		{
+			/*directly copy animation skeleton*/
+			if (boneinfo[bone].parent >= 0)
+			{
+				Matrix3x4_Multiply(skelobjsrc->bonematrix+boffs, sko->bonematrix+12*boneinfo[bone].parent, sko->bonematrix+boffs);
+			}
+			else
+			{
+				Vector4Copy(skelobjsrc->bonematrix+boffs+0, sko->bonematrix+boffs+0);
+				Vector4Copy(skelobjsrc->bonematrix+boffs+4, sko->bonematrix+boffs+4);
+				Vector4Copy(skelobjsrc->bonematrix+boffs+8, sko->bonematrix+boffs+8);
+			}
+		}
+		else
+		{
+			/*retain the old relation*/
+			/*FIXME*/
+		}
 	}
-	
+
+	/*debugging*/
+#if 0
 	/*draw points*/
-	for (p = 0, b = sko->body; p < sko->numbodies; p++, b++)
+	for (bone = 0; p < sko->numbones; bone++)
 	{
-		opos[0] = sko->bonematrix[b->jointo + 3 ];
-		opos[1] = sko->bonematrix[b->jointo + 7 ];
-		opos[2] = sko->bonematrix[b->jointo + 11];
-		P_RunParticleEffectTypeString(opos, b->vel, 1, "ragdolltest");
+		opos[0] = sko->bonematrix[bone*12 + 3 ];
+		opos[1] = sko->bonematrix[bone*12 + 7 ];
+		opos[2] = sko->bonematrix[bone*12 + 11];
+		Matrix3x4_RM_Transform3(mmat, opos, wopos);
+		P_RunParticleEffectTypeString(wopos, vec3_origin, 1, "ragdolltest");
 	}
+#endif
 }
 #endif
 
@@ -193,6 +371,7 @@ skelobject_t *skel_get(progfuncs_t *prinst, int skelidx, int bonecount)
 				skelobjects[skelidx].numbones = bonecount;
 				/*so bone matrix list can be mmapped some day*/
 				skelobjects[skelidx].bonematrix = (float*)PR_AddString(prinst, "", sizeof(float)*12*bonecount);
+				skelobjects[skelidx].world = prinst->parms->user;
 				if (skelidx <= numskelobjectsused)
 				{
 					numskelobjectsused = skelidx + 1;
@@ -223,9 +402,75 @@ void skel_lookup(progfuncs_t *prinst, int skelidx, framestate_t *out)
 	skelobject_t *sko = skel_get(prinst, skelidx, 0);
 	if (sko && sko->inuse)
 	{
+		out->boneabs = sko->type;
 		out->bonecount = sko->numbones;
 		out->bonestate = sko->bonematrix;
 	}
+}
+
+void QCBUILTIN PF_skel_mmap(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int skelidx = G_FLOAT(OFS_PARM0);
+	skelobject_t *sko = skel_get(prinst, skelidx, 0);
+	if (!sko || sko->world != prinst->parms->user)
+		G_INT(OFS_RETURN) = 0;
+	else
+		G_INT(OFS_RETURN) = PR_SetString(prinst, (void*)sko->bonematrix);
+}
+
+void QCBUILTIN PF_skel_ragedit(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+#ifdef RAGDOLL
+	int skelidx = G_FLOAT(OFS_PARM0);
+	char *skelname = PR_GetStringOfs(prinst, OFS_PARM1);
+	int parentskel = G_FLOAT(OFS_PARM2);
+	float *entorg = G_VECTOR(OFS_PARM3);
+	float *forward = G_VECTOR(OFS_PARM4);
+	float *right = G_VECTOR(OFS_PARM5);
+	float *up = G_VECTOR(OFS_PARM6);
+	skelobject_t *sko, *psko;
+	doll_t *doll;
+	int i;
+	float emat[12];
+
+	bonemat_fromqcvectors(emat, forward, right, up, entorg);
+
+	G_FLOAT(OFS_RETURN) = 0;
+
+	sko = skel_get(prinst, skelidx, 0);
+	if (!sko)
+		return;
+
+	if (*skelname)
+	{
+		doll = rag_loaddoll(sko->model, skelname);
+		if (!doll)
+			return;
+	}
+	else
+	{
+		/*no doll name makes it revert to a normal skeleton*/
+		sko->doll = NULL;
+		G_FLOAT(OFS_RETURN) = 1;
+		return;
+	}
+
+	if (sko->doll != doll)
+	{
+		sko->doll = doll;
+		free(sko->body);
+		sko->numbodies = doll->numbodies;
+		sko->body = malloc(sko->numbodies * sizeof(*sko->body));
+		memset(sko->body, 0, sko->numbodies * sizeof(*sko->body));
+		for (i = 0; i < sko->numbodies; i++)
+			sko->body[i].jointo = doll->body[i].bone * 12;
+	}
+
+	psko = skel_get(prinst, parentskel, 0);
+	skel_integrate(prinst, sko, psko, host_frametime, emat);
+
+	G_FLOAT(OFS_RETURN) = 1;
+#endif
 }
 
 //float(float modelindex) skel_create (FTE_CSQC_SKELETONOBJECTS)
@@ -238,14 +483,9 @@ void QCBUILTIN PF_skel_create (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	model_t *model;
 	int midx;
 	int type;
-	char *afname;
 
 	midx = G_FLOAT(OFS_PARM0);
-
-	if (*prinst->callargc > 1)
-		afname = PR_GetStringOfs(prinst, OFS_PARM1);
-	else
-		afname = "";
+	type = (*prinst->callargc > 1)?G_FLOAT(OFS_PARM1):SKOT_RELATIVE;
 
 	//default to failure
 	G_FLOAT(OFS_RETURN) = 0;
@@ -254,8 +494,7 @@ void QCBUILTIN PF_skel_create (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	if (!model)
 		return; //no model set, can't get a skeleton
 
-	type = SKOT_HBLEND;
-	numbones = Mod_GetNumBones(model, type != SKOT_HBLEND);
+	numbones = Mod_GetNumBones(model, type != SKOT_RELATIVE);
 	if (!numbones)
 	{
 //		isabs = true;
@@ -437,53 +676,6 @@ void QCBUILTIN PF_skel_find_bone (progfuncs_t *prinst, struct globalvars_s *pr_g
 		G_FLOAT(OFS_RETURN) = Mod_TagNumForName(skelobj->model, bname);
 }
 
-static void bonemat_fromqcvectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3])
-{
-	out[0] = vx[0];
-	out[1] = -vy[0];
-	out[2] = vz[0];
-	out[3] = t[0];
-	out[4] = vx[1];
-	out[5] = -vy[1];
-	out[6] = vz[1];
-	out[7] = t[1];
-	out[8] = vx[2];
-	out[9] = -vy[2];
-	out[10] = vz[2];
-	out[11] = t[2];
-}
-static void bonemat_toqcvectors(const float *in, float vx[3], float vy[3], float vz[3], float t[3])
-{
-	vx[0] = in[0];
-	vx[1] = in[4];
-	vx[2] = in[8];
-	vy[0] = -in[1];
-	vy[1] = -in[5];
-	vy[2] = -in[9];
-	vz[0] = in[2];
-	vz[1] = in[6];
-	vz[2] = in[10];
-	t [0] = in[3];
-	t [1] = in[7];
-	t [2] = in[11];
-}
-
-static void bonematident_toqcvectors(float vx[3], float vy[3], float vz[3], float t[3])
-{
-	vx[0] = 1;
-	vx[1] = 0;
-	vx[2] = 0;
-	vy[0] = -0;
-	vy[1] = -1;
-	vy[2] = -0;
-	vz[0] = 0;
-	vz[1] = 0;
-	vz[2] = 1;
-	t [0] = 0;
-	t [1] = 0;
-	t [2] = 0;
-}
-
 //vector(float skel, float bonenum) skel_get_bonerel (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
 void QCBUILTIN PF_skel_get_bonerel (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -493,10 +685,16 @@ void QCBUILTIN PF_skel_get_bonerel (progfuncs_t *prinst, struct globalvars_s *pr
 	skelobject_t *skelobj = skel_get(prinst, skelidx, 0);
 	if (!skelobj || (unsigned int)boneidx >= skelobj->numbones)
 		bonematident_toqcvectors(w->g.v_forward, w->g.v_right, w->g.v_up, G_VECTOR(OFS_RETURN));
-	else if (skelobj->type!=SKOT_HBLEND)
+	else if (skelobj->type!=SKOT_RELATIVE)
 	{
-		//FIXME
-		bonematident_toqcvectors(w->g.v_forward, w->g.v_right, w->g.v_up, G_VECTOR(OFS_RETURN));
+		float tmp[12];
+		float invparent[12];
+		int parent;
+		/*invert the parent, multiply that against the child, we now know the transform required to go from parent to child. woo.*/
+		parent = Mod_GetBoneParent(skelobj->model, boneidx+1)-1;
+		Matrix3x4_Invert(skelobj->bonematrix+12*parent, invparent);
+		Matrix3x4_Multiply(invparent, skelobj->bonematrix+12*boneidx, tmp);
+		bonemat_toqcvectors(tmp, w->g.v_forward, w->g.v_right, w->g.v_up, G_VECTOR(OFS_RETURN));
 	}
 	else
 		bonemat_toqcvectors(skelobj->bonematrix+12*boneidx, w->g.v_forward, w->g.v_right, w->g.v_up, G_VECTOR(OFS_RETURN));
@@ -514,7 +712,7 @@ void QCBUILTIN PF_skel_get_boneabs (progfuncs_t *prinst, struct globalvars_s *pr
 
 	if (!skelobj || (unsigned int)boneidx >= skelobj->numbones)
 		bonematident_toqcvectors(w->g.v_forward, w->g.v_right, w->g.v_up, G_VECTOR(OFS_RETURN));
-	else if (skelobj->type != SKOT_HBLEND)
+	else if (skelobj->type != SKOT_RELATIVE)
 	{
 		//can just copy it out
 		bonemat_toqcvectors(skelobj->bonematrix + boneidx*12, w->g.v_forward, w->g.v_right, w->g.v_up, G_VECTOR(OFS_RETURN));
@@ -620,13 +818,19 @@ void QCBUILTIN PF_skel_mul_bones (progfuncs_t *prinst, struct globalvars_s *pr_g
 
 	if (startbone == -1)
 		startbone = 0;
-//testme
-	while(startbone < endbone && startbone < skelobj->numbones)
+	if (endbone == -1)
+		endbone = skelobj->numbones;
+	else if (endbone > skelobj->numbones)
+		endbone = skelobj->numbones;
+
+	while(startbone < endbone)
 	{
 		Vector4Copy(skelobj->bonematrix+12*startbone+0, temp[0]);
 		Vector4Copy(skelobj->bonematrix+12*startbone+4, temp[1]);
 		Vector4Copy(skelobj->bonematrix+12*startbone+8, temp[2]);
 		R_ConcatTransforms(mult, temp, (float(*)[4])(skelobj->bonematrix+12*startbone));
+
+		startbone++;
 	}
 }
 
@@ -645,17 +849,48 @@ void QCBUILTIN PF_skel_copybones (progfuncs_t *prinst, struct globalvars_s *pr_g
 	skelobjsrc = skel_get(prinst, skelsrc, 0);
 	if (!skelobjdst || !skelobjsrc)
 		return;
-	if (skelobjsrc->type != skelobjdst->type)
-		return;
-
 	if (startbone == -1)
 		startbone = 0;
-//testme
-	while(startbone < endbone && startbone < skelobjdst->numbones && startbone < skelobjsrc->numbones)
+	if (endbone == -1)
+		endbone = skelobjdst->numbones;
+	if (endbone > skelobjdst->numbones)
+		endbone = skelobjdst->numbones;
+	if (endbone > skelobjsrc->numbones)
+		endbone = skelobjsrc->numbones;
+
+	if (skelobjsrc->type == skelobjdst->type)
 	{
-		Vector4Copy(skelobjsrc->bonematrix+12*startbone+0, skelobjdst->bonematrix+12*startbone+0);
-		Vector4Copy(skelobjsrc->bonematrix+12*startbone+4, skelobjdst->bonematrix+12*startbone+4);
-		Vector4Copy(skelobjsrc->bonematrix+12*startbone+8, skelobjdst->bonematrix+12*startbone+8);
+		while(startbone < endbone)
+		{
+			Vector4Copy(skelobjsrc->bonematrix+12*startbone+0, skelobjdst->bonematrix+12*startbone+0);
+			Vector4Copy(skelobjsrc->bonematrix+12*startbone+4, skelobjdst->bonematrix+12*startbone+4);
+			Vector4Copy(skelobjsrc->bonematrix+12*startbone+8, skelobjdst->bonematrix+12*startbone+8);
+
+			startbone++;
+		}
+	}
+	else if (skelobjsrc->type == SKOT_RELATIVE && skelobjdst->type == SKOT_ABSOLUTE)
+	{
+		/*copy from relative to absolute*/
+
+		galiasbone_t *boneinfo = Mod_GetBoneInfo(skelobjsrc->model);
+		if (!boneinfo)
+			return;
+		while(startbone < endbone)
+		{
+			if (boneinfo[startbone].parent >= 0)
+			{
+				Matrix3x4_Multiply(skelobjsrc->bonematrix+12*startbone, skelobjdst->bonematrix+12*boneinfo[startbone].parent, skelobjdst->bonematrix+12*startbone);
+			}
+			else
+			{
+				Vector4Copy(skelobjsrc->bonematrix+12*startbone+0, skelobjdst->bonematrix+12*startbone+0);
+				Vector4Copy(skelobjsrc->bonematrix+12*startbone+4, skelobjdst->bonematrix+12*startbone+4);
+				Vector4Copy(skelobjsrc->bonematrix+12*startbone+8, skelobjdst->bonematrix+12*startbone+8);
+			}
+
+			startbone++;
+		}
 	}
 }
 
@@ -669,6 +904,7 @@ void QCBUILTIN PF_skel_delete (progfuncs_t *prinst, struct globalvars_s *pr_glob
 	if (skelobj)
 	{
 		skelobj->inuse = 2;	//2 means don't reuse yet.
+		skelobj->model = NULL;
 		pendingkill = true;
 	}
 }

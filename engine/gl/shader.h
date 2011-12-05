@@ -306,6 +306,7 @@ typedef struct {
 		SP_LIGHTRADIUS, /*these light values are realtime lighting*/
 		SP_LIGHTCOLOUR,
 		SP_LIGHTPOSITION,
+		SP_LIGHTSCREEN,
 
 		//things that are set immediatly
 		SP_FIRSTIMMEDIATE,	//never set
@@ -402,7 +403,7 @@ struct shader_s
 
 	skydome_t	*skydome;
 	shader_gen_t *generator;
-	const char	*genargs;
+	char	*genargs;
 
 	meshfeatures_t features;
 	bucket_t bucket;
@@ -438,7 +439,7 @@ void Shader_DoReload(void);
 void R_BackendInit (void);
 void Shader_Shutdown (void);
 qboolean Shader_Init (void);
-void Shader_NeedReload(void);
+void Shader_NeedReload(qboolean rescanfs);
 void Shader_WriteOutGenerics_f(void);
 
 mfog_t *CM_FogForOrigin(vec3_t org);
@@ -502,7 +503,7 @@ void BE_SetupForShadowMap(void);
 //Called from shadowmapping code into backend
 void BE_BaseEntTextures(void);
 //Draws lights, called from the backend
-void Sh_DrawLights(qbyte *vis);
+void Sh_DrawLights(qbyte *vis, batch_t **mbatches);
 void Sh_Shutdown(void);
 //Draws the depth of ents in the world near the current light
 void BE_BaseEntShadowDepth(void);

@@ -673,7 +673,7 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 	{
 		if (var->string && value)
 			if (strcmp(var->string, value))
-				Shader_NeedReload();
+				Shader_NeedReload(false);
 	}
 	if (var->flags & CVAR_USERINFO)
 	{
@@ -833,8 +833,9 @@ void Cvar_ForceCheatVars(qboolean semicheats, qboolean absolutecheats)
 	}
 }
 
-void Cvar_ApplyLatches(int latchflag)
+int Cvar_ApplyLatches(int latchflag)
 {
+	int result = 0;
 	cvar_group_t	*grp;
 	cvar_t	*var;
 	int mask = ~0;
@@ -854,10 +855,14 @@ void Cvar_ApplyLatches(int latchflag)
 				var->flags &= ~latchflag;
 				Cvar_Set(var, var->latched_string);
 				var->flags = of;
+
+				result++;
 			}
 			var->flags &= mask;
 		}
 	}
+
+	return result;
 }
 
 cvar_t *Cvar_Set (cvar_t *var, const char *value)

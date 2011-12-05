@@ -384,6 +384,8 @@ int ShowMapList (const char *name, int flags, void *parm)
 void SV_MapList_f(void)
 {
 	COM_EnumerateFiles("maps/*.bsp", ShowMapList, NULL);
+	COM_EnumerateFiles("maps/*.cm", ShowMapList, NULL);
+	COM_EnumerateFiles("maps/*.hmp", ShowMapList, NULL);
 }
 
 void gtcallback(struct cvar_s *var, char *oldvalue)
@@ -615,7 +617,14 @@ void SV_Map_f (void)
 	SCR_ImageName(level);
 #endif
 
-	SV_BroadcastCommand ("changing \"%s\"\n", level);
+	for (i=0, host_client = svs.clients ; i<MAX_CLIENTS ; i++, host_client++)
+	{
+		/*pass the new map's name as an extension, so appropriate loading screens can be shown*/
+		if (ISNQCLIENT(host_client))
+			SV_StuffcmdToClient(host_client, va("restart \"%s\"\n", level));
+		else
+			SV_StuffcmdToClient(host_client, va("changing \"%s\"\n", level));
+	}
 	SV_SendMessagesToAll ();
 
 	if (newunit || !startspot || !SV_LoadLevelCache(NULL, level, startspot, false))

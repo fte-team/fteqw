@@ -305,6 +305,7 @@ static void PClassic_DrawParticles(void)
 
 	if (!active_particles)
 	{
+		oldtime = cl.time;
 		return;
 	}
 

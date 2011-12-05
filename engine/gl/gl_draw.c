@@ -1683,7 +1683,7 @@ void GL_UploadBump(qbyte *data, int width, int height, qboolean mipmap, float bu
 		miplevel = 0;
 		while (scaled_width > 1 || scaled_height > 1)
 		{
-			GL_MipMapNormal(nmap,scaled_width,scaled_height);
+			GL_MipMap(nmap,scaled_width,scaled_height);
 			//GL_MipMapGray((qbyte *)scaled, scaled_width, scaled_height);
 			scaled_width >>= 1;
 			scaled_height >>= 1;

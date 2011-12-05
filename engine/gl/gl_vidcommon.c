@@ -284,7 +284,7 @@ qboolean gammaworks;	//if the gl drivers can set proper gamma.
 
 
 gl_config_t gl_config;
-int		gl_canstencil;
+int		gl_stencilbits;
 
 float		gldepthmin, gldepthmax;
 const char *gl_vendor;
@@ -495,6 +495,9 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 	if (GL_CheckExtension("GL_EXT_stencil_two_side"))
 		qglActiveStencilFaceEXT = (void *) getglext("glActiveStencilFaceEXT");
 
+	if (GL_CheckExtension("GL_ARB_depth_clamp") || GL_CheckExtension("GL_NV_depth_clamp"))
+		gl_config.arb_depth_clamp = true;
+
 	if (GL_CheckExtension("GL_ARB_texture_compression"))
 	{
 		qglCompressedTexImage2DARB = (void *)getglext("glCompressedTexImage2DARB");
@@ -559,7 +562,17 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 	// glslang
 	//the gf2 to gf4 cards emulate vertex_shader and thus supports shader_objects.
 	//but our code kinda requires both for clean workings.
-	if (gl_config.glversion >= 2)// && (gl_config.gles || 0))
+	if (strstr(gl_renderer, " Mesa ") && Cvar_Get("gl_blacklist_mesa_glsl", "1", CVAR_RENDERERLATCH, "gl blacklists")->ival && (gl_config.glversion < 3 || gl_config.gles))
+	{
+//(9:12:33 PM) bigfoot: Spike, can you please blacklist your menu shader on Mesa? My machine just hard locked up again because I forgot that pressing escape in FTE is verboten
+//(11:51:42 PM) bigfoot: OpenGL vendor string: Tungsten Graphics, Inc
+//(11:51:50 PM) bigfoot: OpenGL version string: 2.1 Mesa 7.7.1
+
+//blacklist all glsl, it can't handle #define macros properly either.
+//if the menu shader is hardlocking, I don't know what else will do it too.
+		Con_Printf(CON_NOTICE "Mesa detected, ignoring any GLSL support. Use '+set gl_blacklist_mesa_glsl 0' on the commandline to reenable it.\n");
+	}
+	else if (gl_config.glversion >= 2)// && (gl_config.gles || 0))
 	{
 		/*core names are different from extension names (more functions too)*/
 		gl_config.arb_shader_objects = true;

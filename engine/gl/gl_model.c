@@ -713,6 +713,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 		case 30:	//hl
 		case 29:	//q1
 		case 28:	//prerel
+		case BSPVERSION_LONG:
 			if (!RMod_LoadBrushModel (mod, buf))
 				continue;
 			break;
@@ -2206,7 +2207,7 @@ qboolean RMod_LoadNodes (lump_t *l, qboolean lm)
 			
 			for (j=0 ; j<2 ; j++)
 			{
-				p = LittleShort (in->children[j]);
+				p = LittleLong (in->children[j]);
 				if (p >= 0)
 					out->children[j] = loadmodel->nodes + p;
 				else
@@ -2470,7 +2471,7 @@ Mod_LoadClipnodes
 qboolean RMod_LoadClipnodes (lump_t *l, qboolean lm)
 {
 	dsclipnode_t *ins;
-	dsclipnode_t *inl;
+	dlclipnode_t *inl;
 	mclipnode_t *out;
 	int			i, count;
 	hull_t		*hull;
@@ -2753,33 +2754,62 @@ void RMod_MakeHull0 (void)
 Mod_LoadMarksurfaces
 =================
 */
-qboolean RMod_LoadMarksurfaces (lump_t *l)
+qboolean RMod_LoadMarksurfaces (lump_t *l, qboolean lm)
 {	
 	int		i, j, count;
-	short		*in;
 	msurface_t **out;
-	
-	in = (void *)(mod_base + l->fileofs);
-	if (l->filelen % sizeof(*in))
-	{
-		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
-		return false;
-	}
-	count = l->filelen / sizeof(*in);
-	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
 
-	loadmodel->marksurfaces = out;
-	loadmodel->nummarksurfaces = count;
-
-	for ( i=0 ; i<count ; i++)
+	if (lm)
 	{
-		j = (unsigned short)LittleShort(in[i]);
-		if (j >= loadmodel->numsurfaces)
+		int		*inl;
+		inl = (void *)(mod_base + l->fileofs);
+		if (l->filelen % sizeof(*inl))
 		{
-			Con_Printf (CON_ERROR "Mod_ParseMarksurfaces: bad surface number\n");
+			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 			return false;
 		}
-		out[i] = loadmodel->surfaces + j;
+		count = l->filelen / sizeof(*inl);
+		out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+
+		loadmodel->marksurfaces = out;
+		loadmodel->nummarksurfaces = count;
+
+		for ( i=0 ; i<count ; i++)
+		{
+			j = (unsigned int)LittleLong(inl[i]);
+			if (j >= loadmodel->numsurfaces)
+			{
+				Con_Printf (CON_ERROR "Mod_ParseMarksurfaces: bad surface number\n");
+				return false;
+			}
+			out[i] = loadmodel->surfaces + j;
+		}
+	}
+	else
+	{
+		short		*ins;
+		ins = (void *)(mod_base + l->fileofs);
+		if (l->filelen % sizeof(*ins))
+		{
+			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
+			return false;
+		}
+		count = l->filelen / sizeof(*ins);
+		out = Hunk_AllocName ( count*sizeof(*out), loadname);	
+
+		loadmodel->marksurfaces = out;
+		loadmodel->nummarksurfaces = count;
+
+		for ( i=0 ; i<count ; i++)
+		{
+			j = (unsigned short)LittleShort(ins[i]);
+			if (j >= loadmodel->numsurfaces)
+			{
+				Con_Printf (CON_ERROR "Mod_ParseMarksurfaces: bad surface number\n");
+				return false;
+			}
+			out[i] = loadmodel->surfaces + j;
+		}
 	}
 
 	return true;
@@ -3186,7 +3216,7 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 		noerrors = noerrors && RMod_LoadFaces (&header->lumps[LUMP_FACES], longm);
 	}
 	if (!isDedicated)
-		noerrors = noerrors && RMod_LoadMarksurfaces (&header->lumps[LUMP_MARKSURFACES]);	
+		noerrors = noerrors && RMod_LoadMarksurfaces (&header->lumps[LUMP_MARKSURFACES], longm);	
 	if (noerrors)
 		RMod_LoadVisibility (&header->lumps[LUMP_VISIBILITY]);
 	noerrors = noerrors && RMod_LoadLeafs (&header->lumps[LUMP_LEAFS], longm);

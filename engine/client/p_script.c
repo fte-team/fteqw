@@ -670,7 +670,7 @@ static void P_ParticleEffect_f(void)
 		return;
 	}
 
-	buf = Cbuf_GetNext(Cmd_ExecLevel);
+	buf = Cbuf_GetNext(Cmd_ExecLevel, false);
 	while (*buf && *buf <= ' ')
 		buf++;	//no whitespace please.
 	if (*buf != '{')
@@ -798,7 +798,7 @@ static void P_ParticleEffect_f(void)
 
 	while(1)
 	{
-		buf = Cbuf_GetNext(Cmd_ExecLevel);
+		buf = Cbuf_GetNext(Cmd_ExecLevel, false);
 		if (!*buf)
 		{
 			Con_Printf("Unexpected end of buffer with effect %s\n", ptype->name);
@@ -816,7 +816,47 @@ static void P_ParticleEffect_f(void)
 
 		// TODO: switch this mess to some sort of binary tree to increase
 		// parse speed
-		if (!strcmp(var, "texture"))
+		if (!strcmp(var, "shader"))
+		{
+			Q_strncpyz(ptype->texname, ptype->name, sizeof(ptype->texname));
+			buf = Cbuf_GetNext(Cmd_ExecLevel, true);
+			while (*buf && *buf <= ' ')
+				buf++;	//no leading whitespace please.
+			if (*buf == '{')
+			{
+				int nest = 1;
+				char *str = BZ_Malloc(2);
+				int slen = 2;
+				str[0] = '{';
+				str[1] = '\n';
+				str[2] = 0;
+				while(nest)
+				{
+					buf = Cbuf_GetNext(Cmd_ExecLevel, true);
+					if (!*buf)
+					{
+						Con_Printf("Unexpected end of buffer with effect %s\n", ptype->name);
+						break;
+					}
+					while (*buf && *buf <= ' ')
+						buf++;	//no leading whitespace please.
+					if (*buf == '}')
+						--nest;
+					if (*buf == '{')
+						nest++;
+					str = BZ_Realloc(str, slen + strlen(buf) + 2);
+					strcpy(str + slen, buf);
+					slen += strlen(str + slen);
+					str[slen++] = '\n';
+				}
+				str[slen] = 0;
+				R_RegisterShader(ptype->texname, str);
+				BZ_Free(str);
+			}
+			else
+				Cbuf_InsertText(buf, Cmd_ExecLevel, true);
+		}
+		else if (!strcmp(var, "texture"))
 			Q_strncpyz(ptype->texname, value, sizeof(ptype->texname));
 		else if (!strcmp(var, "tcoords"))
 		{

@@ -1875,6 +1875,7 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 	QCC_def_t	*d;
 	int	f;
 	unsigned short		crc;
+	QCC_def_t *ld;
 //	int		c;
 
 	file[0] = '\0';
@@ -1909,6 +1910,7 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 	ADD3(qcva("\tint\tpad[%i];\n", RESERVED_OFS));
 	for (d=pr.def_head.next ; d ; d=d->next)
 	{
+		ld = d;
 		if (!strcmp (d->name, "end_sys_globals"))
 			break;
 		if (d->ofs<RESERVED_OFS)
@@ -1921,7 +1923,8 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 			break;
 		case ev_vector:
 			ADD(qcva("\tvec3_t\t%s;\n",d->name));
-			d=d->next->next->next;	// skip the elements
+			if (d->deftail)
+				d=d->deftail;	// skip the elements
 			break;
 		case ev_string:
 			ADD(qcva("\tstring_t\t%s;\n",d->name));
@@ -1961,7 +1964,8 @@ unsigned short QCC_PR_WriteProgdefs (char *filename)
 			break;
 		case ev_vector:
 			ADD(qcva("\tvec3_t\t%s;\n",d->name));
-			d=d->next->next->next;	// skip the elements
+			if (d->deftail)
+				d=d->deftail;	// skip the elements
 			break;
 		case ev_string:
 			ADD(qcva("\tstring_t\t%s;\n",d->name));

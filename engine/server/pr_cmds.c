@@ -33,6 +33,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //okay, so these are a quick but easy hack
 void ED_Print (struct progfuncs_s *progfuncs, struct edict_s *ed);
 int PR_EnableEBFSBuiltin(char *name, int binum);
+int PR_CSQC_BuiltinValid(char *name, int num);
 
 /*cvars for the gamecode only*/
 cvar_t	nomonsters = CVAR("nomonsters", "0");
@@ -89,6 +90,8 @@ static void PRSV_ClearThreads(void);
 void PR_fclose_progs(progfuncs_t*);
 void PF_InitTempStrings(progfuncs_t *prinst);
 
+void PR_DumpPlatform_f(void);
+
 typedef struct {
 	//for func finding and swapping.
 	char *name;
@@ -102,6 +105,7 @@ typedef struct {
 	int h2num;		//standard hexen2
 	int ebfsnum;	//extra functions, these exist ONLY after being checked for.
 
+	char *prototype;
 	qboolean obsolete;
 } BuiltinList_t;
 builtin_t pr_builtin[1024];
@@ -586,12 +590,11 @@ void PR_LoadGlabalStruct(void)
 	int i;
 	int *v;
 	globalptrs_t *pr_globals = pr_global_ptrs;
-#define globalfloat(need,name) (pr_globals)->name = (float *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name) SV_Error("Could not find \""#name"\" export in progs\n");
-#define globalint(need,name) (pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
-#define globalstring(need,name) (pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
-#define globalvec(need,name) (pr_globals)->V_##name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->V_##name) SV_Error("Could not find export \""#name"\" in progs\n");
-#define globalvec_(need,name) (pr_globals)->name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name) SV_Error("Could not find export \""#name"\" in progs\n");
-#define globalfunc(need,name) (pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (!(pr_globals)->name) {static func_t stripped##name; stripped##name = PR_FindFunction(svprogfuncs, #name, 0); if (stripped##name) (pr_globals)->name = &stripped##name; else if (need) SV_Error("Could not find function \""#name"\" in progs\n"); }
+#define globalfloat(need,name)	(pr_globals)->name = (float *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static float fallback##name; (pr_globals)->name = &fallback##name; Con_Printf("Could not find \""#name"\" export in progs\n");}
+#define globalint(need,name)	(pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);		if (need && !(pr_globals)->name)	{static int fallback##name; (pr_globals)->name = &fallback##name; Con_Printf("Could not find \""#name"\" export in progs\n");}
+#define globalstring(need,name)	(pr_globals)->name = (int *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);		if (need && !(pr_globals)->name)	{static string_t fallback##name; (pr_globals)->name = &fallback##name; Con_Printf("Could not find \""#name"\" export in progs\n");}
+#define globalvec(need,name)	(pr_globals)->name = (vec3_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static vec3_t fallback##name; (pr_globals)->name = &fallback##name; Con_Printf("Could not find \""#name"\" export in progs\n");}
+#define globalfunc(need,name)	(pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (!(pr_globals)->name)			{static func_t stripped##name; stripped##name = PR_FindFunction(svprogfuncs, #name, 0); if (stripped##name) (pr_globals)->name = &stripped##name; else if (need) Con_Printf("Could not find function \""#name"\" in progs\n"); }
 //			globalint(pad);
 	globalint		(true, self);	//we need the qw ones, but any in standard quake and not quakeworld, we don't really care about.
 	globalint		(true, other);
@@ -641,8 +644,8 @@ void PR_LoadGlabalStruct(void)
 
 	globalfloat		(false, clientcommandframe);
 	globalfloat		(false, input_timelength);
-	globalvec_		(false, input_angles);
-	globalvec_		(false, input_movevalues);
+	globalvec		(false, input_angles);
+	globalvec		(false, input_movevalues);
 	globalfloat		(false, input_buttons);
 
 	memset(&evalc_idealpitch, 0, sizeof(evalc_idealpitch));
@@ -664,23 +667,35 @@ void PR_LoadGlabalStruct(void)
 	ensureglobal(input_buttons, input_buttons_default);
 
 	// qtest renames and missing variables
-	if (!(pr_globals)->V_trace_plane_normal)
+	if (!(pr_globals)->trace_plane_normal)
 	{
-		(pr_globals)->V_trace_plane_normal = (vec3_t *)PR_FindGlobal(svprogfuncs, "trace_normal", 0, NULL);
-		if (!(pr_globals)->V_trace_plane_normal)
-			SV_Error("Could not find export trace_plane_normal in progs\n");
+		(pr_globals)->trace_plane_normal = (vec3_t *)PR_FindGlobal(svprogfuncs, "trace_normal", 0, NULL);
+		if (!(pr_globals)->trace_plane_normal)
+		{
+			static vec3_t fallback_trace_plane_normal;
+			(pr_globals)->trace_plane_normal = &fallback_trace_plane_normal;
+			Con_Printf("Could not find export trace_plane_normal in progs\n");
+		}
 	}
-	if (!(pr_globals)->V_trace_endpos)
+	if (!(pr_globals)->trace_endpos)
 	{
-		(pr_globals)->V_trace_endpos = (vec3_t *)PR_FindGlobal(svprogfuncs, "trace_impact", 0, NULL);
-		if (!(pr_globals)->V_trace_endpos)
-			SV_Error("Could not find export trace_endpos in progs\n");
+		(pr_globals)->trace_endpos = (vec3_t *)PR_FindGlobal(svprogfuncs, "trace_impact", 0, NULL);
+		if (!(pr_globals)->trace_endpos)
+		{
+			static vec3_t fallback_trace_endpos;
+			(pr_globals)->trace_endpos = &fallback_trace_endpos;
+			Con_Printf("Could not find export trace_endpos in progs\n");
+		}
 	}
 	if (!(pr_globals)->trace_fraction)
 	{
 		(pr_globals)->trace_fraction = (float *)PR_FindGlobal(svprogfuncs, "trace_frac", 0, NULL);
 		if (!(pr_globals)->trace_fraction)
-			SV_Error("Could not find export trace_fraction in progs\n");
+		{
+			static float fallback_trace_fraction;
+			(pr_globals)->trace_fraction = &fallback_trace_fraction;
+			Con_Printf("Could not find export trace_fraction in progs\n");
+		}
 	}
 	ensureglobal(serverflags, zero_default);
 	ensureglobal(total_secrets, zero_default);
@@ -862,7 +877,6 @@ progsnum_t AddProgs(char *name)
 		sv.world.usesolidcorpse = (progstype != PROG_H2);
 		if (num != -1)
 		{
-			PR_LoadGlabalStruct();
 			switch(progstype)
 			{
 			case PROG_QW:
@@ -889,6 +903,9 @@ progsnum_t AddProgs(char *name)
 		Con_Printf("Failed to load %s\n", name);
 		return -1;
 	}
+
+	if (num == 0)
+		PR_LoadGlabalStruct();
 
 	Con_Printf("Loaded %s\n", name);
 
@@ -1111,6 +1128,7 @@ void PR_Init(void)
 	Cmd_AddCommand ("coredump_ssqc", PR_SSCoreDump_f);
 
 	Cmd_AddCommand ("extensionlist_ssqc", PR_SVExtensionList_f);
+	Cmd_AddCommand ("pr_dumpplatform", PR_DumpPlatform_f);
 
 /*
 #ifdef _DEBUG
@@ -1184,7 +1202,7 @@ void Q_InitProgs(void)
 	static char addons[2048];
 	char *as, *a;
 	int num = 0;
-	progsnum_t prnum, oldprnum;
+	progsnum_t prnum, oldprnum=-1;
 	int d1, d2;
 
 	QC_Clear();
@@ -1276,7 +1294,10 @@ void Q_InitProgs(void)
 		oldprnum= AddProgs("progs.dat");
 	}
 	if (oldprnum < 0)
-		SV_Error("Couldn't open or compile progs\n");
+	{
+		PR_LoadGlabalStruct();
+//		SV_Error("Couldn't open or compile progs\n");
+	}
 
 #ifdef SQL
 	SQL_KillServers(); // TODO: is this the best placement for this?
@@ -2175,6 +2196,7 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 
 				if (sv.state != ss_loading)
 				{
+					Con_DPrintf("Delayed model precache: %s\n", m);
 					MSG_WriteByte(&sv.reliable_datagram, svcfte_precache);
 					MSG_WriteShort(&sv.reliable_datagram, i);
 					MSG_WriteString(&sv.reliable_datagram, m);
@@ -3521,6 +3543,7 @@ void PF_precache_sound_Internal (progfuncs_t *prinst, char *s)
 
 			if (sv.state != ss_loading)
 			{
+				Con_DPrintf("Delayed sound precache: %s\n", s);
 				MSG_WriteByte(&sv.reliable_datagram, svcfte_precache);
 				MSG_WriteShort(&sv.reliable_datagram, i+32768);
 				MSG_WriteString(&sv.reliable_datagram, s);
@@ -3548,7 +3571,7 @@ static void QCBUILTIN PF_precache_sound (progfuncs_t *prinst, struct globalvars_
 	PF_precache_sound_Internal(prinst, s);
 }
 
-int PF_precache_model_Internal (progfuncs_t *prinst, char *s)
+int PF_precache_model_Internal (progfuncs_t *prinst, char *s, qboolean queryonly)
 {
 	int		i;
 
@@ -3567,6 +3590,8 @@ int PF_precache_model_Internal (progfuncs_t *prinst, char *s)
 				PR_BIError (prinst, "Precache name too long");
 				return 0;
 			}
+			if (queryonly)
+				return 0;
 #ifdef VM_Q1
 			if (svs.gametype == GT_Q1QVM)
 				sv.strings.model_precache[i] = s;
@@ -3579,6 +3604,7 @@ int PF_precache_model_Internal (progfuncs_t *prinst, char *s)
 
 			if (sv.state != ss_loading)
 			{
+				Con_DPrintf("Delayed model precache: %s\n", s);
 				MSG_WriteByte(&sv.reliable_datagram, svcfte_precache);
 				MSG_WriteShort(&sv.reliable_datagram, i);
 				MSG_WriteString(&sv.reliable_datagram, s);
@@ -3607,7 +3633,7 @@ static void QCBUILTIN PF_precache_model (progfuncs_t *prinst, struct globalvars_
 
 	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
 
-	PF_precache_model_Internal(prinst, s);
+	PF_precache_model_Internal(prinst, s, false);
 }
 
 static void QCBUILTIN PF_h2precache_puzzle_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3617,15 +3643,15 @@ static void QCBUILTIN PF_h2precache_puzzle_model (progfuncs_t *prinst, struct gl
 	shortname = PR_GetStringOfs(prinst, OFS_PARM0);
 	snprintf(fullname, sizeof(fullname)-1, "models/puzzle/%s.mdl", shortname);
 
-	PF_precache_model_Internal(prinst, fullname);
+	PF_precache_model_Internal(prinst, fullname, false);
 }
 
 static void QCBUILTIN PF_getmodelindex (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	char	*s;
+	char	*s = PR_GetStringOfs(prinst, OFS_PARM0);
+	qboolean queryonly = G_FLOAT(OFS_PARM1);
 
-	s = PR_GetStringOfs(prinst, OFS_PARM0);
-	G_INT(OFS_RETURN) = PF_precache_model_Internal(prinst, s);
+	G_FLOAT(OFS_RETURN) = PF_precache_model_Internal(prinst, s, queryonly);
 }
 void QCBUILTIN PF_precache_vwep_model (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -5590,7 +5616,11 @@ static void QCBUILTIN PF_checkextension (progfuncs_t *prinst, struct globalvars_
 		G_FLOAT(OFS_RETURN) = false;
 		for (i = 0; i < ext->numbuiltins; i++)
 		{
-			if (!PR_EnableEBFSBuiltin(ext->builtinnames[i], 0))
+			if (*ext->builtinnames[i] == '.' || *ext->builtinnames[i] == '#')
+			{
+				/*field or global*/
+			}
+			else if (!PR_EnableEBFSBuiltin(ext->builtinnames[i], 0))
 			{
 				Con_Printf("Failed to initialise builtin \"%s\" for extension \"%s\"", ext->builtinnames[i], s);
 				return;	//whoops, we failed.
@@ -5781,29 +5811,6 @@ static void QCBUILTIN PF_redirectcmd (progfuncs_t *prinst, struct globalvars_s *
 	Cbuf_Execute();
 	SV_EndRedirect();
 }*/
-
-static void QCBUILTIN PF_calltimeofday (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	date_t date;
-	func_t f;
-
-	f = PR_FindFunction(svprogfuncs, "timeofday", PR_ANY);
-	if (f)
-	{
-		SV_TimeOfDay(&date);
-
-		G_FLOAT(OFS_PARM0) = (float)date.sec;
-		G_FLOAT(OFS_PARM1) = (float)date.min;
-		G_FLOAT(OFS_PARM2) = (float)date.hour;
-		G_FLOAT(OFS_PARM3) = (float)date.day;
-		G_FLOAT(OFS_PARM4) = (float)date.mon;
-		G_FLOAT(OFS_PARM5) = (float)date.year;
-		G_INT(OFS_PARM6) = (int)PR_TempString(prinst, date.str);
-
-		PR_ExecuteProgram(prinst, f);
-	}
-
-}
 
 /*
 =================
@@ -8750,74 +8757,82 @@ static void QCBUILTIN PF_sv_terrain_edit(progfuncs_t *prinst, struct globalvars_
 #endif
 }
 
+#define STUB ,true
+#ifdef DEBUG
+#define NYI ,true
+#else
+#define NYI ,false
+#endif
 BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
-	{"fixme",			PF_Fixme,			0,		0,		0},
-	{"ignore",			PF_Ignore,			0,		0,		0},
-	{"makevectors",		PF_makevectors,		1,		1,		1},	// void(entity e)	makevectors 		= #1;
-	{"setorigin",		PF_setorigin,		2,		2,		2},	// void(entity e, vector o) setorigin	= #2;
-	{"setmodel",		PF_setmodel,		3,		3,		3},	// void(entity e, string m) setmodel	= #3;
-	{"setsize",			PF_setsize,			4,		4,		4},	// void(entity e, vector min, vector max) setsize = #4;
-	{"qtest_setabssize",PF_setsize,			5}, // void(entity e, vector min, vector max) setabssize = #5;
-	{"lightstylestatic",PF_lightstylestatic,0,		0,		5,		5},
-	{"break",			PF_break,			6,		6,		6},	// void() break						= #6;
-	{"random",			PF_random,			7,		7,		7},	// float() random						= #7;
-	{"sound",			PF_sound,			8,		8,		8},	// void(entity e, float chan, string samp) sound = #8;
-	{"normalize",		PF_normalize,		9,		9,		9},	// vector(vector v) normalize			= #9;
-	{"error",			PF_error,			10,		10,		10},	// void(string e) error				= #10;
-	{"objerror",		PF_objerror,		11,		11,		11},	// void(string e) objerror				= #11;
-	{"vlen",			PF_vlen,			12,		12,		12},	// float(vector v) vlen				= #12;
-	{"vectoyaw",		PF_vectoyaw,		13,		13,		13},	// float(vector v) vectoyaw		= #13;
-	{"spawn",			PF_Spawn,			14,		14,		14},	// entity() spawn						= #14;
-	{"remove",			PF_Remove,			15,		15,		15},	// void(entity e) remove				= #15;
-	{"traceline",		PF_svtraceline,		16,		16,		16},	// float(vector v1, vector v2, float tryents) traceline = #16;
-	{"checkclient",		PF_checkclient,		17,		17,		17},	// entity() clientlist					= #17;
-	{"find",			PF_FindString,		18,		18,		18},	// entity(entity start, .string fld, string match) find = #18;
-	{"precache_sound",	PF_precache_sound,	19,		19,		19},	// void(string s) precache_sound		= #19;
-	{"precache_model",	PF_precache_model,	20,		20,		20},	// void(string s) precache_model		= #20;
-	{"stuffcmd",		PF_stuffcmd,		21,		21,		21},	// void(entity client, string s)stuffcmd = #21;
-	{"findradius",		PF_findradius,		22,		22,		22},	// entity(vector org, float rad) findradius = #22;
-	{"bprint",			PF_bprint,			23,		23,		23},	// void(string s) bprint				= #23;
+	{"fixme",			PF_Fixme,			0,		0,		0,		0,	"void()"},
+	{"ignore",			PF_Ignore,			0,		0,		0,		0,	"void()"},
+	{"makevectors",		PF_makevectors,		1,		1,		1,		0,	"void(vector)"},
+	{"setorigin",		PF_setorigin,		2,		2,		2,		0,	"void(entity e, vector o)"},
+	{"setmodel",		PF_setmodel,		3,		3,		3,		0,	"void(entity e, string m)"},
+	{"setsize",			PF_setsize,			4,		4,		4,		0,	"void(entity e, vector min, vector max)"},
+	{"qtest_setabssize",PF_setsize,			5,		0,		0,		0,	"void(entity e, vector min, vector max)", true},
+	{"lightstylestatic",PF_lightstylestatic,0,		0,		5,		5,	"void(float style, float val)"},
+	{"break",			PF_break,			6,		6,		6,		0,	"void()"},
+	{"random",			PF_random,			7,		7,		7,		0,	"float()"},
+	{"sound",			PF_sound,			8,		8,		8,		0,	"void(entity e, float chan, string samp, float vol, float atten, optional float speedpct)"},
+	{"normalize",		PF_normalize,		9,		9,		9,		0,	"vector(vector v)"},
+	{"error",			PF_error,			10,		10,		10,		0,	"void(string e)"},
+	{"objerror",		PF_objerror,		11,		11,		11,		0,	"void(string e)"},
+	{"vlen",			PF_vlen,			12,		12,		12,		0,	"float(vector v)"},
+	{"vectoyaw",		PF_vectoyaw,		13,		13,		13,		0,	"float(vector v)"},
+	{"spawn",			PF_Spawn,			14,		14,		14,		0,	"entity()"},
+	{"remove",			PF_Remove,			15,		15,		15,		0,	"void(entity e)"},
+	{"traceline",		PF_svtraceline,		16,		16,		16,		0,	"void(vector v1, vector v2, float nomonsters, entity ent)"},
+	{"checkclient",		PF_checkclient,		17,		17,		17,		0,	"entity()"},
+	{"find",			PF_FindString,		18,		18,		18,		0,	"entity(entity start, .string fld, string match)"},
+	{"precache_sound",	PF_precache_sound,	19,		19,		19,		0,	"void(string s)"},
+	{"precache_model",	PF_precache_model,	20,		20,		20,		0,	"void(string s)"},
+	{"stuffcmd",		PF_stuffcmd,		21,		21,		21,		0,	"void(entity client, string s)"},
+	{"findradius",		PF_findradius,		22,		22,		22,		0,	"entity(vector org, float rad)"},
+	{"bprint",			PF_bprint,			23,		23,		23,		0,	"void(string s)"},
 //FIXME: distinguish between qw and nq parameters here?
-	{"sprint",			PF_sprint,			24,		24,		24},	// void(entity client, string s) sprint = #24;
-	{"dprint",			PF_dprint,			25,		0,		25},	// void(string s) dprint				= #25;
-	{"print",			PF_print,			0,		25,		0},		// void(string s) print				= #25;
-	{"ftos",			PF_ftos,			26,		26,		26},	// void(string s) ftos				= #26;
-	{"vtos",			PF_vtos,			27,		27,		27},	// void(string s) vtos				= #27;
-	{"coredump",		PF_coredump,		28,		28,		28},	//28
-	{"traceon",			PF_traceon,			29,		29,		29},	//29
-	{"traceoff",		PF_traceoff,		30,		30,		30},	//30
-	{"eprint",			PF_eprint,			31,		31,		31},	//31 // void(entity e) debug print an entire entity
-	{"walkmove",		PF_walkmove,		32,		32,		32},	//32 // float(float yaw, float dist) walkmove
-	{"tracearea",		PF_traceboxh2,		0,		0,		33},	//33 //
-//	{"qtest_flymove",	NULL,	33},	// float(vector dir) flymove = #33;
-	{"droptofloor",		PF_droptofloor,		34,		34,		34},	//34
-	{"lightstyle",		PF_lightstyle,		35,		35,		35},	//35
-	{"rint",			PF_rint,			36,		36,		36},	//36
-	{"floor",			PF_floor,			37,		37,		37},	//37
-	{"ceil",			PF_ceil,			38,		38,		38},	//38
-	{"qtest_canreach",	PF_Ignore,			39},					// float(vector v) canreach = #39; // QTest builtin called in effectless statement
-	{"checkbottom",		PF_checkbottom,		40,		40,		40},	//40
-	{"pointcontents",	PF_pointcontents,	41,		41,		41},	//41
-//	{"qtest_stopsound",	NULL,				42}, // defined QTest builtin that is never called
-	{"fabs",			PF_fabs,			43,		43,		43},	//43
-	{"aim",				PF_aim,				44,		44,		44},	//44
-	{"cvar",			PF_cvar,			45,		45,		45},	//45
-	{"localcmd",		PF_localcmd,		46,		46,		46},	//46
-	{"nextent",			PF_nextent,			47,		47,		47},	//47
-	{"particle",		PF_particle,		48,		0,		48,		48},		//48 nq readded. This isn't present in QW protocol (fte added it back).
-	{"changeyaw",		PF_changeyaw,		49,		49,		49},	//49
-//	{"qtest_precacheitem", NULL,			50}, // defined QTest builtin that is never called
-	{"vhlen",			PF_vhlen,			0,		0,		50},	//49
-	{"vectoangles",		PF_vectoangles,		51,		51,		51},	//51
+	{"sprint",			PF_sprint,			24,		0,		24,		0,	"void(entity client, string s)"},
+	{"sprint",			PF_sprint,			0,		24,		0,		0,	"void(entity client, float lvl, string s)"},
+	{"dprint",			PF_dprint,			25,		0,		25,		0,	"void(string s, ...)"},
+	{"dprint",			PF_print,			0,		25,		0,		0,	"void(string s, ...)"},
+	{"ftos",			PF_ftos,			26,		26,		26,		0,	"string(float val)"},
+	{"vtos",			PF_vtos,			27,		27,		27,		0,	"string(vector val)"},
+	{"coredump",		PF_coredump,		28,		28,		28,		0,	"void()"},
+	{"traceon",			PF_traceon,			29,		29,		29,		0,	"void()"},
+	{"traceoff",		PF_traceoff,		30,		30,		30,		0,	"void()"},
+	{"eprint",			PF_eprint,			31,		31,		31,		0,	"void(entity e)"},// debug print an entire entity
+	{"walkmove",		PF_walkmove,		32,		32,		32,		0,	"float(float yaw, float dist)"},
+	{"tracearea",		PF_traceboxh2,		0,		0,		33,		0,	"void(vector v1, vector v2, vector mins, vector maxs, float nomonsters, entity ent)"},
 
-	{"writebyte",		PF_WriteByte,		52,		52,		52},	//52
-	{"writechar",		PF_WriteChar,		53,		53,		53},	//53
-	{"writeshort",		PF_WriteShort,		54,		54,		54},	//54
-	{"writelong",		PF_WriteLong,		55,		55,		55},	//55
-	{"writecoord",		PF_WriteCoord,		56,		56,		56},	//56
-	{"writeangle",		PF_WriteAngle,		57,		57,		57},	//57
-	{"writestring",		PF_WriteString,		58,		58,		58},	//58
-	{"writeentity",		PF_WriteEntity,		59,		59,		59},	//59
+//	{"qtest_flymove",	NULL,	33},	// float(vector dir) flymove = #33;
+	{"droptofloor",		PF_droptofloor,		34,		34,		34,		0,	"float()"},
+	{"lightstyle",		PF_lightstyle,		35,		35,		35,		0,	"void(float lightstyle, string stylestring)"},
+	{"rint",			PF_rint,			36,		36,		36,		0,	"float(float)"},
+	{"floor",			PF_floor,			37,		37,		37,		0,	"float(float)"},
+	{"ceil",			PF_ceil,			38,		38,		38,		0,	"float(float)"},
+	{"qtest_canreach",	PF_Ignore,			39,		0,		0,		0,	"float(vector v)"}, // QTest builtin called in effectless statement
+	{"checkbottom",		PF_checkbottom,		40,		40,		40,		0,	"float(entity ent)"},
+	{"pointcontents",	PF_pointcontents,	41,		41,		41,		0,	"float(vector pos)"},
+//	{"qtest_stopsound",	NULL,				42}, // defined QTest builtin that is never called
+	{"fabs",			PF_fabs,			43,		43,		43,		0,	"float(float)"},
+	{"aim",				PF_aim,				44,		44,		44,		0,	"vector(entity player, float missilespeed)"},	//44
+	{"cvar",			PF_cvar,			45,		45,		45,		0,	"float(string)"},
+	{"localcmd",		PF_localcmd,		46,		46,		46,		0,	"void(string, ...)"},
+	{"nextent",			PF_nextent,			47,		47,		47,		0,	"entity(entity)"},
+	{"particle",		PF_particle,		48,		0,		48,		48, "void(vector pos, vector dir, float colour, float count)"}, //48 nq readded. This isn't present in QW protocol (fte added it back).
+	{"changeyaw",		PF_changeyaw,		49,		49,		49,		0,	"#define ChangeYaw changeyaw\nvoid()"},
+//	{"qtest_precacheitem", NULL,			50}, // defined QTest builtin that is never called
+	{"vhlen",			PF_vhlen,			0,		0,		50,		0,	"float(vector)"},
+	{"vectoangles",		PF_vectoangles,		51,		51,		51,		0,	"vector(vector fwd)"},
+
+	{"WriteByte",		PF_WriteByte,		52,		52,		52,		0,	"void(float to, float val)"},	//52
+	{"WriteChar",		PF_WriteChar,		53,		53,		53,		0,	"void(float to, float val)"},	//53
+	{"WriteShort",		PF_WriteShort,		54,		54,		54,		0,	"void(float to, float val)"},	//54
+	{"WriteLong",		PF_WriteLong,		55,		55,		55,		0,	"void(float to, float val)"},	//55
+	{"WriteCoord",		PF_WriteCoord,		56,		56,		56,		0,	"void(float to, float val)"},	//56
+	{"WriteAngle",		PF_WriteAngle,		57,		57,		57,		0,	"void(float to, float val)"},	//57
+	{"WriteString",		PF_WriteString,		58,		58,		58,		0,	"void(float to, string val)"},	//58
+	{"WriteEntity",		PF_WriteEntity,		59,		59,		59,		0,	"void(float to, entity val)"},	//59
 
 	{"swritebyte",		PF_qtSingle_WriteByte},	//52
 	{"swritechar",		PF_qtSingle_WriteChar},	//53
@@ -8838,110 +8853,110 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"bwriteentity",	PF_qtBroadcast_WriteEntity},	//66
 
 
-	{"printfloat",		PF_h2printf,			0,		0,		60},	//60
+	{"printfloat",		PF_h2printf,		0,		0,		60},	//60
 
-	{"sin",				PF_Sin,				0,		0,		62,		60},	//60
-	{"cos",				PF_Cos,				0,		0,		61,		61},	//61
-	{"sqrt",			PF_Sqrt,			0,		0,		84,		62},	//62
+	{"sin",				PF_Sin,				0,		0,		62,		60,	"float(float angle)"},	//60
+	{"cos",				PF_Cos,				0,		0,		61,		61,	"float(float angle)"},	//61
+	{"sqrt",			PF_Sqrt,			0,		0,		84,		62,	"float(float value)"},	//62
 
 	{"AdvanceFrame",	PF_h2AdvanceFrame,	0,		0,		63,		0},
-	{"printvec",		PF_h2printv,			0,		0,		64,		0},	//64
-	{"RewindFrame",		PF_h2RewindFrame,		0,		0,		65,		0},
+	{"printvec",		PF_h2printv,		0,		0,		64,		0},	//64
+	{"RewindFrame",		PF_h2RewindFrame,	0,		0,		65,		0},
 	{"particleexplosion",PF_h2particleexplosion,0,	0,		81,		0},
 	{"movestep",		PF_h2movestep,		0,		0,		82,		0},
-	{"advanceweaponframe",PF_h2advanceweaponframe,0,	0,		83,		0},
+	{"advanceweaponframe",PF_h2advanceweaponframe,0,0,		83,		0},
 
 	{"setclass",		PF_h2setclass,		0,		0,		66,		0},
 
-	{"changepitch",		PF_changepitch,		0,		0,		0,		63},
-	{"tracetoss",		PF_TraceToss,		0,		0,		0,		64},
-	{"etos",			PF_etos,			0,		0,		0,		65},
+	{"changepitch",		PF_changepitch,		0,		0,		0,		63,	"void(entity ent)"},
+	{"tracetoss",		PF_TraceToss,		0,		0,		0,		64,	"void(entity ent, entity ignore)"},
+	{"etos",			PF_etos,			0,		0,		0,		65,	"string(entity ent)"},
 
-	{"movetogoal",		PF_sv_movetogoal,		67,		67,		67},	//67
-	{"precache_file",	PF_precache_file,	68,		68,		68},	//68
-	{"makestatic",		PF_makestatic,		69,		69,		69},	//69
+	{"movetogoal",		PF_sv_movetogoal,	67,		67,		67,		0,	"void(float step)"},	//67
+	{"precache_file",	PF_precache_file,	68,		68,		68,		0,	"void(string s)"},	//68
+	{"makestatic",		PF_makestatic,		69,		69,		69,		0,	"void(entity e)"},	//69
 
-	{"changelevel",		PF_changelevel,		70,		70,		70},	//70
-	{"lightstylevalue",	PF_lightstylevalue,	0,		0,		71},	//70
+	{"changelevel",		PF_changelevel,		70,		70,		70,		0,	"void(string mapname)"},	//70
+	{"lightstylevalue",	PF_lightstylevalue,	0,		0,		71,		0,	"float(float lstyle)"},	//70
 
-	{"cvar_set",		PF_cvar_set,		72,		72,		72},	//72
-	{"centerprint",		PF_centerprint,		73,		73,		73},	//73
+	{"cvar_set",		PF_cvar_set,		72,		72,		72,		0,	"void(string cvarname, string valuetoset)"},	//72
+	{"centerprint",		PF_centerprint,		73,		73,		73,		0,	"void(entity ent, string text, ...)"},	//73
 
-	{"ambientsound",	PF_ambientsound,	74,		74,		74},	//74
+	{"ambientsound",	PF_ambientsound,	74,		74,		74,		0,	"void (vector pos, string samp, float vol, float atten)"},	//74
 
-	{"precache_model2",	PF_precache_model,	75,		75,		75},	//75
-	{"precache_sound2",	PF_precache_sound,	76,		76,		76},	//76	// precache_sound2 is different only for qcc
-	{"precache_file2",	PF_precache_file,	77,		77,		0},	//77
+	{"precache_model2",	PF_precache_model,	75,		75,		75,		0,	"void(string str)"},	//75
+	{"precache_sound2",	PF_precache_sound,	76,		76,		76,		0,	"void(string str)"},	//76	// precache_sound2 is different only for qcc
+	{"precache_file2",	PF_precache_file,	77,		77,		0,		0,	"void(string str)"},	//77
 
-	{"setspawnparms",	PF_setspawnparms,	78,		78,		78},	//78
-	{"plaque_draw",		PF_h2plaque_draw,	0,		0,		79},	//79
-	{"logfrag",			PF_logfrag,			0,		79,		0,		79},	//79
+	{"setspawnparms",	PF_setspawnparms,	78,		78,		78,		0,	"void()"},	//78
+	{"plaque_draw",		PF_h2plaque_draw,	0,		0,		79,		0,	""},	//79
+	{"logfrag",			PF_logfrag,			0,		79,		0,		79,	"void(entity killer, entity killee)"},	//79
 
 // Tomaz - QuakeC String Manipulation Begin
-	{"tq_zone",			PF_dupstring,		0,		0,		0,		79, true},	//79
-	{"tq_unzone",		PF_forgetstring,	0,		0,		0,		80, true},	//80
-	{"tq_stof",			PF_stof,			0,		0,		0,		81, true},	//81
-	{"tq_strcat",		PF_strcat,			0,		0,		0,		82, true},	//82
-	{"tq_substring",	PF_substring,		0,		0,		0,		83, true},	//83
-	{"tq_stof",			PF_stof,			0,		0,		0,		84, true},	//84
-	{"tq_stov",			PF_stov,			0,		0,		0,		85, true},	//85
+	{"tq_zone",			PF_dupstring,		0,		0,		0,		79, "", true},	//79
+	{"tq_unzone",		PF_forgetstring,	0,		0,		0,		80, "", true},	//80
+	{"tq_stof",			PF_stof,			0,		0,		0,		81, "", true},	//81
+	{"tq_strcat",		PF_strcat,			0,		0,		0,		82, "", true},	//82
+	{"tq_substring",	PF_substring,		0,		0,		0,		83, "string(string str, float start, float len)", true},	//83
+	{"tq_stof",			PF_stof,			0,		0,		0,		84, "float(string s)", true},	//84
+	{"tq_stov",			PF_stov,			0,		0,		0,		85, "vector(string s)", true},	//85
 // Tomaz - QuakeC String Manipulation End
 
 // Tomaz - QuakeC File System Begin (new mods use frik_file instead)
-	{"tq_fopen",		PF_fopen,			0,		0,		0,		86, true},// #86 float(string filename, float mode) fopen (QSG_FILE)
-	{"tq_fclose",		PF_fclose,			0,		0,		0,		87, true},// #87 void(float fhandle) fclose (QSG_FILE)
-	{"tq_fgets",		PF_fgets,			0,		0,		0,		88, true},// #88 string(float fhandle) fgets (QSG_FILE)
-	{"tq_fputs",		PF_fputs,			0,		0,		0,		89, true},// #89 void(float fhandle, string s) fputs (QSG_FILE)
+	{"tq_fopen",		PF_fopen,			0,		0,		0,		86, "float(string filename, float mode)", true},// (QSG_FILE)
+	{"tq_fclose",		PF_fclose,			0,		0,		0,		87, "void(float fhandle)", true},// (QSG_FILE)
+	{"tq_fgets",		PF_fgets,			0,		0,		0,		88, "string(float fhandle)", true},// (QSG_FILE)
+	{"tq_fputs",		PF_fputs,			0,		0,		0,		89, "void(float fhandle, string s)", true},// (QSG_FILE)
 // Tomaz - QuakeC File System End
 
 	{"rain_go",			PF_h2rain_go,		0,		0,		80,		0},	//80
 
-	{"infokey",			PF_infokey,			0,		80,		0,		80},	//80
-	{"stof",			PF_stof,			0,		81,		0,		81},	//81
-	{"multicast",		PF_multicast,		0,		82,		0,		0},	//82
+	{"infokey",			PF_infokey,			0,		80,		0,		80, "string(entity e, string key)"},	//80
+	{"stof",			PF_stof,			0,		81,		0,		81,	"float(string)"},	//81
+	{"multicast",		PF_multicast,		0,		82,		0,		0,	"void(vector where, float set)"},	//82
 
 
 
 //mvdsv (don't require ebfs usage in qw)
-	{"executecommand",	PF_ExecuteCommand,	0,		0,		0,		83, true},	//83		//void() exec;   please don't use.
-	{"mvdtokenize",		PF_Tokenize, 		0,		0,		0,		84, true},	//84			//void(string str) tokanize;
-	{"mvdargc",			PF_ArgC,			0,		0,		0,		85, true},	//85			//float() argc;
-	{"mvdargv",			PF_ArgV,			0,		0,		0,		86, true},	//86			//string(float num) argv;
+	{"executecommand",	PF_ExecuteCommand,	0,		0,		0,		83, "void()",				true},
+	{"mvdtokenize",		PF_Tokenize, 		0,		0,		0,		84, "void(string str)",		true},
+	{"mvdargc",			PF_ArgC,			0,		0,		0,		85, "float()",				true},
+	{"mvdargv",			PF_ArgV,			0,		0,		0,		86, "string(float num)",	true},
 
 //mvd commands
 //some of these are a little iffy.
 //we support them for mvdsv compatability but some of them look very hacky.
 //these ones are not honoured with numbers, but can be used via the proper means.
-	{"teamfield",		PF_teamfield,		0,		0,		0,		87, true},
-	{"substr",			PF_substr,			0,		0,		0,		88, true},
-	{"mvdstrcat",		PF_strcat,			0,		0,		0,		89, true},
-	{"mvdstrlen",		PF_strlen,			0,		0,		0,		90, true},
-	{"str2byte",		PF_str2byte,		0,		0,		0,		91, true},
-	{"str2short",		PF_str2short,		0,		0,		0,		92, true},
-	{"mvdnewstr",		PF_newstring,		0,		0,		0,		93, true},
-	{"mvdfreestr",		PF_forgetstring,	0,		0,		0,		94, true},
-	{"conprint",		PF_conprint,		0,		0,		0,		95, true},
-	{"readcmd",			PF_readcmd,			0,		0,		0,		96, true},
-	{"mvdstrcpy",		PF_MVDSV_strcpy,	0,		0,		0,		97, true},
-	{"strstr",			PF_strstr,			0,		0,		0,		98, true},
-	{"mvdstrncpy",		PF_MVDSV_strncpy,	0,		0,		0,		99, true},
-	{"log",				PF_log,				0,		0,		0,		100, true},
-//	{"redirectcmd",		PF_redirectcmd,		0,		0,		0,		101, true},
-	{"mvdcalltimeofday",PF_calltimeofday,	0,		0,		0,		102, true},
-	{"forcedemoframe",	PF_forcedemoframe,	0,		0,		0,		103, true},
+	{"teamfield",		PF_teamfield,		0,		0,		0,		87, "", true},
+	{"substr",			PF_substr,			0,		0,		0,		88, "", true},
+	{"mvdstrcat",		PF_strcat,			0,		0,		0,		89, "", true},
+	{"mvdstrlen",		PF_strlen,			0,		0,		0,		90, "", true},
+	{"str2byte",		PF_str2byte,		0,		0,		0,		91, "", true},
+	{"str2short",		PF_str2short,		0,		0,		0,		92, "", true},
+	{"mvdnewstr",		PF_newstring,		0,		0,		0,		93, "", true},
+	{"mvdfreestr",		PF_forgetstring,	0,		0,		0,		94, "", true},
+	{"conprint",		PF_conprint,		0,		0,		0,		95, "", true},
+	{"readcmd",			PF_readcmd,			0,		0,		0,		96, "", true},
+	{"mvdstrcpy",		PF_MVDSV_strcpy,	0,		0,		0,		97, "", true},
+	{"strstr",			PF_strstr,			0,		0,		0,		98, "", true},
+	{"mvdstrncpy",		PF_MVDSV_strncpy,	0,		0,		0,		99, "", true},
+	{"log",				PF_log,				0,		0,		0,		100, "", true},
+//	{"redirectcmd",		PF_redirectcmd,		0,		0,		0,		101, "", true},
+	{"mvdcalltimeofday",PF_calltimeofday,	0,		0,		0,		102, "", true},
+	{"forcedemoframe",	PF_forcedemoframe,	0,		0,		0,		103, "", true},
 //end of mvdsv
 
-	{"setpuzzlemodel",	PF_h2set_puzzle_model,0,		0,		87,		0},
-	{"starteffect",		PF_h2starteffect,		0,		0,		88,		0},	//FIXME
+	{"setpuzzlemodel",	PF_h2set_puzzle_model,0,	0,		87,		0},
+	{"starteffect",		PF_h2starteffect,	0,		0,		88,		0},	//FIXME
 	{"endeffect",		PF_h2endeffect,		0,		0,		89,		0},	//FIXME
 	{"getstring",		PF_h2getstring,		0,		0,		92,		0},	//FIXME
-	{"spawntemp",		PF_h2spawn_temp,		0,		0,		93,		0},
+	{"spawntemp",		PF_h2spawn_temp,	0,		0,		93,		0},
 
 	{"v_factor",		PF_h2v_factor,		0,		0,		94,		0},
 	{"v_factorrange",	PF_h2v_factorrange,	0,		0,		95,		0},
 
-	{"precache_puzzle_model", PF_h2precache_puzzle_model,	0,		0,		90,		0},
-	{"concatv",			PF_h2concatv,			0,		0,		91,		0},
+	{"precache_puzzle_model", PF_h2precache_puzzle_model,0,		0,		90,		0},
+	{"concatv",			PF_h2concatv,		0,		0,		91,		0},
 	{"precache_sound3",	PF_precache_sound,	0,		0,		96,		0},
 	{"precache_model3",	PF_precache_model,	0,		0,		97,		0},//please don't use...
 	{"matchangletoslope",PF_h2matchAngleToSlope,0,	0,		99,		0},
@@ -8956,173 +8971,254 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"precache_model4",	PF_precache_model,	0,		0,		116,	0},//please don't use...
 	{"precache_sound4",	PF_precache_sound,	0,		0,		117,	0},
 
-	{"tracebox",		PF_traceboxdp,		0,		0,		0,		90},
+	{"tracebox",		PF_traceboxdp,		0,		0,		0,		90,	"void(vector start, vector mins, vector maxs, vector end, float nomonsters, entity ent)"},
 
-	{"randomvec",		PF_randomvector,	0,		0,		0,		91},
-	{"getlight",		PF_sv_getlight,		0,		0,		0,		92},// #92 vector(vector org) getlight (DP_QC_GETLIGHT),
-	{"registercvar",	PF_registercvar,	0,		0,		0,		93},
-	{"min",				PF_min,				0,		0,		0,		94},// #94 float(float a, floats) min (DP_QC_MINMAXBOUND)
-	{"max",				PF_max,				0,		0,		0,		95},	// #95 float(float a, floats) max (DP_QC_MINMAXBOUND)
-	{"bound",			PF_bound,			0,		0,		0,		96},	// #96 float(float minimum, float val, float maximum) bound (DP_QC_MINMAXBOUND)
-	{"pow",				PF_pow,				0,		0,		0,		97},
-	{"tj_cvar_string",	PF_cvar_string,		0,		0,		0,		97, true},	//telejano
+	{"randomvec",		PF_randomvector,	0,		0,		0,		91,	"vector()"},
+	{"getlight",		PF_sv_getlight,		0,		0,		0,		92, "vector(vector org)"},// (DP_QC_GETLIGHT),
+	{"registercvar",	PF_registercvar,	0,		0,		0,		93,	"void(string cvarname, string defaultvalue)"},
+	{"min",				PF_min,				0,		0,		0,		94,	"float(float a, float b, ...)"},// (DP_QC_MINMAXBOUND)
+	{"max",				PF_max,				0,		0,		0,		95,	"float(float a, float b, ...)"},// (DP_QC_MINMAXBOUND)
+	{"bound",			PF_bound,			0,		0,		0,		96,	"float(float minimum, float val, float maximum)"},// (DP_QC_MINMAXBOUND)
+	{"pow",				PF_pow,				0,		0,		0,		97,	"float(float value, float exp)"},
+	{"tj_cvar_string",	PF_cvar_string,		0,		0,		0,		97, "string(string cvarname)", true},	//telejano
 //DP_QC_FINDFLOAT
-	{"findfloat",		PF_FindFloat,		0,		0,		0,		98},	// #98 entity(entity start, float fld, float match) findfloat (DP_QC_FINDFLOAT)
+	{"findfloat",		PF_FindFloat,		0,		0,		0,		98, "entity(entity start, .float fld, float match)"},	// #98 (DP_QC_FINDFLOAT)
 
-	{"checkextension",	PF_checkextension,	99,		99,		0,		99},	// #99	//darkplaces system - query a string to see if the mod supports X Y and Z.
-	{"builtin_find",	PF_builtinsupported,100,	100,	0,		100},	// #100	//per builtin system.
-	{"anglemod",		PF_anglemod,		0,		0,		0,		102},
-	{"qsg_cvar_string",	PF_cvar_string,		0,		0,		0,		103},
+	{"checkextension",	PF_checkextension,	99,		99,		0,		99,	"float(string extname)"},	// #99	//darkplaces system - query a string to see if the mod supports X Y and Z.
+	{"builtin_find",	PF_builtinsupported,100,	100,	0,		100,	"float(string builtinname)"},	// #100	//per builtin system.
+	{"anglemod",		PF_anglemod,		0,		0,		0,		102,	"float(float value)"},
+	{"qsg_cvar_string",	PF_cvar_string,		0,		0,		0,		103,	"", true},
 
 //TEI_SHOWLMP2
-	{"showpic",			PF_ShowPic,			0,		0,		0,		104},
-	{"hidepic",			PF_HidePic,			0,		0,		0,		105},
-	{"movepic",			PF_MovePic,			0,		0,		0,		106},
-	{"changepic",		PF_ChangePic,		0,		0,		0,		107},
-	{"showpicent",		PF_ShowPic,			0,		0,		0,		108},
-	{"hidepicent",		PF_HidePic,			0,		0,		0,		109},
+	{"showpic",			PF_ShowPic,			0,		0,		0,		104,	"void(string slot, string picname, float x, float y, float zone, optional entity player)"},
+	{"hidepic",			PF_HidePic,			0,		0,		0,		105,	"void(string slot, optional entity player)"},
+	{"movepic",			PF_MovePic,			0,		0,		0,		106,	"void(string slot, float x, float y, float zone, optional entity player)"},
+	{"changepic",		PF_ChangePic,		0,		0,		0,		107,	"void(string slot, string picname, optional entity player)"},
+	{"showpicent",		PF_ShowPic,			0,		0,		0,		108,	"void(string slot, entity player)", true},
+	{"hidepicent",		PF_HidePic,			0,		0,		0,		109,	"void(string slot, entity player)", true},
+//	{"movepicent",		PF_ShowPic,			0,		0,		0,		110, "", true},
+//	{"changepicent",	PF_HidePic,			0,		0,		0,		111, "", true},
 //End TEU_SHOWLMP2
 
 //frik file
-	{"fopen",			PF_fopen,			0,		0,		0,		110},// #110 float(string filename, float mode) fopen (FRIK_FILE)
-	{"fclose",			PF_fclose,			0,		0,		0,		111},// #111 void(float fhandle) fclose (FRIK_FILE)
-	{"fgets",			PF_fgets,			0,		0,		0,		112},// #112 string(float fhandle) fgets (FRIK_FILE)
-	{"fputs",			PF_fputs,			0,		0,		0,		113},// #113 void(float fhandle, string s) fputs (FRIK_FILE)
-	{"strlen",			PF_strlen,			0,		0,		0,		114},// #114 float(string s) strlen (FRIK_FILE)
-	{"strcat",			PF_strcat,			0,		0,		0,		115},// #115 string(string s1, string s2) strcat (FRIK_FILE)
-	{"substring",		PF_substring,		0,		0,		0,		116},// #116 string(string s, float start, float length) substring (FRIK_FILE)
-	{"stov",			PF_stov,			0,		0,		0,		117},// #117 vector(string s) stov (FRIK_FILE)
-	{"strzone",			PF_dupstring,		0,		0,		0,		118},// #118 string(string s) strzone (FRIK_FILE)
-	{"strunzone",		PF_forgetstring,	0,		0,		0,		119},// #119 string(string s) strunzone (FRIK_FILE)
+	{"fopen",			PF_fopen,			0,		0,		0,		110, "float(string filename, float mode, optional float mmapminsize)"},	// (FRIK_FILE)
+	{"fclose",			PF_fclose,			0,		0,		0,		111, "void(float fhandle)"},	// (FRIK_FILE)
+	{"fgets",			PF_fgets,			0,		0,		0,		112, "string(float fhandle)"},	// (FRIK_FILE)
+	{"fputs",			PF_fputs,			0,		0,		0,		113, "void(float fhandle, string s)"},	// (FRIK_FILE)
+	{"strlen",			PF_strlen,			0,		0,		0,		114, "float(string s)"},	// (FRIK_FILE)
+	{"strcat",			PF_strcat,			0,		0,		0,		115, "string(string s1, optional string s2, ...)"},	// (FRIK_FILE)
+	{"substring",		PF_substring,		0,		0,		0,		116, "string(string s, float start, float length)"},	// (FRIK_FILE)
+	{"stov",			PF_stov,			0,		0,		0,		117, "vector(string s)"},	// (FRIK_FILE)
+	{"strzone",			PF_dupstring,		0,		0,		0,		118, "string(string s)"},	// (FRIK_FILE)
+	{"strunzone",		PF_forgetstring,	0,		0,		0,		119, "void(string s)"},	// (FRIK_FILE)
 //end frikfile
 
 //these are telejano's
-	{"cvar_setf",		PF_cvar_setf,		0,		0,		0,		176},// #176 void(string cvar, float val) cvar_setf
-	{"localsound",		PF_LocalSound,		0,		0,		0,		177},//	#177
+	{"cvar_setf",		PF_cvar_setf,		0,		0,		0,		176,	"void(string cvar, float val)"},
+	{"localsound",		PF_LocalSound,		0,		0,		0,		177,	"",	true},//	#177
 //end telejano
 
 //fte extras
-	{"getmodelindex",	PF_getmodelindex,	0,		0,		0,		200},
-	{"externcall",		PF_externcall,		0,		0,		0,		201},
-	{"addprogs",		PF_addprogs,		0,		0,		0,		202},
-	{"externvalue",		PF_externvalue,		0,		0,		0,		203},
-	{"externset",		PF_externset,		0,		0,		0,		204},
-	{"externrefcall",	PF_externrefcall,	0,		0,		0,		205},
-	{"instr",			PF_instr,			0,		0,		0,		206},
+	{"getmodelindex",	PF_getmodelindex,	0,		0,		0,		200,	"float(string modelname, optional float queryonly)"},
+	{"externcall",		PF_externcall,		0,		0,		0,		201,	"__variant(float prnum, string funcname, ...)"},
+	{"addprogs",		PF_addprogs,		0,		0,		0,		202,	"float(string progsname)"},
+	{"externvalue",		PF_externvalue,		0,		0,		0,		203,	"__variant(float prnum, string varname)"},
+	{"externset",		PF_externset,		0,		0,		0,		204,	"void(float prnum, __variant newval, string varname)"},
+	{"externrefcall",	PF_externrefcall,	0,		0,		0,		205,	"__variant(float prnum, void() func, ...)", true},
+	{"instr",			PF_instr,			0,		0,		0,		206,	"float(string input, string token)"},
 #ifdef Q2BSPS
-	{"openportal",		PF_OpenPortal,		0,		0,		0,		207},
+	{"openportal",		PF_OpenPortal,		0,		0,		0,		207,	"void(float portal, float state)"},
 #endif
 
-	{"RegisterTempEnt", PF_RegisterTEnt,	0,		0,		0,		208},
-	{"CustomTempEnt",	PF_CustomTEnt,		0,		0,		0,		209},
-	{"fork",			PF_Fork,			0,		0,		0,		210},
-	{"abort",			PF_Abort,			0,		0,		0,		211},
-	{"sleep",			PF_Sleep,			0,		0,		0,		212},
-	{"forceinfokey",	PF_ForceInfoKey,	0,		0,		0,		213},
+	{"RegisterTempEnt", PF_RegisterTEnt,	0,		0,		0,		208,	"float(float attributes, string effectname, ...)"},
+	{"CustomTempEnt",	PF_CustomTEnt,		0,		0,		0,		209,	"void(float type, vector pos, ...)"},
+	{"fork",			PF_Fork,			0,		0,		0,		210,	"float(optional float sleeptime)"},
+	{"abort",			PF_Abort,			0,		0,		0,		211,	"void(optional __variant ret)"},
+	{"sleep",			PF_Sleep,			0,		0,		0,		212,	"void(float sleeptime)"},
+	{"forceinfokey",	PF_ForceInfoKey,	0,		0,		0,		213,	"void(entity player, string key, string value)"},
 #ifdef SVCHAT
-	{"chat",			PF_chat,			0,		0,		0,		214},// #214 void(string filename, float starttag, entity edict) SV_Chat (FTE_NPCCHAT)
+	{"chat",			PF_chat,			0,		0,		0,		214,	"void(string filename, float starttag, entity edict)"}, //(FTE_NPCCHAT)
 #endif
 //FTE_PEXT_HEXEN2
-	{"particle2",		PF_particle2,		0,		0,		42,		215},
-	{"particle3",		PF_particle3,		0,		0,		85,		216},
-	{"particle4",		PF_particle4,		0,		0,		86,		217},
+	{"particle2",		PF_particle2,		0,		0,		42,		215,	"void(vector org, vector dmin, vector dmax, float colour, float effect, float count)"},
+	{"particle3",		PF_particle3,		0,		0,		85,		216,	"void(vector org, vector box, float colour, float effect, float count)"},
+	{"particle4",		PF_particle4,		0,		0,		86,		217,	"void(vector org, float radius, float colour, float effect, float count)"},
 
 //EXT_DIMENSION_PLANES
-	{"bitshift",		PF_bitshift,		0,		0,		0,		218},
+	{"bitshift",		PF_bitshift,		0,		0,		0,		218,	"float(float number, float quantity)"},
 
 //I guess this should go under DP_TE_STANDARDEFFECTBUILTINS...
-	{"te_lightningblood",PF_te_lightningblood,	0,	0,		0,		219},// #219 te_lightningblood
+	{"te_lightningblood",PF_te_lightningblood,	0,	0,		0,		219,	"void(vector pos)"},// #219 te_lightningblood
 
-	{"map_builtin",		PF_builtinsupported,0,		0,		0,		220},	//like #100 - takes 2 args. arg0 is builtinname, 1 is number to map to.
+	{"map_builtin",		PF_builtinsupported,0,		0,		0,		220,	"", true},	//like #100 - takes 2 args. arg0 is builtinname, 1 is number to map to.
 
 //FTE_STRINGS
-	{"strstrofs",		PF_strstrofs,		0,		0,		0,		221},
-	{"str2chr",			PF_str2chr,			0,		0,		0,		222},
-	{"chr2str",			PF_chr2str,			0,		0,		0,		223},
-	{"strconv",			PF_strconv,			0,		0,		0,		224},
-	{"strpad",			PF_strpad,			0,		0,		0,		225},	//will be moved
-	{"infoadd",			PF_infoadd,			0,		0,		0,		226},
-	{"infoget",			PF_infoget,			0,		0,		0,		227},
-	{"strncmp",			PF_strncmp,			0,		0,		0,		228},
-	{"strcasecmp",		PF_strcasecmp,		0,		0,		0,		229},
-	{"strncasecmp",		PF_strncasecmp,		0,		0,		0,		230},
+	{"strstrofs",		PF_strstrofs,		0,		0,		0,		221,	"float(string s1, string sub)"},
+	{"str2chr",			PF_str2chr,			0,		0,		0,		222,	"float(string str, float index)"},
+	{"chr2str",			PF_chr2str,			0,		0,		0,		223,	"string(float chr, ...)"},
+	{"strconv",			PF_strconv,			0,		0,		0,		224,	"string(float ccase, float redalpha, float redchars, string str, ...)"},
+	{"strpad",			PF_strpad,			0,		0,		0,		225,	"string(float pad, string str1, ...)"},	//will be moved
+	{"infoadd",			PF_infoadd,			0,		0,		0,		226,	"string(string old, string key, string value)"},
+	{"infoget",			PF_infoget,			0,		0,		0,		227,	"string(string info, string key)"},
+	{"strncmp",			PF_strncmp,			0,		0,		0,		228,	"float(string s1, string s2, float len)"},
+	{"strcasecmp",		PF_strcasecmp,		0,		0,		0,		229,	"float(string s1, string s2)"},
+	{"strncasecmp",		PF_strncasecmp,		0,		0,		0,		230,	"float(string s1, string s2, float len)"},
 //END FTE_STRINGS
 
 //FTE_CALLTIMEOFDAY
-	{"calltimeofday",	PF_calltimeofday,	0,		0,		0,		231},
+	{"calltimeofday",	PF_calltimeofday,	0,		0,		0,		231,	"void()"},
 
 //EXT_CSQC
-	{"clientstat",		PF_clientstat,		0,		0,		0,		232},	//EXT_CSQC
-	{"globalstat",		PF_globalstat,		0,		0,		0,		233},	//EXT_CSQC_1 actually
+	{"clientstat",		PF_clientstat,		0,		0,		0,		232,	"void(float num, float type, .void fld)"},	//EXT_CSQC
+	{"globalstat",		PF_globalstat,		0,		0,		0,		233,	"void(float num, float type, string name)"},	//EXT_CSQC_1 actually
 //END EXT_CSQC
-	{"isbackbuffered",	PF_isbackbuffered,	0,		0,		0,		234},
-	//{"rotatevectorsbyangle",	PF_rotatevectorsbyangles,0,0,0,		235}, // #235
-	//{"rotatevectorsbymatrix",	PF_rotatevectorsbymatrix,0,0,0,		236}, // #236
-	{"skinforname",		PF_skinforname,		0,		0,		0,		237},		// #237
-	{"shaderforname",	PF_Fixme,			0,		0,		0,		238},
-	{"te_bloodqw",		PF_te_bloodqw,		0,		0,		0,		239},
+	{"isbackbuffered",	PF_isbackbuffered,	0,		0,		0,		234,	"void(entity player)"},
+	{"rotatevectorsbyangle",	PF_Fixme,	0,		0,		0,		235,	"void(vector angle)"}, // #235
+	{"rotatevectorsbyvectors",	PF_Fixme,	0,		0,		0,		236,	"void(vector fwd, vector right, vector up)"}, // #236
+	{"skinforname",		PF_skinforname,		0,		0,		0,		237,	"float(float mdlindex, string skinname)"},		// #237
+	{"shaderforname",	PF_Fixme,			0,		0,		0,		238,	"float(string shadername, optional string defaultshader)"},
+	{"te_bloodqw",		PF_te_bloodqw,		0,		0,		0,		239,	"void(vector org, optional float count)"},
 
-	{"checkpvs",		PF_checkpvs,		0,		0,		0,		240},
-	{"matchclientname",	PF_matchclient,		0,		0,		0,		241},
-	{"sendpacket",		PF_SendPacket,		0,		0,		0,		242},	//void(string dest, string content) sendpacket = #242; (FTE_QC_SENDPACKET)
+	{"checkpvs",		PF_checkpvs,		0,		0,		0,		240,	"float(vector viewpos, entity entity)"},
+	{"matchclientname",	PF_matchclient,		0,		0,		0,		241,	"entity(string match, optional float matchnum)"},
+	{"sendpacket",		PF_SendPacket,		0,		0,		0,		242,	"void(string dest, string content)"},// (FTE_QC_SENDPACKET)
 
 //	{"bulleten",		PF_bulleten,		0,		0,		0,		243}, (removed builtin)
 
+	{"rotatevectorsbytag",	PF_Fixme,		0,		0,		0,		244,	"vector(entity ent, float tagnum)"},	// #234
+
 #ifdef SQL
-	{"sqlconnect",		PF_sqlconnect,		0,		0,		0,		250},	// #250 float([string host], [string user], [string pass], [string defaultdb], [string driver]) sqlconnect (FTE_SQL)
-	{"sqldisconnect",	PF_sqldisconnect,	0,		0,		0,		251},	// #251 void(float serveridx) sqldisconnect (FTE_SQL)
-	{"sqlopenquery",	PF_sqlopenquery,	0,		0,		0,		252},	// #252 float(float serveridx, void(float serveridx, float queryidx, float rows, float columns, float eof) callback, float querytype, string query) sqlopenquery (FTE_SQL)
-	{"sqlclosequery",	PF_sqlclosequery,	0,		0,		0,		253},	// #253 void(float serveridx, float queryidx) sqlclosequery (FTE_SQL)
-	{"sqlreadfield",	PF_sqlreadfield,	0,		0,		0,		254},	// #254 string(float serveridx, float queryidx, float row, float column) sqlreadfield (FTE_SQL)
-	{"sqlerror",		PF_sqlerror,		0,		0,		0,		255},	// #255 string(float serveridx, [float queryidx]) sqlerror (FTE_SQL)
-	{"sqlescape",		PF_sqlescape,		0,		0,		0,		256},	// #256 string(float serveridx, string data) sqlescape (FTE_SQL)
-	{"sqlversion",		PF_sqlversion,		0,		0,		0,		257},	// #257 string(float serveridx) sqlversion (FTE_SQL)
-	{"sqlreadfloat",	PF_sqlreadfloat,	0,		0,		0,		258},	// #258 float(float serveridx, float queryidx, float row, float column) sqlreadfloat (FTE_SQL)
+	{"sqlconnect",		PF_sqlconnect,		0,		0,		0,		250,	"float([string host], [string user], [string pass], [string defaultdb], [string driver]) sqlconnect (FTE_SQL)
+	{"sqldisconnect",	PF_sqldisconnect,	0,		0,		0,		251,	"void(float serveridx) sqldisconnect (FTE_SQL)
+	{"sqlopenquery",	PF_sqlopenquery,	0,		0,		0,		252,	"float(float serveridx, void(float serveridx, float queryidx, float rows, float columns, float eof) callback, float querytype, string query) sqlopenquery (FTE_SQL)
+	{"sqlclosequery",	PF_sqlclosequery,	0,		0,		0,		253,	"void(float serveridx, float queryidx) sqlclosequery (FTE_SQL)
+	{"sqlreadfield",	PF_sqlreadfield,	0,		0,		0,		254,	"string(float serveridx, float queryidx, float row, float column) sqlreadfield (FTE_SQL)
+	{"sqlerror",		PF_sqlerror,		0,		0,		0,		255,	"string(float serveridx, [float queryidx]) sqlerror (FTE_SQL)
+	{"sqlescape",		PF_sqlescape,		0,		0,		0,		256,	"string(float serveridx, string data) sqlescape (FTE_SQL)
+	{"sqlversion",		PF_sqlversion,		0,		0,		0,		257,	"string(float serveridx) sqlversion (FTE_SQL)
+	{"sqlreadfloat",	PF_sqlreadfloat,	0,		0,		0,		258,	"float(float serveridx, float queryidx, float row, float column) sqlreadfloat (FTE_SQL)
 #endif
-	{"stoi",			PF_stoi,			0,		0,		0,		259},
-	{"itos",			PF_itos,			0,		0,		0,		260},
-	{"stoh",			PF_stoh,			0,		0,		0,		261},
-	{"htos",			PF_htos,			0,		0,		0,		262},
+	{"stoi",			PF_stoi,			0,		0,		0,		259,	"int(string)"},
+	{"itos",			PF_itos,			0,		0,		0,		260,	"string(int)"},
+	{"stoh",			PF_stoh,			0,		0,		0,		261,	"int(string)"},
+	{"htos",			PF_htos,			0,		0,		0,		262,	"string(int)"},
 
-#if 0
-	{"skel_create",		PF_skel_create,		0,		0,		0,		263},//float(float modlindex) skel_create = #263; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_build",		PF_skel_build,		0,		0,		0,		264},//float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone) skel_build = #264; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_get_numbones",PF_skel_get_numbones,0,	0,		0,		265},//float(float skel) skel_get_numbones = #265; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_get_bonename",PF_skel_get_bonename,0,	0,		0,		266},//string(float skel, float bonenum) skel_get_bonename = #266; // (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
-	{"skel_get_boneparent",PF_skel_get_boneparent,0,0,		0,		267},//float(float skel, float bonenum) skel_get_boneparent = #267; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_find_bone",	PF_skel_find_bone,	0,		0,		0,		268},//float(float skel, string tagname) skel_get_boneidx = #268; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_get_bonerel",PF_skel_get_bonerel,0,		0,		0,		269},//vector(float skel, float bonenum) skel_get_bonerel = #269; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
-	{"skel_get_boneabs",PF_skel_get_boneabs,0,		0,		0,		270},//vector(float skel, float bonenum) skel_get_boneabs = #270; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
-	{"skel_set_bone",	PF_skel_set_bone,	0,		0,		0,		271},//void(float skel, float bonenum, vector org) skel_set_bone = #271; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-	{"skel_mul_bone",	PF_skel_mul_bone,	0,		0,		0,		272},//void(float skel, float bonenum, vector org) skel_mul_bone = #272; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-	{"skel_mul_bones",	PF_skel_mul_bones,	0,		0,		0,		273},//void(float skel, float startbone, float endbone, vector org) skel_mul_bone = #273; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
-	{"skel_copybones",	PF_skel_copybones,	0,		0,		0,		274},//void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones = #274; // (FTE_CSQC_SKELETONOBJECTS)
-	{"skel_delete",		PF_skel_delete,		0,		0,		0,		275},//void(float skel) skel_delete = #275; // (FTE_CSQC_SKELETONOBJECTS)
-#endif
-	{"frameforname",	PF_frameforname,	0,		0,		0,		276},//void(float modidx, string framename) frameforname = #276 (FTE_CSQC_SKELETONOBJECTS)
-	{"frameduration",	PF_frameduration,	0,		0,		0,		277},//float(float modidx, float framenum) frameduration = #277 (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_create",		PF_skel_create,		0,		0,		0,		263,	"float(float modlindex, optional float useabstransforms)"}, // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_build",		PF_skel_build,		0,		0,		0,		264,	"float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone, optional float addfrac)"}, // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_numbones",PF_skel_get_numbones,0,	0,		0,		265,	"float(float skel)"}, // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_bonename",PF_skel_get_bonename,0,	0,		0,		266,	"string(float skel, float bonenum)"}, // (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
+	{"skel_get_boneparent",PF_skel_get_boneparent,0,0,		0,		267,	"float(float skel, float bonenum)"}, // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_find_bone",	PF_skel_find_bone,	0,		0,		0,		268,	"float(float skel, string tagname)"}, // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_bonerel",PF_skel_get_bonerel,0,		0,		0,		269,	"vector(float skel, float bonenum)"}, // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+	{"skel_get_boneabs",PF_skel_get_boneabs,0,		0,		0,		270,	"vector(float skel, float bonenum)"}, // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+	{"skel_set_bone",	PF_skel_set_bone,	0,		0,		0,		271,	"void(float skel, float bonenum, vector org, optional vector fwd, optional vector right, optional vector up)"}, // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_mul_bone",	PF_skel_mul_bone,	0,		0,		0,		272,	"void(float skel, float bonenum, vector org, optional vector fwd, optional vector right, optional vector up)"}, // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_mul_bones",	PF_skel_mul_bones,	0,		0,		0,		273,	"void(float skel, float startbone, float endbone, vector org, optional vector fwd, optional vector right, optional vector up)"}, // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_copybones",	PF_skel_copybones,	0,		0,		0,		274,	"void(float skeldst, float skelsrc, float startbone, float entbone)"}, // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_delete",		PF_skel_delete,		0,		0,		0,		275,	"void(float skel)"}, // (FTE_CSQC_SKELETONOBJECTS)
+	{"frameforname",	PF_frameforname,	0,		0,		0,		276,	"void(float modidx, string framename)"},// (FTE_CSQC_SKELETONOBJECTS)
+	{"frameduration",	PF_frameduration,	0,		0,		0,		277,	"float(float modidx, float framenum)"},// (FTE_CSQC_SKELETONOBJECTS)
 
-	{"terrain_edit",	PF_sv_terrain_edit,	0,		0,		0,		278},//void(float action, vector pos, float radius, float quant) terrain_edit = #278 (??FTE_TERRAIN_EDIT??
-	{"touchtriggers",	PF_sv_touchtriggers,0,		0,		0,		279},//void() touchtriggers = #279;
-	{"writefloat",		PF_WriteFloat,		0,		0,		0,		280},//void(float buf, float fl) writefloat = #280;
+	{"terrain_edit",	PF_sv_terrain_edit,	0,		0,		0,		278,	"void(float action, vector pos, float radius, float quant)"},// (??FTE_TERRAIN_EDIT??
+	{"touchtriggers",	PF_sv_touchtriggers,0,		0,		0,		279,	"void()"},//
+	{"writefloat",		PF_WriteFloat,		0,		0,		0,		280,	"void(float buf, float fl)"},//
+	{"skel_ragupdate",	PF_skel_ragedit,	0,		0,		0,		281,	"float(float skel, string dollname, float parentskel, vector trans, vector fwd, vector rt, vector up)" NYI}, // (FTE_CSQC_RAGDOLL)
+	{"skel_mmap",		PF_skel_mmap,		0,		0,		0,		282,	"float*(float skel)"},// (FTE_QC_RAGDOLL)
+
+
+	{"clearscene",		PF_Fixme,	0,		0,		0,		300,	"void()"},// (EXT_CSQC)
+	{"addentities",		PF_Fixme,	0,		0,		0,		301,	"void(float mask)"},// (EXT_CSQC)
+	{"addentity",		PF_Fixme,	0,		0,		0,		302,	"void(entity ent)"},// (EXT_CSQC)
+	{"setproperty",		PF_Fixme,	0,		0,		0,		303,	"#define setviewprop setproperty\nfloat(float property, ...)"},// (EXT_CSQC)
+	{"renderscene",		PF_Fixme,	0,		0,		0,		304,	"void()"},// (EXT_CSQC)
+
+	{"dynamiclight_add",PF_Fixme,	0,		0,		0,		305,	"float(vector org, float radius, vector lightcolours)"},// (EXT_CSQC)
+
+	{"R_BeginPolygon",	PF_Fixme,	0,		0,		0,		306,	"void(string texturename)"},// (EXT_CSQC_???)
+	{"R_PolygonVertex",	PF_Fixme,	0,		0,		0,		307,	"void(vector org, vector texcoords, vector rgb, float alpha)"},// (EXT_CSQC_???)
+	{"R_EndPolygon",	PF_Fixme,	0,		0,		0,		308,	"void()"},// (EXT_CSQC_???)
+
+	{"getproperty",		PF_Fixme,	0,		0,		0,		309,	"#define getviewprop getproperty\n__variant(float property)"},// (EXT_CSQC_1)
+
+//310
+//maths stuff that uses the current view settings.
+	{"unproject",		PF_Fixme,	0,		0,		0,		310,	"vector (vector v)"},// (EXT_CSQC)
+	{"project",			PF_Fixme,	0,		0,		0,		311,	"vector (vector v)"},// (EXT_CSQC)
+
+//2d (immediate) operations
+	{"drawline",		PF_Fixme,	0,		0,		0,		315,	"void(float width, vector pos1, vector pos2)"},// (EXT_CSQC)
+	{"iscachedpic",		PF_Fixme,	0,		0,		0,		316,	"float(string name)"},// (EXT_CSQC)
+	{"precache_pic",	PF_Fixme,	0,		0,		0,		317,	"string(string name, float trywad)"},// (EXT_CSQC)
+	{"draw_getimagesize",PF_Fixme,	0,		0,		0,		318,	"vector(string picname)"},// (EXT_CSQC)
+	{"freepic",			PF_Fixme,	0,		0,		0,		319,	"void(string name)"},// (EXT_CSQC)
+//320
+	{"drawcharacter",	PF_Fixme,	0,		0,		0,		320,	"float(vector position, float character, vector scale, vector rgb, float alpha, optional float flag)"},// (EXT_CSQC, [EXT_CSQC_???])
+	{"drawrawstring",	PF_Fixme,	0,		0,		0,		321,	"float(vector position, string text, vector scale, vector rgb, float alpha, optional float flag)"},// (EXT_CSQC, [EXT_CSQC_???])
+	{"drawpic",			PF_Fixme,	0,		0,		0,		322,	"float(vector position, string pic, vector size, vector rgb, float alpha, optional float flag)"},// (EXT_CSQC, [EXT_CSQC_???])
+	{"drawfill",		PF_Fixme,	0,		0,		0,		323,	"float(vector position, vector size, vector rgb, float alpha, optional float flag)"},// (EXT_CSQC, [EXT_CSQC_???])
+	{"drawsetcliparea",	PF_Fixme,	0,		0,		0,		324,	"void(float x, float y, float width, float height)"},// (EXT_CSQC_???)
+	{"drawresetcliparea",PF_Fixme,	0,		0,		0,		325,	"void(void)"},// (EXT_CSQC_???)
+
+	{"drawstring",		PF_Fixme,	0,		0,		0,		326,	"float(vector position, string text, vector scale, vector rgb, float alpha, float flag)"},// #326
+	{"stringwidth",		PF_Fixme,	0,		0,		0,		327,	"float(string text, float usecolours, optional vector fontsize)"},// EXT_CSQC_'DARKPLACES'
+	{"drawsubpic",		PF_Fixme,	0,		0,		0,		328,	"void(vector pos, vector sz, string pic, vector srcpos, vector srcsz, vector rgb, float alpha, float flag)"},// #328 EXT_CSQC_'DARKPLACES'
+
+//330
+	{"getstati",		PF_Fixme,	0,		0,		0,		330,	"float(float stnum)"},// (EXT_CSQC)
+	{"getstatbits",		PF_Fixme,	0,		0,		0,		331,	"#define getstatf getstatbits\nfloat(float stnum, optional float firstbit, optional float bitcount)"},// (EXT_CSQC)
+	{"getstats",		PF_Fixme,	0,		0,		0,		332,	"string(float firststnum)"},
 
 //EXT_CSQC
-//	{"setmodelindex",	PF_sv_SetModelIndex,0,		0,		0,		333},	// #333 void(entity e, float mdlindex) setmodelindex (EXT_CSQC)
-//	{"modelnameforindex",PF_sv_ModelnameForIndex,0,	0,		0,		334},	// #334 string(float mdlindex) modelnameforindex (EXT_CSQC)
+	{"setmodelindex",	PF_Fixme,	0,		0,		0,		333,	"void(entity e, float mdlindex)"},//
+	{"modelnameforindex",PF_Fixme,	0,		0,		0,		334,	"string(float mdlindex)"},//
 
-	{"particleeffectnum",PF_sv_particleeffectnum,0,	0,		0,		335},	// #335 float(string effectname) particleeffectnum (EXT_CSQC)
-	{"trailparticles",	PF_sv_trailparticles,0,		0,		0,		336},	// #336 void(entity ent, float effectnum, vector start, vector end) trailparticles (EXT_CSQC),
-	{"pointparticles",	PF_sv_pointparticles,0,		0,		0,		337},	// #337 void(float effectnum, vector origin [, vector dir, float count]) pointparticles (EXT_CSQC)
+	{"particleeffectnum",PF_sv_particleeffectnum,0,0,0,		335,	"float(string effectname)"},// (EXT_CSQC)
+	{"trailparticles",	PF_sv_trailparticles,0,	0,	0,		336,	"void(float effectnum, entity ent, vector start, vector end)"},// (EXT_CSQC),
+	{"pointparticles",	PF_sv_pointparticles,0,	0,	0,		337,	"void(float effectnum, vector origin, optional vector dir, optional float count)"},// (EXT_CSQC)
 
-//	{"cprint",			PF_sv_cprint,		0,		0,		0,		338},	// #338 void(string s) cprint (EXT_CSQC)
-	{"print",			PF_print,		0,		0,		0,		339},	// #339 void(string s) print (EXT_CSQC)
+	{"cprint",			PF_Fixme,	0,		0,		0,		338,	"void(string s, ...)"},//(EXT_CSQC)
+	{"print",			PF_print,	0,		0,		0,		339,	"void(string s, ...)"},//(EXT_CSQC)
 
-	{"runclientphys",	PF_runclientphys,	0,		0,		0,		347},
+	
+	{"keynumtostring",	PF_Fixme,	0,		0,		0,		340,	"string(float keynum)"},// (EXT_CSQC)
+	{"stringtokeynum",	PF_Fixme,	0,		0,		0,		341,	"float(string keyname)"},// (EXT_CSQC)
+	{"getkeybind",		PF_Fixme,	0,		0,		0,		342,	"string(float keynum)"},// (EXT_CSQC)
 
-//	{"runningserver",	PF_sv_runningserver,0,		0,		0,		350},	// #350 float() isserver (EXT_CSQC)
-//	{"registercommand",	PF_sv_registercommand,0,	0,		0,		352},	// #352 void(string cmdname) registercommand (EXT_CSQC)
-	{"wasfreed",		PF_WasFreed,		0,		0,		0,		353},	// #353 float(entity ent) wasfreed (EXT_CSQC) (should be availabe on server too)
-//	{"serverkey",		PF_sv_serverkey,	0,		0,		0,		354},	// #354 string(string key) serverkey;
+	{"getmousepos",		PF_Fixme,	0,		0,		0,		344,	"", true},	// #344 This is a DP extension
+
+	{"getinputstate",	PF_Fixme,	0,		0,		0,		345,	"float(float framenum)"},// (EXT_CSQC)
+	{"setsensitivityscaler",PF_Fixme,0,		0,		0,		346,	"void(float sens)"},// (EXT_CSQC)
+
+
+	{"runstandardplayerphysics",PF_runclientphys,0,0,0,		347,	"void(entity ent)"},
+	{"getplayerkeyvalue",	PF_Fixme,0,		0,		0,		348,	"string(float playernum, string keyname)"},// (EXT_CSQC)
+
+	{"isdemo",			PF_Fixme,	0,		0,		0,		349,	"float()"},// (EXT_CSQC)
+	{"isserver",		PF_Fixme,	0,		0,		0,		350,	"float()"},//(EXT_CSQC)
+	{"SetListener",		PF_Fixme, 	0,		0,		0,		351,	"void(vector origin, vector forward, vector right, vector up)"},// (EXT_CSQC)
+	{"registercommand",	PF_Fixme,	0,		0,		0,		352,	"void(string cmdname)"},//(EXT_CSQC)
+	{"wasfreed",		PF_WasFreed,0,		0,		0,		353,	"float(entity ent)"},//(EXT_CSQC) (should be availabe on server too)
+	{"serverkey",		PF_Fixme,	0,		0,		0,		354,	"string(string key)"},//
+	{"getentitytoken",	PF_Fixme,	0,		0,		0,		355,	"string()"},//;
+	{"sendevent",		PF_Fixme,	0,		0,		0,		359,	"void(string evname, string evargs, ...)"},// (EXT_CSQC_1)
+
+	{"readbyte",		PF_Fixme,	0,		0,		0,		360,	"float()"},// (EXT_CSQC)
+	{"readchar",		PF_Fixme,	0,		0,		0,		361,	"float()"},// (EXT_CSQC)
+	{"readshort",		PF_Fixme,	0,		0,		0,		362,	"float()"},// (EXT_CSQC)
+	{"readlong",		PF_Fixme,	0,		0,		0,		363,	"float()"},// (EXT_CSQC)
+	{"readcoord",		PF_Fixme,	0,		0,		0,		364,	"float()"},// (EXT_CSQC)
+
+	{"readangle",		PF_Fixme,	0,		0,		0,		365,	"float()"},// (EXT_CSQC)
+	{"readstring",		PF_Fixme,	0,		0,		0,		366,	"string()"},// (EXT_CSQC)
+	{"readfloat",		PF_Fixme,	0,		0,		0,		367,	"float()"},// (EXT_CSQC)
+	{"readentitynum",	PF_Fixme,	0,		0,		0,		368,	"float()"},// (EXT_CSQC)
+
+//	{"readserverentitystate",PF_Fixme,0,	0,		0,		369,	"void(float flags, float simtime)"},// (EXT_CSQC_1)
+//	{"readsingleentitystate",PF_Fixme,0,	0,		0,		370},
+	{"deltalisten",		PF_Fixme,	0,		0,		0,		371,	"float(string modelname, float(float isnew) updatecallback, float flags)"},//  (EXT_CSQC_1)
+
+	{"dynamiclight_get",PF_Fixme,	0,		0,		0,		372,	"__variant(float lno, float fld)"},
+	{"dynamiclight_set",PF_Fixme,	0,		0,		0,		373,	"void(float lno, float fld, __variant value)"},
 //END EXT_CSQC
 
 //end fte extras
@@ -9130,205 +9226,206 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //DP extras
 
 //DP_QC_COPYENTITY
-	{"copyentity",		PF_copyentity,		0,		0,		0,		400},// #400 void(entity from, entity to) copyentity (DP_QC_COPYENTITY)
+	{"copyentity",		PF_copyentity,		0,		0,		0,		400,	"void(entity from, entity to)"},// (DP_QC_COPYENTITY)
 //DP_SV_SETCOLOR
-	{"setcolors",		PF_setcolors,		0,		0,		0,		401},// #401 void(entity from, entity to) setcolors
+	{"setcolors",		PF_setcolors,		0,		0,		0,		401,	"void(entity from, entity to)"},//
 //DP_QC_FINDCHAIN
-	{"findchain",		PF_sv_findchain,		0,		0,		0,		402},// #402 entity(string field, string match) findchain (DP_QC_FINDCHAIN)
+	{"findchain",		PF_sv_findchain,	0,		0,		0,		402,	"entity(string field, string match)"},// (DP_QC_FINDCHAIN)
 //DP_QC_FINDCHAINFLOAT
-	{"findchainfloat",	PF_sv_findchainfloat,	0,		0,		0,		403},// #403 entity(float fld, float match) findchainfloat (DP_QC_FINDCHAINFLOAT)
+	{"findchainfloat",	PF_sv_findchainfloat,0,		0,		0,		403,	"entity(float fld, float match)"},// (DP_QC_FINDCHAINFLOAT)
 //DP_SV_EFFECT
-	{"effect",			PF_effect,			0,		0,		0,		404},// #404 void(vector org, string modelname, float startframe, float endframe, float framerate) effect (DP_SV_EFFECT)
+	{"effect",			PF_effect,			0,		0,		0,		404,	"void(vector org, string modelname, float startframe, float endframe, float framerate)"},// (DP_SV_EFFECT)
 //DP_TE_BLOOD
-	{"te_blood",		PF_te_blooddp,		0,		0,		0,		405},// #405 te_blood
+	{"te_blood",		PF_te_blooddp,		0,		0,		0,		405,	"void(vector org, vector dir, float count)"},// #405 te_blood
 //DP_TE_BLOODSHOWER
-	{"te_bloodshower",	PF_te_bloodshower,	0,		0,		0,		406},// #406 void(vector mincorner, vector maxcorner, float explosionspeed, float howmany) te_bloodshower (DP_TE_BLOODSHOWER)
+	{"te_bloodshower",	PF_te_bloodshower,	0,		0,		0,		406,	"void(vector mincorner, vector maxcorner, float explosionspeed, float howmany)"},// (DP_TE_BLOODSHOWER)
 //DP_TE_EXPLOSIONRGB
-	{"te_explosionrgb",	PF_te_explosionrgb,	0,		0,		0,		407},// #407 void(vector org, vector color) te_explosionrgb (DP_TE_EXPLOSIONRGB)
+	{"te_explosionrgb",	PF_te_explosionrgb,	0,		0,		0,		407,	"void(vector org, vector color)"},// (DP_TE_EXPLOSIONRGB)
 //DP_TE_PARTICLECUBE
-	{"te_particlecube",	PF_te_particlecube,	0,		0,		0,		408},// #408 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter) te_particlecube (DP_TE_PARTICLECUBE)
+	{"te_particlecube",	PF_te_particlecube,	0,		0,		0,		408,	"void(vector mincorner, vector maxcorner, vector vel, float howmany, float color, float gravityflag, float randomveljitter)"},// (DP_TE_PARTICLECUBE)
 //DP_TE_PARTICLERAIN
-	{"te_particlerain",	PF_te_particlerain,	0,		0,		0,		409},// #409 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlerain (DP_TE_PARTICLERAIN)
+	{"te_particlerain",	PF_te_particlerain,	0,		0,		0,		409,	"void(vector mincorner, vector maxcorner, vector vel, float howmany, float color)"},// (DP_TE_PARTICLERAIN)
 //DP_TE_PARTICLESNOW
-	{"te_particlesnow",	PF_te_particlesnow,	0,		0,		0,		410},// #410 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlesnow (DP_TE_PARTICLESNOW)
+	{"te_particlesnow",	PF_te_particlesnow,	0,		0,		0,		410,	"void(vector mincorner, vector maxcorner, vector vel, float howmany, float color)"},// (DP_TE_PARTICLESNOW)
 //DP_TE_SPARK
-	{"te_spark",		PF_te_spark,		0,		0,		0,		411},// #411 void(vector org, vector vel, float howmany) te_spark (DP_TE_SPARK)
+	{"te_spark",		PF_te_spark,		0,		0,		0,		411,	"void(vector org, vector vel, float howmany)"},// (DP_TE_SPARK)
 //DP_TE_QUADEFFECTS1
-	{"te_gunshotquad",	PF_te_gunshotquad,	0,		0,		0,		412},// #412 void(vector org) te_gunshotquad (DP_TE_QUADEFFECTS1)
-	{"te_spikequad",	PF_te_spikequad,	0,		0,		0,		413},// #413 void(vector org) te_spikequad (DP_TE_QUADEFFECTS1)
-	{"te_superspikequad",PF_te_superspikequad,0,	0,		0,		414},// #414 void(vector org) te_superspikequad (DP_TE_QUADEFFECTS1)
-	{"te_explosionquad",PF_te_explosionquad,0,		0,		0,		415},// #415 void(vector org) te_explosionquad (DP_TE_QUADEFFECTS1)
+	{"te_gunshotquad",	PF_te_gunshotquad,	0,		0,		0,		412,	"void(vector org)"},// (DP_TE_QUADEFFECTS1)
+	{"te_spikequad",	PF_te_spikequad,	0,		0,		0,		413,	"void(vector org)"},// (DP_TE_QUADEFFECTS1)
+	{"te_superspikequad",PF_te_superspikequad,0,	0,		0,		414,	"void(vector org)"},// (DP_TE_QUADEFFECTS1)
+	{"te_explosionquad",PF_te_explosionquad,0,		0,		0,		415,	"void(vector org)"},// (DP_TE_QUADEFFECTS1)
 //DP_TE_SMALLFLASH
-	{"te_smallflash",	PF_te_smallflash,	0,		0,		0,		416},// #416 void(vector org) te_smallflash (DP_TE_SMALLFLASH)
+	{"te_smallflash",	PF_te_smallflash,	0,		0,		0,		416,	"void(vector org)"},// (DP_TE_SMALLFLASH)
 //DP_TE_CUSTOMFLASH
-	{"te_customflash",	PF_te_customflash,	0,		0,		0,		417},// #417 void(vector org, float radius, float lifetime, vector color) te_customflash (DP_TE_CUSTOMFLASH)
+	{"te_customflash",	PF_te_customflash,	0,		0,		0,		417,	"void(vector org, float radius, float lifetime, vector color)"},// (DP_TE_CUSTOMFLASH)
 
 //DP_TE_STANDARDEFFECTBUILTINS
-	{"te_gunshot",		PF_te_gunshot,		0,		0,		0,		418},// #418 te_gunshot
-	{"te_spike",		PF_te_spike,		0,		0,		0,		419},// #419 te_spike
-	{"te_superspike",	PF_te_superspike,	0,		0,		0,		420},// #420 te_superspike
-	{"te_explosion",	PF_te_explosion,	0,		0,		0,		421},// #421 te_explosion
-	{"te_tarexplosion",	PF_te_tarexplosion,	0,		0,		0,		422},// #422 te_tarexplosion
-	{"te_wizspike",		PF_te_wizspike,		0,		0,		0,		423},// #423 te_wizspike
-	{"te_knightspike",	PF_te_knightspike,	0,		0,		0,		424},// #424 te_knightspike
-	{"te_lavasplash",	PF_te_lavasplash,	0,		0,		0,		425},// #425 te_lavasplash
-	{"te_teleport",		PF_te_teleport,		0,		0,		0,		426},// #426 te_teleport
-	{"te_explosion2",	PF_te_explosion2,	0,		0,		0,		427},// #427 te_explosion2
-	{"te_lightning1",	PF_te_lightning1,	0,		0,		0,		428},// #428 te_lightning1
-	{"te_lightning2",	PF_te_lightning2,	0,		0,		0,		429},// #429 te_lightning2
-	{"te_lightning3",	PF_te_lightning3,	0,		0,		0,		430},// #430 te_lightning3
-	{"te_beam",			PF_te_beam,			0,		0,		0,		431},// #431 te_beam
+	{"te_gunshot",		PF_te_gunshot,		0,		0,		0,		418,	"void(vector org)"},// #418 te_gunshot
+	{"te_spike",		PF_te_spike,		0,		0,		0,		419,	"void(vector org)"},// #419 te_spike
+	{"te_superspike",	PF_te_superspike,	0,		0,		0,		420,	"void(vector org)"},// #420 te_superspike
+	{"te_explosion",	PF_te_explosion,	0,		0,		0,		421,	"void(vector org)"},// #421 te_explosion
+	{"te_tarexplosion",	PF_te_tarexplosion,	0,		0,		0,		422,	"void(vector org)"},// #422 te_tarexplosion
+	{"te_wizspike",		PF_te_wizspike,		0,		0,		0,		423,	"void(vector org)"},// #423 te_wizspike
+	{"te_knightspike",	PF_te_knightspike,	0,		0,		0,		424,	"void(vector org)"},// #424 te_knightspike
+	{"te_lavasplash",	PF_te_lavasplash,	0,		0,		0,		425,	"void(vector org)"},// #425 te_lavasplash
+	{"te_teleport",		PF_te_teleport,		0,		0,		0,		426,	"void(vector org)"},// #426 te_teleport
+	{"te_explosion2",	PF_te_explosion2,	0,		0,		0,		427,	"void(vector org, float color, float colorlength)"},// #427 te_explosion2
+	{"te_lightning1",	PF_te_lightning1,	0,		0,		0,		428,	"void(entity own, vector start, vector end)"},// #428 te_lightning1
+	{"te_lightning2",	PF_te_lightning2,	0,		0,		0,		429,	"void(entity own, vector start, vector end)"},// #429 te_lightning2
+	{"te_lightning3",	PF_te_lightning3,	0,		0,		0,		430,	"void(entity own, vector start, vector end)"},// #430 te_lightning3
+	{"te_beam",			PF_te_beam,			0,		0,		0,		431,	"void(entity own, vector start, vector end)"},// #431 te_beam
 //DP_QC_VECTORVECTORS
-	{"vectorvectors",	PF_vectorvectors,	0,		0,		0,		432},// #432 void(vector dir) vectorvectors (DP_QC_VECTORVECTORS)
+	{"vectorvectors",	PF_vectorvectors,	0,		0,		0,		432,	"void(vector dir)"},// (DP_QC_VECTORVECTORS)
 
-	{"te_plasmaburn",	PF_te_plasmaburn,	0,		0,		0,		433},// #433 void(vector org) te_plasmaburn (DP_TE_PLASMABURN)
+	{"te_plasmaburn",	PF_te_plasmaburn,	0,		0,		0,		433,	"void(vector org)"},// (DP_TE_PLASMABURN)
 
-	{"getsurfacenumpoints",PF_getsurfacenumpoints,0,0,		0,		434},// #434 float(entity e, float s) getsurfacenumpoints (DP_QC_GETSURFACE)
-	{"getsurfacepoint",PF_getsurfacepoint,	0,		0,		0,		435},// #435 vector(entity e, float s, float n) getsurfacepoint (DP_QC_GETSURFACE)
-	{"getsurfacenormal",PF_getsurfacenormal,0,		0,		0,		436},// #436 vector(entity e, float s) getsurfacenormal (DP_QC_GETSURFACE)
-	{"getsurfacetexture",PF_getsurfacetexture,0,	0,		0,		437},// #437 string(entity e, float s) getsurfacetexture (DP_QC_GETSURFACE)
-	{"getsurfacenearpoint",PF_getsurfacenearpoint,0,0,		0,		438},// #438 float(entity e, vector p) getsurfacenearpoint (DP_QC_GETSURFACE)
-	{"getsurfaceclippedpoint",PF_getsurfaceclippedpoint,0,0,0,		439},// #439 vector(entity e, float s, vector p) getsurfaceclippedpoint (DP_QC_GETSURFACE)
+	{"getsurfacenumpoints",PF_getsurfacenumpoints,0,0,		0,		434,	"float(entity e, float s)"},// (DP_QC_GETSURFACE)
+	{"getsurfacepoint",PF_getsurfacepoint,	0,		0,		0,		435,	"vector(entity e, float s, float n)"},// (DP_QC_GETSURFACE)
+	{"getsurfacenormal",PF_getsurfacenormal,0,		0,		0,		436,	"vector(entity e, float s)"},// (DP_QC_GETSURFACE)
+	{"getsurfacetexture",PF_getsurfacetexture,0,	0,		0,		437,	"string(entity e, float s)"},// (DP_QC_GETSURFACE)
+	{"getsurfacenearpoint",PF_getsurfacenearpoint,0,0,		0,		438,	"float(entity e, vector p)"},// (DP_QC_GETSURFACE)
+	{"getsurfaceclippedpoint",PF_getsurfaceclippedpoint,0,0,0,		439,	"vector(entity e, float s, vector p)"},// (DP_QC_GETSURFACE)
 
 //KRIMZON_SV_PARSECLIENTCOMMAND
-	{"clientcommand",	PF_clientcommand,	0,		0,		0,		440},// #440 void(entity e, string s) clientcommand (KRIMZON_SV_PARSECLIENTCOMMAND)
-	{"tokenize",		PF_Tokenize,		0,		0,		0,		441},// #441 float(string s) tokenize (KRIMZON_SV_PARSECLIENTCOMMAND)
-	{"argv",			PF_ArgV,			0,		0,		0,		442},// #442 string(float n) argv (KRIMZON_SV_PARSECLIENTCOMMAND
+	{"clientcommand",	PF_clientcommand,	0,		0,		0,		440,	"void(entity e, string s)"},// (KRIMZON_SV_PARSECLIENTCOMMAND)
+	{"tokenize",		PF_Tokenize,		0,		0,		0,		441,	"float(string s)"},// (KRIMZON_SV_PARSECLIENTCOMMAND)
+	{"argv",			PF_ArgV,			0,		0,		0,		442,	"string(float n)"},// (KRIMZON_SV_PARSECLIENTCOMMAND
 
 //DP_GFX_QUAKE3MODELTAGS
-	{"setattachment",	PF_setattachment,	0,		0,		0,		443},// #443 void(entity e, entity tagentity, string tagname) setattachment (DP_GFX_QUAKE3MODELTAGS)
+	{"setattachment",	PF_setattachment,	0,		0,		0,		443,	"void(entity e, entity tagentity, string tagname)"},// (DP_GFX_QUAKE3MODELTAGS)
 
-	{"search_begin",	PF_search_begin,	0,		0,		0,		444},
-	{"search_end",		PF_search_end,		0,		0,		0,		445},
-	{"search_getsize",	PF_search_getsize,	0,		0,		0,		446},
-	{"search_getfilename", PF_search_getfilename,0,	0,		0,		447},
+	{"search_begin",	PF_search_begin,	0,		0,		0,		444,	"float(string pattern, float caseinsensitive, float quiet)"},
+	{"search_end",		PF_search_end,		0,		0,		0,		445,	"void(float handle)"},
+	{"search_getsize",	PF_search_getsize,	0,		0,		0,		446,	"float(float handle)"},
+	{"search_getfilename", PF_search_getfilename,0,	0,		0,		447,	"string(float handle, float num)"},
 //DP_QC_CVAR_STRING
-	{"dp_cvar_string",	PF_cvar_string,		0,		0,		0,		448},// #448 string(float n) cvar_string
+	{"cvar_string",		PF_cvar_string,		0,		0,		0,		448,	"string(string cvarname)"},//
 
 //DP_QC_FINDFLAGS
-	{"findflags",		PF_FindFlags,		0,		0,		0,		449},// #449 entity(entity start, .entity fld, float match) findflags
+	{"findflags",		PF_FindFlags,		0,		0,		0,		449,	"entity(entity start, .entity fld, float match)"},//
 //DP_QC_FINDCHAINFLAGS
-	{"findchainflags",	PF_sv_findchainflags,	0,		0,		0,		450},// #450 entity(.float fld, float match) findchainflags
+	{"findchainflags",	PF_sv_findchainflags,0,		0,		0,		450,	"entity(.float fld, float match)"},//
 //DP_MD3_TAGSINFO
-	{"gettagindex",		PF_gettagindex,		0,		0,		0,		451},// #451 float(entity ent, string tagname) gettagindex (DP_MD3_TAGSINFO)
-	{"gettaginfo",		PF_sv_gettaginfo,		0,		0,		0,		452},// #452 vector(entity ent, float tagindex) gettaginfo (DP_MD3_TAGSINFO)
+	{"gettagindex",		PF_gettagindex,		0,		0,		0,		451,	"float(entity ent, string tagname)"},// (DP_MD3_TAGSINFO)
+	{"gettaginfo",		PF_sv_gettaginfo,	0,		0,		0,		452,	"vector(entity ent, float tagindex)"},// (DP_MD3_TAGSINFO)
 //DP_SV_BOTCLIENT
-	{"dropclient",		PF_dropclient,		0,		0,		0,		453},// #453 void(entity player) dropclient
+	{"dropclient",		PF_dropclient,		0,		0,		0,		453,	"void(entity player)"},//DP_SV_BOTCLIENT
 
-	{"spawnclient",		PF_spawnclient,		0,		0,		0,		454},	//entity() spawnclient = #454;
-	{"clienttype",		PF_clienttype,		0,		0,		0,		455},	//float(entity client) clienttype = #455;
+	{"spawnclient",		PF_spawnclient,		0,		0,		0,		454,	"entity()"},//DP_SV_BOTCLIENT
+	{"clienttype",		PF_clienttype,		0,		0,		0,		455,	"float(entity client)"},//botclient
 
-	{"WriteUnterminatedString",PF_WriteString2,0,	0,		0,		456},	//writestring but without the null terminator. makes things a little nicer.
+	{"WriteUnterminatedString",PF_WriteString2,0,	0,		0,		456,	"void(float target, string str)"},	//writestring but without the null terminator. makes things a little nicer.
 
 //DP_TE_FLAMEJET
-//	{"te_flamejet",		PF_te_flamejet,		0,		0,		0,		457},	// #457 void(vector org, vector vel, float howmany) te_flamejet
+//	{"te_flamejet",		PF_te_flamejet,		0,		0,		0,		457,	"void(vector org, vector vel, float howmany)"},
 
 	//no 458 documented.
 
 //DP_QC_EDICT_NUM
-	{"edict_num",		PF_edict_for_num,	0,		0,		0,		459},	// #459 entity(float entnum) edict_num
+	{"edict_num",		PF_edict_for_num,	0,		0,		0,		459,	"entity(float entnum)"},//
 
 //DP_QC_STRINGBUFFERS
-	{"buf_create",		PF_buf_create,		0,		0,		0,		460},	// #460 float() buf_create
-	{"buf_del",			PF_buf_del,			0,		0,		0,		461},	// #461 void(float bufhandle) buf_del
-	{"buf_getsize",		PF_buf_getsize,		0,		0,		0,		462},	// #462 float(float bufhandle) buf_getsize
-	{"buf_copy",		PF_buf_copy,		0,		0,		0,		463},	// #463 void(float bufhandle_from, float bufhandle_to) buf_copy
-	{"buf_sort",		PF_buf_sort,		0,		0,		0,		464},	// #464 void(float bufhandle, float sortpower, float backward) buf_sort
-	{"buf_implode",		PF_buf_implode,		0,		0,		0,		465},	// #465 string(float bufhandle, string glue) buf_implode
-	{"bufstr_get",		PF_bufstr_get,		0,		0,		0,		466},	// #466 string(float bufhandle, float string_index) bufstr_get
-	{"bufstr_set",		PF_bufstr_set,		0,		0,		0,		467},	// #467 void(float bufhandle, float string_index, string str) bufstr_set
-	{"bufstr_add",		PF_bufstr_add,		0,		0,		0,		468},	// #468 float(float bufhandle, string str, float order) bufstr_add
-	{"bufstr_free",		PF_bufstr_free,		0,		0,		0,		469},	// #469 void(float bufhandle, float string_index) bufstr_free
+	{"buf_create",		PF_buf_create,		0,		0,		0,		460,	"float()"},//
+	{"buf_del",			PF_buf_del,			0,		0,		0,		461,	"void(float bufhandle)"},//
+	{"buf_getsize",		PF_buf_getsize,		0,		0,		0,		462,	"float(float bufhandle)"},//
+	{"buf_copy",		PF_buf_copy,		0,		0,		0,		463,	"void(float bufhandle_from, float bufhandle_to)"},//
+	{"buf_sort",		PF_buf_sort,		0,		0,		0,		464,	"void(float bufhandle, float sortpower, float backward)"},//
+	{"buf_implode",		PF_buf_implode,		0,		0,		0,		465,	"string(float bufhandle, string glue)"},//
+	{"bufstr_get",		PF_bufstr_get,		0,		0,		0,		466,	"string(float bufhandle, float string_index)"},//
+	{"bufstr_set",		PF_bufstr_set,		0,		0,		0,		467,	"void(float bufhandle, float string_index, string str)"},//
+	{"bufstr_add",		PF_bufstr_add,		0,		0,		0,		468,	"float(float bufhandle, string str, float order)"},//
+	{"bufstr_free",		PF_bufstr_free,		0,		0,		0,		469,	"void(float bufhandle, float string_index)"},//
 
 	//no 470 documented
 
 //DP_QC_ASINACOSATANATAN2TAN
-	{"asin",			PF_asin,			0,		0,		0,		471},	// #471 float(float s) asin
-	{"acos",			PF_acos,			0,		0,		0,		472},	// #472 float(float c) acos
-	{"atan",			PF_atan,			0,		0,		0,		473},	// #473 float(float t) atan
-	{"atan2",			PF_atan2,			0,		0,		0,		474},	// #474 float(float c, float s) atan2
-	{"tan",				PF_tan,				0,		0,		0,		475},	// #475 float(float a) tan
+	{"asin",			PF_asin,			0,		0,		0,		471,	"float(float s)"},
+	{"acos",			PF_acos,			0,		0,		0,		472,	"float(float c)"},
+	{"atan",			PF_atan,			0,		0,		0,		473,	"float(float t)"},
+	{"atan2",			PF_atan2,			0,		0,		0,		474,	"float(float c, float s)"},
+	{"tan",				PF_tan,				0,		0,		0,		475,	"float(float a)"},
 
 
 //DP_QC_STRINGCOLORFUNCTIONS
-	{"strlennocol",		PF_strlennocol,		0,		0,		0,		476},	// #476 float(string s) strlennocol
-	{"strdecolorize",	PF_strdecolorize,	0,		0,		0,		477},	// #477 string(string s) strdecolorize
+	{"strlennocol",		PF_strlennocol,		0,		0,		0,		476,	"float(string s)"},
+	{"strdecolorize",	PF_strdecolorize,	0,		0,		0,		477,	"string(string s)"},
 
 //DP_QC_STRFTIME
-	{"strftime",		PF_strftime,		0,		0,		0,		478},	// #478 string(float uselocaltime, string format, ...) strftime
+	{"strftime",		PF_strftime,		0,		0,		0,		478,	"string(float uselocaltime, string format, ...)"},
 
 //DP_QC_TOKENIZEBYSEPARATOR
-	{"tokenizebyseparator",PF_tokenizebyseparator,0,0,		0,		479},	// #479 float(string s, string separator1, ...) tokenizebyseparator
+	{"tokenizebyseparator",PF_tokenizebyseparator,0,0,		0,		479,	"float(string s, string separator1, ...)"},
 
 //DP_QC_STRING_CASE_FUNCTIONS
-	{"strtolower",		PF_strtolower,		0,		0,		0,		480},	// #476 string(string s) strtolower
-	{"strtoupper",		PF_strtoupper,		0,		0,		0,		481},	// #476 string(string s) strlennocol
+	{"strtolower",		PF_strtolower,		0,		0,		0,		480,	"string(string s)"},
+	{"strtoupper",		PF_strtoupper,		0,		0,		0,		481,	"string(string s)"},
 
 //DP_QC_CVAR_DEFSTRING
-	{"cvar_defstring",	PF_cvar_defstring,	0,		0,		0,		482},	// #482 string(string s) cvar_defstring
+	{"cvar_defstring",	PF_cvar_defstring,	0,		0,		0,		482,	"string(string s)"},
 
 //DP_SV_POINTSOUND
-	{"pointsound",		PF_pointsound,		0,		0,		0,		483},	// #483 void(vector origin, string sample, float volume, float attenuation) pointsound
+	{"pointsound",		PF_pointsound,		0,		0,		0,		483,	"void(vector origin, string sample, float volume, float attenuation)"},
 
 //DP_QC_STRREPLACE
-	{"strreplace",		PF_strreplace,		0,		0,		0,		484},	// #484 string(string search, string replace, string subject) strreplace
-	{"strireplace",		PF_strireplace,		0,		0,		0,		485},	// #485 string(string search, string replace, string subject) strireplace
+	{"strreplace",		PF_strreplace,		0,		0,		0,		484,	"string(string search, string replace, string subject)"},
+	{"strireplace",		PF_strireplace,		0,		0,		0,		485,	"string(string search, string replace, string subject)"},
 
 
 //DP_QC_GETSURFACEPOINTATTRIBUTE
-	{"getsurfacepointattribute",PF_getsurfacepointattribute,0,0,0,	486},	// #486vector(entity e, float s, float n, float a) getsurfacepointattribute
+	{"getsurfacepointattribute",PF_getsurfacepointattribute,0,0,0,	486,	"vector(entity e, float s, float n, float a)"},
 
 //DP_GECKO_SUPPORT
-	{"gecko_create",	PF_gecko_create,	0,		0,		0,		487},	// #487 float(string name) gecko_create( string name )
-	{"gecko_destroy",	PF_gecko_destroy,	0,		0,		0,		488},	// #488 void(string name) gecko_destroy( string name )
-	{"gecko_navigate",	PF_gecko_navigate,	0,		0,		0,		489},	// #489 void(string name) gecko_navigate( string name, string URI )
-	{"gecko_keyevent",	PF_gecko_keyevent,	0,		0,		0,		490},	// #490 float(string name) gecko_keyevent( string name, float key, float eventtype )
-	{"gecko_mousemove",	PF_gecko_mousemove,	0,		0,		0,		491},	// #491 void gecko_mousemove( string name, float x, float y )
-	{"gecko_resize",	PF_gecko_resize,	0,		0,		0,		492},	// #492 void gecko_resize( string name, float w, float h )
-	{"gecko_get_texture_extent",PF_gecko_get_texture_extent,0,0,0,	493},	// #493 vector gecko_get_texture_extent( string name )
+	{"gecko_create",	PF_gecko_create,	0,		0,		0,		487,	"float(string name)"},
+	{"gecko_destroy",	PF_gecko_destroy,	0,		0,		0,		488,	"void(string name)"},
+	{"gecko_navigate",	PF_gecko_navigate,	0,		0,		0,		489,	"void(string name, string URI)"},
+	{"gecko_keyevent",	PF_gecko_keyevent,	0,		0,		0,		490,	"float(string name, float key, float eventtype)"},
+	{"gecko_mousemove",	PF_gecko_mousemove,	0,		0,		0,		491,	"void(string name, float x, float y)"},
+	{"gecko_resize",	PF_gecko_resize,	0,		0,		0,		492,	"void(string name, float w, float h)"},
+	{"gecko_get_texture_extent",PF_gecko_get_texture_extent,0,0,0,	493,	"vector(string name)"},
 
 //DP_QC_CRC16
-	{"crc16",			PF_crc16,			0,		0,		0,		494},	// #494 float(float caseinsensitive, string s, ...) crc16
+	{"crc16",			PF_crc16,			0,		0,		0,		494,	"float(float caseinsensitive, string s, ...)"},
 
 //DP_QC_CVAR_TYPE
-	{"cvar_type",		PF_cvar_type,		0,		0,		0,		495},	// #495 float(string name) cvar_type
+	{"cvar_type",		PF_cvar_type,		0,		0,		0,		495,	"float(string name)"},//
 
 //DP_QC_ENTITYDATA
-	{"numentityfields",	PF_numentityfields,	0,		0,		0,		496},	// #496 float() numentityfields
-	{"entityfieldname",	PF_entityfieldname,	0,		0,		0,		497},	// #497 string(float fieldnum) entityfieldname
-	{"entityfieldtype",	PF_entityfieldtype,	0,		0,		0,		498},	// #498 float(float fieldnum) entityfieldtype
-	{"getentityfieldstring",PF_getentityfieldstring,0,0,	0,		499},	// #499 string(float fieldnum, entity ent) getentityfieldstring
-	{"putentityfieldstring",PF_putentityfieldstring,0,0,	0,		500},	// #500 float(float fieldnum, entity ent, string s) putentityfieldstring
+	{"numentityfields",	PF_numentityfields,	0,		0,		0,		496,	"float()"},//
+	{"entityfieldname",	PF_entityfieldname,	0,		0,		0,		497,	"string(float fieldnum)"},//
+	{"entityfieldtype",	PF_entityfieldtype,	0,		0,		0,		498,	"float(float fieldnum)"},//
+	{"getentityfieldstring",PF_getentityfieldstring,0,0,	0,		499,	"string(float fieldnum, entity ent)"},//
+	{"putentityfieldstring",PF_putentityfieldstring,0,0,	0,		500,	"float(float fieldnum, entity ent, string s)"},//
 
 //DP_SV_WRITEPICTURE
-	{"WritePicture",	PF_WritePicture,	0,		0,		0,		501},	// #501 void(float to, string s, float sz) WritePicture
+	{"WritePicture",	PF_WritePicture,	0,		0,		0,		501,	"void(float to, string s, float sz)"},//
 
 	//no 502 documented
 
 //DP_QC_WHICHPACK
-	{"whichpack",		PF_whichpack,		0,		0,		0,		503},	// #503 string(string filename) whichpack
+	{"whichpack",		PF_whichpack,		0,		0,		0,		503,	"string(string filename)"},//
 	//no 504
 
 //DP_QC_URI_ESCAPE
-	{"uri_escape",		PF_uri_escape,		0,		0,		0,		510},	// #510 string(string in) uri_escape
-	{"uri_unescape",	PF_uri_unescape,	0,		0,		0,		511},	// #511 string(string in) uri_unescape = #511;
+	{"uri_escape",		PF_uri_escape,		0,		0,		0,		510,	"string(string in)"},//
+	{"uri_unescape",	PF_uri_unescape,	0,		0,		0,		511,	"string(string in)"},//
 
 //DP_QC_NUM_FOR_EDICT
-	{"num_for_edict",	PF_num_for_edict,	0,		0,		0,		512},	// #512 float(entity ent) num_for_edict
+	{"num_for_edict",	PF_num_for_edict,	0,		0,		0,		512,	"float(entity ent)"},//
 
 //DP_QC_URI_GET
-	{"uri_get",			PF_uri_get,			0,		0,		0,		513},	// #513 float(string uril, float id) uri_get
+	{"uri_get",			PF_uri_get,			0,		0,		0,		513,	"float(string uril, float id)" STUB},//
 
-	{"tokenize_console",PF_tokenize_console,0,		0,		0,		514},
-	{"argv_start_index",PF_argv_start_index,0,		0,		0,		515},
-	{"argv_end_index",	PF_argv_end_index,	0,		0,		0,		516},
-	{"buf_cvarlist",	PF_buf_cvarlist,	0,		0,		0,		517},
-	{"cvar_description",PF_cvar_description,0,		0,		0,		518},
+	{"tokenize_console",PF_tokenize_console,0,		0,		0,		514,	"void(string str)"},
+	{"argv_start_index",PF_argv_start_index,0,		0,		0,		515,	"float(float idx)"},
+	{"argv_end_index",	PF_argv_end_index,	0,		0,		0,		516,	"float(float idx)"},
+	{"buf_cvarlist",	PF_buf_cvarlist,	0,		0,		0,		517,	"void(float strbuf)" STUB},
+	{"cvar_description",PF_cvar_description,0,		0,		0,		518,	"string(string cvarname)"},
+	{"gettime",			PF_Fixme,			0,		0,		0,		519,	"float(optional float timetype)"},
 //end dp extras
 
-	{"precache_vwep_model",PF_precache_vwep_model,0,0,		0,		532},	// #532 float(string mname) precache_vwep_model
+	{"precache_vwep_model",PF_precache_vwep_model,0,0,		0,		532,	"float(string mname)"},
 
-	{"sprintf",			PF_sprintf,			0,		0,		0,		627},
+	{"sprintf",			PF_sprintf,			0,		0,		0,		627,	"string(...)" STUB},
 
 	//don't exceed sizeof(pr_builtin)/sizeof(pr_builtin[0]) (currently 1024) without modifing the size of pr_builtin
 
@@ -9600,11 +9697,11 @@ int pr_numbuiltins = sizeof(pr_builtin)/sizeof(pr_builtin[0]);
 
 void PR_RegisterFields(void)	//it's just easier to do it this way.
 {
-#define comfieldfloat(ssqcname,sharedname,csqcname) PR_RegisterFieldVar(svprogfuncs, ev_float, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1)
-#define comfieldvector(ssqcname,sharedname,csqcname) PR_RegisterFieldVar(svprogfuncs, ev_vector, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1)
-#define comfieldentity(ssqcname,sharedname,csqcname) PR_RegisterFieldVar(svprogfuncs, ev_entity, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1)
-#define comfieldstring(ssqcname,sharedname,csqcname) PR_RegisterFieldVar(svprogfuncs, ev_string, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1)
-#define comfieldfunction(ssqcname,sharedname,csqcname) PR_RegisterFieldVar(svprogfuncs, ev_function, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1)
+#define comfieldfloat(name) PR_RegisterFieldVar(svprogfuncs, ev_float, #name, (size_t)&((stdentvars_t*)0)->name, -1);
+#define comfieldvector(name) PR_RegisterFieldVar(svprogfuncs, ev_vector, #name, (size_t)&((stdentvars_t*)0)->name, -1);
+#define comfieldentity(name) PR_RegisterFieldVar(svprogfuncs, ev_entity, #name, (size_t)&((stdentvars_t*)0)->name, -1);
+#define comfieldstring(name) PR_RegisterFieldVar(svprogfuncs, ev_string, #name, (size_t)&((stdentvars_t*)0)->name, -1);
+#define comfieldfunction(name, typestr) PR_RegisterFieldVar(svprogfuncs, ev_function, #name, (size_t)&((stdentvars_t*)0)->name, -1);
 comqcfields
 #undef comfieldfloat
 #undef comfieldvector
@@ -9612,17 +9709,17 @@ comqcfields
 #undef comfieldstring
 #undef comfieldfunction
 #ifdef VM_Q1
-#define comfieldfloat(name) PR_RegisterFieldVar(svprogfuncs, ev_float, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1)
-#define comfieldvector(name) PR_RegisterFieldVar(svprogfuncs, ev_vector, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1)
-#define comfieldentity(name) PR_RegisterFieldVar(svprogfuncs, ev_entity, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1)
-#define comfieldstring(name) PR_RegisterFieldVar(svprogfuncs, ev_string, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1)
-#define comfieldfunction(name) PR_RegisterFieldVar(svprogfuncs, ev_function, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1)
+#define comfieldfloat(name) PR_RegisterFieldVar(svprogfuncs, ev_float, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1);
+#define comfieldvector(name) PR_RegisterFieldVar(svprogfuncs, ev_vector, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1);
+#define comfieldentity(name) PR_RegisterFieldVar(svprogfuncs, ev_entity, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1);
+#define comfieldstring(name) PR_RegisterFieldVar(svprogfuncs, ev_string, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1);
+#define comfieldfunction(name, typestr) PR_RegisterFieldVar(svprogfuncs, ev_function, #name, sizeof(stdentvars_t) + (size_t)&((extentvars_t*)0)->name, -1);
 #else
-#define comfieldfloat(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_float, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1)
-#define comfieldvector(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_vector, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1)
-#define comfieldentity(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_entity, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1)
-#define comfieldstring(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_string, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1)
-#define comfieldfunction(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_function, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1)
+#define comfieldfloat(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_float, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1);
+#define comfieldvector(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_vector, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1);
+#define comfieldentity(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_entity, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1);
+#define comfieldstring(ssqcname) PR_RegisterFieldVar(svprogfuncs, ev_string, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1);
+#define comfieldfunction(ssqcname, typestr) PR_RegisterFieldVar(svprogfuncs, ev_function, #ssqcname, (size_t)&((stdentvars_t*)0)->ssqcname, -1);
 #endif
 
 comextqcfields
@@ -9641,5 +9738,494 @@ svextqcfields
 		PR_RegisterFieldVar(svprogfuncs, 0, NULL, 0,0);
 }
 
+#define QW 1
+#define NQ 2
+#define CS 4
+#define FTE 8
+#define ALL (QW|NQ|CS)
+#define CORE
+typedef struct
+{
+	char *name;
+	char *type;
+
+	unsigned int module;
+	int value;
+	qboolean misc;
+} knowndef_t;
+void PR_DumpPlatform_f(void)
+{
+#ifdef SERVERONLY
+	Con_Printf("This command is not available in dedicated servers, sorry.\n");
+#else
+	//eg: pr_dumpplatform -FFTE -TCS -O csplat
+
+	int idx;
+	int i, j;
+	int d = 0, nd;
+	vfsfile_t *f;
+	char *fname = "";
+	unsigned int targ = 0;
+	qboolean defines = false;
+
+	/*this list is here to ensure that the file can be used as a valid initial qc file (ignoring precompiler options)*/
+	knowndef_t knowndefs[] =
+	{
+		{"self",				"entity", QW|NQ|CS},
+		{"other",				"entity", QW|NQ|CS},
+		{"world",				"entity", QW|NQ|CS},
+		{"world",				"entity", QW|NQ|CS},
+		{"time",				"float", QW|NQ|CS},
+		{"cltime",				"float", CS},
+		{"frametime",			"float", QW|NQ|CS},
+		{"player_localentnum",	"float", CS},
+		{"player_localnum",		"float", CS},
+		{"maxclients",			"float", CS},
+		{"clientcommandframe",	"float", CS},
+		{"servercommandframe",	"float", CS},
+		{"newmis",				"entity", QW},
+		{"force_retouch",		"float", QW|NQ},
+		{"mapname",				"string", QW|NQ|CS},
+		{"deathmatch",			"float", NQ},
+		{"coop",				"float", NQ},
+		{"teamplay",			"float", NQ},
+		{"serverflags",			"float", QW|NQ},
+		{"total_secrets",		"float", QW|NQ},
+		{"total_monsters",		"float", QW|NQ},
+		{"found_secrets",		"float", QW|NQ},
+		{"killed_monsters",		"float", QW|NQ},
+		{"parm1, parm2, parm3, parm4, parm5, parm6, parm7, parm8, parm9, parm10, parm11, parm12, parm13, parm14, parm15, parm16", "float", QW|NQ},
+		{"intermission",		"float", CS},
+		{"v_forward, v_up, v_right",	"vector", QW|NQ|CS},
+		{"view_angles",			"vector", CS},
+		{"trace_allsolid, trace_startsolid, trace_fraction",		"float", QW|NQ|CS},
+		{"trace_endpos, trace_plane_normal",		"vector", QW|NQ|CS},
+		{"trace_plane_dist",	"float", QW|NQ|CS},
+		{"trace_ent",			"entity", QW|NQ|CS},
+		{"trace_inopen",		"float", QW|NQ|CS},
+		{"trace_inwater",		"float", QW|NQ|CS},
+		{"input_timelength",	"float", CS},
+		{"input_angles",		"vector", CS},
+		{"input_movevalues",	"vector", CS},
+		{"input_buttons",		"float", CS},
+		{"input_impulse",		"float", CS},
+		{"msg_entity",			"entity", QW|NQ},
+		{"main",				"void()", QW|NQ},
+		{"StartFrame",			"void()", QW|NQ},
+		{"PlayerPreThink",		"void()", QW|NQ},
+		{"PlayerPostThink",		"void()", QW|NQ},
+		{"ClientKill",			"void()", QW|NQ},
+		{"ClientConnect",		"void(float usingcsqc)", QW|NQ},
+		{"PutClientInServer",	"void()", QW|NQ},
+		{"ClientDisconnect",	"void()", QW|NQ},
+		{"SetNewParms",			"void()", QW|NQ},
+		{"SetChangeParms",		"void()", QW|NQ},
+		{"end_sys_globals",		"void", QW|NQ|CS},
+
+		{"modelindex",			".float", QW|NQ|CS},
+		{"absmin, absmax",		".vector", QW|NQ|CS},
+		{"ltime",				".float", QW|NQ},
+		{"entnum",				".float", CS},
+		{"drawmask",			".float", CS},
+		{"predraw",				".void()", CS},
+		{"lastruntime",			".float", QW},
+		{"movetype",			".float", QW|NQ|CS},
+		{"solid",				".float", QW|NQ|CS},
+		{"origin",				".vector", QW|NQ|CS},
+		{"oldorigin",			".vector", QW|NQ|CS},
+		{"velocity",			".vector", QW|NQ|CS},
+		{"angles",				".vector", QW|NQ|CS},
+		{"avelocity",			".vector", QW|NQ|CS},
+		{"pmove_flags",			".float", CS},
+		{"punchangle",			".vector", NQ},
+		{"classname",			".string", QW|NQ|CS},
+		{"renderflags",			".float", CS},
+		{"model",				".string", QW|NQ|CS},
+		{"frame",				".float", QW|NQ|CS},
+		{"frame1time",			".float", CS},
+		{"frame2",				".float", CS},
+		{"frame2time",			".float", CS},
+		{"lerpfrac",			".float", CS},
+		{"skin",				".float", QW|NQ|CS},
+		{"effects",				".float", QW|NQ|CS},
+		{"mins, maxs",			".vector", QW|NQ|CS},
+		{"size",				".vector", QW|NQ|CS},
+		{"touch",				".void()", QW|NQ|CS},
+		{"use",					".void()", QW|NQ},
+		{"think",				".void()", QW|NQ|CS},
+		{"blocked",				".void()", QW|NQ|CS},
+		{"nextthink",			".float", QW|NQ|CS},
+
+		{"groundentity",		".entity", QW|NQ},
+		{"health",				".float", QW|NQ},
+		{"frags",				".float", QW|NQ},
+		{"weapon",				".float", QW|NQ},
+		{"weaponmodel",			".string", QW|NQ},
+		{"weaponframe",			".float", QW|NQ},
+		{"currentammo",			".float", QW|NQ},
+		{"ammo_shells",			".float", QW|NQ},
+		{"ammo_nails",			".float", QW|NQ},
+		{"ammo_rockets",		".float", QW|NQ},
+		{"ammo_cells",			".float", QW|NQ},
+		{"items",				".float", QW|NQ},
+		{"takedamage",			".float", QW|NQ},
+
+		{"chain",				".entity", QW|NQ|CS},
+		{"deadflag",			".float", QW|NQ},
+		{"view_ofs",			".vector", QW|NQ},
+		{"button0",				".float", QW|NQ},
+		{"button1",				".float", QW|NQ},
+		{"button2",				".float", QW|NQ},
+		{"impulse",				".float", QW|NQ},
+		{"fixangle",			".float", QW|NQ},
+		{"v_angle",				".vector", QW|NQ},
+		{"idealpitch",			".float", NQ},
+		{"netname",				".string", QW|NQ},
+		{"enemy",				".entity", QW|NQ|CS},
+		{"flags",				".float", QW|NQ|CS},
+		{"colormap",			".float", QW|NQ|CS},
+		{"team",				".float", QW|NQ},
+		{"max_health",			".float", QW|NQ},
+		{"teleport_time",		".float", QW|NQ},
+		{"armortype",			".float", QW|NQ},
+		{"armorvalue",			".float", QW|NQ},
+		{"waterlevel",			".float", QW|NQ},
+		{"watertype",			".float", QW|NQ},
+		{"ideal_yaw",			".float", QW|NQ},
+		{"yaw_speed",			".float", QW|NQ},
+		{"aiment",				".entity", QW|NQ},
+		{"goalentity",			".entity", QW|NQ},
+		{"spawnflags",			".float", QW|NQ},
+		{"target",				".string", QW|NQ},
+		{"targetname",			".string", QW|NQ},
+		{"dmg_take",			".float", QW|NQ},
+		{"dmg_save",			".float", QW|NQ},
+		{"dmg_inflictor",		".entity", QW|NQ},
+		{"owner",				".entity", QW|NQ|CS},
+		{"movedir",				".vector", QW|NQ},
+		{"message",				".string", QW|NQ},
+		{"sounds",				".float", QW|NQ},
+		{"noise",				".string", QW|NQ},
+		{"noise1",				".string", QW|NQ},
+		{"noise2",				".string", QW|NQ},
+		{"noise3",				".string", QW|NQ},
+		{"end_sys_fields",		"void", QW|NQ|CS},
+
+#define comfieldfloat(name) {#name, ".float", FL},
+#define comfieldvector(name) {#name, ".vector", FL},
+#define comfieldentity(name) {#name, ".entity", FL},
+#define comfieldstring(name) {#name, ".string", FL},
+#define comfieldfunction(name, typestr) {#name, typestr, FL},
+#define FL QW|NQ
+		comqcfields
+#undef FL
+#define FL ALL
+		comextqcfields
+#undef FL
+#define FL QW|NQ
+		svextqcfields
+#undef FL
+#define FL CS
+		csqcextfields
+#undef FL
+#undef comfieldfloat
+#undef comfieldvector
+#undef comfieldentity
+#undef comfieldstring
+#undef comfieldfunction
+
+		{"physics_mode",	"var float", QW|NQ|CS, 2},
+
+		{"TRUE",	"const float", QW|NQ|CS, 1},
+		{"FALSE",	"const float", QW|NQ|CS, 0},
+
+		{"CONTENT_EMPTY",	"const float", QW|NQ|CS, Q1CONTENTS_EMPTY},
+		{"CONTENT_SOLID",	"const float", QW|NQ|CS, Q1CONTENTS_SOLID},
+		{"CONTENT_WATER",	"const float", QW|NQ|CS, Q1CONTENTS_WATER},
+		{"CONTENT_SLIME",	"const float", QW|NQ|CS, Q1CONTENTS_SLIME},
+		{"CONTENT_LAVA",	"const float", QW|NQ|CS, Q1CONTENTS_LAVA},
+		{"CONTENT_SKY",		"const float", QW|NQ|CS, Q1CONTENTS_SKY},
+
+		{"CHAN_AUTO",		"const float", QW|NQ|CS, CHAN_AUTO},
+		{"CHAN_WEAPON",		"const float", QW|NQ|CS, CHAN_WEAPON},
+		{"CHAN_VOICE",		"const float", QW|NQ|CS, CHAN_VOICE},
+		{"CHAN_ITEM",		"const float", QW|NQ|CS, CHAN_ITEM},
+		{"CHAN_BODY",		"const float", QW|NQ|CS, CHAN_BODY},
+
+		{"ATTN_NONE",		"const float", QW|NQ|CS, ATTN_NONE},
+		{"ATTN_NORM",		"const float", QW|NQ|CS, ATTN_NORM},
+//		{"ATTN_IDLE",		"const float", QW|NQ|CS, ATTN_IDLE},
+//		{"ATTN_STATIC",		"const float", QW|NQ|CS, ATTN_STATIC},
+
+
+		{"EF_BRIGHTFIELD",	"const float", QW|NQ|CS, EF_BRIGHTFIELD},
+		{"EF_MUZZLEFLASH",	"const float",    NQ|CS, EF_MUZZLEFLASH},
+		{"EF_BRIGHTLIGHT",	"const float", QW|NQ|CS, EF_BRIGHTLIGHT},
+		{"EF_DIMLIGHT",		"const float", QW|NQ|CS, EF_DIMLIGHT},
+		{"EF_FLAG1",		"const float", QW      , QWEF_FLAG1},
+		{"EF_FLAG2",		"const float", QW      , QWEF_FLAG2},
+		{"EF_ADDITIVE",		"const float",    NQ|CS, NQEF_ADDITIVE},
+		{"EF_BLUE",			"const float", QW|NQ|CS, EF_BLUE},
+		{"EF_RED",			"const float", QW|NQ|CS, EF_RED},
+		{"EF_FULLBRIGHT",	"const float", QW|NQ|CS, EF_FULLBRIGHT},
+		{"EF_NODEPTHTEST",	"const float", QW|NQ|CS, EF_NODEPTHTEST},
+
+		{"STAT_HEALTH",			"const float", CS, STAT_HEALTH},
+		{"STAT_WEAPON",			"const float", CS, STAT_WEAPON},
+		{"STAT_AMMO",			"const float", CS, STAT_AMMO},
+		{"STAT_ARMOR",			"const float", CS, STAT_ARMOR},
+		{"STAT_WEAPONFRAME",	"const float", CS, STAT_WEAPONFRAME},
+		{"STAT_SHELLS",			"const float", CS, STAT_SHELLS},
+		{"STAT_NAILS",			"const float", CS, STAT_NAILS},
+		{"STAT_ROCKETS",		"const float", CS, STAT_ROCKETS},
+		{"STAT_CELLS",			"const float", CS, STAT_CELLS},
+		{"STAT_ACTIVEWEAPON",	"const float", CS, STAT_ACTIVEWEAPON},
+		{"STAT_TOTALSECRETS",	"const float", CS, STAT_TOTALSECRETS},
+		{"STAT_TOTALMONSTERS",	"const float", CS, STAT_TOTALMONSTERS},
+		{"STAT_SECRETS",		"const float", CS, STAT_SECRETS},
+		{"STAT_MONSTERS",		"const float", CS, STAT_MONSTERS},
+		{"STAT_ITEMS",			"const float", CS, STAT_ITEMS},
+		{"STAT_VIEWHEIGHT",		"const float", CS, STAT_VIEWHEIGHT},
+		{"STAT_VIEW2",			"const float", CS, STAT_VIEW2},
+		{"STAT_VIEWZOOM",		"const float", CS, STAT_VIEWZOOM},
+
+		{"VF_MIN",				"const float", CS, VF_MIN},
+		{"VF_MIN_X",			"const float", CS, VF_MIN_X},
+		{"VF_MIN_Y",			"const float", CS, VF_MIN_Y},
+		{"VF_SIZE",				"const float", CS, VF_SIZE},
+		{"VF_SIZE_X",			"const float", CS, VF_SIZE_X},
+		{"VF_SIZE_Y",			"const float", CS, VF_SIZE_Y},
+		{"VF_VIEWPORT",			"const float", CS, VF_VIEWPORT},
+		{"VF_FOV",				"const float", CS, VF_FOV},
+		{"VF_FOVX",				"const float", CS, VF_FOVX},
+		{"VF_ORIGIN",			"const float", CS, VF_ORIGIN},
+		{"VF_ORIGIN_X",			"const float", CS, VF_ORIGIN_X},
+		{"VF_ORIGIN_Y",			"const float", CS, VF_ORIGIN_Y},
+		{"VF_ORIGIN_Z",			"const float", CS, VF_ORIGIN_Z},
+		{"VF_ANGLES",			"const float", CS, VF_ANGLES},
+		{"VF_ANGLES_X",			"const float", CS, VF_ANGLES_X},
+		{"VF_ANGLES_Y",			"const float", CS, VF_ANGLES_Y},
+		{"VF_ANGLES_Z",			"const float", CS, VF_ANGLES_Z},
+		{"VF_DRAWWORLD",		"const float", CS, VF_DRAWWORLD},
+		{"VF_DRAWENGINESBAR",	"const float", CS, VF_ENGINESBAR},
+		{"VF_DRAWCROSSHAIR",	"const float", CS, VF_DRAWCROSSHAIR},
+
+		{"VF_CL_VIEWANGLES",	"const float", CS, VF_CL_VIEWANGLES_V},
+		{"VF_CL_VIEWANGLES_X",	"const float", CS, VF_CL_VIEWANGLES_X},
+		{"VF_CL_VIEWANGLES_Y",	"const float", CS, VF_CL_VIEWANGLES_Y},
+		{"VF_CL_VIEWANGLES_Z",	"const float", CS, VF_CL_VIEWANGLES_Z},
+
+		{"VF_PERSPECTIVE",		"const float", CS, VF_PERSPECTIVE},
+		{"VF_LPLAYER",			"const float", CS, VF_LPLAYER},
+		{"VF_AFOV",				"const float", CS, VF_AFOV},
+
+		{"RF_VIEWMODEL",		"const float", CS, CSQCRF_VIEWMODEL},
+		{"RF_EXTERNALMODEL",	"const float", CS, CSQCRF_EXTERNALMODEL},
+		{"RF_DEPTHHACK",		"const float", CS, CSQCRF_DEPTHHACK},
+		{"RF_ADDITIVE",			"const float", CS, CSQCRF_ADDITIVE},
+		{"RF_USEAXIS",			"const float", CS, CSQCRF_USEAXIS},
+		{"RF_NOSHADOW",			"const float", CS, CSQCRF_NOSHADOW},
+		{"RF_FRAMETIMESARESTARTTIMES","const float", CS, CSQCRF_FRAMETIMESARESTARTTIMES},
+		{"RF_NOAUTOADD",		"const float", CS, CSQCRF_NOAUTOADD},
+
+		{"FILE_READ",			"const float", QW|NQ|CS, FRIK_FILE_READ},
+		{"FILE_APPEND",			"const float", QW|NQ|CS, FRIK_FILE_APPEND},
+		{"FILE_WRITE",			"const float", QW|NQ|CS, FRIK_FILE_WRITE},
+		{"FILE_MMAP_READ",		"const float", QW|NQ|CS, FRIK_FILE_MMAP_READ},
+		{"FILE_MMAP_RW",		"const float", QW|NQ|CS, FRIK_FILE_MMAP_RW},
+
+		{"MASK_ENGINE",			"const float", CS, MASK_DELTA},
+		{"MASK_VIEWMODEL",		"const float", CS, MASK_STDVIEWMODEL},
+
+
+		{"LFIELD_ORIGIN",		"const float", CS, lfield_origin},
+		{"LFIELD_COLOUR",		"const float", CS, lfield_colour},
+		{"LFIELD_RADIUS",		"const float", CS, lfield_radius},
+		{"LFIELD_FLAGS",		"const float", CS, lfield_flags},
+		{"LFIELD_STYLE",		"const float", CS, lfield_style},
+		{"LFIELD_ANGLES",		"const float", CS, lfield_angles},
+		{"LFIELD_FOV",			"const float", CS, lfield_fov},
+
+		{"LFLAG_NORMALMODE",	"const float", CS, LFLAG_NORMALMODE},
+		{"LFLAG_REALTIMEMODE",	"const float", CS, LFLAG_REALTIMEMODE},
+		{"LFLAG_LIGHTMAP",		"const float", CS, LFLAG_LIGHTMAP},
+		{"LFLAG_FLASHBLEND",	"const float", CS, LFLAG_FLASHBLEND},
+		{"LFLAG_NOSHADOWS",		"const float", CS, LFLAG_NOSHADOWS},
+		{"LFLAG_SHADOWMAP",		"const float", CS, LFLAG_SHADOWMAP},
+		{"LFLAG_CREPUSCULAR",	"const float", CS, LFLAG_CREPUSCULAR},
+
+		NULL
+	};
+
+	targ = 0;
+	for (i = 1; i < Cmd_Argc(); i++)
+	{
+		if (!stricmp(Cmd_Argv(i), "-Ffte"))
+			targ |= FTE;
+		if (!stricmp(Cmd_Argv(i), "-Tnq"))
+			targ |= NQ;
+		if (!stricmp(Cmd_Argv(i), "-Tcs"))
+			targ |= CS;
+		if (!stricmp(Cmd_Argv(i), "-Tqw"))
+			targ |= QW;
+		if (!stricmp(Cmd_Argv(i), "-Fdefines"))
+			defines = true;
+		if (!stricmp(Cmd_Argv(i), "-O"))
+			fname = Cmd_Argv(++i);
+	}
+	if (!(targ & ALL))
+		targ |= ALL;
+
+	if (!*fname)
+		fname = "fteextensions";
+	f = FS_OpenVFS(va("src/%s.qc", fname), "wb", FS_GAMEONLY);
+
+	VFS_PRINTF(f,	"/*\n"
+					"This file was automatically generated by %s v%i.%02i\n"
+					"This file can be regenerated by issuing the following command:\n"
+					"%s %s\n"
+					"Available options:\n"
+					"-Ffte     - target only FTE (optimations and additional extensions)\n"
+					"-Tnq      - dump specifically NQ fields\n"
+					"-Tqw      - dump specifically QW fields\n"
+					"-Tcs      - dump specifically CSQC fields\n"
+					"-Fdefines - generate #defines instead of constants\n"
+					"-O        - write to a different qc file\n"
+					"*/\n"
+					, FULLENGINENAME, FTE_VER_MAJOR, FTE_VER_MINOR, Cmd_Argv(0), Cmd_Args());
+
+	VFS_PRINTF(f, "#pragma noref 1\n");
+
+	if (targ&FTE)
+		VFS_PRINTF(f, "#pragma target FTE\n");
+	if ((targ&ALL) == CS)
+		VFS_PRINTF(f,	"#define CSQC\n");
+	else if ((targ&ALL) == NQ)
+		VFS_PRINTF(f,	"#define NETQUAKE\n"
+						"#define SSQC\n"
+						);
+	else if ((targ&ALL) == QW)
+		VFS_PRINTF(f,	"#define QUAKEWORLD\n"
+						"#define SSQC\n"
+						);
+	else
+		VFS_PRINTF(f,	"#if !defined(CSQC) && !defined(SSQC)\n"
+							"#define SSQC\n"
+						"#endif\n");
+
+	for (i = 0; knowndefs[i].name; i++)
+	{
+		for (j = 0; j < i; j++)
+		{
+			if (!strcmp(knowndefs[i].name, knowndefs[j].name))
+				knowndefs[i].module &= ~knowndefs[j].module; /*clear the flag on the later dupe def*/
+		}
+	}
+
+	d = ALL;
+	for (i = 0; knowndefs[i].name; i++)
+	{
+		nd = (knowndefs[i].module & targ) | (~targ & ALL);
+		if (nd != d)
+		{
+			if (!(nd & targ))
+				continue;
+
+			if (d != ALL)
+				VFS_PRINTF(f, "#endif\n");
+			d = nd;
+
+			switch(d)
+			{
+			case 0:
+				continue;
+			case QW:
+				VFS_PRINTF(f, "#if defined(SSQC) && !defined(NETQUAKE)\n");
+				break;
+			case NQ:
+				VFS_PRINTF(f, "#if defined(SSQC) && defined(NETQUAKE)\n");
+				break;
+			case QW|NQ:
+				VFS_PRINTF(f, "#ifdef SSQC\n");
+				break;
+			case CS:
+				VFS_PRINTF(f, "#ifdef CSQC\n");
+				break;
+			case QW|CS:
+				VFS_PRINTF(f, "#if defined(CSQC) || (defined(SSQC) && !defined(NETQUAKE))\n");
+				break;
+			case NQ|CS:
+				VFS_PRINTF(f, "#if defined(CSQC) || (defined(SSQC) && defined(NETQUAKE))\n");
+				break;
+			case ALL:
+				break;
+			}
+		}
+		if (!strcmp(knowndefs[i].type, "const float"))
+		{
+			if (defines)
+				VFS_PRINTF(f, "#define %s %i\n", knowndefs[i].name, knowndefs[i].value);
+			else
+				VFS_PRINTF(f, "%s %s = %i;\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].value);
+		}
+		else if (knowndefs[i].value)
+		{
+			VFS_PRINTF(f, "%s %s = %i;\n", knowndefs[i].type, knowndefs[i].name, knowndefs[i].value);
+		}
+		else
+			VFS_PRINTF(f, "%s %s;\n", knowndefs[i].type, knowndefs[i].name);
+	}
+	if (d != ALL)
+		VFS_PRINTF(f, "#endif\n");
+
+	d = 0;
+	for (i = 0; BuiltinList[i].name; i++)
+	{
+		if (BuiltinList[i].obsolete)
+			continue;
+		idx = 0;
+		if (BuiltinList[i].ebfsnum)
+			idx = BuiltinList[i].ebfsnum;
+		else if (BuiltinList[i].nqnum)
+			idx = BuiltinList[i].nqnum;
+		
+		if (idx)
+		{
+			if (PR_CSQC_BuiltinValid(BuiltinList[i].name, idx))
+			{
+				if (BuiltinList[i].bifunc == PF_Fixme || BuiltinList[i].bifunc == PF_Ignore)
+					nd = 2; /*csqc only*/
+				else
+					nd = 0; /*both*/
+			}
+			else
+			{
+				if (BuiltinList[i].bifunc == PF_Fixme || BuiltinList[i].bifunc == PF_Ignore)
+					continue; /*neither*/
+				else
+					nd = 1; /*ssqc only*/
+			}
+			if (nd != d)
+			{
+				if (d)
+					VFS_PRINTF(f, "#endif\n");
+				if (nd == 1)
+					VFS_PRINTF(f, "#ifdef SSQC\n");
+				if (nd == 2)
+					VFS_PRINTF(f, "#ifdef CSQC\n");
+				d = nd;
+			}
+			VFS_PRINTF(f, "%s %s = #%u;\n", BuiltinList[i].prototype, BuiltinList[i].name, idx);
+		}
+	}
+	if (d)
+		VFS_PRINTF(f, "#endif\n");
+	VFS_PRINTF(f, "#pragma noref 0\n");
+
+	VFS_CLOSE(f);
+
+	FS_FlushFSHash();
+#endif
+}
 
 #endif

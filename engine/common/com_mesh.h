@@ -82,7 +82,7 @@ typedef struct {
 } galiaspose_t;
 
 #ifdef SKELETALMODELS
-typedef struct {
+typedef struct galiasbone_s {
 	char name[32];
 	int parent;
 } galiasbone_t;

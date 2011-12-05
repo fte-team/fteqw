@@ -204,8 +204,8 @@ void Surf_RenderDynamicLightmaps (struct msurface_s *fa);
 void Surf_RenderAmbientLightmaps (struct msurface_s *fa, int ambient);
 int Surf_LightmapShift (struct model_s *model);
 #ifndef LMBLOCK_WIDTH
-#define	LMBLOCK_WIDTH		128
-#define	LMBLOCK_HEIGHT		128
+#define	LMBLOCK_WIDTH		256
+#define	LMBLOCK_HEIGHT		256
 typedef struct glRect_s {
 	unsigned char l,t,w,h;
 } glRect_t;

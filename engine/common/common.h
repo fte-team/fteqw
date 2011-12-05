@@ -320,8 +320,10 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 struct vfsfile_s *FS_OpenReadLocation(flocation_t *location);
 char *FS_WhichPackForLocation(flocation_t *loc);
 
+qboolean FS_GetPackageDownloadable(char *package);
 char *FS_GetPackHashes(char *buffer, int buffersize, qboolean referencedonly);
-char *FS_GetPackNames(char *buffer, int buffersize, qboolean referencedonly, qboolean ext);
+char *FS_GetPackNames(char *buffer, int buffersize, int referencedonly, qboolean ext);
+void FS_ReferenceControl(unsigned int refflag, unsigned int resetflags);
 
 int COM_FOpenFile (const char *filename, FILE **file);
 int COM_FOpenWriteFile (const char *filename, FILE **file);

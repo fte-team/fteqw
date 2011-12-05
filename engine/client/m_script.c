@@ -320,7 +320,7 @@ void M_MenuS_Combos_f (void)
 	line = Cmd_Argv(5);
 	if (!*line)
 	{
-		line = Cbuf_GetNext(Cmd_ExecLevel);
+		line = Cbuf_GetNext(Cmd_ExecLevel, true);
 		if (*line != '{')
 			Cbuf_InsertText(line, Cmd_ExecLevel, true);	//whoops. Stick the trimmed string back in to the cbuf.
 		else
@@ -332,7 +332,7 @@ void M_MenuS_Combos_f (void)
 		Hunk_TempAlloc(4);
 		for (opt = 0; opt < sizeof(opts)/sizeof(opts[0])-2; opt++)
 		{
-			line = Cbuf_GetNext(Cmd_ExecLevel);
+			line = Cbuf_GetNext(Cmd_ExecLevel, true);
 			line = COM_Parse(line);
 			if (!strcmp(com_token, "}"))
 				break;

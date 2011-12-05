@@ -915,6 +915,13 @@ void Matrix4_Multiply(const float *a, const float *b, float *out)
 	out[15] = a[3] * b[12] + a[7] * b[13] + a[11] * b[14] + a[15] * b[15];
 }
 
+void Matrix3x4_RM_Transform3(const float *matrix, const float *vector, float *product)
+{
+	product[0] = matrix[0]*vector[0] + matrix[1]*vector[1] + matrix[2]*vector[2] + matrix[3];
+	product[1] = matrix[4]*vector[0] + matrix[5]*vector[1] + matrix[6]*vector[2] + matrix[7];
+	product[2] = matrix[8]*vector[0] + matrix[9]*vector[1] + matrix[10]*vector[2] + matrix[11];
+}
+
 //transform 4d vector by a 4d matrix.
 void Matrix4x4_CM_Transform4(const float *matrix, const float *vector, float *product)
 {

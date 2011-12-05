@@ -3682,7 +3682,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 					{	//you're allowed to use int 0 to pass a null function pointer
 						//this is basically because __NULL__ is defined as ~0 (int 0)
 					}
-					else if (p->type != ev_variant)	//can cast to variant whatever happens
+					else if (p->type != ev_variant && e->type->type != ev_variant)	//can cast to variant whatever happens
 					{
 						if (flag_laxcasts || (p->type == ev_function && e->type->type == ev_function))
 						{
@@ -4808,7 +4808,10 @@ QCC_def_t *QCC_PR_Term (void)
 					//pointers
 					((newtype->type == ev_pointer || newtype->type == ev_string || newtype->type == ev_integer) && (e->type->type == ev_pointer || e->type->type == ev_string || e->type->type == ev_integer))
 					//ents/classs
-					|| (newtype->type == ev_entity && e->type->type == ev_entity))
+					|| (newtype->type == ev_entity && e->type->type == ev_entity)
+					//variants are fine too
+					|| (newtype->type == ev_variant || e->type->type == ev_variant)
+					)
 				{
 					//direct cast
 					e2 = (void *)qccHunkAlloc (sizeof(QCC_def_t));

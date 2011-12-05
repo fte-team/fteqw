@@ -2092,7 +2092,8 @@ void Surf_DrawWorld (void)
 			else
 			{
 				vis = R_MarkLeaves_Q1 ();
-				VectorCopy (r_refdef.vieworg, modelorg);
+				if (!(r_novis.ival & 2))
+					VectorCopy (r_refdef.vieworg, modelorg);
 
 				Surf_RecursiveWorldNode (cl.worldmodel->nodes, 0xf);
 			}
@@ -2165,6 +2166,10 @@ static int Surf_LM_AllocBlock (int w, int h, int *x, int *y, shader_t *shader)
 			}
 		}
 
+		/*not required, but using one lightmap per texture can result in better texture unit switching*/
+		if (lightmap[texnum]->shader != shader)
+			continue;
+
 		if (lightmap[texnum]->external)
 		{
 			TEXASSIGN(lightmap_textures[texnum], R_AllocNewTexture("***lightmap***", LMBLOCK_WIDTH, LMBLOCK_HEIGHT));
@@ -2172,17 +2177,13 @@ static int Surf_LM_AllocBlock (int w, int h, int *x, int *y, shader_t *shader)
 			lightmap[texnum]->external = false;
 		}
 
-		/*not required, but using one lightmap per texture can result in better texture unit switching*/
-		if (lightmap[texnum]->shader != shader)
-			continue;
-
 		best = LMBLOCK_HEIGHT;
 
-		for (i=0 ; i<LMBLOCK_WIDTH-w ; i++)
+		for (i = 0; i <= LMBLOCK_WIDTH - w; i++)
 		{
 			best2 = 0;
 
-			for (j=0 ; j<w ; j++)
+			for (j=0; j < w; j++)
 			{
 				if (lightmap[texnum]->allocated[i+j] >= best)
 					break;
@@ -2199,7 +2200,7 @@ static int Surf_LM_AllocBlock (int w, int h, int *x, int *y, shader_t *shader)
 		if (best + h > LMBLOCK_HEIGHT)
 			continue;
 
-		for (i=0 ; i<w ; i++)
+		for (i=0; i < w; i++)
 			lightmap[texnum]->allocated[*x + i] = best + h;
 
 		return texnum;

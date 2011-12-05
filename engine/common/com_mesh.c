@@ -893,7 +893,7 @@ int Alias_GetBoneRelations(galiasinfo_t *inf, framestate_t *fstate, float *resul
 	return 0;
 }
 
-//_may_ write into bonepose, return value is the real result
+//_may_ write into bonepose, return value is the real result. obtains absolute values
 float *Alias_GetBonePositions(galiasinfo_t *inf, framestate_t *fstate, float *buffer, int buffersize)
 {
 #ifdef SKELETALMODELS
@@ -908,6 +908,8 @@ float *Alias_GetBonePositions(galiasinfo_t *inf, framestate_t *fstate, float *bu
 	{
 		relations = fstate->bonestate;
 		numbones = inf->numbones;
+		if (fstate->boneabs)
+			return relations;
 	}
 	else
 	{
@@ -3317,6 +3319,25 @@ int Mod_GetBoneRelations(model_t *model, int firstbone, int lastbone, framestate
 	return 0;
 }
 
+galiasbone_t *Mod_GetBoneInfo(model_t *model)
+{
+#ifdef SKELETALMODELS
+	galiasbone_t *bone;
+	galiasinfo_t *inf;
+
+
+	if (!model || model->type != mod_alias)
+		return NULL;
+
+	inf = Mod_Extradata(model);
+
+	bone = (galiasbone_t*)((char*)inf + inf->ofsbones);
+	return bone;
+#else
+	return NULL;
+#endif
+}
+
 int Mod_GetBoneParent(model_t *model, int bonenum)
 {
 #ifdef SKELETALMODELS
@@ -4584,7 +4605,7 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 				boneinfo[i].basepose.size[2] = LittleFloat(boneinfo[i].basepose.size[2]);
 
 				/*not sure if this is needed, but mimic DP*/
-				if (i >= 0)
+				if (i)
 				{
 					boneinfo[i].basepose.quat[0] *= -1;
 					boneinfo[i].basepose.quat[2] *= -1;
@@ -4672,24 +4693,6 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 							}
 						}
 					}
-/*
-					for (i = 0; i < num_boneinfo; i++)
-					{
-						animbones[i].parent = LittleLong(animbones[i].parent);
-
-						if (strcmp(boneinfo[i].name, animbones[i].name))
-						{
-							fail = true;
-							Con_Printf("PSK/PSA bone names do not match %s vs %s\n", boneinfo[i].name, animbones[i].name);
-							break;
-						}
-						else if (boneinfo[i].parent != animbones[i].parent)
-						{
-							fail = true;
-							Con_Printf("PSK/PSA bone parents do not match for bone %s\n", boneinfo[i].name);
-							break;
-						}
-					}*/
 				}
 			}
 			else if (!strcmp("ANIMINFO", chunk->id) && chunk->recordsize == sizeof(pskaniminfo_t))

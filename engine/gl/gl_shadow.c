@@ -8,9 +8,14 @@
 
 #define SHADOWMAP_SIZE 512
 
+#define PROJECTION_DISTANCE (float)(dl->radius*2)//0x7fffffff
+
 #define nearplane	(16)
 
 static int shadow_fbo_id;
+static int crepuscular_fbo_id;
+texid_t crepuscular_texture_id;
+shader_t *crepuscular_shader;
 
 static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour);
 
@@ -37,6 +42,7 @@ typedef struct {
 	mesh_t **s;
 } shadowmeshsurfs_t;
 typedef struct shadowmesh_s {
+	qboolean surfonly;
 	unsigned int numindicies;
 	unsigned int maxindicies;
 	index_t *indicies;
@@ -51,6 +57,8 @@ typedef struct shadowmesh_s {
 
 	unsigned int leafbytes;
 	unsigned char *litleaves;
+
+	GLuint vebo[2];
 } shadowmesh_t;
 
 /*state of the current shadow mesh*/
@@ -204,10 +212,15 @@ static void SH_FreeShadowMesh(shadowmesh_t *sm)
 	Z_Free(sm->litsurfs);
 	Z_Free(sm->indicies);
 	Z_Free(sm->verts);
+
+	qglDeleteBuffersARB(2, sm->vebo);
+	sm->vebo[0] = 0;
+	sm->vebo[1] = 0;
+
 	Z_Free(sm);
 }
 
-static void SHM_BeginShadowMesh(dlight_t *dl)
+static void SHM_BeginShadowMesh(dlight_t *dl, qboolean surfonly)
 {
 	unsigned int i;
 	unsigned int lb;
@@ -249,6 +262,7 @@ static void SHM_BeginShadowMesh(dlight_t *dl)
 	sh_shmesh->numverts = 0;
 	sh_shmesh->maxindicies = 0;
 	sh_shmesh->numindicies = 0;
+	sh_shmesh->surfonly = surfonly;
 
 	if (sh_shmesh->numsurftextures != cl.worldmodel->numtextures)
 	{
@@ -269,6 +283,20 @@ static void SHM_BeginShadowMesh(dlight_t *dl)
 }
 static struct shadowmesh_s *SHM_FinishShadowMesh(dlight_t *dl)
 {
+	if (sh_shmesh != &sh_tempshmesh)
+	{
+		qglGenBuffersARB(2, sh_shmesh->vebo);
+
+		GL_SelectVBO(sh_shmesh->vebo[0]);
+		qglBufferDataARB(GL_ARRAY_BUFFER_ARB, sizeof(*sh_shmesh->verts) * sh_shmesh->numverts, sh_shmesh->verts, GL_STATIC_DRAW_ARB);
+		Z_Free(sh_shmesh->verts);
+		sh_shmesh->verts = NULL;
+
+		GL_SelectEBO(sh_shmesh->vebo[1]);
+		qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, sizeof(*sh_shmesh->indicies) * sh_shmesh->numindicies, sh_shmesh->indicies, GL_STATIC_DRAW_ARB);
+		Z_Free(sh_shmesh->indicies);
+		sh_shmesh->indicies = NULL;
+	}
 	return sh_shmesh;
 }
 
@@ -413,8 +441,8 @@ static void SHM_RecursiveWorldNodeQ1_r (dlight_t *dl, mnode_t *node)
 				if ((s*s+t*t+dot*dot) < maxdist)
 				{
 					SHM_Shadow_Cache_Surface(surf);
-
-					#define PROJECTION_DISTANCE (float)(dl->radius*2)//0x7fffffff
+					if (sh_shmesh->surfonly)
+						continue;
 
 					//build a list of the edges that are to be drawn.
 					for (v = 0; v < surf->numedges; v++)
@@ -600,10 +628,8 @@ static void SHM_RecursiveWorldNodeQ2_r (dlight_t *dl, mnode_t *node)
 				if ((s*s+t*t+dot*dot) < maxdist)
 				{
 					SHM_Shadow_Cache_Surface(surf);
-
-
-
-	#define PROJECTION_DISTANCE (float)(dl->radius*2)//0x7fffffff
+					if (sh_shmesh->surfonly)
+						continue;
 
 					//build a list of the edges that are to be drawn.
 					for (v = 0; v < surf->numedges; v++)
@@ -786,78 +812,278 @@ static void SHM_RecursiveWorldNodeQ3_r (dlight_t *dl, mnode_t *node)
 }
 #endif
 
+static struct {
+	unsigned int numtris;
+	unsigned int maxtris;
+	struct {
+		signed int edge[3];
+	} *tris; /*negative for reverse edge*/
+
+	unsigned int numedges;
+	unsigned int maxedges;
+	struct {
+		unsigned int vert[2];
+	} *edges;
+
+	unsigned int numpoints;
+	unsigned int maxpoints;
+	vec3_t *points;
+
+	unsigned int maxedgeuses;
+	int *edgeuses;	/*negative for back sides, so 0 means unused or used equally on both sides*/
+} cv;
+
+#define VERT_POS_EPSILON (1.0f/32)
+static int SHM_ComposeVolume_FindVert(float *vert)
+{
+	int i;
+	for (i = 0; i < cv.numpoints; i++)
+	{
+#if 1
+		if (cv.points[i][0] == vert[0] &&
+			cv.points[i][1] == vert[1] &&
+			cv.points[i][2] == vert[2])
+#else
+		vec3_t d;
+		d[0] = cv.points[i][0]-vert[0];
+		d[1] = cv.points[i][1]-vert[1];
+		d[2] = cv.points[i][2]-vert[2];
+		if (d[0]*d[0] < VERT_POS_EPSILON &&
+			d[1]*d[1] < VERT_POS_EPSILON &&
+			d[2]*d[2] < VERT_POS_EPSILON)
+#endif
+			return i;
+	}
+	VectorCopy(vert, cv.points[i]);
+	cv.numpoints++;
+	return i;
+}
+static int SHM_ComposeVolume_FindEdge(int v1, int v2)
+{
+	int i;
+	for (i = 0; i < cv.numedges; i++)
+	{
+		if (cv.edges[i].vert[0] == v1 && cv.edges[i].vert[1] == v2)
+			return i;
+		if (cv.edges[i].vert[0] == v2 && cv.edges[i].vert[1] == v1)
+			return -(i+1);
+	}
+	cv.edges[i].vert[0] = v1;
+	cv.edges[i].vert[1] = v2;
+	cv.numedges++;
+	return i;
+}
+
+/*each triangle is coplanar, and all face the light, and its a triangle fan. this is a special case that provides a slight speedup*/
+static void SHM_ComposeVolume_Fan(vecV_t *points, int numpoints)
+{
+	int newmax;
+	int lastedge;
+	int i;
+
+	#define MAX_ARRAY_VERTS 65535
+	static int pointidx[MAX_ARRAY_VERTS];
+
+	/*make sure there's space*/
+	newmax = (cv.numpoints+numpoints + inc)&~(inc-1);
+	if (cv.maxpoints < newmax)
+	{
+		cv.maxpoints = newmax;
+		cv.points = BZ_Realloc(cv.points, newmax * sizeof(*cv.points));
+	}
+	newmax = (cv.numedges+(numpoints-2)*3 + inc)&~(inc-1);
+	if (cv.maxedges < newmax)
+	{
+		cv.maxedges = newmax;
+		cv.edges = BZ_Realloc(cv.edges, newmax * sizeof(*cv.edges));
+	}
+	newmax = (cv.numtris+(numpoints-2) + inc)&~(inc-1);
+	if (cv.maxtris < newmax)
+	{
+		cv.maxtris = newmax;
+		cv.tris = BZ_Realloc(cv.tris, newmax * sizeof(*cv.tris));
+	}
+
+	for (i = 0; i < numpoints; i++)
+	{
+		pointidx[i] = SHM_ComposeVolume_FindVert(points[i]);
+	}
+	lastedge = SHM_ComposeVolume_FindEdge(pointidx[0], pointidx[1]);
+	for (i = 2; i < numpoints; i++)
+	{
+		cv.tris[cv.numtris].edge[0] = lastedge;
+		cv.tris[cv.numtris].edge[1] = SHM_ComposeVolume_FindEdge(pointidx[i-1], pointidx[i]);
+		lastedge = SHM_ComposeVolume_FindEdge(pointidx[i], pointidx[i-2]);
+		cv.tris[cv.numtris].edge[2] = lastedge;
+		lastedge = -(lastedge+1);
+		cv.numtris++;
+	}
+}
+static void SHM_ComposeVolume_Soup(vecV_t *points, int numpoints, int *idx, int numidx)
+{
+	int newmax;
+	int i;
+
+	#define MAX_ARRAY_VERTS 65535
+	static int pointidx[MAX_ARRAY_VERTS];
+
+	/*make sure there's space*/
+	newmax = (cv.numpoints+numpoints + inc)&~(inc-1);
+	if (cv.maxpoints < newmax)
+	{
+		cv.maxpoints = newmax;
+		cv.points = BZ_Realloc(cv.points, newmax * sizeof(*cv.points));
+	}
+	newmax = (cv.numedges+numidx + inc)&~(inc-1);
+	if (cv.maxedges < newmax)
+	{
+		cv.maxedges = newmax;
+		cv.edges = BZ_Realloc(cv.edges, newmax * sizeof(*cv.edges));
+	}
+	newmax = (cv.numtris+numidx/3 + inc)&~(inc-1);
+	if (cv.maxtris < newmax)
+	{
+		cv.maxtris = newmax;
+		cv.tris = BZ_Realloc(cv.tris, newmax * sizeof(*cv.tris));
+	}
+
+	for (i = 0; i < numpoints; i++)
+	{
+		pointidx[i] = SHM_ComposeVolume_FindVert(points[i]);
+	}
+
+	for (i = 0; i < numidx; i+=3, idx+=3)
+	{
+		cv.tris[cv.numtris].edge[0] = SHM_ComposeVolume_FindEdge(pointidx[idx[0]], pointidx[idx[1]]);
+		cv.tris[cv.numtris].edge[1] = SHM_ComposeVolume_FindEdge(pointidx[idx[1]], pointidx[idx[2]]);
+		cv.tris[cv.numtris].edge[2] = SHM_ComposeVolume_FindEdge(pointidx[idx[2]], pointidx[idx[0]]);
+		cv.numtris++;
+	}
+}
+/*call this function after generating litsurfs meshes*/
 static void SHM_ComposeVolume_BruteForce(dlight_t *dl)
 {
-	/*FIXME: This function is not complete*/
 	shadowmeshsurfs_t *sms;
 	unsigned int tno;
 	unsigned int sno;
-	unsigned int vno, vno2;
-	unsigned int fvert, lvert;
+	int i, e;
 	mesh_t *sm;
+	vec3_t ext;
+	cv.numedges = 0;
+	cv.numpoints = 0;
+	cv.numtris = 0;
+
 	for (tno = 0; tno < sh_shmesh->numsurftextures; tno++)
 	{
 		sms = &sh_shmesh->litsurfs[tno];
 		if (!sms->count)
 			continue;
+		if ((cl.worldmodel->textures[tno]->shader->flags & (SHADER_BLEND|SHADER_NODRAW)))
+			continue;
+
 		for (sno = 0; sno < sms->count; sno++)
 		{
 			sm = sms->s[sno];
 
 			if (sm->istrifan)
-			{
-				//planer poly
-//if ((rand()&63)!=63)
-//continue;
-				fvert = sh_shmesh->numverts;
-
-				SHM_TriangleFan(sm->numvertexes, sm->xyz_array, dl->origin, PROJECTION_DISTANCE);
-
-				vno = (sh_shmesh->numindicies+sm->numvertexes*6);	//and a bit of padding
-				if (sh_shmesh->maxindicies < vno)
-				{
-					sh_shmesh->maxindicies = vno;
-					sh_shmesh->indicies = BZ_Realloc(sh_shmesh->indicies, vno * sizeof(*sh_shmesh->indicies));
-				}
-				lvert = fvert + sm->numvertexes*2-1;
-				for (vno = 0; vno < sm->numvertexes; vno++)
-				{
-					if (vno == sm->numvertexes-1)
-						vno2 = 0;
-					else
-						vno2 = vno+1;
-					sh_shmesh->indicies[sh_shmesh->numindicies++] = fvert+vno;
-					sh_shmesh->indicies[sh_shmesh->numindicies++] = lvert-vno;
-					sh_shmesh->indicies[sh_shmesh->numindicies++] = fvert+vno2;
-
-					sh_shmesh->indicies[sh_shmesh->numindicies++] = lvert-vno;
-					sh_shmesh->indicies[sh_shmesh->numindicies++] = lvert-vno2;
-					sh_shmesh->indicies[sh_shmesh->numindicies++] = fvert+vno2;
-				}
-			}
+				SHM_ComposeVolume_Fan(sm->xyz_array, sm->numvertexes);
 			else
-			{
-				/*each triangle may or may not face the light*/
-			}
+				SHM_ComposeVolume_Soup(sm->xyz_array, sm->numvertexes, sm->indexes, sm->numindexes);
 		}
 	}
 
+	/*FIXME: clip away overlapping triangles*/
 
-	/*	unsigned int numindicies;
-	unsigned int maxindicies;
-	index_t *indicies;
+	if (cv.maxedgeuses < cv.numedges)
+	{
+		BZ_Free(cv.edgeuses);
+		cv.maxedgeuses = cv.numedges;
+		cv.edgeuses = Z_Malloc(cv.maxedgeuses * sizeof(*cv.edgeuses));
+	}
+	else
+		memset(cv.edgeuses, 0, cv.numedges * sizeof(*cv.edgeuses));
+	
+	i = (sh_shmesh->numverts+cv.numpoints*6+inc+5)&~(inc-1);	//and a bit of padding
+	if (sh_shmesh->maxverts < i)
+	{
+		sh_shmesh->maxverts = i;
+		sh_shmesh->verts = BZ_Realloc(sh_shmesh->verts, i * sizeof(*sh_shmesh->verts));
+	}
 
-	unsigned int numverts;
-	unsigned int maxverts;
-	vec3_t *verts;
+	for (i = 0; i < cv.numpoints; i++)
+	{
+		/*front face*/
+		sh_shmesh->verts[(i * 2) + 0][0] = cv.points[i][0];
+		sh_shmesh->verts[(i * 2) + 0][1] = cv.points[i][1];
+		sh_shmesh->verts[(i * 2) + 0][2] = cv.points[i][2];
 
-	//we also have a list of all the surfaces that this light lights.
-	unsigned int numsurftextures;
-	shadowmeshsurfs_t *litsurfs;
+		/*shadow direction*/
+		ext[0] = cv.points[i][0]-dl->origin[0];
+		ext[1] = cv.points[i][1]-dl->origin[1];
+		ext[2] = cv.points[i][2]-dl->origin[2];
+		VectorNormalize(ext);
 
-	unsigned int leafbytes;
-	unsigned char *litleaves;
-	*/
+		/*back face*/
+		sh_shmesh->verts[(i * 2) + 1][0] = cv.points[i][0] + ext[0] * dl->radius*2;
+		sh_shmesh->verts[(i * 2) + 1][1] = cv.points[i][1] + ext[1] * dl->radius*2;
+		sh_shmesh->verts[(i * 2) + 1][2] = cv.points[i][2] + ext[2] * dl->radius*2;
+	}
+	sh_shmesh->numverts = i*2;
+
+	i = (sh_shmesh->numindicies+cv.numtris*6+cv.numedges*6+inc+5)&~(inc-1);	//and a bit of padding
+	if (sh_shmesh->maxindicies < i)
+	{
+		sh_shmesh->maxindicies = i;
+		sh_shmesh->indicies = BZ_Realloc(sh_shmesh->indicies, i * sizeof(*sh_shmesh->indicies));
+	}
+
+	for (tno = 0; tno < cv.numtris; tno++)
+	{
+		for (i = 0; i < 3; i++)
+		{
+			e = cv.tris[tno].edge[i];
+			if (e < 0)
+			{
+				e = -(e+1);
+				cv.edgeuses[e]--;
+				e = cv.edges[e].vert[1];
+			}
+			else
+			{
+				cv.edgeuses[e]++;
+				e = cv.edges[e].vert[0];
+			}
+
+			sh_shmesh->indicies[sh_shmesh->numindicies+i] = e*2;
+			sh_shmesh->indicies[sh_shmesh->numindicies+5-i] = e*2 + 1;
+		}
+		sh_shmesh->numindicies += 6;
+	}
+
+	for (i = 0; i < cv.numedges; i++)
+	{
+		if (cv.edgeuses[i] > 0)
+		{
+			sh_shmesh->indicies[sh_shmesh->numindicies++] = cv.edges[i].vert[1]*2 + 0;
+			sh_shmesh->indicies[sh_shmesh->numindicies++] = cv.edges[i].vert[0]*2 + 0;
+			sh_shmesh->indicies[sh_shmesh->numindicies++] = cv.edges[i].vert[0]*2 + 1;
+
+			sh_shmesh->indicies[sh_shmesh->numindicies++] = cv.edges[i].vert[0]*2 + 1;
+			sh_shmesh->indicies[sh_shmesh->numindicies++] = cv.edges[i].vert[1]*2 + 1;
+			sh_shmesh->indicies[sh_shmesh->numindicies++] = cv.edges[i].vert[1]*2 + 0;
+		}
+		else if (cv.edgeuses[i] < 0)
+		{
+			//generally should not happen...
+			sh_shmesh->indicies[sh_shmesh->numindicies++] = cv.edges[i].vert[1]*2 + 0;
+			sh_shmesh->indicies[sh_shmesh->numindicies++] = cv.edges[i].vert[0]*2 + 1;
+			sh_shmesh->indicies[sh_shmesh->numindicies++] = cv.edges[i].vert[0]*2 + 0;
+
+			sh_shmesh->indicies[sh_shmesh->numindicies++] = cv.edges[i].vert[0]*2 + 1;
+			sh_shmesh->indicies[sh_shmesh->numindicies++] = cv.edges[i].vert[1]*2 + 0;
+			sh_shmesh->indicies[sh_shmesh->numindicies++] = cv.edges[i].vert[1]*2 + 1;
+		}
+	}
 }
 
 static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvis, unsigned char *vvis, qboolean surfonly)
@@ -868,41 +1094,38 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 	if (dl->worldshadowmesh && !dl->rebuildcache)
 		return dl->worldshadowmesh;
 
-	if (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife)
+	firstedge=0;
+
+	switch(cl.worldmodel->fromgame)
 	{
-		SHM_BeginShadowMesh(dl);
+	case fg_quake:
+	case fg_halflife:
+		SHM_BeginShadowMesh(dl, surfonly);
 		SHM_MarkLeavesQ1(dl, lvis);
 		SHM_RecursiveWorldNodeQ1_r(dl, cl.worldmodel->nodes);
-	}
+		break;
+#ifdef Q2BSPS
+	case fg_quake2:
+		SHM_BeginShadowMesh(dl, surfonly);
+		SHM_MarkLeavesQ2(dl, lvis, vvis);
+		SHM_RecursiveWorldNodeQ2_r(dl, cl.worldmodel->nodes);
+		break;
+#endif
 #ifdef Q3BSPS
-	else if (cl.worldmodel->fromgame == fg_quake3)
-	{
-		SHM_BeginShadowMesh(dl);
+	case fg_quake3:
+		/*q3 doesn't have edge info*/
+		SHM_BeginShadowMesh(dl, true);
 		sh_shadowframe++;
 		SHM_RecursiveWorldNodeQ3_r(dl, cl.worldmodel->nodes);
 		if (!surfonly)
 			SHM_ComposeVolume_BruteForce(dl);
-		return SHM_FinishShadowMesh(dl);
-//		SHM_RecursiveWorldNodeQ3_r(cl.worldmodel->nodes);
-
-		//if generating shadow volumes too:
-		// decompose the shadow-casting faces into triangles
-		// find neighbours
-		// emit front faces (clip back faces to the light's cube?)
-		// emit edges where there were no neighbours
-	}
+		break;
 #endif
-#ifdef Q2BSPS
-	else if (cl.worldmodel->fromgame == fg_quake2)
-	{
-		SHM_BeginShadowMesh(dl);
-		SHM_MarkLeavesQ2(dl, lvis, vvis);
-		SHM_RecursiveWorldNodeQ2_r(dl, cl.worldmodel->nodes);
-	}
-#endif
-	else
+	default:
 		return NULL;
+	}
 
+	/*generate edge polys for map types that need it (q1/q2)*/
 	if (!surfonly)
 	{
 		SHM_BeginQuads();
@@ -941,8 +1164,6 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 		}
 		SHM_End();
 	}
-
-	firstedge=0;
 
 	return SHM_FinishShadowMesh(dl);
 }
@@ -1046,6 +1267,7 @@ static void Sh_Scissor (srect_t r)
 		qglPopMatrix();
 	}
 #endif
+
 	qglScissor(r.x, r.y, r.width, r.height);
 
 	if (qglDepthBoundsEXT)
@@ -1135,7 +1357,7 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs, srect_t *r)
 	r->height = vid.pixelheight;
 	r->dmin = 0;
 	r->dmax = 1;
-	if (0)//!r_shadow_scissor.integer)
+	if (1)//!r_shadow_scissor.integer)
 	{
 		return false;
 	}
@@ -1212,8 +1434,14 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs, srect_t *r)
 		y1 = 0;
 	if (x2 < 0)
 		x2 = 0;
+	if (y2 < 0)
+		y2 = 0;
+	if (x1 > r_refdef.vrect.width)
+		x1 = r_refdef.vrect.width;
 	if (y1 > r_refdef.vrect.height * vid.pixelheight / vid.height)
 		y1 = r_refdef.vrect.height * vid.pixelheight / vid.height;
+	if (x2 > r_refdef.vrect.width)
+		x2 = r_refdef.vrect.width;
 	if (y2 > r_refdef.vrect.height * vid.pixelheight / vid.height)
 		y2 = r_refdef.vrect.height * vid.pixelheight / vid.height;
 	r->x = floor(x1);
@@ -1559,6 +1787,11 @@ void Sh_Shutdown(void)
 		qglDeleteRenderbuffersEXT(1, &shadow_fbo_id);
 		shadow_fbo_id = 0;
 	}
+	if (crepuscular_fbo_id)
+	{
+		qglDeleteRenderbuffersEXT(1, &crepuscular_fbo_id);
+		crepuscular_fbo_id = 0;
+	}
 }
 
 void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
@@ -1814,8 +2047,6 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 	}
 }
 
-
-#define PROJECTION_DISTANCE (float)(dl->radius*2)//0x7fffffff
 /*Fixme: this is brute forced*/
 #ifdef warningmsg
 #pragma warningmsg("brush shadows are bruteforced")
@@ -1937,14 +2168,15 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 //qglEnable(GL_POLYGON_OFFSET_FILL);
 //qglPolygonOffset(shaderstate.curpolyoffset.factor, shaderstate.curpolyoffset.unit);
 
-		GL_SelectVBO(0);
-		GL_SelectEBO(0);
+		GL_SelectVBO(sm->vebo[0]);
+		GL_SelectEBO(sm->vebo[1]);
 		qglEnableClientState(GL_VERTEX_ARRAY);
 		//draw cached world shadow mesh
 		qglVertexPointer(3, GL_FLOAT, sizeof(vecV_t), sm->verts);
 		qglDrawRangeElements(GL_TRIANGLES, 0, sm->numverts, sm->numindicies, GL_INDEX_TYPE, sm->indicies);
 		RQuantAdd(RQUANT_SHADOWFACES, sm->numindicies);
-
+		GL_SelectVBO(0);
+		GL_SelectEBO(0);
 //qglEnable(GL_POLYGON_OFFSET_FILL);
 //qglPolygonOffset(shaderstate.curpolyoffset.factor, shaderstate.curpolyoffset.unit);
 	}
@@ -1996,8 +2228,9 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 //redraws world geometry up to 3 times per light...
 static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 {
-	int sdecrw;
-	int sincrw;
+	int sref;
+	int sfrontfail;
+	int sbackfail;
 	int leaf;
 	qbyte *lvis;
 	srect_t rect;
@@ -2063,76 +2296,90 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	//FIXME: is it practical to test to see if scissors allow not clearing the stencil buffer?
 
 	/*we don't need all that much stencil buffer depth, and if we don't get enough or have dodgy volumes, wrap if we can*/
-	sincrw = GL_INCR;
-	sdecrw = GL_DECR;
+#ifdef I_LIVE_IN_A_FREE_COUNTRY
+	sref = 0;
+	sbackfail = GL_INCR;
+	sfrontfail = GL_DECR;
 	if (gl_config.ext_stencil_wrap)
 	{	//minimise damage...
-		sincrw = GL_INCR_WRAP_EXT;
+		sbackfail = GL_INCR_WRAP_EXT;
 		sdecrw = GL_DECR_WRAP_EXT;
 	}
+#else
+	sref = (1<<gl_stencilbits)-1; /*this is halved for two-sided stencil support, just in case there's no wrap support*/
+	sbackfail = GL_DECR;
+	sfrontfail = GL_INCR;
+	if (gl_config.ext_stencil_wrap)
+	{	//minimise damage...
+		sbackfail = GL_DECR_WRAP_EXT;
+		sfrontfail = GL_INCR_WRAP_EXT;
+	}
+#endif
 	//our stencil writes.
 
-#ifdef _DEBUG
-/*	if (r_shadows.value == 666)	//testing (visible shadow volumes)
+#if 0 //def _DEBUG
+//	if (r_shadows.value == 666)	//testing (visible shadow volumes)
 	{
-		checkerror();
-		qglColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE );
+		checkglerror();
+		qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 		qglColor3f(dl->color[0], dl->color[1], dl->color[2]);
 		qglDisable(GL_STENCIL_TEST);
 		qglEnable(GL_POLYGON_OFFSET_FILL);
 		qglPolygonOffset(-1, -1);
 	//	qglPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		Sh_DrawStencilLightShadows(dl, lvis, false);
+		Sh_DrawStencilLightShadows(dl, lvis, vvis, false);
 		qglDisable(GL_POLYGON_OFFSET_FILL);
-		checkerror();
+		checkglerror();
 		qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	}*/
+	}
 #endif
 
 	if (qglStencilOpSeparateATI)
 	{
-		qglClearStencil(0);
+		sref/=2;
+		qglClearStencil(sref);
 		qglClear(GL_STENCIL_BUFFER_BIT);
 		GL_CullFace(0);
 
-		qglStencilFunc( GL_ALWAYS, 1, ~0 );
+		qglStencilFunc(GL_ALWAYS, 0, ~0);
 
-		qglStencilOpSeparateATI(GL_BACK, GL_KEEP, sincrw, GL_KEEP);
-		qglStencilOpSeparateATI(GL_FRONT, GL_KEEP, sdecrw, GL_KEEP);
+		qglStencilOpSeparateATI(GL_BACK, GL_KEEP, sbackfail, GL_KEEP);
+		qglStencilOpSeparateATI(GL_FRONT, GL_KEEP, sfrontfail, GL_KEEP);
 
 		Sh_DrawStencilLightShadows(dl, lvis, vvis, false);
 		qglStencilOpSeparateATI(GL_FRONT_AND_BACK, GL_KEEP, GL_KEEP, GL_KEEP);
 
 		GL_CullFace(SHADER_CULL_FRONT);
 
-		qglStencilFunc( GL_EQUAL, 0, ~0 );
+		qglStencilFunc(GL_EQUAL, sref, ~0);
 	}
 	else if (qglActiveStencilFaceEXT)
 	{
+		sref/=2;
 		/*personally I prefer the ATI way (nvidia method)*/
-		qglClearStencil(0);
+		qglClearStencil(sref);
 		qglClear(GL_STENCIL_BUFFER_BIT);
 		GL_CullFace(0);
 
 		qglEnable(GL_STENCIL_TEST_TWO_SIDE_EXT);
 
-		qglActiveStencilFaceEXT(GL_BACK);
-		qglStencilOp(GL_KEEP, sincrw, GL_KEEP);
-		qglStencilFunc( GL_ALWAYS, 1, ~0 );
+		qglActiveStencilFaceEXT(GL_BACK);	
+		qglStencilOp(GL_KEEP, sbackfail, GL_KEEP);
+		qglStencilFunc(GL_ALWAYS, 0, ~0 );
 
 		qglActiveStencilFaceEXT(GL_FRONT);
-		qglStencilOp(GL_KEEP, sdecrw, GL_KEEP);
-		qglStencilFunc( GL_ALWAYS, 1, ~0 );
+		qglStencilOp(GL_KEEP, sfrontfail, GL_KEEP);
+		qglStencilFunc(GL_ALWAYS, 0, ~0 );
 
 		Sh_DrawStencilLightShadows(dl, lvis, vvis, false);
 
 		qglActiveStencilFaceEXT(GL_BACK);
 		qglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-		qglStencilFunc( GL_ALWAYS, 0, ~0 );
+		qglStencilFunc(GL_ALWAYS, 0, ~0 );
 
 		qglActiveStencilFaceEXT(GL_FRONT);
 		qglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-		qglStencilFunc( GL_EQUAL, 0, ~0 );
+		qglStencilFunc(GL_EQUAL, sref, ~0 );
 
 		qglDisable(GL_STENCIL_TEST_TWO_SIDE_EXT);
 
@@ -2140,21 +2387,21 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	}
 	else //your graphics card sucks and lacks efficient stencil shadow techniques.
 	{	//centered around 0. Will only be increased then decreased less.
-		qglClearStencil(0);
+		qglClearStencil(sref);
 		qglClear(GL_STENCIL_BUFFER_BIT);
 
 		qglStencilFunc(GL_ALWAYS, 0, ~0);
 
 		GL_CullFace(SHADER_CULL_BACK);
-		qglStencilOp(GL_KEEP, sincrw, GL_KEEP);
+		qglStencilOp(GL_KEEP, sbackfail, GL_KEEP);
 		Sh_DrawStencilLightShadows(dl, lvis, vvis, false);
 
 		GL_CullFace(SHADER_CULL_FRONT);
-		qglStencilOp(GL_KEEP, sdecrw, GL_KEEP);
+		qglStencilOp(GL_KEEP, sfrontfail, GL_KEEP);
 		Sh_DrawStencilLightShadows(dl, lvis, vvis, true);
 
 		qglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-		qglStencilFunc(GL_EQUAL, 0, ~0);
+		qglStencilFunc(GL_EQUAL, sref, ~0);
 	}
 	//end stencil writing.
 
@@ -2167,15 +2414,15 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 
 	{
 		qglColorMask(GL_FALSE, GL_TRUE, GL_FALSE, GL_FALSE);
-		qglStencilFunc(GL_GREATER, 1, ~0);
+		qglStencilFunc(GL_GREATER, sref, ~0);
 		R2D_ConsoleBackground(vid.height);
 
 		qglColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_FALSE);
-		qglStencilFunc(GL_LESS, 1, ~0);
+		qglStencilFunc(GL_LESS, sref, ~0);
 		R2D_ConsoleBackground(vid.height);
 
 		qglColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_FALSE);
-		qglStencilFunc(GL_NEVER, 1, ~0);
+		qglStencilFunc(GL_EQUAL, sref, ~0);
 		R2D_ConsoleBackground(vid.height);
 	}
 
@@ -2260,7 +2507,95 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	Sh_DrawEntLighting(dl, colour);
 }
 
-void Sh_DrawLights(qbyte *vis)
+void GLBE_SubmitMeshes (qboolean drawworld, batch_t **blist, int start, int stop);
+void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours, batch_t **batches)
+{
+	static mesh_t mesh;
+	static vecV_t xyz[4] =
+	{
+		{-1,-1,-1},
+		{-1,1,-1},
+		{1,1,-1},
+		{1,-1,-1}
+	};
+	static vec2_t tc[4] =
+	{
+		{0,0},
+		{0,1},
+		{1,1},
+		{1,0}
+	};
+	static index_t idx[6] =
+	{
+		0,1,2,
+		0,2,3
+	};
+	mesh.numindexes = 6;
+	mesh.numvertexes = 4;
+	mesh.xyz_array = xyz;
+	mesh.st_array = tc;
+	mesh.indexes = idx;
+#if 1
+	/*
+	a crepuscular light (seriously, that's the correct spelling) is one that gives 'god rays', rather than regular light.
+	our implementation doesn't cast shadows. this allows it to actually be outside the map, and to shine through cloud layers in the sky.
+	we could cast shadows if the light was actually inside, I suppose.
+	Anyway, its done using an FBO, where everything but the sky is black (stuff that occludes the sky is black too).
+	which is then blitted onto the screen in 2d-space.
+	*/
+
+	/*requires an FBO, as stated above*/
+	if (!gl_config.ext_framebuffer_objects)
+		return;
+//checkglerror();
+	if (!crepuscular_fbo_id)
+	{
+		qglGenFramebuffersEXT(1, &crepuscular_fbo_id);
+		qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, crepuscular_fbo_id);
+		qglDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
+		qglReadBuffer(GL_NONE);
+
+		crepuscular_texture_id = GL_AllocNewTexture("***crepusculartexture***", vid.pixelwidth, vid.pixelheight);
+
+		/*FIXME: requires npot*/
+		crepuscular_shader = R_RegisterShader("crepuscular_screen",
+			"{\n"
+				"program crepuscular_rays\n"
+				"{\n"
+					"map \"***crepusculartexture***\"\n"
+					"blend add\n"
+				"}\n"
+			"}\n"
+			);
+		GL_MTBind(0, GL_TEXTURE_2D, crepuscular_texture_id);
+		qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vid.pixelwidth, vid.pixelheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+
+		qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, crepuscular_texture_id.num, 0);
+	}
+	else
+		qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, crepuscular_fbo_id);
+//checkglerror();
+	BE_SelectMode(BEM_CREPUSCULAR);
+	BE_SelectDLight(dl, colours);
+//checkglerror();
+	GLBE_SubmitMeshes(true, batches, SHADER_SORT_PORTAL, SHADER_SORT_BLEND);
+//checkglerror();
+	//fixme: check regular post-proc
+	qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+
+	checkglerror();
+	BE_SelectMode(BEM_STANDARD);
+
+	GLBE_DrawMesh_Single(crepuscular_shader, &mesh, NULL, &crepuscular_shader->defaulttextures, 0);
+	checkglerror();
+#endif
+}
+
+void Sh_DrawLights(qbyte *vis, batch_t **mbatches)
 {
 	vec3_t colour;
 	dlight_t *dl;
@@ -2332,7 +2667,9 @@ void Sh_DrawLights(qbyte *vis)
 		if (colour[0] < 0.001 && colour[1] < 0.001 && colour[2] < 0.001)
 			continue;	//just switch these off.
 
-		if (((!dl->die)?!r_shadow_realtime_world_shadows.ival:!r_shadow_realtime_dlight_shadows.ival) || dl->flags & LFLAG_NOSHADOWS)
+		if (dl->flags & LFLAG_CREPUSCULAR)
+			Sh_DrawCrepuscularLight(dl, colour, mbatches);
+		else if (((!dl->die)?!r_shadow_realtime_world_shadows.ival:!r_shadow_realtime_dlight_shadows.ival) || dl->flags & LFLAG_NOSHADOWS)
 		{
 			Sh_DrawShadowlessLight(dl, colour, vis);
 		}

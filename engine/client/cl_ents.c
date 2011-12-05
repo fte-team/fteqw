@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "shader.h"
 
 extern	cvar_t	cl_predict_players;
+extern	cvar_t	cl_lerp_players;
 extern	cvar_t	cl_solid_players;
 extern	cvar_t	cl_item_bobbing;
 
@@ -1672,7 +1673,7 @@ static void CL_TransitionPacketEntities(packet_entities_t *newpack, packet_entit
 {
 	lerpents_t		*le;
 	entity_state_t		*snew, *sold;
-	int					i, j;
+	int					i;
 	int					oldpnum, newpnum;
 
 	vec3_t move;
@@ -1748,7 +1749,6 @@ static void CL_TransitionPacketEntities(packet_entities_t *newpack, packet_entit
 		}
 		else
 		{
-			le->isnew = false;
 			VectorCopy(le->origin, le->lastorigin);
 
 			if (snew->dpflags & RENDER_STEP)
@@ -1773,16 +1773,13 @@ static void CL_TransitionPacketEntities(packet_entities_t *newpack, packet_entit
 				{
 					le->origin[i] = le->oldorigin[i] + lfrac*(le->neworigin[i] - le->oldorigin[i]);
 
-					for (j = 0; j < 3; j++)
-					{
-						a1 = le->oldangle[i];
-						a2 = le->newangle[i];
-						if (a1 - a2 > 180)
-							a1 -= 360;
-						if (a1 - a2 < -180)
-							a1 += 360;
-						le->angles[i] = a1 + lfrac * (a2 - a1);
-					}
+					a1 = le->oldangle[i];
+					a2 = le->newangle[i];
+					if (a1 - a2 > 180)
+						a1 -= 360;
+					if (a1 - a2 < -180)
+						a1 += 360;
+					le->angles[i] = a1 + lfrac * (a2 - a1);
 				}
 			}
 			else
@@ -1792,16 +1789,13 @@ static void CL_TransitionPacketEntities(packet_entities_t *newpack, packet_entit
 				{
 					le->origin[i] = sold->origin[i] + frac*(move[i]);
 
-					for (j = 0; j < 3; j++)
-					{
-						a1 = sold->angles[i];
-						a2 = snew->angles[i];
-						if (a1 - a2 > 180)
-							a1 -= 360;
-						if (a1 - a2 < -180)
-							a1 += 360;
-						le->angles[i] = a1 + frac * (a2 - a1);
-					}
+					a1 = sold->angles[i];
+					a2 = snew->angles[i];
+					if (a1 - a2 > 180)
+						a1 -= 360;
+					if (a1 - a2 < -180)
+						a1 += 360;
+					le->angles[i] = a1 + frac * (a2 - a1);
 				}
 				le->orglerpdeltatime = 0.1;
 				le->orglerpstarttime = oldpack->servertime;
@@ -1872,30 +1866,6 @@ static qboolean CL_ChooseInterpolationFrames(int *newf, int *oldf, float servert
 	return true;
 }
 
-/*obtains the current entity frame, and invokes CL_TransitionPacketEntities to process the interpolation details
-*/
-static packet_entities_t *CL_ProcessPacketEntities(float *servertime, qboolean nolerp)
-{
-	packet_entities_t	*packnew, *packold;
-	int newf, oldf;
-
-	if (nolerp)
-	{	//force our emulated time to as late as we can.
-		//this will disable all position interpolation
-		*servertime = cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities.servertime;
-	}
-
-	if (!CL_ChooseInterpolationFrames(&newf, &oldf, *servertime))
-		return NULL;
-
-	packnew = &cl.frames[newf&UPDATE_MASK].packet_entities;
-	packold = &cl.frames[oldf&UPDATE_MASK].packet_entities;
-
-	CL_TransitionPacketEntities(packnew, packold, *servertime);
-
-	return packnew;
-}
-
 qboolean CL_MayLerp(void)
 {
 	//force lerping when playing low-framerate demos.
@@ -1913,6 +1883,83 @@ qboolean CL_MayLerp(void)
 	return !cl_nolerp.ival;
 }
 
+/*fills in cl.lerpents and cl.currentpackentities*/
+void CL_TransitionEntities (void)
+{
+	packet_entities_t	*packnew, *packold;
+	int newf, oldf;
+	qboolean nolerp;
+	float servertime;
+
+	if (cls.protocol == CP_QUAKEWORLD && (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV))
+	{
+		nolerp = false;
+	}
+	else
+	{
+		nolerp = !CL_MayLerp() && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV;
+	}
+
+	//force our emulated time to as late as we can, if we're not using interpolation, which has the effect of disabling all interpolation
+	if (nolerp)
+		servertime = cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities.servertime;
+	else
+		servertime = cl.servertime;
+
+//	servertime -= 0.1;
+
+	/*make sure we have some info for it, on failure keep the info from the last frame (its possible that the frame data can be changed by a network packet, but mneh, but chances are if there's no info then there are NO packets at all)*/
+	if (!CL_ChooseInterpolationFrames(&newf, &oldf, servertime))
+		return;
+
+	newf&=UPDATE_MASK;
+	oldf&=UPDATE_MASK;
+	/*transition the ents and stuff*/
+	packnew = &cl.frames[newf].packet_entities;
+	packold = &cl.frames[oldf].packet_entities;
+	CL_TransitionPacketEntities(packnew, packold, servertime);
+	cl.currentpacktime = servertime;
+	cl.currentpackentities = packnew;
+
+
+	/*and transition players too*/
+	{
+		float frac, a1, a2;
+		int i,j, p;
+		vec3_t move;
+		lerpents_t *le;
+		player_state_t *pnew, *pold;
+		if (packnew->servertime == packold->servertime)
+			frac = 1; //lerp totally into the new
+		else
+			frac = (servertime-packold->servertime)/(packnew->servertime-packold->servertime);
+		pnew = &cl.frames[newf].playerstate[0];
+		pold = &cl.frames[oldf].playerstate[0];
+		for (p = 0; p < MAX_CLIENTS; p++, pnew++, pold++)
+		{
+		
+			le = &cl.lerpplayers[p];
+			VectorSubtract(pnew->origin, pold->origin, move);
+
+			//lerp based purely on the packet times,
+			for (i = 0; i < 3; i++)
+			{
+				le->origin[i] = pold->origin[i] + frac*(move[i]);
+
+				a1 = SHORT2ANGLE(pold->command.angles[i]);
+				a2 = SHORT2ANGLE(pnew->command.angles[i]);
+				if (a1 - a2 > 180)
+					a1 -= 360;
+				if (a1 - a2 < -180)
+					a1 += 360;
+				le->angles[i] = a1 + frac * (a2 - a1);
+			}
+			le->orglerpdeltatime = 0.1;
+			le->orglerpstarttime = packold->servertime;
+		}
+	}
+}
+
 void CL_LinkPacketEntities (void)
 {
 	entity_t			*ent;
@@ -1927,43 +1974,24 @@ void CL_LinkPacketEntities (void)
 	//, spnum;
 	dlight_t			*dl;
 	vec3_t				angles;
-	qboolean nolerp;
 	static int flickertime;
 	static int flicker;
 
-	float servertime;
-
-	if (cls.protocol == CP_QUAKEWORLD && (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV))
-	{
-		servertime = cl.servertime;
-		nolerp = false;
-	}
-	else
-	{
-		servertime = cl.servertime;
-		nolerp = !CL_MayLerp() && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV;
-	}
-	pack = CL_ProcessPacketEntities(&servertime, nolerp);
+	pack = cl.currentpackentities;
 	if (!pack)
 		return;
-/*
-	if ((cls.fteprotocolextensions & PEXT_ACCURATETIMINGS) || cls.protocol != CP_QUAKEWORLD)
-		servertime = cl.servertime;
-	else
-		servertime = realtime;
-*/
 
-	i = servertime*20;
+	i = cl.currentpacktime*20;
 	if (flickertime != i)
 	{
 		flickertime = i;
 		flicker = rand();
 	}
 
-	autorotate = anglemod(100*servertime);
+	autorotate = anglemod(100*cl.currentpacktime);
 
 #ifdef CSQC_DAT
-	CSQC_DeltaStart(servertime);
+	CSQC_DeltaStart(cl.currentpacktime);
 #endif
 
 	for (newpnum=0 ; newpnum<pack->num_entities ; newpnum++)
@@ -2205,6 +2233,7 @@ void CL_LinkPacketEntities (void)
 
 		if (le->isnew)
 		{
+			le->isnew = false;
 			pe->DelinkTrailstate(&(cl.lerpents[state->number].trailstate));
 			pe->DelinkTrailstate(&(cl.lerpents[state->number].emitstate));
 			continue;		// not in last message
@@ -2738,6 +2767,23 @@ guess_pm_type:
 	}
 
 	TP_ParsePlayerInfo(oldstate, state, info);
+
+	if (cl.worldmodel && cl_lerp_players.ival)
+	{
+		player_state_t exact;
+		msec = 1000*((realtime - cls.latency + 0.02) - state->state_time);
+		// predict players movement
+		if (msec > 255)
+			msec = 255;
+		state->command.msec = msec;
+
+		CL_SetSolidEntities();
+		CL_SetSolidPlayers (num);
+		CL_PredictUsercmd (0, state, &exact, &state->command);	//uses player 0's maxspeed/grav...
+		VectorCopy (exact.origin, state->predorigin);
+	}
+	else
+		VectorCopy (state->origin, state->predorigin);
 }
 
 void CL_ParseClientPersist(void)
@@ -3082,6 +3128,16 @@ void CL_LinkPlayers (void)
 		if (pnum < cl.splitclients)
 		{	//this is a local player
 		}
+		else if (cl_lerp_players.ival)
+		{
+			lerpents_t *le = &cl.lerpplayers[j];
+			VectorCopy (le->origin, ent->origin);
+
+			VectorCopy(le->angles, ent->angles);
+			ent->angles[0] /= 3;
+			AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+			VectorInverse(ent->axis[1]);
+		}
 		else if (msec <= 0 || (!predictplayers))
 		{
 			VectorCopy (state->origin, ent->origin);
@@ -3287,13 +3343,14 @@ void CL_SetSolidEntities (void)
 		if (!cl.model_precache[state->modelindex])
 			continue;
 		if (*cl.model_precache[state->modelindex]->name == '*' || cl.model_precache[state->modelindex]->numsubmodels)
-		if ( cl.model_precache[state->modelindex]->hulls[1].firstclipnode
-			|| cl.model_precache[state->modelindex]->clipbox )
+		if ( cl.model_precache[state->modelindex]->hulls[1].firstclipnode)
 		{
 			memset(&pmove.physents[pmove.numphysent], 0, sizeof(physent_t));
 			pmove.physents[pmove.numphysent].model = cl.model_precache[state->modelindex];
 			VectorCopy (state->origin, pmove.physents[pmove.numphysent].origin);
 			VectorCopy (state->angles, pmove.physents[pmove.numphysent].angles);
+//			VectorCopy (cl.lerpents[state->number].origin, pmove.physents[pmove.numphysent].origin);
+//			VectorCopy (cl.lerpents[state->number].angles, pmove.physents[pmove.numphysent].angles);
 			pmove.physents[pmove.numphysent].angles[0]*=-1;
 			if (++pmove.numphysent == MAX_PHYSENTS)
 				break;
@@ -3386,8 +3443,8 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 
 			if (cl.spectator)
 			{
-				if (!Cam_DrawPlayer(0, j))
-					VectorCopy(pplayer->origin, cl.simorg[0]);
+//				if (!Cam_DrawPlayer(0, j))
+//					VectorCopy(pplayer->origin, cl.simorg[0]);
 
 			}
 		}

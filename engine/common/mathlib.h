@@ -161,6 +161,7 @@ void		Matrix4x4_CM_UnProject (const vec3_t in, vec3_t out, const vec3_t viewangl
 void		Matrix3x4_RM_FromVectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3]);
 void		Matrix4x4_RM_FromVectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3]);
 void		Matrix3x4_RM_ToVectors(const float *in, float vx[3], float vy[3], float vz[3], float t[3]);
+void		Matrix3x4_RM_Transform3(const float *matrix, const float *vector, float *product);
 
 float		*Matrix4x4_CM_NewRotation(float a, float x, float y, float z);
 float		*Matrix4x4_CM_NewTranslation(float x, float y, float z);

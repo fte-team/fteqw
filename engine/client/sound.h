@@ -147,9 +147,11 @@ void S_StopSoundCard (soundcardinfo_t *sc, int entnum, int entchannel);
 void S_DefaultSpeakerConfiguration(soundcardinfo_t *sc);
 void S_ResetFailedLoad(void);
 
+#ifdef PEXT2_VOICECHAT
+void S_Voip_Parse(void);
+#endif
 #ifdef VOICECHAT
 extern cvar_t cl_voip_showmeter;
-void S_Voip_Parse(void);
 void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf);
 void S_Voip_MapChange(void);
 int S_Voip_Loudness(qboolean ignorevad);	//-1 for not capturing, otherwise between 0 and 100

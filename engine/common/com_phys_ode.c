@@ -1728,7 +1728,11 @@ static qboolean GenerateCollisionMesh(world_t *world, model_t *mod, wedict_t *ed
 	ed->ode.ode_numtriangles = numindexes/3;
 	return true;
 }
-
+/*
+static void World_ODE_BodyFromSkel(world_t *world)
+{
+}
+*/
 static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 {
 	dBodyID body = (dBodyID)ed->ode.ode_body;

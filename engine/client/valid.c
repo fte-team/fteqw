@@ -380,6 +380,7 @@ typedef struct {
 
 rulesetrule_t rulesetrules_strict[] = {
 	{"ruleset_allow_shaders", "0"},
+	{"r_vertexlight", "0"},
 	{"ruleset_allow_playercount", "0"},
 	{"ruleset_allow_frj", "0"},
 	{"ruleset_allow_packet", "0"},
@@ -406,6 +407,7 @@ rulesetrule_t rulesetrules_nqr[] = {
 	{"ruleset_allow_sensative_texture_replacements", "0"},
 	{"ruleset_allow_localvolume", "0"},
 	{"ruleset_allow_shaders", "0"},
+	{"r_vertexlight", "0"},
 	{"v_projectionmode", "0"},
 	{NULL}
 };
@@ -424,8 +426,8 @@ void RulesetLatch(cvar_t *cvar)
 
 void Validation_DelatchRulesets(void)
 {	//game has come to an end, allow the ruleset to be changed
-	Cvar_ApplyLatches(CVAR_RULESETLATCH);
-	Con_DPrintf("Ruleset deactivated\n");
+	if (Cvar_ApplyLatches(CVAR_RULESETLATCH))
+		Con_DPrintf("Ruleset deactivated\n");
 }
 
 qboolean Validation_GetCurrentRulesetName(char *rsnames, int resultbuflen, qboolean enforcechosenrulesets)

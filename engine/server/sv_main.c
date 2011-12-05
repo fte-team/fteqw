@@ -130,7 +130,7 @@ cvar_t	allow_download_configs = CVAR("allow_download_configs", "0");
 
 cvar_t sv_public = CVAR("sv_public", "0");
 cvar_t sv_listen_qw = CVARAF("sv_listen_qw", "1", "sv_listen", 0);
-cvar_t sv_listen_nq = CVAR("sv_listen_nq", "0");
+cvar_t sv_listen_nq = CVARD("sv_listen_nq", "2", "Allow new (net)quake clients to connect to the server. 0 = don't let them in. 1 = allow them in (WARNING: this allows 'qsmurf' DOS attacks). 2 = accept (net)quake clients by emulating a challenge (as secure as QW/Q2 but does not fully conform to the NQ protocol).");
 cvar_t sv_listen_dp = CVAR("sv_listen_dp", "0"); /*kinda fucked right now*/
 cvar_t sv_listen_q3 = CVAR("sv_listen_q3", "0");
 cvar_t sv_reportheartbeats = CVAR("sv_reportheartbeats", "1");
@@ -164,10 +164,10 @@ cvar_t	sv_port_tcp6 = CVARC("sv_port_tcp6", "", SV_Tcpport6_Callback);
 #endif
 cvar_t  sv_port_ipv4 = CVARC("sv_port", "27500", SV_Port_Callback);
 #ifdef IPPROTO_IPV6
-cvar_t  sv_port_ipv6 = CVARC("sv_port_ipv6", "27500", SV_PortIPv6_Callback);
+cvar_t  sv_port_ipv6 = CVARC("sv_port_ipv6", "", SV_PortIPv6_Callback);
 #endif
 #ifdef USEIPX
-cvar_t  sv_port_ipx = CVARC("sv_port_ipx", "27500", SV_PortIPX_Callback);
+cvar_t  sv_port_ipx = CVARC("sv_port_ipx", "", SV_PortIPX_Callback);
 #endif
 
 cvar_t pausable	= CVAR("pausable", "1");
@@ -491,7 +491,8 @@ void SV_DropClient (client_t *drop)
 					// call the prog function for removing a client
 					// this will set the body to a dead frame, among other things
 						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, drop->edict);
-						PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
+						if (pr_global_ptrs->ClientDisconnect)
+							PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
 					}
 					else if (SpectatorDisconnect)
 					{
@@ -2873,7 +2874,78 @@ void SVNQ_ConnectionlessPacket(void)
 	MSG_BeginReading(svs.netprim);
 	header = LongSwap(MSG_ReadLong());
 	if (!(header & NETFLAG_CTL))
+	{
+		if (sv_listen_nq.ival == 2)
+		if ((header & (NETFLAG_DATA|NETFLAG_EOM)) == (NETFLAG_DATA|NETFLAG_EOM))
+		{
+			int sequence;
+			sequence = LongSwap(MSG_ReadLong());
+			if (sequence <= 1)
+			{
+				int numnops = 0;
+				int numnonnops = 0;
+				/*make it at least robust enough to ignore any other stringcmds*/
+				while(1)
+				{
+					switch(MSG_ReadByte())
+					{
+					case clc_nop:
+						numnops++;
+						continue;
+					case clc_stringcmd:
+						numnonnops++;
+						Cmd_TokenizeString(MSG_ReadString(), false, false);
+						if (!strcmp("challengeconnect", Cmd_Argv(0)))
+						{
+							client_t *newcl;
+							/*okay, so this is a reliable packet from a client, containing a 'cmd challengeconnect $challenge' response*/
+							str = va("connect %i %i %s \"\\name\\unconnected\"", NET_PROTOCOL_VERSION, 0, Cmd_Argv(1));
+							Cmd_TokenizeString (str, false, false);
+
+							newcl = SVC_DirectConnect();
+							if (newcl)
+								newcl->netchan.incoming_reliable_sequence = sequence;
+
+							/*if there is anything else in the packet, we don't actually care. its reliable, so they'll resend*/
+							return;
+						}
+						continue;
+					case -1:
+						break;
+					default:
+						numnonnops++;
+						break;
+					}
+					break;
+				}
+
+				if (numnops && !numnonnops)
+				{
+					sb.maxsize = sizeof(buffer);
+					sb.data = buffer;
+
+					/*ack it, so dumb proquake clones can actually send the proper packet*/
+					SZ_Clear(&sb);
+					MSG_WriteLong(&sb, BigLong(NETFLAG_ACK | 8));
+					MSG_WriteLong(&sb, sequence);
+					NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
+
+
+					/*resend the cmd request, cos if they didn't send it then it must have gotten dropped*/
+					SZ_Clear(&sb);
+					MSG_WriteLong(&sb, 0);
+					MSG_WriteLong(&sb, 0);
+
+					MSG_WriteByte(&sb, svc_stufftext);
+					MSG_WriteString(&sb, va("cmd challengeconnect %i\n", SV_NewChallenge()));
+
+					*(int*)sb.data = BigLong(NETFLAG_UNRELIABLE|sb.cursize);
+					NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
+				}
+			}
+		}
 		return;	//no idea what it is.
+	}
 
 	length = header & NETFLAG_LENGTH_MASK;
 	if (length != net_message.cursize)
@@ -2916,10 +2988,35 @@ void SVNQ_ConnectionlessPacket(void)
 		}
 		else
 		{
-			str = va("connect %i %i %i \"\\name\\unconnected\"", NET_PROTOCOL_VERSION, 0, SV_NewChallenge());
-			Cmd_TokenizeString (str, false, false);
+			if (sv_listen_nq.ival == 2)
+			{
+				SZ_Clear(&sb);
+				MSG_WriteLong(&sb, 0);
+				MSG_WriteByte(&sb, CCREP_ACCEPT);
+				NET_LocalAddressForRemote(svs.sockets, &net_from, &localaddr, 0);
+				MSG_WriteLong(&sb, ShortSwap(localaddr.port));
+				*(int*)sb.data = BigLong(NETFLAG_CTL|sb.cursize);
+				NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
 
-			SVC_DirectConnect();
+
+				SZ_Clear(&sb);
+				MSG_WriteLong(&sb, 0);
+				MSG_WriteLong(&sb, 0);
+
+				MSG_WriteByte(&sb, svc_stufftext);
+				MSG_WriteString(&sb, va("cmd challengeconnect %i\n", SV_NewChallenge()));
+
+				*(int*)sb.data = BigLong(NETFLAG_UNRELIABLE|sb.cursize);
+				NET_SendPacket(NS_SERVER, sb.cursize, sb.data, net_from);
+				/*don't worry about repeating, the nop case above will recover it*/
+			}
+			else
+			{
+				str = va("connect %i %i %i \"\\name\\unconnected\"", NET_PROTOCOL_VERSION, 0, SV_NewChallenge());
+				Cmd_TokenizeString (str, false, false);
+
+				SVC_DirectConnect();
+			}
 		}
 		break;
 	case CCREQ_SERVER_INFO:
@@ -3615,7 +3712,7 @@ float SV_Frame (void)
 		sv.gamespeed = 1;
 
 #ifndef SERVERONLY
-	if ((sv.paused & 4) != ((!isDedicated && sv.allocated_client_slots == 1 && key_dest != key_game)?4:0))
+	if ((sv.paused & 4) != ((!isDedicated && sv.allocated_client_slots == 1 && key_dest != key_game && cls.state == ca_active)?4:0))
 		sv.paused ^= 4;
 #endif
 
@@ -4091,12 +4188,15 @@ void SV_InitLocal (void)
 		int port = atoi(com_argv[p+1]);
 		if (!port)
 			port = PORT_QWSERVER;
-		Cvar_SetValue(&sv_port_ipv4, port);
+		if (*sv_port_ipv4.string)
+			Cvar_SetValue(&sv_port_ipv4, port);
 #ifdef IPPROTO_IPV6
-		Cvar_SetValue(&sv_port_ipv6, port);
+		if (*sv_port_ipv6.string)
+			Cvar_SetValue(&sv_port_ipv6, port);
 #endif
 #ifdef USEIPX
-		Cvar_SetValue(&sv_port_ipx, port);
+		if (*sv_port_ipx.string)
+			Cvar_SetValue(&sv_port_ipx, port);
 #endif
 	}
 

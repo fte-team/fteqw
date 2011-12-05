@@ -369,9 +369,7 @@ void World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 	
 	if (ent->area.prev)
 		World_UnlinkEdict (ent);	// unlink from old position
-
-	ent->solidtype = ent->v->solid;
-		
+	
 	if (ent == w->edicts)
 		return;		// don't add the world
 

@@ -698,6 +698,9 @@ typedef void (APIENTRY * PFNGLUNLOCKARRAYSEXTPROC) (void);
 #define GL_NUM_EXTENSIONS                 0x821D
 #endif
 
+#ifndef GL_ARB_depth_clamp
+#define GL_DEPTH_CLAMP_ARB			      0x864F
+#endif
 
 
 #endif

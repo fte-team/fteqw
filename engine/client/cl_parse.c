@@ -991,8 +991,8 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 		s = Info_ValueForKey(cl.serverinfo, "*csprogs");
 		if (anycsqc || *s || cls.demoplayback)	//only allow csqc if the server says so, and the 'checksum' matches.
 		{
-			unsigned int chksum = anycsqc?0:strtoul(s, NULL, 0);
-			if (!CSQC_Init(chksum))
+			unsigned int chksum = strtoul(s, NULL, 0);
+			if (!CSQC_Init(anycsqc, chksum))
 			{
 				Sbar_Start();	//try and start this before we're actually on the server,
 								//this'll stop the mod from sending so much stuffed data at us, whilst we're frozen while trying to load.
@@ -2707,7 +2707,7 @@ void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 #ifdef PEXT_CSQC
 	CSQC_Shutdown();
 	if (cls.demoplayback)
-		CSQC_Init(0);
+		CSQC_Init(true, 0);
 #endif
 }
 void CLNQ_SignonReply (void)
@@ -2745,7 +2745,7 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 				char *s;
 				s = Info_ValueForKey(cl.serverinfo, "*csprogs");
 				if (*s)
-					CSQC_Init(atoi(s));
+					CSQC_Init(false, atoi(s));
 				else
 					CSQC_Shutdown();
 			}

@@ -59,6 +59,7 @@ typedef struct csqctreadstate_s {
 	struct csqctreadstate_s *next;
 } csqctreadstate_t;
 
+static qboolean csprogs_promiscuous;
 static unsigned int csprogs_checksum, csaddon_checksum;
 static csqctreadstate_t *csqcthreads;
 qboolean csqc_resortfrags;
@@ -4728,7 +4729,7 @@ qbyte *CSQC_PRLoadFile (const char *path, void *buffer, int bufsize)
 		file = COM_LoadStackFile(path, buffer, bufsize);
 		if (file && !cls.demoplayback)	//allow them to use csprogs.dat if playing a demo, and don't care about the checksum
 		{
-			if (csprogs_checksum)
+			if (csprogs_checksum && !csprogs_promiscuous)
 			{
 				if (cls.protocol == CP_NETQUAKE)
 				{
@@ -4783,7 +4784,7 @@ int CSQC_PRFileSize (const char *path)
 		file = COM_LoadTempFile(path);
 		if (file && !cls.demoplayback)	//allow them to use csprogs.dat if playing a demo, and don't care about the checksum
 		{
-			if (csprogs_checksum)
+			if (csprogs_checksum && !csprogs_promiscuous)
 			{
 				if (cls.protocol == CP_NETQUAKE)
 				{
@@ -4814,12 +4815,13 @@ qboolean CSQC_Inited(void)
 }
 
 double  csqctime;
-qboolean CSQC_Init (unsigned int checksum)
+qboolean CSQC_Init (qboolean anycsqc, unsigned int checksum)
 {
 	int i;
 	string_t *str;
 	csqcedict_t *worldent;
 	qboolean loaded;
+	csprogs_promiscuous = anycsqc;
 	csprogs_checksum = checksum;
 
 	csqc_usinglistener = false;

@@ -366,12 +366,14 @@ void PR_SSQC_Relocated(progfuncs_t *pr, char *oldb, char *newb, int oldlen)
 	}
 	PR_SV_FillWorldGlobals(&sv.world);
 
+#ifdef VM_Q1
 	for (i = 0; i < sv.world.num_edicts; i++)
 	{
 		ent = EDICT_NUM(pr, i);
 		if ((char*)ent->xv >= oldb && (char*)ent->xv < oldb+oldlen)
 			ent->xv = (extentvars_t*)((char*)ent->xv - oldb + newb);
 	}
+#endif
 
 	for (i = 0; sv.strings.model_precache[i]; i++)
 	{

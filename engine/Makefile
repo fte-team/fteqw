@@ -424,6 +424,7 @@ PROGS_OBJS =		\
 	hash.o		\
 	initlib.o		\
 	pr_bgcmd.o		\
+	pr_skelobj.o		\
 	pr_edict.o		\
 	pr_exec.o		\
 	pr_multi.o		\

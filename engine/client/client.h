@@ -1044,7 +1044,7 @@ char *CG_GetConfigString(int num);
 //
 #ifdef CSQC_DAT
 qboolean CSQC_Inited(void);
-qboolean CSQC_Init (unsigned int checksum);
+qboolean CSQC_Init (qboolean anycsqc, unsigned int checksum);
 void CSQC_RegisterCvarsAndThings(void);
 qboolean CSQC_DrawView(void);
 void CSQC_Shutdown(void);
@@ -1244,6 +1244,7 @@ void CIN_StopCinematic (struct cinematics_s *cin);
 struct cinematics_s *CIN_PlayCinematic (char *arg);
 int CIN_RunCinematic (struct cinematics_s *cin, qbyte **outdata, int *outwidth, int *outheight, qbyte **outpalette);
 
+typedef struct cin_s cin_t;
 #ifdef NOMEDIA
 #define Media_Playing false
 #else
@@ -1252,7 +1253,6 @@ qboolean Media_PlayingFullScreen(void);
 void Media_Init(void);
 qboolean Media_PlayFilm(char *name);
 qboolean Media_Playing(void);
-typedef struct cin_s cin_t;
 struct cin_s *Media_StartCin(char *name);
 texid_tf Media_UpdateForShader(cin_t *cin);
 void Media_ShutdownCin(cin_t *cin);

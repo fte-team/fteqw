@@ -1,0 +1,313 @@
+/*FTE has some special light editing builtins, I don't ever expect them to be standard or anything, but they're handy for this*/
+
+/*you probably want to change this if you're running hexen2*/
+var string autocvar_cg_editor_lightmodel = "progs/s_light.spr";
+
+static float selectedlight;
+static float editfield;
+static string editvalue;
+static entity tempent;
+void() editor_lights_add =
+{
+	float l;
+	if (!tempent)
+		tempent = spawn();
+
+	l = dynamiclight_get(-1, -1);
+	precache_model(autocvar_cg_editor_lightmodel); /*just to silence it*/
+	setmodel(tempent, autocvar_cg_editor_lightmodel);
+	while(l > 0)
+	{
+		l = l-1;
+		if (l == selectedlight)
+		{
+			if (gettime(0)*5 & 1)
+				continue;
+			tempent.effects |= 8192;
+		}
+		else
+			tempent.effects &~= 8192;
+		if (!(float)dynamiclight_get(l, LFIELD_RADIUS))
+			continue;
+		setorigin(tempent, dynamiclight_get(l, LFIELD_ORIGIN));
+		addentity(tempent);
+	}
+};
+
+static string fldname[10] = {
+	"bad",
+	"num",
+	"org",
+	"rgb",
+	"rad",
+	"flg",
+	"sty",
+	"ang",
+	"fov",
+	"???"
+};
+static string(float fld, float foredit) readfield =
+{
+	switch(fld)
+	{
+	case 1:
+		if (foredit)
+			return ftos(selectedlight);
+		return strcat(ftos(selectedlight), " / ", ftos(dynamiclight_get(-1, -1)));
+	case 2:
+		return vtos(dynamiclight_get(selectedlight, LFIELD_ORIGIN));
+	case 3:
+		return vtos(dynamiclight_get(selectedlight, LFIELD_COLOUR));
+	case 4:
+		return ftos(dynamiclight_get(selectedlight, LFIELD_RADIUS));
+	case 5:
+		float fl = (float)dynamiclight_get(selectedlight, LFIELD_FLAGS);
+		string ret;
+		ret = strcat(ret, (fl & LFLAG_NORMALMODE)?"d":"");
+		ret = strcat(ret, (fl & LFLAG_REALTIMEMODE)?"w":"");
+		ret = strcat(ret, (fl & LFLAG_LIGHTMAP)?"l":"");
+		ret = strcat(ret, (fl & LFLAG_FLASHBLEND)?"f":"");
+		ret = strcat(ret, (fl & LFLAG_NOSHADOWS)?"c":"");
+		ret = strcat(ret, (fl & LFLAG_SHADOWMAP)?"s":"");
+		ret = strcat(ret, (fl & LFLAG_CREPUSCULAR)?"r":"");
+		return ret;
+	case 6:
+		return ftos(dynamiclight_get(selectedlight, LFIELD_STYLE));
+	case 7:
+		return vtos(dynamiclight_get(selectedlight, LFIELD_ANGLES));
+	case 8:
+		return ftos(dynamiclight_get(selectedlight, LFIELD_FOV));
+	default:
+		return "";
+	}
+};
+
+static void(float fld, string newval) writefield =
+{
+	switch(fld)
+	{
+	case 1:
+		selectedlight = stof(newval);
+		return;
+	case 2:
+		dynamiclight_set(selectedlight, LFIELD_ORIGIN, stov(newval));
+		return;
+	case 3:
+		dynamiclight_set(selectedlight, LFIELD_COLOUR, stov(newval));
+		return;
+	case 4:
+		dynamiclight_set(selectedlight, LFIELD_RADIUS, stof(newval));
+		return;
+	case 5:
+		float fl;
+		if (strstrofs(newval, "d")>=0) fl |= LFLAG_NORMALMODE;
+		if (strstrofs(newval, "w")>=0) fl |= LFLAG_REALTIMEMODE;
+		if (strstrofs(newval, "l")>=0) fl |= LFLAG_LIGHTMAP;
+		if (strstrofs(newval, "f")>=0) fl |= LFLAG_FLASHBLEND;
+		if (strstrofs(newval, "c")>=0) fl |= LFLAG_NOSHADOWS;
+		if (strstrofs(newval, "s")>=0) fl |= LFLAG_SHADOWMAP;
+		if (strstrofs(newval, "r")>=0) fl |= LFLAG_CREPUSCULAR;
+		dynamiclight_set(selectedlight, LFIELD_FLAGS, fl);
+		return;
+	case 6:
+		dynamiclight_set(selectedlight, LFIELD_STYLE, stof(newval));
+		return;
+	case 7:
+		dynamiclight_set(selectedlight, LFIELD_ANGLES, stov(newval));
+		return;
+	case 8:
+		dynamiclight_set(selectedlight, LFIELD_FOV, stof(newval));
+	default:
+		return;
+	}
+};
+
+void(vector m) editor_lights_overlay =
+{
+	float i;
+	string s;
+	vector col;
+
+	m_y = floor((m_y - 32) / 8);
+
+	for (i = 1; i <= 8; i++)
+	{
+		if (editfield == i)
+			s = editvalue;
+		else
+			s = readfield(i, 0);
+		s = strcat(ftos(i), " ", fldname[i], ": ", s);
+
+		if (editfield == i)
+			col = '1 0 0';
+		else if (m_y == i && m_x < 64)
+			col = '0 0 1';
+		else
+			col = '1 1 1';
+			
+		drawrawstring('0 32 0' + '0 8 0' * i, s, '8 8 0', col, 1);
+	}
+	i+=1;
+
+
+	if (editfield == 5)
+	{
+		drawrawstring('0 32 0' + '0 8 0' * i, "d: dynamic mode\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * i, "w: realtime world lights mode\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * i, "l: lightmap hack (not valid above index 32)\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * i, "f: flashblend coronas\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * i, "c: does not cast shadows\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * i, "s: shadowmapped light\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * i, "r: crepuscular rays\n", '8 8 0', '1 1 1', 1); i+=1;
+	}
+	else
+	{
+		drawrawstring('0 32 0' + '0 8 0' * i, "+/- change selected light\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * i, "mouse also selects lights\n", '8 8 0', '1 1 1', 1);	i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * i, "m moves the light to the crosshair\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * i, "i inserts new light\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * i, "p points the light to aim at the crosshair\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * i, "[ and ] move the light towards/away from indicated plane\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * i, "don't forget to save\n", '8 8 0', '1 1 1', 1); i+=1;
+	}
+};
+
+static void(vector fwd, vector vorg) selectbestlight =
+{
+	float l, b=selectedlight, d, bd;
+	vector ldir;
+	l = dynamiclight_get(-1, -1);
+	while(l > 0)
+	{
+		l--;
+		ldir = dynamiclight_get(l, LFIELD_ORIGIN);
+		ldir = normalize(ldir - vorg);
+		d = fwd*ldir;
+		if (d > bd)
+		{
+			bd = d;
+			b = l;
+		}
+	}
+	selectedlight = b;
+};
+
+float(float keyc, float unic, vector m) editor_lights_key =
+{
+	vector t = unproject(m + '0 0 8192');
+	vector o = unproject(m);
+	string ns;
+	if (keyc == 512)
+	{
+		if (editfield)
+		{
+			writefield(editfield, editvalue);
+			strunzone(editvalue);
+			editfield = 0;
+		}
+		editfield = floor((m_y - 32) / 8);
+		if (editfield <= 0 || editfield > 8 || m_x >= 64)
+		{
+			editfield = 0;
+
+			selectbestlight(t - o, o);
+		}
+		else
+			editvalue = strzone(readfield(editfield, 1));
+	}
+	else if (editfield)
+	{
+		ns = strcat(editvalue);
+		if (keyc == 10 || keyc == 13)
+		{
+			writefield(editfield, ns);
+			editfield = 0;
+		}
+		else if (keyc == 127)
+		{
+			if (ns != "")
+				ns = substring(ns, 0, -2);
+		}
+		else if (keyc == 8)
+		{
+			ns = "";
+		}
+		else
+			ns = strcat(ns, chr2str(unic));
+
+		ns = strzone(ns);
+		strunzone(editvalue);
+		editvalue = ns;
+
+		writefield(editfield, ns);
+	}
+	else if (keyc >= '0' && keyc <= '9')
+	{
+		editfield = keyc - '0';
+		editvalue = strzone(readfield(editfield, 1));
+	}
+	else if (keyc == '=')
+		selectedlight++;
+	else if (keyc == '-')
+		selectedlight--;
+	else if (keyc == 'n')
+		localcmd("noclip\n");
+//	else if (keyc == 's')
+//	{
+//		selectbestlight(t - o, o);
+//	}
+	else if (keyc == 'm')
+	{
+		traceline(o, t, TRUE, world);
+		dynamiclight_set(selectedlight, LFIELD_ORIGIN, trace_endpos + trace_plane_normal*4);
+	}
+	else if (keyc == 'p')
+	{
+		traceline(o, t, TRUE, world);
+		vector ang = vectoangles((trace_endpos + trace_plane_normal*4) - (vector)dynamiclight_get(selectedlight, LFIELD_ORIGIN));
+		ang_x *= -1;
+		dynamiclight_set(selectedlight, LFIELD_ANGLES, ang);
+
+		/*if we're pointing the light at something, it should probably have a fov*/
+		if (!(float)dynamiclight_get(selectedlight, LFIELD_ORIGIN))
+			dynamiclight_set(selectedlight, LFIELD_FOV, 90);
+	}
+	else if (keyc == 'i')
+	{
+		for (selectedlight = 32; ; selectedlight++)
+		{
+			if (!(float)dynamiclight_get(selectedlight, LFIELD_RADIUS))
+			{
+				/*reset the light's properties*/
+				dynamiclight_set(selectedlight, LFIELD_RADIUS, 300);
+				dynamiclight_set(selectedlight, LFIELD_COLOUR, '1 1 1');
+				dynamiclight_set(selectedlight, LFIELD_FOV, 0);
+				dynamiclight_set(selectedlight, LFIELD_STYLE, 0);
+				dynamiclight_set(selectedlight, LFIELD_ANGLES, '0 0 0');
+				dynamiclight_set(selectedlight, LFIELD_FLAGS, LFLAG_REALTIMEMODE);
+
+				/*place it at the pointed location*/
+				traceline(o, t, TRUE, world);
+				dynamiclight_set(selectedlight, LFIELD_ORIGIN, trace_endpos + trace_plane_normal*4);
+				break;
+			}
+		}
+	}
+	else if (keyc == '[')
+	{
+		o = getproperty(11);
+		traceline(o, t, TRUE, world);
+		dynamiclight_set(selectedlight, LFIELD_ORIGIN, dynamiclight_get(selectedlight, LFIELD_ORIGIN) - trace_plane_normal);
+	}
+	else if (keyc == ']')
+	{
+		o = getproperty(11);
+		traceline(o, t, TRUE, world);
+		dynamiclight_set(selectedlight, LFIELD_ORIGIN, dynamiclight_get(selectedlight, LFIELD_ORIGIN) + trace_plane_normal);
+	}
+	else if (keyc == 127)
+		dynamiclight_set(selectedlight, LFIELD_RADIUS, 0);
+	else
+		return FALSE;
+	return TRUE;
+};

@@ -1,0 +1,7 @@
+../csaddon.dat
+//pr_dumpplatform -FFTE -Fdefines -TCS -O csplat
+csplat.qc
+
+editor_lights.qc
+cam.qc
+csaddon.qc

@@ -5226,6 +5226,8 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 			pe->notouch = !((int)player->xv->dimension_solid & (int)check->xv->dimension_hit);
 			if (!((int)player->xv->dimension_hit & (int)check->xv->dimension_solid))
 				continue;
+			if (!check->v->size[0])	//points are not meant to be solid
+				continue;
 			pmove.numphysent++;
 
 			VectorCopy (check->v->origin, pe->origin);
@@ -5625,7 +5627,6 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 			pmove.waterjumptime = sv_player->v->teleport_time;
 			if (pmove.waterjumptime > sv.time)
 				sv_player->v->flags = (int)sv_player->v->flags | FL_WATERJUMP;
-			sv_player->v->teleport_time = sv.time + pmove.waterjumptime;
 		}
 		else
 			jumpable = false;
@@ -5729,7 +5730,10 @@ if (sv_player->v->health > 0 && before && !after )
 
 	host_client->jump_held = pmove.jump_held;
 	if (progstype != PROG_QW)	//this is just annoying.
-		sv_player->v->teleport_time = pmove.waterjumptime + sv.time;
+	{
+		if (pmove.waterjumptime)
+			sv_player->v->teleport_time = pmove.waterjumptime + sv.time;
+	}
 	else
 		sv_player->v->teleport_time = pmove.waterjumptime;
 	sv_player->v->waterlevel = pmove.waterlevel;

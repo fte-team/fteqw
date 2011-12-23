@@ -146,7 +146,8 @@ void PRAddressableFlush(progfuncs_t *progfuncs, int totalammount)
 		VirtualFree(addressablehunk, 0, MEM_RELEASE);	//doesn't this look complicated? :p
 		addressablehunk = NULL;
 	}
-	addressablehunk = VirtualAlloc (addressablehunk, totalammount, MEM_RESERVE, PAGE_NOACCESS);
+	if (!addressablehunk)
+		addressablehunk = VirtualAlloc (addressablehunk, totalammount, MEM_RESERVE, PAGE_NOACCESS);
 #else
 	if (addressablehunk)
 		free(addressablehunk);

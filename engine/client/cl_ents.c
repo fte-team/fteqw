@@ -1925,7 +1925,7 @@ void CL_TransitionEntities (void)
 	/*and transition players too*/
 	{
 		float frac, a1, a2;
-		int i,j, p;
+		int i, p;
 		vec3_t move;
 		lerpents_t *le;
 		player_state_t *pnew, *pold;
@@ -1935,11 +1935,16 @@ void CL_TransitionEntities (void)
 			frac = (servertime-packold->servertime)/(packnew->servertime-packold->servertime);
 		pnew = &cl.frames[newf].playerstate[0];
 		pold = &cl.frames[oldf].playerstate[0];
-		for (p = 0; p < MAX_CLIENTS; p++, pnew++, pold++)
+		for (p = 0; p < cl.allocated_client_slots; p++, pnew++, pold++)
 		{
+			if (pnew->messagenum != cl.parsecount)
+				continue;
 		
 			le = &cl.lerpplayers[p];
 			VectorSubtract(pnew->origin, pold->origin, move);
+
+			if (DotProduct(move, move) > 120*120)
+				frac = 1;
 
 			//lerp based purely on the packet times,
 			for (i = 0; i < 3; i++)
@@ -3105,26 +3110,7 @@ void CL_LinkPlayers (void)
 
 		// only predict half the move to minimize overruns
 		msec = 500*(playertime - state->state_time);
-		/*
-		if (1)
-		{
-			float f;
-			int i;
-			f = (cl.gametime-cl.servertime)/(cl.gametime-cl.oldgametime);
-			if (f<0)
-				f=0;
-			if (f>1)
-				f=1;
 
-			for (i=0 ; i<3 ; i++)
-			{
-				ent->origin[i] = state->origin[i] +
-							f * (fromf->playerstate[j].origin[i] - state->origin[i]);
-			}
-
-		}
-		else
-			*/
 		if (pnum < cl.splitclients)
 		{	//this is a local player
 		}

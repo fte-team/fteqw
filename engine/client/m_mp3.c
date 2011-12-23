@@ -2464,11 +2464,9 @@ void Media_Init(void)
 
 
 #else
-void Media_Init(void){}
 void M_Media_Draw (void){}
 void M_Media_Key (int key) {}
 qboolean Media_ShowFilm(void){return false;}
-qboolean Media_PlayFilm(char *name) {return false;}
 
 double Media_TweekCaptureFrameTime(double time) { return time ; }
 void Media_RecordFrame (void) {}
@@ -2481,7 +2479,6 @@ void M_Menu_Media_f (void) {}
 
 char *Media_NextTrack(int musicchannelnum) {return NULL;}
 qboolean Media_PausedDemo(void) {return false;}
-qboolean Media_PlayingFullScreen(void) {return false;}
 
 int filmtexture;
 #endif

@@ -85,6 +85,33 @@ typedef struct q2trace_s
 	void	*ent;		// not set by CM_*() functions
 } q2trace_t;
 
+
+// edict->flags
+#define	FL_FLY					(1<<0)
+#define	FL_SWIM					(1<<1)
+//#define	FL_GLIMPSE				(1<<2)
+#define	FL_CLIENT				(1<<3)
+#define	FL_INWATER				(1<<4)
+#define	FL_MONSTER				(1<<5)
+#define	FL_GODMODE				(1<<6)
+#define	FL_NOTARGET				(1<<7)
+#define	FL_ITEM					(1<<8)
+#define	FL_ONGROUND				(1<<9)
+#define	FL_PARTIALGROUND		(1<<10)	// not all corners are valid
+#define	FL_WATERJUMP			(1<<11)	// player jumping out of water
+//		FL_JUMPRELEASED			//12
+								//13
+#define FL_FINDABLE_NONSOLID	(1<<14)	//a cpqwsv feature
+#define FL_MOVECHAIN_ANGLE		(1<<15) // hexen2 - when in a move chain, will update the angle
+#define FL_LAGGEDMOVE			(1<<16)
+								//17
+								//18
+								//19
+								//20
+#define FL_CLASS_DEPENDENT		(1<<21)	//hexen2
+
+
+
 #define	MOVE_NORMAL		0
 #define	MOVE_NOMONSTERS	1
 #define	MOVE_MISSILE	2
@@ -110,6 +137,7 @@ typedef struct areanode_s
 typedef struct wedict_s wedict_t;
 #define PROG_TO_WEDICT (wedict_t*)PROG_TO_EDICT
 #define WEDICT_NUM (wedict_t *)EDICT_NUM
+#define G_WEDICT (wedict_t *)G_EDICT
 
 typedef struct
 {
@@ -130,20 +158,22 @@ struct world_s
 /*FTE_DEPRECATED*/	unsigned int	edict_size; //still used in copyentity
 	wedict_t		*edicts;			// can NOT be array indexed.
 	struct progfuncs_s *progs;
-	qboolean		usesolidcorpse;
+	qboolean		usesolidcorpse;	//to disable SOLID_CORPSE when running hexen2 due to conflict.
 	model_t			*worldmodel;
 	areanode_t	areanodes[AREA_NODES];
 	int			numareanodes;
 
-	double		physicstime;
+	double		physicstime;		// the last time global physics were run
 	unsigned int    framenum;
 	int			lastcheck;			// used by PF_checkclient
 	double		lastchecktime;		// for monster ai
 
+	/*antilag*/
 	float lagentsfrac;
 	laggedentinfo_t *lagents;
 	unsigned int maxlagents;
 
+	/*qc globals*/
 	struct {
 		int     *self;
 		int     *other;

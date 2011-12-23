@@ -226,7 +226,8 @@ typedef struct shaderpass_s {
 		T_GEN_SOURCECUBE,	//used for render-to-texture targets
 
 		T_GEN_VIDEOMAP,		//use the media playback as an image source, updating each frame for which it is visible
-		T_GEN_SKYBOX,		//use a skybox instead, otherwise T_GEN_SINGLEMAP
+		T_GEN_CUBEMAP,		//use a cubemap instead, otherwise like T_GEN_SINGLEMAP
+		T_GEN_3DMAP,		//use a 3d texture instead, otherwise T_GEN_SINGLEMAP.
 	} texgen;
 
 	enum {
@@ -258,8 +259,9 @@ enum{
 	PERMUTATION_UPPER = 16,
 	PERMUTATION_OFFSET = 32,
 	PERMUTATION_SKELETAL = 64,
+	PERMUTATION_FOG	= 128,
 
-	PERMUTATIONS = 128
+	PERMUTATIONS = 256
 };
 
 typedef struct {
@@ -291,6 +293,7 @@ typedef struct {
 		SP_E_L_AMBIENT,
 		SP_E_EYEPOS, /*viewer's eyepos, in model space*/
 		SP_V_EYEPOS, /*viewer's eyepos, in world space*/
+		SP_W_FOG,
 
 		SP_M_ENTBONES,
 		SP_M_VIEW,
@@ -393,6 +396,7 @@ struct shader_s
 		SHADER_NODLIGHT			= 1 << 15,	//from surfaceflags
 		SHADER_HASLIGHTMAP		= 1 << 16,
 		SHADER_HASTOPBOTTOM		= 1 << 17,
+		SHADER_STATICDATA		= 1 << 18	//set if true: no deforms, no tcgen, rgbgen=identitylighting, alphagen=identity, tmu0=st + tmu1=lm(if available) for every pass, no norms
 	} flags;
 
 	program_t *prog;
@@ -502,6 +506,8 @@ void BE_PushOffsetShadow(qboolean foobar);
 void BE_SetupForShadowMap(void);
 //Called from shadowmapping code into backend
 void BE_BaseEntTextures(void);
+//prebuilds shadow volumes
+void Sh_PreGenerateLights(void);
 //Draws lights, called from the backend
 void Sh_DrawLights(qbyte *vis, batch_t **mbatches);
 void Sh_Shutdown(void);

@@ -177,7 +177,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldentity(dmg_inflictor)\
 	comfieldentity(owner)\
 	comfieldvector(movedir)\
-	comfieldstring(message)	/*not used directly, hexen2 uses floats, so we go via qclib for message*/\
+	comfieldstring(message)	/*don't use directly, hexen2 uses floats, so we go via qclib for message*/\
 	comfieldfloat(sounds)\
 	comfieldstring(noise)\
 	comfieldstring(noise1)\
@@ -196,6 +196,8 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(scale)/*DP_ENT_SCALE*/\
 	comfieldfloat(fatness)/*FTE_PEXT_FATNESS*/\
 	comfieldfloat(alpha)/*DP_ENT_ALPHA*/\
+	comfieldentity(tag_entity)\
+	comfieldfloat(skeletonindex)		/*FTE_CSQC_SKELETONOBJECTS*/\
 	comfieldvector(colormod)\
 	comfieldfloat(pmove_flags)/*EXT_CSQC_1*/\
 	comfieldfloat(jointtype)/*DP_...PHYSICS*/\
@@ -220,7 +222,6 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(button7)\
 	comfieldfloat(button8)\
 	comfieldfloat(viewzoom)/*DP_VIEWZOOM*/\
-	comfieldentity(tag_entity)\
 	comfieldfloat(tag_index)\
 	comfieldfloat(glow_size)\
 	comfieldfloat(glow_color)\
@@ -271,8 +272,6 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(bonecontrol5)	/*FTE_CSQC_HALFLIFE_MODELS*/\
 	comfieldfloat(subblendfrac)	/*FTE_CSQC_HALFLIFE_MODELS*/\
 	comfieldfloat(basesubblendfrac)	/*FTE_CSQC_HALFLIFE_MODELS+FTE_CSQC_BASEFRAME*/\
-							\
-	comfieldfloat(skeletonindex)		/*FTE_CSQC_SKELETONOBJECTS*/\
 							\
 	comfieldfloat(drawmask)	/*So that the qc can specify all rockets at once or all bannanas at once*/	\
 	comfieldfunction(predraw, ".void()")	/*If present, is called just before it's drawn.*/	\
@@ -409,6 +408,7 @@ typedef struct
 {
 	// for ODE physics engine
 	qboolean ode; // if true then ode is activated
+	qboolean hasodeents; // if true then we have some ode body somewhere, and we consume more cycles processing full physics, instead of trying to skip as much as we can
 	void *ode_world;
 	void *ode_space;
 	void *ode_contactgroup;

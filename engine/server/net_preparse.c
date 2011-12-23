@@ -654,24 +654,41 @@ void NPP_NQFlush(void)
 			{
 				if (cl->state == cs_spawned && ISQWCLIENT(cl))
 				{
+					char *h2finale = NULL;
 					if (cl->zquake_extensions & Z_EXT_SERVERTIME)
 					{
 						ClientReliableCheckBlock(cl, 6);
 						ClientReliableWrite_Byte(cl, svc_updatestatlong);
 						ClientReliableWrite_Byte(cl, STAT_TIME);
-						ClientReliableWrite_Long(cl, (int)(sv.time * 1000));
-						cl->nextservertimeupdate = sv.time+10;
+						ClientReliableWrite_Long(cl, (int)(sv.world.physicstime * 1000));
+						cl->nextservertimeupdate = sv.world.physicstime+10;
 					}
 
-					ClientReliableCheckBlock(cl, 16);
-					ClientReliableWrite_Byte(cl, svc_intermission);
-					ClientReliableWrite_Coord(cl, cl->edict->v->origin[0]);
-					ClientReliableWrite_Coord(cl, cl->edict->v->origin[1]);
-					ClientReliableWrite_Coord(cl, cl->edict->v->origin[2]+cl->edict->v->view_ofs[2]);
-					ClientReliableWrite_Angle(cl, cl->edict->v->angles[0]);
-					ClientReliableWrite_Angle(cl, cl->edict->v->angles[1]);
-					ClientReliableWrite_Angle(cl, cl->edict->v->angles[2]);
+					if (progstype == PROG_H2)
+					{
+						/*hexen2 does something like this in the client, but we don't support those protocols, so translate to something usable*/
+						int lookup[13] = {394, 395, 356, 357, 358, 411, 386+6, 386+7, 386+8, 391, 538, 545, 561};
+						if (buffer[1] < 13)
+							h2finale = T_GetString(lookup[buffer[1]]);
+					}
 
+					if (h2finale)
+					{
+						ClientReliableCheckBlock(cl, 16);
+						ClientReliableWrite_Byte(cl, svc_finale);
+						ClientReliableWrite_String(cl, h2finale);
+					}
+					else
+					{
+						ClientReliableCheckBlock(cl, 16);
+						ClientReliableWrite_Byte(cl, svc_intermission);
+						ClientReliableWrite_Coord(cl, cl->edict->v->origin[0]);
+						ClientReliableWrite_Coord(cl, cl->edict->v->origin[1]);
+						ClientReliableWrite_Coord(cl, cl->edict->v->origin[2]+cl->edict->v->view_ofs[2]);
+						ClientReliableWrite_Angle(cl, cl->edict->v->angles[0]);
+						ClientReliableWrite_Angle(cl, cl->edict->v->angles[1]);
+						ClientReliableWrite_Angle(cl, cl->edict->v->angles[2]);
+					}
 				}
 			}
 			bufferlen = 0;
@@ -1064,9 +1081,16 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 
 			default:
 				protocollen = sizeof(buffer);
-				te_515sevilhackworkaround = true;
-				Con_Printf("NQWriteByte: bad tempentity %i\n", data);
-				PR_StackTrace(svprogfuncs);
+				if (dest == MSG_MULTICAST)
+				{
+					Con_DPrintf("NQWriteByte: unknown tempentity %i\n", data);
+				}
+				else
+				{
+					te_515sevilhackworkaround = true;
+					Con_Printf("NQWriteByte: unknown tempentity %i\n", data);
+					PR_StackTrace(svprogfuncs);
+				}
 				break;
 			}
 			break;
@@ -1395,8 +1419,8 @@ void NPP_QWFlush(void)
 						ClientReliableCheckBlock(cl, 6);
 						ClientReliableWrite_Byte(cl, svc_updatestatlong);
 						ClientReliableWrite_Byte(cl, STAT_TIME);
-						ClientReliableWrite_Long(cl, (int)(sv.time * 1000));
-						cl->nextservertimeupdate = sv.time+10;
+						ClientReliableWrite_Long(cl, (int)(sv.world.physicstime * 1000));
+						cl->nextservertimeupdate = sv.world.physicstime+10;
 					}
 
 					ClientReliableCheckBlock(cl, 1);

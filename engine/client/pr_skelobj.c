@@ -23,7 +23,7 @@ this file deals with qc builtins to apply custom skeletal blending (skeletal obj
 
 #include "quakedef.h"
 
-#ifdef CSQC_DAT
+#if defined(CSQC_DAT) || !defined(CLIENTONLY)
 #define RAGDOLL
 
 #include "pr_common.h"
@@ -94,6 +94,23 @@ static doll_t *dolllist;
 static skelobject_t skelobjects[MAX_SKEL_OBJECTS];
 static int numskelobjectsused;
 
+static void bonemat_fromidentity(float *out)
+{
+	out[0] = 1;
+	out[1] = 0;
+	out[2] = 0;
+	out[3] = 0;
+
+	out[4] = 0;
+	out[5] = 1;
+	out[6] = 0;
+	out[7] = 0;
+
+	out[8] = 0;
+	out[9] = 0;
+	out[10] = 1;
+	out[11] = 0;
+}
 static void bonemat_fromqcvectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3])
 {
 	out[0] = vx[0];
@@ -108,6 +125,20 @@ static void bonemat_fromqcvectors(float *out, const float vx[3], const float vy[
 	out[9] = -vy[2];
 	out[10] = vz[2];
 	out[11] = t[2];
+}
+static void bonemat_fromentity(world_t *w, wedict_t *ed, float *trans)
+{
+	vec3_t d[3], a;
+	model_t *mod;
+	mod = w->Get_CModel(w, ed->v->modelindex);
+	if (!mod || mod->type == mod_alias)
+		a[0] = -ed->v->angles[0];
+	else
+		a[0] = ed->v->angles[0];
+	a[1] = ed->v->angles[1];
+	a[2] = ed->v->angles[2];
+	AngleVectors(a, d[0], d[1], d[2]);
+	bonemat_fromqcvectors(trans, d[0], d[1], d[2], ed->v->origin);
 }
 static void bonemat_toqcvectors(const float *in, float vx[3], float vy[3], float vz[3], float t[3])
 {
@@ -742,6 +773,71 @@ void QCBUILTIN PF_skel_get_boneabs (progfuncs_t *prinst, struct globalvars_s *pr
 	}
 }
 
+//void(entity ent, float bonenum, vector org, optional fwd, right, up) skel_set_bone_world (FTE_CSQC_SKELETONOBJECTS2) (reads v_forward etc)
+void QCBUILTIN PF_skel_set_bone_world (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	wedict_t *ent = G_WEDICT(prinst, OFS_PARM0);
+	unsigned int boneidx = G_FLOAT(OFS_PARM1)-1;
+	float *matrix[3];
+	skelobject_t *skelobj;
+	float *bone;
+	float childworld[12], parentinv[12];
+
+	/*sort out the parameters*/
+	if (*prinst->callargc == 4)
+	{
+		vec3_t d[3], a;
+		a[0] = G_VECTOR(OFS_PARM2)[0] * -1; /*mod_alias bug*/
+		a[1] = G_VECTOR(OFS_PARM2)[1];
+		a[2] = G_VECTOR(OFS_PARM2)[2];
+		AngleVectors(a, d[0], d[1], d[2]);
+		bonemat_fromqcvectors(childworld, d[0], d[1], d[2], G_VECTOR(OFS_PARM2));
+	}
+	else
+	{
+		if (*prinst->callargc > 5)
+		{
+			matrix[0] = G_VECTOR(OFS_PARM3);
+			matrix[1] = G_VECTOR(OFS_PARM4);
+			matrix[2] = G_VECTOR(OFS_PARM5);
+		}
+		else
+		{
+			matrix[0] = w->g.v_forward;
+			matrix[1] = w->g.v_right;
+			matrix[2] = w->g.v_up;
+		}
+		bonemat_fromqcvectors(childworld, matrix[0], matrix[1], matrix[2], G_VECTOR(OFS_PARM2));
+	}
+
+	/*make sure the skeletal object is correct*/
+	skelobj = skel_get(prinst, ent->xv->skeletonindex, 0);
+	if (!skelobj || boneidx >= skelobj->numbones)
+		return;
+
+	/*get the inverse of the parent matrix*/
+	{
+		float parentabs[12];
+		float parentw[12];
+		float parentent[12];
+		framestate_t fstate;
+		w->Get_FrameState(w, ent, &fstate);
+		if (!Mod_GetTag(skelobj->model, boneidx+1, &fstate, parentabs))
+		{
+			bonemat_fromidentity(parentabs);
+		}
+
+		bonemat_fromentity(w, ent, parentent);
+		Matrix3x4_Multiply(parentent, parentabs, parentw);
+		Matrix3x4_Invert_Simple(parentw, parentinv);
+	}
+
+	/*calc the result*/
+	bone = skelobj->bonematrix+12*boneidx;
+	Matrix3x4_Multiply(parentinv, childworld, bone);
+}
+
 //void(float skel, float bonenum, vector org) skel_set_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
 void QCBUILTIN PF_skel_set_bone (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -770,7 +866,7 @@ void QCBUILTIN PF_skel_set_bone (progfuncs_t *prinst, struct globalvars_s *pr_gl
 		return;
 
 	bone = skelobj->bonematrix+12*boneidx;
-	bonemat_fromqcvectors(skelobj->bonematrix+12*boneidx, matrix[0], matrix[1], matrix[2], G_VECTOR(OFS_PARM2));
+	bonemat_fromqcvectors(bone, matrix[0], matrix[1], matrix[2], G_VECTOR(OFS_PARM2));
 }
 
 //void(float skel, float bonenum, vector org [, vector fwd, vector right, vector up]) skel_mul_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
@@ -907,6 +1003,57 @@ void QCBUILTIN PF_skel_delete (progfuncs_t *prinst, struct globalvars_s *pr_glob
 		skelobj->model = NULL;
 		pendingkill = true;
 	}
+}
+
+//vector(entity ent, float tag) gettaginfo (DP_MD3_TAGSINFO)
+void QCBUILTIN PF_gettaginfo (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	wedict_t *ent = G_WEDICT(prinst, OFS_PARM0);
+	int tagnum = G_FLOAT(OFS_PARM1);
+
+	int modelindex = ent->v->modelindex;
+
+	model_t *mod = w->Get_CModel(w, modelindex);
+
+	float transent[12];
+	float transforms[12];
+	float result[12];
+
+	framestate_t fstate;
+
+	w->Get_FrameState(w, ent, &fstate);
+
+	if (!Mod_GetTag(mod, tagnum, &fstate, transforms))
+	{
+		bonemat_fromidentity(transforms);
+	}
+
+	if (ent->xv->tag_entity)
+	{
+#ifdef warningmsg
+		#pragma warningmsg("PF_gettaginfo: This function doesn't honour attachments")
+#endif
+		Con_Printf("bug: PF_gettaginfo doesn't support attachments\n");
+	}
+
+	bonemat_fromentity(w, ent, transent);
+	R_ConcatTransforms((void*)transent, (void*)transforms, (void*)result);
+
+	bonemat_toqcvectors(result, w->g.v_forward, w->g.v_right, w->g.v_up, G_VECTOR(OFS_RETURN));
+}
+
+//vector(entity ent, string tagname) gettagindex (DP_MD3_TAGSINFO)
+void QCBUILTIN PF_gettagindex (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	wedict_t *ent = G_WEDICT(prinst, OFS_PARM0);
+	char *tagname = PR_GetStringOfs(prinst, OFS_PARM1);
+	model_t *mod = *tagname?w->Get_CModel(w, ent->v->modelindex):NULL;
+	if (mod)
+		G_FLOAT(OFS_RETURN) = Mod_TagNumForName(mod, tagname);
+	else
+		G_FLOAT(OFS_RETURN) = 0;
 }
 #endif
 

@@ -2031,9 +2031,9 @@ void Sbar_Hexen2DrawExtra (int pnum)
 
 	Sbar_DrawTinyString (11, 79, va("abilities"));
 	if (cl.stats[pnum][STAT_H2_FLAGS] & (1<<22))
-		Sbar_DrawTinyString (8, 89, va("ability 1"));
+		Sbar_DrawTinyString (8, 89, T_GetString(400 + 2*(pclass-1) + 0));
 	if (cl.stats[pnum][STAT_H2_FLAGS] & (1<<23))
-		Sbar_DrawTinyString (8, 96, va("ability 2"));
+		Sbar_DrawTinyString (8, 96, T_GetString(400 + 2*(pclass-1) + 1));
 
 	for (i = 0; i < 4; i++)
 	{
@@ -2404,14 +2404,14 @@ void Sbar_Draw (void)
 
 		if (sbar_hexen2)
 		{
-			if (sb_lines > 0)
+			if (sb_lines > 24 || sb_hexen2_extra_info[pnum])
 			{
 				Sbar_Hexen2DrawExtra(pnum);
 				Sbar_Hexen2DrawBasic(pnum);
-				Sbar_Hexen2DrawInventory(pnum);
 			}
-			else
+			else if (sb_lines > 0)
 				Sbar_Hexen2DrawMinimal(pnum);
+			Sbar_Hexen2DrawInventory(pnum);
 
 			if (cl.deathmatch)
 				Sbar_MiniDeathmatchOverlay ();

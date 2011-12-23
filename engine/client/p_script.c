@@ -527,6 +527,7 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 			namepostfix = "_blend";
 			defaultshader =
 				"{\n"
+					"program defaultsprite\n"
 					"nomipmaps\n"
 					"{\n"
 						"map $diffuse\n"
@@ -542,6 +543,7 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 			namepostfix = "_bc";
 			defaultshader =
 				"{\n"
+					"program defaultsprite\n"
 					"nomipmaps\n"
 					"{\n"
 						"map $diffuse\n"
@@ -557,6 +559,7 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 			namepostfix = "_add";
 			defaultshader =
 				"{\n"
+					"program defaultsprite\n"
 					"nomipmaps\n"
 					"{\n"
 						"map $diffuse\n"
@@ -572,6 +575,7 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 			namepostfix = "_invmod";
 			defaultshader =
 				"{\n"
+					"program defaultsprite\n"
 					"nomipmaps\n"
 					"{\n"
 						"map $diffuse\n"
@@ -587,6 +591,7 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 			namepostfix = "_sub";
 			defaultshader =
 				"{\n"
+					"program defaultsprite\n"
 					"nomipmaps\n"
 					"{\n"
 						"map $diffuse\n"
@@ -825,7 +830,7 @@ static void P_ParticleEffect_f(void)
 			if (*buf == '{')
 			{
 				int nest = 1;
-				char *str = BZ_Malloc(2);
+				char *str = BZ_Malloc(3);
 				int slen = 2;
 				str[0] = '{';
 				str[1] = '\n';
@@ -4267,6 +4272,7 @@ static void PScript_DrawParticleTypes (void)
 
 	int traces=r_particle_tracelimit.ival;
 	int rampind;
+	static float oldtime;
 	RSpeedMark();
 
 	if (r_plooksdirty)
@@ -4288,11 +4294,16 @@ static void PScript_DrawParticleTypes (void)
 		r_plooksdirty = false;
 		CL_RegisterParticles();
 	}
-
+#if 1
+	pframetime = cl.time - oldtime;
+	if (pframetime < 0)
+		pframetime = 0;
+	oldtime = cl.time;
+#else
 	pframetime = host_frametime;
 	if (cl.paused || r_secondaryview || r_refdef.recurse)
 		pframetime = 0;
-
+#endif
 	VectorScale (vup, 1.5, pup);
 	VectorScale (vright, 1.5, pright);
 

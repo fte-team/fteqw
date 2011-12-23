@@ -514,7 +514,10 @@ void SV_Map_f (void)
 
 	COM_FlushFSCache();
 
-	if (strlen(level) > 4 && !strcmp(level + strlen(level)-4, ".cin"))
+	if (strlen(level) > 4 &&
+		(!strcmp(level + strlen(level)-4, ".cin") ||
+		!strcmp(level + strlen(level)-4, ".roq") ||
+		!strcmp(level + strlen(level)-4, ".avi")))
 	{
 		cinematic = true;
 	}
@@ -627,7 +630,7 @@ void SV_Map_f (void)
 	}
 	SV_SendMessagesToAll ();
 
-	if (newunit || !startspot || !SV_LoadLevelCache(NULL, level, startspot, false))
+	if (newunit || !startspot || cinematic || !SV_LoadLevelCache(NULL, level, startspot, false))
 	{
 		if (waschangelevel && !startspot)
 			startspot = "";

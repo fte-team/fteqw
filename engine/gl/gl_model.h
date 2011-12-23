@@ -234,45 +234,60 @@ typedef struct texnums_s {
 	struct shader_s *shader;	//fixme: remove...
 } texnums_t;
 
+typedef struct vboarray_s
+{
+	union
+	{
+		int dummy;
+
+#ifdef GLQUAKE
+		struct
+		{
+			int vbo;
+			void *addr;
+		} gl;
+#endif
+
+#ifdef D3DQUAKE
+		struct
+		{
+			void *buff;
+			unsigned int offs;
+		} d3d;
+#endif
+	};
+} vboarray_t;
+
 typedef struct vbo_s
 {
-	int numvisible;
+	unsigned int numvisible;
 	struct msurface_s **vislist;
 
-	int meshcount;
+	unsigned int indexcount;
+	unsigned int vertcount;
+	unsigned int meshcount;
 	struct msurface_s **meshlist;
 
-	int		vboe;
-	index_t	*indicies;
+	vboarray_t		indicies;
 	void *vertdata; /*internal use*/
 
-	int vbocoord;
-	vecV_t	*coord;
-	int vbotexcoord;
-	vec2_t	*texcoord;
-	int vbolmcoord;
-	vec2_t	*lmcoord;
+	vboarray_t coord;
+	vboarray_t texcoord;
+	vboarray_t lmcoord;
 
-	int vbonormals;
-	vec3_t	*normals;
-	int vbosvector;
-	vec3_t	*svector;
-	int vbotvector;
-	vec3_t	*tvector;
+	vboarray_t normals;
+	vboarray_t svector;
+	vboarray_t tvector;
 
-	int vbocolours;
-	vec4_t	*colours4f;
-	byte_vec4_t	*colours4ub;
+	vboarray_t colours;
 
-	int vbobonenums;
-	byte_vec4_t *bonenums;
+	vboarray_t bonenums;
 
-	int vboboneweights;
-	vec4_t *boneweights;
+	vboarray_t boneweights;
 
-	int vbobones;
+	unsigned int vbobones;
 	float *bones;
-	int numbones;
+	unsigned  int numbones;
 } vbo_t;
 void GL_SelectVBO(int vbo);
 void GL_SelectEBO(int vbo);

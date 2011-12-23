@@ -654,6 +654,7 @@ void CL_CheckForResend (void)
 	netadr_t	adr;
 	char	data[2048];
 	double t1, t2;
+	int contype = 0;
 
 #ifndef CLIENTONLY
 	if (!cls.state && sv.state)
@@ -799,8 +800,19 @@ void CL_CheckForResend (void)
 
 	Con_TPrintf (TLC_CONNECTINGTO, cls.servername);
 
+	contype |= 1; /*always try qw type connections*/
+//	if ((connect_tries&3)==3) || (connect_defaultport==26000))
+		contype |= 2; /*try nq connections periodically (or if its the default nq port)*/
+
+	/*DP, QW, Q2, Q3*/
+	if (contype & 1)
+	{
+		Q_snprintfz (data, sizeof(data), "%c%c%c%cgetchallenge\n", 255, 255, 255, 255);
+		NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
+	}
+	/*NQ*/
 #ifdef NQPROT
-	if (((connect_tries&3)==3) != (connect_defaultport==26000))
+	if (contype & 2)
 	{
 		sizebuf_t sb;
 		memset(&sb, 0, sizeof(sb));
@@ -823,18 +835,13 @@ void CL_CheckForResend (void)
 		MSG_WriteByte(&sb, 0); /*flags*/
 		MSG_WriteLong(&sb, strtoul(password.string, NULL, 0)); /*password*/
 
-		/*so dual-protocol servers can send a more useful reply*/
+		/*FTE servers will detect this string and treat it as a qw challenge instead (if it allows qw clients), so protocol choice is deterministic*/
 		MSG_WriteString(&sb, "getchallenge");
 
 		*(int*)sb.data = LongSwap(NETFLAG_CTL | sb.cursize);
 		NET_SendPacket (NS_CLIENT, sb.cursize, sb.data, adr);
 	}
-	else
 #endif
-	{
-		Q_snprintfz (data, sizeof(data), "%c%c%c%cgetchallenge\n", 255, 255, 255, 255);
-		NET_SendPacket (NS_CLIENT, strlen(data), data, adr);
-	}
 
 	connect_tries++;
 }
@@ -1604,6 +1611,9 @@ void CL_CheckServerInfo(void)
 	s = Info_ValueForKey(cl.serverinfo, "allow_fish");
 	if (cl.spectator || cls.demoplayback || !*s || atoi(s))
 		cls.allow_postproc=true;
+	s = Info_ValueForKey(cl.serverinfo, "allow_postproc");
+	if (cl.spectator || cls.demoplayback || !*s || atoi(s))
+		cls.allow_postproc=true;
 
 	s = Info_ValueForKey(cl.serverinfo, "fbskins");
 	if (*s)
@@ -2280,6 +2290,8 @@ void CL_ConnectionlessPacket (void)
 
 	if (c == S2C_CHALLENGE)
 	{
+		static unsigned int lasttime = 0xdeadbeef;
+		unsigned int curtime = Sys_Milliseconds();
 		unsigned long pext = 0, pext2 = 0, huffcrc=0;
 		Con_TPrintf (TLC_S2C_CHALLENGE);
 
@@ -2287,9 +2299,15 @@ void CL_ConnectionlessPacket (void)
 		COM_Parse(s);
 		if (!strcmp(com_token, "hallengeResponse"))
 		{
+			/*Quake3*/
 #ifdef Q3CLIENT
 			if (cls.protocol == CP_QUAKE3 || cls.protocol == CP_UNKNOWN)
 			{
+				/*throttle*/
+				if (curtime - lasttime < 500)
+					return;
+				lasttime = curtime;
+
 				cls.protocol = CP_QUAKE3;
 				cls.challenge = atoi(s+17);
 				CL_SendConnectPacket (0, 0, 0/*, ...*/);
@@ -2307,7 +2325,13 @@ void CL_ConnectionlessPacket (void)
 		}
 		else if (!strcmp(com_token, "hallenge"))
 		{
+			/*Quake2 or Darkplaces*/
 			char *s2;
+			/*throttle*/
+			if (curtime - lasttime < 500)
+				return;
+			lasttime = curtime;
+
 			for (s2 = s+9; *s2; s2++)
 			{
 				if ((*s2 < '0' || *s2 > '9') && *s2 != '-')
@@ -2354,6 +2378,9 @@ void CL_ConnectionlessPacket (void)
 			goto client_connect;
 		}
 #endif
+
+		/*no idea, assume a QuakeWorld challenge response ('c' packet)*/
+
 		else if (cls.protocol == CP_QUAKEWORLD || cls.protocol == CP_UNKNOWN)
 			cls.protocol = CP_QUAKEWORLD;
 		else
@@ -2361,6 +2388,12 @@ void CL_ConnectionlessPacket (void)
 			Con_Printf("\nChallenge from another protocol, ignoring QW challenge\n");
 			return;
 		}
+
+		/*throttle*/
+		if (curtime - lasttime < 500)
+			return;
+		lasttime = curtime;
+
 		cls.challenge = atoi(s);
 
 		for(;;)
@@ -2778,7 +2811,7 @@ void CL_ReadPackets (void)
 
 			if (cls.netchan.incoming_sequence > cls.netchan.outgoing_sequence)
 			{	//server should not be responding to packets we have not sent yet
-				Con_Printf("Server is from the future! (%i packets)\n", cls.netchan.incoming_sequence - cls.netchan.outgoing_sequence);
+				Con_DPrintf("Server is from the future! (%i packets)\n", cls.netchan.incoming_sequence - cls.netchan.outgoing_sequence);
 				cls.netchan.outgoing_sequence = cls.netchan.incoming_sequence;
 			}
 			MSG_ChangePrimitives(cls.netchan.netprim);
@@ -3484,7 +3517,9 @@ double Host_Frame (double time)
 	RSpeedLocals();
 
 	if (setjmp (host_abort) )
+	{
 		return 0;			// something bad happened, or the server disconnected
+	}
 
 	realframetime = time = Media_TweekCaptureFrameTime(time);
 

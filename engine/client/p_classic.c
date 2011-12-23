@@ -217,6 +217,7 @@ static qboolean PClassic_InitParticles (void)
 #endif
 	classicshader = R_RegisterShader("particles_classic",
 		"{\n"
+			"program defaultsprite\n"
 			"nomipmaps\n"
 			"{\n"
 				"map $diffuse\n"
@@ -384,9 +385,9 @@ static void PClassic_DrawParticles(void)
 			cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
 		}
 
-		Vector4Set(cl_strisvertc[cl_numstrisvert+0],1,1,1,1);
-		Vector4Set(cl_strisvertc[cl_numstrisvert+1],1,1,1,1);
-		Vector4Set(cl_strisvertc[cl_numstrisvert+2],1,1,1,1);
+//		Vector4Set(cl_strisvertc[cl_numstrisvert+0],1,1,1,1);
+//		Vector4Set(cl_strisvertc[cl_numstrisvert+1],1,1,1,1);
+//		Vector4Set(cl_strisvertc[cl_numstrisvert+2],1,1,1,1);
 
 		Vector4Set(cl_strisvertc[cl_numstrisvert+0], ((p->rgb&0xff)>>0)/256.0, ((p->rgb&0xff00)>>8)/256.0, ((p->rgb&0xff0000)>>16)/256.0, ((p->type == pt_fire)?((6 - p->ramp) *0.166666):1.0));
 		Vector4Copy(cl_strisvertc[cl_numstrisvert+0], cl_strisvertc[cl_numstrisvert+1]);

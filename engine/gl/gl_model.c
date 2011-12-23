@@ -1201,7 +1201,7 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 						snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
 				}
 
-				if (!TEXVALID(tn.bump) && loadmodel->fromgame != fg_halflife)
+/*				if (!TEXVALID(tn.bump) && loadmodel->fromgame != fg_halflife)
 				{
 					//no mip levels here, would be absurd.
 					base = (qbyte *)(mt+1);	//convert to greyscale.
@@ -1210,7 +1210,7 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 
 					tn.bump = R_LoadTexture8BumpPal(altname, tx->width, tx->height, base, true);	//normalise it and then bump it.
 				}
-
+*/
 				//don't do any complex quake 8bit -> glossmap. It would likly look a little ugly...
 				if (gl_specular.value && gl_load24bit.value)
 				{
@@ -1373,7 +1373,7 @@ void RMod_NowLoadExternal(void)
 			tn.bump = R_LoadBumpmapTexture(va("%s_bump", tx->name), loadname);
 			if (!TEXVALID(tn.bump))
 				tn.bump = R_LoadBumpmapTexture(va("%s_bump", tx->name), "bmodels");
-			if (!TEXVALID(tn.bump))
+/*			if (!TEXVALID(tn.bump))
 			{
 				qbyte *data;
 				qbyte *heightmap;
@@ -1392,7 +1392,7 @@ void RMod_NowLoadExternal(void)
 					tn.bump = R_LoadTexture8BumpPal (va("%s_bump", tx->name), width, height, heightmap-j, true);
 				}
 			}
-		}
+*/		}
 		if (!TEXVALID(tn.base))
 		{
 			tn.base = R_LoadTexture8("notexture", 16, 16, r_notexture_mip+1, IF_NOALPHA, 0);

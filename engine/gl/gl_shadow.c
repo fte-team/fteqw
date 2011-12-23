@@ -882,7 +882,7 @@ static void SHM_ComposeVolume_Fan(vecV_t *points, int numpoints)
 	int i;
 
 	#define MAX_ARRAY_VERTS 65535
-	static int pointidx[MAX_ARRAY_VERTS];
+	static index_t pointidx[MAX_ARRAY_VERTS];
 
 	/*make sure there's space*/
 	newmax = (cv.numpoints+numpoints + inc)&~(inc-1);
@@ -913,19 +913,19 @@ static void SHM_ComposeVolume_Fan(vecV_t *points, int numpoints)
 	{
 		cv.tris[cv.numtris].edge[0] = lastedge;
 		cv.tris[cv.numtris].edge[1] = SHM_ComposeVolume_FindEdge(pointidx[i-1], pointidx[i]);
-		lastedge = SHM_ComposeVolume_FindEdge(pointidx[i], pointidx[i-2]);
+		lastedge = SHM_ComposeVolume_FindEdge(pointidx[i], pointidx[0]);
 		cv.tris[cv.numtris].edge[2] = lastedge;
 		lastedge = -(lastedge+1);
 		cv.numtris++;
 	}
 }
-static void SHM_ComposeVolume_Soup(vecV_t *points, int numpoints, int *idx, int numidx)
+static void SHM_ComposeVolume_Soup(vecV_t *points, int numpoints, index_t *idx, int numidx)
 {
 	int newmax;
 	int i;
 
 	#define MAX_ARRAY_VERTS 65535
-	static int pointidx[MAX_ARRAY_VERTS];
+	static index_t pointidx[MAX_ARRAY_VERTS];
 
 	/*make sure there's space*/
 	newmax = (cv.numpoints+numpoints + inc)&~(inc-1);
@@ -1024,9 +1024,9 @@ static void SHM_ComposeVolume_BruteForce(dlight_t *dl)
 		VectorNormalize(ext);
 
 		/*back face*/
-		sh_shmesh->verts[(i * 2) + 1][0] = cv.points[i][0] + ext[0] * dl->radius*2;
-		sh_shmesh->verts[(i * 2) + 1][1] = cv.points[i][1] + ext[1] * dl->radius*2;
-		sh_shmesh->verts[(i * 2) + 1][2] = cv.points[i][2] + ext[2] * dl->radius*2;
+		sh_shmesh->verts[(i * 2) + 1][0] = cv.points[i][0] + ext[0] * dl->radius;
+		sh_shmesh->verts[(i * 2) + 1][1] = cv.points[i][1] + ext[1] * dl->radius;
+		sh_shmesh->verts[(i * 2) + 1][2] = cv.points[i][2] + ext[2] * dl->radius;
 	}
 	sh_shmesh->numverts = i*2;
 
@@ -1100,9 +1100,20 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 	{
 	case fg_quake:
 	case fg_halflife:
-		SHM_BeginShadowMesh(dl, surfonly);
-		SHM_MarkLeavesQ1(dl, lvis);
-		SHM_RecursiveWorldNodeQ1_r(dl, cl.worldmodel->nodes);
+		if (!dl->die)
+		{
+			SHM_BeginShadowMesh(dl, true);
+			SHM_MarkLeavesQ1(dl, lvis);
+			SHM_RecursiveWorldNodeQ1_r(dl, cl.worldmodel->nodes);
+			if (!surfonly)
+				SHM_ComposeVolume_BruteForce(dl);
+		}
+		else
+		{
+			SHM_BeginShadowMesh(dl, surfonly);
+			SHM_MarkLeavesQ1(dl, lvis);
+			SHM_RecursiveWorldNodeQ1_r(dl, cl.worldmodel->nodes);
+		}
 		break;
 #ifdef Q2BSPS
 	case fg_quake2:
@@ -2111,13 +2122,17 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 			v2 = surf->mesh->xyz_array[( v+1 )%surf->mesh->numvertexes];
 
 			//get positions of v3 and v4 based on the light position
-			v3[0] = ( v1[0]-lightorg[0] )*PROJECTION_DISTANCE;
-			v3[1] = ( v1[1]-lightorg[1] )*PROJECTION_DISTANCE;
-			v3[2] = ( v1[2]-lightorg[2] )*PROJECTION_DISTANCE;
+			v3[0] = ( v1[0]-lightorg[0] );
+			v3[1] = ( v1[1]-lightorg[1] );
+			v3[2] = ( v1[2]-lightorg[2] );
+			VectorNormalizeFast(v3);
+			VectorScale(v3, PROJECTION_DISTANCE, v3);
 
-			v4[0] = ( v2[0]-lightorg[0] )*PROJECTION_DISTANCE;
-			v4[1] = ( v2[1]-lightorg[1] )*PROJECTION_DISTANCE;
-			v4[2] = ( v2[2]-lightorg[2] )*PROJECTION_DISTANCE;
+			v4[0] = ( v2[0]-lightorg[0] );
+			v4[1] = ( v2[1]-lightorg[1] );
+			v4[2] = ( v2[2]-lightorg[2] );
+			VectorNormalizeFast(v4);
+			VectorScale(v4, PROJECTION_DISTANCE, v4);
 
 			//Now draw the quad from the two verts to the projected light
 			//verts
@@ -2135,9 +2150,11 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 		for (v = surf->mesh->numvertexes-1; v >=0; v--)
 		{
 			v1 = surf->mesh->xyz_array[v];
-			v3[0] = (v1[0]-lightorg[0])*PROJECTION_DISTANCE;
-			v3[1] = (v1[1]-lightorg[1])*PROJECTION_DISTANCE;
-			v3[2] = (v1[2]-lightorg[2])*PROJECTION_DISTANCE;
+			v3[0] = (v1[0]-lightorg[0]);
+			v3[1] = (v1[1]-lightorg[1]);
+			v3[2] = (v1[2]-lightorg[2]);
+			VectorNormalizeFast(v3);
+			VectorScale(v3, PROJECTION_DISTANCE, v3);
 
 			qglVertex3f(v1[0]+v3[0], v1[1]+v3[1], v1[2]+v3[2]);
 		}
@@ -2472,7 +2489,7 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 		leaf = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, dl->origin);
 		lvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, leaf, lvisb, sizeof(lvisb));
 
-		SHM_BuildShadowMesh(dl, lvis, vvis, false);
+		SHM_BuildShadowMesh(dl, lvis, vvis, true);
 
 		if (!Sh_VisOverlaps(lvis, vvis))	//The two viewing areas do not intersect.
 		{
@@ -2593,6 +2610,42 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours, batch_t **batches)
 	GLBE_DrawMesh_Single(crepuscular_shader, &mesh, NULL, &crepuscular_shader->defaulttextures, 0);
 	checkglerror();
 #endif
+}
+
+void Sh_PreGenerateLights(void)
+{
+	unsigned int ignoreflags;
+	dlight_t *dl;
+	qboolean shadow;
+	int leaf;
+	qbyte *lvis;
+	qbyte	lvisb[MAX_MAP_LEAFS/8];
+	int i;
+
+	ignoreflags = (r_shadow_realtime_world.value?LFLAG_REALTIMEMODE:LFLAG_NORMALMODE);
+
+	for (dl = cl_dlights+rtlights_first, i=rtlights_first; i<rtlights_max; i++, dl++)
+	{
+		if (!dl->radius)
+			continue;	//dead
+
+		if (!(dl->flags & ignoreflags))
+			continue;
+
+		if (dl->flags & LFLAG_CREPUSCULAR)
+			continue;
+		else if (((!dl->die)?!r_shadow_realtime_world_shadows.ival:!r_shadow_realtime_dlight_shadows.ival) || dl->flags & LFLAG_NOSHADOWS)
+			shadow = false;
+		else if (dl->flags & LFLAG_SHADOWMAP)
+			shadow = false;
+		else
+			shadow = true;
+
+		leaf = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, dl->origin);
+		lvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, leaf, lvisb, sizeof(lvisb));
+
+		SHM_BuildShadowMesh(dl, lvis, NULL, !shadow);
+	}
 }
 
 void Sh_DrawLights(qbyte *vis, batch_t **mbatches)

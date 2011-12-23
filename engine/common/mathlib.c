@@ -321,12 +321,12 @@ void VectorAngles(float *forward, float *up, float *result)	//up may be NULL
 	{
 		if (forward[2] > 0)
 		{
-			pitch = 90;
+			pitch = -M_PI * 0.5;
 			yaw = up ? atan2(-up[1], -up[0]) : 0;
 		}
 		else
 		{
-			pitch = 270;
+			pitch = M_PI * 0.5;
 			yaw = up ? atan2(up[1], up[0]) : 0;
 		}
 		roll = 0;

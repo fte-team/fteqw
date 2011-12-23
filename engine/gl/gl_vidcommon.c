@@ -69,6 +69,7 @@ void (APIENTRY *qglTexEnvi) (GLenum target, GLenum pname, GLint param);
 void (APIENTRY *qglTexGeni) (GLenum coord, GLenum pname, GLint param);
 void (APIENTRY *qglTexGenfv) (GLenum coord, GLenum pname, const GLfloat *param);
 void (APIENTRY *qglTexImage2D) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
+void (APIENTRY *qglTexImage3D) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
 void (APIENTRY *qglTexParameteri) (GLenum target, GLenum pname, GLint param);
 void (APIENTRY *qglTexParameterf) (GLenum target, GLenum pname, GLfloat param);
 void (APIENTRY *qglTexParameteriv) (GLenum target, GLenum pname, const GLint *params);
@@ -757,6 +758,64 @@ static const char *glsl_hdrs[] =
 				"}\n"
 			"#endif\n"
 		,
+	"sys/fog.h",
+			"#ifdef FRAGMENT_SHADER\n"
+				"#ifdef FOG\n"
+					"uniform vec4 w_fog;\n"
+					"vec3 fog3(in vec3 regularcolour)"
+					"{"
+						"float z = gl_FragCoord.z / gl_FragCoord.w;\n"
+						"float fac = exp2(-("
+											"w_fog.w * w_fog.w * "
+											"z * z * "
+											"1.442695));\n"
+						"fac = clamp(fac, 0.0, 1.0);\n"
+						"return mix(w_fog.rgb, regularcolour, fac);\n"
+					"}\n"
+					"vec3 fog3additive(in vec3 regularcolour)"
+					"{"
+						"float z = gl_FragCoord.z / gl_FragCoord.w;\n"
+						"float fac = exp2(-("
+											"w_fog.w * w_fog.w * "
+											"z * z * "
+											"1.442695));\n"
+						"fac = clamp(fac, 0.0, 1.0);\n"
+						"return regularcolour * fac;\n"
+					"}\n"
+					"vec4 fog4(in vec4 regularcolour)"
+					"{"
+						"return vec4(fog3(regularcolour.rgb), 1.0) * regularcolour.a;\n"
+					"}\n"
+					"vec4 fog4additive(in vec4 regularcolour)"
+					"{"
+						"float z = gl_FragCoord.z / gl_FragCoord.w;\n"
+						"float fac = exp2(-("
+											"w_fog.w * w_fog.w * "
+											"z * z * "
+											"1.442695));\n"
+						"fac = clamp(fac, 0.0, 1.0);\n"
+						"return regularcolour * vec4(fac, fac, fac, 1.0);\n"
+					"}\n"
+					"vec4 fog4blend(in vec4 regularcolour)"
+					"{"
+						"float z = gl_FragCoord.z / gl_FragCoord.w;\n"
+						"float fac = exp2(-("
+											"w_fog.w * w_fog.w * "
+											"z * z * "
+											"1.442695));\n"
+						"fac = clamp(fac, 0.0, 1.0);\n"
+						"return regularcolour * vec4(1.0, 1.0, 1.0, fac);\n"
+					"}\n"
+				"#else\n"
+					/*don't use macros for this - mesa bugs out*/
+					"vec3 fog3(in vec3 regularcolour) { return regularcolour; }\n"
+					"vec3 fog3additive(in vec3 regularcolour) { return regularcolour; }\n"
+					"vec4 fog4(in vec4 regularcolour) { return regularcolour; }\n"
+					"vec4 fog4additive(in vec4 regularcolour) { return regularcolour; }\n"
+					"vec4 fog4blend(in vec4 regularcolour) { return regularcolour; }\n"
+				"#endif\n"
+			"#endif\n"
+		,
 	NULL
 };
 
@@ -1100,6 +1159,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglTexGeni			= (void *)getglcore("glTexGeni");
 	qglTexGenfv			= (void *)getglcore("glTexGenfv");
 	qglTexImage2D		= (void *)getglcore("glTexImage2D");
+	qglTexImage3D		= (void *)getglext("glTexImage3D");
 	qglTexParameteri	= (void *)getglcore("glTexParameteri");
 	qglTexParameterf	= (void *)getglcore("glTexParameterf");
 	qglTexParameteriv	= (void *)getglcore("glTexParameteriv");

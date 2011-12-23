@@ -1039,7 +1039,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 			}
 			if (e->flags & RF_NOSHADOW)
 				b->flags |= BEF_NOSHADOWS;
-			b->vbo = 0;
+			b->vbo = NULL;
 			b->next = batches[sort];
 			batches[sort] = b;
 		}
@@ -1115,7 +1115,7 @@ void R_Sprite_GenerateBatches(entity_t *e, batch_t **batches)
 		b->lightmap = -1;
 		b->surf_first = surfnum;
 		b->flags = 0;
-		b->vbo = 0;
+		b->vbo = NULL;
 		b->next = batches[shader->sort];
 		batches[shader->sort] = b;
 	}

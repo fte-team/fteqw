@@ -327,7 +327,6 @@ CLIENT_OBJS = \
 	cl_cg.o \
 	clq3_parse.o	\
 	pr_csqc.o	\
-	pr_skelobj.o	\
 	console.o	\
 	image.o	\
 	keys.o	\

@@ -57,7 +57,7 @@ LPDIRECT3DDEVICE9 pD3DDev9;
 static D3DPRESENT_PARAMETERS d3dpp;
 float d3d_trueprojection[16];
 
-static qboolean vid_initializing;
+qboolean vid_initializing;
 
 extern qboolean		scr_initialized;                // ready to draw
 extern qboolean		scr_drawloading;
@@ -368,7 +368,7 @@ static LRESULT WINAPI D3D9_WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 				if (MessageBox (mainwindow, "Are you sure you want to quit?", "Confirm Exit",
 							MB_YESNO | MB_SETFOREGROUND | MB_ICONQUESTION) == IDYES)
 				{
-					Sys_Quit ();
+					Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
 				}
 
 	        break;
@@ -741,8 +741,6 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 static void	(D3D9_R_NewMap)					(void)
 {
 	r_worldentity.model = cl.worldmodel;
-	R_AnimateLight();
-	Surf_BuildLightmaps();
 
 #ifdef MAP_PROC
 	if (cl.worldmodel && cl.worldmodel->fromgame == fg_doom3)
@@ -751,6 +749,12 @@ static void	(D3D9_R_NewMap)					(void)
 
 	/*wipe any lingering particles*/
 	P_ClearParticles();
+	CL_RegisterParticles();
+
+	R_AnimateLight();
+	Surf_DeInit();
+	Surf_WipeStains();
+	Surf_BuildLightmaps();
 }
 
 extern mleaf_t		*r_viewleaf, *r_oldviewleaf;
@@ -987,7 +991,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 	if (editormodal)
 	{
 		Editor_Draw();
-		GLV_UpdatePalette (false, host_frametime);
+		V_UpdatePalette (false);
 #if defined(_WIN32) && defined(GLQUAKE)
 		Media_RecordFrame();
 #endif
@@ -1005,7 +1009,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 	if (Media_ShowFilm())
 	{
 		M_Draw(0);
-//		GLV_UpdatePalette (false, host_frametime);
+//		V_UpdatePalette (false);
 #if defined(_WIN32)
 		Media_RecordFrame();
 #endif
@@ -1072,7 +1076,7 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 
 	SCR_DrawTwoDimensional(uimenu, nohud);
 
-	GLV_UpdatePalette (false, host_frametime);
+	V_UpdatePalette (false);
 #if defined(_WIN32) && defined(GLQUAKE)
 	Media_RecordFrame();
 #endif
@@ -1195,12 +1199,12 @@ static void	(D3D9_R_RenderView)				(void)
 		d3d9error(IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_ZBUFFER, D3DCOLOR_XRGB(0,0,0), 1, 0));
 	R_SetFrustum (r_refdef.m_projection, r_refdef.m_view);
 	RQ_BeginFrame();
-	Surf_DrawWorld();
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 	{
 		if (cl.worldmodel)
 			P_DrawParticles ();
 	}
+	Surf_DrawWorld();
 	RQ_RenderBatchClear();
 }
 

@@ -178,6 +178,228 @@ void VARGS PR_CB_Free(void *mem)
 	BZ_Free(mem);
 }
 
+
+////////////////////////////////////////////////////
+//model functions
+//DP_QC_GETSURFACE
+// #434 float(entity e, float s) getsurfacenumpoints (DP_QC_GETSURFACE)
+void QCBUILTIN PF_getsurfacenumpoints(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int surfnum;
+	model_t *model;
+	wedict_t *ent;
+	world_t *w = prinst->parms->user;
+
+	ent = G_WEDICT(prinst, OFS_PARM0);
+	surfnum = G_FLOAT(OFS_PARM1);
+
+	model = w->Get_CModel(w, ent->v->modelindex);
+
+	if (!model || model->type != mod_brush || surfnum >= model->nummodelsurfaces)
+		G_FLOAT(OFS_RETURN) = 0;
+	else
+	{
+		surfnum += model->firstmodelsurface;
+		G_FLOAT(OFS_RETURN) = model->surfaces[surfnum].mesh->numvertexes;
+	}
+}
+// #435 vector(entity e, float s, float n) getsurfacepoint (DP_QC_GETSURFACE)
+void QCBUILTIN PF_getsurfacepoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int surfnum, pointnum;
+	model_t *model;
+	wedict_t *ent;
+	world_t *w = prinst->parms->user;
+
+	ent = G_WEDICT(prinst, OFS_PARM0);
+	surfnum = G_FLOAT(OFS_PARM1);
+	pointnum = G_FLOAT(OFS_PARM2);
+
+	model = w->Get_CModel(w, ent->v->modelindex);
+
+	if (!model || model->type != mod_brush || surfnum >= model->nummodelsurfaces)
+	{
+		G_FLOAT(OFS_RETURN+0) = 0;
+		G_FLOAT(OFS_RETURN+1) = 0;
+		G_FLOAT(OFS_RETURN+2) = 0;
+	}
+	else
+	{
+		surfnum += model->firstmodelsurface;
+
+		G_FLOAT(OFS_RETURN+0) = model->surfaces[surfnum].mesh->xyz_array[pointnum][0];
+		G_FLOAT(OFS_RETURN+1) = model->surfaces[surfnum].mesh->xyz_array[pointnum][1];
+		G_FLOAT(OFS_RETURN+2) = model->surfaces[surfnum].mesh->xyz_array[pointnum][2];
+	}
+}
+// #436 vector(entity e, float s) getsurfacenormal (DP_QC_GETSURFACE)
+void QCBUILTIN PF_getsurfacenormal(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	unsigned int surfnum, pointnum;
+	model_t *model;
+	wedict_t *ent;
+	world_t *w = prinst->parms->user;
+
+	ent = G_WEDICT(prinst, OFS_PARM0);
+	surfnum = G_FLOAT(OFS_PARM1);
+	pointnum = G_FLOAT(OFS_PARM2);
+
+	model = w->Get_CModel(w, ent->v->modelindex);
+
+	if (!model || model->type != mod_brush || surfnum >= model->nummodelsurfaces)
+	{
+		G_FLOAT(OFS_RETURN+0) = 0;
+		G_FLOAT(OFS_RETURN+1) = 0;
+		G_FLOAT(OFS_RETURN+2) = 0;
+	}
+	else
+	{
+		surfnum += model->firstmodelsurface;
+
+		G_FLOAT(OFS_RETURN+0) = model->surfaces[surfnum].plane->normal[0];
+		G_FLOAT(OFS_RETURN+1) = model->surfaces[surfnum].plane->normal[1];
+		G_FLOAT(OFS_RETURN+2) = model->surfaces[surfnum].plane->normal[2];
+		if (model->surfaces[surfnum].flags & SURF_PLANEBACK)
+			VectorInverse(G_VECTOR(OFS_RETURN));
+	}
+}
+// #437 string(entity e, float s) getsurfacetexture (DP_QC_GETSURFACE)
+void QCBUILTIN PF_getsurfacetexture(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	model_t *model;
+	wedict_t *ent;
+	msurface_t *surf;
+	int surfnum;
+	world_t *w = prinst->parms->user;
+
+	ent = G_WEDICT(prinst, OFS_PARM0);
+	surfnum = G_FLOAT(OFS_PARM1);
+
+	model = w->Get_CModel(w, ent->v->modelindex);
+
+	G_INT(OFS_RETURN) = 0;
+	if (!model || model->type != mod_brush)
+		return;
+
+	if (surfnum < 0 || surfnum > model->nummodelsurfaces)
+		return;
+	surfnum += model->firstmodelsurface;
+	surf = &model->surfaces[surfnum];
+	G_INT(OFS_RETURN) = PR_TempString(prinst, surf->texinfo->texture->name);
+}
+// #438 float(entity e, vector p) getsurfacenearpoint (DP_QC_GETSURFACE)
+void QCBUILTIN PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	model_t *model;
+	wedict_t *ent;
+	msurface_t *surf;
+	int i;
+	float planedist;
+	float *point;
+
+	vec3_t edgedir;
+	vec3_t edgenormal;
+	vec3_t cpoint, temp;
+	mvertex_t *v1, *v2;
+	int edge;
+	int e;
+	float bestdist = 10000000000000, dist;
+	int bestsurf = -1;
+	world_t *w = prinst->parms->user;
+
+	ent = G_WEDICT(prinst, OFS_PARM0);
+	point = G_VECTOR(OFS_PARM1);
+
+	G_FLOAT(OFS_RETURN) = -1;
+
+	model = w->Get_CModel(w, ent->v->modelindex);
+
+	if (!model || model->type != mod_brush)
+		return;
+
+	if (model->fromgame != fg_quake)
+		return;
+
+
+	surf = model->surfaces + model->firstmodelsurface;
+	for (i = 0; i < model->nummodelsurfaces; i++, surf++)
+	{
+		planedist = DotProduct(point, surf->plane->normal) - surf->plane->dist;
+		//don't care about SURF_PLANEBACK, the maths works out the same.
+
+		if (planedist*planedist < bestdist)
+		{	//within a specific range
+			//make sure it's within the poly
+			VectorMA(point, planedist, surf->plane->normal, cpoint);
+			for (e = surf->firstedge+surf->numedges; e > surf->firstedge; edge++)
+			{
+				edge = model->surfedges[--e];
+				if (edge < 0)
+				{
+					v1 = &model->vertexes[model->edges[-edge].v[0]];
+					v2 = &model->vertexes[model->edges[-edge].v[1]];
+				}
+				else
+				{
+					v2 = &model->vertexes[model->edges[edge].v[0]];
+					v1 = &model->vertexes[model->edges[edge].v[1]];
+				}
+				
+				VectorSubtract(v1->position, v2->position, edgedir);
+				CrossProduct(edgedir, surf->plane->normal, edgenormal);
+				if (!(surf->flags & SURF_PLANEBACK))
+				{
+					VectorNegate(edgenormal, edgenormal);
+				}
+				VectorNormalize(edgenormal);
+
+				dist = DotProduct(v1->position, edgenormal) - DotProduct(cpoint, edgenormal);
+				if (dist < 0)
+					VectorMA(cpoint, dist, edgenormal, cpoint);
+			}
+
+			VectorSubtract(cpoint, point, temp);
+			dist = DotProduct(temp, temp);
+			if (dist < bestdist)
+			{
+				bestsurf = i;
+				bestdist = dist;
+			}
+		}
+	}
+	G_FLOAT(OFS_RETURN) = bestsurf;
+}
+
+// #439 vector(entity e, float s, vector p) getsurfaceclippedpoint (DP_QC_GETSURFACE)
+void QCBUILTIN PF_getsurfaceclippedpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+}
+
+void QCBUILTIN PF_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	int action = G_FLOAT(OFS_PARM0);
+	float *pos = G_VECTOR(OFS_PARM1);
+	float radius = G_FLOAT(OFS_PARM2);
+	float quant = G_FLOAT(OFS_PARM3);
+#if defined(TERRAIN)
+	G_FLOAT(OFS_RETURN) = Heightmap_Edit(w->worldmodel, action, pos, radius, quant);
+#else
+	G_FLOAT(OFS_RETURN) = false;
+#endif
+}
+
+//end model functions
+////////////////////////////////////////////////////
+
+void PF_touchtriggers(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	wedict_t *ent = (wedict_t*)PROG_TO_EDICT(prinst, *w->g.self);
+	World_LinkEdict (w, ent, true);
+}
+
+
 ////////////////////////////////////////////////////
 //Finding
 
@@ -280,7 +502,7 @@ void QCBUILTIN PF_FindFlags (progfuncs_t *prinst, struct globalvars_s *pr_global
 {
 	int e, f;
 	int s;
-	edict_t *ed;
+	wedict_t *ed;
 
 	e = G_EDICTNUM(prinst, OFS_PARM0);
 	f = G_INT(OFS_PARM1)+prinst->fieldadjust;
@@ -288,7 +510,7 @@ void QCBUILTIN PF_FindFlags (progfuncs_t *prinst, struct globalvars_s *pr_global
 
 	for (e++; e < *prinst->parms->sv_num_edicts; e++)
 	{
-		ed = EDICT_NUM(prinst, e);
+		ed = WEDICT_NUM(prinst, e);
 		if (ed->isfree)
 			continue;
 		if ((int)((float *)ed->v)[f] & s)
@@ -306,7 +528,7 @@ void QCBUILTIN PF_FindFloat (progfuncs_t *prinst, struct globalvars_s *pr_global
 {
 	int e, f;
 	int s;
-	edict_t *ed;
+	wedict_t *ed;
 
 	if (*prinst->callargc != 3)	//I can hate mvdsv if I want to.
 	{
@@ -320,7 +542,7 @@ void QCBUILTIN PF_FindFloat (progfuncs_t *prinst, struct globalvars_s *pr_global
 
 	for (e++; e < *prinst->parms->sv_num_edicts; e++)
 	{
-		ed = EDICT_NUM(prinst, e);
+		ed = WEDICT_NUM(prinst, e);
 		if (ed->isfree)
 			continue;
 		if (((int *)ed->v)[f] == s)
@@ -340,7 +562,7 @@ void QCBUILTIN PF_FindString (progfuncs_t *prinst, struct globalvars_s *pr_globa
 	int		f;
 	char	*s;
 	string_t t;
-	edict_t	*ed;
+	wedict_t	*ed;
 
 	e = G_EDICTNUM(prinst, OFS_PARM0);
 	f = G_INT(OFS_PARM1)+prinst->fieldadjust;
@@ -353,7 +575,7 @@ void QCBUILTIN PF_FindString (progfuncs_t *prinst, struct globalvars_s *pr_globa
 
 	for (e++ ; e < *prinst->parms->sv_num_edicts ; e++)
 	{
-		ed = EDICT_NUM(prinst, e);
+		ed = WEDICT_NUM(prinst, e);
 		if (ed->isfree)
 			continue;
 		t = ((string_t *)ed->v)[f];
@@ -434,6 +656,20 @@ void QCBUILTIN PF_cvar_set (progfuncs_t *prinst, struct globalvars_s *pr_globals
 	if (!var)
 		return;
 	Cvar_Set (var, val);
+}
+
+void QCBUILTIN PF_cvar_setlatch (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char	*var_name, *val;
+	cvar_t *var;
+
+	var_name = PR_GetStringOfs(prinst, OFS_PARM0);
+	val = PR_GetStringOfs(prinst, OFS_PARM1);
+
+	var = Cvar_Get(var_name, val, 0, "QC variables");
+	if (!var)
+		return;
+	Cvar_LockFromServer(var, val);
 }
 
 void QCBUILTIN PF_cvar_setf (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1003,15 +1239,15 @@ void PR_fclose_progs (progfuncs_t *prinst)
 
 void QCBUILTIN PF_WasFreed (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	edict_t	*ent;
-	ent = (edict_t*)G_EDICT(prinst, OFS_PARM0);
+	wedict_t	*ent;
+	ent = G_WEDICT(prinst, OFS_PARM0);
 	G_FLOAT(OFS_RETURN) = ent->isfree;
 }
 
 void QCBUILTIN PF_num_for_edict (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	edict_t	*ent;
-	ent = (edict_t*)G_EDICT(prinst, OFS_PARM0);
+	wedict_t	*ent;
+	ent = G_WEDICT(prinst, OFS_PARM0);
 	G_FLOAT(OFS_RETURN) = ent->entnum;
 }
 
@@ -1027,7 +1263,7 @@ void QCBUILTIN PF_edict_for_num(progfuncs_t *prinst, struct globalvars_s *pr_glo
 void QCBUILTIN PF_nextent (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int		i;
-	edict_t	*ent;
+	wedict_t	*ent;
 
 	i = G_EDICTNUM(prinst, OFS_PARM0);
 	while (1)
@@ -1038,7 +1274,7 @@ void QCBUILTIN PF_nextent (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 			RETURN_EDICT(prinst, *prinst->parms->sv_edicts);
 			return;
 		}
-		ent = EDICT_NUM(prinst, i);
+		ent = WEDICT_NUM(prinst, i);
 		if (!ent->isfree)
 		{
 			RETURN_EDICT(prinst, ent);
@@ -2545,7 +2781,7 @@ void QCBUILTIN PF_eprint (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	int size = 1024*1024;
 	char *buffer = BZ_Malloc(size);
 	char *buf;
-	buf = prinst->saveent(prinst, buffer, &size, G_EDICT(prinst, OFS_PARM0));
+	buf = prinst->saveent(prinst, buffer, &size, (struct edict_s*)G_WEDICT(prinst, OFS_PARM0));
 	Con_Printf("Entity %i:\n%s\n", G_EDICTNUM(prinst, OFS_PARM0), buf);
 	BZ_Free(buffer);
 }
@@ -2981,7 +3217,10 @@ static void PR_AutoCvarApply(progfuncs_t *prinst, eval_t *val, etype_t type, cva
 		break;
 	case ev_string:
 		PR_RemoveProgsString(prinst, val->_int);
-		val->_int = PR_SetString(prinst, var->string);
+		if (*var->string)
+			val->_int = PR_SetString(prinst, var->string);
+		else
+			val->_int = 0;
 		break;
 	case ev_vector:
 		{

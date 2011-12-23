@@ -243,8 +243,15 @@ int QC_RegisterFieldVar(progfuncs_t *progfuncs, unsigned int type, char *name, s
 		{
 			if (field[i].type != type)
 			{
-				printf("Field type mismatch on \"%s\". %i != %i\n", name, field[i].type, type);
-				continue;
+				/*Hexen2/DP compat hack: if the new type is a float and the original type is a vector, make the new def alias to the engine's _x field
+				this 'works around' the unused .vector color field used for rtlight colours vs the .float color used for particle colours (the float initialisers in map files will expand into the x slot safely).
+				qc/hc can work around this by just using .vector color/color_x instead, which is the same as this hack, but would resolve defs to allow rtlight colours.
+				*/
+				if (field[i].type != ev_vector || type != ev_float)
+				{
+					printf("Field type mismatch on \"%s\". %i != %i\n", name, field[i].type, type);
+					continue;
+				}
 			}
 			if (!progfuncs->fieldadjust && engineofs>=0)
 				if ((unsigned)engineofs/4 != field[i].ofs)

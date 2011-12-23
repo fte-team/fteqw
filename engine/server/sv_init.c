@@ -596,6 +596,7 @@ void SV_UnspawnServer (void)	//terminate the running server.
 			if (svs.clients[i].state)
 				SV_DropClient(svs.clients+i);
 		}
+		PR_Deinit();
 #ifdef Q2SERVER
 		SVQ2_ShutdownGameProgs();
 #endif

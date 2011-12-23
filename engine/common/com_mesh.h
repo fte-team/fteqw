@@ -81,11 +81,13 @@ typedef struct {
 	vec3_t		scale_origin;
 } galiaspose_t;
 
+typedef struct galiasbone_s galiasbone_t;
 #ifdef SKELETALMODELS
-typedef struct galiasbone_s {
+struct galiasbone_s {
 	char name[32];
 	int parent;
-} galiasbone_t;
+	float inverse[12];
+};
 
 typedef struct {
 	//skeletal poses refer to this.
@@ -123,7 +125,7 @@ typedef struct {
 } galiascolourmapped_t;
 #endif
 
-float *Alias_GetBonePositions(galiasinfo_t *inf, framestate_t *fstate, float *buffer, int buffersize);
+float *Alias_GetBonePositions(galiasinfo_t *inf, framestate_t *fstate, float *buffer, int buffersize, qboolean renderable);
 #ifdef SKELETALMODELS
 void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, vecV_t *xyzout, vec3_t *normout);
 #endif

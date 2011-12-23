@@ -505,6 +505,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 	int			leafnum;
 	int			j;
 	qboolean	reliable;
+	int pnum = 0;
 
 //	to = MULTICAST_ALL;
 #ifdef Q2BSPS
@@ -642,8 +643,6 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 	else
 #endif
 	{
-		leafnum = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, origin);
-
 		reliable = false;
 
 		switch (to)
@@ -660,13 +659,28 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			if (!sv.phs)	/*broadcast if no pvs*/
 				mask = sv.pvs;
 			else
+			{
+				leafnum = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, origin);
 				mask = sv.phs + leafnum * 4*((sv.world.worldmodel->numleafs+31)>>5);
+			}
 			break;
 
 		case MULTICAST_PVS_R:
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_PVS:
+			leafnum = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, origin);
 			mask = sv.pvs + leafnum * 4*((sv.world.worldmodel->numleafs+31)>>5);
+			break;
+
+		case MULTICAST_ONE_R:
+			reliable = true;
+		case MULTICAST_ONE:
+			if (svprogfuncs)
+			{
+				edict_t *ent = PROG_TO_EDICT(svprogfuncs, pr_global_struct->msg_entity);
+				pnum = NUM_FOR_EDICT(svprogfuncs, ent) - 1;
+			}
+			mask = NULL;
 			break;
 
 		default:
@@ -697,7 +711,12 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				}
 			}
 
-			if (svprogfuncs)
+			if (!mask)
+			{
+				if (pnum != j)
+					continue;
+			}
+			else if (svprogfuncs)
 			{
 				if (!((int)client->edict->xv->dimension_see & dimension_mask))
 					continue;
@@ -777,12 +796,22 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 
 	if (sv.mvdrecording && !with)	//mvds don't get the pext stuff
 	{
-		if (reliable)
+		if (!mask)
 		{
-			MVDWrite_Begin(dem_all, 0, sv.multicast.cursize);
+			/*no distinction between reliable or not*/
+			MVDWrite_Begin(dem_single, pnum, sv.multicast.cursize);
 			SZ_Write(&demo.dbuf->sb, sv.multicast.data, sv.multicast.cursize);
-		} else
-			SZ_Write(&demo.datagram, sv.multicast.data, sv.multicast.cursize);
+		}
+		else
+		{
+			if (reliable)
+			{
+				MVDWrite_Begin(dem_all, 0, sv.multicast.cursize);
+				SZ_Write(&demo.dbuf->sb, sv.multicast.data, sv.multicast.cursize);
+			}
+			else
+				SZ_Write(&demo.datagram, sv.multicast.data, sv.multicast.cursize);
+		}
 	}
 
 #ifdef NQPROT

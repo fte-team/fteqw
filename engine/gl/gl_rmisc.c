@@ -996,6 +996,7 @@ TRACE(("dbg: GLR_NewMap: tp\n"));
 		if (rtlights_first == rtlights_max)
 			R_ImportRTLights(cl.worldmodel->entities);
 	}
+	Sh_PreGenerateLights();
 #endif
 }
 

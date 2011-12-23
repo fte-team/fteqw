@@ -274,6 +274,7 @@ FTE_DEPRECATED void PPL_RevertToKnownState(void);
 qboolean R_CullBox (vec3_t mins, vec3_t maxs);
 qboolean R_CullEntityBox(entity_t *e, vec3_t modmins, vec3_t modmaxs);
 qboolean R_CullSphere (vec3_t origin, float radius);
+void Sh_PreGenerateLights(void);
 
 #ifdef GLQUAKE
 void R_TranslatePlayerSkin (int playernum);
@@ -716,6 +717,7 @@ extern void (APIENTRY *qglTexGeni) (GLenum coord, GLenum pname, GLint param);
 extern void (APIENTRY *qglTexGeniv) (GLenum coord, GLenum pname, const GLint *params);
 extern void (APIENTRY *qglTexImage1D) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
 extern void (APIENTRY *qglTexImage2D) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
+extern void (APIENTRY *qglTexImage3D) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
 extern void (APIENTRY *qglTexParameterf) (GLenum target, GLenum pname, GLfloat param);
 extern void (APIENTRY *qglTexParameterfv) (GLenum target, GLenum pname, const GLfloat *params);
 extern void (APIENTRY *qglTexParameteri) (GLenum target, GLenum pname, GLint param);

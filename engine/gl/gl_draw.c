@@ -1153,6 +1153,43 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 	if (gl_config.arb_texture_compression && gl_compress.value && name && !(flags&IF_NOMIPMAP))
 		samples = (flags&IF_NOALPHA) ? GL_COMPRESSED_RGB_ARB : GL_COMPRESSED_RGBA_ARB;
 
+	if (flags & IF_3DMAP)
+	{
+		int r,d;
+		if (scaled_height * scaled_height != scaled_width)
+			return;
+
+		qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		if (flags & IF_NEAREST)
+			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		else
+			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		if (flags&IF_CLAMP)
+		{
+			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+		}
+		else
+		{
+			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_REPEAT);
+		}
+
+		for (d = 0; d < scaled_height; d++)
+		{
+		/*each 'layer' is sequential, which means we need to de-interlace the layers*/
+			for (r = 0; r < scaled_height; r++)
+			{
+				memcpy(scaled + (r + d*scaled_height) * scaled_height, data + (r*scaled_height + d) * scaled_height, scaled_height*sizeof(*data));
+			}
+		}
+		qglTexImage3D (GL_TEXTURE_3D, 0, samples, scaled_height, scaled_height, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, scaled);
+		return;
+	}
+
 	if (gl_config.sgis_generate_mipmap && !(flags&IF_NOMIPMAP))
 	{
 		TRACE(("dbg: GL_Upload32: GL_SGIS_generate_mipmap\n"));
@@ -2191,7 +2228,10 @@ texid_t GL_LoadTexture32 (char *identifier, int width, int height, void *data, u
 	glt->bpp = 32;
 	glt->flags = flags;
 
-	GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
+	if (flags & IF_3DMAP)
+		GL_MTBind(0, GL_TEXTURE_3D, glt->texnum);
+	else
+		GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 
 	GL_Upload32 (identifier, data, width, height, flags);
 

@@ -115,7 +115,7 @@ void M_Menu_Quit_f (void);
 struct menu_s;
 
 
-typedef enum {m_none, m_complex, m_help, m_slist, m_media, m_plugin, m_menu_dat} m_state_t;
+typedef enum {m_none, m_complex, m_help, m_media, m_plugin, m_menu_dat} m_state_t;
 extern m_state_t m_state;
 
 typedef enum {

@@ -341,6 +341,7 @@ void M_Menu_Particles_f (void)
 
 	static const char *pdescopts[] = 
 	{
+		"Classic",
 		"Faithful",
 		"High FPS",
 		"Fancy",
@@ -351,6 +352,7 @@ void M_Menu_Particles_f (void)
 	};
 	static const char *pdescvals[] =
 	{
+		"classic",
 		"faithful",
 		"highfps",
 		"spikeset",
@@ -380,8 +382,8 @@ void M_Menu_Particles_f (void)
 	menubulk_t bulk[] = {
 		MB_REDTEXT("Particle Options", false),
 		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
-		MB_COMBOCVAR("Particle System", r_particlesystem, psystemopts, psystemvals, "Selects particle system to use. Classic is standard Quake particles, script is FTE style scripted particles, and none disables particles entirely."),
-		MB_COMBOCVAR("Script Set", r_particledesc, pdescopts, pdescvals, "Selects particle set to use with script system."),
+//		MB_COMBOCVAR("Particle System", r_particlesystem, psystemopts, psystemvals, "Selects particle system to use. Classic is standard Quake particles, script is FTE style scripted particles, and none disables particles entirely."),
+		MB_COMBOCVAR("Particle Set", r_particledesc, pdescopts, pdescvals, "Selects particle set to use with the scripted particle system."),
 		MB_SPACING(4),
 		MB_COMBOCVAR("Rocket Trail", r_rockettrail, trailopts, trailvals, "Chooses effect to replace rocket trails."),
 		MB_COMBOCVAR("Grenade Trail", r_grenadetrail, trailopts, trailvals, "Chooses effect to replace grenade trails."),

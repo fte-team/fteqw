@@ -1962,6 +1962,7 @@ void CLDP_ParseDownloadFinished(char *s)
 	Cmd_TokenizeString(s+1, false, false);
 
 	VFS_CLOSE (cls.downloadqw);
+	FS_FlushFSHash();
 
 	cls.downloadqw = FS_OpenVFS (cls.downloadtempname, "rb", FS_GAME);
 	if (cls.downloadqw)
@@ -4408,10 +4409,13 @@ char *CL_ParseChat(char *text, player_info_t **player)
 			S_LocalSound (cl_enemychatsound.string);
 	}
 
-	if (cl_nofake.value == 1 || (cl_nofake.value == 2 && flags != 2)) {
-		for (p = s; *p; p++)
-			if (*p == 13 || (*p == 10 && p[1]))
-				*p = ' ';
+	if (flags)
+	{
+		if (cl_nofake.value == 1 || (cl_nofake.value == 2 && flags != 2)) {
+			for (p = s; *p; p++)
+				if (*p == 13 || (*p == 10 && p[1]))
+					*p = ' ';
+		}
 	}
 
 	msgflags = flags;
@@ -4436,6 +4440,7 @@ void CL_ParsePrint(char *msg, int level)
 			Stats_ParsePrintLine(printtext);
 
 		TP_SearchForMsgTriggers(printtext, level);
+		*msg = '\n';
 		msg++;
 
 		memmove(printtext, msg, strlen(msg)+1);

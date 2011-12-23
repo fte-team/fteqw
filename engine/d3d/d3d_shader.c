@@ -157,13 +157,8 @@ void D3DShader_Init(void)
 
 void D3DShader_CreateProgram (program_t *prog, int permu, char **precompilerconstants, char *vert, char *frag)
 {
-	int i, j, k;
 	D3DXMACRO defines[64];
 	LPD3DXBUFFER code = NULL, errors = NULL;
-	D3DXCONSTANTTABLE_DESC ctd;
-	D3DXHANDLE ch;
-	D3DXCONSTANT_DESC d;
-	UINT dc;
 
 	prog->handle[permu].hlsl.vert = NULL;
 	prog->handle[permu].hlsl.frag = NULL;

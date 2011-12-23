@@ -366,7 +366,7 @@ void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue)
 {
 	BuildGammaTable (v_gamma.value, v_contrast.value);
 	vid.recalc_refdef = 1; // force a surface cache flush
-	GLV_UpdatePalette (true, 0);
+	V_UpdatePalette (true);
 }
 #endif
 
@@ -625,9 +625,7 @@ void V_CalcPowerupCshift (void)
 V_CalcBlend
 =============
 */
-#if defined(GLQUAKE) || defined(D3DQUAKE)
-
-void GLV_CalcBlend (float *hw_blend)
+void V_CalcBlend (float *hw_blend)
 {
 	float	a2;
 	int		j;
@@ -689,13 +687,19 @@ void GLV_CalcBlend (float *hw_blend)
 V_UpdatePalette
 =============
 */
-void GLV_UpdatePalette (qboolean force, double ftime)
+void V_UpdatePalette (qboolean force)
 {
 	int		i;
 	float	newhw_blend[4];
 	int		ir, ig, ib;
-
+	float	ftime;
+	static float oldtime;
 	RSpeedMark();
+
+	ftime = cl.time - oldtime;
+	oldtime = cl.time;
+	if (ftime < 0)
+		ftime = 0;
 
 	V_CalcPowerupCshift ();
 
@@ -709,7 +713,7 @@ void GLV_UpdatePalette (qboolean force, double ftime)
 	if (cl.cshifts[CSHIFT_BONUS].percent <= 0)
 		cl.cshifts[CSHIFT_BONUS].percent = 0;
 
-	GLV_CalcBlend(newhw_blend);
+	V_CalcBlend(newhw_blend);
 
 	if (hw_blend[0] != newhw_blend[0] || hw_blend[1] != newhw_blend[1] || hw_blend[2] != newhw_blend[2] || hw_blend[3] != newhw_blend[3] || force)
 	{
@@ -744,7 +748,7 @@ void GLV_UpdatePalette (qboolean force, double ftime)
 
 	RSpeedEnd(RSPEED_PALETTEFLASHES);
 }
-#endif
+
 /*
 =============
 V_UpdatePalette
@@ -1467,8 +1471,6 @@ void V_RenderView (void)
 
 		//work out which packet entities are solid
 		CL_SetSolidEntities ();
-
-//		CL_EmitEntities();
 
 		// Set up prediction for other players
 		CL_SetUpPlayerPrediction(false);

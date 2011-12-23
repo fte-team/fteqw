@@ -3545,7 +3545,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 	{
 		if (!strncmp(func->name,"precache_file", 13))
 		{
-			if (pr_token_type == tt_immediate && pr_immediate_type->type == ev_string)
+			if (pr_token_type == tt_immediate && pr_immediate_type->type == ev_string && pr_scope && !strcmp(pr_scope->name, "main"))
 			{
 				optres_precache_file += strlen(pr_immediate_string);
 				QCC_PR_Lex();

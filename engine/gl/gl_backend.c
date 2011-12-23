@@ -137,6 +137,7 @@ void main ()\n\
 
 #define LIGHTPASS_GLSL_FRAGMENT	"\
 #ifdef FRAGMENT_SHADER\n\
+#include \"sys/fog.h\"\n\
 uniform sampler2D s_t0;\n"/*base texture*/"\
 #if defined(BUMP) || defined(SPECULAR) || defined(OFFSETMAPPING)\n\
 uniform sampler2D s_t1;\n"/*normalmap/height texture*/"\
@@ -230,7 +231,7 @@ vec2 spot = ((shadowcoord.st)/shadowcoord.w - 0.5)*2.0;colorscale*=1.0-(dot(spot
 	l_lightcolour *= texture2d(s_t3, shadowcoord);\n\
 #endif\n\
 \n\
-	gl_FragColor.rgb = diff*colorscale*l_lightcolour;\n\
+	gl_FragColor.rgb = fog3additive(diff*colorscale*l_lightcolour);\n\
 }\n\
 \
 #endif\n\
@@ -252,6 +253,7 @@ static const char LIGHTPASS_SHADER[] = "\
 		!!permu FULLBRIGHT\n\
 		!!permu OFFSETMAPPING\n\
 		!!permu SKELETAL\n\
+		!!permu FOG\n\
 	#define LIGHTPASS\n\
 	%s\n\
 	}\n\
@@ -352,6 +354,7 @@ struct {
 		int currentprogram;
 
 		vbo_t dummyvbo;
+		int colourarraytype;
 		int currentvbo;
 		int currentebo;
 
@@ -949,13 +952,20 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass, qboolea
 		t = shaderstate.curshadowmap;
 		break;
 
-	case T_GEN_SKYBOX:
+	case T_GEN_CUBEMAP:
 		t = pass->anim_frames[0];
 		GL_LazyBind(tmu, GL_TEXTURE_CUBE_MAP_ARB, t, useclientarray);
 		return;
 	case T_GEN_SOURCECUBE:
 		t = scenepp_postproc_cube;
 		GL_LazyBind(tmu, GL_TEXTURE_CUBE_MAP_ARB, t, useclientarray);
+		return;
+
+	case T_GEN_3DMAP:
+		t = pass->anim_frames[0];
+		checkglerror();
+		GL_LazyBind(tmu, GL_TEXTURE_3D, t, useclientarray);
+		checkglerror();
 		return;
 
 	case T_GEN_VIDEOMAP:
@@ -1976,15 +1986,15 @@ static void GenerateColourMods(const shaderpass_t *pass)
 	mesh_t *meshlist;
 	meshlist = shaderstate.meshes[0];
 
-	if (shaderstate.sourcevbo->colours4ub)
+	/*if (shaderstate.sourcevbo->colours4ub)
 	{
 		//hack...
-		GL_SelectVBO(shaderstate.sourcevbo->vbocolours);
+		GL_SelectVBO(shaderstate.sourcevbo->colours.gl.vbo);
 		qglEnableClientState(GL_COLOR_ARRAY);
-		qglColorPointer(4, GL_UNSIGNED_BYTE, 0, shaderstate.sourcevbo->colours4ub);
+		qglColorPointer(4, GL_UNSIGNED_BYTE, 0, shaderstate.sourcevbo->colours4ub.gl.addr);
 		qglShadeModel(GL_SMOOTH);
 		return;
-	}
+	}*/
 	if (pass->flags & SHADER_PASS_NOCOLORARRAY && qglColor4fv)
 	{
 		avec4_t scol;
@@ -2037,8 +2047,8 @@ static void GenerateColourMods(const shaderpass_t *pass)
 		//if its vetex lighting, just use the vbo
 		if (((pass->rgbgen == RGB_GEN_VERTEX_LIGHTING && shaderstate.identitylighting == 1) || pass->rgbgen == RGB_GEN_VERTEX_EXACT) && pass->alphagen == ALPHA_GEN_VERTEX)
 		{
-			GL_SelectVBO(shaderstate.sourcevbo->vbocolours);
-			qglColorPointer(4, GL_FLOAT, 0, shaderstate.sourcevbo->colours4f);
+			GL_SelectVBO(shaderstate.sourcevbo->colours.gl.vbo);
+			qglColorPointer(4, shaderstate.colourarraytype, 0, shaderstate.sourcevbo->colours.gl.addr);
 			qglEnableClientState(GL_COLOR_ARRAY);
 			return;
 		}
@@ -2065,36 +2075,36 @@ static void BE_GeneratePassTC(const shaderpass_t *pass, int passno)
 		//if there are no tcmods, pass through here as fast as possible
 		if (pass->tcgen == TC_GEN_BASE)
 		{
-			GL_SelectVBO(shaderstate.sourcevbo->vbotexcoord);
-			qglTexCoordPointer(2, GL_FLOAT, 0, shaderstate.sourcevbo->texcoord);
+			GL_SelectVBO(shaderstate.sourcevbo->texcoord.gl.vbo);
+			qglTexCoordPointer(2, GL_FLOAT, 0, shaderstate.sourcevbo->texcoord.gl.addr);
 		}
 		else if (pass->tcgen == TC_GEN_LIGHTMAP)
 		{
-			if (!shaderstate.sourcevbo->lmcoord)
+			if (!shaderstate.sourcevbo->lmcoord.gl.addr)
 			{
-				GL_SelectVBO(shaderstate.sourcevbo->vbotexcoord);
-				qglTexCoordPointer(2, GL_FLOAT, 0, shaderstate.sourcevbo->texcoord);
+				GL_SelectVBO(shaderstate.sourcevbo->texcoord.gl.vbo);
+				qglTexCoordPointer(2, GL_FLOAT, 0, shaderstate.sourcevbo->texcoord.gl.addr);
 			}
 			else
 			{
-				GL_SelectVBO(shaderstate.sourcevbo->vbolmcoord);
-				qglTexCoordPointer(2, GL_FLOAT, 0, shaderstate.sourcevbo->lmcoord);
+				GL_SelectVBO(shaderstate.sourcevbo->lmcoord.gl.vbo);
+				qglTexCoordPointer(2, GL_FLOAT, 0, shaderstate.sourcevbo->lmcoord.gl.addr);
 			}
 		}
 		else if (pass->tcgen == TC_GEN_NORMAL)
 		{
-			GL_SelectVBO(shaderstate.sourcevbo->vbonormals);
-			qglTexCoordPointer(3, GL_FLOAT, 0, shaderstate.sourcevbo->normals);
+			GL_SelectVBO(shaderstate.sourcevbo->normals.gl.vbo);
+			qglTexCoordPointer(3, GL_FLOAT, 0, shaderstate.sourcevbo->normals.gl.addr);
 		}
 		else if (pass->tcgen == TC_GEN_SVECTOR)
 		{
-			GL_SelectVBO(shaderstate.sourcevbo->vbosvector);
-			qglTexCoordPointer(3, GL_FLOAT, 0, shaderstate.sourcevbo->svector);
+			GL_SelectVBO(shaderstate.sourcevbo->svector.gl.vbo);
+			qglTexCoordPointer(3, GL_FLOAT, 0, shaderstate.sourcevbo->svector.gl.addr);
 		}
 		else if (pass->tcgen == TC_GEN_TVECTOR)
 		{
-			GL_SelectVBO(shaderstate.sourcevbo->vbotvector);
-			qglTexCoordPointer(3, GL_FLOAT, 0, shaderstate.sourcevbo->tvector);
+			GL_SelectVBO(shaderstate.sourcevbo->tvector.gl.vbo);
+			qglTexCoordPointer(3, GL_FLOAT, 0, shaderstate.sourcevbo->tvector.gl.addr);
 		}
 		else
 		{
@@ -2351,7 +2361,7 @@ static void BE_SubmitMeshChain(void)
 			}
 		}
 
-		qglDrawRangeElements(GL_TRIANGLES, startv, endv, endi-starti, GL_INDEX_TYPE, shaderstate.sourcevbo->indicies + starti);
+		qglDrawRangeElements(GL_TRIANGLES, startv, endv, endi-starti, GL_INDEX_TYPE, (index_t*)shaderstate.sourcevbo->indicies.gl.addr + starti);
 		RQuantAdd(RQUANT_DRAWS, 1);
  	}
 /*
@@ -2420,52 +2430,52 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 		qglVertexAttribPointer(p->handle[perm], 3, GL_FLOAT, GL_FALSE, sizeof(vecV_t), shaderstate.pendingvertexpointer);
 		return 1u<<p->handle[perm];
 	case SP_ATTR_COLOUR:
-		if (shaderstate.sourcevbo->colours4f)
+		if (shaderstate.sourcevbo->colours.gl.addr)
 		{
-			GL_SelectVBO(shaderstate.sourcevbo->vbocolours);
-			qglVertexAttribPointer(p->handle[perm], 4, GL_FLOAT, GL_FALSE, sizeof(vec4_t), shaderstate.sourcevbo->colours4f);
+			GL_SelectVBO(shaderstate.sourcevbo->colours.gl.vbo);
+			qglVertexAttribPointer(p->handle[perm], 4, shaderstate.colourarraytype, GL_FALSE, 0, shaderstate.sourcevbo->colours.gl.addr);
 			return 1u<<p->handle[perm];
 		}
-		else if (shaderstate.sourcevbo->colours4ub)
+/*		else if (shaderstate.sourcevbo->colours4ub)
 		{
-			GL_SelectVBO(shaderstate.sourcevbo->vbocolours);
-			qglVertexAttribPointer(p->handle[perm], 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(byte_vec4_t), shaderstate.sourcevbo->colours4ub);
+			GL_SelectVBO(shaderstate.sourcevbo->colours.gl.vbo);
+			qglVertexAttribPointer(p->handle[perm], 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(byte_vec4_t), shaderstate.sourcevbo->colours.gl.addr);
 			return 1u<<p->handle[perm];
-		}
+		}*/
 		break;
 	case SP_ATTR_TEXCOORD:
-		GL_SelectVBO(shaderstate.sourcevbo->vbotexcoord);
-		qglVertexAttribPointer(p->handle[perm], 2, GL_FLOAT, GL_FALSE, sizeof(vec2_t), shaderstate.sourcevbo->texcoord);
+		GL_SelectVBO(shaderstate.sourcevbo->texcoord.gl.vbo);
+		qglVertexAttribPointer(p->handle[perm], 2, GL_FLOAT, GL_FALSE, sizeof(vec2_t), shaderstate.sourcevbo->texcoord.gl.addr);
 		return 1u<<p->handle[perm];
 	case SP_ATTR_LMCOORD:
-		GL_SelectVBO(shaderstate.sourcevbo->vbolmcoord);
-		qglVertexAttribPointer(p->handle[perm], 2, GL_FLOAT, GL_FALSE, sizeof(vec2_t), shaderstate.sourcevbo->lmcoord);
+		GL_SelectVBO(shaderstate.sourcevbo->lmcoord.gl.vbo);
+		qglVertexAttribPointer(p->handle[perm], 2, GL_FLOAT, GL_FALSE, sizeof(vec2_t), shaderstate.sourcevbo->lmcoord.gl.addr);
 		return 1u<<p->handle[perm];
 	case SP_ATTR_NORMALS:
-		if (!shaderstate.sourcevbo->normals)
+		if (!shaderstate.sourcevbo->normals.gl.addr)
 			return 0;
-		GL_SelectVBO(shaderstate.sourcevbo->vbonormals);
-		qglVertexAttribPointer(p->handle[perm], 3, GL_FLOAT, GL_FALSE, sizeof(vec3_t), shaderstate.sourcevbo->normals);
+		GL_SelectVBO(shaderstate.sourcevbo->normals.gl.vbo);
+		qglVertexAttribPointer(p->handle[perm], 3, GL_FLOAT, GL_FALSE, sizeof(vec3_t), shaderstate.sourcevbo->normals.gl.addr);
 		return 1u<<p->handle[perm];
 	case SP_ATTR_SNORMALS:
-		if (!shaderstate.sourcevbo->normals)
+		if (!shaderstate.sourcevbo->svector.gl.addr)
 			return 0;
-		GL_SelectVBO(shaderstate.sourcevbo->vbosvector);
-		qglVertexAttribPointer(p->handle[perm], 3, GL_FLOAT, GL_FALSE, sizeof(vec3_t), shaderstate.sourcevbo->svector);
+		GL_SelectVBO(shaderstate.sourcevbo->svector.gl.vbo);
+		qglVertexAttribPointer(p->handle[perm], 3, GL_FLOAT, GL_FALSE, sizeof(vec3_t), shaderstate.sourcevbo->svector.gl.addr);
 		return 1u<<p->handle[perm];
 	case SP_ATTR_TNORMALS:
-		if (!shaderstate.sourcevbo->normals)
+		if (!shaderstate.sourcevbo->tvector.gl.addr)
 			return 0;
-		GL_SelectVBO(shaderstate.sourcevbo->vbotvector);
-		qglVertexAttribPointer(p->handle[perm], 3, GL_FLOAT, GL_FALSE, sizeof(vec3_t), shaderstate.sourcevbo->tvector);
+		GL_SelectVBO(shaderstate.sourcevbo->tvector.gl.vbo);
+		qglVertexAttribPointer(p->handle[perm], 3, GL_FLOAT, GL_FALSE, sizeof(vec3_t), shaderstate.sourcevbo->tvector.gl.addr);
 		return 1u<<p->handle[perm];
 	case SP_ATTR_BONENUMS:
-		GL_SelectVBO(shaderstate.sourcevbo->vbobonenums);
-		qglVertexAttribPointer(p->handle[perm], 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(byte_vec4_t), shaderstate.sourcevbo->bonenums);
+		GL_SelectVBO(shaderstate.sourcevbo->bonenums.gl.vbo);
+		qglVertexAttribPointer(p->handle[perm], 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(byte_vec4_t), shaderstate.sourcevbo->bonenums.gl.addr);
 		return 1u<<p->handle[perm];
 	case SP_ATTR_BONEWEIGHTS:
-		GL_SelectVBO(shaderstate.sourcevbo->vboboneweights);
-		qglVertexAttribPointer(p->handle[perm], 4, GL_FLOAT, GL_FALSE, sizeof(vec4_t), shaderstate.sourcevbo->boneweights);
+		GL_SelectVBO(shaderstate.sourcevbo->boneweights.gl.vbo);
+		qglVertexAttribPointer(p->handle[perm], 4, GL_FLOAT, GL_FALSE, sizeof(vec4_t), shaderstate.sourcevbo->boneweights.gl.addr);
 		return 1u<<p->handle[perm];
 
 	case SP_M_VIEW:
@@ -2563,7 +2573,6 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 	case SP_LIGHTSCREEN:
 		{
 			float v[4], tempv[4];
-			float out[3];
 
 			v[0] = shaderstate.lightorg[0];
 			v[1] = shaderstate.lightorg[1];
@@ -2586,6 +2595,9 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 		break;
 	case SP_LIGHTCOLOUR:
 		qglUniform3fvARB(p->handle[perm], 1, shaderstate.lightcolours);
+		break;
+	case SP_W_FOG:
+		qglUniform4fvARB(p->handle[perm], 1, r_refdef.gfog_rgb);
 		break;
 	case SP_V_EYEPOS:
 		qglUniform3fvARB(p->handle[perm], 1, r_origin);
@@ -2683,6 +2695,8 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 		perm |= PERMUTATION_LOWER;
 	if (TEXVALID(shaderstate.curtexnums->upperoverlay) && p->handle[perm|PERMUTATION_UPPER].glsl)
 		perm |= PERMUTATION_UPPER;
+	if (r_refdef.gfog_alpha && p->handle[perm|PERMUTATION_FOG].glsl)
+		perm |= PERMUTATION_FOG;
 	if (r_glsl_offsetmapping.ival && TEXVALID(shaderstate.curtexnums->bump) && p->handle[perm|PERMUTATION_OFFSET].glsl)
 		perm |= PERMUTATION_OFFSET;
 	GL_SelectProgram(p->handle[perm].glsl);
@@ -2786,7 +2800,8 @@ void GLBE_SelectMode(backendmode_t mode)
 			{
 				GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex, false);
 			}
-			qglShadeModel(GL_FLAT);
+			if (qglShadeModel)
+				qglShadeModel(GL_FLAT);
 
 			//we don't write or blend anything (maybe alpha test... but mneh)
 			BE_SendPassBlendDepthMask(SBITS_MISC_DEPTHWRITE | SBITS_MASK_BITS);
@@ -2991,13 +3006,13 @@ static void DrawMeshes(void)
 		RQuantAdd(RQUANT_ENTBATCHES, 1);
 	}
 
-	GL_SelectEBO(shaderstate.sourcevbo->vboe);
+	GL_SelectEBO(shaderstate.sourcevbo->indicies.gl.vbo);
 	if (shaderstate.curshader->numdeforms)
 		GenerateVertexDeforms(shaderstate.curshader);
 	else
 	{
-		shaderstate.pendingvertexpointer = shaderstate.sourcevbo->coord;
-		shaderstate.pendingvertexvbo = shaderstate.sourcevbo->vbocoord;
+		shaderstate.pendingvertexpointer = shaderstate.sourcevbo->coord.gl.addr;
+		shaderstate.pendingvertexvbo = shaderstate.sourcevbo->coord.gl.vbo;
 	}
 
 #ifndef FORCESTATE
@@ -3127,18 +3142,26 @@ void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_
 		{
 			m = *meshlist++;
 
-			shaderstate.dummyvbo.coord = m->xyz_array;
-			shaderstate.dummyvbo.texcoord = m->st_array;
-			shaderstate.dummyvbo.indicies = m->indexes;
-			shaderstate.dummyvbo.normals = m->normals_array;
-			shaderstate.dummyvbo.svector = m->snormals_array;
-			shaderstate.dummyvbo.tvector = m->tnormals_array;
-			shaderstate.dummyvbo.colours4f = m->colors4f_array;
-			shaderstate.dummyvbo.colours4ub = m->colors4b_array;
+			shaderstate.dummyvbo.coord.gl.addr = m->xyz_array;
+			shaderstate.dummyvbo.texcoord.gl.addr = m->st_array;
+			shaderstate.dummyvbo.indicies.gl.addr = m->indexes;
+			shaderstate.dummyvbo.normals.gl.addr = m->normals_array;
+			shaderstate.dummyvbo.svector.gl.addr = m->snormals_array;
+			shaderstate.dummyvbo.tvector.gl.addr = m->tnormals_array;
+			if (m->colors4f_array)
+			{
+				shaderstate.colourarraytype = GL_FLOAT;
+				shaderstate.dummyvbo.colours.gl.addr = m->colors4f_array;
+			}
+			else
+			{
+				shaderstate.colourarraytype = GL_UNSIGNED_BYTE;
+				shaderstate.dummyvbo.colours.gl.addr = m->colors4b_array;
+			}
 			shaderstate.dummyvbo.bones = m->bones;
 			shaderstate.dummyvbo.numbones = m->numbones;
-			shaderstate.dummyvbo.bonenums = m->bonenums;
-			shaderstate.dummyvbo.boneweights = m->boneweights;
+			shaderstate.dummyvbo.bonenums.gl.addr = m->bonenums;
+			shaderstate.dummyvbo.boneweights.gl.addr = m->boneweights;
 
 			shaderstate.meshcount = 1;
 			shaderstate.meshes = &m;
@@ -3148,6 +3171,7 @@ void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_
 	else
 	{
 		shaderstate.sourcevbo = vbo;
+		shaderstate.colourarraytype = GL_FLOAT;
 		shaderstate.curshader = shader;
 		shaderstate.flags = beflags;
 		if (shaderstate.curentity != &r_worldentity)
@@ -3177,22 +3201,31 @@ void GLBE_SubmitBatch(batch_t *batch)
 	if (batch->texture)
 	{
 		shaderstate.sourcevbo = &batch->texture->vbo;
+		shaderstate.colourarraytype = GL_FLOAT;
 		lm = batch->lightmap;
 	}
 	else
 	{
-		shaderstate.dummyvbo.coord = batch->mesh[0]->xyz_array;
-		shaderstate.dummyvbo.texcoord = batch->mesh[0]->st_array;
-		shaderstate.dummyvbo.indicies = batch->mesh[0]->indexes;
-		shaderstate.dummyvbo.normals = batch->mesh[0]->normals_array;
-		shaderstate.dummyvbo.svector = batch->mesh[0]->snormals_array;
-		shaderstate.dummyvbo.tvector = batch->mesh[0]->tnormals_array;
-		shaderstate.dummyvbo.colours4f = batch->mesh[0]->colors4f_array;
-		shaderstate.dummyvbo.colours4ub = batch->mesh[0]->colors4b_array;
+		shaderstate.dummyvbo.coord.gl.addr = batch->mesh[0]->xyz_array;
+		shaderstate.dummyvbo.texcoord.gl.addr = batch->mesh[0]->st_array;
+		shaderstate.dummyvbo.indicies.gl.addr = batch->mesh[0]->indexes;
+		shaderstate.dummyvbo.normals.gl.addr = batch->mesh[0]->normals_array;
+		shaderstate.dummyvbo.svector.gl.addr = batch->mesh[0]->snormals_array;
+		shaderstate.dummyvbo.tvector.gl.addr = batch->mesh[0]->tnormals_array;
+		if (batch->mesh[0]->colors4f_array)
+		{
+			shaderstate.colourarraytype = GL_FLOAT;
+			shaderstate.dummyvbo.colours.gl.addr = batch->mesh[0]->colors4f_array;
+		}
+		else
+		{
+			shaderstate.colourarraytype = GL_UNSIGNED_BYTE;
+			shaderstate.dummyvbo.colours.gl.addr = batch->mesh[0]->colors4b_array;
+		}
 		shaderstate.dummyvbo.bones = batch->mesh[0]->bones;
 		shaderstate.dummyvbo.numbones = batch->mesh[0]->numbones;
-		shaderstate.dummyvbo.bonenums = batch->mesh[0]->bonenums;
-		shaderstate.dummyvbo.boneweights = batch->mesh[0]->boneweights;
+		shaderstate.dummyvbo.bonenums.gl.addr = batch->mesh[0]->bonenums;
+		shaderstate.dummyvbo.boneweights.gl.addr = batch->mesh[0]->boneweights;
 		shaderstate.sourcevbo = &shaderstate.dummyvbo;
 		lm = -1;
 	}
@@ -3637,12 +3670,13 @@ void GLBE_DrawWorld (qbyte *vis)
 
 		GLBE_SubmitMeshes(true, batches, SHADER_SORT_DECAL, SHADER_SORT_NEAREST);
 
-		if (r_refdef.gfog_alpha)
+/*		if (r_refdef.gfog_alpha)
 		{
 			BE_SelectMode(BEM_FOG);
 			BE_SelectFog(r_refdef.gfog_rgb, r_refdef.gfog_alpha, r_refdef.gfog_density);
 			GLBE_SubmitMeshes(true, batches, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
 		}
+*/
 	}
 	else
 	{

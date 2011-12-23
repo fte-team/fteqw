@@ -1246,7 +1246,10 @@ int CIN_RunCinematic (struct cinematics_s *cin, qbyte **outdata, int *outwidth, 
 
 typedef struct cin_s cin_t;
 #ifdef NOMEDIA
-#define Media_Playing false
+#define Media_Playing() false
+#define Media_Init() 0
+#define Media_PlayingFullScreen() false
+#define Media_PlayFilm(n) false
 #else
 /*media playing system*/
 qboolean Media_PlayingFullScreen(void);

@@ -66,6 +66,7 @@ cvar_t	pr_no_parsecommand = CVARF("pr_no_parsecommand", "0", 0);
 
 cvar_t	pr_ssqc_progs = CVARAF("progs", "", "sv_progs", CVAR_ARCHIVE | CVAR_SERVERINFO | CVAR_NOTFROMSERVER);
 cvar_t	qc_nonetaccess = CVAR("qc_nonetaccess", "0");	//prevent write_... builtins from doing anything. This means we can run any mod, specific to any engine, on the condition that it also has a qw or nq crc.
+cvar_t	qc_netpreparse = CVAR("qc_netpreparse", "1");	//server-side writebyte protocol translation
 
 cvar_t pr_overridebuiltins = CVAR("pr_overridebuiltins", "1");
 
@@ -77,6 +78,8 @@ cvar_t pr_droptofloorunits = CVAR("pr_droptofloorunits", "");
 
 cvar_t sv_gameplayfix_honest_tracelines = CVAR("sv_gameplayfix_honest_tracelines", "1");
 cvar_t sv_gameplayfix_blowupfallenzombies = CVAR("sv_gameplayfix_blowupfallenzombies", "0");
+cvar_t sv_gameplayfix_setmodelrealbox = CVAR("sv_gameplayfix_setmodelrealbox", "0");
+cvar_t sv_gameplayfix_setmodelsize_qw = CVAR("sv_gameplayfix_setmodelsize_qw", "0");
 
 cvar_t sv_addon[MAXADDONS];
 char cvargroup_progs[] = "Progs variables";
@@ -348,6 +351,9 @@ void PR_SV_FillWorldGlobals(world_t *w)
 	w->g.frametime = pr_global_ptrs->frametime;
 	w->g.newmis = pr_global_ptrs->newmis;
 	w->g.time = pr_global_ptrs->time;
+	w->g.v_forward = *pr_global_ptrs->v_forward;
+	w->g.v_right = *pr_global_ptrs->v_right;
+	w->g.v_up = *pr_global_ptrs->v_up;
 }
 
 void PR_SSQC_Relocated(progfuncs_t *pr, char *oldb, char *newb, int oldlen)
@@ -454,9 +460,18 @@ int QCEditor (progfuncs_t *prinst, char *filename, int line, int nump, char **pa
 model_t *SVPR_GetCModel(world_t *w, int modelindex)
 {
 	if ((unsigned int)modelindex < MAX_MODELS)
+	{
+		if (!sv.models[modelindex] && sv.strings.model_precache[modelindex])
+			sv.models[modelindex] = Mod_ForName(sv.strings.model_precache[modelindex], false);
 		return sv.models[modelindex];
+	}
 	else
 		return NULL;
+}
+void SVPR_Get_FrameState(world_t *w, wedict_t *ent, framestate_t *fstate)
+{
+	memset(fstate, 0, sizeof(*fstate));
+	fstate->g[FS_REG].frame[0] = ent->v->frame;
 }
 
 void SVPR_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
@@ -524,6 +539,7 @@ void Q_SetProgsParms(qboolean forcompiler)
 	if (pr_ssqc_memsize.ival == -2)
 		svprogparms.addressablerelocated = PR_SSQC_Relocated;
 
+	svprogparms.user = &sv.world;
 	if (!svprogfuncs)
 	{
 		sv.world.progs = svprogfuncs = InitProgs(&svprogparms);
@@ -532,6 +548,7 @@ void Q_SetProgsParms(qboolean forcompiler)
 	sv.world.Event_Think = SVPR_Event_Think;
 	sv.world.Event_Sound = SVQ1_StartSound;
 	sv.world.Get_CModel = SVPR_GetCModel;
+	sv.world.Get_FrameState = SVPR_Get_FrameState;
 	PRSV_ClearThreads();
 	PR_fclose_progs(svprogfuncs);
 
@@ -1181,6 +1198,8 @@ void PR_Init(void)
 
 	Cvar_Register (&sv_gameplayfix_honest_tracelines, cvargroup_progs);
 	Cvar_Register (&sv_gameplayfix_blowupfallenzombies, cvargroup_progs);
+	Cvar_Register (&sv_gameplayfix_setmodelrealbox, cvargroup_progs);
+	Cvar_Register (&sv_gameplayfix_setmodelsize_qw, cvargroup_progs);
 
 #ifdef SQL
 	SQL_Init();
@@ -2192,7 +2211,7 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 				else
 #endif
 					m = sv.strings.model_precache[i] = PR_AddString(prinst, m, 0);
-				if (!strcmp(m + strlen(m) - 4, ".bsp"))
+				if (!strcmp(m + strlen(m) - 4, ".bsp"))	//always precache bsps
 					sv.models[i] = Mod_FindName(m);
 				Con_Printf("WARNING: SV_ModelIndex: model %s not precached\n", m);
 
@@ -2235,7 +2254,7 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 		return;
 	}
 
-	if (progstype == PROG_H2)
+	/*if (progstype == PROG_H2)
 	{
 		e->v->mins[0] = 0;
 		e->v->mins[1] = 0;
@@ -2247,15 +2266,18 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 
 		VectorSubtract (e->v->maxs, e->v->mins, e->v->size);
 	}
-	else
+	else*/
 	{
-		if (progstype != PROG_QW)
+		if (sv_gameplayfix_setmodelrealbox.ival)
+			mod = SVPR_GetCModel(&sv.world, i);
+		else
+			mod = sv.models[i];
+
+		if (progstype != PROG_QW || sv_gameplayfix_setmodelsize_qw.ival)
 		{	//also sets size.
 
 			//nq dedicated servers load bsps and mdls
 			//qw dedicated servers only load bsps (better)
-
-			mod = sv.models[i];
 			if (mod)
 			{
 				mod = Mod_ForName (m, false);
@@ -2285,16 +2307,12 @@ void PF_setmodel_Internal (progfuncs_t *prinst, edict_t *e, char *m)
 		}
 		else
 		{
-			if (sv.models[i])
+			if (mod && mod->type != mod_alias)
 			{
-				mod = Mod_ForName (m, false);
-				if (mod)
-				{
-					VectorCopy (mod->mins, e->v->mins);
-					VectorCopy (mod->maxs, e->v->maxs);
-					VectorSubtract (mod->maxs, mod->mins, e->v->size);
-					World_LinkEdict (&sv.world, (wedict_t*)e, false);
-				}
+				VectorCopy (mod->mins, e->v->mins);
+				VectorCopy (mod->maxs, e->v->maxs);
+				VectorSubtract (mod->maxs, mod->mins, e->v->size);
+				World_LinkEdict (&sv.world, (wedict_t*)e, false);
 			}
 			//qw was fixed - it never sets the size of an alias model, mostly because it doesn't know it.
 		}
@@ -2328,7 +2346,7 @@ static void QCBUILTIN PF_frameforname (progfuncs_t *prinst, struct globalvars_s 
 {
 	unsigned int modelindex = G_FLOAT(OFS_PARM0);
 	char *str = PF_VarString(prinst, 1, pr_globals);
-	model_t *mod = (modelindex>= MAX_MODELS)?NULL:sv.models[modelindex];
+	model_t *mod = SVPR_GetCModel(&sv.world, modelindex);
 
 	if (mod && Mod_FrameForName)
 		G_FLOAT(OFS_RETURN) = Mod_FrameForName(mod, str);
@@ -2345,9 +2363,7 @@ static void QCBUILTIN PF_frameduration (progfuncs_t *prinst, struct globalvars_s
 		G_FLOAT(OFS_RETURN) = 0;
 	else
 	{
-		mod = sv.models[modelindex];
-		if (!mod)
-			mod = sv.models[modelindex] = Mod_ForName(sv.strings.model_precache[modelindex], false);
+		mod = SVPR_GetCModel(&sv.world, modelindex);
 
 		if (mod && Mod_GetFrameDuration)
 			G_FLOAT(OFS_RETURN) = Mod_GetFrameDuration(mod, framenum);
@@ -2360,7 +2376,7 @@ static void QCBUILTIN PF_skinforname (progfuncs_t *prinst, struct globalvars_s *
 #ifndef SERVERONLY
 	unsigned int modelindex = G_FLOAT(OFS_PARM0);
 	char *str = PF_VarString(prinst, 1, pr_globals);
-	model_t *mod = (modelindex>= MAX_MODELS)?NULL:sv.models[modelindex];
+	model_t *mod = SVPR_GetCModel(&sv.world, modelindex);
 
 
 	if (mod && Mod_SkinForName)
@@ -3523,7 +3539,12 @@ void PR_CheckEmptyString (char *s)
 */
 static void QCBUILTIN PF_precache_file (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	// precache_file is only used to copy files with qcc, it does nothing
+	char	*s = PR_GetStringOfs(prinst, OFS_PARM0);
+
 	G_INT(OFS_RETURN) = G_INT(OFS_PARM0);
+
+	/*touch the file, so any packs will be referenced. this is fte behaviour.*/
+	FS_FLocateFile(s, FSLFRT_IFFOUND, NULL);
 }
 
 void PF_precache_sound_Internal (progfuncs_t *prinst, char *s)
@@ -3542,6 +3563,8 @@ void PF_precache_sound_Internal (progfuncs_t *prinst, char *s)
 		{
 			strcpy(sv.strings.sound_precache[i], s);
 
+			/*touch the file, so any packs will be referenced*/
+			FS_FLocateFile(s, FSLFRT_IFFOUND, NULL);
 
 			if (sv.state != ss_loading)
 			{
@@ -3601,8 +3624,13 @@ int PF_precache_model_Internal (progfuncs_t *prinst, char *s, qboolean queryonly
 #endif
 				sv.strings.model_precache[i] = PR_AddString(prinst, s, 0);
 			s = sv.strings.model_precache[i];
-			if (!strcmp(s + strlen(s) - 4, ".bsp"))
+			if (!strcmp(s + strlen(s) - 4, ".bsp") || sv_gameplayfix_setmodelrealbox.ival)
 				sv.models[i] = Mod_FindName(s);
+			else
+			{
+				/*touch the file, so any packs will be referenced*/
+				FS_FLocateFile(s, FSLFRT_IFFOUND, NULL);
+			}
 
 			if (sv.state != ss_loading)
 			{
@@ -3773,12 +3801,6 @@ static void QCBUILTIN PF_walkmove (progfuncs_t *prinst, struct globalvars_s *pr_
 // restore program state
 //	pr_xfunction = oldf;
 	pr_global_struct->self = oldself;
-}
-
-void PF_sv_touchtriggers(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	wedict_t *ent = (wedict_t*)PROG_TO_EDICT(prinst, pr_global_struct->self);
-	World_LinkEdict (&sv.world, ent, true);
 }
 
 /*
@@ -4309,7 +4331,8 @@ client_t *Write_GetClient(void)
 extern sizebuf_t csqcmsgbuffer;
 void QCBUILTIN PF_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
+	int dest = G_FLOAT(OFS_PARM0);
+	if (dest == MSG_CSQC)
 	{	//csqc buffers are always written.
 		MSG_WriteByte(&csqcmsgbuffer, G_FLOAT(OFS_PARM1));
 		return;
@@ -4325,17 +4348,18 @@ void QCBUILTIN PF_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_global
 
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
-		NPP_NQWriteByte(G_FLOAT(OFS_PARM0), (qbyte)G_FLOAT(OFS_PARM1));
+		NPP_NQWriteByte(dest, (qbyte)G_FLOAT(OFS_PARM1));
 		return;
 	}
 #ifdef NQPROT
 	else
 	{
-		NPP_QWWriteByte(G_FLOAT(OFS_PARM0), (qbyte)G_FLOAT(OFS_PARM1));
+		NPP_QWWriteByte(dest, (qbyte)G_FLOAT(OFS_PARM1));
 		return;
 	}
-#else
-	else if (G_FLOAT(OFS_PARM0) == MSG_ONE)
+#endif
+
+	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
 		if (!cl)
@@ -4345,7 +4369,6 @@ void QCBUILTIN PF_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_global
 	}
 	else
 		MSG_WriteByte (QWWriteDest(G_FLOAT(OFS_PARM0)), G_FLOAT(OFS_PARM1));
-#endif
 }
 
 void QCBUILTIN PF_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -6477,12 +6500,13 @@ static void QCBUILTIN PF_h2matchAngleToSlope(progfuncs_t *prinst, struct globalv
 	vec3_t v_forward, old_forward, old_right, new_angles2 = { 0, 0, 0 };
 	float pitch, mod, dot;
 
+
 	// OFS_PARM0 is used by PF_vectoangles below
 	actor = G_EDICT(prinst, OFS_PARM1);
 
 	AngleVectors(actor->v->angles, old_forward, old_right, P_VEC(v_up));
 
-	PF_vectoangles(prinst, pr_globals);
+	VectorAngles(G_VECTOR(OFS_PARM0), NULL, G_VECTOR(OFS_RETURN));
 
 	pitch = G_FLOAT(OFS_RETURN) - 90;
 
@@ -8095,9 +8119,7 @@ static void QCBUILTIN PF_ChangePic(progfuncs_t *prinst, struct globalvars_s *pr_
 
 int SV_TagForName(int modelindex, char *tagname)
 {
-	model_t *model = sv.models[modelindex];
-	if (!model)
-		model = Mod_ForName(sv.strings.model_precache[modelindex], false);
+	model_t *model = SVPR_GetCModel(&sv.world, modelindex);
 	if (!model)
 		return 0;
 
@@ -8110,7 +8132,7 @@ static void QCBUILTIN PF_setattachment(progfuncs_t *prinst, struct globalvars_s 
 	edict_t *tagentity = G_EDICT(prinst, OFS_PARM1);
 	char *tagname = PR_GetStringOfs(prinst, OFS_PARM2);
 
-	int modelindex;
+	model_t *model;
 
 	int tagidx;
 
@@ -8118,113 +8140,19 @@ static void QCBUILTIN PF_setattachment(progfuncs_t *prinst, struct globalvars_s 
 
 	if (tagentity != (edict_t*)sv.world.edicts && tagname && tagname[0])
 	{
-		modelindex = (int)tagentity->v->modelindex;
-		if (modelindex > 0 && modelindex < MAX_MODELS)
+		model = SVPR_GetCModel(&sv.world, tagentity->v->modelindex);
+		if (model)
 		{
-			if (!sv.models[modelindex])
-				sv.models[modelindex] = Mod_ForName(sv.strings.model_precache[modelindex], false);
-			if (sv.models[modelindex])
-			{
-				tagidx = SV_TagForName(modelindex, tagname);
-				if (tagidx == 0)
-					Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, tagname, NUM_FOR_EDICT(prinst, tagentity), sv.models[modelindex]->name);
-			}
-			else
-				Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): Couldn't load model %s\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, sv.strings.model_precache[modelindex]);
+			tagidx = Mod_TagNumForName(model, tagname);
+			if (tagidx == 0)
+				Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, tagname, NUM_FOR_EDICT(prinst, tagentity), model->name);
 		}
 		else
-			Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i but it has no model\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, tagname, NUM_FOR_EDICT(prinst, tagentity));
-
+			Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): Couldn't load model\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname);
 	}
 
 	e->xv->tag_entity = EDICT_TO_PROG(prinst,tagentity);
 	e->xv->tag_index = tagidx;
-}
-
-// #451 float(entity ent, string tagname) gettagindex (DP_MD3_TAGSINFO)
-static void QCBUILTIN PF_gettagindex(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	edict_t *e = G_EDICT(prinst, OFS_PARM0);
-	char *tagname = PR_GetStringOfs(prinst, OFS_PARM1);
-
-	int modelindex;
-
-	int tagidx;
-
-	tagidx = 0;
-
-	if (tagname && tagname[0])
-	{
-		modelindex = (int)e->v->modelindex;
-		if (modelindex > 0 && modelindex < MAX_MODELS && sv.strings.model_precache[modelindex])
-		{
-			tagidx = SV_TagForName(modelindex, tagname);
-			if (tagidx == 0)
-				Con_DPrintf("PF_gettagindex(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, e), tagname, tagname, NUM_FOR_EDICT(prinst, e), sv.models[modelindex]->name);
-		}
-		else
-			Con_DPrintf("PF_gettagindex(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i but it has no model\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, e), tagname, tagname, NUM_FOR_EDICT(prinst, e));
-
-	}
-
-	G_FLOAT(OFS_RETURN) = tagidx;
-}
-
-static void EdictToTransform(edict_t *ed, float *trans)
-{
-	AngleVectors(ed->v->angles, trans+0, trans+4, trans+8);
-	VectorInverse(trans+4);
-
-	trans[3] = ed->v->origin[0];
-	trans[7] = ed->v->origin[1];
-	trans[11] = ed->v->origin[2];
-}
-
-// #452 vector(entity ent, float tagindex) gettaginfo (DP_MD3_TAGSINFO)
-static void QCBUILTIN PF_sv_gettaginfo(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	framestate_t fstate;
-	float transtag[12];
-	float transent[12];
-	float result[12];
-	edict_t *ent = G_EDICT(prinst, OFS_PARM0);
-	int tagnum = G_FLOAT(OFS_PARM1);
-	model_t *model = sv.models[(int)ent->v->modelindex];
-
-	float *origin = G_VECTOR(OFS_RETURN);
-	float *axis[3];
-	axis[0] = P_VEC(v_forward);
-	axis[1] = P_VEC(v_up);
-	axis[2] = P_VEC(v_right);
-
-	if (!model)
-		model = Mod_FindName(sv.strings.model_precache[(int)ent->v->modelindex]);
-
-	memset(&fstate, 0, sizeof(fstate));
-	fstate.g[FS_REG].frame[0] = fstate.g[FS_REG].frame[0] = ent->v->frame;
-
-	if (!Mod_GetTag(model, tagnum, &fstate, transtag))
-	{
-		return;
-	}
-
-	if (ent->xv->tag_entity)
-	{
-#ifdef warningmsg
-		#pragma warningmsg("PF_sv_gettaginfo: This function doesn't honour attachments")
-#endif
-		Con_Printf("PF_sv_gettaginfo doesn't support attachments\n");
-	}
-
-	EdictToTransform(ent, transent);
-	R_ConcatTransforms((void*)transent, (void*)transtag, (void*)result);
-
-	origin[0] = result[3];
-	origin[1] = result[7];
-	origin[2] = result[11];
-	VectorCopy((result+0), axis[0]);
-	VectorCopy((result+4), axis[1]);
-	VectorCopy((result+8), axis[2]);
 }
 
 //the first implementation of this function was (float type, float num, string name)
@@ -8474,219 +8402,6 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 	return false;
 }
 
-//DP_QC_GETSURFACE
-// #434 float(entity e, float s) getsurfacenumpoints (DP_QC_GETSURFACE)
-static void QCBUILTIN PF_getsurfacenumpoints(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	unsigned int surfnum;
-	model_t *model;
-	int modelindex;
-	edict_t *ent;
-
-	ent = G_EDICT(prinst, OFS_PARM0);
-	surfnum = G_FLOAT(OFS_PARM1);
-
-	modelindex = ent->v->modelindex;
-	if (modelindex > 0 && modelindex < MAX_MODELS)
-		model = sv.models[(int)ent->v->modelindex];
-	else
-		model = NULL;
-
-	if (!model || model->type != mod_brush || surfnum >= model->nummodelsurfaces)
-		G_FLOAT(OFS_RETURN) = 0;
-	else
-	{
-		surfnum += model->firstmodelsurface;
-		G_FLOAT(OFS_RETURN) = model->surfaces[surfnum].mesh->numvertexes;
-	}
-}
-// #435 vector(entity e, float s, float n) getsurfacepoint (DP_QC_GETSURFACE)
-static void QCBUILTIN PF_getsurfacepoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	unsigned int surfnum, pointnum;
-	model_t *model;
-	int modelindex;
-	edict_t *ent;
-
-	ent = G_EDICT(prinst, OFS_PARM0);
-	surfnum = G_FLOAT(OFS_PARM1);
-	pointnum = G_FLOAT(OFS_PARM2);
-
-	modelindex = ent->v->modelindex;
-	if (modelindex > 0 && modelindex < MAX_MODELS)
-		model = sv.models[(int)ent->v->modelindex];
-	else
-		model = NULL;
-
-	if (!model || model->type != mod_brush || surfnum >= model->nummodelsurfaces)
-	{
-		G_FLOAT(OFS_RETURN+0) = 0;
-		G_FLOAT(OFS_RETURN+1) = 0;
-		G_FLOAT(OFS_RETURN+2) = 0;
-	}
-	else
-	{
-		surfnum += model->firstmodelsurface;
-
-		G_FLOAT(OFS_RETURN+0) = model->surfaces[surfnum].mesh->xyz_array[pointnum][0];
-		G_FLOAT(OFS_RETURN+1) = model->surfaces[surfnum].mesh->xyz_array[pointnum][1];
-		G_FLOAT(OFS_RETURN+2) = model->surfaces[surfnum].mesh->xyz_array[pointnum][2];
-	}
-}
-// #436 vector(entity e, float s) getsurfacenormal (DP_QC_GETSURFACE)
-static void QCBUILTIN PF_getsurfacenormal(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	unsigned int surfnum, pointnum;
-	model_t *model;
-	int modelindex;
-	edict_t *ent;
-
-	ent = G_EDICT(prinst, OFS_PARM0);
-	surfnum = G_FLOAT(OFS_PARM1);
-	pointnum = G_FLOAT(OFS_PARM2);
-
-	modelindex = ent->v->modelindex;
-	if (modelindex > 0 && modelindex < MAX_MODELS)
-		model = sv.models[(int)ent->v->modelindex];
-	else
-		model = NULL;
-
-	if (!model || model->type != mod_brush || surfnum >= model->nummodelsurfaces)
-	{
-		G_FLOAT(OFS_RETURN+0) = 0;
-		G_FLOAT(OFS_RETURN+1) = 0;
-		G_FLOAT(OFS_RETURN+2) = 0;
-	}
-	else
-	{
-		surfnum += model->firstmodelsurface;
-
-		G_FLOAT(OFS_RETURN+0) = model->surfaces[surfnum].plane->normal[0];
-		G_FLOAT(OFS_RETURN+1) = model->surfaces[surfnum].plane->normal[1];
-		G_FLOAT(OFS_RETURN+2) = model->surfaces[surfnum].plane->normal[2];
-		if (model->surfaces[surfnum].flags & SURF_PLANEBACK)
-			VectorInverse(G_VECTOR(OFS_RETURN));
-	}
-}
-// #437 string(entity e, float s) getsurfacetexture (DP_QC_GETSURFACE)
-void PF_getsurfacetexture(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	model_t *model;
-	edict_t *ent;
-	msurface_t *surf;
-	int modelindex;
-	int surfnum;
-
-	ent = G_EDICT(prinst, OFS_PARM0);
-	surfnum = G_FLOAT(OFS_PARM1);
-
-	modelindex = ent->v->modelindex;
-	if (modelindex > 0 && modelindex < MAX_MODELS)
-		model = sv.models[(int)ent->v->modelindex];
-	else
-		model = NULL;
-
-	G_INT(OFS_RETURN) = 0;
-	if (!model || model->type != mod_brush)
-		return;
-
-	if (surfnum < 0 || surfnum > model->nummodelsurfaces)
-		return;
-	surfnum += model->firstmodelsurface;
-	surf = &model->surfaces[surfnum];
-	G_INT(OFS_RETURN) = PR_TempString(prinst, surf->texinfo->texture->name);
-}
-// #438 float(entity e, vector p) getsurfacenearpoint (DP_QC_GETSURFACE)
-static void QCBUILTIN PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	model_t *model;
-	edict_t *ent;
-	msurface_t *surf;
-	int i;
-	float planedist;
-	float *point;
-	int modelindex;
-
-	vec3_t edgedir;
-	vec3_t edgenormal;
-	vec3_t cpoint, temp;
-	mvertex_t *v1, *v2;
-	int edge;
-	int e;
-	float bestdist = 10000000000000, dist;
-	int bestsurf = -1;
-
-	ent = G_EDICT(prinst, OFS_PARM0);
-	point = G_VECTOR(OFS_PARM1);
-
-	G_FLOAT(OFS_RETURN) = -1;
-
-	modelindex = ent->v->modelindex;
-	if (modelindex > 0 && modelindex < MAX_MODELS)
-		model = sv.models[(int)ent->v->modelindex];
-	else
-		model = NULL;
-
-	if (!model || model->type != mod_brush)
-		return;
-
-	if (model->fromgame != fg_quake)
-		return;
-
-
-	surf = model->surfaces + model->firstmodelsurface;
-	for (i = 0; i < model->nummodelsurfaces; i++, surf++)
-	{
-		planedist = DotProduct(point, surf->plane->normal) - surf->plane->dist;
-		//don't care about SURF_PLANEBACK, the maths works out the same.
-
-		if (planedist*planedist < bestdist)
-		{	//within a specific range
-			//make sure it's within the poly
-			VectorMA(point, planedist, surf->plane->normal, cpoint);
-			for (e = surf->firstedge+surf->numedges; e > surf->firstedge; edge++)
-			{
-				edge = model->surfedges[--e];
-				if (edge < 0)
-				{
-					v1 = &model->vertexes[model->edges[-edge].v[0]];
-					v2 = &model->vertexes[model->edges[-edge].v[1]];
-				}
-				else
-				{
-					v2 = &model->vertexes[model->edges[edge].v[0]];
-					v1 = &model->vertexes[model->edges[edge].v[1]];
-				}
-				
-				VectorSubtract(v1->position, v2->position, edgedir);
-				CrossProduct(edgedir, surf->plane->normal, edgenormal);
-				if (!(surf->flags & SURF_PLANEBACK))
-				{
-					VectorNegate(edgenormal, edgenormal);
-				}
-				VectorNormalize(edgenormal);
-
-				dist = DotProduct(v1->position, edgenormal) - DotProduct(cpoint, edgenormal);
-				if (dist < 0)
-					VectorMA(cpoint, dist, edgenormal, cpoint);
-			}
-
-			VectorSubtract(cpoint, point, temp);
-			dist = DotProduct(temp, temp);
-			if (dist < bestdist)
-			{
-				bestsurf = i;
-				bestdist = dist;
-			}
-		}
-	}
-	G_FLOAT(OFS_RETURN) = bestsurf;
-}
-// #439 vector(entity e, float s, vector p) getsurfaceclippedpoint (DP_QC_GETSURFACE)
-static void QCBUILTIN PF_getsurfaceclippedpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-}
-
 qbyte qcpvs[(MAX_MAP_LEAFS+7)/8];
 //#240 float(vector viewpos, entity viewee) checkpvs (FTE_QC_CHECKPVS)
 //note: this requires a correctly setorigined entity.
@@ -8746,24 +8461,13 @@ static void QCBUILTIN PF_SendPacket(progfuncs_t *prinst, struct globalvars_s *pr
 	NET_SendPacket(NS_SERVER, strlen(contents), contents, to);
 }
 
-static void QCBUILTIN PF_sv_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int action = G_FLOAT(OFS_PARM0);
-	float *pos = G_VECTOR(OFS_PARM1);
-	float radius = G_FLOAT(OFS_PARM2);
-	float quant = G_FLOAT(OFS_PARM3);
-#if defined(TERRAIN)
-	G_FLOAT(OFS_RETURN) = Heightmap_Edit(sv.world.worldmodel, action, pos, radius, quant);
-#else
-	G_FLOAT(OFS_RETURN) = false;
-#endif
-}
+
 
 #define STUB ,true
 #ifdef DEBUG
-#define NYI ,true
-#else
 #define NYI ,false
+#else
+#define NYI ,true
 #endif
 BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"fixme",			PF_Fixme,			0,		0,		0,		0,	"void()"},
@@ -8825,7 +8529,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"changeyaw",		PF_changeyaw,		49,		49,		49,		0,	"#define ChangeYaw changeyaw\nvoid()"},
 //	{"qtest_precacheitem", NULL,			50}, // defined QTest builtin that is never called
 	{"vhlen",			PF_vhlen,			0,		0,		50,		0,	"float(vector)"},
-	{"vectoangles",		PF_vectoangles,		51,		51,		51,		0,	"vector(vector fwd)"},
+	{"vectoangles",		PF_vectoangles,		51,		51,		51,		0,	"vector(vector fwd, optional vector up)"},
 
 	{"WriteByte",		PF_WriteByte,		52,		52,		52,		0,	"void(float to, float val)"},	//52
 	{"WriteChar",		PF_WriteChar,		53,		53,		53,		0,	"void(float to, float val)"},	//53
@@ -8915,7 +8619,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"infokey",			PF_infokey,			0,		80,		0,		80, "string(entity e, string key)"},	//80
 	{"stof",			PF_stof,			0,		81,		0,		81,	"float(string)"},	//81
-	{"multicast",		PF_multicast,		0,		82,		0,		0,	"void(vector where, float set)"},	//82
+	{"multicast",		PF_multicast,		0,		82,		0,		82,	"void(vector where, float set)"},	//82
 
 
 
@@ -9078,7 +8782,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"rotatevectorsbyangle",	PF_Fixme,	0,		0,		0,		235,	"void(vector angle)"}, // #235
 	{"rotatevectorsbyvectors",	PF_Fixme,	0,		0,		0,		236,	"void(vector fwd, vector right, vector up)"}, // #236
 	{"skinforname",		PF_skinforname,		0,		0,		0,		237,	"float(float mdlindex, string skinname)"},		// #237
-	{"shaderforname",	PF_Fixme,			0,		0,		0,		238,	"float(string shadername, optional string defaultshader)"},
+	{"shaderforname",	PF_Fixme,			0,		0,		0,		238,	"float(string shadername, optional string defaultshader, ...)"},
 	{"te_bloodqw",		PF_te_bloodqw,		0,		0,		0,		239,	"void(vector org, optional float count)"},
 
 	{"checkpvs",		PF_checkpvs,		0,		0,		0,		240,	"float(vector viewpos, entity entity)"},
@@ -9121,11 +8825,14 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"frameforname",	PF_frameforname,	0,		0,		0,		276,	"void(float modidx, string framename)"},// (FTE_CSQC_SKELETONOBJECTS)
 	{"frameduration",	PF_frameduration,	0,		0,		0,		277,	"float(float modidx, float framenum)"},// (FTE_CSQC_SKELETONOBJECTS)
 
-	{"terrain_edit",	PF_sv_terrain_edit,	0,		0,		0,		278,	"void(float action, vector pos, float radius, float quant)"},// (??FTE_TERRAIN_EDIT??
-	{"touchtriggers",	PF_sv_touchtriggers,0,		0,		0,		279,	"void()"},//
+	{"terrain_edit",	PF_terrain_edit,	0,		0,		0,		278,	"void(float action, vector pos, float radius, float quant)"},// (??FTE_TERRAIN_EDIT??
+	{"touchtriggers",	PF_touchtriggers,	0,		0,		0,		279,	"void()"},//
 	{"writefloat",		PF_WriteFloat,		0,		0,		0,		280,	"void(float buf, float fl)"},//
 	{"skel_ragupdate",	PF_skel_ragedit,	0,		0,		0,		281,	"float(float skel, string dollname, float parentskel, vector trans, vector fwd, vector rt, vector up)" NYI}, // (FTE_CSQC_RAGDOLL)
 	{"skel_mmap",		PF_skel_mmap,		0,		0,		0,		282,	"float*(float skel)"},// (FTE_QC_RAGDOLL)
+	{"skel_set_bone_world",PF_skel_set_bone_world,0,0,		0,		283,	"void(entity ent, float bonenum, vector org, optional vector angorfwd, optional vector right, optional vector up)"},
+
+//	{"cvar_setlatch",	PF_cvar_setlatch,	0,		0,		0,		284,	"void(string cvarname, optional string value)"},	//72
 
 
 	{"clearscene",		PF_Fixme,	0,		0,		0,		300,	"void()"},// (EXT_CSQC)
@@ -9181,12 +8888,12 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"cprint",			PF_Fixme,	0,		0,		0,		338,	"void(string s, ...)"},//(EXT_CSQC)
 	{"print",			PF_print,	0,		0,		0,		339,	"void(string s, ...)"},//(EXT_CSQC)
 
-	
+
 	{"keynumtostring",	PF_Fixme,	0,		0,		0,		340,	"string(float keynum)"},// (EXT_CSQC)
 	{"stringtokeynum",	PF_Fixme,	0,		0,		0,		341,	"float(string keyname)"},// (EXT_CSQC)
 	{"getkeybind",		PF_Fixme,	0,		0,		0,		342,	"string(float keynum)"},// (EXT_CSQC)
 
-	{"getmousepos",		PF_Fixme,	0,		0,		0,		344,	"", true},	// #344 This is a DP extension
+	{"getmousepos",		PF_Fixme,	0,		0,		0,		344,	"vector()"},	// #344 This is a DP extension
 
 	{"getinputstate",	PF_Fixme,	0,		0,		0,		345,	"float(float framenum)"},// (EXT_CSQC)
 	{"setsensitivityscaler",PF_Fixme,0,		0,		0,		346,	"void(float sens)"},// (EXT_CSQC)
@@ -9286,7 +8993,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"getsurfacenormal",PF_getsurfacenormal,0,		0,		0,		436,	"vector(entity e, float s)"},// (DP_QC_GETSURFACE)
 	{"getsurfacetexture",PF_getsurfacetexture,0,	0,		0,		437,	"string(entity e, float s)"},// (DP_QC_GETSURFACE)
 	{"getsurfacenearpoint",PF_getsurfacenearpoint,0,0,		0,		438,	"float(entity e, vector p)"},// (DP_QC_GETSURFACE)
-	{"getsurfaceclippedpoint",PF_getsurfaceclippedpoint,0,0,0,		439,	"vector(entity e, float s, vector p)"},// (DP_QC_GETSURFACE)
+	{"getsurfaceclippedpoint",PF_getsurfaceclippedpoint,0,0,0,		439,	"vector(entity e, float s, vector p)" STUB},// (DP_QC_GETSURFACE)
 
 //KRIMZON_SV_PARSECLIENTCOMMAND
 	{"clientcommand",	PF_clientcommand,	0,		0,		0,		440,	"void(entity e, string s)"},// (KRIMZON_SV_PARSECLIENTCOMMAND)
@@ -9309,7 +9016,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"findchainflags",	PF_sv_findchainflags,0,		0,		0,		450,	"entity(.float fld, float match)"},//
 //DP_MD3_TAGSINFO
 	{"gettagindex",		PF_gettagindex,		0,		0,		0,		451,	"float(entity ent, string tagname)"},// (DP_MD3_TAGSINFO)
-	{"gettaginfo",		PF_sv_gettaginfo,	0,		0,		0,		452,	"vector(entity ent, float tagindex)"},// (DP_MD3_TAGSINFO)
+	{"gettaginfo",		PF_gettaginfo,		0,		0,		0,		452,	"vector(entity ent, float tagindex)"},// (DP_MD3_TAGSINFO)
 //DP_SV_BOTCLIENT
 	{"dropclient",		PF_dropclient,		0,		0,		0,		453,	"void(entity player)"},//DP_SV_BOTCLIENT
 
@@ -9423,12 +9130,39 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"buf_cvarlist",	PF_buf_cvarlist,	0,		0,		0,		517,	"void(float strbuf)" STUB},
 	{"cvar_description",PF_cvar_description,0,		0,		0,		518,	"string(string cvarname)"},
 	{"gettime",			PF_Fixme,			0,		0,		0,		519,	"float(optional float timetype)"},
-//end dp extras
 
+//	{"loadfromdata",	VM_loadfromdata,	0,		0,		0,		529,	"??" STUB},
+//	{"loadfromfile",	VM_loadfromfile,	0,		0,		0,		530,	"??" STUB},
+//	{"setpause",		VM_SV_setpause,		0,		0,		0,		531,	"void(float pause)" STUB},
+
+	//end dp extras
 	{"precache_vwep_model",PF_precache_vwep_model,0,0,		0,		532,	"float(string mname)"},
+	//restart dp extras
+//	{"log",				VM_Fixme,			0,		0,		0,		532,	"float(string mname)", true},
+//	{"getsoundtime",	VM_getsoundtime,	0,		0,		0,		533,	"float(entity e, float channel)" STUB},
+//	{"soundlength",		VM_soundlength,		0,		0,		0,		534,	"float(string sample)" STUB},
+
+
+	{"physics_enable",	PF_Ignore,			0,		0,		0,		540,	"void(entity e, float physics_enabled)" STUB},
+	{"physics_addforce",PF_Ignore,			0,		0,		0,		541,	"void(entity e, vector force, vector relative_ofs)" STUB},
+	{"physics_addtorque",PF_Ignore,			0,		0,		0,		542,	"void(entity e, vector torque)" STUB},
+
+//VM_callfunction,				// #605
+//VM_writetofile,					// #606
+//VM_isfunction,					// #607
+//VM_parseentitydata,				// #613
+//VM_SV_getextresponse,			// #624 string getextresponse(void)
 
 	{"sprintf",			PF_sprintf,			0,		0,		0,		627,	"string(...)" STUB},
+//	{"getsurfacenumpoints",VM_getsurfacenumtriangles,0,0,	0,		628,	"float(entity e, float s)" STUB},
+//	{"getsurfacepoint",VM_getsurfacenumtriangles,0,0,	0,		629,	"vector(entity e, float s, float n)" STUB},
 
+//VM_digest_hex,						// #639
+
+
+	//end dp extras
+
+	{"getrmqeffectsversion",	PF_Ignore,			0,		0,		0,		666,	"float()" STUB},
 	//don't exceed sizeof(pr_builtin)/sizeof(pr_builtin[0]) (currently 1024) without modifing the size of pr_builtin
 
 	{NULL}
@@ -9702,7 +9436,7 @@ void PR_RegisterFields(void)	//it's just easier to do it this way.
 #define comfieldfloat(name) PR_RegisterFieldVar(svprogfuncs, ev_float, #name, (size_t)&((stdentvars_t*)0)->name, -1);
 #define comfieldvector(name) PR_RegisterFieldVar(svprogfuncs, ev_vector, #name, (size_t)&((stdentvars_t*)0)->name, -1);
 #define comfieldentity(name) PR_RegisterFieldVar(svprogfuncs, ev_entity, #name, (size_t)&((stdentvars_t*)0)->name, -1);
-#define comfieldstring(name) PR_RegisterFieldVar(svprogfuncs, ev_string, #name, (size_t)&((stdentvars_t*)0)->name, -1);
+#define comfieldstring(name) PR_RegisterFieldVar(svprogfuncs, ev_string, (((size_t)&((stdentvars_t*)0)->name==(size_t)&((stdentvars_t*)0)->message)?"_"#name:#name), (size_t)&((stdentvars_t*)0)->name, -1);
 #define comfieldfunction(name, typestr) PR_RegisterFieldVar(svprogfuncs, ev_function, #name, (size_t)&((stdentvars_t*)0)->name, -1);
 comqcfields
 #undef comfieldfloat
@@ -9767,6 +9501,7 @@ void PR_DumpPlatform_f(void)
 	int d = 0, nd;
 	vfsfile_t *f;
 	char *fname = "";
+	char dbgfname[MAX_OSPATH];
 	unsigned int targ = 0;
 	qboolean defines = false;
 
@@ -9941,6 +9676,41 @@ void PR_DumpPlatform_f(void)
 		{"TRUE",	"const float", QW|NQ|CS, 1},
 		{"FALSE",	"const float", QW|NQ|CS, 0},
 
+		{"MOVETYPE_NONE",			"const float", QW|NQ|CS, MOVETYPE_NONE},
+		{"MOVETYPE_WALK",			"const float", QW|NQ|CS, MOVETYPE_WALK},
+		{"MOVETYPE_STEP",			"const float", QW|NQ|CS, MOVETYPE_STEP},
+		{"MOVETYPE_FLY",			"const float", QW|NQ|CS, MOVETYPE_FLY},
+		{"MOVETYPE_TOSS",			"const float", QW|NQ|CS, MOVETYPE_TOSS},
+		{"MOVETYPE_PUSH",			"const float", QW|NQ|CS, MOVETYPE_PUSH},
+		{"MOVETYPE_NOCLIP",			"const float", QW|NQ|CS, MOVETYPE_NOCLIP},
+		{"MOVETYPE_FLYMISSILE",		"const float", QW|NQ|CS, MOVETYPE_FLYMISSILE},
+		{"MOVETYPE_BOUNCE",			"const float", QW|NQ|CS, MOVETYPE_BOUNCE},
+		{"MOVETYPE_BOUNCEMISSILE",	"const float", QW|NQ|CS, MOVETYPE_BOUNCEMISSILE},
+		{"MOVETYPE_FOLLOW",			"const float", QW|NQ|CS, MOVETYPE_FOLLOW},
+		{"MOVETYPE_PHYSICS",		"const float", QW|NQ|CS, MOVETYPE_PHYSICS},
+
+		{"SOLID_NOT",				"const float", QW|NQ|CS, SOLID_NOT},
+		{"SOLID_TRIGGER",			"const float", QW|NQ|CS, SOLID_TRIGGER},
+		{"SOLID_BBOX",				"const float", QW|NQ|CS, SOLID_BBOX},
+		{"SOLID_SLIDEBOX",			"const float", QW|NQ|CS, SOLID_SLIDEBOX},
+		{"SOLID_BSP",				"const float", QW|NQ|CS, SOLID_BSP},
+		{"SOLID_CORPSE",			"const float", QW|NQ|CS, SOLID_CORPSE},
+		{"SOLID_LADDER",			"const float", QW|NQ|CS, SOLID_LADDER},
+		{"SOLID_PHYSICS_BOX",		"const float", QW|NQ|CS, SOLID_PHYSICS_BOX},
+		{"SOLID_PHYSICS_SPHERE",	"const float", QW|NQ|CS, SOLID_PHYSICS_SPHERE},
+		{"SOLID_PHYSICS_CAPSULE",	"const float", QW|NQ|CS, SOLID_PHYSICS_CAPSULE},
+
+		{"JOINTTYPE_FIXED",			"const float", QW|NQ|CS, JOINTTYPE_FIXED},
+		{"JOINTTYPE_POINT",			"const float", QW|NQ|CS, JOINTTYPE_POINT},
+		{"JOINTTYPE_HINGE",			"const float", QW|NQ|CS, JOINTTYPE_HINGE},
+		{"JOINTTYPE_SLIDER",		"const float", QW|NQ|CS, JOINTTYPE_SLIDER},
+		{"JOINTTYPE_UNIVERSAL",		"const float", QW|NQ|CS, JOINTTYPE_UNIVERSAL},
+		{"JOINTTYPE_HINGE2",		"const float", QW|NQ|CS, JOINTTYPE_HINGE2},
+
+		{"DAMAGE_NO",		"const float", QW|NQ, DAMAGE_NO},
+		{"DAMAGE_YES",		"const float", QW|NQ, DAMAGE_YES},
+		{"DAMAGE_AIM",		"const float", QW|NQ, DAMAGE_AIM},
+
 		{"CONTENT_EMPTY",	"const float", QW|NQ|CS, Q1CONTENTS_EMPTY},
 		{"CONTENT_SOLID",	"const float", QW|NQ|CS, Q1CONTENTS_SOLID},
 		{"CONTENT_WATER",	"const float", QW|NQ|CS, Q1CONTENTS_WATER},
@@ -9959,6 +9729,51 @@ void PR_DumpPlatform_f(void)
 //		{"ATTN_IDLE",		"const float", QW|NQ|CS, ATTN_IDLE},
 //		{"ATTN_STATIC",		"const float", QW|NQ|CS, ATTN_STATIC},
 
+		{"MSG_BROADCAST",		"const float", QW|NQ, MSG_BROADCAST},
+		{"MSG_ONE",				"const float", QW|NQ, MSG_ONE},
+		{"MSG_ALL",				"const float", QW|NQ, MSG_ALL},
+		{"MSG_INIT",			"const float", QW|NQ, MSG_INIT},
+		{"MSG_MULTICAST",		"const float", QW|NQ, MSG_MULTICAST},
+		{"MSG_ENTITY",			"const float", QW|NQ, MSG_CSQC},
+
+		{"MULTICAST_ALL",		"const float", QW|NQ, MULTICAST_ALL},
+		{"MULTICAST_PHS",		"const float", QW|NQ, MULTICAST_PHS},
+		{"MULTICAST_PVS",		"const float", QW|NQ, MULTICAST_PVS},
+		{"MULTICAST_ONE",		"const float", QW|NQ, MULTICAST_ONE},
+		{"MULTICAST_ALL_R",		"const float", QW|NQ, MULTICAST_ALL_R},
+		{"MULTICAST_PHS_R",		"const float", QW|NQ, MULTICAST_PHS_R},
+		{"MULTICAST_PVS_R",		"const float", QW|NQ, MULTICAST_PVS_R},
+		{"MULTICAST_ONE_R",		"const float", QW|NQ, MULTICAST_ONE_R},
+
+		{"PRINT_LOW",			"const float", QW, PRINT_LOW},
+		{"PRINT_MEDIUM",		"const float", QW, PRINT_MEDIUM},
+		{"PRINT_HIGH",			"const float", QW, PRINT_HIGH},
+		{"PRINT_CHAT",			"const float", QW, PRINT_CHAT},
+
+		// edict.flags
+		{"FL_FLY",				"const float", QW|NQ|CS, FL_FLY},
+		{"FL_SWIM",				"const float", QW|NQ|CS, FL_SWIM},
+		{"FL_CLIENT",			"const float", QW|NQ|CS, FL_CLIENT},
+		{"FL_INWATER",			"const float", QW|NQ|CS, FL_INWATER},
+		{"FL_MONSTER",			"const float", QW|NQ|CS, FL_MONSTER},
+		{"FL_GODMODE",			"const float", QW|NQ, FL_GODMODE},
+		{"FL_NOTARGET",			"const float", QW|NQ, FL_NOTARGET},
+		{"FL_ITEM",				"const float", QW|NQ|CS, FL_ITEM},
+		{"FL_ONGROUND",			"const float", QW|NQ|CS, FL_ONGROUND},
+		{"FL_PARTIALGROUND",	"const float", QW|NQ|CS, FL_PARTIALGROUND},
+		{"FL_WATERJUMP",		"const float", QW|NQ|CS, FL_WATERJUMP},
+//		{"FL_MOVECHAIN_ANGLE",	"const float", QW|NQ, FL_MOVECHAIN_ANGLE},
+		{"FL_LAGGEDMOVE",		"const float", QW|NQ, FL_LAGGEDMOVE},
+//		{"FL_CLASS_DEPENDENT",	"const float", QW|NQ, FL_CLASS_DEPENDENT},
+
+		{"MOVE_NORMAL",			"const float", QW|NQ|CS, MOVE_NORMAL},
+		{"MOVE_NOMONSTERS",		"const float", QW|NQ|CS, MOVE_NOMONSTERS},
+		{"MOVE_MISSILE",		"const float", QW|NQ|CS, MOVE_MISSILE},
+		{"MOVE_HITMODEL",		"const float", QW|NQ|CS, MOVE_HITMODEL},
+		{"MOVE_TRIGGERS",		"const float", QW|NQ|CS, MOVE_TRIGGERS},
+		{"MOVE_EVERYTHING",		"const float", QW|NQ|CS, MOVE_EVERYTHING},
+		{"MOVE_LAGGED",			"const float", QW|NQ, MOVE_LAGGED},
+		{"MOVE_ENTCHAIN",		"const float", QW|NQ|CS, MOVE_ENTCHAIN},
 
 		{"EF_BRIGHTFIELD",	"const float", QW|NQ|CS, EF_BRIGHTFIELD},
 		{"EF_MUZZLEFLASH",	"const float",    NQ|CS, EF_MUZZLEFLASH},
@@ -10080,7 +9895,15 @@ void PR_DumpPlatform_f(void)
 
 	if (!*fname)
 		fname = "fteextensions";
-	f = FS_OpenVFS(va("src/%s.qc", fname), "wb", FS_GAMEONLY);
+	fname = va("src/%s.qc", fname);
+	FS_NativePath(fname, FS_GAMEONLY, dbgfname, sizeof(dbgfname));
+	FS_CreatePath(fname, FS_GAMEONLY);
+	f = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
+	if (!f)
+	{
+		Con_Printf("Unable to create \"%s\"\n", dbgfname);
+		return;
+	}
 
 	VFS_PRINTF(f,	"/*\n"
 					"This file was automatically generated by %s v%i.%02i\n"
@@ -10203,7 +10026,11 @@ void PR_DumpPlatform_f(void)
 			else
 			{
 				if (BuiltinList[i].bifunc == PF_Fixme || BuiltinList[i].bifunc == PF_Ignore)
-					continue; /*neither*/
+				{
+					/*neither*/
+					BuiltinList[i].obsolete = true;
+					nd = d;	/*don't switch ifdefs*/
+				}
 				else
 					nd = 1; /*ssqc only*/
 			}
@@ -10217,7 +10044,7 @@ void PR_DumpPlatform_f(void)
 					VFS_PRINTF(f, "#ifdef CSQC\n");
 				d = nd;
 			}
-			VFS_PRINTF(f, "%s %s = #%u;\n", BuiltinList[i].prototype, BuiltinList[i].name, idx);
+			VFS_PRINTF(f, "%s%s %s = #%u;\n", BuiltinList[i].obsolete?"//":"", BuiltinList[i].prototype, BuiltinList[i].name, idx);
 		}
 	}
 	if (d)
@@ -10227,6 +10054,7 @@ void PR_DumpPlatform_f(void)
 	VFS_CLOSE(f);
 
 	FS_FlushFSHash();
+	Con_Printf("Written \"%s\"\n", dbgfname);
 #endif
 }
 

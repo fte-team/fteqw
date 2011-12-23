@@ -762,7 +762,7 @@ void TL_InitLanguages(void)
 
 
 
-#ifndef CLIENTONLY
+//#ifndef CLIENTONLY
 //this stuff is for hexen2 translation strings.
 //(hexen2 is uuuuggllyyyy...)
 static char *strings_list;
@@ -828,7 +828,7 @@ char *T_GetString(int num)
 
 	return strings_table[num];
 }
-#endif
+//#endif
 
 #ifndef SERVERONLY
 static char *info_strings_list;

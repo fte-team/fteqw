@@ -44,7 +44,7 @@ void M_Menu_MultiPlayer_f (void)
 
 		mgt=64;
 		menu->selecteditem = (menuoption_t*)
-		MC_AddConsoleCommandHexen2BigFont	(menu, 80, mgt,	"Join A Game ",	"menu_slist\n");mgt+=20;
+		MC_AddConsoleCommandHexen2BigFont	(menu, 80, mgt,	"Server List ",	"menu_slist\n");mgt+=20;
 		MC_AddConsoleCommandHexen2BigFont	(menu, 80, mgt,	"New Server  ",	"menu_newmulti\n");mgt+=20;
 		MC_AddConsoleCommandHexen2BigFont	(menu, 80, mgt,	"Player Setup",	"menu_setup\n");mgt+=20;
 		MC_AddConsoleCommandHexen2BigFont	(menu, 80, mgt,	"Demos       ",	"menu_demo\n");mgt+=20;
@@ -59,7 +59,7 @@ void M_Menu_MultiPlayer_f (void)
 
 		mgt=32;
 		menu->selecteditem = (menuoption_t*)
-		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Join A Game ",	"menu_slist\n");mgt+=20;
+		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Server List ",	"menu_slist\n");mgt+=20;
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Quick Connect", "quickconnect qw\n");mgt+=20;
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"New Server  ",	"menu_newmulti\n");mgt+=20;
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Player Setup",	"menu_setup\n");mgt+=20;
@@ -441,33 +441,6 @@ void M_Menu_Setup_f (void)
 		info->skinedit->modified = true;
 	info->ticlass = -1;
 }
-
-
-
-#ifdef CL_MASTER
-void M_Menu_ServerList_f (void)
-{
-	key_dest = key_menu;
-	m_state = m_slist;
-
-	MasterInfo_Refresh();
-}
-#endif
-
-void M_ServerList_Draw (void)
-{
-#ifdef CL_MASTER
-	M_DrawServers();
-#endif
-}
-
-void M_ServerList_Key (int k)
-{
-#ifdef CL_MASTER
-	M_SListKey(k);
-#endif
-}
-
 
 
 

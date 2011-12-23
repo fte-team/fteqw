@@ -823,7 +823,6 @@ void M_Init_Internal (void)
 #ifdef CL_MASTER
 	Cmd_AddRemCommand ("menu_servers", M_Menu_ServerList2_f);
 
-	Cmd_AddRemCommand ("menu_serversold", M_Menu_ServerList_f);
 	Cmd_AddRemCommand ("menu_slist", M_Menu_ServerList2_f);
 #endif
 	Cmd_AddRemCommand ("menu_setup", M_Menu_Setup_f);
@@ -889,7 +888,6 @@ void M_DeInit_Internal (void)
 
 #ifdef CL_MASTER
 	Cmd_RemoveCommand ("menu_servers");
-	Cmd_RemoveCommand ("menu_serversold");
 	Cmd_RemoveCommand ("menu_slist");
 #endif
 	Cmd_RemoveCommand ("menu_setup");
@@ -1007,10 +1005,6 @@ void M_Draw (int uimenu)
 		M_Help_Draw ();
 		break;
 
-	case m_slist:
-		M_ServerList_Draw ();
-		break;
-
 	case m_media:
 		M_Media_Draw ();
 		break;
@@ -1042,10 +1036,6 @@ void M_Keydown (int key, int unicode)
 
 	case m_help:
 		M_Help_Key (key);
-		return;
-
-	case m_slist:
-		M_ServerList_Key (key);
 		return;
 
 	case m_media:

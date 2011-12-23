@@ -78,6 +78,7 @@ cvar_t	gl_affinemodels = SCVAR("gl_affinemodels","0");
 cvar_t	gl_reporttjunctions = SCVAR("gl_reporttjunctions","0");
 cvar_t	gl_finish = SCVAR("gl_finish","0");
 cvar_t	gl_dither = SCVAR("gl_dither", "1");
+cvar_t	r_postprocshader = CVARD("r_postprocshader", "", "Specifies a shader to use as a post-processing shader");
 
 extern cvar_t	gl_screenangle;
 
@@ -921,6 +922,8 @@ qboolean R_RenderScene_Cubemap(void)
 		return false;
 	if (!ffov.value)
 		return false;
+	if (!cls.allow_postproc)
+		return false;
 
 	facemask = 0;
 	if (ffov.value < 0)
@@ -1032,6 +1035,7 @@ qboolean R_RenderScene_Cubemap(void)
 		R_RenderScene ();
 
 		GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, scenepp_postproc_cube);
+//FIXME: use a render target instead.
 		qglCopyTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + i, 0, 0, 0, 0, vid.pixelheight - (prect.y + cmapsize), cmapsize, cmapsize);
 	}
 
@@ -1160,15 +1164,27 @@ void GLR_RenderView (void)
 	// we check if we need to use any shaders - currently it's just waterwarp
 	if ((r_waterwarp.value>0 && r_viewleaf && r_viewleaf->contents <= Q1CONTENTS_WATER))
 	{
-		GL_Set2D();
 		if (scenepp_waterwarp)
+		{
+			GL_Set2D();
 			R2D_ScalePic(0, 0, vid.width, vid.height, scenepp_waterwarp);
+		}
 	}
 
 
 
 	if (gl_motionblur.value>0 && gl_motionblur.value < 1 && qglCopyTexImage2D)
 		R_RenderMotionBlur();
+
+	if (*r_postprocshader.string)
+	{
+		shader_t *postproc = R_RegisterCustom(r_postprocshader.string, NULL, NULL);
+		if (postproc)
+		{
+			GL_Set2D();
+			R2D_ScalePic(0, 0, vid.width, vid.height, postproc);
+		}
+	}
 
 	if (qglGetError())
 		Con_Printf("GL Error drawing post processing\n");

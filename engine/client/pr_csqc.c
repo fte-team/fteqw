@@ -619,7 +619,8 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	else
 	{
 		VectorCopy(in->v->angles, out->angles);
-		out->angles[0]*=-1;
+		if (model->type == mod_alias)
+			out->angles[0]*=-1;
 		AngleVectors(out->angles, out->axis[0], out->axis[1], out->axis[2]);
 		VectorInverse(out->axis[1]);
 
@@ -3235,62 +3236,6 @@ static void QCBUILTIN PF_rotatevectorsbytag (progfuncs_t *prinst, struct globalv
 	VectorCopy(srcorg, retorg);
 }
 
-static void EdictToTransform(csqcedict_t *ed, float *trans)
-{
-	AngleVectors(ed->v->angles, trans+0, trans+4, trans+8);
-	VectorInverse(trans+4);
-
-	trans[3] = ed->v->origin[0];
-	trans[7] = ed->v->origin[1];
-	trans[11] = ed->v->origin[2];
-}
-
-static void QCBUILTIN PF_cs_gettaginfo (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
-	int tagnum = G_FLOAT(OFS_PARM1);
-
-	float *origin = G_VECTOR(OFS_RETURN);
-
-	int modelindex = ent->v->modelindex;
-
-	model_t *mod = CSQC_GetModelForIndex(modelindex);
-
-	float transent[12];
-	float transforms[12];
-	float result[12];
-
-	framestate_t fstate;
-
-	cs_getframestate(ent, ent->xv->renderflags, &fstate);
-
-#ifdef warningmsg
-#pragma warningmsg("PF_cs_gettaginfo: This function doesn't honour attachments (but setattachment isn't implemented yet anyway)")
-#endif
-	if (!Mod_GetTag(mod, tagnum, &fstate, transforms))
-	{
-		memset(transforms, 0, sizeof(transforms));
-	}
-
-	EdictToTransform(ent, transent);
-	R_ConcatTransforms((void*)transent, (void*)transforms, (void*)result);
-
-	origin[0] = result[3];
-	origin[1] = result[7];
-	origin[2] = result[11];
-	VectorCopy((result+0), csqcg.forward);
-	VectorCopy((result+4), csqcg.right);
-	VectorCopy((result+8), csqcg.up);
-
-}
-static void QCBUILTIN PF_cs_gettagindex (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	csqcedict_t *ent = (csqcedict_t*)G_EDICT(prinst, OFS_PARM0);
-	char *tagname = PR_GetStringOfs(prinst, OFS_PARM1);
-
-	model_t *mod = CSQC_GetModelForIndex(ent->v->modelindex);
-	G_FLOAT(OFS_RETURN) = Mod_TagNumForName(mod, tagname);
-}
 static void QCBUILTIN PF_rotatevectorsbyangles (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *ang = G_VECTOR(OFS_PARM0);
@@ -3437,12 +3382,6 @@ static void QCBUILTIN PF_cs_walkmove (progfuncs_t *prinst, struct globalvars_s *
 
 // restore program state
 	*csqcg.self = oldself;
-}
-
-void PF_cs_touchtriggers(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	wedict_t *ent = (wedict_t*)PROG_TO_EDICT(prinst, *csqcg.self);
-	World_LinkEdict (&csqc_world, ent, true);
 }
 
 static void QCBUILTIN PF_cs_movetogoal (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3990,19 +3929,6 @@ static void QCBUILTIN PF_ReadServerEntityState(progfuncs_t *prinst, struct globa
 }
 #endif
 
-static void QCBUILTIN PF_cs_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int action = G_FLOAT(OFS_PARM0);
-	float *pos = G_VECTOR(OFS_PARM1);
-	float radius = G_FLOAT(OFS_PARM2);
-	float quant = G_FLOAT(OFS_PARM3);
-#if defined(TERRAIN)
-	G_FLOAT(OFS_RETURN) = Heightmap_Edit(csqc_world.worldmodel, action, pos, radius, quant);
-#else
-	G_FLOAT(OFS_RETURN) = false;
-#endif
-}
-
 #define PF_FixTen PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme,PF_Fixme
 
 //prefixes:
@@ -4238,8 +4164,8 @@ static struct {
 	{"frameforname",		PF_frameforname,		276},//void(float modidx, string framename) frameforname = #276 (FTE_CSQC_SKELETONOBJECTS)
 	{"frameduration",		PF_frameduration,		277},//void(float modidx, float framenum) frameduration = #277 (FTE_CSQC_SKELETONOBJECTS)
 
-	{"terrain_edit",		PF_cs_terrain_edit,		278},//void(float action, vector pos, float radius, float quant) terrain_edit = #278 (??FTE_TERRAIN_EDIT??)
-	{"touchtriggers",		PF_cs_touchtriggers,	279},//void() touchtriggers = #279;
+	{"terrain_edit",		PF_terrain_edit,		278},//void(float action, vector pos, float radius, float quant) terrain_edit = #278 (??FTE_TERRAIN_EDIT??)
+	{"touchtriggers",		PF_touchtriggers,		279},//void() touchtriggers = #279;
 	{"skel_ragupdate",		PF_skel_ragedit,		281},// (FTE_QC_RAGDOLL)
 	{"skel_mmap",			PF_skel_mmap,			282},// (FTE_QC_RAGDOLL)
 //300
@@ -4386,17 +4312,17 @@ static struct {
 	{"te_lightning1",	PF_cl_te_lightning1,	428},	// #428 void(entity own, vector start, vector end) te_lightning1 (DP_TE_STANDARDEFFECTBUILTINS)
 	{"te_lightning2",	PF_cl_te_lightning2,429},		// #429 void(entity own, vector start, vector end) te_lightning2 (DP_TE_STANDARDEFFECTBUILTINS)
 
-	{"te_lightning3",	PF_cl_te_lightning3,430},		// #430 void(entity own, vector start, vector end) te_lightning3 (DP_TE_STANDARDEFFECTBUILTINS)
-	{"te_beam",	PF_cl_te_beam,		431},		// #431 void(entity own, vector start, vector end) te_beam (DP_TE_STANDARDEFFECTBUILTINS)
-	{"vectorvectors",	PF_cs_vectorvectors,432},		// #432 void(vector dir) vectorvectors (DP_QC_VECTORVECTORS)
-	{"te_plasmaburn",	PF_cl_te_plasmaburn,433},		// #433 void(vector org) te_plasmaburn (DP_TE_PLASMABURN)
-//	{"getsurfacenumpoints",	PF_Fixme,					434},		// #434 float(entity e, float s) getsurfacenumpoints (DP_QC_GETSURFACE)
+	{"te_lightning3",			PF_cl_te_lightning3,				430},		// #430 void(entity own, vector start, vector end) te_lightning3 (DP_TE_STANDARDEFFECTBUILTINS)
+	{"te_beam",					PF_cl_te_beam,						431},		// #431 void(entity own, vector start, vector end) te_beam (DP_TE_STANDARDEFFECTBUILTINS)
+	{"vectorvectors",			PF_cs_vectorvectors,				432},		// #432 void(vector dir) vectorvectors (DP_QC_VECTORVECTORS)
+	{"te_plasmaburn",			PF_cl_te_plasmaburn,				433},		// #433 void(vector org) te_plasmaburn (DP_TE_PLASMABURN)
+	{"getsurfacenumpoints",		PF_getsurfacenumpoints,				434},		// #434 float(entity e, float s) getsurfacenumpoints (DP_QC_GETSURFACE)
 
-//	{"getsurfacepoint",	PF_Fixme,					435},		// #435 vector(entity e, float s, float n) getsurfacepoint (DP_QC_GETSURFACE)
-//	{"getsurfacenormal",	PF_Fixme,					436},		// #436 vector(entity e, float s) getsurfacenormal (DP_QC_GETSURFACE)
-//	{"getsurfacetexture",	PF_Fixme,				437},			// #437 string(entity e, float s) getsurfacetexture (DP_QC_GETSURFACE)
-//	{"getsurfacenearpoint",	PF_Fixme,					438},		// #438 float(entity e, vector p) getsurfacenearpoint (DP_QC_GETSURFACE)
-//	{"getsurfaceclippedpoint",	PF_Fixme,				439},			// #439 vector(entity e, float s, vector p) getsurfaceclippedpoint (DP_QC_GETSURFACE)
+	{"getsurfacepoint",			PF_getsurfacepoint,					435},		// #435 vector(entity e, float s, float n) getsurfacepoint (DP_QC_GETSURFACE)
+	{"getsurfacenormal",		PF_getsurfacenormal,				436},		// #436 vector(entity e, float s) getsurfacenormal (DP_QC_GETSURFACE)
+	{"getsurfacetexture",		PF_getsurfacetexture,				437},			// #437 string(entity e, float s) getsurfacetexture (DP_QC_GETSURFACE)
+	{"getsurfacenearpoint",		PF_getsurfacenearpoint,				438},		// #438 float(entity e, vector p) getsurfacenearpoint (DP_QC_GETSURFACE)
+	{"getsurfaceclippedpoint",	PF_getsurfaceclippedpoint,			439},			// #439 vector(entity e, float s, vector p) getsurfaceclippedpoint (DP_QC_GETSURFACE)
 
 	{"clientcommand",	PF_NoCSQC,			440},		// #440 void(entity e, string s) clientcommand (KRIMZON_SV_PARSECLIENTCOMMAND) (don't implement)
 	{"tokenize",	PF_Tokenize,		441},		// #441 float(string s) tokenize (KRIMZON_SV_PARSECLIENTCOMMAND)
@@ -4411,8 +4337,8 @@ static struct {
 	{"findflags",	PF_FindFlags,		449},		// #449 entity(entity start, .entity fld, float match) findflags (DP_QC_FINDFLAGS)
 
 	{"findchainflags",	PF_cs_findchainflags,	450},		// #450 entity(.float fld, float match) findchainflags (DP_QC_FINDCHAINFLAGS)
-	{"gettagindex",	PF_cs_gettagindex,	451},		// #451 float(entity ent, string tagname) gettagindex (DP_MD3_TAGSINFO)
-	{"gettaginfo",	PF_cs_gettaginfo,	452},		// #452 vector(entity ent, float tagindex) gettaginfo (DP_MD3_TAGSINFO)
+	{"gettagindex",	PF_gettagindex,		451},		// #451 float(entity ent, string tagname) gettagindex (DP_MD3_TAGSINFO)
+	{"gettaginfo",	PF_gettaginfo,		452},		// #452 vector(entity ent, float tagindex) gettaginfo (DP_MD3_TAGSINFO)
 	{"dropclient",	PF_NoCSQC,			453},		// #453 void(entity player) dropclient (DP_SV_BOTCLIENT) (don't implement)
 	{"spawnclient",	PF_NoCSQC,			454},		// #454	entity() spawnclient (DP_SV_BOTCLIENT) (don't implement)
 
@@ -5608,8 +5534,10 @@ void CSQC_ParseEntities(void)
 	if (!csqcprogs)
 		Host_EndGame("CSQC needs to be initialized for this server.\n");
 
-	if (!csqcg.ent_update || !csqcg.self || !csqc_world.worldmodel || csqc_world.worldmodel->needload)
+	if (!csqcg.ent_update || !csqcg.self)
 		Host_EndGame("CSQC is unable to parse entities\n");
+	if (!csqc_world.worldmodel || csqc_world.worldmodel->needload)
+		Host_EndGame("world is not yet initialised\n");
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 

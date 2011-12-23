@@ -133,6 +133,11 @@ void Master_HideServer(serverinfo_t *server)
 void Master_InsertAt(serverinfo_t *server, int pos)
 {
 	int i;
+	if (numvisibleservers >= maxvisibleservers)
+	{
+		maxvisibleservers = maxvisibleservers+10;
+		visibleservers = BZ_Realloc(visibleservers, maxvisibleservers*sizeof(serverinfo_t*));
+	}
 	for (i = numvisibleservers; i > pos; i--)
 	{
 		visibleservers[i] = visibleservers[i-1];
@@ -714,6 +719,8 @@ qboolean Master_LoadMasterList (char *filename, int defaulttype, int depth)
 			servertype = MT_MASTERQ2;
 		else if (!strcmp(com_token, "master:q3"))
 			servertype = MT_MASTERQ3;
+		else if (!strcmp(com_token, "master:httpjson"))
+			servertype = MT_MASTERHTTPJSON;
 		else if (!strcmp(com_token, "master:httpnq"))
 			servertype = MT_MASTERHTTPNQ;
 		else if (!strcmp(com_token, "master:httpqw"))
@@ -776,12 +783,14 @@ qboolean Master_LoadMasterList (char *filename, int defaulttype, int depth)
 		{
 			switch (servertype)
 			{
+			case MT_MASTERHTTPJSON:
 			case MT_MASTERHTTPNQ:
 			case MT_MASTERHTTPQW:
 				Master_AddMasterHTTP(line, servertype, name);
 				break;
 			default:
 				Master_AddMaster(line, servertype, name);
+				break;
 			}
 
 		}
@@ -1138,6 +1147,7 @@ void MasterInfo_ProcessHTTP(vfsfile_t *file, int type)
 			info->sends = 1;
 			info->special = type;
 			info->refreshtime = 0;
+			info->ping = 0xffff;
 
 			snprintf(info->name, sizeof(info->name), "%s", NET_AdrToString(adrbuf, sizeof(adrbuf), info->adr));
 
@@ -1147,6 +1157,118 @@ void MasterInfo_ProcessHTTP(vfsfile_t *file, int type)
 			Master_ResortServer(info);
 		}
 	}
+}
+
+char *jsonnode(int level, char *node)
+{
+	netadr_t adr = {NA_INVALID};
+	char servername[256] = {0};
+	char key[256];
+	int flags = 0;
+	int port = 0;
+	int cp = 0, mp = 0;
+	if (*node != '{')
+		return node;
+	do
+	{
+		node++;
+		node = COM_ParseToken(node, ",:{}[]");
+		if (*node != ':')
+			continue;
+		node++;
+		if (*node == '[')
+		{
+			do
+			{
+				node++;
+				node = jsonnode(level+1, node);
+				if (!node)
+					return NULL;
+				if (*node == ']')
+				{
+					break;
+				}
+			} while(*node == ',');
+			if (*node != ']')
+				return NULL;
+			node++;
+		}
+		else
+		{
+			Q_strncpyz(key, com_token, sizeof(key));
+			node = COM_ParseToken(node, ",:{}[]");
+
+			if (level == 1)
+			{
+				if (!strcmp(key, "IPAddress"))
+					NET_StringToAdr(com_token, &adr);
+				if (!strcmp(key, "Port"))
+					port = atoi(com_token);
+				if (!strcmp(key, "DNS"))
+					Q_strncpyz(servername, com_token, sizeof(servername));
+				if (!strcmp(key, "CurrentPlayerCount"))
+					cp = atoi(com_token);
+				if (!strcmp(key, "MaxPlayers"))
+					mp = atoi(com_token);
+				if (!strcmp(key, "Game"))
+				{
+					if (!strcmp(com_token, "NetQuake"))
+						flags |= SS_NETQUAKE;
+					if (!strcmp(com_token, "Quake2"))
+						flags |= SS_QUAKE2;
+					if (!strcmp(com_token, "Quake3"))
+						flags |= SS_QUAKE3;
+				}
+			}
+		}
+	} while(*node == ',');
+
+	if (*node == '}')
+		node++;
+
+	if (adr.type != NA_INVALID)
+	{
+		serverinfo_t *info;
+
+		if (port)
+			adr.port = htons(port);
+
+		if ((info = Master_InfoForServer(adr)))	//remove if the server already exists.
+		{
+			info->sends = 1;	//reset.
+		}
+		else
+		{
+			info = Z_Malloc(sizeof(serverinfo_t));
+			info->adr = adr;
+			info->sends = 1;
+			info->special = flags;
+			info->refreshtime = 0;
+			info->players = cp;
+			info->maxplayers = mp;
+
+			snprintf(info->name, sizeof(info->name), "%s", *servername?servername:NET_AdrToString(servername, sizeof(servername), info->adr));
+
+			info->next = firstserver;
+			firstserver = info;
+
+			Master_ResortServer(info);
+		}
+	}
+
+	return node;
+}
+
+void MasterInfo_ProcessHTTPJSON(struct dl_download *dl)
+{
+	int len;
+	char *buf;
+	len = VFS_GETLEN(dl->file);
+	buf = malloc(len + 1);
+	VFS_READ(dl->file, buf, len);
+	buf[len] = 0;
+	jsonnode(0, buf);
+	free(buf);
 }
 
 // wrapper functions for the different server types
@@ -1234,6 +1356,9 @@ void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles)
 		break;
 #endif
 #ifdef WEBCLIENT
+	case MT_MASTERHTTPJSON:
+		HTTP_CL_Get(mast->address, NULL, MasterInfo_ProcessHTTPJSON);
+		break;
 	case MT_MASTERHTTPNQ:
 		HTTP_CL_Get(mast->address, NULL, MasterInfo_ProcessHTTPNQ);
 		break;
@@ -1387,6 +1512,7 @@ void MasterInfo_Refresh(void)
 		{
 			//Master_AddMaster("12.166.196.192:27950",			MT_MASTERDP, "DarkPlaces Master 3");
 			Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake", MT_MASTERHTTPNQ, "gameaholic's NQ master");
+			Master_AddMasterHTTP("http://servers.quakeone.com/index.php?format=json", MT_MASTERHTTPJSON, "quakeone's server listing");
 			Master_AddMaster("ghdigital.com:27950",				MT_MASTERDP, "DarkPlaces Master 1"); // LordHavoc
 			Master_AddMaster("dpmaster.deathmask.net:27950",	MT_MASTERDP, "DarkPlaces Master 2"); // Willis
 			Master_AddMaster("dpmaster.tchr.no:27950",			MT_MASTERDP, "DarkPlaces Master 3"); // tChr
@@ -1957,6 +2083,8 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 		}
 		if ((old = Master_InfoForServer(info->adr)))	//remove if the server already exists.
 		{
+			if ((info->special & (SS_DARKPLACES | SS_NETQUAKE | SS_QUAKE2 | SS_QUAKE3)) && !(type & (SS_DARKPLACES | SS_NETQUAKE | SS_QUAKE2 | SS_QUAKE3)))
+				old->special = type | (old->special & SS_FAVORITE);
 			old->sends = 1;	//reset.
 			Z_Free(info);
 		}

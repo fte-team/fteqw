@@ -34,9 +34,12 @@ static d3dtexture_t *d3d_lookup_texture(char *ident)
 {
 	d3dtexture_t *tex;
 
-	for (tex = d3dtextures; tex; tex = tex->next)
-		if (!strcmp(tex->name, ident))
-			return tex;
+	if (*ident)
+	{
+		for (tex = d3dtextures; tex; tex = tex->next)
+			if (!strcmp(tex->name, ident))
+				return tex;
+	}
 
 	tex = calloc(1, sizeof(*tex)+strlen(ident));
 	strcpy(tex->name, ident);
@@ -256,7 +259,7 @@ static void D3D9_LoadTexture_8(d3dtexture_t *tex, unsigned char *data, unsigned 
 			else
 			{
 				noalpha = false;
-				trans[i] = pal32[p] & 0x00ffffff;
+				trans[i] = 0;
 			}
 		}
 	}

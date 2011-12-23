@@ -174,6 +174,13 @@ void PR_AutoCvarSetup(progfuncs_t *prinst);
 void PR_AutoCvar(progfuncs_t *prinst, cvar_t *var);
 
 
+void QCBUILTIN PF_getsurfacenumpoints(progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_getsurfacepoint(progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_getsurfacenormal(progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_getsurfacetexture(progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_getsurfaceclippedpoint(progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_skel_set_bone_world (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_skel_mmap(progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_skel_ragedit(progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_skel_create (progfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -192,6 +199,10 @@ void QCBUILTIN PF_skel_delete (progfuncs_t *prinst, struct globalvars_s *pr_glob
 void skel_lookup(progfuncs_t *prinst, int skelidx, framestate_t *out);
 void skel_dodelete(progfuncs_t *prinst);
 void skel_reset(progfuncs_t *prinst);
+void QCBUILTIN PF_gettaginfo (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_gettagindex (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void PF_touchtriggers(progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 //pr_cmds.c builtins that need to be moved to a common.
 void VARGS PR_BIError(progfuncs_t *progfuncs, char *format, ...) LIKEPRINTF(2);
@@ -365,33 +376,6 @@ pbool ED_CanFree (edict_t *ed);
 #define	DAMAGE_NO				0
 #define	DAMAGE_YES				1
 #define	DAMAGE_AIM				2
-
-// edict->flags
-#define	FL_FLY					(1<<0)
-#define	FL_SWIM					(1<<1)
-#define	FL_GLIMPSE				(1<<2)
-#define	FL_CLIENT				(1<<3)
-#define	FL_INWATER				(1<<4)
-#define	FL_MONSTER				(1<<5)
-#define	FL_GODMODE				(1<<6)
-#define	FL_NOTARGET				(1<<7)
-#define	FL_ITEM					(1<<8)
-#define	FL_ONGROUND				(1<<9)
-#define	FL_PARTIALGROUND		(1<<10)	// not all corners are valid
-#define	FL_WATERJUMP			(1<<11)	// player jumping out of water
-								//12
-								//13
-#define FL_FINDABLE_NONSOLID	(1<<14)	//a cpqwsv feature
-#define FL_MOVECHAIN_ANGLE		(1<<15)    // when in a move chain, will update the angle
-#define FL_LAGGEDMOVE			(1<<16)
-								//17
-								//18
-								//19
-								//20
-#define FL_CLASS_DEPENDENT		(1<<21)
-
-
-
 
 //shared constants
 typedef enum

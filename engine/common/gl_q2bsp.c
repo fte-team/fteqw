@@ -1956,14 +1956,14 @@ qboolean CModQ3_LoadSubmodels (lump_t *l)
 			out->maxs[j] = LittleFloat (in->maxs[j]) + 1;
 			out->origin[j] = (out->maxs[j] + out->mins[j])/2;
 		}
+		out->firstsurface = LittleLong (in->firstsurface);
+		out->numsurfaces = LittleLong (in->num_surfaces);
 		if (!i)
 			out->headnode = 0;
 		else
 		{
 //create a new leaf to hold the bruses and be directly clipped
 			out->headnode = -1 - numleafs;
-			out->firstsurface = LittleLong (in->firstsurface);
-			out->numsurfaces = LittleLong (in->num_surfaces);
 
 //			out->firstbrush = LittleLong(in->firstbrush);
 //			out->num_brushes = LittleLong(in->num_brushes);
@@ -3936,6 +3936,8 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 			mod->hulls[j].firstclipnode = map_cmodels[0].headnode;
 			mod->hulls[j].available = false;
 		}
+
+		mod->nummodelsurfaces = map_cmodels[0].numsurfaces;
 
 		for (i=1 ; i< loadmodel->numsubmodels ; i++)
 		{

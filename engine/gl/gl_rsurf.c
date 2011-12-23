@@ -30,13 +30,13 @@ void GLBE_ClearVBO(vbo_t *vbo)
 {
 	int vboh[7];
 	int i, j;
-	vboh[0] = vbo->vboe;
-	vboh[1] = vbo->vbocoord;
-	vboh[2] = vbo->vbotexcoord;
-	vboh[3] = vbo->vbolmcoord;
-	vboh[4] = vbo->vbonormals;
-	vboh[5] = vbo->vbosvector;
-	vboh[6] = vbo->vbotvector;
+	vboh[0] = vbo->indicies.gl.vbo;
+	vboh[1] = vbo->coord.gl.vbo;
+	vboh[2] = vbo->texcoord.gl.vbo;
+	vboh[3] = vbo->lmcoord.gl.vbo;
+	vboh[4] = vbo->normals.gl.vbo;
+	vboh[5] = vbo->svector.gl.vbo;
+	vboh[6] = vbo->tvector.gl.vbo;
 
 	for (i = 0; i < 7; i++)
 	{
@@ -82,45 +82,45 @@ static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int
 
 	//opengl ate our data, fixup the vbo arrays to point to the vbo instead of the raw data
 
-	if (vbo->indicies && elementsize)
+	if (vbo->indicies.gl.addr && elementsize)
 	{
-		vbo->vboe = vbos[1];
-		vbo->indicies = (index_t*)((char*)vbo->indicies - (char*)edata);
+		vbo->indicies.gl.vbo = vbos[1];
+		vbo->indicies.gl.addr = (index_t*)((char*)vbo->indicies.gl.addr - (char*)edata);
 	}
-	if (vbo->coord)
+	if (vbo->coord.gl.addr)
 	{
-		vbo->vbocoord = vbos[0];
-		vbo->coord = (vecV_t*)((char*)vbo->coord - (char*)vdata);
+		vbo->coord.gl.vbo = vbos[0];
+		vbo->coord.gl.addr = (vecV_t*)((char*)vbo->coord.gl.addr - (char*)vdata);
 	}
-	if (vbo->texcoord)
+	if (vbo->texcoord.gl.addr)
 	{
-		vbo->vbotexcoord = vbos[0];
-		vbo->texcoord = (vec2_t*)((char*)vbo->texcoord - (char*)vdata);
+		vbo->texcoord.gl.vbo = vbos[0];
+		vbo->texcoord.gl.addr = (vec2_t*)((char*)vbo->texcoord.gl.addr - (char*)vdata);
 	}
-	if (vbo->lmcoord)
+	if (vbo->lmcoord.gl.addr)
 	{
-		vbo->vbolmcoord = vbos[0];
-		vbo->lmcoord = (vec2_t*)((char*)vbo->lmcoord - (char*)vdata);
+		vbo->lmcoord.gl.vbo = vbos[0];
+		vbo->lmcoord.gl.addr = (vec2_t*)((char*)vbo->lmcoord.gl.addr - (char*)vdata);
 	}
-	if (vbo->normals)
+	if (vbo->normals.gl.addr)
 	{
-		vbo->vbonormals = vbos[0];
-		vbo->normals = (vec3_t*)((char*)vbo->normals - (char*)vdata);
+		vbo->normals.gl.vbo = vbos[0];
+		vbo->normals.gl.addr = (vec3_t*)((char*)vbo->normals.gl.addr - (char*)vdata);
 	}
-	if (vbo->svector)
+	if (vbo->svector.gl.addr)
 	{
-		vbo->vbosvector = vbos[0];
-		vbo->svector = (vec3_t*)((char*)vbo->svector - (char*)vdata);
+		vbo->svector.gl.vbo = vbos[0];
+		vbo->svector.gl.addr = (vec3_t*)((char*)vbo->svector.gl.addr - (char*)vdata);
 	}
-	if (vbo->tvector)
+	if (vbo->tvector.gl.addr)
 	{
-		vbo->vbotvector = vbos[0];
-		vbo->tvector = (vec3_t*)((char*)vbo->tvector - (char*)vdata);
+		vbo->tvector.gl.vbo = vbos[0];
+		vbo->tvector.gl.addr = (vec3_t*)((char*)vbo->tvector.gl.addr - (char*)vdata);
 	}
-	if (vbo->colours4f)
+	if (vbo->colours.gl.addr)
 	{
-		vbo->vbocolours = vbos[0];
-		vbo->colours4f = (vec4_t*)((char*)vbo->colours4f - (char*)vdata);
+		vbo->colours.gl.vbo = vbos[0];
+		vbo->colours.gl.addr = (vec4_t*)((char*)vbo->colours.gl.addr - (char*)vdata);
 	}
 
 	return true;
@@ -151,6 +151,15 @@ void GLBE_GenBrushModelVBO(model_t *mod)
 	vbo_t *vbo;
 	mesh_t *m;
 	char *p;
+
+	vecV_t *coord;
+	vec2_t *texcoord;
+	vec2_t *lmcoord;
+	vec3_t *normals;
+	vec3_t *svector;
+	vec3_t *tvector;
+	vec4_t *colours;
+	index_t *indicies;
 
 	if (!mod->numsurfaces)
 		return;
@@ -200,14 +209,23 @@ void GLBE_GenBrushModelVBO(model_t *mod)
 
 		p = vbo->vertdata;
 
-		vbo->coord = allocbuf(&p, maxvboverts, sizeof(*vbo->coord));
-		vbo->texcoord = allocbuf(&p, maxvboverts, sizeof(*vbo->texcoord));
-		vbo->lmcoord = allocbuf(&p, maxvboverts, sizeof(*vbo->lmcoord));
-		vbo->normals = allocbuf(&p, maxvboverts, sizeof(*vbo->normals));
-		vbo->svector = allocbuf(&p, maxvboverts, sizeof(*vbo->svector));
-		vbo->tvector = allocbuf(&p, maxvboverts, sizeof(*vbo->tvector));
-		vbo->colours4f = allocbuf(&p, maxvboverts, sizeof(*vbo->colours4f));
-		vbo->indicies = allocbuf(&p, maxvboelements, sizeof(index_t));
+		vbo->coord.gl.addr = allocbuf(&p, maxvboverts, sizeof(vecV_t));
+		vbo->texcoord.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec2_t));
+		vbo->lmcoord.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec2_t));
+		vbo->normals.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec3_t));
+		vbo->svector.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec3_t));
+		vbo->tvector.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec3_t));
+		vbo->colours.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec4_t));
+		vbo->indicies.gl.addr = allocbuf(&p, maxvboelements, sizeof(index_t));
+
+		coord = vbo->coord.gl.addr;
+		texcoord = vbo->texcoord.gl.addr;
+		lmcoord = vbo->lmcoord.gl.addr;
+		normals = vbo->normals.gl.addr;
+		svector = vbo->svector.gl.addr;
+		tvector = vbo->tvector.gl.addr;
+		colours = vbo->colours.gl.addr;
+		indicies = vbo->indicies.gl.addr;
 
 		vbo->meshcount = meshes;
 		vbo->meshlist = BZ_Malloc(meshes*sizeof(*vbo->meshlist));
@@ -228,62 +246,57 @@ void GLBE_GenBrushModelVBO(model_t *mod)
 			m->vbofirstvert = vcount;
 			m->vbofirstelement = ecount;
 			for (v = 0; v < m->numindexes; v++)
-				vbo->indicies[ecount++] = vcount + m->indexes[v];
+				indicies[ecount++] = vcount + m->indexes[v];
 			for (v = 0; v < m->numvertexes; v++)
 			{
-				vbo->coord[vcount+v][0] = m->xyz_array[v][0];
-				vbo->coord[vcount+v][1] = m->xyz_array[v][1];
-				vbo->coord[vcount+v][2] = m->xyz_array[v][2];
+				coord[vcount+v][0] = m->xyz_array[v][0];
+				coord[vcount+v][1] = m->xyz_array[v][1];
+				coord[vcount+v][2] = m->xyz_array[v][2];
 				if (m->st_array)
 				{
-					vbo->texcoord[vcount+v][0] = m->st_array[v][0];
-					vbo->texcoord[vcount+v][1] = m->st_array[v][1];
+					texcoord[vcount+v][0] = m->st_array[v][0];
+					texcoord[vcount+v][1] = m->st_array[v][1];
 				}
 				if (m->lmst_array)
 				{
-					vbo->lmcoord[vcount+v][0] = m->lmst_array[v][0];
-					vbo->lmcoord[vcount+v][1] = m->lmst_array[v][1];
+					lmcoord[vcount+v][0] = m->lmst_array[v][0];
+					lmcoord[vcount+v][1] = m->lmst_array[v][1];
 				}
 				if (m->normals_array)
 				{
-					vbo->normals[vcount+v][0] = m->normals_array[v][0];
-					vbo->normals[vcount+v][1] = m->normals_array[v][1];
-					vbo->normals[vcount+v][2] = m->normals_array[v][2];
+					normals[vcount+v][0] = m->normals_array[v][0];
+					normals[vcount+v][1] = m->normals_array[v][1];
+					normals[vcount+v][2] = m->normals_array[v][2];
 				}
 				if (m->snormals_array)
 				{
-					vbo->svector[vcount+v][0] = m->snormals_array[v][0];
-					vbo->svector[vcount+v][1] = m->snormals_array[v][1];
-					vbo->svector[vcount+v][2] = m->snormals_array[v][2];
+					svector[vcount+v][0] = m->snormals_array[v][0];
+					svector[vcount+v][1] = m->snormals_array[v][1];
+					svector[vcount+v][2] = m->snormals_array[v][2];
 				}
 				if (m->tnormals_array)
 				{
-					vbo->tvector[vcount+v][0] = m->tnormals_array[v][0];
-					vbo->tvector[vcount+v][1] = m->tnormals_array[v][1];
-					vbo->tvector[vcount+v][2] = m->tnormals_array[v][2];
+					tvector[vcount+v][0] = m->tnormals_array[v][0];
+					tvector[vcount+v][1] = m->tnormals_array[v][1];
+					tvector[vcount+v][2] = m->tnormals_array[v][2];
 				}
 				if (m->colors4f_array)
 				{
-					vbo->colours4f[vcount+v][0] = m->colors4f_array[v][0];
-					vbo->colours4f[vcount+v][1] = m->colors4f_array[v][1];
-					vbo->colours4f[vcount+v][2] = m->colors4f_array[v][2];
-					vbo->colours4f[vcount+v][3] = m->colors4f_array[v][3];
+					colours[vcount+v][0] = m->colors4f_array[v][0];
+					colours[vcount+v][1] = m->colors4f_array[v][1];
+					colours[vcount+v][2] = m->colors4f_array[v][2];
+					colours[vcount+v][3] = m->colors4f_array[v][3];
 				}
 			}
 			vcount += v;
 		}
 
-		if (GL_BuildVBO(vbo, vbo->coord, vcount*pervertsize, vbo->indicies, ecount*sizeof(index_t)))
+		if (GL_BuildVBO(vbo, vbo->vertdata, vcount*pervertsize, indicies, ecount*sizeof(index_t)))
 		{
 			BZ_Free(vbo->vertdata);
 			vbo->vertdata = NULL;
 		}
 	}
-/*	for (i=0 ; i<mod->numsurfaces ; i++)
-	{
-		if (!mod->surfaces[i].mark)
-			Host_EndGame("Surfaces with bad textures detected\n");
-	}*/
 }
 
 void GLBE_UploadAllLightmaps(void)

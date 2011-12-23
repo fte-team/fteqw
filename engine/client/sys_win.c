@@ -51,7 +51,6 @@ unsigned int sys_parenttop;
 unsigned int sys_parentwidth;	//valid if sys_parentwindow is set
 unsigned int sys_parentheight;
 
-
 /*
 ================
 Sys_RandomBytes
@@ -813,7 +812,7 @@ void Sys_Quit (void)
 		longjmp (host_abort, 1);
 	}
 #else
-	exit (0);
+	exit(1);
 #endif
 }
 

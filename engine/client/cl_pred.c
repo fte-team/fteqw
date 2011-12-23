@@ -853,6 +853,13 @@ void CL_PredictMovePNum (int pnum)
 
 	if (((cl_nopred.value && cls.demoplayback!=DPB_MVD && cls.demoplayback != DPB_EZTV)|| cl.fixangle[pnum] || cl.paused))
 	{
+		if (cl_lerp_players.ival && !cls.demoplayback)
+		{
+			lerpents_t *le = &cl.lerpplayers[spec_track[pnum]];
+			org = le->origin;
+			vel = vec3_origin;
+		}
+
 fixedorg:
 		VectorCopy (vel, cl.simvel[pnum]);
 		VectorCopy (org, cl.simorg[pnum]);

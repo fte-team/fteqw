@@ -99,7 +99,8 @@ void AddLightBlend (float r, float g, float b, float a2)
 //Con_Printf("AddLightBlend(): %4.2f %4.2f %4.2f %4.6f\n", v_blend[0], v_blend[1], v_blend[2], v_blend[3]);
 }
 
-static float bubble_sintable[17], bubble_costable[17];
+#define FLASHBLEND_VERTS 16
+static float bubble_sintable[FLASHBLEND_VERTS+1], bubble_costable[FLASHBLEND_VERTS+1];
 
 static void R_InitBubble(void)
 {
@@ -110,15 +111,14 @@ static void R_InitBubble(void)
 	bub_sin = bubble_sintable;
 	bub_cos = bubble_costable;
 
-	for (i=16 ; i>=0 ; i--)
+	for (i=FLASHBLEND_VERTS ; i>=0 ; i--)
 	{
-		a = i/16.0 * M_PI*2;
+		a = i/(float)FLASHBLEND_VERTS * M_PI*2;
 		*bub_sin++ = sin(a);
 		*bub_cos++ = cos(a);
 	}
 }
 
-#define FLASHBLEND_VERTS 16
 avec4_t flashblend_colours[FLASHBLEND_VERTS+1]; 
 vecV_t flashblend_vcoords[FLASHBLEND_VERTS+1];
 vec2_t flashblend_tccoords[FLASHBLEND_VERTS+1];
@@ -128,9 +128,32 @@ mesh_t flashblend_mesh;
 mesh_t flashblend_fsmesh;
 shader_t *flashblend_shader;
 shader_t *lpplight_shader;
+
+void R_GenerateFlashblendTexture(void)
+{
+	float dx, dy;
+	int x, y, a;
+	unsigned char pixels[32][32][4];
+	for (y = 0;y < 32;y++)
+	{
+		dy = (y - 15.5f) * (1.0f / 16.0f);
+		for (x = 0;x < 32;x++)
+		{
+			dx = (x - 15.5f) * (1.0f / 16.0f);
+			a = (int)(((1.0f / (dx * dx + dy * dy + 0.2f)) - (1.0f / (1.0f + 0.2))) * 32.0f / (1.0f / (1.0f + 0.2)));
+			a = bound(0, a, 255);
+			pixels[y][x][0] = a;
+			pixels[y][x][1] = a;
+			pixels[y][x][2] = a;
+			pixels[y][x][3] = 255;
+		}
+	}
+	R_LoadTexture32("***flashblend***", 32, 32, pixels, 0);
+}
 void R_InitFlashblends(void)
 {
 	int i;
+	R_InitBubble();
 	for (i = 0; i < FLASHBLEND_VERTS; i++)
 	{
 		flashblend_indexes[i*3+0] = 0;
@@ -139,7 +162,12 @@ void R_InitFlashblends(void)
 		else
 			flashblend_indexes[i*3+1] = i+2;
 		flashblend_indexes[i*3+2] = i+1;
+
+		flashblend_tccoords[i+1][0] = 0.5 + bubble_sintable[i]*0.5;
+		flashblend_tccoords[i+1][1] = 0.5 + bubble_costable[i]*0.5;
 	}
+	flashblend_tccoords[0][0] = 0.5;
+	flashblend_tccoords[0][1] = 0.5;
 	flashblend_mesh.numvertexes = FLASHBLEND_VERTS+1;
 	flashblend_mesh.xyz_array = flashblend_vcoords;
 	flashblend_mesh.st_array = flashblend_tccoords;
@@ -156,10 +184,13 @@ void R_InitFlashblends(void)
 	flashblend_fsmesh.numindexes = 6;
 	flashblend_fsmesh.istrifan = true;
 
+	R_GenerateFlashblendTexture();
+
 	flashblend_shader = R_RegisterShader("flashblend", 
 		"{\n"
+			"program defaultadditivesprite\n"
 			"{\n"
-				"map %whiteimage\n"	
+				"map ***flashblend***\n"	
 				"blendfunc gl_one gl_one\n"
 				"rgbgen vertex\n"
 				"alphagen vertex\n"
@@ -167,8 +198,6 @@ void R_InitFlashblends(void)
 		"}\n"
 		);
 	lpplight_shader = NULL;
-
-	R_InitBubble();
 }
 
 static qboolean R_BuildDlightMesh(dlight_t *light, float radscale, qboolean expand)
@@ -353,7 +382,7 @@ void R_GenDlightBatches(batch_t *batches[])
 		b->lightmap = -1;
 		b->surf_first = i;
 		b->flags |= BEF_NOSHADOWS;
-		b->vbo = 0;
+		b->vbo = NULL;
 		b->next = batches[sort];
 		batches[sort] = b;
 	}

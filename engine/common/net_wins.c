@@ -1275,7 +1275,7 @@ qboolean NET_IsClientLegal(netadr_t *adr)
 
 	NetadrToSockadr (adr, &sadr);
 
-	if ((newsocket = socket (PF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
+	if ((newsocket = socket (PF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET)
 		Sys_Error ("NET_IsClientLegal: socket:", strerror(qerrno));
 
 	sadr.sin_port = 0;
@@ -1785,7 +1785,7 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 	ftenet_generic_connection_t *newcon;
 
 	unsigned long _true = true;
-	int newsocket = INVALID_SOCKET;
+	SOCKET newsocket = INVALID_SOCKET;
 	int temp;
 	netadr_t adr;
 	struct sockaddr_qstorage qs;
@@ -1848,8 +1848,10 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 			return NULL;
 		}
 
-	if (family == AF_INET6 && !net_hybriddualstack.ival)
+#ifdef IPV6_V6ONLY
+	if (family == AF_INET6)
 		setsockopt(newsocket, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&_true, sizeof(_true));
+#endif
 
 	bufsz = 1<<18;
 	setsockopt(newsocket, SOL_SOCKET, SO_RCVBUF, (void*)&bufsz, sizeof(bufsz));
@@ -3071,7 +3073,7 @@ int maxport = port + 100;
 
 int UDP_OpenSocket (int port, qboolean bcast)
 {
-	int newsocket;
+	SOCKET newsocket;
 	struct sockaddr_in address;
 	unsigned long _true = true;
 	int i;
@@ -3128,7 +3130,7 @@ int maxport = port + 100;
 int UDP6_OpenSocket (int port, qboolean bcast)
 {
 	int err;
-	int newsocket;
+	SOCKET newsocket;
 	struct sockaddr_in6 address;
 	unsigned long _true = true;
 //	int i;
@@ -3136,7 +3138,7 @@ int maxport = port + 100;
 
 	memset(&address, 0, sizeof(address));
 
-	if ((newsocket = socket (PF_INET6, SOCK_DGRAM, 0)) == -1)
+	if ((newsocket = socket (PF_INET6, SOCK_DGRAM, 0)) == INVALID_SOCKET)
 	{
 		Con_Printf("IPV6 is not supported: %s\n", strerror(qerrno));
 		return INVALID_SOCKET;
@@ -3213,11 +3215,11 @@ int IPX_OpenSocket (int port, qboolean bcast)
 #ifndef USEIPX
 	return 0;
 #else
-	int					newsocket;
+	SOCKET					newsocket;
 	struct sockaddr_ipx	address;
 	u_long					_true = 1;
 
-	if ((newsocket = socket (PF_IPX, SOCK_DGRAM, NSPROTO_IPX)) == -1)
+	if ((newsocket = socket (PF_IPX, SOCK_DGRAM, NSPROTO_IPX)) == INVALID_SOCKET)
 	{
 		if (qerrno != EAFNOSUPPORT)
 			Con_Printf ("WARNING: IPX_Socket: socket: %i\n", qerrno);
@@ -3347,7 +3349,7 @@ void NET_GetLocalAddress (int socket, netadr_t *out)
 }
 
 #ifndef CLIENTONLY
-void SVNET_AddPort(void)
+void SVNET_AddPort_f(void)
 {
 	netadr_t adr;
 	char *s = Cmd_Argv(1);
@@ -3441,6 +3443,10 @@ void NET_Init (void)
 #endif
 
 	Cvar_Register(&net_hybriddualstack, "networking");
+
+#ifndef CLIENTONLY
+	Cmd_AddCommand("sv_addport", SVNET_AddPort_f);
+#endif
 }
 #ifndef SERVERONLY
 void NET_InitClient(void)

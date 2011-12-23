@@ -92,8 +92,8 @@ cvar_t r_flashblend							= SCVARF ("gl_flashblend", "0",
 												CVAR_ARCHIVE);
 cvar_t r_flashblendscale					= SCVARF ("gl_flashblendscale", "0.35",
 												CVAR_ARCHIVE);
-cvar_t r_floorcolour						= SCVARF ("r_floorcolour", "255 255 255",
-												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
+cvar_t r_floorcolour						= CVARAF ("r_floorcolour", "255 255 255",
+													"r_floorcolor", CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
 cvar_t r_floortexture						= SCVARF ("r_floortexture", "",
 												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
 cvar_t r_fullbright							= SCVARF ("r_fullbright", "0",
@@ -122,8 +122,8 @@ cvar_t r_stainfadetime						= SCVAR  ("r_stainfadetime", "1");
 cvar_t r_stains								= CVARFC("r_stains", IFMINIMAL("0","0.75"),
 												CVAR_ARCHIVE,
 												Cvar_Limiter_ZeroToOne_Callback);
-cvar_t r_wallcolour							= CVARF ("r_wallcolour", "255 255 255",
-												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);//FIXME: broken
+cvar_t r_wallcolour							= CVARAF ("r_wallcolour", "255 255 255",
+													  "r_wallcolor", CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);//FIXME: broken
 cvar_t r_walltexture						= CVARF ("r_walltexture", "",
 												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);	//FIXME: broken
 cvar_t r_wateralpha							= CVARF  ("r_wateralpha", "1",

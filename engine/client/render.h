@@ -158,8 +158,8 @@ typedef struct
 	float		m_view[16];
 
 	vec3_t		gfog_rgb;
-	float		gfog_alpha;
 	float		gfog_density;
+	float		gfog_alpha;
 
 	vrect_t		pxrect;		/*vrect, but in pixels rather than virtual coords*/
 	qboolean	externalview; /*draw external models and not viewmodels*/
@@ -204,8 +204,8 @@ void Surf_RenderDynamicLightmaps (struct msurface_s *fa);
 void Surf_RenderAmbientLightmaps (struct msurface_s *fa, int ambient);
 int Surf_LightmapShift (struct model_s *model);
 #ifndef LMBLOCK_WIDTH
-#define	LMBLOCK_WIDTH		256
-#define	LMBLOCK_HEIGHT		256
+#define	LMBLOCK_WIDTH		128
+#define	LMBLOCK_HEIGHT		128
 typedef struct glRect_s {
 	unsigned char l,t,w,h;
 } glRect_t;
@@ -272,6 +272,8 @@ enum imageflags
 	IF_NOALPHA = 1<<3,
 	IF_NOGAMMA = 1<<4,
 	IF_NEAREST = 1<<5,
+	IF_CUBEMAP = 1<<6,
+	IF_3DMAP = 1<<7,
 
 	IF_SUBDIRONLY = 1<<31
 };

@@ -649,8 +649,8 @@ pbool QCC_WriteData (int crc)
 		if (compressoutput)		progs.blockscompressed |=64;	//line numbers
 		if (compressoutput)		progs.blockscompressed |=128;	//types
 		//include a type block?
-		types = debugtarget;//!!QCC_PR_CheckCompConstDefined("TYPES");	//useful for debugging and saving (maybe, anyway...).
-		if (sizeof(char *) != sizeof(string_t))
+		types = debugtarget;
+		if (types && sizeof(char *) != sizeof(string_t))
 		{
 			//qcc_typeinfo_t has a char* inside it, which changes size
 			printf("AMD64 builds cannot write typeinfo structures\n");

@@ -320,9 +320,6 @@ void VARGS SV_Error (char *error, ...)
 #ifndef SERVERONLY
 	if (cls.state)
 	{
-		if (sv.state)
-			SV_UnspawnServer();
-
 		inerror = false;
 		Host_EndGame("SV_Error: %s\n",string);
 	}

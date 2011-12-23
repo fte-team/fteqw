@@ -809,30 +809,6 @@ typedef struct
 #define	DAMAGE_YES				1
 #define	DAMAGE_AIM				2
 
-// edict->flags
-#define	FL_FLY					(1<<0)
-#define	FL_SWIM					(1<<1)
-#define	FL_GLIMPSE				(1<<2)
-#define	FL_CLIENT				(1<<3)
-#define	FL_INWATER				(1<<4)
-#define	FL_MONSTER				(1<<5)
-#define	FL_GODMODE				(1<<6)
-#define	FL_NOTARGET				(1<<7)
-#define	FL_ITEM					(1<<8)
-#define	FL_ONGROUND				(1<<9)
-#define	FL_PARTIALGROUND		(1<<10)	// not all corners are valid
-#define	FL_WATERJUMP			(1<<11)	// player jumping out of water
-								//12
-								//13
-#define FL_FINDABLE_NONSOLID	(1<<14)	//a cpqwsv feature
-#define FL_MOVECHAIN_ANGLE		(1<<15)    // when in a move chain, will update the angle
-#define FL_LAGGEDMOVE			(1<<16)
-								//17
-								//18
-								//19
-								//20
-#define FL_CLASS_DEPENDENT		(1<<21)
-
 #define PVSF_NORMALPVS		0x0
 #define PVSF_NOTRACECHECK	0x1
 #define PVSF_USEPHS			0x2

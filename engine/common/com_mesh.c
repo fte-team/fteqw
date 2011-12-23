@@ -947,16 +947,16 @@ float *Alias_GetBonePositions(galiasinfo_t *inf, framestate_t *fstate, float *bu
 
 		if (!inf->numswtransforms && renderable)
 		{
-			float tmp[12];
+			float absbuf[MAX_BONES][12];
 			for (i = 0; i < numbones; i++)
 			{
 				if (bones[i].parent >= 0)
-					R_ConcatTransforms((void*)(buffer + bones[i].parent*12), (void*)((float*)relations+i*12), (void*)tmp);
+					R_ConcatTransforms((void*)(absbuf[bones[i].parent]), (void*)((float*)relations+i*12), (void*)absbuf[i]);
 				else
 					for (k = 0;k < 12;k++)	//parentless
-						tmp[k] = ((float*)relations)[i*12+k];
+						absbuf[i][k] = ((float*)relations)[i*12+k];
 
-				R_ConcatTransforms((void*)tmp, (void*)bones[i].inverse, (void*)(buffer+i*12));
+				R_ConcatTransforms((void*)absbuf[i], (void*)bones[i].inverse, (void*)(buffer+i*12));
 			}
 		}
 		else

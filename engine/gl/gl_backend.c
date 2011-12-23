@@ -913,6 +913,7 @@ static void T_Gen_CurrentRender(int tmu)
 
 static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass, qboolean useclientarray)
 {
+	extern texid_t missing_texture;
 	extern texid_t scenepp_postproc_cube;
 	texid_t t;
 	switch(pass->texgen)
@@ -931,7 +932,7 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass, qboolea
 		t = shaderstate.curdeluxmap;
 		break;
 	case T_GEN_DIFFUSE:
-		t = shaderstate.curtexnums?shaderstate.curtexnums->base:r_nulltex;
+		t = (shaderstate.curtexnums && TEXVALID(shaderstate.curtexnums->base))?shaderstate.curtexnums->base:missing_texture;
 		break;
 	case T_GEN_NORMALMAP:
 		t = shaderstate.curtexnums?shaderstate.curtexnums->bump:r_nulltex; /*FIXME: nulltex is not correct*/

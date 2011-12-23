@@ -1887,7 +1887,7 @@ qboolean CL_MayLerp(void)
 void CL_TransitionEntities (void)
 {
 	packet_entities_t	*packnew, *packold;
-	int newf, oldf;
+	int newf, newff, oldf;
 	qboolean nolerp;
 	float servertime;
 
@@ -1912,6 +1912,7 @@ void CL_TransitionEntities (void)
 	if (!CL_ChooseInterpolationFrames(&newf, &oldf, servertime))
 		return;
 
+	newff = newf;
 	newf&=UPDATE_MASK;
 	oldf&=UPDATE_MASK;
 	/*transition the ents and stuff*/
@@ -1929,6 +1930,12 @@ void CL_TransitionEntities (void)
 		vec3_t move;
 		lerpents_t *le;
 		player_state_t *pnew, *pold;
+		if (!cl_lerp_players.ival)
+		{
+			newf = newff = oldf = cl.parsecount;
+			newf&=UPDATE_MASK;
+			oldf&=UPDATE_MASK;
+		}
 		if (packnew->servertime == packold->servertime)
 			frac = 1; //lerp totally into the new
 		else
@@ -1937,11 +1944,11 @@ void CL_TransitionEntities (void)
 		pold = &cl.frames[oldf].playerstate[0];
 		for (p = 0; p < cl.allocated_client_slots; p++, pnew++, pold++)
 		{
-			if (pnew->messagenum != cl.parsecount)
+			if (pnew->messagenum != newff)
 				continue;
 		
 			le = &cl.lerpplayers[p];
-			VectorSubtract(pnew->origin, pold->origin, move);
+			VectorSubtract(pnew->predorigin, pold->predorigin, move);
 
 			if (DotProduct(move, move) > 120*120)
 				frac = 1;
@@ -1949,7 +1956,7 @@ void CL_TransitionEntities (void)
 			//lerp based purely on the packet times,
 			for (i = 0; i < 3; i++)
 			{
-				le->origin[i] = pold->origin[i] + frac*(move[i]);
+				le->origin[i] = pold->predorigin[i] + frac*(move[i]);
 
 				a1 = SHORT2ANGLE(pold->command.angles[i]);
 				a2 = SHORT2ANGLE(pnew->command.angles[i]);
@@ -2629,7 +2636,10 @@ void CL_ParsePlayerinfo (void)
 		state->state_time = parsecounttime - msec*0.001;
 	}
 	else
+	{
+		msec = 0;
 		state->state_time = parsecounttime;
+	}
 
 	if (flags & PF_COMMAND)
 	{
@@ -2776,7 +2786,8 @@ guess_pm_type:
 	if (cl.worldmodel && cl_lerp_players.ival)
 	{
 		player_state_t exact;
-		msec = 1000*((realtime - cls.latency + 0.02) - state->state_time);
+		msec += cls.latency*1000;
+//		msec = 1000*((realtime - cls.latency + 0.02) - state->state_time);
 		// predict players movement
 		if (msec > 255)
 			msec = 255;

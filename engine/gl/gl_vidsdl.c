@@ -67,7 +67,7 @@ Con_Printf("Getting gamma\n");
 		return false;
 	}
 
-	SDL_GL_GetAttribute(SDL_GL_STENCIL_SIZE, &gl_canstencil);
+	SDL_GL_GetAttribute(SDL_GL_STENCIL_SIZE, &gl_stencilbits);
 
 	ActiveApp = true;
 

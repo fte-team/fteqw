@@ -589,7 +589,7 @@ void HTTP_CL_Think(void)
 		}
 		link = &con->next;
 
-		if (!cls.downloadmethod)
+		if (!cls.downloadmethod && *con->localname)
 		{
 			cls.downloadmethod = DL_HTTP;
 			showndownload = con;

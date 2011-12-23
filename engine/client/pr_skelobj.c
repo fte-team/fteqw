@@ -554,7 +554,7 @@ void QCBUILTIN PF_skel_build(progfuncs_t *prinst, struct globalvars_s *pr_global
 	float retainfrac = G_FLOAT(OFS_PARM3);
 	int firstbone = G_FLOAT(OFS_PARM4)-1;
 	int lastbone = G_FLOAT(OFS_PARM5)-1;
-	float addition = 1?G_FLOAT(OFS_PARM6):1-retainfrac;
+	float addition = (*prinst->callargc>6)?G_FLOAT(OFS_PARM6):1-retainfrac;
 
 	int i, j;
 	int numbones;

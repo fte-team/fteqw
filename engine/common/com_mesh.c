@@ -1519,7 +1519,15 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 
 #ifdef SKELETALMODELS
 	meshcache.usebonepose = NULL;
-	if (inf->numbones)
+	if (inf->ofs_skel_xyz && !inf->ofs_skel_weight)
+	{
+		meshcache.usebonepose = false;
+		mesh->xyz_array = (vecV_t*)((char*)inf + inf->ofs_skel_xyz);
+		mesh->normals_array = (vec3_t*)((char*)inf + inf->ofs_skel_norm);
+		mesh->snormals_array = (vec3_t*)((char*)inf + inf->ofs_skel_svect);
+		mesh->tnormals_array = (vec3_t*)((char*)inf + inf->ofs_skel_tvect);
+	}
+	else if (inf->numbones)
 	{
 		meshcache.usebonepose = Alias_GetBonePositions(inf, &e->framestate, meshcache.bonepose, MAX_BONES, true);
 
@@ -5948,6 +5956,7 @@ qboolean Mod_ParseIQMAnim(char *buffer, galiasinfo_t *prototype, void**poseofs, 
 
 qboolean Mod_LoadInterQuakeModel(model_t *mod, void *buffer)
 {
+	int i;
 	unsigned int hunkstart, hunkend, hunktotal;
 	galiasinfo_t *root;
 	struct iqmheader *h = (struct iqmheader *)buffer;
@@ -5962,6 +5971,10 @@ qboolean Mod_LoadInterQuakeModel(model_t *mod, void *buffer)
 	hunkend = Hunk_LowMark();
 
 	mod->flags = h->flags;
+
+	ClearBounds(mod->mins, mod->maxs);
+	for (i = 0; i < root->numverts; i++)
+		AddPointToBounds((float*)((char*)root + root->ofs_skel_xyz + i*sizeof(vecV_t)), mod->mins, mod->maxs);
 
 	Mod_ClampModelSize(mod);
 

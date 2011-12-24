@@ -1296,18 +1296,6 @@ void SV_CalcPHS (void);
 void SV_GetConsoleCommands (void);
 void SV_CheckTimer(void);
 
-typedef struct
-{
-	int sec;
-	int min;
-	int hour;
-	int day;
-	int mon;
-	int year;
-	char str[128];
-} date_t;
-void SV_TimeOfDay(date_t *date);
-
 void SV_LogPlayer(client_t *cl, char *msg);
 
 void AddLinksToPmove ( edict_t *player, areanode_t *node );

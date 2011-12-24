@@ -645,23 +645,7 @@ void DemoWriteQTVTimePad(int msecs)	//broadcast to all proxies
 }
 
 
-void SV_TimeOfDay(date_t *date)
-{
-	struct tm *newtime;
-	time_t long_time;
 
-	time( &long_time );
-	newtime = localtime( &long_time );
-
-	date->day = newtime->tm_mday;
-	date->mon = newtime->tm_mon;
-	date->year = newtime->tm_year + 1900;
-	date->hour = newtime->tm_hour;
-	date->min = newtime->tm_min;
-	date->sec = newtime->tm_sec;
-	strftime( date->str, 128,
-         "%a %b %d, %H:%M:%S %Y", newtime);
-}
 
 // returns the file size
 // return -1 if file is not present
@@ -1431,7 +1415,7 @@ mvddest_t *SV_InitRecordFile (char *name)
 			char buf[2000];
 			date_t date;
 
-			SV_TimeOfDay(&date);
+			COM_TimeOfDay(&date);
 
 			snprintf(buf, sizeof(buf), "date %s\nmap %s\nteamplay %d\ndeathmatch %d\ntimelimit %d\n%s",date.str, sv.name, (int)teamplay.value, (int)deathmatch.value, (int)timelimit.value, SV_PrintTeams());
 			VFS_WRITE(f, buf, strlen(buf));

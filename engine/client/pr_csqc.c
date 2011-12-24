@@ -4168,6 +4168,7 @@ static struct {
 	{"touchtriggers",		PF_touchtriggers,		279},//void() touchtriggers = #279;
 	{"skel_ragupdate",		PF_skel_ragedit,		281},// (FTE_QC_RAGDOLL)
 	{"skel_mmap",			PF_skel_mmap,			282},// (FTE_QC_RAGDOLL)
+	{"skel_set_bone_world",	PF_skel_set_bone_world,	283},
 //300
 	{"clearscene",	PF_R_ClearScene,	300},				// #300 void() clearscene (EXT_CSQC)
 	{"addentities",	PF_R_AddEntityMask,	301},				// #301 void(float mask) addentities (EXT_CSQC)

@@ -4383,3 +4383,22 @@ char *version_string(void)
 
 	return s;
 }
+
+//C90
+void COM_TimeOfDay(date_t *date)
+{
+	struct tm *newtime;
+	time_t long_time;
+
+	time(&long_time);
+	newtime = localtime(&long_time);
+
+	date->day = newtime->tm_mday;
+	date->mon = newtime->tm_mon;
+	date->year = newtime->tm_year + 1900;
+	date->hour = newtime->tm_hour;
+	date->min = newtime->tm_min;
+	date->sec = newtime->tm_sec;
+	strftime( date->str, 128,
+         "%a %b %d, %H:%M:%S %Y", newtime);
+}

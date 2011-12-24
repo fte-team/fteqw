@@ -2871,7 +2871,7 @@ void QCBUILTIN PF_calltimeofday (progfuncs_t *prinst, struct globalvars_s *pr_gl
 	f = PR_FindFunction(prinst, "timeofday", PR_ANY);
 	if (f)
 	{
-		SV_TimeOfDay(&date);
+		COM_TimeOfDay(&date);
 
 		G_FLOAT(OFS_PARM0) = (float)date.sec;
 		G_FLOAT(OFS_PARM1) = (float)date.min;

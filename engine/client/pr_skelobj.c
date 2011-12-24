@@ -788,9 +788,9 @@ void QCBUILTIN PF_skel_set_bone_world (progfuncs_t *prinst, struct globalvars_s 
 	if (*prinst->callargc == 4)
 	{
 		vec3_t d[3], a;
-		a[0] = G_VECTOR(OFS_PARM2)[0] * -1; /*mod_alias bug*/
-		a[1] = G_VECTOR(OFS_PARM2)[1];
-		a[2] = G_VECTOR(OFS_PARM2)[2];
+		a[0] = G_VECTOR(OFS_PARM3)[0] * -1; /*mod_alias bug*/
+		a[1] = G_VECTOR(OFS_PARM3)[1];
+		a[2] = G_VECTOR(OFS_PARM3)[2];
 		AngleVectors(a, d[0], d[1], d[2]);
 		bonemat_fromqcvectors(childworld, d[0], d[1], d[2], G_VECTOR(OFS_PARM2));
 	}
@@ -823,19 +823,21 @@ void QCBUILTIN PF_skel_set_bone_world (progfuncs_t *prinst, struct globalvars_s 
 		float parentent[12];
 		framestate_t fstate;
 		w->Get_FrameState(w, ent, &fstate);
-		if (!Mod_GetTag(skelobj->model, boneidx+1, &fstate, parentabs))
+		if (skelobj->type == SKOT_ABSOLUTE || !Mod_GetTag(skelobj->model, Mod_GetBoneParent(skelobj->model, boneidx+1), &fstate, parentabs))
 		{
-			bonemat_fromidentity(parentabs);
+			bonemat_fromentity(w, ent, parentw);
 		}
-
-		bonemat_fromentity(w, ent, parentent);
-		Matrix3x4_Multiply(parentent, parentabs, parentw);
-		Matrix3x4_Invert_Simple(parentw, parentinv);
+		else
+		{
+			bonemat_fromentity(w, ent, parentent);
+			Matrix3x4_Multiply(parentabs, parentent, parentw);
+		}
+		Matrix3x4_Invert(parentw, parentinv);
 	}
 
 	/*calc the result*/
 	bone = skelobj->bonematrix+12*boneidx;
-	Matrix3x4_Multiply(parentinv, childworld, bone);
+	Matrix3x4_Multiply(childworld, parentinv, bone);
 }
 
 //void(float skel, float bonenum, vector org) skel_set_bone (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)

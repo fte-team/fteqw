@@ -480,3 +480,16 @@ typedef struct pc_token_s
 } pc_token_t;
 #define fileHandle_t int
 #define fsMode_t int
+
+
+typedef struct
+{
+	int sec;
+	int min;
+	int hour;
+	int day;
+	int mon;
+	int year;
+	char str[128];
+} date_t;
+void COM_TimeOfDay(date_t *date);

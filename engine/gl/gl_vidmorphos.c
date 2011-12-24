@@ -448,7 +448,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 					{
 						glctx = 1;
 
-						gl_canstencil = 8;
+						gl_stencilbits = 8;
 
 						pointermem = AllocVec(256, MEMF_ANY|MEMF_CLEAR);
 						if (pointermem)

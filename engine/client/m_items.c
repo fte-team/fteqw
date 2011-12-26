@@ -143,7 +143,6 @@ void Draw_BigFontString(int x, int y, const char *text)
 	if (!p)
 		return;
 
-	if (qrenderer == QR_OPENGL)
 	{	//a hack for scaling
 		p->width = 20*8;
 		p->height = 20*8;

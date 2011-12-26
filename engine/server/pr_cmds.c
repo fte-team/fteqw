@@ -5145,6 +5145,8 @@ void QCBUILTIN PF_multicast (progfuncs_t *prinst, struct globalvars_s *pr_global
 	o = G_VECTOR(OFS_PARM0);
 	to = G_FLOAT(OFS_PARM1);
 
+	NPP_Flush();
+
 	SV_Multicast (o, to);
 }
 

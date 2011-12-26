@@ -853,14 +853,17 @@ static void R_LoadRTLights(void)
 			VectorCopy(org, dl->origin);
 			dl->radius = radius;
 			VectorCopy(rgb, dl->color);
+			dl->corona = corona;
+			dl->coronascale = coronascale;
 			dl->die = 0;
 			dl->flags = flags;
-			/*if (*cubename)
-			{
-				dl->fov = 90;
-				dl->flags |= LFLAG_SHADOWMAP;
-			}*/
 			AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
+
+			Q_strncpyz(dl->cubemapname, cubename, sizeof(dl->cubemapname));
+			if (*dl->cubemapname)
+				dl->cubetexture = R_LoadReplacementTexture(dl->cubemapname, "", IF_CUBEMAP);
+			else
+				dl->cubetexture = r_nulltex;
 
 			dl->style = style+1;
 		}

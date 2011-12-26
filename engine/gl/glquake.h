@@ -304,7 +304,6 @@ extern int gl_mtexarbable;	//max texture units
 extern qboolean gl_mtexable;
 
 extern int mtexid0;
-extern int mtexid1;
 
 extern qboolean gl_mtexable;
 

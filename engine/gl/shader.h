@@ -281,6 +281,7 @@ typedef struct {
 		SP_FIRSTUNIFORM,	//never set
 
 		/*entity properties*/
+		SP_E_LMSCALE,
 		SP_E_ORIGIN,
 		SP_E_COLOURS,
 		SP_E_COLOURSIDENT,

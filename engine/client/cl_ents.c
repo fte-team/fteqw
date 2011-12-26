@@ -118,6 +118,8 @@ static void CL_ClearDlight(dlight_t *dl, int key)
 	dl->color[0] = 1;
 	dl->color[1] = 1;
 	dl->color[2] = 1;
+	dl->corona = r_flashblend.value;
+	dl->coronascale = r_flashblendscale.value;
 //	if (r_shadow_realtime_dlight_shadowmap.value)
 //		dl->flags |= LFLAG_SHADOWMAP;
 }
@@ -134,6 +136,7 @@ dlight_t *CL_AllocSlight(void)
 	dl = &cl_dlights[rtlights_max++];
 
 	CL_ClearDlight(dl, 0);
+	dl->corona = 0;
 	return dl;
 }
 

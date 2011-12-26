@@ -122,12 +122,12 @@ cvar_t	cl_enemychatsound = CVAR("cl_enemychatsound", "misc/talk.wav");
 cvar_t	cl_teamchatsound = CVAR("cl_teamchatsound", "misc/talk.wav");
 
 cvar_t	r_torch			= CVARF("r_torch",	"0",	CVAR_CHEAT);
-cvar_t	r_rocketlight	= CVARC("r_rocketlight",	"1", Cvar_Limiter_ZeroToOne_Callback);
+cvar_t	r_rocketlight	= CVARFC("r_rocketlight",	"1", CVAR_ARCHIVE, Cvar_Limiter_ZeroToOne_Callback);
 cvar_t	r_lightflicker	= CVAR("r_lightflicker",	"1");
-cvar_t	cl_r2g			= CVAR("cl_r2g",	"0");
+cvar_t	cl_r2g			= CVARF("cl_r2g",	"0", CVAR_ARCHIVE);
 cvar_t	r_powerupglow	= CVAR("r_powerupglow", "1");
-cvar_t	v_powerupshell	= CVAR("v_powerupshell", "0");
-cvar_t	cl_gibfilter	= CVAR("cl_gibfilter", "0");
+cvar_t	v_powerupshell	= CVARF("v_powerupshell", "0", CVAR_ARCHIVE);
+cvar_t	cl_gibfilter	= CVARF("cl_gibfilter", "0", CVAR_ARCHIVE);
 cvar_t	cl_deadbodyfilter	= CVAR("cl_deadbodyfilter", "0");
 
 cvar_t  cl_gunx = SCVAR("cl_gunx", "0");
@@ -146,7 +146,7 @@ cvar_t	requiredownloads = CVARFD("requiredownloads","1", CVAR_ARCHIVE, "0=join t
 
 cvar_t	cl_muzzleflash = SCVAR("cl_muzzleflash", "1");
 
-cvar_t	cl_item_bobbing = SCVAR("cl_model_bobbing", "0");
+cvar_t	cl_item_bobbing = CVARF("cl_model_bobbing", "0", CVAR_ARCHIVE);
 cvar_t	cl_countpendingpl = SCVAR("cl_countpendingpl", "0");
 
 cvar_t	cl_standardchat = SCVARF("cl_standardchat", "0", CVAR_ARCHIVE);
@@ -3078,7 +3078,7 @@ void CL_Fog_f(void)
 	else
 	{
 		cl.fog_density = atof(Cmd_Argv(1));
-		if (Cmd_Argc() > 5)
+		if (Cmd_Argc() >= 5)
 		{
 			cl.fog_colour[0] = atof(Cmd_Argv(2));
 			cl.fog_colour[1] = atof(Cmd_Argv(3));

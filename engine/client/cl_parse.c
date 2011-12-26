@@ -6155,7 +6155,7 @@ void CLNQ_ParseServerMessage (void)
 			Cmd_ExecuteString("bf", RESTRICT_SERVER);
 			break;
 		case svcfitz_fog:
-			cl.fog_density = MSG_ReadByte();
+			cl.fog_density = MSG_ReadByte()/255.0f;
 			cl.fog_colour[0] = MSG_ReadByte()/255.0f;
 			cl.fog_colour[1] = MSG_ReadByte()/255.0f;
 			cl.fog_colour[2] = MSG_ReadByte()/255.0f;

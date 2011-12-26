@@ -2333,6 +2333,8 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	}
 #endif
 	//our stencil writes.
+	if (gl_config.arb_depth_clamp)
+		qglEnable(GL_DEPTH_CLAMP_ARB);
 
 #if 0 //def _DEBUG
 //	if (r_shadows.value == 666)	//testing (visible shadow volumes)
@@ -2420,6 +2422,8 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 		qglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
 		qglStencilFunc(GL_EQUAL, sref, ~0);
 	}
+	if (gl_config.arb_depth_clamp)
+		qglDisable(GL_DEPTH_CLAMP_ARB);
 	//end stencil writing.
 
 #if 0	//draw the stencil stuff to the red channel
@@ -2689,18 +2693,9 @@ void Sh_DrawLights(qbyte *vis, batch_t **mbatches)
 		if (!(dl->flags & ignoreflags))
 			continue;
 
-		if (dl->die)
-		{
-			colour[0] = dl->color[0]*10;
-			colour[1] = dl->color[1]*10;
-			colour[2] = dl->color[2]*10;
-		}
-		else
-		{
-			colour[0] = dl->color[0];
-			colour[1] = dl->color[1];
-			colour[2] = dl->color[2];
-		}
+		colour[0] = dl->color[0];
+		colour[1] = dl->color[1];
+		colour[2] = dl->color[2];
 		if (dl->style)
 		{
 			if (cl_lightstyle[dl->style-1].colour & 1)

@@ -129,14 +129,14 @@ extern cvar_t r_bouncysparks;
 extern cvar_t r_part_rain;
 extern cvar_t r_bloodstains;
 extern cvar_t gl_part_flame;
-cvar_t r_part_rain_quantity = CVAR("r_part_rain_quantity", "1");
+cvar_t r_part_rain_quantity = CVARF("r_part_rain_quantity", "1", CVAR_ARCHIVE);
 
-cvar_t r_particle_tracelimit = CVARD("r_particle_tracelimit", "200", "Number of traces to allow per frame for particle physics.");
+cvar_t r_particle_tracelimit = CVARFD("r_particle_tracelimit", "200", CVAR_ARCHIVE, "Number of traces to allow per frame for particle physics.");
 cvar_t r_part_sparks = CVAR("r_part_sparks", "1");
 cvar_t r_part_sparks_trifan = CVAR("r_part_sparks_trifan", "1");
 cvar_t r_part_sparks_textured = CVAR("r_part_sparks_textured", "1");
 cvar_t r_part_beams = CVAR("r_part_beams", "1");
-cvar_t r_part_contentswitch = CVARD("r_part_contentswitch", "1", "Enable particle effects to change based on content (ex. water).");
+cvar_t r_part_contentswitch = CVARFD("r_part_contentswitch", "1", CVAR_ARCHIVE, "Enable particle effects to change based on content (ex. water).");
 
 
 particleengine_t *pe;

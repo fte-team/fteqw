@@ -711,6 +711,7 @@ static void QCBUILTIN PF_R_AddEntity(progfuncs_t *prinst, struct globalvars_s *p
 
 static void QCBUILTIN PF_R_DynamicLight_Set(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	char *s;
 	dlight_t *l;
 	unsigned int lno = G_FLOAT(OFS_PARM0);
 	int field = G_FLOAT(OFS_PARM1);
@@ -748,6 +749,20 @@ static void QCBUILTIN PF_R_DynamicLight_Set(progfuncs_t *prinst, struct globalva
 		break;
 	case lfield_fov:
 		l->fov = G_FLOAT(OFS_PARM2);
+		break;
+	case lfield_corona:
+		l->corona = G_FLOAT(OFS_PARM2);
+		break;
+	case lfield_coronascale:
+		l->coronascale = G_FLOAT(OFS_PARM2);
+		break;
+	case lfield_cubemapname:
+		s = PR_GetStringOfs(prinst, OFS_PARM2);
+		Q_strncpyz(l->cubemapname, s, sizeof(l->cubemapname));
+		if (*l->cubemapname)
+			l->cubetexture = R_LoadReplacementTexture(l->cubemapname, "", IF_CUBEMAP);
+		else
+			l->cubetexture = r_nulltex;
 		break;
 	default:
 		break;
@@ -790,6 +805,15 @@ static void QCBUILTIN PF_R_DynamicLight_Get(progfuncs_t *prinst, struct globalva
 	case lfield_fov:
 		G_FLOAT(OFS_RETURN) = l->fov;
 		break;
+	case lfield_corona:
+		G_FLOAT(OFS_RETURN) = l->corona;
+		break;
+	case lfield_coronascale:
+		G_FLOAT(OFS_RETURN) = l->coronascale;
+		break;
+	case lfield_cubemapname:
+		RETURN_TSTRING(l->cubemapname);
+		break;
 	default:
 		G_INT(OFS_RETURN) = 0;
 		break;
@@ -801,18 +825,24 @@ static void QCBUILTIN PF_R_DynamicLight_Add(progfuncs_t *prinst, struct globalva
 	float *org = G_VECTOR(OFS_PARM0);
 	float radius = G_FLOAT(OFS_PARM1);
 	float *rgb = G_VECTOR(OFS_PARM2);
-//	float style = G_FLOAT(OFS_PARM3);
-//	char *cubemapname = G_STRING(OFS_PARM4);
-//	float pflags = G_FLOAT(OFS_PARM5);
+	float style = (*prinst->callargc > 3)?G_FLOAT(OFS_PARM3):0;
+	char *cubemapname = (*prinst->callargc > 4)?PR_GetStringOfs(prinst, OFS_PARM4):"";
+	int pflags = (*prinst->callargc > 5)?G_FLOAT(OFS_PARM5):PFLAGS_CORONA;
 
-	csqcedict_t *self;
+	wedict_t *self = PROG_TO_WEDICT(prinst, *csqcg.self);
+	dlight_t *dl;
 
 	//if the org matches self, then attach it.
-	self = (csqcedict_t*)PROG_TO_EDICT(prinst, *csqcg.self);
-	if (VectorCompare(self->v->origin, org))
-		G_FLOAT(OFS_RETURN) = V_AddLight(-self->entnum, org, radius, rgb[0]/5, rgb[1]/5, rgb[2]/5);
+	dl = CL_NewDlightRGB (VectorCompare(self->v->origin, org)?-self->entnum:0, org, radius, -0.1, rgb[0], rgb[1], rgb[2]);
+
+	if (pflags & PFLAGS_NOSHADOW)
+		dl->flags |= LFLAG_NOSHADOWS;
+	if (pflags & PFLAGS_CORONA)
+		dl->corona = 1;
 	else
-		G_FLOAT(OFS_RETURN) = V_AddLight(0, org, radius, rgb[0]/5, rgb[1]/5, rgb[2]/5);
+		dl->corona = 0;
+
+	G_FLOAT(OFS_RETURN) = dl - cl_dlights;
 }
 
 static void QCBUILTIN PF_R_AddEntityMask(progfuncs_t *prinst, struct globalvars_s *pr_globals)

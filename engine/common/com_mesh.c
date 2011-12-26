@@ -1521,7 +1521,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 	meshcache.usebonepose = NULL;
 	if (inf->ofs_skel_xyz && !inf->ofs_skel_weight)
 	{
-		meshcache.usebonepose = false;
+		meshcache.usebonepose = NULL;
 		mesh->xyz_array = (vecV_t*)((char*)inf + inf->ofs_skel_xyz);
 		mesh->normals_array = (vec3_t*)((char*)inf + inf->ofs_skel_norm);
 		mesh->snormals_array = (vec3_t*)((char*)inf + inf->ofs_skel_svect);

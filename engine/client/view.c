@@ -67,7 +67,7 @@ cvar_t	v_iroll_level = SCVAR("v_iroll_level", "0.1");
 cvar_t	v_ipitch_level = SCVAR("v_ipitch_level", "0.3");
 cvar_t	v_idlescale = SCVAR("v_idlescale", "0");
 
-cvar_t	crosshair = SCVARF("crosshair", "0", CVAR_ARCHIVE);
+cvar_t	crosshair = SCVARF("crosshair", "1", CVAR_ARCHIVE);
 cvar_t	crosshaircolor = SCVARF("crosshaircolor", "255 255 255", CVAR_ARCHIVE);
 cvar_t	crosshairsize = SCVARF("crosshairsize", "8", CVAR_ARCHIVE);
 
@@ -78,7 +78,7 @@ cvar_t	crosshairimage = SCVAR("crosshairimage", "");
 cvar_t	crosshairalpha = SCVAR("crosshairalpha", "1");
 
 cvar_t	gl_cshiftpercent = SCVAR("gl_cshiftpercent", "100");
-cvar_t	gl_cshiftenabled = SCVAR("gl_polyblend", "1");
+cvar_t	gl_cshiftenabled = CVARF("gl_polyblend", "1", CVAR_ARCHIVE);
 
 cvar_t	v_bonusflash = SCVAR("v_bonusflash", "1");
 
@@ -993,9 +993,8 @@ void V_CalcRefdef (int pnum)
 #endif
 
 
-	r_refdef.gfog_density = cl.fog_density;
-	r_refdef.gfog_alpha = cl.fog_density?1:0;//cl.fog_alpha;
-	VectorCopy(cl.fog_colour, r_refdef.gfog_rgb);
+	VectorCopy(cl.fog_colour, r_refdef.gfog_rgbd);
+	r_refdef.gfog_rgbd[3] = cl.fog_density / 64;
 
 // view is the weapon model (only visible from inside body)
 	view = &cl.viewent[pnum];

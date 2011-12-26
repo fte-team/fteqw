@@ -1597,9 +1597,9 @@ static void World_ODE_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 		//Con_Printf("made new joint %i\n", (int) (ed - prog->edicts));
 		dJointSetData(j, (void *) ed);
 		if(enemy)
-			b1 = (dBodyID)(((wedict_t*)EDICT_NUM(world->progs, enemy))->ode.ode_body);
+			b1 = (dBodyID)((WEDICT_NUM(world->progs, enemy))->ode.ode_body);
 		if(aiment)
-			b2 = (dBodyID)(((wedict_t*)EDICT_NUM(world->progs, aiment))->ode.ode_body);
+			b2 = (dBodyID)((WEDICT_NUM(world->progs, aiment))->ode.ode_body);
 		dJointAttach(j, b1, b2);
 
 		switch(jointtype)
@@ -1865,6 +1865,12 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 
 	if (movetype != MOVETYPE_PHYSICS)
 		massval = 1.0f;
+
+	// get friction from entity
+	if (ed->xv->friction)
+		ed->ode.ode_friction = ed->xv->friction;
+	else
+		ed->ode.ode_friction = 1.0;
 
 	// check if we need to create or replace the geom
 	if (!ed->ode.ode_physics
@@ -2198,6 +2204,7 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 	float bouncestop1 = 60.0f / 800.0f;
 	float bouncefactor2 = 0.0f;
 	float bouncestop2 = 60.0f / 800.0f;
+	float erp;
 	dVector3 grav;
 	wedict_t *ed1, *ed2;
 
@@ -2289,6 +2296,8 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 	dWorldGetGravity(world->ode.ode_world, grav);
 	bouncestop1 *= fabs(grav[2]);
 
+	erp = (DotProduct(ed1->v->velocity, ed1->v->velocity) > DotProduct(ed2->v->velocity, ed2->v->velocity)) ? ed1->xv->erp : ed2->xv->erp;
+
 	// add these contact points to the simulation
 	for (i = 0;i < numcontacts;i++)
 	{
@@ -2296,8 +2305,8 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 									(physics_ode_contact_erp.value != -1 ? dContactSoftERP : 0) |
 									(physics_ode_contact_cfm.value != -1 ? dContactSoftCFM : 0) |
 									(bouncefactor1 > 0 ? dContactBounce : 0);
-		contact[i].surface.mu = physics_ode_contact_mu.value;
-		contact[i].surface.soft_erp = physics_ode_contact_erp.value;
+		contact[i].surface.mu = physics_ode_contact_mu.value * ed1->ode.ode_friction * ed2->ode.ode_friction;
+		contact[i].surface.soft_erp = physics_ode_contact_erp.value + erp;
 		contact[i].surface.soft_cfm = physics_ode_contact_cfm.value;
 		contact[i].surface.bounce = bouncefactor1;
 		contact[i].surface.bounce_vel = bouncestop1;

@@ -51,8 +51,8 @@ cvar_t cl_cursor							= CVAR  ("cl_cursor", "");
 cvar_t cl_cursorsize						= CVAR  ("cl_cursorsize", "32");
 cvar_t cl_cursorbias						= CVAR  ("cl_cursorbias", "4");
 
-cvar_t gl_nocolors							= CVAR  ("gl_nocolors", "0");
-cvar_t gl_part_flame						= CVARD  ("gl_part_flame", "1", "Enable particle emitting from models. Mainly used for torch and flame effects.");
+cvar_t gl_nocolors							= CVARF  ("gl_nocolors", "0", CVAR_ARCHIVE);
+cvar_t gl_part_flame						= CVARFD  ("gl_part_flame", "1", CVAR_ARCHIVE, "Enable particle emitting from models. Mainly used for torch and flame effects.");
 
 //opengl library, blank means try default.
 static cvar_t gl_driver						= CVARF ("gl_driver", "",
@@ -64,22 +64,22 @@ cvar_t mod_md3flags							= CVAR  ("mod_md3flags", "1");
 
 cvar_t r_ambient							= CVARF ("r_ambient", "0",
 												CVAR_CHEAT);
-cvar_t r_bloodstains						= CVAR  ("r_bloodstains", "1");
+cvar_t r_bloodstains						= CVARF  ("r_bloodstains", "1", CVAR_ARCHIVE);
 cvar_t r_bouncysparks						= CVARFD ("r_bouncysparks", "0",
 												CVAR_ARCHIVE,
 												"Enables particle interaction with world surfaces, allowing for bouncy particles.");
 cvar_t r_drawentities						= CVAR  ("r_drawentities", "1");
 cvar_t r_drawflat							= CVARF ("r_drawflat", "0",
-												CVAR_SEMICHEAT | CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
+												CVAR_ARCHIVE | CVAR_SEMICHEAT | CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM);
 cvar_t gl_miptexLevel						= CVAR  ("gl_miptexLevel", "0");
-cvar_t r_drawviewmodel						= CVAR  ("r_drawviewmodel", "1");
+cvar_t r_drawviewmodel						= CVARF  ("r_drawviewmodel", "1", CVAR_ARCHIVE);
 cvar_t r_drawviewmodelinvis					= CVAR  ("r_drawviewmodelinvis", "0");
 cvar_t r_dynamic							= CVARF ("r_dynamic", IFMINIMAL("0","1"),
 												CVAR_ARCHIVE);
 cvar_t r_fastturb							= CVARF ("r_fastturb", "0",
 												CVAR_SHADERSYSTEM);
 cvar_t r_fastsky							= CVARF ("r_fastsky", "0",
-												CVAR_SHADERSYSTEM);
+												CVAR_ARCHIVE | CVAR_SHADERSYSTEM);
 cvar_t r_fastskycolour						= CVARF ("r_fastskycolour", "0",
 												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
 cvar_t r_fb_bmodels							= CVARAF("r_fb_bmodels", "1",
@@ -101,16 +101,16 @@ cvar_t r_fullbright							= SCVARF ("r_fullbright", "0",
 cvar_t r_fullbrightSkins					= SCVARF ("r_fullbrightSkins", "0.8", /*don't default to 1, as it looks a little ugly (too bright), but don't default to 0 either because then you're handicapped in the dark*/
 												CVAR_SEMICHEAT|CVAR_SHADERSYSTEM);
 cvar_t r_lightmap_saturation				= SCVAR  ("r_lightmap_saturation", "1");
-cvar_t r_lightstylesmooth					= SCVAR  ("r_lightstylesmooth", "0");
+cvar_t r_lightstylesmooth					= CVARF  ("r_lightstylesmooth", "0", CVAR_ARCHIVE);
 cvar_t r_lightstylesmooth_limit				= SCVAR  ("r_lightstylesmooth_limit", "2");
 cvar_t r_lightstylespeed					= SCVAR  ("r_lightstylespeed", "10");
 cvar_t r_loadlits							= SCVAR  ("r_loadlit", "1");
 cvar_t r_menutint							= SCVARF ("r_menutint", "0.68 0.4 0.13",
 												CVAR_RENDERERCALLBACK);
 cvar_t r_netgraph							= SCVAR  ("r_netgraph", "0");
-cvar_t r_nolerp								= SCVAR  ("r_nolerp", "0");
-cvar_t r_nolightdir							= SCVAR  ("r_nolightdir", "0");
-cvar_t r_novis								= SCVAR  ("r_novis", "0");
+cvar_t r_nolerp								= CVARF  ("r_nolerp", "0", CVAR_ARCHIVE);
+cvar_t r_nolightdir							= CVARF  ("r_nolightdir", "0", CVAR_ARCHIVE);
+cvar_t r_novis								= CVARF ("r_novis", "0", CVAR_ARCHIVE);
 cvar_t r_part_rain							= CVARFD ("r_part_rain", "0",
 												CVAR_ARCHIVE,
 												"Enable particle effects to emit off of surfaces. Mainly used for weather or lava/slime effects.");
@@ -127,7 +127,7 @@ cvar_t r_wallcolour							= CVARAF ("r_wallcolour", "255 255 255",
 cvar_t r_walltexture						= CVARF ("r_walltexture", "",
 												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);	//FIXME: broken
 cvar_t r_wateralpha							= CVARF  ("r_wateralpha", "1",
-												CVAR_SHADERSYSTEM);
+												CVAR_ARCHIVE | CVAR_SHADERSYSTEM);
 cvar_t r_waterwarp							= CVARF ("r_waterwarp", "1",
 												CVAR_ARCHIVE);
 
@@ -237,7 +237,7 @@ cvar_t gl_detailscale						= CVAR  ("gl_detailscale", "5");
 cvar_t gl_font								= CVARF ("gl_font", "",
 												CVAR_RENDERERCALLBACK);
 cvar_t gl_lateswap							= CVAR  ("gl_lateswap", "0");
-cvar_t gl_lerpimages						= CVAR  ("gl_lerpimages", "1");
+cvar_t gl_lerpimages						= CVARF  ("gl_lerpimages", "1", CVAR_ARCHIVE);
 //cvar_t gl_lightmapmode						= SCVARF("gl_lightmapmode", "",
 //												CVAR_ARCHIVE);
 cvar_t gl_load24bit							= SCVARF ("gl_load24bit", "1",
@@ -262,8 +262,8 @@ cvar_t gl_overbright						= CVARFC ("gl_overbright", "1",
 												Surf_RebuildLightmap_Callback);
 cvar_t gl_overbright_all					= SCVARF ("gl_overbright_all", "0",
 												CVAR_ARCHIVE);
-cvar_t gl_picmip							= SCVAR  ("gl_picmip", "0");
-cvar_t gl_picmip2d							= SCVAR  ("gl_picmip2d", "0");
+cvar_t gl_picmip							= CVARF  ("gl_picmip", "0", CVAR_ARCHIVE);
+cvar_t gl_picmip2d							= CVARF  ("gl_picmip2d", "0", CVAR_ARCHIVE);
 cvar_t gl_nohwblend							= SCVAR  ("gl_nohwblend","1");
 cvar_t gl_savecompressedtex					= SCVAR  ("gl_savecompressedtex", "0");
 cvar_t gl_schematics						= SCVAR  ("gl_schematics", "0");
@@ -272,7 +272,7 @@ cvar_t gl_smoothcrosshair					= SCVAR  ("gl_smoothcrosshair", "1");
 cvar_t	gl_maxdist = SCVAR("gl_maxdist", "8192");
 
 #ifdef SPECULAR
-cvar_t gl_specular							= SCVAR  ("gl_specular", "0");
+cvar_t gl_specular							= CVARF  ("gl_specular", "1", CVAR_ARCHIVE);
 #endif
 
 // The callbacks are not in D3D yet (also ugly way of seperating this)
@@ -302,8 +302,8 @@ cvar_t r_lightprepass						= CVARFD("r_lightprepass", "0", CVAR_SHADERSYSTEM, "E
 cvar_t r_shadow_bumpscale_basetexture		= SCVAR  ("r_shadow_bumpscale_basetexture", "4");
 cvar_t r_shadow_bumpscale_bumpmap			= SCVAR  ("r_shadow_bumpscale_bumpmap", "10");
 
-cvar_t r_glsl_offsetmapping					= SCVAR  ("r_glsl_offsetmapping", "0");
-cvar_t r_glsl_offsetmapping_scale			= SCVAR  ("r_glsl_offsetmapping_scale", "0.04");
+cvar_t r_glsl_offsetmapping					= CVARF  ("r_glsl_offsetmapping", "0", CVAR_ARCHIVE);
+cvar_t r_glsl_offsetmapping_scale			= CVAR  ("r_glsl_offsetmapping_scale", "0.04");
 
 cvar_t r_shadow_realtime_world				= SCVARF ("r_shadow_realtime_world", "0", CVAR_ARCHIVE);
 cvar_t r_shadow_realtime_world_shadows		= SCVARF ("r_shadow_realtime_world_shadows", "1", CVAR_ARCHIVE);

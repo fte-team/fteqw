@@ -1263,12 +1263,19 @@ void MasterInfo_ProcessHTTPJSON(struct dl_download *dl)
 {
 	int len;
 	char *buf;
-	len = VFS_GETLEN(dl->file);
-	buf = malloc(len + 1);
-	VFS_READ(dl->file, buf, len);
-	buf[len] = 0;
-	jsonnode(0, buf);
-	free(buf);
+	if (dl->file)
+	{
+		len = VFS_GETLEN(dl->file);
+		buf = malloc(len + 1);
+		VFS_READ(dl->file, buf, len);
+		buf[len] = 0;
+		jsonnode(0, buf);
+		free(buf);
+	}
+	else
+	{
+		Con_Printf("Unable to query master at \"%s\"\n", dl->url);
+	}
 }
 
 // wrapper functions for the different server types

@@ -398,16 +398,10 @@ void R_SetupGL (void)
 		//		MYgluPerspective (yfov,  screenaspect,  4,  4096);
 
 				Matrix4x4_CM_Projection_Far(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value, gl_maxdist.value);
-
-				if (gl_config.arb_depth_clamp)
-					qglEnable(GL_DEPTH_CLAMP_ARB);
 			}
 			else
 			{
 				Matrix4x4_CM_Projection_Inf(r_refdef.m_projection, fov_x, fov_y, gl_mindist.value);
-
-				if (gl_config.arb_depth_clamp)
-					qglDisable(GL_DEPTH_CLAMP_ARB);
 			}
 		}
 		else

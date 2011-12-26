@@ -435,7 +435,7 @@ static void Surf_AddDynamicLightNorms (msurface_t *surf)
 		local[0] -= surf->texturemins[0];
 		local[1] -= surf->texturemins[1];
 
-		a = 256*(cl_dlights[lnum].color[0]*1.5 + cl_dlights[lnum].color[1]*2.95 + cl_dlights[lnum].color[2]*0.55);
+		a = 256*(cl_dlights[lnum].color[0]*NTSC_RED + cl_dlights[lnum].color[1]*NTSC_GREEN + cl_dlights[lnum].color[2]*NTSC_BLUE);
 
 		for (t = 0 ; t<tmax ; t++)
 		{
@@ -510,9 +510,9 @@ static void Surf_AddDynamicLightsColours (msurface_t *surf)
 		local[0] -= surf->texturemins[0];
 		local[1] -= surf->texturemins[1];
 
-		r = cl_dlights[lnum].color[0]*3*256;
-		g = cl_dlights[lnum].color[1]*3*256;
-		b = cl_dlights[lnum].color[2]*3*256;
+		r = cl_dlights[lnum].color[0]*256;
+		g = cl_dlights[lnum].color[1]*256;
+		b = cl_dlights[lnum].color[2]*256;
 
 /*		if (cl_dlights[lnum].type == 1)	//a wierd effect.
 		{

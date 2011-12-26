@@ -200,6 +200,8 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(skeletonindex)		/*FTE_CSQC_SKELETONOBJECTS*/\
 	comfieldvector(colormod)\
 	comfieldfloat(pmove_flags)/*EXT_CSQC_1*/\
+	comfieldfloat(friction)/*DP_...PHYSICS*/\
+	comfieldfloat(erp)/*DP_...PHYSICS*/\
 	comfieldfloat(jointtype)/*DP_...PHYSICS*/\
 	comfieldfloat(mass)/*DP_...PHYSICS*/\
 	comfieldfloat(bouncefactor)/*DP_...PHYSICS*/\
@@ -385,6 +387,7 @@ typedef struct {
 	vec_t ode_movelimit; // smallest component of (maxs[]-mins[])
 	float ode_offsetmatrix[16];
 	float ode_offsetimatrix[16];
+	float ode_friction;
 	int ode_joint_type;
 	int ode_joint_enemy;
 	int ode_joint_aiment;

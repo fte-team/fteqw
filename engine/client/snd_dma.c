@@ -64,12 +64,12 @@ cvar_t bgmvolume				= CVARFD(	"musicvolume", "0", CVAR_ARCHIVE,
 cvar_t volume					= CVARFD(	"volume", "0.7", CVAR_ARCHIVE,
 											"Main volume level for all engine sound.");
 
-cvar_t nosound					= CVARD(	"nosound", "0",
+cvar_t nosound					= CVARFD(	"nosound", "0", CVAR_ARCHIVE,
 											"Disable all sound from the engine.");
 cvar_t precache					= CVARAF(	"s_precache", "1",
 											"precache", 0);
 cvar_t loadas8bit				= CVARAFD(	"s_loadas8bit", "0",
-											"loadas8bit", 0,
+											"loadas8bit", CVAR_ARCHIVE,
 											"Downsample sounds on load as lower quality 8-bit sound.");
 cvar_t ambient_level			= CVARAF(	"s_ambientlevel", "0.3",
 											"ambient_level", 0);
@@ -116,11 +116,11 @@ static void S_Voip_Play_Callback(cvar_t *var, char *oldval);
 cvar_t cl_voip_send = CVARD("cl_voip_send", "0", "Sends voice-over-ip data to the server whenever it is set");
 cvar_t cl_voip_vad_threshhold = CVARD("cl_voip_vad_threshhold", "15", "This is the threshhold for voice-activation-detection when sending voip data");
 cvar_t cl_voip_vad_delay = CVARD("cl_voip_vad_delay", "0.3", "Keeps sending voice data for this many seconds after voice activation would normally stop");
-cvar_t cl_voip_capturingvol = CVARD("cl_voip_capturingvol", "0.5", "Volume multiplier applied while capturing, to avoid your audio from being heard by others");
-cvar_t cl_voip_showmeter = CVARD("cl_voip_showmeter", "1", "Shows your speech volume above the hud. 0=hide, 1=show when transmitting, 2=ignore voice-activation disable");
+cvar_t cl_voip_capturingvol = CVARAFD("cl_voip_capturingvol", "0.5", NULL, CVAR_ARCHIVE, "Volume multiplier applied while capturing, to avoid your audio from being heard by others");
+cvar_t cl_voip_showmeter = CVARAFD("cl_voip_showmeter", "1", NULL, CVAR_ARCHIVE, "Shows your speech volume above the hud. 0=hide, 1=show when transmitting, 2=ignore voice-activation disable");
 
-cvar_t cl_voip_play = CVARCD("cl_voip_play", "1", S_Voip_Play_Callback, "Enables voip playback.");
-cvar_t cl_voip_micamp = CVARD("cl_voip_micamp", "2", "Amplifies your microphone when using voip.");
+cvar_t cl_voip_play = CVARAFDC("cl_voip_play", "1", NULL, CVAR_ARCHIVE, "Enables voip playback.", S_Voip_Play_Callback);
+cvar_t cl_voip_micamp = CVARAFDC("cl_voip_micamp", "2", NULL, CVAR_ARCHIVE, "Amplifies your microphone when using voip.", 0);
 #endif
 
 extern vfsfile_t *rawwritefile;

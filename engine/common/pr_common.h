@@ -449,5 +449,8 @@ enum lightfield_e
 	lfield_flags=3,
 	lfield_style=4,
 	lfield_angles=5,
-	lfield_fov=6
+	lfield_fov=6,
+	lfield_corona=7,
+	lfield_coronascale=8,
+	lfield_cubemapname=9
 };

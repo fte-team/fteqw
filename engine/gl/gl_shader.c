@@ -1083,7 +1083,6 @@ struct sbuiltin_s
 	},
 /*draws a wall, with lightmap.*/
 	{QR_OPENGL/*ES*/, 100, "defaultwall",
-		"!!cvarf gl_overbright\n"
 		"#ifdef VERTEX_SHADER\n"
 			"attribute vec2 v_texcoord;\n"
 			"attribute vec2 v_lmcoord;\n"
@@ -1104,26 +1103,43 @@ struct sbuiltin_s
 			//"uniform sampler2D s_t3;\n" /*tex_deluxmap*/
 			//"uniform sampler2D s_t4;\n" /*tex_fullbright*/
 			"varying mediump vec2 tc, lm;\n"
-			"uniform mediump float cvar_gl_overbright;\n"
+			"uniform mediump float e_lmscale;\n"
 
 			"void main ()\n"
 			"{\n"
-			"	mediump float scale = exp2(floor(clamp(cvar_gl_overbright, 0.0, 2.0)));\n"
-			"	gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm) * vec4(scale, scale, scale, 1);\n"
+			"	gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm) * vec4(e_lmscale, e_lmscale, e_lmscale, 1);\n"
 			"}\n"
 		"#endif\n"
 	},
 	{QR_OPENGL, 110, "defaultwall",
-		"!!cvarf gl_overbright\n"
+		"!!permu OFFSETMAPPING\n"
+		"!!permu FULLBRIGHT\n"
 		"!!permu FOG\n"
+		"!!cvarf r_glsl_offsetmapping_scale\n"
 		"#include \"sys/fog.h\"\n"
+		"#if defined(OFFSETMAPPING)\n"
+			"varying vec3 eyevector;\n"
+		"#endif\n"
+
 		"#ifdef VERTEX_SHADER\n"
 			"attribute vec2 v_texcoord;\n"
 			"attribute vec2 v_lmcoord;\n"
 			"varying vec2 tc, lm;\n"
 
+			"#if defined(OFFSETMAPPING)\n"
+			"uniform vec3 e_eyepos;\n"
+			"attribute vec3 v_normal;\n"
+			"attribute vec3 v_svector;\n"
+			"attribute vec3 v_tvector;\n"
+			"#endif\n"
 			"void main ()\n"
 			"{\n"
+			"#if defined(OFFSETMAPPING)\n"
+				"vec3 eyeminusvertex = e_eyepos - v_position.xyz;\n"
+				"eyevector.x = dot(eyeminusvertex, v_svector.xyz);\n"
+				"eyevector.y = -dot(eyeminusvertex, v_tvector.xyz);\n"
+				"eyevector.z = dot(eyeminusvertex, v_normal.xyz);\n"
+			"#endif\n"
 			"	tc = v_texcoord;\n"
 			"	lm = v_lmcoord;\n"
 			"	gl_Position = ftetransform();\n"
@@ -1133,21 +1149,44 @@ struct sbuiltin_s
 		"#ifdef FRAGMENT_SHADER\n"
 			"uniform sampler2D s_t0;\n" /*tex_diffuse*/
 			"uniform sampler2D s_t1;\n" /*tex_lightmap*/
-			//"uniform sampler2D s_t2;\n" /*tex_normalmap*/
+			"#ifdef OFFSETMAPPING\n"
+			"uniform sampler2D s_t2;\n" /*tex_normalmap*/
+			"#endif\n"
 			//"uniform sampler2D s_t3;\n" /*tex_deluxmap*/
-			//"uniform sampler2D s_t4;\n" /*tex_fullbright*/
+			"#ifdef FULLBRIGHT\n"
+			"uniform sampler2D s_t4;\n" /*tex_fullbright*/
+			"#endif\n"
 			"varying vec2 tc, lm;\n"
-			"uniform float cvar_gl_overbright;\n"
+			"uniform float e_lmscale;\n"
+
+			"#ifdef OFFSETMAPPING\n"
+			"uniform float cvar_r_glsl_offsetmapping_scale;\n"
+			"#endif\n"
 
 			"void main ()\n"
 			"{\n"
-			"	float scale = exp2(floor(clamp(cvar_gl_overbright, 0.0, 2.0)));\n"
-			"	gl_FragColor = fog4(texture2D(s_t0, tc) * texture2D(s_t1, lm) * vec4(scale, scale, scale, 1));\n"
+			"#ifdef OFFSETMAPPING\n"
+				"vec2 OffsetVector = normalize(eyevector).xy * cvar_r_glsl_offsetmapping_scale * vec2(1, -1);\n"
+				"vec2 tcoffsetmap = tc;\n"
+			"#define tc tcoffsetmap\n"
+				"tc += OffsetVector;\n"
+				"OffsetVector *= 0.333;\n"
+				"tc -= OffsetVector * texture2D(s_t2, tc).w;\n"
+				"tc -= OffsetVector * texture2D(s_t2, tc).w;\n"
+				"tc -= OffsetVector * texture2D(s_t2, tc).w;\n"
+			"#endif\n"
+
+			"	gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm) * vec4(e_lmscale, e_lmscale, e_lmscale, 1);\n"
+			"#ifdef FULLBRIGHT\n"
+			"	gl_FragColor.rgb += texture2D(s_t4, tc).rgb;\n"
+			"#endif\n"
+			"#ifdef FOG\n"
+				"gl_FragColor = fog4(gl_FragColor);\n"
+			"#endif\n"
 			"}\n"
 		"#endif\n"
 	},
 	{QR_OPENGL, 110, "drawflat_wall",
-		"!!cvarf gl_overbright\n"
 		"!!cvarv r_floorcolor\n"
 		"!!cvarv r_wallcolor\n"
 		"!!permu FOG\n"
@@ -1159,12 +1198,11 @@ struct sbuiltin_s
 			"varying vec2 lm;\n"
 			"uniform vec3 cvar_r_wallcolor;\n"
 			"uniform vec3 cvar_r_floorcolor;\n"
-			"uniform float cvar_gl_overbright;\n"
+			"uniform float e_lmscale;\n"
 			
 			"void main ()\n"
 			"{\n"
-			"	float scale = exp2(floor(clamp(cvar_gl_overbright, 0.0, 2.0))) / 255.0;\n"
-			"	col = scale * vec4((v_normal.z < 0.73)?cvar_r_wallcolor:cvar_r_floorcolor, 1.0);\n"
+			"	col = vec4(e_lmscale/255.0 * ((v_normal.z < 0.73)?cvar_r_wallcolor:cvar_r_floorcolor), 1.0);\n"
 			"	lm = v_lmcoord;\n"
 			"	gl_Position = ftetransform();\n"
 			"}\n"
@@ -1653,7 +1691,6 @@ struct sbuiltin_s
 		"#endif\n"
 	},
 	{QR_OPENGL, 110, "lpp_wall",
-		"!!cvarf gl_overbright\n"
 		"varying vec2 tc, lm;\n"
 		"varying vec4 tf;\n"
 		"#ifdef VERTEX_SHADER\n"
@@ -1675,11 +1712,10 @@ struct sbuiltin_s
 			//"uniform sampler2D s_t3;\n" /*tex_normalmap*/
 			//"uniform sampler2D s_t4;\n" /*tex_deluxmap*/
 			//"uniform sampler2D s_t5;\n" /*tex_fullbright*/
-			"uniform float cvar_gl_overbright;\n"
+			"uniform float e_lmscale;\n"
 
 			"void main ()\n"
 			"{\n"
-				"float lmscale = exp2(floor(clamp(cvar_gl_overbright, 0.0, 2.0)));\n"
 				//"gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm) * vec4(scale, scale, scale, 1.0);\n"
 
 				"vec2 nst;\n"
@@ -1819,6 +1855,229 @@ struct sbuiltin_s
 			"	vec4 clouds = texture2D(s_t1, tccoord);\n"
 
 			"	gl_FragColor.rgb = (solid.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb);\n"
+			"}\n"
+		"#endif\n"
+	},
+	{QR_OPENGL, 110, "rtlight",
+	/*
+	texture units:
+	s0=diffuse, s1=normal, s2=specular, s3=shadowmap
+	custom modifiers:
+	PCF(shadowmap)
+	*/
+		"!!permu BUMP\n"
+		"!!permu SPECULAR\n"
+		"!!permu OFFSETMAPPING\n"
+		"!!permu SKELETAL\n"
+		"!!permu FOG\n"
+
+		"!!cvarf r_glsl_offsetmapping_scale\n"
+		"varying vec2 tcbase;\n"
+		"varying vec3 lightvector;\n"
+		"#if defined(SPECULAR) || defined(OFFSETMAPPING)\n"
+			"varying vec3 eyevector;\n"
+		"#endif\n"
+		"#ifdef PCF\n"
+			"varying vec4 vshadowcoord;\n"
+			"uniform mat4 entmatrix;\n"
+		"#endif\n"
+
+		"#ifdef VERTEX_SHADER\n"
+			"#include \"sys/skeletal.h\"\n"
+
+			"uniform vec3 l_lightposition;\n"
+			"attribute vec2 v_texcoord;\n"
+
+			"#if defined(SPECULAR) || defined(OFFSETMAPPING)\n"
+			"uniform vec3 e_eyepos;\n"
+			"#endif\n"
+
+			"void main ()\n"
+			"{\n"
+				"vec3 n, s, t, w;\n"
+				"gl_Position = skeletaltransform_wnst(w,n,s,t);\n"
+			
+				"tcbase = v_texcoord;	//pass the texture coords straight through\n"
+			
+				"vec3 lightminusvertex = l_lightposition - w.xyz;\n"
+				"lightvector.x = dot(lightminusvertex, s.xyz);\n"
+				"lightvector.y = dot(lightminusvertex, t.xyz);\n"
+				"lightvector.z = dot(lightminusvertex, n.xyz);\n"
+
+			"#if defined(SPECULAR)||defined(OFFSETMAPPING)\n"
+				"vec3 eyeminusvertex = e_eyepos - w.xyz;\n"
+				"eyevector.x = dot(eyeminusvertex, s.xyz);\n"
+				"eyevector.y = -dot(eyeminusvertex, t.xyz);\n"
+				"eyevector.z = dot(eyeminusvertex, n.xyz);\n"
+			"#endif\n"
+			"#if defined(PCF) || defined(SPOT) || defined(PROJECTION)\n"
+				"vshadowcoord = gl_TextureMatrix[7] * (entmatrix*vec4(w.xyz, 1.0));\n"
+			"#endif\n"
+			"}\n"
+		"#endif\n"
+
+/*this is full 4*4 PCF, with an added attempt at prenumbra*/
+/*the offset consts are 1/(imagesize*2) */
+#define PCF16P(f)	"\
+	float xPixelOffset = (1.0+shadowcoord.b/l_lightradius)/texx;\
+	float yPixelOffset = (1.0+shadowcoord.b/l_lightradius)/texy;\
+	float s = 0.0;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-1.5 * xPixelOffset * shadowcoord.w, -1.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-1.5 * xPixelOffset * shadowcoord.w, -0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-1.5 * xPixelOffset * shadowcoord.w, 0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-1.5 * xPixelOffset * shadowcoord.w, 1.1 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-0.5 * xPixelOffset * shadowcoord.w, -1.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-0.5 * xPixelOffset * shadowcoord.w, -0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-0.5 * xPixelOffset * shadowcoord.w, 0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-0.5 * xPixelOffset * shadowcoord.w, 1.1 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+\
+	s += "f"Proj(s_t7, shadowcoord + vec4(0.5 * xPixelOffset * shadowcoord.w, -1.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(0.5 * xPixelOffset * shadowcoord.w, -0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(0.5 * xPixelOffset * shadowcoord.w, 0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(0.5 * xPixelOffset * shadowcoord.w, 1.1 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+\
+	s += "f"Proj(s_t7, shadowcoord + vec4(1.5 * xPixelOffset * shadowcoord.w, -1.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(1.5 * xPixelOffset * shadowcoord.w, -0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(1.5 * xPixelOffset * shadowcoord.w, 0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(1.5 * xPixelOffset * shadowcoord.w, 1.1 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+\
+	colorscale *= s/5.0;\n\
+	"
+
+/*this is pcf 3*3*/
+/*the offset consts are 1/(imagesize*2) */
+#define PCF9(f)	"\
+	const float xPixelOffset = 1.0/texx;\
+	const float yPixelOffset = 1.0/texy;\
+	float s = 0.0;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, 0.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+\
+	s += "f"Proj(s_t7, shadowcoord + vec4(0.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(0.0 * xPixelOffset * shadowcoord.w, 0.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(0.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+\
+	s += "f"Proj(s_t7, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, 0.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	colorscale *= s/9.0;\n\
+	"
+
+/*this is a lazy form of pcf. take 5 samples in an x*/
+/*the offset consts are 1/(imagesize*2) */
+#define PCF5(f)	"\
+	float xPixelOffset = 1.0/texx;\
+	float yPixelOffset = 1.0/texy;\
+	float s = 0.0;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(0.0 * xPixelOffset * shadowcoord.w, 0.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	s += "f"Proj(s_t7, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
+	colorscale *= s/5.0;\n\
+	"
+
+/*this is unfiltered*/
+#define PCF1(f)	"\
+	colorscale *= "f"Proj(shadowmap, shadowcoord).r;\n"
+
+		"#ifdef FRAGMENT_SHADER\n"
+			"#include \"sys/fog.h\"\n"
+			"uniform sampler2D s_t0;\n"/*base texture*/
+			"#if defined(BUMP) || defined(SPECULAR) || defined(OFFSETMAPPING)\n"
+			"uniform sampler2D s_t1;\n"/*normalmap/height texture*/
+			"#endif\n"
+			"#ifdef SPECULAR\n"
+			"uniform sampler2D s_t2;\n"/*specularmap texture*/
+			"#endif\n"
+			"#ifdef PROJECTION\n"
+			"uniform sampler2D s_t3;\n"/*projected texture*/
+			"#endif\n"
+			"#ifdef PCF\n"
+			"#ifdef CUBE\n"
+			"uniform samplerCubeShadow s_t7;\n"
+			"#else\n"
+			"uniform sampler2DShadow s_t7;\n"
+			"#endif\n"
+			"#endif\n"
+
+
+			"uniform float l_lightradius;\n"
+			"uniform vec3 l_lightcolour;\n"
+
+			"#ifdef OFFSETMAPPING\n"
+			"uniform float cvar_r_glsl_offsetmapping_scale;\n"
+			"#endif\n"
+
+			"void main ()\n"
+			"{\n"
+			"#ifdef OFFSETMAPPING\n"
+				"vec2 OffsetVector = normalize(eyevector).xy * cvar_r_glsl_offsetmapping_scale * vec2(1, -1);\n"
+				"vec2 tcoffsetmap = tcbase;\n"
+			"#define tcbase tcoffsetmap\n"
+				"tcbase += OffsetVector;\n"
+				"OffsetVector *= 0.333;\n"
+				"tcbase -= OffsetVector * texture2D(s_t1, tcbase).w;\n"
+				"tcbase -= OffsetVector * texture2D(s_t1, tcbase).w;\n"
+				"tcbase -= OffsetVector * texture2D(s_t1, tcbase).w;\n"
+			"#endif\n"
+
+
+			"#ifdef BUMP\n"
+				"vec3 bases = vec3(texture2D(s_t0, tcbase));\n"
+			"#else\n"
+				"vec3 diff = vec3(texture2D(s_t0, tcbase));\n"
+			"#endif\n"
+			"#if defined(BUMP) || defined(SPECULAR)\n"
+				"vec3 bumps = vec3(texture2D(s_t1, tcbase)) * 2.0 - 1.0;\n"
+			"#endif\n"
+			"#ifdef SPECULAR\n"
+				"vec3 specs = vec3(texture2D(s_t2, tcbase));\n"
+			"#endif\n"
+
+				"vec3 nl = normalize(lightvector);\n"
+				"float colorscale = max(1.0 - dot(lightvector, lightvector)/(l_lightradius*l_lightradius), 0.0);\n"
+
+			"#ifdef BUMP\n"
+				"vec3 diff;\n"
+				"diff = bases * max(dot(bumps, nl), 0.0);\n"
+			"#endif\n"
+			"#ifdef SPECULAR\n"
+				"vec3 halfdir = (normalize(eyevector) + normalize(lightvector))/2.0;\n"
+				"float dv = dot(halfdir, bumps);\n"
+				"diff += pow(dv, 8.0) * specs;\n"
+			"#endif\n"
+
+			"#ifdef PCF\n"
+			"#if defined(SPOT)\n"
+			"const float texx = 512.0;\n"
+			"const float texy = 512.0;\n"
+			"vec4 shadowcoord = vshadowcoord;\n"
+			"#else\n"
+			"const float texx = 512.0;\n"
+			"const float texy = 512.0;\n"
+			"vec4 shadowcoord;\n"
+			"shadowcoord.zw = vshadowcoord.zw;\n"
+			"shadowcoord.xy = vshadowcoord.xy;\n"
+			"#endif\n"
+			"#ifdef CUBE\n"
+			PCF9("shadowCube") /*valid are 1,5,9*/
+			"#else\n"
+			PCF9("shadow2D") /*valid are 1,5,9*/
+			"#endif\n"
+			"#endif\n"
+			"#if defined(SPOT)\n"
+			/*Actually, this isn't correct*/
+			"if (shadowcoord.w < 0.0) discard;\n"
+			"vec2 spot = ((shadowcoord.st)/shadowcoord.w - 0.5)*2.0;colorscale*=1.0-(dot(spot,spot));\n"
+			"#endif\n"
+			"#if defined(PROJECTION)\n"
+				"l_lightcolour *= texture2d(s_t3, shadowcoord);\n"
+			"#endif\n"
+
+				"gl_FragColor.rgb = fog3additive(diff*colorscale*l_lightcolour);\n"
 			"}\n"
 		"#endif\n"
 	},
@@ -2014,20 +2273,29 @@ static program_t *Shader_LoadGeneric(char *name, int qrtype)
 	}
 	else
 	{
+		int matchlen;
+		char *h = strchr(name, '#');
+		if (h)
+			matchlen = h - name;
+		else
+			matchlen = strlen(name) + 1;
 		for (i = 0; *sbuiltins[i].name; i++)
 		{
-			if (sbuiltins[i].qrtype == qrenderer && !strcmp(sbuiltins[i].name, name))
+			if (sbuiltins[i].qrtype == qrenderer && !strncmp(sbuiltins[i].name, name, matchlen))
 			{
 #ifdef GLQUAKE
-				if (gl_config.gles)
+				if (qrenderer == QR_OPENGL)
 				{
-					if (sbuiltins[i].apiver != 100)
-						continue;
-				}
-				else
-				{
-					if (sbuiltins[i].apiver == 100)
-						continue;
+					if (gl_config.gles)
+					{
+						if (sbuiltins[i].apiver != 100)
+							continue;
+					}
+					else
+					{
+						if (sbuiltins[i].apiver == 100)
+							continue;
+					}
 				}
 #endif
 				Shader_LoadPermutations(name, &g->prog, sbuiltins[i].body, sbuiltins[i].qrtype, sbuiltins[i].apiver);
@@ -2109,6 +2377,7 @@ struct shader_field_names_s shader_field_names[] =
 	{"w_fog",					SP_W_FOG},
 
 	/*ent properties*/
+	{"e_lmscale",				SP_E_LMSCALE}, /*overbright shifting*/
 	{"e_origin",				SP_E_ORIGIN},
 	{"e_time",					SP_E_TIME},
 	{"e_eyepos",				SP_E_EYEPOS},
@@ -4877,9 +5146,6 @@ void Shader_Default2D(char *shortname, shader_t *s, const void *genargs)
 		unsigned char data[4*4] = {0};
 		TEXASSIGN(s->defaulttextures.base, R_LoadTexture8("black", 4, 4, data, 0, 0));
 		s->flags |= SHADER_NOIMAGE;
-
-		s->width = 64;
-		s->height = 64;
 	}
 	else
 	{
@@ -5225,7 +5491,26 @@ cin_t *R_ShaderFindCinematic(char *name)
 
 shader_t *R_RegisterPic (char *name)
 {
-	return &r_shaders[R_LoadShader (name, Shader_Default2D, NULL)];
+	shader_t *shader;
+
+	/*don't get confused by other shaders*/
+	image_width = 64;
+	image_height = 64;
+
+	shader = &r_shaders[R_LoadShader (name, Shader_Default2D, NULL)];
+
+	/*worth a try*/
+	if (shader->width <= 0)
+		shader->width = image_width;
+	if (shader->height <= 0)
+		shader->height = image_height;
+
+	/*last ditch attempt*/
+	if (shader->width <= 0)
+		shader->width = 64;
+	if (shader->height <= 0)
+		shader->height = 64;
+	return shader;
 }
 
 shader_t *R_RegisterShader (char *name, const char *shaderscript)

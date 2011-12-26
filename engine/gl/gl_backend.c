@@ -20,6 +20,7 @@
 
 extern cvar_t gl_overbright;
 
+#if 0
 #define LIGHTPASS_GLSL_SHARED	"\
 varying vec2 tcbase;\n\
 varying vec3 lightvector;\n\
@@ -241,26 +242,11 @@ char *defaultglsl2program =
 	LIGHTPASS_GLSL_SHARED LIGHTPASS_GLSL_VERTEX LIGHTPASS_GLSL_FRAGMENT
 	;
 
-//!!permu LOWER
-//!!permu UPPER
+#endif
 
 static const char LIGHTPASS_SHADER[] = "\
 {\n\
-	program\n\
-	{\n\
-		!!permu BUMP\n\
-		!!permu SPECULAR\n\
-		!!permu FULLBRIGHT\n\
-		!!permu OFFSETMAPPING\n\
-		!!permu SKELETAL\n\
-		!!permu FOG\n\
-	#define LIGHTPASS\n\
-	%s\n\
-	}\n\
-\
-	param opt cvarf r_glsl_offsetmapping_bias offsetmapping_bias\n\
-	param opt cvarf r_glsl_offsetmapping_scale offsetmapping_scale\n\
-\
+	program rtlight%s\n\
 	{\n\
 		map $diffuse\n\
 		blendfunc add\n\
@@ -274,19 +260,16 @@ static const char LIGHTPASS_SHADER[] = "\
 }";
 static const char PCFPASS_SHADER[] = "\
 {\n\
+	program rtlight#PCF%s\n"/*\
 	program\n\
 	{\n\
 	#define LIGHTPASS\n\
 	//#define CUBE\n\
 	#define PCF\n\
 	%s%s\n\
-	}\n\
+	}\n*/"\
 \
-	//incoming fragment\n\
-\
-	param opt cvarf r_glsl_offsetmapping_scale offsetmapping_scale\n\
-\
-	//eye pos\n\
+	/*eye pos*/\n\
 	param opt entmatrix entmatrix\n\
 \
 	{\n\
@@ -1063,20 +1046,20 @@ static float *FTableForFunc ( unsigned int func )
 void Shader_LightPass_Std(char *shortname, shader_t *s, const void *args)
 {
 	char shadertext[8192*2];
-	sprintf(shadertext, LIGHTPASS_SHADER, defaultglsl2program);
+	sprintf(shadertext, LIGHTPASS_SHADER, "");
 //	FS_WriteFile("shader/lightpass.shader.builtin", shadertext, strlen(shadertext), FS_GAMEONLY);
 	Shader_DefaultScript(shortname, s, shadertext);
 }
 void Shader_LightPass_PCF(char *shortname, shader_t *s, const void *args)
 {
 	char shadertext[8192*2];
-	sprintf(shadertext, PCFPASS_SHADER, "", defaultglsl2program);
+	sprintf(shadertext, PCFPASS_SHADER, "");
 	Shader_DefaultScript(shortname, s, shadertext);
 }
 void Shader_LightPass_Spot(char *shortname, shader_t *s, const void *args)
 {
 	char shadertext[8192*2];
-	sprintf(shadertext, PCFPASS_SHADER, "#define SPOT\n", defaultglsl2program);
+	sprintf(shadertext, PCFPASS_SHADER, "#SPOT");
 	Shader_DefaultScript(shortname, s, shadertext);
 }
 
@@ -2520,6 +2503,13 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 		}
 		break;
 
+	case SP_E_LMSCALE:
+		if (shaderstate.curentity->model && shaderstate.curentity->model->engineflags & MDLF_NEEDOVERBRIGHT)
+			qglUniform1fARB(p->handle[perm], 1<<bound(0, gl_overbright.ival, 2));
+		else
+			qglUniform1fARB(p->handle[perm], 1.0f);
+		break;
+
 	case SP_E_GLOWMOD:
 		qglUniform3fvARB(p->handle[perm], 1, (GLfloat*)shaderstate.curentity->glowmod);
 		break;
@@ -2598,7 +2588,7 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 		qglUniform3fvARB(p->handle[perm], 1, shaderstate.lightcolours);
 		break;
 	case SP_W_FOG:
-		qglUniform4fvARB(p->handle[perm], 1, r_refdef.gfog_rgb);
+		qglUniform4fvARB(p->handle[perm], 1, r_refdef.gfog_rgbd);
 		break;
 	case SP_V_EYEPOS:
 		qglUniform3fvARB(p->handle[perm], 1, r_origin);
@@ -2696,7 +2686,7 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 		perm |= PERMUTATION_LOWER;
 	if (TEXVALID(shaderstate.curtexnums->upperoverlay) && p->handle[perm|PERMUTATION_UPPER].glsl)
 		perm |= PERMUTATION_UPPER;
-	if (r_refdef.gfog_alpha && p->handle[perm|PERMUTATION_FOG].glsl)
+	if (r_refdef.gfog_rgbd[3] && p->handle[perm|PERMUTATION_FOG].glsl)
 		perm |= PERMUTATION_FOG;
 	if (r_glsl_offsetmapping.ival && TEXVALID(shaderstate.curtexnums->bump) && p->handle[perm|PERMUTATION_OFFSET].glsl)
 		perm |= PERMUTATION_OFFSET;

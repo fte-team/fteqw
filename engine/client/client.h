@@ -270,11 +270,13 @@ typedef struct dlight_s
 	float	coronascale;
 
 	unsigned int flags;
+	char	cubemapname[64];
 
 	//the following are used for rendering (client code should clear on create)
 	qboolean rebuildcache;
 	struct	shadowmesh_s *worldshadowmesh;
 	texid_t stexture;
+	texid_t cubetexture;
 	struct {
 		float updatetime;
 	} face [6];

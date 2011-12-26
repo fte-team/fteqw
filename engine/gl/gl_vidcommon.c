@@ -179,7 +179,6 @@ qlpMTex2FUNC	qglMultiTexCoord2fARB;
 lpMTexFUNC qglMTexCoord2fSGIS;
 lpSelTexFUNC qglSelectTextureSGIS;
 int mtexid0;
-int mtexid1;
 
 //ati_truform
 FTEPFNGLPNTRIANGLESIATIPROC qglPNTrianglesiATI;
@@ -380,7 +379,6 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 	qglMTexCoord2fSGIS = NULL;
 	qglSelectTextureSGIS = NULL;
 	mtexid0 = 0;
-	mtexid1 = 0;
 
 	//no GL_ATI_separate_stencil
 	qglStencilOpSeparateATI = NULL;
@@ -443,7 +441,6 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 		qglClientActiveTextureARB = (void *) getglext("glClientActiveTexture");
 		qglSelectTextureSGIS = qglActiveTextureARB;
 		mtexid0 = GL_TEXTURE0_ARB;
-		mtexid1 = GL_TEXTURE1_ARB;
 	}
 	else if (GL_CheckExtension("GL_ARB_multitexture") && !COM_CheckParm("-noamtex"))
 	{	//ARB multitexture is the popular choice.
@@ -459,7 +456,6 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 		qglSelectTextureSGIS = qglActiveTextureARB;
 
 		mtexid0 = GL_TEXTURE0_ARB;
-		mtexid1 = GL_TEXTURE1_ARB;
 
 		if (!qglActiveTextureARB || !qglClientActiveTextureARB || !qglMultiTexCoord2fARB)
 		{
@@ -485,7 +481,6 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 		gl_mtexable = true;
 
 		mtexid0 = GL_TEXTURE0_SGIS;
-		mtexid1 = GL_TEXTURE1_SGIS;
 	}
 
 	if (GL_CheckExtension("GL_EXT_stencil_wrap"))
@@ -496,8 +491,9 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 	if (GL_CheckExtension("GL_EXT_stencil_two_side"))
 		qglActiveStencilFaceEXT = (void *) getglext("glActiveStencilFaceEXT");
 
-	if (GL_CheckExtension("GL_ARB_depth_clamp") || GL_CheckExtension("GL_NV_depth_clamp"))
-		gl_config.arb_depth_clamp = true;
+	/*not enabled - its only useful for shadow volumes, but (on nvidia) it affects the depth values even when not clamped which results in shadow z-fighting. best rely upon infinite projection matricies instead*/
+//	if (GL_CheckExtension("GL_ARB_depth_clamp") || GL_CheckExtension("GL_NV_depth_clamp"))
+//		gl_config.arb_depth_clamp = true;
 
 	if (GL_CheckExtension("GL_ARB_texture_compression"))
 	{
@@ -967,7 +963,26 @@ GLhandleARB GLSlang_CreateShader (char *name, int ver, char **precompilerconstan
 
 	shader = qglCreateShaderObjectARB(shadertype);
 
-	qglShaderSourceARB(shader, strings, prstrings, length);
+	if (1)//gl_workaround_ati_shadersource.ival)
+	{
+		char *combined;
+		int totallen = 1;
+		for (i = 0; i < strings; i++)
+			totallen += length[i];
+		combined = malloc(totallen);
+		totallen = 0;
+		combined[totallen] = 0;
+		for (i = 0; i < strings; i++)
+		{
+			memcpy(combined + totallen, prstrings[i], length[i]);
+			totallen += length[i];
+			combined[totallen] = 0;
+		}
+		qglShaderSourceARB(shader, 1, &combined, NULL);
+		free(combined);
+	}
+	else
+		qglShaderSourceARB(shader, strings, prstrings, length);
 	qglCompileShaderARB(shader);
 
 	qglGetShaderParameteriv_(shader, GL_OBJECT_COMPILE_STATUS_ARB, &compiled);
@@ -1050,6 +1065,8 @@ GLhandleARB GLSlang_CreateProgramObject (GLhandleARB vert, GLhandleARB frag)
 	{
 		qglGetProgramInfoLog_(program, sizeof(str), NULL, str);
 		Con_Printf("Program link error: %s\n", str);
+
+		qglDeleteProgramObject_(program);
 
 		return (GLhandleARB)0;
 	}

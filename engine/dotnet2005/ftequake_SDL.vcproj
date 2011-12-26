@@ -19407,6 +19407,10 @@
 					>
 				</File>
 				<File
+					RelativePath="..\client\pr_skelobj.c"
+					>
+				</File>
+				<File
 					RelativePath="..\common\q1bsp.c"
 					>
 					<FileConfiguration
@@ -30667,6 +30671,7 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="MinGLDebug_SDL|x64"
+							ExcludedFromBuild="true"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -30685,6 +30690,7 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="D3DDebug_SDL|x64"
+							ExcludedFromBuild="true"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -30703,6 +30709,7 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="MinGLRelease_SDL|x64"
+							ExcludedFromBuild="true"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -30721,6 +30728,7 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="GLDebug_SDL|x64"
+							ExcludedFromBuild="true"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -30759,6 +30767,7 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="MRelease_SDL|x64"
+							ExcludedFromBuild="true"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -30797,6 +30806,7 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="MDebug_SDL|x64"
+							ExcludedFromBuild="true"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -30815,6 +30825,7 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="GLRelease_SDL|x64"
+							ExcludedFromBuild="true"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -30833,6 +30844,7 @@
 						</FileConfiguration>
 						<FileConfiguration
 							Name="D3DRelease_SDL|x64"
+							ExcludedFromBuild="true"
 							>
 							<Tool
 								Name="VCCLCompilerTool"
@@ -30840,6 +30852,10 @@
 								PreprocessorDefinitions=""
 							/>
 						</FileConfiguration>
+					</File>
+					<File
+						RelativePath="..\gl\gl_vidsdl.c"
+						>
 					</File>
 					<File
 						RelativePath="..\gl\glmod_doom.c"

@@ -231,7 +231,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 					dl->file = FS_OpenTemp();
 				if (!dl->file)
 				{
-					Con_Printf("HTTP: Couldn't open file %s\n", dl->localname);
+					Con_Printf("HTTP: Couldn't open file \"%s\"\n", dl->localname);
 					dl->status = DL_FAILED;
 					return false;
 				}

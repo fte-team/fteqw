@@ -1419,6 +1419,7 @@ TRACE(("dbg: R_RestartRenderer_f\n"));
 					Con_Printf("%s: %s\n", vid_bpp.name, vid_bpp.string);
 					Con_Printf("%s: %s\n", vid_refreshrate.name, vid_refreshrate.string);
 					Con_Printf("%s: %s\n", vid_renderer.name, vid_renderer.string);
+					Con_Printf("%s: %s\n", gl_driver.name, gl_driver.string);
 				}
 				else
 					Sys_Error("Couldn't fall back to previous renderer\n");

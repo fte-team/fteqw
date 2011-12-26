@@ -202,19 +202,19 @@ typedef void (APIENTRY *GLDEBUGPROCAMD)(GLuint id,
 					GLsizei lengt,
 					const GLchar* message,
 					GLvoid* userParam);
-void (*qglDebugMessageEnableAMD)(GLenum category,
+void (APIENTRY *qglDebugMessageEnableAMD)(GLenum category,
 					GLenum severity,
 					GLsizei count,
 					const GLuint* ids,
 					GLboolean enabled);
-void (*qglDebugMessageInsertAMD)(enum category,
+void (APIENTRY *qglDebugMessageInsertAMD)(enum category,
 					enum severity,
 					GLuint id,
 					GLsizei length, 
 					const char* buf);
-void (*qglDebugMessageCallbackAMD)(GLDEBUGPROCAMD callback,
+void (APIENTRY *qglDebugMessageCallbackAMD)(GLDEBUGPROCAMD callback,
 					void* userParam);
-GLuint (*qglGetDebugMessageLogAMD)(GLuint count,
+GLuint (APIENTRY *qglGetDebugMessageLogAMD)(GLuint count,
 					GLsizei bufsize,
 					GLenum* categories,
 					GLuint* severities,

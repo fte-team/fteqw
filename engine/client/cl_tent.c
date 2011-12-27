@@ -1077,9 +1077,9 @@ void CL_ParseTEnt (void)
 			dl->die = cl.time + 1;
 			dl->decay = 300;
 
-			dl->color[0] = 0.2;
-			dl->color[1] = 0.155;
-			dl->color[2] = 0.05;
+			dl->color[0] = 1.0;
+			dl->color[1] = 0.775;
+			dl->color[2] = 0.25;
 			dl->channelfade[0] = 0.196;
 			dl->channelfade[1] = 0.23;
 			dl->channelfade[2] = 0.12;
@@ -1117,9 +1117,9 @@ void CL_ParseTEnt (void)
 			dl->die = cl.time + 1;
 			dl->decay = 300;
 
-			dl->color[0] = 0.2;
-			dl->color[1] = 0.155;
-			dl->color[2] = 0.05;
+			dl->color[0] = 1.0;
+			dl->color[1] = 0.775;
+			dl->color[2] = 0.25;
 			dl->channelfade[0] = 0.196;
 			dl->channelfade[1] = 0.23;
 			dl->channelfade[2] = 0.12;
@@ -1189,9 +1189,9 @@ void CL_ParseTEnt (void)
 			dl->die = cl.time + 1;
 			dl->decay = 500;
 
-			dl->color[0] = 0.4f;
-			dl->color[1] = 0.3f;
-			dl->color[2] = 0.15f;
+			dl->color[0] = 2.0f;
+			dl->color[1] = 1.5f;
+			dl->color[2] = 0.75f;
 			dl->channelfade[0] = 0;
 			dl->channelfade[1] = 0;
 			dl->channelfade[2] = 0;
@@ -1371,9 +1371,9 @@ void CL_ParseTEnt (void)
 		dl->radius = 200;
 		dl->decay = 1000;
 		dl->die = cl.time + 0.2;
-		dl->color[0] = 0.4;
-		dl->color[1] = 0.4;
-		dl->color[2] = 0.4;
+		dl->color[0] = 2.0;
+		dl->color[1] = 2.0;
+		dl->color[2] = 2.0;
 		break;
 
 	case TEDP_CUSTOMFLASH:
@@ -1389,10 +1389,9 @@ void CL_ParseTEnt (void)
 		dl->die = cl.time + pos2[0];
 		dl->decay = dl->radius / pos2[0];
 
-		// DP's range is 0-2 for lights, FTE is 0-0.4.. 255/637.5 = 0.4
-		dl->color[0] = MSG_ReadByte()*(1.0f/637.5f);
-		dl->color[1] = MSG_ReadByte()*(1.0f/637.5f);
-		dl->color[2] = MSG_ReadByte()*(1.0f/637.5f);
+		dl->color[0] = MSG_ReadByte()*(1.0f/127.0f);
+		dl->color[1] = MSG_ReadByte()*(1.0f/127.5f);
+		dl->color[2] = MSG_ReadByte()*(1.0f/127.0f);
 
 		break;
 
@@ -1426,9 +1425,9 @@ void CL_ParseTEnt (void)
 		dl->radius = 200;
 		dl->decay = 1000;
 		dl->die = cl.time + 0.2;
-		dl->color[0] = 0.2;
-		dl->color[1] = 0.2;
-		dl->color[2] = 0.2;
+		dl->color[0] = 1.0;
+		dl->color[1] = 1.0;
+		dl->color[2] = 1.0;
 
 		// stain (Hopefully this is close to how DP does it)
 		R_AddStain(pos, -10, -10, -10, 30);
@@ -2110,8 +2109,8 @@ void CLQ2_ParseTEnt (void)
 			dl->radius = 150 * r_explosionlight.value;
 			dl->die = cl.time + 0.4;
 			dl->decay = 400;
-			dl->color[0] = 0.2;
-			dl->color[1] = 0.2;
+			dl->color[0] = 1;
+			dl->color[1] = 1;
 			dl->color[2] = 0.0;
 			dl->channelfade[0] = 0.5;
 			dl->channelfade[1] = 0.51;
@@ -2147,9 +2146,9 @@ void CLQ2_ParseTEnt (void)
 			dl->radius = 150 + r_explosionlight.value*200;
 			dl->die = cl.time + 0.5;
 			dl->decay = 300;
-			dl->color[0] = 0.2;
-			dl->color[1] = 0.1;
-			dl->color[2] = 0.1;
+			dl->color[0] = 1.0;
+			dl->color[1] = 0.5;
+			dl->color[2] = 0.5;
 			dl->channelfade[0] = 0.36;
 			dl->channelfade[1] = 0.19;
 			dl->channelfade[2] = 0.19;
@@ -2243,9 +2242,9 @@ void CLQ2_ParseTEnt (void)
 			dl->radius = 150 + r_explosionlight.value*200;
 			dl->die = cl.time + 0.5;
 			dl->decay = 300;
-			dl->color[0] = 0.2;
-			dl->color[1] = 0.1;
-			dl->color[2] = 0.08;
+			dl->color[0] = 1.0;
+			dl->color[1] = 0.5;
+			dl->color[2] = 0.4;
 			dl->channelfade[0] = 0.36;
 			dl->channelfade[1] = 0.19;
 			dl->channelfade[2] = 0.19;
@@ -2440,9 +2439,9 @@ void CLQ2_ParseTEnt (void)
 			dl->radius = 150 * r_explosionlight.value;
 			dl->die = cl.time + 0.4;
 			dl->decay = 400;
-			dl->color[0] = 0.01;
-			dl->color[1] = 0.2;
-			dl->color[2] = 0.01;
+			dl->color[0] = 0.05;
+			dl->color[1] = 1.0;
+			dl->color[2] = 0.05;
 			dl->channelfade[0] = 0.1;
 			dl->channelfade[1] = 0.5;
 			dl->channelfade[2] = 0.1;
@@ -2490,9 +2489,9 @@ void CLQ2_ParseTEnt (void)
 			dl->radius = 150 * r_explosionlight.value;
 			dl->die = cl.time + 0.4;
 			dl->decay = 400;
-			dl->color[0] = 0.038;
-			dl->color[1] = 0.082;
-			dl->color[2] = 0.150;
+			dl->color[0] = 0.19;
+			dl->color[1] = 0.41;
+			dl->color[2] = 0.75;
 			dl->channelfade[0] = 0.085;
 			dl->channelfade[1] = 0.180;
 			dl->channelfade[2] = 0.300;
@@ -2535,9 +2534,9 @@ void CLQ2_ParseTEnt (void)
 			dl->radius = 150 + r_explosionlight.value*200;
 			dl->die = cl.time + 0.5;
 			dl->decay = 300;
-			dl->color[0] = 0.2;
-			dl->color[1] = 0.1;
-			dl->color[2] = 0.08;
+			dl->color[0] = 1.0;
+			dl->color[1] = 0.5;
+			dl->color[2] = 0.4;
 			dl->channelfade[0] = 0.36;
 			dl->channelfade[1] = 0.19;
 			dl->channelfade[2] = 0.19;
@@ -2650,9 +2649,9 @@ void CLQ2_ParseTEnt (void)
 			dl->radius = 150 * r_explosionlight.value;
 			dl->die = cl.time + 0.1;
 			dl->minlight = 250;
-			dl->color[0] = -0.2;
-			dl->color[1] = -0.2;
-			dl->color[2] = -0.2;
+			dl->color[0] = -1.0;
+			dl->color[1] = -1.0;
+			dl->color[2] = -1.0;
 		}
 
 		// sound

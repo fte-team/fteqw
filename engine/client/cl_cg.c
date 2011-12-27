@@ -800,7 +800,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 	case CG_R_ADDLIGHTTOSCENE:	//add light to scene.
 		{
 			float *org = VM_POINTER(arg[0]);
-			CL_NewDlightRGB(-1, org, VM_FLOAT(arg[1]), 0, VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]));
+			CL_NewDlight(-1, org, VM_FLOAT(arg[1]), 0, VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]));
 		}
 		break;
 	case CG_R_RENDERSCENE:	//render scene

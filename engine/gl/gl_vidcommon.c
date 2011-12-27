@@ -294,6 +294,8 @@ static const char *gl_extensions;
 
 static unsigned int gl_num_extensions;
 
+extern cvar_t gl_workaround_ati_shadersource;
+
 
 qboolean GL_CheckExtension(char *extname)
 {
@@ -963,8 +965,13 @@ GLhandleARB GLSlang_CreateShader (char *name, int ver, char **precompilerconstan
 
 	shader = qglCreateShaderObjectARB(shadertype);
 
-	if (1)//gl_workaround_ati_shadersource.ival)
+	if (gl_workaround_ati_shadersource.ival)
 	{
+		/*ATI Driver Bug: ATI drivers ignore the 'length' array.
+		this code does what the drivers fail to do.
+		this patch makes the submission more mainstream
+		if ati can feck it up so much on a system with no real system memory issues, I wouldn't be surprised if embedded systems also mess it up.
+		*/
 		char *combined;
 		int totallen = 1;
 		for (i = 0; i < strings; i++)

@@ -1052,7 +1052,7 @@ void GL_RoundDimensions(int *scaled_width, int *scaled_height, qboolean mipmap)
 		*scaled_height = 1;
 }
 
-void GL_8888to565(unsigned char *in, unsigned short *out, unsigned int mip, unsigned int w, unsigned int h)
+void GL_8888to565(int targ, unsigned char *in, unsigned short *out, unsigned int mip, unsigned int w, unsigned int h)
 {
 	unsigned int p = w*h;
 	unsigned short tmp;
@@ -1066,10 +1066,10 @@ void GL_8888to565(unsigned char *in, unsigned short *out, unsigned int mip, unsi
 		in++;
 		*out++ = tmp;
 	}
-	qglTexImage2D (GL_TEXTURE_2D, mip, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, iout);
+	qglTexImage2D (targ, mip, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, iout);
 }
 
-void GL_8888to4444(unsigned char *in, unsigned short *out, unsigned int mip, unsigned int w, unsigned int h)
+void GL_8888to4444(int targ, unsigned char *in, unsigned short *out, unsigned int mip, unsigned int w, unsigned int h)
 {
 	unsigned int p = w*h;
 	unsigned short tmp;
@@ -1083,7 +1083,7 @@ void GL_8888to4444(unsigned char *in, unsigned short *out, unsigned int mip, uns
 		tmp |= ((*in++>>4) << 0);
 		*out++ = tmp;
 	}
-	qglTexImage2D (GL_TEXTURE_2D, mip, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, iout);
+	qglTexImage2D (targ, mip, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, iout);
 }
 
 /*
@@ -1098,6 +1098,7 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 	unsigned	*scaled = (unsigned *)uploadmemorybuffer;
 	int			scaled_width, scaled_height;
 	int		type;
+	int		targ;
 
 	TRACE(("dbg: GL_Upload32: %s %i %i\n", name, width, height));
 
@@ -1118,6 +1119,19 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 			}
 		}
 	}
+	switch((flags & IF_TEXTYPE) >> IF_TEXTYPESHIFT)
+	{
+	case 0:
+		targ = GL_TEXTURE_2D;
+		break;
+	case 1:
+		targ = GL_TEXTURE_3D;
+		break;
+	default:
+		targ = GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + (((flags & IF_TEXTYPE) >> IF_TEXTYPESHIFT) - 2);
+		break;
+	}
+
 	TRACE(("dbg: GL_Upload32: %i %i\n", scaled_width, scaled_height));
 
 	if (scaled_width * scaled_height > sizeofuploadmemorybuffer/4)
@@ -1153,7 +1167,22 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 	if (gl_config.arb_texture_compression && gl_compress.value && name && !(flags&IF_NOMIPMAP))
 		samples = (flags&IF_NOALPHA) ? GL_COMPRESSED_RGB_ARB : GL_COMPRESSED_RGBA_ARB;
 
-	if (flags & IF_3DMAP)
+	if (flags&IF_CLAMP)
+	{
+		qglTexParameteri(targ, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		qglTexParameteri(targ, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		if (targ != GL_TEXTURE_2D)
+			qglTexParameteri(targ, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	}
+	else
+	{
+		qglTexParameteri(targ, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		qglTexParameteri(targ, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		if (targ != GL_TEXTURE_2D)
+			qglTexParameteri(targ, GL_TEXTURE_WRAP_R, GL_REPEAT);
+	}
+
+	if (targ == GL_TEXTURE_3D)
 	{
 		int r,d;
 		if (scaled_height * scaled_height != scaled_width)
@@ -1164,19 +1193,6 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		else
 			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-		if (flags&IF_CLAMP)
-		{
-			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-		}
-		else
-		{
-			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-			qglTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_REPEAT);
-		}
 
 		for (d = 0; d < scaled_height; d++)
 		{
@@ -1193,35 +1209,24 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 	if (gl_config.sgis_generate_mipmap && !(flags&IF_NOMIPMAP))
 	{
 		TRACE(("dbg: GL_Upload32: GL_SGIS_generate_mipmap\n"));
-		qglTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
+		qglTexParameteri(targ, GL_GENERATE_MIPMAP_SGIS, GL_TRUE);
 	}
 
 	if (!(flags&IF_NOMIPMAP))
 	{
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min);
+		qglTexParameteri(targ, GL_TEXTURE_MIN_FILTER, gl_filter_min);
 		if (flags & IF_NEAREST)
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			qglTexParameteri(targ, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		else
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max);
+			qglTexParameteri(targ, GL_TEXTURE_MAG_FILTER, gl_filter_max);
 	}
 	else
 	{
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
+		qglTexParameteri(targ, GL_TEXTURE_MIN_FILTER, gl_filter_max_2d);
 		if (flags & IF_NEAREST)
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			qglTexParameteri(targ, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		else
-			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
-	}
-
-	if (flags&IF_CLAMP)
-	{
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	}
-	else
-	{
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+			qglTexParameteri(targ, GL_TEXTURE_MAG_FILTER, gl_filter_max_2d);
 	}
 
 	if (scaled_width == width && scaled_height == height)
@@ -1230,11 +1235,11 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 		{
 			TRACE(("dbg: GL_Upload32: non-mipmapped/unscaled\n"));
 			if (type == GL_UNSIGNED_SHORT_5_6_5)
-				GL_8888to565((unsigned char *)data, (unsigned short*)scaled, 0, scaled_width, scaled_height);
+				GL_8888to565(targ, (unsigned char *)data, (unsigned short*)scaled, 0, scaled_width, scaled_height);
 			else if (type == GL_UNSIGNED_SHORT_4_4_4_4)
-				GL_8888to4444((unsigned char *)data, (unsigned short*)scaled, 0, scaled_width, scaled_height);
+				GL_8888to4444(targ, (unsigned char *)data, (unsigned short*)scaled, 0, scaled_width, scaled_height);
 			else
-				qglTexImage2D (GL_TEXTURE_2D, 0, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, data);
+				qglTexImage2D (targ, 0, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, data);
 			goto done;
 		}
 		memcpy (scaled, data, width*height*4);
@@ -1244,11 +1249,11 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 
 	TRACE(("dbg: GL_Upload32: recaled\n"));
 	if (type == GL_UNSIGNED_SHORT_5_6_5)
-		GL_8888to565((unsigned char *)scaled, (unsigned short*)uploadmemorybufferintermediate, 0, scaled_width, scaled_height);
+		GL_8888to565(targ, (unsigned char *)scaled, (unsigned short*)uploadmemorybufferintermediate, 0, scaled_width, scaled_height);
 	else if (type == GL_UNSIGNED_SHORT_4_4_4_4)
-		GL_8888to4444((unsigned char *)scaled, (unsigned short*)uploadmemorybufferintermediate, 0, scaled_width, scaled_height);
+		GL_8888to4444(targ, (unsigned char *)scaled, (unsigned short*)uploadmemorybufferintermediate, 0, scaled_width, scaled_height);
 	else
-		qglTexImage2D (GL_TEXTURE_2D, 0, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, scaled);
+		qglTexImage2D (targ, 0, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, scaled);
 	if (!(flags&IF_NOMIPMAP) && !gl_config.sgis_generate_mipmap)
 	{
 		miplevel = 0;
@@ -1264,15 +1269,15 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 				scaled_height = 1;
 			miplevel++;
 			if (type == GL_UNSIGNED_SHORT_5_6_5)
-				GL_8888to565((unsigned char *)scaled, (unsigned short*)uploadmemorybufferintermediate, miplevel, scaled_width, scaled_height);
+				GL_8888to565(targ, (unsigned char *)scaled, (unsigned short*)uploadmemorybufferintermediate, miplevel, scaled_width, scaled_height);
 			else if (type == GL_UNSIGNED_SHORT_4_4_4_4)
-				GL_8888to4444((unsigned char *)scaled, (unsigned short*)uploadmemorybufferintermediate, miplevel, scaled_width, scaled_height);
+				GL_8888to4444(targ, (unsigned char *)scaled, (unsigned short*)uploadmemorybufferintermediate, miplevel, scaled_width, scaled_height);
 			else
-				qglTexImage2D (GL_TEXTURE_2D, miplevel, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, scaled);
+				qglTexImage2D (targ, miplevel, samples, scaled_width, scaled_height, 0, glcolormode, GL_UNSIGNED_BYTE, scaled);
 		}
 	}
 
-	if (gl_config.arb_texture_compression && gl_compress.value && gl_savecompressedtex.value && name && !(flags&IF_NOMIPMAP))
+	if (targ == GL_TEXTURE_2D && gl_config.arb_texture_compression && gl_compress.value && gl_savecompressedtex.value && name && !(flags&IF_NOMIPMAP))
 	{
 		vfsfile_t *out;
 		int miplevels;
@@ -1330,7 +1335,7 @@ done:
 		qglTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, gl_anisotropy_factor); // without this, you could loose anisotropy on mapchange
 
 	if (gl_config.sgis_generate_mipmap && !(flags&IF_NOMIPMAP))
-		qglTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
+		qglTexParameteri(targ, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
 }
 
 void GL_Upload32 (char *name, unsigned *data, int width, int height, unsigned int flags)
@@ -2214,24 +2219,32 @@ texid_t GL_LoadTexture32 (char *identifier, int width, int height, void *data, u
 {
 //	qboolean	noalpha;
 //	int			p, s;
-	gltexture_t	*glt;
+	gltexture_t	*glt = NULL;
 
 	// see if the texture is already present
 	if (identifier[0])
 	{
 		glt = GL_MatchTexture(identifier, 32, width, height);
-		if (glt)
+		if (glt && !(flags & IF_REPLACE))
 			return glt->texnum;
 	}
-
-	glt = GL_AllocNewGLTexture(identifier, width, height);
+	if (!glt)
+		glt = GL_AllocNewGLTexture(identifier, width, height);
 	glt->bpp = 32;
 	glt->flags = flags;
 
-	if (flags & IF_3DMAP)
-		GL_MTBind(0, GL_TEXTURE_3D, glt->texnum);
-	else
+	switch((flags & IF_TEXTYPE) >> IF_TEXTYPESHIFT)
+	{
+	case 0:
 		GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
+		break;
+	case 1:
+		GL_MTBind(0, GL_TEXTURE_3D, glt->texnum);
+		break;
+	default:
+		GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, glt->texnum);
+		break;
+	}
 
 	GL_Upload32 (identifier, data, width, height, flags);
 

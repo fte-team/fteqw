@@ -211,6 +211,7 @@ cvar_t	r_polygonoffset_submodel_offset = SCVAR("r_polygonoffset_submodel_offset"
 rendererstate_t currentrendererstate;
 
 #if defined(GLQUAKE)
+cvar_t	gl_workaround_ati_shadersource		= CVARD	 ("gl_workaround_ati_shadersource", "1", "Work around ATI driver bugs in the glShaderSource function. Can safely be enabled with other drivers too.");
 cvar_t	vid_gl_context_version				= SCVAR  ("vid_gl_context_version", "");
 cvar_t	vid_gl_context_forwardcompatible	= SCVAR  ("vid_gl_context_forwardcompatible", "0");
 cvar_t	vid_gl_context_compatibility		= SCVAR  ("vid_gl_context_compatibility", "1");
@@ -338,6 +339,7 @@ void GLRenderer_Init(void)
 	extern cvar_t gl_contrast;
 
 	//gl-specific video vars
+	Cvar_Register (&gl_workaround_ati_shadersource, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_gl_context_version, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_gl_context_debug, GLRENDEREROPTIONS);
 	Cvar_Register (&vid_gl_context_forwardcompatible, GLRENDEREROPTIONS);

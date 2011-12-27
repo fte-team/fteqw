@@ -804,8 +804,9 @@ static void Shader_LoadPermutations(char *name, program_t *prog, char *script, i
 		"#define FOG\n",
 		NULL
 	};
-	char *permutationdefines[sizeof(permutationname)/sizeof(permutationname[0])];
+	char *permutationdefines[sizeof(permutationname)/sizeof(permutationname[0]) + 64];
 	unsigned int nopermutation = ~0u;
+	int nummodifiers;
 	int p, n, pn;
 	char *end;
 
@@ -882,6 +883,24 @@ static void Shader_LoadPermutations(char *name, program_t *prog, char *script, i
 	};
 
 	memset(prog->handle, 0, sizeof(*prog->handle)*PERMUTATIONS);
+
+	nummodifiers = 0;
+	for (end = strchr(name, '#'); end && *end; )
+	{
+		char *start = end+1;
+		end = strchr(start, '#');
+		if (!end)
+			end = start + strlen(start);
+		permutationdefines[nummodifiers] = malloc(10 + end - start);
+		memcpy(permutationdefines[nummodifiers], "#define ", 8);
+		memcpy(permutationdefines[nummodifiers]+8, start, end - start);
+		memcpy(permutationdefines[nummodifiers]+8+(end-start), "\n", 2);
+
+		for (start = permutationdefines[nummodifiers]+8; *start; start++)
+			*start = toupper(*start);
+
+		nummodifiers++;
+	}
 	for (p = 0; p < PERMUTATIONS; p++)
 	{
 		if (qrenderer != qrtype)
@@ -894,7 +913,7 @@ static void Shader_LoadPermutations(char *name, program_t *prog, char *script, i
 			{
 				continue;
 			}
-			pn = 0;
+			pn = nummodifiers;
 			for (n = 0; permutationname[n]; n++)
 			{
 				if (p & (1u<<n))
@@ -911,7 +930,7 @@ static void Shader_LoadPermutations(char *name, program_t *prog, char *script, i
 			{
 				continue;
 			}
-			pn = 0;
+			pn = nummodifiers;
 			for (n = 0; permutationname[n]; n++)
 			{
 				if (p & (1u<<n))
@@ -922,6 +941,8 @@ static void Shader_LoadPermutations(char *name, program_t *prog, char *script, i
 		}
 #endif
 	}
+	while(nummodifiers)
+		free(permutationdefines[--nummodifiers]);
 
 	Shader_ProgAutoFields(prog, cvarnames, cvartypes);
 }
@@ -1864,6 +1885,7 @@ struct sbuiltin_s
 	s0=diffuse, s1=normal, s2=specular, s3=shadowmap
 	custom modifiers:
 	PCF(shadowmap)
+	CUBE(projected cubemap)
 	*/
 		"!!permu BUMP\n"
 		"!!permu SPECULAR\n"
@@ -1877,9 +1899,9 @@ struct sbuiltin_s
 		"#if defined(SPECULAR) || defined(OFFSETMAPPING)\n"
 			"varying vec3 eyevector;\n"
 		"#endif\n"
-		"#ifdef PCF\n"
+		"#if defined(PCF) || defined(CUBE)\n"
 			"varying vec4 vshadowcoord;\n"
-			"uniform mat4 entmatrix;\n"
+			"uniform mat4 l_projmatrix;\n"
 		"#endif\n"
 
 		"#ifdef VERTEX_SHADER\n"
@@ -1910,8 +1932,8 @@ struct sbuiltin_s
 				"eyevector.y = -dot(eyeminusvertex, t.xyz);\n"
 				"eyevector.z = dot(eyeminusvertex, n.xyz);\n"
 			"#endif\n"
-			"#if defined(PCF) || defined(SPOT) || defined(PROJECTION)\n"
-				"vshadowcoord = gl_TextureMatrix[7] * (entmatrix*vec4(w.xyz, 1.0));\n"
+			"#if defined(PCF) || defined(SPOT) || defined(PROJECTION) || defined(CUBE)\n"
+				"vshadowcoord = l_projmatrix*vec4(w.xyz, 1.0);\n"
 			"#endif\n"
 			"}\n"
 		"#endif\n"
@@ -1992,8 +2014,8 @@ struct sbuiltin_s
 			"#ifdef SPECULAR\n"
 			"uniform sampler2D s_t2;\n"/*specularmap texture*/
 			"#endif\n"
-			"#ifdef PROJECTION\n"
-			"uniform sampler2D s_t3;\n"/*projected texture*/
+			"#ifdef CUBE\n"
+			"uniform samplerCube s_t3;\n"/*projected texture*/
 			"#endif\n"
 			"#ifdef PCF\n"
 			"#ifdef CUBE\n"
@@ -2048,6 +2070,10 @@ struct sbuiltin_s
 				"vec3 halfdir = (normalize(eyevector) + normalize(lightvector))/2.0;\n"
 				"float dv = dot(halfdir, bumps);\n"
 				"diff += pow(dv, 8.0) * specs;\n"
+			"#endif\n"
+
+			"#ifdef CUBE\n"
+				"diff *= textureCube(s_t3, vshadowcoord.xyz).rgb;\n"
 			"#endif\n"
 
 			"#ifdef PCF\n"
@@ -2395,6 +2421,7 @@ struct shader_field_names_s shader_field_names[] =
 	{"l_lightradius",			SP_LIGHTRADIUS},
 	{"l_lightcolour",			SP_LIGHTCOLOUR},
 	{"l_lightposition",			SP_LIGHTPOSITION},
+	{"l_projmatrix",			SP_LIGHTPROJMATRIX},
 
 	{"e_rendertexturescale",	SP_RENDERTEXTURESCALE},
 	{NULL}
@@ -2896,6 +2923,11 @@ static qboolean ShaderPass_MapGen (shader_t *shader, shaderpass_t *pass, char *t
 	else if (!Q_stricmp (tname, "$shadowmap"))
 	{
 		pass->texgen = T_GEN_SHADOWMAP;
+		pass->tcgen = TC_GEN_BASE;	//FIXME: moo!
+	}
+	else if (!Q_stricmp (tname, "$lightcubemap"))
+	{
+		pass->texgen = T_GEN_LIGHTCUBEMAP;
 		pass->tcgen = TC_GEN_BASE;	//FIXME: moo!
 	}
 	else if (!Q_stricmp (tname, "$currentrender"))

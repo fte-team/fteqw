@@ -210,6 +210,7 @@ typedef struct shaderpass_s {
 		T_GEN_LIGHTMAP,		//world light samples
 		T_GEN_DELUXMAP,		//world light directions
 		T_GEN_SHADOWMAP,	//light's depth values.
+		T_GEN_LIGHTCUBEMAP,	//light's projected cubemap
 
 		T_GEN_DIFFUSE,		//texture's default diffuse texture
 		T_GEN_NORMALMAP,	//texture's default normalmap
@@ -311,6 +312,7 @@ typedef struct {
 		SP_LIGHTCOLOUR,
 		SP_LIGHTPOSITION,
 		SP_LIGHTSCREEN,
+		SP_LIGHTPROJMATRIX,
 
 		//things that are set immediatly
 		SP_FIRSTIMMEDIATE,	//never set

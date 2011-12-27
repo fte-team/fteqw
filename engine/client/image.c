@@ -2342,7 +2342,6 @@ static struct
 };
 
 int image_width, image_height;
-//fixme: should probably get rid of the 'Mod' prefix, and use something more suitable.
 texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 {
 	qboolean alphaed;
@@ -2368,17 +2367,69 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 	}
 
 	snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name); /*should be safe if its null*/
-	if (subpath && *subpath)
+	if (subpath && *subpath && !(flags & IF_REPLACE))
 	{
 		tex = R_FindTexture(fname);
 		if (TEXVALID(tex))	//don't bother if it already exists.
 			return tex;
 	}
-	if (!(flags & IF_SUBDIRONLY))
+	if (!(flags & IF_SUBDIRONLY) && !(flags & IF_REPLACE))
 	{
 		tex = R_FindTexture(name);
 		if (TEXVALID(tex))	//don't bother if it already exists.
 			return tex;
+	}
+
+	if ((flags & IF_TEXTYPE) == IF_CUBEMAP)
+	{
+		int j;
+		char *suf[] =
+		{
+//			"rt", "lf", "ft", "bk", "up", "dn",
+			"px", "nx", "py", "ny", "pz", "nz",
+			"posx", "negx", "posy", "negy", "posz", "negz"
+		};
+		flags |= IF_REPLACE;
+
+		tex = r_nulltex;
+		for (i = 0; i < 6; i++)
+		{
+			tex = r_nulltex;
+			for (e = sizeof(tex_extensions)/sizeof(tex_extensions[0])-1; e >=0 ; e--)
+			{
+				if (!tex_extensions[e].enabled)
+					continue;
+
+				buf = NULL;
+				for (j = 0; j < sizeof(suf)/sizeof(suf[0])/6; j++)
+				{
+					snprintf(fname, sizeof(fname)-1, "%s%s%s", nicename, suf[i + 6*j], tex_extensions[e].name);
+					buf = COM_LoadFile (fname, 5);
+					if (buf)
+						break;
+				}
+
+				if (buf)
+				{
+					if ((data = Read32BitImageFile(buf, com_filesize, &image_width, &image_height, fname)))
+					{
+						extern cvar_t vid_hardwaregamma;
+						if (!(flags&IF_NOGAMMA) && !vid_hardwaregamma.value)
+							BoostGamma(data, image_width, image_height);
+
+						tex = R_LoadTexture32 (name, image_width, image_height, data, (flags | IF_REPLACE) + (i << IF_TEXTYPESHIFT));
+
+						BZ_Free(data);
+						BZ_Free(buf);
+						if (TEXVALID(tex))
+							break;
+					}
+				}
+			}
+			if (!TEXVALID(tex))
+				return r_nulltex;
+		}
+		return tex;
 	}
 
 

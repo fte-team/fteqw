@@ -833,7 +833,7 @@ static void QCBUILTIN PF_R_DynamicLight_Add(progfuncs_t *prinst, struct globalva
 	dlight_t *dl;
 
 	//if the org matches self, then attach it.
-	dl = CL_NewDlightRGB (VectorCompare(self->v->origin, org)?-self->entnum:0, org, radius, -0.1, rgb[0], rgb[1], rgb[2]);
+	dl = CL_NewDlight (VectorCompare(self->v->origin, org)?-self->entnum:0, org, radius, -0.1, rgb[0], rgb[1], rgb[2]);
 
 	if (pflags & PFLAGS_NOSHADOW)
 		dl->flags |= LFLAG_NOSHADOWS;
@@ -3266,43 +3266,6 @@ static void QCBUILTIN PF_rotatevectorsbytag (progfuncs_t *prinst, struct globalv
 	VectorCopy(srcorg, retorg);
 }
 
-static void QCBUILTIN PF_rotatevectorsbyangles (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float *ang = G_VECTOR(OFS_PARM0);
-	vec3_t src[3], trans[3], res[3];
-	ang[0]*=-1;
-	AngleVectors(ang, trans[0], trans[1], trans[2]);
-	ang[0]*=-1;
-	VectorInverse(trans[1]);
-
-	VectorCopy(csqcg.forward, src[0]);
-	VectorNegate(csqcg.right, src[1]);
-	VectorCopy(csqcg.up, src[2]);
-
-	R_ConcatRotations(trans, src, res);
-
-	VectorCopy(res[0], csqcg.forward);
-	VectorNegate(res[1], csqcg.right);
-	VectorCopy(res[2], csqcg.up);
-}
-static void QCBUILTIN PF_rotatevectorsbymatrix (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	vec3_t src[3], trans[3], res[3];
-
-	VectorCopy(G_VECTOR(OFS_PARM0), src[0]);
-	VectorNegate(G_VECTOR(OFS_PARM1), src[1]);
-	VectorCopy(G_VECTOR(OFS_PARM2), src[2]);
-
-	VectorCopy(csqcg.forward, src[0]);
-	VectorNegate(csqcg.right, src[1]);
-	VectorCopy(csqcg.up, src[2]);
-
-	R_ConcatRotations(trans, src, res);
-
-	VectorCopy(res[0], csqcg.forward);
-	VectorNegate(res[1], csqcg.right);
-	VectorCopy(res[2], csqcg.up);
-}
 static void QCBUILTIN PF_frameforname (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int modelindex = G_FLOAT(OFS_PARM0);

@@ -1588,7 +1588,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 					if (P_ParticleTrail(cent->lerp_origin, ent.origin, rt_rocket, ent.keynum, &cent->trailstate))
 						P_ParticleTrailIndex(cent->lerp_origin, ent.origin, 0xdc, 4, &cent->trailstate);
 
-				V_AddLight (ent.keynum, ent.origin, 200, 0.2, 0.2, 0);
+				V_AddLight (ent.keynum, ent.origin, 200, 0.2, 0.1, 0.05);
 			}
 			// PGM - Do not reorder EF_BLASTER and EF_HYPERBLASTER. 
 			// EF_BLASTER | EF_TRACKER is a special case for EF_BLASTER2... Cheese!

@@ -907,7 +907,7 @@ static void R_SaveRTLights_f(void)
 			(light->flags & LFLAG_NOSHADOWS)?"!":"", light->origin[0], light->origin[1], light->origin[2],
 			light->radius, light->color[0], light->color[1], light->color[2], 
 			light->style-1,
-			"", light->corona,
+			light->cubemapname, light->corona,
 			ang[0], ang[1], ang[2],
 			light->coronascale, light->ambientscale, light->diffusescale, light->specularscale, light->flags&(LFLAG_NORMALMODE|LFLAG_REALTIMEMODE|LFLAG_CREPUSCULAR)
 			));

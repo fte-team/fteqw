@@ -1288,7 +1288,7 @@ int CLHL_ParseGamePacket(void)
 				if (!(flags & 4))
 					S_StartSound(0, 0, S_PrecacheSound("explosion"), startp, 1, 1);
 				if (!(flags & 2))
-					CL_NewDlightRGB(0, startp, 200, 1, 0.2,0.2,0.2);
+					CL_NewDlight(0, startp, 200, 1, 2.0,2.0,2.0);
 
 				ef = CL_AllocExplosion();
 				VectorCopy(startp, ef->origin);

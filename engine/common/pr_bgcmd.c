@@ -2660,6 +2660,48 @@ void QCBUILTIN PF_normalize (progfuncs_t *prinst, struct globalvars_s *pr_global
 	VectorCopy (newvalue, G_VECTOR(OFS_RETURN));
 }
 
+void QCBUILTIN PF_rotatevectorsbyangles (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+
+	float *ang = G_VECTOR(OFS_PARM0);
+	vec3_t src[3], trans[3], res[3];
+	ang[0]*=-1;
+	AngleVectors(ang, trans[0], trans[1], trans[2]);
+	ang[0]*=-1;
+	VectorInverse(trans[1]);
+
+	VectorCopy(w->g.v_forward, src[0]);
+	VectorNegate(w->g.v_right, src[1]);
+	VectorCopy(w->g.v_up, src[2]);
+
+	R_ConcatRotations(trans, src, res);
+
+	VectorCopy(res[0], w->g.v_forward);
+	VectorNegate(res[1], w->g.v_right);
+	VectorCopy(res[2], w->g.v_up);
+}
+
+void QCBUILTIN PF_rotatevectorsbymatrix (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	vec3_t src[3], trans[3], res[3];
+
+	VectorCopy(G_VECTOR(OFS_PARM0), src[0]);
+	VectorNegate(G_VECTOR(OFS_PARM1), src[1]);
+	VectorCopy(G_VECTOR(OFS_PARM2), src[2]);
+
+	VectorCopy(w->g.v_forward, src[0]);
+	VectorNegate(w->g.v_right, src[1]);
+	VectorCopy(w->g.v_up, src[2]);
+
+	R_ConcatRotations(trans, src, res);
+
+	VectorCopy(res[0], w->g.v_forward);
+	VectorNegate(res[1], w->g.v_right);
+	VectorCopy(res[2], w->g.v_up);
+}
+
 //Vector functions
 ////////////////////////////////////////////////////
 //Progs internals

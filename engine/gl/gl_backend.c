@@ -20,230 +20,6 @@
 
 extern cvar_t gl_overbright;
 
-#if 0
-#define LIGHTPASS_GLSL_SHARED	"\
-varying vec2 tcbase;\n\
-varying vec3 lightvector;\n\
-#if defined(SPECULAR) || defined(OFFSETMAPPING)\n\
-varying vec3 eyevector;\n\
-#endif\n\
-#ifdef PCF\n\
-varying vec4 vshadowcoord;\n\
-uniform mat4 entmatrix;\n\
-#endif\n\
-"
-
-#define LIGHTPASS_GLSL_VERTEX	"\
-#ifdef VERTEX_SHADER\n\
-#include \"sys/skeletal.h\"\n\
-\
-uniform vec3 l_lightposition;\n\
-attribute vec2 v_texcoord;\n\
-\
-#if defined(SPECULAR) || defined(OFFSETMAPPING)\n\
-uniform vec3 e_eyepos;\n\
-#endif\n\
-\
-void main ()\n\
-{\n\
-	vec3 n, s, t, w;\n\
-	gl_Position = skeletaltransform_wnst(w,n,s,t);\n\
-\
-	tcbase = v_texcoord;	//pass the texture coords straight through\n\
-\
-	vec3 lightminusvertex = l_lightposition - w.xyz;\n\
-	lightvector.x = dot(lightminusvertex, s.xyz);\n\
-	lightvector.y = dot(lightminusvertex, t.xyz);\n\
-	lightvector.z = dot(lightminusvertex, n.xyz);\n\
-\
-#if defined(SPECULAR)||defined(OFFSETMAPPING)\n\
-	vec3 eyeminusvertex = e_eyepos - w.xyz;\n\
-	eyevector.x = dot(eyeminusvertex, s.xyz);\n\
-	eyevector.y = -dot(eyeminusvertex, t.xyz);\n\
-	eyevector.z = dot(eyeminusvertex, n.xyz);\n\
-#endif\n\
-#if defined(PCF) || defined(SPOT) || defined(PROJECTION)\n\
-	vshadowcoord = gl_TextureMatrix[7] * (entmatrix*vec4(w.xyz, 1.0));\n\
-#endif\n\
-}\n\
-#endif\n\
-"
-
-/*this is full 4*4 PCF, with an added attempt at prenumbra*/
-/*the offset consts are 1/(imagesize*2) */
-#define PCF16P(f)	"\
-	float xPixelOffset = (1.0+shadowcoord.b/l_lightradius)/texx;\
-	float yPixelOffset = (1.0+shadowcoord.b/l_lightradius)/texy;\
-	float s = 0.0;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(-1.5 * xPixelOffset * shadowcoord.w, -1.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(-1.5 * xPixelOffset * shadowcoord.w, -0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(-1.5 * xPixelOffset * shadowcoord.w, 0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(-1.5 * xPixelOffset * shadowcoord.w, 1.1 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-\
-	s += "f"Proj(s_t7, shadowcoord + vec4(-0.5 * xPixelOffset * shadowcoord.w, -1.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(-0.5 * xPixelOffset * shadowcoord.w, -0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(-0.5 * xPixelOffset * shadowcoord.w, 0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(-0.5 * xPixelOffset * shadowcoord.w, 1.1 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-\
-	s += "f"Proj(s_t7, shadowcoord + vec4(0.5 * xPixelOffset * shadowcoord.w, -1.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(0.5 * xPixelOffset * shadowcoord.w, -0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(0.5 * xPixelOffset * shadowcoord.w, 0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(0.5 * xPixelOffset * shadowcoord.w, 1.1 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-\
-	s += "f"Proj(s_t7, shadowcoord + vec4(1.5 * xPixelOffset * shadowcoord.w, -1.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(1.5 * xPixelOffset * shadowcoord.w, -0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(1.5 * xPixelOffset * shadowcoord.w, 0.5 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(1.5 * xPixelOffset * shadowcoord.w, 1.1 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-\
-	colorscale *= s/5.0;\n\
-	"
-
-/*this is pcf 3*3*/
-/*the offset consts are 1/(imagesize*2) */
-#define PCF9(f)	"\
-	const float xPixelOffset = 1.0/texx;\
-	const float yPixelOffset = 1.0/texy;\
-	float s = 0.0;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, 0.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-\
-	s += "f"Proj(s_t7, shadowcoord + vec4(0.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(0.0 * xPixelOffset * shadowcoord.w, 0.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(0.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-\
-	s += "f"Proj(s_t7, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, 0.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	colorscale *= s/9.0;\n\
-	"
-
-/*this is a lazy form of pcf. take 5 samples in an x*/
-/*the offset consts are 1/(imagesize*2) */
-#define PCF5(f)	"\
-	float xPixelOffset = 1.0/texx;\
-	float yPixelOffset = 1.0/texy;\
-	float s = 0.0;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(-1.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(0.0 * xPixelOffset * shadowcoord.w, 0.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, -1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	s += "f"Proj(s_t7, shadowcoord + vec4(1.0 * xPixelOffset * shadowcoord.w, 1.0 * yPixelOffset * shadowcoord.w, 0.05, 0.0)).r;\n\
-	colorscale *= s/5.0;\n\
-	"
-
-/*this is unfiltered*/
-#define PCF1(f)	"\
-	colorscale *= "f"Proj(shadowmap, shadowcoord).r;\n"
-
-#define LIGHTPASS_GLSL_FRAGMENT	"\
-#ifdef FRAGMENT_SHADER\n\
-#include \"sys/fog.h\"\n\
-uniform sampler2D s_t0;\n"/*base texture*/"\
-#if defined(BUMP) || defined(SPECULAR) || defined(OFFSETMAPPING)\n\
-uniform sampler2D s_t1;\n"/*normalmap/height texture*/"\
-#endif\n\
-#ifdef SPECULAR\n\
-uniform sampler2D s_t2;\n"/*specularmap texture*/"\
-#endif\n\
-#ifdef PROJECTION\n\
-uniform sampler2D s_t3;\n"/*projected texture*/"\
-#endif\n\
-#ifdef PCF\n\
-#ifdef CUBE\n\
-uniform samplerCubeShadow s_t7;\n\
-#else\n\
-uniform sampler2DShadow s_t7;\n\
-#endif\n\
-#endif\n\
-\
-\
-uniform float l_lightradius;\n\
-uniform vec3 l_lightcolour;\n\
-\
-#ifdef OFFSETMAPPING\n\
-uniform float offsetmapping_scale;\n\
-#endif\n\
-\
-\
-void main ()\n\
-{\n\
-#ifdef OFFSETMAPPING\n\
-	vec2 OffsetVector = normalize(eyevector).xy * offsetmapping_scale * vec2(1, -1);\n\
-	vec2 foo = tcbase;\n\
-#define tcbase foo\n\
-	tcbase += OffsetVector;\n\
-	OffsetVector *= 0.333;\n\
-	tcbase -= OffsetVector * texture2D(s_t1, tcbase).w;\n\
-	tcbase -= OffsetVector * texture2D(s_t1, tcbase).w;\n\
-	tcbase -= OffsetVector * texture2D(s_t1, tcbase).w;\n\
-#endif\n\
-\
-\
-#ifdef BUMP\n\
-	vec3 bases = vec3(texture2D(s_t0, tcbase));\n\
-#else\n\
-	vec3 diff = vec3(texture2D(s_t0, tcbase));\n\
-#endif\n\
-#if defined(BUMP) || defined(SPECULAR)\n\
-	vec3 bumps = vec3(texture2D(s_t1, tcbase)) * 2.0 - 1.0;\n\
-#endif\n\
-#ifdef SPECULAR\n\
-	vec3 specs = vec3(texture2D(s_t2, tcbase));\n\
-#endif\n\
-\
-	vec3 nl = normalize(lightvector);\n\
-	float colorscale = max(1.0 - dot(lightvector, lightvector)/(l_lightradius*l_lightradius), 0.0);\n\
-\
-#ifdef BUMP\n\
-	vec3 diff;\n\
-	diff = bases * max(dot(bumps, nl), 0.0);\n\
-#endif\n\
-#ifdef SPECULAR\n\
-	vec3 halfdir = (normalize(eyevector) + normalize(lightvector))/2.0;\n\
-	float dv = dot(halfdir, bumps);\n\
-	diff += pow(dv, 8.0) * specs;\n\
-#endif\n\
-""\n\
-#ifdef PCF\n\
-#if defined(SPOT)\n\
-const float texx = 512.0;\n\
-const float texy = 512.0;\n\
-vec4 shadowcoord = vshadowcoord;\n\
-#else\n\
-const float texx = 512.0;\n\
-const float texy = 512.0;\n\
-vec4 shadowcoord;\n\
-shadowcoord.zw = vshadowcoord.zw;\n\
-shadowcoord.xy = vshadowcoord.xy;\n\
-#endif\n\
-#ifdef CUBE\n\
-"PCF9("shadowCube") /*valid are 1,5,9*/"\n\
-#else\n\
-"PCF9("shadow2D") /*valid are 1,5,9*/"\n\
-#endif\n\
-#endif\n\
-#if defined(SPOT)\n\
-/*Actually, this isn't correct*/\n\
-if (shadowcoord.w < 0.0) discard;\n\
-vec2 spot = ((shadowcoord.st)/shadowcoord.w - 0.5)*2.0;colorscale*=1.0-(dot(spot,spot));\n\
-#endif\n\
-#if defined(PROJECTION)\n\
-	l_lightcolour *= texture2d(s_t3, shadowcoord);\n\
-#endif\n\
-\n\
-	gl_FragColor.rgb = fog3additive(diff*colorscale*l_lightcolour);\n\
-}\n\
-\
-#endif\n\
-"
-
-char *defaultglsl2program =
-	LIGHTPASS_GLSL_SHARED LIGHTPASS_GLSL_VERTEX LIGHTPASS_GLSL_FRAGMENT
-	;
-
-#endif
-
 static const char LIGHTPASS_SHADER[] = "\
 {\n\
 	program rtlight%s\n\
@@ -258,6 +34,23 @@ static const char LIGHTPASS_SHADER[] = "\
 		map $specular\n\
 	}\n\
 }";
+static const char RTLIGHTCUBE_SHADER[] = "\
+{\n\
+	program rtlight%s\n\
+	{\n\
+		map $diffuse\n\
+		blendfunc add\n\
+	}\n\
+	{\n\
+		map $normalmap\n\
+	}\n\
+	{\n\
+		map $specular\n\
+	}\n\
+	{\n\
+		map $lightcubemap\n\
+	}\n\
+}";
 static const char PCFPASS_SHADER[] = "\
 {\n\
 	program rtlight#PCF%s\n"/*\
@@ -268,9 +61,6 @@ static const char PCFPASS_SHADER[] = "\
 	#define PCF\n\
 	%s%s\n\
 	}\n*/"\
-\
-	/*eye pos*/\n\
-	param opt entmatrix entmatrix\n\
 \
 	{\n\
 		map $diffuse\n\
@@ -302,12 +92,14 @@ struct {
 		int vbo_texcoords[SHADER_PASS_MAX];
 		int vbo_deforms;	//holds verticies... in case you didn't realise.
 
-		qboolean initedlightpasses;
-		const shader_t *lightpassshader;
-		qboolean initedpcfpasses;
-		const shader_t *pcfpassshader;
-		qboolean initedspotpasses;
-		const shader_t *spotpassshader;
+		qboolean inited_shader_rtlight;
+		const shader_t *shader_rtlight;
+		qboolean inited_shader_cube;
+		const shader_t *shader_cube;
+		qboolean inited_shader_smap;
+		const shader_t *shader_smap;
+		qboolean inited_shader_spot;
+		const shader_t *shader_spot;
 
 		const shader_t *crepskyshader;
 		const shader_t *crepopaqueshader;
@@ -377,6 +169,8 @@ struct {
 		vec3_t lightcolours;
 		float lightradius;
 		texid_t lighttexture;
+		texid_t lightcubemap;
+		float lightprojmatrix[16]; /*world space*/
 	};
 
 	int wbatch;
@@ -936,6 +730,9 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass, qboolea
 		t = shaderstate.curshadowmap;
 		break;
 
+	case T_GEN_LIGHTCUBEMAP:
+		GL_LazyBind(tmu, GL_TEXTURE_CUBE_MAP_ARB, shaderstate.lightcubemap, useclientarray);
+		return;
 	case T_GEN_CUBEMAP:
 		t = pass->anim_frames[0];
 		GL_LazyBind(tmu, GL_TEXTURE_CUBE_MAP_ARB, t, useclientarray);
@@ -1047,7 +844,12 @@ void Shader_LightPass_Std(char *shortname, shader_t *s, const void *args)
 {
 	char shadertext[8192*2];
 	sprintf(shadertext, LIGHTPASS_SHADER, "");
-//	FS_WriteFile("shader/lightpass.shader.builtin", shadertext, strlen(shadertext), FS_GAMEONLY);
+	Shader_DefaultScript(shortname, s, shadertext);
+}
+void Shader_LightPass_Cube(char *shortname, shader_t *s, const void *args)
+{
+	char shadertext[8192*2];
+	sprintf(shadertext, RTLIGHTCUBE_SHADER, "#CUBE");
 	Shader_DefaultScript(shortname, s, shadertext);
 }
 void Shader_LightPass_PCF(char *shortname, shader_t *s, const void *args)
@@ -1131,10 +933,15 @@ void GLBE_Init(void)
 	shaderstate.identitylighting = 1;
 
 	/*normally we load these lazily, but if they're probably going to be used anyway, load them now to avoid stalls.*/
-	if (r_shadow_realtime_dlight.ival && !shaderstate.initedlightpasses && gl_config.arb_shader_objects)
+	if (r_shadow_realtime_dlight.ival && !shaderstate.inited_shader_rtlight && gl_config.arb_shader_objects)
 	{
-		shaderstate.initedlightpasses = true;
-		shaderstate.lightpassshader = R_RegisterCustom("lightpass", Shader_LightPass_Std, NULL);
+		shaderstate.inited_shader_rtlight = true;
+		shaderstate.shader_rtlight = R_RegisterCustom("rtlight", Shader_LightPass_Std, NULL);
+	}
+	if (r_shadow_realtime_dlight.ival && !shaderstate.inited_shader_cube && gl_config.arb_shader_objects)
+	{
+		shaderstate.inited_shader_cube = true;
+		shaderstate.shader_cube = R_RegisterCustom("rtlight_sube", Shader_LightPass_Cube, NULL);
 	}
 
 	shaderstate.shaderbits = ~0;
@@ -2613,6 +2420,16 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 			qglUniform3fvARB(p->handle[perm], 1, t2);
 		}
 		break;
+	case SP_LIGHTPROJMATRIX:
+		/*light's texture projection matrix*/
+		{
+			float t[16];
+			Matrix4_Multiply(shaderstate.lightprojmatrix, shaderstate.modelmatrix, t);
+			qglUniformMatrix4fvARB(p->handle[perm], 1, false, t);
+		}
+		break;
+
+	/*static lighting info*/
 	case SP_E_L_DIR:
 		qglUniform3fvARB(p->handle[perm], 1, (float*)shaderstate.curentity->light_dir);
 		break;
@@ -2833,26 +2650,31 @@ void GLBE_SelectMode(backendmode_t mode)
 			break;
 
 		case BEM_SMAPLIGHT:
-			if (!shaderstate.initedpcfpasses)
+			if (!shaderstate.inited_shader_smap)
 			{
-				shaderstate.initedpcfpasses = true;
-				shaderstate.pcfpassshader = R_RegisterCustom("lightpass_pcf", Shader_LightPass_PCF, NULL);
+				shaderstate.inited_shader_smap = true;
+				shaderstate.shader_smap = R_RegisterCustom("rtlight_shadowmap", Shader_LightPass_PCF, NULL);
 			}
 			break;
 
 		case BEM_SMAPLIGHTSPOT:
-			if (!shaderstate.initedspotpasses)
+			if (!shaderstate.inited_shader_spot)
 			{
-				shaderstate.initedspotpasses = true;
-				shaderstate.spotpassshader = R_RegisterCustom("lightpass_spot", Shader_LightPass_Spot, NULL);
+				shaderstate.inited_shader_spot = true;
+				shaderstate.shader_spot = R_RegisterCustom("rtlight_spot", Shader_LightPass_Spot, NULL);
 			}
 			break;
 
 		case BEM_LIGHT:
-			if (!shaderstate.initedlightpasses)
+			if (!shaderstate.inited_shader_rtlight)
 			{
-				shaderstate.initedlightpasses = true;
-				shaderstate.lightpassshader = R_RegisterCustom("lightpass", Shader_LightPass_Std, NULL);
+				shaderstate.inited_shader_rtlight = true;
+				shaderstate.shader_rtlight = R_RegisterCustom("rtlight", Shader_LightPass_Std, NULL);
+			}
+			if (!shaderstate.inited_shader_cube)
+			{
+				shaderstate.inited_shader_cube = true;
+				shaderstate.shader_cube = R_RegisterCustom("rtlight_sube", Shader_LightPass_Cube, NULL);
 			}
 			break;
 
@@ -2927,11 +2749,35 @@ void BE_SelectFog(vec3_t colour, float alpha, float density)
 
 void GLBE_SelectDLight(dlight_t *dl, vec3_t colour)
 {
+	static float shadowprojectionbias[16] =
+	{
+		0.5f, 0.0f, 0.0f, 0.0f,
+		0.0f, 0.5f, 0.0f, 0.0f,
+		0.0f, 0.0f, 0.5f, 0.0f,
+		0.5f, 0.5f, 0.4993f, 1.0f
+	};
+	float view[16], proj[16], t[16];
+
+	/*generate light projection information*/
+	float nearplane = 4;
+	if (dl->fov)
+		Matrix4x4_CM_Projection_Far(proj, dl->fov, dl->fov, nearplane, dl->radius);
+	else
+		Matrix4x4_CM_Projection_Far(proj, 90, 90, nearplane, dl->radius);
+	Matrix4x4_CM_ModelViewMatrixFromAxis(view, dl->axis[0], dl->axis[1], dl->axis[2], dl->origin);
+	Matrix4_Multiply(shadowprojectionbias, proj, t);
+	Matrix4_Multiply(proj, view, shaderstate.lightprojmatrix);
+
+
+	/*simple info*/
 	shaderstate.lightradius = dl->radius;
 	VectorCopy(dl->origin, shaderstate.lightorg);
 	VectorCopy(colour, shaderstate.lightcolours);
 #ifdef RTLIGHTS
 	shaderstate.curshadowmap = dl->stexture;
+#endif
+#ifdef RTLIGHTS
+	shaderstate.lightcubemap = dl->cubetexture;
 #endif
 }
 
@@ -3035,13 +2881,16 @@ static void DrawMeshes(void)
 		break;
 #ifdef RTLIGHTS
 	case BEM_SMAPLIGHTSPOT:
-		BE_RenderMeshProgram(shaderstate.spotpassshader, shaderstate.spotpassshader->passes);
+		BE_RenderMeshProgram(shaderstate.shader_spot, shaderstate.shader_spot->passes);
 		break;
 	case BEM_SMAPLIGHT:
-		BE_RenderMeshProgram(shaderstate.pcfpassshader, shaderstate.pcfpassshader->passes);
+		BE_RenderMeshProgram(shaderstate.shader_smap, shaderstate.shader_smap->passes);
 		break;
 	case BEM_LIGHT:
-		BE_RenderMeshProgram(shaderstate.lightpassshader, shaderstate.lightpassshader->passes);
+		if (TEXVALID(shaderstate.lightcubemap))
+			BE_RenderMeshProgram(shaderstate.shader_cube, shaderstate.shader_cube->passes);
+		else
+			BE_RenderMeshProgram(shaderstate.shader_rtlight, shaderstate.shader_rtlight->passes);
 		break;
 	case BEM_DEPTHNORM:
 		BE_RenderMeshProgram(shaderstate.depthnormshader, shaderstate.depthnormshader->passes);

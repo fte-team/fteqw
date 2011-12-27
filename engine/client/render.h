@@ -270,9 +270,13 @@ enum imageflags
 	IF_NOALPHA = 1<<3,
 	IF_NOGAMMA = 1<<4,
 	IF_NEAREST = 1<<5,
-	IF_CUBEMAP = 1<<6,
-	IF_3DMAP = 1<<7,
+	IF_3DMAP = 1<<6,	/*waning - don't test directly*/
+	IF_CUBEMAP = 1<<7,	/*waning - don't test directly*/
+	IF_CUBEMAPEXTRA = 1<<8,
+	IF_TEXTYPE = (1<<6) | (1<<7) | (1<<8), /*0=2d, 1=3d, 2-7=cubeface*/
+	IF_TEXTYPESHIFT = 6, /*0=2d, 1=3d, 2-7=cubeface*/
 
+	IF_REPLACE = 1<<30,
 	IF_SUBDIRONLY = 1<<31
 };
 

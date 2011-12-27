@@ -146,6 +146,8 @@ void QCBUILTIN PF_normalize (progfuncs_t *prinst, struct globalvars_s *pr_global
 void QCBUILTIN PF_vlen (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_vectoyaw (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_vectoangles (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_rotatevectorsbyangles (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_rotatevectorsbymatrix (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_findchain (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PF_findchainfloat (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_coredump (progfuncs_t *prinst, struct globalvars_s *pr_globals);

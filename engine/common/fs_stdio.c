@@ -62,22 +62,47 @@ static void VFSSTDIO_Close(vfsfile_t *file)
 	Z_Free(file);
 }
 
+#ifdef _WIN32
+static void VFSSTDIO_CloseTemp(vfsfile_t *file)
+{
+	vfsstdiofile_t *intfile = (vfsstdiofile_t*)file;
+	char *fname = (char*)(intfile+1); 
+	fclose(intfile->handle);
+	_unlink(fname);
+	Z_Free(file);
+}
+#endif
+
 vfsfile_t *FSSTDIO_OpenTemp(void)
 {
 	FILE *f;
 	vfsstdiofile_t *file;
 
+#ifdef _WIN32
+	/*warning: annother app might manage to open the file before we can. if the file is not opened exclusively then we can end up with issues
+	on windows, fopen is typically exclusive anyway, but not on unix. but on unix, tmpfile is actually usable, so special-case the windows code*/
+	char *fname = _tempnam(NULL, "ftemp");
+	f = fopen(fname, "w+b");
+	if (!f)
+		return NULL;
+
+	file = Z_Malloc(sizeof(vfsstdiofile_t) + strlen(fname)+1);
+	file->funcs.Close = VFSSTDIO_CloseTemp;
+	strcpy((char*)(file+1), fname);
+	free(fname);
+#else
 	f = tmpfile();
 	if (!f)
 		return NULL;
 
 	file = Z_Malloc(sizeof(vfsstdiofile_t));
+	file->funcs.Close = VFSSTDIO_Close;
+#endif
 	file->funcs.ReadBytes = VFSSTDIO_ReadBytes;
 	file->funcs.WriteBytes = VFSSTDIO_WriteBytes;
 	file->funcs.Seek = VFSSTDIO_Seek;
 	file->funcs.Tell = VFSSTDIO_Tell;
 	file->funcs.GetLen = VFSSTDIO_GetSize;
-	file->funcs.Close = VFSSTDIO_Close;
 	file->funcs.Flush = VFSSTDIO_Flush;
 	file->handle = f;
 

@@ -200,7 +200,7 @@ void R_InitFlashblends(void)
 	lpplight_shader = NULL;
 }
 
-static qboolean R_BuildDlightMesh(dlight_t *light, float radscale, qboolean expand)
+static qboolean R_BuildDlightMesh(dlight_t *light, float colscale, float radscale, qboolean expand)
 {
 	int		i, j;
 //	float	a;
@@ -225,6 +225,10 @@ static qboolean R_BuildDlightMesh(dlight_t *light, float radscale, qboolean expa
 		rad *= a;
 		rad *= 0.33;
 	}
+	if (light->style)
+	{
+		colscale *= d_lightstylevalue[light->style-1]/255.0f;
+	}
 
 	VectorSubtract (light->origin, r_origin, v);
 	if (Length (v) < rad + gl_mindist.value*2)
@@ -232,9 +236,9 @@ static qboolean R_BuildDlightMesh(dlight_t *light, float radscale, qboolean expa
 		return false;
 	}
 
-	flashblend_colours[0][0] = colour[0]*2;
-	flashblend_colours[0][1] = colour[1]*2;
-	flashblend_colours[0][2] = colour[2]*2;
+	flashblend_colours[0][0] = colour[0]*colscale;
+	flashblend_colours[0][1] = colour[1]*colscale;
+	flashblend_colours[0][2] = colour[2]*colscale;
 	flashblend_colours[0][3] = 1;
 
 	VectorCopy(light->origin, flashblend_vcoords[0]);
@@ -289,21 +293,27 @@ void R_RenderDlights (void)
 	l = cl_dlights+rtlights_first;
 	for (i=rtlights_first; i<rtlights_max; i++, l++)
 	{
-		if (!l->radius || !(l->flags & LFLAG_FLASHBLEND))
+		if (!l->radius)
 			continue;
 
-		//dlights emitting from the local player are not visible as flashblends
-		if (l->key == cl.playernum[r_refdef.currentplayernum]+1)
-			continue;	//was a glow
-		if (l->key == -(cl.playernum[r_refdef.currentplayernum]+1))
-			continue;	//was a muzzleflash
+		if (l->corona <= 0)
+			continue;
+
+		if (l->flags & LFLAG_FLASHBLEND)
+		{
+			//dlights emitting from the local player are not visible as flashblends
+			if (l->key == cl.playernum[r_refdef.currentplayernum]+1)
+				continue;	//was a glow
+			if (l->key == -(cl.playernum[r_refdef.currentplayernum]+1))
+				continue;	//was a muzzleflash
+		}
 
 		if (r_flashblend.ival == 2)
 		{
 			if (TraceLineN(r_refdef.vieworg, l->origin, waste1, waste2))
 				continue;
 		}
-		if (!R_BuildDlightMesh (l, r_flashblendscale.value, false))
+		if (!R_BuildDlightMesh (l, l->corona, l->coronascale, false))
 			AddLightBlend (l->color[0]*5, l->color[1]*5, l->color[2]*5, l->radius * 0.0003);
 		else
 			BE_DrawMesh_Single(flashblend_shader, &flashblend_mesh, NULL, &flashblend_shader->defaulttextures, beflags);
@@ -318,7 +328,7 @@ void R_GenDlightMesh(struct batch_s *batch)
 
 	BE_SelectDLight(l, l->color);
 
-	if (!R_BuildDlightMesh (l, 1, true))
+	if (!R_BuildDlightMesh (l, 2, 1, true))
 	{
 		int i;
 		static vec2_t s[4] = {{1, -1}, {-1, -1}, {-1, 1}, {1, 1}};

@@ -2416,7 +2416,7 @@ static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t dir, in
 	}
 	if (ptype->dl_radius)
 	{
-		dlight_t *dl = CL_NewDlightRGB(dlkey, org, ptype->dl_radius, ptype->dl_time, ptype->dl_rgb[0], ptype->dl_rgb[1], ptype->dl_rgb[2]);
+		dlight_t *dl = CL_NewDlight(dlkey, org, ptype->dl_radius, ptype->dl_time, ptype->dl_rgb[0], ptype->dl_rgb[1], ptype->dl_rgb[2]);
 		dl->channelfade[0] = ptype->dl_decay[0];
 		dl->channelfade[1] = ptype->dl_decay[1];
 		dl->channelfade[2] = ptype->dl_decay[2];

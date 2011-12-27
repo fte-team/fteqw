@@ -189,27 +189,7 @@ dlight_t *CL_AllocDlight (int key)
 CL_NewDlight
 ===============
 */
-dlight_t *CL_NewDlight (int key, const vec3_t org, float radius, float time, int type)
-{
-	static const vec3_t lightcolour[] =
-	{
-		{0.2, 0.1, 0.05},
-		{0.05, 0.05, 0.3},
-		{0.5, 0.05, 0.05},
-		{0.5, 0.05, 0.4}
-	};
-	dlight_t	*dl;
-	if (type >= sizeof(lightcolour)/sizeof(lightcolour[0]))
-		type = 0;
-
-	dl = CL_AllocDlight (key);
-	VectorCopy(org, dl->origin);
-	dl->radius = radius;
-	dl->die = (float)cl.time + time;
-	VectorCopy(lightcolour[type], dl->color);
-	return dl;
-}
-dlight_t *CL_NewDlightRGB (int key, const vec3_t org, float radius, float time,
+dlight_t *CL_NewDlight (int key, const vec3_t org, float radius, float time,
 				   float r, float g, float b)
 {
 	dlight_t	*dl;
@@ -223,6 +203,12 @@ dlight_t *CL_NewDlightRGB (int key, const vec3_t org, float radius, float time,
 	dl->color[2] = b;
 
 	return dl;
+}
+
+dlight_t *CL_NewDlightRGB(int key, const vec3_t org, float radius, float time,
+				   float r, float g, float b)
+{
+	return CL_NewDlight(key, org, radius, time, r*5, g*5, b*5);
 }
 
 
@@ -2050,36 +2036,36 @@ void CL_LinkPacketEntities (void)
 			if (state->effects & EF_BRIGHTLIGHT)
 			{
 				radius = max(radius,400);
-				colour[0] += 0.2;
-				colour[1] += 0.1;
-				colour[2] += 0.05;
+				colour[0] += 2.0;
+				colour[1] += 1.0;
+				colour[2] += 0.5;
 			}
 			if (state->effects & EF_DIMLIGHT)
 			{
 				radius = max(radius,200);
-				colour[0] += 0.2;
-				colour[1] += 0.1;
-				colour[2] += 0.05;
+				colour[0] += 2.0;
+				colour[1] += 1.0;
+				colour[2] += 0.5;
 			}
 			if (state->effects & EF_BLUE)
 			{
 				radius = max(radius,200);
-				colour[0] += 0.05;
-				colour[1] += 0.05;
-				colour[2] += 0.3;
+				colour[0] += 0.5;
+				colour[1] += 0.5;
+				colour[2] += 3.0;
 			}
 			if (state->effects & EF_RED)
 			{
 				radius = max(radius,200);
-				colour[0] += 0.5;
-				colour[1] += 0.05;
-				colour[2] += 0.05;
+				colour[0] += 5.0;
+				colour[1] += 0.5;
+				colour[2] += 0.5;
 			}
 
 			if (radius)
 			{
 				radius += r_lightflicker.value?((flicker + state->number)&31):0;
-				CL_NewDlightRGB(state->number, state->origin, radius, 0.1, colour[0], colour[1], colour[2]);
+				CL_NewDlight(state->number, state->origin, radius, 0.1, colour[0], colour[1], colour[2]);
 			}
 		}
 		if (state->lightpflags & PFLAGS_FULLDYNAMIC)
@@ -2095,7 +2081,8 @@ void CL_LinkPacketEntities (void)
 				colour[1] = state->light[1]/1024.0f;
 				colour[2] = state->light[2]/1024.0f;
 			}
-			CL_NewDlightRGB(state->number, state->origin, state->light[3]?state->light[3]:350, 0.1, colour[0], colour[1], colour[2]);
+			CL_NewDlight(state->number, state->origin, state->light[3]?state->light[3]:350, 0.1, colour[0], colour[1], colour[2]);
+			/*FIXME: .skin is meant to be "cubemaps/%i" */
 		}
 
 		// if set to invisible, skip
@@ -2998,23 +2985,23 @@ void CL_LinkPlayers (void)
 			if (state->effects & EF_DIMLIGHT)
 			{
 				radius = max(radius,200);
-				colour[0] += 0.2;
-				colour[1] += 0.1;
-				colour[2] += 0.05;
+				colour[0] += 2.0;
+				colour[1] += 1.0;
+				colour[2] += 0.5;
 			}
 			if (state->effects & EF_BLUE)
 			{
 				radius = max(radius,200);
-				colour[0] += 0.05;
-				colour[1] += 0.05;
-				colour[2] += 0.3;
+				colour[0] += 0.5;
+				colour[1] += 0.5;
+				colour[2] += 3.0;
 			}
 			if (state->effects & EF_RED)
 			{
 				radius = max(radius,200);
-				colour[0] += 0.5;
-				colour[1] += 0.05;
-				colour[2] += 0.05;
+				colour[0] += 5.0;
+				colour[1] += 0.5;
+				colour[2] += 0.5;
 			}
 
 			if (radius)
@@ -3039,7 +3026,7 @@ void CL_LinkPlayers (void)
 					}
 					radius += (flicker+j)&31;
 				}
-				CL_NewDlightRGB(j+1, org, radius, 0.1, colour[0], colour[1], colour[2])->flags &= ~LFLAG_FLASHBLEND;
+				CL_NewDlight(j+1, org, radius, 0.1, colour[0], colour[1], colour[2])->flags &= ~LFLAG_FLASHBLEND;
 			}
 		}
 
@@ -3176,7 +3163,7 @@ void CL_LinkPlayers (void)
 		if (r_torch.ival)
 		{
 			dlight_t *dl;
-			dl = CL_NewDlightRGB(j+1, ent->origin, 300, r_torch.ival, 0.05, 0.05, 0.02);
+			dl = CL_NewDlight(j+1, ent->origin, 300, r_torch.ival, 0.5, 0.5, 0.2);
 			dl->flags |= LFLAG_SHADOWMAP|LFLAG_FLASHBLEND;
 			dl->fov = 60;
 			angles[0] *= 3;

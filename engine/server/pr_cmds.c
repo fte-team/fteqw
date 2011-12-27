@@ -8781,8 +8781,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"globalstat",		PF_globalstat,		0,		0,		0,		233,	"void(float num, float type, string name)"},	//EXT_CSQC_1 actually
 //END EXT_CSQC
 	{"isbackbuffered",	PF_isbackbuffered,	0,		0,		0,		234,	"void(entity player)"},
-	{"rotatevectorsbyangle",	PF_Fixme,	0,		0,		0,		235,	"void(vector angle)"}, // #235
-	{"rotatevectorsbyvectors",	PF_Fixme,	0,		0,		0,		236,	"void(vector fwd, vector right, vector up)"}, // #236
+	{"rotatevectorsbyangle",PF_rotatevectorsbyangles,0,0,	0,		235,	"void(vector angle)"}, // #235
+	{"rotatevectorsbyvectors",PF_rotatevectorsbymatrix,0,0,	0,		236,	"void(vector fwd, vector right, vector up)"}, // #236
 	{"skinforname",		PF_skinforname,		0,		0,		0,		237,	"float(float mdlindex, string skinname)"},		// #237
 	{"shaderforname",	PF_Fixme,			0,		0,		0,		238,	"float(string shadername, optional string defaultshader, ...)"},
 	{"te_bloodqw",		PF_te_bloodqw,		0,		0,		0,		239,	"void(vector org, optional float count)"},
@@ -9864,6 +9864,9 @@ void PR_DumpPlatform_f(void)
 		{"LFIELD_STYLE",		"const float", CS, lfield_style},
 		{"LFIELD_ANGLES",		"const float", CS, lfield_angles},
 		{"LFIELD_FOV",			"const float", CS, lfield_fov},
+		{"LFIELD_CORONA",		"const float", CS, lfield_corona},
+		{"LFIELD_CORONASCALE",	"const float", CS, lfield_coronascale},
+		{"LFIELD_CUBEMAPNAME",	"const float", CS, lfield_cubemapname},
 
 		{"LFLAG_NORMALMODE",	"const float", CS, LFLAG_NORMALMODE},
 		{"LFLAG_REALTIMEMODE",	"const float", CS, LFLAG_REALTIMEMODE},

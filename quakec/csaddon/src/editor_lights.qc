@@ -34,8 +34,8 @@ void() editor_lights_add =
 	}
 };
 
-static string fldname[10] = {
-	"bad",
+#define NUMLFIELDS 11
+static string fldname[NUMLFIELDS+1] = {	"bad",
 	"num",
 	"org",
 	"rgb",
@@ -44,7 +44,9 @@ static string fldname[10] = {
 	"sty",
 	"ang",
 	"fov",
-	"???"
+	"cmp",
+	"cor",
+	"csc"
 };
 static string(float fld, float foredit) readfield =
 {
@@ -77,6 +79,12 @@ static string(float fld, float foredit) readfield =
 		return vtos(dynamiclight_get(selectedlight, LFIELD_ANGLES));
 	case 8:
 		return ftos(dynamiclight_get(selectedlight, LFIELD_FOV));
+	case 9:
+		return (string)dynamiclight_get(selectedlight, LFIELD_CUBEMAPNAME);
+	case 10:
+		return ftos(dynamiclight_get(selectedlight, LFIELD_CORONA));
+	case 11:
+		return ftos(dynamiclight_get(selectedlight, LFIELD_CORONASCALE));
 	default:
 		return "";
 	}
@@ -117,6 +125,16 @@ static void(float fld, string newval) writefield =
 		return;
 	case 8:
 		dynamiclight_set(selectedlight, LFIELD_FOV, stof(newval));
+		return;
+	case 9:
+		dynamiclight_set(selectedlight, LFIELD_CUBEMAPNAME, newval);
+		return;
+	case 10:
+		dynamiclight_set(selectedlight, LFIELD_CORONA, stof(newval));
+		return;
+	case 11:
+		dynamiclight_set(selectedlight, LFIELD_CORONASCALE, stof(newval));
+		return;
 	default:
 		return;
 	}
@@ -130,7 +148,7 @@ void(vector m) editor_lights_overlay =
 
 	m_y = floor((m_y - 32) / 8);
 
-	for (i = 1; i <= 8; i++)
+	for (i = 1; i <= NUMLFIELDS; i++)
 	{
 		if (editfield == i)
 			s = editvalue;
@@ -206,7 +224,7 @@ float(float keyc, float unic, vector m) editor_lights_key =
 			editfield = 0;
 		}
 		editfield = floor((m_y - 32) / 8);
-		if (editfield <= 0 || editfield > 8 || m_x >= 64)
+		if (editfield <= 0 || editfield > NUMLFIELDS || m_x >= 64)
 		{
 			editfield = 0;
 

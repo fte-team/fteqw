@@ -27,8 +27,6 @@ void QCC_PR_LexWhitespace (void);
 void *FS_ReadToMem(char *fname, void *membuf, int *len);
 void FS_CloseFromMem(void *mem);
 
-struct qcc_includechunk_s *currentchunk;
-
 unsigned int MAX_REGS;
 
 int	MAX_STRINGS;
@@ -78,14 +76,17 @@ int			numfielddefs;
 
 PATHSTRING		*precache_sounds;
 int			*precache_sounds_block;
+int			*precache_sounds_used;
 int			numsounds;
 
 PATHSTRING		*precache_textures;
+int			*precache_textures_block;
 int			*precache_textures_block;
 int			numtextures;
 
 PATHSTRING		*precache_models;
 int			*precache_models_block;
+int			*precache_models_used;
 int			nummodels;
 
 PATHSTRING		*precache_files;
@@ -96,6 +97,9 @@ extern int numCompilerConstants;
 hashtable_t compconstantstable;
 hashtable_t globalstable;
 hashtable_t localstable;
+#ifdef WRITEASM
+FILE *asmfile;
+#endif
 hashtable_t floatconstdefstable;
 hashtable_t stringconstdefstable;
 hashtable_t stringconstdefstable_trans;

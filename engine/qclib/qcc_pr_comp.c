@@ -9292,7 +9292,6 @@ pbool QCC_Include(char *filename)
 	int opr_source_line;
 	char *ocompilingfile;
 	struct qcc_includechunk_s *oldcurrentchunk;
-	extern struct qcc_includechunk_s *currentchunk;
 
 	ocompilingfile = compilingfile;
 	os_file = s_file;

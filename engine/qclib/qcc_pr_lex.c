@@ -88,13 +88,6 @@ void QCC_PR_LexWhitespace (void);
 
 //for compiler constants and file includes.
 
-typedef struct qcc_includechunk_s {
-	struct qcc_includechunk_s *prev;
-	char *filename;
-	char *currentdatapoint;
-	int currentlinenumber;
-	CompilerConstant_t *cnst;
-} qcc_includechunk_t;
 qcc_includechunk_t *currentchunk;
 void QCC_PR_IncludeChunkEx (char *data, pbool duplicate, char *filename, CompilerConstant_t *cnst)
 {

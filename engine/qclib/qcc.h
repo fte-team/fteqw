@@ -281,7 +281,7 @@ extern hashtable_t globalstable, localstable;
 #endif
 
 #ifdef WRITEASM
-FILE *asmfile;
+extern FILE *asmfile;
 #endif
 //=============================================================================
 
@@ -854,23 +854,32 @@ extern int numtemps;
 
 typedef char PATHSTRING[MAX_DATA_PATH];
 
-PATHSTRING		*precache_sounds;
-int			*precache_sounds_block;
-int			*precache_sounds_used;
-int			numsounds;
+extern PATHSTRING		*precache_sounds;
+extern int			*precache_sounds_block;
+extern int			*precache_sounds_used;
+extern int			numsounds;
 
-PATHSTRING		*precache_textures;
-int			*precache_textures_block;
-int			numtextures;
+extern PATHSTRING		*precache_textures;
+extern int			*precache_textures_block;
+extern int			numtextures;
 
-PATHSTRING		*precache_models;
-int			*precache_models_block;
-int			*precache_models_used;
-int			nummodels;
+extern PATHSTRING		*precache_models;
+extern int			*precache_models_block;
+extern int			*precache_models_used;
+extern int			nummodels;
 
-PATHSTRING		*precache_files;
-int			*precache_files_block;
-int			numfiles;
+extern PATHSTRING		*precache_files;
+extern int			*precache_files_block;
+extern int			numfiles;
+
+typedef struct qcc_includechunk_s {
+	struct qcc_includechunk_s *prev;
+	char *filename;
+	char *currentdatapoint;
+	int currentlinenumber;
+	CompilerConstant_t *cnst;
+} qcc_includechunk_t;
+extern qcc_includechunk_t *currentchunk;
 
 int	QCC_CopyString (char *str);
 

@@ -545,6 +545,8 @@ void Con_Shutdown(void)
 	con_initialized = false;
 }
 
+void TTS_SayConString(conchar_t *stringtosay);
+
 /*
 ================
 Con_Print
@@ -598,10 +600,18 @@ void Con_PrintCon (console_t *con, char *txt)
 				con->current->time = 0;
 			else
 				con->current->time = realtime;
-			con->current->newer = Z_Malloc(sizeof(conline_t));
+
+#if defined(_WIN32) && !defined(NOMEDIA)
+			if (con->current)
+				TTS_SayConString(con->current+1);
+#endif
+
+			con->current->newer = Z_Malloc(sizeof(conline_t) + sizeof(conchar_t));
 			con->current->newer->older = con->current;
 			con->current = con->current->newer;
 			con->current->length = 0;
+			o = (conchar_t *)(con->current+1)+con->current->length;
+			*o = 0;
 			if (con->display == con->current->older)
 				con->display = con->current;
 			break;
@@ -618,7 +628,7 @@ void Con_PrintCon (console_t *con, char *txt)
 				selendline = NULL;
 
 			oc = con->current;
-			con->current = BZ_Realloc(con->current, sizeof(*con->current)+(con->current->length+1)*sizeof(conchar_t));
+			con->current = BZ_Realloc(con->current, sizeof(*con->current)+(con->current->length+2)*sizeof(conchar_t));
 			if (con->display == oc)
 				con->display = con->current;
 			if (con->oldest == oc)
@@ -628,6 +638,7 @@ void Con_PrintCon (console_t *con, char *txt)
 				con->current->older->newer = con->current;
 			o = (conchar_t *)(con->current+1)+con->current->length;
 			*o = *c;
+			o[1] = 0;
 			con->current->length+=1;
 			break;
 		}

@@ -4543,6 +4543,8 @@ int CL_PlayerColor(player_info_t *plr, qboolean *name_coloured)
 	return c;
 }
 
+void TTS_SayChatString(char **stringtosay);
+
 // CL_PrintChat: takes chat strings and performs name coloring and cl_parsewhitetext parsing
 // NOTE: text in rawmsg/msg is assumed destroyable and should not be used afterwards
 void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
@@ -4611,6 +4613,10 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 			else
 				Q_strncatz(fullchatmessage, "^m* ", sizeof(fullchatmessage));
 		}
+
+#if defined(_WIN32) && !defined(NOMEDIA)
+		TTS_SayChatString(&msg);
+#endif
 
 		if (plrflags & (TPM_TEAM|TPM_OBSERVEDTEAM)) // for team chat don't highlight the name, just the brackets
 		{

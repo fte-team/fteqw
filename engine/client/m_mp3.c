@@ -2658,8 +2658,287 @@ double Media_TweekCaptureFrameTime(double time) { return time ; }
 void Media_RecordFrame (void) {}
 qboolean Media_PausedDemo (void) {return false;} //should not return a value
 #endif /* GLQUAKE */
+
+#ifdef _WIN32
+typedef struct ISpNotifySink ISpNotifySink;
+typedef void *ISpNotifyCallback;
+typedef void __stdcall SPNOTIFYCALLBACK(WPARAM wParam, LPARAM lParam);
+typedef struct SPEVENT
+{
+    WORD        eEventId : 16;
+    WORD  elParamType : 16;
+    ULONG       ulStreamNum;
+    ULONGLONG   ullAudioStreamOffset;
+    WPARAM      wParam;
+    LPARAM      lParam;
+} SPEVENT;
+
+#define SPEVENTSOURCEINFO void
+#define ISpObjectToken void
+#define ISpStreamFormat void
+#define SPVOICESTATUS void
+#define SPVPRIORITY int
+#define SPEVENTENUM int
+
+typedef struct ISpVoice ISpVoice;
+typedef struct ISpVoiceVtbl
+{
+    HRESULT ( STDMETHODCALLTYPE *QueryInterface )(
+        ISpVoice * This,
+        /* [in] */ REFIID riid,
+        /* [iid_is][out] */ void **ppvObject);
+
+    ULONG ( STDMETHODCALLTYPE *AddRef )(
+        ISpVoice * This);
+
+    ULONG ( STDMETHODCALLTYPE *Release )(
+        ISpVoice * This);
+
+    HRESULT ( STDMETHODCALLTYPE *SetNotifySink )(
+        ISpVoice * This,
+        /* [in] */ ISpNotifySink *pNotifySink);
+
+    /* [local] */ HRESULT ( STDMETHODCALLTYPE *SetNotifyWindowMessage )(
+        ISpVoice * This,
+        /* [in] */ HWND hWnd,
+        /* [in] */ UINT Msg,
+        /* [in] */ WPARAM wParam,
+        /* [in] */ LPARAM lParam);
+
+    /* [local] */ HRESULT ( STDMETHODCALLTYPE *SetNotifyCallbackFunction )(
+        ISpVoice * This,
+        /* [in] */ SPNOTIFYCALLBACK *pfnCallback,
+        /* [in] */ WPARAM wParam,
+        /* [in] */ LPARAM lParam);
+
+    /* [local] */ HRESULT ( STDMETHODCALLTYPE *SetNotifyCallbackInterface )(
+        ISpVoice * This,
+        /* [in] */ ISpNotifyCallback *pSpCallback,
+        /* [in] */ WPARAM wParam,
+        /* [in] */ LPARAM lParam);
+
+    /* [local] */ HRESULT ( STDMETHODCALLTYPE *SetNotifyWin32Event )(
+        ISpVoice * This);
+
+    /* [local] */ HRESULT ( STDMETHODCALLTYPE *WaitForNotifyEvent )(
+        ISpVoice * This,
+        /* [in] */ DWORD dwMilliseconds);
+
+    /* [local] */ HANDLE ( STDMETHODCALLTYPE *GetNotifyEventHandle )(
+        ISpVoice * This);
+
+    HRESULT ( STDMETHODCALLTYPE *SetInterest )(
+        ISpVoice * This,
+        /* [in] */ ULONGLONG ullEventInterest,
+        /* [in] */ ULONGLONG ullQueuedInterest);
+
+    HRESULT ( STDMETHODCALLTYPE *GetEvents )(
+        ISpVoice * This,
+        /* [in] */ ULONG ulCount,
+        /* [size_is][out] */ SPEVENT *pEventArray,
+        /* [out] */ ULONG *pulFetched);
+
+    HRESULT ( STDMETHODCALLTYPE *GetInfo )(
+        ISpVoice * This,
+        /* [out] */ SPEVENTSOURCEINFO *pInfo);
+
+    HRESULT ( STDMETHODCALLTYPE *SetOutput )(
+        ISpVoice * This,
+        /* [in] */ IUnknown *pUnkOutput,
+        /* [in] */ BOOL fAllowFormatChanges);
+
+    HRESULT ( STDMETHODCALLTYPE *GetOutputObjectToken )(
+        ISpVoice * This,
+        /* [out] */ ISpObjectToken **ppObjectToken);
+
+    HRESULT ( STDMETHODCALLTYPE *GetOutputStream )(
+        ISpVoice * This,
+        /* [out] */ ISpStreamFormat **ppStream);
+
+    HRESULT ( STDMETHODCALLTYPE *Pause )(
+        ISpVoice * This);
+
+    HRESULT ( STDMETHODCALLTYPE *Resume )(
+        ISpVoice * This);
+
+    HRESULT ( STDMETHODCALLTYPE *SetVoice )(
+        ISpVoice * This,
+        /* [in] */ ISpObjectToken *pToken);
+
+    HRESULT ( STDMETHODCALLTYPE *GetVoice )(
+        ISpVoice * This,
+        /* [out] */ ISpObjectToken **ppToken);
+
+    HRESULT ( STDMETHODCALLTYPE *Speak )(
+        ISpVoice * This,
+        /* [string][in] */ const WCHAR *pwcs,
+        /* [in] */ DWORD dwFlags,
+        /* [out] */ ULONG *pulStreamNumber);
+
+    HRESULT ( STDMETHODCALLTYPE *SpeakStream )(
+        ISpVoice * This,
+        /* [in] */ IStream *pStream,
+        /* [in] */ DWORD dwFlags,
+        /* [out] */ ULONG *pulStreamNumber);
+
+    HRESULT ( STDMETHODCALLTYPE *GetStatus )(
+        ISpVoice * This,
+        /* [out] */ SPVOICESTATUS *pStatus,
+        /* [string][out] */ WCHAR **ppszLastBookmark);
+
+    HRESULT ( STDMETHODCALLTYPE *Skip )(
+        ISpVoice * This,
+        /* [string][in] */ WCHAR *pItemType,
+        /* [in] */ long lNumItems,
+        /* [out] */ ULONG *pulNumSkipped);
+
+    HRESULT ( STDMETHODCALLTYPE *SetPriority )(
+        ISpVoice * This,
+        /* [in] */ SPVPRIORITY ePriority);
+
+    HRESULT ( STDMETHODCALLTYPE *GetPriority )(
+        ISpVoice * This,
+        /* [out] */ SPVPRIORITY *pePriority);
+
+    HRESULT ( STDMETHODCALLTYPE *SetAlertBoundary )(
+        ISpVoice * This,
+        /* [in] */ SPEVENTENUM eBoundary);
+
+    HRESULT ( STDMETHODCALLTYPE *GetAlertBoundary )(
+        ISpVoice * This,
+        /* [out] */ SPEVENTENUM *peBoundary);
+
+    HRESULT ( STDMETHODCALLTYPE *SetRate )(
+        ISpVoice * This,
+        /* [in] */ long RateAdjust);
+
+    HRESULT ( STDMETHODCALLTYPE *GetRate )(
+        ISpVoice * This,
+        /* [out] */ long *pRateAdjust);
+
+    HRESULT ( STDMETHODCALLTYPE *SetVolume )(
+        ISpVoice * This,
+        /* [in] */ USHORT usVolume);
+
+    HRESULT ( STDMETHODCALLTYPE *GetVolume )(
+        ISpVoice * This,
+        /* [out] */ USHORT *pusVolume);
+
+    HRESULT ( STDMETHODCALLTYPE *WaitUntilDone )(
+        ISpVoice * This,
+        /* [in] */ ULONG msTimeout);
+
+    HRESULT ( STDMETHODCALLTYPE *SetSyncSpeakTimeout )(
+        ISpVoice * This,
+        /* [in] */ ULONG msTimeout);
+
+    HRESULT ( STDMETHODCALLTYPE *GetSyncSpeakTimeout )(
+        ISpVoice * This,
+        /* [out] */ ULONG *pmsTimeout);
+
+    /* [local] */ HANDLE ( STDMETHODCALLTYPE *SpeakCompleteEvent )(
+        ISpVoice * This);
+
+    /* [local] */ HRESULT ( STDMETHODCALLTYPE *IsUISupported )(
+        ISpVoice * This,
+        /* [in] */ const WCHAR *pszTypeOfUI,
+        /* [in] */ void *pvExtraData,
+        /* [in] */ ULONG cbExtraData,
+        /* [out] */ BOOL *pfSupported);
+
+    /* [local] */ HRESULT ( STDMETHODCALLTYPE *DisplayUI )(
+        ISpVoice * This,
+        /* [in] */ HWND hwndParent,
+        /* [in] */ const WCHAR *pszTitle,
+        /* [in] */ const WCHAR *pszTypeOfUI,
+        /* [in] */ void *pvExtraData,
+        /* [in] */ ULONG cbExtraData);
+
+    END_INTERFACE
+} ISpVoiceVtbl;
+
+struct ISpVoice
+{
+    struct ISpVoiceVtbl *lpVtbl;
+};
+void TTS_SayUnicodeString(wchar_t *stringtosay)
+{
+	static CLSID CLSID_SpVoice = {0x96749377, 0x3391, 0x11D2,
+								0x9E,0xE3,0x00,0xC0,0x4F,0x79,0x73,0x96};
+	static GUID IID_ISpVoice = {0x6C44DF74,0x72B9,0x4992,
+								0xA1,0xEC,0xEF,0x99,0x6E,0x04,0x22,0xD4};
+	static ISpVoice *sp = NULL;
+
+	if (!sp)
+		CoCreateInstance(
+				&CLSID_SpVoice,
+				NULL,
+				CLSCTX_SERVER,
+				&IID_ISpVoice,
+				&sp);
+
+	if (sp)
+	{
+		sp->lpVtbl->Speak(sp, stringtosay, 1, NULL);
+	}
+}
+void TTS_SayAsciiString(char *stringtosay)
+{
+	wchar_t bigbuffer[8192];
+	mbstowcs(bigbuffer, stringtosay, sizeof(bigbuffer)/sizeof(bigbuffer[0]) - 1);
+	bigbuffer[sizeof(bigbuffer)/sizeof(bigbuffer[0]) - 1] = 0;
+	TTS_SayUnicodeString(bigbuffer);
+}
+
+cvar_t tts_mode = CVAR("tts_mode", "1");
+void TTS_SayChatString(char **stringtosay)
+{
+	if (!strncmp(*stringtosay, "tts ", 4))
+	{
+		*stringtosay += 4;
+		if (tts_mode.ival != 1 && tts_mode.ival != 2)
+			return;
+	}
+	else
+	{
+		if (tts_mode.ival != 2)
+			return;
+	}
+
+	TTS_SayAsciiString(stringtosay);
+}
+void TTS_SayConString(conchar_t *stringtosay)
+{
+	wchar_t bigbuffer[8192];
+	int i;
+
+	if (tts_mode.ival < 3)
+		return;
+	
+	for (i = 0; i < 8192-1 && *stringtosay; i++, stringtosay++)
+	{
+		if ((*stringtosay & 0xff00) == 0xe000)
+			bigbuffer[i] = *stringtosay & 0x7f;
+		else
+			bigbuffer[i] = *stringtosay & CON_CHARMASK;
+	}
+	bigbuffer[i] = 0;
+	if (i)
+		TTS_SayUnicodeString(bigbuffer);
+}
+void TTS_Say_f(void)
+{
+	TTS_SayAsciiString(Cmd_Args());
+}
+#endif
+
 void Media_Init(void)
 {
+#ifdef _WIN32
+	Cmd_AddCommand("tts", TTS_Say_f);
+	Cvar_Register(&tts_mode, "Gimmicks");
+#endif
+
 	Cmd_AddCommand("playfilm", Media_PlayFilm_f);
 	Cmd_AddCommand("cinematic", Media_PlayFilm_f);
 	Cmd_AddCommand("music_fforward", Media_FForward_f);

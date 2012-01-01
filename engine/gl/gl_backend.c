@@ -4,7 +4,7 @@
 //FIXME: this shouldn't be defined
 #define FORCESTATE
 #else
-#define FORCESTATE
+//#define FORCESTATE
 #endif
 //#define WIREFRAME
 
@@ -16,6 +16,10 @@
 #include <malloc.h>
 #else
 #include <alloca.h>
+#endif
+
+#ifdef FORCESTATE
+#pragma warningmsg("FORCESTATE is active")
 #endif
 
 extern cvar_t gl_overbright;
@@ -480,6 +484,19 @@ void GL_SelectProgram(int program)
 		qglUseProgramObjectARB(program);
 		shaderstate.currentprogram = program;
 	}
+}
+
+void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsigned numindicies, int ibo, index_t *indicies)
+{
+	GL_SelectVBO(vbo);
+	GL_SelectEBO(ibo);
+	qglEnableClientState(GL_VERTEX_ARRAY);
+	//draw cached world shadow mesh
+	qglVertexPointer(3, GL_FLOAT, sizeof(vecV_t), verts);
+	qglDrawRangeElements(GL_TRIANGLES, 0, numverts, numindicies, GL_INDEX_TYPE, indicies);
+	RQuantAdd(RQUANT_SHADOWFACES, numindicies);
+	GL_SelectVBO(0);
+	GL_SelectEBO(0);
 }
 
 static void GL_DeSelectProgram(void)

@@ -472,7 +472,7 @@ static qboolean initD3D9Device(HWND hWnd, rendererstate_t *info, unsigned int de
 	d3dpp.Windowed = !info->fullscreen;
 
 	d3dpp.EnableAutoDepthStencil = true;
-	d3dpp.AutoDepthStencilFormat = D3DFMT_D16;
+	d3dpp.AutoDepthStencilFormat = D3DFMT_D24S8;//D3DFMT_D16;
 	d3dpp.BackBufferFormat = D3DFMT_UNKNOWN;
 	if (info->fullscreen)
 	{
@@ -755,6 +755,16 @@ static void	(D3D9_R_NewMap)					(void)
 	Surf_DeInit();
 	Surf_WipeStains();
 	Surf_BuildLightmaps();
+
+#ifdef RTLIGHTS
+	if (r_shadow_realtime_dlight.ival || r_shadow_realtime_world.ival)
+	{
+		R_LoadRTLights();
+		if (rtlights_first == rtlights_max)
+			R_ImportRTLights(cl.worldmodel->entities);
+	}
+	Sh_PreGenerateLights();
+#endif
 }
 
 extern mleaf_t		*r_viewleaf, *r_oldviewleaf;
@@ -1299,8 +1309,8 @@ rendererinfo_t d3drendererinfo =
 	D3DBE_GenBrushModelVBO,
 	D3DBE_ClearVBO,
 	D3DBE_UploadAllLightmaps,
-	NULL,
-	NULL,
+	D3DBE_SelectEntity,
+	D3DBE_SelectDLight,
 	D3DBE_LightCullModel,
 
 	"no more"

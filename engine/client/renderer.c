@@ -3,6 +3,7 @@
 #include "pr_common.h"
 #include "gl_draw.h"
 #include "shader.h"
+#include "glquake.h"
 #include <string.h>
 
 
@@ -34,6 +35,7 @@ extern int gl_anisotropy_factor;
 void SCR_Viewsize_Callback (struct cvar_s *var, char *oldvalue);
 void SCR_Fov_Callback (struct cvar_s *var, char *oldvalue);
 #if defined(GLQUAKE)
+void GL_Mipcap_Callback (struct cvar_s *var, char *oldvalue);
 void GL_Texturemode_Callback (struct cvar_s *var, char *oldvalue);
 void GL_Texturemode2d_Callback (struct cvar_s *var, char *oldvalue);
 void GL_Texture_Anisotropic_Filtering_Callback (struct cvar_s *var, char *oldvalue);
@@ -88,6 +90,8 @@ cvar_t r_fb_models							= CVARAF  ("r_fb_models", "1",
 													"gl_fb_models", CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
 cvar_t r_skin_overlays						= SCVARF  ("r_skin_overlays", "1",
 												CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
+cvar_t r_coronas							= SCVARF ("r_coronas", "0",
+												CVAR_ARCHIVE);
 cvar_t r_flashblend							= SCVARF ("gl_flashblend", "0",
 												CVAR_ARCHIVE);
 cvar_t r_flashblendscale					= SCVARF ("gl_flashblendscale", "0.35",
@@ -284,6 +288,9 @@ cvar_t gl_texture_anisotropic_filtering		= CVARFC("gl_texture_anisotropic_filter
 cvar_t gl_texturemode						= CVARFC("gl_texturemode", "GL_LINEAR_MIPMAP_NEAREST",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
 												GL_Texturemode_Callback);
+cvar_t gl_mipcap							= CVARFC("d_mipcap", "0 1000",
+												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
+												GL_Mipcap_Callback);
 cvar_t gl_texturemode2d						= CVARFC("gl_texturemode2d", "GL_LINEAR",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
 												GL_Texturemode2d_Callback);
@@ -367,11 +374,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_maxshadowlights, GLRENDEREROPTIONS);
 	Cvar_Register (&r_shadow_bumpscale_basetexture, GLRENDEREROPTIONS);
 	Cvar_Register (&r_shadow_bumpscale_bumpmap, GLRENDEREROPTIONS);
-	Cvar_Register (&r_shadow_realtime_world, GLRENDEREROPTIONS);
-	Cvar_Register (&r_shadow_realtime_world_shadows, GLRENDEREROPTIONS);
-	Cvar_Register (&r_shadow_realtime_dlight, GLRENDEREROPTIONS);
-	Cvar_Register (&r_shadow_realtime_dlight_shadows, GLRENDEREROPTIONS);
-	Cvar_Register (&r_shadow_realtime_world_lightmaps, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_reporttjunctions, GLRENDEREROPTIONS);
 
@@ -396,6 +398,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_picmip, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_picmip2d, GLRENDEREROPTIONS);
 
+	Cvar_Register (&gl_mipcap, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_texturemode, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_texturemode2d, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_texture_anisotropic_filtering, GLRENDEREROPTIONS);
@@ -487,6 +490,10 @@ void Renderer_Init(void)
 	Cmd_AddCommand("setrenderer", R_SetRenderer_f);
 	Cmd_AddCommand("vid_restart", R_RestartRenderer_f);
 
+#ifdef RTLIGHTS
+	Cmd_AddCommand ("r_editlights_reload", R_ReloadRTLights_f);
+	Cmd_AddCommand ("r_editlights_save", R_SaveRTLights_f);
+#endif
 	Cmd_AddCommand("r_dumpshaders", Shader_WriteOutGenerics_f);
 
 #if defined(GLQUAKE) || defined(D3DQUAKE)
@@ -537,9 +544,17 @@ void Renderer_Init(void)
 	Cvar_Register(&r_stains, GRAPHICALNICETIES);
 	Cvar_Register(&r_stainfadetime, GRAPHICALNICETIES);
 	Cvar_Register(&r_stainfadeammount, GRAPHICALNICETIES);
-	Cvar_Register(&r_lightprepass, GRAPHICALNICETIES);
-	Cvar_Register (&r_flashblend, GLRENDEREROPTIONS);
-	Cvar_Register (&r_flashblendscale, GLRENDEREROPTIONS);
+	Cvar_Register(&r_lightprepass, GLRENDEREROPTIONS);
+	Cvar_Register (&r_coronas, GRAPHICALNICETIES);
+	Cvar_Register (&r_flashblend, GRAPHICALNICETIES);
+	Cvar_Register (&r_flashblendscale, GRAPHICALNICETIES);
+
+	Cvar_Register (&r_shadow_realtime_world, GRAPHICALNICETIES);
+	Cvar_Register (&r_shadow_realtime_world_shadows, GRAPHICALNICETIES);
+	Cvar_Register (&r_shadow_realtime_dlight, GRAPHICALNICETIES);
+	Cvar_Register (&r_shadow_realtime_dlight_shadows, GRAPHICALNICETIES);
+	Cvar_Register (&r_shadow_realtime_world_lightmaps, GRAPHICALNICETIES);
+
 
 	Cvar_Register(&scr_viewsize, SCREENOPTIONS);
 	Cvar_Register(&scr_fov, SCREENOPTIONS);
@@ -1942,9 +1957,10 @@ qboolean R_CullEntityBox(entity_t *e, vec3_t modmins, vec3_t modmaxs)
 
 #if 1
 	float mrad = 0, v;
-	static vec3_t	identaxis[3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
 
-	if (!memcmp(e->axis, identaxis, sizeof(identaxis)))
+	if (e->axis[0][0]==1 && e->axis[0][1]==0 && e->axis[0][1]==0 &&
+		e->axis[1][0]==0 && e->axis[1][1]==1 && e->axis[1][1]==0 &&
+		e->axis[2][0]==0 && e->axis[2][1]==0 && e->axis[2][1]==1)
 	{
 		for (i = 0; i < 3; i++)
 		{

@@ -18,6 +18,8 @@ extern LPDIRECT3DDEVICE9 pD3DDev9;
 
 extern float d3d_trueprojection[16];
 
+static void BE_RotateForEntity (const entity_t *e, const model_t *mod);
+
 /*========================================== tables for deforms =====================================*/
 #define frand() (rand()*(1.0/RAND_MAX))
 #define FTABLE_SIZE		1024
@@ -119,7 +121,9 @@ typedef struct
 	unsigned int flags;
 
 	float		curtime;
-	const entity_t    *curentity;
+	const entity_t	*curentity;
+	const dlight_t	*curdlight;
+	vec3_t		curdlight_colours;
 	shader_t	*curshader;
 	texnums_t	*curtexnums;
 	texid_t		curlightmap;
@@ -133,6 +137,7 @@ typedef struct
 	unsigned int lastpasscount;
 	vbo_t *batchvbo;
 
+	shader_t	*shader_rtlight;
 	texid_t		curtex[MAX_TMUS];
 	unsigned int tmuflags[MAX_TMUS];
 
@@ -365,6 +370,15 @@ static void D3DBE_ApplyShaderBits(unsigned int bits)
 			break;
 		}
 	}
+
+	if (delta & (SBITS_MASK_BITS))
+	{
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_COLORWRITEENABLE,
+				((bits&SBITS_MASK_RED)?0:D3DCOLORWRITEENABLE_RED) |
+				((bits&SBITS_MASK_GREEN)?0:D3DCOLORWRITEENABLE_GREEN) |
+				((bits&SBITS_MASK_BLUE)?0:D3DCOLORWRITEENABLE_BLUE) |
+				((bits&SBITS_MASK_ALPHA)?0:D3DCOLORWRITEENABLE_ALPHA));
+	}
 }
 
 void D3DBE_Reset(qboolean before)
@@ -512,6 +526,21 @@ void D3DBE_Reset(qboolean before)
 	}
 }
 
+static const char LIGHTPASS_SHADER[] = "\
+{\n\
+	program rtlight\n\
+	{\n\
+		map $diffuse\n\
+		blendfunc add\n\
+	}\n\
+	{\n\
+		map $normalmap\n\
+	}\n\
+	{\n\
+		map $specular\n\
+	}\n\
+}";
+
 void D3DBE_Init(void)
 {
 	be_maxpasses = MAX_TMUS;
@@ -526,6 +555,8 @@ void D3DBE_Init(void)
 	shaderstate.dynidx_size = sizeof(index_t) * DYNIBUFFSIZE;
 
 	D3DBE_Reset(false);
+
+	shaderstate.shader_rtlight = R_RegisterShader("rtlight", LIGHTPASS_SHADER);
 
 	R_InitFlashblends();
 }
@@ -1625,6 +1656,27 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 				IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, prog->parm[i].handle[permu], mvp, 4);
 			}
 			break;
+
+		case SP_LIGHTPOSITION:
+			{
+				/*light position in model space*/
+				float inv[16];
+				vec3_t t2;
+				qboolean Matrix4_Invert(const float *m, float *out);
+
+				Matrix4_Invert(shaderstate.m_model, inv);
+				Matrix4x4_CM_Transform3(inv, shaderstate.curdlight->origin, t2);
+				IDirect3DDevice9_SetVertexShaderConstantF(pD3DDev9, prog->parm[i].handle[permu], t2, 3);
+				break;
+			}
+
+		case SP_LIGHTRADIUS:
+			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, prog->parm[i].handle[permu], &shaderstate.curdlight->radius, 1);
+			break;
+		case SP_LIGHTCOLOUR:
+			IDirect3DDevice9_SetPixelShaderConstantF(pD3DDev9, prog->parm[i].handle[permu], shaderstate.curdlight_colours, 3);
+			break;
+
 		case SP_E_COLOURS:
 		case SP_E_COLOURSIDENT:
 		case SP_E_TOPCOLOURS:
@@ -1639,10 +1691,6 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 
 		case SP_RENDERTEXTURESCALE:
 
-		case SP_LIGHTRADIUS:
-		case SP_LIGHTCOLOUR:
-		case SP_LIGHTPOSITION:
-
 		case SP_FIRSTIMMEDIATE:
 		case SP_CONSTI:
 		case SP_CONSTF:
@@ -1656,18 +1704,33 @@ static void BE_ApplyUniforms(program_t *prog, int permu)
 	}
 }
 
-static void BE_RenderMeshProgram(unsigned int vertcount, unsigned int idxfirst, unsigned int idxcount)
+static void BE_RenderMeshProgram(shader_t *s, unsigned int vertcount, unsigned int idxfirst, unsigned int idxcount)
 {
-	int vdec = D3D_VDEC_ST0;
+	int vdec = D3D_VDEC_ST0|D3D_VDEC_NORM;
 	int passno;
-	shader_t *s = shaderstate.curshader;
-	//shaderpass_t *pass = s->passes; //unused variable
+	int perm = 0;
 
-	D3DBE_ApplyShaderBits(shaderstate.curshader->passes->shaderbits);
+	program_t *p = s->prog;
 
-	BE_ApplyUniforms(s->prog, 0);
+	if (TEXVALID(shaderstate.curtexnums->bump) && p->handle[perm|PERMUTATION_BUMPMAP].hlsl.vert)
+		perm |= PERMUTATION_BUMPMAP;
+	if (TEXVALID(shaderstate.curtexnums->specular) && p->handle[perm|PERMUTATION_SPECULAR].hlsl.vert)
+		perm |= PERMUTATION_SPECULAR;
+	if (TEXVALID(shaderstate.curtexnums->fullbright) && p->handle[perm|PERMUTATION_FULLBRIGHT].hlsl.vert)
+		perm |= PERMUTATION_FULLBRIGHT;
+	if (TEXVALID(shaderstate.curtexnums->loweroverlay) && p->handle[perm|PERMUTATION_LOWER].hlsl.vert)
+		perm |= PERMUTATION_LOWER;
+	if (TEXVALID(shaderstate.curtexnums->upperoverlay) && p->handle[perm|PERMUTATION_UPPER].hlsl.vert)
+		perm |= PERMUTATION_UPPER;
+	if (r_refdef.gfog_rgbd[3] && p->handle[perm|PERMUTATION_FOG].hlsl.vert)
+		perm |= PERMUTATION_FOG;
+//	if (r_glsl_offsetmapping.ival && TEXVALID(shaderstate.curtexnums->bump) && p->handle[perm|PERMUTATION_OFFSET.hlsl.vert)
+//		perm |= PERMUTATION_OFFSET;
 
-	
+	BE_ApplyUniforms(p, perm);
+
+
+	D3DBE_ApplyShaderBits(s->passes->shaderbits);
 
 	/*activate tmus*/
 	for (passno = 0; passno < s->numpasses; passno++)
@@ -1766,8 +1829,17 @@ static void BE_RenderMeshProgram(unsigned int vertcount, unsigned int idxfirst, 
 	/*normals/tangents/bitangents*/
 	if (vdec & D3D_VDEC_NORM)
 	{
+		if (shaderstate.batchvbo)
+		{
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORM, shaderstate.batchvbo->normals.d3d.buff, shaderstate.batchvbo->normals.d3d.offs, sizeof(vec3_t)));
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORMS, shaderstate.batchvbo->svector.d3d.buff, shaderstate.batchvbo->svector.d3d.offs, sizeof(vec3_t)));
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORMT, shaderstate.batchvbo->tvector.d3d.buff, shaderstate.batchvbo->tvector.d3d.offs, sizeof(vec3_t)));
+		}
+		else
+		{
 		/*FIXME*/
 		vdec &= ~D3D_VDEC_NORM;
+		}
 	}
 
 	/*bone weights+indexes*/
@@ -1790,7 +1862,7 @@ static void BE_RenderMeshProgram(unsigned int vertcount, unsigned int idxfirst, 
 	IDirect3DDevice9_SetPixelShader(pD3DDev9, NULL);
 }
 
-static void BE_Cull(unsigned int cullflags)
+void D3DBE_Cull(unsigned int cullflags)
 {
 	cullflags |= r_refdef.flipcull;
 	if (shaderstate.curcull != cullflags)
@@ -1830,7 +1902,7 @@ static void BE_DrawMeshChain_Internal(void)
 	float pushdepth;
 //	float pushfactor;
 
-	BE_Cull(shaderstate.curshader->flags & (SHADER_CULL_FRONT | SHADER_CULL_BACK));
+	D3DBE_Cull(shaderstate.curshader->flags & (SHADER_CULL_FRONT | SHADER_CULL_BACK));
 	pushdepth = (shaderstate.curshader->polyoffset.factor + ((shaderstate.flags & BEF_PUSHDEPTH)?r_polygonoffset_submodel_factor.value:0))/0xffff;
 	if (pushdepth != shaderstate.depthbias)
 	{
@@ -1906,6 +1978,9 @@ static void BE_DrawMeshChain_Internal(void)
 
 	switch (shaderstate.mode)
 	{
+	case BEM_LIGHT:
+		BE_RenderMeshProgram(shaderstate.shader_rtlight, vertcount, idxfirst, idxcount);
+		break;
 	case BEM_DEPTHONLY:
 		shaderstate.lastpasscount = 0;
 		i = 0;
@@ -1931,7 +2006,7 @@ static void BE_DrawMeshChain_Internal(void)
 	case BEM_STANDARD:
 		if (shaderstate.curshader->prog)
 		{
-			BE_RenderMeshProgram(vertcount, idxfirst, idxcount);
+			BE_RenderMeshProgram(shaderstate.curshader, vertcount, idxfirst, idxcount);
 		}
 		else
 		{
@@ -1956,6 +2031,21 @@ static void BE_DrawMeshChain_Internal(void)
 void D3DBE_SelectMode(backendmode_t mode)
 {
 	shaderstate.mode = mode;
+
+	if (mode == BEM_STENCIL)
+		D3DBE_ApplyShaderBits(SBITS_MASK_BITS);
+}
+
+void D3DBE_SelectDLight(dlight_t *dl, vec3_t colour)
+{
+	shaderstate.curdlight = dl;
+	VectorCopy(colour, shaderstate.curdlight_colours);
+}
+
+void D3DBE_SelectEntity(entity_t *ent)
+{
+	shaderstate.curentity = ent;
+	BE_RotateForEntity(ent, ent->model);
 }
 
 /*Generates an optimised vbo for each of the given model's textures*/
@@ -2719,12 +2809,12 @@ static void BE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 	}
 }
 
-void D3DBE_SubmitMeshes (qboolean drawworld, batch_t **blist)
+void D3DBE_SubmitMeshes (qboolean drawworld, batch_t **blist, int first, int stop)
 {
 	model_t *model = cl.worldmodel;
 	int i;
 
-	for (i = SHADER_SORT_PORTAL; i < SHADER_SORT_COUNT; i++)
+	for (i = first; i < stop; i++)
 	{
 		if (drawworld)
 		{
@@ -2736,6 +2826,30 @@ void D3DBE_SubmitMeshes (qboolean drawworld, batch_t **blist)
 		BE_SubmitMeshesSortList(blist[i]);
 	}
 }
+
+#ifdef RTLIGHTS
+void BE_BaseEntTextures(void)
+{
+	batch_t *batches[SHADER_SORT_COUNT];
+	BE_GenModelBatches(batches);
+	D3DBE_SubmitMeshes(false, batches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
+	BE_SelectEntity(&r_worldentity);
+}
+
+void D3DBE_RenderShadowBuffer(unsigned int numverts, IDirect3DVertexBuffer9 *vbuf, unsigned int numindicies, IDirect3DIndexBuffer9 *ibuf)
+{
+	IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_VERT, vbuf, 0, sizeof(vecV_t));
+	IDirect3DDevice9_SetIndices(pD3DDev9, ibuf);
+
+	if (0 != shaderstate.curvertdecl)
+	{
+		shaderstate.curvertdecl = 0;
+		d3dcheck(IDirect3DDevice9_SetVertexDeclaration(pD3DDev9, vertexdecls[shaderstate.curvertdecl]));
+	}
+
+	IDirect3DDevice9_DrawIndexedPrimitive(pD3DDev9, D3DPT_TRIANGLELIST, 0, 0, numverts, 0, numindicies/3);
+}
+#endif
 
 void D3DBE_DrawWorld (qbyte *vis)
 {
@@ -2774,13 +2888,22 @@ void D3DBE_DrawWorld (qbyte *vis)
 		BE_SelectMode(BEM_STANDARD);
 
 		RSpeedRemark();
-		D3DBE_SubmitMeshes(true, batches);
+		D3DBE_SubmitMeshes(true, batches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
 		RSpeedEnd(RSPEED_WORLD);
+
+#ifdef RTLIGHTS
+		RSpeedRemark();
+		D3DBE_SelectEntity(&r_worldentity);
+		Sh_DrawLights(vis, batches);
+		RSpeedEnd(RSPEED_STENCILSHADOWS);
+#endif
+
+		D3DBE_SubmitMeshes(true, batches, SHADER_SORT_DECAL, SHADER_SORT_COUNT);
 	}
 	else
 	{
 		RSpeedRemark();
-		D3DBE_SubmitMeshes(false, batches);
+		D3DBE_SubmitMeshes(false, batches, SHADER_SORT_PORTAL, SHADER_SORT_COUNT);
 		RSpeedEnd(RSPEED_DRAWENTITIES);
 	}
 

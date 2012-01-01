@@ -590,7 +590,7 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, 
 	return texnums;
 }
 
-#if defined(RTLIGHTS) && defined(GLQUAKE)
+#if defined(RTLIGHTS)
 static int numFacing;
 static qbyte *triangleFacing;
 static void R_CalcFacing(mesh_t *mesh, vec3_t lightpos)
@@ -653,6 +653,7 @@ static void R_ProjectShadowVolume(mesh_t *mesh, vec3_t lightpos)
 
 static void R_DrawShadowVolume(mesh_t *mesh)
 {
+#ifdef GLQUAKE
 	int t;
 	vec3_t *proj = ProjectedShadowVerts;
 	vecV_t *verts = mesh->xyz_array;
@@ -708,6 +709,7 @@ static void R_DrawShadowVolume(mesh_t *mesh)
 		}
 	}
 	qglEnd();
+#endif
 }
 #endif
 
@@ -1136,8 +1138,8 @@ void RotateLightVector(const vec3_t *axis, const vec3_t origin, const vec3_t lig
 	result[2] = DotProduct (offs, axis[2]);
 }
 
-#if defined(RTLIGHTS) && defined(GLQUAKE)
-void GL_LightMesh (mesh_t *mesh, vec3_t lightpos, vec3_t colours, float radius)
+#if defined(RTLIGHTS)
+static void GL_LightMesh (mesh_t *mesh, vec3_t lightpos, vec3_t colours, float radius)
 {
 	vec3_t dir;
 	int i;
@@ -1202,7 +1204,7 @@ void GL_LightMesh (mesh_t *mesh, vec3_t lightpos, vec3_t colours, float radius)
 }
 
 //courtesy of DP
-void R_BuildBumpVectors(const float *v0, const float *v1, const float *v2, const float *tc0, const float *tc1, const float *tc2, float *svector3f, float *tvector3f, float *normal3f)
+static void R_BuildBumpVectors(const float *v0, const float *v1, const float *v2, const float *tc0, const float *tc1, const float *tc2, float *svector3f, float *tvector3f, float *normal3f)
 {
 	float f, tangentcross[3], v10[3], v20[3], tc10[2], tc20[2];
 	// 79 add/sub/negate/multiply (1 cycle), 1 compare (3 cycle?), total cycles not counting load/store/exchange roughly 82 cycles

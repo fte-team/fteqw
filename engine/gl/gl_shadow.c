@@ -1,10 +1,23 @@
 #include "quakedef.h"
 
-#ifdef GLQUAKE
+#if defined(GLQUAKE) || defined(D3DQUAKE)
 #ifdef RTLIGHTS
 
 #include "glquake.h"
 #include "shader.h"
+
+#ifdef D3DQUAKE
+#include "shader.h"
+#if !defined(HMONITOR_DECLARED) && (WINVER < 0x0500)
+    #define HMONITOR_DECLARED
+    DECLARE_HANDLE(HMONITOR);
+#endif
+#include <d3d9.h>
+extern LPDIRECT3DDEVICE9 pD3DDev9;
+void D3DBE_Cull(unsigned int sflags);
+void D3DBE_RenderShadowBuffer(unsigned int numverts, IDirect3DVertexBuffer9 *vbuf, unsigned int numindicies, IDirect3DIndexBuffer9 *ibuf);
+#endif
+void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsigned numindicies, int ibo, index_t *indicies);
 
 #define SHADOWMAP_SIZE 512
 
@@ -31,7 +44,21 @@ struct {
 
 
 
-
+void Sh_Shutdown(void)
+{
+#ifdef GLQUAKE
+	if (shadow_fbo_id)
+	{
+		qglDeleteRenderbuffersEXT(1, &shadow_fbo_id);
+		shadow_fbo_id = 0;
+	}
+	if (crepuscular_fbo_id)
+	{
+		qglDeleteRenderbuffersEXT(1, &crepuscular_fbo_id);
+		crepuscular_fbo_id = 0;
+	}
+#endif
+}
 
 
 
@@ -58,7 +85,13 @@ typedef struct shadowmesh_s {
 	unsigned int leafbytes;
 	unsigned char *litleaves;
 
+#ifdef GLQUAKE
 	GLuint vebo[2];
+#endif
+#ifdef D3DQUAKE
+	IDirect3DVertexBuffer9	*d3d_vbuffer;
+	IDirect3DIndexBuffer9	*d3d_ibuffer;
+#endif
 } shadowmesh_t;
 
 /*state of the current shadow mesh*/
@@ -95,7 +128,7 @@ static void SHM_End (void)
 	}
 	sh_vertnum = 0;
 }
-static void SHM_Vertex3fv (const GLfloat *v)
+static void SHM_Vertex3fv (const float *v)
 {
 	int i;
 
@@ -213,9 +246,26 @@ static void SH_FreeShadowMesh(shadowmesh_t *sm)
 	Z_Free(sm->indicies);
 	Z_Free(sm->verts);
 
-	qglDeleteBuffersARB(2, sm->vebo);
-	sm->vebo[0] = 0;
-	sm->vebo[1] = 0;
+	switch (qrenderer)
+	{
+#ifdef GLQUAKE
+	case QR_OPENGL:
+		qglDeleteBuffersARB(2, sm->vebo);
+		sm->vebo[0] = 0;
+		sm->vebo[1] = 0;
+		break;
+#endif
+#ifdef D3DQUAKE
+	case QR_DIRECT3D:
+		if (sm->d3d_ibuffer)
+			IDirect3DIndexBuffer9_Release(sm->d3d_ibuffer);
+		sm->d3d_ibuffer = NULL;
+		if (sm->d3d_vbuffer)
+			IDirect3DVertexBuffer9_Release(sm->d3d_vbuffer);
+		sm->d3d_vbuffer = NULL;
+		break;
+#endif
+	}
 
 	Z_Free(sm);
 }
@@ -285,15 +335,42 @@ static struct shadowmesh_s *SHM_FinishShadowMesh(dlight_t *dl)
 {
 	if (sh_shmesh != &sh_tempshmesh)
 	{
-		qglGenBuffersARB(2, sh_shmesh->vebo);
+		switch (qrenderer)
+		{
+#ifdef GLQUAKE
+		case QR_OPENGL:
+			qglGenBuffersARB(2, sh_shmesh->vebo);
 
-		GL_SelectVBO(sh_shmesh->vebo[0]);
-		qglBufferDataARB(GL_ARRAY_BUFFER_ARB, sizeof(*sh_shmesh->verts) * sh_shmesh->numverts, sh_shmesh->verts, GL_STATIC_DRAW_ARB);
+			GL_SelectVBO(sh_shmesh->vebo[0]);
+			qglBufferDataARB(GL_ARRAY_BUFFER_ARB, sizeof(*sh_shmesh->verts) * sh_shmesh->numverts, sh_shmesh->verts, GL_STATIC_DRAW_ARB);
+
+			GL_SelectEBO(sh_shmesh->vebo[1]);
+			qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, sizeof(*sh_shmesh->indicies) * sh_shmesh->numindicies, sh_shmesh->indicies, GL_STATIC_DRAW_ARB);
+			break;
+#endif
+#ifdef D3DQUAKE
+		case QR_DIRECT3D:
+			if (sh_shmesh->numindicies && sh_shmesh->numverts)
+			{
+				void *map;
+				IDirect3DDevice9_CreateIndexBuffer(pD3DDev9, sizeof(index_t) * sh_shmesh->numindicies, 0, D3DFMT_QINDEX, D3DPOOL_MANAGED, &sh_shmesh->d3d_ibuffer, NULL);
+				IDirect3DIndexBuffer9_Lock(sh_shmesh->d3d_ibuffer, 0, sizeof(index_t) * sh_shmesh->numindicies, &map, D3DLOCK_DISCARD);
+				memcpy(map, sh_shmesh->indicies, sizeof(index_t) * sh_shmesh->numindicies);
+				IDirect3DIndexBuffer9_Unlock(sh_shmesh->d3d_ibuffer);
+
+				IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, sizeof(vecV_t) * sh_shmesh->numverts, D3DUSAGE_WRITEONLY, 0, D3DPOOL_MANAGED, &sh_shmesh->d3d_vbuffer, NULL);
+				IDirect3DVertexBuffer9_Lock(sh_shmesh->d3d_vbuffer, 0, sizeof(vecV_t) * sh_shmesh->numverts, &map, D3DLOCK_DISCARD);
+				memcpy(map, sh_shmesh->verts, sizeof(vecV_t) * sh_shmesh->numverts);
+				IDirect3DVertexBuffer9_Unlock(sh_shmesh->d3d_vbuffer);
+
+			}
+			break;
+#endif
+		}
+
 		Z_Free(sh_shmesh->verts);
 		sh_shmesh->verts = NULL;
 
-		GL_SelectEBO(sh_shmesh->vebo[1]);
-		qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, sizeof(*sh_shmesh->indicies) * sh_shmesh->numindicies, sh_shmesh->indicies, GL_STATIC_DRAW_ARB);
 		Z_Free(sh_shmesh->indicies);
 		sh_shmesh->indicies = NULL;
 	}
@@ -1279,12 +1356,31 @@ static void Sh_Scissor (srect_t r)
 	}
 #endif
 
-	qglScissor(r.x, r.y, r.width, r.height);
-
-	if (qglDepthBoundsEXT)
+	switch(qrenderer)
 	{
-		qglDepthBoundsEXT(r.dmin, r.dmax);
-		qglEnable(GL_DEPTH_BOUNDS_TEST_EXT);
+#ifdef GLQUAKE
+	case QR_OPENGL:
+		qglScissor(r.x, r.y, r.width, r.height);
+
+		if (qglDepthBoundsEXT)
+		{
+			qglDepthBoundsEXT(r.dmin, r.dmax);
+			qglEnable(GL_DEPTH_BOUNDS_TEST_EXT);
+		}
+		break;
+#endif
+#ifdef D3DQUAKE
+	case QR_DIRECT3D:
+		{
+			RECT rect;
+			rect.left = r.x;
+			rect.right = r.x + r.width;
+			rect.top = r.y;
+			rect.bottom = r.y + r.height;
+			IDirect3DDevice9_SetScissorRect(pD3DDev9, &rect);
+		}
+		break;
+#endif
 	}
 }
 
@@ -1656,7 +1752,7 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs, vrect_t *r)
 }
 #endif
 
-
+#ifdef GLQUAKE
 void GL_BeginRenderBuffer_DepthOnly(texid_t depthtexture)
 {
 	if (gl_config.ext_framebuffer_objects)
@@ -1789,20 +1885,6 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, float p
 	}
 
 	memcpy(r_refdef.m_view, sav, sizeof(r_refdef.m_view));
-}
-
-void Sh_Shutdown(void)
-{
-	if (shadow_fbo_id)
-	{
-		qglDeleteRenderbuffersEXT(1, &shadow_fbo_id);
-		shadow_fbo_id = 0;
-	}
-	if (crepuscular_fbo_id)
-	{
-		qglDeleteRenderbuffersEXT(1, &crepuscular_fbo_id);
-		crepuscular_fbo_id = 0;
-	}
 }
 
 void Sh_GenShadowMap (dlight_t *l,  qbyte *lvis)
@@ -1995,7 +2077,7 @@ static void Sh_DrawShadowMapLight(dlight_t *l, vec3_t colour, qbyte *vvis)
 	qglLoadIdentity();
 	qglMatrixMode(GL_MODELVIEW);
 }
-
+#endif
 
 
 
@@ -2064,6 +2146,7 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 #endif
 static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 {
+#ifdef GLQUAKE
 	int v;
 	float *v1, *v2;
 	vec3_t v3, v4;
@@ -2162,6 +2245,7 @@ static void Sh_DrawBrushModelShadow(dlight_t *dl, entity_t *e)
 	}
 
 	BE_PushOffsetShadow(false);
+#endif
 }
 
 
@@ -2175,27 +2259,29 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 	struct shadowmesh_s *sm;
 	entity_t *ent;
 
-	BE_PushOffsetShadow(false);
+#ifdef GLQUAKE
+	if (qrenderer == QR_OPENGL)
+		BE_PushOffsetShadow(false);
+#endif
 
 	sm = SHM_BuildShadowMesh(dl, lvis, vvis, false);
 	if (!sm)
 		Sh_DrawBrushModelShadow(dl, &r_worldentity);
 	else
 	{
-//qglEnable(GL_POLYGON_OFFSET_FILL);
-//qglPolygonOffset(shaderstate.curpolyoffset.factor, shaderstate.curpolyoffset.unit);
-
-		GL_SelectVBO(sm->vebo[0]);
-		GL_SelectEBO(sm->vebo[1]);
-		qglEnableClientState(GL_VERTEX_ARRAY);
-		//draw cached world shadow mesh
-		qglVertexPointer(3, GL_FLOAT, sizeof(vecV_t), sm->verts);
-		qglDrawRangeElements(GL_TRIANGLES, 0, sm->numverts, sm->numindicies, GL_INDEX_TYPE, sm->indicies);
-		RQuantAdd(RQUANT_SHADOWFACES, sm->numindicies);
-		GL_SelectVBO(0);
-		GL_SelectEBO(0);
-//qglEnable(GL_POLYGON_OFFSET_FILL);
-//qglPolygonOffset(shaderstate.curpolyoffset.factor, shaderstate.curpolyoffset.unit);
+		switch (qrenderer)
+		{
+#ifdef D3DQUAKE
+		case QR_DIRECT3D:
+			D3DBE_RenderShadowBuffer(sm->numverts, sm->d3d_vbuffer, sm->numindicies, sm->d3d_ibuffer);
+			break;
+#endif
+#ifdef GLQUAKE
+		case QR_OPENGL:
+			GLBE_RenderShadowBuffer(sm->numverts, sm->vebo[0], sm->verts, sm->numindicies, sm->vebo[1], sm->indicies);
+			break;
+#endif
+		}
 	}
 	if (!r_drawentities.value)
 		return;
@@ -2246,8 +2332,6 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 {
 	int sref;
-	int sfrontfail;
-	int sbackfail;
 	int leaf;
 	qbyte *lvis;
 	srect_t rect;
@@ -2301,165 +2385,217 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	}
 	bench.numlights++;
 
-	GLBE_SelectDLight(dl, colour);
+	BE_SelectDLight(dl, colour);
 	BE_SelectMode(BEM_STENCIL);
 
 	//The backend doesn't maintain scissor state.
 	//The backend doesn't maintain stencil test state either - it needs to be active for more than just stencils, or disabled. its awkward.
 	Sh_Scissor(rect);
-	qglEnable(GL_SCISSOR_TEST);
-	qglEnable(GL_STENCIL_TEST);
 
-	//FIXME: is it practical to test to see if scissors allow not clearing the stencil buffer?
 
-	/*we don't need all that much stencil buffer depth, and if we don't get enough or have dodgy volumes, wrap if we can*/
-#ifdef I_LIVE_IN_A_FREE_COUNTRY
-	sref = 0;
-	sbackfail = GL_INCR;
-	sfrontfail = GL_DECR;
-	if (gl_config.ext_stencil_wrap)
-	{	//minimise damage...
-		sbackfail = GL_INCR_WRAP_EXT;
-		sdecrw = GL_DECR_WRAP_EXT;
-	}
-#else
-	sref = (1<<gl_stencilbits)-1; /*this is halved for two-sided stencil support, just in case there's no wrap support*/
-	sbackfail = GL_DECR;
-	sfrontfail = GL_INCR;
-	if (gl_config.ext_stencil_wrap)
-	{	//minimise damage...
-		sbackfail = GL_DECR_WRAP_EXT;
-		sfrontfail = GL_INCR_WRAP_EXT;
-	}
-#endif
-	//our stencil writes.
-	if (gl_config.arb_depth_clamp)
-		qglEnable(GL_DEPTH_CLAMP_ARB);
-
-#if 0 //def _DEBUG
-//	if (r_shadows.value == 666)	//testing (visible shadow volumes)
+	switch(qrenderer)
 	{
-		checkglerror();
-		qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-		qglColor3f(dl->color[0], dl->color[1], dl->color[2]);
-		qglDisable(GL_STENCIL_TEST);
-		qglEnable(GL_POLYGON_OFFSET_FILL);
-		qglPolygonOffset(-1, -1);
-	//	qglPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		Sh_DrawStencilLightShadows(dl, lvis, vvis, false);
-		qglDisable(GL_POLYGON_OFFSET_FILL);
-		checkglerror();
-		qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	}
-#endif
+#ifdef GLQUAKE
+	case QR_OPENGL:
+		{
+			int sfrontfail;
+			int sbackfail;
+			qglEnable(GL_SCISSOR_TEST);
+			qglEnable(GL_STENCIL_TEST);
 
-	if (qglStencilOpSeparateATI)
-	{
+			//FIXME: is it practical to test to see if scissors allow not clearing the stencil buffer?
+
+			/*we don't need all that much stencil buffer depth, and if we don't get enough or have dodgy volumes, wrap if we can*/
+		#ifdef I_LIVE_IN_A_FREE_COUNTRY
+			sref = 0;
+			sbackfail = GL_INCR;
+			sfrontfail = GL_DECR;
+			if (gl_config.ext_stencil_wrap)
+			{	//minimise damage...
+				sbackfail = GL_INCR_WRAP_EXT;
+				sdecrw = GL_DECR_WRAP_EXT;
+			}
+		#else
+			sref = (1<<gl_stencilbits)-1; /*this is halved for two-sided stencil support, just in case there's no wrap support*/
+			sbackfail = GL_DECR;
+			sfrontfail = GL_INCR;
+			if (gl_config.ext_stencil_wrap)
+			{	//minimise damage...
+				sbackfail = GL_DECR_WRAP_EXT;
+				sfrontfail = GL_INCR_WRAP_EXT;
+			}
+		#endif
+			//our stencil writes.
+			if (gl_config.arb_depth_clamp)
+				qglEnable(GL_DEPTH_CLAMP_ARB);
+
+		#if 0 //def _DEBUG
+		//	if (r_shadows.value == 666)	//testing (visible shadow volumes)
+			{
+				checkglerror();
+				qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+				qglColor3f(dl->color[0], dl->color[1], dl->color[2]);
+				qglDisable(GL_STENCIL_TEST);
+				qglEnable(GL_POLYGON_OFFSET_FILL);
+				qglPolygonOffset(-1, -1);
+			//	qglPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+				Sh_DrawStencilLightShadows(dl, lvis, vvis, false);
+				qglDisable(GL_POLYGON_OFFSET_FILL);
+				checkglerror();
+				qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			}
+		#endif
+
+			if (qglStencilOpSeparateATI)
+			{
+				sref/=2;
+				qglClearStencil(sref);
+				qglClear(GL_STENCIL_BUFFER_BIT);
+				GL_CullFace(0);
+
+				qglStencilFunc(GL_ALWAYS, 0, ~0);
+
+				qglStencilOpSeparateATI(GL_BACK, GL_KEEP, sbackfail, GL_KEEP);
+				qglStencilOpSeparateATI(GL_FRONT, GL_KEEP, sfrontfail, GL_KEEP);
+
+				Sh_DrawStencilLightShadows(dl, lvis, vvis, false);
+				qglStencilOpSeparateATI(GL_FRONT_AND_BACK, GL_KEEP, GL_KEEP, GL_KEEP);
+
+				GL_CullFace(SHADER_CULL_FRONT);
+
+				qglStencilFunc(GL_EQUAL, sref, ~0);
+			}
+			else if (qglActiveStencilFaceEXT)
+			{
+				sref/=2;
+				/*personally I prefer the ATI way (nvidia method)*/
+				qglClearStencil(sref);
+				qglClear(GL_STENCIL_BUFFER_BIT);
+				GL_CullFace(0);
+
+				qglEnable(GL_STENCIL_TEST_TWO_SIDE_EXT);
+
+				qglActiveStencilFaceEXT(GL_BACK);	
+				qglStencilOp(GL_KEEP, sbackfail, GL_KEEP);
+				qglStencilFunc(GL_ALWAYS, 0, ~0 );
+
+				qglActiveStencilFaceEXT(GL_FRONT);
+				qglStencilOp(GL_KEEP, sfrontfail, GL_KEEP);
+				qglStencilFunc(GL_ALWAYS, 0, ~0 );
+
+				Sh_DrawStencilLightShadows(dl, lvis, vvis, false);
+
+				qglActiveStencilFaceEXT(GL_BACK);
+				qglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+				qglStencilFunc(GL_ALWAYS, 0, ~0 );
+
+				qglActiveStencilFaceEXT(GL_FRONT);
+				qglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+				qglStencilFunc(GL_EQUAL, sref, ~0 );
+
+				qglDisable(GL_STENCIL_TEST_TWO_SIDE_EXT);
+			}
+			else //your graphics card sucks and lacks efficient stencil shadow techniques.
+			{	//centered around 0. Will only be increased then decreased less.
+				qglClearStencil(sref);
+				qglClear(GL_STENCIL_BUFFER_BIT);
+
+				qglStencilFunc(GL_ALWAYS, 0, ~0);
+
+				GL_CullFace(SHADER_CULL_BACK);
+				qglStencilOp(GL_KEEP, sbackfail, GL_KEEP);
+				Sh_DrawStencilLightShadows(dl, lvis, vvis, false);
+
+				GL_CullFace(SHADER_CULL_FRONT);
+				qglStencilOp(GL_KEEP, sfrontfail, GL_KEEP);
+				Sh_DrawStencilLightShadows(dl, lvis, vvis, true);
+
+				qglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+				qglStencilFunc(GL_EQUAL, sref, ~0);
+			}
+			if (gl_config.arb_depth_clamp)
+				qglDisable(GL_DEPTH_CLAMP_ARB);
+			//end stencil writing.
+
+			/*stencil writing probably changed the vertex pointer, and our backend caches it*/
+			PPL_RevertToKnownState();
+
+		#if 0	//draw the stencil stuff to the red channel
+			qglMatrixMode(GL_PROJECTION);
+			qglPushMatrix();
+			qglMatrixMode(GL_MODELVIEW);
+			qglPushMatrix();
+			GL_Set2D();
+
+			{
+				qglColorMask(GL_FALSE, GL_TRUE, GL_FALSE, GL_FALSE);
+				qglStencilFunc(GL_GREATER, sref, ~0);
+				R2D_ConsoleBackground(vid.height);
+
+				qglColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_FALSE);
+				qglStencilFunc(GL_LESS, sref, ~0);
+				R2D_ConsoleBackground(vid.height);
+
+				qglColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_FALSE);
+				qglStencilFunc(GL_EQUAL, sref, ~0);
+				R2D_ConsoleBackground(vid.height);
+			}
+
+			qglMatrixMode(GL_PROJECTION);
+			qglPopMatrix();
+			qglMatrixMode(GL_MODELVIEW);
+			qglPopMatrix();
+		#endif
+
+
+			BE_SelectMode(BEM_LIGHT);
+			Sh_DrawEntLighting(dl, colour);
+			qglDisable(GL_STENCIL_TEST);
+			qglStencilFunc( GL_ALWAYS, 0, ~0 );
+		}
+		break;
+#endif
+#ifdef D3DQUAKE
+	case QR_DIRECT3D:
+		sref = (1<<8)-1;
 		sref/=2;
-		qglClearStencil(sref);
-		qglClear(GL_STENCIL_BUFFER_BIT);
-		GL_CullFace(0);
 
-		qglStencilFunc(GL_ALWAYS, 0, ~0);
+		/*clear the stencil buffer*/
+		IDirect3DDevice9_Clear(pD3DDev9, 0, NULL, D3DCLEAR_STENCIL, D3DCOLOR_XRGB(0, 0, 0), 1.0f, sref);
 
-		qglStencilOpSeparateATI(GL_BACK, GL_KEEP, sbackfail, GL_KEEP);
-		qglStencilOpSeparateATI(GL_FRONT, GL_KEEP, sfrontfail, GL_KEEP);
+		/*set up 2-sided stenciling*/
+		D3DBE_Cull(0);
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_STENCILENABLE, true);
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_STENCILFUNC, D3DCMP_ALWAYS);
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_TWOSIDEDSTENCILMODE, true);
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_STENCILFAIL, D3DSTENCILOP_KEEP);
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_STENCILZFAIL, D3DSTENCILOP_DECR);
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_STENCILPASS, D3DSTENCILOP_KEEP);
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_STENCILFUNC, D3DCMP_ALWAYS);
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CCW_STENCILFAIL, D3DSTENCILOP_KEEP);
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CCW_STENCILZFAIL, D3DSTENCILOP_INCR);
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CCW_STENCILPASS, D3DSTENCILOP_KEEP);
 
-		Sh_DrawStencilLightShadows(dl, lvis, vvis, false);
-		qglStencilOpSeparateATI(GL_FRONT_AND_BACK, GL_KEEP, GL_KEEP, GL_KEEP);
-
-		GL_CullFace(SHADER_CULL_FRONT);
-
-		qglStencilFunc(GL_EQUAL, sref, ~0);
-	}
-	else if (qglActiveStencilFaceEXT)
-	{
-		sref/=2;
-		/*personally I prefer the ATI way (nvidia method)*/
-		qglClearStencil(sref);
-		qglClear(GL_STENCIL_BUFFER_BIT);
-		GL_CullFace(0);
-
-		qglEnable(GL_STENCIL_TEST_TWO_SIDE_EXT);
-
-		qglActiveStencilFaceEXT(GL_BACK);	
-		qglStencilOp(GL_KEEP, sbackfail, GL_KEEP);
-		qglStencilFunc(GL_ALWAYS, 0, ~0 );
-
-		qglActiveStencilFaceEXT(GL_FRONT);
-		qglStencilOp(GL_KEEP, sfrontfail, GL_KEEP);
-		qglStencilFunc(GL_ALWAYS, 0, ~0 );
-
+		/*draw the shadows*/
 		Sh_DrawStencilLightShadows(dl, lvis, vvis, false);
 
-		qglActiveStencilFaceEXT(GL_BACK);
-		qglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-		qglStencilFunc(GL_ALWAYS, 0, ~0 );
+		//disable stencil writing, switch culling back to normal
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_STENCILZFAIL, D3DSTENCILOP_KEEP);
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_TWOSIDEDSTENCILMODE, false);
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_CULLMODE, D3DCULL_CW);
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_STENCILFUNC, D3DCMP_EQUAL);
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_STENCILREF, sref);
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_STENCILMASK, ~0);
 
-		qglActiveStencilFaceEXT(GL_FRONT);
-		qglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-		qglStencilFunc(GL_EQUAL, sref, ~0 );
+		/*draw the light*/
+		BE_SelectMode(BEM_LIGHT);
+		Sh_DrawEntLighting(dl, colour);
 
-		qglDisable(GL_STENCIL_TEST_TWO_SIDE_EXT);
-
-		GL_CullFace(SHADER_CULL_FRONT);
-	}
-	else //your graphics card sucks and lacks efficient stencil shadow techniques.
-	{	//centered around 0. Will only be increased then decreased less.
-		qglClearStencil(sref);
-		qglClear(GL_STENCIL_BUFFER_BIT);
-
-		qglStencilFunc(GL_ALWAYS, 0, ~0);
-
-		GL_CullFace(SHADER_CULL_BACK);
-		qglStencilOp(GL_KEEP, sbackfail, GL_KEEP);
-		Sh_DrawStencilLightShadows(dl, lvis, vvis, false);
-
-		GL_CullFace(SHADER_CULL_FRONT);
-		qglStencilOp(GL_KEEP, sfrontfail, GL_KEEP);
-		Sh_DrawStencilLightShadows(dl, lvis, vvis, true);
-
-		qglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-		qglStencilFunc(GL_EQUAL, sref, ~0);
-	}
-	if (gl_config.arb_depth_clamp)
-		qglDisable(GL_DEPTH_CLAMP_ARB);
-	//end stencil writing.
-
-#if 0	//draw the stencil stuff to the red channel
-	qglMatrixMode(GL_PROJECTION);
-	qglPushMatrix();
-	qglMatrixMode(GL_MODELVIEW);
-	qglPushMatrix();
-	GL_Set2D();
-
-	{
-		qglColorMask(GL_FALSE, GL_TRUE, GL_FALSE, GL_FALSE);
-		qglStencilFunc(GL_GREATER, sref, ~0);
-		R2D_ConsoleBackground(vid.height);
-
-		qglColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_FALSE);
-		qglStencilFunc(GL_LESS, sref, ~0);
-		R2D_ConsoleBackground(vid.height);
-
-		qglColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_FALSE);
-		qglStencilFunc(GL_EQUAL, sref, ~0);
-		R2D_ConsoleBackground(vid.height);
-	}
-
-	qglMatrixMode(GL_PROJECTION);
-	qglPopMatrix();
-	qglMatrixMode(GL_MODELVIEW);
-	qglPopMatrix();
+		/*okay, no more stencil stuff*/
+		IDirect3DDevice9_SetRenderState(pD3DDev9, D3DRS_STENCILENABLE, false);
+		break;
 #endif
-
-	PPL_RevertToKnownState();
-
-	BE_SelectMode(BEM_LIGHT);
-	Sh_DrawEntLighting(dl, colour);
-
-	qglDisable(GL_STENCIL_TEST);
-	qglStencilFunc( GL_ALWAYS, 0, ~0 );
+	}
 
 	return true;
 }
@@ -2517,13 +2653,22 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 		bench.numscissorculled++;
 		return;	//was culled.
 	}
-	qglDisable(GL_SCISSOR_TEST);
-	if (qglDepthBoundsEXT)
-		qglDisable(GL_DEPTH_BOUNDS_TEST_EXT);
+
+	switch(qrenderer)
+	{
+#ifdef GLQUAKE
+	case QR_OPENGL:
+		//so state doesn't linger
+		qglDisable(GL_SCISSOR_TEST);
+		if (qglDepthBoundsEXT)
+			qglDisable(GL_DEPTH_BOUNDS_TEST_EXT);
+		break;
+#endif
+	}
 
 	bench.numlights++;
 
-	GLBE_SelectDLight(dl, colour);
+	BE_SelectDLight(dl, colour);
 	BE_SelectMode(BEM_LIGHT);
 	Sh_DrawEntLighting(dl, colour);
 }
@@ -2531,6 +2676,7 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 void GLBE_SubmitMeshes (qboolean drawworld, batch_t **blist, int start, int stop);
 void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours, batch_t **batches)
 {
+#ifdef GLQUAKE
 	static mesh_t mesh;
 	static vecV_t xyz[4] =
 	{
@@ -2551,12 +2697,15 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours, batch_t **batches)
 		0,1,2,
 		0,2,3
 	};
+	if (qrenderer != QR_OPENGL)
+		return;
+
 	mesh.numindexes = 6;
 	mesh.numvertexes = 4;
 	mesh.xyz_array = xyz;
 	mesh.st_array = tc;
 	mesh.indexes = idx;
-#if 1
+
 	/*
 	a crepuscular light (seriously, that's the correct spelling) is one that gives 'god rays', rather than regular light.
 	our implementation doesn't cast shadows. this allows it to actually be outside the map, and to shine through cloud layers in the sky.
@@ -2666,20 +2815,38 @@ void Sh_DrawLights(qbyte *vis, batch_t **mbatches)
 		return;
 	}
 
-	/*no stencil?*/
-	if (gl_config.nofixedfunc)
+	switch(qrenderer)
 	{
-		Con_Printf("FTE does not support stencil shadows without a fixed-function pipeline\n");
-		r_shadow_realtime_world.ival = 0;
-		r_shadow_realtime_dlight.ival = 0;
-		return;
-	}
+#ifdef GLQUAKE
+	case QR_OPENGL:
+		/*no stencil?*/
+		if (gl_config.nofixedfunc)
+		{
+			Con_Printf("FTE does not support stencil shadows without a fixed-function pipeline\n");
+			r_shadow_realtime_world.ival = 0;
+			r_shadow_realtime_dlight.ival = 0;
+			return;
+		}
 
-	if (!gl_config.arb_shader_objects)
-	{
-		Con_Printf("Missing GL extensions: switching off realtime lighting.\n");
-		r_shadow_realtime_world.ival = 0;
-		r_shadow_realtime_dlight.ival = 0;
+		if (!gl_config.arb_shader_objects)
+		{
+			Con_Printf("Missing GL extensions: switching off realtime lighting.\n");
+			r_shadow_realtime_world.ival = 0;
+			r_shadow_realtime_dlight.ival = 0;
+			return;
+		}
+		break;
+#endif
+#ifdef D3DQUAKE
+	case QR_DIRECT3D:
+		#ifdef GLQUAKE
+		//the code still has a lot of ifdefs, so will crash if you try it in a merged build.
+		//its not really usable in d3d-only builds either, so no great loss.
+		return;
+		#endif
+		break;
+#endif
+	default:
 		return;
 	}
 
@@ -2723,7 +2890,9 @@ void Sh_DrawLights(qbyte *vis, batch_t **mbatches)
 		}
 		else if (dl->flags & LFLAG_SHADOWMAP)
 		{
+#ifdef GLQUAKE
 			Sh_DrawShadowMapLight(dl, colour, vis);
+#endif
 		}
 		else
 		{
@@ -2731,9 +2900,17 @@ void Sh_DrawLights(qbyte *vis, batch_t **mbatches)
 		}
 	}
 
-	qglDisable(GL_SCISSOR_TEST);
-	if (qglDepthBoundsEXT)
-		qglDisable(GL_DEPTH_BOUNDS_TEST_EXT);
+	switch(qrenderer)
+	{
+#ifdef GLQUAKE
+	case QR_OPENGL:
+		qglDisable(GL_SCISSOR_TEST);
+		if (qglDepthBoundsEXT)
+			qglDisable(GL_DEPTH_BOUNDS_TEST_EXT);
+		break;
+#endif
+	}
+
 	BE_SelectMode(BEM_STANDARD);
 
 //	if (developer.value)

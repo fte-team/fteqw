@@ -159,6 +159,8 @@ bucket_t *gltexturetablebuckets[256];
 int		gl_filter_min = GL_LINEAR_MIPMAP_NEAREST;
 int		gl_filter_max = GL_LINEAR;
 int		gl_filter_max_2d = GL_LINEAR;
+int		gl_mipcap_min = 0;
+int		gl_mipcap_max = 1000;
 
 typedef struct gltexture_s
 {
@@ -257,6 +259,31 @@ void GL_Texture_Anisotropic_Filtering_Callback (struct cvar_s *var, char *oldval
 		gl_anisotropy_factor = 0;
 }
 
+void GL_Mipcap_Callback (struct cvar_s *var, char *oldvalue)
+{
+	gltexture_t	*glt;
+	char *s = var->string;
+
+	s = COM_Parse(s);
+	gl_mipcap_min = *com_token?atoi(com_token):0;
+	if (gl_mipcap_min > 3)	/*cap it to 3, so no 16*16 textures get bugged*/
+		gl_mipcap_min = 3;
+	s = COM_Parse(s);
+	gl_mipcap_max = *com_token?atoi(com_token):1000;
+	if (gl_mipcap_max < gl_mipcap_min)
+		gl_mipcap_max = gl_mipcap_min;
+
+	for (glt=gltextures ; glt ; glt=glt->next)
+	{
+		if (!(glt->flags & IF_NOMIPMAP))
+		if (glt->flags & IF_MIPCAP)
+		{
+			GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, gl_mipcap_min);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, gl_mipcap_max);
+		}
+	}
+}
 /*
 ===============
 Draw_TextureMode_f
@@ -1336,6 +1363,13 @@ done:
 
 	if (gl_config.sgis_generate_mipmap && !(flags&IF_NOMIPMAP))
 		qglTexParameteri(targ, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
+
+	/*apply this flag after, so that we can safely change the base (to avoid drivers just not uploading lower mips)*/
+	if (flags & IF_MIPCAP)
+	{
+		qglTexParameteri(targ, GL_TEXTURE_BASE_LEVEL, gl_mipcap_min);
+		qglTexParameteri(targ, GL_TEXTURE_MAX_LEVEL, gl_mipcap_max);
+	}
 }
 
 void GL_Upload32 (char *name, unsigned *data, int width, int height, unsigned int flags)

@@ -949,7 +949,7 @@ static void Shader_LoadPermutations(char *name, program_t *prog, char *script, i
 typedef struct sgeneric_s
 {
 	struct sgeneric_s *next;
-	char name[MAX_QPATH];
+	char *name;
 	qboolean failed;
 	program_t prog;
 } sgeneric_t;
@@ -2047,11 +2047,8 @@ struct sbuiltin_s
 			"#endif\n"
 
 
-			"#ifdef BUMP\n"
 				"vec3 bases = vec3(texture2D(s_t0, tcbase));\n"
-			"#else\n"
-				"vec3 diff = vec3(texture2D(s_t0, tcbase));\n"
-			"#endif\n"
+
 			"#if defined(BUMP) || defined(SPECULAR)\n"
 				"vec3 bumps = vec3(texture2D(s_t1, tcbase)) * 2.0 - 1.0;\n"
 			"#endif\n"
@@ -2062,9 +2059,11 @@ struct sbuiltin_s
 				"vec3 nl = normalize(lightvector);\n"
 				"float colorscale = max(1.0 - dot(lightvector, lightvector)/(l_lightradius*l_lightradius), 0.0);\n"
 
-			"#ifdef BUMP\n"
 				"vec3 diff;\n"
+			"#ifdef BUMP\n"
 				"diff = bases * max(dot(bumps, nl), 0.0);\n"
+			"#else\n"
+				"diff = bases * max(dot(vec3(0.0, 0.0, 1.0), nl), 0.0);\n"
 			"#endif\n"
 			"#ifdef SPECULAR\n"
 				"vec3 halfdir = (normalize(eyevector) + normalize(lightvector))/2.0;\n"
@@ -2110,6 +2109,68 @@ struct sbuiltin_s
 
 #endif
 #ifdef D3DQUAKE
+	{QR_DIRECT3D, 9, "rtlight",
+	/*
+	texture units:
+	s0=diffuse, s1=normal, s2=specular, s3=shadowmap
+	custom modifiers:
+	PCF(shadowmap)
+	CUBE(projected cubemap)
+	*/
+		"!!permu BUMP\n"
+		"!!permu SPECULAR\n"
+		"!!permu OFFSETMAPPING\n"
+		"!!permu SKELETAL\n"
+		"!!permu FOG\n"
+
+
+			"struct a2v {\n"
+				"float4 pos: POSITION;\n"
+				"float3 tc: TEXCOORD0;\n"
+				"float3 n: NORMAL0;\n"
+				"float3 s: TANGENT0;\n"
+				"float3 t: BINORMAL0;\n"
+			"};\n"
+			"struct v2f {\n"
+				"#ifndef FRAGMENT_SHADER\n"
+				"float4 pos: POSITION;\n"
+				"#endif\n"
+				"float3 tc: TEXCOORD0;\n"
+				"float3 lpos: TEXCOORD1;\n"
+			"};\n"
+
+		"#ifdef VERTEX_SHADER\n"
+			"float4x4  m_modelviewprojection;\n"
+			"float3 l_lightposition;\n"
+			"v2f main (a2v inp)\n"
+			"{\n"
+			"	v2f outp;\n"
+			"	outp.pos = mul(m_modelviewprojection, inp.pos);\n"
+			"	outp.tc = inp.tc;\n"
+
+				"float3 lightminusvertex = l_lightposition - inp.pos.xyz;\n"
+				"outp.lpos.x = dot(lightminusvertex, inp.s.xyz);\n"
+				"outp.lpos.y = dot(lightminusvertex, inp.t.xyz);\n"
+				"outp.lpos.z = dot(lightminusvertex, inp.n.xyz);\n"
+			"	return outp;\n"
+			"}\n"
+		"#endif\n"
+
+		"#ifdef FRAGMENT_SHADER\n"
+			"sampler s_t0;\n"
+			"sampler s_t1;\n"
+			"float l_lightradius;\n"
+			"float3 l_lightcolour;\n"
+			"float4 main (v2f inp) : COLOR0\n"
+			"{\n"
+			"	float3 col = l_lightcolour;\n"
+			"	col *= max(1.0 - dot(inp.lpos, inp.lpos)/(l_lightradius*l_lightradius), 0.0);\n"
+			"	float3 diff = tex2D(s_t0, inp.tc);\n"
+			"	return float4(diff * col, 1);"
+			"}\n"
+		"#endif\n"
+	},
+
 	{QR_DIRECT3D, 9, "defaultsky",
 
 			"struct a2v {\n"
@@ -2136,8 +2197,14 @@ struct sbuiltin_s
 		"#ifdef FRAGMENT_SHADER\n"
 			"float e_time;\n"
 			"float3 e_eyepos;\n"
-			"sampler s_t0;\n"
-			"sampler s_t1;\n"
+
+			"float l_lightradius;\n"
+			"float3 l_lightcolour;\n"
+			"float3 l_lightposition;\n"
+
+			"sampler s_t0;\n" /*diffuse*/
+			"sampler s_t1;\n" /*normal*/
+			"sampler s_t2;\n" /*specular*/
 			"float4 main (v2f inp) : COLOR0\n"
 			"{\n"
 			"	float2 tccoord;\n"
@@ -2154,7 +2221,6 @@ struct sbuiltin_s
 			"	float4 clouds = tex2D(s_t1, tccoord);\n"
 
 			"	return float4((solid.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb), 1);\n"
-//			"	return float4(solid.rgb, 1);"///*gl_FragColor.g = clouds.r;*/gl_FragColor.b = clouds.a;\n"
 			"}\n"
 		"#endif\n"
 	},
@@ -2200,8 +2266,7 @@ struct sbuiltin_s
 #endif
 	{QR_NONE}
 };
-static sgeneric_t *sgenerics;
-void Shader_UnloadGeneric(program_t *prog)
+void Shader_UnloadProg(program_t *prog)
 {
 	if (prog->refs == 1)
 	{
@@ -2241,7 +2306,10 @@ static void Shader_FlushGenerics(void)
 		sgenerics = g->next;
 
 		if (g->prog.refs == 1)
+		{
+			g->prog.refs--;
 			free(g);
+		}
 		else
 			Con_Printf("generic shader still used\n"); 
 	}
@@ -2263,10 +2331,9 @@ static program_t *Shader_LoadGeneric(char *name, int qrtype)
 		}
 	}
 
-	if (strlen(name) >= sizeof(g->name))
-		return NULL; /*name overflow*/
-	g = malloc(sizeof(*g));
+	g = malloc(sizeof(*g) + strlen(name)+1);
 	memset(g, 0, sizeof(*g));
+	g->name = (char*)(g+1);
 	strcpy(g->name, name);
 	g->next = sgenerics;
 	sgenerics = g;
@@ -2445,6 +2512,11 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 		/*set cvar unirforms*/
 		for (i = 0; cvarnames[i]; i++)
 		{
+			if (prog->numparams == SHADER_PROGPARMS_MAX)
+			{
+				Con_Printf("Too many cvar paramters for program\n");
+				break;
+			}
 			for (p = 0; cvarnames[i][p] && (unsigned char)cvarnames[i][p] > 32 && p < sizeof(tmpname)-1; p++)
 				tmpname[p] = cvarnames[i][p];
 			tmpname[p] = 0;
@@ -2485,15 +2557,26 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 					uniformloc = qglGetAttribLocationARB(prog->handle[p].glsl, shader_field_names[i].name);
 				if (uniformloc != -1)
 					found = true;
-				prog->parm[prog->numparams].handle[p] = uniformloc;
+				if (prog->numparams == SHADER_PROGPARMS_MAX)
+				{
+					if (found)
+						break;
+				}
+				else
+					prog->parm[prog->numparams].handle[p] = uniformloc;
 			}
 			if (found)
 			{
-				prog->parm[prog->numparams].type = shader_field_names[i].ptype;
-				prog->numparams++;
+				if (prog->numparams == SHADER_PROGPARMS_MAX)
+					Con_Printf("Too many paramters for program (ignoring %s)\n", shader_field_names[i].name);
+				else
+				{
+					prog->parm[prog->numparams].type = shader_field_names[i].ptype;
+					prog->numparams++;
 
-				if (shader_field_names[i].ptype < SP_FIRSTUNIFORM)
-					prog->nofixedcompat = true;
+					if (shader_field_names[i].ptype < SP_FIRSTUNIFORM)
+						prog->nofixedcompat = true;
+				}
 			}
 		}
 		/*set texture uniforms*/
@@ -3663,7 +3746,7 @@ void Shader_Free (shader_t *shader)
 	shader->bucket.data = NULL;
 
 	if (shader->prog)
-		Shader_UnloadGeneric(shader->prog);
+		Shader_UnloadProg(shader->prog);
 	shader->prog = NULL;
 
 	if (shader->skydome)

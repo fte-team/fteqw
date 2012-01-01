@@ -118,7 +118,7 @@ static void CL_ClearDlight(dlight_t *dl, int key)
 	dl->color[0] = 1;
 	dl->color[1] = 1;
 	dl->color[2] = 1;
-	dl->corona = r_flashblend.value;
+	dl->corona = r_flashblend.value * 0.25;
 	dl->coronascale = r_flashblendscale.value;
 //	if (r_shadow_realtime_dlight_shadowmap.value)
 //		dl->flags |= LFLAG_SHADOWMAP;
@@ -2057,7 +2057,7 @@ void CL_LinkPacketEntities (void)
 			if (state->effects & EF_RED)
 			{
 				radius = max(radius,200);
-				colour[0] += 5.0;
+				colour[0] += 3.0;
 				colour[1] += 0.5;
 				colour[2] += 0.5;
 			}
@@ -2081,8 +2081,20 @@ void CL_LinkPacketEntities (void)
 				colour[1] = state->light[1]/1024.0f;
 				colour[2] = state->light[2]/1024.0f;
 			}
-			CL_NewDlight(state->number, state->origin, state->light[3]?state->light[3]:350, 0.1, colour[0], colour[1], colour[2]);
-			/*FIXME: .skin is meant to be "cubemaps/%i" */
+			dl = CL_NewDlight(state->number, state->origin, state->light[3]?state->light[3]:350, 0.1, colour[0], colour[1], colour[2]);
+			dl->corona = (state->lightpflags & PFLAGS_CORONA)?1:0;
+			dl->coronascale = 0.25;
+			dl->flags &= ~LFLAG_FLASHBLEND;
+			dl->flags |= (state->lightpflags & PFLAGS_NOSHADOW)?LFLAG_NOSHADOWS:0;
+			if (state->skinnum)
+			{
+				VectorCopy(angles, ent->angles);
+				angles[0]*=-1;	//pflags matches alias models.
+				AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
+				VectorInverse(dl->axis[1]);
+				snprintf(dl->cubemapname, sizeof(dl->cubemapname), "cubemaps/%i", state->skinnum);
+				dl->cubetexture = R_LoadReplacementTexture(dl->cubemapname, "", IF_CUBEMAP);
+			}
 		}
 
 		// if set to invisible, skip
@@ -2149,31 +2161,6 @@ void CL_LinkPacketEntities (void)
 		ent->drawflags = state->hexen2flags;
 
 		CL_LerpNetFrameState(FS_REG, &ent->framestate, le);
-		/*
-		// set frame
-		if (le->framechange == le->oldframechange)
-			ent->framestate.g[FS_REG].lerpfrac = 0;
-		else
-		{
-			ent->framestate.g[FS_REG].lerpfrac = 1-(servertime - le->framechange) / (le->framechange - le->oldframechange);
-			if (ent->framestate.g[FS_REG].lerpfrac > 1)
-				ent->framestate.g[FS_REG].lerpfrac = 1;
-			else if (ent->framestate.g[FS_REG].lerpfrac < 0)
-			{
-				ent->framestate.g[FS_REG].lerpfrac = 0;
-				//le->oldframechange = le->framechange;
-			}
-		}
-
-
-		ent->framestate.g[FS_REG].frame[0] = state->frame;
-		ent->framestate.g[FS_REG].frame[1] = le->frame;
-
-		ent->framestate.g[FS_REG].frametime[0] = cl.servertime - le->framechange;
-		ent->framestate.g[FS_REG].frametime[1] = cl.servertime - le->oldframechange;
-		*/
-
-//		f = (sin(realtime)+1)/2;
 
 #ifdef PEXT_SCALE
 		//set scale
@@ -2269,9 +2256,9 @@ void CL_LinkPacketEntities (void)
 			float rad = 0;
 			vec3_t dclr;
 
-			dclr[0] = 0.20;
-			dclr[1] = 0.10;
-			dclr[2] = 0;
+			dclr[0] = 2.0;
+			dclr[1] = 1.0;
+			dclr[2] = 0.25;
 
 			if (model->flags & MF_ROCKET)
 			{
@@ -2281,7 +2268,6 @@ void CL_LinkPacketEntities (void)
 				if (strncmp(model->name, "models/sflesh", 13))
 				{	//hmm. hexen spider gibs...
 					rad = 200;
-					dclr[2] = 0.05;
 					rad += r_lightflicker.value?((flicker + state->number)&31):0;
 				}
 			}

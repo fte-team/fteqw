@@ -702,5 +702,10 @@ typedef void (APIENTRY * PFNGLUNLOCKARRAYSEXTPROC) (void);
 #define GL_DEPTH_CLAMP_ARB			      0x864F
 #endif
 
+#ifndef GL_TEXTURE_BASE_LEVEL	//GL_SGIS_texture_lod (core gl 1.2)
+#define GL_TEXTURE_BASE_LEVEL 0x813c 
+#define GL_TEXTURE_MAX_LEVEL 0x813d 
+#endif
+
 
 #endif

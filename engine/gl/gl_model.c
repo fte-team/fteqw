@@ -1156,12 +1156,12 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 					mipheight = tx->height;
 				}
 
-				tn.base = R_LoadReplacementTexture(mt->name, loadname, IF_NOALPHA|IF_SUBDIRONLY);
+				tn.base = R_LoadReplacementTexture(mt->name, loadname, ((*mt->name == '{')?0:IF_NOALPHA)|IF_SUBDIRONLY|IF_MIPCAP);
 				if (!TEXVALID(tn.base))
 				{
-					tn.base = R_LoadReplacementTexture(mt->name, "bmodels", (*mt->name == '{')?0:IF_NOALPHA);
+					tn.base = R_LoadReplacementTexture(mt->name, "bmodels", ((*mt->name == '{')?0:IF_NOALPHA)|IF_MIPCAP);
 					if (!TEXVALID(tn.base))
-						tn.base = R_LoadTexture8 (mt->name, mipwidth, mipheight, mipbase, (*mt->name == '{')?0:IF_NOALPHA, 1);
+						tn.base = R_LoadTexture8 (mt->name, mipwidth, mipheight, mipbase, ((*mt->name == '{')?0:IF_NOALPHA)|IF_MIPCAP, 1);
 				}
 
 				if (r_fb_bmodels.value)
@@ -1169,12 +1169,12 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 					snprintf(altname, sizeof(altname)-1, "%s_luma", mt->name);
 					if (gl_load24bit.value)
 					{
-						tn.fullbright = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA|IF_SUBDIRONLY);
+						tn.fullbright = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA|IF_SUBDIRONLY|IF_MIPCAP);
 						if (!TEXVALID(tn.fullbright))
-							tn.fullbright = R_LoadReplacementTexture(altname, "bmodels", IF_NOGAMMA);
+							tn.fullbright = R_LoadReplacementTexture(altname, "bmodels", IF_NOGAMMA|IF_MIPCAP);
 					}
 					if ((*mt->name != '{') && !TEXVALID(tn.fullbright))	//generate one (if possible).
-						tn.fullbright = R_LoadTextureFB(altname, mipwidth, mipheight, mipbase, IF_NOGAMMA);
+						tn.fullbright = R_LoadTextureFB(altname, mipwidth, mipheight, mipbase, IF_NOGAMMA|IF_MIPCAP);
 				}
 			}
 
@@ -1184,9 +1184,9 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 				if (r_loadbumpmapping)
 				{
 					snprintf(altname, sizeof(altname)-1, "%s_norm", mt->name);
-					tn.bump = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA|IF_SUBDIRONLY);
+					tn.bump = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA|IF_SUBDIRONLY|IF_MIPCAP);
 					if (!TEXVALID(tn.bump))
-						tn.bump = R_LoadReplacementTexture(altname, "bmodels", IF_NOGAMMA);
+						tn.bump = R_LoadReplacementTexture(altname, "bmodels", IF_NOGAMMA|IF_MIPCAP);
 				}
 				if (!TEXVALID(tn.bump))
 				{
@@ -1215,9 +1215,9 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 				if (gl_specular.value && gl_load24bit.value)
 				{
 					snprintf(altname, sizeof(altname)-1, "%s_gloss", mt->name);
-					tn.specular = R_LoadHiResTexture(altname, loadname, IF_NOALPHA|IF_NOGAMMA|IF_SUBDIRONLY);
+					tn.specular = R_LoadHiResTexture(altname, loadname, IF_NOALPHA|IF_NOGAMMA|IF_SUBDIRONLY|IF_MIPCAP);
 					if (!TEXVALID(tn.specular))
-						tn.specular = R_LoadHiResTexture(altname, "bmodels", IF_NOALPHA|IF_NOGAMMA);
+						tn.specular = R_LoadHiResTexture(altname, "bmodels", IF_NOALPHA|IF_NOGAMMA|IF_MIPCAP);
 				}
 			}
 		}
@@ -1360,12 +1360,12 @@ void RMod_NowLoadExternal(void)
 				tx->alphaed = alphaed;
 			}
 
-			tn.base = R_LoadHiResTexture(tx->name, loadname, IF_NOALPHA);
+			tn.base = R_LoadHiResTexture(tx->name, loadname, IF_NOALPHA|IF_MIPCAP);
 			if (!TEXVALID(tn.base))
 			{
-				tn.base = R_LoadHiResTexture(tx->name, "bmodels", IF_NOALPHA);
+				tn.base = R_LoadHiResTexture(tx->name, "bmodels", IF_NOALPHA|IF_MIPCAP);
 				if (!TEXVALID(tn.base))
-					tn.base = R_LoadReplacementTexture("light1_4", NULL, IF_NOALPHA);	//a fallback. :/
+					tn.base = R_LoadReplacementTexture("light1_4", NULL, IF_NOALPHA|IF_MIPCAP);	//a fallback. :/
 			}
 		}
 		if (!TEXVALID(tn.bump) && *tx->name != '{' && r_loadbumpmapping)

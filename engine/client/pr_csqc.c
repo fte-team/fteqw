@@ -4922,7 +4922,7 @@ qboolean CSQC_Init (qboolean anycsqc, unsigned int checksum)
 			PR_ExecuteProgram(csqcprogs, csqcg.init_function);
 		}
 
-		Con_Printf("Loaded csqc\n");
+		Con_DPrintf("Loaded csqc\n");
 		csqcmapentitydataloaded = false;
 	}
 

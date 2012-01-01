@@ -275,7 +275,7 @@ enum imageflags
 	IF_CUBEMAPEXTRA = 1<<8,
 	IF_TEXTYPE = (1<<6) | (1<<7) | (1<<8), /*0=2d, 1=3d, 2-7=cubeface*/
 	IF_TEXTYPESHIFT = 6, /*0=2d, 1=3d, 2-7=cubeface*/
-
+	IF_MIPCAP = 1<<9,
 	IF_REPLACE = 1<<30,
 	IF_SUBDIRONLY = 1<<31
 };
@@ -430,7 +430,7 @@ extern	cvar_t	gl_poly;
 extern	cvar_t	gl_affinemodels;
 extern	cvar_t	gl_nohwblend;
 extern	cvar_t	gl_reporttjunctions;
-extern	cvar_t	r_flashblend, r_flashblendscale;
+extern	cvar_t	r_coronas, r_flashblend, r_flashblendscale;
 extern	cvar_t	r_lightstylesmooth;
 extern	cvar_t	r_lightstylesmooth_limit;
 extern	cvar_t	r_lightstylespeed;

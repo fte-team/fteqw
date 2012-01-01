@@ -173,7 +173,6 @@ typedef struct {
 	qboolean ext_stencil_wrap;
 	qboolean arb_depth_clamp;
 	int ext_texture_filter_anisotropic;
-	int maxtmus;	//max texture units
 } gl_config_t;
 
 extern gl_config_t gl_config;
@@ -350,9 +349,9 @@ void GL_SetupSceneProcessingTextures (void);
 //
 // gl_alias.c
 //
-#ifdef GLQUAKE
 void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius);
 
+#ifdef GLQUAKE
 //misc model formats
 void R_DrawHLModel(entity_t	*curent);
 
@@ -371,6 +370,10 @@ void GLR_MarkQ2Lights (dlight_t *light, int bit, mnode_t *node);
 int GLR_LightPoint (vec3_t p);
 #endif
 void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
+void R_ReloadRTLights_f(void);
+void R_LoadRTLights(void);
+void R_ImportRTLights(char *entlump);
+void R_SaveRTLights_f(void);
 
 //
 // gl_heightmap.c

@@ -196,44 +196,63 @@ BINDTEXFUNCPTR bindTexFunc;
 #define DEBUG
 #endif
 #if defined(DEBUG)
-typedef void (APIENTRY *GLDEBUGPROCAMD)(GLuint id,
-					GLenum category,
+typedef void (APIENTRY *GLDEBUGPROCARB)(GLenum source,
+					GLenum type,
+					GLuint id,
 					GLenum severity,
-					GLsizei lengt,
+					GLsizei length,
 					const GLchar* message,
 					GLvoid* userParam);
-void (APIENTRY *qglDebugMessageEnableAMD)(GLenum category,
-					GLenum severity,
+void (APIENTRY *qglDebugMessageControlARB)(enum source,
+					enum type,
+					enum severity,
 					GLsizei count,
 					const GLuint* ids,
 					GLboolean enabled);
-void (APIENTRY *qglDebugMessageInsertAMD)(enum category,
-					enum severity,
+void (APIENTRY *qglDebugMessageInsertARB)(enum source,
+					enum type,
 					GLuint id,
+					enum severity,
 					GLsizei length, 
 					const char* buf);
-void (APIENTRY *qglDebugMessageCallbackAMD)(GLDEBUGPROCAMD callback,
+void (APIENTRY *qglDebugMessageCallbackARB)(GLDEBUGPROCARB callback,
 					void* userParam);
-GLuint (APIENTRY *qglGetDebugMessageLogAMD)(GLuint count,
+GLuint (APIENTRY *qglGetDebugMessageLogARB)(GLuint count,
 					GLsizei bufsize,
-					GLenum* categories,
-					GLuint* severities,
+					GLenum*	sources,
+					GLenum* types,
 					GLuint* ids,
-					GLsizei* lengths, 
-					char* message);
+					GLuint* severities,
+					GLsizei* lengths,
+					char* messageLog);
 
-#define GL_DEBUG_CATEGORY_API_ERROR_AMD                    0x9149
-#define GL_DEBUG_CATEGORY_WINDOW_SYSTEM_AMD                0x914A
-#define GL_DEBUG_CATEGORY_DEPRECATION_AMD                  0x914B
-#define GL_DEBUG_CATEGORY_UNDEFINED_BEHAVIOR_AMD           0x914C
-#define GL_DEBUG_CATEGORY_PERFORMANCE_AMD                  0x914D
-#define GL_DEBUG_CATEGORY_SHADER_COMPILER_AMD              0x914E
-#define GL_DEBUG_CATEGORY_APPLICATION_AMD                  0x914F
-#define GL_DEBUG_CATEGORY_OTHER_AMD                        0x9150
+#define GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB               0x8242
+#define GL_MAX_DEBUG_MESSAGE_LENGTH_ARB               0x9143
+#define GL_MAX_DEBUG_LOGGED_MESSAGES_ARB              0x9144
+#define GL_DEBUG_LOGGED_MESSAGES_ARB                  0x9145
+#define GL_DEBUG_NEXT_LOGGED_MESSAGE_LENGTH_ARB       0x8243
+#define GL_DEBUG_CALLBACK_FUNCTION_ARB                0x8244
+#define GL_DEBUG_CALLBACK_USER_PARAM_ARB              0x8245
+#define GL_DEBUG_SOURCE_API_ARB                       0x8246
+#define GL_DEBUG_SOURCE_WINDOW_SYSTEM_ARB             0x8247
+#define GL_DEBUG_SOURCE_SHADER_COMPILER_ARB           0x8248
+#define GL_DEBUG_SOURCE_THIRD_PARTY_ARB               0x8249
+#define GL_DEBUG_SOURCE_APPLICATION_ARB               0x824A
+#define GL_DEBUG_SOURCE_OTHER_ARB                     0x824B
+#define GL_DEBUG_TYPE_ERROR_ARB                       0x824C
+#define GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR_ARB         0x824D
+#define GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR_ARB          0x824E
+#define GL_DEBUG_TYPE_PORTABILITY_ARB                 0x824F
+#define GL_DEBUG_TYPE_PERFORMANCE_ARB                 0x8250
+#define GL_DEBUG_TYPE_OTHER_ARB                       0x8251
+#define GL_DEBUG_SEVERITY_HIGH_ARB                    0x9146
+#define GL_DEBUG_SEVERITY_MEDIUM_ARB                  0x9147
+#define GL_DEBUG_SEVERITY_LOW_ARB                     0x9148 
 
 
-void (APIENTRY myGLDEBUGPROCAMD)(GLuint id,
-					GLenum category,
+void (APIENTRY myGLDEBUGPROCAMD)(GLenum source,
+					GLenum type,
+					GLuint id,
 					GLenum severity,
 					GLsizei length,
 					const GLchar* message,
@@ -242,32 +261,26 @@ void (APIENTRY myGLDEBUGPROCAMD)(GLuint id,
 #ifndef _WIN32
 #define OutputDebugString(s) puts(s)
 #endif
-	switch(category)
+	switch(type)
 	{
-	case GL_DEBUG_CATEGORY_API_ERROR_AMD:
-		OutputDebugString("glerr: ");
+	case GL_DEBUG_TYPE_ERROR_ARB:
+		OutputDebugString("Error: ");
 		break;
-	case GL_DEBUG_CATEGORY_WINDOW_SYSTEM_AMD:
-		OutputDebugString("glwsys: ");
+	case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR_ARB:
+		OutputDebugString("Depricated: ");
 		break;
-	case GL_DEBUG_CATEGORY_DEPRECATION_AMD:
-		OutputDebugString("gldepr: ");
+	case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR_ARB:
+		OutputDebugString("Undefined: ");
 		break;
-	case GL_DEBUG_CATEGORY_UNDEFINED_BEHAVIOR_AMD:
-		OutputDebugString("glundef: ");
+	case GL_DEBUG_TYPE_PORTABILITY_ARB:
+		OutputDebugString("Portability: ");
 		break;
-	case GL_DEBUG_CATEGORY_PERFORMANCE_AMD:
-		OutputDebugString("glperf: ");
-		break;
-	case GL_DEBUG_CATEGORY_SHADER_COMPILER_AMD:
-		OutputDebugString("glshad: ");
-		break;
-	case GL_DEBUG_CATEGORY_APPLICATION_AMD:
-		OutputDebugString("glappm: ");
+	case GL_DEBUG_TYPE_PERFORMANCE_ARB:
+		OutputDebugString("Performance: ");
 		break;
 	default:
-	case GL_DEBUG_CATEGORY_OTHER_AMD:
-		OutputDebugString("glothr: ");
+	case GL_DEBUG_TYPE_OTHER_ARB:
+		OutputDebugString("Other: ");
 		break;
 	}
 	OutputDebugString(message);
@@ -660,19 +673,19 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 	}
 
 #ifdef DEBUG
-	if (GL_CheckExtension("GL_AMD_debug_output"))
+	if (GL_CheckExtension("GL_ARB_debug_output"))
 	{
-		qglDebugMessageEnableAMD	= (void *)getglext("glDebugMessageEnableAMD");
-		qglDebugMessageInsertAMD	= (void *)getglext("glDebugMessageInsertAMD");
-		qglDebugMessageCallbackAMD	= (void *)getglext("glDebugMessageCallbackAMD");
-		qglGetDebugMessageLogAMD	= (void *)getglext("glGetDebugMessageLogAMD");
+		qglDebugMessageControlARB	= (void *)getglext("glDebugMessageControlARB");
+		qglDebugMessageInsertARB	= (void *)getglext("glDebugMessageInsertARB");
+		qglDebugMessageCallbackARB	= (void *)getglext("glDebugMessageCallbackARB");
+		qglGetDebugMessageLogARB	= (void *)getglext("glGetDebugMessageLogARB");
 	}
 	else
 	{
-		qglDebugMessageEnableAMD = NULL;
-		qglDebugMessageInsertAMD = NULL;
-		qglDebugMessageCallbackAMD = NULL;
-		qglGetDebugMessageLogAMD = NULL;
+		qglDebugMessageControlARB = NULL;
+		qglDebugMessageInsertARB = NULL;
+		qglDebugMessageCallbackARB = NULL;
+		qglGetDebugMessageLogARB = NULL;
 	}
 #endif
 }
@@ -1334,10 +1347,10 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
 #ifdef DEBUG
-	if (qglDebugMessageEnableAMD)
-		qglDebugMessageEnableAMD(0, 0, 0, NULL, true);
-	if (qglDebugMessageCallbackAMD)
-		qglDebugMessageCallbackAMD(myGLDEBUGPROCAMD, NULL);
+	if (qglDebugMessageControlARB)
+		qglDebugMessageControlARB(0, 0, 0, 0, NULL, true);
+	if (qglDebugMessageCallbackARB)
+		qglDebugMessageCallbackARB(myGLDEBUGPROCAMD, NULL);
 	qglGetError();	/*suck up the invalid operation error for non-debug contexts*/
 #endif
 }

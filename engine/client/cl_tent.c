@@ -1077,9 +1077,9 @@ void CL_ParseTEnt (void)
 			dl->die = cl.time + 1;
 			dl->decay = 300;
 
-			dl->color[0] = 1.0;
-			dl->color[1] = 0.775;
-			dl->color[2] = 0.25;
+			dl->color[0] = 4.0;
+			dl->color[1] = 2.0;
+			dl->color[2] = 0.5;
 			dl->channelfade[0] = 0.196;
 			dl->channelfade[1] = 0.23;
 			dl->channelfade[2] = 0.12;
@@ -1117,12 +1117,12 @@ void CL_ParseTEnt (void)
 			dl->die = cl.time + 1;
 			dl->decay = 300;
 
-			dl->color[0] = 1.0;
-			dl->color[1] = 0.775;
-			dl->color[2] = 0.25;
-			dl->channelfade[0] = 0.196;
-			dl->channelfade[1] = 0.23;
-			dl->channelfade[2] = 0.12;
+			dl->color[0] = 4.0;
+			dl->color[1] = 2.0;
+			dl->color[2] = 0.5;
+			dl->channelfade[0] = 0.784;
+			dl->channelfade[1] = 0.92;
+			dl->channelfade[2] = 0.48;
 		}
 
 
@@ -1741,12 +1741,13 @@ void CLDP_ParseTrailParticles(void)
 	end[1] = MSG_ReadCoord();
 	end[2] = MSG_ReadCoord();
 
+	effectindex = P_FindParticleType(COM_Effectinfo_ForNumber(effectindex));
+
 	if (entityindex && (unsigned int)entityindex < MAX_EDICTS)
 		ts = &cl.lerpents[entityindex].trailstate;
 	else
 		ts = NULL;
 
-	effectindex = P_FindParticleType(COM_Effectinfo_ForNumber(effectindex));
 	if (P_ParticleTrail(start, end, effectindex, entityindex, ts))
 		P_ParticleTrail(start, end, rt_blood, entityindex, ts);
 }
@@ -1774,6 +1775,7 @@ void CLDP_ParsePointParticles(qboolean compact)
 	}
 
 	effectindex = P_FindParticleType(COM_Effectinfo_ForNumber(effectindex));
+
 	if (P_RunParticleEffectType(org, dir, count, effectindex))
 		P_RunParticleEffect (org, dir, 15, 15);
 }

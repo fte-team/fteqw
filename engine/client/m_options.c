@@ -720,7 +720,7 @@ void M_Menu_Textures_f (void)
 	};
 
 	extern cvar_t gl_load24bit, gl_specular, gl_detail, gl_compress, gl_picmip, gl_picmip2d, gl_max_size, r_drawflat, r_glsl_offsetmapping;
-	extern cvar_t gl_texture_anisotropic_filtering, gl_texturemode, gl_texturemode2d;
+	extern cvar_t gl_texture_anisotropic_filtering, gl_texturemode, gl_texturemode2d, gl_mipcap;
 	int y;
 	menubulk_t bulk[] =
 	{
@@ -740,6 +740,7 @@ void M_Menu_Textures_f (void)
 		MB_CHECKBOXCVAR("Texture Compression", gl_compress, 0), // merge the save compressed tex options into here?
 		MB_SLIDER("3D Picmip", gl_picmip, 0, 16, 1, NULL),
 		MB_SLIDER("2D Picmip", gl_picmip2d, 0, 16, 1, NULL),
+		MB_SLIDER("World Mipcap", gl_mipcap, 0, 3, 1, NULL),
 		MB_COMBOCVAR("Max Texture Size", gl_max_size, texturesizeoptions, texturesizeoptions, NULL),
 		MB_END()
 	};

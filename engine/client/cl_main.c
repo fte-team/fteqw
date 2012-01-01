@@ -532,7 +532,7 @@ void CL_SendConnectPacket (
 	}
 
 	if (adr.port == 0)
-		adr.port = BigShort (27500);
+		adr.port = BigShort (PORT_QWSERVER);
 	t2 = Sys_DoubleTime ();
 
 	cls.resendinfo = false;
@@ -1057,6 +1057,8 @@ void CL_Rcon_f (void)
 			return;
 		}
 		NET_StringToAdr (rcon_address.string, &to);
+		if (!to.port)
+			to.port = PORT_QWSERVER;
 	}
 
 	NET_SendPacket (NS_CLIENT, strlen(message)+1, message

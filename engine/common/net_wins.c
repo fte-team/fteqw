@@ -1381,6 +1381,7 @@ ftenet_connections_t *FTENET_CreateCollection(qboolean listen)
 
 qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, const char *address, ftenet_generic_connection_t *(*establish)(qboolean isserver, const char *address), qboolean islisten)
 {
+	int count = 0;
 	int i;
 	if (!col)
 		return false;
@@ -1401,28 +1402,30 @@ qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, con
 
 				col->conn[i]->Close(col->conn[i]);
 				col->conn[i] = NULL;
-				break;
 			}
 		}
 	}
 
-	if (!address || !*address)
+	if (address && *address)
 	{
-		return true;	//must have at least a port.
-	}
-
-	for (i = 0; i < MAX_CONNECTIONS; i++)
-	{
-		if (!col->conn[i])
+		for (i = 0; i < MAX_CONNECTIONS; i++)
 		{
-			col->conn[i] = establish(islisten, address);
 			if (!col->conn[i])
-				return false;
-			col->conn[i]->name = name;
-			return true;
+			{
+				address = COM_Parse(address);
+				col->conn[i] = establish(islisten, com_token);
+				if (!col->conn[i])
+					break;
+				col->conn[i]->name = name;
+				count++;
+
+				if (address && *address)
+					continue;
+				break;
+			}
 		}
 	}
-	return false;
+	return count > 0;
 }
 
 void FTENET_CloseCollection(ftenet_connections_t *col)
@@ -1536,7 +1539,7 @@ int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *o
 			{
 				struct addrinfo hints, *result, *itr;
 				memset(&hints, 0, sizeof(struct addrinfo));
-				hints.ai_family = ((struct sockaddr_in*)&from)->sin_family;    /* Allow IPv4 or IPv6 */
+				hints.ai_family = 0;    /* Allow IPv4 or IPv6 */
 				hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
 				hints.ai_flags = 0;
 				hints.ai_protocol = 0;          /* Any protocol */
@@ -1550,6 +1553,22 @@ int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *o
 				{
 					for (itr = result; itr; itr = itr->ai_next)
 					{
+						if (itr->ai_addr->sa_family != ((struct sockaddr_in*)&from)->sin_family)
+						{
+#ifdef IPV6_V6ONLY
+							if (((struct sockaddr_in*)&from)->sin_family == AF_INET6 && itr->ai_addr->sa_family == AF_INET)
+							{
+								int ipv6only = true;
+								int optlen = sizeof(ipv6only);
+								getsockopt(con->thesocket, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&ipv6only, &optlen);
+								if (ipv6only)
+									continue;
+							}
+							else
+#endif
+								continue;
+						}
+
 						if (idx++ == count)
 						{
 							SockadrToNetadr((struct sockaddr_qstorage*)itr->ai_addr, out);

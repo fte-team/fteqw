@@ -386,7 +386,7 @@ D3DQUAKE_OBJS =		\
 	d3d_shader.o	\
 	vid_d3d.o
 	
-D3DONLY_OBJS =		\
+D3DGL_OBJS =		\
 	gl_font.o \
 	gl_model.o	\
 	gl_shader.o	\

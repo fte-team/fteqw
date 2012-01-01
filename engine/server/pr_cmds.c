@@ -9764,6 +9764,7 @@ void PR_DumpPlatform_f(void)
 		{"FL_ONGROUND",			"const float", QW|NQ|CS, FL_ONGROUND},
 		{"FL_PARTIALGROUND",	"const float", QW|NQ|CS, FL_PARTIALGROUND},
 		{"FL_WATERJUMP",		"const float", QW|NQ|CS, FL_WATERJUMP},
+		{"FL_FINDABLE_NONSOLID","const float", QW|NQ|CS, FL_FINDABLE_NONSOLID},
 //		{"FL_MOVECHAIN_ANGLE",	"const float", QW|NQ, FL_MOVECHAIN_ANGLE},
 		{"FL_LAGGEDMOVE",		"const float", QW|NQ, FL_LAGGEDMOVE},
 //		{"FL_CLASS_DEPENDENT",	"const float", QW|NQ, FL_CLASS_DEPENDENT},
@@ -9853,6 +9854,15 @@ void PR_DumpPlatform_f(void)
 		{"FILE_MMAP_READ",		"const float", QW|NQ|CS, FRIK_FILE_MMAP_READ},
 		{"FILE_MMAP_RW",		"const float", QW|NQ|CS, FRIK_FILE_MMAP_RW},
 
+		{"MOVE_NORMAL",			"const float", QW|NQ|CS, MOVE_NORMAL},
+		{"MOVE_NOMONSTERS",		"const float", QW|NQ|CS, MOVE_NOMONSTERS},
+		{"MOVE_MISSILE",		"const float", QW|NQ|CS, MOVE_MISSILE},
+		{"MOVE_HITMODEL",		"const float", QW|NQ|CS, MOVE_HITMODEL},
+		{"MOVE_TRIGGERS",		"const float", QW|NQ|CS, MOVE_TRIGGERS},
+		{"MOVE_EVERYTHING",		"const float", QW|NQ|CS, MOVE_EVERYTHING},
+		{"MOVE_LAGGED",			"const float", QW|NQ|CS, MOVE_LAGGED},
+		{"MOVE_ENTCHAIN",		"const float", QW|NQ|CS, MOVE_ENTCHAIN},
+
 		{"MASK_ENGINE",			"const float", CS, MASK_DELTA},
 		{"MASK_VIEWMODEL",		"const float", CS, MASK_STDVIEWMODEL},
 
@@ -9867,6 +9877,9 @@ void PR_DumpPlatform_f(void)
 		{"LFIELD_CORONA",		"const float", CS, lfield_corona},
 		{"LFIELD_CORONASCALE",	"const float", CS, lfield_coronascale},
 		{"LFIELD_CUBEMAPNAME",	"const float", CS, lfield_cubemapname},
+		{"LFIELD_AMBIENTSCALE",	"const float", CS, lfield_ambientscale},
+		{"LFIELD_DIFFUSESCALE",	"const float", CS, lfield_diffusescale},
+		{"LFIELD_SPECULARSCALE","const float", CS, lfield_specularscale},
 
 		{"LFLAG_NORMALMODE",	"const float", CS, LFLAG_NORMALMODE},
 		{"LFLAG_REALTIMEMODE",	"const float", CS, LFLAG_REALTIMEMODE},

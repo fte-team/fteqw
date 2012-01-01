@@ -1858,7 +1858,19 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, float p
 	/*shadow meshes are always drawn as an external view*/
 	oxv = r_refdef.externalview;
 	r_refdef.externalview = true;
-	BE_BaseEntTextures();
+	switch(qrenderer)
+	{
+#ifdef GLQUAKE
+	case QR_OPENGL:
+		GLBE_BaseEntTextures();
+		break;
+#endif
+#ifdef D3DQUAKE
+	case QR_DIRECT3D:
+		D3DBE_BaseEntTextures();
+		break;
+#endif
+	}
 	r_refdef.externalview = oxv;
 
 	if (0)
@@ -2136,7 +2148,19 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 			BE_DrawMesh_List(tex->shader, sm->litsurfs[tno].count, sm->litsurfs[tno].s, &tex->vbo, &tex->shader->defaulttextures, 0);
 		}
 
-		BE_BaseEntTextures();
+		switch(qrenderer)
+		{
+#ifdef GLQUAKE
+		case QR_OPENGL:
+			GLBE_BaseEntTextures();
+			break;
+#endif
+#ifdef D3DQUAKE
+		case QR_DIRECT3D:
+			D3DBE_BaseEntTextures();
+			break;
+#endif
+		}
 	}
 }
 

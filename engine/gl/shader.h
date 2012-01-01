@@ -310,6 +310,7 @@ typedef struct {
 
 		SP_LIGHTRADIUS, /*these light values are realtime lighting*/
 		SP_LIGHTCOLOUR,
+		SP_LIGHTCOLOURSCALE,
 		SP_LIGHTPOSITION,
 		SP_LIGHTSCREEN,
 		SP_LIGHTPROJMATRIX,
@@ -508,7 +509,8 @@ void BE_PushOffsetShadow(qboolean foobar);
 //sets up gl for depth-only FIXME
 void BE_SetupForShadowMap(void);
 //Called from shadowmapping code into backend
-void BE_BaseEntTextures(void);
+void GLBE_BaseEntTextures(void);
+void D3DBE_BaseEntTextures(void);
 //prebuilds shadow volumes
 void Sh_PreGenerateLights(void);
 //Draws lights, called from the backend

@@ -801,6 +801,10 @@ typedef struct {
 #define ACM_STREAMCONVERTF_BLOCKALIGN   0x00000004
 #endif
 
+//mingw workarounds
+#define LPWAVEFILTER void *
+#include <objbase.h>
+
 MMRESULT (WINAPI *qacmStreamUnprepareHeader) (HACMSTREAM has, LPACMSTREAMHEADER pash, DWORD fdwUnprepare);
 MMRESULT (WINAPI *qacmStreamConvert) (HACMSTREAM has, LPACMSTREAMHEADER pash, DWORD fdwConvert);
 MMRESULT (WINAPI *qacmStreamPrepareHeader) (HACMSTREAM has, LPACMSTREAMHEADER pash, DWORD fdwPrepare);
@@ -892,7 +896,7 @@ HRESULT	(WINAPI *qAVIFileOpenA)				(PAVIFILE FAR *ppfile, LPCSTR szFile, UINT uM
 void	(WINAPI *qAVIFileInit)				(void);
 HRESULT	(WINAPI *qAVIStreamWrite)			(PAVISTREAM pavi, LONG lStart, LONG lSamples, LPVOID lpBuffer, LONG cbBuffer, DWORD dwFlags, LONG FAR *plSampWritten, LONG FAR *plBytesWritten);
 HRESULT	(WINAPI *qAVIStreamSetFormat)		(PAVISTREAM pavi, LONG lPos,LPVOID lpFormat,LONG cbFormat);
-HRESULT	(WINAPI *qAVIMakeCompressedStream)	(PAVISTREAM FAR *	    ppsCompressed, PAVISTREAM		    ppsSource, AVICOMPRESSOPTIONS FAR *    lpOptions, CLSID FAR *pclsidHandler);
+HRESULT	(WINAPI *qAVIMakeCompressedStream)	(PAVISTREAM FAR * ppsCompressed, PAVISTREAM ppsSource, AVICOMPRESSOPTIONS FAR * lpOptions, CLSID FAR *pclsidHandler);
 HRESULT	(WINAPI *qAVIFileCreateStreamA)		(PAVIFILE pfile, PAVISTREAM FAR *ppavi, AVISTREAMINFOA FAR * psi);
 
 static qboolean qAVIStartup(void)

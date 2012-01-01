@@ -120,6 +120,9 @@ static void CL_ClearDlight(dlight_t *dl, int key)
 	dl->color[2] = 1;
 	dl->corona = r_flashblend.value * 0.25;
 	dl->coronascale = r_flashblendscale.value;
+	dl->lightcolourscales[0] = 0;
+	dl->lightcolourscales[1] = 1;
+	dl->lightcolourscales[2] = 4;
 //	if (r_shadow_realtime_dlight_shadowmap.value)
 //		dl->flags |= LFLAG_SHADOWMAP;
 }

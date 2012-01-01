@@ -1215,9 +1215,9 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 				if (gl_specular.value && gl_load24bit.value)
 				{
 					snprintf(altname, sizeof(altname)-1, "%s_gloss", mt->name);
-					tn.specular = R_LoadHiResTexture(altname, loadname, IF_NOALPHA|IF_NOGAMMA|IF_SUBDIRONLY|IF_MIPCAP);
+					tn.specular = R_LoadHiResTexture(altname, loadname, IF_NOGAMMA|IF_SUBDIRONLY|IF_MIPCAP);
 					if (!TEXVALID(tn.specular))
-						tn.specular = R_LoadHiResTexture(altname, "bmodels", IF_NOALPHA|IF_NOGAMMA|IF_MIPCAP);
+						tn.specular = R_LoadHiResTexture(altname, "bmodels", IF_NOGAMMA|IF_MIPCAP);
 				}
 			}
 		}

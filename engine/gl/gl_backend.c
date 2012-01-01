@@ -171,6 +171,7 @@ struct {
 
 		vec3_t lightorg;
 		vec3_t lightcolours;
+		vec3_t lightcolourscale;
 		float lightradius;
 		texid_t lighttexture;
 		texid_t lightcubemap;
@@ -2328,7 +2329,9 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 		break;
 
 	case SP_E_LMSCALE:
-		if (shaderstate.curentity->model && shaderstate.curentity->model->engineflags & MDLF_NEEDOVERBRIGHT)
+		if (shaderstate.mode == BEM_DEPTHDARK)
+			qglUniform1fARB(p->handle[perm], 0.0f);
+		else if (shaderstate.curentity->model && shaderstate.curentity->model->engineflags & MDLF_NEEDOVERBRIGHT)
 			qglUniform1fARB(p->handle[perm], 1<<bound(0, gl_overbright.ival, 2));
 		else
 			qglUniform1fARB(p->handle[perm], 1.0f);
@@ -2436,6 +2439,9 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 			Matrix4x4_CM_Transform3(inv, shaderstate.lightorg, t2);
 			qglUniform3fvARB(p->handle[perm], 1, t2);
 		}
+		break;
+	case SP_LIGHTCOLOURSCALE:
+		qglUniform3fvARB(p->handle[perm], 1, shaderstate.lightcolourscale);
 		break;
 	case SP_LIGHTPROJMATRIX:
 		/*light's texture projection matrix*/
@@ -2789,6 +2795,7 @@ void GLBE_SelectDLight(dlight_t *dl, vec3_t colour)
 	/*simple info*/
 	shaderstate.lightradius = dl->radius;
 	VectorCopy(dl->origin, shaderstate.lightorg);
+	VectorCopy(dl->lightcolourscales, shaderstate.lightcolourscale);
 	VectorCopy(colour, shaderstate.lightcolours);
 #ifdef RTLIGHTS
 	shaderstate.curshadowmap = dl->stexture;
@@ -2936,7 +2943,7 @@ static void DrawMeshes(void)
 		break;
 
 	case BEM_DEPTHDARK:
-		if (shaderstate.curshader->flags & SHADER_HASLIGHTMAP)
+		if ((shaderstate.curshader->flags & SHADER_HASLIGHTMAP) && !TEXVALID(shaderstate.curtexnums->fullbright))
 		{
 			GL_DeSelectProgram();
 			qglColor3f(0,0,0);
@@ -3309,7 +3316,7 @@ batch_t *GLBE_GetTempBatch(void)
 
 /*called from shadowmapping code*/
 #ifdef RTLIGHTS
-void BE_BaseEntTextures(void)
+void GLBE_BaseEntTextures(void)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
 	BE_GenModelBatches(batches);

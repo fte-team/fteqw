@@ -2028,6 +2028,7 @@ struct sbuiltin_s
 
 			"uniform float l_lightradius;\n"
 			"uniform vec3 l_lightcolour;\n"
+			"uniform vec3 l_lightcolourscale;\n"
 
 			"#ifdef OFFSETMAPPING\n"
 			"uniform float cvar_r_glsl_offsetmapping_scale;\n"
@@ -2050,10 +2051,10 @@ struct sbuiltin_s
 				"vec3 bases = vec3(texture2D(s_t0, tcbase));\n"
 
 			"#if defined(BUMP) || defined(SPECULAR)\n"
-				"vec3 bumps = vec3(texture2D(s_t1, tcbase)) * 2.0 - 1.0;\n"
+				"vec3 bumps = vec3(texture2D(s_t1, tcbase)) - 0.5;\n"
 			"#endif\n"
 			"#ifdef SPECULAR\n"
-				"vec3 specs = vec3(texture2D(s_t2, tcbase));\n"
+				"vec4 specs = texture2D(s_t2, tcbase);\n"
 			"#endif\n"
 
 				"vec3 nl = normalize(lightvector);\n"
@@ -2061,14 +2062,14 @@ struct sbuiltin_s
 
 				"vec3 diff;\n"
 			"#ifdef BUMP\n"
-				"diff = bases * max(dot(bumps, nl), 0.0);\n"
+				"diff = bases * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(2.0*bumps, nl), 0.0));\n"
 			"#else\n"
-				"diff = bases * max(dot(vec3(0.0, 0.0, 1.0), nl), 0.0);\n"
+				"diff = bases * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(vec3(0.0, 0.0, 1.0), nl), 0.0));\n"
 			"#endif\n"
 			"#ifdef SPECULAR\n"
-				"vec3 halfdir = (normalize(eyevector) + normalize(lightvector))/2.0;\n"
-				"float dv = dot(halfdir, bumps);\n"
-				"diff += pow(dv, 8.0) * specs;\n"
+				"vec3 halfdir = normalize(lightvector) + normalize(eyevector);\n"
+				"float spec = pow(max(dot(halfdir, bumps), 0.0), 1.0 + 32.0 * specs.a);\n"
+				"diff += spec * specs.rgb * l_lightcolourscale.z;\n"
 			"#endif\n"
 
 			"#ifdef CUBE\n"
@@ -2488,6 +2489,7 @@ struct shader_field_names_s shader_field_names[] =
 	{"l_lightradius",			SP_LIGHTRADIUS},
 	{"l_lightcolour",			SP_LIGHTCOLOUR},
 	{"l_lightposition",			SP_LIGHTPOSITION},
+	{"l_lightcolourscale",		SP_LIGHTCOLOURSCALE},
 	{"l_projmatrix",			SP_LIGHTPROJMATRIX},
 
 	{"e_rendertexturescale",	SP_RENDERTEXTURESCALE},
@@ -4531,6 +4533,9 @@ done:;
 			}
 
 			Shader_SetBlendmode (pass);
+
+			if (pass->blendmode == PBM_ADD)
+				s->defaulttextures.fullbright = pass->anim_frames[0];
 		}
 
 		if (!(s->flags & SHADER_SKY ) && !s->sort)

@@ -2828,7 +2828,7 @@ void D3DBE_SubmitMeshes (qboolean drawworld, batch_t **blist, int first, int sto
 }
 
 #ifdef RTLIGHTS
-void BE_BaseEntTextures(void)
+void D3DBE_BaseEntTextures(void)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
 	BE_GenModelBatches(batches);

@@ -817,6 +817,9 @@ void R_LoadRTLights(void)
 			dl->coronascale = coronascale;
 			dl->die = 0;
 			dl->flags = flags;
+			dl->lightcolourscales[0] = ambientscale;
+			dl->lightcolourscales[1] = diffusescale;
+			dl->lightcolourscales[2] = specularscale;
 			AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
 
 			Q_strncpyz(dl->cubemapname, cubename, sizeof(dl->cubemapname));
@@ -869,7 +872,7 @@ void R_SaveRTLights_f(void)
 			light->style-1,
 			light->cubemapname, light->corona,
 			ang[0], ang[1], ang[2],
-			light->coronascale, light->ambientscale, light->diffusescale, light->specularscale, light->flags&(LFLAG_NORMALMODE|LFLAG_REALTIMEMODE|LFLAG_CREPUSCULAR)
+			light->coronascale, light->lightcolourscales[0], light->lightcolourscales[1], light->lightcolourscales[2], light->flags&(LFLAG_NORMALMODE|LFLAG_REALTIMEMODE|LFLAG_CREPUSCULAR)
 			));
 	}
 	VFS_CLOSE(f);

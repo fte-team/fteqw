@@ -764,6 +764,15 @@ static void QCBUILTIN PF_R_DynamicLight_Set(progfuncs_t *prinst, struct globalva
 		else
 			l->cubetexture = r_nulltex;
 		break;
+	case lfield_ambientscale:
+		l->lightcolourscales[0] = G_FLOAT(OFS_PARM2);
+		break;
+	case lfield_diffusescale:
+		l->lightcolourscales[1] = G_FLOAT(OFS_PARM2);
+		break;
+	case lfield_specularscale:
+		l->lightcolourscales[2] = G_FLOAT(OFS_PARM2);
+		break;
 	default:
 		break;
 	}
@@ -813,6 +822,15 @@ static void QCBUILTIN PF_R_DynamicLight_Get(progfuncs_t *prinst, struct globalva
 		break;
 	case lfield_cubemapname:
 		RETURN_TSTRING(l->cubemapname);
+		break;
+	case lfield_ambientscale:
+		G_FLOAT(OFS_RETURN) = l->lightcolourscales[0];
+		break;
+	case lfield_diffusescale:
+		G_FLOAT(OFS_RETURN) = l->lightcolourscales[1];
+		break;
+	case lfield_specularscale:
+		G_FLOAT(OFS_RETURN) = l->lightcolourscales[2];
 		break;
 	default:
 		G_INT(OFS_RETURN) = 0;
@@ -2024,9 +2042,10 @@ static void QCBUILTIN PF_cs_getinputstate (progfuncs_t *prinst, struct globalvar
 {
 	int f;
 	usercmd_t *cmd;
+	extern usercmd_t independantphysics[MAX_SPLITS];
 
 	f = G_FLOAT(OFS_PARM0);
-	if (f >= cls.netchan.outgoing_sequence)
+	if (f > cls.netchan.outgoing_sequence)
 	{
 		G_FLOAT(OFS_RETURN) = false;
 		return;
@@ -2036,9 +2055,11 @@ static void QCBUILTIN PF_cs_getinputstate (progfuncs_t *prinst, struct globalvar
 		G_FLOAT(OFS_RETURN) = false;
 		return;
 	}
-
-	// save this command off for prediction
-	cmd = &cl.frames[f&UPDATE_MASK].cmd[csqc_lplayernum];
+	/*outgoing_sequence says how many packets have actually been sent, but there's an extra pending packet which has not been sent yet - be warned though, its data will change in the coming frames*/
+	if (f == cls.netchan.outgoing_sequence)
+		cmd = &independantphysics[csqc_lplayernum];
+	else
+		cmd = &cl.frames[f&UPDATE_MASK].cmd[csqc_lplayernum];
 
 	cs_set_input_state(cmd);
 

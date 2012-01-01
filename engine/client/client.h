@@ -263,9 +263,7 @@ typedef struct dlight_s
 	float	minlight;			// don't add when contributing less
 	float   color[3];
 	float	channelfade[3];
-	float	ambientscale;
-	float	diffusescale;
-	float	specularscale;
+	vec3_t lightcolourscales; //ambient, diffuse, specular
 	float	corona;
 	float	coronascale;
 

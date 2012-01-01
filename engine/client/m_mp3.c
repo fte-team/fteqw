@@ -774,6 +774,59 @@ char *Media_NextTrack(int musicchannelnum)
 #undef CDECL	//windows is stupid at times.
 #define CDECL __cdecl
 
+#if defined(_MSC_VER) && (_MSC_VER < 1300)
+#define DWORD_PTR DWORD
+#endif
+
+#if 0
+#include <msacm.h>
+#else
+DECLARE_HANDLE(HACMSTREAM);
+typedef HACMSTREAM *LPHACMSTREAM;
+DECLARE_HANDLE(HACMDRIVER);
+typedef struct {
+	DWORD     cbStruct;
+	DWORD     fdwStatus;
+	DWORD_PTR dwUser;
+	LPBYTE    pbSrc;
+	DWORD     cbSrcLength;
+	DWORD     cbSrcLengthUsed;
+	DWORD_PTR dwSrcUser;
+	LPBYTE    pbDst;
+	DWORD     cbDstLength;
+	DWORD     cbDstLengthUsed;
+	DWORD_PTR dwDstUser;
+	DWORD     dwReservedDriver[10];
+} ACMSTREAMHEADER, *LPACMSTREAMHEADER;
+#define ACM_STREAMCONVERTF_BLOCKALIGN   0x00000004
+#endif
+
+MMRESULT (WINAPI *qacmStreamUnprepareHeader) (HACMSTREAM has, LPACMSTREAMHEADER pash, DWORD fdwUnprepare);
+MMRESULT (WINAPI *qacmStreamConvert) (HACMSTREAM has, LPACMSTREAMHEADER pash, DWORD fdwConvert);
+MMRESULT (WINAPI *qacmStreamPrepareHeader) (HACMSTREAM has, LPACMSTREAMHEADER pash, DWORD fdwPrepare);
+MMRESULT (WINAPI *qacmStreamOpen) (LPHACMSTREAM phas, HACMDRIVER had, LPWAVEFORMATEX pwfxSrc, LPWAVEFORMATEX pwfxDst, LPWAVEFILTER pwfltr, DWORD_PTR dwCallback, DWORD_PTR dwInstance, DWORD fdwOpen);
+
+static qboolean qacmStartup(void)
+{
+	static int inited;
+	static dllhandle_t *module;
+	if (!inited)
+	{
+		dllfunction_t funcs[] =
+		{
+			{(void*)&qacmStreamUnprepareHeader,	"acmStreamUnprepareHeader"},
+			{(void*)&qacmStreamConvert,			"acmStreamConvert"},
+			{(void*)&qacmStreamPrepareHeader,	"acmStreamPrepareHeader"},
+			{(void*)&qacmStreamOpen,			"acmStreamOpen"},
+			{NULL,NULL}
+		};
+		inited = true;
+		module = Sys_LoadLibrary("msacm32.dll", funcs);
+	}
+
+	return module?true:false;
+}
+
 #if 0
 #include <vfw.h>
 #else
@@ -842,7 +895,7 @@ HRESULT	(WINAPI *qAVIStreamSetFormat)		(PAVISTREAM pavi, LONG lPos,LPVOID lpForm
 HRESULT	(WINAPI *qAVIMakeCompressedStream)	(PAVISTREAM FAR *	    ppsCompressed, PAVISTREAM		    ppsSource, AVICOMPRESSOPTIONS FAR *    lpOptions, CLSID FAR *pclsidHandler);
 HRESULT	(WINAPI *qAVIFileCreateStreamA)		(PAVIFILE pfile, PAVISTREAM FAR *ppavi, AVISTREAMINFOA FAR * psi);
 
-qboolean qAVIStartup(void)
+static qboolean qAVIStartup(void)
 {
 	static int aviinited;
 	static dllhandle_t *avimodule;
@@ -925,13 +978,17 @@ struct cin_s {
 
 #ifdef WINAVI
 	struct {
-		AVISTREAMINFOA		psi;										// Pointer To A Structure Containing Stream Info
+		qboolean resettimer;
+		AVISTREAMINFOA		vidinfo;
 		PAVISTREAM			pavivideo;
+		AVISTREAMINFOA		audinfo;
 		PAVISTREAM			pavisound;
 		PAVIFILE			pavi;
 		PGETFRAME			pgf;
 
-		LPWAVEFORMAT pWaveFormat;
+		HACMSTREAM			audiodecoder;
+
+		LPWAVEFORMATEX pWaveFormat;
 
 		//sound stuff
 		int soundpos;
@@ -989,26 +1046,34 @@ qboolean Media_WinAvi_DecodeFrame(cin_t *cin, qboolean nosound)
 	LPBITMAPINFOHEADER lpbi;									// Holds The Bitmap Header Information
 	float newframe;
 	int newframei;
+	int wantsoundtime;
+	extern cvar_t _snd_mixahead;
 
 	float curtime = Sys_DoubleTime();
 
-	newframe = (curtime - cin->filmstarttime)*cin->avi.filmfps;
+	if (cin->avi.resettimer)
+	{
+		cin->filmstarttime = curtime;
+		cin->avi.resettimer = 0;
+	}
+
+	newframe = (((curtime - cin->filmstarttime) * cin->avi.vidinfo.dwRate) / cin->avi.vidinfo.dwScale) + cin->avi.vidinfo.dwInitialFrames;
 	newframei = newframe;
 
 	if (newframei>=cin->avi.num_frames)
 		cin->ended = true;
 
-	if (newframe == cin->currentframe)
+	if (newframei == cin->currentframe)
 	{
 		cin->outunchanged = true;
 		return true;
 	}
+	cin->outunchanged = false;
 
 	if (cin->currentframe < newframei-1)
 		Con_DPrintf("Dropped %i frame(s)\n", (newframei - cin->currentframe)-1);
 
 	cin->currentframe = newframei;
-	Con_DPrintf("%i\n", newframei);
 
 	if (newframei>=cin->avi.num_frames)
 	{
@@ -1020,6 +1085,7 @@ qboolean Media_WinAvi_DecodeFrame(cin_t *cin, qboolean nosound)
 	lpbi = (LPBITMAPINFOHEADER)qAVIStreamGetFrame(cin->avi.pgf, cin->currentframe);	// Grab Data From The AVI Stream
 	if (!lpbi || lpbi->biBitCount != 24)//oops
 	{
+		cin->avi.resettimer = true;
 		cin->ended = true;
 		return false;
 	}
@@ -1031,24 +1097,58 @@ qboolean Media_WinAvi_DecodeFrame(cin_t *cin, qboolean nosound)
 		cin->outdata = (char*)lpbi+lpbi->biSize;
 	}
 
-	if (cin->avi.pavisound)
+	if(nosound)
+		wantsoundtime = 0;
+	else
+		wantsoundtime = ((((curtime - cin->filmstarttime) + _snd_mixahead.value + 0.02) * cin->avi.audinfo.dwRate) / cin->avi.audinfo.dwScale) + cin->avi.audinfo.dwInitialFrames;
+
+	while (cin->avi.pavisound && cin->avi.soundpos < wantsoundtime)
 	{
 		LONG lSize;
 		LPBYTE pBuffer;
 		LONG samples;
 
-		qAVIStreamRead(cin->avi.pavisound, 0, AVISTREAMREAD_CONVENIENT, NULL, 0, &lSize, &samples);
+		/*if the audio skipped more than a second, drop it all and start at a sane time, so our raw audio playing code doesn't buffer too much*/
+		if (cin->avi.soundpos + (1*cin->avi.audinfo.dwRate / cin->avi.audinfo.dwScale) < wantsoundtime)
+		{
+			cin->avi.soundpos = wantsoundtime;
+			break;
+		}
+
+		qAVIStreamRead(cin->avi.pavisound, cin->avi.soundpos, AVISTREAMREAD_CONVENIENT, NULL, 0, &lSize, &samples);
+		pBuffer = cin->framedata;
+		qAVIStreamRead(cin->avi.pavisound, cin->avi.soundpos, AVISTREAMREAD_CONVENIENT, pBuffer, lSize, NULL, &samples);
 
 		cin->avi.soundpos+=samples;
 
-		pBuffer = cin->framedata;
+		/*if no progress, stop!*/
+		if (!samples)
+			break;
 
-		qAVIStreamRead(cin->avi.pavisound, cin->avi.soundpos, AVISTREAMREAD_CONVENIENT, pBuffer, lSize, NULL, &samples);
+		if (cin->avi.audiodecoder)
+		{
+			ACMSTREAMHEADER strhdr;
+			char buffer[1024*256];
 
-		S_RawAudio(-1, pBuffer, cin->avi.pWaveFormat->nSamplesPerSec, samples, cin->avi.pWaveFormat->nChannels, 2);
+			memset(&strhdr, 0, sizeof(strhdr));
+			strhdr.cbStruct = sizeof(strhdr);
+			strhdr.pbSrc = pBuffer;
+			strhdr.cbSrcLength = lSize;
+			strhdr.pbDst = buffer;
+			strhdr.cbDstLength = sizeof(buffer);
+
+			qacmStreamPrepareHeader(cin->avi.audiodecoder, &strhdr, 0);
+			qacmStreamConvert(cin->avi.audiodecoder, &strhdr, ACM_STREAMCONVERTF_BLOCKALIGN);
+			qacmStreamUnprepareHeader(cin->avi.audiodecoder, &strhdr, 0);
+
+			S_RawAudio(-1, strhdr.pbDst, cin->avi.pWaveFormat->nSamplesPerSec, strhdr.cbDstLengthUsed/4, cin->avi.pWaveFormat->nChannels, 2);
+		}
+		else
+			S_RawAudio(-1, pBuffer, cin->avi.pWaveFormat->nSamplesPerSec, samples, cin->avi.pWaveFormat->nChannels, 2);
 	}
 	return true;
 }
+
 cin_t *Media_WinAvi_TryLoad(char *name)
 {
 	cin_t *cin;
@@ -1084,9 +1184,9 @@ cin_t *Media_WinAvi_TryLoad(char *name)
 		qAVIFileRelease(cin->avi.pavi);
 
 //play with video
-		qAVIStreamInfoA(cin->avi.pavivideo, &cin->avi.psi, sizeof(cin->avi.psi));
-		filmwidth=cin->avi.psi.rcFrame.right-cin->avi.psi.rcFrame.left;					// Width Is Right Side Of Frame Minus Left
-		filmheight=cin->avi.psi.rcFrame.bottom-cin->avi.psi.rcFrame.top;					// Height Is Bottom Of Frame Minus Top
+		qAVIStreamInfoA(cin->avi.pavivideo, &cin->avi.vidinfo, sizeof(cin->avi.vidinfo));
+		filmwidth=cin->avi.vidinfo.rcFrame.right-cin->avi.vidinfo.rcFrame.left;					// Width Is Right Side Of Frame Minus Left
+		filmheight=cin->avi.vidinfo.rcFrame.bottom-cin->avi.vidinfo.rcFrame.top;					// Height Is Bottom Of Frame Minus Top
 		cin->framedata = BZ_Malloc(filmwidth*filmheight*4);
 
 		cin->avi.num_frames=qAVIStreamLength(cin->avi.pavivideo);							// The Last Frame Of The Stream
@@ -1098,11 +1198,11 @@ cin_t *Media_WinAvi_TryLoad(char *name)
 
 		if (!cin->avi.pgf)
 		{
-			Con_Printf("AVIStreamGetFrameOpen failed. Please install codec for '%c%c%c%c'.\n", 
-				((unsigned char*)&cin->avi.psi.fccHandler)[0],
-				((unsigned char*)&cin->avi.psi.fccHandler)[1],
-				((unsigned char*)&cin->avi.psi.fccHandler)[2],
-				((unsigned char*)&cin->avi.psi.fccHandler)[3]
+			Con_Printf("AVIStreamGetFrameOpen failed. Please install a vfw codec for '%c%c%c%c'. Try ffdshow.\n", 
+				((unsigned char*)&cin->avi.vidinfo.fccHandler)[0],
+				((unsigned char*)&cin->avi.vidinfo.fccHandler)[1],
+				((unsigned char*)&cin->avi.vidinfo.fccHandler)[2],
+				((unsigned char*)&cin->avi.vidinfo.fccHandler)[3]
 				);
 		}
 
@@ -1110,6 +1210,7 @@ cin_t *Media_WinAvi_TryLoad(char *name)
 		cin->filmstarttime = Sys_DoubleTime();
 
 		cin->avi.soundpos=0;
+		cin->avi.resettimer = true;
 
 
 //play with sound
@@ -1117,22 +1218,22 @@ cin_t *Media_WinAvi_TryLoad(char *name)
 		{
 			LONG lSize;
 			LPBYTE pChunk;
+			qAVIStreamInfoA(cin->avi.pavisound, &cin->avi.audinfo, sizeof(cin->avi.audinfo));
+
 			qAVIStreamRead(cin->avi.pavisound, 0, AVISTREAMREAD_CONVENIENT, NULL, 0, &lSize, NULL);
 
 			if (!lSize)
 				cin->avi.pWaveFormat = NULL;
 			else
 			{
-
 				pChunk = BZ_Malloc(sizeof(qbyte)*lSize);
-
 
 				if(qAVIStreamReadFormat(cin->avi.pavisound, qAVIStreamStart(cin->avi.pavisound), pChunk, &lSize))
 				{
 				   // error
 					Con_Printf("Failiure reading sound info\n");
 				}
-				cin->avi.pWaveFormat = (LPWAVEFORMAT)pChunk;
+				cin->avi.pWaveFormat = (LPWAVEFORMATEX)pChunk;
 			}
 
 			if (!cin->avi.pWaveFormat)
@@ -1143,11 +1244,25 @@ cin_t *Media_WinAvi_TryLoad(char *name)
 			}
 			else if (cin->avi.pWaveFormat->wFormatTag != 1)
 			{
-				Con_Printf("Audio stream is not PCM\n");	//FIXME: so that it no longer is...
-				qAVIStreamRelease(cin->avi.pavisound);
-				cin->avi.pavisound=NULL;
-			}
+				WAVEFORMATEX pcm_format;
+				HACMDRIVER drv = NULL;
 
+				memset (&pcm_format, 0, sizeof(pcm_format));
+				pcm_format.wFormatTag = WAVE_FORMAT_PCM;
+				pcm_format.nChannels = cin->avi.pWaveFormat->nChannels;
+				pcm_format.nSamplesPerSec = cin->avi.pWaveFormat->nSamplesPerSec;
+				pcm_format.nBlockAlign = 4;
+				pcm_format.nAvgBytesPerSec = pcm_format.nSamplesPerSec*4;
+				pcm_format.wBitsPerSample = 16;
+				pcm_format.cbSize = 0;
+
+				if (!qacmStartup() || 0!=qacmStreamOpen(&cin->avi.audiodecoder, drv, cin->avi.pWaveFormat, &pcm_format, NULL, 0, 0, 0))
+				{
+					Con_Printf("Failed to open audio decoder\n");	//FIXME: so that it no longer is...
+					qAVIStreamRelease(cin->avi.pavisound);
+					cin->avi.pavisound=NULL;
+				}
+			}
 		}
 
 		cin->filmtype = MFT_AVI;
@@ -1785,11 +1900,6 @@ cin_t *Media_StartCin(char *name)
 	return cin;
 }
 
-qboolean Media_DecodeFrame(cin_t *cin, qboolean nosound)
-{
-	return cin->decodeframe(cin, nosound);
-}
-
 qboolean Media_Playing(void)
 {
 	if (videoshader)
@@ -1882,7 +1992,7 @@ texid_tf Media_UpdateForShader(cin_t *cin)
 {
 	if (!cin)
 		return r_nulltex;
-	if (!Media_DecodeFrame(cin, true))
+	if (!cin->decodeframe(cin, false))
 	{
 		return r_nulltex;
 	}
@@ -1906,7 +2016,7 @@ void Media_Send_Command(cin_t *cin, char *command)
 {
 	if (!cin)
 		cin = R_ShaderGetCinematic(videoshader);
-	if (!cin || !cin->key)
+	if (!cin || !cin->changestream)
 		return;
 	cin->changestream(cin, command);
 }
@@ -1922,19 +2032,23 @@ void Media_Send_MouseMove(cin_t *cin, float x, float y)
 {
 	if (!cin)
 		cin = R_ShaderGetCinematic(videoshader);
-	if (!cin || !cin->key)
+	if (!cin || !cin->cursormove)
 		return;
 	cin->cursormove(cin, x, y);
 }
 void Media_Send_Resize(cin_t *cin, int x, int y)
 {
+	if (!cin)
+		cin = R_ShaderGetCinematic(videoshader);
+	if (!cin || !cin->setsize)
+		return;
 	cin->setsize(cin, x, y);
 }
 void Media_Send_GetSize(cin_t *cin, int *x, int *y)
 {
 	if (!cin)
 		cin = R_ShaderGetCinematic(videoshader);
-	if (!cin || !cin->key)
+	if (!cin || !cin->getsize)
 		return;
 	cin->getsize(cin, x, y);
 }

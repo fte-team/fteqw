@@ -1154,6 +1154,8 @@ clean:
 	-rm -f droid/proguard.cfg
 	-rm -f droid/build.xml
 
+distclean: clean
+	-rm -f droid/ftekeystore
 
 #building for android will require:
 #download android sdk+ndk
@@ -1167,7 +1169,33 @@ droid/build.xml:
 	cd droid && PATH=$$PATH:$(DROID_SDK_PATH)/tools:$(DROID_NDK_PATH) android update project -t 1 -p . -n FTEDroid
 
 #build FTE as a library, then build the java+package (release)
-droid-rel: droid/build.xml
+droid/ftekeystore:
+	@echo
+	@echo In order to build a usable APK file it must be signed. That requires a private key.
+	@echo Creation of a private key requries various bits of info...
+	@echo You are expected to fill that stuff in now... By the way, don\'t forget the password!
+	@echo Note that every time you use make droid-rel, you will be required to enter a password.
+	@echo You can use \'make droid-opt\' instead if you wish to build an optimised build without signing,
+	@echo  but such packages will require a rooted device \(or to be signed later\).
+	@echo Just press control-c if you don\'t want to proceed.
+	@echo Morality warning: never distribute droid/ftekeystore - always do make distclean before distributing.
+	@echo
+	keytool -genkey -v -keystore $@ -alias autogen -keyalg RSA -keysize 2048 -validity 10000
+
+droid-rel: droid/build.xml droid/ftekeystore
+	$(MAKE) FTE_TARGET=droid gl-rel 
+	mkdir -p droid/libs/armeabi
+	@cp $(RELEASE_DIR)/libftedroid.so droid/libs/armeabi/
+	@cd droid && ant release
+	@echo
+	@echo
+	@echo Signing package... I hope you remember your password.
+	@echo
+	jarsigner -verbose -keystore droid/ftekeystore droid/bin/FTEDroid-unsigned.apk autogen
+	-rm -f $(RELEASE_DIR)/FTEDroid.apk
+	$(DROID_SDK_PATH)/tools/zipalign -v 4 droid/bin/FTEDroid-unsigned.apk $(RELEASE_DIR)/FTEDroid.apk
+
+droid-opt: droid/build.xml droid/ftekeystore
 	$(MAKE) FTE_TARGET=droid gl-rel
 	mkdir -p droid/libs/armeabi
 	@cp $(RELEASE_DIR)/libftedroid.so droid/libs/armeabi/

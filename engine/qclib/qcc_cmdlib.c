@@ -10,6 +10,16 @@
 extern jmp_buf qcccompileerror;
 #endif
 
+#ifdef _WIN64
+	#ifdef _SDL
+		#define snprintf linuxlike_snprintf
+		int VARGS linuxlike_snprintf(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
+		#define vsnprintf linuxlike_vsnprintf
+		int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_list argptr);
+		void *__imp__vsnprintf = vsnprintf;
+	#endif
+#endif
+
 // set these before calling CheckParm
 int myargc;
 char **myargv;

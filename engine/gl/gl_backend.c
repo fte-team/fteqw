@@ -1,11 +1,6 @@
 #include "quakedef.h"
 
-#ifdef ANDROID
-//FIXME: this shouldn't be defined
-#define FORCESTATE
-#else
 //#define FORCESTATE
-#endif
 //#define WIREFRAME
 
 #ifdef GLQUAKE
@@ -249,6 +244,7 @@ void GL_TexEnv(GLenum mode)
 
 static void BE_SetPassBlendMode(int tmu, int pbm)
 {
+
 #ifndef FORCESTATE
 	if (shaderstate.blendmode[tmu] != pbm)
 #endif
@@ -616,7 +612,8 @@ static void RevertToKnownState(void)
 
 	BE_SetPassBlendMode(0, PBM_REPLACE);
 
-	qglColor3f(1,1,1);
+	if (qglColor3f)
+		qglColor3f(1,1,1);
 
 	shaderstate.shaderbits &= ~(SBITS_MISC_DEPTHEQUALONLY|SBITS_MISC_DEPTHCLOSERONLY|SBITS_MASK_BITS);
 	shaderstate.shaderbits |= SBITS_MISC_DEPTHWRITE;
@@ -961,6 +958,11 @@ void GLBE_Init(void)
 		shaderstate.inited_shader_cube = true;
 		shaderstate.shader_cube = R_RegisterCustom("rtlight_sube", Shader_LightPass_Cube, NULL);
 	}
+
+	gl_overbright.modified = true; /*in case the d3d renderer does the same*/
+	/*lock the cvar down if the backend can't actually do it*/
+	if (!gl_config.tex_env_combine && !gl_config.nofixedfunc && gl_overbright.ival)
+		Cvar_ApplyLatchFlag(&gl_overbright, "0", CVAR_RENDERERLATCH);
 
 	shaderstate.shaderbits = ~0;
 	BE_SendPassBlendDepthMask(0);

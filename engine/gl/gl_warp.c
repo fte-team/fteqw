@@ -88,7 +88,7 @@ void R_DrawSkyChain (batch_t *batch)
 		GL_SkyForceDepth(batch);
 		return;
 	}
-#ifdef GLQUAKE
+#if defined(GLQUAKE) && !defined(ANDROID)
 	if (*r_fastsky.string && qrenderer == QR_OPENGL && TEXVALID(batch->shader->defaulttextures.base))
 	{
 		R_CalcSkyChainBounds(batch);

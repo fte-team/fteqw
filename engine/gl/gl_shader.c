@@ -790,7 +790,7 @@ static void Shader_EntityMergable ( shader_t *shader, shaderpass_t *pass, char *
 
 static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvartypes);
 /*program text is already loaded, this function parses the 'header' of it to see which permutations it provides, and how many times we need to recompile it*/
-static void Shader_LoadPermutations(char *name, program_t *prog, char *script, int qrtype, int ver)
+static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *script, int qrtype, int ver)
 {
 	static char *permutationname[] =
 	{
@@ -921,6 +921,8 @@ static void Shader_LoadPermutations(char *name, program_t *prog, char *script, i
 			}
 			permutationdefines[pn++] = NULL;
 			prog->handle[p].glsl = GLSlang_CreateProgram(name, (((p & PERMUTATION_SKELETAL) && ver < 120)?120:ver), permutationdefines, script, script);
+			if (!p && !prog->handle[p].glsl)
+				break;
 		}
 #endif
 #ifdef D3DQUAKE
@@ -937,7 +939,8 @@ static void Shader_LoadPermutations(char *name, program_t *prog, char *script, i
 					permutationdefines[pn++] = permutationname[n];
 			}
 			permutationdefines[pn++] = NULL;
-			D3DShader_CreateProgram(prog, p, permutationdefines, script, script);
+			if (!D3DShader_CreateProgram(prog, p, permutationdefines, script, script))
+				break;
 		}
 #endif
 	}
@@ -945,6 +948,10 @@ static void Shader_LoadPermutations(char *name, program_t *prog, char *script, i
 		free(permutationdefines[--nummodifiers]);
 
 	Shader_ProgAutoFields(prog, cvarnames, cvartypes);
+
+	if (p == PERMUTATIONS)
+		return true;
+	return false;
 }
 typedef struct sgeneric_s
 {
@@ -2321,6 +2328,7 @@ static program_t *Shader_LoadGeneric(char *name, int qrtype)
 	void *file;
 
 	sgeneric_t *g;
+
 	for (g = sgenerics; g; g = g->next)
 	{
 		if (!strcmp(name, g->name))
@@ -2359,7 +2367,7 @@ static program_t *Shader_LoadGeneric(char *name, int qrtype)
 	if (file)
 	{
 		Con_DPrintf("Loaded %s from disk\n", name);
-		Shader_LoadPermutations(name, &g->prog, file, qrtype, 0);
+		g->failed = !Shader_LoadPermutations(name, &g->prog, file, qrtype, 0);
 		FS_FreeFile(file);
 
 		g->prog.refs++;
@@ -2392,7 +2400,7 @@ static program_t *Shader_LoadGeneric(char *name, int qrtype)
 					}
 				}
 #endif
-				Shader_LoadPermutations(name, &g->prog, sbuiltins[i].body, sbuiltins[i].qrtype, sbuiltins[i].apiver);
+				g->failed = !Shader_LoadPermutations(name, &g->prog, sbuiltins[i].body, sbuiltins[i].qrtype, sbuiltins[i].apiver);
 
 				g->prog.refs++;
 				return &g->prog;
@@ -2727,7 +2735,11 @@ static void Shader_SLProgramName (shader_t *shader, shaderpass_t *pass, char **p
 			shader->prog = malloc(sizeof(*shader->prog));
 			memset(shader->prog, 0, sizeof(*shader->prog));
 			shader->prog->refs = 1;
-			Shader_LoadPermutations(shader->name, shader->prog, programbody, qrtype, 0);
+			if (!Shader_LoadPermutations(shader->name, shader->prog, programbody, qrtype, 0))
+			{
+				free(shader->prog);
+				shader->prog = NULL;
+			}
 
 			BZ_Free(programbody);
 		}
@@ -4187,9 +4199,24 @@ static qboolean Shader_Parsetok (shader_t *shader, shaderpass_t *pass, shaderkey
 
 void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 {
-	qboolean config_tex_env_combine = 1;//0;
-	qboolean config_nv_tex_env_combine4 = 1;//0;
-	qboolean config_env_add = 1;//0;
+	qboolean config_tex_env_combine;
+	qboolean config_nv_tex_env_combine4;
+	qboolean config_env_add;
+
+#ifdef GLQUAKE
+	if (qrenderer == QR_OPENGL)
+	{
+		config_tex_env_combine = gl_config.tex_env_combine;
+		config_nv_tex_env_combine4 = gl_config.nv_tex_env_combine4;
+		config_env_add = gl_config.env_add;
+	}
+	else
+#endif
+	{
+		config_tex_env_combine = 1;
+		config_nv_tex_env_combine4 = 1;
+		config_env_add = 1;
+	}
 
 	if (((pass->flags & SHADER_PASS_DETAIL) && !r_detailtextures.value) ||
 		((pass2->flags & SHADER_PASS_DETAIL) && !r_detailtextures.value) ||
@@ -4218,6 +4245,10 @@ void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 		return;
 
 	if ((pass->shaderbits & SBITS_MASK_BITS) != (pass2->shaderbits & SBITS_MASK_BITS))
+		return;
+
+	/*don't merge passes if the hardware cannot support it*/
+	if (pass->numMergedPasses >= be_maxpasses)
 		return;
 
 	// check if we can use multiple passes
@@ -4250,7 +4281,7 @@ void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 	}
 	else return;
 
-	if (pass2->texgen == T_GEN_LIGHTMAP && pass2->blendmode == PBM_MODULATE)
+	if (pass2->texgen == T_GEN_LIGHTMAP && pass2->blendmode == PBM_MODULATE && config_tex_env_combine)
 		pass2->blendmode = PBM_OVERBRIGHT;
 }
 

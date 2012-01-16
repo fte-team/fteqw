@@ -1191,9 +1191,9 @@ droid-rel: droid/build.xml droid/ftekeystore
 	@echo
 	@echo Signing package... I hope you remember your password.
 	@echo
-	jarsigner -verbose -keystore droid/ftekeystore droid/bin/FTEDroid-unsigned.apk autogen
+	jarsigner -digestalg SHA1 -sigalg MD5withRSA -keystore droid/ftekeystore droid/bin/FTEDroid-unsigned.apk autogen
 	-rm -f $(RELEASE_DIR)/FTEDroid.apk
-	$(DROID_SDK_PATH)/tools/zipalign -v 4 droid/bin/FTEDroid-unsigned.apk $(RELEASE_DIR)/FTEDroid.apk
+	$(DROID_SDK_PATH)/tools/zipalign 4 droid/bin/FTEDroid-unsigned.apk $(RELEASE_DIR)/FTEDroid.apk
 
 droid-opt: droid/build.xml droid/ftekeystore
 	$(MAKE) FTE_TARGET=droid gl-rel
@@ -1207,6 +1207,6 @@ droid-dbg: droid/build.xml
 	$(MAKE) FTE_TARGET=droid gl-dbg
 	@mkdir -p droid/libs/armeabi
 	@cp $(DEBUG_DIR)/libftedroid.so droid/libs/armeabi/
-	@cd droid && ant debug && ant install
+	@cd droid && ant debug install
 	cp droid/bin/FTEDroid-debug.apk $(DEBUG_DIR)/FTEDroid.apk
 

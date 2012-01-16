@@ -456,6 +456,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 		qglClientActiveTextureARB = (void *) getglext("glClientActiveTexture");
 		qglSelectTextureSGIS = qglActiveTextureARB;
 		mtexid0 = GL_TEXTURE0_ARB;
+		qglGetIntegerv(GL_MAX_TEXTURE_UNITS_ARB, &gl_mtexarbable);
 	}
 	else if (GL_CheckExtension("GL_ARB_multitexture") && !COM_CheckParm("-noamtex"))
 	{	//ARB multitexture is the popular choice.

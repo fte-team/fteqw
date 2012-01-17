@@ -62,6 +62,7 @@ particleengine_t pe_null =
 
 	PNULL_ParticleTypeForName,
 	PNULL_FindParticleType,
+	NULL,
 
 	PNULL_RunParticleEffectTypeString,
 	PNULL_ParticleTrail,

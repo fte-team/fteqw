@@ -795,10 +795,14 @@ void CL_CheckForResend (void)
 	CLQ3_SendAuthPacket(adr);
 #endif
 
-	if (connect_tries == 0)
-		NET_EnsureRoute(cls.sockets, "conn", cls.servername, false);
-
 	Con_TPrintf (TLC_CONNECTINGTO, cls.servername);
+
+	if (connect_tries == 0)
+		if (!NET_EnsureRoute(cls.sockets, "conn", cls.servername, false))
+		{
+			Con_Printf ("Unable to establish connection to %s\n", cls.servername);
+			return;
+		}
 
 	contype |= 1; /*always try qw type connections*/
 //	if ((connect_tries&3)==3) || (connect_defaultport==26000))
@@ -2286,7 +2290,7 @@ void CL_ConnectionlessPacket (void)
 		}
 	}
 
-	if (cls.demoplayback == DPB_NONE)
+	if (cls.demoplayback == DPB_NONE && net_from.type != NA_LOOPBACK)
 		Con_TPrintf (TL_ST_COLON, NET_AdrToString (adr, sizeof(adr), net_from));
 //	Con_DPrintf ("%s", net_message.data + 4);
 
@@ -2521,7 +2525,8 @@ void CL_ConnectionlessPacket (void)
 #ifdef Q2CLIENT
 client_connect:	//fixme: make function
 #endif
-		Con_TPrintf (TLC_GOTCONNECTION);
+		if (net_from.type != NA_LOOPBACK)
+			Con_TPrintf (TLC_GOTCONNECTION);
 		if (cls.state >= ca_connected)
 		{
 			if (cls.demoplayback == DPB_NONE)
@@ -2537,7 +2542,8 @@ client_connect:	//fixme: make function
 #endif
 			CL_SendClientCommand(true, "new");
 		cls.state = ca_connected;
-		Con_TPrintf (TLC_CONNECTED);
+		if (cls.netchan.remote_address.type != NA_LOOPBACK)
+			Con_TPrintf (TLC_CONNECTED);
 		allowremotecmd = false; // localid required now for remote cmds
 
 		total_loading_size = 100;

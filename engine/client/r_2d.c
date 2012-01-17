@@ -275,12 +275,21 @@ mpic_t	*R2D_SafeCachePic (char *path)
 char *failedpic;	//easier this way
 mpic_t *R2D_SafePicFromWad (char *name)
 {
-	char newname[32];
+	char newnamewad[32];
+	char newnamegfx[32];
 	shader_t *s;
-	snprintf(newname, sizeof(newname), "gfx/%s.lmp", name);
-	s = R_RegisterPic(newname);
+	
+	snprintf(newnamewad, sizeof(newnamewad), "wad/%s.lmp", name);
+	snprintf(newnamegfx, sizeof(newnamegfx), "gfx/%s.lmp", name);
+
+	s = R_RegisterPic(newnamewad);
 	if (!(s->flags & SHADER_NOIMAGE))
 		return s;
+	
+	s = R_RegisterPic(newnamegfx);
+	if (!(s->flags & SHADER_NOIMAGE))
+		return s;
+
 	failedpic = name;
 	return NULL;
 }
@@ -693,7 +702,7 @@ void R2D_ScreenAngle_Callback(struct cvar_s *var, char *oldvalue)
 R_PolyBlend
 ============
 */
-//bright flashes and stuff
+//bright flashes and stuff, game only, doesn't touch sbar
 void R2D_PolyBlend (void)
 {
 	if (!sw_blend[3])
@@ -703,7 +712,7 @@ void R2D_PolyBlend (void)
 		return;
 
 	R2D_ImageColours (sw_blend[0], sw_blend[1], sw_blend[2], sw_blend[3]);
-	R2D_ScalePic(0, 0, vid.width, vid.height, shader_polyblend);
+	R2D_ScalePic(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, shader_polyblend);
 	R2D_ImageColours (1, 1, 1, 1);
 }
 
@@ -733,6 +742,9 @@ void R2D_BrightenScreen (void)
 		f *= 0.5;
 	}
 	R2D_ImageColours (1, 1, 1, 1);
+
+	/*make sure the hud is drawn if needed*/
+	Sbar_Changed();
 
 	RSpeedEnd(RSPEED_PALETTEFLASHES);
 }

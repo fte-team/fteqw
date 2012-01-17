@@ -312,12 +312,13 @@ cvar_t r_shadow_bumpscale_bumpmap			= SCVAR  ("r_shadow_bumpscale_bumpmap", "10"
 
 cvar_t r_glsl_offsetmapping					= CVARF  ("r_glsl_offsetmapping", "0", CVAR_ARCHIVE);
 cvar_t r_glsl_offsetmapping_scale			= CVAR  ("r_glsl_offsetmapping_scale", "0.04");
+cvar_t r_glsl_offsetmapping_reliefmapping = CVARF("r_glsl_offsetmapping_reliefmapping", "1", CVAR_RENDERERLATCH);
 
 cvar_t r_shadow_realtime_world				= SCVARF ("r_shadow_realtime_world", "0", CVAR_ARCHIVE);
 cvar_t r_shadow_realtime_world_shadows		= SCVARF ("r_shadow_realtime_world_shadows", "1", CVAR_ARCHIVE);
 cvar_t r_shadow_realtime_dlight				= SCVARF ("r_shadow_realtime_dlight", "1", CVAR_ARCHIVE);
 cvar_t r_shadow_realtime_dlight_shadows		= SCVARF ("r_shadow_realtime_dlight_shadows", "1", CVAR_ARCHIVE);
-cvar_t r_shadow_realtime_world_lightmaps	= SCVARF ("r_shadow_realtime_world_lightmaps", "0.8", 0);
+cvar_t r_shadow_realtime_world_lightmaps	= SCVARF ("r_shadow_realtime_world_lightmaps", "0", 0);
 
 cvar_t r_vertexdlights						= SCVAR  ("r_vertexdlights", "0");
 
@@ -386,6 +387,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&r_deluxemapping, GRAPHICALNICETIES);
 	Cvar_Register (&r_glsl_offsetmapping, GRAPHICALNICETIES);
 	Cvar_Register (&r_glsl_offsetmapping_scale, GRAPHICALNICETIES);
+	Cvar_Register (&r_glsl_offsetmapping_reliefmapping, GRAPHICALNICETIES);
 
 	Cvar_Register (&gl_contrast, GLRENDEREROPTIONS);
 #ifdef R_XFLIP
@@ -965,6 +967,8 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 		if (host_basepal)
 			BZ_Free(host_basepal);
 		host_basepal = (qbyte *)FS_LoadMallocFile ("gfx/palette.lmp");
+		if (!host_basepal)
+			host_basepal = (qbyte *)FS_LoadMallocFile ("wad/playpal");
 		if (!host_basepal)
 		{
 			qbyte *pcx=NULL;

@@ -1574,7 +1574,7 @@ extern vec3_t	player_maxs;
 				pe->forcecontentsmask = FTECONTENTS_SKY;
 				break;
 			case -16:
-				pe->forcecontentsmask = FTECONTENTS_LADDER;
+				pe->forcecontentsmask = Q2CONTENTS_LADDER;
 				break;
 			default:
 				pe->forcecontentsmask = 0;

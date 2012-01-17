@@ -174,7 +174,7 @@ void GLSCR_UpdateScreen (void)
 	else
 		GL_DoSwap();
 
-	GL_Set2D ();
+	GL_Set2D (false);
 
 	if (!noworld)
 	{

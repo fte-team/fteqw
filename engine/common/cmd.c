@@ -2121,6 +2121,19 @@ const char *retstring(const char *s)
 	strcpy(ret->str, s);
 	return ret->str;
 }
+const char *retint(int f)
+{
+	char s[1024];
+	tempstack_t *ret;
+	if (!f)
+		return "";
+	sprintf(s, "%d", f);
+	ret = (tempstack_t*)Z_Malloc(sizeof(tempstack_t)+strlen(s));
+	ret->next = ifstack;
+	ifstack=ret;
+	strcpy(ret->str, s);
+	return ret->str;
+}
 const char *retfloat(float f)
 {
 	char s[1024];
@@ -2185,7 +2198,7 @@ const char *If_Token(const char *func, const char **end)
 	else if (!strcmp(com_token, "int"))
 	{
 		func = If_Token(s, end);
-		return retfloat(atof(func));
+		return retint(atoi(func));
 	}
 	else if (!strcmp(com_token, "strlen"))
 	{
@@ -2627,7 +2640,7 @@ void Cmd_set_f(void)
 			return;
 		text = Cmd_Argv(2);
 	}
-	else if (dpcompat_set.ival)
+	else if (dpcompat_set.ival && !docalc)
 	{
 		text = Cmd_Argv(2);
 		/*desc = Cmd_Argv(3)*/

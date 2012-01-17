@@ -164,12 +164,12 @@ void Sys_Shutdown(void)
 void Sys_Quit(void)
 {
 #ifndef SERVERONLY
-        Host_Shutdown ();
+	Host_Shutdown ();
 #else
-        SV_Shutdown();
+	SV_Shutdown();
 #endif
 
-        exit (0);
+	exit (0);
 }
 void Sys_Error (const char *error, ...)
 {
@@ -234,10 +234,11 @@ char *Sys_ConsoleInput (void)
 }
 void Sys_mkdir (char *path)    //not all pre-unix systems have directories (including dos 1)
 {
+	mkdir(path, 0777);
 }
 qboolean Sys_remove (char *path)
 {
-	return false;
+	return !unlink(path);
 }
 void Sys_Init(void)
 {
@@ -253,15 +254,15 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 }
 qboolean Sys_RandomBytes(qbyte *string, int len)
 {
-        qboolean res = false;
-        int fd = open("/dev/urandom", 0);
+	qboolean res = false;
+	int fd = open("/dev/urandom", 0);
 	if (fd >= 0)
 	{
-        	res = (read(fd, string, len) == len);
-	        close(fd);
+		res = (read(fd, string, len) == len);
+		close(fd);
 	}
 
-        return res;
+	return res;
 }
 
 void Sys_ServerActivity(void)

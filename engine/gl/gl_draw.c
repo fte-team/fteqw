@@ -191,7 +191,8 @@ static gltexture_t *GL_AllocNewGLTexture(char *ident, int w, int h)
 
 	qglGenTextures(1, &glt->texnum.num);
 
-	Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
+	if (*glt->identifier)
+		Hash_Add(&gltexturetable, glt->identifier, glt, (bucket_t*)(glt+1));
 	return glt;
 }
 
@@ -456,7 +457,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	GL_BeginRendering ();
 	TRACE(("dbg: GLDraw_ReInit: SCR_DrawLoading\n"));
 
-	GL_Set2D();
+	GL_Set2D(false);
 
 	qglClear(GL_COLOR_BUFFER_BIT);
 	{
@@ -539,7 +540,7 @@ GL_Set2D
 Setup as if the screen was 320*200
 ================
 */
-void GL_Set2D (void)
+void GL_Set2D (qboolean flipped)
 {
 	extern cvar_t gl_screenangle;
 	float rad, ang;
@@ -563,7 +564,10 @@ void GL_Set2D (void)
 	}
 	else
 	{
-		Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0, vid.width, vid.height, 0, -99999, 99999);
+		if (flipped)
+			Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0, vid.width, 0, vid.height, -99999, 99999);
+		else
+			Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0, vid.width, vid.height, 0, -99999, 99999);
 		Matrix4x4_Identity(r_refdef.m_view);
 	}
 	r_refdef.time = realtime;

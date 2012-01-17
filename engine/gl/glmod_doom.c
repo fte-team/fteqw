@@ -1,15 +1,10 @@
 #include "quakedef.h"
 #ifdef MAP_DOOM
-#ifdef GLQUAKE
 #include "glquake.h"
 #include "shader.h"
 
-#include "doommap.h"
-
 int SignbitsForPlane (mplane_t *out);
 int	PlaneTypeForNormal ( vec3_t normal );
-
-#undef strncpy
 
 //coded from file specifications provided by:
 //Matthew S Fell (msfell@aol.com)
@@ -18,15 +13,6 @@ int	PlaneTypeForNormal ( vec3_t normal );
 //(aol suck)
 
 void Doom_SetModelFunc(model_t *mod);
-
-//skill/dm is appears in rather than quake's excuded in.
-#define THING_EASY			1
-#define THING_MEDIUM		2
-#define THING_HARD			4
-#define THING_DEAF			8
-#define	THING_DEATHMATCH	16
-//other bits are ignored
-
 int Doom_SectorNearPoint(vec3_t p);
 
 //assumptions:
@@ -37,6 +23,167 @@ int Doom_SectorNearPoint(vec3_t p);
 //5. That no sectors are inside out.
 
 
+
+enum {
+	THING_PLAYER		= 1,
+	THING_PLAYER2		= 2,
+	THING_PLAYER3		= 3,
+	THING_PLAYER4		= 4,
+	THING_DMSPAWN		= 11,
+
+//we need to balance weapons according to ammo types.
+	THING_WCHAINSAW		= 2005,	//-> quad
+	THING_WSHOTGUN1		= 2001,	//-> ng
+	THING_WSHOTGUN2		= 82,	//-> sng
+	THING_WCHAINGUN		= 2002,	//-> ssg
+	THING_WROCKETL		= 2003,	//-> lightning
+	THING_WPLASMA		= 2004,	//-> grenade
+	THING_WBFG			= 2006	//-> rocket
+} THING_TYPES;
+
+//thing flags
+//skill/dm is appears in rather than quake's excuded in.
+#define THING_EASY			1
+#define THING_MEDIUM		2
+#define THING_HARD			4
+#define THING_DEAF			8
+#define	THING_DEATHMATCH	16
+//other bits are ignored
+
+
+
+typedef struct {
+	short xpos;
+	short ypos;
+	short angle;
+	unsigned short type;
+	unsigned short flags;
+} dthing_t;
+
+typedef struct {
+	short xpos;
+	short ypos;
+} ddoomvertex_t;
+
+typedef struct {
+	float xpos;
+	float ypos;
+} mdoomvertex_t;
+
+typedef struct {
+	unsigned short vert[2];
+	unsigned short flags;
+	short types;
+	short tag;
+	unsigned short sidedef[2]; //(0xffff is none for sidedef[1])
+} dlinedef_t;
+#define LINEDEF_IMPASSABLE		1
+#define	LINEDEF_BLOCKMONSTERS	2
+#define LINEDEF_TWOSIDED		4
+#define LINEDEF_UPPERUNPEGGED	8
+#define LINEDEF_LOWERUNPEGGED	16
+#define LINEDEF_SECRET			32	//seen as singlesided on automap, does nothing else.
+#define LINEDEF_BLOCKSOUND		64
+#define LINEDEF_NOTONMAP		128	//doesn't appear on automap.
+#define LINEDEF_STARTONMAP		256
+//others are ignored.
+
+typedef struct {
+	short texx;
+	short texy;
+	char uppertex[8];
+	char lowertex[8];
+	char middletex[8];
+	unsigned short sector;
+} dsidedef_t;
+typedef struct {
+	float texx;
+	float texy;
+	int uppertex;
+	int lowertex;
+	int middletex;
+	unsigned short sector;
+} msidedef_t;
+
+typedef struct {	//figure out which linedef to use and throw the rest away.
+	unsigned short	vert[2];
+	short	angle;
+	unsigned short	linedef;
+	short	direction;
+	short	offset;
+} dseg_t;
+
+typedef struct {
+	unsigned short	vert[2];
+	unsigned short	linedef;
+	short	direction;
+	unsigned short Partner;	//the one on the other side of the owner's linedef
+} dgl_seg1_t;
+
+typedef struct {
+	unsigned int	vert[2];
+	unsigned short	linedef;
+	short	direction;
+	unsigned int Partner;	//the one on the other side of the owner's linedef
+} dgl_seg3_t;
+
+typedef struct {
+	unsigned short segcount;
+	unsigned short first;
+} dssector_t;
+
+typedef struct {
+	short x;
+	short y;
+	short dx;
+	short dy;
+	short y1upper;
+	short y1lower;
+	short x1lower;
+	short x1upper;
+	short y2upper;
+	short y2lower;
+	short x2lower;
+	short x2upper;
+	unsigned short node1;
+	unsigned short node2;
+} ddoomnode_t;
+#define NODE_IS_SSECTOR	0x8000
+
+typedef struct {
+	short floorheight;
+	short ceilingheight;
+	char floortexture[8];
+	char ceilingtexture[8];
+	short lightlevel;
+	short specialtype;
+	short tag;
+} dsector_t;
+
+typedef struct {
+	int visframe;
+	shader_t *floortex;
+	shader_t *ceilingtex;
+
+	short floorheight;
+	short ceilingheight;
+
+	qbyte lightlev;
+	qbyte pad;
+	int numflattris;
+	short tag;
+	short specialtype;
+
+	unsigned short *flats;
+} msector_t;
+
+
+typedef struct {
+	short xorg;
+	short yorg;
+	short columns;
+	short rows;
+} blockmapheader_t;
 
 ddoomnode_t		*nodel;
 dssector_t		*ssectorsl;
@@ -64,9 +211,459 @@ extern model_t	*loadmodel;
 extern char loadname[];
 
 
-#ifdef _MSC_VER
-//#pragma comment (lib, "../../../glbsp/glbsp-2.05/plugin/libglbsp.a")
+
+////////////////////////////////////////////////////////////////////////////////////////////
+//physics
+
+/*walk the bsp tree*/
+int Doom_SectorNearPoint(vec3_t p)
+{
+	ddoomnode_t *node;
+	plane_t *plane;
+	int num;
+	int seg;
+	float d;
+	num = nodec-1;
+	while (1)
+	{
+		if (num & NODE_IS_SSECTOR)
+		{
+			num -= NODE_IS_SSECTOR;
+			for (seg = ssectorsl[num].first; seg < ssectorsl[num].first + ssectorsl[num].segcount; seg++)
+				if (segsl[seg].linedef != 0xffff)
+					break;
+
+			return sidedefsm[linedefsl[segsl[seg].linedef].sidedef[segsl[seg].direction]].sector;
+		}
+
+		node = nodel + num;
+		plane = nodeplanes + num;
+		
+//		if (plane->type < 3)
+//			d = p[plane->type] - plane->dist;
+//		else
+			d = DotProduct (plane->normal, p) - plane->dist;
+		if (d < 0)
+			num = node->node2;
+		else
+			num = node->node1;
+	}
+	
+	return num;
+}
+
+int Doom_PointContents(model_t *model, vec3_t axis[3], vec3_t p)
+{
+	int sec = Doom_SectorNearPoint(p);
+	if (p[2] < sectorm[sec].floorheight)
+		return FTECONTENTS_SOLID;
+	if (p[2] > sectorm[sec].ceilingheight)
+		return FTECONTENTS_SOLID;
+	return FTECONTENTS_EMPTY;
+}
+
+qboolean Doom_Trace(model_t *model, int hulloverride, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, int contentstype, trace_t *trace)
+{
+#if 0
+#define TRACESTEP	16
+	unsigned short *linedefs;
+	dlinedef_t *ld;
+	int bmi, obmi;
+	vec3_t delta;
+	int sec1 = Doom_SectorNearPoint(start);
+	vec3_t p1, pointonplane, ofs;
+	float d1, d2, c1, c2, planedist;
+	plane_t *lp;
+	mdoomvertex_t *v1, *v2;
+	int j;
+	float p2f;
+
+	float clipfrac;
+#define	DIST_EPSILON	(0.03125)
+
+//	Con_Printf("%i\n", sec1);
+
+	if (start[2] < sectorm[sec1].floorheight-mins[2])	//whoops, started outside... ?
+	{
+		trace->fraction = 0;
+		trace->allsolid = trace->startsolid = true;
+		trace->endpos[0] = start[0];
+		trace->endpos[1] = start[1];
+		trace->endpos[2] = start[2];	//yeah, we do mean this - startsolid
+//		if (IS_NAN(trace->endpos[2]))
+//			Con_Printf("Nanny\n");
+		trace->plane.normal[0] = 0;
+		trace->plane.normal[1] = 0;
+		trace->plane.normal[2] = 1;
+		trace->plane.dist = sectorm[sec1].floorheight-mins[2];
+
+		return false;
+	}
+	if (start[2] > sectorm[sec1].ceilingheight-maxs[2])	//whoops, started outside... ?
+	{
+		trace->fraction = 0;
+		trace->allsolid = trace->startsolid = true;
+		trace->endpos[0] = start[0];
+		trace->endpos[1] = start[1];
+		trace->endpos[2] = start[2];
+		trace->plane.normal[0] = 0;
+		trace->plane.normal[1] = 0;
+		trace->plane.normal[2] = -1;
+		trace->plane.dist = -(sectorm[sec1].ceilingheight-maxs[2]);
+		return false;
+	}
+
+	obmi = -1;
+	VectorSubtract(end, start, delta);
+	p2f = Length(delta)+DIST_EPSILON;
+	if (IS_NAN(p2f) || p2f > 100000)
+		p2f = 100000;
+	VectorNormalize(delta);
+
+	trace->endpos[0] = end[0];
+	trace->endpos[1] = end[1];
+	trace->endpos[2] = end[2];
+
+	trace->fraction = 1;
+	while(1)
+	{
+		bmi = ((int)p1[0] - blockmapl->xorg)/128 + (((int)p1[1] - blockmapl->yorg)/128)*blockmapl->columns;
+//		Con_Printf("%i of %i ", bmi, blockmapl->rows*blockmapl->columns);
+		if (bmi >= 0 && bmi < blockmapl->rows*blockmapl->columns)
+		if (bmi != obmi)
+		{
+#if 1
+			short dummy;
+			linedefs = &dummy;
+			for (dummy = 0; dummy < linedefsc; dummy++)
+#else
+			for(linedefs = (short*)blockmapl + blockmapofs[bmi]+1; *linedefs != 0xffff; linedefs++)
 #endif
+			{
+				ld = linedefsl + *linedefs;
+				if (ld->sidedef[1] != 0xffff)
+				{
+					if (sectorm[sidedefsm[ld->sidedef[0]].sector].floorheight == sectorm[sidedefsm[ld->sidedef[1]].sector].floorheight &&
+						sectorm[sidedefsm[ld->sidedef[0]].sector].ceilingheight == sectorm[sidedefsm[ld->sidedef[1]].sector].ceilingheight)
+						continue;
+				}
+				
+				lp = lineplanes + *linedefs;
+
+				if (1)
+				{	//figure out how far to move the plane out by
+					for (j=0 ; j<2 ; j++)
+					{
+						if (lp->normal[j] < 0)
+							ofs[j] = maxs[j];
+						else
+							ofs[j] = mins[j];
+					}
+					ofs[2] = 0;
+					planedist = lp->dist - DotProduct (ofs, lp->normal);
+				}
+				else
+					planedist = lp->dist;
+
+				d1 = DotProduct(lp->normal, start) - (planedist);
+				d2 = DotProduct(lp->normal, end) - (planedist);
+				if (d1 > 0 && d2 > 0)
+					continue;	//both points on the front side.
+				if (d1 < 0)	//start on back side
+				{
+					if (ld->sidedef[1] != 0xffff)	//two sided (optimisation)
+					{
+						planedist = -planedist+lp->dist;
+						if (/*d1 < planedist*-1 &&*/ d1 > planedist*2)
+						{	//right, we managed to end up just on the other side of a wall's plane.
+							v1 = &vertexesl[ld->vert[0]];
+							v2 = &vertexesl[ld->vert[1]];
+							if (!(d1 - d2))
+								continue;
+							if (d1<0)	//back to front.
+								c1 = (d1+DIST_EPSILON) / (d1 - d2);
+							else
+								c1 = (d1-DIST_EPSILON) / (d1 - d2);
+							c2 = 1-c1;
+							pointonplane[0] = start[0]*c2 + p2[0]*c1;
+/*							if (pointonplane[0] > v1->xpos+DIST_EPSILON*2+hull->clip_maxs[0] && pointonplane[0] > v2->xpos+DIST_EPSILON*2+hull->clip_maxs[0])
+								continue;
+							if (pointonplane[0] < v1->xpos-DIST_EPSILON*2+hull->clip_mins[0] && pointonplane[0] < v2->xpos-DIST_EPSILON*2+hull->clip_mins[0])
+								continue;
+*/							pointonplane[1] = start[1]*c2 + p2[1]*c1;
+/*							if (pointonplane[1] > v1->ypos+DIST_EPSILON*2+hull->clip_maxs[1] && pointonplane[1] > v2->ypos+DIST_EPSILON*2+hull->clip_maxs[1])
+								continue;
+							if (pointonplane[1] < v1->ypos-DIST_EPSILON*2+hull->clip_mins[1] && pointonplane[1] < v2->ypos-DIST_EPSILON*2+hull->clip_mins[1])
+								continue;
+*/
+							pointonplane[2] = start[2]*c2 + p2[2]*c1;
+
+							Con_Printf("Started in wall\n");
+							j = sidedefsm[ld->sidedef[d1 < planedist]].sector;
+							//yup, we are in the thing
+							//prevent ourselves from entering the back-sector's floor/ceiling
+							if (pointonplane[2] < sectorm[j].floorheight-hull->clip_mins[2])	//whoops, started outside... ?
+							{
+								Con_Printf("Started in floor\n");
+								trace->allsolid = trace->startsolid = false;
+								trace->endpos[2] = sectorm[j].floorheight-hull->clip_mins[2];
+								trace->fraction = fabs(trace->endpos[2] - start[2]) / fabs(p2[2] - start[2]);
+								trace->endpos[0] = start[0]+delta[0]*trace->fraction*p2f;
+								trace->endpos[1] = start[1]+delta[1]*trace->fraction*p2f;
+						//		if (IS_NAN(trace->endpos[2]))
+						//			Con_Printf("Nanny\n");
+								trace->plane.normal[0] = 0;
+								trace->plane.normal[1] = 0;
+								trace->plane.normal[2] = 1;
+								trace->plane.dist = sectorm[j].floorheight-hull->clip_mins[2];
+
+								continue;
+							}
+							if (pointonplane[2] > sectorm[j].ceilingheight-hull->clip_maxs[2])	//whoops, started outside... ?
+							{
+								Con_Printf("Started in ceiling\n");
+								trace->allsolid = trace->startsolid = false;
+								trace->endpos[0] = pointonplane[0];
+								trace->endpos[1] = pointonplane[1];
+								trace->endpos[2] = sectorm[j].ceilingheight-hull->clip_maxs[2];
+								trace->fraction = fabs(trace->endpos[2] - start[2]) / fabs(p2[2] - start[2]);
+								trace->plane.normal[0] = 0;
+								trace->plane.normal[1] = 0;
+								trace->plane.normal[2] = -1;
+								trace->plane.dist = -(sectorm[j].ceilingheight-hull->clip_maxs[2]);
+								continue;
+							}
+						}
+					}
+					if (d2 < 0)
+						continue;	//both points on the reverse side.
+				}
+
+				//line crosses plane.
+
+				v1 = &vertexesl[ld->vert[0]];
+				v2 = &vertexesl[ld->vert[1]];
+
+				if (d1<0)	//back to front.
+				{
+					if (ld->sidedef[1] == 0xffff)
+						continue;	//hack to allow them to pass
+					c1 = (d1+DIST_EPSILON) / (d1 - d2);
+				}
+				else
+					c1 = (d1-DIST_EPSILON) / (d1 - d2);
+				c2 = 1-c1;
+				pointonplane[0] = start[0]*c2 + p2[0]*c1;
+				if (pointonplane[0] > v1->xpos+DIST_EPSILON*2+hull->clip_maxs[0] && pointonplane[0] > v2->xpos+DIST_EPSILON*2+hull->clip_maxs[0])
+					continue;
+				if (pointonplane[0] < v1->xpos-DIST_EPSILON*2+hull->clip_mins[0] && pointonplane[0] < v2->xpos-DIST_EPSILON*2+hull->clip_mins[0])
+					continue;
+				pointonplane[1] = start[1]*c2 + p2[1]*c1;
+				if (pointonplane[1] > v1->ypos+DIST_EPSILON*2+hull->clip_maxs[1] && pointonplane[1] > v2->ypos+DIST_EPSILON*2+hull->clip_maxs[1])
+					continue;
+				if (pointonplane[1] < v1->ypos-DIST_EPSILON*2+hull->clip_mins[1] && pointonplane[1] < v2->ypos-DIST_EPSILON*2+hull->clip_mins[1])
+					continue;
+				pointonplane[2] = start[2]*c2 + p2[2]*c1;
+
+				if (ld->flags & LINEDEF_IMPASSABLE || ld->sidedef[1] == 0xffff)	//unconditionally unpassable.
+				{	//unconditionally clipped.
+				}
+				else
+				{	//ensure that the side we are passing on to passes the clip (no ceiling/floor clips happened first)
+					msector_t *sec2;
+
+					if (d1<0)
+						sec2 = &sectorm[sidedefsm[ld->sidedef[1]].sector];
+					else
+						sec2 = &sectorm[sidedefsm[ld->sidedef[0]].sector];
+
+					if (pointonplane[2] < sec2->floorheight-hull->clip_mins[2])
+					{	//hit the floor first.
+						c1 = fabs(sectorm[sec1].floorheight-hull->clip_mins[2] - start[2]);
+						c2 = fabs(p2[2] - start[2]);
+						if (!c2)
+							c1 = 1;
+						else
+							c1 = (c1-DIST_EPSILON) / c2;
+						if (trace->fraction > c1)
+						{
+//							Con_Printf("Hit floor\n");
+							trace->fraction = c1;
+							trace->allsolid = trace->startsolid = true;
+							trace->endpos[0] = start[0] + trace->fraction*(p2[0]-start[0]);
+							trace->endpos[1] = start[1] + trace->fraction*(p2[1]-start[1]);
+							trace->endpos[2] = start[2] + trace->fraction*(p2[2]-start[2]);
+							trace->plane.normal[0] = 0;
+							trace->plane.normal[1] = 0;
+							trace->plane.normal[2] = 1;
+							trace->plane.dist = sectorm[sec1].floorheight-hull->clip_mins[2];
+						}
+						continue;
+					}
+
+					if (pointonplane[2] > sec2->ceilingheight-hull->clip_maxs[2])
+					{	//hit the floor first.
+						c1 = fabs((sectorm[sec1].ceilingheight-hull->clip_maxs[2]) - start[2]);
+						c2 = fabs(p2[2] - start[2]);
+						if (!c2)
+							c1 = 1;
+						else
+							c1 = (c1-DIST_EPSILON) / c2;
+
+
+						if (trace->fraction > c1)
+						{
+//							Con_Printf("Hit ceiling\n");
+							trace->fraction = c1;
+							trace->allsolid = trace->startsolid = true;
+							trace->endpos[0] = start[0] + trace->fraction*(p2[0]-start[0]);
+							trace->endpos[1] = start[1] + trace->fraction*(p2[1]-start[1]);
+							trace->endpos[2] = start[2] + trace->fraction*(p2[2]-start[2]);
+							trace->plane.normal[0] = 0;
+							trace->plane.normal[1] = 0;
+							trace->plane.normal[2] = -1;
+							trace->plane.dist = -(sectorm[sec1].ceilingheight-hull->clip_maxs[2]);
+						}
+						continue;
+					}
+
+					if (d1<0)
+						sec2 = &sectorm[sidedefsm[ld->sidedef[0]].sector];
+					else
+						sec2 = &sectorm[sidedefsm[ld->sidedef[1]].sector];
+
+					if(sec2->ceilingheight == sec2->floorheight)
+						sec2->ceilingheight += 64;
+
+					if (pointonplane[2] > sec2->floorheight-hull->clip_mins[2] &&
+						pointonplane[2] < sec2->ceilingheight-hull->clip_maxs[2])
+					{
+						Con_Printf("Two sided passed\n");
+						continue;
+					}
+
+//					Con_Printf("blocked by two sided line\n");
+//					sec2->floorheight--;
+				}
+
+				if (d1<0)	//back to front.
+					c1 = (d1+DIST_EPSILON) / (d1 - d2);
+				else
+					c1 = (d1-DIST_EPSILON) / (d1 - d2);
+
+
+				clipfrac = c1;
+
+				if (clipfrac < 0)
+					clipfrac = 0;
+				if (clipfrac > 1)
+					clipfrac = 1;
+
+				if (trace->fraction > clipfrac)
+				{
+					trace->fraction = clipfrac;
+					VectorMA(pointonplane, 0, lp->normal, trace->endpos);
+					VectorMA(trace->endpos, -0.1, delta, trace->endpos);
+//					if (IS_NAN(trace->endpos[2]))
+//						Con_Printf("Buggy clipping\n");
+					VectorCopy(lp->normal, trace->plane.normal);
+					trace->plane.dist = planedist;
+//					if (IS_NAN(trace->plane.normal[2]))
+//						Con_Printf("Buggy clipping\n");
+
+					if (clipfrac)
+					Con_Printf("Clip Wall %f\n", clipfrac);
+				}
+			}
+			
+			obmi = bmi;
+		}
+
+		p1f += TRACESTEP;
+		if (p1f >= p2f)
+			break;
+
+		VectorMA(p1, TRACESTEP, delta, p1);
+	}
+
+//	VectorMA(start, p2f*trace->fraction, delta, p2);
+
+	if (p2[2] != start[2])
+	{
+		if (sec1 == Doom_SectorNearPoint(p2))	//special test.
+		{
+			if (p2[2] <= sectorm[sec1].floorheight-hull->clip_mins[2])	//whoops, started outside... ?
+			{
+				p1f = fabs(sectorm[sec1].floorheight-hull->clip_mins[2] - start[2]);
+				p2f = fabs(p2[2] - start[2]);
+				if (!p2f)
+					c1 = 1;
+				else
+					c1 = (p1f-DIST_EPSILON) / p2f;
+				if (trace->fraction > c1)
+				{
+					trace->fraction = c1;
+					trace->allsolid = trace->startsolid = false;
+					trace->endpos[0] = start[0] + trace->fraction*(p2[0]-start[0]);
+					trace->endpos[1] = start[1] + trace->fraction*(p2[1]-start[1]);
+					trace->endpos[2] = start[2] + trace->fraction*(p2[2]-start[2]);
+					trace->plane.normal[0] = 0;
+					trace->plane.normal[1] = 0;
+					trace->plane.normal[2] = 1;
+					trace->plane.dist = sectorm[sec1].floorheight-hull->clip_mins[2];
+				}
+
+//				if (IS_NAN(trace->endpos[2]))
+//					Con_Printf("Nanny\n");
+			}
+			if (p2[2] >= sectorm[sec1].ceilingheight-hull->clip_maxs[2])	//whoops, started outside... ?
+			{
+				p1f = fabs(sectorm[sec1].ceilingheight-hull->clip_maxs[2] - start[2]);
+				p2f = fabs(p2[2] - start[2]);
+				if (!p2f)
+					c1 = 1;
+				else
+					c1 = (p1f-DIST_EPSILON) / p2f;
+				if (trace->fraction > c1)
+				{
+					trace->fraction = c1;
+					trace->allsolid = trace->startsolid = false;
+					trace->endpos[0] = start[0] + trace->fraction*(p2[0]-start[0]);
+					trace->endpos[1] = start[1] + trace->fraction*(p2[1]-start[1]);
+					trace->endpos[2] = start[2] + trace->fraction*(p2[2]-start[2]);
+					trace->plane.normal[0] = 0;
+					trace->plane.normal[1] = 0;
+					trace->plane.normal[2] = -1;
+					trace->plane.dist = -(sectorm[sec1].ceilingheight-hull->clip_maxs[2]);
+				}
+
+//				if (IS_NAN(trace->endpos[2]))
+//					Con_Printf("Nanny\n");
+			}
+		}
+	}
+
+	//we made it all the way through. yay.
+
+	trace->allsolid = trace->startsolid = false;
+//Con_Printf("total = %f\n", trace->fraction);
+	return trace->fraction==1;
+#endif
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -130,7 +727,11 @@ typedef struct
 	shader_t *shader;
 	unsigned short width;
 	unsigned short height;
-	batch_t *batch;
+	batch_t batch;
+	mesh_t *meshptr;
+	mesh_t mesh;
+	int maxverts;
+	int maxindicies;
 } gldoomtexture_t;
 gldoomtexture_t *gldoomtextures;
 int numgldoomtextures;
@@ -138,9 +739,11 @@ int numgldoomtextures;
 static void GLR_DrawWall(int texnum, int s, int t, float x1, float y1, float frontfloor, float x2, float y2, float backfloor, qboolean unpegged, unsigned int colour4b)
 {
 	gldoomtexture_t *tex = gldoomtextures+texnum;
+	mesh_t *mesh = &tex->mesh;
 	float len = sqrt((x1-x2)*(x1-x2) + (y1-y2)*(y1-y2));
 	float s1, s2;
 	float t1, t2;
+	unsigned int col;
 
 	s1 = s/tex->width;
 	s2 = s1 + len/tex->width;
@@ -156,21 +759,44 @@ static void GLR_DrawWall(int texnum, int s, int t, float x1, float y1, float fro
 		t2 = t1 + (backfloor-frontfloor)/tex->height;
 	}
 
+	if (mesh->numvertexes+4 > tex->maxverts)
+	{
+		tex->maxverts = mesh->numvertexes+4;
+		mesh->colors4b_array = BZ_Realloc(mesh->colors4b_array, sizeof(*mesh->colors4b_array) * tex->maxverts);
+		mesh->xyz_array = BZ_Realloc(mesh->xyz_array, sizeof(*mesh->xyz_array) * tex->maxverts);
+		mesh->st_array = BZ_Realloc(mesh->st_array, sizeof(*mesh->st_array) * tex->maxverts);
+	}
+	if (mesh->numindexes+6 > tex->maxindicies)
+	{
+		tex->maxindicies = mesh->numvertexes+6;
+		mesh->indexes = BZ_Realloc(mesh->colors4b_array, sizeof(*mesh->indexes) * tex->maxindicies);
+	}
 
-#if 0
-	GL_Bind(tex->gltexture);
+	col = colour4b * 0x01010101;
+	((unsigned int*)&col)[3] = 0xff;
+	*(unsigned int*)mesh->colors4b_array[mesh->numvertexes+0] = col;
+	*(unsigned int*)mesh->colors4b_array[mesh->numvertexes+1] = col;
+	*(unsigned int*)mesh->colors4b_array[mesh->numvertexes+2] = col;
+	*(unsigned int*)mesh->colors4b_array[mesh->numvertexes+3] = col;
+	VectorSet(mesh->xyz_array[mesh->numvertexes+0], x1, y1, frontfloor);
+	VectorSet(mesh->xyz_array[mesh->numvertexes+1], x1, y1, backfloor);
+	VectorSet(mesh->xyz_array[mesh->numvertexes+2], x2, y2, backfloor);
+	VectorSet(mesh->xyz_array[mesh->numvertexes+3], x2, y2, frontfloor);
+	Vector2Set(mesh->st_array[mesh->numvertexes+0], s1, t2);
+	Vector2Set(mesh->st_array[mesh->numvertexes+0], s1, t1);
+	Vector2Set(mesh->st_array[mesh->numvertexes+0], s2, t1);
+	Vector2Set(mesh->st_array[mesh->numvertexes+0], s2, t2);
 
-	qglBegin(GL_QUADS);
-	qglTexCoord2f(s1, t2);
-	qglVertex3f(x1, y1, frontfloor);
-	qglTexCoord2f(s1, t1);
-	qglVertex3f(x1, y1, backfloor);
-	qglTexCoord2f(s2, t1);
-	qglVertex3f(x2, y2, backfloor);
-	qglTexCoord2f(s2, t2);
-	qglVertex3f(x2, y2, frontfloor);
-	qglEnd();
-#endif
+	mesh->indexes[mesh->numindexes+0] = mesh->numvertexes;
+	mesh->indexes[mesh->numindexes+1] = mesh->numvertexes;
+	mesh->indexes[mesh->numindexes+2] = mesh->numvertexes;
+
+	mesh->indexes[mesh->numindexes+0] = mesh->numvertexes;
+	mesh->indexes[mesh->numindexes+2] = mesh->numvertexes;
+	mesh->indexes[mesh->numindexes+3] = mesh->numvertexes;
+
+	mesh->numvertexes += 4;
+	mesh->numindexes += 6;
 }
 
 static void GLR_DrawSSector(unsigned int ssec)
@@ -404,7 +1030,8 @@ void GLR_DoomWorld(void)
 	r_visframecount++;
 	GLR_RecursiveDoomNode(nodec-1);
 }
-#endif
+
+
 
 //find the first ssector, go through it's list/
 //grab the lines into multiple arrays.
@@ -419,8 +1046,6 @@ void GLR_DoomWorld(void)
 //we now have a concave polygon with no holes.
 //pick a point, follow along the walls making a triangle fan, until an angle of > 180, throw out fan, rebuild arrays.
 //at new point, start a new fan. Be prepared to not be able to generate one.
-
-#ifdef GLQUAKE
 
 #define MAX_REGIONS		256
 #define MAX_POLYVERTS	(MAX_FLATTRIS*3)
@@ -647,7 +1272,6 @@ static unsigned short *Triangulate_Finish(int *numtris, unsigned short *old, int
 
 	return out;
 }
-#endif
 
 static void Triangulate_Sectors(dsector_t *sectorl, qboolean glbspinuse)
 {
@@ -656,7 +1280,6 @@ static void Triangulate_Sectors(dsector_t *sectorl, qboolean glbspinuse)
 
 	sectorm = Z_Malloc(sectorc * sizeof(*sectorm));
 
-#ifdef GLQUAKE
 	if (glbspinuse)
 	{
 		for (i = 0; i < ssectorsc; i++)
@@ -700,7 +1323,7 @@ static void Triangulate_Sectors(dsector_t *sectorl, qboolean glbspinuse)
 			sectorm[sec].flats = Triangulate_Finish(&sectorm[sec].numflattris, sectorm[sec].flats, sectorm[sec].numflattris);
 		}
 	}
-#endif
+
 	/*
 	for (i = 0; i < ssectorsc; i++)
 	{	//only do linedefs.
@@ -723,10 +1346,8 @@ static void Triangulate_Sectors(dsector_t *sectorl, qboolean glbspinuse)
 
 	for (i = 0; i < sectorc; i++)
 	{
-#ifdef GLQUAKE
 		sectorm[i].ceilingtex = Doom_LoadFlat(sectorl[i].ceilingtexture);
 		sectorm[i].floortex = Doom_LoadFlat(sectorl[i].floortexture);
-#endif
 		sectorm[i].lightlev = sectorl[i].lightlevel;
 		sectorm[i].specialtype = sectorl[i].specialtype;
 		sectorm[i].tag = sectorl[i].tag;
@@ -734,6 +1355,7 @@ static void Triangulate_Sectors(dsector_t *sectorl, qboolean glbspinuse)
 		sectorm[i].floorheight = sectorl[i].floorheight;
 	}
 }
+
 #ifndef SERVERONLY
 static void *textures1;
 static void *textures2;
@@ -899,7 +1521,7 @@ static int Doom_LoadPatch(char *name)
 
 	strncpy(gldoomtextures[texnum].name, name, 8);
 
-	gldoomtextures[texnum].shader = R_RegisterShader(name, "{\n{\nmap $diffuse\n}\n}\n");
+	gldoomtextures[texnum].shader = R_RegisterShader(name, "{\n{\nmap $diffuse\nrgbgen vertex\n}\n}\n");
 
 	if (textures1)
 	{
@@ -916,7 +1538,24 @@ static int Doom_LoadPatch(char *name)
 	//all else failed.
 	gldoomtextures[texnum].width = image_width;
 	gldoomtextures[texnum].height = image_height;
+	gldoomtextures[texnum].meshptr = &gldoomtextures[texnum].mesh;
+	gldoomtextures[texnum].batch.mesh = &gldoomtextures[texnum].meshptr;
+	gldoomtextures[texnum].batch.next = loadmodel->batches[gldoomtextures[texnum].shader->sort];
+	loadmodel->batches[gldoomtextures[texnum].shader->sort] = &gldoomtextures[texnum].batch;
 	return texnum;
+}
+static void Doom_Purge (struct model_s *mod)
+{
+	int texnum;
+	for (texnum = 0; texnum < numgldoomtextures; texnum++)
+	{
+		BZ_Free(gldoomtextures[texnum].mesh.colors4b_array);
+		BZ_Free(gldoomtextures[texnum].mesh.st_array);
+		BZ_Free(gldoomtextures[texnum].mesh.xyz_array);
+		BZ_Free(gldoomtextures[texnum].mesh.indexes);
+	}
+	BZ_Free(gldoomtextures);
+	gldoomtextures = NULL;
 }
 #endif
 static void CleanWalls(dsidedef_t *sidedefsl)
@@ -1046,7 +1685,7 @@ void QuakifyThings(dthing_t *thingsl)
 		point[1] = thingsl[i].ypos;
 		point[2] = 0;
 		sector = Doom_SectorNearPoint(point);
-		zpos = sectorm[sector].floorheight + 24;
+		zpos = sectorm[sector].floorheight + 24;	//things have no z coord, so find the sector they're in
 
 		spawnflags = SPAWNFLAG_NOT_EASY | SPAWNFLAG_NOT_MEDIUM | SPAWNFLAG_NOT_HARD | SPAWNFLAG_NOT_DEATHMATCH;
 		if (thingsl[i].flags & THING_EASY)
@@ -1424,34 +2063,38 @@ void Doom_LightPointValues(model_t *model, vec3_t point, vec3_t res_diffuse, vec
 	res_ambient[2] = sec->lightlev;
 }
 
+//return pvs bits for point
 unsigned int Doom_FatPVS(struct model_s *model, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean merge)
 {
 	//FIXME: use REJECT lump.
 	return 0;
 }
 
+//check if an ent is within the given pvs
 qboolean Doom_EdictInFatPVS(struct model_s *model, struct pvscache_s *edict, qbyte *pvsbuffer)
 {	//FIXME: use REJECT lump.
 	return true;
 }
+
+//generate useful info for correct functioning of Doom_EdictInFatPVS.
 void Doom_FindTouchedLeafs(struct model_s *model, struct pvscache_s *ent, vec3_t cullmins, vec3_t cullmaxs)
 {
 	//work out the sectors this ent is in for easy pvs.
 }
 
+//requires lightmaps - not supported.
 void Doom_StainNode(struct mnode_s *node, float *parms)
 {
-	//not supported
 }
 
+//requires lightmaps - not supported.
 void Doom_MarkLights(struct dlight_s *light, int bit, struct mnode_s *node)
 {
-	//not supported
 }
 
 void Doom_SetModelFunc(model_t *mod)
 {
-	//mod->funcs.PurgeModel = ;
+	mod->funcs.PurgeModel			= Doom_Purge;
 
 	mod->funcs.FatPVS				= Doom_FatPVS;
 	mod->funcs.EdictInFatPVS		= Doom_EdictInFatPVS;
@@ -1463,7 +2106,10 @@ void Doom_SetModelFunc(model_t *mod)
 
 //	mod->funcs.LeafPVS)			(struct model_s *model, int num, qbyte *buffer, unsigned int buffersize);
 
-	Doom_SetCollisionFuncs(mod);
+	mod->funcs.NativeTrace = Doom_Trace;
+	mod->funcs.PointContents = Doom_PointContents;
+
+	//Doom_SetCollisionFuncs(mod);
 }
 
 #endif

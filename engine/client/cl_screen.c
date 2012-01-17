@@ -254,6 +254,7 @@ typedef struct {
 	unsigned int	flags;
 
 	conchar_t		string[1024];
+	char			titleimage[MAX_QPATH];
 	unsigned int charcount;
 	float			time_start;   // for slow victory printing
 	float			time_off;
@@ -332,8 +333,12 @@ void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 
 	p = &scr_centerprint[pnum];
 	p->flags = 0;
+	p->titleimage[0] = 0;
 	if (cl.intermission)
-		p->flags |= CPRINT_TYPEWRITER | CPRINT_PERSIST;
+	{
+		p->flags |= CPRINT_TYPEWRITER | CPRINT_PERSIST | CPRINT_TALIGN;
+		Q_strncpyz(p->titleimage, "gfx/finale.lmp", sizeof(p->titleimage));
+	}
 
 	while (*str == '/')
 	{
@@ -344,17 +349,31 @@ void SCR_CenterPrint (int pnum, char *str, qboolean skipgamecode)
 			break;
 		}
 		else if (str[1] == 'P')
+		{
 			p->flags |= CPRINT_PERSIST | CPRINT_BACKGROUND;
+			p->flags &= ~CPRINT_TALIGN;
+		}
 		else if (str[1] == 'O')
-			p->flags = CPRINT_OBITUARTY;
+			p->flags ^= CPRINT_OBITUARTY;
 		else if (str[1] == 'B')
-			p->flags |= CPRINT_BALIGN;	//Note: you probably want to add some blank lines...
+			p->flags ^= CPRINT_BALIGN;	//Note: you probably want to add some blank lines...
 		else if (str[1] == 'T')
-			p->flags |= CPRINT_TALIGN;
+			p->flags ^= CPRINT_TALIGN;
 		else if (str[1] == 'L')
-			p->flags |= CPRINT_LALIGN;
+			p->flags ^= CPRINT_LALIGN;
 		else if (str[1] == 'R')
-			p->flags |= CPRINT_RALIGN;
+			p->flags ^= CPRINT_RALIGN;
+		else if (str[1] == 'I')
+		{
+			char *e = strchr(str+=2, ':');
+			int l = e - str;
+			if (l >= sizeof(p->titleimage))
+				l = sizeof(p->titleimage)-1;
+			strncpy(p->titleimage, str, l);
+			p->titleimage[l] = 0;
+			str = e+1;
+			continue;
+		}
 		else
 			break;
 		str += 2;
@@ -403,6 +422,7 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p)
 	int				top;
 	int				bottom;
 	int             remaining;
+	shader_t		*pic;
 
 	conchar_t *line_start[MAX_CPRINT_LINES];
 	conchar_t *line_end[MAX_CPRINT_LINES];
@@ -417,20 +437,51 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p)
 
 	p->erase_center = 0;
 
+	if (*p->titleimage)
+		pic = R2D_SafeCachePic (p->titleimage);
+	else
+		pic = NULL;
+
 	if (p->flags & CPRINT_BACKGROUND)
 	{	//hexen2 style plaque.
-		if (rect->width > 320)
+		if (rect->width > (pic?pic->width:320))
 		{
-			rect->x = (rect->x + rect->width/2) - (160);
-			rect->width = 320;
+			rect->x = (rect->x + rect->width/2) - ((pic?pic->width:320) / 2);
+			rect->width = pic?pic->width:320;
 		}
+
 		if (rect->width < 32)
 			return;
 		rect->x += 16;
 		rect->width -= 32;
+
+		/*keep the text inside the image too*/
+		if (pic)
+		{
+			if (rect->height > (pic->height))
+			{
+				rect->y = (rect->y + rect->height/2) - (pic->height/2);
+				rect->height = pic->height;
+			}
+			rect->y += 16;
+			rect->height -= 32;
+		}
 	}
 
-	Font_BeginString(font_conchar, rect->x, rect->y, &left, &top);
+	y = rect->y;
+
+	if (pic)
+	{
+		if (!(p->flags & CPRINT_BACKGROUND))
+		{
+			y+= 16;
+			R2D_ScalePic ( (vid.width-pic->width)/2, 16, pic->width, pic->height, pic);
+			y+= pic->height;
+			y+= 8;
+		}
+	}
+
+	Font_BeginString(font_conchar, rect->x, y, &left, &top);
 	Font_BeginString(font_conchar, rect->x+rect->width, rect->y+rect->height, &right, &bottom);
 	linecount = Font_LineBreaks(p->string, p->string + p->charcount, right - left, MAX_CPRINT_LINES, line_start, line_end);
 
@@ -441,8 +492,6 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p)
 	else if (p->flags & CPRINT_OBITUARTY)
 		//'obituary' messages appear at the bottom of the screen
 		y = (bottom-top - Font_CharHeight()*linecount) * 0.65 + top;
-	else if (p->flags & CPRINT_TYPEWRITER)
-		Font_BeginString(font_conchar, 48, rect->y, &y, &top);
 	else
 	{
 		if (linecount <= 4)
@@ -463,7 +512,10 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p)
 		px = rect->x;
 		py = (     y * vid.height) / (float)vid.pixelheight;
 		pw = rect->width+8;
-		Draw_TextBox(px-16, py-8-8, pw/8, linecount+2);
+		if (*p->titleimage)
+			R2D_ScalePic (px-16, py-16, pw + 16, linecount*8 + 32, pic);
+		else
+			Draw_TextBox(px-16, py-8-8, pw/8, linecount+2);
 	}
 
 	for (l = 0; l < linecount; l++, y += Font_CharHeight())
@@ -545,6 +597,8 @@ void SCR_DrawCursor(int prydoncursornum)
 		p = R2D_SafeCachePic(va("gfx/prydoncursor%03i.lmp", prydoncursornum));
 	else
 		p = R2D_SafeCachePic(cl_cursor.string);
+	if (!p)
+		p = R2D_SafeCachePic("gfx/cursor.lmp");
 	if (p)
 	{
 		R2D_ImageColours(1, 1, 1, 1);
@@ -1007,7 +1061,7 @@ void SCR_CrosshairPosition(int pnum, int *x, int *y)
 
 		memset(&tr, 0, sizeof(tr));
 		tr.fraction = 1;
-		cl.worldmodel->funcs.Trace(cl.worldmodel, 0, 0, NULL, start, end, vec3_origin, vec3_origin, &tr);
+		cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, 0, NULL, start, end, vec3_origin, vec3_origin, MASK_WORLDSOLID, &tr);
 		start[2]-=16;
 		if (tr.fraction == 1)
 		{
@@ -2105,7 +2159,7 @@ void SCR_TileClear (void)
 	if (cl.splitclients>1)
 		return;	//splitclients always takes the entire screen.
 
-#ifdef PLUGINS
+/*#ifdef PLUGINS
 	if (plug_sbar.ival)
 	{
 		if (scr_vrect.x > 0)
@@ -2132,6 +2186,7 @@ void SCR_TileClear (void)
 	}
 	else
 #endif
+		*/
 	{
 		if (scr_vrect.x > 0)
 		{

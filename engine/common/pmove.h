@@ -74,6 +74,7 @@ typedef struct
 	// results
 	int			numtouch;
 	int			touchindex[MAX_PHYSENTS];
+	vec3_t		touchvel[MAX_PHYSENTS];
 	qboolean		onground;
 	int			groundent;		// index in physents array, only valid
 								// when onground is true

@@ -655,27 +655,38 @@ void NPP_NQFlush(void)
 				if (cl->state == cs_spawned && ISQWCLIENT(cl))
 				{
 					char *h2finale = NULL;
+					char *h2title = NULL;
 					if (cl->zquake_extensions & Z_EXT_SERVERTIME)
 					{
-						ClientReliableCheckBlock(cl, 6);
+/*						ClientReliableCheckBlock(cl, 6);
 						ClientReliableWrite_Byte(cl, svc_updatestatlong);
 						ClientReliableWrite_Byte(cl, STAT_TIME);
 						ClientReliableWrite_Long(cl, (int)(sv.world.physicstime * 1000));
 						cl->nextservertimeupdate = sv.world.physicstime+10;
-					}
+*/					}
 
 					if (progstype == PROG_H2)
 					{
 						/*hexen2 does something like this in the client, but we don't support those protocols, so translate to something usable*/
-						int lookup[13] = {394, 395, 356, 357, 358, 411, 386+6, 386+7, 386+8, 391, 538, 545, 561};
+						char *title[13] = {"gfx/finale.lmp", "gfx/meso.lmp", "gfx/egypt.lmp", "gfx/roman.lmp", "gfx/castle.lmp", "gfx/castle.lmp", "gfx/end-1.lmp", "gfx/end-2.lmp", "gfx/end-3.lmp", "gfx/castle.lmp", "gfx/mpend.lmp", "gfx/mpmid.lmp", "gfx/end-3.lmp"};
+						int lookup[13] = {394, 395, 396, 397, 358, 411, 386+6, 386+7, 386+8, 391, 538, 545, 561};
 						if (buffer[1] < 13)
+						{
+							h2title = title[buffer[1]];
 							h2finale = T_GetString(lookup[buffer[1]]);
+						}
 					}
 
 					if (h2finale)
 					{
-						ClientReliableCheckBlock(cl, 16);
+						ClientReliableCheckBlock(cl, 3 + strlen(h2title) + 3 + strlen(h2finale) + 1);
 						ClientReliableWrite_Byte(cl, svc_finale);
+						ClientReliableWrite_Byte(cl, '/');
+						ClientReliableWrite_Byte(cl, 'I');
+						ClientReliableWrite_SZ(cl, h2title, strlen(h2title));
+						ClientReliableWrite_Byte(cl, ':');
+						ClientReliableWrite_Byte(cl, '/');
+						ClientReliableWrite_Byte(cl, 'P');
 						ClientReliableWrite_String(cl, h2finale);
 					}
 					else

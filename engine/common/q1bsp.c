@@ -375,7 +375,7 @@ unsigned int Q1BSP_PointContents(model_t *model, vec3_t axis[3], vec3_t point)
 	return Q1BSP_HullPointContents(&model->hulls[0], point);
 }
 
-qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
+qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int hitcontentsmask, trace_t *trace)
 {
 	hull_t *hull;
 	vec3_t size;
@@ -1390,6 +1390,6 @@ void Q1BSP_SetModelFuncs(model_t *mod)
 
 	mod->funcs.LeafnumForPoint		= Q1BSP_LeafnumForPoint;
 	mod->funcs.LeafPVS				= Q1BSP_LeafnumPVS;
-	mod->funcs.Trace				= Q1BSP_Trace;
+	mod->funcs.NativeTrace			= Q1BSP_Trace;
 	mod->funcs.PointContents		= Q1BSP_PointContents;
 }

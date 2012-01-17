@@ -231,6 +231,8 @@ void COM_Path_f (void)
 		Con_Printf ("Pure paths:\n");
 		for (s=com_purepaths ; s ; s=s->nextpure)
 		{
+			if (s->referenced)
+				Con_Printf("*");
 			s->funcs->PrintPath(s->handle);
 		}
 		Con_Printf ("----------\n");
@@ -243,6 +245,8 @@ void COM_Path_f (void)
 		if (s == com_base_searchpaths)
 			Con_Printf ("----------\n");
 
+		if (s->referenced)
+			Con_Printf("*");
 		s->funcs->PrintPath(s->handle);
 	}
 }
@@ -529,9 +533,9 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 	{
 		if (search->funcs->FindFile(search->handle, loc, filename, pf))
 		{
+			search->referenced |= fs_referencetype;
 			if (loc)
 			{
-				search->referenced |= fs_referencetype;
 				loc->search = search;
 				len = loc->len;
 			}
@@ -670,7 +674,7 @@ char *FS_GetPackNames(char *buffer, int buffersize, int referencedonly, qboolean
 				if (referencedonly == 0 && !search->referenced)
 					continue;
 				if (referencedonly == 2 && search->referenced)
-					Q_strncatz(buffer, "*", sizeof(buffer));
+					Q_strncatz(buffer, "*", buffersize);
 
 				if (!ext)
 				{
@@ -1339,6 +1343,8 @@ static int FS_AddWildDataFiles (const char *descriptor, int size, void *vparam)
 	if (!search->funcs->FindFile(search->handle, &loc, descriptor, NULL))
 		return true;	//not found..
 	vfs = search->funcs->OpenVFS(search->handle, &loc, "rb");
+	if (!vfs)
+		return true;
 	pak = funcs->OpenNew (vfs, pakfile);
 	if (!pak)
 		return true;
@@ -1727,7 +1733,7 @@ void COM_Gamedir (const char *dir)
 /*some modern non-compat settings*/
 #define DMFCFG "set com_parseutf8 1\npm_airstep 1\nsv_demoExtensions 1\n"
 /*set some stuff so our regular qw client appears more like hexen2*/
-#define HEX2CFG "set r_particlesdesc \"spikeset tsshaft h2part\"\nset sv_maxspeed 640\nset watervis 1\nset r_wateralpha 0.5\nset sv_pupglow 1\nset cl_model_bobbing 1\nsv_sound_land \"fx/thngland.wav\"\n"
+#define HEX2CFG "set_calc cl_playerclass int (random * 5) + 1\nset r_particlesdesc \"spikeset tsshaft h2part\"\nset sv_maxspeed 640\nset watervis 1\nset r_wateralpha 0.5\nset sv_pupglow 1\nset cl_model_bobbing 1\nsv_sound_land \"fx/thngland.wav\"\n"
 /*Q3's ui doesn't like empty model/headmodel/handicap cvars, even if the gamecode copes*/
 #define Q3CFG "gl_overbright 2\nseta model sarge\nseta headmodel sarge\nseta handicap 100\n"
 
@@ -1771,6 +1777,8 @@ const gamemode_info_t gamemode_info[] = {
 	{"FTE-JK2",				"jk2",			"-jk2",			{"base/assets0.pk3"},	NULL,	{"base",						"fte"},		"Jedi Knight II: Jedi Outcast"},
 
 	{"FTE-HalfLife",		"hl",			"-halflife",	{"valve/liblist.gam"},	NULL,	{"valve",						"ftehl"},	"Half-Life"},
+	{"FTE-Doom",			"doom",			"-doom",		{"doom.wad"},			NULL,	{								"ftedoom"},	"Doom"},
+	{"FTE-Doom2",			"doom2",		"-doom2",		{"doom2.wad"},			NULL,	{								"ftedoom"},	"Doom2"},
 
 	{NULL}
 };
@@ -2013,6 +2021,24 @@ char *FSQ3_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum)
 	return buffer;
 }
 
+#ifdef DOOMWADS
+void FS_AddRootWads(void)
+{
+	vfsfile_t *vfs;
+	char *fname = "doom.wad";
+	void *pak;
+	extern searchpathfuncs_t doomwadfilefuncs;
+
+	vfs = FS_OpenVFS(fname, "rb", FS_ROOT);
+
+	pak = doomwadfilefuncs.OpenNew(vfs, fname);
+	if (!pak)
+		return;
+
+	FS_AddPathHandle(fname, fname, &doomwadfilefuncs, pak, true, false, false, (unsigned int)-1);
+}
+#endif
+
 /*
 ================
 FS_ReloadPackFiles
@@ -2055,6 +2081,10 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 	oldpaths = next;
 
 	com_base_searchpaths = NULL;
+
+#ifdef DOOMWADS
+	FS_AddRootWads();
+#endif
 
 	while(oldpaths)
 	{
@@ -2368,6 +2398,10 @@ void FS_StartupWithGame(int gamenum)
 
 	Cvar_Set(&com_protocolname, gamemode_info[gamenum].protocolname);
 	Cvar_ForceSet(&fs_gamename, gamemode_info[gamenum].poshname);
+
+#ifdef DOOMWADS
+	FS_AddRootWads();
+#endif
 
 //
 // start up with id1 by default

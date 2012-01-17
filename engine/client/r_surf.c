@@ -1165,15 +1165,8 @@ void Surf_RenderDynamicLightmaps (msurface_t *fa)
 	glRect_t    *theRect;
 	int smax, tmax;
 
-	if (!fa->mesh)
-		return;
-
 	//surfaces without lightmaps
 	if (fa->lightmaptexturenum<0)
-		return;
-
-	//surfaces with lightmaps that do not animate, supposedly
-	if (fa->texinfo->flags & (TI_SKY|TI_TRANS33|TI_TRANS66|TI_WARP))
 		return;
 
 	// check for lightmap modification
@@ -1269,10 +1262,6 @@ void Surf_RenderAmbientLightmaps (msurface_t *fa, int ambient)
 
 	//surfaces without lightmaps
 	if (fa->lightmaptexturenum<0)
-		return;
-
-	//surfaces with lightmaps that do not animate, supposedly
-	if (fa->texinfo->flags & (TI_SKY|TI_TRANS33|TI_TRANS66|TI_WARP))
 		return;
 
 	if (fa->cached_light[0] != ambient || fa->cached_colour[0] != 0xff)
@@ -2031,7 +2020,7 @@ void Surf_DrawWorld (void)
 	currententity = &r_worldentity;
 
 #ifdef MAP_DOOM
-	if (currentmodel->fromgame = fg_doom)
+	if (currentmodel->fromgame == fg_doom)
 		GLR_DoomWorld();
 	else
 #endif
@@ -2431,6 +2420,11 @@ static void Surf_CreateSurfaceLightmap (msurface_t *surf, int shift)
 		surf->lightmaptexturenum = -1;
 	if (surf->texinfo->flags & TEX_SPECIAL)
 		surf->lightmaptexturenum = -1;
+
+	//surfaces with lightmaps that do not animate, supposedly
+	if (surf->texinfo->flags & (TI_SKY|TI_TRANS33|TI_TRANS66|TI_WARP))
+		surf->lightmaptexturenum = -1;
+
 	if (surf->lightmaptexturenum<0)
 	{
 		surf->lightmaptexturenum = -1;

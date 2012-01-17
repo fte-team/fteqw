@@ -2022,15 +2022,6 @@ void MP_Draw(void)
 	if (setjmp(mp_abort))
 		return;
 
-#ifdef GLQUAKE
-	if (qrenderer == QR_OPENGL)
-	{
-		GL_TexEnv(GL_MODULATE);
-		qglDisable(GL_ALPHA_TEST);
-		qglEnable(GL_BLEND);
-	}
-#endif
-
 	menutime = Sys_DoubleTime();
 	if (mp_time)
 		*mp_time = menutime;

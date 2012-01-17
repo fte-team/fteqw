@@ -500,6 +500,7 @@ void GLR_NewMap (void)
 	AngleVectors(r_worldentity.angles, r_worldentity.axis[0], r_worldentity.axis[1], r_worldentity.axis[2]);
 	VectorInverse(r_worldentity.axis[1]);
 	r_worldentity.model = cl.worldmodel;
+	Vector4Set(r_worldentity.shaderRGBAf, 1, 1, 1, 1);
 
 
 	COM_StripExtension(COM_SkipPath(cl.worldmodel->name), namebuf, sizeof(namebuf));

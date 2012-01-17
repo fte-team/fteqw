@@ -1145,7 +1145,7 @@ void GLR_RenderView (void)
 	//	Con_Printf ("%3i ms  %4i wpoly %4i epoly\n", (int)((time2-time1)*1000), c_brush_polys, c_alias_polys);
 	}
 
-	if (qglGetError())
+	while (qglGetError())
 		Con_Printf("GL Error drawing scene\n");
 
 	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
@@ -1160,7 +1160,7 @@ void GLR_RenderView (void)
 	{
 		if (scenepp_waterwarp)
 		{
-			GL_Set2D();
+			GL_Set2D(false);
 			R2D_ScalePic(0, 0, vid.width, vid.height, scenepp_waterwarp);
 		}
 	}
@@ -1175,7 +1175,7 @@ void GLR_RenderView (void)
 		shader_t *postproc = R_RegisterCustom(r_postprocshader.string, NULL, NULL);
 		if (postproc)
 		{
-			GL_Set2D();
+			GL_Set2D(false);
 			R2D_ScalePic(0, 0, vid.width, vid.height, postproc);
 		}
 	}

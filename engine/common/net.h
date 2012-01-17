@@ -83,7 +83,7 @@ void		NET_SendPacket (netsrc_t socket, int length, void *data, netadr_t to);
 int			NET_LocalAddressForRemote(struct ftenet_connections_s *collection, netadr_t *remote, netadr_t *local, int idx);
 void		NET_PrintAddresses(struct ftenet_connections_s *collection);
 qboolean	NET_AddressSmellsFunny(netadr_t a);
-void		NET_EnsureRoute(struct ftenet_connections_s *collection, char *routename, char *host, qboolean islisten);
+qboolean	NET_EnsureRoute(struct ftenet_connections_s *collection, char *routename, char *host, qboolean islisten);
 
 qboolean	NET_CompareAdr (netadr_t a, netadr_t b);
 qboolean	NET_CompareBaseAdr (netadr_t a, netadr_t b);

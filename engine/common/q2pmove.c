@@ -481,7 +481,7 @@ void PMQ2_AddCurrents (vec3_t	wishvel)
 	// add water currents
 	//
 
-	if (q2pm->watertype & MASK_CURRENT)
+	if (q2pm->watertype & Q2MASK_CURRENT) /*FIXME: q3bsp*/
 	{
 		memset(v, 0, sizeof(vec3_t));
 

@@ -1646,6 +1646,8 @@ void SV_Begin_Core(client_t *split)
 		}
 		else
 		{
+			sv.spawned_client_slots++;
+
 			if (svprogfuncs)
 			{
 				eval_t *eval, *eval2;
@@ -2468,6 +2470,16 @@ qboolean SV_AllowDownload (const char *name)
 	extern	cvar_t	allow_download_wads;
 	extern	cvar_t	allow_download_root;
 	extern	cvar_t	allow_download_configs;
+	extern	cvar_t	allow_download_copyrighted;
+	char cleanname[MAX_QPATH];
+	int i=0;
+	if (strlen(name) >= MAX_QPATH)
+		return false;
+	do
+	{
+		cleanname[i++] = *name;
+	} while(*name++);
+	name = cleanname;
 
 	//allowed at all?
 	if (!allow_download.value)
@@ -2488,8 +2500,10 @@ qboolean SV_AllowDownload (const char *name)
 		if (!strcmp("pk4", COM_FileExtension(name)) || !strcmp("pk3", COM_FileExtension(name)) || !strcmp("pak", COM_FileExtension(name)))
 		{
 			/*do not permit 'id1/pak1.pak' or 'baseq3/pak0.pk3' or any similarly named packages. such packages would violate copyright, and must be obtained through other means (like buying the damn game)*/
-			if (!strstr(name, "/pak"))
+			if (FS_GetPackageDownloadable(name+8))
 				return !!allow_download_packages.value;
+			else
+				return !!allow_download_copyrighted.ival;
 		}
 		return false;
 	}
@@ -2523,8 +2537,12 @@ qboolean SV_AllowDownload (const char *name)
 
 	//pak/pk3s.
 	if (!strcmp("pk4", COM_FileExtension(name)) || !strcmp("pk3", COM_FileExtension(name)) || !strcmp("pak", COM_FileExtension(name)))
+	{
 		if (strnicmp(name, "pak", 3))	//don't give out core pak/pk3 files. This matches q3 logic.
 			return !!allow_download_packages.value;
+		else
+			return !!allow_download_copyrighted.value;
+	}
 
 	if (!strcmp("cfg", COM_FileExtension(name)))
 		return !!allow_download_configs.value;
@@ -2587,17 +2605,14 @@ static int SV_LocateDownload(char *name, flocation_t *loc, char **replacementnam
 
 	if (!strncmp(name, "package/", 8))
 	{
-		vfsfile_t *f;
-		if (FS_GetPackageDownloadable(name+8))
+		vfsfile_t *f = FS_OpenVFS(name+8, "rb", FS_ROOT);
+		if (f)
 		{
-			f = FS_OpenVFS(name+8, "rb", FS_ROOT);
-			if (f)
-			{
-				VFS_CLOSE(f);
-				return -5;	//found package
-			}
+			VFS_CLOSE(f);
+			return -5;	//found package
 		}
-		return -1;	//not found
+		else
+			return -1;	//not found/unable to open
 	}
 	else
 		found = FS_FLocateFile(name, FSLFRT_IFFOUND, loc);
@@ -3892,15 +3907,21 @@ void Cmd_Give_f (void)
 			break;
 		}
 	}
-	else if (developer.value || host_client->netchan.remote_address.type == NA_LOOPBACK)	//we don't want clients doing nasty things... like setting movetype 3123
+	else
 	{
-		int oldself;
-		oldself = pr_global_struct->self;
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
-		SV_ClientPrintf(host_client, PRINT_HIGH, "Result: %s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, Cmd_Args()));
-		pr_global_struct->self = oldself;
+		if (developer.value < 2 && host_client->netchan.remote_address.type != NA_LOOPBACK)	//we don't want clients doing nasty things... like setting movetype 3123
+		{
+			SV_PrintToClient(host_client, PRINT_HIGH, "'give' debugging command requires developer 2 set on the server before you may use it\n");
+		}
+		else
+		{
+			int oldself;
+			oldself = pr_global_struct->self;
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
+			SV_ClientPrintf(host_client, PRINT_HIGH, "Result: %s\n", svprogfuncs->EvaluateDebugString(svprogfuncs, Cmd_Args()));
+			pr_global_struct->self = oldself;
+		}
 	}
-
 }
 
 void Cmd_Noclip_f (void)
@@ -4115,6 +4136,7 @@ void Cmd_Join_f (void)
 	pr_global_struct->time = sv.world.physicstime;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
+	sv.spawned_client_slots++;
 
 	// send notification to all clients
 	host_client->old_frags = host_client->edict->v->frags;
@@ -4177,6 +4199,7 @@ void Cmd_Observe_f (void)
 	// this will set the body to a dead frame, among other things
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
+	sv.spawned_client_slots--;
 
 	SV_SetUpClientEdict (host_client, host_client->edict);
 
@@ -4438,6 +4461,8 @@ void SVNQ_Begin_f (void)
 		}
 		else
 		{
+			sv.spawned_client_slots++;
+
 			// copy spawn parms out of the client_t
 			for (i=0 ; i< NUM_SPAWN_PARMS ; i++)
 			{
@@ -4951,6 +4976,7 @@ ucmd_t nqucmds[] =
 	{"pext",		SV_Pext_f},
 	{"enablecsqc",	SV_EnableClientsCSQC},
 	{"disablecsqc",	SV_DisableClientsCSQC},
+	{"challengeconnect", NULL},
 
 #ifdef VOICECHAT
 	{"voicetarg",	SV_Voice_Target_f},
@@ -5816,7 +5842,14 @@ if (sv_player->v->health > 0 && before && !after )
 				continue;
 
 			if (ent->v->touch)
+			{
+				if (progstype != PROG_QW && VectorCompare(sv_player->v->velocity, old_vel))
+				{
+					VectorCopy(pmove.touchvel[i], old_vel);
+					VectorCopy(pmove.touchvel[i], sv_player->v->velocity);
+				}
 				sv.world.Event_Touch(&sv.world, (wedict_t*)ent, (wedict_t*)sv_player);
+			}
 			playertouch[n/8] |= 1 << (n%8);
 
 			if (sv_player->v->touch && !ent->isfree)

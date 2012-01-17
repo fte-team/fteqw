@@ -255,7 +255,7 @@ qboolean	NET_CompareBaseAdr (netadr_t a, netadr_t b)
 	if (a.type == NA_LOOPBACK)
 		return true;
 
-	if (a.type == NA_IP)
+	if (a.type == NA_IP || a.type == NA_TCP)
 	{
 		if ((memcmp(a.address.ip, b.address.ip, sizeof(a.address.ip)) == 0))
 			return true;
@@ -502,6 +502,13 @@ char	*NET_BaseAdrToString (char *s, int len, netadr_t a)
 	case NA_BROADCAST_IP:
 	case NA_IP:
 		snprintf (s, len, "%i.%i.%i.%i",
+			a.address.ip[0],
+			a.address.ip[1],
+			a.address.ip[2],
+			a.address.ip[3]);
+		break;
+	case NA_TCP:
+		snprintf (s, len, "tcp://%i.%i.%i.%i",
 			a.address.ip[0],
 			a.address.ip[1],
 			a.address.ip[2],
@@ -2081,6 +2088,7 @@ closesvstream:
 	if (con->generic.thesocket != INVALID_SOCKET && con->active < 256)
 	{
 		int newsock;
+		fromlen = sizeof(from);
 		newsock = accept(con->generic.thesocket, (struct sockaddr*)&from, &fromlen);
 		if (newsock != INVALID_SOCKET)
 		{
@@ -2126,6 +2134,7 @@ qboolean FTENET_TCPConnect_SendPacket(ftenet_generic_connection_t *gcon, int len
 		if (NET_CompareAdr(to, st->remoteaddr))
 		{
 			unsigned short slen = BigShort((unsigned short)length);
+#pragma warningmsg("TCPConnect: these calls can fail, corrupting the message stream")
 			send(st->socketnum, (char*)&slen, sizeof(slen), 0);
 			send(st->socketnum, data, length, 0);
 
@@ -2168,11 +2177,15 @@ ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily,
 	netadr_t adr;
 	struct sockaddr_qstorage qs;
 	int family;
+	if (!strncmp(address, "tcp://", 6))
+		address += 6;
 
 	if (isserver)
 	{
 		if (!NET_PortToAdr(affamily, address, &adr))
 			return NULL;	//couldn't resolve the name
+		if (adr.type == NA_IP)
+			adr.type = NA_TCP;
 		temp = NetadrToSockadr(&adr, &qs);
 		family = ((struct sockaddr_in*)&qs)->sin_family;
 
@@ -2200,6 +2213,9 @@ ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily,
 	{
 		if (!NET_PortToAdr(affamily, address, &adr))
 			return NULL;	//couldn't resolve the name
+
+		if (adr.type == NA_IP)
+			adr.type = NA_TCP;
 		newsocket = TCP_OpenStream(adr);
 		if (newsocket == INVALID_SOCKET)
 			return NULL;
@@ -2218,7 +2234,7 @@ ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily,
 		newcon->generic.SendPacket = FTENET_TCPConnect_SendPacket;
 		newcon->generic.Close = FTENET_TCPConnect_Close;
 
-		newcon->generic.islisten = true;
+		newcon->generic.islisten = isserver;
 		newcon->generic.addrtype[0] = adr.type;
 		newcon->generic.addrtype[1] = NA_INVALID;
 
@@ -2947,7 +2963,7 @@ void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t to)
 	Con_Printf("No route - open some ports\n");
 }
 
-void NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char *host, qboolean islisten)
+qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char *host, qboolean islisten)
 {
 	netadr_t adr;
 	NET_StringToAdr(host, &adr);
@@ -2956,23 +2972,27 @@ void NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char *ho
 	{
 #ifdef TCPCONNECT
 	case NA_TCP:
-		FTENET_AddToCollection(collection, routename, host, FTENET_TCP4Connect_EstablishConnection, islisten);
+		if (!FTENET_AddToCollection(collection, routename, host, FTENET_TCP4Connect_EstablishConnection, islisten))
+			return false;
 		break;
 #ifdef IPPROTO_IPV6
 	case NA_TCPV6:
-		FTENET_AddToCollection(collection, routename, host, FTENET_TCP6Connect_EstablishConnection, islisten);
+		if (!FTENET_AddToCollection(collection, routename, host, FTENET_TCP6Connect_EstablishConnection, islisten))
+			return false;
 		break;
 #endif
 #endif
 #ifdef IRCCONNECT
 	case NA_IRC:
-		FTENET_AddToCollection(collection, routename, host, FTENET_IRCConnect_EstablishConnection, islisten);
+		if (!FTENET_AddToCollection(collection, routename, host, FTENET_IRCConnect_EstablishConnection, islisten))
+			return false;
 		break;
 #endif
 	default:
 		//not recognised, or not needed
 		break;
 	}
+	return true;
 }
 
 void NET_PrintAddresses(ftenet_connections_t *collection)
@@ -3009,11 +3029,16 @@ int TCP_OpenStream (netadr_t remoteaddr)
 	int newsocket;
 	int temp;
 	struct sockaddr_qstorage qs;
+	struct sockaddr_qstorage loc;
 
 	temp = NetadrToSockadr(&remoteaddr, &qs);
 
 	if ((newsocket = socket (((struct sockaddr_in*)&qs)->sin_family, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET)
 		return INVALID_SOCKET;
+
+//	memset(&loc, 0, sizeof(loc));
+//	((struct sockaddr*)&loc)->sa_family = ((struct sockaddr*)&loc)->sa_family;
+//	bind(newsocket, (struct sockaddr *)&loc, ((struct sockaddr_in*)&qs)->sin_family == AF_INET?sizeof(struct sockaddr_in):sizeof(struct sockaddr_in6));
 
 	if (connect(newsocket, (struct sockaddr *)&qs, temp) == INVALID_SOCKET)
 	{

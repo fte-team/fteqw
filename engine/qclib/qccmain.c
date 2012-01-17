@@ -247,6 +247,7 @@ compiler_flag_t compiler_flag[] = {
 	{&flag_assume_integer,	FLAG_MIDCOMPILE,"assumeint",	"Assume Integers",		"Numerical constants are assumed to be integers, instead of floats."},
 	{&pr_subscopedlocals,	FLAG_MIDCOMPILE,"subscope",		"Subscoped Locals",		"Restrict the scope of locals to the block they are actually defined within, as in C."},
 	{&verbose,				FLAG_MIDCOMPILE,"verbose",		"Verbose",				"Lots of extra compiler messages."},
+	{&flag_typeexplicit,	FLAG_MIDCOMPILE,"typeexplicit",	"Explicit types",		"All type conversions must be explicit or directly supported by instruction set."},
 	{NULL}
 };
 
@@ -1610,7 +1611,7 @@ QCC_type_t *QCC_PR_NewType (char *name, int basictype)
 	qcc_typeinfo[numtypeinfos].num_parms = 0;
 	qcc_typeinfo[numtypeinfos].param = NULL;
 	qcc_typeinfo[numtypeinfos].size = type_size[basictype];
-	qcc_typeinfo[numtypeinfos].arraysize = 1;
+	qcc_typeinfo[numtypeinfos].arraysize = 0;
 
 
 	numtypeinfos++;
@@ -1675,11 +1676,11 @@ void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	if (output_parms)
 	{	//this tends to confuse the brains out of decompilers. :)
 		numpr_globals = 1;
-		QCC_PR_GetDef(type_vector, "RETURN", NULL, true, 1, false)->references++;
+		QCC_PR_GetDef(type_vector, "RETURN", NULL, true, 0, false)->references++;
 		for (i = 0; i < MAX_PARMS; i++)
 		{
 			sprintf(name, "PARM%i", i);
-			QCC_PR_GetDef(type_vector, name, NULL, true, 1, false)->references++;
+			QCC_PR_GetDef(type_vector, name, NULL, true, 0, false)->references++;
 		}
 	}
 	else
@@ -2768,6 +2769,7 @@ void QCC_SetDefaultProperties (void)
 	qccwarningdisabled[WARN_FTE_SPECIFIC] = true;
 	qccwarningdisabled[WARN_EXTENSION_USED] = true;
 	qccwarningdisabled[WARN_IFSTRING_USED] = true;
+	qccwarningdisabled[WARN_CORRECTEDRETURNTYPE] = true;
 
 
 

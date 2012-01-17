@@ -603,7 +603,7 @@ void Con_PrintCon (console_t *con, char *txt)
 
 #if defined(_WIN32) && !defined(NOMEDIA)
 			if (con->current)
-				TTS_SayConString(con->current+1);
+				TTS_SayConString((conchar_t*)(con->current+1));
 #endif
 
 			con->current->newer = Z_Malloc(sizeof(conline_t) + sizeof(conchar_t));
@@ -844,7 +844,7 @@ void Con_DrawInput (int left, int right, int y)
 
 	if (con_current->commandcompletion)
 	{
-		if (text[1] == '/' || Cmd_IsCommand(text+1))
+		if (cl_chatmode.ival && (text[1] == '/' || (cl_chatmode.ival == 2 && Cmd_IsCommand(text+1))))
 		{	//color the first token yellow, it's a valid command
 			for (p = 1; (maskedtext[p]&CON_CHARMASK)>' '; p++)
 				maskedtext[p] = (maskedtext[p]&CON_CHARMASK) | (COLOR_YELLOW<<CON_FGSHIFT);

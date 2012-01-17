@@ -154,6 +154,7 @@ static const char *imgs[] =
 #define INVALIDPLANE ((1<<(8*sizeof(PLANEIDXTYPE)))-1)
 #define BITMAPPLANE ((1<<(8*sizeof(PLANEIDXTYPE)))-2)
 #define DEFAULTPLANE ((1<<(8*sizeof(PLANEIDXTYPE)))-3)
+#define SINGLEPLANE ((1<<(8*sizeof(PLANEIDXTYPE)))-4)
 #define PLANEWIDTH (1<<8)
 #define PLANEHEIGHT PLANEWIDTH
 
@@ -851,6 +852,46 @@ static texid_t Font_LoadDefaultConchars(void)
 	Sys_Error("Unable to load any conchars\n");
 }
 
+typedef struct 
+{ 
+    short		width;
+    short		height; 
+    short		leftoffset;	// pixels to the left of origin 
+    short		topoffset;	// pixels below the origin 
+    int			columnofs[1];
+} doompatch_t;
+typedef struct
+{
+    unsigned char		topdelta;	// -1 is the last post in a column
+    unsigned char		length; 	// length data bytes follows
+} doomcolumn_t;
+void Doom_ExpandPatch(doompatch_t *p, unsigned char *b, int stride)
+{
+	doomcolumn_t *col;
+	unsigned char *src, *dst;
+	int x, y;
+	for (x = 0; x < p->width; x++)
+	{
+		col = (doomcolumn_t *)((unsigned char *)p + p->columnofs[x]);
+		while(col->topdelta != 0xff)
+		{
+			//exploit protection
+			if (col->length + col->topdelta > p->height)
+				break;
+
+			src = (unsigned char *)col + 3; /*why 3? why not, I suppose*/
+			dst = b + stride*col->topdelta;
+			for (y = 0; y < col->length; y++)
+			{
+				*dst = *src++;
+				dst += stride;
+			}
+			col = (doomcolumn_t *)((unsigned char*)col + col->length + 4);
+		}
+		b++;
+	}
+}
+
 //creates a new font object from the given file, with each text row with the given height.
 //width is implicit and scales with height and choice of font.
 struct font_s *Font_LoadFont(int height, char *fontfilename)
@@ -861,6 +902,70 @@ struct font_s *Font_LoadFont(int height, char *fontfilename)
 	f = Z_Malloc(sizeof(*f));
 	f->charheight = height;
 
+#ifdef DOOMWADS
+	if (!*fontfilename)
+	{
+		unsigned char buf[PLANEWIDTH*PLANEHEIGHT];
+		int i;
+		int x=0,y=0,h=0;
+		doompatch_t *dp;
+
+		memset(buf, 0, sizeof(buf));
+
+		for (i = '!'; i <= '_'; i++)
+		{
+			dp = NULL;
+			FS_LoadFile(va("wad/stcfn%.3d", i), &dp);
+			if (!dp)
+				break;
+
+			/*make sure it can fit*/
+			if (x + dp->width > PLANEWIDTH)
+			{
+				x = 0;
+				y += h;
+				h = 0;
+			}
+
+			f->chars[i].advance = dp->width;	/*this is how much line space the char takes*/
+			f->chars[i].left = -dp->leftoffset;
+			f->chars[i].top = -dp->topoffset;
+			f->chars[i].nextchar = 0;
+			f->chars[i].pad = 0;
+			f->chars[i].texplane = SINGLEPLANE;
+
+			f->chars[i].bmx = x;
+			f->chars[i].bmy = y;
+			f->chars[i].bmh = dp->height;
+			f->chars[i].bmw = dp->width;
+
+			Doom_ExpandPatch(dp, &buf[y*PLANEWIDTH + x], PLANEWIDTH);
+
+			x += dp->width;
+			if (dp->height > h)
+			{
+				h = dp->height;
+				if (h > f->charheight)
+					f->charheight = h;
+			}
+
+
+			FS_FreeFile(dp);
+		}
+
+		/*if all loaded okay, replicate the chars to the quake-compat range (both white+red chars)*/
+		if (i == '_'+1)
+		{
+			f->chars[' '].advance = 8;
+			f->singletexture = R_LoadTexture8("doomfont", PLANEWIDTH, PLANEHEIGHT, buf, 0, true);
+			for (i = 0xe000; i <= 0xe0ff; i++)
+			{
+				f->chars[i] = f->chars[toupper(i&0x7f)];
+			}
+			return f;
+		}
+	}
+#endif
 	if (!strcmp(fontfilename, "gfx/tinyfont"))
 	{
 		unsigned int *img;
@@ -1215,25 +1320,36 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 	s1 = (float)(c->bmx+c->bmw)/PLANEWIDTH;
 	t1 = (float)(c->bmy+c->bmh)/PLANEWIDTH;
 
-	if (c->texplane >= DEFAULTPLANE)
+	switch(c->texplane)
 	{
+	case DEFAULTPLANE:
 		sx = ((px+c->left)*(int)vid.width) / (float)vid.rotpixelwidth;
 		sy = ((py+c->top)*(int)vid.height) / (float)vid.rotpixelheight;
 		sw = ((curfont->charheight)*vid.width) / (float)vid.rotpixelwidth;
 		sh = ((curfont->charheight)*vid.height) / (float)vid.rotpixelheight;
-
-		if (c->texplane == DEFAULTPLANE)
-			v = Font_BeginChar(fontplanes.defaultfont);
-		else
-			v = Font_BeginChar(curfont->singletexture);
-	}
-	else
-	{
+		v = Font_BeginChar(fontplanes.defaultfont);
+		break;
+	case BITMAPPLANE:
+		sx = ((px+c->left)*(int)vid.width) / (float)vid.rotpixelwidth;
+		sy = ((py+c->top)*(int)vid.height) / (float)vid.rotpixelheight;
+		sw = ((curfont->charheight)*vid.width) / (float)vid.rotpixelwidth;
+		sh = ((curfont->charheight)*vid.height) / (float)vid.rotpixelheight;
+		v = Font_BeginChar(curfont->singletexture);
+		break;
+	case SINGLEPLANE:
+		sx = ((px+c->left)*(int)vid.width) / (float)vid.rotpixelwidth;
+		sy = ((py+c->top)*(int)vid.height) / (float)vid.rotpixelheight;
+		sw = ((c->bmw)*vid.width) / (float)vid.rotpixelwidth;
+		sh = ((c->bmh)*vid.height) / (float)vid.rotpixelheight;
+		v = Font_BeginChar(curfont->singletexture);
+		break;
+	default:
 		sx = ((px+c->left)*(int)vid.width) / (float)vid.rotpixelwidth;
 		sy = ((py+c->top)*(int)vid.height) / (float)vid.rotpixelheight;
 		sw = ((c->bmw)*vid.width) / (float)vid.rotpixelwidth;
 		sh = ((c->bmh)*vid.height) / (float)vid.rotpixelheight;
 		v = Font_BeginChar(fontplanes.texnum[c->texplane]);
+		break;
 	}
 
 	font_texcoord[v+0][0] = s0;

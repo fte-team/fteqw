@@ -126,6 +126,7 @@ typedef struct {
 
 	int (*ParticleTypeForName) (char *name);
 	int (*FindParticleType) (char *name);
+	qboolean (*ParticleQuery) (int type, int body, char *outstr, int outstrlen);
 
 	int (*RunParticleEffectTypeString) (vec3_t org, vec3_t dir, float count, char *name);
 	int (*ParticleTrail) (vec3_t startpos, vec3_t end, int type, int dlkey, trailstate_t **tsk);

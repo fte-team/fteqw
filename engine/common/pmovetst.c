@@ -215,7 +215,7 @@ static qboolean PM_TransformedHullCheck (model_t *model, vec3_t start, vec3_t en
 		{
 			AngleVectors (angles, axis[0], axis[1], axis[2]);
 			VectorNegate(axis[1], axis[1]);
-			model->funcs.Trace(model, 0, 0, axis, start_l, end_l, player_mins, player_maxs, trace);
+			model->funcs.NativeTrace(model, 0, 0, axis, start_l, end_l, player_mins, player_maxs, MASK_PLAYERSOLID, trace);
 		}
 		else
 		{
@@ -226,7 +226,7 @@ static qboolean PM_TransformedHullCheck (model_t *model, vec3_t start, vec3_t en
 				if (start_l[i]+player_maxs[i] < model->mins[i] && end_l[i] + player_maxs[i] < model->mins[i])
 					return false;
 			}
-			model->funcs.Trace(model, 0, 0, NULL, start_l, end_l, player_mins, player_maxs, trace);
+			model->funcs.NativeTrace(model, 0, 0, NULL, start_l, end_l, player_mins, player_maxs, MASK_PLAYERSOLID, trace);
 		}
 	}
 	else

@@ -89,6 +89,10 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	Cons: GL_EndRendering call will not swap buffers. Buffers will be swapped on return to java.
 	*/
 
+	if (gles2)
+		Sys_Printf("Loading GLES2 driver\n");
+	else
+		Sys_Printf("Loading GLES1 driver\n");
 	sys_gl_module = Sys_LoadLibrary(gles2?"libGLESv2.so":"libGLESv1_CM.so", NULL);
 	if (!sys_gl_module)
 	{
@@ -96,7 +100,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		return false;
 	}
 
-        GLVID_SetPalette (palette);
+	GLVID_SetPalette (palette);
 	GL_Init(GLES_GetSymbol);
 	vid.recalc_refdef = 1;
 	return true;

@@ -1477,7 +1477,8 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	SV_FilterImpulseInit();
 
 	Info_SetValueForKey (svs.info, "map", sv.name, MAX_SERVERINFO_STRING);
-	Con_TPrintf (STL_SERVERSPAWNED);	//misc filenotfounds can be misleading.
+	if (sv.allocated_client_slots != 1)
+		Con_TPrintf (STL_SERVERSPAWNED);	//misc filenotfounds can be misleading.
 
 	if (!startspot)
 	{
@@ -1536,6 +1537,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 				pr_global_struct->time = sv.world.physicstime;
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 				PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
+				sv.spawned_client_slots++;
 
 				// send notification to all clients
 				host_client->sendinfo = true;

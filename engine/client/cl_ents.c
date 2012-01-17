@@ -945,7 +945,7 @@ void CLNQ_ParseEntity(unsigned int bits)
 {
 	int i;
 	int num, pnum;
-	entity_state_t		*state, *from;
+	entity_state_t		*state;//, *from;
 	entity_state_t	*base;
 	static float lasttime;
 	packet_entities_t	*pack;
@@ -995,7 +995,7 @@ void CLNQ_ParseEntity(unsigned int bits)
 		state = &pack->entities[pack->num_entities++];
 	}
 
-	from = CL_FindOldPacketEntity(num);	//this could be optimised.
+//	from = CL_FindOldPacketEntity(num);	//this could be optimised.
 
 	if (!CL_CheckBaselines(num))
 		Host_EndGame("CLNQ_ParseEntity: check baselines failed with size %i", num);
@@ -1132,14 +1132,6 @@ void CLNQ_ParseEntity(unsigned int bits)
 		if (bits & DPU_MODEL2)
 			state->modelindex |= MSG_ReadByte() << 8;
 	}
-	if (cls.demoplayback != DPB_NONE)
-		for (pnum = 0; pnum < cl.splitclients; pnum++)
-			if (num == cl.viewentity[pnum])
-			{
-				state->angles[0] = cl.viewangles[pnum][0]/-3;
-				state->angles[1] = cl.viewangles[pnum][1];
-				state->angles[2] = cl.viewangles[pnum][2];
-			}
 }
 #endif
 #ifdef PEXT_SETVIEW

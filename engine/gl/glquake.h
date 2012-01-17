@@ -73,6 +73,7 @@ void ClearBounds (vec3_t mins, vec3_t maxs);
 		#define GLclampd GLclampf
 		#define GLdouble GLfloat
 		#define GL_CLAMP GL_CLAMP_TO_EDGE
+		#define GL_NONE                           0
 
 		#define GL_FILL (Sys_Error("GL_FILL was used"),0)
 		#define GL_QUADS (Sys_Error("GL_QUADS was used"),0)
@@ -153,6 +154,7 @@ qboolean GL_CheckExtension(char *extname);
 
 typedef struct {
 	float glversion;
+	int maxglslversion;
 	qboolean nofixedfunc;
 	qboolean gles;
 	qboolean tex_env_combine;
@@ -332,7 +334,7 @@ void FTE_DEPRECATED R_IBrokeTheArrays(void);
 //
 #ifdef GLQUAKE
 texid_tf GL_LoadPicTexture (qpic_t *pic);
-void GL_Set2D (void);
+void GL_Set2D (qboolean flipped);
 #endif
 
 //
@@ -832,7 +834,7 @@ extern FTEPFNGLUNIFORM1IARBPROC			qglUniform1iARB;
 extern FTEPFNGLUNIFORM1FARBPROC			qglUniform1fARB;
 
 //glslang helper api
-GLhandleARB GLSlang_CreateProgram(char *name, int ver, char **precompilerconstants, char *vert, char *frag);
+GLhandleARB GLSlang_CreateProgram(char *name, int ver, char **precompilerconstants, char *vert, char *frag, qboolean silent);
 GLint GLSlang_GetUniformLocation (int prog, char *name);
 void GL_SelectProgram(int program);
 #define GLSlang_UseProgram(prog) GL_SelectProgram(prog)

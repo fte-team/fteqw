@@ -41,6 +41,7 @@ typedef struct
 	float		*start, *end;
 	trace_t		trace;
 	int			type;
+	int			hitcontentsmask;
 	wedict_t		*passedict;
 #ifdef Q2SERVER
 	q2edict_t	*q2passedict;
@@ -899,7 +900,7 @@ qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 
 //wrapper function. Rotates the start and end positions around the angles if needed.
 //qboolean TransformedHullCheck (hull_t *hull, vec3_t start, vec3_t end, trace_t *trace, vec3_t angles)
-qboolean TransformedTrace (struct model_s *model, int hulloverride, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, struct trace_s *trace, vec3_t origin, vec3_t angles)
+qboolean TransformedTrace (struct model_s *model, int hulloverride, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, struct trace_s *trace, vec3_t origin, vec3_t angles, unsigned int hitcontentsmask)
 {
 	vec3_t		start_l, end_l;
 	vec3_t		axis[3];
@@ -928,11 +929,11 @@ qboolean TransformedTrace (struct model_s *model, int hulloverride, int frame, v
 		{
 			AngleVectors (angles, axis[0], axis[1], axis[2]);
 			VectorNegate(axis[1], axis[1]);
-			result = model->funcs.Trace (model, hulloverride, frame, axis, start_l, end_l, mins, maxs, trace);
+			result = model->funcs.NativeTrace (model, hulloverride, frame, axis, start_l, end_l, mins, maxs, hitcontentsmask, trace);
 		}
 		else
 		{
-			result = model->funcs.Trace (model, hulloverride, frame, NULL, start_l, end_l, mins, maxs, trace);
+			result = model->funcs.NativeTrace (model, hulloverride, frame, NULL, start_l, end_l, mins, maxs, hitcontentsmask, trace);
 		}
 
 		VectorAdd (trace->endpos, origin, trace->endpos);
@@ -1011,7 +1012,7 @@ Handles selection or creation of a clipping hull, and offseting (and
 eventually rotation) of the end points
 ==================
 */
-static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int hullnum, qboolean hitmodel)	//hullnum overrides min/max for q1 style bsps
+static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int hullnum, qboolean hitmodel, unsigned int hitcontentsmask)	//hullnum overrides min/max for q1 style bsps
 {
 	trace_t		trace;
 	model_t		*model;
@@ -1036,42 +1037,37 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 	if (ent->v->solid != SOLID_BSP)
 	{
 		ent->v->angles[0]*=-1;	//carmack made bsp models rotate wrongly.
-		TransformedTrace(model, hullnum, ent->v->frame, start, end, mins, maxs, &trace, eorg, ent->v->angles);
+		TransformedTrace(model, hullnum, ent->v->frame, start, end, mins, maxs, &trace, eorg, ent->v->angles, hitcontentsmask);
 		ent->v->angles[0]*=-1;
 	}
 	else
 	{
-		TransformedTrace(model, hullnum, ent->v->frame, start, end, mins, maxs, &trace, eorg, ent->v->angles);
+		TransformedTrace(model, hullnum, ent->v->frame, start, end, mins, maxs, &trace, eorg, ent->v->angles, hitcontentsmask);
 	}
 
-// fix trace up by the offset
-	if (trace.fraction != 1)
+// if using hitmodel, we know it hit the bounding box, so try a proper trace now.
+	if (hitmodel && trace.fraction != 1 && ent->v->solid != SOLID_BSP && ent->v->modelindex != 0)
 	{
-		if (!model && hitmodel && ent->v->solid != SOLID_BSP && ent->v->modelindex > 0)
+		//okay, we hit the bbox
+
+		model_t *model;
+		model = w->Get_CModel(w, ent->v->modelindex);
+
+		if (model && model->funcs.NativeTrace)
 		{
-			//okay, we hit the bbox
-
-			model_t *model;
-			if (ent->v->modelindex < 1 || ent->v->modelindex >= MAX_MODELS)
-				Host_Error("SV_ClipMoveToEntity: modelindex out of range\n");
-			model = w->Get_CModel(w, ent->v->modelindex);
-
-			if (model && model->funcs.Trace)
-			{
-				//do the second trace
-				TransformedTrace(model, hullnum, ent->v->frame, start, end, mins, maxs, &trace, eorg, ent->v->angles);
-			}
+			//do the second trace
+			TransformedTrace(model, hullnum, ent->v->frame, start, end, mins, maxs, &trace, eorg, ent->v->angles, hitcontentsmask);
 		}
 	}
 
 // did we clip the move?
-	if (trace.fraction < 1 || trace.startsolid  )
+	if (trace.fraction < 1 || trace.startsolid)
 		trace.ent = ent;
 
 	return trace;
 }
 #ifdef Q2SERVER
-static trace_t WorldQ2_ClipMoveToEntity (world_t *w, q2edict_t *ent, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end)
+static trace_t WorldQ2_ClipMoveToEntity (world_t *w, q2edict_t *ent, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, unsigned int hitcontentsmask)
 {
 	trace_t		trace;
 	model_t		*model;
@@ -1093,7 +1089,7 @@ static trace_t WorldQ2_ClipMoveToEntity (world_t *w, q2edict_t *ent, vec3_t star
 	}
 
 // trace a line through the apropriate clipping hull
-	TransformedTrace(model, 0, 0, start, end, mins, maxs, &trace, ent->s.origin, ent->s.angles);
+	TransformedTrace(model, 0, 0, start, end, mins, maxs, &trace, ent->s.origin, ent->s.angles, hitcontentsmask);
 
 // did we clip the move?
 	if (trace.fraction < 1 || trace.startsolid  )
@@ -1295,7 +1291,7 @@ static model_t *WorldQ2_ModelForEntity (world_t *w, q2edict_t *ent)
 #endif
 
 #ifdef Q2SERVER
-void WorldQ2_ClipMoveToEntities (world_t *w, moveclip_t *clip, int contentsmask )
+void WorldQ2_ClipMoveToEntities (world_t *w, moveclip_t *clip )
 {
 	int			i, num;
 	q2edict_t		*touchlist[MAX_EDICTS], *touch;
@@ -1326,7 +1322,7 @@ void WorldQ2_ClipMoveToEntities (world_t *w, moveclip_t *clip, int contentsmask 
 		}
 
 		if (touch->svflags & SVF_DEADMONSTER)
-		if ( !(contentsmask & Q2CONTENTS_DEADMONSTER))
+		if ( !(clip->hitcontentsmask & Q2CONTENTS_DEADMONSTER))
 				continue;
 
 		// might intersect, so do an exact clip
@@ -1337,11 +1333,11 @@ void WorldQ2_ClipMoveToEntities (world_t *w, moveclip_t *clip, int contentsmask 
 
 		if (touch->svflags & SVF_MONSTER)
 			trace = CM_TransformedBoxTrace (model, clip->start, clip->end,
-				clip->mins2, clip->maxs2, contentsmask,
+				clip->mins2, clip->maxs2, clip->hitcontentsmask,
 				touch->s.origin, angles);
 		else
 			trace = CM_TransformedBoxTrace (model, clip->start, clip->end,
-				clip->mins, clip->maxs, contentsmask,
+				clip->mins, clip->maxs, clip->hitcontentsmask,
 				touch->s.origin, angles);
 
 		if (trace.allsolid || trace.startsolid ||
@@ -1434,9 +1430,9 @@ static void World_ClipToEverything (world_t *w, moveclip_t *clip)
 		}
 
 		if ((int)touch->v->flags & FL_MONSTER)
-			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins2, clip->maxs2, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL);
+			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins2, clip->maxs2, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->hitcontentsmask);
 		else
-			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL);
+			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->hitcontentsmask);
 		if (trace.allsolid || trace.startsolid ||
 				trace.fraction < clip->trace.fraction)
 		{
@@ -1535,9 +1531,9 @@ static void World_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 		}
 
 		if ((int)touch->v->flags & FL_MONSTER)
-			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins2, clip->maxs2, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL);
+			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins2, clip->maxs2, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->hitcontentsmask);
 		else
-			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL);
+			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->hitcontentsmask);
 
 		if (trace.allsolid || trace.startsolid ||
 		trace.fraction < clip->trace.fraction)
@@ -1608,7 +1604,7 @@ static void WorldQ2_ClipToLinks (world_t *w, areanode_t *node, moveclip_t *clip)
 				continue;	// don't clip against owner
 		}
 
-		trace = WorldQ2_ClipMoveToEntity (w, touch, clip->start, clip->mins, clip->maxs, clip->end);
+		trace = WorldQ2_ClipMoveToEntity (w, touch, clip->start, clip->mins, clip->maxs, clip->end, clip->hitcontentsmask);
 
 		if (trace.allsolid || trace.startsolid ||
 		trace.fraction < clip->trace.fraction)
@@ -1706,8 +1702,15 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 	}
 #endif
 
+	if (type & MOVE_NOMONSTERS)
+		clip.hitcontentsmask = MASK_WORLDSOLID; /*solid only to world*/
+	else if (maxs[0] - mins[0])
+		clip.hitcontentsmask = MASK_BOXSOLID;	/*impacts playerclip*/
+	else
+		clip.hitcontentsmask = MASK_POINTSOLID;		/*ignores playerclip but hits everything else*/
+
 // clip to world
-	clip.trace = World_ClipMoveToEntity (w, w->edicts, w->edicts->v->origin, start, mins, maxs, end, hullnum, false);
+	clip.trace = World_ClipMoveToEntity (w, w->edicts, w->edicts->v->origin, start, mins, maxs, end, hullnum, false, clip.hitcontentsmask);
 
 	clip.start = start;
 	clip.end = end;
@@ -1830,7 +1833,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 						continue;	// don't clip against owner
 				}
 
-				trace = World_ClipMoveToEntity (w, touch, lp, clip.start, clip.mins, clip.maxs, clip.end, clip.hullnum, clip.type & MOVE_HITMODEL);
+				trace = World_ClipMoveToEntity (w, touch, lp, clip.start, clip.mins, clip.maxs, clip.end, clip.hullnum, clip.type & MOVE_HITMODEL, clip.hitcontentsmask);
 
 				if (trace.allsolid || trace.startsolid || trace.fraction < clip.trace.fraction)
 				{
@@ -1860,14 +1863,14 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 	return clip.trace;
 }
 #ifdef Q2SERVER
-trace_t WorldQ2_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, q2edict_t *passedict)
+trace_t WorldQ2_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int hitcontentsmask, q2edict_t *passedict)
 {
 	moveclip_t	clip;
 
 	memset ( &clip, 0, sizeof ( moveclip_t ) );
 
 // clip to world
-	clip.trace = CM_BoxTrace(w->worldmodel, start, end, mins, maxs, type);//SVQ2_ClipMoveToEntity ( ge->edicts, start, mins, maxs, end );
+	clip.trace = CM_BoxTrace(w->worldmodel, start, end, mins, maxs, hitcontentsmask);//SVQ2_ClipMoveToEntity ( ge->edicts, start, mins, maxs, end );
 	clip.trace.ent = ge->edicts;
 
 	if (clip.trace.fraction == 0)
@@ -1877,7 +1880,8 @@ trace_t WorldQ2_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t
 	clip.end = end;
 	clip.mins = mins;
 	clip.maxs = maxs;
-	clip.type = type;
+	clip.type = MOVE_NORMAL;
+	clip.hitcontentsmask = hitcontentsmask;
 	clip.passedict = NULL;
 	clip.q2passedict = passedict;
 
@@ -1890,7 +1894,7 @@ trace_t WorldQ2_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t
 // clip to entities
 #ifdef Q2BSPS
 	if (w->worldmodel->fromgame == fg_quake2 || w->worldmodel->fromgame == fg_quake3)
-		WorldQ2_ClipMoveToEntities(w, &clip, type);
+		WorldQ2_ClipMoveToEntities(w, &clip);
 	else
 #endif
 		WorldQ2_ClipToLinks (w, w->areanodes, &clip );

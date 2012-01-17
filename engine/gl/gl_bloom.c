@@ -20,11 +20,223 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // gl_bloom.c: 2D lighting post process effect
 
 
+/*
+info about bloom algo:
+bloom is basically smudging.
+screen is nearest-downsampled to some usable scale and filtered to remove low-value light (this is what stops non-bright stuff from blooming)
+this filtered image is then downsized multiple times
+the downsized image is then blured 
+the downsized images are then blured horizontally, and then vertically.
+final pass simply adds each blured level to the original image.
+all samples are then added together for final rendering (with some kind of tone mapping if you want proper hdr).
+
+note: the horizontal/vertical bluring is a guassian filter
+note: bloom comes from the fact that the most downsampled image doesn't have too many pixels. the pixels that it does have are spread over a large area.
+
+http://prideout.net/archive/bloom/ contains some sample code
+*/
+
+
 //http://www.quakesrc.org/forums/viewtopic.php?t=4340&start=0
 
 #include "quakedef.h"
 
 #ifdef GLQUAKE
+#include "shader.h"
+#include "glquake.h"
+cvar_t		r_bloom = CVARAFD("r_bloom", "0", "gl_bloom", CVAR_ARCHIVE, "Enables bloom (light bleeding from bright objects)");
+static shader_t *bloomfilter;
+static shader_t *bloomrescale;
+static shader_t *bloomblur;
+static shader_t *bloomfinal;
+
+#define MAXLEVELS 3
+texid_t scrtex;
+texid_t pingtex[2][MAXLEVELS];
+static int scrwidth, scrheight;
+static int texwidth[MAXLEVELS], texheight[MAXLEVELS];
+
+
+
+void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, texid_t destdepth, qboolean usedepth);
+
+void R_BloomRegister(void)
+{
+	Cvar_Register (&r_bloom, "bloom");
+}
+static void R_SetupBloomTextures(int w, int h)
+{
+	int i, j;
+	char name[64];
+	if (w == scrwidth && h == scrheight)
+		return;
+	scrwidth = w;
+	scrheight = h;
+	w /= 2;
+	h /= 2;
+	for (i = 0; i < MAXLEVELS; i++)
+	{
+		w /= 2;
+		h /= 2;
+		/*I'm paranoid*/
+		if (w < 4)
+			w = 4;
+		if (h < 4)
+			h = 4;
+
+		texwidth[i] = w;
+		texheight[i] = h;
+	}
+
+	/*we should be doing this outside of this code*/
+	if (!TEXVALID(scrtex))
+		scrtex = GL_AllocNewTexture("", scrwidth, scrheight);
+	GL_MTBind(0, GL_TEXTURE_2D, scrtex);
+	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, scrwidth, scrheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	/*top level uses nearest sampling*/
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	/*now create textures for each level*/
+	for (j = 0; j < MAXLEVELS; j++)
+	{
+		for (i = 0; i < 2; i++)
+		{
+			if (!TEXVALID(pingtex[i][j]))
+			{
+				sprintf(name, "***bloom*%c*%i***", 'a'+i, j);
+				TEXASSIGN(pingtex[i][j], GL_AllocNewTexture(name, texwidth[j], texheight[j]));
+			}
+			GL_MTBind(0, GL_TEXTURE_2D, pingtex[i][j]);
+			qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, texwidth[j], texheight[j], 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		}
+	}
+
+
+	bloomfilter = R_RegisterShader("bloom_filter",
+		"{\n"
+			"cull none\n"
+			"program bloom_filter\n"
+			"{\n"
+				"map $sourcecolour\n"
+			"}\n"
+		"}\n");
+	bloomrescale = R_RegisterShader("bloom_rescale",
+		"{\n"
+			"cull none\n"
+			"program default2d\n"
+			"{\n"
+				"map $sourcecolour\n"
+			"}\n"
+		"}\n");
+	bloomblur = R_RegisterShader("bloom_blur",
+		"{\n"
+			"cull none\n"
+			"program bloom_blur\n"
+			"{\n"
+				"map $sourcecolour\n"
+			"}\n"
+		"}\n");
+	bloomfinal = R_RegisterShader("bloom_final",
+		"{\n"
+			"cull none\n"
+			"program bloom_final\n"
+			"{\n"
+				"map $sourcecolour\n"
+			"}\n"
+			"{\n"
+				"map $diffuse\n"
+			"}\n"
+			"{\n"
+				"map $loweroverlay\n"
+			"}\n"
+			"{\n"
+				"map $upperoverlay\n"
+			"}\n"
+		"}\n");
+	bloomfinal->defaulttextures.base			= pingtex[0][0];
+	bloomfinal->defaulttextures.loweroverlay	= pingtex[0][1];
+	bloomfinal->defaulttextures.upperoverlay	= pingtex[0][2];
+}
+void R_BloomBlend (void)
+{
+	int i;
+
+	if (!gl_config.ext_framebuffer_objects)
+		return;
+	if (!gl_config.arb_shader_objects)
+		return;
+
+	/*whu?*/
+	if (!r_refdef.pxrect.width || !r_refdef.pxrect.height)
+		return;
+
+	GL_Set2D(false);
+
+	/*update textures if we need to resize them*/
+	R_SetupBloomTextures(r_refdef.pxrect.width, r_refdef.pxrect.height);
+
+	/*grab the screen, because we failed to do it earlier*/
+	GL_MTBind(0, GL_TEXTURE_2D, scrtex);
+	qglCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, r_refdef.pxrect.x, r_refdef.pxrect.y - r_refdef.pxrect.height, r_refdef.pxrect.width, r_refdef.pxrect.height);
+
+	/*filter the screen into a downscaled image*/
+	GLBE_RenderToTexture(scrtex, r_nulltex, pingtex[0][0], r_nulltex, false);
+	qglViewport (0, 0, texwidth[0], texheight[0]);
+	R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomfilter);
+	/*and downscale that multiple times*/
+	for (i = 1; i < MAXLEVELS; i++)
+	{
+		GLBE_RenderToTexture(pingtex[0][i-1], r_nulltex, pingtex[0][i], r_nulltex, false);
+		qglViewport (0, 0, texwidth[i], texheight[i]);
+		R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomrescale);
+	}
+
+	/*gaussian filter the mips to bloom more smoothly*/
+	for (i = 0; i < MAXLEVELS; i++)
+	{
+		/*must be 1.2th of a pixel*/
+		r_worldentity.glowmod[0] = 1.2 / texwidth[i];
+		r_worldentity.glowmod[1] = 0;
+		GLBE_RenderToTexture(pingtex[0][i], r_nulltex, pingtex[1][i], r_nulltex, false);
+		qglViewport (0, 0, texwidth[i], texheight[i]);
+		R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomblur);
+	}
+	for (i = 0; i < MAXLEVELS; i++)
+	{
+		r_worldentity.glowmod[0] = 0;
+		r_worldentity.glowmod[1] = 1.2 / texheight[i];
+		GLBE_RenderToTexture(pingtex[1][i], r_nulltex, pingtex[0][i], r_nulltex, false);
+		qglViewport (0, 0, texwidth[i], texheight[i]);
+		R2D_ScalePic(0, vid.height, vid.width, -(int)vid.height, bloomblur);
+	}
+
+	GL_Set2D(false);
+
+	/*combine them onto the screen*/
+	GLBE_RenderToTexture(scrtex, r_nulltex, r_nulltex, r_nulltex, false);
+	R2D_ScalePic(r_refdef.vrect.x, r_refdef.vrect.y + r_refdef.vrect.height, r_refdef.vrect.width, -r_refdef.vrect.height, bloomfinal);
+}
+void R_InitBloomTextures(void)
+{
+	bloomfilter = NULL;
+	bloomblur = NULL;
+	bloomfinal = NULL;
+	scrwidth = 0, scrheight = 0;
+
+	if (!gl_config.ext_framebuffer_objects)
+		return;
+
+}
+
+#elif defined(GLQUAKE)
 #include "glquake.h"
 
 /*

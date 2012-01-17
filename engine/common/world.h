@@ -103,11 +103,12 @@ typedef struct q2trace_s
 								//13
 #define FL_FINDABLE_NONSOLID	(1<<14)	//a cpqwsv feature
 #define FL_MOVECHAIN_ANGLE		(1<<15) // hexen2 - when in a move chain, will update the angle
-#define FL_LAGGEDMOVE			(1<<16)
-								//17
+#define FLQW_LAGGEDMOVE			(1<<16)
+#define FLH2_HUNTFACE			(1<<16)
+#define FLH2_NOZ				(1<<17)
 								//18
 								//19
-								//20
+#define	FL_HUBSAVERESET			(1<<20) //hexen2, ent is reverted to original state on map changes.
 #define FL_CLASS_DEPENDENT		(1<<21)	//hexen2
 
 
@@ -249,7 +250,7 @@ void VARGS WorldQ2_LinkEdict(world_t *w, q2edict_t *ent);
 void VARGS WorldQ2_UnlinkEdict(world_t *w, q2edict_t *ent);
 int VARGS WorldQ2_AreaEdicts (world_t *w, vec3_t mins, vec3_t maxs, q2edict_t **list,
 	int maxcount, int areatype);
-trace_t WorldQ2_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type, q2edict_t *passedict);
+trace_t WorldQ2_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int hitcontentsmask, q2edict_t *passedict);
 
 unsigned int Q2BSP_FatPVS (model_t *mod, vec3_t org, qbyte *buffer, unsigned int buffersize, qboolean add);
 qboolean Q2BSP_EdictInFatPVS(model_t *mod, struct pvscache_s *ent, qbyte *pvs);

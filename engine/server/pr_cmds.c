@@ -2905,6 +2905,7 @@ static void QCBUILTIN PF_sound (progfuncs_t *prinst, struct globalvars_s *pr_glo
 	int 		volume;
 	float attenuation;
 	int			pitchadj;
+	int flags;
 
 	entity = G_EDICT(prinst, OFS_PARM0);
 	channel = G_FLOAT(OFS_PARM1);
@@ -2915,12 +2916,24 @@ static void QCBUILTIN PF_sound (progfuncs_t *prinst, struct globalvars_s *pr_glo
 		pitchadj = G_FLOAT(OFS_PARM5);
 	else
 		pitchadj = 0;
+	if (*svprogfuncs->callargc > 6)
+	{
+		flags = G_FLOAT(OFS_PARM5);
+		if (channel < 0)
+			channel = 0;
+		channel &= 7;
+	}
+	else
+		flags = (channel & 8)?1:0;
 
 	if (volume < 0)	//erm...
 		return;
 
 	if (volume > 255)
 		volume = 255;
+
+	if (flags & 1)
+		channel |= 8;
 
 	SVQ1_StartSound ((wedict_t*)entity, channel, sample, volume, attenuation, pitchadj);
 }
@@ -3476,11 +3489,12 @@ static void QCBUILTIN PF_conprint (progfuncs_t *prinst, struct globalvars_s *pr_
 	Sys_Printf ("%s",PF_VarString(prinst, 0, pr_globals));
 }
 
-
-static void QCBUILTIN PF_h2printf (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_h2dprintf (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char temp[256];
+	char printable[2048];
 	float	v;
+	char *pct;
 
 	v = G_FLOAT(OFS_PARM1);
 
@@ -3489,16 +3503,34 @@ static void QCBUILTIN PF_h2printf (progfuncs_t *prinst, struct globalvars_s *pr_
 	else
 		sprintf (temp, "%5.1f",v);
 
-	Con_Printf (PR_GetStringOfs(prinst, OFS_PARM0),temp);
+	Q_strncpyz(printable, PR_GetStringOfs(prinst, OFS_PARM0), sizeof(printable));
+	while(pct = strstr(printable, "%s"))
+	{
+		if ((pct-printable) + strlen(temp) + strlen(pct) > sizeof(printable))
+			break;
+		memmove(pct + strlen(temp), pct+2, strlen(pct+2)+1);
+		memcpy(pct, temp, strlen(temp));
+	}
+	Con_DPrintf ("%s", printable);
 }
 
-static void QCBUILTIN PF_h2printv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_h2dprintv (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	char temp[256];
+	char printable[2048];
+	char *pct;
 
 	sprintf (temp, "'%5.1f %5.1f %5.1f'", G_VECTOR(OFS_PARM1)[0], G_VECTOR(OFS_PARM1)[1], G_VECTOR(OFS_PARM1)[2]);
 
-	Con_Printf (PR_GetStringOfs(prinst, OFS_PARM0),temp);
+	Q_strncpyz(printable, PR_GetStringOfs(prinst, OFS_PARM0), sizeof(printable));
+	while(pct = strstr(printable, "%s"))
+	{
+		if ((pct-printable) + strlen(temp) + strlen(pct) > sizeof(printable))
+			break;
+		memmove(pct + strlen(temp), pct+2, strlen(pct+2)+1);
+		memcpy(pct, temp, strlen(temp));
+	}
+	Con_DPrintf ("%s", printable);
 }
 
 static void QCBUILTIN PF_h2spawn_temp (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3625,7 +3657,7 @@ int PF_precache_model_Internal (progfuncs_t *prinst, char *s, qboolean queryonly
 				sv.strings.model_precache[i] = PR_AddString(prinst, s, 0);
 			s = sv.strings.model_precache[i];
 			if (!strcmp(s + strlen(s) - 4, ".bsp") || sv_gameplayfix_setmodelrealbox.ival)
-				sv.models[i] = Mod_FindName(s);
+				sv.models[i] = Mod_ForName(s, false);
 			else
 			{
 				/*touch the file, so any packs will be referenced*/
@@ -6299,21 +6331,35 @@ void PRH2_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc)
 {
 	char		temp[16];
 	if (classnum < 1)
-		return;	//reject it (it would crash the (standard hexen2) mod)
+		return; //reject it (it would crash the (standard hexen2) mod)
 	if (classnum > 5)
 		return;
 
-	/*ignore it if they already have a class, this fixes some h2mp crashes*/
-	if (cl->playerclass)
-		return;
+	if (!fromqc)
+	{
+		if (progstype != PROG_H2)
+			return;
 
+		/*if they already have a class, only switch to the class already set by the gamecode
+		this is awkward, but matches hexen2*/
+		if (cl->playerclass)
+		{
+			if (cl->edict->xv->playerclass)
+				classnum = cl->edict->xv->playerclass;
+			else if (cl->playerclass)
+				classnum = cl->playerclass;
+		}
+	}
+
+	if (classnum)
+		sprintf(temp,"%i",(int)classnum);
+	else
+		*temp = 0;
+	Info_SetValueForKey (cl->userinfo, "cl_playerclass", temp, sizeof(cl->userinfo));
 	if (cl->playerclass != classnum)
 	{
 		cl->edict->xv->playerclass = classnum;
 		cl->playerclass = classnum;
-
-		sprintf(temp,"%i",(int)classnum);
-		Info_SetValueForKey (cl->userinfo, "cl_playerclass", temp, sizeof(cl->userinfo));
 
 		if (!fromqc)
 		{
@@ -6629,6 +6675,31 @@ enum
 	ce_grey_smoke_15,
 	ce_grey_smoke_100,
 
+	ce_chunk_1,
+	ce_chunk_2,
+	ce_chunk_3,
+	ce_chunk_4,
+	ce_chunk_5,
+	ce_chunk_6,
+	ce_chunk_7,
+	ce_chunk_8,
+	ce_chunk_9,
+	ce_chunk_10,
+	ce_chunk_11,
+	ce_chunk_12,
+	ce_chunk_13,
+	ce_chunk_14,
+	ce_chunk_15,
+	ce_chunk_16,
+	ce_chunk_17,
+	ce_chunk_18,
+	ce_chunk_19,
+	ce_chunk_20,
+	ce_chunk_21,
+	ce_chunk_22,
+	ce_chunk_23,
+	ce_chunk_24,
+
 	ce_max
 };
 int h2customtents[ce_max];
@@ -6677,11 +6748,11 @@ void SV_RegisterH2CustomTents(void)
 		h2customtents[ce_magic_missile_explosion]	= SV_CustomTEnt_Register("ce_magic_missile_explosion", 0, NULL, 0, NULL, 0, 0, NULL);
 //	ce_ghost
 		h2customtents[ce_bone_explosion]	= SV_CustomTEnt_Register("ce_bone_explosion",	0, NULL, 0, NULL, 0, 0, NULL);
-//	ce_redcloud
+		h2customtents[ce_redcloud]			= SV_CustomTEnt_Register("ce_redcloud",			CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_teleporterpuffs]	= SV_CustomTEnt_Register("ce_teleporterpuffs",	0, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_teleporterbody]	= SV_CustomTEnt_Register("ce_teleporterbody",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
-//	ce_boneshard
-//	ce_boneshrapnel
+		h2customtents[ce_boneshard]			= SV_CustomTEnt_Register("ce_boneshard",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_boneshrapnel]		= SV_CustomTEnt_Register("ce_boneshrapnel",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_flamestream]		= SV_CustomTEnt_Register("ce_flamestream",		CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
 //	ce_snow,
 		h2customtents[ce_gravitywell]		= SV_CustomTEnt_Register("ce_gravitywell",		0, NULL, 0, NULL, 0, 0, NULL);
@@ -6718,6 +6789,31 @@ void SV_RegisterH2CustomTents(void)
 		h2customtents[ce_green_smoke_20]	= SV_CustomTEnt_Register("ce_green_smoke_20",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_grey_smoke_15]		= SV_CustomTEnt_Register("ce_grey_smoke_15",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
 		h2customtents[ce_grey_smoke_100]	= SV_CustomTEnt_Register("ce_grey_smoke_100",	CTE_CUSTOMVELOCITY, NULL, 0, NULL, 0, 0, NULL);
+
+		h2customtents[ce_chunk_1]	= SV_CustomTEnt_Register("ce_chunk_greystone",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_2]	= SV_CustomTEnt_Register("ce_chunk_wood",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_3]	= SV_CustomTEnt_Register("ce_chunk_metal",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_4]	= SV_CustomTEnt_Register("ce_chunk_flesh",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_5]	= SV_CustomTEnt_Register("ce_chunk_fire",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_6]	= SV_CustomTEnt_Register("ce_chunk_clay",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_7]	= SV_CustomTEnt_Register("ce_chunk_leaves",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_8]	= SV_CustomTEnt_Register("ce_chunk_hay",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_9]	= SV_CustomTEnt_Register("ce_chunk_brownstone",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_10]	= SV_CustomTEnt_Register("ce_chunk_cloth",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_11]	= SV_CustomTEnt_Register("ce_chunk_wood_leaf",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_12]	= SV_CustomTEnt_Register("ce_chunk_wood_metal",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_13]	= SV_CustomTEnt_Register("ce_chunk_wood_stone",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_14]	= SV_CustomTEnt_Register("ce_chunk_metal_stone",	CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_15]	= SV_CustomTEnt_Register("ce_chunk_metal_cloth",	CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_16]	= SV_CustomTEnt_Register("ce_chunk_webs",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_17]	= SV_CustomTEnt_Register("ce_chunk_glass",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_18]	= SV_CustomTEnt_Register("ce_chunk_ice",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_19]	= SV_CustomTEnt_Register("ce_chunk_clearglass",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_20]	= SV_CustomTEnt_Register("ce_chunk_redglass",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_21]	= SV_CustomTEnt_Register("ce_chunk_acid",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_22]	= SV_CustomTEnt_Register("ce_chunk_meteor",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_23]	= SV_CustomTEnt_Register("ce_chunk_greenflesh",		CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
+		h2customtents[ce_chunk_24]	= SV_CustomTEnt_Register("ce_chunk_bone",			CTE_CUSTOMVELOCITY|CTE_CUSTOMCOUNT, NULL, 0, NULL, 0, 0, NULL);
 	}
 }
 static void QCBUILTIN PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -6725,6 +6821,7 @@ static void QCBUILTIN PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s 
 //	float *min, *max, *angle, *size;
 //	float colour, wait, radius, frame, framelength, duration;
 //	int flags, type, skin;
+	int type;
 	float *org, *dir;
 	int count;
 
@@ -6934,9 +7031,14 @@ static void QCBUILTIN PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s 
 		break;
 	case ce_chunk:
 		org = G_VECTOR(OFS_PARM1);
-		//type = G_FLOAT(OFS_PARM2);	/*FIXME: discarded*/
+		type = G_FLOAT(OFS_PARM2);
 		dir = G_VECTOR(OFS_PARM3);
 		count = G_FLOAT(OFS_PARM4);
+
+		/*convert it to the requested chunk type*/
+		efnum = ce_chunk_1 + type - 1;
+		if (efnum < ce_chunk_1 && efnum > ce_chunk_24)
+			efnum = ce_chunk;
 
 		if (h2customtents[efnum] != -1)
 		{
@@ -6944,7 +7046,7 @@ static void QCBUILTIN PF_h2starteffect(progfuncs_t *prinst, struct globalvars_s 
 			return;
 		}
 
-		Con_Printf("FTE-H2 FIXME: ce_chunk not supported!\n");
+		Con_Printf("FTE-H2 FIXME: ce_chunk type=%i not supported!\n", type);
 		return;
 
 
@@ -8482,7 +8584,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"lightstylestatic",PF_lightstylestatic,0,		0,		5,		5,	"void(float style, float val)"},
 	{"break",			PF_break,			6,		6,		6,		0,	"void()"},
 	{"random",			PF_random,			7,		7,		7,		0,	"float()"},
-	{"sound",			PF_sound,			8,		8,		8,		0,	"void(entity e, float chan, string samp, float vol, float atten, optional float speedpct)"},
+	{"sound",			PF_sound,			8,		8,		8,		0,	"void(entity e, float chan, string samp, float vol, float atten, optional float speedpct, optional float flags)"},
 	{"normalize",		PF_normalize,		9,		9,		9,		0,	"vector(vector v)"},
 	{"error",			PF_error,			10,		10,		10,		0,	"void(string e)"},
 	{"objerror",		PF_objerror,		11,		11,		11,		0,	"void(string e)"},
@@ -8561,14 +8663,14 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"bwriteentity",	PF_qtBroadcast_WriteEntity},	//66
 
 
-	{"printfloat",		PF_h2printf,		0,		0,		60},	//60
+	{"printfloat",		PF_h2dprintf,		0,		0,		60},	//60
 
 	{"sin",				PF_Sin,				0,		0,		62,		60,	"float(float angle)"},	//60
 	{"cos",				PF_Cos,				0,		0,		61,		61,	"float(float angle)"},	//61
 	{"sqrt",			PF_Sqrt,			0,		0,		84,		62,	"float(float value)"},	//62
 
 	{"AdvanceFrame",	PF_h2AdvanceFrame,	0,		0,		63,		0},
-	{"printvec",		PF_h2printv,		0,		0,		64,		0},	//64
+	{"printvec",		PF_h2dprintv,		0,		0,		64,		0},	//64
 	{"RewindFrame",		PF_h2RewindFrame,	0,		0,		65,		0},
 	{"particleexplosion",PF_h2particleexplosion,0,	0,		81,		0},
 	{"movestep",		PF_h2movestep,		0,		0,		82,		0},
@@ -8761,7 +8863,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"map_builtin",		PF_builtinsupported,0,		0,		0,		220,	"", true},	//like #100 - takes 2 args. arg0 is builtinname, 1 is number to map to.
 
 //FTE_STRINGS
-	{"strstrofs",		PF_strstrofs,		0,		0,		0,		221,	"float(string s1, string sub)"},
+	{"strstrofs",		PF_strstrofs,		0,		0,		0,		221,	"float(string s1, string sub, optional float startidx)"},
 	{"str2chr",			PF_str2chr,			0,		0,		0,		222,	"float(string str, float index)"},
 	{"chr2str",			PF_chr2str,			0,		0,		0,		223,	"string(float chr, ...)"},
 	{"strconv",			PF_strconv,			0,		0,		0,		224,	"string(float ccase, float redalpha, float redchars, string str, ...)"},
@@ -8930,6 +9032,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"dynamiclight_get",PF_Fixme,	0,		0,		0,		372,	"__variant(float lno, float fld)"},
 	{"dynamiclight_set",PF_Fixme,	0,		0,		0,		373,	"void(float lno, float fld, __variant value)"},
+	{"particleeffectquery",PF_Fixme,0,		0,		0,		374,	"string(float efnum, float body)"},
 //END EXT_CSQC
 
 //end fte extras
@@ -9766,7 +9869,7 @@ void PR_DumpPlatform_f(void)
 		{"FL_WATERJUMP",		"const float", QW|NQ|CS, FL_WATERJUMP},
 		{"FL_FINDABLE_NONSOLID","const float", QW|NQ|CS, FL_FINDABLE_NONSOLID},
 //		{"FL_MOVECHAIN_ANGLE",	"const float", QW|NQ, FL_MOVECHAIN_ANGLE},
-		{"FL_LAGGEDMOVE",		"const float", QW|NQ, FL_LAGGEDMOVE},
+		{"FL_LAGGEDMOVE",		"const float", QW|NQ, FLQW_LAGGEDMOVE},
 //		{"FL_CLASS_DEPENDENT",	"const float", QW|NQ, FL_CLASS_DEPENDENT},
 
 		{"MOVE_NORMAL",			"const float", QW|NQ|CS, MOVE_NORMAL},

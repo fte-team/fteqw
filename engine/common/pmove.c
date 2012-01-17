@@ -59,6 +59,7 @@ static void PM_AddTouchedEnt (int num)
 			return; // already added
 
 	pmove.touchindex[pmove.numtouch] = num;
+	VectorCopy(pmove.velocity, pmove.touchvel[pmove.numtouch]);
 	pmove.numtouch++;
 }
 
@@ -759,7 +760,7 @@ void PM_CategorizePosition (void)
 		}
 	}
 
-	if (cont & FTECONTENTS_LADDER)
+	if (cont & Q2CONTENTS_LADDER && pmove.physents[0].model->fromgame == fg_quake2)
 		pmove.onladder = true;
 	else
 		pmove.onladder = false;
@@ -785,7 +786,7 @@ void PM_CategorizePosition (void)
 			pmove.onground = false;	// too steep
 		}
 	}
-	if (cont & FTECONTENTS_LADDER && pmove.physents[0].model->fromgame == fg_quake2)
+	if (cont & Q2CONTENTS_LADDER && pmove.physents[0].model->fromgame == fg_quake2)
 	{
 		trace_t t;
 		vec3_t flatforward, fwd1;
@@ -812,7 +813,7 @@ void PM_CategorizePosition (void)
 
 	//bsp objects marked as ladders mark regions to stand in to be classed as on a ladder.
 	cont = PM_ExtraBoxContents(pmove.origin);
-	if (cont & FTECONTENTS_LADDER)
+	if ((cont & Q2CONTENTS_LADDER) && (pmove.physents[0].model->fromgame == fg_quake2 || pmove.physents[0].model->fromgame == fg_halflife))
 	{
 		pmove.onladder = true;
 		pmove.onground = false;	// too steep

@@ -560,10 +560,10 @@ static int SVQ3_Contact(vec3_t mins, vec3_t maxs, q3sharedEntity_t *ent)
 	else
 		mod = Mod_ForName(va("*%i", ent->s.modelindex), false);
 
-	if (mod->needload || !mod->funcs.Trace)
+	if (mod->needload || !mod->funcs.NativeTrace)
 		return false;
 
-	mod->funcs.Trace(mod, 0, 0, NULL, vec3_origin, vec3_origin, mins, maxs, &tr);
+	mod->funcs.NativeTrace(mod, 0, 0, NULL, vec3_origin, vec3_origin, mins, maxs, 0xffffffff, &tr);
 
 	if (tr.startsolid)
 		return true;

@@ -172,10 +172,9 @@ BRUSH MODELS
 */
 
 typedef struct {
-	//deals with FTECONTENTS (assumes against solid)
+	//model is being purged from memory.
 	void (*PurgeModel) (struct model_s *mod);
 
-	qboolean (*Trace)			(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, struct trace_s *trace);
 	unsigned int (*PointContents)	(struct model_s *model, vec3_t axis[3], vec3_t p);
 	unsigned int (*BoxContents)		(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p, vec3_t mins, vec3_t maxs);
 
@@ -515,7 +514,7 @@ int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangen
 
 void Q1BSP_MarkLights (dlight_t *light, int bit, mnode_t *node);
 void GLQ1BSP_LightPointValues(struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
-qboolean Q1BSP_Trace(struct model_s *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, struct trace_s *trace);
+qboolean Q1BSP_Trace(struct model_s *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int hitcontentsmask, struct trace_s *trace);
 qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, struct trace_s *trace);
 unsigned int Q1BSP_FatPVS (struct model_s *mod, vec3_t org, qbyte *pvsbuffer, unsigned int buffersize, qboolean add);
 qboolean Q1BSP_EdictInFatPVS(struct model_s *mod, struct pvscache_s *ent, qbyte *pvs);

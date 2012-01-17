@@ -1095,17 +1095,8 @@ static void QCBUILTIN PF_R_ClearScene (progfuncs_t *prinst, struct globalvars_s 
 
 	if (cl.worldmodel)
 	{
-		//work out which packet entities are solid
-		CL_SetSolidEntities ();
-
-		// Set up prediction for other players
-		CL_SetUpPlayerPrediction(false);
-
 		// do client side motion prediction
 		CL_PredictMove ();
-
-		// Set up prediction for other players
-		CL_SetUpPlayerPrediction(true);
 	}
 
 	skel_dodelete(csqcprogs);
@@ -1383,7 +1374,7 @@ static void QCBUILTIN PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s 
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
-		GL_Set2D ();
+		GL_Set2D (false);
 	}
 #endif
 #ifdef D3DQUAKE
@@ -1930,6 +1921,28 @@ static void QCBUILTIN PF_cs_particleeffectnum (progfuncs_t *prinst, struct globa
 	{
 		G_FLOAT(OFS_RETURN) = pe->FindParticleType(effectname)+1;
 	}
+}
+
+static void QCBUILTIN PF_cs_particleeffectquery (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int id = G_FLOAT(OFS_PARM0);
+	qboolean body = G_FLOAT(OFS_PARM1);
+	char retstr[8192];
+
+	if (csqc_isdarkplaces)
+	{
+		//keep the effectinfo synced between server and client.
+		id = COM_Effectinfo_ForName(COM_Effectinfo_ForNumber(id));
+	}
+	else
+		id = id - 1;
+
+	if (pe->ParticleQuery && pe->ParticleQuery(id, body, retstr, sizeof(retstr)))
+	{
+		RETURN_TSTRING(retstr);
+	}
+	else
+		G_INT(OFS_RETURN) = 0;
 }
 
 static void QCBUILTIN PF_cs_sendevent (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2486,7 +2499,7 @@ void QCBUILTIN PF_cl_effect(progfuncs_t *prinst, struct globalvars_s *pr_globals
 
 	mdl = Mod_ForName(name, false);
 	if (mdl)
-		CL_SpawnSpriteEffect(org, NULL, mdl, startframe, endframe, framerate, 1);
+		CL_SpawnSpriteEffect(org, NULL, mdl, startframe, endframe, framerate, 1, 0, 0);
 	else
 		Con_Printf("PF_cl_effect: Couldn't load model %s\n", name);
 }
@@ -4289,6 +4302,7 @@ static struct {
 
 	{"dynamiclight_get",	PF_R_DynamicLight_Get,	372},
 	{"dynamiclight_set",	PF_R_DynamicLight_Set,	373},
+	{"particleeffectquery",	PF_cs_particleeffectquery,	374},
 
 //400
 	{"copyentity",	PF_cs_copyentity,		400},	// #400 void(entity from, entity to) copyentity (DP_QC_COPYENTITY)

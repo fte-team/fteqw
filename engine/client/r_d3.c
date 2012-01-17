@@ -823,7 +823,7 @@ return;
 	D3_RecursiveSurfCheck (node->child[side^1], midf, p2f, mid, p2);
 }
 
-qboolean D3_Trace (struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, struct trace_s *trace)
+qboolean D3_Trace (struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, unsigned int hitcontentsmask, struct trace_s *trace)
 {
 	int i;
 	float e1,e2;
@@ -1281,7 +1281,7 @@ qboolean D3_LoadMap_CollisionMap(model_t *mod, char *buf)
 	mod->entities = FS_LoadMallocFile(va("%s.map", token));
 
 	mod->funcs.FindTouchedLeafs = D3_FindTouchedLeafs;
-	mod->funcs.Trace = D3_Trace;
+	mod->funcs.NativeTrace = D3_Trace;
 	mod->funcs.PointContents = D3_PointContents;
 	mod->funcs.FatPVS = D3_FatPVS;
 	mod->funcs.LeafnumForPoint = D3_LeafnumForPoint;

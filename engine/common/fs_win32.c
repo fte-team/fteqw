@@ -57,6 +57,7 @@ static int VFSW32_WriteBytes (struct vfsfile_s *file, const void *buffer, int by
 }
 static qboolean VFSW32_Seek (struct vfsfile_s *file, unsigned long pos)
 {
+	unsigned long upper, lower;
 	vfsw32file_t *intfile = (vfsw32file_t*)file;
 	if (intfile->mmap)
 	{
@@ -64,7 +65,10 @@ static qboolean VFSW32_Seek (struct vfsfile_s *file, unsigned long pos)
 		return true;
 	}
 
-	return SetFilePointer(intfile->hand, pos, NULL, FILE_BEGIN) != INVALID_SET_FILE_POINTER;
+	lower = (pos & 0xffffffff);
+	upper = ((pos>>16)>>16);
+
+	return SetFilePointer(intfile->hand, lower, &upper, FILE_BEGIN) != INVALID_SET_FILE_POINTER;
 }
 static unsigned long VFSW32_Tell (struct vfsfile_s *file)
 {

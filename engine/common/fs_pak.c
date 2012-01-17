@@ -389,7 +389,7 @@ searchpathfuncs_t packfilefuncs = {
 
 
 #ifdef DOOMWADS
-void *FSPAK_LoadDoomWadFile (vfsfile_t *packhandle, char *desc)
+void *FSPAK_LoadDoomWadFile (vfsfile_t *packhandle, const char *desc)
 {
 	dwadheader_t	header;
 	int				i;

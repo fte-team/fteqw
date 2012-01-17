@@ -112,9 +112,9 @@ enum qcop_e {
 	//these following ones are Hexen 2 constants.
 	
 	OP_MULSTORE_F,
-	OP_MULSTORE_V,
+	OP_MULSTORE_VF,
 	OP_MULSTOREP_F,
-	OP_MULSTOREP_V,
+	OP_MULSTOREP_VF,
 
 	OP_DIVSTORE_F,	//70
 	OP_DIVSTOREP_F,
@@ -350,7 +350,10 @@ enum qcop_e {
 	OP_SUBSTORE_FI,
 	OP_SUBSTOREP_FI,
 
-	OP_NUMOPS			//246
+	OP_MULSTORE_VI,
+	OP_MULSTOREP_VI,
+
+	OP_NUMOPS
 };
 
 #define	MAX_PARMS	8

@@ -358,7 +358,7 @@ reeval:
 	case OP_MULSTORE_F: // f *= f
 		OPB->_float *= OPA->_float;
 		break;
-	case OP_MULSTORE_V: // v *= f
+	case OP_MULSTORE_VF: // v *= f
 		OPB->_vector[0] *= OPA->_float;
 		OPB->_vector[1] *= OPA->_float;
 		OPB->_vector[2] *= OPA->_float;
@@ -372,7 +372,7 @@ reeval:
 		ptr = QCPOINTER(OPB);
 		OPC->_float = (ptr->_float *= OPA->_float);
 		break;
-	case OP_MULSTOREP_V: // e.v *= f
+	case OP_MULSTOREP_VF: // e.v *= f
 		if ((unsigned int)OPB->_int >= addressableused)
 		{
 			pr_xstatement = st-pr_statements;
@@ -866,7 +866,7 @@ reeval:
 		i = (int)OPB->_float;
 		if(i < 0 || i > ((eval_t *)&glob[st->a-1])->_int)
 		{
-			PR_RunError(progfuncs, "array index out of bounds: %s[%d]", PR_GlobalStringNoContents(progfuncs, st->a), i);
+			PR_RunError(progfuncs, "array index out of bounds: %s[%d] (max %d)", PR_GlobalStringNoContents(progfuncs, st->a), i, ((eval_t *)&glob[st->a-1])->_int);
 		}
 		t = (eval_t *)&pr_globals[(uofs)st->a + i];
 		OPC->_int = t->_int;

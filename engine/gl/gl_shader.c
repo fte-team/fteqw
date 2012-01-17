@@ -43,6 +43,7 @@ static qboolean shader_rescan_needed;
 
 //cvars that affect shader generation
 cvar_t r_vertexlight = CVARFD("r_vertexlight", "0", CVAR_SHADERSYSTEM, "Hack loaded shaders to remove detail pass and lightmap sampling for faster rendering.");
+extern cvar_t r_glsl_offsetmapping_reliefmapping;
 extern cvar_t r_deluxemapping;
 extern cvar_t r_fastturb, r_fastsky, r_skyboxname;
 extern cvar_t r_drawflat;
@@ -804,7 +805,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		"#define FOG\n",
 		NULL
 	};
-	char *permutationdefines[sizeof(permutationname)/sizeof(permutationname[0]) + 64];
+	char *permutationdefines[sizeof(permutationname)/sizeof(permutationname[0]) + 64 + 1];
 	unsigned int nopermutation = ~0u;
 	int nummodifiers;
 	int p, n, pn;
@@ -813,6 +814,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	char *cvarnames[64];
 	int cvartypes[64];
 	int cvarcount = 0;
+	qboolean onefailed = false;
 
 	cvarnames[cvarcount] = NULL;
 
@@ -891,36 +893,45 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		end = strchr(start, '#');
 		if (!end)
 			end = start + strlen(start);
-		permutationdefines[nummodifiers] = malloc(10 + end - start);
-		memcpy(permutationdefines[nummodifiers], "#define ", 8);
-		memcpy(permutationdefines[nummodifiers]+8, start, end - start);
-		memcpy(permutationdefines[nummodifiers]+8+(end-start), "\n", 2);
+		if (nummodifiers < 64)
+		{
+			permutationdefines[nummodifiers] = malloc(10 + end - start);
+			memcpy(permutationdefines[nummodifiers], "#define ", 8);
+			memcpy(permutationdefines[nummodifiers]+8, start, end - start);
+			memcpy(permutationdefines[nummodifiers]+8+(end-start), "\n", 2);
 
-		for (start = permutationdefines[nummodifiers]+8; *start; start++)
-			*start = toupper(*start);
-
-		nummodifiers++;
+			for (start = permutationdefines[nummodifiers]+8; *start; start++)
+				*start = toupper(*start);
+			nummodifiers++;
+			permutationdefines[nummodifiers] = NULL;
+		}
 	}
+
 	for (p = 0; p < PERMUTATIONS; p++)
 	{
+		if (nopermutation & p)
+		{
+			continue;
+		}
+		pn = nummodifiers;
+		for (n = 0; permutationname[n]; n++)
+		{
+			if (p & (1u<<n))
+				permutationdefines[pn++] = permutationname[n];
+		}
+		if (r_glsl_offsetmapping_reliefmapping.ival && (p & PERMUTATION_OFFSET))
+			permutationdefines[pn++] = "#define RELIEFMAPPING\n";
+		permutationdefines[pn++] = NULL;
+
 		if (qrenderer != qrtype)
 		{
 		}
 #ifdef GLQUAKE
 		else if (qrenderer == QR_OPENGL)
 		{
-			if (nopermutation & p)
-			{
-				continue;
-			}
-			pn = nummodifiers;
-			for (n = 0; permutationname[n]; n++)
-			{
-				if (p & (1u<<n))
-					permutationdefines[pn++] = permutationname[n];
-			}
-			permutationdefines[pn++] = NULL;
-			prog->handle[p].glsl = GLSlang_CreateProgram(name, (((p & PERMUTATION_SKELETAL) && ver < 120)?120:ver), permutationdefines, script, script);
+			prog->handle[p].glsl = GLSlang_CreateProgram(name, (((p & PERMUTATION_SKELETAL) && ver < 120)?120:ver), permutationdefines, script, script, onefailed);
+			if (!prog->handle[p].glsl)
+				onefailed = true;
 			if (!p && !prog->handle[p].glsl)
 				break;
 		}
@@ -928,17 +939,6 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 #ifdef D3DQUAKE
 		else if (qrenderer == QR_DIRECT3D)
 		{
-			if (nopermutation & p)
-			{
-				continue;
-			}
-			pn = nummodifiers;
-			for (n = 0; permutationname[n]; n++)
-			{
-				if (p & (1u<<n))
-					permutationdefines[pn++] = permutationname[n];
-			}
-			permutationdefines[pn++] = NULL;
 			if (!D3DShader_CreateProgram(prog, p, permutationdefines, script, script))
 				break;
 		}
@@ -1131,11 +1131,11 @@ struct sbuiltin_s
 			//"uniform sampler2D s_t3;\n" /*tex_deluxmap*/
 			//"uniform sampler2D s_t4;\n" /*tex_fullbright*/
 			"varying mediump vec2 tc, lm;\n"
-			"uniform mediump float e_lmscale;\n"
+			"uniform mediump vec4 e_lmscale;\n"
 
 			"void main ()\n"
 			"{\n"
-			"	gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm) * vec4(e_lmscale, e_lmscale, e_lmscale, 1);\n"
+			"	gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm) * e_lmscale;\n"
 			"}\n"
 		"#endif\n"
 	},
@@ -1185,26 +1185,19 @@ struct sbuiltin_s
 			"uniform sampler2D s_t4;\n" /*tex_fullbright*/
 			"#endif\n"
 			"varying vec2 tc, lm;\n"
-			"uniform float e_lmscale;\n"
+			"uniform vec4 e_lmscale;\n"
 
 			"#ifdef OFFSETMAPPING\n"
-			"uniform float cvar_r_glsl_offsetmapping_scale;\n"
+			"#include \"sys/offsetmapping.h\"\n"
 			"#endif\n"
 
 			"void main ()\n"
 			"{\n"
 			"#ifdef OFFSETMAPPING\n"
-				"vec2 OffsetVector = normalize(eyevector).xy * cvar_r_glsl_offsetmapping_scale * vec2(1, -1);\n"
-				"vec2 tcoffsetmap = tc;\n"
-			"#define tc tcoffsetmap\n"
-				"tc += OffsetVector;\n"
-				"OffsetVector *= 0.333;\n"
-				"tc -= OffsetVector * texture2D(s_t2, tc).w;\n"
-				"tc -= OffsetVector * texture2D(s_t2, tc).w;\n"
-				"tc -= OffsetVector * texture2D(s_t2, tc).w;\n"
+				"vec2 tcoffsetmap = offsetmap(s_t2, tc, eyevector);\n"
+				"#define tc tcoffsetmap\n"
 			"#endif\n"
-
-			"	gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm) * vec4(e_lmscale, e_lmscale, e_lmscale, 1);\n"
+			"	gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm) * e_lmscale;\n"
 			"#ifdef FULLBRIGHT\n"
 			"	gl_FragColor.rgb += texture2D(s_t4, tc).rgb;\n"
 			"#endif\n"
@@ -1226,11 +1219,11 @@ struct sbuiltin_s
 			"varying vec2 lm;\n"
 			"uniform vec3 cvar_r_wallcolor;\n"
 			"uniform vec3 cvar_r_floorcolor;\n"
-			"uniform float e_lmscale;\n"
+			"uniform vec4 e_lmscale;\n"
 			
 			"void main ()\n"
 			"{\n"
-			"	col = vec4(e_lmscale/255.0 * ((v_normal.z < 0.73)?cvar_r_wallcolor:cvar_r_floorcolor), 1.0);\n"
+			"	col = vec4(e_lmscale.rgb/255.0 * ((v_normal.z < 0.73)?cvar_r_wallcolor:cvar_r_floorcolor), e_lmscale.a);\n"
 			"	lm = v_lmcoord;\n"
 			"	gl_Position = ftetransform();\n"
 			"}\n"
@@ -1740,11 +1733,11 @@ struct sbuiltin_s
 			//"uniform sampler2D s_t3;\n" /*tex_normalmap*/
 			//"uniform sampler2D s_t4;\n" /*tex_deluxmap*/
 			//"uniform sampler2D s_t5;\n" /*tex_fullbright*/
-			"uniform float e_lmscale;\n"
+			"uniform vec4 e_lmscale;\n"
 
 			"void main ()\n"
 			"{\n"
-				//"gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm) * vec4(scale, scale, scale, 1.0);\n"
+				//"gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm) * e_lmscale;\n"
 
 				"vec2 nst;\n"
 				"nst = tf.xy / tf.w;\n"
@@ -2038,20 +2031,14 @@ struct sbuiltin_s
 			"uniform vec3 l_lightcolourscale;\n"
 
 			"#ifdef OFFSETMAPPING\n"
-			"uniform float cvar_r_glsl_offsetmapping_scale;\n"
+			"#include \"sys/offsetmapping.h\"\n"
 			"#endif\n"
 
 			"void main ()\n"
 			"{\n"
 			"#ifdef OFFSETMAPPING\n"
-				"vec2 OffsetVector = normalize(eyevector).xy * cvar_r_glsl_offsetmapping_scale * vec2(1, -1);\n"
-				"vec2 tcoffsetmap = tcbase;\n"
-			"#define tcbase tcoffsetmap\n"
-				"tcbase += OffsetVector;\n"
-				"OffsetVector *= 0.333;\n"
-				"tcbase -= OffsetVector * texture2D(s_t1, tcbase).w;\n"
-				"tcbase -= OffsetVector * texture2D(s_t1, tcbase).w;\n"
-				"tcbase -= OffsetVector * texture2D(s_t1, tcbase).w;\n"
+				"vec2 tcoffsetmap = offsetmap(s_t1, tcbase, eyevector);\n"
+				"#define tcbase tcoffsetmap\n"
 			"#endif\n"
 
 
@@ -2074,7 +2061,7 @@ struct sbuiltin_s
 				"diff = bases * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(vec3(0.0, 0.0, 1.0), nl), 0.0));\n"
 			"#endif\n"
 			"#ifdef SPECULAR\n"
-				"vec3 halfdir = normalize(lightvector) + normalize(eyevector);\n"
+			"vec3 halfdir = normalize(lightvector - normalize(eyevector));\n"
 				"float spec = pow(max(dot(halfdir, bumps), 0.0), 1.0 + 32.0 * specs.a);\n"
 				"diff += spec * specs.rgb * l_lightcolourscale.z;\n"
 			"#endif\n"
@@ -2272,6 +2259,7 @@ struct sbuiltin_s
 		"#endif\n"
 	},
 #endif
+#include "r_bishaders.h"
 	{QR_NONE}
 };
 void Shader_UnloadProg(program_t *prog)
@@ -4530,6 +4518,15 @@ void Shader_Finish (shader_t *s)
 	}
 done:;
 
+	for (pass = s->passes, i = 0; i < s->numpasses; i++, pass++)
+	{
+		if ((pass->texgen == T_GEN_ANIMMAP || pass->texgen == T_GEN_SINGLEMAP) && !TEXVALID(s->defaulttextures.base))
+			s->defaulttextures.base = pass->anim_frames[0];
+		if (pass->texgen == T_GEN_VIDEOMAP && pass->cin && !TEXVALID(s->defaulttextures.base))
+			s->defaulttextures.base = Media_UpdateForShader(pass->cin);
+
+	}
+
 	pass = s->passes;
 	for (i = 0; i < s->numpasses; i++, pass++)
 	{
@@ -4698,38 +4695,57 @@ void Shader_UpdateRegistration (void)
 
 void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 {
-	/*dlights/realtime lighting needs some stuff*/
-	if (!TEXVALID(tn->base))
+	if (!TEXVALID(shader->defaulttextures.base))
 	{
-		tn->base = R_LoadHiResTexture(shader->name, NULL, IF_NOALPHA);
-	}
-	if (TEXVALID(tn->base))
-		shader->flags &= ~SHADER_NOIMAGE;
+		/*dlights/realtime lighting needs some stuff*/
+		if (!TEXVALID(tn->base))
+		{
+			tn->base = R_LoadHiResTexture(shader->name, NULL, IF_NOALPHA);
+		}
+		if (TEXVALID(tn->base))
+			shader->flags &= ~SHADER_NOIMAGE;
 
-	if (r_loadbumpmapping)
-	{
-		if (!TEXVALID(tn->bump))
-			tn->bump = R_LoadHiResTexture(va("%s_norm", shader->name), NULL, IF_NOALPHA);
-		if (!TEXVALID(tn->bump))
-			tn->bump = R_LoadHiResTexture(va("%s_bump", shader->name), NULL, IF_NOALPHA);
-		if (!TEXVALID(tn->bump))
-			tn->bump = R_LoadHiResTexture(va("normalmaps/%s", shader->name), NULL, IF_NOALPHA);
+		TEXASSIGN(shader->defaulttextures.base, tn->base);
 	}
 
-	if (shader->flags & SHADER_HASTOPBOTTOM)
+	if (!TEXVALID(shader->defaulttextures.bump))
 	{
-		if (!TEXVALID(tn->loweroverlay))
-			tn->loweroverlay = R_LoadHiResTexture(va("%s_pants", shader->name), NULL, 0);	/*how rude*/
-		if (!TEXVALID(tn->upperoverlay))
-			tn->upperoverlay = R_LoadHiResTexture(va("%s_shirt", shader->name), NULL, 0);
+		if (r_loadbumpmapping)
+		{
+			if (!TEXVALID(tn->bump))
+				tn->bump = R_LoadHiResTexture(va("%s_norm", shader->name), NULL, IF_NOALPHA);
+			if (!TEXVALID(tn->bump))
+				tn->bump = R_LoadHiResTexture(va("%s_bump", shader->name), NULL, IF_NOALPHA);
+			if (!TEXVALID(tn->bump))
+				tn->bump = R_LoadHiResTexture(va("normalmaps/%s", shader->name), NULL, IF_NOALPHA);
+		}
+		TEXASSIGN(shader->defaulttextures.bump, tn->bump);
 	}
 
-	TEXASSIGN(shader->defaulttextures.base, tn->base);
-	TEXASSIGN(shader->defaulttextures.specular, tn->specular);
-	TEXASSIGN(shader->defaulttextures.fullbright, tn->fullbright);
-	TEXASSIGN(shader->defaulttextures.bump, tn->bump);
-	TEXASSIGN(shader->defaulttextures.loweroverlay, tn->loweroverlay);
-	TEXASSIGN(shader->defaulttextures.upperoverlay, tn->upperoverlay);
+	if (!TEXVALID(shader->defaulttextures.loweroverlay))
+	{
+		if (shader->flags & SHADER_HASTOPBOTTOM)
+		{
+			if (!TEXVALID(tn->loweroverlay))
+				tn->loweroverlay = R_LoadHiResTexture(va("%s_pants", shader->name), NULL, 0);	/*how rude*/
+		}
+		TEXASSIGN(shader->defaulttextures.loweroverlay, tn->loweroverlay);
+	}
+
+	if (!TEXVALID(shader->defaulttextures.upperoverlay))
+	{
+		if (shader->flags & SHADER_HASTOPBOTTOM)
+		{
+			if (!TEXVALID(tn->upperoverlay))
+				tn->upperoverlay = R_LoadHiResTexture(va("%s_shirt", shader->name), NULL, 0);
+		}
+		TEXASSIGN(shader->defaulttextures.upperoverlay, tn->upperoverlay);
+	}
+
+	if (!TEXVALID(shader->defaulttextures.specular))
+		TEXASSIGN(shader->defaulttextures.specular, tn->specular);
+	if (!TEXVALID(shader->defaulttextures.fullbright))
+		TEXASSIGN(shader->defaulttextures.fullbright, tn->fullbright);
 }
 
 void Shader_DefaultScript(char *shortname, shader_t *s, const void *args)

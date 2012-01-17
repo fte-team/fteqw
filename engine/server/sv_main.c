@@ -127,6 +127,7 @@ cvar_t	allow_download_textures = CVAR("allow_download_textures", "1");
 cvar_t	allow_download_packages = CVAR("allow_download_packages", "1");
 cvar_t	allow_download_wads = CVAR("allow_download_wads", "1");
 cvar_t	allow_download_configs = CVAR("allow_download_configs", "0");
+cvar_t	allow_download_copyrighted = CVAR("allow_download_copyrighted", "0");
 
 cvar_t sv_public = CVAR("sv_public", "0");
 cvar_t sv_listen_qw = CVARAF("sv_listen_qw", "1", "sv_listen", 0);
@@ -490,6 +491,7 @@ void SV_DropClient (client_t *drop)
 						pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, drop->edict);
 						if (pr_global_ptrs->ClientDisconnect)
 							PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
+						sv.spawned_client_slots--;
 					}
 					else if (SpectatorDisconnect)
 					{
@@ -3475,6 +3477,7 @@ void SV_CheckTimeouts (void)
 			{
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
 				PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
+				sv.spawned_client_slots--;
 
 				host_client->istobeloaded=false;
 
@@ -3635,6 +3638,7 @@ void SV_Impulse_f (void)
 	pr_global_struct->time = sv.world.physicstime;
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
+	sv.spawned_client_slots++;
 
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPreThink);
@@ -3654,6 +3658,7 @@ void SV_Impulse_f (void)
 
 	pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 	PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
+	sv.spawned_client_slots--;
 
 	svs.clients[i].state = cs_free;
 }
@@ -3709,7 +3714,11 @@ float SV_Frame (void)
 		sv.gamespeed = 1;
 
 #ifndef SERVERONLY
-	if ((sv.paused & 4) != ((!isDedicated && sv.allocated_client_slots == 1 && key_dest != key_game && cls.state == ca_active)?4:0))
+	isidle = !isDedicated && sv.allocated_client_slots == 1 && key_dest != key_game && cls.state == ca_active;
+	/*server is effectively paused if there are no clients*/
+	if (sv.spawned_client_slots == 0)
+		isidle = true;
+	if ((sv.paused & 4) != (isidle?4:0))
 		sv.paused ^= 4;
 #endif
 
@@ -3730,15 +3739,14 @@ float SV_Frame (void)
 			timedelta = 0;
 		}
 
+		if (isDedicated)
+			realtime += sv.time - oldtime;
+
 		if (sv.paused && sv.time > 1.5)
 		{
 			sv.starttime += sv.time - oldtime;	//move the offset
 			sv.time = oldtime;	//and keep time as it was.
 		}
-
-		if (isDedicated)
-			realtime += sv.time - oldtime;
-
 	}
 
 
@@ -3797,7 +3805,7 @@ void SV_MVDStream_Poll(void);
 	}
 
 	// move autonomous things around if enough time has passed
-	if (!sv.paused || sv.time < 1.5)
+	if (!sv.paused || (sv.world.physicstime < 1 && sv.spawned_client_slots))
 	{
 #ifdef Q2SERVER
 		//q2 is idle even if clients sent packets.
@@ -4036,6 +4044,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&allow_download_packages,cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_wads,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_root,	cvargroup_serverpermissions);
+	Cvar_Register (&allow_download_copyrighted,	cvargroup_serverpermissions);
 	Cvar_Register (&secure,	cvargroup_serverpermissions);
 
 	Cvar_Register (&sv_highchars,	cvargroup_servercontrol);

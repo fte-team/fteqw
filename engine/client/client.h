@@ -221,7 +221,7 @@ typedef struct
 typedef struct
 {
 	int		destcolor[3];
-	int		percent;		// 0-256
+	float		percent;		// 0-256
 } cshift_t;
 
 #define	CSHIFT_CONTENTS	0
@@ -995,7 +995,7 @@ void CL_ParseParticleEffect4 (void);
 
 void CLDP_ParseTrailParticles(void);
 void CLDP_ParsePointParticles(qboolean compact);
-void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, struct model_s *model, int startframe, int framecount, int framerate, float alpha);	/*called from the particlesystem*/
+void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, struct model_s *model, int startframe, int framecount, float framerate, float alpha, float randspin, float gravity);	/*called from the particlesystem*/
 
 //
 // cl_ents.c

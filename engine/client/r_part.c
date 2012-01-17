@@ -181,7 +181,7 @@ void P_Shutdown(void)
 qboolean Q2TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 {
 	vec3_t nul = {0,0,0};
-	trace_t trace = CM_BoxTrace(pmove.physents[0].model, start, end, nul, nul, MASK_SOLID);
+	trace_t trace = CM_BoxTrace(pmove.physents[0].model, start, end, nul, nul, MASK_WORLDSOLID);
 
 	if (trace.fraction < 1)
 	{
@@ -223,10 +223,10 @@ qboolean TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 			{
 				AngleVectors(pe->angles, axis[0], axis[1], axis[2]);
 				VectorNegate(axis[1], axis[1]);
-				pe->model->funcs.Trace(pe->model, 0, 0, axis, ts, te, vec3_origin, vec3_origin, &trace);
+				pe->model->funcs.NativeTrace(pe->model, 0, 0, axis, ts, te, vec3_origin, vec3_origin, MASK_WORLDSOLID, &trace);
 			}
 			else
-				pe->model->funcs.Trace(pe->model, 0, 0, NULL, ts, te, vec3_origin, vec3_origin, &trace);
+				pe->model->funcs.NativeTrace(pe->model, 0, 0, NULL, ts, te, vec3_origin, vec3_origin, MASK_WORLDSOLID, &trace);
 			if (trace.fraction<1)
 			{
 				VectorSubtract(trace.endpos, ts, delta);
@@ -250,8 +250,8 @@ qboolean TraceLineN (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 					normal[1] = -delta[1];
 					normal[2] = -delta[2];
 				}
-				VectorCopy (start, impact);
-				return true;
+				VectorCopy (end, impact);
+				return false;
 			}
 
 		}

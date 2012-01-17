@@ -3748,7 +3748,6 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 			loadmodel->funcs.StainNode				= GLR_Q2BSP_StainNode;
 			loadmodel->funcs.MarkLights				= Q2BSP_MarkLights;
 #endif
-			loadmodel->funcs.Trace					= CM_Trace;
 			loadmodel->funcs.PointContents			= Q2BSP_PointContents;
 			loadmodel->funcs.NativeTrace			= CM_NativeTrace;
 			loadmodel->funcs.NativeContents			= CM_NativeContents;
@@ -3845,7 +3844,6 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 			loadmodel->funcs.MarkLights				= NULL;
 			loadmodel->funcs.LeafPVS				= CM_LeafnumPVS;
 			loadmodel->funcs.LeafnumForPoint		= CM_PointLeafnum;
-			loadmodel->funcs.Trace					= CM_Trace;
 			loadmodel->funcs.PointContents			= Q2BSP_PointContents;
 			loadmodel->funcs.NativeTrace			= CM_NativeTrace;
 			loadmodel->funcs.NativeContents			= CM_NativeContents;
@@ -3896,7 +3894,6 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 			loadmodel->funcs.MarkLights				= Q2BSP_MarkLights;
 			loadmodel->funcs.LeafPVS				= CM_LeafnumPVS;
 			loadmodel->funcs.LeafnumForPoint		= CM_PointLeafnum;
-			loadmodel->funcs.Trace					= CM_Trace;
 			loadmodel->funcs.PointContents			= Q2BSP_PointContents;
 			loadmodel->funcs.NativeTrace			= CM_NativeTrace;
 			loadmodel->funcs.NativeContents			= CM_NativeContents;
@@ -4079,7 +4076,6 @@ void CM_InitBoxHull (void)
 #endif
 	box_model.funcs.LeafPVS				= CM_LeafnumPVS;
 	box_model.funcs.LeafnumForPoint		= CM_PointLeafnum;
-	box_model.funcs.Trace				= CM_Trace;
 	box_model.funcs.NativeContents		= CM_NativeContents;
 	box_model.funcs.NativeTrace			= CM_NativeTrace;
 
@@ -5180,14 +5176,6 @@ trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 	return trace_trace;
 }
 
-qboolean CM_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
-{
-	if (maxs[0] - mins[0])
-		*trace = CM_BoxTrace(model, start, end, mins, maxs, MASK_PLAYERSOLID);
-	else
-		*trace = CM_BoxTrace(model, start, end, mins, maxs, MASK_SOLID);
-	return trace->fraction != 1;
-}
 qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace)
 {
 	*trace = CM_BoxTrace(model, start, end, mins, maxs, contents);
@@ -5707,18 +5695,7 @@ unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p)
 {
 	int pc, ret = FTECONTENTS_EMPTY;
 	pc = CM_PointContents (mod, p);
-	if (pc & (Q2CONTENTS_SOLID|Q2CONTENTS_WINDOW))
-		ret |= FTECONTENTS_SOLID;
-	if (pc & Q2CONTENTS_LAVA)
-		ret |= FTECONTENTS_LAVA;
-	if (pc & Q2CONTENTS_SLIME)
-		ret |= FTECONTENTS_SLIME;
-	if (pc & Q2CONTENTS_WATER)
-		ret |= FTECONTENTS_WATER;
-	if (pc & Q2CONTENTS_LADDER)
-		ret |= FTECONTENTS_LADDER;
-
-	return ret;
+	return pc;
 }
 
 

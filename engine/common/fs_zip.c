@@ -468,18 +468,31 @@ typedef struct {
 	int index;
 	int startpos;
 } vfszip_t;
-void VFSZIP_MakeActive(vfszip_t *vfsz)
+qboolean VFSZIP_MakeActive(vfszip_t *vfsz)
 {
 	int i;
 	char buffer[8192];	//must be power of two
 
 	if ((vfszip_t*)vfsz->parent->currentfile == vfsz)
-		return;	//already us
+		return true;	//already us
 	if (vfsz->parent->currentfile)
 		unzCloseCurrentFile(vfsz->parent->handle);
 
 	unzLocateFileMy(vfsz->parent->handle, vfsz->index, vfsz->startpos);
-	unzOpenCurrentFile(vfsz->parent->handle);
+	if (unzOpenCurrentFile(vfsz->parent->handle) == UNZ_BADZIPFILE)
+	{
+		unz_file_info	file_info;
+		buffer[0] = '?';
+		buffer[1] = 0;
+		if (unzGetCurrentFileInfo (vfsz->parent->handle, &file_info, buffer, sizeof(buffer), NULL, 0, NULL, 0) != UNZ_OK)
+			Con_Printf("Zip Error\n");
+		if (file_info.compression_method && file_info.compression_method != Z_DEFLATED)
+			Con_Printf("unsupported compression method on %s/%s\n", vfsz->parent->filename, buffer);
+		else
+			Con_Printf("corrupt file within zip, %s/%s\n", vfsz->parent->filename, buffer);
+		vfsz->parent->currentfile = NULL;
+		return false;
+	}
 
 
 	if (vfsz->pos > 0)
@@ -493,6 +506,7 @@ void VFSZIP_MakeActive(vfszip_t *vfsz)
 	}
 
 	vfsz->parent->currentfile = (vfsfile_t*)vfsz;
+	return true;
 }
 
 int VFSZIP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
@@ -505,7 +519,8 @@ int VFSZIP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
 
 	if (vfsz->iscompressed)
 	{
-		VFSZIP_MakeActive(vfsz);
+		if (!VFSZIP_MakeActive(vfsz))
+			return 0;
 		read = unzReadCurrentFile(vfsz->parent->handle, buffer, bytestoread);
 	}
 	else
@@ -535,37 +550,44 @@ qboolean VFSZIP_Seek (struct vfsfile_s *file, unsigned long pos)
 		return VFS_SEEK(vfsz->defer, pos);
 
 	//This is *really* inefficient
-	if (vfsz->parent->currentfile == file)
-	{
-		if (vfsz->iscompressed)
-		{	//if they're going to seek on a file in a zip, let's just copy it out
-			char buffer[8192];
-			unsigned int chunk;
-			unsigned int i;
-			unsigned int length;
+	if (vfsz->iscompressed)
+	{	//if they're going to seek on a file in a zip, let's just copy it out
+		char buffer[8192];
+		unsigned int chunk;
+		unsigned int i;
+		unsigned int length;
 
-			vfsz->defer = FS_OpenTemp();
-			if (vfsz->defer)
+		vfsz->defer = FS_OpenTemp();
+		if (vfsz->defer)
+		{
+			if (vfsz->pos)
 			{
 				unzCloseCurrentFile(vfsz->parent->handle);
 				vfsz->parent->currentfile = NULL;	//make it not us
+			}
 
-				length = vfsz->length;
-				i = 0;
-				vfsz->pos = 0;
-				VFSZIP_MakeActive(vfsz);
-				while (1)
-				{
-					chunk = length - i;
-					if (chunk > sizeof(buffer))
-						chunk = sizeof(buffer);
-					if (chunk == 0)
-						break;
-					unzReadCurrentFile(vfsz->parent->handle, buffer, chunk);
-					VFS_WRITE(vfsz->defer, buffer, chunk);
+			length = vfsz->length;
+			i = 0;
+			vfsz->pos = 0;
+			if (!VFSZIP_MakeActive(vfsz))
+			{
+				/*shouldn't really happen*/
+				VFS_CLOSE(vfsz->defer);
+				vfsz->defer = NULL;
+				return false;
+			}
 
-					i += chunk;
-				}
+			while (1)
+			{
+				chunk = length - i;
+				if (chunk > sizeof(buffer))
+					chunk = sizeof(buffer);
+				if (chunk == 0)
+					break;
+				unzReadCurrentFile(vfsz->parent->handle, buffer, chunk);
+				VFS_WRITE(vfsz->defer, buffer, chunk);
+
+				i += chunk;
 			}
 		}
 
@@ -574,9 +596,12 @@ qboolean VFSZIP_Seek (struct vfsfile_s *file, unsigned long pos)
 
 		if (vfsz->defer)
 			return VFS_SEEK(vfsz->defer, pos);
+		else
+		{
+			unzCloseCurrentFile(vfsz->parent->handle);
+			vfsz->parent->currentfile = NULL;	//make it not us, so the next read starts at the right place
+		}
 	}
-
-
 
 	if (pos < 0 || pos > vfsz->length)
 		return false;
@@ -650,6 +675,15 @@ vfsfile_t *FSZIP_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 	}
 	else if (!ZLIB_LOADED())
 	{
+		Z_Free(vfsz);
+		return NULL;
+	}
+	else if (!VFSZIP_MakeActive(vfsz))	/*this is called purely as a test*/
+	{
+		/*
+		windows explorer tends to use deflate64 on large files, which zlib and thus we, do not support, thus this is a 'common' failure path
+		this might also trigger from other errors, of course.
+		*/
 		Z_Free(vfsz);
 		return NULL;
 	}

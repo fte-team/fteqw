@@ -110,6 +110,7 @@ struct {
 		int fbo_diffuse;
 		texid_t tex_sourcecol; /*this is used by $sourcecolour tgen*/
 		texid_t tex_sourcedepth;
+		int fbo_depthless;
 
 		qboolean force2d;
 		int currenttmu;
@@ -135,6 +136,7 @@ struct {
 		mesh_t **meshes;
 		unsigned int meshcount;
 		float modelmatrix[16];
+		float modelmatrixinv[16];
 		float modelviewmatrix[16];
 
 		int pendingvertexvbo;
@@ -759,9 +761,7 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass, qboolea
 
 	case T_GEN_3DMAP:
 		t = pass->anim_frames[0];
-		checkglerror();
 		GL_LazyBind(tmu, GL_TEXTURE_3D, t, useclientarray);
-		checkglerror();
 		return;
 
 	case T_GEN_VIDEOMAP:
@@ -2331,12 +2331,25 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 		break;
 
 	case SP_E_LMSCALE:
-		if (shaderstate.mode == BEM_DEPTHDARK)
-			qglUniform1fARB(p->handle[perm], 0.0f);
-		else if (shaderstate.curentity->model && shaderstate.curentity->model->engineflags & MDLF_NEEDOVERBRIGHT)
-			qglUniform1fARB(p->handle[perm], 1<<bound(0, gl_overbright.ival, 2));
-		else
-			qglUniform1fARB(p->handle[perm], 1.0f);
+		{
+			vec4_t colscale;
+			if (shaderstate.mode == BEM_DEPTHDARK)
+			{
+				VectorClear(colscale);
+			}
+			else if (shaderstate.curentity->model && shaderstate.curentity->model->engineflags & MDLF_NEEDOVERBRIGHT)
+			{
+				float sc = 1<<bound(0, gl_overbright.ival, 2);
+				VectorScale(shaderstate.curentity->shaderRGBAf, sc, colscale);
+			}
+			else
+			{
+				VectorCopy(shaderstate.curentity->shaderRGBAf, colscale);
+			}	
+			colscale[3] = shaderstate.curentity->shaderRGBAf[3];
+
+			qglUniform4fvARB(p->handle[perm], 1, (GLfloat*)colscale);
+		}
 		break;
 
 	case SP_E_GLOWMOD:
@@ -2426,19 +2439,15 @@ static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned
 		{
 			/*eye position in model space*/
 			vec3_t t2;
-			Matrix4x4_CM_Transform3(shaderstate.modelmatrix, r_origin, t2);
+			Matrix4x4_CM_Transform3(shaderstate.modelmatrixinv, r_origin, t2);
 			qglUniform3fvARB(p->handle[perm], 1, t2);
 		}
 		break;
 	case SP_LIGHTPOSITION:
 		{
 			/*light position in model space*/
-			float inv[16];
 			vec3_t t2;
-			qboolean Matrix4_Invert(const float *m, float *out);
-
-			Matrix4_Invert(shaderstate.modelmatrix, inv);
-			Matrix4x4_CM_Transform3(inv, shaderstate.lightorg, t2);
+			Matrix4x4_CM_Transform3(shaderstate.modelmatrixinv, shaderstate.lightorg, t2);
 			qglUniform3fvARB(p->handle[perm], 1, t2);
 		}
 		break;
@@ -2753,6 +2762,7 @@ void GLBE_SelectEntity(entity_t *ent)
 	shaderstate.curentity = ent;
 	currententity = ent;
 	R_RotateForEntity(shaderstate.modelmatrix, shaderstate.modelviewmatrix, shaderstate.curentity, shaderstate.curentity->model);
+	Matrix4_Invert(shaderstate.modelmatrix, shaderstate.modelmatrixinv);
 	if (qglLoadMatrixf)
 		qglLoadMatrixf(shaderstate.modelviewmatrix);
 	if (shaderstate.curentity->flags & Q2RF_DEPTHHACK && qglDepthRange)
@@ -3260,9 +3270,7 @@ static void BE_UpdateLightmaps(void)
 			glRect_t *theRect;
 			lightmap[lm]->modified = false;
 			theRect = &lightmap[lm]->rectchange;
-			checkglerror();
 			GL_MTBind(0, GL_TEXTURE_2D, lightmap_textures[lm]);
-			checkglerror();
 			switch (lightmap_bytes)
 			{
 			case 4:
@@ -3285,7 +3293,6 @@ static void BE_UpdateLightmaps(void)
 			theRect->t = LMBLOCK_HEIGHT;
 			theRect->h = 0;
 			theRect->w = 0;
-			checkglerror();
 
 			if (lightmap[lm]->deluxmodified)
 			{
@@ -3299,11 +3306,9 @@ static void BE_UpdateLightmaps(void)
 				theRect->t = LMBLOCK_HEIGHT;
 				theRect->h = 0;
 				theRect->w = 0;
-				checkglerror();
 			}
 		}
 	}
-	checkglerror();
 }
 
 batch_t *GLBE_GetTempBatch(void)
@@ -3326,6 +3331,29 @@ void GLBE_BaseEntTextures(void)
 	BE_SelectEntity(&r_worldentity);
 }
 #endif
+
+void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, texid_t destdepth, qboolean usedepth)
+{
+	shaderstate.tex_sourcecol = sourcecol;
+	shaderstate.tex_sourcedepth = sourcedepth;
+	if (!destcol.num)
+		qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+	else
+	{
+		if (!shaderstate.fbo_depthless)
+		{
+			qglGenFramebuffersEXT(1, &shaderstate.fbo_depthless);
+			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shaderstate.fbo_depthless);
+
+			qglDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
+			qglReadBuffer(GL_NONE);
+		}
+		else
+			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shaderstate.fbo_depthless);
+		
+		qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, destcol.num, 0);
+	}
+}
 
 void GLBE_DrawLightPrePass(qbyte *vis, batch_t **batches)
 {
@@ -3461,8 +3489,6 @@ void GLBE_DrawWorld (qbyte *vis)
 	batch_t *batches[SHADER_SORT_COUNT];
 	RSpeedLocals();
 
-	checkglerror();
-
 	GL_DoSwap();
 
 	if (!r_refdef.recurse)
@@ -3551,8 +3577,6 @@ void GLBE_DrawWorld (qbyte *vis)
 
 	BE_SelectEntity(&r_worldentity);
 	shaderstate.curtime = shaderstate.updatetime = realtime;
-
-	checkglerror();
 
 	shaderstate.identitylighting = 1;
 }

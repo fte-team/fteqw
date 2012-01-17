@@ -1662,7 +1662,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 
 
 //The whole reason why model loading is supported in the server.
-qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
+qboolean Mod_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contentsmask, trace_t *trace)
 {
 	galiasinfo_t *mod = Mod_Extradata(model);
 	galiasgroup_t *group;
@@ -2765,6 +2765,8 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 #endif
 	galias->nextsurf = 0;
 
+	loadmodel->numframes = pq1inmodel->numframes;
+
 //skins
 	skinstart = (daliasskintype_t *)((char*)pq1inmodel+hdrsize);
 
@@ -2977,7 +2979,7 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 
 	Hunk_FreeToLowMark (hunkstart);
 
-	mod->funcs.Trace = Mod_Trace;
+	mod->funcs.NativeTrace = Mod_Trace;
 
 	return true;
 }
@@ -3317,7 +3319,7 @@ qboolean Mod_LoadQ2Model (model_t *mod, void *buffer)
 
 	Hunk_FreeToLowMark (hunkstart);
 
-	mod->funcs.Trace = Mod_Trace;
+	mod->funcs.NativeTrace = Mod_Trace;
 
 	return true;
 }
@@ -4108,7 +4110,7 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 
 	Hunk_FreeToLowMark (hunkstart);
 
-	mod->funcs.Trace = Mod_Trace;
+	mod->funcs.NativeTrace = Mod_Trace;
 
 	return true;
 }
@@ -4438,7 +4440,7 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 	Hunk_FreeToLowMark (hunkstart);
 
 
-	mod->funcs.Trace = Mod_Trace;
+	mod->funcs.NativeTrace = Mod_Trace;
 
 	return true;
 }
@@ -5124,7 +5126,7 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 	Hunk_FreeToLowMark (hunkstart);
 
 
-	mod->funcs.Trace = Mod_Trace;
+	mod->funcs.NativeTrace = Mod_Trace;
 	return true;
 }
 
@@ -5479,7 +5481,7 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 	Hunk_FreeToLowMark (hunkstart);
 
 
-	mod->funcs.Trace = Mod_Trace;
+	mod->funcs.NativeTrace = Mod_Trace;
 
 	return true;
 }
@@ -6609,7 +6611,7 @@ qboolean Mod_LoadMD5MeshModel(model_t *mod, void *buffer)
 	Hunk_FreeToLowMark (hunkstart);
 
 
-	mod->funcs.Trace = Mod_Trace;
+	mod->funcs.NativeTrace = Mod_Trace;
 	return true;
 }
 
@@ -6816,7 +6818,7 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 	Hunk_FreeToLowMark (hunkstart);
 
 
-	mod->funcs.Trace = Mod_Trace;
+	mod->funcs.NativeTrace = Mod_Trace;
 	return true;
 }
 

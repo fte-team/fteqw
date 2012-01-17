@@ -895,3 +895,4 @@ char *T_GetInfoString(int num)
 	return info_strings_table[num];
 }
 #endif
+

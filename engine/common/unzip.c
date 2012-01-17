@@ -209,7 +209,8 @@ local unsigned long unzlocal_SearchCentralDir(vfsfile_t *fin) {
 		if (!VFS_SEEK(fin, uReadPos))
 			break;
 
-		if (VFS_READ(fin,buf,(unsigned int)uReadSize)!=uReadSize) break;
+		if (VFS_READ(fin,buf,uReadSize)!=uReadSize)
+			break;
 
 		for (i=(int)uReadSize-3; (i--)>0;)
 			if (((*(buf+i))==0x50) && ((*(buf+i+1))==0x4b) && 
@@ -218,7 +219,8 @@ local unsigned long unzlocal_SearchCentralDir(vfsfile_t *fin) {
 				break;
 			}
 
-		if (uPosFound!=0) break;
+		if (uPosFound!=0)
+			break;
 	}
 	TRYFREE(buf);
 	return uPosFound;

@@ -492,6 +492,8 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 	if (assignment)
 	{
 		assignment++;
+		while(*assignment == ' ')
+			assignment++;
 		switch (type&~DEF_SAVEGLOBAL)
 		{
 		case ev_string:
@@ -499,7 +501,10 @@ char *EvaluateDebugString(progfuncs_t *progfuncs, char *key)
 			break;
 
 		case ev_float:
-			*(float *)val = (float)atof (assignment);
+			if (assignment[0] == '0' && (assignment[1] == 'x' || assignment[1] == 'X'))
+				*(float*)val = strtoul(assignment, NULL, 0);
+			else
+				*(float *)val = (float)atof (assignment);
 			break;
 
 		case ev_integer:

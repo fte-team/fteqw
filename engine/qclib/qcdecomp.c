@@ -51,6 +51,8 @@ extern QCC_type_t	*type_function;// = {ev_function/*, &def_function*/,NULL,&type
 // type_function is a void() function used for state defs
 extern QCC_type_t	*type_pointer;// = {ev_pointer/*, &def_pointer*/};
 extern QCC_type_t	*type_integer;// = {ev_integer/*, &def_integer*/};
+extern QCC_type_t	*type_floatpointer;
+extern QCC_type_t	*type_intpointer;
 
 extern QCC_type_t	*type_floatfield;// = {ev_field/*, &def_field*/, NULL, &type_float};
 QCC_type_t *QCC_PR_NewType (char *name, int basictype);

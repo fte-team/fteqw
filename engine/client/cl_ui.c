@@ -592,7 +592,7 @@ void VQ3_RenderView(const q3refdef_t *ref)
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
-		GL_Set2D ();
+		GL_Set2D (false);
 	}
 #endif
 

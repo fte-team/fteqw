@@ -1002,8 +1002,19 @@ out:
 void CL_PredictMove (void)
 {
 	int i;
+
+	//work out which packet entities are solid
+	CL_SetSolidEntities ();
+
+	// Set up prediction for other players
+	CL_SetUpPlayerPrediction(false);
+
+	// do client side motion prediction
 	for (i = 0; i < cl.splitclients; i++)
 		CL_PredictMovePNum(i);
+
+	// Set up prediction for other players
+	CL_SetUpPlayerPrediction(true);
 }
 
 

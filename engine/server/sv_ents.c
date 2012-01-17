@@ -1416,7 +1416,7 @@ qboolean Cull_Traceline(edict_t *viewer, edict_t *seen)
 	//stage 1: check against their origin
 	VectorAdd(viewer->v->origin, viewer->v->view_ofs, start);
 	tr.fraction = 1;
-	if (!sv.world.worldmodel->funcs.Trace (sv.world.worldmodel, 1, 0, NULL, start, seen->v->origin, vec3_origin, vec3_origin, &tr))
+	if (!sv.world.worldmodel->funcs.NativeTrace (sv.world.worldmodel, 1, 0, NULL, start, seen->v->origin, vec3_origin, vec3_origin, FTECONTENTS_SOLID, &tr))
 		return false;	//wasn't blocked
 
 	//stage 2: check against their bbox
@@ -1427,7 +1427,7 @@ qboolean Cull_Traceline(edict_t *viewer, edict_t *seen)
 		end[2] = seen->v->origin[2] + ((i&4)?seen->v->mins[2]+0.1:seen->v->maxs[2]);
 
 		tr.fraction = 1;
-		if (!sv.world.worldmodel->funcs.Trace (sv.world.worldmodel, 1, 0, NULL, start, end, vec3_origin, vec3_origin, &tr))
+		if (!sv.world.worldmodel->funcs.NativeTrace (sv.world.worldmodel, 1, 0, NULL, start, end, vec3_origin, vec3_origin, FTECONTENTS_SOLID, &tr))
 			return false;	//this trace went through, so don't cull
 	}
 

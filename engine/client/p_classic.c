@@ -125,14 +125,67 @@ static int PClassic_FindParticleType(char *name)
 		return BLOBEXPLOSION_POINT;
 	if (!stricmp("te_lavasplash", name))
 		return LAVASPLASH_POINT;
-	if (!stricmp("te_lavasplash", name))
-		return LAVASPLASH_POINT;
 	if (!stricmp("te_explosion", name))
 		return EXPLOSION_POINT;
 	if (!stricmp("te_teleport", name))
 		return TELEPORTSPLASH_POINT;
 
 	return P_INVALID;
+}
+
+qboolean PClassic_Query(int type, int body, char *outstr, int outstrlen)
+{
+	char *n = NULL;
+	switch(type)
+	{
+	case ROCKET_TRAIL:
+		n = "tr_rocket";
+		break;
+	case ALT_ROCKET_TRAIL:
+		n = "tr_altrocket";
+		break;
+	case BLOOD_TRAIL:
+		n = "tr_slightblood";
+		break;
+	case GRENADE_TRAIL:
+		n = "tr_grenade";
+		break;
+	case BIG_BLOOD_TRAIL:
+		n = "tr_blood";
+		break;
+	case TRACER1_TRAIL:
+		n = "tr_wizspike";
+		break;
+	case TRACER2_TRAIL:
+		n = "tr_knightspike";
+		break;
+	case VOOR_TRAIL:
+		n = "tr_vorespike";
+		break;
+
+	case BLOBEXPLOSION_POINT:
+		n = "te_tarexplosion";
+		break;
+	case LAVASPLASH_POINT:
+		n = "te_lavasplash";
+		break;
+	case EXPLOSION_POINT:
+		n = "te_explosion";
+		break;
+	case TELEPORTSPLASH_POINT:
+		n = "te_teleport";
+		break;
+	}
+
+	if (!n)
+		return false;
+	
+	if (body == 0)
+	{
+		Q_strncpyz(outstr, n, outstrlen);
+		return true;
+	}
+	return false;
 }
 
 //returns a valid effect if both its existance is known, and it is fully functional
@@ -860,6 +913,7 @@ particleengine_t pe_classic =
 
 	PClassic_ParticleTypeForName,
 	PClassic_FindParticleType,
+	PClassic_Query,
 
 	PClassic_RunParticleEffectTypeString,
 	PClassic_ParticleTrail,

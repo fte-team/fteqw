@@ -527,6 +527,20 @@ void V_BonusFlash_f (void)
 		cl.cshifts[CSHIFT_BONUS].percent = 50*v_bonusflash.value;
 	}
 }
+void V_DarkFlash_f (void)
+{
+	cl.cshifts[CSHIFT_BONUS].destcolor[0] = 0;
+	cl.cshifts[CSHIFT_BONUS].destcolor[1] = 0;
+	cl.cshifts[CSHIFT_BONUS].destcolor[2] = 0;
+	cl.cshifts[CSHIFT_BONUS].percent = 255;
+}
+void V_WhiteFlash_f (void)
+{
+	cl.cshifts[CSHIFT_BONUS].destcolor[0] = 255;
+	cl.cshifts[CSHIFT_BONUS].destcolor[1] = 255;
+	cl.cshifts[CSHIFT_BONUS].destcolor[2] = 255;
+	cl.cshifts[CSHIFT_BONUS].percent = 255;
+}
 
 /*
 =============
@@ -693,7 +707,7 @@ void V_UpdatePalette (qboolean force)
 	float	newhw_blend[4];
 	int		ir, ig, ib;
 	float	ftime;
-	static float oldtime;
+	static double oldtime;
 	RSpeedMark();
 
 	ftime = cl.time - oldtime;
@@ -1269,8 +1283,8 @@ void R_DrawNameTags(void)
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
-		void GL_Set2D (void);
-		GL_Set2D();
+//		void GL_Set2D (void);
+//		GL_Set2D(false);
 	}
 #endif
 
@@ -1468,17 +1482,7 @@ void V_RenderView (void)
 
 		CL_TransitionEntities();
 
-		//work out which packet entities are solid
-		CL_SetSolidEntities ();
-
-		// Set up prediction for other players
-		CL_SetUpPlayerPrediction(false);
-
-		// do client side motion prediction
 		CL_PredictMove ();
-
-		// Set up prediction for other players
-		CL_SetUpPlayerPrediction(true);
 
 		// build a refresh entity list
 		CL_EmitEntities ();
@@ -1514,6 +1518,8 @@ void V_Init (void)
 #endif
 	Cmd_AddCommand ("v_cshift", V_cshift_f);
 	Cmd_AddCommand ("bf", V_BonusFlash_f);
+	Cmd_AddCommand ("df", V_DarkFlash_f);
+	Cmd_AddCommand ("wf", V_WhiteFlash_f);
 //	Cmd_AddCommand ("centerview", V_StartPitchDrift);
 
 	Cvar_Register (&v_centermove, VIEWVARS);

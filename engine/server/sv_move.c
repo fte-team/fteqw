@@ -121,13 +121,17 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, qboolean re
 	trace_t		trace;
 	int			i;
 	wedict_t	*enemy = world->edicts;
+	int eflags = ent->v->flags;
+
+	if (progstype != PROG_H2)
+		eflags &= ~FLH2_NOZ|FLH2_HUNTFACE;
 
 // try the move	
 	VectorCopy (ent->v->origin, oldorg);
 	VectorAdd (ent->v->origin, move, neworg);
 
 // flying monsters don't step up
-	if ( (int)ent->v->flags & (FL_SWIM | FL_FLY) )
+	if ( eflags & (FL_SWIM | FL_FLY) && !(eflags & (FLH2_NOZ|FLH2_HUNTFACE)))
 	{
 	// try one move with vertical motion, then one without
 		for (i=0 ; i<2 ; i++)
@@ -139,6 +143,8 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, qboolean re
 				if (i == 0 && enemy->entnum)
 				{
 					dz = ent->v->origin[2] - ((wedict_t*)PROG_TO_EDICT(world->progs, ent->v->enemy))->v->origin[2];
+					if (eflags & FLH2_HUNTFACE) /*get the ent's origin_z to match its victims face*/
+						dz += ((wedict_t*)PROG_TO_EDICT(world->progs, ent->v->enemy))->v->view_ofs[2];
 					if (dz > 40)
 						neworg[2] -= 8;
 					if (dz < 30)
@@ -151,7 +157,7 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, qboolean re
 	
 			if (trace.fraction == 1)
 			{
-				if ( ((int)ent->v->flags & FL_SWIM) && !(World_PointContents(world, trace.endpos) & FTECONTENTS_FLUID))
+				if ( (eflags & FL_SWIM) && !(World_PointContents(world, trace.endpos) & FTECONTENTS_FLUID))
 					continue;	// swim monster left water
 	
 				VectorCopy (trace.endpos, ent->v->origin);
@@ -300,6 +306,8 @@ qboolean World_StepDirection (world_t *world, wedict_t *ent, float yaw, float di
 	move[0] = cos(yaw)*dist;
 	move[1] = sin(yaw)*dist;
 	move[2] = 0;
+
+	//FIXME: Hexen2: ent flags & FL_SET_TRACE
 
 	VectorCopy (ent->v->origin, oldorigin);
 	if (World_movestep (world, ent, move, false, false, NULL, NULL))

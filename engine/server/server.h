@@ -141,6 +141,7 @@ typedef struct
 	qbyte		h2cdtrack;
 
 	int			allocated_client_slots;	//number of slots available. (used mostly to stop single player saved games cacking up)
+	int			spawned_client_slots; //number of PLAYER slots which are active (ie: putclientinserver was called)
 
 	model_t	*models[MAX_MODELS];
 	qbyte		*pvs, *phs;			// fully expanded and decompressed
@@ -989,6 +990,8 @@ trace_t WPhys_Trace_Toss (world_t *w, wedict_t *ent, wedict_t *ignore);
 void SV_ProgStartFrame (void);
 void WPhys_RunEntity (world_t *w, wedict_t *ent);
 qboolean WPhys_RunThink (world_t *w, wedict_t *ent);
+void WPhys_MoveChain(world_t *w, wedict_t *ent, wedict_t *movechain, float *initial_origin, float *initial_angle); /*here for player movement to do movechains too*/
+
 //
 // sv_send.c
 //

@@ -678,6 +678,7 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 
 	PR_LoadGlabalStruct();
 
+	pr_global_struct->serverflags = svs.serverflags;
 	pr_global_struct->time = sv.time = sv.world.physicstime = time;
 	sv.starttime = Sys_DoubleTime() - sv.time;
 
@@ -740,8 +741,40 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 		if (ent->isfree)
 			continue;
 
-		World_LinkEdict (&sv.world, (wedict_t*)ent, false);	// force retouch even for stationary
+		World_LinkEdict (&sv.world, (wedict_t*)ent, false);
 	}
+	for (i=0 ; i<sv.world.num_edicts ; i++)
+	{
+		ent = EDICT_NUM(svprogfuncs, i);
+		if (ent->isfree)
+			continue;
+
+		/*hexen2 instead overwrites ents, which can theoretically be unreliable (ents with this flag are not saved in the first place, and thus are effectively reset instead of reloaded).
+		  fte purges all ents beforehand in a desperate attempt to remain sane.
+		  this behaviour does not match exactly, but is enough for vanilla hexen2/POP.
+		*/
+		if ((unsigned int)ent->v->flags & FL_HUBSAVERESET)
+		{
+			func_t f;
+			/*set some minimal fields*/
+			ent->v->solid = SOLID_NOT;
+			ent->v->use = 0;
+			ent->v->touch = 0;
+			ent->v->think = 0;
+			ent->v->nextthink = 0;
+			/*reinvoke the spawn function*/
+			pr_global_struct->time = 0.1;
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
+			f = PR_FindFunction(svprogfuncs, PR_GetString(svprogfuncs, ent->v->classname), PR_ANY);
+			
+			svprogfuncs->ToggleBreak(svprogfuncs, PR_GetString(svprogfuncs, ent->v->classname), 0, 1);
+			svprogfuncs->ToggleBreak(svprogfuncs, "trigger_crosslevel_target_think", 0, 1);
+
+			if (f)
+				PR_ExecuteProgram(svprogfuncs, f);
+		}
+	}
+	pr_global_struct->time = sv.world.physicstime;
 
 	return true;	//yay
 }
@@ -836,6 +869,7 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 			// this will set the body to a dead frame, among other things
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
 			PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
+			sv.spawned_client_slots--;
 		}
 		else if (SpectatorDisconnect)
 		{
@@ -866,7 +900,7 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 
 	for (i=1 ; i<MAX_MODELS ; i++)
 	{
-		if (sv.strings.model_precache[i])
+		if (sv.strings.model_precache[i] && *sv.strings.model_precache[i])
 			VFS_PRINTF (f, "%s\n", sv.strings.model_precache[i]);
 		else
 			break;

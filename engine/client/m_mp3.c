@@ -1059,18 +1059,22 @@ qboolean Media_WinAvi_DecodeFrame(cin_t *cin, qboolean nosound)
 	{
 		cin->filmstarttime = curtime;
 		cin->avi.resettimer = 0;
+		newframe = 0;
+		newframei = newframe;
 	}
-
-	newframe = (((curtime - cin->filmstarttime) * cin->avi.vidinfo.dwRate) / cin->avi.vidinfo.dwScale) + cin->avi.vidinfo.dwInitialFrames;
-	newframei = newframe;
-
-	if (newframei>=cin->avi.num_frames)
-		cin->ended = true;
-
-	if (newframei == cin->currentframe)
+	else
 	{
-		cin->outunchanged = true;
-		return true;
+		newframe = (((curtime - cin->filmstarttime) * cin->avi.vidinfo.dwRate) / cin->avi.vidinfo.dwScale) + cin->avi.vidinfo.dwInitialFrames;
+		newframei = newframe;
+
+		if (newframei>=cin->avi.num_frames)
+			cin->ended = true;
+
+		if (newframei == cin->currentframe)
+		{
+			cin->outunchanged = true;
+			return true;
+		}
 	}
 	cin->outunchanged = false;
 
@@ -2905,7 +2909,7 @@ void TTS_SayChatString(char **stringtosay)
 			return;
 	}
 
-	TTS_SayAsciiString(stringtosay);
+	TTS_SayAsciiString(*stringtosay);
 }
 void TTS_SayConString(conchar_t *stringtosay)
 {

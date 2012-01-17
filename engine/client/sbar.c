@@ -2494,17 +2494,15 @@ void Sbar_Draw (void)
 			Sbar_Voice(16);
 	}
 
-#ifdef GLQUAKE
 	if (cl_sbar.value == 1 || scr_viewsize.value<100)
 	{
 		if (cl.splitclients==1 && sbar_rect.x>0)
 		{	// left
-				R2D_TileClear (0, sbar_rect.height - sb_lines, sbar_rect.x, sb_lines);
+			R2D_TileClear (0, sbar_rect.height - sb_lines, sbar_rect.x, sb_lines);
 		}
 		if (sbar_rect.x + 320 <= sbar_rect.width && !headsup)
 			R2D_TileClear (sbar_rect.x + 320, sbar_rect.height - sb_lines, sbar_rect.width - (320), sb_lines);
 	}
-#endif
 
 
 	if (sb_lines > 0)
@@ -3288,8 +3286,5 @@ void Sbar_FinaleOverlay (void)
 	if (UI_DrawFinale()>0)
 		return;
 #endif
-	pic = R2D_SafeCachePic ("gfx/finale.lmp");
-	if (pic)
-		R2D_ScalePic ( (vid.width-pic->width)/2, 16, pic->width, pic->height, pic);
 }
 

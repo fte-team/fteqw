@@ -385,6 +385,29 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 			gl_config.nofixedfunc = false;
 	}
 
+	gl_config.maxglslversion = 0;
+	if (gl_config.gles && gl_config.glversion >= 2)
+		gl_config.maxglslversion = 100;
+	else if (gl_config.glversion >= 2)
+	{
+#define GL_SHADING_LANGUAGE_VERSION 0x8B8C
+		const char *s = qglGetString (GL_SHADING_LANGUAGE_VERSION);
+
+		if (s)
+		{
+			gl_config.maxglslversion = atoi(s) * 100;
+			while(*s >= '0' && *s <= '9')
+				s++;
+			if (*s == '.')
+				s++;
+			gl_config.maxglslversion += atoi(s);
+		}
+		else
+			gl_config.maxglslversion = 110;
+	}
+	else
+		gl_config.maxglslversion = 110;
+
 	//multitexture
 	gl_mtexable = false;
 	gl_mtexarbable = 0;
@@ -828,6 +851,34 @@ static const char *glsl_hdrs[] =
 				"#endif\n"
 			"#endif\n"
 		,
+	"sys/offsetmapping.h",
+			"uniform float cvar_r_glsl_offsetmapping_scale;\n"
+			"vec2 offsetmap(sampler2D normtex, vec2 base, vec3 eyevector)\n"
+			"{\n"
+			"#if defined(RELIEFMAPPING)\n"
+				"float i, f;\n"
+				"vec3 OffsetVector = vec3(normalize(eyevector.xyz).xy * cvar_r_glsl_offsetmapping_scale * vec2(1.0, -1.0), -1.0);\n"
+				"vec3 RT = vec3(vec2(base.xy"/* - OffsetVector.xy*OffsetMapping_Bias*/"), 1.0);\n"
+				"OffsetVector /= 10.0;\n"
+				"for(i = 1.0; i < 10.0; ++i)\n"
+					"RT += OffsetVector *  step(texture2D(normtex, RT.xy).a, RT.z);\n"
+				"for(i = 0.0, f = 1.0; i < 5.0; ++i, f *= 0.5)\n"
+					"RT += OffsetVector * (step(texture2D(normtex, RT.xy).a, RT.z) * f - 0.5 * f);\n"
+				"return RT.xy;\n"
+			"#elif defined(OFFSETMAPPING)\n"
+				"vec2 OffsetVector = normalize(eyevector).xy * cvar_r_glsl_offsetmapping_scale * vec2(1.0, -1.0);\n"
+				"vec2 tc = base;\n"
+				"tc += OffsetVector;\n"
+				"OffsetVector *= 0.333;\n"
+				"tc -= OffsetVector * texture2D(normtex, tc).w;\n"
+				"tc -= OffsetVector * texture2D(normtex, tc).w;\n"
+				"tc -= OffsetVector * texture2D(normtex, tc).w;\n"
+				"return tc;\n"
+			"#else\n"
+				"return base;\n"
+			"#endif\n"
+			"}\n"
+		,
 	NULL
 };
 
@@ -889,7 +940,7 @@ qboolean GLSlang_GenerateIncludes(int maxstrings, int *strings, const GLchar *pr
 
 // glslang helper api function definitions
 // type should be GL_FRAGMENT_SHADER_ARB or GL_VERTEX_SHADER_ARB
-GLhandleARB GLSlang_CreateShader (char *name, int ver, char **precompilerconstants, const char *shadersource, GLenum shadertype)
+GLhandleARB GLSlang_CreateShader (char *name, int ver, char **precompilerconstants, const char *shadersource, GLenum shadertype, qboolean silent)
 {
 	GLhandleARB shader;
 	GLint       compiled;
@@ -901,6 +952,10 @@ GLhandleARB GLSlang_CreateShader (char *name, int ver, char **precompilerconstan
 
 	if (ver)
 	{
+		/*required version not supported, don't even try*/
+		if (ver > gl_config.maxglslversion)
+			return 0;
+
 		prstrings[strings] = va("#version %u\n", ver);
 		length[strings] = strlen(prstrings[strings]);
 		strings++;
@@ -1011,31 +1066,34 @@ GLhandleARB GLSlang_CreateShader (char *name, int ver, char **precompilerconstan
 	{
 		qglGetShaderInfoLog_(shader, sizeof(str), NULL, str);
 		qglDeleteShaderObject_(shader);
-		switch (shadertype)
+		if (!silent)
 		{
-		case GL_FRAGMENT_SHADER_ARB:
-			Con_Printf("Fragment shader (%s) compilation error:\n----------\n%s----------\n", name, str);
-			break;
-		case GL_VERTEX_SHADER_ARB:
-			Con_Printf("Vertex shader (%s) compilation error:\n----------\n%s----------\n", name, str);
-			break;
-		default:
-			Con_Printf("Shader_CreateShader: This shouldn't happen ever\n");
-			break;
-		}
-		Con_DPrintf("Shader \"%s\" source:\n", name);
-		for (i = 0; i < strings; i++)
-		{
-			int j;
-			if (length[i] < 0)
-				Con_DPrintf("%s", prstrings[i]);
-			else
+			switch (shadertype)
 			{
-				for (j = 0; j < length[i]; j++)
-					Con_DPrintf("%c", prstrings[i][j]);
+			case GL_FRAGMENT_SHADER_ARB:
+				Con_Printf("Fragment shader (%s) compilation error:\n----------\n%s----------\n", name, str);
+				break;
+			case GL_VERTEX_SHADER_ARB:
+				Con_Printf("Vertex shader (%s) compilation error:\n----------\n%s----------\n", name, str);
+				break;
+			default:
+				Con_Printf("Shader_CreateShader: This shouldn't happen ever\n");
+				break;
 			}
+			Con_DPrintf("Shader \"%s\" source:\n", name);
+			for (i = 0; i < strings; i++)
+			{
+				int j;
+				if (length[i] < 0)
+					Con_DPrintf("%s", prstrings[i]);
+				else
+				{
+					for (j = 0; j < length[i]; j++)
+						Con_DPrintf("%c", prstrings[i][j]);
+				}
+			}
+			Con_DPrintf("%s\n", str);
 		}
-		Con_DPrintf("%s\n", str);
 		return 0;
 	}
 
@@ -1058,7 +1116,7 @@ GLhandleARB GLSlang_CreateShader (char *name, int ver, char **precompilerconstan
 	return shader;
 }
 
-GLhandleARB GLSlang_CreateProgramObject (GLhandleARB vert, GLhandleARB frag)
+GLhandleARB GLSlang_CreateProgramObject (GLhandleARB vert, GLhandleARB frag, qboolean silent)
 {
 	GLhandleARB program;
 	GLint       linked;
@@ -1084,8 +1142,11 @@ GLhandleARB GLSlang_CreateProgramObject (GLhandleARB vert, GLhandleARB frag)
 
 	if(!linked)
 	{
-		qglGetProgramInfoLog_(program, sizeof(str), NULL, str);
-		Con_Printf("Program link error: %s\n", str);
+		if (!silent)
+		{
+			qglGetProgramInfoLog_(program, sizeof(str), NULL, str);
+			Con_Printf("Program link error: %s\n", str);
+		}
 
 		qglDeleteProgramObject_(program);
 
@@ -1094,7 +1155,7 @@ GLhandleARB GLSlang_CreateProgramObject (GLhandleARB vert, GLhandleARB frag)
 	return program;
 }
 
-GLhandleARB GLSlang_CreateProgram(char *name, int ver, char **precompilerconstants, char *vert, char *frag)
+GLhandleARB GLSlang_CreateProgram(char *name, int ver, char **precompilerconstants, char *vert, char *frag, qboolean silent)
 {
 	GLhandleARB handle;
 	GLhandleARB vs;
@@ -1107,13 +1168,13 @@ GLhandleARB GLSlang_CreateProgram(char *name, int ver, char **precompilerconstan
 	if (!precompilerconstants)
 		precompilerconstants = &nullconstants;
 
-	vs = GLSlang_CreateShader(name, ver, precompilerconstants, vert, GL_VERTEX_SHADER_ARB);
-	fs = GLSlang_CreateShader(name, ver, precompilerconstants, frag, GL_FRAGMENT_SHADER_ARB);
+	vs = GLSlang_CreateShader(name, ver, precompilerconstants, vert, GL_VERTEX_SHADER_ARB, silent);
+	fs = GLSlang_CreateShader(name, ver, precompilerconstants, frag, GL_FRAGMENT_SHADER_ARB, silent);
 
 	if (!vs || !fs)
 		handle = 0;
 	else
-		handle = GLSlang_CreateProgramObject(vs, fs);
+		handle = GLSlang_CreateProgramObject(vs, fs, silent);
 	//delete ignores 0s.
 	qglDeleteShaderObject_(vs);
 	qglDeleteShaderObject_(fs);

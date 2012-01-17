@@ -202,7 +202,9 @@ typedef struct
 
 	int		type;
 	vec3_t	angles;
+	vec3_t	avel;
 	int		flags;
+	float	gravity;
 	float	alpha;
 	float	start;
 	float	framerate;
@@ -389,6 +391,7 @@ void P_LoadedModel(model_t *mod)
 		P_DefaultTrail(mod);
 }
 
+void CL_RefreshCustomTEnts(void);
 void CL_RegisterParticles(void)
 {
 	model_t *mod;
@@ -460,6 +463,8 @@ void CL_RegisterParticles(void)
 	ptfte_lightning3_end	= P_FindParticleType("TE_LIGHTNING3_END");
 	ptfte_bullet			= P_FindParticleType("TE_BULLET");
 	ptfte_superbullet		= P_FindParticleType("TE_SUPERBULLET");
+
+	CL_RefreshCustomTEnts();
 }
 
 #ifdef Q2CLIENT
@@ -512,6 +517,18 @@ void CL_ClearTEnts (void)
 	memset (&cl_explosions, 0, sizeof(cl_explosions));
 }
 
+static void CL_ClearExplosion(explosion_t *exp)
+{
+	exp->gravity = 0;
+	exp->flags = 0;
+	exp->model = NULL;
+	exp->firstframe = -1;
+	exp->framerate = 10;
+	VectorClear(exp->velocity);
+	VectorClear(exp->angles);
+	VectorClear(exp->avel);
+}
+
 /*
 =================
 CL_AllocExplosion
@@ -527,8 +544,7 @@ explosion_t *CL_AllocExplosion (void)
 	{
 		if (!cl_explosions[i].model)
 		{
-			cl_explosions[i].firstframe = -1;
-			cl_explosions[i].framerate = 10;
+			CL_ClearExplosion(&cl_explosions[i]);
 			return &cl_explosions[i];
 		}
 	}
@@ -536,8 +552,7 @@ explosion_t *CL_AllocExplosion (void)
 	if (i == explosions_running && i != MAX_EXPLOSIONS)
 	{
 		explosions_running++;
-		cl_explosions[i].firstframe = -1;
-		cl_explosions[i].framerate = 10;
+		CL_ClearExplosion(&cl_explosions[i]);
 		return &cl_explosions[i];
 	}
 
@@ -551,8 +566,7 @@ explosion_t *CL_AllocExplosion (void)
 			time = cl_explosions[i].start;
 			index = i;
 		}
-	cl_explosions[index].firstframe = -1;
-	cl_explosions[index].framerate = 10;
+	CL_ClearExplosion(&cl_explosions[index]);
 	return &cl_explosions[index];
 }
 
@@ -827,6 +841,10 @@ void CL_ParseStream (int type)
 	case TEH2_STREAM_GAZE:
 		b->model = Mod_ForName("models/stmedgaz.mdl", true);
 		b->particleeffect = P_FindParticleType("te_stream_gaze");
+		break;
+	case TEH2_STREAM_FAMINE:
+		b->model = Mod_ForName("models/fambeam.mdl", true);
+		b->particleeffect = P_FindParticleType("te_stream_famine");
 		break;
 	default:
 		Con_Printf("CL_ParseStream: type %i\n", type);
@@ -1649,13 +1667,13 @@ void CL_ParseCustomTEnt(void)
 	}
 	else
 	{
+		MSG_ReadPos (pos);
+		VectorCopy(pos, pos2);
+
 		if (t->netstyle & CTE_CUSTOMCOUNT)
 			count = MSG_ReadByte();
 		else
 			count = 1;
-
-		MSG_ReadPos (pos);
-		VectorCopy(pos, pos2);
 
 		if (t->netstyle & CTE_CUSTOMVELOCITY)
 		{
@@ -1716,6 +1734,12 @@ void CL_ParseCustomTEnt(void)
 			dl->channelfade[2] = dl->color[0]/t->dlighttime;
 		*/
 	}
+}
+void CL_RefreshCustomTEnts(void)
+{
+	int i;
+	for (i = 0; i < sizeof(customtenttype)/sizeof(customtenttype[0]); i++)
+		customtenttype[i].particleeffecttype = P_FindParticleType(customtenttype[i].name);
 }
 void CL_ClearCustomTEnts(void)
 {
@@ -1849,9 +1873,11 @@ void CL_ParseParticleEffect4 (void)
 	P_RunParticleEffect4 (org, radius, color, effect, msgcount);
 }
 
-void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, model_t *model, int startframe, int framecount, int framerate, float alpha)
+void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, model_t *model, int startframe, int framecount, float framerate, float alpha, float randspin, float gravity)
 {
 	explosion_t	*ex;
+	vec3_t spos;
+	float dlen;
 
 	ex = CL_AllocExplosion ();
 	VectorCopy (org, ex->origin);
@@ -1862,12 +1888,25 @@ void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, model_t *model, int startframe
 	ex->framerate = framerate;
 	ex->alpha = alpha;
 
-	ex->angles[0] = 0;
-	ex->angles[1] = 0;
-	ex->angles[2] = 0;
+	if (randspin)
+	{
+		ex->angles[0] = frandom()*360;
+		ex->angles[1] = frandom()*360;
+		ex->angles[2] = frandom()*360;
+
+		ex->avel[0] = crandom()*randspin;
+		ex->avel[1] = crandom()*randspin;
+		ex->avel[2] = crandom()*randspin;
+	}
+	ex->gravity = gravity;
 
 	if (dir)
+	{
 		VectorCopy(dir, ex->velocity);
+		dlen = -10/VectorLength(dir);
+		VectorMA(ex->origin, dlen, dir, spos);
+		TraceLineN(spos, org, ex->origin, NULL);
+	}
 	else
 		VectorClear(ex->velocity);
 }
@@ -1900,7 +1939,7 @@ void CL_ParseEffect (qboolean effect2)
 	framerate = MSG_ReadByte();
 
 
-	CL_SpawnSpriteEffect(org, vec3_origin, cl.model_precache[modelindex], startframe, framecount, framerate, 1);
+	CL_SpawnSpriteEffect(org, vec3_origin, cl.model_precache[modelindex], startframe, framecount, framerate, 1, 0, 0);
 }
 
 #ifdef Q2CLIENT
@@ -2999,6 +3038,12 @@ void CL_UpdateExplosions (void)
 	explosion_t	*ex;
 	entity_t	*ent;
 	int lastrunningexplosion = -1;
+	vec3_t pos, norm;
+	static float oldtime;
+	float frametime = cl.time - oldtime;
+	if (frametime < 0 || frametime > 100)
+		frametime = 0;
+	oldtime = cl.time;
 
 	for (i=0, ex=cl_explosions; i < explosions_running; i++, ex++)
 	{
@@ -3031,7 +3076,37 @@ void CL_UpdateExplosions (void)
 		ent = CL_NewTempEntity ();
 		if (!ent)
 			return;
-		VectorMA (ex->origin, f, ex->velocity, ent->origin);
+
+		if (ex->gravity)
+		{
+			VectorMA(ex->origin, frametime, ex->velocity, pos);
+			if (ex->velocity[0] || ex->velocity[1] || ex->velocity[2])
+			{
+				VectorClear(norm);
+				if (TraceLineN(ex->origin, pos, ent->origin, norm))
+				{
+					float sc = DotProduct(ex->velocity, norm) * -1.5;
+					VectorMA(ex->velocity, sc, norm, ex->velocity);
+					VectorScale(ex->velocity, 0.9, ex->velocity);
+					if (norm[2] > 0.7 && DotProduct(ex->velocity, ex->velocity) < 10)
+					{
+						VectorClear(ex->velocity);
+						VectorClear(ex->avel);
+					}
+				}
+				else
+					ex->velocity[2] -= ex->gravity * frametime;
+				VectorCopy(ent->origin, ex->origin);
+			}
+			else
+				VectorCopy(ex->origin, ent->origin);
+		}
+		else
+		{
+			VectorMA (ex->origin, f, ex->velocity, ent->origin);
+		}
+		VectorMA(ex->angles, frametime, ex->avel, ex->angles);
+
 		VectorCopy (ex->oldorigin, ent->oldorigin);
 		VectorCopy (ex->angles, ent->angles);
 		ent->skinnum = ex->skinnum;
@@ -3055,7 +3130,7 @@ void CL_UpdateExplosions (void)
 			ent->shaderRGBAf[1] = ((d_8to24rgbtable[ex->skinnum & 0xFF] >>  8) & 0xFF)/255.0;
 			ent->shaderRGBAf[2] = ((d_8to24rgbtable[ex->skinnum & 0xFF] >> 16) & 0xFF)/255.0;
 		}
-		else
+		else if (ex->skinnum < 0)
 		{
 			ent->skinnum = 7*f/(numframes);
 		}

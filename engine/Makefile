@@ -55,12 +55,25 @@ endif
 
 DROID_NDK_PATH?=~/droid/android-ndk-r6b
 DROID_SDK_PATH?=~/droid/android-sdk-linux_x86
+ANT?=ant
+JAVATOOL="$(JAVA_HOME)"/bin/
 ifeq ($(FTE_TARGET),droid)
+	#if we're running under windows, then we want to run some other binary
+	ifeq ($(shell uname -o 2>&1 | grep Cygwin),)
+		#set up for linux
+		NDK_PATH:=$(shell echo $(DROID_NDK_PATH))
+		SDK_PATH:=$(shell echo $(DROID_SDK_PATH))
+		TOOLCHAIN:=$(NDK_PATH)/toolchains/arm-linux-androideabi-4.4.3/prebuilt/linux-x86/bin/arm-linux-androideabi-
+	else
+		#we're running upon windows
+		NDK_PATH:=$(shell cygpath -m $(DROID_NDK_PATH))
+		SDK_PATH:=$(shell cygpath -m $(DROID_SDK_PATH))
+		TOOLCHAIN:=$(NDK_PATH)/toolchains/arm-linux-androideabi-4.4.3/prebuilt/windows/bin/arm-linux-androideabi-
+		#make can't cope with absolute paths in dependancy files
+		NODEPS = 1
+	endif
 
-	NDK_PATH:=$(shell echo $(DROID_NDK_PATH))
-	SDK_PATH:=$(shell echo $(DROID_SDK_PATH))
-
-	DROID_API_LEVEL=3
+	DROID_API_LEVEL=4
 
 	#there are 3 ABI targets
 	#armv5 (works on all arm droids)
@@ -68,8 +81,8 @@ ifeq ($(FTE_TARGET),droid)
 	#armv7+neon
 	DROID_ABI?=-mfloat-abi=softfp
 
-	STRIP=$(NDK_PATH)/toolchains/arm-linux-androideabi-4.4.3/prebuilt/linux-x86/bin/arm-linux-androideabi-strip
-	CC=$(NDK_PATH)/toolchains/arm-linux-androideabi-4.4.3/prebuilt/linux-x86/bin/arm-linux-androideabi-gcc -I$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/arch-arm/usr/include/ -DANDROID $(DROID_ABI)
+	STRIP=$(TOOLCHAIN)strip
+	CC=$(TOOLCHAIN)gcc -I$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/arch-arm/usr/include/ -DANDROID $(DROID_ABI)
 	DO_LD=$(CC) -Wl,-soname,libftedroid.so -shared -Wl,--no-undefined -Wl,-z,noexecstack --sysroot=$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/arch-arm -L$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/arch-arm/usr/lib -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS) -llog -lc -lz -lm
 endif
 
@@ -1166,7 +1179,8 @@ distclean: clean
 
 #makes an ant project for us
 droid/build.xml:
-	cd droid && PATH=$$PATH:$(DROID_SDK_PATH)/tools:$(DROID_NDK_PATH) android update project -t 1 -p . -n FTEDroid
+	-cd droid && PATH=$$PATH:$(DROID_SDK_PATH)/tools:$(DROID_NDK_PATH) android update project -t 1 -p . -n FTEDroid
+	-cd droid && PATH=$$PATH:$(DROID_SDK_PATH)/tools:$(DROID_NDK_PATH) android.bat update project -t 1 -p . -n FTEDroid
 
 #build FTE as a library, then build the java+package (release)
 droid/ftekeystore:
@@ -1180,26 +1194,26 @@ droid/ftekeystore:
 	@echo Just press control-c if you don\'t want to proceed.
 	@echo Morality warning: never distribute droid/ftekeystore - always do make distclean before distributing.
 	@echo
-	keytool -genkey -v -keystore $@ -alias autogen -keyalg RSA -keysize 2048 -validity 10000
+	$(JAVATOOL)keytool -genkey -v -keystore $@ -alias autogen -keyalg RSA -keysize 2048 -validity 10000
 
 droid-rel: droid/build.xml droid/ftekeystore
 	$(MAKE) FTE_TARGET=droid gl-rel 
 	mkdir -p droid/libs/armeabi
 	@cp $(RELEASE_DIR)/libftedroid.so droid/libs/armeabi/
-	@cd droid && ant release
+	@cd droid && $(ANT) release
 	@echo
 	@echo
 	@echo Signing package... I hope you remember your password.
 	@echo
-	jarsigner -digestalg SHA1 -sigalg MD5withRSA -keystore droid/ftekeystore droid/bin/FTEDroid-unsigned.apk autogen
+	$(JAVATOOL)jarsigner -digestalg SHA1 -sigalg MD5withRSA -keystore droid/ftekeystore droid/bin/FTEDroid-release-unsigned.apk autogen
 	-rm -f $(RELEASE_DIR)/FTEDroid.apk
-	$(DROID_SDK_PATH)/tools/zipalign 4 droid/bin/FTEDroid-unsigned.apk $(RELEASE_DIR)/FTEDroid.apk
+	$(DROID_SDK_PATH)/tools/zipalign 4 droid/bin/FTEDroid-release-unsigned.apk $(RELEASE_DIR)/FTEDroid.apk
 
 droid-opt: droid/build.xml droid/ftekeystore
 	$(MAKE) FTE_TARGET=droid gl-rel
 	mkdir -p droid/libs/armeabi
 	@cp $(RELEASE_DIR)/libftedroid.so droid/libs/armeabi/
-	@cd droid && ant release
+	@cd droid && $(ANT) release
 	cp droid/bin/FTEDroid-unsigned.apk $(RELEASE_DIR)/FTEDroid.apk
 
 #build FTE as a library, then build the java+package (release). also installs it onto the 'current' device.
@@ -1207,6 +1221,6 @@ droid-dbg: droid/build.xml
 	$(MAKE) FTE_TARGET=droid gl-dbg
 	@mkdir -p droid/libs/armeabi
 	@cp $(DEBUG_DIR)/libftedroid.so droid/libs/armeabi/
-	@cd droid && ant debug install
+	@cd droid && $(ANT) debug && $(ANT) debug install
 	cp droid/bin/FTEDroid-debug.apk $(DEBUG_DIR)/FTEDroid.apk
 

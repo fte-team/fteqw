@@ -74,6 +74,8 @@ QCC_type_t	*type_function;// = {ev_function/*, &def_function*/,NULL,&type_void};
 QCC_type_t	*type_pointer;// = {ev_pointer/*, &def_pointer*/};
 QCC_type_t	*type_integer;// = {ev_integer/*, &def_integer*/};
 QCC_type_t	*type_variant;// = {ev_integer/*, &def_integer*/};
+QCC_type_t	*type_floatpointer;
+QCC_type_t	*type_intpointer;
 
 QCC_type_t	*type_floatfield;// = {ev_field/*, &def_field*/, NULL, &type_float};
 
@@ -1367,7 +1369,7 @@ int QCC_PR_LexInteger (void)
 		len++;
 		pr_file_p++;
 		c = *pr_file_p;
-	} while ((c >= '0' && c<= '9') || c == '.' || (c>='a' && c <= 'f'));
+	} while ((c >= '0' && c<= '9') || (c == '.'&&pr_file_p[1]!='.') || (c>='a' && c <= 'f'));
 	pr_token[len] = 0;
 	return atoi (pr_token);
 }
@@ -1420,7 +1422,7 @@ void QCC_PR_LexNumber (void)
 			num*=base;
 			num += c -'A'+10;
 		}
-		else if (c == '.')
+		else if (c == '.' && pr_file_p[1]!='.')
 		{
 			pr_token[tokenlen++] = c;
 			pr_file_p++;
@@ -1445,6 +1447,15 @@ void QCC_PR_LexNumber (void)
 			}
 			pr_token[tokenlen++] = 0;
 			pr_immediate._float = (float)atof(pr_token);
+			return;
+		}
+		else if (c == 'f')
+		{
+			pr_token[tokenlen++] = c;
+			pr_token[tokenlen++] = 0;
+			pr_file_p++;
+			pr_immediate_type = type_float;
+			pr_immediate._float = num*sign;
 			return;
 		}
 		else if (c == 'i')
@@ -1500,6 +1511,8 @@ float QCC_PR_LexFloat (void)
 		pr_file_p++;
 		c = *pr_file_p;
 	} while ((c >= '0' && c<= '9') || (c == '.'&&pr_file_p[1]!='.'));	//only allow a . if the next isn't too...
+	if (*pr_file_p == 'f')
+		pr_file_p++;
 	pr_token[len] = 0;
 	return (float)atof (pr_token);
 }
@@ -2561,7 +2574,7 @@ void QCC_PR_Lex (void)
 		QCC_PR_LexNumber();
 		return;
 	}
-	if ( (c == '.'&&pr_file_p[1] >='0' && pr_file_p[1] <= '9') || (c >= '0' && c <= '9') || ( c=='-' && pr_file_p[1]>='0' && pr_file_p[1] <='9') )
+	if ( (c == '.'&&pr_file_p[1]!='.'&&pr_file_p[1] >='0' && pr_file_p[1] <= '9') || (c >= '0' && c <= '9') || ( c=='-' && pr_file_p[1]>='0' && pr_file_p[1] <='9') )
 	{
 		pr_token_type = tt_immediate;
 		QCC_PR_LexNumber ();
@@ -3469,7 +3482,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			fieldtype = QCC_PR_NewType(newparm->name, ev_field);
 			fieldtype->aux_type = newparm;
 			fieldtype->size = newparm->size;
-			QCC_PR_GetDef(fieldtype, membername, pr_scope, 2, 1, false);
+			QCC_PR_GetDef(fieldtype, membername, pr_scope, 2, 0, false);
 
 
 			newparm->ofs = 0;//newt->size;
@@ -3523,7 +3536,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			else
 				newparm->name = QCC_CopyString("")+strings;
 			newparm->ofs = newt->size;
-			newt->size += newparm->size*newparm->arraysize;
+			newt->size += newparm->size*(newparm->arraysize?newparm->arraysize:1);
 			newt->num_parms++;
 
 			if (type)
@@ -3546,6 +3559,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		newparm = NULL;
 		while (!QCC_PR_CheckToken("}"))
 		{
+			int arraysize;
 			if (QCC_PR_CheckToken(","))
 			{
 				if (!newparm)
@@ -3568,8 +3582,11 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				QCC_PR_Expect(";");
 			}
 			newparm->ofs = 0;
-			if (newparm->size > newt->size*newparm->arraysize)
-				newt->size = newparm->size*newparm->arraysize;
+			arraysize = newparm->arraysize;
+			if (!arraysize)
+				arraysize = 1;
+			if (newparm->size*arraysize > newt->size)
+				newt->size = newparm->size*arraysize;
 			newt->num_parms++;
 
 			if (type)

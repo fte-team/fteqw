@@ -5320,17 +5320,17 @@ void CLQW_ParseServerMessage (void)
 			cl.completed_time = cl.gametime;
 			vid.recalc_refdef = true;	// go to full screen
 			for (i=0 ; i<3 ; i++)
-				cl.simorg[0][i] = MSG_ReadCoord ();
+				cl.simorg[destsplit][i] = MSG_ReadCoord ();
 			for (i=0 ; i<3 ; i++)
-				cl.simangles[0][i] = MSG_ReadAngle ();
-			VectorClear (cl.simvel[0]);
-
-			VectorCopy (cl.simvel[0], cl.simvel[1]);
-			VectorCopy (cl.simangles[0], cl.simangles[1]);
-			VectorCopy (cl.simorg[0], cl.simorg[1]);
+				cl.simangles[destsplit][i] = MSG_ReadAngle ();
+			VectorClear (cl.simvel[destsplit]);
 			break;
 
 		case svc_finale:
+			if (!cl.intermission)
+				for (i = 0; i < MAX_SPLITS; i++)
+					cl.simorg[i][2] += cl.viewheight[i];
+
 			cl.intermission = 2;
 			cl.completed_time = cl.gametime;
 			vid.recalc_refdef = true;	// go to full screen

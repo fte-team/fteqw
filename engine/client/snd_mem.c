@@ -676,7 +676,7 @@ sfxcache_t *S_LoadDoomSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
 	// format data from Unofficial Doom Specs v1.6
 	unsigned short *dataus;
-	int samples, rate, len;
+	int samples, rate;
 
 	if (datalen < 8)
 		return NULL;
@@ -695,7 +695,7 @@ sfxcache_t *S_LoadDoomSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	if (datalen != samples)
 		return NULL;
 
-	COM_CharBias(data, sc->length);
+	COM_CharBias(data, datalen);
 
 	ResampleSfx (s, rate, 1, 1, samples, -1, data);
 

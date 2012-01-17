@@ -478,7 +478,7 @@ static trace_t WPhys_PushEntity (world_t *w, wedict_t *ent, vec3_t push, unsigne
 
 	VectorAdd (ent->v->origin, push, end);
 
-	if ((int)ent->v->flags&FL_LAGGEDMOVE)
+	if ((int)ent->v->flags&FLQW_LAGGEDMOVE)
 		traceflags |= MOVE_LAGGED;
 
 	if (ent->v->movetype == MOVETYPE_FLYMISSILE)
@@ -488,6 +488,17 @@ static trace_t WPhys_PushEntity (world_t *w, wedict_t *ent, vec3_t push, unsigne
 		trace = World_Move (w, ent->v->origin, ent->v->mins, ent->v->maxs, end, MOVE_NOMONSTERS|traceflags, (wedict_t*)ent);
 	else
 		trace = World_Move (w, ent->v->origin, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL|traceflags, (wedict_t*)ent);
+
+	/*hexen2's movetype_swim does not allow swimming entities to move out of water. this implementation is quite hacky, but matches hexen2 well enough*/
+	if (ent->v->movetype == MOVETYPE_H2SWIM)
+	{
+		if (!(w->worldmodel->funcs.PointContents(w->worldmodel, NULL, trace.endpos) & (FTECONTENTS_WATER|FTECONTENTS_SLIME|FTECONTENTS_LAVA)))
+		{
+			VectorCopy(ent->v->origin, trace.endpos);
+			trace.fraction = 0;
+			trace.ent = w->edicts;
+		}
+	}
 
 //	if (trace.ent)
 //		VectorMA(trace.endpos, sv_impactpush.value, trace.plane.normal, ent->v->origin);
@@ -547,8 +558,6 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 	pushed_p->ent = pusher;
 	VectorCopy (pusher->v->origin, pushed_p->origin);
 	VectorCopy (pusher->v->angles, pushed_p->angles);
-//	if (pusher->client)
-//		pushed_p->deltayaw = pusher->client->ps.pmove.delta_angles[YAW];
 	pushed_p++;
 
 // move the pusher to it's final position
@@ -569,17 +578,12 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 		|| check->v->movetype == MOVETYPE_ANGLENOCLIP)
 			continue;
 
-#if 1
 		oldsolid = pusher->v->solid;
 		pusher->v->solid = SOLID_NOT;
 		block = World_TestEntityPosition (w, check);
 		pusher->v->solid = oldsolid;
 		if (block)
 			continue;
-#else
-		if (!check->area.prev)
-			continue;		// not linked in anywhere
-#endif
 
 	// if the entity is standing on the pusher, it will definitely be moved
 		if ( ! ( ((int)check->v->flags & FL_ONGROUND)
@@ -610,10 +614,6 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 
 			// try moving the contacted entity
 			VectorAdd (check->v->origin, move, check->v->origin);
-//			if (check->client)
-//			{	// FIXME: doesn't rotate monsters?
-//				check->client->ps.pmove.delta_angles[YAW] += amove[YAW];
-//			}
 			VectorAdd (check->v->angles, amove, check->v->angles);
 
 			// figure movement due to the pusher's amove
@@ -679,10 +679,6 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 		{
 			VectorCopy (p->origin, p->ent->v->origin);
 			VectorCopy (p->angles, p->ent->v->angles);
-//			if (p->ent->client)
-//			{
-//				p->ent->client->ps.pmove.delta_angles[YAW] = p->deltayaw;
-//			}
 			World_LinkEdict (w, p->ent, false);
 		}
 		return false;
@@ -1765,7 +1761,7 @@ static void WPhys_WalkMove (world_t *w, wedict_t *ent)
 }
 #endif
 
-static void WPhys_MoveChain(world_t *w, wedict_t *ent, wedict_t *movechain, float *initial_origin, float *initial_angle)
+void WPhys_MoveChain(world_t *w, wedict_t *ent, wedict_t *movechain, float *initial_origin, float *initial_angle)
 {
 	qboolean callfunc;
 	if ((callfunc=DotProduct(ent->v->origin, initial_origin)) || DotProduct(ent->v->angles, initial_angle))

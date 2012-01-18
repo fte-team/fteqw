@@ -4522,9 +4522,10 @@ done:;
 	{
 		if ((pass->texgen == T_GEN_ANIMMAP || pass->texgen == T_GEN_SINGLEMAP) && !TEXVALID(s->defaulttextures.base))
 			s->defaulttextures.base = pass->anim_frames[0];
+#ifndef NOMEDIA
 		if (pass->texgen == T_GEN_VIDEOMAP && pass->cin && !TEXVALID(s->defaulttextures.base))
 			s->defaulttextures.base = Media_UpdateForShader(pass->cin);
-
+#endif
 	}
 
 	pass = s->passes;

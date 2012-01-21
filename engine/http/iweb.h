@@ -5,10 +5,10 @@
 
 #ifdef WEBSVONLY
 
-typedef unsigned char qbyte;
-#include <stdlib.h>
-#include <stdio.h>
-#include <malloc.h>
+#include "quakedef.h"
+#ifdef _WIN32
+#include "winquake.h"
+#endif
 
 #define Con_TPrintf IWebPrintf
 #define TL_NETBINDINTERFACE			"binding to %s"
@@ -22,12 +22,6 @@ typedef unsigned char qbyte;
 #define IWebMalloc(x) calloc(x, 1)
 #define IWebRealloc(x, y) realloc(x, y)
 #define IWebFree free
-#endif
-
-#include "quakedef.h"
-
-#ifdef _WIN32
-#include "winquake.h"
 #endif
 
 #define IWEBACC_READ	1

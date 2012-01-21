@@ -550,7 +550,7 @@ TRACE(("dbg: GLR_NewMap: tp\n"));
 
 void GLR_PreNewMap(void)
 {
-	r_loadbumpmapping = r_deluxemapping.ival || r_shadow_realtime_world.ival || r_shadow_realtime_dlight.ival;
+	r_loadbumpmapping = r_deluxemapping.ival || r_shadow_realtime_world.ival || r_shadow_realtime_dlight.ival || r_glsl_offsetmapping.ival;
 }
 
 

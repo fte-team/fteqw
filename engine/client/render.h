@@ -410,6 +410,7 @@ extern	cvar_t	r_speeds;
 extern	cvar_t	r_waterwarp;
 extern	cvar_t	r_fullbright;
 extern	cvar_t	r_lightmap;
+extern	cvar_t	r_glsl_offsetmapping;
 extern	cvar_t	r_shadow_realtime_dlight, r_shadow_realtime_dlight_shadows;
 extern	cvar_t	r_shadow_realtime_world,r_shadow_realtime_world_shadows;
 extern	cvar_t	r_mirroralpha;

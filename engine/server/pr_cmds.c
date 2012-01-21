@@ -2159,8 +2159,11 @@ static void QCBUILTIN PF_setsize (progfuncs_t *prinst, struct globalvars_s *pr_g
 	e = G_EDICT(prinst, OFS_PARM0);
 	if (e->isfree)
 	{
-		Con_TPrintf(STL_EDICTWASFREE, "setsize");
-		(*prinst->pr_trace) = 1;
+		if (progstype != PROG_H2)
+		{
+			Con_TPrintf(STL_EDICTWASFREE, "setsize");
+			(*prinst->pr_trace) = 1;
+		}
 		return;
 	}
 	min = G_VECTOR(OFS_PARM1);

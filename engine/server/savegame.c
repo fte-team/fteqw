@@ -766,9 +766,6 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 			pr_global_struct->time = 0.1;
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 			f = PR_FindFunction(svprogfuncs, PR_GetString(svprogfuncs, ent->v->classname), PR_ANY);
-			
-			svprogfuncs->ToggleBreak(svprogfuncs, PR_GetString(svprogfuncs, ent->v->classname), 0, 1);
-			svprogfuncs->ToggleBreak(svprogfuncs, "trigger_crosslevel_target_think", 0, 1);
 
 			if (f)
 				PR_ExecuteProgram(svprogfuncs, f);

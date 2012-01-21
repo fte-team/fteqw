@@ -2088,7 +2088,12 @@ void Surf_DrawWorld (void)
 			}
 		}
 
-		CL_LinkStaticEntities(vis);
+		if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+		{
+			CL_LinkStaticEntities(vis);
+			TRACE(("dbg: calling R_DrawParticles\n"));
+			P_DrawParticles ();
+		}
 
 		RSpeedEnd(RSPEED_WORLDNODE);
 		TRACE(("dbg: calling BE_DrawWorld\n"));

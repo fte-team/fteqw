@@ -612,7 +612,7 @@ int main (int c, const char **v)
 	COM_InitArgv(parms.argc, parms.argv);
 	TL_InitLanguages();
 
-	parms.memsize = 16*1024*1024;
+	parms.memsize = 64*1024*1024;
 
 	j = COM_CheckParm("-mem");
 	if (j && j+1 < com_argc)

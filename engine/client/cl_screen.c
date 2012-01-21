@@ -513,7 +513,7 @@ void SCR_DrawCenterString (vrect_t *rect, cprint_t *p)
 		py = (     y * vid.height) / (float)vid.pixelheight;
 		pw = rect->width+8;
 		if (*p->titleimage)
-			R2D_ScalePic (px-16, py-16, pw + 16, linecount*8 + 32, pic);
+			R2D_ScalePic (rect->x + ((int)rect->width - pic->width)/2, rect->y + ((int)rect->height - pic->height)/2, pic->width, pic->height, pic);
 		else
 			Draw_TextBox(px-16, py-8-8, pw/8, linecount+2);
 	}

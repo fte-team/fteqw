@@ -2507,40 +2507,6 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 		if (gl_config.nofixedfunc)
 			prog->nofixedcompat = true;
 
-		/*set cvar unirforms*/
-		for (i = 0; cvarnames[i]; i++)
-		{
-			if (prog->numparams == SHADER_PROGPARMS_MAX)
-			{
-				Con_Printf("Too many cvar paramters for program\n");
-				break;
-			}
-			for (p = 0; cvarnames[i][p] && (unsigned char)cvarnames[i][p] > 32 && p < sizeof(tmpname)-1; p++)
-				tmpname[p] = cvarnames[i][p];
-			tmpname[p] = 0;
-			cvar = Cvar_Get(tmpname, "0", CVAR_SHADERSYSTEM, "glsl cvars");
-			if (!cvar)
-				continue;
-			cvar->flags |= CVAR_SHADERSYSTEM;
-			prog->parm[prog->numparams].type = cvartypes[i];
-			prog->parm[prog->numparams].pval = cvar;
-			found = false;
-			for (p = 0; p < PERMUTATIONS; p++)
-			{
-				if (!prog->handle[p].glsl)
-					continue;
-				GL_SelectProgram(prog->handle[p].glsl);
-				uniformloc = qglGetUniformLocationARB(prog->handle[p].glsl, va("cvar_%s", tmpname));
-				if (uniformloc != -1)
-				{
-					qglUniform1fARB(uniformloc, cvar->value);
-					found = true;
-				}
-				prog->parm[prog->numparams].handle[p] = uniformloc;
-			}
-			if (found)
-				prog->numparams++;
-		}
 		for (i = 0; shader_field_names[i].name; i++)
 		{
 			found = false;
@@ -2576,6 +2542,40 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 						prog->nofixedcompat = true;
 				}
 			}
+		}
+		/*set cvar unirforms*/
+		for (i = 0; cvarnames[i]; i++)
+		{
+			if (prog->numparams == SHADER_PROGPARMS_MAX)
+			{
+				Con_Printf("Too many cvar paramters for program\n");
+				break;
+			}
+			for (p = 0; cvarnames[i][p] && (unsigned char)cvarnames[i][p] > 32 && p < sizeof(tmpname)-1; p++)
+				tmpname[p] = cvarnames[i][p];
+			tmpname[p] = 0;
+			cvar = Cvar_Get(tmpname, "0", CVAR_SHADERSYSTEM, "glsl cvars");
+			if (!cvar)
+				continue;
+			cvar->flags |= CVAR_SHADERSYSTEM;
+			prog->parm[prog->numparams].type = cvartypes[i];
+			prog->parm[prog->numparams].pval = cvar;
+			found = false;
+			for (p = 0; p < PERMUTATIONS; p++)
+			{
+				if (!prog->handle[p].glsl)
+					continue;
+				GL_SelectProgram(prog->handle[p].glsl);
+				uniformloc = qglGetUniformLocationARB(prog->handle[p].glsl, va("cvar_%s", tmpname));
+				if (uniformloc != -1)
+				{
+					qglUniform1fARB(uniformloc, cvar->value);
+					found = true;
+				}
+				prog->parm[prog->numparams].handle[p] = uniformloc;
+			}
+			if (found)
+				prog->numparams++;
 		}
 		/*set texture uniforms*/
 		for (p = 0; p < PERMUTATIONS; p++)

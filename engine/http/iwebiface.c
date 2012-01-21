@@ -1,11 +1,5 @@
 #include "quakedef.h"
 
-#ifdef WEBSVONLY
-	#define WEBSERVER
-#else
-	#include "bothdefs.h"
-#endif
-
 #ifdef WEBSERVER
 
 #include "iweb.h"
@@ -102,7 +96,7 @@ int main(int argc, char **argv)
 
 	while(1)
 	{
-		FTP_ServerRun(1, 21);
+//		FTP_ServerRun(1, 21);
 		HTTP_ServerPoll(1, 80);
 		Sleep(1);
 	}

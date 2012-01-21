@@ -127,6 +127,7 @@ struct {
 		unsigned int shaderbits;
 		unsigned int sha_attr;
 		int currentprogram;
+		int lastuniform; /*program which was last set, so using the same prog for multiple surfaces on the same ent (ie: world) does not require lots of extra uniform chnges*/
 
 		vbo_t dummyvbo;
 		int colourarraytype;
@@ -2228,287 +2229,310 @@ static void DrawPass(const shaderpass_t *pass)
 	BE_SubmitMeshChain();
 }
 
-static unsigned int BE_Program_Set_Attribute(const shaderprogparm_t *p, unsigned int perm)
+static unsigned int BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, qboolean entunchanged)
 {
 	vec3_t param3;
 	int r, g, b;
+	int i;
+	unsigned int attr = 0;
+	const shaderprogparm_t *p;
 
-	switch(p->type)
+	for (i = 0; i < prog->numparams; i++)
 	{
-	case SP_ATTR_VERTEX:
-		/*we still do vertex transforms for billboards and shadows and such*/
-		GL_SelectVBO(shaderstate.pendingvertexvbo);
-		qglVertexAttribPointer(p->handle[perm], 3, GL_FLOAT, GL_FALSE, sizeof(vecV_t), shaderstate.pendingvertexpointer);
-		return 1u<<p->handle[perm];
-	case SP_ATTR_COLOUR:
-		if (shaderstate.sourcevbo->colours.gl.addr)
-		{
-			GL_SelectVBO(shaderstate.sourcevbo->colours.gl.vbo);
-			qglVertexAttribPointer(p->handle[perm], 4, shaderstate.colourarraytype, GL_FALSE, 0, shaderstate.sourcevbo->colours.gl.addr);
-			return 1u<<p->handle[perm];
-		}
-/*		else if (shaderstate.sourcevbo->colours4ub)
-		{
-			GL_SelectVBO(shaderstate.sourcevbo->colours.gl.vbo);
-			qglVertexAttribPointer(p->handle[perm], 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(byte_vec4_t), shaderstate.sourcevbo->colours.gl.addr);
-			return 1u<<p->handle[perm];
-		}*/
-		break;
-	case SP_ATTR_TEXCOORD:
-		GL_SelectVBO(shaderstate.sourcevbo->texcoord.gl.vbo);
-		qglVertexAttribPointer(p->handle[perm], 2, GL_FLOAT, GL_FALSE, sizeof(vec2_t), shaderstate.sourcevbo->texcoord.gl.addr);
-		return 1u<<p->handle[perm];
-	case SP_ATTR_LMCOORD:
-		GL_SelectVBO(shaderstate.sourcevbo->lmcoord.gl.vbo);
-		qglVertexAttribPointer(p->handle[perm], 2, GL_FLOAT, GL_FALSE, sizeof(vec2_t), shaderstate.sourcevbo->lmcoord.gl.addr);
-		return 1u<<p->handle[perm];
-	case SP_ATTR_NORMALS:
-		if (!shaderstate.sourcevbo->normals.gl.addr)
-			return 0;
-		GL_SelectVBO(shaderstate.sourcevbo->normals.gl.vbo);
-		qglVertexAttribPointer(p->handle[perm], 3, GL_FLOAT, GL_FALSE, sizeof(vec3_t), shaderstate.sourcevbo->normals.gl.addr);
-		return 1u<<p->handle[perm];
-	case SP_ATTR_SNORMALS:
-		if (!shaderstate.sourcevbo->svector.gl.addr)
-			return 0;
-		GL_SelectVBO(shaderstate.sourcevbo->svector.gl.vbo);
-		qglVertexAttribPointer(p->handle[perm], 3, GL_FLOAT, GL_FALSE, sizeof(vec3_t), shaderstate.sourcevbo->svector.gl.addr);
-		return 1u<<p->handle[perm];
-	case SP_ATTR_TNORMALS:
-		if (!shaderstate.sourcevbo->tvector.gl.addr)
-			return 0;
-		GL_SelectVBO(shaderstate.sourcevbo->tvector.gl.vbo);
-		qglVertexAttribPointer(p->handle[perm], 3, GL_FLOAT, GL_FALSE, sizeof(vec3_t), shaderstate.sourcevbo->tvector.gl.addr);
-		return 1u<<p->handle[perm];
-	case SP_ATTR_BONENUMS:
-		GL_SelectVBO(shaderstate.sourcevbo->bonenums.gl.vbo);
-		qglVertexAttribPointer(p->handle[perm], 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(byte_vec4_t), shaderstate.sourcevbo->bonenums.gl.addr);
-		return 1u<<p->handle[perm];
-	case SP_ATTR_BONEWEIGHTS:
-		GL_SelectVBO(shaderstate.sourcevbo->boneweights.gl.vbo);
-		qglVertexAttribPointer(p->handle[perm], 4, GL_FLOAT, GL_FALSE, sizeof(vec4_t), shaderstate.sourcevbo->boneweights.gl.addr);
-		return 1u<<p->handle[perm];
+		p = &prog->parm[i];
+		if (p->handle[perm] == -1)
+			continue;	/*not in this permutation*/
 
-	case SP_M_VIEW:
-		qglUniformMatrix4fvARB(p->handle[perm], 1, false, r_refdef.m_view);
-		break;
-	case SP_M_PROJECTION:
-		qglUniformMatrix4fvARB(p->handle[perm], 1, false, r_refdef.m_projection);
-		break;
-	case SP_M_MODELVIEW:
-		qglUniformMatrix4fvARB(p->handle[perm], 1, false, shaderstate.modelviewmatrix);
-		break;
-	case SP_M_MODELVIEWPROJECTION:
-		{
-			float m16[16];
-			Matrix4_Multiply(r_refdef.m_projection, shaderstate.modelviewmatrix, m16);
-			qglUniformMatrix4fvARB(p->handle[perm], 1, false, m16);
-		}
-		break;
-	case SP_M_INVMODELVIEWPROJECTION:
-		{
-			float m16[16], inv[16];
-			Matrix4_Multiply(r_refdef.m_projection, shaderstate.modelviewmatrix, m16);
-			Matrix4_Invert(m16, inv);
-			qglUniformMatrix4fvARB(p->handle[perm], 1, false, inv);
-		}
-		break;
-	case SP_M_MODEL:
-		qglUniformMatrix4fvARB(p->handle[perm], 1, false, shaderstate.modelmatrix);
-		break;
-	case SP_M_ENTBONES:
-		{
-			qglUniformMatrix3x4fv(p->handle[perm], shaderstate.sourcevbo->numbones, false, shaderstate.sourcevbo->bones);
-		}
-		break;
-	case SP_M_INVVIEWPROJECTION:
-		{
-			float m16[16], inv[16];
-			Matrix4_Multiply(r_refdef.m_projection, r_refdef.m_view, m16);
-			Matrix4_Invert(m16, inv);
-			qglUniformMatrix4fvARB(p->handle[perm], 1, false, inv);
-		}
-		break;
+		/*don't bother setting it if the ent properties are unchanged (but do if the mesh changed)*/
+		if (entunchanged && p->type >= SP_FIRSTUNIFORM)
+			break;
 
-	case SP_E_LMSCALE:
+		switch(p->type)
 		{
-			vec4_t colscale;
-			if (shaderstate.mode == BEM_DEPTHDARK)
+		case SP_ATTR_VERTEX:
+			/*we still do vertex transforms for billboards and shadows and such*/
+			GL_SelectVBO(shaderstate.pendingvertexvbo);
+			qglVertexAttribPointer(p->handle[perm], 3, GL_FLOAT, GL_FALSE, sizeof(vecV_t), shaderstate.pendingvertexpointer);
+			attr |= 1u<<p->handle[perm];
+			break;
+		case SP_ATTR_COLOUR:
+			if (shaderstate.sourcevbo->colours.gl.addr)
 			{
-				VectorClear(colscale);
+				GL_SelectVBO(shaderstate.sourcevbo->colours.gl.vbo);
+				qglVertexAttribPointer(p->handle[perm], 4, shaderstate.colourarraytype, GL_FALSE, 0, shaderstate.sourcevbo->colours.gl.addr);
+				attr |= 1u<<p->handle[perm];
+				break;
 			}
-			else if (shaderstate.curentity->model && shaderstate.curentity->model->engineflags & MDLF_NEEDOVERBRIGHT)
+	/*		else if (shaderstate.sourcevbo->colours4ub)
 			{
-				float sc = 1<<bound(0, gl_overbright.ival, 2);
-				VectorScale(shaderstate.curentity->shaderRGBAf, sc, colscale);
+				GL_SelectVBO(shaderstate.sourcevbo->colours.gl.vbo);
+				qglVertexAttribPointer(p->handle[perm], 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(byte_vec4_t), shaderstate.sourcevbo->colours.gl.addr);
+				return 1u<<p->handle[perm];
+			}*/
+			break;
+		case SP_ATTR_TEXCOORD:
+			GL_SelectVBO(shaderstate.sourcevbo->texcoord.gl.vbo);
+			qglVertexAttribPointer(p->handle[perm], 2, GL_FLOAT, GL_FALSE, sizeof(vec2_t), shaderstate.sourcevbo->texcoord.gl.addr);
+			attr |= 1u<<p->handle[perm];
+			break;
+		case SP_ATTR_LMCOORD:
+			GL_SelectVBO(shaderstate.sourcevbo->lmcoord.gl.vbo);
+			qglVertexAttribPointer(p->handle[perm], 2, GL_FLOAT, GL_FALSE, sizeof(vec2_t), shaderstate.sourcevbo->lmcoord.gl.addr);
+			attr |= 1u<<p->handle[perm];
+			break;
+		case SP_ATTR_NORMALS:
+			if (!shaderstate.sourcevbo->normals.gl.addr)
+				break;
+			GL_SelectVBO(shaderstate.sourcevbo->normals.gl.vbo);
+			qglVertexAttribPointer(p->handle[perm], 3, GL_FLOAT, GL_FALSE, sizeof(vec3_t), shaderstate.sourcevbo->normals.gl.addr);
+			attr |= 1u<<p->handle[perm];
+			break;
+		case SP_ATTR_SNORMALS:
+			if (!shaderstate.sourcevbo->svector.gl.addr)
+				break;
+			GL_SelectVBO(shaderstate.sourcevbo->svector.gl.vbo);
+			qglVertexAttribPointer(p->handle[perm], 3, GL_FLOAT, GL_FALSE, sizeof(vec3_t), shaderstate.sourcevbo->svector.gl.addr);
+			attr |= 1u<<p->handle[perm];
+			break;
+		case SP_ATTR_TNORMALS:
+			if (!shaderstate.sourcevbo->tvector.gl.addr)
+				break;
+			GL_SelectVBO(shaderstate.sourcevbo->tvector.gl.vbo);
+			qglVertexAttribPointer(p->handle[perm], 3, GL_FLOAT, GL_FALSE, sizeof(vec3_t), shaderstate.sourcevbo->tvector.gl.addr);
+			attr |= 1u<<p->handle[perm];
+			break;
+		case SP_ATTR_BONENUMS:
+			GL_SelectVBO(shaderstate.sourcevbo->bonenums.gl.vbo);
+			qglVertexAttribPointer(p->handle[perm], 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(byte_vec4_t), shaderstate.sourcevbo->bonenums.gl.addr);
+			attr |= 1u<<p->handle[perm];
+			break;
+		case SP_ATTR_BONEWEIGHTS:
+			GL_SelectVBO(shaderstate.sourcevbo->boneweights.gl.vbo);
+			qglVertexAttribPointer(p->handle[perm], 4, GL_FLOAT, GL_FALSE, sizeof(vec4_t), shaderstate.sourcevbo->boneweights.gl.addr);
+			attr |= 1u<<p->handle[perm];
+			break;
+
+		case SP_M_VIEW:
+			qglUniformMatrix4fvARB(p->handle[perm], 1, false, r_refdef.m_view);
+			break;
+		case SP_M_PROJECTION:
+			qglUniformMatrix4fvARB(p->handle[perm], 1, false, r_refdef.m_projection);
+			break;
+		case SP_M_MODELVIEW:
+			qglUniformMatrix4fvARB(p->handle[perm], 1, false, shaderstate.modelviewmatrix);
+			break;
+		case SP_M_MODELVIEWPROJECTION:
+			{
+				float m16[16];
+				Matrix4_Multiply(r_refdef.m_projection, shaderstate.modelviewmatrix, m16);
+				qglUniformMatrix4fvARB(p->handle[perm], 1, false, m16);
+			}
+			break;
+		case SP_M_INVMODELVIEWPROJECTION:
+			{
+				float m16[16], inv[16];
+				Matrix4_Multiply(r_refdef.m_projection, shaderstate.modelviewmatrix, m16);
+				Matrix4_Invert(m16, inv);
+				qglUniformMatrix4fvARB(p->handle[perm], 1, false, inv);
+			}
+			break;
+		case SP_M_MODEL:
+			qglUniformMatrix4fvARB(p->handle[perm], 1, false, shaderstate.modelmatrix);
+			break;
+		case SP_M_ENTBONES:
+			{
+				qglUniformMatrix3x4fv(p->handle[perm], shaderstate.sourcevbo->numbones, false, shaderstate.sourcevbo->bones);
+			}
+			break;
+		case SP_M_INVVIEWPROJECTION:
+			{
+				float m16[16], inv[16];
+				Matrix4_Multiply(r_refdef.m_projection, r_refdef.m_view, m16);
+				Matrix4_Invert(m16, inv);
+				qglUniformMatrix4fvARB(p->handle[perm], 1, false, inv);
+			}
+			break;
+
+		case SP_E_LMSCALE:
+			{
+				vec4_t colscale;
+				if (shaderstate.mode == BEM_DEPTHDARK)
+				{
+					VectorClear(colscale);
+				}
+				else if (shaderstate.curentity->model && shaderstate.curentity->model->engineflags & MDLF_NEEDOVERBRIGHT)
+				{
+					float sc = 1<<bound(0, gl_overbright.ival, 2);
+					VectorScale(shaderstate.curentity->shaderRGBAf, sc, colscale);
+				}
+				else
+				{
+					VectorCopy(shaderstate.curentity->shaderRGBAf, colscale);
+				}	
+				colscale[3] = shaderstate.curentity->shaderRGBAf[3];
+
+				qglUniform4fvARB(p->handle[perm], 1, (GLfloat*)colscale);
+			}
+			break;
+
+		case SP_E_GLOWMOD:
+			qglUniform3fvARB(p->handle[perm], 1, (GLfloat*)shaderstate.curentity->glowmod);
+			break;
+		case SP_E_ORIGIN:
+			qglUniform3fvARB(p->handle[perm], 1, (GLfloat*)shaderstate.curentity->origin);
+			break;
+		case SP_E_COLOURS:
+			qglUniform4fvARB(p->handle[perm], 1, (GLfloat*)shaderstate.curentity->shaderRGBAf);
+			break;
+		case SP_E_COLOURSIDENT:
+			if (shaderstate.flags & BEF_FORCECOLOURMOD)
+				qglUniform4fvARB(p->handle[perm], 1, (GLfloat*)shaderstate.curentity->shaderRGBAf);
+			else
+				qglUniform4fARB(p->handle[perm], 1, 1, 1, shaderstate.curentity->shaderRGBAf[3]);
+			break;
+		case SP_E_TOPCOLOURS:
+			R_FetchTopColour(&r, &g, &b);
+			param3[0] = r/255.0f;
+			param3[1] = g/255.0f;
+			param3[2] = b/255.0f;
+			qglUniform3fvARB(p->handle[perm], 1, param3);
+			break;
+		case SP_E_BOTTOMCOLOURS:
+			R_FetchBottomColour(&r, &g, &b);
+			param3[0] = r/255.0f;
+			param3[1] = g/255.0f;
+			param3[2] = b/255.0f;
+			qglUniform3fvARB(p->handle[perm], 1, param3);
+			break;
+
+		case SP_RENDERTEXTURESCALE:
+			if (gl_config.arb_texture_non_power_of_two)
+			{
+				param3[0] = 1;
+				param3[1] = 1;
 			}
 			else
 			{
-				VectorCopy(shaderstate.curentity->shaderRGBAf, colscale);
-			}	
-			colscale[3] = shaderstate.curentity->shaderRGBAf[3];
-
-			qglUniform4fvARB(p->handle[perm], 1, (GLfloat*)colscale);
-		}
-		break;
-
-	case SP_E_GLOWMOD:
-		qglUniform3fvARB(p->handle[perm], 1, (GLfloat*)shaderstate.curentity->glowmod);
-		break;
-	case SP_E_ORIGIN:
-		qglUniform3fvARB(p->handle[perm], 1, (GLfloat*)shaderstate.curentity->origin);
-		break;
-	case SP_E_COLOURS:
-		qglUniform4fvARB(p->handle[perm], 1, (GLfloat*)shaderstate.curentity->shaderRGBAf);
-		break;
-	case SP_E_COLOURSIDENT:
-		if (shaderstate.flags & BEF_FORCECOLOURMOD)
-			qglUniform4fvARB(p->handle[perm], 1, (GLfloat*)shaderstate.curentity->shaderRGBAf);
-		else
-			qglUniform4fARB(p->handle[perm], 1, 1, 1, shaderstate.curentity->shaderRGBAf[3]);
-		break;
-	case SP_E_TOPCOLOURS:
-		R_FetchTopColour(&r, &g, &b);
-		param3[0] = r/255.0f;
-		param3[1] = g/255.0f;
-		param3[2] = b/255.0f;
-		qglUniform3fvARB(p->handle[perm], 1, param3);
-		break;
-	case SP_E_BOTTOMCOLOURS:
-		R_FetchBottomColour(&r, &g, &b);
-		param3[0] = r/255.0f;
-		param3[1] = g/255.0f;
-		param3[2] = b/255.0f;
-		qglUniform3fvARB(p->handle[perm], 1, param3);
-		break;
-
-	case SP_RENDERTEXTURESCALE:
-		if (gl_config.arb_texture_non_power_of_two)
-		{
-			param3[0] = 1;
-			param3[1] = 1;
-		}
-		else
-		{
-			r = 1;
-			g = 1;
-			while (r < vid.pixelwidth)
-				r *= 2;
-			while (g < vid.pixelheight)
-				g *= 2;
-			param3[0] = vid.pixelwidth/(float)r;
-			param3[1] = vid.pixelheight/(float)g;
-		}
-		param3[2] = 1;
-		qglUniform3fvARB(p->handle[perm], 1, param3);
-		break;
-
-	case SP_LIGHTSCREEN:
-		{
-			float v[4], tempv[4];
-
-			v[0] = shaderstate.lightorg[0];
-			v[1] = shaderstate.lightorg[1];
-			v[2] = shaderstate.lightorg[2];
-			v[3] = 1;
-
-			Matrix4x4_CM_Transform4(shaderstate.modelviewmatrix, v, tempv); 
-			Matrix4x4_CM_Transform4(r_refdef.m_projection, tempv, v);
-
-			v[3] *= 2;
-			v[0] = (v[0]/v[3]) + 0.5;
-			v[1] = (v[1]/v[3]) + 0.5;
-			v[2] = (v[2]/v[3]) + 0.5;
-
-			qglUniform3fvARB(p->handle[perm], 1, v);
-		}
-		break;
-	case SP_LIGHTRADIUS:
-		qglUniform1fARB(p->handle[perm], shaderstate.lightradius);
-		break;
-	case SP_LIGHTCOLOUR:
-		qglUniform3fvARB(p->handle[perm], 1, shaderstate.lightcolours);
-		break;
-	case SP_W_FOG:
-		qglUniform4fvARB(p->handle[perm], 1, r_refdef.gfog_rgbd);
-		break;
-	case SP_V_EYEPOS:
-		qglUniform3fvARB(p->handle[perm], 1, r_origin);
-		break;
-	case SP_E_EYEPOS:
-		{
-			/*eye position in model space*/
-			vec3_t t2;
-			Matrix4x4_CM_Transform3(shaderstate.modelmatrixinv, r_origin, t2);
-			qglUniform3fvARB(p->handle[perm], 1, t2);
-		}
-		break;
-	case SP_LIGHTPOSITION:
-		{
-			/*light position in model space*/
-			vec3_t t2;
-			Matrix4x4_CM_Transform3(shaderstate.modelmatrixinv, shaderstate.lightorg, t2);
-			qglUniform3fvARB(p->handle[perm], 1, t2);
-		}
-		break;
-	case SP_LIGHTCOLOURSCALE:
-		qglUniform3fvARB(p->handle[perm], 1, shaderstate.lightcolourscale);
-		break;
-	case SP_LIGHTPROJMATRIX:
-		/*light's texture projection matrix*/
-		{
-			float t[16];
-			Matrix4_Multiply(shaderstate.lightprojmatrix, shaderstate.modelmatrix, t);
-			qglUniformMatrix4fvARB(p->handle[perm], 1, false, t);
-		}
-		break;
-
-	/*static lighting info*/
-	case SP_E_L_DIR:
-		qglUniform3fvARB(p->handle[perm], 1, (float*)shaderstate.curentity->light_dir);
-		break;
-	case SP_E_L_MUL:
-		qglUniform3fvARB(p->handle[perm], 1, (float*)shaderstate.curentity->light_range);
-		break;
-	case SP_E_L_AMBIENT:
-		qglUniform3fvARB(p->handle[perm], 1, (float*)shaderstate.curentity->light_avg);
-		break;
-
-	case SP_E_TIME:
-		qglUniform1fARB(p->handle[perm], shaderstate.curtime);
-		break;
-	case SP_CONSTI:
-	case SP_TEXTURE:
-		qglUniform1iARB(p->handle[perm], p->ival);
-		break;
-	case SP_CONSTF:
-		qglUniform1fARB(p->handle[perm], p->fval);
-		break;
-	case SP_CVARI:
-		qglUniform1iARB(p->handle[perm], ((cvar_t*)p->pval)->ival);
-		break;
-	case SP_CVARF:
-		qglUniform1fARB(p->handle[perm], ((cvar_t*)p->pval)->value);
-		break;
-	case SP_CVAR3F:
-		{
-			cvar_t *var = (cvar_t*)p->pval;
-			char *vs = var->string;
-			vs = COM_Parse(vs);
-			param3[0] = atof(com_token);
-			vs = COM_Parse(vs);
-			param3[1] = atof(com_token);
-			vs = COM_Parse(vs);
-			param3[2] = atof(com_token);
+				r = 1;
+				g = 1;
+				while (r < vid.pixelwidth)
+					r *= 2;
+				while (g < vid.pixelheight)
+					g *= 2;
+				param3[0] = vid.pixelwidth/(float)r;
+				param3[1] = vid.pixelheight/(float)g;
+			}
+			param3[2] = 1;
 			qglUniform3fvARB(p->handle[perm], 1, param3);
-		}
-		break;
+			break;
 
-	default:
-		Host_EndGame("Bad shader program parameter type (%i)", p->type);
-		break;
+		case SP_LIGHTSCREEN:
+			{
+				float v[4], tempv[4];
+
+				v[0] = shaderstate.lightorg[0];
+				v[1] = shaderstate.lightorg[1];
+				v[2] = shaderstate.lightorg[2];
+				v[3] = 1;
+
+				Matrix4x4_CM_Transform4(shaderstate.modelviewmatrix, v, tempv); 
+				Matrix4x4_CM_Transform4(r_refdef.m_projection, tempv, v);
+
+				v[3] *= 2;
+				v[0] = (v[0]/v[3]) + 0.5;
+				v[1] = (v[1]/v[3]) + 0.5;
+				v[2] = (v[2]/v[3]) + 0.5;
+
+				qglUniform3fvARB(p->handle[perm], 1, v);
+			}
+			break;
+		case SP_LIGHTRADIUS:
+			qglUniform1fARB(p->handle[perm], shaderstate.lightradius);
+			break;
+		case SP_LIGHTCOLOUR:
+			qglUniform3fvARB(p->handle[perm], 1, shaderstate.lightcolours);
+			break;
+		case SP_W_FOG:
+			qglUniform4fvARB(p->handle[perm], 1, r_refdef.gfog_rgbd);
+			break;
+		case SP_V_EYEPOS:
+			qglUniform3fvARB(p->handle[perm], 1, r_origin);
+			break;
+		case SP_E_EYEPOS:
+			{
+				/*eye position in model space*/
+				vec3_t t2;
+				Matrix4x4_CM_Transform3(shaderstate.modelmatrixinv, r_origin, t2);
+				qglUniform3fvARB(p->handle[perm], 1, t2);
+			}
+			break;
+		case SP_LIGHTPOSITION:
+			{
+				/*light position in model space*/
+				vec3_t t2;
+				Matrix4x4_CM_Transform3(shaderstate.modelmatrixinv, shaderstate.lightorg, t2);
+				qglUniform3fvARB(p->handle[perm], 1, t2);
+			}
+			break;
+		case SP_LIGHTCOLOURSCALE:
+			qglUniform3fvARB(p->handle[perm], 1, shaderstate.lightcolourscale);
+			break;
+		case SP_LIGHTPROJMATRIX:
+			/*light's texture projection matrix*/
+			{
+				float t[16];
+				Matrix4_Multiply(shaderstate.lightprojmatrix, shaderstate.modelmatrix, t);
+				qglUniformMatrix4fvARB(p->handle[perm], 1, false, t);
+			}
+			break;
+
+		/*static lighting info*/
+		case SP_E_L_DIR:
+			qglUniform3fvARB(p->handle[perm], 1, (float*)shaderstate.curentity->light_dir);
+			break;
+		case SP_E_L_MUL:
+			qglUniform3fvARB(p->handle[perm], 1, (float*)shaderstate.curentity->light_range);
+			break;
+		case SP_E_L_AMBIENT:
+			qglUniform3fvARB(p->handle[perm], 1, (float*)shaderstate.curentity->light_avg);
+			break;
+
+		case SP_E_TIME:
+			qglUniform1fARB(p->handle[perm], shaderstate.curtime);
+			break;
+		case SP_CONSTI:
+		case SP_TEXTURE:
+			qglUniform1iARB(p->handle[perm], p->ival);
+			break;
+		case SP_CONSTF:
+			qglUniform1fARB(p->handle[perm], p->fval);
+			break;
+		case SP_CVARI:
+			qglUniform1iARB(p->handle[perm], ((cvar_t*)p->pval)->ival);
+			break;
+		case SP_CVARF:
+			qglUniform1fARB(p->handle[perm], ((cvar_t*)p->pval)->value);
+			break;
+		case SP_CVAR3F:
+			{
+				cvar_t *var = (cvar_t*)p->pval;
+				char *vs = var->string;
+				vs = COM_Parse(vs);
+				param3[0] = atof(com_token);
+				vs = COM_Parse(vs);
+				param3[1] = atof(com_token);
+				vs = COM_Parse(vs);
+				param3[2] = atof(com_token);
+				qglUniform3fvARB(p->handle[perm], 1, param3);
+			}
+			break;
+
+		default:
+			Host_EndGame("Bad shader program parameter type (%i)", p->type);
+			break;
+		}
 	}
-	return 0;
+	return attr;
 }
 
 static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pass)
@@ -2541,16 +2565,18 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 		perm |= PERMUTATION_FOG;
 	if (r_glsl_offsetmapping.ival && TEXVALID(shaderstate.curtexnums->bump) && p->handle[perm|PERMUTATION_OFFSET].glsl)
 		perm |= PERMUTATION_OFFSET;
+
 	GL_SelectProgram(p->handle[perm].glsl);
+	if (shaderstate.lastuniform == p->handle[perm].glsl)
+		i = true;
+	else
+	{
+		i = false;
+		shaderstate.lastuniform = p->handle[perm].glsl;
+	}
+	attr = BE_Program_Set_Attributes(p, perm, i);
 
 	BE_SendPassBlendDepthMask(pass->shaderbits);
-
-	for (i = 0; i < p->numparams; i++)
-	{
-		if (p->parm[i].handle[perm] == -1)
-			continue;	/*not in this permutation*/
-		attr |= BE_Program_Set_Attribute(&p->parm[i], perm);
-	}
 	if (p->nofixedcompat)
 	{
 		qglDisableClientState(GL_COLOR_ARRAY);
@@ -2767,6 +2793,8 @@ void GLBE_SelectEntity(entity_t *ent)
 		qglLoadMatrixf(shaderstate.modelviewmatrix);
 	if (shaderstate.curentity->flags & Q2RF_DEPTHHACK && qglDepthRange)
 		qglDepthRange (gldepthmin, gldepthmin + 0.3*(gldepthmax-gldepthmin));
+
+	shaderstate.lastuniform = 0;
 }
 
 void BE_SelectFog(vec3_t colour, float alpha, float density)
@@ -2815,6 +2843,8 @@ void GLBE_SelectDLight(dlight_t *dl, vec3_t colour)
 #ifdef RTLIGHTS
 	shaderstate.lightcubemap = dl->cubetexture;
 #endif
+
+	shaderstate.lastuniform = 0;
 }
 
 void BE_PushOffsetShadow(qboolean pushdepth)

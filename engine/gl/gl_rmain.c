@@ -464,12 +464,6 @@ void R_RenderScene (void)
 
 	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
 	{
-		TRACE(("dbg: calling R_DrawParticles\n"));
-		P_DrawParticles ();
-	}
-
-	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
-	{
 		TRACE(("dbg: calling R_DrawWorld\n"));
 		Surf_DrawWorld ();		// adds static entities to the list
 	}

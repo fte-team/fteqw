@@ -154,10 +154,11 @@ void D3DShader_Init(void)
 		return;
 }
 
-void D3DShader_CreateProgram (program_t *prog, int permu, char **precompilerconstants, char *vert, char *frag)
+qboolean D3DShader_CreateProgram (program_t *prog, int permu, char **precompilerconstants, char *vert, char *frag)
 {
 	D3DXMACRO defines[64];
 	LPD3DXBUFFER code = NULL, errors = NULL;
+	qboolean success = false;
 
 	prog->handle[permu].hlsl.vert = NULL;
 	prog->handle[permu].hlsl.frag = NULL;
@@ -168,7 +169,7 @@ void D3DShader_CreateProgram (program_t *prog, int permu, char **precompilercons
 		for (consts = 2; precompilerconstants[consts]; consts++)
 			;
 		if (consts >= sizeof(defines) / sizeof(defines[0]))
-			return;
+			return success;
 
 		consts = 0;
 		defines[consts].Name = NULL; /*shader type*/
@@ -189,8 +190,12 @@ void D3DShader_CreateProgram (program_t *prog, int permu, char **precompilercons
 		defines[consts].Name = NULL;
 		defines[consts].Definition = NULL;
 
+		success = true;
+
 		defines[0].Name = "VERTEX_SHADER";
-		if (!FAILED(pD3DXCompileShader(vert, strlen(vert), defines, NULL, "main", "vs_2_0", 0, &code, &errors, (LPD3DXCONSTANTTABLE*)&prog->handle[permu].hlsl.ctabv)))
+		if (FAILED(pD3DXCompileShader(vert, strlen(vert), defines, NULL, "main", "vs_2_0", 0, &code, &errors, (LPD3DXCONSTANTTABLE*)&prog->handle[permu].hlsl.ctabv)))
+			success = false;
+		else
 		{
 			IDirect3DDevice9_CreateVertexShader(pD3DDev9, code->lpVtbl->GetBufferPointer(code), (IDirect3DVertexShader9**)&prog->handle[permu].hlsl.vert);
 			code->lpVtbl->Release(code);
@@ -203,7 +208,9 @@ void D3DShader_CreateProgram (program_t *prog, int permu, char **precompilercons
 		}
 
 		defines[0].Name = "FRAGMENT_SHADER";
-		if (!FAILED(pD3DXCompileShader(frag, strlen(frag), defines, NULL, "main", "ps_2_0", 0, &code, &errors, (LPD3DXCONSTANTTABLE*)&prog->handle[permu].hlsl.ctabf)))
+		if (FAILED(pD3DXCompileShader(frag, strlen(frag), defines, NULL, "main", "ps_2_0", 0, &code, &errors, (LPD3DXCONSTANTTABLE*)&prog->handle[permu].hlsl.ctabf)))
+			success = false;
+		else
 		{
 			IDirect3DDevice9_CreatePixelShader(pD3DDev9, code->lpVtbl->GetBufferPointer(code), (IDirect3DPixelShader9**)&prog->handle[permu].hlsl.frag);
 			code->lpVtbl->Release(code);
@@ -215,6 +222,7 @@ void D3DShader_CreateProgram (program_t *prog, int permu, char **precompilercons
 			errors->lpVtbl->Release(errors);
 		}
 	}
+	return success;
 }
 
 static int D3DShader_FindUniform_(LPD3DXCONSTANTTABLE ct, char *name)

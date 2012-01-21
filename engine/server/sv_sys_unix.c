@@ -700,7 +700,7 @@ int main(int argc, char *argv[])
 	}
 #endif
 
-	parms.memsize = 16*1024*1024;
+	parms.memsize = 64*1024*1024;
 
 	j = COM_CheckParm("-mem");
 	if (j)

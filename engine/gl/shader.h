@@ -492,7 +492,7 @@ qboolean D3DBE_LightCullModel(vec3_t org, model_t *model);
 void D3DBE_SelectEntity(entity_t *ent);
 void D3DBE_SelectDLight(dlight_t *dl, vec3_t colour);
 
-void D3DShader_CreateProgram (program_t *prog, int permu, char **precompilerconstants, char *vert, char *frag);
+qboolean D3DShader_CreateProgram (program_t *prog, int permu, char **precompilerconstants, char *vert, char *frag);
 int D3DShader_FindUniform(union programhandle_u *h, int type, char *name);
 void D3DShader_Init(void);
 void D3DBE_Reset(qboolean before);

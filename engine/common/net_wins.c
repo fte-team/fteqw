@@ -3029,7 +3029,7 @@ int TCP_OpenStream (netadr_t remoteaddr)
 	int newsocket;
 	int temp;
 	struct sockaddr_qstorage qs;
-	struct sockaddr_qstorage loc;
+//	struct sockaddr_qstorage loc;
 
 	temp = NetadrToSockadr(&remoteaddr, &qs);
 

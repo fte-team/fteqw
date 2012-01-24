@@ -566,6 +566,18 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 	else if (!strcmp(mod->name, "progs/eyes.mdl"))
 		mod->engineflags |= MDLF_NOTREPLACEMENTS|MDLF_DOCRC;
 
+	/*handle ezquake-originated cheats that would feck over fte users if fte didn't support
+	these are the conditions required for r_fb_models on non-players*/
+	mod->engineflags |= MDLF_EZQUAKEFBCHEAT;
+	if ((mod->engineflags & MDLF_DOCRC) ||
+		!strcmp(mod->name, "progs/backpack.mdl") ||
+		!strcmp(mod->name, "progs/gib1.mdl") ||
+		!strcmp(mod->name, "progs/gib2.mdl") ||
+		!strcmp(mod->name, "progs/gib3.mdl") ||
+		!strcmp(mod->name, "progs/h_player.mdl") ||
+		!strncmp(mod->name, "progs/v_", 8))
+		mod->engineflags &= ~MDLF_EZQUAKEFBCHEAT;
+
 	// call the apropriate loader
 	mod->needload = false;
 

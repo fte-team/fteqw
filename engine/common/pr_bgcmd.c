@@ -963,11 +963,8 @@ void QCBUILTIN PF_fgets (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		RETURN_TSTRING(pr_string_temp);
 }
 
-void QCBUILTIN PF_fputs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_fwrite (progfuncs_t *prinst, int fnum, char *msg, int len)
 {
-	int fnum = G_FLOAT(OFS_PARM0) - FIRST_QC_FILE_INDEX;
-	char *msg = PF_VarString(prinst, 1, pr_globals);
-	int len = strlen(msg);
 	if (fnum < 0 || fnum >= MAX_QC_FILES)
 	{
 		Con_Printf("PF_fgets: File out of range\n");
@@ -1008,6 +1005,15 @@ void QCBUILTIN PF_fputs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		pf_fopen_files[fnum].ofs+=len;
 		break;
 	}
+}
+
+void QCBUILTIN PF_fputs (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int fnum = G_FLOAT(OFS_PARM0) - FIRST_QC_FILE_INDEX;
+	char *msg = PF_VarString(prinst, 1, pr_globals);
+	int len = strlen(msg);
+
+	PF_fwrite (prinst, fnum, msg, len);
 }
 
 void PF_fcloseall (progfuncs_t *prinst)
@@ -1234,6 +1240,116 @@ void PR_fclose_progs (progfuncs_t *prinst)
 }
 
 //File access
+////////////////////////////////////////////////////
+//reflection
+
+//float	isfunction(string function_name)
+void QCBUILTIN PF_isfunction (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char	*name = PR_GetStringOfs(prinst, OFS_PARM0);
+	G_FLOAT(OFS_RETURN) = !!PR_FindFunction(prinst, name, PR_CURRENT);
+}
+
+//void	callfunction(...)
+void QCBUILTIN PF_callfunction (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char	*name;
+	func_t f;
+	if (*prinst->callargc < 1)
+		PR_BIError(prinst, "callfunction needs at least one argument\n");
+	name = PR_GetStringOfs(prinst, OFS_PARM0+(*prinst->callargc-1)*3);
+	*prinst->callargc -= 1;
+	f = PR_FindFunction(prinst, name, PR_CURRENT);
+	if (f)
+		PR_ExecuteProgram(prinst, f);
+}
+
+//void	loadfromfile(string file)
+void QCBUILTIN PF_loadfromfile (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char	*filename = PR_GetStringOfs(prinst, OFS_PARM0);
+	char *file = COM_LoadTempFile(filename);
+
+	int size;
+
+	if (!file)
+	{
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
+
+	while(prinst->restoreent(prinst, file, &size, NULL))
+	{
+		file += size;
+	}
+
+	G_FLOAT(OFS_RETURN) = 0;
+}
+
+void QCBUILTIN PF_writetofile(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int fnum = G_FLOAT(OFS_PARM0);
+	void *ed = G_EDICT(prinst, OFS_PARM1);
+
+	char buffer[65536];
+	char *entstr;
+	int buflen;
+
+	buflen = sizeof(buffer);
+	entstr = prinst->saveent(prinst, buffer, &buflen, ed);	//will save just one entities vars
+	if (entstr)
+	{
+		PF_fwrite (prinst, fnum, entstr, buflen);
+	}
+}
+
+void QCBUILTIN PF_loadfromdata (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char	*file = PR_GetStringOfs(prinst, OFS_PARM0);
+
+	int size;
+
+	if (!*file)
+	{
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
+
+	while(prinst->restoreent(prinst, file, &size, NULL))
+	{
+		file += size;
+	}
+
+	G_FLOAT(OFS_RETURN) = 0;
+}
+
+void QCBUILTIN PF_parseentitydata(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	void	*ed = G_EDICT(prinst, OFS_PARM0);
+	char	*file = PR_GetStringOfs(prinst, OFS_PARM1);
+
+	int size;
+
+	if (!*file)
+	{
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
+
+	if (!prinst->restoreent(prinst, file, &size, ed))
+		Con_Printf("parseentitydata: missing opening data\n");
+	else
+	{
+		file += size;
+		while(*file < ' ' && *file)
+			file++;
+		if (*file)
+			Con_Printf("parseentitydata: too much data\n");
+	}
+
+	G_FLOAT(OFS_RETURN) = 0;
+}
+//reflection
 ////////////////////////////////////////////////////
 //Entities
 

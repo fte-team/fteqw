@@ -762,7 +762,7 @@ void CL_PredictMovePNum (int pnum)
 	float		f;
 	frame_t		*from, *to = NULL;
 	int			oldphysent;
-	vec3_t lrp;
+	vec3_t lrp, lrpv;
 
 	//these are to make svc_viewentity work better
 	float *vel;
@@ -881,7 +881,7 @@ fixedorg:
 	if (Cam_TrackNum(pnum)>=0 && CL_MayLerp())
 	{
 		float f;
-		if (cl_lerp_players.ival)
+		if (cl_lerp_players.ival && (cls.demoplayback==DPB_MVD || cls.demoplayback == DPB_EZTV))
 		{
 			lerpents_t *le = &cl.lerpplayers[spec_track[pnum]];
 			org = le->origin;
@@ -911,29 +911,46 @@ fixedorg:
 			lrp[i] = to->playerstate[cl.playernum[pnum]].origin[i] +
 			f * (from->playerstate[cl.playernum[pnum]].origin[i] - to->playerstate[cl.playernum[pnum]].origin[i]);
 
+			lrpv[i] = to->playerstate[spec_track[pnum]].velocity[i] +
+			f * (from->playerstate[spec_track[pnum]].velocity[i] - to->playerstate[spec_track[pnum]].velocity[i]);
+
 			cl.simangles[pnum][i] = LerpAngles16(to->playerstate[spec_track[pnum]].command.angles[i], from->playerstate[spec_track[pnum]].command.angles[i], f)*360.0f/65535;
 		}
 
 		org = lrp;
+		vel = lrpv;
 
 		goto fixedorg;
 	}
 	else
 	{
-		for (i=1 ; i<UPDATE_BACKUP-1 && cl.ackedinputsequence+i <
-				cls.netchan.outgoing_sequence; i++)
+		if (cls.demoplayback==DPB_MVD || cls.demoplayback==DPB_EZTV)
 		{
-			to = &cl.frames[(cl.ackedinputsequence+i) & UPDATE_MASK];
-			if (cl.intermission)
-				to->playerstate->pm_type = PM_FLY;
-			CL_PredictUsercmd (pnum, &from->playerstate[cl.playernum[pnum]]
-				, &to->playerstate[cl.playernum[pnum]], &to->cmd[pnum]);
+			to = &cl.frames[(cls.netchan.outgoing_sequence-1) & UPDATE_MASK];
+			to->playerstate->pm_type = PM_SPECTATOR;
 
-			cl.onground[pnum] = pmove.onground;
+			VectorCopy (cl.simvel[pnum], from->playerstate[cl.playernum[pnum]].velocity);
+			VectorCopy (cl.simorg[pnum], from->playerstate[cl.playernum[pnum]].origin);
 
-			if (to->senttime >= realtime)
-				break;
-			from = to;
+			CL_PredictUsercmd (pnum, &from->playerstate[cl.playernum[pnum]], &to->playerstate[cl.playernum[pnum]], &to->cmd[pnum]);
+		}
+		else
+		{
+			for (i=1 ; i<UPDATE_BACKUP-1 && cl.ackedinputsequence+i <
+					cls.netchan.outgoing_sequence; i++)
+			{
+				to = &cl.frames[(cl.ackedinputsequence+i) & UPDATE_MASK];
+				if (cl.intermission)
+					to->playerstate->pm_type = PM_FLY;
+				CL_PredictUsercmd (pnum, &from->playerstate[cl.playernum[pnum]]
+					, &to->playerstate[cl.playernum[pnum]], &to->cmd[pnum]);
+
+				cl.onground[pnum] = pmove.onground;
+
+				if (to->senttime >= realtime)
+					break;
+				from = to;
+			}
 		}
 
 		if (independantphysics[pnum].msec)

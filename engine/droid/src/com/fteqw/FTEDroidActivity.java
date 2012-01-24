@@ -1,6 +1,7 @@
 package com.fteqw;
 
 import javax.microedition.khronos.egl.EGLConfig;
+//import javax.microedition.khronos.egl.EGL10;
 import javax.microedition.khronos.opengles.GL10;
 
 import android.app.Activity;
@@ -50,6 +51,32 @@ public class FTEDroidActivity extends Activity
 		{
 		}
 	}
+/*
+	private class FTEEGLConfig implements GLSurfaceView.EGLConfigChooser
+	{
+		@Override
+		public EGLConfig chooseConfig (javax.microedition.khronos.egl.EGL10 egl, javax.microedition.khronos.egl.EGLDisplay display)
+		{
+			int EGL_CONTEXT_CLIENT_VERSION = 0x3098;
+			EGLConfig[] cfg = new EGLConfig[1];
+			int[] num_configs = {0};
+			int[] attribs =
+				{
+					EGL_CONTEXT_CLIENT_VERSION,	2,
+					egl.EGL_SURFACE_TYPE,		egl.EGL_WINDOW_BIT,
+					egl.EGL_BLUE_SIZE,		5,
+					egl.EGL_GREEN_SIZE,		6,
+					egl.EGL_RED_SIZE,			5,
+					egl.EGL_DEPTH_SIZE,		16,
+					egl.EGL_STENCIL_SIZE, 		8,
+					egl.EGL_NONE,			egl.EGL_NONE
+				};
+
+			egl.eglChooseConfig(display, attribs, cfg, 1, num_configs);
+			return cfg[0];
+		}
+	}
+*/
 	private class FTEView extends GLSurfaceView implements SensorEventListener
 	{
 		private final FTERenderer rndr;
@@ -109,6 +136,7 @@ public class FTEDroidActivity extends Activity
 			super(context);
 
 			rndr = new FTERenderer();
+//			setEGLConfigChooser(new FTEEGLConfig());
 			setRenderer(rndr);
 			setFocusable(true);
 			setFocusableInTouchMode(true);

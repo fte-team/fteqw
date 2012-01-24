@@ -87,7 +87,7 @@ cvar_t r_fastskycolour						= CVARF ("r_fastskycolour", "0",
 cvar_t r_fb_bmodels							= CVARAF("r_fb_bmodels", "1",
 													"gl_fb_bmodels", CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
 cvar_t r_fb_models							= CVARAF  ("r_fb_models", "1",
-													"gl_fb_models", CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
+													"gl_fb_models", CVAR_SEMICHEAT);
 cvar_t r_skin_overlays						= SCVARF  ("r_skin_overlays", "1",
 												CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
 cvar_t r_coronas							= SCVARF ("r_coronas", "0",

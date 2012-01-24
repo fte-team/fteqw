@@ -655,11 +655,14 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 // load the edicts out of the savegame file
 // the rest of the file is sent directly to the progs engine.
 
-	Q_SetProgsParms(false);
-
-	PR_Configure(svprogfuncs, -1, MAX_PROGS);
-	PR_RegisterFields();
-	PR_InitEnts(svprogfuncs, sv.world.max_edicts);
+	/*hexen2's gamecode doesn't have SAVE set on all variables, in which case we must clobber them, and run the risk that they were set at map load time, but clear in the savegame.*/
+	if (progstype != PROG_H2)
+	{
+		Q_SetProgsParms(false);
+		PR_Configure(svprogfuncs, -1, MAX_PROGS);
+		PR_RegisterFields();
+		PR_InitEnts(svprogfuncs, sv.world.max_edicts);
+	}
 
 	modelpos = VFS_TELL(f);
 	LoadModelsAndSounds(f);
@@ -854,26 +857,29 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 	VFS_PRINTF (f, "%i\n", CACHEGAME_VERSION);
 	SV_SavegameComment (comment);
 	VFS_PRINTF (f, "%s\n", comment);
-	for (cl = svs.clients, clnum=0; clnum < MAX_CLIENTS; cl++,clnum++)//fake dropping
+	if (!dontharmgame)
 	{
-		if ((cl->state < cs_spawned && !cl->istobeloaded) || dontharmgame)	//don't drop if they are still connecting
+		for (cl = svs.clients, clnum=0; clnum < MAX_CLIENTS; cl++,clnum++)//fake dropping
 		{
-			continue;
-		}
-		else if (!cl->spectator)
-		{
-			// call the prog function for removing a client
-			// this will set the body to a dead frame, among other things
-			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
-			PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
-			sv.spawned_client_slots--;
-		}
-		else if (SpectatorDisconnect)
-		{
-			// call the prog function for removing a client
-			// this will set the body to a dead frame, among other things
-			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
-			PR_ExecuteProgram (svprogfuncs, SpectatorDisconnect);
+			if (cl->state < cs_spawned && !cl->istobeloaded)	//don't drop if they are still connecting
+			{
+				cl->edict->v->solid = 0;
+			}
+			else if (!cl->spectator)
+			{
+				// call the prog function for removing a client
+				// this will set the body to a dead frame, among other things
+				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
+				PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
+				sv.spawned_client_slots--;
+			}
+			else if (SpectatorDisconnect)
+			{
+				// call the prog function for removing a client
+				// this will set the body to a dead frame, among other things
+				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, cl->edict);
+				PR_ExecuteProgram (svprogfuncs, SpectatorDisconnect);
+			}
 		}
 	}
 	VFS_PRINTF (f, "%d\n", progstype);
@@ -1053,13 +1059,14 @@ void SV_Savegame_f (void)
 void SV_Loadgame_f (void)
 {
 	levelcache_t *cache;
-	char str[MAX_LOCALINFO_STRING+1], *trim;
-	char savename[MAX_QPATH];
+	unsigned char str[MAX_LOCALINFO_STRING+1], *trim;
+	unsigned char savename[MAX_QPATH];
 	vfsfile_t *f;
-	char filename[MAX_OSPATH];
+	unsigned char filename[MAX_OSPATH];
 	int version;
 	int clnum;
 	int slots;
+	int loadzombies = 0;
 	client_t *cl;
 	gametype_e gametype;
 
@@ -1130,6 +1137,7 @@ void SV_Loadgame_f (void)
 			cl->state = cs_zombie;
 			cl->connection_started = realtime+20;
 			cl->istobeloaded = true;
+			loadzombies++;
 			memset(&cl->netchan, 0, sizeof(cl->netchan));
 
 			for (len = 0; len < NUM_SPAWN_PARMS; len++)
@@ -1237,6 +1245,7 @@ void SV_Loadgame_f (void)
 
 	SV_LoadLevelCache(savename, str, "", true);
 	sv.allocated_client_slots = slots;
+	sv.spawned_client_slots += loadzombies;
 }
 #endif
 

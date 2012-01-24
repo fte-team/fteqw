@@ -4300,12 +4300,21 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign)
 			tmp = QCC_PR_Expression (TOP_PRIORITY, 0);
 			QCC_PR_Expect("]");
 
+			/*if its a pointer that got dereferenced, follow the type*/
 			if (!idx && t->type == ev_pointer && !d->arraysize)
 				t = t->aux_type;
 
 			if (!idx && d->type->type == ev_pointer)
 			{
-				/*no bounds checks*/
+				/*no bounds checks on pointer dereferences*/
+			}
+			else if (!idx && d->type->type == ev_string)
+			{
+				/*automatic runtime bounds checks on strings, I'm not going to check this too much...*/
+			}
+			else if (!((!idx)?d->arraysize:t->arraysize))
+			{
+				QCC_PR_ParseErrorPrintDef(0, d, "array index on non-array");
 			}
 			else if (tmp->constant)
 			{
@@ -4332,6 +4341,8 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign)
 				else
 					tmp = QCC_PR_Statement(&pr_opcodes[OP_MUL_I], tmp, QCC_MakeIntConst(t->size), NULL);
 			}
+
+			/*calc the new index*/
 			if (idx)
 				idx = QCC_PR_Statement(&pr_opcodes[OP_ADD_I], idx, QCC_SupplyConversion(tmp, ev_integer, true), NULL);
 			else
@@ -4402,6 +4413,10 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign)
 				QCC_PR_ParseError(ERR_NOVALIDOPCODES, "No op available. Try assembler");
 			}
 			d->type = t;
+		}
+		else if (d->type->type == ev_string)
+		{
+			d = QCC_PR_Statement(&pr_opcodes[OP_LOADP_C], d, QCC_SupplyConversion(idx, ev_float, true), NULL);
 		}
 		else if (QCC_OPCodeValid(&pr_opcodes[OP_LOADA_F]))
 		{

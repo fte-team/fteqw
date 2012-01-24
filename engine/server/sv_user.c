@@ -1513,6 +1513,7 @@ void SV_Spawn_f (void)
 			{
 				split->entgravity = ent->xv->gravity;
 				split->maxspeed = ent->xv->maxspeed;
+				split->playerclass = ent->xv->playerclass;
 			}
 			else
 			{

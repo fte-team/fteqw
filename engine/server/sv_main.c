@@ -2296,6 +2296,9 @@ client_t *SVC_DirectConnect(void)
 
 	newcl->realip_ping = (((rand()^(rand()<<8) ^ *(int*)&realtime)&0xffffff)<<8) | (newcl-svs.clients);
 
+	if (newcl->istobeloaded)
+		newcl->playerclass = newcl->edict->xv->playerclass;
+
 	// parse some info from the info strings
 	SV_ExtractFromUserinfo (newcl);
 	SV_GenerateBasicUserInfo (newcl);
@@ -3462,7 +3465,7 @@ void SV_CheckTimeouts (void)
 			if (cl->netchan.last_received < droptime && cl->netchan.remote_address.type != NA_LOOPBACK && cl->protocol != SCP_BAD) {
 				SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTTIMEDOUT, cl->name);
 				SV_DropClient (cl);
-				cl->state = cs_free;	// don't bother with zombie state
+				cl->state = cs_free;	// don't bother with zombie state for local player.
 			}
 		}
 		if (cl->state == cs_zombie &&
@@ -3479,9 +3482,11 @@ void SV_CheckTimeouts (void)
 				PR_ExecuteProgram (svprogfuncs, pr_global_struct->ClientDisconnect);
 				sv.spawned_client_slots--;
 
-				host_client->istobeloaded=false;
+				cl->istobeloaded=false;
 
 				SV_BroadcastTPrintf (PRINT_HIGH, STL_LOADZOMIBETIMEDOUT, cl->name);
+//				cl->state = cs_zombie;	// the real zombieness starts now
+//				cl->connection_started = realtime;
 			}
 		}
 	}
@@ -4548,6 +4553,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 	client_t	*client;
 	int		dupc = 1;
 	char	newname[80], basic[80];
+	extern cvar_t rank_filename;
 
 	val = Info_ValueForKey (cl->userinfo, "team");
 	Q_strncpyz (cl->team, val, sizeof(cl->teambuf));
@@ -4622,7 +4628,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 
 			if (*cl->name && cl->state >= cs_spawned && !cl->spectator)
 			{
-				SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTNAMECHANGE, cl->name, val);
+				SV_BroadcastTPrintf (PRINT_HIGH, STL_CLIENTNAMECHANGE, cl->name, newname);
 			}
 			Q_strncpyz (cl->name, newname, sizeof(cl->namebuf));
 
@@ -4633,7 +4639,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 #endif
 #ifdef SVRANKING
 			}
-			else if (cl->state >= cs_spawned)
+			else if (cl->state >= cs_spawned && *rank_filename.string)
 				SV_ClientPrintf(cl, PRINT_HIGH, "Your rankings name has not been changed\n");
 #endif
 		}

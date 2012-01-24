@@ -186,6 +186,7 @@ typedef struct progstate_s
 	void	*statements;
 //	void			*global_struct;
 	float			*globals;			// same as pr_global_struct
+	int				globals_size;	// in bytes
 
 	typeinfo_t	*types;
 

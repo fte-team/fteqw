@@ -2277,15 +2277,18 @@ void CLQW_ParseServerData (void)
 
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
-		int i;
+		int i,j;
 		MSG_ReadFloat();
-		cl.playernum[0] = MAX_CLIENTS;
-		cl.playernum[1] = MAX_CLIENTS+1;
-		cl.playernum[2] = MAX_CLIENTS+2;
-		cl.playernum[3] = MAX_CLIENTS+3;
+		for (j = 0; j < MAX_SPLITS; j++)
+		{
+			cl.playernum[j] = MAX_CLIENTS + j;
+			for (i = 0; i < UPDATE_BACKUP; i++)
+			{
+				cl.frames[i].playerstate[cl.playernum[j]].pm_type = PM_SPECTATOR;
+				cl.frames[i].playerstate[cl.playernum[j]].messagenum = 1;
+			}
+		}
 		cl.spectator = true;
-		for (i = 0; i < UPDATE_BACKUP; i++)
-			cl.frames[i].playerstate[cl.playernum[0]].pm_type = PM_SPECTATOR;
 
 		cl.splitclients = 1;
 	}
@@ -3695,7 +3698,10 @@ void CL_ParseClientdata (void)
 
 	i = cls.netchan.incoming_acknowledged;
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+	{
 		cl.oldparsecount = i - 1;
+		oldparsecountmod = cl.oldparsecount & UPDATE_MASK;
+	}
 	cl.parsecount = i;
 	i &= UPDATE_MASK;
 	parsecountmod = i;
@@ -3704,7 +3710,8 @@ void CL_ParseClientdata (void)
 		frame->senttime = realtime - host_frametime;
 	parsecounttime = cl.frames[i].senttime;
 
-	frame->receivedtime = (cl.gametimemark - cl.oldgametimemark)*20;
+	frame->receivedtime = realtime;
+	//(cl.gametimemark - cl.oldgametimemark)*20;
 
 // calculate latency
 	latency = frame->receivedtime - frame->senttime;

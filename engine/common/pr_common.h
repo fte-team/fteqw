@@ -159,6 +159,12 @@ void QCBUILTIN PF_search_begin (progfuncs_t *prinst, struct globalvars_s *pr_glo
 void QCBUILTIN PF_search_end (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_search_getsize (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_search_getfilename (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_isfunction (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_callfunction (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_writetofile(progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_loadfromfile (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_loadfromdata (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_parseentitydata(progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_WasFreed (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_break (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_crc16 (progfuncs_t *prinst, struct globalvars_s *pr_globals);

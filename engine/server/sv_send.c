@@ -1934,12 +1934,18 @@ void SV_UpdateToReliableMessages (void)
 			{
 				if (strcmp(host_client->name, name))
 				{
+					char oname[80];
+					Q_strncpyz(oname, host_client->name, sizeof(oname));
+
+#pragma warningmsg("Debug line to try to find OneManClan's issue\n");
+					Con_Printf("DEBUG: .netname= \"%s\" -> \"%s\"   (f=%x n=%p b=%p)\n", oname, name, host_client->edict->v->netname, host_client->name, host_client->namebuf);
+
 					Con_DPrintf("Client %s programatically renamed to %s\n", host_client->name, name);
 					Info_SetValueForKey(host_client->userinfo, "name", name, sizeof(host_client->userinfo));
-					if (!strcmp(Info_ValueForKey(host_client->userinfo, "name"), name))
-					{
-						SV_ExtractFromUserinfo (host_client);
+					SV_ExtractFromUserinfo (host_client);
 
+					if (strcmp(oname, host_client->name))
+					{
 						MSG_WriteByte (&sv.reliable_datagram, svc_setinfo);
 						MSG_WriteByte (&sv.reliable_datagram, i);
 						MSG_WriteString (&sv.reliable_datagram, "name");

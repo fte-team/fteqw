@@ -4446,35 +4446,35 @@ static struct {
 #endif
 
 //DP_QC_CRC16
-	{"crc16",			PF_crc16,				494},	// #494 float(float caseinsensitive, string s, ...) crc16
+	{"crc16",				PF_crc16,				494},	// #494 float(float caseinsensitive, string s, ...) crc16
 
 //DP_QC_CVAR_TYPE
-	{"cvar_type",		PF_cvar_type,		495},	// #495 float(string name) cvar_type
+	{"cvar_type",			PF_cvar_type,		495},	// #495 float(string name) cvar_type
 
 //DP_QC_ENTITYDATA
-	{"numentityfields",	PF_numentityfields,			496},	// #496 float() numentityfields
-	{"entityfieldname",	PF_entityfieldname,			497},	// #497 string(float fieldnum) entityfieldname
-	{"entityfieldtype",	PF_entityfieldtype,		498},	// #498 float(float fieldnum) entityfieldtype
-	{"getentityfieldstring",PF_getentityfieldstring,		499},	// #499 string(float fieldnum, entity ent) getentityfieldstring
+	{"numentityfields",		PF_numentityfields,			496},	// #496 float() numentityfields
+	{"entityfieldname",		PF_entityfieldname,			497},	// #497 string(float fieldnum) entityfieldname
+	{"entityfieldtype",		PF_entityfieldtype,			498},	// #498 float(float fieldnum) entityfieldtype
+	{"getentityfieldstring",PF_getentityfieldstring,	499},	// #499 string(float fieldnum, entity ent) getentityfieldstring
 	{"putentityfieldstring",PF_putentityfieldstring,	500},	// #500 float(float fieldnum, entity ent, string s) putentityfieldstring
 
 //DP_SV_WRITEPICTURE
-	{"WritePicture",	PF_ReadPicture,		501},	// #501 void(float to, string s, float sz) WritePicture
+	{"WritePicture",		PF_ReadPicture,				501},	// #501 void(float to, string s, float sz) WritePicture
 
 	//no 502 documented
 
 //DP_QC_WHICHPACK
-	{"whichpack",		PF_whichpack,			503},	// #503 string(string filename) whichpack
+	{"whichpack",			PF_whichpack,				503},	// #503 string(string filename) whichpack
 
 //DP_QC_URI_ESCAPE
-	{"uri_escape",		PF_uri_escape,				510},	// #510 string(string in) uri_escape
-	{"uri_unescape",	PF_uri_unescape,	511},	// #511 string(string in) uri_unescape = #511;
+	{"uri_escape",			PF_uri_escape,				510},	// #510 string(string in) uri_escape
+	{"uri_unescape",		PF_uri_unescape,			511},	// #511 string(string in) uri_unescape = #511;
 
 //DP_QC_NUM_FOR_EDICT
-	{"num_for_edict",	PF_num_for_edict,		512},	// #512 float(entity ent) num_for_edict
+	{"num_for_edict",		PF_num_for_edict,			512},	// #512 float(entity ent) num_for_edict
 
 //DP_QC_URI_GET
-	{"uri_get",			PF_uri_get,			513},	// #513 float(string uril, float id) uri_get
+	{"uri_get",				PF_uri_get,					513},	// #513 float(string uril, float id) uri_get
 
 	{"tokenize_console",	PF_tokenize_console,		514},
 	{"argv_start_index",	PF_argv_start_index,		515},
@@ -4486,6 +4486,14 @@ static struct {
 
 	{"keynumtostring",		PF_cl_keynumtostring,		520},
 	{"findkeysforcommand",	PF_cl_findkeysforcommand,	521},
+
+	{"loadfromdata",		PF_loadfromdata,			529},
+	{"loadfromfile",		PF_loadfromfile,			530},
+
+	{"callfunction",		PF_callfunction,			605},
+	{"writetofile",			PF_writetofile,				606},
+	{"isfunction",			PF_isfunction,				607},
+	{"parseentitydata",		PF_parseentitydata,			608},
 
 	{"sprintf",				PF_sprintf,					627},
 

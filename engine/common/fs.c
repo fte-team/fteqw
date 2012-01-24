@@ -587,7 +587,7 @@ char *FS_WhichPackForLocation(flocation_t *loc)
 }
 
 /*requires extension*/
-qboolean FS_GetPackageDownloadable(char *package)
+qboolean FS_GetPackageDownloadable(const char *package)
 {
 	searchpath_t	*search;
 

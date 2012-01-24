@@ -954,6 +954,7 @@ typedef struct model_s
 #define MDLF_NEEDOVERBRIGHT  0x040 // only overbright these models with gl_overbright_all set
 #define MDLF_BOLT            0x080 // doesn't produce shadows
 #define	MDLF_NOTREPLACEMENTS 0x100 // can be considered a cheat, disable texture replacements
+#define MDLF_EZQUAKEFBCHEAT  0x200 // this is a blatent cheat, one that can disadvantage us fairly significantly if we don't support it.
 
 //============================================================================
 /*

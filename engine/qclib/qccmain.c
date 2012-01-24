@@ -319,11 +319,13 @@ int	QCC_CopyString (char *str)
 	int		old;
 	char *s;
 
+	if (!str)
+		return 0;
+	if (!*str)
+		return 1;
+
 	if (opt_noduplicatestrings)
 	{
-		if (!str || !*str)
-			return 0;
-
 		for (s = strings; s < strings+strofs; s++)
 			if (!strcmp(s, str))
 			{
@@ -488,7 +490,7 @@ void QCC_InitData (void)
 	qcc_sourcefile = NULL;
 
 	numstatements = 1;
-	strofs = 1;
+	strofs = 2;
 	numfunctions = 1;
 	numglobaldefs = 1;
 	numfielddefs = 1;
@@ -784,7 +786,7 @@ pbool QCC_WriteData (int crc)
 			dd->s_name = QCC_CopyString (def->name);
 			dd->ofs = G_INT(def->ofs);
 		}
-		else if ((def->scope||def->constant) && (def->type->type != ev_string || opt_constant_names_strings))
+		else if ((def->scope||def->constant) && (def->type->type != ev_string || (strncmp(def->name, "dotranslate_", 12) && opt_constant_names_strings)))
 		{
 			if (opt_constant_names)
 			{
@@ -2992,7 +2994,7 @@ void QCC_main (int argc, char **argv)	//as part of the quake engine
 	QCC_PurgeTemps();
 
 	strings = (void *)qccHunkAlloc(sizeof(char) * MAX_STRINGS);
-	strofs = 1;
+	strofs = 2;
 
 	statements = (void *)qccHunkAlloc(sizeof(QCC_dstatement_t) * MAX_STATEMENTS);
 	numstatements = 0;

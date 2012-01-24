@@ -1283,8 +1283,8 @@ void R_DrawNameTags(void)
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
-//		void GL_Set2D (void);
-//		GL_Set2D(false);
+		void GL_Set2D (qboolean flipped);
+		GL_Set2D(false);
 	}
 #endif
 

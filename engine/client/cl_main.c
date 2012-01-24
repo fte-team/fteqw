@@ -75,7 +75,7 @@ cvar_t	m_yaw = CVARF("m_yaw","0.022", CVAR_ARCHIVE);
 cvar_t	m_forward = CVARF("m_forward","1", CVAR_ARCHIVE);
 cvar_t	m_side = CVARF("m_side","0.8", CVAR_ARCHIVE);
 
-cvar_t	cl_lerp_players = CVARD("cl_lerp_players", "1", "Set this to make other players smoother, though it may increase effective latency. Affects only QuakeWorld.");
+cvar_t	cl_lerp_players = CVARD("cl_lerp_players", "0", "Set this to make other players smoother, though it may increase effective latency. Affects only QuakeWorld.");
 cvar_t	cl_predict_players = CVARD("cl_predict_players", "1", "Clear this cvar to see ents exactly how they are on the server.");
 cvar_t	cl_solid_players = CVAR("cl_solid_players", "1");
 cvar_t	cl_noblink = CVARD("cl_noblink", "0", "Disable the ^^b text blinking feature.");
@@ -170,6 +170,7 @@ cvar_t	ruleset_allow_modified_eyes = SCVAR("ruleset_allow_modified_eyes", "0");
 cvar_t	ruleset_allow_sensative_texture_replacements = SCVAR("ruleset_allow_sensative_texture_replacements", "1");
 cvar_t	ruleset_allow_localvolume	= SCVAR("ruleset_allow_localvolume", "1");
 cvar_t  ruleset_allow_shaders	= SCVARF("ruleset_allow_shaders", "1", CVAR_SHADERSYSTEM);
+cvar_t  ruleset_allow_fbmodels	= SCVARF("ruleset_allow_fbmodels", "1", CVAR_SHADERSYSTEM);
 
 extern cvar_t cl_hightrack;
 extern cvar_t	vid_renderer;
@@ -2706,6 +2707,8 @@ void CLNQ_ConnectionlessPacket(void)
 }
 #endif
 
+void CL_MVDUpdateSpectator (void);
+
 /*
 =================
 CL_ReadPackets
@@ -2810,6 +2813,7 @@ void CL_ReadPackets (void)
 		case CP_QUAKEWORLD:
 			if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 			{
+				player_state_t *n,*o;
 				MSG_BeginReading(cls.netchan.netprim);
 				cls.netchan.last_received = realtime;
 				cls.netchan.outgoing_sequence = cls.netchan.incoming_sequence;
@@ -2851,7 +2855,9 @@ void CL_ReadPackets (void)
 	}
 
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
-		MVD_Interpolate();
+	{
+		CL_MVDUpdateSpectator();
+	}
 }
 
 //=============================================================================
@@ -3273,6 +3279,7 @@ void CL_Init (void)
 	Cvar_Register (&ruleset_allow_sensative_texture_replacements,	cl_controlgroup);
 	Cvar_Register (&ruleset_allow_localvolume,			cl_controlgroup);
 	Cvar_Register (&ruleset_allow_shaders,			cl_controlgroup);
+	Cvar_Register (&ruleset_allow_fbmodels,			cl_controlgroup);
 
 	Cvar_Register (&qtvcl_forceversion1,				cl_controlgroup);
 	Cvar_Register (&qtvcl_eztvextensions,				cl_controlgroup);

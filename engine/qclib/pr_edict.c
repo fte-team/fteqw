@@ -1649,6 +1649,8 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 	ddef16_t *d16;
 	ddef32_t *d32;
 	func_t CheckSpawn=0;
+	void *oldglobals = NULL;
+	int oldglobalssize = 0;
 
 	extern edictrun_t tempedict;
 
@@ -1797,6 +1799,14 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 				current_progstate->builtins = externs->builtinsfor(num, header_crc);
 				current_progstate->numbuiltins = numbuiltins;
 			}
+
+			if (num == 0 && oldglobals)
+			{
+				if (pr_progstate[0].globals_size == oldglobalssize)
+					memcpy(pr_progstate[0].globals, oldglobals, pr_progstate[0].globals_size);
+				free(oldglobals);
+				oldglobals = NULL;
+			}
 		}
 		else if (!strcmp(qcc_token, "globals"))
 		{
@@ -1904,6 +1914,21 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 					break;
 				else
 					Sys_Error("Bad key \"%s\" in general block", qcc_token);
+			}
+
+			if (oldglobals)
+				free(oldglobals);
+			oldglobals = NULL;
+			if (pr_progstate[0].globals_size)
+			{
+				oldglobals = malloc(pr_progstate[0].globals_size);
+				if (oldglobals)
+				{
+					oldglobalssize = pr_progstate[0].globals_size;
+					memcpy(oldglobals, pr_progstate[0].globals, oldglobalssize);
+				}
+				else
+					printf("Unable to alloc %i bytes\n", pr_progstate[0].globals_size);
 			}
 
 			PRAddressableFlush(progfuncs, -1);
@@ -2106,6 +2131,10 @@ int LoadEnts(progfuncs_t *progfuncs, char *file, float killonspawnflags)
 
 		sv_num_edicts = numents;
 	}
+
+	if (oldglobals)
+		free(oldglobals);
+	oldglobals = NULL;
 
 	if (resethunk)
 	{
@@ -2448,6 +2477,7 @@ retry:
 	current_progstate->statements = (void *)((qbyte *)pr_progs + pr_progs->ofs_statements);
 
 	glob = pr_globals = (void *)((qbyte *)pr_progs + pr_progs->ofs_globals);
+	current_progstate->globals_size = pr_progs->numglobals*sizeof(*pr_globals);
 
 	pr_linenums=NULL;
 	pr_types=NULL;

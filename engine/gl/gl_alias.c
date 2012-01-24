@@ -36,7 +36,7 @@ typedef struct
 
 
 
-extern cvar_t gl_part_flame, r_fullbrightSkins, r_fb_models;
+extern cvar_t gl_part_flame, r_fullbrightSkins, r_fb_models, ruleset_allow_fbmodels;
 extern cvar_t r_noaliasshadows;
 
 
@@ -734,6 +734,13 @@ static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		return e->light_known-1;
 	}
 	if ((e->drawflags & MLS_MASKIN) == MLS_FULLBRIGHT || (e->flags & Q2RF_FULLBRIGHT))
+	{
+		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;
+		e->light_range[0] = e->light_range[1] = e->light_range[2] = 0;
+		e->light_known = 2;
+		return e->light_known-1;
+	}
+	if (r_fb_models.ival == 1 && ruleset_allow_fbmodels.ival && (clmodel->engineflags & MDLF_EZQUAKEFBCHEAT) && cls.protocol == CP_QUAKEWORLD && cl.deathmatch)
 	{
 		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;
 		e->light_range[0] = e->light_range[1] = e->light_range[2] = 0;

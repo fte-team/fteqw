@@ -260,8 +260,8 @@ enum qcop_e {
 
 	//-------------------------------------
 	//string manipulation.
-	OP_ADD_SF,	//(char*)c = (char*)a + (float)b
-	OP_SUB_S,	//(float)c = (char*)a - (char*)b
+	OP_ADD_SF,	//(char*)c = (char*)a + (float)b    add_fi->i
+	OP_SUB_S,	//(float)c = (char*)a - (char*)b    sub_ii->f
 	OP_STOREP_C,//(float)c = *(char*)b = (float)a
 	OP_LOADP_C,	//(float)c = *(char*)
 	//-------------------------------------

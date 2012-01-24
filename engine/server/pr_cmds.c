@@ -8689,7 +8689,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"precache_file",	PF_precache_file,	68,		68,		68,		0,	"void(string s)"},	//68
 	{"makestatic",		PF_makestatic,		69,		69,		69,		0,	"void(entity e)"},	//69
 
-	{"changelevel",		PF_changelevel,		70,		70,		70,		0,	"void(string mapname)"},	//70
+	{"changelevel",		PF_changelevel,		70,		70,		70,		0,	"void(string mapname, optional string newmapstartspot)"},	//70
 	{"lightstylevalue",	PF_lightstylevalue,	0,		0,		71,		0,	"float(float lstyle)"},	//70
 
 	{"cvar_set",		PF_cvar_set,		72,		72,		72,		0,	"void(string cvarname, string valuetoset)"},	//72
@@ -9239,8 +9239,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"cvar_description",PF_cvar_description,0,		0,		0,		518,	"string(string cvarname)"},
 	{"gettime",			PF_Fixme,			0,		0,		0,		519,	"float(optional float timetype)"},
 
-//	{"loadfromdata",	VM_loadfromdata,	0,		0,		0,		529,	"??" STUB},
-//	{"loadfromfile",	VM_loadfromfile,	0,		0,		0,		530,	"??" STUB},
+	{"loadfromdata",	PF_loadfromdata,	0,		0,		0,		529,	"void(string s)"},
+	{"loadfromfile",	PF_loadfromfile,	0,		0,		0,		530,	"void(string s)"},
 //	{"setpause",		VM_SV_setpause,		0,		0,		0,		531,	"void(float pause)" STUB},
 
 	//end dp extras
@@ -9255,10 +9255,11 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"physics_addforce",PF_Ignore,			0,		0,		0,		541,	"void(entity e, vector force, vector relative_ofs)" STUB},
 	{"physics_addtorque",PF_Ignore,			0,		0,		0,		542,	"void(entity e, vector torque)" STUB},
 
-//VM_callfunction,				// #605
-//VM_writetofile,					// #606
-//VM_isfunction,					// #607
-//VM_parseentitydata,				// #613
+	{"callfunction",	PF_callfunction,	0,		0,		0,		605,	"void(.../*, string funcname*/)"},
+	{"writetofile",		PF_writetofile,		0,		0,		0,		606,	"void(float fh, entity e)"},
+	{"isfunction",		PF_isfunction,		0,		0,		0,		607,	"float(string s)"},
+	{"parseentitydata",	PF_parseentitydata,	0,		0,		0,		608,	"void(entity e, string s)"},
+
 //VM_SV_getextresponse,			// #624 string getextresponse(void)
 
 	{"sprintf",			PF_sprintf,			0,		0,		0,		627,	"string(...)" STUB},
@@ -9957,6 +9958,7 @@ void PR_DumpPlatform_f(void)
 		{"FILE_READ",			"const float", QW|NQ|CS, FRIK_FILE_READ},
 		{"FILE_APPEND",			"const float", QW|NQ|CS, FRIK_FILE_APPEND},
 		{"FILE_WRITE",			"const float", QW|NQ|CS, FRIK_FILE_WRITE},
+		{"FILE_READNL",			"const float", QW|NQ|CS, FRIK_FILE_READNL},
 		{"FILE_MMAP_READ",		"const float", QW|NQ|CS, FRIK_FILE_MMAP_READ},
 		{"FILE_MMAP_RW",		"const float", QW|NQ|CS, FRIK_FILE_MMAP_RW},
 

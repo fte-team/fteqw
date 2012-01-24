@@ -305,7 +305,7 @@ static void Validation_Server(void)
 
 static void Validation_Skins(void)
 {
-	extern cvar_t r_fullbrightSkins, r_fb_models;
+	extern cvar_t r_fullbrightSkins, r_fb_models, ruleset_allow_fbmodels;
 	int percent = r_fullbrightSkins.value*100;
 
 	if (!allow_f_skins.ival)
@@ -319,7 +319,9 @@ static void Validation_Skins(void)
 	if (percent > cls.allow_fbskins*100)
 		percent = cls.allow_fbskins*100;
 	if (percent)
-		Cbuf_AddText(va("say all player skins %i%% fullbright%s\n", percent, r_fb_models.value?" (plus luma)":""), RESTRICT_LOCAL);
+		Cbuf_AddText(va("say all player skins %i%% fullbright%s\n", percent, (r_fb_models.ival == 1 && ruleset_allow_fbmodels.ival)?" (non-player 100%%)":(r_fb_models.value?" (plus luma)":"")), RESTRICT_LOCAL);
+	else if (r_fb_models.ival == 1 && ruleset_allow_fbmodels.ival)
+		Cbuf_AddText("say non-player entities glow in the dark like a bright big cheat\n", RESTRICT_LOCAL);
 	else if (r_fb_models.ival)
 		Cbuf_AddText("say luma textures only\n", RESTRICT_LOCAL);
 	else
@@ -390,6 +392,7 @@ rulesetrule_t rulesetrules_strict[] = {
 	{"ruleset_allow_modified_eyes", "0"},
 	{"ruleset_allow_sensative_texture_replacements", "0"},
 	{"ruleset_allow_localvolume", "0"},
+	{"ruleset_allow_fbmodels", "0"},
 	{"tp_disputablemacros", "0"},
 	{"cl_instantrotate", "0"},
 	{"v_projectionmode", "0"},	/*no extended fovs*/
@@ -407,6 +410,7 @@ rulesetrule_t rulesetrules_nqr[] = {
 	{"ruleset_allow_sensative_texture_replacements", "0"},
 	{"ruleset_allow_localvolume", "0"},
 	{"ruleset_allow_shaders", "0"},
+	{"ruleset_allow_fbmodels", "0"},
 	{"r_vertexlight", "0"},
 	{"v_projectionmode", "0"},
 	{NULL}

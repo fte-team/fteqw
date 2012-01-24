@@ -3280,8 +3280,6 @@ Sbar_FinaleOverlay
 */
 void Sbar_FinaleOverlay (void)
 {
-	mpic_t	*pic;
-
 #ifdef VM_UI
 	if (UI_DrawFinale()>0)
 		return;

@@ -899,6 +899,21 @@ void M_Menu_Lighting_f (void)
 		NULL
 	};
 
+	static const char *fb_models_opts[] =
+	{
+		"Disabled",
+		"Entire model",
+		"If textured",
+		NULL
+	};
+	static const char *fb_models_values[] =
+	{
+		"0",
+		"1",
+		"2",
+		NULL
+	};
+
 	int y;
 	menu_t *menu = M_Options_Title(&y, sizeof(lightingmenuinfo_t));
 	int lightselect, dlightselect;
@@ -955,6 +970,7 @@ void M_Menu_Lighting_f (void)
 			MB_SLIDER("Blob Shadows", r_shadows, 0, 1, 0.05, "Small blobs underneath monsters and players, to add depth to the scene without excessive rendering."),
 			MB_SLIDER("Stains", r_stains, 0, 1, 0.05, "Allows discolouration of world surfaces, commonly used for blood trails."),
 			MB_CHECKBOXCVARTIP("No Light Direction", r_nolightdir, 0, "Disables shading calculations for uniform light levels on models from all directions."),
+			MB_COMBOCVAR("Model Fullbrights", r_fb_models, fb_models_opts, fb_models_values, "Affects loading of fullbrights on models/polymeshes."),
 			MB_END()
 		};
 		MC_AddBulk(menu, bulk, 16, 216, y);

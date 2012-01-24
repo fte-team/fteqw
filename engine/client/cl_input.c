@@ -1361,7 +1361,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			extern cvar_t cl_splitscreen;
 			i = cls.netchan.outgoing_sequence & UPDATE_MASK;
 			cl.frames[i].senttime = realtime;		// we haven't gotten a reply yet
-			cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
+//			cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet
 
 			if (cl.splitclients > cl_splitscreen.ival+1)
 			{

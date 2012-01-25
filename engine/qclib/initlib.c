@@ -505,7 +505,7 @@ string_t PR_StringToProgs			(progfuncs_t *progfuncs, char *str)
 	if (!str)
 		return 0;
 
-	if (str-progfuncs->stringtable < addressableused)
+	if (str >= progfuncs->stringtable && str < progfuncs->stringtable + addressableused)
 		return str - progfuncs->stringtable;
 
 	for (i = prinst->numallocedstrings-1; i >= 0; i--)

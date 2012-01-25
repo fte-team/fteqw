@@ -123,7 +123,9 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, qboolean re
 	wedict_t	*enemy = world->edicts;
 	int eflags = ent->v->flags;
 
-	if (progstype != PROG_H2)
+#ifndef CLIENTONLY
+	if (progstype != PROG_H2 || world != &sv.world)
+#endif
 		eflags &= ~FLH2_NOZ|FLH2_HUNTFACE;
 
 // try the move	
@@ -131,7 +133,7 @@ qboolean World_movestep (world_t *world, wedict_t *ent, vec3_t move, qboolean re
 	VectorAdd (ent->v->origin, move, neworg);
 
 // flying monsters don't step up
-	if ( eflags & (FL_SWIM | FL_FLY) && !(eflags & (FLH2_NOZ|FLH2_HUNTFACE)))
+	if ((eflags & (FL_SWIM | FL_FLY)) && !(eflags & (FLH2_NOZ|FLH2_HUNTFACE)))
 	{
 	// try one move with vertical motion, then one without
 		for (i=0 ; i<2 ; i++)

@@ -1089,7 +1089,7 @@ init_source (j_decompress_ptr cinfo)
 {
   my_src_ptr src = (my_src_ptr) cinfo->src;
 
-  src->start_of_file = TRUE;
+  src->start_of_file = true;
 }
 
 METHODDEF(JPEG_boolean)
@@ -1116,9 +1116,9 @@ fill_input_buffer (j_decompress_ptr cinfo)
 
 	src->pub.next_input_byte = src->buffer;
 	src->pub.bytes_in_buffer = nbytes;
-	src->start_of_file = FALSE;
+	src->start_of_file = false;
 
-	return TRUE;
+	return true;
 }
 
 
@@ -1235,9 +1235,9 @@ badjpeg:
 	ftejpeg_mem_src(&cinfo, infile, length);
 
 	#ifdef DYNAMIC_LIBJPEG
-		(void) qjpeg_read_header(&cinfo, TRUE);
+		(void) qjpeg_read_header(&cinfo, true);
 	#else
-		(void) jpeg_read_header(&cinfo, TRUE);
+		(void) jpeg_read_header(&cinfo, true);
 	#endif
 
 	#ifdef DYNAMIC_LIBJPEG
@@ -1361,7 +1361,7 @@ METHODDEF(JPEG_boolean) empty_output_buffer (j_compress_ptr cinfo)
 	dest->pub.next_output_byte = dest->buffer;
 	dest->pub.free_in_buffer = OUTPUT_BUF_SIZE;
 
-	return TRUE;
+	return true;
 }
 METHODDEF(void) term_destination (j_compress_ptr cinfo)
 {

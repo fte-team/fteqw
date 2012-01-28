@@ -1202,17 +1202,15 @@ droid-rel: droid/build.xml droid/ftekeystore
 	mkdir -p droid/libs/armeabi
 	@cp $(RELEASE_DIR)/libftedroid.so droid/libs/armeabi/
 	@cd droid && $(ANT) release
-ifneq ($(DROID_PACKSC),)
+ifneq ($(DROID_PACKSU),)
 		@echo
-		@echo
-		@echo Adding custom data files (non-compressed)
+		@echo Adding custom data files - non-compressed
 		@echo
 		zip droid/bin/FTEDroid-release-unsigned.apk -0 -j $(DROID_PACKSU)
 endif
-ifneq ($(DROID_PACKSU),)
+ifneq ($(DROID_PACKSC),)
 		@echo
-		@echo
-		@echo Adding custom data files (compressed)
+		@echo Adding custom data files - compressed
 		@echo
 		zip droid/bin/FTEDroid-release-unsigned.apk -9 -j $(DROID_PACKSC)
 endif

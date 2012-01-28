@@ -353,6 +353,8 @@ enum qcop_e {
 	OP_MULSTORE_VI,
 	OP_MULSTOREP_VI,
 
+	OP_LOADA_STRUCT,
+
 	OP_NUMOPS
 };
 

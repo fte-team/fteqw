@@ -3705,6 +3705,10 @@ void CL_ParseClientdata (void)
 	cl.parsecount = i;
 	i &= UPDATE_MASK;
 	parsecountmod = i;
+
+	if (CPNQ_IS_DP)
+		i = cls.netchan.incoming_sequence & UPDATE_MASK;
+	
 	frame = &cl.frames[i];
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 		frame->senttime = realtime - host_frametime;
@@ -6021,7 +6025,19 @@ void CLNQ_ParseServerMessage (void)
 			cl.gametime = MSG_ReadFloat();
 			cl.gametimemark = realtime;
 
-			if (!CPNQ_IS_DP)
+			if (CPNQ_IS_DP)
+			{
+				int n = cls.netchan.incoming_sequence&UPDATE_MASK, o = (cls.netchan.incoming_sequence-1)&UPDATE_MASK;
+				cl.frames[n].packet_entities.num_entities = cl.frames[o].packet_entities.num_entities;
+				if (cl.frames[n].packet_entities.max_entities < cl.frames[o].packet_entities.num_entities)
+				{
+					cl.frames[n].packet_entities.max_entities = cl.frames[o].packet_entities.max_entities;
+					cl.frames[n].packet_entities.entities = BZ_Realloc(cl.frames[n].packet_entities.entities, sizeof(entity_state_t) *  cl.frames[n].packet_entities.max_entities);
+				}
+				memcpy(cl.frames[n].packet_entities.entities, cl.frames[o].packet_entities.entities, sizeof(entity_state_t) * cl.frames[o].packet_entities.num_entities);
+				cl.frames[n].packet_entities.servertime = cl.frames[o].packet_entities.servertime;
+			}
+			else
 			{
 //				cl.frames[(cls.netchan.incoming_sequence-1)&UPDATE_MASK].packet_entities = cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities;
 				cl.frames[cls.netchan.incoming_sequence&UPDATE_MASK].packet_entities.num_entities=0;

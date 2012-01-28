@@ -32,6 +32,21 @@ public class FTEDroidActivity extends Activity
 	private class FTERenderer implements GLSurfaceView.Renderer 
 	{
 		private boolean inited;
+		private String basedir;
+		
+		FTERenderer(Context ctx)
+		{
+			try
+			{
+			   android.content.pm.PackageInfo info = ctx.getPackageManager().getPackageInfo("com.fteqw", 0);
+			   basedir = info.applicationInfo.sourceDir;
+			}
+			catch(android.content.pm.PackageManager.NameNotFoundException e)
+			{
+				/*oh well, can just use the homedir instead*/
+			}
+		}
+		
 		@Override
 		public void onDrawFrame(GL10 gl)
 		{
@@ -43,7 +58,7 @@ public class FTEDroidActivity extends Activity
 		@Override
 		public void onSurfaceChanged(GL10 gl, int width, int height)
 		{
-			FTEDroidEngine.init(width, height);
+			FTEDroidEngine.init(width, height, basedir);
 			inited = true;
 		}
 		@Override
@@ -135,7 +150,7 @@ public class FTEDroidActivity extends Activity
 		{
 			super(context);
 
-			rndr = new FTERenderer();
+			rndr = new FTERenderer(getContext());
 //			setEGLConfigChooser(new FTEEGLConfig());
 			setRenderer(rndr);
 			setFocusable(true);

@@ -813,10 +813,17 @@ reeval:
 		i = (unsigned int)OPA->_int + (unsigned int)OPB->_float;
 		if ((unsigned int)i >= addressableused)
 		{
-			pr_xstatement = st-pr_statements;
-			PR_RunError (progfuncs, "bad pointer read in %s", PR_StringToNative(progfuncs, pr_xfunction->s_name));
+			i = (unsigned int)OPB->_float;
+			ptr = (eval_t*)PR_StringToNative(progfuncs, OPA->_int);
+			if (i > strlen((char*)ptr))
+			{
+				pr_xstatement = st-pr_statements;
+				PR_RunError (progfuncs, "bad pointer read in %s (%i bytes into %s)", PR_StringToNative(progfuncs, pr_xfunction->s_name), i, ptr);
+			}
+			ptr = (eval_t*)((char*)ptr + i);
 		}
-		ptr = QCPOINTERM(i);
+		else 
+			ptr = QCPOINTERM(i);
 		OPC->_float = *(unsigned char *)ptr;
 		break;
 	case OP_LOADP_I:

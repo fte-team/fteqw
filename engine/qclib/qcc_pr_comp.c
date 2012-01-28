@@ -544,6 +544,8 @@ QCC_opcode_t pr_opcodes[] =
  {7, "*=", "MULSTORE_VI",	6, ASSOC_RIGHT_RESULT,		&type_vector, &type_integer, &type_vector},
  {7, "*=", "MULSTOREP_VI",	6, ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_vector},
 
+ {7, "=", "LOADA_STRUCT",	6, ASSOC_LEFT,				&type_float,	&type_integer, &type_float},
+
  {0, NULL}
 };
 
@@ -2110,6 +2112,12 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 	{
 		switch(op - pr_opcodes)
 		{
+		case OP_LOADA_STRUCT:
+			/*emit this anyway. if it reaches runtime then you messed up.
+			this is valid only if you do &foo[0]*/
+			break;
+
+
 		case OP_IF_S:
 			var_c = QCC_PR_GetDef(type_string, "string_null", NULL, true, 0, false);
 			numstatements--;
@@ -2331,6 +2339,8 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 		case OP_ADDSTOREP_V:
 
 		case OP_SUBSTOREP_F:
+		case OP_SUBSTOREP_I:
+		case OP_ADDSTOREP_I:
 		case OP_ADDSTOREP_F:
 		case OP_MULSTOREP_F:
 		case OP_DIVSTOREP_F:
@@ -2344,35 +2354,57 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 			{
 				int st;
 				int need_lock = false;
-				for (st = numstatements-2; st>=0; st--)
+				if (var_b->temp)
 				{
-					if (statements[st].op == OP_ADDRESS)
+					for (st = numstatements-2; st>=0; st--)
+					{
+						if (statements[st].op == OP_ADDRESS)
+							if (statements[st].c == var_b->ofs)
+								break;
+
+						if ((statements[st].op >= OP_CALL0 && statements[st].op <= OP_CALL8) || (statements[st].op >= OP_CALL1H && statements[st].op <= OP_CALL8H))
+							need_lock = true;
+
 						if (statements[st].c == var_b->ofs)
+						{
+							st = -1;
 							break;
-
-					if ((statements[st].op >= OP_CALL0 && statements[st].op <= OP_CALL8) || (statements[st].op >= OP_CALL1H && statements[st].op <= OP_CALL8H))
-						need_lock = true;
-
-					if (statements[st].c == var_b->ofs)
-						QCC_PR_ParseWarning(0, "Temp-reuse may have broken your %s", op->name);
+						}
+					}
 				}
-				if (st < 0)
-					QCC_PR_ParseError(ERR_INTERNAL, "XSTOREP_F: pointer was not generated from previous statement");
+				else
+					st = -1;
+
 				var_c = QCC_GetTemp(*op->type_c);
-				if (need_lock)
-					QCC_LockTemp(var_c); /*that temp needs to be preserved over calls*/
+				if (st < 0)
+				{
+					/*generate new OP_LOADP instruction*/
+					statement->op = ((*op->type_c)->type==ev_vector)?OP_LOADP_V:OP_LOADP_F;
+					statement->a = var_b->ofs;
+					statement->b = var_c->ofs;
+					statement->c = 0;
+				}
+				else
+				{
+					/*it came from an OP_ADDRESS - st says the instruction*/
+					var_c = QCC_GetTemp(*op->type_c);
+					if (need_lock)
+						QCC_LockTemp(var_c); /*that temp needs to be preserved over calls*/
 
-				statement_linenums[statement-statements] = statement_linenums[st];
-				statement->op = OP_ADDRESS;
-				statement->a = statements[st].a;
-				statement->b = statements[st].b;
-				statement->c = statements[st].c;
+					/*generate new OP_ADDRESS instruction - FIXME: the arguments may have changed since the original instruction*/
+					statement_linenums[statement-statements] = statement_linenums[st];
+					statement->op = OP_ADDRESS;
+					statement->a = statements[st].a;
+					statement->b = statements[st].b;
+					statement->c = statements[st].c;
 
-				statement_linenums[st] = pr_source_line;
-				statements[st].op = ((*op->type_c)->type==ev_vector)?OP_LOAD_V:OP_LOAD_F;
-				statements[st].a = statements[st].a;
-				statements[st].b = statements[st].b;
-				statements[st].c = var_c->ofs;
+					/*convert old one to an OP_LOAD*/
+					statement_linenums[st] = pr_source_line;
+					statements[st].op = ((*op->type_c)->type==ev_vector)?OP_LOAD_V:OP_LOAD_F;
+					statements[st].a = statements[st].a;
+					statements[st].b = statements[st].b;
+					statements[st].c = var_c->ofs;
+				}
 			}
 
 			statement = &statements[numstatements];
@@ -2395,6 +2427,9 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 				break;
 			case OP_SUBSTOREP_F:
 				statement->op = OP_SUB_F;
+				break;
+			case OP_SUBSTOREP_I:
+				statement->op = OP_SUB_I;
 				break;
 			case OP_SUBSTOREP_IF:
 				statement->op = OP_SUB_IF;
@@ -2422,6 +2457,9 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 				break;
 			case OP_ADDSTOREP_F:
 				statement->op = OP_ADD_F;
+				break;
+			case OP_ADDSTOREP_I:
+				statement->op = OP_ADD_I;
 				break;
 			case OP_MULSTOREP_F:
 				statement->op = OP_MUL_F;
@@ -3703,7 +3741,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 						e = QCC_PR_Statement(pr_opcodes+OP_CONV_FTOI, e, NULL, NULL);
 					else if (p->type == ev_float && e->type->type == ev_integer)	//convert float -> int... is this a constant?
 						e = QCC_PR_Statement(pr_opcodes+OP_CONV_ITOF, e, NULL, NULL);
-					else if (p->type == ev_function && e->type->type == ev_integer && e->constant && !((int*)qcc_pr_globals)[e->ofs])
+					else if ((p->type == ev_function && p->type == ev_string) && e->type->type == ev_integer && e->constant && !((int*)qcc_pr_globals)[e->ofs])
 					{	//you're allowed to use int 0 to pass a null function pointer
 						//this is basically because __NULL__ is defined as ~0 (int 0)
 					}
@@ -4448,6 +4486,11 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign)
 			case ev_function:
 				d = QCC_PR_Statement(&pr_opcodes[OP_LOADA_FNC], d, QCC_SupplyConversion(idx, ev_integer, true), NULL);
 				break;
+			case ev_struct:
+			case ev_union:
+				//FIXME...
+				d = QCC_PR_Statement(&pr_opcodes[OP_LOADA_STRUCT], d, QCC_SupplyConversion(idx, ev_integer, true), NULL);
+				break;
 			default:
 				QCC_PR_ParseError(ERR_NOVALIDOPCODES, "No op available. Try assembler");
 			}
@@ -4846,6 +4889,15 @@ QCC_def_t *QCC_PR_Term (void)
 				/*you may cast from const 0 to any type of same size for free (from either int or float for simplicity)*/
 				else if (newtype->size == e->type->size && (e->type->type == ev_integer || e->type->type == ev_float) && e->constant && !G_INT(e->ofs))
 				{
+					//direct cast
+					e2 = (void *)qccHunkAlloc (sizeof(QCC_def_t));
+					memset (e2, 0, sizeof(QCC_def_t));
+
+					e2->type = newtype;
+					e2->ofs = e->ofs;
+					e2->constant = true;
+					e2->temp = e->temp;
+					return e2;
 				}
 				/*cast from int->float will convert*/
 				else if (newtype->type == ev_float && e->type->type == ev_integer)
@@ -4992,6 +5044,9 @@ int QCC_canConv(QCC_def_t *from, etype_t to)
 */
 	if (from->type->type == ev_integer && to == ev_function)
 		return 1;
+
+	if (from->constant && from->arraysize == 0 && (from->type->type == ev_integer || from->type->type == ev_float) && !G_INT(from->ofs))
+		return 2;
 
 	return -100;
 }

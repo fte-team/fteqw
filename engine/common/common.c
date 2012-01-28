@@ -1681,11 +1681,14 @@ char *COM_FileExtension (const char *in)
 {
 	static char exten[8];
 	int		i;
+	char *dot;
 
-	while (*in && *in != '.')
-		in++;
-	if (!*in)
+	for (dot = in + strlen(in); dot >= in && *dot != '.'; dot--)
+		;
+	if (dot < in)
 		return "";
+	in = dot;
+
 	in++;
 	for (i=0 ; i<7 && *in ; i++,in++)
 		exten[i] = *in;
@@ -1714,6 +1717,7 @@ void COM_CleanUpPath(char *str)
 	}
 	while ((dots = strstr(str, "..")))
 	{
+		critisize = 0;
 		for (slash = dots-2; slash >= str; slash--)
 		{
 			if (*slash == '/')
@@ -1722,6 +1726,11 @@ void COM_CleanUpPath(char *str)
 				critisize = 3;
 				break;
 			}
+		}
+		if (critisize != 3)
+		{
+			memmove(dots, dots+2, strlen(dots+2)+1);
+			critisize = 3;
 		}
 	}
 	while(*str == '/')

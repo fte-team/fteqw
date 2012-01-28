@@ -1937,9 +1937,6 @@ void SV_UpdateToReliableMessages (void)
 					char oname[80];
 					Q_strncpyz(oname, host_client->name, sizeof(oname));
 
-#pragma warningmsg("Debug line to try to find OneManClan's issue\n");
-					Con_Printf("DEBUG: .netname= \"%s\" -> \"%s\"   (f=%x n=%p b=%p)\n", oname, name, host_client->edict->v->netname, host_client->name, host_client->namebuf);
-
 					Con_DPrintf("Client %s programatically renamed to %s\n", host_client->name, name);
 					Info_SetValueForKey(host_client->userinfo, "name", name, sizeof(host_client->userinfo));
 					SV_ExtractFromUserinfo (host_client);

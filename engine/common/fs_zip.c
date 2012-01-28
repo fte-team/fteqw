@@ -602,6 +602,10 @@ qboolean VFSZIP_Seek (struct vfsfile_s *file, unsigned long pos)
 			vfsz->parent->currentfile = NULL;	//make it not us, so the next read starts at the right place
 		}
 	}
+	else
+	{
+		vfsz->parent->currentfile = NULL;
+	}
 
 	if (pos < 0 || pos > vfsz->length)
 		return false;

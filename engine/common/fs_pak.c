@@ -246,6 +246,7 @@ void *FSPAK_LoadPackFile (vfsfile_t *file, const char *desc)
 			CRC_ProcessByte(&crc, ((qbyte *)&info)[j]);
 */
 		strcpy (newfiles[i].name, info.name);
+		newfiles[i].name[MAX_QPATH-1] = 0; //paranoid
 		COM_CleanUpPath(newfiles[i].name);	//blooming tanks.
 		newfiles[i].filepos = LittleLong(info.filepos);
 		newfiles[i].filelen = LittleLong(info.filelen);

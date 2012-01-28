@@ -658,6 +658,38 @@ string_t PR_AllocTempString			(progfuncs_t *progfuncs, char *str)
 
 	return (string_t)((unsigned int)i | 0x40000000);
 }
+string_t PR_AllocTempStringLen			(progfuncs_t *progfuncs, char **str, int len)
+{
+	char **ntable;
+	int newmax;
+	int i;
+
+	if (!str)
+		return 0;
+
+	if (prinst->numtempstrings == prinst->maxtempstrings)
+	{
+		newmax = prinst->maxtempstrings += 1024;
+		prinst->maxtempstrings += 1024;
+		ntable = memalloc(sizeof(char*) * newmax);
+		memcpy(ntable, prinst->tempstrings, sizeof(char*) * prinst->numtempstrings);
+		prinst->maxtempstrings = newmax;
+		if (prinst->tempstrings)
+			memfree(prinst->tempstrings);
+		prinst->tempstrings = ntable;
+	}
+
+	i = prinst->numtempstrings;
+	if (i == 0x10000000)
+		return 0;
+
+	prinst->numtempstrings++;
+
+	prinst->tempstrings[i] = memalloc(len);
+	*str = prinst->tempstrings[i];
+
+	return (string_t)((unsigned int)i | 0x40000000);
+}
 
 void PR_FreeTemps			(progfuncs_t *progfuncs, int depth)
 {
@@ -771,7 +803,8 @@ progfuncs_t deffuncs = {
 	PR_QueryField,
 	QC_ClearEdict,
 	QC_FindPrefixedGlobals,
-	PRAddressableAlloc
+	PRAddressableAlloc,
+	PR_AllocTempStringLen
 };
 #undef printf
 

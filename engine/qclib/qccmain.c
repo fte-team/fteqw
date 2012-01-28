@@ -1664,6 +1664,11 @@ void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	type_floatfield->aux_type = type_float;
 	type_pointer->aux_type = QCC_PR_NewType("pointeraux", ev_float);
 
+	type_intpointer = QCC_PR_NewType("__intpointer", ev_pointer);
+	type_intpointer->aux_type = type_integer;
+	type_floatpointer = QCC_PR_NewType("__floatpointer", ev_pointer);
+	type_floatpointer->aux_type = type_float;
+
 	type_function->aux_type = type_void;
 
 	//type_field->aux_type = type_float;

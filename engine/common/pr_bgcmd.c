@@ -935,32 +935,42 @@ void QCBUILTIN PF_fgets (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 		G_INT(OFS_RETURN) = PR_SetString(prinst, pf_fopen_files[fnum].data);
 		return;
 	}
-
-	//read up to the next \n, ignoring any \rs.
-	o = pr_string_temp;
-	max = o + sizeof(pr_string_temp)-1;
-	s = pf_fopen_files[fnum].data+pf_fopen_files[fnum].ofs;
-	eof = pf_fopen_files[fnum].data+pf_fopen_files[fnum].len;
-	while(s < eof)
+	
+	if (pf_fopen_files[fnum].accessmode == FRIK_FILE_READNL)
 	{
-		c = *s++;
-		if (c == '\n' && pf_fopen_files[fnum].accessmode != FRIK_FILE_READNL)
-			break;
-		if (c == '\r' && pf_fopen_files[fnum].accessmode != FRIK_FILE_READNL)
-			continue;
-
-		if (o == max)
-			break;
-		*o++ = c;
+		if (pf_fopen_files[fnum].ofs >= pf_fopen_files[fnum].len)
+			G_INT(OFS_RETURN) = 0;	//EOF
+		else
+			RETURN_TSTRING(pf_fopen_files[fnum].data);
 	}
-	*o = '\0';
-
-	pf_fopen_files[fnum].ofs = s - pf_fopen_files[fnum].data;
-
-	if (!pr_string_temp[0] && s == eof)
-		G_INT(OFS_RETURN) = 0;	//EOF
 	else
-		RETURN_TSTRING(pr_string_temp);
+	{
+		//read up to the next \n, ignoring any \rs.
+		o = pr_string_temp;
+		max = o + sizeof(pr_string_temp)-1;
+		s = pf_fopen_files[fnum].data+pf_fopen_files[fnum].ofs;
+		eof = pf_fopen_files[fnum].data+pf_fopen_files[fnum].len;
+		while(s < eof)
+		{
+			c = *s++;
+			if (c == '\n' && pf_fopen_files[fnum].accessmode != FRIK_FILE_READNL)
+				break;
+			if (c == '\r' && pf_fopen_files[fnum].accessmode != FRIK_FILE_READNL)
+				continue;
+
+			if (o == max)
+				break;
+			*o++ = c;
+		}
+		*o = '\0';
+
+		pf_fopen_files[fnum].ofs = s - pf_fopen_files[fnum].data;
+
+		if (!pr_string_temp[0] && s >= eof)
+			G_INT(OFS_RETURN) = 0;	//EOF
+		else
+			RETURN_TSTRING(pr_string_temp);
+	}
 }
 
 static void PF_fwrite (progfuncs_t *prinst, int fnum, char *msg, int len)
@@ -1833,64 +1843,98 @@ void QCBUILTIN PF_forgetstring(progfuncs_t *prinst, struct globalvars_s *pr_glob
 
 void QCBUILTIN PF_dupstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)	//frik_file
 {
-	char *s, *in;
-	int len;
-	in = PF_VarString(prinst, 0, pr_globals);
-	len = strlen(in)+1;
-	s = Z_TagMalloc(len+8, Z_QC_TAG);
-	((int *)s)[0] = PRSTR;
-	((int *)s)[1] = len;
-	strcpy(s+8, in);
-	RETURN_SSTRING(s+8);
+	char *buf;
+	int len = 0;
+	char *s[8];
+	int l[8];
+	int i;
+	for (i = 0; i < *prinst->callargc; i++)
+	{
+		s[i] = PR_GetStringOfs(prinst, OFS_PARM0+i*3);
+		l[i] = strlen(s[i]);
+		len += l[i];
+	}
+	len++; /*for the null*/
+
+	buf = Z_TagMalloc(len+8, Z_QC_TAG);
+	RETURN_SSTRING(buf+8);
+	((int *)buf)[0] = PRSTR;
+	((int *)buf)[1] = len;
+	buf += 8;
+	
+	len = 0;
+	for (i = 0; i < *prinst->callargc; i++)
+	{
+		memcpy(buf, s[i], l[i]);
+		buf += l[i];
+	}
+	*buf = '\0';
+}
+
+//string(string str1, string str2) strcat
+void QCBUILTIN PF_strcat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char *buf;
+	int len = 0;
+	char *s[8];
+	int l[8];
+	int i;
+	for (i = 0; i < *prinst->callargc; i++)
+	{
+		s[i] = PR_GetStringOfs(prinst, OFS_PARM0+i*3);
+		l[i] = strlen(s[i]);
+		len += l[i];
+	}
+	len++; /*for the null*/
+	((int *)pr_globals)[OFS_RETURN] = prinst->AllocTempString(prinst, &buf, len);
+	len = 0;
+	for (i = 0; i < *prinst->callargc; i++)
+	{
+		memcpy(buf, s[i], l[i]);
+		buf += l[i];
+	}
+	*buf = '\0';
 }
 
 //returns a section of a string as a tempstring
 void QCBUILTIN PF_substring (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int i, start, length;
+	int start, length, slen;
 	char *s;
-	char string[4096];
+	char *string;
 
 	s = PR_GetStringOfs(prinst, OFS_PARM0);
 	start = G_FLOAT(OFS_PARM1);
 	length = G_FLOAT(OFS_PARM2);
 
+	slen = strlen(s);
+
 	if (start < 0)
-		start = strlen(s)-start;
+		start = slen-start;
 	if (length < 0)
-		length = strlen(s)-start+(length+1);
+		length = slen-start+(length+1);
 	if (start < 0)
 	{
 	//	length += start;
 		start = 0;
 	}
 
-	if (start >= strlen(s) || length<=0 || !*s)
+	if (start >= slen || length<=0)
 	{
 		RETURN_TSTRING("");
 		return;
 	}
 
-	if (length >= MAXTEMPBUFFERLEN)
-		length = MAXTEMPBUFFERLEN-1;
+	s += start;
+	slen -= start;
 
-	for (i = 0; i < start && *s; i++, s++)
-		;
+	if (length > slen)
+		length = slen;
 
-	for (i = 0; *s && i < length; i++, s++)
-		string[i] = *s;
-	string[i] = 0;
+	((int *)pr_globals)[OFS_RETURN] = prinst->AllocTempString(prinst, &string, length+1);
 
-	RETURN_TSTRING(string);
-}
-
-//string(string str1, string str2) strcat
-void QCBUILTIN PF_strcat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	char dest[4096];
-	char *src = PF_VarString(prinst, 0, pr_globals);
-	Q_strncpyz(dest, src, MAXTEMPBUFFERLEN);
-	RETURN_TSTRING(dest);
+	memcpy(string, s, length);
+	string[length] = '\0';
 }
 
 void QCBUILTIN PF_strlen(progfuncs_t *prinst, struct globalvars_s *pr_globals)

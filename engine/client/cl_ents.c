@@ -745,6 +745,9 @@ void DP5_ParseDelta(entity_state_t *s)
 		s->trans = 255;
 		s->scale = 16;
 		s->number = num;
+		s->colormod[0] = 32;
+		s->colormod[1] = 32;
+		s->colormod[2] = 32;
 //		s->active = true;
 	}
 	if (bits & E5_FLAGS)
@@ -852,32 +855,30 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 	//well, they come in in order of priorities, but that's not useful to us.
 	//I guess this means we'll have to go slowly.
 
-	packet_entities_t	*pack, *oldpack;
+	//dp deltas update in-place
+	//this gets in the way of tracking multiple frames, and thus doesn't match fte too well
+
+
+	packet_entities_t	*pack, oldpack;
+	static packet_entities_t	newpack;
 
 	entity_state_t		*to, *from;
 	unsigned short read;
-	int oldi;
+	int oldi, newi, lowesti, lowestv, newremaining;
 	qboolean remove;
 
-	cl_latestframenum = MSG_ReadLong();
+	cl_latestframenum = MSG_ReadLong(); /*server sequence to be acked*/
 
 	if (cls.protocol_nq >= CPNQ_DP7)
-		cl.ackedinputsequence = MSG_ReadLong();
+		cl.ackedinputsequence = MSG_ReadLong(); /*client input sequence which has been acked*/
 
+	cl.frames[(cls.netchan.incoming_sequence)&UPDATE_MASK].receivedtime = realtime;
 	pack = &cl.frames[(cls.netchan.incoming_sequence)&UPDATE_MASK].packet_entities;
 	pack->servertime = cl.gametime;
-	oldpack = &cl.frames[(cls.netchan.incoming_sequence-1)&UPDATE_MASK].packet_entities;
-
-	from = oldpack->entities;
+	oldpack = *pack;
 	oldi = 0;
-	pack->num_entities = 0;
 
-	for (oldi = 0; oldi < oldpack->num_entities; oldi++)
-	{
-		from = &oldpack->entities[oldi];
-		from->flags &= ~0x80000000;
-	}
-
+	newpack.num_entities = 0;
 	for (read = MSG_ReadShort(); read!=0x8000; read = MSG_ReadShort())
 	{
 		if (msg_badread)
@@ -890,11 +891,11 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 
 		from = &defaultstate;
 
-		for (oldi=0 ; oldi<oldpack->num_entities ; oldi++)
+		for (oldi=0 ; oldi<oldpack.num_entities ; oldi++)
 		{
-			if (read == oldpack->entities[oldi].number)
+			if (read == oldpack.entities[oldi].number)
 			{
-				from = &oldpack->entities[oldi];
+				from = &oldpack.entities[oldi];
 				from->flags |= 0x80000000;	//so we don't copy it.
 				break;
 			}
@@ -905,40 +906,82 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 			continue;
 		}
 
-		if (pack->num_entities==pack->max_entities)
+		if (newpack.num_entities==newpack.max_entities)
 		{
-			pack->max_entities = pack->num_entities+16;
-			pack->entities = BZ_Realloc(pack->entities, sizeof(entity_state_t)*pack->max_entities);
+			newpack.max_entities = newpack.num_entities+16;
+			newpack.entities = BZ_Realloc(newpack.entities, sizeof(entity_state_t)*newpack.max_entities);
 		}
 
-		to = &pack->entities[pack->num_entities];
-		pack->num_entities++;
+		to = &newpack.entities[newpack.num_entities];
+		newpack.num_entities++;
+
 		memcpy(to, from, sizeof(*to));
 		to->number = read;
 		DP5_ParseDelta(to);
 		to->flags &= ~0x80000000;
 	}
 
-	//the pack has all the new ones in it, now copy the old ones in that wern't removed (or changed).
-	for (oldi = 0; oldi < oldpack->num_entities; oldi++)
-	{
-		from = &oldpack->entities[oldi];
-		if (from->flags & 0x80000000)
-			continue;
+	/*we're writing into the old one, clear it out prematurely (to make the malloc below trigger, and free it at the end)*/
+	pack->max_entities = 0;
+	pack->entities = NULL;
 
-		if (pack->num_entities==pack->max_entities)
+	//make sure there's enough space for both lists
+	if (oldpack.num_entities + newpack.num_entities>=pack->max_entities)
+	{
+		pack->max_entities = oldpack.num_entities + newpack.num_entities;
+		pack->entities = BZ_Realloc(pack->entities, sizeof(entity_state_t)*pack->max_entities);
+	}
+	pack->num_entities = 0;
+
+	//we're read all the new states, so have current info
+	//merge the packets, sorting the new ones (so the output is always sorted)
+	for (oldi = 0, lowesti=0, lowestv = 0, newremaining = newpack.num_entities; newremaining || oldi < oldpack.num_entities; )
+	{
+		if (oldi == oldpack.num_entities)
+			from = NULL;
+		else
 		{
-			pack->max_entities = pack->num_entities+16;
-			pack->entities = BZ_Realloc(pack->entities, sizeof(entity_state_t)*pack->max_entities);
+			from = &oldpack.entities[oldi];
+			if (from->flags & 0x80000000)
+			{
+				oldi++;
+				continue;
+			}
 		}
+
+		if (newremaining && !lowestv)
+		{
+			lowestv = 0x7ffffffe;
+			for(newi = 0; newi < newpack.num_entities; newi++)
+			{
+				if (newpack.entities[newi].flags & 0x80000000)
+					continue;
+				if (newpack.entities[newi].number < lowestv)
+				{
+					lowestv = newpack.entities[newi].number;
+					lowesti = newi;
+				}
+			}
+		}
+
+		/*use the new packet instead if we need to*/
+		if (!from || (from->number > lowestv && lowestv))
+		{
+			from = &newpack.entities[lowesti];
+			from->flags |= 0x80000000;
+			lowestv = 0;	/*find the next oldest*/
+			newremaining--;
+		}
+		else
+			oldi++;
 
 		to = &pack->entities[pack->num_entities];
 		pack->num_entities++;
-
-		from = &oldpack->entities[oldi];
-
 		memcpy(to, from, sizeof(*to));
+		to->flags &= ~0x80000000;
 	}
+
+	BZ_Free(oldpack.entities);
 }
 
 void CLNQ_ParseEntity(unsigned int bits)
@@ -1902,6 +1945,7 @@ void CL_TransitionEntities (void)
 	/*transition the ents and stuff*/
 	packnew = &cl.frames[newf].packet_entities;
 	packold = &cl.frames[oldf].packet_entities;
+
 	CL_TransitionPacketEntities(packnew, packold, servertime);
 	cl.currentpacktime = servertime;
 	cl.currentpackentities = packnew;
@@ -2694,16 +2738,16 @@ void CL_ParsePlayerinfo (void)
 	state->fatness = 0;
 
 #ifdef PEXT_SCALE
-	if (flags & PF_SCALE_Z && cls.fteprotocolextensions & PEXT_SCALE)
+	if (flags & PF_SCALE && cls.fteprotocolextensions & PEXT_SCALE)
 		state->scale = (float)MSG_ReadByte()/50;
 #endif
 #ifdef PEXT_TRANS
-	if (flags & PF_TRANS_Z && cls.fteprotocolextensions & PEXT_TRANS)
+	if (flags & PF_TRANS && cls.fteprotocolextensions & PEXT_TRANS)
 		state->alpha = MSG_ReadByte();
 #endif
 #ifdef PEXT_FATNESS
-	if (flags & PF_FATNESS_Z && cls.fteprotocolextensions & PEXT_FATNESS)
-		state->fatness = (float)MSG_ReadChar() / 16;
+	if (flags & PF_FATNESS && cls.fteprotocolextensions & PEXT_FATNESS)
+		state->fatness = (float)MSG_ReadChar();
 #endif
 #ifdef PEXT_HULLSIZE
 	if (cls.fteprotocolextensions & PEXT_HULLSIZE)
@@ -3077,7 +3121,7 @@ void CL_LinkPlayers (void)
 		if (state->alpha != 255)
 			ent->flags |= Q2RF_TRANSLUCENT;
 
-		ent->fatness = state->fatness/16;
+		ent->fatness = state->fatness;
 		//
 		// angles
 		//

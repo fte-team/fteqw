@@ -25,9 +25,10 @@ struct
 {
 	const char *extension;
 	searchpathfuncs_t *funcs;
+	qboolean loadscan;
 } searchpathformats[64];
 
-int FS_RegisterFileSystemType(const char *extension, searchpathfuncs_t *funcs)
+int FS_RegisterFileSystemType(const char *extension, searchpathfuncs_t *funcs, qboolean loadscan)
 {
 	unsigned int i;
 	for (i = 0; i < sizeof(searchpathformats)/sizeof(searchpathformats[0]); i++)
@@ -42,6 +43,7 @@ int FS_RegisterFileSystemType(const char *extension, searchpathfuncs_t *funcs)
 
 	searchpathformats[i].extension = extension;
 	searchpathformats[i].funcs = funcs;
+	searchpathformats[i].loadscan = loadscan;
 	com_fschanged = true;
 
 	return i+1;
@@ -1441,7 +1443,7 @@ static searchpath_t *FS_AddPathHandle(const char *purepath, const char *probable
 	{
 		for (i = 0; i < sizeof(searchpathformats)/sizeof(searchpathformats[0]); i++)
 		{
-			if (!searchpathformats[i].extension || !searchpathformats[i].funcs || !searchpathformats[i].funcs->OpenNew)
+			if (!searchpathformats[i].extension || !searchpathformats[i].funcs || !searchpathformats[i].funcs->OpenNew || !searchpathformats[i].loadscan)
 				continue;
 			if (loadstuff & (1<<i))
 			{
@@ -1754,7 +1756,7 @@ const gamemode_info_t gamemode_info[] = {
 
 //rogue/hipnotic have no special files - the detection conflicts and stops us from running regular quake
 	//protocol name(dpmaster) exename        cmdline switch   identifying file   exec     dir1       dir2    dir3       dir(fte)     full name
-	{"Darkplaces-Quake",	"q1",			"-quake",		{"id1/pak0.pak"},		NULL,	{"id1",		"qw",				"fte"},		"Quake"},
+	{"DarkPlaces-Quake",	"q1",			"-quake",		{"id1/pak0.pak"},		NULL,	{"id1",		"qw",				"fte"},		"Quake"},
 	{"Darkplaces-Hipnotic",	"hipnotic",		"-hipnotic",	{NULL},					NULL,	{"id1",		"qw",	"hipnotic",	"fte"},		"Quake: Scourge of Armagon"},
 	{"Darkplaces-Rogue",	"rogue",		"-rogue",		{NULL},					NULL,	{"id1",		"qw",	"rogue",	"fte"},		"Quake: Dissolution of Eternity"},
 	{"Nexuiz",				"nexuiz",		"-nexuiz",		{"nexuiz.exe"},			NEXCFG,	{"data",						"ftedata"},	"Nexuiz"},
@@ -2035,7 +2037,7 @@ void FS_AddRootWads(void)
 	if (!pak)
 		return;
 
-	FS_AddPathHandle(fname, fname, &doomwadfilefuncs, pak, true, false, false, (unsigned int)-1);
+	FS_AddPathHandle(fname, fname, &doomwadfilefuncs, pak, true, false, true, (unsigned int)-1);
 }
 #endif
 
@@ -2053,7 +2055,7 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 	searchpath_t	*next;
 
 
-	//a lame way to fix pure paks
+	//a lame way to fix pure paks (securitywise, the rest of the engine doesn't care if the filesystem changes too much)
 #ifndef SERVERONLY
 	if (cls.state && com_purepaths)
 	{
@@ -2093,10 +2095,10 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 		if (oldbase == oldpaths)
 			com_base_searchpaths = com_searchpaths;
 
-		if (oldpaths->funcs == &osfilefuncs)
-			FS_AddGameDirectory(oldpaths->purepath, oldpaths->handle, reloadflags);
-
-		oldpaths->funcs->ClosePath(oldpaths->handle);
+		if (oldpaths->isexplicit)
+			FS_AddPathHandle(oldpaths->purepath, oldpaths->purepath, oldpaths->funcs, oldpaths->handle, oldpaths->copyprotected, false, true, reloadflags);
+		else
+			oldpaths->funcs->ClosePath(oldpaths->handle);
 		Z_Free(oldpaths);
 		oldpaths = next;
 	}
@@ -2390,7 +2392,7 @@ void FS_Shutdown(void)
 
 void FS_StartupWithGame(int gamenum)
 {
-	int i;
+	int i, j;
 
 #ifdef AVAIL_ZLIB
 	LibZ_Init();
@@ -2402,6 +2404,47 @@ void FS_StartupWithGame(int gamenum)
 #ifdef DOOMWADS
 	FS_AddRootWads();
 #endif
+
+	i = COM_CheckParm ("-basepack");
+	while (i && i < com_argc-1)
+	{
+//		Con_Printf("found -basepack: %s\n", com_argv[i+1]);
+
+		char *ext = COM_FileExtension(com_argv[i+1]);
+		vfsfile_t *vfs = VFSOS_Open(com_argv[i+1], "rb");
+		void *pak;
+		if (!vfs)
+			Con_Printf("Unable to open %s - missing?\n", com_argv[i+1]);
+		else
+		{
+			for (j = 0; j < sizeof(searchpathformats)/sizeof(searchpathformats[0]); j++)
+			{
+				if (!searchpathformats[j].extension || !searchpathformats[j].funcs || !searchpathformats[j].funcs->OpenNew)
+					continue;
+				if (!strcmp(ext, searchpathformats[j].extension))
+				{
+					pak = searchpathformats[j].funcs->OpenNew(vfs, com_argv[i+1]);
+					if (pak)
+					{
+						FS_AddPathHandle("", com_argv[i+1], searchpathformats[j].funcs, pak, true, false, true, (unsigned int)-1);
+					}
+					else
+					{
+						Con_Printf("Unable to open %s - corrupt?\n", com_argv[i+1]);
+						VFS_CLOSE(vfs);
+					}
+					vfs = NULL;
+					break;
+				}
+			}
+			if (vfs)
+			{
+				VFS_CLOSE(vfs);
+				Con_Printf("Unable to open %s - unsupported?\n", com_argv[i+1]);
+			}
+		}
+		i = COM_CheckNextParm ("-basepack", i);
+	}
 
 //
 // start up with id1 by default
@@ -2734,16 +2777,18 @@ extern searchpathfuncs_t zipfilefuncs;
 extern searchpathfuncs_t doomwadfilefuncs;
 void FS_RegisterDefaultFileSystems(void)
 {
-	FS_RegisterFileSystemType("pak", &packfilefuncs);
+	FS_RegisterFileSystemType("pak", &packfilefuncs, true);
 #if !defined(_WIN32) && !defined(ANDROID)
 	/*for systems that have case sensitive paths, also include *.PAK */
-	FS_RegisterFileSystemType("PAK", &packfilefuncs);
+	FS_RegisterFileSystemType("PAK", &packfilefuncs, true);
 #endif
 #ifdef AVAIL_ZLIB
-	FS_RegisterFileSystemType("pk3", &zipfilefuncs);
-	FS_RegisterFileSystemType("pk4", &zipfilefuncs);
+	FS_RegisterFileSystemType("pk3", &zipfilefuncs, true);
+	FS_RegisterFileSystemType("pk4", &zipfilefuncs, true);
+	FS_RegisterFileSystemType("apk", &zipfilefuncs, false);
+	FS_RegisterFileSystemType("zip", &zipfilefuncs, false);
 #endif
 #ifdef DOOMWADS
-	FS_RegisterFileSystemType("wad", &doomwadfilefuncs);
+	FS_RegisterFileSystemType("wad", &doomwadfilefuncs, true);
 #endif
 }

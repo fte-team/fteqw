@@ -1567,7 +1567,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			cmd = &cl.frames[i].cmd[0];
 			*cmd = independantphysics[0];
 			cl.frames[i].senttime = realtime;
-			cl.frames[i].receivedtime = 0;	// nq doesn't allow us to find our own packetloss
+			cl.frames[i].receivedtime = -1;	// nq doesn't allow us to find our own packetloss
 
 #ifdef CSQC_DAT
 			CSQC_Input_Frame(0, cmd);

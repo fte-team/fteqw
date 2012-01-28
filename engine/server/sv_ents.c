@@ -1232,19 +1232,19 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 #ifdef PEXT_SCALE	//this is graphics, not physics
 			if (ent->fteext & PEXT_SCALE)
 			{
-				if (ent->scale && ent->scale != 1) pflags |= PF_SCALE_Z;
+				if (ent->scale && ent->scale != 1) pflags |= PF_SCALE;
 			}
 #endif
 #ifdef PEXT_TRANS
 			if (ent->fteext & PEXT_TRANS)
 			{
-				if (ent->transparency) pflags |= PF_TRANS_Z;
+				if (ent->transparency) pflags |= PF_TRANS;
 			}
 #endif
 #ifdef PEXT_FATNESS
 			if (ent->fteext & PEXT_FATNESS)
 			{
-				if (ent->fatness) pflags |= PF_FATNESS_Z;
+				if (ent->fatness) pflags |= PF_FATNESS;
 			}
 #endif
 		}
@@ -1384,16 +1384,16 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 			MSG_WriteByte (msg, ent->weaponframe);
 
 #ifdef PEXT_SCALE
-		if (pflags & PF_SCALE_Z)
+		if (pflags & PF_SCALE)
 			MSG_WriteByte (msg, ent->scale*50);
 #endif
 #ifdef PEXT_TRANS
-		if (pflags & PF_TRANS_Z)
+		if (pflags & PF_TRANS)
 			MSG_WriteByte (msg, (qbyte)(ent->transparency*255));
 #endif
 #ifdef PEXT_FATNESS
-		if (pflags & PF_FATNESS_Z)
-			MSG_WriteChar (msg, ent->fatness*10);
+		if (pflags & PF_FATNESS)
+			MSG_WriteChar (msg, ent->fatness);
 #endif
 #ifdef PEXT_HULLSIZE	//shrunken or crouching in halflife levels. (possibly enlarged)
 		if (pflags & PF_HULLSIZE_Z)
@@ -2337,7 +2337,7 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	}
 #endif
 #ifdef PEXT_FATNESS
-	state->fatness = ent->xv->fatness*16;
+	state->fatness = ent->xv->fatness;
 #endif
 }
 

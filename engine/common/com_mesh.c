@@ -1298,7 +1298,19 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 		mesh->normals_array = p1n;
 		mesh->snormals_array = p1s;
 		mesh->tnormals_array = p1t;
-		mesh->xyz_array = p1v;
+
+		if (expand)
+		{
+			for (i = 0; i < mesh->numvertexes; i++)
+			{
+				mesh->xyz_array[i][0] = p1v[i][0] + p1n[i][0]*expand;
+				mesh->xyz_array[i][1] = p1v[i][1] + p1n[i][1]*expand;
+				mesh->xyz_array[i][2] = p1v[i][2] + p1n[i][2]*expand;
+			}
+			return;
+		}
+		else
+			mesh->xyz_array = p1v;
 	}
 	else
 	{
@@ -1312,20 +1324,8 @@ static void R_LerpFrames(mesh_t *mesh, galiaspose_t *p1, galiaspose_t *p2, float
 			mesh->xyz_array[i][1] = p1v[i][1]*lerp + p2v[i][1]*blerp;
 			mesh->xyz_array[i][2] = p1v[i][2]*lerp + p2v[i][2]*blerp;
 		}
-	}
-	if (expand)
-	{
-		if (mesh->xyz_array == p1v)
-		{
-			for (i = 0; i < mesh->numvertexes; i++)
-			{
-				mesh->xyz_array[i][0] = p1v[i][0] + mesh->normals_array[i][0]*expand;
-				mesh->xyz_array[i][1] = p1v[i][1] + mesh->normals_array[i][1]*expand;
-				mesh->xyz_array[i][2] = p1v[i][2] + mesh->normals_array[i][2]*expand;
-			}
 
-		}
-		else
+		if (expand)
 		{
 			for (i = 0; i < mesh->numvertexes; i++)
 			{

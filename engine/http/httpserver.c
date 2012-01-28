@@ -443,6 +443,8 @@ notimplemented:
 					{
 						VFS_CLOSE(cl->file);
 						cl->file = NULL;
+
+						IWebPrintf("Download complete\n");
 					}
 					else
 						cl->outbufferused+=ammount;

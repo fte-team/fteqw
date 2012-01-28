@@ -140,6 +140,8 @@ struct progfuncs_s {
 	void (*FindPrefixGlobals)			(progfuncs_t *progfuncs, char *prefix, void (*found) (progfuncs_t *progfuncs, char *name, union eval_s *val, etype_t type) );
 
 	void *(*AddressableAlloc)			(progfuncs_t *progfuncs, int ammount); /*returns memory within the qc block, use stringtoprogs to get a usable qc pointer/string*/
+
+	string_t (*AllocTempString)			(progfuncs_t *prinst, char **str, unsigned int len);
 };
 
 typedef struct progexterns_s {

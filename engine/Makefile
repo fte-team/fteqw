@@ -1149,6 +1149,7 @@ help:
 	@-echo "SDL - Attempt to use sdl for the current target"
 	@-echo "win32 - Mingw compile for win32"
 	@-echo "vc - Attempts to use msvc8+ to compile. Note: uses profile guided optimisations. You must build+run the relevent profile target before a release target will compile properly. Debug doesn't care."
+	@-echo "android is different - use 'make droid-help' for explicit help."
 
 install:
 	-cp debug/*.* /opt/quake/
@@ -1201,11 +1202,25 @@ droid-rel: droid/build.xml droid/ftekeystore
 	mkdir -p droid/libs/armeabi
 	@cp $(RELEASE_DIR)/libftedroid.so droid/libs/armeabi/
 	@cd droid && $(ANT) release
+	ifneq ($(DROID_PACKSC),)
+		@echo
+		@echo
+		@echo Adding custom data files (non-compressed)
+		@echo
+		zip droid/bin/FTEDroid-release-unsigned.apk -0 -j $(DROID_PACKSU)
+	endif
+	ifneq ($(DROID_PACKSU),)
+		@echo
+		@echo
+		@echo Adding custom data files (compressed)
+		@echo
+		zip droid/bin/FTEDroid-release-unsigned.apk -9 -j $(DROID_PACKSC)
+	endif
 	@echo
 	@echo
 	@echo Signing package... I hope you remember your password.
 	@echo
-	$(JAVATOOL)jarsigner -digestalg SHA1 -sigalg MD5withRSA -keystore droid/ftekeystore droid/bin/FTEDroid-release-unsigned.apk autogen
+	$(JAVATOOL)jarsigner $(JARSIGNARGS) -digestalg SHA1 -sigalg MD5withRSA -keystore droid/ftekeystore droid/bin/FTEDroid-release-unsigned.apk autogen
 	-rm -f $(RELEASE_DIR)/FTEDroid.apk
 	$(DROID_SDK_PATH)/tools/zipalign 4 droid/bin/FTEDroid-release-unsigned.apk $(RELEASE_DIR)/FTEDroid.apk
 
@@ -1224,3 +1239,19 @@ droid-dbg: droid/build.xml
 	@cd droid && $(ANT) debug && $(ANT) debug install
 	cp droid/bin/FTEDroid-debug.apk $(DEBUG_DIR)/FTEDroid.apk
 
+droid-help:
+	@-echo "make droid-dbg - compiles engine with debug info and signs package with debug key. Attempts to install onto emulator."
+	@-echo "make droid-opt - compiles engine with optimisations, but does not sign package. Not useful."
+	@-echo "make droid-rel - compiles engine with optimisations, adds custom data files, signs with private key, requires password."
+	@-echo
+	@-echo "Android Settings:
+	@-echo "DROID_PACKSC: specifies additional pak or pk3 files to compress into the package, which avoids extra configuration. Only used in release builds. You probably shouldn't use this except for really small packages. Any file seeks will give really poor performance."
+	@-echo "DROID_PACKSU: like DROID_PACKSC, but without compression. Faster loading times, but bigger. Use for anything that is already compressed (especially pk3s)."
+	@-echo "DROID_SDK_PATH: path to the android sdk install path."
+	@-echo "DROID_NDK_PATH: path to the android ndk install path."
+	@-echo "ANT: path and name of apache ant. Probably doesn't need to be set if you're on linux."
+	@-echo "JAVA_HOME: path of your java install. Commonly already set in environment settings."
+	@-echo "JAVATOOL: path to your java install's bin directory. Doesn't need to be set if its already in your path."
+	@-echo "JARSIGNARGS: Additional optional arguments to java's jarsigner program. You may want to put -storepass FOO in here, but what ever you do - keep it secure. Avoid bash history snooping, etc. If its not present, you will safely be prompted as required."
+	@-echo
+	@-echo "Note that 'make droid-rel' will automatically generate a keystore. If you forget the password, just do a 'make dist-clean'."

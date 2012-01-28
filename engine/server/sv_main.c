@@ -1055,18 +1055,6 @@ void SVC_Status (void)
 			slots++;
 	}
 
-//No. Not a good idea.
-/*	if (slots>16)
-		Con_Printf ("5016 35 54 114 \"annigilator\" \"soldier\" 0 0\n");
-	if (slots>14)
-		Con_Printf ("5012 32 85 162 \"FatBastard\" \"hacker\" 1 4\n");
-	if (slots>12)
-		Con_Printf ("5013 23 64 94 \"DeathBunny\" \"soldier\" 13 13\n");
-	if (slots>10)
-		Con_Printf ("5010 32 85 162 \"??\" \"hacker\" 13 13\n");
-	if (slots>8)
-		Con_Printf ("5011 32 85 162 \"??a???\" \"hacker\" 4 4\n");
-	*/
 	SV_EndRedirect ();
 }
 
@@ -1082,6 +1070,9 @@ void SVC_GetInfo (char *challenge, int fullstatus)
 	char *resp;
 	char *gamestatus;
 	eval_t *v;
+
+	if (!sv_listen_nq.ival && !sv_listen_dp.ival)
+		return;
 
 	for (i=0 ; i<MAX_CLIENTS ; i++)
 	{
@@ -1118,7 +1109,7 @@ void SVC_GetInfo (char *challenge, int fullstatus)
 
 	//first line is the serverinfo
 	Q_strncpyz(resp, svs.info, sizeof(response) - (resp-response));
-	//this is a DP protocol, so some QW fields are not needed
+	//this is a DP protocol query, so some QW fields are not needed
 	Info_RemoveKey(resp, "maxclients");
 	Info_RemoveKey(resp, "map");
 	Info_SetValueForKey(resp, "gamename", com_protocolname.string, sizeof(response) - (resp-response));
@@ -4336,7 +4327,7 @@ void Master_Heartbeat (void)
 				}
 				break;
 			case MP_DARKPLACES:
-				if (sv_listen_dp.value)	//set listen to 1 to allow qw connections, 2 to allow nq connections too.
+				if (sv_listen_dp.value || sv_listen_nq.value)	//set listen to 1 to allow qw connections, 2 to allow nq connections too.
 				{
 					if (sv_reportheartbeats.value)
 						Con_Printf ("Sending heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), sv_masterlist[i].adr), sv_masterlist[i].cv.string);

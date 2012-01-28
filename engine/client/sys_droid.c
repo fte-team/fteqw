@@ -39,16 +39,25 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject 
 }
 
 JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject obj,
-                 jint width, jint height)
+                 jint width, jint height, jstring path)
 {
 	vid.pixelwidth = width;
 	vid.pixelheight = height;
 	if (!sys_running)
 	{
+		char *args [] =
+		{
+			"ftedroid",
+			"-basepack",
+			(*env)->GetStringUTFChars(env, path, 0),
+			"",
+			""
+			//we should do this somewhere... (*env)->ReleaseStringUTFChars(env, path, parms.basedir);
+		};
 		quakeparms_t parms;
 		parms.basedir = "/sdcard/fte";
-		parms.argc = 0;
-		parms.argv = NULL;
+		parms.argc = 3;
+		parms.argv = args;
 		parms.memsize = sys_memheap = 8*1024*1024;
 		parms.membase = malloc(parms.memsize);
 		if (!parms.membase)
@@ -57,7 +66,7 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 			return;
 		}
 
-		Sys_Printf("Starting up\n");
+		Sys_Printf("Starting up (%s)\n", args[2]);
 
 		COM_InitArgv(parms.argc, parms.argv);
 		TL_InitLanguages();
@@ -364,7 +373,8 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
         return true; 
 }
 
-/*
+#if 0
+#include <android/asset_manager.h>
 int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)
 {
 	qboolean go = true;
@@ -385,6 +395,7 @@ Sys_Printf("Found %s\n", f);
 	AAssetDir_close(ad);
 	return 0;
 }
+
 typedef struct
 {
 	vfsfile_t funcs;
@@ -445,4 +456,4 @@ vfsfile_t *Sys_OpenAsset(char *fname)
 
         return (vfsfile_t*)file;
 }
-*/
+#endif

@@ -395,13 +395,13 @@ enum clcq2_ops_e
 #define PF_EXTRA_PFS	(1<<15)
 
 #ifdef PEXT_SCALE
-#define	PF_SCALE_Z			(1<<16)
+#define	PF_SCALE			(1<<16)
 #endif
 #ifdef PEXT_TRANS
-#define	PF_TRANS_Z			(1<<17)
+#define	PF_TRANS			(1<<17)
 #endif
 #ifdef PEXT_FATNESS
-#define	PF_FATNESS_Z		(1<<18)
+#define	PF_FATNESS		(1<<18)
 #endif
 
 #define	PF_COLOURMOD		(1<<19)

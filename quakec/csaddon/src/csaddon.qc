@@ -7,9 +7,11 @@ enum
 	MODE_INITIAL=0,
 
 	MODE_LIGHTEDIT=1,
-	MODE_SPLINEEDIT=2
+	MODE_SPLINEEDIT=2,
+	MODE_PARTICLEEDIT=3
 };
 
+var vector vidsize = '640 480 0';
 vector curmousepos;
 float mousedown;
 
@@ -106,10 +108,20 @@ void() wrap_renderscene =
 		col = '1 1 1';
 	drawrawstring('64 0 0'*(MODE_SPLINEEDIT-1), "SPLINES", '8 8 0', col, 1);
 
+	if (autocvar_ca_editormode == MODE_PARTICLEEDIT)
+		col = '1 0 0';
+	else if (curmousepos_y < 8 && curmousepos_x >= 64*(MODE_PARTICLEEDIT-1) && curmousepos_x < 64*MODE_PARTICLEEDIT)
+		col = '0 0 1';
+	else
+		col = '1 1 1';
+	drawrawstring('64 0 0'*(MODE_PARTICLEEDIT-1), "PARTICLES", '8 8 0', col, 1);
+
 	if (autocvar_ca_editormode == MODE_LIGHTEDIT)
 		editor_lights_overlay(curmousepos);
 	else if (autocvar_ca_editormode == MODE_SPLINEEDIT)
 		editor_spline_overlay(curmousepos);
+	else if (autocvar_ca_editormode == MODE_PARTICLEEDIT)
+		editor_particles_overlay(curmousepos);
 
 	drawcharacter(curmousepos - '4 4', '+', '8 8', '1 1 1', 1);
 };
@@ -134,6 +146,11 @@ float (float event, float parama, float paramb) wrap_InputEvent =
 			else if (autocvar_ca_editormode == MODE_SPLINEEDIT)
 			{
 				if (editor_spline_key(parama, paramb, curmousepos))
+					return TRUE;
+			}
+			else if (autocvar_ca_editormode == MODE_PARTICLEEDIT)
+			{
+				if (editor_particles_key(parama, paramb, curmousepos))
 					return TRUE;
 			}
 			if (parama == 512)
@@ -162,10 +179,10 @@ float (float event, float parama, float paramb) wrap_InputEvent =
 				curmousepos_x = 0;
 			if (curmousepos_y < 0)
 				curmousepos_y = 0;
-			if (curmousepos_x > 640)
-				curmousepos_x = 640;
-			if (curmousepos_y > 480)
-				curmousepos_y = 480;
+			if (curmousepos_x > vidsize_x)
+				curmousepos_x = vidsize_x;
+			if (curmousepos_y > vidsize_y)
+				curmousepos_y = vidsize_y;
 			return TRUE;
 		}
 		else if (event == 3)
@@ -188,6 +205,9 @@ float (float event, float parama, float paramb) wrap_InputEvent =
 /*this is a fallback function, in case the main progs does not have one*/
 void(float width, float height, float do2d) CSQC_UpdateView =
 {
+	vidsize_x = width;
+	vidsize_y = height;
+	vidsize_z = 0;
 	clearscene();
 	setproperty(VF_DRAWENGINESBAR, 1);
 	setproperty(VF_DRAWCROSSHAIR, 1);

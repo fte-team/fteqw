@@ -18,15 +18,15 @@ void() editor_lights_add =
 	setmodel(tempent, autocvar_cg_editor_lightmodel);
 	while(l > 0)
 	{
-		l = l-1;
+		l = l-1.0;
 		if (l == selectedlight)
 		{
-			if (gettime(0)*5 & 1)
+			if (gettime(0)*5f & 1)
 				continue;
-			tempent.effects |= 8192;
+			tempent.effects |= 8192f;
 		}
 		else
-			tempent.effects &~= 8192;
+			tempent.effects &~= 8192f;
 		if (!(float)dynamiclight_get(l, LFIELD_RADIUS))
 			continue;
 		setorigin(tempent, dynamiclight_get(l, LFIELD_ORIGIN));
@@ -34,28 +34,31 @@ void() editor_lights_add =
 	}
 };
 
-#define NUMLFIELDS 11
+#define NUMLFIELDS 14
 static string fldname[NUMLFIELDS+1] = {	"bad",
-	"num",
-	"org",
-	"rgb",
-	"rad",
-	"flg",
-	"sty",
-	"ang",
-	"fov",
-	"cmp",
-	"cor",
-	"csc"
+	"  num",
+	"  org",
+	"  rgb",
+	"  rad",
+	"  flg",
+	"  sty",
+	"  ang",
+	"  fov",
+	"  cmp",
+	 " cor",
+	 " csc",
+	 " amb",
+	 " dif",
+	 " spc"
 };
-static string(float fld, float foredit) readfield =
+static string(int fld, float foredit) readfield =
 {
 	switch(fld)
 	{
 	case 1:
 		if (foredit)
 			return ftos(selectedlight);
-		return strcat(ftos(selectedlight), " / ", ftos(dynamiclight_get(-1, -1)));
+		return strcat(ftos(selectedlight), " / ", ftos(dynamiclight_get(-1f, -1f)));
 	case 2:
 		return vtos(dynamiclight_get(selectedlight, LFIELD_ORIGIN));
 	case 3:
@@ -85,6 +88,12 @@ static string(float fld, float foredit) readfield =
 		return ftos(dynamiclight_get(selectedlight, LFIELD_CORONA));
 	case 11:
 		return ftos(dynamiclight_get(selectedlight, LFIELD_CORONASCALE));
+	case 12:
+		return ftos(dynamiclight_get(selectedlight, LFIELD_AMBIENTSCALE));
+	case 13:
+		return ftos(dynamiclight_get(selectedlight, LFIELD_DIFFUSESCALE));
+	case 14:
+		return ftos(dynamiclight_get(selectedlight, LFIELD_SPECULARSCALE));
 	default:
 		return "";
 	}
@@ -115,7 +124,7 @@ static void(float fld, string newval) writefield =
 		if (strstrofs(newval, "c")>=0) fl |= LFLAG_NOSHADOWS;
 		if (strstrofs(newval, "s")>=0) fl |= LFLAG_SHADOWMAP;
 		if (strstrofs(newval, "r")>=0) fl |= LFLAG_CREPUSCULAR;
-		dynamiclight_set(selectedlight, LFIELD_FLAGS, fl);
+		dynamiclight_set(selectedlight, LFIELD_FLAGS, (float)fl);
 		return;
 	case 6:
 		dynamiclight_set(selectedlight, LFIELD_STYLE, stof(newval));
@@ -135,6 +144,15 @@ static void(float fld, string newval) writefield =
 	case 11:
 		dynamiclight_set(selectedlight, LFIELD_CORONASCALE, stof(newval));
 		return;
+	case 12:
+		dynamiclight_set(selectedlight, LFIELD_AMBIENTSCALE, stof(newval));
+		return;
+	case 13:
+		dynamiclight_set(selectedlight, LFIELD_DIFFUSESCALE, stof(newval));
+		return;
+	case 14:
+		dynamiclight_set(selectedlight, LFIELD_SPECULARSCALE, stof(newval));
+		return;
 	default:
 		return;
 	}
@@ -142,13 +160,13 @@ static void(float fld, string newval) writefield =
 
 void(vector m) editor_lights_overlay =
 {
-	float i;
+	int i;
 	string s;
 	vector col;
 
-	m_y = floor((m_y - 32) / 8);
+	m_y = floor((m_y - 32f) / 8f);
 
-	for (i = 1; i <= NUMLFIELDS; i++)
+	for (i = 1f; i <= NUMLFIELDS; i++)
 	{
 		if (editfield == i)
 			s = editvalue;
@@ -163,30 +181,30 @@ void(vector m) editor_lights_overlay =
 		else
 			col = '1 1 1';
 			
-		drawrawstring('0 32 0' + '0 8 0' * i, s, '8 8 0', col, 1);
+		drawrawstring('0 32 0' + '0 8 0' * (float)i, s, '8 8 0', col, 1);
 	}
 	i+=1;
 
 
 	if (editfield == 5)
 	{
-		drawrawstring('0 32 0' + '0 8 0' * i, "d: dynamic mode\n", '8 8 0', '1 1 1', 1); i+=1;
-		drawrawstring('0 32 0' + '0 8 0' * i, "w: realtime world lights mode\n", '8 8 0', '1 1 1', 1); i+=1;
-		drawrawstring('0 32 0' + '0 8 0' * i, "l: lightmap hack (not valid above index 32)\n", '8 8 0', '1 1 1', 1); i+=1;
-		drawrawstring('0 32 0' + '0 8 0' * i, "f: flashblend coronas\n", '8 8 0', '1 1 1', 1); i+=1;
-		drawrawstring('0 32 0' + '0 8 0' * i, "c: does not cast shadows\n", '8 8 0', '1 1 1', 1); i+=1;
-		drawrawstring('0 32 0' + '0 8 0' * i, "s: shadowmapped light\n", '8 8 0', '1 1 1', 1); i+=1;
-		drawrawstring('0 32 0' + '0 8 0' * i, "r: crepuscular rays\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * (float)i, "d: dynamic mode\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * (float)i, "w: realtime world lights mode\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * (float)i, "l: lightmap hack (not valid above index 32)\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * (float)i, "f: flashblend coronas\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * (float)i, "c: does not cast shadows\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * (float)i, "s: shadowmapped light\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * (float)i, "r: crepuscular rays\n", '8 8 0', '1 1 1', 1); i+=1;
 	}
 	else
 	{
-		drawrawstring('0 32 0' + '0 8 0' * i, "+/- change selected light\n", '8 8 0', '1 1 1', 1); i+=1;
-		drawrawstring('0 32 0' + '0 8 0' * i, "mouse also selects lights\n", '8 8 0', '1 1 1', 1);	i+=1;
-		drawrawstring('0 32 0' + '0 8 0' * i, "m moves the light to the crosshair\n", '8 8 0', '1 1 1', 1); i+=1;
-		drawrawstring('0 32 0' + '0 8 0' * i, "i inserts new light\n", '8 8 0', '1 1 1', 1); i+=1;
-		drawrawstring('0 32 0' + '0 8 0' * i, "p points the light to aim at the crosshair\n", '8 8 0', '1 1 1', 1); i+=1;
-		drawrawstring('0 32 0' + '0 8 0' * i, "[ and ] move the light towards/away from indicated plane\n", '8 8 0', '1 1 1', 1); i+=1;
-		drawrawstring('0 32 0' + '0 8 0' * i, "don't forget to save\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * (float)i, "+/- change selected light\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * (float)i, "mouse also selects lights\n", '8 8 0', '1 1 1', 1);	i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * (float)i, "m moves the light to the crosshair\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * (float)i, "i inserts new light\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * (float)i, "p points the light to aim at the crosshair\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * (float)i, "[ and ] move the light towards/away from indicated plane\n", '8 8 0', '1 1 1', 1); i+=1;
+		drawrawstring('0 32 0' + '0 8 0' * (float)i, "don't forget to save\n", '8 8 0', '1 1 1', 1); i+=1;
 	}
 };
 
@@ -194,7 +212,7 @@ static void(vector fwd, vector vorg) selectbestlight =
 {
 	float l, b=selectedlight, d, bd;
 	vector ldir;
-	l = dynamiclight_get(-1, -1);
+	l = dynamiclight_get(-1f, -1f);
 	while(l > 0)
 	{
 		l--;
@@ -223,7 +241,7 @@ float(float keyc, float unic, vector m) editor_lights_key =
 			strunzone(editvalue);
 			editfield = 0;
 		}
-		editfield = floor((m_y - 32) / 8);
+		editfield = floor((m_y - 32f) / 8f);
 		if (editfield <= 0 || editfield > NUMLFIELDS || m_x >= 64)
 		{
 			editfield = 0;
@@ -282,8 +300,8 @@ float(float keyc, float unic, vector m) editor_lights_key =
 	else if (keyc == 'p')
 	{
 		traceline(o, t, TRUE, world);
-		vector ang = vectoangles((trace_endpos + trace_plane_normal*4) - (vector)dynamiclight_get(selectedlight, LFIELD_ORIGIN));
-		ang_x *= -1;
+		vector ang = vectoangles((trace_endpos + trace_plane_normal*4f) - (vector)dynamiclight_get(selectedlight, LFIELD_ORIGIN));
+		ang_x *= -1f;
 		dynamiclight_set(selectedlight, LFIELD_ANGLES, ang);
 
 		/*if we're pointing the light at something, it should probably have a fov*/
@@ -306,7 +324,7 @@ float(float keyc, float unic, vector m) editor_lights_key =
 
 				/*place it at the pointed location*/
 				traceline(o, t, TRUE, world);
-				dynamiclight_set(selectedlight, LFIELD_ORIGIN, trace_endpos + trace_plane_normal*4);
+				dynamiclight_set(selectedlight, LFIELD_ORIGIN, trace_endpos + trace_plane_normal*4f);
 				break;
 			}
 		}

@@ -43,7 +43,9 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 {
 	vid.pixelwidth = width;
 	vid.pixelheight = height;
-	if (!sys_running)
+	if (sys_running)
+		Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
+	else
 	{
 		char *args [] =
 		{

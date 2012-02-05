@@ -234,6 +234,11 @@ var float physics_mode = 2;
 #define RF_NOSHADOW 32
 #define RF_FRAMETIMESARESTARTTIMES 64
 #define RF_NOAUTOADD 128
+#define IE_KEYDOWN 0
+#define IE_KEYUP 1
+#define IE_MOUSEDELTA 2
+#define IE_MOUSEABS 3
+#define IE_ACCELEROMETER 4
 #define FILE_READ 0
 #define FILE_APPEND 1
 #define FILE_WRITE 2
@@ -344,7 +349,7 @@ void(string s) precache_file = #68;
 #endif
 void(entity e) makestatic = #69;
 #ifdef SSQC
-void(string mapname) changelevel = #70;
+void(string mapname, optional string newmapstartspot) changelevel = #70;
 #endif
 void(string cvarname, string valuetoset) cvar_set = #72;
 #ifdef SSQC
@@ -673,7 +678,14 @@ string(string cvarname) cvar_description = #518;
 #ifdef CSQC
 float(optional float timetype) gettime = #519;
 #endif
+void(string s) loadfromdata = #529;
+void(string s) loadfromfile = #530;
 #ifdef SSQC
 float(string mname) precache_vwep_model = #532;
 #endif
+void(.../*, string funcname*/) callfunction = #605;
+void(float fh, entity e) writetofile = #606;
+float(string s) isfunction = #607;
+void(entity e, string s) parseentitydata = #608;
+string(...) sprintf = #627;
 #pragma noref 0

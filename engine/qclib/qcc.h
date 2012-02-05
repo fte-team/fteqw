@@ -306,6 +306,7 @@ typedef struct QCC_type_s
 	unsigned int ofs;	//inside a structure.
 	unsigned int size;
 	unsigned int arraysize;
+	pbool typedefed;
 	char *name;
 } QCC_type_t;
 int typecmp(QCC_type_t *a, QCC_type_t *b);
@@ -536,7 +537,7 @@ void QCC_PR_PrintStatement (QCC_dstatement_t *s);
 void QCC_PR_Lex (void);
 // reads the next token into pr_token and classifies its type
 
-QCC_type_t *QCC_PR_NewType (char *name, int basictype);
+QCC_type_t *QCC_PR_NewType (char *name, int basictype, pbool typedefed);
 QCC_type_t *QCC_PointerTypeTo(QCC_type_t *type);
 QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail);
 extern pbool type_inlinefunction;

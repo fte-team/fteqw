@@ -15,7 +15,7 @@
 LoadFile
 ==============
 */
-unsigned char *QCC_ReadFile (char *fname, void *buffer, int len)
+unsigned char *QCC_ReadFile (const char *fname, void *buffer, int len)
 {
 	long    length;
 	FILE *f;
@@ -30,7 +30,7 @@ unsigned char *QCC_ReadFile (char *fname, void *buffer, int len)
 
 	return buffer;
 }
-int QCC_FileSize (char *fname)
+int QCC_FileSize (const char *fname)
 {
 	long    length;
 	FILE *f;
@@ -44,7 +44,7 @@ int QCC_FileSize (char *fname)
 	return length;
 }
 
-pbool QCC_WriteFile (char *name, void *data, int len)
+pbool QCC_WriteFile (const char *name, void *data, int len)
 {
 	long    length;
 	FILE *f;
@@ -959,9 +959,9 @@ void EditFile(char *name, int line)
 		menufile = CreateMenu();
 		menuhelp = CreateMenu();
 		menunavig = CreateMenu();
-		AppendMenu(menu, MF_POPUP, (UINT)menufile,	"&File");
-		AppendMenu(menu, MF_POPUP, (UINT)menunavig,	"&Navigation");
-		AppendMenu(menu, MF_POPUP, (UINT)menuhelp,	"&Help");
+		AppendMenu(menu, MF_POPUP, (UINT_PTR)menufile,	"&File");
+		AppendMenu(menu, MF_POPUP, (UINT_PTR)menunavig,	"&Navigation");
+		AppendMenu(menu, MF_POPUP, (UINT_PTR)menuhelp,	"&Help");
 		AppendMenu(menufile, 0, IDM_OPENNEW,	"Open &new file ");
 		AppendMenu(menufile, 0, IDM_SAVE,		"&Save          ");
 	//	AppendMenu(menufile, 0, IDM_FIND,		"&Find");
@@ -1003,7 +1003,7 @@ void EditFile(char *name, int line)
 		mcs.lParam = 0;
 
 		neweditor->window = (HWND) SendMessage (mdibox, WM_MDICREATE, 0, 
-			(LONG) (LPMDICREATESTRUCT) &mcs); 
+			(LONG_PTR) (LPMDICREATESTRUCT) &mcs); 
 	}
 	else
 	{
@@ -1069,7 +1069,7 @@ void EditorsRun(void)
 }
 
 
-char *GUIReadFile(char *fname, void *buffer, int blen)
+char *GUIReadFile(const char *fname, void *buffer, int blen)
 {
 	editor_t *e;
 	for (e = editors; e; e = e->next)
@@ -1085,7 +1085,7 @@ char *GUIReadFile(char *fname, void *buffer, int blen)
 	return QCC_ReadFile(fname, buffer, blen);
 }
 
-int GUIFileSize(char *fname)
+int GUIFileSize(const char *fname)
 {
 	editor_t *e;
 	for (e = editors; e; e = e->next)
@@ -1600,20 +1600,20 @@ static LONG CALLBACK MainWndProc(HWND hWnd,UINT message,
 			HMENU rootmenu, windowmenu, m;
 			rootmenu = CreateMenu();
 			
-				AppendMenu(rootmenu, MF_POPUP, (UINT)(m = CreateMenu()),	"&File");
+				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = CreateMenu()),	"&File");
 					AppendMenu(m, 0, IDM_OPENNEW,	"Open &new file ");
 					AppendMenu(m, 0, IDM_SAVE,		"&Save          ");
 				//	AppendMenu(m, 0, IDM_FIND,		"&Find");
 					AppendMenu(m, 0, IDM_UNDO,		"&Undo          Ctrl+Z");
 					AppendMenu(m, 0, IDM_REDO,		"&Redo          Ctrl+Y");
-				AppendMenu(rootmenu, MF_POPUP, (UINT)(m = CreateMenu()),	"&Navigation");
+				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = CreateMenu()),	"&Navigation");
 					AppendMenu(m, 0, IDM_GOTODEF, "Go to definition");
 					AppendMenu(m, 0, IDM_OPENDOCU, "Open selected file");
-				AppendMenu(rootmenu, MF_POPUP, (UINT)(m = windowmenu = CreateMenu()),	"&Window");
+				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = windowmenu = CreateMenu()),	"&Window");
 					AppendMenu(m, 0, IDM_CASCADE, "&Cascade");
 					AppendMenu(m, 0, IDM_TILE_HORIZ, "Tile &Horizontally");
 					AppendMenu(m, 0, IDM_TILE_VERT, "Tile &Vertically");
-				AppendMenu(rootmenu, MF_POPUP, (UINT)(m = CreateMenu()),	"&Help");
+				AppendMenu(rootmenu, MF_POPUP, (UINT_PTR)(m = CreateMenu()),	"&Help");
 					AppendMenu(m, 0, IDM_ABOUT, "About");
 
 			SetMenu(hWnd, rootmenu);
@@ -2033,7 +2033,7 @@ void CreateOutputWindow(void)
 		mcs.lParam = 0;
 
 		outputwindow = (HWND) SendMessage (mdibox, WM_MDICREATE, 0, 
-		(LONG) (LPMDICREATESTRUCT) &mcs); 
+		(LONG_PTR) (LPMDICREATESTRUCT) &mcs); 
 
 		ShowWindow(outputwindow, SW_SHOW);
 	}

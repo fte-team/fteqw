@@ -133,7 +133,6 @@ void *(*pHash_GetNext)(hashtable_t *table, const char *name, void *old);
 void *(*pHash_Add)(hashtable_t *table, const char *name, void *data, bucket_t *);
 
 QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, char *name, QCC_def_t *scope, int arraysize, unsigned int ofs, int referable, pbool saved);
-QCC_type_t *QCC_PR_NewType (char *name, int basictype);
 QCC_type_t *QCC_PR_FindType (QCC_type_t *type);
 QCC_type_t *QCC_PR_PointerType (QCC_type_t *pointsto);
 QCC_type_t *QCC_PR_FieldType (QCC_type_t *pointsto);
@@ -1393,10 +1392,8 @@ static void QCC_FreeTemps(void)
 	while(t)
 	{
 		if (t->used && !pr_error_count)	//don't print this after an error jump out.
-		{
-			QCC_PR_ParseWarning(WARN_DEBUGGING, "Temp was used in %s", pr_scope->name);
-			t->used = false;
-		}
+			QCC_PR_ParseWarning(WARN_DEBUGGING, "Internal: temp(ofs %i) was not released in %s. This implies miscompilation.", t->ofs, pr_scope->name);
+		t->used = false;
 		t = t->next;
 	}
 }
@@ -2387,7 +2384,6 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 				else
 				{
 					/*it came from an OP_ADDRESS - st says the instruction*/
-					var_c = QCC_GetTemp(*op->type_c);
 					if (need_lock)
 						QCC_LockTemp(var_c); /*that temp needs to be preserved over calls*/
 
@@ -3994,7 +3990,7 @@ QCC_def_t *QCC_MakeTranslateStringConst(char *value)
 QCC_type_t *QCC_PointerTypeTo(QCC_type_t *type)
 {
 	QCC_type_t *newtype;
-	newtype = QCC_PR_NewType("ptr", ev_pointer);
+	newtype = QCC_PR_NewType("ptr", ev_pointer, false);
 	newtype->aux_type = type;
 	return newtype;
 }
@@ -4089,8 +4085,8 @@ void QCC_PR_EmitFieldsForMembers(QCC_type_t *clas)
 				continue;
 
 			//we need the type in here so saved games can still work without saving ints as floats. (would be evil)
-			ft = QCC_PR_NewType(basictypenames[mt->type], ev_field);
-			ft->aux_type = QCC_PR_NewType(basictypenames[mt->type], mt->type);
+			ft = QCC_PR_NewType(basictypenames[mt->type], ev_field, false);
+			ft->aux_type = QCC_PR_NewType(basictypenames[mt->type], mt->type, false);
 			ft->aux_type->aux_type = type_void;
 			ft->size = ft->aux_type->size;
 			ft = QCC_PR_FindType(ft);
@@ -4452,7 +4448,7 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign)
 			}
 			d->type = t;
 		}
-		else if (d->type->type == ev_string)
+		else if (d->type->type == ev_string && d->arraysize == 0)
 		{
 			d = QCC_PR_Statement(&pr_opcodes[OP_LOADP_C], d, QCC_SupplyConversion(idx, ev_float, true), NULL);
 		}
@@ -8329,7 +8325,7 @@ QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, char *name, QCC_def_t *scope, 
 						sprintf(newname, "%s%s.%s", name, array, parttype->name);
 					else
 						sprintf(newname, "%s%s", parttype->name, array);
-					ftype = QCC_PR_NewType("FIELD TYPE", ev_field);
+					ftype = QCC_PR_NewType("FIELD TYPE", ev_field, false);
 					ftype->aux_type = parttype;
 					if (parttype->type == ev_vector)
 						ftype->size = parttype->size;	//vector fields create a _y and _z too, so we need this still.
@@ -8350,7 +8346,7 @@ QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, char *name, QCC_def_t *scope, 
 						sprintf(newname, "%s%s.%s", name, array, parttype->name);
 					else
 						sprintf(newname, "%s%s", parttype->name, array);
-					ftype = QCC_PR_NewType("FIELD TYPE", ev_field);
+					ftype = QCC_PR_NewType("FIELD TYPE", ev_field, false);
 					ftype->aux_type = parttype;
 					def = QCC_PR_GetDef(ftype, newname, scope, true, 0, saved);
 					def->initialized = true;
@@ -8850,6 +8846,7 @@ void QCC_PR_ParseDefs (char *classname)
 			QCC_PR_ParseError(ERR_NOTANAME, "typedef found unexpected tokens");
 		}
 		type->name = QCC_CopyString(pr_token)+strings;
+		type->typedefed = true;
 		QCC_PR_Lex();
 		QCC_PR_Expect(";");
 		return;

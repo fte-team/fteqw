@@ -2925,7 +2925,6 @@ a new one and copies it out.
 */
 
 //0 if same
-QCC_type_t *QCC_PR_NewType (char *name, int basictype);
 int typecmp(QCC_type_t *a, QCC_type_t *b)
 {
 	if (a == b)
@@ -2972,7 +2971,7 @@ QCC_type_t *QCC_PR_DuplicateType(QCC_type_t *in)
 	if (!in)
 		return NULL;
 
-	out = QCC_PR_NewType(in->name, in->type);
+	out = QCC_PR_NewType(in->name, in->type, false);
 	out->aux_type = QCC_PR_DuplicateType(in->aux_type);
 	out->param = QCC_PR_DuplicateType(in->param);
 	ip = in->param;
@@ -3162,7 +3161,6 @@ char	pr_parm_names[MAX_PARMS][MAX_NAME];
 
 pbool recursivefunctiontype;
 
-QCC_type_t *QCC_PR_NewType (char *name, int basictype);
 //expects a ( to have already been parsed.
 QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 {
@@ -3174,7 +3172,7 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 
 	recursivefunctiontype++;
 
-	ftype = QCC_PR_NewType(type_function->name, ev_function);
+	ftype = QCC_PR_NewType(type_function->name, ev_function, false);
 
 	ftype->aux_type = returntype;	// return type
 	ftype->num_parms = 0;
@@ -3255,7 +3253,7 @@ QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
 
 	recursivefunctiontype++;
 
-	ftype = QCC_PR_NewType(type_function->name, ev_function);
+	ftype = QCC_PR_NewType(type_function->name, ev_function, false);
 
 	ftype->aux_type = returntype;	// return type
 	ftype->num_parms = 0;
@@ -3282,13 +3280,13 @@ QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
 				{
 					sprintf(argname, "arg%i", ftype->num_parms);
 					name = argname;
-					nptype = QCC_PR_NewType("Variant", ev_variant);
+					nptype = QCC_PR_NewType("Variant", ev_variant, false);
 				}
 				else if (QCC_PR_CheckName("vect"))	//this can only be of vector sizes, so...
 				{
 					sprintf(argname, "arg%i", ftype->num_parms);
 					name = argname;
-					nptype = QCC_PR_NewType("Vector", ev_vector);
+					nptype = QCC_PR_NewType("Vector", ev_vector, false);
 				}
 				else
 				{
@@ -3326,7 +3324,7 @@ QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
 QCC_type_t *QCC_PR_PointerType (QCC_type_t *pointsto)
 {
 	QCC_type_t	*ptype, *e;
-	ptype = QCC_PR_NewType("ptr", ev_pointer);
+	ptype = QCC_PR_NewType("ptr", ev_pointer, false);
 	ptype->aux_type = pointsto;
 	e = QCC_PR_FindType (ptype);
 	if (e == ptype)
@@ -3342,7 +3340,7 @@ QCC_type_t *QCC_PR_FieldType (QCC_type_t *pointsto)
 	QCC_type_t	*ptype;
 	char name[128];
 	sprintf(name, "FIELD TYPE(%s)", pointsto->name);
-	ptype = QCC_PR_NewType(name, ev_field);
+	ptype = QCC_PR_NewType(name, ev_field, false);
 	ptype->aux_type = pointsto;
 	ptype->size = ptype->aux_type->size;
 	return QCC_PR_FindType (ptype);
@@ -3366,14 +3364,14 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 
 	if (QCC_PR_CheckToken (".."))	//so we don't end up with the user specifying '. .vector blah' (hexen2 added the .. token for array ranges)
 	{
-		newt = QCC_PR_NewType("FIELD TYPE", ev_field);
+		newt = QCC_PR_NewType("FIELD TYPE", ev_field, false);
 		newt->aux_type = QCC_PR_ParseType (false, false);
 
 		newt->size = newt->aux_type->size;
 
 		newt = QCC_PR_FindType (newt);
 
-		type = QCC_PR_NewType("FIELD TYPE", ev_field);
+		type = QCC_PR_NewType("FIELD TYPE", ev_field, false);
 		type->aux_type = newt;
 
 		type->size = type->aux_type->size;
@@ -3384,7 +3382,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 	}
 	if (QCC_PR_CheckToken ("."))
 	{
-		newt = QCC_PR_NewType("FIELD TYPE", ev_field);
+		newt = QCC_PR_NewType("FIELD TYPE", ev_field, false);
 		newt->aux_type = QCC_PR_ParseType (false, false);
 
 		newt->size = newt->aux_type->size;
@@ -3412,6 +3410,8 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		/* Look to see if this type is already defined */
 		for(i=0;i<numtypeinfos;i++)
 		{
+			if (!qcc_typeinfo[i].typedefed)
+				continue;
 			if (STRCMP(qcc_typeinfo[i].name, classname) == 0)
 			{
 				newt = &qcc_typeinfo[i];
@@ -3426,7 +3426,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			QCC_PR_ParseError(ERR_REDECLARATION, "Redeclaration of class %s", classname);
 
 		if (!newt)
-			newt = QCC_PR_NewType(classname, ev_entity);
+			newt = QCC_PR_NewType(classname, ev_entity, true);
 
 		newt->size=type_entity->size;
 
@@ -3480,7 +3480,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				newparm->name = QCC_CopyString("")+strings;
 
 			sprintf(membername, "%s::"MEMBERFIELDNAME, classname, newparm->name);
-			fieldtype = QCC_PR_NewType(newparm->name, ev_field);
+			fieldtype = QCC_PR_NewType(newparm->name, ev_field, false);
 			fieldtype->aux_type = newparm;
 			fieldtype->size = newparm->size;
 			QCC_PR_GetDef(fieldtype, membername, pr_scope, 2, 0, false);
@@ -3503,7 +3503,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 	}
 	if (QCC_PR_CheckKeyword (keyword_struct, "struct"))
 	{
-		newt = QCC_PR_NewType("struct", ev_struct);
+		newt = QCC_PR_NewType("struct", ev_struct, false);
 		newt->size=0;
 		QCC_PR_Expect("{");
 
@@ -3518,7 +3518,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			{
 				if (!newparm)
 					QCC_PR_ParseError(ERR_NOTANAME, "element missing type");
-				newparm = QCC_PR_NewType(newparm->name, newparm->type);
+				newparm = QCC_PR_NewType(newparm->name, newparm->type, false);
 			}
 			else
 				newparm = QCC_PR_ParseType(true, false);
@@ -3550,7 +3550,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 	}
 	if (QCC_PR_CheckKeyword (keyword_union, "union"))
 	{
-		newt = QCC_PR_NewType("union", ev_union);
+		newt = QCC_PR_NewType("union", ev_union, false);
 		newt->size=0;
 		QCC_PR_Expect("{");
 
@@ -3565,7 +3565,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			{
 				if (!newparm)
 					QCC_PR_ParseError(ERR_NOTANAME, "element missing type");
-				newparm = QCC_PR_NewType(newparm->name, newparm->type);
+				newparm = QCC_PR_NewType(newparm->name, newparm->type, false);
 			}
 			else
 				newparm = QCC_PR_ParseType(true, false);
@@ -3601,6 +3601,8 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 	type = NULL;
 	for (i = 0; i < numtypeinfos; i++)
 	{
+		if (!qcc_typeinfo[i].typedefed)
+			continue;
 		if (!STRCMP(qcc_typeinfo[i].name, name))
 		{
 			type = &qcc_typeinfo[i];

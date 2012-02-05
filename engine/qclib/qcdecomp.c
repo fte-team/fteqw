@@ -55,7 +55,7 @@ extern QCC_type_t	*type_floatpointer;
 extern QCC_type_t	*type_intpointer;
 
 extern QCC_type_t	*type_floatfield;// = {ev_field/*, &def_field*/, NULL, &type_float};
-QCC_type_t *QCC_PR_NewType (char *name, int basictype);
+QCC_type_t *QCC_PR_NewType (char *name, int basictype, pbool typedefed);
 
 
 jmp_buf decompilestatementfailure;
@@ -765,21 +765,21 @@ void FigureOutTypes(progfuncs_t *progfuncs)
 	memset(ofstype,		0, sizeof(*ofstype)*65535);
 	memset(ofsflags,	0, sizeof(*ofsflags)*65535);
 
-	type_void = QCC_PR_NewType("void", ev_void);
-	type_string = QCC_PR_NewType("string", ev_string);
-	type_float = QCC_PR_NewType("float", ev_float);
-	type_vector = QCC_PR_NewType("vector", ev_vector);
-	type_entity = QCC_PR_NewType("entity", ev_entity);
-	type_field = QCC_PR_NewType("field", ev_field);
-	type_function = QCC_PR_NewType("function", ev_function);
-	type_pointer = QCC_PR_NewType("pointer", ev_pointer);
-	type_integer = QCC_PR_NewType("integer", ev_integer);
+	type_void = QCC_PR_NewType("void", ev_void, true);
+	type_string = QCC_PR_NewType("string", ev_string, true);
+	type_float = QCC_PR_NewType("float", ev_float, true);
+	type_vector = QCC_PR_NewType("vector", ev_vector, true);
+	type_entity = QCC_PR_NewType("entity", ev_entity, true);
+	type_field = QCC_PR_NewType("field", ev_field, false);
+	type_function = QCC_PR_NewType("function", ev_function, false);
+	type_pointer = QCC_PR_NewType("pointer", ev_pointer, false);
+	type_integer = QCC_PR_NewType("integer", ev_integer, true);
 
 //	type_variant = QCC_PR_NewType("__variant", ev_variant);
 
-	type_floatfield = QCC_PR_NewType("fieldfloat", ev_field);
+	type_floatfield = QCC_PR_NewType("fieldfloat", ev_field, false);
 	type_floatfield->aux_type = type_float;
-	type_pointer->aux_type = QCC_PR_NewType("pointeraux", ev_float);
+	type_pointer->aux_type = QCC_PR_NewType("pointeraux", ev_float, false);
 
 	type_function->aux_type = type_void;
 

@@ -312,6 +312,7 @@ reeval:
 		ptr->_int = (int)OPA->_float;
 		break;
 	case OP_STOREP_I:
+	case OP_GSTOREP_I:
 		if ((unsigned int)OPB->_int >= addressableused)
 		{
 			pr_xstatement = st-pr_statements;
@@ -321,10 +322,15 @@ reeval:
 		ptr->_int = OPA->_int;
 		break;
 	case OP_STOREP_F:
+	case OP_GSTOREP_F:
 	case OP_STOREP_ENT:
+	case OP_GSTOREP_ENT:
 	case OP_STOREP_FLD:		// integers
+	case OP_GSTOREP_FLD:
 	case OP_STOREP_S:
+	case OP_GSTOREP_S:
 	case OP_STOREP_FNC:		// pointers
+	case OP_GSTOREP_FNC:
 		if ((unsigned int)OPB->_int >= addressableused)
 		{
 			pr_xstatement = st-pr_statements;
@@ -334,6 +340,7 @@ reeval:
 		ptr->_int = OPA->_int;
 		break;
 	case OP_STOREP_V:
+	case OP_GSTOREP_V:
 		if ((unsigned int)OPB->_int >= addressableused)
 		{
 			pr_xstatement = st-pr_statements;
@@ -815,7 +822,7 @@ reeval:
 		{
 			i = (unsigned int)OPB->_float;
 			ptr = (eval_t*)PR_StringToNative(progfuncs, OPA->_int);
-			if (i > strlen((char*)ptr))
+			if ((size_t)i > strlen((char*)ptr))
 			{
 				pr_xstatement = st-pr_statements;
 				PR_RunError (progfuncs, "bad pointer read in %s (%i bytes into %s)", PR_StringToNative(progfuncs, pr_xfunction->s_name), i, ptr);
@@ -1120,13 +1127,6 @@ reeval:
 		OPC->_int = (OPA->_float != OPB->_int);
 		break;
 
-	case OP_GSTOREP_I:
-	case OP_GSTOREP_F:
-	case OP_GSTOREP_ENT:
-	case OP_GSTOREP_FLD:		// integers
-	case OP_GSTOREP_S:
-	case OP_GSTOREP_FNC:		// pointers
-	case OP_GSTOREP_V:
 	case OP_GADDRESS:
 	case OP_GLOAD_I:
 	case OP_GLOAD_F:

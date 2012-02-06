@@ -500,7 +500,7 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 		fromeffects = from->effects;	//so old clients will see the effects baseline as 0
 	if ((to->effects&0x00ff) != (fromeffects&0x00ff))
 		bits |= U_EFFECTS;
-	if ((to->effects&0xff00) != (fromeffects&0xff00) && protext & PEXT_DPFLAGS)
+	if ((to->effects&0xff00) != (fromeffects&0xff00) && (protext & PEXT_DPFLAGS))
 		evenmorebits |= U_EFFECTS16;
 
 	if (to->modelindex != from->modelindex)
@@ -521,36 +521,36 @@ void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qb
 
 #ifdef PROTOCOLEXTENSIONS
 #ifdef U_SCALE
-	if ( to->scale != from->scale && protext & PEXT_SCALE)
+	if ( to->scale != from->scale && (protext & PEXT_SCALE))
 		evenmorebits |= U_SCALE;
 #endif
 #ifdef U_TRANS
-	if ( to->trans != from->trans && protext & PEXT_TRANS)
+	if ( to->trans != from->trans && (protext & PEXT_TRANS))
 		evenmorebits |= U_TRANS;
 #endif
 #ifdef U_FATNESS
-	if ( to->fatness != from->fatness && protext & PEXT_FATNESS)
+	if ( to->fatness != from->fatness && (protext & PEXT_FATNESS))
 		evenmorebits |= U_FATNESS;
 #endif
 
-	if ( to->hexen2flags != from->hexen2flags && protext & PEXT_HEXEN2)
+	if ( to->hexen2flags != from->hexen2flags && (protext & PEXT_HEXEN2))
 		evenmorebits |= U_DRAWFLAGS;
-	if ( to->abslight != from->abslight && protext & PEXT_HEXEN2)
+	if ( to->abslight != from->abslight && (protext & PEXT_HEXEN2))
 		evenmorebits |= U_ABSLIGHT;
 
-	if ((to->colormod[0]!=from->colormod[0]||to->colormod[1]!=from->colormod[1]||to->colormod[2]!=from->colormod[2]) && protext & PEXT_COLOURMOD)
+	if ((to->colormod[0]!=from->colormod[0]||to->colormod[1]!=from->colormod[1]||to->colormod[2]!=from->colormod[2]) && (protext & PEXT_COLOURMOD))
 		evenmorebits |= U_COLOURMOD;
 
 	if (to->glowsize != from->glowsize)
 		to->dpflags |= 2; // RENDER_GLOWTRAIL
 
-	if (to->dpflags != from->dpflags && protext & PEXT_DPFLAGS)
+	if (to->dpflags != from->dpflags && (protext & PEXT_DPFLAGS))
 		evenmorebits |= U_DPFLAGS;
 
-	if ((to->tagentity != from->tagentity || to->tagindex != from->tagindex) && protext & PEXT_DPFLAGS)
+	if ((to->tagentity != from->tagentity || to->tagindex != from->tagindex) && (protext & PEXT_DPFLAGS))
 		evenmorebits |= U_TAGINFO;
 
-	if ((to->light[0] != from->light[0] || to->light[1] != from->light[1] || to->light[2] != from->light[2] || to->light[3] != from->light[3] || to->lightstyle != from->lightstyle || to->lightpflags != from->lightstyle) && protext & PEXT_DPFLAGS)
+	if ((to->light[0] != from->light[0] || to->light[1] != from->light[1] || to->light[2] != from->light[2] || to->light[3] != from->light[3] || to->lightstyle != from->lightstyle || to->lightpflags != from->lightstyle) && (protext & PEXT_DPFLAGS))
 		evenmorebits |= U_LIGHT;
 #endif
 
@@ -763,7 +763,7 @@ void SV_EmitPacketEntities (client_t *client, packet_entities_t *to, sizebuf_t *
 			if (oldnum >= 512)
 			{
 				//yup, this is expensive.
-				MSG_WriteShort (msg, oldnum | U_REMOVE|U_MOREBITS);
+				MSG_WriteShort (msg, (oldnum&511) | U_REMOVE|U_MOREBITS);
 				MSG_WriteByte (msg, U_EVENMORE);
 				if (oldnum >= 1024)
 				{
@@ -776,7 +776,7 @@ void SV_EmitPacketEntities (client_t *client, packet_entities_t *to, sizebuf_t *
 					MSG_WriteByte (msg, U_ENTITYDBL);
 			}
 			else
-				MSG_WriteShort (msg, oldnum | U_REMOVE);
+				MSG_WriteShort (msg, (oldnum&511) | U_REMOVE);
 
 			oldindex++;
 			continue;
@@ -2244,7 +2244,6 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	state->light[1] = ent->xv->color[1]*255;
 	state->light[2] = ent->xv->color[2]*255;
 	state->light[3] = ent->xv->light_lev;
-	state->lightstyle = ent->xv->style;
 	state->lightstyle = ent->xv->style;
 	state->lightpflags = ent->xv->pflags;
 

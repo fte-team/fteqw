@@ -352,6 +352,107 @@ void() editor_spline_add =
 	/*sort out the overrides*/
 //	spline_overrides(simtime);
 };
+float slidertestfloat1, slidertestfloat2;
+static float *curslider;
+void(string fieldname, vector pos, vector mousepos, float *value, float minv, float maxv, float key) sliderf_widgit =
+{
+	local vector rpos, col;
+	local float f;
+	rpos = pos + '132 0 0';
+	/*if they're dragging us, update*/
+	if ((int)curslider == (int)value)
+	{
+		if (mousedown == 1)
+		{
+			*value = ((mousepos_x - 4 - rpos)/(9*8)*(maxv-minv)) + minv;
+			*value = bound(minv, *value, maxv);
+		}
+		else
+			curslider = (int*)__NULL__;
+	}
+
+	if (key == -1)
+	{
+		if (mousepos_y >= pos_y && mousepos_y < pos_y + 8)
+		{
+			col_x = (sin(time*3.14)+1) / 2;
+			col_y = col_x;
+			col_z = 1;
+		}
+		else
+			col = '1 1 1';
+
+		f = *value;
+		if (f < minv)
+			f = minv;
+		if (f > maxv)
+			f = maxv;
+		drawstring(pos, fieldname, '8 8 0', col, 1, 0);
+		pos = rpos;
+		rpos_x -= 4;
+		drawstring(rpos, "^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", '8 8 0', '1 1 1', 1, 0);
+		drawstring(rpos + '88 0', ftos(f), '8 8 0', col, 1, 0);
+		rpos_x += 4;
+		rpos_x += 9*8*(f - minv) / (maxv - minv);
+		drawstring(rpos, "^Ue083", '8 8 0', '1 1 1', 1, 0);
+	}
+	else 	if (mousepos_y >= pos_y && mousepos_y < pos_y + 8)
+	{
+		if (key == 512)
+			curslider = value;
+		else if (key == 515)
+			*value = bound(minv, *value + (maxv - minv) / 10, maxv);
+		else if (key == 516)
+			*value = bound(minv, *value - (maxv - minv) / 10, maxv);
+	}
+};
+
+void(string fieldname, vector pos, vector mousepos, float *value, float key) checkboxf_widgit =
+{
+	local vector rpos, col;
+	rpos = pos + '132 0 0';
+
+	if (key == -1)
+	{
+		if (mousepos_y >= pos_y && mousepos_y < pos_y + 8)
+		{
+			col_x = (sin(time*3.14)+1) / 2;
+			col_y = col_x;
+			col_z = 1;
+		}
+		else
+			col = '1 1 1';
+
+		drawstring(pos, fieldname, '8 8 0', col, 1, 0);
+		rpos_x -= 4;
+		drawstring(rpos, "^Ue080^Ue082", '8 8 0', '1 1 1', 1, 0);
+		drawstring(rpos + '88 0', ((*value) ?"TRUE":"FALSE"), '8 8 0', col, 1, 0);
+		rpos_x += 4;
+		if (*value)
+			drawstring(rpos, "^Ue083", '8 8 0', '1 1 1', 1, 0);
+	}
+	else 	if (mousepos_y >= pos_y && mousepos_y < pos_y + 8)
+	{
+		if (key == 512)
+			*value = !*value;
+		else if (key == 515)
+			*value = !*value;
+		else if (key == 516)
+			*value = !*value;
+	}
+};
+
+void(vector curmousepos, float key) testmenu =
+{
+	vector pos;
+
+ 	pos = '0 80';
+	sliderf_widgit ("test float a", pos, curmousepos, &slidertestfloat1, 100, 200, key);pos_y += 8;
+	sliderf_widgit ("test float b", pos, curmousepos, &slidertestfloat2, 0, 1,   key);pos_y += 8;
+
+	checkboxf_widgit ("checkbox test", pos, curmousepos, &slidertestfloat2, key);pos_y += 8;
+}
+
 void(vector curmousepos) editor_spline_overlay =
 {
 	local vector pos, v;
@@ -374,6 +475,8 @@ void(vector curmousepos) editor_spline_overlay =
 	}
 	pos_y += 8;
 	drawrawstring(pos, sprintf("view : %i / %i", camdata->view_selected + 1i, camdata->view_count), '8 8 0', '1 1 1', 1);
+
+	testmenu(curmousepos, -1);
 };
 
 int (spline_t *s, vector point) spline_add_point = 
@@ -559,6 +662,9 @@ float(float keycode, float unicode, vector curmousepos) editor_spline_key
 		spline_change_position(&camdata->position[camdata->position_selected].spline, 0.01);
 		return TRUE;
 	}
+
+
+	testmenu(curmousepos, keycode);
 
 
 

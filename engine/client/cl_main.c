@@ -318,85 +318,8 @@ void CL_SupportedFTEExtensions(int *pext1, int *pext2)
 	unsigned int fteprotextsupported = 0;
 	unsigned int fteprotextsupported2 = 0;
 
-#ifdef PEXT_SCALE	//dmw - protocol extensions
-	fteprotextsupported |= PEXT_SCALE;
-#endif
-#ifdef PEXT_LIGHTSTYLECOL
-	fteprotextsupported |= PEXT_LIGHTSTYLECOL;
-#endif
-#ifdef PEXT_TRANS
-	fteprotextsupported |= PEXT_TRANS;
-#endif
-#ifdef PEXT_VIEW2
-	fteprotextsupported |= PEXT_VIEW2;
-#endif
-#ifdef PEXT_ACCURATETIMINGS
-	fteprotextsupported |= PEXT_ACCURATETIMINGS;
-#endif
-#ifdef PEXT_ZLIBDL
-	fteprotextsupported |= PEXT_ZLIBDL;
-#endif
-#ifdef PEXT_FATNESS
-	fteprotextsupported |= PEXT_FATNESS;
-#endif
-#ifdef PEXT_HLBSP
-	fteprotextsupported |= PEXT_HLBSP;
-#endif
-
-#ifdef PEXT_Q2BSP
-	fteprotextsupported |= PEXT_Q2BSP;
-#endif
-#ifdef PEXT_Q3BSP
-	fteprotextsupported |= PEXT_Q3BSP;
-#endif
-
-#ifdef PEXT_TE_BULLET
-	fteprotextsupported |= PEXT_TE_BULLET;
-#endif
-#ifdef PEXT_HULLSIZE
-	fteprotextsupported |= PEXT_HULLSIZE;
-#endif
-#ifdef PEXT_SETVIEW
-	fteprotextsupported |= PEXT_SETVIEW;
-#endif
-#ifdef PEXT_MODELDBL
-	fteprotextsupported |= PEXT_MODELDBL;
-#endif
-#ifdef PEXT_SOUNDDBL
-	fteprotextsupported |= PEXT_SOUNDDBL;
-#endif
-#ifdef PEXT_VWEAP
-	fteprotextsupported |= PEXT_VWEAP;
-#endif
-#ifdef PEXT_FLOATCOORDS
-	fteprotextsupported |= PEXT_FLOATCOORDS;
-#endif
-	fteprotextsupported |= PEXT_SPAWNSTATIC2;
-	fteprotextsupported |= PEXT_COLOURMOD;
-	fteprotextsupported |= PEXT_SPLITSCREEN;
-	fteprotextsupported |= PEXT_HEXEN2;
-	fteprotextsupported |= PEXT_CUSTOMTEMPEFFECTS;
-	fteprotextsupported |= PEXT_256PACKETENTITIES;
-	fteprotextsupported |= PEXT_ENTITYDBL;
-	fteprotextsupported |= PEXT_ENTITYDBL2;
-//	fteprotextsupported |= PEXT_64PLAYERS;
-	fteprotextsupported |= PEXT_SHOWPIC;
-	fteprotextsupported |= PEXT_SETATTACHMENT;
-#ifdef PEXT_CHUNKEDDOWNLOADS
-	fteprotextsupported |= PEXT_CHUNKEDDOWNLOADS;
-#endif
-#ifdef PEXT_CSQC
-	fteprotextsupported |= PEXT_CSQC;
-#endif
-#ifdef PEXT_DPFLAGS
-	fteprotextsupported |= PEXT_DPFLAGS;
-#endif
-
-	fteprotextsupported2 |= PEXT2_PRYDONCURSOR;
-#ifdef PEXT2_VOICECHAT
-	fteprotextsupported2 |= PEXT2_VOICECHAT;
-#endif
-	fteprotextsupported2 |= PEXT2_SETANGLEDELTA;
+	fteprotextsupported = Net_PextMask(1);
+	fteprotextsupported2 = Net_PextMask(2);
 
 	fteprotextsupported &= strtoul(cl_pext_mask.string, NULL, 16);
 //	fteprotextsupported2 &= strtoul(cl_pext2_mask.string, NULL, 16);
@@ -467,7 +390,7 @@ CL_SendConnectPacket
 called by CL_Connect_f and CL_CheckResend
 ======================
 */
-void CL_SendConnectPacket (
+void CL_SendConnectPacket (int mtu, 
 #ifdef PROTOCOL_VERSION_FTE
 						   int ftepext, int ftepext2,
 #endif
@@ -608,6 +531,19 @@ void CL_SendConnectPacket (
 		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_FTE2, fteprotextsupported2), sizeof(data));
 #endif
 
+	if (mtu >= 0)
+	{
+		if (adr.type == NA_LOOPBACK)
+			mtu = 8192;
+		else if (net_mtu.ival > 64 && mtu > net_mtu.ival)
+			mtu = net_mtu.ival;
+		mtu &= ~7;
+		Q_strncatz(data, va("0x%x %i\n", PROTOCOL_VERSION_FRAGMENT, mtu), sizeof(data));
+		cls.netchan.fragmentsize = mtu;
+	}
+	else
+		cls.netchan.fragmentsize = 0;
+
 #ifdef HUFFNETWORK
 	if (compressioncrc && Huff_CompressionCRC(compressioncrc))
 	{
@@ -732,7 +668,7 @@ void CL_CheckForResend (void)
 				CL_ConnectToDarkPlaces("", adr);
 		}
 		else
-			CL_SendConnectPacket (svs.fteprotocolextensions, svs.fteprotocolextensions2, false);
+			CL_SendConnectPacket (8192-16, Net_PextMask(1), Net_PextMask(2), false);
 		return;
 	}
 #endif
@@ -1156,7 +1092,7 @@ void CL_ClearState (void)
 	cl.fog_colour[1] = 0.3;
 	cl.fog_colour[2] = 0.3;
 
-	cl.allocated_client_slots = MAX_CLIENTS;
+	cl.allocated_client_slots = QWMAX_CLIENTS;
 #ifndef CLIENTONLY
 	if (sv.state)
 		cl.allocated_client_slots = sv.allocated_client_slots;
@@ -2299,7 +2235,7 @@ void CL_ConnectionlessPacket (void)
 	{
 		static unsigned int lasttime = 0xdeadbeef;
 		unsigned int curtime = Sys_Milliseconds();
-		unsigned long pext = 0, pext2 = 0, huffcrc=0;
+		unsigned long pext = 0, pext2 = 0, huffcrc=0, mtu=0;
 		Con_TPrintf (TLC_S2C_CHALLENGE);
 
 		s = MSG_ReadString ();
@@ -2317,7 +2253,7 @@ void CL_ConnectionlessPacket (void)
 
 				cls.protocol = CP_QUAKE3;
 				cls.challenge = atoi(s+17);
-				CL_SendConnectPacket (0, 0, 0/*, ...*/);
+				CL_SendConnectPacket (0, 0, 0, 0/*, ...*/);
 			}
 			else
 			{
@@ -2412,6 +2348,8 @@ void CL_ConnectionlessPacket (void)
 				pext = MSG_ReadLong ();
 			else if (c == PROTOCOL_VERSION_FTE2)
 				pext2 = MSG_ReadLong ();
+			else if (c == PROTOCOL_VERSION_FRAGMENT)
+				mtu = MSG_ReadLong ();
 			else if (c == PROTOCOL_VERSION_VARLENGTH)
 			{
 				int len = MSG_ReadLong();
@@ -2421,14 +2359,14 @@ void CL_ConnectionlessPacket (void)
 				MSG_ReadSkip(len); /*payload*/
 			}
 #ifdef HUFFNETWORK
-			else if (c == (('H'<<0) + ('U'<<8) + ('F'<<16) + ('F' << 24)))
+			else if (c == PROTOCOL_VERSION_HUFFMAN)
 				huffcrc = MSG_ReadLong ();
 #endif
 			//else if (c == PROTOCOL_VERSION_...)
 			else
 				MSG_ReadLong ();
 		}
-		CL_SendConnectPacket (pext, pext2, huffcrc/*, ...*/);
+		CL_SendConnectPacket (mtu, pext, pext2, huffcrc/*, ...*/);
 		return;
 	}
 #ifdef Q2CLIENT
@@ -2523,6 +2461,7 @@ void CL_ConnectionlessPacket (void)
 	if (c == S2C_CONNECTION)
 	{
 		int compress;
+		int mtu;
 #ifdef Q2CLIENT
 client_connect:	//fixme: make function
 #endif
@@ -2535,9 +2474,11 @@ client_connect:	//fixme: make function
 			return;
 		}
 		compress = cls.netchan.compress;
+		mtu = cls.netchan.fragmentsize;
 		Netchan_Setup (NS_CLIENT, &cls.netchan, net_from, cls.qport);
-		CL_ParseEstablished();
+		cls.netchan.fragmentsize = mtu;
 		cls.netchan.compress = compress;
+		CL_ParseEstablished();
 #ifdef Q3CLIENT
 		if (cls.protocol != CP_QUAKE3)
 #endif
@@ -2813,7 +2754,6 @@ void CL_ReadPackets (void)
 		case CP_QUAKEWORLD:
 			if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 			{
-				player_state_t *n,*o;
 				MSG_BeginReading(cls.netchan.netprim);
 				cls.netchan.last_received = realtime;
 				cls.netchan.outgoing_sequence = cls.netchan.incoming_sequence;

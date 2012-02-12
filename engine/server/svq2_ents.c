@@ -541,7 +541,7 @@ void SVQ2_WritePlayerstateToClient (q2client_frame_t *from, q2client_frame_t *to
 SV_WriteFrameToClient
 ==================
 */
-void SV_WriteFrameToClient (client_t *client, sizebuf_t *msg)
+void SVQ2_WriteFrameToClient (client_t *client, sizebuf_t *msg)
 {
 	q2client_frame_t		*frame, *oldframe;
 	int					lastframe;
@@ -602,7 +602,7 @@ copies off the playerstat and areabits.
 =============
 */
 void SVQ2_Ents_Init(void);
-void SV_BuildClientFrame (client_t *client)
+void SVQ2_BuildClientFrame (client_t *client)
 {
 	int		e, i;
 	vec3_t	org;

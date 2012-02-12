@@ -148,7 +148,7 @@ char *ReadGreyTargaFile (qbyte *data, int flen, tgaheader_t *tgahead, int asgrey
 }
 
 //remember to free it
-qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey)
+qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, qboolean *hasalpha, int asgrey)
 {
 	unsigned char *data;
 
@@ -221,6 +221,8 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 		{
 			if (tgaheader.bpp == 8)
 				return NULL;
+
+			*hasalpha = (tgaheader.bpp==32);
 		}
 		if (tgaheader.version == 11)
 		{
@@ -256,6 +258,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 					palette[row][2] = *data++;
 					palette[row][3] = *data++;
 				}
+				*hasalpha = true;
 				break;
 			}
 		}
@@ -502,6 +505,7 @@ qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey
 			return NULL;
 
 		mul = tgaheader.bpp/8;
+		*hasalpha = mul==4;
 //flip +convert to 32 bit
 		if (asgrey)
 			outrow = &initbuf[(int)(0)*tgaheader.width];
@@ -887,7 +891,7 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
     if (!(png_ptr = qpng_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL)))
 	{
 		fclose(fp);
-			return false;
+		return false;
 	}
 
     if (!(info_ptr = qpng_create_info_struct(png_ptr)))
@@ -899,6 +903,7 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 
 	if (setjmp(png_jmpbuf(png_ptr)))
 	{
+err:
         qpng_destroy_write_struct(&png_ptr, &info_ptr);
         fclose(fp);
 		return false;
@@ -920,6 +925,8 @@ int Image_WritePNG (char *filename, int compression, qbyte *pixels, int width, i
 	qpng_write_info(png_ptr, info_ptr);
 
 	row_pointers = BZ_Malloc (sizeof(png_byte *) * height);
+	if (!row_pointers)
+		goto err;
 	for (i = 0; i < height; i++)
 		row_pointers[height - i - 1] = pixels + i * width * 3;
 	qpng_write_image(png_ptr, row_pointers);
@@ -2262,10 +2269,10 @@ texid_tf GL_LoadTextureDDS(char *iname, unsigned char *buffer, int filesize)
 #endif
 
 //returns r8g8b8a8
-qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, char *fname)
+qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean *hasalpha, char *fname)
 {
 	qbyte *data;
-	if ((data = ReadTargaFile(buf, len, width, height, false)))
+	if ((data = ReadTargaFile(buf, len, width, height, hasalpha, false)))
 	{
 		TRACE(("dbg: Read32BitImageFile: tga\n"));
 		return data;
@@ -2350,6 +2357,7 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 	texid_t tex;
 //	int h;
 	char fname[MAX_QPATH], nicename[MAX_QPATH];
+	qboolean hasalpha;
 
 	int i, e;
 
@@ -2411,12 +2419,12 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 
 				if (buf)
 				{
-					if ((data = Read32BitImageFile(buf, com_filesize, &image_width, &image_height, fname)))
+					hasalpha = false;
+					if ((data = Read32BitImageFile(buf, com_filesize, &image_width, &image_height, &hasalpha, fname)))
 					{
 						extern cvar_t vid_hardwaregamma;
 						if (!(flags&IF_NOGAMMA) && !vid_hardwaregamma.value)
 							BoostGamma(data, image_width, image_height);
-
 						tex = R_LoadTexture32 (name, image_width, image_height, data, (flags | IF_REPLACE) + (i << IF_TEXTYPESHIFT));
 
 						BZ_Free(data);
@@ -2484,13 +2492,16 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 					return tex;
 				}
 #endif
-				if ((data = Read32BitImageFile(buf, com_filesize, &image_width, &image_height, fname)))
+				hasalpha = false;
+				if ((data = Read32BitImageFile(buf, com_filesize, &image_width, &image_height, &hasalpha, fname)))
 				{
 					extern cvar_t vid_hardwaregamma;
 					if (!(flags&IF_NOGAMMA) && !vid_hardwaregamma.value)
 						BoostGamma(data, image_width, image_height);
 
-					if (!(flags & IF_NOALPHA))
+					if (hasalpha)
+						flags &= ~IF_NOALPHA;
+					else if (!(flags & IF_NOALPHA))
 					{
 						unsigned int alpha_width, alpha_height, p;
 						char aname[MAX_QPATH];
@@ -2502,7 +2513,7 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 							snprintf(aname, sizeof(aname)-1, tex_path[i].path, nicename, va("_alpha%s", tex_extensions[e].name));
 						if ((alph = COM_LoadFile (aname, 5)))
 						{
-							if ((alphadata = Read32BitImageFile(alph, com_filesize, &alpha_width, &alpha_height, aname)))
+							if ((alphadata = Read32BitImageFile(alph, com_filesize, &alpha_width, &alpha_height, &hasalpha, aname)))
 							{
 								if (alpha_width == image_width && alpha_height == image_height)
 								{
@@ -2589,6 +2600,7 @@ texid_t R_LoadBumpmapTexture(char *name, char *subpath)
 	texid_t tex;
 //	int h;
 	char fname[MAX_QPATH], nicename[MAX_QPATH];
+	qboolean hasalpha;
 
 	static char *extensions[] =
 	{//reverse order of preference - (match commas with optional file types)
@@ -2635,7 +2647,7 @@ texid_t R_LoadBumpmapTexture(char *name, char *subpath)
 
 			if ((buf = COM_LoadFile (fname, 5)))
 			{
-				if ((data = ReadTargaFile(buf, com_filesize, &image_width, &image_height, 2)))	//Only load a greyscale image.
+				if ((data = ReadTargaFile(buf, com_filesize, &image_width, &image_height, &hasalpha, 2)))	//Only load a greyscale image.
 				{
 					TRACE(("dbg: Mod_LoadBumpmapTexture: tga %s loaded\n", name));
 					TEXASSIGNF(tex, R_LoadTexture8Bump(name, image_width, image_height, data, IF_NOALPHA|IF_NOGAMMA));

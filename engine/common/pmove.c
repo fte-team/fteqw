@@ -516,7 +516,7 @@ void PM_WaterMove (void)
 	for (i=0 ; i<3 ; i++)
 		wishvel[i] = forward[i]*pmove.cmd.forwardmove + right[i]*pmove.cmd.sidemove;
 
-	if (pmove.pm_type != PM_FLY && !pmove.cmd.forwardmove && !pmove.cmd.sidemove && !pmove.cmd.upmove)
+	if (pmove.pm_type != PM_FLY && !pmove.cmd.forwardmove && !pmove.cmd.sidemove && !pmove.cmd.upmove && !pmove.onladder)
 		wishvel[2] -= 60;		// drift towards bottom
 	else
 		wishvel[2] += pmove.cmd.upmove;
@@ -760,13 +760,11 @@ void PM_CategorizePosition (void)
 		}
 	}
 
-	if (cont & Q2CONTENTS_LADDER && pmove.physents[0].model->fromgame == fg_quake2)
-		pmove.onladder = true;
-	else
-		pmove.onladder = false;
+	//bsp objects marked as ladders mark regions to stand in to be classed as on a ladder.
+	cont = PM_ExtraBoxContents(pmove.origin);
 
-	//are we on a ladder?
 #ifdef Q2BSPS
+	//q3 has surfaceflag-based ladders
 	if (pmove.physents[0].model->fromgame == fg_quake3)
 	{
 		trace_t t;
@@ -786,7 +784,9 @@ void PM_CategorizePosition (void)
 			pmove.onground = false;	// too steep
 		}
 	}
-	if (cont & Q2CONTENTS_LADDER && pmove.physents[0].model->fromgame == fg_quake2)
+#endif
+	//q2 has contents-based ladders
+	if ((cont & FTECONTENTS_LADDER) || ((cont & Q2CONTENTS_LADDER) && pmove.physents[0].model->fromgame == fg_quake2))
 	{
 		trace_t t;
 		vec3_t flatforward, fwd1;
@@ -799,24 +799,12 @@ void PM_CategorizePosition (void)
 		VectorMA (pmove.origin, 24, flatforward, fwd1);
 
 		//if we hit a wall when going forwards and we are in a ladder region, then we are on a ladder.
-		if (pmove.physents[0].model->fromgame == fg_quake2)
+		t = PM_PlayerTrace(pmove.origin, fwd1);
+		if (t.fraction < 1)
 		{
-			t = CM_BoxTrace(pmove.physents[0].model, pmove.origin, fwd1, player_mins, player_maxs, MASK_PLAYERSOLID);
-			if (t.fraction < 1)
-			{
-				pmove.onladder = true;
-				pmove.onground = false;	// too steep
-			}
+			pmove.onladder = true;
+			pmove.onground = false;	// too steep
 		}
-	}
-#endif
-
-	//bsp objects marked as ladders mark regions to stand in to be classed as on a ladder.
-	cont = PM_ExtraBoxContents(pmove.origin);
-	if ((cont & Q2CONTENTS_LADDER) && (pmove.physents[0].model->fromgame == fg_quake2 || pmove.physents[0].model->fromgame == fg_halflife))
-	{
-		pmove.onladder = true;
-		pmove.onground = false;	// too steep
 	}
 
 	if (pmove.onground && pmove.pm_type != PM_FLY && pmove.waterlevel < 2)
@@ -956,7 +944,7 @@ void PM_NudgePosition (void)
 	VectorCopy (pmove.origin, base);
 
 	for (i=0 ; i<3 ; i++)
-		pmove.origin[i] = ((int)(pmove.origin[i]*8)) * 0.125;
+		base[i] = ((int)(base[i]*8)) * 0.125;
 
 	for (z=0 ; z<=4 ; z++)
 	{

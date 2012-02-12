@@ -50,6 +50,7 @@ cvar_t	sv_antilag_frac		= CVARF("sv_antilag_frac", "1", CVAR_SERVERINFO);
 cvar_t	sv_cheatpc				= CVAR("sv_cheatpc", "125");
 cvar_t	sv_cheatspeedchecktime	= CVAR("sv_cheatspeedchecktime", "30");
 cvar_t	sv_playermodelchecks	= CVAR("sv_playermodelchecks", "0");
+cvar_t	sv_ping_ignorepl		= CVARD("sv_ping_ignorepl", "0", "If 1, ping times reported for players will ignore the effects of packetloss on ping times. 0 is slightly more honest, but less useful for connection diagnosis.");
 
 cvar_t	sv_cmdlikercon	= SCVAR("sv_cmdlikercon", "0");	//set to 1 to allow a password of username:password instead of the correct rcon password.
 cvar_t cmd_allowaccess	= SCVAR("cmd_allowaccess", "0");	//set to 1 to allow cmd to execute console commands on the server.
@@ -289,52 +290,77 @@ void SV_New_f (void)
 		ClientReliableWrite_Byte (host_client, 0);
 	ClientReliableWrite_String (host_client, gamedir);
 
-	splitnum = 0;
-	for (split = host_client; split; split = split->controlled)
+	if (host_client->fteprotocolextensions2 & PEXT2_MAXPLAYERS)
 	{
-		switch(svs.gametype)
+		/*is this a sane way to do it? or should we split the spectator thing off entirely?*/
+		ClientReliableWrite_Byte (host_client, sv.allocated_client_slots);
+		splitnum = 0;
+		for (split = host_client, splitnum = 0; split; split = split->controlled)
+			splitnum++;
+		ClientReliableWrite_Byte (host_client, (split->spectator?128:0) | splitnum);
+		for (split = host_client; split; split = split->controlled)
 		{
-#ifdef HLSERVER
-		case GT_HALFLIFE:
-			playernum = split - svs.clients;
-			break;
-#endif
-#ifdef Q2SERVER
-		case GT_QUAKE2:
-			playernum = Q2NUM_FOR_EDICT(split->q2edict)-1;
-			break;
-#endif
-		default:
 			playernum = NUM_FOR_EDICT(svprogfuncs, split->edict)-1;
-		}
-#ifdef SERVER_DEMO_PLAYBACK
-		if (sv.demostate)
-		{
-			playernum = (MAX_CLIENTS-1-splitnum)|128;
-		}
-		else
-#endif
-			if (split->spectator)
-			playernum |= 128;
-
-		if (sv.state == ss_cinematic)
-			playernum = -1;
-
-		if (ISQ2CLIENT(host_client))
-			ClientReliableWrite_Short (host_client, playernum);
-		else
+			if (sv.state == ss_cinematic)
+				playernum = -1;
 			ClientReliableWrite_Byte (host_client, playernum);
 
-		split->state = cs_connected;
-		split->connection_started = realtime;
-	#ifdef SVRANKING
-		split->stats_started = realtime;
-	#endif
-		splitnum++;
+			split->state = cs_connected;
+			split->connection_started = realtime;
+		#ifdef SVRANKING
+			split->stats_started = realtime;
+			splitnum++;
+		}
 	}
+	else
+	{
+		splitnum = 0;
+		for (split = host_client; split; split = split->controlled)
+		{
+			switch(svs.gametype)
+			{
+	#ifdef HLSERVER
+			case GT_HALFLIFE:
+				playernum = split - svs.clients;
+				break;
+	#endif
+	#ifdef Q2SERVER
+			case GT_QUAKE2:
+				playernum = Q2NUM_FOR_EDICT(split->q2edict)-1;
+				break;
+	#endif
+			default:
+				playernum = NUM_FOR_EDICT(svprogfuncs, split->edict)-1;
+			}
+	#ifdef SERVER_DEMO_PLAYBACK
+			if (sv.demostate)
+			{
+				playernum = (MAX_CLIENTS-1-splitnum)|128;
+			}
+			else
+	#endif
+				if (split->spectator)
+				playernum |= 128;
 
-	if (host_client->fteprotocolextensions & PEXT_SPLITSCREEN)
-		ClientReliableWrite_Byte (host_client, 128);
+			if (sv.state == ss_cinematic)
+				playernum = -1;
+
+			if (ISQ2CLIENT(host_client))
+				ClientReliableWrite_Short (host_client, playernum);
+			else
+				ClientReliableWrite_Byte (host_client, playernum);
+
+			split->state = cs_connected;
+			split->connection_started = realtime;
+		#ifdef SVRANKING
+			split->stats_started = realtime;
+		#endif
+			splitnum++;
+		}
+
+		if (host_client->fteprotocolextensions & PEXT_SPLITSCREEN)
+			ClientReliableWrite_Byte (host_client, 128);
+	}
 
 	// send full levelname
 #ifdef SERVER_DEMO_PLAYBACK
@@ -1244,7 +1270,7 @@ void SVQW_PreSpawn_f (void)
 				if (state->hexen2flags || state->trans || state->modelindex >= 256 || state->frame > 255 || state->scale || state->abslight)
 				{
 					MSG_WriteByte(&host_client->netchan.message, svc_spawnstatic2);
-					SV_WriteDelta(&from, state, &host_client->netchan.message, true, host_client->fteprotocolextensions);
+					SVQW_WriteDelta(&from, state, &host_client->netchan.message, true, host_client->fteprotocolextensions);
 					continue;
 				}
 			}
@@ -1305,7 +1331,7 @@ void SVQW_PreSpawn_f (void)
 			else if (host_client->fteprotocolextensions & PEXT_SPAWNSTATIC2)
 			{
 				MSG_WriteByte(&host_client->netchan.message, svcfte_spawnbaseline2);
-				SV_WriteDelta(&from, state, &host_client->netchan.message, true, host_client->fteprotocolextensions);
+				SVQW_WriteDelta(&from, state, &host_client->netchan.message, true, host_client->fteprotocolextensions);
 			}
 			else if (state->modelindex < 256)
 			{
@@ -1601,6 +1627,7 @@ void SV_Begin_Core(client_t *split)
 
 		ge->ClientBegin(split->q2edict);
 		split->istobeloaded = false;
+		sv.spawned_client_slots++;
 	}
 	else
 #endif
@@ -4751,10 +4778,10 @@ void SV_Pext_f(void)
 		switch(strtoul(tag, NULL, 0))
 		{
 		case PROTOCOL_VERSION_FTE:
-			host_client->fteprotocolextensions = strtoul(val, NULL, 0) & svs.fteprotocolextensions;
+			host_client->fteprotocolextensions = strtoul(val, NULL, 0) & Net_PextMask(1);
 			break;
 		case PROTOCOL_VERSION_FTE2:
-			host_client->fteprotocolextensions2 = strtoul(val, NULL, 0) & svs.fteprotocolextensions2;
+			host_client->fteprotocolextensions2 = strtoul(val, NULL, 0) & Net_PextMask(2);
 			break;
 		}
 	}
@@ -5231,14 +5258,14 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 
 		if (check->v->owner == pl)
 			continue;		// player's own missile
-		if (check->v->solid == SOLID_BSP
+		if (check == player)
+			continue;
+		if ((check->v->solid == SOLID_TRIGGER && check->v->skin < 0) || check->v->solid == SOLID_BSP
 			|| check->v->solid == SOLID_BBOX
 			|| check->v->solid == SOLID_SLIDEBOX
 			//|| (check->v->solid == SOLID_PHASEH2 && progstype == PROG_H2) //logically matches hexen2, but I hate it
 			)
 		{
-			if (check == player)
-				continue;
 
 			for (i=0 ; i<3 ; i++)
 				if (check->v->absmin[i] > pmove_maxs[i]
@@ -5259,6 +5286,28 @@ void AddLinksToPmove ( edict_t *player, areanode_t *node )
 
 			VectorCopy (check->v->origin, pe->origin);
 			pe->info = NUM_FOR_EDICT(svprogfuncs, check);
+			pe->nonsolid = check->v->solid == SOLID_TRIGGER;
+			switch((int)check->v->skin)
+			{
+			case Q1CONTENTS_WATER:
+				pe->forcecontentsmask = FTECONTENTS_WATER;
+				break;
+			case Q1CONTENTS_LAVA:
+				pe->forcecontentsmask = FTECONTENTS_LAVA;
+				break;
+			case Q1CONTENTS_SLIME:
+				pe->forcecontentsmask = FTECONTENTS_SLIME;
+				break;
+			case Q1CONTENTS_SKY:
+				pe->forcecontentsmask = FTECONTENTS_SKY;
+				break;
+			case -16:
+				pe->forcecontentsmask = FTECONTENTS_LADDER;
+				break;
+			default:
+				pe->forcecontentsmask = 0;
+				break;
+			}
 			if (check->v->solid == SOLID_BSP)
 			{
 				if(progstype != PROG_H2)
@@ -5709,7 +5758,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	pmove.numphysent = 1;
 	pmove.physents[0].model = sv.world.worldmodel;
 	pmove.cmd = *ucmd;
-	pmove.hullnum = SV_HullNumForPlayer(sv_player->xv->hull, sv_player->v->mins, sv_player->v->maxs);
+	pmove.skipent = -1;
 
 	movevars.entgravity = host_client->entgravity/movevars.gravity;
 	movevars.maxspeed = host_client->maxspeed;
@@ -6064,9 +6113,12 @@ void SV_ExecuteClientMessage (client_t *cl)
 	{	//split screen doesn't always have frames.
 		frame = &cl->frameunion.frames[cl->netchan.incoming_acknowledged & UPDATE_MASK];
 
-		if (cl->lastsequence_acknoledged + UPDATE_BACKUP > cl->netchan.incoming_acknowledged)
+		if (cl->lastsequence_acknowledged + UPDATE_BACKUP > cl->netchan.incoming_acknowledged)
 		{
-			frame->ping_time = realtime - frame->senttime;	//no more phenomanally low pings please
+			/*note that if there is packetloss, we can change a single frame's ping_time multiple times
+			  this means that the 'ping' is more latency than ping times*/
+			if (frame->ping_time == -1 || !sv_ping_ignorepl.ival)
+				frame->ping_time = realtime - frame->senttime;	//no more phenomanally low pings please
 
 			if (cl->spectator)
 				cl->delay = 0;
@@ -6087,15 +6139,18 @@ void SV_ExecuteClientMessage (client_t *cl)
 			}
 		}
 #ifdef PEXT_CSQC
-		if (cl->lastsequence_acknoledged + UPDATE_BACKUP > cl->netchan.incoming_acknowledged)
+		if (cl->lastsequence_acknowledged + UPDATE_BACKUP > cl->netchan.incoming_acknowledged)
 		{
-			for (i = cl->lastsequence_acknoledged+1; i < cl->netchan.incoming_acknowledged; i++)
+			for (i = cl->lastsequence_acknowledged+1; i < cl->netchan.incoming_acknowledged; i++)
 				SV_CSQC_DroppedPacket(cl, i);
 		}
 		else
+		{
+			/*too much loss, we don't know what was sent when, so reset the entire entity state*/
 			SV_CSQC_DropAll(cl);
+		}
 #endif
-		cl->lastsequence_acknoledged = cl->netchan.incoming_acknowledged;
+		cl->lastsequence_acknowledged = cl->netchan.incoming_acknowledged;
 
 		if (sv_antilag.ival)
 		{
@@ -6137,6 +6192,7 @@ void SV_ExecuteClientMessage (client_t *cl)
 	// save time for ping calculations
 	if (cl->frameunion.frames)
 	{	//split screen doesn't always have frames.
+		cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].sequence = cl->netchan.outgoing_sequence;
 		cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].senttime = realtime;
 		cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].ping_time = -1;
 		cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].move_msecs = -1;

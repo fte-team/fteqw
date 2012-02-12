@@ -73,7 +73,7 @@ typedef struct
 	qboolean	onground;
 	qboolean	jump_held;
 	int			jump_msec;		// hack for fixing bunny-hop flickering on non-ZQuake servers
-	int			hullnum;
+	vec3_t		szmins, szmaxs;
 
 	float lerpstarttime;
 	int oldframe;
@@ -347,7 +347,7 @@ typedef struct
 	{
 		CPNQ_ID,
 		CPNQ_PROQUAKE3_4,
-		CPNQ_FITZ666,
+		CPNQ_FITZ666, /*and rmqe999 protocol*/
 		CPNQ_DP5,
 		CPNQ_DP6,
 		CPNQ_DP7
@@ -462,6 +462,7 @@ typedef struct {
 	//previous rendering frame (for trails)
 	vec3_t lastorigin;
 	qboolean isnew;
+	qboolean isplayer;
 
 	//intermediate values for frame lerping
 	float framelerpdeltatime;
@@ -773,7 +774,7 @@ dlight_t *CL_NewDlightRGB (int key, const vec3_t origin, float radius, float tim
 dlight_t *CL_NewDlightCube (int key, const vec3_t origin, vec3_t angles, float radius, float time, vec3_t colours);
 void	CL_DecayLights (void);
 
-void CL_ParseDelta (struct entity_state_s *from, struct entity_state_s *to, int bits, qboolean);
+void CLQW_ParseDelta (struct entity_state_s *from, struct entity_state_s *to, int bits, qboolean);
 
 void CL_Init (void);
 void Host_WriteConfiguration (void);
@@ -1000,7 +1001,7 @@ void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, struct model_s *model, int sta
 //
 // cl_ents.c
 //
-void CL_SetSolidPlayers (int playernum);
+void CL_SetSolidPlayers (void);
 void CL_SetUpPlayerPrediction(qboolean dopred);
 void CL_LinkStaticEntities(void *pvs);
 void CL_TransitionEntities (void); /*call at the start of the frame*/
@@ -1008,6 +1009,7 @@ void CL_EmitEntities (void);
 void CL_ClearProjectiles (void);
 void CL_ParseProjectiles (int modelindex, qboolean nails2);
 void CL_ParsePacketEntities (qboolean delta);
+void CLFTE_ParseEntities (void);
 void CL_SetSolidEntities (void);
 void CL_ParsePlayerinfo (void);
 void CL_ParseClientPersist(void);
@@ -1057,9 +1059,10 @@ void CSQC_Input_Frame(int lplayernum, usercmd_t *cmd);
 void CSQC_WorldLoaded(void);
 qboolean CSQC_ParseTempEntity(unsigned char firstbyte);
 qboolean CSQC_ConsoleCommand(char *cmd);
-qboolean CSQC_KeyPress(int key, int unicode, qboolean down);
-qboolean CSQC_MouseMove(float xdelta, float ydelta);
-qboolean CSQC_MousePosition(float xabs, float yabs);
+qboolean CSQC_KeyPress(int key, int unicode, qboolean down, int devid);
+qboolean CSQC_MouseMove(float xdelta, float ydelta, int devid);
+qboolean CSQC_MousePosition(float xabs, float yabs, int devid);
+qboolean CSQC_Accelerometer(float x, float y, float z);
 int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float vol, float attenuation);
 void CSQC_ParseEntities(void);
 qboolean CSQC_SettingListener(void);

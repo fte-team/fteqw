@@ -26,13 +26,22 @@ static qboolean sys_running = false;
 
 static void *sys_memheap;
 static unsigned int sys_lastframe;
-JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject obj)
+JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject obj,
+				jfloat ax, jfloat ay, jfloat az)
 {
+	static vec3_t oac;
 	#ifdef SERVERONLY
 	SV_Frame();
 	#else
 	unsigned int now = Sys_Milliseconds();
 	double tdelta = (now - sys_lastframe) * 0.001;
+	if (oac[0] != ax || oac[1] != ay || oac[2] != az)
+	{
+		CSQC_Accelerometer(ax, ay, az);
+		oac[0] = ax;
+		oac[1] = ay;
+		oac[2] = az;
+	}
 	Host_Frame(tdelta);
 	sys_lastframe = now;
 	#endif
@@ -47,11 +56,11 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 		Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
 	else
 	{
-		char *args [] =
+		const char *args [] =
 		{
 			"ftedroid",
 			"-basepack",
-			(*env)->GetStringUTFChars(env, path, 0),
+			(*env)->GetStringUTFChars(env, path, NULL),
 			"",
 			""
 			//we should do this somewhere... (*env)->ReleaseStringUTFChars(env, path, parms.basedir);
@@ -60,8 +69,8 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 		parms.basedir = "/sdcard/fte";
 		parms.argc = 3;
 		parms.argv = args;
-		parms.memsize = sys_memheap = 8*1024*1024;
-		parms.membase = malloc(parms.memsize);
+		parms.memsize = 8*1024*1024;
+		parms.membase = sys_memheap = malloc(parms.memsize);
 		if (!parms.membase)
 		{
 			Sys_Printf("Unable to alloc heap\n");
@@ -89,26 +98,36 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_keypress(JNIEnv *env, jobje
 
 int mousecursor_x, mousecursor_y;
 float mouse_x, mouse_y;
-static float omouse_x, omouse_y;
+static vec2_t omouse[8];
 JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_motion(JNIEnv *env, jobject obj,
-                 jint act, jfloat x, jfloat y)
+                 jint act, jint ptrid, jfloat x, jfloat y)
 {
-	static float totalmoved;
-	static qboolean down;
-	float dx, dy;
+	static float totalmoved[8];
+	static qboolean down[8];
+	float d[2];
 
-	dx = x - omouse_x;
-	dy = y - omouse_y;
-	omouse_x = x;
-	omouse_y = y;
+	if (!act && CSQC_MousePosition(x, y, ptrid))
+		return;
+	/*note that these events are not directly useful, so trigger mouse2 leaving mouse1 clean for tap events (and bypass any binds for it)*/
+	if (act == 1 && CSQC_KeyPress(K_MOUSE2, 0, true, ptrid))
+		return;
+	if (act == 2 && CSQC_KeyPress(K_MOUSE2, 0, false, ptrid))
+		return;
+
+	ptrid &= 7;
+
+	d[0] = x - omouse[ptrid][0];
+	d[1] = y - omouse[ptrid][1];
+	omouse[ptrid][0] = x;
+	omouse[ptrid][1] = y;
 	mousecursor_x = x;
 	mousecursor_y = y;
 
-	if (down)
+	if (down[ptrid])
 	{	
-		mouse_x += dx;
-		mouse_y += dy;
-		totalmoved += fabs(dx) + fabs(dy);
+		mouse_x += d[0];
+		mouse_y += d[1];
+		totalmoved[ptrid] += fabs(d[0]) + fabs(d[1]);
 	}
 
 	switch(act)
@@ -116,24 +135,19 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_motion(JNIEnv *env, jobject
 	case 0: /*move*/
 		break;
 	case 1: /*down*/
-		totalmoved = 0;
-		down = true;
+		totalmoved[ptrid] = 0;
+		down[ptrid] = true;
 		break;
 	case 2: /*up*/
-		down = false;
+		down[ptrid] = false;
 		/*if it didn't move far, treat it as a regular click, if it did move a little then sorry if you just wanted a small turn!*/
-		if (totalmoved < 3)
+		if (totalmoved[ptrid] < 3)
 		{
 			Key_Event(0, K_MOUSE1, 0, 1);
 			Key_Event(0, K_MOUSE1, 0, 0);
 		}
 		break;
 	}
-}
-JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_accelerometer(JNIEnv *env, jobject obj,
-                 jfloat x, jfloat y, jfloat z)
-{
-//	Con_Printf("Accelerometer: %f %f %f\n", x, y, z);
 }
 
 static int secbase;

@@ -515,6 +515,7 @@ void D3DBE_BaseEntTextures(void);
 void Sh_PreGenerateLights(void);
 //Draws lights, called from the backend
 void Sh_DrawLights(qbyte *vis, batch_t **mbatches);
+void SH_FreeShadowMesh(struct shadowmesh_s *sm);
 void Sh_Shutdown(void);
 //Draws the depth of ents in the world near the current light
 void BE_BaseEntShadowDepth(void);

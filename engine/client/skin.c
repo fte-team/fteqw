@@ -418,6 +418,7 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 	qbyte	*raw;
 	qbyte	*out, *pix;
 	char *path;
+	qboolean hasalpha;
 
 	if (noskins.value==1) // JACK: So NOSKINS > 1 will show skins, but
 		return NULL;	  // not download new ones.
@@ -441,7 +442,7 @@ qbyte	*Skin_Cache32 (skin_t *skin)
 	raw = COM_LoadTempFile (name);
 	if (raw)
 	{
-		pix = ReadTargaFile(raw, com_filesize, &skin->width, &skin->height, false);
+		pix = ReadTargaFile(raw, com_filesize, &skin->width, &skin->height, &hasalpha, false);
 		if (pix)
 		{
 			out = Cache_Alloc(&skin->cache, skin->width*skin->height*4, name);

@@ -48,7 +48,7 @@ usercmd_t independantphysics[MAX_SPLITS];
 vec3_t mousemovements[MAX_SPLITS];
 
 /*kinda a hack...*/
-int		con_splitmodifier;
+static int		con_splitmodifier;
 cvar_t	cl_forcesplitclient = CVAR("cl_forcesplitclient", "0");
 extern cvar_t cl_splitscreen;
 int CL_TargettedSplit(qboolean nowrap)
@@ -94,6 +94,22 @@ void CL_Split_f(void)
 		con_splitmodifier = c[1];
 		Cmd_ExecuteString(Cmd_Args(), Cmd_ExecLevel);
 	}
+	con_splitmodifier = tmp;
+}
+void CL_SplitA_f(void)
+{
+	int tmp;
+	char *c, *args;
+	c = Cmd_Argv(0);
+	args = COM_Parse(Cmd_Args());
+	while(*args == ' ' || *args == '\t')
+		args++;
+	tmp = con_splitmodifier;
+	con_splitmodifier = atoi(com_token);
+	if (*c == '+' || *c == '-')
+		Cmd_ExecuteString(va("%c%s", *c, args), Cmd_ExecLevel);
+	else
+		Cmd_ExecuteString(args, Cmd_ExecLevel);
 	con_splitmodifier = tmp;
 }
 
@@ -1748,6 +1764,11 @@ void CL_InitInput (void)
 		in_mlook.state[sp] = 1;
 #endif
 	}
+
+	/*then alternative arged ones*/
+	Cmd_AddCommand ("p",			CL_SplitA_f);
+	Cmd_AddCommand ("+p",			CL_SplitA_f);
+	Cmd_AddCommand ("-p",			CL_SplitA_f);
 	
 	Cmd_AddCommand ("+moveup",		IN_UpDown);
 	Cmd_AddCommand ("-moveup",		IN_UpUp);

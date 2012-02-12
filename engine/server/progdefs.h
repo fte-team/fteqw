@@ -199,6 +199,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldentity(tag_entity)\
 	comfieldfloat(skeletonindex)		/*FTE_CSQC_SKELETONOBJECTS*/\
 	comfieldvector(colormod)\
+	comfieldvector(glowmod)\
 	comfieldfloat(pmove_flags)/*EXT_CSQC_1*/\
 	comfieldfloat(friction)/*DP_...PHYSICS*/\
 	comfieldfloat(erp)/*DP_...PHYSICS*/\
@@ -277,7 +278,6 @@ and the extension fields are added on the end and can have extra vm-specific stu
 							\
 	comfieldfloat(drawmask)	/*So that the qc can specify all rockets at once or all bannanas at once*/	\
 	comfieldfunction(predraw, ".void()")	/*If present, is called just before it's drawn.*/	\
-	comfieldvector(glowmod)	\
 							\
 	comfieldfloat(ideal_pitch)\
 	comfieldfloat(pitch_speed)

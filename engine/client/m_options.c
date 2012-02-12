@@ -858,7 +858,7 @@ void M_Menu_Lighting_f (void)
 	{
 		"Disabled",
 		"Enabled",
-		"Generated",
+		"Generate",
 		NULL
 	};
 	static const char *loadlitvalues[] =

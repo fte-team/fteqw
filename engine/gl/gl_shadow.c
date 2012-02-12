@@ -237,7 +237,7 @@ static void SHM_Shadow_Cache_Leaf(mleaf_t *leaf)
 	sh_shmesh->litleaves[i>>3] |= 1<<(i&7);
 }
 
-static void SH_FreeShadowMesh(shadowmesh_t *sm)
+void SH_FreeShadowMesh(shadowmesh_t *sm)
 {
 	unsigned int i;
 	for (i = 0; i < sm->numsurftextures; i++)

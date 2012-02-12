@@ -257,6 +257,7 @@ extern	vec3_t	r_origin;
 // screen size info
 //
 extern	refdef_t	r_refdef;
+extern	unsigned int r_viewcontents;
 extern	mleaf_t		*r_viewleaf, *r_oldviewleaf;
 extern	mleaf_t		*r_viewleaf2, *r_oldviewleaf2;
 extern	int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;	//q2

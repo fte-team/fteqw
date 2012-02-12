@@ -108,8 +108,8 @@ typedef struct {
 	int skinheight;
 	int ofstexels;	//this is 8bit for frame 0 only. only valid in q1 models without replacement textures, used for colourising player skins.
 	float skinspeed;
-	int texnums;
-	int ofstexnums;
+	int numshaders;
+	int ofsshaders;
 	char name [MAX_QPATH];
 } galiasskin_t;
 

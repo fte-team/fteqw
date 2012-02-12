@@ -1533,26 +1533,6 @@ extern vec3_t	player_maxs;
 				continue;
 
 			pe = &pmove.physents[pmove.numphysent];
-			if (other->v.modelindex)
-			{
-				pe->model = sv.models[other->v.modelindex];
-				if (pe->model && pe->model->type != mod_brush)
-					pe->model = NULL;
-			}
-			else
-				pe->model = NULL;
-			pmove.numphysent++;
-			pe->info = other - SVHL_Edict;
-			VectorCopy(other->v.origin, pe->origin);
-			VectorCopy(other->v.mins, pe->mins);
-			VectorCopy(other->v.maxs, pe->maxs);
-			VectorCopy(other->v.angles, pe->angles);
-
-			if (other->v.solid == SOLID_NOT || other->v.solid == SOLID_TRIGGER)
-				pe->nonsolid = true;
-			else
-				pe->nonsolid = false;
-
 			switch(other->v.skin)
 			{
 			case Q1CONTENTS_EMPTY:
@@ -1580,6 +1560,30 @@ extern vec3_t	player_maxs;
 				pe->forcecontentsmask = 0;
 				break;
 			}
+
+			if (other->v.solid == SOLID_NOT || other->v.solid == SOLID_TRIGGER)
+			{
+				if (!pe->forcecontentsmask)
+					continue;
+				pe->nonsolid = true;
+			}
+			else
+				pe->nonsolid = false;
+
+			if (other->v.modelindex)
+			{
+				pe->model = sv.models[other->v.modelindex];
+				if (pe->model && pe->model->type != mod_brush)
+					pe->model = NULL;
+			}
+			else
+				pe->model = NULL;
+			pmove.numphysent++;
+			pe->info = other - SVHL_Edict;
+			VectorCopy(other->v.origin, pe->origin);
+			VectorCopy(other->v.mins, pe->mins);
+			VectorCopy(other->v.maxs, pe->maxs);
+			VectorCopy(other->v.angles, pe->angles);
 		}
 	}
 

@@ -2161,18 +2161,21 @@ void Mod_ParseQ3SkinFile(char *out, char *surfname, char *modelname, int skinnum
 }
 
 #if defined(D3DQUAKE) || defined(GLQUAKE)
-void Mod_LoadSkinFile(texnums_t *texnum, char *surfacename, int skinnumber, unsigned char *rawdata, int width, int height, unsigned char *palette)
+shader_t *Mod_LoadSkinFile(shader_t **shaders, char *surfacename, int skinnumber, unsigned char *rawdata, int width, int height, unsigned char *palette)
 {
+	shader_t *shader;
 	char shadername[MAX_QPATH];
 	Q_strncpyz(shadername, surfacename, sizeof(shadername));
 
 	Mod_ParseQ3SkinFile(shadername, surfacename, loadmodel->name, skinnumber, NULL);
 
-	texnum->shader = R_RegisterSkin(shadername, loadmodel->name);
+	shader = R_RegisterSkin(shadername, loadmodel->name);
 
-	R_BuildDefaultTexnums(texnum, texnum->shader);
-	if (texnum->shader->flags & SHADER_NOIMAGE)
-		Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", texnum->shader->name, loadmodel->name);
+	R_BuildDefaultTexnums(&shader->defaulttextures, shader);
+	if (shader->flags & SHADER_NOIMAGE)
+		Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", shader->name, loadmodel->name);
+
+	return shader;
 }
 #endif
 
@@ -2424,7 +2427,7 @@ static void *Q1_LoadSkins_SV (daliasskintype_t *pskintype, qboolean alpha)
 #if defined(GLQUAKE) || defined(D3DQUAKE)
 static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintranstype)
 {
-	texnums_t *texnums;
+	shader_t **shaders;
 	char skinname[MAX_QPATH];
 	int i;
 	int s, t;
@@ -2485,8 +2488,8 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 			if (!TEXVALID(texture) || (loadmodel->engineflags & MDLF_NOTREPLACEMENTS))
 			{
 				//we're not using 24bits
-				texnums = Hunk_Alloc(sizeof(*texnums)+s);
-				saved = (qbyte*)(texnums+1);
+				shaders = Hunk_Alloc(sizeof(*shaders)+s);
+				saved = (qbyte*)(shaders+1);
 				outskin->ofstexels = (qbyte *)(saved) - (qbyte *)outskin;
 				memcpy(saved, pskintype+1, s);
 				Mod_FloodFillSkin(saved, outskin->skinwidth, outskin->skinheight);
@@ -2523,16 +2526,16 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 				}
 			}
 			else
-				texnums = Hunk_Alloc(sizeof(*texnums));
-			outskin->texnums=1;
+				shaders = Hunk_Alloc(sizeof(*shaders));
+			outskin->numshaders=1;
 
-			outskin->ofstexnums = (char *)texnums - (char *)outskin;
+			outskin->ofsshaders = (char *)shaders - (char *)outskin;
 
 
 
 			Q_snprintfz(skinname, sizeof(skinname), "%s_%i", loadname, i);
 			if (skintranstype == 4)
-				texnums->shader = R_RegisterShader(skinname,
+				shaders[0] = R_RegisterShader(skinname,
 					"{\n"
 						"{\n"
 							"map $diffuse\n"
@@ -2543,7 +2546,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 						"}\n"
 					"}\n");
 			else if (skintranstype == 3)
-				texnums->shader = R_RegisterShader(skinname,
+				shaders[0] = R_RegisterShader(skinname,
 					"{\n"
 						"{\n"
 							"map $diffuse\n"
@@ -2553,7 +2556,7 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 						"}\n"
 					"}\n");
 			else if (skintranstype)
-				texnums->shader = R_RegisterShader(skinname,
+				shaders[0] = R_RegisterShader(skinname,
 					"{\n"
 						"{\n"
 							"map $diffuse\n"
@@ -2563,25 +2566,23 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 						"}\n"
 					"}\n");
 			else
-				texnums->shader = R_RegisterSkin(skinname, loadmodel->name);
-			R_BuildDefaultTexnums(texnums, texnums->shader);
+				shaders[0] = R_RegisterSkin(skinname, loadmodel->name);
 
-			texnums->loweroverlay = r_nulltex;
-			texnums->upperoverlay = r_nulltex;
-
-			texnums->base = texture;
-			texnums->fullbright = fbtexture;
-			texnums->bump = bumptexture;
+			shaders[0]->defaulttextures.base = texture;
+			shaders[0]->defaulttextures.fullbright = fbtexture;
+			shaders[0]->defaulttextures.bump = bumptexture;
 
 			//13/4/08 IMPLEMENTME
 			if (r_skin_overlays.ival)
 			{
 				snprintf(skinname, sizeof(skinname), "%s_%i_pants", loadname, i);
-				texnums->loweroverlay = R_LoadReplacementTexture(skinname, "models", 0);
+				shaders[0]->defaulttextures.loweroverlay = R_LoadReplacementTexture(skinname, "models", 0);
 
 				snprintf(skinname, sizeof(skinname), "%s_%i_shirt", loadname, i);
-				texnums->upperoverlay = R_LoadReplacementTexture(skinname, "models", 0);
+				shaders[0]->defaulttextures.upperoverlay = R_LoadReplacementTexture(skinname, "models", 0);
 			}
+
+			R_BuildDefaultTexnums(&shaders[0]->defaulttextures, shaders[0]);
 
 			pskintype = (daliasskintype_t *)((char *)(pskintype+1)+s);
 			break;
@@ -2591,17 +2592,17 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 			outskin->skinheight = pq1inmodel->skinheight;
 			count = (daliasskingroup_t*)(pskintype+1);
 			intervals = (daliasskininterval_t *)(count+1);
-			outskin->texnums = LittleLong(count->numskins);
-			data = (qbyte *)(intervals + outskin->texnums);
-			texnums = Hunk_Alloc(sizeof(*texnums)*outskin->texnums);
-			outskin->ofstexnums = (char *)texnums - (char *)outskin;
+			outskin->numshaders = LittleLong(count->numskins);
+			data = (qbyte *)(intervals + outskin->numshaders);
+			shaders = Hunk_Alloc(sizeof(*shaders)*outskin->numshaders);
+			outskin->ofsshaders = (char *)shaders - (char *)outskin;
 			outskin->ofstexels = 0;
 			sinter = LittleFloat(intervals[0].interval);
 			if (sinter <= 0)
 				sinter = 0.1;
 			outskin->skinspeed = 1/sinter;
 
-			for (t = 0; t < outskin->texnums; t++,data+=s, texnums++)
+			for (t = 0; t < outskin->numshaders; t++,data+=s)
 			{
 				texture = r_nulltex;
 				fbtexture = r_nulltex;
@@ -2659,14 +2660,14 @@ static void *Q1_LoadSkins_GL (daliasskintype_t *pskintype, unsigned int skintran
 				}
 
 				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_%i", loadname, i, t);
-				texnums->shader = R_RegisterSkin(skinname, loadmodel->name);
+				shaders[t] = R_RegisterSkin(skinname, loadmodel->name);
 
-				TEXASSIGN(texnums->base, texture);
-				TEXASSIGN(texnums->fullbright, fbtexture);
-				TEXASSIGN(texnums->loweroverlay, r_nulltex);
-				TEXASSIGN(texnums->upperoverlay, r_nulltex);
+				TEXASSIGN(shaders[t]->defaulttextures.base, texture);
+				TEXASSIGN(shaders[t]->defaulttextures.fullbright, fbtexture);
+				TEXASSIGN(shaders[t]->defaulttextures.loweroverlay, r_nulltex);
+				TEXASSIGN(shaders[t]->defaulttextures.upperoverlay, r_nulltex);
 
-				R_BuildDefaultTexnums(texnums, texnums->shader);
+				R_BuildDefaultTexnums(&shaders[t]->defaulttextures, shaders[t]);
 			}
 			pskintype = (daliasskintype_t *)data;
 			break;
@@ -3034,19 +3035,19 @@ static void Q2_LoadSkins(md2_t *pq2inmodel, char *skins)
 {
 #ifndef SERVERONLY
 	int i;
-	texnums_t *texnums;
+	shader_t **shaders;
 	galiasskin_t *outskin = (galiasskin_t *)((char *)galias + galias->ofsskins);
 
 	for (i = 0; i < LittleLong(pq2inmodel->num_skins); i++, outskin++)
 	{
-		texnums = Hunk_Alloc(sizeof(*texnums));
-		outskin->ofstexnums = (char *)texnums - (char *)outskin;
-		outskin->texnums=1;
+		shaders = Hunk_Alloc(sizeof(*shaders));
+		outskin->ofsshaders = (char *)shaders - (char *)outskin;
+		outskin->numshaders=1;
 
 		COM_CleanUpPath(skins);	//blooming tanks.
-		TEXASSIGN(texnums->base, R_LoadReplacementTexture(skins, "models", IF_NOALPHA));
-		texnums->shader = R_RegisterSkin(skins, loadmodel->name);
-		R_BuildDefaultTexnums(texnums, texnums->shader);
+		shaders[0] = R_RegisterSkin(skins, loadmodel->name);
+		TEXASSIGN(shaders[0]->defaulttextures.base, R_LoadReplacementTexture(skins, "models", IF_NOALPHA));
+		R_BuildDefaultTexnums(NULL, shaders[0]);
 
 		outskin->skinwidth = 0;
 		outskin->skinheight = 0;
@@ -3057,20 +3058,19 @@ static void Q2_LoadSkins(md2_t *pq2inmodel, char *skins)
 #endif
 	galias->numskins = LittleLong(pq2inmodel->num_skins);
 
+	/*
 #ifndef SERVERONLY
 	outskin = (galiasskin_t *)((char *)galias + galias->ofsskins);
 	outskin += galias->numskins - 1;
 	if (galias->numskins)
 	{
-		texnums = (texnums_t*)((char *)outskin +outskin->ofstexnums);
-		if (TEXVALID(texnums->base))
-			return;
-		if (texnums->shader)
+		if (*(shader_t**)((char *)outskin + outskin->ofstexnums))
 			return;
 
 		galias->numskins--;
 	}
 #endif
+	*/
 }
 
 #define MD2_MAX_TRIANGLES 4096
@@ -3831,7 +3831,7 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 {
 #ifndef SERVERONLY
 	galiasskin_t	*skin;
-	texnums_t	*texnum;
+	shader_t	**shaders;
 	float lat, lng;
 	md3St_t			*inst;
 	vec3_t *normals;
@@ -3992,14 +3992,14 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 			//extern int gl_bumpmappingpossible; // unused variable
 			char shadname[1024];
 
-			skin = Hunk_Alloc((LittleLong(surf->numShaders)+externalskins)*((sizeof(galiasskin_t)+sizeof(texnums_t))));
+			skin = Hunk_Alloc((LittleLong(surf->numShaders)+externalskins)*((sizeof(galiasskin_t)+sizeof(shader_t*))));
 			galias->ofsskins = (qbyte *)skin - (qbyte *)galias;
-			texnum = (texnums_t *)(skin + LittleLong(surf->numShaders)+externalskins);
+			shaders = (shader_t **)(skin + LittleLong(surf->numShaders)+externalskins);
 			inshader = (md3Shader_t *)((qbyte *)surf + LittleLong(surf->ofsShaders));
 			for (i = 0; i < externalskins; i++)
 			{
-				skin->texnums = 1;
-				skin->ofstexnums = (qbyte *)texnum - (qbyte *)skin;
+				skin->numshaders = 1;
+				skin->ofsshaders = (qbyte *)&shaders[i] - (qbyte *)skin;
 				skin->ofstexels = 0;
 				skin->skinwidth = 0;
 				skin->skinheight = 0;
@@ -4021,16 +4021,15 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 
 				if (qrenderer != QR_NONE)
 				{
-					texnum->shader = R_RegisterSkin(shadname, mod->name);
-					R_BuildDefaultTexnums(texnum, texnum->shader);
+					shaders[i] = R_RegisterSkin(shadname, mod->name);
+					R_BuildDefaultTexnums(NULL, shaders[i]);
 
-					if (texnum->shader->flags & SHADER_NOIMAGE)
-						Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", texnum->shader->name, loadmodel->name);
+					if (shaders[i]->flags & SHADER_NOIMAGE)
+						Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", shaders[i]->name, loadmodel->name);
 				}
 
 				inshader++;
 				skin++;
-				texnum++;
 			}
 			galias->numskins = i;
 		}
@@ -4181,7 +4180,7 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 {
 #ifndef SERVERONLY
 	galiasskin_t *skin;
-	texnums_t *texnum;
+	shader_t **shaders;
 	int skinfiles;
 	int j;
 #endif
@@ -4366,14 +4365,14 @@ qboolean Mod_LoadZymoticModel(model_t *mod, void *buffer)
 		root[i].ofs_st_array = (char*)stcoords - (char*)&root[i];
 		root[i].numskins = skinfiles;
 
-		skin = Hunk_Alloc((sizeof(galiasskin_t)+sizeof(texnums_t))*skinfiles);
-		texnum = (texnums_t*)(skin+skinfiles);
-		for (j = 0; j < skinfiles; j++, texnum++)
+		skin = Hunk_Alloc((sizeof(galiasskin_t)+sizeof(shader_t*))*skinfiles);
+		shaders = (shader_t**)(skin+skinfiles);
+		for (j = 0; j < skinfiles; j++, shaders++)
 		{
-			skin[j].texnums = 1;	//non-sequenced skins.
-			skin[j].ofstexnums = (char *)texnum - (char *)&skin[j];
+			skin[j].numshaders = 1;	//non-sequenced skins.
+			skin[j].ofsshaders = (char *)shaders - (char *)&skin[j];
 
-			Mod_LoadSkinFile(texnum, surfname, j, NULL, 0, 0, NULL);
+			Mod_LoadSkinFile(shaders, surfname, j, NULL, 0, 0, NULL);
 		}
 
 		root[i].ofsskins = (char *)skin - (char *)&root[i];
@@ -4566,7 +4565,7 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 #ifndef SERVERONLY
 	float *stcoord;
 	galiasskin_t *skin;
-	texnums_t *gtexnums;
+	shader_t **gshaders;
 #endif
 	galiasbone_t *bones;
 	galiasgroup_t *group;
@@ -5034,25 +5033,28 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 		group->isheirachical = false;
 	}
 
-	for (i = 0; i < num_matt; i++)
-	{
 #ifndef SERVERONLY
-		skin = Hunk_Alloc(sizeof(galiasskin_t) + sizeof(texnums_t));
-		gtexnums = (texnums_t*)(skin+1);
-		skin->ofstexnums = sizeof(*skin);
-		skin->texnums = 1;
+	skin = Hunk_Alloc(num_matt * (sizeof(galiasskin_t) + sizeof(shader_t*)));
+	gshaders = (shader_t**)(skin + num_matt);
+	for (i = 0; i < num_matt; i++, skin++)
+	{
+		skin->ofsshaders = (char*)&gshaders[i] - (char*)skin;
+		skin->numshaders = 1;
 		skin->skinspeed = 10;
 		Q_strncpyz(skin->name, matt[i].name, sizeof(skin->name));
-		gtexnums->shader = R_RegisterSkin(matt[i].name, mod->name);
-		R_BuildDefaultTexnums(gtexnums, gtexnums->shader);
-		if (gtexnums->shader->flags & SHADER_NOIMAGE)
-			Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", gtexnums->shader->name, loadmodel->name);
+		gshaders[i] = R_RegisterSkin(matt[i].name, mod->name);
+		R_BuildDefaultTexnums(NULL, gshaders[i]);
+		if (gshaders[i]->flags & SHADER_NOIMAGE)
+			Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", gshaders[i]->name, loadmodel->name);
 
 		gmdl[i].ofsskins = (char*)skin - (char*)&gmdl[i];
 		gmdl[i].numskins = 1;
 
 		gmdl[i].ofs_st_array = (char*)stcoord - (char*)&gmdl[i];
 		gmdl[i].numverts = num_vtxw;
+#else
+	for (i = 0; i < num_matt; i++, skin++, gshaders++)
+	{
 #endif
 
 		gmdl[i].groupofs = (char*)group - (char*)&gmdl[i];
@@ -5223,7 +5225,7 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 {
 #ifndef SERVERONLY
 	galiasskin_t *skin;
-	texnums_t *texnum;
+	shader_t **shaders;
 	int skinfiles;
 	float *inst;
 	float *outst;
@@ -5440,14 +5442,14 @@ qboolean Mod_LoadDarkPlacesModel(model_t *mod, void *buffer)
 #else
 		m->numskins = skinfiles;
 
-		skin = Hunk_Alloc((sizeof(galiasskin_t)+sizeof(texnums_t))*skinfiles);
-		texnum = (texnums_t*)(skin+skinfiles);
-		for (j = 0; j < skinfiles; j++, texnum++)
+		skin = Hunk_Alloc((sizeof(galiasskin_t)+sizeof(shader_t*))*skinfiles);
+		shaders = (shader_t**)(skin+skinfiles);
+		for (j = 0; j < skinfiles; j++, shaders++)
 		{
-			skin[j].texnums = 1;	//non-sequenced skins.
-			skin[j].ofstexnums = (char *)texnum - (char *)&skin[j];
+			skin[j].numshaders = 1;	//non-sequenced skins.
+			skin[j].ofsshaders = (char *)shaders - (char *)&skin[j];
 
-			Mod_LoadSkinFile(texnum, mesh->shadername, j, NULL, 0, 0, NULL);
+			Mod_LoadSkinFile(shaders, mesh->shadername, j, NULL, 0, 0, NULL);
 		}
 
 		m->ofsskins = (char *)skin - (char *)m;
@@ -5667,7 +5669,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 #endif
 	galiasgroup_t *fgroup;
 	galiasbone_t *bones;
-	texnums_t *texnum;
+	shader_t **shaders;
 	index_t *idx;
 	float basepose[12 * MAX_BONES];
 	qboolean baseposeonly;
@@ -5736,7 +5738,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	/*allocate a nice big block of memory and figure out where stuff is*/
 	gai = Hunk_Alloc(sizeof(*gai)*h->num_meshes +
 #ifndef SERVERONLY
-		sizeof(*skin)*h->num_meshes + sizeof(*texnum)*h->num_meshes + 
+		sizeof(*skin)*h->num_meshes + sizeof(*shaders)*h->num_meshes + 
 #endif
 		sizeof(*fgroup)*(baseposeonly?1:h->num_anims) + sizeof(float)*12*(baseposeonly?h->num_joints:(h->num_poses*h->num_frames)) + sizeof(*bones)*h->num_joints +
 		(sizeof(*opos) + sizeof(*onorm) + sizeof(*otcoords) + (noweights?0:(sizeof(*oindex)+sizeof(*oweight)))) * h->num_vertexes);
@@ -5759,7 +5761,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	opose = (float*)(fgroup + (baseposeonly?1:h->num_anims));
 #ifndef SERVERONLY
 	skin = (galiasskin_t*)(opose + 12*(baseposeonly?h->num_joints:h->num_poses*h->num_frames));
-	texnum = (texnums_t*)(skin + h->num_meshes);
+	shaders = (shader_t**)(skin + h->num_meshes);
 #endif
 
 //no code to load animations or bones
@@ -5900,12 +5902,12 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		skin[i].skinheight = 1;
 		skin[i].ofstexels = 0; /*doesn't support 8bit colourmapping*/
 		skin[i].skinspeed = 10; /*something to avoid div by 0*/
-		skin[i].texnums = 1;
-		skin[i].ofstexnums = (char*)&texnum[i] - (char*)&skin[i];
-		texnum[i].shader = R_RegisterSkin(skin[i].name, mod->name);
-		R_BuildDefaultTexnums(&texnum[i], texnum[i].shader);
-		if (texnum[i].shader->flags & SHADER_NOIMAGE)
-			Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", texnum[i].shader->name, loadmodel->name);
+		skin[i].numshaders = 1;
+		skin[i].ofsshaders = (char*)&shaders[i] - (char*)&skin[i];
+		shaders[i] = R_RegisterSkin(skin[i].name, mod->name);
+		R_BuildDefaultTexnums(NULL, shaders[i]);
+		if (shaders[i]->flags & SHADER_NOIMAGE)
+			Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", shaders[i]->name, loadmodel->name);
 		gai[i].ofs_st_array = (char*)(otcoords+offset) - (char*)&gai[i];
 #endif
 
@@ -6229,7 +6231,7 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 	float *posedata;
 #ifndef SERVERONLY
 	galiasskin_t *skin;
-	texnums_t *texnum;
+	shader_t **shaders;
 #endif
 	char *filestart = buffer;
 
@@ -6389,12 +6391,12 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 
 #ifndef SERVERONLY
 			skin = Hunk_Alloc(sizeof(*skin));
-			texnum = Hunk_Alloc(sizeof(*texnum));
+			shaders = Hunk_Alloc(sizeof(*shaders));
 			inf->numskins = 1;
 			inf->ofsskins = (char*)skin - (char*)inf;
-			skin->texnums = 1;
+			skin->numshaders = 1;
 			skin->skinspeed = 1;
-			skin->ofstexnums = (char*)texnum - (char*)skin;
+			skin->ofsshaders = (char*)shaders - (char*)skin;
 #endif
 			EXPECT("{");
 			for(;;)
@@ -6407,10 +6409,11 @@ galiasinfo_t *Mod_ParseMD5MeshModel(char *buffer, char *modname)
 				{
 					buffer = COM_Parse(buffer);
 #ifndef SERVERONLY
-					texnum->shader = R_RegisterSkin(com_token, modname);
-					R_BuildDefaultTexnums(texnum, texnum->shader);
-					if (texnum->shader->flags & SHADER_NOIMAGE)
-						Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", texnum->shader->name, loadmodel->name);
+					//FIXME: we probably want to support multiple skins some time
+					shaders[0] = R_RegisterSkin(com_token, modname);
+					R_BuildDefaultTexnums(NULL, shaders[0]);
+					if (shaders[0]->flags & SHADER_NOIMAGE)
+						Con_Printf("Unable to load texture for shader \"%s\" for model \"%s\"\n", shaders[0]->name, loadmodel->name);
 #endif
 				}
 				else if (!strcmp(com_token, "numverts"))

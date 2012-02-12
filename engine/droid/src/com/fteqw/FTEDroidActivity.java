@@ -28,14 +28,17 @@ public class FTEDroidActivity extends Activity
 	private SensorManager sensorman;
 	private Sensor sensoracc;
 	private FTEView view;
+	float acc_x, acc_y, acc_z; /*might be some minor race condition on these*/
 
 	private class FTERenderer implements GLSurfaceView.Renderer 
 	{
 		private boolean inited;
 		private String basedir;
+		FTEDroidActivity act;
 		
-		FTERenderer(Context ctx)
+		FTERenderer(Context ctx, FTEDroidActivity parent)
 		{
+			act = parent;
 			try
 			{
 			   android.content.pm.PackageInfo info = ctx.getPackageManager().getPackageInfo("com.fteqw", 0);
@@ -45,6 +48,8 @@ public class FTEDroidActivity extends Activity
 			{
 				/*oh well, can just use the homedir instead*/
 			}
+			
+			android.util.Log.i("FTEDroid", "Base dir is \"" + basedir + "\".");
 		}
 		
 		@Override
@@ -52,12 +57,13 @@ public class FTEDroidActivity extends Activity
 		{
 			if (inited == true)
 			{
-				FTEDroidEngine.frame();
+				FTEDroidEngine.frame(act.acc_x, act.acc_y, act.acc_z);
 			}
 		}
 		@Override
 		public void onSurfaceChanged(GL10 gl, int width, int height)
 		{
+			android.util.Log.i("FTEDroid", "Surface changed, now " + width + " by " + height + ".");
 			FTEDroidEngine.init(width, height, basedir);
 			inited = true;
 		}
@@ -146,17 +152,19 @@ public class FTEDroidActivity extends Activity
 				at.play();
 		}
 
-		public FTEView(Context context)
+		public FTEView(FTEDroidActivity context)
 		{
 			super(context);
 
-			rndr = new FTERenderer(getContext());
+			rndr = new FTERenderer(context, context);
 //			setEGLConfigChooser(new FTEEGLConfig());
 			setRenderer(rndr);
 			setFocusable(true);
 			setFocusableInTouchMode(true);
 
+			android.util.Log.i("FTEDroid", "starting audio");
 			audioInit();
+			android.util.Log.i("FTEDroid", "audio running");
 		}
 		
 		private void sendKey(final boolean presseddown, final int qcode, final int unicode)
@@ -169,42 +177,81 @@ public class FTEDroidActivity extends Activity
 				}
 			});
 		}
-		private void sendAccelerometer(final float x, final float y, final float z)
-		{
-			queueEvent(new Runnable()
-			{
-				public void run()
-				{
-					FTEDroidEngine.accelerometer(x, y, z);
-				}
-			});
-		}
 		@Override
-		public boolean onTouchEvent(MotionEvent event)
+		public boolean onTouchEvent(final MotionEvent event)
 		{
-			final int act = event.getAction();
-			final float x = event.getX();
-			final float y = event.getY();
-			//float p = event.getPressure();
-			
-			queueEvent(new Runnable()
+			/*the test itself requires android 4...*/
+			if (android.os.Build.VERSION.SDK_INT >= 5)
 			{
-				public void run()
+				/*Requires API level 5+ (android 2.0+)*/
+				queueEvent(new Runnable()
 				{
-					switch(act)
+					private void domove()
 					{
-					case MotionEvent.ACTION_DOWN:
-						FTEDroidEngine.motion(1, x, y);
-						break;
-					case MotionEvent.ACTION_UP:
-						FTEDroidEngine.motion(2, x, y);
-						break;
-					case MotionEvent.ACTION_MOVE:
-						FTEDroidEngine.motion(0, x, y);
-						break;
+						final int pointerCount = event.getPointerCount();
+						int i;
+						for (i = 0; i < pointerCount; i++)
+							FTEDroidEngine.motion(0, event.getPointerId(i), event.getX(i), event.getY(i));
 					}
-				}
-			});
+					
+					public void run()
+					{
+						int id;
+						float x, y;
+						final int act = event.getAction();
+						
+						domove();
+						
+						switch(act & event.ACTION_MASK)
+						{
+						case MotionEvent.ACTION_DOWN:
+						case MotionEvent.ACTION_POINTER_DOWN:
+							id = ((act&event.ACTION_POINTER_ID_MASK) >> event.ACTION_POINTER_ID_SHIFT);
+							x = event.getX(id);
+							y = event.getY(id);
+							id = event.getPointerId(id);
+							FTEDroidEngine.motion(1, id, x, y);
+							break;
+						case MotionEvent.ACTION_UP:
+						case MotionEvent.ACTION_POINTER_UP:
+							id = ((act&event.ACTION_POINTER_ID_MASK) >> event.ACTION_POINTER_ID_SHIFT);
+							x = event.getX(id);
+							y = event.getY(id);
+							id = event.getPointerId(id);
+							FTEDroidEngine.motion(2, id, x, y);
+							break;
+						case MotionEvent.ACTION_MOVE:
+							break;
+						}
+					}
+				});
+			}
+			else
+			{
+				queueEvent(new Runnable()
+				{
+					public void run()
+					{
+						final int act = event.getAction();
+						final float x = event.getX();
+						final float y = event.getY();
+
+						FTEDroidEngine.motion(0, 0, x, y);
+
+						switch(act)
+						{
+						case MotionEvent.ACTION_DOWN:
+							FTEDroidEngine.motion(1, 0, x, y);
+							break;
+						case MotionEvent.ACTION_UP:
+							FTEDroidEngine.motion(2, 0, x, y);
+							break;
+						case MotionEvent.ACTION_MOVE:
+							break;
+						}
+					}
+				});
+			}
 			return true;
 		}
 		/*
@@ -237,6 +284,8 @@ public class FTEDroidActivity extends Activity
 				return '\r';
 			case KeyEvent.KEYCODE_BACK:
 				return 27;
+			case KeyEvent.KEYCODE_MENU:
+				return 241;
 			case KeyEvent.KEYCODE_DEL:
 				return 127;
 			default:
@@ -266,47 +315,44 @@ public class FTEDroidActivity extends Activity
 		{
 		}
 
-		private float gx,gy,gz;
 		public void onSensorChanged(final SensorEvent event)
 		{
-			// alpha is calculated as t / (t + dT)
-			// with t, the low-pass filter's time-constant
-			// and dT, the event delivery rate
-
-			final float alpha = 0.8f;
-
-			gx = alpha * gx + (1 - alpha) * event.values[0];
-			gy = alpha * gy + (1 - alpha) * event.values[1];
-			gz = alpha * gz + (1 - alpha) * event.values[2];
-
-			sendAccelerometer(event.values[0] - gx, event.values[1] - gy, event.values[2] - gz);
-
+			acc_x = event.values[0];
+			acc_y = event.values[1];
+			acc_z = event.values[2];
 		}
 	}
 	
 	@Override
 	public void onCreate(Bundle savedInstanceState)
 	{
-		//go full-screen
+		android.util.Log.i("FTEDroid", "onCreate");
+		//go full-screen		
 		getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);    	
 		requestWindowFeature(Window.FEATURE_NO_TITLE);
 		
 		super.onCreate(savedInstanceState);
-
+		
+		android.util.Log.i("FTEDroid", "create view");
 		view = new FTEView(this);
 		setContentView(view);
 	//	setContentView(R.layout.main);
 				
 
+		android.util.Log.i("FTEDroid", "init sensor manager");
 		sensorman = (SensorManager)getSystemService(SENSOR_SERVICE);
-		sensoracc = sensorman.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+		android.util.Log.i("FTEDroid", "init accelerometer");
+		if (sensorman != null)
+			sensoracc = sensorman.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+		android.util.Log.i("FTEDroid", "done");
 	}
 
 	@Override
 	protected void onResume()
 	{
 		super.onResume();
-		sensorman.registerListener((SensorEventListener)view, sensoracc, SensorManager.SENSOR_DELAY_GAME);
+		if (sensorman != null && sensoracc != null)
+			sensorman.registerListener((SensorEventListener)view, sensoracc, SensorManager.SENSOR_DELAY_GAME);
 
 		view.resume();
 	}
@@ -314,14 +360,16 @@ public class FTEDroidActivity extends Activity
 	@Override
 	protected void onStop()
 	{
-		sensorman.unregisterListener(view);
+		if (sensorman != null && sensoracc != null)
+			sensorman.unregisterListener(view);
 		super.onStop();
 	}
 
 	@Override
 	protected void onPause()
 	{
-		sensorman.unregisterListener(view);
+		if (sensorman != null && sensoracc != null)
+			sensorman.unregisterListener(view);
 		super.onPause();
 	}
 }

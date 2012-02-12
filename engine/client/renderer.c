@@ -305,6 +305,7 @@ cvar_t r_noaliasshadows						= SCVARF ("r_noaliasshadows", "0",
 												CVAR_ARCHIVE);
 cvar_t r_shadows						= SCVARF ("r_shadows", "0",
 												CVAR_ARCHIVE);
+cvar_t r_showbboxes							= CVARD("r_showbboxes", "0", "Debugging. Shows bounding boxes. 1=ssqc, 2=csqc. Red=solid, Green=stepping/toss/bounce, Blue=onground.");
 cvar_t r_lightprepass						= CVARFD("r_lightprepass", "0", CVAR_SHADERSYSTEM, "Experimental. Attempt to use a different lighting mechanism.");
 
 cvar_t r_shadow_bumpscale_basetexture		= SCVAR  ("r_shadow_bumpscale_basetexture", "4");
@@ -624,6 +625,7 @@ void Renderer_Init(void)
 
 	Cvar_Register (&r_replacemodels, GRAPHICALNICETIES);
 
+	Cvar_Register (&r_showbboxes, GLRENDEREROPTIONS);
 	Cvar_Register (&r_polygonoffset_submodel_factor, GLRENDEREROPTIONS);
 	Cvar_Register (&r_polygonoffset_submodel_offset, GLRENDEREROPTIONS);
 

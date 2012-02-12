@@ -1376,19 +1376,142 @@ typedef struct IPropertyStore
 				IPropertyStore * This);
 	} *lpVtbl;
 } IPropertyStore;
+
 #endif
 #endif
 static const IID IID_IPropertyStore = {0x886d8eeb, 0x8cf2, 0x4446, {0x8d, 0x02, 0xcd, 0xba, 0x1d, 0xbd, 0xcf, 0x99}};
+
+#ifndef MINGW
+#if !defined(VER_PRODUCTBUILD) || VER_PRODUCTBUILD < 7600
+#define IObjectArray IUnknown 
 #endif
+#endif
+static const IID IID_IObjectArray = {0x92ca9dcd, 0x5622, 0x4bba, {0xa8,0x05,0x5e,0x9f,0x54,0x1b,0xd8,0xc9}};
+
+#ifndef MINGW
+#if !defined(VER_PRODUCTBUILD) || VER_PRODUCTBUILD < 7600
+typedef struct IObjectCollection
+{
+    struct IObjectCollectionVtbl
+	{
+		HRESULT ( __stdcall *QueryInterface )(
+			/* [in] IShellLink*/ void *This,
+			/* [in] */ const GUID * const riid,
+			/* [out] */ void **ppvObject);
+
+		ULONG ( __stdcall *AddRef )(
+			/* [in] IShellLink*/ void *This);
+
+		ULONG ( __stdcall *Release )(
+			/* [in] IShellLink*/ void *This);
+
+		HRESULT ( __stdcall *GetCount )(
+			/* [in] IShellLink*/ void *This,
+			/* [out] */ UINT *pcObjects);
+
+		HRESULT ( __stdcall *GetAt )(
+			/* [in] IShellLink*/ void *This,
+			/* [in] */ UINT uiIndex,
+			/* [in] */ const GUID * const riid,
+			/* [iid_is][out] */ void **ppv);
+
+		HRESULT ( __stdcall *AddObject )(
+			/* [in] IShellLink*/ void *This,
+			/* [in] */ void *punk);
+
+		HRESULT ( __stdcall *AddFromArray )(
+			/* [in] IShellLink*/ void *This,
+			/* [in] */ IObjectArray *poaSource);
+
+		HRESULT ( __stdcall *RemoveObjectAt )(
+			/* [in] IShellLink*/ void *This,
+			/* [in] */ UINT uiIndex);
+
+		HRESULT ( __stdcall *Clear )(
+			/* [in] IShellLink*/ void *This);
+	} *lpVtbl;
+} IObjectCollection;
+#endif
+#endif
+static const IID IID_IObjectCollection = {0x5632b1a4, 0xe38a, 0x400a, {0x92,0x8a,0xd4,0xcd,0x63,0x23,0x02,0x95}};
+static const CLSID CLSID_EnumerableObjectCollection = {0x2d3468c1, 0x36a7, 0x43b6, {0xac,0x24,0xd3,0xf0,0x2f,0xd9,0x60,0x7a}};
+
+
+#ifndef MINGW
+#if !defined(VER_PRODUCTBUILD) || VER_PRODUCTBUILD < 7600
+typedef struct ICustomDestinationList
+{
+	struct ICustomDestinationListVtbl
+	{
+		HRESULT ( __stdcall *QueryInterface ) (
+			/* [in] ICustomDestinationList*/ void *This,
+			/* [in] */  const GUID * const riid,
+			/* [out] */ void **ppvObject);
+
+		ULONG ( __stdcall *AddRef )(
+			/* [in] ICustomDestinationList*/ void *This);
+
+		ULONG ( __stdcall *Release )(
+			/* [in] ICustomDestinationList*/ void *This);
+
+		HRESULT ( __stdcall *SetAppID )(
+			/* [in] ICustomDestinationList*/ void *This,
+			/* [string][in] */ LPCWSTR pszAppID);
+
+		HRESULT ( __stdcall *BeginList )(
+			/* [in] ICustomDestinationList*/ void *This,
+			/* [out] */ UINT *pcMinSlots,
+			/* [in] */  const GUID * const riid,
+			/* [out] */ void **ppv);
+
+		HRESULT ( __stdcall *AppendCategory )(
+			/* [in] ICustomDestinationList*/ void *This,
+			/* [string][in] */ LPCWSTR pszCategory,
+			/* [in] IObjectArray*/ void *poa);
+
+		HRESULT ( __stdcall *AppendKnownCategory )(
+			/* [in] ICustomDestinationList*/ void *This,
+			/* [in] KNOWNDESTCATEGORY*/ int category);
+
+		HRESULT ( __stdcall *AddUserTasks )(
+			/* [in] ICustomDestinationList*/ void *This,
+			/* [in] IObjectArray*/ void *poa);
+
+		HRESULT ( __stdcall *CommitList )(
+			/* [in] ICustomDestinationList*/ void *This);
+
+		HRESULT ( __stdcall *GetRemovedDestinations )(
+			/* [in] ICustomDestinationList*/ void *This,
+			/* [in] */ const IID * const riid,
+			/* [out] */ void **ppv);
+
+		HRESULT ( __stdcall *DeleteList )(
+			/* [in] ICustomDestinationList*/ void *This,
+			/* [string][unique][in] */ LPCWSTR pszAppID);
+
+		HRESULT ( __stdcall *AbortList )(
+			/* [in] ICustomDestinationList*/ void *This);
+
+	} *lpVtbl;
+} ICustomDestinationList;
+#endif
+#endif
+static const IID IID_ICustomDestinationList = {0x6332debf, 0x87b5, 0x4670, {0x90,0xc0,0x5e,0x57,0xb4,0x08,0xa4,0x9e}};
+static const CLSID CLSID_DestinationList = {0x77f10cf0, 0x3db5, 0x4966, {0xb5,0x20,0xb7,0xc5,0x4f,0xd3,0x5e,0xd6}};
+
+
+
+#endif
+
 
 #if _MSC_VER > 1200
 #define WIN7_APPNAME L"FTEQuake"
-void Sys_RecentServer(char *command, char *target, char *title, char *desc)
+
+static IShellLinkW *CreateShellLink(char *command, char *target, char *title, char *desc)
 {
 	HRESULT hr;
 	IShellLinkW *link;
 	IPropertyStore *prop_store;
-	SHARDAPPIDINFOLINK appinfo;
 
 	WCHAR buf[1024];
 	char tmp[1024], *s;
@@ -1396,9 +1519,12 @@ void Sys_RecentServer(char *command, char *target, char *title, char *desc)
 	// Get a pointer to the IShellLink interface.
 	hr = CoCreateInstance(&CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER, &IID_IShellLinkW, &link);
 	if (FAILED(hr))
-		return;
-	swprintf(buf, sizeof(buf), L"%S", exename);
+		return NULL;
+
+	GetModuleFileNameW(NULL, buf, sizeof(buf)/sizeof(wchar_t)-1);
+	IShellLinkW_SetIconLocation(link, buf, 0);  /*grab the first icon from our exe*/
 	IShellLinkW_SetPath(link, buf); /*program to run*/
+
 	Q_strncpyz(tmp, com_quakedir, sizeof(tmp));
 	/*normalize the gamedir, so we don't end up with the same thing multiple times*/
 	for(s = tmp; *s; s++)
@@ -1412,6 +1538,7 @@ void Sys_RecentServer(char *command, char *target, char *title, char *desc)
 	IShellLinkW_SetArguments(link, buf); /*args*/
 	swprintf(buf, sizeof(buf), L"%S", desc);
 	IShellLinkW_SetDescription(link, buf);  /*tooltip*/
+
 
 	hr = IShellLinkW_QueryInterface(link, &IID_IPropertyStore, &prop_store);
 
@@ -1430,6 +1557,18 @@ void Sys_RecentServer(char *command, char *target, char *title, char *desc)
 	}
 	#endif
 
+	return link;
+}
+
+void Sys_RecentServer(char *command, char *target, char *title, char *desc)
+{
+	SHARDAPPIDINFOLINK appinfo;
+	IShellLinkW *link;
+
+	link = CreateShellLink(command, target, title, desc);
+	if (!link)
+		return;
+
 	appinfo.pszAppID=WIN7_APPNAME;
 	appinfo.psl=link;
 	SHAddToRecentDocs(SHARD_APPIDINFOLINK, &appinfo);
@@ -1447,6 +1586,81 @@ void Win7_Init(void)
 		pSetCurrentProcessExplicitAppUserModelID = (void*)GetProcAddress(h, "SetCurrentProcessExplicitAppUserModelID");
 		if (pSetCurrentProcessExplicitAppUserModelID)
 			pSetCurrentProcessExplicitAppUserModelID(WIN7_APPNAME);
+	}
+}
+
+void Win7_TaskListInit(void)
+{
+	ICustomDestinationList *cdl;
+	IObjectCollection *col;
+	IObjectArray *arr;
+	IShellLinkW *link;
+	CoInitialize(NULL);
+	if (SUCCEEDED(CoCreateInstance(&CLSID_DestinationList, NULL, CLSCTX_INPROC_SERVER, &IID_ICustomDestinationList, &cdl)))
+	{
+		UINT minslots;
+		IUnknown *removed;
+		cdl->lpVtbl->BeginList(cdl, &minslots, &IID_IObjectArray, &removed);
+
+		if (SUCCEEDED(CoCreateInstance(&CLSID_EnumerableObjectCollection, NULL, CLSCTX_INPROC_SERVER, &IID_IObjectCollection, &col)))
+		{
+
+			switch(M_GameType())
+			{
+			case MGT_QUAKE1:
+				link = CreateShellLink("+menu_servers", "", "Server List", "Pick a multiplayer server to join");
+				if (link)
+				{
+					col->lpVtbl->AddObject(col, link);
+					link->lpVtbl->Release(link);
+				}
+				link = CreateShellLink("+map start", "", "Start New Game (Quake)", "Begin a new single-player game");
+				if (link)
+				{
+					col->lpVtbl->AddObject(col, link);
+					link->lpVtbl->Release(link);
+				}
+				break;
+			case MGT_QUAKE2:
+				link = CreateShellLink("+menu_servers", "", "Quake2 Server List", "Pick a multiplayer server to join");
+				if (link)
+				{
+					col->lpVtbl->AddObject(col, link);
+					link->lpVtbl->Release(link);
+				}
+				link = CreateShellLink("+map unit1", "", "Start New Game (Quake2)", "Begin a new game");
+				if (link)
+				{
+					col->lpVtbl->AddObject(col, link);
+					link->lpVtbl->Release(link);
+				}
+				break;
+			case MGT_HEXEN2:
+				link = CreateShellLink("+menu_servers", "", "Hexen2 Server List", "Pick a multiplayer server to join");
+				if (link)
+				{
+					col->lpVtbl->AddObject(col, link);
+					link->lpVtbl->Release(link);
+				}
+				link = CreateShellLink("+map demo1", "", "Start New Game (Hexen2)", "Begin a new game");
+				if (link)
+				{
+					col->lpVtbl->AddObject(col, link);
+					link->lpVtbl->Release(link);
+				}
+				break;
+			}
+
+			if (SUCCEEDED(col->lpVtbl->QueryInterface(col, &IID_IObjectArray, &arr)))
+			{
+				cdl->lpVtbl->AddUserTasks(cdl, arr);
+				arr->lpVtbl->Release(arr);
+			}
+			col->lpVtbl->Release(col);
+		}
+		cdl->lpVtbl->AppendKnownCategory(cdl, 1);
+		cdl->lpVtbl->CommitList(cdl);
+		cdl->lpVtbl->Release(cdl);
 	}
 }
 #endif
@@ -1678,21 +1892,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 		#ifndef MINGW
 		#if _MSC_VER > 1200
-		switch(M_GameType())
-		{
-		case MGT_QUAKE1:
-			Sys_RecentServer("+menu_servers", "", "Server List", "Pick a server to play on");
-			Sys_RecentServer("+map start", "", "Start New Game (Quake)", "Begin a new game");
-			break;
-		case MGT_QUAKE2:
-			Sys_RecentServer("+menu_servers", "", "Server List", "Pick a server to play on");
-			Sys_RecentServer("+map unit1", "", "Start New Game (Quake2)", "Begin a new game");
-			break;
-		case MGT_HEXEN2:
-			Sys_RecentServer("+menu_servers", "", "Server List", "Pick a server to play on");
-			Sys_RecentServer("+map demo1", "", "Start New Game (Hexen2)", "Begin a new game");
-			break;
-		}
+		Win7_TaskListInit();
 		#endif
 		#endif
 

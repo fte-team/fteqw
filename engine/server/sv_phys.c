@@ -24,11 +24,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "pr_common.h"
 
-#ifdef warningmsg
-#pragma warningmsg("fixme, fix this up before adding to csqc")
-#endif
-extern globalptrs_t realpr_global_ptrs;
-
 /*
 
 
@@ -444,16 +439,11 @@ SV_AddGravity
 
 ============
 */
-static void WPhys_AddGravity (wedict_t *ent, float scale)
+static void WPhys_AddGravity (world_t *w, wedict_t *ent, float scale)
 {
-	if (!scale
-#ifndef CLIENTONLY
-#pragma warningmsg("This doesn't do csqc properly")
- && progstype != PROG_QW
-#endif
-)
-		scale = 1;
-	ent->v->velocity[2] -= scale * sv_gravity.value/*movevars.gravity*/ * host_frametime;
+	if (!scale)
+		scale = w->defaultgravityscale;
+	ent->v->velocity[2] -= scale * movevars.gravity * host_frametime;
 }
 
 /*
@@ -537,7 +527,7 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 	int			i, e;
 	wedict_t	*check, *block;
 	vec3_t		mins, maxs;
-	float oldsolid;
+	//float oldsolid;
 	pushed_t	*p;
 	vec3_t		org, org2, move2, forward, right, up;
 
@@ -577,14 +567,14 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 		|| check->v->movetype == MOVETYPE_NOCLIP
 		|| check->v->movetype == MOVETYPE_ANGLENOCLIP)
 			continue;
-
+/*
 		oldsolid = pusher->v->solid;
 		pusher->v->solid = SOLID_NOT;
 		block = World_TestEntityPosition (w, check);
 		pusher->v->solid = oldsolid;
 		if (block)
 			continue;
-
+*/
 	// if the entity is standing on the pusher, it will definitely be moved
 		if ( ! ( ((int)check->v->flags & FL_ONGROUND)
 			&& PROG_TO_WEDICT(w->progs, check->v->groundentity) == pusher) )
@@ -1103,15 +1093,16 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 		&& ent->v->movetype != MOVETYPE_FLYMISSILE
 		&& ent->v->movetype != MOVETYPE_BOUNCEMISSILE
 		&& ent->v->movetype != MOVETYPE_H2SWIM)
-		WPhys_AddGravity (ent, 1.0);
+		WPhys_AddGravity (w, ent, 1.0);
 
 // move angles
 	VectorMA (ent->v->angles, host_frametime, ent->v->avelocity, ent->v->angles);
 
 // move origin
 	VectorScale (ent->v->velocity, host_frametime, move);
+	if (!DotProduct(move, move))
+		return;
 	VectorCopy(ent->v->origin, temporg);
-	VectorCopy(temporg, ent->v->origin);
 
 	fl = 0;
 #ifndef CLIENTONLY
@@ -1123,7 +1114,14 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 	trace = WPhys_PushEntity (w, ent, move, fl);
 
 	if (trace.allsolid)
+	{
 		trace.fraction = 0;
+
+#pragma warningmsg("These three lines might help boost framerates a lot in rmq, not sure if they violate expected behaviour in other mods though - check that they're safe.")
+		trace.plane.normal[0] = 0;
+		trace.plane.normal[1] = 0;
+		trace.plane.normal[2] = 1;
+	}
 	if (trace.fraction == 1)
 		return;
 	if (ent->isfree)
@@ -1206,7 +1204,7 @@ static void WPhys_Physics_Step (world_t *w, wedict_t *ent)
 	{
 		hitsound = ent->v->velocity[2] < movevars.gravity*-0.1;
 
-		WPhys_AddGravity (ent, 1.0);
+		WPhys_AddGravity (w, ent, 1.0);
 		WPhys_CheckVelocity (w, ent);
 		WPhys_FlyMove (w, ent, host_frametime, NULL);
 		World_LinkEdict (w, ent, true);
@@ -1897,7 +1895,7 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 		if (!WPhys_RunThink (w, ent))
 			return;
 		if (!WPhys_CheckWater (w, ent) && ! ((int)ent->v->flags & FL_WATERJUMP) )
-			WPhys_AddGravity (ent, ent->xv->gravity);
+			WPhys_AddGravity (w, ent, ent->xv->gravity);
 		WPhys_CheckStuck (w, ent);
 
 		WPhys_WalkMove (w, ent);
@@ -2093,6 +2091,8 @@ qboolean SV_Physics (void)
 	qboolean moved = false;
 	int maxtics;
 
+	//keep gravity tracking the cvar properly
+	movevars.gravity = sv_gravity.value;
 
 	if (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM && svs.gametype != GT_HALFLIFE)	//make tics multiples of sv_maxtic (defaults to 0.1)
 	{
@@ -2265,7 +2265,6 @@ qboolean SV_Physics (void)
 
 void SV_SetMoveVars(void)
 {
-	movevars.gravity			= sv_gravity.value;
 	movevars.stopspeed		    = sv_stopspeed.value;
 	movevars.maxspeed			= sv_maxspeed.value;
 	movevars.spectatormaxspeed  = sv_spectatormaxspeed.value;

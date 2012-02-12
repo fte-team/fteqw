@@ -76,7 +76,7 @@ typedef struct laggedpacket_s
 	double time;
 	struct laggedpacket_s *next;
 	int length;
-	unsigned char data[MAX_QWMSGLEN];
+	unsigned char data[MAX_QWMSGLEN+10];
 } laggedpacket_t;
 
 typedef struct
@@ -284,14 +284,16 @@ typedef struct
 	// received from client
 
 	// reply
-	double				senttime;
-	float				ping_time;
-	int				move_msecs;
-	int					packetsizein;
-	int					packetsizeout;
-	vec3_t				playerpositions[MAX_CLIENTS];
-	qboolean			playerpresent[MAX_CLIENTS];
-	packet_entities_t	entities;	//must come last (mvd states are bigger)
+	double				senttime;		//time we sent this frame to the client, for ping calcs
+	int					sequence;		//the outgoing sequence - without mask, meaning we know if its current or stale
+	float				ping_time;		//how long it took for the client to ack it, may be negativ
+	int					move_msecs;		//
+	int					packetsizein;	//amount of data received for this frame
+	int					packetsizeout;	//amount of data that was sent in the frame
+	vec3_t				playerpositions[MAX_CLIENTS];	//where each player was in this frame, for antilag
+	qboolean			playerpresent[MAX_CLIENTS];		//whether the player was actually present
+	packet_entities_t	entities;		//package containing entity states that were sent in this frame, for deltaing
+	unsigned int		*resendentbits;	//the bits of each entity that were sent in this frame
 } client_frame_t;
 
 #ifdef Q2SERVER
@@ -351,6 +353,7 @@ typedef struct client_s
 	usercmd_t		lastcmd;			// for filling in big drops and partial predictions
 	double			localtime;			// of last message
 	qboolean jump_held;
+	qboolean lockangles;	//mod is spamming angle changes, don't do relative changes
 
 	float			maxspeed;			// localized maxspeed
 	float			entgravity;			// localized ent gravity
@@ -417,6 +420,8 @@ typedef struct client_s
 		q3client_frame_t	*q3frames;
 #endif
 	} frameunion;
+	packet_entities_t sentents;
+	unsigned int	*pendingentbits;
 
 	char			downloadfn[MAX_QPATH];
 	vfsfile_t		*download;			// file being downloaded
@@ -469,7 +474,7 @@ typedef struct client_s
 	netchan_t		netchan;
 	qboolean		isindependant;
 
-	int				lastsequence_acknoledged;
+	int				lastsequence_acknowledged;
 
 #ifdef VOICECHAT
 	unsigned int voice_read;	/*place in ring*/
@@ -507,7 +512,7 @@ typedef struct client_s
 	unsigned long	fteprotocolextensions2;
 #endif
 	unsigned long	zquake_extensions;
-	unsigned int    max_net_ents;
+	unsigned int    max_net_ents; /*highest entity number the client can receive (limited by either protocol or client's buffer size)*/
 	unsigned int	maxmodels; /*max models supported by whatever the protocol is*/
 
 	enum {
@@ -760,10 +765,6 @@ typedef struct
 	progsnum_t progsnum[MAX_PROGS];
 	int numprogs;
 
-#ifdef PROTOCOLEXTENSIONS
-	unsigned long fteprotocolextensions;
-	unsigned long fteprotocolextensions2;
-#endif
 	struct netprim_s netprim;
 
 	qboolean demoplayback;
@@ -772,6 +773,7 @@ typedef struct
 
 	int language;	//the server operators language
 	laggedpacket_t *free_lagged_packet;
+	packet_entities_t entstatebuffer; /*just a temp buffer*/
 
 	levelcache_t *levcache;
 } server_static_t;
@@ -917,7 +919,7 @@ void SVNQ_FullClientUpdate (client_t *client, sizebuf_t *buf);
 int SV_ModelIndex (char *name);
 
 void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg);
-void SV_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qboolean force, unsigned int protext);
+void SVQW_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qboolean force, unsigned int protext);
 
 void SV_SaveSpawnparms (qboolean);
 void SV_SaveLevelCache(char *savename, qboolean dontharmgame);
@@ -955,8 +957,8 @@ qboolean SVQ2_InitGameProgs(void);
 void VARGS SVQ2_ShutdownGameProgs (void);
 
 //svq2_ents.c
-void SV_BuildClientFrame (client_t *client);
-void SV_WriteFrameToClient (client_t *client, sizebuf_t *msg);
+void SVQ2_BuildClientFrame (client_t *client);
+void SVQ2_WriteFrameToClient (client_t *client, sizebuf_t *msg);
 #ifdef Q2SERVER
 void MSGQ2_WriteDeltaEntity (q2entity_state_t *from, q2entity_state_t *to, sizebuf_t *msg, qboolean force, qboolean newentity);
 void SVQ2_BuildBaselines(void);
@@ -967,7 +969,7 @@ void SVQ2_BuildBaselines(void);
 void SVQ3_ShutdownGame(void);
 qboolean SVQ3_InitGame(void);
 qboolean SVQ3_ConsoleCommand(void);
-void SVQ3_HandleClient(void);
+qboolean SVQ3_HandleClient(void);
 void SVQ3_DirectConnect(void);
 void SVQ3_DropClient(client_t *cl);
 int SVQ3_AddBot(void);

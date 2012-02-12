@@ -384,7 +384,7 @@ void CLQ2_BlasterTrail2(vec3_t oldorg, vec3_t neworg);
 
 void WritePCXfile (const char *filename, qbyte *data, int width, int height, int rowbytes, qbyte *palette, qboolean upload); //data is 8bit.
 qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height);
-qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, int asgrey);
+qbyte *ReadTargaFile(qbyte *buf, int length, int *width, int *height, qboolean *hasalpha, int asgrey);
 qbyte *ReadJPEGFile(qbyte *infile, int length, int *width, int *height);
 qbyte *ReadPNGFile(qbyte *buf, int length, int *width, int *height, const char *name);
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);

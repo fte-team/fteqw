@@ -1734,6 +1734,7 @@ void Surf_SetupFrame(void)
 	R_AnimateLight();
 	r_framecount++;
 
+	r_viewcontents = 0;
 	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
 	{
 	}
@@ -1778,6 +1779,8 @@ void Surf_SetupFrame(void)
 				(leaf->cluster != r_viewcluster2) )
 				r_viewcluster2 = leaf->cluster;
 		}
+
+		r_viewcontents = leaf->contents;
 	}
 #endif
 	else if (cl.worldmodel && cl.worldmodel->fromgame == fg_doom3)
@@ -1822,8 +1825,38 @@ void Surf_SetupFrame(void)
 			r_viewleaf2 = NULL;
 
 		if (r_viewleaf)
-			V_SetContentsColor (r_viewleaf->contents);
+		{
+			switch(r_viewleaf->contents)
+			{
+			case Q1CONTENTS_WATER:
+				r_viewcontents |= FTECONTENTS_WATER;
+				break;
+			case Q1CONTENTS_LAVA:
+				r_viewcontents |= FTECONTENTS_LAVA;
+				break;
+			case Q1CONTENTS_SLIME:
+				r_viewcontents |= FTECONTENTS_SLIME;
+				break;
+			case Q1CONTENTS_SKY:
+				r_viewcontents |= FTECONTENTS_SKY;
+				break;
+			}
+		}
 	}
+
+	/*pick up any extra water entities*/
+	{
+		extern vec3_t player_maxs, player_mins;
+		vec3_t t1,t2;
+		VectorCopy(player_mins, t1);
+		VectorCopy(player_maxs, t2);
+		VectorClear(player_maxs);
+		VectorClear(player_mins);
+		r_viewcontents |= PM_ExtraBoxContents(r_origin);
+		VectorCopy(t1, player_mins);
+		VectorCopy(t2, player_maxs);
+	}
+	V_SetContentsColor (r_viewcontents);
 }
 
 
@@ -2019,11 +2052,6 @@ void Surf_DrawWorld (void)
 	currentmodel = cl.worldmodel;
 	currententity = &r_worldentity;
 
-#ifdef MAP_DOOM
-	if (currentmodel->fromgame == fg_doom)
-		GLR_DoomWorld();
-	else
-#endif
 	{
 		RSpeedRemark();
 
@@ -2067,6 +2095,12 @@ void Surf_DrawWorld (void)
 		}
 		else
 #endif
+			if (currentmodel->fromgame == fg_doom)
+		{
+			vis = NULL;
+			GLR_DoomWorld();
+		}
+		else
 #ifdef TERRAIN
 		if (currentmodel->type == mod_heightmap)
 		{

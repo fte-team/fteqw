@@ -1577,6 +1577,10 @@ void Q_InitProgs(void)
 		sv.world.max_edicts = MAX_EDICTS;
 	sv.world.edict_size = PR_InitEnts(svprogfuncs, sv.world.max_edicts);
 
+	if (progstype == PROG_QW)
+		sv.world.defaultgravityscale = 0;
+	else
+		sv.world.defaultgravityscale = 1;
 
 	SV_RegisterH2CustomTents();
 
@@ -5607,18 +5611,7 @@ lh_extension_t *checkfteextensioncl(int mask, char *name)	//true if the cient ex
 
 lh_extension_t *checkfteextensionsv(char *name)	//true if the server supports an protocol extension.
 {
-	int i;
-
-	for (i = 0; i < 32; i++)
-	{
-		if (svs.fteprotocolextensions & (1<<i))
-		{
-			if (QSG_Extensions[i].name)	//some were removed
-				if (!stricmp(name, QSG_Extensions[i].name))	//name matches
-					return &QSG_Extensions[i];
-		}
-	}
-	return NULL;
+	return checkfteextensioncl(Net_PextMask(1), name);
 }
 
 lh_extension_t *checkextension(char *name)
@@ -8326,7 +8319,6 @@ static void QCBUILTIN PF_runclientphys(progfuncs_t *prinst, struct globalvars_s 
 	VectorCopy(ent->v->velocity, pmove.velocity);
 	VectorCopy(ent->v->maxs, player_maxs);
 	VectorCopy(ent->v->mins, player_mins);
-	pmove.hullnum = SV_HullNumForPlayer(ent->xv->hull, ent->v->mins, ent->v->maxs);
 
 	pmove.numphysent = 1;
 	pmove.physents[0].model = sv.world.worldmodel;
@@ -9262,7 +9254,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 //VM_SV_getextresponse,			// #624 string getextresponse(void)
 
-	{"sprintf",			PF_sprintf,			0,		0,		0,		627,	"string(...)" STUB},
+	{"sprintf",			PF_sprintf,			0,		0,		0,		627,	"string(...)"},
 //	{"getsurfacenumpoints",VM_getsurfacenumtriangles,0,0,	0,		628,	"float(entity e, float s)" STUB},
 //	{"getsurfacepoint",VM_getsurfacenumtriangles,0,0,	0,		629,	"vector(entity e, float s, float n)" STUB},
 
@@ -9369,10 +9361,10 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 				if (pr_builtin[BuiltinList[i].ebfsnum] == PF_Fixme && builtincount[BuiltinList[i].ebfsnum] == (BuiltinList[i].obsolete?0:1))
 				{
 					pr_builtin[BuiltinList[i].ebfsnum] = BuiltinList[i].bifunc;
-					Con_DPrintf("Enabled %s (%i)\n", BuiltinList[i].name, BuiltinList[i].ebfsnum);
+//					Con_DPrintf("Enabled %s (%i)\n", BuiltinList[i].name, BuiltinList[i].ebfsnum);
 				}
-				else if (pr_builtin[i] != BuiltinList[i].bifunc)
-					Con_DPrintf("Not enabled %s (%i)\n", BuiltinList[i].name, BuiltinList[i].ebfsnum);
+//				else if (pr_builtin[i] != BuiltinList[i].bifunc)
+//					Con_DPrintf("Not enabled %s (%i)\n", BuiltinList[i].name, BuiltinList[i].ebfsnum);
 			}
 		}
 	}
@@ -9486,7 +9478,7 @@ void PR_SVExtensionList_f(void)
 
 			if (i < 32)
 			{
-				if (!(svs.fteprotocolextensions & (1<<i)))
+				if (!(Net_PextMask(1) & (1<<i)))
 				{
 					if (showflags & SHOW_NOTSUPPORTEDEXT)
 						Con_Printf("^4protocol %s is not supported\n", extlist[i].name);
@@ -9954,6 +9946,12 @@ void PR_DumpPlatform_f(void)
 		{"RF_NOSHADOW",			"const float", CS, CSQCRF_NOSHADOW},
 		{"RF_FRAMETIMESARESTARTTIMES","const float", CS, CSQCRF_FRAMETIMESARESTARTTIMES},
 		{"RF_NOAUTOADD",		"const float", CS, CSQCRF_NOAUTOADD},
+
+		{"IE_KEYDOWN",			"const float", CS, CSIE_KEYDOWN},
+		{"IE_KEYUP",			"const float", CS, CSIE_KEYUP},
+		{"IE_MOUSEDELTA",		"const float", CS, CSIE_MOUSEDELTA},
+		{"IE_MOUSEABS",			"const float", CS, CSIE_MOUSEABS},
+		{"IE_ACCELEROMETER",	"const float", CS, CSIE_ACCELEROMETER},
 
 		{"FILE_READ",			"const float", QW|NQ|CS, FRIK_FILE_READ},
 		{"FILE_APPEND",			"const float", QW|NQ|CS, FRIK_FILE_APPEND},

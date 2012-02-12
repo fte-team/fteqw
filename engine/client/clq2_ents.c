@@ -562,7 +562,7 @@ void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int number, int 
 	// set everything to the state we are delta'ing from
 	*to = *from;
 
-	VectorCopy (from->origin, to->old_origin);
+	VectorCopy (from->origin, to->u.q2.old_origin);
 	to->number = number;
 
 	if (bits & Q2U_MODEL)
@@ -570,9 +570,9 @@ void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int number, int 
 	if (bits & Q2U_MODEL2)
 		to->modelindex2 = MSG_ReadByte ();
 	if (bits & Q2U_MODEL3)
-		to->modelindex3 = MSG_ReadByte ();
+		to->u.q2.modelindex3 = MSG_ReadByte ();
 	if (bits & Q2U_MODEL4)
-		to->modelindex4 = MSG_ReadByte ();
+		to->u.q2.modelindex4 = MSG_ReadByte ();
 		
 	if (bits & Q2U_FRAME8)
 		to->frame = MSG_ReadByte ();
@@ -594,11 +594,11 @@ void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int number, int 
 		to->effects = MSG_ReadShort();
 
 	if ( (bits & (Q2U_RENDERFX8|Q2U_RENDERFX16)) == (Q2U_RENDERFX8|Q2U_RENDERFX16) )
-		to->renderfx = MSG_ReadLong();
+		to->u.q2.renderfx = MSG_ReadLong();
 	else if (bits & Q2U_RENDERFX8)
-		to->renderfx = MSG_ReadByte();
+		to->u.q2.renderfx = MSG_ReadByte();
 	else if (bits & Q2U_RENDERFX16)
-		to->renderfx = MSG_ReadShort();
+		to->u.q2.renderfx = MSG_ReadShort();
 
 	if (bits & Q2U_ORIGIN1)
 		to->origin[0] = MSG_ReadCoord ();
@@ -615,15 +615,15 @@ void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int number, int 
 		to->angles[2] = MSG_ReadAngle();
 
 	if (bits & Q2U_OLDORIGIN)
-		MSG_ReadPos (to->old_origin);
+		MSG_ReadPos (to->u.q2.old_origin);
 
 	if (bits & Q2U_SOUND)
-		to->sound = MSG_ReadByte ();
+		to->u.q2.sound = MSG_ReadByte ();
 
 	if (bits & Q2U_EVENT)
-		to->event = MSG_ReadByte ();
+		to->u.q2.event = MSG_ReadByte ();
 	else
-		to->event = 0;
+		to->u.q2.event = 0;
 
 	if (bits & Q2U_SOLID)
 		to->solid = MSG_ReadShort ();
@@ -653,13 +653,13 @@ void CLQ2_DeltaEntity (q2frame_t *frame, int newnum, entity_state_t *old, int bi
 	// some data changes will force no lerping
 	if (state->modelindex != ent->current.modelindex
 		|| state->modelindex2 != ent->current.modelindex2
-		|| state->modelindex3 != ent->current.modelindex3
-		|| state->modelindex4 != ent->current.modelindex4
+		|| state->u.q2.modelindex3 != ent->current.u.q2.modelindex3
+		|| state->u.q2.modelindex4 != ent->current.u.q2.modelindex4
 		|| abs(state->origin[0] - ent->current.origin[0]) > 512
 		|| abs(state->origin[1] - ent->current.origin[1]) > 512
 		|| abs(state->origin[2] - ent->current.origin[2]) > 512
-		|| state->event == Q2EV_PLAYER_TELEPORT
-		|| state->event == Q2EV_OTHER_TELEPORT
+		|| state->u.q2.event == Q2EV_PLAYER_TELEPORT
+		|| state->u.q2.event == Q2EV_OTHER_TELEPORT
 		)
 	{
 		ent->serverframe = -99;
@@ -672,15 +672,15 @@ void CLQ2_DeltaEntity (q2frame_t *frame, int newnum, entity_state_t *old, int bi
 
 		// duplicate the current state so lerping doesn't hurt anything
 		ent->prev = *state;
-		if (state->event == Q2EV_OTHER_TELEPORT)
+		if (state->u.q2.event == Q2EV_OTHER_TELEPORT)
 		{
 			VectorCopy (state->origin, ent->prev.origin);
 			VectorCopy (state->origin, ent->lerp_origin);
 		}
 		else
 		{
-			VectorCopy (state->old_origin, ent->prev.origin);
-			VectorCopy (state->old_origin, ent->lerp_origin);
+			VectorCopy (state->u.q2.old_origin, ent->prev.origin);
+			VectorCopy (state->u.q2.old_origin, ent->lerp_origin);
 		}
 	}
 	else
@@ -975,7 +975,7 @@ void CLQ2_FireEntityEvents (q2frame_t *frame)
 	{
 		num = (frame->parse_entities + pnum)&(MAX_PARSE_ENTITIES-1);
 		s1 = &cl_parse_entities[num];
-		if (s1->event)
+		if (s1->u.q2.event)
 			CLQ2_EntityEvent (s1);
 
 		// EF_TELEPORTER acts like an event, but is not cleared each frame
@@ -1197,7 +1197,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		cent = &cl_entities[s1->number];
 
 		effects = s1->effects;
-		renderfx = s1->renderfx;
+		renderfx = s1->u.q2.renderfx;
 
 		ent.rtype = RT_MODEL;
 		ent.keynum = s1->number;
@@ -1207,6 +1207,9 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		ent.shaderRGBAf[1] = 1;
 		ent.shaderRGBAf[2] = 1;
 		ent.shaderRGBAf[3] = 1;
+		ent.glowmod[0] = 1;
+		ent.glowmod[1] = 1;
+		ent.glowmod[2] = 1;
 		ent.fatness = 0;
 		ent.scoreboard = NULL;
 
@@ -1260,7 +1263,7 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 		{	// step origin discretely, because the frames
 			// do the animation properly
 			VectorCopy (cent->current.origin, ent.origin);
-			VectorCopy (cent->current.old_origin, ent.oldorigin);
+			VectorCopy (cent->current.u.q2.old_origin, ent.oldorigin);
 		}
 		else
 		{	// interpolate origin
@@ -1558,14 +1561,14 @@ void CLQ2_AddPacketEntities (q2frame_t *frame)
 			ent.shaderRGBAf[3] = 1;
 			//PGM
 		}
-		if (s1->modelindex3)
+		if (s1->u.q2.modelindex3)
 		{
-			ent.model = cl.model_precache[s1->modelindex3];
+			ent.model = cl.model_precache[s1->u.q2.modelindex3];
 			V_AddEntity (&ent);
 		}
-		if (s1->modelindex4)
+		if (s1->u.q2.modelindex4)
 		{
-			ent.model = cl.model_precache[s1->modelindex4];
+			ent.model = cl.model_precache[s1->u.q2.modelindex4];
 			V_AddEntity (&ent);
 		}
 

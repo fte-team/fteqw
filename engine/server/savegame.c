@@ -581,7 +581,7 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 	f = FS_OpenVFS(name, "rb", FS_GAME);
 	if (!f)
 	{
-		Con_TPrintf (STL_ERRORCOULDNTOPEN);
+		Con_Printf ("ERROR: Couldn't load \"%s\"\n", name);
 		return false;
 	}
 
@@ -790,35 +790,37 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 	vfsfile_t	*f;
 	int		i;
 	char	comment[SAVEGAME_COMMENT_LENGTH+1];
-
 	levelcache_t *cache;
+
 	if (!sv.state)
 		return;
 
-	cache = svs.levcache;
-	while(cache)
+	if (!dontharmgame)
 	{
-		if (!strcmp(cache->mapname, sv.name))
-			break;
+		cache = svs.levcache;
+		while(cache)
+		{
+			if (!strcmp(cache->mapname, sv.name))
+				break;
 
-		cache = cache->next;
+			cache = cache->next;
+		}
+		if (!cache)	//not visited yet. Let us know that we went there.
+		{
+			cache = Z_Malloc(sizeof(levelcache_t)+strlen(sv.name)+1);
+			cache->mapname = (char *)(cache+1);
+			strcpy(cache->mapname, sv.name);
+
+			cache->gametype = svs.gametype;
+			cache->next = svs.levcache;
+			svs.levcache = cache;
+		}
 	}
-	if (!cache)	//not visited yet. Let us know that we went there.
-	{
-		cache = Z_Malloc(sizeof(levelcache_t)+strlen(sv.name)+1);
-		cache->mapname = (char *)(cache+1);
-		strcpy(cache->mapname, sv.name);
-
-		cache->gametype = svs.gametype;
-		cache->next = svs.levcache;
-		svs.levcache = cache;
-	}
-
 
 	if (savedir)
-		Q_snprintfz (name, sizeof(name), "saves/%s/%s", savedir, cache->mapname);
+		Q_snprintfz (name, sizeof(name), "saves/%s/%s", savedir, sv.name);
 	else
-		Q_snprintfz (name, sizeof(name), "saves/%s", cache->mapname);
+		Q_snprintfz (name, sizeof(name), "saves/%s", sv.name);
 	COM_DefaultExtension (name, ".lvc", sizeof(name));
 
 	FS_CreatePath(name, FS_GAMEONLY);
@@ -859,7 +861,7 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 	VFS_PRINTF (f, "%s\n", comment);
 	if (!dontharmgame)
 	{
-		for (cl = svs.clients, clnum=0; clnum < MAX_CLIENTS; cl++,clnum++)//fake dropping
+		for (cl = svs.clients, clnum=0; clnum < sv.allocated_client_slots; cl++,clnum++)//fake dropping
 		{
 			if (cl->state < cs_spawned && !cl->istobeloaded)	//don't drop if they are still connecting
 			{

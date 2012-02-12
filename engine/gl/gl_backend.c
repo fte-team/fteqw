@@ -727,7 +727,10 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass, qboolea
 		t = shaderstate.curdeluxmap;
 		break;
 	case T_GEN_DIFFUSE:
-		t = (shaderstate.curtexnums && TEXVALID(shaderstate.curtexnums->base))?shaderstate.curtexnums->base:missing_texture;
+		if (shaderstate.curtexnums && TEXVALID(shaderstate.curtexnums->base))
+			t = shaderstate.curtexnums->base;
+		else
+			t = missing_texture;
 		break;
 	case T_GEN_NORMALMAP:
 		t = shaderstate.curtexnums?shaderstate.curtexnums->bump:r_nulltex; /*FIXME: nulltex is not correct*/
@@ -3138,7 +3141,9 @@ void GLBE_SubmitBatch(batch_t *batch)
 
 	if (lm < 0)
 	{
-		shaderstate.curlightmap = r_nulltex;
+		extern texid_t r_whiteimage;
+		/*FIXME: this doesn't compensate for overbrighting*/
+		shaderstate.curlightmap = r_whiteimage;
 		shaderstate.curdeluxmap = r_nulltex;
 	}
 	else

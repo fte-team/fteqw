@@ -1576,6 +1576,11 @@ char *FS_GetGamedir(void)
 {
 	return gamedirfile;
 }
+/*unsafe - provided only for gamecode compat, should not be used for internal features*/
+char *FS_GetBasedir(void)
+{
+	return com_quakedir;
+}
 /*
 ================
 COM_Gamedir
@@ -1779,8 +1784,8 @@ const gamemode_info_t gamemode_info[] = {
 	{"FTE-JK2",				"jk2",			"-jk2",			{"base/assets0.pk3"},	NULL,	{"base",						"fte"},		"Jedi Knight II: Jedi Outcast"},
 
 	{"FTE-HalfLife",		"hl",			"-halflife",	{"valve/liblist.gam"},	NULL,	{"valve",						"ftehl"},	"Half-Life"},
-	{"FTE-Doom",			"doom",			"-doom",		{"doom.wad"},			NULL,	{								"ftedoom"},	"Doom"},
-	{"FTE-Doom2",			"doom2",		"-doom2",		{"doom2.wad"},			NULL,	{								"ftedoom"},	"Doom2"},
+	{"FTE-Doom",			"doom",			"-doom",		{"doom.wad"},			NULL,	{"*doom.wad",					"ftedoom"},	"Doom"},
+	{"FTE-Doom2",			"doom2",		"-doom2",		{"doom2.wad"},			NULL,	{"*doom2.wad",					"ftedoom"},	"Doom2"},
 
 	{NULL}
 };
@@ -2023,24 +2028,6 @@ char *FSQ3_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum)
 	return buffer;
 }
 
-#ifdef DOOMWADS
-void FS_AddRootWads(void)
-{
-	vfsfile_t *vfs;
-	char *fname = "doom.wad";
-	void *pak;
-	extern searchpathfuncs_t doomwadfilefuncs;
-
-	vfs = FS_OpenVFS(fname, "rb", FS_ROOT);
-
-	pak = doomwadfilefuncs.OpenNew(vfs, fname);
-	if (!pak)
-		return;
-
-	FS_AddPathHandle(fname, fname, &doomwadfilefuncs, pak, true, false, true, (unsigned int)-1);
-}
-#endif
-
 /*
 ================
 FS_ReloadPackFiles
@@ -2083,10 +2070,6 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 	oldpaths = next;
 
 	com_base_searchpaths = NULL;
-
-#ifdef DOOMWADS
-	FS_AddRootWads();
-#endif
 
 	while(oldpaths)
 	{
@@ -2390,9 +2373,47 @@ void FS_Shutdown(void)
 
 }
 
+void FS_AddGamePack(const char *pakname)
+{
+	int j;
+	char *ext = COM_FileExtension(pakname);
+	vfsfile_t *vfs = VFSOS_Open(pakname, "rb");
+	void *pak;
+	if (!vfs)
+		Con_Printf("Unable to open %s - missing?\n", pakname);
+	else
+	{
+		for (j = 0; j < sizeof(searchpathformats)/sizeof(searchpathformats[0]); j++)
+		{
+			if (!searchpathformats[j].extension || !searchpathformats[j].funcs || !searchpathformats[j].funcs->OpenNew)
+				continue;
+			if (!strcmp(ext, searchpathformats[j].extension))
+			{
+				pak = searchpathformats[j].funcs->OpenNew(vfs, pakname);
+				if (pak)
+				{
+					FS_AddPathHandle("", pakname, searchpathformats[j].funcs, pak, true, false, true, (unsigned int)-1);
+				}
+				else
+				{
+					Con_Printf("Unable to open %s - corrupt?\n", pakname);
+					VFS_CLOSE(vfs);
+				}
+				vfs = NULL;
+				break;
+			}
+		}
+		if (vfs)
+		{
+			VFS_CLOSE(vfs);
+			Con_Printf("Unable to open %s - unsupported?\n", pakname);
+		}
+	}
+}
+
 void FS_StartupWithGame(int gamenum)
 {
-	int i, j;
+	int i;
 
 #ifdef AVAIL_ZLIB
 	LibZ_Init();
@@ -2401,48 +2422,11 @@ void FS_StartupWithGame(int gamenum)
 	Cvar_Set(&com_protocolname, gamemode_info[gamenum].protocolname);
 	Cvar_ForceSet(&fs_gamename, gamemode_info[gamenum].poshname);
 
-#ifdef DOOMWADS
-	FS_AddRootWads();
-#endif
-
 	i = COM_CheckParm ("-basepack");
 	while (i && i < com_argc-1)
 	{
 //		Con_Printf("found -basepack: %s\n", com_argv[i+1]);
-
-		char *ext = COM_FileExtension(com_argv[i+1]);
-		vfsfile_t *vfs = VFSOS_Open(com_argv[i+1], "rb");
-		void *pak;
-		if (!vfs)
-			Con_Printf("Unable to open %s - missing?\n", com_argv[i+1]);
-		else
-		{
-			for (j = 0; j < sizeof(searchpathformats)/sizeof(searchpathformats[0]); j++)
-			{
-				if (!searchpathformats[j].extension || !searchpathformats[j].funcs || !searchpathformats[j].funcs->OpenNew)
-					continue;
-				if (!strcmp(ext, searchpathformats[j].extension))
-				{
-					pak = searchpathformats[j].funcs->OpenNew(vfs, com_argv[i+1]);
-					if (pak)
-					{
-						FS_AddPathHandle("", com_argv[i+1], searchpathformats[j].funcs, pak, true, false, true, (unsigned int)-1);
-					}
-					else
-					{
-						Con_Printf("Unable to open %s - corrupt?\n", com_argv[i+1]);
-						VFS_CLOSE(vfs);
-					}
-					vfs = NULL;
-					break;
-				}
-			}
-			if (vfs)
-			{
-				VFS_CLOSE(vfs);
-				Con_Printf("Unable to open %s - unsupported?\n", com_argv[i+1]);
-			}
-		}
+		FS_AddGamePack(com_argv[i+1]);
 		i = COM_CheckNextParm ("-basepack", i);
 	}
 
@@ -2466,7 +2450,13 @@ void FS_StartupWithGame(int gamenum)
 	{
 		for (i = 0; i < sizeof(gamemode_info[gamenum].dir)/sizeof(gamemode_info[gamenum].dir[0]); i++)
 		{
-			if (gamemode_info[gamenum].dir[i])
+			if (gamemode_info[gamenum].dir[i] && *gamemode_info[gamenum].dir[i] == '*')
+			{
+				char buf[MAX_OSPATH];
+				snprintf(buf, sizeof(buf), "%s%s", com_quakedir, gamemode_info[gamenum].dir[i]+1);
+				FS_AddGamePack(buf);
+			}
+			else if (gamemode_info[gamenum].dir[i])
 			{
 				FS_AddGameDirectory (gamemode_info[gamenum].dir[i], va("%s%s", com_quakedir, gamemode_info[gamenum].dir[i]), ~0);
 				if (*com_homedir)

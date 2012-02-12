@@ -37,11 +37,13 @@ extern	cvar_t	cl_nolerp;
 extern	cvar_t	cl_nolerp_netquake;
 extern	cvar_t	r_torch;
 extern  cvar_t r_shadows;
+extern	cvar_t	r_showbboxes;
 
 extern	cvar_t	cl_gibfilter, cl_deadbodyfilter;
 extern int cl_playerindex;
 
-static struct predicted_player {
+static struct predicted_player
+{
 	int flags;
 	qboolean active;
 	vec3_t origin;	// predicted origin
@@ -54,6 +56,9 @@ static struct predicted_player {
 } predicted_players[MAX_CLIENTS];
 
 static void CL_LerpNetFrameState(int fsanim, framestate_t *fs, lerpents_t *le);
+qboolean CL_PredictPlayer(lerpents_t *le, entity_state_t *state, int sequence);
+void CL_PlayerFrameUpdated(player_state_t *plstate, entity_state_t *state, int sequence);
+
 
 extern int cl_playerindex, cl_h_playerindex, cl_rocketindex, cl_grenadeindex, cl_gib1index, cl_gib2index, cl_gib3index;
 
@@ -86,9 +91,11 @@ qboolean CL_FilterModelindex(int modelindex, int frame)
 
 void CL_FreeDlights(void)
 {
-#ifdef warningmsg
-#pragma warningmsg("not freeing shadowmeshes")
-#endif
+	int i;
+	for (i = 0; i < rtlights_max; i++)
+		if (cl_dlights[i].worldshadowmesh)
+			SH_FreeShadowMesh(cl_dlights[i].worldshadowmesh);
+
 	rtlights_max = cl_maxdlights = 0;
 	BZ_Free(cl_dlights);
 	cl_dlights = NULL;
@@ -299,7 +306,7 @@ Can go from either a baseline or a previous packet_entity
 ==================
 */
 //int	bitcounts[32];	/// just for protocol profiling
-void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean new)
+void CLQW_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean new)
 {
 	int			i;
 #ifdef PROTOCOLEXTENSIONS
@@ -330,13 +337,18 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 		morebits |= MSG_ReadByte()<<8;
 #endif
 
+	if ((morebits & U_ENTITYDBL) && (cls.fteprotocolextensions & PEXT_ENTITYDBL))
+		to->number += 512;
+	if ((morebits & U_ENTITYDBL2) && (cls.fteprotocolextensions & PEXT_ENTITYDBL2))
+		to->number += 1024;
+
 	if (bits & U_MODEL)
 	{
 		to->modelindex = MSG_ReadByte ();
-		if (morebits & U_MODELDBL && cls.fteprotocolextensions & PEXT_MODELDBL)
+		if (morebits & U_MODELDBL && (cls.fteprotocolextensions & PEXT_MODELDBL))
 			to->modelindex += 256;
 	}
-	else if (morebits & U_MODELDBL && cls.fteprotocolextensions & PEXT_MODELDBL)
+	else if (morebits & U_MODELDBL && (cls.fteprotocolextensions & PEXT_MODELDBL))
 		to->modelindex = MSG_ReadShort();
 
 	if (bits & U_FRAME)
@@ -346,7 +358,11 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 		to->colormap = MSG_ReadByte();
 
 	if (bits & U_SKIN)
+	{
 		to->skinnum = MSG_ReadByte();
+		if (to->skinnum >= 256-32) /*final 32 skins are taken as a content value instead*/
+			to->skinnum = (char)to->skinnum;
+	}
 
 	if (bits & U_EFFECTS)
 		to->effects = (to->effects&0xff00)|MSG_ReadByte();
@@ -369,9 +385,10 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 	if (bits & U_ANGLE3)
 		to->angles[2] = MSG_ReadAngle ();
 
+	to->solid = ES_SOLID_BSP;
 	if (bits & U_SOLID)
 	{
-		// FIXME
+		//doesn't mean anything. solidity is infered instead.
 	}
 
 #ifdef PEXT_SCALE
@@ -398,11 +415,6 @@ void CL_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboolean
 		to->colormod[1] = MSG_ReadByte();
 		to->colormod[2] = MSG_ReadByte();
 	}
-
-	if ((morebits & U_ENTITYDBL) && (cls.fteprotocolextensions & PEXT_ENTITYDBL))
-		to->number += 512;
-	if ((morebits & U_ENTITYDBL2) && (cls.fteprotocolextensions & PEXT_ENTITYDBL2))
-		to->number += 1024;
 
 	if (morebits & U_DPFLAGS)// && cls.fteprotocolextensions & PEXT_DPFLAGS)
 	{
@@ -466,8 +478,322 @@ void FlushEntityPacket (void)
 		if (!word)
 			break;	// done
 
-		CL_ParseDelta (&olde, &newe, word, true);
+		CLQW_ParseDelta (&olde, &newe, word, true);
 	}
+}
+
+void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *olds, entity_state_t *baseline)
+{
+	unsigned int bits;
+	
+	bits = MSG_ReadByte();
+	if (bits & UF_EXTEND1)
+		bits |= MSG_ReadByte()<<8;
+	if (bits & UF_EXTEND2)
+		bits |= MSG_ReadByte()<<16;
+	if (bits & UF_EXTEND3)
+		bits |= MSG_ReadByte()<<24;
+
+	if (cl_shownet.ival >= 3)
+		Con_Printf("%3i: Update %4i 0x%x\n", msg_readcount, entnum, bits);
+
+	if (bits & UF_RESET)
+		*news = *baseline;
+	else if (!olds)
+	{
+		Con_DPrintf("New entity without reset\n");
+		*news = *baseline;
+	}
+	else
+		*news = *olds;
+	news->number = entnum;
+	
+	if (bits & UF_FRAME)
+	{
+		if (bits & UF_16BIT)
+			news->frame = MSG_ReadShort();
+		else
+			news->frame = MSG_ReadByte();
+	}
+
+	if (bits & UF_ORIGINXY)
+	{
+		news->origin[0] = MSG_ReadCoord();
+		news->origin[1] = MSG_ReadCoord();
+	}
+	if (bits & UF_ORIGINZ)
+		news->origin[2] = MSG_ReadCoord();
+
+	if (bits & UF_PREDINFO)
+	{
+		/*predicted stuff gets more precise angles*/
+		if (bits & UF_ANGLESXZ)
+		{
+			news->angles[0] = MSG_ReadAngle16();
+			news->angles[2] = MSG_ReadAngle16();
+		}
+		if (bits & UF_ANGLESY)
+			news->angles[1] = MSG_ReadAngle16();
+	}
+	else
+	{
+		if (bits & UF_ANGLESXZ)
+		{
+			news->angles[0] = MSG_ReadAngle();
+			news->angles[2] = MSG_ReadAngle();
+		}
+		if (bits & UF_ANGLESY)
+			news->angles[1] = MSG_ReadAngle();
+	}
+
+	if ((bits & (UF_EFFECTS | UF_EFFECTS2)) == (UF_EFFECTS | UF_EFFECTS2))
+		news->effects = MSG_ReadLong();
+	else if (bits & UF_EFFECTS2)
+		news->effects = MSG_ReadShort();
+	else if (bits & UF_EFFECTS)
+		news->effects = MSG_ReadByte();
+
+	news->u.q1.movement[0] = 0;
+	news->u.q1.movement[1] = 0;
+	news->u.q1.movement[2] = 0;
+	news->u.q1.velocity[0] = 0;
+	news->u.q1.velocity[1] = 0;
+	news->u.q1.velocity[2] = 0;
+	if (bits & UF_PREDINFO)
+	{
+		unsigned int predbits;
+		predbits = MSG_ReadByte();
+
+		if (predbits & UFP_FORWARD)
+			news->u.q1.movement[0] = MSG_ReadShort();
+		else
+			news->u.q1.movement[0] = 0;
+		if (predbits & UFP_SIDE)
+			news->u.q1.movement[1] = MSG_ReadShort();
+		else
+			news->u.q1.movement[1] = 0;
+		if (predbits & UFP_UP)
+			news->u.q1.movement[2] = MSG_ReadShort();
+		else
+			news->u.q1.movement[2] = 0;
+		if (predbits & UFP_MOVETYPE)
+			news->u.q1.pmovetype = MSG_ReadByte();
+		if (predbits & UFP_VELOCITYXY)
+		{
+			news->u.q1.velocity[0] = MSG_ReadShort();
+			news->u.q1.velocity[1] = MSG_ReadShort();
+		}
+		else
+		{
+			news->u.q1.velocity[0] = 0;
+			news->u.q1.velocity[1] = 0;
+		}
+		if (predbits & UFP_VELOCITYZ)
+			news->u.q1.velocity[2] = MSG_ReadShort();
+		else
+			news->u.q1.velocity[2] = 0;
+		if (predbits & UFP_MSEC)
+			news->u.q1.msec = MSG_ReadByte();
+		else
+			news->u.q1.msec = 0;
+	}
+	else
+	{
+		news->u.q1.pmovetype = 0;
+		news->u.q1.msec = 0;
+	}
+
+	if (bits & UF_MODEL)
+	{
+		if (bits & UF_16BIT)
+			news->modelindex = MSG_ReadShort();
+		else
+			news->modelindex = MSG_ReadByte();
+	}
+	if (bits & UF_SKIN)
+	{
+		if (bits & UF_16BIT)
+			news->skinnum = MSG_ReadShort();
+		else
+			news->skinnum = MSG_ReadByte();
+	}
+	if (bits & UF_COLORMAP)
+		news->colormap = MSG_ReadByte();
+
+	if (bits & UF_SOLID)
+		news->solid = MSG_ReadShort();
+
+	if (bits & UF_FLAGS)
+		news->dpflags = MSG_ReadByte();
+
+	if (bits & UF_ALPHA)
+		news->trans = MSG_ReadByte();
+	if (bits & UF_SCALE)
+		news->scale = MSG_ReadByte();
+	if (bits & UF_ABSLIGHT)
+		news->abslight = MSG_ReadByte();
+	if (bits & UF_DRAWFLAGS)
+		news->hexen2flags = MSG_ReadByte();
+	if (bits & UF_TAGINFO)
+	{
+		news->tagentity = MSG_ReadShort();
+		news->tagindex = MSG_ReadByte();
+	}
+	if (bits & UF_LIGHT)
+	{
+		news->light[0] = MSG_ReadShort();
+		news->light[1] = MSG_ReadShort();
+		news->light[1] = MSG_ReadShort();
+		news->light[1] = MSG_ReadShort();
+		news->lightstyle = MSG_ReadByte();
+		news->lightpflags = MSG_ReadByte();
+	}
+	if (bits & UF_COLORMOD)
+	{
+		news->colormod[0] = MSG_ReadByte();
+		news->colormod[1] = MSG_ReadByte();
+		news->colormod[2] = MSG_ReadByte();
+	}
+	if (bits & UF_GLOWMOD)
+	{
+		news->glowmod[0] = MSG_ReadByte();
+		news->glowmod[1] = MSG_ReadByte();
+		news->glowmod[2] = MSG_ReadByte();
+	}
+
+	if (bits & UF_FATNESS)
+		news->fatness = MSG_ReadByte();
+
+
+
+	/*update the prediction info if needed*/
+	if ((bits & UF_PREDINFO) && (news->number-1) < cl.allocated_client_slots)
+	{
+		frame_t *fram;
+		fram = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
+		CL_PlayerFrameUpdated(&fram->playerstate[news->number-1], news, cls.netchan.incoming_sequence);
+	}
+}
+
+void CLFTE_ParseEntities(void)
+{
+	int			oldpacket, newpacket;
+	packet_entities_t	*oldp, *newp, nullp;
+	unsigned short newnum, oldnum;
+	int			oldindex;
+	qboolean	isvalid = false;
+
+//	int i;
+//	for (i = cl.validsequence+1; i < cls.netchan.incoming_sequence; i++)
+//	{
+//		Con_Printf("CL: Dropped %i\n", i);
+//	}
+
+	newpacket = cls.netchan.incoming_sequence&UPDATE_MASK;
+	oldpacket = cl.validsequence&UPDATE_MASK;
+	newp = &cl.frames[newpacket].packet_entities;
+	oldp = &cl.frames[oldpacket].packet_entities;
+	cl.frames[newpacket].invalid = true;
+
+
+	if (cls.netchan.incoming_sequence >= cl.validsequence + UPDATE_BACKUP)
+	{
+		oldp = &nullp;
+		oldp->num_entities = 0;
+		oldp->max_entities = 0;
+	}
+	else
+		isvalid = true;
+
+	newp->servertime = MSG_ReadFloat();
+
+	cl.oldgametime = cl.gametime;
+	cl.oldgametimemark = cl.gametimemark;
+	cl.gametime = newp->servertime;
+	cl.gametimemark = realtime;
+
+	/*clear all entities*/
+	newp->num_entities = 0;
+	oldindex = 0;
+	while(1)
+	{
+		newnum = MSG_ReadShort();
+		if (!newnum || msg_badread)
+		{
+			/*reached the end, don't forget old entities*/
+			while(oldindex < oldp->num_entities)
+			{
+				if (newp->num_entities >= newp->max_entities)
+				{
+					newp->max_entities = newp->num_entities+1;
+					newp->entities = BZ_Realloc(newp->entities, sizeof(entity_state_t)*newp->max_entities);
+				}
+				newp->entities[newp->num_entities++] = oldp->entities[oldindex++];
+			}
+			break;
+		}
+		if (newnum == 0x8000)
+		{
+			if (cl_shownet.ival >= 3)
+				Con_Printf("%3i: Reset all\n", msg_readcount);
+			newp->num_entities = 0;
+			isvalid = true;
+			continue;
+		}
+
+		oldnum = oldindex >= oldp->num_entities ? 0xffff : oldp->entities[oldindex].number;
+
+		/*if we skipped some, then they were unchanged*/
+		while ((newnum&0x7fff) > oldnum)
+		{
+			if (newp->num_entities >= newp->max_entities)
+			{
+				newp->max_entities = newp->num_entities+1;
+				newp->entities = BZ_Realloc(newp->entities, sizeof(entity_state_t)*newp->max_entities);
+			}
+			newp->entities[newp->num_entities++] = oldp->entities[oldindex++];
+
+			oldnum = oldindex >= oldp->num_entities ? 0xffff : oldp->entities[oldindex].number;
+		}
+
+		if (newnum & 0x8000)
+		{
+			if (cl_shownet.ival >= 3)
+				Con_Printf("%3i: Remove %i\n", msg_readcount, (newnum&32767));
+			if (oldnum == (newnum&0x7fff))
+				oldindex++;
+			continue;
+		}
+		else
+		{
+			if (!CL_CheckBaselines(newnum))
+				Host_EndGame("CL_ParsePacketEntities: check baselines failed with size %i", newnum);
+
+			if (newp->num_entities >= newp->max_entities)
+			{
+				newp->max_entities = newp->num_entities+1;
+				newp->entities = BZ_Realloc(newp->entities, sizeof(entity_state_t)*newp->max_entities);
+			}
+
+			if (oldnum == newnum)
+				CLFTE_ReadDelta(newnum, &newp->entities[newp->num_entities++], &oldp->entities[oldindex++], cl_baselines + newnum);
+			else
+				CLFTE_ReadDelta(newnum, &newp->entities[newp->num_entities++], NULL, cl_baselines + newnum);
+		}
+	}
+
+	if (isvalid)
+	{
+		cl.oldvalidsequence = cl.validsequence;
+		cl.validsequence = cls.netchan.incoming_sequence;
+		cl.ackedinputsequence = cl.validsequence;
+		cl.frames[newpacket].invalid = false;
+	}
+	else
+		cl.validsequence = 0;
+
+	/*ackedinputsequence is updated when we have new player prediction info*/
+	cl.ackedinputsequence = cls.netchan.incoming_sequence;
 }
 
 /*
@@ -657,7 +983,7 @@ void CL_ParsePacketEntities (qboolean delta)
 
 			if (!CL_CheckBaselines(newnum))
 				Host_EndGame("CL_ParsePacketEntities: check baselines failed with size %i", newnum);
-			CL_ParseDelta (cl_baselines + newnum, &newp->entities[newindex], word, true);
+			CLQW_ParseDelta (cl_baselines + newnum, &newp->entities[newindex], word, true);
 			newindex++;
 			continue;
 		}
@@ -685,7 +1011,7 @@ void CL_ParsePacketEntities (qboolean delta)
 			}
 
 //Con_Printf ("delta %i\n",newnum);
-			CL_ParseDelta (&oldp->entities[oldindex], &newp->entities[newindex], word, false);
+			CLQW_ParseDelta (&oldp->entities[oldindex], &newp->entities[newindex], word, false);
 			newindex++;
 			oldindex++;
 		}
@@ -745,9 +1071,10 @@ void DP5_ParseDelta(entity_state_t *s)
 		s->trans = 255;
 		s->scale = 16;
 		s->number = num;
-		s->colormod[0] = 32;
-		s->colormod[1] = 32;
-		s->colormod[2] = 32;
+		s->colormod[0] = (256)/8;
+		s->colormod[1] = (256)/8;
+		s->colormod[2] = (256)/8;
+		s->solid = ES_SOLID_BSP;
 //		s->active = true;
 	}
 	if (bits & E5_FLAGS)
@@ -846,10 +1173,16 @@ void DP5_ParseDelta(entity_state_t *s)
 		s->colormod[1] = MSG_ReadByte();
 		s->colormod[2] = MSG_ReadByte();
 	}
+	if (bits & E5_GLOWMOD)
+	{
+		s->glowmod[0] = MSG_ReadByte();
+		s->glowmod[1] = MSG_ReadByte();
+		s->glowmod[2] = MSG_ReadByte();
+	}
 }
 
 int cl_latestframenum;
-void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
+void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 {
 	//the incoming entities do not come in in any order. :(
 	//well, they come in in order of priorities, but that's not useful to us.
@@ -987,7 +1320,7 @@ void CLNQ_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 void CLNQ_ParseEntity(unsigned int bits)
 {
 	int i;
-	int num, pnum;
+	int num;
 	entity_state_t		*state;//, *from;
 	entity_state_t	*base;
 	static float lasttime;
@@ -1045,6 +1378,7 @@ void CLNQ_ParseEntity(unsigned int bits)
 	base = cl_baselines + num;
 
 	state->number = num;
+	state->solid = ES_SOLID_BSP;
 
 	state->dpflags = (bits & NQU_NOLERP)?RENDER_STEP:0;
 
@@ -1426,6 +1760,194 @@ int V_AddLight (int entsource, vec3_t org, float quant, float r, float g, float 
 	return CL_NewDlightRGB (entsource, org, quant, -0.1, r, g, b) - cl_dlights;
 }
 
+static void CLQ1_AddCube(shader_t *shader, vec3_t mins, vec3_t maxs, float r, float g, float b, float a)
+{
+	int v;
+	scenetris_t *t;
+
+	if (!r && !g && !b)
+		return;
+	if (g && !b)
+		b = 0;
+
+	/*reuse the previous trigroup if its the same shader*/
+	if (cl_numstris && cl_stris[cl_numstris-1].shader == shader)
+		t = &cl_stris[cl_numstris-1];
+	else
+	{
+		if (cl_numstris == cl_maxstris)
+		{
+			cl_maxstris += 8;
+			cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+		}
+		t = &cl_stris[cl_numstris++];
+		t->shader = shader;
+		t->numidx = 0;
+		t->numvert = 0;
+		t->firstidx = cl_numstrisidx;
+		t->firstvert = cl_numstrisvert;
+	}
+
+
+	if (cl_numstrisvert + 8 > cl_maxstrisvert)
+	{
+		cl_maxstrisvert = cl_numstrisvert + 8;
+
+		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(vec2_t)*cl_maxstrisvert);
+		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(vec4_t)*cl_maxstrisvert);
+	}
+	if (cl_maxstrisidx < cl_numstrisidx+6*6)
+	{
+		cl_maxstrisidx = cl_numstrisidx+6*6 + 64;
+		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+	}
+
+
+	for (v = 0; v < 8; v++)
+	{
+		cl_strisvertv[cl_numstrisvert+v][0] = (v & 1)?mins[0]:maxs[0];
+		cl_strisvertv[cl_numstrisvert+v][1] = (v & 2)?mins[1]:maxs[1];
+		cl_strisvertv[cl_numstrisvert+v][2] = (v & 4)?mins[2]:maxs[2];
+
+		cl_strisvertt[cl_numstrisvert+v][0] = 0;
+		cl_strisvertt[cl_numstrisvert+v][1] = 0;
+
+		cl_strisvertc[cl_numstrisvert+v][0] = r;
+		cl_strisvertc[cl_numstrisvert+v][1] = g;
+		cl_strisvertc[cl_numstrisvert+v][2] = b;
+		cl_strisvertc[cl_numstrisvert+v][3] = a;
+	}
+
+	/*top*/
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+2;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+3;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+2;
+
+	/*bottom*/
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+4;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+5;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+6;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+6;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+5;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+7;
+
+	/*'left'*/
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+5;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+4;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+5;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0;
+
+	/*right*/
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+2;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+6;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+7;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+2;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+7;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+3;
+
+	/*urm, the other way*/
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+2;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+4;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+6;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+4;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+2;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+0;
+
+	/*and its oposite*/
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+7;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+5;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+3;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+1;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+3;
+	cl_strisidx[cl_numstrisidx++] = cl_numstrisvert+5;
+
+	t->numvert += 8;
+	t->numidx = cl_numstrisidx - t->firstidx;
+	cl_numstrisvert += 8;
+}
+#include "pr_common.h"
+void CLQ1_AddVisibleBBoxes(void)
+{
+	world_t *w;
+	wedict_t *e;
+	int i;
+	shader_t *s;
+	extern world_t csqc_world;
+	vec3_t min, max, size;
+
+	switch(r_showbboxes.ival & 3)
+	{
+	default:
+		return;
+
+	#ifndef CLIENTONLY
+	case 1:
+		w = &sv.world;
+		break;
+	#endif
+	#ifdef CSQC_DAT
+	case 2:
+		w = &csqc_world;
+		return;
+	#endif
+	}
+
+	if (!w->progs)
+		return;
+	
+	s = R_RegisterShader("bboxshader",
+		"{\n"
+		"polygonoffset\n"
+		"{\n"
+		"map $whiteimage\n"
+		"blendfunc add\n"
+		"rgbgen vertex\n"
+		"alphagen vertex\n"
+		"}\n"
+		"}\n");
+	for (i = 1; i < w->num_edicts; i++)
+	{
+		e = WEDICT_NUM(w->progs, i);
+		if (e->isfree)
+			continue;
+
+		if (r_showbboxes.ival & 4)
+		{
+			/*mins is easy*/
+			VectorAdd(e->v->origin, e->v->mins, min);
+
+			/*maxs is weeeeird*/
+			VectorSubtract (e->v->maxs, e->v->mins, size);
+			if (size[0] < 3)
+				VectorCopy(min, max);
+			else if (size[0] <= 32)
+			{
+				max[0] = min[0] + 32;
+				max[1] = min[1] + 32;
+				max[2] = min[2] + 56;
+			}
+			else
+			{
+				max[0] = min[0] + 64;
+				max[1] = min[1] + 64;
+				max[2] = min[2] + 88;
+			}
+		}
+		else
+		{
+			VectorCopy(e->v->absmin, min);
+			VectorCopy(e->v->absmax, max);
+		}
+		CLQ1_AddCube(s, min, max, (e->v->solid || e->v->movetype)?0.1:0, (e->v->movetype == MOVETYPE_STEP || e->v->movetype == MOVETYPE_TOSS || e->v->movetype == MOVETYPE_BOUNCE)?0.1:0, ((int)e->v->flags & (FL_ONGROUND | ((e->v->movetype == MOVETYPE_STEP)?FL_FLY:0)))?0.1:0, 1);
+	}
+}
+
 void CLQ1_AddShadow(entity_t *ent)
 {
 	float radius;
@@ -1671,6 +2193,8 @@ void CL_LinkStaticEntities(void *pvs)
 		ent->framestate.g[FS_REG].frametime[0] = cl.time;
 		ent->framestate.g[FS_REG].frametime[1] = cl.time;
 
+		ent->shaderRGBAf[3] = 0.7;
+
 	// emit particles for statics (we don't need to cheat check statics)
 		if (clmodel->particleeffect >= 0 && gl_part_flame.ival)
 		{
@@ -1696,7 +2220,7 @@ void R_FlameTrail(vec3_t start, vec3_t end, float seperation);
 /*
 Interpolates the two packets by the given time, writes its results into the lerpentities array.
 */
-static void CL_TransitionPacketEntities(packet_entities_t *newpack, packet_entities_t *oldpack, float servertime)
+static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newpack, packet_entities_t *oldpack, float servertime)
 {
 	lerpents_t		*le;
 	entity_state_t		*snew, *sold;
@@ -1757,7 +2281,17 @@ static void CL_TransitionPacketEntities(packet_entities_t *newpack, packet_entit
 			VectorClear(move);
 		}
 
-		if (sold == snew)
+		VectorCopy(le->origin, le->lastorigin);
+		if (snew->u.q1.pmovetype && CL_PredictPlayer(le, snew, newsequence))
+		{
+			if (sold == snew)
+			{
+				/*keep trails correct*/
+				le->isnew = true;
+				VectorCopy(le->origin, le->lastorigin);
+			}
+		}
+		else if (sold == snew)
 		{
 			//new this frame (or we noticed something changed significantly)
 			VectorCopy(snew->origin, le->origin);
@@ -1776,8 +2310,6 @@ static void CL_TransitionPacketEntities(packet_entities_t *newpack, packet_entit
 		}
 		else
 		{
-			VectorCopy(le->origin, le->lastorigin);
-
 			if (snew->dpflags & RENDER_STEP)
 			{
 				float lfrac;
@@ -1946,7 +2478,7 @@ void CL_TransitionEntities (void)
 	packnew = &cl.frames[newf].packet_entities;
 	packold = &cl.frames[oldf].packet_entities;
 
-	CL_TransitionPacketEntities(packnew, packold, servertime);
+	CL_TransitionPacketEntities(newff, packnew, packold, servertime);
 	cl.currentpacktime = servertime;
 	cl.currentpackentities = packnew;
 
@@ -1973,7 +2505,9 @@ void CL_TransitionEntities (void)
 		for (p = 0; p < cl.allocated_client_slots; p++, pnew++, pold++)
 		{
 			if (pnew->messagenum != newff)
+			{
 				continue;
+			}
 		
 			le = &cl.lerpplayers[p];
 			VectorSubtract(pnew->predorigin, pold->predorigin, move);
@@ -2205,10 +2739,11 @@ void CL_LinkPacketEntities (void)
 		//set scale
 		ent->scale = state->scale/16.0;
 #endif
-		ent->shaderRGBAf[0] = (state->colormod[0]*8.0f)/255;
-		ent->shaderRGBAf[1] = (state->colormod[1]*8.0f)/255;
-		ent->shaderRGBAf[2] = (state->colormod[2]*8.0f)/255;
+		ent->shaderRGBAf[0] = (state->colormod[0]*8.0f)/256;
+		ent->shaderRGBAf[1] = (state->colormod[1]*8.0f)/256;
+		ent->shaderRGBAf[2] = (state->colormod[2]*8.0f)/256;
 		ent->shaderRGBAf[3] = state->trans/255.0f;
+
 #ifdef PEXT_FATNESS
 		//set trans
 		ent->fatness = state->fatness/16.0;
@@ -2238,6 +2773,7 @@ void CL_LinkPacketEntities (void)
 		AngleVectors(angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 		VectorInverse(ent->axis[1]);
 
+		/*if this entity is in a player's slot...*/
 		if (ent->keynum <= cl.allocated_client_slots)
 		{
 			if (!cl.nolocalplayer[0])
@@ -2347,6 +2883,8 @@ void CL_LinkPacketEntities (void)
 #ifdef CSQC_DAT
 	CSQC_DeltaEnd();
 #endif
+
+	CLQ1_AddVisibleBBoxes();
 }
 
 /*
@@ -2614,7 +3152,8 @@ void CL_ParsePlayerinfo (void)
 		if (flags & DF_WEAPONFRAME)
 			state->weaponframe = MSG_ReadByte ();
 
-		state->hullnum = 1;
+		VectorSet(state->szmins, -16, -16, -24);
+		VectorSet(state->szmaxs, 16, 16, 32);
 		state->scale = 1;
 		state->alpha = 255;
 		state->fatness = 0;
@@ -2729,10 +3268,8 @@ void CL_ParsePlayerinfo (void)
 	else
 		state->weaponframe = 0;
 
-	if (cl.worldmodel && cl.worldmodel->fromgame == fg_quake)
-		state->hullnum = 1;
-	else
-		state->hullnum = 56;
+	VectorSet(state->szmins, -16, -16, -24);
+	VectorSet(state->szmaxs, 16, 16, 32);
 	state->scale = 1;
 	state->alpha = 255;
 	state->fatness = 0;
@@ -2750,15 +3287,31 @@ void CL_ParsePlayerinfo (void)
 		state->fatness = (float)MSG_ReadChar();
 #endif
 #ifdef PEXT_HULLSIZE
-	if (cls.fteprotocolextensions & PEXT_HULLSIZE)
+	if ((cls.fteprotocolextensions & PEXT_HULLSIZE) && (flags & PF_HULLSIZE_Z))
 	{
-		if (flags & PF_HULLSIZE_Z)
-			state->hullnum = MSG_ReadByte();
+		int num;
+		num = MSG_ReadByte();
+
+		if (cl.worldmodel->fromgame != fg_quake)
+		{
+			VectorScale(state->szmins, num/56.0f, state->szmins);
+			VectorScale(state->szmaxs, num/56.0f, state->szmaxs);
+		}
+		else
+		{
+			VectorCopy(cl.worldmodel->hulls[num&(MAX_MAP_HULLSM-1)].clip_mins, state->szmins);
+			VectorCopy(cl.worldmodel->hulls[num&(MAX_MAP_HULLSM-1)].clip_maxs, state->szmaxs);
+		}
+		if (num & 128)
+		{	//this hack is for hexen2.
+			state->szmaxs[2] -= state->szmins[2];
+			state->szmins[2] = 0;
+		}
 	}
 	//should be passed to player move func.
 #endif
 
-	if (cls.fteprotocolextensions & PEXT_COLOURMOD && flags & PF_COLOURMOD)
+	if (cls.fteprotocolextensions & PEXT_COLOURMOD && (flags & PF_COLOURMOD))
 	{
 		state->colourmod[0] = MSG_ReadByte();
 		state->colourmod[1] = MSG_ReadByte();
@@ -2836,7 +3389,7 @@ guess_pm_type:
 		state->command.msec = msec;
 
 		CL_SetSolidEntities();
-		CL_SetSolidPlayers (num);
+		CL_SetSolidPlayers();
 		CL_PredictUsercmd (0, state, &exact, &state->command);	//uses player 0's maxspeed/grav...
 		VectorCopy (exact.origin, state->predorigin);
 	}
@@ -3191,7 +3744,7 @@ void CL_LinkPlayers (void)
 //Con_DPrintf ("predict: %i\n", msec);
 
 			oldphysent = pmove.numphysent;
-			CL_SetSolidPlayers (j);
+			CL_SetSolidPlayers ();
 			CL_PredictUsercmd (0, state, &exact, &state->command);	//uses player 0's maxspeed/grav...
 			pmove.numphysent = oldphysent;
 			VectorCopy (exact.origin, ent->origin);
@@ -3363,6 +3916,7 @@ void CL_SetSolidEntities (void)
 	frame_t	*frame;
 	packet_entities_t	*pak;
 	entity_state_t		*state;
+	physent_t			*pent;
 
 	memset(&pmove.physents[0], 0, sizeof(physent_t));
 	pmove.physents[0].model = cl.worldmodel;
@@ -3377,22 +3931,67 @@ void CL_SetSolidEntities (void)
 	{
 		state = &pak->entities[i];
 
-		if (state->modelindex <= 0)
+		if (!state->solid && !state->skinnum)
 			continue;
-		if (!cl.model_precache[state->modelindex])
-			continue;
-		if (*cl.model_precache[state->modelindex]->name == '*' || cl.model_precache[state->modelindex]->numsubmodels)
-		if ( cl.model_precache[state->modelindex]->hulls[1].firstclipnode)
+
+		if (state->solid == 31)
+		{	/*bsp model size*/
+			if (state->modelindex <= 0)
+				continue;
+			if (!cl.model_precache[state->modelindex])
+				continue;
+			/*this makes non-inline bsp objects non-solid for prediction*/
+			if ((*cl.model_precache[state->modelindex]->name == '*' || cl.model_precache[state->modelindex]->numsubmodels) && cl.model_precache[state->modelindex]->hulls[1].firstclipnode)
+			{
+				pent = &pmove.physents[pmove.numphysent];
+				memset(pent, 0, sizeof(physent_t));
+				pent->model = cl.model_precache[state->modelindex];
+				VectorCopy (state->angles, pent->angles);
+				pent->angles[0]*=-1;
+			}
+			else
+				continue;
+		}
+		else
 		{
-			memset(&pmove.physents[pmove.numphysent], 0, sizeof(physent_t));
-			pmove.physents[pmove.numphysent].model = cl.model_precache[state->modelindex];
-			VectorCopy (state->origin, pmove.physents[pmove.numphysent].origin);
-			VectorCopy (state->angles, pmove.physents[pmove.numphysent].angles);
-//			VectorCopy (cl.lerpents[state->number].origin, pmove.physents[pmove.numphysent].origin);
-//			VectorCopy (cl.lerpents[state->number].angles, pmove.physents[pmove.numphysent].angles);
-			pmove.physents[pmove.numphysent].angles[0]*=-1;
-			if (++pmove.numphysent == MAX_PHYSENTS)
-				break;
+			pent = &pmove.physents[pmove.numphysent];
+			memset(pent, 0, sizeof(physent_t));
+			pent->info = state->number;
+			/*don't bother with angles*/
+			pent->maxs[0] = pent->maxs[1] = 8*(state->solid & 31);
+			pent->mins[0] = pent->mins[1] = -pent->maxs[0];
+			pent->mins[2] = -8*((state->solid>>5) & 31);
+			pent->maxs[2] = 8*((state->solid>>10) & 63) - 32;
+		}
+		if (++pmove.numphysent == MAX_PHYSENTS)
+			break;
+		VectorCopy(state->origin, pent->origin);
+		pent->info = state->number;
+
+		switch((int)state->skinnum)
+		{
+		case 0:
+			break;
+		case -16:
+			pent->nonsolid = true;
+			pent->forcecontentsmask = FTECONTENTS_LADDER;
+			break;
+		case Q1CONTENTS_SKY:
+			pent->nonsolid = true;
+			pent->forcecontentsmask = FTECONTENTS_SKY;
+			break;
+		case Q1CONTENTS_LAVA:
+			pent->nonsolid = true;
+			pent->forcecontentsmask = FTECONTENTS_LAVA;
+			break;
+		case Q1CONTENTS_SLIME:
+			pent->nonsolid = true;
+			pent->forcecontentsmask = FTECONTENTS_SLIME;
+			break;
+		case Q1CONTENTS_WATER:
+			pent->nonsolid = true;
+			pent->forcecontentsmask = FTECONTENTS_WATER;
+			break;
 		}
 	}
 
@@ -3500,7 +4099,7 @@ pmove must be setup with world and solid entity hulls before calling
 (via CL_PredictMove)
 ===============
 */
-void CL_SetSolidPlayers (int playernum)
+void CL_SetSolidPlayers (void)
 {
 	int		j;
 	extern	vec3_t	player_mins;
@@ -3520,10 +4119,6 @@ void CL_SetSolidPlayers (int playernum)
 
 		if (!pplayer->active)
 			continue;	// not present this frame
-
-		// the player object never gets added
-		if (j == playernum)
-			continue;
 
 		if (pplayer->flags & PF_DEAD)
 			continue; // dead players aren't solid

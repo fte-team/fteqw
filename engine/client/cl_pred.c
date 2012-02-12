@@ -26,14 +26,14 @@ cvar_t	cl_pushlatency = SCVAR("pushlatency","-999");
 
 extern	frame_t		*view_frame;
 
-#define	MAX_PARSE_ENTITIES	1024
-extern entity_state_t	cl_parse_entities[MAX_PARSE_ENTITIES];
-
 extern float	pm_airaccelerate;
 
 extern usercmd_t independantphysics[MAX_SPLITS];
 
 #ifdef Q2CLIENT
+#define	MAX_PARSE_ENTITIES	1024
+extern entity_state_t	cl_parse_entities[MAX_PARSE_ENTITIES];
+
 char *Get_Q2ConfigString(int i);
 
 #ifdef Q2BSPS
@@ -121,7 +121,7 @@ void CLQ2_ClipMoveToEntities ( vec3_t start, vec3_t mins, vec3_t maxs, vec3_t en
 		if (ent->number == cl.playernum[0]+1)
 			continue;
 
-		if (ent->solid == 31)
+		if (ent->solid == ES_SOLID_BSP)
 		{	// special value for bmodel
 			cmodel = cl.model_precache[ent->modelindex];
 			if (!cmodel)
@@ -395,35 +395,15 @@ void CL_PredictUsercmd (int pnum, player_state_t *from, player_state_t *to, user
 	pmove.pm_type = from->pm_type;
 
 	pmove.cmd = *u;
+	pmove.skipent = cl.playernum[pnum]+1;
 
 	movevars.entgravity = cl.entgravity[pnum];
 	movevars.maxspeed = cl.maxspeed[pnum];
 	movevars.bunnyspeedcap = cl.bunnyspeedcap;
 	pmove.onladder = false;
-	pmove.hullnum = from->hullnum;
 
-	if (cl.worldmodel->fromgame != fg_quake)
-	{
-		player_mins[0] = -16;
-		player_mins[1] = -16;
-		player_mins[2] = -24;
-		player_maxs[0] = 16;
-		player_maxs[1] = 16;
-		player_maxs[2] = 32;
-
-		VectorScale(player_mins, pmove.hullnum/56.0f, player_mins);
-		VectorScale(player_maxs, pmove.hullnum/56.0f, player_maxs);
-	}
-	else
-	{
-		VectorCopy(cl.worldmodel->hulls[pmove.hullnum&(MAX_MAP_HULLSM-1)].clip_mins, player_mins);
-		VectorCopy(cl.worldmodel->hulls[pmove.hullnum&(MAX_MAP_HULLSM-1)].clip_maxs, player_maxs);
-	}
-	if (pmove.hullnum & 128)
-	{	//this hack is for hexen2.
-		player_maxs[2] -= player_mins[2];
-		player_mins[2] = 0;
-	}
+	VectorCopy(from->szmins, player_mins);
+	VectorCopy(from->szmaxs, player_maxs);
 
 	PM_PlayerMove (cl.gamespeed);
 
@@ -439,7 +419,9 @@ void CL_PredictUsercmd (int pnum, player_state_t *from, player_state_t *to, user
 
 	to->weaponframe = from->weaponframe;
 	to->pm_type = from->pm_type;
-	to->hullnum = from->hullnum;
+
+	VectorCopy(player_mins, to->szmins);
+	VectorCopy(player_maxs, to->szmaxs);
 }
 
 
@@ -750,6 +732,109 @@ void CL_CalcClientTime(void)
 	}
 }
 
+static void CL_DecodeStateSize(unsigned short solid, int modelindex, vec3_t mins, vec3_t maxs)
+{
+	if (solid == ES_SOLID_BSP)
+	{
+		if (modelindex < MAX_MODELS && cl.model_precache[modelindex] && !cl.model_precache[modelindex]->needload)
+		{
+			VectorCopy(cl.model_precache[modelindex]->mins, mins);
+			VectorCopy(cl.model_precache[modelindex]->maxs, maxs);
+		}
+		else
+		{
+			VectorClear(mins);
+			VectorClear(maxs);
+		}
+	}
+	else if (solid)
+	{
+		mins[0] = -8*(solid&31);
+		mins[1] = -8*(solid&31);
+		mins[2] = -8*((solid>>5)&31);
+		maxs[0] = 8*(solid&31);
+		maxs[1] = 8*(solid&31);
+		maxs[2] = 8*((solid>>10)&63) - 32;
+	}
+	else
+	{
+		VectorClear(mins);
+		VectorClear(maxs);
+	}
+}
+
+/*called on packet reception*/
+void CL_PlayerFrameUpdated(player_state_t *plstate, entity_state_t *state, int sequence)
+{
+	/*update the prediction info*/
+	int pmtype;
+	if (state->u.q1.pmovetype == MOVETYPE_NOCLIP)
+	{
+		if (cls.z_ext & Z_EXT_PM_TYPE_NEW)
+			pmtype = PM_SPECTATOR;
+		else
+			pmtype = PM_OLD_SPECTATOR;
+	}
+	else if (state->u.q1.pmovetype == MOVETYPE_FLY)
+		pmtype = PM_FLY;
+	else if (state->u.q1.pmovetype == MOVETYPE_NONE)
+		pmtype = PM_NONE;
+	else if (state->u.q1.pmovetype == MOVETYPE_BOUNCE || state->u.q1.pmovetype == MOVETYPE_TOSS)
+		pmtype = PM_DEAD;
+	else
+		pmtype = PM_NORMAL;
+
+	plstate->pm_type = pmtype;
+	VectorCopy(state->origin, plstate->origin);
+	VectorScale(state->u.q1.velocity, 1/8.0, plstate->velocity);
+	plstate->messagenum = sequence;
+
+	CL_DecodeStateSize(state->solid, state->modelindex, plstate->szmins, plstate->szmaxs);
+}
+
+/*called once every rendered frame*/
+qboolean CL_PredictPlayer(lerpents_t *le, entity_state_t *state, int sequence)
+{
+	int msec, oldphysent;
+	usercmd_t cmd;
+	player_state_t start, exact;
+	int pnum;
+
+	if (state->number-1 > cl.allocated_client_slots || cl.intermission)
+		return false;
+
+	/*local players just interpolate for now. the prediction code will move it to the right place afterwards*/
+	for (pnum = 0; pnum < cl.splitclients; pnum++)
+	{
+		if (state->number-1 == cl.playernum[pnum])
+			return false;
+	}
+
+	memset(&cmd, 0, sizeof(cmd));
+	memset(&start, 0, sizeof(start));
+
+	CL_PlayerFrameUpdated(&start, state, sequence);
+
+	msec = 500*(realtime - cls.latency + 0.02 - cl.frames[sequence & UPDATE_MASK].receivedtime);
+	cmd.msec = bound(0, msec, 255);
+	cmd.forwardmove = state->u.q1.movement[0];
+	cmd.sidemove = state->u.q1.movement[1];
+	cmd.upmove = state->u.q1.movement[2];
+
+	oldphysent = pmove.numphysent;
+	pmove.skipent = state->number-1;
+	CL_PredictUsercmd (0, &start, &exact, &cmd);	//uses player 0's maxspeed/grav...
+	pmove.numphysent = oldphysent;
+
+	/*need to update the entity's angles and origin so the linkentities function puts it in the correct predicted place*/
+	le->angles[0] = state->angles[0];
+	le->angles[1] = state->angles[1];
+	le->angles[2] = state->angles[2];
+	VectorCopy (exact.origin, le->origin);
+
+	return true;
+}
+
 /*
 ==============
 CL_PredictMove
@@ -769,7 +854,7 @@ void CL_PredictMovePNum (int pnum)
 	float *org;
 	float stepheight = 0;
 
-	cl.nolocalplayer[pnum] = false;
+	cl.nolocalplayer[pnum] = !!(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS);
 
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
@@ -874,7 +959,8 @@ fixedorg:
 
 	// predict forward until cl.time <= to->senttime
 	oldphysent = pmove.numphysent;
-	CL_SetSolidPlayers (cl.playernum[pnum]);
+	CL_SetSolidPlayers();
+	pmove.skipent = cl.playernum[pnum]+1;
 
 	to = &cl.frames[cl.ackedinputsequence & UPDATE_MASK];
 
@@ -940,8 +1026,6 @@ fixedorg:
 					cls.netchan.outgoing_sequence; i++)
 			{
 				to = &cl.frames[(cl.ackedinputsequence+i) & UPDATE_MASK];
-				if (cl.intermission)
-					to->playerstate->pm_type = PM_FLY;
 				CL_PredictUsercmd (pnum, &from->playerstate[cl.playernum[pnum]]
 					, &to->playerstate[cl.playernum[pnum]], &to->cmd[pnum]);
 
@@ -965,6 +1049,14 @@ fixedorg:
 			cl.onground[pnum] = pmove.onground;
 		}
 		stepheight = to->playerstate[cl.playernum[pnum]].origin[2] - from->playerstate[cl.playernum[pnum]].origin[2];
+
+		if (cl.nolocalplayer[pnum])
+		{
+			//keep the entity tracking the prediction position, so mirrors don't go all weird
+			VectorCopy(to->playerstate[cl.playernum[pnum]].origin, cl.lerpents[cl.playernum[pnum]+1].origin);
+			VectorScale(to->cmd[pnum].angles, 360.0f / 0xffff, cl.lerpents[cl.playernum[pnum]+1].angles);
+			cl.lerpents[cl.playernum[pnum]+1].angles[0] *= -0.333;
+		}
 	}
 
 	pmove.numphysent = oldphysent;

@@ -229,8 +229,6 @@ typedef struct texnums_s {
 	texid_t loweroverlay;
 	texid_t specular;
 	texid_t fullbright;
-
-	struct shader_s *shader;	//fixme: remove...
 } texnums_t;
 
 typedef struct vboarray_s

@@ -37,7 +37,7 @@ extern LPDIRECT3DDEVICE9 pD3DDev9;
 #endif
 
 extern texid_t missing_texture;
-static texid_t r_whiteimage;
+texid_t r_whiteimage;
 static qboolean shader_reload_needed;
 static qboolean shader_rescan_needed;
 
@@ -1074,10 +1074,12 @@ struct sbuiltin_s
 			"uniform sampler2D s_t0;\n"
 			"in vec2 tc;\n"
 			"varying vec4 vc;\n"
+			"uniform vec4 e_colourident;\n"
 
 			"void main ()\n"
 			"{\n"
 			"	gl_FragColor = fog4blend(texture2D(s_t0, tc) * vc);\n"
+			"	gl_FragColor = gl_FragColor * e_colourident;\n"
 			"}\n"
 		"#endif\n"
 	},
@@ -1102,10 +1104,12 @@ struct sbuiltin_s
 			"uniform sampler2D s_t0;\n"
 			"in vec2 tc;\n"
 			"varying vec4 vc;\n"
+			"uniform vec4 e_colourident;\n"
 
 			"void main ()\n"
 			"{\n"
 			"	gl_FragColor = fog4additive(texture2D(s_t0, tc) * vc);\n"
+			"	gl_FragColor = gl_FragColor * e_colourident;\n"
 			"}\n"
 		"#endif\n"
 	},
@@ -1186,6 +1190,7 @@ struct sbuiltin_s
 			"#endif\n"
 			"varying vec2 tc, lm;\n"
 			"uniform vec4 e_lmscale;\n"
+			"uniform vec4 e_colourident;\n"
 
 			"#ifdef OFFSETMAPPING\n"
 			"#include \"sys/offsetmapping.h\"\n"
@@ -1204,6 +1209,7 @@ struct sbuiltin_s
 			"#ifdef FOG\n"
 				"gl_FragColor = fog4(gl_FragColor);\n"
 			"#endif\n"
+				"gl_FragColor = gl_FragColor * e_colourident;\n"
 			"}\n"
 		"#endif\n"
 	},
@@ -4696,6 +4702,8 @@ void Shader_UpdateRegistration (void)
 
 void R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader)
 {
+	if (!tn)
+		tn = &shader->defaulttextures;
 	if (!TEXVALID(shader->defaulttextures.base))
 	{
 		/*dlights/realtime lighting needs some stuff*/

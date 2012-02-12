@@ -2459,8 +2459,8 @@ void Sbar_Draw (void)
 				{
 					if (sb_showscores || sb_showteamscores || cl.stats[pnum][STAT_HEALTH] <= 0)
 						Sbar_SoloScoreboard ();
-					else if (cls.gamemode != GAME_DEATHMATCH)
-						Sbar_CoopScoreboard ();
+//					else if (cls.gamemode != GAME_DEATHMATCH)
+//						Sbar_CoopScoreboard ();
 					else
 						Sbar_DrawNormal (pnum);
 

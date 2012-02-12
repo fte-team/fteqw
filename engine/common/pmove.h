@@ -60,7 +60,6 @@ typedef struct
 	int			jump_msec;	// msec since last jump
 	float		waterjumptime;
 	int			pm_type;
-	int			hullnum;
 
 	// world state
 	int			numphysent;
@@ -72,6 +71,7 @@ typedef struct
 	qboolean onladder;
 
 	// results
+	int			skipent;
 	int			numtouch;
 	int			touchindex[MAX_PHYSENTS];
 	vec3_t		touchvel[MAX_PHYSENTS];

@@ -125,26 +125,35 @@ int PM_PointContents (vec3_t p)
 	for (num = 1; num < pmove.numphysent; num++)
 	{
 		pe = &pmove.physents[num];
+
+		if (pe->info == pmove.skipent)
+			continue;
+
 		pm = pe->model;
 		if (pm)
 		{
-			if (pe->forcecontentsmask)
+			if (p[0] >= pe->origin[0]+pm->mins[0] && p[0] <= pe->origin[0]+pm->maxs[0] && 
+				p[1] >= pe->origin[1]+pm->mins[1] && p[1] <= pe->origin[1]+pm->maxs[1] &&
+				p[2] >= pe->origin[2]+pm->mins[2] && p[2] <= pe->origin[2]+pm->maxs[2])
 			{
-				if (PM_TransformedModelPointContents(pm, p, pe->origin, pe->angles))
-					pc |= pe->forcecontentsmask;
-			}
-			else
-			{
-				if (pe->nonsolid)
-					continue;
-				pc |= PM_TransformedModelPointContents(pm, p, pe->origin, pe->angles);
+				if (pe->forcecontentsmask)
+				{
+					if (PM_TransformedModelPointContents(pm, p, pe->origin, pe->angles))
+						pc |= pe->forcecontentsmask;
+				}
+				else
+				{
+					if (pe->nonsolid)
+						continue;
+					pc |= PM_TransformedModelPointContents(pm, p, pe->origin, pe->angles);
+				}
 			}
 		}
 		else if (pe->forcecontentsmask)
 		{
-			if (p[0] >= pe->mins[0] && p[0] <= pe->maxs[0] && 
-				p[1] >= pe->mins[1] && p[1] <= pe->maxs[1] &&
-				p[2] >= pe->mins[2] && p[2] <= pe->maxs[2])
+			if (p[0] >= pe->origin[0]+pe->mins[0] && p[0] <= pe->origin[0]+pe->maxs[0] && 
+				p[1] >= pe->origin[1]+pe->mins[1] && p[1] <= pe->origin[1]+pe->maxs[1] &&
+				p[2] >= pe->origin[2]+pe->mins[2] && p[2] <= pe->origin[2]+pe->maxs[2])
 				pc |= pe->forcecontentsmask;
 		}
 	}
@@ -179,9 +188,9 @@ int PM_ExtraBoxContents (vec3_t p)
 		}
 		else if (pe->forcecontentsmask)
 		{
-			if (p[0]+player_maxs[0] >= pe->mins[0] && p[0]+player_mins[0] <= pe->maxs[0] && 
-				p[1]+player_maxs[1] >= pe->mins[1] && p[1]+player_mins[1] <= pe->maxs[1] &&
-				p[2]+player_maxs[2] >= pe->mins[2] && p[2]+player_mins[2] <= pe->maxs[2])
+			if (p[0]+player_maxs[0] >= pe->origin[0]+pe->mins[0] && p[0]+player_mins[0] <= pe->origin[0]+pe->maxs[0] && 
+				p[1]+player_maxs[1] >= pe->origin[1]+pe->mins[1] && p[1]+player_mins[1] <= pe->origin[1]+pe->maxs[1] &&
+				p[2]+player_maxs[2] >= pe->origin[2]+pe->mins[2] && p[2]+player_mins[2] <= pe->origin[2]+pe->maxs[2])
 				pc |= pe->forcecontentsmask;
 		}
 	}
@@ -267,6 +276,9 @@ qboolean PM_TestPlayerPosition (vec3_t pos)
 	{
 		pe = &pmove.physents[i];
 
+		if (pe->info == pmove.skipent)
+			continue;
+
 		if (pe->nonsolid)
 			continue;
 
@@ -316,6 +328,8 @@ trace_t PM_PlayerTrace (vec3_t start, vec3_t end)
 
 		if (pe->nonsolid)
 			continue;
+		if (pe->info == pmove.skipent)
+			continue;
 
 		if (!pe->model || pe->model->needload)
 		{
@@ -363,6 +377,5 @@ trace_t PM_TraceLine (vec3_t start, vec3_t end)
 {
 	VectorClear(player_mins);
 	VectorClear(player_maxs);
-	pmove.hullnum = 0;
 	return PM_PlayerTrace(start, end);
 }

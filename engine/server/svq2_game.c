@@ -736,6 +736,9 @@ qboolean SVQ2_InitGameProgs(void)
 	*/
 	}
 
+	Cvar_ForceSet(Cvar_Get("game", "", CVAR_LATCH, "Q2 compat"), FS_GetGamedir());
+	Cvar_ForceSet(Cvar_Get("basedir", "", CVAR_LATCH, "Q2 compat"), FS_GetBasedir());
+
 	ge = (game_export_t *)Sys_GetGameAPI ((game_import_t*)&import);
 
 	if (!ge)

@@ -1181,7 +1181,7 @@ static void D3D9_SetupViewPort(void)
 	fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
 	fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
 
-	if (r_waterwarp.value<0 && r_viewleaf->contents <= Q1CONTENTS_WATER)
+	if (r_waterwarp.value<0 && r_viewcontents & FTECONTENTS_FLUID)
 	{
 		fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
 		fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);

@@ -465,3 +465,12 @@ enum lightfield_e
 	lfield_diffusescale=11,
 	lfield_specularscale=12
 };
+enum csqc_input_event
+{
+	/*devid is the player id (on android, its the multitouch id and is always present even in single player)*/
+	CSIE_KEYDOWN = 0, /*syscode, unicode, devid*/
+	CSIE_KEYUP = 1, /*syscode, unicode, devid*/
+	CSIE_MOUSEDELTA = 2, /*x, y, devid*/
+	CSIE_MOUSEABS = 3, /*x, y, devid*/
+	CSIE_ACCELEROMETER = 4 /*x, y, z*/
+};

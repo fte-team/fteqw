@@ -170,10 +170,10 @@ void GL_GAliasFlushSkinCache(void)
 	skincolourmapped.numbuckets = 0;
 }
 
-static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, entity_t *e)
+static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, entity_t *e, texnums_t **forcedtex)
 {
 	galiasskin_t *skins;
-	texnums_t *texnums;
+	shader_t *shader;
 	int frame;
 	unsigned int subframe;
 	extern int cl_playerindex;	//so I don't have to strcmp
@@ -181,14 +181,15 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, 
 	unsigned int tc, bc, pc;
 	qboolean forced;
 
+	*forcedtex = NULL;
+
 	if (e->skinnum >= 100 && e->skinnum < 110)
 	{
 		shader_t *s;
 		s = R_RegisterSkin(va("gfx/skin%d.lmp", e->skinnum), NULL);
 		if (!TEXVALID(s->defaulttextures.base))
 			s->defaulttextures.base = R_LoadHiResTexture(va("gfx/skin%d.lmp", e->skinnum), NULL, 0);
-		s->defaulttextures.shader = s;
-		return &s->defaulttextures;
+		return s;
 	}
 
 
@@ -258,28 +259,30 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, 
 
 			if (!inf->numskins)
 			{
+				/*model has no skins*/
 				skins = NULL;
 				subframe = 0;
-				texnums = NULL;
+				shader = NULL;
 			}
 			else
 			{
 				skins = (galiasskin_t*)((char *)inf + inf->ofsskins);
-				if (!skins->texnums)
+				if (e->skinnum >= 0 && e->skinnum < inf->numskins)
+					skins += e->skinnum;
+
+				if (!skins->numshaders)
 				{
+					/*model has a skin, but has no framegroups*/
 					skins = NULL;
 					subframe = 0;
-					texnums = NULL;
+					shader = NULL;
 				}
 				else
 				{
-					if (e->skinnum >= 0 && e->skinnum < inf->numskins)
-						skins += e->skinnum;
-
 					subframe = cl.time*skins->skinspeed;
-					subframe = subframe%skins->texnums;
+					subframe = subframe%skins->numshaders;
 
-					texnums = (texnums_t*)((char *)skins + skins->ofstexnums + subframe*sizeof(texnums_t));
+					shader = *(shader_t**)((char *)skins + skins->ofsshaders + subframe*sizeof(shader_t*));
 				}
 			}
 
@@ -287,12 +290,14 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, 
 			{
 				if (cm->tcolour == tc && cm->bcolour == bc && cm->skinnum == e->skinnum && cm->subframe == subframe && cm->pclass == pc)
 				{
-					return &cm->texnum;
+					*forcedtex = &cm->texnum;
+					return shader;
 				}
 			}
 
 			//colourmap isn't present yet.
 			cm = BZ_Malloc(sizeof(*cm));
+			*forcedtex = &cm->texnum;
 			Q_strncpyz(cm->name, skinname, sizeof(cm->name));
 			Hash_Add(&skincolourmapped, cm->name, cm, &cm->bucket);
 			cm->tcolour = tc;
@@ -304,10 +309,11 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, 
 			cm->texnum.base = r_nulltex;
 			cm->texnum.loweroverlay = r_nulltex;
 			cm->texnum.upperoverlay = r_nulltex;
-			cm->texnum.shader = texnums?texnums->shader:R_RegisterSkin(skinname, NULL);
 
-			if (!texnums)
-			{	//load just the skin
+			if (!shader)
+			{	//model has no shaders, so just the skin directly
+				shader = R_RegisterSkin(skinname, NULL);
+
 				if (e->scoreboard && e->scoreboard->skin)
 				{
 					if (cls.protocol == CP_QUAKE2)
@@ -318,7 +324,7 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, 
 							inwidth = e->scoreboard->skin->width;
 							inheight = e->scoreboard->skin->height;
 							cm->texnum.base = R_LoadTexture32(e->scoreboard->skin->name, inwidth, inheight, (unsigned int*)original, IF_NOALPHA|IF_NOGAMMA);
-							return &cm->texnum;
+							return shader;
 						}
 					}
 					else
@@ -329,39 +335,38 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, 
 							inwidth = e->scoreboard->skin->width;
 							inheight = e->scoreboard->skin->height;
 							cm->texnum.base = R_LoadTexture8(e->scoreboard->skin->name, inwidth, inheight, original, IF_NOALPHA|IF_NOGAMMA, 1);
-							return &cm->texnum;
+							return shader;
 						}
 					}
 
 					if (TEXVALID(e->scoreboard->skin->tex_base))
 					{
-						texnums = &cm->texnum;
-						texnums->loweroverlay = e->scoreboard->skin->tex_lower;
-						texnums->upperoverlay = e->scoreboard->skin->tex_upper;
-						texnums->base = e->scoreboard->skin->tex_base;
-						return texnums;
+						cm->texnum.loweroverlay = e->scoreboard->skin->tex_lower;
+						cm->texnum.upperoverlay = e->scoreboard->skin->tex_upper;
+						cm->texnum.base = e->scoreboard->skin->tex_base;
+						return shader;
 					}
 
 					cm->texnum.base = R_LoadHiResTexture(e->scoreboard->skin->name, "skins", IF_NOALPHA);
-					return &cm->texnum;
+					return shader;
 				}
-				return NULL;
+				return shader;
 			}
 
-			cm->texnum.bump = texnums[cm->skinnum].bump;	//can't colour bumpmapping
-			if (cls.protocol != CP_QUAKE2 && ((!texnums || (model==cl.model_precache[cl_playerindex] || model==cl.model_precache_vwep[0])) && e->scoreboard && e->scoreboard->skin))
+			cm->texnum.bump = shader->defaulttextures.bump;	//can't colour bumpmapping
+			if (cls.protocol != CP_QUAKE2 && ((model==cl.model_precache[cl_playerindex] || model==cl.model_precache_vwep[0]) && e->scoreboard && e->scoreboard->skin))
 			{
+				/*q1 only reskins the player model, not gibbed heads (which have the same colourmap)*/
 				original = Skin_Cache8(e->scoreboard->skin);
 				inwidth = e->scoreboard->skin->width;
 				inheight = e->scoreboard->skin->height;
 
 				if (!original && TEXVALID(e->scoreboard->skin->tex_base))
 				{
-					texnums = &cm->texnum;
-					texnums->loweroverlay = e->scoreboard->skin->tex_lower;
-					texnums->upperoverlay = e->scoreboard->skin->tex_upper;
-					texnums->base = e->scoreboard->skin->tex_base;
-					return texnums;
+					cm->texnum.loweroverlay = e->scoreboard->skin->tex_lower;
+					cm->texnum.upperoverlay = e->scoreboard->skin->tex_upper;
+					cm->texnum.base = e->scoreboard->skin->tex_base;
+					return shader;
 				}
 			}
 			else
@@ -398,10 +403,8 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, 
 				unsigned	scaled_width, scaled_height;
 				qbyte		*inrow;
 
-				texnums = &cm->texnum;
-
-				texnums->base = r_nulltex;
-				texnums->fullbright = r_nulltex;
+				cm->texnum.base = r_nulltex;
+				cm->texnum.fullbright = r_nulltex;
 
 				scaled_width = gl_max_size.value < 512 ? gl_max_size.value : 512;
 				scaled_height = gl_max_size.value < 512 ? gl_max_size.value : 512;
@@ -514,12 +517,12 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, 
 				}
 				if (qrenderer == QR_OPENGL)
 				{
-					texnums->base = R_AllocNewTexture(cm->name, scaled_width, scaled_height);
-					R_Upload(texnums->base, cm->name, h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, NULL, scaled_width, scaled_height, IF_NOMIPMAP);
+					cm->texnum.base = R_AllocNewTexture(cm->name, scaled_width, scaled_height);
+					R_Upload(cm->texnum.base, cm->name, h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, NULL, scaled_width, scaled_height, IF_NOMIPMAP);
 				}
 				else
 				{
-					texnums->base = R_LoadTexture(cm->name, scaled_width, scaled_height, h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, 0);
+					cm->texnum.base = R_LoadTexture(cm->name, scaled_width, scaled_height, h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, 0);
 				}
 
 				if (!h2playertranslations)
@@ -540,30 +543,21 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, 
 					}
 					if (qrenderer == QR_OPENGL)
 					{
-						texnums->fullbright = R_AllocNewTexture(cm->name, scaled_width, scaled_height);
-						R_Upload(texnums->fullbright, cm->name, TF_RGBA32, pixels, NULL, scaled_width, scaled_height, IF_NOMIPMAP);
+						cm->texnum.fullbright = R_AllocNewTexture(cm->name, scaled_width, scaled_height);
+						R_Upload(cm->texnum.fullbright, cm->name, TF_RGBA32, pixels, NULL, scaled_width, scaled_height, IF_NOMIPMAP);
 					}
 					else
 					{
-						texnums->fullbright = R_LoadTexture(cm->name, scaled_width, scaled_height, h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, 0);
+						cm->texnum.fullbright = R_LoadTexture(cm->name, scaled_width, scaled_height, h2playertranslations?TF_RGBA32:TF_RGBX32, pixels, 0);
 					}
 				}
 			}
 			else
 			{
-				skins = (galiasskin_t*)((char *)inf + inf->ofsskins);
-				if (e->skinnum >= 0 && e->skinnum < inf->numskins)
-					skins += e->skinnum;
-
-				if (!inf->numskins || !skins->texnums)
-					return NULL;
-
-				frame = cl.time*skins->skinspeed;
-				frame = frame%skins->texnums;
-				texnums = (texnums_t*)((char *)skins + skins->ofstexnums + frame*sizeof(texnums_t));
-				memcpy(&cm->texnum, texnums, sizeof(cm->texnum));
+				/*model has no original skin info and thus cannot be reskinned, copy over the default textures so that the skincache doesn't break things when it gets reused*/
+				cm->texnum = shader->defaulttextures;
 			}
-			return &cm->texnum;
+			return shader;
 		}
 	}
 
@@ -580,14 +574,12 @@ static texnums_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, 
 			return NULL;
 	}
 
-	if (!skins->texnums)
+	if (!skins->numshaders)
 		return NULL;
 
 	frame = cl.time*skins->skinspeed;
-	frame = frame%skins->texnums;
-	texnums = (texnums_t*)((char *)skins + skins->ofstexnums + frame*sizeof(texnums_t));
-
-	return texnums;
+	frame = frame%skins->numshaders;
+	return *(shader_t**)((char *)skins + skins->ofsshaders + frame*sizeof(shader_t*));
 }
 
 #if defined(RTLIGHTS)
@@ -958,7 +950,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 {
 	galiasinfo_t *inf;
 	model_t *clmodel;
-	shader_t *shader;
+	shader_t *shader, *regshader;
 	batch_t *b;
 	int surfnum;
 	shadersort_t sort;
@@ -1006,10 +998,11 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 
 	for(surfnum=0; inf; ((inf->nextsurf)?(inf = (galiasinfo_t*)((char *)inf + inf->nextsurf)):(inf=NULL)), surfnum++)
 	{
-		skin = GL_ChooseSkin(inf, clmodel, surfnum, e);
-		if (!skin)
+		regshader = GL_ChooseSkin(inf, clmodel, surfnum, e, &skin);
+		if (!regshader)
 			continue;
-		shader = e->forcedshader?e->forcedshader:skin->shader;
+		skin = skin?skin:&regshader->defaulttextures;
+		shader = e->forcedshader?e->forcedshader:regshader;
 		if (shader)
 		{
 			b = BE_GetTempBatch();

@@ -68,7 +68,7 @@ typedef struct {
 		HANDLE rawinputhandle;
 	} handles;
 
-	int playerid;
+	int qdeviceid;
 } keyboard_t;
 
 typedef struct {
@@ -77,7 +77,7 @@ typedef struct {
 	} handles;
 
 	int numbuttons;
-	int playerid;
+	int qdeviceid;	/*the device id controls which player slot it controls, if splitscreen splits it that way*/
 
 	volatile int buttons;
 	volatile int oldbuttons;
@@ -976,7 +976,7 @@ void IN_RawInput_Init(void)
 			rawmice[rawmicecount].handles.rawinputhandle = pRawInputDeviceList[i].hDevice;
 			rawmice[rawmicecount].numbuttons = 10;
 			rawmice[rawmicecount].pos[0] = RI_INVALID_POS;
-			rawmice[rawmicecount].playerid = rawmicecount;
+			rawmice[rawmicecount].qdeviceid = rawmicecount;
 			rawmicecount++;
 			break;
 		case RIM_TYPEKEYBOARD:
@@ -984,7 +984,7 @@ void IN_RawInput_Init(void)
 				continue;
 
 			rawkbd[rawkbdcount].handles.rawinputhandle = pRawInputDeviceList[i].hDevice;
-			rawkbd[rawkbdcount].playerid = rawmicecount;
+			rawkbd[rawkbdcount].qdeviceid = rawkbdcount;
 			rawkbdcount++;
 			break;
 		default:
@@ -1238,6 +1238,7 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 
 	int i;
 
+	/*each device will be processed when its player comes to be processed*/
 	int wpnum;
 	wpnum = cl.splitclients;
 	if (wpnum < 1)
@@ -1245,7 +1246,7 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 	if (cl_forcesplitclient.ival)
 		wpnum = (cl_forcesplitclient.ival-1) % wpnum;
 	else
-		wpnum = mouse->playerid % wpnum;
+		wpnum = mouse->qdeviceid % wpnum;
 	if (wpnum != pnum)
 		return;
 
@@ -1255,13 +1256,13 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 		if ( (mouse->buttons & (1<<i)) &&
 			!(mouse->oldbuttons & (1<<i)) )
 		{
-			Key_Event (pnum, K_MOUSE1 + i, 0, true);
+			Key_Event (mouse->qdeviceid, K_MOUSE1 + i, 0, true);
 		}
 
 		if ( !(mouse->buttons & (1<<i)) &&
 			(mouse->oldbuttons & (1<<i)) )
 		{
-			Key_Event (pnum, K_MOUSE1 + i, 0, false);
+			Key_Event (mouse->qdeviceid, K_MOUSE1 + i, 0, false);
 		}
 	}
 	mouse->oldbuttons = mouse->buttons;
@@ -1273,15 +1274,15 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 		{
 			while(mouse->wheeldelta <= -mfwt)
 			{
-				Key_Event (pnum, K_MWHEELUP, 0, true);
-				Key_Event (pnum, K_MWHEELUP, 0, false);
+				Key_Event (mouse->qdeviceid, K_MWHEELUP, 0, true);
+				Key_Event (mouse->qdeviceid, K_MWHEELUP, 0, false);
 				mouse->wheeldelta += mfwt;
 			}
 
 			while(mouse->wheeldelta >= mfwt)
 			{
-				Key_Event (pnum, K_MWHEELDOWN, 0, true);
-				Key_Event (pnum, K_MWHEELDOWN, 0, false);
+				Key_Event (mouse->qdeviceid, K_MWHEELDOWN, 0, true);
+				Key_Event (mouse->qdeviceid, K_MWHEELDOWN, 0, false);
 				mouse->wheeldelta -= mfwt;
 			}
 		}
@@ -1319,7 +1320,7 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 		mx=my=0;
 
 #ifdef PEXT_CSQC
-		CSQC_MousePosition(mousecursor_x, mousecursor_y);
+		CSQC_MousePosition(mousecursor_x, mousecursor_y, mouse->qdeviceid);
 #endif
 	}
 	else
@@ -1335,7 +1336,7 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 
 #ifdef PEXT_CSQC
 	if (mx || my)
-	if (CSQC_MouseMove(mx, my))
+	if (CSQC_MouseMove(mx, my, mouse->qdeviceid))
 	{
 		mx = 0;
 		my = 0;
@@ -1642,8 +1643,8 @@ void IN_Accumulate (void)
 #ifdef USINGRAWINPUT
 void IN_RawInput_MouseRead(void)
 {
-	int pnum;
 	int i, tbuttons, j;
+	mouse_t *mouse;
 
 	// find mouse in our mouse list
 	for (i = 0; i < rawmicecount; i++)
@@ -1654,14 +1655,7 @@ void IN_RawInput_MouseRead(void)
 
 	if (i == rawmicecount) // we're not tracking this device
 		return;
-
-	pnum = cl.splitclients;
-	if (pnum < 1)
-		pnum = 1;
-	if (cl_forcesplitclient.ival)
-		pnum = (cl_forcesplitclient.ival-1) % pnum;
-	else
-		pnum = rawmice[i].playerid % pnum;
+	mouse = &rawmice[i];
 
 	// movement
 	if (raw->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE)
@@ -1683,38 +1677,38 @@ void IN_RawInput_MouseRead(void)
 
 	// buttons
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN)
-		Key_Event(pnum, K_MOUSE1, 0, true);
+		Key_Event(mouse->qdeviceid, K_MOUSE1, 0, true);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_UP)
-		Key_Event(pnum, K_MOUSE1, 0, false);
+		Key_Event(mouse->qdeviceid, K_MOUSE1, 0, false);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN)
-		Key_Event(pnum, K_MOUSE2, 0, true);
+		Key_Event(mouse->qdeviceid, K_MOUSE2, 0, true);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_UP)
-		Key_Event(pnum, K_MOUSE2, 0, false);
+		Key_Event(mouse->qdeviceid, K_MOUSE2, 0, false);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_DOWN)
-		Key_Event(pnum, K_MOUSE3, 0, true);
+		Key_Event(mouse->qdeviceid, K_MOUSE3, 0, true);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_UP)
-		Key_Event(pnum, K_MOUSE3, 0, false);
+		Key_Event(mouse->qdeviceid, K_MOUSE3, 0, false);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_4_DOWN)
-		Key_Event(pnum, K_MOUSE4, 0, true);
+		Key_Event(mouse->qdeviceid, K_MOUSE4, 0, true);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_4_UP)
-		Key_Event(pnum, K_MOUSE4, 0, false);
+		Key_Event(mouse->qdeviceid, K_MOUSE4, 0, false);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_5_DOWN)
-		Key_Event(pnum, K_MOUSE5, 0, true);
+		Key_Event(mouse->qdeviceid, K_MOUSE5, 0, true);
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_BUTTON_5_UP)
-		Key_Event(pnum, K_MOUSE5, 0, false);
+		Key_Event(mouse->qdeviceid, K_MOUSE5, 0, false);
 
 	// mouse wheel
 	if (raw->data.mouse.usButtonFlags & RI_MOUSE_WHEEL)
 	{      // If the current message has a mouse_wheel message
 		if ((SHORT)raw->data.mouse.usButtonData > 0)
 		{
-			Key_Event(pnum, K_MWHEELUP, 0, true);
-			Key_Event(pnum, K_MWHEELUP, 0, false);
+			Key_Event(mouse->qdeviceid, K_MWHEELUP, 0, true);
+			Key_Event(mouse->qdeviceid, K_MWHEELUP, 0, false);
 		}
 		if ((SHORT)raw->data.mouse.usButtonData < 0)
 		{
-			Key_Event(pnum, K_MWHEELDOWN, 0, true);
-			Key_Event(pnum, K_MWHEELDOWN, 0, false);
+			Key_Event(mouse->qdeviceid, K_MWHEELDOWN, 0, true);
+			Key_Event(mouse->qdeviceid, K_MWHEELDOWN, 0, false);
 		}
 	}
 
@@ -1724,12 +1718,12 @@ void IN_RawInput_MouseRead(void)
 	{
 		if ( (tbuttons & (1<<j)) && !(rawmice[i].buttons & (1<<j)) )
 		{
-			Key_Event (pnum, K_MOUSE1 + j, 0, true);
+			Key_Event (mouse->qdeviceid, K_MOUSE1 + j, 0, true);
 		}
 
 		if ( !(tbuttons & (1<<j)) && (rawmice[i].buttons & (1<<j)) )
 		{
-			Key_Event (pnum, K_MOUSE1 + j, 0, false);
+			Key_Event (mouse->qdeviceid, K_MOUSE1 + j, 0, false);
 		}
 
 	}
@@ -1741,7 +1735,6 @@ void IN_RawInput_MouseRead(void)
 void IN_RawInput_KeyboardRead(void)
 {
 	int i;
-	int pnum;
 	qboolean down;
 	WPARAM wParam;
 	LPARAM lParam;
@@ -1759,15 +1752,7 @@ void IN_RawInput_KeyboardRead(void)
 	wParam = (-down) & 0xC0000000;
 	lParam = MapVirtualKey(raw->data.keyboard.VKey, 0)<<16;
 
-	pnum = cl.splitclients;
-	if (pnum < 1)
-		pnum = 1;
-	if (cl_forcesplitclient.ival)
-		pnum = (cl_forcesplitclient.ival-1) % pnum;
-	else
-		pnum = rawkbd[i].playerid % pnum;
-
- 	IN_TranslateKeyEvent(wParam, lParam, down, pnum);
+ 	IN_TranslateKeyEvent(wParam, lParam, down, rawkbd[i].qdeviceid);
 }
 
 void IN_RawInput_Read(HANDLE in_device_handle)
@@ -2397,7 +2382,7 @@ static int MapKey (int vkey)
 	return scantokey[key];
 }
 
-void IN_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int pnum)
+void IN_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int qdeviceid)
 {
 	extern cvar_t in_builtinkeymap;
 	int qcode;
@@ -2419,5 +2404,5 @@ void IN_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int pnum)
 		}
 	}
 
-	Key_Event (pnum, qcode, unicode, down);
+	Key_Event (qdeviceid, qcode, unicode, down);
 }

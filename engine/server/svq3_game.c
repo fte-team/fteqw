@@ -1773,6 +1773,7 @@ void SVQ3_ClientCommand(client_t *cl)
 void SVQ3_ClientBegin(client_t *cl)
 {
 	VM_Call(q3gamevm, GAME_CLIENT_BEGIN, (int)(cl-svs.clients));
+	sv.spawned_client_slots++;
 }
 
 void SVQ3_ClientThink(client_t *cl)
@@ -2360,7 +2361,7 @@ void SVQ3Q1_ConvertEntStateQ1ToQ3(entity_state_t *q1, q3entityState_t *q3)
 	q3->apos.trBase[1] = 0;
 	q3->pos.trDelta[2] = 0;
 	q3->apos.trBase[0] = 0;
-	q3->event = q1->event;
+	q3->event = 0;
 	q3->angles2[1] = 0;
 	q3->eType = 0;
 	q3->torsoAnim = q1->skinnum;
@@ -2382,12 +2383,12 @@ void SVQ3Q1_ConvertEntStateQ1ToQ3(entity_state_t *q1, q3entityState_t *q3)
 	q3->powerups = q1->effects;
 	q3->modelindex = q1->modelindex;
 	q3->otherEntityNum2 = 0;
-	q3->loopSound = q1->sound;
+	q3->loopSound = 0;
 	q3->generic1 = q1->trans;
-	q3->origin2[2] = q1->old_origin[2];
-	q3->origin2[0] = q1->old_origin[0];
-	q3->origin2[1] = q1->old_origin[1];
-	q3->modelindex2 = q1->modelindex2;
+	q3->origin2[2] = 0;//q1->old_origin[2];
+	q3->origin2[0] = 0;//q1->old_origin[0];
+	q3->origin2[1] = 0;//q1->old_origin[1];
+	q3->modelindex2 = 0;//q1->modelindex2;
 	q3->angles[0] = q1->angles[0];
 	q3->time = 0;
 	q3->apos.trTime = 0;
@@ -3068,13 +3069,13 @@ void SVQ3_ParseClientMessage(client_t *client)
 		Con_Printf(CON_WARNING "WARNING: Junk at end of packet for client %s\n", client->name );
 	}
 };
-void SVQ3_HandleClient(void)
+qboolean SVQ3_HandleClient(void)
 {
 	int i;
 	int qport;
 
 	if (net_message.cursize<6)
-		return;	//urm. :/
+		return false;	//urm. :/
 
 	MSG_BeginReading(msg_nullnetprim);
 	MSG_ReadBits(32);
@@ -3088,19 +3089,22 @@ void SVQ3_HandleClient(void)
 			continue;
 		if (!NET_CompareBaseAdr(svs.clients[i].netchan.remote_address, net_from))
 			continue;
+		if (!ISQ3CLIENT(&svs.clients[i]))
+			continue;
 
 		//found them.
 		break;
 	}
 	if (i == sv.allocated_client_slots)
-		return;	//nope
+		return false;	//nope
 
 	if (!SVQ3_Netchan_Process(&svs.clients[i]))
 	{
-		return; // wasn't accepted for some reason
+		return true; // wasn't accepted for some reason
 	}
 
 	SVQ3_ParseClientMessage(&svs.clients[i]);
+	return true;
 }
 
 void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and let the gamecode know of it.

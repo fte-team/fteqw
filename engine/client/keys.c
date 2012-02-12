@@ -1338,9 +1338,10 @@ Called by the system between frames for both key up and key down events
 Should NOT be called during an interrupt!
 ===================
 */
-void Key_Event (int pnum, int key, unsigned int unicode, qboolean down)
+void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 {
 	char	*kb;
+	char	p[16];
 	char	cmd[1024];
 	int keystate, oldstate;
 
@@ -1459,7 +1460,7 @@ void Key_Event (int pnum, int key, unsigned int unicode, qboolean down)
 	if (key_dest == key_game)
 	{
 #ifdef CSQC_DAT
-		if (CSQC_KeyPress(key, unicode, down))	//give csqc a chance to handle it.
+		if (CSQC_KeyPress(key, unicode, down, devid))	//give csqc a chance to handle it.
 			return;
 #endif
 #ifdef VM_CG
@@ -1555,39 +1556,23 @@ void Key_Event (int pnum, int key, unsigned int unicode, qboolean down)
 			return;
 		deltaused[key][keystate] = false;
 
-		kb = keybindings[key][keystate];
-		if (pnum)
-		{
-			if (kb && kb[0] == '+')
-			{
-				Q_snprintfz (cmd, sizeof(cmd), "-p%i %s %i\n", pnum+1, kb+1, key+oldstate*256);
-				Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
-			}
-			if (keyshift[key] != key)
-			{
-				kb = keybindings[keyshift[key]][keystate];
-				if (kb && kb[0] == '+')
-				{
-					Q_snprintfz (cmd, sizeof(cmd), "-p%i %s %i\n", pnum+1, kb+1, key+oldstate*256);
-					Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
-				}
-			}
-		}
+		if (devid)
+			Q_snprintfz (p, sizeof(p), "p %i ", devid+1);
 		else
+			*p = 0;
+		kb = keybindings[key][keystate];
+		if (kb && kb[0] == '+')
 		{
+			Q_snprintfz (cmd, sizeof(cmd), "-%s%s %i\n", p, kb+1, key+oldstate*256);
+			Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
+		}
+		if (keyshift[key] != key)
+		{
+			kb = keybindings[keyshift[key]][keystate];
 			if (kb && kb[0] == '+')
 			{
-				Q_snprintfz (cmd, sizeof(cmd), "-%s %i\n", kb+1, key+oldstate*256);
+				Q_snprintfz (cmd, sizeof(cmd), "-%s%s %i\n", p, kb+1, key+oldstate*256);
 				Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
-			}
-			if (keyshift[key] != key)
-			{
-				kb = keybindings[keyshift[key]][keystate];
-				if (kb && kb[0] == '+')
-				{
-					Q_snprintfz (cmd, sizeof(cmd), "-%s %i\n", kb+1, key+oldstate*256);
-					Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
-				}
 			}
 		}
 		return;
@@ -1623,37 +1608,25 @@ void Key_Event (int pnum, int key, unsigned int unicode, qboolean down)
 			return;
 
 		deltaused[key][keystate] = true;
-		kb = keybindings[key][keystate];
-		if (pnum)
-		{
-			if (kb)
-			{
-				if (kb[0] == '+')
-				{	// button commands add keynum as a parm
-					Q_snprintfz (cmd, sizeof(cmd), "+p%i %s %i\n", pnum+1, kb+1, key+oldstate*256);
-					Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
-				}
-				else
-				{
-					Q_snprintfz (cmd, sizeof(cmd), "p%i %s\n", pnum+1, kb);
-					Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
-				}
-			}
-		}
+
+		if (devid)
+			Q_snprintfz (p, sizeof(p), "p %i ", devid+1);
 		else
+			*p = 0;
+
+		kb = keybindings[key][keystate];
+		if (kb)
 		{
-			if (kb)
+			if (kb[0] == '+')
+			{	// button commands add keynum as a parm
+				Q_snprintfz (cmd, sizeof(cmd), "+%s%s %i\n", p, kb+1, key+oldstate*256);
+				Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
+			}
+			else
 			{
-				if (kb[0] == '+')
-				{	// button commands add keynum as a parm
-					Q_snprintfz (cmd, sizeof(cmd), "%s %i\n", kb, key+oldstate*256);
-					Cbuf_AddText (cmd, bindcmdlevel[key][keystate]);
-				}
-				else
-				{
-					Cbuf_AddText (kb, bindcmdlevel[key][keystate]);
-					Cbuf_AddText ("\n", bindcmdlevel[key][keystate]);
-				}
+				if (*p)Cbuf_AddText (p, bindcmdlevel[key][keystate]);
+				Cbuf_AddText (kb, bindcmdlevel[key][keystate]);
+				Cbuf_AddText ("\n", bindcmdlevel[key][keystate]);
 			}
 		}
 

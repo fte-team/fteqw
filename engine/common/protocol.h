@@ -52,10 +52,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT_SPAWNSTATIC2		0x00400000	//Sends an entity delta instead of a baseline.
 #define PEXT_CUSTOMTEMPEFFECTS	0x00800000	//supports custom temp ents.
 #define PEXT_256PACKETENTITIES	0x01000000	//Client can recieve 256 packet entities.
-//#define PEXT_NEVERUSED		0x02000000	//Client is able to cope with 64 players. Wow.
+//#define PEXT_NEVERUSED		0x02000000
 #define PEXT_SHOWPIC			0x04000000
 #define PEXT_SETATTACHMENT		0x08000000	//md3 tags (needs networking, they need to lerp).
-//#define PEXT_NEVERUSED		0x10000000	//retrieve a list of pk3s/pk3s/paks for downloading (with optional URL and crcs)
+//#define PEXT_NEVERUSED		0x10000000
 #define PEXT_CHUNKEDDOWNLOADS	0x20000000	//alternate file download method. Hopefully it'll give quadroupled download speed, especially on higher pings.
 
 #ifdef CSQC_DAT
@@ -73,7 +73,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT2_PRYDONCURSOR			0x00000001
 #define PEXT2_VOICECHAT				0x00000002
 #define PEXT2_SETANGLEDELTA			0x00000004
-//#define PEXT2_64PLAYERS			0x02000000	//Client is able to cope with 64 players. Wow.
+#define PEXT2_REPLACEMENTDELTAS		0x00000008
+#define PEXT2_MAXPLAYERS			0x00000010	//Client is able to cope with more players than 32. abs max becomes 255, due to colormap issues.
 //#define PEXT2_PK3DOWNLOADS		0x10000000	//retrieve a list of pk3s/pk3s/paks for downloading (with optional URL and crcs)
 
 //ZQuake transparent protocol extensions.
@@ -95,7 +96,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PROTOCOL_VERSION_FTE			(('F'<<0) + ('T'<<8) + ('E'<<16) + ('X' << 24))	//fte extensions.
 #define PROTOCOL_VERSION_FTE2			(('F'<<0) + ('T'<<8) + ('E'<<16) + ('2' << 24))	//fte extensions.
 #define PROTOCOL_VERSION_HUFFMAN		(('H'<<0) + ('U'<<8) + ('F'<<16) + ('F' << 24))	//packet compression
-#define PROTOCOL_VERSION_VARLENGTH		(('v'<<0) + ('l'<<8) + ('e'<<16) + ('n' << 24))	//packet compression
+#define PROTOCOL_VERSION_VARLENGTH		(('v'<<0) + ('l'<<8) + ('e'<<16) + ('n' << 24))	//variable length handshake
+#define PROTOCOL_VERSION_FRAGMENT		(('F'<<0) + ('R'<<8) + ('A'<<16) + ('G' << 24))	//supports fragmentation/packets larger than 1450
 
 #define PROTOCOL_INFO_GUID				(('G'<<0) + ('U'<<8) + ('I'<<16) + ('D' << 24))	//globally 'unique' client id info.
 
@@ -276,6 +278,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svcfte_cgamepacket	83
 #define svcfte_voicechat	84
 #define	svcfte_setangledelta		85	// [angle3] add this to the current viewangles
+#define svcfte_updateentities 86
 
 
 //fitz svcs
@@ -513,6 +516,57 @@ enum clcq2_ops_e
 
 #endif
 
+//first byte contains the stuff that's most likely to change constantly*/
+#define UF_FRAME		(1u<<0)
+#define UF_ORIGINXY		(1u<<1)
+#define UF_ORIGINZ		(1u<<2)
+#define UF_ANGLESXZ		(1u<<4)
+#define UF_ANGLESY		(1u<<3)
+#define UF_EFFECTS		(1u<<5)
+#define UF_PREDINFO		(1u<<6)	/*ent is predicted, probably a player*/
+#define UF_EXTEND1		(1u<<7)
+
+/*stuff which is common on ent spawning*/
+#define UF_RESET		(1u<<8)
+#define UF_16BIT		(1u<<9)	/*within this update, frame/skin/model is 16bit, not part of the deltaing itself*/
+#define UF_MODEL		(1u<<10)
+#define UF_SKIN			(1u<<11)
+#define UF_COLORMAP		(1u<<12)
+#define UF_SOLID		(1u<<13)
+#define UF_FLAGS		(1u<<14)
+#define UF_EXTEND2		(1u<<15)
+
+/*the rest is optional extensions*/
+#define UF_ALPHA		(1u<<16)
+#define UF_SCALE		(1u<<17)
+#define UF_ABSLIGHT		(1u<<18)
+#define UF_DRAWFLAGS	(1u<<19)
+#define UF_TAGINFO		(1u<<20)
+#define UF_LIGHT		(1u<<21)
+#define UF_EFFECTS2		(1u<<22)
+#define UF_EXTEND3		(1u<<23)
+
+#define UF_COLORMOD		(1u<<24)
+#define UF_GLOWMOD		(1u<<25)
+#define UF_FATNESS		(1u<<26)
+#define UF_MODELINDEX2  (1u<<27)
+#define UF_UNUSED4		(1u<<28)
+#define UF_UNUSED3		(1u<<29)
+#define UF_UNUSED2		(1u<<30)
+#define UF_UNUSED1		(1u<<31)
+
+/*these flags are generally not deltaed as they're changing constantly*/
+#define UFP_FORWARD		(1u<<0)
+#define UFP_SIDE		(1u<<1)
+#define UFP_UP			(1u<<2)
+#define UFP_MOVETYPE	(1u<<3)	/*deltaed*/
+#define UFP_VELOCITYXY	(1u<<4)
+#define UFP_VELOCITYZ	(1u<<5)
+#define UFP_MSEC		(1u<<6)
+
+#define UF_REMOVE   UF_16BIT	/*special flag, slightly more compact (we can reuse the 16bit flag as its not important)*/
+
+
 
 #ifdef NQPROT
 
@@ -716,7 +770,8 @@ enum {
 ==========================================================
 */
 
-#define	MAX_CLIENTS		32
+#define	MAX_CLIENTS		32	/*max 255, min 32*/
+#define	QWMAX_CLIENTS		32 /*QW's standard max*/
 
 #define	UPDATE_BACKUP	64	// copies of entity_state_t to keep buffered
 							// must be power of two
@@ -738,7 +793,6 @@ typedef struct entity_state_s
 {
 	unsigned short		number;			// edict index
 	unsigned short		modelindex;
-	unsigned int		bitmask;		// for dp ents, so lost state can be repeated in replacement packets.
 
 	unsigned int		flags;			// nolerp, etc
 
@@ -747,35 +801,51 @@ typedef struct entity_state_s
 	vec3_t	origin;
 	vec3_t	angles;
 #if defined(Q2CLIENT) || defined(Q2SERVER)
-	int		renderfx;		//q2
-	vec3_t	old_origin;		//q2/q3
-	qbyte		modelindex3;	//q2
-	qbyte		modelindex4;	//q2
-	qbyte		sound;			//q2
-	qbyte		event;			//q2
-
-	unsigned short		modelindex2;	//q2
+	union
+	{
+		struct
+		{
+			int		renderfx;		//q2
+			vec3_t	old_origin;		//q2/q3
+			qbyte		modelindex3;	//q2
+			qbyte		modelindex4;	//q2
+			qbyte		sound;			//q2
+			qbyte		event;			//q2
+		} q2;
+		struct
+		{
+			/*info to predict other players, so I don't get yelled at if fte were to stop supporting it*/
+			qbyte pmovetype;
+			qbyte msec;
+			short movement[3];
+			short velocity[3]; // 1/8th
+		} q1;
+	} u;
 #endif
+	unsigned short		modelindex2;	//q2/vweps
 	unsigned short		frame;
+
 	unsigned int		skinnum; /*q2 needs 32 bits, which is quite impressive*/
+
 	unsigned short		colormap;
-	//pad 2 bytes
 	qbyte glowsize;
 	qbyte glowcolour;
+
 	qbyte	scale;
 	char	fatness;
-
 	qbyte	hexen2flags;
 	qbyte	abslight;
-	qbyte	dpflags;
-	//pad
 
+	qbyte	dpflags;
 	qbyte	colormod[3];//multiply this by 8 to read as 0 to 1...
+
+	qbyte	glowmod[3];
 	qbyte	trans;
 
 	qbyte lightstyle;
 	qbyte lightpflags;
 	unsigned short solid;
+#define ES_SOLID_BSP 31
 
 	unsigned short light[4];
 
@@ -1278,10 +1348,8 @@ typedef struct q1usercmd_s
 #define RENDER_EXTERIORMODEL 8
 #define RENDER_LOWPRECISION 16 // send as low precision coordinates to save bandwidth
 #define RENDER_COLORMAPPED 32
-//#define RENDER_INDIRECT 64
-#define RENDER_SHADOW 65536 // cast shadow
-#define RENDER_LIGHT 131072 // receive light
-#define RENDER_TRANSPARENT 262144 // can't light during opaque stage
+//#define RENDER_WORLDOBJECT 64
+//#define RENDER_COMPLEXANIMATION 128
 
 //darkplaces protocols 5 to 7 use these
 // reset all entity fields (typically used if status changed)
@@ -1347,7 +1415,7 @@ typedef struct q1usercmd_s
 #define E5_EXTEND3 (1<<23)
 
 // unused
-#define E5_UNUSED24 (1<<24)
+#define E5_GLOWMOD (1<<24)
 // unused
 #define E5_UNUSED25 (1<<25)
 // unused
@@ -1363,7 +1431,7 @@ typedef struct q1usercmd_s
 // bits2 > 0
 #define E5_EXTEND4 (1<<31)
 
-#define E5_ALLUNUSED (E5_UNUSED24|E5_UNUSED25|E5_UNUSED26|E5_UNUSED27|E5_UNUSED28|E5_UNUSED29|E5_UNUSED30)
+#define E5_ALLUNUSED (E5_UNUSED25|E5_UNUSED26|E5_UNUSED27|E5_UNUSED28|E5_UNUSED29|E5_UNUSED30)
 
 #define FITZB_LARGEMODEL	(1<<0)	// modelindex is short instead of byte
 #define FITZB_LARGEFRAME	(1<<1)	// frame is short instead of byte

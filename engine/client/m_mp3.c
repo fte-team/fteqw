@@ -1464,6 +1464,7 @@ cin_t *Media_Static_TryLoad(char *name)
 		qbyte *staticfilmimage;
 		int imagewidth;
 		int imageheight;
+		qboolean hasalpha;
 
 		int fsize;
 		char fullname[MAX_QPATH];
@@ -1480,7 +1481,7 @@ cin_t *Media_Static_TryLoad(char *name)
 		}
 
 		if ((staticfilmimage = ReadPCXFile(file, fsize, &imagewidth, &imageheight)) ||	//convert to 32 rgba if not corrupt
-			(staticfilmimage = ReadTargaFile(file, fsize, &imagewidth, &imageheight, false)) ||
+			(staticfilmimage = ReadTargaFile(file, fsize, &imagewidth, &imageheight, &hasalpha, false)) ||
 #ifdef AVAIL_JPEGLIB
 			(staticfilmimage = ReadJPEGFile(file, fsize, &imagewidth, &imageheight)) ||
 #endif

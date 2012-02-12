@@ -23,7 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "cl_ignore.h"
 
 void CL_GetNumberedEntityInfo (int num, float *org, float *ang);
-void CLNQ_ParseDarkPlaces5Entities(void);
+void CLDP_ParseDarkPlaces5Entities(void);
 void CL_SetStatInt (int pnum, int stat, int value);
 static qboolean CL_CheckModelResources (char *name);
 
@@ -101,8 +101,8 @@ char *svc_strings[] =
 	"svc_serverinfo",
 	"svc_updatepl",
 	"MVD svc_nails2",
-	"BAD svc_unused",
-	"FTE svc_view2",
+	"svcfte_soundextended",
+	"svcfte_soundlistshort",
 	"FTE svc_lightstylecol",
 	"FTE svc_bulletentext", // obsolete
 	"FTE svc_lightnings",
@@ -140,7 +140,7 @@ char *svc_strings[] =
 	"svcfte_cgamepacket",
 	"svcfte_voicechat",
 	"svcfte_setangledelta",
-	"???",
+	"svcfte_updateentities",
 	"???",
 	"???",
 	"???",
@@ -280,7 +280,7 @@ int CL_CalcNet (void)
 		else if (frame->invalid)
 			packet_latency[i&NET_TIMINGSMASK] = 9998;	// invalid delta
 		else
-			packet_latency[i&NET_TIMINGSMASK] = (frame->receivedtime - frame->senttime)*20;
+			packet_latency[i&NET_TIMINGSMASK] = (frame->receivedtime - frame->senttime)*60;
 	}
 
 	lost = 0;
@@ -322,6 +322,7 @@ int CL_CalcNet (void)
 //returns true if the download is going to be downloaded after the call.
 qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
 {
+	char *ext;
 	downloadlist_t *dl;
 	qboolean webdl = false;
 	if (localname && !strncmp(filename, "http://", 7))
@@ -336,8 +337,8 @@ qboolean CL_EnqueDownload(char *filename, char *localname, unsigned int flags)
 		if (cls.demoplayback && cls.demoplayback != DPB_EZTV)
 			return false;
 	}
-
-	if (strchr(localname, '\\') || strchr(localname, ':') || strstr(localname, ".."))
+	ext = COM_FileExtension(localname);
+	if (!stricmp(localname, "dll") || !stricmp(localname, "so") || strchr(localname, '\\') || strchr(localname, ':') || strstr(localname, ".."))
 	{
 		Con_Printf("Denying download of \"%s\"\n", filename);
 		return false;
@@ -658,7 +659,6 @@ Returns true if the file exists, returns false if it triggered a download.
 
 qboolean	CL_CheckOrEnqueDownloadFile (char *filename, char *localname, unsigned int flags)
 {	//returns false if we don't have the file yet.
-
 	if (flags & DLLF_NONGAME)
 	{
 		/*pak/pk3 downloads have an explicit leading package/ as an internal/network marker*/
@@ -1758,6 +1758,29 @@ void CL_ParseDownload (void)
 	size = MSG_ReadShort ();
 	percent = MSG_ReadByte ();
 
+	if (size == -2)
+	{
+		/*quakeforge*/
+		MSG_ReadString();
+		return;
+	}
+	if (size == -3)
+	{
+		char *localname;
+		Q_strncpyz(name, MSG_ReadString(), sizeof(name));
+		localname = MSG_ReadString();
+		/*quakeforge http download redirection*/
+		if (cls.downloadqw)
+		{
+			Con_TPrintf (TL_CLS_DOWNLOAD_ISSET);
+			VFS_CLOSE (cls.downloadqw);
+			cls.downloadqw = NULL;
+		}
+		CL_DownloadFailed(cls.downloadremotename);
+		CL_CheckOrEnqueDownloadFile(name, localname, DLLF_IGNOREFAILED);
+		return;
+	}
+
 	if (cls.demoplayback && cls.demoplayback != DPB_EZTV)
 	{
 		if (size > 0)
@@ -2244,6 +2267,7 @@ void CLQW_ParseServerData (void)
 
 	// game directory
 	str = MSG_ReadString ();
+	Con_DPrintf("Server is using gamedir \"%s\"\n", str);
 	if (!*str)
 		str = "qw";
 
@@ -2275,13 +2299,26 @@ void CLQW_ParseServerData (void)
 			Wads_Flush();
 	}
 
+	/*mvds have different parsing*/
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
 		int i,j;
-		MSG_ReadFloat();
+
+		if (cls.fteprotocolextensions2 & PEXT2_MAXPLAYERS)
+		{
+			cl.allocated_client_slots = MSG_ReadByte();
+			if (cl.allocated_client_slots > MAX_CLIENTS)
+				cl.allocated_client_slots = MAX_CLIENTS;
+		}
+
+		cl.gametime = MSG_ReadFloat();
+		cl.gametimemark = realtime;
+		cl.oldgametime = cl.gametime;
+		cl.oldgametimemark = realtime;
+
 		for (j = 0; j < MAX_SPLITS; j++)
 		{
-			cl.playernum[j] = MAX_CLIENTS + j;
+			cl.playernum[j] = cl.allocated_client_slots + j;
 			for (i = 0; i < UPDATE_BACKUP; i++)
 			{
 				cl.frames[i].playerstate[cl.playernum[j]].pm_type = PM_SPECTATOR;
@@ -2292,7 +2329,32 @@ void CLQW_ParseServerData (void)
 
 		cl.splitclients = 1;
 	}
-	else
+	else if (cls.fteprotocolextensions2 & PEXT2_MAXPLAYERS)
+	{
+		cl.allocated_client_slots = MSG_ReadByte();
+		if (cl.allocated_client_slots > MAX_CLIENTS)
+		{
+			cl.allocated_client_slots = MAX_CLIENTS;
+			Host_EndGame("Server sent us too many alternate clients\n");
+		}
+
+		/*parsing here is slightly different to allow us 255 max players instead of 127*/
+		cl.splitclients = MSG_ReadByte();
+		if (cl.splitclients & 128)
+		{
+			cl.spectator = true;
+			cl.splitclients &= ~128;
+		}
+		if (cl.splitclients > MAX_SPLITS)
+			Host_EndGame("Server sent us too many alternate clients\n");
+		for (pnum = 0; pnum < cl.splitclients; pnum++)
+		{
+			cl.playernum[pnum] = MSG_ReadByte();
+			if (cl.playernum[pnum] >= cl.allocated_client_slots)
+				Host_EndGame("unsupported local player slot\n");
+		}
+	}
+	else 
 	{
 		// parse player slot, high bit means spectator
 		pnum = MSG_ReadByte ();
@@ -2304,6 +2366,9 @@ void CLQW_ParseServerData (void)
 				cl.spectator = true;
 				cl.playernum[clnum] &= ~128;
 			}
+
+			if (cl.playernum[clnum] >= cl.allocated_client_slots)
+				Host_EndGame("unsupported local player slot\n");
 
 			if (!(cls.fteprotocolextensions & PEXT_SPLITSCREEN))
 				break;
@@ -2884,7 +2949,7 @@ void CLNQ_ParseClientdata (void)
 	}
 	else if (CPNQ_IS_DP)
 	{
-		/*nothing*/
+		/*nothing in dp6+*/
 	}
 	else
 	{
@@ -2935,7 +3000,7 @@ void CLNQ_ParseClientdata (void)
 		}
 	}
 
-	if (CPNQ_IS_DP || cls.protocol_nq == CPNQ_DP5)
+	if (CPNQ_IS_DP)
 	{
 		if (bits & DPSU_VIEWZOOM)
 		{
@@ -3313,7 +3378,7 @@ void CL_ParseBaseline2 (void)
 {
 	entity_state_t es;
 
-	CL_ParseDelta(&nullentitystate, &es, (unsigned short)MSG_ReadShort(), true);
+	CLQW_ParseDelta(&nullentitystate, &es, (unsigned short)MSG_ReadShort(), true);
 	if (!CL_CheckBaselines(es.number))
 		Host_EndGame("CL_ParseBaseline2: check baselines failed with size %i", es.number);
 	memcpy(cl_baselines + es.number, &es, sizeof(es));
@@ -3379,7 +3444,7 @@ void CL_ParseStatic (int version)
 	}
 	else
 	{
-		CL_ParseDelta(&nullentitystate, &es, MSG_ReadShort(), true);
+		CLQW_ParseDelta(&nullentitystate, &es, MSG_ReadShort(), true);
 		es.number+=MAX_EDICTS;
 
 		for (i = 0; i < cl.num_statics; i++)
@@ -3416,13 +3481,23 @@ void CL_ParseStatic (int version)
 #ifdef PEXT_SCALE
 	ent->scale = es.scale/16.0;
 #endif
-	ent->shaderRGBAf[0] = (8.0f/255.0f)*es.colormod[0];
-	ent->shaderRGBAf[1] = (8.0f/255.0f)*es.colormod[1];
-	ent->shaderRGBAf[2] = (8.0f/255.0f)*es.colormod[2];
-	ent->shaderRGBAf[3] = es.trans/255;
+	ent->shaderRGBAf[0] = (8.0f/256.0f)*es.colormod[0];
+	ent->shaderRGBAf[1] = (8.0f/256.0f)*es.colormod[1];
+	ent->shaderRGBAf[2] = (8.0f/256.0f)*es.colormod[2];
+	ent->shaderRGBAf[3] = es.trans/255.0f;
 
 	ent->fatness = es.fatness/16.0;
 	ent->abslight = es.abslight;
+
+	ent->flags = es.flags;
+	if (es.effects & NQEF_ADDITIVE)
+		ent->flags |= Q2RF_ADDITIVE;
+	if (es.effects & EF_NODEPTHTEST)
+		ent->flags |= RF_NODEPTHTEST;
+	if (es.effects & DPEF_NOSHADOW)
+		ent->flags |= RF_NOSHADOW;
+	if (es.trans != 0xff)
+		ent->flags |= Q2RF_TRANSLUCENT;
 
 	VectorCopy (es.origin, ent->origin);
 	VectorCopy (es.angles, ent->angles);
@@ -4102,8 +4177,8 @@ void CL_MuzzleFlash (int destsplit)
 
 			dl = CL_AllocDlight (-i);
 			VectorCopy (pl->origin,  dl->origin);	//set it's origin
-			if (pl->hullnum & 0x80)	/*hull is 0-based, so origin is bottom of model, move the light up slightly*/
-				dl->origin[2] += 24;
+			if (pl->szmins[2] == 0)	/*hull is 0-based, so origin is bottom of model, move the light up slightly*/
+				dl->origin[2] += pl->szmaxs[2]/2;
 			AngleVectors(pl->viewangles, dl->axis[0], dl->axis[1], dl->axis[2]);
 
 			AngleVectors (pl->viewangles, fv, rv, uv);	//shift it up a little
@@ -4977,8 +5052,8 @@ void CL_DumpPacket(void)
 	}
 }
 
-#define SHOWNET(x) if(cl_shownet.value==2)Con_Printf ("%3i:%s\n", msg_readcount-1, x);
-#define SHOWNET2(x, y) if(cl_shownet.value==2)Con_Printf ("%3i:%3i:%s\n", msg_readcount-1, y, x);
+#define SHOWNET(x) if(cl_shownet.value>=2)Con_Printf ("%3i:%s\n", msg_readcount-1, x);
+#define SHOWNET2(x, y) if(cl_shownet.value>=2)Con_Printf ("%3i:%3i:%s\n", msg_readcount-1, y, x);
 /*
 =====================
 CL_ParseServerMessage
@@ -5006,7 +5081,7 @@ void CLQW_ParseServerMessage (void)
 	//
 	if (cl_shownet.value == 1)
 		Con_TPrintf (TL_INT_SPACE,net_message.cursize);
-	else if (cl_shownet.value == 2)
+	else if (cl_shownet.value >= 2)
 		Con_TPrintf (TLC_LINEBREAK_MINUS);
 
 
@@ -5420,6 +5495,9 @@ void CLQW_ParseServerMessage (void)
 		case svc_deltapacketentities:
 			CL_ParsePacketEntities (true);
 			cl.ackedinputsequence = cl.validsequence;
+			break;
+		case svcfte_updateentities:
+			CLFTE_ParseEntities();
 			break;
 
 		case svc_maxspeed:
@@ -6216,7 +6294,7 @@ void CLNQ_ParseServerMessage (void)
 				CLNQ_SignonReply ();
 			}
 			//well, it's really any protocol, but we're only going to support version 5.
-			CLNQ_ParseDarkPlaces5Entities();
+			CLDP_ParseDarkPlaces5Entities();
 			break;
 
 #ifdef PEXT_CSQC

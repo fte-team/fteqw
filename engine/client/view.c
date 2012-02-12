@@ -554,21 +554,14 @@ FIXME: Uses Q1 contents
 void V_SetContentsColor (int contents)
 {
 	int i;
-	switch (contents)
-	{
-	case Q1CONTENTS_EMPTY:
-		cl.cshifts[CSHIFT_CONTENTS] = cshift_empty;
-		break;
-	case Q1CONTENTS_LAVA:
+	if (contents & FTECONTENTS_LAVA)
 		cl.cshifts[CSHIFT_CONTENTS] = cshift_lava;
-		break;
-	case Q1CONTENTS_SOLID:
-	case Q1CONTENTS_SLIME:
+	else if (contents & (FTECONTENTS_SLIME | FTECONTENTS_SOLID))
 		cl.cshifts[CSHIFT_CONTENTS] = cshift_slime;
-		break;
-	default:
+	else if (contents & FTECONTENTS_WATER)
 		cl.cshifts[CSHIFT_CONTENTS] = cshift_water;
-	}
+	else
+		cl.cshifts[CSHIFT_CONTENTS] = cshift_empty;
 
 	cl.cshifts[CSHIFT_CONTENTS].percent *= v_contentblend.value;
 

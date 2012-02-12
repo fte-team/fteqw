@@ -1090,7 +1090,7 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 			MSG_WriteByte(msg, svcfte_choosesplitclient);
 			MSG_WriteByte(msg, pnum);
 		}
-		if (client->fteprotocolextensions2 & PEXT2_SETANGLEDELTA && client->delta_sequence != -1)
+		if (!client->lockangles && (client->fteprotocolextensions2 & PEXT2_SETANGLEDELTA) && client->delta_sequence != -1)
 		{
 			MSG_WriteByte (msg, svcfte_setangledelta);
 			for (i=0 ; i < 3 ; i++)
@@ -1107,7 +1107,10 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 				MSG_WriteAngle (msg, ent->v->angles[i]);
 		}
 		ent->v->fixangle = 0;
+		client->lockangles = true;
 	}
+	else
+		client->lockangles = false;
 }
 
 /*sends the a centerprint string directly to the client*/
@@ -1160,13 +1163,6 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	client_t *split;
 	int pnum=0;
 
-	if (client->centerprintstring && ! client->num_backbuf)
-	{
-		SV_WriteCenterPrint(client, client->centerprintstring);
-		Z_Free(client->centerprintstring);
-		client->centerprintstring = NULL;
-	}
-
 	// send the chokecount for r_netgraph
 	if (ISQWCLIENT(client))
 	if (client->chokecount)
@@ -1177,34 +1173,21 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	}
 
 	for (split = client; split; split=split->controlled, pnum++)
+	{
 		SV_WriteEntityDataToMessage(split, msg, pnum);
+
+		if (split->centerprintstring && ! client->num_backbuf)
+		{
+			SV_WriteCenterPrint(split, split->centerprintstring);
+			Z_Free(split->centerprintstring);
+			split->centerprintstring = NULL;
+		}
+	}
 /*
 	MSG_WriteByte (msg, svc_time);
 	MSG_WriteFloat(msg, sv.physicstime);
 	client->nextservertimeupdate = sv.physicstime;
 */
-	// Z_EXT_TIME protocol extension
-	// every now and then, send an update so that extrapolation
-	// on client side doesn't stray too far off
-	if (ISQWCLIENT(client))
-	{
-		if (client->fteprotocolextensions & PEXT_ACCURATETIMINGS && sv.world.physicstime - client->nextservertimeupdate > 0)
-		{	//the fte pext causes the server to send out accurate timings, allowing for perfect interpolation.
-			MSG_WriteByte (msg, svc_updatestatlong);
-			MSG_WriteByte (msg, STAT_TIME);
-			MSG_WriteLong (msg, (int)(sv.world.physicstime * 1000));
-
-			client->nextservertimeupdate = sv.world.physicstime;//+10;
-		}
-		else if (client->zquake_extensions & Z_EXT_SERVERTIME && sv.world.physicstime - client->nextservertimeupdate > 0)
-		{	//the zquake ext causes the server to send out peridoic timings, allowing for moderatly accurate game time.
-			MSG_WriteByte (msg, svc_updatestatlong);
-			MSG_WriteByte (msg, STAT_TIME);
-			MSG_WriteLong (msg, (int)(sv.world.physicstime * 1000));
-
-			client->nextservertimeupdate = sv.world.physicstime+10;
-		}
-	}
 
 #ifdef NQPROT
 	if (ISQWCLIENT(client))
@@ -1548,9 +1531,9 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 		statsf[STAT_CELLS] = ent->v->ammo_cells;
 		if (!client->spectator)
 		{
-			statsi[STAT_ACTIVEWEAPON] = ent->v->weapon;
+			statsf[STAT_ACTIVEWEAPON] = ent->v->weapon;
 			if (client->csqcactive || client->protocol != SCP_QUAKEWORLD)
-				statsi[STAT_WEAPONFRAME] = ent->v->weaponframe;
+				statsf[STAT_WEAPONFRAME] = ent->v->weaponframe;
 		}
 
 		// stuff the sigil bits into the high bits of items for sbar
@@ -1574,6 +1557,7 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 
 		if (client->protocol == SCP_DARKPLACES7)
 		{
+			/*note: statsf is truncated, which would mess things up*/
 			float	*statsfi = (float*)statsi;
 	//		statsfi[STAT_MOVEVARS_WALLFRICTION] = sv_wall
 			statsfi[STAT_MOVEVARS_FRICTION] = sv_friction.value;
@@ -1789,7 +1773,7 @@ SV_SendClientDatagram
 */
 qboolean SV_SendClientDatagram (client_t *client)
 {
-	qbyte		buf[MAX_DATAGRAM];
+	qbyte		buf[MAX_OVERALLMSGLEN];
 	sizebuf_t	msg;
 	unsigned int sentbytes, fnum;
 
@@ -1800,15 +1784,18 @@ qboolean SV_SendClientDatagram (client_t *client)
 	msg.overflowed = false;
 	msg.prim = client->datagram.prim;
 
+	if (!client->netchan.fragmentsize)
+		msg.maxsize = MAX_DATAGRAM;
+
 	if (sv.world.worldmodel && !client->controller)
 	{
 		if (ISQ2CLIENT(client))
 		{
-			SV_BuildClientFrame (client);
+			SVQ2_BuildClientFrame (client);
 
 			// send over all the relevant entity_state_t
 			// and the player_state_t
-			SV_WriteFrameToClient (client, &msg);
+			SVQ2_WriteFrameToClient (client, &msg);
 		}
 		else
 		{
@@ -2306,9 +2293,9 @@ void SV_SendClientMessages (void)
 			SZ_Clear (&c->datagram);
 			SV_BroadcastPrintf (PRINT_HIGH, "%s overflowed\n", c->name);
 			Con_Printf ("WARNING: reliable overflow for %s\n",c->name);
-			SV_DropClient (c);
 			c->send_message = true;
 			c->netchan.cleartime = 0;	// don't choke this message
+			SV_DropClient (c);
 			continue;
 		}
 

@@ -596,6 +596,11 @@ void SV_DropClient (client_t *drop)
 		Z_Free(drop->frameunion.frames);
 		drop->frameunion.frames = NULL;
 	}
+	if (drop->sentents.entities)
+	{
+		Z_Free(drop->sentents.entities);
+		memset(&drop->sentents.entities, 0, sizeof(drop->sentents.entities));
+	}
 
 	if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)	//gamecode should do it all for us.
 	{
@@ -1380,29 +1385,44 @@ void SVC_GetChallenge (void)
 		if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
 		{
 #ifdef PROTOCOL_VERSION_FTE
+			unsigned int mask;
 			//tell the client what fte extensions we support
-			if (svs.fteprotocolextensions)
+			mask = Net_PextMask(1);
+			if (mask)
 			{
 				lng = LittleLong(PROTOCOL_VERSION_FTE);
 				memcpy(over, &lng, sizeof(lng));
 				over+=sizeof(lng);
 
-				lng = LittleLong(svs.fteprotocolextensions);
+				lng = LittleLong(mask);
 				memcpy(over, &lng, sizeof(lng));
 				over+=sizeof(lng);
 			}
 			//tell the client what fte extensions we support
-			if (svs.fteprotocolextensions2)
+			mask = Net_PextMask(2);
+			if (mask)
 			{
 				lng = LittleLong(PROTOCOL_VERSION_FTE2);
 				memcpy(over, &lng, sizeof(lng));
 				over+=sizeof(lng);
 
-				lng = LittleLong(svs.fteprotocolextensions2);
+				lng = LittleLong(mask);
 				memcpy(over, &lng, sizeof(lng));
 				over+=sizeof(lng);
 			}
 #endif
+
+			mask = net_mtu.ival&~7;
+			if (mask > 64)
+			{
+				lng = LittleLong(PROTOCOL_VERSION_FRAGMENT);
+				memcpy(over, &lng, sizeof(lng));
+				over+=sizeof(lng);
+
+				lng = LittleLong(mask);
+				memcpy(over, &lng, sizeof(lng));
+				over+=sizeof(lng);
+			}
 
 #ifdef HUFFNETWORK
 			compressioncrc = Huff_PreferedCompressionCRC();
@@ -1674,6 +1694,7 @@ client_t *SVC_DirectConnect(void)
 	int			version;
 	int			challenge;
 	int			huffcrc = 0;
+	int			mtu = 0;
 	char guid[128] = "";
 	char basic[80];
 	qboolean	redirect = false;
@@ -1823,33 +1844,48 @@ client_t *SVC_DirectConnect(void)
 			Con_Printf ("* rejected connect from quakeworld\n");
 			return NULL;
 		}
+	}
 
 
-		while(!msg_badread)
+
+	while(!msg_badread)
+	{
+		Cmd_TokenizeString(MSG_ReadStringLine(), false, false);
+		switch(Q_atoi(Cmd_Argv(0)))
 		{
-			Cmd_TokenizeString(MSG_ReadStringLine(), false, false);
-			switch(Q_atoi(Cmd_Argv(0)))
+		case PROTOCOL_VERSION_FTE:
+			if (protocol == SCP_QUAKEWORLD)
 			{
-			case PROTOCOL_VERSION_FTE:
 				protextsupported = Q_atoi(Cmd_Argv(1));
 				Con_DPrintf("Client supports 0x%x fte extensions\n", protextsupported);
-				break;
-			case PROTOCOL_VERSION_FTE2:
+			}
+			break;
+		case PROTOCOL_VERSION_FTE2:
+			if (protocol == SCP_QUAKEWORLD)
+			{
 				protextsupported2 = Q_atoi(Cmd_Argv(1));
 				Con_DPrintf("Client supports 0x%x fte2 extensions\n", protextsupported2);
-				break;
-			case PROTOCOL_VERSION_HUFFMAN:
-				huffcrc = Q_atoi(Cmd_Argv(1));
-				Con_DPrintf("Client supports huffman compression. crc 0x%x\n", huffcrc);
-				break;
-			case PROTOCOL_INFO_GUID:
-				Q_strncpyz(guid, Cmd_Argv(1), sizeof(guid));
-				Con_DPrintf("GUID %s\n", Cmd_Argv(1));
-				break;
 			}
+			break;
+		case PROTOCOL_VERSION_HUFFMAN:
+			huffcrc = Q_atoi(Cmd_Argv(1));
+			Con_DPrintf("Client supports huffman compression. crc 0x%x\n", huffcrc);
+			break;
+		case PROTOCOL_VERSION_FRAGMENT:
+			mtu = Q_atoi(Cmd_Argv(1)) & ~7;
+			if (mtu < 64)
+				mtu = 64;
+			Con_DPrintf("Client supports fragmentation. mtu %i.\n", mtu);
+			break;
+		case PROTOCOL_INFO_GUID:
+			Q_strncpyz(guid, Cmd_Argv(1), sizeof(guid));
+			Con_DPrintf("GUID %s\n", Cmd_Argv(1));
+			break;
 		}
-		msg_badread=false;
 	}
+	msg_badread=false;
+	
+
 
 	if (protextsupported & PEXT_256PACKETENTITIES)
 		maxpacketentities = MAX_EXTENDED_PACKET_ENTITIES;
@@ -2230,11 +2266,23 @@ client_t *SVC_DirectConnect(void)
 			Z_Free(temp.frameunion.frames);
 		}
 
-		temp.frameunion.frames = Z_Malloc((sizeof(client_frame_t)+sizeof(entity_state_t)*maxpacketentities)*UPDATE_BACKUP);
-		for (i = 0; i < UPDATE_BACKUP; i++)
+		if ((temp.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))// || ISDPCLIENT(&temp))
 		{
-			temp.frameunion.frames[i].entities.max_entities = maxpacketentities;
-			temp.frameunion.frames[i].entities.entities = (entity_state_t*)(temp.frameunion.frames+UPDATE_BACKUP) + i*temp.frameunion.frames[i].entities.max_entities;
+			temp.frameunion.frames = Z_Malloc(sizeof(client_frame_t)*UPDATE_BACKUP+sizeof(unsigned int)*temp.max_net_ents*UPDATE_BACKUP + sizeof(unsigned int)*temp.max_net_ents);
+			for (i = 0; i < UPDATE_BACKUP; i++)
+			{
+				temp.frameunion.frames[i].resendentbits = (unsigned int*)(temp.frameunion.frames+UPDATE_BACKUP) + i*temp.max_net_ents;
+			}
+			temp.pendingentbits = (unsigned int*)(temp.frameunion.frames+UPDATE_BACKUP) + UPDATE_BACKUP*temp.max_net_ents;
+		}
+		else
+		{
+			temp.frameunion.frames = Z_Malloc((sizeof(client_frame_t)+sizeof(entity_state_t)*maxpacketentities)*UPDATE_BACKUP);
+			for (i = 0; i < UPDATE_BACKUP; i++)
+			{
+				temp.frameunion.frames[i].entities.max_entities = maxpacketentities;
+				temp.frameunion.frames[i].entities.entities = (entity_state_t*)(temp.frameunion.frames+UPDATE_BACKUP) + i*temp.frameunion.frames[i].entities.max_entities;
+			}
 		}
 		break;
 	}
@@ -2263,6 +2311,8 @@ client_t *SVC_DirectConnect(void)
 		newcl->netchan.compress = true;
 	else
 		newcl->netchan.compress = false;
+	if (mtu >= 0)
+		newcl->netchan.fragmentsize = mtu;
 
 	newcl->protocol = protocol;
 #ifdef NQPROT
@@ -3257,20 +3307,40 @@ qboolean SV_ReadPackets (float *delay)
 
 				net_from = cl->netchan.remote_address;	//not sure if anything depends on this, but lets not screw them up willynilly
 
-				if (Netchan_Process(&cl->netchan))
-				{	// this is a valid, sequenced packet, so process it
-					received++;
-					svs.stats.packets++;
-					if (cl->state > cs_zombie)
-					{	//make sure they didn't already disconnect
-						cl->send_message = true;	// reply at end of frame
+				if (ISNQCLIENT(cl))
+				{
+					if (cl->state != cs_zombie)
+					{
+						if (NQNetChan_Process(&cl->netchan))
+						{
+							received++;
+							svs.stats.packets++;
+							SVNQ_ExecuteClientMessage(cl);
+						}
+					}
+					break;
+				}
+				else
+				{
+					/*QW*/
+					if (Netchan_Process(&cl->netchan))
+					{	// this is a valid, sequenced packet, so process it
+						received++;
+						svs.stats.packets++;
+						if (cl->state > cs_zombie)
+						{	//make sure they didn't already disconnect
+							if (cl->send_message)
+								cl->chokecount++;
+							else
+								cl->send_message = true;	// reply at end of frame
 
-	#ifdef Q2SERVER
-						if (cl->protocol == SCP_QUAKE2)
-							SVQ2_ExecuteClientMessage(cl);
-						else
-	#endif
-							SV_ExecuteClientMessage (cl);
+		#ifdef Q2SERVER
+							if (cl->protocol == SCP_QUAKE2)
+								SVQ2_ExecuteClientMessage(cl);
+							else
+		#endif
+								SV_ExecuteClientMessage (cl);
+						}
 					}
 				}
 			}
@@ -3328,6 +3398,9 @@ qboolean SV_ReadPackets (float *delay)
 			{
 				if (cl->state != cs_zombie)
 				{
+					if (cl->delay > 0)
+						goto dominping;
+
 					if (NQNetChan_Process(&cl->netchan))
 					{
 						received++;
@@ -3341,17 +3414,7 @@ qboolean SV_ReadPackets (float *delay)
 
 #ifdef Q3SERVER
 			if (ISQ3CLIENT(cl))
-			{
-#ifdef warningmsg
-#pragma warningmsg("qwoverq3: fixme: this will block qw+q3 clients from the same ip")
-#endif
-				if (cl->state != cs_zombie)
-				{
-					received++;
-					SVQ3_HandleClient();
-				}
-				break;
-			}
+				continue;
 #endif
 
 			if (cl->netchan.qport != qport)
@@ -3364,6 +3427,7 @@ qboolean SV_ReadPackets (float *delay)
 
 			if (cl->delay > 0)
 			{
+dominping:
 				if (cl->state == cs_zombie)
 					break;
 				if (net_message.cursize > sizeof(svs.free_lagged_packet->data))
@@ -3413,6 +3477,14 @@ qboolean SV_ReadPackets (float *delay)
 
 		if (i != MAX_CLIENTS)
 			continue;
+
+#ifdef Q3SERVER
+		if (sv_listen_q3.ival && SVQ3_HandleClient())
+		{
+			received++;
+			continue;
+		}
+#endif
 
 #ifdef NQPROT
 		SVNQ_ConnectionlessPacket();
@@ -4077,88 +4149,6 @@ void SV_InitLocal (void)
 	for (i=0 ; i<MAX_MODELS ; i++)
 		sprintf (localmodels[i], "*%i", i);
 
-#ifdef PEXT_SCALE
-	svs.fteprotocolextensions |= PEXT_SCALE;
-#endif
-#ifdef PEXT_LIGHTSTYLECOL
-	svs.fteprotocolextensions |= PEXT_LIGHTSTYLECOL;
-#endif
-#ifdef PEXT_TRANS
-	svs.fteprotocolextensions |= PEXT_TRANS;
-#endif
-#ifdef PEXT_VIEW2
-	svs.fteprotocolextensions |= PEXT_VIEW2;
-#endif
-	svs.fteprotocolextensions |= PEXT_ACCURATETIMINGS;
-#ifdef PEXT_ZLIBDL
-	svs.fteprotocolextensions |= PEXT_ZLIBDL;
-#endif
-#ifdef PEXT_FATNESS
-	svs.fteprotocolextensions |= PEXT_FATNESS;
-#endif
-#ifdef PEXT_HLBSP
-	svs.fteprotocolextensions |= PEXT_HLBSP;
-#endif
-#ifdef PEXT_Q2BSP
-	svs.fteprotocolextensions |= PEXT_Q2BSP;
-#endif
-#ifdef PEXT_Q3BSP
-	svs.fteprotocolextensions |= PEXT_Q3BSP;
-#endif
-#ifdef PEXT_TE_BULLET
-	svs.fteprotocolextensions |= PEXT_TE_BULLET;
-#endif
-#ifdef PEXT_HULLSIZE
-	svs.fteprotocolextensions |= PEXT_HULLSIZE;
-#endif
-#ifdef PEXT_SETVIEW
-	svs.fteprotocolextensions |= PEXT_SETVIEW;
-#endif
-#ifdef PEXT_MODELDBL
-	svs.fteprotocolextensions |= PEXT_MODELDBL;
-#endif
-#ifdef PEXT_SOUNDDBL
-	svs.fteprotocolextensions |= PEXT_SOUNDDBL;
-#endif
-#ifdef PEXT_FLOATCOORDS
-	svs.fteprotocolextensions |= PEXT_FLOATCOORDS;
-#endif
-	svs.fteprotocolextensions |= PEXT_SPLITSCREEN;
-	svs.fteprotocolextensions |= PEXT_HEXEN2;
-	svs.fteprotocolextensions |= PEXT_COLOURMOD;
-	svs.fteprotocolextensions |= PEXT_SPAWNSTATIC2;
-	svs.fteprotocolextensions |= PEXT_CUSTOMTEMPEFFECTS;
-	svs.fteprotocolextensions |= PEXT_256PACKETENTITIES;
-	svs.fteprotocolextensions |= PEXT_ENTITYDBL;
-	svs.fteprotocolextensions |= PEXT_ENTITYDBL2;
-//	svs.fteprotocolextensions |= PEXT_64PLAYERS;
-	svs.fteprotocolextensions |= PEXT_SHOWPIC;
-	svs.fteprotocolextensions |= PEXT_SETATTACHMENT;
-
-#ifdef PEXT_PK3DOWNLOADS
-	svs.fteprotocolextensions |= PEXT_PK3DOWNLOADS;
-#endif
-
-#ifdef PEXT_CHUNKEDDOWNLOADS
-	svs.fteprotocolextensions |= PEXT_CHUNKEDDOWNLOADS;
-#endif
-
-#ifdef PEXT_CSQC
-	svs.fteprotocolextensions |= PEXT_CSQC;
-#endif
-#ifdef PEXT_DPFLAGS
-	svs.fteprotocolextensions |= PEXT_DPFLAGS;
-#endif
-
-	svs.fteprotocolextensions2 |= PEXT2_PRYDONCURSOR;
-#ifdef VOICECHAT
-	svs.fteprotocolextensions2 |= PEXT2_VOICECHAT;
-#endif
-	svs.fteprotocolextensions2 |= PEXT2_SETANGLEDELTA;
-
-//	if (svs.protocolextensions)
-//		Info_SetValueForStarKey (svs.info, "*"DISTRIBUTION"_ext", va("%x", svs.protocolextensions), MAX_SERVERINFO_STRING);
-
 	Info_SetValueForStarKey (svs.info, "*version", version_string(), MAX_SERVERINFO_STRING);
 
 	Info_SetValueForStarKey (svs.info, "*z_ext", va("%i", SUPPORTED_Z_EXTENSIONS), MAX_SERVERINFO_STRING);
@@ -4176,10 +4166,7 @@ void SV_InitLocal (void)
 	svs.log[1].allowoverflow = true;
 
 
-	svs.free_lagged_packet = Hunk_Alloc(1024*sizeof(*svs.free_lagged_packet));
-	for (i = 0; i < 1024-1; i++)
-		svs.free_lagged_packet[i].next = &svs.free_lagged_packet[i+1];
-	svs.free_lagged_packet[i].next = 0;
+	svs.free_lagged_packet = NULL;
 
 	// parse params for cvars
 	p = COM_CheckParm ("-port");

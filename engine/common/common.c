@@ -1681,7 +1681,7 @@ char *COM_FileExtension (const char *in)
 {
 	static char exten[8];
 	int		i;
-	char *dot;
+	const char *dot;
 
 	for (dot = in + strlen(in); dot >= in && *dot != '.'; dot--)
 		;
@@ -3371,9 +3371,13 @@ void COM_Init (void)
 	nullentitystate.colormod[0] = 32;
 	nullentitystate.colormod[1] = 32;
 	nullentitystate.colormod[2] = 32;
+	nullentitystate.glowmod[0] = 32;
+	nullentitystate.glowmod[1] = 32;
+	nullentitystate.glowmod[2] = 32;
 	nullentitystate.trans = 255;
 	nullentitystate.scale = 16;
 	nullentitystate.abslight = 255;
+	nullentitystate.solid = 0;//ES_SOLID_BSP;
 }
 
 

@@ -1150,6 +1150,7 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 			}
 		}
 	}
+
 	switch((flags & IF_TEXTYPE) >> IF_TEXTYPESHIFT)
 	{
 	case 0:

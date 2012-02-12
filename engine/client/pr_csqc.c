@@ -2138,7 +2138,6 @@ static void QCBUILTIN PF_cs_runplayerphysics (progfuncs_t *prinst, struct global
 		VectorCopy(csqcg.pmove_maxs, player_maxs);
 		VectorCopy(csqcg.pmove_mins, player_mins);
 	}
-	pmove.hullnum = 1;
 
 	CL_SetSolidEntities();
 
@@ -3515,9 +3514,8 @@ void CSQC_EntStateToCSQC(unsigned int flags, float lerptime, entity_state_t *src
 
 	ent->xv->entnum = src->number;
 	ent->v->modelindex = src->modelindex;
-//	ent->v->bitmask = src->bitmask;
-	ent->v->flags = src->flags;
-//	ent->v->effects = src->effects;
+//	ent->v->flags = src->flags;
+	ent->v->effects = src->effects;
 
 //we ignore the q2 state fields
 
@@ -3527,22 +3525,46 @@ void CSQC_EntStateToCSQC(unsigned int flags, float lerptime, entity_state_t *src
 //	ent->v->glowcolor = src->glowcolour;
 	ent->xv->scale = src->scale/16.0f;
 	ent->xv->fatness = src->fatness/16.0f;
-//	ent->v->hexen2flags = src->hexen2flags;
-//	ent->v->abslight = src->abslight;
+//	ent->xv->drawflags = src->hexen2flags;
+//	ent->xv->abslight = src->abslight;
 //	ent->v->dpflags = src->dpflags;
-//	ent->v->colormod[0] = (src->colormod[0]/255.0f)*8;
-//	ent->v->colormod[1] = (src->colormod[1]/255.0f)*8;
-//	ent->v->colormod[2] = (src->colormod[2]/255.0f)*8;
+	ent->xv->colormod[0] = src->colormod[0]*(8/256.0f);
+	ent->xv->colormod[1] = src->colormod[1]*(8/256.0f);
+	ent->xv->colormod[2] = src->colormod[2]*(8/256.0f);
 	ent->xv->alpha = src->trans/255.0f;
-//	ent->v->lightstyle = src->lightstyle;
-//	ent->v->lightpflags = src->lightpflags;
+//	ent->xv->style = src->lightstyle;
+//	ent->xv->pflags = src->lightpflags;
 //	ent->v->solid = src->solid;
-//	ent->v->light[0] = src->light[0];
-//	ent->v->light[1] = src->light[1];
-//	ent->v->light[2] = src->light[2];
-//	ent->v->light[3] = src->light[3];
-//	ent->v->tagentity = src->tagentity;
-//	ent->v->tagindex = src->tagindex;
+//	ent->v->color[0] = src->light[0];
+//	ent->v->color[1] = src->light[1];
+//	ent->v->color[2] = src->light[2];
+//	ent->v->light_lev = src->light[3];
+//	ent->xv->tagentity = src->tagentity;
+//	ent->xv->tagindex = src->tagindex;
+
+	if (src->solid == ES_SOLID_BSP)
+	{
+		ent->v->solid = SOLID_BSP;
+		VectorCopy(model->mins, ent->v->mins);
+		VectorCopy(model->maxs, ent->v->maxs);
+	}
+	else if (src->solid)
+	{
+		ent->v->solid = SOLID_BBOX;
+		ent->v->mins[0] = 8*(src->solid & 31);
+		ent->v->maxs[0] = ent->v->mins[0];
+		ent->v->mins[1] = ent->v->mins[0];
+		ent->v->maxs[1] = ent->v->mins[0];
+		ent->v->mins[2] = 8*((src->solid>>5) & 31);
+		ent->v->maxs[2] = 8*((src->solid>>10) & 63) - 32;
+	}
+	else
+		ent->v->solid = SOLID_NOT;
+
+	ent->v->movetype = src->u.q1.pmovetype;
+	ent->v->velocity[0] = src->u.q1.velocity[0];
+	ent->v->velocity[1] = src->u.q1.velocity[1];
+	ent->v->velocity[2] = src->u.q1.velocity[2];
 
 	if (model)
 	{
@@ -3581,9 +3603,9 @@ void CSQC_PlayerStateToCSQC(int pnum, player_state_t *srcp, csqcedict_t *ent)
 	//ent->v->fatness = srcp->fatness;
 	ent->xv->alpha = srcp->alpha/255.0f;
 
-//	ent->v->colormod[0] = (srcp->colormod[0]/255.0f)*8;
-//	ent->v->colormod[1] = (srcp->colormod[1]/255.0f)*8;
-//	ent->v->colormod[2] = (srcp->colormod[2]/255.0f)*8;
+//	ent->v->colormod[0] = srcp->colormod[0]*(8/256.0f);
+//	ent->v->colormod[1] = srcp->colormod[1]*(8/256.0f);
+//	ent->v->colormod[2] = srcp->colormod[2]*(8/256.0f);
 //	ent->v->effects = srcp->effects;
 }
 
@@ -4788,7 +4810,7 @@ qboolean CSQC_Init (qboolean anycsqc, unsigned int checksum)
 	csprogs_checksum = checksum;
 
 	csqc_usinglistener = false;
-	csqc_singlecheats = false;
+	csqc_singlecheats = cls.demoplayback;
 #ifndef CLIENTONLY
 	if ((sv.state == ss_active && sv.allocated_client_slots == 1) || atoi(Info_ValueForKey(cl.serverinfo, "*cheats")))
 		csqc_singlecheats = true;
@@ -4870,6 +4892,7 @@ qboolean CSQC_Init (qboolean anycsqc, unsigned int checksum)
 		csqc_world.Event_Think = CSQC_Event_Think;
 		csqc_world.Get_CModel = CSQC_World_ModelForIndex;
 		csqc_world.Get_FrameState = CSQC_World_GetFrameState;
+		csqc_world.defaultgravityscale = 1;
 		World_ClearWorld(&csqc_world);
 		CSQC_InitFields();	//let the qclib know the field order that the engine needs.
 
@@ -5259,7 +5282,7 @@ qboolean CSQC_DrawView(void)
 	return true;
 }
 
-qboolean CSQC_KeyPress(int key, int unicode, qboolean down)
+qboolean CSQC_KeyPress(int key, int unicode, qboolean down, int devid)
 {
 	void *pr_globals;
 
@@ -5267,15 +5290,16 @@ qboolean CSQC_KeyPress(int key, int unicode, qboolean down)
 		return false;
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
-	G_FLOAT(OFS_PARM0) = !down;
+	G_FLOAT(OFS_PARM0) = down?CSIE_KEYDOWN:CSIE_KEYUP;
 	G_FLOAT(OFS_PARM1) = MP_TranslateFTEtoDPCodes(key);
 	G_FLOAT(OFS_PARM2) = unicode;
+	G_FLOAT(OFS_PARM3) = devid;
 
 	PR_ExecuteProgram (csqcprogs, csqcg.input_event);
 
 	return G_FLOAT(OFS_RETURN);
 }
-qboolean CSQC_MousePosition(float xabs, float yabs)
+qboolean CSQC_MousePosition(float xabs, float yabs, int devid)
 {
 	void *pr_globals;
 
@@ -5283,15 +5307,16 @@ qboolean CSQC_MousePosition(float xabs, float yabs)
 		return false;
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
-	G_FLOAT(OFS_PARM0) = 3;
+	G_FLOAT(OFS_PARM0) = CSIE_MOUSEABS;
 	G_FLOAT(OFS_PARM1) = xabs;
 	G_FLOAT(OFS_PARM2) = yabs;
+	G_FLOAT(OFS_PARM3) = devid;
 
 	PR_ExecuteProgram (csqcprogs, csqcg.input_event);
 
 	return G_FLOAT(OFS_RETURN);
 }
-qboolean CSQC_MouseMove(float xdelta, float ydelta)
+qboolean CSQC_MouseMove(float xdelta, float ydelta, int devid)
 {
 	void *pr_globals;
 
@@ -5299,12 +5324,28 @@ qboolean CSQC_MouseMove(float xdelta, float ydelta)
 		return false;
 
 	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
-	G_FLOAT(OFS_PARM0) = 2;
+	G_FLOAT(OFS_PARM0) = CSIE_MOUSEDELTA;
 	G_FLOAT(OFS_PARM1) = xdelta;
 	G_FLOAT(OFS_PARM2) = ydelta;
+	G_FLOAT(OFS_PARM3) = devid;
 
 	PR_ExecuteProgram (csqcprogs, csqcg.input_event);
 
+	return G_FLOAT(OFS_RETURN);
+}
+
+qboolean CSQC_Accelerometer(float x, float y, float z)
+{
+	void *pr_globals;
+	if (!csqcprogs || !csqcg.input_event)
+		return false;
+	pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+
+	G_FLOAT(OFS_PARM0) = CSIE_ACCELEROMETER;
+	G_FLOAT(OFS_PARM1) = x;
+	G_FLOAT(OFS_PARM2) = y;
+	G_FLOAT(OFS_PARM3) = z;
+	PR_ExecuteProgram (csqcprogs, csqcg.input_event);
 	return G_FLOAT(OFS_RETURN);
 }
 

@@ -66,7 +66,7 @@ enum
 vec3_t rht_start, rht_end;
 static int Q1BSP_RecursiveHullTrace (hull_t *hull, int num, float p1f, float p2f, vec3_t p1, vec3_t p2, trace_t *trace)
 {
-	dclipnode_t	*node;
+	mclipnode_t	*node;
 	mplane_t	*plane;
 	float		t1, t2;
 	vec3_t		mid;
@@ -152,7 +152,6 @@ reenter:
 	if (rht != rht_solid)
 		return rht;
 
-	trace->fraction = midf;
 	if (side)
 	{
 		/*we impacted the back of the node, so flip the plane*/
@@ -167,6 +166,13 @@ reenter:
 		VectorCopy(plane->normal, trace->plane.normal);
 		midf = (t1 - DIST_EPSILON) / (t1 - t2);
 	}
+
+	t1 = DotProduct (trace->plane.normal, rht_start) - trace->plane.dist;
+	t2 = DotProduct (trace->plane.normal, rht_end) - trace->plane.dist;
+	midf = (t1 - DIST_EPSILON) / (t1 - t2);
+
+
+	trace->fraction = midf;
 	VectorCopy (mid, trace->endpos);
 	VectorInterpolate(rht_start, midf, rht_end, trace->endpos);
 
@@ -396,11 +402,11 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3]
 
 			if (size[0] < 3) // Point
 				hull = &model->hulls[0];
-			else if (size[0] <= 8 && model->hulls[4].available)
+			else if (size[0] <= 8.1 && model->hulls[4].available)
 				hull = &model->hulls[4];	//Pentacles
-			else if (size[0] <= 32 && size[2] <= 28)  // Half Player
+			else if (size[0] <= 32.1 && size[2] <= 28.1)  // Half Player
 				hull = &model->hulls[3];
-			else if (size[0] <= 32)  // Full Player
+			else if (size[0] <= 32.1)  // Full Player
 				hull = &model->hulls[1];
 			else // Golumn
 				hull = &model->hulls[5];
@@ -409,9 +415,9 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3]
 		{
 			if (size[0] < 3 || !model->hulls[1].available)
 				hull = &model->hulls[0];
-			else if (size[0] <= 32)
+			else if (size[0] <= 32.1)
 			{
-				if (size[2] < 54 && model->hulls[3].available)
+				if (size[2] < 54.1 && model->hulls[3].available)
 					hull = &model->hulls[3]; // 32x32x36 (half-life's crouch)
 				else
 					hull = &model->hulls[1];

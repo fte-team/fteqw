@@ -75,6 +75,7 @@ extern cvar_t sv_port_tcp;
 extern cvar_t sv_port_tcp6;
 #endif
 cvar_t	net_hybriddualstack = CVAR("net_hybriddualstack", "1");
+cvar_t	net_fakeloss	= CVARFD("net_fakeloss", "0", CVAR_CHEAT, "Simulates packetloss in both receiving and sending, on a scale from 0 to 1.");
 
 extern cvar_t sv_public, sv_listen_qw, sv_listen_nq, sv_listen_dp, sv_listen_q3;
 
@@ -2890,15 +2891,23 @@ int NET_GetPacket (netsrc_t netsrc, int firstsock)
 	if (!collection)
 		return -1;
 
-	for (; firstsock < MAX_CONNECTIONS; firstsock+=1)
+	while (firstsock < MAX_CONNECTIONS)
 	{
 		if (!collection->conn[firstsock])
 			break;
 		if (collection->conn[firstsock]->GetPacket(collection->conn[firstsock]))
 		{
+			if (net_fakeloss.value)
+			{
+				if (frandom () < net_fakeloss.value)
+					continue;
+			}
+
 			net_from.connum = firstsock+1;
 			return firstsock;
 		}
+
+		firstsock += 1;
 	}
 
 	return -1;
@@ -2944,6 +2953,12 @@ void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t to)
 
 	if (!collection)
 		return;
+
+	if (net_fakeloss.value)
+	{
+		if (frandom () < net_fakeloss.value)
+			return;
+	}
 
 	if (to.connum)
 	{
@@ -3487,6 +3502,7 @@ void NET_Init (void)
 #endif
 
 	Cvar_Register(&net_hybriddualstack, "networking");
+	Cvar_Register(&net_fakeloss, "networking");
 
 #ifndef CLIENTONLY
 	Cmd_AddCommand("sv_addport", SVNET_AddPort_f);

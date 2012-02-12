@@ -1535,6 +1535,8 @@ void *Hunk_TempAllocMore (int size)
 #if TEMPDEBUG>0
 	hnktemps_t *nt;
 	nt = (hnktemps_t*)malloc(size + sizeof(hnktemps_t) + TEMPDEBUG*2);
+	if (!nt)
+		return NULL;
 	nt->next = hnktemps;
 	nt->len = size;
 	hnktemps = nt;
@@ -1547,6 +1549,8 @@ void *Hunk_TempAllocMore (int size)
 #else
 	hnktemps_t *nt;
 	nt = (hnktemps_t*)malloc(size + sizeof(hnktemps_t));
+	if (!nt)
+		return NULL;
 	nt->next = hnktemps;
 	hnktemps = nt;
 	buf = (void *)(nt+1);

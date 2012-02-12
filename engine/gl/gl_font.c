@@ -817,7 +817,8 @@ static texid_t Font_LoadFallbackConchars(void)
 	int width, height;
 	unsigned int i;
 	qbyte *lump;
-	lump = ReadTargaFile(default_conchar, sizeof(default_conchar), &width, &height, false);
+	qboolean hasalpha;
+	lump = ReadTargaFile(default_conchar, sizeof(default_conchar), &width, &height, &hasalpha, false);
 	if (!lump)
 		Sys_Error("Corrupt internal drawchars");
 	/*convert greyscale to alpha*/

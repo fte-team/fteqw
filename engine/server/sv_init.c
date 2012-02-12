@@ -256,6 +256,9 @@ void SV_EdictToEntState (int num, edict_t *ent, entity_state_t *state)
 	if (/*progstype == PROG_H2 &&*/ ent->v->solid == SOLID_BSP)
 		state->angles[0]*=-1;
 
+	if (ent->v->solid == SOLID_BSP)
+		state->solid = ES_SOLID_BSP;
+
 	if (state->effects & EF_FULLBRIGHT)
 	{
 		state->hexen2flags |= MLS_FULLBRIGHT;
@@ -296,6 +299,7 @@ void SVNQ_CreateBaseline (void)
 {
 	edict_t			*svent;
 	int				entnum;
+	extern entity_state_t nullentitystate;
 
 	int playermodel = SV_SafeModelIndex("progs/player.mdl");
 
@@ -303,15 +307,8 @@ void SVNQ_CreateBaseline (void)
 	{
 		svent = EDICT_NUM(svprogfuncs, entnum);
 
-		memset(&svent->baseline, 0, sizeof(entity_state_t));
+		memcpy(&svent->baseline, &nullentitystate, sizeof(entity_state_t));
 		svent->baseline.number = entnum;
-
-#ifdef PEXT_SCALE
-		svent->baseline.scale = 1*16;
-#endif
-#ifdef PEXT_TRANS
-		svent->baseline.trans = 255;
-#endif
 
 		if (svent->isfree)
 			continue;
@@ -616,6 +613,7 @@ void SV_UnspawnServer (void)	//terminate the running server.
 		*svs.clients[i].namebuf = '\0';
 		svs.clients[i].name = NULL;
 	}
+	SV_FlushLevelCache();
 	NET_CloseServer ();
 }
 
@@ -836,7 +834,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 		Info_SetValueForStarKey(svs.info, "*gamespeed", "", MAX_SERVERINFO_STRING);
 	}
 //reset the server time.
-	sv.time = 0.1;	//some progs don't like time starting at 0.
+	sv.time = 0.01;	//some progs don't like time starting at 0.
 					//cos of spawn funcs like self.nextthink = time...
 					//NQ uses 1, QW uses 0. Awkward.
 	sv.starttime = Sys_DoubleTime();
@@ -1098,6 +1096,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 
 	for (i=0 ; i<MAX_CLIENTS ; i++)
 	{
+		svs.clients[i].edict = NULL;
 		svs.clients[i].name = svs.clients[i].namebuf;
 		svs.clients[i].team = svs.clients[i].teambuf;
 	}

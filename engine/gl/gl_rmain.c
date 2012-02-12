@@ -63,6 +63,7 @@ vec3_t	r_origin;
 //
 refdef_t	r_refdef;
 
+unsigned int	r_viewcontents;
 mleaf_t		*r_viewleaf, *r_oldviewleaf;
 mleaf_t		*r_viewleaf2, *r_oldviewleaf2;
 int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;
@@ -375,7 +376,7 @@ void R_SetupGL (void)
 		fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
 		fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
 
-		if (r_waterwarp.value<0 && r_viewleaf && r_viewleaf->contents <= Q1CONTENTS_WATER)
+		if (r_waterwarp.value<0 && r_viewleaf && (r_viewcontents & FTECONTENTS_FLUID))
 		{
 			fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
 			fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
@@ -762,7 +763,7 @@ void R_Clear (void)
 #if 0
 void GLR_SetupFog (void)
 {
-	if (r_viewleaf)// && r_viewleaf->contents != CONTENTS_EMPTY)
+	if (r_viewleaf)// && r_viewcontents != FTECONTENTS_EMPTY)
 	{
 		//	static fogcolour;
 		float fogcol[4]={0};
@@ -771,7 +772,7 @@ void GLR_SetupFog (void)
 
 		fogperc=0;
 		fogdist=512;
-		switch(r_viewleaf->contents)
+		switch(r_viewcontents)
 		{
 		case FTECONTENTS_WATER:
 			fogcol[0] = 64/255.0;
@@ -1150,7 +1151,7 @@ void GLR_RenderView (void)
 
 	// SCENE POST PROCESSING
 	// we check if we need to use any shaders - currently it's just waterwarp
-	if ((r_waterwarp.value>0 && r_viewleaf && r_viewleaf->contents <= Q1CONTENTS_WATER))
+	if ((r_waterwarp.value>0 && r_viewleaf && (r_viewcontents & FTECONTENTS_WATER)))
 	{
 		if (scenepp_waterwarp)
 		{

@@ -1748,6 +1748,8 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 	MSG_WriteLong (&buf, svs.spawncount);
 	MSG_WriteString (&buf, gamedir);
 
+	if (demo.recorder.fteprotocolextensions2 & PEXT2_MAXPLAYERS)
+		MSG_WriteByte(&buf, MAX_CLIENTS);
 
 	MSG_WriteFloat (&buf, sv.time);
 
@@ -1875,7 +1877,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 			else if (demo.recorder.fteprotocolextensions & PEXT_SPAWNSTATIC2)
 			{
 				MSG_WriteByte(&buf, svcfte_spawnbaseline2);
-				SV_WriteDelta(&from, state, &buf, true, demo.recorder.fteprotocolextensions);
+				SVQW_WriteDelta(&from, state, &buf, true, demo.recorder.fteprotocolextensions);
 			}
 			else
 			{

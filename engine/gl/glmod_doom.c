@@ -768,8 +768,8 @@ static void GLR_DrawWall(int texnum, int s, int t, float x1, float y1, float fro
 	}
 	if (mesh->numindexes+6 > tex->maxindicies)
 	{
-		tex->maxindicies = mesh->numvertexes+6;
-		mesh->indexes = BZ_Realloc(mesh->colors4b_array, sizeof(*mesh->indexes) * tex->maxindicies);
+		tex->maxindicies = mesh->numindexes+6;
+		mesh->indexes = BZ_Realloc(mesh->indexes, sizeof(*mesh->indexes) * tex->maxindicies);
 	}
 
 	col = colour4b * 0x01010101;
@@ -783,17 +783,17 @@ static void GLR_DrawWall(int texnum, int s, int t, float x1, float y1, float fro
 	VectorSet(mesh->xyz_array[mesh->numvertexes+2], x2, y2, backfloor);
 	VectorSet(mesh->xyz_array[mesh->numvertexes+3], x2, y2, frontfloor);
 	Vector2Set(mesh->st_array[mesh->numvertexes+0], s1, t2);
-	Vector2Set(mesh->st_array[mesh->numvertexes+0], s1, t1);
-	Vector2Set(mesh->st_array[mesh->numvertexes+0], s2, t1);
-	Vector2Set(mesh->st_array[mesh->numvertexes+0], s2, t2);
+	Vector2Set(mesh->st_array[mesh->numvertexes+1], s1, t1);
+	Vector2Set(mesh->st_array[mesh->numvertexes+2], s2, t1);
+	Vector2Set(mesh->st_array[mesh->numvertexes+2], s2, t2);
 
-	mesh->indexes[mesh->numindexes+0] = mesh->numvertexes;
-	mesh->indexes[mesh->numindexes+1] = mesh->numvertexes;
-	mesh->indexes[mesh->numindexes+2] = mesh->numvertexes;
+	mesh->indexes[mesh->numindexes+0] = mesh->numvertexes+0;
+	mesh->indexes[mesh->numindexes+1] = mesh->numvertexes+1;
+	mesh->indexes[mesh->numindexes+2] = mesh->numvertexes+2;
 
-	mesh->indexes[mesh->numindexes+0] = mesh->numvertexes;
-	mesh->indexes[mesh->numindexes+2] = mesh->numvertexes;
-	mesh->indexes[mesh->numindexes+3] = mesh->numvertexes;
+	mesh->indexes[mesh->numindexes+3] = mesh->numvertexes+0;
+	mesh->indexes[mesh->numindexes+4] = mesh->numvertexes+2;
+	mesh->indexes[mesh->numindexes+5] = mesh->numvertexes+3;
 
 	mesh->numvertexes += 4;
 	mesh->numindexes += 6;
@@ -1024,11 +1024,30 @@ static void GLR_RecursiveDoomNode(unsigned int node)
 
 void GLR_DoomWorld(void)
 {
+	int texnum;
+	gldoomtexture_t *t;
 	if (!nodel || !nodec)
 		return;	//err... buggy
 
+	for (texnum = 0; texnum < numgldoomtextures; texnum++)	//a hash table might be a good plan.
+	{
+		t = &gldoomtextures[texnum];
+		t->mesh.numindexes = 0;
+		t->mesh.numvertexes = 0;
+	}
 	r_visframecount++;
 	GLR_RecursiveDoomNode(nodec-1);
+
+	memset(cl.worldmodel->batches, 0, sizeof(cl.worldmodel->batches));
+	for (texnum = 0; texnum < numgldoomtextures; texnum++)	//a hash table might be a good plan.
+	{
+		t = &gldoomtextures[texnum];
+		if (t->mesh.numindexes)
+		{
+			t->batch.next = cl.worldmodel->batches[t->shader->sort];
+			cl.worldmodel->batches[t->shader->sort] = &t->batch;
+		}
+	}
 }
 
 
@@ -1517,6 +1536,7 @@ static int Doom_LoadPatch(char *name)
 //	texnum = numgldoomtextures;
 
 	gldoomtextures = BZ_Realloc(gldoomtextures, sizeof(*gldoomtextures)*((numgldoomtextures+16)&~15));
+	memset(gldoomtextures + numgldoomtextures, 0, sizeof(gldoomtextures[numgldoomtextures]));
 	numgldoomtextures++;
 
 	strncpy(gldoomtextures[texnum].name, name, 8);
@@ -2037,6 +2057,8 @@ qboolean Mod_LoadDoomLevel(model_t *mod)
 
 	mod->needload = false;
 	mod->fromgame = fg_doom;
+	mod->type = mod_brush;
+	mod->nodes = (void*)0x1;
 
 	CleanWalls(sidedefsl);
 

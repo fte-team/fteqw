@@ -303,7 +303,7 @@ void QCBUILTIN PF_getsurfacenearpoint(progfuncs_t *prinst, struct globalvars_s *
 	mvertex_t *v1, *v2;
 	int edge;
 	int e;
-	float bestdist = 10000000000000, dist;
+	float bestdist = 0x7fffffff, dist;
 	int bestsurf = -1;
 	world_t *w = prinst->parms->user;
 
@@ -2094,7 +2094,6 @@ void QCBUILTIN PF_strftime (progfuncs_t *prinst, struct globalvars_s *pr_globals
 	else
 		tm = gmtime(&ctime);
 	strftime(result, sizeof(result), in, tm);
-	Q_strncpyz(result, in, sizeof(result));
 	strtoupper(result);
 
 	RETURN_TSTRING(result);

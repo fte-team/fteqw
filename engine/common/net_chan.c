@@ -36,7 +36,9 @@ packet header
 1	does this message contain a reliable payload
 31	acknowledge sequence
 1	acknowledge receipt of even/odd message
-16  qport
+16  qport (only from client)
+15  fragoffset (extension)
+1	lastfrag (extension)
 
 The remote connection never knows if it missed a reliable message, the
 local side detects that it has been dropped by seeing a sequence acknowledge
@@ -74,6 +76,7 @@ If the base part of the net address matches and the qport matches, then the
 channel matches even if the IP port differs.  The IP port should be updated
 to the new value before sending out any replies.
 
+fragmentation works like IP, offset and morefrags. offset is *8 (decode: (offset&~1)<<2 to avoid stomping on the morefrags flag, this allows really jumbo packets with 18 bits of length)
 
 */
 
@@ -81,6 +84,106 @@ int		net_drop;
 cvar_t	showpackets = SCVAR("showpackets", "0");
 cvar_t	showdrop = SCVAR("showdrop", "0");
 cvar_t	qport = SCVAR("qport", "0");
+cvar_t	net_mtu = CVARD("mtu", "1450", "Specifies a maximum udp payload size, above which packets will be fragmented. If routers all worked properly this could be some massive value, and some massive value may work really nicely for lans. Use smaller values than the default if you're connecting through nested tunnels through routers that fail with IP fragmentation.");
+
+cvar_t	pext_replacementdeltas = CVAR("debug_pext_replacementdeltas", "0");	/*rename once the extension is finalized*/
+
+/*returns the bitmask of supported+enabled extensions*/
+unsigned int Net_PextMask(int maskset)
+{
+	unsigned int mask = 0;
+	if (maskset == 1) /*FTEX*/
+	{
+	#ifdef PEXT_SCALE	//dmw - protocol extensions
+		mask |= PEXT_SCALE;
+	#endif
+	#ifdef PEXT_LIGHTSTYLECOL
+		mask |= PEXT_LIGHTSTYLECOL;
+	#endif
+	#ifdef PEXT_TRANS
+		mask |= PEXT_TRANS;
+	#endif
+	#ifdef PEXT_VIEW2
+		mask |= PEXT_VIEW2;
+	#endif
+	#ifdef PEXT_ACCURATETIMINGS
+		mask |= PEXT_ACCURATETIMINGS;
+	#endif
+	#ifdef PEXT_ZLIBDL
+		mask |= PEXT_ZLIBDL;
+	#endif
+	#ifdef PEXT_FATNESS
+		mask |= PEXT_FATNESS;
+	#endif
+	#ifdef PEXT_HLBSP
+		mask |= PEXT_HLBSP;
+	#endif
+
+	#ifdef PEXT_Q2BSP
+		mask |= PEXT_Q2BSP;
+	#endif
+	#ifdef PEXT_Q3BSP
+		mask |= PEXT_Q3BSP;
+	#endif
+
+	#ifdef PEXT_TE_BULLET
+		mask |= PEXT_TE_BULLET;
+	#endif
+	#ifdef PEXT_HULLSIZE
+		mask |= PEXT_HULLSIZE;
+	#endif
+	#ifdef PEXT_SETVIEW
+		mask |= PEXT_SETVIEW;
+	#endif
+	#ifdef PEXT_MODELDBL
+		mask |= PEXT_MODELDBL;
+	#endif
+	#ifdef PEXT_SOUNDDBL
+		mask |= PEXT_SOUNDDBL;
+	#endif
+	#ifdef PEXT_VWEAP
+		mask |= PEXT_VWEAP;
+	#endif
+	#ifdef PEXT_FLOATCOORDS
+		mask |= PEXT_FLOATCOORDS;
+	#endif
+		mask |= PEXT_SPAWNSTATIC2;
+		mask |= PEXT_COLOURMOD;
+		mask |= PEXT_SPLITSCREEN;
+		mask |= PEXT_HEXEN2;
+		mask |= PEXT_CUSTOMTEMPEFFECTS;
+		mask |= PEXT_256PACKETENTITIES;
+		mask |= PEXT_ENTITYDBL;
+		mask |= PEXT_ENTITYDBL2;
+		mask |= PEXT_SHOWPIC;
+		mask |= PEXT_SETATTACHMENT;
+	#ifdef PEXT_CHUNKEDDOWNLOADS
+		mask |= PEXT_CHUNKEDDOWNLOADS;
+	#endif
+	#ifdef PEXT_CSQC
+		mask |= PEXT_CSQC;
+	#endif
+	#ifdef PEXT_DPFLAGS
+		mask |= PEXT_DPFLAGS;
+	#endif
+	}
+	else if (maskset == 2)
+	{
+		mask |= PEXT2_PRYDONCURSOR;
+	#ifdef PEXT2_VOICECHAT
+		mask |= PEXT2_VOICECHAT;
+	#endif
+		mask |= PEXT2_SETANGLEDELTA;
+
+		if (pext_replacementdeltas.ival)
+			mask |= PEXT2_REPLACEMENTDELTAS;
+
+		if (MAX_CLIENTS != QWMAX_CLIENTS)
+			mask |= PEXT2_MAXPLAYERS;
+	}
+
+	return mask;
+}
 
 /*
 ===============
@@ -92,6 +195,12 @@ void Netchan_Init (void)
 {
 	int		port;
 
+	Cvar_Register (&pext_replacementdeltas, "Protocol Extensions");
+	Cvar_Register (&showpackets, "Networking");
+	Cvar_Register (&showdrop, "Networking");
+	Cvar_Register (&qport, "Networking");
+	Cvar_Register (&net_mtu, "Networking");
+
 	// pick a port value that should be nice and random
 #ifdef _WIN32
 	port = (time(NULL)) & 0xffff;
@@ -99,10 +208,7 @@ void Netchan_Init (void)
 	port = ((int)(getpid()+getuid()*1000) * time(NULL)) & 0xffff;
 #endif
 
-	Cvar_Register (&showpackets, "Networking");
-	Cvar_Register (&showdrop, "Networking");
-	Cvar_Register (&qport, "Networking");
-	Cvar_SetValue(&qport, port);
+	Cvar_SetValue (&qport, port);
 }
 
 /*
@@ -496,9 +602,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 
 // write the packet header
 	send.data = send_buf;
-	send.maxsize = MAX_QWMSGLEN + PACKET_HEADER;	//dmw: wasn't quite true.
-	if (chan->sock == NS_CLIENT)
-		send.maxsize += 2;
+	send.maxsize = MAX_QWMSGLEN + PACKET_HEADER;
 	send.cursize = 0;
 
 	w1 = chan->outgoing_sequence | (send_reliable<<31);
@@ -514,6 +618,13 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	if (chan->sock == NS_CLIENT)
 		MSG_WriteShort (&send, cls.qport);
 #endif
+
+	if (chan->fragmentsize)
+	{
+		//allow the max size to be bigger
+		send.maxsize = MAX_OVERALLMSGLEN + PACKET_HEADER;
+		MSG_WriteShort(&send, 0);
+	}
 
 // copy the reliable message to the packet first
 	if (send_reliable)
@@ -535,7 +646,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	if (chan->compress)
 	{
 		//int oldsize = send.cursize;
-		Huff_CompressPacket(&send, (chan->sock == NS_CLIENT)?10:8);
+		Huff_CompressPacket(&send, 8 + ((chan->sock == NS_CLIENT)?2:0) + (chan->fragmentsize?2:0));
 //		Con_Printf("%i becomes %i\n", oldsize, send.cursize);
 //		Huff_DecompressPacket(&send, (chan->sock == NS_CLIENT)?10:8);
 	}
@@ -546,7 +657,45 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	if (!cls.demoplayback)
 #endif
 	{
-		NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);
+		int hsz = 10 + ((chan->sock == NS_CLIENT)?2:0); /*header size, if fragmentation is in use*/
+
+		if (!chan->fragmentsize || send.cursize < chan->fragmentsize - hsz)
+			NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);
+		else
+		{
+			int offset = chan->fragmentsize, no;
+			qboolean more;
+			/*switch on the 'more flags' bit, and send the first part*/
+			send.data[hsz - 2] |= 0x1;
+			NET_SendPacket (chan->sock, offset, send.data, chan->remote_address);
+
+			/*send the additional parts, adding new headers within the previous packet*/
+			while(offset < send.cursize)
+			{
+				no = offset + chan->fragmentsize - hsz;
+				if (no < send.cursize)
+				{
+					more = true;
+					no &= 7;
+					if (no == offset)
+						break;
+				}
+				else
+				{
+					no = send.cursize;
+					more = false;
+				}
+
+				*(int*)&send.data[(offset - hsz) + 0] = LittleLong(w1);
+				*(int*)&send.data[(offset - hsz) + 4] = LittleLong(w2);
+				if (chan->sock == NS_CLIENT)
+					*(short*)&send.data[offset - 4] = LittleShort(cls.qport);
+				*(short*)&send.data[offset - 2] = LittleShort(((offset-hsz)>>2) | (more?1:0));
+
+				NET_SendPacket (chan->sock, (no - offset) + hsz, send.data + offset - hsz, chan->remote_address);
+				offset = no;
+			}
+		}
 	}
 
 	Netchan_Block(chan, send.cursize, rate);
@@ -562,7 +711,6 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 			, chan->incoming_sequence
 			, chan->incoming_reliable_sequence
 			, send.cursize);
-
 	return send.cursize;
 
 }
@@ -583,6 +731,7 @@ qboolean Netchan_Process (netchan_t *chan)
 #ifndef CLIENTONLY
 	int			qport;
 #endif
+	int offset;
 
 	if (
 #ifndef SERVERONLY
@@ -601,6 +750,11 @@ qboolean Netchan_Process (netchan_t *chan)
 	if (chan->sock == NS_SERVER)
 		qport = MSG_ReadShort ();
 #endif
+
+	if (chan->fragmentsize)
+		offset = (unsigned short)MSG_ReadShort();
+	else
+		offset = 0;
 
 	reliable_message = sequence >> 31;
 	reliable_ack = sequence_ack >> 31;
@@ -657,6 +811,53 @@ qboolean Netchan_Process (netchan_t *chan)
 				,  sequence
 				, chan->incoming_sequence);
 		return false;
+	}
+
+	if (offset)
+	{
+		int len = net_message.cursize - msg_readcount;
+		qboolean more = false;
+		if (offset & 1)
+		{
+			more = true;
+			offset &= ~1;
+			offset = offset << 2;
+		}
+		if (offset + len > sizeof(chan->in_fragment_buf)) /*stop the overflow*/
+		{
+			if (showdrop.value)
+				Con_Printf("Dropping packet - too many fragments\n");
+			return false;
+		}
+		if (chan->incoming_unreliable != sequence)
+		{
+			/*sequence doesn't match, forget the old*/
+			chan->in_fragment_length = 0;
+			chan->incoming_unreliable = sequence;
+		}
+		if (offset != chan->in_fragment_length)
+			return false; /*dropped one*/
+
+		memcpy(chan->in_fragment_buf + offset, net_message.data + msg_readcount, len);
+		chan->in_fragment_length += net_message.cursize - msg_readcount;
+
+		if (more)
+		{
+			/*nothing to process yet*/
+			return false;
+		}
+		memcpy(net_message.data, chan->in_fragment_buf, chan->in_fragment_length);
+		msg_readcount = 0;
+		net_message.cursize = chan->in_fragment_length;
+
+		chan->incoming_unreliable = 0;
+		chan->in_fragment_length = 0;
+	}
+	else
+	{
+		/*kill any pending reliable*/
+		chan->incoming_unreliable = 0;
+		chan->in_fragment_length = 0;
 	}
 
 //

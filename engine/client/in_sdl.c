@@ -299,7 +299,7 @@ void IN_Init (void)
 void IN_Move (float *movements, int pnum)	//add mouse movement to cmd
 {
 #ifdef PEXT_CSQC
-	if (CSQC_MouseMove(mouse_x, mouse_y))
+	if (CSQC_MouseMove(mouse_x, mouse_y, 0))
 	{
 		mouse_x = 0;
 		mouse_y = 0;

@@ -54,7 +54,7 @@ void IN_Move (float *movements, int pnum)
 	float tx, ty, filterfrac;
     
 #ifdef PEXT_CSQC
-	if (CSQC_MouseMove(mouse_x, mouse_y))
+	if (CSQC_MouseMove(mouse_x, mouse_y, 0))
 	{
 		mouse_x = 0;
 		mouse_y = 0;

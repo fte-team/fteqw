@@ -800,9 +800,9 @@ typedef struct entity_state_s
 
 	vec3_t	origin;
 	vec3_t	angles;
-#if defined(Q2CLIENT) || defined(Q2SERVER)
 	union
 	{
+#if defined(Q2CLIENT) || defined(Q2SERVER)
 		struct
 		{
 			int		renderfx;		//q2
@@ -812,6 +812,7 @@ typedef struct entity_state_s
 			qbyte		sound;			//q2
 			qbyte		event;			//q2
 		} q2;
+#endif
 		struct
 		{
 			/*info to predict other players, so I don't get yelled at if fte were to stop supporting it*/
@@ -821,7 +822,6 @@ typedef struct entity_state_s
 			short velocity[3]; // 1/8th
 		} q1;
 	} u;
-#endif
 	unsigned short		modelindex2;	//q2/vweps
 	unsigned short		frame;
 

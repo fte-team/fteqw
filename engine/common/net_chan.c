@@ -688,8 +688,10 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 
 				*(int*)&send.data[(offset - hsz) + 0] = LittleLong(w1);
 				*(int*)&send.data[(offset - hsz) + 4] = LittleLong(w2);
+#ifndef SERVERONLY
 				if (chan->sock == NS_CLIENT)
 					*(short*)&send.data[offset - 4] = LittleShort(cls.qport);
+#endif
 				*(short*)&send.data[offset - 2] = LittleShort(((offset-hsz)>>2) | (more?1:0));
 
 				NET_SendPacket (chan->sock, (no - offset) + hsz, send.data + offset - hsz, chan->remote_address);

@@ -309,6 +309,7 @@ void SV_New_f (void)
 			split->connection_started = realtime;
 		#ifdef SVRANKING
 			split->stats_started = realtime;
+		#endif
 			splitnum++;
 		}
 	}

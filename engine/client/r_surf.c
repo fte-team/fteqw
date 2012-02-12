@@ -2095,12 +2095,14 @@ void Surf_DrawWorld (void)
 		}
 		else
 #endif
+#ifdef MAP_DOOM
 			if (currentmodel->fromgame == fg_doom)
 		{
 			vis = NULL;
 			GLR_DoomWorld();
 		}
 		else
+#endif
 #ifdef TERRAIN
 		if (currentmodel->type == mod_heightmap)
 		{

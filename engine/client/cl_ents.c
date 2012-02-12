@@ -91,10 +91,14 @@ qboolean CL_FilterModelindex(int modelindex, int frame)
 
 void CL_FreeDlights(void)
 {
+#if defined(GLQUAKE) || defined(D3DQUAKE)
+#ifdef RTLIGHTS
 	int i;
 	for (i = 0; i < rtlights_max; i++)
 		if (cl_dlights[i].worldshadowmesh)
 			SH_FreeShadowMesh(cl_dlights[i].worldshadowmesh);
+#endif
+#endif
 
 	rtlights_max = cl_maxdlights = 0;
 	BZ_Free(cl_dlights);

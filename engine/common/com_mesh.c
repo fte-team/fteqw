@@ -5053,7 +5053,7 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 		gmdl[i].ofs_st_array = (char*)stcoord - (char*)&gmdl[i];
 		gmdl[i].numverts = num_vtxw;
 #else
-	for (i = 0; i < num_matt; i++, skin++, gshaders++)
+	for (i = 0; i < num_matt; i++)
 	{
 #endif
 

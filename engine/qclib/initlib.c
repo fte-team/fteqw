@@ -658,7 +658,7 @@ string_t PR_AllocTempString			(progfuncs_t *progfuncs, char *str)
 
 	return (string_t)((unsigned int)i | 0x40000000);
 }
-string_t PR_AllocTempStringLen			(progfuncs_t *progfuncs, char **str, int len)
+string_t PR_AllocTempStringLen			(progfuncs_t *progfuncs, char **str, unsigned int len)
 {
 	char **ntable;
 	int newmax;

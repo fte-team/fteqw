@@ -764,6 +764,7 @@ static void CL_DecodeStateSize(unsigned short solid, int modelindex, vec3_t mins
 }
 
 /*called on packet reception*/
+#include "pr_common.h"
 void CL_PlayerFrameUpdated(player_state_t *plstate, entity_state_t *state, int sequence)
 {
 	/*update the prediction info*/

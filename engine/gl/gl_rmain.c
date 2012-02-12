@@ -58,16 +58,6 @@ vec3_t	vpn;
 vec3_t	vright;
 vec3_t	r_origin;
 
-//
-// screen size info
-//
-refdef_t	r_refdef;
-
-unsigned int	r_viewcontents;
-mleaf_t		*r_viewleaf, *r_oldviewleaf;
-mleaf_t		*r_viewleaf2, *r_oldviewleaf2;
-int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;
-
 texture_t	*r_notexture_mip;
 
 cvar_t	r_norefresh = SCVAR("r_norefresh","0");

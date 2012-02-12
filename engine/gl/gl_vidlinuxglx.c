@@ -1105,7 +1105,7 @@ void IN_MouseMove (float *movements, int pnum)
 #endif
 
 #ifdef PEXT_CSQC
-		if (CSQC_MousePosition(mousecursor_x, mousecursor_y))
+		if (CSQC_MousePosition(mousecursor_x, mousecursor_y, 0))
 		{
 			mx = 0;
 			my = 0;

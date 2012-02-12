@@ -403,7 +403,7 @@ void COM_InitFilesystem (void);
 void FS_Shutdown(void);
 void COM_Gamedir (const char *dir);
 char *FS_GetGamedir(void);
-void *FS_GetBasedir(void);
+char *FS_GetBasedir(void);
 
 qbyte *FS_LoadMallocFile (const char *path);
 int FS_LoadFile(char *name, void **file);

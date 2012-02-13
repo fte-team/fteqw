@@ -32,7 +32,7 @@ void(textfield_t *fld) textfield_clean =
 	fld->cursorcol = 0i;
 	fld->dirty = TRUE; //because its changed
 };
-#pragma wrasm 1
+
 /*fill a text field with data from a string. new lines are supported, but leading tabs and spaces will be stripped*/
 void(textfield_t *fld, string text) textfield_fill =
 {
@@ -70,7 +70,7 @@ if (term) if (text[term-1] == '\r') term--;
 	}
 	fld->dirty = TRUE;
 };
-#pragma wrasm 0
+
 
 /*draws the text field on the screen at a given position.
 there's no size argument, so make sure data doesn't cause the display to overflow intended area (personally I'm just going to put it at the bottom+right of the screen)*/

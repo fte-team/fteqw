@@ -466,6 +466,12 @@ void() editor_spline_add =
 	local int i;
 	local float ctime, stime;
 
+	local vector tdir;
+	tdir_x = 16 * cos(time);
+	tdir_y = 16 * sin(time);
+	drawlame3dtext("charset", tdir*(-33/2), tdir, '0 0 -16', "hello jogi\ndoes this string appear for you?", '1 1 1', 1);
+	drawlame3dtext("charset", tdir*(33/2), -tdir, '0 0 -16', "hello jogi\ndoes this string appear for you?", '1 1 1', 1);
+
 	if (splinefile < 0)
 		spline_init();
 

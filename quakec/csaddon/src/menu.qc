@@ -6,7 +6,7 @@ typedef struct
 	vector mousediff;
 } menu_t;
 
-void(menu_t menu, string fieldname, vector pos, float *value, float minv, float maxv) sliderf_widgit =
+void(menu_t *menu, string fieldname, vector pos, float *value, float minv, float maxv) sliderf_widgit =
 {
 	local vector rpos, spos, col;
 	local float f;
@@ -84,7 +84,6 @@ void(menu_t menu, string fieldname, vector pos, float *value, float minv, float 
 	}
 };
 
-#pragma wrasm 1
 void(menu_t *menu, string fieldname, vector pos, float *value) sliderf_fixed_widgit =
 {
 	local vector rpos, spos, col;
@@ -148,7 +147,7 @@ void(menu_t *menu, string fieldname, vector pos, float *value) sliderf_fixed_wid
 		if (key == 512)
 		{
 			f = *value;
-			int*tmp=(int*)menu;tmp[0] = (int)value; //fteqcc bug - really menu->current = value;
+			menu->current = value;
 			print(sprintf("test thing: %i %i\n", menu->current, value));
 			mp_x = spos_x + 4;
 			*mpp = mp;
@@ -159,9 +158,8 @@ void(menu_t *menu, string fieldname, vector pos, float *value) sliderf_fixed_wid
 			*value = *value - 0.1;
 	}
 };
-#pragma wrasm 0
 
-void(menu_t menu, string fieldname, vector pos, int *value, int minv, int maxv) slideri_widgit =
+void(menu_t *menu, string fieldname, vector pos, int *value, int minv, int maxv) slideri_widgit =
 {
 	local vector rpos, spos, col;
 	local int f;
@@ -284,3 +282,64 @@ void(string fieldname, vector pos, vector *mousepos_in, float *value, float key)
 	}
 };
 
+void(string shader, vector org, vector s, vector t, string text, vector col, float alph) drawlame3dtext =
+{
+	/*the shader must be a 16*16 grid of 256 chars*/
+	vector st = draw_getimagesize(shader);
+	vector pos = org;
+	float chr;
+	float idx;
+	vector tc0,tc1,tc2,tc3;
+
+	//with GL_LINEAR sampling, the sample value is interpolated from the nearby two pixels
+	//this means that we must move the texture coord inwards by half of a pixel to avoid any bleed through into neighbouring chars
+	//(with nearest sampling, this isn't needed)
+	if (st != '0 0 0')
+	{
+		st_x = 0.5 / st_x;
+		st_y = 0.5 / st_y;
+	}
+
+	//precompute the st offset for each vertex
+	tc0_x = (0.0/16) + st_x;
+	tc1_x = (1.0/16) - st_x;
+	tc2_x = (1.0/16) - st_x;
+	tc3_x = (0.0/16) + st_x;
+	tc0_y = (0.0/16) + st_y;
+	tc1_y = (0.0/16) + st_y;
+	tc2_y = (1.0/16) - st_y;
+	tc3_y = (1.0/16) - st_y;
+
+	/*begin looks up the shader and is thus potentially expensive, fte requires it only once per batch of polygons.*/
+	R_BeginPolygon(shader);
+
+	while((chr = text[idx]))
+	{
+		idx+=1;
+
+		/*handle new lines*/
+		if (chr == '\n')
+		{
+			org += t;
+			pos = org;
+			continue;
+		}
+
+		/*skip spaces*/
+		if (chr != ' ')
+		{
+			/*its a grid, so the top-left texturecoord should be easy to calculate*/
+			/*weirdly though, qc has no (direct) modulo functionality, not even as a builtin, so this code is ugly*/
+			st_x = (chr & 15) / 16;
+			st_y = floor(chr/16) / 16;
+
+			/*plot the poly's point and emit the quad*/
+			R_PolygonVertex(pos    , st + tc0, col, alph);
+			R_PolygonVertex(pos + s, st + tc1, col, alph);
+			R_PolygonVertex(pos+s+t, st + tc2, col, alph);
+			R_PolygonVertex(pos + t, st + tc3, col, alph);
+			R_EndPolygon();
+		}
+		pos += s;
+	}
+};

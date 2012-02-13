@@ -1873,6 +1873,9 @@ void BE_GenPolyBatches(batch_t **batches)
 
 	for (i = 0; i < cl_numstris; i++)
 	{
+		if (!cl_stris[i].numidx)
+			continue;
+
 		b = BE_GetTempBatch();
 		if (!b)
 			return;

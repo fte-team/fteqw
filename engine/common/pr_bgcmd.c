@@ -3098,7 +3098,6 @@ void QCBUILTIN PF_sprintf (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	int isfloat;
 	static int dummyivec[3] = {0, 0, 0};
 	static float dummyvec[3] = {0, 0, 0};
-	char vabuf[1024];
 
 #define PRINTF_ALTERNATE 1
 #define PRINTF_ZEROPAD 2
@@ -3335,13 +3334,13 @@ nolength:
 						case 'v': case 'V':
 							f[-2] += 'g' - 'v';
 							if(precision < 0) // not set
-								Q_snprintfz(o, end - o, va(vabuf, sizeof(vabuf), "%s %s %s", /* NESTED SPRINTF IS NESTED */ formatbuf, formatbuf, formatbuf),
+								Q_snprintfz(o, end - o, va("%s %s %s", /* NESTED SPRINTF IS NESTED */ formatbuf, formatbuf, formatbuf),
 									width, (isfloat ? (double) GETARG_VECTOR(thisarg)[0] : (double) GETARG_INTVECTOR(thisarg)[0]),
 									width, (isfloat ? (double) GETARG_VECTOR(thisarg)[1] : (double) GETARG_INTVECTOR(thisarg)[1]),
 									width, (isfloat ? (double) GETARG_VECTOR(thisarg)[2] : (double) GETARG_INTVECTOR(thisarg)[2])
 								);
 							else
-								Q_snprintfz(o, end - o, va(vabuf, sizeof(vabuf), "%s %s %s", /* NESTED SPRINTF IS NESTED */ formatbuf, formatbuf, formatbuf),
+								Q_snprintfz(o, end - o, va("%s %s %s", /* NESTED SPRINTF IS NESTED */ formatbuf, formatbuf, formatbuf),
 									width, precision, (isfloat ? (double) GETARG_VECTOR(thisarg)[0] : (double) GETARG_INTVECTOR(thisarg)[0]),
 									width, precision, (isfloat ? (double) GETARG_VECTOR(thisarg)[1] : (double) GETARG_INTVECTOR(thisarg)[1]),
 									width, precision, (isfloat ? (double) GETARG_VECTOR(thisarg)[2] : (double) GETARG_INTVECTOR(thisarg)[2])

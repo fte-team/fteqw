@@ -700,6 +700,18 @@ pbool QCC_WriteData (int crc)
 
 	for (def = pr.def_head.next ; def ; def = def->next)
 	{
+		if ((def->type->type == ev_struct || def->type->type == ev_union || def->arraysize) && def->deftail)
+		{
+			QCC_def_t		*d;
+			d = def;
+			while (d != def->deftail)
+			{
+				d = d->next;
+				h = d->references;
+				d->references += def->references;
+				def->references += h;
+			}
+		}
 		if (def->type->type == ev_vector || (def->type->type == ev_field && def->type->aux_type->type == ev_vector))
 		{	//do the references, so we don't get loadsa not referenced VEC_HULL_MINS_x
 			sprintf(element, "%s_x", def->name);
@@ -841,9 +853,10 @@ pbool QCC_WriteData (int crc)
 				continue;
 			if (dd->ofs == qcc_globals[h].ofs)
 			{
-				if (dd->type != qcc_globals[h].type)
+				if ((dd->type&~DEF_SAVEGLOBAL) != (qcc_globals[h].type&~DEF_SAVEGLOBAL))
 				{
-					if (dd->type != ev_vector && qcc_globals[h].type != ev_float)
+					if (!(((dd->type&~DEF_SAVEGLOBAL) == ev_vector && (qcc_globals[h].type&~DEF_SAVEGLOBAL) == ev_float) ||
+						((dd->type&~DEF_SAVEGLOBAL) == ev_struct || (dd->type&~DEF_SAVEGLOBAL) == ev_union)))
 						QCC_PR_Warning(0, NULL, 0, "Mismatched union global types (%s and %s)", strings+dd->s_name, strings+qcc_globals[h].s_name);
 				}
 				//remove the saveglobal flag on the duplicate globals.

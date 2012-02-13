@@ -920,13 +920,17 @@ static void QCBUILTIN PF_R_AddEntityMask(progfuncs_t *prinst, struct globalvars_
 	}
 }
 
-static shader_t *csqc_shadern;
-static int csqc_startpolyvert;
+static shader_t *csqc_poly_shader;
+static int csqc_poly_startvert;
+static int csqc_poly_startidx;
+static int csqc_poly_flags;
 // #306 void(string texturename) R_BeginPolygon (EXT_CSQC_???)
 static void QCBUILTIN PF_R_PolygonBegin(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	csqc_shadern = R_RegisterSkin(PR_GetStringOfs(prinst, OFS_PARM0), NULL);
-	csqc_startpolyvert = cl_numstrisvert;
+	csqc_poly_shader = R_RegisterSkin(PR_GetStringOfs(prinst, OFS_PARM0), NULL);
+	csqc_poly_startvert = cl_numstrisvert;
+	csqc_poly_startidx = cl_numstrisidx;
+	csqc_poly_flags = (*prinst->callargc > 1)?G_FLOAT(OFS_PARM1):0;
 }
 
 // #307 void(vector org, vector texcoords, vector rgb, float alpha) R_PolygonVertex (EXT_CSQC_???)
@@ -953,8 +957,12 @@ static void QCBUILTIN PF_R_PolygonEnd(progfuncs_t *prinst, struct globalvars_s *
 	scenetris_t *t;
 	int i;
 	int nv;
+
+	if (!csqc_poly_shader)
+		return;
+
 	/*if the shader didn't change, continue with the old poly*/
-	if (cl_numstris && cl_stris[cl_numstris-1].shader == csqc_shadern)
+	if (cl_numstris && cl_stris[cl_numstris-1].shader == csqc_poly_shader)
 		t = &cl_stris[cl_numstris-1];
 	else
 	{
@@ -964,14 +972,14 @@ static void QCBUILTIN PF_R_PolygonEnd(progfuncs_t *prinst, struct globalvars_s *
 			cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
 		}
 		t = &cl_stris[cl_numstris++];
-		t->shader = csqc_shadern;
+		t->shader = csqc_poly_shader;
 		t->firstidx = cl_numstrisidx;
-		t->firstvert = csqc_startpolyvert;
+		t->firstvert = csqc_poly_startvert;
 		t->numvert = 0;
 		t->numidx = 0;
 	}
 
-	nv = cl_numstrisvert-csqc_startpolyvert;
+	nv = cl_numstrisvert-csqc_poly_startvert;
 	if (cl_numstrisidx+(nv-2)*3 > cl_maxstrisidx)
 	{
 		cl_maxstrisidx=cl_numstrisidx+(nv-2)*3 + 64;
@@ -985,11 +993,34 @@ static void QCBUILTIN PF_R_PolygonEnd(progfuncs_t *prinst, struct globalvars_s *
 		cl_strisidx[cl_numstrisidx++] = t->numvert + i-1;
 		cl_strisidx[cl_numstrisidx++] = t->numvert + i;
 	}
-	t->numidx = cl_numstrisidx - t->firstidx;
-	t->numvert += cl_numstrisvert-csqc_startpolyvert;
 
-	/*set up ready for the next poly*/
-	csqc_startpolyvert = cl_numstrisvert;
+	if (csqc_poly_flags & 4)
+	{
+		mesh_t mesh;
+		memset(&mesh, 0, sizeof(mesh));
+		mesh.colors4f_array = cl_strisvertc + csqc_poly_startvert;
+
+		mesh.xyz_array = cl_strisvertv + csqc_poly_startvert;
+		mesh.st_array = cl_strisvertt + csqc_poly_startvert;
+		mesh.colors4f_array = cl_strisvertc + csqc_poly_startvert;
+		mesh.indexes = cl_strisidx + csqc_poly_startidx;
+		mesh.numindexes = cl_numstrisidx - csqc_poly_startidx;
+		mesh.numvertexes = cl_numstrisvert-csqc_poly_startvert;
+		/*undo the positions so we don't draw the same verts more than once*/
+		cl_numstrisvert = csqc_poly_startvert;
+		cl_numstrisidx = csqc_poly_startidx;
+
+		BE_DrawMesh_Single(csqc_poly_shader, &mesh, NULL, &csqc_poly_shader->defaulttextures, 0);
+	}
+	else
+	{
+		t->numidx = cl_numstrisidx - t->firstidx;
+		t->numvert += cl_numstrisvert-csqc_poly_startvert;
+
+		/*set up ready for the next poly*/
+		csqc_poly_startvert = cl_numstrisvert;
+		csqc_poly_startidx = cl_numstrisidx;
+	}
 }
 
 

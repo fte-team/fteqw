@@ -343,10 +343,11 @@ typedef struct QCC_def_s
 	int s_line;
 
 	int arraysize;
-	pbool shared;
-	pbool saved;
-	pbool isstatic;
-	pbool subscoped_away;
+	pbool shared:1;
+	pbool saved:1;
+	pbool isstatic:1;
+	pbool subscoped_away:1;
+	pbool followptr:1;
 
 	temp_t *temp;
 } QCC_def_t;

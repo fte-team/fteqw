@@ -304,7 +304,7 @@ enum qcop_e {
 	OP_BOUNDCHECK,
 
 //back to ones that we do use.
-	OP_STOREP_P,
+	OP_UNUSED,	//used to be OP_STOREP_P, which is now emulated with OP_STOREP_I, fteqcc nor fte generated it
 	OP_PUSH,	//push 4octets onto the local-stack (which is ALWAYS poped on function return). Returns a pointer.
 	OP_POP,		//pop those ones that were pushed (don't over do it). Needs assembler.
 
@@ -354,6 +354,7 @@ enum qcop_e {
 	OP_MULSTOREP_VI,
 
 	OP_LOADA_STRUCT,
+	OP_STOREP_P,
 
 	OP_NUMOPS
 };

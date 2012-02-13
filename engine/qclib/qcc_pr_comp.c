@@ -494,7 +494,7 @@ QCC_opcode_t pr_opcodes[] =
 
 {7, "<>",	"BOUNDCHECK",	-1, ASSOC_LEFT,				&type_integer,	NULL,	NULL},
 
-{7, "=",	"STOREP_P",		6,	ASSOC_RIGHT,				&type_pointer,	&type_pointer,	&type_void},
+{7, "<UNUSED>",	"UNUSED",		6,	ASSOC_RIGHT,				&type_void,	&type_void,	&type_void},
 {7, "<PUSH>",	"PUSH",		-1, ASSOC_RIGHT,			&type_float,	&type_void,		&type_pointer},
 {7, "<POP>",	"POP",		-1, ASSOC_RIGHT,			&type_float,	&type_void,		&type_void},
 
@@ -544,6 +544,8 @@ QCC_opcode_t pr_opcodes[] =
  {7, "*=", "MULSTOREP_VI",	6, ASSOC_RIGHT_RESULT,		&type_pointer, &type_integer, &type_vector},
 
  {7, "=", "LOADA_STRUCT",	6, ASSOC_LEFT,				&type_float,	&type_integer, &type_float},
+
+ {7, "=",	"STOREP_P",		6,	ASSOC_RIGHT,				&type_pointer,	&type_pointer,	&type_pointer},
 
  {0, NULL}
 };
@@ -744,6 +746,8 @@ QCC_opcode_t *opcodeprioritized[TOP_PRIORITY+1][128] =
 
 		NULL
 	}, {	//6
+		&pr_opcodes[OP_STOREP_P],
+
 		&pr_opcodes[OP_STORE_F],
 		&pr_opcodes[OP_STORE_V],
 		&pr_opcodes[OP_STORE_S],
@@ -764,7 +768,6 @@ QCC_opcode_t *opcodeprioritized[TOP_PRIORITY+1][128] =
 		&pr_opcodes[OP_STOREP_I],
 		&pr_opcodes[OP_STOREP_IF],
 		&pr_opcodes[OP_STOREP_FI],
-		&pr_opcodes[OP_STOREP_P],
 
 		&pr_opcodes[OP_DIVSTORE_F],
 		&pr_opcodes[OP_DIVSTORE_I],
@@ -925,7 +928,6 @@ pbool QCC_OPCodeValid(QCC_opcode_t *op)
 
 		//stores into a pointer (generated from 'ent.field=XXX')
 		case OP_STOREP_I:	//no worse than the other OP_STOREP_X functions
-		case OP_STOREP_P:
 		//reads from an entity field
 		case OP_LOAD_I:		//no worse than the other OP_LOAD_X functions.
 		case OP_LOAD_P:
@@ -2300,6 +2302,10 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 			var_c = var_a;
 			break;
 
+		case OP_STOREP_P:
+			op = &pr_opcodes[OP_STOREP_I];
+			break;
+
 		case OP_BITCLR:
 			//b = var, a = bit field.
 
@@ -2996,7 +3002,7 @@ QCC_def_t *QCC_PR_GenerateFunctionCall (QCC_def_t *func, QCC_def_t *arglist[], i
 				continue;
 			}
 
-		if (arglist[i]->type->size>1 || !opt_nonvec_parms)
+		if (arglist[i]->type->size == 3 || !opt_nonvec_parms)
 			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_V], arglist[i], d, (QCC_dstatement_t **)0xffffffff));
 		else
 		{
@@ -3662,6 +3668,7 @@ QCC_def_t *QCC_PR_ParseFunctionCall (QCC_def_t *func)	//warning, the func could 
 				e->ofs = OFS_PARM0+2;
 				QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_F], QCC_MakeFloatConst(pr_immediate.vector[2]), e, (QCC_dstatement_t **)0xffffffff));
 				e->ofs = OFS_PARM0;
+				e->type = type_vector;
 
 				QCC_PR_Lex();
 			}
@@ -4226,110 +4233,31 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, char *tname)
 	locals_end = numpr_globals + basetype->size;
 	df->locals = locals_end - df->parm_start;
 }
-/*
-============
-PR_ParseValue
 
-Returns the global ofs for the current token
-============
-*/
-QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign)
+QCC_def_t *QCC_PR_ParseArrayPointer (QCC_def_t *d, pbool allowarrayassign)
 {
-	QCC_def_t		*d, *od, *tmp, *idx;
-	QCC_type_t		*t;
-	char		*name;
+	QCC_type_t *t;
+	QCC_def_t *idx;
+	QCC_def_t *tmp;
 	QCC_dstatement_t *st;
-
-	char membername[2048];
-
-// if the token is an immediate, allocate a constant for it
-	if (pr_token_type == tt_immediate)
-		return QCC_PR_ParseImmediate ();
-
-	if (QCC_PR_CheckToken("["))	//reacc support
-	{	//looks like a funky vector. :)
-		vec3_t v;
-		pr_immediate_type = type_vector;
-		v[0] = pr_immediate._float;
-		QCC_PR_Lex();
-		v[1] = pr_immediate._float;
-		QCC_PR_Lex();
-		v[2] = pr_immediate._float;
-		pr_immediate.vector[0] = v[0];
-		pr_immediate.vector[1] = v[1];
-		pr_immediate.vector[2] = v[2];
-		pr_immediate_type = type_vector;
-		d = QCC_PR_ParseImmediate();
-		QCC_PR_Expect("]");
-		return d;
-	}
-	name = QCC_PR_ParseName ();
-
-	if (assumeclass && assumeclass->parentclass)	// 'testvar' becomes 'self::testvar'
-	{	//try getting a member.
-		QCC_type_t *type;
-		type = assumeclass;
-		d = NULL;
-		while(type != type_entity && type)
-		{
-			sprintf(membername, "%s::"MEMBERFIELDNAME, type->name, name);
-			d = QCC_PR_GetDef (NULL, membername, pr_scope, false, 0, false);
-			if (d)
-				break;
-
-			type = type->parentclass;
-		}
-		if (!d)
-			d = QCC_PR_GetDef (NULL, name, pr_scope, false, 0, false);
-	}
-	else
-	{
-		// look through the defs
-		d = QCC_PR_GetDef (NULL, name, pr_scope, false, 0, false);
-	}
-
-	if (!d)
-	{
-		if (	(!strcmp(name, "random" ))	||
-				(!strcmp(name, "randomv"))	||
-				(!strcmp(name, "sizeof"))	||
-				(!strcmp(name, "entnum"))	||
-				(!strcmp(name, "_")))	//intrinsics, any old function with no args will do.
-		{
-			d = QCC_PR_GetDef (type_function, name, NULL, true, 0, false);
-			d->initialized = 0;
-		}
-		else if (keyword_class && !strcmp(name, "this"))
-		{
-			if (!pr_classtype)
-				QCC_PR_ParseError(ERR_NOTANAME, "Cannot use 'this' outside of an OO function\n");
-			od = QCC_PR_GetDef(NULL, "self", NULL, true, 0, false);
-			d = QCC_PR_DummyDef(pr_classtype, "this", pr_scope, 0, od->ofs, true, false);
-		}
-		else if (keyword_class && !strcmp(name, "super"))
-		{
-			if (!pr_classtype)
-				QCC_PR_ParseError(ERR_NOTANAME, "Cannot use 'super' outside of an OO function\n");
-			od = QCC_PR_GetDef(NULL, "self", NULL, true, 0, false);
-			d = QCC_PR_DummyDef(pr_classtype, "super", pr_scope, 0, od->ofs, true, false);
-		}
-		else
-		{
-			d = QCC_PR_GetDef (type_variant, name, pr_scope, true, 0, false);
-			if (!d)
-				QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\"", name);
-			else
-			{
-				QCC_PR_ParseWarning (ERR_UNKNOWNVALUE, "Unknown value \"%s\".", name);
-			}
-		}
-	}
+	pbool allowarray;
 
 	t = d->type;
 	idx = NULL;
 	while(1)
 	{
-		if (QCC_PR_CheckToken("["))
+		allowarray = false;
+		if (idx)
+			allowarray = t->arraysize>0;
+		else if (!idx)
+		{
+			allowarray = d->arraysize ||
+						(d->type->type == ev_pointer) ||
+						(d->type->type == ev_string) ||
+						(d->type->type == ev_vector);
+		}
+
+		if (allowarray && QCC_PR_CheckToken("["))
 		{
 			tmp = QCC_PR_Expression (TOP_PRIORITY, 0);
 			QCC_PR_Expect("]");
@@ -4342,9 +4270,28 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign)
 			{
 				/*no bounds checks on pointer dereferences*/
 			}
-			else if (!idx && d->type->type == ev_string)
+			else if (!idx && d->type->type == ev_string && !d->arraysize)
 			{
 				/*automatic runtime bounds checks on strings, I'm not going to check this too much...*/
+			}
+			else if (!idx && d->type->type == ev_vector && !d->arraysize)
+			{
+				if (tmp->constant)
+				{
+					unsigned int i;
+					if (tmp->type->type == ev_integer)
+						i = G_INT(tmp->ofs);
+					else if (tmp->type->type == ev_float)
+						i = G_FLOAT(tmp->ofs);
+					if (i < 0 || i >= 3)
+						QCC_PR_ParseErrorPrintDef(0, d, "(vector) array index out of bounds");
+				}
+				else if (QCC_OPCodeValid(&pr_opcodes[OP_LOADA_F]))
+				{
+					tmp = QCC_SupplyConversion(tmp, ev_integer, true);
+					QCC_PR_SimpleStatement (OP_BOUNDCHECK, tmp->ofs, 3, 0, false);
+				}
+				t = type_float;
 			}
 			else if (!((!idx)?d->arraysize:t->arraysize))
 			{
@@ -4452,6 +4399,11 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign)
 		{
 			d = QCC_PR_Statement(&pr_opcodes[OP_LOADP_C], d, QCC_SupplyConversion(idx, ev_float, true), NULL);
 		}
+		else if (d->type->type == ev_vector && d->arraysize == 0)
+		{
+			d = QCC_PR_Statement(&pr_opcodes[OP_LOADA_F], d, QCC_SupplyConversion(idx, ev_integer, true), NULL);
+			d->type = type_float;
+		}
 		else if (QCC_OPCodeValid(&pr_opcodes[OP_LOADA_F]))
 		{
 			/*don't care about assignments. the code can convert an OP_LOADA_F to an OP_ADDRESS on assign*/
@@ -4524,6 +4476,8 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign)
 			qcc_usefulstatement=true;
 			d = QCC_PR_GenerateFunctionCall(funcretr, args, 2);
 			d->type = t;
+
+			return d;
 		}
 		else if (QCC_OPCodeValid(&pr_opcodes[OP_FETCH_GBL_F]))
 		{
@@ -4578,8 +4532,113 @@ QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign)
 			d = QCC_PR_GenerateFunctionCall(funcretr, args, 1);
 			d->type = t;
 		}
+
+		/*parse recursively*/
+		d = QCC_PR_ParseArrayPointer(d, allowarrayassign);
 	}
 
+	return d;
+}
+
+/*
+============
+PR_ParseValue
+
+Returns the global ofs for the current token
+============
+*/
+QCC_def_t	*QCC_PR_ParseValue (QCC_type_t *assumeclass, pbool allowarrayassign)
+{
+	QCC_def_t		*d, *od, *tmp;
+	QCC_type_t		*t;
+	char		*name;
+
+	char membername[2048];
+
+// if the token is an immediate, allocate a constant for it
+	if (pr_token_type == tt_immediate)
+		return QCC_PR_ParseImmediate ();
+
+	if (QCC_PR_CheckToken("["))	//reacc support
+	{	//looks like a funky vector. :)
+		vec3_t v;
+		pr_immediate_type = type_vector;
+		v[0] = pr_immediate._float;
+		QCC_PR_Lex();
+		v[1] = pr_immediate._float;
+		QCC_PR_Lex();
+		v[2] = pr_immediate._float;
+		pr_immediate.vector[0] = v[0];
+		pr_immediate.vector[1] = v[1];
+		pr_immediate.vector[2] = v[2];
+		pr_immediate_type = type_vector;
+		d = QCC_PR_ParseImmediate();
+		QCC_PR_Expect("]");
+		return d;
+	}
+	name = QCC_PR_ParseName ();
+
+	if (assumeclass && assumeclass->parentclass)	// 'testvar' becomes 'self::testvar'
+	{	//try getting a member.
+		QCC_type_t *type;
+		type = assumeclass;
+		d = NULL;
+		while(type != type_entity && type)
+		{
+			sprintf(membername, "%s::"MEMBERFIELDNAME, type->name, name);
+			d = QCC_PR_GetDef (NULL, membername, pr_scope, false, 0, false);
+			if (d)
+				break;
+
+			type = type->parentclass;
+		}
+		if (!d)
+			d = QCC_PR_GetDef (NULL, name, pr_scope, false, 0, false);
+	}
+	else
+	{
+		// look through the defs
+		d = QCC_PR_GetDef (NULL, name, pr_scope, false, 0, false);
+	}
+
+	if (!d)
+	{
+		if (	(!strcmp(name, "random" ))	||
+				(!strcmp(name, "randomv"))	||
+				(!strcmp(name, "sizeof"))	||
+				(!strcmp(name, "entnum"))	||
+				(!strcmp(name, "_")))	//intrinsics, any old function with no args will do.
+		{
+			d = QCC_PR_GetDef (type_function, name, NULL, true, 0, false);
+			d->initialized = 0;
+		}
+		else if (keyword_class && !strcmp(name, "this"))
+		{
+			if (!pr_classtype)
+				QCC_PR_ParseError(ERR_NOTANAME, "Cannot use 'this' outside of an OO function\n");
+			od = QCC_PR_GetDef(NULL, "self", NULL, true, 0, false);
+			d = QCC_PR_DummyDef(pr_classtype, "this", pr_scope, 0, od->ofs, true, false);
+		}
+		else if (keyword_class && !strcmp(name, "super"))
+		{
+			if (!pr_classtype)
+				QCC_PR_ParseError(ERR_NOTANAME, "Cannot use 'super' outside of an OO function\n");
+			od = QCC_PR_GetDef(NULL, "self", NULL, true, 0, false);
+			d = QCC_PR_DummyDef(pr_classtype, "super", pr_scope, 0, od->ofs, true, false);
+		}
+		else
+		{
+			d = QCC_PR_GetDef (type_variant, name, pr_scope, true, 0, false);
+			if (!d)
+				QCC_PR_ParseError (ERR_UNKNOWNVALUE, "Unknown value \"%s\"", name);
+			else
+			{
+				QCC_PR_ParseWarning (ERR_UNKNOWNVALUE, "Unknown value \"%s\".", name);
+			}
+		}
+	}
+
+	d = QCC_PR_ParseArrayPointer(d, allowarrayassign);
 
 	t = d->type;
 	if (keyword_class && t->type == ev_entity && t->parentclass && (QCC_PR_CheckToken(".") || QCC_PR_CheckToken("->")))
@@ -4783,45 +4842,46 @@ QCC_def_t *QCC_PR_Term (void)
 			e = QCC_PR_Expression (UNARY_PRIORITY, EXPR_DISALLOW_COMMA);
 			t = e->type->type;
 
-			if (t != ev_pointer)
-				QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch for *");
-
-
-
-			switch(e->type->aux_type->type)
+			if (t == ev_string)
+				e2 = QCC_PR_Statement(&pr_opcodes[OP_LOADP_C], e, QCC_MakeFloatConst(0), NULL);
+			else if (t == ev_pointer)
 			{
-			case ev_float:
-				e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_F], e, 0, NULL);
-				break;
-			case ev_string:
-				e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_S], e, 0, NULL);
-				break;
-			case ev_vector:
-				e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_V], e, 0, NULL);
-				break;
-			case ev_entity:
-				e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_ENT], e, 0, NULL);
-				break;
-			case ev_field:
-				e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_FLD], e, 0, NULL);
-				break;
-			case ev_function:
-				e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_FLD], e, 0, NULL);
-				break;
-			case ev_integer:
-				e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_I], e, 0, NULL);
-				break;
-			case ev_pointer:
-				e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_I], e, 0, NULL);
-				break;
+				switch(e->type->aux_type->type)
+				{
+				case ev_float:
+					e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_F], e, 0, NULL);
+					break;
+				case ev_string:
+					e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_S], e, 0, NULL);
+					break;
+				case ev_vector:
+					e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_V], e, 0, NULL);
+					break;
+				case ev_entity:
+					e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_ENT], e, 0, NULL);
+					break;
+				case ev_field:
+					e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_FLD], e, 0, NULL);
+					break;
+				case ev_function:
+					e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_FLD], e, 0, NULL);
+					break;
+				case ev_integer:
+					e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_I], e, 0, NULL);
+					break;
+				case ev_pointer:
+					e2 = QCC_PR_Statement (&pr_opcodes[OP_LOADP_I], e, 0, NULL);
+					break;
 
-			default:
-				QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch for * (unrecognised type)");
-				e2 = NULL;
-				break;
+				default:
+					QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch for * (unrecognised type)");
+					e2 = NULL;
+					break;
+				}
+				e2->type = e->type->aux_type;
 			}
-
-			e2->type = e->type->aux_type;
+			else
+				QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch for *");
 			return e2;
 		}
 		else if (QCC_PR_CheckToken ("-"))
@@ -5156,21 +5216,15 @@ QCC_def_t *QCC_PR_Expression (int priority, int exprflags)
 						//this kills the add 0.
 						e->ofs = statements[numstatements-1].a;
 						numstatements--;
-
-						if (e->type->type != ev_pointer)
-						{
-							type_pointer->aux_type->type = e->type->type;
-							e->type = type_pointer;
-						}
 					}
 					else
 					{
 						statements[numstatements-1].op = OP_POINTER_ADD;
-						if (e->type->type != ev_pointer)
-						{
-							type_pointer->aux_type->type = e->type->type;
-							e->type = type_pointer;
-						}
+					}
+					if (e->type != type_pointer)
+					{
+						type_pointer->aux_type->type = e->type->type;
+						e->type = type_pointer;
 					}
 				}
 				if ( !simplestore && statements[numstatements-1].op == OP_LOADP_C && e->ofs == statements[numstatements-1].c)

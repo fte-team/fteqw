@@ -8942,7 +8942,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"dynamiclight_add",PF_Fixme,	0,		0,		0,		305,	"float(vector org, float radius, vector lightcolours)"},// (EXT_CSQC)
 
-	{"R_BeginPolygon",	PF_Fixme,	0,		0,		0,		306,	"void(string texturename)"},// (EXT_CSQC_???)
+	{"R_BeginPolygon",	PF_Fixme,	0,		0,		0,		306,	"void(string texturename, optional float flags)"},// (EXT_CSQC_???)
 	{"R_PolygonVertex",	PF_Fixme,	0,		0,		0,		307,	"void(vector org, vector texcoords, vector rgb, float alpha)"},// (EXT_CSQC_???)
 	{"R_EndPolygon",	PF_Fixme,	0,		0,		0,		308,	"void()"},// (EXT_CSQC_???)
 

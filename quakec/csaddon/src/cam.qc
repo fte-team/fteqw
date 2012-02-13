@@ -13,8 +13,6 @@ typedef struct
 {
 	float starttime;
 	float endtime;
-	float startfov;
-	float endfov;
 	spline_t spline;
 } cam_t;
 
@@ -31,6 +29,8 @@ typedef struct
 
 static camdata_t *camdata;
 static var float splinefile = -1;
+static int edit_type = 0;
+static vector submenu_position;
 
 void() spline_init =
 {
@@ -113,29 +113,118 @@ void(vector p1, vector p2, vector color) fakeline = {
 	R_PolygonVertex(p1-'0 0 1', '0 1', color,1);
 	R_PolygonVertex(p2-'0 0 1', '1 1', color,1);
 	R_PolygonVertex(p2+'0 0 1', '1 0', color,1);
-	R_PolygonVertex(p1-'0 0 1', '0 0', color,1);
-	R_PolygonVertex(p1+'0 0 1', '0 1', color,1);
-	R_PolygonVertex(p2+'0 0 1', '1 1', color,1);
-	R_PolygonVertex(p2-'0 0 1', '1 0', color,1);
-
+	R_PolygonVertex(p2+'0 0 1', '0 0', color,1);
+	R_PolygonVertex(p2-'0 0 1', '0 1', color,1);
+	R_PolygonVertex(p1-'0 0 1', '1 1', color,1);
+	R_PolygonVertex(p1-'0 0 1', '1 0', color,1);
 	R_EndPolygon();
 };
 
-void (vector pos, vector color) draw_point
+void (vector p1, vector p2, float size, vector color) fakeline_new
 {
-	local vector pos1, pos2;
-	//x
-	pos1 = pos - '10 0 0';
-	pos2 = pos + '10 0 0';
-	fakeline(pos1, pos2, color);
-	//y
-	pos1 = pos - '0 10 0';
-	pos2 = pos + '0 10 0';
-	fakeline(pos1, pos2, color);
-	//z -- this isnt drawing right for some reason
-	pos1 = pos - '0 0 10';
-	pos2 = pos + '0 0 10';
-	fakeline(pos1, pos2, color);
+	local vector diff;
+
+	diff = p2 - p1;
+	normalize(diff);
+};
+
+void (vector pos, float size, vector color) draw_point
+{
+	local int i;
+	local vector offsets[5];
+	local vector points[8];
+	local vector point, point1;
+
+	if (size == 0)
+		return;
+
+	point_x = -(size/2);
+	point_y = -(size/2);
+	offsets[0] = point;
+	point_x = size/2;
+	point_y = -(size/2);
+	offsets[1] = point;
+	point_x = -(size/2);
+	point_y = (size/2);
+	offsets[2] = point;
+	point_x = (size/2);
+	point_y = (size/2);
+	offsets[3] = point;
+
+	point1_z = -(size/2);
+	for (i=0; i<4; i++)
+		points[i] = offsets[i] + point1 + pos;
+
+	point1_z = (size/2);
+	for (i=4; i<8; i++)
+		points[i] = offsets[i-4] + point1 + pos;
+
+	/*
+	 * bottom
+	 * 2 3
+	 * 0 1
+	 *
+	 * top
+	 * 6 7
+	 * 4 5
+	 */
+
+	// bottom
+	R_BeginPolygon("camsplineshader");
+	R_PolygonVertex(points[3], '0 0', color ,1);
+	R_PolygonVertex(points[2], '0 1', color ,1);
+	R_PolygonVertex(points[0], '1 1', color,1);
+	R_PolygonVertex(points[1], '1 0', color,1);
+	R_EndPolygon();
+
+	// top
+	R_BeginPolygon("camsplineshader");
+	R_PolygonVertex(points[5], '0 0', color ,1);
+	R_PolygonVertex(points[4], '0 1', color ,1);
+	R_PolygonVertex(points[6], '1 1', color,1);
+	R_PolygonVertex(points[7], '1 0', color,1);
+	R_EndPolygon();
+
+	// front
+	R_BeginPolygon("camsplineshader");
+	R_PolygonVertex(points[4], '0 0', color ,1);
+	R_PolygonVertex(points[5], '0 1', color ,1);
+	R_PolygonVertex(points[1], '1 1', color,1);
+	R_PolygonVertex(points[0], '1 0', color,1);
+	R_EndPolygon();
+
+	//back
+	R_BeginPolygon("camsplineshader");
+	R_PolygonVertex(points[7], '0 0', color ,1);
+	R_PolygonVertex(points[6], '0 1', color ,1);
+	R_PolygonVertex(points[2], '1 1', color,1);
+	R_PolygonVertex(points[3], '1 0', color,1);
+	R_EndPolygon();
+
+	//left
+	R_BeginPolygon("camsplineshader");
+	R_PolygonVertex(points[6], '0 0', color ,1);
+	R_PolygonVertex(points[4], '0 1', color ,1);
+	R_PolygonVertex(points[0], '1 1', color,1);
+	R_PolygonVertex(points[2], '1 0', color,1);
+	R_EndPolygon();
+
+	//right
+	R_BeginPolygon("camsplineshader");
+	R_PolygonVertex(points[5], '0 0', color ,1);
+	R_PolygonVertex(points[7], '0 1', color ,1);
+	R_PolygonVertex(points[3], '1 1', color,1);
+	R_PolygonVertex(points[1], '1 0', color,1);
+	R_EndPolygon();
+
+
+
+
+
+
+
+
+
 };
 
 // time has to be between 0 and 1
@@ -198,11 +287,9 @@ vector(spline_t *s, float frac_time) spline_calculate_position =
 		// first point is always an entry point last point also
 		t5 = 1 / (s->numpoints - 3);
 		for (i=1, t4=t5; t4<frac_time; t4 = t4 + t5)
-		{
 			i++;
-		}
-		//print(sprintf("end: %i\n", i));
-		if (i > s->numpoints)
+
+		if (i >= s->numpoints)
 		{
 			print(sprintf("something went wrong while getting the start point!\n"));
 			return s->pos[0];
@@ -243,9 +330,6 @@ vector(spline_t *s, float frac_time) spline_calculate_position =
 		t4 = -0.5 * point1_z + 1.5 * point2_z + (-1.5 * point3_z) + 0.5 * point4_z;
 		r_z = ((t4 * t_scaled + t3)*t_scaled + t2)*t_scaled + t1;
 
-
-
-
 		return r;
 	}
 
@@ -260,9 +344,10 @@ static void(spline_t *s) spline_draw =
 	local vector bdir;
 	local int i;
 	local vector color;
+	local float psize;
 
 	/*example of drawing convex polygons*/
-	R_BeginPolygon("camsplineshader");
+	///R_BeginPolygon("camsplineshader");
 
 	vpos = getviewprop(VF_ORIGIN);
 
@@ -295,18 +380,56 @@ static void(spline_t *s) spline_draw =
 //	draw points
 	for (i=0; i<s->numpoints; i++)
 	{
+		psize = 5;
 		color = '0.25 0.25 0.25';
 		if (i == s->selected_point)
+		{
+			psize = 10;
 			color = '1 1 1';
-		draw_point(s->pos[i], color);
+		}
+		draw_point(s->pos[i], psize, color);
 	}
 	// draw position
 	pos = spline_calculate_position(s, s->position);
-	draw_point(pos, '1 0 0');
+	draw_point(pos, 3, '1 0 0');
 };
 
 void(float attime) spline_overrides =
 {
+	local vector position, view;
+	local cam_t *cpos;
+	local cam_t *cview;
+	local float stime;
+	local int i;
+
+	for (i=0; i < camdata->position_count; i++)
+	{
+		cpos = &camdata->position[i];
+		if (cpos->starttime <= attime && cpos->endtime > attime)
+			break;
+	}
+
+	if (i == camdata->position_count)
+		return;
+
+	for (i=0; i < camdata->view_count; i++)
+	{
+		cview = &camdata->view[i];
+		if (cview->starttime <= attime && cview->endtime > attime)
+			break;
+	}
+
+	if (i == camdata->view_count)
+		return;
+
+	stime = (attime - cpos->starttime) / (cpos->endtime - cpos->starttime);
+	position = spline_calculate_position(&cpos->spline, stime);
+
+	stime = (attime - cview->starttime) / (cview->endtime - cview->starttime);
+	view = spline_calculate_position(&cview->spline, stime);
+
+	setviewprop(VF_ORIGIN, position);
+	setviewprop(VF_ANGLES, vectoangles(view - position));
 };
 /*called to move the view to some simulation time*/
 /*
@@ -340,123 +463,82 @@ void(float attime) spline_overrides =
 
 void() editor_spline_add =
 {
-	int i;
+	local int i;
+	local float ctime, stime;
 
 	if (splinefile < 0)
 		spline_init();
 
+	ctime = gettime(5);
+
 	/*add visible splines to the scene*/
 	for (i = 0; i < camdata->position_count; i+=1i)
 		spline_draw(&camdata->position[i].spline);
+	for (i = 0; i < camdata->view_count; i+=1i)
+		spline_draw(&camdata->view[i].spline);
 
 	/*sort out the overrides*/
 //	spline_overrides(simtime);
 };
-float slidertestfloat1, slidertestfloat2;
+float slidertestfloat1, slidertestfloat2, slidertestfloat3;
 static float *curslider;
-void(string fieldname, vector pos, vector mousepos, float *value, float minv, float maxv, float key) sliderf_widgit =
+static menu_t menu;
+
+int (vector *curmousepos, vector mousediff, float key) submenu =
 {
-	local vector rpos, col;
-	local float f;
-	rpos = pos + '132 0 0';
-	/*if they're dragging us, update*/
-	if ((int)curslider == (int)value)
+	local vector pos;
+	local spline_t *s;
+	local vector point;
+
+	pos = submenu_position;
+
+	menu->key = key;
+	menu->mousepos = curmousepos;
+	menu->mousediff = mousediff;
+
+	if (edit_type == 0)
+		s = &camdata.position[camdata.position_selected].spline;
+	else
+		s = &camdata.view[camdata.view_selected].spline;
+	if (s->numpoints > 0)
 	{
-		if (mousedown == 1)
-		{
-			*value = ((mousepos_x - 4 - rpos)/(9*8)*(maxv-minv)) + minv;
-			*value = bound(minv, *value, maxv);
-		}
-		else
-			curslider = (int*)__NULL__;
+		point = s->pos[s->selected_point];
+		sliderf_fixed_widgit(&menu, "x:", pos, &point_x);pos_y+=8;
+		sliderf_fixed_widgit(&menu, "y:", pos, &point_y);pos_y+=8;
+		sliderf_fixed_widgit(&menu, "z:", pos, &point_z);pos_y+=8;
+		s->pos[s->selected_point] = point;
 	}
 
-	if (key == -1)
-	{
-		if (mousepos_y >= pos_y && mousepos_y < pos_y + 8)
-		{
-			col_x = (sin(time*3.14)+1) / 2;
-			col_y = col_x;
-			col_z = 1;
-		}
-		else
-			col = '1 1 1';
-
-		f = *value;
-		if (f < minv)
-			f = minv;
-		if (f > maxv)
-			f = maxv;
-		drawstring(pos, fieldname, '8 8 0', col, 1, 0);
-		pos = rpos;
-		rpos_x -= 4;
-		drawstring(rpos, "^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", '8 8 0', '1 1 1', 1, 0);
-		drawstring(rpos + '88 0', ftos(f), '8 8 0', col, 1, 0);
-		rpos_x += 4;
-		rpos_x += 9*8*(f - minv) / (maxv - minv);
-		drawstring(rpos, "^Ue083", '8 8 0', '1 1 1', 1, 0);
-	}
-	else 	if (mousepos_y >= pos_y && mousepos_y < pos_y + 8)
-	{
-		if (key == 512)
-			curslider = value;
-		else if (key == 515)
-			*value = bound(minv, *value + (maxv - minv) / 10, maxv);
-		else if (key == 516)
-			*value = bound(minv, *value - (maxv - minv) / 10, maxv);
-	}
-};
-
-void(string fieldname, vector pos, vector mousepos, float *value, float key) checkboxf_widgit =
-{
-	local vector rpos, col;
-	rpos = pos + '132 0 0';
-
-	if (key == -1)
-	{
-		if (mousepos_y >= pos_y && mousepos_y < pos_y + 8)
-		{
-			col_x = (sin(time*3.14)+1) / 2;
-			col_y = col_x;
-			col_z = 1;
-		}
-		else
-			col = '1 1 1';
-
-		drawstring(pos, fieldname, '8 8 0', col, 1, 0);
-		rpos_x -= 4;
-		drawstring(rpos, "^Ue080^Ue082", '8 8 0', '1 1 1', 1, 0);
-		drawstring(rpos + '88 0', ((*value) ?"TRUE":"FALSE"), '8 8 0', col, 1, 0);
-		rpos_x += 4;
-		if (*value)
-			drawstring(rpos, "^Ue083", '8 8 0', '1 1 1', 1, 0);
-	}
-	else 	if (mousepos_y >= pos_y && mousepos_y < pos_y + 8)
-	{
-		if (key == 512)
-			*value = !*value;
-		else if (key == 515)
-			*value = !*value;
-		else if (key == 516)
-			*value = !*value;
-	}
-};
-
-void(vector curmousepos, float key) testmenu =
-{
-	vector pos;
-
- 	pos = '0 80';
-	sliderf_widgit ("test float a", pos, curmousepos, &slidertestfloat1, 100, 200, key);pos_y += 8;
-	sliderf_widgit ("test float b", pos, curmousepos, &slidertestfloat2, 0, 1,   key);pos_y += 8;
-
-	checkboxf_widgit ("checkbox test", pos, curmousepos, &slidertestfloat2, key);pos_y += 8;
 }
 
-void(vector curmousepos) editor_spline_overlay =
+/*
+ * the widgets have to handle mouse properly
+ * if mousedown == 1 && curslider == self -> return
+ */
+int (vector *curmousepos, vector mousediff, float key) testmenu =
+{
+	local vector pos;
+	local int reset_mouse = 0;
+
+ 	pos = '0 80';
+	/*
+	sliderf_widgit ("test float a", pos, curmousepos, mousediff, &slidertestfloat1, 100, 200);pos_y += 8;
+	sliderf_widgit ("test float b", pos, curmousepos, mousediff, &slidertestfloat2, 0, 1);pos_y += 8;
+
+	checkboxf_widgit ("checkbox test", pos, curmousepos, &slidertestfloat2, key);pos_y += 32;
+	sliderf_fixed_widgit("test float c", pos, curmousepos, mousediff, &slidertestfloat3, key, 1i);pos_y += 32;
+	*/
+
+	//curmousepos = '0 0 0';
+
+	return reset_mouse;
+}
+
+int (vector *curmousepos, vector mousediff) editor_spline_overlay =
 {
 	local vector pos, v;
 	local spline_t *s;
+	local int ri;
 
 	if (splinefile < 0)
 		spline_init();
@@ -465,7 +547,11 @@ void(vector curmousepos) editor_spline_overlay =
 	/*draw menu*/
 	/*dunno if the light editor has any convienient code*/
 	pos_y = 40;
-	drawrawstring(pos, sprintf("cam  : %i / %i", camdata->position_selected + 1i , camdata->position_count), '8 8 0', '1 1 1', 1);
+	if (edit_type == 0)
+		drawrawstring(pos, "cam", '8 8 0', '1 0 0', 1);
+	else
+		drawrawstring(pos, "cam", '8 8 0', '1 1 1', 1);
+	drawrawstring(pos + '24 0 0', sprintf("  : %i / %i", camdata->position_selected + 1i , camdata->position_count), '8 8 0', '1 1 1', 1);
 	if (camdata->position_count)
 	{
 		pos_y += 8;
@@ -474,9 +560,24 @@ void(vector curmousepos) editor_spline_overlay =
 		drawrawstring(pos, sprintf(" point: %i / %i -- %f %f %f", s->selected_point + 1i, s->numpoints, v_x, v_y, v_z), '8 8 0', '1 1 1', 1);
 	}
 	pos_y += 8;
-	drawrawstring(pos, sprintf("view : %i / %i", camdata->view_selected + 1i, camdata->view_count), '8 8 0', '1 1 1', 1);
+	if (edit_type == 1)
+		drawrawstring(pos, "view", '8 8 0', '1 0 0', 1);
+	else
+		drawrawstring(pos, "view", '8 8 0', '1 1 1', 1);
+	drawrawstring(pos + '32 0 0', sprintf(" : %i / %i", camdata->view_selected + 1i, camdata->view_count), '8 8 0', '1 1 1', 1);
+	if (camdata->view_count)
+	{
+		pos_y += 8;
+		s = &camdata->view[camdata->view_selected].spline;
+		v = s->pos[s->selected_point];
+		drawrawstring(pos, sprintf(" point: %i / %i -- %f %f %f", s->selected_point + 1i, s->numpoints, v_x, v_y, v_z), '8 8 0', '1 1 1', 1);
+	}
 
-	testmenu(curmousepos, -1);
+	submenu_position = pos + '0 8';
+
+	submenu(curmousepos, mousediff, -1);
+
+	return ri;
 };
 
 int (spline_t *s, vector point) spline_add_point = 
@@ -521,6 +622,31 @@ void (int type) position_add_point =
 	}
 }
 
+void (int type) view_add_point =
+{
+	vector v;
+	int i;
+	local cam_t *c;
+	local spline_t *s;
+
+	i = camdata->view_selected;
+	c = &camdata->view[i];
+	s = &c->spline;
+	v = getviewprop(VF_ORIGIN);
+	if (type == 0)
+	{
+		if (spline_add_point(s, v))
+		{
+//			print(sprintf("point could not be added.\n"));
+		}
+		else
+		{
+//			print(sprintf("added point: %i %f %f %f\n", s->selected_point, v_x, v_y, v_z));
+		}
+	}
+}
+
+
 void(void) position_add
 {
 	print(sprintf("test\n"));
@@ -552,6 +678,20 @@ void(spline_t *s, vector change) spline_change_point_position
 	s->pos[s->selected_point] = s->pos[s->selected_point] + change;
 };
 
+void (cam_t *c, float starttime) cam_set_start_time
+{
+	c->starttime = starttime;
+	if (starttime > c->endtime)
+		c->endtime = starttime;
+}
+
+void (cam_t *c, float endtime) cam_set_stop_time
+{
+	c->endtime = endtime;
+	if (endtime < c->starttime)
+		c->starttime = endtime;
+}
+
 void (spline_t *s, float change) spline_change_position
 {
 	s->position = s->position + change;
@@ -574,20 +714,40 @@ void(spline_t *s, int change) spline_change_selected_point
 		s->selected_point = s->selected_point + change;
 };
 
-float(float keycode, float unicode, vector curmousepos) editor_spline_key
+float(float keycode, float unicode, vector *curmousepos_in, vector mousediff) editor_spline_key
 {
+	local vector curmousepos = *curmousepos_in;
 	if (keycode == 'j')
 	{
-		if (camdata->position_count == 0)
-			position_add();
-		position_add_point(0);
+		if (edit_type == 0)
+		{
+			if (camdata->position_count == 0)
+				position_add();
+			position_add_point(0);
+		}
+		else
+		{
+			if (camdata->view_count == 0)
+				view_add();
+			view_add_point(0);
+		}
+		return TRUE;
 	}
 
 	if (keycode == 'k')
 	{
-		if (camdata->position_count == 0)
-			return FALSE;
-		spline_change_selected_point(&camdata->position[camdata->position_selected].spline, -1);
+		if (edit_type == 0)
+		{
+			if (camdata->position_count == 0)
+				return FALSE;
+			spline_change_selected_point(&camdata->position[camdata->position_selected].spline, -1);
+		}
+		else
+		{
+			if (camdata->view_count == 0)
+				return FALSE;
+			spline_change_selected_point(&camdata->view[camdata->view_selected].spline, -1);
+		}
 		return TRUE;
 	}
 
@@ -601,75 +761,198 @@ float(float keycode, float unicode, vector curmousepos) editor_spline_key
 
 	if (keycode == '9')
 	{
-		if (camdata->position_count == 0)
-			return FALSE;
-		spline_change_point_position(&camdata->position[camdata->position_selected].spline, '0 0 -1');
+		if (edit_type == 0)
+		{
+			if (camdata->position_count == 0)
+				return FALSE;
+			spline_change_point_position(&camdata->position[camdata->position_selected].spline, '0 0 -1');
+		}
+		else
+		{
+			if (camdata->view_count == 0)
+				return FALSE;
+			spline_change_point_position(&camdata->view[camdata->view_selected].spline, '0 0 -1');
+		}
 		return TRUE;
 	}
 
 	if (keycode == '0')
 	{
-		if (camdata->position_count == 0)
-			return FALSE;
-		spline_change_point_position(&camdata->position[camdata->position_selected].spline, '0 0 1');
+		if (edit_type == 0)
+		{
+			if (camdata->position_count == 0)
+				return FALSE;
+			spline_change_point_position(&camdata->position[camdata->position_selected].spline, '0 0 1');
+		}
+		else
+		{
+			if (camdata->view_count == 0)
+				return FALSE;
+			spline_change_point_position(&camdata->view[camdata->view_selected].spline, '0 0 1');
+		}
 		return TRUE;
 	}
 
 	if (keycode == '7')
 	{
-		if (camdata->position_count == 0)
-			return FALSE;
-		spline_change_point_position(&camdata->position[camdata->position_selected].spline, '0 -1 0');
+		if (edit_type == 0)
+		{
+			if (camdata->position_count == 0)
+				return FALSE;
+			spline_change_point_position(&camdata->position[camdata->position_selected].spline, '0 -1 0');
+		}
+		else
+		{
+			if (camdata->view_count == 0)
+				return FALSE;
+			spline_change_point_position(&camdata->view[camdata->view_selected].spline, '0 -1 0');
+		}
 		return TRUE;
 	}
 
 	if (keycode == '8')
 	{
-		if (camdata->position_count == 0)
-			return FALSE;
-		spline_change_point_position(&camdata->position[camdata->position_selected].spline, '0 1 0');
+		if (edit_type == 0)
+		{
+			if (camdata->position_count == 0)
+				return FALSE;
+			spline_change_point_position(&camdata->position[camdata->position_selected].spline, '0 1 0');
+		}
+		else
+		{
+			if (camdata->view_count== 0)
+				return FALSE;
+			spline_change_point_position(&camdata->view[camdata->view_selected].spline, '0 1 0');
+		}
 		return TRUE;
 	}
 
 	if (keycode == '5')
 	{
-		if (camdata->position_count == 0)
-			return FALSE;
-		spline_change_point_position(&camdata->position[camdata->position_selected].spline, '-1 0 0');
+		if (edit_type == 0)
+		{
+			if (camdata->position_count == 0)
+				return FALSE;
+			spline_change_point_position(&camdata->position[camdata->position_selected].spline, '-1 0 0');
+		}
+		else
+		{
+			if (camdata->view_count == 0)
+				return FALSE;
+			spline_change_point_position(&camdata->view[camdata->view_selected].spline, '-1 0 0');
+		}
 		return TRUE;
 	}
 
 	if (keycode == '6')
 	{
-		if (camdata->position_count == 0)
-			return FALSE;
-		spline_change_point_position(&camdata->position[camdata->position_selected].spline, '1 0 0');
+		if (edit_type == 0)
+		{
+			if (camdata->position_count == 0)
+				return FALSE;
+			spline_change_point_position(&camdata->position[camdata->position_selected].spline, '1 0 0');
+		}
+		else
+		{
+			if (camdata->view_count == 0)
+				return FALSE;
+			spline_change_point_position(&camdata->view[camdata->view_selected].spline, '1 0 0');
+		}
+		return TRUE;
+	}
+
+	if (keycode == '6')
+	{
+		if (edit_type == 0)
+		{
+			if (camdata->position_count == 0)
+				return FALSE;
+			spline_change_point_position(&camdata->position[camdata->position_selected].spline, '1 0 0');
+		}
+		else
+		{
+			if (camdata->view_count == 0)
+				return FALSE;
+			spline_change_point_position(&camdata->view[camdata->view_selected].spline, '1 0 0');
+		}
 		return TRUE;
 	}
 
 	if (keycode == '-')
 	{
-		if (camdata->position_count == 0)
-			return FALSE;
-		spline_change_position(&camdata->position[camdata->position_selected].spline, -0.01);
+		if (edit_type == 0)
+		{
+			if (camdata->position_count == 0)
+				return FALSE;
+			spline_change_position(&camdata->position[camdata->position_selected].spline, -0.01);
+		}
+		else
+		{
+			if (camdata->view_count == 0)
+				return FALSE;
+			spline_change_position(&camdata->view[camdata->view_selected].spline, -0.01);
+		}
 		return TRUE;
 	}
 
 	if (keycode == '=')
 	{
-		if (camdata->position_count == 0)
-			return FALSE;
-		spline_change_position(&camdata->position[camdata->position_selected].spline, 0.01);
+		if (edit_type == 0)
+		{
+			if (camdata->position_count == 0)
+				return FALSE;
+			spline_change_position(&camdata->position[camdata->position_selected].spline, 0.01);
+		}
+		else
+		{
+			if (camdata->view_count == 0)
+				return FALSE;
+			spline_change_position(&camdata->view[camdata->view_selected].spline, 0.01);
+		}
 		return TRUE;
 	}
 
+	if (keycode == '1')
+	{
+		edit_type = !edit_type;
+		return TRUE;
+	}
 
-	testmenu(curmousepos, keycode);
+	if (keycode == '2')
+	{
+		if (edit_type == 0)
+		{
+			if (camdata->position_count == 0)
+				return FALSE;
+			cam_set_start_time(&camdata->position[camdata->position_selected], gettime(5));
+		}
+		else
+		{
+			if (camdata->view_count == 0)
+				return FALSE;
+			cam_set_start_time(&camdata->view[camdata->view_selected], gettime(5));
+		}
+		return TRUE;
+	}
 
+	if (keycode == '2')
+	{
+		if (edit_type == 0)
+		{
+			if (camdata->position_count == 0)
+				return FALSE;
+			cam_set_stop_time(&camdata->position[camdata->position_selected], gettime(5));
+		}
+		else
+		{
+			if (camdata->view_count == 0)
+				return FALSE;
+			cam_set_stop_time(&camdata->view[camdata->view_selected], gettime(5));
+		}
+		return TRUE;
+	}
 
-
-
+	submenu(curmousepos_in, mousediff, keycode);
 
 	return FALSE;
 };
-

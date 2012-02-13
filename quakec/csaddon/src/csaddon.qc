@@ -13,11 +13,14 @@ enum
 
 var vector vidsize = '640 480 0';
 vector curmousepos;
+vector mousediff;
+vector originalmousepos;
 float mousedown;
 
 /*the renderscene builtin in the parent progs is redirected to here*/
 void() wrap_renderscene =
 {
+	local int retval;
 	vector col;
 	/*inactive? then show nothing*/
 	if (!autocvar_ca_show)
@@ -119,7 +122,11 @@ void() wrap_renderscene =
 	if (autocvar_ca_editormode == MODE_LIGHTEDIT)
 		editor_lights_overlay(curmousepos);
 	else if (autocvar_ca_editormode == MODE_SPLINEEDIT)
-		editor_spline_overlay(curmousepos);
+	{
+		editor_spline_overlay(&curmousepos, mousediff);
+		originalmousepos = curmousepos;
+		mousediff = '0 0 0';
+	}
 	else if (autocvar_ca_editormode == MODE_PARTICLEEDIT)
 		editor_particles_overlay(curmousepos);
 
@@ -145,8 +152,12 @@ float (float event, float parama, float paramb) wrap_InputEvent =
 			}
 			else if (autocvar_ca_editormode == MODE_SPLINEEDIT)
 			{
-				if (editor_spline_key(parama, paramb, curmousepos))
+				if (editor_spline_key(parama, paramb, &curmousepos, mousediff))
+				{
+					originalmousepos = curmousepos;
+					mousediff = '0 0 0';
 					return TRUE;
+				}
 			}
 			else if (autocvar_ca_editormode == MODE_PARTICLEEDIT)
 			{
@@ -173,8 +184,10 @@ float (float event, float parama, float paramb) wrap_InputEvent =
 		{
 			if (mousedown == 2)
 				return FALSE;
+			originalmousepos = curmousepos;
 			curmousepos_x += parama;
 			curmousepos_y += paramb;
+			mousediff = curmousepos - originalmousepos;
 			if (curmousepos_x < 0)
 				curmousepos_x = 0;
 			if (curmousepos_y < 0)

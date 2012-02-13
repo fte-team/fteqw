@@ -6,5 +6,6 @@ csplat.qc
 editor_lights.qc
 textfield.qc
 editor_particles.qc
+menu.qc
 cam.qc
 csaddon.qc

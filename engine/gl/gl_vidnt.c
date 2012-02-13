@@ -264,7 +264,7 @@ qboolean GLInitialise (char *renderer)
 		Q_strncpyz(reqminidriver, renderer, sizeof(reqminidriver));
 		Q_strncpyz(opengldllname, renderer, sizeof(opengldllname));
 
-		if (*renderer)
+		if (*renderer && stricmp(renderer, "opengl32.dll") && stricmp(renderer, "opengl32"))
 		{
 			Con_DPrintf ("Loading renderer dll \"%s\"", renderer);
 			hInstGL = LoadLibrary(opengldllname);

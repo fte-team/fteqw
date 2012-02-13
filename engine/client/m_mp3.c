@@ -1921,6 +1921,9 @@ qboolean Media_PlayFilm(char *name)
 	cin_t *cin;
 	static char sname[MAX_QPATH];
 
+	if (!qrenderer)
+		return false;
+
 	if (videoshader)
 	{
 		R_UnloadShader(videoshader);

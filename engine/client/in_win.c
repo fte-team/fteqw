@@ -1389,7 +1389,7 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 	{
 //		if ((int)((cl.viewangles[pnum][PITCH]+89.99)/180) & 1)
 //			mouse_x *= -1;
-		cl.viewangles[pnum][YAW] -= m_yaw.value * mouse_x;
+		cl.viewanglechange[pnum][YAW] -= m_yaw.value * mouse_x;
 	}
 
 	if (in_mlook.state[pnum] & 1)
@@ -1397,9 +1397,7 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 
 	if ( (in_mlook.state[pnum] & 1) && !(in_strafe.state[pnum] & 1))
 	{
-		cl.viewangles[pnum][PITCH] += m_pitch.value * mouse_y;
-
-		CL_ClampPitch(pnum);
+		cl.viewanglechange[pnum][PITCH] += m_pitch.value * mouse_y;
 	}
 	else
 	{
@@ -2152,11 +2150,11 @@ void IN_JoyMove (float *movements, int pnum)
 					// only absolute control support here (joy_advanced is false)
 					if (m_pitch.value < 0.0)
 					{
-						cl.viewangles[pnum][PITCH] -= (fAxisValue * joy_pitchsensitivity.value) * aspeed * cl_pitchspeed.value;
+						cl.viewanglechange[pnum][PITCH] -= (fAxisValue * joy_pitchsensitivity.value) * aspeed * cl_pitchspeed.value;
 					}
 					else
 					{
-						cl.viewangles[pnum][PITCH] += (fAxisValue * joy_pitchsensitivity.value) * aspeed * cl_pitchspeed.value;
+						cl.viewanglechange[pnum][PITCH] += (fAxisValue * joy_pitchsensitivity.value) * aspeed * cl_pitchspeed.value;
 					}
 					V_StopPitchDrift(pnum);
 				}
@@ -2203,11 +2201,11 @@ void IN_JoyMove (float *movements, int pnum)
 				{
 					if(dwControlMap[i] == JOY_ABSOLUTE_AXIS)
 					{
-						cl.viewangles[pnum][YAW] += (fAxisValue * joy_yawsensitivity.value) * aspeed * cl_yawspeed.value;
+						cl.viewanglechange[pnum][YAW] += (fAxisValue * joy_yawsensitivity.value) * aspeed * cl_yawspeed.value;
 					}
 					else
 					{
-						cl.viewangles[pnum][YAW] += (fAxisValue * joy_yawsensitivity.value) * speed * 180.0;
+						cl.viewanglechange[pnum][YAW] += (fAxisValue * joy_yawsensitivity.value) * speed * 180.0;
 					}
 
 				}
@@ -2222,11 +2220,11 @@ void IN_JoyMove (float *movements, int pnum)
 					// pitch movement detected and pitch movement desired by user
 					if(dwControlMap[i] == JOY_ABSOLUTE_AXIS)
 					{
-						cl.viewangles[pnum][PITCH] += (fAxisValue * joy_pitchsensitivity.value) * aspeed * cl_pitchspeed.value;
+						cl.viewanglechange[pnum][PITCH] += (fAxisValue * joy_pitchsensitivity.value) * aspeed * cl_pitchspeed.value;
 					}
 					else
 					{
-						cl.viewangles[pnum][PITCH] += (fAxisValue * joy_pitchsensitivity.value) * speed * 180.0;
+						cl.viewanglechange[pnum][PITCH] += (fAxisValue * joy_pitchsensitivity.value) * speed * 180.0;
 					}
 					V_StopPitchDrift(pnum);
 				}

@@ -2268,12 +2268,24 @@ client_t *SVC_DirectConnect(void)
 
 		if ((temp.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))// || ISDPCLIENT(&temp))
 		{
-			temp.frameunion.frames = Z_Malloc(sizeof(client_frame_t)*UPDATE_BACKUP+sizeof(unsigned int)*temp.max_net_ents*UPDATE_BACKUP + sizeof(unsigned int)*temp.max_net_ents);
+			char *ptr;
+			int maxents = maxpacketentities;	/*this is the max number of ents updated per frame. we can't track more, so...*/
+			ptr = Z_Malloc(	sizeof(client_frame_t)*UPDATE_BACKUP+
+							sizeof(*temp.pendingentbits)*temp.max_net_ents+
+							sizeof(unsigned int)*maxents*UPDATE_BACKUP+
+							sizeof(unsigned short)*maxents*UPDATE_BACKUP);
+			temp.frameunion.frames = (void*)ptr;
+			ptr += sizeof(*temp.frameunion.frames)*UPDATE_BACKUP;
+			temp.pendingentbits = (void*)ptr;
+			ptr += sizeof(*temp.pendingentbits)*temp.max_net_ents;
 			for (i = 0; i < UPDATE_BACKUP; i++)
 			{
-				temp.frameunion.frames[i].resendentbits = (unsigned int*)(temp.frameunion.frames+UPDATE_BACKUP) + i*temp.max_net_ents;
+				temp.frameunion.frames[i].entities.max_entities = maxents;
+				temp.frameunion.frames[i].resendentnum = (void*)ptr;
+				ptr += sizeof(*temp.frameunion.frames[i].resendentnum)*maxents;
+				temp.frameunion.frames[i].resendentbits = (void*)ptr;
+				ptr += sizeof(*temp.frameunion.frames[i].resendentbits)*maxents;
 			}
-			temp.pendingentbits = (unsigned int*)(temp.frameunion.frames+UPDATE_BACKUP) + UPDATE_BACKUP*temp.max_net_ents;
 		}
 		else
 		{

@@ -502,11 +502,16 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 		Con_Printf("%3i: Update %4i 0x%x\n", msg_readcount, entnum, bits);
 
 	if (bits & UF_RESET)
+	{
+//		Con_Printf("%3i: Reset %i @ %i\n", msg_readcount, entnum, cls.netchan.incoming_sequence);
 		*news = *baseline;
+	}
 	else if (!olds)
 	{
-		Con_DPrintf("New entity without reset\n");
-		*news = *baseline;
+		/*reset got lost, probably the data will be filled in later - FIXME: we should probably ignore this entity*/
+//		Con_DPrintf("New entity without reset\n");
+		memset(news, 0, sizeof(*news));
+//		*news = *baseline;
 	}
 	else
 		*news = *olds;
@@ -600,12 +605,15 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 			news->u.q1.msec = MSG_ReadByte();
 		else
 			news->u.q1.msec = 0;
+		if (predbits & UFP_WEAPONFRAME)
+		{
+			news->u.q1.weaponframe = MSG_ReadByte();
+			if (news->u.q1.weaponframe & 0x80)
+				news->u.q1.weaponframe = (news->u.q1.weaponframe & 127) | (MSG_ReadByte()<<7);
+		}
 	}
 	else
-	{
-		news->u.q1.pmovetype = 0;
 		news->u.q1.msec = 0;
-	}
 
 	if (bits & UF_MODEL)
 	{
@@ -667,18 +675,12 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 
 	if (bits & UF_FATNESS)
 		news->fatness = MSG_ReadByte();
-
-
-
-	/*update the prediction info if needed*/
-	if ((bits & UF_PREDINFO) && (news->number-1) < cl.allocated_client_slots)
-	{
-		frame_t *fram;
-		fram = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
-		CL_PlayerFrameUpdated(&fram->playerstate[news->number-1], news, cls.netchan.incoming_sequence);
-	}
 }
 
+/*
+Note: strictly speaking, you don't need multiple frames, just two and flip between them.
+FTE retains the full 64 frames because its interpolation will go multiple packets back in time to cover packet loss.
+*/
 void CLFTE_ParseEntities(void)
 {
 	int			oldpacket, newpacket;
@@ -686,6 +688,7 @@ void CLFTE_ParseEntities(void)
 	unsigned short newnum, oldnum;
 	int			oldindex;
 	qboolean	isvalid = false;
+	entity_state_t *e;
 
 //	int i;
 //	for (i = cl.validsequence+1; i < cls.netchan.incoming_sequence; i++)
@@ -700,7 +703,7 @@ void CLFTE_ParseEntities(void)
 	cl.frames[newpacket].invalid = true;
 
 
-	if (cls.netchan.incoming_sequence >= cl.validsequence + UPDATE_BACKUP)
+	if (!cl.validsequence || cls.netchan.incoming_sequence-cl.validsequence >= UPDATE_BACKUP-1)
 	{
 		oldp = &nullp;
 		oldp->num_entities = 0;
@@ -738,6 +741,7 @@ void CLFTE_ParseEntities(void)
 		}
 		if (newnum == 0x8000)
 		{
+			/*removal of world - means forget all entities*/
 			if (cl_shownet.ival >= 3)
 				Con_Printf("%3i: Reset all\n", msg_readcount);
 			newp->num_entities = 0;
@@ -763,7 +767,7 @@ void CLFTE_ParseEntities(void)
 		if (newnum & 0x8000)
 		{
 			if (cl_shownet.ival >= 3)
-				Con_Printf("%3i: Remove %i\n", msg_readcount, (newnum&32767));
+				Con_Printf("%3i: Remove %i @ %i\n", msg_readcount, (newnum&32767), cls.netchan.incoming_sequence);
 			if (oldnum == (newnum&0x7fff))
 				oldindex++;
 			continue;
@@ -786,6 +790,21 @@ void CLFTE_ParseEntities(void)
 		}
 	}
 
+	for (oldindex = 0; oldindex < newp->num_entities; oldindex++)
+	{
+		e = newp->entities + oldindex;
+		if (e->number > cl.allocated_client_slots)
+			break;
+
+		/*update the prediction info if needed*/
+		if (e->u.q1.pmovetype)
+		{
+			frame_t *fram;
+			fram = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
+			CL_PlayerFrameUpdated(&fram->playerstate[e->number-1], e, cls.netchan.incoming_sequence);
+		}
+	}
+
 	if (isvalid)
 	{
 		cl.oldvalidsequence = cl.validsequence;
@@ -794,7 +813,10 @@ void CLFTE_ParseEntities(void)
 		cl.frames[newpacket].invalid = false;
 	}
 	else
+	{
+		newp->num_entities = 0;
 		cl.validsequence = 0;
+	}
 
 	/*ackedinputsequence is updated when we have new player prediction info*/
 	cl.ackedinputsequence = cls.netchan.incoming_sequence;
@@ -3170,6 +3192,17 @@ void CL_ParsePlayerinfo (void)
 
 		TP_ParsePlayerInfo(oldstate, state, info);
 
+		cl.players[num].stats[STAT_WEAPONFRAME] = state->weaponframe;
+		cl.players[num].statsf[STAT_WEAPONFRAME] = state->weaponframe;
+		for (i = 0; i < cl.splitclients; i++)
+		{
+			if (cl.playernum[i] == num)
+			{
+				cl.stats[i][STAT_WEAPONFRAME] = state->weaponframe;
+				cl.statsf[i][STAT_WEAPONFRAME] = state->weaponframe;
+			}
+		}
+
 		if (cl.splitclients < MAX_SPLITS)
 		{
 			extern cvar_t cl_splitscreen;
@@ -3381,6 +3414,15 @@ guess_pm_type:
 	}
 
 	TP_ParsePlayerInfo(oldstate, state, info);
+
+	for (i = 0; i < cl.splitclients; i++)
+	{
+		if (cl.playernum[i] == num)
+		{
+			cl.stats[i][STAT_WEAPONFRAME] = state->weaponframe;
+			cl.statsf[i][STAT_WEAPONFRAME] = state->weaponframe;
+		}
+	}
 
 	if (cl.worldmodel && cl_lerp_players.ival)
 	{
@@ -3938,7 +3980,7 @@ void CL_SetSolidEntities (void)
 		if (!state->solid && !state->skinnum)
 			continue;
 
-		if (state->solid == 31)
+		if (state->solid == ES_SOLID_BSP)
 		{	/*bsp model size*/
 			if (state->modelindex <= 0)
 				continue;
@@ -4129,6 +4171,7 @@ void CL_SetSolidPlayers (void)
 
 		memset(pent, 0, sizeof(physent_t));
 		VectorCopy(pplayer->origin, pent->origin);
+		pent->info = j+1;
 		VectorCopy(player_mins, pent->mins);
 		VectorCopy(player_maxs, pent->maxs);
 		if (++pmove.numphysent == MAX_PHYSENTS)	//we just hit 88 miles per hour.

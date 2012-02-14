@@ -751,7 +751,7 @@ static texid_t Font_LoadQuakeConchars(void)
 	return r_nulltex;
 }
 
-static texid_t Font_LoadHexen2Conchars(void)
+static texid_t Font_LoadHexen2Conchars(qboolean iso88591)
 {
 	//gulp... so it's come to this has it? rework the hexen2 conchars into the q1 system.
 	texid_t tex;
@@ -759,51 +759,52 @@ static texid_t Font_LoadHexen2Conchars(void)
 	unsigned char *tempchars;
 	unsigned char *in, *out, *outbuf;
 	FS_LoadFile("gfx/menu/conchars.lmp", (void**)&tempchars);
+
+	/*hexen2's conchars are arranged 32-wide, 16 high.
+	the upper 8 rows are 256 8859-1 chars
+	the lower 8 rows are a separate set of recoloured 8859-1 chars.
+
+	if we're loading for the fallback then we're loading this data for quake compatibility, 
+	so we grab only the first 4 rows of each set of chars (128 low chars, 128 high chars).
+
+	if we're loading a proper charset, then we load only the first set of chars, we can recolour the rest anyway (com_parseutf8 will do so anyway).
+	as a final note, parsing iso8859-1 french/german/etc as utf8 will generally result in decoding errors which can gracefully revert to 8859-1 safely. If this premise fails too much, we can always change the parser for different charsets - the engine always uses unicode and thus 8859-1 internally.
+	*/
 	if (tempchars)
 	{
 		outbuf = BZ_Malloc(8*8*256*8);
 
 		out = outbuf;
-		for (i = 0; i < 8*8; i+=1)
+		/*read the low chars*/
+		for (i = 0; i < 8*8*(iso88591?2:1); i+=1)
 		{
-			if ((i/8)&1)
-			{
-				in = tempchars + ((i)/8)*16*8*8+(i&7)*32*8 - 256*4+128;
-				for (x = 0; x < 16*8; x++)
-					*out++ = *in++;
-			}
+			if (i&(1<<3))
+				in = tempchars + (i>>3)*16*8*8+(i&7)*32*8 - 256*4+128;
 			else
-			{
-				in = tempchars + (i/8)*16*8*8+(i&7)*32*8;
-				for (x = 0; x < 16*8; x++)
-					*out++ = *in++;
-			}
+				in = tempchars + (i>>3)*16*8*8+(i&7)*32*8;
+			for (x = 0; x < 16*8; x++)
+				*out++ = *in++;
 		}
-		for (i = 0; i < 8*8; i+=1)
+		/*read the high chars*/
+		for (; i < 8*8*2; i+=1)
 		{
-			if ((i/8)&1)
-			{
-				in = tempchars+128*128 + ((i)/8)*16*8*8+(i&7)*32*8 - 256*4+128;
-				for (x = 0; x < 16*8; x++)
-					*out++ = *in++;
-			}
+			if (i&(1<<3))
+				in = tempchars+128*128 + ((i>>3)&15)*16*8*8+(i&7)*32*8 - 256*4+128;
 			else
-			{
-				in = tempchars+128*128 + (i/8)*16*8*8+(i&7)*32*8;
-				for (x = 0; x < 16*8; x++)
-					*out++ = *in++;
-			}
+				in = tempchars+128*128 + ((i>>3)&15)*16*8*8+(i&7)*32*8;
+			for (x = 0; x < 16*8; x++)
+				*out++ = *in++;
 		}
 		FS_FreeFile(tempchars);
 
 		// add ocrana leds
-		if (con_ocranaleds.value && con_ocranaleds.value != 2)
+		if (!iso88591 && con_ocranaleds.value && con_ocranaleds.value != 2)
 			AddOcranaLEDsIndexed (outbuf, 128, 128);
 
 		for (i=0 ; i<128*128 ; i++)
 			if (outbuf[i] == 0)
 				outbuf[i] = 255;	// proper transparent color
-		tex = R_LoadTexture8 ("charset", 128, 128, outbuf, IF_NOMIPMAP|IF_NOGAMMA, 1);
+		tex = R_LoadTexture8 (iso88591?"gfx/menu/8859-1.lmp":"charset", 128, 128, outbuf, IF_NOMIPMAP|IF_NOGAMMA, 1);
 		Z_Free(outbuf);
 		return tex;
 	}
@@ -844,7 +845,7 @@ static texid_t Font_LoadDefaultConchars(void)
 	tex = Font_LoadQuakeConchars();
 	if (TEXVALID(tex))
 		return tex;
-	tex = Font_LoadHexen2Conchars();
+	tex = Font_LoadHexen2Conchars(false);
 	if (TEXVALID(tex))
 		return tex;
 	tex = Font_LoadFallbackConchars();
@@ -899,6 +900,7 @@ struct font_s *Font_LoadFont(int height, char *fontfilename)
 {
 	struct font_s *f;
 	int i = 0;
+	int defaultplane;
 
 	f = Z_Malloc(sizeof(*f));
 	f->charheight = height;
@@ -1045,12 +1047,19 @@ struct font_s *Font_LoadFont(int height, char *fontfilename)
 		}
 	}
 
+	defaultplane = BITMAPPLANE;/*assume the bitmap plane - don't use the fallback as people don't think to use com_parseutf8*/
 	if (!TEXVALID(f->singletexture))
 	{
 		if (!TEXVALID(f->singletexture) && !TEXVALID(fontplanes.defaultfont))
 			fontplanes.defaultfont = Font_LoadDefaultConchars();
 
-		f->singletexture = fontplanes.defaultfont;
+		if (!strcmp(fontfilename, "gfx/hexen2"))
+		{
+			f->singletexture = Font_LoadHexen2Conchars(true);
+			defaultplane = DEFAULTPLANE;
+		}
+		if (!TEXVALID(f->singletexture))
+			f->singletexture = fontplanes.defaultfont;
 	}
 
 	for (; i < FONTCHARS; i++)
@@ -1070,7 +1079,7 @@ struct font_s *Font_LoadFont(int height, char *fontfilename)
 		f->chars[i].top = 0;
 		f->chars[i].nextchar = 0;	//these chars are not linked in
 		f->chars[i].pad = 0;
-		f->chars[i].texplane = BITMAPPLANE;	/*if its a 'raster' font, don't use the default chars, always use the raster images*/
+		f->chars[i].texplane = defaultplane;
 	}
 	return f;
 }

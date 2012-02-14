@@ -247,6 +247,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(SendFlags)/*EXT_CSQC_1 (one of the DP guys came up with it)*/\
 	comfieldfloat(Version)/*EXT_CSQC (obsolete)*/\
 	comfieldfloat(pvsflags)/*EXT_CSQC_1*/\
+	comfieldfloat(modelflags)\
 	comfieldfloat(uniquespawnid)/*FTE_ENT_UNIQUESPAWNID*/\
 	comfieldfunction(customizeentityforclient, ".float()")
 

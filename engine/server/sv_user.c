@@ -6193,7 +6193,6 @@ void SV_ExecuteClientMessage (client_t *cl)
 	// save time for ping calculations
 	if (cl->frameunion.frames)
 	{	//split screen doesn't always have frames.
-		cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].sequence = cl->netchan.outgoing_sequence;
 		cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].senttime = realtime;
 		cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].ping_time = -1;
 		cl->frameunion.frames[cl->netchan.outgoing_sequence & UPDATE_MASK].move_msecs = -1;

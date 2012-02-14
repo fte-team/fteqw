@@ -901,10 +901,10 @@ void Con_DrawInput (int left, int right, int y)
 	rhs = x + left;
 	if (cursorframe)
 	{
-		extern cvar_t com_parseutf8;
-		if (com_parseutf8.ival)
-			Font_DrawChar(rhs, y, (*cursor&~(CON_BGMASK|CON_FGMASK)) | (COLOR_BLUE<<CON_BGSHIFT) | CON_NONCLEARBG | CON_WHITEMASK);
-		else
+//		extern cvar_t com_parseutf8;
+//		if (com_parseutf8.ival)
+//			Font_DrawChar(rhs, y, (*cursor&~(CON_BGMASK|CON_FGMASK)) | (COLOR_BLUE<<CON_BGSHIFT) | CON_NONCLEARBG | CON_WHITEMASK);
+//		else
 			Font_DrawChar(rhs, y, 0xe000|11|CON_WHITEMASK);
 	}
 	else if (*cursor)

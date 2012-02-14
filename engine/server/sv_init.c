@@ -218,82 +218,7 @@ baseline will be transmitted
 }
 */
 
-void SV_EdictToEntState (int num, edict_t *ent, entity_state_t *state)
-{
-	int i;
-
-	state->number = num;
-	state->flags = 0;
-	VectorCopy (ent->v->origin, state->origin);
-	VectorCopy (ent->v->angles, state->angles);
-	state->modelindex = ent->v->modelindex;
-	state->frame = ent->v->frame;
-	state->colormap = ent->v->colormap;
-	state->skinnum = ent->v->skin;
-	state->effects = ent->v->effects;
-	state->hexen2flags = ent->xv->drawflags;
-	state->abslight = (int)(ent->xv->abslight*255) & 255;
-	state->tagentity = ent->xv->tag_entity;
-	state->tagindex = ent->xv->tag_index;
-
-	state->light[0] = ent->xv->color[0]*255;
-	state->light[1] = ent->xv->color[1]*255;
-	state->light[2] = ent->xv->color[2]*255;
-	state->light[3] = ent->xv->light_lev;
-	state->lightstyle = ent->xv->style;
-	state->lightpflags = ent->xv->pflags;
-
-/*	if ((int)ent->v->flags & FL_CLASS_DEPENDENT && client->playerclass)	//hexen2 wierdness.
-	{
-		char modname[MAX_QPATH];
-		Q_strncpyz(modname, sv.strings.model_precache[state->modelindex], sizeof(modname));
-		if (strlen(modname)>5)
-		{
-			modname[strlen(modname)-5] = client->playerclass+'0';
-			state->modelindex = SV_ModelIndex(modname);
-		}
-	}*/
-	if (/*progstype == PROG_H2 &&*/ ent->v->solid == SOLID_BSP)
-		state->angles[0]*=-1;
-
-	if (ent->v->solid == SOLID_BSP)
-		state->solid = ES_SOLID_BSP;
-
-	if (state->effects & EF_FULLBRIGHT)
-	{
-		state->hexen2flags |= MLS_FULLBRIGHT;
-	}
-
-	if (!ent->xv->alpha)
-		state->trans = 255;
-	else
-		state->trans = ent->xv->alpha*255;
-
-	if (!ent->xv->colormod[0] && !ent->xv->colormod[1] && !ent->xv->colormod[2])
-	{
-		state->colormod[0] = (256)/8;
-		state->colormod[1] = (256)/8;
-		state->colormod[2] = (256)/8;
-	}
-	else
-	{
-		i = ent->xv->colormod[0]*(256/8); state->colormod[0] = bound(0, i, 255);
-		i = ent->xv->colormod[1]*(256/8); state->colormod[1] = bound(0, i, 255);
-		i = ent->xv->colormod[2]*(256/8); state->colormod[2] = bound(0, i, 255);
-	}
-	state->glowsize = ent->xv->glow_size*0.25;
-	state->glowcolour = ent->xv->glow_color;
-#define RENDER_GLOWTRAIL 2
-	if (ent->xv->glow_trail)
-		state->dpflags |= RENDER_GLOWTRAIL;
-
-	if (!ent->xv->scale)
-		state->scale = 1*16;
-	else
-		state->scale = ent->xv->scale*16;
-
-	state->fatness = ent->xv->fatness*16;
-}
+void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *client);
 
 void SVNQ_CreateBaseline (void)
 {
@@ -320,7 +245,7 @@ void SVNQ_CreateBaseline (void)
 	//
 	// create entity baseline
 	//
-		SV_EdictToEntState(entnum, svent, &svent->baseline);
+		SV_Snapshot_BuildStateQ1(&svent->baseline, svent, NULL);
 
 		if (entnum > 0 && entnum <= sv.allocated_client_slots)
 		{
@@ -329,7 +254,10 @@ void SVNQ_CreateBaseline (void)
 			else
 				svent->baseline.colormap = 0;	//this would crash NQ.
 
-			svent->baseline.modelindex = playermodel;
+			if (!svent->baseline.solid)
+				svent->baseline.solid = (2 | (3<<5) | (4<<10));
+			if (!svent->baseline.modelindex)
+				svent->baseline.modelindex = playermodel;
 		}
 		svent->baseline.modelindex&=255;
 	}

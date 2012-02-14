@@ -4155,13 +4155,14 @@ void Shader_Readpass (shader_t *shader, char **ptr)
 			break;
 	}
 
-	if ((shader->flags & SHADER_SKY) && (shader->flags & SHADER_DEPTHWRITE))
+	/*if ((shader->flags & SHADER_SKY) && (shader->flags & SHADER_DEPTHWRITE))
 	{
 #ifdef warningmsg
 #pragma warningmsg("is this valid?")
 #endif
 		pass->shaderbits &= ~SBITS_MISC_DEPTHWRITE;
 	}
+	*/
 }
 
 static qboolean Shader_Parsetok (shader_t *shader, shaderpass_t *pass, shaderkey_t *keys, char *token, char **ptr)
@@ -5118,6 +5119,7 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 						"map $diffuse\n"
 						"tcmod scale 10 10\n"
 						"tcmod scroll 0.04 0.04\n"
+						"depthwrite\n"
 					"}\n"
 					"{\n"
 						"map $fullbright\n"

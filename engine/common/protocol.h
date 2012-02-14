@@ -563,6 +563,7 @@ enum clcq2_ops_e
 #define UFP_VELOCITYXY	(1u<<4)
 #define UFP_VELOCITYZ	(1u<<5)
 #define UFP_MSEC		(1u<<6)
+#define UFP_WEAPONFRAME (1u<<7)
 
 #define UF_REMOVE   UF_16BIT	/*special flag, slightly more compact (we can reuse the 16bit flag as its not important)*/
 
@@ -818,6 +819,7 @@ typedef struct entity_state_s
 			/*info to predict other players, so I don't get yelled at if fte were to stop supporting it*/
 			qbyte pmovetype;
 			qbyte msec;
+			unsigned short weaponframe;
 			short movement[3];
 			short velocity[3]; // 1/8th
 		} q1;

@@ -95,7 +95,8 @@ cvar_t	gameversion_max = CVARD("gameversion_max","", "gamecode version for serve
 cvar_t	fs_gamename = CVARFD("fs_gamename", "", CVAR_NOSET, "The filesystem is trying to run this game");
 cvar_t	com_protocolname = CVARD("com_gamename", "", "The game name used for dpmaster queries");
 cvar_t	com_modname = CVARD("com_modname", "", "dpmaster information");
-cvar_t	com_parseutf8 = CVARD("com_parseutf8", "0", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts.");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
+cvar_t	com_parseutf8 = CVARD("com_parseutf8", "0", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts. -1=iso 8859-1. 0=quakeascii(chat uses high chars). 1=utf8, revert to ascii on decode errors. 2=utf8 ignoring errors");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
+cvar_t	com_highlightcolor = CVARD("com_highlightcolor", STRINGIFY(COLOR_RED), "ANSI colour to be used for highlighted text, used when com_parseutf8 is active.");
 
 qboolean	com_modified;	// set true if using non-id files
 
@@ -1973,7 +1974,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 	if (*str == 1 || *str == 2)
 	{
 		if (com_parseutf8.ival)
-			defaultflags = (defaultflags&~CON_FGMASK) | (COLOR_MAGENTA<<CON_FGSHIFT);
+			defaultflags = (defaultflags&~CON_FGMASK) | ((com_highlightcolor.ival&15)<<CON_FGSHIFT);
 		else
 			defaultflags |= CON_HIGHCHARSMASK;
 		str++;
@@ -1983,7 +1984,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 
 	while(*str)
 	{
-		if (*str & 0x80 && utf8)
+		if (*str & 0x80 && utf8 > 0)
 		{	//check for utf-8
 
 			//uc is the output unicode char
@@ -3363,6 +3364,7 @@ void COM_Init (void)
 	Cvar_Register (&gameversion_min, "Gamecode");
 	Cvar_Register (&gameversion_max, "Gamecode");
 	Cvar_Register (&com_parseutf8, "Internationalisation");
+	Cvar_Register (&com_highlightcolor, "Internationalisation");
 	com_parseutf8.ival = 1;
 
 

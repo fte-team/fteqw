@@ -101,7 +101,6 @@ extern cvar_t cl_chasecam;
 
 float	v_dmg_time[MAX_SPLITS], v_dmg_roll[MAX_SPLITS], v_dmg_pitch[MAX_SPLITS];
 
-frame_t		*view_frame;
 player_state_t		*view_message;
 
 /*
@@ -1111,14 +1110,14 @@ void V_CalcRefdef (int pnum)
 	else if (scr_viewsize.value == 80)
 		view->origin[2] += 0.5;
 
-	if (!view_message || view_message->flags & (PF_GIB|PF_DEAD) || (unsigned int)cl.stats[pnum][STAT_WEAPON] >= MAX_MODELS)
+	if (cl.stats[pnum][STAT_HEALTH] > 0 && (unsigned int)cl.stats[pnum][STAT_WEAPON] >= MAX_MODELS)
  		view->model = NULL;
  	else
 		view->model = cl.model_precache[cl.stats[pnum][STAT_WEAPON]];
 #ifdef HLCLIENT
 	if (!CLHL_AnimateViewEntity(view))
 #endif
-		view->framestate.g[FS_REG].frame[0] = view_message?view_message->weaponframe:0;
+		view->framestate.g[FS_REG].frame[0] = cl.stats[pnum][STAT_WEAPONFRAME];
 
 // set up the refresh position
 	if (v_gunkick.value)
@@ -1309,12 +1308,7 @@ void V_RenderPlayerViews(int plnum)
 	int viewnum;
 #endif
 	SCR_VRectForPlayer(&r_refdef.vrect, plnum);
-	view_message = &view_frame->playerstate[cl.playernum[plnum]];
-#ifdef NQPROT
-	if (cls.protocol == CP_NETQUAKE)
-		view_message->weaponframe = cl.stats[0][STAT_WEAPONFRAME];
-#endif
-	cl.simangles[plnum][ROLL] = 0;	// FIXME @@@
+//	cl.simangles[plnum][ROLL] = 0;	// FIXME @@@
 
 
 	DropPunchAngle (plnum);
@@ -1484,8 +1478,6 @@ void V_RenderView (void)
 
 		RSpeedEnd(RSPEED_LINKENTITIES);
 	}
-
-	view_frame = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
 
 	R_PushDlights ();
 

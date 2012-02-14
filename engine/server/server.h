@@ -293,6 +293,7 @@ typedef struct
 	vec3_t				playerpositions[MAX_CLIENTS];	//where each player was in this frame, for antilag
 	qboolean			playerpresent[MAX_CLIENTS];		//whether the player was actually present
 	packet_entities_t	entities;		//package containing entity states that were sent in this frame, for deltaing
+	unsigned short		*resendentnum;	//the number of each entity that was sent in this frame
 	unsigned int		*resendentbits;	//the bits of each entity that were sent in this frame
 } client_frame_t;
 

@@ -1532,7 +1532,7 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 		if (!client->spectator)
 		{
 			statsf[STAT_ACTIVEWEAPON] = ent->v->weapon;
-			if (client->csqcactive || client->protocol != SCP_QUAKEWORLD)
+			if ((client->csqcactive && !(client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)) || client->protocol != SCP_QUAKEWORLD)
 				statsf[STAT_WEAPONFRAME] = ent->v->weaponframe;
 		}
 

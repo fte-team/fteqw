@@ -399,26 +399,27 @@ void SV_CSQC_DroppedPacket(client_t *client, int sequence)
 	//skip it if we never generated that frame, to avoid pulling in stale data
 	if (client->frameunion.frames[sequence & UPDATE_MASK].sequence != sequence)
 	{
-		Con_Printf("SV: Stale %i\n", sequence);
+//		Con_Printf("SV: Stale %i\n", sequence);
 		return;
 	}
 
 	if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 	{
 		unsigned int *f = client->frameunion.frames[sequence & UPDATE_MASK].resendentbits;
-		Con_Printf("SV: Resend %i\n", sequence);
-		i = client->max_net_ents;
-		if (i > sv.world.num_edicts)
-			i = sv.world.num_edicts;
+		unsigned short *n = client->frameunion.frames[sequence & UPDATE_MASK].resendentnum;
+//		Con_Printf("SV: Resend %i\n", sequence);
+		i = client->frameunion.frames[sequence & UPDATE_MASK].entities.num_entities;
 		while (i > 0)
 		{
-			if (f[i])
-			{
-				client->pendingentbits[i] |= f[i];
-				f[i] = 0;
-			}
 			i--;
+
+//			if (f[i] & UF_RESET)
+//				Con_Printf("Resend %i @ %i\n", i, sequence);
+//			if (f[i] & UF_REMOVE)
+//				Con_Printf("Remove %i @ %i\n", i, sequence);
+			client->pendingentbits[n[i]] |= f[i];
 		}
+		client->frameunion.frames[sequence & UPDATE_MASK].entities.num_entities = 0;
 	}
 
 	if (!(client->csqcactive))	//we don't need this, but it might be a little faster.
@@ -714,23 +715,58 @@ void SVQW_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, 
 }
 
 /*special flags which are slightly more compact. these are 'wasted' as part of the delta itself*/
-#define UF_REMOVE		UF_16BIT	/*special flag, slightly more compact (we can reuse the 16bit flag as its not important)*/
-#define UF_MOVETYPE		UF_EFFECTS2
-//#define UF_WASTED3	UF_EXTEND1
-//#define UF_WASTED2	UF_EXTEND2
-//#define UF_WASTED1	UF_EXTEND3
+#define UF_REMOVE		UF_16BIT	/*says we removed the entity in this frame*/
+#define UF_MOVETYPE		UF_EFFECTS2	/*this flag isn't present in the header itself*/
+#define UF_RESET2		UF_EXTEND1	/*so new ents are reset 3 times to avoid weird baselines*/
+#define UF_UNUSED		UF_EXTEND2	/**/
+#define UF_WEAPONFRAME	UF_EXTEND3
+
+static unsigned int SVFTE_DeltaPredCalcBits(entity_state_t *from, entity_state_t *to)
+{
+	unsigned int bits = 0;
+	if (from && from->u.q1.pmovetype != to->u.q1.pmovetype)
+		bits |= UFP_MOVETYPE;
+
+	if (to->u.q1.movement[0])
+		bits |= UFP_FORWARD;
+	if (to->u.q1.movement[1])
+		bits |= UFP_SIDE;
+	if (to->u.q1.movement[2])
+		bits |= UFP_UP;
+	if (to->u.q1.velocity[0])
+		bits |= UFP_VELOCITYXY;
+	if (to->u.q1.velocity[1])
+		bits |= UFP_VELOCITYXY;
+	if (to->u.q1.velocity[2])
+		bits |= UFP_VELOCITYZ;
+	if (to->u.q1.msec)
+		bits |= UFP_MSEC;
+
+	return bits;
+}
 
 static unsigned int SVFTE_DeltaCalcBits(entity_state_t *from, entity_state_t *to)
 {
 	unsigned int bits = 0;
 
+	if (from->u.q1.pmovetype != to->u.q1.pmovetype)
+		bits |= UF_PREDINFO|UF_MOVETYPE;
+	if (from->u.q1.weaponframe != to->u.q1.weaponframe)
+		bits |= UF_PREDINFO|UF_WEAPONFRAME;
 	if (to->u.q1.pmovetype)
 	{
-		bits |= UF_PREDINFO;
-		/*if we've got player movement then always resend this extra stuff to avoid any weird loss*/
-		bits |= UF_ORIGINXY | UF_ORIGINZ | UF_ANGLESXZ | UF_ANGLESY;
-		if (from->u.q1.pmovetype != to->u.q1.pmovetype)
-			bits |= UF_MOVETYPE;
+		if (SVFTE_DeltaPredCalcBits(from, to))
+			bits |= UF_PREDINFO;
+
+		/*moving players get extra data forced upon them which is not deltatracked*/
+		if ((bits & UF_PREDINFO) && (from->u.q1.velocity[0] || from->u.q1.velocity[1] || from->u.q1.velocity[2]))
+		{
+			/*if we've got player movement then write the origin anyway*/
+			bits |= UF_ORIGINXY | UF_ORIGINZ;
+			/*and force angles too, if its not us*/
+			if (host_client != svs.clients + to->number-1)
+				bits |= UF_ANGLESXZ | UF_ANGLESY;
+		}
 	}
 
 	if (to->origin[0] != from->origin[0])
@@ -797,6 +833,11 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 	{
 		bits &= ~UF_MOVETYPE;
 		predbits |= UFP_MOVETYPE;
+	}
+	if (bits & UF_WEAPONFRAME)
+	{
+		bits &= ~UF_WEAPONFRAME;
+		predbits |= UFP_WEAPONFRAME;
 	}
 
 	/*check if we need more precision*/
@@ -876,20 +917,7 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 	if (bits & UF_PREDINFO)
 	{
 		/*movetype is set above somewhere*/
-		if (state->u.q1.movement[0])
-			predbits |= UFP_FORWARD;
-		if (state->u.q1.movement[1])
-			predbits |= UFP_SIDE;
-		if (state->u.q1.movement[2])
-			predbits |= UFP_UP;
-		if (state->u.q1.velocity[0])
-			predbits |= UFP_VELOCITYXY;
-		if (state->u.q1.velocity[1])
-			predbits |= UFP_VELOCITYXY;
-		if (state->u.q1.velocity[2])
-			predbits |= UFP_VELOCITYZ;
-		if (state->u.q1.msec)
-			predbits |= UFP_MSEC;
+		predbits |= SVFTE_DeltaPredCalcBits(NULL, state);
 
 		MSG_WriteByte(msg, predbits);
 		if (predbits & UFP_FORWARD)
@@ -909,6 +937,16 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 			MSG_WriteShort(msg, state->u.q1.velocity[2]);
 		if (predbits & UFP_MSEC)
 			MSG_WriteByte(msg, state->u.q1.msec);
+		if (predbits & UFP_WEAPONFRAME)
+		{
+			if (state->u.q1.weaponframe > 127)
+			{
+				MSG_WriteByte(msg, 128 | (state->u.q1.weaponframe & 127));
+				MSG_WriteByte(msg, state->u.q1.weaponframe>>7);
+			}
+			else
+				MSG_WriteByte(msg, state->u.q1.weaponframe);
+		}
 	}
 
 	if (bits & UF_MODEL)
@@ -980,12 +1018,17 @@ Only what changed is tracked, via bitmask, its previous value is never tracked.
 */
 void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t *msg)
 {
+	edict_t *e;
 	entity_state_t *o, *n;
 	unsigned int i;
 	unsigned int j;
-	unsigned int *resend;
+	unsigned int bits;
+	unsigned int *resendbits;
+	unsigned short *resendnum;
+	unsigned int outno, outmax;
 	qboolean reset = (client->delta_sequence == -1) || (client->pendingentbits[0] & UF_REMOVE);
 
+	//if we're clearing the list and starting from scratch, just wipe all lingering state
 	if (reset)
 	{
 		for (j = 0; j < client->sentents.max_entities; j++)
@@ -995,7 +1038,7 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 		}
 	}
 
-	j = 0;
+	//expand client's entstate list
 	if (to->num_entities)
 	{
 		j = to->entities[to->num_entities-1].number+1;
@@ -1007,7 +1050,7 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 		}
 	}
 
-	/*figure out the bits that changed*/
+	/*figure out the entitys+bits that changed (removed and active)*/
 	for (i = 0, j = 0; i < to->num_entities; i++)
 	{
 		n = &to->entities[i];
@@ -1017,20 +1060,24 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 			o = &client->sentents.entities[j];
 			if (o->number)
 			{
-				client->pendingentbits[j] = UF_REMOVE;
-				o->number = 0; /*dead*/
+				e = EDICT_NUM(svprogfuncs, o->number);
+				if (!((int)e->xv->pvsflags & PVSF_NOREMOVE))
+				{
+					client->pendingentbits[j] = UF_REMOVE;
+					o->number = 0; /*dead*/
+				}
 			}
 		}
 
 		o = &client->sentents.entities[j];
 		if (!o->number)
 		{
-			/*forget any remove bits*/
-			client->pendingentbits[j] = UF_RESET | SVFTE_DeltaCalcBits(&EDICT_NUM(svprogfuncs, n->number)->baseline, n);
+			/*flag it for reset, we can add the extra bits later once we get around to sending it*/
+			client->pendingentbits[j] = UF_RESET | UF_RESET2;
 		}
 		else
 		{
-			client->pendingentbits[j] |= SVFTE_DeltaCalcBits(o, n);;
+			client->pendingentbits[j] |= SVFTE_DeltaCalcBits(o, n);
 		}
 		*o = *n;
 		j++;
@@ -1041,42 +1088,72 @@ void SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizebuf_t
 		o = &client->sentents.entities[j];
 		if (o->number)
 		{
-			client->pendingentbits[j] = UF_REMOVE;
-			o->number = 0; /*dead*/
+			e = EDICT_NUM(svprogfuncs, o->number);
+			if (!((int)e->xv->pvsflags & PVSF_NOREMOVE))
+			{
+				client->pendingentbits[j] = UF_REMOVE;
+				o->number = 0; /*dead*/
+			}
 		}
 	}
 
-	resend = client->frameunion.frames[client->netchan.incoming_sequence & UPDATE_MASK].resendentbits;
+	/*cache frame info*/
+	resendbits = client->frameunion.frames[client->netchan.incoming_sequence & UPDATE_MASK].resendentbits;
+	resendnum = client->frameunion.frames[client->netchan.incoming_sequence & UPDATE_MASK].resendentnum;
+	outno = 0;
+	outmax = client->frameunion.frames[client->netchan.incoming_sequence & UPDATE_MASK].entities.max_entities;
 
+	/*start writing the packet*/
 	MSG_WriteByte (msg, svcfte_updateentities);
 	MSG_WriteFloat(msg, sv.world.physicstime);
-	if (reset)
+	if (reset) /*if we're resetting, the client will see 'remove world' which should be handled as a special case*/
 		MSG_WriteShort(msg, 0x8000);
-
-	memset(resend, 0, client->sentents.max_entities*sizeof(*resend));
 
 	for(j = 0; j < client->sentents.max_entities; j++)
 	{
-		if (!client->pendingentbits[j])
+		bits = client->pendingentbits[j];
+		if (!(bits & ~UF_RESET2))	//skip while there's nothing to send (skip reset2 if there's no other changes, its only to reduce chances of the client getting 'new' entities containing just an origin)*/
 			continue;
 		if (msg->cursize + 50 > msg->maxsize)
 			break; /*give up if it gets full*/
+		if (outno >= outmax)
+			break;
+		client->pendingentbits[j] = 0;
 
-		if (client->pendingentbits[j] & UF_REMOVE)
+		if (bits & UF_REMOVE)
 		{
 			MSG_WriteShort(msg, j | 0x8000);
-			resend[j] = UF_REMOVE;
+			resendbits[outno] = UF_REMOVE;
+//			Con_Printf("REMOVE %i @ %i\n", j, client->netchan.incoming_sequence);
 		}
-		else
+		else if (client->sentents.entities[j].number) /*only send a new copy of the ent if they actually have one already*/
 		{
+			if (bits & UF_RESET2)
+			{
+				/*if reset2, then this is the second packet sent to the client and should have a forced reset (but which isn't tracked)*/
+				resendbits[outno] = bits & ~UF_RESET2;
+				bits = UF_RESET | SVFTE_DeltaCalcBits(&EDICT_NUM(svprogfuncs, j)->baseline, &client->sentents.entities[j]);
+//				Con_Printf("RESET2 %i @ %i\n", j, client->netchan.incoming_sequence);
+			}
+			else if (bits & UF_RESET)
+			{
+				/*flag the entity for the next packet, so we always get two resets when it appears, to reduce the effects of packetloss on seeing rockets etc*/
+				client->pendingentbits[j] = UF_RESET2;
+				bits = UF_RESET | SVFTE_DeltaCalcBits(&EDICT_NUM(svprogfuncs, j)->baseline, &client->sentents.entities[j]);
+				resendbits[outno] = UF_RESET;
+//				Con_Printf("RESET %i @ %i\n", j, client->netchan.incoming_sequence);
+			}
+			else
+				resendbits[outno] = bits;
 			MSG_WriteShort(msg, j);
-			SVFTE_WriteUpdate(client->pendingentbits[j], &client->sentents.entities[j], msg);
-			resend[j] = client->pendingentbits[j];
+			SVFTE_WriteUpdate(bits, &client->sentents.entities[j], msg);
 		}
-		client->pendingentbits[j] = 0;
+		resendnum[outno++] = j;
 	}
-
 	MSG_WriteShort(msg, 0);
+
+	client->frameunion.frames[client->netchan.incoming_sequence & UPDATE_MASK].entities.num_entities = outno;
+	client->frameunion.frames[client->netchan.incoming_sequence & UPDATE_MASK].sequence = client->netchan.incoming_sequence;
 }
 
 /*
@@ -2590,7 +2667,6 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 //note that client can be null, for building baselines.
 
 	int i;
-
 	state->number = NUM_FOR_EDICT(svprogfuncs, ent);
 
 	state->u.q1.msec = 0;
@@ -2601,13 +2677,18 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	state->u.q1.velocity[0] = 0;
 	state->u.q1.velocity[1] = 0;
 	state->u.q1.velocity[2] = 0;
+
+	if (client == &svs.clients[state->number-1])
+		state->u.q1.weaponframe = ent->v->weaponframe;
+	else
+		state->u.q1.weaponframe = 0;
 	if ((state->number-1) < (unsigned short)sv.allocated_client_slots && ent->v->movetype)
 	{
 		client_t *cl = &svs.clients[state->number-1];
 		if (cl->isindependant)
 		{
 			state->u.q1.pmovetype = ent->v->movetype;
-			if (cl != client)
+			if (cl != client && client)
 			{	/*only generate movement values if the client doesn't already know them...*/
 				state->u.q1.movement[0] = ent->xv->movement[0];
 				state->u.q1.movement[1] = ent->xv->movement[1];
@@ -2662,6 +2743,7 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	state->colormap = ent->v->colormap;
 	state->skinnum = ent->v->skin;
 	state->effects = ent->v->effects;
+	state->effects |= (int)ent->xv->modelflags<<24;
 	state->hexen2flags = ent->xv->drawflags;
 	state->abslight = (int)(ent->xv->abslight*255) & 255;
 	state->tagentity = ent->xv->tag_entity;
@@ -2733,9 +2815,18 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 		i = ent->xv->colormod[1]*(256/8); state->colormod[1] = bound(0, i, 255);
 		i = ent->xv->colormod[2]*(256/8); state->colormod[2] = bound(0, i, 255);
 	}
-	state->glowmod[0] = ent->xv->glowmod[0]*(256/8);
-	state->glowmod[1] = ent->xv->glowmod[1]*(256/8);
-	state->glowmod[2] = ent->xv->glowmod[2]*(256/8);
+	if (!ent->xv->glowmod[0] && !ent->xv->glowmod[1] && !ent->xv->glowmod[2])
+	{
+		state->glowmod[0] = (256/8);
+		state->glowmod[1] = (256/8);
+		state->glowmod[2] = (256/8);
+	}
+	else
+	{
+		state->glowmod[0] = ent->xv->glowmod[0]*(256/8);
+		state->glowmod[1] = ent->xv->glowmod[1]*(256/8);
+		state->glowmod[2] = ent->xv->glowmod[2]*(256/8);
+	}
 	state->glowsize = ent->xv->glow_size*0.25;
 	state->glowcolour = ent->xv->glow_color;
 	if (ent->xv->glow_trail)

@@ -520,7 +520,7 @@ void CL_AdjustAngles (int pnum, double frametime)
 			quant *= speed;
 		in_rotate -= quant;
 		if (ruleset_allow_frj.ival)
-			cl.viewangles[pnum][YAW] += quant;
+			cl.viewanglechange[pnum][YAW] += quant;
 	}
 
 	if (!(in_strafe.state[pnum] & 1))
@@ -528,9 +528,8 @@ void CL_AdjustAngles (int pnum, double frametime)
 		quant = cl_yawspeed.ival;
 		if (cl.fpd & FPD_LIMIT_YAW || !ruleset_allow_frj.ival)
 			quant = bound(-900, quant, 900);
-		cl.viewangles[pnum][YAW] -= speed*quant * CL_KeyState (&in_right, pnum);
-		cl.viewangles[pnum][YAW] += speed*quant * CL_KeyState (&in_left, pnum);
-		cl.viewangles[pnum][YAW] = anglemod(cl.viewangles[pnum][YAW]);
+		cl.viewanglechange[pnum][YAW] -= speed*quant * CL_KeyState (&in_right, pnum);
+		cl.viewanglechange[pnum][YAW] += speed*quant * CL_KeyState (&in_left, pnum);
 	}
 	if (in_klook.state[pnum] & 1)
 	{
@@ -538,8 +537,8 @@ void CL_AdjustAngles (int pnum, double frametime)
 		quant = cl_pitchspeed.ival;
 		if (cl.fpd & FPD_LIMIT_PITCH || !ruleset_allow_frj.ival)
 			quant = bound(-700, quant, 700);
-		cl.viewangles[pnum][PITCH] -= speed*quant * CL_KeyState (&in_forward, pnum);
-		cl.viewangles[pnum][PITCH] += speed*quant * CL_KeyState (&in_back, pnum);
+		cl.viewanglechange[pnum][PITCH] -= speed*quant * CL_KeyState (&in_forward, pnum);
+		cl.viewanglechange[pnum][PITCH] += speed*quant * CL_KeyState (&in_back, pnum);
 	}
 	
 	up = CL_KeyState (&in_lookup, pnum);
@@ -548,19 +547,11 @@ void CL_AdjustAngles (int pnum, double frametime)
 	quant = cl_pitchspeed.ival;
 	if (!ruleset_allow_frj.ival)
 		quant = bound(-700, quant, 700);	
-	cl.viewangles[pnum][PITCH] -= speed*cl_pitchspeed.ival * up;
-	cl.viewangles[pnum][PITCH] += speed*cl_pitchspeed.ival * down;
+	cl.viewanglechange[pnum][PITCH] -= speed*cl_pitchspeed.ival * up;
+	cl.viewanglechange[pnum][PITCH] += speed*cl_pitchspeed.ival * down;
 
 	if (up || down)
-		V_StopPitchDrift (pnum);
-		
-	CL_ClampPitch(pnum);
-
-	if (cl.viewangles[pnum][ROLL] > 50)
-		cl.viewangles[pnum][ROLL] = 50;
-	if (cl.viewangles[pnum][ROLL] < -50)
-		cl.viewangles[pnum][ROLL] = -50;
-		
+		V_StopPitchDrift (pnum);	
 }
 
 /*
@@ -612,10 +603,60 @@ int MakeChar (int i)
 
 void CL_ClampPitch (int pnum)
 {
+	vec3_t view[4];
+	vec3_t impact, norm;
+	float mat[16], mat2[16];
+	static float oldtime;
+	float timestep = realtime - oldtime;
+	oldtime = realtime;
+
+	if (1)
+	{
+		AngleVectors(cl.viewangles[pnum], view[0], view[1], view[2]);
+		Matrix4x4_RM_FromVectors(mat, view[0], view[1], view[2], vec3_origin);
+
+		Matrix4_Multiply(Matrix4x4_CM_NewRotation(-cl.viewanglechange[pnum][PITCH], 0, 1, 0), mat, mat2);
+		Matrix4_Multiply(Matrix4x4_CM_NewRotation(cl.viewanglechange[pnum][YAW], 0, 0, 1), mat2, mat);
+
+		Matrix3x4_RM_ToVectors(mat, view[0], view[1], view[2], view[3]);
+
+		VectorMA(cl.simorg[pnum], -48, view[2], view[3]);
+		if (!TraceLineN(cl.simorg[pnum], view[3], impact, norm))
+		{
+			norm[0] = 0;
+			norm[1] = 0;
+			norm[2] = 1;
+		}
+
+		{
+			vec3_t cross;
+			float roll;
+			float dot;
+			/*keep the roll relative to the 'ground'*/
+			CrossProduct(norm, view[2], cross);
+			dot = DotProduct(view[0], cross);
+			roll = timestep * 720/M_PI * -(dot);
+			Con_Printf("%f %f\n", dot, roll);
+			Matrix4_Multiply(Matrix4x4_CM_NewRotation(roll, 1, 0, 0), mat, mat2);
+			Matrix3x4_RM_ToVectors(mat2, view[0], view[1], view[2], view[3]);
+		}
+
+		VectorAngles(view[0], view[2], cl.viewangles[pnum]);
+		cl.viewangles[pnum][PITCH]=360 - cl.viewangles[pnum][PITCH];
+		VectorClear(cl.viewanglechange[pnum]);
+
+		return;
+	}
+
+	cl.viewangles[pnum][PITCH] += cl.viewanglechange[pnum][PITCH];
+	cl.viewangles[pnum][YAW] += cl.viewanglechange[pnum][YAW];
+	cl.viewangles[pnum][ROLL] += cl.viewanglechange[pnum][ROLL];
+	VectorClear(cl.viewanglechange[pnum]);
+
 #ifdef Q2CLIENT
-	float	pitch;
 	if (cls.protocol == CP_QUAKE2)
 	{
+		float	pitch;
 		pitch = SHORT2ANGLE(cl.q2frame.playerstate.pmove.delta_angles[PITCH]);
 		if (pitch > 180)
 			pitch -= 360;
@@ -647,6 +688,11 @@ void CL_ClampPitch (int pnum)
 		if (cl.viewangles[pnum][PITCH] < cl.minpitch)
 			cl.viewangles[pnum][PITCH] = cl.minpitch;
 	} 
+
+	if (cl.viewangles[pnum][ROLL] > 50)
+		cl.viewangles[pnum][ROLL] = 50;
+	if (cl.viewangles[pnum][ROLL] < -50)
+		cl.viewangles[pnum][ROLL] = -50;
 }
 
 /*
@@ -658,6 +704,8 @@ void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 {
 	int	i;
 	int bits;
+
+	CL_ClampPitch(pnum);
 
 //
 // always dump the first two message, because it may contain leftover inputs
@@ -1375,6 +1423,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 		{
 			extern cvar_t cl_splitscreen;
+			cl.ackedinputsequence = cls.netchan.outgoing_sequence;
 			i = cls.netchan.outgoing_sequence & UPDATE_MASK;
 			cl.frames[i].senttime = realtime;		// we haven't gotten a reply yet
 //			cl.frames[i].receivedtime = -1;		// we haven't gotten a reply yet

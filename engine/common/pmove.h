@@ -28,7 +28,8 @@ typedef enum {
 	PM_DEAD,			// no acceleration
 	PM_FLY,				// fly, bump into walls
 	PM_NONE,			// can't move
-	PM_FREEZE			// can't move or look around (TODO)
+	PM_FREEZE,			// can't move or look around (TODO)
+	PM_WALLWALK			// sticks to walls. on ground while near one
 } pmtype_t;
 
 #define PMF_JUMP_HELD			1
@@ -56,6 +57,7 @@ typedef struct
 	vec3_t		angles;
 	vec3_t		velocity;
 	vec3_t		basevelocity;
+	vec3_t		gravitydir;
 	qboolean		jump_held;
 	int			jump_msec;	// msec since last jump
 	float		waterjumptime;

@@ -270,11 +270,10 @@ int PM_StepSlideMove (qboolean in_air)
 		if (!(blocked & BLOCKED_STEP))
 			return blocked;
 
-		org = (originalvel[2] < 0) ? pmove.origin : original;
-		VectorCopy (org, dest);
-		dest[2] -= movevars.stepheight;
+		org = (-DotProduct(pmove.gravitydir, originalvel) < 0) ? pmove.origin : original;
+		VectorMA (org, movevars.stepheight, pmove.gravitydir, dest);
 		trace = PM_PlayerTrace (org, dest);
-		if (trace.fraction == 1 || trace.plane.normal[2] < MIN_STEP_NORMAL)
+		if (trace.fraction == 1 || -DotProduct(pmove.gravitydir, trace.plane.normal) < MIN_STEP_NORMAL)
 			return blocked;
 
 		// adjust stepsize, otherwise it would be possible to walk up a
@@ -291,8 +290,7 @@ int PM_StepSlideMove (qboolean in_air)
 	VectorCopy (originalvel, pmove.velocity);
 
 // move up a stair height
-	VectorCopy (pmove.origin, dest);
-	dest[2] += stepsize;
+	VectorMA (pmove.origin, -stepsize, pmove.gravitydir, dest);
 	trace = PM_PlayerTrace (pmove.origin, dest);
 	if (!trace.startsolid && !trace.allsolid)
 	{
@@ -300,31 +298,32 @@ int PM_StepSlideMove (qboolean in_air)
 	}
 
 	if (in_air && originalvel[2] < 0)
-		pmove.velocity[2] = 0;
+		VectorMA(pmove.velocity, -DotProduct(pmove.velocity, pmove.gravitydir), pmove.gravitydir, pmove.velocity); //z=0
 
 	PM_SlideMove ();
 
 // press down the stepheight
-	VectorCopy (pmove.origin, dest);
-	dest[2] -= stepsize;
+	VectorMA (pmove.origin, stepsize, pmove.gravitydir, dest);
 	trace = PM_PlayerTrace (pmove.origin, dest);
-	if (trace.fraction != 1 && trace.plane.normal[2] < MIN_STEP_NORMAL)
+	if (trace.fraction != 1 && -DotProduct(pmove.gravitydir, trace.plane.normal) < MIN_STEP_NORMAL)
 		goto usedown;
 	if (!trace.startsolid && !trace.allsolid)
 	{
 		VectorCopy (trace.endpos, pmove.origin);
 	}
 
-	if (pmove.origin[2] < original[2])
+	if (-DotProduct(pmove.gravitydir, pmove.origin) < -DotProduct(pmove.gravitydir, original))
 		goto usedown;
 
 	VectorCopy (pmove.origin, up);
 
-	// decide which one went farther
-	downdist = (down[0] - original[0])*(down[0] - original[0])
-		+ (down[1] - original[1])*(down[1] - original[1]);
-	updist = (up[0] - original[0])*(up[0] - original[0])
-		+ (up[1] - original[1])*(up[1] - original[1]);
+	// decide which one went farther (in the forwards direction regardless of step values)
+	VectorSubtract(down, original, dest);
+	VectorMA(dest, -DotProduct(dest, pmove.gravitydir), pmove.gravitydir, dest); //z=0
+	downdist = DotProduct(dest, dest);
+	VectorSubtract(up, original, dest);
+	VectorMA(dest, -DotProduct(dest, pmove.gravitydir), pmove.gravitydir, dest); //z=0
+	updist = DotProduct(dest, dest);
 
 	if (downdist >= updist)
 	{
@@ -335,13 +334,14 @@ usedown:
 	}
 
 	// copy z value from slide move
-	pmove.velocity[2] = downvel[2];
+	VectorMA(pmove.velocity, DotProduct(downvel, pmove.gravitydir)-DotProduct(pmove.velocity, pmove.gravitydir), pmove.gravitydir, pmove.velocity); //z=downvel
 
 	if (!pmove.onground && pmove.waterlevel < 2 && (blocked & BLOCKED_STEP)) {
 		float scale;
 		// in pm_airstep mode, walking up a 16 unit high step
 		// will kill 16% of horizontal velocity
 		scale = 1 - 0.01*(pmove.origin[2] - original[2]);
+		//FIXME gravitydir
 		pmove.velocity[0] *= scale;
 		pmove.velocity[1] *= scale;
 	}
@@ -517,9 +517,13 @@ void PM_WaterMove (void)
 		wishvel[i] = forward[i]*pmove.cmd.forwardmove + right[i]*pmove.cmd.sidemove;
 
 	if (pmove.pm_type != PM_FLY && !pmove.cmd.forwardmove && !pmove.cmd.sidemove && !pmove.cmd.upmove && !pmove.onladder)
-		wishvel[2] -= 60;		// drift towards bottom
+	{
+		VectorMA(wishvel, 60, pmove.gravitydir, wishvel);
+	}
 	else
-		wishvel[2] += pmove.cmd.upmove;
+	{
+		VectorMA(wishvel, -pmove.cmd.upmove, pmove.gravitydir, wishvel);
+	}
 
 	VectorCopy (wishvel, wishdir);
 	wishspeed = VectorNormalize(wishdir);
@@ -551,7 +555,7 @@ void PM_FlyMove (void)
 	for (i=0 ; i<3 ; i++)
 		wishvel[i] = forward[i]*pmove.cmd.forwardmove + right[i]*pmove.cmd.sidemove;
 
-	wishvel[2] += pmove.cmd.upmove;
+	VectorMA(wishvel, -pmove.cmd.upmove, pmove.gravitydir, wishvel);
 
 	VectorCopy (wishvel, wishdir);
 	wishspeed = VectorNormalize(wishdir);
@@ -585,7 +589,9 @@ void PM_LadderMove (void)
 		wishvel[2]*=10;
 
 	if (pmove.cmd.buttons & 2)
-		wishvel[2]+=movevars.maxspeed;
+	{
+		VectorMA(wishvel, -movevars.maxspeed, pmove.gravitydir, wishvel);
+	}
 
 	VectorCopy (wishvel, wishdir);
 	wishspeed = VectorNormalize(wishdir);
@@ -600,8 +606,7 @@ void PM_LadderMove (void)
 
 // assume it is a stair or a slope, so press down from stepheight above
 	VectorMA (pmove.origin, frametime, pmove.velocity, dest);
-	VectorCopy (dest, start);
-	start[2] += movevars.stepheight + 1;
+	VectorMA(dest, -(movevars.stepheight + 1), pmove.gravitydir, start);
 	trace = PM_PlayerTrace (start, dest);
 	if (!trace.startsolid && !trace.allsolid)	// FIXME: check steep slope?
 	{	// walked up the step
@@ -628,15 +633,14 @@ void PM_AirMove (void)
 
 	fmove = pmove.cmd.forwardmove;
 	smove = pmove.cmd.sidemove;
-
-	forward[2] = 0;
-	right[2] = 0;
+	VectorMA(forward, -DotProduct(forward, pmove.gravitydir), pmove.gravitydir, forward); //z=0
+	VectorMA(right, -DotProduct(right, pmove.gravitydir), pmove.gravitydir, right); //z=0
 	VectorNormalize (forward);
 	VectorNormalize (right);
 
-	for (i=0 ; i<2 ; i++)
+	for (i=0 ; i<3 ; i++)
 		wishdir[i] = forward[i]*fmove + right[i]*smove;
-	wishdir[2] = 0;
+	VectorMA(wishdir, -DotProduct(wishdir, pmove.gravitydir), pmove.gravitydir, wishdir); //z=0
 
 	wishspeed = VectorNormalize(wishdir);
 
@@ -655,21 +659,24 @@ void PM_AirMove (void)
 			pmove.velocity[2] = min(pmove.velocity[2], 0);	// bound above by 0
 			PM_Accelerate (wishdir, wishspeed, movevars.accelerate);
 			// add gravity
-			pmove.velocity[2] -= movevars.entgravity * movevars.gravity * frametime;
+			VectorMA(pmove.velocity, movevars.entgravity * movevars.gravity * frametime, pmove.gravitydir, pmove.velocity);
 		}
 		else
 		{
-			pmove.velocity[2] = 0;
+			VectorMA(pmove.velocity, -DotProduct(pmove.velocity, pmove.gravitydir), pmove.gravitydir, pmove.velocity); //z=0
 			PM_Accelerate (wishdir, wishspeed, movevars.accelerate);
 		}
 
-		if (!pmove.velocity[0] && !pmove.velocity[1] && !movevars.slidyslopes)
+		//clear the z out, so we can test if we're moving horizontally relative to gravity
+		VectorMA(pmove.velocity, -DotProduct(pmove.velocity, pmove.gravitydir), pmove.gravitydir, wishdir);
+		if (!DotProduct(wishdir, wishdir) && !movevars.slidyslopes)
 		{
-			pmove.velocity[2] = 0;
+			//clear z if we're not moving
+			VectorClear(pmove.velocity);
 			return;
 		}
 		else if (!movevars.slidefix && !movevars.slidyslopes)
-			pmove.velocity[2] = 0;
+			VectorMA(pmove.velocity, -DotProduct(pmove.velocity, pmove.gravitydir), pmove.gravitydir, pmove.velocity); //z=0
 
 		PM_StepSlideMove(false);
 	}
@@ -681,7 +688,7 @@ void PM_AirMove (void)
 		PM_AirAccelerate (wishdir, wishspeed, movevars.accelerate);
 
 		// add gravity
-		pmove.velocity[2] -= movevars.entgravity * movevars.gravity * frametime;
+		VectorMA(pmove.velocity, movevars.entgravity * movevars.gravity * frametime, pmove.gravitydir, pmove.velocity);
 
 		if (movevars.airstep)
 			blocked = PM_StepSlideMove (true);
@@ -698,29 +705,45 @@ cplane_t	groundplane;
 PM_CategorizePosition
 =============
 */
+trace_t PM_TraceLine (vec3_t start, vec3_t end);
 void PM_CategorizePosition (void)
 {
 	vec3_t		point;
 	int			cont;
 	trace_t		trace;
 
+	pmove.gravitydir[0] = 0;
+	pmove.gravitydir[1] = 0;
+	pmove.gravitydir[2] = -1;
+	if (pmove.pm_type == PM_WALLWALK)
+	{
+		vec3_t tmin,tmax;
+		VectorCopy(player_mins, tmin);
+		VectorCopy(player_maxs, tmax);
+		VectorMA(pmove.origin, -48, up, point);
+		trace = PM_TraceLine(pmove.origin, point);
+		VectorCopy(tmin, player_mins);
+		VectorCopy(tmax, player_maxs);
+
+		if (trace.fraction < 1)
+			VectorNegate(trace.plane.normal, pmove.gravitydir);
+	}
+
 // if the player hull point one unit down is solid, the player
 // is on ground
 
 // see if standing on something solid
-	point[0] = pmove.origin[0];
-	point[1] = pmove.origin[1];
-	point[2] = pmove.origin[2] - 1;
+	VectorAdd(pmove.origin, pmove.gravitydir, point);
 	trace.startsolid = trace.allsolid = true;
 	VectorClear(trace.endpos);
-	if (pmove.velocity[2] > 180)
+	if (DotProduct(pmove.gravitydir, pmove.velocity) > 180)
 	{
 		pmove.onground = false;
 	}
 	else
 	{
 		trace = PM_PlayerTrace (pmove.origin, point);
-		if (trace.fraction == 1 || trace.plane.normal[2] < MIN_STEP_NORMAL)
+		if (trace.fraction == 1 || -DotProduct(pmove.gravitydir, trace.plane.normal) < MIN_STEP_NORMAL)
 			pmove.onground = false;
 		else
 		{
@@ -843,14 +866,17 @@ void PM_CheckJump (void)
 
 	if (pmove.waterlevel >= 2)
 	{	// swimming, not jumping
+		float speed;
 		pmove.onground = false;
 
 		if (pmove.watertype == FTECONTENTS_WATER)
-			pmove.velocity[2] = 100;
+			speed = 100;
 		else if (pmove.watertype == FTECONTENTS_SLIME)
-			pmove.velocity[2] = 80;
+			speed = 80;
 		else
-			pmove.velocity[2] = 50;
+			speed = 50;
+
+		VectorMA(pmove.velocity, -speed-DotProduct(pmove.velocity, pmove.gravitydir), pmove.gravitydir, pmove.velocity);
 		return;
 	}
 
@@ -862,16 +888,16 @@ void PM_CheckJump (void)
 
 	// check for jump bug
 	// groundplane normal was set in the call to PM_CategorizePosition
-	if (pmove.velocity[2] < 0 && DotProduct(pmove.velocity, groundplane.normal) < -0.1)
+	if (-DotProduct(pmove.gravitydir, pmove.velocity) < 0 && DotProduct(pmove.velocity, groundplane.normal) < -0.1)
 	{
 		// pmove.velocity is pointing into the ground, clip it
 		PM_ClipVelocity (pmove.velocity, groundplane.normal, pmove.velocity, 1);
 	}
 
 	pmove.onground = false;
-	pmove.velocity[2] += 270;
+	VectorMA(pmove.velocity, -270, pmove.gravitydir, pmove.velocity);
 
-	if (movevars.ktjump > 0)
+	if (movevars.ktjump > 0 && pmove.pm_type != PM_WALLWALK)
 	{
 		if (movevars.ktjump > 1)
 			movevars.ktjump = 1;
@@ -1063,6 +1089,9 @@ void PM_PlayerMove (float gamespeed)
 {
 	frametime = pmove.cmd.msec * 0.001*gamespeed;
 	pmove.numtouch = 0;
+
+	//TEMP
+	pmove.pm_type = PM_WALLWALK;
 
 	if (pmove.pm_type == PM_NONE || pmove.pm_type == PM_FREEZE) {
 		PM_CategorizePosition ();

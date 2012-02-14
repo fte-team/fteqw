@@ -24,8 +24,6 @@ cvar_t	cl_nopred = SCVAR("cl_nopred","0");
 extern cvar_t cl_lerp_players;
 cvar_t	cl_pushlatency = SCVAR("pushlatency","-999");
 
-extern	frame_t		*view_frame;
-
 extern float	pm_airaccelerate;
 
 extern usercmd_t independantphysics[MAX_SPLITS];
@@ -768,7 +766,7 @@ static void CL_DecodeStateSize(unsigned short solid, int modelindex, vec3_t mins
 void CL_PlayerFrameUpdated(player_state_t *plstate, entity_state_t *state, int sequence)
 {
 	/*update the prediction info*/
-	int pmtype;
+	int pmtype, i;
 	if (state->u.q1.pmovetype == MOVETYPE_NOCLIP)
 	{
 		if (cls.z_ext & Z_EXT_PM_TYPE_NEW)
@@ -789,6 +787,17 @@ void CL_PlayerFrameUpdated(player_state_t *plstate, entity_state_t *state, int s
 	VectorCopy(state->origin, plstate->origin);
 	VectorScale(state->u.q1.velocity, 1/8.0, plstate->velocity);
 	plstate->messagenum = sequence;
+
+	cl.players[state->number-1].stats[STAT_WEAPONFRAME] = state->u.q1.weaponframe;
+	cl.players[state->number-1].statsf[STAT_WEAPONFRAME] = state->u.q1.weaponframe;
+	for (i = 0; i < cl.splitclients; i++)
+	{
+		if (cl.playernum[i] == state->number-1)
+		{
+			cl.stats[i][STAT_WEAPONFRAME] = state->u.q1.weaponframe;
+			cl.statsf[i][STAT_WEAPONFRAME] = state->u.q1.weaponframe;
+		}
+	}
 
 	CL_DecodeStateSize(state->solid, state->modelindex, plstate->szmins, plstate->szmaxs);
 }
@@ -891,7 +900,6 @@ void CL_PredictMovePNum (int pnum)
 	{
 		return;
 	}
-	CL_ClampPitch(pnum);
 	if (cls.netchan.outgoing_sequence - cl.ackedinputsequence >= UPDATE_BACKUP-1)
 	{	//lagging like poo.
 		if (!cl.intermission)	//keep the angles working though.
@@ -977,7 +985,7 @@ fixedorg:
 			goto fixedorg;
 		}
 
-		to = &cl.frames[cl.ackedinputsequence & UPDATE_MASK];
+		to = &cl.frames[cl.validsequence & UPDATE_MASK];
 		from = &cl.frames[cl.oldvalidsequence & UPDATE_MASK];
 
 		//figure out the lerp factor
@@ -1030,8 +1038,6 @@ fixedorg:
 				CL_PredictUsercmd (pnum, &from->playerstate[cl.playernum[pnum]]
 					, &to->playerstate[cl.playernum[pnum]], &to->cmd[pnum]);
 
-				cl.onground[pnum] = pmove.onground;
-
 				if (to->senttime >= realtime)
 					break;
 				from = to;
@@ -1046,9 +1052,8 @@ fixedorg:
 			to->senttime = realtime;
 				CL_PredictUsercmd (pnum, &from->playerstate[cl.playernum[pnum]]
 				, &to->playerstate[cl.playernum[pnum]], &to->cmd[pnum]);
-
-			cl.onground[pnum] = pmove.onground;
 		}
+		cl.onground[pnum] = pmove.onground;
 		stepheight = to->playerstate[cl.playernum[pnum]].origin[2] - from->playerstate[cl.playernum[pnum]].origin[2];
 
 		if (cl.nolocalplayer[pnum])

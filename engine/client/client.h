@@ -538,6 +538,7 @@ typedef struct
 // sent to the server each frame.  And only reset at level change
 // and teleport times
 	vec3_t		viewangles[MAX_SPLITS];
+	vec3_t		viewanglechange[MAX_SPLITS];
 
 // the client simulates or interpolates movement to get these values
 	double		time;			// this is the time value that the client

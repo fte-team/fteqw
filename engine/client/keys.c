@@ -558,7 +558,7 @@ void Key_Console (unsigned int unicode, int key)
 		if (key_lines[edit_line][key_linepos])
 		{
 			int charlen = 1;
-			if (com_parseutf8.ival &&
+			if (com_parseutf8.ival>0 &&
 				(key_lines[edit_line][key_linepos] & 0xc0) != 0x80)
 			{
 				while((key_lines[edit_line][key_linepos+charlen] & 0xc0) == 0x80)
@@ -577,7 +577,7 @@ void Key_Console (unsigned int unicode, int key)
 		if (key_linepos > 1)
 		{
 			int charlen = 1;
-			if (com_parseutf8.ival)
+			if (com_parseutf8.ival>0)
 			{
 				while (key_linepos > charlen && (key_lines[edit_line][key_linepos-charlen] & 0xc0) == 0x80)
 					charlen++;
@@ -730,10 +730,10 @@ void Key_Console (unsigned int unicode, int key)
 		unsigned char c2;
 		unsigned char c3;
 
-		if (unicode > 127)
+		if (unicode > ((com_parseutf8.ival<0)?255:127))
 		{
 			extern cvar_t com_parseutf8;
-			if (com_parseutf8.ival)
+			if (com_parseutf8.ival>0)
 			{
 				if (unicode > 0xffff)
 				{

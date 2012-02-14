@@ -1113,9 +1113,6 @@ static void QCBUILTIN PF_cs_unproject (progfuncs_t *prinst, struct globalvars_s 
 //clear scene, and set up the default stuff.
 static void QCBUILTIN PF_R_ClearScene (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	extern frame_t		*view_frame;
-	extern player_state_t		*view_message;
-
 	if (*prinst->callargc > 0)
 		CSQC_ChangeLocalPlayer(G_FLOAT(OFS_PARM0));
 
@@ -1133,12 +1130,6 @@ static void QCBUILTIN PF_R_ClearScene (progfuncs_t *prinst, struct globalvars_s 
 	skel_dodelete(csqcprogs);
 	CL_SwapEntityLists();
 
-	view_frame = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];
-	view_message = &view_frame->playerstate[cl.playernum[csqc_lplayernum]];
-#ifdef NQPROT
-	if (cls.protocol == CP_NETQUAKE || !view_message->messagenum)
-		view_message->weaponframe = cl.stats[csqc_lplayernum][STAT_WEAPONFRAME];
-#endif
 	V_CalcRefdef(csqc_lplayernum);	//set up the defaults (for player 0)
 
 	csqc_addcrosshair = false;
@@ -4682,9 +4673,11 @@ void CSQC_World_GetFrameState(world_t *w, wedict_t *win, framestate_t *out)
 
 void CSQC_Shutdown(void)
 {
-	search_close_progs(csqcprogs, false);
 	if (csqcprogs)
 	{
+		search_close_progs(csqcprogs, false);
+		PR_fclose_progs(csqcprogs);
+
 		CSQC_ForgetThreads();
 		CloseProgs(csqcprogs);
 	}

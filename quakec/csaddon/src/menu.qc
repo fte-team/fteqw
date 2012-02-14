@@ -1,10 +1,21 @@
+#define MF_DS_VALUE		(1i << 0i)
+
 typedef struct
 {
 	float *current;
 	float key;
 	vector *mousepos;
 	vector mousediff;
+	int flags;
 } menu_t;
+
+int (vector topleft, vector bottomright, vector cursor) cursor_in_widget
+{
+	if (cursor_x <= bottomright_x && cursor_x >= topleft_x)
+		if (cursor_y <= bottomright_y && cursor_y >= topleft_y)
+			return 1;
+	return 0;
+}
 
 void(menu_t *menu, string fieldname, vector pos, float *value, float minv, float maxv) sliderf_widgit =
 {
@@ -14,7 +25,6 @@ void(menu_t *menu, string fieldname, vector pos, float *value, float minv, float
 	local vector mousepos = *menu->mousepos;
 	local vector mp = *menu->mousepos;
 	local vector mousediff = menu->mousediff;
-	local int draw_value = 1;	// 8 parameter limit?
 	local float key = menu->key;
 
 	render_only = 0;
@@ -61,10 +71,8 @@ void(menu_t *menu, string fieldname, vector pos, float *value, float minv, float
 			f = maxv;
 		drawstring(pos, fieldname, '8 8 0', col, 1, 0);
 		drawstring(spos, "^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", '8 8 0', '1 1 1', 1, 0);
-		if (draw_value == 1)
-		{
+		if (!(menu->flags & MF_DS_VALUE))
 			drawstring(spos + '88 0', ftos(f), '8 8 0', col, 1, 0);
-		}
 		spos_x += 9*8*(f - minv) / (maxv - minv);
 		drawstring(spos, "^Ue083", '8 8 0', '1 1 1', 1, 0);
 	}
@@ -86,26 +94,24 @@ void(menu_t *menu, string fieldname, vector pos, float *value, float minv, float
 
 void(menu_t *menu, string fieldname, vector pos, float *value) sliderf_fixed_widgit =
 {
-	local vector rpos, spos, col;
+	local vector rpos, spos, epos, col;
 	local float f;
-	local int render_only;
+	local int render_only = 0;
 	local vector mousepos = *menu->mousepos;
 	local vector mp = *menu->mousepos;
 	local vector mousediff = menu->mousediff;
 	local vector *mpp = menu->mousepos;
-	local int draw_value = 1;	// 8 parameter limit?
 	local float key = menu->key;
-
-	render_only = 0;
 
 	rpos = pos;
 	spos = rpos;
 	spos_x = pos_x + strlen(fieldname) * 8 + 4;
+	epos = spos + '20 8';
+	if (!(menu->flags & MF_DS_VALUE))
+		epos_x += strlen(sprintf("%f", *value)) * 8;
 	/*if they're dragging us, update*/
-	//print(sprintf("%i %i\n", (int) menu->current, (int) value));
 	if ((int)menu->current == (int)value)
 	{
-		print(sprintf("mousedown: %i\n", mousedown));
 		if (mousedown == 1)
 		{
 			*value = *value + mousediff_x/10;
@@ -125,7 +131,7 @@ void(menu_t *menu, string fieldname, vector pos, float *value) sliderf_fixed_wid
 
 	if (key == -1 || render_only == 1 )
 	{
-		if (mousepos_y >= pos_y && mousepos_y < pos_y + 8 && render_only == 0)
+		if (cursor_in_widget(pos, epos, mousepos) && render_only == 0)
 		{
 			col_x = (sin(time*3.14)+1) / 2;
 			col_y = col_x;
@@ -138,7 +144,7 @@ void(menu_t *menu, string fieldname, vector pos, float *value) sliderf_fixed_wid
 		drawstring(pos, fieldname, '8 8 0', col, 1, 0);
 		
 		drawstring(spos, "^Ue080^Ue082", '8 8 0', '1 1 1', 1, 0);
-		if (draw_value)
+		if (!(menu->flags & MF_DS_VALUE))
 			drawstring(spos + '20 0', ftos(f), '8 8 0', col, 1, 0);
 		drawstring(spos + '4 0', "^Ue083", '8 8 0', '1 1 1', 1, 0);
 	}
@@ -161,13 +167,12 @@ void(menu_t *menu, string fieldname, vector pos, float *value) sliderf_fixed_wid
 
 void(menu_t *menu, string fieldname, vector pos, int *value, int minv, int maxv) slideri_widgit =
 {
-	local vector rpos, spos, col;
+	local vector rpos, spos, epos, col;
 	local int f;
 	local int render_only;
 	local vector mousepos = *menu->mousepos;
 	local vector mp = *menu->mousepos;
 	local vector mousediff = menu->mousediff;
-	local int draw_value = 1;	// 8 parameter limit?
 	local float key;
 
 	key = menu->key;
@@ -177,6 +182,9 @@ void(menu_t *menu, string fieldname, vector pos, int *value, int minv, int maxv)
 	rpos = pos;
 	spos = rpos;
 	spos_x = pos_x + strlen(fieldname) * 8 + 4;
+	epos = spos + '88 8';
+	if (!(menu->flags & MF_DS_VALUE))
+		epos_x = strlen(sprintf("%i", *value)) * 8;
 	/*if they're dragging us, update*/
 	if ((int)menu->current == (int)value)
 	{
@@ -216,10 +224,8 @@ void(menu_t *menu, string fieldname, vector pos, int *value, int minv, int maxv)
 			f = maxv;
 		drawstring(pos, fieldname, '8 8 0', col, 1, 0);
 		drawstring(spos, "^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", '8 8 0', '1 1 1', 1, 0);
-		if (draw_value == 1)
-		{
+		if (!(menu->flags & MF_DS_VALUE))
 			drawstring(spos + '88 0', ftos(f), '8 8 0', col, 1, 0);
-		}
 		spos_x += 9*8*(f - minv) / (maxv - minv);
 		drawstring(spos, "^Ue083", '8 8 0', '1 1 1', 1, 0);
 	}
@@ -233,9 +239,9 @@ void(menu_t *menu, string fieldname, vector pos, int *value, int minv, int maxv)
 			*menu->mousepos = mp;
 		}
 		else if (key == 515)
-			*value = bound(minv, *value + (maxv - minv) / 10, maxv);
+			*value = bound(minv, *value + 1i, maxv);
 		else if (key == 516)
-			*value = bound(minv, *value - (maxv - minv) / 10, maxv);
+			*value = bound(minv, *value - 1i, maxv);
 	}
 };
 
@@ -272,6 +278,54 @@ void(string fieldname, vector pos, vector *mousepos_in, float *value, float key)
 			drawstring(rpos, "^Ue083", '8 8 0', '1 1 1', 1, 0);
 	}
 	else 	if (mousepos_y >= pos_y && mousepos_y < pos_y + 8)
+	{
+		if (key == 512)
+			*value = !*value;
+		else if (key == 515)
+			*value = !*value;
+		else if (key == 516)
+			*value = !*value;
+	}
+};
+
+void(menu_t *menu, string fieldname, vector pos, int *value) checkboxi_widgit =
+{
+	local vector rpos, epos, spos, col;
+	local int render_only = 0;
+	local vector mousepos = *menu->mousepos;
+	local vector mousediff = menu->mousediff;
+	local float key = menu->key;
+
+	spos = pos;
+	spos_x += strlen(fieldname) * 8 + 4;
+	epos = spos;
+	epos_x += 16;
+	epos_y += 8;
+	if (!(menu->flags & MF_DS_VALUE))
+		epos_x += strlen((*value) ? "TRUE":"FALSE") *8;
+
+	render_only = 0;
+
+	if (key == -1)
+	{
+		if (cursor_in_widget(pos, epos, mousepos) && render_only == 0)
+		{
+			col_x = (sin(time*3.14)+1) / 2;
+			col_y = col_x;
+			col_z = 1;
+		}
+		else
+			col = '1 1 1';
+
+		drawstring(pos, fieldname, '8 8 0', col, 1, 0);
+		drawstring(spos, "^Ue080^Ue082", '8 8 0', '1 1 1', 1, 0);
+		if (!(menu->flags & MF_DS_VALUE))
+			drawstring(spos + '88 0', ((*value) ?"TRUE":"FALSE"), '8 8 0', col, 1, 0);
+		if (*value)
+			drawstring(spos + '4 0', "^Ue083", '8 8 0', '1 1 1', 1, 0);
+	}
+
+	if (cursor_in_widget(pos, epos, mousepos) && key != -1)
 	{
 		if (key == 512)
 			*value = !*value;

@@ -41,8 +41,8 @@ void() spline_init =
 	if (splinefile < 0)
 	{
 		/*too lazy to create a file, just use it as a malloc*/
-		splinefile = fopen("", FILE_MMAP_RW, sizeof(camdata_t));
 	}
+	splinefile = fopen("", FILE_MMAP_RW, sizeof(camdata_t));
 
 	camdata = (camdata_t*)(fgets(splinefile));
 };
@@ -120,7 +120,7 @@ void(vector p1, vector p2, vector color) fakeline = {
 	R_EndPolygon();
 };
 
-void (vector p1, vector p2, float size, vector color) fakeline_new
+void (vector p1, vector p2, float linesize, vector color) fakeline_new
 {
 	local vector diff;
 
@@ -128,34 +128,34 @@ void (vector p1, vector p2, float size, vector color) fakeline_new
 	normalize(diff);
 };
 
-void (vector pos, float size, vector color) draw_point
+void (vector pos, float point_size, vector color) draw_point
 {
 	local int i;
 	local vector offsets[5];
 	local vector points[8];
 	local vector point, point1;
 
-	if (size == 0)
+	if (point_size == 0)
 		return;
 
-	point_x = -(size/2);
-	point_y = -(size/2);
+	point_x = -(point_size/2);
+	point_y = -(point_size/2);
 	offsets[0] = point;
-	point_x = size/2;
-	point_y = -(size/2);
+	point_x = point_size/2;
+	point_y = -(point_size/2);
 	offsets[1] = point;
-	point_x = -(size/2);
-	point_y = (size/2);
+	point_x = -(point_size/2);
+	point_y = (point_size/2);
 	offsets[2] = point;
-	point_x = (size/2);
-	point_y = (size/2);
+	point_x = (point_size/2);
+	point_y = (point_size/2);
 	offsets[3] = point;
 
-	point1_z = -(size/2);
+	point1_z = -(point_size/2);
 	for (i=0; i<4; i++)
 		points[i] = offsets[i] + point1 + pos;
 
-	point1_z = (size/2);
+	point1_z = (point_size/2);
 	for (i=4; i<8; i++)
 		points[i] = offsets[i-4] + point1 + pos;
 
@@ -216,15 +216,6 @@ void (vector pos, float size, vector color) draw_point
 	R_PolygonVertex(points[3], '1 1', color,1);
 	R_PolygonVertex(points[1], '1 0', color,1);
 	R_EndPolygon();
-
-
-
-
-
-
-
-
-
 };
 
 // time has to be between 0 and 1
@@ -402,6 +393,11 @@ void(float attime) spline_overrides =
 	local float stime;
 	local int i;
 
+	print(sprintf("cd pc: %i\n", camdata->position_count));
+
+	if (camdata->position_count == 0)
+		return;
+
 	for (i=0; i < camdata->position_count; i++)
 	{
 		cpos = &camdata->position[i];
@@ -469,8 +465,8 @@ void() editor_spline_add =
 	local vector tdir;
 	tdir_x = 16 * cos(time);
 	tdir_y = 16 * sin(time);
-	drawlame3dtext("charset", tdir*(-33/2), tdir, '0 0 -16', "hello jogi\ndoes this string appear for you?", '1 1 1', 1);
-	drawlame3dtext("charset", tdir*(33/2), -tdir, '0 0 -16', "hello jogi\ndoes this string appear for you?", '1 1 1', 1);
+//	drawlame3dtext("charset", '300 -500 50', tdir, '0 0 -16', "hello jogi\ndoes this string appear for you?", '1 1 1', 1);
+//	drawlame3dtext("charset", '300 -500 50', -tdir, '0 0 -16', "hello jogi\ndoes this string appear for you?", '1 1 1', 1);
 
 	if (splinefile < 0)
 		spline_init();
@@ -492,9 +488,10 @@ static menu_t menu;
 
 int (vector *curmousepos, vector mousediff, float key) submenu =
 {
-	local vector pos;
+	local vector pos, cpos;
 	local spline_t *s;
 	local vector point;
+	string str;
 
 	pos = submenu_position;
 
@@ -506,21 +503,50 @@ int (vector *curmousepos, vector mousediff, float key) submenu =
 		s = &camdata.position[camdata.position_selected].spline;
 	else
 		s = &camdata.view[camdata.view_selected].spline;
+
+	menu->flags = MF_DS_VALUE;
+	if (edit_type == 0)
+	{
+		if (camdata.position_count > 1)
+		{
+			str = sprintf("%2i/%2i", camdata.position_selected+1i, camdata.position_count);
+			cpos = pos;
+			cpos_x = strlen(str) * 8 +4;
+			drawrawstring(pos, str, '8 8 0', '1 0 0', 1);
+			slideri_widgit(&menu, "", cpos, &camdata.position_selected, 0, camdata.position_count-1i);
+			pos_y += 8;
+		}
+	}
+	else
+	{
+		if (camdata.view_count > 1)
+		{
+			str = sprintf("%2i/%2i", camdata.view_selected+1i, camdata.view_count);
+			cpos = pos;
+			cpos_x = strlen(str) * 8 +4;
+			drawrawstring(pos, str, '8 8 0', '1 0 0', 1);
+			slideri_widgit(&menu, "", cpos, &camdata.view_selected, 0, camdata.view_count);
+			pos_y += 8;
+		}
+	}
+	menu->flags = 0;
+
+	pos_y += 8;
+
 	if (s->numpoints > 0)
 	{
+		menu->flags = MF_DS_VALUE;
+		slideri_widgit(&menu, sprintf("%2i/%2i", s->selected_point + 1i, s->numpoints), pos, &s->selected_point, 0, s->numpoints - 1i);pos_y+=8;
+		menu->flags = 0;
 		point = s->pos[s->selected_point];
 		sliderf_fixed_widgit(&menu, "x:", pos, &point_x);pos_y+=8;
 		sliderf_fixed_widgit(&menu, "y:", pos, &point_y);pos_y+=8;
 		sliderf_fixed_widgit(&menu, "z:", pos, &point_z);pos_y+=8;
 		s->pos[s->selected_point] = point;
+		menu->flags = 0;
 	}
-
 }
 
-/*
- * the widgets have to handle mouse properly
- * if mousedown == 1 && curslider == self -> return
- */
 int (vector *curmousepos, vector mousediff, float key) testmenu =
 {
 	local vector pos;
@@ -545,6 +571,7 @@ int (vector *curmousepos, vector mousediff) editor_spline_overlay =
 	local vector pos, v;
 	local spline_t *s;
 	local int ri;
+	local string str;
 
 	if (splinefile < 0)
 		spline_init();
@@ -553,31 +580,26 @@ int (vector *curmousepos, vector mousediff) editor_spline_overlay =
 	/*draw menu*/
 	/*dunno if the light editor has any convienient code*/
 	pos_y = 40;
+	str = sprintf("cam(%i)", camdata->position_count);
 	if (edit_type == 0)
-		drawrawstring(pos, "cam", '8 8 0', '1 0 0', 1);
+		drawrawstring(pos, str, '8 8 0', '1 0 0', 1);
 	else
-		drawrawstring(pos, "cam", '8 8 0', '1 1 1', 1);
-	drawrawstring(pos + '24 0 0', sprintf("  : %i / %i", camdata->position_selected + 1i , camdata->position_count), '8 8 0', '1 1 1', 1);
-	if (camdata->position_count)
-	{
-		pos_y += 8;
-		s = &camdata->position[camdata->position_selected].spline;
-		v = s->pos[s->selected_point];
-		drawrawstring(pos, sprintf(" point: %i / %i -- %f %f %f", s->selected_point + 1i, s->numpoints, v_x, v_y, v_z), '8 8 0', '1 1 1', 1);
-	}
-	pos_y += 8;
+		drawrawstring(pos, str, '8 8 0', '1 1 1', 1);
+	v = pos;
+	v_x += strlen(str) * 8;
+	ri = strlen(str) + 1;
+	drawrawstring(v , "/", '8 8 0', '1 1 1', 1);
+	v_x += 8;
+	str = sprintf("view(%i)", camdata->view_count);
 	if (edit_type == 1)
-		drawrawstring(pos, "view", '8 8 0', '1 0 0', 1);
+		drawrawstring(v, str, '8 8 0', '1 0 0', 1);
 	else
-		drawrawstring(pos, "view", '8 8 0', '1 1 1', 1);
-	drawrawstring(pos + '32 0 0', sprintf(" : %i / %i", camdata->view_selected + 1i, camdata->view_count), '8 8 0', '1 1 1', 1);
-	if (camdata->view_count)
-	{
-		pos_y += 8;
-		s = &camdata->view[camdata->view_selected].spline;
-		v = s->pos[s->selected_point];
-		drawrawstring(pos, sprintf(" point: %i / %i -- %f %f %f", s->selected_point + 1i, s->numpoints, v_x, v_y, v_z), '8 8 0', '1 1 1', 1);
-	}
+		drawrawstring(v, str, '8 8 0', '1 1 1', 1);
+	ri += strlen(str) + 1i;
+	v_x += 4 + strlen(str) * 8;
+
+	menu->flags = MF_DS_VALUE;
+	checkboxi_widgit(&menu, "", v, &edit_type);
 
 	submenu_position = pos + '0 8';
 
@@ -655,13 +677,10 @@ void (int type) view_add_point =
 
 void(void) position_add
 {
-	print(sprintf("test\n"));
 	if (camdata->position_count >= 64)
 	{
 		return;
 	}
-
-	print(sprintf("adding a position\n"));
 
 	camdata->position_selected = camdata->position_count;
 	camdata->position_count = camdata->position_count + 1i; //oldskool
@@ -955,6 +974,15 @@ float(float keycode, float unicode, vector *curmousepos_in, vector mousediff) ed
 				return FALSE;
 			cam_set_stop_time(&camdata->view[camdata->view_selected], gettime(5));
 		}
+		return TRUE;
+	}
+
+	if (keycode == 'n')
+	{
+		if (edit_type == 0)
+			position_add();
+		else
+			view_add();
 		return TRUE;
 	}
 

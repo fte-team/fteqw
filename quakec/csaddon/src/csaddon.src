@@ -1,4 +1,4 @@
-../csaddon.dat
+../csprogs.dat
 //pr_dumpplatform -FFTE -Fdefines -TCS -O csplat
 opts.qc
 csplat.qc

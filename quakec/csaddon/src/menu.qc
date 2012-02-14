@@ -148,13 +148,12 @@ void(menu_t *menu, string fieldname, vector pos, float *value) sliderf_fixed_wid
 			drawstring(spos + '20 0', ftos(f), '8 8 0', col, 1, 0);
 		drawstring(spos + '4 0', "^Ue083", '8 8 0', '1 1 1', 1, 0);
 	}
-	else 	if (mousepos_y >= pos_y && mousepos_y < pos_y + 8)
+	else 	if (cursor_in_widget(pos, epos, mousepos))
 	{
 		if (key == 512)
 		{
 			f = *value;
 			menu->current = value;
-			print(sprintf("test thing: %i %i\n", menu->current, value));
 			mp_x = spos_x + 4;
 			*mpp = mp;
 		}
@@ -334,6 +333,47 @@ void(menu_t *menu, string fieldname, vector pos, int *value) checkboxi_widgit =
 		else if (key == 516)
 			*value = !*value;
 	}
+};
+
+int (menu_t *menu, string fieldname, vector pos) button_widget =
+{
+	local vector rpos, epos, spos, col;
+	local int render_only = 0;
+	local vector mousepos = *menu->mousepos;
+	local vector mousediff = menu->mousediff;
+	local float key = menu->key;
+
+	spos = pos;
+	spos_x += strlen(fieldname) * 8;
+	epos = spos;
+	epos_y += 8;
+
+	render_only = 0;
+
+	if (key == -1)
+	{
+		if (cursor_in_widget(pos, epos, mousepos) && render_only == 0)
+		{
+			col_x = (sin(time*3.14)+1) / 2;
+			col_y = col_x;
+			col_z = 1;
+		}
+		else
+			col = '1 1 1';
+
+		drawstring(pos, fieldname, '8 8 0', col, 1, 0);
+		return 0;
+	}
+
+	if (cursor_in_widget(pos, epos, mousepos) && key != -1)
+	{
+		if (key == 512)
+			return 1;
+	//	else if (key == 515)
+	//	else if (key == 516)
+	}
+
+	return 0;
 };
 
 void(string shader, vector org, vector s, vector t, string text, vector col, float alph) drawlame3dtext =

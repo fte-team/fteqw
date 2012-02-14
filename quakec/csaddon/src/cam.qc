@@ -12,7 +12,7 @@ typedef struct
 typedef struct
 {
 	float starttime;
-	float endtime;
+	float stoptime;
 	spline_t spline;
 } cam_t;
 
@@ -107,25 +107,29 @@ static vector(vector pos, vector dir, vector view) beamdir =
 	return result;
 };
 
-void(vector p1, vector p2, vector color) fakeline = {
+void(vector p1, vector p2, vector color1, vector color2) fakeline = {
 	R_BeginPolygon("camsplineshader");
-	R_PolygonVertex(p1+'0 0 1', '0 0', color,1);
-	R_PolygonVertex(p1-'0 0 1', '0 1', color,1);
-	R_PolygonVertex(p2-'0 0 1', '1 1', color,1);
-	R_PolygonVertex(p2+'0 0 1', '1 0', color,1);
-	R_PolygonVertex(p2+'0 0 1', '0 0', color,1);
-	R_PolygonVertex(p2-'0 0 1', '0 1', color,1);
-	R_PolygonVertex(p1-'0 0 1', '1 1', color,1);
-	R_PolygonVertex(p1-'0 0 1', '1 0', color,1);
+	R_PolygonVertex(p1+'0 0 1', '0 0', color1,1);
+	R_PolygonVertex(p1-'0 0 1', '0 1', color1,1);
+	R_PolygonVertex(p2-'0 0 1', '1 1', color2,1);
+	R_PolygonVertex(p2+'0 0 1', '1 0', color2,1);
+	R_PolygonVertex(p2+'0 0 1', '0 0', color2,1);
+	R_PolygonVertex(p2-'0 0 1', '0 1', color2,1);
+	R_PolygonVertex(p1-'0 0 1', '1 1', color1,1);
+	R_PolygonVertex(p1-'0 0 1', '1 0', color1,1);
 	R_EndPolygon();
 };
 
-void (vector p1, vector p2, float linesize, vector color) fakeline_new
+void (vector p1, vector p2, vector color1, vector color2) tube
 {
-	local vector diff;
+	local vector s;
+	R_BeginPolygon("camsplineshader");
+	R_EndPolygon();
+};
 
-	diff = p2 - p1;
-	normalize(diff);
+vector (vector p1, vector p2, float frac) interpolate
+{
+	return (p2 - p1) * frac + p1;
 };
 
 void (vector pos, float point_size, vector color) draw_point
@@ -216,6 +220,16 @@ void (vector pos, float point_size, vector color) draw_point
 	R_PolygonVertex(points[3], '1 1', color,1);
 	R_PolygonVertex(points[1], '1 0', color,1);
 	R_EndPolygon();
+};
+
+void (spline_t *s, vector p) spline_move
+{
+	local int i;
+
+	for (i=0; i<s->numpoints; i+=1i)
+	{
+		s->pos[i] = s->pos[i] + p;
+	}
 };
 
 // time has to be between 0 and 1
@@ -334,7 +348,7 @@ static void(spline_t *s) spline_draw =
 	local vector pos, pos1, pos2, vpos;
 	local vector bdir;
 	local int i;
-	local vector color;
+	local vector color, color1, color2;
 	local float psize;
 
 	/*example of drawing convex polygons*/
@@ -351,19 +365,20 @@ static void(spline_t *s) spline_draw =
 		step = 0.01;
 	}
 
-	color = '1 0 1';
-
 	for (frac=0; frac<=1; frac = frac + step)
 	{
 		pos = spline_calculate_position(s, frac);
 		if (frac == 0)
 		{
+			color2 = interpolate('0.1 0.3 0.1' , '0.5 0 0', frac);
 			pos2 = pos;
 			continue;
 		}
 
-		fakeline(pos2, pos, color);
+		color1 = interpolate('0.1 0.3 0.1' , '0.5 0 0', frac);
+		fakeline(pos2, pos, color2, color1);
 		pos2 = pos;
+		color2 = color1;
 	}
 
 	//fakeline(pos2, s->pos[s->numpoints-1]);
@@ -393,15 +408,13 @@ void(float attime) spline_overrides =
 	local float stime;
 	local int i;
 
-	print(sprintf("cd pc: %i\n", camdata->position_count));
-
 	if (camdata->position_count == 0)
 		return;
 
 	for (i=0; i < camdata->position_count; i++)
 	{
 		cpos = &camdata->position[i];
-		if (cpos->starttime <= attime && cpos->endtime > attime)
+		if (cpos->starttime <= attime && cpos->starttime > attime)
 			break;
 	}
 
@@ -411,17 +424,17 @@ void(float attime) spline_overrides =
 	for (i=0; i < camdata->view_count; i++)
 	{
 		cview = &camdata->view[i];
-		if (cview->starttime <= attime && cview->endtime > attime)
+		if (cview->starttime <= attime && cview->starttime > attime)
 			break;
 	}
 
 	if (i == camdata->view_count)
 		return;
 
-	stime = (attime - cpos->starttime) / (cpos->endtime - cpos->starttime);
+	stime = (attime - cpos->starttime) / (cpos->starttime - cpos->starttime);
 	position = spline_calculate_position(&cpos->spline, stime);
 
-	stime = (attime - cview->starttime) / (cview->endtime - cview->starttime);
+	stime = (attime - cview->starttime) / (cview->starttime - cview->starttime);
 	view = spline_calculate_position(&cview->spline, stime);
 
 	setviewprop(VF_ORIGIN, position);
@@ -440,14 +453,14 @@ void(float attime) spline_overrides =
 	for (i = 0; i < camdata->count; i++)
 	{
 		cam = &camdata->cam[i];
-		if (cam->starttime <= attime && cam->endtime > attime)
+		if (cam->starttime <= attime && cam->starttime > attime)
 			break;
 	}
 	//give up if no matches
 	if (i == camdata->count)
 		return;
 
-	frac = (attime - cam->starttime) / (cam->endtime - cam->starttime);
+	frac = (attime - cam->starttime) / (cam->starttime - cam->starttime);
 	src = spline_pos(&cam->view, frac);
 	dst = spline_pos(&cam->focus, frac);
 
@@ -490,7 +503,8 @@ int (vector *curmousepos, vector mousediff, float key) submenu =
 {
 	local vector pos, cpos;
 	local spline_t *s;
-	local vector point;
+	local cam_t *c;
+	local vector point, point1;
 	string str;
 
 	pos = submenu_position;
@@ -500,9 +514,21 @@ int (vector *curmousepos, vector mousediff, float key) submenu =
 	menu->mousediff = mousediff;
 
 	if (edit_type == 0)
-		s = &camdata.position[camdata.position_selected].spline;
+	{
+		if (camdata.position_count > 0)
+		{
+			c = &camdata.position[camdata.position_selected];
+			s = &camdata.position[camdata.position_selected].spline;
+		}
+	}
 	else
-		s = &camdata.view[camdata.view_selected].spline;
+	{
+		if (camdata.view_count > 0)
+		{
+			c = &camdata.view[camdata.view_selected];
+			s = &camdata.view[camdata.view_selected].spline;
+		}
+	}
 
 	menu->flags = MF_DS_VALUE;
 	if (edit_type == 0)
@@ -514,6 +540,27 @@ int (vector *curmousepos, vector mousediff, float key) submenu =
 			cpos_x = strlen(str) * 8 +4;
 			drawrawstring(pos, str, '8 8 0', '1 0 0', 1);
 			slideri_widgit(&menu, "", cpos, &camdata.position_selected, 0, camdata.position_count-1i);
+			pos_y += 8;
+		}
+		else if (camdata.position_count > 0)
+		{
+			str = sprintf("starttime: %f - ", camdata.position[camdata.position_selected].starttime);
+			drawrawstring(pos, str, '8 8 0', '1 1 1', 1);
+			cpos = pos;
+			cpos_x += strlen(str) * 8;
+			sliderf_fixed_widgit(&menu, "", cpos, &camdata.position[camdata.position_selected].starttime);
+			cpos_x += 32;
+			if (button_widget(&menu, "set", cpos))
+				camdata.position[camdata.position_selected].starttime = gettime(5);
+			pos_y += 8;
+			str = sprintf("stoptime : %f - ", camdata.position[camdata.position_selected].stoptime);
+			drawrawstring(pos, str, '8 8 0', '1 1 1', 1);
+			cpos = pos;
+			cpos_x += strlen(str) * 8;
+			sliderf_fixed_widgit(&menu, "", cpos, &camdata.position[camdata.position_selected].stoptime);
+			cpos_x += 32;
+			if (button_widget(&menu, "set", cpos))
+				camdata.position[camdata.position_selected].stoptime = gettime(5);
 			pos_y += 8;
 		}
 	}
@@ -528,23 +575,63 @@ int (vector *curmousepos, vector mousediff, float key) submenu =
 			slideri_widgit(&menu, "", cpos, &camdata.view_selected, 0, camdata.view_count);
 			pos_y += 8;
 		}
+		else if (camdata.view_count > 0)
+		{
+			str = sprintf("starttime: %f - ", camdata.view[camdata.view_selected].starttime);
+			drawrawstring(pos, str, '8 8 0', '1 1 1', 1);
+			cpos = pos;
+			cpos_x += strlen(str) * 8;
+			sliderf_fixed_widgit(&menu, "", cpos, &camdata.view[camdata.view_selected].starttime);
+			cpos_x += 32;
+			if (button_widget(&menu, "set", cpos))
+				camdata.view[camdata.view_selected].starttime = gettime(5);
+			pos_y += 8;
+			str = sprintf("stoptime : %f - ", camdata.view[camdata.view_selected].stoptime);
+			drawrawstring(pos, str, '8 8 0', '1 1 1', 1);
+			cpos = pos;
+			cpos_x += strlen(str) * 8;
+			sliderf_fixed_widgit(&menu, "", cpos, &camdata.view[camdata.view_selected].stoptime);
+			cpos_x += 32;
+			if (button_widget(&menu, "set", cpos))
+				camdata.view[camdata.view_selected].stoptime = gettime(5);
+			pos_y += 8;
+		}
 	}
 	menu->flags = 0;
 
 	pos_y += 8;
 
-	if (s->numpoints > 0)
+	if (s && s->numpoints > 0)
 	{
 		menu->flags = MF_DS_VALUE;
-		slideri_widgit(&menu, sprintf("%2i/%2i", s->selected_point + 1i, s->numpoints), pos, &s->selected_point, 0, s->numpoints - 1i);pos_y+=8;
+		str = sprintf("selected point: %2i/%2i", s->selected_point + 1i, s->numpoints);
+		drawrawstring(pos, str, '8 8 0', '1 1 1', 1);
+		cpos = pos;
+		cpos_x += strlen(str) * 8 + 4;
+		slideri_widgit(&menu, "",  cpos, &s->selected_point, 0, s->numpoints - 1i);pos_y+=8;
 		menu->flags = 0;
 		point = s->pos[s->selected_point];
 		sliderf_fixed_widgit(&menu, "x:", pos, &point_x);pos_y+=8;
 		sliderf_fixed_widgit(&menu, "y:", pos, &point_y);pos_y+=8;
 		sliderf_fixed_widgit(&menu, "z:", pos, &point_z);pos_y+=8;
 		s->pos[s->selected_point] = point;
+		pos_y += 8;
+	}
+
+	if (c && s)
+	{
+		menu->flags = MF_DS_VALUE;
+		point1 = '0 0 0';	// << problem with using a global value identifier i cant reuse point
+		str = "move spline: ";
+		drawstring(pos, str, '8 8 0', '1 1 1', 1);
+		pos_y += 8;
+		sliderf_fixed_widgit(&menu, " x:", pos, &point1_x); pos_y += 8;
+		sliderf_fixed_widgit(&menu, " y:", pos, &point1_y); pos_y += 8;
+		sliderf_fixed_widgit(&menu, " z:", pos, &point1_z); pos_y += 8;
+		spline_move(s, point1);
 		menu->flags = 0;
 	}
+
 }
 
 int (vector *curmousepos, vector mousediff, float key) testmenu =
@@ -706,15 +793,15 @@ void(spline_t *s, vector change) spline_change_point_position
 void (cam_t *c, float starttime) cam_set_start_time
 {
 	c->starttime = starttime;
-	if (starttime > c->endtime)
-		c->endtime = starttime;
+	if (starttime > c->starttime)
+		c->starttime = starttime;
 }
 
-void (cam_t *c, float endtime) cam_set_stop_time
+void (cam_t *c, float starttime) cam_set_stop_time
 {
-	c->endtime = endtime;
-	if (endtime < c->starttime)
-		c->starttime = endtime;
+	c->starttime = starttime;
+	if (starttime < c->starttime)
+		c->starttime = starttime;
 }
 
 void (spline_t *s, float change) spline_change_position

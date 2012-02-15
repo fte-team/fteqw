@@ -27,6 +27,7 @@ typedef struct
 	cam_t view[64];
 } camdata_t;
 
+static camdata_t cdata;
 static camdata_t *camdata;
 static var float splinefile = -1;
 static int edit_type = 0;
@@ -292,11 +293,13 @@ vector(spline_t *s, float frac_time) spline_calculate_position =
 		// first point is always an entry point last point also
 		t5 = 1 / (s->numpoints - 3);
 		for (i=1, t4=t5; t4<frac_time; t4 = t4 + t5)
+		{
 			i++;
+		}
 
 		if (i >= s->numpoints)
 		{
-			print(sprintf("something went wrong while getting the start point!\n"));
+			print("something went wrong while getting the start point!\n");
 			return s->pos[0];
 		}
 
@@ -408,15 +411,19 @@ void(float attime) spline_overrides =
 	local float stime;
 	local int i;
 
-	print("test\n");
+	if (splinefile < 0)
+		spline_init();
 
-	if (camdata->position_count == 0)
+	if (camdata->position_count == 0 || camdata->position_count < 0 || camdata->position_count > 64)
+		return;
+
+	if (camdata->view_count == 0 || camdata->view_count < 0 || camdata->view_count > 64)
 		return;
 
 	for (i=0; i < camdata->position_count; i++)
 	{
 		cpos = &camdata->position[i];
-		if (cpos->starttime <= attime && cpos->starttime > attime)
+		if (cpos->starttime <= attime && cpos->stoptime >= attime)
 			break;
 	}
 
@@ -426,14 +433,12 @@ void(float attime) spline_overrides =
 	for (i=0; i < camdata->view_count; i++)
 	{
 		cview = &camdata->view[i];
-		if (cview->starttime <= attime && cview->starttime > attime)
+		if (cview->starttime <= attime && cview->stoptime >= attime)
 			break;
 	}
 
 	if (i == camdata->view_count)
 		return;
-
-	print("fuck!\n");
 
 	stime = (attime - cpos->starttime) / (cpos->starttime - cpos->starttime);
 	position = spline_calculate_position(&cpos->spline, stime);
@@ -444,35 +449,6 @@ void(float attime) spline_overrides =
 	setviewprop(VF_ORIGIN, position);
 	setviewprop(VF_ANGLES, vectoangles(view - position));
 };
-/*called to move the view to some simulation time*/
-/*
-void(float attime) spline_overrides =
-{
-	local cam_t *cam;
-	local int i;
-	local vector src, dst;
-	local float frac;
-
-	//find correct spline based upon time
-	for (i = 0; i < camdata->count; i++)
-	{
-		cam = &camdata->cam[i];
-		if (cam->starttime <= attime && cam->starttime > attime)
-			break;
-	}
-	//give up if no matches
-	if (i == camdata->count)
-		return;
-
-	frac = (attime - cam->starttime) / (cam->starttime - cam->starttime);
-	src = spline_pos(&cam->view, frac);
-	dst = spline_pos(&cam->focus, frac);
-
-	setviewprop(VF_ORIGIN, src);
-	setviewprop(VF_ANGLES, vectoangles(dst - src));
-	setviewprop(VF_AFOV, (cam->startfov * (1-frac)) + (cam->endfov * frac));
-};
-*/
 
 void() editor_spline_add =
 {
@@ -635,6 +611,8 @@ int (vector *curmousepos, vector mousediff, float key) submenu =
 		spline_move(s, point1);
 		menu->flags = 0;
 	}
+
+	drawrawstring(pos, sprintf("isdemo: %f", isdemo()), '8 8 0', '1 1 1', 1);
 }
 
 int (vector *curmousepos, vector mousediff, float key) testmenu =
@@ -665,7 +643,6 @@ int (vector *curmousepos, vector mousediff) editor_spline_overlay =
 
 	if (splinefile < 0)
 		spline_init();
-
 
 	/*draw menu*/
 	/*dunno if the light editor has any convienient code*/
@@ -832,6 +809,10 @@ void(spline_t *s, int change) spline_change_selected_point
 float(float keycode, float unicode, vector *curmousepos_in, vector mousediff) editor_spline_key
 {
 	local vector curmousepos = *curmousepos_in;
+
+	if (splinefile < 0)
+		spline_init();
+
 	if (keycode == 'j')
 	{
 		if (edit_type == 0)

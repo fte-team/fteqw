@@ -1016,11 +1016,12 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 {
 	trace_t		trace;
 	model_t		*model;
+	int mdlidx = ent->v->modelindex;
 
 // get the clipping hull
-	if (ent->v->solid == SOLID_BSP)
+	if (ent->v->solid == SOLID_BSP && mdlidx)
 	{
-		model = w->Get_CModel(w, ent->v->modelindex);
+		model = w->Get_CModel(w, mdlidx);
 		if (!model || (model->type != mod_brush && model->type != mod_heightmap))
 			Host_Error("SOLID_BSP with non bsp model (classname: %s)", PR_GetString(w->progs, ent->v->classname));
 	}
@@ -1046,12 +1047,10 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 	}
 
 // if using hitmodel, we know it hit the bounding box, so try a proper trace now.
-	if (hitmodel && trace.fraction != 1 && ent->v->solid != SOLID_BSP && ent->v->modelindex != 0)
+	if (hitmodel && trace.fraction != 1 && ent->v->solid != SOLID_BSP && mdlidx != 0)
 	{
 		//okay, we hit the bbox
-
-		model_t *model;
-		model = w->Get_CModel(w, ent->v->modelindex);
+		model = w->Get_CModel(w, mdlidx);
 
 		if (model && model->funcs.NativeTrace)
 		{

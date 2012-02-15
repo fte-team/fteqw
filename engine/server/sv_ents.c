@@ -1761,9 +1761,13 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 				case PM_NONE:
 					pm_code = PMC_NONE;
 					break;
+				case PM_WALLWALK:
+					pm_code = PMC_WALLWALK;
+					break;
 				default:
-					Sys_Error("SV_WritePlayersToClient: unexpected pm_type");
-					pm_code=0;
+//					Sys_Error("SV_WritePlayersToClient: unexpected pm_type");
+					pm_code=PMC_NORMAL;
+					break;
 				}
 			}
 			else

@@ -1090,9 +1090,6 @@ void PM_PlayerMove (float gamespeed)
 	frametime = pmove.cmd.msec * 0.001*gamespeed;
 	pmove.numtouch = 0;
 
-	//TEMP
-	pmove.pm_type = PM_WALLWALK;
-
 	if (pmove.pm_type == PM_NONE || pmove.pm_type == PM_FREEZE) {
 		PM_CategorizePosition ();
 		return;

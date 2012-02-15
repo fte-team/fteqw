@@ -1743,6 +1743,7 @@ void SV_Begin_Core(client_t *split)
 							split->edict->v->maxs[0] = 16;
 							split->edict->v->maxs[1] = 16;
 							split->edict->v->maxs[2] = 32;
+							split->edict->v->movetype = MOVETYPE_NOCLIP;
 						}
 					}
 
@@ -5453,23 +5454,30 @@ int SV_PMTypeForClient (client_t *cl)
 		return PM_NORMAL;
 	}
 
-	if (cl->edict->v->movetype == MOVETYPE_NOCLIP)
+	switch((int)cl->edict->v->movetype)
 	{
+	case MOVETYPE_NOCLIP:
+		/*older/vanilla clients have a b0rked spectator mode that we don't want to break*/
 		if (cl->zquake_extensions & Z_EXT_PM_TYPE_NEW)
 			return PM_SPECTATOR;
 		return PM_OLD_SPECTATOR;
-	}
 
-	if (cl->edict->v->movetype == MOVETYPE_FLY)
+	case MOVETYPE_WALLWALK:
+		return PM_WALLWALK;
+
+	case MOVETYPE_FLY:
 		return PM_FLY;
 
-	if (cl->edict->v->movetype == MOVETYPE_NONE)
+	case MOVETYPE_NONE:
 		return PM_NONE;
 
-	if (cl->edict->v->health <= 0)
-		return PM_DEAD;
+	case MOVETYPE_WALK:
+	default:
+		if (cl->edict->v->health <= 0)
+			return PM_DEAD;
 
-	return PM_NORMAL;
+		return PM_NORMAL;
+	}
 }
 
 
@@ -5838,6 +5846,28 @@ if (sv_player->v->health > 0 && before && !after )
 
 	VectorCopy (pmove.origin, sv_player->v->origin);
 	VectorCopy (pmove.angles, sv_player->v->v_angle);
+
+	if (pmove.pm_type == PM_WALLWALK)
+	{
+		if (!sv_player->v->fixangle)
+		{
+			//FIXME: bound to pmove.gravitydir
+			vec3_t view[3];
+			vec3_t surf[3];
+			vec3_t fwd, up;
+			AngleVectors(sv_player->v->v_angle, view[0], view[1], view[2]);
+			/*calculate the surface axis with up from the pmove code and right/forwards relative to the player's directions*/
+			VectorNegate(pmove.gravitydir, surf[2]);
+			CrossProduct(view[0], surf[2], surf[1]);
+			VectorNormalize(surf[1]);
+			CrossProduct(surf[2], surf[1], surf[0]);
+			/*interpolate the forward direction to be 1/3rd the player, and 2/3rds the surface forward*/
+			VectorInterpolate(surf[0], 0.333, view[0], fwd);
+			CrossProduct(surf[1], fwd, up);
+			/*we have our player's new axis*/
+			VectorAngles(fwd, up, sv_player->v->angles);
+		}
+	}
 
 	player_mins[0] = -16;
 	player_mins[1] = -16;
@@ -6222,6 +6252,8 @@ void SV_ExecuteClientMessage (client_t *cl)
 haveannothergo:
 		if (c == -1)
 			break;
+
+//		Con_Printf("(%s) %i: %i\n", cl->name, msg_readcount, c);
 
 		switch (c)
 		{

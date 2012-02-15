@@ -831,8 +831,12 @@ qboolean CL_CheckQ2BspWals(char *file)
 				break;
 
 		if (i == j)
-			if (!CL_CheckOrEnqueDownloadFile(tinf[i].texture, NULL, 0))
-				gotone = true;
+		{
+			if (!CL_CheckDLFile(va("textures/%s.wal", tinf[i].texture)))
+				if (!CL_CheckDLFile(va("textures/%s.tga", tinf[i].texture)))
+					if (!CL_CheckOrEnqueDownloadFile(tinf[i].texture, NULL, 0))
+						gotone = true;
+		}
 	}
 	return gotone;
 }

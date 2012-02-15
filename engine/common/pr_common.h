@@ -358,6 +358,7 @@ pbool ED_CanFree (edict_t *ed);
 #define MOVETYPE_FOLLOW			12		// track movement of aiment
 #define MOVETYPE_H2PUSHPULL		13		// pushable/pullable object
 #define MOVETYPE_H2SWIM			14		// should keep the object in water
+#define MOVETYPE_WALLWALK		31		// walks up walls and along ceilings
 #define MOVETYPE_PHYSICS		32
 
 // edict->solid values

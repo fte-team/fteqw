@@ -424,7 +424,7 @@ enum clcq2_ops_e
 #define PMC_FLY				4		// fly, bump into walls
 #define PMC_NONE			5		// can't move (client had better lerp the origin...)
 #define PMC_FREEZE			6		// TODO: lerp movement and viewangles
-#define PMC_EXTRA3			7		// future extension
+#define PMC_WALLWALK		7		// future extension
 
 //any more will require a different protocol message.
 

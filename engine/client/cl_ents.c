@@ -3390,6 +3390,8 @@ void CL_ParsePlayerinfo (void)
 					state->pm_type = PM_NONE;
 				else if (pm_code == PMC_FREEZE)
 					state->pm_type = PM_FREEZE;
+				else if (pm_code == PMC_WALLWALK)
+					state->pm_type = PM_WALLWALK;
 				else {
 					// future extension?
 					goto guess_pm_type;

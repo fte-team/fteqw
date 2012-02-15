@@ -658,6 +658,7 @@ typedef struct
 	qboolean	oldfixangle[MAX_SPLITS];	//received a fixangle - so disable prediction till the next packet.
 	vec3_t		fixangles[MAX_SPLITS];		//received a fixangle - so disable prediction till the next packet.
 	vec3_t		oldfixangles[MAX_SPLITS];	//received a fixangle - so disable prediction till the next packet.
+	int pmovetype[MAX_SPLITS];
 
 	int teamplay;
 	int deathmatch;

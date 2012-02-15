@@ -606,11 +606,14 @@ void CL_ClampPitch (int pnum)
 	vec3_t view[4];
 	vec3_t impact, norm;
 	float mat[16], mat2[16];
+	vec3_t cross;
+	float roll;
+	float dot;
 	static float oldtime;
 	float timestep = realtime - oldtime;
 	oldtime = realtime;
 
-	if (1)
+	if (cl.pmovetype[pnum] == PM_WALLWALK)
 	{
 		AngleVectors(cl.viewangles[pnum], view[0], view[1], view[2]);
 		Matrix4x4_RM_FromVectors(mat, view[0], view[1], view[2], vec3_origin);
@@ -628,19 +631,13 @@ void CL_ClampPitch (int pnum)
 			norm[2] = 1;
 		}
 
-		{
-			vec3_t cross;
-			float roll;
-			float dot;
-			/*keep the roll relative to the 'ground'*/
-			CrossProduct(norm, view[2], cross);
-			dot = DotProduct(view[0], cross);
-			roll = timestep * 720/M_PI * -(dot);
-			Con_Printf("%f %f\n", dot, roll);
-			Matrix4_Multiply(Matrix4x4_CM_NewRotation(roll, 1, 0, 0), mat, mat2);
-			Matrix3x4_RM_ToVectors(mat2, view[0], view[1], view[2], view[3]);
-		}
+		/*keep the roll relative to the 'ground'*/
+		CrossProduct(norm, view[2], cross);
+		dot = DotProduct(view[0], cross);
+		roll = timestep * 360 * -(dot);
+		Matrix4_Multiply(Matrix4x4_CM_NewRotation(roll, 1, 0, 0), mat, mat2);
 
+		Matrix3x4_RM_ToVectors(mat2, view[0], view[1], view[2], view[3]);
 		VectorAngles(view[0], view[2], cl.viewangles[pnum]);
 		cl.viewangles[pnum][PITCH]=360 - cl.viewangles[pnum][PITCH];
 		VectorClear(cl.viewanglechange[pnum]);
@@ -689,10 +686,15 @@ void CL_ClampPitch (int pnum)
 			cl.viewangles[pnum][PITCH] = cl.minpitch;
 	} 
 
-	if (cl.viewangles[pnum][ROLL] > 50)
-		cl.viewangles[pnum][ROLL] = 50;
-	if (cl.viewangles[pnum][ROLL] < -50)
-		cl.viewangles[pnum][ROLL] = -50;
+//	if (cl.viewangles[pnum][ROLL] > 50)
+//		cl.viewangles[pnum][ROLL] = 50;
+//	if (cl.viewangles[pnum][ROLL] < -50)
+//		cl.viewangles[pnum][ROLL] = -50;
+	roll = timestep*cl.viewangles[pnum][ROLL]*30;
+	if ((cl.viewangles[pnum][ROLL]-roll < 0) != (cl.viewangles[pnum][ROLL]<0))
+		cl.viewangles[pnum][ROLL] = 0;
+	else
+		cl.viewangles[pnum][ROLL] -= timestep*cl.viewangles[pnum][ROLL]*3;
 }
 
 /*

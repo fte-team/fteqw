@@ -1874,7 +1874,7 @@ client_t *SVC_DirectConnect(void)
 		case PROTOCOL_VERSION_FRAGMENT:
 			mtu = Q_atoi(Cmd_Argv(1)) & ~7;
 			if (mtu < 64)
-				mtu = 64;
+				mtu = 0;
 			Con_DPrintf("Client supports fragmentation. mtu %i.\n", mtu);
 			break;
 		case PROTOCOL_INFO_GUID:
@@ -2323,7 +2323,7 @@ client_t *SVC_DirectConnect(void)
 		newcl->netchan.compress = true;
 	else
 		newcl->netchan.compress = false;
-	if (mtu >= 0)
+	if (mtu >= 64)
 		newcl->netchan.fragmentsize = mtu;
 
 	newcl->protocol = protocol;

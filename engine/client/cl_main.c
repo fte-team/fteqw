@@ -531,7 +531,7 @@ void CL_SendConnectPacket (int mtu,
 		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_FTE2, fteprotextsupported2), sizeof(data));
 #endif
 
-	if (mtu >= 0)
+	if (mtu > 0)
 	{
 		if (adr.type == NA_LOOPBACK)
 			mtu = 8192;

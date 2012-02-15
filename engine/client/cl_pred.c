@@ -767,21 +767,32 @@ void CL_PlayerFrameUpdated(player_state_t *plstate, entity_state_t *state, int s
 {
 	/*update the prediction info*/
 	int pmtype, i;
-	if (state->u.q1.pmovetype == MOVETYPE_NOCLIP)
+	switch(state->u.q1.pmovetype)
 	{
+	case MOVETYPE_NOCLIP:
 		if (cls.z_ext & Z_EXT_PM_TYPE_NEW)
 			pmtype = PM_SPECTATOR;
 		else
 			pmtype = PM_OLD_SPECTATOR;
-	}
-	else if (state->u.q1.pmovetype == MOVETYPE_FLY)
+		break;
+	
+	case MOVETYPE_FLY:
 		pmtype = PM_FLY;
-	else if (state->u.q1.pmovetype == MOVETYPE_NONE)
+		break;
+	case MOVETYPE_NONE:
 		pmtype = PM_NONE;
-	else if (state->u.q1.pmovetype == MOVETYPE_BOUNCE || state->u.q1.pmovetype == MOVETYPE_TOSS)
+		break;
+	case MOVETYPE_BOUNCE:
+	case MOVETYPE_TOSS:
 		pmtype = PM_DEAD;
-	else
+		break;
+	case MOVETYPE_WALLWALK:
+		pmtype = PM_WALLWALK;
+		break;
+	default:
 		pmtype = PM_NORMAL;
+		break;
+	}
 
 	plstate->pm_type = pmtype;
 	VectorCopy(state->origin, plstate->origin);
@@ -1015,6 +1026,7 @@ fixedorg:
 		org = lrp;
 		vel = lrpv;
 
+		cl.pmovetype[pnum] = PM_NONE;
 		goto fixedorg;
 	}
 	else
@@ -1054,6 +1066,7 @@ fixedorg:
 				, &to->playerstate[cl.playernum[pnum]], &to->cmd[pnum]);
 		}
 		cl.onground[pnum] = pmove.onground;
+		cl.pmovetype[pnum] = to->playerstate[cl.playernum[pnum]].pm_type;
 		stepheight = to->playerstate[cl.playernum[pnum]].origin[2] - from->playerstate[cl.playernum[pnum]].origin[2];
 
 		if (cl.nolocalplayer[pnum])

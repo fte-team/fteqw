@@ -909,7 +909,7 @@ qboolean Netchan_Process (netchan_t *chan)
 	if (chan->compress)
 	{
 //		Huff_CompressPacket(&net_message, (chan->sock == NS_SERVER)?10:8);
-		Huff_DecompressPacket(&net_message, (chan->sock == NS_SERVER)?10:8);
+		Huff_DecompressPacket(&net_message, msg_readcount);
 	}
 #endif
 

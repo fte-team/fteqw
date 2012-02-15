@@ -2270,10 +2270,6 @@ void CL_ConnectionlessPacket (void)
 		{
 			/*Quake2 or Darkplaces*/
 			char *s2;
-			/*throttle*/
-			if (curtime - lasttime < 500)
-				return;
-			lasttime = curtime;
 
 			for (s2 = s+9; *s2; s2++)
 			{
@@ -2285,6 +2281,11 @@ void CL_ConnectionlessPacket (void)
 #ifdef NQPROT
 				if (cls.protocol == CP_NETQUAKE || cls.protocol == CP_UNKNOWN)
 				{
+					/*throttle*/
+					if (curtime - lasttime < 500)
+						return;
+					lasttime = curtime;
+
 					cls.protocol = CP_NETQUAKE;
 					CL_ConnectToDarkPlaces(s+9, net_from);
 				}

@@ -41,8 +41,8 @@ void() spline_init =
 	if (splinefile < 0)
 	{
 		/*too lazy to create a file, just use it as a malloc*/
+		splinefile = fopen("", FILE_MMAP_RW, sizeof(camdata_t));
 	}
-	splinefile = fopen("", FILE_MMAP_RW, sizeof(camdata_t));
 
 	camdata = (camdata_t*)(fgets(splinefile));
 };
@@ -408,6 +408,8 @@ void(float attime) spline_overrides =
 	local float stime;
 	local int i;
 
+	print("test\n");
+
 	if (camdata->position_count == 0)
 		return;
 
@@ -430,6 +432,8 @@ void(float attime) spline_overrides =
 
 	if (i == camdata->view_count)
 		return;
+
+	print("fuck!\n");
 
 	stime = (attime - cpos->starttime) / (cpos->starttime - cpos->starttime);
 	position = spline_calculate_position(&cpos->spline, stime);
@@ -631,7 +635,6 @@ int (vector *curmousepos, vector mousediff, float key) submenu =
 		spline_move(s, point1);
 		menu->flags = 0;
 	}
-
 }
 
 int (vector *curmousepos, vector mousediff, float key) testmenu =

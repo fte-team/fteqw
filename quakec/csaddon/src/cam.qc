@@ -26,12 +26,22 @@ typedef struct
 	cam_t position[64];
 	cam_t view[64];
 } camdata_t;
+#define VER 1i	/*bump when the above structs change*/
 
-static camdata_t cdata;
 static camdata_t *camdata;
 static var float splinefile = -1;
-static int edit_type = 0;
+static var int edit_type = 0;
 static vector submenu_position;
+
+void(int *dest, int bytes) memclr =
+{
+	bytes = bytes>>2i;
+	while(bytes > 0i)
+	{
+		bytes = bytes - 1i;
+		dest[bytes] = 0i;
+	}
+};
 
 void() spline_init =
 {
@@ -46,6 +56,16 @@ void() spline_init =
 	}
 
 	camdata = (camdata_t*)(fgets(splinefile));
+
+	if (!camdata)
+		error("unable to mmap spline.dat\n");
+
+	if (camdata->ver != VER)
+	{
+		print("spline.dat version is outdated, wiping.\n");
+		memclr ((int*)camdata, sizeof(camdata_t));
+		camdata->ver = VER;
+	}
 };
 void() spline_shutdown =
 {
@@ -264,22 +284,22 @@ vector(spline_t *s, float frac_time) spline_calculate_position =
 	if (s->numpoints == 3)// || (s->numpoints > 3 && s->type == 1))
 	{
 		t1 = 1-frac_time;
-		t2 = pow(t1, s->numpoints - 1);
-		t3 = pow(frac_time, s->numpoints - 1);
+		t2 = pow(t1, s->numpoints - 1i);
+		t3 = pow(frac_time, s->numpoints - 1i);
 
 		for (i=0; i<s->numpoints; i++)
 		{
-			if (i == 0)
+			if (i == 0i)
 			{
 				r = s->pos[i] * t2;
 			}
-			else if (i == s->numpoints - 1)
+			else if (i == s->numpoints - 1i)
 			{
 				r = r + s->pos[i] * t3;
 			}
 			else
 			{
-				t4 = (s->numpoints-1) * pow(frac_time, i) * pow(t1, s->numpoints - 1 - i);
+				t4 = (s->numpoints-1i) * pow(frac_time, i) * pow(t1, s->numpoints - 1i - i);
 				r = r + s->pos[i] * t4;
 			}
 		}
@@ -291,7 +311,7 @@ vector(spline_t *s, float frac_time) spline_calculate_position =
 	{
 		// getting the start point -- might change if we add times to points
 		// first point is always an entry point last point also
-		t5 = 1 / (s->numpoints - 3);
+		t5 = 1 / (float)(s->numpoints - 3i);
 		for (i=1, t4=t5; t4<frac_time; t4 = t4 + t5)
 		{
 			i++;
@@ -420,30 +440,30 @@ void(float attime) spline_overrides =
 	if (camdata->view_count == 0 || camdata->view_count < 0 || camdata->view_count > 64)
 		return;
 
-	for (i=0; i < camdata->position_count; i++)
+	for (i=0i; i < camdata->position_count; i=i+1i)
 	{
 		cpos = &camdata->position[i];
-		if (cpos->starttime <= attime && cpos->stoptime >= attime)
+		if (cpos->starttime <= attime && cpos->stoptime > attime)
 			break;
 	}
 
 	if (i == camdata->position_count)
 		return;
 
-	for (i=0; i < camdata->view_count; i++)
+	for (i=0i; i < camdata->view_count; i=i+1i)
 	{
 		cview = &camdata->view[i];
-		if (cview->starttime <= attime && cview->stoptime >= attime)
+		if (cview->starttime <= attime && cview->stoptime > attime)
 			break;
 	}
 
 	if (i == camdata->view_count)
 		return;
-
-	stime = (attime - cpos->starttime) / (cpos->starttime - cpos->starttime);
+		
+	stime = (attime - cpos->starttime) / (cpos->stoptime - cpos->starttime);
 	position = spline_calculate_position(&cpos->spline, stime);
 
-	stime = (attime - cview->starttime) / (cview->starttime - cview->starttime);
+	stime = (attime - cview->starttime) / (cview->stoptime - cview->starttime);
 	view = spline_calculate_position(&cview->spline, stime);
 
 	setviewprop(VF_ORIGIN, position);

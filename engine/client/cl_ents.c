@@ -2272,6 +2272,8 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 	else
 		frac = (servertime-oldpack->servertime)/(newpack->servertime-oldpack->servertime);
 
+	cl.lerpentssequence = newsequence;
+
 	oldpnum=0;
 	for (newpnum=0 ; newpnum<newpack->num_entities ; newpnum++)
 	{
@@ -2299,6 +2301,8 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 			cl.maxlerpents = newmaxle;
 		}
 		le = &cl.lerpents[snew->number];
+		le->sequence = newsequence;
+		le->entstate = snew;
 
 		VectorSubtract(snew->origin, sold->origin, move);
 		if (DotProduct(move, move) > 200*200 || snew->modelindex != sold->modelindex)

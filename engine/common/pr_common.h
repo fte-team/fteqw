@@ -475,3 +475,25 @@ enum csqc_input_event
 	CSIE_MOUSEABS = 3, /*x, y, devid*/
 	CSIE_ACCELEROMETER = 4 /*x, y, z*/
 };
+
+enum
+{
+	GE_MAXENTS			= -1,
+	GE_ACTIVE			= 0,
+	GE_ORIGIN			= 1,
+	GE_FORWARD			= 2,
+	GE_RIGHT			= 3,
+	GE_UP				= 4,
+	GE_SCALE			= 5,
+	GE_ORIGINANDVECTORS	= 6,
+	GE_ALPHA			= 7,
+	GE_COLORMOD			= 8,
+	GE_PANTSCOLOR		= 9,
+	GE_SHIRTCOLOR		= 10,
+	GE_SKIN				= 11,
+	GE_MINS				= 12,
+	GE_MAXS				= 13,
+	GE_ABSMIN			= 14,
+	GE_ABSMAX			= 15,
+	GE_LIGHT			= 16
+};

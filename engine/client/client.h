@@ -527,6 +527,7 @@ typedef struct
 	frame_t		frames[UPDATE_BACKUP];
 	lerpents_t	*lerpents;
 	int			maxlerpents;	//number of slots allocated.
+	int			lerpentssequence;
 	lerpents_t	lerpplayers[MAX_CLIENTS];
 
 // information for local display

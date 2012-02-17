@@ -9221,7 +9221,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //DP_QC_WHICHPACK
 	{"whichpack",		PF_whichpack,		0,		0,		0,		503,	"string(string filename)"},//
 //DP_CSQC_QUERYRENDERENTITY
-	{"getentity",		PF_Fixme,			0,		0,		0,		504		"__variant(float entnum, fload fieldnum)"},
+	{"getentity",		PF_Fixme,			0,		0,		0,		504,		"__variant(float entnum, fload fieldnum)"},
 
 //DP_QC_URI_ESCAPE
 	{"uri_escape",		PF_uri_escape,		0,		0,		0,		510,	"string(string in)"},//

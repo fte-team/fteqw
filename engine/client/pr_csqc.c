@@ -3842,6 +3842,101 @@ static void QCBUILTIN PF_DeltaListen(progfuncs_t *prinst, struct globalvars_s *p
 	}
 }
 
+static void QCBUILTIN PF_getentity(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int entnum = G_FLOAT(OFS_PARM0);
+	int fldnum = G_FLOAT(OFS_PARM1);
+
+	if (fldnum == GE_MAXENTS)
+	{
+		G_FLOAT(OFS_RETURN) = cl.maxlerpents;
+		return;
+	}
+
+	if (entnum >= cl.maxlerpents || !cl.lerpentssequence || cl.lerpents[entnum].sequence != cl.lerpentssequence)
+	{
+		Con_Printf("PF_getentity: entity %i is not valid\n", fldnum);
+		VectorCopy(vec3_origin, G_VECTOR(OFS_RETURN));
+		return;
+	}
+	switch(fldnum)
+	{
+	case GE_ACTIVE:
+		G_FLOAT(OFS_RETURN) = 1;
+		break;
+	case GE_ORIGIN:
+		/*lerped position*/
+		VectorCopy(cl.lerpents[entnum].origin, G_VECTOR(OFS_RETURN));
+		break;
+	case GE_SCALE:
+		G_FLOAT(OFS_RETURN) = cl.lerpents[entnum].entstate->scale / 16.0f;
+		break;
+	case GE_ALPHA:
+		G_FLOAT(OFS_RETURN) = cl.lerpents[entnum].entstate->trans / 255.0f;
+		break;
+	case GE_COLORMOD:
+		G_FLOAT(OFS_RETURN+0) = cl.lerpents[entnum].entstate->colormod[0] / 8.0f;
+		G_FLOAT(OFS_RETURN+1) = cl.lerpents[entnum].entstate->colormod[1] / 8.0f;
+		G_FLOAT(OFS_RETURN+2) = cl.lerpents[entnum].entstate->colormod[2] / 8.0f;
+		break;
+	case GE_SKIN:
+		G_FLOAT(OFS_RETURN) = cl.lerpents[entnum].entstate->skinnum;
+		break;
+	case GE_LIGHT:
+		G_FLOAT(OFS_RETURN) = cl.lerpents[entnum].entstate->abslight;
+		break;
+	case GE_MINS:
+		G_FLOAT(OFS_RETURN+0) = -(cl.lerpents[entnum].entstate->solid & 31);
+		G_FLOAT(OFS_RETURN+1) = -(cl.lerpents[entnum].entstate->solid & 31);
+		G_FLOAT(OFS_RETURN+2) = -((cl.lerpents[entnum].entstate->solid>>5) & 31);
+		break;
+	case GE_MAXS:
+		G_FLOAT(OFS_RETURN+0) = (cl.lerpents[entnum].entstate->solid & 31);
+		G_FLOAT(OFS_RETURN+1) = (cl.lerpents[entnum].entstate->solid & 31);
+		G_FLOAT(OFS_RETURN+1) = ((cl.lerpents[entnum].entstate->solid>>10) & 63) - 32;
+		break;
+	case GE_ABSMIN:
+		G_FLOAT(OFS_RETURN+0) = cl.lerpents[entnum].origin[0] + -(cl.lerpents[entnum].entstate->solid & 31);
+		G_FLOAT(OFS_RETURN+1) = cl.lerpents[entnum].origin[1] + -(cl.lerpents[entnum].entstate->solid & 31);
+		G_FLOAT(OFS_RETURN+2) = cl.lerpents[entnum].origin[2] + -((cl.lerpents[entnum].entstate->solid>>5) & 31);
+		break;
+	case GE_ABSMAX:
+		G_FLOAT(OFS_RETURN+0) = cl.lerpents[entnum].origin[0] + (cl.lerpents[entnum].entstate->solid & 31);
+		G_FLOAT(OFS_RETURN+1) = cl.lerpents[entnum].origin[1] + (cl.lerpents[entnum].entstate->solid & 31);
+		G_FLOAT(OFS_RETURN+1) = cl.lerpents[entnum].origin[2] + ((cl.lerpents[entnum].entstate->solid>>10) & 63) - 32;
+		break;
+	case GE_ORIGINANDVECTORS:
+		VectorCopy(cl.lerpents[entnum].origin, G_VECTOR(OFS_RETURN));
+		AngleVectors(cl.lerpents[entnum].angles, csqcg.forward, csqcg.right, csqcg.up);
+		break;
+	case GE_FORWARD:
+		AngleVectors(cl.lerpents[entnum].angles, G_VECTOR(OFS_RETURN), NULL, NULL);
+		break;
+	case GE_RIGHT:
+		AngleVectors(cl.lerpents[entnum].angles, NULL, G_VECTOR(OFS_RETURN), NULL);
+		break;
+	case GE_UP:
+		AngleVectors(cl.lerpents[entnum].angles, NULL, NULL, G_VECTOR(OFS_RETURN));
+		break;
+	case GE_PANTSCOLOR:
+		if (cl.lerpents[entnum].entstate->colormap <= cl.allocated_client_slots && !(cl.lerpents[entnum].entstate->dpflags & RENDER_COLORMAPPED))
+			G_FLOAT(OFS_RETURN) = cl.players[cl.lerpents[entnum].entstate->colormap].tbottomcolor;
+		else
+			G_FLOAT(OFS_RETURN) = cl.lerpents[entnum].entstate->colormap & 15;
+		break;
+	case GE_SHIRTCOLOR:
+		if (cl.lerpents[entnum].entstate->colormap <= cl.allocated_client_slots && !(cl.lerpents[entnum].entstate->dpflags & RENDER_COLORMAPPED))
+			G_FLOAT(OFS_RETURN) = cl.players[cl.lerpents[entnum].entstate->colormap].ttopcolor;
+		else
+			G_FLOAT(OFS_RETURN) = cl.lerpents[entnum].entstate->colormap>>4;
+		break;
+	default:
+		Con_Printf("PF_getentity: field %i is not supported\n", fldnum);
+		VectorCopy(vec3_origin, G_VECTOR(OFS_RETURN));
+		break;
+	}
+}
+
 
 
 #if 1
@@ -4505,10 +4600,13 @@ static struct {
 //DP_SV_WRITEPICTURE
 	{"WritePicture",		PF_ReadPicture,				501},	// #501 void(float to, string s, float sz) WritePicture
 
-	//no 502 documented
+//	{"boxparticles",		PF_Fixme,					502},
 
 //DP_QC_WHICHPACK
 	{"whichpack",			PF_whichpack,				503},	// #503 string(string filename) whichpack
+
+//DP_CSQC_QUERYRENDERENTITY
+	{"getentity",			PF_getentity,				504},	// #504 __variant(float entnum, fload fieldnum) getentity
 
 //DP_QC_URI_ESCAPE
 	{"uri_escape",			PF_uri_escape,				510},	// #510 string(string in) uri_escape

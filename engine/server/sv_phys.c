@@ -91,6 +91,7 @@ void WPhys_Init(void)
 #define	MOVE_EPSILON	0.01
 
 static void WPhys_Physics_Toss (world_t *w, wedict_t *ent);
+const vec3_t standardgravity = {0, 0, -1};
 
 // warning: ‘SV_CheckAllEnts’ defined but not used
 /*
@@ -271,7 +272,7 @@ If steptrace is not NULL, the trace of any vertical wall hit will be stored
 ============
 */
 #define	MAX_CLIP_PLANES	5
-static int WPhys_FlyMove (world_t *w, wedict_t *ent, float time, trace_t *steptrace)
+static int WPhys_FlyMove (world_t *w, wedict_t *ent, const vec3_t gravitydir, float time, trace_t *steptrace)
 {
 	int			bumpcount, numbumps;
 	vec3_t		dir;
@@ -325,7 +326,7 @@ static int WPhys_FlyMove (world_t *w, wedict_t *ent, float time, trace_t *steptr
 		if (!trace.ent)
 			Host_Error ("SV_FlyMove: !trace.ent");
 
-		if (trace.plane.normal[2] > 0.7)
+		if (-DotProduct(gravitydir, trace.plane.normal) > 0.7)
 		{
 			blocked |= 1;		// floor
 			if (((wedict_t *)trace.ent)->v->solid == SOLID_BSP)
@@ -334,7 +335,7 @@ static int WPhys_FlyMove (world_t *w, wedict_t *ent, float time, trace_t *steptr
 				ent->v->groundentity = EDICT_TO_PROG(w->progs, trace.ent);
 			}
 		}
-		if (!trace.plane.normal[2])
+		if (!DotProduct(gravitydir, trace.plane.normal))
 		{
 			blocked |= 2;		// step
 			if (steptrace)
@@ -439,11 +440,12 @@ SV_AddGravity
 
 ============
 */
-static void WPhys_AddGravity (world_t *w, wedict_t *ent, float scale)
+static void WPhys_AddGravity (world_t *w, wedict_t *ent, const float *gravitydir, float scale)
 {
 	if (!scale)
 		scale = w->defaultgravityscale;
-	ent->v->velocity[2] -= scale * movevars.gravity * host_frametime;
+
+	VectorMA(ent->v->velocity, scale * movevars.gravity * host_frametime, gravitydir, ent->v->velocity);
 }
 
 /*
@@ -1062,6 +1064,7 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 
 	vec3_t temporg;
 	int fl;
+	const float *gravitydir;
 
 	WPhys_CheckVelocity (w, ent);
 
@@ -1069,10 +1072,15 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 	if (!WPhys_RunThink (w, ent))
 		return;
 
+	if (ent->xv->gravitydir[2] || ent->xv->gravitydir[1] || ent->xv->gravitydir[0])
+		gravitydir = ent->xv->gravitydir;
+	else
+		gravitydir = standardgravity;
+
 // if onground, return without moving
 	if ( ((int)ent->v->flags & FL_ONGROUND) )
 	{
-		if (ent->v->velocity[2] >= (1.0f/32.0f))
+		if (-DotProduct(gravitydir, ent->v->velocity) >= (1.0f/32.0f))
 			ent->v->flags = (int)ent->v->flags & ~FL_ONGROUND;
 		else
 		{
@@ -1093,7 +1101,7 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 		&& ent->v->movetype != MOVETYPE_FLYMISSILE
 		&& ent->v->movetype != MOVETYPE_BOUNCEMISSILE
 		&& ent->v->movetype != MOVETYPE_H2SWIM)
-		WPhys_AddGravity (w, ent, 1.0);
+		WPhys_AddGravity (w, ent, gravitydir, 1.0);
 
 // move angles
 	VectorMA (ent->v->angles, host_frametime, ent->v->avelocity, ent->v->angles);
@@ -1117,10 +1125,8 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 	{
 		trace.fraction = 0;
 
-#pragma warningmsg("These three lines might help boost framerates a lot in rmq, not sure if they violate expected behaviour in other mods though - check that they're safe.")
-		trace.plane.normal[0] = 0;
-		trace.plane.normal[1] = 0;
-		trace.plane.normal[2] = 1;
+#pragma warningmsg("The following line might help boost framerates a lot in rmq, not sure if they violate expected behaviour in other mods though - check that they're safe.")
+		VectorNegate(gravitydir, trace.plane.normal);
 	}
 	if (trace.fraction == 1)
 		return;
@@ -1146,9 +1152,9 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 
 
 // stop if on ground
-	if ((trace.plane.normal[2] > 0.7) && (ent->v->movetype != MOVETYPE_BOUNCEMISSILE))
+	if ((-DotProduct(gravitydir, trace.plane.normal) > 0.7) && (ent->v->movetype != MOVETYPE_BOUNCEMISSILE))
 	{
-		if (ent->v->velocity[2] < 60 || ent->v->movetype != MOVETYPE_BOUNCE )
+		if (-DotProduct(gravitydir, ent->v->velocity) < 60 || ent->v->movetype != MOVETYPE_BOUNCE )
 		{
 			ent->v->flags = (int)ent->v->flags | FL_ONGROUND;
 			ent->v->groundentity = EDICT_TO_PROG(w->progs, trace.ent);
@@ -1186,8 +1192,14 @@ static void WPhys_Physics_Step (world_t *w, wedict_t *ent)
 	qboolean	hitsound;
 	qboolean	freefall;
 	int fl = ent->v->flags;
+	const float *gravitydir;
 
-	if (ent->v->velocity[2] >= (1.0 / 32.0) && (fl & FL_ONGROUND))
+	if (ent->xv->gravitydir[2] || ent->xv->gravitydir[1] || ent->xv->gravitydir[0])
+		gravitydir = ent->xv->gravitydir;
+	else
+		gravitydir = standardgravity;
+
+	if (-DotProduct(gravitydir, ent->v->velocity) >= (1.0 / 32.0) && (fl & FL_ONGROUND))
 	{
 		fl &= ~FL_ONGROUND;
 		ent->v->flags = fl;
@@ -1202,11 +1214,11 @@ static void WPhys_Physics_Step (world_t *w, wedict_t *ent)
 		freefall = ent->v->waterlevel <= 0;
 	if (freefall)
 	{
-		hitsound = ent->v->velocity[2] < movevars.gravity*-0.1;
+		hitsound = -DotProduct(gravitydir, ent->v->velocity) < movevars.gravity*-0.1;
 
-		WPhys_AddGravity (w, ent, 1.0);
+		WPhys_AddGravity (w, ent, gravitydir, 1.0);
 		WPhys_CheckVelocity (w, ent);
-		WPhys_FlyMove (w, ent, host_frametime, NULL);
+		WPhys_FlyMove (w, ent, gravitydir, host_frametime, NULL);
 		World_LinkEdict (w, ent, true);
 
 		if ( (int)ent->v->flags & FL_ONGROUND )	// just hit ground
@@ -1608,17 +1620,15 @@ static void SV_WalkMove (edict_t *ent)
 
 // 1/32 epsilon to keep floating point happy
 #define	DIST_EPSILON	(0.03125)
-static int WPhys_SetOnGround (world_t *w, wedict_t *ent)
+static int WPhys_SetOnGround (world_t *w, wedict_t *ent, const float *gravitydir)
 {
 	vec3_t end;
 	trace_t trace;
 	if ((int)ent->v->flags & FL_ONGROUND)
 		return 1;
-	end[0] = ent->v->origin[0];
-	end[1] = ent->v->origin[1];
-	end[2] = ent->v->origin[2] - 1;
+	VectorMA(ent->v->origin, 1, gravitydir, end);
 	trace = World_Move(w, ent->v->origin, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, (wedict_t*)ent);
-	if (trace.fraction <= DIST_EPSILON && trace.plane.normal[2] >= 0.7)
+	if (trace.fraction <= DIST_EPSILON && -DotProduct(gravitydir, trace.plane.normal) >= 0.7)
 	{
 		ent->v->flags = (int)ent->v->flags | FL_ONGROUND;
 		ent->v->groundentity = EDICT_TO_PROG(w->progs, trace.ent);
@@ -1626,7 +1636,7 @@ static int WPhys_SetOnGround (world_t *w, wedict_t *ent)
 	}
 	return 0;
 }
-static void WPhys_WalkMove (world_t *w, wedict_t *ent)
+static void WPhys_WalkMove (world_t *w, wedict_t *ent, const float *gravitydir)
 {
 	int clip, oldonground, originalmove_clip, originalmove_flags, originalmove_groundentity;
 	vec3_t upmove, downmove, start_origin, start_velocity, originalmove_origin, originalmove_velocity;
@@ -1641,9 +1651,9 @@ static void WPhys_WalkMove (world_t *w, wedict_t *ent)
 	VectorCopy (ent->v->origin, start_origin);
 	VectorCopy (ent->v->velocity, start_velocity);
 
-	clip = WPhys_FlyMove (w, ent, host_frametime, NULL);
+	clip = WPhys_FlyMove (w, ent, gravitydir, host_frametime, NULL);
 
-	WPhys_SetOnGround (w, ent);
+	WPhys_SetOnGround (w, ent, gravitydir);
 	WPhys_CheckVelocity(w, ent);
 
 	VectorCopy(ent->v->origin, originalmove_origin);
@@ -1683,14 +1693,13 @@ static void WPhys_WalkMove (world_t *w, wedict_t *ent)
 		VectorCopy (start_velocity, ent->v->velocity);
 
 		// move up
-		VectorClear (upmove);
-		upmove[2] = movevars.stepheight;
+		VectorScale(gravitydir, -movevars.stepheight, upmove);
 		// FIXME: don't link?
 		WPhys_PushEntity(w, ent, upmove, MOVE_NORMAL);
 
 		// move forward
 		ent->v->velocity[2] = 0;
-		clip = WPhys_FlyMove (w, ent, host_frametime, &steptrace);
+		clip = WPhys_FlyMove (w, ent, gravitydir, host_frametime, &steptrace);
 		ent->v->velocity[2] += start_velocity[2];
 
 		WPhys_CheckVelocity(w, ent);
@@ -1726,12 +1735,11 @@ static void WPhys_WalkMove (world_t *w, wedict_t *ent)
 		return;
 
 	// move down
-	VectorClear (downmove);
-	downmove[2] = -movevars.stepheight + start_velocity[2]*host_frametime;
+	VectorScale(gravitydir, -(-movevars.stepheight + start_velocity[2]*host_frametime), downmove);
 	// FIXME: don't link?
 	downtrace = WPhys_PushEntity (w, ent, downmove, MOVE_NORMAL);
 
-	if (downtrace.fraction < 1 && downtrace.plane.normal[2] > 0.7)
+	if (downtrace.fraction < 1 && -DotProduct(gravitydir, downtrace.plane.normal) > 0.7)
 	{
 		// LordHavoc: disabled this check so you can walk on monsters/players
 		//if (ent->v->solid == SOLID_BSP)
@@ -1754,7 +1762,7 @@ static void WPhys_WalkMove (world_t *w, wedict_t *ent)
 		ent->v->groundentity = originalmove_groundentity;
 	}
 
-	WPhys_SetOnGround (w, ent);
+	WPhys_SetOnGround (w, ent, gravitydir);
 	WPhys_CheckVelocity(w, ent);
 }
 #endif
@@ -1801,6 +1809,7 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 {
 	wedict_t	*movechain;
 	vec3_t	initial_origin = {0},initial_angle = {0}; // warning: ‘initial_?[?]’ may be used uninitialized in this function
+	const float *gravitydir;
 
 #ifndef CLIENTONLY
 	edict_t *svent = (edict_t*)ent;
@@ -1894,11 +1903,17 @@ void WPhys_RunEntity (world_t *w, wedict_t *ent)
 	case MOVETYPE_WALK:
 		if (!WPhys_RunThink (w, ent))
 			return;
+
+		if (ent->xv->gravitydir[2] || ent->xv->gravitydir[1] || ent->xv->gravitydir[0])
+			gravitydir = ent->xv->gravitydir;
+		else
+			gravitydir = standardgravity;
+
 		if (!WPhys_CheckWater (w, ent) && ! ((int)ent->v->flags & FL_WATERJUMP) )
-			WPhys_AddGravity (w, ent, ent->xv->gravity);
+			WPhys_AddGravity (w, ent, gravitydir, ent->xv->gravity);
 		WPhys_CheckStuck (w, ent);
 
-		WPhys_WalkMove (w, ent);
+		WPhys_WalkMove (w, ent, gravitydir);
 
 #ifndef CLIENTONLY
 		if (!(ent->entnum > 0 && ent->entnum <= sv.allocated_client_slots) && w == &sv.world)

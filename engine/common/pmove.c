@@ -712,9 +712,12 @@ void PM_CategorizePosition (void)
 	int			cont;
 	trace_t		trace;
 
-	pmove.gravitydir[0] = 0;
-	pmove.gravitydir[1] = 0;
-	pmove.gravitydir[2] = -1;
+	if (pmove.gravitydir[0] == 0 && pmove.gravitydir[1] == 0 && pmove.gravitydir[2] == 0)
+	{
+		pmove.gravitydir[0] = 0;
+		pmove.gravitydir[1] = 0;
+		pmove.gravitydir[2] = -1;
+	}
 	if (pmove.pm_type == PM_WALLWALK)
 	{
 		vec3_t tmin,tmax;

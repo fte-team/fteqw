@@ -3855,14 +3855,21 @@ static void QCBUILTIN PF_droptofloor (progfuncs_t *prinst, struct globalvars_s *
 	vec3_t		end;
 	vec3_t		start;
 	trace_t		trace;
+	const float *gravitydir;
+	extern const vec3_t standardgravity;
 
 	ent = PROG_TO_EDICT(prinst, pr_global_struct->self);
 
+	if (ent->xv->gravitydir[2] || ent->xv->gravitydir[1] || ent->xv->gravitydir[0])
+		gravitydir = ent->xv->gravitydir;
+	else
+		gravitydir = standardgravity;
+
 	VectorCopy (ent->v->origin, end);
 	if (pr_droptofloorunits.value > 0)
-		end[2] -= pr_droptofloorunits.value;
+		VectorMA(end, pr_droptofloorunits.value, gravitydir, end);
 	else
-		end[2] -= 256;
+		VectorMA(end, 256, gravitydir, end);
 
 	VectorCopy (ent->v->origin, start);
 	trace = World_Move (&sv.world, start, ent->v->mins, ent->v->maxs, end, MOVE_NORMAL, (wedict_t*)ent);
@@ -9207,12 +9214,14 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 //DP_SV_WRITEPICTURE
 	{"WritePicture",	PF_WritePicture,	0,		0,		0,		501,	"void(float to, string s, float sz)"},//
+	{"ReadPicture",		PF_Fixme,			0,		0,		0,		501,	"string()"},//
 
-	//no 502 documented
+//	{"boxparticles",	PF_Fixme,			0,		0,		0,		502,	"void(float effectindex, entity own, vector org_from, vector org_to, vector dir_from, vector dir_to, float countmultiplier, float flags)"},
 
 //DP_QC_WHICHPACK
 	{"whichpack",		PF_whichpack,		0,		0,		0,		503,	"string(string filename)"},//
-	//no 504
+//DP_CSQC_QUERYRENDERENTITY
+	{"getentity",		PF_Fixme,			0,		0,		0,		504		"__variant(float entnum, fload fieldnum)"},
 
 //DP_QC_URI_ESCAPE
 	{"uri_escape",		PF_uri_escape,		0,		0,		0,		510,	"string(string in)"},//

@@ -478,6 +478,10 @@ typedef struct {
 	vec3_t oldorigin; /*origin that we're lerping away from*/
 	vec3_t newangle;
 	vec3_t oldangle;
+
+	//for further info
+	int sequence;
+	entity_state_t *entstate;
 } lerpents_t;
 //
 // the client_state_t structure is wiped completely at every

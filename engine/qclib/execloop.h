@@ -495,7 +495,7 @@ reeval:
 				fdef_t *f;
 				d16 = ED_GlobalAtOfs16(progfuncs, st->a);
 				f = ED_FieldAtOfs(progfuncs, OPB->_int + progfuncs->fieldadjust);
-				PR_RunError (progfuncs, "assignment to read-only entity in %s (%s.%s)", PR_StringToNative(progfuncs, pr_xfunction->s_name), d16?PR_StringToNative(progfuncs, d16->s_name):NULL, f?f->name:NULL);
+				printf ("assignment to read-only entity in %s (%s.%s)\n", PR_StringToNative(progfuncs, pr_xfunction->s_name), d16?PR_StringToNative(progfuncs, d16->s_name):NULL, f?f->name:NULL);
 			}
 #endif
 		}

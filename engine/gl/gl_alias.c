@@ -1651,7 +1651,7 @@ static void R_DB_Sprite(batch_t *batch)
 	entity_t *e = batch->ent;
 	vec3_t	point;
 	mspriteframe_t	*frame, genframe;
-	vec3_t		forward, right, up;
+	vec3_t		spraxis[3];
 	msprite_t		*psprite;
 	vec3_t sprorigin;
 	unsigned int sprtype;
@@ -1708,34 +1708,41 @@ static void R_DB_Sprite(batch_t *batch)
 	{
 	case SPR_ORIENTED:
 		// bullet marks on walls
-		AngleVectors (e->angles, forward, right, up);
+		if (e->flags & Q2RF_WEAPONMODEL && r_refdef.currentplayernum >= 0)
+		{
+			vec3_t ea[3];
+			AngleVectors (e->angles, ea[0], ea[1], ea[2]);
+			Matrix3_Multiply(ea, cl.viewent[r_refdef.currentplayernum].axis, spraxis);
+		}
+		else
+			AngleVectors (e->angles, spraxis[0], spraxis[1], spraxis[2]);
 		break;
 
 	case SPR_FACING_UPRIGHT:
-		up[0] = 0;up[1] = 0;up[2]=1;
-		right[0] = sprorigin[1] - r_origin[1];
-		right[1] = -(sprorigin[0] - r_origin[0]);
-		right[2] = 0;
-		VectorNormalize (right);
+		spraxis[2][0] = 0;spraxis[2][1] = 0;spraxis[2][2]=1;
+		spraxis[1][0] = sprorigin[1] - r_origin[1];
+		spraxis[1][1] = -(sprorigin[0] - r_origin[0]);
+		spraxis[1][2] = 0;
+		VectorNormalize (spraxis[1]);
 		break;
 	case SPR_VP_PARALLEL_UPRIGHT:
-		up[0] = 0;up[1] = 0;up[2]=1;
-		VectorCopy (vright, right);
+		spraxis[2][0] = 0;spraxis[2][1] = 0;spraxis[2][2]=1;
+		VectorCopy (vright, spraxis[1]);
 		break;
 
 	default:
 	case SPR_VP_PARALLEL:
 		//normal sprite
-		VectorCopy(vup, up);
-		VectorCopy(vright, right);
+		VectorCopy(vup, spraxis[2]);
+		VectorCopy(vright, spraxis[1]);
 		break;
 	}
-	up[0]*=e->scale;
-	up[1]*=e->scale;
-	up[2]*=e->scale;
-	right[0]*=e->scale;
-	right[1]*=e->scale;
-	right[2]*=e->scale;
+	spraxis[2][0]*=e->scale;
+	spraxis[2][1]*=e->scale;
+	spraxis[2][2]*=e->scale;
+	spraxis[1][0]*=e->scale;
+	spraxis[1][1]*=e->scale;
+	spraxis[1][2]*=e->scale;
 
 	if (e->shaderRGBAf[0] > 1)
 		e->shaderRGBAf[0] = 1;
@@ -1749,17 +1756,17 @@ static void R_DB_Sprite(batch_t *batch)
 	Vector4Copy(e->shaderRGBAf, colours[2]);
 	Vector4Copy(e->shaderRGBAf, colours[3]);
 
-	VectorMA (sprorigin, frame->down, up, point);
-	VectorMA (point, frame->left, right, vertcoords[0]);
+	VectorMA (sprorigin, frame->down, spraxis[2], point);
+	VectorMA (point, frame->left, spraxis[1], vertcoords[0]);
 
-	VectorMA (sprorigin, frame->up, up, point);
-	VectorMA (point, frame->left, right, vertcoords[1]);
+	VectorMA (sprorigin, frame->up, spraxis[2], point);
+	VectorMA (point, frame->left, spraxis[1], vertcoords[1]);
 
-	VectorMA (sprorigin, frame->up, up, point);
-	VectorMA (point, frame->right, right, vertcoords[2]);
+	VectorMA (sprorigin, frame->up, spraxis[2], point);
+	VectorMA (point, frame->right, spraxis[1], vertcoords[2]);
 
-	VectorMA (sprorigin, frame->down, up, point);
-	VectorMA (point, frame->right, right, vertcoords[3]);
+	VectorMA (sprorigin, frame->down, spraxis[2], point);
+	VectorMA (point, frame->right, spraxis[1], vertcoords[3]);
 
 	batch->ent = &r_worldentity;
 	batch->mesh = &meshptr;

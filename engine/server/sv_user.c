@@ -5440,6 +5440,9 @@ int SV_PMTypeForClient (client_t *cl)
 	}
 #endif
 
+	if (!cl->isindependant)
+		return PM_NONE;
+
 	if (sv_brokenmovetypes.value)	//this is to mimic standard qw servers, which don't support movetypes other than MOVETYPE_FLY.
 	{								//it prevents bugs from being visible in unsuspecting mods.
 		if (cl->spectator)
@@ -5751,6 +5754,8 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	player_maxs[1] = sv_player->v->maxs[1];
 	player_maxs[2] = sv_player->v->maxs[2];
 
+	VectorCopy(sv_player->xv->gravitydir, pmove.gravitydir);
+
 	for (i=0 ; i<3 ; i++)
 		pmove.origin[i] = sv_player->v->origin[i];// + (sv_player->v->mins[i] - player_mins[i]);
 
@@ -5847,7 +5852,7 @@ if (sv_player->v->health > 0 && before && !after )
 	VectorCopy (pmove.origin, sv_player->v->origin);
 	VectorCopy (pmove.angles, sv_player->v->v_angle);
 
-	if (pmove.pm_type == PM_WALLWALK)
+	if (pmove.gravitydir[0] || pmove.gravitydir[1] || pmove.gravitydir[2] != -1)
 	{
 		if (!sv_player->v->fixangle)
 		{

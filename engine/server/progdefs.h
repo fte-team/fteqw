@@ -200,6 +200,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(skeletonindex)		/*FTE_CSQC_SKELETONOBJECTS*/\
 	comfieldvector(colormod)\
 	comfieldvector(glowmod)\
+	comfieldvector(gravitydir)\
 	comfieldfloat(pmove_flags)/*EXT_CSQC_1*/\
 	comfieldfloat(friction)/*DP_...PHYSICS*/\
 	comfieldfloat(erp)/*DP_...PHYSICS*/\

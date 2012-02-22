@@ -236,6 +236,8 @@ float (float event, float parama, float paramb) CSQC_InputEvent =
 
 void(float prevprogs) init =
 {
+	Cam_Init();
+
 	if (prevprogs >= 0)
 	{
 		/*its easy to wrap a builtin*/

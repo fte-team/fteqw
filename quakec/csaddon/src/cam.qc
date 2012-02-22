@@ -1081,3 +1081,26 @@ float(float keycode, float unicode, vector *curmousepos_in, vector mousediff) ed
 
 	return FALSE;
 };
+
+float(string str) CSQC_ConsoleCommand =
+{
+	local float numargs;
+	numargs = tokenize(str);
+	switch(argv(0))
+	{
+	case "examplecommandforjogi":
+		print("Hello jogi, did this work?\n");
+		print(argv(1), "\n");
+		return TRUE;
+	case "crashandcatchfire":
+		print("Yeah, you're probably going to regret that\n");
+		localcmd("unbindall\ncfg_save\nalias quit say ahaha\n");
+		return TRUE;
+	}
+	return FALSE;
+};
+void() Cam_Init =
+{
+	registercommand("examplecommandforjogi");
+//	registercommand("crashandcatchfire");
+};

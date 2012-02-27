@@ -3100,6 +3100,24 @@ sfxcache_t *S_MP3_Locate(sfx_t *sfx, sfxcache_t *buf, int start, int length)
 	}
 	return buf;
 }
+
+#ifndef WAVE_FORMAT_MPEGLAYER3
+#define WAVE_FORMAT_MPEGLAYER3 0x0055
+#define MPEGLAYER3_WFX_EXTRA_BYTES 12
+#define MPEGLAYER3_FLAG_PADDING_OFF 2
+#define MPEGLAYER3_ID_MPEG 1
+
+typedef struct
+{
+	WAVEFORMATEX  wfx;
+	WORD          wID;
+	DWORD         fdwFlags;
+	WORD          nBlockSize;
+	WORD          nFramesPerBlock;
+	WORD          nCodecDelay;
+} MPEGLAYER3WAVEFORMAT;
+#endif
+
 qboolean S_LoadMP3Sound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
 	WAVEFORMATEX pcm_format;
@@ -3147,9 +3165,9 @@ qboolean S_LoadMP3Sound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	mp3format.wfx.nBlockAlign = 1;                     // MUST BE ONE
 	mp3format.wfx.nSamplesPerSec = dec->srcspeed;       // 44.1kHz
 	mp3format.fdwFlags = MPEGLAYER3_FLAG_PADDING_OFF;
-	mp3format.nBlockSize = 522;					       // voodoo value #1
+	mp3format.nBlockSize = 522;					       // voodoo value #1 - 144 x (bitrate / sample rate) + padding
 	mp3format.nFramesPerBlock = 1;                     // MUST BE ONE
-	mp3format.nCodecDelay = 1393;                      // voodoo value #2
+	mp3format.nCodecDelay = 0;//1393;                      // voodoo value #2
 	mp3format.wID = MPEGLAYER3_ID_MPEG;
 
 	if (!qacmStartup() || 0!=qacmStreamOpen(&dec->acm, drv, (WAVEFORMATEX*)&mp3format, &pcm_format, NULL, 0, 0, 0))

@@ -368,6 +368,7 @@ struct traceinfo_s
 	vec3_t end;
 };
 
+#if 0
 #include "shader.h"
 void TestDrawPlane(float *normal, float dist, float r, float g, float b)
 {
@@ -446,6 +447,7 @@ void TestDrawPlane(float *normal, float dist, float r, float g, float b)
 	t->numidx = cl_numstrisidx - t->firstidx;
 	t->numvert += 4;
 }
+#endif
 
 static void Q1BSP_ClipToBrushes(struct traceinfo_s *traceinfo, mbrush_t *brush)
 {

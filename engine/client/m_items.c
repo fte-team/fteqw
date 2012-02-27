@@ -10,6 +10,8 @@ qboolean bindingactive;
 extern cvar_t cl_cursor;
 extern cvar_t cl_cursorsize;
 extern cvar_t cl_cursorbias;
+menu_t *currentmenu;
+menu_t *firstmenu;
 
 void Draw_TextBox (int x, int y, int width, int lines)
 {
@@ -192,7 +194,7 @@ int maxdots;
 int mindot;
 int dotofs;
 
-void MenuTooltipSplit(menu_t *menu, const char *text)
+static void MenuTooltipSplit(menu_t *menu, const char *text)
 {
 	char buf[1024];
 	char *c, *space;
@@ -292,7 +294,7 @@ void MenuTooltipSplit(menu_t *menu, const char *text)
 	menu->tooltip = mtt;
 }
 
-qboolean MI_Selectable(menuoption_t *op)
+static qboolean MI_Selectable(menuoption_t *op)
 {
 	switch(op->common.type)
 	{
@@ -331,45 +333,76 @@ qboolean MI_Selectable(menuoption_t *op)
 	}
 }
 
-void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
+static void M_CheckMouseMove(void)
 {
-	int i;
-	mpic_t *p;
-
+	extern int mousecursor_x, mousecursor_y;
+	qboolean foundexclusive = false;
 	int mgt;
+	menu_t *menu;
+	menuoption_t *option;
 
-	mgt = M_GameType();
+	if (omousex != mousecursor_x || omousey != mousecursor_y)
+		mousemoved = true;
+	else
+		mousemoved = false;
+	omousex = mousecursor_x;
+	omousey = mousecursor_y;
 
-	while (option)
+	if (mousemoved)
 	{
-		if (mousemoved && !bindingactive && !option->common.ishidden)
-		{
-			if (omousex > xpos+option->common.posx-option->common.extracollide && omousex < xpos+option->common.posx+option->common.width)
-			{
-				if (omousey > ypos+option->common.posy && omousey < ypos+option->common.posy+option->common.height)
-				{
-					if (MI_Selectable(option))
-					{
-						if (menu->selecteditem != option)
-						{
-							if (!option->common.noselectionsound)
-							{
-									if (mgt == MGT_HEXEN2)
-										S_LocalSound ("raven/menu1.wav");
-									else
-										S_LocalSound ("misc/menu1.wav");
-							}
+		mgt = M_GameType();
 
-							menu->selecteditem = option;
-							menu->tooltiptime = realtime + 1;
-							MenuTooltipSplit(menu, menu->selecteditem->common.tooltip);
+		for (menu = firstmenu; menu; menu = menu->parent)
+		{
+			if (menu->exclusive)
+			{
+				if (foundexclusive)
+					continue;
+				foundexclusive=true;
+			}
+
+			for(option = menu->options; option; option = option = option->common.next)
+			{
+				if (mousemoved && !bindingactive && !option->common.ishidden)
+				{
+					if (mousecursor_x > menu->xpos+option->common.posx-option->common.extracollide && mousecursor_x < menu->xpos+option->common.posx+option->common.width)
+					{
+						if (mousecursor_y > menu->ypos+option->common.posy && mousecursor_y < menu->ypos+option->common.posy+option->common.height)
+						{
+							if (MI_Selectable(option))
+							{
+								if (menu->selecteditem != option)
+								{
+									if (!option->common.noselectionsound)
+									{
+										if (mgt == MGT_HEXEN2)
+											S_LocalSound ("raven/menu1.wav");
+										else
+											S_LocalSound ("misc/menu1.wav");
+									}
+
+									menu->selecteditem = option;
+									menu->tooltiptime = realtime + 1;
+									MenuTooltipSplit(menu, menu->selecteditem->common.tooltip);
+								}
+								if (menu->cursoritem)
+									menu->cursoritem->common.posy = menu->selecteditem->common.posy;
+							}
 						}
-						if (menu->cursoritem)
-							menu->cursoritem->common.posy = menu->selecteditem->common.posy;
 					}
 				}
 			}
 		}
+	}
+}
+
+static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
+{
+	int i;
+	mpic_t *p;
+
+	while (option)
+	{
 		if (!option->common.ishidden)
 		switch(option->common.type)
 		{
@@ -602,7 +635,7 @@ void MenuDrawItems(int xpos, int ypos, menuoption_t *option, menu_t *menu)
 	}
 }
 
-void MenuDraw(menu_t *menu)
+static void MenuDraw(menu_t *menu)
 {
 	if (menu->event)
 		menu->event(menu);
@@ -1348,9 +1381,6 @@ changed:
 	}
 }
 
-menu_t *currentmenu;
-menu_t *firstmenu;
-
 void M_AddMenuFront (menu_t *menu)
 {
 	menu_t *pmenu;
@@ -1485,21 +1515,12 @@ void DrawCursor(int prydoncursornum)
 		Font_DrawChar(x, y, '+' | 0xe000 | CON_WHITEMASK);
 		Font_EndString(font_conchar);
 	}
-
 }
 
 void M_Complex_Draw(void)
 {
-	extern int mousecursor_x, mousecursor_y;
 	menu_t *menu, *cmenu;
 	qboolean foundexclusive = false;
-
-	if (omousex != mousecursor_x || omousey != mousecursor_y)
-		mousemoved = true;
-	else
-		mousemoved = false;
-	omousex = mousecursor_x;
-	omousey = mousecursor_y;
 
 	if (!firstmenu)
 	{
@@ -1507,6 +1528,8 @@ void M_Complex_Draw(void)
 		m_state = m_none;
 		return;
 	}
+
+	M_CheckMouseMove();
 
 	for (menu = firstmenu; menu; )
 	{
@@ -1602,6 +1625,8 @@ void M_Complex_Key(int key, int unicode)
 
 	if (!currentmenu)
 		return;	//erm...
+
+	M_CheckMouseMove();
 
 	if (currentmenu->key)
 		if (currentmenu->key(key, currentmenu))

@@ -981,7 +981,8 @@ void V_SetContentsColor (int contents);
 
 //used directly by csqc
 void V_CalcRefdef (int pnum);
-void CalcGunAngle (int pnum);
+void V_CalcGunPositionAngle (int pnum, float bob);
+float V_CalcBob (int pnum, qboolean queryold);
 void DropPunchAngle (int pnum);
 
 

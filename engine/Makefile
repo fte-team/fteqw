@@ -57,6 +57,9 @@ DROID_NDK_PATH?=~/droid/android-ndk-r6b
 DROID_SDK_PATH?=~/droid/android-sdk-linux_x86
 ANT?=ant
 JAVATOOL="$(JAVA_HOME)"/bin/
+ifeq ($(DROID_ARCH),)
+	DROID_ARCH=armeabi
+endif
 ifeq ($(FTE_TARGET),droid)
 	#if we're running under windows, then we want to run some other binary
 	ifeq ($(shell uname -o 2>&1 | grep Cygwin),)
@@ -68,22 +71,34 @@ ifeq ($(FTE_TARGET),droid)
 		#we're running upon windows
 		NDK_PATH:=$(shell cygpath -m $(DROID_NDK_PATH))
 		SDK_PATH:=$(shell cygpath -m $(DROID_SDK_PATH))
-		TOOLCHAIN:=$(NDK_PATH)/toolchains/arm-linux-androideabi-4.4.3/prebuilt/windows/bin/arm-linux-androideabi-
+		ifeq ($(DROID_ARCH),x86)
+			TOOLCHAIN:=$(NDK_PATH)/toolchains/x86-4.4.3/prebuilt/windows/bin/i686-android-linux-
+		else
+			TOOLCHAIN:=$(NDK_PATH)/toolchains/arm-linux-androideabi-4.4.3/prebuilt/windows/bin/arm-linux-androideabi-
+		endif
 		#make can't cope with absolute paths in dependancy files
 		NODEPS = 1
 	endif
 
 	DROID_API_LEVEL=4
 
-	#there are 3 ABI targets
-	#armv5 (works on all arm droids)
-	#armv7 (more common on 2.2+ droids)
-	#armv7+neon
-	DROID_ABI?=-mfloat-abi=softfp
+	ifeq ($(DROID_ARCH),x86)
+		DROID_PLAT_INC=arch-x86
+		#google fecked up. anything before api_level 9 will fail to compile on x86
+		DROID_API_LEVEL=9
+	else
+		DROID_PLAT_INC=arch-arm
+
+		#there are 3 ABI targets
+		#armv5 (works on all arm droids)
+		#armv7 (more common on 2.2+ droids)
+		#armv7+neon
+		DROID_ABI?=-mfloat-abi=softfp
+	endif
 
 	STRIP=$(TOOLCHAIN)strip
-	CC=$(TOOLCHAIN)gcc -I$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/arch-arm/usr/include/ -DANDROID $(DROID_ABI)
-	DO_LD=$(CC) -Wl,-soname,libftedroid.so -shared -Wl,--no-undefined -Wl,-z,noexecstack --sysroot=$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/arch-arm -L$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/arch-arm/usr/lib -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS) -llog -lc -lz -lm
+	CC=$(TOOLCHAIN)gcc -I$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)/usr/include/ -DANDROID $(DROID_ABI)
+	DO_LD=$(CC) -Wl,-soname,libftedroid.so -shared -Wl,--no-undefined -Wl,-z,noexecstack --sysroot=$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC) -L$(NDK_PATH)/platforms/android-$(DROID_API_LEVEL)/$(DROID_PLAT_INC)/usr/lib -o $@ $(LTO_LD) $(WCFLAGS) $(CFLAGS) -llog -lc -lz -lm
 endif
 
 #correct the gcc build when cross compiling
@@ -732,7 +747,7 @@ ifneq ($(shell echo $(FTE_TARGET)|grep linux),)
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_alsa.o snd_linux.o cd_linux.o sys_linux.o
 	GL_EXE_NAME=../fteqw.gl$(BITS)
 	GLCL_EXE_NAME=../fteqwcl.gl$(BITS)
-	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)  -lXxf86vm -lXxf86dga 
+	GL_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS)  -lXxf86vm -lXxf86dga -lz
 	GL_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include -DUSE_DGA
 	GLB_DIR=gl_linux$(BITS)
 	GLCL_DIR=glcl_linux$(BITS)
@@ -740,7 +755,7 @@ ifneq ($(shell echo $(FTE_TARGET)|grep linux),)
 	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o snd_linux.o snd_alsa.o cd_linux.o sys_linux.o
 	M_EXE_NAME=../fteqw$(BITS)
 	MCL_EXE_NAME=../fteqwcl$(BITS)
-	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) -lXxf86vm -lXxf86dga
+	M_LDFLAGS=$(GLLDFLAGS) $(GLXLDFLAGS) -lXxf86vm -lXxf86dga -lz
 	M_CFLAGS=$(GLCFLAGS) -I/usr/X11R6/include
 	MB_DIR=m_linux$(BITS)
 	MCL_DIR=mcl_linux$(BITS)
@@ -852,17 +867,17 @@ endif
 ifeq ($(FTE_TARGET),droid)
 	BASELDFLAGS=
 
-	SV_DIR=sv_droid
+	SV_DIR=sv_droid-$(DROID_ARCH)
 	SV_LDFLAGS=-lz
-	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) svmodel.o sys_droid.o
-	SV_EXE_NAME=../libftedroid.so
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) svmodel.o sys_droid.o in_droid.o
+	SV_EXE_NAME=libftedroid.so
 
 	SV_LDFLAGS=
 
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_viddroid.o sys_droid.o cd_null.o snd_droid.o
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_viddroid.o sys_droid.o in_droid.o cd_null.o snd_droid.o
         GL_LDFLAGS=$(GLLDFLAGS)
-	GLB_DIR=gl_droid
-	GL_EXE_NAME=../libftedroid.so
+	GLB_DIR=gl_droid-$(DROID_ARCH)
+	GL_EXE_NAME=libftedroid.so
 endif
 
 SV_DIR?=sv_sdl
@@ -1198,9 +1213,10 @@ droid/ftekeystore:
 	$(JAVATOOL)keytool -genkey -v -keystore $@ -alias autogen -keyalg RSA -keysize 2048 -validity 10000
 
 droid-rel: droid/build.xml droid/ftekeystore
-	$(MAKE) FTE_TARGET=droid gl-rel 
-	mkdir -p droid/libs/armeabi
-	@cp $(RELEASE_DIR)/libftedroid.so droid/libs/armeabi/
+	$(foreach a, $(DROID_ARCH), $(MAKE) FTE_TARGET=droid gl-rel DROID_ARCH=$a; )
+	@$(foreach a, $(DROID_ARCH), mkdir -p droid/libs/$a; )
+	-@$(foreach a, $(DROID_ARCH), cp $(RELEASE_DIR)/gl_droid-$a/libftedroid.so droid/libs/$a/libftedroid.so; )
+
 	@cd droid && $(ANT) release
 ifneq ($(DROID_PACKSU),)
 		@echo

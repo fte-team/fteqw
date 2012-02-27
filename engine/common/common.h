@@ -387,7 +387,7 @@ char *FSQ3_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum);
 int COM_filelength (FILE *f);
 qbyte *COM_LoadStackFile (const char *path, void *buffer, int bufsize);
 qbyte *COM_LoadTempFile (const char *path);
-qbyte *COM_LoadTempFile2 (const char *path);	//allocates a little bit more without freeing old temp
+qbyte *COM_LoadTempMoreFile (const char *path);	//allocates a little bit more without freeing old temp
 qbyte *COM_LoadHunkFile (const char *path);
 qbyte *COM_LoadMallocFile (const char *path);
 void COM_LoadCacheFile (const char *path, struct cache_user_s *cu);

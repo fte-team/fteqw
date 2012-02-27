@@ -394,8 +394,21 @@ void SV_CalcPHS (void)
 	rowwords = (num+31)>>5;
 	rowbytes = rowwords*4;
 
-	if (developer.value)
-		Con_TPrintf (STL_BUILDINGPHS);
+	if (!sv_calcphs.ival || (sv_calcphs.ival == 2 && (rowbytes*num >= 0x100000 || (!deathmatch.ival && !coop.ival))))
+	{
+		sv.pvs = Hunk_AllocName (rowbytes*num, "pvs vis");
+		scan = sv.pvs;
+		for (i=0 ; i<num ; i++, scan+=rowbytes)
+		{
+			lf = sv.world.worldmodel->funcs.LeafPVS(sv.world.worldmodel, i, scan, rowbytes);
+			if (lf != scan)
+				memcpy (scan, lf, rowbytes);
+		}
+
+		Con_DPrintf("Skipping PHS\n");
+		sv.phs = NULL;
+		return;
+	}
 
 	sv.pvs = Hunk_AllocName (rowbytes*num, "phs vis");
 	scan = sv.pvs;
@@ -415,13 +428,8 @@ void SV_CalcPHS (void)
 			}
 		}
 	}
-
-	if (!sv_calcphs.ival || (sv_calcphs.ival == 2 && (rowbytes*num >= 0x100000 || (!deathmatch.ival && !coop.ival))))
-	{
-		Con_DPrintf("Skipping PHS\n");
-		sv.phs = NULL;
-		return;
-	}
+	if (developer.value)
+		Con_TPrintf (STL_BUILDINGPHS);
 
 	/*this routine takes an exponential amount of time, so cache it if its too big*/
 	if (rowbytes*num >= 0x100000)
@@ -753,14 +761,6 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	Cvar_ApplyLatches(CVAR_LATCH);
 
 //work out the gamespeed
-	sv.gamespeed = sv_gamespeed.value;
-	Info_SetValueForStarKey(svs.info, "*gamespeed", va("%i", (int)(sv.gamespeed*100)), MAX_SERVERINFO_STRING);
-	sv.gamespeed = atof(Info_ValueForKey(svs.info, "*gamespeed"))/100;
-	if (sv.gamespeed < 0.1 || sv.gamespeed == 1)
-	{
-		sv.gamespeed = 1;
-		Info_SetValueForStarKey(svs.info, "*gamespeed", "", MAX_SERVERINFO_STRING);
-	}
 //reset the server time.
 	sv.time = 0.01;	//some progs don't like time starting at 0.
 					//cos of spawn funcs like self.nextthink = time...

@@ -1817,6 +1817,7 @@ qboolean Mod_LoadBrushModel (model_t *mod, void *buffer)
 		return false;
 	}
 
+	Q1BSP_LoadBrushes(mod);
 	Q1BSP_SetModelFuncs(mod);
 
 	if (mod->surfaces && mod->lightdata)

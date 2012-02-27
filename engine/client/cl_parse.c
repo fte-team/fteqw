@@ -3602,7 +3602,7 @@ void CL_ParseStartSoundPacket(void)
 		if (!sound_num)
 			S_StopSound(ent, channel);
 		else
-			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation, 0);
+			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation, 0, 0);
 	}
 
 
@@ -3680,11 +3680,11 @@ void CLQ2_ParseStartSoundPacket(void)
 			*skin = '\0';
 		if (*model)
 		{
-			S_StartSound (ent, channel, S_PrecacheSound(va("players/%s/%s", model, cl.sound_precache[sound_num]->name+1)), pos, volume, attenuation, 0);
+			S_StartSound (ent, channel, S_PrecacheSound(va("players/%s/%s", model, cl.sound_precache[sound_num]->name+1)), pos, volume, attenuation, 0, 0);
 			return;
 		}
 	}
-	S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume, attenuation, 0);
+	S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume, attenuation, 0, 0);
 }
 #endif
 
@@ -3750,7 +3750,7 @@ void CLNQ_ParseStartSoundPacket(void)
 		if (!sound_num)
 			S_StopSound(ent, channel);
 		else
-			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation, pitchadj);
+			S_StartSound (ent, channel, cl.sound_precache[sound_num], pos, volume/255.0, attenuation, 0, pitchadj);
 	}
 
 	if (ent == cl.playernum[0]+1)
@@ -4021,7 +4021,7 @@ void CL_ServerInfo (void)
 
 	Con_DPrintf("SERVERINFO: %s=%s\n", key, value);
 
-	Info_SetValueForKey (cl.serverinfo, key, value, MAX_SERVERINFO_STRING);
+	Info_SetValueForStarKey (cl.serverinfo, key, value, MAX_SERVERINFO_STRING);
 
 	CL_CheckServerInfo();
 }
@@ -5225,6 +5225,7 @@ void CLQW_ParseServerMessage (void)
 		case svcfte_setangledelta:
 			for (i=0 ; i<3 ; i++)
 				cl.viewangles[destsplit][i] += MSG_ReadAngle16 ();
+			VectorCopy (cl.viewangles[destsplit], cl.simangles[destsplit]);
 			break;
 		case svc_setangle:
 			if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
@@ -5248,6 +5249,8 @@ void CLQW_ParseServerMessage (void)
 			cl.fixangle[destsplit]=true;
 			for (i=0 ; i<3 ; i++)
 				cl.viewangles[destsplit][i] = cl.fixangles[destsplit][i] = MSG_ReadAngle ();
+
+			VectorCopy (cl.viewangles[destsplit], cl.simangles[destsplit]);
 //			cl.viewangles[PITCH] = cl.viewangles[ROLL] = 0;
 			break;
 
@@ -5413,6 +5416,7 @@ void CLQW_ParseServerMessage (void)
 				cl.simorg[destsplit][i] = MSG_ReadCoord ();
 			for (i=0 ; i<3 ; i++)
 				cl.simangles[destsplit][i] = MSG_ReadAngle ();
+			VectorCopy (cl.simangles[destsplit], cl.fixangles[destsplit]);
 			VectorClear (cl.simvel[destsplit]);
 			break;
 
@@ -5420,6 +5424,7 @@ void CLQW_ParseServerMessage (void)
 			if (!cl.intermission)
 				for (i = 0; i < MAX_SPLITS; i++)
 					cl.simorg[i][2] += cl.viewheight[i];
+			VectorCopy (cl.fixangles[destsplit], cl.simangles[destsplit]);
 
 			cl.intermission = 2;
 			cl.completed_time = cl.gametime;
@@ -6208,6 +6213,10 @@ void CLNQ_ParseServerMessage (void)
 
 		case svc_sound:
 			CLNQ_ParseStartSoundPacket();
+			break;
+		case svc_stopsound:
+			i = MSG_ReadShort();
+			S_StopSound(i>>3, i&7);
 			break;
 
 		case svc_temp_entity:

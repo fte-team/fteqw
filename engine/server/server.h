@@ -287,7 +287,7 @@ typedef struct
 	double				senttime;		//time we sent this frame to the client, for ping calcs
 	int					sequence;		//the outgoing sequence - without mask, meaning we know if its current or stale
 	float				ping_time;		//how long it took for the client to ack it, may be negativ
-	int					move_msecs;		//
+	float				move_msecs;		//
 	int					packetsizein;	//amount of data received for this frame
 	int					packetsizeout;	//amount of data that was sent in the frame
 	vec3_t				playerpositions[MAX_CLIENTS];	//where each player was in this frame, for antilag
@@ -552,6 +552,10 @@ typedef struct client_s
 	struct client_s *controller;	/*first in splitscreen chain, NULL=nosplitscreen*/
 	struct client_s *controlled;	/*next in splitscreen chain*/
 
+	/*these are the current rates*/
+	float ratetime;
+	float inrate;
+	float outrate;
 
 	int rate;
 	int drate;

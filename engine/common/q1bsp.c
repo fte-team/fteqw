@@ -346,9 +346,351 @@ qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 }
 #endif
 
-int Q1BSP_HullPointContents(hull_t *hull, vec3_t p)
+
+/*
+the bsp tree we're walking through is the renderable hull
+we need to trace a box through the world.
+by its very nature, this will reach more nodes than we really want, and as we can follow a node sideways, the underlying bsp structure is no longer 100% reliable (meaning we cross planes that are entirely to one side, and follow its children too)
+so all contents and solidity must come from the brushes and ONLY the brushes.
+*/
+struct traceinfo_s
 {
-	switch(Q1_HullPointContents(hull, hull->firstclipnode, p))
+	unsigned int solidcontents;
+	trace_t trace;
+
+	qboolean sphere;
+	float radius;
+	/*set even for sphere traces (used for bbox tests)*/
+	vec3_t mins;
+	vec3_t maxs;
+
+	vec3_t start;
+	vec3_t end;
+};
+
+#include "shader.h"
+void TestDrawPlane(float *normal, float dist, float r, float g, float b)
+{
+	scenetris_t *t;
+	if (cl_numstris == cl_maxstris)
+	{
+		cl_maxstris+=8;
+		cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+	}
+	t = &cl_stris[cl_numstris++];
+	t->shader = R_RegisterShader("testplane", "{\n{\nmap $whiteimage\nrgbgen vertex\nalphagen vertex\nblendfunc add\nnodepth\n}\n}\n");
+	t->firstidx = cl_numstrisidx;
+	t->firstvert = cl_numstrisvert;
+	t->numvert = 0;
+	t->numidx = 0;
+
+	if (cl_numstrisidx+6 > cl_maxstrisidx)
+	{
+		cl_maxstrisidx=cl_numstrisidx+6 + 64;
+		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+	}
+	if (cl_numstrisvert+4 > cl_maxstrisvert)
+	{
+		cl_maxstrisvert+=64;
+		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
+		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
+	}
+
+	{
+		vec3_t tmp = {0,0.04,0.96};
+		vec3_t right, forward;
+		CrossProduct(normal, tmp, right);
+		VectorNormalize(right);
+		CrossProduct(normal, right, forward);
+		VectorNormalize(forward);
+
+		VectorScale(                        normal,    dist,      cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], 8192, right,     cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], 8192, forward,   cl_strisvertv[cl_numstrisvert]);
+		Vector4Set(cl_strisvertc[cl_numstrisvert], r, g, b, 0.2);
+		cl_numstrisvert++;
+
+		VectorScale(                             normal,    dist, cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], 8192, right,  cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], -8192, forward, cl_strisvertv[cl_numstrisvert]);
+		Vector4Set(cl_strisvertc[cl_numstrisvert], r, g, b, 0.2);
+		cl_numstrisvert++;
+
+		VectorScale(                             normal,    dist, cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], -8192, right,    cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], -8192, forward,  cl_strisvertv[cl_numstrisvert]);
+		Vector4Set(cl_strisvertc[cl_numstrisvert], r, g, b, 0.2);
+		cl_numstrisvert++;
+
+		VectorScale(                             normal,    dist, cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], -8192, right,    cl_strisvertv[cl_numstrisvert]);
+		VectorMA(cl_strisvertv[cl_numstrisvert], 8192, forward,   cl_strisvertv[cl_numstrisvert]);
+		Vector4Set(cl_strisvertc[cl_numstrisvert], r, g, b, 0.2);
+		cl_numstrisvert++;
+	}
+
+
+
+
+	/*build the triangles*/
+	cl_strisidx[cl_numstrisidx++] = t->numvert + 0;
+	cl_strisidx[cl_numstrisidx++] = t->numvert + 1;
+	cl_strisidx[cl_numstrisidx++] = t->numvert + 2;
+
+	cl_strisidx[cl_numstrisidx++] = t->numvert + 0;
+	cl_strisidx[cl_numstrisidx++] = t->numvert + 2;
+	cl_strisidx[cl_numstrisidx++] = t->numvert + 3;
+
+
+	t->numidx = cl_numstrisidx - t->firstidx;
+	t->numvert += 4;
+}
+
+static void Q1BSP_ClipToBrushes(struct traceinfo_s *traceinfo, mbrush_t *brush)
+{
+	struct mbrushplane_s *plane;
+	struct mbrushplane_s *enterplane;
+	int i, j;
+	vec3_t ofs;
+	qboolean startout, endout;
+	float d1,d2,dist,enterdist=0;
+	float f, enterfrac, exitfrac;
+
+	for (; brush; brush = brush->next)
+	{
+		/*ignore if its not solid to us*/
+		if (!(traceinfo->solidcontents & brush->contents))
+			continue;
+
+		startout = false;
+		endout = false;
+		enterplane= NULL;
+		enterfrac = -1;
+		exitfrac = 10;
+		for (i = brush->numplanes, plane = brush->planes; i; i--, plane++)
+		{
+			/*calculate the distance based upon the shape of the object we're tracing for*/
+			if (traceinfo->sphere)
+			{
+				dist = plane->dist + traceinfo->radius;
+			}
+			else
+			{
+				for (j=0 ; j<3 ; j++)
+				{
+					if (plane->normal[j] < 0)
+						ofs[j] = traceinfo->maxs[j];
+					else
+						ofs[j] = traceinfo->mins[j];
+				}
+				dist = DotProduct (ofs, plane->normal);
+				dist = plane->dist - dist;
+			}
+
+			d1 = DotProduct (traceinfo->start, plane->normal) - dist;
+			d2 = DotProduct (traceinfo->end, plane->normal) - dist;
+
+			if (d1 >= 0)
+				startout = true;
+			if (d2 > 0)
+				endout = true;
+
+			//if we're fully outside any plane, then we cannot possibly enter the brush, skip to the next one
+			if (d1 > 0 && d2 >= 0)
+				goto nextbrush;
+
+			//if we're fully inside the plane, then whatever is happening is not relevent for this plane
+			if (d1 < 0 && d2 <= 0)
+				continue;
+
+			f = d1 / (d1-d2);
+			if (d1 > d2)
+			{
+				//entered the brush. favour the furthest fraction to avoid extended edges (yay for convex shapes)
+				if (enterfrac < f)
+				{
+					enterfrac = f;
+					enterplane = plane;
+					enterdist = dist;
+				}
+			}
+			else
+			{
+				//left the brush, favour the nearest plane (smallest frac)
+				if (exitfrac > f)
+				{
+					exitfrac = f;
+				}
+			}
+		}
+
+		if (!startout)
+		{
+			traceinfo->trace.startsolid = true;
+			if (!endout)
+				traceinfo->trace.allsolid = true;
+			traceinfo->trace.contents |= brush->contents;
+			return;
+		}
+		if (enterfrac != -1 && enterfrac < exitfrac)
+		{
+			//impact!
+			if (enterfrac < traceinfo->trace.fraction)
+			{
+				traceinfo->trace.fraction = enterfrac;
+				traceinfo->trace.plane.dist = enterdist;
+				VectorCopy(enterplane->normal, traceinfo->trace.plane.normal);
+				traceinfo->trace.contents = brush->contents;
+			}
+		}
+nextbrush:
+		;
+	}
+}
+static void Q1BSP_InsertBrush(mnode_t *node, mbrush_t *brush, vec3_t bmins, vec3_t bmaxs)
+{
+	vec3_t near, far;
+	float nd, fd;
+	int i;
+	while(1)
+	{
+		if (node->contents < 0) /*leaf, so no smaller node to put it in (I'd be surprised if it got this far)*/
+		{
+			brush->next = node->brushes;
+			node->brushes = brush;
+			return;
+		}
+
+		for (i = 0; i < 3; i++)
+		{
+			if (node->plane->normal[i] > 0)
+			{
+				near[i] = bmins[i];
+				far[i] = bmaxs[i];
+			}
+			else
+			{
+				near[i] = bmaxs[i];
+				far[i] = bmins[i];
+			}
+		}
+
+		nd = DotProduct(node->plane->normal, near) - node->plane->dist;
+		fd = DotProduct(node->plane->normal, far) - node->plane->dist;
+
+		/*if its fully on either side, continue walking*/
+		if (nd < 0 && fd < 0)
+			node = node->children[1];
+		else if (nd > 0 && fd > 0)
+			node = node->children[0];
+		else
+		{
+			/*plane crosses bbox, so insert here*/
+			brush->next = node->brushes;
+			node->brushes = brush;
+			return;
+		}
+	}
+}
+static void Q1BSP_RecursiveBrushCheck (struct traceinfo_s *traceinfo, mnode_t *node, float p1f, float p2f, vec3_t p1, vec3_t p2)
+{
+	mplane_t	*plane;
+	float		t1, t2;
+	float		frac;
+	int			i;
+	vec3_t		mid;
+	int			side;
+	float		midf;
+	float		offset;
+
+	if (node->brushes)
+	{
+		Q1BSP_ClipToBrushes(traceinfo, node->brushes);
+	}
+
+	if (traceinfo->trace.fraction < p1f)
+	{
+		//already hit something closer than this node
+		return;
+	}
+
+	if (node->contents < 0)
+	{
+		//we're in a leaf
+		return;
+	}
+
+//
+// find the point distances
+//
+	plane = node->plane;
+
+	if (plane->type < 3)
+	{
+		t1 = p1[plane->type] - plane->dist;
+		t2 = p2[plane->type] - plane->dist;
+		if (plane->normal[plane->type] < 0)
+			offset = -traceinfo->mins[plane->type];
+		else
+			offset = traceinfo->maxs[plane->type];
+	}
+	else
+	{
+		t1 = DotProduct (plane->normal, p1) - plane->dist;
+		t2 = DotProduct (plane->normal, p2) - plane->dist;
+		offset = 0;
+		for (i = 0; i < 3; i++)
+		{
+			if (plane->normal[i] < 0)
+				offset += plane->normal[i] * -traceinfo->mins[i];
+			else
+				offset += plane->normal[i] * traceinfo->maxs[i];
+		}
+	}
+
+	/*if we're fully on one side of the trace, go only down that side*/
+	if (t1 >= offset && t2 >= offset)
+	{
+		Q1BSP_RecursiveBrushCheck (traceinfo, node->children[0], p1f, p2f, p1, p2);
+		return;
+	}
+	if (t1 < -offset && t2 < -offset)
+	{
+		Q1BSP_RecursiveBrushCheck (traceinfo, node->children[1], p1f, p2f, p1, p2);
+		return;
+	}
+
+// put the crosspoint DIST_EPSILON pixels on the near side
+	if (t1 < 0)
+	{
+		frac = (t1 + DIST_EPSILON)/(t1-t2);
+		side = 1;
+	}
+	else
+	{
+		frac = (t1 - DIST_EPSILON)/(t1-t2);
+		side = 0;
+	}
+	if (frac < 0)
+		frac = 0;
+	if (frac > 1)
+		frac = 1;
+
+	midf = p1f + (p2f - p1f)*frac;
+	for (i=0 ; i<3 ; i++)
+		mid[i] = p1[i] + frac*(p2[i] - p1[i]);
+
+// move up to the node
+	Q1BSP_RecursiveBrushCheck (traceinfo, node->children[side], p1f, midf, p1, mid);
+
+// go past the node
+	Q1BSP_RecursiveBrushCheck (traceinfo, node->children[side^1], midf, p2f, mid, p2);
+}
+
+static unsigned int Q1BSP_TranslateContents(int contents)
+{
+	switch(contents)
 	{
 	case Q1CONTENTS_EMPTY:
 		return FTECONTENTS_EMPTY;
@@ -362,10 +704,17 @@ int Q1BSP_HullPointContents(hull_t *hull, vec3_t p)
 		return FTECONTENTS_LAVA;
 	case Q1CONTENTS_SKY:
 		return FTECONTENTS_SKY;
+	case Q1CONTENTS_LADDER:
+		return FTECONTENTS_LADDER;
 	default:
-		Sys_Error("Q1_PointContents: Unknown contents type");
+		Sys_Error("Q1BSP_TranslateContents: Unknown contents type - %i", contents);
 		return FTECONTENTS_SOLID;
 	}
+}
+
+int Q1BSP_HullPointContents(hull_t *hull, vec3_t p)
+{
+	return Q1BSP_TranslateContents(Q1_HullPointContents(hull, hull->firstclipnode, p));
 }
 
 unsigned int Q1BSP_PointContents(model_t *model, vec3_t axis[3], vec3_t point)
@@ -381,6 +730,121 @@ unsigned int Q1BSP_PointContents(model_t *model, vec3_t axis[3], vec3_t point)
 	return Q1BSP_HullPointContents(&model->hulls[0], point);
 }
 
+void Q1BSP_LoadBrushes(model_t *model)
+{
+	struct {
+		unsigned int ver;
+		unsigned int modelnum;
+		unsigned int numbrushes;
+		unsigned int numplanes;
+	} *permodel;
+	struct {
+		float mins[3];
+		float maxs[3];
+		signed short contents;
+		unsigned short numplanes;
+	} *perbrush;
+	/*
+	Note to implementors:
+	a pointy brush with angles pointier than 90 degrees will extend further than any adjacent brush, thus creating invisible walls with larger expansions.
+	the engine inserts 6 axial planes acording to the bbox, thus the qbsp need not write any axial planes
+	note that doing it this way probably isn't good if you want to query textures...
+	*/
+	struct {
+		vec3_t normal;
+		float dist;
+	} *perplane;
+
+	static vec3_t axis[3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+	int br, pl, remainingplanes;
+	mbrush_t *brush;
+	mnode_t *rootnode;
+	unsigned int lumpsizeremaining;
+
+	model->engineflags &= ~MDLF_HASBRUSHES;
+
+	permodel = Q1BSPX_FindLump("BRUSHLIST", &lumpsizeremaining);
+	if (!permodel)
+		return;
+
+	while (lumpsizeremaining)
+	{
+		if (lumpsizeremaining < sizeof(*permodel))
+			return;
+		permodel->ver = LittleLong(permodel->ver);
+		permodel->modelnum = LittleLong(permodel->modelnum);
+		permodel->numbrushes = LittleLong(permodel->numbrushes);
+		permodel->numplanes = LittleLong(permodel->numplanes);
+		if (permodel->ver != 1 || lumpsizeremaining < sizeof(*permodel) + permodel->numbrushes*sizeof(*perbrush) + permodel->numplanes*sizeof(*perplane))
+			return;
+
+		//find the correct rootnode for the model
+		rootnode = model->nodes;
+		if (permodel->modelnum > model->numsubmodels)
+			return;
+		if (permodel->modelnum)
+			rootnode += model->submodels[permodel->modelnum-1].headnode[0];
+
+		brush = Hunk_Alloc((sizeof(*brush) - sizeof(brush->planes[0]))*permodel->numbrushes + sizeof(brush->planes[0])*(permodel->numbrushes*6+permodel->numplanes));
+		remainingplanes = permodel->numplanes;
+		perbrush = (void*)(permodel+1);
+		for (br = 0; br < permodel->numbrushes; br++)
+		{
+			/*byteswap it all in place*/
+			perbrush->mins[0] = LittleFloat(perbrush->mins[0]);
+			perbrush->mins[1] = LittleFloat(perbrush->mins[1]);
+			perbrush->mins[2] = LittleFloat(perbrush->mins[2]);
+			perbrush->maxs[0] = LittleFloat(perbrush->maxs[0]);
+			perbrush->maxs[1] = LittleFloat(perbrush->maxs[1]);
+			perbrush->maxs[2] = LittleFloat(perbrush->maxs[2]);
+			perbrush->contents = LittleShort(perbrush->contents);
+			perbrush->numplanes = LittleShort(perbrush->numplanes);
+
+			/*make sure planes don't overflow*/
+			if (perbrush->numplanes > remainingplanes)
+				return;
+			remainingplanes-=perbrush->numplanes;
+
+			/*set up the mbrush from the file*/
+			brush->contents = Q1BSP_TranslateContents(perbrush->contents);
+			brush->numplanes = perbrush->numplanes;
+			for (pl = 0, perplane = (void*)(perbrush+1); pl < perbrush->numplanes; pl++, perplane++)
+			{
+				brush->planes[pl].normal[0] = LittleFloat(perplane->normal[0]);
+				brush->planes[pl].normal[1] = LittleFloat(perplane->normal[1]);
+				brush->planes[pl].normal[2] = LittleFloat(perplane->normal[2]);
+				brush->planes[pl].dist = LittleFloat(perplane->dist);
+			}
+
+			/*and add axial planes acording to the brush's bbox*/
+			for (pl = 0; pl < 3; pl++)
+			{
+				VectorCopy(axis[pl], brush->planes[brush->numplanes].normal);
+				brush->planes[brush->numplanes].dist = perbrush->maxs[pl];
+				brush->numplanes++;
+			}
+			for (pl = 0; pl < 3; pl++)
+			{
+				VectorNegate(axis[pl], brush->planes[brush->numplanes].normal);
+				brush->planes[brush->numplanes].dist = -perbrush->mins[pl];
+				brush->numplanes++;
+			}
+			
+			/*link it in to the bsp tree*/
+			Q1BSP_InsertBrush(rootnode, brush, perbrush->mins, perbrush->maxs);
+
+			/*set up for the next brush*/
+			brush = (void*)&brush->planes[brush->numplanes];
+			perbrush = (void*)perplane;
+		}
+		/*move on to the next model*/
+		lumpsizeremaining -= sizeof(*permodel) + permodel->numbrushes*sizeof(*perbrush) + permodel->numplanes*sizeof(*perplane);
+		permodel = (void*)((char*)permodel + sizeof(*permodel) + permodel->numbrushes*sizeof(*perbrush) + permodel->numplanes*sizeof(*perplane));
+	}
+	/*parsing was successful! flag it as okay*/
+	model->engineflags |= MDLF_HASBRUSHES;
+}
+
 qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int hitcontentsmask, trace_t *trace)
 {
 	hull_t *hull;
@@ -388,11 +852,47 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3]
 	vec3_t start_l, end_l;
 	vec3_t offset;
 
+	VectorSubtract (maxs, mins, size);
+	if ((model->engineflags & MDLF_HASBRUSHES))// && (size[0] || size[1] || size[2]))
+	{
+		struct traceinfo_s traceinfo;
+		memset (&traceinfo.trace, 0, sizeof(trace_t));
+		traceinfo.trace.fraction = 1;
+		traceinfo.trace.allsolid = false;
+		VectorCopy(mins, traceinfo.mins);
+		VectorCopy(maxs, traceinfo.maxs);
+		VectorCopy(start, traceinfo.start);
+		VectorCopy(end, traceinfo.end);
+		traceinfo.sphere = false;
+/*		traceinfo.sphere = true;
+		traceinfo.radius = 48;
+		traceinfo.mins[0] = -traceinfo.radius;
+		traceinfo.mins[1] = -traceinfo.radius;
+		traceinfo.mins[2] = -traceinfo.radius;
+		traceinfo.maxs[0] = traceinfo.radius;
+		traceinfo.maxs[1] = traceinfo.radius;
+		traceinfo.maxs[2] = traceinfo.radius;
+*/
+		traceinfo.solidcontents = hitcontentsmask;
+		Q1BSP_RecursiveBrushCheck(&traceinfo, model->nodes, 0, 1, start, end);
+		memcpy(trace, &traceinfo.trace, sizeof(trace_t));
+		if (trace->fraction < 1)
+		{
+			float d1 = DotProduct(start, trace->plane.normal) - trace->plane.dist;
+			float d2 = DotProduct(end, trace->plane.normal) - trace->plane.dist;
+			float f = (d1 - DIST_EPSILON) / (d1 - d2);
+			if (f < 0)
+				f = 0;
+			trace->fraction = f;
+		}
+		VectorInterpolate(start, trace->fraction, end, trace->endpos);
+		return trace->fraction != 1;
+	}
+
 	memset (trace, 0, sizeof(trace_t));
 	trace->fraction = 1;
 	trace->allsolid = true;
 
-	VectorSubtract (maxs, mins, size);
 	if (forcehullnum >= 1 && forcehullnum <= MAX_MAP_HULLSM && model->hulls[forcehullnum-1].available)
 		hull = &model->hulls[forcehullnum-1];
 	else
@@ -1375,11 +1875,79 @@ PVS type stuff
 Init stuff
 */
 
+
 void Q1BSP_Init(void)
 {
 	memset (mod_novis, 0xff, sizeof(mod_novis));
 }
 
+typedef struct {
+    char lumpname[24]; // up to 23 chars, zero-padded
+    int fileofs;  // from file start
+    int filelen;
+} bspx_lump_t;
+typedef struct {
+    char id[4];  // 'BSPX'
+    int numlumps;
+	bspx_lump_t lumps[1];
+} bspx_header_t;
+static char *bspxbase;
+static bspx_header_t *bspxheader;
+//supported lumps:
+//RGBLIGHTING (.lit)
+//LIGHTINGDIR (.lux)
+void *Q1BSPX_FindLump(char *lumpname, int *lumpsize)
+{
+	int i;
+	if (!bspxheader)
+		return NULL;
+
+	for (i = 0; i < bspxheader->numlumps; i++)
+	{
+		if (!strncmp(bspxheader->lumps[i].lumpname, lumpname, 24))
+		{
+			*lumpsize = bspxheader->lumps[i].filelen;
+			return bspxbase + bspxheader->lumps[i].fileofs;
+		}
+	}
+	return NULL;
+}
+void Q1BSPX_Setup(model_t *mod, char *filebase, unsigned int filelen, lump_t *lumps, int numlumps)
+{
+	int i;
+	int offs = 0;
+	bspx_header_t *h;
+
+	bspxbase = filebase;
+	bspxheader = NULL;
+
+	for (i = 0; i < numlumps; i++, lumps++)
+	{
+		if (offs < lumps->fileofs + lumps->filelen)
+			offs = lumps->fileofs + lumps->filelen;
+	}
+	offs = (offs + 3) & ~3;
+	if (offs + sizeof(*bspxheader) > filelen)
+		return; /*no space for it*/
+	h = (bspx_header_t*)(filebase + offs);
+
+	i = LittleLong(h->numlumps);
+	/*verify the header*/
+	if (*(int*)h->id != *(int*)"BSPX" ||
+		i < 0 ||
+		offs + sizeof(*h) + sizeof(h->lumps[0])*(i-1) > filelen)
+		return;
+	h->numlumps = i;
+	while(i-->0)
+	{
+		h->lumps[i].fileofs = LittleLong(h->lumps[i].fileofs);
+		h->lumps[i].filelen = LittleLong(h->lumps[i].filelen);
+		if (h->lumps[i].fileofs + h->lumps[i].filelen > filelen)
+			return;
+	}
+
+	bspxheader = h;
+}
 
 //sets up the functions a server needs.
 //fills in bspfuncs_t

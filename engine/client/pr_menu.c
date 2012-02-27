@@ -929,9 +929,18 @@ void QCBUILTIN PF_cl_getmousepos (progfuncs_t *prinst, struct globalvars_s *pr_g
 {
 	float *ret = G_VECTOR(OFS_RETURN);
 	extern int mousemove_x, mousemove_y;
+	extern int mousecursor_x, mousecursor_y;
 
-	ret[0] = mousemove_x;
-	ret[1] = mousemove_y;
+	if (Key_MouseShouldBeFree())
+	{
+		ret[0] = mousecursor_x;
+		ret[1] = mousecursor_y;
+	}
+	else
+	{
+		ret[0] = mousemove_x;
+		ret[1] = mousemove_y;
+	}
 
 	mousemove_x=0;
 	mousemove_y=0;

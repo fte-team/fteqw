@@ -139,6 +139,16 @@ static void DSOUND_Shutdown (soundcardinfo_t *sc)
 	dshandle_t *dh = sc->handle;
 	if (!dh)
 		return;
+
+#ifdef MULTITHREAD
+	if (sc->thread)
+	{
+		sc->selfpainting = false;
+		Sys_WaitOnThread(sc->thread); 
+	}
+#endif
+
+
 	sc->handle = NULL;
 #ifdef _IKsPropertySet_
 	if (dh->EaxKsPropertiesSet)
@@ -516,8 +526,23 @@ static void DSOUND_Submit(soundcardinfo_t *sc, int start, int end)
 {
 }
 
-
-
+#ifdef MULTITHREAD
+int GetSoundtime(soundcardinfo_t *sc);
+static int DSOUND_Thread(void *arg)
+{
+	soundcardinfo_t *sc = arg;
+	while(sc->selfpainting)
+	{
+		S_MixerThread(sc);
+		/* Quote:
+		On NT (Win2K and XP) the cursors in SW buffers (and HW buffers on some devices) move in 10ms increments, so calling GetCurrentPosition() every 10ms is ideal.
+		Calling it more often than every 5ms will cause some perf degradation.
+		*/
+		Sleep(9);
+	}
+	return 0;
+}
+#endif
 
 /*
 ==================
@@ -895,6 +920,14 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	}
 #endif
 #endif
+
+#ifdef MULTITHREAD
+	sc->selfpainting = true;
+	sc->thread = Sys_CreateThread(DSOUND_Thread, sc, THREADP_HIGHEST, 0);
+	if (!sc->thread)
+		sc->selfpainting = false; /*oh well*/
+#endif
+
 	return SND_LOADED;
 }
 int (*pDSOUND_InitCard) (soundcardinfo_t *sc, int cardnum) = &DSOUND_InitCard;

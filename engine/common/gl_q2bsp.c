@@ -3658,6 +3658,8 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 		map_faces = NULL;
 		map_leaffaces = NULL;
 
+		Q1BSPX_Setup(loadmodel, mod_base, com_filesize, header.lumps, Q3LUMPS_TOTAL);
+
 		switch(qrenderer)
 		{
 #if defined(GLQUAKE)
@@ -3811,6 +3813,8 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 			header.lumps[i].filelen = LittleLong (header.lumps[i].filelen);
 			header.lumps[i].fileofs = LittleLong (header.lumps[i].fileofs);
 		}
+
+		Q1BSPX_Setup(loadmodel, mod_base, com_filesize, header.lumps, Q2HEADER_LUMPS);
 
 #ifndef SERVERONLY
 		if (CM_GetQ2Palette())

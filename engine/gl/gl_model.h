@@ -419,6 +419,18 @@ typedef struct msurface_s
 #endif
 } msurface_t;
 
+typedef struct mbrush_s
+{
+	struct mbrush_s *next;
+	unsigned int contents;
+	int numplanes;
+	struct mbrushplane_s
+	{
+		vec3_t normal;
+		float dist;
+	} planes[1];
+} mbrush_t;
+
 typedef struct mnode_s
 {
 // common with leaf
@@ -429,6 +441,7 @@ typedef struct mnode_s
 	float		minmaxs[6];		// for bounding box culling
 
 	struct mnode_s	*parent;
+	struct mbrush_s	*brushes;
 
 // node specific
 	mplane_t	*plane;
@@ -453,6 +466,7 @@ typedef struct mleaf_s
 	float		minmaxs[6];		// for bounding box culling
 
 	struct mnode_s	*parent;
+	struct mbrush_s	*brushes;
 
 // leaf specific
 	qbyte		*compressed_vis;
@@ -506,7 +520,10 @@ typedef struct hull_s
 
 void Q1BSP_CheckHullNodes(hull_t *hull);
 void Q1BSP_SetModelFuncs(struct model_s *mod);
+void Q1BSP_LoadBrushes(struct model_s *model);
 void Q1BSP_Init(void);
+void *Q1BSPX_FindLump(char *lumpname, int *lumpsize);
+void Q1BSPX_Setup(struct model_s *mod, char *filebase, unsigned int filelen, lump_t *lumps, int numlumps);
 
 int Q1BSP_ClipDecal(vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, float **out);
 
@@ -953,6 +970,7 @@ typedef struct model_s
 #define MDLF_BOLT            0x080 // doesn't produce shadows
 #define	MDLF_NOTREPLACEMENTS 0x100 // can be considered a cheat, disable texture replacements
 #define MDLF_EZQUAKEFBCHEAT  0x200 // this is a blatent cheat, one that can disadvantage us fairly significantly if we don't support it.
+#define MDLF_HASBRUSHES		 0x400 // q1bsp has brush info for more precise traceboxes
 
 //============================================================================
 /*

@@ -224,25 +224,76 @@ void GL_SetupSceneProcessingTextures (void)
 
 void R_RotateForEntity (float *m, float *modelview, const entity_t *e, const model_t *mod)
 {
-	m[0] = e->axis[0][0];
-	m[1] = e->axis[0][1];
-	m[2] = e->axis[0][2];
-	m[3] = 0;
+	if (e->flags & Q2RF_WEAPONMODEL && r_refdef.currentplayernum>=0)
+	{
+		entity_t *view = &cl.viewent[r_refdef.currentplayernum];
+		float em[16];
+		float vm[16];
 
-	m[4] = e->axis[1][0];
-	m[5] = e->axis[1][1];
-	m[6] = e->axis[1][2];
-	m[7] = 0;
+		vm[0] = view->axis[0][0];
+		vm[1] = view->axis[0][1];
+		vm[2] = view->axis[0][2];
+		vm[3] = 0;
 
-	m[8] = e->axis[2][0];
-	m[9] = e->axis[2][1];
-	m[10] = e->axis[2][2];
-	m[11] = 0;
+		vm[4] = view->axis[1][0];
+		vm[5] = view->axis[1][1];
+		vm[6] = view->axis[1][2];
+		vm[7] = 0;
 
-	m[12] = e->origin[0];
-	m[13] = e->origin[1];
-	m[14] = e->origin[2];
-	m[15] = 1;
+		vm[8] = view->axis[2][0];
+		vm[9] = view->axis[2][1];
+		vm[10] = view->axis[2][2];
+		vm[11] = 0;
+
+		vm[12] = view->origin[0];
+		vm[13] = view->origin[1];
+		vm[14] = view->origin[2];
+		vm[15] = 1;
+
+		em[0] = e->axis[0][0];
+		em[1] = e->axis[0][1];
+		em[2] = e->axis[0][2];
+		em[3] = 0;
+
+		em[4] = e->axis[1][0];
+		em[5] = e->axis[1][1];
+		em[6] = e->axis[1][2];
+		em[7] = 0;
+
+		em[8] = e->axis[2][0];
+		em[9] = e->axis[2][1];
+		em[10] = e->axis[2][2];
+		em[11] = 0;
+
+		em[12] = e->origin[0];
+		em[13] = e->origin[1];
+		em[14] = e->origin[2];
+		em[15] = 1;
+
+		Matrix4_Multiply(vm, em, m);
+	}
+	else
+	{
+		m[0] = e->axis[0][0];
+		m[1] = e->axis[0][1];
+		m[2] = e->axis[0][2];
+		m[3] = 0;
+
+		m[4] = e->axis[1][0];
+		m[5] = e->axis[1][1];
+		m[6] = e->axis[1][2];
+		m[7] = 0;
+
+		m[8] = e->axis[2][0];
+		m[9] = e->axis[2][1];
+		m[10] = e->axis[2][2];
+		m[11] = 0;
+
+		m[12] = e->origin[0];
+		m[13] = e->origin[1];
+		m[14] = e->origin[2];
+		m[15] = 1;
+	}
 
 	if (e->scale != 1 && e->scale != 0)	//hexen 2 stuff
 	{
@@ -298,21 +349,7 @@ void R_RotateForEntity (float *m, float *modelview, const entity_t *e, const mod
 		VectorScale((m+8), mod->clampscale, (m+8));
 	}
 
-	if (e->flags & Q2RF_WEAPONMODEL && r_refdef.currentplayernum>=0)
-	{
-		/*FIXME: no bob*/
-		float simpleview[16];
-		vec3_t ang;
-		ang[0] = 0;
-		ang[1] = 0;
-		ang[2] = gl_screenangle.value;
-		Matrix4x4_CM_ModelViewMatrix(simpleview, ang, vec3_origin);
-		Matrix4_Multiply(simpleview, m, modelview);
-	}
-	else
-	{
-		Matrix4_Multiply(r_refdef.m_view, m, modelview);
-	}
+	Matrix4_Multiply(r_refdef.m_view, m, modelview);
 }
 
 //==================================================================================

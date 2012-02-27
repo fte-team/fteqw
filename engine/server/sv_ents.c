@@ -2871,7 +2871,7 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 {
 //pvs and clent can be null, but only if the other is also null
 	int e, i;
-	edict_t *ent;
+	edict_t *ent, *trackent;
 	entity_state_t	*state;
 #define DEPTHOPTIMISE
 #ifdef DEPTHOPTIMISE
@@ -2881,6 +2881,11 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 #endif
 	globalvars_t *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
 	int pvsflags;
+
+	if (client->spectator)
+		trackent = EDICT_NUM(svprogfuncs, client->spec_track);
+	else
+		trackent = PROG_TO_EDICT(svprogfuncs, clent->xv->view2);
 
 	if (client->viewent
  #ifdef NQPROT
@@ -2967,7 +2972,7 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 				continue;
 			pvsflags = PVSF_IGNOREPVS;
 		}
-		else if (ent == clent)
+		else if (ent == clent || ent == trackent)
 		{
 			pvsflags = PVSF_IGNOREPVS;
 		}
@@ -2978,7 +2983,7 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 				continue;
 
 			pvsflags = ent->xv->pvsflags;
-			if (pvs && ent != clent)	//self doesn't get a pvs test, to cover teleporters
+			if (pvs)	//self doesn't get a pvs test, to cover teleporters
 			{
 				if ((int)ent->v->effects & EF_NODEPTHTEST)
 				{

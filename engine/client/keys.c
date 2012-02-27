@@ -1633,9 +1633,6 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 		return;
 	}
 
-	if (shift_down && unicode < K_MAX && keyshift[unicode])
-		unicode = keyshift[unicode];
-
 	if (!down)
 	{
 		switch (key_dest)

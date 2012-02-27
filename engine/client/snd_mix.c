@@ -117,15 +117,16 @@ void SND_PaintChannelFrom16Stereo (channel_t *ch, sfxcache_t *sc, int count);
 
 void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 {
-	int 	i, j;
+	int 	i;
 	int 	end;
 	channel_t *ch;
+	sfxcache_t	scachebuf;
 	sfxcache_t	*scache;
 	sfx_t *s;
 	int		ltime, count;
+	int avail;
+	unsigned int maxlen = ruleset_allow_overlongsounds.ival?0xffffffffu>>PITCHSHIFT:snd_speed*20;
 
-//	sc->rawstart += sc->paintedtime - sc->oldpaintedtime;
-//	sc->oldpaintedtime = sc->paintedtime;
 	while (sc->paintedtime < endtime)
 	{
 	// if paintbuffer is smaller than DMA buffer
@@ -140,67 +141,47 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 		ch = sc->channel;
 		for (i=0; i<sc->total_chans ; i++, ch++)
 		{
-			if (!ch->sfx)
+			s = ch->sfx;
+			if (!s)
 				continue;
 			if (!ch->vol[0] && !ch->vol[1] && !ch->vol[2] && !ch->vol[3] && !ch->vol[4] && !ch->vol[5])
 				continue;
 
-			scache = S_LoadSound (ch->sfx);
-			if (!scache)
-				continue;
-
-			if ((ch->pos>>PITCHSHIFT) > scache->length)	//cache was flushed and gamedir changed.
-			{
-				ch->pos = scache->length*ch->rate;
-				ch->end = sc->paintedtime;
-			}
-
-
 			ltime = sc->paintedtime;
-
-			if (ch->sfx->decoder)
-			{
-				int len_diff;
-				soundcardinfo_t *sndc;
-#define qmax(x, y) (x>y)?(x):(y)
-				len_diff = scache->length;
-//				start = ch->end - scache->length;
-//				samples = end - start;
-
-#ifdef warningmsg
-#pragma warningmsg("pitch fix needed")
-#endif
-				ch->sfx->decoder->decodemore(ch->sfx,
-					end - (ch->end - scache->length) + 1);
-//						ch->pos + end-ltime+1);
-
-				scache = S_LoadSound (ch->sfx);
-				if (!scache)
-					continue;
-				len_diff = scache->length - len_diff;
-
-				for (sndc = sndcardinfo; sndc; sndc=sndc->next)
-				{
-					for (j = 0; j < sndc->total_chans; j++)
-						if (sndc->channel[j].sfx == ch->sfx)	//extend all of these.
-							ch->end += len_diff*ch->rate;
-				}
-			}
-
 			while (ltime < end)
-			{	// paint up to end
-				if (ch->end < end)
-					count = ch->end - ltime;
+			{
+				if (s->decoder.decodedata)
+					scache = s->decoder.decodedata(s, &scachebuf, ch->pos>>PITCHSHIFT, 1 + (((end - ltime) * ch->rate)>>PITCHSHIFT));	/*1 for luck - balances audio termination below*/
 				else
-					count = end - ltime;
+					scache = s->decoder.buf;
+				if (!scache)
+				{
+					ch->sfx = NULL;
+					break;
+				}
 
+				// find how many samples till the sample ends (clamp max length)
+				avail = scache->length;
+				if (avail > maxlen)
+					avail = snd_speed*10;
+				avail = (((int)(scache->soundoffset + avail)<<PITCHSHIFT) - ch->pos) / ch->rate;
+				// mix the smaller of how much is available or the time left
+				count = min(avail, end - ltime);
+
+				if (avail < 0)
+				{
+					Sys_Printf("sound already past end of buffer\n");
+					avail = 0;
+					count = 0;
+				}
 
 				if (count > 0)
 				{
-					if (ch->pos < 0)	//delay the sound a little
+					if (ch->pos < 0)	//sounds with a pos of 0 are delay-start sounds
 					{
-						if (count > -ch->pos)
-							count = -ch->pos;
+						//don't progress past 0, so it actually starts properly at the right time with no clicks or anything
+						if (count > (-ch->pos+255)>>PITCHSHIFT)
+							count = ((-ch->pos+255)>>PITCHSHIFT);
 						ltime += count;
 						ch->pos += count*ch->rate;
 						continue;
@@ -233,36 +214,35 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 							SND_PaintChannelFrom16(ch, scache, count);
 					}
 					ltime += count;
+					ch->pos += ch->rate * count;
 				}
-
-			// if at end of loop, restart
-				if (ltime >= ch->end)
+				
+				if (count == avail)
 				{
-					if (scache->loopstart >= 0)
+					if (scache->loopstart != -1)	/*some wavs contain a loop offset directly in the sound file, such samples loop even if a non-looping builtin was used*/
 					{
-						if (scache->length == scache->loopstart)
+						if (scache->length <= scache->loopstart)
 							break;
-						ch->pos = scache->loopstart*ch->rate;
-						ch->end = ltime + ((scache->length - scache->loopstart)<<PITCHSHIFT)/ch->rate;
+						ch->pos &= ~((-1)<<PITCHSHIFT);	/*clear out all but the subsample offset*/
+						ch->pos += scache->loopstart<<PITCHSHIFT;
 						if (!scache->length)
 						{
 							scache->loopstart=-1;
 							break;
 						}
 					}
-					else if (ch->looping && scache->length)
+					else if (ch->looping && scache->length)	/*(static)channels which are explicitly looping always loop from the start*/
 					{
+						/*restart it*/
 						ch->pos = 0;
-						ch->end = ltime + ((scache->length)<<PITCHSHIFT)/ch->rate;
 					}
 					else
 					{	// channel just stopped
-						s = ch->sfx;
 						ch->sfx = NULL;
-						if (s->decoder)
+						if (s->decoder.abort)
 						{
 							if (!S_IsPlayingSomewhere(s))
-								s->decoder->abort(s);
+								s->decoder.abort(s);
 						}
 						break;
 					}
@@ -281,6 +261,7 @@ void SND_PaintChannelFrom8 (channel_t *ch, sfxcache_t *sc, int count)
 	int 	data;
 	signed char *sfx;
 	int		i;
+	unsigned int pos = ch->pos-(sc->soundoffset<<PITCHSHIFT);
 
 	if (ch->vol[0] > 255)
 		ch->vol[0] = 255;
@@ -292,22 +273,21 @@ void SND_PaintChannelFrom8 (channel_t *ch, sfxcache_t *sc, int count)
 		sfx = (signed char *)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
-			data = sfx[ch->pos>>PITCHSHIFT];
-			ch->pos += ch->rate;
+			data = sfx[pos>>PITCHSHIFT];
+			pos += ch->rate;
 			paintbuffer[i].s[0] += ch->vol[0] * data;
 			paintbuffer[i].s[1] += ch->vol[1] * data;
 		}
 	}
 	else
 	{
-		sfx = (signed char *)sc->data + (ch->pos>>PITCHSHIFT);
+		sfx = (signed char *)sc->data + (pos>>PITCHSHIFT);
 		for (i=0 ; i<count ; i++)
 		{
 			data = sfx[i];
 			paintbuffer[i].s[0] += ch->vol[0] * data;
 			paintbuffer[i].s[1] += ch->vol[1] * data;
 		}
-		ch->pos += count<<PITCHSHIFT;
 	}
 }
 
@@ -316,6 +296,7 @@ void SND_PaintChannelFrom8Stereo (channel_t *ch, sfxcache_t *sc, int count)
 //	int 	data;
 	signed char *sfx;
 	int		i;
+	unsigned int pos = ch->pos-(sc->soundoffset<<PITCHSHIFT);
 
 	if (ch->vol[0] > 255)
 		ch->vol[0] = 255;
@@ -327,20 +308,19 @@ void SND_PaintChannelFrom8Stereo (channel_t *ch, sfxcache_t *sc, int count)
 		sfx = (signed char *)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
-			paintbuffer[i].s[0] += ch->vol[0] * sfx[(ch->pos>>(PITCHSHIFT-1))&~1];
-			paintbuffer[i].s[1] += ch->vol[1] * sfx[(ch->pos>>(PITCHSHIFT-1))|1];
-			ch->pos += ch->rate;
+			paintbuffer[i].s[0] += ch->vol[0] * sfx[(pos>>(PITCHSHIFT-1))&~1];
+			paintbuffer[i].s[1] += ch->vol[1] * sfx[(pos>>(PITCHSHIFT-1))|1];
+			pos += ch->rate;
 		}
 	}
 	else
 	{
-		sfx = (signed char *)sc->data + (ch->pos>>PITCHSHIFT)*2;
+		sfx = (signed char *)sc->data + (pos>>PITCHSHIFT)*2;
 		for (i=0 ; i<count ; i++)
 		{
 			paintbuffer[i].s[0] += ch->vol[0] * sfx[(i<<1)];
 			paintbuffer[i].s[1] += ch->vol[1] * sfx[(i<<1)+1];
 		}
-		ch->pos += count<<PITCHSHIFT;
 	}
 }
 
@@ -348,6 +328,7 @@ void SND_PaintChannelFrom8_4Speaker (channel_t *ch, sfxcache_t *sc, int count)
 {
 	signed char *sfx;
 	int		i;
+	unsigned int pos = ch->pos-(sc->soundoffset<<PITCHSHIFT);
 
 	if (ch->vol[0] > 255)
 		ch->vol[0] = 255;
@@ -364,8 +345,8 @@ void SND_PaintChannelFrom8_4Speaker (channel_t *ch, sfxcache_t *sc, int count)
 		sfx = (signed char *)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
-			data = sfx[ch->pos>>PITCHSHIFT];
-			ch->pos += ch->rate;
+			data = sfx[pos>>PITCHSHIFT];
+			pos += ch->rate;
 			paintbuffer[i].s[0] += ch->vol[0] * data;
 			paintbuffer[i].s[1] += ch->vol[1] * data;
 			paintbuffer[i].s[2] += ch->vol[2] * data;
@@ -374,7 +355,7 @@ void SND_PaintChannelFrom8_4Speaker (channel_t *ch, sfxcache_t *sc, int count)
 	}
 	else
 	{
-		sfx = (signed char *)sc->data + (ch->pos>>PITCHSHIFT);
+		sfx = (signed char *)sc->data + (pos>>PITCHSHIFT);
 		for (i=0 ; i<count ; i++)
 		{
 			paintbuffer[i].s[0] += ch->vol[0] * sfx[i];
@@ -382,7 +363,6 @@ void SND_PaintChannelFrom8_4Speaker (channel_t *ch, sfxcache_t *sc, int count)
 			paintbuffer[i].s[2] += ch->vol[2] * sfx[i];
 			paintbuffer[i].s[3] += ch->vol[3] * sfx[i];
 		}
-		ch->pos += count<<PITCHSHIFT;
 	}
 }
 
@@ -390,6 +370,7 @@ void SND_PaintChannelFrom8_6Speaker (channel_t *ch, sfxcache_t *sc, int count)
 {
 	signed char *sfx;
 	int		i;
+	unsigned int pos = ch->pos-(sc->soundoffset<<PITCHSHIFT);
 
 	if (ch->vol[0] > 255)
 		ch->vol[0] = 255;
@@ -410,8 +391,8 @@ void SND_PaintChannelFrom8_6Speaker (channel_t *ch, sfxcache_t *sc, int count)
 		sfx = (signed char *)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
-			data = sfx[ch->pos>>PITCHSHIFT];
-			ch->pos += ch->rate;
+			data = sfx[pos>>PITCHSHIFT];
+			pos += ch->rate;
 			paintbuffer[i].s[0] += ch->vol[0] * data;
 			paintbuffer[i].s[1] += ch->vol[1] * data;
 			paintbuffer[i].s[2] += ch->vol[2] * data;
@@ -422,7 +403,7 @@ void SND_PaintChannelFrom8_6Speaker (channel_t *ch, sfxcache_t *sc, int count)
 	}
 	else
 	{
-		sfx = (signed char *)sc->data + (ch->pos>>PITCHSHIFT);
+		sfx = (signed char *)sc->data + (pos>>PITCHSHIFT);
 		for (i=0 ; i<count ; i++)
 		{
 			paintbuffer[i].s[0] += ch->vol[0] * sfx[i];
@@ -432,7 +413,6 @@ void SND_PaintChannelFrom8_6Speaker (channel_t *ch, sfxcache_t *sc, int count)
 			paintbuffer[i].s[4] += ch->vol[4] * sfx[i];
 			paintbuffer[i].s[5] += ch->vol[5] * sfx[i];
 		}
-		ch->pos += count<<PITCHSHIFT;
 	}
 }
 
@@ -440,6 +420,7 @@ void SND_PaintChannelFrom8_8Speaker (channel_t *ch, sfxcache_t *sc, int count)
 {
 	signed char *sfx;
 	int		i;
+	unsigned int pos = ch->pos-(sc->soundoffset<<PITCHSHIFT);
 
 	if (ch->vol[0] > 255)
 		ch->vol[0] = 255;
@@ -464,8 +445,8 @@ void SND_PaintChannelFrom8_8Speaker (channel_t *ch, sfxcache_t *sc, int count)
 		sfx = (signed char *)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
-			data = sfx[ch->pos>>PITCHSHIFT];
-			ch->pos += ch->rate;
+			data = sfx[pos>>PITCHSHIFT];
+			pos += ch->rate;
 			paintbuffer[i].s[0] += ch->vol[0] * data;
 			paintbuffer[i].s[1] += ch->vol[1] * data;
 			paintbuffer[i].s[2] += ch->vol[2] * data;
@@ -478,7 +459,7 @@ void SND_PaintChannelFrom8_8Speaker (channel_t *ch, sfxcache_t *sc, int count)
 	}
 	else
 	{
-		sfx = (signed char *)sc->data + (ch->pos>>PITCHSHIFT);
+		sfx = (signed char *)sc->data + (pos>>PITCHSHIFT);
 		for (i=0 ; i<count ; i++)
 		{
 			paintbuffer[i].s[0] += ch->vol[0] * sfx[i];
@@ -490,7 +471,6 @@ void SND_PaintChannelFrom8_8Speaker (channel_t *ch, sfxcache_t *sc, int count)
 			paintbuffer[i].s[6] += ch->vol[6] * sfx[i];
 			paintbuffer[i].s[7] += ch->vol[7] * sfx[i];
 		}
-		ch->pos += count<<PITCHSHIFT;
 	}
 }
 
@@ -502,6 +482,7 @@ void SND_PaintChannelFrom16 (channel_t *ch, sfxcache_t *sc, int count)
 	int leftvol, rightvol;
 	signed short *sfx;
 	int	i;
+	unsigned int pos = ch->pos-(sc->soundoffset<<PITCHSHIFT);
 
 	leftvol = ch->vol[0];
 	rightvol = ch->vol[1];
@@ -512,15 +493,15 @@ void SND_PaintChannelFrom16 (channel_t *ch, sfxcache_t *sc, int count)
 		sfx = (signed short *)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
-			data = sfx[ch->pos>>PITCHSHIFT];
-			ch->pos += ch->rate;
+			data = sfx[pos>>PITCHSHIFT];
+			pos += ch->rate;
 			paintbuffer[i].s[0] += (leftvol * data)>>8;
 			paintbuffer[i].s[1] += (rightvol * data)>>8;
 		}
 	}
 	else
 	{
-		sfx = (signed short *)sc->data + (ch->pos>>PITCHSHIFT);
+		sfx = (signed short *)sc->data + (pos>>PITCHSHIFT);
 		for (i=0 ; i<count ; i++)
 		{
 			data = sfx[i];
@@ -529,7 +510,6 @@ void SND_PaintChannelFrom16 (channel_t *ch, sfxcache_t *sc, int count)
 			paintbuffer[i].s[0] += left;
 			paintbuffer[i].s[1] += right;
 		}
-		ch->pos += count<<PITCHSHIFT;
 	}
 }
 
@@ -538,6 +518,7 @@ void SND_PaintChannelFrom16Stereo (channel_t *ch, sfxcache_t *sc, int count)
 	int leftvol, rightvol;
 	signed short *sfx;
 	int	i;
+	unsigned int pos = ch->pos-(sc->soundoffset<<PITCHSHIFT);
 
 	leftvol = ch->vol[0];
 	rightvol = ch->vol[1];
@@ -548,22 +529,21 @@ void SND_PaintChannelFrom16Stereo (channel_t *ch, sfxcache_t *sc, int count)
 		sfx = (signed short *)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
-			l = sfx[(ch->pos>>(PITCHSHIFT-1))&~1];
-			r = sfx[(ch->pos>>(PITCHSHIFT-1))|1];
-			ch->pos += ch->rate;
+			l = sfx[(pos>>(PITCHSHIFT-1))&~1];
+			r = sfx[(pos>>(PITCHSHIFT-1))|1];
+			pos += ch->rate;
 			paintbuffer[i].s[0] += (ch->vol[0] * l)>>8;
 			paintbuffer[i].s[1] += (ch->vol[1] * r)>>8;
 		}
 	}
 	else
 	{
-		sfx = (signed short *)sc->data + (ch->pos>>PITCHSHIFT)*2;
+		sfx = (signed short *)sc->data + (pos>>PITCHSHIFT)*2;
 		for (i=0 ; i<count ; i++)
 		{
 			paintbuffer[i].s[0] += (*sfx++ * leftvol) >> 8;
 			paintbuffer[i].s[1] += (*sfx++ * rightvol) >> 8;
 		}
-		ch->pos += count<<PITCHSHIFT;
 	}
 }
 
@@ -572,6 +552,7 @@ void SND_PaintChannelFrom16_4Speaker (channel_t *ch, sfxcache_t *sc, int count)
 	int vol[4];
 	signed short *sfx;
 	int	i;
+	unsigned int pos = ch->pos-(sc->soundoffset<<PITCHSHIFT);
 
 	vol[0] = ch->vol[0];
 	vol[1] = ch->vol[1];
@@ -584,8 +565,8 @@ void SND_PaintChannelFrom16_4Speaker (channel_t *ch, sfxcache_t *sc, int count)
 		sfx = (signed short *)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
-			data = sfx[ch->pos>>PITCHSHIFT];
-			ch->pos += ch->rate;
+			data = sfx[pos>>PITCHSHIFT];
+			pos += ch->rate;
 			paintbuffer[i].s[0] += (vol[0] * data)>>8;
 			paintbuffer[i].s[1] += (vol[1] * data)>>8;
 			paintbuffer[i].s[2] += (vol[2] * data)>>8;
@@ -594,7 +575,7 @@ void SND_PaintChannelFrom16_4Speaker (channel_t *ch, sfxcache_t *sc, int count)
 	}
 	else
 	{
-		sfx = (signed short *)sc->data + ch->pos;
+		sfx = (signed short *)sc->data + pos;
 		for (i=0 ; i<count ; i++)
 		{
 			paintbuffer[i].s[0] += (sfx[i] * vol[0]) >> 8;
@@ -602,7 +583,6 @@ void SND_PaintChannelFrom16_4Speaker (channel_t *ch, sfxcache_t *sc, int count)
 			paintbuffer[i].s[2] += (sfx[i] * vol[2]) >> 8;
 			paintbuffer[i].s[3] += (sfx[i] * vol[3]) >> 8;
 		}
-		ch->pos += count<<PITCHSHIFT;
 	}
 }
 
@@ -611,6 +591,7 @@ void SND_PaintChannelFrom16_6Speaker (channel_t *ch, sfxcache_t *sc, int count)
 	int vol[6];
 	signed short *sfx;
 	int	i;
+	unsigned int pos = ch->pos-(sc->soundoffset<<PITCHSHIFT);
 
 	vol[0] = ch->vol[0];
 	vol[1] = ch->vol[1];
@@ -625,8 +606,8 @@ void SND_PaintChannelFrom16_6Speaker (channel_t *ch, sfxcache_t *sc, int count)
 		sfx = (signed short *)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
-			data = sfx[ch->pos>>PITCHSHIFT];
-			ch->pos += ch->rate;
+			data = sfx[pos>>PITCHSHIFT];
+			pos += ch->rate;
 			paintbuffer[i].s[0] += (vol[0] * data)>>8;
 			paintbuffer[i].s[1] += (vol[1] * data)>>8;
 			paintbuffer[i].s[2] += (vol[2] * data)>>8;
@@ -637,7 +618,7 @@ void SND_PaintChannelFrom16_6Speaker (channel_t *ch, sfxcache_t *sc, int count)
 	}
 	else
 	{
-		sfx = (signed short *)sc->data + (ch->pos>>PITCHSHIFT);
+		sfx = (signed short *)sc->data + (pos>>PITCHSHIFT);
 		for (i=0 ; i<count ; i++)
 		{
 			paintbuffer[i].s[0] += (sfx[i] * vol[0]) >> 8;
@@ -647,7 +628,6 @@ void SND_PaintChannelFrom16_6Speaker (channel_t *ch, sfxcache_t *sc, int count)
 			paintbuffer[i].s[4] += (sfx[i] * vol[4]) >> 8;
 			paintbuffer[i].s[5] += (sfx[i] * vol[5]) >> 8;
 		}
-		ch->pos += count<<PITCHSHIFT;
 	}
 }
 
@@ -656,6 +636,7 @@ void SND_PaintChannelFrom16_8Speaker (channel_t *ch, sfxcache_t *sc, int count)
 	int vol[8];
 	signed short *sfx;
 	int	i;
+	unsigned int pos = ch->pos-(sc->soundoffset<<PITCHSHIFT);
 
 	vol[0] = ch->vol[0];
 	vol[1] = ch->vol[1];
@@ -672,8 +653,8 @@ void SND_PaintChannelFrom16_8Speaker (channel_t *ch, sfxcache_t *sc, int count)
 		sfx = (signed short *)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
-			data = sfx[ch->pos>>PITCHSHIFT];
-			ch->pos += ch->rate;
+			data = sfx[pos>>PITCHSHIFT];
+			pos += ch->rate;
 			paintbuffer[i].s[0] += (vol[0] * data)>>8;
 			paintbuffer[i].s[1] += (vol[1] * data)>>8;
 			paintbuffer[i].s[2] += (vol[2] * data)>>8;
@@ -686,7 +667,7 @@ void SND_PaintChannelFrom16_8Speaker (channel_t *ch, sfxcache_t *sc, int count)
 	}
 	else
 	{
-		sfx = (signed short *)sc->data + (ch->pos>>PITCHSHIFT);
+		sfx = (signed short *)sc->data + (pos>>PITCHSHIFT);
 		for (i=0 ; i<count ; i++)
 		{
 			paintbuffer[i].s[0] += (sfx[i] * vol[0]) >> 8;
@@ -698,6 +679,5 @@ void SND_PaintChannelFrom16_8Speaker (channel_t *ch, sfxcache_t *sc, int count)
 			paintbuffer[i].s[6] += (sfx[i] * vol[6]) >> 8;
 			paintbuffer[i].s[7] += (sfx[i] * vol[7]) >> 8;
 		}
-		ch->pos += count<<PITCHSHIFT;
 	}
 }

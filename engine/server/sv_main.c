@@ -3808,6 +3808,27 @@ float SV_Frame (void)
 		oldpaused = sv.paused;
 	}
 
+
+	//work out the gamespeed
+	if (sv.gamespeed != sv_gamespeed.value)
+	{
+		char *newspeed;
+		sv.gamespeed = sv_gamespeed.value;
+		if (sv.gamespeed < 0.1 || sv.gamespeed == 1)
+			sv_gamespeed.value = sv.gamespeed = 1;
+
+		if (sv.gamespeed == 1)
+			newspeed = "";
+		else
+			newspeed = va("%g", sv.gamespeed*100);
+		Info_SetValueForStarKey(svs.info, "*gamespeed", newspeed, MAX_SERVERINFO_STRING);
+		SV_SendServerInfoChange("*gamespeed", newspeed);
+
+		//correct sv.starttime
+		sv.starttime = Sys_DoubleTime() - (sv.time/sv.gamespeed);
+	}
+
+
 // decide the simulation time
 	{
 		oldtime = sv.time;
@@ -3824,7 +3845,7 @@ float SV_Frame (void)
 
 		if (sv.paused && sv.time > 1.5)
 		{
-			sv.starttime += sv.time - oldtime;	//move the offset
+			sv.starttime += (sv.time - oldtime)/sv.gamespeed;	//move the offset
 			sv.time = oldtime;	//and keep time as it was.
 		}
 	}
@@ -4653,7 +4674,7 @@ void SV_ExtractFromUserinfo (client_t *cl)
 	if (strlen(val))
 		cl->rate = atoi(val);
 	else
-		cl->rate = 2500;
+		cl->rate = ISNQCLIENT(cl)?10000:2500;
 
 	val = Info_ValueForKey (cl->userinfo, "drate");
 	if (strlen(val))

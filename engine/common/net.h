@@ -132,6 +132,9 @@ typedef struct
 	int			drop_count;			// dropped packets, cleared each level
 	int			good_count;			// cleared each level
 
+	int			bytesin;
+	int			bytesout;
+
 	netadr_t	remote_address;
 	netsrc_t	sock;
 	int			qport;

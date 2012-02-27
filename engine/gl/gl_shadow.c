@@ -2908,7 +2908,7 @@ void Sh_DrawLights(qbyte *vis, batch_t **mbatches)
 
 		if (dl->flags & LFLAG_CREPUSCULAR)
 			Sh_DrawCrepuscularLight(dl, colour, mbatches);
-		else if (((!dl->die)?!r_shadow_realtime_world_shadows.ival:!r_shadow_realtime_dlight_shadows.ival) || dl->flags & LFLAG_NOSHADOWS)
+		else if (((i >= RTL_FIRST)?!r_shadow_realtime_world_shadows.ival:!r_shadow_realtime_dlight_shadows.ival) || dl->flags & LFLAG_NOSHADOWS)
 		{
 			Sh_DrawShadowlessLight(dl, colour, vis);
 		}

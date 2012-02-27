@@ -219,11 +219,27 @@ qboolean fakecdactive;
 qboolean Media_FakeTrack(int i, qboolean loop)
 {
 	char trackname[512];
+	qboolean found;
 
 	if (i > 0 && i <= 999)
 	{
-		sprintf(trackname, "sound/cdtracks/track%03i.ogg", i);
-		if (COM_FCheckExists(trackname))
+		found = false;
+		if (!found)
+		{
+			sprintf(trackname, "sound/cdtracks/track%03i.ogg", i);
+			found = COM_FCheckExists(trackname);
+		}
+		if (!found)
+		{
+			sprintf(trackname, "sound/cdtracks/track%03i.mp3", i);
+			found = COM_FCheckExists(trackname);
+		}
+		if (!found)
+		{
+			sprintf(trackname, "sound/cdtracks/track%03i.wav", i);
+			found = COM_FCheckExists(trackname);
+		}
+		if (found)
 		{
 			Media_Clear();
 			strcpy(currenttrack.filename, trackname+6);
@@ -2940,6 +2956,8 @@ void TTS_Say_f(void)
 }
 #endif
 
+qboolean S_LoadMP3Sound (sfx_t *s, qbyte *data, int datalen, int sndspeed);
+
 void Media_Init(void)
 {
 #ifdef _WIN32
@@ -2967,6 +2985,8 @@ void Media_Init(void)
 #if defined(WINAVI)
 	Cvar_Register(&capturesoundbits,	"AVI capture controls");
 	Cvar_Register(&capturesoundchannels,	"AVI capture controls");
+
+	S_RegisterSoundInputPlugin(S_LoadMP3Sound);
 #endif
 
 #endif
@@ -2980,6 +3000,168 @@ void Media_Init(void)
 
 
 
+#ifdef WINAVI
+typedef struct
+{
+	HACMSTREAM acm;
+
+	unsigned int dstbuffer; /*in frames*/
+	unsigned int dstcount; /*in frames*/
+	unsigned int dststart; /*in frames*/
+	qbyte *dstdata;
+
+	unsigned int srcspeed;
+	unsigned int srcwidth;
+	unsigned int srcchannels;
+	unsigned int srcoffset; /*in bytes*/
+	unsigned int srclen;	/*in bytes*/
+	qbyte srcdata[1];
+} mp3decoder_t;
+
+/*must be thread safe*/
+sfxcache_t *S_MP3_Locate(sfx_t *sfx, sfxcache_t *buf, int start, int length)
+{
+	int newlen;
+	if (buf)
+	{
+		mp3decoder_t *dec = sfx->decoder.buf;
+		ACMSTREAMHEADER strhdr;
+		char buffer[8192];
+		extern cvar_t snd_linearresample_stream;
+		int framesz = (dec->srcwidth/8 * dec->srcchannels);
+
+		if (dec->dststart > start)
+		{
+			/*I don't know where the compressed data is for each sample. acm doesn't have a seek. so reset to start, for music this should be the most common rewind anyway*/
+			dec->dststart = 0;
+			dec->dstcount = 0;
+			dec->srcoffset = 0;
+		}
+
+		if (dec->dstcount > snd_speed*6)
+		{
+			int trim = dec->dstcount - snd_speed; //retain a second of buffer in case we have multiple sound devices
+//			if (trim < 0)
+//				trim = 0;
+///			if (trim > dec->dstcount)
+//				trim = dec->dstcount;
+			memmove(dec->dstdata, dec->dstdata + trim*framesz, (dec->dstcount - trim)*framesz);
+			dec->dststart += trim;
+			dec->dstcount -= trim;
+		}
+
+		while(start+length >= dec->dststart+dec->dstcount)
+		{
+			memset(&strhdr, 0, sizeof(strhdr));
+			strhdr.cbStruct = sizeof(strhdr);
+			strhdr.pbSrc = dec->srcdata + dec->srcoffset;
+			strhdr.cbSrcLength = dec->srclen - dec->srcoffset;
+			strhdr.pbDst = buffer;
+			strhdr.cbDstLength = sizeof(buffer);
+
+			qacmStreamPrepareHeader(dec->acm, &strhdr, 0);
+			qacmStreamConvert(dec->acm, &strhdr, ACM_STREAMCONVERTF_BLOCKALIGN);
+			qacmStreamUnprepareHeader(dec->acm, &strhdr, 0);
+			dec->srcoffset += strhdr.cbSrcLengthUsed;
+			if (!strhdr.cbDstLengthUsed)
+			{
+				if (strhdr.cbSrcLengthUsed)
+					continue;
+				break;
+			}
+
+			newlen = dec->dstcount + (strhdr.cbDstLengthUsed * ((float)snd_speed / dec->srcspeed))/framesz;
+			if (dec->dstbuffer < newlen+64)
+			{
+				dec->dstbuffer = newlen+64 + snd_speed;
+				dec->dstdata = BZ_Realloc(dec->dstdata, dec->dstbuffer*framesz);
+			}
+
+			SND_ResampleStream(strhdr.pbDst, 
+				dec->srcspeed, 
+				dec->srcwidth/8, 
+				dec->srcchannels, 
+				strhdr.cbDstLengthUsed / framesz,
+				dec->dstdata+dec->dstcount*framesz,
+				snd_speed,
+				dec->srcwidth/8,
+				dec->srcchannels,
+				snd_linearresample_stream.ival);
+			dec->dstcount = newlen;
+		}
+
+		buf->data = dec->dstdata;
+		buf->length = dec->dstcount;
+		buf->loopstart = -1;
+		buf->numchannels = dec->srcchannels;
+		buf->soundoffset = dec->dststart;
+		buf->speed = snd_speed;
+		buf->width = dec->srcwidth/8;
+	}
+	return buf;
+}
+qboolean S_LoadMP3Sound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
+{
+	WAVEFORMATEX pcm_format;
+	MPEGLAYER3WAVEFORMAT mp3format;
+	HACMDRIVER drv = NULL;
+	mp3decoder_t *dec;
+
+	char *ext = COM_FileExtension(s->name);
+	if (stricmp(ext, "mp3"))
+		return false;
+
+	dec = BZF_Malloc(sizeof(*dec) + datalen);
+	if (!dec)
+		return false;
+	memcpy(dec->srcdata, data, datalen);
+	dec->srclen = datalen;
+	s->decoder.buf = dec;
+	s->decoder.abort = NULL;
+	s->decoder.decodedata = S_MP3_Locate;
+	
+	dec->dstdata = NULL;
+	dec->dstcount = 0;
+	dec->dststart = 0;
+	dec->dstbuffer = 0;
+	dec->srcoffset = 0;
+
+	dec->srcspeed = 44100;
+	dec->srcchannels = 2;
+	dec->srcwidth = 16;
+
+	memset (&pcm_format, 0, sizeof(pcm_format));
+	pcm_format.wFormatTag = WAVE_FORMAT_PCM;
+	pcm_format.nChannels = dec->srcchannels;
+	pcm_format.nSamplesPerSec = dec->srcspeed;
+	pcm_format.nBlockAlign = dec->srcwidth/8*dec->srcchannels;
+	pcm_format.nAvgBytesPerSec = pcm_format.nSamplesPerSec*dec->srcwidth/8*dec->srcchannels;
+	pcm_format.wBitsPerSample = dec->srcwidth;
+	pcm_format.cbSize = 0;
+
+	mp3format.wfx.cbSize = MPEGLAYER3_WFX_EXTRA_BYTES;
+	mp3format.wfx.wFormatTag = WAVE_FORMAT_MPEGLAYER3;
+	mp3format.wfx.nChannels = dec->srcchannels;
+	mp3format.wfx.nAvgBytesPerSec = 128 * (1024 / 8);  // not really used but must be one of 64, 96, 112, 128, 160kbps
+	mp3format.wfx.wBitsPerSample = 0;                  // MUST BE ZERO
+	mp3format.wfx.nBlockAlign = 1;                     // MUST BE ONE
+	mp3format.wfx.nSamplesPerSec = dec->srcspeed;       // 44.1kHz
+	mp3format.fdwFlags = MPEGLAYER3_FLAG_PADDING_OFF;
+	mp3format.nBlockSize = 522;					       // voodoo value #1
+	mp3format.nFramesPerBlock = 1;                     // MUST BE ONE
+	mp3format.nCodecDelay = 1393;                      // voodoo value #2
+	mp3format.wID = MPEGLAYER3_ID_MPEG;
+
+	if (!qacmStartup() || 0!=qacmStreamOpen(&dec->acm, drv, (WAVEFORMATEX*)&mp3format, &pcm_format, NULL, 0, 0, 0))
+	{
+		Con_Printf("Couldn't init decoder\n");
+		return false;
+	}
+
+	S_MP3_Locate(s, NULL, 0, 100);
+	return true;
+}
+#endif
 
 
 

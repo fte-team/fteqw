@@ -1388,8 +1388,7 @@ static void QCBUILTIN PF_R_RenderScene(progfuncs_t *prinst, struct globalvars_s 
 
 	r_refdef.currentplayernum = csqc_lplayernum;
 
-	VectorCopy (r_refdef.vieworg, cl.viewent[csqc_lplayernum].origin);
-	CalcGunAngle(csqc_lplayernum);
+	V_CalcGunPositionAngle(csqc_lplayernum, V_CalcBob(csqc_lplayernum, true));
 
 	R_RenderView();
 
@@ -2422,7 +2421,7 @@ static void QCBUILTIN PF_cs_sound(progfuncs_t *prinst, struct globalvars_s *pr_g
 
 	sfx = S_PrecacheSound(sample);
 	if (sfx)
-		S_StartSound(-entity->entnum, channel, sfx, entity->v->origin, volume, attenuation, pitchpct);
+		S_StartSound(-entity->entnum, channel, sfx, entity->v->origin, volume, attenuation, 0, pitchpct);
 };
 
 static void QCBUILTIN PF_cs_pointsound(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2446,7 +2445,7 @@ static void QCBUILTIN PF_cs_pointsound(progfuncs_t *prinst, struct globalvars_s 
 
 	sfx = S_PrecacheSound(sample);
 	if (sfx)
-		S_StartSound(0, 0, sfx, origin, volume, attenuation, pitchpct);
+		S_StartSound(0, 0, sfx, origin, volume, attenuation, 0, pitchpct);
 }
 
 static void QCBUILTIN PF_cs_particle(progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -2832,14 +2831,14 @@ static void QCBUILTIN PF_cl_te_explosion (progfuncs_t *prinst, struct globalvars
 
 	R_AddStain(pos, -1, -1, -1, 100);
 
-	S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1, 0);
+	S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1, 0, 0);
 }
 static void QCBUILTIN PF_cl_te_tarexplosion (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	float *pos = G_VECTOR(OFS_PARM0);
 	P_RunParticleEffectType(pos, NULL, 1, pt_tarexplosion);
 
-	S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1, 0);
+	S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1, 0, 0);
 }
 static void QCBUILTIN PF_cl_te_wizspike (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -2847,7 +2846,7 @@ static void QCBUILTIN PF_cl_te_wizspike (progfuncs_t *prinst, struct globalvars_
 	if (P_RunParticleEffectType(pos, NULL, 1, pt_wizspike))
 		P_RunParticleEffect (pos, vec3_origin, 20, 30);
 
-	S_StartSound (-2, 0, cl_sfx_knighthit, pos, 1, 1, 0);
+	S_StartSound (-2, 0, cl_sfx_knighthit, pos, 1, 1, 0, 0);
 }
 static void QCBUILTIN PF_cl_te_knightspike (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -2855,7 +2854,7 @@ static void QCBUILTIN PF_cl_te_knightspike (progfuncs_t *prinst, struct globalva
 	if (P_RunParticleEffectType(pos, NULL, 1, pt_knightspike))
 		P_RunParticleEffect (pos, vec3_origin, 226, 20);
 
-	S_StartSound (-2, 0, cl_sfx_knighthit, pos, 1, 1, 0);
+	S_StartSound (-2, 0, cl_sfx_knighthit, pos, 1, 1, 0, 0);
 }
 static void QCBUILTIN PF_cl_te_lavasplash (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -2918,7 +2917,7 @@ static void QCBUILTIN PF_cl_te_explosionquad (progfuncs_t *prinst, struct global
 		dl->channelfade[2] = 0.12;
 	}
 
-	S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1, 0);
+	S_StartSound (-2, 0, cl_sfx_r_exp3, pos, 1, 1, 0, 0);
 }
 
 //void(vector org, float radius, float lifetime, vector color) te_customflash
@@ -3029,7 +3028,7 @@ static void QCBUILTIN PF_cl_te_explosionrgb (progfuncs_t *prinst, struct globalv
 		dl->channelfade[2] = 0;
 	}
 
-	S_StartSound (-2, 0, cl_sfx_r_exp3, org, 1, 1, 0);
+	S_StartSound (-2, 0, cl_sfx_r_exp3, org, 1, 1, 0, 0);
 }
 static void QCBUILTIN PF_cl_te_particlerain (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {

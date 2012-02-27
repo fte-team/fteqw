@@ -616,6 +616,7 @@ enum clcq2_ops_e
 #define FITZU_FRAME2 (1<<17)
 #define FITZU_MODEL2 (1<<18)
 #define FITZU_LERPFINISH (1<<19)
+#define RMQU_SCALE (1<<20) 
 
 #endif
 

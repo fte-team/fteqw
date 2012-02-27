@@ -2099,7 +2099,7 @@ void Mod_ParseQ3SkinFile(char *out, char *surfname, char *modelname, int skinnum
 	if (skinfilename)
 		strcpy(skinfilename, skinfilelist[skinnum]);
 
-	f = COM_LoadTempFile2(skinfilelist[skinnum]);
+	f = COM_LoadTempMoreFile(skinfilelist[skinnum]);
 
 	while(f)
 	{
@@ -4714,7 +4714,7 @@ qboolean Mod_LoadPSKModel(model_t *mod, void *buffer)
 
 	/*attempt to load a psa file. don't die if we can't find one*/
 	COM_StripExtension(mod->name, basename, sizeof(basename));
-	buffer = COM_LoadTempFile2(va("%s.psa", basename));
+	buffer = COM_LoadTempMoreFile(va("%s.psa", basename));
 	if (buffer)
 	{
 		pos = 0;
@@ -5666,10 +5666,10 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	galiasinfo_t *gai;
 #ifndef SERVERONLY
 	galiasskin_t *skin;
+	shader_t **shaders;
 #endif
 	galiasgroup_t *fgroup;
 	galiasbone_t *bones;
-	shader_t **shaders;
 	index_t *idx;
 	float basepose[12 * MAX_BONES];
 	qboolean baseposeonly;
@@ -6662,7 +6662,7 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 	if (!strcmp(com_token, "model"))
 	{
 		buffer = COM_Parse(buffer);
-		file = COM_LoadTempFile2(com_token);
+		file = COM_LoadTempMoreFile(com_token);
 
 		if (!file)	//FIXME: make non fatal somehow..
 		{
@@ -6706,7 +6706,7 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 			grouplist = BZ_Realloc(grouplist, sizeof(galiasgroup_t)*(numgroups+1));
 			poseofs = BZ_Realloc(poseofs, sizeof(*poseofs)*(numgroups+1));
 			buffer = COM_Parse(buffer);
-			file = COM_LoadTempFile2(com_token);
+			file = COM_LoadTempMoreFile(com_token);
 			if (file)	//FIXME: make non fatal somehow..
 			{
 				char namebkup[MAX_QPATH];
@@ -6725,7 +6725,7 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 			grouplist = BZ_Realloc(grouplist, sizeof(galiasgroup_t)*(numgroups+1));
 			poseofs = BZ_Realloc(poseofs, sizeof(*poseofs)*(numgroups+1));
 			buffer = COM_Parse(buffer);
-			file = COM_LoadTempFile2(com_token);
+			file = COM_LoadTempMoreFile(com_token);
 			if (file)	//FIXME: make non fatal somehow..
 			{
 				char namebkup[MAX_QPATH];
@@ -6746,7 +6746,7 @@ qboolean Mod_LoadCompositeAnim(model_t *mod, void *buffer)
 			void *np;
 
 			buffer = COM_Parse(buffer);
-			file = COM_LoadTempFile2(com_token);
+			file = COM_LoadTempMoreFile(com_token);
 			if (file)	//FIXME: make non fatal somehow..
 			{
 				char namebkup[MAX_QPATH];

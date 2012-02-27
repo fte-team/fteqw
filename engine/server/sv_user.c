@@ -3486,7 +3486,11 @@ void SV_Rate_f (void)
 {
 	if (Cmd_Argc() != 2)
 	{
-		SV_ClientPrintf (host_client, PRINT_HIGH, "Effective rate %i\n", SV_RateForClient(host_client));
+		int rate = SV_RateForClient(host_client);
+		if (!rate)
+			SV_ClientPrintf (host_client, PRINT_HIGH, "Effective rate is unlimited\n", rate);
+		else
+			SV_ClientPrintf (host_client, PRINT_HIGH, "Effective rate %i\n", rate);
 		return;
 	}
 
@@ -4280,7 +4284,7 @@ void Cmd_FPSList_f(void)
 	int frames;
 	int inbytes;
 	int outbytes;
-	int msecs;
+	float msecs;
 
 
 	for (c = 0; c < sv.allocated_client_slots; c++)
@@ -4328,9 +4332,9 @@ void Cmd_FPSList_f(void)
 		}
 
 		if (frames)
-			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: %ffps (min%.2f max %.2f), in: %.2fbps, out: %.2fbps\n", cl->name, ftime/frames, minf, maxf, (1000.0f*inbytes)/msecs, (1000.0f*outbytes)/msecs);
+			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: %gfps (min%g max %g), in: %ibps, out: %ibps\n", cl->name, ftime/frames, minf, maxf, (int)cl->inrate, (int)cl->outrate);
 		else
-			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: no information available\n", cl->name);
+			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: unknown framerate, in: %ibps, out: %ibps\n", cl->name, (int)cl->inrate, (int)cl->outrate);
 	}
 }
 
@@ -6674,6 +6678,7 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	if (cltime < sv.time - 2)	//if you do lag more than this, you won't get your free time.
 		cltime = sv.time - 2;
 	timesincelast = cltime - move->fservertime;
+
 	move->fservertime = cltime;
 	move->servertime = move->fservertime;
 
@@ -6693,10 +6698,8 @@ void SVNQ_ReadClientMove (usercmd_t *move)
 	move->sidemove = MSG_ReadShort ();
 	move->upmove = MSG_ReadShort ();
 
-	move->msec=timesincelast*1000;//MSG_ReadFloat;
-
-
-	frame->move_msecs = move->msec;
+	move->msec=timesincelast*1000;
+	frame->move_msecs = timesincelast*1000;
 
 // read buttons
 	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)

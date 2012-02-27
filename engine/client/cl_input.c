@@ -1810,10 +1810,8 @@ void CL_InitInput (void)
 		Cmd_AddCommand (vahunk("+p%i",		sp+1),	CL_Split_f);
 		Cmd_AddCommand (vahunk("-p%i",		sp+1),	CL_Split_f);
 
-/*default mlook to pressed, unless on android where we expect a touch-screen and wouldn't be able to move forwards*/
-#ifndef ANDROID
+/*default mlook to pressed, (on android we split the two sides of the screen)*/
 		in_mlook.state[sp] = 1;
-#endif
 	}
 
 	/*then alternative arged ones*/

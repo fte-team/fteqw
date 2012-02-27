@@ -1402,6 +1402,7 @@ void CLNQ_ParseEntity(unsigned int bits)
 	if (!CL_CheckBaselines(num))
 		Host_EndGame("CLNQ_ParseEntity: check baselines failed with size %i", num);
 	base = cl_baselines + num;
+	memcpy(state, base, sizeof(*state));
 
 	state->number = num;
 	state->solid = ES_SOLID_BSP;
@@ -1410,68 +1411,47 @@ void CLNQ_ParseEntity(unsigned int bits)
 
 	if (bits & NQU_MODEL)
 		state->modelindex = MSG_ReadByte ();
-	else
-		state->modelindex = base->modelindex;
 
 	if (bits & NQU_FRAME)
 		state->frame = MSG_ReadByte();
-	else
-		state->frame = base->frame;
 
 	if (bits & NQU_COLORMAP)
 		state->colormap = MSG_ReadByte();
-	else
-		state->colormap = base->colormap;
 
 	if (bits & NQU_SKIN)
 		state->skinnum = MSG_ReadByte();
-	else
-		state->skinnum = base->skinnum;
 
 	if (bits & NQU_EFFECTS)
 		state->effects = MSG_ReadByte();
-	else
-		state->effects = base->effects;
 
 	if (bits & NQU_ORIGIN1)
 		state->origin[0] = MSG_ReadCoord ();
-	else
-		state->origin[0] = base->origin[0];
 	if (bits & NQU_ANGLE1)
 		state->angles[0] = MSG_ReadAngle();
-	else
-		state->angles[0] = base->angles[0];
 
 	if (bits & NQU_ORIGIN2)
 		state->origin[1] = MSG_ReadCoord ();
-	else
-		state->origin[1] = base->origin[1];
 	if (bits & NQU_ANGLE2)
 		state->angles[1] = MSG_ReadAngle();
-	else
-		state->angles[1] = base->angles[1];
 
 	if (bits & NQU_ORIGIN3)
 		state->origin[2] = MSG_ReadCoord ();
-	else
-		state->origin[2] = base->origin[2];
 	if (bits & NQU_ANGLE3)
 		state->angles[2] = MSG_ReadAngle();
-	else
-		state->angles[2] = base->angles[2];
 
 	if (cls.protocol_nq == CPNQ_FITZ666)
 	{
 		if (bits & FITZU_ALPHA)
 			state->trans = MSG_ReadByte();
-		else
-			state->trans = base->trans;
+
+		if (bits & RMQU_SCALE)
+			state->scale = MSG_ReadByte();
 
 		if (bits & FITZU_FRAME2)
-			state->frame |= MSG_ReadByte() << 8;
+			state->frame = (state->frame & 0xff) | (MSG_ReadByte() << 8);
 
 		if (bits & FITZU_MODEL2)
-			state->modelindex |= MSG_ReadByte() << 8;
+			state->modelindex = (state->modelindex & 0xff) | (MSG_ReadByte() << 8);
 
 		if (bits & FITZU_LERPFINISH)
 			MSG_ReadByte();
@@ -1479,41 +1459,19 @@ void CLNQ_ParseEntity(unsigned int bits)
 	else
 	{
 		if (bits & DPU_ALPHA)
-			i = MSG_ReadByte();
-		else
-			i = -1;
-
-	#ifdef PEXT_TRANS
-		if (i == -1)
-			state->trans = base->trans;
-		else
-			state->trans = i;
-	#endif
+			state->trans = MSG_ReadByte();
 
 		if (bits & DPU_SCALE)
-			i = MSG_ReadByte();
-		else
-			i = -1;
-
-	#ifdef PEXT_SCALE
-		if (i == -1)
-			state->scale = base->scale;
-		else
-			state->scale = i;
-	#endif
+			state->scale = MSG_ReadByte();
 
 		if (bits & DPU_EFFECTS2)
 			state->effects |= MSG_ReadByte() << 8;
 
 		if (bits & DPU_GLOWSIZE)
 			state->glowsize = MSG_ReadByte();
-		else
-			state->glowsize = base->glowsize;
 
 		if (bits & DPU_GLOWCOLOR)
 			state->glowcolour = MSG_ReadByte();
-		else
-			state->glowcolour = base->glowcolour;
 
 		if (bits & DPU_COLORMOD)
 		{
@@ -1521,12 +1479,6 @@ void CLNQ_ParseEntity(unsigned int bits)
 			state->colormod[0] = (qbyte)(((i >> 5) & 7) * (32.0f / 7.0f));
 			state->colormod[1] = (qbyte)(((i >> 2) & 7) * (32.0f / 7.0f));
 			state->colormod[2] = (qbyte)((i & 3) * (32.0f / 3.0f));
-		}
-		else
-		{
-			state->colormod[0] = base->colormod[0];
-			state->colormod[1] = base->colormod[1];
-			state->colormod[2] = base->colormod[2];
 		}
 
 		if (bits & DPU_FRAME2)
@@ -3333,7 +3285,7 @@ void CL_ParsePlayerinfo (void)
 		int num;
 		num = MSG_ReadByte();
 
-		if (cl.worldmodel->fromgame != fg_quake)
+		if (!cl.worldmodel || cl.worldmodel->fromgame != fg_quake)
 		{
 			VectorScale(state->szmins, num/56.0f, state->szmins);
 			VectorScale(state->szmaxs, num/56.0f, state->szmaxs);
@@ -4024,7 +3976,7 @@ void CL_SetSolidEntities (void)
 		{
 		case 0:
 			break;
-		case -16:
+		case Q1CONTENTS_LADDER:
 			pent->nonsolid = true;
 			pent->forcecontentsmask = FTECONTENTS_LADDER;
 			break;

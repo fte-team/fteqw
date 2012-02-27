@@ -101,60 +101,151 @@ public class FTEDroidActivity extends Activity
 	private class FTEView extends GLSurfaceView implements SensorEventListener
 	{
 		private final FTERenderer rndr;
-		
-		private byte[] audbuf;
-		private AudioTrack at;
+
+		private audiothreadclass audiothread;
+		private class audiothreadclass extends Thread
+		{
+			boolean timetodie;
+			@Override
+			public void run()
+			{
+				byte[] audbuf = new byte[2048];
+				int avail;
+				
+				int sspeed = 11025;
+				int speakers = 1;
+				int sz = 4*AudioTrack.getMinBufferSize(sspeed, ((speakers==2)?AudioFormat.CHANNEL_CONFIGURATION_STEREO:AudioFormat.CHANNEL_CONFIGURATION_MONO), AudioFormat.ENCODING_PCM_16BIT);
+
+				AudioTrack at = new AudioTrack(AudioManager.STREAM_MUSIC, sspeed, ((speakers==2)?AudioFormat.CHANNEL_CONFIGURATION_STEREO:AudioFormat.CHANNEL_CONFIGURATION_MONO), AudioFormat.ENCODING_PCM_16BIT, sz, AudioTrack.MODE_STREAM);
+
+				at.setStereoVolume(1, 1);
+				at.play();
+			
+			
+				while(!timetodie)
+				{
+					avail = FTEDroidEngine.paintaudio(audbuf, audbuf.length);
+					at.write(audbuf, 0, avail);
+				}
+				
+				at.stop();
+			}
+			public void killoff()
+			{
+				timetodie = true;
+				try
+				{
+					join();
+				}
+				catch(InterruptedException e)
+				{
+				}
+			}
+		};
 
 		private void audioInit()
 		{
-			final int notifframes = 2048;
-			if (at != null)
-				at.stop();
-			int sspeed = 11025;
-			int speakers = 1;
-			int sz = 4*AudioTrack.getMinBufferSize(sspeed, ((speakers==2)?AudioFormat.CHANNEL_CONFIGURATION_STEREO:AudioFormat.CHANNEL_CONFIGURATION_MONO), AudioFormat.ENCODING_PCM_16BIT);
-			if (sz < notifframes*2)
-				sz = notifframes*2;
-
-			at = new AudioTrack(AudioManager.STREAM_MUSIC, sspeed, ((speakers==2)?AudioFormat.CHANNEL_CONFIGURATION_STEREO:AudioFormat.CHANNEL_CONFIGURATION_MONO), AudioFormat.ENCODING_PCM_16BIT, sz, AudioTrack.MODE_STREAM);
-			final int framesz = 2; /*mono 16bit*/
-			audbuf = new byte[notifframes*framesz];
-
-			at.setPlaybackPositionUpdateListener(new AudioTrack.OnPlaybackPositionUpdateListener()
+			if (audiothread == null)
 			{
-				@Override
-				public void onMarkerReached(AudioTrack track)
-				{
-				}
-				@Override
-				public void onPeriodicNotification(AudioTrack track)
-				{
-					int avail = FTEDroidEngine.paintaudio(audbuf, audbuf.length);
-					at.write(audbuf, 0, notifframes*framesz);
-				}
-			});
-			at.setPositionNotificationPeriod(notifframes);
-
-			at.setStereoVolume(1, 1);
-			
-			at.play();
-			/*buffer needs to be completely full before it'll start playing*/
-			while(sz > 0)
-			{
-				at.write(audbuf, 0, notifframes*framesz);
-				sz -= notifframes;
+				audiothread = new audiothreadclass();
+				audiothread.start();
 			}
 		}
-		public void resume()
+		public void audioStop()
 		{
-			/*poke audio into submission*/
-			if (at != null)
-				at.play();
+			if (audiothread != null)
+			{
+				audiothread.killoff();
+				audiothread = null;
+			}
+		}
+		public void audioResume()
+		{
+			audioStop();
+			audioInit();
+		}
+		
+		private FTELegacyInputEvent inputevent;
+		class FTEMultiTouchInputEvent extends FTELegacyInputEvent
+		{
+			/*Requires API level 5+ (android 2.0+)*/
+			private void domove(MotionEvent event)
+			{
+				final int pointerCount = event.getPointerCount();
+				int i;
+				for (i = 0; i < pointerCount; i++)
+					FTEDroidEngine.motion(0, event.getPointerId(i), event.getX(i), event.getY(i));
+			}
+			
+			public boolean go(MotionEvent event)
+			{
+				int id;
+				float x, y;
+				final int act = event.getAction();
+				
+				domove(event);
+				
+				switch(act & event.ACTION_MASK)
+				{
+				case MotionEvent.ACTION_DOWN:
+				case MotionEvent.ACTION_POINTER_DOWN:
+					id = ((act&event.ACTION_POINTER_ID_MASK) >> event.ACTION_POINTER_ID_SHIFT);
+					x = event.getX(id);
+					y = event.getY(id);
+					id = event.getPointerId(id);
+					FTEDroidEngine.motion(1, id, x, y);
+					break;
+				case MotionEvent.ACTION_UP:
+				case MotionEvent.ACTION_POINTER_UP:
+					id = ((act&event.ACTION_POINTER_ID_MASK) >> event.ACTION_POINTER_ID_SHIFT);
+					x = event.getX(id);
+					y = event.getY(id);
+					id = event.getPointerId(id);
+					FTEDroidEngine.motion(2, id, x, y);
+					break;
+				case MotionEvent.ACTION_MOVE:
+					break;
+				default:
+					return false;
+				}
+				return true;
+			}
+		}
+		class FTELegacyInputEvent
+		{
+			public boolean go(MotionEvent event)
+			{
+				final int act = event.getAction();
+				final float x = event.getX();
+				final float y = event.getY();
+
+				FTEDroidEngine.motion(0, 0, x, y);
+
+				switch(act)
+				{
+				case MotionEvent.ACTION_DOWN:
+					FTEDroidEngine.motion(1, 0, x, y);
+					break;
+				case MotionEvent.ACTION_UP:
+					FTEDroidEngine.motion(2, 0, x, y);
+					break;
+				case MotionEvent.ACTION_MOVE:
+					break;
+				default:
+					return false;
+				}
+				return true;
+			}
 		}
 
 		public FTEView(FTEDroidActivity context)
 		{
 			super(context);
+			
+			if (android.os.Build.VERSION.SDK_INT >= 5)
+				inputevent = new FTEMultiTouchInputEvent();
+			else
+				inputevent = new FTELegacyInputEvent();
 
 			rndr = new FTERenderer(context, context);
 //			setEGLConfigChooser(new FTEEGLConfig());
@@ -169,90 +260,12 @@ public class FTEDroidActivity extends Activity
 		
 		private void sendKey(final boolean presseddown, final int qcode, final int unicode)
 		{
-			queueEvent(new Runnable()
-			{
-				public void run()
-				{
-					FTEDroidEngine.keypress(presseddown?1:0, qcode, unicode);
-				}
-			});
+			FTEDroidEngine.keypress(presseddown?1:0, qcode, unicode);
 		}
 		@Override
-		public boolean onTouchEvent(final MotionEvent event)
+		public boolean onTouchEvent(MotionEvent event)
 		{
-			/*the test itself requires android 4...*/
-			if (android.os.Build.VERSION.SDK_INT >= 5)
-			{
-				/*Requires API level 5+ (android 2.0+)*/
-				queueEvent(new Runnable()
-				{
-					private void domove()
-					{
-						final int pointerCount = event.getPointerCount();
-						int i;
-						for (i = 0; i < pointerCount; i++)
-							FTEDroidEngine.motion(0, event.getPointerId(i), event.getX(i), event.getY(i));
-					}
-					
-					public void run()
-					{
-						int id;
-						float x, y;
-						final int act = event.getAction();
-						
-						domove();
-						
-						switch(act & event.ACTION_MASK)
-						{
-						case MotionEvent.ACTION_DOWN:
-						case MotionEvent.ACTION_POINTER_DOWN:
-							id = ((act&event.ACTION_POINTER_ID_MASK) >> event.ACTION_POINTER_ID_SHIFT);
-							x = event.getX(id);
-							y = event.getY(id);
-							id = event.getPointerId(id);
-							FTEDroidEngine.motion(1, id, x, y);
-							break;
-						case MotionEvent.ACTION_UP:
-						case MotionEvent.ACTION_POINTER_UP:
-							id = ((act&event.ACTION_POINTER_ID_MASK) >> event.ACTION_POINTER_ID_SHIFT);
-							x = event.getX(id);
-							y = event.getY(id);
-							id = event.getPointerId(id);
-							FTEDroidEngine.motion(2, id, x, y);
-							break;
-						case MotionEvent.ACTION_MOVE:
-							break;
-						}
-					}
-				});
-			}
-			else
-			{
-				queueEvent(new Runnable()
-				{
-					public void run()
-					{
-						final int act = event.getAction();
-						final float x = event.getX();
-						final float y = event.getY();
-
-						FTEDroidEngine.motion(0, 0, x, y);
-
-						switch(act)
-						{
-						case MotionEvent.ACTION_DOWN:
-							FTEDroidEngine.motion(1, 0, x, y);
-							break;
-						case MotionEvent.ACTION_UP:
-							FTEDroidEngine.motion(2, 0, x, y);
-							break;
-						case MotionEvent.ACTION_MOVE:
-							break;
-						}
-					}
-				});
-			}
-			return true;
+			return inputevent.go(event);
 		}
 		/*
 		@Override
@@ -323,6 +336,12 @@ public class FTEDroidActivity extends Activity
 		}
 	}
 	
+	private boolean runningintheemulator()
+	{
+		android.util.Log.i("FTEDroid", "model: " + android.os.Build.MODEL + " product: " + android.os.Build.PRODUCT + " device: " + android.os.Build.DEVICE);
+		return android.os.Build.MODEL.equals("sdk") && android.os.Build.PRODUCT.equals("sdk") && android.os.Build.DEVICE.equals("generic");
+	}
+	
 	@Override
 	public void onCreate(Bundle savedInstanceState)
 	{
@@ -339,11 +358,21 @@ public class FTEDroidActivity extends Activity
 	//	setContentView(R.layout.main);
 				
 
-		android.util.Log.i("FTEDroid", "init sensor manager");
-		sensorman = (SensorManager)getSystemService(SENSOR_SERVICE);
-		android.util.Log.i("FTEDroid", "init accelerometer");
+		if (runningintheemulator())
+		{
+			android.util.Log.i("FTEDroid", "emulator detected - skipping sensors to avoid emulator hangs");
+			sensorman = null;
+		}
+		else
+		{
+			android.util.Log.i("FTEDroid", "init sensor manager");
+			sensorman = (SensorManager)getSystemService(SENSOR_SERVICE);
+		}
 		if (sensorman != null)
+		{
+			android.util.Log.i("FTEDroid", "init accelerometer");
 			sensoracc = sensorman.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+		}
 		android.util.Log.i("FTEDroid", "done");
 	}
 
@@ -354,7 +383,7 @@ public class FTEDroidActivity extends Activity
 		if (sensorman != null && sensoracc != null)
 			sensorman.registerListener((SensorEventListener)view, sensoracc, SensorManager.SENSOR_DELAY_GAME);
 
-		view.resume();
+		view.audioResume();
 	}
 
 	@Override
@@ -362,6 +391,7 @@ public class FTEDroidActivity extends Activity
 	{
 		if (sensorman != null && sensoracc != null)
 			sensorman.unregisterListener(view);
+		view.audioStop();
 		super.onStop();
 	}
 
@@ -370,6 +400,7 @@ public class FTEDroidActivity extends Activity
 	{
 		if (sensorman != null && sensoracc != null)
 			sensorman.unregisterListener(view);
+		view.audioStop();
 		super.onPause();
 	}
 }

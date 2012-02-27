@@ -245,6 +245,7 @@ void RMod_Think (void)
 #endif
 		if (relitsurface >= lightmodel->numsurfaces)
 		{
+			vfsfile_t *f;
 			char filename[MAX_QPATH];
 			Con_Printf("Finished lighting %s\n", lightmodel->name);
 
@@ -266,14 +267,30 @@ void RMod_Think (void)
 			{
 				COM_StripExtension(lightmodel->name, filename, sizeof(filename));
 				COM_DefaultExtension(filename, ".lux", sizeof(filename));
-				FS_WriteFile(filename, lightmodel->deluxdata-8, numlightdata*3+8, FS_GAME);
+				f = FS_OpenVFS(filename, "wb", FS_GAMEONLY);
+				if (f)
+				{
+					VFS_WRITE(f, "QLIT\1\0\0\0", 8);
+					VFS_WRITE(f, lightmodel->deluxdata, numlightdata*3);
+					VFS_CLOSE(f);
+				}
+				else
+					Con_Printf("Unable to write \"%s\"\n", filename);
 			}
 
 			if (writelitfile)	//the user might already have a lit file (don't overwrite it).
 			{
 				COM_StripExtension(lightmodel->name, filename, sizeof(filename));
 				COM_DefaultExtension(filename, ".lit", sizeof(filename));
-				FS_WriteFile(filename, lightmodel->lightdata-8, numlightdata*3+8, FS_GAME);
+				f = FS_OpenVFS(filename, "wb", FS_GAMEONLY);
+				if (f)
+				{
+					VFS_WRITE(f, "QLIT\1\0\0\0", 8);
+					VFS_WRITE(f, lightmodel->lightdata, numlightdata*3);
+					VFS_CLOSE(f);
+				}
+				else
+					Con_Printf("Unable to write \"%s\"\n", filename);
 			}
 		}
 	}
@@ -1059,6 +1076,8 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 
 	if (!l->filelen)
 	{
+		Con_Printf(CON_WARNING "warning: %s contains no texture data\n", loadmodel->name);
+
 		loadmodel->numtextures = 1;
 		loadmodel->textures = Hunk_AllocName (1 * sizeof(*loadmodel->textures), loadname);
 
@@ -1376,8 +1395,8 @@ void RMod_NowLoadExternal(void)
 			if (!TEXVALID(tn.base))
 			{
 				tn.base = R_LoadHiResTexture(tx->name, "bmodels", IF_NOALPHA|IF_MIPCAP);
-				if (!TEXVALID(tn.base))
-					tn.base = R_LoadReplacementTexture("light1_4", NULL, IF_NOALPHA|IF_MIPCAP);	//a fallback. :/
+//				if (!TEXVALID(tn.base))
+//					tn.base = R_LoadReplacementTexture("light1_4", NULL, IF_NOALPHA|IF_MIPCAP);	//a fallback. :/
 			}
 		}
 		if (!TEXVALID(tn.bump) && *tx->name != '{' && r_loadbumpmapping)
@@ -1446,9 +1465,15 @@ Mod_LoadLighting
 =================
 */
 void RMod_LoadLighting (lump_t *l)
-{	
+{
+	qboolean luxtmp = true;
+	qboolean littmp = true;
 	qbyte *luxdata = NULL;
-	int mapcomeswith24bitcolouredlighting = false;
+	qbyte *litdata = NULL;
+	qbyte *lumdata = NULL;
+	qbyte *out;
+	unsigned int samples;
+
 	extern cvar_t gl_overbright;
 	loadmodel->engineflags &= ~MDLF_RGBLIGHTING;
 
@@ -1468,15 +1493,20 @@ void RMod_LoadLighting (lump_t *l)
 
 	loadmodel->lightdata = NULL;
 	loadmodel->deluxdata = NULL;
-	if (!l->filelen)
-	{
-		return;
-	}
-
 	if (loadmodel->fromgame == fg_halflife || loadmodel->fromgame == fg_quake2 || loadmodel->fromgame == fg_quake3)
-		mapcomeswith24bitcolouredlighting = true;
+	{
+		litdata = mod_base + l->fileofs;
+		samples = l->filelen/3;
+	}
+	else
+	{
+		lumdata = mod_base + l->fileofs;
+		samples = l->filelen;
+	}
+	if (!samples)
+		return;
 
-	if (!mapcomeswith24bitcolouredlighting && r_loadlits.ival && r_deluxemapping.ival)	//fixme: adjust the light intensities.
+	if (!luxdata && r_loadlits.ival && r_deluxemapping.ival)
 	{	//the map util has a '-scalecos X' parameter. use 0 if you're going to use only just lux. without lux scalecos 0 is hideous.
 		char luxname[MAX_QPATH];		
 		if (!luxdata)
@@ -1485,6 +1515,7 @@ void RMod_LoadLighting (lump_t *l)
 			COM_StripExtension(loadmodel->name, luxname, sizeof(luxname));
 			COM_DefaultExtension(luxname, ".lux", sizeof(luxname));
 			luxdata = COM_LoadHunkFile(luxname);
+			luxtmp = false;
 		}
 		if (!luxdata)
 		{
@@ -1493,15 +1524,24 @@ void RMod_LoadLighting (lump_t *l)
 			strcat(luxname, ".lux");
 
 			luxdata = COM_LoadHunkFile(luxname);
+			luxtmp = false;
 		}
-		if (!luxdata)
+		if (!luxdata) //dp...
 		{
 			COM_StripExtension(COM_SkipPath(loadmodel->name), luxname+5, sizeof(luxname)-5);
 			COM_DefaultExtension(luxname, ".dlit", sizeof(luxname));
 			luxdata = COM_LoadHunkFile(luxname);
+			luxtmp = false;
 		}
-
-		if (luxdata)
+		if (!luxdata)
+		{
+			int size;
+			luxdata = Q1BSPX_FindLump("LIGHTINGDIR", &size);
+			if (size != samples*3)
+				luxdata = NULL;
+			luxtmp = true;
+		}
+		else if (luxdata)
 		{
 			if (l->filelen && l->filelen != (com_filesize-8)/3)
 			{
@@ -1529,9 +1569,8 @@ void RMod_LoadLighting (lump_t *l)
 		}	
 	}
 
-	if (!mapcomeswith24bitcolouredlighting && r_loadlits.value)
+	if (!litdata && r_loadlits.value)
 	{
-		qbyte *litdata = NULL;
 		char *litname;
 		char litnamemaps[MAX_QPATH];
 		char litnamelits[MAX_QPATH];
@@ -1559,51 +1598,55 @@ void RMod_LoadLighting (lump_t *l)
 		}
 
 		litdata = COM_LoadHunkFile(litname);
-		COM_StripExtension(COM_SkipPath(loadmodel->name), litname+5, sizeof(litname)-5);
-		strcat(litname, ".lit");
-		if (litdata && (litdata[0] == 'Q' && litdata[1] == 'L' && litdata[2] == 'I' && litdata[3] == 'T'))
+		littmp = false;
+		if (!litdata)
 		{
-			if (LittleLong(*(int *)&litdata[4]) == 1 && l->filelen && l->filelen != (com_filesize-8)/3)
+			int size;
+			litdata = Q1BSPX_FindLump("RGBLIGHTING", &size);
+			if (size != samples*3)
+				litdata = NULL;
+			littmp = true;
+		}
+		else if (litdata[0] == 'Q' && litdata[1] == 'L' && litdata[2] == 'I' && litdata[3] == 'T')
+		{
+			if (LittleLong(*(int *)&litdata[4]) == 1 && l->filelen && samples*3 != (com_filesize-8))
 				Con_Printf("lit \"%s\" doesn't match level. Ignored.\n", litname);
 			else if (LittleLong(*(int *)&litdata[4]) != 1)
 				Con_Printf("lit \"%s\" isn't version 1.\n", litname);
-			else
+			else if (lumdata)
 			{
 				float prop;
 				int i;
-				qbyte *normal;
+				qbyte *lum;
+				qbyte *lit;
 
-				//load it
-				loadmodel->lightdata = litdata+8;
-				loadmodel->engineflags |= MDLF_RGBLIGHTING;
-
+				litdata += 8;
 
 				//now some cheat protection.
+				lum = lumdata;
+				lit = litdata;
 
-				normal = mod_base + l->fileofs;
-				litdata = loadmodel->lightdata;
-
-				for (i = 0; i < l->filelen; i++)	//force it to the same intensity. (or less, depending on how you see it...)
+				for (i = 0; i < samples; i++)	//force it to the same intensity. (or less, depending on how you see it...)
 				{
 #define m(a, b, c) (a>(b>c?b:c)?a:(b>c?b:c))
-					prop = (float)m(litdata[0],  litdata[1], litdata[2]);
+					prop = (float)m(lit[0],  lit[1], lit[2]);
 
 					if (!prop)
 					{
-						litdata[0] = lmgamma[*normal];
-						litdata[1] = lmgamma[*normal];
-						litdata[2] = lmgamma[*normal];
+						lit[0] = *lum;
+						lit[1] = *lum;
+						lit[2] = *lum;
 					}
 					else
 					{
-						prop = lmgamma[*normal] / prop;
-						litdata[0] *= prop;
-						litdata[1] *= prop;
-						litdata[2] *= prop;
+						prop = *lum / prop;
+						lit[0] *= prop;
+						lit[1] *= prop;
+						lit[2] *= prop;
 					}
 
-					normal++;
-					litdata+=3;
+					lum++;
+					lit+=3;
 				}
 				//end anti-cheat
 			}
@@ -1613,84 +1656,86 @@ void RMod_LoadLighting (lump_t *l)
 //		else
 			//failed to find
 	}
-	if (mapcomeswith24bitcolouredlighting)
-		loadmodel->engineflags |= MDLF_RGBLIGHTING;
 
 #ifdef RUNTIMELIGHTING
-	else if (r_loadlits.value == 2 && !lightmodel && (!(loadmodel->engineflags & MDLF_RGBLIGHTING) || (!luxdata && r_deluxemapping.ival)))
+	if (r_loadlits.value == 2 && !lightmodel && (!litdata || (!luxdata && r_deluxemapping.ival)))
 	{
-		qbyte *litdata = NULL;
-		int i;
-		qbyte *normal;
-		writelitfile = !(loadmodel->engineflags & MDLF_RGBLIGHTING);
-		loadmodel->engineflags |= MDLF_RGBLIGHTING;
-		loadmodel->lightdata = Hunk_AllocName ( l->filelen*3+8, loadname);
-		strcpy(loadmodel->lightdata, "QLIT");
-		((int*)loadmodel->lightdata)[1] = LittleLong(1);
-		loadmodel->lightdata += 8;
-
-		litdata = loadmodel->lightdata;
-		normal = mod_base + l->fileofs;
-		for (i = 0; i < l->filelen; i++)
-		{
-			*litdata++ = lmgamma[*normal];
-			*litdata++ = lmgamma[*normal];
-			*litdata++ = lmgamma[*normal];
-			normal++;
-		}
-
-		if (r_deluxemapping.ival)
-		{
-			loadmodel->deluxdata = Hunk_AllocName ( l->filelen*3+8, loadname);
-			strcpy(loadmodel->deluxdata, "QLIT");
-			((int*)loadmodel->deluxdata)[1] = LittleLong(1);
-			loadmodel->deluxdata += 8;
-			litdata = loadmodel->deluxdata;
-			{
-				for (i = 0; i < l->filelen; i++)
-				{
-					*litdata++ = 0.5f*255;
-					*litdata++ = 0.5f*255;
-					*litdata++ = 255;
-				}
-			}
-		}
-
 		numlightdata = l->filelen;
 		lightmodel = loadmodel;
 		relitsurface = 0;
-		return;
-	}
-#endif
-
-	if (loadmodel->lightdata)
-	{
-		if ((loadmodel->engineflags & MDLF_RGBLIGHTING) && r_lightmap_saturation.value != 1.0f)
-		{
-			// desaturate lightmap according to cvar
-			SaturateR8G8B8(loadmodel->lightdata, l->filelen, r_lightmap_saturation.value);
-		}
-
-		return;
 	}
 
-	loadmodel->lightdata = Hunk_AllocName ( l->filelen, loadname);
-
+	/*if we're relighting, make sure there's the proper lit data to be updated*/
+	if (lightmodel == loadmodel && !litdata)
 	{
 		int i;
-		qbyte *in, *out;
-
-		in = mod_base + l->fileofs;
-		out = loadmodel->lightdata;
-		for (i = 0; i < l->filelen; i++)
+		litdata = Hunk_AllocName(samples*3, "lit data");
+		littmp = false;
+		if (lumdata)
 		{
-			*out++ = lmgamma[*in++];
+			for (i = 0; i < samples; i++)
+			{
+				litdata[i*3+0] = lumdata[i];
+				litdata[i*3+1] = lumdata[i];
+				litdata[i*3+2] = lumdata[i];
+			}
+			lumdata = NULL;
 		}
-
-		if ((loadmodel->engineflags & MDLF_RGBLIGHTING) && r_lightmap_saturation.value != 1.0f)
-			SaturateR8G8B8(loadmodel->lightdata, l->filelen, r_lightmap_saturation.value);
 	}
-	//memcpy (loadmodel->lightdata, mod_base + l->fileofs, l->filelen);
+	/*if we're relighting, make sure there's the proper lux data to be updated*/
+	if (lightmodel == loadmodel && r_deluxemapping.ival && !luxdata)
+	{
+		int i;
+		luxdata = Hunk_AllocName(samples*3, "lux data");
+		for (i = 0; i < samples; i++)
+		{
+			litdata[i*3+0] = 0.5f*255;
+			litdata[i*3+0] = 0.5f*255;
+			litdata[i*3+0] = 255;
+		}
+	}
+#endif
+	
+	if (luxdata && luxtmp)
+	{
+		loadmodel->engineflags |= MDLF_RGBLIGHTING;
+		loadmodel->deluxdata = Hunk_AllocName(samples*3, "lit data");
+		memcpy(loadmodel->deluxdata, luxdata, samples*3);
+	}
+	else if (luxdata)
+	{
+		loadmodel->deluxdata = luxdata;
+	}
+
+	if (litdata && littmp)
+	{
+		loadmodel->engineflags |= MDLF_RGBLIGHTING;
+		loadmodel->lightdata = Hunk_AllocName(samples*3, "lit data");
+		/*the memcpy is below*/
+		samples*=3;
+	}
+	else if (litdata)
+	{
+		loadmodel->engineflags |= MDLF_RGBLIGHTING;
+		loadmodel->lightdata = litdata;
+		samples*=3;
+	}
+	else if (lumdata)
+	{
+		loadmodel->engineflags &= ~MDLF_RGBLIGHTING;
+		loadmodel->lightdata = Hunk_AllocName(samples, "lit data");
+		litdata = lumdata;
+	}
+
+	/*apply lightmap gamma to the entire lightmap*/
+	out = loadmodel->lightdata;
+	while(samples-- > 0)
+	{
+		*out++ = lmgamma[*litdata++];
+	}
+
+	if ((loadmodel->engineflags & MDLF_RGBLIGHTING) && r_lightmap_saturation.value != 1.0f)
+		SaturateR8G8B8(loadmodel->lightdata, l->filelen, r_lightmap_saturation.value);
 }
 
 /*
@@ -3159,6 +3204,7 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 	for (i=0 ; i<sizeof(dheader_t)/4 ; i++)
 		((int *)header)[i] = LittleLong ( ((int *)header)[i]);
 
+	Q1BSPX_Setup(loadmodel, mod_base, com_filesize, header->lumps, HEADER_LUMPS);
 
 // checksum all of the map, except for entities
 	mod->checksum = 0;
@@ -3258,6 +3304,7 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 		return false;
 	}
 
+	Q1BSP_LoadBrushes(mod);
 	Q1BSP_SetModelFuncs(mod);
 	mod->funcs.LightPointValues		= GLQ1BSP_LightPointValues;
 	mod->funcs.StainNode			= Q1BSP_StainNode;
@@ -3856,7 +3903,7 @@ static void LoadDoomSpriteFrame(char *imagename, mspriteframedesc_t *pdesc, int 
 	}
 
 	palette = COM_LoadTempFile("wad/playpal");
-	header = (doomimage_t *)COM_LoadTempFile2(imagename);
+	header = (doomimage_t *)COM_LoadTempMoreFile(imagename);
 	data = (qbyte *)header;
 	pframe->up = +header->ypos;
 	pframe->down = -header->height + header->ypos;

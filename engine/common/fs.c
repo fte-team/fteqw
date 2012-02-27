@@ -20,6 +20,7 @@ static unsigned int fs_restarts;
 extern cvar_t com_fs_cache;
 int active_fs_cachetype;
 static int fs_referencetype;
+int fs_finds;
 
 struct
 {
@@ -511,6 +512,7 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 	{
 		for (search = com_purepaths ; search ; search = search->nextpure)
 		{
+			fs_finds++;
 			if (search->funcs->FindFile(search->handle, loc, filename, pf))
 			{
 				if (loc)
@@ -533,6 +535,7 @@ int FS_FLocateFile(const char *filename, FSLF_ReturnType_e returntype, flocation
 //
 	for (search = com_searchpaths ; search ; search = search->next)
 	{
+		fs_finds++;
 		if (search->funcs->FindFile(search->handle, loc, filename, pf))
 		{
 			search->referenced |= fs_referencetype;
@@ -1156,7 +1159,7 @@ qbyte *COM_LoadTempFile (const char *path)
 {
 	return COM_LoadFile (path, 2);
 }
-qbyte *COM_LoadTempFile2 (const char *path)
+qbyte *COM_LoadTempMoreFile (const char *path)
 {
 	return COM_LoadFile (path, 6);
 }
@@ -1342,6 +1345,7 @@ static int FS_AddWildDataFiles (const char *descriptor, int size, void *vparam)
 
 	search = param->parentpath;
 
+	fs_finds++;
 	if (!search->funcs->FindFile(search->handle, &loc, descriptor, NULL))
 		return true;	//not found..
 	vfs = search->funcs->OpenVFS(search->handle, &loc, "rb");
@@ -1377,6 +1381,7 @@ static void FS_AddDataFiles(const char *purepath, const char *pathto, searchpath
 	for (i=0 ; ; i++)
 	{
 		snprintf (pakfile, sizeof(pakfile), "pak%i.%s", i, extension);
+		fs_finds++;
 		if (!search->funcs->FindFile(search->handle, &loc, pakfile, NULL))
 			break;	//not found..
 		snprintf (pakfile, sizeof(pakfile), "%spak%i.%s", pathto, i, extension);

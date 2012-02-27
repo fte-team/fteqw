@@ -2337,6 +2337,15 @@ void SV_SendClientMessages (void)
 		}
 		c->waschoked = false;
 
+		if (sv.time > c->ratetime + 1)
+		{
+			c->inrate = c->netchan.bytesin / (sv.time - c->ratetime);
+			c->outrate = c->netchan.bytesout / (sv.time - c->ratetime);
+			c->netchan.bytesin = 0;
+			c->netchan.bytesout = 0;
+			c->ratetime = sv.time;
+		}
+
 		if (c->state == cs_spawned)
 			SV_SendClientDatagram (c);
 		else

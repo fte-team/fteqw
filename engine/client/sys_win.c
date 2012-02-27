@@ -380,7 +380,7 @@ DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exception
 		extern qboolean vid_initializing;
 		qboolean oldval = vid_initializing;
 		vid_initializing = true;
-		ShowWindow(mainwindow, SW_MINIMIZE);
+//		ShowWindow(mainwindow, SW_MINIMIZE);
 		vid_initializing = oldval;
 		return EXCEPTION_CONTINUE_SEARCH;
 	}
@@ -2006,7 +2006,19 @@ DWORD WINAPI threadwrapper(void *args)
 	tw.args = ((threadwrap_t *)args)->args;
 
 	free(args);
-	tw.func(tw.args);
+
+#ifdef CATCHCRASH
+	__try
+	{
+#endif
+		tw.func(tw.args);
+#ifdef CATCHCRASH
+	}
+	__except (CrashExceptionHandler(GetExceptionCode(), GetExceptionInformation()))
+	{
+		return 1;
+	}
+#endif
 
 #ifndef WIN32CRTDLL
 	_endthreadex(0);
@@ -2065,7 +2077,7 @@ qboolean Sys_TryLockMutex(void *mutex)
 
 qboolean Sys_LockMutex(void *mutex)
 {
-#ifdef _DEBUG
+#if 0//def _DEBUG
 	/*in debug builds, trigger a debug break if we sit on a mutex for longer than 20 secs*/
 	if (WaitForSingleObject(mutex, 20000) == WAIT_OBJECT_0)
 		return true;

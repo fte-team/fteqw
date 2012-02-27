@@ -265,7 +265,14 @@ char soundlist_name[] =
 
 void CL_MakeActive(char *gamename)
 {
+	extern int fs_finds;
+	if (fs_finds)
+	{
+		Con_DPrintf("%i additional FS searches\n", fs_finds);
+		fs_finds = 0;
+	}
 	cls.state = ca_active;
+	S_Purge(true);
 	if (VID_SetWindowCaption)
 		VID_SetWindowCaption(va("FTE %s: %s", gamename, cls.servername));
 
@@ -1028,6 +1035,7 @@ void CL_ClearState (void)
 	CL_AllowIndependantSendCmd(false);	//model stuff could be a problem.
 
 	S_StopAllSounds (true);
+	S_UntouchAll();
 	S_ResetFailedLoad();
 
 	Cvar_ApplyLatches(CVAR_SERVEROVERRIDE);
@@ -1644,6 +1652,9 @@ void CL_CheckServerInfo(void)
 	else
 		cl.fpd = atoi(Info_ValueForKey(cl.serverinfo, "fpd"));
 
+	cl.gamespeed = atof(Info_ValueForKey(cl.serverinfo, "*gamespeed"))/100.f;
+	if (cl.gamespeed < 0.1)
+		cl.gamespeed = 1;
 
 	s = Info_ValueForKey(cl.serverinfo, "status");
 	oldstate = cl.matchstate;
@@ -1699,10 +1710,6 @@ void CL_FullServerinfo_f (void)
 		}
 	}
 	CL_CheckServerInfo();
-
-	cl.gamespeed = atof(Info_ValueForKey(cl.serverinfo, "*gamespeed"))/100.f;
-	if (cl.gamespeed < 0.1)
-		cl.gamespeed = 1;
 
 	cl.csqcdebug = atoi(Info_ValueForKey(cl.serverinfo, "*csqcdebug"));
 }

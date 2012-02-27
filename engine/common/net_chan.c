@@ -313,7 +313,7 @@ qboolean Netchan_CanPacket (netchan_t *chan, int rate)
 		return true;	//don't ever drop packets due to possible routing problems when there is no routing.
 	if (!rate)
 		return true;
-	if (chan->cleartime < realtime + MAX_BACKUP/(float)rate)
+	if (chan->cleartime < realtime + 0.25)//(MAX_BACKUP/(float)rate))
 		return true;
 	return false;
 }
@@ -323,7 +323,7 @@ void Netchan_Block (netchan_t *chan, int bytes, int rate)
 	if (rate)
 	{
 		if (chan->cleartime < realtime-0.25)	//0.25 allows it to be a little bursty.
-			chan->cleartime = realtime + bytes/(float)rate;
+			chan->cleartime = realtime + (bytes/(float)rate);
 		else
 			chan->cleartime += bytes/(float)rate;
 	}
@@ -355,6 +355,7 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 	int sequence;
 	int drop;
 
+	chan->bytesin += net_message.cursize;
 	MSG_BeginReading (chan->netprim);
 
 	header = LongSwap(MSG_ReadLong());
@@ -410,6 +411,13 @@ nqprot_t NQNetChan_Process(netchan_t *chan)
 			chan->drop_count += drop;
 		}
 		chan->incoming_unreliable = sequence;
+
+
+
+//		chan->frame_latency = chan->frame_latency*OLD_AVG
+//			+ (chan->outgoing_sequence-sequence_ack)*(1.0-OLD_AVG);
+		chan->frame_rate = chan->frame_rate*OLD_AVG
+			+ (realtime-chan->last_received)*(1.0-OLD_AVG);		
 
 		chan->last_received = realtime;
 
@@ -534,8 +542,8 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 				else
 					*(int*)send_buf = BigLong(NETFLAG_DATA | send.cursize);
 				NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);
+				chan->bytesout += send.cursize;
 
-				Netchan_Block(chan, send.cursize, rate);
 				sentsize += send.cursize;
 
 				if (showpackets.value)
@@ -560,8 +568,6 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 
 			*(int*)send_buf = BigLong(NETFLAG_UNRELIABLE | send.cursize);
 			NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);
-
-			Netchan_Block(chan, send.cursize, rate);
 			sentsize += send.cursize;
 
 			if (showpackets.value)
@@ -570,6 +576,8 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 						, send.cursize);
 			send.cursize = 0;
 		}
+		chan->bytesout += sentsize;
+		Netchan_Block(chan, sentsize, rate);
 		return sentsize;
 	}
 #endif
@@ -700,6 +708,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 		}
 	}
 
+	chan->bytesout += send.cursize;
 	Netchan_Block(chan, send.cursize, rate);
 #ifdef SERVERONLY
 	if (ServerPaused())
@@ -741,6 +750,8 @@ qboolean Netchan_Process (netchan_t *chan)
 #endif
 			!NET_CompareAdr (net_from, chan->remote_address))
 		return false;
+
+	chan->bytesin += net_message.cursize;
 
 // get sequence numbers		
 	MSG_BeginReading (chan->netprim);

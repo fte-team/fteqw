@@ -139,7 +139,7 @@ V_CalcBob
 
 ===============
 */
-float V_CalcBob (int pnum)
+float V_CalcBob (int pnum, qboolean queryold)
 {
 	static	double	bobtime[MAX_SPLITS];
 	static float	bob[MAX_SPLITS];
@@ -148,7 +148,7 @@ float V_CalcBob (int pnum)
 	if (cl.spectator)
 		return 0;
 
-	if (!cl.onground[pnum] || cl.paused)
+	if (!cl.onground[pnum] || cl.paused || queryold)
 		return bob[pnum];		// just use old value
 
 	if (cl_bobcycle.value <= 0)
@@ -790,11 +790,12 @@ float angledelta (float a)
 CalcGunAngle
 ==================
 */
-void CalcGunAngle (int pnum)
+void V_CalcGunPositionAngle (int pnum, float bob)
 {
 	float	yaw, pitch, move;
 	static float oldyaw = 0;
 	static float oldpitch = 0;
+	int i;
 
 	yaw = r_refdef.viewangles[YAW];
 	pitch = -r_refdef.viewangles[PITCH];
@@ -836,12 +837,36 @@ void CalcGunAngle (int pnum)
 	oldpitch = pitch;
 
 	cl.viewent[pnum].angles[YAW] = r_refdef.viewangles[YAW] + yaw;
-	cl.viewent[pnum].angles[PITCH] = - (r_refdef.viewangles[PITCH] + pitch);
+	cl.viewent[pnum].angles[PITCH] = r_refdef.viewangles[PITCH] + pitch;
 
-	cl.viewent[pnum].angles[PITCH]*=-1;
+	cl.viewent[pnum].angles[YAW] = r_refdef.viewangles[YAW];
+	cl.viewent[pnum].angles[PITCH] = r_refdef.viewangles[PITCH];
+	cl.viewent[pnum].angles[ROLL] = r_refdef.viewangles[ROLL];
+
 	AngleVectors(cl.viewent[pnum].angles, cl.viewent[pnum].axis[0], cl.viewent[pnum].axis[1], cl.viewent[pnum].axis[2]);
 	VectorInverse(cl.viewent[pnum].axis[1]);
 	cl.viewent[pnum].angles[PITCH]*=-1;
+
+
+
+	VectorCopy (r_refdef.vieworg, cl.viewent[pnum].origin);
+	for (i=0 ; i<3 ; i++)
+	{
+		cl.viewent[pnum].origin[i] += cl.viewent[pnum].axis[0][i]*bob*0.4;
+//		cl.viewent[pnum].origin[i] += cl.viewent[pnum].axis[1][i]*sin(cl.time*5.5342452354235)*0.1;
+//		cl.viewent[pnum].origin[i] += cl.viewent[pnum].axis[2][i]*bob*0.8;
+	}
+
+// fudge position around to keep amount of weapon visible
+// roughly equal with different FOV
+	if (scr_viewsize.value == 110)
+		cl.viewent[pnum].origin[2] += 1;
+	else if (scr_viewsize.value == 100)
+		cl.viewent[pnum].origin[2] += 2;
+	else if (scr_viewsize.value == 90)
+		cl.viewent[pnum].origin[2] += 1;
+	else if (scr_viewsize.value == 80)
+		cl.viewent[pnum].origin[2] += 0.5;
 }
 
 /*
@@ -988,7 +1013,6 @@ void V_CalcRefdef (int pnum)
 {
 	entity_t	*view;
 	int			i;
-	vec3_t		forward, right, up;
 	float		bob;
 
 	r_refdef.currentplayernum = pnum;
@@ -1012,7 +1036,7 @@ void V_CalcRefdef (int pnum)
 	else if (v_viewheight.value)
 		bob=v_viewheight.value;
 	else
-		bob = V_CalcBob (pnum);
+		bob = V_CalcBob (pnum, false);
 
 // refresh position from simulated origin
 	VectorCopy (cl.simorg[pnum], r_refdef.vieworg);
@@ -1057,7 +1081,6 @@ void V_CalcRefdef (int pnum)
 	{
 		VectorCopy (cl.simangles[pnum], r_refdef.viewangles);
 	}
-	VectorCopy (r_refdef.viewangles, view->angles); //copy before it gets manipulatd
 	V_CalcViewRoll (pnum);
 	V_AddIdle (pnum);
 
@@ -1087,28 +1110,7 @@ void V_CalcRefdef (int pnum)
 	}
 
 // set up gun position
-	AngleVectors (view->angles, forward, right, up);
-	CalcGunAngle (pnum);
-
-	VectorCopy (r_refdef.vieworg, view->origin);
-
-	for (i=0 ; i<3 ; i++)
-	{
-		view->origin[i] += forward[i]*bob*0.4;
-//		view->origin[i] += right[i]*sin(cl.time*5.5342452354235)*0.1;
-//		view->origin[i] += up[i]*bob*0.8;
-	}
-
-// fudge position around to keep amount of weapon visible
-// roughly equal with different FOV
-	if (scr_viewsize.value == 110)
-		view->origin[2] += 1;
-	else if (scr_viewsize.value == 100)
-		view->origin[2] += 2;
-	else if (scr_viewsize.value == 90)
-		view->origin[2] += 1;
-	else if (scr_viewsize.value == 80)
-		view->origin[2] += 0.5;
+	V_CalcGunPositionAngle (pnum, bob);
 
 	if (cl.stats[pnum][STAT_HEALTH] > 0 && (unsigned int)cl.stats[pnum][STAT_WEAPON] >= MAX_MODELS)
  		view->model = NULL;

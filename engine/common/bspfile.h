@@ -151,6 +151,8 @@ typedef struct
 #define	Q1CONTENTS_SLIME	-4
 #define	Q1CONTENTS_LAVA		-5
 #define	Q1CONTENTS_SKY		-6
+#define	Q1CONTENTS_CLIP		-8
+#define	Q1CONTENTS_LADDER	-16
 
 // !!! if this is changed, it must be changed in asm_i386.h too !!!
 typedef struct

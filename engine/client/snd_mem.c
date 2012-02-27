@@ -543,7 +543,7 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 ResampleSfx
 ================
 */
-void ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth, int insamps, int inloopstart, qbyte *data)
+qboolean ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth, int insamps, int inloopstart, qbyte *data)
 {
 	extern cvar_t snd_linearresample;
 	double scale;
@@ -562,16 +562,18 @@ void ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth, int insam
 		outwidth = inwidth;
 	len = outsamps * outwidth * inchannels;
 
-	sc = Cache_Alloc (&sfx->cache, len + sizeof(sfxcache_t), sfx->name);
+	sfx->decoder.buf = sc = BZ_Malloc(len + sizeof(sfxcache_t));
 	if (!sc)
 	{
-		return;
+		return false;
 	}
 
 	sc->numchannels = inchannels;
 	sc->width = outwidth;
 	sc->speed = snd_speed;
 	sc->length = outsamps;
+	sc->soundoffset = 0;
+	sc->data = (qbyte*)(sc+1);
 	if (inloopstart == -1)
 		sc->loopstart = inloopstart;
 	else
@@ -587,6 +589,8 @@ void ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth, int insam
 		sc->width,
 		sc->numchannels,
 		snd_linearresample.ival);
+
+	return true;
 }
 
 //=============================================================================
@@ -703,19 +707,19 @@ sfxcache_t *S_LoadDoomSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 }
 #endif
 
-sfxcache_t *S_LoadWavSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
+qboolean S_LoadWavSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
 	wavinfo_t	info;
 
 	if (datalen < 4 || strncmp(data, "RIFF", 4))
-		return NULL;
+		return false;
 
 	info = GetWavinfo (s->name, data, datalen);
 	if (info.numchannels < 1 || info.numchannels > 2)
 	{
 		s->failedload = true;
 		Con_Printf ("%s has an unsupported quantity of channels.\n",s->name);
-		return NULL;
+		return false;
 	}
 
 	if (info.width == 1)
@@ -723,12 +727,10 @@ sfxcache_t *S_LoadWavSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	else if (info.width == 2)
 		COM_SwapLittleShortBlock((short *)(data + info.dataofs), info.samples*info.numchannels);
 
-	ResampleSfx (s, info.rate, info.numchannels, info.width, info.samples, info.loopstart, data + info.dataofs);
-
-	return Cache_Check(&s->cache);
+	return ResampleSfx (s, info.rate, info.numchannels, info.width, info.samples, info.loopstart, data + info.dataofs);
 }
 
-sfxcache_t *S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed);
+qboolean S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed);
 
 S_LoadSound_t AudioInputPlugins[10] =
 {
@@ -762,29 +764,21 @@ S_LoadSound
 ==============
 */
 
-sfxcache_t *S_LoadSound (sfx_t *s)
+qboolean S_LoadSound (sfx_t *s)
 {
 	char stackbuf[65536];
     char	namebuffer[256];
 	qbyte	*data;
-	sfxcache_t	*sc;
 	int i;
 	size_t result;
-
 	char *name = s->name;
 
 	if (s->failedload)
-		return NULL;	//it failed to load once before, don't bother trying again.
+		return false;	//it failed to load once before, don't bother trying again.
 
 // see if still in memory
-	sc = Cache_Check (&s->cache);
-	if (sc)
-		return sc;
-
-	s->decoder = NULL;
-
-
-
+	if (s->decoder.buf)
+		return true;
 
 	if (name[1] == ':' && name[2] == '\\')
 	{
@@ -816,7 +810,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 		else
 		{
 			Con_SafePrintf ("Couldn't load %s\n", namebuffer);
-			return NULL;
+			return false;
 		}
 	}
 	else
@@ -865,7 +859,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 		//FIXME: check to see if queued for download.
 		Con_DPrintf ("Couldn't load %s\n", namebuffer);
 		s->failedload = true;
-		return NULL;
+		return false;
 	}
 
 	s->failedload = false;
@@ -874,10 +868,9 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 	{
 		if (AudioInputPlugins[i])
 		{
-			sc = AudioInputPlugins[i](s, data, com_filesize, snd_speed);
-			if (sc)
+			if (AudioInputPlugins[i](s, data, com_filesize, snd_speed))
 			{
-				return sc;
+				return true;
 			}
 		}
 	}
@@ -886,7 +879,7 @@ sfxcache_t *S_LoadSound (sfx_t *s)
 		Con_Printf ("Format not recognised: %s\n", namebuffer);
 
 	s->failedload = true;
-	return NULL;
+	return false;
 }
 
 

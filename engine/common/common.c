@@ -857,6 +857,8 @@ float MSG_FromCoord(coorddata c, int bytes)
 	{
 	case 2:	//encode 1/8th precision, giving -4096 to 4096 map sizes
 		return LittleShort(c.b2)/8.0f;
+	case 3:
+		return LittleShort(c.b2) + (((unsigned char*)c.b)[2] * (1/255.0)); /*FIXME: RMQe uses 255, should be 256*/
 	case 4:
 		return LittleFloat(c.f);
 	default:

@@ -927,6 +927,8 @@ void PM_CheckWaterJump (void)
 
 	if (pmove.waterjumptime>0)
 		return;
+	if (pmove.pm_type == PM_DEAD)
+		return;
 
 	// don't hop out if we just jumped in
 	if (pmove.velocity[2] < -180)

@@ -2929,6 +2929,7 @@ int NET_LocalAddressForRemote(ftenet_connections_t *collection, netadr_t *remote
 
 void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t to)
 {
+	char buffer[64];
 	ftenet_connections_t *collection;
 	int i;
 
@@ -2975,7 +2976,7 @@ void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t to)
 			return;
 	}
 
-	Con_Printf("No route - open some ports\n");
+	Con_Printf("No route to %s - open some ports\n", NET_AdrToString(buffer, sizeof(buffer), to));
 }
 
 qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char *host, qboolean islisten)

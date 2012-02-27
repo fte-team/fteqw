@@ -18,18 +18,8 @@
 	#define oggvorbislibrary VorbisFileBase
 	struct Library *VorbisFileBase;
 
-#elif defined(_WIN32)
-	#define WINDOWSDYNAMICLINK
-
-	#ifndef WIN32_LEAN_AND_MEAN
-	#define WIN32_LEAN_AND_MEAN
-	#endif
-	#include <windows.h>
-
-	HINSTANCE oggvorbislibrary;
 #else
-	#include <dlfcn.h>
-	void *oggvorbislibrary;
+	dllhandle_t *oggvorbislibrary;
 #endif
 
 #ifdef __MORPHOS__
@@ -39,6 +29,7 @@
 	#define p_ov_comment ov_comment
 	#define p_ov_pcm_total ov_pcm_total
 	#define p_ov_read ov_read
+	#define p_ov_pcm_seek ov_pcm_seek
 #else
 	int (VARGS *p_ov_open_callbacks) (void *datasource, OggVorbis_File *vf, char *initial, long ibytes, ov_callbacks callbacks);
 	int (VARGS *p_ov_clear)(OggVorbis_File *vf);
@@ -47,6 +38,7 @@
 	ogg_int64_t (VARGS *p_ov_pcm_total)(OggVorbis_File *vf,int i);
 	long (VARGS *p_ov_read)(OggVorbis_File *vf,char *buffer,int length,
 				int bigendianp,int word,int sgned,int *bitstream);
+	int (VARGS *p_ov_pcm_seek)(OggVorbis_File *vf,ogg_int64_t pos);
 #endif
 
 
@@ -55,177 +47,188 @@ typedef struct {
 	unsigned long length;
 	unsigned long pos;
 	int srcspeed;
+	int srcchannels;
 
 	qboolean failed;
 
-	sfxcache_t	mediasc;
-	char *mediaaswavdata;	
-	int mediaaswavpos;
-	int mediaaswavbuflen;
-	char *mediatemprecode;
-	int mediatemprecodelen;
+	char *tempbuffer;	
+	int tempbufferbytes;
+
+	char *decodedbuffer;
+	int decodedbufferbytes;
+	int decodedbytestart;
+	int decodedbytecount;
 
 	OggVorbis_File vf;
 
 	sfx_t *s;
 } ovdecoderbuffer_t;
 
-int OV_DecodeSome(sfx_t *s, int minlength);
+sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, int start, int length);
 void OV_CancelDecoder(sfx_t *s);
 qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuffer_t *buffer);
 
-sfxcache_t *S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
+qboolean S_LoadOVSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
-	//char	namebuffer[MAX_OSPATH]; //unreferenced
 	char	*name;
 	ovdecoderbuffer_t *buffer;
-	//FILE *f; //unreferenced
-
-	//qboolean telluser; //unreferenced
-	//int len; //unreferenced
 
 	if (datalen < 4 || strncmp(data, "OggS", 4))
-		return NULL;
+		return false;
 
 	name = s->name;
 
-	if (!s->decoder)
-		s->decoder = Z_Malloc(sizeof(ovdecoderbuffer_t) + sizeof(sfxdecode_t));
-	buffer = (ovdecoderbuffer_t*)(s->decoder+1);
+	buffer = Z_Malloc(sizeof(ovdecoderbuffer_t));
 
-	buffer->mediaaswavpos=0;
-	buffer->mediasc.length=0;
+	buffer->decodedbytestart = 0;
+	buffer->decodedbytecount = 0;
 	buffer->s = s;
-	s->decoder->buf = buffer;
-	s->decoder->decodemore = OV_DecodeSome;
-	s->decoder->abort = OV_CancelDecoder;
+	s->decoder.buf = buffer;
+	s->decoder.decodedata = OV_DecodeSome;
+	s->decoder.abort = OV_CancelDecoder;
 
 	if (!OV_StartDecode(data, datalen, buffer))
 	{
-		if (buffer->mediaaswavdata)
+		if (buffer->decodedbuffer)
 		{
-			BZ_Free(buffer->mediaaswavdata);
-			buffer->mediaaswavdata = NULL;
+			BZ_Free(buffer->decodedbuffer);
+			buffer->decodedbuffer = NULL;
 		}
-		if (buffer->mediatemprecode)
-		{
-			BZ_Free(buffer->mediatemprecode);
-			buffer->mediatemprecode = NULL;
-		}
-		Z_Free(s->decoder);
-		s->decoder=NULL;
+		buffer->decodedbufferbytes = 0;
+		buffer->decodedbytestart = 0;
+		buffer->decodedbytecount = 0;
+		Z_Free(s->decoder.buf);
+		s->decoder.buf = NULL;
 		s->failedload = true;
-		return NULL;
+		return false;
 	}
 
-	buffer->mediaaswavpos = sizeof(sfxcache_t);
+	s->decoder.decodedata(s, NULL, 0, 100);
 
-	s->decoder->decodemore(s, 100);
-
-	s->cache.fake=true;
-	return buffer->s->cache.data;
+	return true;
 }
 
-int OV_DecodeSome(sfx_t *s, int minlength)
+sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, int start, int length)
 {	
 	extern int snd_speed;
 	extern cvar_t snd_linearresample_stream;
 	int bigendianp = bigendian;
 	int current_section = 0;
-	sfxcache_t *sc;
 
-	ovdecoderbuffer_t *dec = s->decoder->buf;
+	ovdecoderbuffer_t *dec = sfx->decoder.buf;
 	int bytesread;
+
+	int outspeed = snd_speed;
 
 //	Con_Printf("Minlength = %03i   ", minlength);
 
+	start *= 2*dec->srcchannels;
+	length *= 2*dec->srcchannels;
+
 	for (;;)
 	{
-		if (dec->mediaaswavbuflen < dec->mediaaswavpos+minlength+11050)	//expand if needed.
+		if (start < dec->decodedbytestart)
+		{
+			/*something rewound, purge clear the buffer*/
+			dec->decodedbytecount = 0;
+			dec->decodedbytestart = start;
+
+			//check pos
+			p_ov_pcm_seek(&dec->vf, dec->decodedbytestart);
+		}
+
+		if (start+length <= dec->decodedbytestart + dec->decodedbytecount)
+			break;
+
+		if (dec->decodedbytecount > snd_speed*8)
+		{
+			/*everything is okay, but our buffer is getting needlessly large.
+			keep anything after the 'new' position, but discard all before that
+			trim shouldn't be able to go negative
+			*/
+			unsigned int trim = start - dec->decodedbytestart;
+			//FIXME: retain an extra half-second for dual+ sound devices running slightly out of sync
+			memmove(dec->decodedbuffer, dec->decodedbuffer + trim, dec->decodedbytecount - trim);
+			dec->decodedbytecount -= trim;
+			dec->decodedbytestart += trim;
+		}
+
+		if (dec->decodedbufferbytes < start+length - dec->decodedbytestart + 128)	//expand if needed.
 		{
 	//		Con_Printf("Expand buffer\n");
-			dec->mediaaswavbuflen += minlength+22100;
-			dec->mediaaswavdata = BZ_Realloc(dec->mediaaswavdata, dec->mediaaswavbuflen);
-			s->cache.data = dec->mediaaswavdata;
-			s->cache.fake = true;
-
-			sc = s->cache.data;
-			sc->numchannels = dec->mediasc.numchannels;
-			sc->loopstart = -1;
-		}
-		else
-			sc = s->cache.data;
-
-		if (minlength < sc->length)
-		{
-	//		Con_Printf("No need for decode\n");
-			//done enough for now, don't whizz through the lot
-			return 0;
+			dec->decodedbufferbytes = (start+length - dec->decodedbytestart) + snd_speed;
+			dec->decodedbuffer = BZ_Realloc(dec->decodedbuffer, dec->decodedbufferbytes);
 		}
 
-		if (snd_speed == dec->srcspeed)
+		if (outspeed == dec->srcspeed)
 		{
-			bytesread = p_ov_read(&dec->vf, dec->mediaaswavdata+dec->mediaaswavpos, dec->mediaaswavbuflen-dec->mediaaswavpos, bigendianp, 2, 1, &current_section);
+			bytesread = p_ov_read(&dec->vf, dec->decodedbuffer+dec->decodedbytecount, (start+length) - (dec->decodedbytestart+dec->decodedbytecount), bigendianp, 2, 1, &current_section);
 			if (bytesread <= 0)
 			{
 				if (bytesread != 0)	//0==eof
 				{
 					Con_Printf("ogg decoding failed\n");
-					return 1;
+					return NULL;
 				}
-				return 0;
+				break;
 			}
 		}
 		else
 		{
-			double scale = dec->srcspeed / (double)snd_speed;
-			int decodesize = ceil((dec->mediaaswavbuflen-dec->mediaaswavpos) * scale);
-			if (decodesize > dec->mediatemprecodelen)
+			double scale = dec->srcspeed / (double)outspeed;
+			int decodesize = ceil((dec->decodedbufferbytes-dec->decodedbytecount) * scale);
+			/*round down...*/
+			decodesize &= ~(2 * dec->srcchannels - 1);
+			if (decodesize > dec->tempbufferbytes)
 			{
-				dec->mediatemprecode = BZ_Realloc(dec->mediatemprecode, decodesize);
-				dec->mediatemprecodelen = decodesize;
+				dec->tempbuffer = BZ_Realloc(dec->tempbuffer, decodesize);
+				dec->tempbufferbytes = decodesize;
 			}
 
-			bytesread = p_ov_read(&dec->vf, dec->mediatemprecode, decodesize, bigendianp, 2, 1, &current_section);
+			bytesread = p_ov_read(&dec->vf, dec->tempbuffer, decodesize, bigendianp, 2, 1, &current_section);
 
 			if (bytesread <= 0)
 			{
 				if (bytesread != 0)	//0==eof
 				{
 					Con_Printf("ogg decoding failed\n");
-					return 1;
+					return NULL;
 				}
-				return 0;
+				return NULL;
 			}
 
-			SND_ResampleStream(dec->mediatemprecode, 
+			SND_ResampleStream(dec->tempbuffer, 
 				dec->srcspeed, 
 				2, 
-				dec->mediasc.numchannels, 
-				bytesread / (2 * dec->mediasc.numchannels),
-				dec->mediaaswavdata+dec->mediaaswavpos,
-				snd_speed,
+				dec->srcchannels, 
+				bytesread / (2 * dec->srcchannels),
+				dec->decodedbuffer+dec->decodedbytecount,
+				outspeed,
 				2,
-				dec->mediasc.numchannels,
+				dec->srcchannels,
 				snd_linearresample_stream.ival);
 
 			bytesread = (int)floor(bytesread / scale) & ~0x1;
 		}
 
-		dec->mediaaswavpos += bytesread;
-
-		sc->length = (dec->mediaaswavpos-sizeof(sfxcache_t))/(2*(dec->mediasc.numchannels));
-		dec->mediasc.length = sc->length;
-
-		if (minlength<=sc->length)
-		{
-//			Con_Printf("Reached length\n");
-			return 1;
-		}
+		dec->decodedbytecount += bytesread;
 	}
+
+	if (buf)
+	{
+		buf->data = dec->decodedbuffer;
+		buf->soundoffset = dec->decodedbytestart / (2 * dec->srcchannels);
+		buf->length = dec->decodedbytecount;
+		buf->loopstart = -1;
+		buf->numchannels = dec->srcchannels;
+		buf->speed = snd_speed;
+		buf->width = 2;
+	}
+	return buf;
 }
 void OV_CancelDecoder(sfx_t *s)
 {
+	/*
 	sfxcache_t *src, *dest;
 	ovdecoderbuffer_t *dec;
 
@@ -241,14 +244,15 @@ void OV_CancelDecoder(sfx_t *s)
 	memcpy(dest, src, dec->mediaaswavpos);
 	BZ_Free(src);
 
-	if (dec->mediatemprecode)
+	if (dec->tempbuffer)
 	{
-		BZ_Free(dec->mediatemprecode);
-		dec->mediatemprecode = NULL;
+		BZ_Free(dec->tempbuffer);
+		dec->tempbufferbytes = NULL;
 	}
 
 	Z_Free(s->decoder);
 	s->decoder = NULL;
+	*/
 
 	//and it's now indistinguisable from a wav
 }
@@ -305,6 +309,19 @@ static ov_callbacks callbacks = {
 qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuffer_t *buffer)
 {
 	static qboolean tried;
+	static dllfunction_t funcs[] =
+	{
+		{(void*)&p_ov_open_callbacks, "ov_open_callbacks"},
+		{(void*)&p_ov_comment, "ov_comment"},
+		{(void*)&p_ov_pcm_total, "ov_pcm_total"},
+		{(void*)&p_ov_clear, "ov_clear"},
+		{(void*)&p_ov_info, "ov_info"},
+		{(void*)&p_ov_read, "ov_read"},
+		{(void*)&p_ov_pcm_seek, "ov_pcm_seek"},
+		{NULL}
+	};
+	static void *libhandle;
+
 	if (!oggvorbislibrary && !tried)
 #if defined(__MORPHOS__)
 	{
@@ -314,41 +331,19 @@ qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuf
 			Con_Printf("Unable to open vorbisfile.library version 2\n");
 		}
 	}
-#elif defined(WINDOWSDYNAMICLINK)
+#elif defined(_WIN32)
 	{
-		oggvorbislibrary = LoadLibrary("vorbisfile.dll");
+		oggvorbislibrary = Sys_LoadLibrary("vorbisfile", funcs);
 		if (!oggvorbislibrary)
-			oggvorbislibrary = LoadLibrary("libvorbisfile.dll");
+			oggvorbislibrary = Sys_LoadLibrary("libvorbisfile", funcs);
 		if (!oggvorbislibrary)
-		{
 			Con_Printf("Couldn't load DLL: \"vorbisfile.dll\".\n");
-		}
-		else
-		{
-			p_ov_open_callbacks	= (void *)GetProcAddress(oggvorbislibrary, "ov_open_callbacks");
-			p_ov_comment		= (void *)GetProcAddress(oggvorbislibrary, "ov_comment");
-			p_ov_pcm_total		= (void *)GetProcAddress(oggvorbislibrary, "ov_pcm_total");
-			p_ov_clear			= (void *)GetProcAddress(oggvorbislibrary, "ov_clear");
-			p_ov_info			= (void *)GetProcAddress(oggvorbislibrary, "ov_info");
-			p_ov_read			= (void *)GetProcAddress(oggvorbislibrary, "ov_read");
-		}
 	}
 #else
 	{
-		oggvorbislibrary = dlopen("libvorbisfile.so", RTLD_LOCAL | RTLD_LAZY);
+		oggvorbislibrary = Sys_LoadLibrary("libvorbisfile", funcs);
 		if (!oggvorbislibrary)
-		{
-			Con_Printf("Couldn't load SO: \"libvorbisfile.so\".\n");
-		}
-		else
-		{
-			p_ov_open_callbacks	= (void *)dlsym(oggvorbislibrary, "ov_open_callbacks");
-			p_ov_comment		= (void *)dlsym(oggvorbislibrary, "ov_comment");
-			p_ov_pcm_total		= (void *)dlsym(oggvorbislibrary, "ov_pcm_total");
-			p_ov_clear		= (void *)dlsym(oggvorbislibrary, "ov_clear");
-			p_ov_info		= (void *)dlsym(oggvorbislibrary, "ov_info");
-			p_ov_read		= (void *)dlsym(oggvorbislibrary, "ov_read");
-		}
+			Con_Printf("Couldn't load library: \"libvorbisfile\".\n");
 	}
 #endif
 
@@ -381,8 +376,7 @@ qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuf
 		return false;
 	}
 
-	buffer->mediasc.numchannels = vi->channels;
-	buffer->mediasc.loopstart = -1;
+	buffer->srcchannels = vi->channels;
 	buffer->srcspeed = vi->rate;
 /*
     while(*ptr){
@@ -394,8 +388,8 @@ qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuf
 	    (long)p_ov_pcm_total(&buffer->vf,-1));
     Con_Printf("Encoded by: %s\n\n",p_ov_comment(&buffer->vf,-1)->vendor);
 */  }
-	buffer->mediatemprecode = NULL;
-	buffer->mediatemprecodelen = 0;
+	buffer->tempbuffer = NULL;
+	buffer->tempbufferbytes = 0;
 
 	buffer->start = BZ_Malloc(length);
 	memcpy(buffer->start, start, length);

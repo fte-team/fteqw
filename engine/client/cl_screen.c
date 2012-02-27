@@ -1467,6 +1467,13 @@ void SCR_DrawLoading (void)
 	//int mtype = M_GameType(); //unused variable
 	y = vid.height/2;
 
+	if (*levelshotname)
+	{
+		pic = R2D_SafeCachePic (levelshotname);
+		R2D_ImageColours(1, 1, 1, 1);
+		R2D_ScalePic (0, 0, vid.width, vid.height, pic);
+	}
+
 	qdepth = COM_FDepthFile("gfx/loading.lmp", true);
 	h2depth = COM_FDepthFile("gfx/menu/loading.lmp", true);
 
@@ -1563,6 +1570,7 @@ void SCR_DrawLoading (void)
 			y = 104;
 		}
 	}
+	R2D_ImageColours(1, 1, 1, 1);
 
 	if (cl.downloadlist || cls.downloadmethod)
 	{
@@ -1669,7 +1677,8 @@ void SCR_ImageName (char *mapname)
 	GL_BeginRendering ();
 	SCR_DrawLoading();
 	SCR_SetUpToDrawConsole();
-	SCR_DrawConsole(!!*levelshotname);
+	if (key_dest == key_console || !*levelshotname)
+		SCR_DrawConsole(!!*levelshotname);
 	GL_EndRendering();
 	scr_drawloading = false;
 

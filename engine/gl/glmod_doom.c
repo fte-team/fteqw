@@ -1857,7 +1857,7 @@ static void Doom_LoadVerticies(char *name)
 	std		= (void *)COM_LoadTempFile	(va("%s.vertexes",	name));
 	stdc	= com_filesize/sizeof(*std);
 
-	gl2		= (void *)COM_LoadTempFile2	(va("%s.gl_vert",	name));
+	gl2		= (void *)COM_LoadTempMoreFile	(va("%s.gl_vert",	name));
 	if (!gl2)
 	{
 		glc = 0;

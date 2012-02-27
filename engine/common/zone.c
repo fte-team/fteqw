@@ -1677,6 +1677,7 @@ void *Cache_Check(cache_user_t *c)
 
 void Cache_Flush(void)
 {
+	S_Purge(false);
 	while(cache_head)
 	{
 		Cache_Free(cache_head->user);

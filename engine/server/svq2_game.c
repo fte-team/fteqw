@@ -343,6 +343,7 @@ static qboolean VARGS PFQ2_inPVS (vec3_t p1, vec3_t p2)
 	int		area1, area2;
 	qbyte	*mask;
 
+	//FIXME: requires q2/q3 bsp
 	leafnum = CM_PointLeafnum (sv.world.worldmodel, p1);
 	cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
 	area1 = CM_LeafArea (sv.world.worldmodel, leafnum);
@@ -373,6 +374,7 @@ static qboolean VARGS PFQ2_inPHS (vec3_t p1, vec3_t p2)
 	int		area1, area2;
 	qbyte	*mask;
 
+	//FIXME: requires q2/q3 bsp
 	leafnum = CM_PointLeafnum (sv.world.worldmodel, p1);
 	cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
 	area1 = CM_LeafArea (sv.world.worldmodel, leafnum);
@@ -391,6 +393,7 @@ static qboolean VARGS PFQ2_inPHS (vec3_t p1, vec3_t p2)
 
 qboolean VARGS PFQ2_AreasConnected(int area1, int area2)
 {
+	//FIXME: requires q2/q3 bsp
 	return CM_AreasConnected(sv.world.worldmodel, area1, area2);
 }
 
@@ -536,19 +539,26 @@ static q2trace_t VARGS SVQ2_Trace (vec3_t start, vec3_t mins, vec3_t maxs, vec3_
 {
 	q2trace_t ret;
 	trace_t tr;
-	static vec3_t nullvec;
 	if (!mins)
-		mins = nullvec;
+		mins = vec3_origin;
 	if (!maxs)
-		maxs = nullvec;
+		maxs = vec3_origin;
 	tr = WorldQ2_Move(&sv.world, start, mins, maxs, end, contentmask, passedict);
-	memcpy(&ret, &tr, sizeof(q2trace_t));
+	ret.allsolid = tr.allsolid;
+	ret.startsolid = tr.startsolid;
+	ret.contents = tr.contents;
+	ret.surface = tr.surface;
+	ret.fraction = tr.fraction;
+	VectorCopy(tr.endpos, ret.endpos);
+	VectorCopy(tr.plane.normal, ret.plane.normal);
+	ret.plane.dist = tr.plane.dist;
+//	memcpy(&ret, &tr, sizeof(q2trace_t));
 	return ret;
 }
 
 static int VARGS SVQ2_PointContents (vec3_t p)
 {
-	q2trace_t tr = SVQ2_Trace(p, NULL, NULL, p, NULL, ~0);
+	q2trace_t tr = SVQ2_Trace(p, vec3_origin, vec3_origin, p, NULL, ~0);
 	return tr.contents;
 //	return CM_PointContents(p, 0);
 }

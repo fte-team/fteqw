@@ -796,6 +796,9 @@ void CL_PlayerFrameUpdated(player_state_t *plstate, entity_state_t *state, int s
 
 	plstate->pm_type = pmtype;
 	VectorCopy(state->origin, plstate->origin);
+	plstate->command.angles[0] = state->angles[0] * -3 *65536/360.0;
+	plstate->command.angles[1] = state->angles[1] * 65536/360.0;
+	plstate->command.angles[2] = state->angles[2] * 65536/360.0;
 	VectorScale(state->u.q1.velocity, 1/8.0, plstate->velocity);
 	plstate->messagenum = sequence;
 
@@ -894,7 +897,7 @@ void CL_PredictMovePNum (int pnum)
 	if (cl.paused && !(cls.demoplayback!=DPB_MVD && cls.demoplayback!=DPB_EZTV) && (!cl.spectator || !autocam[pnum]))
 		return;
 
-	if (cl.intermission && cl.intermission != 3 && cls.protocol == CP_QUAKEWORLD)
+	if (cl.intermission==1 && cls.protocol == CP_QUAKEWORLD)
 	{
 		cl.crouch[pnum] = 0;
 		return;

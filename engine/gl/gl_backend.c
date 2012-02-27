@@ -2685,12 +2685,7 @@ void GLBE_SelectMode(backendmode_t mode)
 		case BEM_STENCIL:
 			GL_DeSelectProgram();
 
-			if (shaderstate.curpolyoffset.factor || shaderstate.curpolyoffset.unit)
-			{
-				shaderstate.curpolyoffset.factor = 0;
-				shaderstate.curpolyoffset.unit = 0;
-				qglDisable(GL_POLYGON_OFFSET_FILL);
-			}
+			BE_PushOffsetShadow(false);
 
 			/*BEM_STENCIL doesn't support mesh writing*/
 			qglDisableClientState(GL_COLOR_ARRAY);

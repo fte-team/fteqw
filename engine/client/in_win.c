@@ -55,7 +55,7 @@ cvar_t  m_accel = SCVAR("m_accel", "0");
 cvar_t	m_forcewheel = SCVAR("m_forcewheel", "1");
 cvar_t	m_forcewheel_threshold = SCVAR("m_forcewheel_threshold", "32");
 cvar_t	in_dinput = SCVARF("in_dinput","0", CVAR_ARCHIVE);
-cvar_t	in_builtinkeymap = SCVARF("in_builtinkeymap", "1", CVAR_ARCHIVE);
+cvar_t	in_builtinkeymap = SCVARF("in_builtinkeymap", "0", CVAR_ARCHIVE);
 
 cvar_t	m_accel_noforce = SCVAR("m_accel_noforce", "0");
 cvar_t  m_threshold_noforce = SCVAR("m_threshold_noforce", "0");
@@ -2385,9 +2385,10 @@ void IN_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int qdevi
 	extern cvar_t in_builtinkeymap;
 	int qcode;
 	int unicode;
+	extern int		keyshift[256];
+	extern int		shift_down;
 
 	qcode = MapKey(lParam);
-	unicode = (qcode < 128)?qcode:0;
 
 	if (WinNT && !in_builtinkeymap.value)
 	{
@@ -2400,6 +2401,13 @@ void IN_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int qdevi
 //			if (!wchars[1])
 				unicode = wchars[0];
 		}
+		else unicode = 0;
+	}
+	else
+	{
+		unicode = (qcode < 128)?qcode:0;
+		if (shift_down && unicode < K_MAX && keyshift[unicode])
+			unicode = keyshift[unicode]; 
 	}
 
 	Key_Event (qdeviceid, qcode, unicode, down);

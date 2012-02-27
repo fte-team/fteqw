@@ -40,7 +40,7 @@ typedef struct
 
 typedef struct {
 	int decodedlen;
-	int (*decodemore) (struct sfx_s *sfx, int length);	//retrurn true when done.
+	struct sfxcache_s *(*decodedata) (struct sfx_s *sfx, struct sfxcache_s *buf, int start, int length);	//retrurn true when done.
 	void (*abort) (struct sfx_s *sfx);	//it's not playing elsewhere. free entirly
 	void *buf;
 } sfxdecode_t;
@@ -51,20 +51,21 @@ typedef struct sfx_s
 #ifdef AVAIL_OPENAL
 	unsigned int	openal_buffer;
 #endif
-	qboolean failedload; //no more super-spammy
-	cache_user_t	cache;
-	sfxdecode_t *decoder;
+	qboolean failedload:1; //no more super-spammy
+	qboolean touched:1; //if the sound is still relevent
+	sfxdecode_t		decoder;
 } sfx_t;
 
 // !!! if this is changed, it much be changed in asm_i386.h too !!!
 typedef struct sfxcache_s
 {
-	int 	length;
-	int 	loopstart;
-	int 	speed;
-	int 	width;
-	int 	numchannels;
-	qbyte	data[1];		// variable sized
+	unsigned int length;
+	unsigned int loopstart;
+	unsigned int speed;
+	unsigned int width;
+	unsigned int numchannels;
+	unsigned int soundoffset;	//byte index into the sound
+	qbyte	*data;		// variable sized
 } sfxcache_t;
 
 typedef struct
@@ -72,23 +73,23 @@ typedef struct
 //	qboolean		gamealive;
 //	qboolean		soundalive;
 //	qboolean		splitbuffer;
-	int				numchannels;
+	int				numchannels;			// this many samples per frame
 	int				samples;				// mono samples in buffer (individual, non grouped)
 //	int				submission_chunk;		// don't mix less than this #
 	int				samplepos;				// in mono samples
 	int				samplebits;
-	int				speed;
-	unsigned char	*buffer;
+	int				speed;					// this many frames per second
+	unsigned char	*buffer;				// pointer to mixed pcm buffer (not directly used by mixer)
 } dma_t;
 
-#define PITCHSHIFT 8
+#define PITCHSHIFT 6	/*max audio file length = (1<<32>>PITCHSHIFT)/KHZ*/
 
 typedef struct
 {
 	sfx_t	*sfx;			// sfx number
 	int		vol[MAXSOUNDCHANNELS];		// 0-255 volume
 //	int		delay[MAXSOUNDCHANNELS];
-	int		end;			// end time in global paintsamples
+	int		start;			// start time in global paintsamples
 	int 	pos;			// sample position in sfx, <0 means delay sound start (shifted up by 8)
 	int     rate;			// 24.8 fixed point rate scaling
 	int		looping;		// where to loop, -1 = no looping
@@ -115,8 +116,7 @@ typedef struct soundcardinfo_s soundcardinfo_t;
 void S_Init (void);
 void S_Startup (void);
 void S_Shutdown (void);
-void S_StartSound (int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float pitchadj);
-void S_StartSoundDelayed(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float timeofs);
+void S_StartSound (int entnum, int entchannel, sfx_t *sfx, vec3_t origin, float fvol, float attenuation, float timeofs, float pitchadj);
 void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation);
 void S_StopSound (int entnum, int entchannel);
 void S_StopAllSounds(qboolean clear);
@@ -124,6 +124,8 @@ void S_UpdateListener(vec3_t origin, vec3_t forward, vec3_t right, vec3_t up);
 void S_GetListenerInfo(float *origin, float *forward, float *right, float *up);
 void S_Update (void);
 void S_ExtraUpdate (void);
+void S_MixerThread(soundcardinfo_t *sc);
+void S_Purge(qboolean retaintouched);
 
 qboolean S_HaveOutput(void);
 
@@ -132,17 +134,15 @@ void S_Music_Seek(float time);
 
 sfx_t *S_PrecacheSound (char *sample);
 void S_TouchSound (char *sample);
+void S_UntouchAll(void);
 void S_ClearPrecache (void);
 void S_BeginPrecaching (void);
 void S_EndPrecaching (void);
-
-void S_ClearBuffer (soundcardinfo_t *sc);
 
 void S_PaintChannels(soundcardinfo_t *sc, int endtime);
 void S_InitPaintChannels (soundcardinfo_t *sc);
 
 void S_ShutdownCard (soundcardinfo_t *sc);
-void S_StopSoundCard (soundcardinfo_t *sc, int entnum, int entchannel);
 
 void S_DefaultSpeakerConfiguration(soundcardinfo_t *sc);
 void S_ResetFailedLoad(void);
@@ -164,7 +164,7 @@ void S_Voip_Ignore(unsigned int plno, qboolean ignore);
 #endif
 
 qboolean S_IsPlayingSomewhere(sfx_t *s);
-void ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth, int insamps, int inloopstart, qbyte *data);
+qboolean ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth, int insamps, int inloopstart, qbyte *data);
 
 // picks a channel based on priorities, empty slots, number of channels
 channel_t *SND_PickChannel(soundcardinfo_t *sc, int entnum, int entchannel);
@@ -240,9 +240,9 @@ extern cvar_t snd_usemultipledevices;
 extern int		snd_blocked;
 
 void S_LocalSound (char *s);
-sfxcache_t *S_LoadSound (sfx_t *s);
+qboolean S_LoadSound (sfx_t *s);
 
-typedef sfxcache_t *(*S_LoadSound_t) (sfx_t *s, qbyte *data, int datalen, int sndspeed);
+typedef qboolean (*S_LoadSound_t) (sfx_t *s, qbyte *data, int datalen, int sndspeed);
 qboolean S_RegisterSoundInputPlugin(S_LoadSound_t loadfnc);	//called to register additional sound input plugins
 
 wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength);
@@ -279,7 +279,7 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 	qboolean inactive_sound;	//continue mixing for this card even when the window isn't active.
 	qboolean selfpainting;	//allow the sound code to call the right functions when it feels the need (not properly supported).
 
-	int	paintedtime;	//used in the mixer as last-written pos (in sample pairs)
+	int	paintedtime;	//used in the mixer as last-written pos (in frames)
 	int	oldsamplepos;	//this is used to track buffer wraps
 	int	buffers;	//used to keep track of how many buffer wraps for consistant sound
 	int	samplequeue;	//this is the number of samples the device can enqueue. if set, DMAPos returns the write point (rather than hardware read point) (in samplepairs).
@@ -295,6 +295,7 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 	void (*ChannelUpdate) (soundcardinfo_t *sc, channel_t *channel, unsigned int schanged);
 
 //driver -specific
+	void *thread;
 	void *handle;
 	int snd_sent;
 	int snd_completed;

@@ -90,65 +90,6 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 		sys_lastframe = Sys_Milliseconds();
 	}
 }
-JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_keypress(JNIEnv *env, jobject obj,
-                 jint down, jint keycode, jint unicode)
-{
-	Key_Event(0, keycode, unicode, down);
-}
-
-int mousecursor_x, mousecursor_y;
-float mouse_x, mouse_y;
-static vec2_t omouse[8];
-JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_motion(JNIEnv *env, jobject obj,
-                 jint act, jint ptrid, jfloat x, jfloat y)
-{
-	static float totalmoved[8];
-	static qboolean down[8];
-	float d[2];
-
-	if (!act && CSQC_MousePosition(x, y, ptrid))
-		return;
-	/*note that these events are not directly useful, so trigger mouse2 leaving mouse1 clean for tap events (and bypass any binds for it)*/
-	if (act == 1 && CSQC_KeyPress(K_MOUSE2, 0, true, ptrid))
-		return;
-	if (act == 2 && CSQC_KeyPress(K_MOUSE2, 0, false, ptrid))
-		return;
-
-	ptrid &= 7;
-
-	d[0] = x - omouse[ptrid][0];
-	d[1] = y - omouse[ptrid][1];
-	omouse[ptrid][0] = x;
-	omouse[ptrid][1] = y;
-	mousecursor_x = x;
-	mousecursor_y = y;
-
-	if (down[ptrid])
-	{	
-		mouse_x += d[0];
-		mouse_y += d[1];
-		totalmoved[ptrid] += fabs(d[0]) + fabs(d[1]);
-	}
-
-	switch(act)
-	{
-	case 0: /*move*/
-		break;
-	case 1: /*down*/
-		totalmoved[ptrid] = 0;
-		down[ptrid] = true;
-		break;
-	case 2: /*up*/
-		down[ptrid] = false;
-		/*if it didn't move far, treat it as a regular click, if it did move a little then sorry if you just wanted a small turn!*/
-		if (totalmoved[ptrid] < 3)
-		{
-			Key_Event(0, K_MOUSE1, 0, 1);
-			Key_Event(0, K_MOUSE1, 0, 0);
-		}
-		break;
-	}
-}
 
 static int secbase;
 double Sys_DoubleTime(void)
@@ -248,6 +189,7 @@ void *Sys_GetAddressForName(dllhandle_t *module, const char *exportname)
 }
 void *Sys_GetGameAPI (void *parms)
 {
+	//don't implement - fix q2 code instead
 	return NULL;
 }
 void Sys_UnloadGame(void)
@@ -264,6 +206,9 @@ void Sys_mkdir (char *path)    //not all pre-unix systems have directories (incl
 qboolean Sys_remove (char *path)
 {
 	return !unlink(path);
+}
+void Sys_SendKeyEvents(void)
+{
 }
 void Sys_Init(void)
 {

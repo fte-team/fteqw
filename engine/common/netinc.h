@@ -113,6 +113,10 @@
 		#define ioctlsocket ioctl
 	#endif
 
+	#if defined(AF_INET6) && !defined(IPPROTO_IPV6)
+		#define IPPROTO_IPV6 IPPROTO_IPV6
+	#endif
+
 	#define SOCKET int
 #endif
 

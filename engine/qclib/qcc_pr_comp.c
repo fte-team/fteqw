@@ -1428,6 +1428,13 @@ static void QCC_LockTemp(QCC_def_t *d)
 	if (d->temp && d->temp->used)
 		d->temp->scope = pr_scope;
 }
+static void QCC_ForceLockTempForOffset(int ofs)
+{
+	temp_t *t;
+	for (t = functemps; t; t = t->next)
+		if(t->ofs == ofs /* && t->used */)
+			t->scope = pr_scope;
+}
 
 static void QCC_RemapLockedTemp(temp_t *t, int firststatement, int laststatement)
 {
@@ -2391,7 +2398,11 @@ QCC_def_t *QCC_PR_Statement (QCC_opcode_t *op, QCC_def_t *var_a, QCC_def_t *var_
 				{
 					/*it came from an OP_ADDRESS - st says the instruction*/
 					if (need_lock)
+					{
+						QCC_ForceLockTempForOffset(statements[st].a);
+						QCC_ForceLockTempForOffset(statements[st].b);
 						QCC_LockTemp(var_c); /*that temp needs to be preserved over calls*/
+					}
 
 					/*generate new OP_ADDRESS instruction - FIXME: the arguments may have changed since the original instruction*/
 					statement_linenums[statement-statements] = statement_linenums[st];

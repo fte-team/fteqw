@@ -16,7 +16,7 @@ void Font_BeginScaledString(struct font_s *font, float vx, float vy, float *px, 
 void Font_Transform(int vx, int vy, int *px, int *py);
 int Font_CharHeight(void);
 int Font_CharWidth(unsigned int charcode);
-int Font_CharEndCoord(int x, unsigned int charcode);
+int Font_CharEndCoord(struct font_s *font, int x, unsigned int charcode);
 int Font_DrawChar(int px, int py, unsigned int charcode);
 float Font_DrawScaleChar(float px, float py, float cw, float ch, unsigned int charcode); /*avoid using*/
 void Font_EndString(struct font_s *font);
@@ -189,6 +189,7 @@ typedef struct font_s
 	FT_Face face;
 	void *membuf;
 #endif
+	struct font_s *alt;
 } font_t;
 
 typedef struct {
@@ -901,6 +902,7 @@ struct font_s *Font_LoadFont(int height, char *fontfilename)
 	struct font_s *f;
 	int i = 0;
 	int defaultplane;
+	char *aname;
 
 	f = Z_Malloc(sizeof(*f));
 	f->charheight = height;
@@ -1026,6 +1028,12 @@ struct font_s *Font_LoadFont(int height, char *fontfilename)
 		return f;
 	}
 
+	aname = strstr(fontfilename, ":");
+	if (aname)
+	{
+		*aname = 0;
+		f->alt = Font_LoadFont(height, aname+1);
+	}
 	if (!Font_LoadFreeTypeFont(f, height, fontfilename))
 	{
 		if (*fontfilename)
@@ -1046,6 +1054,8 @@ struct font_s *Font_LoadFont(int height, char *fontfilename)
 			f->chars[i].texplane = BITMAPPLANE;
 		}
 	}
+	if (aname)
+		*aname = ':';
 
 	defaultplane = BITMAPPLANE;/*assume the bitmap plane - don't use the fallback as people don't think to use com_parseutf8*/
 	if (!TEXVALID(f->singletexture))
@@ -1146,17 +1156,20 @@ int Font_CharHeight(void)
 This is where the character ends.
 Note: this function supports tabs - x must always be based off 0, with Font_LineDraw actually used to draw the line.
 */
-int Font_CharEndCoord(int x, unsigned int charcode)
+int Font_CharEndCoord(struct font_s *font, int x, unsigned int charcode)
 {
 	struct charcache_s *c;
 #define TABWIDTH (8*20)
 	if ((charcode&CON_CHARMASK) == '\t')
 		return x + ((TABWIDTH - (x % TABWIDTH)) % TABWIDTH);
 
-	c = Font_GetChar(curfont, (CHARIDXTYPE)(charcode&CON_CHARMASK));
+	if ((charcode & CON_2NDCHARSETTEXT) && font->alt)
+		font = font->alt;
+
+	c = Font_GetChar(font, (CHARIDXTYPE)(charcode&CON_CHARMASK));
 	if (!c)
 	{
-		c = Font_TryLoadGlyph(curfont, (CHARIDXTYPE)(charcode&CON_CHARMASK));
+		c = Font_TryLoadGlyph(font, (CHARIDXTYPE)(charcode&CON_CHARMASK));
 		if (!c)
 			return x+0;
 	}
@@ -1168,6 +1181,9 @@ int Font_CharEndCoord(int x, unsigned int charcode)
 int Font_CharWidth(unsigned int charcode)
 {
 	struct charcache_s *c;
+	struct font_s *font = curfont;
+	if ((charcode & CON_2NDCHARSETTEXT) && font->alt)
+		font = font->alt;
 
 	c = Font_GetChar(curfont, (CHARIDXTYPE)(charcode&CON_CHARMASK));
 	if (!c)
@@ -1190,6 +1206,7 @@ int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int max
 	int l, bt;
 	int px;
 	int foundlines = 0;
+	struct font_s *font = curfont;
 
 	while (start < end)
 	{
@@ -1199,7 +1216,7 @@ int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int max
 			l++;
 			if (start+l >= end || (start[l-1]&CON_CHARMASK) == '\n')
 				break;
-			px = Font_CharEndCoord(px, start[l]);
+			px = Font_CharEndCoord(font, px, start[l]);
 		}
 		//if we did get to the end
 		if (px > maxpixelwidth)
@@ -1234,19 +1251,21 @@ int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int max
 int Font_LineWidth(conchar_t *start, conchar_t *end)
 {
 	int x = 0;
+	struct font_s *font = curfont;
 	for (; start < end; start++)
 	{
-		x = Font_CharEndCoord(x, *start);
+		x = Font_CharEndCoord(font, x, *start);
 	}
 	return x;
 }
 void Font_LineDraw(int x, int y, conchar_t *start, conchar_t *end)
 {
 	int lx = 0;
+	struct font_s *font = curfont;
 	for (; start < end; start++)
 	{
 		Font_DrawChar(x+lx, y, *start);
-		lx = Font_CharEndCoord(lx, *start);
+		lx = Font_CharEndCoord(font, lx, *start);
 	}
 }
 
@@ -1283,18 +1302,23 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 	float sx, sy, sw, sh;
 	int col;
 	int v;
+	struct font_s *font = curfont;
+	if ((charcode & CON_2NDCHARSETTEXT) && font->alt)
+		font = font->alt;
 
 	//crash if there is no current font.
-	c = Font_GetChar(curfont, (CHARIDXTYPE)(charcode&CON_CHARMASK));
+	c = Font_GetChar(font, (CHARIDXTYPE)(charcode&CON_CHARMASK));
 	if (!c)
 	{
-		c = Font_TryLoadGlyph(curfont, (CHARIDXTYPE)(charcode&CON_CHARMASK));
+		c = Font_TryLoadGlyph(font, (CHARIDXTYPE)(charcode&CON_CHARMASK));
 		if (!c)
 			return px;
 	}
 
 	nextx = px + c->advance;
 
+	if ((charcode & CON_CHARMASK) == '\t')
+		return px + ((TABWIDTH - (px % TABWIDTH)) % TABWIDTH);
 	if ((charcode & CON_CHARMASK) == ' ')
 		return nextx;
 
@@ -1335,23 +1359,23 @@ int Font_DrawChar(int px, int py, unsigned int charcode)
 	case DEFAULTPLANE:
 		sx = ((px+c->left)*(int)vid.width) / (float)vid.rotpixelwidth;
 		sy = ((py+c->top)*(int)vid.height) / (float)vid.rotpixelheight;
-		sw = ((curfont->charheight)*vid.width) / (float)vid.rotpixelwidth;
-		sh = ((curfont->charheight)*vid.height) / (float)vid.rotpixelheight;
+		sw = ((font->charheight)*vid.width) / (float)vid.rotpixelwidth;
+		sh = ((font->charheight)*vid.height) / (float)vid.rotpixelheight;
 		v = Font_BeginChar(fontplanes.defaultfont);
 		break;
 	case BITMAPPLANE:
 		sx = ((px+c->left)*(int)vid.width) / (float)vid.rotpixelwidth;
 		sy = ((py+c->top)*(int)vid.height) / (float)vid.rotpixelheight;
-		sw = ((curfont->charheight)*vid.width) / (float)vid.rotpixelwidth;
-		sh = ((curfont->charheight)*vid.height) / (float)vid.rotpixelheight;
-		v = Font_BeginChar(curfont->singletexture);
+		sw = ((font->charheight)*vid.width) / (float)vid.rotpixelwidth;
+		sh = ((font->charheight)*vid.height) / (float)vid.rotpixelheight;
+		v = Font_BeginChar(font->singletexture);
 		break;
 	case SINGLEPLANE:
 		sx = ((px+c->left)*(int)vid.width) / (float)vid.rotpixelwidth;
 		sy = ((py+c->top)*(int)vid.height) / (float)vid.rotpixelheight;
 		sw = ((c->bmw)*vid.width) / (float)vid.rotpixelwidth;
 		sh = ((c->bmh)*vid.height) / (float)vid.rotpixelheight;
-		v = Font_BeginChar(curfont->singletexture);
+		v = Font_BeginChar(font->singletexture);
 		break;
 	default:
 		sx = ((px+c->left)*(int)vid.width) / (float)vid.rotpixelwidth;
@@ -1402,16 +1426,19 @@ float Font_DrawScaleChar(float px, float py, float cw, float ch, unsigned int ch
 	float sx, sy, sw, sh;
 	int col;
 	int v;
+	struct font_s *font = curfont;
+	if ((charcode & CON_2NDCHARSETTEXT) && font->alt)
+		font = font->alt;
 
-	cw /= curfont->charheight;
-	ch /= curfont->charheight;
+	cw /= font->charheight;
+	ch /= font->charheight;
 
 
 	//crash if there is no current font.
-	c = Font_GetChar(curfont, (CHARIDXTYPE)(charcode&CON_CHARMASK));
+	c = Font_GetChar(font, (CHARIDXTYPE)(charcode&CON_CHARMASK));
 	if (!c)
 	{
-		c = Font_TryLoadGlyph(curfont, (CHARIDXTYPE)(charcode&CON_CHARMASK));
+		c = Font_TryLoadGlyph(font, (CHARIDXTYPE)(charcode&CON_CHARMASK));
 		if (!c)
 			return px;
 	}
@@ -1457,13 +1484,13 @@ float Font_DrawScaleChar(float px, float py, float cw, float ch, unsigned int ch
 	{
 		sx = ((px+c->left));
 		sy = ((py+c->top));
-		sw = ((curfont->charheight*cw));
-		sh = ((curfont->charheight*ch));
+		sw = ((font->charheight*cw));
+		sh = ((font->charheight*ch));
 
 		if (c->texplane == DEFAULTPLANE)
 			v = Font_BeginChar(fontplanes.defaultfont);
 		else
-			v = Font_BeginChar(curfont->singletexture);
+			v = Font_BeginChar(font->singletexture);
 	}
 	else
 	{

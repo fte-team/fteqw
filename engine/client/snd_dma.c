@@ -80,20 +80,20 @@ cvar_t snd_noextraupdate		= CVARAF(	"s_noextraupdate", "0",
 											"snd_noextraupdate", 0);
 cvar_t snd_show					= CVARAF(	"s_show", "0",
 											"snd_show", 0);
-cvar_t snd_khz					= CVARAF(	"s_khz", "44",
-											"snd_khz", CVAR_ARCHIVE);
+cvar_t snd_khz					= CVARAFD(	"s_khz", "44",
+											"snd_khz", CVAR_ARCHIVE, "Sound speed, in kilohertz. Common values are 11, 22, 44, 48.");
 cvar_t	snd_inactive			= CVARAFD(	"s_inactive", "0",
 											"snd_inactive", 0,
-											"Play sound while application is inactive (ex. tabbed out)."
+											"Play sound while application is inactive (ex. tabbed out). Needs a snd_restart if changed."
 											);	//set if you want sound even when tabbed out.
-cvar_t _snd_mixahead			= CVARAF(	"s_mixahead", "0.08",
-											"_snd_mixahead", CVAR_ARCHIVE);
+cvar_t _snd_mixahead			= CVARAFD(	"s_mixahead", "0.08",
+											"_snd_mixahead", CVAR_ARCHIVE, "Specifies how many seconds to prebuffer audio. Lower values give less latency, but might result in crackling. Different hardware/drivers have different tolerances.");
 cvar_t snd_leftisright			= CVARAF(	"s_swapstereo", "0",
 											"snd_leftisright", CVAR_ARCHIVE);
 cvar_t snd_eax					= CVARAF(	"s_eax", "0",
 											"snd_eax", 0);
-cvar_t snd_speakers				= CVARAF(	"s_numspeakers", "2",
-											"snd_numspeakers", 0);
+cvar_t snd_speakers				= CVARAFD(	"s_numspeakers", "2",
+											"snd_numspeakers", 0, "Number of hardware audio channels to use. "DISTRIBUTION" supports up to 6.");
 cvar_t snd_buffersize			= CVARAF(	"s_buffersize", "0",
 											"snd_buffersize", 0);
 cvar_t snd_samplebits			= CVARAF(	"s_bits", "16",
@@ -109,8 +109,8 @@ cvar_t snd_linearresample		= CVARAF(	"s_linearresample", "1",
 cvar_t snd_linearresample_stream = CVARAF(	"s_linearresample_stream", "0",
 											"snd_linearresample_stream", 0);
 
-cvar_t snd_usemultipledevices	= CVARAF(	"s_multipledevices", "0",
-											"snd_multipledevices", 0);
+cvar_t snd_usemultipledevices	= CVARAFD(	"s_multipledevices", "0",
+											"snd_multipledevices", 0, "If enabled, all output sound devices in your computer will be initialised for playback, not just the default device.");
 cvar_t snd_driver		= CVARAF(	"s_driver", "",
 											"snd_driver", 0);
 

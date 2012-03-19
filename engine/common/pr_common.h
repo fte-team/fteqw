@@ -298,6 +298,11 @@ void QCBUILTIN PF_bufstr_add  (progfuncs_t *prinst, struct globalvars_s *pr_glob
 void QCBUILTIN PF_bufstr_free  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_buf_cvarlist  (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
+void QCBUILTIN PF_memalloc (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_memfree (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_memcpy (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_memset (progfuncs_t *prinst, struct globalvars_s *pr_globals);
+
 void QCBUILTIN PF_calltimeofday (progfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void QCBUILTIN PF_whichpack (progfuncs_t *prinst, struct globalvars_s *pr_globals);

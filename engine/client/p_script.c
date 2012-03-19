@@ -1843,6 +1843,11 @@ static void P_ImportEffectInfo_f(void)
 				ptype->looks.type = PT_BEAM;
 				ptype->looks.blendmode = BM_ADD;
 			}
+//			else if (!strcmp(arg[1], "snow"))
+//			{
+//				ptype->looks.type = PT_NORMAL;
+//				ptype->looks.blendmode = BM_BLEND;
+//			}
 			else
 			{
 				Con_Printf("effectinfo type %s not supported\n", arg[1]);
@@ -1962,6 +1967,8 @@ static void P_ImportEffectInfo_f(void)
 		else if (!strcmp(arg[0], "stainless") && args == 1)
 			;
 		else if (!strcmp(arg[0], "rotate") && args == 2)
+			;
+		else if (!strcmp(arg[0], "rotate") && args == 4)
 			;
 #endif
 		else

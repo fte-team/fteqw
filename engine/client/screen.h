@@ -106,7 +106,7 @@ void Font_BeginScaledString(struct font_s *font, float vx, float vy, float *px, 
 void Font_Transform(int vx, int vy, int *px, int *py);
 int Font_CharHeight(void);
 int Font_CharWidth(unsigned int charcode);
-int Font_CharEndCoord(int x, unsigned int charcode);
+int Font_CharEndCoord(struct font_s *font, int x, unsigned int charcode);
 int Font_DrawChar(int px, int py, unsigned int charcode);
 float Font_DrawScaleChar(float px, float py, float cw, float ch, unsigned int charcode); /*avoid using*/
 void Font_EndString(struct font_s *font);

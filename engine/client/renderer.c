@@ -239,8 +239,11 @@ cvar_t gl_contrast							= CVAR  ("gl_contrast", "1");
 cvar_t gl_detail							= CVARF ("gl_detail", "0",
 												CVAR_ARCHIVE);
 cvar_t gl_detailscale						= CVAR  ("gl_detailscale", "5");
-cvar_t gl_font								= CVARF ("gl_font", "",
-												CVAR_RENDERERCALLBACK);
+cvar_t gl_font								= CVARFD ("gl_font", "",
+													  CVAR_RENDERERCALLBACK, ("Specifies the font file to use. a value such as FONT:ALTFONT specifies an alternative font to be used when ^^a is used."
+													  "When using TTF fonts, you will likely need to scale text to at least 150% - vid_conautoscale 1.5 will do this."
+													  "TTF fonts may be loaded from your windows directory. \'gl_font cour\' loads eg: c:\\windows\\fonts\\cour.ttf."
+													  ));
 cvar_t gl_lateswap							= CVAR  ("gl_lateswap", "0");
 cvar_t gl_lerpimages						= CVARF  ("gl_lerpimages", "1", CVAR_ARCHIVE);
 //cvar_t gl_lightmapmode						= SCVARF("gl_lightmapmode", "",

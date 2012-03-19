@@ -715,6 +715,47 @@ void QCBUILTIN PF_registercvar (progfuncs_t *prinst, struct globalvars_s *pr_glo
 
 //Cvars
 ////////////////////////////////////////////////////
+//memory stuff
+void QCBUILTIN PF_memalloc (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	void *ptr = prinst->AddressableAlloc(prinst, G_INT(OFS_PARM0));
+	G_INT(OFS_RETURN) = (char*)ptr - prinst->stringtable;
+}
+void QCBUILTIN PF_memfree (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	prinst->AddressableFree(prinst, prinst->stringtable + G_INT(OFS_PARM0));
+}
+void QCBUILTIN PF_memcpy (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int dst = G_INT(OFS_PARM0);
+	int src = G_INT(OFS_PARM1);
+	int size = G_INT(OFS_PARM2);
+	if (dst < 0 || dst+size >= prinst->stringtablesize)
+	{
+		PR_BIError(prinst, "PF_memcpy: invalid dest\n");
+		return;
+	}
+	if (src < 0 || src+size >= prinst->stringtablesize)
+	{
+		PR_BIError(prinst, "PF_memcpy: invalid source\n");
+		return;
+	}
+	memcpy(prinst->stringtable + dst, prinst->stringtable + src, size);
+}
+void QCBUILTIN PF_memset (progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int dst = G_INT(OFS_PARM0);
+	int val = G_INT(OFS_PARM1);
+	int size = G_INT(OFS_PARM2);
+	if (dst < 0 || dst+size >= prinst->stringtablesize)
+	{
+		PR_BIError(prinst, "PF_memcpy: invalid dest\n");
+		return;
+	}
+	memset(prinst->stringtable + dst, val, size);
+}
+//memory stuff
+////////////////////////////////////////////////////
 //File access
 
 #define MAX_QC_FILES 256
@@ -1817,8 +1858,12 @@ void QCBUILTIN PF_vtos (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_TSTRING(pr_string_temp);
 }
 
+
 void QCBUILTIN PF_forgetstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+#if 1
+	prinst->AddressableFree(prinst, prinst->stringtable + G_INT(OFS_PARM0));
+#else
 	char *s=PR_RemoveProgsString(prinst, G_INT(OFS_PARM0));
 	if (!s)
 	{
@@ -1838,7 +1883,7 @@ void QCBUILTIN PF_forgetstring(progfuncs_t *prinst, struct globalvars_s *pr_glob
 	}
 	((int *)s)[0] = 0xabcd1234;
 	Z_TagFree(s);
-
+#endif
 }
 
 void QCBUILTIN PF_dupstring(progfuncs_t *prinst, struct globalvars_s *pr_globals)	//frik_file
@@ -1856,11 +1901,21 @@ void QCBUILTIN PF_dupstring(progfuncs_t *prinst, struct globalvars_s *pr_globals
 	}
 	len++; /*for the null*/
 
+#if 1
+	buf = prinst->AddressableAlloc(prinst, len);
+	if (!buf)
+	{
+		G_INT(OFS_RETURN) = 0;
+		return;
+	}
+	G_INT(OFS_RETURN) = (char*)buf - prinst->stringtable;
+#else
 	buf = Z_TagMalloc(len+8, Z_QC_TAG);
 	RETURN_SSTRING(buf+8);
 	((int *)buf)[0] = PRSTR;
 	((int *)buf)[1] = len;
 	buf += 8;
+#endif
 	
 	len = 0;
 	for (i = 0; i < *prinst->callargc; i++)
@@ -3663,6 +3718,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_FORCEINFOKEY",				1,	NULL, {"forceinfokey"}},
 	{"FTE_GFX_QUAKE3SHADERS"},
 	{"FTE_ISBACKBUFFERED",				1,	NULL, {"isbackbuffered"}},
+	{"FTE_MEMALLOC",					4,	NULL, {"memalloc", "memfree", "memcpy", "memset"}},
 #ifndef NOMEDIA
 	{"FTE_MEDIA_AVI"},	//playfilm supports avi files.
 	{"FTE_MEDIA_CIN"},	//playfilm command supports q2 cin files.

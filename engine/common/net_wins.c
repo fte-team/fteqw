@@ -186,12 +186,12 @@ void SockadrToNetadr (struct sockaddr_qstorage *s, netadr_t *a)
 		a->port = ((struct sockaddr_ipx *)s)->sa_socket;
 		break;
 #endif
+	default:
+		Con_Printf("SockadrToNetadr: bad socket family - %i", ((struct sockaddr*)s)->sa_family);
 	case AF_UNSPEC:
 		memset(a, 0, sizeof(*a));
 		a->type = NA_INVALID;
 		break;
-	default:
-		Sys_Error("SockadrToNetadr: bad socket family");
 	}
 }
 
@@ -293,7 +293,9 @@ qboolean	NET_CompareBaseAdr (netadr_t a, netadr_t b)
 
 qboolean NET_AddressSmellsFunny(netadr_t a)
 {
+#ifdef IPPROTO_IPV6
 	int i;
+#endif
 
 	//rejects certain blacklisted addresses
 	switch(a.type)
@@ -342,9 +344,11 @@ qboolean NET_AddressSmellsFunny(netadr_t a)
 char	*NET_AdrToString (char *s, int len, netadr_t a)
 {
 	char *rs = s;
-	qboolean doneblank;
 	char *p;
 	int i;
+#ifdef IPPROTO_IPV6
+	qboolean doneblank;
+#endif
 
 	switch(a.type)
 	{
@@ -1577,6 +1581,12 @@ int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *o
 								continue;
 						}
 
+						if (itr->ai_addr->sa_family == AF_INET
+							|| itr->ai_addr->sa_family == AF_INET6
+#ifdef USEIPX
+							|| itr->ai_addr->sa_family == AF_IPX
+#endif
+							)
 						if (idx++ == count)
 						{
 							SockadrToNetadr((struct sockaddr_qstorage*)itr->ai_addr, out);
@@ -1831,7 +1841,7 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 	temp = NetadrToSockadr(&adr, &qs);
 	family = ((struct sockaddr*)&qs)->sa_family;
 
-#ifdef IPV6_V6ONLY
+#if defined(IPPROTO_IPV6) && defined(IPV6_V6ONLY)
 	if (isserver && family == AF_INET && net_hybriddualstack.ival && !((struct sockaddr_in*)&qs)->sin_addr.s_addr)
 	{
 		unsigned long _false = false;
@@ -1875,7 +1885,7 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 			return NULL;
 		}
 
-#ifdef IPV6_V6ONLY
+#if defined(IPPROTO_IPV6) && defined(IPV6_V6ONLY)
 	if (family == AF_INET6)
 		setsockopt(newsocket, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&_true, sizeof(_true));
 #endif

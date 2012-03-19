@@ -266,9 +266,9 @@ int rawkbdcount;
 RAWINPUT *raw;
 int ribuffersize;
 
-cvar_t in_rawinput = SCVAR("in_rawinput", "0");
-cvar_t in_rawinput_keyboard = SCVAR("in_rawinput_keyboard", "0");
-cvar_t in_rawinput_rdp = SCVAR("in_rawinput_rdp", "0");
+cvar_t in_rawinput = CVARD("in_rawinput", "0", "Enables rawinput support for mice in XP onwards. Rawinput permits independant device identification (ie: splitscreen clients can each have their own mouse)");
+cvar_t in_rawinput_keyboard = SCVAR("in_rawinput_keyboard", "0", "Enables rawinput support for keyboards in XP onwards as well as just mice. Requires in_rawinput to be set.");
+cvar_t in_rawinput_rdp = CVARD("in_rawinput_rdp", "0", "Activate Remote Desktop Protocol devices too.");
 
 void IN_RawInput_MouseDeRegister(void);
 int IN_RawInput_MouseRegister(void);

@@ -46,7 +46,7 @@ typedef unsigned char qbyte;
 
 //extern progfuncs_t *progfuncs;
 
-#define prinst progfuncs->prinst
+#define prinst progfuncs->inst
 #define externs progfuncs->parms
 
 #include "pr_comp.h"
@@ -87,7 +87,7 @@ extern	QCC_opcode_t	pr_opcodes[];		// sized by initialization
 int PRHunkMark(progfuncs_t *progfuncs);
 void PRHunkFree(progfuncs_t *progfuncs, int mark);
 void *PRHunkAlloc(progfuncs_t *progfuncs, int size);
-void *PRAddressableAlloc(progfuncs_t *progfuncs, int ammount);
+void *PRAddressableExtend(progfuncs_t *progfuncs, int ammount);
 
 #ifdef printf
 #undef LIKEPRINTF
@@ -432,12 +432,10 @@ var(unsigned int, max_fields_size);
 
 
 //initlib.c
+int mfreelist;
 var(char *, addressablehunk);
-#define addressablehunk prinst->addressablehunk
 var(unsigned int, addressableused);
-#define addressableused prinst->addressableused
 var(unsigned int, addressablesize);
-#define addressablesize prinst->addressablesize
 
 
 //var(extensionbuiltin_t *, extensionbuiltin);

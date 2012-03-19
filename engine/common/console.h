@@ -112,6 +112,7 @@ typedef struct console_s
 	conline_t *oldest;
 	conline_t *current;		// line where next message will be printed
 	int		x;				// offset in current line for next print
+	int		cr;
 	conline_t *display;		// bottom of console displays this line
 	int		subline;
 	int		vislines;		// pixel lines

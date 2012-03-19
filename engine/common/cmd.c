@@ -988,6 +988,7 @@ typedef struct cmd_function_s
 {
 	struct cmd_function_s	*next;
 	char					*name;
+	char					*description;
 	xcommand_t				function;
 
 	qbyte	restriction;	//restriction of admin level
@@ -1679,6 +1680,23 @@ qboolean	Cmd_Exists (char *cmd_name)
 	return false;
 }
 
+/*
+============
+Cmd_Exists
+============
+*/
+char *Cmd_Describe (char *cmd_name)
+{
+	cmd_function_t	*cmd;
+
+	for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
+	{
+		if (!Q_strcmp (cmd_name,cmd->name))
+			return cmd->description;
+	}
+
+	return NULL;
+}
 
 
 /*
@@ -1734,8 +1752,13 @@ char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens
 
 	cvar_group_t	*grp;
 	cvar_t		*cvar;
+	char *sp;
 
-	len = Q_strlen(partial);
+	sp = strchr(partial, ' ');
+	if (sp)
+		len = sp - partial;
+	else
+		len = Q_strlen(partial);
 
 	if (!len)
 		return NULL;
@@ -1756,17 +1779,17 @@ char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens
 	if (caseinsens)
 	{
 		for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
-			if (!Q_strncasecmp (partial,cmd->name, len))
+			if (!Q_strncasecmp (partial,cmd->name, len) && (matchnum == -1 || !partial[len] || strlen(cmd->name) == len))
 				Cmd_CompleteCheck(cmd->name, &match);
 		for (a=cmd_alias ; a ; a=a->next)
-			if (!Q_strncasecmp (partial, a->name, len))
+			if (!Q_strncasecmp (partial, a->name, len) && (matchnum == -1 || !partial[len] || strlen(a->name) == len))
 				Cmd_CompleteCheck(a->name, &match);
 		for (grp=cvar_groups ; grp ; grp=grp->next)
 		for (cvar=grp->cvars ; cvar ; cvar=cvar->next)
 		{
-			if (!Q_strncasecmp (partial,cvar->name, len))
+			if (!Q_strncasecmp (partial,cvar->name, len) && (matchnum == -1 || !partial[len] || strlen(cvar->name) == len))
 				Cmd_CompleteCheck(cvar->name, &match);
-			if (cvar->name2 && !Q_strncasecmp (partial,cvar->name2, len))
+			if (cvar->name2 && !Q_strncasecmp (partial,cvar->name2, len) && (matchnum == -1 || !partial[len] || strlen(cvar->name2) == len))
 				Cmd_CompleteCheck(cvar->name2, &match);
 		}
 
@@ -1774,17 +1797,17 @@ char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens
 	else
 	{
 		for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
-			if (!Q_strncmp (partial,cmd->name, len))
+			if (!Q_strncmp (partial,cmd->name, len) && (matchnum == -1 || !partial[len] || strlen(cmd->name) == len))
 				Cmd_CompleteCheck(cmd->name, &match);
 		for (a=cmd_alias ; a ; a=a->next)
-			if (!Q_strncmp (partial, a->name, len))
+			if (!Q_strncmp (partial, a->name, len) && (matchnum == -1 || !partial[len] || strlen(a->name) == len))
 				Cmd_CompleteCheck(a->name, &match);
 		for (grp=cvar_groups ; grp ; grp=grp->next)
 		for (cvar=grp->cvars ; cvar ; cvar=cvar->next)
 		{
-			if (!Q_strncmp (partial,cvar->name, len))
+			if (!Q_strncmp (partial,cvar->name, len) && (matchnum == -1 || !partial[len] || strlen(cvar->name) == len))
 				Cmd_CompleteCheck(cvar->name, &match);
-			if (cvar->name2 && !Q_strncmp (partial,cvar->name2, len))
+			if (cvar->name2 && !Q_strncmp (partial,cvar->name2, len) && (matchnum == -1 || !partial[len] || strlen(cvar->name2) == len))
 				Cmd_CompleteCheck(cvar->name2, &match);
 		}
 	}

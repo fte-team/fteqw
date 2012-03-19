@@ -251,7 +251,7 @@ qboolean Cmd_IsCommand (char *line)
 
 int PaddedPrint (char *s, int x)
 {
-	Con_Printf ("%s\t", s);
+	Con_Printf ("^4%s\t", s);
 	x+=strlen(s);
 
 	return x;
@@ -267,22 +267,6 @@ void CompleteCommand (qboolean force)
 	s = key_lines[edit_line]+1;
 	if (*s == '\\' || *s == '/')
 		s++;
-
-	if (!force && con_displaypossibilities.value)
-	{
-		int x=0;
-		for (i = 1; ; i++)
-		{
-			cmd = Cmd_CompleteCommand (s, true, true, i);
-			if (!cmd)
-				break;
-			if (i == 1)
-				Con_Printf("---------\n");
-			x = PaddedPrint(cmd, x);
-		}
-		if (i != 1)
-			Con_Printf("\n");
-	}
 
 	cmd = Cmd_CompleteCommand (s, true, true, 2);
 	if (!cmd || force)
@@ -311,6 +295,8 @@ void CompleteCommand (qboolean force)
 				}
 			}
 			key_lines[edit_line][key_linepos] = 0;
+			if (!con_commandmatch)
+				con_commandmatch = 1;
 			return;
 		}
 	}
@@ -330,6 +316,8 @@ void CompleteCommand (qboolean force)
 
 			key_lines[edit_line][key_linepos] = 0;
 
+			if (!con_commandmatch)
+				con_commandmatch = 1;
 			return;	//don't alter con_commandmatch if we compleated a tiny bit more
 		}
 	}
@@ -533,7 +521,7 @@ void Key_Console (unsigned int unicode, int key)
 			CompleteCommand (false);
 		return;
 	}
-	if (key != K_SHIFT)
+	if (key != K_SHIFT && con_commandmatch)
 		con_commandmatch=1;
 	
 	if (key == K_LEFTARROW)

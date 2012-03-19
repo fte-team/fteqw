@@ -8938,6 +8938,12 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"skel_mmap",		PF_skel_mmap,		0,		0,		0,		282,	"float*(float skel)"},// (FTE_QC_RAGDOLL)
 	{"skel_set_bone_world",PF_skel_set_bone_world,0,0,		0,		283,	"void(entity ent, float bonenum, vector org, optional vector angorfwd, optional vector right, optional vector up)"},
 
+	{"memalloc",		PF_memalloc,		0,		0,		0,		384,	"void*(int size)"},
+	{"memfree",			PF_memfree,			0,		0,		0,		385,	"void(void *ptr)"},
+	{"memcpy",			PF_memcpy,			0,		0,		0,		386,	"void(void *dst, void *src, int size)"},
+	{"memset",			PF_memset,			0,		0,		0,		387,	"void(void *dst, int val, int size)"},
+
+
 //	{"cvar_setlatch",	PF_cvar_setlatch,	0,		0,		0,		284,	"void(string cvarname, optional string value)"},	//72
 
 

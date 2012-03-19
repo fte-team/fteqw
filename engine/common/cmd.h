@@ -84,6 +84,8 @@ qboolean	Cmd_AddCommand (char *cmd_name, xcommand_t function);
 qboolean Cmd_Exists (char *cmd_name);
 // used by the cvar code to check for cvar / command name overlap
 
+char *Cmd_Describe (char *cmd_name);
+
 char *Cmd_CompleteCommand (char *partial, qboolean fullonly, qboolean caseinsens, int matchnum);
 qboolean Cmd_IsCommand (char *line);
 // attempts to match a partial command for automatic command line completion

@@ -1756,6 +1756,8 @@ void Surf_SetupFrame(void)
 			leaf = RMod_PointInLeaf (cl.worldmodel, r_origin);
 		r_viewcluster = r_viewcluster2 = leaf->cluster;
 
+		r_viewcontents = 0;//leaf->contents;
+
 		// check above and below so crossing solid water doesn't draw wrong
 		if (!leaf->contents)
 		{	// look down a bit
@@ -1779,8 +1781,6 @@ void Surf_SetupFrame(void)
 				(leaf->cluster != r_viewcluster2) )
 				r_viewcluster2 = leaf->cluster;
 		}
-
-		r_viewcontents = leaf->contents;
 	}
 #endif
 	else if (cl.worldmodel && cl.worldmodel->fromgame == fg_doom3)

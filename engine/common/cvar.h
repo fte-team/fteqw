@@ -84,7 +84,11 @@ typedef struct cvar_s
 	bucket_t hbn1, hbn2;
 } cvar_t;
 
+#ifdef MINIMAL
+#define CVARAFDC(ConsoleName,Value,ConsoleName2,Flags,Description,Callback)	{ConsoleName, Value, NULL, Flags, 0, 0, 0, ConsoleName2, Callback, NULL}
+#else
 #define CVARAFDC(ConsoleName,Value,ConsoleName2,Flags,Description,Callback)	{ConsoleName, Value, NULL, Flags, 0, 0, 0, ConsoleName2, Callback, Description}
+#endif
 #define CVARAFD(ConsoleName,Value,ConsoleName2,Flags,Description)CVARAFDC(ConsoleName, Value, ConsoleName2, Flags, Description, NULL)
 #define CVARAFC(ConsoleName,Value,ConsoleName2,Flags,Callback)	CVARAFC(ConsoleName, Value, ConsoleName2, Flags, NULL, Callback)
 #define CVARAF(ConsoleName,Value,ConsoleName2,Flags)			CVARAFDC(ConsoleName, Value, ConsoleName2, Flags, NULL, NULL)

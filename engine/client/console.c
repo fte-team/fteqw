@@ -562,7 +562,6 @@ void Con_PrintCon (console_t *con, char *txt)
 	conchar_t expanded[4096];
 	conchar_t *c;
 	conline_t *oc;
-	static int	cr;
 
 	COM_ParseFunString(CON_WHITEMASK, txt, expanded, sizeof(expanded), false);
 
@@ -574,10 +573,10 @@ void Con_PrintCon (console_t *con, char *txt)
 		switch (*c & (CON_CHARMASK))
 		{
 		case '\r':
-			cr = true;
+			con->cr = true;
 			break;
 		case '\n':
-			cr = false;
+			con->cr = false;
 			while (con->linecount >= con_maxlines.ival)
 			{
 				if (con->oldest == con->current)
@@ -616,10 +615,10 @@ void Con_PrintCon (console_t *con, char *txt)
 				con->display = con->current;
 			break;
 		default:
-			if (cr)
+			if (con->cr)
 			{
 				con->current->length = 0;
-				cr = false;
+				con->cr = false;
 			}
 
 			if (selstartline == con->current)
@@ -798,9 +797,11 @@ DRAWING
 Con_DrawInput
 
 The input line scrolls horizontally if typing goes beyond the right edge
+y is the bottom of the input
+return value is the top of the region
 ================
 */
-void Con_DrawInput (int left, int right, int y)
+int Con_DrawInput (int left, int right, int y)
 {
 #ifdef _WIN32
 	extern qboolean ActiveApp;
@@ -808,9 +809,9 @@ void Con_DrawInput (int left, int right, int y)
 	int		i;
 	int lhs, rhs;
 	int p;
-	unsigned char	*text, *fname;
+	unsigned char	*text, *fname = NULL;
 	extern int con_commandmatch;
-	conchar_t maskedtext[MAXCMDLINE];
+	conchar_t maskedtext[2048];
 	conchar_t *endmtext;
 	conchar_t *cursor;
 	conchar_t *cchar;
@@ -818,11 +819,13 @@ void Con_DrawInput (int left, int right, int y)
 
 	int x;
 
+	y -= Font_CharHeight();
+
 	if (key_dest != key_console && con_current->vislines != vid.height)
-		return;		// don't draw anything (always draw if not active)
+		return y;		// don't draw anything (always draw if not active)
 
 	if (!con_current->linebuffered)
-		return;	//fixme: draw any unfinished lines of the current console instead.
+		return y;	//fixme: draw any unfinished lines of the current console instead.
 
 	text = key_lines[edit_line];
 
@@ -833,9 +836,9 @@ void Con_DrawInput (int left, int right, int y)
 
 	i = text[key_linepos];
 	text[key_linepos] = 0;
-	cursor = COM_ParseFunString(CON_WHITEMASK, text, maskedtext, sizeof(maskedtext)-1*sizeof(conchar_t), true);
+	cursor = COM_ParseFunString(CON_WHITEMASK, text, maskedtext, sizeof(maskedtext) - sizeof(maskedtext[0]), true);
 	text[key_linepos] = i;
-	endmtext = COM_ParseFunString(CON_WHITEMASK, text, maskedtext, sizeof(maskedtext)-1*sizeof(conchar_t), true);
+	endmtext = COM_ParseFunString(CON_WHITEMASK, text, maskedtext, sizeof(maskedtext) - sizeof(maskedtext[0]), true);
 
 	endmtext[1] = 0;
 
@@ -859,9 +862,11 @@ void Con_DrawInput (int left, int right, int y)
 			fname = Cmd_CompleteCommand(text+cmdstart, true, true, con_commandmatch);
 			if (fname)	//we can compleate it to:
 			{
-				for (p = key_linepos-cmdstart; fname[p]>' '; p++)
+				for (p = min(strlen(fname), key_linepos-cmdstart); fname[p]>' '; p++)
 					maskedtext[p+cmdstart] = (unsigned int)fname[p] | (COLOR_GREEN<<CON_FGSHIFT);
-				maskedtext[p+cmdstart] = '\0';
+				if (p < key_linepos-cmdstart)
+					p = key_linepos-cmdstart;
+				maskedtext[p+cmdstart] = 0;
 			}
 		}
 	}
@@ -914,6 +919,81 @@ void Con_DrawInput (int left, int right, int y)
 	{
 		rhs = Font_DrawChar(rhs, y, *cchar);
 	}
+
+	/*if its getting completed to something, show some help about the command that is going to be used*/
+	if (!text[1])
+		con_commandmatch = 0;
+	if (con_commandmatch && Cmd_IsCommand(text+(text[1] == '/'?2:1)))
+	{
+		cvar_t *var;
+		char *desc = NULL;
+		if (!desc)
+		{
+			var = Cvar_FindVar(fname);
+			if (var && var->description)
+				desc = var->description;
+		}
+		if (!desc)
+		{
+			desc = Cmd_Describe(fname);
+		}
+
+		if (desc)
+		{
+			int lines;
+			conchar_t *starts[8];
+			conchar_t *ends[8];
+			conchar_t *end;
+			end = maskedtext;
+
+			end = COM_ParseFunString((COLOR_YELLOW<<CON_FGSHIFT), va("%s: %s", fname, desc), end, (maskedtext+sizeof(maskedtext)/sizeof(maskedtext[0])-1-end)*sizeof(maskedtext[0]), true);
+			lines = Font_LineBreaks(maskedtext, end, right - left, 8, starts, ends);
+			while(lines-->0)
+			{
+				rhs = left;
+				y -= Font_CharHeight();
+				for (cchar = starts[lines]; cchar < ends[lines]; cchar++)
+				{
+					rhs = Font_DrawChar(rhs, y, *cchar);
+				}
+			}
+		}
+	}
+
+	/*just above that, we have the tab completion list*/
+	if (con_commandmatch && con_displaypossibilities.value)
+	{
+		int lines;
+		conchar_t *starts[32];
+		conchar_t *ends[32];
+		conchar_t *end;
+		char *cmd;
+		int cmdstart;
+		cmdstart = text[1] == '/'?2:1;
+		end = maskedtext;
+
+		for (i = 1; ; i++)
+		{
+			cmd = Cmd_CompleteCommand (text+cmdstart, true, true, i);
+			if (!cmd)
+				break;
+
+			end = COM_ParseFunString((COLOR_GREEN<<CON_FGSHIFT), va("%s\t", cmd), end, (maskedtext+sizeof(maskedtext)/sizeof(maskedtext[0])-1-end)*sizeof(maskedtext[0]), true);
+		}
+
+		lines = Font_LineBreaks(maskedtext, end, right - left, 32, starts, ends);
+		while(lines-->0)
+		{
+			rhs = left;
+			y -= Font_CharHeight();
+			for (cchar = starts[lines]; cchar < ends[lines]; cchar++)
+			{
+				rhs = Font_DrawChar(rhs, y, *cchar);
+			}
+		}
+	}
+
+	return y;
 }
 
 /*
@@ -1304,8 +1384,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 	y -= Font_CharHeight();
 	haveprogress = Con_DrawProgress(x, ex - x, y) != y;
-	y -= Font_CharHeight();
-	Con_DrawInput (x, ex - x, y);
+	y = Con_DrawInput (x, ex - x, y);
 
 	if (selactive)
 	{

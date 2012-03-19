@@ -44,25 +44,25 @@ cvar_t	rcon_address = SCVARF("rcon_address", "", CVAR_NOUNSAFEEXPAND);
 
 cvar_t	cl_timeout = SCVAR("cl_timeout", "60");
 
-cvar_t	cl_shownet = SCVAR("cl_shownet","0");	// can be 0, 1, or 2
+cvar_t	cl_shownet = CVAR("cl_shownet","0", "Debugging var. 0 shows nothing. 1 shows incoming packet sizes. 2 shows individual messages. 3 shows entities too.");	// can be 0, 1, or 2
 
 cvar_t	cl_pure		= CVARD("cl_pure", "0", "If enabled, the filesystem will be restricted to allow only the content of the current server.");
 cvar_t	cl_sbar		= CVARFC("cl_sbar", "0", CVAR_ARCHIVE, CL_Sbar_Callback);
 cvar_t	cl_hudswap	= CVARF("cl_hudswap", "0", CVAR_ARCHIVE);
 cvar_t	cl_maxfps	= CVARF("cl_maxfps", "500", CVAR_ARCHIVE);
-cvar_t	cl_idlefps	= CVARF("cl_idlefps", "0", CVAR_ARCHIVE);
-cvar_t	cl_yieldcpu = CVARF("cl_yieldcpu", "0", CVAR_ARCHIVE);
+cvar_t	cl_idlefps	= CVARF("cl_idlefps", "0", CVAR_ARCHIVE, "This is the maximum framerate to attain while idle/paused.");
+cvar_t	cl_yieldcpu = CVARFD("cl_yieldcpu", "0", CVAR_ARCHIVE, "Attempt to yield between frames. This can resolve issues with certain drivers and background software, but can mean less consistant frame times. Will reduce power consumption/heat generation so should be set on laptops or similar (over-hot/battery powered) devices.");
 cvar_t	cl_nopext	= CVARF("cl_nopext", "0", CVAR_ARCHIVE);
 cvar_t	cl_pext_mask = CVAR("cl_pext_mask", "0xffffffff");
 cvar_t	cl_nolerp	= CVARD("cl_nolerp", "0", "Disables interpolation. If set, missiles/monsters will be smoother, but they may be more laggy. Does not affect players. A value of 2 means 'interpolate only in single-player/coop'.");
 cvar_t	cl_nolerp_netquake = CVARD("cl_nolerp_netquake", "0", "Disables interpolation when connected to an NQ server. Does affect players, even the local player. You probably don't want to set this.");
 cvar_t	hud_tracking_show = CVAR("hud_tracking_show", "1");
 
-cvar_t	cl_defaultport		= CVARAF("cl_defaultport", STRINGIFY(PORT_QWSERVER), "port", 0);
+cvar_t	cl_defaultport		= CVARAFD("cl_defaultport", STRINGIFY(PORT_QWSERVER), "port", 0, "The default port to connect to servers.\nQW: "STRINGIFY(PORT_QWSERVER)", NQ: "STRINGIFY(PORT_NQSERVER)", Q2: "STRINGIFY(PORT_Q2SERVER)".");
 
 cvar_t	cfg_save_name = CVARF("cfg_save_name", "fte", CVAR_ARCHIVE);
 
-cvar_t	cl_splitscreen = CVAR("cl_splitscreen", "0");
+cvar_t	cl_splitscreen = CVARD("cl_splitscreen", "0", "Enables splitscreen support. See also: allow_splitscreen, in_rawinput*, the \"p\" command.");
 
 cvar_t	lookspring = CVARF("lookspring","0", CVAR_ARCHIVE);
 cvar_t	lookstrafe = CVARF("lookstrafe","0", CVAR_ARCHIVE);
@@ -116,7 +116,7 @@ cvar_t	noaim = CVARF("noaim",				"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	msg = CVARF("msg",					"1",		CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	b_switch = CVARF("b_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	w_switch = CVARF("w_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	cl_nofake = CVAR("cl_nofake",		"2");
+cvar_t	cl_nofake = CVARD("cl_nofake",		"2", "value 0: permits \\r chars in chat messages\nvalue 1: blocks all \\r chars\nvalue 2: allows \\r chars, but only from teammates");
 cvar_t	cl_chatsound = CVAR("cl_chatsound","1");
 cvar_t	cl_enemychatsound = CVAR("cl_enemychatsound", "misc/talk.wav");
 cvar_t	cl_teamchatsound = CVAR("cl_teamchatsound", "misc/talk.wav");
@@ -152,7 +152,7 @@ cvar_t	cl_countpendingpl = SCVAR("cl_countpendingpl", "0");
 cvar_t	cl_standardchat = SCVARF("cl_standardchat", "0", CVAR_ARCHIVE);
 cvar_t	msg_filter = SCVAR("msg_filter", "0");	//0 for neither, 1 for mm1, 2 for mm2, 3 for both
 cvar_t  cl_standardmsg = SCVARF("cl_standardmsg", "0", CVAR_ARCHIVE);
-cvar_t  cl_parsewhitetext = SCVAR("cl_parsewhitetext", "1");
+cvar_t  cl_parsewhitetext = CVARD("cl_parsewhitetext", "1", "When parsing chat messages, enable support for messages like: red{white}red");
 
 cvar_t	cl_dlemptyterminate = SCVAR("cl_dlemptyterminate", "1");
 
@@ -3770,6 +3770,8 @@ void Host_Init (quakeparms_t *parms)
 	int i;
 	int qrc, hrc, def;
 #endif
+	extern cvar_t com_parseutf8;
+	com_parseutf8.ival = 1;
 
 	COM_InitArgv (parms->argc, parms->argv);
 

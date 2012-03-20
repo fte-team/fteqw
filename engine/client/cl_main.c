@@ -44,13 +44,13 @@ cvar_t	rcon_address = SCVARF("rcon_address", "", CVAR_NOUNSAFEEXPAND);
 
 cvar_t	cl_timeout = SCVAR("cl_timeout", "60");
 
-cvar_t	cl_shownet = CVAR("cl_shownet","0", "Debugging var. 0 shows nothing. 1 shows incoming packet sizes. 2 shows individual messages. 3 shows entities too.");	// can be 0, 1, or 2
+cvar_t	cl_shownet = CVARD("cl_shownet","0", "Debugging var. 0 shows nothing. 1 shows incoming packet sizes. 2 shows individual messages. 3 shows entities too.");	// can be 0, 1, or 2
 
 cvar_t	cl_pure		= CVARD("cl_pure", "0", "If enabled, the filesystem will be restricted to allow only the content of the current server.");
 cvar_t	cl_sbar		= CVARFC("cl_sbar", "0", CVAR_ARCHIVE, CL_Sbar_Callback);
 cvar_t	cl_hudswap	= CVARF("cl_hudswap", "0", CVAR_ARCHIVE);
 cvar_t	cl_maxfps	= CVARF("cl_maxfps", "500", CVAR_ARCHIVE);
-cvar_t	cl_idlefps	= CVARF("cl_idlefps", "0", CVAR_ARCHIVE, "This is the maximum framerate to attain while idle/paused.");
+cvar_t	cl_idlefps	= CVARFD("cl_idlefps", "0", CVAR_ARCHIVE, "This is the maximum framerate to attain while idle/paused.");
 cvar_t	cl_yieldcpu = CVARFD("cl_yieldcpu", "0", CVAR_ARCHIVE, "Attempt to yield between frames. This can resolve issues with certain drivers and background software, but can mean less consistant frame times. Will reduce power consumption/heat generation so should be set on laptops or similar (over-hot/battery powered) devices.");
 cvar_t	cl_nopext	= CVARF("cl_nopext", "0", CVAR_ARCHIVE);
 cvar_t	cl_pext_mask = CVAR("cl_pext_mask", "0xffffffff");

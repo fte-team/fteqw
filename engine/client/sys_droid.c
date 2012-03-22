@@ -69,7 +69,7 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 		parms.basedir = "/sdcard/fte";
 		parms.argc = 3;
 		parms.argv = args;
-		parms.memsize = 8*1024*1024;
+		parms.memsize = 16*1024*1024;
 		parms.membase = sys_memheap = malloc(parms.memsize);
 		if (!parms.membase)
 		{

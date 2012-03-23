@@ -50,17 +50,17 @@ HRESULT (WINAPI *pDirectInputCreate)(HINSTANCE hinst, DWORD dwVersion,
 #define DINPUT_VERSION_DX7 0x0700
 
 // mouse variables
-cvar_t	m_filter = SCVAR("m_filter","0");
-cvar_t  m_accel = SCVAR("m_accel", "0");
-cvar_t	m_forcewheel = SCVAR("m_forcewheel", "1");
-cvar_t	m_forcewheel_threshold = SCVAR("m_forcewheel_threshold", "32");
-cvar_t	in_dinput = SCVARF("in_dinput","0", CVAR_ARCHIVE);
-cvar_t	in_builtinkeymap = SCVARF("in_builtinkeymap", "0", CVAR_ARCHIVE);
+cvar_t	m_filter = CVAR("m_filter","0");
+cvar_t  m_accel = CVAR("m_accel", "0");
+cvar_t	m_forcewheel = CVAR("m_forcewheel", "1");
+cvar_t	m_forcewheel_threshold = CVAR("m_forcewheel_threshold", "32");
+cvar_t	in_dinput = CVARF("in_dinput","0", CVAR_ARCHIVE);
+cvar_t	in_builtinkeymap = CVARF("in_builtinkeymap", "0", CVAR_ARCHIVE);
 
-cvar_t	m_accel_noforce = SCVAR("m_accel_noforce", "0");
-cvar_t  m_threshold_noforce = SCVAR("m_threshold_noforce", "0");
+cvar_t	m_accel_noforce = CVAR("m_accel_noforce", "0");
+cvar_t  m_threshold_noforce = CVAR("m_threshold_noforce", "0");
 
-cvar_t	cl_keypad = SCVAR("cl_keypad", "0");
+cvar_t	cl_keypad = CVAR("cl_keypad", "0");
 extern cvar_t cl_forcesplitclient;
 
 typedef struct {
@@ -133,25 +133,25 @@ PDWORD	pdwRawValue[JOY_MAX_AXES];
 // each time.  this avoids any problems with getting back to a default usage
 // or when changing from one controller to another.  this way at least something
 // works.
-cvar_t	in_joystick				= SCVARF("joystick","0", CVAR_ARCHIVE);
-cvar_t	joy_name				= SCVAR("joyname", "joystick");
-cvar_t	joy_advanced			= SCVAR("joyadvanced", "0");
-cvar_t	joy_advaxisx			= SCVAR("joyadvaxisx", "0");
-cvar_t	joy_advaxisy			= SCVAR("joyadvaxisy", "0");
-cvar_t	joy_advaxisz			= SCVAR("joyadvaxisz", "0");
-cvar_t	joy_advaxisr			= SCVAR("joyadvaxisr", "0");
-cvar_t	joy_advaxisu			= SCVAR("joyadvaxisu", "0");
-cvar_t	joy_advaxisv			= SCVAR("joyadvaxisv", "0");
-cvar_t	joy_forwardthreshold	= SCVAR("joyforwardthreshold", "0.15");
-cvar_t	joy_sidethreshold		= SCVAR("joysidethreshold", "0.15");
-cvar_t	joy_pitchthreshold		= SCVAR("joypitchthreshold", "0.15");
-cvar_t	joy_yawthreshold		= SCVAR("joyyawthreshold", "0.15");
-cvar_t	joy_forwardsensitivity	= SCVAR("joyforwardsensitivity", "-1.0");
-cvar_t	joy_sidesensitivity		= SCVAR("joysidesensitivity", "-1.0");
-cvar_t	joy_pitchsensitivity	= SCVAR("joypitchsensitivity", "1.0");
-cvar_t	joy_yawsensitivity		= SCVAR("joyyawsensitivity", "-1.0");
-cvar_t	joy_wwhack1				= SCVAR("joywwhack1", "0.0");
-cvar_t	joy_wwhack2				= SCVAR("joywwhack2", "0.0");
+cvar_t	in_joystick				= CVARF("joystick","0", CVAR_ARCHIVE);
+cvar_t	joy_name				= CVAR("joyname", "joystick");
+cvar_t	joy_advanced			= CVAR("joyadvanced", "0");
+cvar_t	joy_advaxisx			= CVAR("joyadvaxisx", "0");
+cvar_t	joy_advaxisy			= CVAR("joyadvaxisy", "0");
+cvar_t	joy_advaxisz			= CVAR("joyadvaxisz", "0");
+cvar_t	joy_advaxisr			= CVAR("joyadvaxisr", "0");
+cvar_t	joy_advaxisu			= CVAR("joyadvaxisu", "0");
+cvar_t	joy_advaxisv			= CVAR("joyadvaxisv", "0");
+cvar_t	joy_forwardthreshold	= CVAR("joyforwardthreshold", "0.15");
+cvar_t	joy_sidethreshold		= CVAR("joysidethreshold", "0.15");
+cvar_t	joy_pitchthreshold		= CVAR("joypitchthreshold", "0.15");
+cvar_t	joy_yawthreshold		= CVAR("joyyawthreshold", "0.15");
+cvar_t	joy_forwardsensitivity	= CVAR("joyforwardsensitivity", "-1.0");
+cvar_t	joy_sidesensitivity		= CVAR("joysidesensitivity", "-1.0");
+cvar_t	joy_pitchsensitivity	= CVAR("joypitchsensitivity", "1.0");
+cvar_t	joy_yawsensitivity		= CVAR("joyyawsensitivity", "-1.0");
+cvar_t	joy_wwhack1				= CVAR("joywwhack1", "0.0");
+cvar_t	joy_wwhack2				= CVAR("joywwhack2", "0.0");
 
 qboolean	joy_avail, joy_advancedinit, joy_haspov;
 DWORD		joy_oldbuttonstate, joy_oldpovstate;
@@ -267,7 +267,7 @@ RAWINPUT *raw;
 int ribuffersize;
 
 cvar_t in_rawinput = CVARD("in_rawinput", "0", "Enables rawinput support for mice in XP onwards. Rawinput permits independant device identification (ie: splitscreen clients can each have their own mouse)");
-cvar_t in_rawinput_keyboard = SCVAR("in_rawinput_keyboard", "0", "Enables rawinput support for keyboards in XP onwards as well as just mice. Requires in_rawinput to be set.");
+cvar_t in_rawinput_keyboard = CVARD("in_rawinput_keyboard", "0", "Enables rawinput support for keyboards in XP onwards as well as just mice. Requires in_rawinput to be set.");
 cvar_t in_rawinput_rdp = CVARD("in_rawinput_rdp", "0", "Activate Remote Desktop Protocol devices too.");
 
 void IN_RawInput_MouseDeRegister(void);

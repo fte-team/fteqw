@@ -246,6 +246,7 @@ HTTP_DIR=$(BASE_DIR)/http
 LIBS_DIR?=.
 PROGS_DIR=$(BASE_DIR)/qclib
 SNDCODEC_DIR=$(BASE_DIR)/sndcodec
+BOTLIB_DIR=$(BASE_DIR)/botlib
 
 RELEASE_DIR=$(BASE_DIR)/release
 DEBUG_DIR=$(BASE_DIR)/debug
@@ -315,7 +316,7 @@ else
 	GNUC_FUNCS= -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp -D_vsnprintf=vsnprintf -D_snprintf=snprintf
 endif
 
-BASE_CFLAGS=$(WARNINGFLAGS) $(GNUC_FUNCS) -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(GL_DIR) -I$(D3D_DIR) -I$(PROGS_DIR) -I$(LIBS_DIR) -I$(LIBS_DIR)/dxsdk9/include -I$(LIBS_DIR)/sdl/include -I/usr/include/SDL -I$(LIBS_DIR)/sdl/include/SDL -I./libs/freetype2/include -I./libs/freetype2/include/freetype -I./libs/speex $(SVNREVISION)
+BASE_CFLAGS=$(WARNINGFLAGS) $(GNUC_FUNCS) -I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(GL_DIR) -I$(D3D_DIR) -I$(PROGS_DIR) -I$(BOTLIB_DIR) -I$(LIBS_DIR) -I$(LIBS_DIR)/dxsdk9/include -I$(LIBS_DIR)/sdl/include -I/usr/include/SDL -I$(LIBS_DIR)/sdl/include/SDL -I./libs/freetype2/include -I./libs/freetype2/include/freetype -I./libs/speex $(SVNREVISION)
 CLIENT_ONLY_CFLAGS=-DCLIENTONLY
 SERVER_ONLY_CFLAGS=-DSERVERONLY
 JOINT_CFLAGS=
@@ -521,6 +522,36 @@ COMMON_OBJS = \
 	plugin.o		\
 	q1bsp.o		\
 	q2pmove.o
+	
+BOTLIB_OBJS = 			\
+	be_aas_bspq3.o		\
+	be_aas_cluster.o	\
+	be_aas_debug.o		\
+	be_aas_entity.o		\
+	be_aas_file.o		\
+	be_aas_main.o		\
+	be_aas_move.o		\
+	be_aas_optimize.o	\
+	be_aas_reach.o		\
+	be_aas_route.o		\
+	be_aas_routealt.o	\
+	be_aas_sample.o		\
+	be_ai_char.o		\
+	be_ai_chat.o		\
+	be_ai_gen.o		\
+	be_ai_goal.o		\
+	be_ai_move.o		\
+	be_ai_weap.o		\
+	be_ai_weight.o		\
+	be_ea.o			\
+	be_interface.o		\
+	l_crc.o			\
+	l_libvar.o		\
+	l_log.o			\
+	l_memory.o		\
+	l_precomp.o		\
+	l_script.o		\
+	l_struct.o	
 
 #the defaults for sdl come first
 GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o
@@ -917,7 +948,7 @@ ifneq ($(OUT_DIR),)
 endif
 
 
-VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(BASE_DIR)/irc : $(BASE_DIR)/email : $(QUX_DIR) : $(PROGS_DIR) : $(SNDCODEC_DIR) : $(D3D_DIR)
+VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(BASE_DIR)/irc : $(BASE_DIR)/email : $(QUX_DIR) : $(PROGS_DIR) : $(SNDCODEC_DIR) : $(D3D_DIR) : $(BOTLIB_DIR)
 
 # This is for linking the FTE icon to the MinGW target
 $(OUT_DIR)/resources.o : winquake.rc

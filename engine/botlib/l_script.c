@@ -166,6 +166,16 @@ char basefolder[MAX_PATH];
 char basefolder[MAX_QPATH];
 #endif
 
+#ifdef _WIN64
+        #ifdef _SDL
+                #define snprintf linuxlike_snprintf
+                int VARGS linuxlike_snprintf(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
+                #define vsnprintf linuxlike_vsnprintf
+                int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_list argptr);
+                //void *__imp__vsnprintf = vsnprintf;
+        #endif
+#endif
+
 //===========================================================================
 //
 // Parameter:				-
@@ -1164,7 +1174,7 @@ float ReadSignedFloat(script_t *script)
 
 		sign = -1.0;
 	}
-	
+
 	if (token.type != TT_NUMBER)
 	{
 		ScriptError(script, "expected float value, found %s\n", token.string);
@@ -1201,7 +1211,7 @@ signed long int ReadSignedInt(script_t *script)
 		ScriptError(script, "expected integer value, found %s\n", token.string);
 		return 0;
 	}
-	
+
 	return sign * token.intvalue;
 } //end of the function ReadSignedInt
 //============================================================================

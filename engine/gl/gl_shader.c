@@ -299,7 +299,13 @@ static qboolean Shader_EvaluateCondition(char **ptr)
 	else
 	{
 		cv = Cvar_Get(token, "", 0, "Shader Conditions");
+		if (!cv)
+		{
+			Con_Printf("Shader_EvaluateCondition: '%s' is not a cvar\n", token);
+			return conditiontrue;
+		}
 		token = COM_ParseExt ( ptr, false );
+		cv->flags |= CVAR_SHADERSYSTEM;
 		if (*token)
 		{
 			float rhs;
@@ -1078,8 +1084,7 @@ struct sbuiltin_s
 
 			"void main ()\n"
 			"{\n"
-			"	gl_FragColor = fog4blend(texture2D(s_t0, tc) * vc);\n"
-			"	gl_FragColor = gl_FragColor * e_colourident;\n"
+			"	gl_FragColor = fog4blend(texture2D(s_t0, tc) * vc * e_colourident);\n"
 			"}\n"
 		"#endif\n"
 	},
@@ -1108,8 +1113,7 @@ struct sbuiltin_s
 
 			"void main ()\n"
 			"{\n"
-			"	gl_FragColor = fog4additive(texture2D(s_t0, tc) * vc);\n"
-			"	gl_FragColor = gl_FragColor * e_colourident;\n"
+			"	gl_FragColor = fog4additive(texture2D(s_t0, tc) * vc * e_colourident);\n"
 			"}\n"
 		"#endif\n"
 	},
@@ -1206,10 +1210,42 @@ struct sbuiltin_s
 			"#ifdef FULLBRIGHT\n"
 			"	gl_FragColor.rgb += texture2D(s_t4, tc).rgb;\n"
 			"#endif\n"
+				"gl_FragColor = gl_FragColor * e_colourident;\n"
 			"#ifdef FOG\n"
 				"gl_FragColor = fog4(gl_FragColor);\n"
 			"#endif\n"
-				"gl_FragColor = gl_FragColor * e_colourident;\n"
+			"}\n"
+		"#endif\n"
+	},
+	{QR_OPENGL, 100, "drawflat_wall",
+		"!!cvarv r_floorcolor\n"
+		"!!cvarv r_wallcolor\n"
+		"!!permu FOG\n"
+		"#include \"sys/fog.h\"\n"
+		"varying vec4 col;\n"
+		"#ifdef VERTEX_SHADER\n"
+			"attribute vec3 v_normal;\n"
+			"attribute vec2 v_lmcoord;\n"
+			"varying vec2 lm;\n"
+			"uniform vec3 cvar_r_wallcolor;\n"
+			"uniform vec3 cvar_r_floorcolor;\n"
+			"uniform vec4 e_lmscale;\n"
+			
+			"void main ()\n"
+			"{\n"
+			"	col = vec4(e_lmscale.rgb/255.0 * ((v_normal.z < 0.73)?cvar_r_wallcolor:cvar_r_floorcolor), e_lmscale.a);\n"
+			"	lm = v_lmcoord;\n"
+			"	gl_Position = ftetransform();\n"
+			"}\n"
+		"#endif\n"
+
+		"#ifdef FRAGMENT_SHADER\n"
+			"uniform sampler2D s_t0;\n" /*tex_lightmap*/
+			"varying vec2 lm;\n"
+
+			"void main ()\n"
+			"{\n"
+			"	gl_FragColor = fog4(col * texture2D(s_t0, lm));\n"
 			"}\n"
 		"#endif\n"
 	},
@@ -4370,10 +4406,10 @@ void Shader_Finish (shader_t *s)
 		if (r_fastsky.ival)
 			s->flags = 0;
 		/*or if its purely a skybox and has missing textures*/
-		if (!s->numpasses)
-			for (i = 0; i < 6; i++)
-				if (missing_texture.ref == s->skydome->farbox_textures[i].ref)
-					s->flags = 0;
+//		if (!s->numpasses)
+//			for (i = 0; i < 6; i++)
+//				if (missing_texture.ref == s->skydome->farbox_textures[i].ref)
+//					s->flags = 0;
 		if (!(s->flags & SHADER_SKY))
 		{
 			Shader_Reset(s);

@@ -51,6 +51,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define NO_OGG
 #endif
 
+#ifdef NACL
+	#define NO_PNG
+	#define NO_JPEG
+	#define NO_OGG
+	#define NO_ZLIB
+#endif
+
 #ifdef HAVE_CONFIG_H	//if it was configured properly, then we have a more correct list of features we want to use.
 	#include "config.h"
 #else
@@ -229,6 +236,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #undef VOICECHAT
 #undef TEXTEDITOR
 #endif
+#ifdef NACL
+#undef CL_MASTER	//no sockets support
+#undef SV_MASTER	//noone uses this anyway
+#undef VOICECHAT	//not going to compile a speex library - I'm too lazy, but it can be done.
+#undef WEBSERVER	//no sockets support (certainly no servers)
+#undef WEBCLIENT	//no sockets support (could use a different method, but that is non-trivial)
+#undef TCPCONNECT
+#undef IRCCONNECT
+#endif
 
 
 //fix things a little...
@@ -272,7 +288,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef WEBCLIENT
 	#undef TEXTEDITOR
 	#undef RUNTIMELIGHTING
-	#undef TERRAIN	//not supported
 
 	#undef PSET_SCRIPT
 	#undef PSET_CLASSIC
@@ -296,10 +311,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#undef R_XFLIP
 		#undef RUNTIMELIGHTING
 		#undef Q3CLIENT
-	#endif
-
-	#if !defined(GLQUAKE)
-		#undef TERRAIN
 	#endif
 
 	// undefine things not supported yet for D3D

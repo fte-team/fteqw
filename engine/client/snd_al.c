@@ -581,7 +581,7 @@ static void OnChangeALDistanceModel (cvar_t *var, char *value)
 }
 
 /*stub should not be called*/
-static void *OpenAL_LockBuffer (soundcardinfo_t *sc)
+static void *OpenAL_LockBuffer (soundcardinfo_t *sc, unsigned int *sampidx)
 {
 	//Con_Printf("OpenAL: LockBuffer\n");
 	return NULL;

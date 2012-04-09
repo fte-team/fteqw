@@ -1,49 +1,302 @@
 #include "quakedef.h"
 
-#if defined(TERRAIN) && !defined(SERVERONLY) //fixme
+#ifdef TERRAIN
 #ifdef GLQUAKE
 #include "glquake.h"
 #endif
 #include "shader.h"
 
+#include "pr_common.h"
+
+int Surf_LM_AllocBlock (int w, int h, int *x, int *y, shader_t *shader);
+
 //heightmaps work thusly:
 //there is one raw heightmap file
 //the file is split to 4*4 sections.
-//each section is textured independantly (remember banshees are capped at 512 pixels)
-//there's a detailtexture blended over the top to fake the detail.
+//each section is textured independantly (remember banshees are capped at 256*256 pixels)
 //it's built into 16 seperate display lists, these display lists are individually culled, but the drivers are expected to optimise them too.
-//Tei claims 14x speedup with a single display list. hopefully we can achieve the same speed by culling per-texture.
+//Tei claims 14x speedup with a single display list. hopefully we can achieve the same speed by culling per-section.
 //we get 20->130
 //perhaps we should build it with multitexture? (no - slower on ati)
 
-#define SECTIONS 8
+#define MAXSECTIONS 64	//this many sections max in each direction
+#define SECTTEXSIZE 64	//this many texture samples per section
+#define SECTHEIGHTSIZE 16 //this many height samples per section
 
+typedef struct
+{
+	char texname[4][32];
+	unsigned int texmap[SECTTEXSIZE][SECTTEXSIZE];
+	float heights[SECTHEIGHTSIZE*SECTHEIGHTSIZE];
+	unsigned short holes;
+} dsection_t;
+typedef struct
+{
+	float heights[SECTHEIGHTSIZE*SECTHEIGHTSIZE];
+	unsigned short holes;
+#ifndef SERVERONLY
+	char texname[4][32];
+	int lightmap;
+	int lmx, lmy;
+
+	texnums_t textures;
+	vbo_t vbo;
+	unsigned short minh, maxh;
+	mesh_t mesh;
+	mesh_t *amesh;
+	qboolean modified:1;
+#endif
+} hmsection_t;
 typedef struct {
 	char path[MAX_QPATH];
-	char hmapname[MAX_QPATH];
-	unsigned short *heights;
-	int terrainsize;
-	float terrainscale;
-	float heightscale;
-	int numsegs;
-	texid_t detailtexture;
-	texid_t textures[SECTIONS*SECTIONS];
-	int displaylist[SECTIONS*SECTIONS];	//display lists are famous for being stupidly fast with heightmaps.
-	unsigned short mins[SECTIONS*SECTIONS], maxs[SECTIONS*SECTIONS];
-
+	int numsegsx, numsegsy; //tex/cull sections
+	float sectionsize;	//each section is this big, in world coords
+	hmsection_t *section[MAXSECTIONS*MAXSECTIONS];
 	shader_t *skyshader;
 	shader_t *shader;
-	mesh_t mesh[SECTIONS*SECTIONS];
-	mesh_t *amesh[SECTIONS*SECTIONS];
 	mesh_t skymesh;
 	mesh_t *askymesh;
-
-	qboolean modified[SECTIONS*SECTIONS];
 } heightmap_t;
 
-#define DISPLISTS
-//#define MULTITEXTURE	//ATI suck. I don't know about anyone else (this goes at 1/5th the speed).
+static void GL_LoadSectionTextures(hmsection_t *s)
+{
+#ifndef SERVERONLY
+	//CL_CheckOrEnqueDownloadFile(s->texname[0], NULL, 0);
+	//CL_CheckOrEnqueDownloadFile(s->texname[1], NULL, 0);
+	//CL_CheckOrEnqueDownloadFile(s->texname[2], NULL, 0);
+	//CL_CheckOrEnqueDownloadFile(s->texname[3], NULL, 0);
+	s->textures.base			= R_LoadHiResTexture(s->texname[0], NULL, 0);
+	s->textures.upperoverlay	= R_LoadHiResTexture(s->texname[1], NULL, 0);
+	s->textures.loweroverlay	= R_LoadHiResTexture(s->texname[2], NULL, 0);
+	s->textures.fullbright		= R_LoadHiResTexture(s->texname[3], NULL, 0);
+	s->textures.bump			= R_LoadHiResTexture(va("%s_norm", s->texname[0]), NULL, 0);
+	s->textures.specular		= R_LoadHiResTexture(va("%s_spec", s->texname[0]), NULL, 0);
+#endif
+}
 
+static char *GL_DiskSectionName(heightmap_t *hm, int sx, int sy)
+{
+	return va("maps/%s/sect_%02i_%02i.hms", hm->path, sx, sy);
+}
+static hmsection_t *GL_LoadSection(heightmap_t *hm, int sx, int sy)
+{
+	hmsection_t *s;
+	dsection_t *ds;
+	int i;
+#ifndef SERVERONLY
+	unsigned char *lm;
+#endif
+
+	s = malloc(sizeof(*s));
+	if (!s)
+		return NULL;
+	memset(s, 0, sizeof(*s));
+
+#ifndef SERVERONLY
+	s->lightmap = -1;
+
+	Q_strncpyz(s->texname[0], va("maps/%s/grass", hm->path), sizeof(s->texname[0]));
+	Q_strncpyz(s->texname[1], va("maps/%s/rock", hm->path), sizeof(s->texname[1]));
+	Q_strncpyz(s->texname[2], va("maps/%s/road", hm->path), sizeof(s->texname[2]));
+	Q_strncpyz(s->texname[3], va("maps/%s/ground", hm->path), sizeof(s->texname[3]));
+	s->modified = true;
+
+	if (s->lightmap < 0)
+	{
+		s->lightmap = Surf_LM_AllocBlock(SECTTEXSIZE, SECTTEXSIZE, &s->lmx, &s->lmy, hm->shader);
+		BE_UploadAllLightmaps();
+	}
+#endif
+
+	if (FS_LoadFile(GL_DiskSectionName(hm, sx, sy), &ds) >= 0)
+	{
+#ifndef SERVERONLY
+		Q_strncpyz(s->texname[0], ds->texname[0], sizeof(s->texname[0]));
+		Q_strncpyz(s->texname[1], ds->texname[1], sizeof(s->texname[1]));
+		Q_strncpyz(s->texname[2], ds->texname[2], sizeof(s->texname[2]));
+		Q_strncpyz(s->texname[3], ds->texname[3], sizeof(s->texname[3]));
+
+		lm = lightmap[s->lightmap]->lightmaps;
+		lm += (s->lmx * LMBLOCK_WIDTH + s->lmy) * lightmap_bytes;
+		for (i = 0; i < SECTTEXSIZE; i++)
+		{
+			memcpy(lm, ds->texmap + i, sizeof(ds->texmap[0]));
+			lm += (LMBLOCK_WIDTH)*lightmap_bytes;
+		}
+		lightmap[s->lightmap]->modified = true;
+		lightmap[s->lightmap]->rectchange.l = 0;
+		lightmap[s->lightmap]->rectchange.t = 0;
+		lightmap[s->lightmap]->rectchange.w = LMBLOCK_WIDTH;
+		lightmap[s->lightmap]->rectchange.h = LMBLOCK_HEIGHT;
+#endif
+
+		/*load the heights too*/
+		for (i = 0; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++)
+		{
+			s->heights[i] = LittleFloat(ds->heights[i]);
+		}
+
+		FS_FreeFile(ds);
+	}
+	else
+	{
+#if 0//def DEBUG
+		void *f;
+		if (lightmap_bytes == 4 && lightmap_bgra && FS_LoadFile(va("maps/%s/splatt.png", hm->path), &f) >= 0)
+		{
+			//temp
+			int vx, vy;
+			int x, y;
+			extern qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean *hasalpha, char *fname);
+			int sw, sh;
+			qboolean hasalpha;
+			unsigned char *splatter = Read32BitImageFile(f, com_filesize, &sw, &sh, &hasalpha, "splattermap");
+			if (splatter)
+			{
+				lm = lightmap[s->lightmap]->lightmaps;
+				lm += (s->lmx * LMBLOCK_WIDTH + s->lmy) * lightmap_bytes;
+
+				for (vx = 0; vx < SECTTEXSIZE; vx++)
+				{
+					x = sw * (((float)sy) + ((float)vx / (SECTTEXSIZE-1))) / hm->numsegsx;
+					if (x > sw-1)
+						x = sw-1;
+					for (vy = 0; vy < SECTTEXSIZE; vy++)
+					{
+						y = sh * (((float)sx) + ((float)vy / (SECTTEXSIZE-1))) / hm->numsegsy;
+						if (y > sh-1)
+							y = sh-1;
+
+						lm[2] = splatter[(y + x*sh)*4+0];
+						lm[1] = splatter[(y + x*sh)*4+1];
+						lm[0] = splatter[(y + x*sh)*4+2];
+						lm[3] = splatter[(y + x*sh)*4+3];
+						lm += 4;
+					}
+					lm += (LMBLOCK_WIDTH - SECTTEXSIZE)*lightmap_bytes;
+				}
+				BZ_Free(splatter);
+
+				lightmap[s->lightmap]->modified = true;
+				lightmap[s->lightmap]->rectchange.l = 0;
+				lightmap[s->lightmap]->rectchange.t = 0;
+				lightmap[s->lightmap]->rectchange.w = LMBLOCK_WIDTH;
+				lightmap[s->lightmap]->rectchange.h = LMBLOCK_HEIGHT;
+			}
+			FS_FreeFile(f);
+		}
+
+		if (lightmap_bytes == 4 && lightmap_bgra && FS_LoadFile(va("maps/%s/heightmap.png", hm->path), &f) >= 0)
+		{
+			//temp
+			int vx, vy;
+			int x, y;
+			extern qbyte *Read32BitImageFile(qbyte *buf, int len, int *width, int *height, qboolean *hasalpha, char *fname);
+			int sw, sh;
+			float *h;
+			qboolean hasalpha;
+			unsigned char *hmimage = Read32BitImageFile(f, com_filesize, &sw, &sh, &hasalpha, "heightmap");
+			if (hmimage)
+			{
+				h = s->heights;
+
+				for (vx = 0; vx < SECTHEIGHTSIZE; vx++)
+				{
+					x = sw * (((float)sy) + ((float)vx / (SECTHEIGHTSIZE-1))) / hm->numsegsx;
+					if (x > sw-1)
+						x = sw-1;
+					for (vy = 0; vy < SECTHEIGHTSIZE; vy++)
+					{
+						y = sh * (((float)sx) + ((float)vy / (SECTHEIGHTSIZE-1))) / hm->numsegsy;
+						if (y > sh-1)
+							y = sh-1;
+
+						*h = 0;
+						*h += hmimage[(y + x*sh)*4+0];
+						*h += hmimage[(y + x*sh)*4+1]<<8;
+						*h += hmimage[(y + x*sh)*4+2]<<16;
+						*h *= 4.0f/(1<<16);
+						h++;
+					}
+				}
+				BZ_Free(hmimage);
+			}
+			FS_FreeFile(f);
+		}
+#endif
+	}
+
+	GL_LoadSectionTextures(s);
+
+	hm->section[sx+sy*MAXSECTIONS] = s;
+
+	return s;
+}
+
+static void GL_SaveSection(heightmap_t *hm, int sx, int sy)
+{
+#ifndef SERVERONLY
+	hmsection_t *s = hm->section[sx+sy*MAXSECTIONS];
+	dsection_t ds;
+	unsigned char *lm;
+	int i;
+	if (!s || s->lightmap < 0)
+		return;
+
+	Q_strncpyz(ds.texname[0], s->texname[0], sizeof(ds.texname[0]));
+	Q_strncpyz(ds.texname[1], s->texname[1], sizeof(ds.texname[1]));
+	Q_strncpyz(ds.texname[2], s->texname[2], sizeof(ds.texname[2]));
+	Q_strncpyz(ds.texname[3], s->texname[3], sizeof(ds.texname[3]));
+
+	lm = lightmap[s->lightmap]->lightmaps;
+	lm += (s->lmx * LMBLOCK_WIDTH + s->lmy) * lightmap_bytes;
+	for (i = 0; i < SECTTEXSIZE; i++)
+	{
+		memcpy(ds.texmap + i, lm, sizeof(ds.texmap[0]));
+		lm += (LMBLOCK_WIDTH)*lightmap_bytes;
+	}
+
+	for (i = 0; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++)
+	{
+		ds.heights[i] = LittleFloat(s->heights[i]);
+	}
+
+	FS_WriteFile(GL_DiskSectionName(hm, sx, sy), &ds, sizeof(ds), FS_GAMEONLY);
+#endif
+}
+
+/*save all currently loaded sections*/
+void HeightMap_Save(heightmap_t *hm)
+{
+	hmsection_t *s;
+	int x, y;
+	for (x = 0; x < hm->numsegsx; x++)
+	{
+		for (y = 0; y < hm->numsegsy; y++)
+		{
+			s = hm->section[x+y*MAXSECTIONS];
+			GL_SaveSection(hm, x, y);
+		}
+	}
+}
+
+/*purge all sections*/
+void HeightMap_Purge(model_t *mod)
+{
+	heightmap_t *hm = mod->terrain;
+	hmsection_t *s;
+	int x, y;
+	for (x = 0; x < hm->numsegsx; x++)
+	{
+		for (y = 0; y < hm->numsegsy; y++)
+		{
+			s = hm->section[x+y*MAXSECTIONS];
+			hm->section[x+y*MAXSECTIONS] = NULL;
+			free(s);
+		}
+	}
+}
+#ifndef SERVERONLY
 void GL_DrawHeightmapModel (batch_t **batches, entity_t *e)
 {
 	//a 512*512 heightmap
@@ -52,19 +305,19 @@ void GL_DrawHeightmapModel (batch_t **batches, entity_t *e)
 
 	//with 130 to 180fps, display lists rule!
 	int x, y, vx, vy, v;
-	float subsize;
-	int minx, miny;
 	vec3_t mins, maxs;
 	model_t *m = e->model;
 	heightmap_t *hm = m->terrain;
 	mesh_t *mesh;
 	batch_t *b;
+	hmsection_t *s;
 
 	if (e->model == cl.worldmodel)
 	{
 		b = BE_GetTempBatch();
 		if (b)
 		{
+			b->lightmap = -1;
 			b->ent = e;
 			b->shader = hm->skyshader;
 			b->flags = 0;
@@ -74,7 +327,7 @@ void GL_DrawHeightmapModel (batch_t **batches, entity_t *e)
 			b->buildmeshes = NULL;
 			b->skin = &b->shader->defaulttextures;
 			b->texture = NULL;
-	//		vbo = b->vbo = hm->vbo[x+y*SECTIONS];
+	//		vbo = b->vbo = hm->vbo[x+y*MAXSECTIONS];
 			b->vbo = NULL;
 
 			b->next = batches[b->shader->sort];
@@ -82,83 +335,131 @@ void GL_DrawHeightmapModel (batch_t **batches, entity_t *e)
 		}
 	}
 
-	subsize = hm->terrainsize/SECTIONS;
-	for (x = 0; x < hm->numsegs; x++)
+	for (x = 0; x < hm->numsegsx; x++)
 	{
-		mins[0] = (x+0)*subsize*hm->terrainscale;
-		maxs[0] = (x+1)*subsize*hm->terrainscale;
-		for (y = 0; y < hm->numsegs; y++)
+		mins[0] = (x+0)*hm->sectionsize;
+		maxs[0] = (x+1)*hm->sectionsize;
+		for (y = 0; y < hm->numsegsy; y++)
 		{
-			mins[1] = (y+0)*subsize*hm->terrainscale;
-			maxs[1] = (y+1)*subsize*hm->terrainscale;
+			mins[1] = (y+0)*hm->sectionsize;
+			maxs[1] = (y+1)*hm->sectionsize;
 
-			mesh = &hm->mesh[x+y*SECTIONS];
-			if (hm->modified[x+y*SECTIONS])
+			s = hm->section[x+y*MAXSECTIONS];
+			if (!s)
 			{
-				minx = x*subsize;
-				miny = y*subsize;
+				s = GL_LoadSection(hm, x, y);
+				if (!s)
+					continue;
+			}
+			mesh = &s->mesh;
+			if (s->modified)
+			{
+//				minx = x*SECTHEIGHTSIZE;
+//				miny = y*SECTHEIGHTSIZE;
 
-				hm->modified[x+y*SECTIONS] = false;
+				s->modified = false;
 
-				hm->mins[x+y*SECTIONS] = 65536 * hm->heightscale;
-				hm->maxs[x+y*SECTIONS] = 0;
+				if (s->lightmap < 0)
+				{
+					s->lightmap = Surf_LM_AllocBlock(SECTTEXSIZE, SECTTEXSIZE, &s->lmx, &s->lmy, hm->shader);
+					BE_UploadAllLightmaps();
+				}
+
+				s->minh = 999999999999999;
+				s->maxh = -999999999999999;
 
 				if (!mesh->xyz_array)
-					mesh->xyz_array = BZ_Malloc(sizeof(vecV_t) * (subsize+1)*(subsize+1));
-				if (!mesh->st_array)
-					mesh->st_array = BZ_Malloc(sizeof(vec2_t) * (subsize+1)*(subsize+1));
-				if (!mesh->lmst_array)
-					mesh->lmst_array = BZ_Malloc(sizeof(vec2_t) * (subsize+1)*(subsize+1));
+				{
+					mesh->xyz_array = BZ_Malloc((sizeof(vecV_t)+sizeof(vec2_t)+sizeof(vec2_t)) * (SECTHEIGHTSIZE)*(SECTHEIGHTSIZE));
+					mesh->st_array = (void*) (mesh->xyz_array + (SECTHEIGHTSIZE)*(SECTHEIGHTSIZE));
+					mesh->lmst_array = (void*) (mesh->st_array + (SECTHEIGHTSIZE)*(SECTHEIGHTSIZE));
+				}
 				mesh->numvertexes = 0;
 				/*64 quads across requires 65 verticies*/
-				for (vx = 0; vx <= subsize; vx++)
+				for (vx = 0; vx < SECTHEIGHTSIZE; vx++)
 				{
-					for (vy = 0; vy <= subsize; vy++)
+					for (vy = 0; vy < SECTHEIGHTSIZE; vy++)
 					{
 						v = mesh->numvertexes++;
-						mesh->xyz_array[v][0] = (vx+minx)*hm->terrainscale;
-						mesh->xyz_array[v][1] = (vy+miny)*hm->terrainscale;
-						mesh->xyz_array[v][2] = hm->heights[(vx+minx) + (vy+miny)*hm->terrainsize]*hm->heightscale;
+						mesh->xyz_array[v][0] = (x + vx/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+						mesh->xyz_array[v][1] = (y + vy/(SECTHEIGHTSIZE-1.0f)) * hm->sectionsize;
+						mesh->xyz_array[v][2] = s->heights[vx + vy*SECTHEIGHTSIZE];
 
-						if (hm->maxs[x+y*SECTIONS] < mesh->xyz_array[v][2])
-							hm->maxs[x+y*SECTIONS] = mesh->xyz_array[v][2];
-						if (hm->mins[x+y*SECTIONS] > mesh->xyz_array[v][2])
-							hm->mins[x+y*SECTIONS] = mesh->xyz_array[v][2];
+						if (s->maxh < mesh->xyz_array[v][2])
+							s->maxh = mesh->xyz_array[v][2];
+						if (s->minh > mesh->xyz_array[v][2])
+							s->minh = mesh->xyz_array[v][2];
 
 						mesh->st_array[v][0] = mesh->xyz_array[v][0] / 64;
 						mesh->st_array[v][1] = mesh->xyz_array[v][1] / 64;
 
-						mesh->lmst_array[v][0] = mesh->xyz_array[v][0] / 64;
-						mesh->lmst_array[v][1] = mesh->xyz_array[v][1] / 64;
+						//calc the position in the range -0.5 to 0.5
+						mesh->lmst_array[v][0] = (((float)vx / (SECTHEIGHTSIZE-1))-0.5);
+						mesh->lmst_array[v][1] = (((float)vy / (SECTHEIGHTSIZE-1))-0.5);
+						//scale down to a half-texel
+						mesh->lmst_array[v][0] *= (SECTTEXSIZE-1.0f)/LMBLOCK_WIDTH;
+						mesh->lmst_array[v][1] *= (SECTTEXSIZE-1.0f)/LMBLOCK_HEIGHT;
+						//bias it
+						mesh->lmst_array[v][0] += ((float)SECTTEXSIZE/(LMBLOCK_WIDTH*2)) + ((float)(s->lmy) / LMBLOCK_WIDTH);
+						mesh->lmst_array[v][1] += ((float)SECTTEXSIZE/(LMBLOCK_HEIGHT*2)) + ((float)(s->lmx) / LMBLOCK_HEIGHT);
+
+						//TODO: include colour tints
 					}
 				}
 
 				if (!mesh->indexes)
-					mesh->indexes = BZ_Malloc(sizeof(index_t) * subsize*subsize*6);
+					mesh->indexes = BZ_Malloc(sizeof(index_t) * SECTHEIGHTSIZE*SECTHEIGHTSIZE*6);
 
 				mesh->numindexes = 0;
-				for (vx = 0; vx < subsize; vx++)
+				for (vx = 0; vx < SECTHEIGHTSIZE-1; vx++)
 				{
-					for (vy = 0; vy < subsize; vy++)
+					for (vy = 0; vy < SECTHEIGHTSIZE-1; vy++)
 					{
-						v = vx + vy*(subsize+1);
+						//TODO: holes
+						if (s->holes & (vx / (SECTHEIGHTSIZE/4)) << (vy / (SECTHEIGHTSIZE/4)) )
+							continue;
+						v = vx + vy*(SECTHEIGHTSIZE);
 						mesh->indexes[mesh->numindexes++] = v+0;
 						mesh->indexes[mesh->numindexes++] = v+1;
-						mesh->indexes[mesh->numindexes++] = v+subsize+1;
+						mesh->indexes[mesh->numindexes++] = v+SECTHEIGHTSIZE;
 						mesh->indexes[mesh->numindexes++] = v+1;
-						mesh->indexes[mesh->numindexes++] = v+1+subsize+1;
-						mesh->indexes[mesh->numindexes++] = v+subsize+1;
+						mesh->indexes[mesh->numindexes++] = v+1+SECTHEIGHTSIZE;
+						mesh->indexes[mesh->numindexes++] = v+SECTHEIGHTSIZE;
 					}
 				}
 
+				if (qrenderer == QR_OPENGL)
+				{
+					if (!s->vbo.coord.gl.vbo)
+						qglGenBuffersARB(1, &s->vbo.coord.gl.vbo);
+					s->vbo.coord.gl.addr = 0;
+					GL_SelectVBO(s->vbo.coord.gl.vbo);
+					qglBufferDataARB(GL_ARRAY_BUFFER_ARB, (sizeof(vecV_t)+sizeof(vec2_t)+sizeof(vec2_t)) * (mesh->numvertexes), mesh->xyz_array, GL_STATIC_DRAW_ARB);
+					GL_SelectVBO(0);
+					s->vbo.texcoord.gl.addr = (void*)((char*)mesh->st_array - (char*)mesh->xyz_array);
+					s->vbo.texcoord.gl.vbo = s->vbo.coord.gl.vbo;
+					s->vbo.lmcoord.gl.addr = (void*)((char*)mesh->lmst_array - (char*)mesh->xyz_array);
+					s->vbo.lmcoord.gl.vbo = s->vbo.coord.gl.vbo;
+//					Z_Free(mesh->xyz_array);
+//					mesh->xyz_array = NULL;
+//					mesh->st_array = NULL;
+//					mesh->lmst_array = NULL;
 
-				//GL_BuildVBO();
+					if (!s->vbo.indicies.gl.vbo)
+						qglGenBuffersARB(1, &s->vbo.indicies.gl.vbo);
+					s->vbo.indicies.gl.addr = 0;
+					GL_SelectEBO(s->vbo.indicies.gl.vbo);
+					qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, sizeof(index_t) * mesh->numindexes, mesh->indexes, GL_STATIC_DRAW_ARB);
+					GL_SelectEBO(0);
+//					Z_Free(mesh->indexes);
+//					mesh->indexes = NULL;
+				}
 			}
 
-			mins[2] = hm->mins[x+y*SECTIONS];
-			maxs[2] = hm->maxs[x+y*SECTIONS];
+			mins[2] = s->minh;
+			maxs[2] = s->maxh;
 
-			if (!BoundsIntersect(mins, maxs, r_refdef.vieworg, r_refdef.vieworg))
+//			if (!BoundsIntersect(mins, maxs, r_refdef.vieworg, r_refdef.vieworg))
 				if (R_CullBox(mins, maxs))
 					continue;
 
@@ -168,74 +469,53 @@ void GL_DrawHeightmapModel (batch_t **batches, entity_t *e)
 			b->ent = e;
 			b->shader = hm->shader;
 			b->flags = 0;
-			b->mesh = &hm->amesh[x+y*SECTIONS];
+			b->mesh = &s->amesh;
 			b->mesh[0] = mesh;
 			b->meshes = 1;
 			b->buildmeshes = NULL;
-			b->skin = &b->shader->defaulttextures;
+			b->skin = &s->textures;
 			b->texture = NULL;
-	//		vbo = b->vbo = hm->vbo[x+y*SECTIONS];
-			b->vbo = NULL;
+			b->vbo = &s->vbo;
+			b->lightmap = s->lightmap;
 
 			b->next = batches[b->shader->sort];
 			batches[b->shader->sort] = b;
 		}
 	}
 }
+#endif
 
 unsigned int Heightmap_PointContentsHM(heightmap_t *hm, float clipmipsz, vec3_t org)
 {
 	float x, y;
 	float z, tz;
 	int sx, sy;
+	int sectidx;
+	hmsection_t *s;
 
-	x = org[0]/hm->terrainscale;
-	y = org[1]/hm->terrainscale;
-	z = (org[2]+clipmipsz)/hm->heightscale;
-
-	if (z < 0)
+	sx = org[0]/hm->sectionsize;
+	sy = org[1]/hm->sectionsize;
+	if (sx < 0 || sy < 0)
 		return FTECONTENTS_SOLID;
-	if (z > 65535)
+	if (sx >= hm->numsegsx || sy >= hm->numsegsy)
+		return FTECONTENTS_SOLID;
+	sectidx = sx + sy*MAXSECTIONS;
+	s = hm->section[sectidx];
+	if (!s)
 	{
-		if (z > 65535+64 || clipmipsz)	//top 64 units are sky
+		s = GL_LoadSection(hm, sx, sy);
+		if (!s)
 			return FTECONTENTS_SOLID;
-		else
-			return FTECONTENTS_SKY;
 	}
-	if (x < 0)
-	{
-		if (x <= -1 || clipmipsz)
-			return FTECONTENTS_SOLID;
-		else
-			return FTECONTENTS_SKY;
-	}
-	if (y < 0)
-	{
-		if (x <= -1 || clipmipsz)
-			return FTECONTENTS_SOLID;
-		else
-			return FTECONTENTS_SKY;
-	}
-	if (x >= hm->terrainsize-1)
-	{
-		if (x >= hm->terrainsize || clipmipsz)
-			return FTECONTENTS_SOLID;
-		else
-			return FTECONTENTS_SKY;
-	}
-	if (y >= hm->terrainsize-1)
-	{
-		if (y >= hm->terrainsize || clipmipsz)
-			return FTECONTENTS_SOLID;
-		else
-			return FTECONTENTS_SKY;
-	}
+
+	x = (org[0] - (sx*hm->sectionsize))*(SECTHEIGHTSIZE-1)/hm->sectionsize;
+	y = (org[1] - (sy*hm->sectionsize))*(SECTHEIGHTSIZE-1)/hm->sectionsize;
+	z = (org[2]+clipmipsz);
 
 	sx = x; x-=sx;
 	sy = y; y-=sy;
 
 	//made of two triangles:
-#if 1
 	if (x+y>1)	//the 1, 1 triangle
 	{
 		float v1, v2, v3;
@@ -245,9 +525,9 @@ unsigned int Heightmap_PointContentsHM(heightmap_t *hm, float clipmipsz, vec3_t 
 		//0, 1
 		//1, 1
 		//1, 0
-		tz = (hm->heights[(sx+0)+(sy+1)*hm->terrainsize]*v1 +
-			  hm->heights[(sx+1)+(sy+1)*hm->terrainsize]*v2 +
-			  hm->heights[(sx+1)+(sy+0)*hm->terrainsize]*v3);
+		tz = (s->heights[(sx+0)+(sy+1)*SECTHEIGHTSIZE]*v1 +
+			  s->heights[(sx+1)+(sy+1)*SECTHEIGHTSIZE]*v2 +
+			  s->heights[(sx+1)+(sy+0)*SECTHEIGHTSIZE]*v3);
 	}
 	else
 	{
@@ -259,21 +539,10 @@ unsigned int Heightmap_PointContentsHM(heightmap_t *hm, float clipmipsz, vec3_t 
 		//0, 1
 		//1, 0
 		//0, 0
-		tz = (hm->heights[(sx+0)+(sy+1)*hm->terrainsize]*v1 +
-			  hm->heights[(sx+1)+(sy+0)*hm->terrainsize]*v2 +
-			  hm->heights[(sx+0)+(sy+0)*hm->terrainsize]*v3);
+		tz = (s->heights[(sx+0)+(sy+1)*SECTHEIGHTSIZE]*v1 +
+			  s->heights[(sx+1)+(sy+0)*SECTHEIGHTSIZE]*v2 +
+			  s->heights[(sx+0)+(sy+0)*SECTHEIGHTSIZE]*v3);
 	}
-#else
-	{
-		float t, b;
-	//square?
-	//:(
-
-		t = (hm->heights[sx+sy*hm->terrainsize]*(1-x) + hm->heights[sx+1+sy*hm->terrainsize]*x);
-		b = (hm->heights[sx+(sy+1)*hm->terrainsize]*(1-x) + hm->heights[sx+1+(sy+1)*hm->terrainsize]*x);
-		tz = t*(1-y) + b*y;
-	}
-#endif
 	if (z <= tz)
 		return FTECONTENTS_SOLID;	//contained within
 	return FTECONTENTS_EMPTY;
@@ -292,14 +561,27 @@ unsigned int Heightmap_NativeBoxContents(model_t *model, int hulloverride, int f
 
 void Heightmap_Normal(heightmap_t *hm, vec3_t org, vec3_t norm)
 {
+	norm[0] = 0;
+	norm[1] = 0;
+	norm[2] = 1;
+/*
 	float x, y;
 	float z;
 	int sx, sy;
 	vec3_t d1, d2;
 
-	x = org[0]/hm->terrainscale;
-	y = org[1]/hm->terrainscale;
+	x = org[0]/(SECTHEIGHTSIZE * hm->sectionsize);
+	y = org[1]/(SECTHEIGHTSIZE * hm->sectionsize);
 	z = org[2];
+
+	if (x < 0)
+		x = 0;
+	if (y < 0)
+		y = 0;
+	if (x > hm->tilesx-1)
+		x = hm->tilesx-1;
+	if (y > hm->tilesy-1)
+		y = hm->tilesy-1;
 
 	sx = x; x-=sx;
 	sy = y; y-=sy;
@@ -309,37 +591,40 @@ void Heightmap_Normal(heightmap_t *hm, vec3_t org, vec3_t norm)
 		//0, 1
 		//1, 1
 		//1, 0
-		d1[0] = hm->terrainscale;
+		d1[0] = (SECTHEIGHTSIZE * hm->sectionsize);
 		d1[1] = 0;
-		d1[2] = hm->heights[(sx+1)+(sy+1)*hm->terrainsize] - hm->heights[(sx+0)+(sy+1)*hm->terrainsize];
+		d1[2] = (hm->heights[(sx+1)+(sy+1)*hm->tilesx] - hm->heights[(sx+0)+(sy+1)*hm->tilesx]);
 		d2[0] = 0;
-		d2[1] = hm->terrainscale;
-		d2[2] = hm->heights[(sx+1)+(sy+1)*hm->terrainsize] - hm->heights[(sx+1)+(sy+0)*hm->terrainsize];
+		d2[1] = (SECTHEIGHTSIZE * hm->sectionsize);
+		d2[2] = (hm->heights[(sx+1)+(sy+1)*hm->tilesx] - hm->heights[(sx+1)+(sy+0)*hm->tilesx]);
 	}
 	else
-	{
+	{	//the 0,0 triangle
 		//0, 1
 		//1, 0
 		//0, 0
-		d1[0] = hm->terrainscale;
+		d1[0] = (SECTHEIGHTSIZE * hm->sectionsize);
 		d1[1] = 0;
-		d1[2] = hm->heights[(sx+0)+(sy+1)*hm->terrainsize] - hm->heights[(sx+0)+(sy+0)*hm->terrainsize];
+		d1[2] = (hm->heights[(sx+0)+(sy+1)*hm->tilesx] - hm->heights[(sx+0)+(sy+0)*hm->tilesx]);
 		d2[0] = 0;
-		d2[1] = hm->terrainscale;
-		d2[2] = hm->heights[(sx+1)+(sy+0)*hm->terrainsize] - hm->heights[(sx+0)+(sy+0)*hm->terrainsize];
+		d2[1] = (SECTHEIGHTSIZE * hm->sectionsize);
+		d2[2] = (hm->heights[(sx+1)+(sy+0)*hm->tilesx] - hm->heights[(sx+0)+(sy+0)*hm->tilesx]);
 	}
 
+	VectorNormalize(d1);
+	VectorNormalize(d2);
 	CrossProduct(d1, d2, norm);
 	VectorNormalize(norm);
+*/
 }
 
 #if 0
 typedef struct {
 	vec3_t start;
 	vec3_t end;
-	vec3_t mins;
-	vec3_t maxs;
 	vec3_t impact;
+	vec4_t plane;
+	float frac;
 	heightmap_t *hm;
 	int contents;
 } hmtrace_t;
@@ -347,11 +632,144 @@ typedef struct {
 #define Closest(res,n,min,max) Closestf(res[0],n[0],min[0],max[0]);Closestf(res[1],n[1],min[1],max[1]);Closestf(res[2],n[2],min[2],max[2])
 void Heightmap_Trace_Square(hmtrace_t *tr, int sx, int sy)
 {
+	vec3_t d[2];
+	vec3_t p[3];
+	vec4_t n[5];
+	int t, i;
+
+	qboolean startout, endout;
+	float *enterplane;
+	float enterfrac, exitfrac;
+	float enterdist=0;
+	float dist, d1, d2, f;
+
+	if (sx < 0 || sx > tr->hm->tilesx)
+		return;
+	if (sy < 0 || sy > tr->hm->tilesy)
+		return;
+
+	for (t = 0; t < 2; t++)
+	{
+		/*generate the brush*/
+		if (t == 0)
+		{
+			VectorSet(p[0], tr->hm->terrainscale*(sx+0), tr->hm->terrainscale*(sy+0), tr->hm->heights[(sx+0)+(sy+0)*tr->hm->tilesx]);
+			VectorSet(p[1], tr->hm->terrainscale*(sx+1), tr->hm->terrainscale*(sy+0), tr->hm->heights[(sx+1)+(sy+0)*tr->hm->tilesx]);
+			VectorSet(p[2], tr->hm->terrainscale*(sx+0), tr->hm->terrainscale*(sy+1), tr->hm->heights[(sx+0)+(sy+1)*tr->hm->tilesx]);
+			VectorSubtract(p[1], p[0], d[0]);
+			VectorSubtract(p[2], p[0], d[1]);
+			//left-most
+			Vector4Set(n[0], -1, 0, 0, tr->hm->terrainscale*(sx+0));
+			//top-most
+			Vector4Set(n[1], 0, -1, 0, tr->hm->terrainscale*(sy+0));
+			//bottom-right
+			VectorSet(n[2], 0.70710678118654752440084436210485, 0.70710678118654752440084436210485, 0);
+			n[2][3] = -DotProduct(n[2], p[1]);
+			//top
+			CrossProduct(d[0], d[1], n[3]);
+			VectorNormalize(n[3]);
+			n[3][3] = -DotProduct(n[3], p[1]);
+			//down
+			Vector4Set(n[4], 0, 0, 1, 0);
+		}
+		else
+		{
+			VectorSet(p[0], tr->hm->terrainscale*(sx+1), tr->hm->terrainscale*(sy+1), tr->hm->heights[(sx+1)+(sy+1)*tr->hm->tilesx]);
+			VectorSet(p[1], tr->hm->terrainscale*(sx+1), tr->hm->terrainscale*(sy+0), tr->hm->heights[(sx+1)+(sy+0)*tr->hm->tilesx]);
+			VectorSet(p[2], tr->hm->terrainscale*(sx+0), tr->hm->terrainscale*(sy+1), tr->hm->heights[(sx+0)+(sy+1)*tr->hm->tilesx]);
+			VectorSubtract(p[1], p[0], d[0]);
+			VectorSubtract(p[2], p[0], d[1]);
+			//right-most
+			Vector4Set(n[0], 1, 0, 0, tr->hm->terrainscale*(sx+1));
+			//bottom-most
+			Vector4Set(n[1], 0, 1, 0, tr->hm->terrainscale*(sy+1));
+			//bottom-right
+			VectorSet(n[2], -0.70710678118654752440084436210485, -0.70710678118654752440084436210485, 0);
+			n[2][3] = -DotProduct(n[2], p[1]);
+			//top
+			CrossProduct(d[0], d[1], n[3]);
+			VectorNormalize(n[3]);
+			n[3][3] = -DotProduct(n[3], p[1]);
+			//down
+			Vector4Set(n[4], 0, 0, 1, 0);
+		}
+
+
+
+
+		startout = false;
+		endout = false;
+		enterplane= NULL;
+		enterfrac = -1;
+		exitfrac = 10;
+		for (i = 0; i < 5; i++)
+		{
+			/*calculate the distance based upon the shape of the object we're tracing for*/
+			dist = n[i][3];
+
+
+			d1 = DotProduct (tr->start, n[i]) - dist;
+			d2 = DotProduct (tr->end, n[i]) - dist;
+
+			if (d1 >= 0)
+				startout = true;
+			if (d2 > 0)
+				endout = true;
+
+			//if we're fully outside any plane, then we cannot possibly enter the brush, skip to the next one
+			if (d1 > 0 && d2 >= 0)
+				goto nextbrush;
+
+			//if we're fully inside the plane, then whatever is happening is not relevent for this plane
+			if (d1 < 0 && d2 <= 0)
+				continue;
+
+			f = d1 / (d1-d2);
+			if (d1 > d2)
+			{
+				//entered the brush. favour the furthest fraction to avoid extended edges (yay for convex shapes)
+				if (enterfrac < f)
+				{
+					enterfrac = f;
+					enterplane = n[i];
+					enterdist = dist;
+				}
+			}
+			else
+			{
+				//left the brush, favour the nearest plane (smallest frac)
+				if (exitfrac > f)
+				{
+					exitfrac = f;
+				}
+			}
+		}
+
+		if (!startout)
+		{
+			tr->frac = -1;
+			return;
+		}
+		if (enterfrac != -1 && enterfrac < exitfrac)
+		{
+			//impact!
+			if (enterfrac < tr->frac)
+			{
+				tr->frac = enterfrac;
+				tr->plane[3] = enterdist;
+				VectorCopy(enterplane, tr->plane);
+			}
+		}
+nextbrush:
+		;
+	}
+#if 0
 	float normf = 0.70710678118654752440084436210485;
 	float pd, sd, ed, bd;
 	int tris, x, y;
 	vec3_t closest;
 	vec3_t point;
+
 
 	pd = normf*(x+y);
 	sd = normf*tr->start[0]+normf*tr->start[1];
@@ -359,7 +777,9 @@ void Heightmap_Trace_Square(hmtrace_t *tr, int sx, int sy)
 	bd = normf*tr->maxs[0]+normf*tr->maxs[1];	//assume mins is this but negative
 //see which of the two triangles in the square it travels over.
 
-	tris = sd<=pd || ed<=pd;
+	tris = 0;
+	if (sd<=pd || ed<=pd)
+		tris |= 1;
 	if (sd>=pd || ed>=pd)
 		tris |= 2;
 
@@ -375,8 +795,8 @@ void Heightmap_Trace_Square(hmtrace_t *tr, int sx, int sy)
 		x = tr->hm->heights[(sx+1)+(sy+0)*tr->hm->terrainsize] - tr->hm->heights[(sx+0)+(sy+0)*tr->hm->terrainsize];
 		y = tr->hm->heights[(sx+0)+(sy+1)*tr->hm->terrainsize] - tr->hm->heights[(sx+0)+(sy+0)*tr->hm->terrainsize];
 
-		norm[0] = (-x*tr->hm->heightscale)/tr->hm->terrainscale;
-		norm[1] = (-y*tr->hm->heightscale)/tr->hm->terrainscale;
+		norm[0] = (-x)/tr->hm->terrainscale;
+		norm[1] = (-y)/tr->hm->terrainscale;
 		norm[2] = 1.0f/(float)sqrt(norm[0]*norm[0] + norm[1]*norm[1] + 1);
 		Closest(closest, norm, tr->mins, tr->maxs);
 		dc = DotProduct(norm, closest) - DotProduct(norm, point);
@@ -399,8 +819,8 @@ void Heightmap_Trace_Square(hmtrace_t *tr, int sx, int sy)
 	{	//triangle with 1, 1
 		vec3_t norm;
 		float d1, d2, dc;
-		norm[0] = (-x*tr->hm->heightscale)/tr->hm->terrainscale;
-		norm[1] = (-y*tr->hm->heightscale)/tr->hm->terrainscale;
+		norm[0] = (-x)/tr->hm->terrainscale;
+		norm[1] = (-y)/tr->hm->terrainscale;
 		norm[2] = 1.0f/(float)sqrt(norm[0]*norm[0] + norm[1]*norm[1] + 1);
 		Closest(closest, norm, tr->mins, tr->maxs);
 		dc = DotProduct(norm, closest) - DotProduct(norm, point);
@@ -419,74 +839,41 @@ void Heightmap_Trace_Square(hmtrace_t *tr, int sx, int sy)
 			tr->impact[2] = tr->end[2]*d1+tr->start[2]*d2;
 		}
 	}
+#endif
 }
-void Heightmap_Trace_Y(hmtrace_t *tr, int x, int min, int max)
+#define DIST_EPSILON 0
+void Heightmap_RecurseTrace(hmtrace_t *tr, float p1[2], float p2[2])
 {
+	float newv[2];
+	float frac;
 	int mid;
-	if (min == max)
+	int axis;
+	//FIXME: expand the trace somehow
+	if ((int)p1[0] == (int)p2[0] && (int)p1[1] == (int)p2[1])
 	{	//end
-		Heightmap_Trace_Square(tr, x, min);
+		Heightmap_Trace_Square(tr, p1[0], p2[1]);
 		return;
 	}
-	mid = ((max-min)>>1)+min;
-	if (tr->start[1] < min+tr->mins[1] && tr->end[1] < min+tr->mins[1])
-	{	//both on one size.
-		Heightmap_Trace_Y(tr, x, min, mid);
-		return;
-	}
-	if (tr->start[1] > max+tr->maxs[1] && tr->end[1] > max+tr->maxs[1])
-	{	//both on one size.
-		Heightmap_Trace_Y(tr, x, mid, max);
-		return;
-	}
+	/*decide the plane axis*/
+	axis = abs(p2[1] - p1[1]) > abs(p2[0] - p1[0]);
+	/*figure out the index to split the trace at*/
+	mid = (p1[axis] + p2[axis])*0.5;
+	if (!mid)/*make sure we make progress*/
+		mid = (p2[axis] > p1[axis])?1:-1;
 
-	//crosses this line.
-	if (tr->start[1] > tr->end[1])
-	{
-		Heightmap_Trace_Y(tr, x, min, mid);
-		if (!tr->contents)
-			Heightmap_Trace_Y(tr, x, mid, max);
-	}
+	//it crosses somewhere, it must do.
+	if (p2[axis] > p1[axis])
+		frac = ((p1[axis] - mid) - DIST_EPSILON)/(p1[axis]-p2[axis]);
 	else
-	{
-		Heightmap_Trace_Y(tr, x, mid, max);
-		if (!tr->contents)
-			Heightmap_Trace_Y(tr, x, min, mid);
-	}
-}
-void Heightmap_Trace_X(hmtrace_t *tr, int min, int max)
-{
-	int mid;
-	if (min == max)
-	{	//end
-		//FIXME: we don't have to check ALL squares like this, we could use a much smaller range.
-		Heightmap_Trace_Y(tr, min, 0, tr->hm->terrainsize);
-		return;
-	}
-	mid = ((max-min)>>1)+min;
-	if (tr->start[0] < min+tr->mins[0] && tr->end[0] < min+tr->mins[0])
-	{	//both on one size.
-		Heightmap_Trace_X(tr, min, mid);
-		return;
-	}
-	if (tr->start[0] > max+tr->maxs[0] && tr->end[0] > max+tr->maxs[0])
-	{	//both on one size.
-		Heightmap_Trace_X(tr, mid, max);
-		return;
-	}
+		frac = ((p1[axis] - mid) + DIST_EPSILON)/(p1[axis]-p2[axis]);
 
-	//crosses this line.
-	if (tr->start[0] > tr->end[0])
+	newv[axis] = mid;
+	newv[!axis] = (p2[!axis] * frac) + (p1[!axis] * (1-frac));
+	if ((int)p1[axis] != (int)newv[axis])
+		Heightmap_RecurseTrace(tr, p1, newv);
+	if (!tr->contents)
 	{
-		Heightmap_Trace_X(tr, min, mid);
-		if (!tr->contents)
-			Heightmap_Trace_X(tr, mid, max);
-	}
-	else
-	{
-		Heightmap_Trace_X(tr, mid, max);
-		if (!tr->contents)
-			Heightmap_Trace_X(tr, min, mid);
+		Heightmap_RecurseTrace(tr, newv, p2);
 	}
 }
 
@@ -501,26 +888,43 @@ Why is recursion good?
 
 Obviously, we don't care all that much about 1
 */
-qboolean Heightmap_Trace(model_t *model, int forcehullnum, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, trace_t *trace)
+qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int against, struct trace_s *trace)
 {
+	float p1[2], p2[2];
 	hmtrace_t hmtrace;
 	hmtrace.hm = model->terrain;
 
 	hmtrace.start[0] = start[0]/hmtrace.hm->terrainscale;
 	hmtrace.start[1] = start[1]/hmtrace.hm->terrainscale;
-	hmtrace.start[2] = (start[2])/hmtrace.hm->heightscale;
+	hmtrace.start[2] = (start[2] + mins[2]);
 	hmtrace.end[0] = end[0]/hmtrace.hm->terrainscale;
 	hmtrace.end[1] = end[1]/hmtrace.hm->terrainscale;
-	hmtrace.end[2] = (end[2])/hmtrace.hm->heightscale;
-	hmtrace.mins[0] = mins[0]/hmtrace.hm->terrainscale;
-	hmtrace.mins[1] = mins[1]/hmtrace.hm->terrainscale;
-	hmtrace.mins[2] = (mins[2])/hmtrace.hm->heightscale;
-	hmtrace.maxs[0] = maxs[0]/hmtrace.hm->terrainscale;
-	hmtrace.maxs[1] = maxs[1]/hmtrace.hm->terrainscale;
-	hmtrace.maxs[2] = (maxs[2])/hmtrace.hm->heightscale;
+	hmtrace.end[2] = (end[2] + mins[2]);
 
-	//FIXME: we don't have to check ALL squares like this, we could use a much smaller range.
-	Heightmap_Trace_X(&hmtrace, 0, hmtrace.hm->terrainsize);
+	p1[0] = (start[0])/hmtrace.hm->terrainscale;
+	p1[1] = (start[1])/hmtrace.hm->terrainscale;
+	p2[0] = (end[0])/hmtrace.hm->terrainscale;
+	p2[1] = (end[1])/hmtrace.hm->terrainscale;
+
+	Heightmap_RecurseTrace(&hmtrace, p1, p2);
+
+	trace->plane.dist = hmtrace.plane[3];
+	trace->plane.normal[0] = hmtrace.plane[0];
+	trace->plane.normal[1] = hmtrace.plane[1];
+	trace->plane.normal[2] = hmtrace.plane[2];
+
+	if (hmtrace.frac == -1)
+	{
+		trace->fraction = 0;
+		trace->startsolid = true;
+		trace->allsolid = true;
+	}
+	else
+	{
+		trace->fraction = hmtrace.frac;
+		VectorInterpolate(start, hmtrace.frac, end, trace->endpos);
+	}
+	return trace->fraction < 1;
 }
 #else
 /*
@@ -609,6 +1013,18 @@ void Heightmap_FindTouchedLeafs	(model_t *mod, pvscache_t *ent, float *mins, flo
 
 void Heightmap_LightPointValues	(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
 {
+	float time = realtime;
+
+	res_diffuse[0] = 128;
+	res_diffuse[1] = 128;
+	res_diffuse[2] = 128;
+	res_ambient[0] = 64;
+	res_ambient[1] = 64;
+	res_ambient[2] = 64;
+	res_dir[0] = sin(time);
+	res_dir[1] = cos(time);
+	res_dir[2] = sin(time);
+	VectorNormalize(res_dir);
 }
 void Heightmap_StainNode			(mnode_t *node, float *parms)
 {
@@ -627,159 +1043,315 @@ int	Heightmap_LeafForPoint	(model_t *model, vec3_t point)
 	return 0;
 }
 
-//Heightmap_NativeBoxContents
+#ifndef SERVERONLY
+static unsigned char *ted_getlightmap(hmsection_t *s, int idx)
+{
+	unsigned char *lm;
+	int x = idx % SECTTEXSIZE, y = idx / SECTTEXSIZE;
+	if (s->lightmap < 0)
+	{
+		s->lightmap = Surf_LM_AllocBlock(SECTTEXSIZE, SECTTEXSIZE, &s->lmx, &s->lmy, NULL);
+		BE_UploadAllLightmaps();
+	}
 
+	lightmap[s->lightmap]->modified = true;
+	lightmap[s->lightmap]->rectchange.l = 0;
+	lightmap[s->lightmap]->rectchange.t = 0;
+	lightmap[s->lightmap]->rectchange.w = LMBLOCK_WIDTH;
+	lightmap[s->lightmap]->rectchange.h = LMBLOCK_HEIGHT;
+	lm = lightmap[s->lightmap]->lightmaps;
+	lm += ((s->lmx+y) * LMBLOCK_WIDTH + (s->lmy+x)) * lightmap_bytes;
+	return lm;
+}
+static void ted_heighttally(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
+{
+	/*raise the terrain*/
+	((float*)ctx)[0] += s->heights[idx]*w;
+	((float*)ctx)[1] += w;
+}
+static void ted_heightsmooth(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
+{
+	s->modified = true;
+	/*interpolate the terrain towards a certain value*/
+	s->heights[idx] = s->heights[idx]*(1-w) + w**(float*)ctx;
+}
+static void ted_heightraise(void *ctx, hmsection_t *s, int idx, float wx, float wy, float strength)
+{
+	s->modified = true;
+	/*raise the terrain*/
+	s->heights[idx] += strength;
+}
+static void ted_heightset(void *ctx, hmsection_t *s, int idx, float wx, float wy, float strength)
+{
+	s->modified = true;
+	/*set the terrain to a specific value*/
+	s->heights[idx] = *(float*)ctx;
+}
+
+static void ted_mixconcentrate(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
+{
+	unsigned char *lm = ted_getlightmap(s, idx);
+	/*concentrate the lightmap values to a single channel*/
+	if (lm[0] > lm[1] && lm[0] > lm[2] && lm[0] > (255-(lm[0]+lm[1]+lm[2])))
+	{
+		lm[0] = lm[0]*(1-w) + 255*(w);
+		lm[1] = lm[1]*(1-w) + 0*(w);
+		lm[2] = lm[2]*(1-w) + 0*(w);
+	}
+	else if (lm[1] > lm[2] && lm[1] > (255-(lm[0]+lm[1]+lm[2])))
+	{
+		lm[0] = lm[0]*(1-w) + 0*(w);
+		lm[1] = lm[1]*(1-w) + 255*(w);
+		lm[2] = lm[2]*(1-w) + 0*(w);
+	}
+	else if (lm[2] > (255-(lm[0]+lm[1]+lm[2])))
+	{
+		lm[0] = lm[0]*(1-w) + 0*(w);
+		lm[1] = lm[1]*(1-w) + 0*(w);
+		lm[2] = lm[2]*(1-w) + 255*(w);
+	}
+	else
+	{
+		lm[0] = lm[0]*(1-w) + 0*(w);
+		lm[1] = lm[1]*(1-w) + 0*(w);
+		lm[2] = lm[2]*(1-w) + 0*(w);
+	}
+}
+
+static void ted_mixnoise(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
+{
+	unsigned char *lm = ted_getlightmap(s, idx);
+	vec4_t v;
+	float sc;
+	/*randomize the lightmap somewhat (you'll probably want to concentrate it a bit after)*/
+	v[0] = (rand()&255);
+	v[1] = (rand()&255);
+	v[2] = (rand()&255);
+	v[3] = (rand()&255);
+	sc = v[0] + v[1] + v[2] + v[3];
+	Vector4Scale(v, 255/sc, v);
+
+	lm[0] = lm[0]*(1-w) + (v[0]*(w));
+	lm[1] = lm[1]*(1-w) + (v[1]*(w));
+	lm[2] = lm[2]*(1-w) + (v[2]*(w));
+}
+
+static void ted_mixset(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
+{
+	unsigned char *lm = ted_getlightmap(s, idx);
+	lm[2] = lm[2]*(1-w) + (255*((float*)ctx)[0]*(w));
+	lm[1] = lm[1]*(1-w) + (255*((float*)ctx)[1]*(w));
+	lm[0] = lm[0]*(1-w) + (255*((float*)ctx)[2]*(w));
+}
+
+static void ted_mixtally(void *ctx, hmsection_t *s, int idx, float wx, float wy, float w)
+{
+	unsigned char *lm = ted_getlightmap(s, idx);
+	((float*)ctx)[0] += lm[0]*w;
+	((float*)ctx)[1] += lm[1]*w;
+	((float*)ctx)[2] += lm[2]*w;
+	((float*)ctx)[3] += w;
+}
+
+
+//calls 'func' for each tile upon the terrain. the 'tile' can be either height or texel
+static void ted_itterate(heightmap_t *hm, float *pos, float radius, float strength, int steps, void(*func)(void *ctx, hmsection_t *s, int idx, float wx, float wy, float strength), void *ctx)
+{
+	int tx, ty;
+	float wx, wy;
+	float sc[2];
+	int min[2], max[2];
+	int sx,sy;
+	hmsection_t *s;
+	float w, xd, yd;
+
+	min[0] = floor((pos[0] - radius)/(hm->sectionsize) - 1);
+	min[1] = floor((pos[1] - radius)/(hm->sectionsize) - 1);
+	max[0] = ceil((pos[0] + radius)/(hm->sectionsize) + 1);
+	max[1] = ceil((pos[1] + radius)/(hm->sectionsize) + 1);
+
+	min[0] = bound(0, min[0], hm->numsegsx);
+	min[1] = bound(0, min[1], hm->numsegsy);
+	max[0] = bound(0, max[0], hm->numsegsx);
+	max[1] = bound(0, max[1], hm->numsegsy);
+
+	sc[0] = hm->sectionsize/(steps-1);
+	sc[1] = hm->sectionsize/(steps-1);
+
+	for (sx = min[0]; sx < max[0]; sx++)
+	{
+		for (sy = min[1]; sy < max[1]; sy++)
+		{
+			s = hm->section[(int)(sx) + (int)(sy)*MAXSECTIONS];
+			if (!s)
+				s = GL_LoadSection(hm, sx, sy);
+			if (!s)
+				continue;
+
+			for (tx = 0; tx < steps; tx++)
+			{
+				for (ty = 0; ty < steps; ty++)
+				{
+					/*both heights and textures have an overlapping/matching sample at the edge, there's no need for any half-pixels or anything here*/
+					wx = (sx*(steps-1.0) + tx)*sc[0];
+					wy = (sy*(steps-1.0) + ty)*sc[1];
+					xd = wx - pos[0];
+					yd = wy - pos[1];
+					w = sqrt(radius*radius - (xd*xd+yd*yd));
+					if (w > 0)
+					{
+						func(ctx, s, tx+ty*steps, wx, wy, w*strength/(radius));
+					}
+				}
+			}
+		}
+	}
+}
+
+//Heightmap_NativeBoxContents
 enum
 {
 	ter_reload,
 	ter_save,
-	ter_set,
-	ter_smooth,
+	ter_height_set,
+	ter_height_smooth,
 	ter_raise,
-	ter_lower
+	ter_lower,
+	ter_tex_set,
+	ter_tex_get,
+	ter_mixset,
+	ter_mixconcentrate,
+	ter_mixnoise,
+	ter_mixblur,
 };
-qboolean Heightmap_Edit(model_t *mod, int action, float *pos, float radius, float quant)
+void QCBUILTIN PF_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	unsigned short *tmp;
-	heightmap_t *hm = mod->terrain;
-	int size;
-	int x, y, min[2], max[2];
-	float xd, yd, w;
-	vec2_t sc;
-	if (mod->type != mod_heightmap)
-		return false;
+	world_t *vmw = prinst->parms->user;
+	int action = G_FLOAT(OFS_PARM0);
+	float *pos = G_VECTOR(OFS_PARM1);
+	float radius = G_FLOAT(OFS_PARM2);
+	float quant = G_FLOAT(OFS_PARM3);
+//	G_FLOAT(OFS_RETURN) = Heightmap_Edit(w->worldmodel, action, pos, radius, quant);
 
-	size = hm->terrainsize;
+	model_t *mod = vmw->worldmodel;
+	heightmap_t *hm;
+	vec4_t tally;
 
-	if (radius < 0.05)
-		radius = 0.05;
+	G_FLOAT(OFS_RETURN) = 0;
 
-	sc[0] = pos[0] / hm->terrainscale;
-	sc[1] = pos[1] / hm->terrainscale;
-	radius = radius / hm->terrainscale;
-	quant /= hm->heightscale;
-
-	min[0] = sc[0] - radius;
-	min[1] = sc[1] - radius;
-	max[0] = sc[0] + radius;
-	max[1] = sc[1] + radius;
-
-	if (min[0] < 0)
-		min[0] = 0;
-	if (min[1] < 0)
-		min[1] = 0;
-
-	if (max[0] > size)
-		max[0] = size;
-	if (max[1] < size)
-		max[1] = size;
+	if (!mod || mod->type != mod_heightmap)
+		return;
+	hm = mod->terrain;
 
 	switch(action)
 	{
 	case ter_reload:
-		tmp = (unsigned short*)COM_LoadTempFile(hm->hmapname);
-		if (tmp)
-			x = com_filesize/2;
-		else
-			x = 0;
-		if (x > size*size)
-			x = size*size;
-		while (x-- > 0)
-		{
-			hm->heights[x] = LittleShort(tmp[x]);
-		}
+		HeightMap_Purge(mod);
 		break;
 	case ter_save:
-		tmp = Hunk_TempAlloc(size*size*2);
-		for (x = 0; x < size*size; x++)
-		{
-			tmp[x] = LittleShort(hm->heights[x]);
-		}
-		COM_WriteFile(hm->hmapname, tmp, size*size*2);
+		HeightMap_Save(hm);
 		break;
-	case ter_set:
-		for (x = min[0]; x < max[0]; x++)
-		{
-			for (y = min[1]; y < max[1]; y++)
-			{
-				xd = sc[0] - x;
-				yd = sc[1] - y;
-				if (sqrt(xd*xd+yd*yd) < radius)
-				{
-					hm->heights[x + y*size] = quant;
-					hm->modified[(int)(x/(hm->terrainscale)) + (int)(y/(hm->terrainscale))*SECTIONS] = true;
-				}
-			}
-		}
+	case ter_height_set:
+		ted_itterate(hm, pos, radius, 1, SECTHEIGHTSIZE, ted_heightset, &quant);
 		break;
-	case ter_smooth:
-	case ter_raise:
-		for (x = min[0]; x < max[0]; x++)
-		{
-			for (y = min[1]; y < max[1]; y++)
-			{
-				xd = sc[0] - x;
-				yd = sc[1] - y;
-				w = sqrt(radius*radius - (xd*xd+yd*yd));
-				if (w > 0)
-				{
-					w *= quant/radius;
-					hm->heights[x + y*size] += w;
-					hm->modified[(int)(x/(hm->terrainscale)) + (int)(y/(hm->terrainscale))*SECTIONS] = true;
-				}
-			}
-		}
+	case ter_height_smooth:
+		tally[0] = 0;
+		tally[1] = 0;
+		ted_itterate(hm, pos, radius, 1, SECTHEIGHTSIZE, ted_heighttally, &tally);
+		tally[0] /= tally[1];
+		ted_itterate(hm, pos, radius, 1, SECTHEIGHTSIZE, ted_heightsmooth, &tally);
 		break;
 	case ter_lower:
-		for (x = min[0]; x < max[0]; x++)
+		quant *= -1;
+	case ter_raise:
+		ted_itterate(hm, pos, radius, quant, SECTHEIGHTSIZE, ted_heightraise, &quant);
+		break;
+	case ter_mixset:
+		ted_itterate(hm, pos, radius, 1, SECTTEXSIZE, ted_mixset, G_VECTOR(OFS_PARM4));
+		break;
+	case ter_mixconcentrate:
+		ted_itterate(hm, pos, radius, 1, SECTTEXSIZE, ted_mixconcentrate, NULL);
+		break;
+	case ter_mixnoise:
+		ted_itterate(hm, pos, radius, 1, SECTTEXSIZE, ted_mixnoise, NULL);
+		break;
+	case ter_mixblur:
+		Vector4Set(tally, 0, 0, 0, 0);
+		ted_itterate(hm, pos, radius, 1, SECTTEXSIZE, ted_mixtally, &tally);
+		VectorScale(tally, 1/tally[3], tally);
+		ted_itterate(hm, pos, radius, quant, SECTTEXSIZE, ted_mixset, &tally);
+		break;
+	case ter_tex_set:
+		ted_itterate(hm, pos, radius, 1, SECTTEXSIZE, ted_mixset, NULL);
+/*		radius *= (float)hm->numsegsx / hm->tilesx;
+		for (x = 0; x < hm->numsegsx; x++)
 		{
-			for (y = min[1]; y < max[1]; y++)
+			for (y = 0; y < hm->numsegsy; y++)
 			{
-				xd = sc[0] - x;
-				yd = sc[1] - y;
+				xd = (sc[0] - x) * (float)hm->numsegsx / hm->tilesx;
+				yd = (sc[1] - y) * (float)hm->numsegsy / hm->tilesy;
 				w = sqrt(radius*radius - (xd*xd+yd*yd));
 				if (w > 0)
 				{
-					w *= quant/radius;
-					/*don't drop below 0*/
-					if (hm->heights[x + y*size]-w < 0)
-						hm->heights[x + y*size] = 0;
-					else
-						hm->heights[x + y*size] -= w;
-					hm->modified[(int)(x/(hm->terrainscale)) + (int)(y/(hm->terrainscale))*SECTIONS] = true;
+					s = hm->section[(int)(x) + (int)(y)*MAXSECTIONS];
+					if (!s)
+						s = GL_LoadSection(hm, x, y);
+					if (s)
+					{
+						if (quant < 0 || quant >= 4)
+							quant = 0;
+						Q_strncpyz(s->texname[(int)quant], PR_GetStringOfs(prinst, OFS_PARM4), sizeof(s->texname[0]));
+						s->modified = true;
+
+						GL_LoadSectionTextures(s);
+					}
 				}
 			}
 		}
+*/
+		break;
+	case ter_tex_get:
+/*
+		x = sc[0]*hm->numsegsx / hm->tilesx;
+		y = sc[1]*hm->numsegsy / hm->tilesy;
+		x = bound(0, x, hm->numsegsx-1);
+		y = bound(0, y, hm->numsegsy-1);
+	
+		G_INT(OFS_RETURN) = 0;
+		s = hm->section[(int)(x) + (int)(y)*MAXSECTIONS];
+		if (!s)
+			s = GL_LoadSection(hm, x, y);
+		if (s)
+		{
+			x = bound(0, quant, 3);
+			G_INT(OFS_RETURN) = PR_TempString(prinst, s->texname[x]);
+		}
+*/
 		break;
 	}
-
-	return true;
 }
+#else
+void QCBUILTIN PF_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_FLOAT(OFS_RETURN) = 0;
+}
+#endif
 
 qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer)
 {
 	heightmap_t *hm;
-	unsigned short *heightmap;
-	int size;
-	int x, y;
 
 	float skyrotate;
 	vec3_t skyaxis;
-	char heightmapname[MAX_QPATH];
-	char detailtexname[MAX_QPATH];
-	char basetexname[MAX_QPATH];
-	char exttexname[MAX_QPATH];
+	char shadername[MAX_QPATH];
 	char entfile[MAX_QPATH];
 	char skyname[MAX_QPATH];
-	float worldsize = 64;
-	float heightsize = 1/16;
-	int numsegs = 1;
+	int numsegsx = 0, numsegsy = 0;
+	int sectsize = 0;
 
-	*heightmapname = '\0';
-	*detailtexname = '\0';
-	*basetexname = '\0';
-	*exttexname = '\0';
-	*entfile = '\0';
+	COM_FileBase(mod->name, shadername, sizeof(shadername));
+	Q_snprintfz(entfile, sizeof(entfile), "maps/%s/entities.ent", shadername);
+	strcpy(shadername, "terrainshader");
 	strcpy(skyname, "night");
 
 	skyrotate = 0;
@@ -794,44 +1366,21 @@ qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer)
 		return false;
 	}
 
-	if (qrenderer != QR_OPENGL)
-		return false;
-
 	for(;;)
 	{
 		buffer = COM_Parse(buffer);
 		if (!buffer)
 			break;
 
-		if (!strcmp(com_token, "heightmap"))
+		if (!strcmp(com_token, "shadername"))
 		{
 			buffer = COM_Parse(buffer);
-			Q_strncpyz(heightmapname, com_token, sizeof(heightmapname));
+			Q_strncpyz(shadername, com_token, sizeof(shadername));
 		}
-		else if (!strcmp(com_token, "detail"))
+		else if (!strcmp(com_token, "segmentsize"))	//size of each segment in quake units
 		{
 			buffer = COM_Parse(buffer);
-			Q_strncpyz(detailtexname, com_token, sizeof(detailtexname));
-		}
-		else if (!strcmp(com_token, "texturegridbase"))
-		{
-			buffer = COM_Parse(buffer);
-			Q_strncpyz(basetexname, com_token, sizeof(basetexname));
-		}
-		else if (!strcmp(com_token, "texturegridext"))
-		{
-			buffer = COM_Parse(buffer);
-			Q_strncpyz(exttexname, com_token, sizeof(exttexname));
-		}
-		else if (!strcmp(com_token, "gridsize"))
-		{
-			buffer = COM_Parse(buffer);
-			worldsize = atof(com_token);
-		}
-		else if (!strcmp(com_token, "heightsize"))
-		{
-			buffer = COM_Parse(buffer);
-			heightsize = atof(com_token);
+			sectsize = atof(com_token);
 		}
 		else if (!strcmp(com_token, "entfile"))
 		{
@@ -856,87 +1405,86 @@ qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer)
 		else if (!strcmp(com_token, "texturesegments"))
 		{
 			buffer = COM_Parse(buffer);
-			numsegs = atoi(com_token);
+			numsegsx = numsegsy = atoi(com_token);
+		}
+		else if (!strcmp(com_token, "texturesegmentsx"))
+		{
+			buffer = COM_Parse(buffer);
+			numsegsx = atoi(com_token);
+		}
+		else if (!strcmp(com_token, "texturesegmentsy"))
+		{
+			buffer = COM_Parse(buffer);
+			numsegsy = atoi(com_token);
 		}
 		else
 		{
-			Con_Printf(CON_ERROR "%s, unrecognised token in terrain map\n", mod->name);
+			Con_Printf(CON_ERROR "%s, unrecognised token \"%s\" in terrain map\n", mod->name, com_token);
 			return false;
 		}
 	}
 
-	if (numsegs > SECTIONS)
+	if (!sectsize)
+		sectsize = 1024;
+
+	if (!numsegsx)
+		numsegsx = 16;
+	if (!numsegsy)
+		numsegsy = 16;
+
+	if (numsegsx > MAXSECTIONS || numsegsy > MAXSECTIONS)
 	{
-		Con_Printf(CON_ERROR "%s, heightmap uses too many sections max is %i\n", mod->name, SECTIONS);
+		Con_Printf(CON_ERROR "%s, heightmap uses too many sections max is %i\n", mod->name, MAXSECTIONS);
+		return false;
+	}
+	mod->type = mod_heightmap;
+
+	hm = BZ_Malloc(sizeof(*hm));
+	memset(hm, 0, sizeof(*hm));
+	COM_FileBase(mod->name, hm->path, sizeof(hm->path));
+
+	mod->entities = COM_LoadHunkFile(entfile);
+	if (!mod->entities)
+	{
+		BZ_Free(hm);
+		Con_Printf(CON_ERROR "unable to read %s\n", entfile);
 		return false;
 	}
 
+	hm->sectionsize = sectsize;
+	hm->numsegsx = numsegsx;
+	hm->numsegsy = numsegsy;
 
-	mod->type = mod_heightmap;
-
-	heightmap = (unsigned short*)COM_LoadTempFile(heightmapname);
-	if (!heightmap)
-	{
-		size = 1024;
-		heightmap = Hunk_TempAlloc(size*size*2);
-
-		for (x = 0; x < size; x++)
-		for (y = 0; y < size; y++)
-		{
-			heightmap[x+y*size] = 0;
-		}
-	}
-	else
-	{
-		size = sqrt(com_filesize/2);
-		if (size % numsegs)
-		{
-			Con_Printf(CON_ERROR "%s, heightmap is not a multiple of %i\n", mod->name, numsegs);
-			return false;
-		}
-	}
-
-	hm = Hunk_Alloc(sizeof(*hm) + size*size*2);
-	memset(hm, 0, sizeof(*hm));
-	Q_strncpyz(hm->hmapname, heightmapname, sizeof(hm->hmapname));
-	hm->heights = (unsigned short*)(hm+1);
-	for (x = 0; x < size*size; x++)
-	{
-		hm->heights[x] = LittleShort(heightmap[x]);
-	}
-	hm->terrainsize = size;
-	hm->terrainscale = worldsize;
-	hm->heightscale = heightsize;
-	hm->numsegs = numsegs;
-
-	hm->shader = R_RegisterShader(basetexname,
-				"{\n"
-					"{\n"
-						"map maps/test/ground.jpg\n"
-					"}\n"
-				"}\n"
-			);
-
-	hm->skyshader = R_RegisterCustom(va("skybox_%s", skyname), Shader_DefaultSkybox, NULL);
-
-
-	mod->entities = COM_LoadHunkFile(entfile);
-
+#ifndef SERVERONLY
 	if (qrenderer != QR_NONE)
 	{
-		hm->detailtexture = R_LoadHiResTexture(detailtexname, "", IF_NOGAMMA);
-
-		for (x = 0; x < numsegs; x++)
-		{
-			int y;
-
-			for (y = 0; y < numsegs; y++)
-			{
-				hm->textures[x+y*SECTIONS] = R_LoadHiResTexture(va("%s%02ix%02i%s", basetexname, x, y, exttexname), "", IF_CLAMP|IF_NOGAMMA);
-				hm->modified[x+y*SECTIONS] = true;
-			}
-		}
+		hm->shader = R_RegisterShader(shadername,
+					"{\n"
+						"{\n"
+							"map $diffuse\n"
+						"}\n"
+						"{\n"
+							"map $upperoverlay\n"
+						"}\n"
+						"{\n"
+							"map $loweroverlay\n"
+						"}\n"
+						"{\n"
+							"map $fullbright\n"
+						"}\n"
+						"{\n"
+							"map $lightmap\n"
+						"}\n"
+						"program terrain\n"
+						"if r_terraindebug\n"
+						"[\n"
+						"program terraindebug\n"
+						"]\n"
+					"}\n"
+				);
+		hm->skyshader = R_RegisterCustom(va("skybox_%s", skyname), Shader_DefaultSkybox, NULL);
 	}
+#endif
 
 	mod->funcs.NativeTrace			= Heightmap_Trace;
 	mod->funcs.PointContents		= Heightmap_PointContents;

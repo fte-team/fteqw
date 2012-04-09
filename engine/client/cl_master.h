@@ -162,7 +162,7 @@ extern player_t *mplayers;
 
 void Master_SetupSockets(void);
 void CL_QueryServers(void);
-int NET_CheckPollSockets(void);
+int Master_CheckPollSockets(void);
 void MasterInfo_Request(master_t *mast, qboolean evenifwedonthavethefiles);
 serverinfo_t *Master_InfoForServer (netadr_t addr);
 serverinfo_t *Master_InfoForNum (int num);

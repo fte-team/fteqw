@@ -48,7 +48,7 @@ FTPclientconn_t *FTP_CreateConnection(char *addy)
 
 	if ((con->controlsock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
 	{
-		Sys_Error ("FTP_UDP_OpenSocket: socket: %s\n", strerror(qerrno));
+		Sys_Error ("FTP_CreateConnection: socket: %s\n", strerror(qerrno));
 	}
 
 
@@ -158,14 +158,14 @@ int FTP_CL_makeconnectsocket(char *ftpdest)
 
 	if ((sock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
 	{
-		IWebWarnPrintf ("FTP_UDP_OpenSocket: socket: %s", strerror(qerrno));
+		IWebWarnPrintf ("FTP_CL_makeconnectsocket: socket: %s", strerror(qerrno));
 		return INVALID_SOCKET;
 	}
 
 	if (ioctlsocket (sock, FIONBIO, &_true) == -1)
 	{
 		closesocket(sock);
-		IWebWarnPrintf ("FTTP_UDP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
+		IWebWarnPrintf ("FTP_CL_makeconnectsocket: ioctl FIONBIO: %s", strerror(qerrno));
 		return INVALID_SOCKET;
 	}
 
@@ -179,7 +179,7 @@ int FTP_CL_makeconnectsocket(char *ftpdest)
 	{
 		closesocket(sock);
 
-		IWebWarnPrintf ("FTTP_UDP_OpenSocket: bind: %s", strerror(qerrno));
+		IWebWarnPrintf ("FTP_CL_makeconnectsocket: bind: %s", strerror(qerrno));
 		return INVALID_SOCKET;
 	}
 
@@ -191,7 +191,7 @@ int FTP_CL_makeconnectsocket(char *ftpdest)
 /*	{
 		closesocket(sock);
 
-		Con_Printf ("FTTP_UDP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
+		Con_Printf ("FTP_CL_makeconnectsocket: ioctl FIONBIO: %s", strerror(qerrno));
 		return INVALID_SOCKET;
 	}
 */

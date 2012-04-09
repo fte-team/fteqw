@@ -645,6 +645,7 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *in, entity_t *out)
 	}
 	else
 	{
+		out->flags |= RF_FORCECOLOURMOD;
 		out->shaderRGBAf[0] = in->xv->colormod[0];
 		out->shaderRGBAf[1] = in->xv->colormod[1];
 		out->shaderRGBAf[2] = in->xv->colormod[2];
@@ -2089,9 +2090,16 @@ static void QCBUILTIN PF_cs_getinputstate (progfuncs_t *prinst, struct globalvar
 		G_FLOAT(OFS_RETURN) = false;
 		return;
 	}
+	if (cl.paused)
+		f = cls.netchan.outgoing_sequence;
+
 	/*outgoing_sequence says how many packets have actually been sent, but there's an extra pending packet which has not been sent yet - be warned though, its data will change in the coming frames*/
 	if (f == cls.netchan.outgoing_sequence)
+	{
 		cmd = &independantphysics[csqc_lplayernum];
+		for (f=0 ; f<3 ; f++)
+			cmd->angles[f] = ((int)(cl.viewangles[csqc_lplayernum][f]*65536.0/360)&65535);
+	}
 	else
 		cmd = &cl.frames[f&UPDATE_MASK].cmd[csqc_lplayernum];
 
@@ -4721,7 +4729,17 @@ void CSQC_EntSpawn (struct edict_s *e, int loading)
 	if (!ent->xv)
 		ent->xv = (csqcextentvars_t *)(ent->v+1);
 #endif
+
+	if (1)
+	{
+//		ent->xv->dimension_see = 255;
+//		ent->xv->dimension_seen = 255;
+//		ent->xv->dimension_ghost = 0;
+		ent->xv->dimension_solid = 255;
+		ent->xv->dimension_hit = 255;
+	}
 }
+
 pbool CSQC_EntFree (struct edict_s *e)
 {
 	struct csqcedict_s *ent = (csqcedict_t*)e;

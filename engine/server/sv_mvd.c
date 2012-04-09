@@ -82,8 +82,10 @@ void DestClose(mvddest_t *d, qboolean destroyfiles)
 		BZ_Free(d->cache);
 	if (d->file)
 		VFS_CLOSE(d->file);
+#ifdef HAVE_TCP
 	if (d->socket)
 		UDP_CloseSocket(d->socket);
+#endif
 
 	if (destroyfiles)
 	{
@@ -136,6 +138,9 @@ void DestFlush(qboolean compleate)
 			break;
 
 		case DEST_STREAM:
+#ifndef HAVE_TCP
+			d->error = true;
+#else
 			if (d->cacheused && !d->error)
 			{
 				len = send(d->socket, d->cache, d->cacheused, 0);
@@ -154,6 +159,7 @@ void DestFlush(qboolean compleate)
 						d->error = true;
 				}
 			}
+#endif
 			break;
 
 		case DEST_NONE:
@@ -175,6 +181,10 @@ void DestFlush(qboolean compleate)
 
 void SV_MVD_RunPendingConnections(void)
 {
+#ifndef HAVE_TCP
+	if (demo.pendingdest)
+		Sys_Error("demo.pendingdest not null");
+#else
 	unsigned short ushort_result;
 	char *e;
 	int len;
@@ -547,6 +557,7 @@ void SV_MVD_RunPendingConnections(void)
 			}
 		}
 	}
+#endif
 }
 
 int DestCloseAllFlush(qboolean destroyfiles, qboolean mvdonly)
@@ -2062,6 +2073,9 @@ void SV_MVD_Record_f (void)
 
 void SV_MVD_QTVReverse_f (void)
 {
+#ifndef HAVE_TCP
+	Con_Printf ("%s is not supported in this build\n", Cmd_Argv(0));
+#else
 	char *ip;
 	if (sv.state != ss_active)
 	{
@@ -2142,7 +2156,7 @@ void SV_MVD_QTVReverse_f (void)
 }
 
 	//SV_MVD_Record (dest);
-
+#endif
 }
 
 /*
@@ -2355,7 +2369,8 @@ void SV_MVDEasyRecord_f (void)
 	SV_MVD_Record (SV_InitRecordFile(name2));
 }
 
-int MVD_StreamStartListening(int port)
+#ifdef HAVE_TCP
+static int MVD_StreamStartListening(int port)
 {
 	int sock;
 
@@ -2390,9 +2405,11 @@ int MVD_StreamStartListening(int port)
 
 	return sock;
 }
+#endif
 
 void SV_MVDStream_Poll(void)
 {
+#ifdef HAVE_TCP
 	static int listensocket=INVALID_SOCKET;
 	static int listenport;
 	int _true = true;
@@ -2475,6 +2492,7 @@ void SV_MVDStream_Poll(void)
 	SV_MVD_InitPendingStream(client, ip);
 
 //	SV_MVD_Record (SV_InitStream(client));
+#endif
 }
 
 void SV_MVDList_f (void)

@@ -172,6 +172,7 @@ void R_NetgraphInit(void)
 	TEXASSIGN(netgraphtexture, R_AllocNewTexture("***netgraph***", NET_TIMINGS, NET_GRAPHHEIGHT));
 	netgraphshader = R_RegisterShader("netgraph",
 		"{\n"
+			"program default2d\n"
 			"{\n"
 				"map $diffuse\n"
 				"blendfunc blend\n"

@@ -375,19 +375,18 @@ void QCBUILTIN PF_getsurfaceclippedpoint(progfuncs_t *prinst, struct globalvars_
 {
 }
 
+#ifndef TERRAIN
 void QCBUILTIN PF_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	G_FLOAT(OFS_RETURN) = false;
 	world_t *w = prinst->parms->user;
 	int action = G_FLOAT(OFS_PARM0);
 	float *pos = G_VECTOR(OFS_PARM1);
 	float radius = G_FLOAT(OFS_PARM2);
 	float quant = G_FLOAT(OFS_PARM3);
-#if defined(TERRAIN)
 	G_FLOAT(OFS_RETURN) = Heightmap_Edit(w->worldmodel, action, pos, radius, quant);
-#else
-	G_FLOAT(OFS_RETURN) = false;
-#endif
 }
+#endif
 
 //end model functions
 ////////////////////////////////////////////////////
@@ -3403,7 +3402,7 @@ nolength:
 							o += strlen(o);
 							break;
 						case 'c':
-							if(flags & PRINTF_ALTERNATE)
+//							if(flags & PRINTF_ALTERNATE)
 							{
 								if(precision < 0) // not set
 									Q_snprintfz(o, end - o, formatbuf, width, (isfloat ? (unsigned int) GETARG_FLOAT(thisarg) : (unsigned int) GETARG_INT(thisarg)));
@@ -3411,20 +3410,20 @@ nolength:
 									Q_snprintfz(o, end - o, formatbuf, width, precision, (isfloat ? (unsigned int) GETARG_FLOAT(thisarg) : (unsigned int) GETARG_INT(thisarg)));
 								o += strlen(o);
 							}
-							else
+/*							else
 							{
 								unsigned int c = (isfloat ? (unsigned int) GETARG_FLOAT(thisarg) : (unsigned int) GETARG_INT(thisarg));
-//								char charbuf16[16];
-//								const char *buf = u8_encodech(c, NULL, charbuf16);
-//								if(!buf)
-//									buf = "";
+								char charbuf16[16];
+								const char *buf = u8_encodech(c, NULL, charbuf16);
+								if(!buf)
+									buf = "";
 								if(precision < 0) // not set
 									precision = end - o - 1;
-//								o += u8_strpad(o, end - o, buf, (flags & PRINTF_LEFT) != 0, width, precision);
+								o += u8_strpad(o, end - o, buf, (flags & PRINTF_LEFT) != 0, width, precision);
 							}
-							break;
+*/							break;
 						case 's':
-							if(flags & PRINTF_ALTERNATE)
+//							if(flags & PRINTF_ALTERNATE)
 							{
 								if(precision < 0) // not set
 									Q_snprintfz(o, end - o, formatbuf, width, GETARG_STRING(thisarg));
@@ -3432,13 +3431,13 @@ nolength:
 									Q_snprintfz(o, end - o, formatbuf, width, precision, GETARG_STRING(thisarg));
 								o += strlen(o);
 							}
-							else
+/*							else
 							{
 								if(precision < 0) // not set
 									precision = end - o - 1;
-//								o += u8_strpad(o, end - o, GETARG_STRING(thisarg), (flags & PRINTF_LEFT) != 0, width, precision);
+								o += u8_strpad(o, end - o, GETARG_STRING(thisarg), (flags & PRINTF_LEFT) != 0, width, precision);
 							}
-							break;
+*/							break;
 						default:
 							Con_Printf("PF_sprintf: invalid format string: %s\n", s0);
 							goto finished;

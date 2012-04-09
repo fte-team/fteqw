@@ -106,7 +106,7 @@ static void AHI_UnlockBuffer(soundcardinfo_t *sc, void *buffer)
 {
 }
 
-static void *AHI_LockBuffer(soundcardinfo_t *sc)
+static void *AHI_LockBuffer(soundcardinfo_t *sc, unsigned int *sampidx)
 {
 	return sc->sn.buffer;
 }

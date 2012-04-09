@@ -1021,6 +1021,8 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 			b->surf_first = surfnum;
 			b->flags = 0;
 			sort = shader->sort;
+			if (e->flags & RF_FORCECOLOURMOD)
+				b->flags |= BEF_FORCECOLOURMOD;
 			if (e->flags & Q2RF_ADDITIVE)
 			{
 				b->flags |= BEF_FORCEADDITIVE;
@@ -1915,15 +1917,15 @@ void BE_GenModelBatches(batch_t **batches)
 	for (i = 0; i < SHADER_SORT_COUNT; i++)
 		batches[i] = NULL;
 
-	if (!r_drawentities.ival)
-		return;
-
-	Alias_FlushCache();
-
 #if defined(TERRAIN)
 	if (cl.worldmodel && cl.worldmodel->type == mod_heightmap)
 		GL_DrawHeightmapModel(batches, &r_worldentity);
 #endif
+
+	if (!r_drawentities.ival)
+		return;
+
+	Alias_FlushCache();
 
 	// draw sprites seperately, because of alpha blending
 	for (i=0 ; i<cl_numvisedicts ; i++)

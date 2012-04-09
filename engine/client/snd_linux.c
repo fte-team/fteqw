@@ -110,7 +110,7 @@ static void OSS_Shutdown(soundcardinfo_t *sc)
 	*sc->name = '\0';
 }
 
-static void *OSS_Lock(soundcardinfo_t *sc)
+static void *OSS_Lock(soundcardinfo_t *sc, unsigned int *sampidx)
 {
 	return sc->sn.buffer;
 }

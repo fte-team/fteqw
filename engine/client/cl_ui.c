@@ -764,6 +764,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 	case UI_CMD_EXECUTETEXT:
 		{
 			char *cmdtext = VM_POINTER(arg[1]);
+#ifdef CL_MASTER
 			if (!strncmp(cmdtext, "ping ", 5))
 			{
 				int i;
@@ -785,10 +786,8 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			{
 				MasterInfo_Refresh();
 			}
-	/*		else if (!strncmp(cmdtext, "r_vidmode", 12))
-			{
-			}
-	*/		else
+			else
+#endif
 				Cbuf_AddText(cmdtext, RESTRICT_SERVER);
 		}
 		break;
@@ -987,6 +986,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 #endif
 		break;
 
+#ifdef CL_MASTER
 	case UI_LAN_GETPINGQUEUECOUNT:	//these four are master server polling.
 		{
 			int i;
@@ -1007,7 +1007,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		if ((int)arg[3] + sizeof(int) >= mask || VM_POINTER(arg[3]) < offset)
 			break;	//out of bounds.
 
-		NET_CheckPollSockets();
+		Master_CheckPollSockets();
 		if (VM_LONG(arg[0])>= 0 && VM_LONG(arg[0]) <= MAX_PINGREQUESTS)
 		{
 			char *buf = VM_POINTER(arg[1]);
@@ -1034,7 +1034,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		if ((int)arg[3] + sizeof(int) >= mask || VM_POINTER(arg[3]) < offset)
 			break;	//out of bounds.
 
-		NET_CheckPollSockets();
+		Master_CheckPollSockets();
 		if (VM_LONG(arg[0])>= 0 && VM_LONG(arg[0]) <= MAX_PINGREQUESTS)
 		{
 			char *buf = VM_POINTER(arg[1]);
@@ -1062,6 +1062,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 				strcpy(buf, "");
 		}
 		break;
+#endif
 
 	case UI_CVAR_REGISTER:
 		if (VM_OOB(arg[0], sizeof(vmcvar_t)))
@@ -1100,6 +1101,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		VM_FLOAT(ret) = realtime;
 		break;
 
+#ifdef CL_MASTER
 	case UI_LAN_GETSERVERCOUNT:	//LAN Get server count
 		//int (int source)
 		VM_LONG(ret) = Master_TotalCount();
@@ -1136,6 +1138,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 	case UI_LAN_SERVERISVISIBLE:
 		return 1;
 		break;
+#endif
 
 	case UI_VERIFY_CDKEY:
 		VM_LONG(ret) = true;

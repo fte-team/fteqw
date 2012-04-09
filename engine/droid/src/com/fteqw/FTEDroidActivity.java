@@ -33,7 +33,7 @@ public class FTEDroidActivity extends Activity
 	private class FTERenderer implements GLSurfaceView.Renderer 
 	{
 		private boolean inited;
-		private String basedir;
+		private String basedir, userdir;
 		FTEDroidActivity act;
 		
 		FTERenderer(Context ctx, FTEDroidActivity parent)
@@ -48,8 +48,16 @@ public class FTEDroidActivity extends Activity
 			{
 				/*oh well, can just use the homedir instead*/
 			}
+//			try
+//			{
+				userdir = Environment.getExternalStorageDirectory().getPath();
+//			}
+//			catch(foo)
+//			{
+//			}
 			
 			android.util.Log.i("FTEDroid", "Base dir is \"" + basedir + "\".");
+			android.util.Log.i("FTEDroid", "User dir is \"" + userdir + "\".");
 		}
 		
 		@Override
@@ -64,7 +72,7 @@ public class FTEDroidActivity extends Activity
 		public void onSurfaceChanged(GL10 gl, int width, int height)
 		{
 			android.util.Log.i("FTEDroid", "Surface changed, now " + width + " by " + height + ".");
-			FTEDroidEngine.init(width, height, basedir);
+			FTEDroidEngine.init(width, height, basedir, userdir);
 			inited = true;
 		}
 		@Override

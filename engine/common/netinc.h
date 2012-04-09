@@ -1,6 +1,36 @@
 
-#ifdef _WIN32
+#ifndef NACL
+#define HAVE_IPV4	//says we can set and receive AF_INET ipv4 udp packets.
+#define HAVE_TCP	//says we can use tcp too (either ipv4 or ipv6)
+#define HAVE_PACKET	//if we have the socket api at all...
+#endif
 
+#ifdef NACL
+
+	struct sockaddr
+	{
+		short  sa_family;
+	};
+/*	struct sockaddr_in
+	{
+		short  sin_family;
+		unsigned short	sin_port;
+		in_addr sin_addr;
+	};*/
+	#define AF_UNSPEC 0
+//	#define AF_INET 1
+
+	/*NaCl engines cannot host servers. Regular FTE servers can use the same listening tcpconnect socket to host a websocket connection*/
+
+	#define AF_WEBSOCK 342
+
+	struct sockaddr_websocket
+	{
+		short  sws_family;
+		char url[64];
+	};
+
+#elif defined(_WIN32)
 	#ifdef _MSC_VER
 		#define USEIPX
 	#endif

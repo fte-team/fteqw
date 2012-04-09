@@ -17,7 +17,13 @@
 #pragma warningmsg("FORCESTATE is active")
 #endif
 
+#ifdef ANDROID
+/*android appears to have a bug, and requires f and not i*/
+#define qglTexEnvi qglTexEnvf
+#endif
+
 extern cvar_t gl_overbright;
+extern cvar_t gl_ati_truform;
 
 static const char LIGHTPASS_SHADER[] = "\
 {\n\
@@ -235,12 +241,7 @@ void GL_TexEnv(GLenum mode)
 	if (mode != shaderstate.texenvmode[shaderstate.currenttmu])
 #endif
 	{
-#ifdef ANDROID
-		/*android appears to have a bug, and requires f and not i*/
-		qglTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, mode);
-#else
 		qglTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, mode);
-#endif
 		shaderstate.texenvmode[shaderstate.currenttmu] = mode;
 	}
 }
@@ -971,7 +972,7 @@ void GLBE_Init(void)
 	shaderstate.shaderbits = ~0;
 	BE_SendPassBlendDepthMask(0);
 
-	if (qglEnableClientState)
+	if (qglEnableClientState && !gl_config.nofixedfunc)
 		qglEnableClientState(GL_VERTEX_ARRAY);
 
 	currententity = &r_worldentity;
@@ -2017,6 +2018,7 @@ static void BE_SendPassBlendDepthMask(unsigned int sbits)
 			qglDisable(GL_BLEND);
 	}
 
+#ifdef GL_ALPHA_TEST	//alpha test doesn't exist in gles2
 	if (delta & SBITS_ATEST_BITS)
 	{
 		switch (sbits & SBITS_ATEST_BITS)
@@ -2038,6 +2040,7 @@ static void BE_SendPassBlendDepthMask(unsigned int sbits)
 			break;
 		}
 	}
+#endif
 
 	if (delta & SBITS_MISC_NODEPTHTEST)
 	{
@@ -2080,6 +2083,13 @@ static void BE_SendPassBlendDepthMask(unsigned int sbits)
 				(sbits&SBITS_MASK_BLUE)?GL_FALSE:GL_TRUE,
 				(sbits&SBITS_MASK_ALPHA)?GL_FALSE:GL_TRUE
 				);
+	}
+	if ((delta & SBITS_TRUFORM) && qglPNTrianglesiATI)
+	{
+		if ((sbits & SBITS_TRUFORM) && gl_ati_truform.ival)
+			qglEnable(GL_PN_TRIANGLES_ATI);
+		else
+			qglDisable(GL_PN_TRIANGLES_ATI);
 	}
 }
 
@@ -2262,16 +2272,10 @@ static unsigned int BE_Program_Set_Attributes(const program_t *prog, unsigned in
 			if (shaderstate.sourcevbo->colours.gl.addr)
 			{
 				GL_SelectVBO(shaderstate.sourcevbo->colours.gl.vbo);
-				qglVertexAttribPointer(p->handle[perm], 4, shaderstate.colourarraytype, GL_FALSE, 0, shaderstate.sourcevbo->colours.gl.addr);
+				qglVertexAttribPointer(p->handle[perm], 4, shaderstate.colourarraytype, ((shaderstate.colourarraytype==GL_FLOAT)?GL_FALSE:GL_TRUE), 0, shaderstate.sourcevbo->colours.gl.addr);
 				attr |= 1u<<p->handle[perm];
 				break;
 			}
-	/*		else if (shaderstate.sourcevbo->colours4ub)
-			{
-				GL_SelectVBO(shaderstate.sourcevbo->colours.gl.vbo);
-				qglVertexAttribPointer(p->handle[perm], 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(byte_vec4_t), shaderstate.sourcevbo->colours.gl.addr);
-				return 1u<<p->handle[perm];
-			}*/
 			break;
 		case SP_ATTR_TEXCOORD:
 			GL_SelectVBO(shaderstate.sourcevbo->texcoord.gl.vbo);
@@ -2582,7 +2586,8 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 	BE_SendPassBlendDepthMask(pass->shaderbits);
 	if (p->nofixedcompat)
 	{
-		qglDisableClientState(GL_COLOR_ARRAY);
+		if (!gl_config.nofixedfunc)
+			qglDisableClientState(GL_COLOR_ARRAY);
 		BE_EnableShaderAttributes(attr);
 		for (i = 0; i < pass->numMergedPasses; i++)
 		{
@@ -3102,9 +3107,9 @@ void GLBE_SubmitBatch(batch_t *batch)
 {
 	int lm;
 
-	if (batch->texture)
+	if (batch->vbo)
 	{
-		shaderstate.sourcevbo = &batch->texture->vbo;
+		shaderstate.sourcevbo = batch->vbo;
 		shaderstate.colourarraytype = GL_FLOAT;
 		lm = batch->lightmap;
 	}
@@ -3112,6 +3117,7 @@ void GLBE_SubmitBatch(batch_t *batch)
 	{
 		shaderstate.dummyvbo.coord.gl.addr = batch->mesh[0]->xyz_array;
 		shaderstate.dummyvbo.texcoord.gl.addr = batch->mesh[0]->st_array;
+		shaderstate.dummyvbo.lmcoord.gl.addr = batch->mesh[0]->lmst_array;
 		shaderstate.dummyvbo.indicies.gl.addr = batch->mesh[0]->indexes;
 		shaderstate.dummyvbo.normals.gl.addr = batch->mesh[0]->normals_array;
 		shaderstate.dummyvbo.svector.gl.addr = batch->mesh[0]->snormals_array;
@@ -3540,10 +3546,9 @@ void GLBE_DrawWorld (qbyte *vis)
 
 	BE_SelectEntity(&r_worldentity);
 
+	BE_UpdateLightmaps();
 	if (vis)
 	{
-		BE_UpdateLightmaps();
-
 		if (gl_overbright.modified)
 		{
 			int i;

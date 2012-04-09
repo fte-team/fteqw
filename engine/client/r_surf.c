@@ -1419,7 +1419,7 @@ start:
 	if (node->visframe != r_visframecount)
 		return;
 
-	for (c = 0, clipplane = frustum; c < 4; c++, clipplane++)
+	for (c = 0, clipplane = frustum; c < FRUSTUMPLANES; c++, clipplane++)
 	{
 		if (!(clipflags & (1 << c)))
 			continue;	// don't need to clip against it
@@ -1640,7 +1640,7 @@ static void Surf_LeafWorldNode (void)
 //		if (!r_nocull->value)
 		{
 
-			for (i=0,clipplane=frustum ; i<4 ; i++,clipplane++)
+			for (i=0,clipplane=frustum ; i<5 ; i++,clipplane++)
 			{
 				clipped = BoxOnPlaneSide (pleaf->minmaxs, pleaf->minmaxs+3, clipplane);
 				if (clipped == 2)
@@ -2016,7 +2016,7 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 			b->firstmesh = 0;
 			b->lightmap = s->lightmaptexturenum;
 			b->mesh = NULL;
-			b->vbo = NULL;
+			b->vbo = &b->texture->vbo;
 		}
 
 		b->surf_count++;
@@ -2120,7 +2120,7 @@ void Surf_DrawWorld (void)
 				if (!(r_novis.ival & 2))
 					VectorCopy (r_refdef.vieworg, modelorg);
 
-				Surf_RecursiveWorldNode (cl.worldmodel->nodes, 0xf);
+				Surf_RecursiveWorldNode (cl.worldmodel->nodes, 0x1f);
 			}
 		}
 
@@ -2154,7 +2154,7 @@ void Surf_DrawWorld (void)
 */
 
 // returns a texture number and the position inside it
-static int Surf_LM_AllocBlock (int w, int h, int *x, int *y, shader_t *shader)
+int Surf_LM_AllocBlock (int w, int h, int *x, int *y, shader_t *shader)
 {
 	int		i, j;
 	int		best, best2;
@@ -2711,6 +2711,11 @@ void Surf_BuildLightmaps (void)
 			batch->mesh = BZ_Malloc(sizeof(*batch->mesh)*batch->maxmeshes*2);
 		}
 		BE_GenBrushModelVBO(m);
+		for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
+		for (batch = m->batches[sortid]; batch != NULL; batch = batch->next)
+		{
+			batch->vbo = &batch->texture->vbo;
+		}
 	}
 
 	BE_UploadAllLightmaps();

@@ -87,7 +87,7 @@ static void DSOUND_Restore(soundcardinfo_t *sc)
 }
 
 DWORD	dwSize;
-static void *DSOUND_Lock(soundcardinfo_t *sc)
+static void *DSOUND_Lock(soundcardinfo_t *sc, unsigned int *sampidx)
 {
 	void *ret;
 	int reps;

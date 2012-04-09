@@ -2,6 +2,8 @@
 #include "fs.h"
 #include "errno.h"
 
+#ifndef NACL
+
 #ifdef WEBSVONLY
 #define Z_Free free
 #define Z_Malloc malloc
@@ -293,4 +295,5 @@ searchpathfuncs_t stdiofilefuncs = {
 	NULL,
 	FSSTDIO_OpenVFS
 };
+#endif
 #endif

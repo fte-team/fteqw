@@ -621,19 +621,6 @@ gltexture_t	*GL_MatchTexture (char *identifier, int bits, int width, int height)
 		glt = Hash_GetNext(&gltexturetable, identifier, glt);
 	}
 
-/*
-	for (glt=gltextures ; glt ; glt=glt->next)
-	{
-		if (glt->bpp == bits && width == glt->width && height == glt->height)
-		{
-			if (!strcmp (identifier, glt->identifier))
-			{
-				return glt;
-			}
-		}
-	}
-*/
-
 	return NULL;
 }
 
@@ -1138,7 +1125,7 @@ void GL_Upload32_Int (char *name, unsigned *data, int width, int height, unsigne
 	GL_RoundDimensions(&scaled_width, &scaled_height, !(flags & IF_NOMIPMAP));
 
 	if (!(flags & IF_NOALPHA))
-	{	//make sure it does actually have those alpha pixels
+	{	//make sure it does actually have those alpha pixels (q3 compat)
 		int i;
 		flags |= IF_NOALPHA;
 		for (i = 3; i < width*height*4; i+=4)
@@ -1370,7 +1357,7 @@ done:
 		qglTexParameteri(targ, GL_GENERATE_MIPMAP_SGIS, GL_FALSE);
 
 	/*apply this flag after, so that we can safely change the base (to avoid drivers just not uploading lower mips)*/
-	if (flags & IF_MIPCAP)
+	if (!gl_config.gles && (flags & IF_MIPCAP))
 	{
 		qglTexParameteri(targ, GL_TEXTURE_BASE_LEVEL, gl_mipcap_min);
 		qglTexParameteri(targ, GL_TEXTURE_MAX_LEVEL, gl_mipcap_max);
@@ -1999,7 +1986,7 @@ void GL_Upload8 (char *name, qbyte *data, int width, int height, unsigned int fl
 		}
 		for (i=s&~3 ; i<s ; i++)	//wow, funky
 		{
-			trans[i] = d_8to24rgbtable[data[i]];
+			trans[i] = d_8to24rgbtable[data[i]]|0xff000000;
 		}
 	}
 
@@ -2150,31 +2137,26 @@ GL_LoadTexture
 */
 texid_t GL_LoadTexture (char *identifier, int width, int height, qbyte *data, unsigned int flags, unsigned int transtype)
 {
-	gltexture_t	*glt;
+	gltexture_t	*glt = NULL;
 
-	// see if the texture is already present
+
 	if (identifier[0])
 	{
 		glt = GL_MatchTexture(identifier, 8, width, height);
-		if (glt)
-		{
-
-TRACE(("dbg: GL_LoadTexture: duplicate %s\n", identifier));
+		if (glt && !(flags & IF_REPLACE))
 			return glt->texnum;
-		}
 	}
+	if (!glt)
+		glt = GL_AllocNewGLTexture(identifier, width, height);
 
 TRACE(("dbg: GL_LoadTexture: new %s\n", identifier));
 
-	glt = GL_AllocNewGLTexture(identifier, width, height);
 	glt->bpp = 8;
 	glt->flags = flags;
 
-checkglerror();
 	GL_MTBind(0, GL_TEXTURE_2D, glt->texnum);
 
 	GL_Upload8 ("8bit", data, width, height, flags, transtype);
-checkglerror();
 	return glt->texnum;
 }
 

@@ -53,7 +53,7 @@ static void VARGS SSDL_Paint(void *userdata, qbyte *stream, int len)
 	sc->snd_sent += len;
 }
 
-static void *SSDL_LockBuffer(soundcardinfo_t *sc)
+static void *SSDL_LockBuffer(soundcardinfo_t *sc, unsigned int *sampidx)
 {
 	SDL_LockAudio();
 

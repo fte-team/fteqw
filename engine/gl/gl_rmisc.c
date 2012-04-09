@@ -589,7 +589,8 @@ void GLR_TimeRefresh_f (void)
 	else
 #endif
 	{
-		qglDrawBuffer  (GL_FRONT);
+		if (qglDrawBuffer)
+			qglDrawBuffer  (GL_FRONT);
 		qglFinish ();
 
 		start = Sys_DoubleTime ();
@@ -606,7 +607,8 @@ void GLR_TimeRefresh_f (void)
 	time = stop-start;
 	Con_Printf ("%f seconds (%f fps)\n", time, frames/time);
 
-	qglDrawBuffer  (GL_BACK);
+	if (qglDrawBuffer)
+		qglDrawBuffer  (GL_BACK);
 	GL_EndRendering ();
 	GL_DoSwap();
 }

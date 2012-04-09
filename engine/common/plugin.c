@@ -778,6 +778,7 @@ int Plug_NewStreamHandle(plugstream_e type)
 	return i;
 }
 
+#ifndef NACL
 //EBUILTIN(int, NET_TCPListen, (char *ip, int port, int maxcount));
 //returns a new socket with listen enabled.
 qintptr_t VARGS Plug_Net_TCPListen(void *offset, quintptr_t mask, const qintptr_t *arg)
@@ -1030,6 +1031,7 @@ qintptr_t VARGS Plug_Net_SetTLSClient(void *offset, unsigned int mask, const qin
 	return 0;
 }
 #endif
+#endif
 
 qintptr_t VARGS Plug_FS_Open(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
@@ -1170,6 +1172,7 @@ qintptr_t VARGS Plug_Net_Recv(void *offset, quintptr_t mask, const qintptr_t *ar
 		return -2;
 	switch(pluginstreamarray[handle].type)
 	{
+#ifndef NACL
 	case STREAM_SOCKET:
 		read = recv(pluginstreamarray[handle].socket, dest, destlen, 0);
 		if (read < 0)
@@ -1182,6 +1185,8 @@ qintptr_t VARGS Plug_Net_Recv(void *offset, quintptr_t mask, const qintptr_t *ar
 		else if (read == 0)
 			return -2;	//closed by remote connection.
 		return read;
+#endif
+
 #ifdef GNUTLS
 	case STREAM_TLS:
 		read = gnutls_record_recv(pluginstreamarray[handle].session, dest, destlen);
@@ -1223,6 +1228,7 @@ qintptr_t VARGS Plug_Net_Send(void *offset, quintptr_t mask, const qintptr_t *ar
 		return -2;
 	switch(pluginstreamarray[handle].type)
 	{
+#ifndef NACL
 	case STREAM_SOCKET:
 		written = send(pluginstreamarray[handle].socket, src, srclen, 0);
 		if (written < 0)
@@ -1235,6 +1241,8 @@ qintptr_t VARGS Plug_Net_Send(void *offset, quintptr_t mask, const qintptr_t *ar
 		else if (written == 0)
 			return -2;	//closed by remote connection.
 		return written;
+#endif
+
 #ifdef GNUTLS
 	case STREAM_TLS:
 		written = gnutls_record_send(pluginstreamarray[handle].session, src, srclen);
@@ -1292,6 +1300,7 @@ qintptr_t VARGS Plug_Net_SendTo(void *offset, quintptr_t mask, const qintptr_t *
 		return -2;
 	switch(pluginstreamarray[handle].type)
 	{
+#ifndef NACL
 	case STREAM_SOCKET:
 		written = sendto(pluginstreamarray[handle].socket, src, srclen, 0, (struct sockaddr*)&sockaddr, sizeof(sockaddr));
 		if (written < 0)
@@ -1304,6 +1313,7 @@ qintptr_t VARGS Plug_Net_SendTo(void *offset, quintptr_t mask, const qintptr_t *
 		else if (written == 0)
 			return -2;	//closed by remote connection.
 		return written;
+#endif
 	default:
 		return -2;
 	}
@@ -1327,7 +1337,9 @@ void Plug_Net_Close_Internal(int handle)
 	case STREAM_OSFILE:
 		break;
 	case STREAM_SOCKET:
+#ifndef NACL
 		closesocket(pluginstreamarray[handle].socket);
+#endif
 		break;
 	case STREAM_TLS:
 #ifdef GNUTLS
@@ -1451,6 +1463,7 @@ void Plug_Init(void)
 	Plug_RegisterBuiltin("Cvar_GetString",			Plug_Cvar_GetString, 0);
 	Plug_RegisterBuiltin("Cvar_GetFloat",			Plug_Cvar_GetFloat, 0);
 
+#ifndef NACL
 	Plug_RegisterBuiltin("Net_TCPListen",			Plug_Net_TCPListen, 0);
 	Plug_RegisterBuiltin("Net_Accept",				Plug_Net_Accept, 0);
 	Plug_RegisterBuiltin("Net_TCPConnect",			Plug_Net_TCPConnect, 0);
@@ -1462,6 +1475,7 @@ void Plug_Init(void)
 	Plug_RegisterBuiltin("Net_Send",				Plug_Net_Send, 0);
 	Plug_RegisterBuiltin("Net_SendTo",				Plug_Net_SendTo, 0);
 	Plug_RegisterBuiltin("Net_Close",				Plug_Net_Close, 0);
+#endif
 
 	Plug_RegisterBuiltin("FS_Open",					Plug_FS_Open, 0);
 	Plug_RegisterBuiltin("FS_Read",					Plug_Net_Recv, 0);

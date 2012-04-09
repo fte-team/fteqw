@@ -332,6 +332,8 @@ cvar_t vid_hardwaregamma					= SCVARF ("vid_hardwaregamma", "1",
 cvar_t vid_desktopgamma						= SCVARF ("vid_desktopgamma", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH);
 
+cvar_t r_fog_exp2							= CVARD ("r_fog_exp2", "1", "Expresses how fog fades with distance. 0 (matching DarkPlaces) is typically more realistic, while 1 (matching FitzQuake and others) is more common.");
+
 extern cvar_t gl_dither;
 cvar_t	gl_screenangle = SCVAR("gl_screenangle", "0");
 
@@ -416,6 +418,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_overbright, GRAPHICALNICETIES);
 	Cvar_Register (&gl_overbright_all, GRAPHICALNICETIES);
 	Cvar_Register (&gl_dither, GRAPHICALNICETIES);
+	Cvar_Register (&r_fog_exp2, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_ati_truform, GRAPHICALNICETIES);
 	Cvar_Register (&gl_ati_truform_type, GRAPHICALNICETIES);
@@ -1924,7 +1927,7 @@ qbyte *R_MarkLeaves_Q1 (void)
 }
 
 
-mplane_t	frustum[4];
+mplane_t	frustum[FRUSTUMPLANES];
 
 
 /*
@@ -1938,7 +1941,7 @@ qboolean R_CullBox (vec3_t mins, vec3_t maxs)
 {
 	int		i;
 
-	for (i=0 ; i<4 ; i++)
+	for (i=0 ; i<FRUSTUMPLANES ; i++)
 		if (BOX_ON_PLANE_SIDE (mins, maxs, &frustum[i]) == 2)
 			return true;
 	return false;
@@ -1950,7 +1953,7 @@ qboolean R_CullSphere (vec3_t org, float radius)
 	int		i;
 	float d;
 
-	for (i=0 ; i<4 ; i++)
+	for (i=0 ; i<FRUSTUMPLANES ; i++)
 	{
 		d = DotProduct(frustum[i].normal, org)-frustum[i].dist;
 		if (d <= -radius)
@@ -2081,6 +2084,67 @@ void R_SetFrustum (float projmat[16], float viewmat[16])
 		frustum[i].type = PLANE_ANYZ;
 		frustum[i].signbits = SignbitsForPlane (&frustum[i]);
 	}
+
+#if FRUSTUMPLANES > 4
+	//do far plane
+	//fog will not logically not actually reach 0, though precision issues will force it. we cut off at an exponant of -500
+	if (r_refdef.gfog_rgbd[3])
+	{
+		float culldist;
+		float fog;
+		extern cvar_t r_fog_exp2;
+
+		/*Documentation: the GLSL/GL will do this maths:
+		float dist = 1024;
+		if (r_fog_exp2.ival)
+			fog = pow(2, -r_refdef.gfog_rgbd[3] * r_refdef.gfog_rgbd[3] * dist * dist * 1.442695);
+		else
+			fog = pow(2, -r_refdef.gfog_rgbd[3] * dist * 1.442695);
+		*/
+
+		//the fog factor cut-off where its pointless to allow it to get closer to 0 (0 is technically infinite)
+		fog = 2/255.0f;
+
+		//figure out the eyespace distance required to reach that fog value
+		culldist = log(fog);
+		if (r_fog_exp2.ival)
+			culldist = sqrt(culldist / (-r_refdef.gfog_rgbd[3] * r_refdef.gfog_rgbd[3]));
+		else
+			culldist = culldist / (-r_refdef.gfog_rgbd[3]);
+		//anything drawn beyond this point is fully obscured by fog
+
+		frustum[4].normal[0] = mvp[3] - mvp[2];
+		frustum[4].normal[1] = mvp[7] - mvp[6];
+		frustum[4].normal[2] = mvp[11] - mvp[10];
+		frustum[4].dist      = mvp[15] - mvp[14];
+
+		scale = 1/sqrt(DotProduct(frustum[4].normal, frustum[4].normal));
+		frustum[4].normal[0] *= scale;
+		frustum[4].normal[1] *= scale;
+		frustum[4].normal[2] *= scale;
+//		frustum[4].dist *= scale;
+		frustum[4].dist	= DotProduct(r_origin, frustum[4].normal)-culldist;
+
+		frustum[4].type      = PLANE_ANYZ;
+		frustum[4].signbits  = SignbitsForPlane (&frustum[4]);
+	}
+	else
+	{	
+		frustum[4].normal[0] = mvp[3] - mvp[2];
+		frustum[4].normal[1] = mvp[7] - mvp[6];
+		frustum[4].normal[2] = mvp[11] - mvp[10];
+		frustum[4].dist      = mvp[15] - mvp[14];
+
+		scale = 1/sqrt(DotProduct(frustum[4].normal, frustum[4].normal));
+		frustum[4].normal[0] *= scale;
+		frustum[4].normal[1] *= scale;
+		frustum[4].normal[2] *= scale;
+		frustum[4].dist *= -scale;
+
+		frustum[4].type      = PLANE_ANYZ;
+		frustum[4].signbits  = SignbitsForPlane (&frustum[4]);
+	}
+#endif
 }
 #else
 void R_SetFrustum (void)

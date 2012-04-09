@@ -860,7 +860,9 @@ void M_Init_Internal (void)
 	Cmd_AddRemCommand ("menu_download", Menu_DownloadStuff_f);
 #endif
 
+#ifdef CL_MASTER
 	Cmd_AddRemCommand ("quickconnect", M_QuickConnect_f);
+#endif
 }
 
 void M_DeInit_Internal (void)

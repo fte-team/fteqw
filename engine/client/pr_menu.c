@@ -999,12 +999,12 @@ void QCBUILTIN PF_M_gethostcachevalue (progfuncs_t *prinst, struct globalvars_s 
 	{
 	case SLIST_HOSTCACHEVIEWCOUNT:
 		CL_QueryServers();
-		NET_CheckPollSockets();
+		Master_CheckPollSockets();
 		G_FLOAT(OFS_RETURN) = Master_NumSorted();
 		return;
 	case SLIST_HOSTCACHETOTALCOUNT:
 		CL_QueryServers();
-		NET_CheckPollSockets();
+		Master_CheckPollSockets();
 		G_FLOAT(OFS_RETURN) = Master_TotalCount();
 		return;
 
@@ -1653,8 +1653,13 @@ builtin_t menu_builtins[] = {
 	PF_cl_getresolution,
 	PF_cl_keynumtostring,
 	PF_cl_findkeysforcommand,
+#ifdef CL_MASTER
 	PF_M_gethostcachevalue,
 	PF_M_gethostcachestring,
+#else
+	skip1
+	skip1
+#endif
 	PF_parseentitydata,			//void 	parseentitydata(entity ent, string data) = #613;
 
 	PF_cl_stringtokeynum,
@@ -1668,8 +1673,13 @@ builtin_t menu_builtins[] = {
 	PF_M_gethostcachenumber,
 	PF_M_gethostcacheindexforkey,
 	PF_M_addwantedhostcachekey,
+#ifdef CL_MASTER
 	PF_M_getextresponse,			// #624
 	PF_netaddress_resolve,
+#else
+	skip1
+	skip1
+#endif
 	skip1	/*get gamedir info*/
 	PF_sprintf,	/*sprintf*/
 	skip1	/*not listed in dp*/

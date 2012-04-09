@@ -2513,7 +2513,7 @@ COM_InitFilesystem
 */
 void COM_InitFilesystem (void)
 {
-	FILE *f;
+	vfsfile_t *f;
 	int		i, j;
 
 	char *ev;
@@ -2562,10 +2562,10 @@ void COM_InitFilesystem (void)
 		{
 			if (!gamemode_info[i].auniquefile[j])
 				continue;	//no more
-			f = fopen(va("%s%s", com_quakedir, gamemode_info[i].auniquefile[j]), "rb");
+			f = VFSOS_Open(va("%s%s", com_quakedir, gamemode_info[i].auniquefile[j]), "rb");
 			if (f)
 			{
-				fclose(f);
+				VFS_CLOSE(f);
 				gamenum = i;
 				break;
 			}
@@ -2589,11 +2589,11 @@ void COM_InitFilesystem (void)
 			{
 				if (gamemode_info[gamenum].auniquefile[j])
 				{
-					f = fopen(va("%s%s", com_quakedir, gamemode_info[i].auniquefile[j]), "rb");
+					f = VFSOS_Open(va("%s%s", com_quakedir, gamemode_info[i].auniquefile[j]), "rb");
 					if (f)
 					{
 						//we found it, its all okay
-						fclose(f);
+						VFS_CLOSE(f);
 						break;
 					}
 					if (autobasedir)

@@ -101,7 +101,7 @@ static void MacOS_Submit(soundcardinfo_t *sc)
 {
 }
 
-static void *MacOS_Lock(soundcardinfo_t *sc)
+static void *MacOS_Lock(soundcardinfo_t *sc, unsigned int *sampidx)
 {
 	return sc->sn.buffer;
 }

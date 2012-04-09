@@ -359,6 +359,12 @@ void RMod_ClearAll (void)
 				BE_ClearVBO(&mod->textures[t]->vbo);
 			}
 		}
+#ifdef TERRAIN
+		if (mod->type == mod_heightmap)
+		{
+			HeightMap_Purge(mod);
+		}
+#endif
 
 		if (mod->type != mod_alias
 			&& mod->type != mod_halflife

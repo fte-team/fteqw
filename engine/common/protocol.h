@@ -1014,6 +1014,7 @@ typedef struct q1usercmd_s
 #define Q2RF_ADDITIVE			0x00080000
 #define RF_NOSHADOW				0x00100000
 #define RF_NODEPTHTEST			0x00200000
+#define RF_FORCECOLOURMOD		0x00400000
 
 // player_state_t->refdef flags
 #define	Q2RDF_UNDERWATER		1		// warp the screen as apropriate

@@ -48,8 +48,9 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject 
 }
 
 JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject obj,
-                 jint width, jint height, jstring path)
+                 jint width, jint height, jstring japkpath, jstring jusrpath)
 {
+	char *tmp;
 	vid.pixelwidth = width;
 	vid.pixelheight = height;
 	if (sys_running)
@@ -60,13 +61,14 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 		{
 			"ftedroid",
 			"-basepack",
-			(*env)->GetStringUTFChars(env, path, NULL),
+			NULL,	/*filled in later*/
 			"",
 			""
-			//we should do this somewhere... (*env)->ReleaseStringUTFChars(env, path, parms.basedir);
 		};
 		quakeparms_t parms;
-		parms.basedir = "/sdcard/fte";
+		if (sys_memheap)
+			free(sys_memheap);
+		parms.basedir = NULL;	/*filled in later*/
 		parms.argc = 3;
 		parms.argv = args;
 		parms.memsize = 16*1024*1024;
@@ -77,7 +79,23 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 			return;
 		}
 
-		Sys_Printf("Starting up (%s)\n", args[2]);
+
+		args[2] = parms.membase;
+		tmp = (*env)->GetStringUTFChars(env, japkpath, NULL);
+		strcpy(args[2], tmp);
+		(*env)->ReleaseStringUTFChars(env, japkpath, tmp);
+		parms.membase += strlen(args[2])+1;
+		parms.memsize -= strlen(args[2])+1;
+
+		parms.basedir = parms.membase;
+		tmp = (*env)->GetStringUTFChars(env, jusrpath, NULL);
+		strcpy(parms.basedir, tmp);
+		(*env)->ReleaseStringUTFChars(env, jusrpath, tmp);
+		parms.membase += strlen(parms.basedir)+1;
+		parms.memsize -= strlen(parms.basedir)+1;
+
+
+		Sys_Printf("Starting up (apk=%s, usr=%s)\n", args[2], parms.basedir);
 
 		COM_InitArgv(parms.argc, parms.argv);
 		TL_InitLanguages();

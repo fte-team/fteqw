@@ -3352,7 +3352,6 @@ void COM_Init (void)
 	Cmd_AddCommand ("version", COM_Version_f);	//prints the pak or whatever where this file can be found.
 
 	Cmd_AddCommand ("crashme", (void*)1); //debugging feature, makes it jump to an invalid address
-
 	COM_InitFilesystem ();
 
 	COM_CheckRegistered ();

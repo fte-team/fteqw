@@ -23,6 +23,8 @@ struct sockaddr;
 #include "quakedef.h"
 #include "netinc.h"
 
+
+
 netadr_t	net_local_cl_ipadr;	//still used to match local ui requests (quake/gamespy), and to generate ip reports for q3 servers (which is probably pointless).
 
 netadr_t	net_from;
@@ -61,7 +63,9 @@ void (*pfreeaddrinfo) (struct addrinfo*);
 
 void NET_GetLocalAddress (int socket, netadr_t *out);
 int TCP_OpenListenSocket (int port);
+#ifdef HAVE_IPV4
 extern cvar_t sv_port_ipv4;
+#endif
 #ifdef IPPROTO_IPV6
 int UDP6_OpenSocket (int port, qboolean bcast);
 extern cvar_t sv_port_ipv6;
@@ -101,6 +105,14 @@ int NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
 {
 	switch(a->type)
 	{
+#ifdef HAVE_WEBSOCKCL
+	case NA_WEBSOCKET:
+		memset (s, 0, sizeof(struct sockaddr_websocket));
+		((struct sockaddr_websocket*)s)->sws_family = AF_WEBSOCK;
+		memcpy(((struct sockaddr_websocket*)s)->url, a->address.websocketurl, sizeof(((struct sockaddr_websocket*)s)->url));
+		return sizeof(struct sockaddr_websocket);
+#endif
+#ifdef HAVE_IPV4
 	case NA_BROADCAST_IP:
 		memset (s, 0, sizeof(struct sockaddr_in));
 		((struct sockaddr_in*)s)->sin_family = AF_INET;
@@ -117,6 +129,7 @@ int NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s)
 		*(int *)&((struct sockaddr_in*)s)->sin_addr = *(int *)&a->address.ip;
 		((struct sockaddr_in*)s)->sin_port = a->port;
 		return sizeof(struct sockaddr_in);
+#endif
 #ifdef IPPROTO_IPV6
 	case NA_BROADCAST_IP6:
 		memset (s, 0, sizeof(struct sockaddr_in));
@@ -165,11 +178,20 @@ void SockadrToNetadr (struct sockaddr_qstorage *s, netadr_t *a)
 
 	switch (((struct sockaddr*)s)->sa_family)
 	{
+#ifdef HAVE_WEBSOCKCL
+	case AF_WEBSOCK:
+		a->type = NA_WEBSOCKET;
+		memcpy(a->address.websocketurl, ((struct sockaddr_websocket*)s)->url, sizeof(a->address.websocketurl));
+		a->port = 0;
+		break;
+#endif
+#ifdef HAVE_IPV4
 	case AF_INET:
 		a->type = NA_IP;
 		*(int *)&a->address.ip = ((struct sockaddr_in *)s)->sin_addr.s_addr;
 		a->port = ((struct sockaddr_in *)s)->sin_port;
 		break;
+#endif
 #ifdef IPPROTO_IPV6
 	case AF_INET6:
 		a->type = NA_IPV6;
@@ -203,12 +225,23 @@ qboolean	NET_CompareAdr (netadr_t a, netadr_t b)
 	if (a.type == NA_LOOPBACK)
 		return true;
 
+#ifdef HAVE_WEBSOCKCL
+	if (a.type == NA_WEBSOCKET)
+	{
+		if (!strcmp(a.address.websocketurl, a.address.websocketurl) && a.port == b.port)
+			return true;
+		return false;
+	}
+#endif
+
+#ifdef HAVE_IPV4
 	if (a.type == NA_IP || a.type == NA_BROADCAST_IP || a.type == NA_TCP)
 	{
 		if ((memcmp(a.address.ip, b.address.ip, sizeof(a.address.ip)) == 0) && a.port == b.port)
 			return true;
 		return false;
 	}
+#endif
 
 #ifdef IPPROTO_IPV6
 	if (a.type == NA_IPV6 || a.type == NA_BROADCAST_IP6 || a.type == NA_TCPV6)
@@ -256,12 +289,14 @@ qboolean	NET_CompareBaseAdr (netadr_t a, netadr_t b)
 	if (a.type == NA_LOOPBACK)
 		return true;
 
+#ifdef HAVE_IPV4
 	if (a.type == NA_IP || a.type == NA_TCP)
 	{
 		if ((memcmp(a.address.ip, b.address.ip, sizeof(a.address.ip)) == 0))
 			return true;
 		return false;
 	}
+#endif
 #ifdef IPPROTO_IPV6
 	if (a.type == NA_IPV6 || a.type == NA_BROADCAST_IP6)
 	{
@@ -300,6 +335,7 @@ qboolean NET_AddressSmellsFunny(netadr_t a)
 	//rejects certain blacklisted addresses
 	switch(a.type)
 	{
+#ifdef HAVE_IPV4
 	case NA_BROADCAST_IP:
 	case NA_IP:
 		//reject localhost
@@ -313,6 +349,7 @@ qboolean NET_AddressSmellsFunny(netadr_t a)
 			return true;
 		//not much else I can reject
 		return false;
+#endif
 
 #ifdef IPPROTO_IPV6
 	case NA_BROADCAST_IP6:
@@ -352,6 +389,11 @@ char	*NET_AdrToString (char *s, int len, netadr_t a)
 
 	switch(a.type)
 	{
+#ifdef HAVE_WEBSOCKCL
+	case NA_WEBSOCKET:
+		Q_strncpyz(s, a.address.websocketurl, len);
+		break;
+#endif
 #ifdef TCPCONNECT
 	case NA_TCP:
 		if (len < 7)
@@ -361,6 +403,7 @@ char	*NET_AdrToString (char *s, int len, netadr_t a)
 		len -= 6;
 		//fallthrough
 #endif
+#ifdef HAVE_IPV4
 	case NA_BROADCAST_IP:
 	case NA_IP:
 		if (a.port)
@@ -381,6 +424,7 @@ char	*NET_AdrToString (char *s, int len, netadr_t a)
 				a.address.ip[3]);
 		}
 		break;
+#endif
 #ifdef TCPCONNECT
 	case NA_TCPV6:
 		if (len < 7)
@@ -717,11 +761,16 @@ qboolean	NET_StringToSockaddr (const char *s, struct sockaddr_qstorage *sadr)
 				if (((struct sockaddr_in *)sadr)->sin_family == AF_INET6)
 					break;	//first one should be best...
 				//fallthrough
+#ifdef HAVE_IPV4
 			case AF_INET:
 				memcpy(sadr, pos->ai_addr, pos->ai_addrlen);
 				if (pos->ai_family == AF_INET)
 					goto dblbreak;	//don't try finding any more, this is quake, they probably prefer ip4...
 				break;
+#else
+				memcpy(sadr, pos->ai_addr, pos->ai_addrlen);
+				goto dblbreak;
+#endif
 			}
 		}
 dblbreak:
@@ -732,6 +781,7 @@ dblbreak:
 	else
 #endif
 	{
+#ifdef HAVE_IPV4
 		((struct sockaddr_in *)sadr)->sin_family = AF_INET;
 
 		((struct sockaddr_in *)sadr)->sin_port = 0;
@@ -760,6 +810,9 @@ dblbreak:
 				return false;
 			*(int *)&((struct sockaddr_in *)sadr)->sin_addr = *(int *)h->h_addr_list[0];
 		}
+#else
+		return false;
+#endif
 	}
 
 	return true;
@@ -777,6 +830,37 @@ qboolean	NET_StringToAdr (const char *s, netadr_t *a)
 
 	Con_DPrintf("Resolving address: %s\n", s);
 
+	if (!strcmp (s, "internalserver"))
+	{
+		memset (a, 0, sizeof(*a));
+		a->type = NA_LOOPBACK;
+		return true;
+	}
+
+#ifdef HAVE_WEBSOCKCL
+	if (!strncmp (s, "ws://", 5) || !strncmp (s, "wss://", 6))
+	{
+		memset (a, 0, sizeof(*a));
+		a->type = NA_WEBSOCKET;
+		Q_strncpyz(a->address.websocketurl, s, sizeof(a->address.websocketurl));
+		return true;
+	}
+	else
+	{
+		/*code for convienience - no other protocols work anyway*/
+		static qboolean warned;
+		if (!warned)
+		{
+			Con_Printf("Note: Native client builds can only connect to websocket servers.\n");
+			warned = true;
+		}
+		memset (a, 0, sizeof(*a));
+		a->type = NA_WEBSOCKET;
+		memcpy(a->address.websocketurl, "ws://", 5);
+		Q_strncpyz(a->address.websocketurl+5, s, sizeof(a->address.websocketurl)-5);
+		return true;
+	}
+#endif
 #ifdef TCPCONNECT
 	if (!strncmp (s, "tcp://", 6))
 	{
@@ -827,13 +911,6 @@ qboolean	NET_StringToAdr (const char *s, netadr_t *a)
 		return true;
 	}
 #endif
-
-	if (!strcmp (s, "internalserver"))
-	{
-		memset (a, 0, sizeof(*a));
-		a->type = NA_LOOPBACK;
-		return true;
-	}
 
 	if (!NET_StringToSockaddr (s, &sadr))
 	{
@@ -1371,6 +1448,9 @@ typedef struct ftenet_generic_connection_s {
 	qboolean (*GetPacket)(struct ftenet_generic_connection_s *con);
 	qboolean (*SendPacket)(struct ftenet_generic_connection_s *con, int length, void *data, netadr_t to);
 	void (*Close)(struct ftenet_generic_connection_s *con);
+#ifdef HAVE_PACKET
+	int (*SetReceiveFDSet) (struct ftenet_generic_connection_s *con, fd_set *fdset);	/*set for connections which have multiple sockets (ie: listening tcp connections)*/
+#endif
 
 	netadrtype_t addrtype[FTENET_ADDRTYPES];
 	qboolean islisten;
@@ -1457,8 +1537,10 @@ void FTENET_CloseCollection(ftenet_connections_t *col)
 
 void FTENET_Generic_Close(ftenet_generic_connection_t *con)
 {
+#ifdef HAVE_PACKET
 	if (con->thesocket != INVALID_SOCKET)
 		closesocket(con->thesocket);
+#endif
 	Z_Free(con);
 }
 
@@ -1514,6 +1596,9 @@ ftenet_generic_connection_t *FTENET_Loop_EstablishConnection(qboolean isserver, 
 
 int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *out, int count)
 {
+#ifndef HAVE_PACKET
+	return 0;
+#else
 	struct sockaddr_qstorage	from;
 	int fromsize = sizeof(from);
 	netadr_t adr;
@@ -1608,6 +1693,7 @@ int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *o
 			{
 				h = gethostbyname(adrs);
 				b = 0;
+#ifdef HAVE_IPV4
 				if(h && h->h_addrtype == AF_INET)
 				{
 					for (b = 0; h->h_addr_list[b]; b++)
@@ -1619,8 +1705,9 @@ int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *o
 							*out = adr;
 					}
 				}
-	#ifdef IPPROTO_IPV6
-				else if(h && h->h_addrtype == AF_INET6)
+#endif
+#ifdef IPPROTO_IPV6
+				if(h && h->h_addrtype == AF_INET6)
 				{
 					for (b = 0; h->h_addr_list[b]; b++)
 					{
@@ -1631,7 +1718,7 @@ int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *o
 							*out = adr;
 					}
 				}
-	#endif
+#endif
 
 				if (b == 0)
 				{
@@ -1648,10 +1735,14 @@ int FTENET_Generic_GetLocalAddress(ftenet_generic_connection_t *con, netadr_t *o
 	}
 
 	return idx;
+#endif
 }
 
 qboolean FTENET_Generic_GetPacket(ftenet_generic_connection_t *con)
 {
+#ifndef HAVE_PACKET
+	return false;
+#else
 	struct sockaddr_qstorage	from;
 	int fromlen;
 	int ret;
@@ -1709,10 +1800,14 @@ qboolean FTENET_Generic_GetPacket(ftenet_generic_connection_t *con)
 	}
 
 	return true;
+#endif
 }
 
 qboolean FTENET_Generic_SendPacket(ftenet_generic_connection_t *con, int length, void *data, netadr_t to)
 {
+#ifndef HAVE_PACKET
+	return false;
+#else
 	struct sockaddr_qstorage	addr;
 	int size;
 	int ret;
@@ -1782,6 +1877,7 @@ qboolean FTENET_Generic_SendPacket(ftenet_generic_connection_t *con, int length,
 			Con_TPrintf (TL_NETSENDERROR, ecode);
 	}
 	return true;
+#endif
 }
 
 qboolean	NET_PortToAdr (int adrfamily, const char *s, netadr_t *a)
@@ -1795,22 +1891,28 @@ qboolean	NET_PortToAdr (int adrfamily, const char *s, netadr_t *a)
 	{
 		memset(a, 0, sizeof(*a));
 		a->port = htons((unsigned short)port);
-		if (adrfamily == AF_INET)
+		switch(adrfamily)
+		{
+#ifdef HAVE_IPV4
+		case AF_INET:
 			a->type = NA_IP;
+			return true;
+#endif
 #ifdef IPPROTO_IPV6
-		else if (adrfamily == AF_INET6)
+		case AF_INET6:
 			a->type = NA_IPV6;
+			return true;
 #endif
 #ifdef USEIPX
-		else if (adrfamily == AF_IPX)
+		case AF_IPX:
 			a->type = NA_IPX;
+			return true;
 #endif
-		else
-		{
+		default:
 			a->type = NA_INVALID;
 			return false;
 		}
-		return true;
+		return false;
 	}
 	a->type = NA_INVALID;
 	return false;
@@ -1818,6 +1920,9 @@ qboolean	NET_PortToAdr (int adrfamily, const char *s, netadr_t *a)
 
 ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, int protocol, qboolean isserver, const char *address)
 {
+#ifndef HAVE_PACKET
+	return NULL;
+#else
 	//this is written to support either ipv4 or ipv6, depending on the remote addr.
 	ftenet_generic_connection_t *newcon;
 
@@ -1954,6 +2059,7 @@ ftenet_generic_connection_t *FTENET_Generic_EstablishConnection(int adrfamily, i
 		closesocket(newsocket);
 		return NULL;
 	}
+#endif
 }
 
 #ifdef IPPROTO_IPV6
@@ -1962,10 +2068,12 @@ ftenet_generic_connection_t *FTENET_UDP6_EstablishConnection(qboolean isserver, 
 	return FTENET_Generic_EstablishConnection(AF_INET6, IPPROTO_UDP, isserver, address);
 }
 #endif
+#ifdef HAVE_IPV4
 ftenet_generic_connection_t *FTENET_UDP4_EstablishConnection(qboolean isserver, const char *address)
 {
 	return FTENET_Generic_EstablishConnection(AF_INET, IPPROTO_UDP, isserver, address);
 }
+#endif
 #ifdef USEIPX
 ftenet_generic_connection_t *FTENET_IPX_EstablishConnection(qboolean isserver, const char *address)
 {
@@ -1977,8 +2085,16 @@ ftenet_generic_connection_t *FTENET_IPX_EstablishConnection(qboolean isserver, c
 typedef struct ftenet_tcpconnect_stream_s {
 	int socketnum;
 	int inlen;
-	qboolean waitingforprotocolconfirmation;
-	char inbuffer[1500];
+	int outlen;
+
+	enum
+	{
+		TCPC_UNKNOWN,
+		TCPC_QIZMO,
+		TCPC_WEBSOCKET
+	} clienttype;
+	char inbuffer[3000];
+	char outbuffer[3000];
 	float timeouttime;
 	netadr_t remoteaddr;
 	struct ftenet_tcpconnect_stream_s *next;
@@ -1991,6 +2107,42 @@ typedef struct {
 	ftenet_tcpconnect_stream_t *tcpstreams;
 } ftenet_tcpconnect_connection_t;
 
+void tobase64(unsigned char *out, int outlen, unsigned char *in, int inlen)
+{
+	static tab[64] =
+	{
+		'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P',
+		'Q','R','S','T','U','V','W','X','Y','Z','a','b','c','d','e','f',
+		'g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v',
+		'w','x','y','z','0','1','2','3','4','5','6','7','8','9','+','/'
+	};
+	unsigned int usedbits = 0;
+	unsigned int val = 0;
+	outlen--;
+	while(inlen)
+	{
+		while(usedbits < 24 && inlen)
+		{
+			val <<= 8;
+			val |= (*in++);
+			inlen--;
+			usedbits += 8;
+		}
+		if (outlen < 4)
+			return;
+		val <<= 24 - usedbits;
+
+		*out++ = (usedbits > 0)?tab[(val>>18)&0x3f]:'=';
+		*out++ = (usedbits > 6)?tab[(val>>12)&0x3f]:'=';
+		*out++ = (usedbits > 12)?tab[(val>>6)&0x3f]:'=';
+		*out++ = (usedbits > 18)?tab[(val>>0)&0x3f]:'=';
+		val=0;
+		usedbits = 0;
+	}
+	*out = 0;
+}
+
+int SHA1(char *digest, int maxdigestsize, char *string);
 qboolean FTENET_TCPConnect_GetPacket(ftenet_generic_connection_t *gcon)
 {
 	ftenet_tcpconnect_connection_t *con = (ftenet_tcpconnect_connection_t*)gcon;
@@ -2055,45 +2207,394 @@ closesvstream:
 		}
 		st->inlen += ret;
 
-		if (st->waitingforprotocolconfirmation)
+		switch(st->clienttype)
 		{
+		case TCPC_UNKNOWN:
 			if (st->inlen < 6)
 				continue;
 
-			if (strncmp(st->inbuffer, "qizmo\n", 6))
+			if (!strncmp(st->inbuffer, "qizmo\n", 6))
 			{
-				Con_Printf ("Unknown TCP client\n");
+				memmove(st->inbuffer, st->inbuffer+6, st->inlen - (6));
+				st->inlen -= 6;
+				st->clienttype = TCPC_QIZMO;
+				if (con->generic.islisten)
+				{
+					//send the qizmo handshake response.
+					send(st->socketnum, "qizmo\n", 6, 0);
+				}
+			}
+			else if (con->generic.islisten && !strncmp(st->inbuffer, "GET ", 4))
+			{
+				int i, j;
+				int attr = 0;
+				int alen = 0;
+				qboolean headerscomplete = false;
+				enum
+				{
+					WCATTR_METHOD,
+					WCATTR_URL,
+					WCATTR_HTTP,
+					WCATTR_HOST,
+					WCATTR_UPGRADE,
+					WCATTR_CONNECTION,
+					WCATTR_WSKEY,
+					WCATTR_WSVER,
+					//WCATTR_ORIGIN,
+					WCATTR_WSPROTO,
+					//WCATTR_WSEXT,
+					WCATTR_COUNT
+				};
+				char arg[WCATTR_COUNT][64];
+				for (i = 0; i < WCATTR_COUNT; i++)
+					arg[i][0] = 0;
+				for (i = 0; i < st->inlen; i++)
+				{
+					if (alen == 63)
+						goto handshakeerror;
+					if (st->inbuffer[i] == ' ' || st->inbuffer[i] == '\t')
+					{
+						arg[attr][alen++] = 0;
+						alen=0;
+						if (attr++ == WCATTR_HTTP)
+							break;
+
+						for (; i < st->inlen && (st->inbuffer[i] == ' ' || st->inbuffer[i] == '\t'); i++)
+							;
+						if (i == st->inlen)
+							break;
+					}
+					arg[attr][alen++] = st->inbuffer[i];
+					if (st->inbuffer[i] == '\n')
+					{
+						arg[attr][alen++] = 0;
+						alen=0;
+						break;
+					}
+				}
+				i++;
+				attr = 0;
+				j = i;
+				for (; i < st->inlen; i++)
+				{
+					if ((i+1 < st->inlen && st->inbuffer[i] == '\r' && st->inbuffer[i+1] == '\n') ||
+						(i < st->inlen && st->inbuffer[i] == '\n'))
+					{
+						i+=2;
+						headerscomplete = true;
+						break;
+					}
+
+					for (; i < st->inlen && (st->inbuffer[i] == ' ' || st->inbuffer[i] == '\t'); i++)
+						;
+					if (i == st->inlen)
+						break;
+
+					for (j = i; j < st->inlen; j++)
+					{
+						if (st->inbuffer[j] == ':' || st->inbuffer[j] == '\n')
+						{
+							/*set j to the end of the word, going back past whitespace*/
+							while (j > i && (st->inbuffer[j-1] == ' ' || st->inbuffer[i-1] == '\t'))
+								j--;
+							break;
+						}
+					}
+					if (!strnicmp(&st->inbuffer[i], "Host", j-i))
+						attr = WCATTR_HOST;
+					else if (!strnicmp(&st->inbuffer[i], "Upgrade", j-i))
+						attr = WCATTR_UPGRADE;
+					else if (!strnicmp(&st->inbuffer[i], "Connection", j-i))
+						attr = WCATTR_CONNECTION;
+					else if (!strnicmp(&st->inbuffer[i], "Sec-WebSocket-Key", j-i))
+						attr = WCATTR_WSKEY;
+					else if (!strnicmp(&st->inbuffer[i], "Sec-WebSocket-Version", j-i))
+						attr = WCATTR_WSVER;
+//					else if (!strnicmp(&st->inbuffer[i], "Origin", j-i))
+//						attr = WCATTR_ORIGIN;
+					else if (!strnicmp(&st->inbuffer[i], "Sec-WebSocket-Protocol", j-i))
+						attr = WCATTR_WSPROTO;
+//					else if (!strnicmp(&st->inbuffer[i], "Sec-WebSocket-Extensions", j-i))
+//						attr = WCATTR_WSEXT;
+					else
+						attr = 0;
+
+					i = j;
+					/*skip over the whitespace at the end*/
+					for (; i < st->inlen && (st->inbuffer[i] == ' ' || st->inbuffer[i] == '\t'); i++)
+						;
+					if (i < st->inlen && st->inbuffer[i] == ':')
+					{
+						i++;
+						for (; i < st->inlen && (st->inbuffer[i] == ' ' || st->inbuffer[i] == '\t'); i++)
+							;
+						j = i;
+
+						for (; i < st->inlen && st->inbuffer[i] != '\n'; i++)
+							;
+						if (i > j && st->inbuffer[i-1] == '\r')
+							i--;
+						if (attr)
+							Q_strncpyz(arg[attr], &st->inbuffer[j], (i-j > 63)?64:(i - j + 1));
+						if (i < st->inlen && st->inbuffer[i] == '\r')
+							i++;
+					}
+					else
+					{
+						/*just a word on the line on its own*/
+						goto handshakeerror;
+					}
+				}
+
+				if (headerscomplete)
+				{
+					char *resp;
+					//must be a Host, Upgrade=websocket, Connection=Upgrade, Sec-WebSocket-Key=base64(randbytes(16)), Sec-WebSocket-Version=13
+					//optionally will be Origin=url, Sec-WebSocket-Protocol=FTEWebSocket, Sec-WebSocket-Extensions
+					//other fields will be ignored.
+
+					//FIXME: reply with 426 Upgrade Required if wsversion is not supported
+
+					if (!stricmp(arg[WCATTR_UPGRADE], "websocket") && !stricmp(arg[WCATTR_CONNECTION], "Upgrade"))
+					{
+						if (atoi(arg[WCATTR_WSVER]) != 13)
+						{
+							memmove(st->inbuffer, st->inbuffer+i, st->inlen - (i));
+							st->inlen -= i;
+							resp = va(	"HTTP/1.1 426 Upgrade Required\r\n"
+										"Sec-WebSocket-Version: 13\r\n"
+										"\r\n");
+							//send the websocket handshake rejection.
+							send(st->socketnum, resp, strlen(resp), 0);
+
+							goto closesvstream;
+						}
+						else
+						{
+							char acceptkey[20*2];
+							unsigned char sha1digest[20];
+							memmove(st->inbuffer, st->inbuffer+i, st->inlen - (i));
+							st->inlen -= i;
+
+							tobase64(acceptkey, sizeof(acceptkey), sha1digest, SHA1(sha1digest, sizeof(sha1digest), va("%s258EAFA5-E914-47DA-95CA-C5AB0DC85B11", arg[WCATTR_WSKEY])));
+
+							resp = va(	"HTTP/1.1 101 Switching Protocols\r\n"
+										"Upgrade: websocket\r\n"
+										"Connection: Upgrade\r\n"
+										"Sec-WebSocket-Accept: %s\r\n"
+//										"Sec-WebSocket-Protocol: FTEWebSocket\r\n"
+										"\r\n", acceptkey);
+							//send the websocket handshake response.
+							send(st->socketnum, resp, strlen(resp), 0);
+
+							//and the connection is okay
+							st->clienttype = TCPC_WEBSOCKET;
+						}
+					}
+					else
+					{
+						memmove(st->inbuffer, st->inbuffer+i, st->inlen - (i));
+						st->inlen -= i;
+						resp = va(	"HTTP/1.1 426 Upgrade Required\r\n"
+									"Sec-WebSocket-Version: 13\r\n"
+									"\r\n");
+						//send the websocket handshake rejection.
+						send(st->socketnum, resp, strlen(resp), 0);
+
+						goto closesvstream;
+					}
+				}
+			}
+			else
+			{
+handshakeerror:
+				Con_Printf ("Unknown TCP handshake from %s\n", NET_AdrToString (adr, sizeof(adr), net_from));
 				goto closesvstream;
 			}
 
-			memmove(st->inbuffer, st->inbuffer+6, st->inlen - (6));
-			st->inlen -= 6;
-			st->waitingforprotocolconfirmation = false;
+			break;
+		case TCPC_QIZMO:
+			if (st->inlen < 2)
+				continue;
+
+			net_message.cursize = BigShort(*(short*)st->inbuffer);
+			if (net_message.cursize >= sizeof(net_message_buffer) )
+			{
+				Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), net_from));
+				goto closesvstream;
+			}
+			if (net_message.cursize+2 > st->inlen)
+			{	//not enough buffered to read a packet out of it.
+				continue;
+			}
+
+			memcpy(net_message_buffer, st->inbuffer+2, net_message.cursize);
+			memmove(st->inbuffer, st->inbuffer+net_message.cursize+2, st->inlen - (net_message.cursize+2));
+			st->inlen -= net_message.cursize+2;
+
+			net_message.packing = SZ_RAWBYTES;
+			net_message.currentbit = 0;
+			net_from = st->remoteaddr;
+
+			return true;
+		case TCPC_WEBSOCKET:
+			while (st->inlen >= 2)
+			{
+				unsigned short ctrl = ((unsigned char*)st->inbuffer)[0]<<8 | ((unsigned char*)st->inbuffer)[1];
+				unsigned long paylen;
+				unsigned int payoffs = 2;
+				unsigned int mask = 0;
+				st->inbuffer[st->inlen]=0;
+				if ((ctrl & 0x7f) == 127)
+				{
+					//as a payload is not allowed to be encoded as too large a type, and quakeworld never used packets larger than 1450 bytes anyway, this code isn't needed (65k is the max even without this)
+//					if (sizeof(paylen) < 8)
+					{
+						Con_Printf ("%s: payload frame too large\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+						goto closesvstream; 
+					}
+/*					else
+					{
+						if (payoffs + 8 > st->inlen)
+							break;
+						paylen = 
+							((unsigned char*)st->inbuffer)[payoffs+0]<<56 |
+							((unsigned char*)st->inbuffer)[payoffs+1]<<48 |
+							((unsigned char*)st->inbuffer)[payoffs+2]<<40 |
+							((unsigned char*)st->inbuffer)[payoffs+3]<<32 |
+							((unsigned char*)st->inbuffer)[payoffs+4]<<24 |
+							((unsigned char*)st->inbuffer)[payoffs+5]<<16 |
+							((unsigned char*)st->inbuffer)[payoffs+6]<<8 |
+							((unsigned char*)st->inbuffer)[payoffs+7]<<0;
+						if (paylen < 0x10000)
+						{
+							Con_Printf ("%s: payload size encoded badly\n", NET_AdrToString (st->remoteaddr, sizeof(st->remoteaddr), net_from));
+							goto closesvstream; 
+						}
+						payoffs += 8;
+					}
+*/				}
+				else if ((ctrl & 0x7f) == 126)
+				{
+					if (payoffs + 2 > st->inlen)
+						break;
+					paylen = 
+						((unsigned char*)st->inbuffer)[payoffs+0]<<8 |
+						((unsigned char*)st->inbuffer)[payoffs+1]<<0;
+					if (paylen < 126)
+					{
+						Con_Printf ("%s: payload size encoded badly\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+						goto closesvstream; 
+					}
+					payoffs += 2;
+				}
+				else
+				{
+					paylen = ctrl & 0x7f;
+				}
+				if (ctrl & 0x80)
+				{
+					if (payoffs + 4 > st->inlen)
+						break;
+					/*this might read data that isn't set yet, but should be safe*/
+					((unsigned char*)&mask)[0] = ((unsigned char*)st->inbuffer)[payoffs+0];
+					((unsigned char*)&mask)[1] = ((unsigned char*)st->inbuffer)[payoffs+1];
+					((unsigned char*)&mask)[2] = ((unsigned char*)st->inbuffer)[payoffs+2];
+					((unsigned char*)&mask)[3] = ((unsigned char*)st->inbuffer)[payoffs+3];
+					payoffs += 4;
+				}
+				/*if there isn't space, try again next time around*/
+				if (payoffs + paylen > st->inlen)
+					break;
+
+				if (mask)
+				{
+					int i;
+					for (i = 0; i < paylen; i++)
+					{
+						((unsigned char*)st->inbuffer)[i + payoffs] ^= ((unsigned char*)&mask)[i&3];
+					}
+				}
+
+				net_message.cursize = 0;
+
+				switch((ctrl>>8) & 0xf)
+				{
+				case 0:	/*continuation*/
+					Con_Printf ("websocket continuation frame from %s\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+					goto closesvstream;
+				case 1:	/*text frame*/
+//					Con_Printf ("websocket text frame from %s\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+					{
+						/*text frames are pure utf-8 chars, no dodgy encodings or anything, all pre-checked...
+						  except we're trying to send binary data.
+						  so we need to unmask things (char 0 is encoded as 0x100 - truncate it)
+						*/
+						unsigned char *in = st->inbuffer+payoffs, *out = net_message_buffer;
+						int len = paylen;
+						while(len && out < net_message_buffer + sizeof(net_message_buffer))
+						{
+							if ((*in & 0xe0)==0xc0 && len > 1)
+							{
+								*out = ((in[0] & 0x1f)<<6) | ((in[1] & 0x3f)<<0);
+								in+=2;
+								len -= 2;
+							}
+							else if (*in & 0x80)
+							{
+								*out = '?';
+								in++;
+								len -= 1;
+							}
+							else
+							{
+								*out = in[0];
+								in++;
+								len -= 1;
+							}
+							out++;
+						}
+						net_message.cursize = out - net_message_buffer;
+					}
+					break;
+				case 2: /*binary frame*/
+					Con_Printf ("websocket binary frame from %s\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+					net_message.cursize = paylen;
+					if (net_message.cursize >= sizeof(net_message_buffer) )
+					{
+						Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), net_from));
+						goto closesvstream;
+					}
+					memcpy(net_message_buffer, st->inbuffer+payoffs, paylen);
+					break;
+				case 8:	/*connection close*/
+					Con_Printf ("websocket closure %s\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+					goto closesvstream;
+				case 9:	/*ping*/
+					Con_Printf ("websocket ping from %s\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+					goto closesvstream;
+				case 10: /*pong*/
+					Con_Printf ("websocket pong from %s\n", NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+					goto closesvstream;
+				default:
+					Con_Printf ("Unsupported websocket opcode (%i) from %s\n", (ctrl>>8) & 0xf, NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
+					goto closesvstream;
+				}
+
+//				memcpy(net_message_buffer, st->inbuffer+2, net_message.cursize);
+				memmove(st->inbuffer, st->inbuffer+payoffs + paylen, st->inlen - (payoffs + paylen));
+				st->inlen -= payoffs + paylen;
+
+				if (net_message.cursize)
+				{
+					net_message.packing = SZ_RAWBYTES;
+					net_message.currentbit = 0;
+					net_from = st->remoteaddr;
+					return true;
+				}
+			}
+			break;
 		}
-
-		if (st->inlen < 2)
-			continue;
-
-		net_message.cursize = BigShort(*(short*)st->inbuffer);
-		if (net_message.cursize >= sizeof(net_message_buffer) )
-		{
-			Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), net_from));
-			goto closesvstream;
-		}
-		if (net_message.cursize+2 > st->inlen)
-		{	//not enough buffered to read a packet out of it.
-			continue;
-		}
-
-		memcpy(net_message_buffer, st->inbuffer+2, net_message.cursize);
-		memmove(st->inbuffer, st->inbuffer+net_message.cursize+2, st->inlen - (net_message.cursize+2));
-		st->inlen -= net_message.cursize+2;
-
-		net_message.packing = SZ_RAWBYTES;
-		net_message.currentbit = 0;
-		net_from = st->remoteaddr;
-
-		return true;
 	}
 
 	if (con->generic.thesocket != INVALID_SOCKET && con->active < 256)
@@ -2109,7 +2610,7 @@ closesvstream:
 
 			con->active++;
 			st = Z_Malloc(sizeof(*con->tcpstreams));
-			st->waitingforprotocolconfirmation = true;
+			st->clienttype = TCPC_UNKNOWN;
 			st->next = con->tcpstreams;
 			con->tcpstreams = st;
 			st->socketnum = newsock;
@@ -2122,9 +2623,6 @@ closesvstream:
 				st->remoteaddr.type = NA_TCP;
 			else if (st->remoteaddr.type == NA_IPV6)
 				st->remoteaddr.type = NA_TCPV6;
-
-			//send the qizmo greeting.
-			send(newsock, "qizmo\n", 6, 0);
 
 			st->timeouttime = timeval + 30;
 		}
@@ -2144,10 +2642,80 @@ qboolean FTENET_TCPConnect_SendPacket(ftenet_generic_connection_t *gcon, int len
 
 		if (NET_CompareAdr(to, st->remoteaddr))
 		{
-			unsigned short slen = BigShort((unsigned short)length);
-#pragma warningmsg("TCPConnect: these calls can fail, corrupting the message stream")
-			send(st->socketnum, (char*)&slen, sizeof(slen), 0);
-			send(st->socketnum, data, length, 0);
+			if (!st->outlen)
+			{
+				switch(st->clienttype)
+				{
+				case TCPC_QIZMO:
+					{
+						unsigned short slen = BigShort((unsigned short)length);
+	#pragma warningmsg("TCPConnect: these calls can fail half way through the write, corrupting the message stream")
+						send(st->socketnum, (char*)&slen, sizeof(slen), 0);
+						send(st->socketnum, data, length, 0);
+					}
+					break;
+				case TCPC_WEBSOCKET:
+					{
+						/*as a server, we don't need the mask stuff*/
+						unsigned short ctrl = 0x8100;
+						unsigned int paylen = 0;
+						unsigned int payoffs = 2;
+						int i;
+						for (i = 0; i < length; i++)
+						{
+							paylen += (((char*)data)[i] == 0 || ((unsigned char*)data)[i] >= 0x80)?2:1;
+						}
+						if (paylen >= 126)
+						{
+							ctrl |= 126;
+							payoffs += 2;
+						}
+						else
+							ctrl |= paylen;
+
+						st->outbuffer[0] = ctrl>>8;
+						st->outbuffer[1] = ctrl&0xff;
+						if (paylen >= 126)
+						{
+							st->outbuffer[2] = paylen>>8;
+							st->outbuffer[3] = paylen&0xff;
+						}
+						/*utf8ify the data*/
+						for (i = 0; i < length; i++)
+						{
+							if (!((unsigned char*)data)[i])
+							{	/*0 is encoded as 0x100 to avoid safety checks*/
+								st->outbuffer[payoffs++] = 0xc0 | (0x100>>6);
+								st->outbuffer[payoffs++] = 0x80 | (0x100&0x3f);
+							}
+							else if (((unsigned char*)data)[i] >= 0x80)
+							{	/*larger bytes require markup*/
+								st->outbuffer[payoffs++] = 0xc0 | (((unsigned char*)data)[i]>>6);
+								st->outbuffer[payoffs++] = 0x80 | (((unsigned char*)data)[i]&0x3f);
+							}
+							else
+							{	/*lower 7 bits are as-is*/
+								st->outbuffer[payoffs++] = ((char*)data)[i];
+							}
+						}
+						st->outlen = payoffs;
+					}
+					break;
+				default:
+					break;
+				}
+			}
+
+			if (st->outlen)
+			{	/*try and flush the old data*/
+				int done;
+				done = send(st->socketnum, st->outbuffer, st->outlen, 0);
+				if (done > 0)
+				{
+					memmove(st->outbuffer, st->outbuffer + done, st->outlen - done);
+					st->outlen -= done;
+				}
+			}
 
 			st->timeouttime = Sys_DoubleTime() + 20;
 
@@ -2175,6 +2743,29 @@ void FTENET_TCPConnect_Close(ftenet_generic_connection_t *gcon)
 	}
 
 	FTENET_Generic_Close(gcon);
+}
+
+int FTENET_TCPConnect_SetReceiveFDSet(ftenet_generic_connection_t *gcon, fd_set *fdset)
+{
+	int maxfd = 0;
+	ftenet_tcpconnect_connection_t *con = (ftenet_tcpconnect_connection_t*)gcon;
+	ftenet_tcpconnect_stream_t *st;
+
+	for (st = con->tcpstreams; st; st = st->next)
+	{
+		if (st->socketnum == INVALID_SOCKET)
+			continue;
+		FD_SET(st->socketnum, fdset); // network socket
+		if (maxfd < st->socketnum)
+			maxfd = st->socketnum;
+	}
+	if (con->generic.thesocket != INVALID_SOCKET)
+	{
+		FD_SET(con->generic.thesocket, fdset); // network socket
+		if (maxfd < con->generic.thesocket)
+			maxfd = con->generic.thesocket;
+	}
+	return maxfd;
 }
 
 ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily, qboolean isserver, const char *address)
@@ -2244,6 +2835,7 @@ ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily,
 		newcon->generic.GetPacket = FTENET_TCPConnect_GetPacket;
 		newcon->generic.SendPacket = FTENET_TCPConnect_SendPacket;
 		newcon->generic.Close = FTENET_TCPConnect_Close;
+		newcon->generic.SetReceiveFDSet = FTENET_TCPConnect_SetReceiveFDSet;
 
 		newcon->generic.islisten = isserver;
 		newcon->generic.addrtype[0] = adr.type;
@@ -2257,7 +2849,7 @@ ftenet_generic_connection_t *FTENET_TCPConnect_EstablishConnection(int affamily,
 
 			newcon->active++;
 			newcon->tcpstreams = Z_Malloc(sizeof(*newcon->tcpstreams));
-			newcon->tcpstreams->waitingforprotocolconfirmation = true;
+			newcon->tcpstreams->clienttype = TCPC_UNKNOWN;
 			newcon->tcpstreams->next = NULL;
 			newcon->tcpstreams->socketnum = newsocket;
 			newcon->tcpstreams->inlen = 0;
@@ -2875,6 +3467,222 @@ struct ftenet_generic_connection_s *FTENET_IRCConnect_EstablishConnection(qboole
 
 #endif
 
+#ifdef HAVE_WEBSOCKCL
+#include <ppapi/c/pp_errors.h>
+#include <ppapi/c/pp_resource.h>
+#include <ppapi/c/ppb_core.h>
+#include <ppapi/c/ppb_websocket.h>
+#include <ppapi/c/ppb_var.h>
+#include <ppapi/c/ppb_instance.h>
+extern PPB_Core *ppb_core;
+extern PPB_WebSocket *ppb_websocket_interface;
+extern PPB_Var *ppb_var_interface;
+extern PP_Instance pp_instance;
+
+typedef struct
+{
+	ftenet_generic_connection_t generic;
+
+	PP_Resource sock;
+	netadr_t remoteadr;
+
+	qboolean havepacket;
+	struct PP_Var incomingpacket;
+
+	qboolean failed;
+} ftenet_websocket_connection_t;
+
+static void websocketgot(void *user_data, int32_t result)
+{
+	ftenet_websocket_connection_t *wsc = user_data;
+	if (result == PP_OK)
+	{
+		wsc->havepacket = true;
+	}
+	else
+	{
+		Sys_Printf("%s: %i\n", __func__, result);
+		wsc->failed = true;
+	}
+}
+static void websocketconnected(void *user_data, int32_t result)
+{
+	ftenet_websocket_connection_t *wsc = user_data;
+	if (result == PP_OK)
+	{
+		int res;
+		//we got a successful connection, enable reception.
+		struct PP_CompletionCallback ccb = {websocketgot, wsc, PP_COMPLETIONCALLBACK_FLAG_OPTIONAL};
+		res = ppb_websocket_interface->ReceiveMessage(wsc->sock, &wsc->incomingpacket, ccb);
+		if (res != PP_OK_COMPLETIONPENDING)
+			websocketgot(wsc, res);
+	}
+	else
+	{
+		Sys_Printf("%s: %i\n", __func__, result);
+		//some sort of error connecting, make it timeout now
+		wsc->failed = true;
+	}
+}
+static void websocketclosed(void *user_data, int32_t result)
+{
+	ftenet_websocket_connection_t *wsc = user_data;
+	if (wsc->havepacket)
+	{
+		wsc->havepacket = false;
+		ppb_var_interface->Release(wsc->incomingpacket);
+	}
+	ppb_core->ReleaseResource(wsc->sock);
+//	Z_Free(wsc);
+}
+
+static void FTENET_WebSocket_Close(ftenet_generic_connection_t *gcon)
+{
+	int res;
+	/*meant to free the memory too, in this case we get the callback to do it*/
+	ftenet_websocket_connection_t *wsc = (void*)gcon;
+
+	struct PP_CompletionCallback ccb = {websocketclosed, wsc, PP_COMPLETIONCALLBACK_FLAG_NONE};
+	ppb_websocket_interface->Close(wsc->sock, PP_WEBSOCKETSTATUSCODE_NORMAL_CLOSURE, PP_MakeUndefined(), ccb);
+}
+
+static qboolean FTENET_WebSocket_GetPacket(ftenet_generic_connection_t *gcon)
+{
+	ftenet_websocket_connection_t *wsc = (void*)gcon;
+	int res;
+	int len = 0;
+	if (wsc->havepacket)
+	{
+		unsigned char *utf8 = (unsigned char *)ppb_var_interface->VarToUtf8(wsc->incomingpacket, &len);
+		unsigned char *out = (unsigned char *)net_message_buffer;
+
+		wsc->havepacket = false;
+		memcpy(&net_from, &wsc->remoteadr, sizeof(net_from));
+
+		while(len && out < net_message_buffer + sizeof(net_message_buffer))
+		{
+			if ((*utf8 & 0xe0)==0xc0 && len > 1)
+			{
+				*out = ((utf8[0] & 0x1f)<<6) | ((utf8[1] & 0x3f)<<0);
+				utf8+=2;
+				len -= 2;
+			}
+			else if (*utf8 & 0x80)
+			{
+				*out = '?';
+				utf8++;
+				len -= 1;
+			}
+			else
+			{
+				*out = utf8[0];
+				utf8++;
+				len -= 1;
+			}
+			out++;
+		}
+		net_message.cursize = out - net_message_buffer;
+
+		ppb_var_interface->Release(wsc->incomingpacket);
+
+		if (!wsc->failed)
+		{
+			//get the next one
+			struct PP_CompletionCallback ccb = {websocketgot, wsc, PP_COMPLETIONCALLBACK_FLAG_OPTIONAL};
+			res = ppb_websocket_interface->ReceiveMessage(wsc->sock, &wsc->incomingpacket, ccb);
+			if (res != PP_OK_COMPLETIONPENDING)
+				websocketgot(wsc, res);
+		}
+
+		if (len)
+		{
+			char adr[64];
+			Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), net_from));
+			return false;
+		}
+		return true;
+	}
+	return false;
+}
+static qboolean FTENET_WebSocket_SendPacket(ftenet_generic_connection_t *gcon, int length, void *data, netadr_t to)
+{
+	ftenet_websocket_connection_t *wsc = (void*)gcon;
+	int res;
+	int outchars = 0;
+	unsigned char outdata[length*2+1];
+	unsigned char *out=outdata, *in=data;
+	if (wsc->failed)
+		return false;
+
+	while(length-->0)
+	{
+		/*FIXME: do we need this code?*/
+		if (!*in)
+		{
+			*out++ = 0xc0 | (0x100 >> 6);
+			*out++ = 0x80 | (0x100 & 0x3f);
+		}
+		else if (*in >= 0x80)
+		{
+			*out++ = 0xc0 | (*in >> 6);
+			*out++ = 0x80 | (*in & 0x3f);
+		}
+		else
+			*out++ = *in;
+		in++;
+		outchars++;
+	}
+	*out = 0;
+	struct PP_Var str = ppb_var_interface->VarFromUtf8(outdata, out - outdata);
+	res = ppb_websocket_interface->SendMessage(wsc->sock, str);
+//	Sys_Printf("FTENET_WebSocket_SendPacket: result %i\n", res);
+	ppb_var_interface->Release(str);
+	return true;
+}
+
+/*nacl websockets implementation...*/
+static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(qboolean isserver, const char *address)
+{
+	ftenet_websocket_connection_t *newcon;
+
+	netadr_t adr;
+	PP_Resource newsocket;
+
+	if (isserver || !ppb_websocket_interface)
+	{
+		return NULL;
+	}
+	if (!NET_StringToAdr(address, &adr))
+		return NULL;	//couldn't resolve the name
+	newcon = Z_Malloc(sizeof(*newcon));
+	if (newcon)
+	{
+		struct PP_CompletionCallback ccb = {websocketconnected, newcon, PP_COMPLETIONCALLBACK_FLAG_NONE};
+		newsocket = ppb_websocket_interface->Create(pp_instance);
+		struct PP_Var str = ppb_var_interface->VarFromUtf8(adr.address.websocketurl, strlen(adr.address.websocketurl));
+		ppb_websocket_interface->Connect(newsocket, str, NULL, 0, ccb);
+		ppb_var_interface->Release(str);
+		newcon->generic.name = "WebSocket";
+		newcon->generic.GetPacket = FTENET_WebSocket_GetPacket;
+		newcon->generic.SendPacket = FTENET_WebSocket_SendPacket;
+		newcon->generic.Close = FTENET_WebSocket_Close;
+
+		newcon->generic.islisten = isserver;
+		newcon->generic.addrtype[0] = NA_WEBSOCKET;
+		newcon->generic.addrtype[1] = NA_INVALID;
+
+		newcon->generic.thesocket = INVALID_SOCKET;
+		newcon->sock = newsocket;
+
+		newcon->remoteadr = adr;
+
+		return &newcon->generic;
+	}
+	return NULL;
+}
+#endif
+
+
 /*firstsock is a cookie*/
 int NET_GetPacket (netsrc_t netsrc, int firstsock)
 {
@@ -2986,16 +3794,23 @@ void NET_SendPacket (netsrc_t netsrc, int length, void *data, netadr_t to)
 			return;
 	}
 
-	Con_Printf("No route to %s - open some ports\n", NET_AdrToString(buffer, sizeof(buffer), to));
+	Con_Printf("No route to %s - try reconnecting\n", NET_AdrToString(buffer, sizeof(buffer), to));
 }
 
 qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char *host, qboolean islisten)
 {
 	netadr_t adr;
+
 	NET_StringToAdr(host, &adr);
 
 	switch(adr.type)
 	{
+#ifdef HAVE_WEBSOCKCL
+	case NA_WEBSOCKET:
+		if (!FTENET_AddToCollection(collection, routename, host, FTENET_WebSocket_EstablishConnection, islisten))
+			return false;
+		break;
+#endif
 #ifdef TCPCONNECT
 	case NA_TCP:
 		if (!FTENET_AddToCollection(collection, routename, host, FTENET_TCP4Connect_EstablishConnection, islisten))
@@ -3051,6 +3866,9 @@ void NET_PrintAddresses(ftenet_connections_t *collection)
 
 int TCP_OpenStream (netadr_t remoteaddr)
 {
+#ifndef HAVE_TCP
+	return INVALID_SOCKET;
+#else
 	unsigned long _true = true;
 	int newsocket;
 	int temp;
@@ -3077,10 +3895,14 @@ int TCP_OpenStream (netadr_t remoteaddr)
 
 
 	return newsocket;
+#endif
 }
 
 int TCP_OpenListenSocket (int port)
 {
+#ifndef HAVE_TCP
+	return INVALID_SOCKET;
+#else
 	int newsocket;
 	struct sockaddr_in address;
 	unsigned long _true = true;
@@ -3137,10 +3959,11 @@ int maxport = port + 100;
 	}
 
 	return newsocket;
+#endif
 }
 
 
-
+#if defined(SV_MASTER) || defined(CL_MASTER)
 int UDP_OpenSocket (int port, qboolean bcast)
 {
 	SOCKET newsocket;
@@ -3338,6 +4161,7 @@ void IPX_CloseSocket (int socket)
 	closesocket(socket);
 #endif
 }
+#endif
 
 // sleeps msec or until net socket is ready
 //stdin can sometimes be a socket. As a result,
@@ -3345,6 +4169,7 @@ void IPX_CloseSocket (int socket)
 #ifndef CLIENTONLY
 qboolean NET_Sleep(int msec, qboolean stdinissocket)
 {
+#ifdef HAVE_PACKET
     struct timeval timeout;
 	fd_set	fdset;
 	int maxfd;
@@ -3361,12 +4186,21 @@ qboolean NET_Sleep(int msec, qboolean stdinissocket)
 	{
 		if (!svs.sockets->conn[con])
 			continue;
-		sock = svs.sockets->conn[con]->thesocket;
-		if (sock != INVALID_SOCKET)
+		if (svs.sockets->conn[con]->SetReceiveFDSet)
 		{
-			FD_SET(sock, &fdset); // network socket
+			sock = svs.sockets->conn[con]->SetReceiveFDSet(svs.sockets->conn[con], &fdset);
 			if (sock > maxfd)
 				maxfd = sock;
+		}
+		else
+		{
+			sock = svs.sockets->conn[con]->thesocket;
+			if (sock != INVALID_SOCKET)
+			{
+				FD_SET(sock, &fdset); // network socket
+				if (sock > maxfd)
+					maxfd = sock;
+			}
 		}
 	}
 
@@ -3376,12 +4210,16 @@ qboolean NET_Sleep(int msec, qboolean stdinissocket)
 
 	if (stdinissocket)
 		return FD_ISSET(0, &fdset);
+#endif
 	return true;
 }
 #endif
 
 void NET_GetLocalAddress (int socket, netadr_t *out)
 {
+#ifndef HAVE_PACKET
+	out->type = NA_INVALID;
+#else
 	char	buff[512];
 	char	adrbuf[MAX_ADR_SIZE];
 	struct sockaddr_qstorage	address;
@@ -3416,6 +4254,7 @@ void NET_GetLocalAddress (int socket, netadr_t *out)
 		Con_Printf("Couldn't detect local ip\n");
 	else
 		Con_TPrintf(TL_IPADDRESSIS, NET_AdrToString (adrbuf, sizeof(adrbuf), *out) );
+#endif
 }
 
 #ifndef CLIENTONLY
@@ -3433,13 +4272,19 @@ void SVNET_AddPort_f(void)
 #endif
 	}
 
+#ifdef HAVE_IPV4
 	NET_PortToAdr(AF_INET, s, &adr);
+#else
+	adr.type = NA_INVALID;
+#endif
 
 	switch(adr.type)
 	{
+#ifdef HAVE_IPV4
 	case NA_IP:
 		FTENET_AddToCollection(svs.sockets, NULL, s, FTENET_UDP4_EstablishConnection, true);
 		break;
+#endif
 #ifdef IPPROTO_IPV6
 	case NA_IPV6:
 		FTENET_AddToCollection(svs.sockets, NULL, s, FTENET_UDP6_EstablishConnection, true);
@@ -3541,7 +4386,9 @@ void NET_InitClient(void)
 #ifndef CLIENTONLY
 	FTENET_AddToCollection(cls.sockets, "CLLoopback", port, FTENET_Loop_EstablishConnection, false);
 #endif
+#ifdef HAVE_IPV4
 	FTENET_AddToCollection(cls.sockets, "CLUDP4", port, FTENET_UDP4_EstablishConnection, true);
+#endif
 #ifdef IPPROTO_IPV6
 	FTENET_AddToCollection(cls.sockets, "CLUDP6", port, FTENET_UDP6_EstablishConnection, true);
 #endif
@@ -3563,10 +4410,12 @@ void NET_InitClient(void)
 
 
 #ifndef CLIENTONLY
+#ifdef HAVE_IPV4
 void SV_Tcpport_Callback(struct cvar_s *var, char *oldvalue)
 {
 	FTENET_AddToCollection(svs.sockets, "SVTCP4", var->string, FTENET_TCP4Connect_EstablishConnection, true);
 }
+#endif
 #ifdef IPPROTO_IPV6
 void SV_Tcpport6_Callback(struct cvar_s *var, char *oldvalue)
 {
@@ -3574,10 +4423,12 @@ void SV_Tcpport6_Callback(struct cvar_s *var, char *oldvalue)
 }
 #endif
 
+#ifdef HAVE_IPV4
 void SV_Port_Callback(struct cvar_s *var, char *oldvalue)
 {
 	FTENET_AddToCollection(svs.sockets, "SVUDP4", var->string, FTENET_UDP4_EstablishConnection, true);
 }
+#endif
 #ifdef IPPROTO_IPV6
 void SV_PortIPv6_Callback(struct cvar_s *var, char *oldvalue)
 {
@@ -3617,7 +4468,9 @@ void NET_InitServer(void)
 
 		allowconnects = true;
 
+#ifdef HAVE_IPV4
 		Cvar_ForceCallback(&sv_port_ipv4);
+#endif
 #ifdef IPPROTO_IPV6
 		Cvar_ForceCallback(&sv_port_ipv6);
 #endif
@@ -3678,8 +4531,7 @@ void	NET_Shutdown (void)
 
 
 
-
-
+#ifdef HAVE_TCP
 typedef struct {
 	vfsfile_t funcs;
 
@@ -3807,3 +4659,10 @@ vfsfile_t *FS_OpenTCP(const char *name)
 	else
 		return NULL;
 }
+#else
+vfsfile_t *FS_OpenTCP(const char *name)
+{
+	return NULL;
+}
+#endif
+

@@ -23,12 +23,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef CLIENTONLY
 #define Q2EDICT_NUM(i) (q2edict_t*)((char *)ge->edicts+i*ge->edict_size)
 
-#ifdef _WIN32
-#include "winquake.h"
-#else
-#include <netinet/in.h>
-#endif
-
 void SV_Savegame_f (void);
 void SV_Loadgame_f (void);
 #define INVIS_CHAR1 12
@@ -163,7 +157,9 @@ cvar_t	sv_port_tcp = CVARC("sv_port_tcp", "", SV_Tcpport_Callback);
 cvar_t	sv_port_tcp6 = CVARC("sv_port_tcp6", "", SV_Tcpport6_Callback);
 #endif
 #endif
+#ifdef HAVE_IPV4
 cvar_t  sv_port_ipv4 = CVARC("sv_port", "27500", SV_Port_Callback);
+#endif
 #ifdef IPPROTO_IPV6
 cvar_t  sv_port_ipv6 = CVARC("sv_port_ipv6", "", SV_PortIPv6_Callback);
 #endif
@@ -4117,8 +4113,10 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_port_ipx,	cvargroup_servercontrol);
 	sv_port_ipx.restriction = RESTRICT_MAX;
 #endif
+#ifdef HAVE_IPV4
 	Cvar_Register (&sv_port_ipv4,	cvargroup_servercontrol);
 	sv_port_ipv4.restriction = RESTRICT_MAX;
+#endif
 
 	Cvar_Register (&sv_reportheartbeats, cvargroup_servercontrol);
 
@@ -4210,8 +4208,10 @@ void SV_InitLocal (void)
 		int port = atoi(com_argv[p+1]);
 		if (!port)
 			port = PORT_QWSERVER;
+#ifdef HAVE_IPV4
 		if (*sv_port_ipv4.string)
 			Cvar_SetValue(&sv_port_ipv4, port);
+#endif
 #ifdef IPPROTO_IPV6
 		if (*sv_port_ipv6.string)
 			Cvar_SetValue(&sv_port_ipv6, port);

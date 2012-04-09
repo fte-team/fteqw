@@ -38,7 +38,7 @@ struct texture_s;
 static const texid_t r_nulltex = {{0}};
 
 
-#if defined(D3DQUAKE) || defined(ANDROID)
+#if 1 || defined(MINIMAL) || defined(D3DQUAKE) || defined(ANDROID)
 	#define sizeof_index_t 2
 #endif
 #if sizeof_index_t == 2
@@ -412,7 +412,7 @@ extern	cvar_t	r_fullbright;
 extern	cvar_t	r_lightmap;
 extern	cvar_t	r_glsl_offsetmapping;
 extern	cvar_t	r_shadow_realtime_dlight, r_shadow_realtime_dlight_shadows;
-extern	cvar_t	r_shadow_realtime_world,r_shadow_realtime_world_shadows;
+extern	cvar_t	r_shadow_realtime_world, r_shadow_realtime_world_shadows;
 extern	cvar_t	r_mirroralpha;
 extern	cvar_t	r_wateralpha;
 extern	cvar_t	r_dynamic;

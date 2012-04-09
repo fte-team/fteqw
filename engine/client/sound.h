@@ -285,7 +285,7 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 	int	samplequeue;	//this is the number of samples the device can enqueue. if set, DMAPos returns the write point (rather than hardware read point) (in samplepairs).
 
 //callbacks
-	void *(*Lock) (soundcardinfo_t *sc);
+	void *(*Lock) (soundcardinfo_t *sc, unsigned int *startoffset);
 	void (*Unlock) (soundcardinfo_t *sc, void *buffer);
 	void (*Submit) (soundcardinfo_t *sc, int start, int end);
 	void (*Shutdown) (soundcardinfo_t *sc);

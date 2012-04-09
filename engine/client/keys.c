@@ -674,13 +674,13 @@ void Key_Console (unsigned int unicode, int key)
 		return;
 	}
 
-	if (((key=='C' || key=='c') && keydown[K_CTRL]) || (keydown[K_CTRL] && key == K_INS))
+	if (((unicode=='C' || unicode=='c') && keydown[K_CTRL]) || (keydown[K_CTRL] && key == K_INS))
 	{
 		Sys_SaveClipboard(key_lines[edit_line]+1);
 		return;
 	}
 
-	if (((key=='V' || key=='v') && keydown[K_CTRL]) || (keydown[K_SHIFT] && key == K_INS))
+	if (((unicode=='V' || unicode=='v') && keydown[K_CTRL]) || (keydown[K_SHIFT] && key == K_INS))
 	{
 		clipText = Sys_GetClipboard();
 		if (clipText)
@@ -1587,9 +1587,9 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 	}
 #endif
 
-	if ( (key_dest == key_menu && menubound[key])
+	if (key && ((key_dest == key_menu && menubound[key])
 	|| (key_dest == key_console && !consolekeys[key])
-	|| (key_dest == key_game && ( cls.state == ca_active || !consolekeys[key] ) ) )
+	|| (key_dest == key_game && ( cls.state == ca_active || !consolekeys[key] ) ) ))
 	{
 		/*don't auto-repeat binds as it breaks too many scripts*/
 		if (key_repeats[key] > 1)
@@ -1649,7 +1649,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 #endif
 	case key_game:
 	case key_console:
-		if ((key >= ' ' && key <= 127) || key == K_ENTER || key == K_TAB)
+		if ((unicode) || key == K_ENTER || key == K_TAB)
 			key_dest = key_console;
 		Key_Console (unicode, key);
 		break;

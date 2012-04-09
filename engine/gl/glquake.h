@@ -80,6 +80,32 @@ void ClearBounds (vec3_t mins, vec3_t maxs);
 	#elif defined(__MACOSX__)
 		//apple, you suck.
 		#include <AGL/agl.h>
+	#elif defined(NACL)
+		#include <GLES2/gl2.h>
+		#define GLclampd GLclampf
+		#define GLdouble GLfloat
+		#define GL_CLAMP GL_CLAMP_TO_EDGE
+			#define GL_POLYGON (Con_Printf("GL_POLYGON was used"),0)
+			#define GL_QUAD_STRIP (Con_Printf("GL_QUAD_STRIP was used"),0)
+			#define GL_QUADS (Con_Printf("GL_QUADS was used"),0)
+
+
+			#define GL_PROJECTION (Con_Printf("GL_QUADS was used"),0)
+			#define GL_MODELVIEW (Con_Printf("GL_QUADS was used"),0)
+			#define GL_CLIP_PLANE0 (Con_Printf("GL_CLIP_PLANE0 was used"),0)
+			#define GL_MODULATE (Con_Printf("GL_MODULATE was used"),0)
+			#define GL_FLAT (Con_Printf("GL_FLAT was used"),0)
+			#define GL_SMOOTH (Con_Printf("GL_SMOOTH was used"),0)
+			#define GL_DECAL (Con_Printf("GL_DECAL was used"),0)
+			#define GL_ADD (Con_Printf("GL_ADD was used"),0)
+			#define GL_FILL (Con_Printf("GL_FILL was used"),0)
+			#define GL_TEXTURE_ENV (Con_Printf("GL_TEXTURE_ENV was used"),0)
+			#define GL_TEXTURE_ENV_MODE (Con_Printf("GL_TEXTURE_ENV_MODE was used"),0)
+			#define GL_COLOR_ARRAY (Con_Printf("GL_COLOR_ARRAY was used"),0)
+			#define GL_VERTEX_ARRAY (Con_Printf("GL_VERTEX_ARRAY was used"),0)
+			#define GL_TEXTURE_COORD_ARRAY (Con_Printf("GL_TEXTURE_COORD_ARRAY was used"),0)
+
+
 	#else
 		#include <GL/gl.h>
 	#endif
@@ -240,7 +266,8 @@ extern	vec3_t		r_entorigin;
 extern	entity_t	*currententity;
 extern	int			r_visframecount;	// ??? what difs?
 extern	int			r_framecount;
-extern	mplane_t	frustum[4];
+#define FRUSTUMPLANES 5
+extern	mplane_t	frustum[FRUSTUMPLANES];
 
 extern float r_wateralphaval;
 extern qboolean		r_loadbumpmapping;
@@ -384,6 +411,7 @@ void R_SaveRTLights_f(void);
 #ifdef GLQUAKE
 void GL_DrawHeightmapModel (batch_t **batch, entity_t *e);
 qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer);
+void HeightMap_Purge(model_t *mod);
 #endif
 
 //doom
@@ -844,7 +872,11 @@ void GL_SelectProgram(int program);
 
 
 #ifdef _DEBUG
+#ifdef __GNUC__
+#define checkglerror() do {int i=qglGetError(); if (i) Sys_Printf("GL Error %i detected at line %s:%i (caller %p)\n", i, __FILE__, __LINE__, __builtin_return_address(0));}while(0)
+#else
 #define checkglerror() do {int i=qglGetError(); if (i) Con_Printf("GL Error %i detected at line %s:%i\n", i, __FILE__, __LINE__);}while(0)
+#endif
 #else
 #define checkglerror()
 #endif

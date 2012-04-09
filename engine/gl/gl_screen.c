@@ -168,6 +168,7 @@ void GLSCR_UpdateScreen (void)
  				V_RenderView ();
 			else
 			{
+				GL_DoSwap();
 				noworld = true;
 			}
 		}

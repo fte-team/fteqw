@@ -923,7 +923,7 @@ int Con_DrawInput (int left, int right, int y)
 	/*if its getting completed to something, show some help about the command that is going to be used*/
 	if (!text[1])
 		con_commandmatch = 0;
-	if (con_commandmatch && Cmd_IsCommand(text+(text[1] == '/'?2:1)))
+	if (con_commandmatch && fname && Cmd_IsCommand(text+(text[1] == '/'?2:1)))
 	{
 		cvar_t *var;
 		char *desc = NULL;

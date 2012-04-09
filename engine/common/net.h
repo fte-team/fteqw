@@ -21,7 +21,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	PORT_ANY	-1
 
-typedef enum {NA_INVALID, NA_LOOPBACK, NA_IP, NA_IPV6, NA_IPX, NA_BROADCAST_IP, NA_BROADCAST_IP6, NA_BROADCAST_IPX, NA_TCP, NA_TCPV6, NA_IRC} netadrtype_t;
+#ifdef NACL
+#define HAVE_WEBSOCKCL
+#endif
+
+typedef enum {NA_INVALID, NA_LOOPBACK, NA_IP, NA_IPV6, NA_IPX, NA_BROADCAST_IP, NA_BROADCAST_IP6, NA_BROADCAST_IPX, NA_TCP, NA_TCPV6, NA_IRC, NA_WEBSOCKET} netadrtype_t;
 
 typedef enum {NS_CLIENT, NS_SERVER} netsrc_t;
 
@@ -40,6 +44,9 @@ typedef struct
 			char user[32];
 			char channel[12];
 		} irc;
+#endif
+#ifdef HAVE_WEBSOCKCL
+		char websocketurl[64];
 #endif
 	} address;
 

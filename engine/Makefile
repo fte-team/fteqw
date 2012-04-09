@@ -246,6 +246,7 @@ HTTP_DIR=$(BASE_DIR)/http
 LIBS_DIR?=.
 PROGS_DIR=$(BASE_DIR)/qclib
 SNDCODEC_DIR=$(BASE_DIR)/sndcodec
+NACL_DIR=$(BASE_DIR)/nacl
 BOTLIB_DIR=$(BASE_DIR)/botlib
 
 RELEASE_DIR=$(BASE_DIR)/release
@@ -589,6 +590,27 @@ endif
 
 
 #specific targets override those defaults as needed.
+#google native client
+ifeq ($(FTE_TARGET),nacl)
+	ifeq ($(shell uname -o 2>&1 | grep Cygwin),)
+		CC=$(NACL_SDK_ROOT)/toolchain/linux_x86_newlib/bin/i686-nacl-gcc -DNACL -m$(BITS)
+		STRIP=$(NACL_SDK_ROOT)/toolchain/linux_x86_newlib/bin/i686-nacl-strip
+	else
+		CC=$(NACL_SDK_ROOT)/toolchain/win_x86_newlib/bin/i686-nacl-gcc -DNACL -m$(BITS)
+		STRIP=$(NACL_SDK_ROOT)/toolchain/win_x86_newlib/bin/i686-nacl-strip
+	endif
+
+	BASELDFLAGS = -lm -lpthread -lppapi_gles2 -lnosys -lppapi
+	IMAGELDFLAGS =
+
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) sys_ppapi.o cd_null.o gl_vidppapi.o in_generic.o fs_ppapi.o snd_ppapi.o 
+
+	GLB_DIR=gl_nacl_x86_$(BITS)
+	GL_EXE_NAME=../fteqw_x86_$(BITS).nexe
+	GLCL_EXE_NAME=../fteqwcl_x86_$(BITS).nexe
+	MINGL_DIR=mingl_nacl_x86_$(BITS)
+	MINGL_EXE_NAME=../fteqw_mingl_x86_$(BITS).nexe
+endif
 
 #FTE_TARGET=win32_SDL | FTE_TARGET=win64_SDL (MinGW32 + SDL | MinGW64 + SDL)
 ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win(32|64)_sdl$$"),)	
@@ -948,7 +970,7 @@ ifneq ($(OUT_DIR),)
 endif
 
 
-VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(BASE_DIR)/irc : $(BASE_DIR)/email : $(QUX_DIR) : $(PROGS_DIR) : $(SNDCODEC_DIR) : $(D3D_DIR) : $(BOTLIB_DIR)
+VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(COMMON_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(BASE_DIR)/irc : $(BASE_DIR)/email : $(QUX_DIR) : $(PROGS_DIR) : $(NACL_DIR) : $(SNDCODEC_DIR) : $(D3D_DIR) : $(BOTLIB_DIR)
 
 # This is for linking the FTE icon to the MinGW target
 $(OUT_DIR)/resources.o : winquake.rc

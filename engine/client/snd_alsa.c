@@ -170,7 +170,7 @@ static void ALSA_Shutdown (soundcardinfo_t *sc)
 		free(sc->sn.buffer);
 }
 
-static void *ALSA_LockBuffer(soundcardinfo_t *sc)
+static void *ALSA_LockBuffer(soundcardinfo_t *sc, unsigned int *sampidx)
 {
 	return sc->sn.buffer;
 }

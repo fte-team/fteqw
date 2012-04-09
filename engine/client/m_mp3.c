@@ -2283,7 +2283,7 @@ static void MSD_SetUnderWater(soundcardinfo_t *sc, qboolean underwater)
 {
 }
 
-static void *MSD_Lock (soundcardinfo_t *sc)
+static void *MSD_Lock (soundcardinfo_t *sc, unsigned int *sampidx)
 {
 	return sc->sn.buffer;
 }

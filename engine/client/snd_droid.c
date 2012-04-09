@@ -76,10 +76,10 @@ static void Droid_UnlockBuffer(soundcardinfo_t *sc, void *buffer)
 //	pthread_mutex_unlock(&mutex);
 }
 
-static void *Droid_LockBuffer(soundcardinfo_t *sc)
+static void *Droid_LockBuffer(soundcardinfo_t *sc, unsigned int *sampidx)
 {
 //	pthread_mutex_lock(&mutex);
-        return sc->sn.buffer;
+	return sc->sn.buffer;
 }
 
 static void Droid_SetUnderWater(soundcardinfo_t *sc, qboolean uw)

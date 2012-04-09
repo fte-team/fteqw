@@ -2843,7 +2843,8 @@ PF_ambientsound
 */
 void PF_ambientsound_Internal (float *pos, char *samp, float vol, float attenuation)
 {
-	int			i, soundnum;
+	int			i, soundnum, j;
+	sizebuf_t *buf[3] = {&sv.signon, &sv.nqmulticast, &sv.multicast};
 
 // check to see if samp was properly precached
 	for (soundnum=1 ; *sv.strings.sound_precache[soundnum] ; soundnum++)
@@ -2861,17 +2862,17 @@ void PF_ambientsound_Internal (float *pos, char *samp, float vol, float attenuat
 	if (soundnum > 255)
 		return;
 
-// add an svc_spawnambient command to the level signon packet
-
-	MSG_WriteByte (&sv.signon,svc_spawnstaticsound);
-	for (i=0 ; i<3 ; i++)
-		MSG_WriteCoord(&sv.signon, pos[i]);
-
-	MSG_WriteByte (&sv.signon, soundnum);
-
-	MSG_WriteByte (&sv.signon, vol*255);
-	MSG_WriteByte (&sv.signon, attenuation*64);
-
+	for (j = 0; j < 3; j++)
+	{
+	// add an svc_spawnambient command to the level signon packet
+		MSG_WriteByte (buf[j],svc_spawnstaticsound);
+		for (i=0 ; i<3 ; i++)
+			MSG_WriteCoord(buf[j], pos[i]);
+		MSG_WriteByte (buf[j], soundnum);
+		MSG_WriteByte (buf[j], vol*255);
+		MSG_WriteByte (buf[j], attenuation*64);
+	}
+	SV_Multicast(pos, MULTICAST_ALL_R);
 }
 
 static void QCBUILTIN PF_ambientsound (progfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -3329,7 +3330,10 @@ static void QCBUILTIN PF_dropclient (progfuncs_t *prinst, struct globalvars_s *p
 
 	// so long and thanks for all the fish
 	if (cl->netchan.remote_address.type == NA_LOOPBACK)
+	{
+		Cbuf_AddText ("disconnect\n", RESTRICT_INSECURE);
 		return;	//don't drop the local client. It looks wrong.
+	}
 	cl->drop = true;
 	return;
 }
@@ -3511,7 +3515,7 @@ static void QCBUILTIN PF_h2dprintf (progfuncs_t *prinst, struct globalvars_s *pr
 		sprintf (temp, "%5.1f",v);
 
 	Q_strncpyz(printable, PR_GetStringOfs(prinst, OFS_PARM0), sizeof(printable));
-	while(pct = strstr(printable, "%s"))
+	while((pct = strstr(printable, "%s")))
 	{
 		if ((pct-printable) + strlen(temp) + strlen(pct) > sizeof(printable))
 			break;
@@ -3530,7 +3534,7 @@ static void QCBUILTIN PF_h2dprintv (progfuncs_t *prinst, struct globalvars_s *pr
 	sprintf (temp, "'%5.1f %5.1f %5.1f'", G_VECTOR(OFS_PARM1)[0], G_VECTOR(OFS_PARM1)[1], G_VECTOR(OFS_PARM1)[2]);
 
 	Q_strncpyz(printable, PR_GetStringOfs(prinst, OFS_PARM0), sizeof(printable));
-	while(pct = strstr(printable, "%s"))
+	while((pct = strstr(printable, "%s")))
 	{
 		if ((pct-printable) + strlen(temp) + strlen(pct) > sizeof(printable))
 			break;
@@ -8900,15 +8904,15 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"rotatevectorsbytag",	PF_Fixme,		0,		0,		0,		244,	"vector(entity ent, float tagnum)"},	// #234
 
 #ifdef SQL
-	{"sqlconnect",		PF_sqlconnect,		0,		0,		0,		250,	"float([string host], [string user], [string pass], [string defaultdb], [string driver]) sqlconnect (FTE_SQL)
-	{"sqldisconnect",	PF_sqldisconnect,	0,		0,		0,		251,	"void(float serveridx) sqldisconnect (FTE_SQL)
-	{"sqlopenquery",	PF_sqlopenquery,	0,		0,		0,		252,	"float(float serveridx, void(float serveridx, float queryidx, float rows, float columns, float eof) callback, float querytype, string query) sqlopenquery (FTE_SQL)
-	{"sqlclosequery",	PF_sqlclosequery,	0,		0,		0,		253,	"void(float serveridx, float queryidx) sqlclosequery (FTE_SQL)
-	{"sqlreadfield",	PF_sqlreadfield,	0,		0,		0,		254,	"string(float serveridx, float queryidx, float row, float column) sqlreadfield (FTE_SQL)
-	{"sqlerror",		PF_sqlerror,		0,		0,		0,		255,	"string(float serveridx, [float queryidx]) sqlerror (FTE_SQL)
-	{"sqlescape",		PF_sqlescape,		0,		0,		0,		256,	"string(float serveridx, string data) sqlescape (FTE_SQL)
-	{"sqlversion",		PF_sqlversion,		0,		0,		0,		257,	"string(float serveridx) sqlversion (FTE_SQL)
-	{"sqlreadfloat",	PF_sqlreadfloat,	0,		0,		0,		258,	"float(float serveridx, float queryidx, float row, float column) sqlreadfloat (FTE_SQL)
+	{"sqlconnect",		PF_sqlconnect,		0,		0,		0,		250,	"float(optional string host, optional string user, optional string pass, optional string defaultdb, optional string driver)"} // sqlconnect (FTE_SQL)
+	{"sqldisconnect",	PF_sqldisconnect,	0,		0,		0,		251,	"void(float serveridx)"} // sqldisconnect (FTE_SQL)
+	{"sqlopenquery",	PF_sqlopenquery,	0,		0,		0,		252,	"float(float serveridx, void(float serveridx, float queryidx, float rows, float columns, float eof) callback, float querytype, string query)"} // sqlopenquery (FTE_SQL)
+	{"sqlclosequery",	PF_sqlclosequery,	0,		0,		0,		253,	"void(float serveridx, float queryidx)"} // sqlclosequery (FTE_SQL)
+	{"sqlreadfield",	PF_sqlreadfield,	0,		0,		0,		254,	"string(float serveridx, float queryidx, float row, float column)"} // sqlreadfield (FTE_SQL)
+	{"sqlerror",		PF_sqlerror,		0,		0,		0,		255,	"string(float serveridx, optional float queryidx)"} // sqlerror (FTE_SQL)
+	{"sqlescape",		PF_sqlescape,		0,		0,		0,		256,	"string(float serveridx, string data)"} // sqlescape (FTE_SQL)
+	{"sqlversion",		PF_sqlversion,		0,		0,		0,		257,	"string(float serveridx)"} // sqlversion (FTE_SQL)
+	{"sqlreadfloat",	PF_sqlreadfloat,	0,		0,		0,		258,	"float(float serveridx, float queryidx, float row, float column)"} // sqlreadfloat (FTE_SQL)
 #endif
 	{"stoi",			PF_stoi,			0,		0,		0,		259,	"int(string)"},
 	{"itos",			PF_itos,			0,		0,		0,		260,	"string(int)"},
@@ -9227,7 +9231,7 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //DP_QC_WHICHPACK
 	{"whichpack",		PF_whichpack,		0,		0,		0,		503,	"string(string filename)"},//
 //DP_CSQC_QUERYRENDERENTITY
-	{"getentity",		PF_Fixme,			0,		0,		0,		504,	"__variant(float entnum, fload fieldnum)"},
+	{"getentity",		PF_Fixme,			0,		0,		0,		504,	"__variant(float entnum, float fieldnum)"},
 
 //DP_QC_URI_ESCAPE
 	{"uri_escape",		PF_uri_escape,		0,		0,		0,		510,	"string(string in)"},//
@@ -9878,6 +9882,7 @@ void PR_DumpPlatform_f(void)
 		{"FL_ONGROUND",			"const float", QW|NQ|CS, FL_ONGROUND},
 		{"FL_PARTIALGROUND",	"const float", QW|NQ|CS, FL_PARTIALGROUND},
 		{"FL_WATERJUMP",		"const float", QW|NQ|CS, FL_WATERJUMP},
+		{"FL_JUMPRELEASED",		"const float",    NQ|CS, FL_JUMPRELEASED},
 		{"FL_FINDABLE_NONSOLID","const float", QW|NQ|CS, FL_FINDABLE_NONSOLID},
 //		{"FL_MOVECHAIN_ANGLE",	"const float", QW|NQ, FL_MOVECHAIN_ANGLE},
 		{"FL_LAGGEDMOVE",		"const float", QW|NQ, FLQW_LAGGEDMOVE},

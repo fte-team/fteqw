@@ -22,6 +22,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "qtvprox", "..\..\fteqtv\dot
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "droid", "droid\droid.vcproj", "{AA9D4AA8-2B98-42A8-9F63-B9E5A6221BB6}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "nacl", "..\nacl\nacl.vcproj", "{4735677B-6D5A-4BE6-A945-CB32A7282F56}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		D3DDebug|Win32 = D3DDebug|Win32
@@ -321,6 +323,42 @@ Global
 		{AA9D4AA8-2B98-42A8-9F63-B9E5A6221BB6}.Release Dedicated Server|x64.ActiveCfg = Release|Win32
 		{AA9D4AA8-2B98-42A8-9F63-B9E5A6221BB6}.Release|Win32.ActiveCfg = Release|Win32
 		{AA9D4AA8-2B98-42A8-9F63-B9E5A6221BB6}.Release|x64.ActiveCfg = Release|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.D3DDebug|Win32.ActiveCfg = Debug|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.D3DDebug|Win32.Build.0 = Debug|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.D3DDebug|x64.ActiveCfg = Debug|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.D3DRelease|Win32.ActiveCfg = Release|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.D3DRelease|Win32.Build.0 = Release|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.D3DRelease|x64.ActiveCfg = Release|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.Debug Dedicated Server|Win32.ActiveCfg = Debug|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.Debug Dedicated Server|Win32.Build.0 = Debug|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.Debug Dedicated Server|x64.ActiveCfg = Debug|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.Debug|Win32.ActiveCfg = Debug|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.Debug|Win32.Build.0 = Debug|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.Debug|x64.ActiveCfg = Debug|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.GLDebug|Win32.ActiveCfg = Debug|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.GLDebug|Win32.Build.0 = Debug|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.GLDebug|x64.ActiveCfg = Debug|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.GLRelease|Win32.ActiveCfg = Release|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.GLRelease|Win32.Build.0 = Release|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.GLRelease|x64.ActiveCfg = Release|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.MDebug|Win32.ActiveCfg = Debug|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.MDebug|Win32.Build.0 = Debug|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.MDebug|x64.ActiveCfg = Debug|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.MinGLDebug|Win32.ActiveCfg = Debug|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.MinGLDebug|Win32.Build.0 = Debug|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.MinGLDebug|x64.ActiveCfg = Debug|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.MinGLRelease|Win32.ActiveCfg = Release|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.MinGLRelease|Win32.Build.0 = Release|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.MinGLRelease|x64.ActiveCfg = Release|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.MRelease|Win32.ActiveCfg = Release|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.MRelease|Win32.Build.0 = Release|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.MRelease|x64.ActiveCfg = Release|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.Release Dedicated Server|Win32.ActiveCfg = Release|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.Release Dedicated Server|Win32.Build.0 = Release|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.Release Dedicated Server|x64.ActiveCfg = Release|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.Release|Win32.ActiveCfg = Release|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.Release|Win32.Build.0 = Release|Win32
+		{4735677B-6D5A-4BE6-A945-CB32A7282F56}.Release|x64.ActiveCfg = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

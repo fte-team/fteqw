@@ -485,12 +485,12 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 
 			if ((cl->datasock = socket (PF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1)
 			{
-				Sys_Error ("FTP_UDP_OpenSocket: socket: %s", strerror(qerrno));
+				Sys_Error ("FTP_ServerThinkForConnection: socket: %s", strerror(qerrno));
 			}
 
 			if (ioctlsocket (cl->datasock, FIONBIO, (u_long *)&_true) == -1)
 			{
-				Sys_Error ("FTTP_UDP_OpenSocket: ioctl FIONBIO: %s", strerror(qerrno));
+				Sys_Error ("FTP_ServerThinkForConnection: ioctl FIONBIO: %s", strerror(qerrno));
 			}
 
 			from.sin_family = AF_INET;

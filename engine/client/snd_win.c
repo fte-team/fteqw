@@ -75,7 +75,7 @@ void S_UnblockSound (void)
 }
 
 
-static void *WAV_Lock (soundcardinfo_t *sc)
+static void *WAV_Lock (soundcardinfo_t *sc, unsigned int *sampidx)
 {
 	return sc->sn.buffer;
 }

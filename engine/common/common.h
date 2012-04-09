@@ -364,6 +364,7 @@ enum fs_relative{
 	FS_GAME,		//standard search (not generally valid for save/rename/delete/etc)
 	FS_ROOT,		//./
 	FS_GAMEONLY,	//$gamedir/
+	FS_GAMEDOWNLOADCACHE,	//typically the same as FS_GAMEONLY 
 	FS_CONFIGONLY,	//fte/ (should still be part of the game path)
 	FS_SKINS		//qw/skins/
 };

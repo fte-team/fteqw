@@ -337,7 +337,7 @@ joinserver:
 static void SL_PreDraw	(menu_t *menu)
 {
 	serverlist_t *info = (serverlist_t*)(menu + 1);
-	NET_CheckPollSockets();
+	Master_CheckPollSockets();
 
 	CL_QueryServers();
 
@@ -692,7 +692,7 @@ static void M_QuickConnect_PreDraw(menu_t *menu)
 	serverinfo_t *s;
 	char adr[MAX_ADR_SIZE];
 
-	NET_CheckPollSockets();	//see if we were told something important.
+	Master_CheckPollSockets();	//see if we were told something important.
 	CL_QueryServers();
 
 	if (Sys_DoubleTime() > quickconnecttimeout)

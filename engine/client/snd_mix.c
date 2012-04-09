@@ -31,7 +31,7 @@ short	*snd_out;
 
 void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 {
-	unsigned int 	startidx, out_idx;
+	unsigned int 	out_idx;
 	unsigned int 	count;
 	unsigned int 	outlimit;
 	int 			*p;
@@ -43,11 +43,11 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 	p = (int *) paintbuffer;
 	count = (endtime - sc->paintedtime) * sc->sn.numchannels;
 	outlimit = sc->sn.samples;
-	startidx = out_idx = (sc->paintedtime * sc->sn.numchannels) % outlimit;
+	out_idx = (sc->paintedtime * sc->sn.numchannels) % outlimit;
 	snd_vol = (volume.value*voicevolumemod)*256;
 	numc = sc->sn.numchannels;
 
-	pbuf = sc->Lock(sc);
+	pbuf = sc->Lock(sc, &out_idx);
 	if (!pbuf)
 		return;
 

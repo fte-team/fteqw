@@ -468,7 +468,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 		Con_DPrintf("Anisotropic filter extension found (%dx max).\n",gl_config.ext_texture_filter_anisotropic);
 	}
 
-	if (GL_CheckExtension("GL_ARB_texture_non_power_of_two"))
+	if (GL_CheckExtension("GL_ARB_texture_non_power_of_two") || GL_CheckExtension("GL_OES_texture_npot"))
 		gl_config.arb_texture_non_power_of_two = true;
 //	if (GL_CheckExtension("GL_SGIS_generate_mipmap"))	//a suprising number of implementations have this broken.
 //		gl_config.sgis_generate_mipmap = true;
@@ -479,7 +479,8 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 		qglClientActiveTextureARB = (void *) getglext("glClientActiveTexture");
 		qglSelectTextureSGIS = qglActiveTextureARB;
 		mtexid0 = GL_TEXTURE0_ARB;
-		qglGetIntegerv(GL_MAX_TEXTURE_UNITS_ARB, &gl_mtexarbable);
+		if (!gl_config.nofixedfunc)
+			qglGetIntegerv(GL_MAX_TEXTURE_UNITS_ARB, &gl_mtexarbable);
 	}
 	else if (GL_CheckExtension("GL_ARB_multitexture") && !COM_CheckParm("-noamtex"))
 	{	//ARB multitexture is the popular choice.
@@ -584,7 +585,17 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 	gl_config.arb_texture_cube_map = GL_CheckExtension("GL_ARB_texture_cube_map");
 
 	/*vbos*/
-	if (GL_CheckExtension("GL_ARB_vertex_buffer_object"))
+	if (gl_config.gles && gl_config.glversion >= 2)
+	{
+		qglGenBuffersARB = (void *)getglext("glGenBuffers");
+		qglDeleteBuffersARB = (void *)getglext("glDeleteBuffers");
+		qglBindBufferARB = (void *)getglext("glBindBuffer");
+		qglBufferDataARB = (void *)getglext("glBufferData");
+		qglBufferSubDataARB = (void *)getglext("glBufferSubData");
+		qglMapBufferARB = (void *)getglext("glMapBuffer");
+		qglUnmapBufferARB = (void *)getglext("glUnmapBuffer");
+	}
+	else if (GL_CheckExtension("GL_ARB_vertex_buffer_object"))
 	{
 		qglGenBuffersARB = (void *)getglext("glGenBuffersARB");
 		qglDeleteBuffersARB = (void *)getglext("glDeleteBuffersARB");
@@ -799,21 +810,21 @@ static const char *glsl_hdrs[] =
 					"uniform vec4 w_fog;\n"
 					"vec3 fog3(in vec3 regularcolour)"
 					"{"
-						"float z = gl_FragCoord.z / gl_FragCoord.w;\n"
-						"float fac = exp2(-("
-											"w_fog.w * w_fog.w * "
-											"z * z * "
-											"1.442695));\n"
+						"float z = w_fog.w * gl_FragCoord.z / gl_FragCoord.w;\n"
+						"#if #include \"cvar/r_fog_exp2\"\n"
+						"z *= z;\n"
+						"#endif\n"
+						"float fac = exp2(-(z * 1.442695));\n"
 						"fac = clamp(fac, 0.0, 1.0);\n"
 						"return mix(w_fog.rgb, regularcolour, fac);\n"
 					"}\n"
 					"vec3 fog3additive(in vec3 regularcolour)"
 					"{"
-						"float z = gl_FragCoord.z / gl_FragCoord.w;\n"
-						"float fac = exp2(-("
-											"w_fog.w * w_fog.w * "
-											"z * z * "
-											"1.442695));\n"
+						"float z = w_fog.w * gl_FragCoord.z / gl_FragCoord.w;\n"
+						"#if #include \"cvar/r_fog_exp2\"\n"
+						"z *= z;\n"
+						"#endif\n"
+						"float fac = exp2(-(z * 1.442695));\n"
 						"fac = clamp(fac, 0.0, 1.0);\n"
 						"return regularcolour * fac;\n"
 					"}\n"
@@ -823,21 +834,21 @@ static const char *glsl_hdrs[] =
 					"}\n"
 					"vec4 fog4additive(in vec4 regularcolour)"
 					"{"
-						"float z = gl_FragCoord.z / gl_FragCoord.w;\n"
-						"float fac = exp2(-("
-											"w_fog.w * w_fog.w * "
-											"z * z * "
-											"1.442695));\n"
+						"float z = w_fog.w * gl_FragCoord.z / gl_FragCoord.w;\n"
+						"#if #include \"cvar/r_fog_exp2\"\n"
+						"z *= z;\n"
+						"#endif\n"
+						"float fac = exp2(-(z * 1.442695));\n"
 						"fac = clamp(fac, 0.0, 1.0);\n"
 						"return regularcolour * vec4(fac, fac, fac, 1.0);\n"
 					"}\n"
 					"vec4 fog4blend(in vec4 regularcolour)"
 					"{"
-						"float z = gl_FragCoord.z / gl_FragCoord.w;\n"
-						"float fac = exp2(-("
-											"w_fog.w * w_fog.w * "
-											"z * z * "
-											"1.442695));\n"
+						"float z = w_fog.w * gl_FragCoord.z / gl_FragCoord.w;\n"
+						"#if #include \"cvar/r_fog_exp2\"\n"
+						"z *= z;\n"
+						"#endif\n"
+						"float fac = exp2(-(z * 1.442695));\n"
 						"fac = clamp(fac, 0.0, 1.0);\n"
 						"return regularcolour * vec4(1.0, 1.0, 1.0, fac);\n"
 					"}\n"
@@ -900,25 +911,47 @@ qboolean GLSlang_GenerateIncludes(int maxstrings, int *strings, const GLchar *pr
 		incline += 8;
 		incline = COM_ParseOut (incline, incname, sizeof(incname));
 
-		for (i = 0; glsl_hdrs[i]; i += 2)
+		if (!strncmp(incname, "cvar/", 5))
 		{
-			if (!strcmp(incname, glsl_hdrs[i]))
+			cvar_t *var = Cvar_Get(incname+5, "0", 0, "shader cvars");
+			if (var)
 			{
-				if (!GLSlang_GenerateIncludes(maxstrings, strings, prstrings, length, glsl_hdrs[i+1]))
+				var->flags |= CVAR_SHADERSYSTEM;
+				if (!GLSlang_GenerateIncludes(maxstrings, strings, prstrings, length, var->string))
 					return false;
-				break;
+			}
+			else
+			{
+				/*dump something if the cvar doesn't exist*/
+				if (*strings == maxstrings)
+					return false;
+				prstrings[*strings] = "0";
+				length[*strings] = strlen("0");
+				*strings += 1;
 			}
 		}
-		if (!glsl_hdrs[i])
+		else
 		{
-			if (FS_LoadFile(incname, &inc) >= 0)
+			for (i = 0; glsl_hdrs[i]; i += 2)
 			{
-				if (!GLSlang_GenerateIncludes(maxstrings, strings, prstrings, length, inc))
+				if (!strcmp(incname, glsl_hdrs[i]))
 				{
-					FS_FreeFile(inc);
-					return false;
+					if (!GLSlang_GenerateIncludes(maxstrings, strings, prstrings, length, glsl_hdrs[i+1]))
+						return false;
+					break;
 				}
-				FS_FreeFile(inc);
+			}
+			if (!glsl_hdrs[i])
+			{
+				if (FS_LoadFile(incname, &inc) >= 0)
+				{
+					if (!GLSlang_GenerateIncludes(maxstrings, strings, prstrings, length, inc))
+					{
+						FS_FreeFile(inc);
+						return false;
+					}
+					FS_FreeFile(inc);
+				}
 			}
 		}
 
@@ -1357,7 +1390,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 			Con_Printf ("end of list\n");
 		}
 		else
-			Con_Printf ("GL_EXTENSIONS: %i extensions\n", gl_num_extensions);
+			Con_DPrintf ("GL_EXTENSIONS: %i extensions\n", gl_num_extensions);
 		gl_extensions = NULL;
 	}
 	else

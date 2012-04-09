@@ -862,7 +862,7 @@ void NET_SendPollPacket(int len, void *data, netadr_t to)
 	}
 }
 
-int NET_CheckPollSockets(void)
+int Master_CheckPollSockets(void)
 {
 	int sock;
 	SOCKET usesocket;

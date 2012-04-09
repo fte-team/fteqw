@@ -850,7 +850,7 @@ static void R_RenderMotionBlur(void)
 #ifdef warningmsg
 #pragma warningmsg("backend fixme")
 #endif
-#ifndef ANDROID
+#if !defined(ANDROID) && !defined(NACL)
 	if (gl_config.arb_texture_non_power_of_two)
 	{	//we can use any size, supposedly
 		vwidth = vid.pixelwidth;

@@ -642,6 +642,7 @@ sounddriver pSDL_InitCard;
 sounddriver pWAV_InitCard;
 sounddriver pDroid_InitCard;
 sounddriver pAHI_InitCard;
+sounddriver pPPAPI_InitCard;
 
 typedef struct {
 	char *name;
@@ -655,6 +656,7 @@ sdriver_t drivers[] = {
 	{"MacOS", &pMacOS_InitCard},	//prefered on mac
 	{"Droid", &pDroid_InitCard},		//prefered on android (java thread)
 	{"AHI", &pAHI_InitCard},		//prefered on morphos
+	{"PPAPI", &pPPAPI_InitCard},	//google's native client
 
 	{"SDL", &pSDL_InitCard},		//prefered on linux
 	{"ALSA", &pALSA_InitCard},		//pure shite
@@ -1600,6 +1602,7 @@ static void S_StopAllSounds_f (void)
 static void S_ClearBuffer (soundcardinfo_t *sc)
 {
 	void *buffer;
+	unsigned int dummy;
 
 	int		clear;
 
@@ -1611,7 +1614,8 @@ static void S_ClearBuffer (soundcardinfo_t *sc)
 	else
 		clear = 0;
 
-	buffer = sc->Lock(sc);
+	dummy = 0;
+	buffer = sc->Lock(sc, &dummy);
 	if (buffer)
 	{
 		Q_memset(buffer, clear, sc->sn.samples * sc->sn.samplebits/8);

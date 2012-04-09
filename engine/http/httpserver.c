@@ -322,7 +322,7 @@ cont:
 
 			if (HTTPmarkup == 3 && !hostspecified)	//1.1 requires the host to be specified... we ca,just ignore it as we're not routing or imitating two servers. (for complience we need to encourage the client to send - does nothing for compatability or anything, just compliance to spec. not always the same thing)
 			{
-				msg = "HTTP/1.1 400 Bad Request\r\n"	"Content-Type: text/plain\r\n"		"Content-Length: 69\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n"	"400 Bad Request\r\nYour client failed to provide the host header line";
+				msg = "HTTP/1.1 400 Bad Request\r\n"	/*"Content-Type: application/octet-stream\r\n"*/		"Content-Length: 69\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n"	"400 Bad Request\r\nYour client failed to provide the host header line";
 
 				ammount = strlen(msg);
 				ExpandOutBuffer(cl, ammount, true);

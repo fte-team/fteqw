@@ -504,6 +504,7 @@ COMMON_OBJS = \
 	mathlib.o 		\
 	huff.o		\
 	md4.o 		\
+	sha1.o		\
 	log.o 		\
 	net_chan.o 		\
 	net_wins.o 		\

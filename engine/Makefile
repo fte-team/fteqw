@@ -403,7 +403,6 @@ GLQUAKE_OBJS =		\
 	gl_backend.o		\
 	gl_rmain.o		\
 	gl_rmisc.o		\
-	gl_heightmap.o		\
 	gl_rsurf.o		\
 	gl_screen.o		\
 	gl_bloom.o		\
@@ -491,6 +490,7 @@ WINDOWSSERVERONLY_OBJS = \
 
 COMMON_OBJS = \
 	gl_alias.o		\
+	gl_heightmap.o		\
 	com_mesh.o	\
 	com_phys_ode.o	\
 	common.o 		\
@@ -601,7 +601,7 @@ ifeq ($(FTE_TARGET),nacl)
 		STRIP=$(NACL_SDK_ROOT)/toolchain/win_x86_newlib/bin/i686-nacl-strip
 	endif
 
-	BASELDFLAGS = -lm -lpthread -lppapi_gles2 -lnosys -lppapi
+	BASELDFLAGS = -lm -lppapi_gles2 -lnosys -lppapi
 	IMAGELDFLAGS =
 
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) sys_ppapi.o cd_null.o gl_vidppapi.o in_generic.o fs_ppapi.o snd_ppapi.o 

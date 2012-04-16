@@ -20,7 +20,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // cmd.c -- Quake script command processing module
 
 #include "quakedef.h"
-#include "errno.h"
 
 cvar_t com_fs_cache			= SCVARF("fs_cache", IFMINIMAL("2","1"), CVAR_ARCHIVE);
 cvar_t rcon_level			= SCVAR("rcon_level", "20");
@@ -187,9 +186,6 @@ Adds command text at the end of the buffer
 void Cbuf_AddText (const char *text, int level)
 {
 	int		l;
-
-	if (!strcmp(text, "cmd "))
-		Con_Printf("cmd text\n");
 
 	if (level > sizeof(cmd_text)/sizeof(cmd_text[0]) || level < 0)
 	{
@@ -1123,7 +1119,7 @@ char *Cmd_ExpandCvar(char *cvarname, int maxaccesslevel, int *len)
 	result = strtol(cvarname, &end, 10); // do something with result
 
 	if (result == 0)
-		Con_DPrintf("Cmd_ExpandCvar() strtol returned zero cvar: %s (%i)\n", cvarname, errno);
+		Con_DPrintf("Cmd_ExpandCvar() strtol returned zero cvar: %s\n", cvarname);
 
 	if (fixval && *end == '\0') //only expand $0 if its actually ${0} - this avoids conflicting with the $0 macro
 	{	//purely numerical
@@ -1212,10 +1208,8 @@ char *Cmd_ExpandString (char *data, char *dest, int destlen, int maxaccesslevel,
 					if ((str = Cmd_ExpandCvar(buf+striptrailing, maxaccesslevel, &var_length)))
 						bestvar = str;
 				}
-#ifndef SERVERONLY
 				if (expandmacros && (str = TP_MacroString (buf+striptrailing, &macro_length)))
 					bestmacro = str;
-#endif
 			}
 
 			if (bestmacro)
@@ -2909,6 +2903,55 @@ void Cmd_Shutdown(void)
 	}
 }
 
+
+static char	macro_buf[256] = "";
+static char *Macro_Time (void)
+{
+	time_t		t;
+	struct tm	*ptm;
+
+	time (&t);
+	ptm = localtime (&t);
+	if (!ptm)
+		return "#bad date#";
+	strftime (macro_buf, sizeof(macro_buf)-1, "%H:%M", ptm);
+	return macro_buf;
+}
+static char *Macro_UKDate (void)	//and much but not all of EU
+{
+	time_t		t;
+	struct tm	*ptm;
+
+	time (&t);
+	ptm = localtime (&t);
+	if (!ptm)
+		return "#bad date#";
+	strftime (macro_buf, sizeof(macro_buf)-1, "%d.%m.%Y", ptm);
+	return macro_buf;
+}
+static char *Macro_ProperDate (void)	//americans get it wrong. besides, this is more easily sortable for filenames etc
+{
+	time_t		t;
+	struct tm	*ptm;
+
+	time (&t);
+	ptm = localtime (&t);
+	if (!ptm)
+		return "#bad date#";
+	strftime (macro_buf, sizeof(macro_buf)-1, "%Y-%m-%d", ptm);
+	return macro_buf;
+}
+static char *Macro_Version (void)
+{
+	/*	you probably don't need date, but it's included as this is likly to be used by
+		q2 servers checking for cheats. */
+	return va("%.2f %s", 2.57, version_string());
+}
+static char *Macro_Quote (void)
+{
+	return "\"";
+}
+
 /*
 ============
 Cmd_Init
@@ -2953,9 +2996,16 @@ void Cmd_Init (void)
 
 	Cmd_AddCommand ("cmdlist", Cmd_List_f);
 	Cmd_AddCommand ("aliaslist", Cmd_AliasList_f);
+	Cmd_AddCommand ("macrolist", Cmd_MacroList_f);
 	Cmd_AddCommand ("cvarlist", Cvar_List_f);
 	Cmd_AddCommand ("cvarreset", Cvar_Reset_f);
 	Cmd_AddCommand ("fs_flush", COM_RefreshFSCache_f);
+
+	Cmd_AddMacro("time", Macro_Time, true);
+	Cmd_AddMacro("date", Macro_UKDate, false);
+	Cmd_AddMacro("properdate", Macro_ProperDate, false);
+	Cmd_AddMacro("version", Macro_Version, false);
+	Cmd_AddMacro("qt", Macro_Quote, false);
 
 	Cvar_Register(&com_fs_cache, "Filesystem");
 	Cvar_Register(&tp_disputablemacros, "Teamplay");

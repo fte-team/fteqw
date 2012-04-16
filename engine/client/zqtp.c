@@ -302,12 +302,6 @@ static void MacroBuf_strcat_with_separator (char *str) {
 }
 
 
-
-static char *Macro_Quote (void)
-{
-	return "\"";
-}
-
 static char *Macro_Latency (void)
 {
 	sprintf(macro_buf, "%i", Q_rint(cls.latency*1000));
@@ -555,32 +549,6 @@ static char *Macro_Last_Location (void)
 	if (vars.deathtrigger_time && realtime - vars.deathtrigger_time <= 5)
 		return vars.lastdeathloc;
 	return Macro_Location();
-}
-
-static char *Macro_Time (void)
-{
-	time_t		t;
-	struct tm	*ptm;
-
-	time (&t);
-	ptm = localtime (&t);
-	if (!ptm)
-		return "#bad date#";
-	strftime (macro_buf, sizeof(macro_buf)-1, "%H:%M", ptm);
-	return macro_buf;
-}
-
-static char *Macro_Date (void)
-{
-	time_t		t;
-	struct tm	*ptm;
-
-	time (&t);
-	ptm = localtime (&t);
-	if (!ptm)
-		return "#bad date#";
-	strftime (macro_buf, sizeof(macro_buf)-1, "%d.%m.%Y", ptm);
-	return macro_buf;
 }
 
 // returns the last item picked up
@@ -842,14 +810,6 @@ static char *Macro_Match_Type (void)
 		return "empty";
 	return "ffa";
 }
-
-static char *Macro_Version (void)
-{
-	/*	you probably don't need date, but it's included as this is likly to be used by
-		q2 servers checking for cheats. */
-	return va("%.2f %s", 2.57, version_string());
-}
-
 
 static char *Macro_Point_LED(void)
 {
@@ -1126,8 +1086,6 @@ $triggermatch is the last chat message that exec'd a msg_trigger.
 
 static void TP_InitMacros(void)
 {
-	Cmd_AddMacro("version", Macro_Version, false);
-	Cmd_AddMacro("qt", Macro_Quote, false);
 	Cmd_AddMacro("latency", Macro_Latency, false);
 	Cmd_AddMacro("health", Macro_Health, true);
 	Cmd_AddMacro("armortype", Macro_ArmorType, true);
@@ -1145,8 +1103,6 @@ static void TP_InitMacros(void)
 	Cmd_AddMacro("powerups", Macro_Powerups, true);
 	Cmd_AddMacro("location", Macro_Location, false);
 	Cmd_AddMacro("deathloc", Macro_LastDeath, true);
-	Cmd_AddMacro("time", Macro_Time, true);
-	Cmd_AddMacro("date", Macro_Date, false);
 	Cmd_AddMacro("tookatloc", Macro_TookAtLoc, true);
 	Cmd_AddMacro("tookloc", Macro_TookLoc, true);
 	Cmd_AddMacro("took", Macro_Took, true);

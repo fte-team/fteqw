@@ -849,7 +849,7 @@ void QTV_SayCommand(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *fullcomman
 void PM_PlayerMove (pmove_t *pmove);
 
 void Netchan_Setup (SOCKET sock, netchan_t *chan, netadr_t adr, int qport, qboolean isclient);
-void Netchan_OutOfBandPrint (cluster_t *cluster, netadr_t adr, char *format, ...) PRINTFWARNING(4);
+void Netchan_OutOfBandPrint (cluster_t *cluster, netadr_t adr, char *format, ...) PRINTFWARNING(3);
 int Netchan_IsLocal (netadr_t adr);
 void NET_InitUDPSocket(cluster_t *cluster, int port, qboolean ipv6);
 void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, void *data, netadr_t adr);

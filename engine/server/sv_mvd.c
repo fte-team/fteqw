@@ -2307,7 +2307,12 @@ void SV_MVDEasyRecord_f (void)
 	Sys_freedir(dir);
 
 	if (c == 2)
+	{
+		char *c;
 		Q_strncpyz (name, Cmd_Argv(1), sizeof(name));
+		while(c = strchr(name, ':'))
+			*c = '-';
+	}
 	else
 	{
 		i = Dem_CountPlayers();

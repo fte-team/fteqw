@@ -16,7 +16,10 @@ This file came to FTE via EzQuake.
 
 /* #define SHA1HANDSOFF * Copies data before messing with it. */
 
-#include "quakedef.h"
+//#include "quakedef.h"
+#include <string.h>
+
+#define BigLong(l)  (((unsigned char*)&l)[0]<<24) | (((unsigned char*)&l)[1]<<16) | (((unsigned char*)&l)[2]<<8) | (((unsigned char*)&l)[3]<<0)
 
 
 #define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))

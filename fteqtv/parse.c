@@ -398,6 +398,21 @@ static void ParsePrint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 
 	if (level == 3)
 	{
+		//FIXME: that number shouldn't be hard-coded
+		if (!strncmp(text, "#0:qtv_say:#", 12) || !strncmp(text, "#0:qtv_say_game:#", 17) || !strncmp(text, "#0:qtv_say_team_game:#", 22))
+		{
+			char *colon;
+			colon = strchr(text, ':');
+			colon = strchr(colon+1, ':');
+			colon = strchr(colon+1, ':');
+			if (colon)
+			{
+				//de-fuck qqshka's extra gibberish.
+				snprintf(buffer, sizeof(buffer), "%c%c[QTV]%s\n", svc_print, 3, colon+1);
+				Multicast(tv, buffer, strlen(buffer)+1, to, mask, QW|CONNECTING);
+				return;
+			}
+		}
 		strcpy(buffer+2, text);
 		buffer[1] = 1;
 	}
@@ -416,7 +431,7 @@ static void ParsePrint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 	}
 
 	Multicast(tv, (char*)m->data+m->startpos, m->readpos - m->startpos, to, mask, QW|CONNECTING);
-//	Multicast(tv, buffer, strlen(buffer), to, mask, NQ);
+//	Multicast(tv, buffer, strlen(buffer)+1, to, mask, NQ);
 }
 static void ParseCenterprint(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 {
@@ -562,6 +577,7 @@ static void ParsePlayerInfo(sv_t *tv, netmsg_t *m, qboolean clearoldplayers)
 		for (i = 0; i < MAX_CLIENTS; i++)
 		{	//hide players
 			//they'll be sent after this packet.
+			tv->map.players[i].oldactive = tv->map.players[i].active;
 			tv->map.players[i].active = false;
 		}
 	}
@@ -576,7 +592,6 @@ static void ParsePlayerInfo(sv_t *tv, netmsg_t *m, qboolean clearoldplayers)
 
 	if (tv->usequakeworldprotocols)
 	{
-		tv->map.players[num].old = tv->map.players[num].current;
 		flags = (unsigned short)ReadShort (m);
 
 		tv->map.players[num].current.origin[0] = ReadShort (m);

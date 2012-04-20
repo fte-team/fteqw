@@ -4,7 +4,40 @@
 //main reason to use connection close is because we're lazy and don't want to give sizes in advance (yes, we could use chunks..)
 
 
+void tobase64(unsigned char *out, int outlen, unsigned char *in, int inlen)
+{
+	static tab[64] =
+	{
+		'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P',
+		'Q','R','S','T','U','V','W','X','Y','Z','a','b','c','d','e','f',
+		'g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v',
+		'w','x','y','z','0','1','2','3','4','5','6','7','8','9','+','/'
+	};
+	unsigned int usedbits = 0;
+	unsigned int val = 0;
+	outlen--;
+	while(inlen)
+	{
+		while(usedbits < 24 && inlen)
+		{
+			val <<= 8;
+			val |= (*in++);
+			inlen--;
+			usedbits += 8;
+		}
+		if (outlen < 4)
+			return;
+		val <<= 24 - usedbits;
 
+		*out++ = (usedbits > 0)?tab[(val>>18)&0x3f]:'=';
+		*out++ = (usedbits > 6)?tab[(val>>12)&0x3f]:'=';
+		*out++ = (usedbits > 12)?tab[(val>>6)&0x3f]:'=';
+		*out++ = (usedbits > 18)?tab[(val>>0)&0x3f]:'=';
+		val=0;
+		usedbits = 0;
+	}
+	*out = 0;
+}
 
 static const char qfont_table[256] = {
 	'\0', '#', '#', '#', '#', '.', '#', '#',
@@ -110,19 +143,20 @@ static void HTTPSV_SendHTTPHeader(cluster_t *cluster, oproxy_t *dest, char *erro
 
 	if (nocache)
 	{
-		s =	"HTTP/1.1 %s OK\n"
-			"Content-Type: %s\n"
-			"Cache-Control: no-cache, must-revalidate\n"
-			"Expires: Mon, 26 Jul 1997 05:00:00 GMT\n"
-			"Connection: close\n"
-			"\n";
+		s =	"HTTP/1.1 %s OK\r\n"
+			"Content-Type: %s\r\n"
+			"Cache-Control: no-cache, must-revalidate\r\n"
+			"Expires: Mon, 26 Jul 1997 05:00:00 GMT\r\n"
+			"Connection: close\r\n"
+			"\r\n";
 	}
 	else
 	{
-		s =	"HTTP/1.1 %s OK\n"
-			"Content-Type: %s\n"
-			"Connection: close\n"
-			"\n";
+		s =	"HTTP/1.1 %s OK\r\n"
+			"Cache-Control: public, max-age=3600\r\n"
+			"Content-Type: %s\r\n"
+			"Connection: close\r\n"
+			"\r\n";
 	}
 
 	snprintf(buffer, sizeof(buffer), s, error_code, content_type);
@@ -635,7 +669,7 @@ static void HTTPSV_GenerateAdmin(cluster_t *cluster, oproxy_t *dest, int streami
 	}
 	if (o != result)
 	{
-		strcpy(result, o);
+		strlcpy(result, o, sizeof(result));
 		o = result;
 	}
 
@@ -1077,6 +1111,9 @@ void HTTPSV_PostMethod(cluster_t *cluster, oproxy_t *pend, char *postdata)
 
 void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend)
 {
+	char connection[64];
+	char upgrade[64];
+
 	char *s;
 	char *uri, *uriend;
 	char *args;
@@ -1089,6 +1126,48 @@ void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend)
 	if (s && s < uriend)
 		uriend = s;
 	urilen = uriend - uri;
+
+	if (!pend->websocket.websocket && HTTPSV_GetHeaderField((char*)pend->inbuffer, "Connection", connection, sizeof(connection)) && !stricmp(connection, "Upgrade"))
+	{
+		if (HTTPSV_GetHeaderField((char*)pend->inbuffer, "Upgrade", upgrade, sizeof(upgrade)) && !stricmp(upgrade, "websocket"))
+		{
+			char ver[64];
+			char key[64];
+			HTTPSV_GetHeaderField((char*)pend->inbuffer, "Sec-WebSocket-Key", key, sizeof(key));
+
+			if (HTTPSV_GetHeaderField((char*)pend->inbuffer, "Sec-WebSocket-Version", ver, sizeof(ver)) && atoi(ver) != 13)
+			{
+				s =	"HTTP/1.1 426 Upgrade Required\r\n"
+					"Sec-WebSocket-Version: 13\r\n"
+					"\r\n";
+				Net_ProxySend(cluster, pend, s, strlen(s));
+				return;
+			}
+			else
+			{
+				char acceptkey[20*2];
+				unsigned char sha1digest[20];
+				char padkey[512];
+				snprintf(padkey, sizeof(padkey), "%s258EAFA5-E914-47DA-95CA-C5AB0DC85B11", key);
+				tobase64(acceptkey, sizeof(acceptkey), sha1digest, SHA1(sha1digest, sizeof(sha1digest), padkey));
+
+				snprintf(padkey, sizeof(padkey), 
+							"HTTP/1.1 101 Switching Protocols\r\n"
+							"Upgrade: websocket\r\n"
+							"Connection: Upgrade\r\n"
+							"Sec-WebSocket-Accept: %s\r\n"
+//							"Sec-WebSocket-Protocol: FTEQTVWebSocket\r\n"
+							"\r\n", acceptkey);
+				//send the websocket handshake response.
+				Net_ProxySend(cluster, pend, padkey, strlen(padkey));
+				pend->websocket.websocket = true;
+
+				printf("websocket upgrade\n");
+			}
+			pend->drop = false;
+			return;
+		}
+	}
 
 	if (urimatch(uri, "/plugin.html", urilen))
 	{

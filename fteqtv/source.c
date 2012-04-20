@@ -168,9 +168,10 @@ dblbreak:
 	else
 #endif
 	{ //old fashioned method
-		((struct sockaddr_in *)sadr)->sin_family = AF_INET;
+		struct sockaddr_in *sin = (struct sockaddr_in *)sadr->sockaddr;
+		sin->sin_family = AF_INET;
 
-		((struct sockaddr_in *)sadr)->sin_port = htons(defaultport);
+		sin->sin_port = htons(defaultport);
 
 		strcpy (copy, s);
 		// strip off a trailing :port if present
@@ -178,12 +179,12 @@ dblbreak:
 			if (*colon == ':')
 			{
 				*colon = 0;
-				((struct sockaddr_in *)sadr)->sin_port = htons((short)atoi(colon+1));
+				sin->sin_port = htons((short)atoi(colon+1));
 			}
 
 		if (copy[0] >= '0' && copy[0] <= '9')	//this is the wrong way to test. a server name may start with a number.
 		{
-			*(int *)&((struct sockaddr_in *)sadr)->sin_addr = inet_addr(copy);
+			*(int *)&sin->sin_addr = inet_addr(copy);
 		}
 		else
 		{
@@ -191,7 +192,7 @@ dblbreak:
 				return 0;
 			if (h->h_addrtype != AF_INET)
 				return 0;
-			*(int *)&((struct sockaddr_in *)sadr)->sin_addr = *(int *)h->h_addr_list[0];
+			*(int *)&sin->sin_addr = *(int *)h->h_addr_list[0];
 		}
 	}
 
@@ -200,16 +201,36 @@ dblbreak:
 
 qboolean Net_CompareAddress(netadr_t *s1, netadr_t *s2, int qp1, int qp2)
 {
-	struct sockaddr_in *i1=(void*)s1, *i2=(void*)s2;
-	if (i1->sin_family != i2->sin_family)
+	struct sockaddr *g1=(void*)s1->sockaddr, *g2=(void*)s2->sockaddr;
+	if (g1->sa_family != g2->sa_family)
 		return false;
-	if (i1->sin_family == AF_INET)
+	switch(g1->sa_family)
 	{
-		if (*(unsigned int*)&i1->sin_addr != *(unsigned int*)&i2->sin_addr)
-			return false;
-		if (i1->sin_port != i2->sin_port && qp1 != qp2)	//allow qports to match instead of ports, if required.
-			return false;
-		return true;
+	case AF_INET:
+		{
+			struct sockaddr_in *i1=(void*)s1->sockaddr, *i2=(void*)s2->sockaddr;
+			if (*(unsigned int*)&i1->sin_addr != *(unsigned int*)&i2->sin_addr)
+				return false;
+			if (i1->sin_port != i2->sin_port && qp1 != qp2)	//allow qports to match instead of ports, if required.
+				return false;
+			return true;
+		}
+
+	case AF_INET6:
+		{
+			struct sockaddr_in6 *i1=(void*)s1->sockaddr, *i2=(void*)s2->sockaddr;
+			if (((unsigned int*)&i1->sin6_addr)[0] != ((unsigned int*)&i2->sin6_addr)[0])
+				return false;
+			if (((unsigned int*)&i1->sin6_addr)[1] != ((unsigned int*)&i2->sin6_addr)[1])
+				return false;
+			if (((unsigned int*)&i1->sin6_addr)[2] != ((unsigned int*)&i2->sin6_addr)[2])
+				return false;
+			if (((unsigned int*)&i1->sin6_addr)[3] != ((unsigned int*)&i2->sin6_addr)[3])
+				return false;
+			if (i1->sin6_port != i2->sin6_port && qp1 != qp2)	//allow qports to match instead of ports, if required.
+				return false;
+			return true;
+		}
 	}
 	return false;
 }
@@ -259,7 +280,7 @@ SOCKET Net_TCPListen(int port, qboolean ipv6)
 		return INVALID_SOCKET;
 	}
 
-	if( bind (sock, address, addrsize) == -1)
+	if (bind (sock, address, addrsize) == -1)
 	{
 		printf("socket bind error %i (%s)\n", qerrno, strerror(qerrno));
 		closesocket(sock);
@@ -420,7 +441,7 @@ qboolean Net_ConnectToTCPServer(sv_t *qtv, char *ip)
 		strcpy(qtv->status, "Unable to resolve server\n");
 		return false;
 	}
-	afam = ((struct sockaddr*)&qtv->serveraddress)->sa_family;
+	afam = ((struct sockaddr*)&qtv->serveraddress.sockaddr)->sa_family;
 	pfam = ((afam==AF_INET6)?PF_INET6:PF_INET);
 	asz = ((afam==AF_INET6)?sizeof(struct sockaddr_in6):sizeof(struct sockaddr_in));
 	qtv->sourcesock = socket(pfam, SOCK_STREAM, IPPROTO_TCP);
@@ -448,7 +469,7 @@ qboolean Net_ConnectToTCPServer(sv_t *qtv, char *ip)
 		return false;
 	}
 
-	if (connect(qtv->sourcesock, (struct sockaddr *)&qtv->serveraddress, asz) == INVALID_SOCKET)
+	if (connect(qtv->sourcesock, (struct sockaddr *)&qtv->serveraddress.sockaddr, asz) == INVALID_SOCKET)
 	{
 		err = qerrno;
 		if (err != EINPROGRESS && err != EAGAIN && err != EWOULDBLOCK)	//bsd sockets are meant to return EINPROGRESS, but some winsock drivers use EWOULDBLOCK instead. *sigh*...
@@ -480,7 +501,7 @@ qboolean Net_ConnectToUDPServer(sv_t *qtv, char *ip)
 		Sys_Printf(qtv->cluster, "Stream %i: Unable to resolve %s\n", qtv->streamid, ip);
 		return false;
 	}
-	afam = ((struct sockaddr*)&qtv->serveraddress)->sa_family;
+	afam = ((struct sockaddr*)&qtv->serveraddress.sockaddr)->sa_family;
 	pfam = ((afam==AF_INET6)?PF_INET6:PF_INET);
 	asz = ((afam==AF_INET6)?sizeof(struct sockaddr_in6):sizeof(struct sockaddr_in));
 	qtv->sourcesock = socket(pfam, SOCK_DGRAM, IPPROTO_UDP);
@@ -899,8 +920,6 @@ qboolean Net_ReadStream(sv_t *qtv)
 	return true;
 }
 
-#define BUFFERTIME 10	//secords for artificial delay, so we can buffer things properly.
-
 unsigned int Sys_Milliseconds(void)
 {
 #ifdef _WIN32
@@ -1100,7 +1119,7 @@ qboolean QTV_Connect(sv_t *qtv, char *serverurl)
 	}
 	else
 	{
-		qtv->parsetime = Sys_Milliseconds() + BUFFERTIME*1000;
+		qtv->parsetime = Sys_Milliseconds() + qtv->cluster->anticheattime;
 	}
 	return true;
 }
@@ -1379,11 +1398,12 @@ void QTV_ParseQWStream(sv_t *qtv)
 	unsigned int fromlen;
 	int readlen;
 	netmsg_t msg;
-	fromlen = sizeof(from);	//bug: this won't work on (free)bsd
+	fromlen = sizeof(from.sockaddr);	//bug: this won't work on (free)bsd
 
 	for (;;)
 	{
-		readlen = recvfrom(qtv->sourcesock, buffer, sizeof(buffer)-1, 0, (struct sockaddr*)&from, &fromlen);
+		from.tcpcon = NULL;
+		readlen = recvfrom(qtv->sourcesock, buffer, sizeof(buffer)-1, 0, (struct sockaddr*)&from.sockaddr, &fromlen);
 		if (readlen < 0)
 		{
 			//FIXME: Check for error
@@ -2015,9 +2035,9 @@ void QTV_Run(sv_t *qtv)
 			return;
 		}
 
-		qtv->parsetime = Sys_Milliseconds() + BUFFERTIME*1000;
+		qtv->parsetime = Sys_Milliseconds() + qtv->cluster->anticheattime;
 		if (!qtv->usequakeworldprotocols)
-			Sys_Printf(qtv->cluster, "Stream %i: Connection established, buffering for %i seconds\n", qtv->streamid, BUFFERTIME);
+			Sys_Printf(qtv->cluster, "Stream %i: Connection established, buffering for %g seconds\n", qtv->streamid, qtv->cluster->anticheattime/1000.0f);
 
 		SV_ForwardStream(qtv, qtv->buffer, qtv->forwardpoint);
 	}
@@ -2030,9 +2050,9 @@ void QTV_Run(sv_t *qtv)
 		{	//not enough stuff to play.
 			if (qtv->parsetime < qtv->curtime)
 			{
-				qtv->parsetime = qtv->curtime + 2*1000;	//add two seconds
-				if (qtv->sourcefile || qtv->sourcesock != INVALID_SOCKET)
-					QTV_Printf(qtv, "Stream %i: Not enough buffered\n", qtv->streamid);
+				qtv->parsetime = qtv->curtime + qtv->cluster->tooslowdelay;
+//				if (qtv->sourcefile || qtv->sourcesock != INVALID_SOCKET)
+//					QTV_Printf(qtv, "Stream %i: Not enough buffered\n", qtv->streamid);
 			}
 			break;
 		}
@@ -2045,9 +2065,9 @@ void QTV_Run(sv_t *qtv)
 			length = 10;
 			if (qtv->buffersize < length)
 			{	//not enough stuff to play.
-				qtv->parsetime = qtv->curtime + 2*1000;	//add two seconds
-				if (qtv->sourcefile || qtv->sourcesock != INVALID_SOCKET)
-					QTV_Printf(qtv, "Stream %i: Not enough buffered\n", qtv->streamid);
+				qtv->parsetime = qtv->curtime + qtv->cluster->tooslowdelay;
+//				if (qtv->sourcefile || qtv->sourcesock != INVALID_SOCKET)
+//					QTV_Printf(qtv, "Stream %i: Not enough buffered\n", qtv->streamid);
 				continue;
 			}
 			qtv->parsetime += buffer[0];	//well this was pointless
@@ -2072,9 +2092,9 @@ void QTV_Run(sv_t *qtv)
 
 		if (qtv->buffersize < lengthofs+4)
 		{	//the size parameter doesn't fit.
-			if (qtv->sourcefile || qtv->sourcesock != INVALID_SOCKET)
-				QTV_Printf(qtv, "Stream %i: Not enough buffered\n", qtv->streamid);
-			qtv->parsetime = qtv->curtime + 2*1000;	//add two seconds
+//			if (qtv->sourcefile || qtv->sourcesock != INVALID_SOCKET)
+//				QTV_Printf(qtv, "Stream %i: Not enough buffered\n", qtv->streamid);
+			qtv->parsetime = qtv->curtime + qtv->cluster->tooslowdelay;
 			break;
 		}
 
@@ -2101,9 +2121,9 @@ void QTV_Run(sv_t *qtv)
 
 		if (length+lengthofs+4 > qtv->buffersize)
 		{
-			if (qtv->sourcefile || qtv->sourcesock != INVALID_SOCKET)
-				QTV_Printf(qtv, "Stream %i: Not enough buffered\n", qtv->streamid);
-			qtv->parsetime = qtv->curtime + 2*1000;	//add two seconds
+//			if (qtv->sourcefile || qtv->sourcesock != INVALID_SOCKET)
+//				QTV_Printf(qtv, "Stream %i: Not enough buffered\n", qtv->streamid);
+			qtv->parsetime = qtv->curtime + qtv->cluster->tooslowdelay;	//add two seconds
 			break;	//can't parse it yet.
 		}
 

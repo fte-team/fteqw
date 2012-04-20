@@ -224,7 +224,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define ustrncmp(s1,s2,l) strncmp((char*)(s1),(char*)(s2),l)
 
 
-
+size_t strlcpy(char *dst, const char *src, size_t siz);
 
 #define VERSION "0.01"	//this will be added to the serverinfo
 
@@ -249,8 +249,10 @@ typedef int qboolean;
 extern "C" {
 #endif
 
-typedef struct{
-	char blob[64];
+typedef struct
+{
+	void *tcpcon;	/*value not indirected, only compared*/
+	char sockaddr[64];
 } netadr_t;
 
 
@@ -351,6 +353,7 @@ typedef struct {
 	int leafcount;
 	unsigned short leafs[MAX_ENTITY_LEAFS];
 
+	qboolean oldactive:1;
 	qboolean active:1;
 	qboolean gibbed:1;
 	qboolean dead:1;
@@ -457,6 +460,15 @@ typedef struct viewer_s {
 	int firstconnect;
 } viewer_t;
 
+typedef struct
+{
+	qboolean websocket;	//true if we need to use special handling
+	unsigned char wsbuf[16];
+	int wsbuflen;
+	int wspushed;
+	int wsbits;
+} wsrbuf_t;
+
 //'other proxy', these are mvd stream clients.
 typedef struct oproxy_s {
 	int authkey;
@@ -471,6 +483,7 @@ typedef struct oproxy_s {
 	FILE *srcfile;	//buffer is padded with data from this file when its empty
 	FILE *file;		//recording a demo (written to)
 	SOCKET sock;	//playing to a proxy
+	wsrbuf_t websocket;
 
 	unsigned char inbuffer[MAX_PROXY_INBUFFER];
 	unsigned int inbuffersize;	//amount of data available.
@@ -480,6 +493,20 @@ typedef struct oproxy_s {
 	unsigned int bufferpos;
 	struct oproxy_s *next;
 } oproxy_t;
+
+typedef struct tcpconnect_s
+{
+	struct tcpconnect_s *next;
+	SOCKET sock;
+	wsrbuf_t websocket;
+	netadr_t peeraddr;
+
+	unsigned char inbuffer[MAX_PROXY_INBUFFER];
+	unsigned int inbuffersize;	//amount of data available.
+
+	unsigned char outbuffer[MAX_PROXY_INBUFFER];
+	unsigned int outbuffersize;	//amount of data available.
+} tcpconnect_t;
 
 typedef struct {
 	short origin[3];
@@ -679,6 +706,7 @@ typedef struct {
 struct cluster_s {
 	SOCKET qwdsocket[2];	//udp + quakeworld protocols
 	SOCKET tcpsocket[2];	//tcp listening socket (for mvd and listings and stuff)
+	tcpconnect_t *tcpconnects;	//'tcpconnect' qizmo-compatible quakeworld-over-tcp connection
 
 	char commandinput[512];
 	int inputlength;
@@ -713,6 +741,8 @@ struct cluster_s {
 	qboolean nobsp;
 	qboolean allownqclients;	//nq clients require no challenge
 	qboolean nouserconnects;	//prohibit users from connecting to new streams.
+	int anticheattime;	//intial connection buffer delay (set high to block specing enemies)
+	int tooslowdelay;	//if stream ran out of data, stop parsing for this long
 
 	int maxviewers;
 
@@ -801,7 +831,6 @@ void Broadcast(cluster_t *cluster, void *buffer, int length, int suitablefor);
 void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask);
 void BuildServerData(sv_t *tv, netmsg_t *msg, int servercount, viewer_t *spectatorflag);
 void BuildNQServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount);
-SOCKET QW_InitUDPSocket(int port, qboolean ipv6);
 void QW_UpdateUDPStuff(cluster_t *qtv);
 unsigned int Sys_Milliseconds(void);
 void Prox_SendInitialEnts(sv_t *qtv, oproxy_t *prox, netmsg_t *msg);
@@ -820,8 +849,9 @@ void QTV_SayCommand(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *fullcomman
 void PM_PlayerMove (pmove_t *pmove);
 
 void Netchan_Setup (SOCKET sock, netchan_t *chan, netadr_t adr, int qport, qboolean isclient);
-void Netchan_OutOfBandPrint (cluster_t *cluster, SOCKET sock[], netadr_t adr, char *format, ...) PRINTFWARNING(4);
+void Netchan_OutOfBandPrint (cluster_t *cluster, netadr_t adr, char *format, ...) PRINTFWARNING(4);
 int Netchan_IsLocal (netadr_t adr);
+void NET_InitUDPSocket(cluster_t *cluster, int port, qboolean ipv6);
 void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, void *data, netadr_t adr);
 SOCKET NET_ChooseSocket(SOCKET sock[], netadr_t *adr);
 qboolean Net_CompareAddress(netadr_t *s1, netadr_t *s2, int qp1, int qp2);
@@ -830,6 +860,7 @@ qboolean NQNetchan_Process(cluster_t *cluster, netchan_t *chan, netmsg_t *msg);
 void Netchan_Transmit (cluster_t *cluster, netchan_t *chan, int length, const void *data);
 void Netchan_OutOfBand (cluster_t *cluster, SOCKET sock, netadr_t adr, int length, void *data);
 qboolean Netchan_CanPacket (netchan_t *chan);
+int NET_WebSocketRecv(SOCKET sock, wsrbuf_t *ws, unsigned char *out, unsigned int outlen, int *wslen);
 
 int SendList(sv_t *qtv, int first, const filename_t *list, int svc, netmsg_t *msg);
 int Prespawn(sv_t *qtv, int curmsgsize, netmsg_t *msg, int bufnum, int thisplayer);

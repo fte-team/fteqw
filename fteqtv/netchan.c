@@ -21,13 +21,102 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "qtv.h"
 #include <string.h>
 
+#ifndef IPV6_V6ONLY
+	#define IPV6_V6ONLY 27
+#endif
+
 #define curtime Sys_Milliseconds()
 
+
+void NET_InitUDPSocket(cluster_t *cluster, int port, qboolean ipv6)
+{
+	int sock;
+
+	int pf;
+	struct sockaddr *address;
+	struct sockaddr_in	address4;
+	struct sockaddr_in6	address6;
+	int addrlen;
+
+	unsigned long nonblocking = true;
+	unsigned long v6only = false;
+
+#pragma message("fixme")
+	if (ipv6)
+	{
+		pf = PF_INET6;
+		memset(&address6, 0, sizeof(address6));
+		address6.sin6_family = AF_INET6;
+		address6.sin6_port = htons((u_short)port);
+		address = (struct sockaddr*)&address6;
+		addrlen = sizeof(address6);
+	}
+	else
+	{
+		pf = PF_INET;
+		address4.sin_family = AF_INET;
+		address4.sin_addr.s_addr = INADDR_ANY;
+		address4.sin_port = htons((u_short)port);
+		address = (struct sockaddr*)&address4;
+		addrlen = sizeof(address4);
+	}
+
+	if (!ipv6 && !v6only && cluster->qwdsocket[1] != INVALID_SOCKET)
+	{
+		int sz = sizeof(v6only);
+		if (getsockopt(cluster->qwdsocket[1], IPPROTO_IPV6, IPV6_V6ONLY, (char *)&v6only, &sz) == 0 && !v6only)
+			port = 0;
+	}
+
+	if (!port)
+	{
+		if (cluster->qwdsocket[ipv6] != INVALID_SOCKET)
+		{
+			closesocket(cluster->qwdsocket[ipv6]);
+			cluster->qwdsocket[ipv6] = INVALID_SOCKET;
+			Sys_Printf(cluster, "closed udp%i port\n", ipv6?6:4);
+		}
+		return;
+	}
+
+	if ((sock = socket (pf, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET)
+	{
+		return;
+	}
+
+	if (ioctlsocket (sock, FIONBIO, &nonblocking) == -1)
+	{
+		closesocket(sock);
+		return;
+	}
+
+	if (pf == AF_INET6)
+		if (setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&v6only, sizeof(v6only)) == -1)
+			v6only = true;
+
+	if (bind (sock, (void *)address, addrlen) == -1)
+	{
+		printf("socket bind error %i (%s)\n", qerrno, strerror(qerrno));
+		closesocket(sock);
+		return;
+	}
+
+	if (cluster->qwdsocket[ipv6] != INVALID_SOCKET)
+	{
+		closesocket(cluster->qwdsocket[ipv6]);
+		Sys_Printf(cluster, "closed udp%i port\n", ipv6?6:4);
+	}
+	cluster->qwdsocket[ipv6] = sock;
+	if (v6only)
+		Sys_Printf(cluster, "opened udp%i port %i\n", ipv6?6:4, port);
+	else
+		Sys_Printf(cluster, "opened udp port %i\n", port);
+}
 
 SOCKET NET_ChooseSocket(SOCKET sock[2], netadr_t *adr)
 {
 #ifdef AF_INET6
-	if (((struct sockaddr *)adr)->sa_family == AF_INET6)
+	if (((struct sockaddr *)adr->sockaddr)->sa_family == AF_INET6)
 		return sock[1];
 #endif
 	return sock[0];
@@ -36,8 +125,94 @@ SOCKET NET_ChooseSocket(SOCKET sock[2], netadr_t *adr)
 void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, void *data, netadr_t adr)
 {
 	int ret;
+	int alen;
 
-	ret = sendto(sock, data, length, 0, (struct sockaddr *)&adr, sizeof(struct sockaddr_in));
+#ifdef AF_INET6
+	if (((struct sockaddr *)&adr.sockaddr)->sa_family == AF_INET6)
+		alen = sizeof(struct sockaddr_in6);
+	else
+#endif
+		alen = sizeof(struct sockaddr_in);
+
+	if (adr.tcpcon)
+	{
+		tcpconnect_t *dest;
+		for (dest = cluster->tcpconnects; dest; dest = dest->next)
+		{
+			if (dest == adr.tcpcon)
+				break;
+		}
+
+		if (dest)
+		{
+			int l;
+
+			if (dest->websocket.websocket)
+			{
+				int enclen = 0, c;
+				for (c = 0; c < length; c++)
+				{
+					if (((unsigned char*)data)[c] == 0 || ((unsigned char*)data)[c] >= 0x80)
+						enclen += 2;
+					else
+						enclen += 1;
+				}
+
+				if (dest->outbuffersize + 4+enclen < sizeof(dest->outbuffer))
+				{
+					if (enclen >= 126)
+					{
+						dest->outbuffer[dest->outbuffersize++] = 0x81;
+						dest->outbuffer[dest->outbuffersize++] = 126;
+						dest->outbuffer[dest->outbuffersize++] = enclen>>8;
+						dest->outbuffer[dest->outbuffersize++] = enclen;
+					}
+					else
+					{
+						dest->outbuffer[dest->outbuffersize++] = 0x81;
+						dest->outbuffer[dest->outbuffersize++] = enclen;
+					}
+					while(length-->0)
+					{
+						c = *(unsigned char*)data;
+						data = (char*)data+1;
+						if (!c)
+							c |= 0x100;	/*will get truncated at the other end*/
+						if (c >= 0x80)
+						{
+							dest->outbuffer[dest->outbuffersize++] = 0xc0 | (c>>6);
+							dest->outbuffer[dest->outbuffersize++] = 0x80 | (c & 0x3f);
+						}
+						else
+							dest->outbuffer[dest->outbuffersize++] = c;
+					}
+				}
+			}
+			else
+			{
+				if (dest->outbuffersize + length < sizeof(dest->outbuffer))
+				{
+					dest->outbuffer[dest->outbuffersize++] = length>>8;
+					dest->outbuffer[dest->outbuffersize++] = length&0xff;
+					memcpy(dest->outbuffer+dest->outbuffersize, data, length);
+					dest->outbuffersize += length;
+				}
+			}
+
+			if (dest->outbuffersize)
+			{
+				l = send(dest->sock, dest->outbuffer, dest->outbuffersize, 0);
+				if (l > 0)
+				{
+					memmove(dest->outbuffer, dest->outbuffer+l, dest->outbuffersize-l);
+					dest->outbuffersize-=l;
+				}
+			}
+		}
+		return;
+	}
+
+	ret = sendto(sock, data, length, 0, (struct sockaddr *)&adr.sockaddr, alen);
 	if (ret < 0)
 	{
 		int er = qerrno;
@@ -56,7 +231,7 @@ int Netchan_IsLocal (netadr_t adr)
 	{
 	case AF_INET:
 		bytes = (unsigned char *)&((struct sockaddr_in *)&adr)->sin_addr;
-		if (bytes[0] == 127 &&
+		if (bytes[0] == 127 &&	/*actualy, it should be only the first octet, but hey*/
 			bytes[1] == 0 &&
 			bytes[2] == 0 &&
 			bytes[3] == 1)
@@ -177,7 +352,7 @@ Netchan_OutOfBandPrint
 Sends a text message in an out-of-band datagram
 ================
 */
-void Netchan_OutOfBandPrint (cluster_t *cluster, SOCKET sock[], netadr_t adr, char *format, ...)
+void Netchan_OutOfBandPrint (cluster_t *cluster, netadr_t adr, char *format, ...)
 {
 	va_list		argptr;
 	char		string[8192];
@@ -191,7 +366,7 @@ void Netchan_OutOfBandPrint (cluster_t *cluster, SOCKET sock[], netadr_t adr, ch
 #endif // _WIN32
 	va_end (argptr);
 
-	Netchan_OutOfBand (cluster, NET_ChooseSocket(sock, &adr), adr, strlen(string), (unsigned char *)string);
+	Netchan_OutOfBand (cluster, NET_ChooseSocket(cluster->qwdsocket, &adr), adr, strlen(string), (unsigned char *)string);
 }
 
 /*

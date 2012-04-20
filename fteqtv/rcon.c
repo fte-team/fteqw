@@ -363,6 +363,7 @@ void Cmd_Hostname(cmdctxt_t *ctx)
 
 void Cmd_Master(cmdctxt_t *ctx)
 {
+	SOCKET s;
 	char *newval = Cmd_Argv(ctx, 1);
 	netadr_t addr;
 
@@ -391,41 +392,17 @@ void Cmd_Master(cmdctxt_t *ctx)
 	strlcpy(ctx->cluster->master, newval, sizeof(ctx->cluster->master));
 	ctx->cluster->mastersendtime = ctx->cluster->curtime;
 
-	if (ctx->cluster->qwdsocket != INVALID_SOCKET)
-		NET_SendPacket (ctx->cluster, NET_ChooseSocket(ctx->cluster->qwdsocket, &addr), 1, "k", addr);
+	s = NET_ChooseSocket(ctx->cluster->qwdsocket, &addr);
+	if (s != INVALID_SOCKET)
+		NET_SendPacket (ctx->cluster, s, 1, "k", addr);
 	Cmd_Printf(ctx, "Master server set.\n");
 }
 
 void Cmd_UDPPort(cmdctxt_t *ctx)
 {
-	int news;
 	int newp = atoi(Cmd_Argv(ctx, 1));
-	news = QW_InitUDPSocket(newp, false);
-	if (news != INVALID_SOCKET)
-	{
-		ctx->cluster->mastersendtime = ctx->cluster->curtime;
-		closesocket(ctx->cluster->qwdsocket[0]);
-		ctx->cluster->qwdsocket[0] = news;
-		ctx->cluster->qwlistenportnum = newp;
-
-		Cmd_Printf(ctx, "Opened udp4 port %i (all connected qw clients will time out)\n", newp);
-	}
-	else
-		Cmd_Printf(ctx, "Failed to open udp4 port %i\n", newp);
-
-	news = QW_InitUDPSocket(newp, true);
-
-	if (news != INVALID_SOCKET)
-	{
-		ctx->cluster->mastersendtime = ctx->cluster->curtime;
-		closesocket(ctx->cluster->qwdsocket[1]);
-		ctx->cluster->qwdsocket[1] = news;
-		ctx->cluster->qwlistenportnum = newp;
-
-		Cmd_Printf(ctx, "Opened udp6 port %i (all connected qw clients will time out)\n", newp);
-	}
-	else
-		Cmd_Printf(ctx, "Failed to open udp6 port %i\n", newp);
+	NET_InitUDPSocket(ctx->cluster, newp, true);
+	NET_InitUDPSocket(ctx->cluster, newp, false);
 }
 void Cmd_AdminPassword(cmdctxt_t *ctx)
 {
@@ -622,11 +599,11 @@ void Cmd_Status(cmdctxt_t *ctx)
 		Cmd_Printf(ctx, " Talking allowed\n");
 	if (ctx->cluster->nobsp)
 		Cmd_Printf(ctx, " No BSP loading\n");
-	if (ctx->cluster->tcpsocket != INVALID_SOCKET)
+	if (ctx->cluster->tcpsocket[0] != INVALID_SOCKET || ctx->cluster->tcpsocket[1] != INVALID_SOCKET)
 	{
 		Cmd_Printf(ctx, " tcp port %i\n", ctx->cluster->tcplistenportnum);
 	}
-	if (ctx->cluster->tcpsocket != INVALID_SOCKET)
+	if (ctx->cluster->qwdsocket[0] != INVALID_SOCKET || ctx->cluster->qwdsocket[1] != INVALID_SOCKET)
 	{
 		Cmd_Printf(ctx, " udp port %i\n", ctx->cluster->qwlistenportnum);
 	}
@@ -780,6 +757,39 @@ void Cmd_AllowNQ(cmdctxt_t *ctx)
 		Cmd_Printf(ctx, "allownq set\n");
 	}
 }
+
+void Cmd_InitialDelay(cmdctxt_t *ctx)
+{
+	char *val = Cmd_Argv(ctx, 1);
+	if (!*val)
+	{
+		Cmd_Printf(ctx, "initialdelay is currently %g seconds\n", ctx->cluster->anticheattime/1000.f);
+	}
+	else
+	{
+		ctx->cluster->anticheattime = atof(val)*1000;
+		if (ctx->cluster->anticheattime < 1)
+			ctx->cluster->anticheattime = 1;
+		Cmd_Printf(ctx, "initialdelay set\n");
+	}
+}
+
+void Cmd_SlowDelay(cmdctxt_t *ctx)
+{
+	char *val = Cmd_Argv(ctx, 1);
+	if (!*val)
+	{
+		Cmd_Printf(ctx, "slowdelay is currently %g seconds\n", ctx->cluster->tooslowdelay/1000.f);
+	}
+	else
+	{
+		ctx->cluster->tooslowdelay = atof(val)*1000;
+		if (ctx->cluster->tooslowdelay < 1)
+			ctx->cluster->tooslowdelay = 1;
+		Cmd_Printf(ctx, "slowdelay set\n");
+	}
+}
+
 void Cmd_MaxProxies(cmdctxt_t *ctx)
 {
 	char *val = Cmd_Argv(ctx, 1);
@@ -1305,6 +1315,8 @@ const rconcommands_t rconcommands[] =
 	{"exit",		0, 1, Cmd_Quit},
 	{"streams",		0, 1, Cmd_Streams,	"shows a list of active streams"},
 	{"allownq",		0, 1, Cmd_AllowNQ,	"permits nq clients to connect. This can be disabled as this code is less tested than the rest"},
+	{"initialdelay",0, 1, Cmd_InitialDelay, "Specifies the duration for which new connections will be buffered. Large values prevents players from spectating their enemies as a cheap wallhack."},
+	{"slowdelay",	0, 1, Cmd_SlowDelay,	"If a server is not sending enough data, the proxy will delay parsing for this long."},
 
 
 	{"halt",		1, 0, Cmd_Halt,		"disables a stream, preventing it from reconnecting until someone tries watching it anew. Boots current spectators"},

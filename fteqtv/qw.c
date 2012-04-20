@@ -154,59 +154,7 @@ void WriteDeltaUsercmd (netmsg_t *m, const usercmd_t *from, usercmd_t *move)
 
 
 
-SOCKET QW_InitUDPSocket(int port, qboolean ipv6)
-{
-	int sock;
 
-	int pf;
-	struct sockaddr *address;
-	struct sockaddr_in	address4;
-	struct sockaddr_in6	address6;
-	int addrlen;
-
-	unsigned long nonblocking = true;
-
-#pragma message("fixme")
-	if (ipv6)
-	{
-		pf = PF_INET6;
-		memset(&address6, 0, sizeof(address6));
-		address6.sin6_family = AF_INET6;
-		address6.sin6_port = htons((u_short)port);
-		address = (struct sockaddr*)&address6;
-		addrlen = sizeof(address6);
-	}
-	else
-	{
-		pf = PF_INET;
-		address4.sin_family = AF_INET;
-		address4.sin_addr.s_addr = INADDR_ANY;
-		address4.sin_port = htons((u_short)port);
-		address = (struct sockaddr*)&address4;
-		addrlen = sizeof(address4);
-	}
-
-
-
-	if ((sock = socket (pf, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET)
-	{
-		return INVALID_SOCKET;
-	}
-
-	if (ioctlsocket (sock, FIONBIO, &nonblocking) == -1)
-	{
-		closesocket(sock);
-		return INVALID_SOCKET;
-	}
-
-	if( bind (sock, (void *)address, addrlen) == -1)
-	{
-		printf("socket bind error %i (%s)\n", qerrno, strerror(qerrno));
-		closesocket(sock);
-		return INVALID_SOCKET;
-	}
-	return sock;
-}
 
 void BuildServerData(sv_t *tv, netmsg_t *msg, int servercount, viewer_t *viewer)
 {
@@ -934,7 +882,7 @@ void NewQWClient(cluster_t *cluster, netadr_t *addr, char *connectmessage)
 
 	if (!ChallengePasses(addr, atoi(challenge)))
 	{
-		Netchan_OutOfBandPrint(cluster, cluster->qwdsocket, *addr, "n" "Bad challenge");
+		Netchan_OutOfBandPrint(cluster, *addr, "n" "Bad challenge");
 		return;
 	}
 
@@ -942,7 +890,7 @@ void NewQWClient(cluster_t *cluster, netadr_t *addr, char *connectmessage)
 	viewer = malloc(sizeof(viewer_t));
 	if (!viewer)
 	{
-		Netchan_OutOfBandPrint(cluster, cluster->qwdsocket, *addr, "n" "Out of memory");
+		Netchan_OutOfBandPrint(cluster, *addr, "n" "Out of memory");
 		return;
 	}
 	memset(viewer, 0, sizeof(viewer_t));
@@ -976,7 +924,7 @@ void NewQWClient(cluster_t *cluster, netadr_t *addr, char *connectmessage)
 	strlcpy(viewer->userinfo, infostring, sizeof(viewer->userinfo));
 	ParseUserInfo(cluster, viewer);
 
-	Netchan_OutOfBandPrint(cluster, cluster->qwdsocket, *addr, "j");
+	Netchan_OutOfBandPrint(cluster, *addr, "j");
 
 	NewClient(cluster, viewer);
 }
@@ -1056,7 +1004,7 @@ void QTV_Rcon(cluster_t *cluster, char *message, netadr_t *from)
 
 	if (!*cluster->adminpassword)
 	{
-		Netchan_OutOfBandPrint(cluster, cluster->qwdsocket, *from, "n" "Bad rcon_password.\n");
+		Netchan_OutOfBandPrint(cluster, *from, "n" "Bad rcon_password.\n");
 		return;
 	}
 
@@ -1067,11 +1015,11 @@ void QTV_Rcon(cluster_t *cluster, char *message, netadr_t *from)
 	passlen = command-message;
 	if (passlen != strlen(cluster->adminpassword) || strncmp(message, cluster->adminpassword, passlen))
 	{
-		Netchan_OutOfBandPrint(cluster, cluster->qwdsocket, *from, "n" "Bad rcon_password.\n");
+		Netchan_OutOfBandPrint(cluster, *from, "n" "Bad rcon_password.\n");
 		return;
 	}
 
-	Netchan_OutOfBandPrint(cluster, cluster->qwdsocket, *from, "n%s", Rcon_Command(cluster, NULL, command, buffer, sizeof(buffer), false));
+	Netchan_OutOfBandPrint(cluster, *from, "n%s", Rcon_Command(cluster, NULL, command, buffer, sizeof(buffer), false));
 }
 
 void QTV_Status(cluster_t *cluster, netadr_t *from)
@@ -1287,13 +1235,13 @@ void ConnectionlessPacket(cluster_t *cluster, netadr_t *from, netmsg_t *m)
 	if (!strncmp(buffer, "getchallenge", 12))
 	{
 		i = NewChallenge(from);
-		Netchan_OutOfBandPrint(cluster, cluster->qwdsocket, *from, "c%i", i);
+		Netchan_OutOfBandPrint(cluster, *from, "c%i", i);
 		return;
 	}
 	if (!strncmp(buffer, "connect 28 ", 11))
 	{
 		if (cluster->numviewers >= cluster->maxviewers && cluster->maxviewers)
-			Netchan_OutOfBandPrint(cluster, cluster->qwdsocket, *from, "n" "Sorry, proxy is full.\n");
+			Netchan_OutOfBandPrint(cluster, *from, "n" "Sorry, proxy is full.\n");
 		else
 			NewQWClient(cluster, from, buffer);
 		return;
@@ -2032,7 +1980,7 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 
 	if (tv)
 	{
-		if (tv->physicstime != v->settime && tv->cluster->chokeonnotupdated)
+		if (tv->physicstime != v->settime)// && tv->cluster->chokeonnotupdated)
 		{
 			WriteByte(msg, svc_updatestatlong);
 			WriteByte(msg, STAT_TIME);
@@ -2117,7 +2065,7 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 			WriteByte(msg, i);
 			WriteShort(msg, flags);
 
-			if (!tv->map.players[i].active ||
+			if (!tv->map.players[i].active || !tv->map.players[i].oldactive ||
 				(tv->map.players[i].current.origin[0] - tv->map.players[i].old.origin[0])*(tv->map.players[i].current.origin[0] - tv->map.players[i].old.origin[0]) > snapdist ||
 				(tv->map.players[i].current.origin[1] - tv->map.players[i].old.origin[1])*(tv->map.players[i].current.origin[1] - tv->map.players[i].old.origin[1]) > snapdist ||
 				(tv->map.players[i].current.origin[2] - tv->map.players[i].old.origin[2])*(tv->map.players[i].current.origin[2] - tv->map.players[i].old.origin[2]) > snapdist)
@@ -2145,7 +2093,7 @@ void SendPlayerStates(sv_t *tv, viewer_t *v, netmsg_t *msg)
 			}
 			if (flags & PF_COMMAND)
 			{
-				if (!tv->map.players[i].active)
+				if (!tv->map.players[i].active || !tv->map.players[i].oldactive)
 				{
 					to.angles[0] = tv->map.players[i].current.angles[0];
 					to.angles[1] = tv->map.players[i].current.angles[1];
@@ -2465,7 +2413,7 @@ void QTV_SayCommand(cluster_t *cluster, sv_t *qtv, viewer_t *v, char *fullcomman
 		QW_PrintfToViewer(v,	"Website: http://www.fteqw.com/\n"
 					"Commands:\n"
 					".bind\n"
-					"  Bind your keys to match Qizmo.\n"
+					"  Bind your keys to drive the menu.\n"
 					".clients\n"
 					"  Lists the users connected to this\n"
 					"  proxy.\n"
@@ -4176,19 +4124,204 @@ void SendViewerPackets(cluster_t *cluster, viewer_t *v)
 //	else
 //		printf("maynotsend (%i, %i)\n", cluster->curtime, v->nextpacket);
 }
+
+void QW_ProcessUDPPacket(cluster_t *cluster, netmsg_t *m, netadr_t from)
+{
+	char tempbuffer[256];
+	int fromsize = sizeof(from);
+	int qport;
+
+	viewer_t *v;
+	sv_t *useserver;
+
+	if (*(int*)m->data == -1)
+	{	//connectionless message
+		ConnectionlessPacket(cluster, &from, m);
+		return;
+	}
+
+	if (m->cursize < 10)	//otherwise it's a runt or bad.
+	{
+		qport = 0;
+	}
+	else
+	{
+		//read the qport
+		ReadLong(m);
+		ReadLong(m);
+		qport = ReadShort(m);
+	}
+
+	for (v = cluster->viewers; v; v = v->next)
+	{
+		if (v->netchan.isnqprotocol)
+		{
+			if (Net_CompareAddress(&v->netchan.remote_address, &from, 0, 0))
+			{
+				if (NQNetchan_Process(cluster, &v->netchan, m))
+				{
+					useserver = v->server;
+					if (useserver && useserver->parsingconnectiondata)
+						useserver = NULL;
+
+					v->timeout = cluster->curtime + 15*1000;
+
+					ParseNQC(cluster, useserver, v, m);
+
+					if (v->server && v->server->controller == v)
+					{
+						QTV_Run(v->server);
+					}
+				}
+			}
+		}
+		else
+		{
+			if (Net_CompareAddress(&v->netchan.remote_address, &from, v->netchan.qport, qport))
+			{
+				if (v->server && v->server->controller == v && v->maysend)
+					SendViewerPackets(cluster, v);	//do this before we read the new sequences
+
+				if (Netchan_Process(&v->netchan, m))
+				{
+					useserver = v->server;
+					if (useserver && useserver->parsingconnectiondata && useserver->controller != v)
+						useserver = NULL;
+
+					v->timeout = cluster->curtime + 15*1000;
+
+					if (v->server && v->server->controller == v)
+					{
+//						v->maysend = true;
+						v->server->maysend = true;
+					}
+					else
+					{
+						v->netchan.outgoing_sequence = v->netchan.incoming_sequence;	//compensate for client->server packetloss.
+						if (!v->server)
+							v->maysend = true;
+						else if (!v->chokeme || !cluster->chokeonnotupdated)
+						{
+							v->maysend = true;
+							v->chokeme = cluster->chokeonnotupdated;
+						}
+					}
+
+					ParseQWC(cluster, useserver, v, m);
+
+					if (v->server && v->server->controller == v)
+					{
+						QTV_Run(v->server);
+					}
+				}
+				break;
+			}
+		}
+	}
+	if (!v && cluster->allownqclients)
+	{
+		unsigned int ctrl;
+		//NQ connectionless packet?
+		m->readpos = 0;
+		ctrl = ReadLong(m);
+		ctrl = SwapLong(ctrl);
+		if (ctrl & NETFLAG_CTL)
+		{	//looks hopeful
+			switch(ReadByte(m))
+			{
+			case CCREQ_SERVER_INFO:
+				ReadString(m, tempbuffer, sizeof(tempbuffer));
+				if (!strcmp(tempbuffer, NET_GAMENAME_NQ))
+				{
+					m->cursize = 0;
+					WriteLong(m, 0);
+					WriteByte(m, CCREP_SERVER_INFO);
+					WriteString(m, "??");
+					WriteString(m, cluster->hostname);
+					WriteString(m, "Quake TV");
+					WriteByte(m, cluster->numviewers>255?255:cluster->numviewers);
+					WriteByte(m, cluster->maxviewers>255?255:cluster->maxviewers);
+					WriteByte(m, NET_PROTOCOL_VERSION);
+					*(int*)m->data = BigLong(NETFLAG_CTL | m->cursize);
+					NET_SendPacket(cluster, NET_ChooseSocket(cluster->qwdsocket, &from), m->cursize, m->data, from);
+				}
+				break;
+			case CCREQ_CONNECT:
+				ReadString(m, tempbuffer, sizeof(tempbuffer));
+				if (!strcmp(tempbuffer, NET_GAMENAME_NQ))
+				{
+					if (ReadByte(m) == NET_PROTOCOL_VERSION)
+					{
+						//proquake extensions
+						int mod = ReadByte(m);
+						int modver = ReadByte(m);
+						int flags = ReadByte(m);
+						int passwd = ReadLong(m);
+
+						//fte extension, sent so that dual-protocol servers will not create connections for dual-protocol clients
+						ReadString(m, tempbuffer, sizeof(tempbuffer));
+						if (!strncmp(tempbuffer, "getchallenge", 12))
+							break;
+
+						//drop any old nq clients from this address
+						for (v = cluster->viewers; v; v = v->next)
+						{
+							if (v->netchan.isnqprotocol)
+							{
+								if (Net_CompareAddress(&v->netchan.remote_address, &from, 0, 0))
+								{
+									Sys_Printf(cluster, "Dup connect from %s\n", v->name);
+									v->drop = true;
+								}
+							}
+						}
+						NewNQClient(cluster, &from);
+					}
+				}
+				break;
+			default:
+				break;
+			}
+		}
+	}
+}
+
+void QW_TCPConnection(cluster_t *cluster, SOCKET sock, wsrbuf_t ws)
+{
+	int alen;
+	tcpconnect_t *tc;
+	tc = malloc(sizeof(*tc));
+	if (!tc)
+	{
+		closesocket(sock);
+		return;
+	}
+	tc->sock = sock;
+	tc->websocket = ws;
+	tc->inbuffersize = 0;
+	tc->outbuffersize = 0;
+
+	memset(&tc->peeraddr, 0, sizeof(tc->peeraddr));
+	tc->peeraddr.tcpcon = tc;
+
+	alen = sizeof(tc->peeraddr.sockaddr);
+	getpeername(sock, (struct sockaddr*)&tc->peeraddr.sockaddr, &alen);
+
+	tc->next = cluster->tcpconnects;
+	cluster->tcpconnects = tc;
+}
+
 void QW_UpdateUDPStuff(cluster_t *cluster)
 {
 	char buffer[MAX_MSGLEN];	//contains read info
-	char tempbuffer[256];
 	netadr_t from;
-	int fromsize = sizeof(from);
+	int fromsize = sizeof(from.sockaddr);
 	int read;
-	int qport;
 	netmsg_t m;
 	int socketno;
+	tcpconnect_t *tc, **l;
 
 	viewer_t *v, *f;
-	sv_t *useserver;
 
 	if (*cluster->master && (cluster->curtime > cluster->mastersendtime || cluster->mastersendtime > cluster->curtime + 4*1000*60))	//urm... time wrapped?
 	{
@@ -4215,166 +4348,88 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 			socketno++;
 			if (socketno >= SOCKETGROUPS)
 				break;
+			continue;
 		}
-		read = recvfrom(cluster->qwdsocket[socketno], buffer, sizeof(buffer), 0, (struct sockaddr*)&from, (unsigned*)&fromsize);
+		from.tcpcon = NULL;
+		read = recvfrom(cluster->qwdsocket[socketno], buffer, sizeof(buffer), 0, (struct sockaddr*)&from.sockaddr, (unsigned*)&fromsize);
+
+		if (read < 0)	//it's bad.
+		{
+			socketno++;
+			if (socketno >= SOCKETGROUPS)
+				break;
+			continue;
+		}
 
 		if (read <= 5)	//otherwise it's a runt or bad.
 		{
-			if (read < 0)	//it's bad.
-			{
-				socketno++;
-				if (socketno >= SOCKETGROUPS)
-					break;
-			}
 			continue;
 		}
 
 		m.cursize = read;
+		m.data = buffer;
 		m.readpos = 0;
 
-		if (*(int*)buffer == -1)
-		{	//connectionless message
-			ConnectionlessPacket(cluster, &from, &m);
-			continue;
-		}
+		QW_ProcessUDPPacket(cluster, &m, from);
+	}
 
-		if (read < 10)	//otherwise it's a runt or bad.
+	for (l = &cluster->tcpconnects; *l; )
+	{
+		int clen;
+		tc = *l;
+		read = sizeof(tc->inbuffer) - tc->inbuffersize;
+		read = NET_WebSocketRecv(tc->sock, &tc->websocket, tc->inbuffer+tc->inbuffersize, read, &clen);
+		if (read > 0)
+			tc->inbuffersize += read;
+		if (read == 0 || read < 0)
 		{
-			if (read < 0)	//it's bad.
-				break;
+			if (read == 0 || qerrno != EWOULDBLOCK)
+			{
+				*l = tc->next;
+				closesocket(tc->sock);
+				free(tc);
+				continue;
+			}
+		}
+		
+		if (clen >= 0)
+		{
+			/*if it really is a webclient connection, then the stream will be packetized already
+			so we don't waste extra space*/
+			m.data = tc->inbuffer;
+			m.readpos = 0;
+			m.cursize = read;
 
-			qport = 0;
+			QW_ProcessUDPPacket(cluster, &m, tc->peeraddr);
+
+			memmove(tc->inbuffer, tc->inbuffer+read, tc->inbuffersize - (read));
+			tc->inbuffersize -= read;
+			continue;	//ask to read the next packet
 		}
 		else
 		{
-			//read the qport
-			ReadLong(&m);
-			ReadLong(&m);
-			qport = ReadShort(&m);
-		}
-
-		for (v = cluster->viewers; v; v = v->next)
-		{
-			if (v->netchan.isnqprotocol)
+			while (tc->inbuffersize >= 2)
 			{
-				if (Net_CompareAddress(&v->netchan.remote_address, &from, 0, 0))
+				read = (tc->inbuffer[0]<<8) | tc->inbuffer[1];
+				if (tc->inbuffersize >= 2+read)
 				{
-					if (NQNetchan_Process(cluster, &v->netchan, &m))
-					{
-						useserver = v->server;
-						if (useserver && useserver->parsingconnectiondata)
-							useserver = NULL;
+					m.data = tc->inbuffer+2;
+					m.readpos = 0;
+					m.cursize = read;
 
-						v->timeout = cluster->curtime + 15*1000;
+					QW_ProcessUDPPacket(cluster, &m, tc->peeraddr);
 
-						ParseNQC(cluster, useserver, v, &m);
-
-						if (v->server && v->server->controller == v)
-						{
-							QTV_Run(v->server);
-						}
-					}
+					memmove(tc->inbuffer, tc->inbuffer+2+read, tc->inbuffersize - (2+read));
+					tc->inbuffersize -= 2+read;
 				}
-			}
-			else
-			{
-				if (Net_CompareAddress(&v->netchan.remote_address, &from, v->netchan.qport, qport))
-				{
-					if (v->server && v->server->controller == v && v->maysend)
-						SendViewerPackets(cluster, v);	//do this before we read the new sequences
-
-					if (Netchan_Process(&v->netchan, &m))
-					{
-						useserver = v->server;
-						if (useserver && useserver->parsingconnectiondata && useserver->controller != v)
-							useserver = NULL;
-
-						v->timeout = cluster->curtime + 15*1000;
-
-						if (v->server && v->server->controller == v)
-						{
-	//						v->maysend = true;
-							v->server->maysend = true;
-						}
-						else
-						{
-							v->netchan.outgoing_sequence = v->netchan.incoming_sequence;	//compensate for client->server packetloss.
-							if (!v->server)
-								v->maysend = true;
-							else if (!v->chokeme || !cluster->chokeonnotupdated)
-							{
-								v->maysend = true;
-								v->chokeme = cluster->chokeonnotupdated;
-							}
-						}
-
-						ParseQWC(cluster, useserver, v, &m);
-
-						if (v->server && v->server->controller == v)
-						{
-							QTV_Run(v->server);
-						}
-					}
+				else
 					break;
-				}
 			}
 		}
-		if (!v && cluster->allownqclients)
-		{
-			//NQ connectionless packet?
-			m.readpos = 0;
-			read = ReadLong(&m);
-			read = SwapLong(read);
-			if (read & NETFLAG_CTL)
-			{	//looks hopeful
-				switch(ReadByte(&m))
-				{
-				case CCREQ_SERVER_INFO:
-					ReadString(&m, tempbuffer, sizeof(tempbuffer));
-					if (!strcmp(tempbuffer, NET_GAMENAME_NQ))
-					{
-						m.cursize = 0;
-						WriteLong(&m, 0);
-						WriteByte(&m, CCREP_SERVER_INFO);
-						WriteString(&m, "??");
-						WriteString(&m, cluster->hostname);
-						WriteString(&m, "Quake TV");
-						WriteByte(&m, cluster->numviewers>255?255:cluster->numviewers);
-						WriteByte(&m, cluster->maxviewers>255?255:cluster->maxviewers);
-						WriteByte(&m, NET_PROTOCOL_VERSION);
-						*(int*)m.data = BigLong(NETFLAG_CTL | m.cursize);
-						NET_SendPacket(cluster, NET_ChooseSocket(cluster->qwdsocket, &from), m.cursize, m.data, from);
-					}
-					break;
-				case CCREQ_CONNECT:
-					ReadString(&m, tempbuffer, sizeof(tempbuffer));
-					if (!strcmp(tempbuffer, NET_GAMENAME_NQ))
-					{
-						if (ReadByte(&m) == NET_PROTOCOL_VERSION)
-						{
-							//drop any old nq clients from this address
-							for (v = cluster->viewers; v; v = v->next)
-							{
-								if (v->netchan.isnqprotocol)
-								{
-									if (Net_CompareAddress(&v->netchan.remote_address, &from, 0, 0))
-									{
-										Sys_Printf(cluster, "Dup connect from %s\n", v->name);
-										v->drop = true;
-									}
-								}
-							}
-							NewNQClient(cluster, &from);
-						}
-					}
-					break;
-				default:
-					break;
-				}
-			}
-		}
+
+
+		l = &(*l)->next;
 	}
-
 
 	if (cluster->viewers && cluster->viewers->drop)
 	{

@@ -119,7 +119,7 @@ void Fwd_ParseCommands(cluster_t *cluster, oproxy_t *prox)
 	netmsg_t buf;
 	int packetlength;
 	int bytes;
-	bytes = recv(prox->sock, prox->inbuffer+prox->inbuffersize, sizeof(prox->inbuffer)-prox->inbuffersize, 0);
+	bytes = NET_WebSocketRecv(prox->sock, &prox->websocket, prox->inbuffer+prox->inbuffersize, sizeof(prox->inbuffer)-prox->inbuffersize, NULL);
 	if (bytes < 0)
 	{
 		if (qerrno != EWOULDBLOCK && qerrno != EAGAIN)	//not a problem, so long as we can flush it later.
@@ -233,6 +233,67 @@ void Net_ProxySendString(cluster_t *cluster, oproxy_t *prox, void *buffer)
 void Net_ProxySend(cluster_t *cluster, oproxy_t *prox, void *buffer, int length)
 {
 	int wrap;
+
+	if (!length)
+		return;
+
+	if (prox->websocket.websocket)
+	{
+		unsigned int c;
+		int enclen = 0;
+
+		/*work out how much buffer space we'll need*/
+		for (c = 0; c < length; c++)
+		{
+			if (((unsigned char*)buffer)[c] == 0 || ((unsigned char*)buffer)[c] >= 0x80)
+				enclen += 2;
+			else
+				enclen += 1;
+		}
+
+		if (prox->buffersize-prox->bufferpos + (enclen+4) > MAX_PROXY_BUFFER)
+		{
+			Net_TryFlushProxyBuffer(cluster, prox);	//try flushing
+			if (prox->buffersize-prox->bufferpos + (enclen+4) > MAX_PROXY_BUFFER)	//damn, still too big.
+			{	//they're too slow. hopefully it was just momentary lag
+				if (!prox->flushing)
+				{
+					printf("QTV client is too lagged\n");
+					prox->flushing = true;
+				}
+				return;
+			}
+		}
+
+		if (enclen >= 126)
+		{
+			prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = 0x81;
+			prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = 126;
+			prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = enclen>>8;
+			prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = enclen;
+		}
+		else
+		{
+			prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = 0x81;
+			prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = enclen;
+		}
+		while(length-->0)
+		{
+			c = *(unsigned char*)buffer;
+			buffer = (char*)buffer+1;
+			if (!c)
+				c |= 0x100;	/*will get truncated at the other end*/
+			if (c >= 0x80)
+			{
+				prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = 0xc0 | (c>>6);
+				prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = 0x80 | (c & 0x3f);
+			}
+			else
+				prox->buffer[prox->buffersize++&(MAX_PROXY_BUFFER-1)] = c;
+		}
+		Net_TryFlushProxyBuffer(cluster, prox);	//try flushing in a desperate attempt to reduce bugs in google chrome.
+		return;
+	}
 
 	if (prox->buffersize-prox->bufferpos + length > MAX_PROXY_BUFFER)
 	{
@@ -622,22 +683,166 @@ void SV_ForwardStream(sv_t *qtv, void *buffer, int length)
 	}
 }
 
+/*wrapper around recv to handle websocket connections*/
+int NET_WebSocketRecv(SOCKET sock, wsrbuf_t *ws, unsigned char *out, unsigned int outlen, int *clen)
+{
+	unsigned int mask = 0;
+	unsigned int paylen;
+	int len, i;
+
+	if (clen)
+		*clen = -1;
+	if (!ws->websocket)
+		return recv(sock, out, outlen, 0);
+
+	if (!ws->wsbuflen)
+	{
+		len = recv(sock, ws->wsbuf, 2, 0);
+		if (len > 0)
+			ws->wsbuflen+=2;
+		else
+			return len;
+	}
+	if (ws->wsbuflen >= 2)
+	{
+		unsigned short ctrl = (ws->wsbuf[0]<<8) | ws->wsbuf[1];
+		len = 2;
+		if ((ctrl & 0x7f) == 127)
+			len += 8;
+		else if ((ctrl & 0x7f) == 126)
+			len += 2;
+		if (ctrl & 0x80)
+			len += 4;
+		if (ws->wsbuflen < len)
+		{
+			paylen = recv(sock, ws->wsbuf+ws->wsbuflen, len - ws->wsbuflen, 0);
+			if (paylen > 0)
+				ws->wsbuflen += paylen;
+			else
+				return paylen;
+		}
+
+		/*headers are complete*/
+		if (ws->wsbuflen >= len)
+		{
+			if ((ctrl & 0x7f) == 127)
+			{
+//				paylen = paylen = ((ws->wsbuf[2]<<56) | (ws->wsbuf[3]<<48) | (ws->wsbuf[4]<<40) | (ws->wsbuf[5]<<32) | (ws->wsbuf[6]<<24) | (ws->wsbuf[7]<<16) | (ws->wsbuf[8]<<8) | (ws->wsbuf[9]<<0);
+//				if (paylen < 65536)
+					return 0;	//error
+			}
+			else if ((ctrl & 0x7f) == 126)
+			{
+				paylen = (ws->wsbuf[2]<<8) | ws->wsbuf[3];
+				if (paylen < 126)
+					return 0;	//error
+			}
+			else
+				paylen = ctrl & 0x7f;
+
+			if (ctrl & 0x80)
+			{
+				((unsigned char*)&mask)[0] = ws->wsbuf[ws->wsbuflen-4];
+				((unsigned char*)&mask)[1] = ws->wsbuf[ws->wsbuflen-3];
+				((unsigned char*)&mask)[2] = ws->wsbuf[ws->wsbuflen-2];
+				((unsigned char*)&mask)[3] = ws->wsbuf[ws->wsbuflen-1];
+			}
+			if (!(ctrl & 0x8000))
+				return 0;	//can't handle fragmented frames
+
+			switch((ctrl>>8) & 0xf)
+			{
+			case 1: /*text frame*/
+				len = 0;
+				while (outlen>len && ws->wspushed < paylen)
+				{
+					unsigned char n;
+					ctrl = recv(sock, &n, 1, 0);	//FIXME: not my fastest code...
+					if (ctrl <= 0)
+						return len>0?len:ctrl;
+
+					n ^= ((unsigned char*)&mask)[(ws->wspushed++)&3];
+					
+					if (ws->wsbits)
+					{
+						*out++ = ((ws->wsbits&0x1f)<<6) | (n & 0x3f);
+						len++;
+						ws->wsbits = 0;
+					}
+					else if ((n & 0xe0) == 0xc0)
+					{
+						ws->wsbits = n;
+					}
+					else if (n & 0x80)
+						return 0; //error
+					else
+					{
+						*out++ = n;
+						len++;
+					}
+				}
+				if (ws->wspushed == paylen)
+				{
+					if (ws->wsbits)
+						return 0; //error
+					if (clen)
+						*clen = ws->wspushed;
+					ws->wspushed = 0;
+					ws->wsbuflen = 0;
+				}
+				return len;
+			case 2: /*binary frame*/
+				if (outlen > paylen - ws->wspushed)
+					outlen = paylen - ws->wspushed;
+				len = recv(sock, out, outlen, 0);
+				if (len > 0)
+				{
+					for(i = 0; i < len; i++)
+						out[i] ^= ((unsigned char*)&mask)[(ws->wspushed+i)&3];
+					ws->wspushed += len;
+				}
+				if (paylen == ws->wspushed)
+				{
+					/*success! move on to the next*/
+					if (clen)
+						*clen = ws->wspushed;
+					ws->wspushed = 0;
+					ws->wsbuflen = 0;
+				}
+				return len;
+			case 8: /*close*/
+			case 9: /*ping*/
+			case 10: /*pong*/
+			default:
+				return 0; //unsupported
+			}
+			return 0;
+		}
+		return 0;
+	}
+	else
+		return 0;
+}
+
 //returns true if the pending proxy should be unlinked
 //truth does not imply that it should be freed/released, just unlinked.
 qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 {
+	//drop: ignored if flushing is still set. clear flushing and set drop on errors.
 	char tempbuf[512];
 	unsigned char *s;
 	unsigned char *e;
 	char *colon;
 	float clientversion = 0;
 	int len;
+	qboolean eoh;
 	int headersize;
 	qboolean raw;
 	sv_t *qtv;
 
-	if (pend->drop)
+	if (pend->drop && !pend->flushing)
 	{
+		printf("pending drop\n");
 		if (pend->srcfile)
 			fclose(pend->srcfile);
 		closesocket(pend->sock);
@@ -672,6 +877,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 			if (pend->bufferpos == pend->buffersize)
 			{
 				char buffer[MAX_PROXY_BUFFER/2];
+				pend->droptime = cluster->curtime + 5*1000;
 				len = fread(buffer, 1, sizeof(buffer), pend->srcfile);
 				if (!len)
 				{
@@ -684,31 +890,32 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 			return false;	//don't try reading anything yet
 		}
 
-		if (pend->bufferpos == pend->buffersize)
-		{
-			pend->drop = true;
+		if (pend->bufferpos != pend->buffersize)
 			return false;
-		}
-		else
+		pend->flushing = false;
+		if (pend->drop)
 			return false;
 	}
 
 	if (pend->droptime < cluster->curtime)
 	{
+		printf("pending timeout\n");
 		pend->drop = true;
+		pend->flushing = false;
 		return false;
 	}
 
 	len = sizeof(pend->inbuffer) - pend->inbuffersize - 1;
-	len = recv(pend->sock, pend->inbuffer+pend->inbuffersize, len, 0);
+	len = NET_WebSocketRecv(pend->sock, &pend->websocket, pend->inbuffer+pend->inbuffersize, len, NULL);
 	if (len == 0)
 	{
 		pend->drop = true;
 		return false;
 	}
+	else if (len > 0)
+		pend->droptime = cluster->curtime + 5*1000;
 	if (len < 0)
 	{
-
 		return false;
 	}
 
@@ -717,6 +924,39 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 
 	if (pend->inbuffersize >= 4)
 	{
+		if (!strncmp(pend->inbuffer, "qizmo\n", 6))
+		{
+			wsrbuf_t ws = pend->websocket;
+			SOCKET sock;
+			//carries unreliable packets
+			printf("tcpconnect\n");
+			if (pend->srcfile)
+				fclose(pend->srcfile);
+			sock = pend->sock;
+			free(pend);
+			cluster->numproxies--;
+
+			send(sock, "qizmo\n", 6, 0);
+			QW_TCPConnection(cluster, sock, ws);
+
+			return true;
+		}
+		if (pend->websocket.websocket && !strncmp(pend->inbuffer, "\xff\xff\xff\xff", 4))
+		{
+			wsrbuf_t ws = pend->websocket;
+			SOCKET sock;
+			//carries unreliable packets
+			printf("wsconnect\n");
+			if (pend->srcfile)
+				fclose(pend->srcfile);
+			sock = pend->sock;
+			free(pend);
+			cluster->numproxies--;
+
+			QW_TCPConnection(cluster, sock, ws);
+
+			return true;
+		}
 		if (ustrncmp(pend->inbuffer, "QTV\r", 4) && ustrncmp(pend->inbuffer, "QTV\n", 4) && ustrncmp(pend->inbuffer, "GET ", 4) && ustrncmp(pend->inbuffer, "POST ", 5))
 		{	//I have no idea what the smeg you are.
 			pend->drop = true;
@@ -729,15 +969,25 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 
 	//make sure there's a double \n somewhere
 
-	for (s = pend->inbuffer; s<pend->inbuffer+pend->inbuffersize; s++)
+	eoh = false;
+	for (s = pend->inbuffer; s<=pend->inbuffer+pend->inbuffersize; s++)
 	{
-		if (s[0] == '\n' && (s[1] == '\n' || (s[1] == '\r' && s[2] == '\n')))
+		if (s[0] == '\n' && s[1] == '\n')
+		{
+			s += 2;
+			eoh = true;
 			break;
+		}
+		if (s[0] == '\n' && s[1] == '\r' && s[2] == '\n')
+		{
+			s += 3;
+			eoh = true;
+			break;
+		}
 	}
-	if (!*s)
+	if (!eoh)
 		return false;	//don't have enough yet
-	s+=3;	//Fixme: this is wrong
-	headersize = s - pend->inbuffer - 1;
+	headersize = s - pend->inbuffer;
 
 	if (!ustrncmp(pend->inbuffer, "POST ", 5))
 	{
@@ -747,9 +997,12 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 	}
 	else if (!ustrncmp(pend->inbuffer, "GET ", 4))
 	{
+		pend->drop = true;
 		HTTPSV_GetMethod(cluster, pend);
 		pend->flushing = true;
-		return false;
+		memmove(pend->inbuffer, pend->inbuffer+headersize, pend->inbuffersize-headersize);
+		pend->inbuffersize -= headersize;
+		return SV_ReadPendingProxy(cluster, pend);
 	}
 
 	raw = false;

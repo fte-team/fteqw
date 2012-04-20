@@ -509,6 +509,8 @@ int main(int argc, char **argv)
 		cluster->qwdsocket[1] = INVALID_SOCKET;
 		cluster->tcpsocket[0] = INVALID_SOCKET;
 		cluster->tcpsocket[1] = INVALID_SOCKET;
+		cluster->anticheattime = 1*1000;
+		cluster->tooslowdelay = 100;
 		cluster->qwlistenportnum = 0;
 		cluster->allownqclients = true;
 		strcpy(cluster->hostname, DEFAULT_HOSTNAME);
@@ -526,12 +528,8 @@ int main(int argc, char **argv)
 			if (cluster->qwdsocket[0] == INVALID_SOCKET && cluster->qwdsocket[1] == INVALID_SOCKET && !cluster->qwlistenportnum)
 			{
 				cluster->qwlistenportnum = 27599;
-				cluster->qwdsocket[0] = QW_InitUDPSocket(cluster->qwlistenportnum, false);
-				if (cluster->qwdsocket[0] != INVALID_SOCKET)
-					Sys_Printf(cluster, "opened udp4 port %i\n", cluster->qwlistenportnum);
-				cluster->qwdsocket[1] = QW_InitUDPSocket(cluster->qwlistenportnum, true);
-				if (cluster->qwdsocket[1] != INVALID_SOCKET)
-					Sys_Printf(cluster, "opened udp6 port %i\n", cluster->qwlistenportnum);
+				NET_InitUDPSocket(cluster, cluster->qwlistenportnum, true);
+				NET_InitUDPSocket(cluster, cluster->qwlistenportnum, false);
 			}
 			if (cluster->tcpsocket[0] == INVALID_SOCKET && cluster->tcpsocket[1] == INVALID_SOCKET && !cluster->tcplistenportnum)
 			{

@@ -2884,8 +2884,10 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 
 	if (client->spectator)
 		trackent = EDICT_NUM(svprogfuncs, client->spec_track);
-	else
+	else if (clent)
 		trackent = PROG_TO_EDICT(svprogfuncs, clent->xv->view2);
+	else
+		trackent = NULL;
 
 	if (client->viewent
  #ifdef NQPROT

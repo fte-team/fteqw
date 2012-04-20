@@ -9,7 +9,9 @@ STRIPFLAGS=--strip-unneeded --remove-section=.comment
 # 'cause Microsoft suck.
 CLIBNAME = c
 
-OBJS = netchan.o parse.o msg.o qw.o source.o bsp.o rcon.o mdfour.o crc.o control.o forward.o pmove.o menu.o httpsv.o
+VPATH=../engine/common
+
+OBJS = netchan.o parse.o msg.o qw.o source.o bsp.o rcon.o mdfour.o crc.o control.o forward.o pmove.o menu.o httpsv.o sha1.o
 
 all: qtv
 

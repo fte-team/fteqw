@@ -10,7 +10,7 @@ this is a fairly basic implementation.
 don't expect it to do much.
 You can probably get a better version from somewhere.
 */
-int vsnprintf(char *buffer, int maxlen, char *format, va_list vargs)
+int vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs)
 {
 	int tokens=0;
 	char *string;
@@ -316,7 +316,7 @@ Con_Printf("%i bytes left\n", maxlen);
 	{*buffer++='\0';return tokens;}
 }
 
-int snprintf(char *buffer, int maxlen, char *format, ...)
+int snprintf(char *buffer, size_t maxlen, const char *format, ...)
 {
 	int p;
 	va_list		argptr;

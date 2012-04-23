@@ -26,7 +26,8 @@
 #include "keysymdef.h"
 
 typedef struct xclient_s {
-	int socket;
+	int closedownmode;
+	qhandle_t socket;
 	int inbufferlen;
 	int outbufferlen;
 	int inbuffermaxlen;
@@ -84,9 +85,9 @@ typedef struct xpixmap_s {
 } xpixmap_t;
 typedef struct xatom_s {
 	xresource_t res;
-	char atomname[1];
 	int selectionownerwindowid;
 	xclient_t *selectionownerclient;
+	char atomname[1]; //must be last
 } xatom_t;
 typedef struct xwindow_s {
 	xresource_t res;
@@ -117,6 +118,7 @@ typedef struct xwindow_s {
 
 	xproperty_t *properties;
 	xnotificationmask_t *notificationmask;
+	unsigned int notificationmasks;
 } xwindow_t;
 
 typedef struct xfont_s

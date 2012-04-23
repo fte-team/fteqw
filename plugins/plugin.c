@@ -44,6 +44,12 @@ BUILTINR(funcptr_t, Plug_GetEngineFunction, (char *funcname));
 BUILTINR(int, Plug_ExportToEngine, (char *funcname, int expnum));
 #undef ARGNAMES
 
+#ifndef Q3_VM
+#define ARGNAMES ,funcname,func
+BUILTINR(qboolean, Plug_ExportNative, (char *funcname, void *func));
+#undef ARGNAMES
+#endif
+
 #define ARGNAMES ,text
 BUILTIN(void, Con_Print, (char *text));	//on to main console.
 #undef ARGNAMES
@@ -170,10 +176,6 @@ BUILTIN(void, Draw_Colour4f, (float r, float g, float b, float a));
 BUILTIN(void, SCR_CenterPrint, (char *s));
 #undef ARGNAMES
 
-#define ARGNAMES ,src,srcwidth,srcheight,x,y,width,height
-BUILTIN(void, Media_ShowFrameRGBA_32, (void *src, int srcwidth, int srcheight, int x, int y, int width, int height));
-#undef ARGNAMES
-
 #define ARGNAMES ,mnum
 BUILTIN(void, Menu_Control, (int mnum));
 #undef ARGNAMES
@@ -286,6 +288,9 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(Con_Print);
 
 	CHECKBUILTIN(Plug_ExportToEngine);
+#ifndef Q3_VM
+	CHECKBUILTIN(Plug_ExportNative);
+#endif
 	CHECKBUILTIN(Sys_Error);
 
 	CHECKBUILTIN(ReadInputBuffer);
@@ -352,8 +357,6 @@ void Plug_InitStandardBuiltins(void)
 	CHECKBUILTIN(Draw_Colour3f);
 	CHECKBUILTIN(Draw_Colour4f);
 	CHECKBUILTIN(SCR_CenterPrint);
-
-	CHECKBUILTIN(Media_ShowFrameRGBA_32);
 
 	CHECKBUILTIN(GetPluginName);
 

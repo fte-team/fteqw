@@ -91,9 +91,9 @@ void XR_QueryExtension (xclient_t *cl, xReq *request)
 	xQueryExtensionReply rep;
 	xQueryExtensionReq *req = (xQueryExtensionReq *)request;
 
-	if (req->nbytes > 250)
-		req->nbytes = 250;
-	strncpy(extname, (char *)(req+1), req->nbytes);
+	if (req->nbytes > sizeof(extname)-1)
+		req->nbytes = sizeof(extname)-1;
+	memcpy(extname, (char *)(req+1), req->nbytes);
 	extname[req->nbytes] = '\0';
 
 #ifdef XBigReqExtensionName
@@ -242,6 +242,23 @@ void XR_ListExtensions (xclient_t *cl, xReq *request)
 
 
 	X_SendData(cl, rep, sizeof(xListExtensionsReply) + rep->length*4);
+}
+
+void XR_SetCloseDownMode(xclient_t *cl, xReq *request)
+{
+	xSetCloseDownModeReq *req = (xSetCloseDownModeReq*)request;
+
+	switch(req->mode)
+	{
+	case DestroyAll:
+	case RetainPermanent:
+	case RetainTemporary:
+		break;
+	default:
+		X_SendError(cl, BadValue, req->mode, X_SetCloseDownMode, 0);
+		return;
+	}
+	cl->closedownmode = req->mode;
 }
 
 void XR_GetAtomName (xclient_t *cl, xReq *request)
@@ -789,6 +806,10 @@ void XR_CreateWindow (xclient_t *cl, xReq *request)
 		nm->mask = *parameters;
 		wnd->notificationmask = nm;
 		parameters++;
+
+		wnd->notificationmasks = 0;
+		for (nm = wnd->notificationmask; nm; nm = nm->next)
+			wnd->notificationmasks |= nm->mask;
 	}
 	if (req->mask & CWDontPropagate)
 		wnd->donotpropagate = *parameters++;
@@ -1007,6 +1028,10 @@ void XR_ChangeWindowAttributes (xclient_t *cl, xReq *request)
 				nm->client = cl;
 			}
 			nm->mask = *parameters;
+
+			wnd->notificationmasks = 0;
+			for (nm = wnd->notificationmask; nm; nm = nm->next)
+				wnd->notificationmasks |= nm->mask;
 		}
 		parameters++;
 	}
@@ -1432,6 +1457,30 @@ void XR_QueryPointer (xclient_t *cl, xReq *request)
 	X_SendData(cl, &rep, sizeof(rep));
 }
 
+void XR_CreateCursor (xclient_t *cl, xReq *request)
+{
+	xCreateCursorReq *req = (xCreateCursorReq *)request;
+
+	//	X_SendError(cl, BadImplementation, 0, req->reqType, 0);
+}
+void XR_CreateGlyphCursor (xclient_t *cl, xReq *request)
+{
+	xCreateGlyphCursorReq *req = (xCreateGlyphCursorReq *)request;
+//	char buffer[8192];
+//	xGetKeyboardMappingReply *rep = (xGetKeyboardMappingReply *)buffer;
+
+//	X_SendError(cl, BadImplementation, 0, req->reqType, 0);
+
+//	X_SendError(cl, BadAlloc, req->id, X_DestroyWindow, 0);
+//	X_SendError(cl, BadFont, req->id, X_DestroyWindow, 0);
+//	X_SendError(cl, BadValue, req->id, X_DestroyWindow, 0);
+}
+void XR_FreeCursor (xclient_t *cl, xReq *request)
+{
+//	X_SendError(cl, BadImplementation, 0, req->reqType, 0);
+//	X_SendError(cl, BadValue, req->id, X_DestroyWindow, 0);
+}
+
 void XR_ChangeGCInternal(unsigned int mask, xgcontext_t *gc, CARD32 *param)
 {
 	if (mask & GCFunction)
@@ -1784,6 +1833,9 @@ void XR_ClearArea(xclient_t *cl, xReq *request)
 
 	XW_ClearArea(wnd, req->x, req->y, req->width, req->height);
 
+	if (req->exposures)
+		XW_ExposeWindowRegionInternal(wnd, req->x, req->y, req->width, req->height);
+
 	xrefreshed=true;
 }
 
@@ -1804,7 +1856,7 @@ void XR_CopyArea(xclient_t *cl, xReq *request)	//from and to pixmap or drawable.
 
 	if (XS_GetResource(req->gc, (void**)&gc) == x_none)
 	{
-		X_SendError(cl, BadGC, req->gc, X_PutImage, 0);
+		X_SendError(cl, BadGC, req->gc, X_CopyArea, 0);
 		return;
 	}
 
@@ -1812,7 +1864,7 @@ void XR_CopyArea(xclient_t *cl, xReq *request)	//from and to pixmap or drawable.
 	switch (XS_GetResource(req->srcDrawable, (void**)&drawable))
 	{
 	default:
-		X_SendError(cl, BadDrawable, req->srcDrawable, X_PutImage, 0);
+		X_SendError(cl, BadDrawable, req->srcDrawable, X_CopyArea, 0);
 		return;
 
 	case x_window:
@@ -1851,7 +1903,7 @@ void XR_CopyArea(xclient_t *cl, xReq *request)	//from and to pixmap or drawable.
 	switch (XS_GetResource(req->dstDrawable, (void**)&drawable))
 	{
 	default:
-		X_SendError(cl, BadDrawable, req->dstDrawable, X_PutImage, 0);
+		X_SendError(cl, BadDrawable, req->dstDrawable, X_CopyArea, 0);
 		return;
 
 	case x_window:
@@ -1903,8 +1955,8 @@ void XR_MapWindow(xclient_t *cl, xReq *request)
 		return;
 	}
 
-	if (wnd->mapped)
-		return;
+//	if (wnd->mapped)
+//		return;
 
 	if (!wnd->overrideredirect && X_NotifcationMaskPresent(wnd, SubstructureRedirectMask, cl))
 	{
@@ -1913,8 +1965,8 @@ void XR_MapWindow(xclient_t *cl, xReq *request)
 		ev.u.u.type						= MapRequest;
 		ev.u.u.detail					= 0;
 		ev.u.u.sequenceNumber			= 0;
-		ev.u.mapNotify.window			= wnd->parent->res.id;
-		ev.u.mapNotify.window			= wnd->res.id;
+		ev.u.mapRequest.parent			= wnd->parent->res.id;
+		ev.u.mapRequest.window			= wnd->res.id;
 
 		X_SendNotificationMasked(&ev, wnd, SubstructureRedirectMask);
 
@@ -1932,7 +1984,7 @@ void XR_MapWindow(xclient_t *cl, xReq *request)
 		ev.u.u.type						= MapNotify;
 		ev.u.u.detail					= 0;
 		ev.u.u.sequenceNumber			= 0;
-		ev.u.mapNotify.window			= wnd->res.id;
+		ev.u.mapNotify.event			= wnd->res.id;
 		ev.u.mapNotify.window			= wnd->res.id;
 		ev.u.mapNotify.override			= wnd->overrideredirect;
 		ev.u.mapNotify.pad1				= 0;
@@ -2056,19 +2108,32 @@ void XR_CreatePixmap(xclient_t *cl, xReq *request)
 {
 	xCreatePixmapReq *req = (xCreatePixmapReq *)request;
 
-	xwindow_t *wnd;
-	if (XS_GetResource(req->drawable, (void**)&wnd) != x_window)
+	xresource_t *res;
+	xpixmap_t *newpix;
+	
+	switch(XS_GetResource(req->drawable, (void**)&res))
 	{
+	case x_window:
+	case x_pixmap:
+		break;
+	default:
 		X_SendError(cl, BadDrawable, req->drawable, X_CreatePixmap, 0);
 		return;
 	}
 
-	if (XS_GetResource(req->pid, (void**)&wnd) != x_none)
+	//depth must be one of the depths supported by the drawable's root window
+	if (req->depth != 24 && req->depth != 32)
+	{
+//		X_SendError(cl, BadValue, req->depth, X_CreatePixmap, 0);
+//		return;
+	}
+	req->depth = 24;
+
+	if (XS_GetResource(req->pid, (void**)&newpix) != x_none)
 	{
 		X_SendError(cl, BadIDChoice, req->pid, X_CreatePixmap, 0);
 	}
-
-	XS_CreatePixmap(req->pid, cl, req->width, req->height, 24);
+	XS_CreatePixmap(req->pid, cl, req->width, req->height, req->depth);
 }
 
 void XR_FreePixmap(xclient_t *cl, xReq *request)
@@ -2168,38 +2233,17 @@ void XR_PutImage(xclient_t *cl, xReq *request)
 
 	in = (qbyte *)(req+1);
 
-	if (req->format == ZPixmap && req->leftPad)
+	//my own bugs...
+	if (req->leftPad != 0)
 	{
-		X_SendError(cl, BadMatch, req->drawable, X_PutImage, 0);
+		X_SendError(cl, BadImplementation, req->drawable, X_PutImage, req->format);
+		return;
 	}
-	else if (req->format != XYBitmap && req->depth != drdepth)
-	{
-//		X_SendError(cl, BadMatch, req->drawable, X_PutImage, 0);
-	}
-	else if (req->format == ZPixmap && req->depth == 24)	//32 bit network bandwidth (hideous)
-	{
-		while(req->height)
-		{
-			out = drbuffer + (req->dstX + req->dstY*drwidth)*4;
-			for (i = 0; i < req->width; i++)
-			{
-				out[i*4+0] = in[i*4+0];
-				out[i*4+1] = in[i*4+1];
-				out[i*4+2] = in[i*4+2];
-			}
-			in += req->width*4;
 
-			req->height--;
-			req->dstY++;
-		}
-	}
-	else if (req->format == XYPixmap)
-	{
-
-	}
-	else if (req->format == XYBitmap)
-	{	//bitwise image... yuck
+	if (req->format == XYBitmap)
+	{	//bitmaps are just a 'mask' specifying which pixels get foreground and which get background.
 		int bnum;
+		unsigned int *o4;
 		bnum=0;
 		if (req->depth == 1)
 		{
@@ -2208,21 +2252,13 @@ void XR_PutImage(xclient_t *cl, xReq *request)
 				bnum += req->leftPad;
 
 				out = drbuffer + (req->dstX + req->dstY*drwidth)*4;
+				o4 = (unsigned int*)out;
 				for (i = 0; i < req->width; i++)
 				{
 					if (in[bnum>>8]&(1<<(bnum&7)))
-					{
-						out[i*4+0] = 0xff;
-						out[i*4+1] = 0xff;
-						out[i*4+2] = 0xff;
-					}
+						o4[i] = gc->fgcolour;
 					else
-					{
-						out[i*4+0] = 0x00;
-						out[i*4+1] = 0x00;
-						out[i*4+2] = 0x00;
-					}
-					out[i*4+2] = rand();
+						o4[i] = gc->bgcolour;
 					bnum++;
 				}
 				bnum += req->width;
@@ -2233,6 +2269,83 @@ void XR_PutImage(xclient_t *cl, xReq *request)
 		}
 		else
 			X_SendError(cl, BadMatch, req->drawable, X_PutImage, 0);
+	}
+	else if (req->depth != drdepth)	/*depth must match*/
+	{
+		X_SendError(cl, BadMatch, req->drawable, X_PutImage, 0);
+	}
+	else if (req->format == ZPixmap)	//32 bit network bandwidth (hideous)
+	{
+		if (req->leftPad != 0)
+		{
+			X_SendError(cl, BadMatch, req->drawable, X_PutImage, 0);
+			return;
+		}
+
+		if (req->depth == 1)
+		{
+			unsigned int *o4;
+			int bnum = 0;
+			while(req->height)
+			{
+				out = drbuffer + (req->dstX + req->dstY*drwidth)*4;
+				o4 = (unsigned int*)out;
+				for (i = 0; i < req->width; i++, bnum++)
+				{
+					if (in[bnum>>8]&(1<<(bnum&7)))
+						o4[i] = 0xffffff;
+					else
+						o4[i] = 0;
+				}
+
+				req->height--;
+				req->dstY++;
+			}
+		}
+		else
+		{
+			while(req->height)
+			{
+				unsigned int *i4, *o4;
+				out = drbuffer + (req->dstX + req->dstY*drwidth)*4;
+				i4 = (unsigned int*)in;
+				o4 = (unsigned int*)out;
+				for (i = 0; i < req->width; i++)
+				{
+					o4[i] = i4[i];
+				}
+	/*			for (i = 0; i < req->width; i++)
+				{
+					out[i*4+0] = in[i*4+0];
+					out[i*4+1] = in[i*4+1];
+					out[i*4+2] = in[i*4+2];
+				}
+	*/			in += req->width*4;
+
+				req->height--;
+				req->dstY++;
+			}
+		}
+	}
+	else if (req->format == XYPixmap)
+	{
+		while(req->height)
+		{
+			unsigned int *o4;
+			out = drbuffer + (req->dstX + req->dstY*drwidth)*4;
+			o4 = (unsigned int*)out;
+			for (i = 0; i < req->width; i++)
+			{
+				if (in[i>>3] & (1u<<(i&7)))
+					o4[i] = rand();
+				else
+					o4[i] = rand();
+			}
+			in += (req->width+7)/8;
+
+			req->height--;
+			req->dstY++;
+		}
 	}
 	else
 	{
@@ -2256,7 +2369,7 @@ void XR_GetImage(xclient_t *cl, xReq *request)
 
 	if (XS_GetResource(req->drawable, (void**)&drawable) == x_none)
 	{
-		X_SendError(cl, BadDrawable, req->drawable, X_PutImage, 0);
+		X_SendError(cl, BadDrawable, req->drawable, X_GetImage, 0);
 		return;
 	}
 
@@ -2295,30 +2408,30 @@ void XR_GetImage(xclient_t *cl, xReq *request)
 	}
 	else
 	{
-		X_SendError(cl, BadDrawable, req->drawable, X_PutImage, 0);
+		X_SendError(cl, BadDrawable, req->drawable, X_GetImage, 0);
 		return;
 	}
 
 	if (req->x < 0)
 	{
-		X_SendError(cl, BadValue, req->drawable, X_PutImage, 0);
+		X_SendError(cl, BadValue, req->drawable, X_GetImage, 0);
 		return;
 	}
 	if (req->y < 0)
 	{
-		X_SendError(cl, BadValue, req->drawable, X_PutImage, 0);
+		X_SendError(cl, BadValue, req->drawable, X_GetImage, 0);
 		return;
 	}
 
 	if (req->width > drwidth - req->x)
 	{
-		X_SendError(cl, BadValue, req->drawable, X_PutImage, 0);
+		X_SendError(cl, BadValue, req->drawable, X_GetImage, 0);
 		return;
 	}
 
 	if (req->height > drheight - req->y)
 	{
-		X_SendError(cl, BadValue, req->drawable, X_PutImage, 0);
+		X_SendError(cl, BadValue, req->drawable, X_GetImage, 0);
 		return;
 	}
 
@@ -2342,7 +2455,7 @@ void XR_GetImage(xclient_t *cl, xReq *request)
 	}
 	else
 	{
-		X_SendError(cl, BadImplementation, req->drawable, X_PutImage, req->format);
+		X_SendError(cl, BadImplementation, req->drawable, X_GetImage, req->format);
 		return;
 	}
 
@@ -2387,7 +2500,7 @@ void XW_PolyLine(unsigned int *dbuffer, int dwidth, int dheight, int x1, int x2,
 
 	dx = (x2 - x1);
 	dy = (y2 - y1);
-	len = sqrt(dx*dx+dy*dy);
+	len = (int)sqrt(dx*dx+dy*dy);
 
 	if (!len)
 		return;
@@ -2417,6 +2530,7 @@ void XR_PolyLine(xclient_t *cl, xReq *request)
 	int drwidth;
 	int drheight;
 	unsigned char *drbuffer;
+	INT16 start[2], end[2];
 
 	INT16 *points;
 	points = (INT16 *)(req+1);
@@ -2481,21 +2595,121 @@ void XR_PolyLine(xclient_t *cl, xReq *request)
 	}
 	else
 	{
-		/*if (req->coordMode)
-		{
-			for(pointsleft = req->length-3; pointsleft>0; pointsleft--)
-			{
-				points[2] += points[0];
-				points[3] += points[1];
-				points+=2;
-			}
-			points = (INT16 *)(req+1);
-		}*/
+		end[0] = 0;
+		end[1] = 0;
 
-		for (pointsleft = req->length-3; pointsleft>0; pointsleft--)
+		for (pointsleft = req->length-3; pointsleft>0; pointsleft-=2)
 		{
-			XW_PolyLine((unsigned int *)drbuffer, drwidth, drheight, points[0], points[2], points[1], points[3], gc);
+			if (req->coordMode == 1/*Previous*/)
+			{
+				start[0] = end[0] + points[0];
+				start[1] = end[1] + points[1];
+				end[0] = start[0] + points[2];
+				end[1] = start[1] + points[3];
+			}
+			else
+			{
+				start[0] = points[0];
+				start[1] = points[1];
+				end[0] = points[2];
+				end[1] = points[3];
+			}
+			XW_PolyLine((unsigned int *)drbuffer, drwidth, drheight, start[0], end[0], start[1], end[1], gc);
+			points+=4;
+		}
+	}
+}
+
+void XR_FillPoly(xclient_t *cl, xReq *request)
+{
+	xFillPolyReq *req = (xFillPolyReq *)request;
+	INT16 *points = (INT16*)(req+1);
+	int numpoints = req->length-4;
+
+	xresource_t *drawable;
+	xgcontext_t *gc;
+
+	int drwidth;
+	int drheight;
+	unsigned char *drbuffer;
+	INT16 start[2], end[2];
+
+	points = (INT16 *)(req+1);
+
+	
+
+	if (XS_GetResource(req->drawable, (void**)&drawable) == x_none)
+	{
+		X_SendError(cl, BadDrawable, req->drawable, X_PolyRectangle, 0);
+		return;
+	}
+
+	if (XS_GetResource(req->gc, (void**)&gc) == x_none)
+	{
+		X_SendError(cl, BadGC, req->gc, X_PolyRectangle, 0);
+		return;
+	}
+
+	if (drawable->restype == x_window)
+	{
+		xwindow_t *wnd;
+		wnd = (xwindow_t *)drawable;
+		if (!wnd->buffer)
+		{
+			wnd->buffer = malloc(wnd->width*wnd->height*4);
+			XW_ClearArea(wnd, 0, 0, wnd->width, wnd->height);
+		}
+
+		drwidth = wnd->width;
+		drheight = wnd->height;
+		drbuffer = wnd->buffer;
+	}
+	else if (drawable->restype == x_pixmap)
+	{
+		xpixmap_t *pm;
+		pm = (xpixmap_t *)drawable;
+		if (!pm->data)
+		{
+			pm->data = malloc(pm->width*pm->height*4);
+			memset(pm->data, rand(), pm->width*pm->height*4);
+		}
+
+		drwidth = pm->width;
+		drheight = pm->height;
+		drbuffer = pm->data;
+	}
+	else
+	{
+		X_SendError(cl, BadDrawable, req->drawable, X_PolyRectangle, 0);
+		return;
+	}
+
+	xrefreshed = true;
+
+
+
+	{
+		start[0] = points[(numpoints*2)-2];
+		start[1] = points[(numpoints*2)-1];
+		while (numpoints-->0)
+		{
+			if (req->coordMode == 1/*Previous*/)
+			{
+				end[0] = start[0] + points[0];
+				end[1] = start[1] + points[1];
+			}
+			else
+			{
+				end[0] = points[0];
+				end[1] = points[1];
+			}
 			points+=2;
+
+//			XW_PolyLine((unsigned int *)drbuffer, drwidth, drheight, start[0], start[1], end[0], end[1], gc);
+			points++;
+
+			start[0] = end[0];
+			start[1] = end[1];
 		}
 	}
 }
@@ -3017,6 +3231,7 @@ void XR_AllocColor(xclient_t *cl, xReq *request)
 {
 	xAllocColorReq *req = (xAllocColorReq *)request;
 	xAllocColorReply rep;
+	unsigned char rgb[3] = {req->red>>8, req->green>>8, req->blue>>8};
 
 	rep.type			= X_Reply;
 	rep.pad1			= 0;
@@ -3026,7 +3241,7 @@ void XR_AllocColor(xclient_t *cl, xReq *request)
 	rep.green			= req->green;
 	rep.blue			= req->blue;
 	rep.pad2			= 0;
-	rep.pixel			= ((req->blue>>8)<<16) | ((req->green>>8)<<8) | (req->red>>8);
+	rep.pixel			= (rgb[0]<<16) | (rgb[1]<<8) | (rgb[2]);
 	rep.pad3			= 0;
 	rep.pad4			= 0;
 	rep.pad5			= 0;
@@ -3043,35 +3258,40 @@ void XR_LookupColor(xclient_t *cl, xReq *request)
 	char colourname[256];
 	colour_t *c, colour[] = {
 		{"black",	0,0,0},
-		{"grey",	0.5,0.5,0.5},
-		{"gray",	0.5,0.5,0.5},	//wmaker uses this one. humour it.
-		{"gray90",	0.9,0.9,0.9},
-		{"gray80",	0.8,0.8,0.8},
-		{"gray70",	0.7,0.7,0.7},
-		{"gray60",	0.6,0.6,0.6},
-		{"gray50",	0.5,0.5,0.5},
-		{"gray40",	0.4,0.4,0.4},
-		{"gray30",	0.3,0.3,0.3},
-		{"gray20",	0.2,0.2,0.2},
-		{"gray10",	0.1,0.1,0.1},
-		{"grey10",	0.1,0.1,0.1},
+		{"grey",	0.5f,0.5f,0.5f},
+		{"gray",	0.5f,0.5f,0.5f},	//wmaker uses this one. humour it.
+		{"gray90",	0.9f,0.9f,0.9f},
+		{"gray80",	0.8f,0.8f,0.8f},
+		{"gray70",	0.7f,0.7f,0.7f},
+		{"gray60",	0.6f,0.6f,0.6f},
+		{"gray50",	0.5f,0.5f,0.5f},
+		{"gray40",	0.4f,0.4f,0.4f},
+		{"gray30",	0.3f,0.3f,0.3f},
+		{"gray20",	0.2f,0.2f,0.2f},
+		{"gray10",	0.1f,0.1f,0.1f},
+		{"grey10",	0.1f,0.1f,0.1f},
 		{"white",	1,1,1},
 		{"red",		1,0,0},
 		{"green",	0,1,0},
 		{"blue",	0,0,1},
-		{"blue4",	0,0,0.4},
+		{"blue4",	0,0,0.4f},
 		{NULL}
 	};
 
 	xLookupColorReq *req = (xLookupColorReq *)request;
 	xLookupColorReply rep;
 
-	strncpy(colourname, (char *)(req+1), req->nbytes);
+	if (req->nbytes >= sizeof(colourname))
+	{
+		X_SendError(cl, BadName, 0, X_LookupColor, 0);
+		return;
+	}
+	memcpy(colourname, (char *)(req+1), req->nbytes);
 	colourname[req->nbytes] = '\0';
 
 	for (c = colour; c->name; c++)
 	{
-		if (!stricmp(c->name, colourname))
+		if (!strcasecmp(c->name, colourname))
 		{
 			break;
 		}
@@ -3088,9 +3308,9 @@ void XR_LookupColor(xclient_t *cl, xReq *request)
 	rep.pad1			= 0;
 	rep.sequenceNumber	= cl->requestnum;
 	rep.length			= 0;
-	rep.exactRed		= c->r*0xffff;
-	rep.exactGreen		= c->g*0xffff;
-	rep.exactBlue		= c->b*0xffff;
+	rep.exactRed		= (unsigned short)(c->r*0xffffu);
+	rep.exactGreen		= (unsigned short)(c->g*0xffffu);
+	rep.exactBlue		= (unsigned short)(c->b*0xffffu);
 	rep.screenRed		= rep.exactRed;
 	rep.screenGreen		= rep.exactGreen;
 	rep.screenBlue		= rep.exactBlue;
@@ -3215,6 +3435,8 @@ void XR_UngrabServer (xclient_t *cl, xReq *request)
 xclient_t *xpointergrabclient;
 xwindow_t *xpgrabbedwindow;
 xwindow_t *xpconfinewindow;
+unsigned int xpointergrabmask;
+CARD32 xpointergrabcursor;
 void XR_GrabPointer (xclient_t *cl, xReq *request)
 {
 	xGrabPointerReq *req = (xGrabPointerReq *)request;
@@ -3244,12 +3466,28 @@ void XR_GrabPointer (xclient_t *cl, xReq *request)
 	xpointergrabclient = cl;
 	XS_GetResource(req->grabWindow, (void**)&xpgrabbedwindow);
 	XS_GetResource(req->confineTo, (void**)&xpconfinewindow);
+	xpointergrabmask = req->eventMask;
+	xpointergrabcursor = req->cursor;
+//	xpointergrabtime = req->time;
 
 	X_EvalutateCursorOwner(NotifyGrab);
 
 
 	reply.status			= GrabSuccess;
 	X_SendData(cl, &reply, sizeof(reply));
+}
+void XR_ChangeActivePointerGrab (xclient_t *cl, xReq *request)
+{
+	xChangeActivePointerGrabReq *req = (xChangeActivePointerGrabReq *)request;
+
+	if (xpointergrabclient != cl)
+	{	//its not yours to change
+		return;
+	}
+
+	xpointergrabmask = req->eventMask;
+	xpointergrabcursor = req->cursor;
+//	xpointergrabtime = req->time;
 }
 void XR_UngrabPointer (xclient_t *cl, xReq *request)
 {
@@ -3271,7 +3509,8 @@ void X_InitRequests(void)
 	memset(XRequests, 0, sizeof(XRequests));
 
 	XRequests[X_QueryExtension] = XR_QueryExtension; 
-	XRequests[X_ListExtensions] = XR_ListExtensions; 
+	XRequests[X_ListExtensions] = XR_ListExtensions;
+	XRequests[X_SetCloseDownMode] = XR_SetCloseDownMode;
 	XRequests[X_GetProperty] = XR_GetProperty; 
 	XRequests[X_ChangeProperty] = XR_ChangeProperty;
 	XRequests[X_DeleteProperty] = XR_DeleteProperty;
@@ -3310,6 +3549,9 @@ void X_InitRequests(void)
 	XRequests[X_AllocColor] = XR_AllocColor;
 	XRequests[X_LookupColor] = XR_LookupColor;
 	XRequests[X_GetGeometry] = XR_GetGeometry;
+	XRequests[X_CreateCursor] = XR_CreateCursor;
+	XRequests[X_CreateGlyphCursor] = XR_CreateGlyphCursor;
+	XRequests[X_FreeCursor] = XR_FreeCursor;
 
 	XRequests[X_WarpPointer] = XR_WarpPointer;
 
@@ -3327,6 +3569,7 @@ void X_InitRequests(void)
 	XRequests[X_GrabServer] = XR_GrabServer;
 	XRequests[X_UngrabServer] = XR_UngrabServer;
 	XRequests[X_GrabPointer] = XR_GrabPointer;
+	XRequests[X_ChangeActivePointerGrab] = XR_ChangeActivePointerGrab;
 	XRequests[X_UngrabPointer] = XR_UngrabPointer;
 
 
@@ -3337,7 +3580,7 @@ void X_InitRequests(void)
 
 	XRequests[X_GrabKey] = XR_NoOperation;
 	XRequests[X_AllowEvents] = XR_NoOperation;
-	XRequests[X_FillPoly] = XR_PolyLine;
+	XRequests[X_FillPoly] = XR_FillPoly;
 	XRequests[X_NoOperation] = XR_NoOperation;
 
 #ifdef XBigReqExtensionName

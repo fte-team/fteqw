@@ -1,19 +1,21 @@
 //network interface
 
 #include "../plugin.h"
+#include "../engine.h"
 
 #include "qux.h"
 
 int mousecursor_x, mousecursor_y;
 
 static xclient_t *xclients;
-static int xlistensocket=-1;
+static qhandle_t xlistensocket=NULL;
 
 xwindow_t *xfocusedwindow;
 
 qboolean xrefreshed;
 
 xclient_t *xgrabbedclient;	//clients can ask the server to ignore other clients
+extern xwindow_t *xpgrabbedwindow;
 
 #define MAXREQUESTSIZE	65535
 
@@ -426,9 +428,9 @@ void X_SendIntialResponse(xclient_t *cl)
 		visualtype->class		= TrueColor;
 		visualtype->bitsPerRGB	= 24;
 		visualtype->colormapEntries = 256;
-		visualtype->redMask		= 0x0000ff;
+		visualtype->redMask		= 0xff0000;
 		visualtype->greenMask	= 0x00ff00;
-		visualtype->blueMask	= 0xff0000;
+		visualtype->blueMask	= 0x0000ff;
 		visualtype->pad = 0;
 
 		visualtype++;
@@ -470,12 +472,12 @@ qboolean XWindows_TendToClient(xclient_t *cl)	//true says drop
 				cl->inbuffer = newbuffer;
 			}
 			len = cl->inbuffermaxlen - cl->inbufferlen;
-Con_Printf("recving\n");
+//Con_Printf("recving\n");
 			len = Net_Recv(cl->socket, cl->inbuffer + cl->inbufferlen, len);
-Con_Printf("recved %i\n", len);
+//Con_Printf("recved %i\n", len);
 			if (len == 0)	//connection was closed. bummer.
 			{
-Con_Printf("Closed\n");
+//Con_Printf("Closed\n");
 				return true;
 			}
 			if (len > 0)
@@ -551,7 +553,7 @@ nextmessage:
 			}
 			else if (inlen >= sizeof(xReq))
 			{
-				int rlen;
+				unsigned int rlen;
 				xReq *req;
 				req = (xReq *)input;
 
@@ -754,16 +756,16 @@ void X_RunClient(void *parm)
 void XWindows_TendToClients(void)
 {
 	xclient_t *cl, *prev=NULL;
-	int newclient;
+	qhandle_t newclient;
 #ifndef MULTITHREADWIN32
 	unsigned int _true = 1;
 	unsigned int _false = 0;
 #endif
 
-	if (xlistensocket != -1)
+	if (xlistensocket != NULL)
 	{
 		newclient = Net_Accept(xlistensocket, NULL, 0);
-		if (newclient != -1)
+		if ((int)newclient != -1)
 		{
 			cl = malloc(sizeof(xclient_t));
 			memset(cl, 0, sizeof(xclient_t));
@@ -830,11 +832,12 @@ void XWindows_Startup(void)	//initialise the server socket and do any initial se
 	Cmd_Argv(1, buffer, sizeof(buffer));
 	port += atoi(buffer);
 
-	if (xlistensocket == -1)
+	if (xlistensocket == NULL)
 	{
 		xlistensocket = Net_TCPListen(NULL, port, 3);
-		if (xlistensocket < 0)
+		if ((int)xlistensocket < 0)
 		{
+			xlistensocket = NULL;
 			Con_Printf("Failed to create tcp listen socket\n");
 			return;
 		}
@@ -889,7 +892,30 @@ void XWindows_RefreshWindow(xwindow_t *wnd)
 
 
 	{
-		if (wnd->buffer)// && x_windowwithfocus != wnd->res.id)
+		/*if (x_windowwithcursor == wnd->res.id)
+		{
+			for (; y < maxy; y++)
+			{
+				x = xpos + wnd->xpos;
+				maxx = x + wnd->width;
+				if (x < xpos+wnd->xpos)
+				{
+					x = xpos+wnd->xpos;
+				}
+				if (x < 0)
+					x = 0;
+				if (maxx > xscreenwidth)
+					maxx = xscreenwidth;
+
+				out = (unsigned int *)xscreen + (x+(y*xscreenwidth));
+
+				for (; x < maxx; x++)
+				{	
+					*out++ = ((rand()&0xff)<<16)|((rand()&0xff)<<8)|(rand() & 0xff);
+				}
+			}
+		}
+		else */if (wnd->buffer)// && x_windowwithfocus != wnd->res.id)
 		{
 			for (; y < maxy; y++)
 			{
@@ -933,7 +959,6 @@ void XWindows_RefreshWindow(xwindow_t *wnd)
 					maxx = xscreenwidth;
 
 				out = (unsigned int *)xscreen + (x+(y*xscreenwidth));
-
 				for (; x < maxx; x++)
 				{	
 					*out++ = wnd->backpixel;
@@ -1007,10 +1032,245 @@ void XWindows_Init(void)
 
 int x_mousex;
 int x_mousey;
+int x_mousestate;
 int x_windowwithcursor;
 int x_windowwithfocus;
 
 int mousestate;
+
+void X_MoveCursorWindow(xwindow_t *ew, int mx, int my, int movemode)
+{
+	xEvent ev;
+
+#define MAX_WINDOW_CHAIN 64
+	int od, nd;
+	int d, i;
+	xwindow_t *ow;
+	xwindow_t *nw = ew;
+	xwindow_t *oc[MAX_WINDOW_CHAIN];
+	xwindow_t *nc[MAX_WINDOW_CHAIN];
+	unsigned int curtime = Sys_Milliseconds();
+
+
+	if (!nw)
+		nw = rootwindow;
+
+	/*its already got it*/
+	if (nw->res.id == x_windowwithcursor)
+		return;
+
+	if (XS_GetResource(x_windowwithcursor, (void**)&ow) != x_window)
+		return;
+
+	//build the window chains into a simple list
+	od = 0;
+	while(ow && od < MAX_WINDOW_CHAIN)
+	{
+		oc[od++] = ow;
+		ow = ow->parent;
+	}
+
+	nd = 0;
+	while(nw && nd < MAX_WINDOW_CHAIN)
+	{
+		nc[nd++] = nw;
+		nw = nw->parent;
+	}
+
+	//both chains have the root at the end
+	//walk from the parent (last) window up to the top. if they diverge then we have the relevent common ancestor
+	for (d = 0; d < nd && d < od; )
+	{
+		d++;
+		if (nc[nd-d] != oc[od-d])
+			break;
+	}
+	nd -= d;
+	od -= d;
+
+	if (!nd)
+	{
+		/*moved to a parent*/
+
+		//LeaveNotify with detail Inferior is generated on A.
+		ev.u.u.type					= LeaveNotify;
+		ev.u.u.detail				= NotifyInferior;
+		ev.u.enterLeave.time		= Sys_Milliseconds();
+		ev.u.enterLeave.root		= rootwindow->res.id;
+		ev.u.enterLeave.event		= oc[0]->res.id;
+		ev.u.enterLeave.child		= None;
+		ev.u.enterLeave.rootX		= mx;
+		ev.u.enterLeave.rootY		= my;
+		ev.u.enterLeave.eventX		= mx - oc[0]->xpos;
+		ev.u.enterLeave.eventY		= my - oc[0]->ypos;
+		ev.u.enterLeave.state		= mousestate;
+		ev.u.enterLeave.mode		= movemode;
+		ev.u.enterLeave.flags		= ELFlagSameScreen;
+		X_SendInputNotification(&ev, oc[0], LeaveWindowMask);
+
+		//EnterNotify with detail Virtual is generated on each window between A and B exclusive (in that order).
+		for (i = od-1; i > 0; i--)
+		{
+			ev.u.u.type					= EnterNotify;
+			ev.u.u.detail				= NotifyVirtual;
+			ev.u.enterLeave.time		= Sys_Milliseconds();
+			ev.u.enterLeave.root		= rootwindow->res.id;
+			ev.u.enterLeave.event		= oc[i]->res.id;
+			ev.u.enterLeave.child		= oc[i-1]->res.id;
+			ev.u.enterLeave.rootX		= mx;
+			ev.u.enterLeave.rootY		= my;
+			ev.u.enterLeave.eventX		= mx - oc[i]->xpos;
+			ev.u.enterLeave.eventY		= my - oc[i]->ypos;
+			ev.u.enterLeave.state		= mousestate;
+			ev.u.enterLeave.mode		= movemode;
+			ev.u.enterLeave.flags		= ELFlagSameScreen;
+			X_SendInputNotification(&ev, oc[i], EnterWindowMask);
+		}
+
+		//EnterNotify with detail Ancestor is generated on B.
+		ev.u.u.type					= EnterNotify;
+		ev.u.u.detail				= NotifyInferior;
+		ev.u.enterLeave.time		= Sys_Milliseconds();
+		ev.u.enterLeave.root		= rootwindow->res.id;
+		ev.u.enterLeave.event		= nc[0]->res.id;
+		ev.u.enterLeave.child		= None;
+		ev.u.enterLeave.rootX		= mx;
+		ev.u.enterLeave.rootY		= my;
+		ev.u.enterLeave.eventX		= mx - nc[0]->xpos;
+		ev.u.enterLeave.eventY		= my - nc[0]->ypos;
+		ev.u.enterLeave.state		= mousestate;
+		ev.u.enterLeave.mode		= movemode;
+		ev.u.enterLeave.flags		= ELFlagSameScreen;
+		X_SendInputNotification(&ev, nc[0], EnterWindowMask);
+	}
+	else if (!od)
+	{
+		/*moved to a child*/
+		//LeaveNotify with detail Ancestor is generated on A.
+		ev.u.u.type					= LeaveNotify;
+		ev.u.u.detail				= NotifyAncestor;
+		ev.u.enterLeave.time		= Sys_Milliseconds();
+		ev.u.enterLeave.root		= rootwindow->res.id;
+		ev.u.enterLeave.event		= oc[0]->res.id;
+		ev.u.enterLeave.child		= None;
+		ev.u.enterLeave.rootX		= mx;
+		ev.u.enterLeave.rootY		= my;
+		ev.u.enterLeave.eventX		= mx - oc[0]->xpos;
+		ev.u.enterLeave.eventY		= my - oc[0]->ypos;
+		ev.u.enterLeave.state		= mousestate;
+		ev.u.enterLeave.mode		= movemode;
+		ev.u.enterLeave.flags		= ELFlagSameScreen;
+		X_SendInputNotification(&ev, oc[0], LeaveWindowMask);
+
+		//LeaveNotify with detail Virtual is generated on each window between A and B exclusive (in that order).
+		for (i = 1; i < nd; i++)
+		{
+			ev.u.u.type					= LeaveNotify;
+			ev.u.u.detail				= NotifyVirtual;
+			ev.u.enterLeave.time		= Sys_Milliseconds();
+			ev.u.enterLeave.root		= rootwindow->res.id;
+			ev.u.enterLeave.event		= nc[i]->res.id;
+			ev.u.enterLeave.child		= nc[i-1]->res.id;
+			ev.u.enterLeave.rootX		= mx;
+			ev.u.enterLeave.rootY		= my;
+			ev.u.enterLeave.eventX		= mx - nc[i]->xpos;
+			ev.u.enterLeave.eventY		= my - nc[i]->ypos;
+			ev.u.enterLeave.state		= mousestate;
+			ev.u.enterLeave.mode		= movemode;
+			ev.u.enterLeave.flags		= ELFlagSameScreen;
+			X_SendInputNotification(&ev, nc[i], LeaveWindowMask);
+		}
+
+		//EnterNotify with detail Inferior is generated on B.
+		ev.u.u.type					= EnterNotify;
+		ev.u.u.detail				= NotifyInferior;
+		ev.u.enterLeave.time		= Sys_Milliseconds();
+		ev.u.enterLeave.root		= rootwindow->res.id;
+		ev.u.enterLeave.event		= nc[0]->res.id;
+		ev.u.enterLeave.child		= None;
+		ev.u.enterLeave.rootX		= mx;
+		ev.u.enterLeave.rootY		= my;
+		ev.u.enterLeave.eventX		= mx - nc[0]->xpos;
+		ev.u.enterLeave.eventY		= my - nc[0]->ypos;
+		ev.u.enterLeave.state		= mousestate;
+		ev.u.enterLeave.mode		= movemode;
+		ev.u.enterLeave.flags		= ELFlagSameScreen;
+		X_SendInputNotification(&ev, nc[0], EnterWindowMask);
+	}
+	else
+	{
+		/*moved up then down*/
+
+		//LeaveNotify with detail Nonlinear is generated on A.
+		ev.u.u.type					= LeaveNotify;
+		ev.u.u.detail				= NotifyNonlinear;
+		ev.u.enterLeave.time		= Sys_Milliseconds();
+		ev.u.enterLeave.root		= rootwindow->res.id;
+		ev.u.enterLeave.event		= oc[0]->res.id;
+		ev.u.enterLeave.child		= None;
+		ev.u.enterLeave.rootX		= mx;
+		ev.u.enterLeave.rootY		= my;
+		ev.u.enterLeave.eventX		= mx - oc[0]->xpos;
+		ev.u.enterLeave.eventY		= my - oc[0]->ypos;
+		ev.u.enterLeave.state		= mousestate;
+		ev.u.enterLeave.mode		= movemode;
+		ev.u.enterLeave.flags		= ELFlagSameScreen;
+		X_SendInputNotification(&ev, oc[0], LeaveWindowMask);
+
+		//LeaveNotify with detail NonlinearVirtual is generated on each window between A and C exclusive (in that order).
+		for (i = 1; i < nd; i++)
+		{
+			ev.u.u.type					= LeaveNotify;
+			ev.u.u.detail				= NotifyNonlinearVirtual;
+			ev.u.enterLeave.time		= Sys_Milliseconds();
+			ev.u.enterLeave.root		= rootwindow->res.id;
+			ev.u.enterLeave.event		= nc[i]->res.id;
+			ev.u.enterLeave.child		= nc[i-1]->res.id;
+			ev.u.enterLeave.rootX		= mx;
+			ev.u.enterLeave.rootY		= my;
+			ev.u.enterLeave.eventX		= mx - nc[i]->xpos;
+			ev.u.enterLeave.eventY		= my - nc[i]->ypos;
+			ev.u.enterLeave.state		= mousestate;
+			ev.u.enterLeave.mode		= movemode;
+			ev.u.enterLeave.flags		= ELFlagSameScreen;
+			X_SendInputNotification(&ev, nc[i], LeaveWindowMask);
+		}
+		//EnterNotify with detail NonlinearVirtual is generated on each window between C and B exclusive (in that order).
+		for (i = od-1; i > 0; i--)
+		{
+			ev.u.u.type					= EnterNotify;
+			ev.u.u.detail				= NotifyNonlinearVirtual;
+			ev.u.enterLeave.time		= Sys_Milliseconds();
+			ev.u.enterLeave.root		= rootwindow->res.id;
+			ev.u.enterLeave.event		= oc[i]->res.id;
+			ev.u.enterLeave.child		= oc[i-1]->res.id;
+			ev.u.enterLeave.rootX		= mx;
+			ev.u.enterLeave.rootY		= my;
+			ev.u.enterLeave.eventX		= mx - oc[i]->xpos;
+			ev.u.enterLeave.eventY		= my - oc[i]->ypos;
+			ev.u.enterLeave.state		= mousestate;
+			ev.u.enterLeave.mode		= movemode;
+			ev.u.enterLeave.flags		= ELFlagSameScreen;
+			X_SendInputNotification(&ev, oc[i], EnterWindowMask);
+		}
+
+		//EnterNotify with detail Nonlinear is generated on B.
+		ev.u.u.type					= EnterNotify;
+		ev.u.u.detail				= NotifyNonlinear;
+		ev.u.enterLeave.time		= Sys_Milliseconds();
+		ev.u.enterLeave.root		= rootwindow->res.id;
+		ev.u.enterLeave.event		= nc[0]->res.id;
+		ev.u.enterLeave.child		= None;
+		ev.u.enterLeave.rootX		= mx;
+		ev.u.enterLeave.rootY		= my;
+		ev.u.enterLeave.eventX		= mx - nc[0]->xpos;
+		ev.u.enterLeave.eventY		= my - nc[0]->ypos;
+		ev.u.enterLeave.state		= mousestate;
+		ev.u.enterLeave.mode		= movemode;
+		ev.u.enterLeave.flags		= ELFlagSameScreen;
+		X_SendInputNotification(&ev, nc[0], EnterWindowMask);
+	}
+}
 
 void X_EvalutateCursorOwner(int movemode)
 {
@@ -1024,8 +1284,8 @@ void X_EvalutateCursorOwner(int movemode)
 
 	{
 		extern int mousecursor_x, mousecursor_y;
-		mx = mousecursor_x * ((float)rootwindow->width/vid.width);
-		my = mousecursor_y * ((float)rootwindow->height/vid.height);
+		mx = mousecursor_x;
+		my = mousecursor_y;
 	}
 	if (mx >= xscreenwidth)
 		mx = xscreenwidth-1;
@@ -1083,235 +1343,68 @@ void X_EvalutateCursorOwner(int movemode)
 		}
 	}
 
-	if (mx != x_mousex || my != x_mousey || x_windowwithcursor != cursorowner->res.id)
+	if (mx != x_mousex || my != x_mousey || x_mousestate != mousestate || x_windowwithcursor != cursorowner->res.id)
 	{
+		int mask = 0;
 //		extern qboolean	keydown[256];
 
 //		Con_Printf("move %i %i\n", mx, my);
 
-		ev.u.u.detail					= 0;
-		ev.u.u.sequenceNumber			= 0;
-		ev.u.keyButtonPointer.time		= Sys_Milliseconds();
-		ev.u.keyButtonPointer.root		= rootwindow->res.id;
-		ev.u.keyButtonPointer.child		= None;
-		ev.u.keyButtonPointer.rootX		= mx;
-		ev.u.keyButtonPointer.rootY		= my;
-		ev.u.keyButtonPointer.state		= mousestate;
-		if (cursorowner->res.id != x_windowwithcursor)	//changed window
+		X_MoveCursorWindow(cursorowner, mx, my, movemode);
+		x_windowwithcursor = cursorowner->res.id;
+
+		if (mx != x_mousex || my != x_mousey)
 		{
-			xwindow_t *a,*b;
-			int d1,d2;
-
-			if (XS_GetResource(x_windowwithcursor, (void**)&wnd) != x_window)
-				wnd = rootwindow;
-
-			x_windowwithcursor = cursorowner->res.id;
-
-			//count how deep the windows are
-			for (a = wnd,d1=0; a; a = a->parent)
-				d1++;
-			for (b = cursorowner,d2=0; b; b = b->parent)
-				d2++;
-
-			a = wnd;
-			b = cursorowner;
-
-			if (d1>d2)
-			{
-				while(d1>d2)	//a is too deep
-				{
-					a = a->parent;
-					d1--;
-				}
-			}
+			if (mousestate)
+				mask |= ButtonMotionMask;
 			else
-			{
-				while(d2>d1)
-				{
-					b = b->parent;
-					d2--;
-				}
-			}
-			while(a != b)	//find the common ancestor.
-			{
-				a = a->parent;
-				b = b->parent;
-			}
-
-			ev.u.enterLeave.mode = movemode;
-			ev.u.enterLeave.flags = ELFlagSameScreen;		/* sameScreen and focus booleans, packed together */
-
-			//the cursor moved from a to b via:
-//			if (!a)	//changed screen...
-//			{
-//			} else
-			if (a != wnd && b != cursorowner)
-			{	//changed via a common root, indirectly.
-
-//o    LeaveNotify with detail Nonlinear is generated on A.
-
-				ev.u.u.type						= LeaveNotify;
-				ev.u.u.detail					= NotifyNonlinear;
-				ev.u.keyButtonPointer.child		= wnd->res.id;
-				X_SendInputNotification(&ev, wnd, LeaveWindowMask);
-
-//o    LeaveNotify with detail NonlinearVirtual is generated
-//     on each window between A and C exclusive (in that
-//     order).
-
-				for (a = wnd->parent; a != b; a = a->parent)
-				{
-					ev.u.u.type						= LeaveNotify;
-					ev.u.u.detail					= NotifyNonlinearVirtual;
-					ev.u.keyButtonPointer.child		= a->res.id;
-					X_SendInputNotification(&ev, a, LeaveWindowMask);
-				}
-
-//o    EnterNotify with detail NonlinearVirtual is generated
-//     on each window between C and B exclusive (in that
-//     order).
-
-				for (; b != cursorowner; )
-				{
-					for (a = cursorowner; ; a = a->parent)	//we need to go through the children.
-					{
-						if (a->parent == b)
-						{
-							b = a;
-							break;
-						}
-					}
-					if (b == cursorowner)
-						break;
-
-					ev.u.u.type						= EnterNotify;
-					ev.u.u.detail					= NotifyNonlinearVirtual;
-					ev.u.keyButtonPointer.child		= a->res.id;
-					X_SendInputNotification(&ev, a, EnterWindowMask);
-				}
-
-//o    EnterNotify with detail Nonlinear is generated on B.
-
-				ev.u.u.type						= EnterNotify;
-				ev.u.u.detail					= NotifyNonlinear;
-				ev.u.keyButtonPointer.child		= cursorowner->res.id;
-				X_SendInputNotification(&ev, cursorowner, EnterWindowMask);
-			}
-			else if (a == wnd)
-			{	//b is a child of a
-
-//o    LeaveNotify with detail Inferior is generated on A.
-
-				ev.u.u.type						= LeaveNotify;
-				ev.u.u.detail					= NotifyInferior;
-				ev.u.keyButtonPointer.child		= wnd->res.id;
-				X_SendInputNotification(&ev, wnd, LeaveWindowMask);
-
-//o    EnterNotify with detail Virtual is generated on each
-//     window between A and B exclusive (in that order).
-
-				if (wnd != cursorowner)
-				for (b = wnd; ; )
-				{
-					for (a = cursorowner; ; a = a->parent)	//we need to go through the children.
-					{
-						if (a->parent == b)
-						{
-							b = a;
-							break;
-						}
-					}
-					if (b == cursorowner)
-						break;
-
-					ev.u.u.type						= EnterNotify;
-					ev.u.u.detail					= NotifyVirtual;
-					ev.u.keyButtonPointer.child		= b->res.id;
-					X_SendInputNotification(&ev, b, EnterWindowMask);
-				}
-
-//o    EnterNotify with detail Ancestor is generated on B.
-
-				ev.u.u.type						= EnterNotify;
-				ev.u.u.detail					= NotifyAncestor;
-				ev.u.keyButtonPointer.child		= cursorowner->res.id;
-				X_SendInputNotification(&ev, cursorowner, EnterWindowMask);
-			}
-			else// if (b == cursorowner)
-			{	//a is a child of b
-
-//o    LeaveNotify with detail Ancestor is generated on A.
-
-				ev.u.u.type						= LeaveNotify;
-				ev.u.u.detail					= NotifyAncestor;
-				ev.u.keyButtonPointer.child		= wnd->res.id;
-				X_SendInputNotification(&ev, wnd, LeaveWindowMask);
-
-//o    LeaveNotify with detail Virtual is generated on each
-//     window between A and B exclusive (in that order).
-
-				for (b = wnd; ; )
-				{
-					b = b->parent;
-					if (b == cursorowner)
-						break;
-
-					ev.u.u.type						= LeaveNotify;
-					ev.u.u.detail					= NotifyVirtual;
-					ev.u.keyButtonPointer.child		= b->res.id;
-					X_SendInputNotification(&ev, b, LeaveWindowMask);
-				}
-
-
-//o    EnterNotify with detail Inferior is generated on B.
-
-				ev.u.u.type						= EnterNotify;
-				ev.u.u.detail					= NotifyInferior;
-				ev.u.keyButtonPointer.child		= cursorowner->res.id;
-				X_SendInputNotification(&ev, cursorowner, EnterWindowMask);
-			}
-
-			{
-				char title[1024];
-				Atom type;
-				int extrabytes;
-				int format;
-				while(cursorowner)
-				{
-					title[XS_GetProperty(cursorowner, 39, &type, title, sizeof(title), 0, &extrabytes, &format)] = '\0';
-					if (*title)
-						break;
-					cursorowner = cursorowner->parent;
-				}
-				Con_Printf("Entered \"%s\"\n", title);
-			}
+				mask |= PointerMotionMask;
 		}
-
-		{	//same window
-			ev.u.keyButtonPointer.child		= x_windowwithcursor;
-
-			if (XS_GetResource(x_windowwithcursor, (void**)&wnd) == x_window)
-			{	//cursor still in the same child.
-				int mask = PointerMotionMask;
-				if (mousestate)
-					mask |= ButtonMotionMask;
-				if (mousestate & Button1Mask)
-					mask |= Button1MotionMask;
-				if (mousestate & Button2Mask)
-					mask |= Button2MotionMask;
-				if (mousestate & Button3Mask)
-					mask |= Button3MotionMask;
-				if (mousestate & Button4Mask)
-					mask |= Button4MotionMask;
-				if (mousestate & Button5Mask)
-					mask |= Button5MotionMask;
-				ev.u.u.type						= MotionNotify;
-				X_SendInputNotification(&ev, wnd,	mask);
-			}
-		}
+		if ((mousestate^x_mousestate) & Button1Mask)
+			mask |= Button1MotionMask;
+		if ((mousestate^x_mousestate) & Button2Mask)
+			mask |= Button2MotionMask;
+		if ((mousestate^x_mousestate) & Button3Mask)
+			mask |= Button3MotionMask;
+		if ((mousestate^x_mousestate) & Button4Mask)
+			mask |= Button4MotionMask;
+		if ((mousestate^x_mousestate) & Button5Mask)
+			mask |= Button5MotionMask;
 
 		x_mousex = mx;
 		x_mousey = my;
+		x_mousestate = mousestate;
+
+		for (; cursorowner && mask; cursorowner = cursorowner->parent)
+		{	//same window
+
+			if (cursorowner->notificationmasks & mask)
+			{
+				ev.u.keyButtonPointer.child		= x_windowwithcursor;
+
+/*				#define ButtonPress		4
+#define ButtonRelease		5
+#define MotionNotify		6
+*/
+				ev.u.u.type						= MotionNotify;
+				ev.u.u.detail					= 0;
+				ev.u.u.sequenceNumber			= 0;
+				ev.u.keyButtonPointer.time		= Sys_Milliseconds();
+				ev.u.keyButtonPointer.root		= rootwindow->res.id;
+				ev.u.keyButtonPointer.event		= cursorowner->res.id;
+				ev.u.keyButtonPointer.child		= (x_windowwithcursor == cursorowner->res.id)?None:x_windowwithcursor;
+				ev.u.keyButtonPointer.rootX		= mx;
+				ev.u.keyButtonPointer.rootY		= my;
+				ev.u.keyButtonPointer.eventX	= mx - cursorowner->xpos;
+				ev.u.keyButtonPointer.eventY	= my - cursorowner->ypos;
+				ev.u.keyButtonPointer.state		= mousestate;
+				ev.u.keyButtonPointer.sameScreen= true;
+
+				X_SendNotificationMasked(&ev, cursorowner, cursorowner->notificationmasks&mask);
+
+				mask &= ~cursorowner->notificationmasks;
+			}
+		}
 	}
 }
 
@@ -1572,7 +1665,7 @@ void XWindows_Draw(void)
 //	XW_ExposeWindow(rootwindow, 0, 0, rootwindow->width, rootwindow->height);
 
 //	XWindows_DrawWindowTree(rootwindow, 0, 0);
-	if (xrefreshed)
+//	if (xrefreshed)
 	{
 		XWindows_RefreshWindow(rootwindow);
 		xrefreshed = false;
@@ -1586,7 +1679,6 @@ void XWindows_Draw(void)
 	}
 
 	XWindows_TendToClients();
-	Media_ShowFrameRGBA_32 (xscreen, xscreenwidth, xscreenheight, 0, 0, vid.width, vid.height);
 
 //	Con_DrawNotify();
 
@@ -1594,19 +1686,19 @@ void XWindows_Draw(void)
 	XS_CheckResourceSentinals();
 }
 
-void XWindows_Key(int key)
+void XWindows_KeyDown(int key)
 {
 	XS_CheckResourceSentinals();
 
 	if (!key)	//hrm
 		return;
-
+/*
 	if (key == 'q' || (key == K_BACKSPACE && ctrldown && altdown))	//kill off the server
 	{	//explicit kill
 		Menu_Control(MENU_CLEAR);
 		return;
 	}
-
+*/
 	if (key == K_CTRL)
 		ctrldown = true;
 	if (key == K_ALT)
@@ -1677,7 +1769,7 @@ void XWindows_Key(int key)
 
 //		Con_Printf("key %i, %i %i\n", key, x_mousex, x_mousey);
 
-		if (xpointergrabclient)
+		if (0)//xpointergrabclient)
 		{
 			ev.u.keyButtonPointer.event		= ev.u.keyButtonPointer.child;
 			ev.u.keyButtonPointer.eventX	= ev.u.keyButtonPointer.rootX;
@@ -1811,14 +1903,12 @@ int Plug_MenuEvent(int *args)
 		XWindows_Draw();
 		break;
 	case 1:	//keydown
-		XWindows_Key(args[1]);
+		XWindows_KeyDown(args[1]);
 		break;
 	case 2:	//keyup
 		XWindows_Keyup(args[1]);
 		break;
 	case 3:	//menu closed (this is called even if we change it).
-		Net_Close(xlistensocket);
-		xlistensocket = -1;
 		break;
 	}
 
@@ -1837,12 +1927,107 @@ int Plug_ExecuteCommand(int *args)
 	return 0;
 }
 
+int Plug_Tick(int *args)
+{
+	XWindows_TendToClients();
+	return 0;
+}
+
+static void *XWindows_Create(char *medianame)	//initialise the server socket and do any initial setup as required.
+{
+	if (!strcmp(medianame, "x11"))
+	{
+		XWindows_Startup();
+		return xscreen;
+	}
+	return NULL;
+}
+
+qbyte *XWindows_DisplayFrame(void *ctx, qboolean nosound, enum uploadfmt *fmt, int *width, int *height)
+{
+	XWindows_Draw();
+
+	*fmt = TF_BGRX32;
+	*width = xscreenwidth;
+	*height = xscreenheight;
+	return xscreen;
+}
+
+static void XWindows_Shutdown(void *ctx)
+{
+	Net_Close(xlistensocket);
+	xlistensocket = NULL;
+}
+
+static qboolean XWindows_SetSize (void *ctx, int width, int height)
+{
+	qbyte *ns;
+	if (width < 64 || height < 64 || width > 2048 || height > 2048)
+		return false;
+
+	ns = realloc(xscreen, width*4*height);
+	if (ns)
+	{
+		xscreen = ns;
+		xscreenwidth = width;
+		xscreenheight = height;
+
+		//FIXME: resize root window + send notify
+
+		return true;
+	}
+	return false;
+}
+
+static void XWindows_GetSize (void *ctx, int *width, int *height)	//retrieves the screen-space size
+{
+	*width = xscreenwidth;
+	*height = xscreenheight;
+}
+
+static void XWindows_CursorMove (void *ctx, float posx, float posy)
+{
+	mousecursor_x = (int)(posx * xscreenwidth);
+	mousecursor_y = (int)(posy * xscreenheight);
+}
+
+static void XWindows_Key (void *ctx, int code, int unicode, int isup)
+{
+	if (isup)
+		XWindows_Keyup(code);
+	else
+		XWindows_KeyDown(code);
+}
+
+media_decoder_funcs_t decoderfuncs =
+{
+	XWindows_Create,
+	XWindows_DisplayFrame,
+	NULL,//doneframe
+	XWindows_Shutdown,
+	NULL,//rewind
+
+	XWindows_CursorMove,
+	XWindows_Key,
+	XWindows_SetSize,
+	XWindows_GetSize,
+	NULL//changestream
+};
+
+
 int Plug_Init(int *args)
 {
 	if (!Plug_Export("ExecuteCommand", Plug_ExecuteCommand) ||
-		!Plug_Export("MenuEvent", Plug_MenuEvent))
+		!Plug_Export("MenuEvent", Plug_MenuEvent) ||
+		!Plug_Export("Tick", Plug_Tick))
 	{
 		Con_Printf("XServer plugin failed\n");
+		return false;
+	}
+
+	if (!Plug_ExportNative("Media_VideoDecoder", &decoderfuncs))
+	{
+		Con_Printf("XServer plugin failed: Engine doesn't support media decoder plugins\n");
 		return false;
 	}
 

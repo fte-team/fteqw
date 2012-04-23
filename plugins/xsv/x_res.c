@@ -207,11 +207,12 @@ void XS_LinkResource(xresource_t *res)
 xatom_t *XS_CreateAtom(Atom atomid, char *name, xclient_t *owner)
 {
 	xatom_t *at;
-	at = malloc(sizeof(xatom_t)+strlen(name));
+	int nlen = strlen(name);
+	at = malloc(sizeof(xatom_t)+nlen);
 	at->res.owner = owner;
 	at->res.restype = x_atom;
 	at->res.id = atomid;
-	strcpy(at->atomname, name);
+	memcpy(at->atomname, name, nlen+1);
 
 	XS_LinkResource(&at->res);
 
@@ -344,8 +345,21 @@ void XS_SetParent(xwindow_t *wnd, xwindow_t *parent)
 	XS_ClearParent(wnd);
 	if (parent)
 	{
-		wnd->sibling = parent->child;
-		parent->child = wnd;
+		if (!parent->child)
+			parent->child = wnd;
+		else
+		{
+			xwindow_t *sib;
+			sib = parent->child;
+			while(sib->sibling)
+			{
+				sib = sib->sibling;
+			}
+			sib->sibling = wnd;
+			wnd->sibling = NULL;
+		}
+//		wnd->sibling = parent->child;
+//		parent->child = wnd;
 	}
 	wnd->parent = parent;
 
@@ -398,8 +412,28 @@ xgcontext_t *XS_CreateGContext(int id, xclient_t *owner, xresource_t *drawable)
 	newgc->res.restype = x_gcontext;
 
 	newgc->function = GXcopy;
-	newgc->bgcolour = 0xffffff;
+//	newgc->planemask = ~0;
+	newgc->bgcolour = 1;
 	newgc->fgcolour = 0;
+//	newgc->line_width = 0;
+//	newgc->line_style = linesolid;
+//	newgc->cap_style = capbutt;
+//	newgc->join_style = joinmitter;
+//	newgc->fill_style = fillsolid;
+//	newgc->fill_rule = evenoddrule;
+//	newgc->arc_mode = arcpieslice;
+//	newgc->tile = somepixmap;
+//	newgc->stipple somepixmap;
+//	newgc->ts_x_origin = 0;
+//	newgc->ts_y_origin = 0;
+//	newgc->font = 0;
+//	newgc->subwindow_mode = clipbychildren;
+//	newgc->graphics_exposures = true;
+//	newgc->clip_x_origin = 0;
+//	newgc->clip_y_origin = 0;
+//	newgc->clip_mask = None;
+//	newgc->dash_offset = 0;
+//	newgc->dashes = 4;
 
 	XS_LinkResource(&newgc->res);
 
@@ -409,8 +443,15 @@ xgcontext_t *XS_CreateGContext(int id, xclient_t *owner, xresource_t *drawable)
 xpixmap_t *XS_CreatePixmap(int id, xclient_t *owner, int width, int height, int depth)
 {
 	xpixmap_t *newpm;
+	int i;
+	unsigned char *c;
 	newpm = malloc(sizeof(xpixmap_t) + (width*height*4));
 	memset(newpm, 0, sizeof(xpixmap_t));
+
+	for(i = 0, c = (char*)(newpm+1); i < width*height*4; i++)
+	{
+		c[i] = rand();
+	}
 
 	newpm->res.id = id;
 	newpm->res.owner = owner;
@@ -531,6 +572,7 @@ void XS_CreateInitialResources(void)
 	resources = NULL;
 
 
+	/*these are the 'always created' atoms*/
 	XS_CreateAtom(baseres++, "PRIMARY", NULL);
 	XS_CreateAtom(baseres++, "SECONDARY", NULL);
 	XS_CreateAtom(baseres++, "ARC", NULL);

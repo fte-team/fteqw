@@ -71,7 +71,7 @@ extern int (*plugin_syscall)( int arg, ... );
 
 #ifdef _WIN32
 void strlcpy(char *d, const char *s, int n);
-int snprintf(char *buffer, int maxlen, char *format, ...);
+int snprintf(char *buffer, size_t maxlen, const char *format, ...);
 #endif
 
 #endif
@@ -103,6 +103,9 @@ typedef struct {
 
 //Basic builtins:
 EBUILTIN(funcptr_t, Plug_GetEngineFunction, (char *funcname));	//set up in vmMain, use this to get all other builtins
+#ifndef Q3_VM
+EBUILTIN(qboolean, Plug_ExportNative, (char *funcname, void *func));	//set up in vmMain, use this to get all other builtins
+#endif
 EBUILTIN(void, Con_Print, (char *text));	//on to main console.
 
 EBUILTIN(void, Con_SubPrint, (char *subname, char *text));	//on to sub console.
@@ -143,7 +146,6 @@ EBUILTIN(void, Menu_Control, (int mnum));
 #define MENU_CLEAR 0
 #define MENU_GRAB 1
 EBUILTIN(int, Key_GetKeyCode, (char *keyname));
-EBUILTIN(void, Media_ShowFrameRGBA_32, (void *src, int srcwidth, int srcheight, int x, int y, int width, int height));
 
 EBUILTIN(qhandle_t, Draw_LoadImage, (char *name, qboolean iswadimage));	//wad image is ONLY for loading out of q1 gfx.wad
 EBUILTIN(int, Draw_Image, (float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t image));
@@ -175,7 +177,7 @@ EBUILTIN(void, Net_Close, (qhandle_t socket));
 
 
 #if defined(_WIN32) || defined(Q3_VM)
-int vsnprintf(char *buffer, int maxlen, char *format, va_list vargs);
+int vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs);
 #endif
 
 #ifdef Q3_VM
@@ -214,7 +216,7 @@ void Q_strncpyz(char *d, const char *s, int n);
 //
 // qvm_api.c
 //
-int vsnprintf(char *buffer, int maxlen, char *format, va_list vargs);
+int vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs);
 
 typedef struct {
 	char *name;

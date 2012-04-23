@@ -266,7 +266,7 @@ void BuildNQServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int playernum)
 		WriteByte(msg, 0);
 
 		WriteByte(msg, svc_nqsetview);
-		WriteShort(msg, playernum);
+		WriteShort(msg, playernum+1);
 
 		WriteByte(msg, svc_nqsignonnum);
 		WriteByte(msg, 1);
@@ -274,7 +274,7 @@ void BuildNQServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int playernum)
 	else
 	{
 		//dummy connection, for choosing a game to watch.
-		WriteString(msg, "FTEQTV Proxy");
+		WriteString(msg, tv->map.mapname);
 
 
 		//modellist
@@ -296,7 +296,7 @@ void BuildNQServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int playernum)
 		WriteByte(msg, tv->map.cdtrack);
 
 		WriteByte(msg, svc_nqsetview);
-		WriteShort(msg, 15);
+		WriteShort(msg, playernum+1);
 
 		WriteByte(msg, svc_nqsignonnum);
 		WriteByte(msg, 1);
@@ -328,7 +328,7 @@ void SendServerData(sv_t *tv, viewer_t *viewer)
 	SendBufferToViewer(viewer, msg.data, msg.cursize, true);
 
 	viewer->thinksitsconnected = false;
-	if (tv && (tv->controller == viewer))
+	if (tv && (tv->controller == viewer) && !viewer->netchan.isnqprotocol)
 		viewer->thinksitsconnected = true;
 
 	QW_ClearViewerState(viewer);
@@ -341,7 +341,7 @@ void SendNQSpawnInfoToViewer(cluster_t *cluster, viewer_t *viewer, netmsg_t *msg
 	int colours;
 	sv_t *tv = viewer->server;
 	WriteByte(msg, svc_nqtime);
-	WriteFloat(msg, cluster->curtime/1000.0f);
+	WriteFloat(msg, (cluster->curtime - (tv?tv->mapstarttime:0))/1000.0f);
 
 	if (tv)
 	{
@@ -661,7 +661,7 @@ void QW_SetViewersServer(cluster_t *cluster, viewer_t *viewer, sv_t *sv)
 
 	if (sv != oldserver)
 	{
-		if (sv)
+		if (sv && oldserver)
 		{
 			snprintf(buffer, sizeof(buffer), "%cQTV%c%s leaves to watch %s (%i)\n", 91+128, 93+128, viewer->name, *sv->map.hostname?sv->map.hostname:sv->server, sv->streamid);
 			QW_StreamPrint(cluster, oldserver, viewer, buffer);
@@ -685,6 +685,23 @@ qboolean ChallengePasses(netadr_t *addr, int challenge)
 
 void NewClient(cluster_t *cluster, viewer_t *viewer)
 {
+	sv_t *initialserver;
+	initialserver = NULL;
+	if (*cluster->autojoinadr)
+	{
+		initialserver = QTV_NewServerConnection(cluster, 0, cluster->autojoinadr, "", false, AD_WHENEMPTY, true, false);
+		if (initialserver && initialserver->sourcetype == SRC_UDP)
+			initialserver->controller = viewer;
+	}
+	else if (cluster->nouserconnects && cluster->numservers == 1)
+	{
+		initialserver = cluster->servers;
+		if (!initialserver->map.modellist[1].name[0])
+			initialserver = NULL;	//damn, that server isn't ready
+	}
+
+	QW_SetViewersServer(cluster, viewer, initialserver);
+
 	viewer->userid = ++cluster->nextuserid;
 	viewer->timeout = cluster->curtime + 15*1000;
 	viewer->trackplayer = -1;
@@ -693,6 +710,7 @@ void NewClient(cluster_t *cluster, viewer_t *viewer)
 	QW_SetMenu(viewer, MENU_NONE);
 
 
+#ifndef LIBQTV
 	QW_PrintfToViewer(viewer, "Welcome to FTEQTV build %i\n", cluster->buildnumber);
 	QW_StuffcmdToViewer(viewer, "alias admin \"cmd admin\"\n");
 
@@ -719,6 +737,7 @@ void NewClient(cluster_t *cluster, viewer_t *viewer)
 //		QW_StuffcmdToViewer(viewer, "alias \".observe\" \"say .observe\"\n");
 
 	QW_PrintfToViewer(viewer, "Type admin for the admin menu\n");
+#endif
 }
 
 void ParseUserInfo(cluster_t *cluster, viewer_t *viewer)
@@ -760,7 +779,8 @@ void ParseUserInfo(cluster_t *cluster, viewer_t *viewer)
 
 		}
 
-		QW_StreamPrint(cluster, viewer->server, NULL, buf);
+		if (!viewer->server || viewer->server->controller != viewer)
+			QW_StreamPrint(cluster, viewer->server, NULL, buf);
 	}
 
 	strlcpy(viewer->name, temp, sizeof(viewer->name));
@@ -839,18 +859,6 @@ void NewNQClient(cluster_t *cluster, netadr_t *addr)
 	for (i = 0; i < ENTITY_FRAMES; i++)
 		viewer->delta_frames[i] = -1;
 
-	initialserver = NULL;
-	if (cluster->numservers == 1)
-	{
-		initialserver = cluster->servers;
-		if (!initialserver->map.modellist[1].name[0])
-			initialserver = NULL;	//damn, that server isn't ready
-	}
-
-	viewer->server = initialserver;
-	if (viewer->server)
-		viewer->server->numviewers++;
-
 	cluster->numviewers++;
 
 	sprintf(viewer->userinfo, "\\name\\%s", "unnamed");
@@ -859,9 +867,8 @@ void NewNQClient(cluster_t *cluster, netadr_t *addr)
 
 	NewClient(cluster, viewer);
 
-	QW_StuffcmdToViewer(viewer, "cmd new\n");
-
-	Sys_Printf(cluster, "New NQ client connected\n");
+	if (!viewer->server)
+		QW_StuffcmdToViewer(viewer, "cmd new\n");
 }
 
 void NewQWClient(cluster_t *cluster, netadr_t *addr, char *connectmessage)
@@ -906,18 +913,6 @@ void NewQWClient(cluster_t *cluster, netadr_t *addr, char *connectmessage)
 	cluster->viewers = viewer;
 	for (i = 0; i < ENTITY_FRAMES; i++)
 		viewer->delta_frames[i] = -1;
-
-	initialserver = NULL;
-	if (cluster->nouserconnects && cluster->numservers == 1)
-	{
-		initialserver = cluster->servers;
-		if (!initialserver->map.modellist[1].name[0])
-			initialserver = NULL;	//damn, that server isn't ready
-	}
-
-	viewer->server = initialserver;
-	if (viewer->server)
-		viewer->server->numviewers++;
 
 	cluster->numviewers++;
 
@@ -1642,23 +1637,20 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 	if (tv)
 	{
 		WriteByte(msg, svc_nqtime);
-		WriteFloat(msg, tv->physicstime/1000.0f);
+		WriteFloat(msg, (tv->physicstime - tv->mapstarttime)/1000.0f);
 
 		BSP_SetupForPosition(tv->map.bsp, v->origin[0], v->origin[1], v->origin[2]);
 
 		lerp = ((tv->simtime - tv->oldpackettime)/1000.0f) / ((tv->nextpackettime - tv->oldpackettime)/1000.0f);
-		if (lerp < 0)
-			lerp = 0;
-		if (lerp > 1)
-			lerp = 1;
+		lerp = 1;
 
-		if (tv->controller == v)
-			lerp = 1;
+//		if (tv->controller == v)
+//			lerp = 1;
 	}
 	else
 	{
 		WriteByte(msg, svc_nqtime);
-		WriteFloat(msg, cluster->curtime/1000.0f);
+		WriteFloat(msg, (cluster->curtime)/1000.0f);
 
 		lerp = 1;
 	}
@@ -1667,23 +1659,24 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 
 	if (tv)
 	{
-
-		if (v->trackplayer >= 0)
+		if (v != tv->controller)
 		{
-			WriteByte(msg, svc_nqsetview);
-			WriteShort(msg, v->trackplayer+1);
+			if (v->trackplayer >= 0)
+			{
+				WriteByte(msg, svc_nqsetview);
+				WriteShort(msg, v->trackplayer+1);
 
-			WriteByte(msg, svc_setangle);
-			WriteByte(msg, (int)InterpolateAngle(tv->map.players[v->trackplayer].old.angles[0], tv->map.players[v->trackplayer].current.angles[0], lerp)>>8);
-			WriteByte(msg, (int)InterpolateAngle(tv->map.players[v->trackplayer].old.angles[1], tv->map.players[v->trackplayer].current.angles[1], lerp)>>8);
-			WriteByte(msg, (int)InterpolateAngle(tv->map.players[v->trackplayer].old.angles[2], tv->map.players[v->trackplayer].current.angles[2], lerp)>>8);
+				WriteByte(msg, svc_setangle);
+				WriteByte(msg, (int)InterpolateAngle(tv->map.players[v->trackplayer].old.angles[0], tv->map.players[v->trackplayer].current.angles[0], lerp)>>8);
+				WriteByte(msg, (int)InterpolateAngle(tv->map.players[v->trackplayer].old.angles[1], tv->map.players[v->trackplayer].current.angles[1], lerp)>>8);
+				WriteByte(msg, (int)InterpolateAngle(tv->map.players[v->trackplayer].old.angles[2], tv->map.players[v->trackplayer].current.angles[2], lerp)>>8);
+			}
+			else
+			{
+				WriteByte(msg, svc_nqsetview);
+				WriteShort(msg, v->thisplayer+1);
+			}
 		}
-		else
-		{
-			WriteByte(msg, svc_nqsetview);
-			WriteShort(msg, v->thisplayer+1);
-		}
-
 
 		for (e = 0; e < MAX_CLIENTS; e++)
 		{
@@ -1736,8 +1729,9 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 			if (!pl->active)
 				continue;
 
-			if (pl->current.modelindex >= tv->map.numinlines && !BSP_Visible(tv->map.bsp, pl->leafcount, pl->leafs))
-				continue;
+			if (v != tv->controller)
+				if (pl->current.modelindex >= tv->map.numinlines && !BSP_Visible(tv->map.bsp, pl->leafcount, pl->leafs))
+					continue;
 
 			pl->current.modelindex = 8;
 
@@ -1839,8 +1833,9 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 				//pvs cull everything else
 				newstate = &topacket->ents[newindex];
 				newnum = topacket->entnums[newindex];
-				if (newstate->modelindex >= tv->map.numinlines && !BSP_Visible(tv->map.bsp, tv->map.entity[newnum].leafcount, tv->map.entity[newnum].leafs))
-					continue;
+				if (v != tv->controller)
+					if (newstate->modelindex >= tv->map.numinlines && !BSP_Visible(tv->map.bsp, tv->map.entity[newnum].leafcount, tv->map.entity[newnum].leafs))
+						continue;
 
 				if (msg->cursize + 128 > msg->maxsize)
 					break;
@@ -1851,7 +1846,7 @@ void SendNQPlayerStates(cluster_t *cluster, sv_t *tv, viewer_t *v, netmsg_t *msg
 				for (i=0 ; i<3 ; i++)
 				{
 					miss = (int)(newstate->origin[i]) - ent->baseline.origin[i];
-					if ( miss < -1 || miss > 1 )
+					if ( miss <= -1 || miss >= 1 )
 						bits |= UNQ_ORIGIN1<<i;
 				}
 
@@ -3405,7 +3400,7 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 				char arg[3][ARG_LEN];
 				char *command = buf;
 
-				for (i = 0; i < MAX_ARGS; i++)
+				for (i = 0; i < 3; i++)
 				{
 					command = COM_ParseToken(command, arg[i], ARG_LEN, TOKENIZE_PUNCTUATION);
 				}
@@ -3458,6 +3453,14 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 					QTV_Say(cluster, v->server, v, ".menu", false);
 			}
 
+			else if (!strncmp(buf, "say \".", 6))
+				QTV_Say(cluster, qtv, v, buf+5, false);
+			else if (!strncmp(buf, "say .", 5))
+				QTV_Say(cluster, qtv, v, buf+4, false);
+
+			else if (v->server && v == v->server->controller)
+				SendClientCommand(v->server, "%s", buf);
+
 	//		else if (!strcmp(buf, "pause"))
 	//			qtv->errored = ERR_PAUSED;
 
@@ -3495,12 +3498,16 @@ void ParseNQC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 			v->ucmds[2].upmove = ReadShort(m);
 
 			//one button
-			v->ucmds[1].buttons = v->ucmds[2].buttons;
 			v->ucmds[2].buttons = ReadByte(m);
 			//one impulse
 			v->ucmds[2].impulse = ReadByte(m);
 
-			v->ucmds[2].msec = 1000/NQ_PACKETS_PER_SECOND;
+			v->ucmds[2].msec = cluster->curtime - v->lasttime;
+			v->lasttime = cluster->curtime;
+
+			if (v->server && v->server->controller == v)
+				return;
+
 			PMove(v, &v->ucmds[2]);
 
 			if ((v->ucmds[1].buttons&1) != (v->ucmds[2].buttons&1) && (v->ucmds[2].buttons&1))

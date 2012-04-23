@@ -914,7 +914,7 @@ void Cmd_DemoSpeed(cmdctxt_t *ctx)
 
 void Cmd_Disconnect(cmdctxt_t *ctx)
 {
-	QTV_Shutdown(ctx->qtv);
+	QTV_ShutdownStream(ctx->qtv);
 	Cmd_Printf(ctx, "Disconnected\n");
 }
 
@@ -1001,7 +1001,7 @@ void Cmd_Reconnect(cmdctxt_t *ctx)
 		Cmd_Printf(ctx, "Stream is a reverse connection (command rejected)\n");
 //	else if (ctx->qtv->autodisconnect == AD_STATUSPOLL && !ctx->qtv->numviewers && !ctx->qtv->proxies)
 //		Cmd_Printf(ctx, "Not reconnecting to idle server\n");
-	else if (QTV_Connect(ctx->qtv, ctx->qtv->server))
+	else if (QTV_ConnectStream(ctx->qtv, ctx->qtv->server))
 		Cmd_Printf(ctx, "Reconnected\n");
 	else
 		Cmd_Printf(ctx, "Failed to reconnect (will keep trying)\n");

@@ -165,8 +165,10 @@ unsigned char *FS_ReadFile(char *gamedir, char *filename, unsigned int *size)
 	return data;
 }
 
-
-int SortFilesByDate(const void *a, const void *b)
+#ifndef _WIN32
+#define _cdecl
+#endif
+int _cdecl SortFilesByDate(const void *a, const void *b)
 {
 	if (((availdemo_t*)a)->time < ((availdemo_t*)b)->time)
 		return 1;
@@ -483,6 +485,7 @@ void DoCommandLine(cluster_t *cluster, int argc, char **argv)
 	}
 }
 
+#ifndef LIBQTV
 int main(int argc, char **argv)
 {
 	cluster_t *cluster;
@@ -569,6 +572,7 @@ int main(int argc, char **argv)
 
 	return 0;
 }
+#endif
 
 void QTV_Printf(sv_t *qtv, char *fmt, ...)
 {
@@ -586,6 +590,13 @@ void QTV_Printf(sv_t *qtv, char *fmt, ...)
 	Sys_Printf(qtv->cluster, "%s", string);
 }
 
+//#ifdef LIBQTV
+//#ifndef _WIN32
+//#define _cdecl
+//#endif
+//void _cdecl Con_Printf(char *fmt, ...);
+//#endif
+
 void Sys_Printf(cluster_t *cluster, char *fmt, ...)
 {
 	va_list		argptr;
@@ -596,6 +607,10 @@ void Sys_Printf(cluster_t *cluster, char *fmt, ...)
 	vsnprintf (string, sizeof(string)-1, fmt,argptr);
 	string[sizeof(string)-1] = 0;
 	va_end (argptr);
+
+//#ifdef LIBQTV
+//	Con_Printf("QTV: %s", string);
+//#endif
 
 	for (t = (unsigned char*)string; *t; t++)
 	{

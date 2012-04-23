@@ -127,6 +127,7 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 		return;
 	}
 
+	tv->mapstarttime = tv->parsetime;
 	tv->parsingconnectiondata = true;
 
 	tv->clservercount = ReadLong(m);	//we don't care about server's servercount, it's all reliable data anyway.
@@ -169,7 +170,7 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 			v->thinksitsconnected = false;
 	}
 
-	if (!tv->controller && tv->usequakeworldprotocols)
+	if ((!tv->controller || tv->controller->netchan.isnqprotocol) && tv->usequakeworldprotocols)
 	{
 		tv->netchan.message.cursize = 0;	//mvdsv sucks
 		SendClientCommand(tv, "soundlist %i 0\n", tv->clservercount);
@@ -178,7 +179,10 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 		ConnectionData(tv, (void*)((char*)m->data+m->startpos), m->readpos - m->startpos, to, dem_read, QW);
 
 	if (tv->controller)
+	{
 		QW_ClearViewerState(tv->controller);
+		tv->controller->trackplayer = tv->map.thisplayer;
+	}
 
 	strcpy(tv->status, "Receiving soundlist\n");
 }
@@ -273,14 +277,14 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 
 		for (v = tv->cluster->viewers; v; v = v->next)
 		{
-			if (v->server == tv && v != tv->controller)
+			if (v->server == tv && (v != tv->controller || v->netchan.isnqprotocol))
 			{
 				v->servercount++;
 				SendBufferToViewer(v, newcmd, sizeof(newcmd), true);
 			}
 		}
 
-		if (tv->controller)
+		if (tv->controller && !tv->controller->netchan.isnqprotocol)
 			SendBufferToViewer(tv->controller, (char*)m->data+m->startpos, m->readpos - m->startpos, true);
 		else if (tv->usequakeworldprotocols)
 			SendClientCommand(tv, "begin %i\n", tv->clservercount);
@@ -303,6 +307,19 @@ static void ParseStufftext(sv_t *tv, netmsg_t *m, int to, unsigned int mask)
 		if (tv->controller && (tv->controller->netchan.isnqprotocol == false))
 			SendBufferToViewer(tv->controller, (char*)m->data+m->startpos, m->readpos - m->startpos, true);
 		return;
+	}
+	else if (!strncmp(text, "cmd prespawn ", 13))
+	{
+		if (tv->usequakeworldprotocols)
+			SendClientCommand(tv, "%s", text+4);
+		return;	//commands the game server asked for are pointless.
+	}
+	else if (!strncmp(text, "cmd spawn ", 10))
+	{
+		if (tv->usequakeworldprotocols)
+			SendClientCommand(tv, "%s", text+4);
+
+		return;	//commands the game server asked for are pointless.
 	}
 	else if (!strncmp(text, "cmd ", 4))
 	{
@@ -822,7 +839,7 @@ static void ParsePacketEntities(sv_t *tv, netmsg_t *m, int deltaframe)
 
 	tv->map.nailcount = 0;
 
-	tv->physicstime = tv->parsetime;
+	tv->physicstime = tv->curtime;
 
 	if (tv->cluster->chokeonnotupdated)
 		for (v = tv->cluster->viewers; v; v = v->next)
@@ -1710,7 +1727,7 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 				strcpy(tv->status, "Prespawning\n");
 			}
 			ConnectionData(tv, (void*)((char*)buf.data+buf.startpos), buf.readpos - buf.startpos, to, mask, QW);
-			if (tv->usequakeworldprotocols && !tv->controller)
+			if ((!tv->controller || tv->controller->netchan.isnqprotocol) && tv->usequakeworldprotocols)
 			{
 				if (i)
 					SendClientCommand(tv, "modellist %i %i\n", tv->clservercount, i);
@@ -1755,7 +1772,7 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 			if (!i)
 				strcpy(tv->status, "Receiving modellist\n");
 			ConnectionData(tv, (void*)((char*)buf.data+buf.startpos), buf.readpos - buf.startpos, to, mask, QW);
-			if (tv->usequakeworldprotocols && !tv->controller)
+			if ((!tv->controller || tv->controller->netchan.isnqprotocol) && tv->usequakeworldprotocols)
 			{
 				if (i)
 					SendClientCommand(tv, "soundlist %i %i\n", tv->clservercount, i);

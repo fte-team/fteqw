@@ -226,6 +226,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 size_t strlcpy(char *dst, const char *src, size_t siz);
 
+
+#ifdef LIBQTV
+//#define Sys_Printf QTVSys_Printf
+#endif
+
 #define VERSION "0.01"	//this will be added to the serverinfo
 
 #define PROX_DEFAULTSERVERPORT 27500
@@ -441,6 +446,7 @@ typedef struct viewer_s {
 
 	int lost;	//packets
 	usercmd_t ucmds[3];
+	unsigned int lasttime;
 
 
 	int settime;	//the time that we last told the client.
@@ -628,6 +634,7 @@ struct sv_s {	//details about a server connection (also known as stream)
 
 	qboolean parsingconnectiondata;	//so reject any new connects for now
 
+	unsigned int mapstarttime;
 	unsigned int physicstime;	//the last time all the ents moved.
 	unsigned int simtime;
 	unsigned int curtime;
@@ -725,6 +732,7 @@ struct cluster_s {
 	sv_t *viewserver;
 
 	//options
+	char autojoinadr[128];	//new clients automatically .join this server
 	int qwlistenportnum;
 	int tcplistenportnum;
 	char adminpassword[256];//password required for rcon etc
@@ -834,8 +842,8 @@ void BuildNQServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount);
 void QW_UpdateUDPStuff(cluster_t *qtv);
 unsigned int Sys_Milliseconds(void);
 void Prox_SendInitialEnts(sv_t *qtv, oproxy_t *prox, netmsg_t *msg);
-qboolean QTV_Connect(sv_t *qtv, char *serverurl);
-void QTV_Shutdown(sv_t *qtv);
+qboolean QTV_ConnectStream(sv_t *qtv, char *serverurl);
+void QTV_ShutdownStream(sv_t *qtv);
 qboolean	NET_StringToAddr (char *s, netadr_t *sadr, int defaultport);
 void QTV_Printf(sv_t *qtv, char *format, ...) PRINTFWARNING(2);
 

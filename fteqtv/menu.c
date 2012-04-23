@@ -95,7 +95,7 @@ void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum)
 			}
 			if (i++ == viewer->menuop)
 			{	//disconnect
-				QTV_Shutdown(viewer->server);
+				QTV_ShutdownStream(viewer->server);
 			}
 			if (i++ == viewer->menuop)
 			{

@@ -122,11 +122,21 @@ SOCKET NET_ChooseSocket(SOCKET sock[2], netadr_t *adr)
 	return sock[0];
 }
 
+#ifdef LIBQTV
+void QTV_DoReceive(void *data, int length);
+#endif
 void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, void *data, netadr_t adr)
 {
 	int ret;
 	int alen;
 
+#ifdef LIBQTV
+	if (((struct sockaddr *)&adr.sockaddr)->sa_family == AF_UNSPEC)
+	{
+		QTV_DoReceive(data, length);
+		return;
+	}
+#endif
 #ifdef AF_INET6
 	if (((struct sockaddr *)&adr.sockaddr)->sa_family == AF_INET6)
 		alen = sizeof(struct sockaddr_in6);
@@ -403,7 +413,7 @@ void Netchan_Setup (SOCKET sock, netchan_t *chan, netadr_t adr, int qport, qbool
 
 	chan->message.allowoverflow = true;
 
-	chan->rate = 1000.0f/2500;
+	chan->rate = 10000*1000;
 }
 
 
@@ -485,11 +495,11 @@ void Netchan_Transmit (cluster_t *cluster, netchan_t *chan, int length, const vo
 				i = MAX_NQDATAGRAM;
 
 			WriteData (&send, chan->reliable_buf+chan->reliable_start, i);
-			if (length && send.cursize + length < send.maxsize)
-			{	//throw the unreliable packet into the same one as the reliable (but not sent reliably)
-				WriteData (&send, data, length);
-				length = 0;
-			}
+//			if (length && send.cursize + length < send.maxsize)
+//			{	//throw the unreliable packet into the same one as the reliable (but not sent reliably)
+//				WriteData (&send, data, length);
+//				length = 0;
+//			}
 
 
 			if (chan->reliable_start+i == chan->reliable_length)
@@ -497,12 +507,18 @@ void Netchan_Transmit (cluster_t *cluster, netchan_t *chan, int length, const vo
 			else
 				*(int*)send_buf = BigLong(NETFLAG_DATA | send.cursize);
 			NET_SendPacket(cluster, chan->sock, send.cursize, send.data, chan->remote_address);
+			send.cursize = 0;
 
 			if (chan->cleartime < curtime)
 				chan->cleartime = curtime + (int)(send.cursize*chan->rate);
 			else
 				chan->cleartime += (int)(send.cursize*chan->rate);
 		}
+//		else if (!length)
+//		{
+//			length = 1;
+//			data = "\x01";
+//		}
 
 		//send out the unreliable (if still unsent)
 		if (length)

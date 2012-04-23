@@ -206,6 +206,8 @@ qboolean Net_CompareAddress(netadr_t *s1, netadr_t *s2, int qp1, int qp2)
 		return false;
 	switch(g1->sa_family)
 	{
+	default:
+		return true;
 	case AF_INET:
 		{
 			struct sockaddr_in *i1=(void*)s1->sockaddr, *i2=(void*)s2->sockaddr;
@@ -1063,7 +1065,7 @@ void Trim(char *s)
 	*s = '\0';
 }
 
-qboolean QTV_Connect(sv_t *qtv, char *serverurl)
+qboolean QTV_ConnectStream(sv_t *qtv, char *serverurl)
 {
 	if (qtv->sourcesock != INVALID_SOCKET)
 	{
@@ -1222,7 +1224,7 @@ void QTV_Cleanup(sv_t *qtv, qboolean leaveadmins)
 	}
 }
 
-void QTV_Shutdown(sv_t *qtv)
+void QTV_ShutdownStream(sv_t *qtv)
 {
 	sv_t *peer;
 	cluster_t *cluster;
@@ -1608,7 +1610,7 @@ void QTV_Run(sv_t *qtv)
 		}
 		else if (qtv->errored == ERR_DROP)
 		{
-			QTV_Shutdown(qtv);	//destroys the stream
+			QTV_ShutdownStream(qtv);	//destroys the stream
 			return;
 		}
 	}
@@ -1679,7 +1681,7 @@ void QTV_Run(sv_t *qtv)
 				strcpy(qtv->status, "Attemping challenge\n");
 				if (qtv->sourcesock == INVALID_SOCKET && !qtv->sourcefile)
 				{
-					if (!QTV_Connect(qtv, qtv->server))	//reconnect it
+					if (!QTV_ConnectStream(qtv, qtv->server))	//reconnect it
 					{
 						qtv->errored = ERR_PERMANENT;
 					}
@@ -1735,6 +1737,10 @@ void QTV_Run(sv_t *qtv)
 				}
 				ChooseFavoriteTrack(qtv);
 
+				//if we froze somehow, don't speedcheat by a burst of 10000+ packets while we were frozen in a debugger or disk spinup or whatever
+				if (qtv->packetratelimiter < qtv->curtime - UDPPACKETINTERVAL*2)
+					qtv->packetratelimiter = qtv->curtime;
+
 				if (qtv->map.trackplayer >= 0)
 				{
 					qtv->packetratelimiter += UDPPACKETINTERVAL;
@@ -1747,6 +1753,13 @@ void QTV_Run(sv_t *qtv)
 				else if (qtv->controller)
 				{
 					qtv->packetratelimiter += UDPPACKETINTERVAL;
+
+					if (qtv->controller->netchan.isnqprotocol)
+					{
+						memcpy(&qtv->controller->ucmds[0], &qtv->controller->ucmds[1], sizeof(qtv->controller->ucmds[0]));
+						memcpy(&qtv->controller->ucmds[1], &qtv->controller->ucmds[2], sizeof(qtv->controller->ucmds[0]));
+						qtv->controller->ucmds[2].msec = UDPPACKETINTERVAL;
+					}
 
 					WriteByte(&msg, clc_tmove);
 					WriteShort(&msg, qtv->controller->origin[0]);
@@ -1836,7 +1849,7 @@ void QTV_Run(sv_t *qtv)
 				qtv->errored = ERR_DROP;
 				return;
 			}
-			if (!QTV_Connect(qtv, qtv->server))	//reconnect it
+			if (!QTV_ConnectStream(qtv, qtv->server))	//reconnect it
 			{
 				qtv->errored = ERR_PERMANENT;
 				return;
@@ -2205,7 +2218,7 @@ sv_t *QTV_NewServerConnection(cluster_t *cluster, int newstreamid, char *server,
 //warning review this logic
 				if (qtv->errored == ERR_DISABLED)
 				{
-					if (!(!QTV_Connect(qtv, server) && !force))	//try and wake it up
+					if (!(!QTV_ConnectStream(qtv, server) && !force))	//try and wake it up
 						qtv->errored = ERR_NONE;
 				}
 				return qtv;
@@ -2256,7 +2269,7 @@ sv_t *QTV_NewServerConnection(cluster_t *cluster, int newstreamid, char *server,
 
 	if (autoclose != AD_REVERSECONNECT)	//2 means reverse connection (don't ever try reconnecting)
 	{
-		if (!QTV_Connect(qtv, server) && !force)
+		if (!QTV_ConnectStream(qtv, server) && !force)
 		{
 			QTV_Cleanup(qtv, false);
 			free(qtv);

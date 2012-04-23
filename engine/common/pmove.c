@@ -739,7 +739,7 @@ void PM_CategorizePosition (void)
 	VectorAdd(pmove.origin, pmove.gravitydir, point);
 	trace.startsolid = trace.allsolid = true;
 	VectorClear(trace.endpos);
-	if (DotProduct(pmove.gravitydir, pmove.velocity) > 180)
+	if (-DotProduct(pmove.gravitydir, pmove.velocity) > 180)
 	{
 		pmove.onground = false;
 	}

@@ -96,7 +96,7 @@ cvar_t r_flashblend							= SCVARF ("gl_flashblend", "0",
 												CVAR_ARCHIVE);
 cvar_t r_flashblendscale					= SCVARF ("gl_flashblendscale", "0.35",
 												CVAR_ARCHIVE);
-cvar_t r_floorcolour						= CVARAF ("r_floorcolour", "255 255 255",
+cvar_t r_floorcolour						= CVARAF ("r_floorcolour", "64 64 128",
 													"r_floorcolor", CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
 cvar_t r_floortexture						= SCVARF ("r_floortexture", "",
 												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
@@ -126,7 +126,7 @@ cvar_t r_stainfadetime						= SCVAR  ("r_stainfadetime", "1");
 cvar_t r_stains								= CVARFC("r_stains", IFMINIMAL("0","0.75"),
 												CVAR_ARCHIVE,
 												Cvar_Limiter_ZeroToOne_Callback);
-cvar_t r_wallcolour							= CVARAF ("r_wallcolour", "255 255 255",
+cvar_t r_wallcolour							= CVARAF ("r_wallcolour", "128 128 128",
 													  "r_wallcolor", CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);//FIXME: broken
 cvar_t r_walltexture						= CVARF ("r_walltexture", "",
 												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);	//FIXME: broken
@@ -1725,6 +1725,7 @@ qbyte *R_MarkLeaves_Q3 (void)
 
 	int cluster;
 	mleaf_t	*leaf;
+	mnode_t *node;
 
 	if (r_oldviewcluster == r_viewcluster && !r_novis.value && r_viewcluster != -1)
 		return vis;
@@ -1765,9 +1766,18 @@ qbyte *R_MarkLeaves_Q3 (void)
 			}
 			if (vis[cluster>>3] & (1<<(cluster&7)))
 			{
+#if 1
+				for (node = (mnode_t*)leaf; node; node = node->parent)
+				{
+					if (node->visframe == r_visframecount)
+						break;
+					node->visframe = r_visframecount;
+				}
+#else
 				leaf->visframe = r_visframecount;
 				leaf->vischain = r_vischain;
 				r_vischain = leaf;
+#endif
 			}
 		}
 	}

@@ -61,6 +61,7 @@ static void R_LineGraph (int x, int h)
 		ngraph_texels[NET_GRAPHHEIGHT - i - 1][x] = (qbyte)0xff;
 }
 
+/*
 static void Draw_CharToNetGraph (int x, int y, int num)
 {
 	int		row, col;
@@ -83,7 +84,7 @@ static void Draw_CharToNetGraph (int x, int y, int num)
 		source += 128;
 	}
 }
-
+*/
 
 /*
 ==============

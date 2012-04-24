@@ -27,6 +27,7 @@ void (APIENTRY *qglCullFace) (GLenum mode);
 void (APIENTRY *qglDepthFunc) (GLenum func);
 void (APIENTRY *qglDepthMask) (GLboolean flag);
 void (APIENTRY *qglDepthRange) (GLclampd zNear, GLclampd zFar);
+void (APIENTRY *qglDepthRangef) (GLclampf zNear, GLclampf zFar);
 void (APIENTRY *qglDisable) (GLenum cap);
 void (APIENTRY *qglDrawBuffer) (GLenum mode);
 void (APIENTRY *qglDrawPixels) (GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *pixels);
@@ -113,6 +114,9 @@ void (APIENTRY *qglBufferSubDataARB)(GLenum target, GLint offset, GLsizei size, 
 void *(APIENTRY *qglMapBufferARB)(GLenum target, GLenum access);
 GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
 
+void (APIENTRY *qglGenVertexArrays)(GLsizei n, GLuint *arrays);
+void (APIENTRY *qglBindVertexArray)(GLuint vaoarray);
+
 const GLubyte * (APIENTRY * qglGetStringi) (GLenum name, GLuint index);
 
 void (APIENTRY *qglGenFramebuffersEXT)(GLsizei n, GLuint* ids);
@@ -165,6 +169,7 @@ FTEPFNGLUNIFORM4FARBPROC            qglUniform4fARB;
 FTEPFNGLUNIFORM4FVARBPROC           qglUniform4fvARB;
 FTEPFNGLUNIFORM3FARBPROC            qglUniform3fARB;
 FTEPFNGLUNIFORM3FVARBPROC           qglUniform3fvARB;
+FTEPFNGLUNIFORM4FVARBPROC           qglUniform2fvARB;
 FTEPFNGLUNIFORM1IARBPROC            qglUniform1iARB;
 FTEPFNGLUNIFORM1FARBPROC            qglUniform1fARB;
 
@@ -345,16 +350,67 @@ void APIENTRY GL_ClientStateStub(GLenum array)
 
 #define getglcore getglfunction
 #define getglext(name) getglfunction(name)
-void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
+void GL_CheckExtensions (void *(*getglfunction) (char *name))
 {
+	unsigned int gl_major_version = 0;
+	unsigned int gl_minor_version = 0;
 	memset(&gl_config, 0, sizeof(gl_config));
-
-	gl_config.glversion = ver;
 
 	if (!strncmp(gl_version, "OpenGL ES", 9))
 		gl_config.gles = true;
 	else
 		gl_config.gles = false;
+
+	if (!gl_config.gles)
+	{
+		if (qglGetError())
+			Con_Printf("glGetError %s:%i\n", __FILE__, __LINE__);
+		qglGetIntegerv(GL_MAJOR_VERSION, &gl_major_version);
+		qglGetIntegerv(GL_MINOR_VERSION, &gl_minor_version);
+	}
+	if (!gl_major_version || qglGetError())
+	{
+		/*GL_MAJOR_VERSION not supported? try and parse (es-aware)*/
+		const char *s;
+		for (s = gl_version; *s && (*s < '0' || *s > '9'); s++)
+			;
+		gl_major_version = atoi(s);
+		while(*s >= '0' && *s <= '9')
+			s++;
+		if (*s == '.')
+			s++;
+		gl_minor_version = atoi(s);
+	}
+	gl_config.glversion = gl_major_version + (gl_minor_version/10.f);
+
+	/*gl3 adds glGetStringi instead, as core, with the old form require GL_ARB_compatibility*/
+	if (gl_major_version >= 3 && qglGetStringi) /*warning: wine fails to export qglGetStringi*/
+	{
+		int i;
+		qglGetIntegerv(GL_NUM_EXTENSIONS, &gl_num_extensions);
+		if (developer.value)
+		{
+			Con_Printf ("GL_EXTENSIONS:\n");
+			for (i = 0; i < gl_num_extensions; i++)
+			{
+				Con_Printf (" %s", qglGetStringi(GL_EXTENSIONS, i));
+				Con_Printf("\n");
+			}
+			Con_Printf ("end of list\n");
+		}
+		else
+			Con_DPrintf ("GL_EXTENSIONS: %i extensions\n", gl_num_extensions);
+		gl_extensions = NULL;
+	}
+	else
+	{
+		gl_num_extensions = 0;
+		gl_extensions = qglGetString (GL_EXTENSIONS);
+		Con_DPrintf ("GL_EXTENSIONS: %s\n", gl_extensions);
+
+		if (!gl_extensions)
+			Sys_Error("no extensions\n");
+	}
 
 	if (gl_config.gles)
 		gl_config.nofixedfunc = gl_config.glversion >= 2;
@@ -481,6 +537,8 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 		mtexid0 = GL_TEXTURE0_ARB;
 		if (!gl_config.nofixedfunc)
 			qglGetIntegerv(GL_MAX_TEXTURE_UNITS_ARB, &gl_mtexarbable);
+		else
+			gl_mtexarbable = 8;
 	}
 	else if (GL_CheckExtension("GL_ARB_multitexture") && !COM_CheckParm("-noamtex"))
 	{	//ARB multitexture is the popular choice.
@@ -523,10 +581,12 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 		mtexid0 = GL_TEXTURE0_SGIS;
 	}
 
-	if (GL_CheckExtension("GL_EXT_stencil_wrap"))
+	if ((gl_config.gles && gl_config.glversion >= 2) || GL_CheckExtension("GL_EXT_stencil_wrap"))
 		gl_config.ext_stencil_wrap = true;
 
-	if (GL_CheckExtension("GL_ATI_separate_stencil"))
+	if (gl_config.gles && gl_config.glversion >= 2)
+		qglStencilOpSeparateATI = (void *) getglext("glStencilOpSeparate");
+	else if (GL_CheckExtension("GL_ATI_separate_stencil"))
 		qglStencilOpSeparateATI = (void *) getglext("glStencilOpSeparateATI");
 	if (GL_CheckExtension("GL_EXT_stencil_two_side"))
 		qglActiveStencilFaceEXT = (void *) getglext("glActiveStencilFaceEXT");
@@ -650,6 +710,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 		qglUniform4fvARB			= (void *)getglext("glUniform4fv");
 		qglUniform3fARB				= (void *)getglext("glUniform3f");
 		qglUniform3fvARB			= (void *)getglext("glUniform3fv");
+		qglUniform2fvARB			= (void *)getglext("glUniform2fv");
 		qglUniform1iARB				= (void *)getglext("glUniform1i");
 		qglUniform1fARB				= (void *)getglext("glUniform1f");
 		Con_DPrintf("GLSL available\n");
@@ -686,6 +747,7 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name), float ver)
 		qglUniform4fvARB			= (void *)getglext("glUniform4fvARB");
 		qglUniform3fARB				= (void *)getglext("glUniform3fARB");
 		qglUniform3fvARB			= (void *)getglext("glUniform3fvARB");
+		qglUniform2fvARB			= (void *)getglext("glUniform2fvARB");
 		qglUniform1iARB				= (void *)getglext("glUniform1iARB");
 		qglUniform1fARB				= (void *)getglext("glUniform1fARB");
 
@@ -866,7 +928,7 @@ static const char *glsl_hdrs[] =
 			"uniform float cvar_r_glsl_offsetmapping_scale;\n"
 			"vec2 offsetmap(sampler2D normtex, vec2 base, vec3 eyevector)\n"
 			"{\n"
-			"#if defined(RELIEFMAPPING)\n"
+			"#if defined(RELIEFMAPPING) && !defined(GL_ES)\n"
 				"float i, f;\n"
 				"vec3 OffsetVector = vec3(normalize(eyevector.xyz).xy * cvar_r_glsl_offsetmapping_scale * vec2(1.0, -1.0), -1.0);\n"
 				"vec3 RT = vec3(vec2(base.xy"/* - OffsetVector.xy*OffsetMapping_Bias*/"), 1.0);\n"
@@ -1038,6 +1100,11 @@ GLhandleARB GLSlang_CreateShader (char *name, int ver, char **precompilerconstan
 		{
 			prstrings[strings] =
 					"attribute vec3 v_position;\n"
+					"#ifdef FRAMEBLEND\n"
+					"attribute vec3 v_position2;\n"
+					"uniform vec2 e_vblend;\n"
+					"#define v_position ((v_position*e_vblend.x)+(v_position2*e_vblend.y))\n"
+					"#endif\n"
 					"#define ftetransform() (m_modelviewprojection * vec4(v_position, 1.0))\n"
 					"uniform mat4 m_modelviewprojection;\n"
 				;
@@ -1047,9 +1114,17 @@ GLhandleARB GLSlang_CreateShader (char *name, int ver, char **precompilerconstan
 		else
 		{
 			prstrings[strings] =
-					"#define ftetransform ftransform\n"
-					"#define v_position gl_Vertex\n"
+					"#ifdef FRAMEBLEND\n"
+					"attribute vec3 v_position2;\n"
+					"uniform vec2 e_vblend;\n"
+					"#define v_position (gl_Vertex.xyz*e_vblend.x+v_position2*e_vblend.y)\n"
+					"#define ftetransform() (m_modelviewprojection * vec4(v_position, 1.0))\n"
 					"uniform mat4 m_modelviewprojection;\n"
+					"#else\n"
+					"#define v_position gl_Vertex\n"
+					"#define ftetransform ftransform\n"
+					"uniform mat4 m_modelviewprojection;\n"
+					"#endif\n"
 				;
 			length[strings] = strlen(prstrings[strings]);
 			strings++;
@@ -1159,15 +1234,16 @@ GLhandleARB GLSlang_CreateProgramObject (GLhandleARB vert, GLhandleARB frag, qbo
 	qglAttachObjectARB(program, vert);
 	qglAttachObjectARB(program, frag);
 
-	qglBindAttribLocationARB(program, gl_config.nofixedfunc?0:7, "v_position");
-	qglBindAttribLocationARB(program, 1, "v_colour");
-	qglBindAttribLocationARB(program, 2, "v_texcoord");
-	qglBindAttribLocationARB(program, 3, "v_lmcoord");
-	qglBindAttribLocationARB(program, 4, "v_normal");
-	qglBindAttribLocationARB(program, 5, "v_snormal");
-	qglBindAttribLocationARB(program, 6, "v_tnormal");
-	qglBindAttribLocationARB(program, 8, "v_bone");
-	qglBindAttribLocationARB(program, 9, "v_weight");
+	qglBindAttribLocationARB(program, VATTR_VERTEX1, "v_position");
+	qglBindAttribLocationARB(program, VATTR_COLOUR, "v_colour");
+	qglBindAttribLocationARB(program, VATTR_TEXCOORD, "v_texcoord");
+	qglBindAttribLocationARB(program, VATTR_LMCOORD, "v_lmcoord");
+	qglBindAttribLocationARB(program, VATTR_NORMALS, "v_normal");
+	qglBindAttribLocationARB(program, VATTR_SNORMALS, "v_svector");
+	qglBindAttribLocationARB(program, VATTR_TNORMALS, "v_tvector");
+	qglBindAttribLocationARB(program, VATTR_BONENUMS, "v_bone");
+	qglBindAttribLocationARB(program, VATTR_BONEWEIGHTS, "v_weight");
+	qglBindAttribLocationARB(program, VATTR_VERTEX2, "v_position2");
 
 	qglLinkProgramARB(program);
 
@@ -1212,6 +1288,8 @@ GLhandleARB GLSlang_CreateProgram(char *name, int ver, char **precompilerconstan
 	qglDeleteShaderObject_(vs);
 	qglDeleteShaderObject_(fs);
 
+	checkglerror();
+
 	return handle;
 }
 
@@ -1228,9 +1306,6 @@ GLint GLSlang_GetUniformLocation (int prog, char *name)
 //the vid routines have initialised a window, and now they are giving us a reference to some of of GetProcAddress to get pointers to the funcs.
 void GL_Init(void *(*getglfunction) (char *name))
 {
-	unsigned int gl_major_version;
-	unsigned int gl_minor_version;
-
 	qglAlphaFunc		= (void *)getglcore("glAlphaFunc");
 	qglBegin			= (void *)getglcore("glBegin");
 	qglBlendFunc		= (void *)getglcore("glBlendFunc");
@@ -1253,6 +1328,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglDepthFunc		= (void *)getglcore("glDepthFunc");
 	qglDepthMask		= (void *)getglcore("glDepthMask");
 	qglDepthRange		= (void *)getglcore("glDepthRange");
+	qglDepthRangef		= (void *)getglcore("glDepthRangef");
 	qglDisable			= (void *)getglcore("glDisable");
 	qglDrawBuffer		= (void *)getglcore("glDrawBuffer");
 	qglDrawPixels		= (void *)getglcore("glDrawPixels");
@@ -1328,6 +1404,9 @@ void GL_Init(void *(*getglfunction) (char *name))
 	qglPopAttrib		= (void *)getglcore("glPopAttrib");
 	qglScissor			= (void *)getglcore("glScissor");
 
+	qglGenVertexArrays	= (void *)getglext("glGenVertexArrays");
+	qglBindVertexArray	= (void *)getglext("glBindVertexArray");
+
 	//does this need to be non-core as well?
 	qglFogi				= (void *)getglcore("glFogi");
 	qglFogf				= (void *)getglcore("glFogf");
@@ -1357,52 +1436,7 @@ void GL_Init(void *(*getglfunction) (char *name))
 	gl_version = qglGetString (GL_VERSION);
 	Con_SafePrintf ("GL_VERSION: %s\n", gl_version);
 
-	if (qglGetError())
-		Con_Printf("glGetError %s:%i\n", __FILE__, __LINE__);
-	qglGetIntegerv(GL_MAJOR_VERSION, &gl_major_version);
-	qglGetIntegerv(GL_MINOR_VERSION, &gl_minor_version);
-	if (qglGetError())
-	{
-		/*GL_MAJOR_VERSION not supported? try and parse (es-aware)*/
-		const char *s;
-		for (s = gl_version; *s && (*s < '0' || *s > '9'); s++)
-			;
-		gl_major_version = atoi(s);
-		while(*s >= '0' && *s <= '9')
-			s++;
-		if (*s == '.')
-			s++;
-		gl_minor_version = atoi(s);
-	}
-	/*gl3 adds glGetStringi instead, as core, with the old form require GL_ARB_compatibility*/
-	if (gl_major_version >= 3 && qglGetStringi) /*warning: wine fails to export qglGetStringi*/
-	{
-		int i;
-		qglGetIntegerv(GL_NUM_EXTENSIONS, &gl_num_extensions);
-		if (developer.value)
-		{
-			Con_Printf ("GL_EXTENSIONS:\n");
-			for (i = 0; i < gl_num_extensions; i++)
-			{
-				Con_Printf (" %s", qglGetStringi(GL_EXTENSIONS, i));
-				Con_Printf("\n");
-			}
-			Con_Printf ("end of list\n");
-		}
-		else
-			Con_DPrintf ("GL_EXTENSIONS: %i extensions\n", gl_num_extensions);
-		gl_extensions = NULL;
-	}
-	else
-	{
-		gl_num_extensions = 0;
-		gl_extensions = qglGetString (GL_EXTENSIONS);
-		Con_DPrintf ("GL_EXTENSIONS: %s\n", gl_extensions);
-
-		if (!gl_extensions)
-			Sys_Error("no extensions\n");
-	}
-	GL_CheckExtensions (getglfunction, gl_major_version + (gl_minor_version/10.f));
+	GL_CheckExtensions (getglfunction);
 
 	if (gl_config.gles && gl_config.glversion >= 2)
 	{

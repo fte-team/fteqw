@@ -535,7 +535,7 @@ void CL_DownloadFinished(void)
 		{
 			if (!strncmp(tempname,"package/",8))
 			{
-				if (FS_Rename(tempname+8, filename+8, FS_ROOT))
+				if (!FS_Rename(tempname+8, filename+8, FS_ROOT))
 				{
 					char nativetmp[MAX_OSPATH], nativefinal[MAX_OSPATH];;
 					FS_NativePath(tempname+8, FS_ROOT, nativetmp, sizeof(nativetmp));
@@ -545,7 +545,7 @@ void CL_DownloadFinished(void)
 			}
 			else if (strncmp(tempname,"skins/",6))
 			{
-				if (FS_Rename(tempname, filename, FS_GAME))
+				if (!FS_Rename(tempname, filename, FS_GAME))
 				{
 					char nativetmp[MAX_OSPATH], nativefinal[MAX_OSPATH];;
 					FS_NativePath(tempname, FS_GAME, nativetmp, sizeof(nativetmp));
@@ -555,7 +555,7 @@ void CL_DownloadFinished(void)
 			}
 			else
 			{
-				if (FS_Rename(tempname+6, filename+6, FS_SKINS))
+				if (!FS_Rename(tempname+6, filename+6, FS_SKINS))
 				{
 					char nativetmp[MAX_OSPATH], nativefinal[MAX_OSPATH];;
 					FS_NativePath(tempname+6, FS_SKINS, nativetmp, sizeof(nativetmp));
@@ -2412,15 +2412,9 @@ void CLQW_ParseServerData (void)
 
 	// seperate the printfs so the server message can have a color
 #if 1
-	{
-		int i;
-		Con_Printf ("\n\n");
-		Con_Printf ("^Ue01d");
-		for (i = 34; i-->0; i--)
-			Con_Printf ("^Ue01e");
-		Con_Printf ("^Ue01f");
-		Con_Printf ("\n\n");
-	}
+	Con_Printf ("\n\n");
+	Con_Printf ("^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f");
+	Con_Printf ("\n\n");
 	Con_Printf ("\1%s\n", str);
 #else
 	Con_TPrintf (TLC_LINEBREAK_NEWLEVEL);
@@ -4541,7 +4535,7 @@ void CL_ParsePrint(char *msg, int level)
 int CL_PlayerColor(player_info_t *plr, qboolean *name_coloured)
 {
 	char *t;
-	int c;
+	unsigned int c;
 
 	*name_coloured = false;
 
@@ -4711,7 +4705,7 @@ void CL_PrintChat(player_info_t *plr, char *rawmsg, char *msg, int plrflags)
 		if (plrflags & (TPM_TEAM|TPM_OBSERVEDTEAM)) // for team chat don't highlight the name, just the brackets
 		{
 			// color is reset every printf so we're safe here
-			Q_strncatz(fullchatmessage, va("\1%s^%c(", name_coloured?"":"^m", c), sizeof(fullchatmessage));
+			Q_strncatz(fullchatmessage, va("\1(%s^%c", name_coloured?"":"^m", c), sizeof(fullchatmessage));
 			Q_strncatz(fullchatmessage, va("%s%s^d",  name_coloured?"^m":"", name), sizeof(fullchatmessage));
 			Q_strncatz(fullchatmessage, va("%s^%c)", name_coloured?"^m":"", c), sizeof(fullchatmessage));
 		}
@@ -4859,7 +4853,7 @@ void CL_PrintStandardMessage(char *msg, int printlevel)
 				c = '0' + CL_PlayerColor(p, &coloured);
 
 			// print name
-			Q_strncatz(fullmessage, va("%s^%c%s^7", coloured?"\1":"", c, name), sizeof(fullmessage));
+			Q_strncatz(fullmessage, va("%s^%c%s^7%s", coloured?"^m":"", c, name, coloured?"^m":""), sizeof(fullmessage));
 			break;
 		}
 	}

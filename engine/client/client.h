@@ -1088,7 +1088,7 @@ void CSQC_CvarChanged(cvar_t *var);
 //
 void CL_InitPrediction (void);
 void CL_PredictMove (void);
-void CL_PredictUsercmd (int pnum, player_state_t *from, player_state_t *to, usercmd_t *u);
+void CL_PredictUsercmd (int pnum, int entnum, player_state_t *from, player_state_t *to, usercmd_t *u);
 #ifdef Q2CLIENT
 void CLQ2_CheckPredictionError (void);
 #endif
@@ -1295,3 +1295,22 @@ int qm_stricmp(char *s1, char *s2);
 void Stats_ParsePrintLine(char *line);
 void Stats_NewMap(void);
 
+enum uploadfmt;
+typedef struct
+{
+	void *(VARGS *createdecoder)(char *name);
+	void *(VARGS *decodeframe)(void *ctx, qboolean nosound, enum uploadfmt *fmt, int *width, int *height);
+	void (VARGS *doneframe)(void *ctx, void *img);
+	void (VARGS *shutdown)(void *ctx);
+	void (VARGS *rewind)(void *ctx);
+
+	//these are any interactivity functions you might want...
+	void (VARGS *cursormove) (void *ctx, float posx, float posy);	//pos is 0-1
+	void (VARGS *key) (void *ctx, int code, int unicode, int event);
+	qboolean (VARGS *setsize) (void *ctx, int width, int height);
+	void (VARGS *getsize) (void *ctx, int *width, int *height);
+	void (VARGS *changestream) (void *ctx, char *streamname);
+} media_decoder_funcs_t;
+extern struct plugin_s *currentplug;
+qboolean Media_RegisterDecoder(struct plugin_s *plug, media_decoder_funcs_t *funcs);
+qboolean Media_UnregisterDecoder(struct plugin_s *plug, media_decoder_funcs_t *funcs);

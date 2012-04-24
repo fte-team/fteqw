@@ -1240,7 +1240,7 @@ void Matrix4x4_CM_Projection_Inf(float *proj, float fovx, float fovy, float near
 
 	proj[2] = 0;
 	proj[6] = 0;
-	proj[10] = -1  * nudge;
+	proj[10] = -1  * ((float)(1<<21)/(1<<22));
 	proj[14] = -2*neard * nudge;
 	
 	proj[3] = 0;

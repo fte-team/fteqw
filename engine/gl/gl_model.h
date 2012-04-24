@@ -59,8 +59,11 @@ typedef struct mesh_s
 	unsigned int	vbofirstvert;
 	unsigned int	vbofirstelement;
 
+	float			xyz_blendw[2];
+
 	/*arrays used for rendering*/
 	vecV_t			*xyz_array;
+	vecV_t			*xyz2_array;
 	vec3_t			*normals_array;	/*required for lighting*/
 	vec3_t			*snormals_array;/*required for rtlighting*/
 	vec3_t			*tnormals_array;/*required for rtlighting*/
@@ -268,7 +271,10 @@ typedef struct vbo_s
 	vboarray_t		indicies;
 	void *vertdata; /*internal use*/
 
+	int vao;
+	unsigned int vaodynamic;	/*mask of the attributes that are dynamic*/
 	vboarray_t coord;
+	vboarray_t coord2;
 	vboarray_t texcoord;
 	vboarray_t lmcoord;
 

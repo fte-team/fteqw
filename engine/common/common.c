@@ -3056,6 +3056,7 @@ void COM_InitArgv (int argc, const char **argv)	//not allowed to tprint
 	int			i;
 	size_t result;
 
+#ifndef NACL
 	FILE *f;
 
 	if (argv && argv[0])
@@ -3103,6 +3104,7 @@ void COM_InitArgv (int argc, const char **argv)	//not allowed to tprint
 
 		fclose(f);
 	}
+#endif
 
 	safe = false;
 

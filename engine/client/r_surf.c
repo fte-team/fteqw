@@ -1640,7 +1640,7 @@ static void Surf_LeafWorldNode (void)
 //		if (!r_nocull->value)
 		{
 
-			for (i=0,clipplane=frustum ; i<5 ; i++,clipplane++)
+			for (i=0,clipplane=frustum ; i<FRUSTUMPLANES ; i++,clipplane++)
 			{
 				clipped = BoxOnPlaneSide (pleaf->minmaxs, pleaf->minmaxs+3, clipplane);
 				if (clipped == 2)
@@ -1653,7 +1653,7 @@ static void Surf_LeafWorldNode (void)
 				}
 			}
 
-			if (i != 4)
+			if (i != FRUSTUMPLANES)
 			{
 				continue;
 			}
@@ -1698,6 +1698,92 @@ static void Surf_LeafWorldNode (void)
 			}
 		}
 	}
+}
+
+static void Surf_RecursiveQ3WorldNode (mnode_t *node, unsigned int clipflags)
+{
+	int			c, side, clipped;
+	mplane_t	*plane, *clipplane;
+	msurface_t	*surf, **mark;
+	mleaf_t		*pleaf;
+	double		dot;
+
+start:
+
+	if (node->visframe != r_visframecount)
+		return;
+
+	for (c = 0, clipplane = frustum; c < FRUSTUMPLANES; c++, clipplane++)
+	{
+		if (!(clipflags & (1 << c)))
+			continue;	// don't need to clip against it
+
+		clipped = BOX_ON_PLANE_SIDE (node->minmaxs, node->minmaxs + 3, clipplane);
+		if (clipped == 2)
+			return;
+		else if (clipped == 1)
+			clipflags -= (1<<c);	// node is entirely on screen
+	}
+
+// if a leaf node, draw stuff
+	if (node->contents != -1)
+	{
+		pleaf = (mleaf_t *)node;
+
+		if (! (areabits[pleaf->area>>3] & (1<<(pleaf->area&7)) ) )
+			return;		// not visible
+
+		mark = pleaf->firstmarksurface;
+		for (c = pleaf->nummarksurfaces; c; c--)
+		{
+			surf = *mark++;
+			if (surf->visframe == r_framecount)
+				continue;
+			surf->visframe = r_framecount;
+
+//			if (((dot < 0) ^ !!(surf->flags & SURF_PLANEBACK)))
+//				continue;		// wrong side
+
+			surf->sbatch->mesh[surf->sbatch->meshes++] = surf->mesh;
+		}
+		return;
+	}
+
+// node is just a decision point, so go down the apropriate sides
+
+// find which side of the node we are on
+	plane = node->plane;
+
+	switch (plane->type)
+	{
+	case PLANE_X:
+		dot = modelorg[0] - plane->dist;
+		break;
+	case PLANE_Y:
+		dot = modelorg[1] - plane->dist;
+		break;
+	case PLANE_Z:
+		dot = modelorg[2] - plane->dist;
+		break;
+	default:
+		dot = DotProduct (modelorg, plane->normal) - plane->dist;
+		break;
+	}
+
+	if (dot >= 0)
+		side = 0;
+	else
+		side = 1;
+
+// recurse down the children, front side first
+	Surf_RecursiveQ3WorldNode (node->children[side], clipflags);
+
+// q3 nodes contain no drawables
+
+// recurse down the back side
+	//GLR_RecursiveWorldNode (node->children[!side], clipflags);
+	node = node->children[!side];
+	goto start;
 }
 #endif
 
@@ -2076,7 +2162,8 @@ void Surf_DrawWorld (void)
 			if (currententity->model->fromgame == fg_quake3)
 			{
 				vis = R_MarkLeaves_Q3 ();
-				Surf_LeafWorldNode ();
+				Surf_RecursiveQ3WorldNode (cl.worldmodel->nodes, (1<<FRUSTUMPLANES)-1);
+				//Surf_LeafWorldNode ();
 			}
 			else
 #endif

@@ -382,7 +382,7 @@ qvm_t *QVM_LoadVM(const char *name, sys_callqvm_t syscall)
 		if ((1<<i) >= qvm->ds_mask)	//is this bit greater than our minimum?
 			break;
 	}
-	qvm->len_ss = (1<<i) - qvm->len_ds*sizeof(qbyte) - 4;	//expand the stack space to fill it.
+	qvm->len_ss = (1<<i) - qvm->len_ds*(int)sizeof(qbyte) - 4;	//expand the stack space to fill it.
 	qvm->ds_mask = qvm->len_ds*sizeof(qbyte)+(qvm->len_ss+4)*sizeof(qbyte);
 	qvm->len_ss -= qvm->len_ss&7;
 

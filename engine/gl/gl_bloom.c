@@ -789,8 +789,7 @@ void R_BloomBlend (void)
 
 	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-	if (qglGetError())
-		Con_Printf("GL Error whilst rendering bloom\n");
+	checkglerror();
 
 	PPL_RevertToKnownState();
 }

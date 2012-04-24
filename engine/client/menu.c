@@ -33,6 +33,7 @@ qboolean	m_recursiveDraw;
 void M_ConfigureNetSubsystem(void);
 
 cvar_t m_helpismedia = SCVAR("m_helpismedia", "0");
+cvar_t m_preset_chosen = CVARF("m_preset_chosen", "0", CVAR_ARCHIVE);
 
 //=============================================================================
 /* Support Routines */
@@ -736,35 +737,93 @@ qboolean MC_Quit_Key (int key, menu_t *menu)
 	return true;
 }
 
-menu_t quitmenu;
-void M_Menu_Quit_f (void)
+void Cmd_WriteConfig_f(void);
+qboolean MC_SaveQuit_Key (int key, menu_t *menu)
 {
-	int		i;
-
-	if (1)
+	switch (key)
 	{
+	case K_ESCAPE:
+		M_RemoveMenu(menu);
+		break;
+
+	case 'n':
+	case 'N':
+		M_RemoveMenu(menu);
 		CL_Disconnect ();
 		Sys_Quit ();
+		break;
+
+	case 'Y':
+	case 'y':
+		M_RemoveMenu(menu);
+		Cmd_ExecuteString("cfg_save", RESTRICT_LOCAL);
+		CL_Disconnect ();
+		Sys_Quit ();
+		break;
+
+	default:
+		break;
 	}
+
+	return true;
+}
+
+void M_Menu_Quit_f (void)
+{
+	menu_t *quitmenu;
+	int		i;
+	int mode;
+
+	char *arg = Cmd_Argv(1);
+	if (!strcmp(arg, "force"))
+		mode = 0;
+	else if (!strcmp(arg, "save"))
+		mode = 2;
+	else if (!strcmp(arg, "prompt"))
+		mode = 1;
 	else
 	{
+		if (Cvar_UnsavedArchive())
+			mode = 2;
+		else
+			mode = 0;
+	}
+
+	switch(mode)
+	{
+	case 0:
+		CL_Disconnect ();
+		Sys_Quit ();
+		break;
+	case 2:
 		key_dest = key_menu;
 		m_state = m_complex;
 
-		M_RemoveMenu(&quitmenu);
-		memset(&quitmenu, 0, sizeof(quitmenu));
-		M_AddMenuFront(&quitmenu);
-		quitmenu.exclusive = false;
-		quitmenu.key = MC_Quit_Key;
+		quitmenu = M_CreateMenuInfront(0);
+		quitmenu->key = MC_SaveQuit_Key;
+
+		MC_AddWhiteText(quitmenu, 64, 84,	"You have unsaved settings ", false);
+		MC_AddWhiteText(quitmenu, 64, 92,	"    Would you like to     ", false);
+		MC_AddWhiteText(quitmenu, 64, 100,	"      save them now?      ", false);
+		MC_AddWhiteText(quitmenu, 64, 108,	"         [Y/N/ESC]        ", false);
+		MC_AddBox (quitmenu, 56, 76, 25, 4);
+		break;
+	case 1:
+		key_dest = key_menu;
+		m_state = m_complex;
+
+		quitmenu = M_CreateMenuInfront(0);
+		quitmenu->key = MC_Quit_Key;
 
 
 		i = rand()&7;
 
-		MC_AddWhiteText(&quitmenu, 64, 84, quitMessage[i*4+0], false);
-		MC_AddWhiteText(&quitmenu, 64, 92, quitMessage[i*4+1], false);
-		MC_AddWhiteText(&quitmenu, 64, 100, quitMessage[i*4+2], false);
-		MC_AddWhiteText(&quitmenu, 64, 108, quitMessage[i*4+3], false);
-		MC_AddBox (&quitmenu, 56, 76, 24, 4);
+		MC_AddWhiteText(quitmenu, 64, 84, quitMessage[i*4+0], false);
+		MC_AddWhiteText(quitmenu, 64, 92, quitMessage[i*4+1], false);
+		MC_AddWhiteText(quitmenu, 64, 100, quitMessage[i*4+2], false);
+		MC_AddWhiteText(quitmenu, 64, 108, quitMessage[i*4+3], false);
+		MC_AddBox (quitmenu, 56, 76, 24, 4);
+		break;
 	}
 }
 
@@ -942,6 +1001,7 @@ void M_Reinit(void)
 }
 
 void FPS_Preset_f(void);
+void M_MenuPop_f(void);
 
 //menu.dat is loaded later... after the video and everything is up.
 void M_Init (void)
@@ -950,7 +1010,9 @@ void M_Init (void)
 	Cmd_AddCommand("togglemenu", M_ToggleMenu_f);
 	Cmd_AddCommand("closemenu", M_CloseMenu_f);
 	Cmd_AddCommand("fps_preset", FPS_Preset_f);
+	Cmd_AddCommand("menupop", M_MenuPop_f);
 
+	Cvar_Register(&m_preset_chosen, "Menu thingumiebobs");
 	Cvar_Register(&m_helpismedia, "Menu thingumiebobs");
 
 	Media_Init();

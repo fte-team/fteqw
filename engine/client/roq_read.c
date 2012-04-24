@@ -88,7 +88,6 @@ int max_frame;
 	head3 = get_word(fp);
 	if(head1 != 0x1084 && head2 != 0xffffffff && head3 != 0x1e)
 	{
-		Con_Printf("Not an RoQ file.\n");
 		return 1;
 	}
 

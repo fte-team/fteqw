@@ -205,10 +205,6 @@ void RMod_Think (void)
 #ifdef RUNTIMELIGHTING
 	if (lightmodel)
 	{
-		if (relitsurface >= lightmodel->numsurfaces)
-		{
-			return;
-		}
 #ifdef MULTITHREAD
 		if (!relightthreads)
 		{
@@ -237,6 +233,10 @@ void RMod_Think (void)
 			for (i = 0; i < relightthreads; i++)
 				relightthread[i] = Sys_CreateThread(RelightThread, lightmodel, THREADP_NORMAL, 0);
 		}
+		if (relitsurface < lightmodel->numsurfaces)
+		{
+			return;
+		}
 #else
 		LightFace(relitsurface);
 		RMod_UpdateLightmap(relitsurface);
@@ -250,7 +250,7 @@ void RMod_Think (void)
 			Con_Printf("Finished lighting %s\n", lightmodel->name);
 
 #ifdef MULTITHREAD
-			if (relightthread)
+			if (relightthreads)
 			{
 				int i;
 				wantrelight = false;
@@ -288,10 +288,12 @@ void RMod_Think (void)
 					VFS_WRITE(f, "QLIT\1\0\0\0", 8);
 					VFS_WRITE(f, lightmodel->lightdata, numlightdata*3);
 					VFS_CLOSE(f);
+					COM_FlushFSCache();
 				}
 				else
 					Con_Printf("Unable to write \"%s\"\n", filename);
 			}
+			lightmodel = NULL;
 		}
 	}
 #endif
@@ -1666,6 +1668,8 @@ void RMod_LoadLighting (lump_t *l)
 #ifdef RUNTIMELIGHTING
 	if (r_loadlits.value == 2 && !lightmodel && (!litdata || (!luxdata && r_deluxemapping.ival)))
 	{
+		if (!litdata)
+			writelitfile = true;
 		numlightdata = l->filelen;
 		lightmodel = loadmodel;
 		relitsurface = 0;

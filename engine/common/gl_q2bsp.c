@@ -3,7 +3,6 @@
 #include "glquake.h"
 #endif
 #include "com_mesh.h"
-#include "errno.h"
 
 #define MAX_Q3MAP_INDICES 0x80000
 #define	MAX_Q3MAP_VERTEXES	0x80000
@@ -5650,7 +5649,7 @@ void	CM_ReadPortalState (FILE *f)
 	result = fread (portalopen, 1, sizeof(portalopen), f); // do something with result
 
 	if (result != sizeof(portalopen))
-		Con_Printf("CM_ReadPortalState() fread: expected %lu, result was %u (%s)\n",(long unsigned int)sizeof(portalopen),(unsigned int)result,strerror(errno));
+		Con_Printf("CM_ReadPortalState() fread: expected %lu, result was %u\n",(long unsigned int)sizeof(portalopen),(unsigned int)result);
 
 	FloodAreaConnections ();
 }

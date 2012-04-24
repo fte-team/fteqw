@@ -357,7 +357,7 @@ void CL_NudgePosition (void)
 CL_PredictUsercmd
 ==============
 */
-void CL_PredictUsercmd (int pnum, player_state_t *from, player_state_t *to, usercmd_t *u)
+void CL_PredictUsercmd (int pnum, int entnum, player_state_t *from, player_state_t *to, usercmd_t *u)
 {
 	extern vec3_t player_mins;
 	extern vec3_t player_maxs;
@@ -370,8 +370,8 @@ void CL_PredictUsercmd (int pnum, player_state_t *from, player_state_t *to, user
 		split = *u;
 		split.msec /= 2;
 
-		CL_PredictUsercmd (pnum, from, &temp, &split);
-		CL_PredictUsercmd (pnum, &temp, to, &split);
+		CL_PredictUsercmd (pnum, entnum, from, &temp, &split);
+		CL_PredictUsercmd (pnum, entnum, &temp, to, &split);
 		return;
 	}
 
@@ -393,7 +393,7 @@ void CL_PredictUsercmd (int pnum, player_state_t *from, player_state_t *to, user
 	pmove.pm_type = from->pm_type;
 
 	pmove.cmd = *u;
-	pmove.skipent = cl.playernum[pnum]+1;
+	pmove.skipent = entnum;
 
 	movevars.entgravity = cl.entgravity[pnum];
 	movevars.maxspeed = cl.maxspeed[pnum];
@@ -641,7 +641,17 @@ void CL_CalcClientTime(void)
 			float f;
 			f = (demtime - olddemotime) / (nextdemotime - olddemotime);
 			f = bound(0, f, 1);
-			cl.time = cl.servertime = cl.gametime*f + cl.oldgametime*(1-f);
+			cl.servertime = cl.gametime*f + cl.oldgametime*(1-f);
+		}
+		else if (0)
+		{
+			float f;
+			f = cl.gametime - cl.oldgametime;
+			if (f > 0.1)
+				f = 0.1;
+			f = (realtime - cl.gametimemark) / (f);
+			f = bound(0, f, 1);
+			cl.servertime = cl.gametime*f + cl.oldgametime*(1-f);
 		}
 		else
 		{
@@ -846,8 +856,7 @@ qboolean CL_PredictPlayer(lerpents_t *le, entity_state_t *state, int sequence)
 	cmd.upmove = state->u.q1.movement[2];
 
 	oldphysent = pmove.numphysent;
-	pmove.skipent = state->number-1;
-	CL_PredictUsercmd (0, &start, &exact, &cmd);	//uses player 0's maxspeed/grav...
+	CL_PredictUsercmd (0, state->number, &start, &exact, &cmd);	//uses player 0's maxspeed/grav...
 	pmove.numphysent = oldphysent;
 
 	/*need to update the entity's angles and origin so the linkentities function puts it in the correct predicted place*/
@@ -1042,7 +1051,7 @@ fixedorg:
 			VectorCopy (cl.simvel[pnum], from->playerstate[cl.playernum[pnum]].velocity);
 			VectorCopy (cl.simorg[pnum], from->playerstate[cl.playernum[pnum]].origin);
 
-			CL_PredictUsercmd (pnum, &from->playerstate[cl.playernum[pnum]], &to->playerstate[cl.playernum[pnum]], &to->cmd[pnum]);
+			CL_PredictUsercmd (pnum, cl.playernum[pnum]+1, &from->playerstate[cl.playernum[pnum]], &to->playerstate[cl.playernum[pnum]], &to->cmd[pnum]);
 		}
 		else
 		{
@@ -1050,7 +1059,7 @@ fixedorg:
 					cls.netchan.outgoing_sequence; i++)
 			{
 				to = &cl.frames[(cl.ackedinputsequence+i) & UPDATE_MASK];
-				CL_PredictUsercmd (pnum, &from->playerstate[cl.playernum[pnum]]
+				CL_PredictUsercmd (pnum, cl.playernum[pnum]+1, &from->playerstate[cl.playernum[pnum]]
 					, &to->playerstate[cl.playernum[pnum]], &to->cmd[pnum]);
 
 				if (to->senttime >= realtime)
@@ -1065,7 +1074,7 @@ fixedorg:
 			to = &ind;
 			to->cmd[pnum] = independantphysics[pnum];
 			to->senttime = realtime;
-				CL_PredictUsercmd (pnum, &from->playerstate[cl.playernum[pnum]]
+				CL_PredictUsercmd (pnum, cl.playernum[pnum]+1, &from->playerstate[cl.playernum[pnum]]
 				, &to->playerstate[cl.playernum[pnum]], &to->cmd[pnum]);
 		}
 		cl.onground[pnum] = pmove.onground;

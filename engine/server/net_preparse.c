@@ -831,22 +831,24 @@ void NPP_NQCheckDest(int dest)
 			Con_Printf("Not a client\n");
 			return;
 		}
-		if ((cldest && cldest != cl) || writedest)
+		if (bufferlen && ((cldest && cldest != cl) || writedest))
 		{
 			Con_Printf("MSG destination changed in the middle of a packet %i.\n", (int)*buffer);
 			NPP_NQFlush();
 		}
+		writedest = NULL;
 		cldest = cl;
 		destprim = &cldest->netchan.message.prim;
 	}
 	else
 	{
 		sizebuf_t	*ndest = QWWriteDest(dest);
-		if (cldest || (writedest && writedest != ndest))
+		if (bufferlen && (cldest || (writedest && writedest != ndest)))
 		{
 			Con_DPrintf("NQCheckDest: MSG destination changed in the middle of a packet %i.\n", (int)*buffer);
 			NPP_NQFlush();
 		}
+		cldest = NULL;
 		writedest = ndest;
 		destprim = &writedest->prim;
 	}
@@ -1463,21 +1465,23 @@ void NPP_QWFlush(void)
 //		bufferlen = 0;
 		break;
 	case svc_muzzleflash:
-		//we need to make a fake muzzleflash position.
-		multicastpos = 4;
+		if (bufferlen < 3)
+			Con_Printf("Dodgy muzzleflash\n");
+		else
 		{
 			short data;
 			float org[3];
 			edict_t *ent = EDICT_NUM(svprogfuncs, LittleShort((*(short*)&buffer[1])));
 			VectorCopy(ent->v->origin, org);
 
+			//we need to make a fake muzzleflash position for multicast to work properly.
+			multicastpos = 4;
 			data = LittleShort((short)(org[0]*8));
 			NPP_AddData(&data, sizeof(short));
 			data = LittleShort((short)(org[1]*8));
 			NPP_AddData(&data, sizeof(short));
 			data = LittleShort((short)(org[2]*8));
 			NPP_AddData(&data, sizeof(short));
-
 		}
 		bufferlen = 0;	//can't send this to nq. :(
 		break;
@@ -1655,29 +1659,30 @@ void NPP_QWCheckDest(int dest)
 {
 	if (dest == MSG_ONE)
 	{
-/*		client_t *cl = Write_GetClient();
+		client_t *cl = Write_GetClient();
 		if (!cl)
 		{
 			Con_Printf("Not a client\n");
 			return;
 		}
-		if ((cldest && cldest != cl) || writedest)
+		if (bufferlen && ((cldest && cldest != cl) || writedest))
 		{
 			Con_Printf("MSG destination changed in the middle of a packet %i.\n", (int)*buffer);
 			NPP_QWFlush();
 		}
+		writedest = NULL;
 		cldest = cl;
-*/
-		cldest = NULL;
+		destprim = &cldest->netchan.message.prim;
 	}
 	else
 	{
 		sizebuf_t	*ndest = NQWriteDest(dest);
-		if (cldest || (writedest && writedest != ndest))
+		if (bufferlen && (cldest || (writedest && writedest != ndest)))
 		{
 			Con_DPrintf("QWCheckDest: MSG destination changed in the middle of a packet %i.\n", (int)*buffer);
 			NPP_QWFlush();
 		}
+		cldest = NULL;
 		writedest = ndest;
 		destprim = &writedest->prim;
 	}

@@ -804,11 +804,11 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		"#define BUMP\n",
 		"#define SPECULAR\n",
 		"#define FULLBRIGHT\n",
-		"#define LOWER\n",
-		"#define UPPER\n",
+		"#define UPPERLOWER\n",
 		"#define OFFSETMAPPING\n",
 		"#define SKELETAL\n",
 		"#define FOG\n",
+		"#define FRAMEBLEND\n",
 		NULL
 	};
 	char *permutationdefines[sizeof(permutationname)/sizeof(permutationname[0]) + 64 + 1];
@@ -824,11 +824,14 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 
 	cvarnames[cvarcount] = NULL;
 
+	prog->nofixedcompat = true;
 	for(;;)
 	{
 		while (*script == ' ' || *script == '\r' || *script == '\n' || *script == '\t')
 			script++;
-		if (!strncmp(script, "!!cvarf", 7))
+		if (!strncmp(script, "!!fixed", 7))
+			prog->nofixedcompat = false;
+		else if (!strncmp(script, "!!cvarf", 7))
 		{
 			script += 7;
 			while (*script == ' ' || *script == '\t')
@@ -871,8 +874,13 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			for (p = 0; permutationname[p]; p++)
 			{
 				if (!strncmp(permutationname[p]+8, script, end - script) && permutationname[p][8+end-script] == '\n')
+				{
 					nopermutation &= ~(1u<<p);
+					break;
+				}
 			}
+			if (!permutationname[p])
+				Con_DPrintf("Unknown pemutation in glsl program %s\n", name);
 			script = end;
 		}
 		else if (!strncmp(script, "!!ver", 5))
@@ -1078,7 +1086,7 @@ struct sbuiltin_s
 
 		"#ifdef FRAGMENT_SHADER\n"
 			"uniform sampler2D s_t0;\n"
-			"in vec2 tc;\n"
+			"varying vec2 tc;\n"
 			"varying vec4 vc;\n"
 			"uniform vec4 e_colourident;\n"
 
@@ -1107,7 +1115,7 @@ struct sbuiltin_s
 
 		"#ifdef FRAGMENT_SHADER\n"
 			"uniform sampler2D s_t0;\n"
-			"in vec2 tc;\n"
+			"varying vec2 tc;\n"
 			"varying vec4 vc;\n"
 			"uniform vec4 e_colourident;\n"
 
@@ -1530,8 +1538,8 @@ struct sbuiltin_s
 /*draws a model. there's lots of extra stuff for light shading calcs and upper/lower textures*/
 	{QR_OPENGL/*ES*/, 100, "defaultskin",
 		"!!permu FULLBRIGHT\n"
-		"!!permu LOWER\n"
-		"!!permu UPPER\n"
+		"!!permu UPPERLOWER\n"
+		"!!permu FRAMEBLEND\n"
 		"!!permu SKELETAL\n"
 		"#ifdef VERTEX_SHADER\n"
 			"#include \"sys/skeletal.h\"\n"
@@ -1592,8 +1600,8 @@ struct sbuiltin_s
 	},
 	{QR_OPENGL, 110, "defaultskin",
 		"!!permu FULLBRIGHT\n"
-		"!!permu LOWER\n"
-		"!!permu UPPER\n"
+		"!!permu UPPERLOWER\n"
+		"!!permu FRAMEBLEND\n"
 		"!!permu SKELETAL\n"
 		"!!permu FOG\n"
 		"varying vec2 tc;\n"
@@ -2406,6 +2414,7 @@ static program_t *Shader_LoadGeneric(char *name, int qrtype)
 	else
 	{
 		int matchlen;
+		int ver;
 		char *h = strchr(name, '#');
 		if (h)
 			matchlen = h - name;
@@ -2415,22 +2424,28 @@ static program_t *Shader_LoadGeneric(char *name, int qrtype)
 		{
 			if (sbuiltins[i].qrtype == qrenderer && !strncmp(sbuiltins[i].name, name, matchlen))
 			{
+				ver = sbuiltins[i].apiver;
 #ifdef GLQUAKE
 				if (qrenderer == QR_OPENGL)
 				{
 					if (gl_config.gles)
 					{
-						if (sbuiltins[i].apiver != 100)
+						if (ver == 110)
+							ver = 100;	/*allow gles to use desktop gl if there's no shader for it - lets hope numeric sorting applies!*/
+						if (ver != 100)
 							continue;
 					}
 					else
 					{
-						if (sbuiltins[i].apiver == 100)
+						if (ver == 100)	/*don't use gles shaders on desktop gl*/
 							continue;
 					}
 				}
 #endif
-				g->failed = !Shader_LoadPermutations(name, &g->prog, sbuiltins[i].body, sbuiltins[i].qrtype, sbuiltins[i].apiver);
+				g->failed = !Shader_LoadPermutations(name, &g->prog, sbuiltins[i].body, sbuiltins[i].qrtype, ver);
+
+				if (g->failed)
+					continue;
 
 				g->prog.refs++;
 				return &g->prog;
@@ -2481,19 +2496,24 @@ void Shader_WriteOutGenerics_f(void)
 	}
 }
 
-struct shader_field_names_s shader_field_names[] =
+struct shader_field_names_s shader_attr_names[] =
 {
 	/*vertex attributes*/
-	{"v_position",				SP_ATTR_VERTEX},
-	{"v_colour",				SP_ATTR_COLOUR},
-	{"v_texcoord",				SP_ATTR_TEXCOORD},
-	{"v_lmcoord",				SP_ATTR_LMCOORD},
-	{"v_normal",				SP_ATTR_NORMALS},
-	{"v_svector",				SP_ATTR_SNORMALS},
-	{"v_tvector",				SP_ATTR_TNORMALS},
-	{"v_bone",					SP_ATTR_BONENUMS},
-	{"v_weight",				SP_ATTR_BONEWEIGHTS},
+	{"v_position",				VATTR_VERTEX1},
+	{"v_position2",				VATTR_VERTEX2},
+	{"v_colour",				VATTR_COLOUR},
+	{"v_texcoord",				VATTR_TEXCOORD},
+	{"v_lmcoord",				VATTR_LMCOORD},
+	{"v_normal",				VATTR_NORMALS},
+	{"v_svector",				VATTR_SNORMALS},
+	{"v_tvector",				VATTR_TNORMALS},
+	{"v_bone",					VATTR_BONENUMS},
+	{"v_weight",				VATTR_BONEWEIGHTS},
+	{NULL}
+};
 
+struct shader_field_names_s shader_unif_names[] =
+{
 	/*matricies*/
 	{"m_model",					SP_M_MODEL},
 	{"m_view",					SP_M_VIEW},
@@ -2509,6 +2529,7 @@ struct shader_field_names_s shader_field_names[] =
 	{"w_fog",					SP_W_FOG},
 
 	/*ent properties*/
+	{"e_vblend",				SP_E_VBLEND},
 	{"e_lmscale",				SP_E_LMSCALE}, /*overbright shifting*/
 	{"e_origin",				SP_E_ORIGIN},
 	{"e_time",					SP_E_TIME},
@@ -2546,10 +2567,27 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
-		if (gl_config.nofixedfunc)
-			prog->nofixedcompat = true;
+		//figure out visible attributes
+		for (p = 0; p < PERMUTATIONS; p++)
+		{
+			if (!prog->handle[p].glsl)
+				continue;
+			GLSlang_UseProgram(prog->handle[p].glsl);
+			for (i = 0; shader_attr_names[i].name; i++)
+			{
+				uniformloc = qglGetAttribLocationARB(prog->handle[p].glsl, shader_attr_names[i].name);
+				if (uniformloc != -1)
+				{
+					if (shader_attr_names[i].ptype != uniformloc)
+						Con_Printf("Bad attribute\n");
+					else
+						prog->attrmask[p] |= 1u<<uniformloc;
+				}
+			}
+		}
 
-		for (i = 0; shader_field_names[i].name; i++)
+		//figure out the uniforms
+		for (i = 0; shader_unif_names[i].name; i++)
 		{
 			found = false;
 			for (p = 0; p < PERMUTATIONS; p++)
@@ -2557,12 +2595,11 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 				if (!prog->handle[p].glsl)
 					continue;
 				GLSlang_UseProgram(prog->handle[p].glsl);
-				if (shader_field_names[i].ptype >= SP_FIRSTUNIFORM)
-					uniformloc = qglGetUniformLocationARB(prog->handle[p].glsl, shader_field_names[i].name);
-				else
-					uniformloc = qglGetAttribLocationARB(prog->handle[p].glsl, shader_field_names[i].name);
+
+				uniformloc = qglGetUniformLocationARB(prog->handle[p].glsl, shader_unif_names[i].name);
 				if (uniformloc != -1)
 					found = true;
+
 				if (prog->numparams == SHADER_PROGPARMS_MAX)
 				{
 					if (found)
@@ -2574,14 +2611,11 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 			if (found)
 			{
 				if (prog->numparams == SHADER_PROGPARMS_MAX)
-					Con_Printf("Too many paramters for program (ignoring %s)\n", shader_field_names[i].name);
+					Con_Printf("Too many paramters for program (ignoring %s)\n", shader_unif_names[i].name);
 				else
 				{
-					prog->parm[prog->numparams].type = shader_field_names[i].ptype;
+					prog->parm[prog->numparams].type = shader_unif_names[i].ptype;
 					prog->numparams++;
-
-					if (shader_field_names[i].ptype < SP_FIRSTUNIFORM)
-						prog->nofixedcompat = true;
 				}
 			}
 		}
@@ -2624,6 +2658,8 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 		{
 			if (!prog->handle[p].glsl)
 				continue;
+			if (!(prog->attrmask[p] & (1u<<VATTR_VERTEX1)))	//a shader kinda has to use one of these...
+				prog->attrmask[p] |= (1u<<VATTR_LEG_VERTEX);
 			GLSlang_UseProgram(prog->handle[p].glsl);
 			for (i = 0; i < 8; i++)
 			{
@@ -2670,28 +2706,20 @@ static void Shader_ProgAutoFields(program_t *prog, char **cvarnames, int *cvarty
 				}
 			}
 		}
-		for (i = 0; shader_field_names[i].name; i++)
+		for (i = 0; shader_unif_names[i].name; i++)
 		{
 			found = false;
 			for (p = 0; p < PERMUTATIONS; p++)
 			{
-				if (shader_field_names[i].ptype >= SP_FIRSTUNIFORM)
-				{
-					uniformloc = D3DShader_FindUniform(&prog->handle[p], 0, shader_field_names[i].name);
-				}
-				else
-					uniformloc = -1;
+				uniformloc = D3DShader_FindUniform(&prog->handle[p], 0, shader_unif_names[i].name);
 				if (uniformloc != -1)
 					found = true;
 				prog->parm[prog->numparams].handle[p] = uniformloc;
 			}
 			if (found)
 			{
-				prog->parm[prog->numparams].type = shader_field_names[i].ptype;
+				prog->parm[prog->numparams].type = shader_unif_names[i].ptype;
 				prog->numparams++;
-
-				if (shader_field_names[i].ptype < SP_FIRSTUNIFORM)
-					prog->nofixedcompat = true;
 			}
 		}
 		/*set texture uniforms*/
@@ -2904,11 +2932,10 @@ static void Shader_ProgramParam ( shader_t *shader, shaderpass_t *pass, char **p
 				if (!prog->handle[p].glsl)
 					continue;
 				GLSlang_UseProgram(prog->handle[p].glsl);
-				if (parmtype >= SP_FIRSTUNIFORM)
-					uniformloc = qglGetUniformLocationARB(prog->handle[p].glsl, token);
-				else
-					uniformloc = qglGetAttribLocationARB(prog->handle[p].glsl, token);
+
+				uniformloc = qglGetUniformLocationARB(prog->handle[p].glsl, token);
 				prog->parm[prog->numparams].handle[p] = uniformloc;
+
 				if (uniformloc != -1)
 				{
 					foundone = true;
@@ -3186,7 +3213,7 @@ static void Shaderpass_VideoMap (shader_t *shader, shaderpass_t *pass, char **pt
 	pass->cin = Media_StartCin(token);
 	if (!pass->cin)
 		pass->cin = Media_StartCin(va("video/%s.roq", token));
-	else
+	if (!pass->cin)
 		Con_DPrintf (CON_WARNING "(shader %s) Couldn't load video %s\n", shader->name, token);
 
 	if (pass->cin)

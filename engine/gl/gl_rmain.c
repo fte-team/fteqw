@@ -133,6 +133,8 @@ void GL_InitSceneProcessingShaders (void)
 	{
 		GL_InitSceneProcessingShaders_WaterWarp();
 	}
+
+	gl_dither.modified = true;	//fixme: bad place for this, but hey
 }
 
 #define PP_WARP_TEX_SIZE 64
@@ -456,8 +458,9 @@ void R_SetupGL (void)
 		qglLoadMatrixf(r_refdef.m_view);
 	}
 
-	if (!gl_config.gles)
+	if (!gl_config.gles && gl_dither.modified)
 	{
+		gl_dither.modified = false;
 		if (gl_dither.ival)
 		{
 			qglEnable(GL_DITHER);
@@ -785,6 +788,8 @@ void R_Clear (void)
 	}
 	if (qglDepthRange)
 		qglDepthRange (gldepthmin, gldepthmax);
+	else if (qglDepthRangef)
+		qglDepthRangef (gldepthmin, gldepthmax);
 }
 
 #if 0
@@ -868,7 +873,7 @@ static void R_RenderMotionBlur(void)
 
 	PPL_RevertToKnownState();
 
-	GL_LazyBind(0, GL_TEXTURE_2D, sceneblur_texture, false);
+	GL_LazyBind(0, GL_TEXTURE_2D, sceneblur_texture);
 
 	// go 2d
 	qglMatrixMode(GL_PROJECTION);
@@ -1089,8 +1094,7 @@ void GLR_RenderView (void)
 {
 	double	time1 = 0, time2;
 
-	if (qglGetError())
-		Con_Printf("GL Error before drawing scene\n");
+	checkglerror();
 
 	if (r_norefresh.value || !vid.pixelwidth || !vid.pixelheight)
 	{
@@ -1167,8 +1171,7 @@ void GLR_RenderView (void)
 	//	Con_Printf ("%3i ms  %4i wpoly %4i epoly\n", (int)((time2-time1)*1000), c_brush_polys, c_alias_polys);
 	}
 
-	while (qglGetError())
-		Con_Printf("GL Error drawing scene\n");
+	checkglerror();
 
 	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
 		return;
@@ -1202,8 +1205,7 @@ void GLR_RenderView (void)
 		}
 	}
 
-	if (qglGetError())
-		Con_Printf("GL Error drawing post processing\n");
+	checkglerror();
 }
 
 #endif

@@ -648,7 +648,7 @@ void Ignore_Init(void)
 	Cvar_Register (&ignore_mode, IGNOREGROUP);
 	Cvar_Register (&ignore_opponents, IGNOREGROUP);
 
-	Cmd_AddCommand ("mute", VIgnore_f);
+	Cmd_AddCommand ("cl_voip_mute", VIgnore_f);
 	Cmd_AddCommand ("ignore", Ignore_f);
 	Cmd_AddCommand ("ignorelist", IgnoreList_f);			
 	Cmd_AddCommand ("unignore", Unignore_f);				

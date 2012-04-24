@@ -684,7 +684,7 @@ void R_DrawHLModel(entity_t	*curent)
 			{
 				tex_w = 1.0f / model.textures[skins[mesh->skinindex]].w;
 				tex_h = 1.0f / model.textures[skins[mesh->skinindex]].h;
-				GL_LazyBind(0, GL_TEXTURE_2D, model.texnums[skins[mesh->skinindex]], false);
+				GL_LazyBind(0, GL_TEXTURE_2D, model.texnums[skins[mesh->skinindex]]);
 			}
 
             GL_Draw_HL_AliasFrame((short *) ((qbyte *) model.header + mesh->index), transformed, tex_w, tex_h);

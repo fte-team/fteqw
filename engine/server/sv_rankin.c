@@ -1,5 +1,4 @@
 #include "qwsvdef.h"
-#include "errno.h"
 
 #ifndef CLIENTONLY
 
@@ -24,7 +23,7 @@ typedef struct {
 #define swapfloat	LittleFloat
 
 rankfileheader_t rankfileheader;
-FILE *rankfile;
+vfsfile_t *rankfile;
 
 cvar_t rank_autoadd = CVARD("rank_autoadd", "1", "Automatically register players into the ranking system");
 cvar_t rank_needlogin = CVARD("rank_needlogin", "0", "If set to 1, prohibits players from joining if they're not already registered.");
@@ -41,11 +40,11 @@ void inline READ_PLAYERSTATS(int x, rankstats_t *os)
 	int i;
 	size_t result;
 
-	fseek(rankfile, sizeof(rankfileheader_t)+sizeof(rankheader_t)+((x-1)*sizeof(rankinfo_t)), SEEK_SET);
-	result = fread(os, 1, sizeof(rankstats_t), rankfile);
+	VFS_SEEK(rankfile, sizeof(rankfileheader_t)+sizeof(rankheader_t)+((x-1)*sizeof(rankinfo_t)));
+	result = VFS_READ(rankfile, os, sizeof(rankstats_t));
 
 	if (result != sizeof(rankstats_t))
-		Con_Printf("READ_PLAYERSTATS() fread: expected %lu, result was %u (%s)\n",(long unsigned int)sizeof(rankstats_t),(unsigned int)result,strerror(errno));
+		Con_Printf("READ_PLAYERSTATS() fread: expected %lu, result was %u\n",(long unsigned int)sizeof(rankstats_t),(unsigned int)result);
 
 	os->kills = swaplong(os->kills);
 	os->deaths = swaplong(os->deaths);
@@ -63,7 +62,7 @@ void inline WRITE_PLAYERSTATS(int x, rankstats_t *os)
 	rankstats_t ns;
 	int i;
 
-	fseek(rankfile, sizeof(rankfileheader_t)+sizeof(rankheader_t)+((x-1)*sizeof(rankinfo_t)), SEEK_SET);
+	VFS_SEEK(rankfile, sizeof(rankfileheader_t)+sizeof(rankheader_t)+((x-1)*sizeof(rankinfo_t)));
 
 	ns.kills = swaplong(os->kills);
 	ns.deaths = swaplong(os->deaths);
@@ -75,19 +74,19 @@ void inline WRITE_PLAYERSTATS(int x, rankstats_t *os)
 	ns.pad2 = (os->pad2);
 	ns.pad3 = (os->pad3);
 
-	fwrite(&ns, 1, sizeof(rankstats_t), rankfile);
+	VFS_WRITE(rankfile, &ns, sizeof(rankstats_t));
 }
 
 void inline READ_PLAYERHEADER(int x, rankheader_t *oh)
 {
 	size_t result;
 
-	fseek(rankfile, sizeof(rankfileheader_t)+((x-1)*sizeof(rankinfo_t)), SEEK_SET);
+	VFS_SEEK(rankfile, sizeof(rankfileheader_t)+((x-1)*sizeof(rankinfo_t)));
 
-	result = fread(oh, 1, sizeof(rankheader_t), rankfile);
+	result = VFS_READ(rankfile, oh, sizeof(rankheader_t));
 
 	if (result != sizeof(rankheader_t))
-		Con_Printf("READ_PLAYERHEADER() fread: expected %lu, result was %u (%s)\n",(long unsigned int)sizeof(rankheader_t),(unsigned int)result,strerror(errno));
+		Con_Printf("READ_PLAYERHEADER() fread: expected %lu, result was %u\n",(long unsigned int)sizeof(rankheader_t),(unsigned int)result);
 
 	oh->prev = swaplong(oh->prev);		//score is held for convineance.
 	oh->next = swaplong(oh->next);
@@ -100,7 +99,7 @@ void inline WRITE_PLAYERHEADER(int x, rankheader_t *oh)
 {
 	rankheader_t nh;
 
-	fseek(rankfile, sizeof(rankfileheader_t)+((x-1)*sizeof(rankinfo_t)), SEEK_SET);
+	VFS_SEEK(rankfile, sizeof(rankfileheader_t)+((x-1)*sizeof(rankinfo_t)));
 
 	nh.prev = swaplong(oh->prev);		//score is held for convineance.
 	nh.next = swaplong(oh->next);
@@ -108,7 +107,7 @@ void inline WRITE_PLAYERHEADER(int x, rankheader_t *oh)
 	nh.pwd = swaplong(oh->pwd);
 	nh.score = swapfloat(oh->score);
 
-	fwrite(&nh, 1, sizeof(rankheader_t), rankfile);
+	VFS_WRITE(rankfile, &nh, sizeof(rankheader_t));
 }
 
 void inline READ_PLAYERINFO(int x, rankinfo_t *inf)
@@ -127,8 +126,8 @@ void inline WRITEHEADER(void)
 	nh.leader		= swaplong(rankfileheader.leader);
 	nh.freeslot		= swaplong(rankfileheader.freeslot);
 
-	fseek(rankfile, 0, SEEK_SET);
-	fwrite(&nh, 1, sizeof(rankfileheader_t), rankfile);
+	VFS_SEEK(rankfile, 0);
+	VFS_WRITE(rankfile, &nh, sizeof(rankfileheader_t));
 }
 //#define WRITEHEADER() 	{fseek(rankfile, 0, SEEK_SET);fwrite(&rankfileheader, 1, sizeof(rankfileheader_t), rankfile);}
 
@@ -149,10 +148,10 @@ qboolean Rank_OpenRankings(void)
 		if (!FS_NativePath(rank_filename.string, FS_GAMEONLY, syspath, sizeof(syspath)))
 			return false;
 
-		rankfile = fopen(syspath, "r+b");
+		rankfile = FS_OpenVFS(rank_filename.string, "r+b", FS_GAMEONLY);
 		if (!rankfile)	//hmm... try creating
 		{
-			rankfile = fopen(syspath, "w+b");
+			rankfile = FS_OpenVFS(rank_filename.string, "w+b", FS_GAMEONLY);
 			created = true;
 		}
 		else
@@ -162,11 +161,11 @@ qboolean Rank_OpenRankings(void)
 
 		memset(&rankfileheader, 0, sizeof(rankfileheader));
 
-		fseek(rankfile, 0, SEEK_SET);
-		result = fread(&rankfileheader, 1, sizeof(rankfileheader_t), rankfile);
+		VFS_SEEK(rankfile, 0);
+		result = VFS_READ(rankfile, &rankfileheader, sizeof(rankfileheader_t));
 
 		if (result != sizeof(rankfileheader_t))
-			Con_Printf("Rank_OpenRankings() fread: expected %lu, result was %u (%s)\n",(long unsigned int)sizeof(rankfileheader_t),(unsigned int)result,strerror(errno));
+			Con_Printf("Rank_OpenRankings() fread: expected %lu, result was %u (%s)\n",(long unsigned int)sizeof(rankfileheader_t),(unsigned int)result);
 
 		rankfileheader.version		= swaplong(rankfileheader.version);
 		rankfileheader.usedslots	= swaplong(rankfileheader.usedslots);
@@ -176,7 +175,7 @@ qboolean Rank_OpenRankings(void)
 		if (!created && (rankfileheader.version != RANKFILE_VERSION || rankfileheader.ident != RANKFILE_IDENT))
 		{
 			Con_Printf("Rank file is version %i not %i\nEither delete the file or use an equivelent version of " DISTRIBUTION "\n", rankfileheader.version, RANKFILE_VERSION);
-			fclose(rankfile);
+			VFS_CLOSE(rankfile);
 			rankfile = NULL;
 
 			return false;
@@ -367,7 +366,7 @@ void Rank_SetPlayerStats(int id, rankstats_t *stats)
 	if (!nid)	//Hmm. First player!
 	{
 		LINKAFTER(0, id, &nh);
-		fflush(rankfile);
+		VFS_FLUSH(rankfile);
 		return;
 	}
 	while(nid)
@@ -377,13 +376,13 @@ void Rank_SetPlayerStats(int id, rankstats_t *stats)
 		{
 			LINKAFTER(rh.prev, id, &nh);
 			//LINKBEFORE(nid, id, &nh);	//we are doing better than this guy.
-			fflush(rankfile);
+			VFS_FLUSH(rankfile);
 			return;
 		}
 		if (!rh.next)
 		{
 			LINKAFTER(nid, id, &nh);	//Bum. We got to the end of the list and we are the WORST player!
-			fflush(rankfile);
+			VFS_FLUSH(rankfile);
 			return;
 		}
 		nid = rh.next;
@@ -444,7 +443,7 @@ int Rank_GetPlayerID(char *guid, char *name, int pwd, qboolean allowadd, qboolea
 		rs.trustlevel = 1;
 		Rank_SetPlayerStats(id, &rs);
 
-		fflush(rankfile);
+		VFS_FLUSH(rankfile);
 		return id;
 	}
 
@@ -463,7 +462,7 @@ int Rank_GetPlayerID(char *guid, char *name, int pwd, qboolean allowadd, qboolea
 
 	Rank_SetPlayerStats(id, &rs);
 
-	fflush(rankfile);
+	VFS_FLUSH(rankfile);
 	return id;
 }
 
@@ -540,7 +539,7 @@ void Rank_AddUser_f (void)
 		rs.trustlevel = userlevel;
 		Rank_SetPlayerStats(id, &rs);
 
-		fflush(rankfile);
+		VFS_FLUSH(rankfile);
 		return;
 	}
 
@@ -559,7 +558,7 @@ void Rank_AddUser_f (void)
 
 	Rank_SetPlayerStats(id, &rs);
 
-	fflush(rankfile);
+	VFS_FLUSH(rankfile);
 }
 
 void Rank_SetPass_f (void)
@@ -723,7 +722,7 @@ void Rank_Remove_f (void)
 			rankfileheader.freeslot = id;
 			WRITE_PLAYERHEADER(id, &ri.h);
 			WRITEHEADER();
-			fflush(rankfile);
+			VFS_FLUSH(rankfile);
 
 			Con_Printf("Client %s removed from rankings\n", ri.h.name);
 			return;
@@ -825,7 +824,7 @@ void Rank_Refresh_f(void)
 	}
 	if (rankfile)
 	{
-		fclose(rankfile);
+		VFS_CLOSE(rankfile);
 		rankfile = NULL;
 	}
 }
@@ -876,7 +875,7 @@ void Rank_RCon_f(void)
 			if (!ri.h.pwd && newlevel > 1)
 				Con_Printf("WARNING: user has no password set\n");
 
-			fflush(rankfile);
+			VFS_FLUSH(rankfile);
 			return;
 		}
 
@@ -915,7 +914,7 @@ void Rank_Flush (void)	//new game dir?
 		Rank_Refresh_f();
 		if (!rankfile)
 			return;
-		fclose(rankfile);
+		VFS_CLOSE(rankfile);
 		rankfile=NULL;
 	}
 }

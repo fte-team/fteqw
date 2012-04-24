@@ -2676,7 +2676,7 @@ void SV_MVDRemove_f (void)
 
 				// stop recording first;
 				snprintf(path, MAX_OSPATH, "%s/%s", sv_demoDir.string, list->name);
-				if (!FS_Remove(path, FS_GAMEONLY))
+				if (FS_Remove(path, FS_GAMEONLY))
 				{
 					Con_Printf("removing %s...\n", list->name);
 					i++;
@@ -2707,7 +2707,7 @@ void SV_MVDRemove_f (void)
 	if (sv.mvdrecording && !strcmp(name, demo.name))
 		SV_MVDStop_f();
 
-	if (!FS_Remove(path, FS_GAMEONLY))
+	if (FS_Remove(path, FS_GAMEONLY))
 	{
 		Con_Printf("demo %s successfully removed\n", name);
 	}
@@ -2745,7 +2745,7 @@ void SV_MVDRemoveNum_f (void)
 			SV_MVDStop_f();
 
 		snprintf(path, MAX_OSPATH, "%s/%s", sv_demoDir.string, name);
-		if (!FS_Remove(path, FS_GAMEONLY))
+		if (FS_Remove(path, FS_GAMEONLY))
 		{
 			Con_Printf("demo %s succesfully removed\n", name);
 		}
@@ -2843,7 +2843,7 @@ void SV_MVDInfoRemove_f (void)
 		snprintf(path, MAX_OSPATH, "%s/%s", sv_demoDir.string, name);
 	}
 
-	if (FS_Remove(path, FS_GAMEONLY))
+	if (!FS_Remove(path, FS_GAMEONLY))
 		Con_Printf("failed to remove the file\n");
 	else Con_Printf("file removed\n");
 }

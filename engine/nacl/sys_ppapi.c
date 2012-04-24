@@ -23,6 +23,8 @@
 #include <ppapi/c/ppp_mouse_lock.h>
 #include <ppapi/c/ppb_fullscreen.h>
 #include <ppapi/c/ppb_websocket.h>
+#include <ppapi/c/ppb_view.h>
+#include <ppapi/c/ppp_messaging.h>
 
 #include <ppapi/c/pp_input_event.h>
 #include <ppapi/gles2/gl2ext_ppapi.h>
@@ -46,7 +48,8 @@ PPB_Audio *audio_interface = NULL;
 PPB_AudioConfig *audioconfig_interface = NULL;
 PPB_MouseLock *ppb_mouselock_interface = NULL;
 PPB_Fullscreen *ppb_fullscreen_interface = NULL;
-PPB_WebSocket *ppb_websocket_interface = NULL;;
+PPB_WebSocket *ppb_websocket_interface = NULL;
+PPB_View *ppb_view_instance = NULL;
 PP_Instance pp_instance;
 PPB_GetInterface sys_gbi;
 static double lasttime;
@@ -211,6 +214,19 @@ void VARGS Sys_Printf (char *fmt, ...)
 	if (pp_instance)
 		ppb_messaging_interface->PostMessage(pp_instance, CStrToVar(string));
 }
+void ppp_handlemessage(PP_Instance instance, struct PP_Var message)
+{
+	char *clean;
+	const char *msg;
+	unsigned int len;
+	msg = ppb_var_interface->VarToUtf8(message, &len);
+	clean = malloc(len+2);
+	clean[len+0] = '\n';
+	clean[len+1] = 0;
+	memcpy(clean, msg, len);
+	Cbuf_AddText(clean, RESTRICT_INSECURE);
+	free(clean);
+}
 
 void Sys_Quit (void)
 {
@@ -226,6 +242,10 @@ void Sys_mkdir (char *path)
 {
 }
 qboolean Sys_remove (char *path)
+{
+	return false;
+}
+qboolean Sys_Rename (char *oldfname, char *newfname)
 {
 	return false;
 }
@@ -537,8 +557,14 @@ PP_Bool InputEvent_HandleEvent(PP_Instance pp_instance, PP_Resource resource)
 static void Instance_DidDestroy(PP_Instance instance)
 {
 }
+void GL_Resized(int width, int height);
 static void Instance_DidChangeView(PP_Instance instance, PP_Resource view_resource)
 {
+	int newwidth;
+	int newheight;
+	struct PP_Rect rect;
+	ppb_view_instance->GetRect(view_resource, &rect);
+	GL_Resized(rect.size.width, rect.size.height);
 }
 static void Instance_DidChangeFocus(PP_Instance instance, PP_Bool has_focus)
 {
@@ -572,6 +598,7 @@ PP_EXPORT int32_t PPP_InitializeModule(PP_Module a_module_id, PPB_GetInterface g
 	ppb_mouselock_interface = (PPB_MouseLock*)(get_browser(PPB_MOUSELOCK_INTERFACE)); 
 	ppb_fullscreen_interface = (PPB_Fullscreen*)(get_browser(PPB_FULLSCREEN_INTERFACE));
 	ppb_websocket_interface = (PPB_WebSocket*)(get_browser(PPB_WEBSOCKET_INTERFACE));
+	ppb_view_instance = (PPB_View*)(get_browser(PPB_VIEW_INTERFACE));
 
 	glInitializePPAPI(sys_gbi);
 
@@ -599,13 +626,21 @@ PP_EXPORT const void* PPP_GetInterface(const char* interface_name)
 		};
 		return &input_event_interface;
 	}
-	if (strcmp(interface_name, PPP_MOUSELOCK_INTERFACE ) == 0)
+	if (strcmp(interface_name, PPP_MOUSELOCK_INTERFACE) == 0)
 	{
 		static PPP_MouseLock mouselock_interface =
 		{
 			&ppp_mouseunlocked
 		};
 		return &mouselock_interface;
+	}
+	if (strcmp(interface_name, PPP_MESSAGING_INTERFACE) == 0)
+	{
+		static PPP_Messaging messaging_interface =
+		{
+			ppp_handlemessage
+		};
+		return &messaging_interface;
 	}
 	return NULL;
 }

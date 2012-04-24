@@ -408,11 +408,11 @@ void M_Menu_Particles_f (void)
 
 const char *presetname[] =
 {
-	"286",
-	"Fast",
-	"Normal",
-	"Nice",
-	"Realtime",
+	"286",		//everything turned off to make it as fast as possible, even if you're crippled without it
+	"Fast",		//typical deathmatch settings. 
+	"Normal",	//some extra effects
+	"Nice",		//potentially expensive, but not painful
+	"Realtime",	//everything on
 	NULL
 };
 #define PRESET_NUM 5
@@ -422,6 +422,7 @@ const char *presetname[] =
 const char *presetexec[] =
 {
 	// 286 options (also the first commands to be execed in the chain)
+	"m_preset_chosen 1;"
 	"gl_texturemode nn;"
 	"r_particlesystem null;"
 	"r_stains 0;"
@@ -429,41 +430,45 @@ const char *presetexec[] =
 	"r_nolerp 1;"
 	"r_nolightdir 1;"
 	"r_dynamic 0;"
+	"gl_polyblend 0;"
 	"gl_flashblend 0;"
 	"gl_specular 0;"
 	"r_loadlit 0;"
 	"r_fastsky 1;"
 	"r_shadow_realtime_dlight 0;"
 	"r_shadow_realtime_world 0;"
+	"r_glsl_offsetmapping 0;"
 	"gl_detail 0;"
 	"gl_load24bit 0;"
 	"r_replacemodels \"\";"
 	"r_waterwarp 0;"
 	"r_lightstylesmooth 0;"
+	"r_part_density 0.25;"
 	, // fast options
 	"gl_texturemode ln;"
+	"r_particlesystem classic;"
+	"r_drawflat 0;"
+	"r_nolerp 0;"
+	"gl_flashblend 1;"
+	"r_loadlit 1;"
+	"r_fastsky 0;"
+	"r_nolightdir 0;"
+	, // normal options
 #ifdef MINIMAL
 	"r_particlesystem classic;"
 #else
 	"r_particlesystem script;"
 	"r_particledesc classic;"
 #endif
-	"r_drawflat 0;"
-	"r_nolerp 0;"
-	"gl_flashblend 1;"
-	"r_loadlit 1;"
-	"r_fastsky 0;"
-	"r_waterwarp -1;"
-	, // normal options
-	"r_particlesystem classic;"
-	"r_stains 0.75;"
-	"r_nolightdir 0;"
+	"r_part_density 1;"
+	"gl_polyblend 1;"
 	"r_dynamic 1;"
 	"gl_flashblend 0;"
 	"gl_load24bit 1;"
 	"r_replacemodels \"md3 md2\";"
 	"r_waterwarp 1;"
 	, // nice options
+	"r_stains 0.75;"
 	"gl_texturemode ll;"
 #ifndef MINIMAL
 	"r_particlesystem script;"
@@ -478,6 +483,8 @@ const char *presetexec[] =
 	"gl_texture_anisotropic_filtering 4;"
 	, // realtime options
 //	"r_bloom 1;"
+	"r_particledesc \"spikeset high tsshaft\";"
+	"r_glsl_offsetmapping 1;"
 	"r_shadow_realtime_world 1;"
 	"gl_texture_anisotropic_filtering 16;"
 };
@@ -499,10 +506,35 @@ static void ApplyPreset (int presetnum)
 	}
 }
 
+void M_Menu_Preset_f (void)
+{
+	menu_t *menu;
+	int y;
+	menubulk_t bulk[] =
+	{
+		MB_REDTEXT("Please Choose Preset", false),
+		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
+		MB_CONSOLECMD("286     untextured",	"fps_preset 286;menupop\n",		"Lacks textures, particles, pretty much everything."),
+		MB_CONSOLECMD("fast    deathmatch",	"fps_preset fast;menupop\n",		"Fullscreen effects off to give consistant framerates"),
+		MB_CONSOLECMD("normal    faithful",	"fps_preset normal;menupop\n",		"This is for Quake purists!"),
+		MB_CONSOLECMD("nice       dynamic",	"fps_preset nice;menupop\n",		"For people who like nice things, but still want to actually play"),
+		MB_CONSOLECMD("realtime    all on",	"fps_preset realtime;menupop\n",	"For people who value pretty over fast/smooth. Not viable for deathmatch."),
+		MB_END()
+	};
+	menu = M_Options_Title(&y, 0);
+	MC_AddBulk(menu, bulk, 16, 216, y);
+}
+
 void FPS_Preset_f (void)
 {
 	char *arg = Cmd_Argv(1);
 	int i;
+
+	if (!*arg)
+	{
+		M_Menu_Preset_f();
+		return;
+	}
 
 	for (i = 0; i < PRESET_NUM; i++)
 	{

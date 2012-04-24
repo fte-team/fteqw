@@ -286,6 +286,10 @@ qboolean Sys_remove (char *path)
 {
 	return system(va("rm \"%s\"", path));
 }
+qboolean Sys_Rename (char *oldfname, char *newfname)
+{
+	return !rename(oldfname, newfname);
+}
 
 int Sys_FileOpenRead (char *path, int *handle)
 {

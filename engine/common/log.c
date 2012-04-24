@@ -220,7 +220,7 @@ void Log_String (logtype_t lognum, char *s)
 				else
 					continue; // skip nonexistant files
 
-				if (FS_Rename(oldf, newf, FS_ROOT))
+				if (!FS_Rename(oldf, newf, FS_ROOT))
 				{
 					// rename failed, disable log and bug out
 					Cvar_ForceSet(&log_enable[lognum], "0");
@@ -231,7 +231,7 @@ void Log_String (logtype_t lognum, char *s)
 
 			// TODO: option to compress file somewhere in here?
 			// rename our base file, which better exist...
-			if (FS_Rename(f, oldf, FS_ROOT))
+			if (!FS_Rename(f, oldf, FS_ROOT))
 			{
 				// rename failed, disable log and bug out
 				Cvar_ForceSet(&log_enable[lognum], "0");

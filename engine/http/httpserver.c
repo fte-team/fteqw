@@ -332,6 +332,7 @@ cont:
 			}
 			else if (!stricmp(mode, "GET") || !stricmp(mode, "HEAD") || !stricmp(mode, "POST"))
 			{
+				qboolean gzipped = false;
 				if (*resource != '/')
 				{
 					resource[0] = '/';
@@ -342,10 +343,21 @@ cont:
 					cl->file = IWebGenerateFile(resource+1, content, contentlen);
 				else
 				{
-					if (!SV_AllowDownload(resource+1))
-						cl->file = NULL;
-					else
-						cl->file = FS_OpenVFS(resource+1, "rb", FS_GAME);
+					cl->file = NULL;
+					if (SV_AllowDownload(resource+1))
+					{
+						char nbuf[MAX_OSPATH];
+						if (HTTPmarkup >= 3 && strlen(resource+1) < sizeof(nbuf)-4)
+						{
+							sprintf(nbuf, "%s.gz", resource+1);
+							cl->file =	FS_OpenVFS(nbuf, "rb", FS_GAME);
+						}
+
+						if (cl->file)
+							gzipped = true;
+						else
+							cl->file = FS_OpenVFS(resource+1, "rb", FS_GAME);
+					}
 
 					if (!cl->file)
 					{
@@ -355,6 +367,8 @@ cont:
 
 				if (!cl->file)
 				{
+					IWebPrintf("Download rejected\n");
+
 					if (HTTPmarkup >= 3)
 						msg = "HTTP/1.1 404 Not Found\r\n"	"Content-Type: text/plain\r\n"		"Content-Length: 15\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n"	"404 Bad address";
 					else if (HTTPmarkup == 2)
@@ -373,9 +387,9 @@ cont:
 				else
 				{
 					if (HTTPmarkup>=3)
-						sprintf(resource, "HTTP/1.1 200 OK\r\n"		"Content-Type: %s\r\n"		"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", strstr(resource, ".htm")?"text/html":"text/plain", (int)VFS_GETLEN(cl->file));
+						sprintf(resource, "HTTP/1.1 200 OK\r\n"		"%s%s"		"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", strstr(resource, ".htm")?"Content-Type: text/html\r\n":"", gzipped?"Content-Encoding: gzip\r\nCache-Control: public, max-age=86400\r\n":"", (int)VFS_GETLEN(cl->file));
 					else if (HTTPmarkup==2)
-						sprintf(resource, "HTTP/1.0 200 OK\r\n"		"Content-Type: %s\r\n"		"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", strstr(resource, ".htm")?"text/html":"text/plain", (int)VFS_GETLEN(cl->file));
+						sprintf(resource, "HTTP/1.0 200 OK\r\n"		"%s%s"		"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", strstr(resource, ".htm")?"Content-Type: text/html\r\n":"", gzipped?"Content-Encoding: gzip\r\nCache-Control: public, max-age=86400\r\n":"", (int)VFS_GETLEN(cl->file));
 					else if (HTTPmarkup)
 						sprintf(resource, "HTTP/0.9 200 OK\r\n\r\n");
 					else

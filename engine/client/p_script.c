@@ -335,6 +335,7 @@ extern cvar_t r_part_sparks_trifan;
 extern cvar_t r_part_sparks_textured;
 extern cvar_t r_part_beams;
 extern cvar_t r_part_contentswitch;
+extern cvar_t r_part_density;
 
 static float particletime;
 
@@ -3071,6 +3072,8 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			pcount /= host_frametime;
 		if (ts)
 			pcount += ts->state2.emittime;
+
+		pcount *= r_part_density.value;
 
 		switch (ptype->spawnmode)
 		{

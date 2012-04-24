@@ -32,7 +32,6 @@ void M_MenuS_Clear_f (void)
 	if (menu_script)
 	{
 		M_RemoveMenu(menu_script);
-		menu_script = NULL;
 	}
 
 //	Cvar_Set(menualias.name, "");

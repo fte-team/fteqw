@@ -956,29 +956,8 @@ static qboolean qAVIStartup(void)
 }
 #endif
 
-#define MFT_CAPTURE 5 //fixme
-
-typedef enum {
-	MFT_NONE,
-	MFT_STATIC,	//non-moving, PCX, no sound
-	MFT_ROQ,
-	MFT_AVI,
-	MFT_CIN,
-	MFT_OFSGECKO
-} media_filmtype_t;
-
-struct cin_s {
-
-	//these are the outputs (not always power of two!)
-	enum uploadfmt outtype;
-	int outwidth;
-	int outheight;
-	qbyte *outdata;
-	qbyte *outpalette;
-	int outunchanged;
-	qboolean ended;
-
-	texid_t texture;
+struct cin_s
+{
 
 	qboolean (*decodeframe)(cin_t *cin, qboolean nosound);
 	void (*doneframe)(cin_t *cin);
@@ -992,9 +971,18 @@ struct cin_s {
 	void (*changestream) (struct cin_s *cin, char *streamname);
 
 
-	//
 
-	media_filmtype_t filmtype;
+	//these are the outputs (not always power of two!)
+	enum uploadfmt outtype;
+	int outwidth;
+	int outheight;
+	qbyte *outdata;
+	qbyte *outpalette;
+	int outunchanged;
+	qboolean ended;
+
+	texid_t texture;
+
 
 #ifdef WINAVI
 	struct {
@@ -1025,6 +1013,14 @@ struct cin_s {
 		int bwidth;
 		int bheight;
 	} gecko;
+#endif
+
+#ifdef PLUGINS
+	struct {
+		void *ctx;
+		struct plugin_s *plug;
+		media_decoder_funcs_t *funcs;	/*fixme*/
+	} plugin;
 #endif
 
 	struct {
@@ -1191,7 +1187,6 @@ cin_t *Media_WinAvi_TryLoad(char *name)
 		int filmheight;
 
 		cin = Z_Malloc(sizeof(cin_t));
-		cin->filmtype = MFT_AVI;
 		cin->avi.pavi = pavi;
 
 		if (qAVIFileGetStream(cin->avi.pavi, &cin->avi.pavivideo, streamtypeVIDEO, 0))	//retrieve video stream
@@ -1289,7 +1284,6 @@ cin_t *Media_WinAvi_TryLoad(char *name)
 			}
 		}
 
-		cin->filmtype = MFT_AVI;
 		cin->decodeframe = Media_WinAvi_DecodeFrame;
 		cin->shutdown = Media_WINAVI_Shutdown;
 		return cin;
@@ -1305,6 +1299,165 @@ cin_t *Media_WinAvi_TryLoad(char *name)
 #endif
 
 //AVI Support (windows)
+//////////////////////////////////////////////////////////////////////////////////
+//Plugin Support
+#ifdef PLUGINS
+media_decoder_funcs_t *plugindecodersfunc[8];
+struct plugin_s *plugindecodersplugin[8];
+
+qboolean Media_RegisterDecoder(struct plugin_s *plug, media_decoder_funcs_t *funcs)
+{
+	int i;
+	for (i = 0; i < sizeof(plugindecodersfunc)/sizeof(plugindecodersfunc[0]); i++)
+	{
+		if (plugindecodersfunc[i] == NULL)
+		{
+			plugindecodersfunc[i] = funcs;
+			plugindecodersplugin[i] = plug;
+			return true;
+		}
+	}
+	return false;
+}
+qboolean Media_UnregisterDecoder(struct plugin_s *plug, media_decoder_funcs_t *funcs)
+{
+	int i;
+	for (i = 0; i < sizeof(plugindecodersfunc)/sizeof(plugindecodersfunc[0]); i++)
+	{
+		if (plugindecodersfunc[i] == funcs || (!funcs && plugindecodersplugin[i] == plug))
+		{
+			plugindecodersfunc[i] = NULL;
+			plugindecodersplugin[i] = NULL;
+			return true;
+		}
+	}
+	return false;
+}
+
+static qboolean Media_Plugin_DecodeFrame(cin_t *cin, qboolean nosound)
+{
+	struct plugin_s *oldplug = currentplug;
+	currentplug = cin->plugin.plug;
+	cin->outdata = cin->plugin.funcs->decodeframe(cin->plugin.ctx, nosound, &cin->outtype, &cin->outwidth, &cin->outheight);
+	currentplug = oldplug;
+
+	if (cin->outtype != TF_INVALID)
+		return true;
+	return false;
+}
+static void Media_Plugin_DoneFrame(cin_t *cin)
+{
+	struct plugin_s *oldplug = currentplug;
+	currentplug = cin->plugin.plug;
+	if (cin->plugin.funcs->doneframe)
+		cin->plugin.funcs->doneframe(cin->plugin.ctx, cin->outdata);
+	currentplug = oldplug;
+}
+static void Media_Plugin_Shutdown(cin_t *cin)
+{
+	struct plugin_s *oldplug = currentplug;
+	currentplug = cin->plugin.plug;
+	if (cin->plugin.funcs->shutdown)
+		cin->plugin.funcs->shutdown(cin->plugin.ctx);
+	currentplug = oldplug;
+}
+static void Media_Plugin_Rewind(cin_t *cin)
+{
+	struct plugin_s *oldplug = currentplug;
+	currentplug = cin->plugin.plug;
+	if (cin->plugin.funcs->rewind)
+		cin->plugin.funcs->rewind(cin->plugin.ctx);
+	currentplug = oldplug;
+}
+
+void Media_Plugin_MoveCursor(cin_t *cin, float posx, float posy)
+{
+	struct plugin_s *oldplug = currentplug;
+	currentplug = cin->plugin.plug;
+	if (cin->plugin.funcs->cursormove)
+		cin->plugin.funcs->cursormove(cin->plugin.ctx, posx, posy);
+	currentplug = oldplug;
+}
+void Media_Plugin_KeyPress(cin_t *cin, int code, int unicode, int event)
+{
+	struct plugin_s *oldplug = currentplug;
+	currentplug = cin->plugin.plug;
+	if (cin->plugin.funcs->key)
+		cin->plugin.funcs->key(cin->plugin.ctx, code, unicode, event);
+	currentplug = oldplug;
+}
+qboolean Media_Plugin_SetSize(cin_t *cin, int width, int height)
+{
+	qboolean result = false;
+	struct plugin_s *oldplug = currentplug;
+	currentplug = cin->plugin.plug;
+	if (cin->plugin.funcs->setsize)
+		result = cin->plugin.funcs->setsize(cin->plugin.ctx, width, height);
+	currentplug = oldplug;
+	return result;
+}
+void Media_Plugin_GetSize(cin_t *cin, int *width, int *height)
+{
+	struct plugin_s *oldplug = currentplug;
+	currentplug = cin->plugin.plug;
+	if (cin->plugin.funcs->getsize)
+		cin->plugin.funcs->getsize(cin->plugin.ctx, width, height);
+	currentplug = oldplug;
+}
+void Media_Plugin_ChangeStream(cin_t *cin, char *streamname)
+{
+	struct plugin_s *oldplug = currentplug;
+	currentplug = cin->plugin.plug;
+	if (cin->plugin.funcs->changestream)
+		cin->plugin.funcs->changestream(cin->plugin.ctx, streamname);
+	currentplug = oldplug;
+}
+
+cin_t *Media_Plugin_TryLoad(char *name)
+{
+	cin_t *cin;
+	int i;
+	media_decoder_funcs_t *funcs = NULL;
+	struct plugin_s *plug = NULL;
+	void *ctx = NULL;
+	struct plugin_s *oldplug = currentplug;
+	for (i = 0; i < sizeof(plugindecodersfunc)/sizeof(plugindecodersfunc[0]); i++)
+	{
+		funcs = plugindecodersfunc[i];
+		if (funcs)
+		{
+			plug = plugindecodersplugin[i];
+			currentplug = plug;
+			ctx = funcs->createdecoder(name);
+			if (ctx)
+				break;
+		}
+	}
+	currentplug = oldplug;
+
+	if (ctx)
+	{
+		cin = Z_Malloc(sizeof(cin_t));
+		cin->plugin.funcs = funcs;
+		cin->plugin.plug = plug;
+		cin->plugin.ctx = ctx;
+		cin->decodeframe = Media_Plugin_DecodeFrame;
+		cin->doneframe = Media_Plugin_DoneFrame;
+		cin->shutdown = Media_Plugin_Shutdown;
+		cin->rewind = Media_Plugin_Rewind;
+
+		cin->cursormove = Media_Plugin_MoveCursor;
+		cin->key = Media_Plugin_KeyPress;
+		cin->setsize = Media_Plugin_SetSize;
+		cin->getsize = Media_Plugin_GetSize;
+		cin->changestream = Media_Plugin_ChangeStream;
+
+		return cin;
+	}
+	return NULL;
+}
+#endif
+//Plugin Support
 //////////////////////////////////////////////////////////////////////////////////
 //Quake3 RoQ Support
 
@@ -1435,7 +1588,6 @@ cin_t *Media_RoQ_TryLoad(char *name)
 	if ((roqfilm = roq_open(name)))
 	{
 		cin = Z_Malloc(sizeof(cin_t));
-		cin->filmtype = MFT_ROQ;
 		cin->decodeframe = Media_Roq_DecodeFrame;
 		cin->shutdown = Media_Roq_Shutdown;
 
@@ -1516,7 +1668,6 @@ cin_t *Media_Static_TryLoad(char *name)
 		}
 
 		cin = Z_Malloc(sizeof(cin_t));
-		cin->filmtype = MFT_STATIC;
 		cin->decodeframe = Media_Static_DecodeFrame;
 		cin->shutdown = Media_Static_Shutdown;
 
@@ -1570,7 +1721,6 @@ cin_t *Media_Cin_TryLoad(char *name)
 		{
 			cin = Z_Malloc(sizeof(cin_t));
 			cin->q2cin.cin = q2cin;
-			cin->filmtype = MFT_CIN;
 			cin->decodeframe = Media_Cin_DecodeFrame;
 			cin->shutdown = Media_Cin_Shutdown;
 
@@ -1921,6 +2071,12 @@ cin_t *Media_StartCin(char *name)
 	if (!cin)
 		cin = Media_WinAvi_TryLoad(name);
 #endif
+#ifdef PLUGINS
+	if (!cin)
+		cin = Media_Plugin_TryLoad(name);
+#endif
+	if (!cin)
+		Con_Printf("Unable to decode \"%s\"\n", name);
 
 	return cin;
 }
@@ -2003,6 +2159,13 @@ qboolean Media_ShowFilm(void)
 			Media_PlayFilm("");
 		else
 		{
+			if (cin->cursormove)
+			{
+				extern int mousecursor_x, mousecursor_y;
+				cin->cursormove(cin, mousecursor_x/(float)vid.width, mousecursor_y/(float)vid.height);
+			}
+
+//			GL_Set2D (false);
 			R2D_ImageColours(1, 1, 1, 1);
 			R2D_ScalePic(0, 0, vid.width, vid.height, videoshader);
 

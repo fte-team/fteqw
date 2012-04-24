@@ -355,6 +355,7 @@ int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, 
 
 menu_t *M_Options_Title(int *y, int infosize);	/*Create a menu with the default options titlebar*/
 menu_t *M_CreateMenu (int extrasize);
+menu_t *M_CreateMenuInfront (int extrasize);
 void M_AddMenu (menu_t *menu);
 void M_AddMenuFront (menu_t *menu);
 void M_HideMenu (menu_t *menu);
@@ -378,6 +379,7 @@ void M_Menu_Main_f (void);
 		void M_Menu_Video_f (void);
 	void M_Menu_Help_f (void);
 	void M_Menu_Quit_f (void);
+	void M_Menu_Preset_f (void);
 void M_Menu_LanConfig_f (void);
 void M_Menu_GameOptions_f (void);
 void M_Menu_Search_f (void);

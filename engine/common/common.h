@@ -302,7 +302,7 @@ extern char	com_configdir[MAX_OSPATH];	//dir to put cfg_save configs in
 //extern	char	*com_basedir;
 
 void COM_WriteFile (const char *filename, const void *data, int len);
-FILE *COM_WriteFileOpen (char *filename);
+FTE_DEPRECATED FILE *COM_WriteFileOpen (char *filename);
 
 typedef struct {
 	struct searchpath_s	*search;
@@ -325,14 +325,14 @@ char *FS_GetPackHashes(char *buffer, int buffersize, qboolean referencedonly);
 char *FS_GetPackNames(char *buffer, int buffersize, int referencedonly, qboolean ext);
 void FS_ReferenceControl(unsigned int refflag, unsigned int resetflags);
 
-int COM_FOpenFile (const char *filename, FILE **file);
-int COM_FOpenWriteFile (const char *filename, FILE **file);
+FTE_DEPRECATED int COM_FOpenFile (const char *filename, FILE **file);
+FTE_DEPRECATED int COM_FOpenWriteFile (const char *filename, FILE **file);
 
 //#ifdef _MSC_VER	//this is enough to annoy me, without conflicting with other (more bizzare) platforms.
 //#define fopen dont_use_fopen
 //#endif
 
-void COM_CloseFile (FILE *h);
+FTE_DEPRECATED void COM_CloseFile (FILE *h);
 
 #define COM_FDepthFile(filename,ignorepacks) FS_FLocateFile(filename,ignorepacks?FSLFRT_DEPTH_OSONLY:FSLFRT_DEPTH_ANYPATH, NULL)
 #define COM_FCheckExists(filename) FS_FLocateFile(filename,FSLFRT_IFFOUND, NULL)
@@ -371,9 +371,9 @@ enum fs_relative{
 
 void FS_FlushFSHash(void);
 void FS_CreatePath(const char *pname, enum fs_relative relativeto);
-int FS_Rename(const char *oldf, const char *newf, enum fs_relative relativeto);	//0 on success, non-0 on error
-int FS_Rename2(const char *oldf, const char *newf, enum fs_relative oldrelativeto, enum fs_relative newrelativeto);
-int FS_Remove(const char *fname, enum fs_relative relativeto);	//0 on success, non-0 on error
+qboolean FS_Rename(const char *oldf, const char *newf, enum fs_relative relativeto);	//0 on success, non-0 on error
+qboolean FS_Rename2(const char *oldf, const char *newf, enum fs_relative oldrelativeto, enum fs_relative newrelativeto);
+qboolean FS_Remove(const char *fname, enum fs_relative relativeto);	//0 on success, non-0 on error
 qboolean FS_Copy(const char *source, const char *dest, enum fs_relative relativesource, enum fs_relative relativedest);
 qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out, int outlen);	//if you really need to fopen yourself
 qboolean FS_WriteFile (const char *filename, const void *data, int len, enum fs_relative relativeto);
@@ -385,7 +385,7 @@ void FS_ReloadPackFiles(void);
 char *FSQ3_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum);
 
 
-int COM_filelength (FILE *f);
+FTE_DEPRECATED int COM_filelength (FILE *f);
 qbyte *COM_LoadStackFile (const char *path, void *buffer, int bufsize);
 qbyte *COM_LoadTempFile (const char *path);
 qbyte *COM_LoadTempMoreFile (const char *path);	//allocates a little bit more without freeing old temp

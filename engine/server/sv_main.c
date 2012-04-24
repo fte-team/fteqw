@@ -2103,7 +2103,7 @@ client_t *SVC_DirectConnect(void)
 	{
 		/*single player logic*/
 		if (sv.allocated_client_slots == 1 && net_from.type == NA_LOOPBACK)
-			if (svs.clients[0].state)
+			if (svs.clients[0].state >= cs_connected)
 				SV_DropClient(svs.clients);
 
 		// if at server limits, refuse connection
@@ -2320,7 +2320,10 @@ client_t *SVC_DirectConnect(void)
 	else
 		newcl->netchan.compress = false;
 	if (mtu >= 64)
+	{
 		newcl->netchan.fragmentsize = mtu;
+		newcl->netchan.message.maxsize = sizeof(newcl->netchan.message_buf);
+	}
 
 	newcl->protocol = protocol;
 #ifdef NQPROT
@@ -2793,6 +2796,27 @@ void SVC_ACK (void)
 	Con_Printf ("A2A_ACK from %s\n", NET_AdrToString (adr, sizeof(adr), net_from));
 }
 
+//returns false to block replies
+//this is to mitigate wasted bandwidth if we're used as a udp escilation
+qboolean SVC_ThrottleInfo (void)
+{
+#define THROTTLE_PPS 20
+	static unsigned int blockuntil;
+	unsigned int curtime = Sys_Milliseconds(); 
+	unsigned int inc = 1000/THROTTLE_PPS;
+
+	/*don't go too far back*/
+	//if (blockuntil < curtime - 1000)
+	if (1000 < curtime - blockuntil)
+		blockuntil = curtime - 1000;
+
+	/*don't allow it to go beyond curtime or we get issues with the logic above*/
+	if (inc > curtime-blockuntil)
+		return true;
+
+	blockuntil += inc;
+	return false;
+}
 /*
 =================
 SV_ConnectionlessPacket
@@ -2831,12 +2855,21 @@ qboolean SV_ConnectionlessPacket (void)
 	else if (c[0] == A2A_ACK && (c[1] == 0 || c[1] == '\n') )
 		SVC_ACK ();
 	else if (!strcmp(c,"status"))
-		SVC_Status ();
+	{
+		if (SVC_ThrottleInfo())
+			SVC_Status ();
+	}
 	else if (!strcmp(c,"log"))
-		SVC_Log ();
+	{
+		if (SVC_ThrottleInfo())
+			SVC_Log ();
+	}
 #ifdef Q2SERVER
 	else if (!strcmp(c, "info"))
-		SVC_InfoQ2 ();
+	{
+		if (SVC_ThrottleInfo())
+			SVC_InfoQ2 ();
+	}
 #endif
 	else if (!strncmp(c,"connect", 7))
 	{
@@ -2881,9 +2914,15 @@ qboolean SV_ConnectionlessPacket (void)
 #ifdef NQPROT
 	/*for DP*/
 	else if (!strcmp(c, "getstatus"))
-		SVC_GetInfo(Cmd_Args(), true);
+	{
+		if (SVC_ThrottleInfo())
+			SVC_GetInfo(Cmd_Args(), true);
+	}
 	else if (!strcmp(c, "getinfo"))
-		SVC_GetInfo(Cmd_Args(), false);
+	{
+		if (SVC_ThrottleInfo())
+			SVC_GetInfo(Cmd_Args(), false);
+	}
 #endif
 	else if (!strcmp(c, "rcon"))
 		SVC_RemoteCommand ();

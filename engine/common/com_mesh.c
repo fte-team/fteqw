@@ -1119,7 +1119,8 @@ struct
 	int bonecount;
 #endif
 
-	vecV_t *acoords;
+	vecV_t *acoords1;
+	vecV_t *acoords2;
 	vec3_t *anorm;
 	vec3_t *anorms;
 	vec3_t *anormt;
@@ -1437,6 +1438,7 @@ void Alias_FlushCache(void)
 
 qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, entity_t *e, qboolean usebones)
 {
+	extern cvar_t r_nolerp;
 	galiasgroup_t *g1, *g2;
 
 	int frame1;
@@ -1484,7 +1486,8 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 
 	if (meshcache.surfnum == inf->shares_verts && meshcache.ent == e)
 	{
-		mesh->xyz_array = meshcache.acoords;
+		mesh->xyz_array = meshcache.acoords1;
+		mesh->xyz2_array = meshcache.acoords2;
 		mesh->normals_array = meshcache.anorm;
 		mesh->snormals_array = meshcache.anorms;
 		mesh->tnormals_array = meshcache.anormt;
@@ -1523,12 +1526,14 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 	{
 		meshcache.usebonepose = NULL;
 		mesh->xyz_array = (vecV_t*)((char*)inf + inf->ofs_skel_xyz);
+		mesh->xyz2_array = NULL;
 		mesh->normals_array = (vec3_t*)((char*)inf + inf->ofs_skel_norm);
 		mesh->snormals_array = (vec3_t*)((char*)inf + inf->ofs_skel_svect);
 		mesh->tnormals_array = (vec3_t*)((char*)inf + inf->ofs_skel_tvect);
 	}
 	else if (inf->numbones)
 	{
+		mesh->xyz2_array = NULL;
 		meshcache.usebonepose = Alias_GetBonePositions(inf, &e->framestate, meshcache.bonepose, MAX_BONES, true);
 
 		if (e->fatness || !inf->ofs_skel_idx || !usebones)
@@ -1626,12 +1631,40 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 			frame2=0;
 		}
 
-		R_LerpFrames(mesh,	(galiaspose_t *)((char *)g1 + g1->poseofs + sizeof(galiaspose_t)*frame1),
+
+		if (r_shadow_realtime_world.ival || r_shadow_realtime_dlight.ival)
+		{
+			mesh->xyz2_array = NULL;
+			R_LerpFrames(mesh,	(galiaspose_t *)((char *)g1 + g1->poseofs + sizeof(galiaspose_t)*frame1),
 							(galiaspose_t *)((char *)g2 + g2->poseofs + sizeof(galiaspose_t)*frame2),
 							1-lerp, e->fatness);
+		}
+		else
+		{
+			galiaspose_t *p1 = (galiaspose_t *)((char *)g1 + g1->poseofs + sizeof(galiaspose_t)*frame1);
+			galiaspose_t *p2 = (galiaspose_t *)((char *)g2 + g2->poseofs + sizeof(galiaspose_t)*frame2);
+
+			mesh->normals_array = (vec3_t *)((char *)p1 + p1->ofsnormals);
+			mesh->snormals_array = (vec3_t *)((char *)p1 + p1->ofssvector);
+			mesh->tnormals_array = (vec3_t *)((char *)p1 + p1->ofstvector);
+
+			if (p1 == p2 || r_nolerp.ival)
+			{
+				mesh->xyz_array = (vecV_t *)((char *)p1 + p1->ofsverts);
+				mesh->xyz2_array = NULL;
+			}
+			else
+			{
+				mesh->xyz_blendw[0] = 1-lerp;
+				mesh->xyz_blendw[1] = lerp;
+				mesh->xyz_array = (vecV_t *)((char *)p1 + p1->ofsverts);
+				mesh->xyz2_array = (vecV_t *)((char *)p2 + p2->ofsverts);
+			}
+		}
 	}
 
-	meshcache.acoords = mesh->xyz_array;
+	meshcache.acoords1 = mesh->xyz_array;
+	meshcache.acoords2 = mesh->xyz2_array;
 	meshcache.anorm = mesh->normals_array;
 	meshcache.anorms = mesh->snormals_array;
 	meshcache.anormt = mesh->tnormals_array;

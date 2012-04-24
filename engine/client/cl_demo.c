@@ -253,8 +253,6 @@ int readdemobytes(int *readpos, void *data, int len)
 		return 0;
 	}
 
-
-
 	if (*readpos+len > demobuffersize)
 	{
 		len = demobuffersize;
@@ -1613,6 +1611,8 @@ void CL_Demo_ClientCommand(char *commandtext)
 char qtvhostname[1024];
 char qtvrequestbuffer[4096];
 int qtvrequestsize;
+char qtvrequestcmdbuffer[4096];
+int qtvrequestcmdsize;
 vfsfile_t *qtvrequest;
 
 void CL_QTVPoll (void)
@@ -1637,6 +1637,16 @@ void CL_QTVPoll (void)
 	if (!qtvrequest)
 		return;
 
+	if (qtvrequestcmdsize)
+	{
+		len = VFS_WRITE(qtvrequest, qtvrequestcmdbuffer, qtvrequestcmdsize);
+		if (len > 0)
+		{
+			memmove(qtvrequestcmdbuffer, qtvrequestcmdbuffer+len, qtvrequestcmdsize-len);
+			qtvrequestcmdsize -= len;
+		}
+	}
+
 	for(;;)
 	{
 		len = VFS_READ(qtvrequest, qtvrequestbuffer+qtvrequestsize, (sizeof(qtvrequestbuffer) - qtvrequestsize -1 > 0)?1:0);
@@ -1645,7 +1655,13 @@ void CL_QTVPoll (void)
 		qtvrequestsize += len;
 	}
 	qtvrequestbuffer[qtvrequestsize] = '\0';
-	if (!qtvrequestsize)
+
+	if (qtvrequestsize >= sizeof(qtvrequestbuffer) - 1)
+	{
+		Con_Printf("%i of %i...\n", qtvrequestsize, sizeof(qtvrequestbuffer));
+		len = -1;
+	}
+	if (!qtvrequestsize && len == 0)
 		return;
 
 	//make sure it's a compleate chunk.
@@ -1673,7 +1689,17 @@ void CL_QTVPoll (void)
 		}
 	}
 	if (!tail)
+	{
+		if (len < 0)
+		{
+			Con_Printf("invalid QTV handshake\n");
+			SCR_SetLoadingStage(LS_NONE);
+			VFS_CLOSE(qtvrequest);
+			qtvrequest = NULL;
+			qtvrequestsize = 0;
+		}
 		return;
+	}
 	s[1] = '\0';	//make sure its null terminated before the data payload
 	s = qtvrequestbuffer;
 	for (e = s; *e; )
@@ -1793,6 +1819,7 @@ void CL_QTVPoll (void)
 		return;
 	}
 
+	SCR_SetLoadingStage(LS_NONE);
 	VFS_CLOSE(qtvrequest);
 	qtvrequest = NULL;
 	qtvrequestsize = 0;
@@ -1979,6 +2006,8 @@ void CL_QTVPlay_f (void)
 	char *connrequest;
 	vfsfile_t *newf;
 	char *host;
+	char msg[4096];
+	int msglen=0;
 
 	if (Cmd_Argc() < 2)
 	{
@@ -2022,54 +2051,62 @@ void CL_QTVPlay_f (void)
 
 	if (qtvcl_forceversion1.ival)
 	{
-		connrequest =	"QTV\n"
-				"VERSION: 1.0\n";
+		Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
+					"QTV\n"
+					"VERSION: 1.0\n");
 	}
 	else
 	{
-		connrequest =	"QTV\n"
-				"VERSION: 1.1\n";
+		Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
+					"QTV\n"
+					"VERSION: 1.1\n");
 	}
-
-	VFS_WRITE(newf, connrequest, strlen(connrequest));
+	msglen += strlen(msg+msglen);
 
 	if (qtvcl_eztvextensions.ival)
 	{
-		connrequest =	"QTV_EZQUAKE_EXT: 3\n";
-		VFS_WRITE(newf, connrequest, strlen(connrequest));
-		connrequest =	va("USERINFO: %s\n", cls.userinfo[0]);
-		VFS_WRITE(newf, connrequest, strlen(connrequest));
+		raw = 0;
+
+		Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
+				"QTV_EZQUAKE_EXT: 3\n"
+				"USERINFO: %s\n", cls.userinfo[0]);
+		msglen += strlen(msg+msglen);
 	}
 	else if (raw)
 	{
-		connrequest =	"RAW: 1\n";
-		VFS_WRITE(newf, connrequest, strlen(connrequest));
+		Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
+				"RAW: 1\n");
+		msglen += strlen(msg+msglen);
 	}
 	if (host)
 	{
-		connrequest =	"SOURCE: ";
-		VFS_WRITE(newf, connrequest, strlen(connrequest));
-		connrequest =	host;
-		VFS_WRITE(newf, connrequest, strlen(connrequest));
-		connrequest =	"\n";
+		Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
+			"SOURCE: %s\n", host);
+		msglen += strlen(msg+msglen);
 	}
 	else
 	{
-		connrequest =	"SOURCELIST\n";
+		Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
+				"SOURCELIST\n");
+		msglen += strlen(msg+msglen);
 	}
 
-	VFS_WRITE(newf, connrequest, strlen(connrequest));
-	connrequest =	"\n";
-	VFS_WRITE(newf, connrequest, strlen(connrequest));
+	Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
+				"\n");
+	msglen += strlen(msg+msglen);
 
 	if (raw)
 	{
+		VFS_WRITE(newf, msg, msglen);
 		CL_QTVPlay(newf, false);
 	}
 	else
 	{
 		if (qtvrequest)
 			VFS_CLOSE(qtvrequest);
+
+		memcpy(qtvrequestcmdbuffer, msg, msglen);
+		qtvrequestcmdsize = msglen;
 		qtvrequest = newf;
 		qtvrequestsize = 0;
 	}
@@ -2145,6 +2182,7 @@ void CL_FinishTimeDemo (void)
 {
 	int		frames;
 	float	time;
+	cvar_t *vw;
 
 	cls.timedemo = false;
 
@@ -2164,6 +2202,9 @@ void CL_FinishTimeDemo (void)
 	cls.td_startframe = 0;
 
 	TP_ExecTrigger ("f_timedemoend");
+
+	vw = Cvar_FindVar("vid_wait");
+	Cvar_Set(vw, vw->string);
 }
 
 /*
@@ -2175,6 +2216,7 @@ timedemo [demoname]
 */
 void CL_TimeDemo_f (void)
 {
+	cvar_t *vw;
 	if (Cmd_Argc() != 2)
 	{
 		Con_Printf ("timedemo <demoname> : gets demo speeds\n");
@@ -2186,6 +2228,17 @@ void CL_TimeDemo_f (void)
 	if (cls.state != ca_demostart)
 		return;
 
+	vw = Cvar_FindVar("vid_wait");
+	if (vw)
+	{
+		char *t = vw->string;
+		vw->string = "0";
+		vw->value = 0;
+		Cvar_ForceCallback(vw);
+		vw->string = t;
+	}
+
+//read the initial frame so load times don't count as part of the time
 	CL_ReadPackets();
 
 // cls.td_starttime will be grabbed at the second frame of the demo, so

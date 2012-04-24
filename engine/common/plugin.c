@@ -436,14 +436,13 @@ qintptr_t VARGS Plug_GetPluginName(void *offset, quintptr_t mask, const qintptr_
 	return false;
 }
 
-typedef void (*funcptr_t) ();
 qintptr_t VARGS Plug_ExportNative(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	funcptr_t func;
+	void *func;
 	char *name = (char*)VM_POINTER(arg[0]);
 	arg++;
 
-	func = *(funcptr_t*)arg;
+	func = ((void**)arg)[0];
 
 	if (!strcmp(name, "UnsafeClose"))
 	{
@@ -472,6 +471,13 @@ qintptr_t VARGS Plug_ExportNative(void *offset, quintptr_t mask, const qintptr_t
 		currentplug->blockcloses++;
 	}
 	*/
+#if defined(PLUGINS) && !defined(NOMEDIA) && !defined(SERVERONLY)
+	else if (!strcmp(name, "Media_VideoDecoder"))
+	{
+		Media_RegisterDecoder(currentplug, func);
+		currentplug->blockcloses++;
+	}
+#endif
 
 #ifndef SERVERONLY
 	else if (!strcmp(name, "S_LoadSound"))	//a hook for loading extra types of sound (wav, mp3, ogg, midi, whatever you choose to support)
@@ -757,14 +763,14 @@ int pluginstreamarraylen;
 int Plug_NewStreamHandle(plugstream_e type)
 {
 	int i;
-	for (i = 0; i < pluginstreamarraylen; i++)
+	for (i = 1; i < pluginstreamarraylen; i++)
 	{
 		if (!pluginstreamarray[i].plugin)
 			break;
 	}
-	if (i == pluginstreamarraylen)
+	if (i >= pluginstreamarraylen)
 	{
-		pluginstreamarraylen++;
+		pluginstreamarraylen=i+16;
 		pluginstreamarray = BZ_Realloc(pluginstreamarray, pluginstreamarraylen*sizeof(pluginstream_t));
 	}
 
@@ -787,6 +793,7 @@ qintptr_t VARGS Plug_Net_TCPListen(void *offset, quintptr_t mask, const qintptr_
 	int sock;
 	struct sockaddr_qstorage address;
 	int _true = 1;
+	int alen;
 
 	char *localip = VM_POINTER(arg[0]);
 	unsigned short localport = VM_LONG(arg[1]);
@@ -812,6 +819,19 @@ qintptr_t VARGS Plug_Net_TCPListen(void *offset, quintptr_t mask, const qintptr_
 		((struct sockaddr_in6*)&address)->sin6_port = htons(localport);
 #endif
 
+	switch(((struct sockaddr*)&address)->sa_family)
+	{
+	case AF_INET:
+		alen = sizeof(struct sockaddr_in);
+		break;
+	case AF_INET6:
+		alen = sizeof(struct sockaddr_in6);
+		break;
+	default:
+		return -2;
+	}
+
+
 	if ((sock = socket(((struct sockaddr*)&address)->sa_family, SOCK_STREAM, 0)) == -1)
 	{
 		Con_Printf("Failed to create socket\n");
@@ -822,13 +842,14 @@ qintptr_t VARGS Plug_Net_TCPListen(void *offset, quintptr_t mask, const qintptr_
 		closesocket(sock);
 		return -2;
 	}
+	setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char *)&_true, sizeof(_true));
 
-	if( bind (sock, (void *)&address, sizeof(address)) == -1)
+	if (bind (sock, (void *)&address, alen) == -1)
 	{
 		closesocket(sock);
 		return -2;
 	}
-	if( listen (sock, maxcount) == -1)
+	if (listen (sock, maxcount) == -1)
 	{
 		closesocket(sock);
 		return -2;
@@ -853,9 +874,11 @@ qintptr_t VARGS Plug_Net_Accept(void *offset, quintptr_t mask, const qintptr_t *
 		return -2;
 	sock = pluginstreamarray[handle].socket;
 
+	if (sock < 0)
+		return -1;
+
 	addrlen = sizeof(address);
 	sock = accept(sock, (struct sockaddr *)&address, &addrlen);
-
 	if (sock < 0)
 		return -1;
 

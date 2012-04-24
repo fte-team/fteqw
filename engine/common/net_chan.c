@@ -84,7 +84,7 @@ int		net_drop;
 cvar_t	showpackets = SCVAR("showpackets", "0");
 cvar_t	showdrop = SCVAR("showdrop", "0");
 cvar_t	qport = SCVAR("qport", "0");
-cvar_t	net_mtu = CVARD("mtu", "1450", "Specifies a maximum udp payload size, above which packets will be fragmented. If routers all worked properly this could be some massive value, and some massive value may work really nicely for lans. Use smaller values than the default if you're connecting through nested tunnels through routers that fail with IP fragmentation.");
+cvar_t	net_mtu = CVARD("net_mtu", "1450", "Specifies a maximum udp payload size, above which packets will be fragmented. If routers all worked properly this could be some massive value, and some massive value may work really nicely for lans. Use smaller values than the default if you're connecting through nested tunnels through routers that fail with IP fragmentation.");
 
 cvar_t	pext_replacementdeltas = CVAR("debug_pext_replacementdeltas", "0");	/*rename once the extension is finalized*/
 
@@ -204,6 +204,8 @@ void Netchan_Init (void)
 	// pick a port value that should be nice and random
 #ifdef _WIN32
 	port = (time(NULL)) & 0xffff;
+#elif defined(NACL)
+	port = ((int)(getpid()) * time(NULL)) & 0xffff;
 #else
 	port = ((int)(getpid()+getuid()*1000) * time(NULL)) & 0xffff;
 #endif
@@ -293,7 +295,7 @@ void Netchan_Setup (netsrc_t sock, netchan_t *chan, netadr_t adr, int qport)
 	
 	chan->message.data = chan->message_buf;
 	chan->message.allowoverflow = true;
-	chan->message.maxsize = MAX_QWMSGLEN;//sizeof(chan->message_buf);
+	chan->message.maxsize = MAX_QWMSGLEN;
 
 	chan->qport = qport;
 }
@@ -681,12 +683,10 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 			while(offset < send.cursize)
 			{
 				no = offset + chan->fragmentsize - hsz;
+				no &= ~7;
 				if (no < send.cursize)
 				{
 					more = true;
-					no &= 7;
-					if (no == offset)
-						break;
 				}
 				else
 				{

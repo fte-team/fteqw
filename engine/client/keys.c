@@ -1467,7 +1467,7 @@ void Key_Event (int devid, int key, unsigned int unicode, qboolean down)
 		if (key_dest == key_game)
 #endif
 		{
-			if (Media_PlayingFullScreen())
+			if (down && Media_PlayingFullScreen())
 			{
 				Media_PlayFilm("");
 				return;

@@ -2822,6 +2822,8 @@ void Cmd_WriteConfig_f(void)
 	VFS_CLOSE(f);
 
 	FS_FlushFSHash();
+
+	Cvar_Saved();
 }
 
 void Cmd_Reset_f(void)

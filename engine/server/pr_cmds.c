@@ -4407,8 +4407,7 @@ void QCBUILTIN PF_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_global
 		NPP_QWWriteByte(dest, (qbyte)G_FLOAT(OFS_PARM1));
 		return;
 	}
-#endif
-
+#else
 	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
@@ -4419,11 +4418,13 @@ void QCBUILTIN PF_WriteByte (progfuncs_t *prinst, struct globalvars_s *pr_global
 	}
 	else
 		MSG_WriteByte (QWWriteDest(G_FLOAT(OFS_PARM0)), G_FLOAT(OFS_PARM1));
+#endif
 }
 
 void QCBUILTIN PF_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
+	int dest = G_FLOAT(OFS_PARM0);
+	if (dest == MSG_CSQC)
 	{	//csqc buffers are always written.
 		MSG_WriteChar(&csqcmsgbuffer, G_FLOAT(OFS_PARM1));
 		return;
@@ -4438,17 +4439,17 @@ void QCBUILTIN PF_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_global
 
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
-		NPP_NQWriteChar(G_FLOAT(OFS_PARM0), (char)G_FLOAT(OFS_PARM1));
+		NPP_NQWriteChar(dest, (char)G_FLOAT(OFS_PARM1));
 		return;
 	}
 #ifdef NQPROT
 	else
 	{
-		NPP_QWWriteChar(G_FLOAT(OFS_PARM0), (char)G_FLOAT(OFS_PARM1));
+		NPP_QWWriteChar(dest, (char)G_FLOAT(OFS_PARM1));
 		return;
 	}
 #else
-	if (G_FLOAT(OFS_PARM0) == MSG_ONE)
+	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
 		if (!cl)
@@ -4457,13 +4458,14 @@ void QCBUILTIN PF_WriteChar (progfuncs_t *prinst, struct globalvars_s *pr_global
 		ClientReliableWrite_Char(cl, G_FLOAT(OFS_PARM1));
 	}
 	else
-		MSG_WriteChar (QWWriteDest(G_FLOAT(OFS_PARM0)), G_FLOAT(OFS_PARM1));
+		MSG_WriteChar (QWWriteDest(dest), G_FLOAT(OFS_PARM1));
 #endif
 }
 
 void QCBUILTIN PF_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
+	int dest = G_FLOAT(OFS_PARM0);
+	if (dest == MSG_CSQC)
 	{	//csqc buffers are always written.
 		MSG_WriteShort(&csqcmsgbuffer, G_FLOAT(OFS_PARM1));
 		return;
@@ -4478,17 +4480,17 @@ void QCBUILTIN PF_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globa
 
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
-		NPP_NQWriteShort(G_FLOAT(OFS_PARM0), (short)(int)G_FLOAT(OFS_PARM1));
+		NPP_NQWriteShort(dest, (short)(int)G_FLOAT(OFS_PARM1));
 		return;
 	}
 #ifdef NQPROT
 	else
 	{
-		NPP_QWWriteShort(G_FLOAT(OFS_PARM0), (short)(int)G_FLOAT(OFS_PARM1));
+		NPP_QWWriteShort(dest, (short)(int)G_FLOAT(OFS_PARM1));
 		return;
 	}
 #else
-	if (G_FLOAT(OFS_PARM0) == MSG_ONE)
+	if (desf == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
 		if (!cl)
@@ -4497,13 +4499,14 @@ void QCBUILTIN PF_WriteShort (progfuncs_t *prinst, struct globalvars_s *pr_globa
 		ClientReliableWrite_Short(cl, G_FLOAT(OFS_PARM1));
 	}
 	else
-		MSG_WriteShort (QWWriteDest(G_FLOAT(OFS_PARM0)), G_FLOAT(OFS_PARM1));
+		MSG_WriteShort (QWWriteDest(dest), G_FLOAT(OFS_PARM1));
 #endif
 }
 
 void QCBUILTIN PF_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
+	int dest = G_FLOAT(OFS_PARM0);
+	if (dest == MSG_CSQC)
 	{	//csqc buffers are always written.
 		MSG_WriteLong(&csqcmsgbuffer, G_FLOAT(OFS_PARM1));
 		return;
@@ -4518,17 +4521,17 @@ void QCBUILTIN PF_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_global
 
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
-		NPP_NQWriteLong(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
+		NPP_NQWriteLong(dest, G_FLOAT(OFS_PARM1));
 		return;
 	}
 #ifdef NQPROT
 	else
 	{
-		NPP_QWWriteLong(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
+		NPP_QWWriteLong(dest, G_FLOAT(OFS_PARM1));
 		return;
 	}
 #else
-	if (G_FLOAT(OFS_PARM0) == MSG_ONE)
+	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
 		if (!cl)
@@ -4537,13 +4540,14 @@ void QCBUILTIN PF_WriteLong (progfuncs_t *prinst, struct globalvars_s *pr_global
 		ClientReliableWrite_Long(cl, G_FLOAT(OFS_PARM1));
 	}
 	else
-		MSG_WriteLong (QWWriteDest(G_FLOAT(OFS_PARM0)), G_FLOAT(OFS_PARM1));
+		MSG_WriteLong (QWWriteDest(dest), G_FLOAT(OFS_PARM1));
 #endif
 }
 
 void QCBUILTIN PF_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
+	int dest = G_FLOAT(OFS_PARM0);
+	if (dest == MSG_CSQC)
 	{	//csqc buffers are always written.
 		MSG_WriteAngle(&csqcmsgbuffer, G_FLOAT(OFS_PARM1));
 		return;
@@ -4558,17 +4562,17 @@ void QCBUILTIN PF_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globa
 
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
-		NPP_NQWriteAngle(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
+		NPP_NQWriteAngle(dest, G_FLOAT(OFS_PARM1));
 		return;
 	}
 #ifdef NQPROT
 	else
 	{
-		NPP_QWWriteAngle(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
+		NPP_QWWriteAngle(dest, G_FLOAT(OFS_PARM1));
 		return;
 	}
 #else
-	if (G_FLOAT(OFS_PARM0) == MSG_ONE)
+	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
 		if (!cl)
@@ -4577,13 +4581,14 @@ void QCBUILTIN PF_WriteAngle (progfuncs_t *prinst, struct globalvars_s *pr_globa
 		ClientReliableWrite_Angle(cl, G_FLOAT(OFS_PARM1));
 	}
 	else
-		MSG_WriteAngle (QWWriteDest(G_FLOAT(OFS_PARM0)), G_FLOAT(OFS_PARM1));
+		MSG_WriteAngle (QWWriteDest(dest), G_FLOAT(OFS_PARM1));
 #endif
 }
 
 void QCBUILTIN PF_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
+	int dest = G_FLOAT(OFS_PARM0);
+	if (dest == MSG_CSQC)
 	{	//csqc buffers are always written.
 		MSG_WriteCoord(&csqcmsgbuffer, G_FLOAT(OFS_PARM1));
 		return;
@@ -4598,17 +4603,17 @@ void QCBUILTIN PF_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globa
 
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
-		NPP_NQWriteCoord(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
+		NPP_NQWriteCoord(dest, G_FLOAT(OFS_PARM1));
 		return;
 	}
 #ifdef NQPROT
 	else
 	{
-		NPP_QWWriteCoord(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
+		NPP_QWWriteCoord(dest, G_FLOAT(OFS_PARM1));
 		return;
 	}
 #else
-	if (G_FLOAT(OFS_PARM0) == MSG_ONE)
+	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
 		if (!cl)
@@ -4617,13 +4622,14 @@ void QCBUILTIN PF_WriteCoord (progfuncs_t *prinst, struct globalvars_s *pr_globa
 		ClientReliableWrite_Coord(cl, G_FLOAT(OFS_PARM1));
 	}
 	else
-		MSG_WriteCoord (QWWriteDest(G_FLOAT(OFS_PARM0)), G_FLOAT(OFS_PARM1));
+		MSG_WriteCoord (QWWriteDest(dest), G_FLOAT(OFS_PARM1));
 #endif
 }
 
 void QCBUILTIN PF_WriteFloat (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
+	int dest = G_FLOAT(OFS_PARM0);
+	if (dest == MSG_CSQC)
 	{	//csqc buffers are always written.
 		MSG_WriteFloat(&csqcmsgbuffer, G_FLOAT(OFS_PARM1));
 		return;
@@ -4681,7 +4687,8 @@ static void QCBUILTIN PF_WriteString (progfuncs_t *prinst, struct globalvars_s *
 
 void QCBUILTIN PF_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	if (G_FLOAT(OFS_PARM0) == MSG_CSQC)
+	int dest = G_FLOAT(OFS_PARM0);
+	if (dest == MSG_CSQC)
 	{	//csqc buffers are always written.
 		MSG_WriteShort(&csqcmsgbuffer, G_EDICTNUM(prinst, OFS_PARM1));
 		return;
@@ -4696,17 +4703,17 @@ void QCBUILTIN PF_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_glob
 
 	if (progstype == PROG_NQ || progstype == PROG_H2)
 	{
-		NPP_NQWriteEntity(G_FLOAT(OFS_PARM0), (short)G_EDICTNUM(prinst, OFS_PARM1));
+		NPP_NQWriteEntity(dest, (short)G_EDICTNUM(prinst, OFS_PARM1));
 		return;
 	}
 #ifdef NQPROT
 	else
 	{
-		NPP_QWWriteEntity(G_FLOAT(OFS_PARM0), (short)G_EDICTNUM(prinst, OFS_PARM1));
+		NPP_QWWriteEntity(dest, (short)G_EDICTNUM(prinst, OFS_PARM1));
 		return;
 	}
 #else
-	if (G_FLOAT(OFS_PARM0) == MSG_ONE)
+	if (dest == MSG_ONE)
 	{
 		client_t *cl = Write_GetClient();
 		if (!cl)
@@ -4715,7 +4722,7 @@ void QCBUILTIN PF_WriteEntity (progfuncs_t *prinst, struct globalvars_s *pr_glob
 		ClientReliableWrite_Short(cl, G_EDICTNUM(prinst, OFS_PARM1));
 	}
 	else
-		MSG_WriteShort (QWWriteDest(G_FLOAT(OFS_PARM0)), G_EDICTNUM(prinst, OFS_PARM1));
+		MSG_WriteShort (QWWriteDest(dest), G_EDICTNUM(prinst, OFS_PARM1));
 #endif
 }
 

@@ -258,32 +258,43 @@ enum{
 	PERMUTATION_BUMPMAP = 1,
 	PERMUTATION_SPECULAR = 2,
 	PERMUTATION_FULLBRIGHT = 4,
-	PERMUTATION_LOWER = 8,
-	PERMUTATION_UPPER = 16,
-	PERMUTATION_OFFSET = 32,
-	PERMUTATION_SKELETAL = 64,
-	PERMUTATION_FOG	= 128,
-
+	PERMUTATION_UPPERLOWER = 8,
+	PERMUTATION_OFFSET = 16,
+	PERMUTATION_SKELETAL = 32,
+	PERMUTATION_FOG	= 64,
+	PERMUTATION_FRAMEBLEND = 128,
 	PERMUTATIONS = 256
+};
+
+enum shaderattribs_e
+{
+	VATTR_LEG_VERTEX,
+
+	VATTR_VERTEX1,
+	VATTR_VERTEX2,
+	VATTR_COLOUR,
+	VATTR_TEXCOORD,
+	VATTR_LMCOORD,
+	VATTR_NORMALS,
+	VATTR_SNORMALS,
+	VATTR_TNORMALS,
+	VATTR_BONENUMS, /*skeletal only*/
+	VATTR_BONEWEIGHTS, /*skeletal only*/
+
+	VATTR_LEG_COLOUR,
+	VATTR_LEG_ELEMENTS,
+	VATTR_LEG_TMU0,
+
+
+	VATTR_LEG_FIRST=VATTR_LEG_COLOUR
 };
 
 typedef struct {
 	enum shaderprogparmtype_e {
 		SP_BAD,	//never set (hopefully)
 
-		SP_ATTR_VERTEX,
-		SP_ATTR_COLOUR,
-		SP_ATTR_TEXCOORD,
-		SP_ATTR_LMCOORD,
-		SP_ATTR_NORMALS,
-		SP_ATTR_SNORMALS,
-		SP_ATTR_TNORMALS,
-		SP_ATTR_BONENUMS, /*skeletal only*/
-		SP_ATTR_BONEWEIGHTS, /*skeletal only*/
-
-		SP_FIRSTUNIFORM,	//never set
-
 		/*entity properties*/
+		SP_E_VBLEND,
 		SP_E_LMSCALE,
 		SP_E_ORIGIN,
 		SP_E_COLOURS,
@@ -354,6 +365,7 @@ typedef struct programshared_s
 	int refs;
 	qboolean nofixedcompat;
 	union programhandle_u handle[PERMUTATIONS];
+	unsigned int attrmask[PERMUTATIONS];
 	int numparams;
 	shaderprogparm_t parm[SHADER_PROGPARMS_MAX];
 } program_t;

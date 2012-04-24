@@ -1,9 +1,7 @@
 #include "quakedef.h"
 
 #ifdef TERRAIN
-#ifdef GLQUAKE
 #include "glquake.h"
-#endif
 #include "shader.h"
 
 #include "pr_common.h"
@@ -428,6 +426,7 @@ void GL_DrawHeightmapModel (batch_t **batches, entity_t *e)
 					}
 				}
 
+#ifdef GLQUAKE
 				if (qrenderer == QR_OPENGL)
 				{
 					if (!s->vbo.coord.gl.vbo)
@@ -454,6 +453,7 @@ void GL_DrawHeightmapModel (batch_t **batches, entity_t *e)
 //					Z_Free(mesh->indexes);
 //					mesh->indexes = NULL;
 				}
+#endif
 			}
 
 			mins[2] = s->minh;

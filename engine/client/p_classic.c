@@ -77,6 +77,7 @@ typedef struct cparticle_s
 #define ABSOLUTE_MAX_PARTICLES	8192
 static int r_numparticles;
 static cparticle_t	*particles, *active_particles, *free_particles;
+extern cvar_t r_part_density;
 
 extern qbyte default_quakepal[]; /*for ramps more than anything else*/
 static int	ramp1[8] = {0x6f, 0x6d, 0x6b, 0x69, 0x67, 0x65, 0x63, 0x61};
@@ -432,7 +433,7 @@ static void PClassic_DrawParticles(void)
 #ifdef POLYS
 		if (cl_numstrisvert+3 > cl_maxstrisvert)
 		{
-			cl_maxstrisvert+=64*3;
+			cl_maxstrisvert+=1024*3;
 			cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
 			cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
 			cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
@@ -456,7 +457,7 @@ static void PClassic_DrawParticles(void)
 
 		if (cl_numstrisidx+3 > cl_maxstrisidx)
 		{
-			cl_maxstrisidx += 64*3;
+			cl_maxstrisidx += 1024*3;
 			cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
 		}
 		cl_strisidx[cl_numstrisidx++] = (cl_numstrisvert - scenetri->firstvert) + 0;
@@ -559,8 +560,11 @@ static void Classic_ParticleExplosion (vec3_t org)
 {
 	int	i, j;
 	cparticle_t	*p;
+	int count;
+
+	count = 1024 * r_part_density.value;
 	
-	for (i = 0; i < 1024; i++)
+	for (i = 0; i < count; i++)
 	{
 		if (!free_particles)
 			return;
@@ -597,8 +601,11 @@ static void Classic_BlobExplosion (vec3_t org)
 {
 	int i, j;
 	cparticle_t *p;
+	int count;
+
+	count = 1024 * r_part_density.value;
 	
-	for (i = 0; i < 1024; i++)
+	for (i = 0; i < count; i++)
 	{
 		if (!free_particles)
 			return;
@@ -641,6 +648,8 @@ static void Classic_RunParticleEffect (vec3_t org, vec3_t dir, int color, int co
 		dir = vec3_origin;
 
 	scale = (count > 130) ? 3 : (count > 20) ? 2  : 1;
+
+	count *= r_part_density.value;
 
 	for (i = 0; i < count; i++)
 	{
@@ -709,11 +718,15 @@ static void Classic_TeleportSplash (vec3_t org)
 	float vel;
 	vec3_t dir;
 
-	for (i = -16; i < 16; i += 4)
+	int st = 4 / r_part_density.value;
+	if (st == 0)
+		st = 1;
+
+	for (i = -16; i < 16; i += st)
 	{
-		for (j = -16; j < 16; j += 4)
+		for (j = -16; j < 16; j += st)
 		{
-			for (k = -24; k < 32; k += 4)
+			for (k = -24; k < 32; k += st)
 			{
 				if (!free_particles)
 					return;
@@ -769,6 +782,8 @@ static float Classic_ParticleTrail (vec3_t start, vec3_t end, float leftover, ef
 	default:
 		scale = 3; break;
 	}
+
+	scale /= r_part_density.value;
 
 	VectorScale (dir, scale, dir);
 

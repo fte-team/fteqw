@@ -52,6 +52,8 @@ void GL_UploadFmt(texid_t tex, char *name, enum uploadfmt fmt, void *data, void 
 		GL_Upload32(name, data, width, height, flags);
 		break;
 
+	case TF_BGRX32:
+		flags |= IF_NOALPHA;
 	case TF_BGRA32:
 		GL_Upload32_BGRA(name, data, width, height, flags);
 		break;
@@ -1468,7 +1470,7 @@ void GL_Upload24BGR_Flip (char *name, qbyte *framedata, int inwidth, int inheigh
 		outheight = 512;
 
 	if (outwidth*outheight > sizeofuploadmemorybufferintermediate/4)
-		Sys_Error("MediaGL_ShowFrameBGR_24_Flip: image too big (%i*%i)", inwidth, inheight);
+		Sys_Error("GL_Upload24BGR_Flip: image too big (%i*%i)", inwidth, inheight);
 
 	for (y=1 ; y<=outheight ; y++)
 	{
@@ -1998,9 +2000,7 @@ void GL_Upload8 (char *name, qbyte *data, int width, int height, unsigned int fl
 	}
 #endif
 #endif
-checkglerror();
 	GL_Upload32 (name, trans, width, height, flags);
-checkglerror();
 }
 
 void GL_Upload8FB (qbyte *data, int width, int height, unsigned flags)

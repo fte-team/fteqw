@@ -642,7 +642,7 @@ void SVQ2_ConfigStrings_f (void)
 
 	// write a packet full of data
 
-	while ( host_client->netchan.message.cursize < MAX_QWMSGLEN/2
+	while ( host_client->netchan.message.cursize < host_client->netchan.message.maxsize/2
 		&& start < Q2MAX_CONFIGSTRINGS)
 	{
 		str = sv.strings.configstring[start];
@@ -819,7 +819,7 @@ void SVQ2_BaseLines_f (void)
 
 	// write a packet full of data
 
-	while ( host_client->netchan.message.cursize <  MAX_QWMSGLEN/2
+	while ( host_client->netchan.message.cursize <  host_client->netchan.message.maxsize/2
 		&& start < Q2MAX_EDICTS)
 	{
 		base = &sv_baselines[start];
@@ -908,7 +908,7 @@ void SV_PK3List_f (void)
 
 	for (; ; i++)
 	{
-		if (host_client->netchan.message.cursize < (MAX_QWMSGLEN/2))
+		if (host_client->netchan.message.cursize < (host_client->netchan.message.maxsize/2))
 		{	//user's buffer was too small
 			MSG_WriteByte(&host_client->netchan.message, svc_stufftext);
 			MSG_WriteString(&host_client->netchan.message, va("cmd pk3list %i %i\n", svs.spawncount, 0));
@@ -1001,7 +1001,7 @@ void SV_Soundlist_f (void)
 	if (sv.democausesreconnect)	//read the list from somewhere else
 	{
 		for (i = 1+n;
-			*sv.demsound_precache[i] && host_client->netchan.message.cursize < (MAX_QWMSGLEN/2);
+			*sv.demsound_precache[i] && host_client->netchan.message.cursize < (host_client->netchan.message.maxsize/2);
 			i++, n++)
 			MSG_WriteString (&host_client->netchan.message, sv.demsound_precache[i]);
 
@@ -1013,7 +1013,7 @@ void SV_Soundlist_f (void)
 #endif
 	{
 		for (i = 1+n;
-			i < maxclientsupportedsounds && *sv.strings.sound_precache[i] && host_client->netchan.message.cursize < (MAX_QWMSGLEN/2);
+			i < maxclientsupportedsounds && *sv.strings.sound_precache[i] && host_client->netchan.message.cursize < (host_client->netchan.message.maxsize/2);
 			i++, n++)
 		{
 			MSG_WriteString (&host_client->netchan.message, sv.strings.sound_precache[i]);
@@ -1095,7 +1095,7 @@ void SV_Modellist_f (void)
 	if (sv.democausesreconnect)	//read the list from somewhere else
 	{
 		for (i = 1+n;
-			*sv.demmodel_precache[i] && ((n&255)==0||host_client->netchan.message.cursize < (MAX_QWMSGLEN/2));
+			*sv.demmodel_precache[i] && ((n&255)==0||host_client->netchan.message.cursize < (host_client->netchan.message.maxsize/2));
 			i++, n++)
 			MSG_WriteString (&host_client->netchan.message, sv.demmodel_precache[i]);
 
@@ -1106,7 +1106,7 @@ void SV_Modellist_f (void)
 #endif
 	{
 		for (i = 1+n;
-			i < host_client->maxmodels && sv.strings.model_precache[i] && (((i-1)&255)==0 || host_client->netchan.message.cursize < (MAX_QWMSGLEN/2));	//make sure we don't send a 0 next...
+			i < host_client->maxmodels && sv.strings.model_precache[i] && (((i-1)&255)==0 || host_client->netchan.message.cursize < (host_client->netchan.message.maxsize/2));	//make sure we don't send a 0 next...
 			i++)
 		{
 			MSG_WriteString (&host_client->netchan.message, sv.strings.model_precache[i]);
@@ -1500,7 +1500,7 @@ void SV_Spawn_f (void)
 				if (!sv.strings.lightstyles[i])
 					continue;
 #ifdef PEXT_LIGHTSTYLECOL
-			if ((host_client->fteprotocolextensions & PEXT_LIGHTSTYLECOL) && sv.strings.lightstylecolours[i]!=7)
+			if ((host_client->fteprotocolextensions & PEXT_LIGHTSTYLECOL) && sv.strings.lightstylecolours[i]!=7 && sv.strings.lightstyles[i])
 			{
 				ClientReliableWrite_Begin (host_client, svcfte_lightstylecol,
 					3 + (sv.strings.lightstyles[i] ? strlen(sv.strings.lightstyles[i]) : 1));

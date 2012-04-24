@@ -82,13 +82,14 @@ void IN_Shutdown(void)
 
 void IN_ReInit()
 {
-	Cvar_Register (&m_simtouch, "input controls");
-	Cvar_Register (&m_filter, "input controls");
-	Cvar_Register (&m_strafeonright, "input controls");
 }
 
 void IN_Init(void)
 {
+	Cvar_Register (&m_simtouch, "input controls");
+	Cvar_Register (&m_filter, "input controls");
+	Cvar_Register (&m_strafeonright, "input controls");
+
 	IN_ReInit();
 }
 

@@ -225,6 +225,10 @@ qboolean Sys_remove (char *path)
 {
 	return !unlink(path);
 }
+qboolean Sys_Rename (char *oldfname, char *newfname)
+{
+	return !rename(oldfname, newfname);
+}
 void Sys_SendKeyEvents(void)
 {
 }

@@ -356,6 +356,23 @@ typedef BOOL (WINAPI *MINIDUMPWRITEDUMP) (
 	PMINIDUMP_CALLBACK_INFORMATION CallbackParam
 	);
 
+#if 0
+#include "glquake.h"
+#define GL_ARRAY_BUFFER                   0x8892
+#define GL_ELEMENT_ARRAY_BUFFER           0x8893
+#define GL_ARRAY_BUFFER_BINDING           0x8894
+#define GL_ELEMENT_ARRAY_BUFFER_BINDING   0x8895
+#define GL_VERTEX_ARRAY_BUFFER_BINDING   0x8896
+#define GL_TEXTURE_COORD_ARRAY_BUFFER_BINDING   0x889A
+#define GL_VERTEX_ATTRIB_ARRAY_ENABLED        0x8622
+#define GL_VERTEX_ATTRIB_ARRAY_SIZE           0x8623
+#define GL_VERTEX_ATTRIB_ARRAY_STRIDE         0x8624
+#define GL_VERTEX_ATTRIB_ARRAY_TYPE           0x8625
+#define GL_VERTEX_ATTRIB_ARRAY_NORMALIZED     0x886A
+#define GL_VERTEX_ATTRIB_ARRAY_POINTER        0x8645
+#define GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING 0x889F
+#endif
+
 DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exceptionInfo)
 {
 	char dumpPath[1024];
@@ -366,6 +383,52 @@ DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exception
 	MINIDUMPWRITEDUMP fnMiniDumpWriteDump;
 	HMODULE hKernel;
 	BOOL (WINAPI *pIsDebuggerPresent)(void);
+
+#if 0
+	int rval;
+	void *ptr;
+	int i;
+	void (APIENTRY *qglGetVertexAttribiv) (GLuint index, GLenum pname, GLint* params);
+	void (APIENTRY *qglGetVertexAttribPointerv) (GLuint index, GLenum pname, GLvoid** pointer);
+	qglGetVertexAttribiv = (void*)wglGetProcAddress("glGetVertexAttribiv");
+	qglGetVertexAttribPointerv = (void*)wglGetProcAddress("glGetVertexAttribPointerv");
+#pragma comment(lib,"opengl32.lib")
+
+	glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &rval);
+	Sys_Printf("GL_ARRAY_BUFFER_BINDING: %i\n", rval);
+	glGetPointerv(GL_COLOR_ARRAY_POINTER, &ptr);
+	Sys_Printf("GL_COLOR_ARRAY: %s (%lx)\n", glIsEnabled(GL_COLOR_ARRAY)?"en":"dis", (int) ptr);
+//	glGetPointerv(GL_FOG_COORD_ARRAY_POINTER, &ptr);
+//	Sys_Printf("GL_FOG_COORDINATE_ARRAY_EXT: %i (%lx)\n", (int) glIsEnabled(GL_FOG_COORDINATE_ARRAY_EXT), (int) ptr);
+	glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &rval);
+	glGetPointerv(GL_INDEX_ARRAY_POINTER, &ptr);
+	Sys_Printf("GL_INDEX_ARRAY: %s %i:%p\n", glIsEnabled(GL_INDEX_ARRAY)?"en":"dis", rval, ptr);
+	glGetPointerv(GL_NORMAL_ARRAY_POINTER, &ptr);
+	Sys_Printf("GL_NORMAL_ARRAY: %s (%lx)\n", glIsEnabled(GL_NORMAL_ARRAY)?"en":"dis", (int) ptr);
+//	glGetPointerv(GL_SECONDARY_COLOR_ARRAY_POINTER, &ptr);
+//	Sys_Printf("GL_SECONDARY_COLOR_ARRAY: %i (%lx)\n", (int) glIsEnabled(GL_SECONDARY_COLOR_ARRAY), (int) ptr);
+	glGetIntegerv(GL_TEXTURE_COORD_ARRAY_BUFFER_BINDING, &rval);
+	glGetPointerv(GL_TEXTURE_COORD_ARRAY_POINTER, &ptr);
+	Sys_Printf("GL_TEXTURE_COORD_ARRAY: %s %i:%p\n", glIsEnabled(GL_TEXTURE_COORD_ARRAY)?"en":"dis", rval, ptr);
+	glGetIntegerv(GL_VERTEX_ARRAY_BUFFER_BINDING, &rval);
+	glGetPointerv(GL_VERTEX_ARRAY_POINTER, &ptr);
+	Sys_Printf("GL_VERTEX_ARRAY: %s %i:%p\n", glIsEnabled(GL_VERTEX_ARRAY)?"en":"dis", rval, ptr);
+
+	for (i = 0; i < 16; i++)
+	{
+		int en, bo, as, st, ty, no;
+
+		qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_ENABLED, &en);
+		qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING, &bo);
+		qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_SIZE, &as);
+		qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_STRIDE, &st);
+		qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_TYPE, &ty);
+		qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_NORMALIZED, &no);
+		qglGetVertexAttribPointerv(i, GL_VERTEX_ATTRIB_ARRAY_POINTER, &ptr);
+
+		Sys_Printf("attrib%i: %s as:%i st:%i ty:%0x %s%i:%p\n", i, en?"en":"dis", as, st,ty,no?"norm ":"", bo, ptr);
+	}
+#endif
 
 	hKernel = LoadLibrary ("kernel32");
 	pIsDebuggerPresent = (void*)GetProcAddress(hKernel, "IsDebuggerPresent");
@@ -533,6 +596,11 @@ qboolean Sys_remove (char *path)
 	remove (path);
 
 	return true;
+}
+
+qboolean Sys_Rename (char *oldfname, char *newfname)
+{
+	return !rename(oldfname, newfname);
 }
 
 int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm)

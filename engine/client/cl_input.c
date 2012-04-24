@@ -1557,6 +1557,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 //		CL_BaseMove (&independantphysics[plnum], plnum, (msecstouse - independantphysics[plnum].msec), wantfps);
 		CL_AdjustAngles (plnum, frametime);
 		IN_Move (mousemovements[plnum], plnum);
+		CL_ClampPitch(plnum);
 		independantphysics[plnum].forwardmove += mousemovements[plnum][0];
 		independantphysics[plnum].sidemove += mousemovements[plnum][1];
 		independantphysics[plnum].upmove += mousemovements[plnum][2];

@@ -160,6 +160,9 @@ void	Cvar_SetValue (cvar_t *var, float value);
 
 qboolean Cvar_ApplyLatchFlag(cvar_t *var, char *value, int flag);
 
+qboolean Cvar_UnsavedArchive(void);
+void Cvar_Saved(void);
+
 int Cvar_ApplyLatches(int latchflag);
 //sets vars to their latched values
 

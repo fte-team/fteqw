@@ -161,6 +161,7 @@ typedef void		(APIENTRYP FTEPFNGLUNIFORMMATRIXPROC)		(GLint location, GLsizei co
 typedef void		(APIENTRYP FTEPFNGLUNIFORM4FVARBPROC)			(GLint location, GLsizei count, GLfloat *value);
 typedef void		(APIENTRYP FTEPFNGLUNIFORM3FARBPROC)			(GLint location, GLfloat v0, GLfloat v1, GLfloat v2);
 typedef void		(APIENTRYP FTEPFNGLUNIFORM3FVARBPROC)			(GLint location, GLsizei count, GLfloat *value);
+typedef void		(APIENTRYP FTEPFNGLUNIFORM2FVARBPROC)			(GLint location, GLsizei count, GLfloat *value);
 typedef void		(APIENTRYP FTEPFNGLUNIFORM1IARBPROC)			(GLint location, GLint v0);
 typedef void		(APIENTRYP FTEPFNGLUNIFORM1FARBPROC)			(GLint location, GLfloat v0);
 
@@ -307,8 +308,8 @@ void Sh_PreGenerateLights(void);
 
 #ifdef GLQUAKE
 void R_TranslatePlayerSkin (int playernum);
-void GL_MTBind(int tmu, int target, texid_t texnum); /*use this if you're going to change the texture object*/
-void GL_LazyBind(int tmu, int target, texid_t texnum, qboolean arrays); /*use this if you don't care about the object itself, only that it is bound*/
+void GL_MTBind(int tmu, int target, texid_t texnum); /*use this if you're going to change the texture object (ensures glActiveTexture(tmu))*/
+void GL_LazyBind(int tmu, int target, texid_t texnum); /*use this if you don't care about the active tmu, only that it is bound on that tmu (does not guarentee glActiveTexture) (ie: no glTexImage etc)*/
 void GL_CullFace(unsigned int sflags);
 void GL_TexEnv(GLenum mode);
 void GL_FlushBackEnd (void);
@@ -408,7 +409,7 @@ void R_SaveRTLights_f(void);
 //
 // gl_heightmap.c
 //
-#ifdef GLQUAKE
+#ifdef TERRAIN
 void GL_DrawHeightmapModel (batch_t **batch, entity_t *e);
 qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer);
 void HeightMap_Purge(model_t *mod);
@@ -511,6 +512,7 @@ extern void (APIENTRY *qglDeleteTextures) (GLsizei n, const GLuint *textures);
 extern void (APIENTRY *qglDepthFunc) (GLenum func);
 extern void (APIENTRY *qglDepthMask) (GLboolean flag);
 extern void (APIENTRY *qglDepthRange) (GLclampd zNear, GLclampd zFar);
+extern void (APIENTRY *qglDepthRangef) (GLclampf zNear, GLclampf zFar);
 extern void (APIENTRY *qglDisable) (GLenum cap);
 extern void (APIENTRY *qglDisableClientState) (GLenum array);
 extern void (APIENTRY *qglDrawArrays) (GLenum mode, GLint first, GLsizei count);
@@ -808,6 +810,9 @@ extern void (APIENTRY *qglBufferSubDataARB)(GLenum target, GLint offset, GLsizei
 extern void *(APIENTRY *qglMapBufferARB)(GLenum target, GLenum access);
 extern GLboolean (APIENTRY *qglUnmapBufferARB)(GLenum target);
 
+extern void (APIENTRY *qglGenVertexArrays)(GLsizei n, GLuint *arrays);
+extern void (APIENTRY *qglBindVertexArray)(GLuint vaoarray);
+
 extern const GLubyte * (APIENTRY * qglGetStringi) (GLenum name, GLuint index);
 
 extern void (APIENTRY *qglGenFramebuffersEXT)(GLsizei n, GLuint* ids);
@@ -859,6 +864,7 @@ extern FTEPFNGLUNIFORM4FARBPROC			qglUniform4fARB;
 extern FTEPFNGLUNIFORM4FVARBPROC			qglUniform4fvARB;
 extern FTEPFNGLUNIFORM3FARBPROC			qglUniform3fARB;
 extern FTEPFNGLUNIFORM3FVARBPROC			qglUniform3fvARB;
+extern FTEPFNGLUNIFORM2FVARBPROC			qglUniform2fvARB;
 extern FTEPFNGLUNIFORM1IARBPROC			qglUniform1iARB;
 extern FTEPFNGLUNIFORM1FARBPROC			qglUniform1fARB;
 
@@ -880,6 +886,7 @@ void GL_SelectProgram(int program);
 #else
 #define checkglerror()
 #endif
+
 
 
 extern FTEPFNGLLOCKARRAYSEXTPROC qglLockArraysEXT;

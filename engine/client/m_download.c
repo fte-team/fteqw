@@ -633,9 +633,9 @@ static void Menu_Download_Got(struct dl_download *dl)
 			else
 				destname = va("%s", p->dest);
 
-			if (!FS_Remove(destname, *p->gamedir?FS_ROOT:FS_GAME))
+			if (FS_Remove(destname, *p->gamedir?FS_ROOT:FS_GAME))
 				Con_Printf("Deleted old %s\n", destname);
-			if (FS_Rename2(diskname, destname, FS_GAME, *p->gamedir?FS_ROOT:FS_GAME))
+			if (!FS_Rename2(diskname, destname, FS_GAME, *p->gamedir?FS_ROOT:FS_GAME))
 			{
 				Con_Printf("Couldn't rename %s to %s. Removed instead.\n", diskname, destname);
 				FS_Remove (diskname, FS_GAME);

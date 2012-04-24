@@ -56,7 +56,9 @@ void GLBE_ClearVBO(vbo_t *vbo)
 	memset(vbo, 0, sizeof(*vbo));
 }
 
-static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int elementsize)
+void GLBE_SetupVAO(vbo_t *vbo, unsigned int vaodynamic);
+
+static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int elementsize, unsigned int vaodynamic)
 {
 	unsigned int vbos[2];
 
@@ -64,21 +66,6 @@ static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int
 		return false;
 
 	qglGenBuffersARB(1+(elementsize>0), vbos);
-	GL_SelectVBO(vbos[0]);
-	qglBufferDataARB(GL_ARRAY_BUFFER_ARB, vsize, vdata, GL_STATIC_DRAW_ARB);
-	if (elementsize>0)
-	{
-		GL_SelectEBO(vbos[1]);
-		qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, elementsize, edata, GL_STATIC_DRAW_ARB);
-	}
-
-	if (qglGetError())
-	{
-		GL_SelectVBO(0);
-		GL_SelectEBO(0);
-		qglDeleteBuffersARB(1+(elementsize>0), vbos);
-		return false;
-	}
 
 	//opengl ate our data, fixup the vbo arrays to point to the vbo instead of the raw data
 
@@ -121,6 +108,14 @@ static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int
 	{
 		vbo->colours.gl.vbo = vbos[0];
 		vbo->colours.gl.addr = (vec4_t*)((char*)vbo->colours.gl.addr - (char*)vdata);
+	}
+
+	GLBE_SetupVAO(vbo, vaodynamic);
+	
+	qglBufferDataARB(GL_ARRAY_BUFFER_ARB, vsize, vdata, GL_STATIC_DRAW_ARB);
+	if (elementsize>0)
+	{
+		qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, elementsize, edata, GL_STATIC_DRAW_ARB);
 	}
 
 	return true;
@@ -291,7 +286,7 @@ void GLBE_GenBrushModelVBO(model_t *mod)
 			vcount += v;
 		}
 
-		if (GL_BuildVBO(vbo, vbo->vertdata, vcount*pervertsize, indicies, ecount*sizeof(index_t)))
+		if (GL_BuildVBO(vbo, vbo->vertdata, vcount*pervertsize, indicies, ecount*sizeof(index_t), 0))
 		{
 			BZ_Free(vbo->vertdata);
 			vbo->vertdata = NULL;

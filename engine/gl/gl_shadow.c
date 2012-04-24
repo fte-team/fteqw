@@ -2310,6 +2310,11 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 	if (!r_drawentities.value)
 		return;
 
+#ifdef GLQUAKE
+	if (gl_config.nofixedfunc)
+		return;	/*hackzone*/
+#endif
+
 	// draw sprites seperately, because of alpha blending
 	for (i=0 ; i<cl_numvisedicts ; i++)
 	{
@@ -2456,7 +2461,6 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 		#if 0 //def _DEBUG
 		//	if (r_shadows.value == 666)	//testing (visible shadow volumes)
 			{
-				checkglerror();
 				qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 				qglColor3f(dl->color[0], dl->color[1], dl->color[2]);
 				qglDisable(GL_STENCIL_TEST);
@@ -2465,7 +2469,6 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 			//	qglPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 				Sh_DrawStencilLightShadows(dl, lvis, vvis, false);
 				qglDisable(GL_POLYGON_OFFSET_FILL);
-				checkglerror();
 				qglPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 			}
 		#endif
@@ -2741,7 +2744,7 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours, batch_t **batches)
 	/*requires an FBO, as stated above*/
 	if (!gl_config.ext_framebuffer_objects)
 		return;
-//checkglerror();
+
 	if (!crepuscular_fbo_id)
 	{
 		qglGenFramebuffersEXT(1, &crepuscular_fbo_id);
@@ -2772,20 +2775,15 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours, batch_t **batches)
 	}
 	else
 		qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, crepuscular_fbo_id);
-//checkglerror();
 	BE_SelectMode(BEM_CREPUSCULAR);
 	BE_SelectDLight(dl, colours);
-//checkglerror();
 	GLBE_SubmitMeshes(true, batches, SHADER_SORT_PORTAL, SHADER_SORT_BLEND);
-//checkglerror();
 	//fixme: check regular post-proc
 	qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 
-	checkglerror();
 	BE_SelectMode(BEM_STANDARD);
 
 	GLBE_DrawMesh_Single(crepuscular_shader, &mesh, NULL, &crepuscular_shader->defaulttextures, 0);
-	checkglerror();
 #endif
 }
 
@@ -2844,14 +2842,6 @@ void Sh_DrawLights(qbyte *vis, batch_t **mbatches)
 #ifdef GLQUAKE
 	case QR_OPENGL:
 		/*no stencil?*/
-		if (gl_config.nofixedfunc)
-		{
-			Con_Printf("FTE does not support stencil shadows without a fixed-function pipeline\n");
-			r_shadow_realtime_world.ival = 0;
-			r_shadow_realtime_dlight.ival = 0;
-			return;
-		}
-
 		if (!gl_config.arb_shader_objects)
 		{
 			Con_Printf("Missing GL extensions: switching off realtime lighting.\n");

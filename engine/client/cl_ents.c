@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "shader.h"
 
 extern	cvar_t	cl_predict_players;
+extern	cvar_t	cl_predict_players_frac;
 extern	cvar_t	cl_lerp_players;
 extern	cvar_t	cl_solid_players;
 extern	cvar_t	cl_item_bobbing;
@@ -3394,7 +3395,7 @@ guess_pm_type:
 
 		CL_SetSolidEntities();
 		CL_SetSolidPlayers();
-		CL_PredictUsercmd (0, state, &exact, &state->command);	//uses player 0's maxspeed/grav...
+		CL_PredictUsercmd (0, num+1, state, &exact, &state->command);	//uses player 0's maxspeed/grav...
 		VectorCopy (exact.origin, state->predorigin);
 	}
 	else
@@ -3529,6 +3530,7 @@ void CL_LinkPlayers (void)
 	model_t			*model;
 	static int		flickertime;
 	static int		flicker;
+	float			predictmsmult = 1000*cl_predict_players_frac.value;
 
 	if (!cl.worldmodel || cl.worldmodel->needload)
 		return;
@@ -3719,7 +3721,7 @@ void CL_LinkPlayers (void)
 		VectorInverse(ent->axis[1]);
 
 		// only predict half the move to minimize overruns
-		msec = 500*(playertime - state->state_time);
+		msec = predictmsmult*(playertime - state->state_time);
 
 		if (pnum < cl.splitclients)
 		{	//this is a local player
@@ -3742,14 +3744,14 @@ void CL_LinkPlayers (void)
 		else
 		{
 			// predict players movement
-			if (msec > 255)
-				msec = 255;
+			if (msec > 250)
+				msec = 250;
 			state->command.msec = msec;
 //Con_DPrintf ("predict: %i\n", msec);
 
 			oldphysent = pmove.numphysent;
 			CL_SetSolidPlayers ();
-			CL_PredictUsercmd (0, state, &exact, &state->command);	//uses player 0's maxspeed/grav...
+			CL_PredictUsercmd (0, j+1, state, &exact, &state->command);	//uses player 0's maxspeed/grav...
 			pmove.numphysent = oldphysent;
 			VectorCopy (exact.origin, ent->origin);
 		}
@@ -4021,6 +4023,7 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 	frame_t			*frame;
 	struct predicted_player *pplayer;
 	extern cvar_t cl_nopred;
+	float predictmsmult = 1000*cl_predict_players_frac.value;
 
 	int s;
 
@@ -4028,7 +4031,7 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 	if (playertime > realtime)
 		playertime = realtime;
 
-	if (cl_nopred.value || cls.demoplayback || cl.paused)
+	if (cl_nopred.value || /*cls.demoplayback ||*/ cl.paused)
 		return;
 
 	frame = &cl.frames[cl.parsecount&UPDATE_MASK];
@@ -4063,7 +4066,7 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 		if (s == cl.splitclients)
 		{
 			// only predict half the move to minimize overruns
-			msec = 500*(playertime - state->state_time);
+			msec = predictmsmult*(playertime - state->state_time);
 			if (msec <= 0 ||
 				!cl_predict_players.ival ||
 				!dopred)
@@ -4074,12 +4077,12 @@ void CL_SetUpPlayerPrediction(qboolean dopred)
 			else
 			{
 				// predict players movement
-				if (msec > 255)
-					msec = 255;
+				if (msec > 250)
+					msec = 250;
 				state->command.msec = msec;
 	//Con_DPrintf ("predict: %i\n", msec);
 
-				CL_PredictUsercmd (0, state, &exact, &state->command);
+				CL_PredictUsercmd (0, j+1, state, &exact, &state->command);
 				VectorCopy (exact.origin, pplayer->origin);
 			}
 
@@ -4119,8 +4122,8 @@ void CL_SetSolidPlayers (void)
 	if (pmove.numphysent == MAX_PHYSENTS)	//too many.
 		return;
 
-	for (j=0, pplayer = predicted_players; j < MAX_CLIENTS;	j++, pplayer++) {
-
+	for (j=0, pplayer = predicted_players; j < MAX_CLIENTS;	j++, pplayer++)
+	{
 		if (!pplayer->active)
 			continue;	// not present this frame
 

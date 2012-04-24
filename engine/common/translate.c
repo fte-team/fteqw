@@ -1,5 +1,4 @@
 #include "quakedef.h"
-#include "errno.h"
 
 #undef malloc
 #undef free
@@ -584,7 +583,7 @@ void TL_LoadLanguage (char *name, char *shortname, int num)	//this is one of the
 	result = fread(buffer, 1, size, f); // do something with result
 
 	if (result != size)
-		Con_Printf("TL_LoadLanguage() fread: Filename: %s, expected %i, result was %u (%s)\n",va("%s.trl", shortname),size,(unsigned int)result,strerror(errno));
+		Con_Printf("TL_LoadLanguage() fread: Filename: %s, expected %i, result was %u\n",va("%s.trl", shortname),size,(unsigned int)result);
 
 	fclose(f);
 

@@ -77,6 +77,7 @@ cvar_t	m_side = CVARF("m_side","0.8", CVAR_ARCHIVE);
 
 cvar_t	cl_lerp_players = CVARD("cl_lerp_players", "0", "Set this to make other players smoother, though it may increase effective latency. Affects only QuakeWorld.");
 cvar_t	cl_predict_players = CVARD("cl_predict_players", "1", "Clear this cvar to see ents exactly how they are on the server.");
+cvar_t	cl_predict_players_frac = CVARD("cl_predict_players_frac", "0.9", "How much of other players to predict. Values less than 1 will help minimize overruns.");
 cvar_t	cl_solid_players = CVAR("cl_solid_players", "1");
 cvar_t	cl_noblink = CVARD("cl_noblink", "0", "Disable the ^^b text blinking feature.");
 cvar_t	cl_servername = CVAR("cl_servername", "none");
@@ -290,14 +291,14 @@ void CL_Quit_f (void)
 
 	TP_ExecTrigger("f_quit");
 	Cbuf_Execute();
-
+/*
 #ifndef CLIENTONLY
 	if (!isDedicated)
 #endif
 	{
 		M_Menu_Quit_f ();
 		return;
-	}
+	}*/
 	CL_Disconnect ();
 	Sys_Quit ();
 }
@@ -342,7 +343,7 @@ void CL_SupportedFTEExtensions(int *pext1, int *pext2)
 }
 #endif
 
-char *CL_GUIDString(void)
+char *CL_GUIDString(netadr_t adr)
 {
 	static qbyte buf[2048];
 	static int buflen;
@@ -381,7 +382,7 @@ char *CL_GUIDString(void)
 		}
 	}
 
-	NET_AdrToString(serveraddr, sizeof(serveraddr), cls.netchan.remote_address);
+	NET_AdrToString(serveraddr, sizeof(serveraddr), adr);
 
 	blocks[0] = buf;lens[0] = buflen;
 	blocks[1] = serveraddr;lens[1] = strlen(serveraddr);
@@ -561,7 +562,7 @@ void CL_SendConnectPacket (int mtu,
 #endif
 		cls.netchan.compress = false;
 
-	info = CL_GUIDString();
+	info = CL_GUIDString(adr);
 	if (info)
 		Q_strncatz(data, va("0x%x \"%s\"\n", PROTOCOL_INFO_GUID, info), sizeof(data));
 
@@ -2027,7 +2028,7 @@ void CL_Startdemos_f (void)
 		Con_Printf ("Max %i demos in demoloop\n", MAX_DEMOS);
 		c = MAX_DEMOS;
 	}
-	Con_Printf ("%i demo(s) in loop\n", c);
+	Con_DPrintf ("%i demo(s) in loop\n", c);
 
 	for (i=1 ; i<c+1 ; i++)
 		Q_strncpyz (cls.demos[i-1], Cmd_Argv(i), sizeof(cls.demos[0]));
@@ -2667,6 +2668,9 @@ void CL_ReadPackets (void)
 {
 	char	adr[MAX_ADR_SIZE];
 
+	if (!qrenderer)
+		return;
+
 //	while (NET_GetPacket ())
 	for(;;)
 	{
@@ -3130,6 +3134,7 @@ void CL_Init (void)
 
 	Cvar_Register (&cl_lerp_players, cl_controlgroup);
 	Cvar_Register (&cl_predict_players,	cl_predictiongroup);
+	Cvar_Register (&cl_predict_players_frac,	cl_predictiongroup);
 	Cvar_Register (&cl_solid_players,	cl_predictiongroup);
 
 	Cvar_Register (&localid,	cl_controlgroup);

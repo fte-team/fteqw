@@ -2016,7 +2016,6 @@ void S_ExtraUpdate (void)
 	if (snd_noextraupdate.ival)
 		return;		// don't pollute timings
 
-	S_LockMixer();
 	for (sc = sndcardinfo; sc; sc = sc->next)
 	{
 		if (sc->selfpainting)
@@ -2028,9 +2027,10 @@ void S_ExtraUpdate (void)
 				continue;
 		}
 
+		S_LockMixer();
 		S_Update_(sc);
+		S_UnlockMixer();
 	}
-	S_UnlockMixer();
 }
 
 

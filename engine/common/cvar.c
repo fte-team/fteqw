@@ -590,6 +590,15 @@ char *Cvar_CompleteVariable (char *partial)
 }
 */
 
+static qboolean cvar_archivedvaluechanged;
+qboolean Cvar_UnsavedArchive(void)
+{
+	return cvar_archivedvaluechanged;
+}
+void Cvar_Saved(void)
+{
+	cvar_archivedvaluechanged = false;
+}
 
 /*
 ============
@@ -712,6 +721,9 @@ cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 			var->modified++;	//only modified if it changed.
 			if (var->callback)
 				var->callback(var, latch);
+
+			if ((var->flags & CVAR_ARCHIVE) && !(var->flags & CVAR_SERVEROVERRIDE) && cl_warncmd.ival)
+				cvar_archivedvaluechanged = true;
 		}
 
 		Z_Free (latch);	// free the old value string
@@ -1055,9 +1067,11 @@ void Cvar_LockFromServer(cvar_t *var, const char *str)
 {
 	char *oldlatch;
 
-	Con_DPrintf("Server taking control of cvar %s (%s)\n", var->name, str);
-
-	var->flags |= CVAR_SERVEROVERRIDE;
+	if (!(var->flags & CVAR_SERVEROVERRIDE))
+	{
+		Con_DPrintf("Server taking control of cvar %s (%s)\n", var->name, str);
+		var->flags |= CVAR_SERVEROVERRIDE;
+	}
 
 	oldlatch = var->latched_string;
 	if (oldlatch)	//maintaining control
@@ -1180,7 +1194,7 @@ void Cvar_WriteVariables (vfsfile_t *f, qboolean all)
 	{
 		writtengroupheader = false;
 		for (var = grp->cvars ; var ; var = var->next)
-			if (var->flags & CVAR_ARCHIVE || all)
+			if (var->flags & CVAR_ARCHIVE || (all && var != &cl_warncmd))
 			{
 				if (!writtengroupheader)
 				{

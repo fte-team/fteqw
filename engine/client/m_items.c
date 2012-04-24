@@ -10,6 +10,7 @@ qboolean bindingactive;
 extern cvar_t cl_cursor;
 extern cvar_t cl_cursorsize;
 extern cvar_t cl_cursorbias;
+extern cvar_t m_preset_chosen;
 menu_t *currentmenu;
 menu_t *firstmenu;
 
@@ -1428,6 +1429,18 @@ menu_t *M_CreateMenu (int extrasize)
 
 	return menu;
 }
+menu_t *M_CreateMenuInfront (int extrasize)
+{
+	menu_t *menu;
+	menu = Z_Malloc(sizeof(menu_t)+extrasize);
+	menu->iszone=true;
+	menu->data = menu+1;
+
+	M_AddMenuFront(menu);
+	menu->exclusive = false;
+
+	return menu;
+}
 void M_HideMenu (menu_t *menu)
 {
 	if (menu == firstmenu)
@@ -1470,7 +1483,10 @@ void M_RemoveMenu (menu_t *menu)
 	menu->options=NULL;
 
 	if (menu->tooltip)
+	{
 		Z_Free(menu->tooltip);
+		menu->tooltip = NULL;
+	}
 
 	if (menu->iszone)
 	{
@@ -1490,6 +1506,12 @@ void M_RemoveAllMenus (void)
 	while(firstmenu)
 		M_RemoveMenu(firstmenu);
 
+}
+void M_MenuPop_f (void)
+{
+	if (!firstmenu)
+		return;
+	M_RemoveMenu(firstmenu);
 }
 
 
@@ -1949,7 +1971,6 @@ void M_Menu_Main_f (void)
 
 			mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, 42, mainm->selecteditem->common.posy);
 		}
-		return;
 	}
 	else if (mgt == MGT_HEXEN2)
 	{
@@ -2083,6 +2104,9 @@ void M_Menu_Main_f (void)
 
 		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, 54, 32);
 	}
+
+	if (!m_preset_chosen.ival)
+		M_Menu_Preset_f();
 }
 
 int MC_AddBulk(struct menu_s *menu, menubulk_t *bulk, int xstart, int xtextend, int y)

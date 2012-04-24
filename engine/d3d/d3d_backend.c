@@ -1718,10 +1718,8 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertcount, unsigned i
 		perm |= PERMUTATION_SPECULAR;
 	if (TEXVALID(shaderstate.curtexnums->fullbright) && p->handle[perm|PERMUTATION_FULLBRIGHT].hlsl.vert)
 		perm |= PERMUTATION_FULLBRIGHT;
-	if (TEXVALID(shaderstate.curtexnums->loweroverlay) && p->handle[perm|PERMUTATION_LOWER].hlsl.vert)
-		perm |= PERMUTATION_LOWER;
-	if (TEXVALID(shaderstate.curtexnums->upperoverlay) && p->handle[perm|PERMUTATION_UPPER].hlsl.vert)
-		perm |= PERMUTATION_UPPER;
+	if (p->handle[perm|PERMUTATION_UPPERLOWER].hlsl.vert && (TEXVALID(shaderstate.curtexnums->upperoverlay) || TEXVALID(shaderstate.curtexnums->loweroverlay)))
+		perm |= PERMUTATION_UPPERLOWER;
 	if (r_refdef.gfog_rgbd[3] && p->handle[perm|PERMUTATION_FOG].hlsl.vert)
 		perm |= PERMUTATION_FOG;
 //	if (r_glsl_offsetmapping.ival && TEXVALID(shaderstate.curtexnums->bump) && p->handle[perm|PERMUTATION_OFFSET.hlsl.vert)

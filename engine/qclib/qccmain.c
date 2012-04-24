@@ -283,6 +283,7 @@ int QCC_CheckParm (char *check);
 
 void QCC_BspModels (void)
 {
+/*
 	int		p;
 	char	*gamedir;
 	int		i;
@@ -311,6 +312,7 @@ void QCC_BspModels (void)
 		if (result != 0)
 			QCC_Error(ERR_INTERNAL, "QCC_BspModels() system returned non zero (failure) with: qbsp %s/%s ; light -extra %s/%s (%i)\n", gamedir, name, gamedir, name, errno);
 	}
+*/
 }
 
 // CopyString returns an offset from the string heap

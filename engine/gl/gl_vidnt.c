@@ -178,6 +178,157 @@ static qboolean usingminidriver;
 static char reqminidriver[MAX_OSPATH];
 static char opengldllname[MAX_OSPATH];
 
+#ifdef _DEBUG
+static char *gles2funcs[] =
+{
+#define f(n) #n,
+		f(glActiveTexture)
+		f(glAttachShader)
+		f(glBindAttribLocation)
+		f(glBindBuffer)
+		f(glBindFramebuffer)
+		f(glBindRenderbuffer)
+		f(glBindTexture)
+		f(glBlendColor)
+		f(glBlendEquation)
+		f(glBlendEquationSeparate)
+		f(glBlendFunc)
+		f(glBlendFuncSeparate)
+		f(glBufferData)
+		f(glBufferSubData)
+		f(glCheckFramebufferStatus)
+		f(glClear)
+		f(glClearColor)
+		f(glClearDepthf)
+		f(glClearStencil)
+		f(glColorMask)
+		f(glCompileShader)
+		f(glCompressedTexImage2D)
+		f(glCompressedTexSubImage2D)
+		f(glCopyTexImage2D)
+		f(glCopyTexSubImage2D)
+		f(glCreateProgram)
+		f(glCreateShader)
+		f(glCullFace)
+		f(glDeleteBuffers)
+		f(glDeleteFramebuffers)
+		f(glDeleteProgram)
+		f(glDeleteRenderbuffers)
+		f(glDeleteShader)
+		f(glDeleteTextures)
+		f(glDepthFunc)
+		f(glDepthMask)
+		f(glDepthRangef)
+		f(glDetachShader)
+		f(glDisable)
+		f(glDisableVertexAttribArray)
+		f(glDrawArrays)
+		f(glDrawElements)
+		f(glEnable)
+		f(glEnableVertexAttribArray)
+		f(glFinish)
+		f(glFlush)
+		f(glFramebufferRenderbuffer)
+		f(glFramebufferTexture2D)
+		f(glFrontFace)
+		f(glGenBuffers)
+		f(glGenerateMipmap)
+		f(glGenFramebuffers)
+ 		f(glGenRenderbuffers)
+		f(glGenTextures)
+		f(glGetActiveAttrib)
+		f(glGetActiveUniform)
+		f(glGetAttachedShaders)
+		f(glGetAttribLocation)
+		f(glGetBooleanv)
+		f(glGetBufferParameteriv)
+		f(glGetError)
+		f(glGetFloatv)
+		f(glGetFramebufferAttachmentParameteriv)
+		f(glGetIntegerv)
+		f(glGetProgramiv)
+		f(glGetProgramInfoLog)
+		f(glGetRenderbufferParameteriv)
+		f(glGetShaderiv)
+		f(glGetShaderInfoLog)
+		f(glGetShaderPrecisionFormat)
+		f(glGetShaderSource)
+		f(glGetString)
+		f(glGetTexParameterfv)
+		f(glGetTexParameteriv)
+		f(glGetUniformfv)
+		f(glGetUniformiv)
+		f(glGetUniformLocation)
+		f(glGetVertexAttribfv)
+		f(glGetVertexAttribiv)
+		f(glGetVertexAttribPointerv)
+		f(glHint)
+		f(glIsBuffer)
+		f(glIsEnabled)
+		f(glIsFramebuffer)
+		f(glIsProgram)
+		f(glIsRenderbuffer)
+		f(glIsShader)
+		f(glIsTexture)
+		f(glLineWidth)
+		f(glLinkProgram)
+		f(glPixelStorei)
+		f(glPolygonOffset)
+		f(glReadPixels)
+		f(glReleaseShaderCompiler)
+		f(glRenderbufferStorage)
+		f(glSampleCoverage)
+		f(glScissor)
+		f(glShaderBinary)
+		f(glShaderSource)
+		f(glStencilFunc)
+		f(glStencilFuncSeparate)
+		f(glStencilMask)
+		f(glStencilMaskSeparate)
+		f(glStencilOp)
+		f(glStencilOpSeparate)
+		f(glTexImage2D)
+		f(glTexParameterf)
+		f(glTexParameterfv)
+		f(glTexParameteri)
+		f(glTexParameteriv)
+		f(glTexSubImage2D)
+		f(glUniform1f)
+		f(glUniform1fv)
+		f(glUniform1i)
+		f(glUniform1iv)
+		f(glUniform2f)
+		f(glUniform2fv)
+		f(glUniform2i)
+		f(glUniform2iv)
+		f(glUniform3f)
+		f(glUniform3fv)
+		f(glUniform3i)
+		f(glUniform3iv)
+		f(glUniform4f)
+		f(glUniform4fv)
+		f(glUniform4i)
+		f(glUniform4iv)
+		f(glUniformMatrix2fv)
+		f(glUniformMatrix3fv)
+		f(glUniformMatrix4fv)
+		f(glUseProgram)
+		f(glValidateProgram)
+		f(glVertexAttrib1f)
+		f(glVertexAttrib1fv)
+		f(glVertexAttrib2f)
+		f(glVertexAttrib2fv)
+		f(glVertexAttrib3f)
+		f(glVertexAttrib3fv)
+		f(glVertexAttrib4f)
+		f(glVertexAttrib4fv)
+		f(glVertexAttribPointer)
+		f(glViewport)
+		f(wglCreateContextAttribsARB)
+		NULL
+};
+#endif
+
 //just GetProcAddress with a safty net.
 void *getglfunc(char *name)
 {
@@ -187,9 +338,24 @@ void *getglfunc(char *name)
 	{
 		proc = GetProcAddress(hInstGL, name);
 		TRACE(("dbg: getglfunc: gpa %s: success %i\n", name, !!proc));
-		return proc;
 	}
-	TRACE(("dbg: getglfunc: glgpa %s: success %i\n", name, !!proc));
+	else
+	{
+		TRACE(("dbg: getglfunc: glgpa %s: success %i\n", name, !!proc));
+	}
+
+#ifdef _DEBUG
+	if (vid_gl_context_es2.ival == 2)
+	{
+		int i;
+		for (i = 0; gles2funcs[i]; i++)
+		{
+			if (!strcmp(name, gles2funcs[i]))
+				return proc;
+		}
+		return NULL;
+	}
+#endif
 	return proc;
 }
 void *getwglfunc(char *name)
@@ -982,7 +1148,7 @@ qboolean VID_AttachGL (rendererstate_t *info)
 	}
 
 	qwglCreateContextAttribsARB = getglfunc("wglCreateContextAttribsARB");
-#ifdef _DEBUG
+#if 1//def _DEBUG
 	//attempt to promote that to opengl3.
 	if (qwglCreateContextAttribsARB)
 	{

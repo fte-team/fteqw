@@ -2420,7 +2420,7 @@ handshakeerror:
 			net_message.cursize = BigShort(*(short*)st->inbuffer);
 			if (net_message.cursize >= sizeof(net_message_buffer) )
 			{
-				Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), net_from));
+				Con_TPrintf (TL_OVERSIZEPACKETFROM, NET_AdrToString (adr, sizeof(adr), st->remoteaddr));
 				goto closesvstream;
 			}
 			if (net_message.cursize+2 > st->inlen)
@@ -3886,6 +3886,7 @@ int TCP_OpenStream (netadr_t remoteaddr)
 
 	if (connect(newsocket, (struct sockaddr *)&qs, temp) == INVALID_SOCKET)
 	{
+		Con_Printf ("TCP_OpenStream: connect: error %i\n", qerrno);
 		closesocket(newsocket);
 		return INVALID_SOCKET;
 	}
@@ -4658,6 +4659,262 @@ vfsfile_t *FS_OpenTCP(const char *name)
 	}
 	else
 		return NULL;
+}
+#elif 0 //defined(HAVE_WEBSOCKCL)
+This code is disabled.
+I cannot provide a reliable mechanism over chrome/nacl's websockets at this time.
+Some module within the ppapi/nacl/chrome stack refuses to forward the data when stressed.
+All I can determine is that the connection has a gap.
+Hopefully this should be fixed by pepper_19.
+
+As far as I'm aware, this and the relevent code in QTV should be functionally complete.
+
+typedef struct
+{
+	vfsfile_t funcs;
+
+	PP_Resource sock;
+
+	unsigned char readbuffer[65536];
+	int readbuffered;
+	qboolean havepacket;
+	struct PP_Var incomingpacket;
+	qboolean failed;
+} tcpfile_t;
+
+static void tcp_websocketgot(void *user_data, int32_t result)
+{
+	tcpfile_t *wsc = user_data;
+	if (result == PP_OK)
+	{
+		if (wsc->incomingpacket.type == PP_VARTYPE_UNDEFINED)
+		{
+			Con_Printf("ERROR: %s: var was not set by PPAPI. Data has been lost.\n", __func__);
+			wsc->failed = true;
+		}
+		wsc->havepacket = true;
+	}
+	else
+	{
+		Sys_Printf("%s: %i\n", __func__, result);
+		wsc->failed = true;
+	}
+}
+static void tcp_websocketconnected(void *user_data, int32_t result)
+{
+	tcpfile_t *wsc = user_data;
+	if (result == PP_OK)
+	{
+		int res;
+		//we got a successful connection, enable reception.
+		struct PP_CompletionCallback ccb = {tcp_websocketgot, wsc, PP_COMPLETIONCALLBACK_FLAG_NONE};
+		res = ppb_websocket_interface->ReceiveMessage(wsc->sock, &wsc->incomingpacket, ccb);
+		if (res != PP_OK_COMPLETIONPENDING)
+			tcp_websocketgot(wsc, res);
+	}
+	else
+	{
+		Sys_Printf("%s: %i\n", __func__, result);
+		//some sort of error connecting, make it timeout now
+		wsc->failed = true;
+	}
+}
+static void tcp_websocketclosed(void *user_data, int32_t result)
+{
+	tcpfile_t *wsc = user_data;
+	wsc->failed = true;
+	if (wsc->havepacket)
+	{
+		wsc->havepacket = false;
+		ppb_var_interface->Release(wsc->incomingpacket);
+	}
+	ppb_core->ReleaseResource(wsc->sock);
+	wsc->sock = 0;
+//	Z_Free(wsc);
+}
+
+void VFSTCP_Close (struct vfsfile_s *file)
+{
+	/*meant to free the memory too, in this case we get the callback to do it*/
+	tcpfile_t *wsc = (void*)file;
+
+	struct PP_CompletionCallback ccb = {tcp_websocketclosed, wsc, PP_COMPLETIONCALLBACK_FLAG_NONE};
+	ppb_websocket_interface->Close(wsc->sock, PP_WEBSOCKETSTATUSCODE_NORMAL_CLOSURE, PP_MakeUndefined(), ccb);
+}
+
+int VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
+{
+	tcpfile_t *wsc = (void*)file;
+	int res;
+
+	if (wsc->havepacket && wsc->readbuffered < bytestoread + 1024)
+	{
+		if (wsc->incomingpacket.type == PP_VARTYPE_UNDEFINED)
+			Con_Printf("PPAPI bug: var is still undefined after being received\n");
+		else
+		{
+			int len = 0;
+			unsigned char *utf8 = (unsigned char *)ppb_var_interface->VarToUtf8(wsc->incomingpacket, &len);
+			unsigned char *out = (unsigned char *)wsc->readbuffer + wsc->readbuffered;
+
+			wsc->havepacket = false;
+
+			Con_Printf("Len: %i\n", len);
+			while(len && out < wsc->readbuffer + sizeof(wsc->readbuffer))
+			{
+				if ((*utf8 & 0xe0)==0xc0 && len > 1)
+				{
+					*out = ((utf8[0] & 0x1f)<<6) | ((utf8[1] & 0x3f)<<0);
+					utf8+=2;
+					len -= 2;
+				}
+				else if (*utf8 & 0x80)
+				{
+					*out = '?';
+					utf8++;
+					len -= 1;
+				}
+				else
+				{
+					*out = utf8[0];
+					utf8++;
+					len -= 1;
+				}
+				out++;
+			}
+			if (len)
+			{
+				Con_Printf("oh noes! buffer not big enough!\n");
+				wsc->failed = true;
+			}
+			Con_Printf("Old: %i\n", wsc->readbuffered);
+			wsc->readbuffered = out - wsc->readbuffer;
+			Con_Printf("New: %i\n", wsc->readbuffered);
+
+			ppb_var_interface->Release(wsc->incomingpacket);
+			wsc->incomingpacket = PP_MakeUndefined();
+		}
+		if (!wsc->failed)
+		{
+			//get the next one
+			struct PP_CompletionCallback ccb = {tcp_websocketgot, wsc, PP_COMPLETIONCALLBACK_FLAG_NONE};
+			res = ppb_websocket_interface->ReceiveMessage(wsc->sock, &wsc->incomingpacket, ccb);
+			if (res != PP_OK_COMPLETIONPENDING)
+				tcp_websocketgot(wsc, res);
+		}
+	}
+
+	if (wsc->readbuffered)
+	{
+//		Con_Printf("Reading %i bytes of %i\n", bytestoread, wsc->readbuffered);
+		if (bytestoread > wsc->readbuffered)
+			bytestoread = wsc->readbuffered;
+
+		memcpy(buffer, wsc->readbuffer, bytestoread);
+		memmove(wsc->readbuffer, wsc->readbuffer+bytestoread, wsc->readbuffered-bytestoread);
+		wsc->readbuffered -= bytestoread;
+	}
+	else if (wsc->failed)
+		bytestoread = -1;	/*signal eof*/
+	else
+		bytestoread = 0;
+	return bytestoread;
+}
+int VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int bytestowrite)
+{
+	tcpfile_t *wsc = (void*)file;
+	int res;
+	int outchars = 0;
+	unsigned char outdata[bytestowrite*2+1];
+	unsigned char *out=outdata;
+	const unsigned char *in=buffer;
+	if (wsc->failed)
+		return 0;
+
+	for(res = 0; res < bytestowrite; res++)
+	{
+		/*FIXME: do we need this code?*/
+		if (!*in)
+		{
+			*out++ = 0xc0 | (0x100 >> 6);
+			*out++ = 0x80 | (0x100 & 0x3f);
+		}
+		else if (*in >= 0x80)
+		{
+			*out++ = 0xc0 | (*in >> 6);
+			*out++ = 0x80 | (*in & 0x3f);
+		}
+		else
+			*out++ = *in;
+		in++;
+		outchars++;
+	}
+	*out = 0;
+	struct PP_Var str = ppb_var_interface->VarFromUtf8(outdata, out - outdata);
+	res = ppb_websocket_interface->SendMessage(wsc->sock, str);
+//	Sys_Printf("FTENET_WebSocket_SendPacket: result %i\n", res);
+	ppb_var_interface->Release(str);
+
+	if (res == PP_OK)
+		return bytestowrite;
+	return 0;
+}
+
+qboolean VFSTCP_Seek (struct vfsfile_s *file, unsigned long pos)
+{
+	//no seeking allowed
+	tcpfile_t *wsc = (void*)file;
+	Con_Printf("tcp seek?\n");
+	wsc->failed = true;
+	return false;
+}
+unsigned long VFSTCP_Tell (struct vfsfile_s *file)
+{
+	//no telling allowed
+	tcpfile_t *wsc = (void*)file;
+	Con_Printf("tcp tell?\n");
+	wsc->failed = true;
+	return 0;
+}
+unsigned long VFSTCP_GetLen (struct vfsfile_s *file)
+{
+	return 0;
+}
+
+/*nacl websockets implementation...*/
+vfsfile_t *FS_OpenTCP(const char *name)
+{
+	tcpfile_t *newf;
+
+	netadr_t adr;
+
+	if (!ppb_websocket_interface)
+	{
+		return NULL;
+	}
+	if (!NET_StringToAdr(name, &adr))
+		return NULL;	//couldn't resolve the name
+	newf = Z_Malloc(sizeof(*newf));
+	if (newf)
+	{
+		struct PP_CompletionCallback ccb = {tcp_websocketconnected, newf, PP_COMPLETIONCALLBACK_FLAG_NONE};
+		newf->sock = ppb_websocket_interface->Create(pp_instance);
+		struct PP_Var str = ppb_var_interface->VarFromUtf8(adr.address.websocketurl, strlen(adr.address.websocketurl));
+		ppb_websocket_interface->Connect(newf->sock, str, NULL, 0, ccb);
+		ppb_var_interface->Release(str);
+
+		newf->funcs.Close = VFSTCP_Close;
+		newf->funcs.Flush = NULL;
+		newf->funcs.GetLen = VFSTCP_GetLen;
+		newf->funcs.ReadBytes = VFSTCP_ReadBytes;
+		newf->funcs.Seek = VFSTCP_Seek;
+		newf->funcs.Tell = VFSTCP_Tell;
+		newf->funcs.WriteBytes = VFSTCP_WriteBytes;
+		newf->funcs.seekingisabadplan = true;
+
+		return &newf->funcs;
+	}
+	return NULL;
 }
 #else
 vfsfile_t *FS_OpenTCP(const char *name)

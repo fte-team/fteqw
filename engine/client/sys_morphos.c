@@ -294,6 +294,10 @@ qboolean Sys_remove(char *path)
 
 	return DeleteFile(path);
 }
+qboolean Sys_Rename (char *oldfname, char *newfname)
+{
+	return !rename(oldfname, newfname);
+}
 
 /* Quake 2 stuff */
 static void *gamefile;

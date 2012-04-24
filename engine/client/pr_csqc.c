@@ -3947,9 +3947,9 @@ static void QCBUILTIN PF_getentity(progfuncs_t *prinst, struct globalvars_s *pr_
 
 
 #if 1
-static void QCBUILTIN PF_ReadServerEntityState(progfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-}
+//static void QCBUILTIN PF_ReadServerEntityState(progfuncs_t *prinst, struct globalvars_s *pr_globals)
+//{
+//}
 #else
 packet_entities_t *CL_ProcessPacketEntities(float *servertime, qboolean nolerp);
 static void QCBUILTIN PF_ReadServerEntityState(progfuncs_t *prinst, struct globalvars_s *pr_globals)

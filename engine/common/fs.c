@@ -5,7 +5,6 @@
 
 #include <ctype.h>
 #include <limits.h>
-#include <errno.h>
 
 #include "fs.h"
 #include "shader.h"
@@ -989,29 +988,29 @@ vfsfile_t *FS_OpenReadLocation(flocation_t *location)
 	return NULL;
 }
 
-int FS_Rename2(const char *oldf, const char *newf, enum fs_relative oldrelativeto, enum fs_relative newrelativeto)
+qboolean FS_Rename2(const char *oldf, const char *newf, enum fs_relative oldrelativeto, enum fs_relative newrelativeto)
 {
 	char oldfullname[MAX_OSPATH];
 	char newfullname[MAX_OSPATH];
 
 	if (!FS_NativePath(oldf, oldrelativeto, oldfullname, sizeof(oldfullname)))
-		return EPERM;
+		return false;
 	if (!FS_NativePath(newf, newrelativeto, newfullname, sizeof(newfullname)))
-		return EPERM;
+		return false;
 
 	FS_CreatePath(newf, newrelativeto);
-	return rename(oldfullname, newfullname);
+	return Sys_Rename(oldfullname, newfullname);
 }
-int FS_Rename(const char *oldf, const char *newf, enum fs_relative relativeto)
+qboolean FS_Rename(const char *oldf, const char *newf, enum fs_relative relativeto)
 {
 	return FS_Rename2(oldf, newf, relativeto, relativeto);
 }
-int FS_Remove(const char *fname, enum fs_relative relativeto)
+qboolean FS_Remove(const char *fname, enum fs_relative relativeto)
 {
 	char fullname[MAX_OSPATH];
 
 	if (!FS_NativePath(fname, relativeto, fullname, sizeof(fullname)))
-		return EPERM;
+		return false;
 
 	return Sys_remove (fullname);
 }

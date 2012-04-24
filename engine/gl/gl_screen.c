@@ -224,7 +224,25 @@ char *GLVID_GetRGBInfo(int prepadbytes, int *truewidth, int *trueheight)
 	int i, c;
 	qbyte *ret;
 
-	if (gl_config.gles)
+	/*if (1)
+	{
+		float *p;
+
+		p = BZ_Malloc(vid.pixelwidth*vid.pixelheight*sizeof(float));
+		qglReadPixels (0, 0, vid.pixelwidth, vid.pixelheight, GL_DEPTH_COMPONENT, GL_FLOAT, p); 
+
+		ret = BZ_Malloc(prepadbytes + vid.pixelwidth*vid.pixelheight*3);
+
+		c = vid.pixelwidth*vid.pixelheight;
+		for (i = 1; i < c; i++)
+		{
+			ret[prepadbytes+i*3+0]=p[i]*p[i]*p[i]*255;
+			ret[prepadbytes+i*3+1]=p[i]*p[i]*p[i]*255;
+			ret[prepadbytes+i*3+2]=p[i]*p[i]*p[i]*255;
+		}
+		BZ_Free(p);
+	}
+	else*/ if (gl_config.gles)
 	{
 		qbyte *p;
 

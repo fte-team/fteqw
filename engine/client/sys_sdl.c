@@ -126,6 +126,11 @@ qboolean Sys_remove (char *path)
 	return true;
 }
 
+qboolean Sys_Rename (char *oldfname, char *newfname)
+{
+	return !rename(oldfname, newfname);
+}
+
 //someone used the 'quit' command
 void Sys_Quit (void)
 {

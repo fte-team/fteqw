@@ -1,10 +1,13 @@
 #include "quakedef.h"
 #include "glquake.h"
-#include "ppapi/c/pp_completion_callback.h"
-#include "ppapi/gles2/gl2ext_ppapi.h"
-#include "ppapi/c/ppb_graphics_3d.h"
-#include "ppapi/c/ppb_instance.h"
 
+#include <ppapi/c/ppb_core.h>
+#include <ppapi/c/pp_completion_callback.h>
+#include <ppapi/gles2/gl2ext_ppapi.h>
+#include <ppapi/c/ppb_graphics_3d.h>
+#include <ppapi/c/ppb_instance.h>
+
+extern PPB_Core *ppb_core;
 extern PPB_GetInterface sys_gbi;
 extern PPB_Graphics3D* graphics3d_interface;
 extern PP_Instance pp_instance;
@@ -30,6 +33,7 @@ void GL_DoSwap(void)
 	if (delayedswap)
 	{
 		struct PP_CompletionCallback ccb = { swap_callback, NULL, PP_COMPLETIONCALLBACK_FLAG_OPTIONAL};
+		glFlush();
 		graphics3d_interface->SwapBuffers(glcontext, ccb);
 		delayedswap = false;
 	}
@@ -219,6 +223,21 @@ void *PPAPI_GetGLSymbol(char *symname)
 	return NULL;
 }
 
+
+void GL_Resized(int width, int height)
+{
+	extern cvar_t vid_conautoscale, vid_conwidth;
+	if (glcontext)
+	{
+		graphics3d_interface->ResizeBuffers(glcontext, width, height);
+		vid.pixelwidth = width;
+		vid.pixelheight = height;
+
+		Cvar_ForceCallback(&vid_conautoscale);
+		Cvar_ForceCallback(&vid_conwidth);
+	}
+}
+
 qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 {
 	int32_t attribs[] = {PP_GRAPHICS3DATTRIB_WIDTH, info->width,
@@ -259,7 +278,8 @@ void	GLVID_Shutdown (void)
 	GL_EndRendering();
 	GL_DoSwap();
 
-	glTerminatePPAPI();
+	ppb_core->ReleaseResource(glcontext);
+//	glTerminatePPAPI();
 }
 void GLVID_DeInit (void)
 {

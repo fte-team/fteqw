@@ -45,11 +45,11 @@ void *zlib_handle;
 
 //#pragma comment(lib, MSVCLIBSPATH "zlib.lib")
 
-static int (ZEXPORT *qinflateEnd) OF((z_streamp strm)) ZSTATIC(inflateEnd);
-static int (ZEXPORT *qinflate) OF((z_streamp strm, int flush)) ZSTATIC(inflate);
-static int (ZEXPORT *qinflateInit2_) OF((z_streamp strm, int  windowBits,
-                                      const char *version, int stream_size)) ZSTATIC(inflateInit2_);
-static uLong (ZEXPORT *qcrc32)   OF((uLong crc, const Bytef *buf, uInt len)) ZSTATIC(crc32);
+static int (ZEXPORT *qinflateEnd) (z_streamp strm) ZSTATIC(inflateEnd);
+static int (ZEXPORT *qinflate) (z_streamp strm, int flush) ZSTATIC(inflate);
+static int (ZEXPORT *qinflateInit2_) (z_streamp strm, int  windowBits,
+                                      const char *version, int stream_size) ZSTATIC(inflateInit2_);
+static uLong (ZEXPORT *qcrc32)   (uLong crc, const Bytef *buf, uInt len) ZSTATIC(crc32);
 
 #define qinflateInit2(strm, windowBits) \
         qinflateInit2_((strm), (windowBits), ZLIB_VERSION, sizeof(z_stream))

@@ -108,7 +108,7 @@ cvar_t r_lightmap_saturation				= SCVAR  ("r_lightmap_saturation", "1");
 cvar_t r_lightstylesmooth					= CVARF  ("r_lightstylesmooth", "0", CVAR_ARCHIVE);
 cvar_t r_lightstylesmooth_limit				= SCVAR  ("r_lightstylesmooth_limit", "2");
 cvar_t r_lightstylespeed					= SCVAR  ("r_lightstylespeed", "10");
-cvar_t r_loadlits							= SCVAR  ("r_loadlit", "1");
+cvar_t r_loadlits							= CVARF  ("r_loadlit", "1", CVAR_ARCHIVE);
 cvar_t r_menutint							= SCVARF ("r_menutint", "0.68 0.4 0.13",
 												CVAR_RENDERERCALLBACK);
 cvar_t r_netgraph							= SCVAR  ("r_netgraph", "0");

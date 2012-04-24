@@ -228,7 +228,7 @@ size_t strlcpy(char *dst, const char *src, size_t siz);
 
 
 #ifdef LIBQTV
-//#define Sys_Printf QTVSys_Printf
+#define Sys_Printf QTVSys_Printf
 #endif
 
 #define VERSION "0.01"	//this will be added to the serverinfo

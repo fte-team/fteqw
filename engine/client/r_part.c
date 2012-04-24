@@ -123,8 +123,8 @@ void R_ParticleSystem_Callback(struct cvar_s *var, char *oldvalue)
 
 cvar_t r_rockettrail = CVARFC("r_rockettrail", "1", CVAR_SEMICHEAT, R_Rockettrail_Callback);
 cvar_t r_grenadetrail = CVARFC("r_grenadetrail", "1", CVAR_SEMICHEAT, R_Grenadetrail_Callback);
-cvar_t r_particlesystem = CVARFC("r_particlesystem", IFMINIMAL("classic", "script"), CVAR_SEMICHEAT, R_ParticleSystem_Callback);
-cvar_t r_particledesc = CVARAF("r_particledesc", "classic", "r_particlesdesc", CVAR_SEMICHEAT);
+cvar_t r_particlesystem = CVARFC("r_particlesystem", IFMINIMAL("classic", "script"), CVAR_SEMICHEAT|CVAR_ARCHIVE, R_ParticleSystem_Callback);
+cvar_t r_particledesc = CVARAF("r_particledesc", "classic", "r_particlesdesc", CVAR_SEMICHEAT|CVAR_ARCHIVE);
 extern cvar_t r_bouncysparks;
 extern cvar_t r_part_rain;
 extern cvar_t r_bloodstains;
@@ -137,7 +137,7 @@ cvar_t r_part_sparks_trifan = CVAR("r_part_sparks_trifan", "1");
 cvar_t r_part_sparks_textured = CVAR("r_part_sparks_textured", "1");
 cvar_t r_part_beams = CVAR("r_part_beams", "1");
 cvar_t r_part_contentswitch = CVARFD("r_part_contentswitch", "1", CVAR_ARCHIVE, "Enable particle effects to change based on content (ex. water).");
-cvar_t r_part_density = CVAR("r_part_density", "1");
+cvar_t r_part_density = CVARF("r_part_density", "1", CVAR_ARCHIVE);
 
 
 particleengine_t *pe;

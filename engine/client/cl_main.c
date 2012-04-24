@@ -3701,8 +3701,6 @@ double Host_Frame (double time)
 					pass1+pass2+pass3, pass1, pass2, pass3);
 	}
 
-	host_framecount++;
-	fps_count++;
 
 	IN_Commands ();
 
@@ -3716,6 +3714,8 @@ double Host_Frame (double time)
 
 	TP_UpdateAutoStatus();
 
+	fps_count++;
+	host_framecount++;
 	return 0;
 }
 

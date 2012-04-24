@@ -247,14 +247,14 @@ int readdemobytes(int *readpos, void *data, int len)
 		else
 			demopreparsedbytes += demo_preparsedemo(demobuffer+demopreparsedbytes, demobuffersize-demopreparsedbytes);
 	}
-	else if (i < 0)
-	{	//0 means no data available yet
-		endofdemo = true;
-		return 0;
-	}
 
 	if (*readpos+len > demobuffersize)
 	{
+		if (i < 0)
+		{	//0 means no data available yet
+			endofdemo = true;
+			return 0;
+		}
 		len = demobuffersize;
 		return 0;
 	}
@@ -493,11 +493,12 @@ qboolean CL_GetDemoMessage (void)
 	}
 #endif
 
-	//client is loading content, don't flood it with packets while its still got no map loaded
-	if (cl.sendprespawn)
-		return 0;
-
 readnext:
+	if (demopos)
+	{
+		demo_flushbytes(demopos);
+		demopos = 0;
+	}
 	// read the time from the packet
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
@@ -513,7 +514,7 @@ readnext:
 
 		if (readdemobytes(&demopos, &msecsadded, sizeof(msecsadded)) != sizeof(msecsadded))
 		{
-			Con_DPrintf("Not enoug buffered\n");
+			Con_DPrintf("Not enough buffered\n");
 			demotime = olddemotime;
 			nextdemotime = demotime;
 		}
@@ -534,29 +535,35 @@ readnext:
 		demotime = LittleFloat(demotime);
 	}
 
+	if (cl.sendprespawn)
+	{
+		CL_RequestNextDownload();
+		if (!cls.timedemo)
+			return 0;
+	}
+
+
 // decide if it is time to grab the next message
 	if (cls.timedemo)
 	{
-		if (cls.state == ca_active || cl.validsequence)
+		if (cls.td_lastframe < 0)
+			cls.td_lastframe = demotime;
+		else if (demotime > cls.td_lastframe)
 		{
-			if (cls.td_lastframe < 0)
-				cls.td_lastframe = demotime;
-			else if (host_framecount == cls.td_lastframe)
-			{
-				return 0;		// already read this frame's message
-			}
-			if (cls.td_startframe == -1)
-			{	//start the timer only once we are connected.
-				cls.td_starttime = Sys_DoubleTime();
-				cls.td_startframe = host_framecount;
-
-				//force the console up, we're done loading.
-				key_dest = key_game;
-				scr_con_current = 0;
-			}
-			if (cls.td_startframe == host_framecount+1)
-				cls.td_starttime = Sys_DoubleTime();
+			cls.td_lastframe = demotime;
+			return 0;		// already read this frame's message
 		}
+		if (cls.td_startframe == -1 && cls.state == ca_active)
+		{	//start the timer only once we are connected.
+			cls.td_starttime = Sys_DoubleTime();
+			cls.td_startframe = host_framecount;
+
+			//force the console up, we're done loading.
+			key_dest = key_game;
+			scr_con_current = 0;
+		}
+		if (cls.td_startframe == host_framecount+1)
+			cls.td_starttime = Sys_DoubleTime();
 		demtime = demotime; // warp
 	}
 	else if (!cl.paused && cls.state >= ca_onserver)
@@ -673,6 +680,7 @@ readnext:
 				readdemobytes (&demopos, &f, 4);
 				cl.viewangles[0][i] = LittleFloat (f);
 			}
+			goto readnext;
 /*		}*/
 		break;
 
@@ -779,7 +787,7 @@ readit:
 	demo_flushbytes(demopos);
 
 	olddemotime = demotime;
-	cls.td_lastframe = host_framecount;
+//	cls.td_lastframe = host_framecount;
 
 	return 1;
 }
@@ -2239,7 +2247,7 @@ void CL_TimeDemo_f (void)
 	}
 
 //read the initial frame so load times don't count as part of the time
-	CL_ReadPackets();
+//	CL_ReadPackets();
 
 // cls.td_starttime will be grabbed at the second frame of the demo, so
 // all the loading time doesn't get counted

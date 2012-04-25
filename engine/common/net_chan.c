@@ -673,36 +673,37 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 			NET_SendPacket (chan->sock, send.cursize, send.data, chan->remote_address);
 		else
 		{
-			int offset = chan->fragmentsize, no;
+			int offset = chan->fragmentsize - hsz, no;
 			qboolean more;
 			/*switch on the 'more flags' bit, and send the first part*/
 			send.data[hsz - 2] |= 0x1;
-			NET_SendPacket (chan->sock, offset, send.data, chan->remote_address);
+			offset &= ~7;
+			NET_SendPacket (chan->sock, offset + hsz, send.data, chan->remote_address);
 
 			/*send the additional parts, adding new headers within the previous packet*/
-			while(offset < send.cursize)
+			while(offset < send.cursize-hsz)
 			{
 				no = offset + chan->fragmentsize - hsz;
-				no &= ~7;
-				if (no < send.cursize)
+				if (no < send.cursize-hsz)
 				{
+					no &= ~7;
 					more = true;
 				}
 				else
 				{
-					no = send.cursize;
+					no = send.cursize-hsz;
 					more = false;
 				}
 
-				*(int*)&send.data[(offset - hsz) + 0] = LittleLong(w1);
-				*(int*)&send.data[(offset - hsz) + 4] = LittleLong(w2);
+				*(int*)&send.data[(offset) + 0] = LittleLong(w1);
+				*(int*)&send.data[(offset) + 4] = LittleLong(w2);
 #ifndef SERVERONLY
 				if (chan->sock == NS_CLIENT)
-					*(short*)&send.data[offset - 4] = LittleShort(cls.qport);
+					*(short*)&send.data[offset + hsz-4] = LittleShort(cls.qport);
 #endif
-				*(short*)&send.data[offset - 2] = LittleShort(((offset-hsz)>>2) | (more?1:0));
+				*(short*)&send.data[offset + hsz-2] = LittleShort((offset>>2) | (more?1:0));
 
-				NET_SendPacket (chan->sock, (no - offset) + hsz, send.data + offset - hsz, chan->remote_address);
+				NET_SendPacket (chan->sock, (no - offset) + hsz, send.data + offset, chan->remote_address);
 				offset = no;
 			}
 		}
@@ -776,12 +777,13 @@ qboolean Netchan_Process (netchan_t *chan)
 	sequence_ack &= ~(1<<31);	
 
 	if (showpackets.value)
-		Con_Printf ("<-- s=%i(%i) a=%i(%i) %i\n"
+		Con_Printf ("<-- s=%i(%i) a=%i(%i) %i%s\n"
 			, sequence
 			, reliable_message
 			, sequence_ack
 			, reliable_ack
-			, net_message.cursize);
+			, net_message.cursize
+			, offset?" frag":"");
 
 // get a rate estimation
 #if 0
@@ -834,8 +836,9 @@ qboolean Netchan_Process (netchan_t *chan)
 		{
 			more = true;
 			offset &= ~1;
-			offset = offset << 2;
 		}
+		offset = offset << 2;
+
 		if (offset + len > sizeof(chan->in_fragment_buf)) /*stop the overflow*/
 		{
 			if (showdrop.value)
@@ -852,7 +855,7 @@ qboolean Netchan_Process (netchan_t *chan)
 			return false; /*dropped one*/
 
 		memcpy(chan->in_fragment_buf + offset, net_message.data + msg_readcount, len);
-		chan->in_fragment_length += net_message.cursize - msg_readcount;
+		chan->in_fragment_length += len;
 
 		if (more)
 		{
@@ -862,6 +865,14 @@ qboolean Netchan_Process (netchan_t *chan)
 		memcpy(net_message.data, chan->in_fragment_buf, chan->in_fragment_length);
 		msg_readcount = 0;
 		net_message.cursize = chan->in_fragment_length;
+
+		if (showpackets.value)
+			Con_Printf ("<-- s=%i(%i) a=%i(%i) %i Recombined\n"
+				, sequence
+				, reliable_message
+				, sequence_ack
+				, reliable_ack
+				, net_message.cursize);
 
 		chan->incoming_unreliable = 0;
 		chan->in_fragment_length = 0;

@@ -726,7 +726,6 @@ static qboolean D3D9_VID_Init(rendererstate_t *info, unsigned char *palette)
 	}
 
 	{
-		extern cvar_t v_contrast;
 		void GLV_Gamma_Callback(struct cvar_s *var, char *oldvalue);
 		Cvar_Hook(&v_gamma, GLV_Gamma_Callback);
 		Cvar_Hook(&v_contrast, GLV_Gamma_Callback);
@@ -776,10 +775,6 @@ static void	(D3D9_R_PreNewMap)				(void)
 	r_viewleaf2 = NULL;
 	r_oldviewleaf2 = NULL;
 }
-static int		(D3D9_R_LightPoint)				(vec3_t point)
-{
-	return 0;
-}
 
 static void	 (D3D9_VID_DeInit)				(void)
 {
@@ -803,6 +798,9 @@ static void	 (D3D9_VID_DeInit)				(void)
 		DestroyWindow(mainwindow);
 		mainwindow = NULL;
 	}
+
+	Cvar_Unhook(&v_gamma);
+	Cvar_Unhook(&v_contrast);
 }
 
 static void	(D3D9_VID_SetPalette)			(unsigned char *palette)
@@ -1120,7 +1118,7 @@ static void	(D3D9_Draw_Init)				(void)
 {
 	R2D_Init();
 }
-static void	(D3D9_Draw_ReInit)				(void)
+static void	(D3D9_Draw_Shutdown)				(void)
 {
 }
 
@@ -1220,7 +1218,6 @@ static void	(D3D9_R_RenderView)				(void)
 
 void	(D3D9_R_NewMap)					(void);
 void	(D3D9_R_PreNewMap)				(void);
-int		(D3D9_R_LightPoint)				(vec3_t point);
 
 void	(D3D9_R_PushDlights)			(void);
 void	(D3D9_R_AddStain)				(vec3_t org, float red, float green, float blue, float radius);
@@ -1251,7 +1248,7 @@ rendererinfo_t d3drendererinfo =
 	QR_DIRECT3D,
 
 	D3D9_Draw_Init,
-	D3D9_Draw_ReInit,
+	D3D9_Draw_Shutdown,
 
 	D3D9_LoadTexture,
 	D3D9_LoadTexture8Pal24,
@@ -1268,7 +1265,6 @@ rendererinfo_t d3drendererinfo =
 
 	D3D9_R_NewMap,
 	D3D9_R_PreNewMap,
-	D3D9_R_LightPoint,
 
 	Surf_AddStain,
 	Surf_LessenStains,

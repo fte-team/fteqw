@@ -170,7 +170,6 @@ typedef enum
 #define Q2SPLASH_BLOOD		6
 #endif
 
-#define	MAX_BEAMS	64
 typedef struct
 {
 	int		entity;
@@ -188,9 +187,9 @@ typedef struct
 	trailstate_t *emitstate;
 } beam_t;
 
-beam_t		cl_beams[MAX_BEAMS];
+beam_t		*cl_beams;
+int			cl_beams_max;
 
-#define	MAX_EXPLOSIONS	256
 typedef struct
 {
 	vec3_t	origin;
@@ -212,7 +211,8 @@ typedef struct
 	int skinnum;
 } explosion_t;
 
-explosion_t	cl_explosions[MAX_EXPLOSIONS];
+explosion_t	*cl_explosions;
+int			cl_explosions_max;
 
 static int explosions_running;
 static int beams_running;
@@ -513,8 +513,13 @@ CL_ClearTEnts
 */
 void CL_ClearTEnts (void)
 {
-	memset (&cl_beams, 0, sizeof(cl_beams));
-	memset (&cl_explosions, 0, sizeof(cl_explosions));
+	cl_beams_max = 0;
+	BZ_Free(cl_beams);
+	cl_beams = NULL;
+
+	cl_explosions_max = 0;
+	BZ_Free(cl_explosions);
+	cl_explosions = NULL;
 }
 
 static void CL_ClearExplosion(explosion_t *exp)
@@ -549,8 +554,14 @@ explosion_t *CL_AllocExplosion (void)
 		}
 	}
 
-	if (i == explosions_running && i != MAX_EXPLOSIONS)
+//	if (i == explosions_running && i < cl_maxexplosions.ival)
 	{
+		if (i == cl_explosions_max)
+		{
+			cl_explosions_max = (i+1)*2;
+			cl_explosions = BZ_Realloc(cl_explosions, sizeof(*cl_explosions)*cl_explosions_max);
+		}
+
 		explosions_running++;
 		CL_ClearExplosion(&cl_explosions[i]);
 		return &cl_explosions[i];
@@ -560,7 +571,7 @@ explosion_t *CL_AllocExplosion (void)
 	time = cl.time;
 	index = 0;
 
-	for (i=0 ; i<MAX_EXPLOSIONS ; i++)
+	for (i=0 ; i<cl_explosions_max ; i++)
 		if (cl_explosions[i].start < time)
 		{
 			time = cl_explosions[i].start;
@@ -601,8 +612,14 @@ beam_t	*CL_NewBeam (int entity, int tag)
 		}
 	}
 
-	if (i == beams_running && i != MAX_BEAMS)
+//	if (i == beams_running && i < cl_maxbeams.ival)
 	{
+		if (i == cl_beams_max)
+		{
+			cl_beams_max = (i+1)*2;
+			cl_beams = BZ_Realloc(cl_beams, cl_beams_max*sizeof(*cl_beams));
+		}
+
 		beams_running++;
 		cl_beams[i].active = true;
 		return &cl_beams[i];

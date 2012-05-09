@@ -1340,6 +1340,7 @@ dynamic:
 =============================================================
 */
 
+#if 0
 static qbyte *R_MarkLeafSurfaces_Q1 (void)
 {
 	qbyte	*vis;
@@ -1397,6 +1398,7 @@ static qbyte *R_MarkLeafSurfaces_Q1 (void)
 	}
 	return vis;
 }
+#endif
 
 /*
 ================
@@ -1613,6 +1615,7 @@ static void Surf_RecursiveQ2WorldNode (mnode_t *node)
 #endif
 
 #ifdef Q3BSPS
+#if 0
 static void Surf_LeafWorldNode (void)
 {
 	int			i;
@@ -1678,7 +1681,6 @@ static void Surf_LeafWorldNode (void)
 
 
 
-
 	{
 		int j;
 		texture_t *tex;
@@ -1699,6 +1701,7 @@ static void Surf_LeafWorldNode (void)
 		}
 	}
 }
+#endif
 
 static void Surf_RecursiveQ3WorldNode (mnode_t *node, unsigned int clipflags)
 {
@@ -1945,7 +1948,7 @@ void Surf_SetupFrame(void)
 	V_SetContentsColor (r_viewcontents);
 }
 
-
+/*
 static mesh_t *surfbatchmeshes[256];
 static void Surf_BuildBrushBatch(batch_t *batch)
 {
@@ -1958,11 +1961,13 @@ static void Surf_BuildBrushBatch(batch_t *batch)
 		surfbatchmeshes[i] = model->surfaces[batch->surf_first + i].mesh;
 	}
 }
+*/
 
 void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 {
 	int i;
 	msurface_t *s;
+	batch_t *ob;
 	model_t *model;
 	batch_t *b;
 	unsigned int bef;
@@ -2036,77 +2041,32 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 	if (ent->flags & RF_NOSHADOW)
 		bef |= BEF_NOSHADOWS;
 
-	if (!model->surfaces && model->batches)
+	for (i = 0; i < SHADER_SORT_COUNT; i++)
+	for (ob = model->batches[i]; ob; ob = ob->next)
 	{
-		for (i = 0; i < model->numsurfaces; i++)
+		b = BE_GetTempBatch();
+		if (!b)
+			continue;
+		*b = *ob;
+		b->shader = R_TextureAnimation(ent->framestate.g[FS_REG].frame[0], b->texture)->shader;
+		b->meshes = b->maxmeshes;
+		b->ent = ent;
+
+		if (bef & BEF_FORCEADDITIVE)
 		{
-			b = BE_GetTempBatch();
-			if (!b)
-				continue;
-			*b = model->batches[0][i];
-			b->mesh = (mesh_t**)&model->batches[0][i].mesh;
-			b->ent = ent;
-
-			if (bef & BEF_FORCEADDITIVE)
-			{
-				b->next = batches[SHADER_SORT_ADDITIVE];
-				batches[SHADER_SORT_ADDITIVE] = b;
-			}
-			else if (bef & BEF_FORCETRANSPARENT)
-			{
-				b->next = batches[SHADER_SORT_BLEND];
-				batches[SHADER_SORT_BLEND] = b;
-			}
-			else
-			{
-				b->next = batches[b->shader->sort];
-				batches[b->shader->sort] = b;
-			}
+			b->next = batches[SHADER_SORT_ADDITIVE];
+			batches[SHADER_SORT_ADDITIVE] = b;
 		}
-		return;
-	}
-
-	b = NULL;
-	for (s = model->surfaces+model->firstmodelsurface,i = 0; i < model->nummodelsurfaces; i++, s++)
-	{
-		if (!b || b->lightmap != s->lightmaptexturenum || b->texture != s->texinfo->texture || b->surf_count >= sizeof(surfbatchmeshes)/sizeof(surfbatchmeshes[0]))
+		else if (bef & BEF_FORCETRANSPARENT)
 		{
-			b = BE_GetTempBatch();
-			if (!b)
-				break;
-			b->buildmeshes = NULL;
-			b->ent = ent;
-			b->texture = s->texinfo->texture;
-			b->shader = R_TextureAnimation(ent->framestate.g[FS_REG].frame[0], b->texture)->shader;
-			b->skin = &b->shader->defaulttextures;
-			b->flags = bef;
-			if (bef & BEF_FORCEADDITIVE)
-			{
-				b->next = batches[SHADER_SORT_ADDITIVE];
-				batches[SHADER_SORT_ADDITIVE] = b;
-			}
-			else if (bef & BEF_FORCETRANSPARENT)
-			{
-				b->next = batches[SHADER_SORT_BLEND];
-				batches[SHADER_SORT_BLEND] = b;
-			}
-			else
-			{
-				b->next = batches[b->shader->sort];
-				batches[b->shader->sort] = b;
-			}
-			b->surf_first = s - model->surfaces;
-			b->surf_count = 0;
-			b->buildmeshes = Surf_BuildBrushBatch;
-			b->meshes = 0;
-			b->firstmesh = 0;
-			b->lightmap = s->lightmaptexturenum;
-			b->mesh = NULL;
-			b->vbo = &b->texture->vbo;
+			b->next = batches[SHADER_SORT_BLEND];
+			batches[SHADER_SORT_BLEND] = b;
 		}
-
-		b->surf_count++;
-		b->meshes++;
+		else
+		{
+			b->next = batches[b->shader->sort];
+			batches[b->shader->sort] = b;
+		}
 	}
 }
 
@@ -2199,9 +2159,9 @@ void Surf_DrawWorld (void)
 #endif
 		{
 			//extern cvar_t temp1;
-			if (0)//temp1.value)
-				vis = R_MarkLeafSurfaces_Q1();
-			else
+//			if (0)//temp1.value)
+//				vis = R_MarkLeafSurfaces_Q1();
+//			else
 			{
 				vis = R_MarkLeaves_Q1 ();
 				if (!(r_novis.ival & 2))
@@ -2431,6 +2391,20 @@ static int Surf_LM_FillBlock (int texnum, int w, int h, int x, int y)
 	return texnum;
 }
 
+unsigned int Surf_CalcMemSize(msurface_t *surf)
+{
+	if (surf->mesh)
+		return 0;
+
+	if (!surf->numedges)
+		return 0;
+
+	//figure out how much space this surface needs
+	return sizeof(mesh_t) + 
+	sizeof(index_t)*(surf->numedges-2)*3 +
+	(sizeof(vecV_t)+sizeof(vec2_t)*2+sizeof(vec3_t)*3+sizeof(vec4_t))*surf->numedges;
+}
+
 /*
 ================
 BuildSurfaceDisplayList
@@ -2438,13 +2412,14 @@ FIXME: this is probably misplaced
 lightmaps are already built by the time this is called
 ================
 */
-void Surf_BuildSurfaceDisplayList (model_t *model, msurface_t *fa)
+void Surf_BuildSurfaceDisplayList (model_t *model, msurface_t *fa, void **mem)
 {
 	int			i, lindex, lnumverts;
 	medge_t		*pedges, *r_pedge;
 	int			vertpage;
 	float		*vec;
-	float		s, t;
+	float		s, t, d;
+	mesh_t *mesh;
 
 // reconstruct the polygon
 	pedges = model->edges;
@@ -2457,80 +2432,80 @@ void Surf_BuildSurfaceDisplayList (model_t *model, msurface_t *fa)
 		return;
 	}
 
-	{	//build a nice mesh instead of a poly.
-		int size = sizeof(mesh_t) + sizeof(index_t)*(lnumverts-2)*3 + (sizeof(vecV_t) + 3*sizeof(vec3_t) + 2*sizeof(vec2_t) + sizeof(vec4_t))*lnumverts;
-		mesh_t *mesh;
+	fa->mesh = mesh = *mem;
+	mesh->xyz_array = (vecV_t*)(mesh + 1);
+	mesh->normals_array = (vec3_t*)(mesh->xyz_array + lnumverts);
+	mesh->snormals_array = (vec3_t*)(mesh->normals_array + lnumverts);
+	mesh->tnormals_array = (vec3_t*)(mesh->snormals_array + lnumverts);
+	mesh->st_array = (vec2_t*)(mesh->tnormals_array + lnumverts);
+	mesh->lmst_array = (vec2_t*)(mesh->st_array + lnumverts);
+	mesh->colors4f_array = (vec4_t*)(mesh->lmst_array + lnumverts);
+	mesh->indexes = (index_t*)(mesh->colors4f_array + lnumverts);
+	*mem = (void*)(mesh->indexes + (lnumverts-2)*3);
 
-		fa->mesh = mesh = Hunk_Alloc(size);
-		mesh->xyz_array = (vecV_t*)(mesh + 1);
-		mesh->normals_array = (vec3_t*)(mesh->xyz_array + lnumverts);
-		mesh->snormals_array = (vec3_t*)(mesh->normals_array + lnumverts);
-		mesh->tnormals_array = (vec3_t*)(mesh->snormals_array + lnumverts);
-		mesh->st_array = (vec2_t*)(mesh->tnormals_array + lnumverts);
-		mesh->lmst_array = (vec2_t*)(mesh->st_array + lnumverts);
-		mesh->colors4f_array = (vec4_t*)(mesh->lmst_array + lnumverts);
-		mesh->indexes = (index_t*)(mesh->colors4f_array + lnumverts);
+	mesh->numindexes = (lnumverts-2)*3;
+	mesh->numvertexes = lnumverts;
+	mesh->istrifan = true;
 
-		mesh->numindexes = (lnumverts-2)*3;
-		mesh->numvertexes = lnumverts;
-		mesh->istrifan = true;
+	for (i=0 ; i<lnumverts-2 ; i++)
+	{
+		mesh->indexes[i*3] = 0;
+		mesh->indexes[i*3+1] = i+1;
+		mesh->indexes[i*3+2] = i+2;
+	}
 
-		for (i=0 ; i<lnumverts-2 ; i++)
+	for (i=0 ; i<lnumverts ; i++)
+	{
+		lindex = model->surfedges[fa->firstedge + i];
+
+		if (lindex > 0)
 		{
-			mesh->indexes[i*3] = 0;
-			mesh->indexes[i*3+1] = i+1;
-			mesh->indexes[i*3+2] = i+2;
+			r_pedge = &pedges[lindex];
+			vec = model->vertexes[r_pedge->v[0]].position;
+		}
+		else
+		{
+			r_pedge = &pedges[-lindex];
+			vec = model->vertexes[r_pedge->v[1]].position;
 		}
 
-		for (i=0 ; i<lnumverts ; i++)
-		{
-			lindex = model->surfedges[fa->firstedge + i];
+		s = DotProduct (vec, fa->texinfo->vecs[0]) + fa->texinfo->vecs[0][3];
+		t = DotProduct (vec, fa->texinfo->vecs[1]) + fa->texinfo->vecs[1][3];
 
-			if (lindex > 0)
-			{
-				r_pedge = &pedges[lindex];
-				vec = model->vertexes[r_pedge->v[0]].position;
-			}
-			else
-			{
-				r_pedge = &pedges[-lindex];
-				vec = model->vertexes[r_pedge->v[1]].position;
-			}
+		VectorCopy (vec, mesh->xyz_array[i]);
+		mesh->st_array[i][0] = s/fa->texinfo->texture->width;
+		mesh->st_array[i][1] = t/fa->texinfo->texture->height;
 
-			s = DotProduct (vec, fa->texinfo->vecs[0]) + fa->texinfo->vecs[0][3];
-			t = DotProduct (vec, fa->texinfo->vecs[1]) + fa->texinfo->vecs[1][3];
+		s -= fa->texturemins[0];
+		s += fa->light_s*16;
+		s += 8;
+		s /= LMBLOCK_WIDTH*16;
 
-			VectorCopy (vec, mesh->xyz_array[i]);
-			mesh->st_array[i][0] = s/fa->texinfo->texture->width;
-			mesh->st_array[i][1] = t/fa->texinfo->texture->height;
+		t -= fa->texturemins[1];
+		t += fa->light_t*16;
+		t += 8;
+		t /= LMBLOCK_HEIGHT*16;
 
-			s -= fa->texturemins[0];
-			s += fa->light_s*16;
-			s += 8;
-			s /= LMBLOCK_WIDTH*16;
+		mesh->lmst_array[i][0] = s;
+		mesh->lmst_array[i][1] = t;
 
-			t -= fa->texturemins[1];
-			t += fa->light_t*16;
-			t += 8;
-			t /= LMBLOCK_HEIGHT*16;
+		if (fa->flags & SURF_PLANEBACK)
+			VectorNegate(fa->plane->normal, mesh->normals_array[i]);
+		else
+			VectorCopy(fa->plane->normal, mesh->normals_array[i]);
+		VectorNegate(fa->texinfo->vecs[0], mesh->snormals_array[i]);
+		VectorNegate(fa->texinfo->vecs[1], mesh->tnormals_array[i]);
+		d = -DotProduct(mesh->normals_array[i], mesh->snormals_array[i]);
+		VectorMA(mesh->snormals_array[i], d, mesh->normals_array[i], mesh->snormals_array[i]);
+		d = -DotProduct(mesh->normals_array[i], mesh->tnormals_array[i]);
+		VectorMA(mesh->tnormals_array[i], d, mesh->normals_array[i], mesh->tnormals_array[i]);
+		VectorNormalize(mesh->snormals_array[i]);
+		VectorNormalize(mesh->tnormals_array[i]);
 
-			mesh->lmst_array[i][0] = s;
-			mesh->lmst_array[i][1] = t;
-
-			if (fa->flags & SURF_PLANEBACK)
-				VectorNegate(fa->plane->normal, mesh->normals_array[i]);
-			else
-				VectorCopy(fa->plane->normal, mesh->normals_array[i]);
-			VectorNegate(fa->texinfo->vecs[0], mesh->snormals_array[i]);
-			VectorNegate(fa->texinfo->vecs[1], mesh->tnormals_array[i]);
-			VectorNormalize(mesh->snormals_array[i]);
-			VectorNormalize(mesh->tnormals_array[i]);
-
-			mesh->colors4f_array[i][0] = 1;
-			mesh->colors4f_array[i][1] = 1;
-			mesh->colors4f_array[i][2] = 1;
-			mesh->colors4f_array[i][3] = 1;
-		}
+		mesh->colors4f_array[i][0] = 1;
+		mesh->colors4f_array[i][1] = 1;
+		mesh->colors4f_array[i][2] = 1;
+		mesh->colors4f_array[i][3] = 1;
 	}
 }
 
@@ -2627,6 +2602,7 @@ void Surf_DeInit(void)
 void Surf_Clear(model_t *mod)
 {
 	batch_t *b;
+	vbo_t *vbo;
 	int i;
 	if (mod->fromgame == fg_doom3)
 		return;/*they're on the hunk*/
@@ -2640,41 +2616,22 @@ void Surf_Clear(model_t *mod)
 			Z_Free(b);
 		}
 	}
-}
-
-/*
-==================
-GL_BuildLightmaps
-
-Builds the lightmap texture
-with all the surfaces from all brush models
-Groups surfaces into their respective batches (based on the lightmap number).
-==================
-*/
-void Surf_BuildLightmaps (void)
-{
-	int		i, j, t;
-	model_t	*m;
-	int shift;
-	msurface_t *surf;
-	batch_t *batch, *bstop;
-	vec3_t sn;
-	int sortid;
-	int ptype;
-
-	r_framecount = 1;		// no dlightcache
-
-	for (i = 0; i < numlightmaps; i++)
+	while(mod->vbos)
 	{
-		if (!lightmap[i])
-			break;
-		BZ_Free(lightmap[i]);
-		lightmap[i] = NULL;
+		vbo = mod->vbos;
+		mod->vbos = vbo->next;
+		BE_ClearVBO(vbo);
 	}
 
-	if (cl.worldmodel->fromgame == fg_doom)
-		return;	//no lightmaps.
+	BZ_Free(mod->shadowbatches);
+	mod->numshadowbatches = 0;
+	mod->shadowbatches = NULL;
+	Sh_PurgeShadowMeshes();
+}
 
+//pick fastest mode for lightmap data
+void Surf_LightmapMode(void)
+{
 	lightmap_bgra = true;
 
 	switch(qrenderer)
@@ -2713,17 +2670,72 @@ void Surf_BuildLightmaps (void)
 	case QR_NONE:
 		break;
 	}
+}
+
+/*
+==================
+GL_BuildLightmaps
+
+Builds the lightmap texture
+with all the surfaces from all brush models
+Groups surfaces into their respective batches (based on the lightmap number).
+==================
+*/
+void Surf_BuildLightmaps (void)
+{
+	int		i, j, t;
+	model_t	*m;
+	int shift;
+	msurface_t *surf;
+	batch_t *batch, *bstop;
+	vec3_t sn;
+	int sortid;
+	int ptype;
+	void *mem;
+	unsigned int memsize;
+
+	r_framecount = 1;		// no dlightcache
+
+	for (i = 0; i < numlightmaps; i++)
+	{
+		if (!lightmap[i])
+			break;
+		BZ_Free(lightmap[i]);
+		lightmap[i] = NULL;
+	}
+
+	Surf_LightmapMode();
+
+	if (cl.worldmodel->fromgame == fg_doom)
+		return;	//no lightmaps.
 
 	for (j=1 ; j<MAX_MODELS ; j++)
 	{
 		m = cl.model_precache[j];
 		if (!m)
 			break;
-		if (m->name[0] == '*')
+		if (m->type != mod_brush)
 			continue;
 
 		currentmodel = m;
 		shift = Surf_LightmapShift(currentmodel);
+
+		memsize = 0;
+		for (i=0; i<m->nummodelsurfaces; i++)
+		{
+			surf = m->surfaces + i + m->firstmodelsurface;
+			memsize += Surf_CalcMemSize(surf);
+		}
+		mem = Hunk_AllocName(memsize, m->name);
+
+		for (i=0; i<m->nummodelsurfaces; i++)
+		{
+			surf = m->surfaces + i + m->firstmodelsurface;
+			if (surf->mesh)	//there are some surfaces that have a display list already (q3 ones)
+				continue;
+			Surf_CreateSurfaceLightmap (surf, shift);
+			Surf_BuildSurfaceDisplayList (m, surf, &mem);
+		}
 
 		for (t = m->numtextures-1; t >= 0; t--)
 		{
@@ -2731,64 +2743,68 @@ void Surf_BuildLightmaps (void)
 				ptype = P_FindParticleType(va("tex_%s", m->textures[t]->name));
 			else
 				ptype = P_INVALID;
-			m->textures[t]->wtexno = t;
 
 			sortid = m->textures[t]->shader->sort;
 			bstop = m->batches[sortid];
 			batch = NULL;
-			for (i=0 ; i<m->numsurfaces ; i++)
+			for (i=0; i<m->nummodelsurfaces; i++)
 			{//extra texture loop so we get slightly less texture switches
-				surf = m->surfaces + i;
+				surf = m->surfaces + i + m->firstmodelsurface;
 				if (surf->texinfo->texture == m->textures[t])
 				{
 					P_EmitSkyEffectTris(m, surf, ptype);
-					Surf_CreateSurfaceLightmap (surf, shift);
 
 					/*the excessive logic is to give portals separate batches for separate planes*/
-					if (sortid == SHADER_SORT_PORTAL)
+					if (sortid == SHADER_SORT_PORTAL || (m->textures[t]->shader->flags & (SHADER_HASREFLECT | SHADER_HASREFRACT)))
 					{
 						if (surf->flags & SURF_PLANEBACK)
 							VectorNegate(surf->plane->normal, sn);
 						else
 							VectorCopy(surf->plane->normal, sn);
+
+						if (!batch || batch->lightmap != surf->lightmaptexturenum || batch->firstmesh + surf->mesh->numvertexes > MAX_INDICIES || !VectorCompare(sn, batch->normal))
+						{
+							for (batch = m->batches[sortid]; batch != bstop; batch = batch->next)
+							{
+								if (batch->lightmap == surf->lightmaptexturenum && VectorCompare(sn, batch->normal) && batch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES)
+									break;
+							}
+							if (batch == bstop)
+							{
+								batch = Z_Malloc(sizeof(*batch));
+								batch->lightmap = surf->lightmaptexturenum;
+								batch->texture = m->textures[t];
+								batch->next = m->batches[sortid];
+								batch->ent = &r_worldentity;
+								VectorCopy(sn, batch->normal);
+								m->batches[sortid] = batch;
+							}
+						}
 					}
 					else
-						VectorClear(sn);
-					if (!batch || batch->lightmap != surf->lightmaptexturenum || (sortid == SHADER_SORT_PORTAL && !VectorCompare(sn, batch->normal)))
 					{
-						if (sortid == SHADER_SORT_PORTAL)
+						if (!batch || batch->lightmap != surf->lightmaptexturenum || batch->firstmesh + surf->mesh->numvertexes > MAX_INDICIES)
 						{
 							for (batch = m->batches[sortid]; batch != bstop; batch = batch->next)
 							{
-								if (batch->lightmap == surf->lightmaptexturenum && VectorCompare(sn, batch->normal))
+								if (batch->lightmap == surf->lightmaptexturenum && batch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES)
 									break;
 							}
-						}
-						else
-						{
-							for (batch = m->batches[sortid]; batch != bstop; batch = batch->next)
+							if (batch == bstop)
 							{
-								if (batch->lightmap == surf->lightmaptexturenum)
-									break;
+								batch = Z_Malloc(sizeof(*batch));
+								batch->lightmap = surf->lightmaptexturenum;
+								batch->texture = m->textures[t];
+								batch->next = m->batches[sortid];
+								batch->ent = &r_worldentity;
+								VectorClear(batch->normal);
+								m->batches[sortid] = batch;
 							}
-						}
-						if (batch == bstop)
-						{
-							batch = Z_Malloc(sizeof(*batch));
-							batch->lightmap = surf->lightmaptexturenum;
-							batch->texture = m->textures[t];
-							batch->next = m->batches[sortid];
-							batch->ent = &r_worldentity;
-							VectorCopy(sn, batch->normal);
-							m->batches[sortid] = batch;
 						}
 					}
 					surf->sbatch = batch;
 					batch->maxmeshes++;
-
-					if (m->surfaces[i].mesh)	//there are some surfaces that have a display list already (q3 ones)
-						continue;
-					Surf_BuildSurfaceDisplayList (m, surf);
+					batch->firstmesh += surf->mesh->numvertexes;
 				}
 			}
 		}
@@ -2797,11 +2813,23 @@ void Surf_BuildLightmaps (void)
 		{
 			batch->mesh = BZ_Malloc(sizeof(*batch->mesh)*batch->maxmeshes*2);
 		}
+		for (i=0; i<m->nummodelsurfaces; i++)
+		{
+			surf = m->surfaces + i + m->firstmodelsurface;
+			surf->sbatch->mesh[surf->sbatch->meshes++] = surf->mesh;
+		}
 		BE_GenBrushModelVBO(m);
-		for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
+		/*for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
 		for (batch = m->batches[sortid]; batch != NULL; batch = batch->next)
 		{
 			batch->vbo = &batch->texture->vbo;
+		}
+		*/
+		for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
+		for (batch = m->batches[sortid]; batch != NULL; batch = batch->next)
+		{
+			batch->firstmesh = 0;
+			batch->meshes = 0;
 		}
 	}
 

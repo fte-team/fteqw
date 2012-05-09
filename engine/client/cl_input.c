@@ -1250,10 +1250,7 @@ qboolean CL_SendCmdQ2 (sizebuf_t *buf)
 	else
 		MSG_WriteLong (buf, cl.q2frame.serverframe);
 
-	if (R_LightPoint)
-		lightlev = R_LightPoint(cl.simorg[0]);
-	else
-		lightlev = 255;
+	lightlev = R_LightPoint(cl.simorg[0]);
 
 //	msecs = msecs - (double)msecstouse;
 

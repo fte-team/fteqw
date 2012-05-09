@@ -2090,7 +2090,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	Cvar_Hook(&_vid_wait_override, VID_Wait_Override_Callback);
 	Cvar_Hook(&vid_wndalpha, VID_WndAlpha_Override_Callback);
 
-	Cmd_AddRemCommand("vid_recenter", GLVID_Recenter_f);
+	Cmd_AddCommand("vid_recenter", GLVID_Recenter_f);
 
 	vid_initialized = true;
 	vid_initializing = false;

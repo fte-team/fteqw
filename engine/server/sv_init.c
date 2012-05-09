@@ -291,9 +291,6 @@ void SV_SaveSpawnparms (qboolean dontsave)
 		if (host_client->state != cs_spawned)
 			continue;
 
-		// needs to reconnect
-		host_client->state = cs_connected;
-
 		if (dontsave)	//level restart requires that stats can be reset
 			continue;
 
@@ -756,6 +753,9 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	current_loading_size+=10;
 	//SCR_BeginLoadingPlaque();
 	SCR_ImageName(server);
+	SCR_SetLoadingFile("map");
+#else
+	#define SCR_SetLoadingFile(s)
 #endif
 
 	Cvar_ApplyLatches(CVAR_LATCH);
@@ -819,12 +819,14 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	current_loading_size+=10;
 //	SCR_BeginLoadingPlaque();
 	SCR_ImageName(server);
+	SCR_SetLoadingFile("phs");
 #endif
 	SV_CalcPHS ();
 #ifndef SERVERONLY
 	current_loading_size+=10;
 	//SCR_BeginLoadingPlaque();
 	SCR_ImageName(server);
+	SCR_SetLoadingFile("gamecode");
 #endif
 
 	if (sv.world.worldmodel->fromgame == fg_doom)
@@ -1020,6 +1022,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	current_loading_size+=10;
 	//SCR_BeginLoadingPlaque();
 	SCR_ImageName(server);
+	SCR_SetLoadingFile("clients");
 #endif
 
 	for (i=0 ; i<MAX_CLIENTS ; i++)
@@ -1224,6 +1227,7 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	}
 
 	// load and spawn all other entities
+	SCR_SetLoadingFile("entities");
 	if (progstype == PROG_H2)
 	{
 		extern cvar_t coop;

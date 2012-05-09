@@ -85,7 +85,7 @@ extern cvar_t sv_public, sv_listen_qw, sv_listen_nq, sv_listen_dp, sv_listen_q3;
 
 static qboolean allowconnects = false;
 
-#define	MAX_LOOPBACK	4
+#define	MAX_LOOPBACK	8
 typedef struct
 {
 	qbyte	data[MAX_UDP_PACKET];
@@ -1399,7 +1399,12 @@ qboolean	NET_GetLoopPacket (netsrc_t sock, netadr_t *from, sizebuf_t *message)
 	loop = &loopbacks[sock];
 
 	if (loop->send - loop->get > MAX_LOOPBACK)
+	{
+		extern cvar_t showdrop;
+		if (showdrop.ival)
+			Con_Printf("loopback dropping %i packets\n", (loop->send - MAX_LOOPBACK) - loop->get);
 		loop->get = loop->send - MAX_LOOPBACK;
+	}
 
 	if (loop->get >= loop->send)
 		return false;

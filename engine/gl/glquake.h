@@ -305,6 +305,7 @@ qboolean R_CullBox (vec3_t mins, vec3_t maxs);
 qboolean R_CullEntityBox(entity_t *e, vec3_t modmins, vec3_t modmaxs);
 qboolean R_CullSphere (vec3_t origin, float radius);
 void Sh_PreGenerateLights(void);
+void Sh_PurgeShadowMeshes(void);
 
 #ifdef GLQUAKE
 void R_TranslatePlayerSkin (int playernum);
@@ -393,12 +394,10 @@ void R_DrawHLModel(entity_t	*curent);
 //
 // gl_rlight.c
 //
-void R_RenderDlights (void);
 void R_GenDlightBatches(batch_t *batches[]);
 void R_InitFlashblends(void);
 #ifdef GLQUAKE
 void GLR_MarkQ2Lights (dlight_t *light, int bit, mnode_t *node);
-int GLR_LightPoint (vec3_t p);
 #endif
 void GLQ3_LightGrid(model_t *mod, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 void R_ReloadRTLights_f(void);

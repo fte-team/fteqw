@@ -126,6 +126,7 @@ cvar_t r_stainfadetime						= SCVAR  ("r_stainfadetime", "1");
 cvar_t r_stains								= CVARFC("r_stains", IFMINIMAL("0","0.75"),
 												CVAR_ARCHIVE,
 												Cvar_Limiter_ZeroToOne_Callback);
+cvar_t r_postprocshader						= CVARD("r_postprocshader", "", "Specifies a shader to use as a post-processing shader");
 cvar_t r_wallcolour							= CVARAF ("r_wallcolour", "128 128 128",
 													  "r_wallcolor", CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);//FIXME: broken
 cvar_t r_walltexture						= CVARF ("r_walltexture", "",
@@ -323,6 +324,8 @@ cvar_t r_shadow_realtime_world_shadows		= SCVARF ("r_shadow_realtime_world_shado
 cvar_t r_shadow_realtime_dlight				= SCVARF ("r_shadow_realtime_dlight", "1", CVAR_ARCHIVE);
 cvar_t r_shadow_realtime_dlight_shadows		= SCVARF ("r_shadow_realtime_dlight_shadows", "1", CVAR_ARCHIVE);
 cvar_t r_shadow_realtime_world_lightmaps	= SCVARF ("r_shadow_realtime_world_lightmaps", "0", 0);
+cvar_t r_sun_dir							= SCVAR ("r_sun_dir", "0.2 0.5 0.8");
+cvar_t r_sun_colour							= SCVARF ("r_sun_colour", "0 0 0", CVAR_ARCHIVE);
 
 cvar_t r_vertexdlights						= SCVAR  ("r_vertexdlights", "0");
 
@@ -374,6 +377,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_finish, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_lateswap, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_lerpimages, GLRENDEREROPTIONS);
+	Cvar_Register (&r_postprocshader, GLRENDEREROPTIONS);
 
 	Cvar_Register (&dpcompat_psa_ungroup, GLRENDEREROPTIONS);
 	Cvar_Register (&r_noportals, GLRENDEREROPTIONS);
@@ -412,7 +416,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_texture_anisotropic_filtering, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_savecompressedtex, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_compress, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_driver, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_detail, GRAPHICALNICETIES);
 	Cvar_Register (&gl_detailscale, GRAPHICALNICETIES);
 	Cvar_Register (&gl_overbright, GRAPHICALNICETIES);
@@ -438,7 +441,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_schematics, GLRENDEREROPTIONS);
 
 	Cvar_Register (&r_vertexlight, GLRENDEREROPTIONS);
-	Cvar_Register (&gl_shadeq1_name, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_blend2d, GLRENDEREROPTIONS);
 
@@ -458,7 +460,6 @@ void	R_InitTextures (void)
 // create a simple checkerboard texture for the default
 	r_notexture_mip = Z_Malloc (sizeof(texture_t) + 16*16+8*8+4*4+2*2);
 
-	r_notexture_mip->pixbytes = 1;
 	r_notexture_mip->width = r_notexture_mip->height = 16;
 	r_notexture_mip->offsets[0] = sizeof(texture_t);
 	r_notexture_mip->offsets[1] = r_notexture_mip->offsets[0] + 16*16;
@@ -512,11 +513,21 @@ void Renderer_Init(void)
 	GLRenderer_Init();
 #endif
 
+#ifdef SWQUAKE
+	{
+	extern cvar_t sw_interlace;
+	extern cvar_t sw_threads;
+	Cvar_Register(&sw_interlace, "Software Rendering Options");
+	Cvar_Register(&sw_threads, "Software Rendering Options");
+	}
+#endif
+
 	Cvar_Register (&gl_conback, GRAPHICALNICETIES);
 
 	Cvar_Register (&r_novis, GLRENDEREROPTIONS);
 
 	//but register ALL vid_ commands.
+	Cvar_Register (&gl_driver, GLRENDEREROPTIONS);
 	Cvar_Register (&_vid_wait_override, VIDCOMMANDGROUP);
 	Cvar_Register (&_windowed_mouse, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_renderer, VIDCOMMANDGROUP);
@@ -563,7 +574,8 @@ void Renderer_Init(void)
 	Cvar_Register (&r_shadow_realtime_dlight, GRAPHICALNICETIES);
 	Cvar_Register (&r_shadow_realtime_dlight_shadows, GRAPHICALNICETIES);
 	Cvar_Register (&r_shadow_realtime_world_lightmaps, GRAPHICALNICETIES);
-
+	Cvar_Register (&r_sun_dir, GRAPHICALNICETIES);
+	Cvar_Register (&r_sun_colour, GRAPHICALNICETIES);
 
 	Cvar_Register(&scr_viewsize, SCREENOPTIONS);
 	Cvar_Register(&scr_fov, SCREENOPTIONS);
@@ -616,6 +628,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_fastsky, GRAPHICALNICETIES);
 	Cvar_Register (&r_fastskycolour, GRAPHICALNICETIES);
 	Cvar_Register (&r_wateralpha, GRAPHICALNICETIES);
+	Cvar_Register (&gl_shadeq1_name, GLRENDEREROPTIONS);
 
 	Cvar_Register (&r_clear, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_max_size, GLRENDEREROPTIONS);
@@ -683,7 +696,6 @@ void	(*R_RenderView)				(void);		// must set r_refdef first
 
 void	(*R_NewMap)					(void);
 void	(*R_PreNewMap)				(void);
-int		(*R_LightPoint)				(vec3_t point);
 
 void	(*R_AddStain)				(vec3_t org, float red, float green, float blue, float radius);
 void	(*R_LessenStains)			(void);
@@ -747,7 +759,6 @@ rendererinfo_t dedicatedrendererinfo = {
 
 	NULL,	//R_NewMap;
 	NULL,	//R_PreNewMap
-	NULL,	//R_LightPoint;
 
 
 	NULL,	//R_AddStain;
@@ -806,9 +817,9 @@ rendererinfo_t dedicatedrendererinfo = {
 rendererinfo_t *pdedicatedrendererinfo = &dedicatedrendererinfo;
 
 rendererinfo_t openglrendererinfo;
-rendererinfo_t d3dfglrendererinfo;
 
 rendererinfo_t d3drendererinfo;
+rendererinfo_t swrendererinfo;
 
 rendererinfo_t *rendererinfo[] =
 {
@@ -817,10 +828,12 @@ rendererinfo_t *rendererinfo[] =
 #endif
 #ifdef GLQUAKE
 	&openglrendererinfo,
-	&d3dfglrendererinfo,
 #endif
 #ifdef D3DQUAKE
 	&d3drendererinfo,
+#endif
+#ifdef SWQUAKE
+	&swrendererinfo,
 #endif
 };
 
@@ -842,7 +855,6 @@ void R_SetRenderer(rendererinfo_t *ri)
 	R_RenderView			= ri->R_RenderView;
 	R_NewMap				= ri->R_NewMap;
 	R_PreNewMap				= ri->R_PreNewMap;
-	R_LightPoint			= ri->R_LightPoint;
 
 	R_AddStain				= ri->R_AddStain;
 	R_LessenStains			= ri->R_LessenStains;
@@ -928,6 +940,22 @@ void R_ShutdownRenderer(void)
 	S_Shutdown();
 }
 
+void R_GenPaletteLookup(void)
+{
+	int r,g,b,i;
+	unsigned char *pal = host_basepal;
+	for (i=0 ; i<256 ; i++)
+	{
+		r = pal[0];
+		g = pal[1];
+		b = pal[2];
+		pal += 3;
+
+		d_8to24rgbtable[i] = (255<<24) + (r<<0) + (g<<8) + (b<<16);
+	}
+	d_8to24rgbtable[255] &= 0xffffff;	// 255 is transparent
+}
+
 qboolean R_ApplyRenderer (rendererstate_t *newr)
 {
 	if (newr->bpp == -1)
@@ -970,7 +998,7 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 		isDedicated = false;
 #endif
 		if (newr)
-			Con_Printf("Setting mode %i*%i*%i*%i\n", newr->width, newr->height, newr->bpp, newr->rate);
+			Con_Printf("Setting mode %i*%i*%i*%i %s\n", newr->width, newr->height, newr->bpp, newr->rate, newr->renderer->description);
 
 		if (host_basepal)
 			BZ_Free(host_basepal);
@@ -1014,6 +1042,8 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 			}
 			BZ_Free(colormap);
 		}
+
+		R_GenPaletteLookup();
 
 		if (h2playertranslations)
 			BZ_Free(h2playertranslations);
@@ -2094,6 +2124,9 @@ void R_SetFrustum (float projmat[16], float viewmat[16])
 		frustum[i].type = PLANE_ANYZ;
 		frustum[i].signbits = SignbitsForPlane (&frustum[i]);
 	}
+
+	if (r_refdef.recurse)
+		return;
 
 #if FRUSTUMPLANES > 4
 	//do far plane

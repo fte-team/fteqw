@@ -822,7 +822,7 @@ qboolean M_VideoApplyShadowLighting (union menuoption_s *op,struct menu_s *menu,
 		char *cvarvd = "0";
 		char *cvarsrd = "0";
 		char *cvarsrds = "0";
-		switch (info->lightcombo->selectedoption)
+		switch (info->dlightcombo->selectedoption)
 		{
 		case 1:
 			cvard = "1";

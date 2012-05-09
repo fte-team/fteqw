@@ -1854,7 +1854,7 @@ static void R_Sprite_GenerateBatch(entity_t *e, batch_t **batches, void (*drawfu
 	b->lightmap = -1;
 	b->surf_first = 0;
 	b->flags |= BEF_NODLIGHT|BEF_NOSHADOWS;
-	b->vbo = 0;
+	b->vbo = NULL;
 	b->next = batches[sort];
 	batches[sort] = b;
 }

@@ -369,7 +369,9 @@ enum fs_relative{
 	FS_SKINS		//qw/skins/
 };
 
-void FS_FlushFSHash(void);
+void FS_FlushFSHashReally(void);
+void FS_FlushFSHashWritten(void);
+void FS_FlushFSHashRemoved(void);
 void FS_CreatePath(const char *pname, enum fs_relative relativeto);
 qboolean FS_Rename(const char *oldf, const char *newf, enum fs_relative relativeto);	//0 on success, non-0 on error
 qboolean FS_Rename2(const char *oldf, const char *newf, enum fs_relative oldrelativeto, enum fs_relative newrelativeto);

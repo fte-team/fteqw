@@ -66,8 +66,10 @@ void Sh_Shutdown(void)
 typedef struct {
 	unsigned int count;
 	unsigned int max;
+	texture_t *tex;
+	vbo_t *vbo;
 	mesh_t **s;
-} shadowmeshsurfs_t;
+} shadowmeshbatch_t;
 typedef struct shadowmesh_s {
 	qboolean surfonly;
 	unsigned int numindicies;
@@ -79,8 +81,8 @@ typedef struct shadowmesh_s {
 	vecV_t *verts;
 
 	//we also have a list of all the surfaces that this light lights.
-	unsigned int numsurftextures;
-	shadowmeshsurfs_t *litsurfs;
+	unsigned int numbatches;
+	shadowmeshbatch_t *batches;
 
 	unsigned int leafbytes;
 	unsigned char *litleaves;
@@ -216,17 +218,17 @@ static void SHM_Shadow_Cache_Surface(msurface_t *surf)
 {
 	int i;
 
-	i = surf->texinfo->texture->wtexno;
+	i = surf->sbatch->shadowbatch;
 	if (i < 0)
 		return;
 
-	if (sh_shmesh->litsurfs[i].count == sh_shmesh->litsurfs[i].max)
+	if (sh_shmesh->batches[i].count == sh_shmesh->batches[i].max)
 	{
-		sh_shmesh->litsurfs[i].max += 64;
-		sh_shmesh->litsurfs[i].s = BZ_Realloc(sh_shmesh->litsurfs[i].s, sizeof(void*)*(sh_shmesh->litsurfs[i].max));
+		sh_shmesh->batches[i].max += 64;
+		sh_shmesh->batches[i].s = BZ_Realloc(sh_shmesh->batches[i].s, sizeof(void*)*(sh_shmesh->batches[i].max));
 	}
-	sh_shmesh->litsurfs[i].s[sh_shmesh->litsurfs[i].count] = surf->mesh;
-	sh_shmesh->litsurfs[i].count++;
+	sh_shmesh->batches[i].s[sh_shmesh->batches[i].count] = surf->mesh;
+	sh_shmesh->batches[i].count++;
 }
 
 static void SHM_Shadow_Cache_Leaf(mleaf_t *leaf)
@@ -240,9 +242,9 @@ static void SHM_Shadow_Cache_Leaf(mleaf_t *leaf)
 void SH_FreeShadowMesh(shadowmesh_t *sm)
 {
 	unsigned int i;
-	for (i = 0; i < sm->numsurftextures; i++)
-		Z_Free(sm->litsurfs[i].s);
-	Z_Free(sm->litsurfs);
+	for (i = 0; i < sm->numbatches; i++)
+		Z_Free(sm->batches[i].s);
+	Z_Free(sm->batches);
 	Z_Free(sm->indicies);
 	Z_Free(sm->verts);
 
@@ -268,6 +270,46 @@ void SH_FreeShadowMesh(shadowmesh_t *sm)
 	}
 
 	Z_Free(sm);
+}
+
+static void SH_CalcShadowBatches(model_t *mod)
+{
+	int s;
+	batch_t *b;
+	batch_t *l = NULL;
+	int sb;
+
+	l = NULL;
+	for (s = 0; s < SHADER_SORT_COUNT; s++)
+	{
+		for (b = mod->batches[s]; b; b = b->next)
+		{
+			if (!l || l->vbo != b->vbo || l->texture != b->texture)
+			{
+				b->shadowbatch = mod->numshadowbatches++;
+				l = b;
+			}
+			else
+				b->shadowbatch = l->shadowbatch;
+		}
+	}
+
+	l = NULL;
+	sb = 0;
+	mod->shadowbatches = BZ_Malloc(sizeof(*mod->shadowbatches)*mod->numshadowbatches);
+	for (s = 0; s < SHADER_SORT_COUNT; s++)
+	{
+		for (b = mod->batches[s]; b; b = b->next)
+		{
+			if (!l || l->vbo != b->vbo || l->texture != b->texture)
+			{
+				mod->shadowbatches[sb].tex = b->texture;
+				mod->shadowbatches[sb].vbo = b->vbo;
+				sb++;
+				l = b;
+			}
+		}
+	}
 }
 
 static void SHM_BeginShadowMesh(dlight_t *dl, qboolean surfonly)
@@ -314,21 +356,26 @@ static void SHM_BeginShadowMesh(dlight_t *dl, qboolean surfonly)
 	sh_shmesh->numindicies = 0;
 	sh_shmesh->surfonly = surfonly;
 
-	if (sh_shmesh->numsurftextures != cl.worldmodel->numtextures)
+	if (!cl.worldmodel->numshadowbatches)
 	{
-		if (sh_shmesh->litsurfs)
-		{
-			for (i = 0; i < sh_shmesh->numsurftextures; i++)
-				Z_Free(sh_shmesh->litsurfs[i].s);
-			Z_Free(sh_shmesh->litsurfs);
-		}
-		sh_shmesh->litsurfs = Z_Malloc(sizeof(shadowmeshsurfs_t)*cl.worldmodel->numtextures);
-		sh_shmesh->numsurftextures=cl.worldmodel->numtextures;
+		SH_CalcShadowBatches(cl.worldmodel);
 	}
-	else
+
+	if (sh_shmesh->numbatches != cl.worldmodel->numshadowbatches)
 	{
-		for (i = 0; i < sh_shmesh->numsurftextures; i++)
-			sh_shmesh->litsurfs[i].count = 0;
+		if (sh_shmesh->batches)
+		{
+			for (i = 0; i < sh_shmesh->numbatches; i++)
+				Z_Free(sh_shmesh->batches[i].s);
+			Z_Free(sh_shmesh->batches);
+		}
+		sh_shmesh->batches = Z_Malloc(sizeof(shadowmeshbatch_t)*cl.worldmodel->numshadowbatches);
+		sh_shmesh->numbatches=cl.worldmodel->numshadowbatches;
+	}
+
+	for (i = 0; i < sh_shmesh->numbatches; i++)
+	{
+		sh_shmesh->batches[i].count = 0;
 	}
 }
 static struct shadowmesh_s *SHM_FinishShadowMesh(dlight_t *dl)
@@ -1040,7 +1087,7 @@ static void SHM_ComposeVolume_Soup(vecV_t *points, int numpoints, index_t *idx, 
 /*call this function after generating litsurfs meshes*/
 static void SHM_ComposeVolume_BruteForce(dlight_t *dl)
 {
-	shadowmeshsurfs_t *sms;
+	shadowmeshbatch_t *sms;
 	unsigned int tno;
 	unsigned int sno;
 	int i, e;
@@ -1050,9 +1097,9 @@ static void SHM_ComposeVolume_BruteForce(dlight_t *dl)
 	cv.numpoints = 0;
 	cv.numtris = 0;
 
-	for (tno = 0; tno < sh_shmesh->numsurftextures; tno++)
+	for (tno = 0; tno < sh_shmesh->numbatches; tno++)
 	{
-		sms = &sh_shmesh->litsurfs[tno];
+		sms = &sh_shmesh->batches[tno];
 		if (!sms->count)
 			continue;
 		if ((cl.worldmodel->textures[tno]->shader->flags & (SHADER_BLEND|SHADER_NODRAW)))
@@ -1791,9 +1838,6 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, float p
 	vec3_t t1,t2;
 
 	int smsize = SHADOWMAP_SIZE;
-	int tno;
-	mesh_t *m;
-	texture_t *tex;
 
 //	qglDepthRange(0, 1);
 
@@ -1844,7 +1888,7 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, float p
 
 	R_SetFrustum(proj, mvm);
 
-	if (smesh)
+/*	if (smesh)
 	for (tno = 0; tno < smesh->numsurftextures; tno++)
 	{
 		m = NULL;
@@ -1853,7 +1897,7 @@ static void Sh_GenShadowFace(dlight_t *l, shadowmesh_t *smesh, int face, float p
 		tex = cl.worldmodel->textures[tno];
 		BE_DrawMesh_List(tex->shader, smesh->litsurfs[tno].count, smesh->litsurfs[tno].s, &tex->vbo, &tex->shader->defaulttextures, 0);
 	}
-
+*/
 	BE_SelectMode(BEM_DEPTHONLY);
 	/*shadow meshes are always drawn as an external view*/
 	oxv = r_refdef.externalview;
@@ -2138,14 +2182,14 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour)
 		sm = &sh_tempshmesh;
 	if (sm)
 	{
-		for (tno = 0; tno < sm->numsurftextures; tno++)
+		for (tno = 0; tno < sm->numbatches; tno++)
 		{
-			if (!sm->litsurfs[tno].count)
+			if (!sm->batches[tno].count)
 				continue;
-			tex = cl.worldmodel->textures[tno];
+			tex = cl.worldmodel->shadowbatches[tno].tex;
 			if (tex->shader->flags & SHADER_NODLIGHT)
 				continue;
-			BE_DrawMesh_List(tex->shader, sm->litsurfs[tno].count, sm->litsurfs[tno].s, &tex->vbo, &tex->shader->defaulttextures, 0);
+			BE_DrawMesh_List(tex->shader, sm->batches[tno].count, sm->batches[tno].s, cl.worldmodel->shadowbatches[tno].vbo, &tex->shader->defaulttextures, 0);
 		}
 
 		switch(qrenderer)
@@ -2787,6 +2831,20 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours, batch_t **batches)
 #endif
 }
 
+void Sh_PurgeShadowMeshes(void)
+{
+	dlight_t *dl;
+	int i;
+	for (dl = cl_dlights, i=0; i<cl_maxdlights; i++, dl++)
+	{
+		if (dl->worldshadowmesh)
+		{
+			SH_FreeShadowMesh(dl->worldshadowmesh);
+			dl->worldshadowmesh = NULL;
+		}
+	}
+}
+
 void Sh_PreGenerateLights(void)
 {
 	unsigned int ignoreflags;
@@ -2823,6 +2881,16 @@ void Sh_PreGenerateLights(void)
 	}
 }
 
+void Com_ParseVector(char *str, vec3_t out)
+{
+	str = COM_Parse(str);
+	out[0] = atof(com_token);
+	str = COM_Parse(str);
+	out[1] = atof(com_token);
+	str = COM_Parse(str);
+	out[2] = atof(com_token);
+}
+
 void Sh_DrawLights(qbyte *vis, batch_t **mbatches)
 {
 	vec3_t colour;
@@ -2831,6 +2899,7 @@ void Sh_DrawLights(qbyte *vis, batch_t **mbatches)
 	unsigned int ignoreflags;
 	extern cvar_t r_shadow_realtime_world, r_shadow_realtime_dlight;
 	extern cvar_t r_shadow_realtime_world_shadows, r_shadow_realtime_dlight_shadows;
+	extern cvar_t r_sun_dir, r_sun_colour;
 
 	if (!r_shadow_realtime_world.ival && !r_shadow_realtime_dlight.ival)
 	{
@@ -2911,6 +2980,39 @@ void Sh_DrawLights(qbyte *vis, batch_t **mbatches)
 		else
 		{
 			Sh_DrawStencilLight(dl, colour, vis);
+		}
+	}
+
+	if (1)
+	{
+		dlight_t sun = {0};
+		vec3_t sundir;
+		float dot;
+		Com_ParseVector(r_sun_dir.string, sundir);
+		Com_ParseVector(r_sun_colour.string, colour);
+
+		//fade it out if we're looking at an angle parallel to it (to avoid nasty visible graduations or backwards rays!)
+		dot = DotProduct(vpn, sundir);
+		dot = 1-dot;
+		dot *= dot;
+		dot = 1-dot;
+		VectorScale(colour, dot, colour);
+
+		if (colour[0] > 0.001 || colour[1] > 0.001 || colour[2] > 0.001)
+		{
+			//only do this if we can see some sky surfaces. pointless otherwise
+			batch_t *b;
+			for (b = cl.worldmodel->batches[SHADER_SORT_SKY]; b; b = b->next)
+			{
+				if (b->meshes)
+					break;
+			}
+			if (b)
+			{
+				VectorNormalize(sundir);
+				VectorMA(r_origin, 1000, sundir, sun.origin);
+				Sh_DrawCrepuscularLight(&sun, colour, mbatches);
+			}
 		}
 	}
 

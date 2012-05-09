@@ -6719,7 +6719,7 @@ void QCC_PR_ParseAsm(void)
 	QCC_PR_ParseError(ERR_BADOPCODE, "Bad op code name %s", pr_token);
 }
 
-pbool QCC_FuncJumpsTo(int first, int last, int statement)
+static pbool QCC_FuncJumpsTo(int first, int last, int statement)
 {
 	int st;
 	for (st = first; st < last; st++)
@@ -6770,7 +6770,7 @@ pbool QCC_FuncJumpsTo(int first, int last, int statement)
 	return false;
 }
 
-pbool QCC_FuncJumpsToRange(int first, int last, int firstr, int lastr)
+static pbool QCC_FuncJumpsToRange(int first, int last, int firstr, int lastr)
 {
 	int st;
 	for (st = first; st < last; st++)

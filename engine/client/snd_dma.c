@@ -1189,6 +1189,8 @@ void S_Shutdown(void)
 
 	sound_started = 0;
 	S_Purge(false);
+
+	num_sfx = 0;
 }
 
 
@@ -1258,10 +1260,8 @@ void S_Purge(qboolean retaintouched)
 
 		/*if there's any data associated still, kill it. if present, it should be a single sfxcache_t (with data in same alloc)*/
 		if (sfx->decoder.buf)
-		{
 			BZ_Free(sfx->decoder.buf);
-			sfx->decoder.buf = NULL;
-		}
+		memset(&sfx->decoder, 0, sizeof(sfx->decoder));
 	}
 	S_UnlockMixer();
 }

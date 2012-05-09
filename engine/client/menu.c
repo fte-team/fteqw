@@ -865,62 +865,62 @@ void M_Init_Internal (void)
 	internalmenusregistered = true;
 
 #ifndef CLIENTONLY
-	Cmd_AddRemCommand ("menu_save", M_Menu_Save_f);
-	Cmd_AddRemCommand ("menu_load", M_Menu_Load_f);
-	Cmd_AddRemCommand ("menu_loadgame", M_Menu_Load_f);	//q2...
+	Cmd_AddCommand ("menu_save", M_Menu_Save_f);
+	Cmd_AddCommand ("menu_load", M_Menu_Load_f);
+	Cmd_AddCommand ("menu_loadgame", M_Menu_Load_f);	//q2...
 #endif
-	Cmd_AddRemCommand ("menu_single", M_Menu_SinglePlayer_f);
-	Cmd_AddRemCommand ("menu_multi", M_Menu_MultiPlayer_f);
-	Cmd_AddRemCommand ("menu_demo", M_Menu_Demos_f);
+	Cmd_AddCommand ("menu_single", M_Menu_SinglePlayer_f);
+	Cmd_AddCommand ("menu_multi", M_Menu_MultiPlayer_f);
+	Cmd_AddCommand ("menu_demo", M_Menu_Demos_f);
 
-	Cmd_AddRemCommand ("menu_keys", M_Menu_Keys_f);
-	Cmd_AddRemCommand ("help", M_Menu_Help_f);
-	Cmd_AddRemCommand ("menu_quit", M_Menu_Quit_f);
-	Cmd_AddRemCommand ("menu_media", M_Menu_Media_f);
-	Cmd_AddRemCommand ("menu_mediafiles", M_Menu_MediaFiles_f);
+	Cmd_AddCommand ("menu_keys", M_Menu_Keys_f);
+	Cmd_AddCommand ("help", M_Menu_Help_f);
+	Cmd_AddCommand ("menu_quit", M_Menu_Quit_f);
+	Cmd_AddCommand ("menu_media", M_Menu_Media_f);
+	Cmd_AddCommand ("menu_mediafiles", M_Menu_MediaFiles_f);
 
 #ifdef CL_MASTER
-	Cmd_AddRemCommand ("menu_servers", M_Menu_ServerList2_f);
+	Cmd_AddCommand ("menu_servers", M_Menu_ServerList2_f);
 
-	Cmd_AddRemCommand ("menu_slist", M_Menu_ServerList2_f);
+	Cmd_AddCommand ("menu_slist", M_Menu_ServerList2_f);
 #endif
-	Cmd_AddRemCommand ("menu_setup", M_Menu_Setup_f);
-	Cmd_AddRemCommand ("menu_newmulti", M_Menu_GameOptions_f);
+	Cmd_AddCommand ("menu_setup", M_Menu_Setup_f);
+	Cmd_AddCommand ("menu_newmulti", M_Menu_GameOptions_f);
 
-	Cmd_AddRemCommand ("menu_main", M_Menu_Main_f);	//I've moved main to last because that way tab give us main and not quit.
+	Cmd_AddCommand ("menu_main", M_Menu_Main_f);	//I've moved main to last because that way tab give us main and not quit.
 
-	Cmd_AddRemCommand ("menu_options", M_Menu_Options_f);
-	Cmd_AddRemCommand ("menu_video", M_Menu_Video_f);
-	Cmd_AddRemCommand ("menu_audio", M_Menu_Audio_f);
+	Cmd_AddCommand ("menu_options", M_Menu_Options_f);
+	Cmd_AddCommand ("menu_video", M_Menu_Video_f);
+	Cmd_AddCommand ("menu_audio", M_Menu_Audio_f);
 #ifndef __CYGWIN__
-	Cmd_AddRemCommand ("menu_speakers", M_Menu_Audio_Speakers_f);
+	Cmd_AddCommand ("menu_speakers", M_Menu_Audio_Speakers_f);
 #endif
-	Cmd_AddRemCommand ("menu_spcheats", M_Menu_Singleplayer_Cheats_f);
-	Cmd_AddRemCommand ("menu_fps", M_Menu_FPS_f);
-	Cmd_AddRemCommand ("menu_render" , M_Menu_Render_f);
-	Cmd_AddRemCommand ("menu_lighting", M_Menu_Lighting_f);
+	Cmd_AddCommand ("menu_spcheats", M_Menu_Singleplayer_Cheats_f);
+	Cmd_AddCommand ("menu_fps", M_Menu_FPS_f);
+	Cmd_AddCommand ("menu_render" , M_Menu_Render_f);
+	Cmd_AddCommand ("menu_lighting", M_Menu_Lighting_f);
 #ifdef GLQUAKE
-	Cmd_AddRemCommand ("menu_textures", M_Menu_Textures_f);
+	Cmd_AddCommand ("menu_textures", M_Menu_Textures_f);
 #endif
-	Cmd_AddRemCommand ("menu_teamplay", M_Menu_Teamplay_f);
-	Cmd_AddRemCommand ("menu_teamplay_locations", M_Menu_Teamplay_Locations_f);
-	Cmd_AddRemCommand ("menu_teamplay_needs", M_Menu_Teamplay_Needs_f);
-	Cmd_AddRemCommand ("menu_teamplay_items", M_Menu_Teamplay_Items_f);
-	Cmd_AddRemCommand ("menu_teamplay_armor", M_Menu_Teamplay_Items_Armor_f);
-	Cmd_AddRemCommand ("menu_teamplay_weapons", M_Menu_Teamplay_Items_Weapons_f);
-	Cmd_AddRemCommand ("menu_teamplay_powerups", M_Menu_Teamplay_Items_Powerups_f);
-	Cmd_AddRemCommand ("menu_teamplay_ammo_health", M_Menu_Teamplay_Items_Ammo_Health_f);
-	Cmd_AddRemCommand ("menu_teamplay_team_fortress", M_Menu_Teamplay_Items_Team_Fortress_f);
-	Cmd_AddRemCommand ("menu_teamplay_status_location_misc", M_Menu_Teamplay_Items_Status_Location_Misc_f);
-	Cmd_AddRemCommand ("menu_particles", M_Menu_Particles_f);
-	Cmd_AddRemCommand ("menu_network", M_Menu_Network_f);
+	Cmd_AddCommand ("menu_teamplay", M_Menu_Teamplay_f);
+	Cmd_AddCommand ("menu_teamplay_locations", M_Menu_Teamplay_Locations_f);
+	Cmd_AddCommand ("menu_teamplay_needs", M_Menu_Teamplay_Needs_f);
+	Cmd_AddCommand ("menu_teamplay_items", M_Menu_Teamplay_Items_f);
+	Cmd_AddCommand ("menu_teamplay_armor", M_Menu_Teamplay_Items_Armor_f);
+	Cmd_AddCommand ("menu_teamplay_weapons", M_Menu_Teamplay_Items_Weapons_f);
+	Cmd_AddCommand ("menu_teamplay_powerups", M_Menu_Teamplay_Items_Powerups_f);
+	Cmd_AddCommand ("menu_teamplay_ammo_health", M_Menu_Teamplay_Items_Ammo_Health_f);
+	Cmd_AddCommand ("menu_teamplay_team_fortress", M_Menu_Teamplay_Items_Team_Fortress_f);
+	Cmd_AddCommand ("menu_teamplay_status_location_misc", M_Menu_Teamplay_Items_Status_Location_Misc_f);
+	Cmd_AddCommand ("menu_particles", M_Menu_Particles_f);
+	Cmd_AddCommand ("menu_network", M_Menu_Network_f);
 
 #ifdef WEBCLIENT
-	Cmd_AddRemCommand ("menu_download", Menu_DownloadStuff_f);
+	Cmd_AddCommand ("menu_download", Menu_DownloadStuff_f);
 #endif
 
 #ifdef CL_MASTER
-	Cmd_AddRemCommand ("quickconnect", M_QuickConnect_f);
+	Cmd_AddCommand ("quickconnect", M_QuickConnect_f);
 #endif
 }
 

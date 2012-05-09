@@ -988,7 +988,6 @@ typedef struct cmd_function_s
 	xcommand_t				function;
 
 	qbyte	restriction;	//restriction of admin level
-	qbyte	zmalloced;
 } cmd_function_t;
 
 
@@ -1438,44 +1437,8 @@ void Cmd_TokenizePunctation (char *text, char *punctuation)
 Cmd_AddCommand
 ============
 */
-qboolean	Cmd_AddCommand (char *cmd_name, xcommand_t function)
-{
-	cmd_function_t	*cmd;
 
-	if (host_initialized)	// because hunk allocation would get stomped
-		Sys_Error ("Cmd_AddCommand after host_initialized");
-
-// fail if the command is a variable name
-	if (Cvar_VariableString(cmd_name)[0])
-	{
-		Con_Printf ("Cmd_AddCommand: %s already defined as a var\n", cmd_name);
-		return false;
-	}
-
-// fail if the command already exists
-	for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
-	{
-		if (!Q_strcmp (cmd_name, cmd->name))
-		{
-			if (cmd->function == function)	//happens a lot with q3
-				Con_DPrintf ("Cmd_AddCommand: %s already defined\n", cmd_name);
-			else
-				Con_Printf ("Cmd_AddCommand: %s already defined\n", cmd_name);
-			return false;
-		}
-	}
-
-	cmd = (cmd_function_t*)Hunk_AllocName (sizeof(cmd_function_t), cmd_name);
-	cmd->name = cmd_name;
-	cmd->function = function;
-	cmd->next = cmd_functions;
-	cmd->restriction = 0;
-	cmd_functions = cmd;
-
-	return true;
-}
-
-qboolean Cmd_AddRemCommand (char *cmd_name, xcommand_t function)
+qboolean Cmd_AddCommand (char *cmd_name, xcommand_t function)
 {
 	cmd_function_t	*cmd;
 
@@ -1508,7 +1471,6 @@ qboolean Cmd_AddRemCommand (char *cmd_name, xcommand_t function)
 	cmd->function = function;
 	cmd->next = cmd_functions;
 	cmd->restriction = 0;
-	cmd->zmalloced = true;
 	cmd_functions = cmd;
 
 	return true;
@@ -1530,11 +1492,6 @@ void	Cmd_RemoveCommand (char *cmd_name)
 		if (!strcmp (cmd_name, cmd->name))
 		{
 			*back = cmd->next;
-			if (!cmd->zmalloced)
-			{
-				Con_Printf("Cmd_RemoveCommand: %s was not added dynamically\n", cmd_name);
-				return;
-			}
 			Z_Free (cmd);
 			return;
 		}
@@ -2821,8 +2778,6 @@ void Cmd_WriteConfig_f(void)
 	Cvar_WriteVariables (f, true);
 	VFS_CLOSE(f);
 
-	FS_FlushFSHash();
-
 	Cvar_Saved();
 }
 
@@ -2889,13 +2844,19 @@ void Cmd_Condump_f(void)
 
 void Cmd_Shutdown(void)
 {
+	cmd_function_t *c;
 	cmdalias_t *a;
 	//make sure we get no other execution
 	int level;
 	for (level = 0; level < sizeof(cmd_text)/sizeof(cmd_text[0]); level++)
 		SZ_Clear (&cmd_text[level].buf);
 
-	cmd_functions = NULL;
+	while(cmd_functions)
+	{
+		c = cmd_functions;
+		cmd_functions = c->next;
+		Z_Free(c);
+	}
 	while(cmd_alias)
 	{
 		a = cmd_alias;
@@ -3015,7 +2976,7 @@ void Cmd_Init (void)
 	Cvar_Register(&dpcompat_set, "Darkplaces compatibility");
 
 #ifndef SERVERONLY
-	rcon_level.ival = atof(rcon_level.string);	//client is restricted to not be allowed to change restrictions.
+	rcon_level.ival = atof(rcon_level.defaultstr);	//client is restricted to not be allowed to change restrictions.
 #else
 	Cvar_Register(&rcon_level, "Access controls");		//server gains versatility.
 #endif

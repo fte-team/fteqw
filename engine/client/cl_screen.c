@@ -221,12 +221,14 @@ cvar_t	show_gameclock_y	= SCVAR("cl_gameclock_y", "-1");
 cvar_t	show_speed	= SCVAR("show_speed", "0");
 cvar_t	show_speed_x	= SCVAR("show_speed_x", "-1");
 cvar_t	show_speed_y	= SCVAR("show_speed_y", "-9");
+cvar_t	scr_loadingrefresh = SCVAR("scr_loadingrefresh", "0");
 
 extern char cl_screengroup[];
 void CLSCR_Init(void)
 {
 	Cmd_AddCommand("cprint", SCR_CPrint_f);
 
+	Cvar_Register(&scr_loadingrefresh, cl_screengroup);
 	Cvar_Register(&show_fps, cl_screengroup);
 	Cvar_Register(&show_fps_x, cl_screengroup);
 	Cvar_Register(&show_fps_y, cl_screengroup);
@@ -1137,9 +1139,9 @@ void SCR_Init (void)
 //
 // register our commands
 //
-	Cmd_AddRemCommand ("screenshot",SCR_ScreenShot_f);
-	Cmd_AddRemCommand ("sizeup",SCR_SizeUp_f);
-	Cmd_AddRemCommand ("sizedown",SCR_SizeDown_f);
+	Cmd_AddCommand ("screenshot",SCR_ScreenShot_f);
+	Cmd_AddCommand ("sizeup",SCR_SizeUp_f);
+	Cmd_AddCommand ("sizedown",SCR_SizeDown_f);
 
 	scr_net = R2D_SafePicFromWad ("net");
 	scr_turtle = R2D_SafePicFromWad ("turtle");
@@ -1446,6 +1448,7 @@ SCR_DrawLoading
 */
 
 int			total_loading_size, current_loading_size, loading_stage;
+char		*loadingfile;
 int CL_DownloadRate(void);
 
 int SCR_GetLoadingStage(void)
@@ -1454,7 +1457,38 @@ int SCR_GetLoadingStage(void)
 }
 void SCR_SetLoadingStage(int stage)
 {
+	switch(stage)
+	{
+	case LS_NONE:
+		if (loadingfile)
+			Z_Free(loadingfile);
+		loadingfile = NULL;
+		break;
+	case LS_CONNECTION:
+		SCR_SetLoadingFile("connection...");
+		break;
+	case LS_SERVER:
+		if (scr_con_current > vid.height*scr_consize.value)
+			scr_con_current = vid.height*scr_consize.value;
+		SCR_SetLoadingFile("server...");
+		break;
+	case LS_CLIENT:
+		SCR_SetLoadingFile("initial state");
+		break;
+	}
 	loading_stage = stage;
+}
+void SCR_SetLoadingFile(char *str)
+{
+	if (loadingfile)
+		Z_Free(loadingfile);
+	loadingfile = Z_Malloc(strlen(str)+1);
+	strcpy(loadingfile, str);
+
+	if (scr_loadingrefresh.ival)
+	{
+		SCR_UpdateScreen();
+	}
 }
 
 void SCR_DrawLoading (void)
@@ -1520,9 +1554,11 @@ void SCR_DrawLoading (void)
 			Draw_FunString(x+8, y+4, va("Loading %s... %i%%",
 				(loading_stage == LS_SERVER) ? "server" : "client",
 				current_loading_size * 100 / total_loading_size));
-
-			y += 16;
 		}
+		y += 16;
+
+		if (loadingfile)
+			Draw_FunString(x+8, y+4, loadingfile);
 	}
 	else
 	{	//hexen2 files

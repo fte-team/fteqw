@@ -87,7 +87,6 @@ extern void	(*R_RenderView)							(void);		// must set r_refdef first
 
 extern void	(*R_NewMap)								(void);
 extern void	(*R_PreNewMap)							(void);
-extern int	(*R_LightPoint)							(vec3_t point);
 
 extern void	(*R_AddStain)							(vec3_t org, float red, float green, float blue, float radius);
 extern void	(*R_LessenStains)						(void);
@@ -167,7 +166,7 @@ struct texid_s
 	union
 	{
 		unsigned int num;
-#ifdef D3DQUAKE
+#if defined(D3DQUAKE) || defined(SWQUAKE)
 		void *ptr;
 #endif
 	};
@@ -248,7 +247,6 @@ typedef struct rendererinfo_s {
 
 	void	(*R_NewMap)					(void);
 	void	(*R_PreNewMap)				(void);
-	int		(*R_LightPoint)				(vec3_t point);
 
 	void	(*R_AddStain)				(vec3_t org, float red, float green, float blue, float radius);
 	void	(*R_LessenStains)			(void);

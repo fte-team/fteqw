@@ -848,7 +848,7 @@ void XWindows_Startup(void)	//initialise the server socket and do any initial se
 
 	XS_CheckResourceSentinals();
 
-	Menu_Control(MENU_GRAB);
+//	Menu_Control(MENU_GRAB);
 }
 
 extern int x_windowwithfocus;
@@ -2018,7 +2018,7 @@ media_decoder_funcs_t decoderfuncs =
 int Plug_Init(int *args)
 {
 	if (!Plug_Export("ExecuteCommand", Plug_ExecuteCommand) ||
-		!Plug_Export("MenuEvent", Plug_MenuEvent) ||
+//		!Plug_Export("MenuEvent", Plug_MenuEvent) ||
 		!Plug_Export("Tick", Plug_Tick))
 	{
 		Con_Printf("XServer plugin failed\n");

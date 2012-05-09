@@ -510,6 +510,10 @@ void SV_Map_f (void)
 	}
 #ifndef SERVERONLY
 	SCR_ImageName(level);
+	SCR_SetLoadingStage(LS_SERVER);
+	SCR_SetLoadingFile("finalize server");
+#else
+	#define SCR_SetLoadingFile(s)
 #endif
 
 	COM_FlushFSCache();
@@ -630,12 +634,14 @@ void SV_Map_f (void)
 	}
 	SV_SendMessagesToAll ();
 
+	SCR_SetLoadingFile("spawnserver");
 	if (newunit || !startspot || cinematic || !SV_LoadLevelCache(NULL, level, startspot, false))
 	{
 		if (waschangelevel && !startspot)
 			startspot = "";
 		SV_SpawnServer (level, startspot, false, cinematic);
 	}
+	SCR_SetLoadingFile("server spawned");
 
 	//SV_BroadcastCommand ("cmd new\n");
 	for (i=0, host_client = svs.clients ; i<MAX_CLIENTS ; i++, host_client++)

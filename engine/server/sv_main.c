@@ -4191,6 +4191,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_cullplayers_trace, cvargroup_servercontrol);
 	Cvar_Register (&sv_cullentities_trace, cvargroup_servercontrol);
 
+	Cvar_Register (&sv_csqc_progname,	cvargroup_servercontrol);
 	Cvar_Register (&sv_csqcdebug, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_gamespeed, cvargroup_serverphysics);
@@ -4830,6 +4831,8 @@ void SV_Init (quakeparms_t *parms)
 #endif
 		COM_Init ();
 		Mod_Init ();
+
+		PF_Common_RegisterCvars();
 	}
 
 	PR_Init ();
@@ -4871,7 +4874,7 @@ void SV_Init (quakeparms_t *parms)
 		host_initialized = true;
 
 		//get rid of the worst of the spam
-		Cmd_AddRemCommand("bind", SV_IgnoreCommand_f);
+		Cmd_AddCommand("bind", SV_IgnoreCommand_f);
 
 		Con_TPrintf (TL_EXEDATETIME, __DATE__, __TIME__);
 		Con_TPrintf (TL_HEAPSIZE,parms->memsize/ (1024*1024.0));

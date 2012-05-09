@@ -13,6 +13,11 @@
 #define w32filefuncs osfilefuncs
 
 typedef struct {
+	HANDLE changenotification;
+	int hashdepth;
+	char rootpath[1];
+} vfsw32path_t;
+typedef struct {
 	vfsfile_t funcs;
 	HANDLE hand;
 	HANDLE mmh;
@@ -102,6 +107,8 @@ static void VFSW32_Close(vfsfile_t *file)
 	}
 	CloseHandle(intfile->hand);
 	Z_Free(file);
+
+	COM_FlushFSCache();
 }
 
 vfsfile_t *VFSW32_Open(const char *osname, const char *mode)
@@ -183,49 +190,86 @@ static vfsfile_t *VFSW32_OpenVFS(void *handle, flocation_t *loc, const char *mod
 
 static void VFSW32_PrintPath(void *handle)
 {
-	Con_Printf("%s\n", (char *)handle);
+	vfsw32path_t *wp = handle;
+	Con_Printf("%s\n", wp->rootpath);
 }
 static void VFSW32_ClosePath(void *handle)
 {
-	Z_Free(handle);
+	vfsw32path_t *wp = handle;
+	if (wp->changenotification != INVALID_HANDLE_VALUE)
+		FindCloseChangeNotification(wp->changenotification);
+	Z_Free(wp);
 }
-static int VFSW32_RebuildFSHash(const char *filename, int filesize, void *data)
+static qboolean VFSW32_PollChanges(void *handle)
 {
+	qboolean result = false;
+	vfsw32path_t *wp = handle;
+
+	if (wp->changenotification == INVALID_HANDLE_VALUE)
+		return true;
+	for(;;)
+	{
+		switch(WaitForSingleObject(wp->changenotification, 0))
+		{
+		case WAIT_OBJECT_0:
+			result = true;
+			break;
+		case WAIT_TIMEOUT:
+			return result;
+		default:
+			FindCloseChangeNotification(wp->changenotification);
+			wp->changenotification = INVALID_HANDLE_VALUE;
+			return true;
+		}
+		FindNextChangeNotification(wp->changenotification);
+	}
+	return result;
+}
+static void *VFSW32_OpenPath(vfsfile_t *mustbenull, const char *desc)
+{
+	vfsw32path_t *np;
+	int dlen = strlen(desc);
+	if (mustbenull)
+		return NULL;
+	np = Z_Malloc(sizeof(*np) + dlen);
+	if (np)
+	{
+		memcpy(np->rootpath, desc, dlen+1);
+
+		np->changenotification = FindFirstChangeNotification(np->rootpath, true, FILE_NOTIFY_CHANGE_FILE_NAME);
+	}
+	return np;
+}
+static int VFSW32_RebuildFSHash(const char *filename, int filesize, void *handle)
+{
+	vfsw32path_t *wp = handle;
 	if (filename[strlen(filename)-1] == '/')
 	{	//this is actually a directory
 
 		char childpath[256];
 		Q_snprintfz(childpath, sizeof(childpath), "%s*", filename);
-		Sys_EnumerateFiles((char*)data, childpath, VFSW32_RebuildFSHash, data);
+		Sys_EnumerateFiles(wp->rootpath, childpath, VFSW32_RebuildFSHash, wp);
 		return true;
 	}
-	if (!Hash_GetInsensative(&filesystemhash, filename))
-	{
-		bucket_t *bucket = (bucket_t*)BZ_Malloc(sizeof(bucket_t) + strlen(filename)+1);
-		strcpy((char *)(bucket+1), filename);
-#ifdef _WIN32
-		Q_strlwr((char *)(bucket+1));
-#endif
-		Hash_AddInsensative(&filesystemhash, (char *)(bucket+1), data, bucket);
 
-		fs_hash_files++;
-	}
-	else
-		fs_hash_dups++;
+	FS_AddFileHash(wp->hashdepth, filename, NULL, wp);
 	return true;
 }
-static void VFSW32_BuildHash(void *handle)
+static void VFSW32_BuildHash(void *handle, int hashdepth)
 {
-	Sys_EnumerateFiles(handle, "*", VFSW32_RebuildFSHash, handle);
+	vfsw32path_t *wp = handle;
+	wp->hashdepth = hashdepth;
+	Sys_EnumerateFiles(wp->rootpath, "*", VFSW32_RebuildFSHash, handle);
 }
 static qboolean VFSW32_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
+	vfsw32path_t *wp = handle;
 	FILE *f;
 	int len;
 	char netpath[MAX_OSPATH];
 
 
-	if (hashedresult && (void *)hashedresult != handle)
+	if (hashedresult && (void *)hashedresult != wp)
 		return false;
 
 /*
@@ -237,7 +281,7 @@ static qboolean VFSW32_FLocate(void *handle, flocation_t *loc, const char *filen
 */
 
 // check a file in the directory tree
-	snprintf (netpath, sizeof(netpath)-1, "%s/%s",(char*)handle, filename);
+	snprintf (netpath, sizeof(netpath)-1, "%s/%s", wp->rootpath, filename);
 
 	f = fopen(netpath, "rb");
 	if (!f)
@@ -251,13 +295,15 @@ static qboolean VFSW32_FLocate(void *handle, flocation_t *loc, const char *filen
 		loc->len = len;
 		loc->offset = 0;
 		loc->index = 0;
-		snprintf(loc->rawname, sizeof(loc->rawname), "%s/%s", (char*)handle, filename);
+		snprintf(loc->rawname, sizeof(loc->rawname), "%s/%s", wp->rootpath, filename);
 	}
 
 	return true;
 }
 static void VFSW32_ReadFile(void *handle, flocation_t *loc, char *buffer)
 {
+//	vfsw32path_t *wp = handle;
+
 	FILE *f;
 	f = fopen(loc->rawname, "rb");
 	if (!f)	//err...
@@ -268,8 +314,10 @@ static void VFSW32_ReadFile(void *handle, flocation_t *loc, char *buffer)
 }
 static int VFSW32_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *), void *parm)
 {
-	return Sys_EnumerateFiles(handle, match, func, parm);
+	vfsw32path_t *wp = handle;
+	return Sys_EnumerateFiles(wp->rootpath, match, func, parm);
 }
+
 
 searchpathfuncs_t w32filefuncs = {
 	VFSW32_PrintPath,
@@ -278,7 +326,8 @@ searchpathfuncs_t w32filefuncs = {
 	VFSW32_FLocate,
 	VFSW32_ReadFile,
 	VFSW32_EnumerateFiles,
+	VFSW32_OpenPath,
 	NULL,
-	NULL,
-	VFSW32_OpenVFS
+	VFSW32_OpenVFS,
+	VFSW32_PollChanges
 };

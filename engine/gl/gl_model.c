@@ -288,7 +288,6 @@ void RMod_Think (void)
 					VFS_WRITE(f, "QLIT\1\0\0\0", 8);
 					VFS_WRITE(f, lightmodel->lightdata, numlightdata*3);
 					VFS_CLOSE(f);
-					COM_FlushFSCache();
 				}
 				else
 					Con_Printf("Unable to write \"%s\"\n", filename);
@@ -326,7 +325,6 @@ Mod_ClearAll
 void RMod_ClearAll (void)
 {
 	int		i;
-	int	t;
 	model_t	*mod;
 
 #ifdef RUNTIMELIGHTING
@@ -354,12 +352,6 @@ void RMod_ClearAll (void)
 		if (mod->type == mod_brush)
 		{
 			Surf_Clear(mod);
-			for (t = 0; t < mod->numtextures; t++)
-			{
-				if (!mod->textures[t])
-					continue;
-				BE_ClearVBO(&mod->textures[t]->vbo);
-			}
 		}
 #ifdef TERRAIN
 		if (mod->type == mod_heightmap)
@@ -386,8 +378,8 @@ void RMod_Init (void)
 	mod_numknown = 0;
 	Q1BSP_Init();
 
-	Cmd_AddRemCommand("mod_texturelist", RMod_TextureList_f);
-	Cmd_AddRemCommand("mod_usetexture", RMod_BlockTextureColour_f);
+	Cmd_AddCommand("mod_texturelist", RMod_TextureList_f);
+	Cmd_AddCommand("mod_usetexture", RMod_BlockTextureColour_f);
 }
 
 void RMod_Shutdown (void)
@@ -1066,7 +1058,6 @@ Mod_LoadTextures
 */
 qboolean RMod_LoadTextures (lump_t *l)
 {
-	extern int gl_bumpmappingpossible;
 	int		i, j, pixels, num, max, altmax;
 	miptex_t	*mt;
 	texture_t	*tx, *tx2;
@@ -1220,13 +1211,10 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 			tn.bump = r_nulltex;
 			if (r_loadbumpmapping)
 			{
-				if (r_loadbumpmapping)
-				{
-					snprintf(altname, sizeof(altname)-1, "%s_norm", mt->name);
-					tn.bump = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA|IF_SUBDIRONLY|IF_MIPCAP);
-					if (!TEXVALID(tn.bump))
-						tn.bump = R_LoadReplacementTexture(altname, "bmodels", IF_NOGAMMA|IF_MIPCAP);
-				}
+				snprintf(altname, sizeof(altname)-1, "%s_norm", mt->name);
+				tn.bump = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA|IF_SUBDIRONLY|IF_MIPCAP);
+				if (!TEXVALID(tn.bump))
+					tn.bump = R_LoadReplacementTexture(altname, "bmodels", IF_NOGAMMA|IF_MIPCAP);
 				if (!TEXVALID(tn.bump))
 				{
 					if (gl_load24bit.value)
@@ -1240,7 +1228,7 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 						snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
 				}
 
-/*				if (!TEXVALID(tn.bump) && loadmodel->fromgame != fg_halflife)
+				if (!TEXVALID(tn.bump) && loadmodel->fromgame != fg_halflife)// && gl_bump_fallbacks.ival)
 				{
 					//no mip levels here, would be absurd.
 					base = (qbyte *)(mt+1);	//convert to greyscale.
@@ -1249,7 +1237,7 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 
 					tn.bump = R_LoadTexture8BumpPal(altname, tx->width, tx->height, base, true);	//normalise it and then bump it.
 				}
-*/
+
 				//don't do any complex quake 8bit -> glossmap. It would likly look a little ugly...
 				if (gl_specular.value && gl_load24bit.value)
 				{
@@ -1372,7 +1360,6 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 
 void RMod_NowLoadExternal(void)
 {
-	extern int gl_bumpmappingpossible;
 	int i, width, height;
 	qboolean alphaed;
 	texture_t	*tx;
@@ -3322,12 +3309,6 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 
 	mod->numframes = 2;		// regular and alternate animation
 	
-	/*FIXME: move mesh_t and lightmap allocation out of r_surf
-	for (i=0 ; i<mod->numsurfaces ; i++)
-	{
-		Surf_BuildSurfaceDisplayList (mod, mod->surfaces + i);
-	}
-	*/
 
 //
 // set up the submodels (FIXME: this is confusing)

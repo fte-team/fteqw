@@ -3946,6 +3946,8 @@ void Cmd_Give_f (void)
 		case 'c':
 			sv_player->v->ammo_cells = v;
 			break;
+		default:
+			Con_Printf("give: unknown item\n");
 		}
 	}
 	else

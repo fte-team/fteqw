@@ -919,10 +919,7 @@ void LightFace (int surfnum)
 						wnorm[ch] = norm[c][ch];
 					}
 					total *= rangescale;	// scale before clamping
-#ifdef UTILITY
-					if (total > *out)	//sorry - for qw
-						total = *out;
-#else
+#ifndef UTILITY
 					if (total > *rgbout)	//sorry - for qw
 						total = *rgbout;
 #endif

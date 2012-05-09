@@ -530,7 +530,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		Cbuf_AddText(VM_POINTER(arg[0]), RESTRICT_SERVER);
 		break;
 	case CG_ADDCOMMAND:
-		Cmd_AddRemCommand(VM_POINTER(arg[0]), NULL);
+		Cmd_AddCommand(VM_POINTER(arg[0]), NULL);
 		break;
 	case CG_SENDCLIENTCOMMAND:
 		Con_DPrintf("CG_SENDCLIENTCOMMAND: %s", (char*)VM_POINTER(arg[0]));

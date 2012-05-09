@@ -1053,6 +1053,7 @@ void SV_Begin_Core(client_t *split);
 void VoteFlushAll(void);
 void SV_SetUpClientEdict (client_t *cl, edict_t *ent);
 void SV_UpdateToReliableMessages (void);
+void SV_FlushBroadcasts (void);
 
 void SV_DarkPlacesDownloadChunk(client_t *cl, sizebuf_t *msg);
 void SV_New_f (void);

@@ -196,6 +196,8 @@ struct world_s
 };
 typedef struct world_s world_t;
 
+void PF_Common_RegisterCvars(void);
+
 #ifdef USEODE
 void World_ODE_RemoveFromEntity(world_t *world, wedict_t *ed);
 void World_ODE_RemoveJointFromEntity(world_t *world, wedict_t *ed);

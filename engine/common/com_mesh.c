@@ -351,11 +351,9 @@ static void PSKGenMatrix(float x, float y, float z, float qx, float qy, float qz
 	result[2*4+3]  =     z;
 }
 
-#define restrict
-
 #if 0
 /*transforms some skeletal vecV_t values*/
-static void Alias_TransformVerticies_V(float *bonepose, int vertcount, qbyte *bidx, float *weights, float *xyzin, float *restrict xyzout)
+static void Alias_TransformVerticies_V(float *bonepose, int vertcount, qbyte *bidx, float *weights, float *xyzin, float *fte_restrict xyzout)
 {
 	int i;
 	float *matrix;
@@ -395,8 +393,8 @@ static void Alias_TransformVerticies_V(float *bonepose, int vertcount, qbyte *bi
 
 /*transforms some skeletal vecV_t values*/
 static void Alias_TransformVerticies_VN(float *bonepose, int vertcount, qbyte *bidx, float *weights,
-										float *xyzin, float *restrict xyzout,
-										float *normin, float *restrict normout)
+										float *xyzin, float *fte_restrict xyzout,
+										float *normin, float *fte_restrict normout)
 {
 	int i, j;
 	float *matrix;
@@ -441,7 +439,7 @@ static void Alias_TransformVerticies_VN(float *bonepose, int vertcount, qbyte *b
 
 #if 0
 /*transforms some skeletal vec3_t values*/
-static void Alias_TransformVerticies_3(float *bonepose, int vertcount, qbyte *bidx, float *weights, float *xyzin, float *restrict xyzout)
+static void Alias_TransformVerticies_3(float *fte_restrict bonepose, int vertcount, qbyte *bidx, float *weights, float *xyzin, float *fte_restrict xyzout)
 {
 	int i;
 	float *matrix;
@@ -1347,14 +1345,14 @@ static void Alias_BuildSkeletalMesh(mesh_t *mesh, float *bonepose, galiasinfo_t 
 
 	if (inf->ofs_skel_idx)
 	{
-		float *restrict xyzout = mesh->xyz_array[0];
-		float *restrict normout = mesh->normals_array[0];
-		qbyte *restrict bidx = (qbyte*)((char*)inf + inf->ofs_skel_idx);
-		float *restrict xyzin = (float*)((char*)inf + inf->ofs_skel_xyz);
-		float *restrict normin = (float*)((char*)inf + inf->ofs_skel_norm);
-		float *restrict svect = (float*)((char*)inf + inf->ofs_skel_svect);
-		float *restrict tvect = (float*)((char*)inf + inf->ofs_skel_tvect);
-		float *restrict weight = (float*)((char*)inf + inf->ofs_skel_weight);
+		float *fte_restrict xyzout = mesh->xyz_array[0];
+		float *fte_restrict normout = mesh->normals_array[0];
+		qbyte *fte_restrict bidx = (qbyte*)((char*)inf + inf->ofs_skel_idx);
+		float *fte_restrict xyzin = (float*)((char*)inf + inf->ofs_skel_xyz);
+		float *fte_restrict normin = (float*)((char*)inf + inf->ofs_skel_norm);
+		float *fte_restrict svect = (float*)((char*)inf + inf->ofs_skel_svect);
+		float *fte_restrict tvect = (float*)((char*)inf + inf->ofs_skel_tvect);
+		float *fte_restrict weight = (float*)((char*)inf + inf->ofs_skel_weight);
 
 		Alias_TransformVerticies_VN(bonepose, inf->numverts, bidx, weight, xyzin, xyzout, normin, normout);
 //		Alias_TransformVerticies_3(bonepose, inf->numverts, bidx, weight, svect, mesh->snormals_array[0]);
@@ -1522,7 +1520,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 
 #ifdef SKELETALMODELS
 	meshcache.usebonepose = NULL;
-	if (inf->ofs_skel_xyz && !inf->ofs_skel_weight)
+	if (inf->ofs_skel_xyz && 1)//!inf->ofs_skel_weight)
 	{
 		meshcache.usebonepose = NULL;
 		mesh->xyz_array = (vecV_t*)((char*)inf + inf->ofs_skel_xyz);
@@ -1635,6 +1633,8 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, ent
 		if (r_shadow_realtime_world.ival || r_shadow_realtime_dlight.ival)
 		{
 			mesh->xyz2_array = NULL;
+			mesh->xyz_blendw[0] = 1;
+			mesh->xyz_blendw[1] = 0;
 			R_LerpFrames(mesh,	(galiaspose_t *)((char *)g1 + g1->poseofs + sizeof(galiaspose_t)*frame1),
 							(galiaspose_t *)((char *)g2 + g2->poseofs + sizeof(galiaspose_t)*frame2),
 							1-lerp, e->fatness);
@@ -2815,13 +2815,15 @@ qboolean Mod_LoadQ1Model (model_t *mod, void *buffer)
 
 	switch(qrenderer)
 	{
+	default:
 #if defined(GLQUAKE) || defined(D3DQUAKE)
 	case QR_DIRECT3D:
 	case QR_OPENGL:
+	case QR_SOFTWARE:
 		pinstverts = (dstvert_t *)Q1_LoadSkins_GL(skinstart, skintranstype);
 		break;
 #endif
-	default:
+	case QR_NONE:
 		pinstverts = (dstvert_t *)Q1_LoadSkins_SV(skinstart, skintranstype);
 		break;
 	}
@@ -4022,7 +4024,6 @@ qboolean Mod_LoadQ3Model(model_t *mod, void *buffer)
 			externalskins = LittleLong(surf->numShaders);
 		if (externalskins)
 		{
-			//extern int gl_bumpmappingpossible; // unused variable
 			char shadname[1024];
 
 			skin = Hunk_Alloc((LittleLong(surf->numShaders)+externalskins)*((sizeof(galiasskin_t)+sizeof(shader_t*))));
@@ -5689,7 +5690,7 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	unsigned short *framedata;
 
 	vecV_t *opos;
-	vec3_t *onorm;
+	vec3_t *onorm1, *onorm2, *onorm3;
 	vec4_t *oweight;
 	byte_vec4_t *oindex;
 	float *opose;
@@ -5774,19 +5775,21 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		sizeof(*skin)*h->num_meshes + sizeof(*shaders)*h->num_meshes + 
 #endif
 		sizeof(*fgroup)*(baseposeonly?1:h->num_anims) + sizeof(float)*12*(baseposeonly?h->num_joints:(h->num_poses*h->num_frames)) + sizeof(*bones)*h->num_joints +
-		(sizeof(*opos) + sizeof(*onorm) + sizeof(*otcoords) + (noweights?0:(sizeof(*oindex)+sizeof(*oweight)))) * h->num_vertexes);
+		(sizeof(*opos) + sizeof(*onorm1) + sizeof(*onorm2) + sizeof(*onorm3) + sizeof(*otcoords) + (noweights?0:(sizeof(*oindex)+sizeof(*oweight)))) * h->num_vertexes);
 	bones = (galiasbone_t*)(gai + h->num_meshes);
 	opos = (vecV_t*)(bones + h->num_joints);
-	onorm = (vec3_t*)(opos + h->num_vertexes);
+	onorm3 = (vec3_t*)(opos + h->num_vertexes);
+	onorm2 = (vec3_t*)(onorm3 + h->num_vertexes);
+	onorm1 = (vec3_t*)(onorm2 + h->num_vertexes);
 	if (noweights)
 	{
 		oindex = NULL;
 		oweight = NULL;
-		otcoords = (vec2_t*)(onorm + h->num_vertexes);
+		otcoords = (vec2_t*)(onorm1 + h->num_vertexes);
 	}
 	else
 	{
-		oindex = (byte_vec4_t*)(onorm + h->num_vertexes);
+		oindex = (byte_vec4_t*)(onorm1 + h->num_vertexes);
 		oweight = (vec4_t*)(oindex + h->num_vertexes);
 		otcoords = (vec2_t*)(oweight + h->num_vertexes);
 	}
@@ -5961,9 +5964,9 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 		gai[i].shares_verts = i;
 		gai[i].numverts = LittleLong(mesh[i].num_vertexes);
 		gai[i].ofs_skel_xyz = (char*)(opos+offset) - (char*)&gai[i];
-		gai[i].ofs_skel_norm = (char*)(onorm+offset) - (char*)&gai[i];
-		gai[i].ofs_skel_svect = 0;
-		gai[i].ofs_skel_tvect = 0;
+		gai[i].ofs_skel_norm = vnorm?(char*)(onorm1+offset) - (char*)&gai[i]:0;
+		gai[i].ofs_skel_svect = (vnorm&&vtang)?(char*)(onorm2+offset) - (char*)&gai[i]:0;
+		gai[i].ofs_skel_tvect = (vnorm&&vtang)?(char*)(onorm3+offset) - (char*)&gai[i]:0;
 		gai[i].ofs_skel_idx = oindex?(char*)(oindex+offset) - (char*)&gai[i]:0;
 		gai[i].ofs_skel_weight = oweight?(char*)(oweight+offset) - (char*)&gai[i]:0;
 	}
@@ -5979,7 +5982,18 @@ galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, char *buffer)
 	{
 		Vector2Copy(tcoord+i*2, otcoords[i]);
 		VectorCopy(vpos+i*3, opos[i]);
-		VectorCopy(vnorm+i*4, onorm[i]);
+		if (vnorm)
+		{
+			VectorCopy(vnorm+i*3, onorm1[i]);
+		}
+		if (vnorm && vtang)
+		{
+			VectorCopy(vtang+i*4, onorm2[i]);
+			if(LittleFloat(vtang[i*4 + 3]) < 0)
+				CrossProduct(onorm2[i], onorm1[i], onorm3[i]);
+			else
+				CrossProduct(onorm1[i], onorm2[i], onorm3[i]);
+		}
 	}
 	return gai;
 }

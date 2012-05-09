@@ -2049,6 +2049,7 @@ void D3DBE_SelectEntity(entity_t *ent)
 /*Generates an optimised vbo for each of the given model's textures*/
 void D3DBE_GenBrushModelVBO(model_t *mod)
 {
+#if 0
 	unsigned int maxvboverts;
 	unsigned int maxvboelements;
 
@@ -2228,6 +2229,7 @@ void D3DBE_GenBrushModelVBO(model_t *mod)
 		IDirect3DIndexBuffer9_Unlock(ebuff);
 		IDirect3DVertexBuffer9_Unlock(vbuff);
 	}
+#endif
 }
 /*Wipes a vbo*/
 void D3DBE_ClearVBO(vbo_t *vbo)
@@ -2438,10 +2440,7 @@ void D3DBE_SubmitBatch(batch_t *batch)
 		BE_RotateForEntity(batch->ent, batch->ent->model);
 		shaderstate.curtime = r_refdef.time - shaderstate.curentity->shaderTime;
 	}
-	if (batch->texture)
-		shaderstate.batchvbo = &batch->texture->vbo;
-	else
-		shaderstate.batchvbo = batch->vbo;
+	shaderstate.batchvbo = batch->vbo;
 	shaderstate.meshlist = batch->mesh + batch->firstmesh;
 	shaderstate.curshader = batch->shader;
 	shaderstate.curtexnums = batch->skin;

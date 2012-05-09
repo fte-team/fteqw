@@ -197,7 +197,6 @@ void Surf_WipeStains(void);
 void Surf_DeInit(void);
 void Surf_Clear(struct model_s *mod);
 void Surf_BuildLightmaps(void);
-void Surf_BuildSurfaceDisplayList (struct model_s *mod, struct msurface_s *fa);
 void Surf_RenderDynamicLightmaps (struct msurface_s *fa);
 void Surf_RenderAmbientLightmaps (struct msurface_s *fa, int ambient);
 int Surf_LightmapShift (struct model_s *model);
@@ -249,17 +248,13 @@ void GLR_NewMap (void);
 void GLR_PushDlights (void);
 void GLR_DrawWaterSurfaces (void);
 
-void MediaGL_ShowFrame8bit(qbyte *framedata, int inwidth, int inheight, qbyte *palette);
-void MediaGL_ShowFrameRGBA_32(qbyte *framedata, int inwidth, int inheight);	//top down
-void MediaGL_ShowFrameBGR_24_Flip(qbyte *framedata, int inwidth, int inheight);	//input is bottom up...
-
 void GLVID_DeInit (void);
 void GLR_DeInit (void);
 void GLSCR_DeInit (void);
 void GLVID_Console_Resize(void);
-
-int GLR_LightPoint (vec3_t p);
 #endif
+int R_LightPoint (vec3_t p);
+void R_RenderDlights (void);
 
 enum imageflags
 {

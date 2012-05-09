@@ -9,12 +9,15 @@
 #define Z_Malloc malloc
 #else
 #if !defined(_WIN32) || defined(_SDL)
-#define VFSSTDIO_Open VFSOS_Open
 #define stdiofilefuncs osfilefuncs
 #endif
 #define FSSTDIO_OpenTemp FS_OpenTemp
 #endif
 
+typedef struct {
+	int depth;
+	char rootpath[1];
+} stdiopath_t;
 typedef struct {
 	vfsfile_t funcs;
 	FILE *handle;
@@ -115,7 +118,7 @@ vfsfile_t *FSSTDIO_OpenTemp(void)
 vfsfile_t *Sys_OpenAsset(const char *fname);
 #endif
 
-vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode)
+static vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode, qboolean *needsflush)
 {
 	FILE *f;
 	vfsstdiofile_t *file;
@@ -125,6 +128,9 @@ vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode)
 	qboolean text = !!strchr(mode, 't');
 	char newmode[3];
 	int modec = 0;
+
+	if (needsflush)
+		*needsflush = false;
 
 #if 0//def ANDROID
 //	if (!strncmp("asset/", osname, 6))
@@ -151,6 +157,12 @@ vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode)
 	if (!f)
 		return NULL;
 
+	if (write || append)
+	{
+		if (needsflush)
+			*needsflush = true;
+	}
+
 	file = Z_Malloc(sizeof(vfsstdiofile_t));
 	file->funcs.ReadBytes = strchr(mode, 'r')?VFSSTDIO_ReadBytes:NULL;
 	file->funcs.WriteBytes = (strchr(mode, 'w')||strchr(mode, 'a'))?VFSSTDIO_WriteBytes:NULL;
@@ -164,29 +176,67 @@ vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode)
 	return (vfsfile_t*)file;
 }
 
+#if !defined(_WIN32) || defined(_SDL)
+vfsfile_t *VFSOS_Open(const char *osname, const char *mode)
+{
+	vfsfile_t *f;
+	qboolean needsflush;
+	f = VFSSTDIO_Open(osname, mode, &needsflush);
+	if (needsflush)
+		FS_FlushFSHashReally();
+	return f;
+}
+#endif
 
 #ifndef WEBSVONLY
 static vfsfile_t *FSSTDIO_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 {
+	vfsfile_t *f;
+	stdiopath_t *sp = handle;
 	char diskname[MAX_OSPATH];
+	qboolean needsflush;
 
 	//path is already cleaned, as anything that gets a valid loc needs cleaning up first.
 
-	snprintf(diskname, sizeof(diskname), "%s/%s", (char*)handle, loc->rawname);
+	snprintf(diskname, sizeof(diskname), "%s/%s", sp->rootpath, loc->rawname);
 
-	return VFSOS_Open(diskname, mode);
+	f = VFSSTDIO_Open(diskname, mode, &needsflush);
+	if (needsflush)
+		FS_AddFileHash(sp->depth, loc->rawname, NULL, sp);
+	return f;
 }
 
 static void FSSTDIO_PrintPath(void *handle)
 {
-	Con_Printf("%s\n", (char*)handle);
+	stdiopath_t *np = handle;
+	Con_Printf("%s\n", np->rootpath);
 }
 static void FSSTDIO_ClosePath(void *handle)
 {
 	Z_Free(handle);
 }
+static qboolean FSSTDIO_PollChanges(void *handle)
+{
+	stdiopath_t *np = handle;
+	return true;	//can't verify that or not, so we have to assume the worst
+}
+static void *FSSTDIO_OpenPath(vfsfile_t *mustbenull, const char *desc)
+{
+	stdiopath_t *np;
+	int dlen = strlen(desc);
+	if (mustbenull)
+		return NULL;
+	np = Z_Malloc(sizeof(*np) + dlen);
+	if (np)
+	{
+		np->depth = 0;
+		memcpy(np->rootpath, desc, dlen+1);
+	}
+	return np;
+}
 static int FSSTDIO_RebuildFSHash(const char *filename, int filesize, void *data)
 {
+	stdiopath_t *sp = data;
 	if (filename[strlen(filename)-1] == '/')
 	{	//this is actually a directory
 
@@ -195,27 +245,18 @@ static int FSSTDIO_RebuildFSHash(const char *filename, int filesize, void *data)
 		Sys_EnumerateFiles((char*)data, childpath, FSSTDIO_RebuildFSHash, data);
 		return true;
 	}
-	if (!Hash_GetInsensative(&filesystemhash, filename))
-	{
-		bucket_t *bucket = (bucket_t*)BZ_Malloc(sizeof(bucket_t) + strlen(filename)+1);
-		strcpy((char *)(bucket+1), filename);
-#ifdef _WIN32
-		Q_strlwr((char *)(bucket+1));
-#endif
-		Hash_AddInsensative(&filesystemhash, (char *)(bucket+1), data, bucket);
-
-		fs_hash_files++;
-	}
-	else
-		fs_hash_dups++;
+	FS_AddFileHash(sp->depth, filename, NULL, sp);
 	return true;
 }
-static void FSSTDIO_BuildHash(void *handle)
+static void FSSTDIO_BuildHash(void *handle, int depth)
 {
-	Sys_EnumerateFiles(handle, "*", FSSTDIO_RebuildFSHash, handle);
+	stdiopath_t *sp = handle;
+	sp->depth = depth;
+	Sys_EnumerateFiles(sp->rootpath, "*", FSSTDIO_RebuildFSHash, handle);
 }
 static qboolean FSSTDIO_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
+	stdiopath_t *sp = handle;
 	int len;
 	char netpath[MAX_OSPATH];
 
@@ -232,7 +273,7 @@ static qboolean FSSTDIO_FLocate(void *handle, flocation_t *loc, const char *file
 */
 
 // check a file in the directory tree
-	snprintf (netpath, sizeof(netpath)-1, "%s/%s",(char*)handle, filename);
+	snprintf (netpath, sizeof(netpath)-1, "%s/%s", sp->rootpath, filename);
 
 #ifdef ANDROID
 	{
@@ -291,9 +332,10 @@ searchpathfuncs_t stdiofilefuncs = {
 	FSSTDIO_FLocate,
 	FSSTDIO_ReadFile,
 	FSSTDIO_EnumerateFiles,
+	FSSTDIO_OpenPath,
 	NULL,
-	NULL,
-	FSSTDIO_OpenVFS
+	FSSTDIO_OpenVFS,
+	FSSTDIO_PollChanges
 };
 #endif
 #endif

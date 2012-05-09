@@ -842,8 +842,6 @@ void CL_Stop_f (void)
 	cls.demooutfile = NULL;
 	cls.demorecording = false;
 	Con_Printf ("Completed demo\n");
-
-	FS_FlushFSHash();
 }
 
 
@@ -1404,7 +1402,6 @@ void CL_PlayDownloadedDemo(char *name, qboolean success)
 		Con_Printf("Failed to download %s\n", name);
 	else
 	{
-		FS_FlushFSHash();
 		Cbuf_AddText(va("playdemo %s\n", name), RESTRICT_LOCAL);
 	}
 }

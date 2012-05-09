@@ -413,21 +413,22 @@ static void COM_CopyFile (char *netpath, char *cachepath)
 int fs_hash_dups;
 int fs_hash_files;
 
-void FS_FlushFSHash(void)
+void FS_FlushFSHashReally(void)
 {
 	if (filesystemhash.numbuckets)
 	{
 		int i;
-		bucket_t *bucket, *next;
+		fsbucket_t *bucket, *next;
 
 		for (i = 0; i < filesystemhash.numbuckets; i++)
 		{
-			bucket = filesystemhash.bucket[i];
+			bucket = (fsbucket_t*)filesystemhash.bucket[i];
 			filesystemhash.bucket[i] = NULL;
 			while(bucket)
 			{
-				next = bucket->next;
-				if (bucket->key.string == (char*)(bucket+1))
+				next = (fsbucket_t*)bucket->buck.next;
+				/*if the string starts right after the bucket, free it*/
+				if (bucket->depth < 0)
 					Z_Free(bucket);
 				bucket = next;
 			}
@@ -436,9 +437,53 @@ void FS_FlushFSHash(void)
 
 	com_fschanged = true;
 }
+void FS_FlushFSHashWritten(void)
+{
+	/*automatically handled*/
+}
+void FS_FlushFSHashRemoved(void)
+{
+	FS_FlushFSHashReally();
+}
+
+void FS_AddFileHash(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle)
+{
+	fsbucket_t *old;
+
+	old = Hash_GetInsensativeBucket(&filesystemhash, fname);
+
+	if (old)
+	{
+		fs_hash_dups++;
+		if (depth >= ((old->depth<0)?(-old->depth-1):old->depth))
+		{
+			return;
+		}
+
+		//remove the old version
+		Hash_RemoveBucket(&filesystemhash, fname, &old->buck);
+		if (old->depth < 0)
+			Z_Free(old);
+	}
+
+	if (!filehandle)
+	{
+		filehandle = Z_Malloc(sizeof(*filehandle) + strlen(fname)+1);
+		if (!filehandle)
+			return;	//eep!
+		strcpy((char*)(filehandle+1), fname);
+		fname = (char*)(filehandle+1);
+		filehandle->depth = -depth-1;
+	}
+	else filehandle->depth = depth;
+
+	Hash_AddInsensative(&filesystemhash, fname, pathhandle, &filehandle->buck);
+	fs_hash_files++;
+}
 
 void FS_RebuildFSHash(void)
 {
+	int depth = 1;
 	searchpath_t	*search;
 	if (!filesystemhash.numbuckets)
 	{
@@ -447,7 +492,7 @@ void FS_RebuildFSHash(void)
 	}
 	else
 	{
-		FS_FlushFSHash();
+		FS_FlushFSHashRemoved();
 	}
 	Hash_InitTable(&filesystemhash, filesystemhash.numbuckets, filesystemhash.bucket);
 
@@ -458,12 +503,12 @@ void FS_RebuildFSHash(void)
 	{	//go for the pure paths first.
 		for (search = com_purepaths; search; search = search->nextpure)
 		{
-			search->funcs->BuildHash(search->handle);
+			search->funcs->BuildHash(search->handle, depth++);
 		}
 	}
 	for (search = com_searchpaths ; search ; search = search->next)
 	{
-		search->funcs->BuildHash(search->handle);
+		search->funcs->BuildHash(search->handle, depth++);
 	}
 
 	com_fschanged = false;
@@ -1217,7 +1262,7 @@ void COM_FlushTempoaryPacks(void)
 		sp = *link;
 		if (sp->istemporary)
 		{
-			FS_FlushFSHash();
+			FS_FlushFSHashReally();
 
 			*link = sp->next;
 
@@ -1422,7 +1467,10 @@ static searchpath_t *FS_AddPathHandle(const char *purepath, const char *probable
 	search->isexplicit = isexplicit;
 	search->handle = handle;
 	search->funcs = funcs;
-	Q_strncpyz(search->purepath, purepath, sizeof(search->purepath));
+	if (funcs == &osfilefuncs)
+		Q_strncpyz(search->purepath, probablepath, sizeof(search->purepath));
+	else
+		Q_strncpyz(search->purepath, purepath, sizeof(search->purepath));
 
 	if (istemporary)
 	{
@@ -1466,8 +1514,15 @@ void COM_RefreshFSCache_f(void)
 
 void COM_FlushFSCache(void)
 {
+	searchpath_t *search;
 	if (com_fs_cache.ival != 2)
-		com_fschanged=true;
+	{
+		for (search = com_searchpaths ; search ; search = search->next)
+		{
+			if (search->funcs->PollChanges)
+				com_fschanged |= search->funcs->PollChanges(search->handle);
+		}
+	}
 }
 
 /*since should start as 0, otherwise this can be used to poll*/
@@ -1494,6 +1549,7 @@ void FS_AddGameDirectory (const char *puredir, const char *dir, unsigned int loa
 	searchpath_t	*search;
 
 	char			*p;
+	void			*handle;
 
 	fs_restarts++;
 
@@ -1514,9 +1570,8 @@ void FS_AddGameDirectory (const char *puredir, const char *dir, unsigned int loa
 // add the directory to the search path
 //
 
-	p = Z_Malloc(strlen(dir)+1);
-	strcpy(p, dir);
-	FS_AddPathHandle((*dir?puredir:""), va("%s/", dir), &osfilefuncs, p, false, false, true, loadstuff);
+	handle = osfilefuncs.OpenNew(NULL, dir);
+	FS_AddPathHandle((*dir?puredir:""), va("%s/", dir), &osfilefuncs, handle, false, false, true, loadstuff);
 }
 
 char *COM_NextPath (char *prevpath)
@@ -1531,8 +1586,8 @@ char *COM_NextPath (char *prevpath)
 			continue;
 
 		if (prevpath == prev)
-			return s->handle;
-		prev = s->handle;
+			return s->purepath;
+		prev = s->purepath;
 	}
 
 	return NULL;
@@ -1655,7 +1710,7 @@ void COM_Gamedir (const char *dir)
 	FS_ForceToPure(NULL, NULL, 0);
 
 #ifndef SERVERONLY
-	Host_WriteConfiguration();	//before we change anything.
+//	Host_WriteConfiguration();	//before we change anything.
 #endif
 
 	Q_strncpyz (gamedirfile, dir, sizeof(gamedirfile));
@@ -1667,7 +1722,7 @@ void COM_Gamedir (const char *dir)
 	cl.gamedirchanged = true;
 #endif
 
-	FS_FlushFSHash();
+	FS_FlushFSHashReally();
 
 	//
 	// free up any current game dir info
@@ -1867,7 +1922,7 @@ void FS_ImpurePacks(const char *names, const char *crcs)
 							break;
 						sp = FS_AddPathHandle(pname, local, searchpathformats[i].funcs, handle, true, true, false, (unsigned int)-1);
 
-						FS_FlushFSHash();
+						FS_FlushFSHashReally();
 						break;
 					}
 				}
@@ -1899,7 +1954,7 @@ void FS_ForceToPure(const char *names, const char *crcs, int seed)
 		{
 			Con_Printf("Pure FS deactivated\n");
 			com_purepaths = NULL;
-			FS_FlushFSHash();
+			FS_FlushFSHashReally();
 		}
 		return;
 	}
@@ -1993,7 +2048,7 @@ void FS_ForceToPure(const char *names, const char *crcs, int seed)
 		}
 	}
 
-	FS_FlushFSHash();
+	FS_FlushFSHashReally();
 
 	if (com_purepaths && !waspure)
 		Con_Printf("Pure FS activated\n");
@@ -2055,7 +2110,7 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 	}
 #endif
 
-	FS_FlushFSHash();
+	FS_FlushFSHashReally();
 
 	oldpaths = com_searchpaths;
 	com_searchpaths = NULL;
@@ -2360,7 +2415,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 void FS_Shutdown(void)
 {
 	searchpath_t *next;
-	FS_FlushFSHash();
+	FS_FlushFSHashReally();
 
 	//
 	// free up any current game dir info

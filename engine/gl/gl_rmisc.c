@@ -450,11 +450,8 @@ void GLR_DeInit (void)
 	Cvar_Unhook(&vid_conautoscale);
 	Cvar_Unhook(&vid_conheight);
 	Cvar_Unhook(&vid_conwidth);
-	Cvar_Unhook(&r_wallcolour);
-	Cvar_Unhook(&r_floorcolour);
 	Cvar_Unhook(&r_walltexture);
 	Cvar_Unhook(&r_floortexture);
-	Cvar_Unhook(&r_fastskycolour);
 	Cvar_Unhook(&r_drawflat);
 	Cvar_Unhook(&v_gamma);
 	Cvar_Unhook(&v_contrast);
@@ -466,13 +463,10 @@ void GLR_DeInit (void)
 
 void GLR_Init (void)
 {	
-	Cmd_AddRemCommand ("timerefresh", GLR_TimeRefresh_f);
+	Cmd_AddCommand ("timerefresh", GLR_TimeRefresh_f);
 
-//	Cmd_AddRemCommand ("makewad", R_MakeTexWad_f);
+//	Cmd_AddCommand ("makewad", R_MakeTexWad_f);
 
-//	Cvar_Hook(&r_floorcolour, GLR_Floorcolour_Callback);
-//	Cvar_Hook(&r_fastskycolour, GLR_Fastskycolour_Callback);
-//	Cvar_Hook(&r_wallcolour, GLR_Wallcolour_Callback);
 //	Cvar_Hook(&r_floortexture, GLR_Floortexture_Callback);
 //	Cvar_Hook(&r_walltexture, GLR_Walltexture_Callback);
 //	Cvar_Hook(&r_drawflat, GLR_Drawflat_Callback);

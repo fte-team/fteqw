@@ -113,6 +113,7 @@ typedef struct batch_s
 	/*caller-use, not interpreted by backend*/
 	union
 	{
+		unsigned int shadowbatch; //a unique index to accelerate shadowmesh generation (dlights, yay!)
 		struct 
 		{
 			unsigned int surf_first;
@@ -291,6 +292,8 @@ typedef struct vbo_s
 	unsigned int vbobones;
 	float *bones;
 	unsigned  int numbones;
+
+	struct vbo_s *next;
 } vbo_t;
 void GL_SelectVBO(int vbo);
 void GL_SelectEBO(int vbo);
@@ -300,13 +303,9 @@ typedef struct texture_s
 	char		name[64];
 	unsigned	width, height;
 
-	qbyte	pixbytes;
 	qbyte	alphaed;	//gl_blend needed on this surface.
 
 	struct shader_s	*shader;
-	int wtexno;
-
-	vbo_t vbo;
 
 	int			anim_total;				// total tenths in sequence ( 0 = no)
 	int			anim_min, anim_max;		// time for this frame min <=time< max
@@ -949,6 +948,12 @@ typedef struct model_s
 	q3lightgridinfo_t *lightgrid;
 	char		*entities;
 
+	struct {
+		texture_t *tex;
+		vbo_t *vbo;
+	} *shadowbatches;
+	int numshadowbatches;
+	vbo_t *vbos;
 	void *terrain;
 	batch_t *batches[SHADER_SORT_COUNT];
 

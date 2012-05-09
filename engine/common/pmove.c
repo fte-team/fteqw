@@ -789,7 +789,7 @@ void PM_CategorizePosition (void)
 	//bsp objects marked as ladders mark regions to stand in to be classed as on a ladder.
 	cont = PM_ExtraBoxContents(pmove.origin);
 
-#ifdef Q2BSPS
+#ifdef Q3BSPS
 	//q3 has surfaceflag-based ladders
 	if (pmove.physents[0].model->fromgame == fg_quake3)
 	{

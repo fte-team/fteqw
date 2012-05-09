@@ -2031,16 +2031,16 @@ static qboolean PScript_InitParticles (void)
 	memset(trailstates, 0, r_numtrailstates * sizeof(trailstate_t));
 	ts_cycle = 0;
 
-	Cmd_AddRemCommand("pointfile", P_ReadPointFile_f);	//load the leak info produced from qbsp into the particle system to show a line. :)
+	Cmd_AddCommand("pointfile", P_ReadPointFile_f);	//load the leak info produced from qbsp into the particle system to show a line. :)
 
-	Cmd_AddRemCommand("r_part", P_ParticleEffect_f);
+	Cmd_AddCommand("r_part", P_ParticleEffect_f);
 
-	Cmd_AddRemCommand("r_exportbuiltinparticles", P_ExportBuiltinSet_f);
-	Cmd_AddRemCommand("r_importeffectinfo", P_ImportEffectInfo_f);
+	Cmd_AddCommand("r_exportbuiltinparticles", P_ExportBuiltinSet_f);
+	Cmd_AddCommand("r_importeffectinfo", P_ImportEffectInfo_f);
 
 #if _DEBUG
-	Cmd_AddRemCommand("r_partinfo", P_PartInfo_f);
-	Cmd_AddRemCommand("r_beaminfo", P_BeamInfo_f);
+	Cmd_AddCommand("r_partinfo", P_PartInfo_f);
+	Cmd_AddCommand("r_beaminfo", P_BeamInfo_f);
 #endif
 
 

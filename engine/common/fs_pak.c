@@ -7,11 +7,11 @@
 
 typedef struct
 {
+	fsbucket_t bucket;
+
 	char	name[MAX_QPATH];
 	int		filepos, filelen;
-
-	bucket_t bucket;
-} packfile_t;
+} mpackfile_t;
 
 typedef struct pack_s
 {
@@ -19,7 +19,7 @@ typedef struct pack_s
 	vfsfile_t	*handle;
 	unsigned int filepos;	//the pos the subfiles left it at (to optimize calls to vfs_seek)
 	int		numfiles;
-	packfile_t	*files;
+	mpackfile_t	*files;
 	int references;	//seeing as all vfiles from a pak file use the parent's vfsfile, we need to keep the parent open until all subfiles are closed.
 } pack_t;
 
@@ -77,25 +77,19 @@ void FSPAK_ClosePath(void *handle)
 		Z_Free(pak->files);
 	Z_Free(pak);
 }
-void FSPAK_BuildHash(void *handle)
+void FSPAK_BuildHash(void *handle, int depth)
 {
 	pack_t *pak = handle;
 	int i;
 
 	for (i = 0; i < pak->numfiles; i++)
 	{
-		if (!Hash_GetInsensative(&filesystemhash, pak->files[i].name))
-		{
-			fs_hash_files++;
-			Hash_AddInsensative(&filesystemhash, pak->files[i].name, &pak->files[i], &pak->files[i].bucket);
-		}
-		else
-			fs_hash_dups++;
+		FS_AddFileHash(depth, pak->files[i].name, &pak->files[i].bucket, &pak->files[i]);
 	}
 }
 qboolean FSPAK_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)
 {
-	packfile_t *pf = hashedresult;
+	mpackfile_t *pf = hashedresult;
 	int i, len;
 	pack_t		*pak = handle;
 
@@ -193,7 +187,7 @@ void *FSPAK_LoadPackFile (vfsfile_t *file, const char *desc)
 	dpackheader_t	header;
 	int				i;
 //	int				j;
-	packfile_t		*newfiles;
+	mpackfile_t		*newfiles;
 	int				numpackfiles;
 	pack_t			*pack;
 	vfsfile_t		*packhandle;
@@ -224,7 +218,7 @@ void *FSPAK_LoadPackFile (vfsfile_t *file, const char *desc)
 //	if (numpackfiles != PAK0_COUNT)
 //		com_modified = true;	// not the original file
 
-	newfiles = (packfile_t*)Z_Malloc (numpackfiles * sizeof(packfile_t));
+	newfiles = (mpackfile_t*)Z_Malloc (numpackfiles * sizeof(mpackfile_t));
 
 	VFS_SEEK(packhandle, header.dirofs);
 //	fread (&info, 1, header.dirlen, packhandle);

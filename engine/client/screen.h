@@ -94,6 +94,7 @@ enum
 };
 int SCR_GetLoadingStage(void);
 void SCR_SetLoadingStage(int stage);
+void SCR_SetLoadingFile(char *str);
 
 
 /*fonts*/

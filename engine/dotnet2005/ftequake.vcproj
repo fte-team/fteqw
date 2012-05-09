@@ -1073,7 +1073,7 @@
 				FavorSizeOrSpeed="1"
 				OmitFramePointers="true"
 				AdditionalIncludeDirectories="../libs/speex;..\client;../libs/freetype2/include;../common;../server;../gl;../sw;../qclib;../libs;../libs/dxsdk9/include;../libs/dxsdk7/include"
-				PreprocessorDefinitions="NDEBUG;WIN32;_WINDOWS;GLQUAKE;D3DQUAKE"
+				PreprocessorDefinitions="NDEBUG;WIN32;_WINDOWS;GLQUAKE;D3DQUAKE;SWQUAKE"
 				StringPooling="true"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
@@ -1475,7 +1475,8 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories="../libs/speex;..\client;../libs/freetype2/include;../common;../server;../gl;../sw;../qclib;../libs;../libs/dxsdk9/include;../libs/dxsdk7/include"
-				PreprocessorDefinitions="_DEBUG;WIN32;_WINDOWS;GLQUAKE;D3DQUAKE"
+				PreprocessorDefinitions="_DEBUG;WIN32;_WINDOWS;GLQUAKE;D3DQUAKE;SWQUAKE;MULTITHREAD"
+				BasicRuntimeChecks="3"
 				RuntimeLibrary="1"
 				FloatingPointModel="2"
 				UsePrecompiledHeader="2"
@@ -27032,6 +27033,34 @@
 					</File>
 					<File
 						RelativePath="..\d3d\vid_d3d.c"
+						>
+					</File>
+				</Filter>
+				<Filter
+					Name="sw"
+					>
+					<File
+						RelativePath="..\sw\sw.h"
+						>
+					</File>
+					<File
+						RelativePath="..\sw\sw_backend.c"
+						>
+					</File>
+					<File
+						RelativePath="..\sw\sw_image.c"
+						>
+					</File>
+					<File
+						RelativePath="..\sw\sw_rast.c"
+						>
+					</File>
+					<File
+						RelativePath="..\sw\sw_spans.h"
+						>
+					</File>
+					<File
+						RelativePath="..\sw\sw_vidwin.c"
 						>
 					</File>
 				</Filter>

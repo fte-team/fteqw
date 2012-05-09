@@ -71,11 +71,10 @@ typedef struct cvar_s
 
 	void		(*callback) (struct cvar_s *var, char *oldvalue);
 	char		*description;
+	char		*defaultstr;	//default
 
 
 	int			ival;
-
-	char		*defaultstr;	//default
 	qbyte		restriction;
 
 #ifdef HLSERVER
@@ -85,9 +84,9 @@ typedef struct cvar_s
 } cvar_t;
 
 #ifdef MINIMAL
-#define CVARAFDC(ConsoleName,Value,ConsoleName2,Flags,Description,Callback)	{ConsoleName, Value, NULL, Flags, 0, 0, 0, ConsoleName2, Callback, NULL}
+#define CVARAFDC(ConsoleName,Value,ConsoleName2,Flags,Description,Callback)	{ConsoleName, NULL, NULL, Flags, 0, 0, 0, ConsoleName2, Callback, NULL,        Value}
 #else
-#define CVARAFDC(ConsoleName,Value,ConsoleName2,Flags,Description,Callback)	{ConsoleName, Value, NULL, Flags, 0, 0, 0, ConsoleName2, Callback, Description}
+#define CVARAFDC(ConsoleName,Value,ConsoleName2,Flags,Description,Callback)	{ConsoleName, NULL, NULL, Flags, 0, 0, 0, ConsoleName2, Callback, Description, Value}
 #endif
 #define CVARAFD(ConsoleName,Value,ConsoleName2,Flags,Description)CVARAFDC(ConsoleName, Value, ConsoleName2, Flags, Description, NULL)
 #define CVARAFC(ConsoleName,Value,ConsoleName2,Flags,Callback)	CVARAFC(ConsoleName, Value, ConsoleName2, Flags, NULL, Callback)

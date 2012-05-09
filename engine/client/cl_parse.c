@@ -953,6 +953,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 		if (cls.protocol == CP_NETQUAKE && !cl_nocsqc.ival && !cls.demoplayback)
 		{
 			char *s;
+			SCR_SetLoadingFile("csprogs");
 			s = Info_ValueForKey(cl.serverinfo, "*csprogs");
 			if (*s)	//only allow csqc if the server says so, and the 'checksum' matches.
 			{
@@ -977,6 +978,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 #ifdef HLCLIENT
 	if (atstage())
 	{
+		SCR_SetLoadingFile("hlclient");
 		CLHL_LoadClientGame();
 		endstage();
 	}
@@ -996,6 +998,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 		if (anycsqc || *s || cls.demoplayback)	//only allow csqc if the server says so, and the 'checksum' matches.
 		{
 			unsigned int chksum = strtoul(s, NULL, 0);
+			SCR_SetLoadingFile("csprogs");
 			if (!CSQC_Init(anycsqc, chksum))
 			{
 				Sbar_Start();	//try and start this before we're actually on the server,
@@ -1010,6 +1013,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 
 	if (atstage())
 	{
+		SCR_SetLoadingFile("prenewmap");
 		loadmodel = cl.worldmodel;
 
 		if (R_PreNewMap)
@@ -1031,6 +1035,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 
 			if (atstage())
 			{
+				SCR_SetLoadingFile(cl.model_name[i]);
 #ifdef CSQC_DAT
 				if (i == 1)
 					CSQC_LoadResource(cl.model_name[i], "map");
@@ -1057,6 +1062,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 
 			if (atstage())
 			{
+				SCR_SetLoadingFile(cl.model_name_vwep[i]);
 #ifdef CSQC_DAT
 				CSQC_LoadResource(cl.model_name_vwep[i], "vwep");
 #endif
@@ -1080,6 +1086,8 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 //				Host_EndGame("Worldmodel wasn't loaded\n");
 		}
 
+		SCR_SetLoadingFile("csprogs world");
+
 #ifdef CSQC_DAT
 		CSQC_WorldLoaded();
 #endif
@@ -1093,6 +1101,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 			continue;
 		if (atstage())
 		{
+			SCR_SetLoadingFile(cl.model_csqcname[i]);
 #ifdef CSQC_DAT
 			if (i == 1)
 				CSQC_LoadResource(cl.model_csqcname[i], "map");
@@ -1110,6 +1119,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 
 	if (atstage())
 	{
+		SCR_SetLoadingFile("wads");
 		Wad_NextDownload();
 
 		endstage();
@@ -1117,6 +1127,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 
 	if (atstage())
 	{
+		SCR_SetLoadingFile("external textures");
 		loadmodel = cl.worldmodel;
 //		if (!loadmodel || loadmodel->type == mod_dummy)
 //			Host_EndGame("No worldmodel was loaded\n");
@@ -1129,6 +1140,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 	// all done
 	if (atstage())
 	{
+		SCR_SetLoadingFile("newmap");
 		loadmodel = cl.worldmodel;
 //		if (!loadmodel || loadmodel->type == mod_dummy)
 //			Host_EndGame("No worldmodel was loaded\n");
@@ -1143,6 +1155,7 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 #ifdef CSQC_DAT
 	if (atstage())
 	{
+		SCR_SetLoadingFile("csqc init");
 		if (CSQC_Inited())
 		{
 			CL_SendClientCommand(true, "enablecsqc");
@@ -1174,6 +1187,7 @@ int CL_LoadSounds(int stage, qboolean dontactuallyload)
 
 		if (atstage())
 		{
+			SCR_SetLoadingFile(cl.sound_name[i]);
 #ifdef CSQC_DAT
 			CSQC_LoadResource(cl.sound_name[i], "sound");
 #endif
@@ -1346,7 +1360,7 @@ void CL_RequestNextDownload (void)
 		current_loading_size = cl.contentstage;
 		if (stage < 0)
 			return;
-
+		SCR_SetLoadingFile("prespawn");
 		cl.sendprespawn = false;
 #ifdef warningmsg
 #pragma warningmsg("timedemo timer should start here")
@@ -1989,7 +2003,6 @@ void CLDP_ParseDownloadFinished(char *s)
 	Cmd_TokenizeString(s+1, false, false);
 
 	VFS_CLOSE (cls.downloadqw);
-	FS_FlushFSHash();
 
 	cls.downloadqw = FS_OpenVFS (cls.downloadtempname, "rb", FS_GAME);
 	if (cls.downloadqw)

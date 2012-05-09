@@ -847,12 +847,18 @@ qboolean Netchan_Process (netchan_t *chan)
 		}
 		if (chan->incoming_unreliable != sequence)
 		{
+			if (chan->in_fragment_length && showdrop.ival)
+				Con_Printf("final fragment lost (%i). dropping entire packet\n", offset);
 			/*sequence doesn't match, forget the old*/
 			chan->in_fragment_length = 0;
 			chan->incoming_unreliable = sequence;
 		}
 		if (offset != chan->in_fragment_length)
+		{
+			if (showdrop.ival)
+				Con_Printf("prior fragment lost (%i-%i). dropping entire packet\n", offset, chan->in_fragment_length);
 			return false; /*dropped one*/
+		}
 
 		memcpy(chan->in_fragment_buf + offset, net_message.data + msg_readcount, len);
 		chan->in_fragment_length += len;

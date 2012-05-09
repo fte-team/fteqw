@@ -406,6 +406,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define NORETURN __attribute__((noreturn))
 #endif
 
+//I'm making my own restrict, because msvc can't cope if I #define restrict to __restrict, and quite possibly other platforms too
+#if __STDC_VERSION__ >= 199901L
+	#define fte_restrict restrict
+#elif defined(_MSC_VER)
+	#define fte_restrict __restrict
+#else
+	#define fte_restrict
+#endif
+
 
 #ifndef FTE_DEPRECATED
 #define FTE_DEPRECATED

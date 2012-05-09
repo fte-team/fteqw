@@ -87,6 +87,7 @@ static const char PCFPASS_SHADER[] = "\
 extern cvar_t r_glsl_offsetmapping, r_noportals;
 
 static void BE_SendPassBlendDepthMask(unsigned int sbits);
+void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, qboolean usedepth);
 void GLBE_SubmitBatch(batch_t *batch);
 
 struct {
@@ -119,6 +120,9 @@ struct {
 		texid_t tex_sourcecol; /*this is used by $sourcecolour tgen*/
 		texid_t tex_sourcedepth;
 		int fbo_depthless;
+		int fbo_reflection;
+		texid_t tex_reflection;
+		texid_t tex_refraction;
 
 		qboolean force2d;
 		int currenttmu;
@@ -1007,6 +1011,12 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 	case T_GEN_SOURCEDEPTH:
 		t = shaderstate.tex_sourcedepth;
 		break;
+	case T_GEN_REFLECTION:
+		t = shaderstate.tex_reflection;
+		break;
+	case T_GEN_REFRACTION:
+		t = shaderstate.tex_refraction;
+		break;
 	}
 	GL_LazyBind(tmu, GL_TEXTURE_2D, t);
 }
@@ -1886,6 +1896,36 @@ static void deformgen(const deformv_t *deformv, int cnt, vecV_t *src, vecV_t *ds
 	}
 }
 
+static void GenerateVertexBlends(const shader_t *shader)
+{
+	int i, m;
+	mesh_t *meshlist;
+	vecV_t *ov, *iv1, *iv2;
+	float w1, w2;
+	for (m = 0; m < shaderstate.meshcount; m++)
+	{
+		meshlist = shaderstate.meshes[m];
+
+		ov = vertexarray+meshlist->vbofirstvert;
+		iv1 = meshlist->xyz_array;
+		iv2 = meshlist->xyz2_array;
+		w1 = meshlist->xyz_blendw[0];
+		w2 = meshlist->xyz_blendw[1];
+		for (i = 0; i < meshlist->numvertexes; i++)
+		{
+			ov[i][0] = iv1[i][0]*w1 + iv2[i][0]*w2;
+			ov[i][1] = iv1[i][1]*w1 + iv2[i][1]*w2;
+			ov[i][2] = iv1[i][2]*w1 + iv2[i][2]*w2;
+		}
+		for (i = 0; i < shader->numdeforms; i++)
+		{
+			deformgen(&shader->deforms[i], meshlist->numvertexes, vertexarray+meshlist->vbofirstvert, vertexarray+meshlist->vbofirstvert, meshlist);
+		}
+	}
+
+	shaderstate.pendingvertexpointer = vertexarray;
+	shaderstate.pendingvertexvbo = 0;
+}
 static void GenerateVertexDeforms(const shader_t *shader)
 {
 	int i, m;
@@ -2074,6 +2114,7 @@ static void GenerateColourMods(const shaderpass_t *pass)
 			alphagen(pass, meshlist->numvertexes, meshlist->colors4f_array, coloursarray + meshlist->vbofirstvert, meshlist);
 		}
 
+		shaderstate.colourarraytype = GL_FLOAT;
 		shaderstate.pendingcolourvbo = 0;
 		shaderstate.pendingcolourpointer = coloursarray;
 	}
@@ -3063,14 +3104,6 @@ static void DrawMeshes(void)
 		RQuantAdd(RQUANT_ENTBATCHES, 1);
 	}
 
-	if (shaderstate.curshader->numdeforms)
-		GenerateVertexDeforms(shaderstate.curshader);
-	else
-	{
-		shaderstate.pendingvertexpointer = shaderstate.sourcevbo->coord.gl.addr;
-		shaderstate.pendingvertexvbo = shaderstate.sourcevbo->coord.gl.vbo;
-	}
-
 #ifndef FORCESTATE
 	if (shaderstate.curcull != (shaderstate.curshader->flags & (SHADER_CULL_FRONT|SHADER_CULL_BACK)))
 #endif
@@ -3090,6 +3123,16 @@ static void DrawMeshes(void)
 		{
 			qglDisable(GL_CULL_FACE);
 		}
+	}
+
+	if (shaderstate.sourcevbo->coord2.gl.addr)
+		GenerateVertexBlends(shaderstate.curshader);
+	else if (shaderstate.curshader->numdeforms)
+		GenerateVertexDeforms(shaderstate.curshader);
+	else
+	{
+		shaderstate.pendingvertexpointer = shaderstate.sourcevbo->coord.gl.addr;
+		shaderstate.pendingvertexvbo = shaderstate.sourcevbo->coord.gl.vbo;
 	}
 
 	BE_PolyOffset(shaderstate.flags & BEF_PUSHDEPTH);
@@ -3341,7 +3384,7 @@ void GLBE_SubmitBatch(batch_t *batch)
 	}
 }
 
-static void BE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
+static void GLBE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 {
 	batch_t *batch, *old;
 	int i;
@@ -3362,12 +3405,12 @@ static void BE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 
 
 				/*draw already-drawn portals as depth-only, to ensure that their contents are not harmed*/
-				BE_SelectMode(BEM_DEPTHONLY);
+				GLBE_SelectMode(BEM_DEPTHONLY);
 				for (old = worldlist[SHADER_SORT_PORTAL]; old && old != batch; old = old->next)
 				{
 					if (old->meshes == old->firstmesh)
 						continue;
-					BE_SubmitBatch(old);
+					GLBE_SubmitBatch(old);
 				}
 				if (!old)
 				{
@@ -3375,10 +3418,10 @@ static void BE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 					{
 						if (old->meshes == old->firstmesh)
 							continue;
-						BE_SubmitBatch(old);
+						GLBE_SubmitBatch(old);
 					}
 				}
-				BE_SelectMode(BEM_STANDARD);
+				GLBE_SelectMode(BEM_STANDARD);
 
 				GLR_DrawPortal(batch, worldlist);
 
@@ -3391,7 +3434,7 @@ static void BE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 	}
 }
 
-static void BE_SubmitMeshesSortList(batch_t *sortlist)
+static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 {
 	batch_t *batch;
 	for (batch = sortlist; batch; batch = batch->next)
@@ -3430,7 +3473,51 @@ static void BE_SubmitMeshesSortList(batch_t *sortlist)
 				continue;
 		}
 
-		BE_SubmitBatch(batch);
+		if (batch->shader->flags & (SHADER_HASREFLECT | SHADER_HASREFRACT))
+		{
+			//these two flags require rendering some view as an fbo
+			if (r_refdef.recurse)
+				return;
+
+			if (batch->shader->flags & SHADER_HASREFLECT)
+			{
+				if (!shaderstate.tex_reflection.num)
+				{
+					shaderstate.tex_reflection = GL_AllocNewTexture("***tex_reflection***", vid.pixelwidth, vid.pixelheight);
+					GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_reflection);
+					qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vid.pixelwidth, vid.pixelheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+				}
+				GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_reflection, true);
+				GL_ForceDepthWritable();
+				qglClear(GL_DEPTH_BUFFER_BIT);
+				GLR_DrawPortal(batch, cl.worldmodel->batches);
+				GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, false);
+			}
+			if (batch->shader->flags & SHADER_HASREFRACT)
+			{
+				if (!shaderstate.tex_refraction.num)
+				{
+					shaderstate.tex_refraction = GL_AllocNewTexture("***tex_refraction***", vid.pixelwidth, vid.pixelheight);
+					GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_refraction);
+					qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vid.pixelwidth, vid.pixelheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+				}
+				GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_refraction, true);
+				GL_ForceDepthWritable();
+				qglClear(GL_DEPTH_BUFFER_BIT);
+				GLR_DrawPortal(batch, cl.worldmodel->batches);
+				GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, false);
+			}
+		}
+
+		GLBE_SubmitBatch(batch);
 	}
 }
 
@@ -3444,11 +3531,11 @@ void GLBE_SubmitMeshes (qboolean drawworld, batch_t **blist, int start, int stop
 		if (drawworld)
 		{
 			if (i == SHADER_SORT_PORTAL && !r_noportals.ival && !r_refdef.recurse)
-				BE_SubmitMeshesPortals(model->batches, blist[i]);
+				GLBE_SubmitMeshesPortals(model->batches, blist[i]);
 
-			BE_SubmitMeshesSortList(model->batches[i]);
+			GLBE_SubmitMeshesSortList(model->batches[i]);
 		}
-		BE_SubmitMeshesSortList(blist[i]);
+		GLBE_SubmitMeshesSortList(blist[i]);
 	}
 }
 
@@ -3526,7 +3613,7 @@ void GLBE_BaseEntTextures(void)
 }
 #endif
 
-void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, texid_t destdepth, qboolean usedepth)
+void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, qboolean usedepth)
 {
 	shaderstate.tex_sourcecol = sourcecol;
 	shaderstate.tex_sourcedepth = sourcedepth;
@@ -3534,16 +3621,40 @@ void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destco
 		qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 	else
 	{
-		if (!shaderstate.fbo_depthless)
+		if (usedepth)
 		{
-			qglGenFramebuffersEXT(1, &shaderstate.fbo_depthless);
-			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shaderstate.fbo_depthless);
+			if (!shaderstate.fbo_diffuse)
+			{
+				int drb;
 
-			qglDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
-			qglReadBuffer(GL_NONE);
+				qglGenFramebuffersEXT(1, &shaderstate.fbo_diffuse);
+				qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shaderstate.fbo_diffuse);
+
+				//create an unnamed depth buffer
+				qglGenRenderbuffersEXT(1, &drb);
+				qglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, drb);
+				qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT24_ARB, vid.pixelwidth, vid.pixelheight);
+				qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, drb);
+
+				qglDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
+				qglReadBuffer(GL_NONE);
+			}
+			else
+				qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shaderstate.fbo_diffuse);
 		}
 		else
-			qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shaderstate.fbo_depthless);
+		{
+			if (!shaderstate.fbo_depthless)
+			{
+				qglGenFramebuffersEXT(1, &shaderstate.fbo_depthless);
+				qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shaderstate.fbo_depthless);
+
+				qglDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
+				qglReadBuffer(GL_NONE);
+			}
+			else
+				qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, shaderstate.fbo_depthless);
+		}
 		
 		qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, destcol.num, 0);
 	}

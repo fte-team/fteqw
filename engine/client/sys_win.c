@@ -30,6 +30,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <io.h>
 #include <direct.h>
 
+//#define RESTARTTEST
+
 #ifdef MULTITHREAD
 #include <process.h>
 #endif
@@ -51,6 +53,10 @@ unsigned int sys_parenttop;
 unsigned int sys_parentwidth;	//valid if sys_parentwindow is set
 unsigned int sys_parentheight;
 
+
+#ifdef RESTARTTEST
+jmp_buf restart_jmpbuf;
+#endif
 /*
 ================
 Sys_RandomBytes
@@ -871,6 +877,10 @@ void Sys_Quit (void)
 	SetHookState(false);
 #else
 	SV_Shutdown();
+#endif
+
+#ifdef RESTARTTEST
+	longjmp(restart_jmpbuf, 1);
 #endif
 
 #ifdef NPFTE
@@ -1759,6 +1769,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
     if (hPrevInstance)
         return 0;
 
+
 	#ifndef MINGW
 	#if _MSC_VER > 1200
 		Win7_Init();
@@ -1850,6 +1861,10 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				}
 			}
 		}
+
+#ifdef RESTARTTEST
+		setjmp (restart_jmpbuf);
+#endif
 
 		GetModuleFileName(NULL, cwd, sizeof(cwd)-1);
 		strcpy(exename, COM_SkipPath(cwd));

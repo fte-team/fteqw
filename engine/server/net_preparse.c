@@ -791,7 +791,13 @@ void NPP_NQFlush(void)
 		else
 			multicastpos = 0;
 		if (bufferlen)
+		{
+			if (writedest->cursize + bufferlen > writedest->maxsize)
+			{
+				SV_FlushBroadcasts();
+			}
 			SZ_Write(writedest, buffer, bufferlen);
+		}
 
 		if (multicastpos)
 		{

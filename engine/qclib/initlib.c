@@ -160,6 +160,38 @@ static void PF_fmem_unlink(progfuncs_t *pr, qcmemfreeblock_t *p)
 		np->prev = p->prev;
 	}
 }
+static void PR_memvalidate (progfuncs_t *progfuncs)
+{
+	qcmemfreeblock_t *p;
+	qcmemusedblock_t *ub = NULL;
+	unsigned int b,l;
+
+	b = prinst->mfreelist;
+	l = 0;
+	while (b)
+	{
+		if (b < 0 || b >= prinst->addressableused)
+		{
+			printf("PF_memalloc: memory corruption\n");
+			PR_StackTrace(progfuncs);
+			return;
+		}
+		p = (qcmemfreeblock_t*)(progfuncs->stringtable + b);
+
+		if (p->prev != l ||
+			p->next && p->next < b + p->size ||
+			p->next >= prinst->addressableused ||
+			b + p->size >= prinst->addressableused ||
+			p->prev >= b)
+		{
+			printf("PF_memalloc: memory corruption\n");
+			PR_StackTrace(progfuncs);
+			return;
+		}
+		l = b;
+		b = p->next;
+	}
+}
 static void *PR_memalloc (progfuncs_t *progfuncs, unsigned int size)
 {
 	qcmemfreeblock_t *p, *np;
@@ -220,6 +252,7 @@ static void *PR_memalloc (progfuncs_t *progfuncs, unsigned int size)
 			}
 			break;
 		}
+		b = p->next;
 	}
 
 	/*assign more space*/
@@ -236,19 +269,23 @@ static void *PR_memalloc (progfuncs_t *progfuncs, unsigned int size)
 	memset(ub, 0, size);
 	ub->marker = MARKER;
 	ub->size = size;
+
+//	PR_memvalidate(progfuncs);
+
 	return ub+1;
 }
 static void PR_memfree (progfuncs_t *progfuncs, void *memptr)
 {
 	qcmemusedblock_t *ub;
-	qcmemfreeblock_t *p, *np; 
-	unsigned int l, ln;
+	qcmemfreeblock_t *p, *np, *pp; 
+	unsigned int pa, na;	//prev addr, next addr
 	unsigned int size;
 	unsigned int ptr = memptr?((char*)memptr - progfuncs->stringtable):0;
 
 	/*freeing NULL is ignored*/
 	if (!ptr)
 		return;
+//	PR_memvalidate(progfuncs);
 	if (ptr < sizeof(qcmemusedblock_t) || ptr >= prinst->addressableused)
 	{
 		printf("PF_memfree: pointer invalid - out of range (%u >= %u)\n", ptr, prinst->addressableused);
@@ -268,18 +305,18 @@ static void PR_memfree (progfuncs_t *progfuncs, void *memptr)
 	ub->marker = 0;
 	size = ub->size;
 
-	for (ln = prinst->mfreelist, l = 0; ;)
+	for (na = prinst->mfreelist, pa = 0; ;)
 	{
-		if (ln < 0 || ln >= prinst->addressableused)
+		if (na < 0 || na >= prinst->addressableused)
 		{
 			printf("PF_memfree: memory corruption\n");
 			PR_StackTrace(progfuncs);
 			return;
 		}
-		if (!ln || ln >= ptr)
+		if (!na || na >= ptr)
 		{
-			np = (qcmemfreeblock_t*)(progfuncs->stringtable + l);
-			if (l && l+np->size>ptr)
+			np = (qcmemfreeblock_t*)(progfuncs->stringtable + pa);
+			if (pa && pa+np->size>ptr)
 			{
 				printf("PF_memfree: double free\n");
 				PR_StackTrace(progfuncs);
@@ -288,15 +325,17 @@ static void PR_memfree (progfuncs_t *progfuncs, void *memptr)
 
 			/*generate the free block, now we know its proper values*/
 			p = (qcmemfreeblock_t*)(progfuncs->stringtable + ptr);
-			p->prev = l;
-			p->next = ln;
+			np = na?(qcmemfreeblock_t*)(progfuncs->stringtable + na):NULL;
+			pp = pa?(qcmemfreeblock_t*)(progfuncs->stringtable + pa):NULL;
+
+			p->prev = pa;
+			p->next = na;
 			p->size = size;
 
 			/*update the next's previous*/
-			if (p->next)
+			if (na)
 			{
-				np = (qcmemfreeblock_t*)(progfuncs->stringtable + p->next);
-				np->prev = p->prev;
+				np->prev = ptr;
 			
 				/*extend this block and kill the next if they are adjacent*/
 				if (p->next == ptr + size)
@@ -307,27 +346,29 @@ static void PR_memfree (progfuncs_t *progfuncs, void *memptr)
 			}
 
 			/*update the link to get here*/
-			if (!l)
+			if (!pa)
 				prinst->mfreelist = ptr;
 			else
 			{
-				np = (qcmemfreeblock_t*)(progfuncs->stringtable + l);
-				np->next = ptr;
+				pp->next = ptr;
 
 				/*we're adjacent to the previous block, so merge them by killing the newly freed region*/
-				if (l + np->size == ptr)
+				if (na && pa + np->size == ptr)
 				{
-					np->size += size;
-					PF_fmem_unlink(progfuncs, p);
+					p->size += np->size;
+					PF_fmem_unlink(progfuncs, np);
 				}
+
 			}
 			break;
 		}
 
-		l = ln;
-		p = (qcmemfreeblock_t*)(progfuncs->stringtable + l);
-		ln = p->next;
+		pa = na;
+		p = (qcmemfreeblock_t*)(progfuncs->stringtable + pa);
+		na = p->next;
 	}
+
+//	PR_memvalidate(progfuncs);
 }
 
 void PRAddressableFlush(progfuncs_t *progfuncs, int totalammount)

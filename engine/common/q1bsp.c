@@ -53,6 +53,22 @@ static int Q1_HullPointContents (hull_t *hull, int num, vec3_t p)
 	return num;
 }
 
+static int Q1_ModelPointContents (mnode_t *node, vec3_t p)
+{
+	float d;
+	mplane_t *plane;
+	while(node->contents >= 0)
+	{
+		plane = node->plane;
+		if (plane->type < 3)
+			d = p[plane->type] - plane->dist;
+		else
+			d = DotProduct(plane->normal, p) - plane->dist;
+		node = node->children[d<0];
+	}
+	return node->contents;
+}
+
 
 
 #define	DIST_EPSILON	(0.03125)
@@ -728,6 +744,10 @@ unsigned int Q1BSP_PointContents(model_t *model, vec3_t axis[3], vec3_t point)
 		transformed[1] = DotProduct(point, axis[1]);
 		transformed[2] = DotProduct(point, axis[2]);
 		return Q1BSP_HullPointContents(&model->hulls[0], transformed);
+	}
+	if (1)
+	{
+		return Q1BSP_TranslateContents(Q1_ModelPointContents(model->nodes, point));
 	}
 	return Q1BSP_HullPointContents(&model->hulls[0], point);
 }

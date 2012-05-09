@@ -490,7 +490,7 @@ TRACE(("dbg: GLDraw_ReInit: Allocating upload buffers\n"));
 	TRACE(("dbg: GLDraw_ReInit: PPL_LoadSpecularFragmentProgram\n"));
 	GL_InitSceneProcessingShaders();
 
-	Cmd_AddRemCommand ("r_imagelist", GLDraw_ImageList_f);
+	Cmd_AddCommand ("r_imagelist", GLDraw_ImageList_f);
 }
 
 void GLDraw_DeInit (void)
@@ -1397,7 +1397,7 @@ void GL_Upload24BGR (char *name, qbyte *framedata, int inwidth, int inheight, un
 		outheight = 512;
 
 	if (outwidth*outheight > sizeofuploadmemorybufferintermediate/4)
-		Sys_Error("MediaGL_ShowFrameBGR_24_Flip: image too big (%i*%i)", inwidth, inheight);
+		Sys_Error("GL_Upload24BGR: image too big (%i*%i)", inwidth, inheight);
 
 	for (y=0 ; y<outheight ; y++)
 	{

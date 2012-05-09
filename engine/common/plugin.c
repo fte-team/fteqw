@@ -716,7 +716,7 @@ qintptr_t VARGS Plug_Cmd_AddCommand(void *offset, quintptr_t mask, const qintptr
 	}
 
 	Q_strncpyz(plugincommandarray[i].command, name, sizeof(plugincommandarray[i].command));
-	if (!Cmd_AddRemCommand(plugincommandarray[i].command, Plug_Command_f))
+	if (!Cmd_AddCommand(plugincommandarray[i].command, Plug_Command_f))
 		return false;
 	plugincommandarray[i].plugin = currentplug;	//worked
 	return true;

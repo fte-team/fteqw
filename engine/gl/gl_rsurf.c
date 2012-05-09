@@ -131,12 +131,11 @@ void *allocbuf(char **p, int elements, int elementsize)
 	return ret;
 }
 
-void GLBE_GenBrushModelVBO(model_t *mod)
+void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch)
 {
 	unsigned int maxvboverts;
 	unsigned int maxvboelements;
 
-	unsigned int t;
 	unsigned int i;
 	unsigned int v;
 	unsigned int vcount, ecount;
@@ -155,7 +154,166 @@ void GLBE_GenBrushModelVBO(model_t *mod)
 	vec3_t *tvector;
 	vec4_t *colours;
 	index_t *indicies;
+	batch_t *batch;
 
+
+	vbo = Z_Malloc(sizeof(*vbo));
+
+	maxvboverts = 0;
+	maxvboelements = 0;
+	meshes = 0;
+	for(batch = firstbatch; batch != stopbatch; batch = batch->next)
+	{
+		for (i=0 ; i<batch->meshes ; i++)
+		{
+			m = batch->mesh[i];
+			meshes++;
+			maxvboelements += m->numindexes;
+			maxvboverts += m->numvertexes;
+		}
+	}
+	if (maxvboverts > MAX_INDICIES)
+		Sys_Error("Building a vbo with too many verticies\n");
+
+
+	vcount = 0;
+	ecount = 0;
+
+	pervertsize =	sizeof(vecV_t)+	//coord
+				sizeof(vec2_t)+	//tex
+				sizeof(vec2_t)+	//lm
+				sizeof(vec3_t)+	//normal
+				sizeof(vec3_t)+	//sdir
+				sizeof(vec3_t)+	//tdir
+				sizeof(vec4_t);	//colours
+
+	vbo->vertdata = BZ_Malloc((maxvboverts+1)*pervertsize + (maxvboelements+1)*sizeof(index_t));
+
+	p = vbo->vertdata;
+
+	vbo->coord.gl.addr = allocbuf(&p, maxvboverts, sizeof(vecV_t));
+	vbo->texcoord.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec2_t));
+	vbo->lmcoord.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec2_t));
+	vbo->normals.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec3_t));
+	vbo->svector.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec3_t));
+	vbo->tvector.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec3_t));
+	vbo->colours.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec4_t));
+	vbo->indicies.gl.addr = allocbuf(&p, maxvboelements, sizeof(index_t));
+
+	coord = vbo->coord.gl.addr;
+	texcoord = vbo->texcoord.gl.addr;
+	lmcoord = vbo->lmcoord.gl.addr;
+	normals = vbo->normals.gl.addr;
+	svector = vbo->svector.gl.addr;
+	tvector = vbo->tvector.gl.addr;
+	colours = vbo->colours.gl.addr;
+	indicies = vbo->indicies.gl.addr;
+
+	//vbo->meshcount = meshes;
+	//vbo->meshlist = BZ_Malloc(meshes*sizeof(*vbo->meshlist));
+
+	meshes = 0;
+
+
+	for(batch = firstbatch; batch != stopbatch; batch = batch->next)
+	{
+		batch->vbo = vbo;
+		for (i=0 ; i<batch->meshes ; i++)
+		{
+			m = batch->mesh[i];
+
+//			surf->mark = &vbo->meshlist[meshes++];
+//			*surf->mark = NULL;
+
+			m->vbofirstvert = vcount;
+			m->vbofirstelement = ecount;
+			for (v = 0; v < m->numindexes; v++)
+				indicies[ecount++] = vcount + m->indexes[v];
+			for (v = 0; v < m->numvertexes; v++)
+			{
+				coord[vcount+v][0] = m->xyz_array[v][0];
+				coord[vcount+v][1] = m->xyz_array[v][1];
+				coord[vcount+v][2] = m->xyz_array[v][2];
+				if (m->st_array)
+				{
+					texcoord[vcount+v][0] = m->st_array[v][0];
+					texcoord[vcount+v][1] = m->st_array[v][1];
+				}
+				if (m->lmst_array)
+				{
+					lmcoord[vcount+v][0] = m->lmst_array[v][0];
+					lmcoord[vcount+v][1] = m->lmst_array[v][1];
+				}
+				if (m->normals_array)
+				{
+					normals[vcount+v][0] = m->normals_array[v][0];
+					normals[vcount+v][1] = m->normals_array[v][1];
+					normals[vcount+v][2] = m->normals_array[v][2];
+				}
+				if (m->snormals_array)
+				{
+					svector[vcount+v][0] = m->snormals_array[v][0];
+					svector[vcount+v][1] = m->snormals_array[v][1];
+					svector[vcount+v][2] = m->snormals_array[v][2];
+				}
+				if (m->tnormals_array)
+				{
+					tvector[vcount+v][0] = m->tnormals_array[v][0];
+					tvector[vcount+v][1] = m->tnormals_array[v][1];
+					tvector[vcount+v][2] = m->tnormals_array[v][2];
+				}
+				if (m->colors4f_array)
+				{
+					colours[vcount+v][0] = m->colors4f_array[v][0];
+					colours[vcount+v][1] = m->colors4f_array[v][1];
+					colours[vcount+v][2] = m->colors4f_array[v][2];
+					colours[vcount+v][3] = m->colors4f_array[v][3];
+				}
+			}
+			vcount += v;
+		}
+	}
+
+	if (GL_BuildVBO(vbo, vbo->vertdata, vcount*pervertsize, indicies, ecount*sizeof(index_t), 0))
+	{
+		BZ_Free(vbo->vertdata);
+		vbo->vertdata = NULL;
+	}
+
+	vbo->next = *vbochain;
+	*vbochain = vbo;
+}
+
+void GLBE_GenBrushModelVBO(model_t *mod)
+{
+	unsigned int vcount;
+
+
+	batch_t *batch, *fbatch;
+	int sortid;
+
+	fbatch = NULL;
+	vcount = 0;
+	for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
+	{
+		if (!mod->batches[sortid])
+			continue;
+
+		for (fbatch = batch = mod->batches[sortid]; batch != NULL; batch = batch->next)
+		{
+			//firstmesh got reused as the number of verticies in each batch
+			if (vcount + batch->firstmesh > MAX_INDICIES)
+			{
+				GLBE_GenBatchVBOs(&mod->vbos, fbatch, batch);
+				fbatch = batch;
+				vcount = 0;
+			}
+			vcount += batch->firstmesh;
+		}
+		
+		GLBE_GenBatchVBOs(&mod->vbos, fbatch, batch);
+	}
+#if 0
 	if (!mod->numsurfaces)
 		return;
 
@@ -292,6 +450,7 @@ void GLBE_GenBrushModelVBO(model_t *mod)
 			vbo->vertdata = NULL;
 		}
 	}
+#endif
 }
 
 void GLBE_UploadAllLightmaps(void)

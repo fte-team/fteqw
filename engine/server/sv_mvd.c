@@ -1435,9 +1435,10 @@ mvddest_t *SV_InitRecordFile (char *name)
 		}
 	}
 	else
+	{
 		FS_Remove(path, FS_GAMEONLY);
-
-	FS_FlushFSHash();
+		FS_FlushFSHashRemoved();
+	}
 
 	return dst;
 }

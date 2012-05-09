@@ -542,7 +542,7 @@ void CL_SendConnectPacket (int mtu,
 	if (mtu > 0)
 	{
 		if (adr.type == NA_LOOPBACK)
-			mtu = 8192;
+			mtu = MAX_UDP_PACKET;
 		else if (net_mtu.ival > 64 && mtu > net_mtu.ival)
 			mtu = net_mtu.ival;
 		mtu &= ~7;
@@ -3095,6 +3095,9 @@ void CL_Init (void)
 #ifdef CSQC_DAT
 	CSQC_RegisterCvarsAndThings();
 #endif
+#if defined(CSQC_DAT) || defined(MENU_DAT)
+	PF_Common_RegisterCvars();
+#endif
 	Cvar_Register (&host_speeds, cl_controlgroup);
 	Cvar_Register (&developer, cl_controlgroup);
 
@@ -3823,6 +3826,9 @@ void Host_Init (quakeparms_t *parms)
 	CDAudio_Init ();
 	Sbar_Init ();
 	CL_Init ();
+#if defined(SERVERONLY) || !(defined(CSQC_DAT) || defined(MENU_DAT))
+	PF_Common_RegisterCvars();
+#endif
 
 	TranslateInit();
 #ifndef CLIENTONLY
@@ -4021,7 +4027,7 @@ void Host_Shutdown(void)
 	UI_Stop();
 #endif
 
-	Host_WriteConfiguration ();
+//	Host_WriteConfiguration ();
 
 	CDAudio_Shutdown ();
 	S_Shutdown();

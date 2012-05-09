@@ -66,6 +66,9 @@ qbyte sentinalkey;
 
 #define TAGLESS 1
 
+int zmemtotal;
+int zmemdelta;
+
 typedef struct memheader_s {
 	int size;
 	int tag;
@@ -347,7 +350,14 @@ void *Z_Realloc(void *data, int newsize)
 
 void *BZF_Malloc(int size)	//BZ_Malloc but allowed to fail - like straight malloc.
 {
-	return malloc(size); 
+	void *mem;
+	mem = malloc(size);
+	if (mem)
+	{
+		zmemdelta += size;
+		zmemtotal += size;
+	}
+	return mem;
 }
 
 void *BZ_Malloc(int size)	//Doesn't clear. The expectation is a large file, rather than sensative data structures.
@@ -1206,13 +1216,13 @@ void Hunk_Print (qboolean all)
 	count = 0;
 	sum = 0;
 	totalblocks = 0;
-	
+
 	h = (hunk_t *)hunk_base;
 	endlow = (hunk_t *)(hunk_base + hunk_low_used);
 	starthigh = (hunk_t *)(hunk_base + hunk_size - hunk_high_used);
 	endhigh = (hunk_t *)(hunk_base + hunk_size);
 
-	Con_Printf ("          :%8i total hunk size\n", hunk_size);
+	Con_Printf ("         :%12i total hunk size\n", hunk_size);
 	Con_Printf ("-------------------------\n");
 
 	while (1)
@@ -1223,12 +1233,12 @@ void Hunk_Print (qboolean all)
 		if ( h == endlow )
 		{
 			Con_Printf ("-------------------------\n");
-			Con_Printf ("          :%8i REMAINING\n", hunk_size - hunk_low_used - hunk_high_used);
-			Con_Printf ("               :%8i USED\n", hunk_low_used + hunk_high_used);
+			Con_Printf ("         : %12i REMAINING\n", hunk_size - hunk_low_used - hunk_high_used);
+			Con_Printf ("         : %12i USED\n", hunk_low_used + hunk_high_used);
 			Con_Printf ("-------------------------\n");
 			h = starthigh;
 		}
-		
+
 	//
 	// if totally done, break
 	//
@@ -1268,8 +1278,8 @@ void Hunk_Print (qboolean all)
 	//
 		memcpy (name, h->name, 8);
 		if (all)
-			Con_Printf ("%8p :%8i %8s\n",h, h->size, name);
-			
+			Con_Printf ("%8p :%12i %8s\n",h, h->size, name);
+
 	//
 	// print the total
 	//
@@ -1277,7 +1287,7 @@ void Hunk_Print (qboolean all)
 		strncmp (h->name, next->name, 8) )
 		{
 			if (!all)
-				Con_Printf ("          :%8i %8s (TOTAL)\n",sum, name);
+				Con_Printf ("          :%12i %8s (TOTAL)\n",sum, name);
 			count = 0;
 			sum = 0;
 		}
@@ -1748,6 +1758,12 @@ void Hunk_Print_f (void)
 		cacheused += cs->size;
 	}
 	Con_Printf("Cache: %iKB\n", cacheused/1024);
+
+	Con_Printf("Z Delta: %iKB\n", zmemdelta/1024); zmemdelta = 0;
+	Con_Printf("Z Total: %iKB\n", zmemtotal/1024);
+	//note: Zone memory isn't tracked reliably. we don't track the mem that is freed, so it'll just climb and climb
+	//we don't track reallocs either.
+
 #if 0
 	{
 		zone_t *zone;

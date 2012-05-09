@@ -120,6 +120,7 @@ extern sfx_t			*cl_sfx_r_exp3;
 	/*These are pointers to the csqc's globals.*/	\
 	globalfloat(svtime,					"time");				/*float		Written before entering most qc functions*/	\
 	globalfloat(frametime,				"frametime");			/*float		Written before entering most qc functions*/	\
+	globalfloat(gamespeed,				"gamespeed");			/*float		Written before entering most qc functions*/	\
 	globalfloat(cltime,					"cltime");				/*float		Written before entering most qc functions*/	\
 	globalfloat(physics_mode,			"physics_mode");		/*float		Written before entering most qc functions*/	\
 	globalentity(self,					"self");				/*entity	Written before entering most qc functions*/	\
@@ -1622,20 +1623,19 @@ static void QCBUILTIN PF_cs_tracetoss (progfuncs_t *prinst, struct globalvars_s 
 	cs_settracevars(&trace);
 }
 
-static int CS_PointContents(vec3_t org)
-{
-	if (!cl.worldmodel)
-		return FTECONTENTS_EMPTY;
-	return cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, org);
-}
 static void QCBUILTIN PF_cs_pointcontents(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	world_t *w = prinst->parms->user;
+
 	float	*v;
 	int cont;
 
 	v = G_VECTOR(OFS_PARM0);
 
-	cont = CS_PointContents(v);
+	if (!cl.worldmodel)
+		return FTECONTENTS_EMPTY;
+
+	cont = World_PointContents(w, v);
 	if (cont & FTECONTENTS_SOLID)
 		G_FLOAT(OFS_RETURN) = Q1CONTENTS_SOLID;
 	else if (cont & FTECONTENTS_SKY)
@@ -2080,6 +2080,11 @@ static void QCBUILTIN PF_cs_getinputstate (progfuncs_t *prinst, struct globalvar
 	extern usercmd_t independantphysics[MAX_SPLITS];
 
 	f = G_FLOAT(OFS_PARM0);
+	if (cl.paused && f >= cls.netchan.incoming_sequence)
+	{
+		G_FLOAT(OFS_RETURN) = false;
+		return;
+	}
 	if (f > cls.netchan.outgoing_sequence)
 	{
 		G_FLOAT(OFS_RETURN) = false;
@@ -2090,8 +2095,6 @@ static void QCBUILTIN PF_cs_getinputstate (progfuncs_t *prinst, struct globalvar
 		G_FLOAT(OFS_RETURN) = false;
 		return;
 	}
-	if (cl.paused)
-		f = cls.netchan.outgoing_sequence;
 
 	/*outgoing_sequence says how many packets have actually been sent, but there's an extra pending packet which has not been sent yet - be warned though, its data will change in the coming frames*/
 	if (f == cls.netchan.outgoing_sequence)
@@ -3460,7 +3463,7 @@ static void QCBUILTIN PF_cs_registercommand (progfuncs_t *prinst, struct globalv
 	if (!strcmp(str, "+showscores") || !strcmp(str, "-showscores") ||
 		!strcmp(str, "+showteamscores") || !strcmp(str, "-showteamscores"))
 		return;
-	Cmd_AddRemCommand(str, CS_ConsoleCommand_f);
+	Cmd_AddCommand(str, CS_ConsoleCommand_f);
 }
 
 static qboolean csqc_usinglistener;
@@ -3499,7 +3502,7 @@ static void CSQC_LerpStateToCSQC(lerpents_t *le, csqcedict_t *ent, qboolean nole
 	ent->xv->lerpfrac = bound(0, cl.servertime - le->newframestarttime, 0.1);
 
 
-/*	if (nolerp)
+	if (nolerp)
 	{
 		ent->v->origin[0] = le->neworigin[0];
 		ent->v->origin[1] = le->neworigin[1];
@@ -3508,7 +3511,7 @@ static void CSQC_LerpStateToCSQC(lerpents_t *le, csqcedict_t *ent, qboolean nole
 		ent->v->angles[1] = le->newangle[1];
 		ent->v->angles[2] = le->newangle[2];
 	}
-	else*/
+	else
 	{
 		ent->v->origin[0] = le->origin[0];
 		ent->v->origin[1] = le->origin[1];
@@ -5324,8 +5327,6 @@ void CSQC_Breakpoint_f(void)
 static void CSQC_GameCommand_f(void);
 void CSQC_RegisterCvarsAndThings(void)
 {
-	PF_Common_RegisterCvars();
-
 	Cmd_AddCommand("coredump_csqc", CSQC_CoreDump);
 	Cmd_AddCommand ("extensionlist_csqc", PR_CSExtensionList_f);
 	Cmd_AddCommand("cl_cmd", CSQC_GameCommand_f);
@@ -5401,6 +5402,17 @@ qboolean CSQC_DrawView(void)
 			*csqcg.clientcommandframe = cls.netchan.outgoing_sequence;
 		if (csqcg.servercommandframe)
 			*csqcg.servercommandframe = cl.ackedinputsequence;
+		if (csqcg.gamespeed)
+			*csqcg.gamespeed = cl.gamespeed;
+	}
+	else 
+	{
+		if (csqcg.clientcommandframe)
+			*csqcg.clientcommandframe = cl.ackedinputsequence;
+		if (csqcg.servercommandframe)
+			*csqcg.servercommandframe = cl.ackedinputsequence;
+		if (csqcg.gamespeed)
+			*csqcg.gamespeed = 0;
 	}
 	if (csqcg.intermission)
 		*csqcg.intermission = cl.intermission;

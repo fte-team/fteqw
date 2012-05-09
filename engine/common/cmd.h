@@ -73,7 +73,6 @@ void	Cmd_Shutdown(void);
 void	Cmd_StuffCmds (void);
 
 void	Cmd_RemoveCommand (char *cmd_name);
-qboolean	Cmd_AddRemCommand (char *cmd_name, xcommand_t function);	//removable command
 qboolean	Cmd_AddCommand (char *cmd_name, xcommand_t function);
 // called by the init functions of other parts of the program to
 // register commands and functions to call for them.

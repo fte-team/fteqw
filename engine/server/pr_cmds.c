@@ -1138,8 +1138,6 @@ void PR_Init(void)
 {
 	int i;
 
-	PF_Common_RegisterCvars();
-
 	Cmd_AddCommand ("breakpoint", PR_BreakPoint_f);
 	Cmd_AddCommand ("decompile", PR_Decompile_f);
 	Cmd_AddCommand ("compile", PR_Compile_f);
@@ -4047,13 +4045,14 @@ PF_pointcontents
 */
 static void QCBUILTIN PF_pointcontents (progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+	world_t *w = prinst->parms->user;
+
 	float	*v;
 	int cont;
 
 	v = G_VECTOR(OFS_PARM0);
 
-//	cont = SV_Move(v, vec3_origin, vec3_origin, v, MOVE_NOMONSTERS, NULL).contents;
-	cont = World_PointContents (&sv.world, v);
+	cont = World_PointContents(w, v);
 	if (cont & FTECONTENTS_SOLID)
 		G_FLOAT(OFS_RETURN) = Q1CONTENTS_SOLID;
 	else if (cont & FTECONTENTS_SKY)
@@ -8626,8 +8625,8 @@ BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"eprint",			PF_eprint,			31,		31,		31,		0,	"void(entity e)"},// debug print an entire entity
 	{"walkmove",		PF_walkmove,		32,		32,		32,		0,	"float(float yaw, float dist)"},
 	{"tracearea",		PF_traceboxh2,		0,		0,		33,		0,	"void(vector v1, vector v2, vector mins, vector maxs, float nomonsters, entity ent)"},
-
 //	{"qtest_flymove",	NULL,	33},	// float(vector dir) flymove = #33;
+//qbism super8's 'private'sound #33
 	{"droptofloor",		PF_droptofloor,		34,		34,		34,		0,	"float()"},
 	{"lightstyle",		PF_lightstyle,		35,		35,		35,		0,	"void(float lightstyle, string stylestring)"},
 	{"rint",			PF_rint,			36,		36,		36,		0,	"float(float)"},
@@ -9799,6 +9798,7 @@ void PR_DumpPlatform_f(void)
 #undef comfieldfunction
 
 		{"physics_mode",	"var float", QW|NQ|CS, 2},
+		{"gamespeed",		"float", CS},
 
 		{"TRUE",	"const float", QW|NQ|CS, 1},
 		{"FALSE",	"const float", QW|NQ|CS, 0},
@@ -10204,7 +10204,6 @@ void PR_DumpPlatform_f(void)
 
 	VFS_CLOSE(f);
 
-	FS_FlushFSHash();
 	Con_Printf("Written \"%s\"\n", dbgfname);
 #endif
 }

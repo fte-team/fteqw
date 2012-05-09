@@ -3358,9 +3358,9 @@ void COM_Init (void)
 
 	COM_CheckRegistered ();
 	if (static_registered)
-		registered.string = "1";
+		registered.defaultstr = "1";
 	else
-		registered.string = "0";
+		registered.defaultstr = "0";
 
 	Cvar_Register (&registered, "Copy protection");
 	Cvar_Register (&gameversion, "Gamecode");

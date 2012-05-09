@@ -69,7 +69,7 @@ cvar_t	gl_affinemodels = SCVAR("gl_affinemodels","0");
 cvar_t	gl_reporttjunctions = SCVAR("gl_reporttjunctions","0");
 cvar_t	gl_finish = SCVAR("gl_finish","0");
 cvar_t	gl_dither = SCVAR("gl_dither", "1");
-cvar_t	r_postprocshader = CVARD("r_postprocshader", "", "Specifies a shader to use as a post-processing shader");
+extern cvar_t	r_postprocshader;
 
 extern cvar_t	gl_screenangle;
 
@@ -733,6 +733,10 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist)
 		qglClipPlane(GL_CLIP_PLANE0, glplane);
 		qglEnable(GL_CLIP_PLANE0);
 	}
+	frustum[4].normal[0] = plane.normal[0];
+	frustum[4].normal[1] = plane.normal[1];
+	frustum[4].normal[2] = plane.normal[2];
+	frustum[4].dist	= plane.dist + 0.01;
 	R_RenderScene();
 	if (qglClipPlane)
 		qglDisable(GL_CLIP_PLANE0);

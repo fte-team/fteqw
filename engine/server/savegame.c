@@ -502,7 +502,8 @@ void LoadModelsAndSounds(vfsfile_t *f)
 		*sv.strings.sound_precache[i] = 0;
 }
 
-qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolean ignoreplayers)
+/*ignoreplayers - says to not tell gamecode (a loadgame rather than a level change)*/
+qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolean isloadgame)
 {
 	eval_t *eval, *e2;
 
@@ -529,18 +530,25 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 
 	levelcache_t *cache;
 
-	cache = svs.levcache;
-	while(cache)
+	if (isloadgame)
 	{
-		if (!strcmp(cache->mapname, level))
-			break;
-
-		cache = cache->next;
+		gametype = svs.gametype;
 	}
-	if (!cache)
-		return false;	//not visited yet. Ignore the existing caches as fakes.
+	else
+	{
+		cache = svs.levcache;
+		while(cache)
+		{
+			if (!strcmp(cache->mapname, level))
+				break;
 
-	gametype = cache->gametype;
+			cache = cache->next;
+		}
+		if (!cache)
+			return false;	//not visited yet. Ignore the existing caches as fakes.
+
+		gametype = cache->gametype;
+	}
 
 	if (savename)
 		Q_snprintfz (name, sizeof(name), "saves/%s/%s", savename, level);
@@ -696,16 +704,22 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 
 	for (i=0 ; i<MAX_CLIENTS ; i++)
 	{
-		ent = EDICT_NUM(svprogfuncs, i+1);
+		if (i < sv.allocated_client_slots)
+			ent = EDICT_NUM(svprogfuncs, i+1);
+		else
+			ent = NULL;
 		svs.clients[i].edict = ent;
 
 		svs.clients[i].name = PR_AddString(svprogfuncs, svs.clients[i].namebuf, sizeof(svs.clients[i].namebuf));
 		svs.clients[i].team = PR_AddString(svprogfuncs, svs.clients[i].teambuf, sizeof(svs.clients[i].teambuf));
 
-		svs.clients[i].playerclass = ent->xv->playerclass;
+		if (ent)
+			svs.clients[i].playerclass = ent->xv->playerclass;
+		else
+			svs.clients[i].playerclass = 0;
 	}
 
-	if (!ignoreplayers)
+	if (!isloadgame)
 	{
 		eval = PR_FindGlobal(svprogfuncs, "startspot", 0, NULL);
 		if (eval) eval->_int = (int)PR_NewString(svprogfuncs, startspot, 0);
@@ -836,7 +850,7 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 		if (!FS_NativePath(name, FS_GAMEONLY, syspath, sizeof(syspath)))
 			return;
 		ge->WriteLevel(syspath);
-		FS_FlushFSHash();
+		FS_FlushFSHashReally();
 		return;
 	}
 #endif
@@ -926,8 +940,6 @@ void SV_SaveLevelCache(char *savedir, qboolean dontharmgame)
 	svprogfuncs->parms->memfree(s);
 
 	VFS_CLOSE (f);
-
-	FS_FlushFSHash();
 }
 
 #ifdef NEWSAVEFORMAT
@@ -1049,8 +1061,6 @@ void SV_Savegame (char *savename)
 	VFS_PRINTF (f, "%s\n", sv.name);
 
 	VFS_CLOSE(f);
-
-	FS_FlushFSHash();
 }
 
 void SV_Savegame_f (void)
@@ -1245,6 +1255,7 @@ void SV_Loadgame_f (void)
 
 	VFS_CLOSE(f);
 
+	svs.gametype = gametype;
 	SV_LoadLevelCache(savename, str, "", true);
 	sv.allocated_client_slots = slots;
 	sv.spawned_client_slots += loadzombies;

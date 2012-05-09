@@ -1933,8 +1933,6 @@ void MP_Reload_f(void)
 
 void MP_RegisterCvarsAndCmds(void)
 {
-	PF_Common_RegisterCvars();
-
 	Cmd_AddCommand("coredump_menuqc", MP_CoreDump_f);
 	Cmd_AddCommand("menu_restart", MP_Reload_f);
 

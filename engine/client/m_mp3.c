@@ -825,6 +825,7 @@ MMRESULT (WINAPI *qacmStreamUnprepareHeader) (HACMSTREAM has, LPACMSTREAMHEADER 
 MMRESULT (WINAPI *qacmStreamConvert) (HACMSTREAM has, LPACMSTREAMHEADER pash, DWORD fdwConvert);
 MMRESULT (WINAPI *qacmStreamPrepareHeader) (HACMSTREAM has, LPACMSTREAMHEADER pash, DWORD fdwPrepare);
 MMRESULT (WINAPI *qacmStreamOpen) (LPHACMSTREAM phas, HACMDRIVER had, LPWAVEFORMATEX pwfxSrc, LPWAVEFORMATEX pwfxDst, LPWAVEFILTER pwfltr, DWORD_PTR dwCallback, DWORD_PTR dwInstance, DWORD fdwOpen);
+MMRESULT (WINAPI *qacmStreamClose) (HACMSTREAM has, DWORD fdwClose);
 
 static qboolean qacmStartup(void)
 {
@@ -838,6 +839,7 @@ static qboolean qacmStartup(void)
 			{(void*)&qacmStreamConvert,			"acmStreamConvert"},
 			{(void*)&qacmStreamPrepareHeader,	"acmStreamPrepareHeader"},
 			{(void*)&qacmStreamOpen,			"acmStreamOpen"},
+			{(void*)&qacmStreamClose,			"acmStreamClose"},
 			{NULL,NULL}
 		};
 		inited = true;
@@ -3149,7 +3151,7 @@ void Media_Init(void)
 	Cvar_Register(&capturesoundbits,	"AVI capture controls");
 	Cvar_Register(&capturesoundchannels,	"AVI capture controls");
 
-	S_RegisterSoundInputPlugin(S_LoadMP3Sound);
+//	S_RegisterSoundInputPlugin(S_LoadMP3Sound);
 #endif
 
 #endif
@@ -3181,6 +3183,18 @@ typedef struct
 	qbyte srcdata[1];
 } mp3decoder_t;
 
+void S_MP3_Abort(sfx_t *sfx)
+{
+	mp3decoder_t *dec = sfx->decoder.buf;
+	sfx->decoder.buf = NULL;
+
+	qacmStreamClose(dec->acm, 0);
+
+	if (dec->dstdata)
+		BZ_Free(dec->dstdata);
+	BZ_Free(dec);
+}
+
 /*must be thread safe*/
 sfxcache_t *S_MP3_Locate(sfx_t *sfx, sfxcache_t *buf, int start, int length)
 {
@@ -3204,6 +3218,12 @@ sfxcache_t *S_MP3_Locate(sfx_t *sfx, sfxcache_t *buf, int start, int length)
 		if (dec->dstcount > snd_speed*6)
 		{
 			int trim = dec->dstcount - snd_speed; //retain a second of buffer in case we have multiple sound devices
+			if (dec->dststart + trim > start)
+			{
+				trim = start - dec->dststart;
+				if (trim < 0)
+					trim = 0;
+			}
 //			if (trim < 0)
 //				trim = 0;
 ///			if (trim > dec->dstcount)
@@ -3298,7 +3318,7 @@ qboolean S_LoadMP3Sound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	memcpy(dec->srcdata, data, datalen);
 	dec->srclen = datalen;
 	s->decoder.buf = dec;
-	s->decoder.abort = NULL;
+	s->decoder.abort = S_MP3_Abort;
 	s->decoder.decodedata = S_MP3_Locate;
 	
 	dec->dstdata = NULL;

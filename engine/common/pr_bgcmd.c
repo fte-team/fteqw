@@ -47,11 +47,6 @@ static char *strtolower(char *s)
 
 void PF_Common_RegisterCvars(void)
 {
-	static qboolean alreadydone;
-	if (alreadydone)
-		return;
-	alreadydone = true;
-
 	Cvar_Register (&pr_brokenfloatconvert, cvargroup_progs);
 	Cvar_Register (&pr_tempstringcount, cvargroup_progs);
 	Cvar_Register (&pr_tempstringsize, cvargroup_progs);

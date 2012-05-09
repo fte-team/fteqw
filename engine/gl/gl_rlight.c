@@ -817,9 +817,12 @@ void R_LoadRTLights(void)
 			dl->coronascale = coronascale;
 			dl->die = 0;
 			dl->flags = flags;
-			dl->lightcolourscales[0] = ambientscale;
-			dl->lightcolourscales[1] = diffusescale;
-			dl->lightcolourscales[2] = specularscale;
+			if (ambientscale || diffusescale || specularscale)
+			{
+				dl->lightcolourscales[0] = ambientscale;
+				dl->lightcolourscales[1] = diffusescale;
+				dl->lightcolourscales[2] = specularscale;
+			}
 			AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
 
 			Q_strncpyz(dl->cubemapname, cubename, sizeof(dl->cubemapname));
@@ -1153,7 +1156,7 @@ int GLRecursiveLightPoint (mnode_t *node, vec3_t start, vec3_t end)
 
 
 
-int GLR_LightPoint (vec3_t p)
+int R_LightPoint (vec3_t p)
 {
 	vec3_t		end;
 	int			r;

@@ -78,6 +78,7 @@ extern vec3_t vec3_origin;
 #define VectorInterpolate(a, bness, b, c) FloatInterpolate((a)[0], bness, (b)[0], (c)[0]),FloatInterpolate((a)[1], bness, (b)[1], (c)[1]),FloatInterpolate((a)[2], bness, (b)[2], (c)[2])
 #define Vector2Copy(a,b) {(b)[0]=(a)[0];(b)[1]=(a)[1];}
 #define Vector2Set(r,x,y) {(r)[0] = x; (r)[1] = y;}
+#define Vector2Interpolate(a, bness, b, c) FloatInterpolate((a)[0], bness, (b)[0], (c)[0]),FloatInterpolate((a)[1], bness, (b)[1], (c)[1])
 
 #define Vector4Copy(a,b) do{(b)[0]=(a)[0];(b)[1]=(a)[1];(b)[2]=(a)[2];(b)[3]=(a)[3];}while(0)
 #define Vector4Scale(in,scale,out)		((out)[0]=(in)[0]*scale,(out)[1]=(in)[1]*scale,(out)[2]=(in)[2]*scale,(out)[3]=(in)[3]*scale)
@@ -157,6 +158,7 @@ void		Matrix3x4_Multiply(const float *a, const float *b, float *out);
 void		Matrix4x4_CM_Project (const vec3_t in, vec3_t out, const vec3_t viewangles, const vec3_t vieworg, float fovx, float fovy);
 void		Matrix4x4_CM_Transform3 (const float *matrix, const float *vector, float *product);
 void		Matrix4x4_CM_Transform4 (const float *matrix, const float *vector, float *product);
+void		Matrix4x4_CM_Transform34(const float *matrix, const vec3_t vector, vec4_t product);
 void		Matrix4x4_CM_UnProject (const vec3_t in, vec3_t out, const vec3_t viewangles, const vec3_t vieworg, float fovx, float fovy);
 void		Matrix3x4_RM_FromVectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3]);
 void		Matrix4x4_RM_FromVectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3]);

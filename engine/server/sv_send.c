@@ -1875,6 +1875,74 @@ client_t *SV_SplitClientDest(client_t *client, qbyte first, int size)
 		return client;
 	}
 }
+
+void SV_FlushBroadcasts (void)
+{
+	client_t *client;
+	int j;
+	// append the broadcast messages to each client messages
+	for (j=0, client = svs.clients ; j<MAX_CLIENTS ; j++, client++)
+	{
+		if (client->state < cs_connected)
+			continue;	// reliables go to all connected or spawned
+		if (client->controller)
+			continue;	//splitscreen
+
+		if (client->protocol == SCP_BAD)
+			continue;	//botclient
+
+#ifdef Q2SERVER
+		if (ISQ2CLIENT(client))
+		{
+			ClientReliableCheckBlock(client, sv.q2reliable_datagram.cursize);
+			ClientReliableWrite_SZ(client, sv.q2reliable_datagram.data, sv.q2reliable_datagram.cursize);
+
+			if (client->state != cs_spawned)
+				continue;	// datagrams only go to spawned
+			SZ_Write (&client->datagram
+				, sv.q2datagram.data
+				, sv.q2datagram.cursize);
+		}
+		else
+#endif
+#ifdef NQPROT
+		if (!ISQWCLIENT(client))
+		{
+			if (client->pextknown)
+			{
+				ClientReliableCheckBlock(client, sv.nqreliable_datagram.cursize);
+				ClientReliableWrite_SZ(client, sv.nqreliable_datagram.data, sv.nqreliable_datagram.cursize);
+			}
+			if (client->state != cs_spawned)
+				continue;	// datagrams only go to spawned
+			SZ_Write (&client->datagram
+				, sv.nqdatagram.data
+				, sv.nqdatagram.cursize);
+		}
+		else
+#endif
+		{
+			ClientReliableCheckBlock(client, sv.reliable_datagram.cursize);
+			ClientReliableWrite_SZ(client, sv.reliable_datagram.data, sv.reliable_datagram.cursize);
+
+			if (client->state != cs_spawned)
+				continue;	// datagrams only go to spawned
+			SZ_Write (&client->datagram
+				, sv.datagram.data
+				, sv.datagram.cursize);
+		}
+	}
+
+	SZ_Clear (&sv.reliable_datagram);
+	SZ_Clear (&sv.datagram);
+#ifdef NQPROT
+	SZ_Clear (&sv.nqreliable_datagram);
+	SZ_Clear (&sv.nqdatagram);
+#endif
+	SZ_Clear (&sv.q2reliable_datagram);
+	SZ_Clear (&sv.q2datagram);
+}
+
 /*
 =======================
 SV_UpdateToReliableMessages
@@ -2090,67 +2158,7 @@ void SV_UpdateToReliableMessages (void)
 		SZ_Clear (&sv.q2datagram);
 #endif
 
-	// append the broadcast messages to each client messages
-	for (j=0, client = svs.clients ; j<MAX_CLIENTS ; j++, client++)
-	{
-		if (client->state < cs_connected)
-			continue;	// reliables go to all connected or spawned
-		if (client->controller)
-			continue;	//splitscreen
-
-		if (client->protocol == SCP_BAD)
-			continue;	//botclient
-
-#ifdef Q2SERVER
-		if (ISQ2CLIENT(client))
-		{
-			ClientReliableCheckBlock(client, sv.q2reliable_datagram.cursize);
-			ClientReliableWrite_SZ(client, sv.q2reliable_datagram.data, sv.q2reliable_datagram.cursize);
-
-			if (client->state != cs_spawned)
-				continue;	// datagrams only go to spawned
-			SZ_Write (&client->datagram
-				, sv.q2datagram.data
-				, sv.q2datagram.cursize);
-		}
-		else
-#endif
-#ifdef NQPROT
-		if (!ISQWCLIENT(client))
-		{
-			if (client->pextknown)
-			{
-				ClientReliableCheckBlock(client, sv.nqreliable_datagram.cursize);
-				ClientReliableWrite_SZ(client, sv.nqreliable_datagram.data, sv.nqreliable_datagram.cursize);
-			}
-			if (client->state != cs_spawned)
-				continue;	// datagrams only go to spawned
-			SZ_Write (&client->datagram
-				, sv.nqdatagram.data
-				, sv.nqdatagram.cursize);
-		}
-		else
-#endif
-		{
-			ClientReliableCheckBlock(client, sv.reliable_datagram.cursize);
-			ClientReliableWrite_SZ(client, sv.reliable_datagram.data, sv.reliable_datagram.cursize);
-
-			if (client->state != cs_spawned)
-				continue;	// datagrams only go to spawned
-			SZ_Write (&client->datagram
-				, sv.datagram.data
-				, sv.datagram.cursize);
-		}
-	}
-
-	SZ_Clear (&sv.reliable_datagram);
-	SZ_Clear (&sv.datagram);
-#ifdef NQPROT
-	SZ_Clear (&sv.nqreliable_datagram);
-	SZ_Clear (&sv.nqdatagram);
-#endif
-	SZ_Clear (&sv.q2reliable_datagram);
-	SZ_Clear (&sv.q2datagram);
+	SV_FlushBroadcasts();
 }
 
 #ifdef _MSC_VER

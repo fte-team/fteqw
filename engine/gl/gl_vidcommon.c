@@ -814,9 +814,9 @@ static const char *glsl_hdrs[] =
 					"wmat += m_bones[int(v_bone.y)] * v_weight.y;"
 					"wmat += m_bones[int(v_bone.z)] * v_weight.z;"
 					"wmat += m_bones[int(v_bone.w)] * v_weight.w;"
-					"n = vec4(v_normal.xyz, 1.0) * wmat;"
-					"t = vec4(v_svector.xyz, 1.0) * wmat;"
-					"b = vec4(v_tvector.xyz, 1.0) * wmat;"
+					"n = vec4(v_normal.xyz, 0.0) * wmat;"
+					"t = vec4(v_svector.xyz, 0.0) * wmat;"
+					"b = vec4(v_tvector.xyz, 0.0) * wmat;"
 					"return m_modelviewprojection * vec4(vec4(v_position.xyz, 1.0) * wmat, 1.0);"
 				"}\n"
 				"vec4 skeletaltransform_wnst(out vec3 w, out vec3 n, out vec3 t, out vec3 b)"
@@ -826,9 +826,9 @@ static const char *glsl_hdrs[] =
 					"wmat += m_bones[int(v_bone.y)] * v_weight.y;"
 					"wmat += m_bones[int(v_bone.z)] * v_weight.z;"
 					"wmat += m_bones[int(v_bone.w)] * v_weight.w;"
-					"n = vec4(v_normal.xyz, 1.0) * wmat;"
-					"t = vec4(v_svector.xyz, 1.0) * wmat;"
-					"b = vec4(v_tvector.xyz, 1.0) * wmat;"
+					"n = vec4(v_normal.xyz, 0.0) * wmat;"
+					"t = vec4(v_svector.xyz, 0.0) * wmat;"
+					"b = vec4(v_tvector.xyz, 0.0) * wmat;"
 					"w = vec4(v_position.xyz, 1.0) * wmat;"
 					"return m_modelviewprojection * vec4(w, 1.0);"
 				"}\n"
@@ -839,7 +839,7 @@ static const char *glsl_hdrs[] =
 					"wmat += m_bones[int(v_bone.y)] * v_weight.y;"
 					"wmat += m_bones[int(v_bone.z)] * v_weight.z;"
 					"wmat += m_bones[int(v_bone.w)] * v_weight.w;"
-					"n = vec4(v_normal.xyz, 1.0) * wmat;"
+					"n = vec4(v_normal.xyz, 0.0) * wmat;"
 					"return m_modelviewprojection * vec4(vec4(v_position.xyz, 1.0) * wmat, 1.0);"
 				"}\n"
 			"#else\n"
@@ -1519,8 +1519,6 @@ rendererinfo_t openglrendererinfo = {
 
 	GLR_NewMap,
 	GLR_PreNewMap,
-	GLR_LightPoint,
-
 
 	Surf_AddStain,
 	Surf_LessenStains,

@@ -214,10 +214,9 @@ vfsfile_t *FS_DecompressGZip(vfsfile_t *infile)
 
 typedef struct
 {
+	fsbucket_t bucket;
 	char	name[MAX_QPATH];
 	int		filepos, filelen;
-
-	bucket_t bucket;
 } zpackfile_t;
 
 
@@ -261,20 +260,14 @@ static void FSZIP_ClosePath(void *handle)
 		Z_Free(zip->files);
 	Z_Free(zip);
 }
-static void FSZIP_BuildHash(void *handle)
+static void FSZIP_BuildHash(void *handle, int depth)
 {
 	zipfile_t *zip = handle;
 	int i;
 
 	for (i = 0; i < zip->numfiles; i++)
 	{
-		if (!Hash_GetInsensative(&filesystemhash, zip->files[i].name))
-		{
-			fs_hash_files++;
-			Hash_AddInsensative(&filesystemhash, zip->files[i].name, &zip->files[i], &zip->files[i].bucket);
-		}
-		else
-			fs_hash_dups++;
+		FS_AddFileHash(depth, zip->files[i].name, &zip->files[i].bucket, &zip->files[i]);
 	}
 }
 static qboolean FSZIP_FLocate(void *handle, flocation_t *loc, const char *filename, void *hashedresult)

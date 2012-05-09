@@ -858,7 +858,7 @@ typedef struct
 	int patchheight;
 } rbspface_t;
 
-#define	MAX_ENT_LEAFS	16
+#define	MAX_ENT_LEAFS	32
 typedef struct pvscache_s
 {
 	int			num_leafs;

@@ -888,7 +888,7 @@ ifeq ($(FTE_TARGET),morphos)
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
 	
 	ifeq ($(WHOAMI),moodles)
-		SV_CFLAGS+=-I/home/moodles/zlib/zlib-1.2.5 -L/home/moodles/zlib/zlib-1.2.5 -I/home/moodles/fteqw/trunk/engine/libs
+		SV_CFLAGS+=-I/home/moodles/zlib/zlib-1.2.5 -L/home/moodles/zlib/zlib-1.2.5 -I/home/moodles/fteqw/trunk/engine/libs -D__MORPHOS_SHAREDLIBS -I/home/moodles/morphos/os-include/
 	endif
 endif
 

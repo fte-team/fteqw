@@ -859,6 +859,8 @@ ifeq ($(FTE_TARGET),morphos)
 	#-Wno-pointer-sign unrecognised 
 	WARNINGFLAGS=-Wall
 
+	CFLAGS+=-D__MORPHOS_SHAREDLIBS
+
 	SV_DIR=sv_morphos
 	SV_LDFLAGS=-ldl -lz
 

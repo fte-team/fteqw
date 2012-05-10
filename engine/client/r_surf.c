@@ -2626,7 +2626,9 @@ void Surf_Clear(model_t *mod)
 	BZ_Free(mod->shadowbatches);
 	mod->numshadowbatches = 0;
 	mod->shadowbatches = NULL;
+#ifdef RTLIGHTS
 	Sh_PurgeShadowMeshes();
+#endif
 }
 
 //pick fastest mode for lightmap data

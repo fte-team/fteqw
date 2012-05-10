@@ -3826,7 +3826,7 @@ void Host_Init (quakeparms_t *parms)
 	CDAudio_Init ();
 	Sbar_Init ();
 	CL_Init ();
-#if defined(SERVERONLY) || !(defined(CSQC_DAT) || defined(MENU_DAT))
+#if defined(CSQC_DAT) || defined(MENU_DAT)
 	PF_Common_RegisterCvars();
 #endif
 

@@ -4831,9 +4831,11 @@ void SV_Init (quakeparms_t *parms)
 #endif
 		COM_Init ();
 		Mod_Init ();
-
-		PF_Common_RegisterCvars();
 	}
+
+#if !(defined(CSQC_DAT) || defined(MENU_DAT))
+	PF_Common_RegisterCvars();
+#endif
 
 	PR_Init ();
 

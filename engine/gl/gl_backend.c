@@ -94,9 +94,9 @@ struct {
 	//internal state
 	struct {
 		int lastpasstmus;
-		int vbo_colour;
-		int vbo_texcoords[SHADER_PASS_MAX];
-		int vbo_deforms;	//holds verticies... in case you didn't realise.
+//		int vbo_colour;
+//		int vbo_texcoords[SHADER_PASS_MAX];
+//		int vbo_deforms;	//holds verticies... in case you didn't realise.
 
 		qboolean inited_shader_rtlight;
 		const shader_t *shader_rtlight;
@@ -167,6 +167,7 @@ struct {
 
 		texid_t temptexture; //$current
 		texid_t fogtexture;
+		texid_t normalisationcubemap;
 		float fogfar;
 	};
 
@@ -277,6 +278,13 @@ static void BE_SetPassBlendMode(int tmu, int pbm)
 			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_TEXTURE);
 			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
 			qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_DOT3_RGB_ARB);
+			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, 1);
+			break;
+		case PBM_MODULATE_PREV_COLOUR:
+			GL_TexEnv(GL_COMBINE_ARB);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE0_RGB_ARB, GL_PRIMARY_COLOR_ARB);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_SOURCE1_RGB_ARB, GL_PREVIOUS_ARB);
+			qglTexEnvi(GL_TEXTURE_ENV, GL_COMBINE_RGB_ARB, GL_MODULATE);
 			qglTexEnvf(GL_TEXTURE_ENV, GL_RGB_SCALE_ARB, 1);
 			break;
 		case PBM_REPLACELIGHT:
@@ -675,8 +683,8 @@ void GLBE_SetupVAO(vbo_t *vbo, unsigned vaodynamic)
 	else
 	{
 		/*always select the coord vbo and indicies ebo, for easy bufferdata*/
-		GL_SelectEBO(shaderstate.sourcevbo->indicies.gl.vbo);
-		GL_SelectVBO(shaderstate.sourcevbo->coord.gl.vbo);
+		GL_SelectEBO(vbo->indicies.gl.vbo);
+		GL_SelectVBO(vbo->coord.gl.vbo);
 	}
 }
 
@@ -2911,12 +2919,12 @@ void GLBE_SelectMode(backendmode_t mode)
 			break;
 
 		case BEM_LIGHT:
-			if (!shaderstate.inited_shader_rtlight)
+			if (!shaderstate.inited_shader_rtlight && gl_config.arb_shader_objects)
 			{
 				shaderstate.inited_shader_rtlight = true;
 				shaderstate.shader_rtlight = R_RegisterCustom("rtlight", Shader_LightPass_Std, NULL);
 			}
-			if (!shaderstate.inited_shader_cube)
+			if (!shaderstate.inited_shader_cube && gl_config.arb_shader_objects)
 			{
 				shaderstate.inited_shader_cube = true;
 				shaderstate.shader_cube = R_RegisterCustom("rtlight_sube", Shader_LightPass_Cube, NULL);
@@ -3085,6 +3093,120 @@ void BE_PushOffsetShadow(qboolean pushdepth)
 	}
 }
 
+#ifdef RTLIGHTS
+texid_t GenerateNormalisationCubeMap(void);
+static void BE_LegacyLighting(void)
+{
+	//bigfoot wants rtlight support without glsl, so here goes madness...
+	//register combiners for bumpmapping using 4 tmus...
+	float *col;
+	float *ldir;
+	vec3_t lightdir, rellight;
+	float scale;
+	int i, m;
+	mesh_t *mesh;
+	unsigned int attr = (1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR);
+
+	if (!shaderstate.normalisationcubemap.num)
+		shaderstate.normalisationcubemap = GenerateNormalisationCubeMap();
+
+
+	BE_SendPassBlendDepthMask(SBITS_SRCBLEND_ONE | SBITS_DSTBLEND_ONE);
+
+	//rotate this into modelspace
+	Matrix4x4_CM_Transform3(shaderstate.modelmatrixinv, shaderstate.lightorg, rellight);
+
+	for (m = 0; m < shaderstate.meshcount; m++)
+	{
+		mesh = shaderstate.meshes[m];
+
+		col = coloursarray[0] + mesh->vbofirstvert*4;
+		ldir = texcoordarray[0] + mesh->vbofirstvert*3;
+		for (i = 0; i < mesh->numvertexes; i++, col+=4, ldir+=3)
+		{
+			VectorSubtract(rellight, mesh->xyz_array[i], lightdir);
+			scale = VectorNormalize(lightdir);
+			scale = 1 - (scale/shaderstate.lightradius);
+			VectorScale(shaderstate.lightcolours, scale, col);
+			col[3] = 1;
+			ldir[0] = -DotProduct(lightdir, mesh->snormals_array[i]);
+			ldir[1] = DotProduct(lightdir, mesh->tnormals_array[i]);
+			ldir[2] = DotProduct(lightdir, mesh->normals_array[i]);
+		}
+	}
+
+	if (shaderstate.curtexnums->bump.num)
+	{
+		attr |= (1u<<(VATTR_LEG_TMU0)) | (1u<<(VATTR_LEG_TMU0+1)) | (1u<<(VATTR_LEG_TMU0+2));
+
+		//tmu0: normalmap+replace+regular tex coords
+		GL_LazyBind(0, GL_TEXTURE_2D, shaderstate.curtexnums->bump);
+		BE_SetPassBlendMode(0, PBM_REPLACE);
+		qglClientActiveTextureARB(mtexid0 + 0);
+		GL_SelectVBO(shaderstate.sourcevbo->texcoord.gl.vbo);
+		qglTexCoordPointer(2, GL_FLOAT, 0, shaderstate.sourcevbo->texcoord.gl.addr);
+
+		//tmu1: normalizationcubemap+dot3+lightdir
+		GL_LazyBind(1, GL_TEXTURE_CUBE_MAP_ARB, shaderstate.normalisationcubemap);
+		BE_SetPassBlendMode(1, PBM_DOTPRODUCT);
+		qglClientActiveTextureARB(mtexid0 + 1);
+		GL_SelectVBO(0);
+		qglTexCoordPointer(3, GL_FLOAT, 0, texcoordarray[0]);
+
+		//tmu2: $diffuse+multiply+regular tex coords
+		GL_LazyBind(2, GL_TEXTURE_2D, shaderstate.curtexnums->base);	//texture not used, its just to make sure the code leaves it enabled.
+		BE_SetPassBlendMode(2, PBM_MODULATE);
+		qglClientActiveTextureARB(mtexid0 + 2);
+		GL_SelectVBO(shaderstate.sourcevbo->texcoord.gl.vbo);
+		qglTexCoordPointer(2, GL_FLOAT, 0, shaderstate.sourcevbo->texcoord.gl.addr);
+	
+		//tmu3: $any+multiply-by-colour+notc
+		GL_LazyBind(3, GL_TEXTURE_2D, shaderstate.curtexnums->bump);	//texture not used, its just to make sure the code leaves it enabled.
+		BE_SetPassBlendMode(3, PBM_MODULATE_PREV_COLOUR);
+
+		//note we need 4 combiners in the first because we can't use the colour argument in the first without breaking the normals.
+
+		for (i = 4; i < shaderstate.lastpasstmus; i++)
+		{
+			GL_LazyBind(i, GL_TEXTURE_2D, r_nulltex);
+		}
+		shaderstate.lastpasstmus = 4;
+	}
+	else
+	{
+		attr |= (1u<<(VATTR_LEG_TMU0));
+
+		//tmu0: $diffuse+multiply+regular tex coords
+		//multiplies by vertex colours
+		GL_LazyBind(0, GL_TEXTURE_2D, shaderstate.curtexnums->base);	//texture not used, its just to make sure the code leaves it enabled.
+		BE_SetPassBlendMode(0, PBM_MODULATE);
+		qglClientActiveTextureARB(mtexid0 + 0);
+		GL_SelectVBO(shaderstate.sourcevbo->texcoord.gl.vbo);
+		qglTexCoordPointer(2, GL_FLOAT, 0, shaderstate.sourcevbo->texcoord.gl.addr);
+
+		for (i = 1; i < shaderstate.lastpasstmus; i++)
+		{
+			GL_LazyBind(i, GL_TEXTURE_2D, r_nulltex);
+		}
+		shaderstate.lastpasstmus = 1;
+	}
+
+	shaderstate.colourarraytype = GL_FLOAT;
+	shaderstate.pendingcolourvbo = 0;
+	shaderstate.pendingcolourpointer = coloursarray;
+
+	GL_SelectEBO(shaderstate.sourcevbo->indicies.gl.vbo);
+	GL_DeSelectProgram();
+	BE_EnableShaderAttributes(attr);
+
+	BE_SubmitMeshChain();
+
+	GL_LazyBind(1, GL_TEXTURE_2D, r_nulltex);
+	GL_LazyBind(2, GL_TEXTURE_2D, r_nulltex);
+	GL_LazyBind(3, GL_TEXTURE_2D, r_nulltex);
+}
+#endif
+
 static void DrawMeshes(void)
 {
 	const shaderpass_t *p;
@@ -3149,6 +3271,11 @@ static void DrawMeshes(void)
 		BE_RenderMeshProgram(shaderstate.shader_smap, shaderstate.shader_smap->passes);
 		break;
 	case BEM_LIGHT:
+		if (!shaderstate.inited_shader_rtlight)
+		{
+			BE_LegacyLighting();
+			break;
+		}
 		if (TEXVALID(shaderstate.lightcubemap))
 			BE_RenderMeshProgram(shaderstate.shader_cube, shaderstate.shader_cube->passes);
 		else
@@ -3830,7 +3957,7 @@ void GLBE_DrawWorld (qbyte *vis)
 		}
 
 #ifdef RTLIGHTS
-		if (r_shadow_realtime_world.ival && gl_config.arb_shader_objects)
+		if (r_shadow_realtime_world.ival)
 			shaderstate.identitylighting = r_shadow_realtime_world_lightmaps.value;
 		else
 #endif

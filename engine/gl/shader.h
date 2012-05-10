@@ -151,7 +151,8 @@ typedef struct shaderpass_s {
 		PBM_ADD,
 		PBM_DOTPRODUCT,
 		PBM_REPLACE,
-		PBM_REPLACELIGHT
+		PBM_REPLACELIGHT,
+		PBM_MODULATE_PREV_COLOUR
 	} blendmode;
 
 	enum {

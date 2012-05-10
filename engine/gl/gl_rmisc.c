@@ -66,9 +66,10 @@ void	GLR_InitTextures (void)
 
 
 
-#if 0
-qboolean GenerateNormalisationCubeMap()
+#if 1
+texid_t GenerateNormalisationCubeMap(void)
 {
+	texid_t normalisationCubeMap;
 	unsigned char data[32*32*3];
 
 	//some useful variables
@@ -80,8 +81,8 @@ qboolean GenerateNormalisationCubeMap()
 
 	int i, j;
 	
-	normalisationCubeMap = GL_AllocNewTexture();
-	GL_BindType(GL_TEXTURE_CUBE_MAP_ARB, normalisationCubeMap);
+	normalisationCubeMap = R_AllocNewTexture("normalisationcubemap", 32, 32);
+	GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, normalisationCubeMap);
 
 	//positive x
 	bytePtr=data;
@@ -228,7 +229,7 @@ qboolean GenerateNormalisationCubeMap()
 	qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 
-	return true;
+	return normalisationCubeMap;
 }
 
 

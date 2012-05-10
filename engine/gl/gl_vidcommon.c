@@ -753,6 +753,12 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 		Con_DPrintf("GLSL available\n");
 	}
+	//we only use vao with shaders anyway.
+	if (!gl_config.arb_shader_objects)
+	{
+		qglGenVertexArrays	= NULL;
+		qglBindVertexArray	= NULL;
+	}
 
 	if (GL_CheckExtension("GL_EXT_framebuffer_object"))
 	{

@@ -2911,13 +2911,13 @@ void Sh_DrawLights(qbyte *vis, batch_t **mbatches)
 #ifdef GLQUAKE
 	case QR_OPENGL:
 		/*no stencil?*/
-		if (!gl_config.arb_shader_objects)
+		/*if (!gl_config.arb_shader_objects)
 		{
 			Con_Printf("Missing GL extensions: switching off realtime lighting.\n");
 			r_shadow_realtime_world.ival = 0;
 			r_shadow_realtime_dlight.ival = 0;
 			return;
-		}
+		}*/
 		break;
 #endif
 #ifdef D3DQUAKE

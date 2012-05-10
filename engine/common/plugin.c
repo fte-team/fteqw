@@ -10,7 +10,6 @@
 
 #if defined(_WIN32) && !defined(MINGW)
 
-
 //lets rip stuff out of the header and supply a seperate dll.
 //gnutls is huge.
 //also this helps get around the whole msvc/mingw thing.
@@ -824,9 +823,11 @@ qintptr_t VARGS Plug_Net_TCPListen(void *offset, quintptr_t mask, const qintptr_
 	case AF_INET:
 		alen = sizeof(struct sockaddr_in);
 		break;
+#ifdef IPPROTO_IPV6
 	case AF_INET6:
 		alen = sizeof(struct sockaddr_in6);
 		break;
+#endif
 	default:
 		return -2;
 	}

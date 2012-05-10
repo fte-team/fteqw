@@ -309,6 +309,7 @@ static ov_callbacks callbacks = {
 qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuffer_t *buffer)
 {
 	static qboolean tried;
+#ifndef __MORPHOS__
 	static dllfunction_t funcs[] =
 	{
 		{(void*)&p_ov_open_callbacks, "ov_open_callbacks"},
@@ -320,6 +321,7 @@ qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdecoderbuf
 		{(void*)&p_ov_pcm_seek, "ov_pcm_seek"},
 		{NULL}
 	};
+#endif
 	static void *libhandle;
 
 	if (!oggvorbislibrary && !tried)

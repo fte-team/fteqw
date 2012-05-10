@@ -516,10 +516,12 @@ void CL_ClearTEnts (void)
 	cl_beams_max = 0;
 	BZ_Free(cl_beams);
 	cl_beams = NULL;
+	beams_running = 0;
 
 	cl_explosions_max = 0;
 	BZ_Free(cl_explosions);
 	cl_explosions = NULL;
+	explosions_running = 0;
 }
 
 static void CL_ClearExplosion(explosion_t *exp)

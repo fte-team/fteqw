@@ -2760,7 +2760,7 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	state->lightstyle = ent->xv->style;
 	state->lightpflags = ent->xv->pflags;
 
-	if (((int)ent->v->flags & FL_CLASS_DEPENDENT) && client->playerclass)	//hexen2 wierdness.
+	if (((int)ent->v->flags & FL_CLASS_DEPENDENT) && client && client->playerclass)	//hexen2 wierdness.
 	{
 		char modname[MAX_QPATH];
 		Q_strncpyz(modname, sv.strings.model_precache[state->modelindex], sizeof(modname));

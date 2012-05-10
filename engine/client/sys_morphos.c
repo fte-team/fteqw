@@ -34,9 +34,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 int __stack = 4*1024*1024;
 
-#if I_AM_BIGFOOT
 struct Library *DynLoadBase;
-#endif
 
 extern struct Library *VorbisFileBase;
 
@@ -50,13 +48,11 @@ void Sys_RecentServer(char *command, char *target, char *title, char *desc)
 
 void Sys_Shutdown()
 {
-#if I_AM_BIGFOOT
 	if(DynLoadBase)
 	{
 		CloseLibrary(DynLoadBase);
 		DynLoadBase = 0;
 	}
-#endif
 
 	if (VorbisFileBase)
 	{
@@ -419,9 +415,7 @@ int main(int argc, char **argv)
 	if (parms.membase == 0)
 		Sys_Error("Can't allocated %d bytes\n", parms.memsize);
 
-#if I_AM_BIGFOOT
 	DynLoadBase = OpenLibrary("dynload.library", 0);
-#endif
 
 	Host_Init(&parms);
 

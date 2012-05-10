@@ -33,6 +33,10 @@ Also, can efficiency be improved much?
 */
 
 
+#ifdef __MORPHOS__
+#include <proto/dynload.h>
+#endif
+
 #include "quakedef.h"
 
 #ifdef VM_ANY
@@ -84,7 +88,7 @@ dllhandle_t *QVM_LoadDLL(const char *name, void **vmMain, sys_calldll_t syscall)
 		{NULL, NULL},
 	};
 
-#if defined(__MORPHOS__) && I_AM_BIGFOOT
+#ifdef __MORPHOS__
 	if (DynLoadBase == 0)
 		return 0;
 #endif

@@ -57,6 +57,15 @@ DROID_NDK_PATH?=~/droid/android-ndk-r6b
 DROID_SDK_PATH?=~/droid/android-sdk-linux_x86
 ANT?=ant
 JAVATOOL="$(JAVA_HOME)"/bin/
+
+ifeq ($(WHOAMI),moodles)
+	ANT_HOME=/home/moodles/apache-ant-1.8.2/
+	JAVA_HOME=/home/moodles/jdk1.6.0_25/
+	DROID_NDK_PATH=/home/moodles/android_ndk
+	DROID_SDK_PATH=/home/moodles/android_sdk
+	JARSIGNARGS="-storepass fteqw1"
+endif
+
 ifeq ($(DROID_ARCH),)
 	DROID_ARCH=armeabi
 endif
@@ -296,7 +305,7 @@ ifeq ($(shell echo $(FTE_TARGET)|grep -v win),)
 
 	ifeq ($(shell echo $(FTE_TARGET)|grep -v -i _SDL),)
 		RELEASE_CFLAGS+= -D_SDL
-		SDL_LDFLAGS=$(MINGW_LIBS_DIR)/libSDL.a $(MINGW_LIBS_DIR)/libSDLmain.a
+		SDL_LDFLAGS=$(MINGW_LIBS_DIR)/libSDL.a $(MINGW_LIBS_DIR)/libSDLmain.a -L./libs/mingw64-libs
 	endif
 endif
 

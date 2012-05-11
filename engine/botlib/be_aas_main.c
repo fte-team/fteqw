@@ -44,6 +44,12 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "be_interface.h"
 #include "be_aas_def.h"
 
+#ifdef _WIN64
+        #ifdef _SDL
+                #define vsnprintf linuxlike_vsnprintf
+        #endif
+#endif
+
 aas_t aasworld;
 
 libvar_t *saveroutingcache;

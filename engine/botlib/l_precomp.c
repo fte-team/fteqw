@@ -109,6 +109,12 @@ typedef struct directive_s
 
 #define TOKEN_HEAP_SIZE		4096
 
+#ifdef _WIN64
+        #ifdef _SDL
+                #define vsnprintf linuxlike_vsnprintf
+        #endif
+#endif
+
 int numtokens;
 /*
 int tokenheapinitialized;				//true when the token heap is initialized

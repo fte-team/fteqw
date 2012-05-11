@@ -4,6 +4,75 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 */
 
 #ifdef GLQUAKE
+{QR_OPENGL, 110, "altwater",
+//modifier: REFLECT
+//modifier: FRESNEL (5=water)
+
+"varying vec2 tc;\n"
+"varying vec4 tf;\n"
+"varying vec3 norm;\n"
+"varying vec3 eye;\n"
+"#ifdef VERTEX_SHADER\n"
+"attribute vec2 v_texcoord;\n"
+"attribute vec3 v_normal;\n"
+"uniform vec3 e_eyepos;\n"
+"void main (void)\n"
+"{\n"
+"tc = v_texcoord.st;\n"
+"tf = ftetransform();\n"
+"norm = v_normal;\n"
+"eye = e_eyepos - v_position.xyz;\n"
+"gl_Position = tf;\n"
+"}\n"
+"#endif\n"
+"#ifdef FRAGMENT_SHADER\n"
+"uniform sampler2D s_t0; //refract\n"
+"uniform sampler2D s_t1; //normalmap\n"
+"uniform sampler2D s_t2; //diffuse\n"
+"#ifdef REFLECT\n"
+"uniform sampler2D s_t3;  //reflect\n"
+"#endif\n"
+
+"uniform float e_time;\n"
+"void main (void)\n"
+"{\n"
+"vec2 stc, ntc;\n"
+"vec3 n, refr, refl, fres;\n"
+"float f;\n"
+"stc = (1.0 + (tf.xy / tf.w)) * 0.5;\n"
+
+//apply q1-style warp, just for kicks
+"ntc.s = tc.s + sin(tc.t+e_time)*0.125;\n"
+"ntc.t = tc.t + sin(tc.s+e_time)*0.125;\n"
+
+//generate the two wave patterns from the normalmap
+"n = (texture2D(s_t1, 0.2*tc + vec2(e_time*0.1, 0)).xyz);\n"
+"n += (texture2D(s_t1, 0.2*tc - vec2(0, e_time*0.097)).xyz);\n"
+"n -= 1.0 - 4.0/256.0;\n"
+
+"n = normalize(n);\n"
+
+"#if 1//def REFRACT\n"
+"refr = texture2D(s_t0, stc + n.st*0.2).rgb;\n"
+"#else\n"
+"refr = texture2D(s_t2, ntc).xyz;\n"
+"#endif\n"
+"#ifdef REFLECT\n"
+"refl = texture2D(s_t3, stc - n.st*0.2).rgb;\n"
+"#else\n"
+"refl = texture2D(s_t2, ntc).xyz;\n"
+"#endif\n"
+
+//the fresnel term decides how transparent the water should be
+"f = pow(1.0-abs(dot(n, normalize(eye))), float(FRESNEL));\n"
+"fres = refr * (1.0-f) + refl*f;\n"
+
+"gl_FragColor = vec4(fres, 1.0);\n"
+"}\n"
+"#endif\n"
+},
+#endif
+#ifdef GLQUAKE
 {QR_OPENGL, 110, "bloom_blur",
 //apply gaussian filter
 
@@ -33,9 +102,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "bloom_filter",
+"!!cvarv r_bloom_filter\n"
 //the bloom filter
 //filter out any texels which are not to bloom
 
+"uniform vec3 cvar_r_bloom_filter;\n"
 "varying vec2 tc;\n"
 
 "#ifdef VERTEX_SHADER\n"
@@ -50,13 +121,15 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "uniform sampler2D s_t0;\n"
 "void main ()\n"
 "{\n"
-"gl_FragColor = (texture2D(s_t0, tc) - vec4(0.5, 0.5, 0.5, 0.0)) * vec4(2.0,2.0,2.0,1.0);\n"
+"gl_FragColor.rgb = (texture2D(s_t0, tc).rgb - cvar_r_bloom_filter)/(1.0-cvar_r_bloom_filter);\n"
 "}\n"
 "#endif\n"
 },
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "bloom_final",
+"!!cvarf r_bloom\n"
+"uniform float cvar_r_bloom;\n"
 //add them together
 //optionally apply tonemapping
 
@@ -79,9 +152,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "{\n"
 "gl_FragColor = \n"
 "texture2D(s_t0, tc) +\n"
+"cvar_r_bloom*(\n"
 "texture2D(s_t1, tc) +\n"
 "texture2D(s_t2, tc) +\n"
-"texture2D(s_t3, tc) ;\n"
+"texture2D(s_t3, tc)\n"
+") ;\n"
 "}\n"
 "#endif\n"
 },

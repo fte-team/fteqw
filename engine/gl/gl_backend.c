@@ -175,6 +175,7 @@ struct {
 	struct {
 		backendmode_t mode;
 		unsigned int flags;
+		int oldwidth, oldheight;
 
 		vbo_t *sourcevbo;
 		const shader_t *curshader;
@@ -3107,10 +3108,6 @@ static void BE_LegacyLighting(void)
 	mesh_t *mesh;
 	unsigned int attr = (1u<<VATTR_LEG_VERTEX) | (1u<<VATTR_LEG_COLOUR);
 
-	if (!shaderstate.normalisationcubemap.num)
-		shaderstate.normalisationcubemap = GenerateNormalisationCubeMap();
-
-
 	BE_SendPassBlendDepthMask(SBITS_SRCBLEND_ONE | SBITS_DSTBLEND_ONE);
 
 	//rotate this into modelspace
@@ -3135,9 +3132,12 @@ static void BE_LegacyLighting(void)
 		}
 	}
 
-	if (shaderstate.curtexnums->bump.num)
-	{
+	if (shaderstate.curtexnums->bump.num && gl_config.arb_texture_cube_map && gl_config.arb_texture_env_dot3 && gl_config.arb_texture_env_combine && be_maxpasses >= 4)
+	{	//we could get this down to 2 tmus by arranging for the dot3 result to be written the alpha buffer. But then we'd need to have an alpha buffer too.
 		attr |= (1u<<(VATTR_LEG_TMU0)) | (1u<<(VATTR_LEG_TMU0+1)) | (1u<<(VATTR_LEG_TMU0+2));
+
+		if (!shaderstate.normalisationcubemap.num)
+			shaderstate.normalisationcubemap = GenerateNormalisationCubeMap();
 
 		//tmu0: normalmap+replace+regular tex coords
 		GL_LazyBind(0, GL_TEXTURE_2D, shaderstate.curtexnums->bump);
@@ -3613,11 +3613,12 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					shaderstate.tex_reflection = GL_AllocNewTexture("***tex_reflection***", vid.pixelwidth, vid.pixelheight);
 					GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_reflection);
 					qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vid.pixelwidth, vid.pixelheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 				}
+				GL_ForceDepthWritable();
 				GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_reflection, true);
 				GL_ForceDepthWritable();
 				qglClear(GL_DEPTH_BUFFER_BIT);
@@ -3636,6 +3637,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 				}
+				GL_ForceDepthWritable();
 				GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_refraction, true);
 				GL_ForceDepthWritable();
 				qglClear(GL_DEPTH_BUFFER_BIT);
@@ -3762,6 +3764,7 @@ void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destco
 				qglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, drb);
 				qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT24_ARB, vid.pixelwidth, vid.pixelheight);
 				qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, drb);
+//				qglDeleteRenderbuffersEXT(1, &drb);
 
 				qglDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
 				qglReadBuffer(GL_NONE);
@@ -3934,6 +3937,39 @@ void GLBE_DrawWorld (qbyte *vis)
 		}
 
 		shaderstate.wbatch = 0;
+	}
+	if (shaderstate.oldwidth != vid.pixelwidth || shaderstate.oldheight != vid.pixelheight)
+	{
+		if (shaderstate.tex_reflection.num)
+		{
+			R_DestroyTexture(shaderstate.tex_reflection);
+			shaderstate.tex_reflection = r_nulltex;
+		}
+		if (shaderstate.tex_refraction.num)
+		{
+			R_DestroyTexture(shaderstate.tex_refraction);
+			shaderstate.tex_refraction = r_nulltex;
+		}
+		if (shaderstate.temptexture.num)
+		{
+			R_DestroyTexture(shaderstate.temptexture);
+			shaderstate.temptexture = r_nulltex;
+		}
+		if (shaderstate.fbo_diffuse)
+		{
+			qglDeleteFramebuffersEXT(1, &shaderstate.fbo_diffuse);
+			shaderstate.fbo_diffuse = 0;
+		}
+		shaderstate.oldwidth = vid.pixelwidth;
+		shaderstate.oldheight = vid.pixelheight;
+
+		while(shaderstate.lastpasstmus>0)
+		{
+			GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
+		}
+#ifdef RTLIGHTS
+		Sh_Shutdown();
+#endif
 	}
 	BE_GenModelBatches(batches);
 	R_GenDlightBatches(batches);

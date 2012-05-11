@@ -3,6 +3,7 @@
 
 char shaders[][64] =
 {
+	"altwater",
 	"bloom_blur",
 	"bloom_filter",
 	"bloom_final",

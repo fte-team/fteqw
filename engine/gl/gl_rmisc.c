@@ -105,7 +105,7 @@ texid_t GenerateNormalisationCubeMap(void)
 		}
 	}
 	qglTexImage2D(	GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB,
-					0, GL_RGBA8, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+					0, GL_RGBA, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
 
 	//negative x
 	bytePtr=data;
@@ -128,7 +128,7 @@ texid_t GenerateNormalisationCubeMap(void)
 		}
 	}
 	qglTexImage2D(	GL_TEXTURE_CUBE_MAP_NEGATIVE_X_ARB,
-					0, GL_RGBA8, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+					0, GL_RGBA, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
 
 	//positive y
 	bytePtr=data;
@@ -151,7 +151,7 @@ texid_t GenerateNormalisationCubeMap(void)
 		}
 	}
 	qglTexImage2D(	GL_TEXTURE_CUBE_MAP_POSITIVE_Y_ARB,
-					0, GL_RGBA8, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+					0, GL_RGBA, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
 
 	//negative y
 	bytePtr=data;
@@ -174,7 +174,7 @@ texid_t GenerateNormalisationCubeMap(void)
 		}
 	}
 	qglTexImage2D(	GL_TEXTURE_CUBE_MAP_NEGATIVE_Y_ARB,
-					0, GL_RGBA8, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+					0, GL_RGBA, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
 
 	//positive z
 	bytePtr=data;
@@ -197,7 +197,7 @@ texid_t GenerateNormalisationCubeMap(void)
 		}
 	}
 	qglTexImage2D(	GL_TEXTURE_CUBE_MAP_POSITIVE_Z_ARB,
-					0, GL_RGBA8, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+					0, GL_RGBA, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
 
 	//negative z
 	bytePtr=data;
@@ -220,7 +220,7 @@ texid_t GenerateNormalisationCubeMap(void)
 		}
 	}
 	qglTexImage2D(	GL_TEXTURE_CUBE_MAP_NEGATIVE_Z_ARB,
-					0, GL_RGBA8, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);	
+					0, GL_RGBA, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, data);	
 		
 
 	qglTexParameteri(GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_MAG_FILTER, GL_LINEAR);

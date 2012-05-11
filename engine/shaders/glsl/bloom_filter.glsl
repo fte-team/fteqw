@@ -1,6 +1,8 @@
+!!cvarv r_bloom_filter
 //the bloom filter
 //filter out any texels which are not to bloom
 
+uniform vec3 cvar_r_bloom_filter;
 varying vec2 tc;
 
 #ifdef VERTEX_SHADER
@@ -15,6 +17,6 @@ void main ()
 uniform sampler2D s_t0;
 void main ()
 {
-	gl_FragColor = (texture2D(s_t0, tc) - vec4(0.5, 0.5, 0.5, 0.0)) * vec4(2.0,2.0,2.0,1.0);
+	gl_FragColor.rgb = (texture2D(s_t0, tc).rgb - cvar_r_bloom_filter)/(1.0-cvar_r_bloom_filter);
 }
 #endif

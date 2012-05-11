@@ -514,15 +514,18 @@ void M_Menu_Preset_f (void)
 	{
 		MB_REDTEXT("Please Choose Preset", false),
 		MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
-		MB_CONSOLECMD("286     untextured",	"fps_preset 286;menupop\n",		"Lacks textures, particles, pretty much everything."),
-		MB_CONSOLECMD("fast    deathmatch",	"fps_preset fast;menupop\n",		"Fullscreen effects off to give consistant framerates"),
-		MB_CONSOLECMD("normal    faithful",	"fps_preset normal;menupop\n",		"This is for Quake purists!"),
-		MB_CONSOLECMD("nice       dynamic",	"fps_preset nice;menupop\n",		"For people who like nice things, but still want to actually play"),
-		MB_CONSOLECMD("realtime    all on",	"fps_preset realtime;menupop\n",	"For people who value pretty over fast/smooth. Not viable for deathmatch."),
+		MB_CONSOLECMD("286     (untextured)",	"fps_preset 286;menupop\n",		"Lacks textures, particles, pretty much everything."),
+		MB_CONSOLECMD("fast    (deathmatch)",	"fps_preset fast;menupop\n",		"Fullscreen effects off to give consistant framerates"),
+		MB_CONSOLECMD("normal    (faithful)",	"fps_preset normal;menupop\n",		"This is for Quake purists!"),
+		MB_CONSOLECMD("nice       (dynamic)",	"fps_preset nice;menupop\n",		"For people who like nice things, but still want to actually play"),
+		MB_CONSOLECMD("realtime    (all on)",	"fps_preset realtime;menupop\n",	"For people who value pretty over fast/smooth. Not viable for deathmatch."),
 		MB_END()
 	};
 	menu = M_Options_Title(&y, 0);
 	MC_AddBulk(menu, bulk, 16, 216, y);
+	//bottoms up! highlight 'fast' as the default option
+	menu->selecteditem = menu->options->common.next->common.next->common.next->common.next;
+	menu->cursoritem->common.posy = menu->selecteditem->common.posy;
 }
 
 void FPS_Preset_f (void)

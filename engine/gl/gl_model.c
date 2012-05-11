@@ -1051,6 +1051,134 @@ void Mod_FinishTexture(texture_t *tx, texnums_t tn)
 	R_BuildDefaultTexnums(&tn, tx->shader);
 }
 
+#define LMT_DIFFUSE 1
+#define LMT_FULLBRIGHT 2
+#define LMT_BUMP 4
+#define LMT_SPEC 8
+void RMod_LoadMiptex(texture_t *tx, miptex_t *mt, texnums_t *tn, int maps)
+{
+	char altname[256];
+	qbyte *base;
+	qboolean alphaed;
+	int j;
+	int pixels = mt->width*mt->height/64*85;
+
+	if (!Q_strncmp(mt->name,"sky",3))
+	{
+		if (maps & LMT_DIFFUSE)
+			R_InitSky (tn, tx, (char *)mt + mt->offsets[0]);
+	}
+	else
+	{
+/*
+		RMod_LoadAdvancedTexture(tx->name, &tn.base, &tn.bump, &tn.fullbright, &tn.specular, NULL, NULL);
+		if (tn.base)
+			continue;
+*/
+
+		base = (qbyte *)(mt+1);
+
+		if (loadmodel->fromgame == fg_halflife)
+		{//external textures have already been filtered.
+			if (maps & LMT_DIFFUSE)
+			{
+				base = W_ConvertWAD3Texture(mt, &mt->width, &mt->height, &alphaed);	//convert texture to 32 bit.
+				tx->alphaed = alphaed;
+				tn->base = R_LoadReplacementTexture(mt->name, loadname, alphaed?0:IF_NOALPHA);
+				if (!TEXVALID(tn->base))
+				{
+					tn->base = R_LoadReplacementTexture(mt->name, "bmodels", alphaed?0:IF_NOALPHA);
+					if (!TEXVALID(tn->base))
+						tn->base = R_LoadTexture32 (mt->name, tx->width, tx->height, (unsigned int *)base, (alphaed?0:IF_NOALPHA));
+				}
+			}
+
+			*tx->name = *mt->name;
+		}
+		else
+		{
+			qbyte *mipbase;
+			unsigned int mipwidth, mipheight;
+			extern cvar_t gl_miptexLevel;
+			if ((unsigned int)gl_miptexLevel.ival < 4 && mt->offsets[gl_miptexLevel.ival])
+			{
+				mipbase = (qbyte*)mt + mt->offsets[gl_miptexLevel.ival];
+				mipwidth = tx->width>>gl_miptexLevel.ival;
+				mipheight = tx->height>>gl_miptexLevel.ival;
+			}
+			else
+			{
+				mipbase = base;
+				mipwidth = tx->width;
+				mipheight = tx->height;
+			}
+
+			if (maps & LMT_DIFFUSE)
+			{
+				tn->base = R_LoadReplacementTexture(mt->name, loadname, ((*mt->name == '{')?0:IF_NOALPHA)|IF_SUBDIRONLY|IF_MIPCAP);
+				if (!TEXVALID(tn->base))
+				{
+					tn->base = R_LoadReplacementTexture(mt->name, "bmodels", ((*mt->name == '{')?0:IF_NOALPHA)|IF_MIPCAP);
+					if (!TEXVALID(tn->base))
+						tn->base = R_LoadTexture8 (mt->name, mipwidth, mipheight, mipbase, ((*mt->name == '{')?0:IF_NOALPHA)|IF_MIPCAP, 1);
+				}
+			}
+
+			if (maps & LMT_FULLBRIGHT)
+			{
+				snprintf(altname, sizeof(altname)-1, "%s_luma", mt->name);
+				if (gl_load24bit.value)
+				{
+					tn->fullbright = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA|IF_SUBDIRONLY|IF_MIPCAP);
+					if (!TEXVALID(tn->fullbright))
+						tn->fullbright = R_LoadReplacementTexture(altname, "bmodels", IF_NOGAMMA|IF_MIPCAP);
+				}
+				if ((*mt->name != '{') && !TEXVALID(tn->fullbright))	//generate one (if possible).
+					tn->fullbright = R_LoadTextureFB(altname, mipwidth, mipheight, mipbase, IF_NOGAMMA|IF_MIPCAP);
+			}
+		}
+
+		if (maps & LMT_BUMP)
+		{
+			snprintf(altname, sizeof(altname)-1, "%s_norm", mt->name);
+			tn->bump = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA|IF_SUBDIRONLY|IF_MIPCAP);
+			if (!TEXVALID(tn->bump))
+				tn->bump = R_LoadReplacementTexture(altname, "bmodels", IF_NOGAMMA|IF_MIPCAP);
+			if (!TEXVALID(tn->bump))
+			{
+				if (gl_load24bit.value)
+				{
+					snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
+					tn->bump = R_LoadBumpmapTexture(altname, loadname);
+					if (!TEXVALID(tn->bump))
+						tn->bump = R_LoadBumpmapTexture(altname, "bmodels");
+				}
+				else
+					snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
+			}
+
+			if (!TEXVALID(tn->bump) && loadmodel->fromgame != fg_halflife)// && gl_bump_fallbacks.ival)
+			{
+				//no mip levels here, would be absurd.
+				base = (qbyte *)(mt+1);	//convert to greyscale.
+				for (j = 0; j < pixels; j++)
+					base[j] = (host_basepal[base[j]*3] + host_basepal[base[j]*3+1] + host_basepal[base[j]*3+2]) / 3;
+
+				tn->bump = R_LoadTexture8BumpPal(altname, tx->width, tx->height, base, true);	//normalise it and then bump it.
+			}
+
+			//don't do any complex quake 8bit -> glossmap. It would likly look a little ugly...
+			if (gl_specular.value && gl_load24bit.value)
+			{
+				snprintf(altname, sizeof(altname)-1, "%s_gloss", mt->name);
+				tn->specular = R_LoadHiResTexture(altname, loadname, IF_NOGAMMA|IF_SUBDIRONLY|IF_MIPCAP);
+				if (!TEXVALID(tn->specular))
+					tn->specular = R_LoadHiResTexture(altname, "bmodels", IF_NOGAMMA|IF_MIPCAP);
+			}
+		}
+	}
+}
+
 /*
 =================
 Mod_LoadTextures
@@ -1058,16 +1186,14 @@ Mod_LoadTextures
 */
 qboolean RMod_LoadTextures (lump_t *l)
 {
-	int		i, j, pixels, num, max, altmax;
+	int		i, j, num, max, altmax;
 	miptex_t	*mt;
 	texture_t	*tx, *tx2;
 	texture_t	*anims[10];
 	texture_t	*altanims[10];
-	char altname[256];
 	dmiptexlump_t *m;
-	qboolean alphaed;
-	qbyte *base;
 	texnums_t tn;
+	int maps;
 
 TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 
@@ -1125,8 +1251,7 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 			Con_Printf (CON_WARNING "Warning: Texture %s is not 16 aligned", mt->name);
 		if (mt->width < 1 || mt->height < 1)
 			Con_Printf (CON_WARNING "Warning: Texture %s has no size", mt->name);
-		pixels = mt->width*mt->height/64*85;
-		tx = Hunk_AllocName (sizeof(texture_t)/* +pixels*/, loadname );
+		tx = Hunk_AllocName (sizeof(texture_t), loadname );
 		loadmodel->textures[i] = tx;
 
 		memcpy (tx->name, mt->name, sizeof(tx->name));
@@ -1140,115 +1265,18 @@ TRACE(("dbg: RMod_LoadTextures: inittexturedescs\n"));
 
 		memset(&tn, 0, sizeof(tn));
 
-		if (!Q_strncmp(mt->name,"sky",3))
-		{
-			R_InitSky (&tn, tx, (char *)mt + mt->offsets[0]);
-		}
-		else
-		{
-/*
-			RMod_LoadAdvancedTexture(tx->name, &tn.base, &tn.bump, &tn.fullbright, &tn.specular, NULL, NULL);
-			if (tn.base)
-				continue;
-*/
+		maps = LMT_DIFFUSE;
+		if (r_fb_bmodels.ival)
+			maps |= LMT_FULLBRIGHT;
+		if (r_loadbumpmapping)
+			maps |= LMT_BUMP;
 
-			base = (qbyte *)(mt+1);
-
-			if (loadmodel->fromgame == fg_halflife)
-			{//external textures have already been filtered.
-				base = W_ConvertWAD3Texture(mt, &mt->width, &mt->height, &alphaed);	//convert texture to 32 bit.
-				tx->alphaed = alphaed;
-				tn.base = R_LoadReplacementTexture(mt->name, loadname, alphaed?0:IF_NOALPHA);
-				if (!TEXVALID(tn.base))
-				{
-					tn.base = R_LoadReplacementTexture(mt->name, "bmodels", alphaed?0:IF_NOALPHA);
-					if (!TEXVALID(tn.base))
-						tn.base = R_LoadTexture32 (mt->name, tx->width, tx->height, (unsigned int *)base, (alphaed?0:IF_NOALPHA));
-				}
-
-				*tx->name = *mt->name;
-			}
-			else
-			{
-				qbyte *mipbase;
-				unsigned int mipwidth, mipheight;
-				extern cvar_t gl_miptexLevel;
-				if ((unsigned int)gl_miptexLevel.ival < 4 && mt->offsets[gl_miptexLevel.ival])
-				{
-					mipbase = (qbyte*)mt + mt->offsets[gl_miptexLevel.ival];
-					mipwidth = tx->width>>gl_miptexLevel.ival;
-					mipheight = tx->height>>gl_miptexLevel.ival;
-				}
-				else
-				{
-					mipbase = base;
-					mipwidth = tx->width;
-					mipheight = tx->height;
-				}
-
-				tn.base = R_LoadReplacementTexture(mt->name, loadname, ((*mt->name == '{')?0:IF_NOALPHA)|IF_SUBDIRONLY|IF_MIPCAP);
-				if (!TEXVALID(tn.base))
-				{
-					tn.base = R_LoadReplacementTexture(mt->name, "bmodels", ((*mt->name == '{')?0:IF_NOALPHA)|IF_MIPCAP);
-					if (!TEXVALID(tn.base))
-						tn.base = R_LoadTexture8 (mt->name, mipwidth, mipheight, mipbase, ((*mt->name == '{')?0:IF_NOALPHA)|IF_MIPCAP, 1);
-				}
-
-				if (r_fb_bmodels.value)
-				{
-					snprintf(altname, sizeof(altname)-1, "%s_luma", mt->name);
-					if (gl_load24bit.value)
-					{
-						tn.fullbright = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA|IF_SUBDIRONLY|IF_MIPCAP);
-						if (!TEXVALID(tn.fullbright))
-							tn.fullbright = R_LoadReplacementTexture(altname, "bmodels", IF_NOGAMMA|IF_MIPCAP);
-					}
-					if ((*mt->name != '{') && !TEXVALID(tn.fullbright))	//generate one (if possible).
-						tn.fullbright = R_LoadTextureFB(altname, mipwidth, mipheight, mipbase, IF_NOGAMMA|IF_MIPCAP);
-				}
-			}
-
-			tn.bump = r_nulltex;
-			if (r_loadbumpmapping)
-			{
-				snprintf(altname, sizeof(altname)-1, "%s_norm", mt->name);
-				tn.bump = R_LoadReplacementTexture(altname, loadname, IF_NOGAMMA|IF_SUBDIRONLY|IF_MIPCAP);
-				if (!TEXVALID(tn.bump))
-					tn.bump = R_LoadReplacementTexture(altname, "bmodels", IF_NOGAMMA|IF_MIPCAP);
-				if (!TEXVALID(tn.bump))
-				{
-					if (gl_load24bit.value)
-					{
-						snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
-						tn.bump = R_LoadBumpmapTexture(altname, loadname);
-						if (!TEXVALID(tn.bump))
-							tn.bump = R_LoadBumpmapTexture(altname, "bmodels");
-					}
-					else
-						snprintf(altname, sizeof(altname)-1, "%s_bump", mt->name);
-				}
-
-				if (!TEXVALID(tn.bump) && loadmodel->fromgame != fg_halflife)// && gl_bump_fallbacks.ival)
-				{
-					//no mip levels here, would be absurd.
-					base = (qbyte *)(mt+1);	//convert to greyscale.
-					for (j = 0; j < pixels; j++)
-						base[j] = (host_basepal[base[j]*3] + host_basepal[base[j]*3+1] + host_basepal[base[j]*3+2]) / 3;
-
-					tn.bump = R_LoadTexture8BumpPal(altname, tx->width, tx->height, base, true);	//normalise it and then bump it.
-				}
-
-				//don't do any complex quake 8bit -> glossmap. It would likly look a little ugly...
-				if (gl_specular.value && gl_load24bit.value)
-				{
-					snprintf(altname, sizeof(altname)-1, "%s_gloss", mt->name);
-					tn.specular = R_LoadHiResTexture(altname, loadname, IF_NOGAMMA|IF_SUBDIRONLY|IF_MIPCAP);
-					if (!TEXVALID(tn.specular))
-						tn.specular = R_LoadHiResTexture(altname, "bmodels", IF_NOGAMMA|IF_MIPCAP);
-				}
-			}
-		}
+		RMod_LoadMiptex(tx, mt, &tn, maps);
+		
 		Mod_FinishTexture(tx, tn);
+
+		if ((tx->shader->flags & SHADER_HASNORMALMAP) && !(maps & LMT_BUMP))
+			RMod_LoadMiptex(tx, mt, &tx->shader->defaulttextures, LMT_BUMP);
 	}
 //
 // sequence the animations

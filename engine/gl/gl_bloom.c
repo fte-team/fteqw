@@ -44,7 +44,9 @@ http://prideout.net/archive/bloom/ contains some sample code
 #ifdef GLQUAKE
 #include "shader.h"
 #include "glquake.h"
-cvar_t		r_bloom = CVARAFD("r_bloom", "0", "gl_bloom", CVAR_ARCHIVE, "Enables bloom (light bleeding from bright objects)");
+cvar_t		r_bloom = CVARAFD("r_bloom", "0", "gl_bloom", CVAR_ARCHIVE, "Enables bloom (light bleeding from bright objects). Fractional values reduce the amount shown.");
+cvar_t		r_bloom_filter = CVARD("r_bloom_filter", "0.5 0.5 0.5", "Controls how bright the image must get before it will bloom (3 separate values, in RGB order).");
+cvar_t		r_bloom_scale = CVARD("r_bloom_scale", "0.5", "Controls the initial downscale size. Smaller values will bloom further but be more random.");
 static shader_t *bloomfilter;
 static shader_t *bloomrescale;
 static shader_t *bloomblur;
@@ -63,17 +65,21 @@ void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destco
 void R_BloomRegister(void)
 {
 	Cvar_Register (&r_bloom, "bloom");
+	Cvar_Register (&r_bloom_filter, "bloom");
+	Cvar_Register (&r_bloom_scale, "bloom");
 }
 static void R_SetupBloomTextures(int w, int h)
 {
 	int i, j;
 	char name[64];
-	if (w == scrwidth && h == scrheight)
+	if (w == scrwidth && h == scrheight && !r_bloom_scale.modified)
 		return;
+	r_bloom_scale.modified = false;
 	scrwidth = w;
 	scrheight = h;
-	w /= 2;
-	h /= 2;
+	//I'm depending on npot here
+	w *= r_bloom_scale.value;
+	h *= r_bloom_scale.value;
 	for (i = 0; i < MAXLEVELS; i++)
 	{
 		w /= 2;
@@ -94,8 +100,8 @@ static void R_SetupBloomTextures(int w, int h)
 	GL_MTBind(0, GL_TEXTURE_2D, scrtex);
 	qglTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA, scrwidth, scrheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 	/*top level uses nearest sampling*/
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
@@ -172,6 +178,8 @@ void R_BloomBlend (void)
 	if (!gl_config.ext_framebuffer_objects)
 		return;
 	if (!gl_config.arb_shader_objects)
+		return;
+	if (!gl_config.arb_texture_non_power_of_two)
 		return;
 
 	/*whu?*/

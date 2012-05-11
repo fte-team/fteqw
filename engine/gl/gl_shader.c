@@ -914,6 +914,10 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			memcpy(permutationdefines[nummodifiers]+8, start, end - start);
 			memcpy(permutationdefines[nummodifiers]+8+(end-start), "\n", 2);
 
+			start = strchr(permutationdefines[nummodifiers]+8, '=');
+			if (start)
+				*start = ' ';
+
 			for (start = permutationdefines[nummodifiers]+8; *start; start++)
 				*start = toupper(*start);
 			nummodifiers++;
@@ -1446,6 +1450,8 @@ static program_t *Shader_LoadGeneric(char *name, int qrtype)
 {
 	unsigned int i;
 	void *file;
+	char basicname[MAX_QPATH];
+	char *h;
 
 	sgeneric_t *g;
 
@@ -1469,24 +1475,30 @@ static program_t *Shader_LoadGeneric(char *name, int qrtype)
 
 	g->prog.refs = 1;
 
-	if (strchr(name, '/') || strchr(name, '.'))
-		FS_LoadFile(name, &file);
+	basicname[1] = 0;
+	Q_strncpyz(basicname, name, sizeof(basicname));
+	h = strchr(basicname+1, '#');
+	if (h)
+		*h = '\0';
+
+	if (strchr(basicname, '/') || strchr(basicname, '.'))
+		FS_LoadFile(basicname, &file);
 	else if (qrenderer == QR_DIRECT3D)
-		FS_LoadFile(va("hlsl/%s.hlsl", name), &file);
+		FS_LoadFile(va("hlsl/%s.hlsl", basicname), &file);
 	else if (qrenderer == QR_OPENGL)
 	{
 #ifdef GLQUAKE
 		if (gl_config.gles)
-			FS_LoadFile(va("gles/%s.glsl", name), &file);
+			FS_LoadFile(va("gles/%s.glsl", basicname), &file);
 		else
 #endif
-			FS_LoadFile(va("glsl/%s.glsl", name), &file);
+			FS_LoadFile(va("glsl/%s.glsl", basicname), &file);
 	}
 	else
 		file = NULL;
 	if (file)
 	{
-		Con_DPrintf("Loaded %s from disk\n", name);
+		Con_DPrintf("Loaded %s from disk\n", basicname);
 		g->failed = !Shader_LoadPermutations(name, &g->prog, file, qrtype, 0);
 		FS_FreeFile(file);
 
@@ -1495,16 +1507,10 @@ static program_t *Shader_LoadGeneric(char *name, int qrtype)
 	}
 	else
 	{
-		int matchlen;
 		int ver;
-		char *h = strchr(name, '#');
-		if (h)
-			matchlen = h - name;
-		else
-			matchlen = strlen(name) + 1;
 		for (i = 0; *sbuiltins[i].name; i++)
 		{
-			if (sbuiltins[i].qrtype == qrenderer && !strncmp(sbuiltins[i].name, name, matchlen))
+			if (sbuiltins[i].qrtype == qrenderer && !strcmp(sbuiltins[i].name, basicname))
 			{
 				ver = sbuiltins[i].apiver;
 #ifdef GLQUAKE
@@ -2133,6 +2139,7 @@ static qboolean ShaderPass_MapGen (shader_t *shader, shaderpass_t *pass, char *t
 	{
 		pass->texgen = T_GEN_NORMALMAP;
 		pass->tcgen = TC_GEN_BASE;
+		shader->flags |= SHADER_HASNORMALMAP;
 	}
 	else if (!Q_stricmp (tname, "$specular"))
 	{
@@ -4189,8 +4196,33 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 
 	if (!builtin && (*shortname == '*'))
 	{
+		if ((r_water_refract.ival || r_water_reflect.ival) && !r_fastturb.ival && strncmp(shortname, "*lava", 5))
+		{
+			builtin = (
+				"{\n"
+					"{\n"
+						"map $currentrender\n"
+					"}\n"
+					"{\n"
+						"map $normalmap\n"
+					"}\n"
+					"{\n"
+						"map $diffuse\n"
+					"}\n"
+					"if r_water_reflect\n"
+					"[\n"
+						"{\n"
+							"map $reflection\n"
+						"}\n"
+						"program altwater#REFLECT#FRESNEL=4\n"
+					"][\n"
+						"program altwater#FRESNEL=4\n"
+					"]\n"
+				"}\n"
+			);
+		}
 		//q1 water
-		if (r_wateralpha.value == 0)
+		else if (r_wateralpha.value == 0)
 		{
 			builtin = (
 				"{\n"

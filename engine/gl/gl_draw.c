@@ -209,6 +209,8 @@ void GL_DestroyTexture(texid_t tex)
 	if (!tex.ref)
 		return;
 
+	//FIXME: unlink the old one
+
 	qglDeleteTextures(1, &tex.num);
 }
 

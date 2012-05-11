@@ -277,7 +277,7 @@ static qboolean FSSTDIO_FLocate(void *handle, flocation_t *loc, const char *file
 
 #ifdef ANDROID
 	{
-		vfsfile_t *f = VFSSTDIO_Open(netpath, "rb");
+		vfsfile_t *f = VFSSTDIO_Open(netpath, "rb", NULL);
 		if (!f)
 			return false;
 		len = VFS_GETLEN(f);

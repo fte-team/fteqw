@@ -413,9 +413,13 @@ DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exception
 	Sys_Printf("GL_NORMAL_ARRAY: %s (%lx)\n", glIsEnabled(GL_NORMAL_ARRAY)?"en":"dis", (int) ptr);
 //	glGetPointerv(GL_SECONDARY_COLOR_ARRAY_POINTER, &ptr);
 //	Sys_Printf("GL_SECONDARY_COLOR_ARRAY: %i (%lx)\n", (int) glIsEnabled(GL_SECONDARY_COLOR_ARRAY), (int) ptr);
-	glGetIntegerv(GL_TEXTURE_COORD_ARRAY_BUFFER_BINDING, &rval);
-	glGetPointerv(GL_TEXTURE_COORD_ARRAY_POINTER, &ptr);
-	Sys_Printf("GL_TEXTURE_COORD_ARRAY: %s %i:%p\n", glIsEnabled(GL_TEXTURE_COORD_ARRAY)?"en":"dis", rval, ptr);
+	for (i = 0; i < 4; i++)
+	{
+		qglClientActiveTextureARB(mtexid0 + i);
+		glGetIntegerv(GL_TEXTURE_COORD_ARRAY_BUFFER_BINDING, &rval);
+		glGetPointerv(GL_TEXTURE_COORD_ARRAY_POINTER, &ptr);
+		Sys_Printf("GL_TEXTURE_COORD_ARRAY %i: %s %i:%p\n", i, glIsEnabled(GL_TEXTURE_COORD_ARRAY)?"en":"dis", rval, ptr);
+	}
 	glGetIntegerv(GL_VERTEX_ARRAY_BUFFER_BINDING, &rval);
 	glGetPointerv(GL_VERTEX_ARRAY_POINTER, &ptr);
 	Sys_Printf("GL_VERTEX_ARRAY: %s %i:%p\n", glIsEnabled(GL_VERTEX_ARRAY)?"en":"dis", rval, ptr);

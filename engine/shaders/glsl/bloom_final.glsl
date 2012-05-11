@@ -1,3 +1,5 @@
+!!cvarf r_bloom
+uniform float cvar_r_bloom;
 //add them together
 //optionally apply tonemapping
 
@@ -20,8 +22,10 @@ void main ()
 {
 	gl_FragColor = 
 		texture2D(s_t0, tc) +
-		texture2D(s_t1, tc) +
-		texture2D(s_t2, tc) +
-		texture2D(s_t3, tc) ;
+		cvar_r_bloom*(
+			texture2D(s_t1, tc) +
+			texture2D(s_t2, tc) +
+			texture2D(s_t3, tc)
+		) ;
 }
 #endif

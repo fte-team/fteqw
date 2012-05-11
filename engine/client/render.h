@@ -410,6 +410,8 @@ extern	cvar_t	r_shadow_realtime_dlight, r_shadow_realtime_dlight_shadows;
 extern	cvar_t	r_shadow_realtime_world, r_shadow_realtime_world_shadows;
 extern	cvar_t	r_mirroralpha;
 extern	cvar_t	r_wateralpha;
+extern	cvar_t	r_water_refract;
+extern	cvar_t	r_water_reflect;
 extern	cvar_t	r_dynamic;
 extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;

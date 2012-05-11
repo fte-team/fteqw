@@ -1180,7 +1180,7 @@ void GLR_RenderView (void)
 	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
 		return;
 
-	if (r_bloom.ival)
+	if (r_bloom.value)
 		R_BloomBlend();
 
 	// SCENE POST PROCESSING

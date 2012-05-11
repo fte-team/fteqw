@@ -4833,7 +4833,7 @@ void SV_Init (quakeparms_t *parms)
 		Mod_Init ();
 	}
 
-#if !(defined(CSQC_DAT) || defined(MENU_DAT))
+#if defined(SERVERONLY) || !(defined(CSQC_DAT) || defined(MENU_DAT))
 	PF_Common_RegisterCvars();
 #endif
 

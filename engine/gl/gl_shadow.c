@@ -52,6 +52,11 @@ void Sh_Shutdown(void)
 		qglDeleteRenderbuffersEXT(1, &shadow_fbo_id);
 		shadow_fbo_id = 0;
 	}
+	if (crepuscular_texture_id.num)
+	{
+		R_DestroyTexture(crepuscular_texture_id);
+		crepuscular_texture_id = r_nulltex;
+	}
 	if (crepuscular_fbo_id)
 	{
 		qglDeleteRenderbuffersEXT(1, &crepuscular_fbo_id);
@@ -2745,6 +2750,8 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 }
 
 void GLBE_SubmitMeshes (qboolean drawworld, batch_t **blist, int start, int stop);
+void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, qboolean usedepth);
+
 void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours, batch_t **batches)
 {
 #ifdef GLQUAKE
@@ -2789,45 +2796,41 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours, batch_t **batches)
 	if (!gl_config.ext_framebuffer_objects)
 		return;
 
-	if (!crepuscular_fbo_id)
+	if (!crepuscular_texture_id.num)
 	{
-		qglGenFramebuffersEXT(1, &crepuscular_fbo_id);
-		qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, crepuscular_fbo_id);
-		qglDrawBuffer(GL_COLOR_ATTACHMENT0_EXT);
-		qglReadBuffer(GL_NONE);
-
-		crepuscular_texture_id = GL_AllocNewTexture("***crepusculartexture***", vid.pixelwidth, vid.pixelheight);
-
 		/*FIXME: requires npot*/
 		crepuscular_shader = R_RegisterShader("crepuscular_screen",
 			"{\n"
 				"program crepuscular_rays\n"
 				"{\n"
-					"map \"***crepusculartexture***\"\n"
+					"map $sourcecolour\n"
 					"blend add\n"
 				"}\n"
 			"}\n"
 			);
+
+		crepuscular_texture_id = GL_AllocNewTexture("***crepusculartexture***", vid.pixelwidth, vid.pixelheight);
 		GL_MTBind(0, GL_TEXTURE_2D, crepuscular_texture_id);
 		qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vid.pixelwidth, vid.pixelheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-
-		qglFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, crepuscular_texture_id.num, 0);
 	}
-	else
-		qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, crepuscular_fbo_id);
+
+	GLBE_RenderToTexture(r_nulltex, r_nulltex, crepuscular_texture_id, false);
+
 	BE_SelectMode(BEM_CREPUSCULAR);
 	BE_SelectDLight(dl, colours);
 	GLBE_SubmitMeshes(true, batches, SHADER_SORT_PORTAL, SHADER_SORT_BLEND);
-	//fixme: check regular post-proc
-	qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+
+	GLBE_RenderToTexture(crepuscular_texture_id, r_nulltex, r_nulltex, false);
 
 	BE_SelectMode(BEM_STANDARD);
 
 	GLBE_DrawMesh_Single(crepuscular_shader, &mesh, NULL, &crepuscular_shader->defaulttextures, 0);
+
+	GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, false);
 #endif
 }
 

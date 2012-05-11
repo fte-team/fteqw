@@ -60,6 +60,7 @@ JAVATOOL="$(JAVA_HOME)"/bin/
 
 ifeq ($(WHOAMI),moodles)
 	ANT_HOME=/home/moodles/apache-ant-1.8.2/
+	ANT=/home/moodles/apache-ant-1.8.2/bin/ant
 	JAVA_HOME=/home/moodles/jdk1.6.0_25/
 	DROID_NDK_PATH=/home/moodles/android_ndk
 	DROID_SDK_PATH=/home/moodles/android_sdk

@@ -318,7 +318,7 @@ static int Font_BeginChar(texid_t tex)
 {
 	int fvert;
 
-	if (font_foremesh.numindexes == FONT_CHAR_BUFFER*6 || memcmp(&font_texture,&tex, sizeof(texid_t)))
+	if (font_foremesh.numindexes == FONT_CHAR_BUFFER*6 || font_texture.ref != tex.ref)
 	{
 		Font_Flush();
 		TEXASSIGNF(font_texture, tex);

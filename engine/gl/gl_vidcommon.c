@@ -1230,11 +1230,11 @@ GLhandleARB GLSlang_CreateShader (char *name, int ver, char **precompilerconstan
 	return shader;
 }
 
-GLhandleARB GLSlang_CreateProgramObject (GLhandleARB vert, GLhandleARB frag, qboolean silent)
+GLhandleARB GLSlang_CreateProgramObject (char *name, GLhandleARB vert, GLhandleARB frag, qboolean silent)
 {
 	GLhandleARB program;
 	GLint       linked;
-	char        str[1024];
+	char        str[2048];
 
 	program = qglCreateProgramObjectARB();
 	qglAttachObjectARB(program, vert);
@@ -1260,7 +1260,7 @@ GLhandleARB GLSlang_CreateProgramObject (GLhandleARB vert, GLhandleARB frag, qbo
 		if (!silent)
 		{
 			qglGetProgramInfoLog_(program, sizeof(str), NULL, str);
-			Con_Printf("Program link error: %s\n", str);
+			Con_Printf("Program link error on glsl program %s:\n%s\n", name, str);
 		}
 
 		qglDeleteProgramObject_(program);
@@ -1289,7 +1289,7 @@ GLhandleARB GLSlang_CreateProgram(char *name, int ver, char **precompilerconstan
 	if (!vs || !fs)
 		handle = 0;
 	else
-		handle = GLSlang_CreateProgramObject(vs, fs, silent);
+		handle = GLSlang_CreateProgramObject(name, vs, fs, silent);
 	//delete ignores 0s.
 	qglDeleteShaderObject_(vs);
 	qglDeleteShaderObject_(fs);

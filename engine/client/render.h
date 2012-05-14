@@ -153,6 +153,7 @@ typedef struct
 	int			currentplayernum;
 
 	float		time;
+//	float		waterheight;	//updated by the renderer. stuff sitting at this height generate ripple effects
 
 	float		m_projection[16];
 	float		m_view[16];
@@ -240,7 +241,7 @@ void GLR_InitTextures (void);
 void GLR_InitEfrags (void);
 void GLR_RenderView (void);		// must set r_refdef first
 								// called whenever r_refdef or vid change
-void GLR_DrawPortal(struct batch_s *batch, struct batch_s **blist);
+void GLR_DrawPortal(struct batch_s *batch, struct batch_s **blist, int portaltype);
 
 void GLR_PreNewMap(void);
 void GLR_NewMap (void);
@@ -410,8 +411,7 @@ extern	cvar_t	r_shadow_realtime_dlight, r_shadow_realtime_dlight_shadows;
 extern	cvar_t	r_shadow_realtime_world, r_shadow_realtime_world_shadows;
 extern	cvar_t	r_mirroralpha;
 extern	cvar_t	r_wateralpha;
-extern	cvar_t	r_water_refract;
-extern	cvar_t	r_water_reflect;
+extern	cvar_t	r_waterstyle;
 extern	cvar_t	r_dynamic;
 extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;

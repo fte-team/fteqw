@@ -229,6 +229,7 @@ typedef struct shaderpass_s {
 
 		T_GEN_REFLECTION,	//reflection image (mirror-as-fbo)
 		T_GEN_REFRACTION,	//refraction image (portal-as-fbo)
+		T_GEN_RIPPLEMAP,	//ripplemap image (water surface distortions-as-fbo)
 
 		T_GEN_SOURCECUBE,	//used for render-to-texture targets
 
@@ -421,7 +422,8 @@ struct shader_s
 		SHADER_STATICDATA		= 1 << 18,	//set if true: no deforms, no tcgen, rgbgen=identitylighting, alphagen=identity, tmu0=st + tmu1=lm(if available) for every pass, no norms
 		SHADER_HASREFLECT		= 1 << 19,	//says that we need to generate a reflection image first
 		SHADER_HASREFRACT		= 1 << 20,	//says that we need to generate a refraction image first
-		SHADER_HASNORMALMAP		= 1 << 21	//says that we need to load a normalmap texture
+		SHADER_HASNORMALMAP		= 1 << 21,	//says that we need to load a normalmap texture
+		SHADER_HASRIPPLEMAP		= 1 << 22,	//water surface disturbances for water splashes
 	} flags;
 
 	program_t *prog;
@@ -465,7 +467,6 @@ void Shader_DefaultCinematic(char *shortname, shader_t *s, const void *args);
 void Shader_DefaultScript(char *shortname, shader_t *s, const void *args);
 
 void Shader_DoReload(void);
-void R_BackendInit (void);
 void Shader_Shutdown (void);
 qboolean Shader_Init (void);
 void Shader_NeedReload(qboolean rescanfs);
@@ -497,6 +498,7 @@ void GLBE_DrawWorld (qbyte *vis);
 qboolean GLBE_LightCullModel(vec3_t org, model_t *model);
 void GLBE_SelectEntity(entity_t *ent);
 void GLBE_SelectDLight(dlight_t *dl, vec3_t colour);
+void GLBE_SubmitMeshes (qboolean drawworld, int start, int stop);
 #endif
 #ifdef D3DQUAKE
 void D3DBE_Init(void);
@@ -535,7 +537,7 @@ void D3DBE_BaseEntTextures(void);
 //prebuilds shadow volumes
 void Sh_PreGenerateLights(void);
 //Draws lights, called from the backend
-void Sh_DrawLights(qbyte *vis, batch_t **mbatches);
+void Sh_DrawLights(qbyte *vis);
 void SH_FreeShadowMesh(struct shadowmesh_s *sm);
 void Sh_Shutdown(void);
 //Draws the depth of ents in the world near the current light

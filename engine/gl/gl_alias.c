@@ -957,7 +957,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 
 	texnums_t *skin;
 
-	if (r_refdef.externalview && e->flags & Q2RF_WEAPONMODEL)
+	if ((r_refdef.externalview || r_refdef.recurse) && e->flags & Q2RF_WEAPONMODEL)
 		return;
 
 	/*switch model if we're the player model, and the player skin says a new model*/

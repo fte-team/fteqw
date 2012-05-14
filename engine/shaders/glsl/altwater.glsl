@@ -1,5 +1,22 @@
-//modifier: REFLECT
+//modifier: REFLECT (s_t2 is a reflection instead of diffusemap)
+//modifier: STRENGTH (0.1 = fairly gentle, 0.2 = big waves)
 //modifier: FRESNEL (5=water)
+//modifier: TXSCALE (0.2 - wave strength)
+//modifier: RIPPLEMAP (s_t3 contains a ripplemap
+//modifier: TINT    (some colour value)
+
+#ifndef FRESNEL
+#define FRESNEL 5.0
+#endif
+#ifndef STRENGTH
+#define STRENGTH 0.1
+#endif
+#ifndef TXSCALE
+#define TXSCALE 0.2
+#endif
+#ifndef TINT
+#define TINT vec3(0.7, 0.8, 0.7)
+#endif
 
 varying vec2 tc;
 varying vec4 tf;
@@ -21,9 +38,9 @@ void main (void)
 #ifdef FRAGMENT_SHADER
 uniform sampler2D s_t0;	//refract
 uniform sampler2D s_t1;	//normalmap
-uniform sampler2D s_t2;	//diffuse
-#ifdef REFLECT
-uniform sampler2D s_t3; 	//reflect
+uniform sampler2D s_t2;	//diffuse/reflection
+#ifdef RIPPLEMAP
+uniform sampler2D s_t3; 	//ripplemap
 #endif
 
 uniform float e_time;
@@ -39,26 +56,28 @@ void main (void)
 	ntc.t = tc.t + sin(tc.s+e_time)*0.125;
 
 	//generate the two wave patterns from the normalmap
-	n = (texture2D(s_t1, 0.2*tc + vec2(e_time*0.1, 0)).xyz);
-	n += (texture2D(s_t1, 0.2*tc - vec2(0, e_time*0.097)).xyz);
+	n = (texture2D(s_t1, TXSCALE*tc + vec2(e_time*0.1, 0)).xyz);
+	n += (texture2D(s_t1, TXSCALE*tc - vec2(0, e_time*0.097)).xyz);
 	n -= 1.0 - 4.0/256.0;
 
-	n = normalize(n);
-
-#if 1//def REFRACT
-	refr = texture2D(s_t0, stc + n.st*0.2).rgb;
-#else
-	refr = texture2D(s_t2, ntc).xyz;
-#endif
-#ifdef REFLECT
-	refl = texture2D(s_t3, stc - n.st*0.2).rgb;
-#else
-	refl = texture2D(s_t2, ntc).xyz;
+#ifdef RIPPLEMAP
+	n += texture2D(s_t3, stc)*3;
 #endif
 
 	//the fresnel term decides how transparent the water should be
-	f = pow(1.0-abs(dot(n, normalize(eye))), float(FRESNEL));
+	f = pow(1.0-abs(dot(normalize(n), normalize(eye))), float(FRESNEL));
+
+	refr = texture2D(s_t0, stc + n.st*STRENGTH).rgb * TINT;
+#ifdef REFLECT
+	refl = texture2D(s_t2, stc - n.st*STRENGTH).rgb;
+#else
+	refl = texture2D(s_t2, ntc).xyz;
+#endif
+//	refl += 0.1*pow(dot(n, vec3(0.0,0.0,1.0)), 64.0);
+
 	fres = refr * (1.0-f) + refl*f;
+
+//	fres = texture2D(s_t2, stc).xyz;
 
 	gl_FragColor = vec4(fres, 1.0);
 }

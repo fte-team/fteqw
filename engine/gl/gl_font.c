@@ -776,8 +776,9 @@ static texid_t Font_LoadHexen2Conchars(qboolean iso88591)
 		outbuf = BZ_Malloc(8*8*256*8);
 
 		out = outbuf;
+		i = 0;
 		/*read the low chars*/
-		for (i = 0; i < 8*8*(iso88591?2:1); i+=1)
+		for (; i < 8*8*1; i+=1)
 		{
 			if (i&(1<<3))
 				in = tempchars + (i>>3)*16*8*8+(i&7)*32*8 - 256*4+128;
@@ -786,15 +787,42 @@ static texid_t Font_LoadHexen2Conchars(qboolean iso88591)
 			for (x = 0; x < 16*8; x++)
 				*out++ = *in++;
 		}
-		/*read the high chars*/
-		for (; i < 8*8*2; i+=1)
+		if (iso88591)
 		{
-			if (i&(1<<3))
-				in = tempchars+128*128 + ((i>>3)&15)*16*8*8+(i&7)*32*8 - 256*4+128;
-			else
-				in = tempchars+128*128 + ((i>>3)&15)*16*8*8+(i&7)*32*8;
-			for (x = 0; x < 16*8; x++)
-				*out++ = *in++;
+			/*read the non 8859-1 quake-compat control chars*/
+			for (; i < 8*8*1 + 16; i+=1)
+			{
+				if (i&(1<<3))
+					in = tempchars+128*128 + ((i>>3)&7)*16*8*8+(i&7)*32*8 - 256*4+128;
+				else
+					in = tempchars+128*128 + ((i>>3)&7)*16*8*8+(i&7)*32*8;
+				for (x = 0; x < 16*8; x++)
+					*out++ = *in++;
+			}
+
+			/*read the final low chars (final if 8859-1 anyway)*/
+			for (; i < 8*8*2; i+=1)
+			{
+				if (i&(1<<3))
+					in = tempchars + (i>>3)*16*8*8+(i&7)*32*8 - 256*4+128;
+				else
+					in = tempchars + (i>>3)*16*8*8+(i&7)*32*8;
+				for (x = 0; x < 16*8; x++)
+					*out++ = *in++;
+			}
+		}
+		else
+		{
+			/*read the high chars*/
+			for (; i < 8*8*2; i+=1)
+			{
+				if (i&(1<<3))
+					in = tempchars+128*128 + ((i>>3)&15)*16*8*8+(i&7)*32*8 - 256*4+128;
+				else
+					in = tempchars+128*128 + ((i>>3)&15)*16*8*8+(i&7)*32*8;
+				for (x = 0; x < 16*8; x++)
+					*out++ = *in++;
+			}
 		}
 		FS_FreeFile(tempchars);
 
@@ -846,7 +874,7 @@ static texid_t Font_LoadDefaultConchars(void)
 	tex = Font_LoadQuakeConchars();
 	if (TEXVALID(tex))
 		return tex;
-	tex = Font_LoadHexen2Conchars(false);
+	tex = Font_LoadHexen2Conchars(true);
 	if (TEXVALID(tex))
 		return tex;
 	tex = Font_LoadFallbackConchars();
@@ -1065,7 +1093,7 @@ struct font_s *Font_LoadFont(int height, char *fontfilename)
 
 		if (!strcmp(fontfilename, "gfx/hexen2"))
 		{
-			f->singletexture = Font_LoadHexen2Conchars(true);
+			f->singletexture = Font_LoadHexen2Conchars(false);
 			defaultplane = DEFAULTPLANE;
 		}
 		if (!TEXVALID(f->singletexture))

@@ -766,6 +766,8 @@ static void Shader_Sort ( shader_t *shader, shaderpass_t *pass, char **ptr )
 		shader->sort = SHADER_SORT_BLEND;
 	else if ( !Q_stricmp( token, "lpp_light" ) )
 		shader->sort = SHADER_SORT_PRELIGHT;
+	else if ( !Q_stricmp( token, "ripple" ) )
+		shader->sort = SHADER_SORT_RIPPLE;
 	else
 	{
 		shader->sort = atoi ( token );
@@ -2203,6 +2205,12 @@ static qboolean ShaderPass_MapGen (shader_t *shader, shaderpass_t *pass, char *t
 	{
 		shader->flags |= SHADER_HASREFRACT;
 		pass->texgen = T_GEN_REFRACTION;
+		pass->tcgen = TC_GEN_BASE;	//FIXME: moo!
+	}
+	else if (!Q_stricmp (tname, "$ripplemap"))
+	{
+		shader->flags |= SHADER_HASRIPPLEMAP;
+		pass->texgen = T_GEN_RIPPLEMAP;
 		pass->tcgen = TC_GEN_BASE;	//FIXME: moo!
 	}
 	else
@@ -4196,73 +4204,114 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 
 	if (!builtin && (*shortname == '*'))
 	{
-		if ((r_water_refract.ival || r_water_reflect.ival) && !r_fastturb.ival && strncmp(shortname, "*lava", 5))
+		int wstyle;
+		if (r_wateralpha.value == 0)
+			wstyle = -1;
+		else if (r_fastturb.ival)
+			wstyle = 0;
+		else if (gl_config.arb_shader_objects && r_waterstyle.ival>0 && !r_fastturb.ival && strncmp(shortname, "*lava", 5))
+			wstyle = r_waterstyle.ival;	//r_waterstyle does not apply to lava, and requires glsl and stuff
+		else
+			wstyle = 1;
+
 		{
-			builtin = (
-				"{\n"
+			switch(wstyle)
+			{
+			case -1:	//invisible
+				builtin = (
 					"{\n"
-						"map $currentrender\n"
+						"sort blend\n"
+						"surfaceparm nodraw\n"
+						"surfaceparm nodlight\n"
 					"}\n"
+				);
+				break;
+			case 0:	//fastturb
+				builtin = (
 					"{\n"
-						"map $normalmap\n"
+						"sort blend\n"
+						"{\n"
+							"map $whiteimage\n"
+							"rgbgen const $r_fastturbcolour\n"
+						"}\n"
+						"surfaceparm nodlight\n"
 					"}\n"
+				);
+				break;
+			default:
+			case 1:	//vanilla style
+				builtin = (
 					"{\n"
-						"map $diffuse\n"
+						"sort blend\n" /*make sure it always has the same sort order, so switching on/off wateralpha doesn't break stuff*/
+						"program defaultwarp\n"
+						"{\n"
+							"map $diffuse\n"
+							"tcmod turb 0.02 0.1 0.5 0.1\n"
+							"if r_wateralpha != 1\n"
+							"[\n"
+								"alphagen const $r_wateralpha\n"
+								"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
+							"]\n"
+						"}\n"
+						"surfaceparm nodlight\n"
 					"}\n"
-					"if r_water_reflect\n"
-					"[\n"
+				);
+				break;
+			case 2:	//refraction of the underwater surface, with a fresnel
+				builtin = (
+					"{\n"
+						"{\n"
+							"map $currentrender\n"
+						"}\n"
+						"{\n"
+							"map $normalmap\n"
+						"}\n"
+						"{\n"
+							"map $diffuse\n"
+						"}\n"
+						"program altwater#FRESNEL=4\n"
+					"}\n"
+				);
+				break;
+			case 3:	//ripples
+				builtin = (
+					"{\n"
+						"{\n"
+							"map $currentrender\n"
+						"}\n"
+						"{\n"
+							"map $normalmap\n"
+						"}\n"
+						"{\n"
+							"map $diffuse\n"
+						"}\n"
+						"{\n"
+							"map $ripplemap\n"
+						"}\n"
+						"program altwater#RIPPLEMAP#FRESNEL=4\n"
+					"}\n"
+				);
+				break;
+			case 4:	//reflections
+				builtin = (
+					"{\n"
+						"{\n"
+							"map $currentrender\n"
+						"}\n"
+						"{\n"
+							"map $normalmap\n"
+						"}\n"
 						"{\n"
 							"map $reflection\n"
 						"}\n"
-						"program altwater#REFLECT#FRESNEL=4\n"
-					"][\n"
-						"program altwater#FRESNEL=4\n"
-					"]\n"
-				"}\n"
-			);
-		}
-		//q1 water
-		else if (r_wateralpha.value == 0)
-		{
-			builtin = (
-				"{\n"
-					"sort blend\n"
-					"surfaceparm nodraw\n"
-					"surfaceparm nodlight\n"
-				"}\n"
-			);
-		}
-		else if (r_fastturb.ival)
-		{
-			builtin = (
-				"{\n"
-					"sort blend\n"
-					"{\n"
-						"map $whiteimage\n"
-						"rgbgen const $r_fastturbcolour\n"
+						"{\n"
+							"map $ripplemap\n"
+						"}\n"
+						"program altwater#REFLECT#RIPPLEMAP#FRESNEL=4\n"
 					"}\n"
-					"surfaceparm nodlight\n"
-				"}\n"
-			);
-		}
-		else
-		{
-			builtin = (
-				"{\n"
-					"sort blend\n" /*make sure it always has the same sort order, so switching on/off wateralpha doesn't break stuff*/
-					"program defaultwarp\n"
-					"{\n"
-						"map $diffuse\n"
-						"tcmod turb 0.02 0.1 0.5 0.1\n"
-						"if r_wateralpha != 1\n"
-						"[\n"
-							"alphagen const $r_wateralpha\n"
-							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
-						"]\n"
-					"}\n"
-					"surfaceparm nodlight\n"
-				"}\n"
-			);
+				);
+				break;
+			}
 		}
 	}
 	if (!builtin && !strncmp(shortname, "sky", 3))

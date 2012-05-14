@@ -313,7 +313,6 @@ void GL_MTBind(int tmu, int target, texid_t texnum); /*use this if you're going 
 void GL_LazyBind(int tmu, int target, texid_t texnum); /*use this if you don't care about the active tmu, only that it is bound on that tmu (does not guarentee glActiveTexture) (ie: no glTexImage etc)*/
 void GL_CullFace(unsigned int sflags);
 void GL_TexEnv(GLenum mode);
-void GL_FlushBackEnd (void);
 
 // Multitexture
 #define    GL_TEXTURE0_SGIS				0x835E
@@ -355,7 +354,6 @@ void GL_DoSwap (void);
 // gl_backend.c
 //
 #ifdef GLQUAKE
-void FTE_DEPRECATED R_BackendInit(void);
 void FTE_DEPRECATED R_IBrokeTheArrays(void);
 #endif
 

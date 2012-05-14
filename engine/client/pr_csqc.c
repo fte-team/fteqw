@@ -1632,10 +1632,7 @@ static void QCBUILTIN PF_cs_pointcontents(progfuncs_t *prinst, struct globalvars
 
 	v = G_VECTOR(OFS_PARM0);
 
-	if (!cl.worldmodel)
-		return FTECONTENTS_EMPTY;
-
-	cont = World_PointContents(w, v);
+	cont = cl.worldmodel?World_PointContents(w, v):FTECONTENTS_EMPTY;
 	if (cont & FTECONTENTS_SOLID)
 		G_FLOAT(OFS_RETURN) = Q1CONTENTS_SOLID;
 	else if (cont & FTECONTENTS_SKY)

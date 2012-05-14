@@ -420,7 +420,6 @@ void GLDraw_Init (void)
 	memset(gltexturetablebuckets, 0, sizeof(gltexturetablebuckets));
 	Hash_InitTable(&gltexturetable, sizeof(gltexturetablebuckets)/sizeof(gltexturetablebuckets[0]), gltexturetablebuckets);
 
-	GL_FlushBackEnd();
 //	GL_FlushSkinCache();
 	TRACE(("dbg: GLDraw_ReInit: GL_GAliasFlushSkinCache\n"));
 	GL_GAliasFlushSkinCache();

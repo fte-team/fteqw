@@ -2749,10 +2749,10 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, qbyte *vvis)
 	Sh_DrawEntLighting(dl, colour);
 }
 
-void GLBE_SubmitMeshes (qboolean drawworld, batch_t **blist, int start, int stop);
+void GLBE_SubmitMeshes (qboolean drawworld, int start, int stop);
 void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destcol, qboolean usedepth);
 
-void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours, batch_t **batches)
+void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 {
 #ifdef GLQUAKE
 	static mesh_t mesh;
@@ -2822,7 +2822,7 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours, batch_t **batches)
 
 	BE_SelectMode(BEM_CREPUSCULAR);
 	BE_SelectDLight(dl, colours);
-	GLBE_SubmitMeshes(true, batches, SHADER_SORT_PORTAL, SHADER_SORT_BLEND);
+	GLBE_SubmitMeshes(true, SHADER_SORT_PORTAL, SHADER_SORT_BLEND);
 
 	GLBE_RenderToTexture(crepuscular_texture_id, r_nulltex, r_nulltex, false);
 
@@ -2894,7 +2894,7 @@ void Com_ParseVector(char *str, vec3_t out)
 	out[2] = atof(com_token);
 }
 
-void Sh_DrawLights(qbyte *vis, batch_t **mbatches)
+void Sh_DrawLights(qbyte *vis)
 {
 	vec3_t colour;
 	dlight_t *dl;
@@ -2969,7 +2969,7 @@ void Sh_DrawLights(qbyte *vis, batch_t **mbatches)
 			continue;	//just switch these off.
 
 		if (dl->flags & LFLAG_CREPUSCULAR)
-			Sh_DrawCrepuscularLight(dl, colour, mbatches);
+			Sh_DrawCrepuscularLight(dl, colour);
 		else if (((i >= RTL_FIRST)?!r_shadow_realtime_world_shadows.ival:!r_shadow_realtime_dlight_shadows.ival) || dl->flags & LFLAG_NOSHADOWS)
 		{
 			Sh_DrawShadowlessLight(dl, colour, vis);
@@ -3014,7 +3014,7 @@ void Sh_DrawLights(qbyte *vis, batch_t **mbatches)
 			{
 				VectorNormalize(sundir);
 				VectorMA(r_origin, 1000, sundir, sun.origin);
-				Sh_DrawCrepuscularLight(&sun, colour, mbatches);
+				Sh_DrawCrepuscularLight(&sun, colour);
 			}
 		}
 	}

@@ -1512,6 +1512,75 @@ start:
 	goto start;
 }
 
+static void Surf_OrthoRecursiveWorldNode (mnode_t *node, unsigned int clipflags)
+{
+	//when rendering as ortho the front and back sides are technically equal. the only culling comes from frustum culling.
+
+	int			c, side, clipped;
+	mplane_t	*plane, *clipplane;
+	msurface_t	*surf, **mark;
+	mleaf_t		*pleaf;
+	double		dot;
+
+	if (node->contents == Q1CONTENTS_SOLID)
+		return;		// solid
+
+	if (node->visframe != r_visframecount)
+		return;
+
+	for (c = 0, clipplane = frustum; c < FRUSTUMPLANES; c++, clipplane++)
+	{
+		if (!(clipflags & (1 << c)))
+			continue;	// don't need to clip against it
+
+		clipped = BOX_ON_PLANE_SIDE (node->minmaxs, node->minmaxs + 3, clipplane);
+		if (clipped == 2)
+			return;
+		else if (clipped == 1)
+			clipflags -= (1<<c);	// node is entirely on screen
+	}
+
+// if a leaf node, draw stuff
+	if (node->contents < 0)
+	{
+		pleaf = (mleaf_t *)node;
+
+		mark = pleaf->firstmarksurface;
+		c = pleaf->nummarksurfaces;
+
+		if (c)
+		{
+			do
+			{
+				(*mark++)->visframe = r_framecount;
+			} while (--c);
+		}
+		return;
+	}
+
+// recurse down the children
+	Surf_OrthoRecursiveWorldNode (node->children[0], clipflags);
+	Surf_OrthoRecursiveWorldNode (node->children[1], clipflags);
+
+// draw stuff
+  	c = node->numsurfaces;
+
+	if (c)
+	{
+		surf = cl.worldmodel->surfaces + node->firstsurface;
+
+		for ( ; c ; c--, surf++)
+		{
+			if (surf->visframe != r_framecount)
+				continue;
+
+			Surf_RenderDynamicLightmaps (surf);
+			surf->sbatch->mesh[surf->sbatch->meshes++] = surf->mesh;
+		}
+	}
+	return;
+}
+
 #ifdef Q2BSPS
 static void Surf_RecursiveQ2WorldNode (mnode_t *node)
 {
@@ -2168,7 +2237,10 @@ void Surf_DrawWorld (void)
 				if (!(r_novis.ival & 2))
 					VectorCopy (r_refdef.vieworg, modelorg);
 
-				Surf_RecursiveWorldNode (cl.worldmodel->nodes, 0x1f);
+				if (r_refdef.useperspective)
+					Surf_RecursiveWorldNode (cl.worldmodel->nodes, 0x1f);
+				else
+					Surf_OrthoRecursiveWorldNode (cl.worldmodel->nodes, 0x1f);
 			}
 		}
 

@@ -437,7 +437,7 @@ void R_SetupGL (void)
 		else
 		{
 			if (gl_maxdist.value>=1)
-				Matrix4x4_CM_Orthographic(r_refdef.m_projection, -fov_x/2, fov_x/2, fov_y/2, -fov_y/2, -gl_maxdist.value, gl_maxdist.value);
+				Matrix4x4_CM_Orthographic(r_refdef.m_projection, -fov_x/2, fov_x/2, -fov_y/2, fov_y/2, -gl_maxdist.value, gl_maxdist.value);
 			else
 				Matrix4x4_CM_Orthographic(r_refdef.m_projection, 0, r_refdef.vrect.width, 0, r_refdef.vrect.height, -9999, 9999);
 		}
@@ -637,7 +637,7 @@ static void TransformDir(vec3_t in, vec3_t planea[3], vec3_t viewa[3], vec3_t re
 		VectorMA(result, d, viewa[i], result);
 	}
 }
-void GLR_DrawPortal(batch_t *batch, batch_t **blist)
+void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 {
 	entity_t *view;
 	GLdouble glplane[4];
@@ -663,7 +663,6 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist)
 	if (DotProduct(r_refdef.vieworg, plane.normal)-plane.dist < 0)
 		return;
 
-	view = R_NearestPortal(&plane);
 	//if (!view)
 	//	return;
 
@@ -672,7 +671,20 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist)
 
 	r_refdef.externalview = true;
 
-	if (!view || VectorCompare(view->origin, view->oldorigin))
+	if (portaltype == 1)
+	{
+		/*explicit mirror*/
+		r_refdef.flipcull ^= true;
+		R_MirrorMatrix(&plane);
+	}
+	else if (portaltype == 2)
+	{
+		/*refraction image (same view, just with things culled*/
+		r_refdef.externalview = false;
+		VectorNegate(plane.normal, plane.normal);
+		plane.dist = -plane.dist;
+	}
+	else if (!(view = R_NearestPortal(&plane)) || VectorCompare(view->origin, view->oldorigin))
 	{
 		r_refdef.flipcull ^= true;
 		R_MirrorMatrix(&plane);

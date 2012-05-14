@@ -991,6 +991,7 @@ void DropPunchAngle (int pnum);
 //
 void CL_RegisterParticles(void);
 void CL_InitTEnts (void);
+void CL_InitTEntSounds (void);
 void CL_ClearTEnts (void);
 void CL_ClearTEntParticleState (void);
 void CL_ClearCustomTEnts(void);

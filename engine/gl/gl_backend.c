@@ -121,8 +121,9 @@ struct {
 		texid_t tex_sourcedepth;
 		int fbo_depthless;
 		int fbo_reflection;
-		texid_t tex_reflection;
-		texid_t tex_refraction;
+		texid_t tex_reflection;	/*basically a portal rendered to texture*/
+		texid_t tex_refraction;	/*the (culled) underwater view*/
+		texid_t tex_ripplemap;	/*temp image for waves and things.*/
 
 		qboolean force2d;
 		int currenttmu;
@@ -169,6 +170,8 @@ struct {
 		texid_t fogtexture;
 		texid_t normalisationcubemap;
 		float fogfar;
+
+		batch_t **mbatches;	//model batches (ie: not world)
 	};
 
 	//exterior state (paramters)
@@ -670,6 +673,7 @@ void GLBE_SetupVAO(vbo_t *vbo, unsigned vaodynamic)
 		shaderstate.sourcevbo = vbo;
 		shaderstate.pendingvertexvbo = shaderstate.sourcevbo->coord.gl.vbo;
 		shaderstate.pendingvertexpointer = shaderstate.sourcevbo->coord.gl.addr;
+		shaderstate.colourarraytype = GL_FLOAT;
 
 		shaderstate.currentvao = vbo->vao;
 		qglBindVertexArray(vbo->vao);
@@ -876,19 +880,6 @@ void R_IBrokeTheArrays(void)
 	RevertToKnownState();
 }
 
-void GL_FlushBackEnd(void)
-{
-	memset(&shaderstate, 0, sizeof(shaderstate));
-	shaderstate.curcull = ~0;
-}
-void R_BackendInit(void)
-{
-}
-qboolean R_MeshWillExceed(mesh_t *mesh)
-{
-	return false;
-}
-
 #ifdef RTLIGHTS
 //called from gl_shadow
 void BE_SetupForShadowMap(void)
@@ -1025,6 +1016,9 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 		break;
 	case T_GEN_REFRACTION:
 		t = shaderstate.tex_refraction;
+		break;
+	case T_GEN_RIPPLEMAP:
+		t = shaderstate.tex_ripplemap;
 		break;
 	}
 	GL_LazyBind(tmu, GL_TEXTURE_2D, t);
@@ -3550,7 +3544,7 @@ static void GLBE_SubmitMeshesPortals(batch_t **worldlist, batch_t *dynamiclist)
 				}
 				GLBE_SelectMode(BEM_STANDARD);
 
-				GLR_DrawPortal(batch, worldlist);
+				GLR_DrawPortal(batch, worldlist, 0);
 
 				/*clear depth again*/
 				GL_ForceDepthWritable();
@@ -3600,9 +3594,9 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				continue;
 		}
 
-		if (batch->shader->flags & (SHADER_HASREFLECT | SHADER_HASREFRACT))
+		if (batch->shader->flags & (SHADER_HASREFLECT | SHADER_HASREFRACT | SHADER_HASRIPPLEMAP))
 		{
-			//these two flags require rendering some view as an fbo
+			//these flags require rendering some view as an fbo
 			if (r_refdef.recurse)
 				return;
 
@@ -3610,39 +3604,70 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 			{
 				if (!shaderstate.tex_reflection.num)
 				{
-					shaderstate.tex_reflection = GL_AllocNewTexture("***tex_reflection***", vid.pixelwidth, vid.pixelheight);
+					shaderstate.tex_reflection = GL_AllocNewTexture("***tex_reflection***", vid.pixelwidth/2, vid.pixelheight/2);
 					GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_reflection);
-					qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vid.pixelwidth, vid.pixelheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+					qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vid.pixelwidth/2, vid.pixelheight/2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 				}
 				GL_ForceDepthWritable();
 				GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_reflection, true);
+				qglViewport (0, 0, vid.pixelwidth/2, vid.pixelheight/2);
 				GL_ForceDepthWritable();
 				qglClear(GL_DEPTH_BUFFER_BIT);
-				GLR_DrawPortal(batch, cl.worldmodel->batches);
+				GLR_DrawPortal(batch, cl.worldmodel->batches, 1);
 				GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, false);
+				qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
 			}
 			if (batch->shader->flags & SHADER_HASREFRACT)
 			{
 				if (!shaderstate.tex_refraction.num)
 				{
-					shaderstate.tex_refraction = GL_AllocNewTexture("***tex_refraction***", vid.pixelwidth, vid.pixelheight);
+					shaderstate.tex_refraction = GL_AllocNewTexture("***tex_refraction***", vid.pixelwidth/2, vid.pixelheight/2);
 					GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_refraction);
-					qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vid.pixelwidth, vid.pixelheight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+					qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vid.pixelwidth/2, vid.pixelheight/2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 				}
 				GL_ForceDepthWritable();
 				GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_refraction, true);
+				qglViewport (0, 0, vid.pixelwidth/2, vid.pixelheight/2);
 				GL_ForceDepthWritable();
 				qglClear(GL_DEPTH_BUFFER_BIT);
-				GLR_DrawPortal(batch, cl.worldmodel->batches);
+				GLR_DrawPortal(batch, cl.worldmodel->batches, 2);
 				GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, false);
+
+				qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
+			}
+			if (batch->shader->flags & SHADER_HASRIPPLEMAP)
+			{
+				if (!shaderstate.tex_ripplemap.num)
+				{
+					shaderstate.tex_ripplemap = GL_AllocNewTexture("***tex_ripplemap***", vid.pixelwidth/2, vid.pixelheight/2);
+					GL_MTBind(0, GL_TEXTURE_2D, shaderstate.tex_ripplemap);
+					qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, vid.pixelwidth/2, vid.pixelheight/2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+				}
+				GLBE_RenderToTexture(r_nulltex, r_nulltex, shaderstate.tex_ripplemap, false);
+				qglViewport (0, 0, vid.pixelwidth/2, vid.pixelheight/2);
+				qglClearColor(0, 0, 0, 0);
+				qglClear(GL_COLOR_BUFFER_BIT);
+
+//				r_refdef.waterheight = DotProduct(batch->mesh[0]->xyz_array[0], batch->mesh[0]->normals_array[0]);
+
+				r_refdef.recurse = true; //paranoid, should stop potential infinite loops
+				GLBE_SubmitMeshes(true, SHADER_SORT_RIPPLE, SHADER_SORT_RIPPLE);
+				r_refdef.recurse = false;
+				GLBE_RenderToTexture(r_nulltex, r_nulltex, r_nulltex, false);
+
+				qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
 			}
 		}
 
@@ -3650,7 +3675,7 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 	}
 }
 
-void GLBE_SubmitMeshes (qboolean drawworld, batch_t **blist, int start, int stop)
+void GLBE_SubmitMeshes (qboolean drawworld, int start, int stop)
 {
 	model_t *model = cl.worldmodel;
 	int i;
@@ -3660,11 +3685,11 @@ void GLBE_SubmitMeshes (qboolean drawworld, batch_t **blist, int start, int stop
 		if (drawworld)
 		{
 			if (i == SHADER_SORT_PORTAL && !r_noportals.ival && !r_refdef.recurse)
-				GLBE_SubmitMeshesPortals(model->batches, blist[i]);
+				GLBE_SubmitMeshesPortals(model->batches, shaderstate.mbatches[i]);
 
 			GLBE_SubmitMeshesSortList(model->batches[i]);
 		}
-		GLBE_SubmitMeshesSortList(blist[i]);
+		GLBE_SubmitMeshesSortList(shaderstate.mbatches[i]);
 	}
 }
 
@@ -3736,9 +3761,12 @@ batch_t *GLBE_GetTempBatch(void)
 void GLBE_BaseEntTextures(void)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
+	batch_t **ob = shaderstate.mbatches;
+	shaderstate.mbatches = batches;
 	BE_GenModelBatches(batches);
-	GLBE_SubmitMeshes(false, batches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
+	GLBE_SubmitMeshes(false, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
 	BE_SelectEntity(&r_worldentity);
+	shaderstate.mbatches = ob;
 }
 #endif
 
@@ -3762,7 +3790,7 @@ void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destco
 				//create an unnamed depth buffer
 				qglGenRenderbuffersEXT(1, &drb);
 				qglBindRenderbufferEXT(GL_RENDERBUFFER_EXT, drb);
-				qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT24_ARB, vid.pixelwidth, vid.pixelheight);
+				qglRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT24_ARB, vid.pixelwidth/2, vid.pixelheight/2);
 				qglFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, drb);
 //				qglDeleteRenderbuffersEXT(1, &drb);
 
@@ -3790,7 +3818,7 @@ void GLBE_RenderToTexture(texid_t sourcecol, texid_t sourcedepth, texid_t destco
 	}
 }
 
-void GLBE_DrawLightPrePass(qbyte *vis, batch_t **batches)
+void GLBE_DrawLightPrePass(qbyte *vis)
 {
 	extern cvar_t temp1;
 	if (!shaderstate.initeddepthnorm)
@@ -3814,7 +3842,7 @@ void GLBE_DrawLightPrePass(qbyte *vis, batch_t **batches)
 	}
 	/*do portals*/
 	BE_SelectMode(BEM_STANDARD);
-	GLBE_SubmitMeshes(true, batches, SHADER_SORT_PORTAL, SHADER_SORT_PORTAL);
+	GLBE_SubmitMeshes(true, SHADER_SORT_PORTAL, SHADER_SORT_PORTAL);
 
 	BE_SelectMode(BEM_DEPTHNORM);
 	if (!shaderstate.depthnormshader)
@@ -3822,9 +3850,7 @@ void GLBE_DrawLightPrePass(qbyte *vis, batch_t **batches)
 		BE_SelectMode(BEM_STANDARD);
 		return;
 	}
-	
-#define GL_RGBA16F_ARB                      0x881A
-#define GL_RGBA32F_ARB                      0x8814
+
 	if (!TEXVALID(shaderstate.tex_normals))
 	{
 		shaderstate.tex_normals = GL_AllocNewTexture("***prepass normals***", vid.pixelwidth, vid.pixelheight);
@@ -3883,7 +3909,7 @@ void GLBE_DrawLightPrePass(qbyte *vis, batch_t **batches)
 	}
 
 	/*draw surfaces that can be drawn this way*/
-	GLBE_SubmitMeshes(true, batches, SHADER_SORT_OPAQUE, SHADER_SORT_OPAQUE);
+	GLBE_SubmitMeshes(true, SHADER_SORT_OPAQUE, SHADER_SORT_OPAQUE);
 
 	/*reconfigure - now drawing diffuse light info using the previous fb image as a source image*/
 	shaderstate.tex_sourcecol = shaderstate.tex_normals;
@@ -3895,7 +3921,7 @@ void GLBE_DrawLightPrePass(qbyte *vis, batch_t **batches)
 
 	BE_SelectEntity(&r_worldentity);
 	/*now draw the prelights*/
-	GLBE_SubmitMeshes(true, batches, SHADER_SORT_PRELIGHT, SHADER_SORT_PRELIGHT);
+	GLBE_SubmitMeshes(true, SHADER_SORT_PRELIGHT, SHADER_SORT_PRELIGHT);
 
 	/*final reconfigure - now drawing final surface data onto true framebuffer*/
 	qglBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
@@ -3904,12 +3930,12 @@ void GLBE_DrawLightPrePass(qbyte *vis, batch_t **batches)
 
 	/*now draw the postlight passes (this includes blended stuff which will NOT be lit)*/
 	BE_SelectEntity(&r_worldentity);
-	GLBE_SubmitMeshes(true, batches, SHADER_SORT_SKY, SHADER_SORT_NEAREST);
+	GLBE_SubmitMeshes(true, SHADER_SORT_SKY, SHADER_SORT_NEAREST);
 
 #ifdef RTLIGHTS
 	/*regular lighting now*/
 	BE_SelectEntity(&r_worldentity);
-	Sh_DrawLights(vis, batches);
+	Sh_DrawLights(vis);
 #endif
 
 	shaderstate.tex_sourcecol = r_nulltex;
@@ -3922,7 +3948,9 @@ void GLBE_DrawWorld (qbyte *vis)
 {
 	extern cvar_t r_shadow_realtime_world, r_shadow_realtime_world_lightmaps;
 	batch_t *batches[SHADER_SORT_COUNT];
+	batch_t **ob = shaderstate.mbatches;
 	RSpeedLocals();
+	shaderstate.mbatches = batches;
 
 	GL_DoSwap();
 
@@ -4003,7 +4031,7 @@ void GLBE_DrawWorld (qbyte *vis)
 #ifdef RTLIGHTS
 		if (r_lightprepass.ival)
 		{
-			GLBE_DrawLightPrePass(vis, batches);
+			GLBE_DrawLightPrePass(vis);
 		}
 		else
 #endif
@@ -4014,20 +4042,20 @@ void GLBE_DrawWorld (qbyte *vis)
 				BE_SelectMode(BEM_STANDARD);
 
 			RSpeedRemark();
-			GLBE_SubmitMeshes(true, batches, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
+			GLBE_SubmitMeshes(true, SHADER_SORT_PORTAL, SHADER_SORT_DECAL);
 			RSpeedEnd(RSPEED_WORLD);
 		}
 
 #ifdef RTLIGHTS
 		RSpeedRemark();
 		BE_SelectEntity(&r_worldentity);
-		Sh_DrawLights(vis, batches);
+		Sh_DrawLights(vis);
 		RSpeedEnd(RSPEED_STENCILSHADOWS);
 #endif
 
 		shaderstate.identitylighting = 1;
 
-		GLBE_SubmitMeshes(true, batches, SHADER_SORT_DECAL, SHADER_SORT_NEAREST);
+		GLBE_SubmitMeshes(true, SHADER_SORT_DECAL, SHADER_SORT_NEAREST);
 
 /*		if (r_refdef.gfog_alpha)
 		{
@@ -4039,12 +4067,14 @@ void GLBE_DrawWorld (qbyte *vis)
 	}
 	else
 	{
-		GLBE_SubmitMeshes(false, batches, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
+		GLBE_SubmitMeshes(false, SHADER_SORT_PORTAL, SHADER_SORT_NEAREST);
 	}
 
 	BE_SelectEntity(&r_worldentity);
 	shaderstate.curtime = shaderstate.updatetime = realtime;
 
 	shaderstate.identitylighting = 1;
+
+	shaderstate.mbatches = ob;
 }
 #endif

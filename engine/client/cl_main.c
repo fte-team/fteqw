@@ -3095,9 +3095,6 @@ void CL_Init (void)
 #ifdef CSQC_DAT
 	CSQC_RegisterCvarsAndThings();
 #endif
-#if defined(CSQC_DAT) || defined(MENU_DAT)
-	PF_Common_RegisterCvars();
-#endif
 	Cvar_Register (&host_speeds, cl_controlgroup);
 	Cvar_Register (&developer, cl_controlgroup);
 

@@ -314,12 +314,7 @@ void CL_AssociateEffect_f(void)
 	CL_RegisterParticles();
 }
 
-/*
-=================
-CL_ParseTEnts
-=================
-*/
-void CL_InitTEnts (void)
+void CL_InitTEntSounds (void)
 {
 	int i;
 	for (i = 0; i < sizeof(tentsfx)/sizeof(tentsfx[0]); i++)
@@ -329,6 +324,18 @@ void CL_InitTEnts (void)
 		else
 			*tentsfx[i].sfx = NULL;
 	}
+}
+
+/*
+=================
+CL_ParseTEnts
+=================
+*/
+void CL_InitTEnts (void)
+{
+	int i;
+	for (i = 0; i < sizeof(tentsfx)/sizeof(tentsfx[0]); i++)
+		*tentsfx[i].sfx = NULL;
 
 	Cmd_AddCommand("r_effect", CL_AssociateEffect_f);
 	Cmd_AddCommand("r_trail", CL_AssociateEffect_f);
@@ -513,6 +520,8 @@ CL_ClearTEnts
 */
 void CL_ClearTEnts (void)
 {
+	CL_ClearTEntParticleState();
+
 	cl_beams_max = 0;
 	BZ_Free(cl_beams);
 	cl_beams = NULL;
@@ -618,8 +627,12 @@ beam_t	*CL_NewBeam (int entity, int tag)
 	{
 		if (i == cl_beams_max)
 		{
-			cl_beams_max = (i+1)*2;
-			cl_beams = BZ_Realloc(cl_beams, cl_beams_max*sizeof(*cl_beams));
+			int nm = (i+1)*2;
+			CL_ClearTEntParticleState();
+
+			cl_beams = BZ_Realloc(cl_beams, nm*sizeof(*cl_beams));
+			memset(cl_beams + cl_beams_max, 0, sizeof(*cl_beams)*(nm-cl_beams_max));
+			cl_beams_max = nm;
 		}
 
 		beams_running++;

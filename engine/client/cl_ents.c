@@ -2698,6 +2698,11 @@ void CL_LinkPacketEntities (void)
 		if (ent->flags & Q2RF_EXTERNALMODEL)
 			ent->externalmodelview = ~0;
 
+/*		if (le->origin[2] < r_refdef.waterheight != le->lastorigin[2] < r_refdef.waterheight)
+		{
+			P_RunParticleEffectTypeString(le->origin, NULL, 1, "te_watertransition");
+		}
+*/
 		// set colormap
 		if (state->colormap && (state->colormap <= MAX_CLIENTS)
 			&& (gl_nocolors.value == -1 || (ent->model/* && state->modelindex == cl_playerindex*/)))
@@ -4157,7 +4162,37 @@ void CL_SwapEntityLists(void)
 	cl_numstrisvert = 0;
 	cl_numstris = 0;
 }
+/*
+static void CL_WaterSplashes(void)
+{
+	int i;
+	entity_t *ent;
+	vec3_t org;
 
+	static unsigned int ltime;
+	unsigned int ntime = cl.time*1000;
+	if (ntime - ltime < 200)
+		return;
+	ltime = ntime;
+
+	for (i = 0; i < cl_numvisedicts; i++)
+	{
+		ent = &cl_visedicts[i];
+
+		if (ent->model)
+		{
+			if (ent->origin[2] + ent->model->mins[2] < r_refdef.waterheight &&
+				ent->origin[2] + ent->model->maxs[2] > r_refdef.waterheight)
+			{
+				org[0] = ent->origin[0];
+				org[1] = ent->origin[1];
+				org[2] = r_refdef.waterheight;
+				P_RunParticleEffectTypeString(org, NULL, 1, "te_watertransition");
+			}
+		}
+	}
+}
+*/
 void CL_EmitEntities (void)
 {
 	if (cls.state != ca_active)
@@ -4181,6 +4216,8 @@ void CL_EmitEntities (void)
 	CL_LinkPacketEntities ();
 	CL_LinkProjectiles ();
 	CL_UpdateTEnts ();
+
+//	CL_WaterSplashes();
 }
 
 

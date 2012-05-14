@@ -879,6 +879,8 @@ void S_Startup (void)
 	sound_started = !!sndcardinfo;
 
 	S_ClearRaw();
+
+	CL_InitTEntSounds();
 }
 
 void SNDDMA_SetUnderWater(qboolean underwater)
@@ -1753,7 +1755,7 @@ void S_UpdateAmbientSounds (soundcardinfo_t *sc)
 			{
 				newmusic = S_PrecacheSound(nexttrack);
 
-				if (!newmusic->failedload)
+				if (newmusic && !newmusic->failedload)
 				{
 					chan->sfx = newmusic;
 					chan->rate = 1<<PITCHSHIFT;

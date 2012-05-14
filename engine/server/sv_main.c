@@ -470,7 +470,7 @@ void SV_DropClient (client_t *drop)
 	case GT_PROGS:
 		if (svprogfuncs)
 		{
-			if (drop->state == cs_spawned)
+			if (drop->state == cs_spawned && host_initialized)
 			{
 #ifdef VM_Q1
 				if (svs.gametype == GT_Q1QVM)

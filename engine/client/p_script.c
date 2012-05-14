@@ -142,7 +142,7 @@ typedef struct skytris_s {
 //these is the required render state for each particle
 //dynamic per-particle stuff isn't important. only static state.
 typedef struct {
-	enum {PT_NORMAL, PT_SPARK, PT_SPARKFAN, PT_TEXTUREDSPARK, PT_BEAM, PT_DECAL} type;
+	enum {PT_NORMAL, PT_SPARK, PT_SPARKFAN, PT_TEXTUREDSPARK, PT_BEAM, PT_CDECAL, PT_UDECAL} type;
 
 	blendmode_t blendmode;
 	shader_t *shader;
@@ -1181,8 +1181,10 @@ static void P_ParticleEffect_f(void)
 				ptype->looks.type = PT_SPARKFAN;
 			else if (!strcmp(value, "texturedspark"))
 				ptype->looks.type = PT_TEXTUREDSPARK;
-			else if (!strcmp(value, "decal"))
-				ptype->looks.type = PT_DECAL;
+			else if (!strcmp(value, "decal") || !strcmp(value, "cdecal"))
+				ptype->looks.type = PT_CDECAL;
+			else if (!strcmp(value, "udecal"))
+				ptype->looks.type = PT_UDECAL;
 			else
 				ptype->looks.type = PT_NORMAL;
 			settype = true;
@@ -1805,9 +1807,14 @@ static void P_ImportEffectInfo_f(void)
 			ptype->count = atof(arg[1]);
 		else if (!strcmp(arg[0], "type") && args == 2)
 		{
-			if (!strcmp(arg[1], "decal"))
+			if (!strcmp(arg[1], "decal") || !strcmp(arg[1], "cdecal"))
 			{
-				ptype->looks.type = PT_DECAL;
+				ptype->looks.type = PT_CDECAL;
+				ptype->looks.blendmode = BM_INVMOD;
+			}
+			else if (!strcmp(arg[1], "udecal"))
+			{
+				ptype->looks.type = PT_UDECAL;
 				ptype->looks.blendmode = BM_INVMOD;
 			}
 			else if (!strcmp(arg[1], "alphastatic"))
@@ -2923,7 +2930,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 	{
 		PScript_EffectSpawned(ptype, org, dir, 0, count);
 
-		if (ptype->looks.type == PT_DECAL)
+		if (ptype->looks.type == PT_CDECAL)
 		{
 			clippeddecal_t *d;
 			int decalcount;
@@ -4601,6 +4608,79 @@ static void R_AddClippedDecal(scenetris_t *t, clippeddecal_t *d, plooks_t *type)
 	t->numidx += 3;
 }
 
+static void R_AddUnclippedDecal(scenetris_t *t, particle_t *p, plooks_t *type)
+{
+	float x, y;
+	vec3_t sdir, tdir;
+
+	if (cl_numstrisvert+4 > cl_maxstrisvert)
+	{
+		cl_maxstrisvert+=64*4;
+		cl_strisvertv = BZ_Realloc(cl_strisvertv, sizeof(*cl_strisvertv)*cl_maxstrisvert);
+		cl_strisvertt = BZ_Realloc(cl_strisvertt, sizeof(*cl_strisvertt)*cl_maxstrisvert);
+		cl_strisvertc = BZ_Realloc(cl_strisvertc, sizeof(*cl_strisvertc)*cl_maxstrisvert);
+	}
+
+	Vector4Copy(p->rgba, cl_strisvertc[cl_numstrisvert+0]);
+	Vector4Copy(p->rgba, cl_strisvertc[cl_numstrisvert+1]);
+	Vector4Copy(p->rgba, cl_strisvertc[cl_numstrisvert+2]);
+	Vector4Copy(p->rgba, cl_strisvertc[cl_numstrisvert+3]);
+
+	Vector2Set(cl_strisvertt[cl_numstrisvert+0], p->s1, p->t1);
+	Vector2Set(cl_strisvertt[cl_numstrisvert+1], p->s1, p->t2);
+	Vector2Set(cl_strisvertt[cl_numstrisvert+2], p->s2, p->t2);
+	Vector2Set(cl_strisvertt[cl_numstrisvert+3], p->s2, p->t1);
+
+//	if (p->vel[1] == 1)
+	{
+		VectorSet(sdir, 1, 0, 0);
+		VectorSet(tdir, 0, 1, 0);
+	}
+
+	if (p->angle)
+	{
+		x = sin(p->angle)*p->scale;
+		y = cos(p->angle)*p->scale;
+
+		cl_strisvertv[cl_numstrisvert+0][0] = p->org[0] - x*sdir[0] - y*tdir[0];
+		cl_strisvertv[cl_numstrisvert+0][1] = p->org[1] - x*sdir[1] - y*tdir[1];
+		cl_strisvertv[cl_numstrisvert+0][2] = p->org[2] - x*sdir[2] - y*tdir[2];
+		cl_strisvertv[cl_numstrisvert+1][0] = p->org[0] - y*sdir[0] + x*tdir[0];
+		cl_strisvertv[cl_numstrisvert+1][1] = p->org[1] - y*sdir[1] + x*tdir[1];
+		cl_strisvertv[cl_numstrisvert+1][2] = p->org[2] - y*sdir[2] + x*tdir[2];
+		cl_strisvertv[cl_numstrisvert+2][0] = p->org[0] + x*sdir[0] + y*tdir[0];
+		cl_strisvertv[cl_numstrisvert+2][1] = p->org[1] + x*sdir[1] + y*tdir[1];
+		cl_strisvertv[cl_numstrisvert+2][2] = p->org[2] + x*sdir[2] + y*tdir[2];
+		cl_strisvertv[cl_numstrisvert+3][0] = p->org[0] + y*sdir[0] - x*tdir[0];
+		cl_strisvertv[cl_numstrisvert+3][1] = p->org[1] + y*sdir[1] - x*tdir[1];
+		cl_strisvertv[cl_numstrisvert+3][2] = p->org[2] + y*sdir[2] - x*tdir[2];
+	}
+	else
+	{
+		VectorMA(p->org, -p->scale, tdir, cl_strisvertv[cl_numstrisvert+0]);
+		VectorMA(p->org, -p->scale, sdir, cl_strisvertv[cl_numstrisvert+1]);
+		VectorMA(p->org, p->scale, tdir, cl_strisvertv[cl_numstrisvert+2]);
+		VectorMA(p->org, p->scale, sdir, cl_strisvertv[cl_numstrisvert+3]);
+	}
+
+	if (cl_numstrisidx+6 > cl_maxstrisidx)
+	{
+		cl_maxstrisidx += 64*6;
+		cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+	}
+	cl_strisidx[cl_numstrisidx++] = (cl_numstrisvert - t->firstvert) + 0;
+	cl_strisidx[cl_numstrisidx++] = (cl_numstrisvert - t->firstvert) + 1;
+	cl_strisidx[cl_numstrisidx++] = (cl_numstrisvert - t->firstvert) + 2;
+	cl_strisidx[cl_numstrisidx++] = (cl_numstrisvert - t->firstvert) + 0;
+	cl_strisidx[cl_numstrisidx++] = (cl_numstrisvert - t->firstvert) + 2;
+	cl_strisidx[cl_numstrisidx++] = (cl_numstrisvert - t->firstvert) + 3;
+
+	cl_numstrisvert += 4;
+
+	t->numvert += 4;
+	t->numidx += 6;
+}
+
 static void R_AddTexturedParticle(scenetris_t *t, particle_t *p, plooks_t *type)
 {
 	float scale, x, y;
@@ -4863,7 +4943,10 @@ static void PScript_DrawParticleTypes (void)
 			else
 				bdraw = GL_DrawParticleBeam;
 			break;
-		case PT_DECAL:
+		case PT_CDECAL:
+			break;
+		case PT_UDECAL:
+			tdraw = R_AddUnclippedDecal;
 			break;
 		case PT_NORMAL:
 			pdraw = GL_DrawTexturedParticle;

@@ -745,7 +745,7 @@ unsigned int Q1BSP_PointContents(model_t *model, vec3_t axis[3], vec3_t point)
 		transformed[2] = DotProduct(point, axis[2]);
 		return Q1BSP_HullPointContents(&model->hulls[0], transformed);
 	}
-	if (1)
+	if (!model->firstmodelsurface)
 	{
 		return Q1BSP_TranslateContents(Q1_ModelPointContents(model->nodes, point));
 	}

@@ -3144,13 +3144,13 @@ qbyte *SV_Snapshot_SetupPVS(client_t *client, qbyte *pvs, unsigned int pvsbufsiz
 {
 	vec3_t org;
 	int leavepvs = false;
-
+/*
 	if (r_novis.ival)
 	{
 		memset(pvs, 0xff, (sv.world.worldmodel->numleafs+31)>>3);
 		return pvs;
 	}
-
+*/
 	for (; client; client = client->controlled)
 	{
 		if (client->viewent)

@@ -1921,6 +1921,7 @@ static bspx_header_t *bspxheader;
 void *Q1BSPX_FindLump(char *lumpname, int *lumpsize)
 {
 	int i;
+	*lumpsize = 0;
 	if (!bspxheader)
 		return NULL;
 

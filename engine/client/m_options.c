@@ -339,7 +339,7 @@ void M_Menu_Particles_f (void)
 		NULL
 	};
 
-	static const char *pdescopts[] = 
+	static const char *pdescopts[] =
 	{
 		"Classic",
 		"Faithful",
@@ -409,7 +409,7 @@ void M_Menu_Particles_f (void)
 const char *presetname[] =
 {
 	"286",		//everything turned off to make it as fast as possible, even if you're crippled without it
-	"Fast",		//typical deathmatch settings. 
+	"Fast",		//typical deathmatch settings.
 	"Normal",	//some extra effects
 	"Nice",		//potentially expensive, but not painful
 	"Realtime",	//everything on
@@ -489,7 +489,7 @@ const char *presetexec[] =
 	"gl_texture_anisotropic_filtering 16;"
 };
 
-typedef struct fpsmenuinfo_s 
+typedef struct fpsmenuinfo_s
 {
 	menucombo_t *preset;
 } fpsmenuinfo_t;
@@ -619,7 +619,7 @@ void M_Menu_FPS_f (void)
 	/*lerping is here because I'm not sure where else to put it. if they care about framerate that much then they'll want to disable interpolation to get as up-to-date stuff as possible*/
 
 	{
-		menubulk_t bulk[] = 
+		menubulk_t bulk[] =
 		{
 			MB_REDTEXT("FPS Options", false),
 			MB_TEXT("\x80\x81\x81\x81\x81\x81\x81\x81\x81\x81\x82", false),
@@ -1821,6 +1821,9 @@ static const char *res16x9[] =
 	"1600x900",
 	"1920x1080",
 	"2048x1152",
+	"2560x1440",
+	"3840x2160",
+	"4096x2304",
 	NULL
 };
 static const char *res16x10[] =
@@ -1904,7 +1907,7 @@ void CheckCustomMode(struct menu_s *menu)
 	for (i = 0; i < ASPECT_RATIOS; i++)
 		info->ressize[i]->common.ishidden = true;
 	sel = info->resmode->selectedoption;
-	if (sel < ASPECT_RATIOS) 
+	if (sel < ASPECT_RATIOS)
 	{
 		// unhide appropriate aspect ratio combo and restricted bpp/hz combos
 		info->bppfixed->common.ishidden = false;
@@ -1982,7 +1985,7 @@ qboolean M_VideoApply (union menuoption_s *op, struct menu_s *menu, int key)
 
 	if (key != K_ENTER && key != K_MOUSE1)
 		return false;
-	
+
 	// force update display options
 	{
 		int w = 0, h = 0;
@@ -2083,7 +2086,7 @@ void M_Menu_Video_f (void)
 	extern cvar_t vid_desktopgamma, vid_hardwaregamma, vid_preservegamma;
 	extern cvar_t vid_bpp, vid_refreshrate, vid_renderer, vid_multisample;
 
-	static const char *rendererops[] = 
+	static const char *rendererops[] =
 	{
 #ifdef GLQUAKE
 		"OpenGL",
@@ -2093,7 +2096,7 @@ void M_Menu_Video_f (void)
 #endif
 		NULL
 	};
-	static const char *renderervalues[] = 
+	static const char *renderervalues[] =
 	{
 #ifdef GLQUAKE
 		"gl",
@@ -2121,7 +2124,7 @@ void M_Menu_Video_f (void)
 		NULL
 	};
 
-	static const char *bppopts[] = 
+	static const char *bppopts[] =
 	{
 		"16-bit",
 		"32-bit",

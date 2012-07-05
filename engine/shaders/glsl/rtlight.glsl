@@ -36,13 +36,13 @@ void main ()
 	gl_Position = skeletaltransform_wnst(w,n,s,t);
 	tcbase = v_texcoord;	//pass the texture coords straight through
 	vec3 lightminusvertex = l_lightposition - w.xyz;
-	lightvector.x = dot(lightminusvertex, s.xyz);
+	lightvector.x = -dot(lightminusvertex, s.xyz);
 	lightvector.y = dot(lightminusvertex, t.xyz);
 	lightvector.z = dot(lightminusvertex, n.xyz);
 #if defined(SPECULAR)||defined(OFFSETMAPPING)
 	vec3 eyeminusvertex = e_eyepos - w.xyz;
-	eyevector.x = dot(eyeminusvertex, s.xyz);
-	eyevector.y = -dot(eyeminusvertex, t.xyz);
+	eyevector.x = -dot(eyeminusvertex, s.xyz);
+	eyevector.y = dot(eyeminusvertex, t.xyz);
 	eyevector.z = dot(eyeminusvertex, n.xyz);
 #endif
 #if defined(PCF) || defined(SPOT) || defined(PROJECTION) || defined(CUBE)
@@ -77,30 +77,37 @@ uniform vec3 l_lightcolourscale;
 #endif
 void main ()
 {
+//read raw texture samples (offsetmapping munges the tex coords first)
 #ifdef OFFSETMAPPING
 	vec2 tcoffsetmap = offsetmap(s_t1, tcbase, eyevector);
 #define tcbase tcoffsetmap
 #endif
 	vec3 bases = vec3(texture2D(s_t0, tcbase));
 #if defined(BUMP) || defined(SPECULAR)
-	vec3 bumps = vec3(texture2D(s_t1, tcbase)) - 0.5;
+	vec3 bumps = normalize(vec3(texture2D(s_t1, tcbase)) - 0.5);
 #endif
 #ifdef SPECULAR
 	vec4 specs = texture2D(s_t2, tcbase);
 #endif
+
 	vec3 nl = normalize(lightvector);
-	float colorscale = max(1.0 - dot(lightvector, lightvector)/(l_lightradius*l_lightradius), 0.0);
+	float colorscale = max(1.0 - (dot(lightvector, lightvector)/(l_lightradius*l_lightradius)), 0.0);
 	vec3 diff;
 #ifdef BUMP
-	diff = bases * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(2.0*bumps, nl), 0.0));
+	diff = bases * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(bumps, nl), 0.0));
 #else
 	diff = bases * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(vec3(0.0, 0.0, 1.0), nl), 0.0));
 #endif
+
+
 #ifdef SPECULAR
-	vec3 halfdir = normalize(lightvector - normalize(eyevector));
-	float spec = pow(max(dot(halfdir, bumps), 0.0), 1.0 + 32.0 * specs.a);
-	diff += spec * specs.rgb * l_lightcolourscale.z;
+	vec3 halfdir = normalize(normalize(eyevector) + nl);
+	float spec = pow(max(dot(halfdir, bumps), 0.0), 32.0 * specs.a);
+	diff += l_lightcolourscale.z * spec * specs.rgb;
 #endif
+
+
+
 #ifdef CUBE
 	diff *= textureCube(s_t3, vshadowcoord.xyz).rgb;
 #endif

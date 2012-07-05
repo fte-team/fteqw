@@ -1166,10 +1166,21 @@ void SV_Modellist_f (void)
 SV_PreSpawn_f
 ==================
 */
+enum
+{
+	PRESPAWN_MAPCHECK=0,
+	PRESPAWN_SIGNON_BUF,
+	PRESPAWN_SPAWNSTATIC,
+	PRESPAWN_CUSTOMTENTS,
+	PRESPAWN_BASELINES,
+	PRESPAWN_DONE
+};
 void SVQW_PreSpawn_f (void)
 {
-	unsigned	initbuf, buf, start;
+	unsigned	initbuf;
 	unsigned	check;
+	unsigned int ps_type;
+	unsigned int ps_idx;
 
 	if (host_client->state != cs_connected)
 	{
@@ -1185,9 +1196,12 @@ void SVQW_PreSpawn_f (void)
 		return;
 	}
 
-	buf = initbuf = atoi(Cmd_Argv(2));
+	initbuf = atoi(Cmd_Argv(2));
 
-	if (!buf)
+	ps_type = (initbuf & 0xff000000) >> 24;
+	ps_idx  = (initbuf & 0x00ffffff);
+
+	if (ps_type == PRESPAWN_MAPCHECK)
 	{
 		// should be three numbers following containing checksums
 		check = COM_RemapMapChecksum(atoi(Cmd_Argv(3)));
@@ -1213,6 +1227,8 @@ void SVQW_PreSpawn_f (void)
 			return;
 		}
 		host_client->checksum = check;
+		ps_type++;
+		ps_idx = 0;
 	}
 
 //NOTE:  This doesn't go through ClientReliableWrite since it's before the user
@@ -1242,51 +1258,60 @@ void SVQW_PreSpawn_f (void)
 #endif
 	{
 		int i;
-		entity_state_t from;
 		entity_state_t *state;
 		edict_t *ent;
 		svcustomtents_t *ctent;
-		start = 0;
 
-		if (buf >= start)
+		if (ps_type == PRESPAWN_SIGNON_BUF)
 		{
-			while (host_client->netchan.message.cursize < (host_client->netchan.message.maxsize/2))	//static entities
+			while (host_client->netchan.message.cursize < (host_client->netchan.message.maxsize/2))
 			{
-				i = buf - start;
-				if (i >= sv.num_signon_buffers)
+				if (ps_idx >= sv.num_signon_buffers)
+				{
+					ps_type++;
+					ps_idx = 0;
 					break;
+				}
 
-				if (host_client->netchan.message.cursize+sv.signon_buffer_size[i]+30 < host_client->netchan.message.maxsize)
+				if (host_client->netchan.message.cursize+sv.signon_buffer_size[ps_idx]+30 < host_client->netchan.message.maxsize)
 				{
 					SZ_Write (&host_client->netchan.message,
-						sv.signon_buffers[i],
-						sv.signon_buffer_size[i]);
-						buf++;
+						sv.signon_buffers[ps_idx],
+						sv.signon_buffer_size[ps_idx]);
 				}
 				else
 					break;
+				ps_idx++;
 			}
 		}
-		start += sv.num_signon_buffers;
 
-		if (buf >= start)
+		if (ps_type == PRESPAWN_SPAWNSTATIC)
 		{
-			memset(&from, 0, sizeof(from));
 			while (host_client->netchan.message.cursize < (host_client->netchan.message.maxsize/2))	//static entities
 			{
-				if (buf - start >= sv.num_static_entities)
+				if (ps_idx >= sv.num_static_entities)
+				{
+					ps_type++;
+					ps_idx = 0;
 					break;
+				}
 
-				state = &sv_staticentities[buf - start];
-				buf++;
+				state = &sv_staticentities[ps_idx];
+				ps_idx++;
 
+				if (host_client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+				{
+					MSG_WriteByte(&host_client->netchan.message, svc_spawnstatic2);
+					SVFTE_EmitBaseline(state, false, &host_client->netchan.message);
+					continue;
+				}
 				if (host_client->fteprotocolextensions & PEXT_SPAWNSTATIC2)
 				{
 					/*if it uses some new feature, use the updated spawnstatic*/
 					if (state->hexen2flags || state->trans || state->modelindex >= 256 || state->frame > 255 || state->scale || state->abslight)
 					{
 						MSG_WriteByte(&host_client->netchan.message, svc_spawnstatic2);
-						SVQW_WriteDelta(&from, state, &host_client->netchan.message, true, host_client->fteprotocolextensions);
+						SVQW_WriteDelta(&nullentitystate, state, &host_client->netchan.message, true, host_client->fteprotocolextensions);
 						continue;
 					}
 				}
@@ -1310,98 +1335,93 @@ void SVQW_PreSpawn_f (void)
 				}
 			}
 		}
-		start += sv.num_static_entities;
 
-		if (buf >= start)
+		if (ps_type == PRESPAWN_CUSTOMTENTS)
 		{
 			while (host_client->netchan.message.cursize < (host_client->netchan.message.maxsize/2))
 			{
-				i = buf - start;
-				if (i >= 255)
-					break;
-
-				ctent = &sv.customtents[i];
-
-				buf++;
-				if (!*ctent->particleeffecttype)
-				{	//effect isn't registered.
-					continue;
-				}
-
-				if (host_client->fteprotocolextensions & PEXT_CUSTOMTEMPEFFECTS)
+				if (ps_idx >= 255)
 				{
-					MSG_WriteByte(&host_client->netchan.message, svcfte_customtempent);
-					MSG_WriteByte(&host_client->netchan.message, 255);
-					MSG_WriteByte(&host_client->netchan.message, i);
-					MSG_WriteByte(&host_client->netchan.message, ctent->netstyle);
-					MSG_WriteString(&host_client->netchan.message, ctent->particleeffecttype);
-					if (ctent->netstyle & CTE_STAINS)
+					ps_type++;
+					ps_idx = 0;
+					break;
+				}
+
+				ctent = &sv.customtents[ps_idx];
+
+				if (*ctent->particleeffecttype)
+				{
+					if (host_client->fteprotocolextensions & PEXT_CUSTOMTEMPEFFECTS)
 					{
-						MSG_WriteChar(&host_client->netchan.message, ctent->stain[0]);
-						MSG_WriteChar(&host_client->netchan.message, ctent->stain[0]);
-						MSG_WriteChar(&host_client->netchan.message, ctent->stain[0]);
-						MSG_WriteByte(&host_client->netchan.message, ctent->radius);
-					}
-					if (ctent->netstyle & CTE_GLOWS)
-					{
-						MSG_WriteByte(&host_client->netchan.message, ctent->dlightrgb[0]);
-						MSG_WriteByte(&host_client->netchan.message, ctent->dlightrgb[1]);
-						MSG_WriteByte(&host_client->netchan.message, ctent->dlightrgb[2]);
-						MSG_WriteByte(&host_client->netchan.message, ctent->dlightradius);
-						MSG_WriteByte(&host_client->netchan.message, ctent->dlighttime);
+						MSG_WriteByte(&host_client->netchan.message, svcfte_customtempent);
+						MSG_WriteByte(&host_client->netchan.message, 255);
+						MSG_WriteByte(&host_client->netchan.message, ps_idx);
+						MSG_WriteByte(&host_client->netchan.message, ctent->netstyle);
+						MSG_WriteString(&host_client->netchan.message, ctent->particleeffecttype);
+						if (ctent->netstyle & CTE_STAINS)
+						{
+							MSG_WriteChar(&host_client->netchan.message, ctent->stain[0]);
+							MSG_WriteChar(&host_client->netchan.message, ctent->stain[0]);
+							MSG_WriteChar(&host_client->netchan.message, ctent->stain[0]);
+							MSG_WriteByte(&host_client->netchan.message, ctent->radius);
+						}
+						if (ctent->netstyle & CTE_GLOWS)
+						{
+							MSG_WriteByte(&host_client->netchan.message, ctent->dlightrgb[0]);
+							MSG_WriteByte(&host_client->netchan.message, ctent->dlightrgb[1]);
+							MSG_WriteByte(&host_client->netchan.message, ctent->dlightrgb[2]);
+							MSG_WriteByte(&host_client->netchan.message, ctent->dlightradius);
+							MSG_WriteByte(&host_client->netchan.message, ctent->dlighttime);
+						}
 					}
 				}
+				ps_idx++;
 			}
 		}
-		start += 255;
 
-		if (buf >= start)
+		if (ps_type == PRESPAWN_BASELINES)
 		{
 			while (host_client->netchan.message.cursize < (host_client->netchan.message.maxsize/2))	//baselines
 			{
-				if (buf - start >= sv.world.num_edicts)
+				if (ps_idx >= sv.world.num_edicts)
+				{
+					ps_type++;
+					ps_idx = 0;
 					break;
+				}
 
-				ent = EDICT_NUM(svprogfuncs, buf - start);
+				ent = EDICT_NUM(svprogfuncs, ps_idx);
 
-				state = &ent->baseline;
+				if (!ent)
+					state = &nullentitystate;
+				else
+					state = &ent->baseline;
+
 				if (!state->number || !state->modelindex)
 				{	//ent doesn't have a baseline
-					buf++;
+					ps_idx++;
 					continue;
 				}
 
-				if (!ent)
-				{
-					MSG_WriteByte(&host_client->netchan.message, svc_spawnbaseline);
-
-					MSG_WriteShort (&host_client->netchan.message, buf - start);
-
-					MSG_WriteByte (&host_client->netchan.message, 0);
-
-					MSG_WriteByte (&host_client->netchan.message, 0);
-					MSG_WriteByte (&host_client->netchan.message, 0);
-					MSG_WriteByte (&host_client->netchan.message, 0);
-					for (i=0 ; i<3 ; i++)
-					{
-						MSG_WriteCoord(&host_client->netchan.message, 0);
-						MSG_WriteAngle(&host_client->netchan.message, 0);
-					}
-				}
-				else if (state->number >= host_client->max_net_ents || state->modelindex >= host_client->maxmodels)
+				if (state->number >= host_client->max_net_ents || state->modelindex >= host_client->maxmodels)
 				{
 					/*can't send this ent*/
+				}
+				else if (host_client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+				{
+					MSG_WriteByte(&host_client->netchan.message, svcfte_spawnbaseline2);
+					SVFTE_EmitBaseline(state, true, &host_client->netchan.message);
 				}
 				else if (host_client->fteprotocolextensions & PEXT_SPAWNSTATIC2)
 				{
 					MSG_WriteByte(&host_client->netchan.message, svcfte_spawnbaseline2);
-					SVQW_WriteDelta(&from, state, &host_client->netchan.message, true, host_client->fteprotocolextensions);
+					SVQW_WriteDelta(&nullentitystate, state, &host_client->netchan.message, true, host_client->fteprotocolextensions);
 				}
 				else if (state->modelindex < 256)
 				{
 					MSG_WriteByte(&host_client->netchan.message, svc_spawnbaseline);
 
-					MSG_WriteShort (&host_client->netchan.message, buf - start);
+					MSG_WriteShort (&host_client->netchan.message, ps_idx);
 
 					MSG_WriteByte (&host_client->netchan.message, state->modelindex);
 
@@ -1415,13 +1435,12 @@ void SVQW_PreSpawn_f (void)
 					}
 				}
 
-				buf++;
+				ps_idx++;
 			}
 		}
-		start += sv.world.num_edicts;
 	}
 
-	if (initbuf >= start)
+	if (ps_type > PRESPAWN_DONE || (ps_type == PRESPAWN_DONE && ps_idx))
 	{
 		SV_EndRedirect();
 		Con_Printf ("SV_Modellist_f: %s send an invalid index\n", host_client->name);
@@ -1429,7 +1448,7 @@ void SVQW_PreSpawn_f (void)
 		return;
 	}
 
-	if (buf == start)
+	if (ps_type == PRESPAWN_DONE)
 	{	// all done prespawning
 		MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
 		MSG_WriteString (&host_client->netchan.message, va("cmd spawn %i\n",svs.spawncount) );
@@ -1438,7 +1457,7 @@ void SVQW_PreSpawn_f (void)
 	{	// need to prespawn more
 		MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
 		MSG_WriteString (&host_client->netchan.message,
-			va("cmd prespawn %i %i\n", svs.spawncount, buf) );
+			va("cmd prespawn %i %i\n", svs.spawncount, (ps_type<<24) | ps_idx) );
 	}
 }
 
@@ -4350,10 +4369,10 @@ void Cmd_FPSList_f(void)
 void SV_EnableClientsCSQC(void)
 {
 #ifdef PEXT_CSQC
-	if (host_client->fteprotocolextensions & PEXT_CSQC || atoi(Cmd_Argv(1)))
+//	if ((host_client->fteprotocolextensions & PEXT_CSQC) || atoi(Cmd_Argv(1)))
 		host_client->csqcactive = true;
-	else
-		SV_ClientPrintf(host_client, PRINT_HIGH, "CSQC entities not enabled - no support from network protocol\n");
+//	else
+//		SV_ClientPrintf(host_client, PRINT_HIGH, "CSQC entities not enabled - no support from network protocol\n");
 #endif
 }
 void SV_DisableClientsCSQC(void)
@@ -5723,7 +5742,6 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		oldvz = sv_player->v->velocity[2];
 		if (progstype != PROG_QW)
 		{
-#define FL_JUMPRELEASED 4096
 			jumpable = ((int)sv_player->v->flags & FL_JUMPRELEASED) && ((int)sv_player->v->flags & FL_ONGROUND);
 
 			pmove.waterjumptime = sv_player->v->teleport_time;

@@ -183,6 +183,7 @@ void Key_Init (void);
 void Key_WriteBindings (vfsfile_t *f);
 void Key_SetBinding (int keynum, int modifier, char *binding, int cmdlevel);
 void Key_ClearStates (void);
+void Key_Unbindall_f (void);	//aka: Key_Shutdown
 
 qboolean Key_GetConsoleSelectionBox(int *sx, int *sy, int *ex, int *ey);
 qboolean Key_MouseShouldBeFree(void);

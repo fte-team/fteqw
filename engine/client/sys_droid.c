@@ -19,6 +19,7 @@ qboolean isDedicated = false;
 #endif
 void *sys_window; /*public so the renderer can attach to the correct place*/
 static qboolean sys_running = false;
+int sys_glesversion;
 
 
 #define LOGI(...) ((void)__android_log_print(ANDROID_LOG_INFO, DISTRIBUTION"Droid", __VA_ARGS__))
@@ -48,11 +49,12 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject 
 }
 
 JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject obj,
-                 jint width, jint height, jstring japkpath, jstring jusrpath)
+                 jint width, jint height, jint glesversion, jstring japkpath, jstring jusrpath)
 {
 	char *tmp;
 	vid.pixelwidth = width;
 	vid.pixelheight = height;
+	sys_glesversion = glesversion;
 	if (sys_running)
 		Cmd_ExecuteString("vid_restart\n", RESTRICT_LOCAL);
 	else

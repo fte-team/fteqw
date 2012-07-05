@@ -24,7 +24,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef HLSERVER
 #include "svhl_gcapi.h"
 
-qboolean TransformedTrace (struct model_s *model, int hulloverride, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, struct trace_s *trace, vec3_t origin, vec3_t angles);
+hull_t	*World_HullForBox (vec3_t mins, vec3_t maxs);
+qboolean TransformedTrace (struct model_s *model, int hulloverride, int frame, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, struct trace_s *trace, vec3_t origin, vec3_t angles, unsigned int hitcontentsmask);
 /*
 
 entities never clip against themselves, or their owner
@@ -45,6 +46,7 @@ typedef struct
 	int			type;
 	hledict_t		*passedict;
 	int hullnum;
+	unsigned int clipmask;
 } hlmoveclip_t;
 
 /*
@@ -94,7 +96,7 @@ void SVHL_TouchLinks ( hledict_t *ent, areanode_t *node )
 	int linkcount = 0, ln;
 
 	//work out who they are first.
-	for (l = node->solid_edicts.next ; l != &node->solid_edicts ; l = next)
+	for (l = node->edicts.next ; l != &node->edicts ; l = next)
 	{
 		if (linkcount == MAX_NODELINKS)
 			break;
@@ -268,7 +270,7 @@ void SVHL_LinkEdict (hledict_t *ent, qboolean touch_triggers)
 //	sv.worldmodel->funcs.FindTouchedLeafs_Q1(sv.worldmodel, ent, ent->v.absmin, ent->v.absmax);
 
 // find the first node that the ent's box crosses
-	node = sv_areanodes;
+	node = sv.world.areanodes;
 	while (1)
 	{
 		if (node->axis == -1)
@@ -283,11 +285,11 @@ void SVHL_LinkEdict (hledict_t *ent, qboolean touch_triggers)
 	
 // link it in	
 
-	InsertLinkBefore (&ent->area, &node->solid_edicts);
+	InsertLinkBefore (&ent->area, &node->edicts);
 	
 // if touch_triggers, touch all entities at this node and decend for more
 	if (touch_triggers)
-		SVHL_TouchLinks ( ent, sv_areanodes );
+		SVHL_TouchLinks ( ent, sv.world.areanodes );
 }
 
 
@@ -307,7 +309,7 @@ SV_PointContents
 */
 int SVHL_PointContents (vec3_t p)
 {
-	return sv.worldmodel->funcs.PointContents(sv.worldmodel, p);
+	return sv.world.worldmodel->funcs.PointContents(sv.world.worldmodel, NULL, p);
 }
 
 //===========================================================================
@@ -340,7 +342,7 @@ Handles selection or creation of a clipping hull, and offseting (and
 eventually rotation) of the end points
 ==================
 */
-trace_t SVHL_ClipMoveToEntity (hledict_t *ent, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int hullnum, qboolean hitmodel)	//hullnum overrides min/max for q1 style bsps
+trace_t SVHL_ClipMoveToEntity (hledict_t *ent, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int hullnum, qboolean hitmodel, unsigned int clipmask)	//hullnum overrides min/max for q1 style bsps
 {
 	trace_t		trace;
 	model_t		*model;
@@ -370,7 +372,7 @@ trace_t SVHL_ClipMoveToEntity (hledict_t *ent, vec3_t start, vec3_t mins, vec3_t
 		vec3_t boxmins, boxmaxs;
 		VectorSubtract (ent->v.mins, maxs, boxmins);
 		VectorSubtract (ent->v.maxs, mins, boxmaxs);
-		SV_HullForBox(boxmins, boxmaxs);
+		World_HullForBox(boxmins, boxmaxs);
 		model = NULL;
 	}
 
@@ -378,12 +380,12 @@ trace_t SVHL_ClipMoveToEntity (hledict_t *ent, vec3_t start, vec3_t mins, vec3_t
 	if (ent->v.solid != SOLID_BSP)
 	{
 		ent->v.angles[0]*=-1;	//carmack made bsp models rotate wrongly.
-		TransformedTrace(model, hullnum, ent->v.frame, start, end, mins, maxs, &trace, ent->v.origin, ent->v.angles);
+		TransformedTrace(model, hullnum, ent->v.frame, start, end, mins, maxs, &trace, ent->v.origin, ent->v.angles, clipmask);
 		ent->v.angles[0]*=-1;
 	}
 	else
 	{
-		TransformedTrace(model, hullnum, ent->v.frame, start, end, mins, maxs, &trace, ent->v.origin, ent->v.angles);
+		TransformedTrace(model, hullnum, ent->v.frame, start, end, mins, maxs, &trace, ent->v.origin, ent->v.angles, clipmask);
 	}
 
 // fix trace up by the offset
@@ -403,10 +405,10 @@ trace_t SVHL_ClipMoveToEntity (hledict_t *ent, vec3_t start, vec3_t mins, vec3_t
 				model = sv.models[(int)ent->v.modelindex] = Mod_ForName(sv.strings.model_precache[(int)ent->v.modelindex], false);
 			}
 
-			if (model && model->funcs.Trace)
+			if (model && model->funcs.NativeTrace)
 			{
 				//do the second trace
-				TransformedTrace(model, hullnum, ent->v.frame, start, end, mins, maxs, &trace, ent->v.origin, ent->v.angles);
+				TransformedTrace(model, hullnum, ent->v.frame, start, end, mins, maxs, &trace, ent->v.origin, ent->v.angles, MASK_WORLDSOLID);
 			}
 		}
 
@@ -437,7 +439,7 @@ void SVHL_AreaEdicts_r (areanode_t *node)
 	count = 0;
 
 	// touch linked edicts
-	start = &node->solid_edicts;
+	start = &node->edicts;
 
 	for (l=start->next  ; l != start ; l = next)
 	{
@@ -487,7 +489,7 @@ int SVHL_AreaEdicts (vec3_t mins, vec3_t maxs, hledict_t **list, int maxcount)
 	area_count = 0;
 	area_maxcount = maxcount;
 
-	SVHL_AreaEdicts_r (sv_areanodes);
+	SVHL_AreaEdicts_r (sv.world.areanodes);
 
 	return area_count;
 }
@@ -509,7 +511,7 @@ void SVHL_ClipToEverything (hlmoveclip_t *clip)
 	int e;
 	trace_t		trace;
 	hledict_t		*touch;
-	for (e=1 ; e<sv.num_edicts ; e++)
+	for (e=1 ; e<sv.world.num_edicts ; e++)
 	{
 		touch = &SVHL_Edict[e];
 
@@ -562,9 +564,9 @@ void SVHL_ClipToEverything (hlmoveclip_t *clip)
 		}
 
 		if ((int)touch->v.flags & FL_MONSTER)
-			trace = SVHL_ClipMoveToEntity (touch, clip->start, clip->mins2, clip->maxs2, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL);
+			trace = SVHL_ClipMoveToEntity (touch, clip->start, clip->mins2, clip->maxs2, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->clipmask);
 		else
-			trace = SVHL_ClipMoveToEntity (touch, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL);
+			trace = SVHL_ClipMoveToEntity (touch, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->clipmask);
 		if (trace.allsolid || trace.startsolid ||
 				trace.fraction < clip->trace.fraction)
 		{
@@ -588,7 +590,7 @@ void SVHL_ClipToLinks ( areanode_t *node, hlmoveclip_t *clip )
 	trace_t		trace;
 
 // touch linked edicts
-	for (l = node->solid_edicts.next ; l != &node->solid_edicts ; l = next)
+	for (l = node->edicts.next ; l != &node->edicts ; l = next)
 	{
 		next = l->next;
 		touch = HLEDICT_FROM_AREA(l);
@@ -638,9 +640,9 @@ void SVHL_ClipToLinks ( areanode_t *node, hlmoveclip_t *clip )
 		}
 
 		if ((int)touch->v.flags & FL_MONSTER)
-			trace = SVHL_ClipMoveToEntity (touch, clip->start, clip->mins2, clip->maxs2, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL);
+			trace = SVHL_ClipMoveToEntity (touch, clip->start, clip->mins2, clip->maxs2, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->clipmask);
 		else
-			trace = SVHL_ClipMoveToEntity (touch, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL);
+			trace = SVHL_ClipMoveToEntity (touch, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->clipmask);
 		if (trace.allsolid || trace.startsolid ||
 		trace.fraction < clip->trace.fraction)
 		{
@@ -657,6 +659,31 @@ void SVHL_ClipToLinks ( areanode_t *node, hlmoveclip_t *clip )
 		SVHL_ClipToLinks ( node->children[0], clip );
 	if ( clip->boxmins[node->axis] < node->dist )
 		SVHL_ClipToLinks ( node->children[1], clip );
+}
+
+static void SVHL_MoveBounds (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, vec3_t boxmins, vec3_t boxmaxs)
+{
+#if 0
+// debug to test against everything
+boxmins[0] = boxmins[1] = boxmins[2] = -9999;
+boxmaxs[0] = boxmaxs[1] = boxmaxs[2] = 9999;
+#else
+	int		i;
+	
+	for (i=0 ; i<3 ; i++)
+	{
+		if (end[i] > start[i])
+		{
+			boxmins[i] = start[i] + mins[i] - 1;
+			boxmaxs[i] = end[i] + maxs[i] + 1;
+		}
+		else
+		{
+			boxmins[i] = end[i] + mins[i] - 1;
+			boxmaxs[i] = start[i] + maxs[i] + 1;
+		}
+	}
+#endif
 }
 
 /*
@@ -685,13 +712,13 @@ trace_t SVHL_Move (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type,
 		//z pos/height are assumed to be different from all the others.
 		for (i = 0; i < MAX_MAP_HULLSM; i++)
 		{
-			if (!sv.worldmodel->hulls[i].available)
+			if (!sv.world.worldmodel->hulls[i].available)
 				continue;
 #define sq(x) ((x)*(x))
-			diff = sq(sv.worldmodel->hulls[i].clip_maxs[2] - maxs[2]) +
-				sq(sv.worldmodel->hulls[i].clip_mins[2] - mins[2]) +
-				sq(sv.worldmodel->hulls[i].clip_maxs[1] - maxs[1]) +
-				sq(sv.worldmodel->hulls[i].clip_mins[0] - mins[0]);
+			diff = sq(sv.world.worldmodel->hulls[i].clip_maxs[2] - maxs[2]) +
+				sq(sv.world.worldmodel->hulls[i].clip_mins[2] - mins[2]) +
+				sq(sv.world.worldmodel->hulls[i].clip_maxs[1] - maxs[1]) +
+				sq(sv.world.worldmodel->hulls[i].clip_mins[0] - mins[0]);
 			if (diff < best)
 			{
 				best = diff;
@@ -701,8 +728,15 @@ trace_t SVHL_Move (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type,
 		hullnum++;
 	}
 
+	if (type & MOVE_NOMONSTERS)
+		clip.clipmask = MASK_WORLDSOLID; /*solid only to world*/
+	else if (maxs[0] - mins[0])
+		clip.clipmask = MASK_BOXSOLID;	/*impacts playerclip*/
+	else
+		clip.clipmask = MASK_POINTSOLID;		/*ignores playerclip but hits everything else*/
+
 // clip to world
-	clip.trace = SVHL_ClipMoveToEntity ( &SVHL_Edict[0], start, mins, maxs, end, hullnum, false);
+	clip.trace = SVHL_ClipMoveToEntity ( &SVHL_Edict[0], start, mins, maxs, end, hullnum, false, clip.clipmask);
 
 	clip.start = start;
 	clip.end = end;
@@ -727,13 +761,13 @@ trace_t SVHL_Move (vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int type,
 	}
 	
 // create the bounding box of the entire move
-	SV_MoveBounds ( start, clip.mins2, clip.maxs2, end, clip.boxmins, clip.boxmaxs );
+	SVHL_MoveBounds ( start, clip.mins2, clip.maxs2, end, clip.boxmins, clip.boxmaxs );
 
 // clip to entities
 	if (clip.type & MOVE_EVERYTHING)
 		SVHL_ClipToEverything (&clip);
 	else
-		SVHL_ClipToLinks ( sv_areanodes, &clip );
+		SVHL_ClipToLinks ( sv.world.areanodes, &clip );
 
 	if (clip.trace.startsolid)
 		clip.trace.fraction = 0;

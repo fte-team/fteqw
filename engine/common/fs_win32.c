@@ -165,6 +165,9 @@ vfsfile_t *VFSW32_Open(const char *osname, const char *mode)
 	}
 
 	file = Z_Malloc(sizeof(vfsw32file_t));
+#ifdef _DEBUG
+	Q_strncpyz(file->funcs.dbgname, osname, sizeof(file->funcs.dbgname));
+#endif
 	file->funcs.ReadBytes = read?VFSW32_ReadBytes:NULL;
 	file->funcs.WriteBytes = (write||append)?VFSW32_WriteBytes:NULL;
 	file->funcs.Seek = VFSW32_Seek;

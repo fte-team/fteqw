@@ -107,7 +107,7 @@ To keep everything totally uniform, bounding boxes are turned into small
 BSP trees instead of being compared directly.
 ===================
 */
-static hull_t	*World_HullForBox (vec3_t mins, vec3_t maxs)
+hull_t	*World_HullForBox (vec3_t mins, vec3_t maxs)
 {
 	box_planes[0].dist = maxs[0];
 	box_planes[1].dist = mins[0];
@@ -1701,7 +1701,9 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 	}
 #endif
 
-	if (type & MOVE_NOMONSTERS)
+	if (passedict->xv->hitcontentsmask)
+		clip.hitcontentsmask = passedict->xv->hitcontentsmask;
+	else if (type & MOVE_NOMONSTERS)
 		clip.hitcontentsmask = MASK_WORLDSOLID; /*solid only to world*/
 	else if (maxs[0] - mins[0])
 		clip.hitcontentsmask = MASK_BOXSOLID;	/*impacts playerclip*/

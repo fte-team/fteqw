@@ -2,7 +2,7 @@
 
 #ifdef HALFLIFEMODELS
 
-#include "glquake.h"
+#include "shader.h"
 /*
  +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     Half-Life Model Renderer (Experimental) Copyright (C) 2001 James 'Ender' Brown [ender@quakesrc.org] This program is
@@ -83,7 +83,7 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 	hlmdl_tex_t	*tex;
 	hlmdl_bone_t	*bones;
 	hlmdl_bonecontroller_t	*bonectls;
-	texid_t *texnums;
+	shader_t **shaders;
 
 	int					start, end, total;
     /*~~*/
@@ -198,11 +198,12 @@ qboolean Mod_LoadHLModel (model_t *mod, void *buffer)
 	model->bones = (char *)bones - (char *)model;
 	model->bonectls = (char *)bonectls - (char *)model;
 
-	texnums = Hunk_Alloc(texheader->numtextures*sizeof(model->texnums));
-	model->texnums = (char *)texnums - (char *)model;
+	shaders = Hunk_Alloc(texheader->numtextures*sizeof(shader_t));
+	model->shaders = (char *)shaders - (char *)model;
     for(i = 0; i < texheader->numtextures; i++)
     {
-        texnums[i] = GL_LoadTexture8Pal24("", tex[i].w, tex[i].h, (qbyte *) texheader + tex[i].offset, (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset, IF_NOALPHA|IF_NOGAMMA);
+		shaders[i] = R_RegisterSkin(va("%s_%i.tga", mod->name, i), mod->name);
+		shaders[i]->defaulttextures.base = R_LoadTexture8Pal24("", tex[i].w, tex[i].h, (qbyte *) texheader + tex[i].offset, (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset, IF_NOALPHA|IF_NOGAMMA);
     }
 
 
@@ -555,6 +556,8 @@ void HL_SetupBones(hlmodel_t *model, int seqnum, int firstbone, int lastbone, fl
 	}
 }
 
+
+#if 0
 /*
  =======================================================================================================================
     R_Draw_HL_AliasModel - main drawing function
@@ -568,7 +571,6 @@ void R_DrawHLModel(entity_t	*curent)
     int						b, m, v;
     short					*skins;
 	int bgroup, cbone, lastbone;
-	float mmat[16], mvmat[16];
     /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 	//general model
@@ -577,7 +579,7 @@ void R_DrawHLModel(entity_t	*curent)
 	model.textures	= (hlmdl_tex_t *)				((char *)modelc + modelc->textures);
 	model.bones		= (hlmdl_bone_t *)				((char *)modelc + modelc->bones);
 	model.bonectls	= (hlmdl_bonecontroller_t *)	((char *)modelc + modelc->bonectls);
-	model.texnums	= (texid_t *)					((char *)modelc + modelc->texnums);
+	model.shaders	= (shader_t **)					((char *)modelc + modelc->shaders);
 
     skins = (short *) ((qbyte *) model.texheader + model.texheader->skins);
 
@@ -590,30 +592,9 @@ void R_DrawHLModel(entity_t	*curent)
 	for (b = 0; b < MAX_BONE_CONTROLLERS; b++)
 		model.controller[b] = curent->framestate.bonecontrols[b];
 
-	GL_TexEnv(GL_MODULATE);
-
-	if (curent->shaderRGBAf[3]<1)
-	{
-		qglEnable(GL_BLEND);
-	}
-	else
-	{
-		qglDisable(GL_BLEND);
-	}
-	qglBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
 //	Con_Printf("%s %i\n", sequence->name, sequence->unknown1[0]);
 
-    qglPushMatrix();
 
-	{
-		vec3_t difuse, ambient, ldir;
-		cl.worldmodel->funcs.LightPointValues(cl.worldmodel, curent->origin, difuse, ambient, ldir);
-		qglColor4f(difuse[0]/255+ambient[0]/255, difuse[1]/255+ambient[1]/255, difuse[2]/255+ambient[2]/255, curent->shaderRGBAf[3]);
-	}
-
-    R_RotateForEntity (mmat, mvmat, curent, curent->model);
-	qglLoadMatrixf(mvmat);
 
 	cbone = 0;
 	for (bgroup = 0; bgroup < FS_COUNT; bgroup++)
@@ -684,16 +665,12 @@ void R_DrawHLModel(entity_t	*curent)
 			{
 				tex_w = 1.0f / model.textures[skins[mesh->skinindex]].w;
 				tex_h = 1.0f / model.textures[skins[mesh->skinindex]].h;
-				GL_LazyBind(0, GL_TEXTURE_2D, model.texnums[skins[mesh->skinindex]]);
+//				GL_LazyBind(0, GL_TEXTURE_2D, model.shaders[skins[mesh->skinindex]]->defaulttextures.base);
 			}
 
             GL_Draw_HL_AliasFrame((short *) ((qbyte *) model.header + mesh->index), transformed, tex_w, tex_h);
         }
     }
-
-    qglPopMatrix();
-
-	GL_TexEnv(GL_REPLACE);
 }
 
 /*
@@ -734,6 +711,8 @@ void GL_Draw_HL_AliasFrame(short *order, vec3_t *transformed, float tex_w, float
             float	*verts = transformed[order[0]];
             /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
+			//FIXME: what's order[1]?
+
             /* texture coordinates come from the draw list */
             qglTexCoord2f(order[2] * tex_w, order[3] * tex_h);
             order += 4;
@@ -744,6 +723,247 @@ void GL_Draw_HL_AliasFrame(short *order, vec3_t *transformed, float tex_w, float
 
         qglEnd();
     }
+}
+#endif
+
+void R_HL_BuildFrame(hlmodel_t *model, hlmdl_model_t *amodel, entity_t *curent, short *order, float tex_s, float tex_t, mesh_t *mesh)
+{
+	static vecV_t xyz[2048];
+	static vec3_t norm[2048];
+	static vec2_t st[2048];
+	static index_t index[4096];
+	int count;
+	int b;
+	int cbone;
+	int bgroup;
+	int lastbone;
+	int v, i;
+	vec3_t *verts;
+	qbyte *bone;
+	vec3_t transformed[2048];
+
+	int idx = 0;
+	int vert = 0;
+
+	mesh->xyz_array = xyz;
+	mesh->st_array = st;
+	mesh->normals_array = norm;	//for lighting algos to not crash
+	mesh->snormals_array = norm; //for rtlighting
+	mesh->tnormals_array = norm; //for rtlighting
+	mesh->indexes = index;
+
+	for (b = 0; b < MAX_BONE_CONTROLLERS; b++)
+		model->controller[b] = curent->framestate.bonecontrols[b];
+
+//	Con_Printf("%s %i\n", sequence->name, sequence->unknown1[0]);
+
+	cbone = 0;
+	for (bgroup = 0; bgroup < FS_COUNT; bgroup++)
+	{
+		lastbone = curent->framestate.g[bgroup].endbone;
+		if (bgroup == FS_COUNT-1)
+			lastbone = model->header->numbones;
+		if (cbone >= lastbone)
+			continue;
+		HL_SetupBones(model, curent->framestate.g[bgroup].frame[0], cbone, lastbone, (curent->framestate.g[bgroup].subblendfrac+1)*0.5, curent->framestate.g[bgroup].frametime[0]);	/* Setup the bones */
+		cbone = lastbone;
+	}
+
+
+	verts = (vec3_t *) ((qbyte *) model->header + amodel->vertindex);
+	bone = ((qbyte *) model->header + amodel->vertinfoindex);
+	for(v = 0; v < amodel->numverts; v++)
+	{
+		VectorTransform(verts[v], (void *)transform_matrix[bone[v]], transformed[v]);
+	}
+
+	for(;;)
+	{
+		count = *order++;	/* get the vertex count and primitive type */
+		if(!count) break;	/* done */
+
+		if(count < 0)
+		{
+			count = -count;
+
+			//emit (count-2)*3 indicies as a fan
+
+
+
+			for (i = 0; i < count-2; i++)
+			{
+				index[idx++] = vert + 0;
+				index[idx++] = vert + i+1;
+				index[idx++] = vert + i+2;
+			}
+		}
+		else
+		{
+			//emit (count-2)*3 indicies as a strip
+
+			for (i = 0; ; )
+			{
+				if (i == count-2)
+					break;
+				index[idx++] = vert + i;
+				index[idx++] = vert + i+1;
+				index[idx++] = vert + i+2;
+				i++;
+
+				if (i == count-2)
+					break;
+				index[idx++] = vert + i;
+				index[idx++] = vert + i+2;
+				index[idx++] = vert + i+1;
+				i++;
+			}
+		}
+
+		do
+		{
+			VectorCopy(transformed[order[0]], xyz[vert]);
+
+			//FIXME: what's order[1]?
+
+			/* texture coordinates come from the draw list */
+			st[vert][0] = order[2] * tex_s;
+			st[vert][1] = order[3] * tex_t;
+
+			norm[vert][1] = 1;
+		
+
+			order += 4;
+			vert++;
+		} while(--count);
+    }
+
+	mesh->numindexes = idx;
+	mesh->numvertexes = vert;
+}
+
+void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches);
+void R_HL_BuildMesh(struct batch_s *b)
+{
+	R_HalfLife_WalkMeshes(b->ent, b, NULL);
+}
+
+void R_HalfLife_WalkMeshes(entity_t *rent, batch_t *b, batch_t **batches)
+{
+	hlmodelcache_t *modelc = Mod_Extradata(rent->model);
+	hlmodel_t model;
+	int						body, m, v;
+	short					*skins;
+	int bgroup, cbone, lastbone;
+	int batchid = 0;
+	static mesh_t bmesh, *mptr = &bmesh;
+
+	//general model
+	model.header	= (hlmdl_header_t *)			((char *)modelc + modelc->header);
+	model.texheader	= (hlmdl_header_t *)			((char *)modelc + modelc->texheader);
+	model.textures	= (hlmdl_tex_t *)				((char *)modelc + modelc->textures);
+	model.bones		= (hlmdl_bone_t *)				((char *)modelc + modelc->bones);
+	model.bonectls	= (hlmdl_bonecontroller_t *)	((char *)modelc + modelc->bonectls);
+	model.shaders	= (shader_t **)					((char *)modelc + modelc->shaders);
+
+	skins = (short *) ((qbyte *) model.texheader + model.texheader->skins);
+
+	for (body = 0; body < model.header->numbodyparts; body++)
+    {
+        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+        hlmdl_bodypart_t	*bodypart = (hlmdl_bodypart_t *) ((qbyte *) model.header + model.header->bodypartindex) + body;
+        int					bodyindex = (0 / bodypart->base) % bodypart->nummodels;
+        hlmdl_model_t		*amodel = (hlmdl_model_t *) ((qbyte *) model.header + bodypart->modelindex) + bodyindex;
+        qbyte				*bone = ((qbyte *) model.header + amodel->vertinfoindex);
+        vec3_t				*verts = (vec3_t *) ((qbyte *) model.header + amodel->vertindex);
+        /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+
+        /* Draw each mesh */
+        for(m = 0; m < amodel->nummesh; m++)
+        {
+            /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+            hlmdl_mesh_t	*mesh = (hlmdl_mesh_t *) ((qbyte *) model.header + amodel->meshindex) + m;
+            float			tex_w;
+            float			tex_h;
+            /*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
+
+
+			if (batches)
+			{
+				shader_t *shader;
+				int sort;
+
+				b = BE_GetTempBatch();
+				if (!b)
+					return;
+
+				shader = model.shaders[skins[mesh->skinindex]];
+				b->buildmeshes = R_HL_BuildMesh;
+				b->ent = rent;
+				b->mesh = NULL;
+				b->firstmesh = 0;
+				b->meshes = 1;
+				b->skin = &shader->defaulttextures;
+				b->texture = NULL;
+				b->shader = shader;
+				b->lightmap[0] = -1;
+				b->lightmap[1] = -1;
+				b->lightmap[2] = -1;
+				b->lightmap[3] = -1;
+				b->surf_first = batchid;
+				b->flags = 0;
+				sort = shader->sort;
+				//fixme: we probably need to force some blend modes based on the surface flags.
+				if (rent->flags & RF_FORCECOLOURMOD)
+					b->flags |= BEF_FORCECOLOURMOD;
+				if (rent->flags & Q2RF_ADDITIVE)
+				{
+					b->flags |= BEF_FORCEADDITIVE;
+					if (sort < SHADER_SORT_ADDITIVE)
+						sort = SHADER_SORT_ADDITIVE;
+				}
+				if (rent->flags & Q2RF_TRANSLUCENT)
+				{
+					b->flags |= BEF_FORCETRANSPARENT;
+					if (SHADER_SORT_PORTAL < sort && sort < SHADER_SORT_BLEND)
+						sort = SHADER_SORT_BLEND;
+				}
+				if (rent->flags & RF_NODEPTHTEST)
+				{
+					b->flags |= BEF_FORCENODEPTH;
+					if (sort < SHADER_SORT_NEAREST)
+						sort = SHADER_SORT_NEAREST;
+				}
+				if (rent->flags & RF_NOSHADOW)
+					b->flags |= BEF_NOSHADOWS;
+				b->vbo = NULL;
+				b->next = batches[sort];
+				batches[sort] = b;
+			}
+			else
+			{
+				if (batchid == b->surf_first)
+				{
+					tex_w = 1.0f / model.textures[skins[mesh->skinindex]].w;
+					tex_h = 1.0f / model.textures[skins[mesh->skinindex]].h;
+	
+					b->mesh = &mptr;
+					R_HL_BuildFrame(&model, amodel, b->ent, (short *) ((qbyte *) model.header + mesh->index), tex_w, tex_h, b->mesh[0]);
+					return;
+				}
+			}
+
+			batchid++;
+        }
+    }
+}
+
+qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel);
+
+void R_HalfLife_GenerateBatches(entity_t *e, batch_t **batches)
+{
+	R_CalcModelLighting(e, e->model);
+	R_HalfLife_WalkMeshes(e, NULL, batches);
 }
 
 #endif

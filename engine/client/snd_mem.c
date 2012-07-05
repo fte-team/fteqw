@@ -598,7 +598,7 @@ qboolean ResampleSfx (sfx_t *sfx, int inrate, int inchannels, int inwidth, int i
 #define DSPK_BASE 170.0
 #define DSPK_EXP 0.0433
 
-
+/*
 sfxcache_t *S_LoadDoomSpeakerSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
 	sfxcache_t	*sc;
@@ -674,20 +674,20 @@ sfxcache_t *S_LoadDoomSpeakerSound (sfx_t *s, qbyte *data, int datalen, int snds
 
 	return sc;
 }
-
-sfxcache_t *S_LoadDoomSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
+*/
+qboolean S_LoadDoomSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 {
 	// format data from Unofficial Doom Specs v1.6
 	unsigned short *dataus;
 	int samples, rate;
 
 	if (datalen < 8)
-		return NULL;
+		return false;
 
 	dataus = (unsigned short*)data;
 
 	if (LittleShort(dataus[0]) != 3)
-		return NULL;
+		return false;
 
 	rate = LittleShort(dataus[1]);
 	samples = LittleShort(dataus[2]);
@@ -696,13 +696,11 @@ sfxcache_t *S_LoadDoomSound (sfx_t *s, qbyte *data, int datalen, int sndspeed)
 	datalen -= 8;
 
 	if (datalen != samples)
-		return NULL;
+		return false;
 
 	COM_CharBias(data, datalen);
 
-	ResampleSfx (s, rate, 1, 1, samples, -1, data);
-
-	return Cache_Check(&s->cache);
+	return ResampleSfx (s, rate, 1, 1, samples, -1, data);
 }
 #endif
 
@@ -739,7 +737,7 @@ S_LoadSound_t AudioInputPlugins[10] =
 	S_LoadWavSound,
 #ifdef DOOMWADS
 	S_LoadDoomSound,
-	S_LoadDoomSpeakerSound,
+//	S_LoadDoomSpeakerSound,
 #endif
 };
 
@@ -784,7 +782,7 @@ qboolean S_LoadSound (sfx_t *s)
 		FILE *f;
 #ifndef _WIN32	//convert from windows to a suitable alternative.
 		char unixname[128];
-		snprintf(unixname, sizeof(unixname), "/mnt/%c/%s", name[0]-'A'+'a', name+3);
+		Q_snprintfz(unixname, sizeof(unixname), "/mnt/%c/%s", name[0]-'A'+'a', name+3);
 		name = unixname;
 		while (*name)
 		{

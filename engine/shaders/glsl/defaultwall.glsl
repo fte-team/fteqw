@@ -95,7 +95,7 @@ void main ()
 	lightmaps += texture2D(s_t7, lm4) * e_lmscale[3];
 	gl_FragColor.rgb *= lightmaps.rgb;
 #else
-	gl_FragColor.rgb *= texture2D(s_t1, lm) * e_lmscale;
+	gl_FragColor.rgb *= (texture2D(s_t1, lm) * e_lmscale).rgb;
 #endif
 
 #ifdef FULLBRIGHT

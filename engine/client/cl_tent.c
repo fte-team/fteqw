@@ -1780,7 +1780,21 @@ void CL_ClearCustomTEnts(void)
 		customtenttype[i].particleeffecttype = -1;
 }
 
-void CLDP_ParseTrailParticles(void)
+int CL_TranslateParticleFromServer(int sveffect)
+{
+	if (cl.maxparticleprecaches)
+	{
+		/*proper precaches*/
+		return cl.particle_precache[sveffect].num;
+	}
+	else
+	{
+		/*server and client must share an identical effectinfo list file (just "effect $name\n" lines)*/
+		return P_FindParticleType(COM_Effectinfo_ForNumber(sveffect));
+	}
+}
+
+void CL_ParseTrailParticles(void)
 {
 	int entityindex;
 	int effectindex;
@@ -1797,7 +1811,7 @@ void CLDP_ParseTrailParticles(void)
 	end[1] = MSG_ReadCoord();
 	end[2] = MSG_ReadCoord();
 
-	effectindex = P_FindParticleType(COM_Effectinfo_ForNumber(effectindex));
+	effectindex = CL_TranslateParticleFromServer(effectindex);
 
 	if (entityindex && (unsigned int)entityindex < MAX_EDICTS)
 		ts = &cl.lerpents[entityindex].trailstate;
@@ -1808,7 +1822,7 @@ void CLDP_ParseTrailParticles(void)
 		P_ParticleTrail(start, end, rt_blood, entityindex, ts);
 }
 
-void CLDP_ParsePointParticles(qboolean compact)
+void CL_ParsePointParticles(qboolean compact)
 {
 	vec3_t		org, dir;
 	unsigned int count, effectindex;
@@ -1830,7 +1844,7 @@ void CLDP_ParsePointParticles(qboolean compact)
 		count = (unsigned short)MSG_ReadShort();
 	}
 
-	effectindex = P_FindParticleType(COM_Effectinfo_ForNumber(effectindex));
+	effectindex = CL_TranslateParticleFromServer(effectindex);
 
 	if (P_RunParticleEffectType(org, dir, count, effectindex))
 		P_RunParticleEffect (org, dir, 15, 15);
@@ -2106,6 +2120,10 @@ void CLQ2_ParseTEnt (void)
 			color = splash_color[r];
 		P_RunParticleEffect (pos, dir, color, cnt);
 
+		if (r == Q2SPLASH_BLUE_WATER || r == Q2SPLASH_BROWN_WATER)
+		{
+			P_RunParticleEffectTypeString(pos, dir, 1, "te_watersplash");
+		}
 		if (r == Q2SPLASH_SPARKS)
 		{
 			r = rand() & 3;
@@ -2922,7 +2940,7 @@ void CL_UpdateBeams (void)
 							vieworg = pl->origin;
 						}
 						else
-							vieworg = cl.simorg[j];
+							vieworg = cl.playerview[j].simorg;
 
 						VectorCopy (vieworg, b->start);
 						b->start[2] += cl.crouch[j] + bound(-7, v_viewheight.value, 4);
@@ -2941,10 +2959,10 @@ void CL_UpdateBeams (void)
 						ang[0] = -ang[0];
 						if (ang[0] < -180)
 							ang[0] += 360;
-						ang[0] += (cl.simangles[j][0] - ang[0]) * f;
+						ang[0] += (cl.playerview[j].simangles[0] - ang[0]) * f;
 
 						// lerp yaw
-						delta = cl.simangles[j][1] - ang[1];
+						delta = cl.playerview[j].simangles[1] - ang[1];
 						if (delta > 180)
 							delta -= 360;
 						if (delta < -180)
@@ -2955,7 +2973,7 @@ void CL_UpdateBeams (void)
 						AngleVectors (ang, fwd, ang, ang);
 						VectorCopy(fwd, ang);
 						VectorScale (fwd, len, fwd);
-						VectorCopy (cl.simorg[j], org);
+						VectorCopy (cl.playerview[j].simorg, org);
 						org[2] += 16;
 						VectorAdd (org, fwd, b->end);
 

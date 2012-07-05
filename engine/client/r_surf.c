@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "glquake.h"
 #include "shader.h"
 #include "renderque.h"
+#include "com_mesh.h"
 #include <math.h>
 
 extern cvar_t r_ambient;
@@ -35,9 +36,6 @@ model_t		*currentmodel;
 
 int		lightmap_bytes;		// 1, 3 or 4
 qboolean lightmap_bgra;
-
-texid_t	*lightmap_textures;
-texid_t	*deluxmap_textures;
 
 #define MAX_LIGHTMAP_SIZE LMBLOCK_WIDTH
 
@@ -85,6 +83,7 @@ void Surf_StainSurf (msurface_t *surf, float *parms)
 	int lim;
 	mtexinfo_t	*tex;
 	stmap *stainbase;
+	lightmapinfo_t *lm;
 
 	lim = 255 - (r_stains.value*255);
 
@@ -92,15 +91,16 @@ void Surf_StainSurf (msurface_t *surf, float *parms)
 	change = stainbase[(s)*3+x] + amm*parms[4+x];	\
 	stainbase[(s)*3+x] = bound(lim, change, 255);
 
-	if (surf->lightmaptexturenum < 0)
+	if (surf->lightmaptexturenums[0] < 0)
 		return;
+	lm = lightmap[surf->lightmaptexturenums[0]];
 
 	smax = (surf->extents[0]>>4)+1;
 	tmax = (surf->extents[1]>>4)+1;
 	tex = surf->texinfo;
 
-	stainbase = lightmap[surf->lightmaptexturenum]->stainmaps;
-	stainbase += (surf->light_t * LMBLOCK_WIDTH + surf->light_s) * 3;
+	stainbase = lm->stainmaps;
+	stainbase += (surf->light_t[0] * lm->width + surf->light_s[0]) * 3;
 
 	rad = *parms;
 	dist = DotProduct ((parms+1), surf->plane->normal) - surf->plane->dist;
@@ -145,7 +145,7 @@ void Surf_StainSurf (msurface_t *surf, float *parms)
 				surf->stained = true;
 			}
 		}
-		stainbase += 3*LMBLOCK_WIDTH;
+		stainbase += 3*lm->width;
 	}
 
 	if (surf->stained)
@@ -245,7 +245,7 @@ void Surf_WipeStains(void)
 	{
 		if (!lightmap[i])
 			break;
-		memset(lightmap[i]->stainmaps, 255, sizeof(lightmap[i]->stainmaps));
+		memset(lightmap[i]->stainmaps, 255, LMBLOCK_WIDTH*LMBLOCK_HEIGHT*3*sizeof(stmap));
 	}
 }
 
@@ -260,6 +260,7 @@ void Surf_LessenStains(void)
 	int stride;
 	int ammount;
 	int limit;
+	lightmapinfo_t *lm;
 
 	static float time;
 
@@ -279,15 +280,17 @@ void Surf_LessenStains(void)
 	{
 		if (surf->stained)
 		{
+			lm = lightmap[surf->lightmaptexturenums[0]];
+
 			surf->cached_dlight=-1;//nice hack here...
 
 			smax = (surf->extents[0]>>4)+1;
 			tmax = (surf->extents[1]>>4)+1;
 
-			stain = lightmap[surf->lightmaptexturenum]->stainmaps;
-			stain += (surf->light_t * LMBLOCK_WIDTH + surf->light_s) * 3;
+			stain = lm->stainmaps;
+			stain += (surf->light_t[0] * lm->width + surf->light_s[0]) * 3;
 
-			stride = (LMBLOCK_WIDTH-smax)*3;
+			stride = (lm->width-smax)*3;
 
 			surf->stained = false;
 
@@ -1164,9 +1167,10 @@ void Surf_RenderDynamicLightmaps (msurface_t *fa)
 	int			maps;
 	glRect_t    *theRect;
 	int smax, tmax;
+	lightmapinfo_t *lm;
 
 	//surfaces without lightmaps
-	if (fa->lightmaptexturenum<0)
+	if (fa->lightmaptexturenums[0]<0)
 		return;
 
 	// check for lightmap modification
@@ -1192,58 +1196,60 @@ void Surf_RenderDynamicLightmaps (msurface_t *fa)
 dynamic:
 		RSpeedRemark();
 
-		lightmap[fa->lightmaptexturenum]->modified = true;
+		lm = lightmap[fa->lightmaptexturenums[0]];
+
+		lm->modified = true;
 
 		smax = (fa->extents[0]>>4)+1;
 		tmax = (fa->extents[1]>>4)+1;
 
-		theRect = &lightmap[fa->lightmaptexturenum]->rectchange;
-		if (fa->light_t < theRect->t) {
+		theRect = &lm->rectchange;
+		if (fa->light_t[0] < theRect->t) {
 			if (theRect->h)
-				theRect->h += theRect->t - fa->light_t;
-			theRect->t = fa->light_t;
+				theRect->h += theRect->t - fa->light_t[0];
+			theRect->t = fa->light_t[0];
 		}
-		if (fa->light_s < theRect->l) {
+		if (fa->light_s[0] < theRect->l) {
 			if (theRect->w)
-				theRect->w += theRect->l - fa->light_s;
-			theRect->l = fa->light_s;
+				theRect->w += theRect->l - fa->light_s[0];
+			theRect->l = fa->light_s[0];
 		}
-		if ((theRect->w + theRect->l) < (fa->light_s + smax))
-			theRect->w = (fa->light_s-theRect->l)+smax;
-		if ((theRect->h + theRect->t) < (fa->light_t + tmax))
-			theRect->h = (fa->light_t-theRect->t)+tmax;
+		if ((theRect->w + theRect->l) < (fa->light_s[0] + smax))
+			theRect->w = (fa->light_s[0]-theRect->l)+smax;
+		if ((theRect->h + theRect->t) < (fa->light_t[0] + tmax))
+			theRect->h = (fa->light_t[0]-theRect->t)+tmax;
 
 		if (r_deluxemapping.ival)
 		{
-			lightmap[fa->lightmaptexturenum]->deluxmodified = true;
-			theRect = &lightmap[fa->lightmaptexturenum]->deluxrectchange;
-			if (fa->light_t < theRect->t) {
+			lm->deluxmodified = true;
+			theRect = &lm->deluxrectchange;
+			if (fa->light_t[0] < theRect->t) {
 				if (theRect->h)
-					theRect->h += theRect->t - fa->light_t;
-				theRect->t = fa->light_t;
+					theRect->h += theRect->t - fa->light_t[0];
+				theRect->t = fa->light_t[0];
 			}
-			if (fa->light_s < theRect->l) {
+			if (fa->light_s[0] < theRect->l) {
 				if (theRect->w)
-					theRect->w += theRect->l - fa->light_s;
-				theRect->l = fa->light_s;
+					theRect->w += theRect->l - fa->light_s[0];
+				theRect->l = fa->light_s[0];
 			}
 
-			if ((theRect->w + theRect->l) < (fa->light_s + smax))
-				theRect->w = (fa->light_s-theRect->l)+smax;
-			if ((theRect->h + theRect->t) < (fa->light_t + tmax))
-				theRect->h = (fa->light_t-theRect->t)+tmax;
+			if ((theRect->w + theRect->l) < (fa->light_s[0] + smax))
+				theRect->w = (fa->light_s[0]-theRect->l)+smax;
+			if ((theRect->h + theRect->t) < (fa->light_t[0] + tmax))
+				theRect->h = (fa->light_t[0]-theRect->t)+tmax;
 
-			luxbase = lightmap[fa->lightmaptexturenum]->deluxmaps;
-			luxbase += fa->light_t * LMBLOCK_WIDTH * 3 + fa->light_s * 3;
+			luxbase = lm->deluxmaps;
+			luxbase += fa->light_t[0] * lm->width * 3 + fa->light_s[0] * 3;
 		}
 		else
 			luxbase = NULL;
 
 
-		base = lightmap[fa->lightmaptexturenum]->lightmaps;
-		base += fa->light_t * LMBLOCK_WIDTH * lightmap_bytes + fa->light_s * lightmap_bytes;
-		stainbase = lightmap[fa->lightmaptexturenum]->stainmaps;
-		stainbase += (fa->light_t * LMBLOCK_WIDTH + fa->light_s) * 3;
+		base = lm->lightmaps;
+		base += fa->light_t[0] * lm->width * lightmap_bytes + fa->light_s[0] * lightmap_bytes;
+		stainbase = lm->stainmaps;
+		stainbase += (fa->light_t[0] * lm->width + fa->light_s[0]) * 3;
 		Surf_BuildLightMap (fa, base, luxbase, stainbase, lightmap_shift, r_ambient.value*255);
 
 		RSpeedEnd(RSPEED_DYNAMIC);
@@ -1256,12 +1262,13 @@ void Surf_RenderAmbientLightmaps (msurface_t *fa, int ambient)
 	stmap *stainbase;
 	glRect_t    *theRect;
 	int smax, tmax;
+	lightmapinfo_t *lm;
 
 	if (!fa->mesh)
 		return;
 
 	//surfaces without lightmaps
-	if (fa->lightmaptexturenum<0)
+	if (fa->lightmaptexturenums[0]<0)
 		return;
 
 	if (fa->cached_light[0] != ambient || fa->cached_colour[0] != 0xff)
@@ -1274,58 +1281,64 @@ void Surf_RenderAmbientLightmaps (msurface_t *fa, int ambient)
 dynamic:
 		RSpeedRemark();
 
-		lightmap[fa->lightmaptexturenum]->modified = true;
+		lm = lightmap[fa->lightmaptexturenums[0]];
+
+		lm->modified = true;
 
 		smax = (fa->extents[0]>>4)+1;
 		tmax = (fa->extents[1]>>4)+1;
 
-		theRect = &lightmap[fa->lightmaptexturenum]->rectchange;
-		if (fa->light_t < theRect->t) {
+		theRect = &lm->rectchange;
+		if (fa->light_t[0] < theRect->t)
+		{
 			if (theRect->h)
-				theRect->h += theRect->t - fa->light_t;
-			theRect->t = fa->light_t;
+				theRect->h += theRect->t - fa->light_t[0];
+			theRect->t = fa->light_t[0];
 		}
-		if (fa->light_s < theRect->l) {
+		if (fa->light_s[0] < theRect->l)
+		{
 			if (theRect->w)
-				theRect->w += theRect->l - fa->light_s;
-			theRect->l = fa->light_s;
+				theRect->w += theRect->l - fa->light_s[0];
+			theRect->l = fa->light_s[0];
 		}
-		if ((theRect->w + theRect->l) < (fa->light_s + smax))
-			theRect->w = (fa->light_s-theRect->l)+smax;
-		if ((theRect->h + theRect->t) < (fa->light_t + tmax))
-			theRect->h = (fa->light_t-theRect->t)+tmax;
+		if ((theRect->w + theRect->l) < (fa->light_s[0] + smax))
+			theRect->w = (fa->light_s[0]-theRect->l)+smax;
+		if ((theRect->h + theRect->t) < (fa->light_t[0] + tmax))
+			theRect->h = (fa->light_t[0]-theRect->t)+tmax;
 
 		if (r_deluxemapping.ival)
 		{
-			lightmap[fa->lightmaptexturenum]->deluxmodified = true;
-			theRect = &lightmap[fa->lightmaptexturenum]->deluxrectchange;
-			if (fa->light_t < theRect->t) {
+			lm->deluxmodified = true;
+			theRect = &lm->deluxrectchange;
+			if (fa->light_t[0] < theRect->t)
+			{
 				if (theRect->h)
-					theRect->h += theRect->t - fa->light_t;
-				theRect->t = fa->light_t;
+					theRect->h += theRect->t - fa->light_t[0];
+				theRect->t = fa->light_t[0];
 			}
-			if (fa->light_s < theRect->l) {
+			if (fa->light_s[0] < theRect->l)
+			{
 				if (theRect->w)
-					theRect->w += theRect->l - fa->light_s;
-				theRect->l = fa->light_s;
+					theRect->w += theRect->l - fa->light_s[0];
+				theRect->l = fa->light_s[0];
 			}
 
-			if ((theRect->w + theRect->l) < (fa->light_s + smax))
-				theRect->w = (fa->light_s-theRect->l)+smax;
-			if ((theRect->h + theRect->t) < (fa->light_t + tmax))
-				theRect->h = (fa->light_t-theRect->t)+tmax;
+			if ((theRect->w + theRect->l) < (fa->light_s[0] + smax))
+				theRect->w = (fa->light_s[0]-theRect->l)+smax;
+			if ((theRect->h + theRect->t) < (fa->light_t[0] + tmax))
+				theRect->h = (fa->light_t[0]-theRect->t)+tmax;
 
-			luxbase = lightmap[fa->lightmaptexturenum]->deluxmaps;
-			luxbase += fa->light_t * LMBLOCK_WIDTH * 3 + fa->light_s * 3;
+			luxbase = lm->deluxmaps;
+			luxbase += fa->light_t[0] * lm->width * 3 + fa->light_s[0] * 3;
 		}
 		else
 			luxbase = NULL;
 
 
-		base = lightmap[fa->lightmaptexturenum]->lightmaps;
-		base += fa->light_t * LMBLOCK_WIDTH * lightmap_bytes + fa->light_s * lightmap_bytes;
-		stainbase = lightmap[fa->lightmaptexturenum]->stainmaps;
-		stainbase += (fa->light_t * LMBLOCK_WIDTH + fa->light_s) * 3;
+		base = lm->lightmaps;
+		base += fa->light_t[0] * lm->width * lightmap_bytes + fa->light_s[0] * lightmap_bytes;
+		stainbase = lm->stainmaps;
+		stainbase += (fa->light_t[0] * lm->width + fa->light_s[0]) * 3;
 		Surf_BuildLightMap (fa, base, luxbase, stainbase, lightmap_shift, -1-ambient);
 
 		RSpeedEnd(RSPEED_DYNAMIC);
@@ -1516,11 +1529,10 @@ static void Surf_OrthoRecursiveWorldNode (mnode_t *node, unsigned int clipflags)
 {
 	//when rendering as ortho the front and back sides are technically equal. the only culling comes from frustum culling.
 
-	int			c, side, clipped;
-	mplane_t	*plane, *clipplane;
+	int			c, clipped;
+	mplane_t	*clipplane;
 	msurface_t	*surf, **mark;
 	mleaf_t		*pleaf;
-	double		dot;
 
 	if (node->contents == Q1CONTENTS_SOLID)
 		return;		// solid
@@ -1528,7 +1540,7 @@ static void Surf_OrthoRecursiveWorldNode (mnode_t *node, unsigned int clipflags)
 	if (node->visframe != r_visframecount)
 		return;
 
-	for (c = 0, clipplane = frustum; c < FRUSTUMPLANES; c++, clipplane++)
+	for (c = 0, clipplane = frustum; c < 4; c++, clipplane++)
 	{
 		if (!(clipflags & (1 << c)))
 			continue;	// don't need to clip against it
@@ -1887,7 +1899,7 @@ static void Surf_CleanChains(void)
 void Surf_SetupFrame(void)
 {
 	mleaf_t	*leaf;
-	vec3_t	temp;
+	vec3_t	temp, pvsorg;
 
 	R_AnimateLight();
 	r_framecount++;
@@ -1948,19 +1960,23 @@ void Surf_SetupFrame(void)
 	}
 	else
 	{
-		r_oldviewleaf = r_viewleaf;
-		r_oldviewleaf2 = r_viewleaf2;
 		if (r_refdef.recurse)
-			r_viewleaf = RMod_PointInLeaf (cl.worldmodel, r_refdef.pvsorigin);
+		{
+			VectorCopy(r_refdef.pvsorigin, pvsorg);
+		}
 		else
-			r_viewleaf = RMod_PointInLeaf (cl.worldmodel, r_origin);
+		{
+			VectorCopy(r_origin, pvsorg);
+		}
+
+		r_viewleaf = RMod_PointInLeaf (cl.worldmodel, pvsorg);
 
 		if (!r_viewleaf)
 		{
 		}
 		else if (r_viewleaf->contents == Q1CONTENTS_EMPTY)
 		{	//look down a bit
-			VectorCopy (r_origin, temp);
+			VectorCopy (pvsorg, temp);
 			temp[2] -= 16;
 			leaf = RMod_PointInLeaf (cl.worldmodel, temp);
 			if (leaf->contents <= Q1CONTENTS_WATER && leaf->contents >= Q1CONTENTS_LAVA)
@@ -1971,7 +1987,7 @@ void Surf_SetupFrame(void)
 		else if (r_viewleaf->contents <= Q1CONTENTS_WATER && r_viewleaf->contents >= Q1CONTENTS_LAVA)
 		{	//in water, look up a bit.
 
-			VectorCopy (r_origin, temp);
+			VectorCopy (pvsorg, temp);
 			temp[2] += 16;
 			leaf = RMod_PointInLeaf (cl.worldmodel, temp);
 			if (leaf->contents == Q1CONTENTS_EMPTY)
@@ -2263,8 +2279,6 @@ void Surf_DrawWorld (void)
 	}
 }
 
-
-
 /*
 =============================================================================
 
@@ -2272,7 +2286,7 @@ void Surf_DrawWorld (void)
 
 =============================================================================
 */
-
+#ifdef TERRAIN
 // returns a texture number and the position inside it
 int Surf_LM_AllocBlock (int w, int h, int *x, int *y, shader_t *shader)
 {
@@ -2290,22 +2304,21 @@ int Surf_LM_AllocBlock (int w, int h, int *x, int *y, shader_t *shader)
 			lightmap[numlightmaps+2] = NULL;
 			lightmap[numlightmaps+3] = NULL;
 
-			lightmap_textures = BZ_Realloc(lightmap_textures, sizeof(*lightmap_textures)*(numlightmaps+4));
-			memset(lightmap_textures+numlightmaps, 0, sizeof(*lightmap_textures)*(4));
+//			lightmap_textures = BZ_Realloc(lightmap_textures, sizeof(*lightmap_textures)*(numlightmaps+4));
+//			memset(lightmap_textures+numlightmaps, 0, sizeof(*lightmap_textures)*(4));
 
-			deluxmap_textures = BZ_Realloc(deluxmap_textures, sizeof(*deluxmap_textures)*(numlightmaps+4));
-			memset(deluxmap_textures+numlightmaps, 0, sizeof(*deluxmap_textures)*(4));
+//			deluxmap_textures = BZ_Realloc(deluxmap_textures, sizeof(*deluxmap_textures)*(numlightmaps+4));
+//			memset(deluxmap_textures+numlightmaps, 0, sizeof(*deluxmap_textures)*(4));
 			numlightmaps+=4;
 		}
 		if (!lightmap[texnum])
 		{
 			lightmap[texnum] = Z_Malloc(sizeof(*lightmap[texnum]));
-			lightmap[texnum]->meshchain = NULL;
 			lightmap[texnum]->modified = true;
-			lightmap[texnum]->shader = shader;
+//			lightmap[texnum]->shader = shader;
 			lightmap[texnum]->external = true;
 			// reset stainmap since it now starts at 255
-			memset(lightmap[texnum]->stainmaps, 255, sizeof(lightmap[texnum]->stainmaps));
+			memset(lightmap[texnum]->stainmaps, 255, LMBLOCK_WIDTH*LMBLOCK_HEIGHT*3*sizeof(stmap));
 
 			//clear out the deluxmaps incase there is none on the map.
 			for (j = 0; j < LMBLOCK_WIDTH*LMBLOCK_HEIGHT*3; j+=3)
@@ -2317,13 +2330,13 @@ int Surf_LM_AllocBlock (int w, int h, int *x, int *y, shader_t *shader)
 		}
 
 		/*not required, but using one lightmap per texture can result in better texture unit switching*/
-		if (lightmap[texnum]->shader != shader)
-			continue;
+//		if (lightmap[texnum]->shader != shader)
+//			continue;
 
 		if (lightmap[texnum]->external)
 		{
-			TEXASSIGN(lightmap_textures[texnum], R_AllocNewTexture("***lightmap***", LMBLOCK_WIDTH, LMBLOCK_HEIGHT));
-			TEXASSIGN(deluxmap_textures[texnum], R_AllocNewTexture("***deluxmap***", LMBLOCK_WIDTH, LMBLOCK_HEIGHT));
+			TEXASSIGN(lightmap[texnum]->lightmap_texture, R_AllocNewTexture("***lightmap***", LMBLOCK_WIDTH, LMBLOCK_HEIGHT));
+			TEXASSIGN(lightmap[texnum]->deluxmap_texture, R_AllocNewTexture("***deluxmap***", LMBLOCK_WIDTH, LMBLOCK_HEIGHT));
 			lightmap[texnum]->external = false;
 		}
 
@@ -2359,6 +2372,9 @@ int Surf_LM_AllocBlock (int w, int h, int *x, int *y, shader_t *shader)
 	Sys_Error ("AllocBlock: full");
 	return 0;
 }
+#endif
+
+#if 0
 
 //quake3 maps have their lightmaps in gl style already.
 //rather than forgetting that and redoing it, let's just keep the data.
@@ -2385,7 +2401,6 @@ static int Surf_LM_FillBlock (int texnum, int w, int h, int x, int y)
 		if (!lightmap[i])
 		{
 			lightmap[i] = BZ_Malloc(sizeof(*lightmap[i]));
-			lightmap[i]->meshchain = NULL;
 			lightmap[i]->modified = true;
 			lightmap[i]->external = true;
 			for (l=0 ; l<LMBLOCK_WIDTH ; l++)
@@ -2463,6 +2478,7 @@ static int Surf_LM_FillBlock (int texnum, int w, int h, int x, int y)
 	}
 	return texnum;
 }
+#endif
 
 unsigned int Surf_CalcMemSize(msurface_t *surf)
 {
@@ -2478,6 +2494,7 @@ unsigned int Surf_CalcMemSize(msurface_t *surf)
 	(sizeof(vecV_t)+sizeof(vec2_t)*2+sizeof(vec3_t)*3+sizeof(vec4_t))*surf->numedges;
 }
 
+#if 0
 /*
 ================
 BuildSurfaceDisplayList
@@ -2581,13 +2598,15 @@ void Surf_BuildSurfaceDisplayList (model_t *model, msurface_t *fa, void **mem)
 		mesh->colors4f_array[i][3] = 1;
 	}
 }
+#endif
 
+#if 0
 /*
 ========================
 GL_CreateSurfaceLightmap
 ========================
 */
-static void Surf_CreateSurfaceLightmap (msurface_t *surf, int shift)
+void Surf_CreateSurfaceLightmap (msurface_t *surf, int shift)
 {
 	int		smax, tmax;
 	qbyte	*base, *luxbase; stmap *stainbase;
@@ -2634,6 +2653,7 @@ static void Surf_CreateSurfaceLightmap (msurface_t *surf, int shift)
 
 	Surf_BuildLightMap (surf, base, luxbase, stainbase, shift, r_ambient.value*255);
 }
+#endif
 
 
 
@@ -2641,26 +2661,15 @@ void Surf_DeInit(void)
 {
 	int i;
 
-	if (lightmap_textures)
-	{
-		for (i = 0; i < numlightmaps; i++)
-		{
-			if (!lightmap[i] || lightmap[i]->external)
-			{
-				R_DestroyTexture(lightmap_textures[i]);
-				R_DestroyTexture(deluxmap_textures[i]);
-			}
-		}
-		BZ_Free(lightmap_textures);
-		BZ_Free(deluxmap_textures);
-	}
-	lightmap_textures=NULL;
-	deluxmap_textures = NULL;
-
 	for (i = 0; i < numlightmaps; i++)
 	{
 		if (!lightmap[i])
 			break;
+		if (lightmap[i]->external)
+		{
+			R_DestroyTexture(lightmap[i]->lightmap_texture);
+			R_DestroyTexture(lightmap[i]->deluxmap_texture);
+		}
 		BZ_Free(lightmap[i]);
 		lightmap[i] = NULL;
 	}
@@ -2670,6 +2679,8 @@ void Surf_DeInit(void)
 
 	lightmap=NULL;
 	numlightmaps=0;
+
+	Alias_Shutdown();
 }
 
 void Surf_Clear(model_t *mod)
@@ -2679,16 +2690,6 @@ void Surf_Clear(model_t *mod)
 	int i;
 	if (mod->fromgame == fg_doom3)
 		return;/*they're on the hunk*/
-	for (i = 0; i < SHADER_SORT_COUNT; i++)
-	{
-		while ((b = mod->batches[i]))
-		{
-			mod->batches[i] = b->next;
-
-			BZ_Free(b->mesh);
-			Z_Free(b);
-		}
-	}
 	while(mod->vbos)
 	{
 		vbo = mod->vbos;
@@ -2758,7 +2759,7 @@ Groups surfaces into their respective batches (based on the lightmap number).
 */
 void Surf_BuildLightmaps (void)
 {
-	int		i, j, t;
+	int		i, j, k, t;
 	model_t	*m;
 	int shift;
 	msurface_t *surf;
@@ -2784,6 +2785,154 @@ void Surf_BuildLightmaps (void)
 	if (cl.worldmodel->fromgame == fg_doom)
 		return;	//no lightmaps.
 
+	numlightmaps = 0;
+
+	for (j=1 ; j<MAX_MODELS ; j++)
+	{
+		m = cl.model_precache[j];
+		if (!m)
+			break;
+		if (m->type != mod_brush)
+			continue;
+
+		if (!m->lightmaps.count)
+			continue;
+		if (m->needload)
+			continue;
+
+		currentmodel = m;
+		shift = Surf_LightmapShift(currentmodel);
+
+		i = numlightmaps + m->lightmaps.count;
+		lightmap = BZ_Realloc(lightmap, sizeof(*lightmap)*(i));
+		while(i > numlightmaps)
+		{
+			i--;
+
+			lightmap[i] = Z_Malloc(sizeof(*lightmap[i]) + (sizeof(qbyte)*8 + sizeof(stmap)*3)*m->lightmaps.width*m->lightmaps.height);
+			lightmap[i]->width = m->lightmaps.width;
+			lightmap[i]->height = m->lightmaps.height;
+			lightmap[i]->lightmaps = (qbyte*)(lightmap[i]+1);
+			lightmap[i]->deluxmaps = (qbyte*)(lightmap[i]->lightmaps+4*lightmap[i]->width*lightmap[i]->height);
+			lightmap[i]->stainmaps = (stmap*)(lightmap[i]->deluxmaps+4*lightmap[i]->width*lightmap[i]->height);
+
+			lightmap[i]->modified = true;
+//			lightmap[i]->shader = NULL;
+			lightmap[i]->external = false;
+			// reset stainmap since it now starts at 255
+			memset(lightmap[i]->stainmaps, 255, LMBLOCK_WIDTH*LMBLOCK_HEIGHT*3*sizeof(stmap));
+
+			//clear out the deluxmaps incase there is none on the map.
+			for (k = 0; k < lightmap[i]->width*lightmap[i]->height*3; k+=3)
+			{
+				lightmap[i]->deluxmaps[k+0] = 128;
+				lightmap[i]->deluxmaps[k+1] = 128;
+				lightmap[i]->deluxmaps[k+2] = 255;
+			}
+
+			TEXASSIGN(lightmap[i]->lightmap_texture, R_AllocNewTexture("***lightmap***", lightmap[i]->width, lightmap[i]->height));
+			TEXASSIGN(lightmap[i]->deluxmap_texture, R_AllocNewTexture("***deluxmap***", lightmap[i]->width, lightmap[i]->height));
+		}
+
+		//fixup batch lightmaps
+		for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
+		for (batch = m->batches[sortid]; batch != NULL; batch = batch->next)
+		{
+			for (i = 0; i < MAXLIGHTMAPS; i++)
+			{
+				if (batch->lightmap[i] < 0)
+					continue;
+				batch->lightmap[i] = batch->lightmap[i] - m->lightmaps.first + numlightmaps;
+			}
+		}
+
+		
+		/*particle emision based upon texture. this is lazy code*/
+		if (m == cl.worldmodel)
+		{
+			for (t = m->numtextures-1; t >= 0; t--)
+			{
+				ptype = P_FindParticleType(va("tex_%s", m->textures[t]->name));
+			
+				if (ptype != P_INVALID)
+				{
+					for (i=0; i<m->nummodelsurfaces; i++)
+					{
+						surf = m->surfaces + i + m->firstmodelsurface;
+						if (surf->texinfo->texture == m->textures[t])
+							P_EmitSkyEffectTris(m, surf, ptype);
+					}
+				}
+			}
+		}
+
+
+		if (m->fromgame == fg_quake3)
+		{
+			int j;
+			unsigned char *src;
+			unsigned char *dst;
+			for (i = 0; i < m->lightmaps.count; i++)
+			{
+				dst = lightmap[numlightmaps+i]->lightmaps;
+				src = m->lightdata + i*m->lightmaps.width*m->lightmaps.height*3;
+				if (lightmap_bytes == 4)
+				{
+					if (lightmap_bgra)
+					{
+						for (j = 0; j < m->lightmaps.width*m->lightmaps.height; j++, dst += 4, src += 3)
+						{
+							dst[0] = src[2];
+							dst[1] = src[1];
+							dst[2] = src[0];
+							dst[3] = 255;
+						}
+					}
+					else
+					{
+						for (j = 0; j < m->lightmaps.width*m->lightmaps.height; j++, dst += 4, src += 3)
+						{
+							dst[0] = src[0];
+							dst[1] = src[1];
+							dst[2] = src[2];
+							dst[3] = 255;
+						}
+					}
+				}
+			}
+		}
+		else
+		{
+			int j;
+			lightmapinfo_t *lm;
+			//fixup surface lightmaps, and paint
+			for (i=0; i<m->nummodelsurfaces; i++)
+			{
+				surf = m->surfaces + i + m->firstmodelsurface;
+				for (j = 0; j < 4; j++)
+				{
+					if (surf->lightmaptexturenums[j] < m->lightmaps.first)
+					{
+						surf->lightmaptexturenums[j] = -1;
+						continue;
+					}
+					surf->lightmaptexturenums[j] = surf->lightmaptexturenums[0] - m->lightmaps.first + numlightmaps;
+
+					lm = lightmap[surf->lightmaptexturenums[j]];
+
+					Surf_BuildLightMap (surf, 
+						lm->lightmaps + (surf->light_t[j] * lm->width + surf->light_s[j]) * lightmap_bytes,
+						lm->deluxmaps + (surf->light_t[j] * lm->width + surf->light_s[j]) * 3,
+						lm->stainmaps + (surf->light_t[j] * lm->width + surf->light_s[j]) * 3,
+						shift, r_ambient.value*255);
+				}
+			}
+		}
+		m->lightmaps.first = numlightmaps;
+
+		numlightmaps += m->lightmaps.count;
+	}
+#if 0
 	for (j=1 ; j<MAX_MODELS ; j++)
 	{
 		m = cl.model_precache[j];
@@ -2883,6 +3032,7 @@ void Surf_BuildLightmaps (void)
 				}
 			}
 		}
+
 		for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
 		for (batch = m->batches[sortid]; batch != NULL; batch = batch->next)
 		{
@@ -2907,7 +3057,7 @@ void Surf_BuildLightmaps (void)
 			batch->meshes = 0;
 		}
 	}
-
+#endif
 	BE_UploadAllLightmaps();
 }
 #endif

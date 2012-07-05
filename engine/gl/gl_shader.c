@@ -811,6 +811,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		"#define SKELETAL\n",
 		"#define FOG\n",
 		"#define FRAMEBLEND\n",
+		"#define LIGHTSTYLED\n",
 		NULL
 	};
 	char *permutationdefines[sizeof(permutationname)/sizeof(permutationname[0]) + 64 + 1];
@@ -1599,6 +1600,9 @@ struct shader_field_names_s shader_attr_names[] =
 	{"v_tvector",				VATTR_TNORMALS},
 	{"v_bone",					VATTR_BONENUMS},
 	{"v_weight",				VATTR_BONEWEIGHTS},
+	{"v_lmcoord2",				VATTR_LMCOORD2},
+	{"v_lmcoord3",				VATTR_LMCOORD3},
+	{"v_lmcoord4",				VATTR_LMCOORD4},
 	{NULL}
 };
 
@@ -3147,6 +3151,8 @@ void Shader_Shutdown (void)
 		}
 	}
 
+	Shader_FlushGenerics();
+
 	free(r_shaders);
 	r_shaders = NULL;
 	free(shader_hash);
@@ -3448,6 +3454,8 @@ void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 	}
 	else return;
 
+	if (pass->texgen == T_GEN_LIGHTMAP && pass->blendmode == PBM_REPLACELIGHT && pass2->blendmode == PBM_MODULATE && config_tex_env_combine)
+		pass2->blendmode = PBM_OVERBRIGHT;
 	if (pass2->texgen == T_GEN_LIGHTMAP && pass2->blendmode == PBM_MODULATE && config_tex_env_combine)
 		pass2->blendmode = PBM_OVERBRIGHT;
 }
@@ -4020,7 +4028,7 @@ void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args)
 	if (!builtin)
 		builtin = (
 				"{\n"
-					"if $deluxmap\n"
+/*					"if $deluxmap\n"
 					"[\n"
 						"{\n"
 							"map $normalmap\n"
@@ -4032,21 +4040,25 @@ void Shader_DefaultBSPLM(char *shortname, shader_t *s, const void *args)
 							"tcgen lightmap\n"
 						"}\n"
 					"]\n"
+*///					"if !r_fullbright\n"
+//					"[\n"
+						"{\n"
+							"map $lightmap\n"
+//							"if $deluxmap\n"
+//							"[\n"
+//								"blendfunc gl_dst_color gl_zero\n"
+//							"]\n"
+						"}\n"
+//					"]\n"
 					"{\n"
 						"map $diffuse\n"
 						"tcgen base\n"
-						"if $deluxmap\n"
-						"[\n"
-							"blendfunc gl_one gl_zero\n"
-						"]\n"
+//						"if $deluxmap || !r_fullbright\n"
+//						"[\n"
+//							"blendfunc gl_dst_color gl_zero\n"
+							"blendfunc filter\n"
+//						"]\n"
 					"}\n"
-					"if !r_fullbright\n"
-					"[\n"
-						"{\n"
-							"map $lightmap\n"
-							"blendfunc gl_dst_color gl_zero\n"
-						"}\n"
-					"]\n"
 					"if gl_fb_bmodels\n"
 					"[\n"
 						"{\n"
@@ -4086,6 +4098,115 @@ void Shader_DefaultSkybox(char *shortname, shader_t *s, const void *args)
 	);
 }
 
+char *Shader_DefaultBSPWater(char *shortname)
+{
+	int wstyle;
+	if (r_wateralpha.value == 0)
+		wstyle = -1;
+	else if (r_fastturb.ival)
+		wstyle = 0;
+#ifdef GLQUAKE
+	else if (qrenderer == QR_OPENGL && gl_config.arb_shader_objects && r_waterstyle.ival>0 && !r_fastturb.ival && strncmp(shortname, "*lava", 5))
+		wstyle = r_waterstyle.ival;	//r_waterstyle does not apply to lava, and requires glsl and stuff
+#endif
+	else
+		wstyle = 1;
+
+	{
+		switch(wstyle)
+		{
+		case -1:	//invisible
+			return (
+				"{\n"
+					"sort blend\n"
+					"surfaceparm nodraw\n"
+					"surfaceparm nodlight\n"
+				"}\n"
+			);
+		case 0:	//fastturb
+			return (
+				"{\n"
+					"sort blend\n"
+					"{\n"
+						"map $whiteimage\n"
+						"rgbgen const $r_fastturbcolour\n"
+					"}\n"
+					"surfaceparm nodlight\n"
+				"}\n"
+			);
+		default:
+		case 1:	//vanilla style
+			return (
+				"{\n"
+					"sort blend\n" /*make sure it always has the same sort order, so switching on/off wateralpha doesn't break stuff*/
+					"program defaultwarp\n"
+					"{\n"
+						"map $diffuse\n"
+						"tcmod turb 0.02 0.1 0.5 0.1\n"
+						"if r_wateralpha != 1\n"
+						"[\n"
+							"alphagen const $r_wateralpha\n"
+							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
+						"]\n"
+					"}\n"
+					"surfaceparm nodlight\n"
+				"}\n"
+			);
+		case 2:	//refraction of the underwater surface, with a fresnel
+			return (
+				"{\n"
+					"{\n"
+						"map $refraction\n"
+					"}\n"
+					"{\n"
+						"map $normalmap\n"
+					"}\n"
+					"{\n"
+						"map $diffuse\n"
+					"}\n"
+					"program altwater#FRESNEL=4\n"
+				"}\n"
+			);
+		case 3:	//ripples
+			return (
+				"{\n"
+					"{\n"
+						"map $refraction\n"
+					"}\n"
+					"{\n"
+						"map $normalmap\n"
+					"}\n"
+					"{\n"
+						"map $diffuse\n"
+					"}\n"
+					"{\n"
+						"map $ripplemap\n"
+					"}\n"
+					"program altwater#RIPPLEMAP#FRESNEL=4\n"
+				"}\n"
+			);
+		case 4:	//reflections
+			return (
+				"{\n"
+					"{\n"
+						"map $refraction\n"
+					"}\n"
+					"{\n"
+						"map $normalmap\n"
+					"}\n"
+					"{\n"
+						"map $reflection\n"
+					"}\n"
+					"{\n"
+						"map $ripplemap\n"
+					"}\n"
+					"program altwater#REFLECT#RIPPLEMAP#FRESNEL=4\n"
+				"}\n"
+			);
+		}
+	}
+}
+
 void Shader_DefaultBSPQ2(char *shortname, shader_t *s, const void *args)
 {
 	if (!strncmp(shortname, "sky/", 4))
@@ -4099,15 +4220,7 @@ void Shader_DefaultBSPQ2(char *shortname, shader_t *s, const void *args)
 	}
 	else if (!strncmp(shortname, "warp/", 5))
 	{
-		Shader_DefaultScript(shortname, s,
-				"{\n"
-					"program defaultwarp\n"
-					"{\n"
-						"map $diffuse\n"
-						"tcmod turb 0 0.01 0.5 0\n"
-					"}\n"
-				"}\n"
-			);
+		Shader_DefaultScript(shortname, s, Shader_DefaultBSPWater(shortname));
 	}
 	else if (!strncmp(shortname, "warp33/", 7))
 	{
@@ -4204,115 +4317,7 @@ void Shader_DefaultBSPQ1(char *shortname, shader_t *s, const void *args)
 
 	if (!builtin && (*shortname == '*'))
 	{
-		int wstyle;
-		if (r_wateralpha.value == 0)
-			wstyle = -1;
-		else if (r_fastturb.ival)
-			wstyle = 0;
-		else if (gl_config.arb_shader_objects && r_waterstyle.ival>0 && !r_fastturb.ival && strncmp(shortname, "*lava", 5))
-			wstyle = r_waterstyle.ival;	//r_waterstyle does not apply to lava, and requires glsl and stuff
-		else
-			wstyle = 1;
-
-		{
-			switch(wstyle)
-			{
-			case -1:	//invisible
-				builtin = (
-					"{\n"
-						"sort blend\n"
-						"surfaceparm nodraw\n"
-						"surfaceparm nodlight\n"
-					"}\n"
-				);
-				break;
-			case 0:	//fastturb
-				builtin = (
-					"{\n"
-						"sort blend\n"
-						"{\n"
-							"map $whiteimage\n"
-							"rgbgen const $r_fastturbcolour\n"
-						"}\n"
-						"surfaceparm nodlight\n"
-					"}\n"
-				);
-				break;
-			default:
-			case 1:	//vanilla style
-				builtin = (
-					"{\n"
-						"sort blend\n" /*make sure it always has the same sort order, so switching on/off wateralpha doesn't break stuff*/
-						"program defaultwarp\n"
-						"{\n"
-							"map $diffuse\n"
-							"tcmod turb 0.02 0.1 0.5 0.1\n"
-							"if r_wateralpha != 1\n"
-							"[\n"
-								"alphagen const $r_wateralpha\n"
-								"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
-							"]\n"
-						"}\n"
-						"surfaceparm nodlight\n"
-					"}\n"
-				);
-				break;
-			case 2:	//refraction of the underwater surface, with a fresnel
-				builtin = (
-					"{\n"
-						"{\n"
-							"map $currentrender\n"
-						"}\n"
-						"{\n"
-							"map $normalmap\n"
-						"}\n"
-						"{\n"
-							"map $diffuse\n"
-						"}\n"
-						"program altwater#FRESNEL=4\n"
-					"}\n"
-				);
-				break;
-			case 3:	//ripples
-				builtin = (
-					"{\n"
-						"{\n"
-							"map $currentrender\n"
-						"}\n"
-						"{\n"
-							"map $normalmap\n"
-						"}\n"
-						"{\n"
-							"map $diffuse\n"
-						"}\n"
-						"{\n"
-							"map $ripplemap\n"
-						"}\n"
-						"program altwater#RIPPLEMAP#FRESNEL=4\n"
-					"}\n"
-				);
-				break;
-			case 4:	//reflections
-				builtin = (
-					"{\n"
-						"{\n"
-							"map $currentrender\n"
-						"}\n"
-						"{\n"
-							"map $normalmap\n"
-						"}\n"
-						"{\n"
-							"map $reflection\n"
-						"}\n"
-						"{\n"
-							"map $ripplemap\n"
-						"}\n"
-						"program altwater#REFLECT#RIPPLEMAP#FRESNEL=4\n"
-					"}\n"
-				);
-				break;
-			}
-		}
+		builtin = Shader_DefaultBSPWater(shortname);
 	}
 	if (!builtin && !strncmp(shortname, "sky", 3))
 	{

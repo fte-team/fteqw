@@ -131,6 +131,7 @@ void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weight
 #endif
 qboolean Alias_GAliasBuildMesh(mesh_t *mesh, galiasinfo_t *inf, int surfnum, entity_t *e, qboolean allowskel);
 void Alias_FlushCache(void);
+void Alias_Shutdown(void);
 
 void Mod_DoCRC(model_t *mod, char *buffer, int buffersize);
 

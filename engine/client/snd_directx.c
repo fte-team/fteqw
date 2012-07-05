@@ -275,7 +275,7 @@ typedef struct {
 	GUID            SubFormat;
 } QWAVEFORMATEX;
 
-const static GUID  KSDATAFORMAT_SUBTYPE_PCM = {0x00000001,0x0000,0x0010,
+const static GUID  QKSDATAFORMAT_SUBTYPE_PCM = {0x00000001,0x0000,0x0010,
 						{0x80,
 						0x00,
 						0x00,
@@ -574,7 +574,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	{
 		format.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
 		format.Format.cbSize = 22;
-		memcpy(&format.SubFormat, &KSDATAFORMAT_SUBTYPE_PCM, sizeof(GUID));
+		memcpy(&format.SubFormat, &QKSDATAFORMAT_SUBTYPE_PCM, sizeof(GUID));
 
 		format.dwChannelMask = KSAUDIO_SPEAKER_7POINT1;
 		sc->sn.numchannels = 8;
@@ -583,7 +583,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	{
 		format.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
 		format.Format.cbSize = 22;
-		memcpy(&format.SubFormat, &KSDATAFORMAT_SUBTYPE_PCM, sizeof(GUID));
+		memcpy(&format.SubFormat, &QKSDATAFORMAT_SUBTYPE_PCM, sizeof(GUID));
 
 		format.dwChannelMask = KSAUDIO_SPEAKER_5POINT1;
 		sc->sn.numchannels = 6;
@@ -592,7 +592,7 @@ int DSOUND_InitCard (soundcardinfo_t *sc, int cardnum)
 	{
 		format.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
 		format.Format.cbSize = 22;
-		memcpy(&format.SubFormat, &KSDATAFORMAT_SUBTYPE_PCM, sizeof(GUID));
+		memcpy(&format.SubFormat, &QKSDATAFORMAT_SUBTYPE_PCM, sizeof(GUID));
 
 		format.dwChannelMask = KSAUDIO_SPEAKER_QUAD;
 		sc->sn.numchannels = 4;

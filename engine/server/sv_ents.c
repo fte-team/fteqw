@@ -252,7 +252,7 @@ static qboolean SV_AddCSQCUpdate (client_t *client, edict_t *ent)
 #endif
 }
 sizebuf_t csqcmsgbuffer;
-void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
+void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 {
 #ifdef PEXT_CSQC
 	qbyte messagebuffer[1024];
@@ -321,10 +321,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg)
 			if (!writtenheader)
 			{
 				writtenheader=true;
-				if (client->protocol != SCP_QUAKEWORLD)
-					MSG_WriteByte(msg, svcdp_csqcentities);
-				else
-					MSG_WriteByte(msg, svcfte_csqcentities);
+				MSG_WriteByte(msg, svcnumber);
 			}
 			MSG_WriteShort(msg, ent->entnum);
 			if (sv.csqcdebug)	//optional extra.
@@ -823,6 +820,12 @@ static unsigned int SVFTE_DeltaCalcBits(entity_state_t *from, entity_state_t *to
 	if (to->light[0] != from->light[0] || to->light[1] != from->light[1] || to->light[2] != from->light[2] || to->light[3] != from->light[3] || to->lightstyle != from->lightstyle || to->lightpflags != from->lightstyle)
 		bits |= UF_LIGHT;
 
+	if (to->u.q1.traileffectnum != from->u.q1.traileffectnum)
+		bits |= UF_TRAILEFFECT;
+
+	if (to->u.q1.gravitydir[0] != from->u.q1.gravitydir[0] || to->u.q1.gravitydir[1] != from->u.q1.gravitydir[1])
+		bits |= UF_GRAVITYDIR;
+
 	return bits;
 }
 
@@ -994,6 +997,8 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 		MSG_WriteByte (msg, state->lightstyle);
 		MSG_WriteByte (msg, state->lightpflags);
 	}
+	if (bits & UF_TRAILEFFECT)
+		MSG_WriteShort(msg, state->u.q1.traileffectnum);
 
 	if (bits & UF_COLORMOD)
 	{
@@ -1009,6 +1014,29 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 	}
 	if (bits & UF_FATNESS)
 		MSG_WriteByte(msg, state->fatness);
+	if (bits & UF_MODELINDEX2)
+	{
+		if (bits & UF_16BIT)
+			MSG_WriteShort(msg, state->modelindex2);
+		else
+			MSG_WriteByte(msg, state->modelindex2);
+	}
+
+	if (bits & UF_GRAVITYDIR)
+	{
+		MSG_WriteByte(msg, state->u.q1.gravitydir[0]);
+		MSG_WriteByte(msg, state->u.q1.gravitydir[1]);
+	}
+}
+
+/*dump out the delta from baseline (used for baselines and statics, so has no svc)*/
+void SVFTE_EmitBaseline(entity_state_t *to, qboolean numberisimportant, sizebuf_t *msg)
+{
+	unsigned int bits;
+	if (numberisimportant)
+		MSG_WriteShort(msg, to->number);
+	bits = UF_RESET | SVFTE_DeltaCalcBits(&nullentitystate, to);
+	SVFTE_WriteUpdate(bits, to, msg);
 }
 
 /*SVFTE_EmitPacketEntities
@@ -2477,6 +2505,18 @@ typedef struct gibfilter_s {
 	int maxframe;
 } gibfilter_t;
 gibfilter_t *gibfilter;
+void SV_GibFilterPurge(void)
+{
+	gibfilter_t *gf;
+	while(gibfilter)
+	{
+		gf = gibfilter;
+		gibfilter = gibfilter->next;
+
+		Z_Free(gf);
+	}
+}
+
 void SV_GibFilterAdd(char *modelname, int min, int max, qboolean allowwarn)
 {
 	int i;
@@ -2504,14 +2544,8 @@ void SV_GibFilterInit(void)
 	char buffer[2048];
 	char *file;
 	int min, max;
-	gibfilter_t *gf;
-	while(gibfilter)
-	{
-		gf = gibfilter;
-		gibfilter = gibfilter->next;
 
-		Z_Free(gf);
-	}
+	SV_GibFilterPurge();
 
 	if (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM)
 		return;
@@ -2759,6 +2793,20 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	state->light[3] = ent->xv->light_lev;
 	state->lightstyle = ent->xv->style;
 	state->lightpflags = ent->xv->pflags;
+	state->u.q1.traileffectnum = ent->xv->traileffectnum;
+
+	if (!ent->xv->gravitydir[0] && !ent->xv->gravitydir[1] && !ent->xv->gravitydir[2] || (ent->xv->gravitydir[2] == -1))
+	{
+		state->u.q1.gravitydir[0] = 0;
+		state->u.q1.gravitydir[1] = 0;
+	}
+	else
+	{
+		vec3_t ang;
+		vectoangles(ent->xv->gravitydir, ang);
+		state->u.q1.gravitydir[0] = ((ang[0]/360) * 256) - 192;
+		state->u.q1.gravitydir[1] = (ang[1]/360) * 256;
+	}
 
 	if (((int)ent->v->flags & FL_CLASS_DEPENDENT) && client && client->playerclass)	//hexen2 wierdness.
 	{
@@ -3277,7 +3325,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		if (client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
 		{
 			SVDP_EmitEntitiesUpdate(client, pack, msg);
-			SV_EmitCSQCUpdate(client, msg);
+			SV_EmitCSQCUpdate(client, msg, svcdp_csqcentities);
 			return;
 		}
 		else
@@ -3289,6 +3337,8 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 				SVNQ_EmitEntityState(msg, &pack->entities[e]);
 			}
 			client->netchan.incoming_sequence++;
+
+			SV_EmitCSQCUpdate(client, msg, svcfte_csqcentities);
 			return;
 		}
 	}
@@ -3333,7 +3383,7 @@ void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignore
 		SVQW_EmitPacketEntities (client, pack, msg);
 	}
 
-	SV_EmitCSQCUpdate(client, msg);
+	SV_EmitCSQCUpdate(client, msg, svcfte_csqcentities);
 
 	// now add the specialized nail update
 	SV_EmitNailUpdate (msg, ignorepvs);

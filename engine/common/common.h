@@ -212,6 +212,7 @@ int wildcmp(const char *wild, const char *string);	//1 if match
 #define Q_strncmp(s1, s2, n) strncmp((s1), (s2), (n))
 
 void VARGS Q_snprintfz (char *dest, size_t size, char *fmt, ...) LIKEPRINTF(3);
+void VARGS Q_vsnprintfz (char *dest, size_t size, char *fmt, va_list args);
 int VARGS Com_sprintf(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
 
 #define Q_strncpyS(d, s, n) do{const char *____in=(s);char *____out=(d);int ____i; for (____i=0;*(____in); ____i++){if (____i == (n))break;*____out++ = *____in++;}if (____i < (n))*____out='\0';}while(0)	//only use this when it should be used. If undiciided, use N
@@ -339,6 +340,9 @@ FTE_DEPRECATED void COM_CloseFile (FILE *h);
 
 
 typedef struct vfsfile_s {
+#ifdef _DEBUG
+	char dbgname[MAX_QPATH];
+#endif
 	int (*ReadBytes) (struct vfsfile_s *file, void *buffer, int bytestoread);
 	int (*WriteBytes) (struct vfsfile_s *file, const void *buffer, int bytestoread);
 	qboolean (*Seek) (struct vfsfile_s *file, unsigned long pos);	//returns false for error
@@ -451,6 +455,7 @@ char *version_string(void);
 
 
 void TL_InitLanguages(void);
+void TL_Shutdown(void);
 void T_FreeStrings(void);
 char *T_GetString(int num);
 void T_FreeInfoStrings(void);

@@ -142,11 +142,11 @@ qboolean SVHL_RunThink (hledict_t *ent)
 	if (1)	//try and imitate nq as closeley as possible
 	{
 		thinktime = ent->v.nextthink;
-		if (thinktime <= 0 || thinktime > sv.physicstime + host_frametime)
+		if (thinktime <= 0 || thinktime > sv.world.physicstime + host_frametime)
 			return true;
 
-		if (thinktime < sv.physicstime)
-			thinktime = sv.physicstime;	// don't let things stay in the past.
+		if (thinktime < sv.world.physicstime)
+			thinktime = sv.world.physicstime;	// don't let things stay in the past.
 									// it is possible to start that way
 									// by a trigger with a local time.
 		ent->v.nextthink = 0;
@@ -161,11 +161,11 @@ qboolean SVHL_RunThink (hledict_t *ent)
 		thinktime = ent->v.nextthink;
 		if (thinktime <= 0)
 			return true;
-		if (thinktime > sv.physicstime + host_frametime)
+		if (thinktime > sv.world.physicstime + host_frametime)
 			return true;
 
-		if (thinktime < sv.physicstime)
-			thinktime = sv.physicstime;	// don't let things stay in the past.
+		if (thinktime < sv.world.physicstime)
+			thinktime = sv.world.physicstime;	// don't let things stay in the past.
 									// it is possible to start that way
 									// by a trigger with a local time.
 		ent->v.nextthink = 0;
@@ -192,7 +192,7 @@ Two entities have touched, so run their touch functions
 */
 void SVHL_Impact (hledict_t *e1, hledict_t *e2)
 {
-	SVHL_Globals.time = sv.physicstime;
+	SVHL_Globals.time = sv.world.physicstime;
 	if (e1->v.solid != SOLID_NOT)
 	{
 		SVHL_GameFuncs.DispatchTouch(e1, e2);
@@ -212,7 +212,20 @@ ClipVelocity
 Slide off of the impacting object
 ==================
 */
-void ClipVelocity (vec3_t in, vec3_t normal, vec3_t out, float overbounce);
+#define	STOP_EPSILON	0.1
+//courtesy of darkplaces, it's just more efficient.
+static void ClipVelocity (vec3_t in, vec3_t normal, vec3_t out, float overbounce)
+{
+	int i;
+	float backoff;
+
+	backoff = -DotProduct (in, normal) * overbounce;
+	VectorMA(in, backoff, normal, out);
+
+	for (i = 0;i < 3;i++)
+		if (out[i] > -STOP_EPSILON && out[i] < STOP_EPSILON)
+			out[i] = 0;
+}
 
 
 /*
@@ -624,7 +637,7 @@ qboolean SVHL_PushAngles (hledict_t *pusher, vec3_t move, vec3_t amove)
 //FIXME: is there a better way to handle this?
 	// see if anything we moved has touched a trigger
 	for (p=pushed_p-1 ; p>=pushed ; p--)
-		SVHL_TouchLinks ( p->ent, sv_areanodes );
+		SVHL_TouchLinks ( p->ent, sv.world.areanodes );
 
 	return true;
 }
@@ -831,7 +844,7 @@ float	l;
 		VectorCopy (ent->v.angles, oldang);
 
 		ent->v.nextthink = 0;
-		SVHL_Globals.time = sv.physicstime;
+		SVHL_Globals.time = sv.world.physicstime;
 		SVHL_GameFuncs.DispatchThink(ent);
 		if (ent->isfree)
 			return;
@@ -851,7 +864,7 @@ float	l;
 	else if (ent->v.flags & (1<<21))
 	{
 		ent->v.nextthink = 0;
-		SVHL_Globals.time = sv.physicstime;
+		SVHL_Globals.time = sv.world.physicstime;
 		SVHL_GameFuncs.DispatchThink(ent);
 		if (ent->isfree)
 			return;
@@ -1810,7 +1823,7 @@ void SVHL_RunFrame (void)
 
 
 	SVHL_Globals.frametime = host_frametime;
-	SVHL_Globals.time = sv.physicstime;
+	SVHL_Globals.time = sv.world.physicstime;
 
 	SVHL_GameFuncs.StartFrame ();
 

@@ -1812,6 +1812,7 @@ void Plug_Close(plugin_t *plug)
 	Plug_FreeConCommands(plug);
 
 	Plug_Client_Close(plug);
+	Z_Free(plug);
 
 	if (currentplug == plug)
 		currentplug = NULL;
@@ -1883,8 +1884,17 @@ void Plug_Shutdown(void)
 {
 	while(plugs)
 	{
+		plugs->blockcloses = 0;
 		Plug_Close(plugs);
 	}
+
+	numplugbuiltins = 0;
+	BZ_Free(plugbuiltins);
+	plugbuiltins = NULL;
+
+	plugincommandarraylen = 0;
+	BZ_Free(plugincommandarray);
+	plugincommandarray = NULL;
 }
 
 #endif

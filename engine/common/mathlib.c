@@ -418,6 +418,16 @@ int VectorCompare (const vec3_t v1, const vec3_t v2)
 			
 	return 1;
 }
+int Vector4Compare (const vec4_t v1, const vec4_t v2)
+{
+	int		i;
+	
+	for (i=0 ; i<4 ; i++)
+		if (v1[i] != v2[i])
+			return 0;
+			
+	return 1;
+}
 
 void _VectorMA (const vec3_t veca, const float scale, const vec3_t vecb, vec3_t vecc)
 {

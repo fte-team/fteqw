@@ -247,6 +247,41 @@ double	parsecounttime;
 
 int		cl_spikeindex, cl_playerindex, cl_h_playerindex, cl_flagindex, cl_rocketindex, cl_grenadeindex, cl_gib1index, cl_gib2index, cl_gib3index;
 
+//called after disconnect, purges all memory that was allocated etc
+void CL_Parse_Disconnected(void)
+{
+	if (cls.downloadmethod <= DL_QWPENDING)
+		cls.downloadmethod = DL_NONE;
+	if (cls.downloadqw)
+	{
+		VFS_CLOSE(cls.downloadqw);
+		cls.downloadqw = NULL;
+	}
+	if (!cls.downloadmethod)
+	{
+		*cls.downloadlocalname = '\0';
+		*cls.downloadremotename = '\0';
+	}
+
+	{
+		downloadlist_t *next;
+		while(cl.downloadlist)
+		{
+			next = cl.downloadlist->next;
+			Z_Free(cl.downloadlist);
+			cl.downloadlist = next;
+		}
+		while(cl.faileddownloads)
+		{
+			next = cl.faileddownloads->next;
+			Z_Free(cl.faileddownloads);
+			cl.faileddownloads = next;
+		}
+	}
+
+	CL_ClearParseState();
+}
+
 //=============================================================================
 
 int packet_latency[NET_TIMINGS];
@@ -2190,6 +2225,20 @@ void CL_ClearParseState(void)
 	cl_gib1index = -1;
 	cl_gib2index = -1;
 	cl_gib3index = -1;
+
+	if (cl_baselines)
+	{
+		BZ_Free(cl_baselines);
+		cl_baselines = NULL;
+	}
+	cl_baselines_count = 0;
+
+	cl_max_static_entities = 0;
+	if (cl_static_entities)
+	{
+		BZ_Free(cl_static_entities);
+		cl_static_entities = NULL;
+	}
 }
 
 /*
@@ -3389,7 +3438,10 @@ void CL_ParseBaseline2 (void)
 {
 	entity_state_t es;
 
-	CLQW_ParseDelta(&nullentitystate, &es, (unsigned short)MSG_ReadShort(), true);
+	if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+		CLFTE_ParseBaseline(&es, true);
+	else
+		CLQW_ParseDelta(&nullentitystate, &es, (unsigned short)MSG_ReadShort(), true);
 	if (!CL_CheckBaselines(es.number))
 		Host_EndGame("CL_ParseBaseline2: check baselines failed with size %i", es.number);
 	memcpy(cl_baselines + es.number, &es, sizeof(es));
@@ -3455,7 +3507,10 @@ void CL_ParseStatic (int version)
 	}
 	else
 	{
-		CLQW_ParseDelta(&nullentitystate, &es, MSG_ReadShort(), true);
+		if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+			CLFTE_ParseBaseline(&es, false);
+		else
+			CLQW_ParseDelta(&nullentitystate, &es, MSG_ReadShort(), true);
 		es.number+=MAX_EDICTS;
 
 		for (i = 0; i < cl.num_statics; i++)
@@ -4041,28 +4096,28 @@ CL_SetStat
 static void CL_SetStat_Internal (int pnum, int stat, int value)
 {
 	int	j;
-	if (cl.stats[pnum][stat] != value)
+	if (cl.playerview[pnum].stats[stat] != value)
 		Sbar_Changed ();
 
 	if (stat == STAT_ITEMS)
 	{	// set flash times
 		for (j=0 ; j<32 ; j++)
-			if ( (value & (1<<j)) && !(cl.stats[pnum][stat] & (1<<j)))
-				cl.item_gettime[pnum][j] = cl.time;
+			if ( (value & (1<<j)) && !(cl.playerview[pnum].stats[stat] & (1<<j)))
+				cl.playerview[pnum].item_gettime[j] = cl.time;
 	}
 
 	if (stat == STAT_WEAPON)
 	{
-		if (cl.stats[pnum][stat] != value)
+		if (cl.playerview[pnum].stats[stat] != value)
 		{
 			if (value == 0)
 				TP_ExecTrigger ("f_reloadstart");
-			else if (cl.stats[pnum][stat] == 0)
+			else if (cl.playerview[pnum].stats[stat] == 0)
 				TP_ExecTrigger ("f_reloadend");
 		}
 	}
 
-	cl.stats[pnum][stat] = value;
+	cl.playerview[pnum].stats[stat] = value;
 
 	if (pnum == 0)
 		TP_StatChanged(stat, value);
@@ -4108,10 +4163,10 @@ void CL_SetStatFloat (int pnum, int stat, float value)
 
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
 			if (spec_track[pnum] == cls_lastto)
-				cl.statsf[pnum][stat] = value;
+				cl.playerview[pnum].statsf[stat] = value;
 	}
 	else
-		cl.statsf[pnum][stat] = value;
+		cl.playerview[pnum].statsf[stat] = value;
 
 	if (stat == STAT_VIEWHEIGHT && cls.z_ext & Z_EXT_VIEWHEIGHT)
 		cl.viewheight[pnum] = value;
@@ -4133,10 +4188,10 @@ void CL_SetStatString (int pnum, int stat, char *value)
 	}
 	else
 	{
-		if (cl.statsstr[pnum][stat])
-			Z_Free(cl.statsstr[pnum][stat]);
-		cl.statsstr[pnum][stat] = Z_Malloc(strlen(value)+1);
-		strcpy(cl.statsstr[pnum][stat], value);
+		if (cl.playerview[pnum].statsstr[stat])
+			Z_Free(cl.playerview[pnum].statsstr[stat]);
+		cl.playerview[pnum].statsstr[stat] = Z_Malloc(strlen(value)+1);
+		strcpy(cl.playerview[pnum].statsstr[stat], value);
 	}
 }
 /*
@@ -4272,7 +4327,7 @@ void CLQ2_ParseMuzzleFlash (void)
 		break;
 	case Q2MZ_MACHINEGUN:
 		dl->color[0] = 0.2;dl->color[1] = 0.2;dl->color[2] = 0;
-		snprintf(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
+		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound(soundname), volume, ATTN_NORM, 0);
 		break;
 
@@ -4288,27 +4343,27 @@ void CLQ2_ParseMuzzleFlash (void)
 	case Q2MZ_CHAINGUN1:
 		dl->radius = 200 + (rand()&31);
 		dl->color[0] = 0.2;dl->color[1] = 0.05;dl->color[2] = 0;
-		snprintf(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
+		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound(soundname), volume, ATTN_NORM, 0);
 		break;
 	case Q2MZ_CHAINGUN2:
 		dl->radius = 225 + (rand()&31);
 		dl->color[0] = 0.2;dl->color[1] = 0.1;dl->color[2] = 0;
 		dl->die = cl.time  + 0.1;	// long delay
-		snprintf(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
+		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound(soundname), volume, ATTN_NORM, 0);
-		snprintf(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
+		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
 		Q2S_StartSound (NULL, i, CHAN_AUTO, S_PrecacheSound(soundname), volume, ATTN_NORM, 0.05);
 		break;
 	case Q2MZ_CHAINGUN3:
 		dl->radius = 250 + (rand()&31);
 		dl->color[0] = 0.2;dl->color[1] = 0.2;dl->color[2] = 0;
 		dl->die = cl.time  + 0.1;	// long delay
-		snprintf(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
+		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
 		Q2S_StartSound (NULL, i, CHAN_WEAPON, S_PrecacheSound(soundname), volume, ATTN_NORM, 0);
-		snprintf(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
+		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
 		Q2S_StartSound (NULL, i, CHAN_AUTO, S_PrecacheSound(soundname), volume, ATTN_NORM, 0.033);
-		snprintf(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
+		Q_snprintfz(soundname, sizeof(soundname), "weapons/machgf%ib.wav", (rand() % 5) + 1);
 		Q2S_StartSound (NULL, i, CHAN_AUTO, S_PrecacheSound(soundname), volume, ATTN_NORM, 0.066);
 		break;
 
@@ -5012,6 +5067,8 @@ void CL_ParsePrecache(void)
 		else
 			Con_Printf("svc_precache: model index %i outside range %i...%i\n", i, 1, MAX_MODELS);
 		break;
+	case 0x4000:
+		break;
 	case 0x8000:
 		if (i >= 1 && i < MAX_SOUNDS)
 		{
@@ -5026,6 +5083,11 @@ void CL_ParsePrecache(void)
 		}
 		else
 			Con_Printf("svc_precache: sound index %i outside range %i...%i\n", i, 1, MAX_SOUNDS);
+		break;
+	case 0xC000:
+		if (i >= 1 && i < 1024)
+		{
+		}
 		break;
 	}
 }
@@ -5083,7 +5145,7 @@ void CLQW_ParseServerMessage (void)
 	cl.last_servermessage = realtime;
 	CL_ClearProjectiles ();
 	for (i = 0; i < MAX_SPLITS; i++)
-		cl.fixangle[i] = false;
+		cl.playerview[i].fixangle = false;
 
 //
 // if recording demos, copy the message out
@@ -5231,8 +5293,8 @@ void CLQW_ParseServerMessage (void)
 #endif
 		case svcfte_setangledelta:
 			for (i=0 ; i<3 ; i++)
-				cl.viewangles[destsplit][i] += MSG_ReadAngle16 ();
-			VectorCopy (cl.viewangles[destsplit], cl.simangles[destsplit]);
+				cl.playerview[destsplit].viewangles[i] += MSG_ReadAngle16 ();
+			VectorCopy (cl.playerview[destsplit].viewangles, cl.playerview[destsplit].simangles);
 			break;
 		case svc_setangle:
 			if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
@@ -5245,20 +5307,20 @@ void CLQW_ParseServerMessage (void)
 				{
 					if (Cam_TrackNum(j) == i)
 					{
-						cl.fixangle[j]=true;
-						VectorCopy(ang, cl.simangles[j]);
-						VectorCopy(ang, cl.viewangles[j]);
-						VectorCopy(ang, cl.fixangles[j]);
+						cl.playerview[j].fixangle=true;
+						VectorCopy(ang, cl.playerview[j].simangles);
+						VectorCopy(ang, cl.playerview[j].viewangles);
+						VectorCopy(ang, cl.playerview[j].fixangles);
 					}
 				}
 				break;
 			}
-			cl.fixangle[destsplit]=true;
+			cl.playerview[destsplit].fixangle=true;
 			for (i=0 ; i<3 ; i++)
-				cl.viewangles[destsplit][i] = cl.fixangles[destsplit][i] = MSG_ReadAngle ();
+				cl.playerview[destsplit].viewangles[i] = cl.playerview[destsplit].fixangles[i] = MSG_ReadAngle ();
 
-			VectorCopy (cl.viewangles[destsplit], cl.simangles[destsplit]);
-//			cl.viewangles[PITCH] = cl.viewangles[ROLL] = 0;
+			VectorCopy (cl.playerview[destsplit].viewangles, cl.playerview[destsplit].simangles);
+//			cl.playerview[destsplit].viewangles[PITCH] = cl.viewangles[ROLL] = 0;
 			break;
 
 		case svc_lightstyle:
@@ -5372,11 +5434,11 @@ void CLQW_ParseServerMessage (void)
 			break;
 
 		case svc_killedmonster:
-			cl.stats[destsplit][STAT_MONSTERS]++;
+			cl.playerview[destsplit].stats[STAT_MONSTERS]++;
 			break;
 
 		case svc_foundsecret:
-			cl.stats[destsplit][STAT_SECRETS]++;
+			cl.playerview[destsplit].stats[STAT_SECRETS]++;
 			break;
 
 		case svc_updatestat:
@@ -5420,18 +5482,18 @@ void CLQW_ParseServerMessage (void)
 			cl.completed_time = cl.gametime;
 			vid.recalc_refdef = true;	// go to full screen
 			for (i=0 ; i<3 ; i++)
-				cl.simorg[destsplit][i] = MSG_ReadCoord ();
+				cl.playerview[destsplit].simorg[i] = MSG_ReadCoord ();
 			for (i=0 ; i<3 ; i++)
-				cl.simangles[destsplit][i] = MSG_ReadAngle ();
-			VectorCopy (cl.simangles[destsplit], cl.fixangles[destsplit]);
-			VectorClear (cl.simvel[destsplit]);
+				cl.playerview[destsplit].simangles[i] = MSG_ReadAngle ();
+			VectorCopy (cl.playerview[destsplit].simangles, cl.playerview[destsplit].fixangles);
+			VectorClear (cl.playerview[destsplit].simvel);
 			break;
 
 		case svc_finale:
 			if (!cl.intermission)
 				for (i = 0; i < MAX_SPLITS; i++)
-					cl.simorg[i][2] += cl.viewheight[i];
-			VectorCopy (cl.fixangles[destsplit], cl.simangles[destsplit]);
+					cl.playerview[i].simorg[2] += cl.viewheight[i];
+			VectorCopy (cl.playerview[destsplit].fixangles, cl.playerview[destsplit].simangles);
 
 			cl.intermission = 2;
 			cl.completed_time = cl.gametime;
@@ -5575,13 +5637,13 @@ void CLQW_ParseServerMessage (void)
 			break;
 
 		case svcfte_trailparticles:
-			CLDP_ParseTrailParticles();
+			CL_ParseTrailParticles();
 			break;
 		case svcfte_pointparticles:
-			CLDP_ParsePointParticles(false);
+			CL_ParsePointParticles(false);
 			break;
 		case svcfte_pointparticles1:
-			CLDP_ParsePointParticles(true);
+			CL_ParsePointParticles(true);
 			break;
 
 		case svcfte_cgamepacket:
@@ -6103,9 +6165,9 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_time:
-			cl.oldfixangle[0] = cl.fixangle[0];
-			VectorCopy(cl.fixangles[0], cl.oldfixangles[0]);
-			cl.fixangle[0] = false;
+			cl.playerview[0].oldfixangle = cl.playerview[0].fixangle;
+			VectorCopy(cl.playerview[0].fixangles, cl.playerview[0].oldfixangles);
+			cl.playerview[0].fixangle = false;
 
 			cls.netchan.outgoing_sequence++;
 			cls.netchan.incoming_sequence = cls.netchan.outgoing_sequence-1;
@@ -6208,9 +6270,9 @@ void CLNQ_ParseServerMessage (void)
 			CL_SetStatFloat (0, i, j);
 			break;
 		case svc_setangle:
-			cl.fixangle[0]=true;
+			cl.playerview[0].fixangle=true;
 			for (i=0 ; i<3 ; i++)
-				cl.viewangles[0][i] = cl.fixangles[0][i] = MSG_ReadAngle ();
+				cl.playerview[0].viewangles[i] = cl.playerview[0].fixangles[i] = MSG_ReadAngle ();
 //			cl.viewangles[PITCH] = cl.viewangles[ROLL] = 0;
 			break;
 
@@ -6235,11 +6297,11 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_killedmonster:
-			cl.stats[0][STAT_MONSTERS]++;
+			cl.playerview[0].stats[STAT_MONSTERS]++;
 			break;
 
 		case svc_foundsecret:
-			cl.stats[0][STAT_SECRETS]++;
+			cl.playerview[0].stats[STAT_SECRETS]++;
 			break;
 
 		case svc_intermission:
@@ -6328,13 +6390,13 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svcdp_trailparticles:
-			CLDP_ParseTrailParticles();
+			CL_ParseTrailParticles();
 			break;
 		case svcdp_pointparticles:
-			CLDP_ParsePointParticles(false);
+			CL_ParsePointParticles(false);
 			break;
 		case svcdp_pointparticles1:
-			CLDP_ParsePointParticles(true);
+			CL_ParsePointParticles(true);
 			break;
 		}
 

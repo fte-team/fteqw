@@ -165,7 +165,7 @@ float V_CalcBob (int pnum, qboolean queryold)
 // bob is proportional to simulated velocity in the xy plane
 // (don't count Z, or jumping messes it up)
 
-	bob[pnum] = sqrt(cl.simvel[pnum][0]*cl.simvel[pnum][0] + cl.simvel[pnum][1]*cl.simvel[pnum][1]) * cl_bob.value;
+	bob[pnum] = sqrt(cl.playerview[pnum].simvel[0]*cl.playerview[pnum].simvel[0] + cl.playerview[pnum].simvel[1]*cl.playerview[pnum].simvel[1]) * cl_bob.value;
 	bob[pnum] = bob[pnum]*0.3 + bob[pnum]*0.7*sin(cycle);
 	if (bob[pnum] > 4)
 		bob[pnum] = 4;
@@ -186,24 +186,24 @@ cvar_t	v_centerspeed = SCVAR("v_centerspeed","500");
 void V_StartPitchDrift (int pnum)
 {
 #if 1
-	if (cl.laststop[pnum] == cl.time)
+	if (cl.playerview[pnum].laststop == cl.time)
 	{
 		return;		// something else is keeping it from drifting
 	}
 #endif
-	if (cl.nodrift || !cl.pitchvel)
+	if (cl.playerview[pnum].nodrift || !cl.playerview[pnum].pitchvel)
 	{
-		cl.pitchvel[pnum] = v_centerspeed.value;
-		cl.nodrift[pnum] = false;
-		cl.driftmove[pnum] = 0;
+		cl.playerview[pnum].pitchvel = v_centerspeed.value;
+		cl.playerview[pnum].nodrift = false;
+		cl.playerview[pnum].driftmove = 0;
 	}
 }
 
 void V_StopPitchDrift (int pnum)
 {
-	cl.laststop[pnum] = cl.time;
-	cl.nodrift[pnum] = true;
-	cl.pitchvel[pnum] = 0;
+	cl.playerview[pnum].laststop = cl.time;
+	cl.playerview[pnum].nodrift = true;
+	cl.playerview[pnum].pitchvel = 0;
 }
 
 /*
@@ -225,36 +225,36 @@ void V_DriftPitch (int pnum)
 
 	if (!cl.onground || cls.demoplayback )
 	{
-		cl.driftmove[pnum] = 0;
-		cl.pitchvel[pnum] = 0;
+		cl.playerview[pnum].driftmove = 0;
+		cl.playerview[pnum].pitchvel = 0;
 		return;
 	}
 
 // don't count small mouse motion
-	if (cl.nodrift[pnum])
+	if (cl.playerview[pnum].nodrift)
 	{
 		if ( fabs(cl.frames[(cls.netchan.outgoing_sequence-1)&UPDATE_MASK].cmd[pnum].forwardmove) < 200)
-			cl.driftmove[pnum] = 0;
+			cl.playerview[pnum].driftmove = 0;
 		else
-			cl.driftmove[pnum] += host_frametime;
+			cl.playerview[pnum].driftmove += host_frametime;
 
-		if ( cl.driftmove[pnum] > v_centermove.value)
+		if ( cl.playerview[pnum].driftmove > v_centermove.value)
 		{
 			V_StartPitchDrift (pnum);
 		}
 		return;
 	}
 
-	delta = 0 - cl.viewangles[pnum][PITCH];
+	delta = 0 - cl.playerview[pnum].viewangles[PITCH];
 
 	if (!delta)
 	{
-		cl.pitchvel[pnum] = 0;
+		cl.playerview[pnum].pitchvel = 0;
 		return;
 	}
 
-	move = host_frametime * cl.pitchvel[pnum];
-	cl.pitchvel[pnum] += host_frametime * v_centerspeed.value;
+	move = host_frametime * cl.playerview[pnum].pitchvel;
+	cl.playerview[pnum].pitchvel += host_frametime * v_centerspeed.value;
 
 //Con_Printf ("move: %f (%f)\n", move, host_frametime);
 
@@ -262,19 +262,19 @@ void V_DriftPitch (int pnum)
 	{
 		if (move > delta)
 		{
-			cl.pitchvel[pnum] = 0;
+			cl.playerview[pnum].pitchvel = 0;
 			move = delta;
 		}
-		cl.viewangles[pnum][PITCH] += move;
+		cl.playerview[pnum].viewangles[PITCH] += move;
 	}
 	else if (delta < 0)
 	{
 		if (move > -delta)
 		{
-			cl.pitchvel[pnum] = 0;
+			cl.playerview[pnum].pitchvel = 0;
 			move = -delta;
 		}
-		cl.viewangles[pnum][PITCH] -= move;
+		cl.playerview[pnum].viewangles[PITCH] -= move;
 	}
 }
 
@@ -395,7 +395,7 @@ void V_ParseDamage (int pnum)
 	if (v_damagecshift.value >= 0)
 		count *= v_damagecshift.value;
 
-	cl.faceanimtime[pnum] = cl.time + 0.2;		// but sbar face into pain frame
+	cl.playerview[pnum].faceanimtime = cl.time + 0.2;		// but sbar face into pain frame
 
 	cl.cshifts[CSHIFT_DAMAGE].percent += 3*count;
 	if (cl.cshifts[CSHIFT_DAMAGE].percent < 0)
@@ -425,10 +425,10 @@ void V_ParseDamage (int pnum)
 //
 // calculate view angle kicks
 //
-	VectorSubtract (from, cl.simorg[pnum], from);
+	VectorSubtract (from, cl.playerview[pnum].simorg, from);
 	VectorNormalize (from);
 
-	AngleVectors (cl.simangles[pnum], forward, right, up);
+	AngleVectors (cl.playerview[pnum].simangles, forward, right, up);
 
 	side = DotProduct (from, right);
 	v_dmg_roll[pnum] = count*side*v_kickroll.value;
@@ -588,7 +588,7 @@ void V_CalcPowerupCshift (void)
 	//we only have one palette, so combine the mask
 
 	for (s = 0; s < cl.splitclients; s++)
-		im |= cl.stats[s][STAT_ITEMS];
+		im |= cl.playerview[s].stats[STAT_ITEMS];
 
 	if (im & IT_QUAD)
 	{
@@ -879,18 +879,18 @@ void V_BoundOffsets (int pnum)
 // absolutely bound refresh reletive to entity clipping hull
 // so the view can never be inside a solid wall
 
-	if (r_refdef.vieworg[0] < cl.simorg[pnum][0] - 14)
-		r_refdef.vieworg[0] = cl.simorg[pnum][0] - 14;
-	else if (r_refdef.vieworg[0] > cl.simorg[pnum][0] + 14)
-		r_refdef.vieworg[0] = cl.simorg[pnum][0] + 14;
-	if (r_refdef.vieworg[1] < cl.simorg[pnum][1] - 14)
-		r_refdef.vieworg[1] = cl.simorg[pnum][1] - 14;
-	else if (r_refdef.vieworg[1] > cl.simorg[pnum][1] + 14)
-		r_refdef.vieworg[1] = cl.simorg[pnum][1] + 14;
-	if (r_refdef.vieworg[2] < cl.simorg[pnum][2] - 22)
-		r_refdef.vieworg[2] = cl.simorg[pnum][2] - 22;
-	else if (r_refdef.vieworg[2] > cl.simorg[pnum][2] + 30)
-		r_refdef.vieworg[2] = cl.simorg[pnum][2] + 30;
+	if (r_refdef.vieworg[0] < cl.playerview[pnum].simorg[0] - 14)
+		r_refdef.vieworg[0] = cl.playerview[pnum].simorg[0] - 14;
+	else if (r_refdef.vieworg[0] > cl.playerview[pnum].simorg[0] + 14)
+		r_refdef.vieworg[0] = cl.playerview[pnum].simorg[0] + 14;
+	if (r_refdef.vieworg[1] < cl.playerview[pnum].simorg[1] - 14)
+		r_refdef.vieworg[1] = cl.playerview[pnum].simorg[1] - 14;
+	else if (r_refdef.vieworg[1] > cl.playerview[pnum].simorg[1] + 14)
+		r_refdef.vieworg[1] = cl.playerview[pnum].simorg[1] + 14;
+	if (r_refdef.vieworg[2] < cl.playerview[pnum].simorg[2] - 22)
+		r_refdef.vieworg[2] = cl.playerview[pnum].simorg[2] - 22;
+	else if (r_refdef.vieworg[2] > cl.playerview[pnum].simorg[2] + 30)
+		r_refdef.vieworg[2] = cl.playerview[pnum].simorg[2] + 30;
 }
 
 /*
@@ -946,7 +946,7 @@ void V_CalcViewRoll (int pnum)
 	float		side;
 	float	adjspeed;
 
-	side = V_CalcRoll (cl.simangles[pnum], cl.simvel[pnum]);
+	side = V_CalcRoll (cl.playerview[pnum].simangles, cl.playerview[pnum].simvel);
 
 	adjspeed = fabs(cl_rollangle.value);
 	if (adjspeed<1)
@@ -954,19 +954,19 @@ void V_CalcViewRoll (int pnum)
 	if (adjspeed>45)
 		adjspeed = 45;
 	adjspeed*=20;
-	if (side > cl.rollangle[pnum])
+	if (side > cl.playerview[pnum].rollangle)
 	{
-		cl.rollangle[pnum] += host_frametime * adjspeed;
-		if (cl.rollangle[pnum] > side)
-			cl.rollangle[pnum] = side;
+		cl.playerview[pnum].rollangle += host_frametime * adjspeed;
+		if (cl.playerview[pnum].rollangle > side)
+			cl.playerview[pnum].rollangle = side;
 	}
-	else if (side < cl.rollangle[pnum])
+	else if (side < cl.playerview[pnum].rollangle)
 	{
-		cl.rollangle[pnum] -= host_frametime * adjspeed;
-		if (cl.rollangle[pnum] < side)
-			cl.rollangle[pnum] = side;
+		cl.playerview[pnum].rollangle -= host_frametime * adjspeed;
+		if (cl.playerview[pnum].rollangle < side)
+			cl.playerview[pnum].rollangle = side;
 	}
-	r_refdef.viewangles[ROLL] += cl.rollangle[pnum];
+	r_refdef.viewangles[ROLL] += cl.playerview[pnum].rollangle;
 
 	if (v_dmg_time[pnum] > 0)
 	{
@@ -992,8 +992,8 @@ void V_CalcIntermissionRefdef (int pnum)
 // view is the weapon model
 	view = &cl.viewent[pnum];
 
-	VectorCopy (cl.simorg[pnum], r_refdef.vieworg);
-	VectorCopy (cl.simangles[pnum], r_refdef.viewangles);
+	VectorCopy (cl.playerview[pnum].simorg, r_refdef.vieworg);
+	VectorCopy (cl.playerview[pnum].simangles, r_refdef.viewangles);
 	view->model = NULL;
 
 // always idle in intermission
@@ -1039,7 +1039,7 @@ void V_CalcRefdef (int pnum)
 		bob = V_CalcBob (pnum, false);
 
 // refresh position from simulated origin
-	VectorCopy (cl.simorg[pnum], r_refdef.vieworg);
+	VectorCopy (cl.playerview[pnum].simorg, r_refdef.vieworg);
 
 	r_refdef.useperspective = true;
 
@@ -1050,9 +1050,9 @@ void V_CalcRefdef (int pnum)
 	r_refdef.vieworg[1] += 1.0/16;
 	r_refdef.vieworg[2] += 1.0/16;
 
-	if (cl.fixangle[pnum])
+	if (cl.playerview[pnum].fixangle)
 	{
-		if (cl.oldfixangle[pnum])
+		if (cl.playerview[pnum].oldfixangle)
 		{
 			float frac, move;
 			if (cl.gametime <= cl.oldgametime)
@@ -1064,22 +1064,22 @@ void V_CalcRefdef (int pnum)
 			}
 			for (i = 0; i < 3; i++)
 			{
-				move = cl.fixangles[pnum][i] - cl.oldfixangles[pnum][i];
+				move = cl.playerview[pnum].fixangles[i] - cl.playerview[pnum].oldfixangles[i];
 				if (move >= 180)
 					move -= 360;
 				if (move <= -180)
 					move += 360;
-				r_refdef.viewangles[i] = cl.oldfixangles[pnum][i] + frac * move;
+				r_refdef.viewangles[i] = cl.playerview[pnum].oldfixangles[i] + frac * move;
 			}
 		}
 		else
 		{
-			VectorCopy (cl.fixangles[pnum], r_refdef.viewangles);
+			VectorCopy (cl.playerview[pnum].fixangles, r_refdef.viewangles);
 		}
 	}
 	else
 	{
-		VectorCopy (cl.simangles[pnum], r_refdef.viewangles);
+		VectorCopy (cl.playerview[pnum].simangles, r_refdef.viewangles);
 	}
 	V_CalcViewRoll (pnum);
 	V_AddIdle (pnum);
@@ -1112,14 +1112,14 @@ void V_CalcRefdef (int pnum)
 // set up gun position
 	V_CalcGunPositionAngle (pnum, bob);
 
-	if (cl.stats[pnum][STAT_HEALTH] > 0 && (unsigned int)cl.stats[pnum][STAT_WEAPON] >= MAX_MODELS)
+	if (cl.playerview[pnum].stats[STAT_HEALTH] > 0 && (unsigned int)cl.playerview[pnum].stats[STAT_WEAPON] >= MAX_MODELS)
  		view->model = NULL;
  	else
-		view->model = cl.model_precache[cl.stats[pnum][STAT_WEAPON]];
+		view->model = cl.model_precache[cl.playerview[pnum].stats[STAT_WEAPON]];
 #ifdef HLCLIENT
 	if (!CLHL_AnimateViewEntity(view))
 #endif
-		view->framestate.g[FS_REG].frame[0] = cl.stats[pnum][STAT_WEAPONFRAME];
+		view->framestate.g[FS_REG].frame[0] = cl.playerview[pnum].stats[STAT_WEAPONFRAME];
 
 // set up the refresh position
 	if (v_gunkick.value)
@@ -1241,8 +1241,8 @@ void SCR_VRectForPlayer(vrect_t *vrect, int pnum)
 	}
 
 	r_refdef.fov_x = scr_fov.value;
-	if (cl.stats[pnum][STAT_VIEWZOOM])
-		r_refdef.fov_x *= cl.stats[pnum][STAT_VIEWZOOM]/255.0f;
+	if (cl.playerview[pnum].stats[STAT_VIEWZOOM])
+		r_refdef.fov_x *= cl.playerview[pnum].stats[STAT_VIEWZOOM]/255.0f;
 
 	if (vrect->width < (vrect->height*640)/432)
 	{
@@ -1364,7 +1364,7 @@ void V_RenderPlayerViews(int plnum)
 	for (viewnum = 0; viewnum < SIDEVIEWS; viewnum++)
 	if (vsec_scalex[viewnum].value>0&&vsec_scaley[viewnum].value>0
 		&& ((vsec_enabled[viewnum].value && vsec_enabled[viewnum].value != 2 && cls.allow_rearview) 	//rearview if v2_enabled = 1 and not 2
-		|| (vsec_enabled[viewnum].value && cl.stats[plnum][STAT_VIEW2]&&viewnum==0)))			//v2 enabled if v2_enabled is non-zero
+		|| (vsec_enabled[viewnum].value && cl.playerview[plnum].stats[STAT_VIEW2]&&viewnum==0)))			//v2 enabled if v2_enabled is non-zero
 	{
 		vrect_t oldrect;
 		vec3_t oldangles;
@@ -1401,9 +1401,9 @@ void V_RenderPlayerViews(int plnum)
 #ifdef PEXT_VIEW2
 			//secondary view entity.
 		e=NULL;
-		if (viewnum==0&&cl.stats[plnum][STAT_VIEW2])
+		if (viewnum==0&&cl.playerview[plnum].stats[STAT_VIEW2])
 		{
-			e = CL_EntityNum (cl.stats[plnum][STAT_VIEW2]);
+			e = CL_EntityNum (cl.playerview[plnum].stats[STAT_VIEW2]);
 		}
 		if (e)
 		{

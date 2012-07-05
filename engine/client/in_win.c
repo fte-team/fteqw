@@ -290,7 +290,7 @@ Force_CenterView_f
 */
 void Force_CenterView_f (void)
 {
-	cl.viewangles[0][PITCH] = 0;
+	cl.playerview[0].viewangles[PITCH] = 0;
 }
 
 /*
@@ -1367,10 +1367,10 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 		mouse_y *= sensitivity.value*in_sensitivityscale;
 	}
 
-	if (cl.stats[pnum][STAT_VIEWZOOM])
+	if (cl.playerview[pnum].stats[STAT_VIEWZOOM])
 	{
-		mouse_x *= cl.stats[pnum][STAT_VIEWZOOM]/255.0f;
-		mouse_y *= cl.stats[pnum][STAT_VIEWZOOM]/255.0f;
+		mouse_x *= cl.playerview[pnum].stats[STAT_VIEWZOOM]/255.0f;
+		mouse_y *= cl.playerview[pnum].stats[STAT_VIEWZOOM]/255.0f;
 	}
 
 
@@ -1389,7 +1389,7 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 	{
 //		if ((int)((cl.viewangles[pnum][PITCH]+89.99)/180) & 1)
 //			mouse_x *= -1;
-		cl.viewanglechange[pnum][YAW] -= m_yaw.value * mouse_x;
+		cl.playerview[pnum].viewanglechange[YAW] -= m_yaw.value * mouse_x;
 	}
 
 	if (in_mlook.state[pnum] & 1)
@@ -1397,7 +1397,7 @@ static void ProcessMouse(mouse_t *mouse, float *movements, int pnum)
 
 	if ( (in_mlook.state[pnum] & 1) && !(in_strafe.state[pnum] & 1))
 	{
-		cl.viewanglechange[pnum][PITCH] += m_pitch.value * mouse_y;
+		cl.playerview[pnum].viewanglechange[PITCH] += m_pitch.value * mouse_y;
 	}
 	else
 	{
@@ -2150,11 +2150,11 @@ void IN_JoyMove (float *movements, int pnum)
 					// only absolute control support here (joy_advanced is false)
 					if (m_pitch.value < 0.0)
 					{
-						cl.viewanglechange[pnum][PITCH] -= (fAxisValue * joy_pitchsensitivity.value) * aspeed * cl_pitchspeed.value;
+						cl.playerview[pnum].viewanglechange[PITCH] -= (fAxisValue * joy_pitchsensitivity.value) * aspeed * cl_pitchspeed.value;
 					}
 					else
 					{
-						cl.viewanglechange[pnum][PITCH] += (fAxisValue * joy_pitchsensitivity.value) * aspeed * cl_pitchspeed.value;
+						cl.playerview[pnum].viewanglechange[PITCH] += (fAxisValue * joy_pitchsensitivity.value) * aspeed * cl_pitchspeed.value;
 					}
 					V_StopPitchDrift(pnum);
 				}
@@ -2201,11 +2201,11 @@ void IN_JoyMove (float *movements, int pnum)
 				{
 					if(dwControlMap[i] == JOY_ABSOLUTE_AXIS)
 					{
-						cl.viewanglechange[pnum][YAW] += (fAxisValue * joy_yawsensitivity.value) * aspeed * cl_yawspeed.value;
+						cl.playerview[pnum].viewanglechange[YAW] += (fAxisValue * joy_yawsensitivity.value) * aspeed * cl_yawspeed.value;
 					}
 					else
 					{
-						cl.viewanglechange[pnum][YAW] += (fAxisValue * joy_yawsensitivity.value) * speed * 180.0;
+						cl.playerview[pnum].viewanglechange[YAW] += (fAxisValue * joy_yawsensitivity.value) * speed * 180.0;
 					}
 
 				}
@@ -2220,11 +2220,11 @@ void IN_JoyMove (float *movements, int pnum)
 					// pitch movement detected and pitch movement desired by user
 					if(dwControlMap[i] == JOY_ABSOLUTE_AXIS)
 					{
-						cl.viewanglechange[pnum][PITCH] += (fAxisValue * joy_pitchsensitivity.value) * aspeed * cl_pitchspeed.value;
+						cl.playerview[pnum].viewanglechange[PITCH] += (fAxisValue * joy_pitchsensitivity.value) * aspeed * cl_pitchspeed.value;
 					}
 					else
 					{
-						cl.viewanglechange[pnum][PITCH] += (fAxisValue * joy_pitchsensitivity.value) * speed * 180.0;
+						cl.playerview[pnum].viewanglechange[PITCH] += (fAxisValue * joy_pitchsensitivity.value) * speed * 180.0;
 					}
 					V_StopPitchDrift(pnum);
 				}

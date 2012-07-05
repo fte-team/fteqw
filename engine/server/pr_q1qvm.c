@@ -1325,6 +1325,11 @@ void Q1QVM_Event_Think(world_t *w, wedict_t *s)
 	PR_ExecuteProgram (w->progs, s->v->think);
 }
 
+qboolean Q1QVM_Event_ContentsTransition(world_t *w, wedict_t *ent, int oldwatertype, int newwatertype)
+{
+	return false;	//always do legacy behaviour
+}
+
 qboolean PR_LoadQ1QVM(void)
 {
 	static float writable;
@@ -1368,6 +1373,8 @@ qboolean PR_LoadQ1QVM(void)
 
 	sv.world.Event_Touch = Q1QVM_Event_Touch;
 	sv.world.Event_Think = Q1QVM_Event_Think;
+	sv.world.Event_Sound = SVQ1_StartSound;
+	sv.world.Event_ContentsTransition = Q1QVM_Event_ContentsTransition;
 	sv.world.Get_CModel = SVPR_GetCModel;
 
 	sv.world.num_edicts = 0;	//we're not ready for most of the builtins yet

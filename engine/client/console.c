@@ -114,7 +114,9 @@ void Con_Destroy (console_t *con)
 
 	if (con == &con_main)
 	{
-		Con_Finit(con);
+		/*main console is never destroyed, only cleared (unless shutting down)*/
+		if (con_initialized)
+			Con_Finit(con);
 		return;
 	}
 
@@ -541,8 +543,8 @@ void Con_Shutdown(void)
 	{
 		Con_Destroy(con_main.next);
 	}
-	Con_Destroy(&con_main);
 	con_initialized = false;
+	Con_Destroy(&con_main);
 }
 
 void TTS_SayConString(conchar_t *stringtosay);

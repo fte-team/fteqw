@@ -251,8 +251,8 @@ void IN_Move (float *movements, int pnum)
 		V_StopPitchDrift (pnum);
 
 	/*handle looks*/
-	cl.viewanglechange[pnum][YAW] -= m_yaw.value * mouse_x * sensitivity.value;
-	cl.viewanglechange[pnum][PITCH] += m_pitch.value * mouse_y * sensitivity.value;
+	cl.playerview[pnum].viewanglechange[YAW] -= m_yaw.value * mouse_x * sensitivity.value;
+	cl.playerview[pnum].viewanglechange[PITCH] += m_pitch.value * mouse_y * sensitivity.value;
 
 	mouse_x = mouse_y = 0.0;
 }

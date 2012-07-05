@@ -3707,6 +3707,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_CALLTIMEOFDAY",				1,	NULL, {"calltimeofday"}},
 	{"FTE_CSQC_HALFLIFE_MODELS"},		//hl-specific skeletal model control
 	{"FTE_CSQC_BASEFRAME"},				//control for all skeletal models
+	{"FTE_ENT_SKIN_CONTENTS"},			//self.skin = CONTENTS_WATER; makes a brush entity into water. use -16 for a ladder.
 	{"FTE_ENT_UNIQUESPAWNID"},
 	{"FTE_EXTENDEDTEXTCODES"},
 	{"FTE_FORCEINFOKEY",				1,	NULL, {"forceinfokey"}},
@@ -3731,7 +3732,7 @@ lh_extension_t QSG_Extensions[] = {
 	{"FTE_QC_PAUSED"},
 	{"FTE_QC_SENDPACKET",				1,	NULL, {"sendpacket"}},
 	{"FTE_QC_TRACETRIGGER"},
-	{"FTE_SOLID_LADDER"},	//part of a worthy hl implementation. Allows a simple trigger to remove effects of gravity (solid 20)
+	{"FTE_SOLID_LADDER"},	//Allows a simple trigger to remove effects of gravity (solid 20). obsolete. will prolly be removed at some point as it is not networked properly. Use FTE_ENT_SKIN_CONTENTS
 
 #ifdef SQL
 	// serverside SQL functions for managing an SQL database connection

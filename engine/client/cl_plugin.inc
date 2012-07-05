@@ -285,7 +285,7 @@ qintptr_t VARGS Plug_CL_GetStats(void *offset, quintptr_t mask, const qintptr_t 
 		max = MAX_CL_STATS;
 	for (i = 0; i < max; i++)
 	{	//fill stats with the right player's stats
-		stats[i] = cl.stats[pnum][i];
+		stats[i] = cl.playerview[pnum].stats[i];
 	}
 	for (; i < pluginstats; i++)	//plugin has too many stats (wow)
 		stats[i] = 0;					//fill the rest.

@@ -2846,10 +2846,21 @@ void Cmd_Shutdown(void)
 {
 	cmd_function_t *c;
 	cmdalias_t *a;
+	int i;
+
 	//make sure we get no other execution
 	int level;
 	for (level = 0; level < sizeof(cmd_text)/sizeof(cmd_text[0]); level++)
+	{
 		SZ_Clear (&cmd_text[level].buf);
+
+		if (cmd_text[level].buf.data)
+		{
+			BZ_Free(cmd_text[level].buf.data);
+			cmd_text[level].buf.data = NULL;
+			cmd_text[level].buf.maxsize = 0;
+		}
+	}
 
 	while(cmd_functions)
 	{
@@ -2864,6 +2875,12 @@ void Cmd_Shutdown(void)
 		Z_Free(a->value);
 		Z_Free(a);
 	}
+
+	for (i=0 ; i<cmd_argc ; i++)
+		Z_Free (cmd_argv[i]);
+	Z_Free(cmd_args_buf);
+	cmd_argc = 0;
+	cmd_args_buf = NULL;
 }
 
 

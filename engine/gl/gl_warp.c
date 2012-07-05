@@ -89,7 +89,7 @@ void R_DrawSkyChain (batch_t *batch)
 		return;
 	}
 #if defined(GLQUAKE) && !defined(ANDROID)
-	if (*r_fastsky.string && qrenderer == QR_OPENGL && TEXVALID(batch->shader->defaulttextures.base))
+	if (*r_fastsky.string && qrenderer == QR_OPENGL && TEXVALID(batch->shader->defaulttextures.base) && TEXVALID(batch->shader->defaulttextures.fullbright))
 	{
 		R_CalcSkyChainBounds(batch);
 
@@ -397,15 +397,15 @@ static void gl_skyspherecalc(int skytype)
 
 	skymesh.indexes = skysphere_element3i;
 	skymesh.st_array = (void*)skysphere_texcoord2f;
-	skymesh.lmst_array = (void*)skysphere_texcoord2f;
+	skymesh.lmst_array[0] = (void*)skysphere_texcoord2f;
 	skymesh.xyz_array = (void*)skysphere_vertex3f;
 
 	skymesh.numindexes = skysphere_numtriangles * 3;
 	skymesh.numvertexes = skysphere_numverts;
 
-	dx = 16;
-	dy = 16;
-	dz = 16 / 3;
+	dx = 1;
+	dy = 1;
+	dz = 1 / 3.0;
 	vertex = skysphere_vertex3f;
 	texcoord2f = skysphere_texcoord2f;
 	for (j = 0;j <= skygridy;j++)
@@ -487,6 +487,7 @@ static void R_DrawSkyMesh(batch_t *batch, mesh_t *m, shader_t *shader)
 	b.shader = shader;
 	b.skin = &shader->defaulttextures;
 	b.texture = NULL;
+	b.vbo = NULL;
 	BE_SubmitBatch(&b);
 }
 

@@ -190,6 +190,7 @@ void		R_ConcatTransforms (matrix3x4 in1, matrix3x4 in2, matrix3x4 out);
 void		RotatePointAroundVector (vec3_t dst, const vec3_t dir, const vec3_t point, float degrees);
 void		RotateLightVector(const vec3_t *axis, const vec3_t origin, const vec3_t lightpoint, vec3_t result);
 int			VectorCompare (const vec3_t v1, const vec3_t v2);
+int			Vector4Compare (const vec4_t v1, const vec4_t v2);
 void		VectorInverse (vec3_t v);
 void		_VectorMA (const vec3_t veca, const float scale, const vec3_t vecb, vec3_t vecc);
 float		QDECL VectorNormalize (vec3_t v);		// returns vector length

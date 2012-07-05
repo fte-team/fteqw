@@ -228,33 +228,24 @@ sfxcache_t *OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf, int start, 
 }
 void OV_CancelDecoder(sfx_t *s)
 {
-	/*
-	sfxcache_t *src, *dest;
 	ovdecoderbuffer_t *dec;
 
-	dec = s->decoder->buf;
+	dec = s->decoder.buf;
+	s->decoder.buf = NULL;
+	s->decoder.abort = NULL;
+	s->decoder.decodedata = NULL;
 	p_ov_clear (&dec->vf);	//close the decoder
-
-	//copy to new buffer
-
-	src = s->cache.data;
-	s->cache.fake = false;
-	s->cache.data = NULL;
-	dest = Cache_Alloc(&s->cache, dec->mediaaswavpos, s->name);
-	memcpy(dest, src, dec->mediaaswavpos);
-	BZ_Free(src);
 
 	if (dec->tempbuffer)
 	{
 		BZ_Free(dec->tempbuffer);
-		dec->tempbufferbytes = NULL;
+		dec->tempbufferbytes = 0;
 	}
 
-	Z_Free(s->decoder);
-	s->decoder = NULL;
-	*/
+	BZ_Free(dec->decodedbuffer);
+	dec->decodedbuffer = NULL;
 
-	//and it's now indistinguisable from a wav
+	BZ_Free(dec);
 }
 
 static size_t VARGS read_func (void *ptr, size_t size, size_t nmemb, void *datasource)

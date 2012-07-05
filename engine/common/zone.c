@@ -184,11 +184,24 @@ void *VARGS Z_TagMalloc(int size, int tag)
 	return (void *)(zone + 1);
 }
 
+#ifdef USE_MSVCRT_DEBUG
+void *ZF_MallocNamed(int size, char *file, int line)
+{
+	return _calloc_dbg(size, 1, _NORMAL_BLOCK, file, line);
+}
+void *Z_MallocNamed(int size, char *file, int line)
+{
+	void *mem = ZF_MallocNamed(size, file, line);
+	if (!mem)
+		Sys_Error("Z_Malloc: Failed on allocation of %i bytes", size);
+
+	return mem;
+}
+#else
 void *ZF_Malloc(int size)
 {
 	return calloc(size, 1);
 }
-
 void *Z_Malloc(int size)
 {
 	void *mem = ZF_Malloc(size);
@@ -197,6 +210,7 @@ void *Z_Malloc(int size)
 
 	return mem;
 }
+#endif
 
 void VARGS Z_TagFree(void *mem)
 {
@@ -348,6 +362,19 @@ void *Z_Realloc(void *data, int newsize)
 }
 */
 
+#ifdef USE_MSVCRT_DEBUG
+void *BZF_MallocNamed(int size, char *file, int line)	//BZ_MallocNamed but allowed to fail - like straight malloc.
+{
+	void *mem;
+	mem = _malloc_dbg(size, _NORMAL_BLOCK, file, line);
+	if (mem)
+	{
+		zmemdelta += size;
+		zmemtotal += size;
+	}
+	return mem;
+}
+#else
 void *BZF_Malloc(int size)	//BZ_Malloc but allowed to fail - like straight malloc.
 {
 	void *mem;
@@ -359,7 +386,18 @@ void *BZF_Malloc(int size)	//BZ_Malloc but allowed to fail - like straight mallo
 	}
 	return mem;
 }
+#endif
 
+#ifdef USE_MSVCRT_DEBUG
+void *BZ_MallocNamed(int size, char *file, int line)	//BZ_MallocNamed but allowed to fail - like straight malloc.
+{
+	void *mem = BZF_MallocNamed(size, file, line);
+	if (!mem)
+		Sys_Error("BZ_Malloc: Failed on allocation of %i bytes", size);
+
+	return mem;
+}
+#else
 void *BZ_Malloc(int size)	//Doesn't clear. The expectation is a large file, rather than sensative data structures.
 {
 	void *mem = BZF_Malloc(size);
@@ -368,7 +406,24 @@ void *BZ_Malloc(int size)	//Doesn't clear. The expectation is a large file, rath
 
 	return mem;
 }
+#endif
 
+#ifdef USE_MSVCRT_DEBUG
+void *BZF_ReallocNamed(void *data, int newsize, char *file, int line)
+{
+	return _realloc_dbg(data, newsize, _NORMAL_BLOCK, file, line);
+}
+
+void *BZ_ReallocNamed(void *data, int newsize, char *file, int line)
+{
+	void *mem = BZF_ReallocNamed(data, newsize, file, line);
+
+	if (!mem)
+		Sys_Error("BZ_Realloc: Failed on reallocation of %i bytes", newsize);
+
+	return mem;
+}
+#else
 void *BZF_Realloc(void *data, int newsize)
 {
 	return realloc(data, newsize);
@@ -383,6 +438,7 @@ void *BZ_Realloc(void *data, int newsize)
 
 	return mem;
 }
+#endif
 
 void BZ_Free(void *data)
 {
@@ -1774,6 +1830,17 @@ void Hunk_Print_f (void)
 			zoneblocks++;
 		}
 		Con_Printf("Zone: %i containing %iKB\n", zoneblocks, zoneused/1024);
+	}
+#endif
+
+#ifdef USE_MSVCRT_DEBUG
+	{
+		static struct _CrtMemState savedstate;
+		static qboolean statesaved;
+
+		_CrtMemDumpAllObjectsSince(statesaved?&savedstate:NULL);
+		_CrtMemCheckpoint(&savedstate);
+		statesaved = true;
 	}
 #endif
 }

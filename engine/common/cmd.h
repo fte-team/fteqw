@@ -55,6 +55,10 @@ void Cbuf_Execute (void);
 // Normally called once per frame, but may be explicitly invoked.
 // Do not call inside a command function!
 
+void Cbuf_ExecuteLevel(int level);
+//executes only a single cbuf level. can be used to restrict cbuf execution to some 'safe' set of commands, so there are no surprise 'map' commands.
+//will not magically make all commands safe to exec, but will prevent user commands slipping in too.
+
 //===========================================================================
 
 /*

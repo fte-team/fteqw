@@ -1,8 +1,5 @@
 #include "quakedef.h"
 
-#undef malloc
-#undef free
-
 static char *defaultlanguagetext =
 "STL_LANGUAGENAME \"English\"\n"
 "TL_NL \"\\n\"\n"
@@ -685,6 +682,26 @@ void TL_WriteTLHeader(void)
 	fclose(f);*/
 }
 #endif
+
+void TL_Shutdown(void)
+{
+	int i, j, k;
+
+	for (i = 0; i < STL_MAXSTL; i++)
+	{
+		for (j = 0; j < MAX_LANGUAGES; j++)
+		{
+			if (j)
+				free(langtext(i, j));
+			for (k = j+1; k < MAX_LANGUAGES; k++)
+			{
+				if (langtext(i, k) == langtext(i, j))
+					langtext(i, k) = NULL;
+			}
+			langtext(i, j) = NULL;
+		}
+	}
+}
 
 void TL_InitLanguages(void)
 {

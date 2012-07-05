@@ -90,7 +90,10 @@ qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 					return false;
 				b[surf].meshes = 1;
 				b[surf].mesh = (mesh_t**)&m[surf];
-				b[surf].lightmap = -1;
+				b[surf].lightmap[0] = -1;
+				b[surf].lightmap[1] = -1;
+				b[surf].lightmap[2] = -1;
+				b[surf].lightmap[3] = -1;
 
 				data = COM_ParseOut(data, token, sizeof(token));
 				b[surf].shader = R_RegisterShader_Vertex(token);

@@ -543,15 +543,15 @@ enum clcq2_ops_e
 #define UF_DRAWFLAGS	(1u<<19)
 #define UF_TAGINFO		(1u<<20)
 #define UF_LIGHT		(1u<<21)
-#define UF_EFFECTS2		(1u<<22)
+#define UF_TRAILEFFECT	(1u<<22)
 #define UF_EXTEND3		(1u<<23)
 
 #define UF_COLORMOD		(1u<<24)
 #define UF_GLOWMOD		(1u<<25)
 #define UF_FATNESS		(1u<<26)
 #define UF_MODELINDEX2  (1u<<27)
-#define UF_UNUSED4		(1u<<28)
-#define UF_UNUSED3		(1u<<29)
+#define UF_GRAVITYDIR	(1u<<28)
+#define UF_EFFECTS2		(1u<<29)
 #define UF_UNUSED2		(1u<<30)
 #define UF_UNUSED1		(1u<<31)
 
@@ -823,6 +823,8 @@ typedef struct entity_state_s
 			unsigned short weaponframe;
 			short movement[3];
 			short velocity[3]; // 1/8th
+			unsigned char gravitydir[2];	//pitch/yaw, no roll
+			unsigned short traileffectnum;
 		} q1;
 	} u;
 	unsigned short		modelindex2;	//q2/vweps

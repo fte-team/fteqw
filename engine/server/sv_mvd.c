@@ -1869,7 +1869,12 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 				continue;
 			}
 
-			if (!ent)
+			if (demo.recorder.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+			{
+				MSG_WriteByte(&buf, svcfte_spawnbaseline2);
+				SVQW_WriteDelta(&from, state, &buf, true, demo.recorder.fteprotocolextensions);
+			}
+			else if (!ent)
 			{
 				MSG_WriteByte(&buf, svc_spawnbaseline);
 

@@ -213,7 +213,7 @@ typedef struct
     hlmdl_tex_t				*textures;
     hlmdl_bone_t			*bones;
     hlmdl_bonecontroller_t		*bonectls;
-	texid_t					*texnums;
+	shader_t					**shaders;
 } hlmodel_t;
 
 typedef struct	//this is stored as the cache. an hlmodel_t is generated when drawing
@@ -223,7 +223,7 @@ typedef struct	//this is stored as the cache. an hlmodel_t is generated when dra
     int textures;
     int bones;
     int bonectls;
-	int texnums;
+	int shaders;
 } hlmodelcache_t;
 
 /* HL mathlib prototypes: */

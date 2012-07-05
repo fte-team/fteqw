@@ -135,7 +135,7 @@ void Cam_Lock(int pnum, int playernum)
 
 	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 	{
-		memcpy(&cl.stats[pnum], cl.players[playernum].stats, sizeof(cl.stats[pnum]));
+		memcpy(&cl.playerview[pnum].stats, cl.players[playernum].stats, sizeof(cl.playerview[pnum].stats));
 	}
 
 	Sbar_Changed();
@@ -379,18 +379,18 @@ void Cam_SelfTrack(int pnum)
 			vec3_t forward, right, up;
 			trace_t tr;
 			AngleVectors(r_refdef.viewangles, forward, right, up);
-			VectorMA(cl.simorg[pnum], -128, forward, desired_position[pnum]);
-			tr = Cam_DoTrace(cl.simorg[pnum], desired_position[pnum]);
+			VectorMA(cl.playerview[pnum].simorg, -128, forward, desired_position[pnum]);
+			tr = Cam_DoTrace(cl.playerview[pnum].simorg, desired_position[pnum]);
 			VectorCopy(tr.endpos, desired_position[pnum]);
 		}
 		else
 		{	//view from a random wall
-			if (!locked[pnum] || !Cam_IsVisible(cl.simorg[pnum], desired_position[pnum]))
+			if (!locked[pnum] || !Cam_IsVisible(cl.playerview[pnum].simorg, desired_position[pnum]))
 			{
 				if (!locked[pnum] || realtime - cam_lastviewtime[pnum] > 0.1)
 				{
-					if (!InitFlyby(pnum, desired_position[pnum], cl.simorg[pnum], cl.simangles[pnum], true))
-						InitFlyby(pnum, desired_position[pnum], cl.simorg[pnum], cl.simangles[pnum], false);
+					if (!InitFlyby(pnum, desired_position[pnum], cl.playerview[pnum].simorg, cl.playerview[pnum].simangles, true))
+						InitFlyby(pnum, desired_position[pnum], cl.playerview[pnum].simorg, cl.playerview[pnum].simangles, false);
 					cam_lastviewtime[pnum] = realtime;
 				}
 			}
@@ -408,7 +408,7 @@ void Cam_SelfTrack(int pnum)
 		// move there locally immediately
 		VectorCopy(desired_position[pnum], r_refdef.vieworg);
 
-		VectorSubtract(cl.simorg[pnum], desired_position[pnum], vec);
+		VectorSubtract(cl.playerview[pnum].simorg, desired_position[pnum], vec);
 		VectorAngles(vec, NULL, r_refdef.viewangles);
 		r_refdef.viewangles[0] = -r_refdef.viewangles[0];
 	}
@@ -474,7 +474,7 @@ void Cam_Track(int pnum, usercmd_t *cmd)
 
 		cmd->forwardmove = cmd->sidemove = cmd->upmove = 0;
 
-		VectorCopy(player->viewangles, cl.viewangles[pnum]);
+		VectorCopy(player->viewangles, cl.playerview[pnum].viewangles);
 		if (memcmp(player->origin, &self->origin, sizeof(player->origin)) != 0)
 		{
 			if (!cls.demoplayback)
@@ -509,8 +509,8 @@ void Cam_Track(int pnum, usercmd_t *cmd)
 	VectorCopy(desired_position[pnum], self->origin);
 
 	VectorSubtract(player->origin, desired_position[pnum], vec);
-	VectorAngles(vec, NULL, cl.viewangles[pnum]);
-	cl.viewangles[pnum][0] = -cl.viewangles[pnum][0];
+	VectorAngles(vec, NULL, cl.playerview[pnum].viewangles);
+	cl.playerview[pnum].viewangles[0] = -cl.playerview[pnum].viewangles[0];
 }
 
 void Cam_SetAutoTrack(int userid)
@@ -575,7 +575,7 @@ void Cam_FinishMove(int pnum, usercmd_t *cmd)
 			if (autocam[pnum] > CAM_TRACK) 
 			{
 				Cam_Unlock(pnum);
-				VectorCopy(cl.viewangles[pnum], cmd->angles);
+				VectorCopy(cl.playerview[pnum].viewangles, cmd->angles);
 				return;
 			}
 		}

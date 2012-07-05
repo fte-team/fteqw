@@ -498,6 +498,8 @@ void GLDraw_DeInit (void)
 {
 	Cmd_RemoveCommand ("r_imagelist");
 
+	R2D_Shutdown();
+
 	if (font_conchar)
 		Font_Free(font_conchar);
 	font_conchar = NULL; 

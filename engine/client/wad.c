@@ -59,6 +59,12 @@ void W_CleanupName (const char *in, char *out)
 }
 
 
+void W_Shutdown (void)
+{
+	if (wad_base)
+		Z_Free(wad_base);
+	wad_base = NULL;
+}
 
 /*
 ====================
@@ -110,7 +116,6 @@ void W_LoadWadFile (char *filename)
 			SwapPic ( (qpic_t *)(wad_base + lump_p->filepos));
 	}
 }
-
 
 /*
 =============
@@ -380,7 +385,7 @@ qbyte *W_ConvertWAD3Texture(miptex_t *tex, int *width, int *height, qboolean *us
 		alpha = 2;
 
 //use malloc here if you want, but you'll have to free it again... NUR!
-	data = out = Hunk_TempAllocMore(tex->width * tex->height * 4);
+	data = out = BZ_Malloc(tex->width * tex->height * 4);
 
 	if (!data)
 		return NULL;
@@ -467,7 +472,7 @@ qbyte *W_GetTexture(char *name, int *width, int *height, qboolean *usesalpha)//r
 			for (j = 0;j < MIPLEVELS;j++)
 				tex->offsets[j] = LittleLong(tex->offsets[j]);
 
-			data = W_ConvertWAD3Texture(tex, width, height, usesalpha);	//this will add to the temp
+			data = W_ConvertWAD3Texture(tex, width, height, usesalpha);
 			BZ_Free(tex);
 			return data;
 		}

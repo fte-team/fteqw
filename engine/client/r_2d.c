@@ -81,6 +81,19 @@ qbyte GetPaletteIndex(int red, int green, int blue)
 	}
 }
 
+void R2D_Shutdown(void)
+{
+	Cvar_Unhook(&gl_font);
+	Cvar_Unhook(&vid_conautoscale);
+	Cvar_Unhook(&gl_screenangle);
+	Cvar_Unhook(&vid_conheight);
+	Cvar_Unhook(&vid_conwidth);
+
+	Cvar_Unhook(&crosshair);
+	Cvar_Unhook(&crosshairimage);
+	Cvar_Unhook(&crosshaircolor);
+}
+
 /*
 Iniitalise the 2d rendering functions (including font).
 Image loading code must be ready for use at this point.

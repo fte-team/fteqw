@@ -1450,7 +1450,7 @@ static void QCC_RemapLockedTemp(temp_t *t, int firststatement, int laststatement
 	newofs = 0;
 	for (i = firststatement, st = &statements[i]; i < laststatement; i++, st++)
 	{
-		if (pr_opcodes[st->op].type_a && st->a == t->ofs)
+		if (pr_opcodes[st->op].type_a && st->a >= t->ofs && st->a < t->ofs + t->size)
 		{
 			if (!newofs)
 			{
@@ -1467,9 +1467,9 @@ static void QCC_RemapLockedTemp(temp_t *t, int firststatement, int laststatement
 #endif
 				pr.localvars = def;
 			}
-			st->a = newofs;
+			st->a = st->a - t->ofs + newofs;
 		}
-		if (pr_opcodes[st->op].type_b && st->b == t->ofs)
+		if (pr_opcodes[st->op].type_b && st->b >= t->ofs && st->b < t->ofs + t->size)
 		{
 			if (!newofs)
 			{
@@ -1486,9 +1486,9 @@ static void QCC_RemapLockedTemp(temp_t *t, int firststatement, int laststatement
 #endif
 				pr.localvars = def;
 			}
-			st->b = newofs;
+			st->b = st->b - t->ofs + newofs;
 		}
-		if (pr_opcodes[st->op].type_c && st->c == t->ofs)
+		if (pr_opcodes[st->op].type_c && st->c >= t->ofs && st->c < t->ofs + t->size)
 		{
 			if (!newofs)
 			{
@@ -1505,7 +1505,7 @@ static void QCC_RemapLockedTemp(temp_t *t, int firststatement, int laststatement
 #endif
 				pr.localvars = def;
 			}
-			st->c = newofs;
+			st->c = st->c - t->ofs + newofs;
 		}
 	}
 }
@@ -4259,7 +4259,8 @@ QCC_def_t *QCC_PR_ParseArrayPointer (QCC_def_t *d, pbool allowarrayassign)
 	{
 		allowarray = false;
 		if (idx)
-			allowarray = t->arraysize>0;
+			allowarray = t->arraysize>0 ||
+						(t->type == ev_vector);
 		else if (!idx)
 		{
 			allowarray = d->arraysize ||
@@ -4285,7 +4286,7 @@ QCC_def_t *QCC_PR_ParseArrayPointer (QCC_def_t *d, pbool allowarrayassign)
 			{
 				/*automatic runtime bounds checks on strings, I'm not going to check this too much...*/
 			}
-			else if (!idx && d->type->type == ev_vector && !d->arraysize)
+			else if ((!idx && d->type->type == ev_vector && !d->arraysize) || (idx && t->type == ev_vector && !t->arraysize))
 			{
 				if (tmp->constant)
 				{
@@ -4297,7 +4298,7 @@ QCC_def_t *QCC_PR_ParseArrayPointer (QCC_def_t *d, pbool allowarrayassign)
 					if (i < 0 || i >= 3)
 						QCC_PR_ParseErrorPrintDef(0, d, "(vector) array index out of bounds");
 				}
-				else if (QCC_OPCodeValid(&pr_opcodes[OP_LOADA_F]))
+				else if (QCC_OPCodeValid(&pr_opcodes[OP_BOUNDCHECK]))
 				{
 					tmp = QCC_SupplyConversion(tmp, ev_integer, true);
 					QCC_PR_SimpleStatement (OP_BOUNDCHECK, tmp->ofs, 3, 0, false);
@@ -4320,13 +4321,14 @@ QCC_def_t *QCC_PR_ParseArrayPointer (QCC_def_t *d, pbool allowarrayassign)
 			}
 			else
 			{
-				if (QCC_OPCodeValid(&pr_opcodes[OP_LOADA_F]))
+				if (QCC_OPCodeValid(&pr_opcodes[OP_BOUNDCHECK]))
 				{
 					tmp = QCC_SupplyConversion(tmp, ev_integer, true);
 					QCC_PR_SimpleStatement (OP_BOUNDCHECK, tmp->ofs, ((!idx)?d->arraysize:t->arraysize), 0, false);
 				}
 			}
-			if (t->size != 1 && (idx || QCC_OPCodeValid(&pr_opcodes[OP_LOADA_F]))) /*don't multiply by type size if the instruction/emulation will do that instead*/
+
+			if (t->size != 1) /*don't multiply by type size if the instruction/emulation will do that instead*/
 			{
 				if (tmp->type->type == ev_float)
 					tmp = QCC_PR_Statement(&pr_opcodes[OP_MUL_F], tmp, QCC_MakeFloatConst(t->size), NULL);
@@ -4335,7 +4337,9 @@ QCC_def_t *QCC_PR_ParseArrayPointer (QCC_def_t *d, pbool allowarrayassign)
 			}
 
 			/*calc the new index*/
-			if (idx)
+			if (idx && idx->type->type == ev_float && tmp->type->type == ev_float)
+				idx = QCC_PR_Statement(&pr_opcodes[OP_ADD_F], idx, QCC_SupplyConversion(tmp, ev_float, true), NULL);
+			else if (idx)
 				idx = QCC_PR_Statement(&pr_opcodes[OP_ADD_I], idx, QCC_SupplyConversion(tmp, ev_integer, true), NULL);
 			else
 				idx = tmp;
@@ -4356,11 +4360,22 @@ QCC_def_t *QCC_PR_ParseArrayPointer (QCC_def_t *d, pbool allowarrayassign)
 			if (!t)
 				QCC_PR_ParseError(0, "%s is not a member", pr_token);
 
-			tmp = QCC_MakeIntConst(t->ofs);
-			if (idx)
-				idx = QCC_PR_Statement(&pr_opcodes[OP_ADD_I], idx, tmp, NULL);
+			if (QCC_OPCodeValid(&pr_opcodes[OP_ADD_I]))
+			{
+				tmp = QCC_MakeIntConst(t->ofs);
+				if (idx)
+					idx = QCC_PR_Statement(&pr_opcodes[OP_ADD_I], idx, tmp, NULL);
+				else
+					idx = tmp;
+			}
 			else
-				idx = tmp;
+			{
+				tmp = QCC_MakeFloatConst(t->ofs);
+				if (idx)
+					idx = QCC_PR_Statement(&pr_opcodes[OP_ADD_F], idx, tmp, NULL);
+				else
+					idx = tmp;
+			}
 		}
 		else
 			break;
@@ -4479,7 +4494,7 @@ QCC_def_t *QCC_PR_ParseArrayPointer (QCC_def_t *d, pbool allowarrayassign)
 			funcretr = QCC_PR_GetDef(type_function, qcva("ArraySet*%s", d->name), NULL, true, 0, false);
 
 			rhs = QCC_PR_Expression(TOP_PRIORITY, 0);
-			if (rhs->type->type != d->type->type)
+			if (rhs->type->type != t->type)
 				QCC_PR_ParseErrorPrintDef(ERR_TYPEMISMATCH, d, "Type Mismatch on array assignment");
 
 			args[0] = QCC_SupplyConversion(idx, ev_float, true);
@@ -4536,12 +4551,55 @@ QCC_def_t *QCC_PR_ParseArrayPointer (QCC_def_t *d, pbool allowarrayassign)
 			d->references++;
 
 			/*make sure the function type that we're calling exists*/
-			def_parms[0].type = type_float;
-			funcretr = QCC_PR_GetDef(type_function, qcva("ArrayGet*%s", d->name), NULL, true, 0, false);
 
-			args[0] = QCC_SupplyConversion(idx, ev_float, true);
-			d = QCC_PR_GenerateFunctionCall(funcretr, args, 1);
-			d->type = t;
+			if (d->type->type == ev_vector)
+			{
+				def_parms[0].type = type_vector;
+				funcretr = QCC_PR_GetDef(type_function, qcva("ArrayGet*%s", d->name), NULL, true, 0, false);
+
+				args[0] = QCC_SupplyConversion(idx, ev_float, true);
+				d = QCC_PR_GenerateFunctionCall(funcretr, args, 1);
+				d->type = t;
+			}
+			else
+			{
+				def_parms[0].type = type_float;
+				funcretr = QCC_PR_GetDef(type_function, qcva("ArrayGet*%s", d->name), NULL, true, 0, false);
+
+				if (t->size > 1)
+				{
+					QCC_def_t *r;
+					unsigned int i;
+					int old_op = opt_assignments;
+					d = QCC_GetTemp(t);
+					idx = QCC_SupplyConversion(idx, ev_float, true);
+
+					for (i = 0; i < t->size; i++)
+					{
+						if (i)
+							args[0] = QCC_PR_Statement(&pr_opcodes[OP_ADD_F], idx, QCC_MakeFloatConst(i), (QCC_dstatement_t **)0xffffffff);
+						else
+						{
+							args[0] = idx;
+							opt_assignments = false;
+						}
+						r = QCC_PR_GenerateFunctionCall(funcretr, args, 1);
+						opt_assignments = old_op;
+						QCC_UnFreeTemp(idx);
+						QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], r, d, (QCC_dstatement_t **)0xffffffff));
+						d->ofs++;
+					}
+					QCC_FreeTemp(idx);
+					d->ofs -= i;
+					QCC_UnFreeTemp(d);
+				}
+				else
+				{
+					args[0] = QCC_SupplyConversion(idx, ev_float, true);
+					d = QCC_PR_GenerateFunctionCall(funcretr, args, 1);
+				}
+				d->type = t;
+			}
 		}
 
 		/*parse recursively*/
@@ -7582,6 +7640,13 @@ void QCC_PR_ArrayRecurseDivideRegular(QCC_def_t *array, QCC_def_t *index, int mi
 {
 	QCC_dstatement_t *st;
 	QCC_def_t *eq;
+	int stride;
+
+	if (array->type->type == ev_vector)
+		stride = 3;
+	else
+		stride = 1;	//struct arrays should be 1, so that every element can be accessed...
+
 	if (min == max || min+1 == max)
 	{
 		eq = QCC_PR_Statement(pr_opcodes+OP_LT_F, index, QCC_MakeFloatConst(min+0.5f), NULL);
@@ -7589,7 +7654,7 @@ void QCC_PR_ArrayRecurseDivideRegular(QCC_def_t *array, QCC_def_t *index, int mi
 		QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT_I, eq, 0, &st));
 		st->b = 2;
 		QCC_PR_Statement(pr_opcodes+OP_RETURN, 0, 0, &st);
-		st->a = array->ofs + min*array->type->size;
+		st->a = array->ofs + min*stride;
 	}
 	else
 	{
@@ -7650,6 +7715,12 @@ QCC_def_t *QCC_PR_EmitArrayGetVector(QCC_def_t *array)
 	QCC_dfunction_t *df;
 	QCC_def_t *temp, *index, *func;
 
+	int numslots;
+
+	//array shouldn't ever be a vector array
+	numslots = array->arraysize*array->type->size;
+	numslots = (numslots+2)/3;
+
 	func = QCC_PR_GetDef(type_function, qcva("ArrayGetVec*%s", array->name), NULL, true, 0, false);
 
 	pr_scope = func;
@@ -7674,7 +7745,7 @@ QCC_def_t *QCC_PR_EmitArrayGetVector(QCC_def_t *array)
 	QCC_PR_Statement3(pr_opcodes+OP_DIV_F, index, QCC_MakeFloatConst(3), temp, false);
 	QCC_PR_Statement3(pr_opcodes+OP_BITAND_F, temp, temp, temp, false);//round down to int
 
-	QCC_PR_ArrayRecurseDivideUsingVectors(array, temp, 0, (array->arraysize+2)/3);	//round up
+	QCC_PR_ArrayRecurseDivideUsingVectors(array, temp, 0, numslots);
 
 	QCC_PR_Statement(pr_opcodes+OP_RETURN, QCC_MakeFloatConst(0), 0, NULL);	//err... we didn't find it, give up.
 	QCC_PR_Statement(pr_opcodes+OP_DONE, 0, 0, NULL);	//err... we didn't find it, give up.
@@ -7694,6 +7765,7 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, char *arrayname)
 	QCC_def_t *eq;
 
 	QCC_def_t *fasttrackpossible;
+	int numslots;
 
 	if (flag_fasttrackarrays)
 		fasttrackpossible = QCC_PR_GetDef(type_float, "__ext__fasttrackarrays", NULL, true, 0, false);
@@ -7702,10 +7774,13 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, char *arrayname)
 
 	def = QCC_PR_GetDef(NULL, arrayname, NULL, false, 0, false);
 
-	if (def->arraysize >= 15 && def->type->size == 1)
-	{
+	if (def->type->type == ev_vector)
+		numslots = def->arraysize;
+	else
+		numslots = def->arraysize*def->type->size;
+
+	if (numslots >= 15 && def->type->type != ev_vector)
 		vectortrick = QCC_PR_EmitArrayGetVector(def);
-	}
 	else
 		vectortrick = NULL;
 
@@ -7733,7 +7808,7 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, char *arrayname)
 		//fetch_gbl takes: (float size, variant array[]), float index, variant pos
 		//note that the array size is coded into the globals, one index before the array.
 
-		if (def->type->size >= 3)
+		if (def->type->type == ev_vector)
 			QCC_PR_Statement3(&pr_opcodes[OP_FETCH_GBL_V], def, index, &def_ret, true);
 		else
 			QCC_PR_Statement3(&pr_opcodes[OP_FETCH_GBL_F], def, index, &def_ret, true);
@@ -7755,7 +7830,7 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, char *arrayname)
 		div3 = QCC_PR_GetDef(type_float, "div3___", def, true, 0, false);
 		intdiv3 = QCC_PR_GetDef(type_float, "intdiv3___", def, true, 0, false);
 
-		eq = QCC_PR_Statement(pr_opcodes+OP_GE_F, index, QCC_MakeFloatConst((float)def->arraysize), NULL);	//escape clause - should call some sort of error function instead.. that'd rule!
+		eq = QCC_PR_Statement(pr_opcodes+OP_GE_F, index, QCC_MakeFloatConst((float)numslots), NULL);	//escape clause - should call some sort of error function instead.. that'd rule!
 		QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT_I, eq, 0, &st));
 		st->b = 2;
 		QCC_PR_Statement(pr_opcodes+OP_RETURN, QCC_MakeFloatConst(0), 0, &st);
@@ -7800,7 +7875,7 @@ void QCC_PR_EmitArrayGetFunction(QCC_def_t *scope, char *arrayname)
 	else
 	{
 		QCC_PR_Statement3(pr_opcodes+OP_BITAND_F, index, index, index, false);
-		QCC_PR_ArrayRecurseDivideRegular(def, index, 0, def->arraysize);
+		QCC_PR_ArrayRecurseDivideRegular(def, index, 0, numslots);
 	}
 
 	QCC_PR_Statement(pr_opcodes+OP_RETURN, QCC_MakeFloatConst(0), 0, NULL);
@@ -7820,17 +7895,24 @@ void QCC_PR_ArraySetRecurseDivide(QCC_def_t *array, QCC_def_t *index, QCC_def_t 
 {
 	QCC_dstatement_t *st;
 	QCC_def_t *eq;
+	int stride;
+
+	if (array->type->type == ev_vector)
+		stride = 3;
+	else
+		stride = 1;	//struct arrays should be 1, so that every element can be accessed...
+
 	if (min == max || min+1 == max)
 	{
 		eq = QCC_PR_Statement(pr_opcodes+OP_EQ_F, index, QCC_MakeFloatConst((float)min), NULL);
 		QCC_UnFreeTemp(index);
 		QCC_FreeTemp(QCC_PR_Statement(pr_opcodes+OP_IFNOT_I, eq, 0, &st));
 		st->b = 3;
-		if (array->type->size == 3)
+		if (stride == 3)
 			QCC_PR_Statement(pr_opcodes+OP_STORE_V, value, array, &st);
 		else
 			QCC_PR_Statement(pr_opcodes+OP_STORE_F, value, array, &st);
-		st->b = array->ofs + min*array->type->size;
+		st->b = array->ofs + min*stride;
 		QCC_PR_Statement(pr_opcodes+OP_RETURN, 0, 0, &st);
 	}
 	else
@@ -7858,6 +7940,7 @@ void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, char *arrayname)
 	QCC_def_t *def, *index, *value;
 
 	QCC_def_t *fasttrackpossible;
+	int numslots;
 
 	if (flag_fasttrackarrays)
 		fasttrackpossible = QCC_PR_GetDef(type_float, "__ext__fasttrackarrays", NULL, true, 0, false);
@@ -7866,6 +7949,11 @@ void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, char *arrayname)
 
 	def = QCC_PR_GetDef(NULL, arrayname, NULL, false, 0, false);
 	pr_scope = scope;
+
+	if (def->type->type == ev_vector)
+		numslots = def->arraysize;
+	else
+		numslots = def->arraysize*def->type->size;
 
 	if (numfunctions >= MAX_FUNCTIONS)
 		QCC_Error(ERR_INTERNAL, "Too many function defs");
@@ -7910,7 +7998,7 @@ void QCC_PR_EmitArraySetFunction(QCC_def_t *scope, char *arrayname)
 	}
 
 	QCC_PR_Statement3(pr_opcodes+OP_BITAND_F, index, index, index, false);
-	QCC_PR_ArraySetRecurseDivide(def, index, value, 0, def->arraysize);
+	QCC_PR_ArraySetRecurseDivide(def, index, value, 0, numslots);
 
 	QCC_PR_Statement(pr_opcodes+OP_DONE, 0, 0, NULL);
 
@@ -8278,7 +8366,12 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, char *name, QCC_def_t *scope, pbool 
 	{	//write the array size
 		ofs = QCC_GetFreeOffsetSpace(1 + (type->size	* arraysize));
 
-		((int *)qcc_pr_globals)[ofs] = arraysize-1;	//An array needs the size written first. This is a hexen2 opcode thing.
+		//An array needs the size written first. This is a hexen2 opcode thing.
+		//note that for struct emulation, union and struct arrays, the size is the total size of global slots, rather than array elements
+		if (type->type == ev_vector)
+			((int *)qcc_pr_globals)[ofs] = arraysize-1;
+		else
+			((int *)qcc_pr_globals)[ofs] = (arraysize*type->size)-1;
 		ofs++;
 	}
 	else

@@ -1119,15 +1119,11 @@ void CL_ClearState (void)
 
 	rtlights_first = rtlights_max = RTL_FIRST;
 
-	if (cl_baselines)
-	{
-		BZ_Free(cl_baselines);
-		cl_baselines = NULL;
-	}
-	cl_baselines_count = 0;
-
 	for (i = 0; i < MAX_SPLITS; i++)
+	{
+		VectorSet(cl.playerview[i].gravitydir, 0, 0, -1);
 		cl.viewheight[i] = DEFAULT_VIEWHEIGHT;
+	}
 	cl.minpitch = -70;
 	cl.maxpitch = 80;
 
@@ -1230,34 +1226,7 @@ void CL_Disconnect (void)
 		cl.worldmodel = NULL;
 	}
 
-	if (cls.downloadmethod <= DL_QWPENDING)
-		cls.downloadmethod = DL_NONE;
-	if (cls.downloadqw)
-	{
-		VFS_CLOSE(cls.downloadqw);
-		cls.downloadqw = NULL;
-	}
-	if (!cls.downloadmethod)
-	{
-		*cls.downloadlocalname = '\0';
-		*cls.downloadremotename = '\0';
-	}
-
-	{
-		downloadlist_t *next;
-		while(cl.downloadlist)
-		{
-			next = cl.downloadlist->next;
-			Z_Free(cl.downloadlist);
-			cl.downloadlist = next;
-		}
-		while(cl.faileddownloads)
-		{
-			next = cl.faileddownloads->next;
-			Z_Free(cl.faileddownloads);
-			cl.faileddownloads = next;
-		}
-	}
+	CL_Parse_Disconnected();
 
 	COM_FlushTempoaryPacks();
 
@@ -1294,6 +1263,8 @@ void CL_Disconnect (void)
 #endif
 
 	Cvar_ForceSet(&cl_servername, "none");
+
+	CL_ClearState();
 }
 
 #undef serverrunning
@@ -3665,9 +3636,9 @@ double Host_Frame (double time)
 
 		SCR_UpdateScreen ();
 		if (cls.state >= ca_active && r_viewleaf)
-			SNDDMA_SetUnderWater(r_viewleaf->contents <= Q1CONTENTS_WATER);
+			S_SetUnderWater(r_viewleaf->contents <= Q1CONTENTS_WATER);
 		else
-			SNDDMA_SetUnderWater(false);
+			S_SetUnderWater(false);
 	}
 
 	if (host_speeds.ival)
@@ -4015,6 +3986,8 @@ void Host_Shutdown(void)
 	}
 	host_initialized = false;
 
+	Plug_Shutdown();
+
 	//disconnect server/client/etc
 	CL_Disconnect_f();
 	//Kill renderer
@@ -4037,12 +4010,12 @@ void Host_Shutdown(void)
 #else
 	NET_Shutdown ();
 #endif
-	FS_Shutdown();
 
 	Cvar_Shutdown();
 	Validation_FlushFileList();
 
 	Cmd_Shutdown();
+	Key_Unbindall_f();
 	Con_Shutdown();
 	Memory_DeInit();
 
@@ -4051,6 +4024,8 @@ void Host_Shutdown(void)
 	memset(&svs, 0, sizeof(svs));
 #endif
 	Sys_Shutdown();
+
+	FS_Shutdown();
 }
 
 #ifdef CLIENTONLY

@@ -1,7 +1,9 @@
 package com.fteqw;
 
+import javax.microedition.khronos.egl.EGLContext;
+import javax.microedition.khronos.egl.EGLDisplay;
 import javax.microedition.khronos.egl.EGLConfig;
-//import javax.microedition.khronos.egl.EGL10;
+import javax.microedition.khronos.egl.EGL10;
 import javax.microedition.khronos.opengles.GL10;
 
 import android.app.Activity;
@@ -26,6 +28,8 @@ import android.os.Environment;
 
 public class FTEDroidActivity extends Activity
 {
+	private static final int USE_GLES_VERSION = 1;  //valid values: 1 or 2. If set to 2, it'll still fall back to 1 if gles2 isn't supported on this device.
+
 	private SensorManager sensorman;
 	private Sensor sensoracc;
 	private FTEView view;
@@ -34,6 +38,7 @@ public class FTEDroidActivity extends Activity
 	private class FTERenderer implements GLSurfaceView.Renderer 
 	{
 		private boolean inited;
+		public int glesversion;
 		private String basedir, userdir;
 		FTEDroidActivity act;
 		
@@ -51,7 +56,7 @@ public class FTEDroidActivity extends Activity
 			}
 //			try
 //			{
-				userdir = Environment.getExternalStorageDirectory().getPath();
+				userdir = Environment.getExternalStorageDirectory().getPath() + "/fte";
 //			}
 //			catch(foo)
 //			{
@@ -73,7 +78,7 @@ public class FTEDroidActivity extends Activity
 		public void onSurfaceChanged(GL10 gl, int width, int height)
 		{
 			android.util.Log.i("FTEDroid", "Surface changed, now " + width + " by " + height + ".");
-			FTEDroidEngine.init(width, height, basedir, userdir);
+			FTEDroidEngine.init(width, height, glesversion, basedir, userdir);
 			inited = true;
 		}
 		@Override
@@ -81,32 +86,94 @@ public class FTEDroidActivity extends Activity
 		{
 		}
 	}
-/*
+
 	private class FTEEGLConfig implements GLSurfaceView.EGLConfigChooser
 	{
+		public void setversion(FTEView view, int version)
+		{
+			view.setEGLContextClientVersion(version);
+		}
+		public boolean CheckGLES2Support()
+		{
+			EGL10 egl = (EGL10) EGLContext.getEGL();       
+			EGLDisplay display = egl.eglGetDisplay(EGL10.EGL_DEFAULT_DISPLAY);
+			EGLConfig cfg;
+			
+			int[] version = new int[2];
+			egl.eglInitialize(display, version);
+
+			cfg = chooseConfig(egl, display);
+			
+			int[] value = {0};
+			egl.eglGetConfigAttrib(display, cfg, EGL10.EGL_RENDERABLE_TYPE, value);
+			egl.eglTerminate(display);
+			return ((value[0] & 4) == 4);
+		}
+		
 		@Override
-		public EGLConfig chooseConfig (javax.microedition.khronos.egl.EGL10 egl, javax.microedition.khronos.egl.EGLDisplay display)
+		public EGLConfig chooseConfig (EGL10 egl, EGLDisplay display)
 		{
 			int EGL_CONTEXT_CLIENT_VERSION = 0x3098;
-			EGLConfig[] cfg = new EGLConfig[1];
+			EGLConfig[] cfg = new EGLConfig[64];
 			int[] num_configs = {0};
+			int[] value = {0};
+			int i;
 			int[] attribs =
 				{
-					EGL_CONTEXT_CLIENT_VERSION,	2,
-					egl.EGL_SURFACE_TYPE,		egl.EGL_WINDOW_BIT,
+					egl.EGL_RENDERABLE_TYPE,	4/*egl.EGL_OPENGL_ES2_BIT*/,
+//					egl.EGL_SURFACE_TYPE,		egl.EGL_WINDOW_BIT,
 					egl.EGL_BLUE_SIZE,		5,
 					egl.EGL_GREEN_SIZE,		6,
 					egl.EGL_RED_SIZE,			5,
 					egl.EGL_DEPTH_SIZE,		16,
-					egl.EGL_STENCIL_SIZE, 		8,
+//					egl.EGL_STENCIL_SIZE, 		8,
 					egl.EGL_NONE,			egl.EGL_NONE
 				};
 
-			egl.eglChooseConfig(display, attribs, cfg, 1, num_configs);
+			if (!egl.eglChooseConfig(display, attribs, cfg, 64, num_configs))
+				throw new IllegalArgumentException("eglChooseConfig failed");
+				
+			if (num_configs[0] == 0)
+			{
+				attribs[1] = 1;	//egl.EGL_RENDERABLE_TYPE,	1/*egl.EGL_OPENGL_ES_BIT*/,
+				if (!egl.eglChooseConfig(display, attribs, cfg, 64, num_configs))
+					throw new IllegalArgumentException("eglChooseConfig failed");
+					
+				if (num_configs[0] == 0)
+				{
+					throw new IllegalArgumentException("eglChooseConfig didn't report any valid configs");
+				}
+			}
+				
+			android.util.Log.i("FTEDroid", "Found " + num_configs[0] + " EGL configs.");
+			
+			for (i = 0; i < num_configs[0]; i++)
+			{
+				android.util.Log.i("FTEDroid", "Config " + i + ":");
+				egl.eglGetConfigAttrib(display, cfg[i], egl.EGL_RED_SIZE, value);
+				android.util.Log.i("FTEDroid", "EGL_RED_SIZE " + value[0]);
+				egl.eglGetConfigAttrib(display, cfg[i], egl.EGL_GREEN_SIZE, value);
+				android.util.Log.i("FTEDroid", "EGL_GREEN_SIZE " + value[0]);
+				egl.eglGetConfigAttrib(display, cfg[i], egl.EGL_BLUE_SIZE, value);
+				android.util.Log.i("FTEDroid", "EGL_BLUE_SIZE " + value[0]);
+				egl.eglGetConfigAttrib(display, cfg[i], egl.EGL_DEPTH_SIZE, value);
+				android.util.Log.i("FTEDroid", "EGL_DEPTH_SIZE " + value[0]);
+				egl.eglGetConfigAttrib(display, cfg[i], egl.EGL_STENCIL_SIZE, value);
+				android.util.Log.i("FTEDroid", "EGL_STENCIL_SIZE " + value[0]);
+				
+				egl.eglGetConfigAttrib(display, cfg[i], egl.EGL_RENDERABLE_TYPE, value);
+				android.util.Log.i("FTEDroid", "EGL_RENDERABLE_TYPE " + value[0]);
+				
+				if ((value[0] & 4) == 4)
+				{
+					android.util.Log.i("FTEDroid", "Found a GLES2 context!");
+					return cfg[i];
+				}
+			}
 			return cfg[0];
 		}
 	}
-*/
+
 	private class FTEView extends GLSurfaceView implements SensorEventListener
 	{
 		private final FTERenderer rndr;
@@ -260,7 +327,35 @@ public class FTEDroidActivity extends Activity
 				inputevent = new FTELegacyInputEvent();
 
 			rndr = new FTERenderer(context, context);
-//			setEGLConfigChooser(new FTEEGLConfig());
+			
+			if (USE_GLES_VERSION < 2)
+			{
+				android.util.Log.i("FTEDroid", "GLES2 disabled at game compile time");
+				rndr.glesversion = 1;
+			}
+			else if (android.os.Build.VERSION.SDK_INT >= 8)	//could be 5 with setEGLContextFactory instead of setEGLContextClientVersion
+			{
+				FTEEGLConfig cfgchooser = new FTEEGLConfig();
+				setEGLConfigChooser(cfgchooser);
+				
+				if (cfgchooser.CheckGLES2Support())
+				{
+					android.util.Log.i("FTEDroid", "Support for GLES2 detected");
+					rndr.glesversion = 2;
+					cfgchooser.setversion(this, rndr.glesversion);
+				}
+				else
+				{
+					android.util.Log.i("FTEDroid", "GLES2 not supported. Using GLES1.");
+					rndr.glesversion = 1;
+				}
+			}
+			else
+			{
+				android.util.Log.i("FTEDroid", "GLES2 requires android 2.2+");
+				rndr.glesversion = 1;
+			}
+				
 			setRenderer(rndr);
 			setFocusable(true);
 			setFocusableInTouchMode(true);
@@ -372,7 +467,7 @@ public class FTEDroidActivity extends Activity
 
 		if (runningintheemulator())
 		{
-			android.util.Log.i("FTEDroid", "emulator detected - skipping sensors to avoid emulator hangs");
+			android.util.Log.i("FTEDroid", "emulator detected - skipping sensors to avoid emulator bugs");
 			sensorman = null;
 		}
 		else

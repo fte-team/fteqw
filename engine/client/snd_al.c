@@ -658,7 +658,7 @@ static int OpenAL_InitCard(soundcardinfo_t *sc, int cardnum)
 	sc->GetDMAPos = OpenAL_GetDMAPos;
 	sc->ChannelUpdate = OpenAL_ChannelUpdate;
 
-	snprintf(sc->name, sizeof(sc->name), "OpenAL device");
+	Q_snprintfz(sc->name, sizeof(sc->name), "OpenAL device");
 
 	sc->openal = 1;
 	sc->inactive_sound = true;

@@ -406,7 +406,7 @@ void Sbar_ExecuteLayoutString (char *s)
 			s = COM_Parse (s);
 			time = atoi(com_token);
 
-//			DrawAltString (x+32, y, ci->name);
+			Draw_AltFunString (x+32, y, cl.players[value].name);
 			Draw_FunString (x+32, y+8,  "Score: ");
 			Draw_AltFunString (x+32+7*8, y+8,  va("%i", score));
 			Draw_FunString (x+32, y+16, va("Ping:  %i", ping));
@@ -685,7 +685,7 @@ void Sbar_Hexen2InvLeft_f(void)
 			if (sb_hexen2_cur_item[pnum] < 0)
 				sb_hexen2_cur_item[pnum] = 14;
 
-			if (cl.stats[pnum][STAT_H2_CNT_TORCH+sb_hexen2_cur_item[pnum]] > 0)
+			if (cl.playerview[pnum].stats[STAT_H2_CNT_TORCH+sb_hexen2_cur_item[pnum]] > 0)
 				break;
 		}
 	}
@@ -707,7 +707,7 @@ void Sbar_Hexen2InvRight_f(void)
 			if (sb_hexen2_cur_item[pnum] > 14)
 				sb_hexen2_cur_item[pnum] = 0;
 
-			if (cl.stats[pnum][STAT_H2_CNT_TORCH+sb_hexen2_cur_item[pnum]] > 0)
+			if (cl.playerview[pnum].stats[STAT_H2_CNT_TORCH+sb_hexen2_cur_item[pnum]] > 0)
 				break;
 		}
 	}
@@ -1432,11 +1432,12 @@ void Sbar_CoopScoreboard (void)
 	char	str[80];
 	int		minutes, seconds, tens, units;
 	int		l;
+	int pnum = 0;	//doesn't matter, should all be the same
 
-	sprintf (str,"Monsters:%3i /%3i", cl.stats[0][STAT_MONSTERS], cl.stats[0][STAT_TOTALMONSTERS]);
+	sprintf (str,"Monsters:%3i /%3i", cl.playerview[pnum].stats[STAT_MONSTERS], cl.playerview[pnum].stats[STAT_TOTALMONSTERS]);
 	Sbar_DrawString (8, 4, str);
 
-	sprintf (str,"Secrets :%3i /%3i", cl.stats[0][STAT_SECRETS], cl.stats[0][STAT_TOTALSECRETS]);
+	sprintf (str,"Secrets :%3i /%3i", cl.playerview[pnum].stats[STAT_SECRETS], cl.playerview[pnum].stats[STAT_TOTALSECRETS]);
 	Sbar_DrawString (8, 12, str);
 
 // time
@@ -1477,7 +1478,7 @@ void Sbar_DrawInventory (int pnum)
 	{
 		if (sbar_rogue)
 		{
-			if ( cl.stats[pnum][STAT_ACTIVEWEAPON] >= RIT_LAVA_NAILGUN )
+			if ( cl.playerview[pnum].stats[STAT_ACTIVEWEAPON] >= RIT_LAVA_NAILGUN )
 				Sbar_DrawPic (0, -24, 320, 24, rsb_invbar[0]);
 			else
 				Sbar_DrawPic (0, -24, 320, 24, rsb_invbar[1]);
@@ -1488,15 +1489,15 @@ void Sbar_DrawInventory (int pnum)
 // weapons
 	for (i=0 ; i<7 ; i++)
 	{
-		if (cl.stats[pnum][STAT_ITEMS] & (IT_SHOTGUN<<i) )
+		if (cl.playerview[pnum].stats[STAT_ITEMS] & (IT_SHOTGUN<<i) )
 		{
-			time = cl.item_gettime[pnum][i];
+			time = cl.playerview[pnum].item_gettime[i];
 			flashon = (int)((cl.time - time)*10);
 			if (flashon < 0)
 				flashon = 0;
 			if (flashon >= 10)
 			{
-				if ( cl.stats[pnum][STAT_ACTIVEWEAPON] == (IT_SHOTGUN<<i)  )
+				if ( cl.playerview[pnum].stats[STAT_ACTIVEWEAPON] == (IT_SHOTGUN<<i)  )
 					flashon = 1;
 				else
 					flashon = 0;
@@ -1522,11 +1523,11 @@ void Sbar_DrawInventory (int pnum)
 	if (sbar_rogue)
 	{
     // check for powered up weapon.
-		if ( cl.stats[pnum][STAT_ACTIVEWEAPON] >= RIT_LAVA_NAILGUN )
+		if ( cl.playerview[pnum].stats[STAT_ACTIVEWEAPON] >= RIT_LAVA_NAILGUN )
 		{
 			for (i=0;i<5;i++)
 			{
-				if (cl.stats[pnum][STAT_ACTIVEWEAPON] == (RIT_LAVA_NAILGUN << i))
+				if (cl.playerview[pnum].stats[STAT_ACTIVEWEAPON] == (RIT_LAVA_NAILGUN << i))
 				{
 					if (headsup)
 					{
@@ -1551,7 +1552,7 @@ void Sbar_DrawInventory (int pnum)
 	}
 	for (i=0 ; i<4 ; i++)
 	{
-		snprintf (num, sizeof(num), "%3i",cl.stats[pnum][STAT_SHELLS+i] );
+		snprintf (num, sizeof(num), "%3i",cl.playerview[pnum].stats[STAT_SHELLS+i] );
 		numc[0] = CON_WHITEMASK|0xe000|((num[0]!=' ')?(num[0] + 18-'0'):' ');
 		numc[1] = CON_WHITEMASK|0xe000|((num[1]!=' ')?(num[1] + 18-'0'):' ');
 		numc[2] = CON_WHITEMASK|0xe000|((num[2]!=' ')?(num[2] + 18-'0'):' ');
@@ -1570,9 +1571,9 @@ void Sbar_DrawInventory (int pnum)
 // items
 	for (i=0 ; i<6 ; i++)
 	{
-		if (cl.stats[pnum][STAT_ITEMS] & (1<<(17+i)))
+		if (cl.playerview[pnum].stats[STAT_ITEMS] & (1<<(17+i)))
 		{
-			time = cl.item_gettime[pnum][17+i];
+			time = cl.playerview[pnum].item_gettime[17+i];
 			if (time &&	time > cl.time - 2 && flashon )
 			{	// flash frame
 				sb_updates = 0;
@@ -1589,9 +1590,9 @@ void Sbar_DrawInventory (int pnum)
 	// new rogue items
 		for (i=0 ; i<2 ; i++)
 		{
-			if (cl.stats[pnum][STAT_ITEMS] & (1<<(29+i)))
+			if (cl.playerview[pnum].stats[STAT_ITEMS] & (1<<(29+i)))
 			{
-				time = cl.item_gettime[pnum][29+i];
+				time = cl.playerview[pnum].item_gettime[29+i];
 
 				if (time &&	time > cl.time - 2 && flashon )
 				{	// flash frame
@@ -1612,9 +1613,9 @@ void Sbar_DrawInventory (int pnum)
 	// sigils
 		for (i=0 ; i<4 ; i++)
 		{
-			if (cl.stats[pnum][STAT_ITEMS] & (1<<(28+i)))
+			if (cl.playerview[pnum].stats[STAT_ITEMS] & (1<<(28+i)))
 			{
-				time = cl.item_gettime[pnum][28+i];
+				time = cl.playerview[pnum].item_gettime[28+i];
 				if (time &&	time > cl.time - 2 && flashon )
 				{	// flash frame
 					sb_updates = 0;
@@ -1704,37 +1705,37 @@ void Sbar_DrawFace (int pnum)
 {
 	int		f, anim;
 
-	if ( (cl.stats[pnum][STAT_ITEMS] & (IT_INVISIBILITY | IT_INVULNERABILITY) )
+	if ( (cl.playerview[pnum].stats[STAT_ITEMS] & (IT_INVISIBILITY | IT_INVULNERABILITY) )
 	== (IT_INVISIBILITY | IT_INVULNERABILITY) )
 	{
 		Sbar_DrawPic (112, 0, 24, 24, sb_face_invis_invuln);
 		return;
 	}
-	if (cl.stats[pnum][STAT_ITEMS] & IT_QUAD)
+	if (cl.playerview[pnum].stats[STAT_ITEMS] & IT_QUAD)
 	{
 		Sbar_DrawPic (112, 0, 24, 24, sb_face_quad );
 		return;
 	}
-	if (cl.stats[pnum][STAT_ITEMS] & IT_INVISIBILITY)
+	if (cl.playerview[pnum].stats[STAT_ITEMS] & IT_INVISIBILITY)
 	{
 		Sbar_DrawPic (112, 0, 24, 24, sb_face_invis );
 		return;
 	}
-	if (cl.stats[pnum][STAT_ITEMS] & IT_INVULNERABILITY)
+	if (cl.playerview[pnum].stats[STAT_ITEMS] & IT_INVULNERABILITY)
 	{
 		Sbar_DrawPic (112, 0, 24, 24, sb_face_invuln);
 		return;
 	}
 
-	if (cl.stats[pnum][STAT_HEALTH] >= 100)
+	if (cl.playerview[pnum].stats[STAT_HEALTH] >= 100)
 		f = 4;
 	else
-		f = cl.stats[pnum][STAT_HEALTH] / 20;
+		f = cl.playerview[pnum].stats[STAT_HEALTH] / 20;
 
 	if (f < 0)
 		f=0;
 
-	if (cl.time <= cl.faceanimtime[pnum])
+	if (cl.time <= cl.playerview[pnum].faceanimtime)
 	{
 		anim = 1;
 		sb_updates = 0;		// make sure the anim gets drawn over
@@ -1755,7 +1756,7 @@ void Sbar_DrawNormal (int pnum)
 		Sbar_DrawPic (0, 0, 320, 24, sb_sbar);
 
 // armor
-	if (cl.stats[pnum][STAT_ITEMS] & IT_INVULNERABILITY)
+	if (cl.playerview[pnum].stats[STAT_ITEMS] & IT_INVULNERABILITY)
 	{
 		Sbar_DrawNum (24, 0, 666, 3, 1);
 		Sbar_DrawPic (0, 0, 24, 24, draw_disc);
@@ -1764,24 +1765,24 @@ void Sbar_DrawNormal (int pnum)
 	{
 		if (sbar_rogue)
 		{
-			Sbar_DrawNum (24, 0, cl.stats[pnum][STAT_ARMOR], 3,
-				cl.stats[pnum][STAT_ARMOR] <= 25);
-			if (cl.stats[pnum][STAT_ITEMS] & RIT_ARMOR3)
+			Sbar_DrawNum (24, 0, cl.playerview[pnum].stats[STAT_ARMOR], 3,
+				cl.playerview[pnum].stats[STAT_ARMOR] <= 25);
+			if (cl.playerview[pnum].stats[STAT_ITEMS] & RIT_ARMOR3)
 				Sbar_DrawPic (0, 0, 24, 24, sb_armor[2]);
-			else if (cl.stats[pnum][STAT_ITEMS] & RIT_ARMOR2)
+			else if (cl.playerview[pnum].stats[STAT_ITEMS] & RIT_ARMOR2)
 				Sbar_DrawPic (0, 0, 24, 24, sb_armor[1]);
-			else if (cl.stats[pnum][STAT_ITEMS] & RIT_ARMOR1)
+			else if (cl.playerview[pnum].stats[STAT_ITEMS] & RIT_ARMOR1)
 				Sbar_DrawPic (0, 0, 24, 24, sb_armor[0]);
 		}
 		else
 		{
-			Sbar_DrawNum (24, 0, cl.stats[pnum][STAT_ARMOR], 3,
-				cl.stats[pnum][STAT_ARMOR] <= 25);
-			if (cl.stats[pnum][STAT_ITEMS] & IT_ARMOR3)
+			Sbar_DrawNum (24, 0, cl.playerview[pnum].stats[STAT_ARMOR], 3,
+				cl.playerview[pnum].stats[STAT_ARMOR] <= 25);
+			if (cl.playerview[pnum].stats[STAT_ITEMS] & IT_ARMOR3)
 				Sbar_DrawPic (0, 0, 24, 24, sb_armor[2]);
-			else if (cl.stats[pnum][STAT_ITEMS] & IT_ARMOR2)
+			else if (cl.playerview[pnum].stats[STAT_ITEMS] & IT_ARMOR2)
 				Sbar_DrawPic (0, 0, 24, 24, sb_armor[1]);
-			else if (cl.stats[pnum][STAT_ITEMS] & IT_ARMOR1)
+			else if (cl.playerview[pnum].stats[STAT_ITEMS] & IT_ARMOR1)
 				Sbar_DrawPic (0, 0, 24, 24, sb_armor[0]);
 		}
 	}
@@ -1790,41 +1791,41 @@ void Sbar_DrawNormal (int pnum)
 	Sbar_DrawFace (pnum);
 
 // health
-	Sbar_DrawNum (136, 0, cl.stats[pnum][STAT_HEALTH], 3
-	, cl.stats[pnum][STAT_HEALTH] <= 25);
+	Sbar_DrawNum (136, 0, cl.playerview[pnum].stats[STAT_HEALTH], 3
+	, cl.playerview[pnum].stats[STAT_HEALTH] <= 25);
 
 // ammo icon
 	if (sbar_rogue)
 	{
-		if (cl.stats[pnum][STAT_ITEMS] & RIT_SHELLS)
+		if (cl.playerview[pnum].stats[STAT_ITEMS] & RIT_SHELLS)
 			Sbar_DrawPic (224, 0, 24, 24, sb_ammo[0]);
-		else if (cl.stats[pnum][STAT_ITEMS] & RIT_NAILS)
+		else if (cl.playerview[pnum].stats[STAT_ITEMS] & RIT_NAILS)
 			Sbar_DrawPic (224, 0, 24, 24, sb_ammo[1]);
-		else if (cl.stats[pnum][STAT_ITEMS] & RIT_ROCKETS)
+		else if (cl.playerview[pnum].stats[STAT_ITEMS] & RIT_ROCKETS)
 			Sbar_DrawPic (224, 0, 24, 24, sb_ammo[2]);
-		else if (cl.stats[pnum][STAT_ITEMS] & RIT_CELLS)
+		else if (cl.playerview[pnum].stats[STAT_ITEMS] & RIT_CELLS)
 			Sbar_DrawPic (224, 0, 24, 24, sb_ammo[3]);
-		else if (cl.stats[pnum][STAT_ITEMS] & RIT_LAVA_NAILS)
+		else if (cl.playerview[pnum].stats[STAT_ITEMS] & RIT_LAVA_NAILS)
 			Sbar_DrawPic (224, 0, 24, 24, rsb_ammo[0]);
-		else if (cl.stats[pnum][STAT_ITEMS] & RIT_PLASMA_AMMO)
+		else if (cl.playerview[pnum].stats[STAT_ITEMS] & RIT_PLASMA_AMMO)
 			Sbar_DrawPic (224, 0, 24, 24, rsb_ammo[1]);
-		else if (cl.stats[pnum][STAT_ITEMS] & RIT_MULTI_ROCKETS)
+		else if (cl.playerview[pnum].stats[STAT_ITEMS] & RIT_MULTI_ROCKETS)
 			Sbar_DrawPic (224, 0, 24, 24, rsb_ammo[2]);
 	}
 	else
 	{
-		if (cl.stats[pnum][STAT_ITEMS] & IT_SHELLS)
+		if (cl.playerview[pnum].stats[STAT_ITEMS] & IT_SHELLS)
 			Sbar_DrawPic (224, 0, 24, 24, sb_ammo[0]);
-		else if (cl.stats[pnum][STAT_ITEMS] & IT_NAILS)
+		else if (cl.playerview[pnum].stats[STAT_ITEMS] & IT_NAILS)
 			Sbar_DrawPic (224, 0, 24, 24, sb_ammo[1]);
-		else if (cl.stats[pnum][STAT_ITEMS] & IT_ROCKETS)
+		else if (cl.playerview[pnum].stats[STAT_ITEMS] & IT_ROCKETS)
 			Sbar_DrawPic (224, 0, 24, 24, sb_ammo[2]);
-		else if (cl.stats[pnum][STAT_ITEMS] & IT_CELLS)
+		else if (cl.playerview[pnum].stats[STAT_ITEMS] & IT_CELLS)
 			Sbar_DrawPic (224, 0, 24, 24, sb_ammo[3]);
 	}
 
-	Sbar_DrawNum (248, 0, cl.stats[pnum][STAT_AMMO], 3
-	, cl.stats[pnum][STAT_AMMO] <= 10);
+	Sbar_DrawNum (248, 0, cl.playerview[pnum].stats[STAT_AMMO], 3
+	, cl.playerview[pnum].stats[STAT_AMMO] <= 10);
 }
 
 qboolean Sbar_ShouldDraw (void)
@@ -1874,7 +1875,7 @@ void Sbar_DrawScoreboard (void)
 
 	for (pnum = 0; pnum < cl.splitclients; pnum++)
 	{
-		if (cl.stats[pnum][STAT_HEALTH] <= 0)
+		if (cl.playerview[pnum].stats[STAT_HEALTH] <= 0)
 			deadcount++;
 	}
 
@@ -1901,7 +1902,7 @@ void Sbar_Hexen2DrawItem(int pnum, int x, int y, int itemnum)
 	int num;
 	Sbar_DrawPic(x, y, 29, 28, R2D_SafeCachePic(va("gfx/arti%02d.lmp", itemnum)));
 
-	num = cl.stats[pnum][STAT_H2_CNT_TORCH+itemnum];
+	num = cl.playerview[pnum].stats[STAT_H2_CNT_TORCH+itemnum];
 	if(num > 0)
 	{
 		if (num >= 10)
@@ -1920,7 +1921,7 @@ void Sbar_Hexen2DrawInventory(int pnum)
 	/*always select an artifact that we actually have whether we are drawing the full bar or not.*/
 	for (i = 0; i < 15; i++)
 	{
-		if (cl.stats[pnum][STAT_H2_CNT_TORCH+(i+sb_hexen2_cur_item[pnum])%15])
+		if (cl.playerview[pnum].stats[STAT_H2_CNT_TORCH+(i+sb_hexen2_cur_item[pnum])%15])
 		{
 			sb_hexen2_cur_item[pnum] = (sb_hexen2_cur_item[pnum] + i)%15;
 			break;
@@ -1931,10 +1932,10 @@ void Sbar_Hexen2DrawInventory(int pnum)
 		return;
 
 	for (i = sb_hexen2_cur_item[pnum]; i < 15; i++)
-		if (sb_hexen2_cur_item[pnum] == i || cl.stats[pnum][STAT_H2_CNT_TORCH+i] > 0)
+		if (sb_hexen2_cur_item[pnum] == i || cl.playerview[pnum].stats[STAT_H2_CNT_TORCH+i] > 0)
 			activeright++;
 	for (i = sb_hexen2_cur_item[pnum]-1; i >= 0; i--)
-		if (sb_hexen2_cur_item[pnum] == i || cl.stats[pnum][STAT_H2_CNT_TORCH+i] > 0)
+		if (sb_hexen2_cur_item[pnum] == i || cl.playerview[pnum].stats[STAT_H2_CNT_TORCH+i] > 0)
 			activeleft++;
 
 	if (activeleft > 3 + (activeright<=3?(4-activeright):0))
@@ -1942,7 +1943,7 @@ void Sbar_Hexen2DrawInventory(int pnum)
 	x=320/2-114 + (activeleft-1)*33;
 	for (i = sb_hexen2_cur_item[pnum]-1; x>=320/2-114; i--)
 	{
-		if (!cl.stats[pnum][STAT_H2_CNT_TORCH+i])
+		if (!cl.playerview[pnum].stats[STAT_H2_CNT_TORCH+i])
 			continue;
 
 		if (i == sb_hexen2_cur_item[pnum])
@@ -1954,7 +1955,7 @@ void Sbar_Hexen2DrawInventory(int pnum)
 	x=320/2-114 + activeleft*33;
 	for (i = sb_hexen2_cur_item[pnum]; i < 15 && x < 320/2-114+7*33; i++)
 	{
-		if (i != sb_hexen2_cur_item[pnum] && !cl.stats[pnum][STAT_H2_CNT_TORCH+i])
+		if (i != sb_hexen2_cur_item[pnum] && !cl.playerview[pnum].stats[STAT_H2_CNT_TORCH+i])
 			continue;
 		if (i == sb_hexen2_cur_item[pnum])
 			Sbar_DrawPic(x+9, y-12, 11, 11, R2D_SafeCachePic("gfx/artisel.lmp"));
@@ -1985,7 +1986,7 @@ void Sbar_Hexen2DrawExtra (int pnum)
 		Con_Printf("Objectives:\n");
 		for (i = 0; i < 64; i++)
 		{
-			if (cl.stats[pnum][STAT_H2_OBJECTIVE1 + i/32] & (1<<(i&31)))
+			if (cl.playerview[pnum].stats[STAT_H2_OBJECTIVE1 + i/32] & (1<<(i&31)))
 				Con_Printf("%s\n", T_GetInfoString(i));
 		}
 		sb_hexen2_infoplaque[pnum] = false;
@@ -2011,44 +2012,44 @@ void Sbar_Hexen2DrawExtra (int pnum)
 	Sbar_DrawTinyString (11, 48, pclassname[pclass]);
 
 	Sbar_DrawTinyString (11, 58, va("int"));
-	Sbar_DrawTinyString (33, 58, va("%02d", cl.stats[pnum][STAT_H2_INTELLIGENCE]));
+	Sbar_DrawTinyString (33, 58, va("%02d", cl.playerview[pnum].stats[STAT_H2_INTELLIGENCE]));
 
 	Sbar_DrawTinyString (11, 64, va("wis"));
-	Sbar_DrawTinyString (33, 64, va("%02d", cl.stats[pnum][STAT_H2_WISDOM]));
+	Sbar_DrawTinyString (33, 64, va("%02d", cl.playerview[pnum].stats[STAT_H2_WISDOM]));
 
 	Sbar_DrawTinyString (11, 70, va("dex"));
-	Sbar_DrawTinyString (33, 70, va("%02d", cl.stats[pnum][STAT_H2_DEXTERITY]));
+	Sbar_DrawTinyString (33, 70, va("%02d", cl.playerview[pnum].stats[STAT_H2_DEXTERITY]));
 
 
 	Sbar_DrawTinyString (58, 58, va("str"));
-	Sbar_DrawTinyString (80, 58, va("%02d", cl.stats[pnum][STAT_H2_STRENGTH]));
+	Sbar_DrawTinyString (80, 58, va("%02d", cl.playerview[pnum].stats[STAT_H2_STRENGTH]));
 
 	Sbar_DrawTinyString (58, 64, va("lvl"));
-	Sbar_DrawTinyString (80, 64, va("%02d", cl.stats[pnum][STAT_H2_LEVEL]));
+	Sbar_DrawTinyString (80, 64, va("%02d", cl.playerview[pnum].stats[STAT_H2_LEVEL]));
 
 	Sbar_DrawTinyString (58, 70, va("exp"));
-	Sbar_DrawTinyString (80, 70, va("%06d", cl.stats[pnum][STAT_H2_EXPERIENCE]));
+	Sbar_DrawTinyString (80, 70, va("%06d", cl.playerview[pnum].stats[STAT_H2_EXPERIENCE]));
 
 	Sbar_DrawTinyString (11, 79, va("abilities"));
-	if (cl.stats[pnum][STAT_H2_FLAGS] & (1<<22))
+	if (cl.playerview[pnum].stats[STAT_H2_FLAGS] & (1<<22))
 		Sbar_DrawTinyString (8, 89, T_GetString(400 + 2*(pclass-1) + 0));
-	if (cl.stats[pnum][STAT_H2_FLAGS] & (1<<23))
+	if (cl.playerview[pnum].stats[STAT_H2_FLAGS] & (1<<23))
 		Sbar_DrawTinyString (8, 96, T_GetString(400 + 2*(pclass-1) + 1));
 
 	for (i = 0; i < 4; i++)
 	{
-		if (cl.stats[pnum][STAT_H2_ARMOUR1+i] > 0)
+		if (cl.playerview[pnum].stats[STAT_H2_ARMOUR1+i] > 0)
 		{
 			Sbar_DrawPic (164+i*40, 115, 28, 19, R2D_SafeCachePic(va("gfx/armor%d.lmp", i+1)));
-			Sbar_DrawTinyString (168+i*40, 136, va("+%d", cl.stats[pnum][STAT_H2_ARMOUR1+i]));
+			Sbar_DrawTinyString (168+i*40, 136, va("+%d", cl.playerview[pnum].stats[STAT_H2_ARMOUR1+i]));
 		}
 	}
 	for (i = 0; i < 4; i++)
 	{
-		if (cl.stats[pnum][STAT_H2_FLIGHT_T+i] > 0)
+		if (cl.playerview[pnum].stats[STAT_H2_FLIGHT_T+i] > 0)
 		{
 			Sbar_DrawPic (ringpos[i], 119, 32, 22, R2D_SafeCachePic(va("gfx/ring_f.lmp")));
-			val = cl.stats[pnum][STAT_H2_FLIGHT_T+i];
+			val = cl.playerview[pnum].stats[STAT_H2_FLIGHT_T+i];
 			if (val > 100)
 				val = 100;
 			if (val < 0)
@@ -2061,9 +2062,9 @@ void Sbar_Hexen2DrawExtra (int pnum)
 	slot = 0;
 	for (i = 0; i < 8; i++)
 	{
-		if (cl.statsstr[pnum][STAT_H2_PUZZLE1+i])
+		if (cl.playerview[pnum].statsstr[STAT_H2_PUZZLE1+i])
 		{
-			Sbar_DrawPic (194+(slot%4)*31, slot<4?51:82, 26, 26, R2D_SafeCachePic(va("gfx/puzzle/%s.lmp", cl.statsstr[pnum][STAT_H2_PUZZLE1+i])));
+			Sbar_DrawPic (194+(slot%4)*31, slot<4?51:82, 26, 26, R2D_SafeCachePic(va("gfx/puzzle/%s.lmp", cl.playerview[pnum].statsstr[STAT_H2_PUZZLE1+i])));
 			slot++;
 		}
 	}
@@ -2095,10 +2096,10 @@ int Sbar_Hexen2ArmourValue(int pnum)
 		classno--;
 		for (i = 0; i < 4; i++)
 		{
-			if (cl.stats[pnum][STAT_H2_ARMOUR1+i])
+			if (cl.playerview[pnum].stats[STAT_H2_ARMOUR1+i])
 			{
 				ac += acv[classno][i];
-				ac += cl.stats[pnum][STAT_H2_ARMOUR1+i]/5.0;
+				ac += cl.playerview[pnum].stats[STAT_H2_ARMOUR1+i]/5.0;
 			}
 		}
 	}
@@ -2116,8 +2117,8 @@ void Sbar_Hexen2DrawBasic(int pnum)
 	Sbar_DrawPic(269, -23, 51, 23, R2D_SafeCachePic("gfx/topbumpr.lmp"));
 
 	//mana1
-	maxval = cl.stats[pnum][STAT_H2_MAXMANA];
-	val = cl.stats[pnum][STAT_H2_BLUEMANA];
+	maxval = cl.playerview[pnum].stats[STAT_H2_MAXMANA];
+	val = cl.playerview[pnum].stats[STAT_H2_BLUEMANA];
 	val = bound(0, val, maxval);
 	Sbar_DrawTinyString(201, 22, va("%03d", val));
 	if(val)
@@ -2127,8 +2128,8 @@ void Sbar_Hexen2DrawBasic(int pnum)
 	}
 
 	//mana2
-	maxval = cl.stats[pnum][STAT_H2_MAXMANA];
-	val = cl.stats[pnum][STAT_H2_GREENMANA];
+	maxval = cl.playerview[pnum].stats[STAT_H2_MAXMANA];
+	val = cl.playerview[pnum].stats[STAT_H2_GREENMANA];
 	val = bound(0, val, maxval);
 	Sbar_DrawTinyString(243, 22, va("%03d", val));
 	if(val)
@@ -2139,7 +2140,7 @@ void Sbar_Hexen2DrawBasic(int pnum)
 
 
 	//health
-	val = cl.stats[pnum][STAT_HEALTH];
+	val = cl.playerview[pnum].stats[STAT_HEALTH];
 	if (val < -99)
 		val = -99;
 	Sbar_Hexen2DrawNum(58, 14, val, 3);
@@ -2149,7 +2150,7 @@ void Sbar_Hexen2DrawBasic(int pnum)
 	Sbar_Hexen2DrawNum(105, 14, val, 2);
 
 //	SetChainPosition(cl.v.health, cl.v.max_health);
-	chainpos = (195.0f*cl.stats[pnum][STAT_HEALTH]) / cl.stats[pnum][STAT_H2_MAXHEALTH];
+	chainpos = (195.0f*cl.playerview[pnum].stats[STAT_HEALTH]) / cl.playerview[pnum].stats[STAT_H2_MAXHEALTH];
 	if (chainpos < 0)
 		chainpos = 0;
 	Sbar_DrawPic(45+((int)chainpos&7), 38, 222, 5, R2D_SafeCachePic("gfx/hpchain.lmp"));
@@ -2168,10 +2169,10 @@ void Sbar_Hexen2DrawMinimal(int pnum)
 	Sbar_DrawPic(3, y, 31, 17, R2D_SafeCachePic("gfx/bmmana.lmp"));
 	Sbar_DrawPic(3, y+18, 31, 17, R2D_SafeCachePic("gfx/gmmana.lmp"));
 
-	Sbar_DrawTinyString(10, y+6, va("%03d", cl.stats[pnum][STAT_H2_BLUEMANA]));
-	Sbar_DrawTinyString(10, y+18+6, va("%03d", cl.stats[pnum][STAT_H2_GREENMANA]));
+	Sbar_DrawTinyString(10, y+6, va("%03d", cl.playerview[pnum].stats[STAT_H2_BLUEMANA]));
+	Sbar_DrawTinyString(10, y+18+6, va("%03d", cl.playerview[pnum].stats[STAT_H2_GREENMANA]));
 
-	Sbar_Hexen2DrawNum(38, y+18, cl.stats[pnum][STAT_HEALTH], 3);
+	Sbar_Hexen2DrawNum(38, y+18, cl.playerview[pnum].stats[STAT_HEALTH], 3);
 }
 
 
@@ -2420,14 +2421,14 @@ void Sbar_Draw (void)
 
 		if (sbarfailed)	//files failed to load.
 		{
-			if (cl.stats[pnum][STAT_HEALTH] <= 0)	//when dead, show nothing
+			if (cl.playerview[pnum].stats[STAT_HEALTH] <= 0)	//when dead, show nothing
 				continue;
 
 //			if (scr_viewsize.value != 120)
 //				Cvar_Set(&scr_viewsize, "120");
 
-			Sbar_DrawString (0, -8, va("Health: %i", cl.stats[pnum][STAT_HEALTH]));
-			Sbar_DrawString (0, -16, va(" Armor: %i", cl.stats[pnum][STAT_ARMOR]));
+			Sbar_DrawString (0, -8, va("Health: %i", cl.playerview[pnum].stats[STAT_HEALTH]));
+			Sbar_DrawString (0, -16, va(" Armor: %i", cl.playerview[pnum].stats[STAT_ARMOR]));
 
 			Sbar_Voice(-24);
 			continue;
@@ -2457,7 +2458,7 @@ void Sbar_Draw (void)
 				}
 				else
 				{
-					if (sb_showscores || sb_showteamscores || cl.stats[pnum][STAT_HEALTH] <= 0)
+					if (sb_showscores || sb_showteamscores || cl.playerview[pnum].stats[STAT_HEALTH] <= 0)
 						Sbar_SoloScoreboard ();
 //					else if (cls.gamemode != GAME_DEATHMATCH)
 //						Sbar_CoopScoreboard ();
@@ -2472,7 +2473,7 @@ void Sbar_Draw (void)
 					}
 				}
 			}
-			else if (sb_showscores || sb_showteamscores || (cl.stats[pnum][STAT_HEALTH] <= 0 && cl.splitclients == 1))
+			else if (sb_showscores || sb_showteamscores || (cl.playerview[pnum].stats[STAT_HEALTH] <= 0 && cl.splitclients == 1))
 			{
 				if (!pnum)
 				{
@@ -3216,6 +3217,7 @@ void Sbar_CoopIntermission (void)
 	mpic_t	*pic;
 	int		dig;
 	int		num;
+	int pnum = 0;	//should be the same for all players.
 
 	sbar_rect.width = vid.width;
 	sbar_rect.height = vid.height;
@@ -3240,13 +3242,13 @@ void Sbar_CoopIntermission (void)
 	R2D_ScalePic ((sbar_rect.width - 320)/2 + 266,(sbar_rect.height - 200)/2 + 64, 16, 24, sb_nums[0][num%10]);
 
 //it is assumed that secrits/monsters are going to be constant for any player...
-	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 160, (sbar_rect.height - 200)/2 + 104, cl.stats[0][STAT_SECRETS], 3, 0);
+	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 160, (sbar_rect.height - 200)/2 + 104, cl.playerview[pnum].stats[STAT_SECRETS], 3, 0);
 	R2D_ScalePic ((sbar_rect.width - 320)/2 + 232,(sbar_rect.height - 200)/2 + 104, 16, 24, sb_slash);
-	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 240, (sbar_rect.height - 200)/2 + 104, cl.stats[0][STAT_TOTALSECRETS], 3, 0);
+	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 240, (sbar_rect.height - 200)/2 + 104, cl.playerview[pnum].stats[STAT_TOTALSECRETS], 3, 0);
 
-	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 160, (sbar_rect.height - 200)/2 + 144, cl.stats[0][STAT_MONSTERS], 3, 0);
+	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 160, (sbar_rect.height - 200)/2 + 144, cl.playerview[pnum].stats[STAT_MONSTERS], 3, 0);
 	R2D_ScalePic ((sbar_rect.width - 320)/2 + 232,(sbar_rect.height - 200)/2 + 144, 16, 24, sb_slash);
-	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 240, (sbar_rect.height - 200)/2 + 144, cl.stats[0][STAT_TOTALMONSTERS], 3, 0);
+	Sbar_IntermissionNumber ((sbar_rect.width - 320)/2 + 240, (sbar_rect.height - 200)/2 + 144, cl.playerview[pnum].stats[STAT_TOTALMONSTERS], 3, 0);
 }
 /*
 ==================

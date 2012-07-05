@@ -28,7 +28,7 @@ extern cvar_t r_shadow_realtime_world, r_shadow_realtime_world_lightmaps;
 
 
 int	r_dlightframecount;
-int		d_lightstylevalue[256];	// 8.8 fraction of base light value
+int		d_lightstylevalue[MAX_LIGHTSTYLES];	// 8.8 fraction of base light value
 
 /*
 ==================
@@ -391,7 +391,10 @@ void R_GenDlightBatches(batch_t *batches[])
 		b->skin = &lpplight_shader->defaulttextures;
 		b->texture = NULL;
 		b->shader = lpplight_shader;
-		b->lightmap = -1;
+		b->lightmap[0] = -1;
+		b->lightmap[1] = -1;
+		b->lightmap[2] = -1;
+		b->lightmap[3] = -1;
 		b->surf_first = i;
 		b->flags |= BEF_NOSHADOWS;
 		b->vbo = NULL;
@@ -423,7 +426,7 @@ void R_PushDlights (void)
 
 #ifdef RTLIGHTS
 	/*if we're doing full rtlighting only, then don't bother calculating old-style dlights as they won't be visible anyway*/
-	if (r_shadow_realtime_world.value && r_shadow_realtime_world_lightmaps.value < 0.1)
+	if (r_shadow_realtime_world.ival && r_shadow_realtime_world_lightmaps.value < 0.1)
 		return;
 #endif
 
@@ -817,12 +820,9 @@ void R_LoadRTLights(void)
 			dl->coronascale = coronascale;
 			dl->die = 0;
 			dl->flags = flags;
-			if (ambientscale || diffusescale || specularscale)
-			{
-				dl->lightcolourscales[0] = ambientscale;
-				dl->lightcolourscales[1] = diffusescale;
-				dl->lightcolourscales[2] = specularscale;
-			}
+			dl->lightcolourscales[0] = ambientscale;
+			dl->lightcolourscales[1] = diffusescale;
+			dl->lightcolourscales[2] = specularscale;
 			AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
 
 			Q_strncpyz(dl->cubemapname, cubename, sizeof(dl->cubemapname));

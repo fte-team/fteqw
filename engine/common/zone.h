@@ -89,6 +89,8 @@ void Memory_DeInit(void);
 void VARGS Z_Free (void *ptr);
 void *Z_Malloc (int size); // returns 0 filled memory
 void *ZF_Malloc (int size); // allowed to fail
+void *Z_MallocNamed (int size, char *file, int line); // returns 0 filled memory
+void *ZF_MallocNamed (int size, char *file, int line); // allowed to fail
 //#define Z_Malloc(x) Z_MallocNamed2(x, __FILE__, __LINE__ )
 void *VARGS Z_TagMalloc (int size, int tag);
 void VARGS Z_TagFree(void *ptr);
@@ -99,17 +101,21 @@ void VARGS Z_FreeTags(int tag);
 //(this is a nicer name for malloc)
 void *BZ_Malloc(int size);
 void *BZF_Malloc(int size);
+void *BZ_MallocNamed (int size, char *file, int line); // returns 0 filled memory
+void *BZF_MallocNamed (int size, char *file, int line); // allowed to fail
 void *BZ_Realloc(void *ptr, int size);
+void *BZ_ReallocNamed(void *data, int newsize, char *file, int line);
 void *BZF_Realloc(void *data, int newsize);
+void *BZF_ReallocNamed(void *data, int newsize, char *file, int line);
 void BZ_Free(void *ptr);
 
-#ifdef NAMEDMALLOCS
-#define BZ_Malloc(size) Z_MallocNamed(size, __FILE__, __LINE__)
-
-
+#ifdef USE_MSVCRT_DEBUG
+#define BZ_Malloc(size) BZ_MallocNamed(size, __FILE__, __LINE__)
 #define Z_Malloc(size) Z_MallocNamed(size, __FILE__, __LINE__)
-
-#define BZ_Realloc(ptr, size) BZ_NamedRealloc(ptr, size, __FILE__, __LINE__)
+#define BZ_Realloc(ptr, size) BZ_ReallocNamed(ptr, size, __FILE__, __LINE__)
+#define BZF_Malloc(size) BZF_MallocNamed(size, __FILE__, __LINE__)
+#define ZF_Malloc(size) ZF_MallocNamed(size, __FILE__, __LINE__)
+#define BZF_Realloc(ptr, size) BZF_ReallocNamed(ptr, size, __FILE__, __LINE__)
 #endif
 
 void *Hunk_Alloc (int size);		// returns 0 filled memory

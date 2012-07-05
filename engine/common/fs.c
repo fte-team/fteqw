@@ -21,6 +21,8 @@ int active_fs_cachetype;
 static int fs_referencetype;
 int fs_finds;
 
+int fs_switchgame = -1;
+
 struct
 {
 	const char *extension;
@@ -1397,7 +1399,10 @@ static int FS_AddWildDataFiles (const char *descriptor, int size, void *vparam)
 		return true;
 	pak = funcs->OpenNew (vfs, pakfile);
 	if (!pak)
+	{
+		VFS_CLOSE(vfs);
 		return true;
+	}
 
 	Q_snprintfz (pakfile, sizeof(pakfile), "%s%s/", param->parentdesc, descriptor);
 	if (*param->puredesc)
@@ -1804,10 +1809,10 @@ void COM_Gamedir (const char *dir)
 #define Q3CFG "gl_overbright 2\nseta model sarge\nseta headmodel sarge\nseta handicap 100\n"
 
 typedef struct {
-	const char *protocolname;	//sent to the master server when this is the current gamemode.
-	const char *exename;	//used if the exe name contains this
 	const char *argname;	//used if this was used as a parameter.
-	const char *auniquefile[4];	//used if this file is relative from the gamedir
+	const char *exename;	//used if the exe name contains this
+	const char *protocolname;	//sent to the master server when this is the current gamemode (Typically set for DP compat).
+	const char *auniquefile[4];	//used if this file is relative from the gamedir. needs just one file
 
 	const char *customexec;
 
@@ -1819,32 +1824,36 @@ const gamemode_info_t gamemode_info[] = {
 //this is to avoid having too many gamemodes anyway.
 
 //rogue/hipnotic have no special files - the detection conflicts and stops us from running regular quake
-	//protocol name(dpmaster) exename        cmdline switch   identifying file   exec     dir1       dir2    dir3       dir(fte)     full name
-	{"DarkPlaces-Quake",	"q1",			"-quake",		{"id1/pak0.pak"},		NULL,	{"id1",		"qw",				"fte"},		"Quake"},
-	{"Darkplaces-Hipnotic",	"hipnotic",		"-hipnotic",	{NULL},					NULL,	{"id1",		"qw",	"hipnotic",	"fte"},		"Quake: Scourge of Armagon"},
-	{"Darkplaces-Rogue",	"rogue",		"-rogue",		{NULL},					NULL,	{"id1",		"qw",	"rogue",	"fte"},		"Quake: Dissolution of Eternity"},
-	{"Nexuiz",				"nexuiz",		"-nexuiz",		{"nexuiz.exe"},			NEXCFG,	{"data",						"ftedata"},	"Nexuiz"},
-	{"Xonotic",				"xonotic",		"-xonotic",		{"xonotic.exe"},		NEXCFG,	{"data",						"ftedata"},	"Xonotic"},
-	{"Spark",				"spark",		"-spark",		{"base/src/progs.src",
-															 "base/qwprogs.dat",
-															 "base/pak0.pak"},		DMFCFG,	{"base",						         },		"Spark"},
+	//cmdline switch exename    protocol name(dpmaster)  identifying file		exec     dir1       dir2    dir3       dir(fte)     full name
+	{"-quake",		"q1",		"DarkPlaces-Quake",		{"id1/pak0.pak"
+														 "id1/quake.rc"},		NULL,	{"id1",		"qw",				"fte"},		"Quake"},
+	{"-hipnotic",	"hipnotic",	"Darkplaces-Hipnotic",	{NULL},					NULL,	{"id1",		"qw",	"hipnotic",	"fte"},		"Quake: Scourge of Armagon"},
+	{"-rogue",		"rogue",	"Darkplaces-Rogue",		{NULL},					NULL,	{"id1",		"qw",	"rogue",	"fte"},		"Quake: Dissolution of Eternity"},
+	{"-nexuiz",		"nexuiz",	"Nexuiz",				{"nexuiz.exe"},			NEXCFG,	{"data",						"ftedata"},	"Nexuiz"},
+	{"-xonotic",	"xonotic",	"Xonotic",				{"xonotic.exe"},		NEXCFG,	{"data",						"ftedata"},	"Xonotic"},
+	{"-spark",		"spark",	"Spark",				{"base/src/progs.src",
+														 "base/qwprogs.dat",
+														 "base/pak0.pak"},		DMFCFG,	{"base",						         },	"Spark"},
 
 	//supported commercial mods (some are currently only partially supported)
-	{"FTE-H2MP",			"h2mp",			"-portals",		{"portals/hexen.rc",
-															 "portals/pak3.pak"},	HEX2CFG,{"data1",	"portals",			"fteh2"},		"Hexen II MP"},
-	{"FTE-Hexen2",			"hexen2",		"-hexen2",		{"data1/pak0.pak"},		HEX2CFG,{"data1",						"fteh2"},		"Hexen II"},
-	{"FTE-Quake2",			"q2",			"-q2",			{"baseq2/pak0.pak"},	NULL,	{"baseq2",						"fteq2"},	"Quake II"},
-	{"FTE-Quake3",			"q3",			"-q3",			{"baseq3/pak0.pk3"},	Q3CFG,	{"baseq3",						"fteq3"},	"Quake III Arena"},
+	{"-portals",	"h2mp",		"FTE-H2MP",				{"portals/hexen.rc",
+														 "portals/pak3.pak"},	HEX2CFG,{"data1",	"portals",			"fteh2"},	"Hexen II MP"},
+	{"-hexen2",		"hexen2",	"FTE-Hexen2",			{"data1/pak0.pak"},		HEX2CFG,{"data1",						"fteh2"},	"Hexen II"},
+	{"-q2",			"q2",		"FTE-Quake2",			{"baseq2/pak0.pak"},	NULL,	{"baseq2",						"fteq2"},	"Quake II"},
+	{"-q3",			"q3",		"FTE-Quake3",			{"baseq3/pak0.pk3"},	Q3CFG,	{"baseq3",						"fteq3"},	"Quake III Arena"},
 
-	//the rest are not officially supported.
-	{"FTE-Quake4",			"q4",			"-q4",			{"q4base/pak00.pk4"},	NULL,	{"q4base",						"fteq4"},	"Quake 4"},
-	{"FTE-EnemyTerritory",	"et",			"-et",			{"etmain/pak0.pk3"},	NULL,	{"etmain",						"fteet"},	"Wolfenstein - Enemy Territory"},
+	//can run in windows, needs 
+	{"-halflife",	"hl",		"FTE-HalfLife",			{"valve/liblist.gam"},	NULL,	{"valve",						"ftehl"},	"Half-Life"},
 
-	{"FTE-JK2",				"jk2",			"-jk2",			{"base/assets0.pk3"},	NULL,	{"base",						"fte"},		"Jedi Knight II: Jedi Outcast"},
+	//the rest are not supported in any real way. maps-only mostly, if that
+	{"-q4",			"q4",		"FTE-Quake4",			{"q4base/pak00.pk4"},	NULL,	{"q4base",						"fteq4"},	"Quake 4"},
+	{"-et",			"et",		"FTE-EnemyTerritory",	{"etmain/pak0.pk3"},	NULL,	{"etmain",						"fteet"},	"Wolfenstein - Enemy Territory"},
 
-	{"FTE-HalfLife",		"hl",			"-halflife",	{"valve/liblist.gam"},	NULL,	{"valve",						"ftehl"},	"Half-Life"},
-	{"FTE-Doom",			"doom",			"-doom",		{"doom.wad"},			NULL,	{"*doom.wad",					"ftedoom"},	"Doom"},
-	{"FTE-Doom2",			"doom2",		"-doom2",		{"doom2.wad"},			NULL,	{"*doom2.wad",					"ftedoom"},	"Doom2"},
+	{"-jk2",		"jk2",		"FTE-JK2",				{"base/assets0.pk3"},	NULL,	{"base",						"fte"},		"Jedi Knight II: Jedi Outcast"},
+	{"-warsow",		"warsow",	"FTE-Warsow",			{"basewsw/pak0.pk3"},	NULL,	{"basewsw",						"fte"},		"Warsow"},
+
+	{"-doom",		"doom",		"FTE-Doom",				{"doom.wad"},			NULL,	{"*doom.wad",					"ftedoom"},	"Doom"},
+	{"-doom2",		"doom2",	"FTE-Doom2",			{"doom2.wad"},			NULL,	{"*doom2.wad",					"ftedoom"},	"Doom2"},
 
 	{NULL}
 };
@@ -2430,6 +2439,13 @@ void FS_Shutdown(void)
 
 	com_fschanged = true;
 
+
+	if (filesystemhash.numbuckets)
+	{
+		BZ_Free(filesystemhash.bucket);
+		filesystemhash.bucket = NULL;
+		filesystemhash.numbuckets = 0;
+	}
 }
 
 void FS_AddGamePack(const char *pakname)
@@ -2560,6 +2576,23 @@ void FS_StartupWithGame(int gamenum)
 		Cbuf_AddText(gamemode_info[gamenum].customexec, RESTRICT_LOCAL);
 }
 
+void FS_ChangeGame_f(void)
+{
+	int i;
+	char *arg = Cmd_Argv(1);
+
+	for (i = 0; gamemode_info[i].argname; i++)
+	{
+		if (!stricmp(gamemode_info[i].argname+1, arg))
+		{
+			Con_Printf("Switching to %s\n", gamemode_info[i].argname+1);
+			fs_switchgame = i;
+			return;
+		}
+	}
+	Con_Printf("Game unknown\n");
+}
+
 /*
 ================
 COM_InitFilesystem
@@ -2579,6 +2612,9 @@ void COM_InitFilesystem (void)
 	FS_RegisterDefaultFileSystems();
 
 	Cmd_AddCommand("fs_restart", FS_ReloadPackFiles_f);
+#ifdef _WIN32
+	Cmd_AddCommand("fs_changegame", FS_ChangeGame_f);
+#endif
 
 //
 // -basedir <path>
@@ -2635,7 +2671,7 @@ void COM_InitFilesystem (void)
 	//use the game based on an parameter over all else.
 	for (i = 0; gamemode_info[i].argname; i++)
 	{
-		if (COM_CheckParm(gamemode_info[i].argname))
+		if ((fs_switchgame != -1 && i == fs_switchgame) || (fs_switchgame == -1 && COM_CheckParm(gamemode_info[i].argname)))
 		{
 			gamenum = i;
 
@@ -2675,6 +2711,7 @@ void COM_InitFilesystem (void)
 			break;
 		}
 	}
+	fs_switchgame = -1;
 
 	//still failed? find quake and use that one by default
 	if (gamenum<0)

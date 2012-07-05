@@ -5,8 +5,25 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "altwater",
-//modifier: REFLECT
+//modifier: REFLECT (s_t2 is a reflection instead of diffusemap)
+//modifier: STRENGTH (0.1 = fairly gentle, 0.2 = big waves)
 //modifier: FRESNEL (5=water)
+//modifier: TXSCALE (0.2 - wave strength)
+//modifier: RIPPLEMAP (s_t3 contains a ripplemap
+//modifier: TINT    (some colour value)
+
+"#ifndef FRESNEL\n"
+"#define FRESNEL 5.0\n"
+"#endif\n"
+"#ifndef STRENGTH\n"
+"#define STRENGTH 0.1\n"
+"#endif\n"
+"#ifndef TXSCALE\n"
+"#define TXSCALE 0.2\n"
+"#endif\n"
+"#ifndef TINT\n"
+"#define TINT vec3(0.7, 0.8, 0.7)\n"
+"#endif\n"
 
 "varying vec2 tc;\n"
 "varying vec4 tf;\n"
@@ -28,9 +45,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef FRAGMENT_SHADER\n"
 "uniform sampler2D s_t0; //refract\n"
 "uniform sampler2D s_t1; //normalmap\n"
-"uniform sampler2D s_t2; //diffuse\n"
-"#ifdef REFLECT\n"
-"uniform sampler2D s_t3;  //reflect\n"
+"uniform sampler2D s_t2; //diffuse/reflection\n"
+"#ifdef RIPPLEMAP\n"
+"uniform sampler2D s_t3;  //ripplemap\n"
 "#endif\n"
 
 "uniform float e_time;\n"
@@ -46,26 +63,28 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "ntc.t = tc.t + sin(tc.s+e_time)*0.125;\n"
 
 //generate the two wave patterns from the normalmap
-"n = (texture2D(s_t1, 0.2*tc + vec2(e_time*0.1, 0)).xyz);\n"
-"n += (texture2D(s_t1, 0.2*tc - vec2(0, e_time*0.097)).xyz);\n"
+"n = (texture2D(s_t1, TXSCALE*tc + vec2(e_time*0.1, 0)).xyz);\n"
+"n += (texture2D(s_t1, TXSCALE*tc - vec2(0, e_time*0.097)).xyz);\n"
 "n -= 1.0 - 4.0/256.0;\n"
 
-"n = normalize(n);\n"
-
-"#if 1//def REFRACT\n"
-"refr = texture2D(s_t0, stc + n.st*0.2).rgb;\n"
-"#else\n"
-"refr = texture2D(s_t2, ntc).xyz;\n"
-"#endif\n"
-"#ifdef REFLECT\n"
-"refl = texture2D(s_t3, stc - n.st*0.2).rgb;\n"
-"#else\n"
-"refl = texture2D(s_t2, ntc).xyz;\n"
+"#ifdef RIPPLEMAP\n"
+"n += texture2D(s_t3, stc)*3;\n"
 "#endif\n"
 
 //the fresnel term decides how transparent the water should be
-"f = pow(1.0-abs(dot(n, normalize(eye))), float(FRESNEL));\n"
+"f = pow(1.0-abs(dot(normalize(n), normalize(eye))), float(FRESNEL));\n"
+
+"refr = texture2D(s_t0, stc + n.st*STRENGTH).rgb * TINT;\n"
+"#ifdef REFLECT\n"
+"refl = texture2D(s_t2, stc - n.st*STRENGTH).rgb;\n"
+"#else\n"
+"refl = texture2D(s_t2, ntc).xyz;\n"
+"#endif\n"
+//	refl += 0.1*pow(dot(n, vec3(0.0,0.0,1.0)), 64.0);
+
 "fres = refr * (1.0-f) + refl*f;\n"
+
+//	fres = texture2D(s_t2, stc).xyz;
 
 "gl_FragColor = vec4(fres, 1.0);\n"
 "}\n"
@@ -483,6 +502,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!permu OFFSETMAPPING\n"
 "!!permu FULLBRIGHT\n"
 "!!permu FOG\n"
+"!!permu LIGHTSTYLED\n"
 "!!cvarf r_glsl_offsetmapping_scale\n"
 
 //this is what normally draws all of your walls, even with rtlights disabled
@@ -492,10 +512,24 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#if defined(OFFSETMAPPING)\n"
 "varying vec3 eyevector;\n"
 "#endif\n"
+
+"varying vec2 tc;\n"
+"#ifdef LIGHTSTYLED\n"
+//we could use an offset, but that would still need to be per-surface which would break batches
+//fixme: merge attributes?
+"varying vec2 lm, lm2, lm3, lm4;\n"
+"#else\n"
+"varying vec2 lm;\n"
+"#endif\n"
+
 "#ifdef VERTEX_SHADER\n"
 "attribute vec2 v_texcoord;\n"
 "attribute vec2 v_lmcoord;\n"
-"varying vec2 tc, lm;\n"
+"#ifdef LIGHTSTYLED\n"
+"attribute vec2 v_lmcoord2;\n"
+"attribute vec2 v_lmcoord3;\n"
+"attribute vec2 v_lmcoord4;\n"
+"#endif\n"
 "#if defined(OFFSETMAPPING)\n"
 "uniform vec3 e_eyepos;\n"
 "attribute vec3 v_normal;\n"
@@ -506,16 +540,24 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "{\n"
 "#if defined(OFFSETMAPPING)\n"
 "vec3 eyeminusvertex = e_eyepos - v_position.xyz;\n"
-"eyevector.x = dot(eyeminusvertex, v_svector.xyz);\n"
-"eyevector.y = -dot(eyeminusvertex, v_tvector.xyz);\n"
+"eyevector.x = -dot(eyeminusvertex, v_svector.xyz);\n"
+"eyevector.y = dot(eyeminusvertex, v_tvector.xyz);\n"
 "eyevector.z = dot(eyeminusvertex, v_normal.xyz);\n"
 "#endif\n"
 "tc = v_texcoord;\n"
 "lm = v_lmcoord;\n"
+"#ifdef LIGHTSTYLED\n"
+"lm2 = v_lmcoord2;\n"
+"lm3 = v_lmcoord3;\n"
+"lm4 = v_lmcoord4;\n"
+"#endif\n"
 "gl_Position = ftetransform();\n"
 "}\n"
 "#endif\n"
+
+
 "#ifdef FRAGMENT_SHADER\n"
+//samplers
 "uniform sampler2D s_t0;\n"
 "uniform sampler2D s_t1;\n"
 "#ifdef OFFSETMAPPING\n"
@@ -524,8 +566,17 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef FULLBRIGHT\n"
 "uniform sampler2D s_t4;\n"
 "#endif\n"
-"varying vec2 tc, lm;\n"
+"#ifdef LIGHTSTYLED\n"
+"uniform sampler2D s_t5;\n"
+"uniform sampler2D s_t6;\n"
+"uniform sampler2D s_t7;\n"
+"#endif\n"
+
+"#ifdef LIGHTSTYLED\n"
+"uniform vec4 e_lmscale[4];\n"
+"#else\n"
 "uniform vec4 e_lmscale;\n"
+"#endif\n"
 "uniform vec4 e_colourident;\n"
 "#ifdef OFFSETMAPPING\n"
 "#include \"sys/offsetmapping.h\"\n"
@@ -536,7 +587,18 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "vec2 tcoffsetmap = offsetmap(s_t2, tc, eyevector);\n"
 "#define tc tcoffsetmap\n"
 "#endif\n"
-"gl_FragColor = texture2D(s_t0, tc) * texture2D(s_t1, lm) * e_lmscale;\n"
+"gl_FragColor = texture2D(s_t0, tc);\n"
+"#ifdef LIGHTSTYLED\n"
+"vec4 lightmaps;\n"
+"lightmaps  = texture2D(s_t1, lm ) * e_lmscale[0];\n"
+"lightmaps += texture2D(s_t5, lm2) * e_lmscale[1];\n"
+"lightmaps += texture2D(s_t6, lm3) * e_lmscale[2];\n"
+"lightmaps += texture2D(s_t7, lm4) * e_lmscale[3];\n"
+"gl_FragColor.rgb *= lightmaps.rgb;\n"
+"#else\n"
+"gl_FragColor.rgb *= (texture2D(s_t1, lm) * e_lmscale).rgb;\n"
+"#endif\n"
+
 "#ifdef FULLBRIGHT\n"
 "gl_FragColor.rgb += texture2D(s_t4, tc).rgb;\n"
 "#endif\n"
@@ -865,13 +927,13 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "gl_Position = skeletaltransform_wnst(w,n,s,t);\n"
 "tcbase = v_texcoord; //pass the texture coords straight through\n"
 "vec3 lightminusvertex = l_lightposition - w.xyz;\n"
-"lightvector.x = dot(lightminusvertex, s.xyz);\n"
+"lightvector.x = -dot(lightminusvertex, s.xyz);\n"
 "lightvector.y = dot(lightminusvertex, t.xyz);\n"
 "lightvector.z = dot(lightminusvertex, n.xyz);\n"
 "#if defined(SPECULAR)||defined(OFFSETMAPPING)\n"
 "vec3 eyeminusvertex = e_eyepos - w.xyz;\n"
-"eyevector.x = dot(eyeminusvertex, s.xyz);\n"
-"eyevector.y = -dot(eyeminusvertex, t.xyz);\n"
+"eyevector.x = -dot(eyeminusvertex, s.xyz);\n"
+"eyevector.y = dot(eyeminusvertex, t.xyz);\n"
 "eyevector.z = dot(eyeminusvertex, n.xyz);\n"
 "#endif\n"
 "#if defined(PCF) || defined(SPOT) || defined(PROJECTION) || defined(CUBE)\n"
@@ -906,30 +968,37 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 "void main ()\n"
 "{\n"
+//read raw texture samples (offsetmapping munges the tex coords first)
 "#ifdef OFFSETMAPPING\n"
 "vec2 tcoffsetmap = offsetmap(s_t1, tcbase, eyevector);\n"
 "#define tcbase tcoffsetmap\n"
 "#endif\n"
 "vec3 bases = vec3(texture2D(s_t0, tcbase));\n"
 "#if defined(BUMP) || defined(SPECULAR)\n"
-"vec3 bumps = vec3(texture2D(s_t1, tcbase)) - 0.5;\n"
+"vec3 bumps = normalize(vec3(texture2D(s_t1, tcbase)) - 0.5);\n"
 "#endif\n"
 "#ifdef SPECULAR\n"
 "vec4 specs = texture2D(s_t2, tcbase);\n"
 "#endif\n"
+
 "vec3 nl = normalize(lightvector);\n"
-"float colorscale = max(1.0 - dot(lightvector, lightvector)/(l_lightradius*l_lightradius), 0.0);\n"
+"float colorscale = max(1.0 - (dot(lightvector, lightvector)/(l_lightradius*l_lightradius)), 0.0);\n"
 "vec3 diff;\n"
 "#ifdef BUMP\n"
-"diff = bases * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(2.0*bumps, nl), 0.0));\n"
+"diff = bases * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(bumps, nl), 0.0));\n"
 "#else\n"
 "diff = bases * (l_lightcolourscale.x + l_lightcolourscale.y * max(dot(vec3(0.0, 0.0, 1.0), nl), 0.0));\n"
 "#endif\n"
+
+
 "#ifdef SPECULAR\n"
-"vec3 halfdir = normalize(lightvector - normalize(eyevector));\n"
-"float spec = pow(max(dot(halfdir, bumps), 0.0), 1.0 + 32.0 * specs.a);\n"
-"diff += spec * specs.rgb * l_lightcolourscale.z;\n"
+"vec3 halfdir = normalize(normalize(eyevector) + nl);\n"
+"float spec = pow(max(dot(halfdir, bumps), 0.0), 32.0 * specs.a);\n"
+"diff += l_lightcolourscale.z * spec * specs.rgb;\n"
 "#endif\n"
+
+
+
 "#ifdef CUBE\n"
 "diff *= textureCube(s_t3, vshadowcoord.xyz).rgb;\n"
 "#endif\n"

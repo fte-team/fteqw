@@ -535,7 +535,7 @@ typedef struct
 	unk (QDECL *DeltaUnsetField)(unk);
 	unk (QDECL *DeltaAddEncoder)(unk);
 	unk (QDECL *GetCurrentPlayer)(unk);
-	unk (QDECL *CanSkipPlayer)(unk);
+	int (QDECL *CanSkipPlayer)(hledict_t *playerent);
 	unk (QDECL *DeltaFindField)(unk);
 	unk (QDECL *DeltaSetFieldByIndex)(unk);
 	unk (QDECL *DeltaUnsetFieldByIndex)(unk);

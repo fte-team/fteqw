@@ -71,6 +71,7 @@ void		Plug_Command_f(void);
 int			Plug_ConnectionlessClientPacket(char *buffer, int size);
 void		Plug_DrawReloadImages(void);
 void		Plug_Init(void);
+void		Plug_Shutdown(void);
 qboolean	Plug_Menu_Event(int eventtype, int param);
 void		Plug_ResChanged(void);
 void		Plug_SBar(void);

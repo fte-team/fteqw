@@ -259,6 +259,22 @@ void SV_Shutdown (void)
 	if (sv.mvdrecording)
 		SV_MVDStop (0, false);
 
+	if (svs.entstatebuffer.entities)
+	{
+		BZ_Free(svs.entstatebuffer.entities);
+		memset(&svs.entstatebuffer.entities, 0, sizeof(svs.entstatebuffer.entities));
+	}
+	if (sv_staticentities)
+	{
+		sv_max_staticentities = 0;
+		sv.num_static_entities = 0;
+		BZ_Free(sv_staticentities);
+		sv_staticentities = NULL;
+	}
+
+
+	SV_GibFilterPurge();
+
 	NET_Shutdown ();
 #ifdef WEBSERVER
 	IWebShutdown();

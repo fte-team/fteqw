@@ -6,13 +6,26 @@ I think globals.maxentities is the hard cap, rather than current max like in q1.
 
 #ifdef HLSERVER
 
+#include "winquake.h"
 #include "svhl_gcapi.h"
+#include "pr_common.h"
 
 #include "crc.h"
 #include "model_hl.h"
 
+#if defined(_MSC_VER)
+ #if _MSC_VER >= 1300
+  #define __func__ __FUNCTION__
+ #else
+  #define __func__ "unknown"
+ #endif
+#else
+ //I hope you're c99 and have a __func__
+#endif
+
 #define ignore(s) Con_Printf("Fixme: " s "\n")
-#define notimp(l) Con_Printf("halflife sv builtin not implemented on line %i\n", l)
+#define notimpl(l) Con_Printf("halflife sv builtin not implemented on line %i\n", l)
+#define notimpf(f) Con_Printf("halflife sv builtin %s not implemented\n", f)
 
 
 dllhandle_t *hlgamecode;
@@ -61,7 +74,7 @@ int QDECL GHL_PrecacheModel(char *name)
 
 			if (sv.state != ss_loading)
 			{
-				Con_DPrintf("Delayed model precache: %s\n", s);
+				Con_DPrintf("Delayed model precache: %s\n", name);
 				MSG_WriteByte(&sv.reliable_datagram, svcfte_precache);
 				MSG_WriteShort(&sv.reliable_datagram, i);
 				MSG_WriteString(&sv.reliable_datagram, name);
@@ -106,7 +119,7 @@ int QDECL GHL_PrecacheSound(char *name)
 
 			if (sv.state != ss_loading)
 			{
-				Con_DPrintf("Delayed sound precache: %s\n", s);
+				Con_DPrintf("Delayed sound precache: %s\n", name);
 				MSG_WriteByte(&sv.reliable_datagram, svcfte_precache);
 				MSG_WriteShort(&sv.reliable_datagram, -i);
 				MSG_WriteString(&sv.reliable_datagram, name);
@@ -143,7 +156,7 @@ void QDECL GHL_SetModel(hledict_t *ed, char *modelname)
 	}
 	SVHL_LinkEdict(ed, false);
 }
-unk QDECL GHL_ModelIndex(unk){notimp(__LINE__);}
+unk QDECL GHL_ModelIndex(unk){notimpf(__func__);}
 int QDECL GHL_ModelFrames(int midx)
 {
 	//returns the number of frames(sequences I assume) this model has
@@ -160,8 +173,8 @@ void QDECL GHL_ChangeLevel(char *nextmap, char *startspot)
 {
 	Cbuf_AddText(va("changelevel %s %s@%f@%f@%f\n", nextmap, startspot, SVHL_Globals.landmark[0], SVHL_Globals.landmark[1], SVHL_Globals.landmark[2]), RESTRICT_PROGS);
 }
-unk QDECL GHL_GetSpawnParms(unk){notimp(__LINE__);}
-unk QDECL GHL_SaveSpawnParms(unk){notimp(__LINE__);}
+unk QDECL GHL_GetSpawnParms(unk){notimpf(__func__);}
+unk QDECL GHL_SaveSpawnParms(unk){notimpf(__func__);}
 float QDECL GHL_VecToYaw(float *inv)
 {
 	vec3_t outa;
@@ -173,9 +186,9 @@ void QDECL GHL_VecToAngles(float *inv, float *outa)
 {
 	VectorAngles(inv, NULL, outa);
 }
-unk QDECL GHL_MoveToOrigin(unk){notimp(__LINE__);}
-unk QDECL GHL_ChangeYaw(unk){notimp(__LINE__);}
-unk QDECL GHL_ChangePitch(unk){notimp(__LINE__);}
+unk QDECL GHL_MoveToOrigin(unk){notimpf(__func__);}
+unk QDECL GHL_ChangeYaw(unk){notimpf(__func__);}
+unk QDECL GHL_ChangePitch(unk){notimpf(__func__);}
 hledict_t *QDECL GHL_FindEntityByString(hledict_t *last, char *field, char *value)
 {
 	hledict_t *ent;
@@ -207,7 +220,7 @@ hledict_t *QDECL GHL_FindEntityByString(hledict_t *last, char *field, char *valu
 	}
 	return SVHL_Edict;
 }
-unk QDECL GHL_GetEntityIllum(unk){notimp(__LINE__);}
+unk QDECL GHL_GetEntityIllum(unk){notimpf(__func__);}
 hledict_t *QDECL GHL_FindEntityInSphere(hledict_t *last, float *org, float radius)
 {
 	int i, j;
@@ -250,7 +263,7 @@ hledict_t *QDECL GHL_FindClientInPVS(hledict_t *ed)
 	//fixme: we need to track some state
 	//a different client should be returned each call _per ent_ (so it can be used once per frame)
 
-	viewerpvs = sv.worldmodel->funcs.LeafPVS(sv.worldmodel, sv.worldmodel->funcs.LeafnumForPoint(sv.worldmodel, ed->v.origin), NULL, 0);
+	viewerpvs = sv.world.worldmodel->funcs.LeafPVS(sv.world.worldmodel, sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, ed->v.origin), NULL, 0);
 
 	for (i = 0; i < MAX_CLIENTS; i++)
 	{
@@ -262,7 +275,7 @@ hledict_t *QDECL GHL_FindClientInPVS(hledict_t *ed)
 			if (svs.clients[i].spectator)
 				continue;	//ignore spectators
 
-			leafnum = sv.worldmodel->funcs.LeafnumForPoint(sv.worldmodel, other->v.origin)-1;/*pvs is 1 based, leafs are 0 based*/
+			leafnum = sv.world.worldmodel->funcs.LeafnumForPoint(sv.world.worldmodel, other->v.origin)-1;/*pvs is 1 based, leafs are 0 based*/
 			if (viewerpvs[leafnum>>3] & (1<<(leafnum&7)))
 			{
 				VectorSubtract(ed->v.origin, other->v.origin, ofs);
@@ -281,7 +294,7 @@ hledict_t *QDECL GHL_FindClientInPVS(hledict_t *ed)
 		return &SVHL_Edict[best];
 	return NULL;
 }
-unk QDECL GHL_EntitiesInPVS(unk){notimp(__LINE__);}
+unk QDECL GHL_EntitiesInPVS(unk){notimpf(__func__);}
 void QDECL GHL_MakeVectors(float *angles)
 {
 	AngleVectors(angles, SVHL_Globals.v_forward, SVHL_Globals.v_right, SVHL_Globals.v_up);
@@ -352,15 +365,15 @@ void *QDECL GHL_PvAllocEntPrivateData(hledict_t *ed, long quant)
 }
 unk QDECL GHL_PvEntPrivateData(unk)
 {
-	notimp(__LINE__);
+	notimpf(__func__);
 }
 unk QDECL GHL_FreeEntPrivateData(unk)
 {
-	notimp(__LINE__);
+	notimpf(__func__);
 }
 unk QDECL GHL_GetVarsOfEnt(unk)
 {
-	notimp(__LINE__);
+	notimpf(__func__);
 }
 hledict_t *QDECL GHL_PEntityOfEntOffset(int ednum)
 {
@@ -380,13 +393,13 @@ hledict_t *QDECL GHL_PEntityOfEntIndex(int idx)
 }
 unk QDECL GHL_FindEntityByVars(unk)
 {
-	notimp(__LINE__);
+	notimpf(__func__);
 }
 
 ///////////////////////////////////////////////////////
 
-unk QDECL GHL_MakeStatic(unk){notimp(__LINE__);}
-unk QDECL GHL_EntIsOnFloor(unk){notimp(__LINE__);}
+unk QDECL GHL_MakeStatic(unk){notimpf(__func__);}
+unk QDECL GHL_EntIsOnFloor(unk){notimpf(__func__);}
 int QDECL GHL_DropToFloor(hledict_t *ed)
 {
 	vec3_t top;
@@ -416,7 +429,7 @@ void QDECL GHL_EmitSound(hledict_t *ed, int chan, char *soundname, float vol, fl
 }
 void QDECL GHL_EmitAmbientSound(hledict_t *ed, float *org, char *soundname, float vol, float atten, unsigned int flags, int pitch)
 {
-	SV_StartSound(0, org, ~0, 0, soundname, vol*255, atten);
+	SV_StartSound(0, org, ~0, 0, soundname, vol*255, atten, 0);
 }
 void QDECL GHL_TraceLine(float *start, float *end, int flags, hledict_t *ignore, hltraceresult_t *result)
 {
@@ -437,13 +450,13 @@ void QDECL GHL_TraceLine(float *start, float *end, int flags, hledict_t *ignore,
 		result->touched = &SVHL_Edict[0];
 	result->hitgroup = 0;
 }
-unk QDECL GHL_TraceToss(unk){notimp(__LINE__);}
-unk QDECL GHL_TraceMonsterHull(unk){notimp(__LINE__);}
+unk QDECL GHL_TraceToss(unk){notimpf(__func__);}
+unk QDECL GHL_TraceMonsterHull(unk){notimpf(__func__);}
 void QDECL GHL_TraceHull(float *start, float *end, int flags, int hullnum, hledict_t *ignore, hltraceresult_t *result)
 {
 	trace_t t;
 
-	t = SVHL_Move(start, sv.worldmodel->hulls[hullnum].clip_mins, sv.worldmodel->hulls[hullnum].clip_maxs, end, flags, 0, ignore);
+	t = SVHL_Move(start, sv.world.worldmodel->hulls[hullnum].clip_mins, sv.world.worldmodel->hulls[hullnum].clip_maxs, end, flags, 0, ignore);
 
 	result->allsolid = t.allsolid;
 	result->startsolid = t.startsolid;
@@ -456,15 +469,15 @@ void QDECL GHL_TraceHull(float *start, float *end, int flags, int hullnum, hledi
 	result->touched = t.ent;
 	result->hitgroup = 0;
 }
-unk QDECL GHL_TraceModel(unk){notimp(__LINE__);}
+unk QDECL GHL_TraceModel(unk){notimpf(__func__);}
 char *QDECL GHL_TraceTexture(hledict_t *againstent, vec3_t start, vec3_t end)
 {
 	trace_t tr;
-	sv.worldmodel->funcs.Trace(sv.worldmodel, 0, 0, start, end, vec3_origin, vec3_origin, &tr);
+	sv.world.worldmodel->funcs.NativeTrace(sv.world.worldmodel, 0, 0, NULL, start, end, vec3_origin, vec3_origin, MASK_WORLDSOLID, &tr);
 	return tr.surface->name;
 }
-unk QDECL GHL_TraceSphere(unk){notimp(__LINE__);}
-unk QDECL GHL_GetAimVector(unk){notimp(__LINE__);}
+unk QDECL GHL_TraceSphere(unk){notimpf(__func__);}
+unk QDECL GHL_GetAimVector(unk){notimpf(__func__);}
 void QDECL GHL_ServerCommand(char *cmd)
 {
 	Cbuf_AddText(cmd, RESTRICT_PROGS);
@@ -473,8 +486,8 @@ void QDECL GHL_ServerExecute(void)
 {
 	Cbuf_ExecuteLevel(RESTRICT_PROGS);
 }
-unk QDECL GHL_ClientCommand(unk){notimp(__LINE__);}
-unk QDECL GHL_ParticleEffect(unk){notimp(__LINE__);}
+unk QDECL GHL_ClientCommand(unk){notimpf(__func__);}
+unk QDECL GHL_ParticleEffect(unk){notimpf(__func__);}
 void QDECL GHL_LightStyle(int stylenum, char *stylestr)
 {
 	PF_applylightstyle(stylenum, stylestr, 7);
@@ -606,7 +619,7 @@ void QDECL GHL_EngineFprintf(FILE *f, char *fmt, ...)
 {
 	SV_Error("Halflife gamecode tried to use EngineFprintf\n");
 }
-unk QDECL GHL_SzFromIndex(unk){notimp(__LINE__);}
+unk QDECL GHL_SzFromIndex(unk){notimpf(__func__);}
 void *QDECL GHL_GetModelPtr(hledict_t *ed)
 {
 #ifdef SERVERONLY
@@ -643,8 +656,8 @@ int QDECL GHL_RegUserMsg(char *msgname, int msgsize)
 
 	return lastusermessage--;
 }
-unk QDECL GHL_AnimationAutomove(unk){notimp(__LINE__);}
-unk QDECL GHL_GetBonePosition(unk){notimp(__LINE__);}
+unk QDECL GHL_AnimationAutomove(unk){notimpf(__func__);}
+unk QDECL GHL_GetBonePosition(unk){notimpf(__func__);}
 
 hlintptr_t QDECL GHL_FunctionFromName(char *name)
 {
@@ -658,7 +671,7 @@ char *QDECL GHL_NameForFunction(hlintptr_t function)
 unk QDECL GHL_ClientPrintf(unk)
 {
 //	SV_ClientPrintf(
-	notimp(__LINE__);
+	notimpf(__func__);
 }
 void QDECL GHL_ServerPrint(char *msg)
 {
@@ -676,7 +689,7 @@ int QDECL GHL_Cmd_Argc(unk)
 {
 	return Cmd_Argc();
 }
-unk QDECL GHL_GetAttachment(unk){notimp(__LINE__);}
+unk QDECL GHL_GetAttachment(unk){notimpf(__func__);}
 void QDECL GHL_CRC32_Init(hlcrc_t *crc)
 {
 	unsigned short crc16 = *crc;
@@ -711,9 +724,9 @@ float QDECL GHL_RandomFloat(float minv, float maxv)
 {
 	return minv + frandom()*(maxv-minv);
 }
-unk QDECL GHL_SetView(unk){notimp(__LINE__);}
-unk QDECL GHL_Time(unk){notimp(__LINE__);}
-unk QDECL GHL_CrosshairAngle(unk){notimp(__LINE__);}
+unk QDECL GHL_SetView(unk){notimpf(__func__);}
+unk QDECL GHL_Time(unk){notimpf(__func__);}
+unk QDECL GHL_CrosshairAngle(unk){notimpf(__func__);}
 void *QDECL GHL_LoadFileForMe(char *name, int *size_out)
 {
 	int fsize;
@@ -729,7 +742,7 @@ void QDECL GHL_FreeFile(void *fptr)
 {
 	FS_FreeFile(fptr);
 }
-unk QDECL GHL_EndSection(unk){notimp(__LINE__);}
+unk QDECL GHL_EndSection(unk){notimpf(__func__);}
 #include <sys/stat.h>
 int QDECL GHL_CompareFileTime(char *fname1, char *fname2, int *result)
 {
@@ -762,14 +775,14 @@ void QDECL GHL_GetGameDir(char *gamedir)
 	//warning: the output buffer size is not specified!
 	Q_strncpyz(gamedir, gamedirfile, MAX_QPATH);
 }
-unk QDECL GHL_Cvar_RegisterVariable(unk){notimp(__LINE__);}
-unk QDECL GHL_FadeClientVolume(unk){notimp(__LINE__);}
+unk QDECL GHL_Cvar_RegisterVariable(unk){notimpf(__func__);}
+unk QDECL GHL_FadeClientVolume(unk){notimpf(__func__);}
 unk QDECL GHL_SetClientMaxspeed(unk)
 {
-	notimp(__LINE__);
+	notimpf(__func__);
 }
-unk QDECL GHL_CreateFakeClient(unk){notimp(__LINE__);}
-unk QDECL GHL_RunPlayerMove(unk){notimp(__LINE__);}
+unk QDECL GHL_CreateFakeClient(unk){notimpf(__func__);}
+unk QDECL GHL_RunPlayerMove(unk){notimpf(__func__);}
 int QDECL GHL_NumberOfEntities(void)
 {
 	return 0;
@@ -785,11 +798,11 @@ char *QDECL GHL_InfoKeyValue(char *infostr, char *key)
 {
 	return Info_ValueForKey(infostr, key);
 }
-unk QDECL GHL_SetKeyValue(unk){notimp(__LINE__);}
-unk QDECL GHL_SetClientKeyValue(unk){notimp(__LINE__);}
-unk QDECL GHL_IsMapValid(unk){notimp(__LINE__);}
-unk QDECL GHL_StaticDecal(unk){notimp(__LINE__);}
-unk QDECL GHL_PrecacheGeneric(unk){notimp(__LINE__);}
+unk QDECL GHL_SetKeyValue(unk){notimpf(__func__);}
+unk QDECL GHL_SetClientKeyValue(unk){notimpf(__func__);}
+unk QDECL GHL_IsMapValid(unk){notimpf(__func__);}
+unk QDECL GHL_StaticDecal(unk){notimpf(__func__);}
+unk QDECL GHL_PrecacheGeneric(unk){notimpf(__func__);}
 int QDECL GHL_GetPlayerUserId(hledict_t *ed)
 {
 	unsigned int clnum = (ed - SVHL_Edict) - 1;
@@ -797,7 +810,7 @@ int QDECL GHL_GetPlayerUserId(hledict_t *ed)
 		return -1;
 	return svs.clients[clnum].userid;
 }
-unk QDECL GHL_BuildSoundMsg(unk){notimp(__LINE__);}
+unk QDECL GHL_BuildSoundMsg(unk){notimpf(__func__);}
 
 int QDECL GHL_IsDedicatedServer(void)
 {
@@ -956,11 +969,11 @@ void QDECL GHL_CVarSetString(char *vname, char *value)
 		Con_Printf("cvar %s does not exist\n", vname);
 }
 
-unk QDECL GHL_GetPlayerWONId(unk){notimp(__LINE__);}
-unk QDECL GHL_Info_RemoveKey(unk){notimp(__LINE__);}
-unk QDECL GHL_GetPhysicsKeyValue(unk){notimp(__LINE__);}
-unk QDECL GHL_SetPhysicsKeyValue(unk){notimp(__LINE__);}
-unk QDECL GHL_GetPhysicsInfoString(unk){notimp(__LINE__);}
+unk QDECL GHL_GetPlayerWONId(unk){notimpf(__func__);}
+unk QDECL GHL_Info_RemoveKey(unk){notimpf(__func__);}
+unk QDECL GHL_GetPhysicsKeyValue(unk){notimpf(__func__);}
+unk QDECL GHL_SetPhysicsKeyValue(unk){notimpf(__func__);}
+unk QDECL GHL_GetPhysicsInfoString(unk){notimpf(__func__);}
 unsigned short QDECL GHL_PrecacheEvent(int eventtype, char *eventname)
 {
 	Con_Printf("Fixme: GHL_PrecacheEvent: %s\n", eventname);
@@ -970,42 +983,46 @@ void QDECL GHL_PlaybackEvent(int flags, hledict_t *ent, unsigned short eventidx,
 {
 	ignore("GHL_PlaybackEvent not implemented");
 }
-unk QDECL GHL_SetFatPVS(unk){notimp(__LINE__);}
-unk QDECL GHL_SetFatPAS(unk){notimp(__LINE__);}
-unk QDECL GHL_CheckVisibility(unk){notimp(__LINE__);}
-unk QDECL GHL_DeltaSetField(unk){notimp(__LINE__);}
-unk QDECL GHL_DeltaUnsetField(unk){notimp(__LINE__);}
-unk QDECL GHL_DeltaAddEncoder(unk){notimp(__LINE__);}
-unk QDECL GHL_GetCurrentPlayer(unk){notimp(__LINE__);}
-unk QDECL GHL_CanSkipPlayer(unk){notimp(__LINE__);}
-unk QDECL GHL_DeltaFindField(unk){notimp(__LINE__);}
-unk QDECL GHL_DeltaSetFieldByIndex(unk){notimp(__LINE__);}
-unk QDECL GHL_DeltaUnsetFieldByIndex(unk){notimp(__LINE__);}
-unk QDECL GHL_SetGroupMask(unk){notimp(__LINE__);}
-unk QDECL GHL_CreateInstancedBaseline(unk){notimp(__LINE__);}
-unk QDECL GHL_Cvar_DirectSet(unk){notimp(__LINE__);}
-unk QDECL GHL_ForceUnmodified(unk){notimp(__LINE__);}
-unk QDECL GHL_GetPlayerStats(unk){notimp(__LINE__);}
-unk QDECL GHL_AddServerCommand(unk){notimp(__LINE__);}
-unk QDECL GHL_Voice_GetClientListening(unk){notimp(__LINE__);}
+unk QDECL GHL_SetFatPVS(unk){notimpf(__func__);}
+unk QDECL GHL_SetFatPAS(unk){notimpf(__func__);}
+unk QDECL GHL_CheckVisibility(unk){notimpf(__func__);}
+unk QDECL GHL_DeltaSetField(unk){notimpf(__func__);}
+unk QDECL GHL_DeltaUnsetField(unk){notimpf(__func__);}
+unk QDECL GHL_DeltaAddEncoder(unk){notimpf(__func__);}
+unk QDECL GHL_GetCurrentPlayer(unk){notimpf(__func__);}
+int QDECL GHL_CanSkipPlayer(hledict_t *playerent)
+{
+	return false;
+//	notimpf(__func__);
+}
+unk QDECL GHL_DeltaFindField(unk){notimpf(__func__);}
+unk QDECL GHL_DeltaSetFieldByIndex(unk){notimpf(__func__);}
+unk QDECL GHL_DeltaUnsetFieldByIndex(unk){notimpf(__func__);}
+unk QDECL GHL_SetGroupMask(unk){notimpf(__func__);}
+unk QDECL GHL_CreateInstancedBaseline(unk){notimpf(__func__);}
+unk QDECL GHL_Cvar_DirectSet(unk){notimpf(__func__);}
+unk QDECL GHL_ForceUnmodified(unk){notimpf(__func__);}
+unk QDECL GHL_GetPlayerStats(unk){notimpf(__func__);}
+unk QDECL GHL_AddServerCommand(unk){notimpf(__func__);}
+unk QDECL GHL_Voice_GetClientListening(unk){notimpf(__func__);}
 qboolean QDECL GHL_Voice_SetClientListening(int listener, int sender, int shouldlisten)
 {
 	return false;
 }
-unk QDECL GHL_GetPlayerAuthId(unk){notimp(__LINE__);}
-unk QDECL GHL_SequenceGet(unk){notimp(__LINE__);}
-unk QDECL GHL_SequencePickSentence(unk){notimp(__LINE__);}
-unk QDECL GHL_GetFileSize(unk){notimp(__LINE__);}
-unk QDECL GHL_GetApproxWavePlayLen(unk){notimp(__LINE__);}
-unk QDECL GHL_IsCareerMatch(unk){notimp(__LINE__);}
-unk QDECL GHL_GetLocalizedStringLength(unk){notimp(__LINE__);}
-unk QDECL GHL_RegisterTutorMessageShown(unk){notimp(__LINE__);}
-unk QDECL GHL_GetTimesTutorMessageShown(unk){notimp(__LINE__);}
-unk QDECL GHL_ProcessTutorMessageDecayBuffer(unk){notimp(__LINE__);}
-unk QDECL GHL_ConstructTutorMessageDecayBuffer(unk){notimp(__LINE__);}
-unk QDECL GHL_ResetTutorMessageDecayData(unk){notimp(__LINE__);}
-unk QDECL GHL_QueryClientCvarValue(unk){notimp(__LINE__);}
-unk QDECL GHL_QueryClientCvarValue2(unk){notimp(__LINE__);}
+unk QDECL GHL_GetPlayerAuthId(unk){notimpf(__func__);}
+unk QDECL GHL_SequenceGet(unk){notimpf(__func__);}
+unk QDECL GHL_SequencePickSentence(unk){notimpf(__func__);}
+unk QDECL GHL_GetFileSize(unk){notimpf(__func__);}
+unk QDECL GHL_GetApproxWavePlayLen(unk){notimpf(__func__);}
+unk QDECL GHL_IsCareerMatch(unk){notimpf(__func__);}
+unk QDECL GHL_GetLocalizedStringLength(unk){notimpf(__func__);}
+unk QDECL GHL_RegisterTutorMessageShown(unk){notimpf(__func__);}
+unk QDECL GHL_GetTimesTutorMessageShown(unk){notimpf(__func__);}
+unk QDECL GHL_ProcessTutorMessageDecayBuffer(unk){notimpf(__func__);}
+unk QDECL GHL_ConstructTutorMessageDecayBuffer(unk){notimpf(__func__);}
+unk QDECL GHL_ResetTutorMessageDecayData(unk){notimpf(__func__);}
+unk QDECL GHL_QueryClientCvarValue(unk){notimpf(__func__);}
+unk QDECL GHL_QueryClientCvarValue2(unk){notimpf(__func__);}
 
 
 
@@ -1220,7 +1237,7 @@ int SVHL_InitGame(void)
 	char *gamedll;
 	char *path;
 	char fullname[MAX_OSPATH];
-	void (QDECL *GiveFnptrsToDll) (funcs, globals);
+	void (WINAPI *GiveFnptrsToDll) (funcs, globals);
 	int (QDECL *GetEntityAPI)(SVHL_GameFuncs_t *pFunctionTable, int apivers);
 
 	dllfunction_t hlgamefuncs[] =
@@ -1245,16 +1262,20 @@ int SVHL_InitGame(void)
 		return 1;
 	}
 
-	gamedll = Info_ValueForKey(svs.info, "*gamedll");
-	path = NULL;
-	while((path = COM_NextPath (path)))
+	hlgamecode = Sys_LoadLibrary("C:/Incoming/d/Half-Life/sdks/hlsdk-2.3-p3/hlsdk-2.3-p3/multiplayer/dlls/debugmp/mp.dll", hlgamefuncs);
+	if (!hlgamecode)
 	{
-		if (!path)
-			return 0;		// couldn't find one anywhere
-		snprintf (fullname, sizeof(fullname), "%s/%s", path, gamedll);
-		hlgamecode = Sys_LoadLibrary(fullname, hlgamefuncs);
-		if (hlgamecode)
-			break;
+		gamedll = Info_ValueForKey(svs.info, "*gamedll");
+		path = NULL;
+		while((path = COM_NextPath (path)))
+		{
+			if (!path)
+				return 0;		// couldn't find one anywhere
+			snprintf (fullname, sizeof(fullname), "%s/%s", path, gamedll);
+			hlgamecode = Sys_LoadLibrary(fullname, hlgamefuncs);
+			if (hlgamecode)
+				break;
+		}
 	}
 
 	if (!hlgamecode)
@@ -1332,7 +1353,7 @@ void SVHL_SpawnEntities(char *entstring)
 	//precache the inline models (and touch them).
 	sv.strings.model_precache[0] = "";
 	sv.strings.model_precache[1] = sv.modelname;	//the qvm doesn't have access to this array
-	for (i=1 ; i<sv.worldmodel->numsubmodels ; i++)
+	for (i=1 ; i<sv.world.worldmodel->numsubmodels ; i++)
 	{
 		sv.strings.model_precache[1+i] = localmodels[i];
 		sv.models[i+1] = Mod_ForName (localmodels[i], false);
@@ -1499,8 +1520,10 @@ extern vec3_t	player_maxs;
 	pmove.cmd = *ucmd;
 	pmove.pm_type = temp1.value;//PM_NORMAL;//FLY;
 	pmove.numphysent = 1;
-	pmove.physents[0].model = sv.worldmodel;
+	pmove.physents[0].model = sv.world.worldmodel;
 	pmove.physents[0].info = 0;
+	pmove.skipent = -1;
+	pmove.onladder = false;
 
 	if (ed->v.flags & (1<<24))
 	{
@@ -1554,7 +1577,7 @@ extern vec3_t	player_maxs;
 				pe->forcecontentsmask = FTECONTENTS_SKY;
 				break;
 			case -16:
-				pe->forcecontentsmask = Q2CONTENTS_LADDER;
+				pe->forcecontentsmask = FTECONTENTS_LADDER;
 				break;
 			default:
 				pe->forcecontentsmask = 0;
@@ -1738,8 +1761,17 @@ void SVHL_Snapshot_Build(client_t *client, packet_entities_t *pack, qbyte *pvs, 
 	}
 }
 
-void SVHL_Snapshot_SetupPVS(client_t *client, qbyte *pvs, unsigned int pvsbufsize)
+qbyte *SVHL_Snapshot_SetupPVS(client_t *client, qbyte *pvs, unsigned int pvsbufsize)
 {
+	vec3_t org;
+
+	if (client->hledict)
+	{
+		VectorAdd (client->hledict->v.origin, client->hledict->v.view_ofs, org);
+		sv.world.worldmodel->funcs.FatPVS(sv.world.worldmodel, org, pvs, pvsbufsize, false);
+	}
+
+	return pvs;
 }
 
 #endif

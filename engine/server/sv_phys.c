@@ -1029,7 +1029,13 @@ static void WPhys_CheckWaterTransition (world_t *w, wedict_t *ent)
 		return;
 	}
 
-	if (cont <= Q1CONTENTS_WATER)
+	if (ent->v->watertype != cont && w->Event_ContentsTransition(w, ent, ent->v->watertype, cont))
+	{
+		ent->v->watertype = cont;
+		ent->v->waterlevel = 1;
+	}
+
+	else if (cont <= Q1CONTENTS_WATER)
 	{
 		if (ent->v->watertype == Q1CONTENTS_EMPTY && *sv_sound_watersplash.string)
 		{	// just crossed into water
@@ -1223,7 +1229,7 @@ static void WPhys_Physics_Step (world_t *w, wedict_t *ent)
 
 		if ( (int)ent->v->flags & FL_ONGROUND )	// just hit ground
 		{
-			if (hitsound)
+			if (hitsound && *sv_sound_land.string)
 			{
 				w->Event_Sound(ent, 0, sv_sound_land.string, 255, 1, 0);
 			}
@@ -1798,7 +1804,6 @@ void WPhys_MoveChain(world_t *w, wedict_t *ent, wedict_t *movechain, float *init
 	}
 }
 
-#define FL_JUMPRELEASED 4096
 /*
 ================
 SV_RunEntity

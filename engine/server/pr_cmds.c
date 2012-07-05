@@ -495,6 +495,21 @@ void SVPR_Event_Think(world_t *w, wedict_t *s)
 	PR_ExecuteProgram (w->progs, s->v->think);
 }
 
+qboolean SVPR_Event_ContentsTransition(world_t *w, wedict_t *ent, int oldwatertype, int newwatertype)
+{
+	if (ent->xv->contentstransition)
+	{
+		void *pr_globals = PR_globals(w->progs, PR_CURRENT);
+		pr_global_struct->self = EDICT_TO_PROG(w->progs, ent);
+		pr_global_struct->time = w->physicstime;
+		G_FLOAT(OFS_PARM0) = oldwatertype;
+		G_FLOAT(OFS_PARM1) = newwatertype;
+		PR_ExecuteProgram (w->progs, ent->xv->contentstransition);
+		return true;
+	}
+	return false;	//do legacy behaviour
+}
+
 void Q_SetProgsParms(qboolean forcompiler)
 {
 	progstype = PROG_NONE;
@@ -547,6 +562,7 @@ void Q_SetProgsParms(qboolean forcompiler)
 	sv.world.Event_Touch = SVPR_Event_Touch;
 	sv.world.Event_Think = SVPR_Event_Think;
 	sv.world.Event_Sound = SVQ1_StartSound;
+	sv.world.Event_ContentsTransition = SVPR_Event_ContentsTransition;
 	sv.world.Get_CModel = SVPR_GetCModel;
 	sv.world.Get_FrameState = SVPR_Get_FrameState;
 	PRSV_ClearThreads();
@@ -2957,7 +2973,7 @@ static void QCBUILTIN PF_LocalSound(progfuncs_t *prinst, struct globalvars_s *pr
 	if (!isDedicated)
 	{
 		if ((sfx = S_PrecacheSound(s)))
-			S_StartSound(cl.playernum[0], chan, sfx, cl.simorg[0], vol, 0.0, 0, 0);
+			S_StartSound(cl.playernum[0], chan, sfx, cl.playerview[0].simorg, vol, 0.0, 0, 0);
 	}
 #endif
 };
@@ -3904,9 +3920,18 @@ void QCBUILTIN PF_applylightstyle(int style, char *val, int col)
 
 
 // change the string in sv
-	if (sv.strings.lightstyles[style])
-		Z_Free(sv.strings.lightstyles[style]);
-	sv.strings.lightstyles[style] = Z_Malloc(strlen(val)+1);
+	if (!svprogfuncs)
+	{
+		if (sv.strings.lightstyles[style])
+			BZ_Free(sv.strings.lightstyles[style]);
+		sv.strings.lightstyles[style] = BZ_Malloc(strlen(val)+1);
+	}
+	else
+	{
+		if (sv.strings.lightstyles[style])
+			PR_AddressableFree(svprogfuncs, sv.strings.lightstyles[style]);
+		sv.strings.lightstyles[style] = PR_AddressableAlloc(svprogfuncs, strlen(val)+1);
+	}
 	strcpy(sv.strings.lightstyles[style], val);
 //	sv.lightstyles[style] = val;
 #ifdef PEXT_LIGHTSTYLECOL

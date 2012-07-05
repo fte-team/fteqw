@@ -510,8 +510,8 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 	else if (!olds)
 	{
 		/*reset got lost, probably the data will be filled in later - FIXME: we should probably ignore this entity*/
-//		Con_DPrintf("New entity without reset\n");
-		memset(news, 0, sizeof(*news));
+		Con_DPrintf("New entity without reset\n");
+		*news = nullentitystate;
 //		*news = *baseline;
 	}
 	else
@@ -661,6 +661,9 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 		news->lightstyle = MSG_ReadByte();
 		news->lightpflags = MSG_ReadByte();
 	}
+	if (bits & UF_TRAILEFFECT)
+		news->u.q1.traileffectnum = MSG_ReadShort();
+
 	if (bits & UF_COLORMOD)
 	{
 		news->colormod[0] = MSG_ReadByte();
@@ -673,9 +676,28 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 		news->glowmod[1] = MSG_ReadByte();
 		news->glowmod[2] = MSG_ReadByte();
 	}
-
 	if (bits & UF_FATNESS)
 		news->fatness = MSG_ReadByte();
+	if (bits & UF_MODELINDEX2)
+	{
+		if (bits & UF_16BIT)
+			news->modelindex2 = MSG_ReadShort();
+		else
+			news->modelindex2 = MSG_ReadByte();
+	}
+	if (bits & UF_GRAVITYDIR)
+	{
+		news->u.q1.gravitydir[0] = MSG_ReadByte();
+		news->u.q1.gravitydir[1] = MSG_ReadByte();
+	}
+}
+
+void CLFTE_ParseBaseline(entity_state_t *es, qboolean numberisimportant)
+{
+	int entnum = 0;
+	if (numberisimportant)
+		entnum = MSG_ReadShort();
+	CLFTE_ReadDelta(entnum, es, &nullentitystate, &nullentitystate);
 }
 
 /*
@@ -1550,8 +1572,8 @@ void CL_RotateAroundTag(entity_t *ent, int entnum, int parenttagent, int parentt
 		{
 			if (parenttagent == cl.playernum[0]+1)
 			{
-				org = cl.simorg[0];
-				ang = cl.simangles[0];
+				org = cl.playerview[0].simorg;
+				ang = cl.playerview[0].simangles;
 			}
 			else
 			{
@@ -1873,8 +1895,63 @@ void CLQ1_AddVisibleBBoxes(void)
 	#ifdef CSQC_DAT
 	case 2:
 		w = &csqc_world;
-		return;
+		break;
 	#endif
+	case 3:
+		{
+			frame_t *frame;
+			packet_entities_t *pak;
+			entity_state_t *state;
+			model_t *mod;
+			s = R_RegisterShader("bboxshader",
+				"{\n"
+				"polygonoffset\n"
+				"{\n"
+				"map $whiteimage\n"
+				"blendfunc add\n"
+				"rgbgen vertex\n"
+				"alphagen vertex\n"
+				"}\n"
+				"}\n");
+			frame = &cl.frames[cl.parsecount & UPDATE_MASK];
+			pak = &frame->packet_entities;
+
+			for (i=0 ; i<pak->num_entities ; i++)
+			{
+				state = &pak->entities[i];
+
+				if (!state->solid && !state->skinnum)
+					continue;
+
+				if (state->solid == ES_SOLID_BSP)
+				{	/*bsp model size*/
+					if (state->modelindex <= 0)
+						continue;
+					if (!cl.model_precache[state->modelindex])
+						continue;
+					/*this makes non-inline bsp objects non-solid for prediction*/
+					if ((*cl.model_precache[state->modelindex]->name == '*' || cl.model_precache[state->modelindex]->numsubmodels) && cl.model_precache[state->modelindex]->hulls[1].firstclipnode)
+					{
+						mod = cl.model_precache[state->modelindex];
+						VectorAdd(state->origin, mod->mins, min);
+						VectorAdd(state->origin, mod->maxs, max);
+						CLQ1_AddCube(s, min, max, 0.1, 0, 0, 1);
+					}
+				}
+				else
+				{
+					/*don't bother with angles*/
+					max[0] = max[1] = 8*(state->solid & 31);
+					min[0] = min[1] = -max[0];
+					min[2] = -8*((state->solid>>5) & 31);
+					max[2] = 8*((state->solid>>10) & 63) - 32;
+					VectorAdd(state->origin, min, min);
+					VectorAdd(state->origin, max, max);
+					CLQ1_AddCube(s, min, max, 0.1, 0, 0, 1);
+				}
+			}
+		}
+		return;
 	}
 
 	if (!w->progs)
@@ -1898,6 +1975,8 @@ void CLQ1_AddVisibleBBoxes(void)
 
 		if (r_showbboxes.ival & 4)
 		{
+			//shows the hulls instead
+
 			/*mins is easy*/
 			VectorAdd(e->v->origin, e->v->mins, min);
 
@@ -2339,6 +2418,8 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 						a1 += 360;
 					le->angles[i] = a1 + frac * (a2 - a1);
 				}
+				VectorCopy(le->origin, le->neworigin);
+				VectorCopy(le->angles, le->newangle);
 				le->orglerpdeltatime = 0.1;
 				le->orglerpstarttime = oldpack->servertime;
 			}
@@ -2533,6 +2614,7 @@ void CL_LinkPacketEntities (void)
 	vec3_t				angles;
 	static int flickertime;
 	static int flicker;
+	int trailef;
 
 	pack = cl.currentpackentities;
 	if (!pack)
@@ -2777,7 +2859,7 @@ void CL_LinkPacketEntities (void)
 		CLQ1_AddPowerupShell(ent, false, state->effects);
 
 		// add automatic particle trails
-		if (!model || (!(model->flags&~MF_ROTATE) && model->particletrail<0 && model->particleeffect<0))
+		if (!model || (!(model->flags&~MF_ROTATE) && model->particletrail<0 && model->particleeffect<0 && state->u.q1.traileffectnum==0))
 			continue;
 
 		if (!cls.allow_anyparticles && !(model->flags & ~MF_ROTATE))
@@ -2801,7 +2883,11 @@ void CL_LinkPacketEntities (void)
 			}
 		}
 
-		if (model->particletrail == P_INVALID || pe->ParticleTrail (old_origin, ent->origin, model->particletrail, ent->keynum, &(le->trailstate)))
+		trailef = model->particletrail;
+		if (state->u.q1.traileffectnum)
+			trailef = CL_TranslateParticleFromServer(state->u.q1.traileffectnum);
+
+		if (trailef == P_INVALID || pe->ParticleTrail (old_origin, ent->origin, trailef, ent->keynum, &(le->trailstate)))
 			if (model->traildefaultindex >= 0)
 				pe->ParticleTrailIndex(old_origin, ent->origin, model->traildefaultindex, 0, &(le->trailstate));
 
@@ -3150,6 +3236,10 @@ void CL_ParsePlayerinfo (void)
 		state->colourmod[1] = 32;
 		state->colourmod[2] = 32;
 
+		state->gravitydir[0] = 0;
+		state->gravitydir[1] = 0;
+		state->gravitydir[2] = -1;
+
 		state->pm_type = PM_NORMAL;
 
 		TP_ParsePlayerInfo(oldstate, state, info);
@@ -3160,8 +3250,8 @@ void CL_ParsePlayerinfo (void)
 		{
 			if (cl.playernum[i] == num)
 			{
-				cl.stats[i][STAT_WEAPONFRAME] = state->weaponframe;
-				cl.statsf[i][STAT_WEAPONFRAME] = state->weaponframe;
+				cl.playerview[i].stats[STAT_WEAPONFRAME] = state->weaponframe;
+				cl.playerview[i].statsf[STAT_WEAPONFRAME] = state->weaponframe;
 			}
 		}
 
@@ -3273,6 +3363,10 @@ void CL_ParsePlayerinfo (void)
 	state->alpha = 255;
 	state->fatness = 0;
 
+	state->gravitydir[0] = 0;
+	state->gravitydir[1] = 0;
+	state->gravitydir[2] = -1;
+
 #ifdef PEXT_SCALE
 	if (flags & PF_SCALE && cls.fteprotocolextensions & PEXT_SCALE)
 		state->scale = (float)MSG_ReadByte()/50;
@@ -3383,8 +3477,8 @@ guess_pm_type:
 	{
 		if (cl.playernum[i] == num)
 		{
-			cl.stats[i][STAT_WEAPONFRAME] = state->weaponframe;
-			cl.statsf[i][STAT_WEAPONFRAME] = state->weaponframe;
+			cl.playerview[i].stats[STAT_WEAPONFRAME] = state->weaponframe;
+			cl.playerview[i].statsf[STAT_WEAPONFRAME] = state->weaponframe;
 		}
 	}
 
@@ -3626,7 +3720,7 @@ void CL_LinkPlayers (void)
 				VectorCopy(state->origin, org);
 				for (pnum = 0; pnum < cl.splitclients; pnum++)
 					if (cl.playernum[pnum] == j)
-						VectorCopy(cl.simorg[pnum], org);
+						VectorCopy(cl.playerview[pnum].simorg, org);
 				if (model)
 				{
 					org[2] += model->mins[2];
@@ -3710,12 +3804,12 @@ void CL_LinkPlayers (void)
 					cl_numvisedicts--;
 					continue;
 				}
-*/				angles[0] = -1*cl.viewangles[pnum][0] / 3;
-				angles[1] = cl.viewangles[pnum][1];
-				angles[2] = cl.viewangles[pnum][2];
-				ent->origin[0] = cl.simorg[pnum][0];
-				ent->origin[1] = cl.simorg[pnum][1];
-				ent->origin[2] = cl.simorg[pnum][2]+cl.crouch[pnum];
+*/				angles[0] = -1*cl.playerview[pnum].viewangles[0] / 3;
+				angles[1] = cl.playerview[pnum].viewangles[1];
+				angles[2] = cl.playerview[pnum].viewangles[2];
+				ent->origin[0] = cl.playerview[pnum].simorg[0];
+				ent->origin[1] = cl.playerview[pnum].simorg[1];
+				ent->origin[2] = cl.playerview[pnum].simorg[2]+cl.crouch[pnum];
 				break;
 			}
 		}
@@ -3823,10 +3917,10 @@ void CL_LinkViewModel(void)
 	if (!r_drawentities.ival)
 		return;
 
-	if ((cl.stats[r_refdef.currentplayernum][STAT_ITEMS] & IT_INVISIBILITY) && r_drawviewmodelinvis.value <= 0)
+	if ((cl.playerview[r_refdef.currentplayernum].stats[STAT_ITEMS] & IT_INVISIBILITY) && r_drawviewmodelinvis.value <= 0)
 		return;
 
-	if (cl.stats[r_refdef.currentplayernum][STAT_HEALTH] <= 0)
+	if (cl.playerview[r_refdef.currentplayernum].stats[STAT_HEALTH] <= 0)
 		return;
 
 	if (r_drawviewmodel.value > 0 && r_drawviewmodel.value < 1)
@@ -3834,7 +3928,7 @@ void CL_LinkViewModel(void)
 	else
 		alpha = 1;
 
-	if ((cl.stats[r_refdef.currentplayernum][STAT_ITEMS] & IT_INVISIBILITY)
+	if ((cl.playerview[r_refdef.currentplayernum].stats[STAT_ITEMS] & IT_INVISIBILITY)
 		&& r_drawviewmodelinvis.value > 0
 		&& r_drawviewmodelinvis.value < 1)
 		alpha *= r_drawviewmodelinvis.value;

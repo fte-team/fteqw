@@ -2,6 +2,7 @@
 
 #ifdef D3DQUAKE
 #include "shader.h"
+#include "winquake.h"
 #if !defined(HMONITOR_DECLARED) && (WINVER < 0x0500)
     #define HMONITOR_DECLARED
     DECLARE_HANDLE(HMONITOR);

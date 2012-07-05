@@ -33,7 +33,7 @@ cvar_t	cl_nodelta = CVAR("cl_nodelta","0");
 
 cvar_t	cl_c2spps = CVAR("cl_c2spps", "0");
 cvar_t	cl_c2sImpulseBackup = SCVAR("cl_c2sImpulseBackup","3");
-cvar_t	cl_netfps = CVAR("cl_netfps", "100");
+cvar_t	cl_netfps = CVAR("cl_netfps", "150");
 cvar_t	cl_sparemsec = CVARC("cl_sparemsec", "10", CL_SpareMsec_Callback);
 cvar_t  cl_queueimpulses = CVAR("cl_queueimpulses", "0");
 cvar_t	cl_smartjump = CVAR("cl_smartjump", "1");
@@ -274,7 +274,7 @@ void IN_JumpDown (void)
 		KeyDown(&in_up);
 	else
 #endif
-		if (condition && cl.stats[pnum][STAT_HEALTH] > 0 && !cls.demoplayback && !cl.spectator && 
+		if (condition && cl.playerview[pnum].stats[STAT_HEALTH] > 0 && !cls.demoplayback && !cl.spectator && 
 		cl.frames[cl.validsequence&UPDATE_MASK].playerstate[cl.playernum[pnum]].messagenum == cl.validsequence && cl.waterlevel[pnum] >= 2 && (!cl.teamfortress || !(in_forward.state[pnum] & 1))
 	)
 		KeyDown(&in_up);
@@ -322,7 +322,7 @@ void IN_Impulse (void)
 
 	if (Cmd_Argc() > 2)
 	{
-		items = cl.stats[pnum][STAT_ITEMS];
+		items = cl.playerview[pnum].stats[STAT_ITEMS];
 		best = 0;
 
 		for (i = Cmd_Argc() - 1; i > 0; i--)
@@ -338,31 +338,31 @@ void IN_Impulse (void)
 						best = 1;
 					break;
 				case 2:
-					if (items & IT_SHOTGUN && cl.stats[pnum][STAT_SHELLS] >= 1)
+					if (items & IT_SHOTGUN && cl.playerview[pnum].stats[STAT_SHELLS] >= 1)
 						best = 2;
 					break;
 				case 3:
-					if (items & IT_SUPER_SHOTGUN && cl.stats[pnum][STAT_SHELLS] >= 2)
+					if (items & IT_SUPER_SHOTGUN && cl.playerview[pnum].stats[STAT_SHELLS] >= 2)
 						best = 3;
 					break;
 				case 4:
-					if (items & IT_NAILGUN && cl.stats[pnum][STAT_NAILS] >= 1)
+					if (items & IT_NAILGUN && cl.playerview[pnum].stats[STAT_NAILS] >= 1)
 						best = 4;
 					break;
 				case 5:
-					if (items & IT_SUPER_NAILGUN && cl.stats[pnum][STAT_NAILS] >= 2)
+					if (items & IT_SUPER_NAILGUN && cl.playerview[pnum].stats[STAT_NAILS] >= 2)
 						best = 5;
 					break;
 				case 6:
-					if (items & IT_GRENADE_LAUNCHER && cl.stats[pnum][STAT_ROCKETS] >= 1)
+					if (items & IT_GRENADE_LAUNCHER && cl.playerview[pnum].stats[STAT_ROCKETS] >= 1)
 						best = 6;
 					break;
 				case 7:
-					if (items & IT_ROCKET_LAUNCHER && cl.stats[pnum][STAT_ROCKETS] >= 1)
+					if (items & IT_ROCKET_LAUNCHER && cl.playerview[pnum].stats[STAT_ROCKETS] >= 1)
 						best = 7;
 					break;
 				case 8:
-					if (items & IT_LIGHTNING && cl.stats[pnum][STAT_CELLS] >= 1)
+					if (items & IT_LIGHTNING && cl.playerview[pnum].stats[STAT_CELLS] >= 1)
 						best = 8;
 			}
 		}
@@ -520,7 +520,7 @@ void CL_AdjustAngles (int pnum, double frametime)
 			quant *= speed;
 		in_rotate -= quant;
 		if (ruleset_allow_frj.ival)
-			cl.viewanglechange[pnum][YAW] += quant;
+			cl.playerview[pnum].viewanglechange[YAW] += quant;
 	}
 
 	if (!(in_strafe.state[pnum] & 1))
@@ -528,8 +528,8 @@ void CL_AdjustAngles (int pnum, double frametime)
 		quant = cl_yawspeed.ival;
 		if (cl.fpd & FPD_LIMIT_YAW || !ruleset_allow_frj.ival)
 			quant = bound(-900, quant, 900);
-		cl.viewanglechange[pnum][YAW] -= speed*quant * CL_KeyState (&in_right, pnum);
-		cl.viewanglechange[pnum][YAW] += speed*quant * CL_KeyState (&in_left, pnum);
+		cl.playerview[pnum].viewanglechange[YAW] -= speed*quant * CL_KeyState (&in_right, pnum);
+		cl.playerview[pnum].viewanglechange[YAW] += speed*quant * CL_KeyState (&in_left, pnum);
 	}
 	if (in_klook.state[pnum] & 1)
 	{
@@ -537,8 +537,8 @@ void CL_AdjustAngles (int pnum, double frametime)
 		quant = cl_pitchspeed.ival;
 		if (cl.fpd & FPD_LIMIT_PITCH || !ruleset_allow_frj.ival)
 			quant = bound(-700, quant, 700);
-		cl.viewanglechange[pnum][PITCH] -= speed*quant * CL_KeyState (&in_forward, pnum);
-		cl.viewanglechange[pnum][PITCH] += speed*quant * CL_KeyState (&in_back, pnum);
+		cl.playerview[pnum].viewanglechange[PITCH] -= speed*quant * CL_KeyState (&in_forward, pnum);
+		cl.playerview[pnum].viewanglechange[PITCH] += speed*quant * CL_KeyState (&in_back, pnum);
 	}
 	
 	up = CL_KeyState (&in_lookup, pnum);
@@ -547,8 +547,8 @@ void CL_AdjustAngles (int pnum, double frametime)
 	quant = cl_pitchspeed.ival;
 	if (!ruleset_allow_frj.ival)
 		quant = bound(-700, quant, 700);	
-	cl.viewanglechange[pnum][PITCH] -= speed*cl_pitchspeed.ival * up;
-	cl.viewanglechange[pnum][PITCH] += speed*cl_pitchspeed.ival * down;
+	cl.playerview[pnum].viewanglechange[PITCH] -= speed*cl_pitchspeed.ival * up;
+	cl.playerview[pnum].viewanglechange[PITCH] += speed*cl_pitchspeed.ival * down;
 
 	if (up || down)
 		V_StopPitchDrift (pnum);	
@@ -612,7 +612,7 @@ void CL_ClampPitch (int pnum)
 	static float oldtime;
 	float timestep = realtime - oldtime;
 	oldtime = realtime;
-
+#if 0
 	if (cl.pmovetype[pnum] == PM_WALLWALK)
 	{
 		AngleVectors(cl.viewangles[pnum], view[0], view[1], view[2]);
@@ -644,11 +644,99 @@ void CL_ClampPitch (int pnum)
 
 		return;
 	}
+#endif
+#if 1
+	if (1)
+	{
+		float surfm[16], invsurfm[16];
+		float viewm[16];
+		vec3_t view[4];
+		vec3_t surf[3];
+		vec3_t fwd, up;
+		vec3_t vang;
+		void PerpendicularVector( vec3_t dst, const vec3_t src );
 
-	cl.viewangles[pnum][PITCH] += cl.viewanglechange[pnum][PITCH];
-	cl.viewangles[pnum][YAW] += cl.viewanglechange[pnum][YAW];
-	cl.viewangles[pnum][ROLL] += cl.viewanglechange[pnum][ROLL];
-	VectorClear(cl.viewanglechange[pnum]);
+		/*calc current view matrix relative to the surface*/
+		AngleVectors(cl.playerview[pnum].viewangles, view[0], view[1], view[2]);
+		VectorNegate(view[1], view[1]);
+
+		/*calculate the surface axis with up from the pmove code and right/forwards relative to the player's directions*/
+		if (!cl.playerview[pnum].gravitydir[0] && !cl.playerview[pnum].gravitydir[1] && !cl.playerview[pnum].gravitydir[2])
+		{
+			VectorSet(surf[2], 0, 0, 1);
+		}
+		else
+		{
+			VectorNegate(cl.playerview[pnum].gravitydir, surf[2]);
+		}
+		VectorNormalize(surf[2]);
+		PerpendicularVector(surf[1], surf[2]);
+		VectorNormalize(surf[1]);
+		CrossProduct(surf[2], surf[1], surf[0]);
+		VectorNegate(surf[0], surf[0]);
+		VectorNormalize(surf[0]);
+		Matrix4x4_RM_FromVectors(surfm, surf[0], surf[1], surf[2], vec3_origin);
+		Matrix3x4_InvertTo4x4_Simple(surfm, invsurfm);
+
+		/*calc current view matrix relative to the surface*/
+		Matrix4x4_RM_FromVectors(viewm, view[0], view[1], view[2], vec3_origin);
+		Matrix4_Multiply(viewm, invsurfm, mat);
+		/*convert that back to angles*/
+		Matrix3x4_RM_ToVectors(mat, view[0], view[1], view[2], view[3]);
+		VectorAngles(view[0], view[2], vang);
+		vang[PITCH] *= -1;
+
+		/*edit it*/
+		if (vang[PITCH] < -180)
+			vang[PITCH] += 360;
+		if (vang[PITCH] > 180)
+			vang[PITCH] -= 360;
+		if (vang[ROLL] > 180)
+			vang[ROLL] -= 360;
+		vang[PITCH] += cl.playerview[pnum].viewanglechange[PITCH];
+		vang[YAW] += cl.playerview[pnum].viewanglechange[YAW];
+		/*keep the player looking relative to their ground (smoothlyish)*/
+		if (!vang[ROLL])
+		{
+			if (!cl.playerview[pnum].viewanglechange[PITCH] && !cl.playerview[pnum].viewanglechange[YAW] && !cl.playerview[pnum].viewanglechange[ROLL])
+				return;
+		}
+		else
+		{
+			if (fabs(vang[ROLL]) < host_frametime*180)
+				vang[ROLL] = 0;
+			else if (vang[ROLL] > 0)
+				vang[ROLL] -= host_frametime*180;
+			else
+				vang[ROLL] += host_frametime*180;
+		}
+		VectorClear(cl.playerview[pnum].viewanglechange);
+		/*clamp pitch*/
+		if (vang[PITCH] > cl.maxpitch)
+			vang[PITCH] = cl.maxpitch;
+		if (vang[PITCH] < cl.minpitch)
+			vang[PITCH] = cl.minpitch;
+
+		/*turn those angles back to a matrix*/
+		AngleVectors(vang, view[0], view[1], view[2]);
+		VectorNegate(view[1], view[1]);
+		Matrix4x4_RM_FromVectors(mat, view[0], view[1], view[2], vec3_origin);
+		/*rotate back into world space*/
+		Matrix4_Multiply(mat, surfm, viewm);
+		/*and figure out the final result*/
+		Matrix3x4_RM_ToVectors(viewm, view[0], view[1], view[2], view[3]);
+		VectorAngles(view[0], view[2], cl.playerview[pnum].viewangles);
+		cl.playerview[pnum].viewangles[PITCH] *= -1;
+
+		if (cl.playerview[pnum].viewangles[PITCH] < -180)
+			cl.playerview[pnum].viewangles[PITCH] += 360;
+		return;
+	}
+#endif
+	cl.playerview[pnum].viewangles[PITCH] += cl.playerview[pnum].viewanglechange[PITCH];
+	cl.playerview[pnum].viewangles[YAW] += cl.playerview[pnum].viewanglechange[YAW];
+	cl.playerview[pnum].viewangles[ROLL] += cl.playerview[pnum].viewanglechange[ROLL];
+	VectorClear(cl.playerview[pnum].viewanglechange);
 
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
@@ -658,15 +746,15 @@ void CL_ClampPitch (int pnum)
 		if (pitch > 180)
 			pitch -= 360;
 
-		if (cl.viewangles[pnum][PITCH] + pitch < -360)
-			cl.viewangles[pnum][PITCH] += 360; // wrapped
-		if (cl.viewangles[pnum][PITCH] + pitch > 360)
-			cl.viewangles[pnum][PITCH] -= 360; // wrapped
+		if (cl.playerview[pnum].viewangles[PITCH] + pitch < -360)
+			cl.playerview[pnum].viewangles[PITCH] += 360; // wrapped
+		if (cl.playerview[pnum].viewangles[PITCH] + pitch > 360)
+			cl.playerview[pnum].viewangles[PITCH] -= 360; // wrapped
 
-		if (cl.viewangles[pnum][PITCH] + pitch > cl.maxpitch)
-			cl.viewangles[pnum][PITCH] = cl.maxpitch - pitch;
-		if (cl.viewangles[pnum][PITCH] + pitch < cl.minpitch)
-			cl.viewangles[pnum][PITCH] = cl.minpitch - pitch;
+		if (cl.playerview[pnum].viewangles[PITCH] + pitch > cl.maxpitch)
+			cl.playerview[pnum].viewangles[PITCH] = cl.maxpitch - pitch;
+		if (cl.playerview[pnum].viewangles[PITCH] + pitch < cl.minpitch)
+			cl.playerview[pnum].viewangles[PITCH] = cl.minpitch - pitch;
 	}
 	else
 #endif
@@ -678,23 +766,23 @@ void CL_ClampPitch (int pnum)
 	else
 #endif
 	{
-		if (cl.fixangle[pnum])
+		if (cl.playerview[pnum].fixangle)
 			return;
-		if (cl.viewangles[pnum][PITCH] > cl.maxpitch)
-			cl.viewangles[pnum][PITCH] = cl.maxpitch;
-		if (cl.viewangles[pnum][PITCH] < cl.minpitch)
-			cl.viewangles[pnum][PITCH] = cl.minpitch;
+		if (cl.playerview[pnum].viewangles[PITCH] > cl.maxpitch)
+			cl.playerview[pnum].viewangles[PITCH] = cl.maxpitch;
+		if (cl.playerview[pnum].viewangles[PITCH] < cl.minpitch)
+			cl.playerview[pnum].viewangles[PITCH] = cl.minpitch;
 	} 
 
 //	if (cl.viewangles[pnum][ROLL] > 50)
 //		cl.viewangles[pnum][ROLL] = 50;
 //	if (cl.viewangles[pnum][ROLL] < -50)
 //		cl.viewangles[pnum][ROLL] = -50;
-	roll = timestep*cl.viewangles[pnum][ROLL]*30;
-	if ((cl.viewangles[pnum][ROLL]-roll < 0) != (cl.viewangles[pnum][ROLL]<0))
-		cl.viewangles[pnum][ROLL] = 0;
+	roll = timestep*cl.playerview[pnum].viewangles[ROLL]*30;
+	if ((cl.playerview[pnum].viewangles[ROLL]-roll < 0) != (cl.playerview[pnum].viewangles[ROLL]<0))
+		cl.playerview[pnum].viewangles[ROLL] = 0;
 	else
-		cl.viewangles[pnum][ROLL] -= timestep*cl.viewangles[pnum][ROLL]*3;
+		cl.playerview[pnum].viewangles[ROLL] -= timestep*cl.playerview[pnum].viewangles[ROLL]*3;
 }
 
 /*
@@ -738,7 +826,7 @@ void CL_FinishMove (usercmd_t *cmd, int msecs, int pnum)
 	cmd->msec = msecs;
 
 	for (i=0 ; i<3 ; i++)
-		cmd->angles[i] = ((int)(cl.viewangles[pnum][i]*65536.0/360)&65535);
+		cmd->angles[i] = ((int)(cl.playerview[pnum].viewangles[i]*65536.0/360)&65535);
 
 	if (in_impulsespending[pnum] && !cl.paused)
 	{
@@ -819,7 +907,7 @@ void CL_UpdatePrydonCursor(usercmd_t *from, float cursor_screen[2], vec3_t curso
 	temp[2] = 1;
 
 	VectorCopy(r_origin, cursor_start);
-	Matrix4x4_CM_UnProject(temp, cursor_end, cl.viewangles[0], cursor_start, r_refdef.fov_x, r_refdef.fov_y);
+	Matrix4x4_CM_UnProject(temp, cursor_end, cl.playerview[0].viewangles, cursor_start, r_refdef.fov_x, r_refdef.fov_y);
 
 	CL_SetSolidEntities();
 	//don't bother with players, they don't exist in NQ...
@@ -859,9 +947,9 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 	for (i=0 ; i<3 ; i++)
 	{
 		if (cls.protocol_nq == CPNQ_FITZ666 || cls.protocol_nq == CPNQ_PROQUAKE3_4)
-			MSG_WriteAngle16 (buf, cl.viewangles[pnum][i]);
+			MSG_WriteAngle16 (buf, cl.playerview[pnum].viewangles[i]);
 		else
-			MSG_WriteAngle (buf, cl.viewangles[pnum][i]);
+			MSG_WriteAngle (buf, cl.playerview[pnum].viewangles[i]);
 	}
 	
 	MSG_WriteShort (buf, cmd->forwardmove);
@@ -987,7 +1075,7 @@ void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...)
 		return;	//no point.
 
 	va_start (argptr, format);
-	vsnprintf (string,sizeof(string)-1, format,argptr);
+	Q_vsnprintfz (string,sizeof(string), format,argptr);
 	va_end (argptr);
 
 
@@ -1250,7 +1338,7 @@ qboolean CL_SendCmdQ2 (sizebuf_t *buf)
 	else
 		MSG_WriteLong (buf, cl.q2frame.serverframe);
 
-	lightlev = R_LightPoint(cl.simorg[0]);
+	lightlev = R_LightPoint(cl.playerview[0].simorg);
 
 //	msecs = msecs - (double)msecstouse;
 
@@ -1561,7 +1649,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		VectorClear(mousemovements[plnum]);
 		
 		for (i=0 ; i<3 ; i++)
-			independantphysics[plnum].angles[i] = ((int)(cl.viewangles[plnum][i]*65536.0/360)&65535);
+			independantphysics[plnum].angles[i] = ((int)(cl.playerview[plnum].viewangles[i]*65536.0/360)&65535);
 
 		if (!independantphysics[plnum].msec)
 		{
@@ -1745,7 +1833,7 @@ static char	*VARGS vahunk(char *format, ...)
 	char *ret;
 	
 	va_start (argptr, format);
-	vsnprintf (string,sizeof(string)-1, format,argptr);
+	Q_vsnprintfz (string,sizeof(string), format,argptr);
 	va_end (argptr);
 
 	ret = Hunk_Alloc(strlen(string)+1);

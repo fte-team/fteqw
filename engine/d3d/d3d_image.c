@@ -1,4 +1,5 @@
 #include "quakedef.h"
+#include "winquake.h"
 #ifdef D3DQUAKE
 #if !defined(HMONITOR_DECLARED) && (WINVER < 0x0500)
     #define HMONITOR_DECLARED
@@ -27,6 +28,8 @@ void D3D_Image_Shutdown(void)
 		tx = t->tex.ptr;
 		if (tx)
 			IDirect3DTexture9_Release(tx);
+
+		free(t);
 	}
 }
 

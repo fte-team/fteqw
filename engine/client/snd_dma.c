@@ -30,6 +30,7 @@ static void S_StopAllSounds_f (void);
 
 static void S_UpdateCard(soundcardinfo_t *sc);
 static void S_ClearBuffer (soundcardinfo_t *sc);
+static sfx_t *S_FindName (char *name);
 
 // =======================================================================
 // Internal sound data & structures
@@ -883,7 +884,7 @@ void S_Startup (void)
 	CL_InitTEntSounds();
 }
 
-void SNDDMA_SetUnderWater(qboolean underwater)
+void S_SetUnderWater(qboolean underwater)
 {
 	soundcardinfo_t *sc;
 
@@ -895,6 +896,8 @@ void SNDDMA_SetUnderWater(qboolean underwater)
 //so that the video code can call it directly without flushing the models it's just loaded.
 void S_DoRestart (void)
 {
+	int i;
+
 	S_StopAllSounds (true);
 	S_Shutdown();
 
@@ -907,6 +910,14 @@ void S_DoRestart (void)
 	ambient_sfx[AMBIENT_SKY] = S_PrecacheSound ("ambience/wind2.wav");
 
 	S_StopAllSounds (true);
+
+
+	for (i=1 ; i<MAX_SOUNDS ; i++)
+	{
+		if (!cl.sound_name[i][0])
+			break;
+		cl.sound_precache[i] = S_FindName (cl.sound_name[i]);
+	}
 }
 
 void S_Restart_f (void)
@@ -1207,7 +1218,7 @@ S_FindName
 also touches it
 ==================
 */
-sfx_t *S_FindName (char *name)
+static sfx_t *S_FindName (char *name)
 {
 	int		i;
 	sfx_t	*sfx;

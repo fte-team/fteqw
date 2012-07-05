@@ -183,7 +183,8 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 
 	*forcedtex = NULL;
 
-	if (e->skinnum >= 100 && e->skinnum < 110)
+	/*hexen2 feature: global skins */
+	if (inf->numskins < 100 && e->skinnum >= 100 && e->skinnum < 110)
 	{
 		shader_t *s;
 		s = R_RegisterSkin(va("gfx/skin%d.lmp", e->skinnum), NULL);
@@ -224,31 +225,18 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			galiascolourmapped_t *cm;
 			char hashname[512];
 
-//			if (e->scoreboard->skin->cachedbpp
-
-	/*		if (cls.protocol == CP_QUAKE2)
+			if (e->scoreboard && e->scoreboard->skin)
 			{
-				if (e->scoreboard && e->scoreboard->skin)
-					snprintf(hashname, sizeof(hashname), "%s$%s$%i", modelname, e->scoreboard->skin->name, surfnum);
-				else
-					snprintf(hashname, sizeof(hashname), "%s$%i", modelname, surfnum);
+				snprintf(hashname, sizeof(hashname), "%s$%s$%i", model->name, e->scoreboard->skin->name, surfnum);
 				skinname = hashname;
 			}
-			else */
+			else if (surfnum)
 			{
-				if (e->scoreboard && e->scoreboard->skin)
-				{
-					snprintf(hashname, sizeof(hashname), "%s$%s$%i", model->name, e->scoreboard->skin->name, surfnum);
-					skinname = hashname;
-				}
-				else if (surfnum)
-				{
-					snprintf(hashname, sizeof(hashname), "%s$%i", model->name, surfnum);
-					skinname = hashname;
-				}
-				else
-					skinname = model->name;
+				snprintf(hashname, sizeof(hashname), "%s$%i", model->name, surfnum);
+				skinname = hashname;
 			}
+			else
+				skinname = model->name;
 
 			if (!skincolourmapped.numbuckets)
 			{
@@ -291,6 +279,8 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 				if (cm->tcolour == tc && cm->bcolour == bc && cm->skinnum == e->skinnum && cm->subframe == subframe && cm->pclass == pc)
 				{
 					*forcedtex = &cm->texnum;
+					if (!shader)
+						shader = R_RegisterSkin(skinname, NULL);
 					return shader;
 				}
 			}
@@ -706,7 +696,7 @@ static void R_DrawShadowVolume(mesh_t *mesh)
 #endif
 
 //true if no shading is to be used.
-static qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
+qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 {
 	vec3_t lightdir;
 	int i;
@@ -1017,7 +1007,10 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 			b->skin = skin;
 			b->texture = NULL;
 			b->shader = shader;
-			b->lightmap = -1;
+			b->lightmap[0] = -1;
+			b->lightmap[1] = -1;
+			b->lightmap[2] = -1;
+			b->lightmap[3] = -1;
 			b->surf_first = surfnum;
 			b->flags = 0;
 			sort = shader->sort;
@@ -1570,7 +1563,6 @@ static void R_DB_LightningBeam(batch_t *batch)
 	mesh.indexes = indexarray;
 	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
 	mesh.colors4f_array = (vec4_t*)colors;
-	mesh.lmst_array = NULL;
 	mesh.normals_array = NULL;
 	mesh.numvertexes = 4;
 	mesh.st_array = texcoords;
@@ -1641,11 +1633,9 @@ static void R_DB_RailgunBeam(batch_t *batch)
 	mesh.indexes = indexarray;
 	mesh.numindexes = sizeof(indexarray)/sizeof(indexarray[0]);
 	mesh.colors4f_array = (vec4_t*)colors;
-	mesh.lmst_array = NULL;
 	mesh.normals_array = NULL;
 	mesh.numvertexes = 4;
 	mesh.st_array = texcoords;
-
 }
 #endif
 static void R_DB_Sprite(batch_t *batch)
@@ -1746,12 +1736,21 @@ static void R_DB_Sprite(batch_t *batch)
 	spraxis[1][1]*=e->scale;
 	spraxis[1][2]*=e->scale;
 
-	if (e->shaderRGBAf[0] > 1)
+	if (e->shaderRGBAf[0] != 0 || e->shaderRGBAf[1] != 0 || e->shaderRGBAf[2] != 0 || (batch->flags & BEF_FORCECOLOURMOD))
+	{
+		if (e->shaderRGBAf[0] > 1)
+			e->shaderRGBAf[0] = 1;
+		if (e->shaderRGBAf[1] > 1)
+			e->shaderRGBAf[1] = 1;
+		if (e->shaderRGBAf[2] > 1)
+			e->shaderRGBAf[2] = 1;
+	}
+	else
+	{
 		e->shaderRGBAf[0] = 1;
-	if (e->shaderRGBAf[1] > 1)
 		e->shaderRGBAf[1] = 1;
-	if (e->shaderRGBAf[2] > 1)
 		e->shaderRGBAf[2] = 1;
+	}
 
 	Vector4Copy(e->shaderRGBAf, colours[0]);
 	Vector4Copy(e->shaderRGBAf, colours[1]);
@@ -1780,7 +1779,6 @@ static void R_DB_Sprite(batch_t *batch)
 	mesh.indexes = indexes;
 	mesh.numindexes = sizeof(indexes)/sizeof(indexes[0]);
 	mesh.colors4f_array = colours;
-	mesh.lmst_array = NULL;
 	mesh.normals_array = NULL;
 	mesh.numvertexes = 4;
 	mesh.st_array = texcoords;
@@ -1851,7 +1849,10 @@ static void R_Sprite_GenerateBatch(entity_t *e, batch_t **batches, void (*drawfu
 	b->skin = &shader->defaulttextures;
 	b->texture = NULL;
 	b->shader = shader;
-	b->lightmap = -1;
+	b->lightmap[0] = -1;
+	b->lightmap[1] = -1;
+	b->lightmap[2] = -1;
+	b->lightmap[3] = -1;
 	b->surf_first = 0;
 	b->flags |= BEF_NODLIGHT|BEF_NOSHADOWS;
 	b->vbo = NULL;
@@ -1899,7 +1900,10 @@ void BE_GenPolyBatches(batch_t **batches)
 		b->skin = &shader->defaulttextures;
 		b->texture = NULL;
 		b->shader = shader;
-		b->lightmap = -1;
+		b->lightmap[0] = -1;
+		b->lightmap[1] = -1;
+		b->lightmap[2] = -1;
+		b->lightmap[3] = -1;
 		b->surf_first = i;
 		b->flags = BEF_NODLIGHT|BEF_NOSHADOWS;
 		b->vbo = 0;
@@ -1907,6 +1911,7 @@ void BE_GenPolyBatches(batch_t **batches)
 		batches[shader->sort] = b;
 	}
 }
+void R_HalfLife_GenerateBatches(entity_t *e, batch_t **batches);
 
 void BE_GenModelBatches(batch_t **batches)
 {
@@ -1975,9 +1980,13 @@ void BE_GenModelBatches(batch_t **batches)
 			case mod_sprite:
 				R_Sprite_GenerateBatch(ent, batches, R_DB_Sprite);
 				break;
+			case mod_halflife:
+#ifdef HALFLIFEMODELS
+				R_HalfLife_GenerateBatches(ent, batches);
+#endif
+				break;
 			// warning: enumeration value ‘mod_*’ not handled in switch
 			case mod_dummy:
-			case mod_halflife:
 			case mod_heightmap:
 				break;
 			}

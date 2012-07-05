@@ -42,6 +42,7 @@ unsigned int Q2BSP_PointContents(model_t *mod, vec3_t axis[3], vec3_t p);
 
 extern char	loadname[32];
 extern model_t	*loadmodel;
+void RMod_Batches_Build(mesh_t *meshlist, model_t *mod, void (*build)(model_t *mod, msurface_t *surf, void *cookie), void *buildcookie);
 float RadiusFromBounds (vec3_t mins, vec3_t maxs)
 {
 	int		i;
@@ -351,7 +352,7 @@ static vecV_t		*map_verts;	//3points
 static int			numvertexes;
 
 static vec2_t		*map_vertstmexcoords;
-static vec2_t		*map_vertlstmexcoords;
+static vec2_t		*map_vertlstmexcoords[4];
 static vec4_t		*map_colors4f_array;
 static vec3_t		*map_normals_array;
 static vec3_t		*map_svector_array;
@@ -2062,7 +2063,10 @@ qboolean CModQ3_LoadVertexes (lump_t *l)
 	tout = Hunk_Alloc ( count*sizeof(*nout) );
 	map_verts = out;
 	map_vertstmexcoords = stout;
-	map_vertlstmexcoords = lmout;
+	map_vertlstmexcoords[0] = lmout;
+	map_vertlstmexcoords[1] = lmout;
+	map_vertlstmexcoords[2] = lmout;
+	map_vertlstmexcoords[3] = lmout;
 	map_colors4f_array = cout;
 	map_normals_array = nout;
 	map_svector_array = sout;
@@ -2098,6 +2102,7 @@ qboolean CModRBSP_LoadVertexes (lump_t *l)
 	int			i, count, j;
 	vec2_t		*lmout, *stout;
 	vec4_t *cout;
+	int sty;
 
 	in = (void *)(cmod_base + l->fileofs);
 	if (l->filelen % sizeof(*in))
@@ -2115,14 +2120,15 @@ qboolean CModRBSP_LoadVertexes (lump_t *l)
 
 	out = Hunk_Alloc ( count*sizeof(*out) );
 	stout = Hunk_Alloc ( count*sizeof(*stout) );
-	lmout = Hunk_Alloc ( count*sizeof(*lmout) );
+	lmout = Hunk_Alloc ( MAXLIGHTMAPS*count*sizeof(*lmout) );
 	cout = Hunk_Alloc ( count*sizeof(*cout) );
 	nout = Hunk_Alloc ( count*sizeof(*nout) );
 	sout = Hunk_Alloc ( count*sizeof(*sout) );
 	tout = Hunk_Alloc ( count*sizeof(*tout) );
 	map_verts = out;
 	map_vertstmexcoords = stout;
-	map_vertlstmexcoords = lmout;
+	for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+		map_vertlstmexcoords[sty] = lmout + sty*count;
 	map_colors4f_array = cout;
 	map_normals_array = nout;
 	map_svector_array = sout;
@@ -2139,7 +2145,8 @@ qboolean CModRBSP_LoadVertexes (lump_t *l)
 		for ( j=0 ; j < 2 ; j++)
 		{
 			stout[i][j] = LittleFloat ( ((float *)in->texcoords)[j] );
-			lmout[i][j] = LittleFloat ( ((float *)in->texcoords)[j+2] );
+			for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+				map_vertlstmexcoords[sty][i][j] = LittleFloat ( ((float *)in->texcoords)[j+2*(sty+1)] );
 		}
 		for ( j=0 ; j < 4 ; j++)
 		{
@@ -2354,22 +2361,54 @@ mfog_t *CM_FogForOrigin(vec3_t org)
 
 index_t tempIndexesArray[MAX_ARRAY_VERTS*6];
 
-//mesh_t *GL_CreateMeshForPatch ( model_t *mod, q3dface_t *surf )
-mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, int numverts, int firstvert)
+void GL_SizePatch(mesh_t *mesh, int patchwidth, int patchheight, int numverts, int firstvert)
 {
-    int numindexes, patch_cp[2], step[2], size[2], flat[2], i, u, v, p;
-	mesh_t *mesh;
-	index_t	*indexes;
+	int patch_cp[2], step[2], size[2], flat[2];
 	float subdivlevel;
-	char *allocbuf;
-	int sz;
 
 	patch_cp[0] = patchwidth;
 	patch_cp[1] = patchheight;
 
 	if (patch_cp[0] <= 0 || patch_cp[1] <= 0 )
 	{
-		return NULL;
+		mesh->numindexes = 0;
+		mesh->numvertexes = 0;
+		return;
+	}
+
+	subdivlevel = r_subdivisions.value;
+	if ( subdivlevel < 1 )
+		subdivlevel = 1;
+
+// find the degree of subdivision in the u and v directions
+	Patch_GetFlatness ( subdivlevel, map_verts[firstvert], sizeof(vecV_t)/sizeof(vec_t), patch_cp, flat );
+
+// allocate space for mesh
+	step[0] = (1 << flat[0]);
+	step[1] = (1 << flat[1]);
+	size[0] = (patch_cp[0] / 2) * step[0] + 1;
+	size[1] = (patch_cp[1] / 2) * step[1] + 1;
+
+	mesh->numvertexes = size[0] * size[1];
+	mesh->numindexes = (size[0]-1) * (size[1]-1) * 6;
+}
+
+//mesh_t *GL_CreateMeshForPatch ( model_t *mod, q3dface_t *surf )
+void GL_CreateMeshForPatch (model_t *mod, mesh_t *mesh, int patchwidth, int patchheight, int numverts, int firstvert)
+{
+    int numindexes, patch_cp[2], step[2], size[2], flat[2], i, u, v, p;
+	index_t	*indexes;
+	float subdivlevel;
+	int sty;
+
+	patch_cp[0] = patchwidth;
+	patch_cp[1] = patchheight;
+
+	if (patch_cp[0] <= 0 || patch_cp[1] <= 0 )
+	{
+		mesh->numindexes = 0;
+		mesh->numvertexes = 0;
+		return;
 	}
 
 	subdivlevel = r_subdivisions.value;
@@ -2387,34 +2426,19 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 	numverts = size[0] * size[1];
 
 	if ( numverts < 0 || numverts > MAX_ARRAY_VERTS )
-		return NULL;
+	{
+		mesh->numindexes = 0;
+		mesh->numvertexes = 0;
+		return;
+	}
 
-	sz = sizeof(mesh_t) + numverts * (
-						sizeof(vecV_t)+
-						sizeof(vec3_t)+
-						sizeof(vec3_t)+
-						sizeof(vec3_t)+
-						sizeof(vec2_t)+
-						sizeof(vec2_t)+
-						sizeof(vec4_t));
-	allocbuf = Hunk_Alloc(sz);
-	sz-=sizeof(mesh_t);
-	mesh = (mesh_t *)(allocbuf+sz);
-	sz-=numverts*sizeof(vecV_t);
-	mesh->xyz_array = (vecV_t *)(allocbuf+sz);
-	sz-=numverts*sizeof(vec3_t);
-	mesh->normals_array = (vec3_t *)(allocbuf+sz);
-	sz-=numverts*sizeof(vec3_t);
-	mesh->snormals_array = (vec3_t *)(allocbuf+sz);
-	sz-=numverts*sizeof(vec3_t);
-	mesh->tnormals_array = (vec3_t *)(allocbuf+sz);
-	sz-=numverts*sizeof(vec2_t);
-	mesh->st_array = (vec2_t *)(allocbuf+sz);
-	sz-=numverts*sizeof(vec2_t);
-	mesh->lmst_array = (vec2_t *)(allocbuf+sz);
-	sz-=numverts*sizeof(vec4_t);
-	mesh->colors4f_array = (vec4_t *)(allocbuf+sz);
-	mesh->numvertexes = numverts;
+
+	if (mesh->numvertexes != numverts)
+	{
+		mesh->numindexes = 0;
+		mesh->numvertexes = 0;
+		return;
+	}
 
 // fill in
 
@@ -2422,7 +2446,11 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 	Patch_Evaluate ( map_colors4f_array[firstvert], patch_cp, step, mesh->colors4f_array[0], 4 );
 	Patch_Evaluate ( map_normals_array[firstvert], patch_cp, step, mesh->normals_array[0], 3 );
 	Patch_Evaluate ( map_vertstmexcoords[firstvert], patch_cp, step, mesh->st_array[0], 2 );
-	Patch_Evaluate ( map_vertlstmexcoords[firstvert], patch_cp, step, mesh->lmst_array[0], 2 );
+	for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+	{
+		if (mesh->lmst_array[sty])
+			Patch_Evaluate ( map_vertlstmexcoords[sty][firstvert], patch_cp, step, mesh->lmst_array[sty][0], 2 );
+	}
 
 // compute new indexes avoiding adding invalid triangles
 	numindexes = 0;
@@ -2435,9 +2463,10 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 			indexes[1] = p + size[0];
 			indexes[2] = p + 1;
 
-			if ( !VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[1]]) &&
-				!VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[2]]) &&
-				!VectorEquals(mesh->xyz_array[indexes[1]], mesh->xyz_array[indexes[2]]) ) {
+//			if ( !VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[1]]) &&
+//				!VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[2]]) &&
+//				!VectorEquals(mesh->xyz_array[indexes[1]], mesh->xyz_array[indexes[2]]) )
+			{
 				indexes += 3;
 				numindexes += 3;
 			}
@@ -2446,9 +2475,10 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 			indexes[1] = p + size[0];
 			indexes[2] = p + size[0] + 1;
 
-			if ( !VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[1]]) &&
-				!VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[2]]) &&
-				!VectorEquals(mesh->xyz_array[indexes[1]], mesh->xyz_array[indexes[2]]) ) {
+//			if ( !VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[1]]) &&
+//				!VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[2]]) &&
+//				!VectorEquals(mesh->xyz_array[indexes[1]], mesh->xyz_array[indexes[2]]) )
+			{
 				indexes += 3;
 				numindexes += 3;
 			}
@@ -2456,12 +2486,224 @@ mesh_t *GL_CreateMeshForPatch (model_t *mod, int patchwidth, int patchheight, in
 	}
 
 // allocate and fill index table
+	if (mesh->numindexes != numindexes)
+		Con_Printf("DEBUGY\n");
+
 	mesh->numindexes = numindexes;
 
-	mesh->indexes = (index_t *)Hunk_Alloc ( numindexes * sizeof(index_t));
 	memcpy (mesh->indexes, tempIndexesArray, numindexes * sizeof(index_t) );
+}
 
-	return mesh;
+void CModRBSP_BuildSurfMesh(model_t *mod, msurface_t *out, void *cookie)
+{
+	rbspface_t *in = cookie;
+	int idx = out - loadmodel->surfaces;
+	int sty;
+	in += idx;
+
+	if (LittleLong(in->facetype) == MST_PATCH)
+	{
+//		out->mesh->numindexes = 0;
+//		out->mesh->numvertexes = 0;
+		//FIXME
+		GL_CreateMeshForPatch(loadmodel, out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
+//		if (out->mesh)
+//		{
+//			Mod_AccumulateMeshTextureVectors(out->mesh);
+//			Mod_NormaliseTextureVectors(out->mesh->normals_array, out->mesh->snormals_array, out->mesh->tnormals_array, out->mesh->numvertexes);
+//		}
+	}
+	else if (LittleLong(in->facetype) == MST_PLANAR || LittleLong(in->facetype) == MST_TRIANGLE_SOUP)
+	{
+		unsigned int fv = LittleLong(in->firstvertex), i;
+		for (i = 0; i < out->mesh->numvertexes; i++)
+		{
+			VectorCopy(map_verts[fv + i], out->mesh->xyz_array[i]);
+			Vector2Copy(map_vertstmexcoords[fv + i], out->mesh->st_array[i]);
+			for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+			{
+				Vector2Copy(map_vertlstmexcoords[sty][fv + i], out->mesh->lmst_array[sty][i]);
+			}
+			Vector4Copy(map_colors4f_array[fv + i], out->mesh->colors4f_array[i]);
+
+			VectorCopy(map_normals_array[fv + i], out->mesh->normals_array[i]);
+		}
+		fv = LittleLong(in->firstindex);
+		for (i = 0; i < out->mesh->numindexes; i++)
+		{
+			out->mesh->indexes[i] = map_surfindexes[fv + i];
+		}
+
+/*		numindexes = LittleLong(in->num_indexes);
+		numverts = LittleLong(in->num_vertices);
+		if (numindexes%3 || numindexes < 0 || numverts < 0)
+		{
+			Con_Printf(CON_ERROR "mesh indexes should be multiples of 3\n");
+			return false;
+		}
+
+		out->mesh = Hunk_Alloc(sizeof(mesh_t));
+		out->mesh->normals_array= map_normals_array + LittleLong(in->firstvertex);
+		out->mesh->snormals_array = map_svector_array + LittleLong(in->firstvertex);
+		out->mesh->tnormals_array = map_tvector_array + LittleLong(in->firstvertex);
+
+		out->mesh->colors4f_array	= map_colors4f_array + LittleLong(in->firstvertex);
+		out->mesh->indexes		= map_surfindexes + LittleLong(in->firstindex);
+		out->mesh->xyz_array	= map_verts + LittleLong(in->firstvertex);
+		out->mesh->st_array		= map_vertstmexcoords + LittleLong(in->firstvertex);
+		out->mesh->lmst_array	= map_vertlstmexcoords + LittleLong(in->firstvertex);
+
+		out->mesh->numindexes = numindexes;
+		out->mesh->numvertexes = numverts;
+
+		if (LittleLong(in->facetype) == MST_PLANAR)
+			if (out->mesh->numindexes == (out->mesh->numvertexes-2)*3)
+				out->mesh->istrifan = true;
+
+		Mod_AccumulateMeshTextureVectors(out->mesh);
+*/
+	}
+	else
+	{
+/*		//flare
+		int r, g, b;
+		extern index_t r_quad_indexes[6];
+		static vec2_t	st[4] = {{0,0},{0,1},{1,1},{1,0}};
+
+		mesh = out->mesh = (mesh_t *)Hunk_Alloc(sizeof(mesh_t));
+		mesh->xyz_array = (vecV_t *)Hunk_Alloc(sizeof(vecV_t)*4);
+		mesh->colors4b_array = (byte_vec4_t *)Hunk_Alloc(sizeof(byte_vec4_t)*4);
+		mesh->numvertexes = 4;
+		mesh->indexes = r_quad_indexes;
+		mesh->st_array = st;
+		mesh->numindexes = 6;
+
+		VectorCopy (in->lightmap_origin, mesh->xyz_array[0]);
+		VectorCopy (in->lightmap_origin, mesh->xyz_array[1]);
+		VectorCopy (in->lightmap_origin, mesh->xyz_array[2]);
+		VectorCopy (in->lightmap_origin, mesh->xyz_array[3]);
+
+		r = LittleFloat(in->lightmap_vecs[0][0]) * 255.0f;
+		r = bound (0, r, 255);
+		g = LittleFloat(in->lightmap_vecs[0][1]) * 255.0f;
+		g = bound (0, g, 255);
+		b = LittleFloat(in->lightmap_vecs[0][2]) * 255.0f;
+		b = bound (0, b, 255);
+
+		mesh->colors4b_array[0][0] = r;
+		mesh->colors4b_array[0][1] = g;
+		mesh->colors4b_array[0][2] = b;
+		mesh->colors4b_array[0][3] = 255;
+		Vector4Copy(mesh->colors4b_array[0], mesh->colors4b_array[1]);
+		Vector4Copy(mesh->colors4b_array[0], mesh->colors4b_array[2]);
+		Vector4Copy(mesh->colors4b_array[0], mesh->colors4b_array[3]);
+*/
+	}
+}
+
+void CModQ3_BuildSurfMesh(model_t *mod, msurface_t *out, void *cookie)
+{
+	q3dface_t *in = cookie;
+	int idx = out - loadmodel->surfaces;
+	in += idx;
+
+	if (LittleLong(in->facetype) == MST_PATCH)
+	{
+//		out->mesh->numindexes = 0;
+//		out->mesh->numvertexes = 0;
+		//FIXME
+		GL_CreateMeshForPatch(loadmodel, out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
+//		if (out->mesh)
+//		{
+//			Mod_AccumulateMeshTextureVectors(out->mesh);
+//			Mod_NormaliseTextureVectors(out->mesh->normals_array, out->mesh->snormals_array, out->mesh->tnormals_array, out->mesh->numvertexes);
+//		}
+	}
+	else if (LittleLong(in->facetype) == MST_PLANAR || LittleLong(in->facetype) == MST_TRIANGLE_SOUP)
+	{
+		unsigned int fv = LittleLong(in->firstvertex), i;
+		for (i = 0; i < out->mesh->numvertexes; i++)
+		{
+			VectorCopy(map_verts[fv + i], out->mesh->xyz_array[i]);
+			Vector2Copy(map_vertstmexcoords[fv + i], out->mesh->st_array[i]);
+			Vector2Copy(map_vertlstmexcoords[0][fv + i], out->mesh->lmst_array[0][i]);
+			Vector4Copy(map_colors4f_array[fv + i], out->mesh->colors4f_array[i]);
+
+			VectorCopy(map_normals_array[fv + i], out->mesh->normals_array[i]);
+		}
+		fv = LittleLong(in->firstindex);
+		for (i = 0; i < out->mesh->numindexes; i++)
+		{
+			out->mesh->indexes[i] = map_surfindexes[fv + i];
+		}
+
+/*		numindexes = LittleLong(in->num_indexes);
+		numverts = LittleLong(in->num_vertices);
+		if (numindexes%3 || numindexes < 0 || numverts < 0)
+		{
+			Con_Printf(CON_ERROR "mesh indexes should be multiples of 3\n");
+			return false;
+		}
+
+		out->mesh = Hunk_Alloc(sizeof(mesh_t));
+		out->mesh->normals_array= map_normals_array + LittleLong(in->firstvertex);
+		out->mesh->snormals_array = map_svector_array + LittleLong(in->firstvertex);
+		out->mesh->tnormals_array = map_tvector_array + LittleLong(in->firstvertex);
+
+		out->mesh->colors4f_array	= map_colors4f_array + LittleLong(in->firstvertex);
+		out->mesh->indexes		= map_surfindexes + LittleLong(in->firstindex);
+		out->mesh->xyz_array	= map_verts + LittleLong(in->firstvertex);
+		out->mesh->st_array		= map_vertstmexcoords + LittleLong(in->firstvertex);
+		out->mesh->lmst_array	= map_vertlstmexcoords + LittleLong(in->firstvertex);
+
+		out->mesh->numindexes = numindexes;
+		out->mesh->numvertexes = numverts;
+
+		if (LittleLong(in->facetype) == MST_PLANAR)
+			if (out->mesh->numindexes == (out->mesh->numvertexes-2)*3)
+				out->mesh->istrifan = true;
+
+		Mod_AccumulateMeshTextureVectors(out->mesh);
+*/
+	}
+	else
+	{
+/*		//flare
+		int r, g, b;
+		extern index_t r_quad_indexes[6];
+		static vec2_t	st[4] = {{0,0},{0,1},{1,1},{1,0}};
+
+		mesh = out->mesh = (mesh_t *)Hunk_Alloc(sizeof(mesh_t));
+		mesh->xyz_array = (vecV_t *)Hunk_Alloc(sizeof(vecV_t)*4);
+		mesh->colors4b_array = (byte_vec4_t *)Hunk_Alloc(sizeof(byte_vec4_t)*4);
+		mesh->numvertexes = 4;
+		mesh->indexes = r_quad_indexes;
+		mesh->st_array = st;
+		mesh->numindexes = 6;
+
+		VectorCopy (in->lightmap_origin, mesh->xyz_array[0]);
+		VectorCopy (in->lightmap_origin, mesh->xyz_array[1]);
+		VectorCopy (in->lightmap_origin, mesh->xyz_array[2]);
+		VectorCopy (in->lightmap_origin, mesh->xyz_array[3]);
+
+		r = LittleFloat(in->lightmap_vecs[0][0]) * 255.0f;
+		r = bound (0, r, 255);
+		g = LittleFloat(in->lightmap_vecs[0][1]) * 255.0f;
+		g = bound (0, g, 255);
+		b = LittleFloat(in->lightmap_vecs[0][2]) * 255.0f;
+		b = bound (0, b, 255);
+
+		mesh->colors4b_array[0][0] = r;
+		mesh->colors4b_array[0][1] = g;
+		mesh->colors4b_array[0][2] = b;
+		mesh->colors4b_array[0][3] = 255;
+		Vector4Copy(mesh->colors4b_array[0], mesh->colors4b_array[1]);
+		Vector4Copy(mesh->colors4b_array[0], mesh->colors4b_array[2]);
+		Vector4Copy(mesh->colors4b_array[0], mesh->colors4b_array[3]);
+*/
+	}
+
+
 }
 
 qboolean CModQ3_LoadRFaces (lump_t *l)
@@ -2473,8 +2715,8 @@ qboolean CModQ3_LoadRFaces (lump_t *l)
 	int count;
 	int surfnum;
 
-	int numverts, numindexes;
 	int fv;
+	int sty; 
 
 	mesh_t *mesh;
 
@@ -2487,6 +2729,7 @@ qboolean CModQ3_LoadRFaces (lump_t *l)
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( count*sizeof(*out), loadmodel->name );
 	pl = Hunk_AllocName (count*sizeof(*pl), loadmodel->name);//create a new array of planes for speed.
+	mesh = Hunk_AllocName (count*sizeof(*mesh), loadmodel->name);
 
 	loadmodel->surfaces = out;
 	loadmodel->numsurfaces = count;
@@ -2495,12 +2738,21 @@ qboolean CModQ3_LoadRFaces (lump_t *l)
 	{
 		out->plane = pl;
 		out->texinfo = loadmodel->texinfo + LittleLong(in->shadernum);
-		out->lightmaptexturenum = LittleLong(in->lightmapnum);
-		out->light_s = LittleLong(in->lightmap_x);
-		out->light_t = LittleLong(in->lightmap_y);
+		out->lightmaptexturenums[0] = LittleLong(in->lightmapnum);
+		out->light_s[0] = LittleLong(in->lightmap_x);
+		out->light_t[0] = LittleLong(in->lightmap_y);
+		out->styles[0] = 255;
+		for (sty = 1; sty < MAXLIGHTMAPS; sty++)
+		{
+			out->styles[sty] = 255;
+			out->lightmaptexturenums[sty] = -1;
+		}
 		out->extents[0] = (LittleLong(in->lightmap_width)-1)<<4;
 		out->extents[1] = (LittleLong(in->lightmap_height)-1)<<4;
 		out->samples=NULL;
+
+		if (loadmodel->lightmaps.count < out->lightmaptexturenums[0]+1)
+			loadmodel->lightmaps.count = out->lightmaptexturenums[0]+1;
 
 		fv = LittleLong(in->firstvertex);
 		{
@@ -2511,10 +2763,6 @@ qboolean CModQ3_LoadRFaces (lump_t *l)
 			PlaneFromPoints(v, pl);
 			CategorizePlane(pl);
 		}
-		/*
-		if (in->fognum!=-1)
-		continue;
-		*/
 
 		if (map_surfaces[LittleLong(in->shadernum)].c.value == 0 || map_surfaces[LittleLong(in->shadernum)].c.value & Q3CONTENTS_TRANSLUCENT)
 				//q3dm10's thingie is 0
@@ -2543,84 +2791,30 @@ qboolean CModQ3_LoadRFaces (lump_t *l)
 
 		if (map_surfaces[LittleLong(in->shadernum)].c.flags & (Q3SURF_NODRAW | Q3SURF_SKIP))
 		{
-			out->mesh = &nullmesh;
+			out->mesh = &mesh[surfnum];
+			out->mesh->numindexes = 0;
+			out->mesh->numvertexes = 0;
 		}
 		else if (LittleLong(in->facetype) == MST_PATCH)
 		{
-			out->mesh = GL_CreateMeshForPatch(loadmodel, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
-			if (out->mesh)
-			{
-				Mod_AccumulateMeshTextureVectors(out->mesh);
-				Mod_NormaliseTextureVectors(out->mesh->normals_array, out->mesh->snormals_array, out->mesh->tnormals_array, out->mesh->numvertexes);
-			}
+			out->mesh = &mesh[surfnum];
+			GL_SizePatch(out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
 		}
 		else if (LittleLong(in->facetype) == MST_PLANAR || LittleLong(in->facetype) == MST_TRIANGLE_SOUP)
 		{
-			numindexes = LittleLong(in->num_indexes);
-			numverts = LittleLong(in->num_vertices);
-			if (numindexes%3 || numindexes < 0 || numverts < 0)
-			{
-				Con_Printf(CON_ERROR "mesh indexes should be multiples of 3\n");
-				return false;
-			}
-
-			out->mesh = Hunk_Alloc(sizeof(mesh_t));
-			out->mesh->normals_array= map_normals_array + LittleLong(in->firstvertex);
-			out->mesh->snormals_array = map_svector_array + LittleLong(in->firstvertex);
-			out->mesh->tnormals_array = map_tvector_array + LittleLong(in->firstvertex);
-
-			out->mesh->colors4f_array	= map_colors4f_array + LittleLong(in->firstvertex);
-			out->mesh->indexes		= map_surfindexes + LittleLong(in->firstindex);
-			out->mesh->xyz_array	= map_verts + LittleLong(in->firstvertex);
-			out->mesh->st_array		= map_vertstmexcoords + LittleLong(in->firstvertex);
-			out->mesh->lmst_array	= map_vertlstmexcoords + LittleLong(in->firstvertex);
-
-			out->mesh->numindexes = numindexes;
-			out->mesh->numvertexes = numverts;
-
-			if (LittleLong(in->facetype) == MST_PLANAR)
-				if (out->mesh->numindexes == (out->mesh->numvertexes-2)*3)
-					out->mesh->istrifan = true;
-
+			out->mesh = &mesh[surfnum];
+			out->mesh->numindexes = LittleLong(in->num_indexes);
+			out->mesh->numvertexes = LittleLong(in->num_vertices);
+/*
 			Mod_AccumulateMeshTextureVectors(out->mesh);
+*/
 		}
 		else
 		{
-			//flare
-			int r, g, b;
-			extern index_t r_quad_indexes[6];
-			static vec2_t	st[4] = {{0,0},{0,1},{1,1},{1,0}};
-
-			mesh = out->mesh = (mesh_t *)Hunk_Alloc(sizeof(mesh_t));
-			mesh->xyz_array = (vecV_t *)Hunk_Alloc(sizeof(vecV_t)*4);
-			mesh->colors4b_array = (byte_vec4_t *)Hunk_Alloc(sizeof(byte_vec4_t)*4);
-			mesh->numvertexes = 4;
-			mesh->indexes = r_quad_indexes;
-			mesh->st_array = st;
-			mesh->numindexes = 6;
-
-			VectorCopy (in->lightmap_origin, mesh->xyz_array[0]);
-			VectorCopy (in->lightmap_origin, mesh->xyz_array[1]);
-			VectorCopy (in->lightmap_origin, mesh->xyz_array[2]);
-			VectorCopy (in->lightmap_origin, mesh->xyz_array[3]);
-
-			r = LittleFloat(in->lightmap_vecs[0][0]) * 255.0f;
-			r = bound (0, r, 255);
-			g = LittleFloat(in->lightmap_vecs[0][1]) * 255.0f;
-			g = bound (0, g, 255);
-			b = LittleFloat(in->lightmap_vecs[0][2]) * 255.0f;
-			b = bound (0, b, 255);
-
-			mesh->colors4b_array[0][0] = r;
-			mesh->colors4b_array[0][1] = g;
-			mesh->colors4b_array[0][2] = b;
-			mesh->colors4b_array[0][3] = 255;
-			Vector4Copy(mesh->colors4b_array[0], mesh->colors4b_array[1]);
-			Vector4Copy(mesh->colors4b_array[0], mesh->colors4b_array[2]);
-			Vector4Copy(mesh->colors4b_array[0], mesh->colors4b_array[3]);
+			out->mesh = &mesh[surfnum];
+			out->mesh->numindexes = 6;
+			out->mesh->numvertexes = 4;
 		}
-		if (out->mesh->numindexes == 0)
-			Con_Printf("foo\n");
 	}
 
 	Mod_NormaliseTextureVectors(map_normals_array, map_svector_array, map_tvector_array, numvertexes);
@@ -2641,6 +2835,7 @@ qboolean CModRBSP_LoadRFaces (lump_t *l)
 
 	int numverts, numindexes;
 	int fv;
+	int j;
 
 	mesh_t *mesh;
 
@@ -2654,6 +2849,7 @@ qboolean CModRBSP_LoadRFaces (lump_t *l)
 	count = l->filelen / sizeof(*in);
 	out = Hunk_AllocName ( count*sizeof(*out), loadmodel->name );
 	pl = Hunk_AllocName (count*sizeof(*pl), loadmodel->name);//create a new array of planes for speed.
+	mesh = Hunk_AllocName (count*sizeof(*mesh), loadmodel->name);
 
 	loadmodel->surfaces = out;
 	loadmodel->numsurfaces = count;
@@ -2663,11 +2859,20 @@ qboolean CModRBSP_LoadRFaces (lump_t *l)
 		out->plane = pl;
 		out->texinfo = loadmodel->texinfo + LittleLong(in->shadernum);
 		in->facetype = LittleLong(in->facetype);
-		out->lightmaptexturenum = in->lightmapnum[0];
-		out->light_s = in->lightmap_offs[0][0];
-		out->light_t = in->lightmap_offs[0][0];
-		out->extents[0] = (in->lightmap_width-1)<<4;
-		out->extents[1] = (in->lightmap_height-1)<<4;
+		for (j = 0; j < 4 && j < MAXLIGHTMAPS; j++)
+		{
+			if (in->lightmapnum[j] >= 0 && j)
+				Con_Printf("lightstyled!\n");
+			out->lightmaptexturenums[j] = LittleLong(in->lightmapnum[j]);
+			out->light_s[j] = LittleLong(in->lightmap_offs[0][j]);
+			out->light_t[j] = LittleLong(in->lightmap_offs[1][j]);
+			out->styles[j] = in->lm_styles[j];
+
+			if (loadmodel->lightmaps.count < out->lightmaptexturenums[j]+1)
+				loadmodel->lightmaps.count = out->lightmaptexturenums[j]+1;
+		}
+		out->extents[0] = (LittleLong(in->lightmap_width)-1)<<4;
+		out->extents[1] = (LittleLong(in->lightmap_height)-1)<<4;
 		out->samples=NULL;
 
 		fv = LittleLong(in->firstvertex);
@@ -2679,10 +2884,6 @@ qboolean CModRBSP_LoadRFaces (lump_t *l)
 			PlaneFromPoints(v, pl);
 			CategorizePlane(pl);
 		}
-		/*
-		if (in->fognum!=-1)
-		continue;
-		*/
 
 		if (map_surfaces[in->shadernum].c.value == 0 || map_surfaces[in->shadernum].c.value & Q3CONTENTS_TRANSLUCENT)
 				//q3dm10's thingie is 0
@@ -2710,65 +2911,34 @@ qboolean CModRBSP_LoadRFaces (lump_t *l)
 		else
 			out->fog = map_fogs + in->fognum;
 #endif
-		if (map_surfaces[in->shadernum].c.flags & (Q3SURF_NODRAW | Q3SURF_SKIP))
-		{
-			if (map_surfaces[in->shadernum].c.flags & Q3SURF_SKIP)
-				Con_Printf("Surface skip\n");
-			out->mesh = NULL;
-		}
-		else if (in->facetype == MST_PATCH)
-		{
-			out->mesh = GL_CreateMeshForPatch(loadmodel, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
-		}
-		else if (in->facetype == MST_PLANAR || in->facetype == MST_TRIANGLE_SOUP)
-		{
-			numindexes = LittleLong(in->num_indexes);
-			numverts = LittleLong(in->num_vertices);
-			if (numindexes%3)
-			{
-				Con_Printf(CON_ERROR "mesh indexes should be multiples of 3\n");
-				return false;
-			}
 
-			out->mesh = Hunk_Alloc(sizeof(mesh_t) + (sizeof(vec3_t)) * numverts);
-			out->mesh->normals_array= map_normals_array + LittleLong(in->firstvertex);
-			out->mesh->colors4f_array	= map_colors4f_array + LittleLong(in->firstvertex);
-			out->mesh->indexes		= map_surfindexes + LittleLong(in->firstindex);
-			out->mesh->xyz_array	= map_verts + LittleLong(in->firstvertex);
-			out->mesh->st_array		= map_vertstmexcoords + LittleLong(in->firstvertex);
-			out->mesh->lmst_array	= map_vertlstmexcoords + LittleLong(in->firstvertex);
-
-			out->mesh->numindexes = numindexes;
-			out->mesh->numvertexes = numverts;
+		if (map_surfaces[LittleLong(in->shadernum)].c.flags & (Q3SURF_NODRAW | Q3SURF_SKIP))
+		{
+			out->mesh = &mesh[surfnum];
+			out->mesh->numindexes = 0;
+			out->mesh->numvertexes = 0;
+		}
+		else if (LittleLong(in->facetype) == MST_PATCH)
+		{
+			out->mesh = &mesh[surfnum];
+			GL_SizePatch(out->mesh, LittleLong(in->patchwidth), LittleLong(in->patchheight), LittleLong(in->num_vertices), LittleLong(in->firstvertex));
+		}
+		else if (LittleLong(in->facetype) == MST_PLANAR || LittleLong(in->facetype) == MST_TRIANGLE_SOUP)
+		{
+			out->mesh = &mesh[surfnum];
+			out->mesh->numindexes = LittleLong(in->num_indexes);
+			out->mesh->numvertexes = LittleLong(in->num_vertices);
+/*
+			Mod_AccumulateMeshTextureVectors(out->mesh);
+*/
 		}
 		else
 		{
-//			int r, g, b;
-			extern index_t r_quad_indexes[6];
-			static vec2_t	st[4] = {{0,0},{0,1},{1,1},{1,0}};
-
-			mesh = out->mesh = (mesh_t *)Hunk_Alloc ( sizeof(mesh_t));
-			mesh->xyz_array = (vecV_t *)Hunk_Alloc ( sizeof(vecV_t));
-			mesh->numvertexes = 1;
-			mesh->indexes = r_quad_indexes;
-			mesh->st_array = st;
-			mesh->numindexes = 6;
-		//	VectorCopy ( out->origin, mesh->xyz_array[0] );
-
-/*			r = LittleFloat ( in->lightmapVecs[0][0] ) * 255.0f;
-			r = bound ( 0, r, 255 );
-
-			g = LittleFloat ( in->lightmapVecs[0][1] ) * 255.0f;
-			g = bound ( 0, g, 255 );
-
-			b = LittleFloat ( in->lightmapVecs[0][2] ) * 255.0f;
-			b = bound ( 0, b, 255 );
-
-			out->dlightbits = (unsigned int)COLOR_RGB ( r, g, b );
-*/		}
+			out->mesh = &mesh[surfnum];
+			out->mesh->numindexes = 6;
+			out->mesh->numvertexes = 4;
+		}
 	}
-
-	Mod_SortShaders();
 
 	return true;
 }
@@ -3256,8 +3426,8 @@ qboolean CModRBSP_LoadLightgrid (lump_t *elements, lump_t *indexes)
 	ecount = elements->filelen / sizeof(*ein);
 
 	grid = Hunk_AllocName (sizeof(q3lightgridinfo_t) + ecount*sizeof(*eout) + icount*sizeof(*iout), loadmodel->name );
-	grid->rbspelements = (rbspgridlight_t*)((char *)grid);
-	grid->rbspindexes = (unsigned short*)((char *)grid + ecount*sizeof(*eout));
+	grid->rbspelements = (rbspgridlight_t*)((char *)grid + sizeof(q3lightgridinfo_t));
+	grid->rbspindexes = (unsigned short*)((char *)grid + sizeof(q3lightgridinfo_t) + ecount*sizeof(*eout));
 	eout = grid->rbspelements;
 	iout = grid->rbspindexes;
 
@@ -3570,6 +3740,9 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 	qboolean noerrors = true;
 	int start;
 
+	void (*buildmeshes)(model_t *mod, msurface_t *surf, void *cookie) = NULL;
+	void *buildcookie = NULL;
+
 	// free old stuff
 	numplanes = 0;
 	numleafs = 0;
@@ -3610,6 +3783,17 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 	cmod_base = mod_base = (qbyte *)buf;
 	start = Hunk_LowMark();
 
+	if (header.ident == (('F'<<0)+('B'<<8)+('S'<<16)+('P'<<24)))
+	{
+		loadmodel->lightmaps.width = 512;
+		loadmodel->lightmaps.height = 512;
+	}
+	else
+	{
+		loadmodel->lightmaps.width = 128;
+		loadmodel->lightmaps.height = 128;
+	}
+
 	switch(header.version)
 	{
 	default:
@@ -3618,7 +3802,7 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 		return NULL;
 		break;
 #if 1
-	case 1: //rbsp
+	case 1: //rbsp/fbsp
 	case Q3BSPVERSION+1:	//rtcw
 	case Q3BSPVERSION:
 		mapisq3 = true;
@@ -3703,10 +3887,17 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 				else
 					map_numfogs = 0;
 
+				buildcookie = (void *)(mod_base + header.lumps[Q3LUMP_SURFACES].fileofs);
 				if (header.version == 1)
+				{
 					noerrors = noerrors && CModRBSP_LoadRFaces	(&header.lumps[Q3LUMP_SURFACES]);
+					buildmeshes = CModRBSP_BuildSurfMesh;
+				}
 				else
+				{
 					noerrors = noerrors && CModQ3_LoadRFaces	(&header.lumps[Q3LUMP_SURFACES]);
+					buildmeshes = CModQ3_BuildSurfMesh;
+				}
 				noerrors = noerrors && CModQ3_LoadMarksurfaces (&header.lumps[Q3LUMP_LEAFSURFACES]);	//fixme: duplicated loading.
 
 				/*make sure all textures have a shader*/
@@ -3923,6 +4114,13 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 
 	loadmodel->checksum = loadmodel->checksum2 = *checksum;
 
+	loadmodel->nummodelsurfaces = loadmodel->numsurfaces;
+	memset(&loadmodel->batches, 0, sizeof(loadmodel->batches));
+	loadmodel->vbos = NULL;
+#ifndef SERVERONLY
+	if (qrenderer != QR_NONE)
+		RMod_Batches_Build(NULL, loadmodel, buildmeshes, buildcookie);
+#endif
 
 	loadmodel->numsubmodels = CM_NumInlineModels(loadmodel);
 	{
@@ -3964,6 +4162,13 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 				mod->hulls[j].lastclipnode = mod->numclipnodes-1;
 				mod->hulls[j].available = false;
 			}
+
+			memset(&mod->batches, 0, sizeof(mod->batches));
+			mod->vbos = NULL;
+#ifndef SERVERONLY
+			if (qrenderer != QR_NONE)
+				RMod_Batches_Build(NULL, mod, buildmeshes, buildcookie);
+#endif
 
 			VectorCopy (bm->maxs, mod->maxs);
 			VectorCopy (bm->mins, mod->mins);

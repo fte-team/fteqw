@@ -268,7 +268,8 @@ enum{
 	PERMUTATION_SKELETAL = 32,
 	PERMUTATION_FOG	= 64,
 	PERMUTATION_FRAMEBLEND = 128,
-	PERMUTATIONS = 256
+	PERMUTATION_LIGHTSTYLES = 256,
+	PERMUTATIONS = 512
 };
 
 enum shaderattribs_e
@@ -285,6 +286,9 @@ enum shaderattribs_e
 	VATTR_TNORMALS,
 	VATTR_BONENUMS, /*skeletal only*/
 	VATTR_BONEWEIGHTS, /*skeletal only*/
+	VATTR_LMCOORD2,
+	VATTR_LMCOORD3,
+	VATTR_LMCOORD4,
 
 	VATTR_LEG_COLOUR,
 	VATTR_LEG_ELEMENTS,
@@ -381,13 +385,13 @@ typedef struct {
 } polyoffset_t;
 struct shader_s
 {
+	char name[MAX_QPATH];
 	int uses;
 	int width;
 	int height;
 	int numpasses;
 	texnums_t defaulttextures;
 	struct shader_s *next;
-	char name[MAX_QPATH];
 	//end of shared fields.
 
 	byte_vec4_t fog_color;
@@ -486,6 +490,7 @@ mfog_t *CM_FogForOrigin(vec3_t org);
 
 #ifdef GLQUAKE
 void GLBE_Init(void);
+void GLBE_Shutdown(void);
 void GLBE_SelectMode(backendmode_t mode);
 void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **mesh, vbo_t *vbo, texnums_t *texnums, unsigned int beflags);
 void GLBE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums, unsigned int beflags);
@@ -519,6 +524,27 @@ qboolean D3DShader_CreateProgram (program_t *prog, int permu, char **precompiler
 int D3DShader_FindUniform(union programhandle_u *h, int type, char *name);
 void D3DShader_Init(void);
 void D3DBE_Reset(qboolean before);
+
+
+
+void D3D11BE_Init(void);
+void D3D11BE_SelectMode(backendmode_t mode);
+void D3D11BE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **mesh, vbo_t *vbo, texnums_t *texnums, unsigned int beflags);
+void D3D11BE_DrawMesh_Single(shader_t *shader, mesh_t *meshchain, vbo_t *vbo, texnums_t *texnums, unsigned int beflags);
+void D3D11BE_SubmitBatch(batch_t *batch);
+batch_t *D3D11BE_GetTempBatch(void);
+void D3D11BE_GenBrushModelVBO(model_t *mod);
+void D3D11BE_ClearVBO(vbo_t *vbo);
+void D3D11BE_UploadAllLightmaps(void);
+void D3D11BE_DrawWorld (qbyte *vis);
+qboolean D3D11BE_LightCullModel(vec3_t org, model_t *model);
+void D3D11BE_SelectEntity(entity_t *ent);
+void D3D11BE_SelectDLight(dlight_t *dl, vec3_t colour);
+
+qboolean D3D11Shader_CreateProgram (program_t *prog, int permu, char **precompilerconstants, char *vert, char *frag);
+int D3D11Shader_FindUniform(union programhandle_u *h, int type, char *name);
+void D3D11Shader_Init(void);
+void D3D11BE_Reset(qboolean before);
 #endif
 
 //Asks the backend to invoke DrawMeshChain for each surface, and to upload lightmaps as required

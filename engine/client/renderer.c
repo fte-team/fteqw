@@ -213,6 +213,9 @@ extern cvar_t r_waterwarp;
 cvar_t	r_polygonoffset_submodel_factor = SCVAR("r_polygonoffset_submodel_factor", "0.05");
 cvar_t	r_polygonoffset_submodel_offset = SCVAR("r_polygonoffset_submodel_offset", "25");
 
+cvar_t	r_polygonoffset_stencil_factor = SCVAR("r_polygonoffset_stencil_factor", "0.01");
+cvar_t	r_polygonoffset_stencil_offset = SCVAR("r_polygonoffset_stencil_offset", "1");
+
 rendererstate_t currentrendererstate;
 
 #if defined(GLQUAKE)
@@ -457,9 +460,10 @@ void	R_InitTextures (void)
 {
 	int		x,y, m;
 	qbyte	*dest;
+	static char r_notexture_mip_mem[(sizeof(texture_t) + 16*16+8*8+4*4+2*2)];
 
 // create a simple checkerboard texture for the default
-	r_notexture_mip = Z_Malloc (sizeof(texture_t) + 16*16+8*8+4*4+2*2);
+	r_notexture_mip = (texture_t*)r_notexture_mip_mem;
 
 	r_notexture_mip->width = r_notexture_mip->height = 16;
 	r_notexture_mip->offsets[0] = sizeof(texture_t);
@@ -649,6 +653,8 @@ void Renderer_Init(void)
 	Cvar_Register (&r_showbboxes, GLRENDEREROPTIONS);
 	Cvar_Register (&r_polygonoffset_submodel_factor, GLRENDEREROPTIONS);
 	Cvar_Register (&r_polygonoffset_submodel_offset, GLRENDEREROPTIONS);
+	Cvar_Register (&r_polygonoffset_stencil_factor, GLRENDEREROPTIONS);
+	Cvar_Register (&r_polygonoffset_stencil_offset, GLRENDEREROPTIONS);
 
 // misc
 	Cvar_Register(&con_ocranaleds, "Console controls");
@@ -938,6 +944,11 @@ void R_ShutdownRenderer(void)
 	SCR_DeInit();
 
 	COM_FlushTempoaryPacks();
+
+	W_Shutdown();
+	if (host_basepal)
+		BZ_Free(host_basepal);
+	host_basepal = NULL;
 
 	S_Shutdown();
 }
@@ -1296,6 +1307,10 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 		}
 
 		Skin_FlushPlayers();
+
+#ifdef CSQC_DAT
+		CSQC_RendererRestarted();
+#endif
 	}
 	else
 	{
@@ -1829,35 +1844,47 @@ qbyte *R_MarkLeaves_Q2 (void)
 
 	int c;
 
-	if (r_oldviewcluster == r_viewcluster && r_oldviewcluster2 == r_viewcluster2)
-		return vis;
+	if (r_refdef.forcevis)
+	{
+		vis = r_refdef.forcedvis;
 
-	r_oldviewcluster = r_viewcluster;
-	r_oldviewcluster2 = r_viewcluster2;
+		r_oldviewcluster = 0;
+		r_oldviewcluster2 = 0;
+	}
+	else
+	{
+		if (r_oldviewcluster == r_viewcluster && r_oldviewcluster2 == r_viewcluster2)
+			return vis;
 
-	if (r_novis.ival == 2)
-		return vis;
+		r_oldviewcluster = r_viewcluster;
+		r_oldviewcluster2 = r_viewcluster2;
+
+		if (r_novis.ival == 2)
+			return vis;
+
+		if (r_novis.ival || r_viewcluster == -1 || !cl.worldmodel->vis)
+		{
+			// mark everything
+			for (i=0 ; i<cl.worldmodel->numleafs ; i++)
+				cl.worldmodel->leafs[i].visframe = r_visframecount;
+			for (i=0 ; i<cl.worldmodel->numnodes ; i++)
+				cl.worldmodel->nodes[i].visframe = r_visframecount;
+			return vis;
+		}
+
+		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, curframevis, sizeof(curframevis));
+		// may have to combine two clusters because of solid water boundaries
+		if (r_viewcluster2 != r_viewcluster)
+		{
+			vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster2, NULL, sizeof(curframevis));
+			c = (cl.worldmodel->numleafs+31)/32;
+			for (i=0 ; i<c ; i++)
+				((int *)curframevis)[i] |= ((int *)vis)[i];
+			vis = curframevis;
+		}
+	}
+
 	r_visframecount++;
-	if (r_novis.ival || r_viewcluster == -1 || !cl.worldmodel->vis)
-	{
-		// mark everything
-		for (i=0 ; i<cl.worldmodel->numleafs ; i++)
-			cl.worldmodel->leafs[i].visframe = r_visframecount;
-		for (i=0 ; i<cl.worldmodel->numnodes ; i++)
-			cl.worldmodel->nodes[i].visframe = r_visframecount;
-		return vis;
-	}
-
-	vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, curframevis, sizeof(curframevis));
-	// may have to combine two clusters because of solid water boundaries
-	if (r_viewcluster2 != r_viewcluster)
-	{
-		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster2, NULL, sizeof(curframevis));
-		c = (cl.worldmodel->numleafs+31)/32;
-		for (i=0 ; i<c ; i++)
-			((int *)curframevis)[i] |= ((int *)vis)[i];
-		vis = curframevis;
-	}
 
 	for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
 	{
@@ -1922,34 +1949,44 @@ qbyte *R_MarkLeaves_Q1 (void)
 	int		i;
 	qbyte	solid[4096];
 
-	if (((r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2) && !r_novis.ival) || r_novis.ival & 2)
-		return vis;
-
-	r_visframecount++;
-
-	r_oldviewleaf = r_viewleaf;
-	r_oldviewleaf2 = r_viewleaf2;
-
-	if (r_novis.ival)
+	if (r_refdef.forcevis)
 	{
-		vis = solid;
-		memset (solid, 0xff, (cl.worldmodel->numleafs+7)>>3);
-	}
-	else if (r_viewleaf2 && r_viewleaf2 != r_viewleaf)
-	{
-		int c;
-		Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf2, fatvis, sizeof(fatvis));
-		vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL, 0);
-		c = (cl.worldmodel->numleafs+31)/32;
-		for (i=0 ; i<c ; i++)
-			((int *)fatvis)[i] |= ((int *)vis)[i];
+		vis = r_refdef.forcedvis;
 
-		vis = fatvis;
+		r_oldviewleaf = NULL;
+		r_oldviewleaf2 = NULL;
 	}
 	else
 	{
-		vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, fatvis, sizeof(fatvis));
+		if (((r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2) && !r_novis.ival) || r_novis.ival & 2)
+			return vis;
+
+		r_oldviewleaf = r_viewleaf;
+		r_oldviewleaf2 = r_viewleaf2;
+
+		if (r_novis.ival)
+		{
+			vis = solid;
+			memset (solid, 0xff, (cl.worldmodel->numleafs+7)>>3);
+		}
+		else if (r_viewleaf2 && r_viewleaf2 != r_viewleaf)
+		{
+			int c;
+			Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf2, fatvis, sizeof(fatvis));
+			vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL, 0);
+			c = (cl.worldmodel->numleafs+31)/32;
+			for (i=0 ; i<c ; i++)
+				((int *)fatvis)[i] |= ((int *)vis)[i];
+
+			vis = fatvis;
+		}
+		else
+		{
+			vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, fatvis, sizeof(fatvis));
+		}
 	}
+
+	r_visframecount++;
 
 	for (i=0 ; i<cl.worldmodel->numleafs ; i++)
 	{

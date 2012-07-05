@@ -3186,7 +3186,10 @@ typedef struct
 void S_MP3_Abort(sfx_t *sfx)
 {
 	mp3decoder_t *dec = sfx->decoder.buf;
+
 	sfx->decoder.buf = NULL;
+	sfx->decoder.abort = NULL;
+	sfx->decoder.decodedata = NULL;
 
 	qacmStreamClose(dec->acm, 0);
 

@@ -36,6 +36,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <process.h>
 #endif
 
+#ifdef GLQUAKE
+#define PRINTGLARRAYS
+#endif
+
 #ifdef _DEBUG
 #if _MSC_VER >= 1300
 #define CATCHCRASH
@@ -52,6 +56,8 @@ unsigned int sys_parentleft;	//valid if sys_parentwindow is set
 unsigned int sys_parenttop;
 unsigned int sys_parentwidth;	//valid if sys_parentwindow is set
 unsigned int sys_parentheight;
+
+extern int fs_switchgame;
 
 
 #ifdef RESTARTTEST
@@ -362,7 +368,7 @@ typedef BOOL (WINAPI *MINIDUMPWRITEDUMP) (
 	PMINIDUMP_CALLBACK_INFORMATION CallbackParam
 	);
 
-#if 0
+#ifdef PRINTGLARRAYS
 #include "glquake.h"
 #define GL_ARRAY_BUFFER                   0x8892
 #define GL_ELEMENT_ARRAY_BUFFER           0x8893
@@ -390,7 +396,7 @@ DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exception
 	HMODULE hKernel;
 	BOOL (WINAPI *pIsDebuggerPresent)(void);
 
-#if 0
+#ifdef PRINTGLARRAYS
 	int rval;
 	void *ptr;
 	int i;
@@ -805,6 +811,14 @@ void Sys_Shutdown(void)
 		VirtualFree(host_parms.membase, 0, MEM_RELEASE);
 		host_parms.membase = 0;
 	}
+
+	if (tevent)
+		CloseHandle (tevent);
+	tevent = NULL;
+
+	if (qwclsemaphore)
+		CloseHandle (qwclsemaphore);
+	qwclsemaphore = NULL;
 }
 
 
@@ -844,6 +858,39 @@ void VARGS Sys_Error (const char *error, ...)
 #endif
 }
 
+static wchar_t dequake(conchar_t chr)
+{
+	chr &= CON_CHARMASK;
+
+	/*only this range are quake chars*/
+	if (chr >= 0xe000 && chr < 0xe100)
+	{
+		chr &= 0xff;
+		if (chr >= 146 && chr < 156)
+			chr = chr - 146 + '0';
+		if (chr >= 0x12 && chr <= 0x1b)
+			chr = chr - 0x12 + '0';
+		if (chr == 143)
+			chr = '.';
+		if (chr == 128 || chr == 129 || chr == 130 || chr == 157 || chr == 158 || chr == 159)
+			chr = '-';
+		if (chr >= 128)
+			chr -= 128;
+		if (chr == 16)
+			chr = '[';
+		if (chr == 17)
+			chr = ']';
+		if (chr == 0x1c)
+			chr = 249;
+	}
+	/*this range contains pictograms*/
+	if (chr >= 0xe100 && chr < 0xe200)
+	{
+		chr = '?';
+	}
+	return chr;
+}
+
 void VARGS Sys_Printf (char *fmt, ...)
 {
 	va_list		argptr;
@@ -859,7 +906,19 @@ void VARGS Sys_Printf (char *fmt, ...)
 
 #ifdef _DEBUG
 	if (debugout)
-		OutputDebugString(text);	//msvc debug output
+	{
+		//msvc debug output
+		conchar_t msg[1024], *end;
+		wchar_t wide[1024];
+		int i;
+		end = COM_ParseFunString(CON_WHITEMASK, text, msg, sizeof(msg), false);
+		for (i = 0; msg+i < end; i++)
+		{
+			wide[i] = dequake(msg[i] & CON_CHARMASK);
+		}
+		wide[i] = 0;
+		OutputDebugStringW(wide);
+	}
 #endif
 	if (houtput)
 		WriteFile (houtput, text, strlen(text), &dummy, NULL);
@@ -872,16 +931,12 @@ void Sys_Quit (void)
 
 	Host_Shutdown ();
 
-	if (tevent)
-		CloseHandle (tevent);
-
-	if (qwclsemaphore)
-		CloseHandle (qwclsemaphore);
-
 	SetHookState(false);
 #else
 	SV_Shutdown();
 #endif
+
+	TL_Shutdown();
 
 #ifdef RESTARTTEST
 	longjmp(restart_jmpbuf, 1);
@@ -894,6 +949,12 @@ void Sys_Quit (void)
 		longjmp (host_abort, 1);
 	}
 #else
+
+#ifdef USE_MSVCRT_DEBUG
+	if (_CrtDumpMemoryLeaks())
+		OutputDebugStringA("Leaks detected\n");
+#endif
+
 	exit(1);
 #endif
 }
@@ -1398,6 +1459,10 @@ HWND		hwnd_dialog;
 	#include "ntverp.h"
 #endif
 
+#if defined(__MINGW64_VERSION_MAJOR) && (__MINGW64_VERSION_MAJOR >= 3)
+#define SHARD_APPIDINFOLINK SHARD_APPIDINFOLINK
+#endif
+
 #ifndef SHARD_APPIDINFOLINK
 
 // SDK version 7600 = v7.0a & v7.1
@@ -1747,7 +1812,6 @@ void Win7_TaskListInit(void)
 }
 #endif
 
-
 /*
 #ifdef _MSC_VER
 #include <signal.h>
@@ -1772,7 +1836,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	/* previous instances do not exist in Win32 */
     if (hPrevInstance)
         return 0;
-
 
 	#ifndef MINGW
 	#if _MSC_VER > 1200
@@ -2018,6 +2081,20 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				Sys_Error("wut?");
 	#endif
 			}
+
+#ifndef SERVERONLY
+			if (fs_switchgame != -1)
+			{
+				SetHookState(false);
+
+				Host_Shutdown ();
+
+				COM_InitArgv (parms.argc, parms.argv);
+				if (!Sys_Startup_CheckMem(&parms))
+					return 0;
+				Host_Init (&parms);
+			}
+#endif
 		}
 	}
 #ifdef CATCHCRASH

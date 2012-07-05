@@ -1021,8 +1021,8 @@ void SCR_CalcRefdef (void)
 	}
 
 	r_refdef.fov_x = scr_fov.value;
-	if (cl.stats[0][STAT_VIEWZOOM])
-		r_refdef.fov_x *= cl.stats[0][STAT_VIEWZOOM]/255.0f;
+	if (cl.playerview[r_refdef.currentplayernum].stats[STAT_VIEWZOOM])
+		r_refdef.fov_x *= cl.playerview[r_refdef.currentplayernum].stats[STAT_VIEWZOOM]/255.0f;
 
 	if (r_refdef.fov_x < 1)
 		r_refdef.fov_x = 1;
@@ -1055,9 +1055,9 @@ void SCR_CrosshairPosition(int pnum, int *x, int *y)
 		vec3_t start;
 		vec3_t right, up, fwds;
 
-		AngleVectors(cl.simangles[pnum], fwds, right, up);
+		AngleVectors(cl.playerview[pnum].simangles, fwds, right, up);
 
-		VectorCopy(cl.simorg[pnum], start);
+		VectorCopy(cl.playerview[pnum].simorg, start);
 		start[2]+=16;
 		VectorMA(start, 100000, fwds, end);
 
@@ -1082,7 +1082,7 @@ void SCR_CrosshairPosition(int pnum, int *x, int *y)
 				adj+=v_viewheight.value;
 
 			start[2]+=adj;
-			Matrix4x4_CM_Project(tr.endpos, end, cl.simangles[pnum], start, r_refdef.fov_x, r_refdef.fov_y);
+			Matrix4x4_CM_Project(tr.endpos, end, cl.playerview[pnum].simangles, start, r_refdef.fov_x, r_refdef.fov_y);
 			*x = rect.x+rect.width*end[0];
 			*y = rect.y+rect.height*(1-end[1]);
 			return;
@@ -1349,7 +1349,7 @@ void SCR_DrawUPS (void)
 		if (track != -1)
 			vel = cl.frames[cl.validsequence&UPDATE_MASK].playerstate[track].velocity;
 		else
-			vel = cl.simvel[0];
+			vel = cl.playerview[0].simvel;
 		lastups = sqrt((vel[0]*vel[0]) + (vel[1]*vel[1]));
 		lastupstime = t;
 	}

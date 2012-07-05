@@ -28,15 +28,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 void GLBE_ClearVBO(vbo_t *vbo)
 {
-	int vboh[7];
+	int vboh[6 + MAXLIGHTMAPS];
 	int i, j;
 	vboh[0] = vbo->indicies.gl.vbo;
 	vboh[1] = vbo->coord.gl.vbo;
 	vboh[2] = vbo->texcoord.gl.vbo;
-	vboh[3] = vbo->lmcoord.gl.vbo;
-	vboh[4] = vbo->normals.gl.vbo;
-	vboh[5] = vbo->svector.gl.vbo;
-	vboh[6] = vbo->tvector.gl.vbo;
+	vboh[3] = vbo->normals.gl.vbo;
+	vboh[4] = vbo->svector.gl.vbo;
+	vboh[5] = vbo->tvector.gl.vbo;
+	for (i = 0; i < MAXLIGHTMAPS; i++)
+		vboh[6+i] = vbo->lmcoord[i].gl.vbo;
 
 	for (i = 0; i < 7; i++)
 	{
@@ -53,7 +54,7 @@ void GLBE_ClearVBO(vbo_t *vbo)
 	if (vbo->vertdata)
 		BZ_Free(vbo->vertdata);
 	BZ_Free(vbo->meshlist);
-	memset(vbo, 0, sizeof(*vbo));
+	BZ_Free(vbo);
 }
 
 void GLBE_SetupVAO(vbo_t *vbo, unsigned int vaodynamic);
@@ -61,6 +62,7 @@ void GLBE_SetupVAO(vbo_t *vbo, unsigned int vaodynamic);
 static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int elementsize, unsigned int vaodynamic)
 {
 	unsigned int vbos[2];
+	int s;
 
 	if (!qglGenBuffersARB)
 		return false;
@@ -84,10 +86,13 @@ static qboolean GL_BuildVBO(vbo_t *vbo, void *vdata, int vsize, void *edata, int
 		vbo->texcoord.gl.vbo = vbos[0];
 		vbo->texcoord.gl.addr = (vec2_t*)((char*)vbo->texcoord.gl.addr - (char*)vdata);
 	}
-	if (vbo->lmcoord.gl.addr)
+	for (s = 0; s < MAXLIGHTMAPS; s++)
 	{
-		vbo->lmcoord.gl.vbo = vbos[0];
-		vbo->lmcoord.gl.addr = (vec2_t*)((char*)vbo->lmcoord.gl.addr - (char*)vdata);
+		if (vbo->lmcoord[s].gl.addr)
+		{
+			vbo->lmcoord[s].gl.vbo = vbos[0];
+			vbo->lmcoord[s].gl.addr = (vec2_t*)((char*)vbo->lmcoord[s].gl.addr - (char*)vdata);
+		}
 	}
 	if (vbo->normals.gl.addr)
 	{
@@ -136,7 +141,7 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 	unsigned int maxvboverts;
 	unsigned int maxvboelements;
 
-	unsigned int i;
+	unsigned int i, s;
 	unsigned int v;
 	unsigned int vcount, ecount;
 	unsigned int pervertsize;	//erm, that name wasn't intentional
@@ -148,7 +153,7 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 
 	vecV_t *coord;
 	vec2_t *texcoord;
-	vec2_t *lmcoord;
+	vec2_t *lmcoord[MAXLIGHTMAPS];
 	vec3_t *normals;
 	vec3_t *svector;
 	vec3_t *tvector;
@@ -164,7 +169,7 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 	meshes = 0;
 	for(batch = firstbatch; batch != stopbatch; batch = batch->next)
 	{
-		for (i=0 ; i<batch->meshes ; i++)
+		for (i=0 ; i<batch->maxmeshes ; i++)
 		{
 			m = batch->mesh[i];
 			meshes++;
@@ -181,7 +186,7 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 
 	pervertsize =	sizeof(vecV_t)+	//coord
 				sizeof(vec2_t)+	//tex
-				sizeof(vec2_t)+	//lm
+				sizeof(vec2_t)*MAXLIGHTMAPS+	//lm
 				sizeof(vec3_t)+	//normal
 				sizeof(vec3_t)+	//sdir
 				sizeof(vec3_t)+	//tdir
@@ -193,7 +198,8 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 
 	vbo->coord.gl.addr = allocbuf(&p, maxvboverts, sizeof(vecV_t));
 	vbo->texcoord.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec2_t));
-	vbo->lmcoord.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec2_t));
+	for (s = 0; s < MAXLIGHTMAPS; s++)
+		vbo->lmcoord[s].gl.addr = allocbuf(&p, maxvboverts, sizeof(vec2_t));
 	vbo->normals.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec3_t));
 	vbo->svector.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec3_t));
 	vbo->tvector.gl.addr = allocbuf(&p, maxvboverts, sizeof(vec3_t));
@@ -202,7 +208,8 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 
 	coord = vbo->coord.gl.addr;
 	texcoord = vbo->texcoord.gl.addr;
-	lmcoord = vbo->lmcoord.gl.addr;
+	for (s = 0; s < 4; s++)
+		lmcoord[s] = vbo->lmcoord[s].gl.addr;
 	normals = vbo->normals.gl.addr;
 	svector = vbo->svector.gl.addr;
 	tvector = vbo->tvector.gl.addr;
@@ -218,7 +225,7 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 	for(batch = firstbatch; batch != stopbatch; batch = batch->next)
 	{
 		batch->vbo = vbo;
-		for (i=0 ; i<batch->meshes ; i++)
+		for (i=0 ; i<batch->maxmeshes ; i++)
 		{
 			m = batch->mesh[i];
 
@@ -239,10 +246,13 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 					texcoord[vcount+v][0] = m->st_array[v][0];
 					texcoord[vcount+v][1] = m->st_array[v][1];
 				}
-				if (m->lmst_array)
+				for (s = 0; s < MAXLIGHTMAPS; s++)
 				{
-					lmcoord[vcount+v][0] = m->lmst_array[v][0];
-					lmcoord[vcount+v][1] = m->lmst_array[v][1];
+					if (m->lmst_array[s])
+					{
+						lmcoord[s][vcount+v][0] = m->lmst_array[s][v][0];
+						lmcoord[s][vcount+v][1] = m->lmst_array[s][v][1];
+					}
 				}
 				if (m->normals_array)
 				{
@@ -291,6 +301,7 @@ void GLBE_GenBrushModelVBO(model_t *mod)
 
 	batch_t *batch, *fbatch;
 	int sortid;
+	int i;
 
 	fbatch = NULL;
 	vcount = 0;
@@ -308,11 +319,14 @@ void GLBE_GenBrushModelVBO(model_t *mod)
 				fbatch = batch;
 				vcount = 0;
 			}
-			vcount += batch->firstmesh;
+
+			for (i = 0; i < batch->maxmeshes; i++)
+				vcount += batch->mesh[i]->numvertexes;
 		}
-		
+
 		GLBE_GenBatchVBOs(&mod->vbos, fbatch, batch);
 	}
+
 #if 0
 	if (!mod->numsurfaces)
 		return;
@@ -455,6 +469,7 @@ void GLBE_GenBrushModelVBO(model_t *mod)
 
 void GLBE_UploadAllLightmaps(void)
 {
+	lightmapinfo_t *lm;
 	int i;
 	//
 	// upload all lightmaps that were filled
@@ -463,48 +478,50 @@ void GLBE_UploadAllLightmaps(void)
 	{
 		if (!lightmap[i])
 			break;		// no more used
-		lightmap[i]->rectchange.l = LMBLOCK_WIDTH;
-		lightmap[i]->rectchange.t = LMBLOCK_HEIGHT;
-		lightmap[i]->rectchange.w = 0;
-		lightmap[i]->rectchange.h = 0;
-		if (!lightmap[i]->modified)
+		lm = lightmap[i];
+		lm->rectchange.l = lm->width;
+		lm->rectchange.t = lm->height;
+		lm->rectchange.w = 0;
+		lm->rectchange.h = 0;
+		if (!lm->modified)
 			continue;
-		lightmap[i]->modified = false;
-		GL_MTBind(0, GL_TEXTURE_2D, lightmap_textures[i]);
+		lm->modified = false;
+		GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		switch (lightmap_bytes)
 		{
 		case 4:
 			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA,
-				LMBLOCK_WIDTH, LMBLOCK_WIDTH, 0, (lightmap_bgra?GL_BGRA_EXT:GL_RGBA), GL_UNSIGNED_INT_8_8_8_8_REV,
+				lm->width, lm->height, 0, (lightmap_bgra?GL_BGRA_EXT:GL_RGBA), GL_UNSIGNED_INT_8_8_8_8_REV,
 				lightmap[i]->lightmaps);
 			break;
 		case 3:
 			qglTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
-				LMBLOCK_WIDTH, LMBLOCK_WIDTH, 0, (lightmap_bgra?GL_BGR_EXT:GL_RGB), GL_UNSIGNED_BYTE,
+				lm->width, lm->height, 0, (lightmap_bgra?GL_BGR_EXT:GL_RGB), GL_UNSIGNED_BYTE,
 				lightmap[i]->lightmaps);
 			break;
 		case 1:
 			qglTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE,
-				LMBLOCK_WIDTH, LMBLOCK_WIDTH, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE,
+				lm->width, lm->height, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE,
 				lightmap[i]->lightmaps);
 			break;
 		}
 		if (r_deluxemapping.ival)
 		{
 			lightmap[i]->deluxmodified = false;
-			lightmap[i]->deluxrectchange.l = LMBLOCK_WIDTH;
-			lightmap[i]->deluxrectchange.t = LMBLOCK_HEIGHT;
+			lightmap[i]->deluxrectchange.l = lm->width;
+			lightmap[i]->deluxrectchange.t = lm->height;
 			lightmap[i]->deluxrectchange.w = 0;
 			lightmap[i]->deluxrectchange.h = 0;
-			GL_MTBind(0, GL_TEXTURE_2D, deluxmap_textures[i]);
+			GL_MTBind(0, GL_TEXTURE_2D, lm->deluxmap_texture);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 			qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 			qglTexImage2D (GL_TEXTURE_2D, 0, 3
-					, LMBLOCK_WIDTH, LMBLOCK_HEIGHT, 0,
+					, lm->width, lm->height, 0,
 					GL_RGB, GL_UNSIGNED_BYTE, lightmap[i]->deluxmaps);
 		}
 	}
 }
+
 #endif

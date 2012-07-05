@@ -340,6 +340,9 @@ vfsfile_t *FSPAK_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 	vfs->length = loc->len;
 	vfs->currentpos = vfs->startpos;
 
+#ifdef _DEBUG
+	Q_strncpyz(vfs->funcs.dbgname, pack->files[loc->index].name, sizeof(vfs->funcs.dbgname));
+#endif
 	vfs->funcs.Close = VFSPAK_Close;
 	vfs->funcs.GetLen = VFSPAK_GetLen;
 	vfs->funcs.ReadBytes = VFSPAK_ReadBytes;
@@ -388,7 +391,7 @@ void *FSPAK_LoadDoomWadFile (vfsfile_t *packhandle, const char *desc)
 {
 	dwadheader_t	header;
 	int				i;
-	packfile_t		*newfiles;
+	mpackfile_t		*newfiles;
 	int				numpackfiles;
 	pack_t			*pack;
 	dwadfile_t		info;
@@ -423,7 +426,7 @@ void *FSPAK_LoadDoomWadFile (vfsfile_t *packhandle, const char *desc)
 	header.dirlen = LittleLong (header.dirlen);
 
 	numpackfiles = header.dirlen;
-	newfiles = (packfile_t*)Z_Malloc (numpackfiles * sizeof(packfile_t));
+	newfiles = (mpackfile_t*)Z_Malloc (numpackfiles * sizeof(mpackfile_t));
 	VFS_SEEK(packhandle, header.dirofs);
 
 	//doom wads are awkward.

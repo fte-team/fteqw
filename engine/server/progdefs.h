@@ -191,8 +191,10 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(hull)/*PEXT_HEXEN2*/\
 	comfieldentity(movechain)/*hexen2*/\
 	comfieldfunction(chainmoved, ".void()")/*hexen2*/\
+	comfieldfunction(contentstransition, ".void(float old, float new)")/*ENTITYCONTENTSTRANSITION*/\
 	comfieldfloat(dimension_solid)/*EXT_DIMENSION_PHYSICS*/\
 	comfieldfloat(dimension_hit)/*EXT_DIMENSION_PHYSICS*/\
+	comfieldfloat(hitcontentsmask)\
 	comfieldfloat(scale)/*DP_ENT_SCALE*/\
 	comfieldfloat(fatness)/*FTE_PEXT_FATNESS*/\
 	comfieldfloat(alpha)/*DP_ENT_ALPHA*/\
@@ -230,6 +232,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(glow_size)\
 	comfieldfloat(glow_color)\
 	comfieldfloat(glow_trail)\
+	comfieldfloat(traileffectnum)/*DP_ENT_TRAILEFFECTNUM*/\
 	comfieldvector(color)/*Hexen2 has a .float color, the warnings should be benign*/ \
 	comfieldfloat(light_lev)\
 	comfieldfloat(style)\

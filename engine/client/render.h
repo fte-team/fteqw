@@ -163,11 +163,14 @@ typedef struct
 	vrect_t		pxrect;		/*vrect, but in pixels rather than virtual coords*/
 	qboolean	externalview; /*draw external models and not viewmodels*/
 	qboolean	recurse;	/*in a mirror/portal/half way through drawing something else*/
+	qboolean	forcevis;	/*if true, vis comes from the forcedvis field instead of recalculated*/
 	qboolean	flipcull;	/*reflected/flipped view, requires inverted culling*/
 	qboolean	useperspective; /*not orthographic*/
 
 	int			postprocshader; /*if set, renders to texture then invokes this shader*/
 	int			postproccube; /*postproc shader wants a cubemap, this is the mask of sides required*/
+
+	qbyte		*forcedvis;
 } refdef_t;
 
 extern	refdef_t	r_refdef;
@@ -210,22 +213,26 @@ typedef struct glRect_s {
 typedef unsigned char stmap;
 struct mesh_s;
 typedef struct {
-	struct mesh_s		*meshchain;
+	texid_t lightmap_texture;
+	texid_t deluxmap_texture;
 	qboolean	modified;
 	qboolean	deluxmodified;
 	qboolean	external;
+	int			width;
+	int			height;
 	glRect_t	rectchange;
 	glRect_t	deluxrectchange;
+#ifdef TERRAIN
 	int allocated[LMBLOCK_WIDTH];
-	qbyte		lightmaps[4*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];
-	qbyte		deluxmaps[4*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];	//fixme: make seperate structure for easy disabling with less memory usage.
-	stmap		stainmaps[3*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];	//rgb no a. added to lightmap for added (hopefully) speed.
-	shader_t    *shader;
+#endif
+	qbyte		*lightmaps;//[4*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];
+	qbyte		*deluxmaps;//[4*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];	//fixme: make seperate structure for easy disabling with less memory usage.
+	stmap		*stainmaps;//[3*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];	//rgb no a. added to lightmap for added (hopefully) speed.
 } lightmapinfo_t;
 extern lightmapinfo_t **lightmap;
 extern int numlightmaps;
-extern texid_t		*lightmap_textures;
-extern texid_t		*deluxmap_textures;
+//extern texid_t		*lightmap_textures;
+//extern texid_t		*deluxmap_textures;
 extern int			lightmap_bytes;		// 1, 3, or 4
 extern qboolean		lightmap_bgra;		/*true=bgra, false=rgba*/
 #endif
@@ -299,6 +306,15 @@ texid_t D3D9_AllocNewTexture(char *ident, int width, int height);
 void    D3D9_Upload (texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
 void    D3D9_DestroyTexture (texid_t tex);
 void D3D_Image_Shutdown(void);
+
+texid_t D3D11_LoadTexture (char *identifier, int width, int height, enum uploadfmt fmt, void *data, unsigned int flags);
+texid_t D3D11_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
+texid_t D3D11_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
+texid_t D3D11_LoadCompressed (char *name);
+texid_t D3D11_FindTexture (char *identifier);
+texid_t D3D11_AllocNewTexture(char *ident, int width, int height);
+void    D3D11_Upload (texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
+void    D3D11_DestroyTexture (texid_t tex);
 #endif
 
 extern int image_width, image_height;

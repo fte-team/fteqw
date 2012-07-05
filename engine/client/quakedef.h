@@ -183,6 +183,11 @@ extern "C" {
 #define min(a,b) ((a) < (b) ? (a) : (b))
 #endif
 
+#ifdef USE_MSVCRT_DEBUG
+#define USE_MSVCRT_DEBUG
+#define _CRTDBG_MAP_ALLOC
+#include <crtdbg.h>
+#endif
 
 #ifdef _WIN32
 #if (_MSC_VER >= 1400)

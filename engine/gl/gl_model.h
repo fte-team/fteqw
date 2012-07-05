@@ -69,7 +69,7 @@ typedef struct mesh_s
 	vec3_t			*snormals_array;/*required for rtlighting*/
 	vec3_t			*tnormals_array;/*required for rtlighting*/
 	vec2_t			*st_array;		/*texture coords*/
-	vec2_t			*lmst_array;	/*second texturecoord set (merely dubbed lightmap)*/
+	vec2_t			*lmst_array[MAXLIGHTMAPS];	/*second texturecoord set (merely dubbed lightmap, one for each potential lightstyle)*/
 	avec4_t			*colors4f_array;/*floating point colours array*/
 	byte_vec4_t		*colors4b_array;/*byte colours array*/
 
@@ -102,8 +102,10 @@ typedef struct batch_s
 
 	shader_t *shader;
 	struct vbo_s *vbo;
-	int lightmap;	/*used for shader lightmap textures*/
 	entity_t *ent;	/*used for shader properties*/
+	int lightmap[MAXLIGHTMAPS];	/*used for shader lightmap textures*/
+
+	unsigned char lightstyle[MAXLIGHTMAPS];
 
 	struct texture_s *texture; /*is this used by the backend?*/
 	struct texnums_s *skin;
@@ -120,7 +122,7 @@ typedef struct batch_s
 			unsigned int surf_first;
 			unsigned int surf_count;
 		};
-		vec3_t normal;	/*used only at load (for portal surfaces, so multiple planes are not part of the same batch)*/
+		vec4_t plane;	/*used only at load (for portal surfaces, so multiple planes are not part of the same batch)*/
 	};
 } batch_t;
 /*
@@ -240,7 +242,7 @@ typedef struct vboarray_s
 {
 	union
 	{
-		int dummy;
+		void *dummy;
 
 #ifdef GLQUAKE
 		struct
@@ -278,7 +280,7 @@ typedef struct vbo_s
 	vboarray_t coord;
 	vboarray_t coord2;
 	vboarray_t texcoord;
-	vboarray_t lmcoord;
+	vboarray_t lmcoord[MAXLIGHTMAPS];
 
 	vboarray_t normals;
 	vboarray_t svector;
@@ -395,15 +397,13 @@ typedef struct msurface_s
 	short		texturemins[2];
 	short		extents[2];
 
-	int			light_s, light_t;	// gl lightmap coordinates
+	unsigned short	light_s[MAXLIGHTMAPS], light_t[MAXLIGHTMAPS];	// gl lightmap coordinates
 
 	mfog_t		*fog;
 	mesh_t		*mesh;
-	entity_t	*ownerent;
 
 	batch_t		*sbatch;
 	mtexinfo_t	*texinfo;
-	struct msurface_s	**mark;
 	int			visframe;		// should be drawn when node is crossed
 	int			shadowframe;
 	
@@ -411,7 +411,7 @@ typedef struct msurface_s
 	int			dlightframe;
 	int			dlightbits;
 
-	int			lightmaptexturenum;
+	int			lightmaptexturenums[MAXLIGHTMAPS];	//rbsp+fbsp formats have multiple lightmaps
 	qbyte		styles[MAXLIGHTMAPS];
 	int			cached_light[MAXLIGHTMAPS];	// values currently used in lightmap
 	qboolean	cached_dlight;				// true if dynamic light in cache
@@ -957,6 +957,13 @@ typedef struct model_s
 	vbo_t *vbos;
 	void *terrain;
 	batch_t *batches[SHADER_SORT_COUNT];
+	struct
+	{
+		int first;
+		int count;
+		int width;
+		int height;
+	} lightmaps;
 
 	unsigned	checksum;
 	unsigned	checksum2;

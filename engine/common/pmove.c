@@ -372,6 +372,7 @@ void PM_Friction (void)
 	speed = Length(pmove.velocity);
 	if (speed < 1)
 	{
+//fixme: gravitydir fix needed
 		pmove.velocity[0] = 0;
 		pmove.velocity[1] = 0;
 		if (pmove.pm_type == PM_FLY)
@@ -1122,7 +1123,7 @@ void PM_PlayerMove (float gamespeed)
 	if (pmove.waterlevel == 2 && pmove.pm_type != PM_FLY)
 		PM_CheckWaterJump ();
 
-	if (pmove.velocity[2] < 0 || pmove.pm_type == PM_DEAD)
+	if (-DotProduct(pmove.gravitydir, pmove.velocity) < 0 || pmove.pm_type == PM_DEAD)
 		pmove.waterjumptime = 0;
 
 	if (pmove.waterjumptime)
@@ -1157,7 +1158,7 @@ void PM_PlayerMove (float gamespeed)
 
 	// this is to make sure landing sound is not played twice
 	// and falling damage is calculated correctly
-	if (pmove.onground && pmove.velocity[2] < -300
+	if (pmove.onground && -DotProduct(pmove.gravitydir, pmove.velocity) < -300
 		&& DotProduct(pmove.velocity, groundplane.normal) < -0.1)
 	{
 		PM_ClipVelocity (pmove.velocity, groundplane.normal, pmove.velocity, 1);

@@ -20,11 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "glquake.h"
 
-#ifdef GL_ES_VERSION_2_0
-qboolean gles2 = true;
-#else
-qboolean gles2 = false;
-#endif
+extern qboolean sys_glesversion;
 
 static dllhandle_t *sys_gl_module = NULL;
 
@@ -89,11 +85,11 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	Cons: GL_EndRendering call will not swap buffers. Buffers will be swapped on return to java.
 	*/
 
-	if (gles2)
+	if (sys_glesversion >= 2)
 		Sys_Printf("Loading GLES2 driver\n");
 	else
 		Sys_Printf("Loading GLES1 driver\n");
-	sys_gl_module = Sys_LoadLibrary(gles2?"libGLESv2.so":"libGLESv1_CM.so", NULL);
+	sys_gl_module = Sys_LoadLibrary((sys_glesversion>=2)?"libGLESv2.so":"libGLESv1_CM.so", NULL);
 	if (!sys_gl_module)
 	{
 		GLVID_DeInit();
@@ -143,7 +139,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 	gl_canstencil = 0;
 
 	const EGLint attribs[] = {
-		EGL_RENDERABLE_TYPE, gles2?EGL_OPENGL_ES2_BIT:EGL_OPENGL_ES_BIT,
+		EGL_RENDERABLE_TYPE, (sys_glesversion>=2)?EGL_OPENGL_ES2_BIT:EGL_OPENGL_ES_BIT,
 		EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
 		EGL_BLUE_SIZE, (info->bpp==16)?5:8,
 		EGL_GREEN_SIZE, (info->bpp==16)?6:8,
@@ -152,12 +148,12 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 //		EGL_STENCIL_SIZE, 8,
 		EGL_NONE
 	};
-	EGLint ctxattribs[] = {EGL_CONTEXT_CLIENT_VERSION, gles2?2:1, EGL_NONE};
+	EGLint ctxattribs[] = {EGL_CONTEXT_CLIENT_VERSION, sys_glesversion, EGL_NONE};
 	EGLint w, h, dummy, format;
 	EGLint numConfigs;
 	EGLConfig config;
 
-	sys_gl_module = Sys_LoadLibrary(gles2?"libGLESv2.so":"libGLESv1_CM.so", NULL);
+	sys_gl_module = Sys_LoadLibrary((sys_glesversion>=2)?"libGLESv2.so":"libGLESv1_CM.so", NULL);
 	if (!sys_gl_module)
 	{
 		GLVID_DeInit();

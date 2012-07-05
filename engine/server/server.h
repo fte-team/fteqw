@@ -1091,9 +1091,11 @@ qboolean PR_ShouldTogglePause(client_t *initiator, qboolean pausedornot);
 // sv_ents.c
 //
 void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignorepvs);
+void SVFTE_EmitBaseline(entity_state_t *to, qboolean numberisimportant, sizebuf_t *msg);
 void SVQ3Q1_BuildEntityPacket(client_t *client, packet_entities_t *pack);
 int SV_HullNumForPlayer(int h2hull, float *mins, float *maxs);
 void SV_GibFilterInit(void);
+void SV_GibFilterPurge(void);
 void SV_CleanupEnts(void);
 
 void SV_CSQC_DroppedPacket(client_t *client, int sequence);
@@ -1310,3 +1312,25 @@ void SV_CheckTimer(void);
 void SV_LogPlayer(client_t *cl, char *msg);
 
 void AddLinksToPmove ( edict_t *player, areanode_t *node );
+
+
+#ifdef HLSERVER
+void SVHL_SaveLevelCache(char *filename);
+
+//network frame info
+void SVHL_Snapshot_Build(client_t *client, packet_entities_t *pack, qbyte *pvs, edict_t *clent, qboolean ignorepvs);
+qbyte	*SVHL_Snapshot_SetupPVS(client_t *client, qbyte *pvs, unsigned int pvsbufsize);
+void SVHL_BuildStats(client_t *client, int *si, float *sf, char **ss);
+
+//gamecode entry points
+int SVHL_InitGame(void);
+void SVHL_SetupGame(void);
+void SVHL_SpawnEntities(char *entstring);
+void SVHL_RunFrame (void);
+qboolean SVHL_ClientConnect(client_t *client, netadr_t adr, char rejectmessage[128]);
+void SVHL_PutClientInServer(client_t *client);
+void SVHL_RunPlayerCommand(client_t *cl, usercmd_t *oldest, usercmd_t *oldcmd, usercmd_t *newcmd);
+qboolean HLSV_ClientCommand(client_t *client);
+void SVHL_DropClient(client_t *drop);
+void SVHL_ShutdownGame(void);
+#endif

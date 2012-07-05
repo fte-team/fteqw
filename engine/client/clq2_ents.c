@@ -1762,8 +1762,8 @@ void CLQ2_AddViewWeapon (q2player_state_t *ps, q2player_state_t *ops)
 
 	//generate root matrix..
 	view = &cl.viewent[0];
-	VectorCopy(cl.simorg[0], view->origin);
-	AngleVectors(cl.simangles[0], view->axis[0], view->axis[1], view->axis[2]);
+	VectorCopy(cl.playerview[0].simorg, view->origin);
+	AngleVectors(cl.playerview[0].simangles, view->axis[0], view->axis[1], view->axis[2]);
 	VectorInverse(view->axis[1]);
 
 	memset (&gun, 0, sizeof(gun));
@@ -1888,8 +1888,8 @@ void CLQ2_CalcViewValues (void)
 	for (i=0 ; i<3 ; i++)
 		r_refdef.viewangles[i] += v_gunkick_q2.value * LerpAngle (ops->kick_angles[i], ps->kick_angles[i], lerp);
 
-	VectorCopy(r_refdef.vieworg, cl.simorg[0]);
-	VectorCopy(r_refdef.viewangles, cl.simangles[0]);
+	VectorCopy(r_refdef.vieworg, cl.playerview[0].simorg);
+	VectorCopy(r_refdef.viewangles, cl.playerview[0].simangles);
 //	VectorCopy(r_refdef.viewangles, cl.viewangles);
 
 //	AngleVectors (r_refdef.viewangles, v_forward, v_right, v_up);

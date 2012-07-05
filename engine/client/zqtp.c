@@ -317,43 +317,43 @@ static char *Macro_Gamedir (void)
 
 static char *Macro_Health (void)
 {
-	sprintf(macro_buf, "%i", cl.stats[SP][STAT_HEALTH]);
+	sprintf(macro_buf, "%i", cl.playerview[SP].stats[STAT_HEALTH]);
 	return macro_buf;
 }
 
 static char *Macro_Armor (void)
 {
-	sprintf(macro_buf, "%i", cl.stats[SP][STAT_ARMOR]);
+	sprintf(macro_buf, "%i", cl.playerview[SP].stats[STAT_ARMOR]);
 	return macro_buf;
 }
 
 static char *Macro_Shells (void)
 {
-	sprintf(macro_buf, "%i", cl.stats[SP][STAT_SHELLS]);
+	sprintf(macro_buf, "%i", cl.playerview[SP].stats[STAT_SHELLS]);
 	return macro_buf;
 }
 
 static char *Macro_Nails (void)
 {
-	sprintf(macro_buf, "%i", cl.stats[SP][STAT_NAILS]);
+	sprintf(macro_buf, "%i", cl.playerview[SP].stats[STAT_NAILS]);
 	return macro_buf;
 }
 
 static char *Macro_Rockets (void)
 {
-	sprintf(macro_buf, "%i", cl.stats[SP][STAT_ROCKETS]);
+	sprintf(macro_buf, "%i", cl.playerview[SP].stats[STAT_ROCKETS]);
 	return macro_buf;
 }
 
 static char *Macro_Cells (void)
 {
-	sprintf(macro_buf, "%i", cl.stats[SP][STAT_CELLS]);
+	sprintf(macro_buf, "%i", cl.playerview[SP].stats[STAT_CELLS]);
 	return macro_buf;
 }
 
 static char *Macro_Ammo (void)
 {
-	sprintf(macro_buf, "%i", cl.stats[SP][STAT_AMMO]);
+	sprintf(macro_buf, "%i", cl.playerview[SP].stats[STAT_AMMO]);
 	return macro_buf;
 }
 
@@ -375,7 +375,7 @@ static char *Weapon_NumToString (int wnum)
 
 static char *Macro_Weapon (void)
 {
-	return Weapon_NumToString(cl.stats[SP][STAT_ACTIVEWEAPON]);
+	return Weapon_NumToString(cl.playerview[SP].stats[STAT_ACTIVEWEAPON]);
 }
 
 static char *Macro_DroppedWeapon (void)
@@ -386,21 +386,21 @@ static char *Macro_DroppedWeapon (void)
 static char *Macro_Weapons (void) {
 	macro_buf[0] = 0;
 
-	if (cl.stats[SP][STAT_ITEMS] & IT_LIGHTNING)
+	if (cl.playerview[SP].stats[STAT_ITEMS] & IT_LIGHTNING)
 		strcpy(macro_buf, tp_name_lg.string);
-	if (cl.stats[SP][STAT_ITEMS] & IT_ROCKET_LAUNCHER)
+	if (cl.playerview[SP].stats[STAT_ITEMS] & IT_ROCKET_LAUNCHER)
 		MacroBuf_strcat_with_separator (tp_name_rl.string);
-	if (cl.stats[SP][STAT_ITEMS] & IT_GRENADE_LAUNCHER)
+	if (cl.playerview[SP].stats[STAT_ITEMS] & IT_GRENADE_LAUNCHER)
 		MacroBuf_strcat_with_separator (tp_name_gl.string);
-	if (cl.stats[SP][STAT_ITEMS] & IT_SUPER_NAILGUN)
+	if (cl.playerview[SP].stats[STAT_ITEMS] & IT_SUPER_NAILGUN)
 		MacroBuf_strcat_with_separator (tp_name_sng.string);
-	if (cl.stats[SP][STAT_ITEMS] & IT_NAILGUN)
+	if (cl.playerview[SP].stats[STAT_ITEMS] & IT_NAILGUN)
 		MacroBuf_strcat_with_separator (tp_name_ng.string);
-	if (cl.stats[SP][STAT_ITEMS] & IT_SUPER_SHOTGUN)
+	if (cl.playerview[SP].stats[STAT_ITEMS] & IT_SUPER_SHOTGUN)
 		MacroBuf_strcat_with_separator (tp_name_ssg.string);
-	if (cl.stats[SP][STAT_ITEMS] & IT_SHOTGUN)
+	if (cl.playerview[SP].stats[STAT_ITEMS] & IT_SHOTGUN)
 		MacroBuf_strcat_with_separator (tp_name_sg.string);
-	if (cl.stats[SP][STAT_ITEMS] & IT_AXE)
+	if (cl.playerview[SP].stats[STAT_ITEMS] & IT_AXE)
 		MacroBuf_strcat_with_separator (tp_name_axe.string);
 //	if (!macro_buf[0])
 //		strlcpy(macro_buf, tp_name_none.string, sizeof(macro_buf));
@@ -418,7 +418,7 @@ static char *Macro_WeaponAndAmmo (void)
 
 static char *Macro_WeaponNum (void)
 {
-	switch (cl.stats[SP][STAT_ACTIVEWEAPON])
+	switch (cl.playerview[SP].stats[STAT_ACTIVEWEAPON])
 	{
 	case IT_AXE: return "1";
 	case IT_SHOTGUN: return "2";
@@ -443,14 +443,14 @@ static int	_Macro_BestWeapon (void)
 		for (i = 0 ; i < strlen(*s) ; i++)
 		{
 			switch ((*s)[i]) {
-				case '1': if (cl.stats[SP][STAT_ITEMS] & IT_AXE) return IT_AXE; break;
-				case '2': if (cl.stats[SP][STAT_ITEMS] & IT_SHOTGUN) return IT_SHOTGUN; break;
-				case '3': if (cl.stats[SP][STAT_ITEMS] & IT_SUPER_SHOTGUN) return IT_SUPER_SHOTGUN; break;
-				case '4': if (cl.stats[SP][STAT_ITEMS] & IT_NAILGUN) return IT_NAILGUN; break;
-				case '5': if (cl.stats[SP][STAT_ITEMS] & IT_SUPER_NAILGUN) return IT_SUPER_NAILGUN; break;
-				case '6': if (cl.stats[SP][STAT_ITEMS] & IT_GRENADE_LAUNCHER) return IT_GRENADE_LAUNCHER; break;
-				case '7': if (cl.stats[SP][STAT_ITEMS] & IT_ROCKET_LAUNCHER) return IT_ROCKET_LAUNCHER; break;
-				case '8': if (cl.stats[SP][STAT_ITEMS] & IT_LIGHTNING) return IT_LIGHTNING; break;
+				case '1': if (cl.playerview[SP].stats[STAT_ITEMS] & IT_AXE) return IT_AXE; break;
+				case '2': if (cl.playerview[SP].stats[STAT_ITEMS] & IT_SHOTGUN) return IT_SHOTGUN; break;
+				case '3': if (cl.playerview[SP].stats[STAT_ITEMS] & IT_SUPER_SHOTGUN) return IT_SUPER_SHOTGUN; break;
+				case '4': if (cl.playerview[SP].stats[STAT_ITEMS] & IT_NAILGUN) return IT_NAILGUN; break;
+				case '5': if (cl.playerview[SP].stats[STAT_ITEMS] & IT_SUPER_NAILGUN) return IT_SUPER_NAILGUN; break;
+				case '6': if (cl.playerview[SP].stats[STAT_ITEMS] & IT_GRENADE_LAUNCHER) return IT_GRENADE_LAUNCHER; break;
+				case '7': if (cl.playerview[SP].stats[STAT_ITEMS] & IT_ROCKET_LAUNCHER) return IT_ROCKET_LAUNCHER; break;
+				case '8': if (cl.playerview[SP].stats[STAT_ITEMS] & IT_LIGHTNING) return IT_LIGHTNING; break;
 			}
 		}
 	}
@@ -467,19 +467,19 @@ static char *Macro_BestAmmo (void)
 	switch (_Macro_BestWeapon())
 	{
 	case IT_SHOTGUN: case IT_SUPER_SHOTGUN:
-		sprintf(macro_buf, "%i", cl.stats[0][STAT_SHELLS]);
+		sprintf(macro_buf, "%i", cl.playerview[SP].stats[STAT_SHELLS]);
 		return macro_buf;
 
 	case IT_NAILGUN: case IT_SUPER_NAILGUN:
-		sprintf(macro_buf, "%i", cl.stats[0][STAT_NAILS]);
+		sprintf(macro_buf, "%i", cl.playerview[SP].stats[STAT_NAILS]);
 		return macro_buf;
 
 	case IT_GRENADE_LAUNCHER: case IT_ROCKET_LAUNCHER:
-		sprintf(macro_buf, "%i", cl.stats[0][STAT_ROCKETS]);
+		sprintf(macro_buf, "%i", cl.playerview[SP].stats[STAT_ROCKETS]);
 		return macro_buf;
 
 	case IT_LIGHTNING:
-		sprintf(macro_buf, "%i", cl.stats[0][STAT_CELLS]);
+		sprintf(macro_buf, "%i", cl.playerview[SP].stats[STAT_CELLS]);
 		return macro_buf;
 
 	default:
@@ -498,11 +498,11 @@ static char *Macro_BestWeaponAndAmmo (void)
 
 static char *Macro_ArmorType (void)
 {
-	if (cl.stats[SP][STAT_ITEMS] & IT_ARMOR1)
+	if (cl.playerview[SP].stats[STAT_ITEMS] & IT_ARMOR1)
 		return tp_name_armortype_ga.string;
-	else if (cl.stats[SP][STAT_ITEMS] & IT_ARMOR2)
+	else if (cl.playerview[SP].stats[STAT_ITEMS] & IT_ARMOR2)
 		return tp_name_armortype_ya.string;
-	else if (cl.stats[SP][STAT_ITEMS] & IT_ARMOR3)
+	else if (cl.playerview[SP].stats[STAT_ITEMS] & IT_ARMOR3)
 		return tp_name_armortype_ra.string;
 	else
 		return tp_name_none.string;	// no armor at all
@@ -514,18 +514,18 @@ static char *Macro_Powerups (void)
 
 	macro_buf[0] = 0;
 
-	if (cl.stats[SP][STAT_ITEMS] & IT_QUAD)
+	if (cl.playerview[SP].stats[STAT_ITEMS] & IT_QUAD)
 		MacroBuf_strcat_with_separator (tp_name_quad.string);
 
-	if (cl.stats[SP][STAT_ITEMS] & IT_INVULNERABILITY)
+	if (cl.playerview[SP].stats[STAT_ITEMS] & IT_INVULNERABILITY)
 		MacroBuf_strcat_with_separator (tp_name_pent.string);
 
-	if (cl.stats[SP][STAT_ITEMS] & IT_INVISIBILITY)
+	if (cl.playerview[SP].stats[STAT_ITEMS] & IT_INVISIBILITY)
 		MacroBuf_strcat_with_separator (tp_name_ring.string);
 
 	effects = cl.frames[cl.parsecount&UPDATE_MASK].playerstate[cl.playernum[SP]].effects;
 	if ( (effects & (QWEF_FLAG1|QWEF_FLAG2)) ||		// CTF
-		(cl.teamfortress && cl.stats[SP][STAT_ITEMS] & (IT_KEY1|IT_KEY2)) ) // TF
+		(cl.teamfortress && cl.playerview[SP].stats[STAT_ITEMS] & (IT_KEY1|IT_KEY2)) ) // TF
 		MacroBuf_strcat_with_separator (tp_name_flag.string);
 
 	return macro_buf;
@@ -533,7 +533,7 @@ static char *Macro_Powerups (void)
 
 static char *Macro_Location (void)
 {
-	return TP_LocationName (cl.simorg[SP]);
+	return TP_LocationName (cl.playerview[SP].simorg);
 }
 
 static char *Macro_LastDeath (void)
@@ -624,15 +624,15 @@ static char *Macro_Need (void)
 	macro_buf[0] = 0;
 
 	// check armor
-	if (   ((cl.stats[SP][STAT_ITEMS] & IT_ARMOR1) && cl.stats[SP][STAT_ARMOR] < tp_need_ga.value)
-		|| ((cl.stats[SP][STAT_ITEMS] & IT_ARMOR2) && cl.stats[SP][STAT_ARMOR] < tp_need_ya.value)
-		|| ((cl.stats[SP][STAT_ITEMS] & IT_ARMOR3) && cl.stats[SP][STAT_ARMOR] < tp_need_ra.value)
-		|| (!(cl.stats[SP][STAT_ITEMS] & (IT_ARMOR1|IT_ARMOR2|IT_ARMOR3))
+	if (   ((cl.playerview[SP].stats[STAT_ITEMS] & IT_ARMOR1) && cl.playerview[SP].stats[STAT_ARMOR] < tp_need_ga.value)
+		|| ((cl.playerview[SP].stats[STAT_ITEMS] & IT_ARMOR2) && cl.playerview[SP].stats[STAT_ARMOR] < tp_need_ya.value)
+		|| ((cl.playerview[SP].stats[STAT_ITEMS] & IT_ARMOR3) && cl.playerview[SP].stats[STAT_ARMOR] < tp_need_ra.value)
+		|| (!(cl.playerview[SP].stats[STAT_ITEMS] & (IT_ARMOR1|IT_ARMOR2|IT_ARMOR3))
 			&& (tp_need_ga.value || tp_need_ya.value || tp_need_ra.value)))
 		strcpy (macro_buf, tp_name_armor.string);
 
 	// check health
-	if (tp_need_health.value && cl.stats[SP][STAT_HEALTH] < tp_need_health.value) {
+	if (tp_need_health.value && cl.playerview[SP].stats[STAT_HEALTH] < tp_need_health.value) {
 		MacroBuf_strcat_with_separator (tp_name_health.string);
 	}
 
@@ -640,13 +640,13 @@ static char *Macro_Need (void)
 	{
 		// in TF, we have all weapons from the start,
 		// and ammo is checked differently
-		if (cl.stats[SP][STAT_ROCKETS] < tp_need_rockets.value)
+		if (cl.playerview[SP].stats[STAT_ROCKETS] < tp_need_rockets.value)
 			MacroBuf_strcat_with_separator (tp_name_rockets.string);
-		if (cl.stats[SP][STAT_SHELLS] < tp_need_shells.value)
+		if (cl.playerview[SP].stats[STAT_SHELLS] < tp_need_shells.value)
 			MacroBuf_strcat_with_separator (tp_name_shells.string);
-		if (cl.stats[SP][STAT_NAILS] < tp_need_nails.value)
+		if (cl.playerview[SP].stats[STAT_NAILS] < tp_need_nails.value)
 			MacroBuf_strcat_with_separator (tp_name_nails.string);
-		if (cl.stats[SP][STAT_CELLS] < tp_need_cells.value)
+		if (cl.playerview[SP].stats[STAT_CELLS] < tp_need_cells.value)
 			MacroBuf_strcat_with_separator (tp_name_cells.string);
 		goto done;
 	}
@@ -655,13 +655,13 @@ static char *Macro_Need (void)
 	weapon = 0;
 	for (i=strlen(tp_need_weapon.string)-1 ; i>=0 ; i--) {
 		switch (tp_need_weapon.string[i]) {
-			case '2': if (cl.stats[SP][STAT_ITEMS] & IT_SHOTGUN) weapon = 2; break;
-			case '3': if (cl.stats[SP][STAT_ITEMS] & IT_SUPER_SHOTGUN) weapon = 3; break;
-			case '4': if (cl.stats[SP][STAT_ITEMS] & IT_NAILGUN) weapon = 4; break;
-			case '5': if (cl.stats[SP][STAT_ITEMS] & IT_SUPER_NAILGUN) weapon = 5; break;
-			case '6': if (cl.stats[SP][STAT_ITEMS] & IT_GRENADE_LAUNCHER) weapon = 6; break;
-			case '7': if (cl.stats[SP][STAT_ITEMS] & IT_ROCKET_LAUNCHER) weapon = 7; break;
-			case '8': if (cl.stats[SP][STAT_ITEMS] & IT_LIGHTNING) weapon = 8; break;
+			case '2': if (cl.playerview[SP].stats[STAT_ITEMS] & IT_SHOTGUN) weapon = 2; break;
+			case '3': if (cl.playerview[SP].stats[STAT_ITEMS] & IT_SUPER_SHOTGUN) weapon = 3; break;
+			case '4': if (cl.playerview[SP].stats[STAT_ITEMS] & IT_NAILGUN) weapon = 4; break;
+			case '5': if (cl.playerview[SP].stats[STAT_ITEMS] & IT_SUPER_NAILGUN) weapon = 5; break;
+			case '6': if (cl.playerview[SP].stats[STAT_ITEMS] & IT_GRENADE_LAUNCHER) weapon = 6; break;
+			case '7': if (cl.playerview[SP].stats[STAT_ITEMS] & IT_ROCKET_LAUNCHER) weapon = 7; break;
+			case '8': if (cl.playerview[SP].stats[STAT_ITEMS] & IT_LIGHTNING) weapon = 8; break;
 		}
 		if (weapon)
 			break;
@@ -670,15 +670,15 @@ static char *Macro_Need (void)
 	if (!weapon) {
 		MacroBuf_strcat_with_separator (tp_name_weapon.string);
 	} else {
-		if (tp_need_rl.value && !(cl.stats[SP][STAT_ITEMS] & IT_ROCKET_LAUNCHER)) {
+		if (tp_need_rl.value && !(cl.playerview[SP].stats[STAT_ITEMS] & IT_ROCKET_LAUNCHER)) {
 			MacroBuf_strcat_with_separator (tp_name_rl.string);
 		}
 
 		switch (weapon) {
-			case 2: case 3: if (cl.stats[SP][STAT_SHELLS] < tp_need_shells.value) needammo = tp_name_shells.string; break;
-			case 4: case 5: if (cl.stats[SP][STAT_NAILS] < tp_need_nails.value) needammo = tp_name_nails.string; break;
-			case 6: case 7: if (cl.stats[SP][STAT_ROCKETS] < tp_need_rockets.value) needammo = tp_name_rockets.string; break;
-			case 8: if (cl.stats[SP][STAT_CELLS] < tp_need_cells.value) needammo = tp_name_cells.string; break;
+			case 2: case 3: if (cl.playerview[SP].stats[STAT_SHELLS] < tp_need_shells.value) needammo = tp_name_shells.string; break;
+			case 4: case 5: if (cl.playerview[SP].stats[STAT_NAILS] < tp_need_nails.value) needammo = tp_name_nails.string; break;
+			case 6: case 7: if (cl.playerview[SP].stats[STAT_ROCKETS] < tp_need_rockets.value) needammo = tp_name_rockets.string; break;
+			case 8: if (cl.playerview[SP].stats[STAT_CELLS] < tp_need_cells.value) needammo = tp_name_cells.string; break;
 		}
 		if (needammo) {
 			MacroBuf_strcat_with_separator (needammo);
@@ -1037,16 +1037,16 @@ char *Macro_CombinedHealth(void)
 	//total health = health+armour*armourfrac
 	//however,you're dead if health drops below 0 rather than the entire equation.
 
-	if (cl.stats[SP][STAT_ITEMS] & IT_ARMOR1)
+	if (cl.playerview[SP].stats[STAT_ITEMS] & IT_ARMOR1)
 		t = 0.3;
-	else if (cl.stats[SP][STAT_ITEMS] & IT_ARMOR2)
+	else if (cl.playerview[SP].stats[STAT_ITEMS] & IT_ARMOR2)
 		t = 0.6;
-	else if (cl.stats[SP][STAT_ITEMS] & IT_ARMOR3)
+	else if (cl.playerview[SP].stats[STAT_ITEMS] & IT_ARMOR3)
 		t = 0.8;
 	else
 		t = 0;
-	a = cl.stats[SP][STAT_ARMOR];
-	h = cl.stats[SP][STAT_HEALTH];
+	a = cl.playerview[SP].stats[STAT_ARMOR];
+	h = cl.playerview[SP].stats[STAT_HEALTH];
 
 	//work out the max useful armour
 	//this will under-exagurate, due to usage of ceil based on damage
@@ -1172,18 +1172,18 @@ static char *TP_ParseMacroString (char *s)
 				macro_string = Macro_ArmorType();
 				if (!macro_string[0])
 					macro_string = "a";
-				if (cl.stats[SP][STAT_ARMOR] < 30)
-					Q_snprintfz (mbuf, sizeof(mbuf), "\x10%s:%i\x11", macro_string, cl.stats[SP][STAT_ARMOR]);
+				if (cl.playerview[SP].stats[STAT_ARMOR] < 30)
+					Q_snprintfz (mbuf, sizeof(mbuf), "\x10%s:%i\x11", macro_string, cl.playerview[SP].stats[STAT_ARMOR]);
 				else
-					Q_snprintfz (mbuf, sizeof(mbuf), "%s:%i", macro_string, cl.stats[SP][STAT_ARMOR]);
+					Q_snprintfz (mbuf, sizeof(mbuf), "%s:%i", macro_string, cl.playerview[SP].stats[STAT_ARMOR]);
 				macro_string = mbuf;
 				break;
 
 			case 'h':
-				if (cl.stats[SP][STAT_HEALTH] >= 50)
-					Q_snprintfz (macro_buf, sizeof(macro_buf), "%i", cl.stats[SP][STAT_HEALTH]);
+				if (cl.playerview[SP].stats[STAT_HEALTH] >= 50)
+					Q_snprintfz (macro_buf, sizeof(macro_buf), "%i", cl.playerview[SP].stats[STAT_HEALTH]);
 				else
-					Q_snprintfz (macro_buf, sizeof(macro_buf), "\x10%i\x11", cl.stats[SP][STAT_HEALTH]);
+					Q_snprintfz (macro_buf, sizeof(macro_buf), "\x10%i\x11", cl.playerview[SP].stats[STAT_HEALTH]);
 				macro_string = macro_buf;
 				break;
 
@@ -2609,17 +2609,17 @@ more:
 			if (vars.stat_framecounts[STAT_ITEMS] == cls.framecount)
 			{
 				if (vars.items & ~vars.olditems & IT_LIGHTNING)
-					ExecTookTrigger (tp_name_lg.string, it_lg, cl.simorg[SP]);
+					ExecTookTrigger (tp_name_lg.string, it_lg, cl.playerview[SP].simorg);
 				else if (vars.items & ~vars.olditems & IT_ROCKET_LAUNCHER)
-					ExecTookTrigger (tp_name_rl.string, it_rl, cl.simorg[SP]);
+					ExecTookTrigger (tp_name_rl.string, it_rl, cl.playerview[SP].simorg);
 				else if (vars.items & ~vars.olditems & IT_GRENADE_LAUNCHER)
-					ExecTookTrigger (tp_name_gl.string, it_gl, cl.simorg[SP]);
+					ExecTookTrigger (tp_name_gl.string, it_gl, cl.playerview[SP].simorg);
 				else if (vars.items & ~vars.olditems & IT_SUPER_NAILGUN)
-					ExecTookTrigger (tp_name_sng.string, it_sng, cl.simorg[SP]);
+					ExecTookTrigger (tp_name_sng.string, it_sng, cl.playerview[SP].simorg);
 				else if (vars.items & ~vars.olditems & IT_NAILGUN)
-					ExecTookTrigger (tp_name_ng.string, it_ng, cl.simorg[SP]);
+					ExecTookTrigger (tp_name_ng.string, it_ng, cl.playerview[SP].simorg);
 				else if (vars.items & ~vars.olditems & IT_SUPER_SHOTGUN)
-					ExecTookTrigger (tp_name_ssg.string, it_ssg, cl.simorg[SP]);
+					ExecTookTrigger (tp_name_ssg.string, it_ssg, cl.playerview[SP].simorg);
 			}
 		}
 		return;
@@ -2634,11 +2634,11 @@ more:
 
 		armor_updated = (vars.stat_framecounts[STAT_ARMOR] == cls.framecount);
 		armortype = FindNearestItem (it_armor, &item);
-		if (armortype == 1 || (!armortype && armor_updated && cl.stats[SP][STAT_ARMOR] == 100))
+		if (armortype == 1 || (!armortype && armor_updated && cl.playerview[SP].stats[STAT_ARMOR] == 100))
 			ExecTookTrigger (tp_name_ga.string, it_ga, org);
-		else if (armortype == 2 || (!armortype && armor_updated && cl.stats[SP][STAT_ARMOR] == 150))
+		else if (armortype == 2 || (!armortype && armor_updated && cl.playerview[SP].stats[STAT_ARMOR] == 150))
 			ExecTookTrigger (tp_name_ya.string, it_ya, org);
-		else if (armortype == 3 || (!armortype && armor_updated && cl.stats[SP][STAT_ARMOR] == 200))
+		else if (armortype == 3 || (!armortype && armor_updated && cl.playerview[SP].stats[STAT_ARMOR] == 200))
 			ExecTookTrigger (tp_name_ra.string, it_ra, org);
 		return;
 	}
@@ -2833,9 +2833,9 @@ static void TP_FindPoint (void)
 	if (!cl.validsequence)
 		goto nothing;
 
-	ang[0] = cl.viewangles[0][0]; ang[1] = cl.viewangles[0][1]; ang[2] = 0;
+	ang[0] = cl.playerview[SP].viewangles[0]; ang[1] = cl.playerview[SP].viewangles[1]; ang[2] = 0;
 	AngleVectors (ang, visitem.forward, visitem.right, visitem.up);
-	VectorCopy (cl.simorg[0], visitem.vieworg);
+	VectorCopy (cl.playerview[SP].simorg, visitem.vieworg);
 	visitem.vieworg[2] += 22 + (v_viewheight.value ? bound (-7, v_viewheight.value, 4) : 0);
 
 	pointflags_dmm = pointflags;
@@ -3058,7 +3058,7 @@ void TP_StatChanged (int stat, int value)
 		else if (vars.health > 0)
 		{		// We have just died
 
-			vars.droppedweapon = cl.stats[SP][STAT_ACTIVEWEAPON];
+			vars.droppedweapon = cl.playerview[SP].stats[STAT_ACTIVEWEAPON];
 
 			vars.deathtrigger_time = realtime;
 			strcpy (vars.lastdeathloc, Macro_Location());
@@ -3069,7 +3069,7 @@ void TP_StatChanged (int stat, int value)
 
 			if (!cl.spectator && CountTeammates())
 			{
-				if (cl.teamfortress && (cl.stats[SP][STAT_ITEMS] & (IT_KEY1|IT_KEY2))
+				if (cl.teamfortress && (cl.playerview[SP].stats[STAT_ITEMS] & (IT_KEY1|IT_KEY2))
 					&& Cmd_AliasExist("f_flagdeath", RESTRICT_LOCAL))
 					TP_ExecTrigger ("f_flagdeath");
 				else
@@ -3101,9 +3101,9 @@ void TP_StatChanged (int stat, int value)
 	}
 	else if (stat == STAT_ACTIVEWEAPON)
 	{
-		if (cl.stats[SP][STAT_ACTIVEWEAPON] != vars.activeweapon)
+		if (cl.playerview[SP].stats[STAT_ACTIVEWEAPON] != vars.activeweapon)
 			TP_ExecTrigger ("f_weaponchange");
-		vars.activeweapon = cl.stats[SP][STAT_ACTIVEWEAPON];
+		vars.activeweapon = cl.playerview[SP].stats[STAT_ACTIVEWEAPON];
 	}
 
 	vars.stat_framecounts[stat] = cls.framecount;

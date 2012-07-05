@@ -176,8 +176,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define INTERQUAKEMODELS
 
 		#define HUFFNETWORK		//huffman network compression
-//		#define DOOMWADS		//doom wad/sprite support
-//		#define MAP_DOOM		//doom map support
+		#define DOOMWADS		//doom wad/sprite support
+		#define MAP_DOOM		//doom map support
 		#define MAP_PROC		//doom3/quake4 map support
 		//#define WOLF3DSUPPORT	//wolfenstein3d map support (not started yet)
 		#define Q2BSPS			//quake 2 bsp support
@@ -474,7 +474,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // per-level limits
 //
 #define	MAX_EDICTS		32767			// FIXME: ouch! ouch! ouch!
-#define	MAX_LIGHTSTYLES	255
+#define	MAX_LIGHTSTYLES	256
 #define MAX_STANDARDLIGHTSTYLES 64
 #define	MAX_MODELS		1024			// these are sent over the net as bytes
 #define	MAX_SOUNDS		1024			// so they cannot be blindly increased

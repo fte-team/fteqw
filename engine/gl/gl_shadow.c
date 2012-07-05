@@ -1,5 +1,11 @@
 #include "quakedef.h"
 
+/*
+room for improvement:
+There is no screen-space culling of lit surfaces.
+model meshes are interpolated multiple times per frame
+*/
+
 #if defined(GLQUAKE) || defined(D3DQUAKE)
 #ifdef RTLIGHTS
 
@@ -1098,6 +1104,7 @@ static void SHM_ComposeVolume_BruteForce(dlight_t *dl)
 	int i, e;
 	mesh_t *sm;
 	vec3_t ext;
+	float sc;
 	cv.numedges = 0;
 	cv.numpoints = 0;
 	cv.numtris = 0;
@@ -1107,7 +1114,7 @@ static void SHM_ComposeVolume_BruteForce(dlight_t *dl)
 		sms = &sh_shmesh->batches[tno];
 		if (!sms->count)
 			continue;
-		if ((cl.worldmodel->textures[tno]->shader->flags & (SHADER_BLEND|SHADER_NODRAW)))
+		if ((cl.worldmodel->shadowbatches[tno].tex->shader->flags & (SHADER_BLEND|SHADER_NODRAW)))
 			continue;
 
 		for (sno = 0; sno < sms->count; sno++)
@@ -1150,12 +1157,13 @@ static void SHM_ComposeVolume_BruteForce(dlight_t *dl)
 		ext[0] = cv.points[i][0]-dl->origin[0];
 		ext[1] = cv.points[i][1]-dl->origin[1];
 		ext[2] = cv.points[i][2]-dl->origin[2];
-		VectorNormalize(ext);
+		
+		sc = dl->radius * VectorNormalize(ext);
 
 		/*back face*/
-		sh_shmesh->verts[(i * 2) + 1][0] = cv.points[i][0] + ext[0] * dl->radius;
-		sh_shmesh->verts[(i * 2) + 1][1] = cv.points[i][1] + ext[1] * dl->radius;
-		sh_shmesh->verts[(i * 2) + 1][2] = cv.points[i][2] + ext[2] * dl->radius;
+		sh_shmesh->verts[(i * 2) + 1][0] = cv.points[i][0] + ext[0] * sc;
+		sh_shmesh->verts[(i * 2) + 1][1] = cv.points[i][1] + ext[1] * sc;
+		sh_shmesh->verts[(i * 2) + 1][2] = cv.points[i][2] + ext[2] * sc;
 	}
 	sh_shmesh->numverts = i*2;
 
@@ -1229,7 +1237,7 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 	{
 	case fg_quake:
 	case fg_halflife:
-		if (!dl->die)
+		/*if (!dl->die)
 		{
 			SHM_BeginShadowMesh(dl, true);
 			SHM_MarkLeavesQ1(dl, lvis);
@@ -1237,7 +1245,7 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 			if (!surfonly)
 				SHM_ComposeVolume_BruteForce(dl);
 		}
-		else
+		else*/
 		{
 			SHM_BeginShadowMesh(dl, surfonly);
 			SHM_MarkLeavesQ1(dl, lvis);
@@ -1373,41 +1381,6 @@ typedef struct
 } srect_t;
 static void Sh_Scissor (srect_t r)
 {
-#if 0	//visible scissors
-	extern cvar_t temp1;
-	if (temp1.ival)
-	{
-		qglMatrixMode(GL_PROJECTION);
-		qglPushMatrix();
-		qglLoadIdentity();
-		qglOrtho  (0, vid.pixelwidth, vid.pixelheight, 0, -99999, 99999);
-		qglMatrixMode(GL_MODELVIEW);
-		qglPushMatrix();
-		qglLoadIdentity();
-	//	GL_Set2D();
-
-		qglColor4f(1,1,1,1);
-		qglDisable(GL_DEPTH_TEST);
-		qglDisable(GL_SCISSOR_TEST);
-		qglColorMask( GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE );
-		qglDisable(GL_TEXTURE_2D);
-
-		qglBegin(GL_LINE_LOOP);
-		qglVertex2f(r.x, vid.pixelheight - (r.y + r.height));
-		qglVertex2f(r.x+r.width, vid.pixelheight - (r.y + r.height));
-		qglVertex2f(r.x+r.width, vid.pixelheight - (r.y));
-		qglVertex2f(r.x, vid.pixelheight - (r.y));
-		qglEnd();
-
-		qglColorMask( GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE );
-
-		qglMatrixMode(GL_PROJECTION);
-		qglPopMatrix();
-		qglMatrixMode(GL_MODELVIEW);
-		qglPopMatrix();
-	}
-#endif
-
 	switch(qrenderer)
 	{
 #ifdef GLQUAKE
@@ -1516,7 +1489,7 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs, srect_t *r)
 	r->height = vid.pixelheight;
 	r->dmin = 0;
 	r->dmax = 1;
-	if (1)//!r_shadow_scissor.integer)
+	if (0)//!r_shadow_scissor.integer)
 	{
 		return false;
 	}
@@ -2331,11 +2304,6 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 	int		i;
 	struct shadowmesh_s *sm;
 	entity_t *ent;
-
-#ifdef GLQUAKE
-	if (qrenderer == QR_OPENGL)
-		BE_PushOffsetShadow(false);
-#endif
 
 	sm = SHM_BuildShadowMesh(dl, lvis, vvis, false);
 	if (!sm)

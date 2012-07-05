@@ -1832,7 +1832,6 @@ static qbyte	mod_novis[MAX_MAP_LEAFS/8];
 
 qbyte *Q1BSP_LeafPVS (model_t *model, mleaf_t *leaf, qbyte *buffer, unsigned int buffersize)
 {
-
 	static qbyte	decompressed[MAX_MAP_LEAFS/8];
 
 	if (leaf == model->leafs)

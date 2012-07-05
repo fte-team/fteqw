@@ -116,7 +116,7 @@ void CL_WriteDemoCmd (usercmd_t *pcmd)
 
 	for (i=0 ; i<3 ; i++)
 	{
-		fl = LittleFloat (cl.viewangles[0][i]);
+		fl = LittleFloat (cl.playerview[0].viewangles[i]);
 		VFS_WRITE (cls.demooutfile, &fl, 4);
 	}
 
@@ -444,15 +444,15 @@ qboolean CL_GetDemoMessage (void)
 
 					for (i=0 ; i<3 ; i++)
 					{
-						a1 = cl.viewangles[2][i];
-						a2 = cl.viewangles[1][i];
+						a1 = cl.playerview[2].viewangles[i];
+						a2 = cl.playerview[1].viewangles[i];
 						if (a1 - a2 > 180)
 							a1 -= 360;
 						if (a1 - a2 < -180)
 							a1 += 360;
-						cl.simangles[0][i] = a2 + f * (a1 - a2);
+						cl.playerview[0].simangles[i] = a2 + f * (a1 - a2);
 					}
-					VectorCopy(cl.simangles[0], cl.viewangles[0]);
+					VectorCopy(cl.playerview[0].simangles, cl.playerview[0].viewangles);
 				}
 				return 0;
 			}
@@ -464,13 +464,13 @@ qboolean CL_GetDemoMessage (void)
 		}
 		if (cls.demoplayback == DPB_NETQUAKE)
 		{
-			VectorCopy (cl.viewangles[1], cl.viewangles[2]);
+			VectorCopy (cl.playerview[1].viewangles, cl.playerview[2].viewangles);
 			for (i=0 ; i<3 ; i++)
 			{
 				readdemobytes(&demopos, &f, 4);
-				cl.simangles[0][i] = cl.viewangles[1][i] = LittleFloat (f);
+				cl.playerview[0].simangles[i] = cl.playerview[1].viewangles[i] = LittleFloat (f);
 			}
-			VectorCopy (cl.viewangles[1], cl.viewangles[0]);
+			VectorCopy (cl.playerview[1].viewangles, cl.playerview[0].viewangles);
 		}
 
 		olddemotime = demtime;
@@ -678,7 +678,7 @@ readnext:
 			for (i=0 ; i<3 ; i++)
 			{
 				readdemobytes (&demopos, &f, 4);
-				cl.viewangles[0][i] = LittleFloat (f);
+				cl.playerview[0].viewangles[i] = LittleFloat (f);
 			}
 			goto readnext;
 /*		}*/
@@ -1315,11 +1315,11 @@ void CL_Record_f (void)
 
 	for (i = ((cls.fteprotocolextensions&PEXT_HEXEN2)?MAX_QW_STATS:MAX_CL_STATS); i >= 0; i--)
 	{
-		if (!cl.stats[0][i])
+		if (!cl.playerview[0].stats[i])
 			continue;
 		MSG_WriteByte (&buf, svc_updatestatlong);
 		MSG_WriteByte (&buf, i);
-		MSG_WriteLong (&buf, cl.stats[0][i]);
+		MSG_WriteLong (&buf, cl.playerview[0].stats[i]);
 		if (buf.cursize > MAX_QWMSGLEN/2)
 		{
 			CL_WriteRecordDemoMessage (&buf, seq++);

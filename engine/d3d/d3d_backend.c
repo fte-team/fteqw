@@ -9,6 +9,33 @@
 #endif
 #include <d3d9.h>
 
+/*
+Things to improve:
+	mmapping:
+		this code is fairly simple. the caller gives a series of batches/meshes, and this code pushes the data to the gpu in its entirety before moving on to the next batch
+		for the world, this is fast enough where its pretty much all vboed (except for weird shaders).
+		but for lightning beams and models etc, we're mmapping new data regions in the dynamic vbo for every single quad.
+		not just one mmap, but one mmap for every single individual attribute that is submitted
+		by using a single buffer for all dynamic data, and filling that buffer before flushing anything to the hardware we ought to get higher framerates
+		especially if this means D3DLOCK_NOOVERWRITE checks etc are not doing weird slow things.
+		This won't affect the world too much, but should stop everything else destroying the framerate.
+
+		long story short, make this batch properly, and use D3DLOCK_DISCARD only.
+
+	models:
+		models should already be in a buffer (with different offsets for different poses). This is a problem with gl too.
+
+	hlsl:
+		we don't really use this as much as we should. Should be possible to use as a fast path to avoid having to do any weird shader/dynamic stuff.
+		currently used for water(required to mimic software rendering) and sky(because its muuuch faster than a skydome).
+		hlsl programs ought to have per-hlsl vertex declarations, and only one stream source.
+*/
+
+
+
+
+
+
 extern LPDIRECT3DDEVICE9 pD3DDev9;
 
 //#define d3dcheck(foo) foo
@@ -168,6 +195,17 @@ typedef struct
 	unsigned int maxwbatches;
 	batch_t *wbatches;
 } d3dbackend_t;
+
+typedef struct
+{
+	vecV_t coord;
+	vec2_t tex;
+	vec2_t lm;
+	vec3_t ndir;
+	vec3_t sdir;
+	vec3_t tdir;
+	byte_vec4_t colorsb;
+} vbovdata_t;
 
 #define DYNVBUFFSIZE 65536
 #define DYNIBUFFSIZE 65536
@@ -1052,7 +1090,7 @@ static unsigned int BE_GenerateColourMods(unsigned int vertcount, const shaderpa
 						(pass->rgbgen == RGB_GEN_ONE_MINUS_VERTEX)) &&
 						(pass->alphagen == ALPHA_GEN_VERTEX)))
 		{
-			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_COL, shaderstate.batchvbo->colours.d3d.buff, shaderstate.batchvbo->colours.d3d.offs, sizeof(byte_vec4_t)));
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_COL, shaderstate.batchvbo->colours.d3d.buff, shaderstate.batchvbo->colours.d3d.offs, sizeof(vbovdata_t)));
 		}
 		else
 		{
@@ -1537,9 +1575,9 @@ static qboolean BE_DrawMeshChain_SetupPass(shaderpass_t *pass, unsigned int vert
 
 		vdec |= D3D_VDEC_ST0<<tmu;
 		if (shaderstate.batchvbo && pass[passno].tcgen == TC_GEN_BASE && !pass[passno].numtcmods)
-			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+tmu, shaderstate.batchvbo->texcoord.d3d.buff, shaderstate.batchvbo->texcoord.d3d.offs, sizeof(vec2_t)));
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+tmu, shaderstate.batchvbo->texcoord.d3d.buff, shaderstate.batchvbo->texcoord.d3d.offs, sizeof(vbovdata_t)));
 		else if (shaderstate.batchvbo && pass[passno].tcgen == TC_GEN_LIGHTMAP && !pass[passno].numtcmods)
-			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+tmu, shaderstate.batchvbo->lmcoord.d3d.buff, shaderstate.batchvbo->lmcoord.d3d.offs, sizeof(vec2_t)));
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0+tmu, shaderstate.batchvbo->lmcoord[0].d3d.buff, shaderstate.batchvbo->lmcoord[0].d3d.offs, sizeof(vbovdata_t)));
 		else
 		{
 			allocvertexbuffer(shaderstate.dynst_buff[tmu], shaderstate.dynst_size, &shaderstate.dynst_offs[tmu], &map, vertcount*sizeof(vec2_t));
@@ -1595,13 +1633,13 @@ static void BE_SubmitMeshChain(int idxfirst)
 		for (++m; m < shaderstate.nummeshes; m++)
 		{
 			mesh = shaderstate.meshlist[m];
-/*			if (endi == mesh->vbofirstelement)
+			if (endi == mesh->vbofirstelement)
 			{
 				endv = mesh->vbofirstvert+mesh->numvertexes;
 				endi = mesh->vbofirstelement+mesh->numindexes;
 			}
 			else
-*/			{
+			{
 				break;
 			}
 		}
@@ -1747,7 +1785,7 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertcount, unsigned i
 	if (vdec & D3D_VDEC_COL4B)
 	{
 		if (shaderstate.batchvbo)
-			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_COL, shaderstate.batchvbo->colours.d3d.buff, shaderstate.batchvbo->colours.d3d.offs, sizeof(byte_vec4_t)));
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_COL, shaderstate.batchvbo->colours.d3d.buff, shaderstate.batchvbo->colours.d3d.offs, sizeof(vbovdata_t)));
 		else
 		{
 			int mno,v;
@@ -1783,7 +1821,7 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertcount, unsigned i
 	if (vdec & D3D_VDEC_ST0)
 	{
 		if (shaderstate.batchvbo)
-			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0, shaderstate.batchvbo->texcoord.d3d.buff, shaderstate.batchvbo->texcoord.d3d.offs, sizeof(vec2_t)));
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC0, shaderstate.batchvbo->texcoord.d3d.buff, shaderstate.batchvbo->texcoord.d3d.offs, sizeof(vbovdata_t)));
 		else
 		{
 			int mno;
@@ -1805,7 +1843,7 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertcount, unsigned i
 	if (vdec & D3D_VDEC_ST1)
 	{
 		if (shaderstate.batchvbo)
-			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC1, shaderstate.batchvbo->lmcoord.d3d.buff, shaderstate.batchvbo->lmcoord.d3d.offs, sizeof(vec2_t)));
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_TC1, shaderstate.batchvbo->lmcoord[0].d3d.buff, shaderstate.batchvbo->lmcoord[0].d3d.offs, sizeof(vbovdata_t)));
 		else
 		{
 			int mno;
@@ -1829,9 +1867,9 @@ static void BE_RenderMeshProgram(shader_t *s, unsigned int vertcount, unsigned i
 	{
 		if (shaderstate.batchvbo)
 		{
-			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORM, shaderstate.batchvbo->normals.d3d.buff, shaderstate.batchvbo->normals.d3d.offs, sizeof(vec3_t)));
-			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORMS, shaderstate.batchvbo->svector.d3d.buff, shaderstate.batchvbo->svector.d3d.offs, sizeof(vec3_t)));
-			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORMT, shaderstate.batchvbo->tvector.d3d.buff, shaderstate.batchvbo->tvector.d3d.offs, sizeof(vec3_t)));
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORM, shaderstate.batchvbo->normals.d3d.buff, shaderstate.batchvbo->normals.d3d.offs, sizeof(vbovdata_t)));
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORMS, shaderstate.batchvbo->svector.d3d.buff, shaderstate.batchvbo->svector.d3d.offs, sizeof(vbovdata_t)));
+			d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_NORMT, shaderstate.batchvbo->tvector.d3d.buff, shaderstate.batchvbo->tvector.d3d.offs, sizeof(vbovdata_t)));
 		}
 		else
 		{
@@ -1933,7 +1971,7 @@ static void BE_DrawMeshChain_Internal(void)
 	/*vertex buffers are common to all passes*/
 	if (shaderstate.batchvbo && !shaderstate.curshader->numdeforms)
 	{
-		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_VERT, shaderstate.batchvbo->coord.d3d.buff, shaderstate.batchvbo->coord.d3d.offs, sizeof(vecV_t)));
+		d3dcheck(IDirect3DDevice9_SetStreamSource(pD3DDev9, STRM_VERT, shaderstate.batchvbo->coord.d3d.buff, shaderstate.batchvbo->coord.d3d.offs, sizeof(vbovdata_t)));
 	}
 	else
 	{
@@ -2046,10 +2084,135 @@ void D3DBE_SelectEntity(entity_t *ent)
 	BE_RotateForEntity(ent, ent->model);
 }
 
+#if 1
+static void D3DBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch)
+{
+	int maxvboelements;
+	int maxvboverts;
+	int vert = 0, idx = 0;
+	batch_t *batch;
+	vbo_t *vbo;
+	int i, j;
+	mesh_t *m;
+	IDirect3DVertexBuffer9 *vbuff;
+	IDirect3DIndexBuffer9 *ebuff;
+	index_t *vboedata;
+	vbovdata_t *vbovdata;
+
+	vbo = Z_Malloc(sizeof(*vbo));
+
+	maxvboverts = 0;
+	maxvboelements = 0;
+	for(batch = firstbatch; batch != stopbatch; batch = batch->next)
+	{
+		for (i=0 ; i<batch->maxmeshes ; i++)
+		{
+			m = batch->mesh[i];
+			maxvboelements += m->numindexes;
+			maxvboverts += m->numvertexes;
+		}
+	}
+
+	IDirect3DDevice9_CreateIndexBuffer(pD3DDev9, sizeof(index_t) * maxvboelements, 0, D3DFMT_QINDEX, D3DPOOL_MANAGED, &ebuff, NULL);
+	IDirect3DDevice9_CreateVertexBuffer(pD3DDev9, sizeof(*vbovdata) * maxvboverts, D3DUSAGE_WRITEONLY, 0, D3DPOOL_MANAGED, &vbuff, NULL);
+
+	vbovdata = NULL;
+	vbo->coord.d3d.buff = vbuff;
+	vbo->coord.d3d.offs = (quintptr_t)&vbovdata->coord;
+	vbo->texcoord.d3d.buff = vbuff;
+	vbo->texcoord.d3d.offs = (quintptr_t)&vbovdata->tex;
+	vbo->lmcoord[0].d3d.buff = vbuff;
+	vbo->lmcoord[0].d3d.offs = (quintptr_t)&vbovdata->lm;
+	vbo->normals.d3d.buff = vbuff;
+	vbo->normals.d3d.offs = (quintptr_t)&vbovdata->ndir;
+	vbo->svector.d3d.buff = vbuff;
+	vbo->svector.d3d.offs = (quintptr_t)&vbovdata->sdir;
+	vbo->tvector.d3d.buff = vbuff;
+	vbo->tvector.d3d.offs = (quintptr_t)&vbovdata->tdir;
+	vbo->colours.d3d.buff = vbuff;
+	vbo->colours.d3d.offs = (quintptr_t)&vbovdata->colorsb;
+	vbo->indicies.d3d.buff = ebuff;
+	vbo->indicies.d3d.offs = 0;
+
+	IDirect3DIndexBuffer9_Lock(ebuff, 0, sizeof(index_t) * maxvboelements, &vboedata, D3DLOCK_DISCARD);
+	IDirect3DVertexBuffer9_Lock(vbuff, 0, sizeof(*vbovdata) * maxvboverts, &vbovdata, D3DLOCK_DISCARD);
+
+	for(batch = firstbatch; batch != stopbatch; batch = batch->next)
+	{
+		batch->vbo = vbo;
+		for (j=0 ; j<batch->maxmeshes ; j++)
+		{
+			m = batch->mesh[j];
+			m->vbofirstvert = vert;
+			for (i = 0; i < m->numvertexes; i++)
+			{
+				VectorCopy(m->xyz_array[i],			vbovdata->coord);
+				vbovdata->coord[3] = 1;
+				Vector2Copy(m->st_array[i],			vbovdata->tex);
+				Vector2Copy(m->lmst_array[0][i],		vbovdata->lm);
+				VectorCopy(m->normals_array[i],		vbovdata->ndir);
+				VectorCopy(m->snormals_array[i],	vbovdata->sdir);
+				VectorCopy(m->tnormals_array[i],	vbovdata->tdir);
+				Vector4Scale(m->colors4f_array[i],	255, vbovdata->colorsb);
+
+				vbovdata++;
+			}
+
+			m->vbofirstelement = idx;
+			for (i = 0; i < m->numindexes; i++)
+			{
+				*vboedata++ = vert + m->indexes[i];
+			}
+			idx += m->numindexes;
+			vert += m->numvertexes;
+		}
+	}
+
+	IDirect3DIndexBuffer9_Unlock(ebuff);
+	IDirect3DVertexBuffer9_Unlock(vbuff);
+
+	vbo->next = *vbochain;
+	*vbochain = vbo;
+}
+
+void D3DBE_GenBrushModelVBO(model_t *mod)
+{
+	unsigned int vcount;
+
+
+	batch_t *batch, *fbatch;
+	int sortid;
+	int i;
+
+	fbatch = NULL;
+	vcount = 0;
+	for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
+	{
+		if (!mod->batches[sortid])
+			continue;
+
+		for (fbatch = batch = mod->batches[sortid]; batch != NULL; batch = batch->next)
+		{
+			//firstmesh got reused as the number of verticies in each batch
+			if (vcount + batch->firstmesh > MAX_INDICIES)
+			{
+				D3DBE_GenBatchVBOs(&mod->vbos, fbatch, batch);
+				fbatch = batch;
+				vcount = 0;
+			}
+
+			for (i = 0; i < batch->maxmeshes; i++)
+				vcount += batch->mesh[i]->numvertexes;
+		}
+
+		D3DBE_GenBatchVBOs(&mod->vbos, fbatch, batch);
+	}
+}
+#else
 /*Generates an optimised vbo for each of the given model's textures*/
 void D3DBE_GenBrushModelVBO(model_t *mod)
 {
-#if 0
+#if 1
 	unsigned int maxvboverts;
 	unsigned int maxvboelements;
 
@@ -2101,7 +2264,7 @@ void D3DBE_GenBrushModelVBO(model_t *mod)
 			maxvboverts += m->numvertexes;
 		}
 #if sizeof_index_t == 2
-		if (maxvboverts > (1<<(sizeof(index_t)*8))-1)
+		if (maxvboverts > (1u<<(sizeof(index_t)*8))-1)
 			continue;
 #endif
 		if (!maxvboverts)
@@ -2231,53 +2394,58 @@ void D3DBE_GenBrushModelVBO(model_t *mod)
 	}
 #endif
 }
+#endif
 /*Wipes a vbo*/
 void D3DBE_ClearVBO(vbo_t *vbo)
 {
-	IDirect3DVertexBuffer9 *vbuff = vbo->vertdata;
+	IDirect3DVertexBuffer9 *vbuff = vbo->coord.d3d.buff;
 	IDirect3DIndexBuffer9 *ebuff = vbo->indicies.d3d.buff;
 	if (vbuff)
 		IDirect3DVertexBuffer9_Release(vbuff);
 	if (ebuff)
 		IDirect3DIndexBuffer9_Release(ebuff);
-	vbo->vertdata = NULL;
+	vbo->coord.d3d.buff = NULL;
 	vbo->indicies.d3d.buff = NULL;
+
+	free(vbo);
 }
 
 /*upload all lightmaps at the start to reduce lags*/
 void BE_UploadLightmaps(qboolean force)
 {
 	int i;
+	lightmapinfo_t *lm;
 
 	for (i = 0; i < numlightmaps; i++)
 	{
-		if (!lightmap[i])
+		lm = lightmap[i];
+		if (!lm)
 			continue;
 
 		if (force)
 		{
-			lightmap[i]->rectchange.l = 0;
-			lightmap[i]->rectchange.t = 0;
-			lightmap[i]->rectchange.w = LMBLOCK_WIDTH;
-			lightmap[i]->rectchange.h = LMBLOCK_HEIGHT;
+			lm->rectchange.l = 0;
+			lm->rectchange.t = 0;
+			lm->rectchange.w = LMBLOCK_WIDTH;
+			lm->rectchange.h = LMBLOCK_HEIGHT;
 		}
 
 		if (lightmap[i]->modified)
 		{
-			IDirect3DTexture9 *tex = lightmap_textures[i].ptr;
+			IDirect3DTexture9 *tex = lm->lightmap_texture.ptr;
 			D3DLOCKED_RECT lock;
 			RECT rect;
-			glRect_t *theRect = &lightmap[i]->rectchange;
+			glRect_t *theRect = &lm->rectchange;
 			int r;
 			if (!tex)
 			{
-				lightmap_textures[i] = R_AllocNewTexture("***lightmap***", LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
-				tex = lightmap_textures[i].ptr;
+				lm->lightmap_texture = R_AllocNewTexture("***lightmap***", LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
+				tex = lm->lightmap_texture.ptr;
 				if (!tex)
 					continue;
 			}
 			
-			lightmap[i]->modified = 0;
+			lm->modified = 0;
 			rect.left = theRect->l;
 			rect.right = theRect->l + theRect->w;
 			rect.top = theRect->t;
@@ -2445,10 +2613,10 @@ void D3DBE_SubmitBatch(batch_t *batch)
 	shaderstate.curshader = batch->shader;
 	shaderstate.curtexnums = batch->skin;
 	shaderstate.flags = batch->flags;
-	if (batch->lightmap < 0)
+	if (batch->lightmap[0] < 0)
 		shaderstate.curlightmap = r_nulltex;
 	else
-		shaderstate.curlightmap = lightmap_textures[batch->lightmap];
+		shaderstate.curlightmap = lightmap[batch->lightmap[0]]->lightmap_texture;
 
 	BE_DrawMeshChain_Internal();
 }
@@ -2891,7 +3059,7 @@ void D3DBE_DrawWorld (qbyte *vis)
 #ifdef RTLIGHTS
 		RSpeedRemark();
 		D3DBE_SelectEntity(&r_worldentity);
-		Sh_DrawLights(vis, batches);
+		Sh_DrawLights(vis);
 		RSpeedEnd(RSPEED_STENCILSHADOWS);
 #endif
 

@@ -188,15 +188,22 @@ void QDECL Q_strncpyz(char *d, const char *s, int n)
 //windows/linux have inconsistant snprintf
 //this is an attempt to get them consistant and safe
 //size is the total size of the buffer
+void VARGS Q_vsnprintfz (char *dest, size_t size, char *fmt, va_list argptr)
+{
+	vsnprintf (dest, size, fmt, argptr);
+	dest[size-1] = 0;
+}
+
+//windows/linux have inconsistant snprintf
+//this is an attempt to get them consistant and safe
+//size is the total size of the buffer
 void VARGS Q_snprintfz (char *dest, size_t size, char *fmt, ...)
 {
 	va_list		argptr;
 
 	va_start (argptr, fmt);
-	vsnprintf (dest, size, fmt, argptr);
+	Q_vsnprintfz(dest, size, fmt, argptr);
 	va_end (argptr);
-
-	dest[size-1] = 0;
 }
 
 
@@ -3381,7 +3388,6 @@ void COM_Init (void)
 	nullentitystate.glowmod[2] = 32;
 	nullentitystate.trans = 255;
 	nullentitystate.scale = 16;
-	nullentitystate.abslight = 255;
 	nullentitystate.solid = 0;//ES_SOLID_BSP;
 }
 

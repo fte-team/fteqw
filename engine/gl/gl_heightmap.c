@@ -315,7 +315,10 @@ void GL_DrawHeightmapModel (batch_t **batches, entity_t *e)
 		b = BE_GetTempBatch();
 		if (b)
 		{
-			b->lightmap = -1;
+			b->lightmap[0] = -1;
+			b->lightmap[1] = -1;
+			b->lightmap[2] = -1;
+			b->lightmap[3] = -1;
 			b->ent = e;
 			b->shader = hm->skyshader;
 			b->flags = 0;
@@ -370,7 +373,7 @@ void GL_DrawHeightmapModel (batch_t **batches, entity_t *e)
 				{
 					mesh->xyz_array = BZ_Malloc((sizeof(vecV_t)+sizeof(vec2_t)+sizeof(vec2_t)) * (SECTHEIGHTSIZE)*(SECTHEIGHTSIZE));
 					mesh->st_array = (void*) (mesh->xyz_array + (SECTHEIGHTSIZE)*(SECTHEIGHTSIZE));
-					mesh->lmst_array = (void*) (mesh->st_array + (SECTHEIGHTSIZE)*(SECTHEIGHTSIZE));
+					mesh->lmst_array[0] = (void*) (mesh->st_array + (SECTHEIGHTSIZE)*(SECTHEIGHTSIZE));
 				}
 				mesh->numvertexes = 0;
 				/*64 quads across requires 65 verticies*/
@@ -392,14 +395,14 @@ void GL_DrawHeightmapModel (batch_t **batches, entity_t *e)
 						mesh->st_array[v][1] = mesh->xyz_array[v][1] / 64;
 
 						//calc the position in the range -0.5 to 0.5
-						mesh->lmst_array[v][0] = (((float)vx / (SECTHEIGHTSIZE-1))-0.5);
-						mesh->lmst_array[v][1] = (((float)vy / (SECTHEIGHTSIZE-1))-0.5);
+						mesh->lmst_array[0][v][0] = (((float)vx / (SECTHEIGHTSIZE-1))-0.5);
+						mesh->lmst_array[0][v][1] = (((float)vy / (SECTHEIGHTSIZE-1))-0.5);
 						//scale down to a half-texel
-						mesh->lmst_array[v][0] *= (SECTTEXSIZE-1.0f)/LMBLOCK_WIDTH;
-						mesh->lmst_array[v][1] *= (SECTTEXSIZE-1.0f)/LMBLOCK_HEIGHT;
+						mesh->lmst_array[0][v][0] *= (SECTTEXSIZE-1.0f)/LMBLOCK_WIDTH;
+						mesh->lmst_array[0][v][1] *= (SECTTEXSIZE-1.0f)/LMBLOCK_HEIGHT;
 						//bias it
-						mesh->lmst_array[v][0] += ((float)SECTTEXSIZE/(LMBLOCK_WIDTH*2)) + ((float)(s->lmy) / LMBLOCK_WIDTH);
-						mesh->lmst_array[v][1] += ((float)SECTTEXSIZE/(LMBLOCK_HEIGHT*2)) + ((float)(s->lmx) / LMBLOCK_HEIGHT);
+						mesh->lmst_array[0][v][0] += ((float)SECTTEXSIZE/(LMBLOCK_WIDTH*2)) + ((float)(s->lmy) / LMBLOCK_WIDTH);
+						mesh->lmst_array[0][v][1] += ((float)SECTTEXSIZE/(LMBLOCK_HEIGHT*2)) + ((float)(s->lmx) / LMBLOCK_HEIGHT);
 
 						//TODO: include colour tints
 					}
@@ -437,8 +440,8 @@ void GL_DrawHeightmapModel (batch_t **batches, entity_t *e)
 					GL_SelectVBO(0);
 					s->vbo.texcoord.gl.addr = (void*)((char*)mesh->st_array - (char*)mesh->xyz_array);
 					s->vbo.texcoord.gl.vbo = s->vbo.coord.gl.vbo;
-					s->vbo.lmcoord.gl.addr = (void*)((char*)mesh->lmst_array - (char*)mesh->xyz_array);
-					s->vbo.lmcoord.gl.vbo = s->vbo.coord.gl.vbo;
+					s->vbo.lmcoord[0].gl.addr = (void*)((char*)mesh->lmst_array - (char*)mesh->xyz_array);
+					s->vbo.lmcoord[0].gl.vbo = s->vbo.coord.gl.vbo;
 //					Z_Free(mesh->xyz_array);
 //					mesh->xyz_array = NULL;
 //					mesh->st_array = NULL;
@@ -476,7 +479,10 @@ void GL_DrawHeightmapModel (batch_t **batches, entity_t *e)
 			b->skin = &s->textures;
 			b->texture = NULL;
 			b->vbo = &s->vbo;
-			b->lightmap = s->lightmap;
+			b->lightmap[0] = s->lightmap;
+			b->lightmap[1] = -1;
+			b->lightmap[2] = -1;
+			b->lightmap[3] = -1;
 
 			b->next = batches[b->shader->sort];
 			batches[b->shader->sort] = b;

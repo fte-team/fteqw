@@ -262,6 +262,7 @@ typedef union eval_s
 #define PR_AddString(pf, ed, len)							(*pf->AddString)			(pf, ed, len)
 #define PR_Alloc(pf,size,whatfor)							(*pf->Tempmem)				(pf, size, whatfor)
 #define PR_AddressableAlloc(pf,size)						(*pf->AddressableAlloc)		(pf, size)
+#define PR_AddressableFree(pf,mem)							(*pf->AddressableFree)		(pf, mem)
 
 #define PROG_TO_EDICT(pf, ed)								(*pf->ProgsToEdict)			(pf, ed)
 #define EDICT_TO_PROG(pf, ed)								(*pf->EdictToProgs)			(pf, (struct edict_s*)ed)

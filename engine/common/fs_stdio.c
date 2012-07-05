@@ -103,6 +103,9 @@ vfsfile_t *FSSTDIO_OpenTemp(void)
 	file = Z_Malloc(sizeof(vfsstdiofile_t));
 	file->funcs.Close = VFSSTDIO_Close;
 #endif
+#ifdef _DEBUG
+	Q_strncpyz(file->funcs.dbgname, "FSSTDIO_OpenTemp", sizeof(file->funcs.dbgname));
+#endif
 	file->funcs.ReadBytes = VFSSTDIO_ReadBytes;
 	file->funcs.WriteBytes = VFSSTDIO_WriteBytes;
 	file->funcs.Seek = VFSSTDIO_Seek;
@@ -164,6 +167,9 @@ static vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode, qboolean *
 	}
 
 	file = Z_Malloc(sizeof(vfsstdiofile_t));
+#ifdef _DEBUG
+	Q_strncpyz(file->funcs.dbgname, osname, sizeof(file->funcs.dbgname));
+#endif
 	file->funcs.ReadBytes = strchr(mode, 'r')?VFSSTDIO_ReadBytes:NULL;
 	file->funcs.WriteBytes = (strchr(mode, 'w')||strchr(mode, 'a'))?VFSSTDIO_WriteBytes:NULL;
 	file->funcs.Seek = VFSSTDIO_Seek;

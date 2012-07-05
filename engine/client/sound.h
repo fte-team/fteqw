@@ -39,7 +39,6 @@ typedef struct
 } portable_samplegroup_t;
 
 typedef struct {
-	int decodedlen;
 	struct sfxcache_s *(*decodedata) (struct sfx_s *sfx, struct sfxcache_s *buf, int start, int length);	//retrurn true when done.
 	void (*abort) (struct sfx_s *sfx);	//it's not playing elsewhere. free entirly
 	void *buf;
@@ -176,6 +175,7 @@ void SND_ResampleStream (void *in, int inrate, int inwidth, int inchannels, int 
 
 // restart entire sound subsystem (doesn't flush old sounds, so make sure that happens)
 void S_DoRestart (void);
+void S_SetUnderWater(qboolean underwater);
 
 void S_Restart_f (void);
 

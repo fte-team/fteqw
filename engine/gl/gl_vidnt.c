@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "glquake.h"
 #include "winquake.h"
 #include "resource.h"
+#include "shader.h"
 #include <commctrl.h>
 
 #ifndef SetWindowLongPtr	//yes its a define, for unicode support
@@ -1476,6 +1477,7 @@ void	GLVID_Shutdown (void)
 
 	gammaworks = false;
 
+	GLBE_Shutdown();
 	VID_UnSetMode();
 }
 
@@ -1715,11 +1717,13 @@ qboolean GLAppActivate(BOOL fActive, BOOL minimize)
 ****************************************************************************/
 {
 	static BOOL	sound_active;
+	HWND foregroundwindow;
 
 	if (ActiveApp == fActive && Minimized == minimize)
 		return false;	//so windows doesn't crash us over and over again.
 
-	ActiveApp = fActive;
+	foregroundwindow = GetForegroundWindow();
+	ActiveApp = fActive;// && (foregroundwindow==mainwindow);
 	Minimized = minimize;
 
 // enable/disable sound on focus gain/loss
@@ -1954,7 +1958,7 @@ LONG WINAPI GLMainWndProc (
 		case WM_ACTIVATE:
 			fActive = LOWORD(wParam);
 			fMinimized = (BOOL) HIWORD(wParam);
-			if (!GLAppActivate(!(fActive == WA_INACTIVE), fMinimized))
+//			if (!GLAppActivate(!(fActive == WA_INACTIVE), fMinimized))
 				break;//so, urm, tell me microsoft, what changed?
 			if (modestate == MS_FULLDIB)
 				ShowWindow(mainwindow, SW_SHOWNORMAL);

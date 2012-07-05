@@ -675,18 +675,6 @@ void SV_SpawnServer (char *server, char *startspot, qboolean noents, qboolean us
 	Mod_ClearAll ();
 	Hunk_FreeToLowMark (host_hunklevel);
 
-	if (svs.gametype == GT_PROGS)
-	{
-		for (i = 0; i < MAX_LIGHTSTYLES; i++)
-		{
-			if (sv.strings.lightstyles[i])
-				Z_Free(sv.strings.lightstyles[i]);
-			sv.strings.lightstyles[i] = NULL;
-
-			sv.strings.lightstylecolours[i] = 7;
-		}
-	}
-
 #ifdef USEODE
 	World_ODE_End(&sv.world);
 #endif

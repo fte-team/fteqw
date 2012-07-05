@@ -653,6 +653,9 @@ vfsfile_t *FSZIP_OpenVFS(void *handle, flocation_t *loc, const char *mode)
 	vfsz->startpos = zip->files[loc->index].filepos;
 	vfsz->length = loc->len;
 
+#ifdef _DEBUG
+	Q_strncpyz(vfsz->funcs.dbgname, zip->files[loc->index].name, sizeof(vfsz->funcs.dbgname));
+#endif
 	vfsz->funcs.Close = VFSZIP_Close;
 	vfsz->funcs.GetLen = VFSZIP_GetLen;
 	vfsz->funcs.ReadBytes = VFSZIP_ReadBytes;

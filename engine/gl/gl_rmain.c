@@ -106,6 +106,7 @@ texid_t scenepp_postproc_cube;
 // processing shaders
 void GL_InitSceneProcessingShaders_WaterWarp (void)
 {
+	scenepp_waterwarp = NULL;
 	if (gl_config.arb_shader_objects)
 	{
 		scenepp_waterwarp = R_RegisterShader("waterwarp",
@@ -645,6 +646,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 	refdef_t oldrefdef;
 	mesh_t *mesh = batch->mesh[batch->firstmesh];
 	int sort;
+	qbyte newvis[(MAX_MAP_LEAFS+7)/8];
 
 	if (r_refdef.recurse)
 		return;
@@ -680,9 +682,54 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 	else if (portaltype == 2)
 	{
 		/*refraction image (same view, just with things culled*/
-		r_refdef.externalview = false;
+		r_refdef.externalview = oldrefdef.externalview;
 		VectorNegate(plane.normal, plane.normal);
 		plane.dist = -plane.dist;
+
+		//use the player's origin for r_viewleaf, because there's not much we can do anyway*/
+		VectorCopy(r_origin, r_refdef.pvsorigin);
+
+		if (cl.worldmodel && cl.worldmodel->funcs.LeafPVS && !r_novis.ival)
+		{
+			int lnum, i, j;
+			float d;
+			vec3_t point;
+			int pvsbytes = (cl.worldmodel->numleafs+7)>>3;
+			if (pvsbytes > sizeof(newvis))
+				pvsbytes = sizeof(newvis);
+			r_refdef.forcevis = true;
+			r_refdef.forcedvis = NULL;
+			for (i = batch->firstmesh; i < batch->meshes; i++)
+			{
+				mesh = batch->mesh[i];
+				VectorClear(point);
+				for (j = 0; j < mesh->numvertexes; j++)
+					VectorAdd(point, mesh->xyz_array[j], point);
+				VectorScale(point, 1.0f/mesh->numvertexes, point);
+				d = DotProduct(point, plane.normal) - plane.dist;
+				d += 0.1;	//an epsilon on the far side
+				VectorMA(point, d, plane.normal, point);
+
+				lnum = cl.worldmodel->funcs.LeafnumForPoint(cl.worldmodel, point);
+				if (i == batch->firstmesh)
+					r_refdef.forcedvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, lnum, newvis, sizeof(newvis));
+				else
+				{
+					if (r_refdef.forcedvis != newvis)
+					{
+						memcpy(newvis, r_refdef.forcedvis, pvsbytes);
+					}
+					r_refdef.forcedvis = cl.worldmodel->funcs.LeafPVS(cl.worldmodel, lnum, NULL, sizeof(newvis));
+
+					for (j = 0; j < pvsbytes; j+= 4)
+					{
+						*(int*)&newvis[j] |= *(int*)&r_refdef.forcedvis[j];
+					}
+					r_refdef.forcedvis = newvis;
+				}
+			}
+			memset(newvis, 0xff, pvsbytes);
+		}
 	}
 	else if (!(view = R_NearestPortal(&plane)) || VectorCompare(view->origin, view->oldorigin))
 	{
@@ -795,7 +842,10 @@ void R_Clear (void)
 	GL_ForceDepthWritable();
 	{
 		if (r_clear.ival && !r_secondaryview && !(r_refdef.flags & Q2RDF_NOWORLDMODEL))
+		{
+			qglClearColor(1, 0, 0, 0);
 			qglClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		}
 		else
 			qglClear (GL_DEPTH_BUFFER_BIT);
 		gldepthmin = 0;

@@ -235,6 +235,7 @@ void CLQ2_PredictMovement (void)	//q2 doesn't support split clients.
 	int			oldz;
 #endif
 	int			i;
+	int pnum = 0;
 
 	if (cls.state != ca_active)
 		return;
@@ -248,7 +249,7 @@ void CLQ2_PredictMovement (void)	//q2 doesn't support split clients.
 	{	// just set angles
 		for (i=0 ; i<3 ; i++)
 		{
-			cl.predicted_angles[i] = cl.viewangles[0][i] + SHORT2ANGLE(cl.q2frame.playerstate.pmove.delta_angles[i]);
+			cl.predicted_angles[i] = cl.playerview[pnum].viewangles[i] + SHORT2ANGLE(cl.q2frame.playerstate.pmove.delta_angles[i]);
 		}
 		return;
 	}
@@ -378,6 +379,7 @@ void CL_PredictUsercmd (int pnum, int entnum, player_state_t *from, player_state
 	VectorCopy (from->origin, pmove.origin);
 	VectorCopy (u->angles, pmove.angles);
 	VectorCopy (from->velocity, pmove.velocity);
+	VectorCopy (from->gravitydir, pmove.gravitydir);
 
 	if (!(pmove.velocity[0] == 0) && !(pmove.velocity[0] != 0))
 	{
@@ -413,6 +415,7 @@ void CL_PredictUsercmd (int pnum, int entnum, player_state_t *from, player_state
 	VectorCopy (pmove.origin, to->origin);
 	VectorCopy (pmove.angles, to->viewangles);
 	VectorCopy (pmove.velocity, to->velocity);
+	VectorCopy (pmove.gravitydir, to->gravitydir);
 	to->onground = pmove.onground;
 
 	to->weaponframe = from->weaponframe;
@@ -432,7 +435,7 @@ void CL_CatagorizePosition (int pnum)
 		return;
 	}
 	VectorClear (pmove.velocity);
-	VectorCopy (cl.simorg[pnum], pmove.origin);
+	VectorCopy (cl.playerview[pnum].simorg, pmove.origin);
 	pmove.numtouch = 0;
 	PM_CategorizePosition ();
 	cl.onground[pnum] = pmove.onground;
@@ -446,50 +449,50 @@ void CL_CalcCrouch (int pnum, float stepchange)
 	static float oldz[MAX_SPLITS] = {0}, extracrouch[MAX_SPLITS] = {0}, crouchspeed[MAX_SPLITS] = {100,100};
 	vec3_t delta;
 
-	VectorSubtract(cl.simorg[pnum], oldorigin[pnum], delta);
+	VectorSubtract(cl.playerview[pnum].simorg, oldorigin[pnum], delta);
 
 	teleported = Length(delta)>48;
-	VectorCopy (cl.simorg[pnum], oldorigin[pnum]);
+	VectorCopy (cl.playerview[pnum].simorg, oldorigin[pnum]);
 
 	if (teleported)
 	{
 		// possibly teleported or respawned
-		oldz[pnum] = cl.simorg[pnum][2];
+		oldz[pnum] = cl.playerview[pnum].simorg[2];
 		extracrouch[pnum] = 0;
 		crouchspeed[pnum] = 100;
 		cl.crouch[pnum] = 0;
-		VectorCopy (cl.simorg[pnum], oldorigin[pnum]);
+		VectorCopy (cl.playerview[pnum].simorg, oldorigin[pnum]);
 		return;
 	}
 
-	if (cl.onground[pnum] && cl.simorg[pnum][2] - oldz[pnum] > 0)
+	if (cl.onground[pnum] && cl.playerview[pnum].simorg[2] - oldz[pnum] > 0)
 	{
-		if (cl.simorg[pnum][2] - oldz[pnum] > movevars.stepheight+2)
+		if (cl.playerview[pnum].simorg[2] - oldz[pnum] > movevars.stepheight+2)
 		{
 			// if on steep stairs, increase speed
 			if (crouchspeed[pnum] < 160)
 			{
-				extracrouch[pnum] = cl.simorg[pnum][2] - oldz[pnum] - host_frametime * 200 - 15;
+				extracrouch[pnum] = cl.playerview[pnum].simorg[2] - oldz[pnum] - host_frametime * 200 - 15;
 				extracrouch[pnum] = min(extracrouch[pnum], 5);
 			}
 			crouchspeed[pnum] = 160;
 		}
 
 		oldz[pnum] += host_frametime * crouchspeed[pnum];
-		if (oldz[pnum] > cl.simorg[pnum][2])
-			oldz[pnum] = cl.simorg[pnum][2];
+		if (oldz[pnum] > cl.playerview[pnum].simorg[2])
+			oldz[pnum] = cl.playerview[pnum].simorg[2];
 
-		if (cl.simorg[pnum][2] - oldz[pnum] > 15 + extracrouch[pnum])
-			oldz[pnum] = cl.simorg[pnum][2] - 15 - extracrouch[pnum];
+		if (cl.playerview[pnum].simorg[2] - oldz[pnum] > 15 + extracrouch[pnum])
+			oldz[pnum] = cl.playerview[pnum].simorg[2] - 15 - extracrouch[pnum];
 		extracrouch[pnum] -= host_frametime * 200;
 		extracrouch[pnum] = max(extracrouch[pnum], 0);
 
-		cl.crouch[pnum] = oldz[pnum] - cl.simorg[pnum][2];
+		cl.crouch[pnum] = oldz[pnum] - cl.playerview[pnum].simorg[2];
 	}
 	else
 	{
 		// in air or moving down
-		oldz[pnum] = cl.simorg[pnum][2];
+		oldz[pnum] = cl.playerview[pnum].simorg[2];
 		cl.crouch[pnum] += host_frametime * 150;
 		if (cl.crouch[pnum] > 0)
 			cl.crouch[pnum] = 0;
@@ -552,11 +555,11 @@ static void CL_LerpMove (int pnum, float msgtime)
 
 		VectorCopy (lerp_origin[1], lerp_origin[2]);
 		VectorCopy (lerp_origin[0], lerp_origin[1]);
-		VectorCopy (cl.simorg[pnum], lerp_origin[0]);
+		VectorCopy (cl.playerview[pnum].simorg, lerp_origin[0]);
 
 		VectorCopy (lerp_angles[1], lerp_angles[2]);
 		VectorCopy (lerp_angles[0], lerp_angles[1]);
-		VectorCopy (cl.simangles[pnum], lerp_angles[0]);
+		VectorCopy (cl.playerview[pnum].simangles, lerp_angles[0]);
 
 		nolerp[1] = nolerp[0];
 		nolerp[0] = false;
@@ -608,9 +611,9 @@ static void CL_LerpMove (int pnum, float msgtime)
 
 	for (i=0 ; i<3 ; i++)
 	{
-		cl.simorg[pnum][i] = lerp_origin[from][i] +
+		cl.playerview[pnum].simorg[i] = lerp_origin[from][i] +
 				frac * (lerp_origin[to][i] - lerp_origin[from][i]);
-		cl.simangles[pnum][i] = LerpAngles360(lerp_angles[from][i], lerp_angles[to][i], frac);
+		cl.playerview[pnum].simangles[i] = LerpAngles360(lerp_angles[from][i], lerp_angles[to][i], frac);
 	}
 
 //	LerpVector (lerp_origin[from], lerp_origin[to], frac, cl.simorg);
@@ -776,6 +779,7 @@ static void CL_DecodeStateSize(unsigned short solid, int modelindex, vec3_t mins
 void CL_PlayerFrameUpdated(player_state_t *plstate, entity_state_t *state, int sequence)
 {
 	/*update the prediction info*/
+	vec3_t a;
 	int pmtype, i;
 	switch(state->u.q1.pmovetype)
 	{
@@ -812,14 +816,19 @@ void CL_PlayerFrameUpdated(player_state_t *plstate, entity_state_t *state, int s
 	VectorScale(state->u.q1.velocity, 1/8.0, plstate->velocity);
 	plstate->messagenum = sequence;
 
+	a[0] = ((-192-state->u.q1.gravitydir[0])/256.0f) * 360;
+	a[1] = (state->u.q1.gravitydir[1]/256.0f) * 360;
+	a[2] = 0;
+	AngleVectors(a, plstate->gravitydir, NULL, NULL);
+
 	cl.players[state->number-1].stats[STAT_WEAPONFRAME] = state->u.q1.weaponframe;
 	cl.players[state->number-1].statsf[STAT_WEAPONFRAME] = state->u.q1.weaponframe;
 	for (i = 0; i < cl.splitclients; i++)
 	{
 		if (cl.playernum[i] == state->number-1)
 		{
-			cl.stats[i][STAT_WEAPONFRAME] = state->u.q1.weaponframe;
-			cl.statsf[i][STAT_WEAPONFRAME] = state->u.q1.weaponframe;
+			cl.playerview[i].stats[STAT_WEAPONFRAME] = state->u.q1.weaponframe;
+			cl.playerview[i].statsf[STAT_WEAPONFRAME] = state->u.q1.weaponframe;
 		}
 	}
 
@@ -926,7 +935,7 @@ void CL_PredictMovePNum (int pnum)
 	if (cls.netchan.outgoing_sequence - cl.ackedinputsequence >= UPDATE_BACKUP-1)
 	{	//lagging like poo.
 		if (!cl.intermission)	//keep the angles working though.
-			VectorCopy (cl.viewangles[pnum], cl.simangles[pnum]);
+			VectorCopy (cl.playerview[pnum].viewangles, cl.playerview[pnum].simangles);
 		return;
 	}
 
@@ -935,7 +944,7 @@ void CL_PredictMovePNum (int pnum)
 
 	if (!cl.intermission)
 	{
-		VectorCopy (cl.viewangles[pnum], cl.simangles[pnum]);
+		VectorCopy (cl.playerview[pnum].viewangles, cl.playerview[pnum].simangles);
 	}
 
 	vel = from->playerstate[cl.playernum[pnum]].velocity;
@@ -968,7 +977,7 @@ void CL_PredictMovePNum (int pnum)
 	}
 
 
-	if (((cl_nopred.value && cls.demoplayback!=DPB_MVD && cls.demoplayback != DPB_EZTV)|| cl.fixangle[pnum] || cl.paused))
+	if (((cl_nopred.value && cls.demoplayback!=DPB_MVD && cls.demoplayback != DPB_EZTV)|| cl.playerview[pnum].fixangle || cl.paused))
 	{
 		if (cl_lerp_players.ival && !cls.demoplayback)
 		{
@@ -978,8 +987,8 @@ void CL_PredictMovePNum (int pnum)
 		}
 
 fixedorg:
-		VectorCopy (vel, cl.simvel[pnum]);
-		VectorCopy (org, cl.simorg[pnum]);
+		VectorCopy (vel, cl.playerview[pnum].simvel);
+		VectorCopy (org, cl.playerview[pnum].simorg);
 
 		to = &cl.frames[cl.ackedinputsequence & UPDATE_MASK];
 
@@ -1004,7 +1013,7 @@ fixedorg:
 			lerpents_t *le = &cl.lerpplayers[spec_track[pnum]];
 			org = le->origin;
 			vel = vec3_origin;
-			VectorCopy(le->angles, cl.simangles[pnum]);
+			VectorCopy(le->angles, cl.playerview[pnum].simangles);
 			goto fixedorg;
 		}
 
@@ -1032,7 +1041,7 @@ fixedorg:
 			lrpv[i] = to->playerstate[spec_track[pnum]].velocity[i] +
 			f * (from->playerstate[spec_track[pnum]].velocity[i] - to->playerstate[spec_track[pnum]].velocity[i]);
 
-			cl.simangles[pnum][i] = LerpAngles16(to->playerstate[spec_track[pnum]].command.angles[i], from->playerstate[spec_track[pnum]].command.angles[i], f)*360.0f/65535;
+			cl.playerview[pnum].simangles[i] = LerpAngles16(to->playerstate[spec_track[pnum]].command.angles[i], from->playerstate[spec_track[pnum]].command.angles[i], f)*360.0f/65535;
 		}
 
 		org = lrp;
@@ -1048,8 +1057,8 @@ fixedorg:
 			to = &cl.frames[(cls.netchan.outgoing_sequence-1) & UPDATE_MASK];
 			to->playerstate->pm_type = PM_SPECTATOR;
 
-			VectorCopy (cl.simvel[pnum], from->playerstate[cl.playernum[pnum]].velocity);
-			VectorCopy (cl.simorg[pnum], from->playerstate[cl.playernum[pnum]].origin);
+			VectorCopy (cl.playerview[pnum].simvel, from->playerstate[cl.playernum[pnum]].velocity);
+			VectorCopy (cl.playerview[pnum].simorg, from->playerstate[cl.playernum[pnum]].origin);
 
 			CL_PredictUsercmd (pnum, cl.playernum[pnum]+1, &from->playerstate[cl.playernum[pnum]], &to->playerstate[cl.playernum[pnum]], &to->cmd[pnum]);
 		}
@@ -1094,8 +1103,8 @@ fixedorg:
 
 	if (1)//!independantphysics.msec)
 	{
-		VectorCopy (to->playerstate[cl.playernum[pnum]].velocity, cl.simvel[pnum]);
-		VectorCopy (to->playerstate[cl.playernum[pnum]].origin, cl.simorg[pnum]);
+		VectorCopy (to->playerstate[cl.playernum[pnum]].velocity, cl.playerview[pnum].simvel);
+		VectorCopy (to->playerstate[cl.playernum[pnum]].origin, cl.playerview[pnum].simorg);
 	}
 	else
 	{
@@ -1115,16 +1124,16 @@ fixedorg:
 		for (i=0 ; i<3 ; i++)
 			if ( fabs(org[i] - to->playerstate[cl.playernum[pnum]].origin[i]) > 128)
 			{	// teleported, so don't lerp
-				VectorCopy (to->playerstate[cl.playernum[pnum]].velocity, cl.simvel[pnum]);
-				VectorCopy (to->playerstate[cl.playernum[pnum]].origin, cl.simorg[pnum]);
+				VectorCopy (to->playerstate[cl.playernum[pnum]].velocity, cl.playerview[pnum].simvel);
+				VectorCopy (to->playerstate[cl.playernum[pnum]].origin, cl.playerview[pnum].simorg);
 				goto out;
 			}
 
 		for (i=0 ; i<3 ; i++)
 		{
-			cl.simorg[pnum][i] = org[i]
+			cl.playerview[pnum].simorg[i] = org[i]
 				+ f*(to->playerstate[cl.playernum[pnum]].origin[i] - org[i]);
-			cl.simvel[pnum][i] = vel[i]
+			cl.playerview[pnum].simvel[i] = vel[i]
 				+ f*(to->playerstate[cl.playernum[pnum]].velocity[i] - vel[i]);
 		}
 		CL_CatagorizePosition(pnum);
@@ -1137,6 +1146,7 @@ fixedorg:
 out:
 	CL_CalcCrouch (pnum, stepheight);
 	cl.waterlevel[pnum] = pmove.waterlevel;
+	VectorCopy(pmove.gravitydir, cl.playerview[pnum].gravitydir);
 }
 
 void CL_PredictMove (void)

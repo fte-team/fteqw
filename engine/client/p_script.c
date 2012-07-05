@@ -192,6 +192,7 @@ typedef struct part_type_s {
 	float veladd;		//scale the incoming velocity by this much
 	float orgadd;		//spawn the particle this far along its velocity direction
 	float spawnvel, spawnvelvert; //spawn the particle with a velocity based upon its spawn type (generally so it flies outwards)
+	vec3_t orgbias;		//static 3d world-coord bias
 
 	float s1, t1, s2, t2;	//texture coords
 	float texsstride;	//addition for s for each random slot.
@@ -251,6 +252,8 @@ typedef struct part_type_s {
 	float dl_radius;
 	float dl_time;
 	vec4_t dl_decay;
+	//PT_NODLSHADOW
+	int dl_cubemapnum;
 	vec3_t stain_rgb;
 	float stain_radius;
 
@@ -275,6 +278,9 @@ typedef struct part_type_s {
 #define PT_NOSTATE       0x040 // don't use trailstate for this emitter (careful with assoc...)
 #define PT_NOSPREADFIRST 0x080 // don't randomize org/vel for first generated particle
 #define PT_NOSPREADLAST  0x100 // don't randomize org/vel for last generated particle
+#define PT_TROVERWATER   0x200 // don't spawn if underwater
+#define PT_TRUNDERWATER  0x400 // don't spawn if overwater
+#define PT_NODLSHADOW    0x800 // dlights from this effect don't cast shadows.
 
 	unsigned int state;
 #define PS_INRUNLIST 0x1 // particle type is currently in execution list
@@ -516,7 +522,7 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 	for (i = 0; i < ptype->nummodels; i++)
 		ptype->models[i].model = NULL;
 
-	if (*ptype->texname)
+	if (*ptype->texname && ptype->looks.blendmode == BM_BLEND)
 	{
 		/*try and load the shader, fail if we would need to generate one*/
 		ptype->looks.shader = R_RegisterCustom(ptype->texname, NULL, NULL);
@@ -586,7 +592,7 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 					"nomipmaps\n"
 					"{\n"
 						"map $diffuse\n"
-						"blendfunc GL_ZERO GL_ONE_MINUS_SRC_COLOR\n"
+						"blendfunc GL_ZERO GL_ONE_MINUS_SRC_ALPHA\n"
 						"rgbgen vertex\n"
 						"alphagen vertex\n"
 					"}\n"
@@ -1520,6 +1526,18 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 
 		Q_strncatz(outstr, va("rotationstart %g %g\n", ptype->rotationstartmin*180/M_PI, (ptype->rotationstartmin+ptype->rotationstartrand)*180/M_PI), outstrlen);
 		Q_strncatz(outstr, va("rotationspeed %g %g\n", ptype->rotationmin*180/M_PI, (ptype->rotationmin+ptype->rotationrand)*180/M_PI), outstrlen);
+
+		if (ptype->dl_radius)
+		{
+			Q_strncatz(outstr, va("lightradius %g %g\n", ptype->dl_radius), outstrlen);
+			Q_strncatz(outstr, va("lightradiusfade %g \n", ptype->dl_decay[3]), outstrlen);
+			Q_strncatz(outstr, va("lightrgb %g %g %g\n", ptype->dl_rgb[0], ptype->dl_rgb[1], ptype->dl_rgb[2]), outstrlen);
+			Q_strncatz(outstr, va("lightrgbfade %g %g %g\n", ptype->dl_decay[0], ptype->dl_decay[1], ptype->dl_decay[2]), outstrlen);
+			Q_strncatz(outstr, va("lighttime %g\n", ptype->dl_time), outstrlen);
+			Q_strncatz(outstr, va("lightshadows %g\n", (ptype->flags & PT_NODLSHADOW)?0.0f:1.0f), outstrlen);
+			Q_strncatz(outstr, va("lightcubemap %i\n", ptype->dl_cubemapnum), outstrlen);
+		}
+
 		return true;
 
 #if 0
@@ -1569,10 +1587,6 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 	float clipbounce;
 	int stainonimpact;
 
-	vec3_t dl_rgb;
-	float dl_radius;
-	float dl_time;
-	vec4_t dl_decay;
 	vec3_t stain_rgb;
 	float stain_radius;
 
@@ -1598,6 +1612,36 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 	}
 
 	return false;
+}
+
+static void P_ExportAllEffects_f(void)
+{
+	char effect[8192];
+	int i;
+	vfsfile_t *outf;
+	char fname[64] = "particles/export.cfg";
+	FS_CreatePath("particles/", FS_GAMEONLY);
+	outf = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
+	if (!outf)
+	{
+		FS_NativePath(fname, FS_GAMEONLY, effect, sizeof(effect));
+		Con_Printf("Unable to open file %s\n", effect);
+		return;
+	}
+	for (i = 0; i < numparticletypes; i++)
+	{
+		PScript_Query(i, 0, effect, sizeof(effect));
+		VFS_PUTS(outf, "r_part ");
+		VFS_PUTS(outf, effect);
+		VFS_PUTS(outf, "\n{\n");
+		PScript_Query(i, 1, effect, sizeof(effect));
+		VFS_PUTS(outf, effect);
+		VFS_PUTS(outf, "}\n");
+	}
+	VFS_CLOSE(outf);
+
+	FS_NativePath(fname, FS_GAMEONLY, effect, sizeof(effect));
+	Con_Printf("Written %s\n", effect);
 }
 
 #if _DEBUG
@@ -1751,6 +1795,8 @@ static void P_ImportEffectInfo_f(void)
 
 			if (ptype)
 			{
+				if (ptype->looks.type == PT_CDECAL)
+					ptype->scale *= 0.25;
 				FinishParticleType(ptype);
 			}
 
@@ -1780,7 +1826,7 @@ static void P_ImportEffectInfo_f(void)
 			ptype->alpharand = 1;
 			ptype->alphachange = -1;
 			ptype->die = 9999;
-			strcpy(ptype->texname, "particles/particlefont.tga");
+			strcpy(ptype->texname, "particles/particlefont");
 			ptype->rgb[0] = 1;
 			ptype->rgb[1] = 1;
 			ptype->rgb[2] = 1;
@@ -1845,17 +1891,19 @@ static void P_ImportEffectInfo_f(void)
 			{
 				ptype->looks.type = PT_NORMAL;
 				ptype->looks.blendmode = BM_INVMOD;
+				ptype->gravity = 800*1;
 			}
 			else if (!strcmp(arg[1], "beam"))
 			{
 				ptype->looks.type = PT_BEAM;
 				ptype->looks.blendmode = BM_ADD;
 			}
-//			else if (!strcmp(arg[1], "snow"))
-//			{
-//				ptype->looks.type = PT_NORMAL;
-//				ptype->looks.blendmode = BM_BLEND;
-//			}
+			else if (!strcmp(arg[1], "snow"))
+			{
+				ptype->looks.type = PT_NORMAL;
+				ptype->looks.blendmode = BM_ADD;
+				//should have some sort of wind/flutter with it
+			}
 			else
 			{
 				Con_Printf("effectinfo type %s not supported\n", arg[1]);
@@ -1878,11 +1926,11 @@ static void P_ImportEffectInfo_f(void)
 		else if (!strcmp(arg[0], "size") && args == 3)
 		{
 			float s1 = atof(arg[1]), s2 = atof(arg[2]);
-			ptype->scale = s1;
-			ptype->scalerand = s2-s1;
+			ptype->scale = s1 * 4;
+			ptype->scalerand = (s2-s1) * 4;
 		}
 		else if (!strcmp(arg[0], "sizeincrease") && args == 2)
-			ptype->scaledelta = atof(arg[1]);
+			ptype->scaledelta = atof(arg[1]) * 4;
 		else if (!strcmp(arg[0], "color") && args == 3)
 		{
 			unsigned int rgb1 = strtoul(arg[1], NULL, 0), rgb2 = strtoul(arg[2], NULL, 0);
@@ -1890,7 +1938,8 @@ static void P_ImportEffectInfo_f(void)
 			for (i = 0; i < 3; i++)
 			{
 				ptype->rgb[i] = ((rgb1>>(16-i*8)) & 0xff)/255.0;
-				ptype->rgbrandsync[i] = (((rgb2>>(16-i*8)) & 0xff) - ((rgb1>>(16-i*8)) & 0xff))/255.0;
+				ptype->rgbrand[i] = (int)(((rgb2>>(16-i*8)) & 0xff) - ((rgb1>>(16-i*8)) & 0xff))/255.0;
+				ptype->rgbrandsync[i] = 1;
 			}
 		}
 		else if (!strcmp(arg[0], "alpha") && args == 4)
@@ -1908,7 +1957,11 @@ static void P_ImportEffectInfo_f(void)
 			ptype->spawnvelvert = atof(arg[3]);
 		}
 		else if (!strcmp(arg[0], "originoffset") && args == 4)
-			; /*a 3d world-coord addition*/
+		{	/*a 3d world-coord addition*/
+			ptype->orgbias[0] = atof(arg[1]);
+			ptype->orgbias[1] = atof(arg[2]);
+			ptype->orgbias[2] = atof(arg[3]);
+		}
 		else if (!strcmp(arg[0], "originjitter") && args == 4)
 		{
 			ptype->areaspread = (atof(arg[1]) + atof(arg[2]))*0.5;
@@ -1928,19 +1981,11 @@ static void P_ImportEffectInfo_f(void)
 		else if (!strcmp(arg[0], "liquidfriction") && args == 2)
 			;
 		else if (!strcmp(arg[0], "underwater") && args == 1)
-			;
+			ptype->flags |= PT_TRUNDERWATER;
 		else if (!strcmp(arg[0], "notunderwater") && args == 1)
-			;
+			ptype->flags |= PT_TROVERWATER;
 		else if (!strcmp(arg[0], "velocitymultiplier") && args == 2)
 			ptype->veladd = atof(arg[1]);
-		else if (!strcmp(arg[0], "lightradius") && args == 2)
-			;
-		else if (!strcmp(arg[0], "lightradiusfade") && args == 2)
-			;
-		else if (!strcmp(arg[0], "lightcolor") && args == 4)
-			;
-		else if (!strcmp(arg[0], "lighttime") && args == 2)
-			;
 		else if (!strcmp(arg[0], "trailspacing") && args == 2)
 			ptype->count = 1 / atof(arg[1]);
 		else if (!strcmp(arg[0], "time") && args == 3)
@@ -1955,15 +2000,47 @@ static void P_ImportEffectInfo_f(void)
 		}
 		else if (!strcmp(arg[0], "stretchfactor") && args == 2)
 			ptype->looks.stretch = atof(arg[1]);
-#if 0
 		else if (!strcmp(arg[0], "blend") && args == 2)
-			; /*overrides blendmode*/
+		{
+			if (!strcmp(arg[1], "invmod"))
+				ptype->looks.blendmode = BM_INVMOD;
+			else if (!strcmp(arg[1], "alpha"))
+				ptype->looks.blendmode = BM_BLEND;
+			else if (!strcmp(arg[1], "add"))
+				ptype->looks.blendmode = BM_ADD;
+			else
+				Con_Printf("effectinfo 'blend %s' not supported\n", arg[1]);
+		}
 		else if (!strcmp(arg[0], "orientation") && args == 2)
-			; /*overrides type*/
+		{
+//			if (!strcmp(arg[1], "billboard"))
+//				;
+//			else if (!strcmp(arg[1], "spark"))
+//				;
+//			else if (!strcmp(arg[1], "oriented"))
+//				;
+//			else if (!strcmp(arg[1], "beam"))
+//				;
+//			else
+				Con_Printf("effectinfo 'orientation %s' not supported\n", arg[1]);
+		}
+		else if (!strcmp(arg[0], "lightradius") && args == 2)
+			ptype->dl_radius = atof(arg[1]);
+		else if (!strcmp(arg[0], "lightradiusfade") && args == 2)
+			ptype->dl_decay[3] = atof(arg[1]);
+		else if (!strcmp(arg[0], "lightcolor") && args == 4)
+		{
+			ptype->dl_rgb[0] = atof(arg[1]);
+			ptype->dl_rgb[1] = atof(arg[2]);
+			ptype->dl_rgb[2] = atof(arg[3]);
+		}
+		else if (!strcmp(arg[0], "lighttime") && args == 2)
+			ptype->dl_time = atof(arg[1]);
 		else if (!strcmp(arg[0], "lightshadow") && args == 2)
-			;
+			ptype->flags = (ptype->flags & ~PT_NODLSHADOW) | (!atoi(arg[1])?PT_NODLSHADOW:0);
 		else if (!strcmp(arg[0], "lightcubemapnum") && args == 2)
-			;
+			ptype->dl_cubemapnum = atoi(arg[1]);
+#if 0
 		else if (!strcmp(arg[0], "staincolor") && args == 2)
 			;
 		else if (!strcmp(arg[0], "stainalpha") && args == 2)
@@ -1986,6 +2063,8 @@ static void P_ImportEffectInfo_f(void)
 
 	if (ptype)
 	{
+		if (ptype->looks.type == PT_CDECAL)
+			ptype->scale *= 0.25;
 		FinishParticleType(ptype);
 	}
 
@@ -2044,6 +2123,7 @@ static qboolean PScript_InitParticles (void)
 
 	Cmd_AddCommand("r_exportbuiltinparticles", P_ExportBuiltinSet_f);
 	Cmd_AddCommand("r_importeffectinfo", P_ImportEffectInfo_f);
+	Cmd_AddCommand("r_exportalleffects", P_ExportAllEffects_f);
 
 #if _DEBUG
 	Cmd_AddCommand("r_partinfo", P_PartInfo_f);
@@ -2860,6 +2940,10 @@ static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t dir, in
 		dl->channelfade[1] = ptype->dl_decay[1];
 		dl->channelfade[2] = ptype->dl_decay[2];
 		dl->decay =          ptype->dl_decay[3];
+		if (ptype->flags & PT_NODLSHADOW)
+			dl->flags |= LFLAG_NOSHADOWS;
+		if (ptype->dl_cubemapnum)
+			snprintf(dl->cubemapname, sizeof(dl->cubemapname), "cubemaps/%i", ptype->dl_cubemapnum);
 	}
 	if (ptype->stain_radius)
 		R_AddStain(org, ptype->stain_rgb[0], ptype->stain_rgb[1], ptype->stain_rgb[2], ptype->stain_radius);
@@ -2891,7 +2975,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 		int cont;
 		cont = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, org);
 
-		if (cont & FTECONTENTS_WATER)
+		if (cont & FTECONTENTS_FLUID)
 			ptype = &part_type[ptype->inwater];
 	}
 
@@ -3388,6 +3472,8 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 				p->org[2] -= ptype->orgadd;
 			}
 
+			VectorAdd(p->org, ptype->orgbias, p->org);
+
 			p->die = particletime + ptype->die - p->die;
 		}
 
@@ -3702,6 +3788,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 	beamseg_t   *b;
 	beamseg_t   *bfirst;
 	trailstate_t *ts;
+	int count;
 
 	float veladd = -ptype->veladd;
 	float randvel = ptype->randomvel;
@@ -3749,6 +3836,17 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 			P_ParticleTrail(start, end, ptype->assoc, dlkey, &(ts->assoc));
 		else
 			P_ParticleTrail(start, end, ptype->assoc, dlkey, NULL);
+	}
+
+	if (r_part_contentswitch.ival && (ptype->flags & (PT_TRUNDERWATER | PT_TROVERWATER)) && cl.worldmodel)
+	{
+		int cont;
+		cont = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, startpos);
+
+		if ((ptype->flags & PT_TROVERWATER) && (cont & FTECONTENTS_FLUID))
+			return;
+		if ((ptype->flags & PT_TRUNDERWATER) && !(cont & FTECONTENTS_FLUID))
+			return;
 	}
 
 	// time limit for trails
@@ -3835,7 +3933,17 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 
 	b = bfirst = NULL;
 
-	while (len < stop)
+	if (len < stop)
+		count = (stop-len) / step;
+	else
+	{
+		count = 0;
+		step = 0;
+		VectorClear(vstep);
+	}
+	count += ptype->countextra;
+
+	while (count-->0)//len < stop)
 	{
 		len += step;
 
@@ -4086,6 +4194,7 @@ static void P_ParticleTrailDraw (vec3_t startpos, vec3_t end, part_type_t *ptype
 				p->org[1] += vec[1]*ptype->orgadd;
 				p->org[2] += vec[2]*ptype->orgadd;
 			}
+			VectorAdd(p->org, ptype->orgbias, p->org);
 		}
 
 		VectorAdd (start, vstep, start);
@@ -4178,12 +4287,12 @@ static int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, int dlk
 		return 1;
 
 	// inwater check, switch only once
-	if (r_part_contentswitch.ival && ptype->inwater >= 0)
+	if (r_part_contentswitch.ival && ptype->inwater >= 0 && cl.worldmodel)
 	{
 		int cont;
 		cont = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, startpos);
 
-		if (cont & FTECONTENTS_WATER)
+		if (cont & FTECONTENTS_FLUID)
 			ptype = &part_type[ptype->inwater];
 	}
 

@@ -96,18 +96,60 @@ void RMod_UpdateLightmap(int snum)
 #endif
 
 
+void RMod_BatchList_f(void)
+{
+	int m, i;
+	model_t *mod;
+	batch_t *batch;
+	unsigned int count;
+	for (m=0 , mod=mod_known ; m<mod_numknown ; m++, mod++)
+	{
+		if (mod->type == mod_brush && !mod->needload)
+		{
+			Con_Printf("%s:\n", mod->name);
+			count = 0;
+			for (i = 0; i < SHADER_SORT_COUNT; i++)
+			{
+				for (batch = mod->batches[i]; batch; batch = batch->next)
+				{
+					if (batch->lightmap[3] >= 0)
+						Con_Printf("%s lm=(%i:%i %i:%i %i:%i %i:%i) surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->lightstyle[0], batch->lightmap[1], batch->lightstyle[1], batch->lightmap[2], batch->lightstyle[2], batch->lightmap[3], batch->lightstyle[3], batch->maxmeshes);
+					else if (batch->lightmap[2] >= 0)
+						Con_Printf("%s lm=(%i:%i %i:%i %i:%i) surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->lightstyle[0], batch->lightmap[1], batch->lightstyle[1], batch->lightmap[2], batch->lightstyle[2], batch->maxmeshes);
+					else if (batch->lightmap[1] >= 0)
+						Con_Printf("%s lm=(%i:%i %i:%i) surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->lightstyle[0], batch->lightmap[1], batch->lightstyle[1], batch->maxmeshes);
+					else if (batch->lightstyle[0] != 255)
+						Con_Printf("%s lm=(%i:%i) surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->lightstyle[0], batch->maxmeshes);
+					else
+						Con_Printf("%s lm=%i surfs=%u\n", batch->texture->shader->name, batch->lightmap[0], batch->maxmeshes);
+					count++;
+				}
+			}
+			Con_Printf("%u\n", count);
+		}
+	}
+}
+
 void RMod_TextureList_f(void)
 {
 	int m, i;
 	texture_t *tx;
 	model_t *mod;
-	qboolean shownmodelname;
+	qboolean shownmodelname = false;
+	int count = 0;
 	for (m=0 , mod=mod_known ; m<mod_numknown ; m++, mod++)
 	{
+		if (shownmodelname)
+			Con_Printf("%u\n", count);
+		shownmodelname = false;
+
 		if (mod->type == mod_brush && !mod->needload)
 		{
 			if (*mod->name == '*')
 				continue;//	inlines don't count
+			if (shownmodelname)
+				Con_Printf("%u\n", count);
+			count = 0;
 			shownmodelname = false;
 			for (i = 0; i < mod->numtextures; i++)
 			{
@@ -119,12 +161,16 @@ void RMod_TextureList_f(void)
 				{
 					shownmodelname = true;
 					Con_Printf("%s\n", mod->name);
+					count = 0;
 				}
 
 				Con_Printf("%s\n", tx->name);
+				count++;
 			}
 		}
 	}
+	if (shownmodelname)
+		Con_Printf("%u\n", count);
 }
 
 void RMod_BlockTextureColour_f (void)
@@ -378,6 +424,7 @@ void RMod_Init (void)
 	mod_numknown = 0;
 	Q1BSP_Init();
 
+	Cmd_AddCommand("mod_batchlist", RMod_BatchList_f);
 	Cmd_AddCommand("mod_texturelist", RMod_TextureList_f);
 	Cmd_AddCommand("mod_usetexture", RMod_BlockTextureColour_f);
 }
@@ -387,6 +434,7 @@ void RMod_Shutdown (void)
 	RMod_ClearAll();
 	mod_numknown = 0;
 
+	Cmd_RemoveCommand("mod_batchlist");
 	Cmd_RemoveCommand("mod_texturelist");
 	Cmd_RemoveCommand("mod_usetexture");
 }
@@ -1088,9 +1136,10 @@ void RMod_LoadMiptex(texture_t *tx, miptex_t *mt, texnums_t *tn, int maps)
 				if (!TEXVALID(tn->base))
 				{
 					tn->base = R_LoadReplacementTexture(mt->name, "bmodels", alphaed?0:IF_NOALPHA);
-					if (!TEXVALID(tn->base))
+					if (base && !TEXVALID(tn->base))
 						tn->base = R_LoadTexture32 (mt->name, tx->width, tx->height, (unsigned int *)base, (alphaed?0:IF_NOALPHA));
 				}
+				BZ_Free(base);
 			}
 
 			*tx->name = *mt->name;
@@ -1410,7 +1459,7 @@ void RMod_NowLoadExternal(void)
 
 			data = W_GetTexture(tx->name, &width, &height, &alphaed);
 			if (data)
-			{	//data is from temp hunk, so no need to free.
+			{
 				tx->alphaed = alphaed;
 			}
 
@@ -1421,6 +1470,7 @@ void RMod_NowLoadExternal(void)
 //				if (!TEXVALID(tn.base))
 //					tn.base = R_LoadReplacementTexture("light1_4", NULL, IF_NOALPHA|IF_MIPCAP);	//a fallback. :/
 			}
+			BZ_Free(data);
 		}
 		if (!TEXVALID(tn.bump) && *tx->name != '{' && r_loadbumpmapping)
 		{
@@ -2110,7 +2160,7 @@ void CalcSurfaceExtents (msurface_t *s);
 Mod_LoadFaces
 =================
 */
-qboolean RMod_LoadFaces (lump_t *l, qboolean lm)
+qboolean RMod_LoadFaces (lump_t *l, qboolean lm, mesh_t **meshlist)
 {
 	dsface_t		*ins;
 	dlface_t		*inl;
@@ -2143,6 +2193,7 @@ qboolean RMod_LoadFaces (lump_t *l, qboolean lm)
 	}
 	out = Hunk_AllocName ( count*sizeof(*out), loadname);	
 
+	*meshlist = Hunk_AllocName(count*sizeof(**meshlist), loadname);
 	loadmodel->surfaces = out;
 	loadmodel->numsurfaces = count;
 	for ( surfnum=0 ; surfnum<count ; surfnum++, out++)
@@ -2171,6 +2222,8 @@ qboolean RMod_LoadFaces (lump_t *l, qboolean lm)
 			lofs = LittleLong(ins->lightofs);
 			ins++;
 		}
+//		(*meshlist)[surfnum].vbofirstvert = out->firstedge;
+//		(*meshlist)[surfnum].numvertexes = out->numedges;
 		out->flags = 0;
 
 		if (side)
@@ -2232,6 +2285,499 @@ qboolean RMod_LoadFaces (lump_t *l, qboolean lm)
 	}
 
 	return true;
+}
+
+void RModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, void *cookie)
+{
+	int i, lindex;
+	mesh_t *mesh = surf->mesh;
+	medge_t *pedge;
+	float *vec;
+	float s, t, d;
+	int sty;
+
+	//output the mesh's indicies
+	for (i=0 ; i<mesh->numvertexes-2 ; i++)
+	{
+		mesh->indexes[i*3] = 0;
+		mesh->indexes[i*3+1] = i+1;
+		mesh->indexes[i*3+2] = i+2;
+	}
+	//output the renderable verticies
+	for (i=0 ; i<mesh->numvertexes ; i++)
+	{
+		lindex = mod->surfedges[surf->firstedge + i];
+
+		if (lindex > 0)
+		{
+			pedge = &mod->edges[lindex];
+			vec = mod->vertexes[pedge->v[0]].position;
+		}
+		else
+		{
+			pedge = &mod->edges[-lindex];
+			vec = mod->vertexes[pedge->v[1]].position;
+		}
+
+		s = DotProduct (vec, surf->texinfo->vecs[0]) + surf->texinfo->vecs[0][3];
+		t = DotProduct (vec, surf->texinfo->vecs[1]) + surf->texinfo->vecs[1][3];
+
+		VectorCopy (vec, mesh->xyz_array[i]);
+		mesh->st_array[i][0] = s/surf->texinfo->texture->width;
+		mesh->st_array[i][1] = t/surf->texinfo->texture->height;
+
+		for (sty = 0; sty < 1; sty++)
+		{
+			mesh->lmst_array[sty][i][0] = (s - surf->texturemins[0] + (surf->light_s[sty]*16) + 8) / (mod->lightmaps.width*16);
+			mesh->lmst_array[sty][i][1] = (t - surf->texturemins[1] + (surf->light_t[sty]*16) + 8) / (mod->lightmaps.height*16);
+		}
+
+		//figure out the texture directions, for bumpmapping and stuff
+		if (surf->flags & SURF_PLANEBACK)
+			VectorNegate(surf->plane->normal, mesh->normals_array[i]);
+		else
+			VectorCopy(surf->plane->normal, mesh->normals_array[i]);
+		VectorNegate(surf->texinfo->vecs[0], mesh->snormals_array[i]);
+		VectorNegate(surf->texinfo->vecs[1], mesh->tnormals_array[i]);
+		//the s+t vectors are axis-aligned, so fiddle them so they're normal aligned instead
+		d = -DotProduct(mesh->normals_array[i], mesh->snormals_array[i]);
+		VectorMA(mesh->snormals_array[i], d, mesh->normals_array[i], mesh->snormals_array[i]);
+		d = -DotProduct(mesh->normals_array[i], mesh->tnormals_array[i]);
+		VectorMA(mesh->tnormals_array[i], d, mesh->normals_array[i], mesh->tnormals_array[i]);
+		VectorNormalize(mesh->snormals_array[i]);
+		VectorNormalize(mesh->tnormals_array[i]);
+
+		//q1bsp has no colour information (fixme: sample from the lightmap)
+		mesh->colors4f_array[i][0] = 1;
+		mesh->colors4f_array[i][1] = 1;
+		mesh->colors4f_array[i][2] = 1;
+		mesh->colors4f_array[i][3] = 1;
+	}
+}
+
+static void RMod_Batches_BuildModelMeshes(model_t *mod, int maxverts, int maxindicies, void (*build)(model_t *mod, msurface_t *surf, void *cookie), void *buildcookie)
+{
+	batch_t *batch;
+	msurface_t *surf;
+	mesh_t *mesh;
+	int numverts = 0;
+	int numindicies = 0;
+	int j;
+	int sortid;
+	int sty;
+	vbo_t vbo;
+	int styles = MAXLIGHTMAPS;
+
+	vbo.indicies.dummy = Hunk_AllocName(sizeof(index_t) * maxindicies, "indexdata");
+	vbo.coord.dummy = Hunk_AllocName((sizeof(vecV_t)+sizeof(vec2_t)*(1+styles)+sizeof(vec3_t)*3+sizeof(vec4_t))* maxverts, "vertdata");
+	vbo.texcoord.dummy = (vecV_t*)vbo.coord.dummy + maxverts;
+	vbo.lmcoord[0].dummy = (vec2_t*)vbo.texcoord.dummy + maxverts;
+	for (sty = 1; sty < styles; sty++)
+		vbo.lmcoord[sty].dummy = (vec2_t*)vbo.lmcoord[sty-1].dummy + maxverts;
+	vbo.normals.dummy = (vec2_t*)vbo.lmcoord[styles-1].dummy + maxverts;
+	vbo.svector.dummy = (vec3_t*)vbo.normals.dummy + maxverts;
+	vbo.tvector.dummy = (vec3_t*)vbo.svector.dummy + maxverts;
+	vbo.colours.dummy = (vec3_t*)vbo.tvector.dummy + maxverts;
+
+	numindicies = 0;
+	numverts = 0;
+
+	//build each mesh
+	for (sortid=0; sortid<SHADER_SORT_COUNT; sortid++)
+	{
+		for (batch = mod->batches[sortid]; batch; batch = batch->next)
+		{
+			for (j = 0; j < batch->maxmeshes; j++)
+			{
+				surf = (msurface_t*)batch->mesh[j];
+				mesh = surf->mesh;
+				batch->mesh[j] = mesh;
+
+				mesh->vbofirstvert = numverts;
+				mesh->vbofirstelement = numindicies;
+				numverts += mesh->numvertexes;
+				numindicies += mesh->numindexes;
+
+				//set up the arrays. the arrangement is required for the backend to optimise vbos
+				mesh->xyz_array = (vecV_t*)vbo.coord.dummy + mesh->vbofirstvert;
+				mesh->st_array = (vec2_t*)vbo.texcoord.dummy + mesh->vbofirstvert;
+				for (sty = 0; sty < styles; sty++)
+					mesh->lmst_array[sty] = (vec2_t*)vbo.lmcoord[sty].dummy + mesh->vbofirstvert;
+				for (       ; sty < MAXLIGHTMAPS; sty++)
+					mesh->lmst_array[sty] = NULL;
+				mesh->normals_array = (vec3_t*)vbo.normals.dummy + mesh->vbofirstvert;
+				mesh->snormals_array = (vec3_t*)vbo.svector.dummy + mesh->vbofirstvert;
+				mesh->tnormals_array = (vec3_t*)vbo.tvector.dummy + mesh->vbofirstvert;
+				mesh->colors4f_array = (vec4_t*)vbo.colours.dummy + mesh->vbofirstvert;
+				mesh->indexes = (index_t*)vbo.indicies.dummy + mesh->vbofirstelement;
+
+				mesh->vbofirstvert = 0;
+				mesh->vbofirstelement = 0;
+
+				build(mod, surf, buildcookie);
+			}
+			batch->meshes = 0;
+			batch->firstmesh = 0;
+		}
+	}
+}
+
+/*
+batch->firstmesh is set only in and for this function, its cleared out elsewhere
+*/
+static void RMod_Batches_Generate(model_t *mod)
+{
+	int i;
+	msurface_t *surf;
+	shader_t *shader;
+	int sortid;
+	batch_t *batch, *lbatch = NULL;
+	vec4_t plane;
+
+	//for each surface, find a suitable batch to insert it into.
+	//we use 'firstmesh' to avoid chucking out too many verts in a single vbo (gl2 hardware tends to have a 16bit limit)
+	for (i=0; i<mod->nummodelsurfaces; i++)
+	{
+		surf = mod->surfaces + mod->firstmodelsurface + i;
+		shader = surf->texinfo->texture->shader;
+
+		if (shader)
+		{
+			sortid = shader->sort;
+
+			//shaders that are portals need to be split into separate batches to have the same surface planes
+			if (sortid == SHADER_SORT_PORTAL || (shader->flags & (SHADER_HASREFLECT | SHADER_HASREFRACT)))
+			{
+				if (surf->flags & SURF_PLANEBACK)
+				{
+					VectorNegate(surf->plane->normal, plane);
+					plane[3] = -surf->plane->dist;
+				}
+				else
+				{
+					VectorCopy(surf->plane->normal, plane);
+					plane[3] = surf->plane->dist;
+				}
+			}
+			else
+			{
+				VectorClear(plane);
+				plane[3] = 0;
+			}
+		}
+		else
+		{
+			sortid = SHADER_SORT_OPAQUE;
+			VectorClear(plane);
+			plane[3] = 0;
+		}
+
+		if (lbatch && (lbatch->texture == surf->texinfo->texture && lbatch->lightmap[0] == surf->lightmaptexturenums[0] && Vector4Compare(plane, lbatch->plane) && lbatch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES) &&
+																	lbatch->lightmap[1] == surf->lightmaptexturenums[1] &&
+																	lbatch->lightmap[2] == surf->lightmaptexturenums[2] &&
+																	lbatch->lightmap[3] == surf->lightmaptexturenums[3])
+			batch = lbatch;
+		else
+		{
+			for (batch = mod->batches[sortid]; batch; batch = batch->next)
+			{
+				if (batch->texture == surf->texinfo->texture && batch->lightmap[0] == surf->lightmaptexturenums[0] && Vector4Compare(plane, batch->plane) && batch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES &&
+																batch->lightmap[1] == surf->lightmaptexturenums[1] &&
+																batch->lightmap[2] == surf->lightmaptexturenums[2] &&
+																batch->lightmap[3] == surf->lightmaptexturenums[3])
+					break;
+			}
+		}
+		if (!batch)
+		{
+			batch = Hunk_AllocName(sizeof(*batch), "batch");
+			batch->lightmap[0] = surf->lightmaptexturenums[0];
+			batch->lightmap[1] = surf->lightmaptexturenums[1];
+			batch->lightmap[2] = surf->lightmaptexturenums[2];
+			batch->lightmap[3] = surf->lightmaptexturenums[3];
+			batch->texture = surf->texinfo->texture;
+			batch->next = mod->batches[sortid];
+			batch->ent = &r_worldentity;
+			Vector4Copy(plane, batch->plane);
+
+			mod->batches[sortid] = batch;
+		}
+
+		surf->sbatch = batch;	//let the surface know which batch its in
+		batch->maxmeshes++;
+		batch->firstmesh += surf->mesh->numvertexes;
+
+		lbatch = batch;
+	}
+}
+
+typedef struct
+{
+	int allocated[LMBLOCK_WIDTH];
+	int lmnum;
+} lmalloc_t;
+static void RMod_LightmapAllocInit(lmalloc_t *lmallocator)
+{
+	memset(lmallocator, 0, sizeof(*lmallocator));
+}
+static void RMod_LightmapAllocDone(lmalloc_t *lmallocator, model_t *mod)
+{
+	mod->lightmaps.first = 1;
+	mod->lightmaps.count = lmallocator->lmnum;
+}
+static void RMod_LightmapAllocBlock(lmalloc_t *lmallocator, int w, int h, unsigned short *x, unsigned short *y, int *tnum)
+{
+	int best, best2;
+	int i, j;
+
+	if (!lmallocator->lmnum)
+		lmallocator->lmnum = 1;
+
+	for(;;)
+	{
+		best = LMBLOCK_HEIGHT;
+
+		for (i = 0; i <= LMBLOCK_WIDTH - w; i++)
+		{
+			best2 = 0;
+
+			for (j=0; j < w; j++)
+			{
+				if (lmallocator->allocated[i+j] >= best)
+					break;
+				if (lmallocator->allocated[i+j] > best2)
+					best2 = lmallocator->allocated[i+j];
+			}
+			if (j == w)
+			{	// this is a valid spot
+				*x = i;
+				*y = best = best2;
+			}
+		}
+
+		if (best + h > LMBLOCK_HEIGHT)
+		{
+			memset(lmallocator->allocated, 0, sizeof(lmallocator->allocated));
+			lmallocator->lmnum++;
+			continue;
+		}
+
+		for (i=0; i < w; i++)
+			lmallocator->allocated[*x + i] = best + h;
+
+		*tnum = lmallocator->lmnum;
+		break;
+	}
+}
+
+static void RMod_LightmapAllocSurf(lmalloc_t *lmallocator, msurface_t *surf, int surfstyle)
+{
+	int smax, tmax;
+	smax = (surf->extents[0]>>4)+1;
+	tmax = (surf->extents[1]>>4)+1;
+
+	if (isDedicated ||
+		(surf->texinfo->texture->shader && !(surf->texinfo->texture->shader->flags & SHADER_HASLIGHTMAP)) || //fte
+		(surf->flags & (SURF_DRAWSKY|SURF_DRAWTURB)) ||	//q1
+		(surf->texinfo->flags & TEX_SPECIAL) ||	//the original 'no lightmap'
+		(surf->texinfo->flags & (TI_SKY|TI_TRANS33|TI_TRANS66|TI_WARP)) ||	//q2 surfaces
+		smax > LMBLOCK_WIDTH || tmax > LMBLOCK_HEIGHT || smax < 0 || tmax < 0)	//bugs/bounds/etc
+	{
+		surf->lightmaptexturenums[surfstyle] = -1;
+		return;
+	}
+
+	RMod_LightmapAllocBlock (lmallocator, smax, tmax, &surf->light_s[surfstyle], &surf->light_t[surfstyle], &surf->lightmaptexturenums[surfstyle]);
+}
+
+static void RMod_Batches_SplitLightmaps(model_t *mod)
+{
+	batch_t *batch;
+	batch_t *nb;
+	int i, j, sortid;
+	msurface_t *surf;
+	int sty;
+
+
+	for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
+	for (batch = mod->batches[sortid]; batch != NULL; batch = batch->next)
+	{
+		surf = (msurface_t*)batch->mesh[0];
+		for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+		{
+			batch->lightmap[sty] = surf->lightmaptexturenums[sty];
+			batch->lightstyle[sty] = surf->styles[sty];
+		}
+
+		for (j = 1; j < batch->maxmeshes; j++)
+		{
+			surf = (msurface_t*)batch->mesh[j];
+			if (surf->lightmaptexturenums[0] != batch->lightmap[0] ||
+				surf->lightmaptexturenums[1] != batch->lightmap[1] ||
+				surf->lightmaptexturenums[2] != batch->lightmap[2] ||
+				surf->lightmaptexturenums[3] != batch->lightmap[3] ||
+				//fixme: we should merge later (reverted matching) surfaces into the prior batch
+				surf->styles[0] != batch->lightstyle[0] ||
+				surf->styles[1] != batch->lightstyle[1] ||
+				surf->styles[2] != batch->lightstyle[2] ||
+				surf->styles[3] != batch->lightstyle[3] )
+			{
+				nb = Hunk_AllocName(sizeof(*batch), "batch");
+				*nb = *batch;
+				batch->next = nb;
+
+				nb->mesh = batch->mesh + j*2;
+				nb->maxmeshes = batch->maxmeshes - j;
+				batch->maxmeshes = j;
+				for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+				{
+					nb->lightmap[sty] = surf->lightmaptexturenums[sty];
+					nb->lightstyle[sty] = surf->styles[sty];
+				}
+
+				memmove(nb->mesh, batch->mesh+j, sizeof(msurface_t*)*nb->maxmeshes);
+
+				for (i = 0; i < nb->maxmeshes; i++)
+				{
+					surf = (msurface_t*)nb->mesh[i];
+					surf->sbatch = nb;
+				}
+
+				batch = nb;
+				j = 1;
+			}
+		}
+	}
+}
+
+/*
+allocates lightmaps and splits batches upon lightmap boundaries
+*/
+static void RMod_Batches_AllocLightmaps(model_t *mod)
+{
+	batch_t *batch;
+	batch_t *nb;
+	lmalloc_t lmallocator;
+	int i, j, sortid;
+	msurface_t *surf;
+	int sty;
+
+	RMod_LightmapAllocInit(&lmallocator);
+
+	for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
+	for (batch = mod->batches[sortid]; batch != NULL; batch = batch->next)
+	{
+		surf = (msurface_t*)batch->mesh[0];
+		RMod_LightmapAllocSurf (&lmallocator, surf, 0);
+		for (sty = 1; sty < MAXLIGHTMAPS; sty++)
+			surf->lightmaptexturenums[sty] = -1;
+		for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+		{
+			batch->lightmap[sty] = surf->lightmaptexturenums[sty];
+			batch->lightstyle[sty] = 255;//don't do special backend rendering of lightstyles.
+		}
+
+		for (j = 1; j < batch->maxmeshes; j++)
+		{
+			surf = (msurface_t*)batch->mesh[j];
+			RMod_LightmapAllocSurf (&lmallocator, surf, 0);
+			for (sty = 1; sty < MAXLIGHTMAPS; sty++)
+				surf->lightmaptexturenums[sty] = -1;
+			if (surf->lightmaptexturenums[0] != batch->lightmap[0])
+			{
+				nb = Hunk_AllocName(sizeof(*batch), "batch");
+				*nb = *batch;
+				batch->next = nb;
+
+				nb->mesh = batch->mesh + j*2;
+				nb->maxmeshes = batch->maxmeshes - j;
+				batch->maxmeshes = j;
+				for (sty = 0; sty < MAXLIGHTMAPS; sty++)
+					nb->lightmap[sty] = surf->lightmaptexturenums[sty];
+
+				memmove(nb->mesh, batch->mesh+j, sizeof(msurface_t*)*nb->maxmeshes);
+
+				for (i = 0; i < nb->maxmeshes; i++)
+				{
+					surf = (msurface_t*)nb->mesh[i];
+					surf->sbatch = nb;
+				}
+
+				batch = nb;
+				j = 0;
+			}
+		}
+	}
+
+	RMod_LightmapAllocDone(&lmallocator, mod);
+}
+
+extern void Surf_CreateSurfaceLightmap (msurface_t *surf, int shift);
+//if build is NULL, uses q1/q2 surf generation, and allocates lightmaps
+void RMod_Batches_Build(mesh_t *meshlist, model_t *mod, void (*build)(model_t *mod, msurface_t *surf, void *cookie), void *buildcookie)
+{
+	int i;
+	int numverts = 0, numindicies=0;
+	msurface_t *surf;
+	mesh_t *mesh;
+	mesh_t **bmeshes;
+	int sortid;
+	batch_t *batch;
+
+	currentmodel = mod;
+
+	if (meshlist)
+		meshlist += mod->firstmodelsurface;
+	else if (!build)
+		meshlist = Hunk_Alloc(sizeof(mesh_t) * mod->nummodelsurfaces);
+
+	for (i=0; i<mod->nummodelsurfaces; i++)
+	{
+		surf = mod->surfaces + i + mod->firstmodelsurface;
+		if (meshlist)
+		{
+			mesh = surf->mesh = &meshlist[i];
+			mesh->numvertexes = surf->numedges;
+			mesh->numindexes = (surf->numedges-2)*3;
+		}
+		else
+			mesh = surf->mesh;
+
+		numverts += mesh->numvertexes;
+		numindicies += mesh->numindexes;
+//		surf->lightmaptexturenum = -1;
+	}
+
+	/*assign each mesh to a batch, generating as needed*/
+	RMod_Batches_Generate(mod);
+
+	bmeshes = Hunk_AllocName(sizeof(*bmeshes)*mod->nummodelsurfaces*2, "batchmeshes");
+
+	//we now know which batch each surface is in, and how many meshes there are in each batch.
+	//allocate the mesh-pointer-lists for each batch. *2 for recursion.
+	for (i = 0, sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
+	for (batch = mod->batches[sortid]; batch != NULL; batch = batch->next)
+	{
+		batch->mesh = bmeshes + i;
+		i += batch->maxmeshes*2;
+	}
+	//store the *surface* into the batch's mesh list (yes, this is an evil cast hack, but at least both are pointers)
+	for (i=0; i<mod->nummodelsurfaces; i++)
+	{
+		surf = mod->surfaces + mod->firstmodelsurface + i;
+		surf->sbatch->mesh[surf->sbatch->meshes++] = (mesh_t*)surf;
+	}
+	if (build)
+		RMod_Batches_SplitLightmaps(mod);
+	else
+		RMod_Batches_AllocLightmaps(mod);
+
+	if (!build)
+		build = RModQ1_Batches_BuildQ1Q2Poly;
+	RMod_Batches_BuildModelMeshes(mod, numverts, numindicies, build, buildcookie);
+
+	if (BE_GenBrushModelVBO)
+		BE_GenBrushModelVBO(mod);
 }
 
 
@@ -3181,6 +3727,7 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 	int start;
 	qboolean noerrors;
 	qboolean longm = false;
+	mesh_t *meshlist = NULL;
 #if (defined(ODE_STATIC) || defined(ODE_DYNAMIC))
 	qboolean ode = true;
 #else
@@ -3222,6 +3769,9 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 		Con_Printf (CON_ERROR "Mod_LoadBrushModel: %s has wrong version number (%i should be %i)\n", mod->name, i, BSPVERSION);
 		return false;
 	}
+
+	mod->lightmaps.width = LMBLOCK_WIDTH;
+	mod->lightmaps.height = LMBLOCK_HEIGHT; 
 
 // swap all the lumps
 	mod_base = (qbyte *)header;
@@ -3299,7 +3849,7 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 	if (!isDedicated || ode)
 	{
 		noerrors = noerrors && RMod_LoadTexinfo (&header->lumps[LUMP_TEXINFO]);
-		noerrors = noerrors && RMod_LoadFaces (&header->lumps[LUMP_FACES], longm);
+		noerrors = noerrors && RMod_LoadFaces (&header->lumps[LUMP_FACES], longm, &meshlist);
 	}
 	if (!isDedicated)
 		noerrors = noerrors && RMod_LoadMarksurfaces (&header->lumps[LUMP_MARKSURFACES], longm);	
@@ -3372,6 +3922,13 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 		mod->radius = RadiusFromBounds (mod->mins, mod->maxs);
 
 		mod->numleafs = bm->visleafs;
+
+		memset(&mod->batches, 0, sizeof(mod->batches));
+		mod->vbos = NULL;
+		if (meshlist)
+		{
+			RMod_Batches_Build(meshlist, mod, NULL, NULL);
+		}
 
 		if (i < mod->numsubmodels-1)
 		{	// duplicate the basic information

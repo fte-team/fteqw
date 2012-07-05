@@ -74,6 +74,7 @@ typedef struct
 	qboolean	jump_held;
 	int			jump_msec;		// hack for fixing bunny-hop flickering on non-ZQuake servers
 	vec3_t		szmins, szmaxs;
+	vec3_t		gravitydir;
 
 	float lerpstarttime;
 	int oldframe;
@@ -530,20 +531,64 @@ typedef struct
 	int			lerpentssequence;
 	lerpents_t	lerpplayers[MAX_CLIENTS];
 
-// information for local display
-	int			stats[MAX_SPLITS][MAX_CL_STATS];	// health, etc
-	float		statsf[MAX_SPLITS][MAX_CL_STATS];	// health, etc
-	char		*statsstr[MAX_SPLITS][MAX_CL_STATS];	// health, etc
-	float		item_gettime[MAX_SPLITS][32];	// cl.time of aquiring item, for blinking
-	float		faceanimtime[MAX_SPLITS];		// use anim frame if cl.time < this
-
 	cshift_t	cshifts[NUM_CSHIFTS];	// color shifts for damage, powerups and content types
 
-// the client maintains its own idea of view angles, which are
-// sent to the server each frame.  And only reset at level change
-// and teleport times
-	vec3_t		viewangles[MAX_SPLITS];
-	vec3_t		viewanglechange[MAX_SPLITS];
+	//when running splitscreen, we have multiple viewports all active at once
+	int			splitclients;	//we are running this many clients split screen.
+	struct playerview_s
+	{
+		// information for local display
+		int			stats[MAX_CL_STATS];	// health, etc
+		float		statsf[MAX_CL_STATS];	// health, etc
+		char		*statsstr[MAX_CL_STATS];	// health, etc
+		float		item_gettime[32];	// cl.time of aquiring item, for blinking
+		float		faceanimtime;		// use anim frame if cl.time < this
+
+
+	// the client maintains its own idea of view angles, which are
+	// sent to the server each frame.  And only reset at level change
+	// and teleport times
+		vec3_t		viewangles;
+		vec3_t		viewanglechange;
+		vec3_t		gravitydir;
+
+		// pitch drifting vars
+		float		pitchvel;
+		qboolean	nodrift;
+		float		driftmove;
+		double		laststop;
+
+		vec3_t		simorg;
+		vec3_t		simvel;
+		vec3_t		simangles;
+		float		rollangle;
+
+		qboolean	fixangle;		//received a fixangle - so disable prediction till the next packet.
+		qboolean	oldfixangle;	//received a fixangle - so disable prediction till the next packet.
+		vec3_t		fixangles;		//received a fixangle - so disable prediction till the next packet.
+		vec3_t		oldfixangles;	//received a fixangle - so disable prediction till the next packet.
+	} playerview[MAX_SPLITS];
+
+	float		crouch[MAX_SPLITS];			// local amount for smoothing stepups
+	qboolean	onground[MAX_SPLITS];
+	float		viewheight[MAX_SPLITS];
+
+	entity_t	viewent[MAX_SPLITS];		// weapon model
+	float		punchangle[MAX_SPLITS];		// temporary view kick from weapon firing
+
+	int			playernum[MAX_SPLITS];
+	qboolean	nolocalplayer[MAX_SPLITS];
+
+	#ifdef PEXT_SETVIEW
+	int viewentity[MAX_SPLITS];
+	#endif
+	int waterlevel[MAX_SPLITS];	//for smartjump
+
+	// localized movement vars
+	float		entgravity[MAX_SPLITS];
+	float		maxspeed[MAX_SPLITS];
+	float		bunnyspeedcap;
+	int pmovetype[MAX_SPLITS];
 
 // the client simulates or interpolates movement to get these values
 	double		time;			// this is the time value that the client
@@ -558,28 +603,10 @@ typedef struct
 	float oldgametime;		//used as the old time to lerp cl.time from.
 	float oldgametimemark;	//if it's 0, cl.time will casually increase.
 
-	vec3_t		simorg[MAX_SPLITS];
-	vec3_t		simvel[MAX_SPLITS];
-	vec3_t		simangles[MAX_SPLITS];
-	float		rollangle[MAX_SPLITS];
-
 	float minpitch;
 	float maxpitch;
 
-// pitch drifting vars
-	float		pitchvel[MAX_SPLITS];
-	qboolean	nodrift[MAX_SPLITS];
-	float		driftmove[MAX_SPLITS];
-	double		laststop[MAX_SPLITS];
-
-
-	float		crouch[MAX_SPLITS];			// local amount for smoothing stepups
-	qboolean	onground[MAX_SPLITS];
-	float		viewheight[MAX_SPLITS];
-
 	qboolean	paused;			// send over by server
-
-	float		punchangle[MAX_SPLITS];		// temporar yview kick from weapon firing
 
 	int			intermission;	// don't change view angle, full screen, etc
 	float		completed_time;	// latched ffrom time at intermission start
@@ -605,6 +632,14 @@ typedef struct
 
 	qboolean			model_precaches_added;
 
+	struct
+	{
+		int num;
+		char *name;
+	}					*particle_precache;
+	unsigned int		maxparticleprecaches;
+
+
 	//used for q2 sky/configstrings
 	char skyname[MAX_QPATH];
 	float skyrotate;
@@ -614,9 +649,6 @@ typedef struct
 	vec3_t		fog_colour;
 
 	char		levelname[40];	// for display on solo scoreboard
-	int			playernum[MAX_SPLITS];
-	qboolean	nolocalplayer[MAX_SPLITS];
-	int			splitclients;	//we are running this many clients split screen.
 
 // refresh related state
 	struct model_s	*worldmodel;	// cl_entitites[0].model
@@ -624,8 +656,6 @@ typedef struct
 	int			num_statics;	// stored top down in cl_entitiers
 
 	int			cdtrack;		// cd audio
-
-	entity_t	viewent[MAX_SPLITS];		// weapon model
 
 // all player information
 	unsigned int    allocated_client_slots;
@@ -635,12 +665,7 @@ typedef struct
 	downloadlist_t *downloadlist;
 	downloadlist_t *faileddownloads;
 
-#ifdef PEXT_SETVIEW
-	int viewentity[MAX_SPLITS];
-#endif
 	qboolean gamedirchanged;
-
-	int waterlevel[MAX_SPLITS];	//for smartjump
 
 	char		q2statusbar[1024];
 	char		q2layout[1024];
@@ -655,15 +680,6 @@ typedef struct
 	packet_entities_t	*currentpackentities;
 	float				currentpacktime;
 
-	// localized movement vars
-	float		entgravity[MAX_SPLITS];
-	float		maxspeed[MAX_SPLITS];
-	float		bunnyspeedcap;
-	qboolean	fixangle[MAX_SPLITS];		//received a fixangle - so disable prediction till the next packet.
-	qboolean	oldfixangle[MAX_SPLITS];	//received a fixangle - so disable prediction till the next packet.
-	vec3_t		fixangles[MAX_SPLITS];		//received a fixangle - so disable prediction till the next packet.
-	vec3_t		oldfixangles[MAX_SPLITS];	//received a fixangle - so disable prediction till the next packet.
-	int pmovetype[MAX_SPLITS];
 
 	int teamplay;
 	int deathmatch;
@@ -941,6 +957,7 @@ void CL_ParseQTVFile(vfsfile_t *f, const char *fname, qtvfile_t *result);
 extern int	packet_latency[NET_TIMINGS];
 int CL_CalcNet (void);
 void CL_ClearParseState(void);
+void CL_Parse_Disconnected(void);
 void CL_DumpPacket(void);
 void CL_ParseEstablished(void);
 void CLQW_ParseServerMessage (void);
@@ -1003,8 +1020,9 @@ void CL_ParseParticleEffect2 (void);
 void CL_ParseParticleEffect3 (void);
 void CL_ParseParticleEffect4 (void);
 
-void CLDP_ParseTrailParticles(void);
-void CLDP_ParsePointParticles(qboolean compact);
+int CL_TranslateParticleFromServer(int sveffect);
+void CL_ParseTrailParticles(void);
+void CL_ParsePointParticles(qboolean compact);
 void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, struct model_s *model, int startframe, int framecount, float framerate, float alpha, float randspin, float gravity);	/*called from the particlesystem*/
 
 //
@@ -1019,6 +1037,7 @@ void CL_ClearProjectiles (void);
 void CL_ParseProjectiles (int modelindex, qboolean nails2);
 void CL_ParsePacketEntities (qboolean delta);
 void CLFTE_ParseEntities (void);
+void CLFTE_ParseBaseline(entity_state_t *es, qboolean numberisimportant);
 void CL_SetSolidEntities (void);
 void CL_ParsePlayerinfo (void);
 void CL_ParseClientPersist(void);
@@ -1055,6 +1074,7 @@ char *CG_GetConfigString(int num);
 //
 #ifdef CSQC_DAT
 qboolean CSQC_Inited(void);
+void CSQC_RendererRestarted(void);
 qboolean CSQC_Init (qboolean anycsqc, unsigned int checksum);
 void CSQC_RegisterCvarsAndThings(void);
 qboolean CSQC_DrawView(void);
@@ -1218,6 +1238,20 @@ void CLQ2_ParseBaseline (void);
 void CLQ2_ParseFrame (void);
 void CLQ2_RunMuzzleFlash2 (int ent, int flash_number);
 int CLQ2_RegisterTEntModels (void);
+#endif
+
+#ifdef HLCLIENT
+//networking
+void CLHL_LoadClientGame(void);
+int CLHL_ParseGamePacket(void);
+int CLHL_AnimateViewEntity(entity_t *ent);
+//screen
+int CLHL_DrawHud(void);
+//inputs
+int CLHL_GamecodeDoesMouse(void);
+int CLHL_MouseEvent(unsigned int buttonmask);
+void CLHL_SetMouseActive(int activate);
+int CLHL_BuildUserInput(int msecs, usercmd_t *cmd);
 #endif
 
 #ifdef NQPROT

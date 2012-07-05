@@ -592,8 +592,8 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglActiveStencilFaceEXT = (void *) getglext("glActiveStencilFaceEXT");
 
 	/*not enabled - its only useful for shadow volumes, but (on nvidia) it affects the depth values even when not clamped which results in shadow z-fighting. best rely upon infinite projection matricies instead*/
-//	if (GL_CheckExtension("GL_ARB_depth_clamp") || GL_CheckExtension("GL_NV_depth_clamp"))
-//		gl_config.arb_depth_clamp = true;
+	if (GL_CheckExtension("GL_ARB_depth_clamp") || GL_CheckExtension("GL_NV_depth_clamp"))
+		gl_config.arb_depth_clamp = true;
 
 	if (GL_CheckExtension("GL_ARB_texture_compression"))
 	{
@@ -608,14 +608,14 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		else
 			gl_config.arb_texture_compression = true;
 	}
-
+/*
 	if (GL_CheckExtension("GL_EXT_depth_bounds_test"))
 		qglDepthBoundsEXT = (void *)getglext("glDepthBoundsEXT");
 	else if (GL_CheckExtension("GL_NV_depth_bounds_test"))
 		qglDepthBoundsEXT = (void *)getglext("glDepthBoundsNV");
 	else
 		qglDepthBoundsEXT = NULL;
-
+*/
 	if (GL_CheckExtension("GL_ATI_pn_triangles"))
 	{
 		qglPNTrianglesfATI = (void *)getglext("glPNTrianglesfATI");
@@ -666,10 +666,14 @@ void GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglUnmapBufferARB = (void *)getglext("glUnmapBufferARB");
 	}
 
+	if (0 && !gl_config.nofixedfunc)
+	{
+		Con_Printf(CON_NOTICE "GLSL disabled\n");
+	}
 	// glslang
 	//the gf2 to gf4 cards emulate vertex_shader and thus supports shader_objects.
 	//but our code kinda requires both for clean workings.
-	if (strstr(gl_renderer, " Mesa ") && Cvar_Get("gl_blacklist_mesa_glsl", "1", CVAR_RENDERERLATCH, "gl blacklists")->ival && (gl_config.glversion < 3 || gl_config.gles))
+	else if (strstr(gl_renderer, " Mesa ") && (gl_config.glversion < 3 || gl_config.gles) && Cvar_Get("gl_blacklist_mesa_glsl", "1", CVAR_RENDERERLATCH, "gl blacklists")->ival)
 	{
 //(9:12:33 PM) bigfoot: Spike, can you please blacklist your menu shader on Mesa? My machine just hard locked up again because I forgot that pressing escape in FTE is verboten
 //(11:51:42 PM) bigfoot: OpenGL vendor string: Tungsten Graphics, Inc
@@ -936,7 +940,7 @@ static const char *glsl_hdrs[] =
 			"{\n"
 			"#if defined(RELIEFMAPPING) && !defined(GL_ES)\n"
 				"float i, f;\n"
-				"vec3 OffsetVector = vec3(normalize(eyevector.xyz).xy * cvar_r_glsl_offsetmapping_scale * vec2(1.0, -1.0), -1.0);\n"
+				"vec3 OffsetVector = vec3(normalize(eyevector.xyz).xy * cvar_r_glsl_offsetmapping_scale * vec2(-1.0, 1.0), -1.0);\n"
 				"vec3 RT = vec3(vec2(base.xy"/* - OffsetVector.xy*OffsetMapping_Bias*/"), 1.0);\n"
 				"OffsetVector /= 10.0;\n"
 				"for(i = 1.0; i < 10.0; ++i)\n"
@@ -1072,6 +1076,10 @@ GLhandleARB GLSlang_CreateShader (char *name, int ver, char **precompilerconstan
 	prstrings[strings] = "#define ENGINE_"DISTRIBUTION"\n";
 	length[strings] = strlen(prstrings[strings]);
 	strings++;
+
+	//prstrings[strings] = "invariant gl_Position;\n";
+	//length[strings] = strlen(prstrings[strings]);
+	//strings++;
 
 	switch (shadertype)
 	{
@@ -1244,6 +1252,9 @@ GLhandleARB GLSlang_CreateProgramObject (char *name, GLhandleARB vert, GLhandleA
 	qglBindAttribLocationARB(program, VATTR_COLOUR, "v_colour");
 	qglBindAttribLocationARB(program, VATTR_TEXCOORD, "v_texcoord");
 	qglBindAttribLocationARB(program, VATTR_LMCOORD, "v_lmcoord");
+	qglBindAttribLocationARB(program, VATTR_LMCOORD2, "v_lmcoord2");
+	qglBindAttribLocationARB(program, VATTR_LMCOORD3, "v_lmcoord3");
+	qglBindAttribLocationARB(program, VATTR_LMCOORD4, "v_lmcoord4");
 	qglBindAttribLocationARB(program, VATTR_NORMALS, "v_normal");
 	qglBindAttribLocationARB(program, VATTR_SNORMALS, "v_svector");
 	qglBindAttribLocationARB(program, VATTR_TNORMALS, "v_tvector");

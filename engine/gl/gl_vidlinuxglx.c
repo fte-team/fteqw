@@ -1043,7 +1043,7 @@ void Sys_SendKeyEvents(void)
 
 void Force_CenterView_f (void)
 {
-	cl.viewangles[0][PITCH] = 0;
+	cl.playerview[0].viewangles[PITCH] = 0;
 }
 
 void IN_ReInit(void)
@@ -1149,14 +1149,14 @@ void IN_MouseMove (float *movements, int pnum)
 		if ( (in_strafe.state[pnum] & 1) || (lookstrafe.value && (in_mlook.state[pnum] & 1) ))
 			movements[1] += m_side.value * mouse_x;
 		else
-			cl.viewanglechange[pnum][YAW] -= m_yaw.value * mouse_x;
+			cl.playerview[pnum].viewanglechange[YAW] -= m_yaw.value * mouse_x;
 
 		if (in_mlook.state[pnum] & 1)
 			V_StopPitchDrift (pnum);
 
 		if ( (in_mlook.state[pnum] & 1) && !(in_strafe.state[pnum] & 1))
 		{
-			cl.viewanglechange[pnum][PITCH] += m_pitch.value * mouse_y;
+			cl.playerview[pnum].viewanglechange[PITCH] += m_pitch.value * mouse_y;
 			CL_ClampPitch(pnum);
 		}
 		else

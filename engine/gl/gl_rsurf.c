@@ -297,6 +297,7 @@ void GLBE_GenBatchVBOs(vbo_t **vbochain, batch_t *firstbatch, batch_t *stopbatch
 void GLBE_GenBrushModelVBO(model_t *mod)
 {
 	unsigned int vcount;
+	unsigned int cvcount;
 
 
 	batch_t *batch, *fbatch;
@@ -312,16 +313,18 @@ void GLBE_GenBrushModelVBO(model_t *mod)
 
 		for (fbatch = batch = mod->batches[sortid]; batch != NULL; batch = batch->next)
 		{
+			for (i = 0, cvcount = 0; i < batch->maxmeshes; i++)
+				cvcount += batch->mesh[i]->numvertexes;
+
 			//firstmesh got reused as the number of verticies in each batch
-			if (vcount + batch->firstmesh > MAX_INDICIES)
+			if (vcount + cvcount > MAX_INDICIES)
 			{
 				GLBE_GenBatchVBOs(&mod->vbos, fbatch, batch);
 				fbatch = batch;
 				vcount = 0;
 			}
 
-			for (i = 0; i < batch->maxmeshes; i++)
-				vcount += batch->mesh[i]->numvertexes;
+			vcount += cvcount;
 		}
 
 		GLBE_GenBatchVBOs(&mod->vbos, fbatch, batch);

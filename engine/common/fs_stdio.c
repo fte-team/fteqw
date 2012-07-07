@@ -328,7 +328,8 @@ static void FSSTDIO_ReadFile(void *handle, flocation_t *loc, char *buffer)
 }
 static int FSSTDIO_EnumerateFiles (void *handle, const char *match, int (*func)(const char *, int, void *), void *parm)
 {
-	return Sys_EnumerateFiles(handle, match, func, parm);
+	stdiopath_t *sp = handle;
+	return Sys_EnumerateFiles(sp->rootpath, match, func, parm);
 }
 
 searchpathfuncs_t stdiofilefuncs = {

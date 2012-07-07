@@ -28,7 +28,7 @@ extern cvar_t r_shadow_realtime_world, r_shadow_realtime_world_lightmaps;
 
 
 int	r_dlightframecount;
-int		d_lightstylevalue[MAX_LIGHTSTYLES];	// 8.8 fraction of base light value
+int		d_lightstylevalue[256];	// 8.8 fraction of base light value
 
 /*
 ==================

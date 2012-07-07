@@ -287,7 +287,7 @@ typedef struct rendererinfo_s {
 	void	(*BE_SubmitBatch)(struct batch_s *batch);
 	struct batch_s *(*BE_GetTempBatch)(void);
 	//Asks the backend to invoke DrawMeshChain for each surface, and to upload lightmaps as required
-	void	(*BE_DrawWorld) (qbyte *vis);
+	void	(*BE_DrawWorld) (qboolean drawworld, qbyte *vis);
 	//called at init, force the display to the right defaults etc
 	void	(*BE_Init)(void);
 	//Generates an optimised VBO, one for each texture on the map

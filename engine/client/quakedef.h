@@ -184,7 +184,6 @@ extern "C" {
 #endif
 
 #ifdef USE_MSVCRT_DEBUG
-#define USE_MSVCRT_DEBUG
 #define _CRTDBG_MAP_ALLOC
 #include <crtdbg.h>
 #endif

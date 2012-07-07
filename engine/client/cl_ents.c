@@ -2242,7 +2242,7 @@ void CL_LinkStaticEntities(void *pvs)
 		if ((!r_drawflame.ival) && (clmodel->engineflags & MDLF_FLAME))
 			continue;
 
-		if (!cl.worldmodel->funcs.EdictInFatPVS(cl.worldmodel, &cl_static_entities[i].pvscache, pvs))
+		if (pvs && !cl.worldmodel->funcs.EdictInFatPVS(cl.worldmodel, &cl_static_entities[i].pvscache, pvs))
 			continue;
 		/*pvs test*/
 

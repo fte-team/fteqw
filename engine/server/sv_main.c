@@ -2281,7 +2281,7 @@ client_t *SVC_DirectConnect(void)
 		if ((temp.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))// || ISDPCLIENT(&temp))
 		{
 			char *ptr;
-			int maxents = maxpacketentities;	/*this is the max number of ents updated per frame. we can't track more, so...*/
+			int maxents = temp.max_net_ents;//maxpacketentities;	/*this is the max number of ents updated per frame. we can't track more, so...*/
 			ptr = Z_Malloc(	sizeof(client_frame_t)*UPDATE_BACKUP+
 							sizeof(*temp.pendingentbits)*temp.max_net_ents+
 							sizeof(unsigned int)*maxents*UPDATE_BACKUP+

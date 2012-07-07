@@ -500,7 +500,7 @@ void R_RenderScene (void)
 		Surf_DrawWorld ();		// adds static entities to the list
 	}
 	else
-		BE_DrawWorld(NULL);
+		BE_DrawWorld(false, NULL);
 
 	S_ExtraUpdate ();	// don't let sound get messed up if going slow
 
@@ -728,7 +728,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 					r_refdef.forcedvis = newvis;
 				}
 			}
-			memset(newvis, 0xff, pvsbytes);
+//			memset(newvis, 0xff, pvsbytes);
 		}
 	}
 	else if (!(view = R_NearestPortal(&plane)) || VectorCompare(view->origin, view->oldorigin))

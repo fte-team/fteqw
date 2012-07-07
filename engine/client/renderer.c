@@ -1796,9 +1796,18 @@ qbyte *R_MarkLeaves_Q3 (void)
 				continue;
 			}
 
+#if 1
+			for (node = (mnode_t*)leaf; node; node = node->parent)
+			{
+				if (node->visframe == r_visframecount)
+					break;
+				node->visframe = r_visframecount;
+			}
+#else
 			leaf->visframe = r_visframecount;
 			leaf->vischain = r_vischain;
 			r_vischain = leaf;
+#endif
 		}
 	}
 	else

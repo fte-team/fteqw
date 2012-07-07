@@ -2170,7 +2170,7 @@ void Surf_DrawWorld (void)
 	if (r_refdef.flags & Q2RDF_NOWORLDMODEL)
 	{
 		r_refdef.flags |= Q2RDF_NOWORLDMODEL;
-		BE_DrawWorld(NULL);
+		BE_DrawWorld(false, NULL);
 		return;
 	}
 	if (!cl.worldmodel || cl.worldmodel->needload)
@@ -2269,7 +2269,7 @@ void Surf_DrawWorld (void)
 
 		RSpeedEnd(RSPEED_WORLDNODE);
 		TRACE(("dbg: calling BE_DrawWorld\n"));
-		BE_DrawWorld(vis);
+		BE_DrawWorld(true, vis);
 
 		/*FIXME: move this away*/
 		if (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife)
@@ -2769,6 +2769,7 @@ void Surf_BuildLightmaps (void)
 	int ptype;
 	void *mem;
 	unsigned int memsize;
+	int newfirst;
 
 	r_framecount = 1;		// no dlightcache
 
@@ -2803,35 +2804,43 @@ void Surf_BuildLightmaps (void)
 		currentmodel = m;
 		shift = Surf_LightmapShift(currentmodel);
 
-		i = numlightmaps + m->lightmaps.count;
-		lightmap = BZ_Realloc(lightmap, sizeof(*lightmap)*(i));
-		while(i > numlightmaps)
+		if (*m->name == '*' && m->fromgame == fg_quake3)	//FIXME: should be all bsp formats
+			newfirst = cl.model_precache[1]->lightmaps.first;
+		else
 		{
-			i--;
+			newfirst = numlightmaps;
 
-			lightmap[i] = Z_Malloc(sizeof(*lightmap[i]) + (sizeof(qbyte)*8 + sizeof(stmap)*3)*m->lightmaps.width*m->lightmaps.height);
-			lightmap[i]->width = m->lightmaps.width;
-			lightmap[i]->height = m->lightmaps.height;
-			lightmap[i]->lightmaps = (qbyte*)(lightmap[i]+1);
-			lightmap[i]->deluxmaps = (qbyte*)(lightmap[i]->lightmaps+4*lightmap[i]->width*lightmap[i]->height);
-			lightmap[i]->stainmaps = (stmap*)(lightmap[i]->deluxmaps+4*lightmap[i]->width*lightmap[i]->height);
-
-			lightmap[i]->modified = true;
-//			lightmap[i]->shader = NULL;
-			lightmap[i]->external = false;
-			// reset stainmap since it now starts at 255
-			memset(lightmap[i]->stainmaps, 255, LMBLOCK_WIDTH*LMBLOCK_HEIGHT*3*sizeof(stmap));
-
-			//clear out the deluxmaps incase there is none on the map.
-			for (k = 0; k < lightmap[i]->width*lightmap[i]->height*3; k+=3)
+			i = numlightmaps + m->lightmaps.count;
+			lightmap = BZ_Realloc(lightmap, sizeof(*lightmap)*(i));
+			while(i > numlightmaps)
 			{
-				lightmap[i]->deluxmaps[k+0] = 128;
-				lightmap[i]->deluxmaps[k+1] = 128;
-				lightmap[i]->deluxmaps[k+2] = 255;
-			}
+				i--;
 
-			TEXASSIGN(lightmap[i]->lightmap_texture, R_AllocNewTexture("***lightmap***", lightmap[i]->width, lightmap[i]->height));
-			TEXASSIGN(lightmap[i]->deluxmap_texture, R_AllocNewTexture("***deluxmap***", lightmap[i]->width, lightmap[i]->height));
+				lightmap[i] = Z_Malloc(sizeof(*lightmap[i]) + (sizeof(qbyte)*8 + sizeof(stmap)*3)*m->lightmaps.width*m->lightmaps.height);
+				lightmap[i]->width = m->lightmaps.width;
+				lightmap[i]->height = m->lightmaps.height;
+				lightmap[i]->lightmaps = (qbyte*)(lightmap[i]+1);
+				lightmap[i]->deluxmaps = (qbyte*)(lightmap[i]->lightmaps+4*lightmap[i]->width*lightmap[i]->height);
+				lightmap[i]->stainmaps = (stmap*)(lightmap[i]->deluxmaps+4*lightmap[i]->width*lightmap[i]->height);
+
+				lightmap[i]->modified = true;
+	//			lightmap[i]->shader = NULL;
+				lightmap[i]->external = false;
+				// reset stainmap since it now starts at 255
+				memset(lightmap[i]->stainmaps, 255, LMBLOCK_WIDTH*LMBLOCK_HEIGHT*3*sizeof(stmap));
+
+				//clear out the deluxmaps incase there is none on the map.
+				for (k = 0; k < lightmap[i]->width*lightmap[i]->height*3; k+=3)
+				{
+					lightmap[i]->deluxmaps[k+0] = 128;
+					lightmap[i]->deluxmaps[k+1] = 128;
+					lightmap[i]->deluxmaps[k+2] = 255;
+				}
+
+				TEXASSIGN(lightmap[i]->lightmap_texture, R_AllocNewTexture("***lightmap***", lightmap[i]->width, lightmap[i]->height));
+				TEXASSIGN(lightmap[i]->deluxmap_texture, R_AllocNewTexture("***deluxmap***", lightmap[i]->width, lightmap[i]->height));
+			}
+			numlightmaps += m->lightmaps.count;
 		}
 
 		//fixup batch lightmaps
@@ -2842,7 +2851,7 @@ void Surf_BuildLightmaps (void)
 			{
 				if (batch->lightmap[i] < 0)
 					continue;
-				batch->lightmap[i] = batch->lightmap[i] - m->lightmaps.first + numlightmaps;
+				batch->lightmap[i] = batch->lightmap[i] - m->lightmaps.first + newfirst;
 			}
 		}
 
@@ -2874,7 +2883,7 @@ void Surf_BuildLightmaps (void)
 			unsigned char *dst;
 			for (i = 0; i < m->lightmaps.count; i++)
 			{
-				dst = lightmap[numlightmaps+i]->lightmaps;
+				dst = lightmap[newfirst+i]->lightmaps;
 				src = m->lightdata + i*m->lightmaps.width*m->lightmaps.height*3;
 				if (lightmap_bytes == 4)
 				{
@@ -2916,7 +2925,7 @@ void Surf_BuildLightmaps (void)
 						surf->lightmaptexturenums[j] = -1;
 						continue;
 					}
-					surf->lightmaptexturenums[j] = surf->lightmaptexturenums[0] - m->lightmaps.first + numlightmaps;
+					surf->lightmaptexturenums[j] = surf->lightmaptexturenums[0] - m->lightmaps.first + newfirst;
 
 					lm = lightmap[surf->lightmaptexturenums[j]];
 
@@ -2928,9 +2937,7 @@ void Surf_BuildLightmaps (void)
 				}
 			}
 		}
-		m->lightmaps.first = numlightmaps;
-
-		numlightmaps += m->lightmaps.count;
+		m->lightmaps.first = newfirst;
 	}
 #if 0
 	for (j=1 ; j<MAX_MODELS ; j++)

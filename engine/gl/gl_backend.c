@@ -730,6 +730,15 @@ void GL_SelectProgram(int program)
 		shaderstate.currentprogram = program;
 	}
 }
+static void GL_DeSelectProgram(void)
+{
+	if (shaderstate.currentprogram != 0)
+	{
+		qglUseProgramObjectARB(0);
+		shaderstate.currentprogram = 0;
+	}
+}
+
 
 void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsigned numindicies, int ibo, index_t *indicies)
 {
@@ -756,6 +765,8 @@ void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsi
 	}
 	else
 	{
+		GL_DeSelectProgram();
+		GL_DeselectVAO();
 		BE_EnableShaderAttributes((1u<<VATTR_LEG_VERTEX));
 
 		//draw cached world shadow mesh
@@ -764,15 +775,6 @@ void GLBE_RenderShadowBuffer(unsigned int numverts, int vbo, vecV_t *verts, unsi
 	RQuantAdd(RQUANT_SHADOWFACES, numindicies);
 	shaderstate.dummyvbo.indicies.gl.vbo = 0;
 	shaderstate.sourcevbo = NULL;
-}
-
-static void GL_DeSelectProgram(void)
-{
-	if (shaderstate.currentprogram != 0)
-	{
-		qglUseProgramObjectARB(0);
-		shaderstate.currentprogram = 0;
-	}
 }
 
 void GL_CullFace(unsigned int sflags)
@@ -2675,9 +2677,21 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 			if (perm & PERMUTATION_LIGHTSTYLES)
 			{
 				vec4_t colscale[MAXLIGHTMAPS];
-				int j;
+				int j, s;
 				for (j = 0; j < MAXLIGHTMAPS ; j++)
 				{
+					s = shaderstate.curbatch->lightstyle[j];
+					if (s == 255)
+					{
+						for (; j < MAXLIGHTMAPS ; j++)
+						{
+							colscale[j][0] = 0;
+							colscale[j][1] = 0;
+							colscale[j][2] = 0;
+							colscale[j][3] = 1;
+						}
+						break;
+					}
 					if (shaderstate.curentity->model && shaderstate.curentity->model->engineflags & MDLF_NEEDOVERBRIGHT)
 					{
 						float sc = (1<<bound(0, gl_overbright.ival, 2)) * shaderstate.identitylighting;
@@ -2689,9 +2703,11 @@ static void BE_Program_Set_Attributes(const program_t *prog, unsigned int perm, 
 					}
 					colscale[j][3] = 1;
 
-					VectorScale(colscale[j], d_lightstylevalue[shaderstate.curbatch->lightstyle[j]]/256.0f, colscale[j]);
+					VectorScale(colscale[j], d_lightstylevalue[s]/256.0f, colscale[j]);
 				}
+
 				qglUniform4fvARB(p->handle[perm], j, (GLfloat*)colscale);
+				shaderstate.lastuniform = 0;
 			}
 			else
 			{
@@ -3838,9 +3854,9 @@ static void BE_UpdateLightmaps(void)
 	int lmidx;
 	for (lmidx = 0; lmidx < numlightmaps; lmidx++)
 	{
-		if (!lightmap[lmidx])
-			continue;
 		lm = lightmap[lmidx];
+		if (!lm)
+			continue;
 		if (lm->modified)
 		{
 			glRect_t *theRect;
@@ -4085,7 +4101,7 @@ void GLBE_DrawLightPrePass(qbyte *vis)
 	qglClearColor (1,0,0,1);
 }
 
-void GLBE_DrawWorld (qbyte *vis)
+void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 {
 	extern cvar_t r_shadow_realtime_world, r_shadow_realtime_world_lightmaps;
 	batch_t *batches[SHADER_SORT_COUNT];
@@ -4151,7 +4167,7 @@ void GLBE_DrawWorld (qbyte *vis)
 	BE_SelectEntity(&r_worldentity);
 
 	BE_UpdateLightmaps();
-	if (vis)
+	if (drawworld)
 	{
 		if (gl_overbright.modified)
 		{
@@ -4165,7 +4181,7 @@ void GLBE_DrawWorld (qbyte *vis)
 		}
 
 #ifdef RTLIGHTS
-		if (r_shadow_realtime_world.ival)
+		if (vis && r_shadow_realtime_world.ival)
 			shaderstate.identitylighting = r_shadow_realtime_world_lightmaps.value;
 		else
 #endif
@@ -4191,10 +4207,13 @@ void GLBE_DrawWorld (qbyte *vis)
 		}
 
 #ifdef RTLIGHTS
-		RSpeedRemark();
-		BE_SelectEntity(&r_worldentity);
-		Sh_DrawLights(vis);
-		RSpeedEnd(RSPEED_STENCILSHADOWS);
+		if (vis)
+		{
+			RSpeedRemark();
+			BE_SelectEntity(&r_worldentity);
+			Sh_DrawLights(vis);
+			RSpeedEnd(RSPEED_STENCILSHADOWS);
+		}
 #endif
 
 		shaderstate.identitylighting = 1;

@@ -692,8 +692,7 @@ void QCBUILTIN PF_registercvar (progfuncs_t *prinst, struct globalvars_s *pr_glo
 		G_FLOAT(OFS_RETURN) = 0;
 	else
 	{
-		name = BZ_Malloc(strlen(value)+1);
-		strcpy(name, value);
+		name = value;
 		if (*prinst->callargc > 1)
 			value = PR_GetStringOfs(prinst, OFS_PARM1);
 		else

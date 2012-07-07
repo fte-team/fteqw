@@ -406,43 +406,46 @@ DWORD CrashExceptionHandler (DWORD exceptionCode, LPEXCEPTION_POINTERS exception
 	qglGetVertexAttribPointerv = (void*)wglGetProcAddress("glGetVertexAttribPointerv");
 #pragma comment(lib,"opengl32.lib")
 
-	glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &rval);
-	Sys_Printf("GL_ARRAY_BUFFER_BINDING: %i\n", rval);
-	glGetPointerv(GL_COLOR_ARRAY_POINTER, &ptr);
-	Sys_Printf("GL_COLOR_ARRAY: %s (%lx)\n", glIsEnabled(GL_COLOR_ARRAY)?"en":"dis", (int) ptr);
-//	glGetPointerv(GL_FOG_COORD_ARRAY_POINTER, &ptr);
-//	Sys_Printf("GL_FOG_COORDINATE_ARRAY_EXT: %i (%lx)\n", (int) glIsEnabled(GL_FOG_COORDINATE_ARRAY_EXT), (int) ptr);
-	glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &rval);
-	glGetPointerv(GL_INDEX_ARRAY_POINTER, &ptr);
-	Sys_Printf("GL_INDEX_ARRAY: %s %i:%p\n", glIsEnabled(GL_INDEX_ARRAY)?"en":"dis", rval, ptr);
-	glGetPointerv(GL_NORMAL_ARRAY_POINTER, &ptr);
-	Sys_Printf("GL_NORMAL_ARRAY: %s (%lx)\n", glIsEnabled(GL_NORMAL_ARRAY)?"en":"dis", (int) ptr);
-//	glGetPointerv(GL_SECONDARY_COLOR_ARRAY_POINTER, &ptr);
-//	Sys_Printf("GL_SECONDARY_COLOR_ARRAY: %i (%lx)\n", (int) glIsEnabled(GL_SECONDARY_COLOR_ARRAY), (int) ptr);
-	for (i = 0; i < 4; i++)
+	if (qglGetVertexAttribiv)
 	{
-		qglClientActiveTextureARB(mtexid0 + i);
-		glGetIntegerv(GL_TEXTURE_COORD_ARRAY_BUFFER_BINDING, &rval);
-		glGetPointerv(GL_TEXTURE_COORD_ARRAY_POINTER, &ptr);
-		Sys_Printf("GL_TEXTURE_COORD_ARRAY %i: %s %i:%p\n", i, glIsEnabled(GL_TEXTURE_COORD_ARRAY)?"en":"dis", rval, ptr);
-	}
-	glGetIntegerv(GL_VERTEX_ARRAY_BUFFER_BINDING, &rval);
-	glGetPointerv(GL_VERTEX_ARRAY_POINTER, &ptr);
-	Sys_Printf("GL_VERTEX_ARRAY: %s %i:%p\n", glIsEnabled(GL_VERTEX_ARRAY)?"en":"dis", rval, ptr);
+		glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &rval);
+		Sys_Printf("GL_ARRAY_BUFFER_BINDING: %i\n", rval);
+		glGetPointerv(GL_COLOR_ARRAY_POINTER, &ptr);
+		Sys_Printf("GL_COLOR_ARRAY: %s (%lx)\n", glIsEnabled(GL_COLOR_ARRAY)?"en":"dis", (int) ptr);
+	//	glGetPointerv(GL_FOG_COORD_ARRAY_POINTER, &ptr);
+	//	Sys_Printf("GL_FOG_COORDINATE_ARRAY_EXT: %i (%lx)\n", (int) glIsEnabled(GL_FOG_COORDINATE_ARRAY_EXT), (int) ptr);
+		glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &rval);
+		glGetPointerv(GL_INDEX_ARRAY_POINTER, &ptr);
+		Sys_Printf("GL_INDEX_ARRAY: %s %i:%p\n", glIsEnabled(GL_INDEX_ARRAY)?"en":"dis", rval, ptr);
+		glGetPointerv(GL_NORMAL_ARRAY_POINTER, &ptr);
+		Sys_Printf("GL_NORMAL_ARRAY: %s (%lx)\n", glIsEnabled(GL_NORMAL_ARRAY)?"en":"dis", (int) ptr);
+	//	glGetPointerv(GL_SECONDARY_COLOR_ARRAY_POINTER, &ptr);
+	//	Sys_Printf("GL_SECONDARY_COLOR_ARRAY: %i (%lx)\n", (int) glIsEnabled(GL_SECONDARY_COLOR_ARRAY), (int) ptr);
+		for (i = 0; i < 4; i++)
+		{
+			qglClientActiveTextureARB(mtexid0 + i);
+			glGetIntegerv(GL_TEXTURE_COORD_ARRAY_BUFFER_BINDING, &rval);
+			glGetPointerv(GL_TEXTURE_COORD_ARRAY_POINTER, &ptr);
+			Sys_Printf("GL_TEXTURE_COORD_ARRAY %i: %s %i:%p\n", i, glIsEnabled(GL_TEXTURE_COORD_ARRAY)?"en":"dis", rval, ptr);
+		}
+		glGetIntegerv(GL_VERTEX_ARRAY_BUFFER_BINDING, &rval);
+		glGetPointerv(GL_VERTEX_ARRAY_POINTER, &ptr);
+		Sys_Printf("GL_VERTEX_ARRAY: %s %i:%p\n", glIsEnabled(GL_VERTEX_ARRAY)?"en":"dis", rval, ptr);
 
-	for (i = 0; i < 16; i++)
-	{
-		int en, bo, as, st, ty, no;
+		for (i = 0; i < 16; i++)
+		{
+			int en, bo, as, st, ty, no;
 
-		qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_ENABLED, &en);
-		qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING, &bo);
-		qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_SIZE, &as);
-		qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_STRIDE, &st);
-		qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_TYPE, &ty);
-		qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_NORMALIZED, &no);
-		qglGetVertexAttribPointerv(i, GL_VERTEX_ATTRIB_ARRAY_POINTER, &ptr);
+			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_ENABLED, &en);
+			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING, &bo);
+			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_SIZE, &as);
+			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_STRIDE, &st);
+			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_TYPE, &ty);
+			qglGetVertexAttribiv(i, GL_VERTEX_ATTRIB_ARRAY_NORMALIZED, &no);
+			qglGetVertexAttribPointerv(i, GL_VERTEX_ATTRIB_ARRAY_POINTER, &ptr);
 
-		Sys_Printf("attrib%i: %s as:%i st:%i ty:%0x %s%i:%p\n", i, en?"en":"dis", as, st,ty,no?"norm ":"", bo, ptr);
+			Sys_Printf("attrib%i: %s as:%i st:%i ty:%0x %s%i:%p\n", i, en?"en":"dis", as, st,ty,no?"norm ":"", bo, ptr);
+		}
 	}
 #endif
 

@@ -651,15 +651,6 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 		return false;
 	}
 
-	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
-	{
-		VFS_GETS(f, str, sizeof(str));
-		if (sv.strings.lightstyles[i])
-			Z_Free(sv.strings.lightstyles[i]);
-		sv.strings.lightstyles[i] = Z_Malloc (strlen(str)+1);
-		strcpy (sv.strings.lightstyles[i], str);
-	}
-
 // load the edicts out of the savegame file
 // the rest of the file is sent directly to the progs engine.
 
@@ -670,6 +661,15 @@ qboolean SV_LoadLevelCache(char *savename, char *level, char *startspot, qboolea
 		PR_Configure(svprogfuncs, -1, MAX_PROGS);
 		PR_RegisterFields();
 		PR_InitEnts(svprogfuncs, sv.world.max_edicts);
+	}
+
+	for (i=0 ; i<MAX_LIGHTSTYLES ; i++)
+	{
+		VFS_GETS(f, str, sizeof(str));
+		if (sv.strings.lightstyles[i])
+			PR_AddressableFree(svprogfuncs, sv.strings.lightstyles[i]);
+		sv.strings.lightstyles[i] = PR_AddressableAlloc(svprogfuncs, strlen(str)+1);
+		strcpy (sv.strings.lightstyles[i], str);
 	}
 
 	modelpos = VFS_TELL(f);

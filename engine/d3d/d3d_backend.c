@@ -647,12 +647,16 @@ static void BindTexture(unsigned int tu, void *id)
 static void SelectPassTexture(unsigned int tu, shaderpass_t *pass)
 {
 	int last;
+	extern texid_t missing_texture;
 
 	switch(pass->texgen)
 	{
 	default:
 	case T_GEN_DIFFUSE:
-		BindTexture(tu, shaderstate.curtexnums->base.ptr);
+		if (shaderstate.curtexnums->base.ptr)
+			BindTexture(tu, shaderstate.curtexnums->base.ptr);
+		else
+			BindTexture(tu, missing_texture.ptr);
 		break;
 	case T_GEN_NORMALMAP:
 		BindTexture( tu, shaderstate.curtexnums->bump.ptr);
@@ -2426,8 +2430,8 @@ void BE_UploadLightmaps(qboolean force)
 		{
 			lm->rectchange.l = 0;
 			lm->rectchange.t = 0;
-			lm->rectchange.w = LMBLOCK_WIDTH;
-			lm->rectchange.h = LMBLOCK_HEIGHT;
+			lm->rectchange.w = lm->width;
+			lm->rectchange.h = lm->height;
 		}
 
 		if (lightmap[i]->modified)
@@ -2439,7 +2443,7 @@ void BE_UploadLightmaps(qboolean force)
 			int r;
 			if (!tex)
 			{
-				lm->lightmap_texture = R_AllocNewTexture("***lightmap***", LMBLOCK_WIDTH, LMBLOCK_HEIGHT);
+				lm->lightmap_texture = R_AllocNewTexture("***lightmap***", lm->width, lm->height);
 				tex = lm->lightmap_texture.ptr;
 				if (!tex)
 					continue;
@@ -2454,11 +2458,11 @@ void BE_UploadLightmaps(qboolean force)
 			IDirect3DTexture9_LockRect(tex, 0, &lock, &rect, 0);
 			for (r = 0; r < lightmap[i]->rectchange.h; r++)
 			{
-				memcpy((char*)lock.pBits + r*lock.Pitch, lightmap[i]->lightmaps+(theRect->l+((r+theRect->t)*LMBLOCK_WIDTH))*lightmap_bytes, lightmap[i]->rectchange.w*lightmap_bytes);
+				memcpy((char*)lock.pBits + r*lock.Pitch, lightmap[i]->lightmaps+(theRect->l+((r+theRect->t)*lm->width))*lightmap_bytes, lightmap[i]->rectchange.w*lightmap_bytes);
 			}
 			IDirect3DTexture9_UnlockRect(tex, 0);
-			theRect->l = LMBLOCK_WIDTH;
-			theRect->t = LMBLOCK_HEIGHT;
+			theRect->l = lm->width;
+			theRect->t = lm->height;
 			theRect->h = 0;
 			theRect->w = 0;
 		}
@@ -3016,7 +3020,7 @@ void D3DBE_RenderShadowBuffer(unsigned int numverts, IDirect3DVertexBuffer9 *vbu
 }
 #endif
 
-void D3DBE_DrawWorld (qbyte *vis)
+void D3DBE_DrawWorld (qboolean drawworld, qbyte *vis)
 {
 	batch_t *batches[SHADER_SORT_COUNT];
 	RSpeedLocals();
@@ -3037,7 +3041,7 @@ void D3DBE_DrawWorld (qbyte *vis)
 
 	BE_GenModelBatches(batches);
 
-	if (vis)
+	if (drawworld)
 	{
 		BE_UploadLightmaps(false);
 
@@ -3057,10 +3061,13 @@ void D3DBE_DrawWorld (qbyte *vis)
 		RSpeedEnd(RSPEED_WORLD);
 
 #ifdef RTLIGHTS
-		RSpeedRemark();
-		D3DBE_SelectEntity(&r_worldentity);
-		Sh_DrawLights(vis);
-		RSpeedEnd(RSPEED_STENCILSHADOWS);
+		if (vis)
+		{
+			RSpeedRemark();
+			D3DBE_SelectEntity(&r_worldentity);
+			Sh_DrawLights(vis);
+			RSpeedEnd(RSPEED_STENCILSHADOWS);
+		}
 #endif
 
 		D3DBE_SubmitMeshes(true, batches, SHADER_SORT_DECAL, SHADER_SORT_COUNT);

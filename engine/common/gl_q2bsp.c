@@ -2861,8 +2861,6 @@ qboolean CModRBSP_LoadRFaces (lump_t *l)
 		in->facetype = LittleLong(in->facetype);
 		for (j = 0; j < 4 && j < MAXLIGHTMAPS; j++)
 		{
-			if (in->lightmapnum[j] >= 0 && j)
-				Con_Printf("lightstyled!\n");
 			out->lightmaptexturenums[j] = LittleLong(in->lightmapnum[j]);
 			out->light_s[j] = LittleLong(in->lightmap_offs[0][j]);
 			out->light_t[j] = LittleLong(in->lightmap_offs[1][j]);
@@ -3351,7 +3349,8 @@ qboolean CModQ3_LoadVisibility (lump_t *l)
 
 		numclusters++;
 
-		memset (map_visibility, 0xff, sizeof(map_visibility));
+		map_q3pvs = Hunk_Alloc(sizeof(*map_q3pvs) + (numclusters+7)/8 * numclusters);
+		memset (map_q3pvs, 0xff, sizeof(*map_q3pvs) + (numclusters+7)/8 * numclusters);
 		map_q3pvs->numclusters = numclusters;
 		numvisibility = 0;
 		map_q3pvs->rowsize = (map_q3pvs->numclusters+7)/8;
@@ -3554,10 +3553,12 @@ void CMQ3_CalcPHS (void)
 
 	Con_DPrintf ("Building PHS...\n");
 
+	map_q3phs = Hunk_Alloc(sizeof(*map_q3phs) + (map_q3pvs->numclusters+7)/8 * map_q3pvs->numclusters);
+
 	rowwords = map_q3pvs->rowsize / sizeof(long);
 	rowbytes = map_q3pvs->rowsize;
 
-	memset ( map_q3phs, 0, MAX_Q2MAP_VISIBILITY );
+	memset ( map_q3phs, 0, sizeof(*map_q3phs) + (map_q3pvs->numclusters+7)/8 * map_q3pvs->numclusters );
 
 	map_q3phs->rowsize = map_q3pvs->rowsize;
 	map_q3phs->numclusters = numclusters = map_q3pvs->numclusters;

@@ -248,7 +248,7 @@ static int FSSTDIO_RebuildFSHash(const char *filename, int filesize, void *data)
 
 		char childpath[256];
 		Q_snprintfz(childpath, sizeof(childpath), "%s*", filename);
-		Sys_EnumerateFiles((char*)data, childpath, FSSTDIO_RebuildFSHash, data);
+		Sys_EnumerateFiles(sp->rootpath, childpath, FSSTDIO_RebuildFSHash, data);
 		return true;
 	}
 	FS_AddFileHash(sp->depth, filename, NULL, sp);
@@ -346,3 +346,4 @@ searchpathfuncs_t stdiofilefuncs = {
 };
 #endif
 #endif
+

@@ -27,7 +27,7 @@ int sys_glesversion;
 
 static void *sys_memheap;
 static unsigned int sys_lastframe;
-JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject obj,
+JNIEXPORT int JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject obj,
 				jfloat ax, jfloat ay, jfloat az)
 {
 	static vec3_t oac;
@@ -46,6 +46,10 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject 
 	Host_Frame(tdelta);
 	sys_lastframe = now;
 	#endif
+
+	if (key_dest == key_console || key_dest == key_message)
+		return 1;
+	return 0;
 }
 
 JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject obj,
@@ -67,6 +71,7 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 			"",
 			""
 		};
+		int align;
 		quakeparms_t parms;
 		if (sys_memheap)
 			free(sys_memheap);
@@ -95,6 +100,14 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 		(*env)->ReleaseStringUTFChars(env, jusrpath, tmp);
 		parms.membase += strlen(parms.basedir)+1;
 		parms.memsize -= strlen(parms.basedir)+1;
+
+		align = (int)parms.membase & 15;
+		if (align)
+		{
+			align = 16-align;
+			parms.membase += align;
+			parms.memsize -= align;
+		}
 
 
 		Sys_Printf("Starting up (apk=%s, usr=%s)\n", args[2], parms.basedir);

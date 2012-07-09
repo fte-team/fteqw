@@ -2833,7 +2833,6 @@ qboolean CModRBSP_LoadRFaces (lump_t *l)
 	int count;
 	int surfnum;
 
-	int numverts, numindexes;
 	int fv;
 	int j;
 
@@ -2890,7 +2889,6 @@ qboolean CModRBSP_LoadRFaces (lump_t *l)
 		if (loadmodel->texinfo[in->shadernum].flags & TI_SKY)
 			out->flags |= SURF_DRAWSKY;
 
-#ifdef Q3SHADERS
 		if (!out->texinfo->texture->shader)
 		{
 			extern cvar_t r_vertexlight;
@@ -2908,7 +2906,6 @@ qboolean CModRBSP_LoadRFaces (lump_t *l)
 			out->fog = NULL;
 		else
 			out->fog = map_fogs + in->fognum;
-#endif
 
 		if (map_surfaces[LittleLong(in->shadernum)].c.flags & (Q3SURF_NODRAW | Q3SURF_SKIP))
 		{

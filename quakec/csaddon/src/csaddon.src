@@ -1,9 +1,10 @@
-../csprogs.dat
+../csaddon.dat
 //pr_dumpplatform -FFTE -Fdefines -TCS -O csplat
 opts.qc
 csplat.qc
 
 editor_lights.qc
+editor_terrain.qc
 textfield.qc
 editor_particles.qc
 menu.qc

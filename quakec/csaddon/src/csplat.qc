@@ -29,7 +29,8 @@ float intermission;
 vector v_forward, v_up, v_right;
 vector view_angles;
 float trace_allsolid, trace_startsolid, trace_fraction;
-vector trace_endpos, trace_plane_normal;
+shared vector trace_endpos;
+vector trace_plane_normal;
 float trace_plane_dist;
 entity trace_ent;
 float trace_inopen;
@@ -88,6 +89,8 @@ void end_sys_fields;
 .entity tag_entity;
 .float skeletonindex;
 .vector colormod;
+.vector glowmod;
+.vector gravitydir;
 .float friction;
 .float erp;
 .float jointtype;
@@ -108,7 +111,6 @@ void end_sys_fields;
 .float bonecontrol5;
 .float subblendfrac;
 .float basesubblendfrac;
-.vector glowmod;
 .float ideal_pitch;
 .float pitch_speed;
 var float physics_mode = 2;
@@ -479,6 +481,10 @@ void(float buf, float fl) writefloat = #280;
 #endif
 float*(float skel) skel_mmap = #282;
 void(entity ent, float bonenum, vector org, optional vector angorfwd, optional vector right, optional vector up) skel_set_bone_world = #283;
+void*(int size) memalloc = #384;
+void(void *ptr) memfree = #385;
+void(void *dst, void *src, int size) memcpy = #386;
+void(void *dst, int val, int size) memset = #387;
 #ifdef CSQC
 void() clearscene = #300;
 void(float mask) addentities = #301;
@@ -487,7 +493,7 @@ void(entity ent) addentity = #302;
 float(float property, ...) setproperty = #303;
 void() renderscene = #304;
 float(vector org, float radius, vector lightcolours) dynamiclight_add = #305;
-void(string texturename) R_BeginPolygon = #306;
+void(string texturename, optional float flags) R_BeginPolygon = #306;
 void(vector org, vector texcoords, vector rgb, float alpha) R_PolygonVertex = #307;
 void() R_EndPolygon = #308;
 #define getviewprop getproperty
@@ -667,7 +673,11 @@ float(string name) cvar_type = #495;
 //string(float fieldnum, entity ent) getentityfieldstring = #499;
 //float(float fieldnum, entity ent, string s) putentityfieldstring = #500;
 //void(float to, string s, float sz) WritePicture = #501;
+//string() ReadPicture = #501;
 string(string filename) whichpack = #503;
+#ifdef CSQC
+__variant(float entnum, float fieldnum) getentity = #504;
+#endif
 string(string in) uri_escape = #510;
 string(string in) uri_unescape = #511;
 float(entity ent) num_for_edict = #512;

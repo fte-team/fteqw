@@ -222,7 +222,7 @@ typedef struct {
 	int			height;
 	glRect_t	rectchange;
 	glRect_t	deluxrectchange;
-#ifdef TERRAIN
+#if 0 //def TERRAIN
 	int allocated[LMBLOCK_WIDTH];
 #endif
 	qbyte		*lightmaps;//[4*LMBLOCK_WIDTH*LMBLOCK_HEIGHT];

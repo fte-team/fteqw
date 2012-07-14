@@ -3289,10 +3289,6 @@ sfxcache_t *S_MP3_Locate(sfx_t *sfx, sfxcache_t *buf, int start, int length)
 
 #ifndef WAVE_FORMAT_MPEGLAYER3
 #define WAVE_FORMAT_MPEGLAYER3 0x0055
-#define MPEGLAYER3_WFX_EXTRA_BYTES 12
-#define MPEGLAYER3_FLAG_PADDING_OFF 2
-#define MPEGLAYER3_ID_MPEG 1
-
 typedef struct
 {
 	WAVEFORMATEX  wfx;
@@ -3302,6 +3298,11 @@ typedef struct
 	WORD          nFramesPerBlock;
 	WORD          nCodecDelay;
 } MPEGLAYER3WAVEFORMAT;
+#endif
+#ifndef MPEGLAYER3_ID_MPEG
+#define MPEGLAYER3_WFX_EXTRA_BYTES 12
+#define MPEGLAYER3_FLAG_PADDING_OFF 2
+#define MPEGLAYER3_ID_MPEG 1
 #endif
 
 qboolean S_LoadMP3Sound (sfx_t *s, qbyte *data, int datalen, int sndspeed)

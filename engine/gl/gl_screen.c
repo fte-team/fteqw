@@ -188,9 +188,6 @@ void GLSCR_UpdateScreen (void)
 	{
 		extern char levelshotname[];
 
-		if ((key_dest == key_console || key_dest == key_game) && SCR_GetLoadingStage() == LS_NONE)
-			scr_con_current = scr_conlines = vid.height;
-
 		//draw the levelshot or the conback fullscreen
 		if (*levelshotname)
 			R2D_ScalePic(0, 0, vid.width, vid.height, R2D_SafeCachePic (levelshotname));

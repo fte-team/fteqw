@@ -820,7 +820,7 @@ void CLFTE_ParseEntities(void)
 			break;
 
 		/*update the prediction info if needed*/
-		if (e->u.q1.pmovetype)
+//		if (e->u.q1.pmovetype)
 		{
 			frame_t *fram;
 			fram = &cl.frames[cls.netchan.incoming_sequence & UPDATE_MASK];

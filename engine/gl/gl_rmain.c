@@ -665,8 +665,7 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 	if (DotProduct(r_refdef.vieworg, plane.normal)-plane.dist < 0)
 		return;
 
-	//if (!view)
-	//	return;
+	TRACE(("GLR_DrawPortal: portal type %i\n", portaltype));
 
 	oldrefdef = r_refdef;
 	r_refdef.recurse = true;
@@ -823,6 +822,8 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 	}
 
 	GL_CullFace(0);
+
+	TRACE(("GLR_DrawPortal: portal drawn\n"));
 
 #ifdef warningmsg
 #pragma warningmsg("warning: there's a bug with rtlights in portals, culling is broken or something. May also be loading the wrong matrix")

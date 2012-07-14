@@ -1101,3 +1101,49 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 },
 #endif
+#ifdef GLQUAKE
+{QR_OPENGL, 110, "terrain",
+"!!permu FOG\n"
+"#include \"sys/fog.h\"\n"
+"varying vec2 tc;\n"
+"varying vec2 lm;\n"
+
+"#ifdef VERTEX_SHADER\n"
+"attribute vec2 v_texcoord;\n"
+"attribute vec2 v_lmcoord;\n"
+"void main (void)\n"
+"{\n"
+"tc = v_texcoord.st;\n"
+"lm = v_lmcoord.st;\n"
+"gl_Position = ftetransform();\n"
+"}\n"
+"#endif\n"
+
+
+
+
+"#ifdef FRAGMENT_SHADER\n"
+//four texture passes
+"uniform sampler2D s_t0;\n"
+"uniform sampler2D s_t1;\n"
+"uniform sampler2D s_t2;\n"
+"uniform sampler2D s_t3;\n"
+
+//mix values
+"uniform sampler2D s_t4;\n"
+
+
+"void main (void)\n"
+"{\n"
+"vec4 m = texture2D(s_t4, lm);\n"
+
+"gl_FragColor = fog4(\n"
+"texture2D(s_t0, tc)*m.r\n"
+"+ texture2D(s_t1, tc)*m.g\n"
+"+ texture2D(s_t2, tc)*m.b\n"
+"+ texture2D(s_t3, tc)*(1.0 - (m.r + m.g + m.b))\n"
+");\n"
+"}\n"
+"#endif\n"
+},
+#endif

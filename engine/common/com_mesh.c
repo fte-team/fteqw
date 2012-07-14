@@ -712,6 +712,7 @@ static float Alias_CalculateSkeletalNormals(galiasinfo_t *model)
 		Z_Free(inversepose);
 		Z_Free(normals);
 		Z_Free(xyz);
+		Z_Free(mvert);
 
 		model = next;
 		modnum++;

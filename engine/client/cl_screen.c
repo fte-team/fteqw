@@ -1744,8 +1744,18 @@ void SCR_SetUpToDrawConsole (void)
 // decide on the height of the console
 	if (!scr_disabled_for_loading)
 	{
-		if ((key_dest == key_console || key_dest == key_game) && !cl.sendprespawn && cl.worldmodel && cl.worldmodel->needload)
-			Con_ForceActiveNow();
+		float fullscreenpercent = 1;
+#ifdef ANDROID
+		//android has an onscreen imm that we don't want to obscure
+		fullscreenpercent = scr_consize.value;
+#endif
+		if ((key_dest == key_console || key_dest == key_game) && (!cl.sendprespawn && cl.worldmodel && cl.worldmodel->needload))
+		{
+			key_dest = key_console;
+			scr_conlines = scr_con_current = vid.height * fullscreenpercent;
+		}
+		else if ((key_dest == key_console || key_dest == key_game) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active)
+			scr_con_current = scr_conlines = vid.height * fullscreenpercent;
 		else if (key_dest == key_console || scr_chatmode)
 		{
 			scr_conlines = vid.height*scr_consize.value;    // half screen

@@ -1069,9 +1069,6 @@ static void	(D3D9_SCR_UpdateScreen)			(void)
 	scr_con_forcedraw = false;
 	if (noworld)
 	{
-		if ((key_dest == key_console || key_dest == key_game) && SCR_GetLoadingStage() == LS_NONE)
-			scr_con_current = vid.height;
-
 		if (scr_con_current != vid.height)
 			R2D_ConsoleBackground(0, vid.height, true);
 		else

@@ -92,6 +92,23 @@ void R2D_Shutdown(void)
 	Cvar_Unhook(&crosshair);
 	Cvar_Unhook(&crosshairimage);
 	Cvar_Unhook(&crosshaircolor);
+
+	BZ_Free(cl_stris);
+	cl_stris = NULL;
+	BZ_Free(cl_strisvertv);
+	cl_strisvertv = NULL;
+	BZ_Free(cl_strisvertc);
+	cl_strisvertc = NULL;
+	BZ_Free(cl_strisvertt);
+	cl_strisvertt = NULL;
+	BZ_Free(cl_strisidx);
+	cl_strisidx = NULL;
+	cl_numstrisidx = 0;
+	cl_maxstrisidx = 0;
+	cl_numstrisvert = 0;
+	cl_maxstrisvert = 0;
+	cl_numstris = 0;
+	cl_maxstris = 0;
 }
 
 /*

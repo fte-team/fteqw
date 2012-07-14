@@ -603,6 +603,8 @@ void QCBUILTIN PF_CL_drawrawstring (progfuncs_t *prinst, struct globalvars_s *pr
 	}
 	while(*text)
 	{
+		//FIXME: which charset is this meant to be using?
+		//quakes? 8859-1? utf8? some weird hacky mixture?
 		x = Font_DrawScaleChar(x, y, size[0], size[1], CON_WHITEMASK|/*0xe000|*/(*text++&0xff));
 	}
 	Font_InvalidateColour();

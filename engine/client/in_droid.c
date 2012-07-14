@@ -5,7 +5,9 @@
 extern qboolean mouse_active;
 
 cvar_t m_filter = CVARF("m_filter", "0", CVAR_ARCHIVE);
-cvar_t m_strafeonright = CVARFD("m_strafeonright", "1", CVAR_ARCHIVE, "If 1, touching the right half of the touchscreen will strafe/move, while the left side will turn.");
+cvar_t m_strafeonleft = CVARFD("m_strafeonleft", "1", CVAR_ARCHIVE, "If 1, touching the right half of the touchscreen will strafe/move, while the left side will turn.");
+cvar_t m_fatpressthreshold = CVARFD("m_fatpressthreshold", "0.5", CVAR_ARCHIVE, "How fat your thumb has to be to register a fat press.");
+cvar_t m_slidethreshold = CVARFD("m_slidethreshold", "5", CVAR_ARCHIVE, "How far your finger needs to move to be considered a slide event.");
 
 extern cvar_t _windowed_mouse;
 
@@ -32,6 +34,7 @@ struct eventlist_s
 		struct
 		{
 			float x, y;
+			float tsize;	//the size of the touch
 		} mouse;
 		struct
 		{
@@ -72,13 +75,14 @@ void IN_Shutdown(void)
 
 void IN_ReInit()
 {
-	Cvar_Register (&m_filter, "input controls");
-	Cvar_Register (&m_strafeonright, "input controls");
 }
 
 void IN_Init(void)
 {
-	IN_ReInit();
+	Cvar_Register (&m_filter, "input controls");
+	Cvar_Register (&m_strafeonleft, "input controls");
+	Cvar_Register (&m_fatpressthreshold, "input controls");
+	Cvar_Register (&m_slidethreshold, "input controls");
 }
 
 /*on android, each 'pointer' is a separate touch location*/
@@ -95,31 +99,44 @@ void IN_Commands(void)
 			if (ev->keyboard.scancode == K_MOUSE1 && ev->devid < MAXPOINTERS)
 			{
 				if (Key_MouseShouldBeFree())
-					ptr[ev->devid].down = false;
+					ptr[ev->devid].down = 0;
 				else
 				{
 					if (ev->type == IEV_KEYDOWN)
 					{
-						ptr[ev->devid].down = true;
+						ptr[ev->devid].down = 1;
 						ptr[ev->devid].movedist = 0;
 						ptr[ev->devid].downpos[0] = ptr[ev->devid].oldpos[0];
 						ptr[ev->devid].downpos[1] = ptr[ev->devid].oldpos[1];
 						ptr[ev->devid].move[0] = 0;
 						ptr[ev->devid].move[1] = 0;
+
+						if (ev->mouse.tsize > m_fatpressthreshold.value)
+						{
+							int key = (m_strafeonleft.ival && ptr[ev->devid].downpos[0] > vid.pixelwidth/2)?K_MOUSE2:K_MOUSE1;
+							Key_Event(ev->devid, key, 0, true);
+							ptr[ev->devid].down = 2;
+						}
 					}
 					else
 					{
+						if (ptr[ev->devid].down > 1)
+						{
+							int key = (m_strafeonleft.ival && ptr[ev->devid].downpos[0] > vid.pixelwidth/2)?K_MOUSE2:K_MOUSE1;
+							Key_Event(ev->devid, key, 0, false);
+							ptr[ev->devid].down = 1;
+						}
 						if (ptr[ev->devid].down)
 						{
-							if (ptr[ev->devid].movedist < 5)
+							if (ptr[ev->devid].movedist < m_slidethreshold.value)
 							{
 								/*if its on the right, make it a mouse2*/
-								int key = (m_strafeonright.ival && ptr[ev->devid].downpos[0] > vid.pixelwidth/2)?K_MOUSE3:K_MOUSE1;
+								int key = (m_strafeonleft.ival && ptr[ev->devid].downpos[0] > vid.pixelwidth/2)?K_MOUSE2:K_MOUSE1;
 								Key_Event(ev->devid, key, 0, true);
 								Key_Event(ev->devid, key, 0, false);
 							}
 						}
-						ptr[ev->devid].down = false;
+						ptr[ev->devid].down = 0;
 					}
 					break;
 				}
@@ -130,8 +147,11 @@ void IN_Commands(void)
 			/*mouse cursors only really work with one pointer*/
 			if (ev->devid == 0)
 			{
-				mousecursor_x = bound(0, ev->mouse.x, vid.width - 1);
-				mousecursor_y = bound(0, ev->mouse.y, vid.height - 1);
+				float fl;
+				fl = ev->mouse.x * vid.width / vid.pixelwidth;
+				mousecursor_x = bound(0, fl, vid.width-1);
+				fl = ev->mouse.y * vid.height / vid.pixelheight;
+				mousecursor_y = bound(0, fl, vid.height-1);
 			}
 
 			if (ev->devid < MAXPOINTERS)
@@ -143,6 +163,20 @@ void IN_Commands(void)
 
 				ptr[ev->devid].oldpos[0] = ev->mouse.x;
 				ptr[ev->devid].oldpos[1] = ev->mouse.y;
+
+
+				if (ptr[ev->devid].down > 1 && ev->mouse.tsize < m_fatpressthreshold.value)
+				{
+					int key = (m_strafeonleft.ival && ptr[ev->devid].downpos[0] > vid.pixelwidth/2)?K_MOUSE2:K_MOUSE1;
+					Key_Event(ev->devid, key, 0, false);
+					ptr[ev->devid].down = 1;
+				}
+				if (ptr[ev->devid].down == 1 && ev->mouse.tsize > m_fatpressthreshold.value)
+				{
+					int key = (m_strafeonleft.ival && ptr[ev->devid].downpos[0] > vid.pixelwidth/2)?K_MOUSE2:K_MOUSE1;
+					Key_Event(ev->devid, key, 0, true);
+					ptr[ev->devid].down = 2;
+				}
 			}
 			break;
 		}
@@ -169,7 +203,7 @@ static void IN_Update(qboolean ingame)
 		{
 			if (!CSQC_MouseMove(ptr[i].move[0], ptr[i].move[1], i))
 			{
-				if (ptr[i].down && m_strafeonright.ival && ptr[i].downpos[0] > vid.pixelwidth/2 && ingame)
+				if (ptr[i].down && m_strafeonleft.ival && ptr[i].downpos[0] > vid.pixelwidth/2 && ingame)
 				{
 					mousestrafe_x += ptr[i].oldpos[0] - ptr[i].downpos[0];
 					mousestrafe_y += ptr[i].oldpos[1] - ptr[i].downpos[1];
@@ -273,7 +307,7 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_keypress(JNIEnv *env, jobje
 }
 
 JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_motion(JNIEnv *env, jobject obj,
-                 jint act, jint ptrid, jfloat x, jfloat y)
+                 jint act, jint ptrid, jfloat x, jfloat y, jfloat size)
 {
 	struct eventlist_s *ev = in_newevent();
 	if (!ev)
@@ -290,6 +324,7 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_motion(JNIEnv *env, jobject
 		ev->type = IEV_MOUSEABS;
 		ev->mouse.x = x;
 		ev->mouse.y = y;
+		ev->mouse.tsize = size;
 	}
 	in_finishevent();
 }

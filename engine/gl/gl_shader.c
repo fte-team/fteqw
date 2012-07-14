@@ -3358,11 +3358,14 @@ static qboolean Shader_Parsetok (shader_t *shader, shaderpass_t *pass, shaderkey
 		}
 	}
 
+//	Con_Printf("Unknown shader directive: \"%s\"\n", token);
+
 	// Next Line
 	while (ptr)
 	{
 		token = COM_ParseExt ( ptr, false );
-		if ( !token[0] ) {
+		if ( !token[0] )
+		{
 			break;
 		}
 	}
@@ -4605,19 +4608,19 @@ static void Shader_ReadShader(shader_t *s, char *shadersource, int parsemode)
 				token = COM_ParseExt (&shadersource, true);
 				if ( !token[0] )
 					continue;
-                                else if (token[0] == ']')
-                                {
-                                        if (--nest <= 0)
-                                        {
-                                                nest++;
+				else if (token[0] == ']')
+				{
+					if (--nest <= 0)
+					{
+						nest++;
 						if (!strcmp(token, "]["))
-                                                        conditionistrue = !conditionistrue;
-                                                else
-                                                        break;
-                                        }
-                                }
-                                else if (token[0] == '[')
-                                        nest++;
+							conditionistrue = !conditionistrue;
+						else
+							break;
+					}
+				}
+				else if (token[0] == '[')
+					nest++;
 				else if (conditionistrue)
 				{
 					if (token[0] == '{')

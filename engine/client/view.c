@@ -392,6 +392,10 @@ void V_ParseDamage (int pnum)
 	if (count < 10)
 		count = 10;
 
+#ifdef ANDROID
+	Sys_Vibrate(count);
+#endif
+
 	if (v_damagecshift.value >= 0)
 		count *= v_damagecshift.value;
 

@@ -20,6 +20,9 @@ qboolean isDedicated = false;
 void *sys_window; /*public so the renderer can attach to the correct place*/
 static qboolean sys_running = false;
 int sys_glesversion;
+cvar_t sys_vibrate = CVAR("sys_vibrate", "1");
+cvar_t sys_osk = CVAR("sys_osk", "0");	//to be toggled
+cvar_t sys_keepscreenon = CVAR("sys_keepscreenon", "1");	//to be toggled
 
 
 #define LOGI(...) ((void)__android_log_print(ANDROID_LOG_INFO, DISTRIBUTION"Droid", __VA_ARGS__))
@@ -27,9 +30,23 @@ int sys_glesversion;
 
 static void *sys_memheap;
 static unsigned int sys_lastframe;
-JNIEXPORT int JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject obj,
+static unsigned int vibrateduration;
+
+void Sys_Vibrate(int count)
+{
+	vibrateduration = count*10*sys_vibrate.value;
+}
+JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_getvibrateduration(JNIEnv *env, jobject obj)
+{
+	unsigned int dur = vibrateduration;
+	vibrateduration = 0;
+	return dur;
+}
+
+JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject obj,
 				jfloat ax, jfloat ay, jfloat az)
 {
+	int ret;
 	static vec3_t oac;
 	#ifdef SERVERONLY
 	SV_Frame();
@@ -38,6 +55,9 @@ JNIEXPORT int JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject o
 	double tdelta = (now - sys_lastframe) * 0.001;
 	if (oac[0] != ax || oac[1] != ay || oac[2] != az)
 	{
+		//down: x= +9.8
+		//left: y= -9.8
+		//up:   z= +9.8
 		CSQC_Accelerometer(ax, ay, az);
 		oac[0] = ax;
 		oac[1] = ay;
@@ -47,9 +67,14 @@ JNIEXPORT int JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject o
 	sys_lastframe = now;
 	#endif
 
-	if (key_dest == key_console || key_dest == key_message)
-		return 1;
-	return 0;
+	ret = 0;
+	if (key_dest == key_console || key_dest == key_message || (key_dest == key_game && cls.state == ca_disconnected) || sys_osk.ival)
+		ret |= 1;
+	if (vibrateduration)
+		ret |= 2;
+	if (sys_keepscreenon.ival)
+		ret |= 4;
+	return ret;
 }
 
 JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject obj,
@@ -78,7 +103,7 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 		parms.basedir = NULL;	/*filled in later*/
 		parms.argc = 3;
 		parms.argv = args;
-		parms.memsize = 16*1024*1024;
+		parms.memsize = 512*1024*1024;
 		parms.membase = sys_memheap = malloc(parms.memsize);
 		if (!parms.membase)
 		{
@@ -249,6 +274,9 @@ void Sys_SendKeyEvents(void)
 }
 void Sys_Init(void)
 {
+	Cvar_Register(&sys_vibrate, "android stuff");
+	Cvar_Register(&sys_osk, "android stuff");
+	Cvar_Register(&sys_keepscreenon, "android stuff");
 }
 
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)

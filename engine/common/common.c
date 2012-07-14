@@ -2210,7 +2210,7 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				continue;
 			}
 		}
-		if (*str == '&' && str[1] == 'c')
+		else if (*str == '&' && str[1] == 'c')
 		{
 			// ezQuake color codes
 
@@ -2261,6 +2261,15 @@ conchar_t *COM_ParseFunString(conchar_t defaultflags, const char *str, conchar_t
 				}
 			}
 		}
+		else if (*str == '&' && str[1] == 'r')
+		{
+			ext = (COLOR_WHITE << CON_FGSHIFT) | (ext&~CON_FGMASK);
+			if (!keepmarkup)
+			{
+				str+=2;
+				continue;
+			}
+		}
 messedup:
 		if (!--outsize)
 			break;
@@ -2270,6 +2279,8 @@ messedup:
 		{
 			if (strchr("\n\r\t ", *str))
 				*out++ = (unsigned char)(*str++) | (ext&~CON_HIGHCHARSMASK);
+			else if (*str >= 32 && *str < 127 && !(ext&CON_HIGHCHARSMASK))
+				*out++ = (unsigned char)(*str++) | ext;
 			else
 				*out++ = (unsigned char)(*str++) | ext | 0xe000;
 		}
@@ -3324,6 +3335,13 @@ void COM_Version_f (void)
 #endif
 }
 
+void COM_CrashMe_f(void)
+{
+	int *crashaddr = (int*)0x05;
+
+	*crashaddr = 0;
+}
+
 /*
 ================
 COM_Init
@@ -3360,7 +3378,7 @@ void COM_Init (void)
 	Cmd_AddCommand ("flocate", COM_Locate_f);	//prints the pak or whatever where this file can be found.
 	Cmd_AddCommand ("version", COM_Version_f);	//prints the pak or whatever where this file can be found.
 
-	Cmd_AddCommand ("crashme", (void*)1); //debugging feature, makes it jump to an invalid address
+	Cmd_AddCommand ("crashme", COM_CrashMe_f);
 	COM_InitFilesystem ();
 
 	COM_CheckRegistered ();

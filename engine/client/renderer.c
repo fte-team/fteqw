@@ -210,8 +210,14 @@ extern cvar_t r_novis;
 extern cvar_t r_speeds;
 extern cvar_t r_waterwarp;
 
+#ifdef ANDROID
+//on android, these numbers seem to be generating major weirdness, so disable these.
+cvar_t	r_polygonoffset_submodel_factor = SCVAR("r_polygonoffset_submodel_factor", "0");
+cvar_t	r_polygonoffset_submodel_offset = SCVAR("r_polygonoffset_submodel_offset", "0");
+#else
 cvar_t	r_polygonoffset_submodel_factor = SCVAR("r_polygonoffset_submodel_factor", "0.05");
 cvar_t	r_polygonoffset_submodel_offset = SCVAR("r_polygonoffset_submodel_offset", "25");
+#endif
 
 cvar_t	r_polygonoffset_stencil_factor = SCVAR("r_polygonoffset_stencil_factor", "0.01");
 cvar_t	r_polygonoffset_stencil_offset = SCVAR("r_polygonoffset_stencil_offset", "1");
@@ -2384,7 +2390,19 @@ void R_InitParticleTexture (void)
 			data[y*16+x][3] = exptexture[x][y]*255/9.0;
 		}
 	}
-	explosiontexture = R_LoadTexture32("", 16, 16, data, IF_NOMIPMAP|IF_NOPICMIP);
+	explosiontexture = R_LoadTexture32("fte_fuzzyparticle", 16, 16, data, IF_NOMIPMAP|IF_NOPICMIP);
+
+	for (x=0 ; x<16 ; x++)
+	{
+		for (y=0 ; y<16 ; y++)
+		{
+			data[y*16+x][0] = exptexture[x][y]*255/9.0;
+			data[y*16+x][1] = exptexture[x][y]*255/9.0;
+			data[y*16+x][2] = exptexture[x][y]*255/9.0;
+			data[y*16+x][3] = exptexture[x][y]*255/9.0;
+		}
+	}
+	R_LoadTexture32("fte_bloodparticle", 16, 16, data, IF_NOMIPMAP|IF_NOPICMIP);
 
 	memset(data, 255, sizeof(data));
 	for (y = 0;y < PARTICLETEXTURESIZE;y++)

@@ -169,7 +169,7 @@ void Con_PrintCon (console_t *con, char *txt);
 void Con_NotifyBox (char *text);	// during startup for sound / cd warnings
 
 #ifdef CRAZYDEBUGGING
-#define TRACE(x) Con_Printf x
+#define TRACE(x) Sys_Printf x
 #else
 #define TRACE(x)
 #endif

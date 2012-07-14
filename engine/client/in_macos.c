@@ -83,7 +83,7 @@ void IN_Move (float *movements, int pnum)
 	}
 	else
 	{
-		cl.viewanglechange[pnum][YAW] -= m_yaw.value * mouse_x;
+		cl.playerview[pnum].viewanglechange[YAW] -= m_yaw.value * mouse_x;
 	}
 
 	if (in_mlook.state[pnum])
@@ -91,7 +91,7 @@ void IN_Move (float *movements, int pnum)
     
 	if (in_mlook.state[pnum] && !(in_strafe.state[pnum] & 1))
 	{
-		cl.viewanglechange[pnum][PITCH] += m_pitch.value * mouse_y;
+		cl.playerview[pnum].viewanglechange[PITCH] += m_pitch.value * mouse_y;
 	}
 	else
 	{

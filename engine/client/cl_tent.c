@@ -521,6 +521,7 @@ CL_ClearTEnts
 void CL_ClearTEnts (void)
 {
 	CL_ClearTEntParticleState();
+	CL_ShutdownTEnts();
 
 	cl_beams_max = 0;
 	BZ_Free(cl_beams);

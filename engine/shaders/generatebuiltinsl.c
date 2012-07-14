@@ -26,6 +26,7 @@ char shaders[][64] =
 	"postproc_panorama",
 	"rtlight",
 	"underwaterwarp",
+	"terrain",
 	""
 };
 

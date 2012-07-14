@@ -1568,12 +1568,12 @@ static qboolean Sh_ScissorForBox(vec3_t mins, vec3_t maxs, srect_t *r)
 		x2 = 0;
 	if (y2 < 0)
 		y2 = 0;
-	if (x1 > r_refdef.vrect.width)
-		x1 = r_refdef.vrect.width;
+	if (x1 > r_refdef.vrect.width * vid.pixelwidth / vid.width)
+		x1 = r_refdef.vrect.width * vid.pixelwidth / vid.width;
 	if (y1 > r_refdef.vrect.height * vid.pixelheight / vid.height)
 		y1 = r_refdef.vrect.height * vid.pixelheight / vid.height;
-	if (x2 > r_refdef.vrect.width)
-		x2 = r_refdef.vrect.width;
+	if (x2 > r_refdef.vrect.width * vid.pixelwidth / vid.width)
+		x2 = r_refdef.vrect.width * vid.pixelwidth / vid.width;
 	if (y2 > r_refdef.vrect.height * vid.pixelheight / vid.height)
 		y2 = r_refdef.vrect.height * vid.pixelheight / vid.height;
 	r->x = floor(x1);

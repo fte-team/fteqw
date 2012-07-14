@@ -1522,8 +1522,8 @@ float Font_DrawScaleChar(float px, float py, float cw, float ch, unsigned int ch
 	}
 	else
 	{
-		sx = ((px+c->left));
-		sy = ((py+c->top));
+		sx = ((px+(c->left*(int)vid.width) / (float)vid.rotpixelwidth));
+		sy = ((py+(c->top*(int)vid.height) / (float)vid.rotpixelheight));
 		sw = ((c->bmw*cw));
 		sh = ((c->bmh*ch));
 		v = Font_BeginChar(fontplanes.texnum[c->texplane]);

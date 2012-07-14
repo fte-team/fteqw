@@ -628,6 +628,17 @@ void Master_AddMaster (char *address, int type, char *description)
 	master = mast;
 }
 
+void MasterInfo_Shutdown(void)
+{
+	master_t *mast;
+	while(master)
+	{
+		mast = master;
+		master = mast->next;
+		Z_Free(mast);
+	}
+}
+
 void Master_AddMasterHTTP (char *address, int mastertype, char *description)
 {
 	master_t *mast;
@@ -1539,11 +1550,11 @@ void MasterInfo_Refresh(void)
 
 		//q3
 		{
-		//Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake3", MT_MASTERHTTPQW, "gameaholic's Q3 master");
-		Master_AddMaster("master.quake3arena.com:27950",	MT_MASTERQ3, "Quake3 master server.");
-		Master_AddMaster("masterserver.exhale.de:27950",	MT_MASTERQ3, "team exhale");
-		//Master_AddMaster("master3.quake3arena.com:27950",	MT_MASTERQ3, "Quake3 master3 server.");
-		Master_AddMaster("255.255.255.255:27960",			MT_BCASTQ3, "Nearby Quake3 UDP servers.");
+			//Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake3", MT_MASTERHTTPQW, "gameaholic's Q3 master");
+			Master_AddMaster("master.quake3arena.com:27950",	MT_MASTERQ3, "Quake3 master server.");
+			Master_AddMaster("masterserver.exhale.de:27950",	MT_MASTERQ3, "team exhale");
+			//Master_AddMaster("master3.quake3arena.com:27950",	MT_MASTERQ3, "Quake3 master3 server.");
+			Master_AddMaster("255.255.255.255:27960",			MT_BCASTQ3, "Nearby Quake3 UDP servers.");
 		}
 	}
 

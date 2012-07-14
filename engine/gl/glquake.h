@@ -407,9 +407,11 @@ void R_SaveRTLights_f(void);
 // gl_heightmap.c
 //
 #ifdef TERRAIN
-void GL_DrawHeightmapModel (batch_t **batch, entity_t *e);
-qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer);
-void HeightMap_Purge(model_t *mod);
+void Terr_DrawTerrainModel (batch_t **batch, entity_t *e);
+qboolean Terr_LoadTerrainModel (model_t *mod, void *buffer);
+void Terr_PurgeTerrainModel(model_t *mod, qboolean lightmapsonly);
+void *Mod_LoadTerrainInfo(model_t *mod, char *loadname);	//call this after loading a bsp
+qboolean Heightmap_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contentmask, trace_t *trace);
 #endif
 
 //doom

@@ -26,6 +26,10 @@ import android.media.AudioManager;
 import android.media.AudioTrack;
 import android.os.Environment;
 
+import android.view.inputmethod.InputMethodManager;
+
+import android.os.Vibrator;
+
 public class FTEDroidActivity extends Activity
 {
 	private static final int USE_GLES_VERSION = 1;  //valid values: 1 or 2. If set to 2, it'll still fall back to 1 if gles2 isn't supported on this device.
@@ -41,13 +45,16 @@ public class FTEDroidActivity extends Activity
 		public int glesversion;
 		private String basedir, userdir;
 		FTEDroidActivity act;
+		FTEView theview;
+		int notifiedflags;
 		
-		FTERenderer(Context ctx, FTEDroidActivity parent)
+		FTERenderer(FTEView view, FTEDroidActivity parent)
 		{
 			act = parent;
+			theview = view;
 			try
 			{
-			   android.content.pm.PackageInfo info = ctx.getPackageManager().getPackageInfo("com.fteqw", 0);
+			   android.content.pm.PackageInfo info = parent.getPackageManager().getPackageInfo("com.fteqw", 0);
 			   basedir = info.applicationInfo.sourceDir;
 			}
 			catch(android.content.pm.PackageManager.NameNotFoundException e)
@@ -71,7 +78,69 @@ public class FTEDroidActivity extends Activity
 		{
 			if (inited == true)
 			{
-				FTEDroidEngine.frame(act.acc_x, act.acc_y, act.acc_z);
+				int flags;
+				flags = FTEDroidEngine.frame(act.acc_x, act.acc_y, act.acc_z);
+				if (flags != notifiedflags)
+				{
+					if (((flags ^ notifiedflags) & 1) != 0)
+					{
+						final int fl = flags;
+						Runnable r = new Runnable() 
+						{	//doing this on the ui thread because android sucks.
+							public void run()
+							{
+								InputMethodManager im = (InputMethodManager) act.getSystemService(Context.INPUT_METHOD_SERVICE);
+								if (im != null)
+								{
+									if ((fl & 1) != 0)
+									{
+		//								getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
+										im.showSoftInput(theview, InputMethodManager.SHOW_FORCED);
+									}
+									else
+									{
+		//								getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
+										im.hideSoftInputFromWindow(theview.getWindowToken(), 0);
+									}
+								}
+								else
+									android.util.Log.i("FTEDroid", "IMM failed");
+							}
+						};
+						act.runOnUiThread(r);
+					}
+					if (((flags ^ notifiedflags) & 2) != 0)
+					{
+						int dur = FTEDroidEngine.getvibrateduration();
+						flags &= ~2;
+						Vibrator vib = (Vibrator) act.getSystemService(Context.VIBRATOR_SERVICE);
+						if (vib != null)
+						{
+							android.util.Log.i("FTEDroid", "Vibrate " + dur + "ms");
+							vib.vibrate(dur);
+						}
+						else
+							android.util.Log.i("FTEDroid", "No vibrator device");
+					}
+					if (((flags ^ notifiedflags) & 4) != 0)
+					{
+						final int fl = flags;
+						Runnable r = new Runnable() 
+						{
+							public void run()
+							{
+								if ((fl & 4) != 0)
+									act.getWindow().setFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON, WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+								else
+									act.getWindow().setFlags(0, WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+							}
+						};
+						act.runOnUiThread(r);
+					}
+
+					//clear anything which is an impulse
+					notifiedflags = flags;
+				}
 			}
 		}
 		@Override
@@ -253,13 +322,13 @@ public class FTEDroidActivity extends Activity
 				final int pointerCount = event.getPointerCount();
 				int i;
 				for (i = 0; i < pointerCount; i++)
-					FTEDroidEngine.motion(0, event.getPointerId(i), event.getX(i), event.getY(i));
+					FTEDroidEngine.motion(0, event.getPointerId(i), event.getX(i), event.getY(i), event.getSize(i));
 			}
 			
 			public boolean go(MotionEvent event)
 			{
 				int id;
-				float x, y;
+				float x, y, size;
 				final int act = event.getAction();
 				
 				domove(event);
@@ -272,7 +341,8 @@ public class FTEDroidActivity extends Activity
 					x = event.getX(id);
 					y = event.getY(id);
 					id = event.getPointerId(id);
-					FTEDroidEngine.motion(1, id, x, y);
+					size = event.getSize(id);
+					FTEDroidEngine.motion(1, id, x, y, size);
 					break;
 				case MotionEvent.ACTION_UP:
 				case MotionEvent.ACTION_POINTER_UP:
@@ -280,7 +350,8 @@ public class FTEDroidActivity extends Activity
 					x = event.getX(id);
 					y = event.getY(id);
 					id = event.getPointerId(id);
-					FTEDroidEngine.motion(2, id, x, y);
+					size = event.getSize(id);
+					FTEDroidEngine.motion(2, id, x, y, size);
 					break;
 				case MotionEvent.ACTION_MOVE:
 					break;
@@ -297,16 +368,17 @@ public class FTEDroidActivity extends Activity
 				final int act = event.getAction();
 				final float x = event.getX();
 				final float y = event.getY();
+				final float size = event.getSize();
 
-				FTEDroidEngine.motion(0, 0, x, y);
+				FTEDroidEngine.motion(0, 0, x, y, size);
 
 				switch(act)
 				{
 				case MotionEvent.ACTION_DOWN:
-					FTEDroidEngine.motion(1, 0, x, y);
+					FTEDroidEngine.motion(1, 0, x, y, size);
 					break;
 				case MotionEvent.ACTION_UP:
-					FTEDroidEngine.motion(2, 0, x, y);
+					FTEDroidEngine.motion(2, 0, x, y, size);
 					break;
 				case MotionEvent.ACTION_MOVE:
 					break;
@@ -326,7 +398,7 @@ public class FTEDroidActivity extends Activity
 			else
 				inputevent = new FTELegacyInputEvent();
 
-			rndr = new FTERenderer(context, context);
+			rndr = new FTERenderer(this, context);
 			
 			if (USE_GLES_VERSION < 2)
 			{
@@ -383,10 +455,18 @@ public class FTEDroidActivity extends Activity
 			float y = event.getY();
 		}
 		*/
-		private static final int K_UPARROW = 132;
-		private static final int K_DOWNARROW = 133;
-		private static final int K_LEFTARROW = 134;
-		private static final int K_RIGHTARROW = 135;
+		private static final int K_ENTER		= 13;
+		private static final int K_ESCAPE		= 27;
+		private static final int K_DEL			= 127;
+		private static final int K_POWER		= 130;
+		private static final int K_UPARROW		= 132;
+		private static final int K_DOWNARROW	= 133;
+		private static final int K_LEFTARROW	= 134;
+		private static final int K_RIGHTARROW	= 135;
+		private static final int K_APP			= 241;
+		private static final int K_SEARCH		= 242;
+		private static final int K_VOLUP		= 243;
+		private static final int K_VOLDOWN		= 244;
 		private int mapKey(int acode, int unicode)
 		{
 			switch(acode)
@@ -401,13 +481,21 @@ public class FTEDroidActivity extends Activity
 				return K_RIGHTARROW;
 			case KeyEvent.KEYCODE_DPAD_CENTER:
 			case KeyEvent.KEYCODE_ENTER:
-				return '\r';
+				return K_ENTER;
 			case KeyEvent.KEYCODE_BACK:
-				return 27;
+				return K_ESCAPE;	//escape, cannot be rebound
 			case KeyEvent.KEYCODE_MENU:
-				return 241;
+				return K_APP;		//"app"
 			case KeyEvent.KEYCODE_DEL:
-				return 127;
+				return K_DEL;		//"del"
+			case KeyEvent.KEYCODE_SEARCH:
+				return K_SEARCH;	//"search"
+			case KeyEvent.KEYCODE_POWER:
+				return K_POWER;		//"power"
+			case KeyEvent.KEYCODE_VOLUME_DOWN:
+				return K_VOLDOWN;	//"voldown"
+			case KeyEvent.KEYCODE_VOLUME_UP:
+				return K_VOLUP;		//"volup"
 			default:
 				if (unicode < 128)
 					return Character.toLowerCase(unicode);

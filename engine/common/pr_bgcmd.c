@@ -3583,7 +3583,7 @@ lh_extension_t QSG_Extensions[] = {
 
 	{"EXT_CSQC_SHARED"},				//this is a separate extension because it requires protocol modifications. note: this is also the extension that extends the allowed stats.
 
-	{NULL},
+	{"PEXT_DPFLAGS"},
 
 	//{"EXT_CSQC"},	//this is the base csqc extension. I'm not sure what needs to be separate and what does not.
 	//{"EXT_CSQC_DELTAS"},//this is a separate extension because the feature may be banned in a league due to cheat protection.

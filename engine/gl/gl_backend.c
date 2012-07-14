@@ -1618,12 +1618,24 @@ static void colourgen(const shaderpass_t *pass, int cnt, vec4_t *src, vec4_t *ds
 		}
 		break;
 	case RGB_GEN_IDENTITY_LIGHTING:
-		//compensate for overbrights
-		while((cnt)--)
+		if (shaderstate.curbatch->lightstyle[0] != 255)
 		{
-			dst[cnt][0] = shaderstate.identitylighting;
-			dst[cnt][1] = shaderstate.identitylighting;
-			dst[cnt][2] = shaderstate.identitylighting;
+			while((cnt)--)
+			{
+				dst[cnt][0] = shaderstate.identitylighting * d_lightstylevalue[shaderstate.curbatch->lightstyle[0]]/256.0f;
+				dst[cnt][1] = shaderstate.identitylighting * d_lightstylevalue[shaderstate.curbatch->lightstyle[0]]/256.0f;
+				dst[cnt][2] = shaderstate.identitylighting * d_lightstylevalue[shaderstate.curbatch->lightstyle[0]]/256.0f;
+			}
+		}
+		else
+		{
+			//compensate for overbrights
+			while((cnt)--)
+			{
+				dst[cnt][0] = shaderstate.identitylighting;
+				dst[cnt][1] = shaderstate.identitylighting;
+				dst[cnt][2] = shaderstate.identitylighting;
+			}
 		}
 		break;
 	default:
@@ -3525,6 +3537,7 @@ void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_
 		shaderstate.sourcevbo = &shaderstate.dummyvbo;
 		shaderstate.curshader = shader;
 		shaderstate.flags = beflags;
+		TRACE(("GLBE_DrawMesh_List: shader %s\n", shader->name));
 		if (shaderstate.curentity != &r_worldentity)
 		{
 			BE_SelectEntity(&r_worldentity);
@@ -3719,9 +3732,14 @@ static void GLBE_SubmitMeshesSortList(batch_t *sortlist)
 				continue;
 
 		if (batch->buildmeshes)
+		{
+			TRACE(("GLBE_SubmitMeshesSortList: build\n"));
 			batch->buildmeshes(batch);
+		}
 		else if (batch->texture)
 			batch->shader = R_TextureAnimation(batch->ent->framestate.g[FS_REG].frame[0], batch->texture)->shader;
+
+		TRACE(("GLBE_SubmitMeshesSortList: shader %s\n", batch->shader->name));
 
 		if (batch->shader->flags & SHADER_NODRAW)
 			continue;
@@ -4111,6 +4129,8 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 
 	GL_DoSwap();
 
+	TRACE(("GLBE_DrawWorld: %i %p\n", drawworld, vis));
+
 	if (!r_refdef.recurse)
 	{
 		if (shaderstate.wbatch + 50 > shaderstate.maxwbatches)
@@ -4210,9 +4230,11 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 		if (vis)
 		{
 			RSpeedRemark();
+			TRACE(("GLBE_DrawWorld: drawing lights\n"));
 			BE_SelectEntity(&r_worldentity);
 			Sh_DrawLights(vis);
 			RSpeedEnd(RSPEED_STENCILSHADOWS);
+			TRACE(("GLBE_DrawWorld: lights drawn\n"));
 		}
 #endif
 
@@ -4239,5 +4261,7 @@ void GLBE_DrawWorld (qboolean drawworld, qbyte *vis)
 	shaderstate.identitylighting = 1;
 
 	shaderstate.mbatches = ob;
+
+	TRACE(("GLBE_DrawWorld: drawn everything\n"));
 }
 #endif

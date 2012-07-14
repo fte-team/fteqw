@@ -246,7 +246,7 @@ typedef struct part_type_s {
 	float gravity;
 	vec3_t friction;
 	float clipbounce;
-	int stainonimpact;
+	float stainonimpact;
 
 	vec3_t dl_rgb;
 	float dl_radius;
@@ -1135,13 +1135,15 @@ static void P_ParticleEffect_f(void)
 			ptype->rgbrandsync[2] = atof(value);
 
 		else if (!strcmp(var, "stains"))
-			ptype->stainonimpact = atoi(value);
+			ptype->stainonimpact = atof(value);
 		else if (!strcmp(var, "blend"))
 		{
 			if (!strcmp(value, "add"))
 				ptype->looks.blendmode = BM_ADD;
 			else if (!strcmp(value, "subtract"))
 				ptype->looks.blendmode = BM_SUBTRACT;
+			else if (!strcmp(value, "invmod"))
+				ptype->looks.blendmode = BM_INVMOD;
 			else if (!strcmp(value, "blendcolour") || !strcmp(value, "blendcolor"))
 				ptype->looks.blendmode = BM_BLENDCOLOUR;
 			else
@@ -2186,6 +2188,16 @@ static void PScript_Shutdown (void)
 	Cmd_RemoveCommand("r_partinfo");
 	Cmd_RemoveCommand("r_beaminfo");
 #endif
+
+	while (numparticletypes > 0)
+	{
+		numparticletypes--;
+		if (part_type[numparticletypes].ramp)
+			BZ_Free(part_type[numparticletypes].ramp);
+	}
+	BZ_Free (part_type);
+	part_type = NULL;
+	part_run_list = NULL;
 
 	BZ_Free (particles);
 	BZ_Free (beams);
@@ -5354,10 +5366,16 @@ static void PScript_DrawParticleTypes (void)
 			{
 				if (traces-->0&&tr(oldorg, p->org, stop, normal))
 				{
-					R_AddStain(stop,	(p->rgba[1]*-10+p->rgba[2]*-10),
-										(p->rgba[0]*-10+p->rgba[2]*-10),
-										(p->rgba[0]*-10+p->rgba[1]*-10),
-										30*p->rgba[3]*type->stainonimpact);
+					if (type->stainonimpact < 0)
+						R_AddStain(stop,	(p->rgba[0]*-1),
+											(p->rgba[1]*-1),
+											(p->rgba[2]*-1),
+											p->scale*-type->stainonimpact);
+					else
+						R_AddStain(stop,	(p->rgba[1]*-10+p->rgba[2]*-10),
+											(p->rgba[0]*-10+p->rgba[2]*-10),
+											(p->rgba[0]*-10+p->rgba[1]*-10),
+											30*p->rgba[3]*type->stainonimpact);
 					p->die = -1;
 					continue;
 				}

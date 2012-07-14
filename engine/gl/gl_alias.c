@@ -1923,8 +1923,8 @@ void BE_GenModelBatches(batch_t **batches)
 		batches[i] = NULL;
 
 #if defined(TERRAIN)
-	if (cl.worldmodel && cl.worldmodel->type == mod_heightmap)
-		GL_DrawHeightmapModel(batches, &r_worldentity);
+	if (cl.worldmodel && cl.worldmodel->terrain)
+		Terr_DrawTerrainModel(batches, &r_worldentity);
 #endif
 
 	if (!r_drawentities.ival)

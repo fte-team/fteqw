@@ -2210,8 +2210,9 @@ void Doom_MarkLights(struct dlight_s *light, int bit, struct mnode_s *node)
 
 void Doom_SetModelFunc(model_t *mod)
 {
+#ifndef SERVERONLY
 	mod->funcs.PurgeModel			= Doom_Purge;
-
+#endif
 	mod->funcs.FatPVS				= Doom_FatPVS;
 	mod->funcs.EdictInFatPVS		= Doom_EdictInFatPVS;
 	mod->funcs.FindTouchedLeafs		= Doom_FindTouchedLeafs;

@@ -1223,6 +1223,7 @@ static void QCBUILTIN PF_R_GetViewFlag(progfuncs_t *prinst, struct globalvars_s 
 	case VF_SIZE:
 		r[0] = r_refdef.vrect.width;
 		r[1] = r_refdef.vrect.height;
+		r[2] = 0;
 		break;
 
 	case VF_MIN_X:

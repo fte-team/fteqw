@@ -3273,6 +3273,7 @@ void CL_Init (void)
 	Cmd_AddCommand ("god", NULL);	//cheats
 	Cmd_AddCommand ("give", NULL);
 	Cmd_AddCommand ("noclip", NULL);
+	Cmd_AddCommand ("notarget", NULL);
 	Cmd_AddCommand ("fly", NULL);
 	Cmd_AddCommand ("setpos", NULL);
 
@@ -3465,15 +3466,6 @@ double Host_Frame (double time)
 //	if (cls.demoplayback && cl_demospeed.value>0)
 //		realframetime *= cl_demospeed.value; // this probably screws up other timings
 
-#ifndef CLIENTONLY
-	if (sv.state)
-	{
-		RSpeedRemark();
-		SV_Frame();
-		RSpeedEnd(RSPEED_SERVER);
-	}
-#endif
-
 	if (cl.gamespeed<0.1)
 		cl.gamespeed = 1;
 	time *= cl.gamespeed;
@@ -3510,7 +3502,17 @@ double Host_Frame (double time)
 		if (idlesec > 0.1)
 			idlesec = 0.1; // limit to at least 10 fps
 		if ((realtime - oldrealtime) < idlesec)
+		{
+#ifndef CLIENTONLY
+			if (sv.state)
+			{
+				RSpeedRemark();
+				SV_Frame();
+				RSpeedEnd(RSPEED_SERVER);
+			}
+#endif
 			return idlesec - (realtime - oldrealtime);
+		}
 	}
 
 /*
@@ -3598,7 +3600,6 @@ double Host_Frame (double time)
 
 	// fetch results from server
 	CL_ReadPackets ();
-	CL_CalcClientTime();
 
 	// send intentions now
 	// resend a connection request if necessary
@@ -3619,6 +3620,19 @@ double Host_Frame (double time)
 	CL_AllowIndependantSendCmd(true);
 
 	RSpeedEnd(RSPEED_PROTOCOL);
+
+#ifndef CLIENTONLY
+	if (sv.state)
+	{
+		float ohft = host_frametime;
+		RSpeedRemark();
+		SV_Frame();
+		RSpeedEnd(RSPEED_SERVER);
+		host_frametime = ohft;
+		CL_ReadPackets ();
+	}
+#endif
+	CL_CalcClientTime();
 
 	// update video
 	if (host_speeds.ival)

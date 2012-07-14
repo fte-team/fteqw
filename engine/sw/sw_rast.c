@@ -751,6 +751,7 @@ void SW_Draw_Init(void)
 }
 void SW_Draw_Shutdown(void)
 {
+	R2D_Shutdown();
 }
 void SW_R_Init(void)
 {

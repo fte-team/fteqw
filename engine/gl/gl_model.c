@@ -39,7 +39,6 @@ char	loadname[32];	// for hunk tags
 
 void CM_Init(void);
 
-qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer);
 qboolean RMod_LoadSpriteModel (model_t *mod, void *buffer);
 qboolean RMod_LoadSprite2Model (model_t *mod, void *buffer);
 qboolean RMod_LoadBrushModel (model_t *mod, void *buffer);
@@ -400,9 +399,10 @@ void RMod_ClearAll (void)
 			Surf_Clear(mod);
 		}
 #ifdef TERRAIN
-		if (mod->type == mod_heightmap)
+		if (mod->terrain)
 		{
-			HeightMap_Purge(mod);
+			Terr_PurgeTerrainModel(mod, false);
+			mod->terrain = NULL;
 		}
 #endif
 
@@ -667,10 +667,15 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 	while (replstr)
 	{
 		replstr = COM_ParseStringSet(replstr);
+
 		if (replstr)
+		{
+			TRACE(("RMod_LoadModel: Trying to load (replacement) model \"%s.%s\"\n", mdlbase, com_token));
 			buf = (unsigned *)COM_LoadStackFile (va("%s.%s", mdlbase, com_token), stackbuf, sizeof(stackbuf));
+		}
 		else
 		{
+			TRACE(("RMod_LoadModel: Trying to load model \"%s\"\n", mod->name));
 			buf = (unsigned *)COM_LoadStackFile (mod->name, stackbuf, sizeof(stackbuf));
 			if (!buf)
 			{
@@ -678,6 +683,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 				if (doomsprite) // special case needed for doom sprites
 				{
 					mod->needload = false;
+					TRACE(("RMod_LoadModel: doomsprite: \"%s\"\n", mod->name));
 					RMod_LoadDoomSprite(mod);
 					return mod;
 				}
@@ -703,12 +709,14 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 //The binary 3d mesh model formats
 		case RAPOLYHEADER:
 		case IDPOLYHEADER:
+			TRACE(("RMod_LoadModel: Q1 mdl\n"));
 			if (!Mod_LoadQ1Model(mod, buf))
 				continue;
 			break;
 
 #ifdef MD2MODELS
 		case MD2IDALIASHEADER:
+			TRACE(("RMod_LoadModel: md2\n"));
 			if (!Mod_LoadQ2Model(mod, buf))
 				continue;
 			break;
@@ -716,6 +724,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 
 #ifdef MD3MODELS
 		case MD3_IDENT:
+			TRACE(("RMod_LoadModel: md3\n"));
 			if (!Mod_LoadQ3Model (mod, buf))
 				continue;
 			break;
@@ -723,6 +732,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 
 #ifdef HALFLIFEMODELS
 		case (('T'<<24)+('S'<<16)+('D'<<8)+'I'):
+			TRACE(("RMod_LoadModel: HL mdl\n"));
 			if (!Mod_LoadHLModel (mod, buf))
 				continue;
 			break;
@@ -731,12 +741,14 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 //Binary skeletal model formats
 #ifdef ZYMOTICMODELS
 		case (('O'<<24)+('M'<<16)+('Y'<<8)+'Z'):
+			TRACE(("RMod_LoadModel: zym\n"));
 			if (!Mod_LoadZymoticModel(mod, buf))
 				continue;
 			break;
 #endif
 #ifdef DPMMODELS
 		case (('K'<<24)+('R'<<16)+('A'<<8)+'D'):
+			TRACE(("RMod_LoadModel: dpm\n"));
 			if (!Mod_LoadDarkPlacesModel(mod, buf))
 				continue;
 			break;
@@ -744,6 +756,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 
 #ifdef PSKMODELS
 		case ('A'<<0)+('C'<<8)+('T'<<16)+('R'<<24):
+			TRACE(("RMod_LoadModel: psk\n"));
 			if (!Mod_LoadPSKModel (mod, buf))
 				continue;
 			break;
@@ -751,6 +764,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 
 #ifdef INTERQUAKEMODELS
 		case ('I'<<0)+('N'<<8)+('T'<<16)+('E'<<24):
+			TRACE(("RMod_LoadModel: IQM\n"));
 			if (!Mod_LoadInterQuakeModel (mod, buf))
 				continue;
 			break;
@@ -759,12 +773,14 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 //Binary Sprites
 #ifdef SP2MODELS
 		case IDSPRITE2HEADER:
+			TRACE(("RMod_LoadModel: q2 sp2\n"));
 			if (!RMod_LoadSprite2Model (mod, buf))
 				continue;
 			break;
 #endif
 
 		case IDSPRITEHEADER:
+			TRACE(("RMod_LoadModel: q1 spr\n"));
 			if (!RMod_LoadSpriteModel (mod, buf))
 				continue;
 			break;
@@ -775,6 +791,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 		case ('F'<<0)+('B'<<8)+('S'<<16)+('P'<<24):
 		case ('R'<<0)+('B'<<8)+('S'<<16)+('P'<<24):
 		case IDBSPHEADER:	//looks like id switched to have proper ids
+			TRACE(("RMod_LoadModel: q2/q3/raven/fusion bsp\n"));
 			if (!Mod_LoadQ2BrushModel (mod, buf))
 				continue;
 			break;
@@ -782,6 +799,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 #ifdef MAP_DOOM
 		case (('D'<<24)+('A'<<16)+('W'<<8)+'I'):	//the id is hacked by the FS .wad loader (main wad).
 		case (('D'<<24)+('A'<<16)+('W'<<8)+'P'):	//the id is hacked by the FS .wad loader (patch wad).
+			TRACE(("RMod_LoadModel: doom iwad/pwad map\n"));
 			if (!Mod_LoadDoomLevel (mod))
 				continue;
 			break;
@@ -791,6 +809,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 		case 29:	//q1
 		case 28:	//prerel
 		case BSPVERSION_LONG:
+			TRACE(("RMod_LoadModel: hl/q1 bsp\n"));
 			if (!RMod_LoadBrushModel (mod, buf))
 				continue;
 			break;
@@ -802,12 +821,14 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 #ifdef MD5MODELS
 			if (!strcmp(com_token, "MD5Version"))	//doom3 format, text based, skeletal
 			{
+				TRACE(("RMod_LoadModel: md5mesh/md5anim\n"));
 				if (!Mod_LoadMD5MeshModel (mod, buf))
 					continue;
 				break;
 			}
 			if (!strcmp(com_token, "EXTERNALANIM"))	//custom format, text based, specifies skeletal models to load and which md5anim files to use.
 			{
+				TRACE(("RMod_LoadModel: blurgh\n"));
 				if (!Mod_LoadCompositeAnim (mod, buf))
 					continue;
 				break;
@@ -816,6 +837,7 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 #ifdef MAP_PROC
 			if (!strcmp(com_token, "CM"))	//doom3 map.
 			{
+				TRACE(("RMod_LoadModel: doom3 CM\n"));
 				if (!D3_LoadMap_CollisionMap (mod, (char*)buf))
 					continue;
 				break;
@@ -824,7 +846,8 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 #ifdef TERRAIN
 			if (!strcmp(com_token, "terrain"))	//custom format, text based.
 			{
-				if (!GL_LoadHeightmapModel(mod, buf))
+				TRACE(("RMod_LoadModel: terrain\n"));
+				if (!Terr_LoadTerrainModel(mod, buf))
 					continue;
 				break;
 			}
@@ -836,6 +859,8 @@ model_t *RMod_LoadModel (model_t *mod, qboolean crash)
 
 		P_LoadedModel(mod);
 		Validation_IncludeFile(mod->name, (char *)buf, com_filesize);
+
+		TRACE(("RMod_LoadModel: Loaded\n"));
 
 		return mod;
 	}
@@ -3816,6 +3841,7 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 
 	crouchhullfile = NULL;
 
+	TRACE(("Loading info\n"));
 #ifndef CLIENTONLY
 	if (sv.state)	//if the server is running
 	{
@@ -3832,38 +3858,61 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 // load into heap
 	if (!isDedicated || ode)
 	{
+		TRACE(("Loading verts\n"));
 		noerrors = noerrors && RMod_LoadVertexes (&header->lumps[LUMP_VERTEXES]);
+		TRACE(("Loading edges\n"));
 		noerrors = noerrors && RMod_LoadEdges (&header->lumps[LUMP_EDGES], longm);
+		TRACE(("Loading Surfedges\n"));
 		noerrors = noerrors && RMod_LoadSurfedges (&header->lumps[LUMP_SURFEDGES]);
 	}
 	if (!isDedicated)
 	{
+		TRACE(("Loading Textures\n"));
 		noerrors = noerrors && RMod_LoadTextures (&header->lumps[LUMP_TEXTURES]);
+		TRACE(("Loading Lighting\n"));
 		if (noerrors)
 			RMod_LoadLighting (&header->lumps[LUMP_LIGHTING]);	
 	}
+	TRACE(("Loading Submodels\n"));
 	noerrors = noerrors && RMod_LoadSubmodels (&header->lumps[LUMP_MODELS]);
 	if (noerrors)
+	{
+		TRACE(("Loading CH\n"));
 		RMod_LoadCrouchHull();
+	}
+	TRACE(("Loading Planes\n"));
 	noerrors = noerrors && RMod_LoadPlanes (&header->lumps[LUMP_PLANES]);
 	if (!isDedicated || ode)
 	{
+		TRACE(("Loading Texinfo\n"));
 		noerrors = noerrors && RMod_LoadTexinfo (&header->lumps[LUMP_TEXINFO]);
+		TRACE(("Loading Faces\n"));
 		noerrors = noerrors && RMod_LoadFaces (&header->lumps[LUMP_FACES], longm, &meshlist);
 	}
 	if (!isDedicated)
+	{
+		TRACE(("Loading MarkSurfaces\n"));
 		noerrors = noerrors && RMod_LoadMarksurfaces (&header->lumps[LUMP_MARKSURFACES], longm);	
+	}
 	if (noerrors)
+	{
+		TRACE(("Loading Vis\n"));
 		RMod_LoadVisibility (&header->lumps[LUMP_VISIBILITY]);
+	}
 	noerrors = noerrors && RMod_LoadLeafs (&header->lumps[LUMP_LEAFS], longm);
+	TRACE(("Loading Nodes\n"));
 	noerrors = noerrors && RMod_LoadNodes (&header->lumps[LUMP_NODES], longm);
+	TRACE(("Loading Clipnodes\n"));
 	noerrors = noerrors && RMod_LoadClipnodes (&header->lumps[LUMP_CLIPNODES], longm);
 	if (noerrors)
 	{
+		TRACE(("Loading Entities\n"));
 		RMod_LoadEntities (&header->lumps[LUMP_ENTITIES]);
+		TRACE(("Loading hull 0\n"));
 		RMod_MakeHull0 ();
 	}
 
+	TRACE(("sorting shaders\n"));
 	if (!isDedicated && noerrors)
 		Mod_SortShaders();
 
@@ -3879,8 +3928,11 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 		return false;
 	}
 
+	TRACE(("LoadBrushModel %i\n", __LINE__));
 	Q1BSP_LoadBrushes(mod);
+	TRACE(("LoadBrushModel %i\n", __LINE__));
 	Q1BSP_SetModelFuncs(mod);
+	TRACE(("LoadBrushModel %i\n", __LINE__));
 	mod->funcs.LightPointValues		= GLQ1BSP_LightPointValues;
 	mod->funcs.StainNode			= Q1BSP_StainNode;
 	mod->funcs.MarkLights			= Q1BSP_MarkLights;
@@ -3899,7 +3951,7 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 		mod->hulls[0].available = true;
 		Q1BSP_CheckHullNodes(&mod->hulls[0]);
 
-
+TRACE(("LoadBrushModel %i\n", __LINE__));
 		for (j=1 ; j<MAX_MAP_HULLSM ; j++)
 		{
 			mod->hulls[j].firstclipnode = bm->headnode[j];
@@ -3925,10 +3977,12 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 
 		memset(&mod->batches, 0, sizeof(mod->batches));
 		mod->vbos = NULL;
+		TRACE(("LoadBrushModel %i\n", __LINE__));
 		if (meshlist)
 		{
 			RMod_Batches_Build(meshlist, mod, NULL, NULL);
 		}
+		TRACE(("LoadBrushModel %i\n", __LINE__));
 
 		if (i < mod->numsubmodels-1)
 		{	// duplicate the basic information
@@ -3940,15 +3994,21 @@ qboolean RMod_LoadBrushModel (model_t *mod, void *buffer)
 			strcpy (loadmodel->name, name);
 			mod = loadmodel;
 		}
+		TRACE(("LoadBrushModel %i\n", __LINE__));
 	}
 #ifdef RUNTIMELIGHTING
+	TRACE(("LoadBrushModel %i\n", __LINE__));
 	if (lightmodel == lm)
 		LightLoadEntities(lightmodel->entities);
 #endif
-
+TRACE(("LoadBrushModel %i\n", __LINE__));
 	if (1)
 		RMod_FixupMinsMaxs();
+TRACE(("LoadBrushModel %i\n", __LINE__));
 
+#ifdef TERRAIN
+	lm->terrain = Mod_LoadTerrainInfo(lm, loadname);
+#endif
 	return true;
 }
 

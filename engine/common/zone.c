@@ -1384,7 +1384,7 @@ void *Hunk_AllocName (int size, char *name)
 #ifdef _WIN32
 	  	Sys_Error ("Not enough RAM allocated on allocation of \"%s\".  Try starting using \"-heapsize 16000\" on the QuakeWorld command line.", name);
 #else
-	  	Sys_Error ("Not enough RAM allocated.  Try starting using \"-mem 16\" on the QuakeWorld command line.");
+	  	Sys_Error ("Not enough RAM allocated.  Try starting using \"-mem %u\" on the QuakeWorld command line.", (hunk_size + 8*1024*1024) / 1024*1024);
 #endif
 #endif
 

@@ -1,6 +1,8 @@
 #include "quakedef.h"
 
 #include "pr_common.h"
+
+qboolean Heightmap_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contentmask, trace_t *trace);
 /*
 
 ============================================================================
@@ -996,6 +998,14 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3]
 		{
 			VectorAdd (trace->endpos, offset, trace->endpos);
 		}
+	}
+
+	if (model->terrain && trace->fraction)
+	{
+		trace_t hmt;
+		Heightmap_Trace(model, forcehullnum, frame, axis, start, end, mins, maxs, hitcontentsmask, &hmt);
+		if (hmt.fraction < trace->fraction)
+			*trace = hmt;
 	}
 
 	return trace->fraction != 1;

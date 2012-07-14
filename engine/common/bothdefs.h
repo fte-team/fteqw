@@ -233,7 +233,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef ANDROID
 #undef RTLIGHTS
+#ifndef SPEEX_STATIC
 #undef VOICECHAT
+#endif
 #undef TEXTEDITOR
 #endif
 #ifdef NACL
@@ -360,6 +362,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#else
 			#define PLATFORM	"Win32"
 		#endif
+	#elif defined(ANDROID)
+		#define PLATFORM		"Android"	/*technically also linux*/
 	#elif defined(__linux__)
 		#if defined(__amd64__)
 			#define PLATFORM	"Linux64"

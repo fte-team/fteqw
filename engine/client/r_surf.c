@@ -2286,7 +2286,7 @@ void Surf_DrawWorld (void)
 
 =============================================================================
 */
-#ifdef TERRAIN
+#if 0//def TERRAIN
 // returns a texture number and the position inside it
 int Surf_LM_AllocBlock (int w, int h, int *x, int *y, shader_t *shader)
 {
@@ -2685,9 +2685,7 @@ void Surf_DeInit(void)
 
 void Surf_Clear(model_t *mod)
 {
-	batch_t *b;
 	vbo_t *vbo;
-	int i;
 	if (mod->fromgame == fg_doom3)
 		return;/*they're on the hunk*/
 	while(mod->vbos)
@@ -2748,6 +2746,51 @@ void Surf_LightmapMode(void)
 	}
 }
 
+//needs to be followed by a BE_UploadAllLightmaps at some point
+int Surf_NewLightmaps(int count, int width, int height)
+{
+	int first = numlightmaps;
+	int i, k;
+
+	if (!count)
+		return -1;
+
+	i = numlightmaps + count;
+	lightmap = BZ_Realloc(lightmap, sizeof(*lightmap)*(i));
+	while(i > first)
+	{
+		i--;
+
+		lightmap[i] = Z_Malloc(sizeof(*lightmap[i]) + (sizeof(qbyte)*8 + sizeof(stmap)*3)*width*height);
+		lightmap[i]->width = width;
+		lightmap[i]->height = height;
+		lightmap[i]->lightmaps = (qbyte*)(lightmap[i]+1);
+		lightmap[i]->deluxmaps = (qbyte*)(lightmap[i]->lightmaps+4*width*height);
+		lightmap[i]->stainmaps = (stmap*)(lightmap[i]->deluxmaps+4*width*height);
+
+		lightmap[i]->modified = true;
+//			lightmap[i]->shader = NULL;
+		lightmap[i]->external = false;
+		// reset stainmap since it now starts at 255
+		memset(lightmap[i]->stainmaps, 255, width*height*3*sizeof(stmap));
+
+		//clear out the deluxmaps incase there is none on the map.
+		for (k = 0; k < width*height*3; k+=3)
+		{
+			lightmap[i]->deluxmaps[k+0] = 128;
+			lightmap[i]->deluxmaps[k+1] = 128;
+			lightmap[i]->deluxmaps[k+2] = 255;
+		}
+
+		TEXASSIGN(lightmap[i]->lightmap_texture, R_AllocNewTexture("***lightmap***", width, height));
+		TEXASSIGN(lightmap[i]->deluxmap_texture, R_AllocNewTexture("***deluxmap***", width, height));
+	}
+
+	numlightmaps += count;
+
+	return first;
+}
+
 /*
 ==================
 GL_BuildLightmaps
@@ -2759,16 +2802,13 @@ Groups surfaces into their respective batches (based on the lightmap number).
 */
 void Surf_BuildLightmaps (void)
 {
-	int		i, j, k, t;
+	int		i, j, t;
 	model_t	*m;
 	int shift;
 	msurface_t *surf;
-	batch_t *batch, *bstop;
-	vec3_t sn;
+	batch_t *batch;
 	int sortid;
 	int ptype;
-	void *mem;
-	unsigned int memsize;
 	int newfirst;
 
 	r_framecount = 1;		// no dlightcache
@@ -2783,6 +2823,11 @@ void Surf_BuildLightmaps (void)
 
 	Surf_LightmapMode();
 
+	r_oldviewleaf = NULL;
+	r_oldviewleaf2 = NULL;
+	r_oldviewcluster = -1;
+	r_oldviewcluster2 = -1;
+
 	if (cl.worldmodel->fromgame == fg_doom)
 		return;	//no lightmaps.
 
@@ -2793,6 +2838,12 @@ void Surf_BuildLightmaps (void)
 		m = cl.model_precache[j];
 		if (!m)
 			break;
+
+#ifdef TERRAIN
+		if (m->terrain)
+			Terr_PurgeTerrainModel(m, true);
+#endif
+
 		if (m->type != mod_brush)
 			continue;
 
@@ -2807,41 +2858,7 @@ void Surf_BuildLightmaps (void)
 		if (*m->name == '*' && m->fromgame == fg_quake3)	//FIXME: should be all bsp formats
 			newfirst = cl.model_precache[1]->lightmaps.first;
 		else
-		{
-			newfirst = numlightmaps;
-
-			i = numlightmaps + m->lightmaps.count;
-			lightmap = BZ_Realloc(lightmap, sizeof(*lightmap)*(i));
-			while(i > numlightmaps)
-			{
-				i--;
-
-				lightmap[i] = Z_Malloc(sizeof(*lightmap[i]) + (sizeof(qbyte)*8 + sizeof(stmap)*3)*m->lightmaps.width*m->lightmaps.height);
-				lightmap[i]->width = m->lightmaps.width;
-				lightmap[i]->height = m->lightmaps.height;
-				lightmap[i]->lightmaps = (qbyte*)(lightmap[i]+1);
-				lightmap[i]->deluxmaps = (qbyte*)(lightmap[i]->lightmaps+4*lightmap[i]->width*lightmap[i]->height);
-				lightmap[i]->stainmaps = (stmap*)(lightmap[i]->deluxmaps+4*lightmap[i]->width*lightmap[i]->height);
-
-				lightmap[i]->modified = true;
-	//			lightmap[i]->shader = NULL;
-				lightmap[i]->external = false;
-				// reset stainmap since it now starts at 255
-				memset(lightmap[i]->stainmaps, 255, LMBLOCK_WIDTH*LMBLOCK_HEIGHT*3*sizeof(stmap));
-
-				//clear out the deluxmaps incase there is none on the map.
-				for (k = 0; k < lightmap[i]->width*lightmap[i]->height*3; k+=3)
-				{
-					lightmap[i]->deluxmaps[k+0] = 128;
-					lightmap[i]->deluxmaps[k+1] = 128;
-					lightmap[i]->deluxmaps[k+2] = 255;
-				}
-
-				TEXASSIGN(lightmap[i]->lightmap_texture, R_AllocNewTexture("***lightmap***", lightmap[i]->width, lightmap[i]->height));
-				TEXASSIGN(lightmap[i]->deluxmap_texture, R_AllocNewTexture("***deluxmap***", lightmap[i]->width, lightmap[i]->height));
-			}
-			numlightmaps += m->lightmaps.count;
-		}
+			newfirst = Surf_NewLightmaps(m->lightmaps.count, m->lightmaps.width, m->lightmaps.height);
 
 		//fixup batch lightmaps
 		for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)

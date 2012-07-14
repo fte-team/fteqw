@@ -225,6 +225,24 @@ static struct
 	void *driverctx;	/*capture driver context*/
 } s_speex;
 
+#ifdef SPEEX_STATIC
+#define qspeex_lib_get_mode speex_lib_get_mode
+#define qspeex_bits_init speex_bits_init
+#define qspeex_bits_reset speex_bits_reset
+#define qspeex_bits_write speex_bits_write
+
+#define qspeex_preprocess_state_init speex_preprocess_state_init
+#define qspeex_preprocess_ctl speex_preprocess_ctl
+#define qspeex_preprocess_run speex_preprocess_run
+
+#define qspeex_encoder_init speex_encoder_init
+#define qspeex_encoder_ctl speex_encoder_ctl
+#define qspeex_encode_int speex_encode_int
+
+#define qspeex_decoder_init speex_decoder_init
+#define qspeex_decode_int speex_decode_int
+#define qspeex_bits_read_from speex_bits_read_from
+#else
 static const SpeexMode *(VARGS *qspeex_lib_get_mode)(int mode);
 static void (VARGS *qspeex_bits_init)(SpeexBits *bits);
 static void (VARGS *qspeex_bits_reset)(SpeexBits *bits);
@@ -267,6 +285,7 @@ static dllfunction_t qspeexdspfuncs[] =
 
 	{NULL}
 };
+#endif
 
 snd_capture_driver_t DSOUND_Capture;
 snd_capture_driver_t OSS_Capture;
@@ -275,6 +294,8 @@ static qboolean S_Speex_Init(void)
 {
 	int i;
 	const SpeexMode *mode;
+
+#ifndef SPEEX_STATIC
 	if (s_speex.inited)
 		return s_speex.loaded;
 	s_speex.inited = true;
@@ -292,6 +313,7 @@ static qboolean S_Speex_Init(void)
 		Con_Printf("libspeexdsp not found. Voice chat is not available.\n");
 		return false;
 	}
+#endif
 
 	mode = qspeex_lib_get_mode(SPEEX_MODEID_NB);
 

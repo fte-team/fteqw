@@ -161,7 +161,12 @@ keyname_t keynames[] =
 	{"LWIN",	K_LWIN},
 	{"RWIN",	K_RWIN},
 	{"APP",		K_APP},
-
+	{"MENU",	K_APP},
+	{"SEARCH",	K_SEARCH},
+	{"POWER",	K_POWER},
+	{"VOLUP",	K_VOLUP},
+	{"VOLDOWN",	K_VOLDOWN},
+ 
 	{"JOY1", K_JOY1},
 	{"JOY2", K_JOY2},
 	{"JOY3", K_JOY3},
@@ -390,28 +395,41 @@ qboolean Key_GetConsoleSelectionBox(int *sx, int *sy, int *ex, int *ey)
 {
 	extern int mousecursor_x, mousecursor_y;
 
-	if (!con_mousedown[2])
-	{
-		*sx = *sy = *ex = *ey = 0;
-		return false;
-	}
-	*sx = con_mousedown[0];
-	*sy = con_mousedown[1];
-	*ex = mousecursor_x;
-	*ey = mousecursor_y;
+	*sx = *sy = *ex = *ey = 0;
 
-	return true;
+	if (con_mousedown[2] == 1)
+	{
+		while (mousecursor_y - con_mousedown[1] > 8 && con_current->display->older)
+		{
+			con_mousedown[1] += 8;
+			con_current->display = con_current->display->older;
+		}
+		while (mousecursor_y - con_mousedown[1] < -8 && con_current->display->newer)
+		{
+			con_mousedown[1] -= 8;
+			con_current->display = con_current->display->newer;
+		}
+	}
+	else if (con_mousedown[2] == 2)
+	{
+		*sx = con_mousedown[0];
+		*sy = con_mousedown[1];
+		*ex = mousecursor_x;
+		*ey = mousecursor_y;
+		return true;
+	}
+	return false;
 }
 
 void Key_ConsoleRelease(int key, int unicode)
 {
 	if (key == K_MOUSE1)
-		con_mousedown[2] = false;
-	if (key == K_MOUSE2 && con_mousedown[2])
+		con_mousedown[2] = 0;
+	if (key == K_MOUSE2 && con_mousedown[2] == 2)
 	{
 		extern int mousecursor_x, mousecursor_y;
 		char *buffer;
-		con_mousedown[2] = false;
+		con_mousedown[2] = 0;
 		buffer = Con_CopyConsole();
 		if (!buffer)
 			return;
@@ -478,9 +496,9 @@ void Key_Console (unsigned int unicode, int key)
 			}
 		}
 		else if (key == K_MOUSE2)
-			con_mousedown[2] = true;
+			con_mousedown[2] = 2;
 		else 
-			con_mousedown[2] = false;
+			con_mousedown[2] = 1;
 
 		return;
 	}

@@ -155,6 +155,9 @@ K_AUX32			= 238,
 K_LWIN			= 239,
 K_RWIN			= 240,
 K_APP			= 241,
+K_SEARCH		= 242,
+K_VOLUP			= 243,
+K_VOLDOWN		= 244,
 
 K_MAX			= 256
 };

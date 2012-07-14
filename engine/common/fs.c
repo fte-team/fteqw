@@ -1645,6 +1645,40 @@ char *FS_GetBasedir(void)
 {
 	return com_quakedir;
 }
+
+void FS_CleanDir(char *in, char *out, int outlen)
+{
+	char *end;
+	if (!outlen)
+		return;
+	end = in + strlen(in);
+	//skip over any trailing slashes
+	while (end > in)
+	{
+		if (end[-1] == '/' || end[-1] == '\\')
+			end--;
+		else
+			break;
+	}
+
+	//skip over the path
+	while (end > in)
+	{
+		if (end[-1] != '/' && end[-1] != '\\')
+			end--;
+		else
+			break;
+	}
+
+	//copy string into the dest
+	while (--outlen)
+	{
+		if (*end == '/' || *end == '\\' || !*end)
+			break;
+		*out++ = *end++;
+	}
+	*out = 0;
+}
 /*
 ================
 COM_Gamedir
@@ -1654,9 +1688,9 @@ Sets the gamedir and path to a different directory.
 */
 void COM_Gamedir (const char *dir)
 {
+	char thispath[64];
 	searchpath_t	*next;
-	int plen, dlen;
-	char *p;
+	int dlen;
 	qboolean isbase;
 
 	if (!*dir || !strcmp(dir, ".") || strstr(dir, "..") || strstr(dir, "/")
@@ -1674,41 +1708,18 @@ void COM_Gamedir (const char *dir)
 			isbase = true;
 		if (next->funcs == &osfilefuncs)
 		{
-			p = next->handle;
-			plen = strlen(p);
-			if (plen == dlen)
+			FS_CleanDir(next->purepath, thispath, sizeof(thispath));
+			if (!strcmp(dir, thispath))
 			{
-				//no basedir, maybe
-				if (!strcmp(p, dir))
+				if (isbase && com_searchpaths == com_base_searchpaths)
 				{
-					if (isbase && com_searchpaths == com_base_searchpaths)
-					{
-						Q_strncpyz (gamedirfile, dir, sizeof(gamedirfile));
-						return;
-					}
-					if (!isbase)
-						return;
-					break;
+					Q_strncpyz (gamedirfile, dir, sizeof(gamedirfile));
+					return;
 				}
+				if (!isbase)
+					return;
+				break;
 			}
-			else if (plen > dlen)
-			{
-				if (*(p+plen-dlen-1) == '/')
-				{
-					if (!strcmp(p+plen-dlen, dir))
-					{
-						if (isbase && com_searchpaths == com_base_searchpaths)
-						{
-							Q_strncpyz (gamedirfile, dir, sizeof(gamedirfile));
-							return;
-						}
-						if (!isbase)
-							return;
-						break;
-					}
-				}
-			}
-
 		}
 	}
 
@@ -1807,6 +1818,7 @@ void COM_Gamedir (const char *dir)
 #define HEX2CFG "set com_parseutf8 -1\nset gl_font gfx/hexen2\nset in_builtinkeymap 0\nset_calc cl_playerclass int (random * 5) + 1\nset r_particlesdesc \"spikeset tsshaft h2part\"\nset sv_maxspeed 640\nset watervis 1\nset r_wateralpha 0.5\nset sv_pupglow 1\nset cl_model_bobbing 1\nsv_sound_land \"fx/thngland.wav\"\n"
 /*Q3's ui doesn't like empty model/headmodel/handicap cvars, even if the gamecode copes*/
 #define Q3CFG "gl_overbright 2\nseta model sarge\nseta headmodel sarge\nseta handicap 100\n"
+#define RMQCFG "sv_bigcoords 1\n"
 
 typedef struct {
 	const char *argname;	//used if this was used as a parameter.
@@ -1834,6 +1846,7 @@ const gamemode_info_t gamemode_info[] = {
 	{"-spark",		"spark",	"Spark",				{"base/src/progs.src",
 														 "base/qwprogs.dat",
 														 "base/pak0.pak"},		DMFCFG,	{"base",						         },	"Spark"},
+	{"-rmq",		"rmq",		"RMQ",					{NULL},					RMQCFG,	{"id1",		"qw",	"rmq",		"fte"},		"Remake Quake"},
 
 	//supported commercial mods (some are currently only partially supported)
 	{"-portals",	"h2mp",		"FTE-H2MP",				{"portals/hexen.rc",
@@ -2147,7 +2160,16 @@ void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 			com_base_searchpaths = com_searchpaths;
 
 		if (oldpaths->isexplicit)
-			FS_AddPathHandle(oldpaths->purepath, oldpaths->purepath, oldpaths->funcs, oldpaths->handle, oldpaths->copyprotected, false, true, reloadflags);
+		{
+			if (oldpaths->funcs == &osfilefuncs)
+			{
+				char pure[64];
+				FS_CleanDir(oldpaths->purepath, pure, sizeof(pure));
+				FS_AddPathHandle(pure, oldpaths->purepath, oldpaths->funcs, oldpaths->handle, oldpaths->copyprotected, false, true, reloadflags);
+			}
+			else
+				FS_AddPathHandle(oldpaths->purepath, oldpaths->purepath, oldpaths->funcs, oldpaths->handle, oldpaths->copyprotected, false, true, reloadflags);
+		}
 		else
 			oldpaths->funcs->ClosePath(oldpaths->handle);
 		Z_Free(oldpaths);

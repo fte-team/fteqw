@@ -1032,7 +1032,14 @@ int CL_LoadModels(int stage, qboolean dontactuallyload)
 		s = Info_ValueForKey(cl.serverinfo, "*csprogs");
 		if (anycsqc || *s || cls.demoplayback)	//only allow csqc if the server says so, and the 'checksum' matches.
 		{
-			unsigned int chksum = strtoul(s, NULL, 0);
+			char *endptr;
+			unsigned int chksum = strtoul(s, &endptr, 0);
+			if (*endptr)
+			{
+				Con_Printf("corrupt *csprogs key in serverinfo\n");
+				anycsqc = true;
+				chksum = 0;
+			}
 			SCR_SetLoadingFile("csprogs");
 			if (!CSQC_Init(anycsqc, chksum))
 			{
@@ -1291,8 +1298,9 @@ void Sound_CheckDownloads (void)
 		if (*s)	//only allow csqc if the server says so, and the 'checksum' matches.
 		{
 			extern cvar_t cl_download_csprogs, cl_nocsqc;
-			unsigned int chksum = strtoul(s, NULL, 0);
-			if (cl_nocsqc.ival || cls.demoplayback)
+			char *endptr;
+			unsigned int chksum = strtoul(s, &endptr, 0);
+			if (cl_nocsqc.ival || cls.demoplayback || *endptr)
 			{
 			}
 			else if (cl_download_csprogs.ival)

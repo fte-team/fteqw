@@ -376,7 +376,7 @@ void Log_Init(void)
 
 	// cmd line options, debug options
 #ifdef CRAZYDEBUGGING
-	Cvar_ForceSet(&log_enable, "1");
+	Cvar_ForceSet(&log_enable[LOG_CONSOLE], "1");
 	TRACE(("dbg: Con_Init: log_enable forced\n"));
 #endif
 

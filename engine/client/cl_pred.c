@@ -981,7 +981,11 @@ void CL_PredictMovePNum (int pnum)
 	{
 		if (cl_lerp_players.ival && !cls.demoplayback)
 		{
-			lerpents_t *le = &cl.lerpplayers[spec_track[pnum]];
+			lerpents_t *le;
+			if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) 
+				le = &cl.lerpents[spec_track[pnum]+1];
+			else
+				le = &cl.lerpplayers[spec_track[pnum]];
 			org = le->origin;
 			vel = vec3_origin;
 		}

@@ -85,6 +85,8 @@ void Sys_SendKeyEvents (void);
 
 int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, int, void *), void *parm);
 
+void Sys_Vibrate(int count);
+
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate);
 
 #ifdef MULTITHREAD

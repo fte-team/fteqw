@@ -47,6 +47,8 @@ typedef struct
 	float heights[SECTHEIGHTSIZE*SECTHEIGHTSIZE];
 	unsigned short holes;
 	float waterheight;
+	float minh;
+	float maxh;
 } dsection_t;
 typedef struct
 {
@@ -54,6 +56,7 @@ typedef struct
 	unsigned short holes;
 	unsigned int flags;
 	float waterheight;
+	float minh, maxh;
 	struct heightmap_s *hmmod;
 
 #ifndef SERVERONLY
@@ -63,7 +66,6 @@ typedef struct
 
 	texnums_t textures;
 	vbo_t vbo;
-	float minh, maxh;
 	mesh_t mesh;
 	mesh_t *amesh;
 	qboolean modified:1;
@@ -85,11 +87,13 @@ typedef struct heightmap_s {
 	mesh_t *askymesh;
 	unsigned int exteriorcontents;
 
+#ifndef SERVERONLY
 	struct lmsect_s
 	{
 		struct lmsect_s *next;
 		int lm, x, y;
 	} *unusedlmsects;
+#endif
 } heightmap_t;
 
 static void Terr_LoadSectionTextures(hmsection_t *s)
@@ -109,6 +113,7 @@ static void Terr_LoadSectionTextures(hmsection_t *s)
 #endif
 }
 
+#ifndef SERVERONLY
 static void Terr_InitLightmap(hmsection_t *s)
 {
 	heightmap_t *hm = s->hmmod;
@@ -140,6 +145,7 @@ static void Terr_InitLightmap(hmsection_t *s)
 
 	free(lms);
 }
+#endif
 
 static char *Terr_DiskSectionName(heightmap_t *hm, int sx, int sy)
 {
@@ -159,13 +165,15 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 #endif
 
 	/*queue the file for download if we don't have it yet*/
-	if (FS_LoadFile(Terr_DiskSectionName(hm, sx, sy), &ds) < 0
+	if (FS_LoadFile(Terr_DiskSectionName(hm, sx, sy), (void**)&ds) < 0
 #ifndef CLIENTONLY
 		&& !sv.state
 #endif
 		)
 	{
+#ifndef SERVERONLY
 		CL_CheckOrEnqueDownloadFile(Terr_DiskSectionName(hm, sx, sy), NULL, 0);
+#endif
 		return NULL;
 	}
 
@@ -186,7 +194,10 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 			return NULL;
 		}
 		memset(s, 0, sizeof(*s));
+		
+#ifndef SERVERONLY
 		s->lightmap = -1;
+#endif
 	}
 
 	s->hmmod = hm;
@@ -200,6 +211,7 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 
 	if (ds)
 	{
+		s->flags = ds->flags;
 #ifndef SERVERONLY
 		Q_strncpyz(s->texname[0], ds->texname[0], sizeof(s->texname[0]));
 		Q_strncpyz(s->texname[1], ds->texname[1], sizeof(s->texname[1]));
@@ -233,6 +245,9 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 		{
 			s->heights[i] = LittleFloat(ds->heights[i]);
 		}
+		s->minh = ds->minh;
+		s->maxh = ds->maxh;
+		s->waterheight = ds->waterheight;
 
 		FS_FreeFile(ds);
 	}
@@ -361,6 +376,8 @@ static void Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy)
 		ds.heights[i] = LittleFloat(s->heights[i]);
 	}
 	ds.holes = s->holes;
+	ds.minh = s->minh:
+	ds.maxh = s->maxh:
 
 	FS_WriteFile(Terr_DiskSectionName(hm, sx, sy), &ds, sizeof(ds), FS_GAMEONLY);
 #endif
@@ -417,6 +434,7 @@ void HeightMap_Save(heightmap_t *hm)
 
 void Terr_DestroySection(heightmap_t *hm, hmsection_t *s)
 {
+#ifndef SERVERONLY
 	if (hm && s->lightmap >= 0)
 	{
 		struct lmsect_s *lms;
@@ -439,6 +457,8 @@ void Terr_DestroySection(heightmap_t *hm, hmsection_t *s)
 
 	free(s->mesh.xyz_array);
 	free(s->mesh.indexes);
+#endif
+
 	free(s);
 }
 
@@ -469,7 +489,11 @@ void Terr_PurgeTerrainModel(model_t *mod, qboolean lightmapsonly)
 			{
 			}
 			else if (lightmapsonly)
+			{
+#ifndef SERVERONLY
 				s->lightmap = -1;
+#endif
+			}
 			else
 			{
 				c->section[sx+sy*MAXSECTIONS] = NULL;
@@ -483,6 +507,7 @@ void Terr_PurgeTerrainModel(model_t *mod, qboolean lightmapsonly)
 			free(c);
 		}
 	}
+#ifndef SERVERONLY
 	while (hm->unusedlmsects)
 	{
 		struct lmsect_s *lms;
@@ -490,6 +515,7 @@ void Terr_PurgeTerrainModel(model_t *mod, qboolean lightmapsonly)
 		hm->unusedlmsects = lms->next;
 		free(lms);
 	}
+#endif
 }
 #ifndef SERVERONLY
 void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
@@ -551,7 +577,7 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 			culldist += 4096;
 		}
 		else
-			culldist = 999999999999999;
+			culldist = 999999999999999f;
 
 		if (culldist > gl_maxdist.value && gl_maxdist.value>0)
 			culldist = gl_maxdist.value;
@@ -597,8 +623,8 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 					Terr_InitLightmap(s);
 				}
 
-				s->minh = 9999999999999999;
-				s->maxh = -9999999999999999;
+				s->minh = 9999999999999999f;
+				s->maxh = -9999999999999999f;
 
 				if (!mesh->xyz_array)
 				{

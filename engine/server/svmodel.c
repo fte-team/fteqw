@@ -25,7 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 model_t	*loadmodel;
 char	loadname[32];	// for hunk tags
 
-qboolean GL_LoadHeightmapModel (model_t *mod, void *buffer);
+qboolean Terr_LoadTerrainModel (model_t *mod, void *buffer);
 qboolean Mod_LoadBrushModel (model_t *mod, void *buffer);
 qboolean Mod_LoadQ2BrushModel (model_t *mod, void *buffer);
 qboolean D3_LoadMap_CollisionMap(model_t *mod, char *buf);
@@ -483,7 +483,7 @@ model_t *Mod_LoadModel (model_t *mod, qboolean crash)
 #ifdef TERRAIN
 		if (!strcmp(com_token, "terrain"))	//custom format, text based.
 		{
-			if (!GL_LoadHeightmapModel(mod, buf))
+			if (!Terr_LoadTerrainModel(mod, buf))
 				goto couldntload;
 			break;
 		}

@@ -1007,6 +1007,7 @@ void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits)
 	case NA_LOOPBACK:
 		break;
 	// warning: enumeration value âNA_*â not handled in switch
+	case NA_WEBSOCKET:
 	case NA_TCP:
 	case NA_TCPV6:
 	case NA_IRC:
@@ -2114,7 +2115,7 @@ typedef struct {
 
 void tobase64(unsigned char *out, int outlen, unsigned char *in, int inlen)
 {
-	static tab[64] =
+	static unsigned char tab[64] =
 	{
 		'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P',
 		'Q','R','S','T','U','V','W','X','Y','Z','a','b','c','d','e','f',
@@ -4317,6 +4318,7 @@ void SVNET_AddPort_f(void)
 #endif
 #endif
 	// warning: enumeration value ‘NA_*’ not handled in switch
+	case NA_WEBSOCKET:
 	case NA_INVALID:
 	case NA_LOOPBACK:
 	case NA_BROADCAST_IP:
@@ -4667,12 +4669,12 @@ vfsfile_t *FS_OpenTCP(const char *name)
 }
 #elif 0 //defined(HAVE_WEBSOCKCL)
 This code is disabled.
-I cannot provide a reliable mechanism over chrome/nacl's websockets at this time.
+I cannot provide a reliable mechanism over chrome/nacls websockets at this time.
 Some module within the ppapi/nacl/chrome stack refuses to forward the data when stressed.
 All I can determine is that the connection has a gap.
 Hopefully this should be fixed by pepper_19.
 
-As far as I'm aware, this and the relevent code in QTV should be functionally complete.
+As far as Im aware, this and the relevent code in QTV should be functionally complete.
 
 typedef struct
 {

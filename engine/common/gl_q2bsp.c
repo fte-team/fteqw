@@ -3737,6 +3737,7 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 	static unsigned	last_checksum;
 	qboolean noerrors = true;
 	int start;
+	model_t *im = loadmodel;
 
 	void (*buildmeshes)(model_t *mod, msurface_t *surf, void *cookie) = NULL;
 	void *buildcookie = NULL;
@@ -4178,6 +4179,9 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 		}
 	}
 
+#ifdef TERRAIN
+	im->terrain = Mod_LoadTerrainInfo(im, loadname);
+#endif
 
 	return &map_cmodels[0];
 }
@@ -4508,36 +4512,39 @@ int CM_PointContents (model_t *mod, vec3_t p)
 	i = CM_PointLeafnum_r (mod, p, mod->hulls[0].firstclipnode);
 
 	if (!mapisq3)
-		return map_leafs[i].contents;	//q2 is simple.
-
-	leaf = &map_leafs[i];
-
-//	if ( leaf->contents & CONTENTS_NODROP ) {
-//		contents = CONTENTS_NODROP;
-//	} else {
-		contents = 0;
-//	}
-
-	for (i = 0; i < leaf->numleafbrushes; i++)
+		contents = map_leafs[i].contents;	//q2 is simple.
+	else
 	{
-		brush = &map_brushes[map_leafbrushes[leaf->firstleafbrush + i]];
+		leaf = &map_leafs[i];
 
-		// check if brush actually adds something to contents
-		if ( (contents & brush->contents) == brush->contents ) {
-			continue;
-		}
+	//	if ( leaf->contents & CONTENTS_NODROP ) {
+	//		contents = CONTENTS_NODROP;
+	//	} else {
+			contents = 0;
+	//	}
 
-		brushside = brush->brushside;
-		for ( j = 0; j < brush->numsides; j++, brushside++ )
+		for (i = 0; i < leaf->numleafbrushes; i++)
 		{
-			if ( PlaneDiff (p, brushside->plane) > 0 )
-				break;
+			brush = &map_brushes[map_leafbrushes[leaf->firstleafbrush + i]];
+
+			// check if brush actually adds something to contents
+			if ( (contents & brush->contents) == brush->contents ) {
+				continue;
+			}
+
+			brushside = brush->brushside;
+			for ( j = 0; j < brush->numsides; j++, brushside++ )
+			{
+				if ( PlaneDiff (p, brushside->plane) > 0 )
+					break;
+			}
+
+			if (j == brush->numsides)
+				contents |= brush->contents;
 		}
-
-		if (j == brush->numsides)
-			contents |= brush->contents;
 	}
-
+	if (mod->terrain)
+		contents |= Heightmap_PointContents(mod, NULL, p);
 	return contents;
 }
 
@@ -5385,6 +5392,13 @@ trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace)
 {
 	*trace = CM_BoxTrace(model, start, end, mins, maxs, contents);
+	if (model->terrain)
+	{
+		trace_t hmt;
+		Heightmap_Trace(model, forcehullnum, frame, axis, start, end, mins, maxs, contents, &hmt);
+		if (hmt.fraction < trace->fraction)
+			*trace = hmt;
+	}
 	return trace->fraction != 1;
 }
 

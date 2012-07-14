@@ -1895,14 +1895,6 @@ void *Mod_LoadTerrainInfo(model_t *mod, char *loadname)
 	if (!mod->entities)
 		return NULL;
 
-	if (!strcmp(loadname, "start"))
-	{
-		bounds[0] = 0;
-		bounds[1] = 4;
-		bounds[2] = 0;
-		bounds[3] = 4;
-	}
-
 	Terr_ParseEntityLump(mod->entities, &scale, &bounds[0], &bounds[1], &bounds[2], &bounds[3]);
 
 	bounds[0] += CHUNKBIAS;

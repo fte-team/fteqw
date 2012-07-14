@@ -376,8 +376,8 @@ static void Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy)
 		ds.heights[i] = LittleFloat(s->heights[i]);
 	}
 	ds.holes = s->holes;
-	ds.minh = s->minh:
-	ds.maxh = s->maxh:
+	ds.minh = s->minh;
+	ds.maxh = s->maxh;
 
 	FS_WriteFile(Terr_DiskSectionName(hm, sx, sy), &ds, sizeof(ds), FS_GAMEONLY);
 #endif
@@ -577,7 +577,7 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 			culldist += 4096;
 		}
 		else
-			culldist = 999999999999999f;
+			culldist = 999999999999999.f;
 
 		if (culldist > gl_maxdist.value && gl_maxdist.value>0)
 			culldist = gl_maxdist.value;
@@ -623,8 +623,8 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 					Terr_InitLightmap(s);
 				}
 
-				s->minh = 9999999999999999f;
-				s->maxh = -9999999999999999f;
+				s->minh = 9999999999999999.f;
+				s->maxh = -9999999999999999.f;
 
 				if (!mesh->xyz_array)
 				{

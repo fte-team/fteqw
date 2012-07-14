@@ -154,7 +154,7 @@ void Sys_Printf (char *fmt, ...)
 		return;
 
 	va_start (argptr,fmt);
-	_vsnprintf (text,sizeof(text)-1, fmt,argptr);
+	vsnprintf (text,sizeof(text)-1, fmt,argptr);
 	va_end (argptr);
 
 	if (strlen(text) > sizeof(text))
@@ -199,7 +199,7 @@ void Sys_Printf (char *fmt, ...)
 	unsigned char		*p;
 
 	va_start (argptr,fmt);
-	_vsnprintf (text,sizeof(text)-1, fmt,argptr);
+	vsnprintf (text,sizeof(text)-1, fmt,argptr);
 	va_end (argptr);
 
 	if (strlen(text) > sizeof(text))
@@ -239,7 +239,7 @@ void Sys_Error (const char *error, ...)
 	fcntl (0, F_SETFL, fcntl (0, F_GETFL, 0) & ~FNDELAY);
 
 	va_start (argptr,error);
-	_vsnprintf (string,sizeof(string)-1, error,argptr);
+	vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
 	fprintf(stderr, "Error: %s\n", string);
 
@@ -253,7 +253,7 @@ void Sys_Warn (char *warning, ...)
 	char string[1024];
 
 	va_start (argptr,warning);
-	_vsnprintf (string,sizeof(string)-1, warning,argptr);
+	vsnprintf (string,sizeof(string)-1, warning,argptr);
 	va_end (argptr);
 
 	fprintf(stderr, "Warning: %s", string);
@@ -349,7 +349,7 @@ int Sys_DebugLog(char *file, char *fmt, ...)
 	size_t result;
 
 	va_start(argptr, fmt);
-	_vsnprintf (data,sizeof(data)-1, fmt, argptr);
+	vsnprintf (data,sizeof(data)-1, fmt, argptr);
 	va_end(argptr);
 
 	if (strlen(data) > sizeof(data))

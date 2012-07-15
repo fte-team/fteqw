@@ -4805,8 +4805,8 @@ qboolean CSQC_Event_ContentsTransition(world_t *w, wedict_t *ent, int oldwaterty
 	if (ent->xv->contentstransition)
 	{
 		void *pr_globals = PR_globals(w->progs, PR_CURRENT);
-		pr_global_struct->self = EDICT_TO_PROG(w->progs, ent);
-		pr_global_struct->time = w->physicstime;
+		*csqcg.self = EDICT_TO_PROG(w->progs, ent);
+		*csqcg.time = w->physicstime;
 		G_FLOAT(OFS_PARM0) = oldwatertype;
 		G_FLOAT(OFS_PARM1) = newwatertype;
 		PR_ExecuteProgram (w->progs, ent->xv->contentstransition);

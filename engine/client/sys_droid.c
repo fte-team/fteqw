@@ -80,7 +80,7 @@ JNIEXPORT jint JNICALL Java_com_fteqw_FTEDroidEngine_frame(JNIEnv *env, jobject 
 JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject obj,
                  jint width, jint height, jint glesversion, jstring japkpath, jstring jusrpath)
 {
-	char *tmp;
+	const char *tmp;
 	vid.pixelwidth = width;
 	vid.pixelheight = height;
 	sys_glesversion = glesversion;
@@ -96,6 +96,7 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 			"",
 			""
 		};
+		char *basepack;
 		int align;
 		quakeparms_t parms;
 		if (sys_memheap)
@@ -112,12 +113,12 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 		}
 
 
-		args[2] = parms.membase;
+		basepack = parms.membase;
 		tmp = (*env)->GetStringUTFChars(env, japkpath, NULL);
-		strcpy(args[2], tmp);
+		strcpy(basepack, tmp);
 		(*env)->ReleaseStringUTFChars(env, japkpath, tmp);
-		parms.membase += strlen(args[2])+1;
-		parms.memsize -= strlen(args[2])+1;
+		parms.membase += strlen(basepack)+1;
+		parms.memsize -= strlen(basepack)+1;
 
 		parms.basedir = parms.membase;
 		tmp = (*env)->GetStringUTFChars(env, jusrpath, NULL);
@@ -133,6 +134,8 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 			parms.membase += align;
 			parms.memsize -= align;
 		}
+
+		args[2] = basepack;
 
 
 		Sys_Printf("Starting up (apk=%s, usr=%s)\n", args[2], parms.basedir);
@@ -150,36 +153,64 @@ JNIEXPORT void JNICALL Java_com_fteqw_FTEDroidEngine_init(JNIEnv *env, jobject o
 }
 
 static int secbase;
+
+#ifdef _POSIX_TIMERS
 double Sys_DoubleTime(void)
 {
-        struct timeval tp;
-        struct timezone tzp;
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
 
-        gettimeofday(&tp, &tzp);
-
-        if (!secbase)
-        {
-                secbase = tp.tv_sec;
-                return tp.tv_usec/1000000.0;
-        }
-
-        return (tp.tv_sec - secbase) + tp.tv_usec/1000000.0;
+	if (!secbase)
+	{
+		secbase = ts.tv_sec;
+		return ts.tv_nsec/1000000000.0;
+	}
+	return (ts.tv_sec - secbase) + ts.tv_nsec/1000000000.0;
 }
 unsigned int Sys_Milliseconds(void)
 {
-        struct timeval tp;
-        struct timezone tzp;
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
 
-        gettimeofday(&tp, &tzp);
-
-        if (!secbase)
-        {
-                secbase = tp.tv_sec;
-                return tp.tv_usec/1000;
-        }
-
-        return (tp.tv_sec - secbase)*1000 + tp.tv_usec/1000;
+	if (!secbase)
+	{
+		secbase = ts.tv_sec;
+		return ts.tv_nsec/1000000;
+	}
+	return (ts.tv_sec - secbase)*1000 + ts.tv_nsec/1000000;
 }
+#else
+double Sys_DoubleTime(void)
+{
+	struct timeval tp;
+	struct timezone tzp;
+
+	gettimeofday(&tp, &tzp);
+
+	if (!secbase)
+	{
+			secbase = tp.tv_sec;
+			return tp.tv_usec/1000000.0;
+	}
+
+	return (tp.tv_sec - secbase) + tp.tv_usec/1000000.0;
+}
+unsigned int Sys_Milliseconds(void)
+{
+	struct timeval tp;
+	struct timezone tzp;
+
+	gettimeofday(&tp, &tzp);
+
+	if (!secbase)
+	{
+		secbase = tp.tv_sec;
+		return tp.tv_usec/1000;
+	}
+
+	return (tp.tv_sec - secbase)*1000 + tp.tv_usec/1000;
+}
+#endif
 
 void Sys_Shutdown(void)
 {

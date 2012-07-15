@@ -1000,6 +1000,7 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3]
 		}
 	}
 
+#ifdef TERRAIN
 	if (model->terrain && trace->fraction)
 	{
 		trace_t hmt;
@@ -1007,6 +1008,7 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3]
 		if (hmt.fraction < trace->fraction)
 			*trace = hmt;
 	}
+#endif
 
 	return trace->fraction != 1;
 }

@@ -4543,8 +4543,10 @@ int CM_PointContents (model_t *mod, vec3_t p)
 				contents |= brush->contents;
 		}
 	}
+#ifdef TERRAIN
 	if (mod->terrain)
 		contents |= Heightmap_PointContents(mod, NULL, p);
+#endif
 	return contents;
 }
 
@@ -5392,6 +5394,7 @@ trace_t		CM_BoxTrace (model_t *mod, vec3_t start, vec3_t end,
 qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contents, trace_t *trace)
 {
 	*trace = CM_BoxTrace(model, start, end, mins, maxs, contents);
+#ifdef TERRAIN
 	if (model->terrain)
 	{
 		trace_t hmt;
@@ -5399,6 +5402,7 @@ qboolean CM_NativeTrace(model_t *model, int forcehullnum, int frame, vec3_t axis
 		if (hmt.fraction < trace->fraction)
 			*trace = hmt;
 	}
+#endif
 	return trace->fraction != 1;
 }
 

@@ -374,12 +374,6 @@ void QCBUILTIN PF_getsurfaceclippedpoint(progfuncs_t *prinst, struct globalvars_
 void QCBUILTIN PF_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_FLOAT(OFS_RETURN) = false;
-	world_t *w = prinst->parms->user;
-	int action = G_FLOAT(OFS_PARM0);
-	float *pos = G_VECTOR(OFS_PARM1);
-	float radius = G_FLOAT(OFS_PARM2);
-	float quant = G_FLOAT(OFS_PARM3);
-	G_FLOAT(OFS_RETURN) = Heightmap_Edit(w->worldmodel, action, pos, radius, quant);
 }
 #endif
 

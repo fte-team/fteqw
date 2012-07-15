@@ -112,7 +112,7 @@ int Sys_DebugLog(char *file, char *fmt, ...)
 	size_t result;
 
 	va_start(argptr, fmt);
-	_vsnprintf (data,sizeof(data)-1, fmt, argptr);
+	vsnprintf (data,sizeof(data)-1, fmt, argptr);
 	va_end(argptr);
 
 	if (strlen(data) >= sizeof(data)-1)
@@ -186,7 +186,7 @@ void Sys_Error (const char *error, ...)
 	char		string[1024];
 
 	va_start (argptr,error);
-	_vsnprintf (string,sizeof(string)-1, error,argptr);
+	vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
 	printf ("Fatal error: %s\n",string);
 
@@ -474,7 +474,7 @@ void Sys_Printf (char *fmt, ...)
 	unsigned char		*p;
 
 	va_start (argptr,fmt);
-	_vsnprintf (text,sizeof(text)-1, fmt,argptr);
+	vsnprintf (text,sizeof(text)-1, fmt,argptr);
 	va_end (argptr);
 
 	if (strlen(text) > sizeof(text))

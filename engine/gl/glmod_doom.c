@@ -680,7 +680,7 @@ qboolean Doom_Trace(model_t *model, int hulloverride, int frame, vec3_t axis[3],
 
 
 
-
+#ifndef SERVERONLY
 qbyte doompalette[768];
 static qboolean paletteloaded;
 
@@ -708,9 +708,10 @@ void Doom_LoadPalette(void)
 		}
 	}
 }
-
+#endif
 int Doom_LoadFlat(char *flatname)
 {
+#ifndef SERVERONLY
 	char *file;
 	char texname[64];
 	int texnum;
@@ -746,8 +747,12 @@ int Doom_LoadFlat(char *flatname)
 	}
 
 	return texnum;
+#else
+	return 0;
+#endif
 }
 
+#ifndef SERVERONLY
 static void GLR_DrawWall(int texnum, int s, int t, float x1, float y1, float z1, float x2, float y2, float z2, qboolean unpegged, unsigned int colour4b)
 {
 	gldoomtexture_t *tex = gldoomtextures+texnum;
@@ -1130,7 +1135,7 @@ void GLR_DoomWorld(void)
 		}
 	}
 }
-
+#endif
 
 
 //find the first ssector, go through it's list/

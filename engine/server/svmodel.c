@@ -1736,6 +1736,9 @@ qboolean Mod_LoadBrushModel (model_t *mod, void *buffer)
 	int start;
 	qboolean noerrors;
 	qboolean longm = false;
+#ifdef TERRAIN
+	model_t *lm = loadmodel;
+#endif
 
 	start = Hunk_LowMark();
 
@@ -1870,6 +1873,10 @@ qboolean Mod_LoadBrushModel (model_t *mod, void *buffer)
 			mod = loadmodel;
 		}
 	}
+
+#ifdef TERRAIN
+	lm->terrain = Mod_LoadTerrainInfo(lm, loadname);
+#endif
 
 	return true;
 }

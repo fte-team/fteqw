@@ -515,7 +515,7 @@ batch_t *D3DBE_GetTempBatch(void);
 void D3DBE_GenBrushModelVBO(model_t *mod);
 void D3DBE_ClearVBO(vbo_t *vbo);
 void D3DBE_UploadAllLightmaps(void);
-void D3DBE_DrawWorld (qboolean drawworld, qbyte *vis)
+void D3DBE_DrawWorld (qboolean drawworld, qbyte *vis);
 qboolean D3DBE_LightCullModel(vec3_t org, model_t *model);
 void D3DBE_SelectEntity(entity_t *ent);
 void D3DBE_SelectDLight(dlight_t *dl, vec3_t colour);

@@ -3582,7 +3582,6 @@ void CMQ3_CalcPHS (void)
 	for (i=0 ; i<numclusters ; i++, dest += rowwords, scan += rowbytes)
 	{
 		memcpy (dest, scan, rowbytes);
-		Hunk_Check();
 		for (j=0 ; j<rowbytes ; j++)
 		{
 			bitbyte = scan[j];
@@ -3599,7 +3598,6 @@ void CMQ3_CalcPHS (void)
 				src = (unsigned int *)(map_q3pvs->data) + index*rowwords;
 				for (l=0 ; l<rowwords ; l++)
 					dest[l] |= src[l];
-				Hunk_Check();
 			}
 		}
 		for (j=0 ; j<numclusters ; j++)
@@ -3870,33 +3868,24 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 #endif
 		case QR_NONE:	//dedicated only
 			mapisq3 = true;
-Hunk_Check();
 			noerrors = noerrors && CModQ3_LoadShaders		(&header.lumps[Q3LUMP_SHADERS]);
-Hunk_Check();
 			noerrors = noerrors && CModQ3_LoadPlanes		(&header.lumps[Q3LUMP_PLANES]);
-Hunk_Check();
 			noerrors = noerrors && CModQ3_LoadLeafBrushes	(&header.lumps[Q3LUMP_LEAFBRUSHES]);
-Hunk_Check();
 			noerrors = noerrors && CModQ3_LoadBrushes		(&header.lumps[Q3LUMP_BRUSHES]);
-Hunk_Check();
 			if (header.version == 1)
 			{
 				noerrors = noerrors && CModRBSP_LoadBrushSides	(&header.lumps[Q3LUMP_BRUSHSIDES]);
-Hunk_Check();
 				noerrors = noerrors && CModRBSP_LoadVertexes	(&header.lumps[Q3LUMP_DRAWVERTS]);
 			}
 			else
 			{
 				noerrors = noerrors && CModQ3_LoadBrushSides	(&header.lumps[Q3LUMP_BRUSHSIDES]);
-Hunk_Check();
 				noerrors = noerrors && CModQ3_LoadVertexes		(&header.lumps[Q3LUMP_DRAWVERTS]);
 			}
-Hunk_Check();
 			if (header.version == 1)
 				noerrors = noerrors && CModRBSP_LoadFaces		(&header.lumps[Q3LUMP_SURFACES]);
 			else
 				noerrors = noerrors && CModQ3_LoadFaces		(&header.lumps[Q3LUMP_SURFACES]);
-Hunk_Check();
 #if defined(GLQUAKE) || defined(D3DQUAKE)
 			if (qrenderer != QR_NONE)
 			{
@@ -3934,20 +3923,13 @@ Hunk_Check();
 				}
 			}
 #endif
-Hunk_Check();
 			noerrors = noerrors && CModQ3_LoadLeafFaces	(&header.lumps[Q3LUMP_LEAFSURFACES]);
-Hunk_Check();
 			noerrors = noerrors && CModQ3_LoadLeafs		(&header.lumps[Q3LUMP_LEAFS]);
-Hunk_Check();
 			noerrors = noerrors && CModQ3_LoadNodes		(&header.lumps[Q3LUMP_NODES]);
-Hunk_Check();
 			noerrors = noerrors && CModQ3_LoadSubmodels	(&header.lumps[Q3LUMP_MODELS]);
-Hunk_Check();
 			noerrors = noerrors && CModQ3_LoadVisibility	(&header.lumps[Q3LUMP_VISIBILITY]);
-Hunk_Check();
 			if (noerrors)
 				CMod_LoadEntityString	(&header.lumps[Q3LUMP_ENTITIES]);
-Hunk_Check();
 
 			if (!noerrors)
 			{
@@ -4008,15 +3990,12 @@ Hunk_Check();
 				Hunk_FreeToLowMark(start);
 				return NULL;
 			}
-Hunk_Check();
 #ifndef CLIENTONLY
 			CMQ3_CalcPHS();
 #endif
-Hunk_Check();
 //			BZ_Free(map_verts);
 			BZ_Free(map_faces);
 			BZ_Free(map_leaffaces);
-Hunk_Check();
 			break;
 		default:
 #ifdef SERVERONLY

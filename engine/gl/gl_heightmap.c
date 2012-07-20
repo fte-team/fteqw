@@ -199,9 +199,9 @@ static char *Terr_DiskSectionName(heightmap_t *hm, int sx, int sy)
 static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy)
 {
 	dsection_t *ds = NULL;
-	dsmesh_t *dm;
 	int i;
 #ifndef SERVERONLY
+	dsmesh_t *dm;
 	unsigned char *lm;
 #endif
 
@@ -290,6 +290,7 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 		s->maxh = ds->maxh;
 		s->waterheight = ds->waterheight;
 
+#ifndef SERVERONLY
 		s->numents = ds->numents;
 		s->maxents = s->numents;
 		s->ents = malloc(sizeof(*s->ents) * s->maxents);
@@ -317,33 +318,12 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 			s->ents[i].shaderRGBAf[2] = 1;
 			s->ents[i].shaderRGBAf[3] = 1;
 		}
-
+#endif
 		FS_FreeFile(ds);
 	}
 	else
 	{
-		if (s->lightmap >= 0)
-		{
-			int j;
-			lm = lightmap[s->lightmap]->lightmaps;
-			lm += (s->lmx * HMLMSTRIDE + s->lmy) * lightmap_bytes;
-			for (i = 0; i < SECTTEXSIZE; i++)
-			{
-				for (j = 0; j < SECTTEXSIZE; j++, lm+=4)
-				{
-					lm[0] = 0;
-					lm[1] = 0;
-					lm[2] = 0;
-					lm[3] = 255;
-				}
-				lm += (HMLMSTRIDE - SECTTEXSIZE)*lightmap_bytes;
-			}
-			lightmap[s->lightmap]->modified = true;
-			lightmap[s->lightmap]->rectchange.l = 0;
-			lightmap[s->lightmap]->rectchange.t = 0;
-			lightmap[s->lightmap]->rectchange.w = HMLMSTRIDE;
-			lightmap[s->lightmap]->rectchange.h = HMLMSTRIDE;
-		}
+		s->flags |= TSF_RELIGHT;
 
 #if 0//def DEBUG
 		void *f;

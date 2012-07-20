@@ -2018,6 +2018,13 @@ void Surf_SetupFrame(void)
 		}
 	}
 
+#ifdef TERRAIN
+	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL) && cl.worldmodel && cl.worldmodel->terrain)
+	{
+		r_viewcontents |= Heightmap_PointContents(cl.worldmodel, NULL, r_origin);
+	}
+#endif
+
 	/*pick up any extra water entities*/
 	{
 		extern vec3_t player_maxs, player_mins;

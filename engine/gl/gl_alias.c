@@ -1949,7 +1949,7 @@ void BE_GenModelBatches(batch_t **batches)
 			if (ent->model->needload)
 				continue;
 
-			if (cl.lerpents && (cls.allow_anyparticles || ent->visframe))	//allowed or static
+			if (cl.lerpents && (cls.allow_anyparticles))	//allowed or static
 			{
 				if (gl_part_flame.value)
 				{

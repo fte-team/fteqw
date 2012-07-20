@@ -224,7 +224,7 @@ texid_tf GL_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *d
 texid_tf GL_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
 texid_tf GL_LoadTexture32 (char *identifier, int width, int height, void *data, unsigned int flags);
 texid_tf GL_LoadCompressed(char *name);
-texid_tf GL_FindTexture (char *identifier);
+texid_tf GL_FindTexture (char *identifier, unsigned int flags);
 
 texid_tf GL_LoadTextureFB (char *identifier, int width, int height, qbyte *data, unsigned int flags);
 void GL_Upload8Pal24 (qbyte *data, qbyte *pal, int width, int height, unsigned int flags);

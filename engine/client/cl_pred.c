@@ -1094,7 +1094,7 @@ fixedorg:
 		cl.pmovetype[pnum] = to->playerstate[cl.playernum[pnum]].pm_type;
 		stepheight = to->playerstate[cl.playernum[pnum]].origin[2] - from->playerstate[cl.playernum[pnum]].origin[2];
 
-		if (cl.nolocalplayer[pnum])
+		if (cl.nolocalplayer[pnum] && cl.maxlerpents > cl.playernum[pnum]+1)
 		{
 			//keep the entity tracking the prediction position, so mirrors don't go all weird
 			VectorCopy(to->playerstate[cl.playernum[pnum]].origin, cl.lerpents[cl.playernum[pnum]+1].origin);

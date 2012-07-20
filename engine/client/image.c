@@ -2377,13 +2377,13 @@ texid_t R_LoadHiResTexture(char *name, char *subpath, unsigned int flags)
 	snprintf(fname, sizeof(fname)-1, "%s/%s", subpath, name); /*should be safe if its null*/
 	if (subpath && *subpath && !(flags & IF_REPLACE))
 	{
-		tex = R_FindTexture(fname);
+		tex = R_FindTexture(fname, flags);
 		if (TEXVALID(tex))	//don't bother if it already exists.
 			return tex;
 	}
 	if (!(flags & IF_SUBDIRONLY) && !(flags & IF_REPLACE))
 	{
-		tex = R_FindTexture(name);
+		tex = R_FindTexture(name, flags);
 		if (TEXVALID(tex))	//don't bother if it already exists.
 			return tex;
 	}
@@ -2614,7 +2614,7 @@ texid_t R_LoadBumpmapTexture(char *name, char *subpath)
 
 	COM_StripExtension(name, nicename, sizeof(nicename));
 
-	tex = R_FindTexture(name);
+	tex = R_FindTexture(name, 0);
 	if (TEXVALID(tex))	//don't bother if it already exists.
 		return tex;
 

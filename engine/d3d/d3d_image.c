@@ -426,7 +426,7 @@ texid_t D3D9_LoadCompressed (char *name)
 	return r_nulltex;
 }
 
-texid_t D3D9_FindTexture (char *identifier)
+texid_t D3D9_FindTexture (char *identifier, unsigned int flags)
 {
 	d3dtexture_t *tex = d3d_lookup_texture(identifier);
 	if (tex->tex.ptr)

@@ -4768,6 +4768,7 @@ void CSQC_Event_Touch(world_t *w, wedict_t *s, wedict_t *o)
 
 	*csqcg.self = EDICT_TO_PROG(w->progs, (edict_t*)s);
 	*csqcg.other = EDICT_TO_PROG(w->progs, (edict_t*)o);
+	*csqcg.svtime = w->physicstime;
 
 	PR_ExecuteProgram (w->progs, s->v->touch);
 
@@ -4779,6 +4780,7 @@ void CSQC_Event_Think(world_t *w, wedict_t *s)
 {
 	*csqcg.self = EDICT_TO_PROG(w->progs, (edict_t*)s);
 	*csqcg.other = EDICT_TO_PROG(w->progs, (edict_t*)w->edicts);
+	*csqcg.svtime = w->physicstime;
 
 	PR_ExecuteProgram (w->progs, s->v->think);
 }
@@ -4806,7 +4808,7 @@ qboolean CSQC_Event_ContentsTransition(world_t *w, wedict_t *ent, int oldwaterty
 	{
 		void *pr_globals = PR_globals(w->progs, PR_CURRENT);
 		*csqcg.self = EDICT_TO_PROG(w->progs, ent);
-		*csqcg.cltime = w->physicstime;
+		*csqcg.svtime = w->physicstime;
 		G_FLOAT(OFS_PARM0) = oldwatertype;
 		G_FLOAT(OFS_PARM1) = newwatertype;
 		PR_ExecuteProgram (w->progs, ent->xv->contentstransition);

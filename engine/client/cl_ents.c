@@ -2757,7 +2757,6 @@ void CL_LinkPacketEntities (void)
 
 		ent->externalmodelview = 0;
 		ent->forcedshader = NULL;
-		ent->visframe = 0;
 
 		ent->keynum = state->number;
 

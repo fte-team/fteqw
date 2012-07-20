@@ -236,7 +236,7 @@ typedef struct rendererinfo_s {
 	texid_tf (*IMG_LoadTexture8Pal24)	(char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
 	texid_tf (*IMG_LoadTexture8Pal32)	(char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
 	texid_tf (*IMG_LoadCompressed)		(char *name);
-	texid_tf (*IMG_FindTexture)			(char *identifier);
+	texid_tf (*IMG_FindTexture)			(char *identifier, unsigned int flags);
 	texid_tf (*IMG_AllocNewTexture)		(char *identifier, int w, int h);
 	void    (*IMG_Upload)				(texid_t tex, char *name, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags);
 	void    (*IMG_DestroyTexture)		(texid_t tex);

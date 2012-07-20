@@ -32,11 +32,11 @@ void main (void)
 {
 	vec4 m = texture2D(s_t4, lm);
 
-	gl_FragColor = fog4(
+	gl_FragColor = fog4(vec4(m.aaa,1.0)*(
 		texture2D(s_t0, tc)*m.r
 		+ texture2D(s_t1, tc)*m.g
 		+ texture2D(s_t2, tc)*m.b
 		+ texture2D(s_t3, tc)*(1.0 - (m.r + m.g + m.b))
-		);
+		));
 }
 #endif

@@ -95,7 +95,7 @@ public class FTEDroidActivity extends Activity
 									if ((fl & 1) != 0)
 									{
 		//								getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
-										im.showSoftInput(theview, InputMethodManager.SHOW_FORCED);
+										im.showSoftInput(theview, 0);//InputMethodManager.SHOW_FORCED);
 									}
 									else
 									{

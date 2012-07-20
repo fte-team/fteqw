@@ -831,7 +831,7 @@ int Con_DrawInput (int left, int right, int y)
 
 	y -= Font_CharHeight();
 
-	if (key_dest != key_console && con_current->vislines != vid.height)
+	if (key_dest != key_console)// && con_current->vislines != vid.height)
 		return y;		// don't draw anything (always draw if not active)
 
 	if (!con_current->linebuffered)

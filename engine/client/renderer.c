@@ -163,8 +163,13 @@ cvar_t scr_viewsize							= CVARFC("viewsize", "100",
 												CVAR_ARCHIVE,
 												SCR_Viewsize_Callback);
 
+#ifdef ANDROID
+cvar_t vid_conautoscale						= CVARF ("vid_conautoscale", "2",
+												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK);
+#else
 cvar_t vid_conautoscale						= CVARF ("vid_conautoscale", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK);
+#endif
 cvar_t vid_conheight						= CVARF ("vid_conheight", "0",
 												CVAR_ARCHIVE);
 cvar_t vid_conwidth							= CVARF ("vid_conwidth", "0",
@@ -2064,14 +2069,14 @@ qboolean R_CullEntityBox(entity_t *e, vec3_t modmins, vec3_t modmaxs)
 #if 1
 	float mrad = 0, v;
 
-	if (e->axis[0][0]==1 && e->axis[0][1]==0 && e->axis[0][1]==0 &&
-		e->axis[1][0]==0 && e->axis[1][1]==1 && e->axis[1][1]==0 &&
-		e->axis[2][0]==0 && e->axis[2][1]==0 && e->axis[2][1]==1)
+	if (e->axis[0][0]==1 && e->axis[0][1]==0 && e->axis[0][2]==0 &&
+		e->axis[1][0]==0 && e->axis[1][1]==1 && e->axis[1][2]==0 &&
+		e->axis[2][0]==0 && e->axis[2][1]==0 && e->axis[2][2]==1)
 	{
 		for (i = 0; i < 3; i++)
 		{
-			wmin[i] = e->origin[i]+modmins[i];
-			wmax[i] = e->origin[i]+modmaxs[i];
+			wmin[i] = e->origin[i]+modmins[i]*e->scale;
+			wmax[i] = e->origin[i]+modmaxs[i]*e->scale;
 		}
 	}
 	else
@@ -2085,6 +2090,7 @@ qboolean R_CullEntityBox(entity_t *e, vec3_t modmins, vec3_t modmaxs)
 			if (mrad < v)
 				mrad = v;
 		}
+		mrad *= e->scale;
 		for (i = 0; i < 3; i++)
 		{
 			wmin[i] = e->origin[i]-mrad;

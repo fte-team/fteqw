@@ -1137,12 +1137,12 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "{\n"
 "vec4 m = texture2D(s_t4, lm);\n"
 
-"gl_FragColor = fog4(\n"
+"gl_FragColor = fog4(vec4(m.aaa,1.0)*(\n"
 "texture2D(s_t0, tc)*m.r\n"
 "+ texture2D(s_t1, tc)*m.g\n"
 "+ texture2D(s_t2, tc)*m.b\n"
 "+ texture2D(s_t3, tc)*(1.0 - (m.r + m.g + m.b))\n"
-");\n"
+"));\n"
 "}\n"
 "#endif\n"
 },

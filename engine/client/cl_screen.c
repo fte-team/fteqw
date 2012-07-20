@@ -1755,7 +1755,11 @@ void SCR_SetUpToDrawConsole (void)
 			scr_conlines = scr_con_current = vid.height * fullscreenpercent;
 		}
 		else if ((key_dest == key_console || key_dest == key_game) && SCR_GetLoadingStage() == LS_NONE && cls.state < ca_active)
+		{
+			if (cls.state < ca_demostart)
+				key_dest = key_console;
 			scr_con_current = scr_conlines = vid.height * fullscreenpercent;
+		}
 		else if (key_dest == key_console || scr_chatmode)
 		{
 			scr_conlines = vid.height*scr_consize.value;    // half screen

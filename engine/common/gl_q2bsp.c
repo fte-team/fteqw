@@ -3543,19 +3543,19 @@ void CMQ3_CalcPHS (void)
 	int		rowbytes, rowwords;
 	int		i, j, k, l, index;
 	int		bitbyte;
-	unsigned	*dest, *src;
+	unsigned int	*dest, *src;
 	qbyte	*scan;
 	int		count, vcount;
 	int		numclusters;
 
 	Con_DPrintf ("Building PHS...\n");
 
-	map_q3phs = Hunk_Alloc(sizeof(*map_q3phs) + (map_q3pvs->numclusters+7)/8 * map_q3pvs->numclusters);
+	map_q3phs = Hunk_Alloc(sizeof(*map_q3phs) + (map_q3pvs->numclusters+sizeof(int)*8-1)/8 * map_q3pvs->numclusters);
 
-	rowwords = map_q3pvs->rowsize / sizeof(long);
+	rowwords = map_q3pvs->rowsize / sizeof(int);
 	rowbytes = map_q3pvs->rowsize;
 
-	memset ( map_q3phs, 0, sizeof(*map_q3phs) + (map_q3pvs->numclusters+7)/8 * map_q3pvs->numclusters );
+	memset ( map_q3phs, 0, sizeof(*map_q3phs) + (map_q3pvs->numclusters+sizeof(int)*8-1)/8 * map_q3pvs->numclusters );
 
 	map_q3phs->rowsize = map_q3pvs->rowsize;
 	map_q3phs->numclusters = numclusters = map_q3pvs->numclusters;
@@ -3577,11 +3577,12 @@ void CMQ3_CalcPHS (void)
 
 	count = 0;
 	scan = (qbyte *)map_q3pvs->data;
-	dest = (unsigned *)((qbyte *)map_q3phs + 8);
+	dest = (unsigned int *)(map_q3phs->data);
 
 	for (i=0 ; i<numclusters ; i++, dest += rowwords, scan += rowbytes)
 	{
 		memcpy (dest, scan, rowbytes);
+		Hunk_Check();
 		for (j=0 ; j<rowbytes ; j++)
 		{
 			bitbyte = scan[j];
@@ -3595,9 +3596,10 @@ void CMQ3_CalcPHS (void)
 				index = (j<<3) + k;
 //				if (index >= numclusters)
 //					Host_Error ("CM_CalcPHS: Bad bit in PVS");	// pad bits should be 0
-				src = (unsigned *)((qbyte*)map_q3pvs->data) + index*rowwords;
+				src = (unsigned int *)(map_q3pvs->data) + index*rowwords;
 				for (l=0 ; l<rowwords ; l++)
 					dest[l] |= src[l];
+				Hunk_Check();
 			}
 		}
 		for (j=0 ; j<numclusters ; j++)
@@ -3808,8 +3810,24 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 		loadmodel->fromgame = fg_quake3;
 		for (i=0 ; i<Q3LUMPS_TOTAL ; i++)
 		{
-			header.lumps[i].filelen = LittleLong (header.lumps[i].filelen);
-			header.lumps[i].fileofs = LittleLong (header.lumps[i].fileofs);
+			if (i == RBSPLUMP_LIGHTINDEXES && header.version != 1)
+			{
+				header.lumps[i].filelen = 0;
+				header.lumps[i].fileofs = 0;
+			}
+			else
+			{
+				header.lumps[i].filelen = LittleLong (header.lumps[i].filelen);
+				header.lumps[i].fileofs = LittleLong (header.lumps[i].fileofs);
+
+				if (header.lumps[i].filelen && header.lumps[i].fileofs + header.lumps[i].filelen > com_filesize)
+				{
+					Con_Printf (CON_ERROR "WARNING: q3bsp %s truncated (lump %i, %i+%i > %i)\n", name, i, header.lumps[i].fileofs, header.lumps[i].filelen, com_filesize);
+					header.lumps[i].filelen = com_filesize - header.lumps[i].fileofs;
+					if (header.lumps[i].filelen < 0)
+						header.lumps[i].filelen = 0;
+				}
+			}
 		}
 		/*
 		#ifndef SERVERONLY
@@ -3852,24 +3870,33 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 #endif
 		case QR_NONE:	//dedicated only
 			mapisq3 = true;
+Hunk_Check();
 			noerrors = noerrors && CModQ3_LoadShaders		(&header.lumps[Q3LUMP_SHADERS]);
+Hunk_Check();
 			noerrors = noerrors && CModQ3_LoadPlanes		(&header.lumps[Q3LUMP_PLANES]);
+Hunk_Check();
 			noerrors = noerrors && CModQ3_LoadLeafBrushes	(&header.lumps[Q3LUMP_LEAFBRUSHES]);
+Hunk_Check();
 			noerrors = noerrors && CModQ3_LoadBrushes		(&header.lumps[Q3LUMP_BRUSHES]);
+Hunk_Check();
 			if (header.version == 1)
 			{
 				noerrors = noerrors && CModRBSP_LoadBrushSides	(&header.lumps[Q3LUMP_BRUSHSIDES]);
+Hunk_Check();
 				noerrors = noerrors && CModRBSP_LoadVertexes	(&header.lumps[Q3LUMP_DRAWVERTS]);
 			}
 			else
 			{
 				noerrors = noerrors && CModQ3_LoadBrushSides	(&header.lumps[Q3LUMP_BRUSHSIDES]);
+Hunk_Check();
 				noerrors = noerrors && CModQ3_LoadVertexes		(&header.lumps[Q3LUMP_DRAWVERTS]);
 			}
+Hunk_Check();
 			if (header.version == 1)
 				noerrors = noerrors && CModRBSP_LoadFaces		(&header.lumps[Q3LUMP_SURFACES]);
 			else
 				noerrors = noerrors && CModQ3_LoadFaces		(&header.lumps[Q3LUMP_SURFACES]);
+Hunk_Check();
 #if defined(GLQUAKE) || defined(D3DQUAKE)
 			if (qrenderer != QR_NONE)
 			{
@@ -3907,13 +3934,20 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 				}
 			}
 #endif
+Hunk_Check();
 			noerrors = noerrors && CModQ3_LoadLeafFaces	(&header.lumps[Q3LUMP_LEAFSURFACES]);
+Hunk_Check();
 			noerrors = noerrors && CModQ3_LoadLeafs		(&header.lumps[Q3LUMP_LEAFS]);
+Hunk_Check();
 			noerrors = noerrors && CModQ3_LoadNodes		(&header.lumps[Q3LUMP_NODES]);
+Hunk_Check();
 			noerrors = noerrors && CModQ3_LoadSubmodels	(&header.lumps[Q3LUMP_MODELS]);
+Hunk_Check();
 			noerrors = noerrors && CModQ3_LoadVisibility	(&header.lumps[Q3LUMP_VISIBILITY]);
+Hunk_Check();
 			if (noerrors)
 				CMod_LoadEntityString	(&header.lumps[Q3LUMP_ENTITIES]);
+Hunk_Check();
 
 			if (!noerrors)
 			{
@@ -3974,15 +4008,15 @@ cmodel_t *CM_LoadMap (char *name, char *filein, qboolean clientload, unsigned *c
 				Hunk_FreeToLowMark(start);
 				return NULL;
 			}
-
+Hunk_Check();
 #ifndef CLIENTONLY
 			CMQ3_CalcPHS();
 #endif
-
+Hunk_Check();
 //			BZ_Free(map_verts);
 			BZ_Free(map_faces);
 			BZ_Free(map_leaffaces);
-
+Hunk_Check();
 			break;
 		default:
 #ifdef SERVERONLY

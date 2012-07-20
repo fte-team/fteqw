@@ -2347,7 +2347,7 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 		if (!ent->model)
 			continue;
 
-		if (cls.allow_anyparticles || ent->visframe)	//allowed or static
+		if (cls.allow_anyparticles)	//allowed or static
 		{
 			if (ent->model->engineflags & MDLF_ENGULPHS)
 			{

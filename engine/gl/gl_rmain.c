@@ -406,7 +406,7 @@ void R_SetupGL (void)
 		fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
 		fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
 
-		if (r_waterwarp.value<0 && r_viewleaf && (r_viewcontents & FTECONTENTS_FLUID))
+		if (r_waterwarp.value<0 && (r_viewcontents & FTECONTENTS_FLUID))
 		{
 			fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
 			fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
@@ -651,7 +651,14 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, int portaltype)
 	if (r_refdef.recurse)
 		return;
 
-	VectorCopy(mesh->normals_array[0], plane.normal);
+	if (!mesh->normals_array)
+	{
+		VectorSet(plane.normal, 0, 0, 1);
+	}
+	else
+	{
+		VectorCopy(mesh->normals_array[0], plane.normal);
+	}
 	plane.dist = DotProduct(mesh->xyz_array[0], plane.normal);
 
 	//if we're too far away from the surface, don't draw anything
@@ -1248,7 +1255,7 @@ void GLR_RenderView (void)
 
 	// SCENE POST PROCESSING
 	// we check if we need to use any shaders - currently it's just waterwarp
-	if ((r_waterwarp.value>0 && r_viewleaf && (r_viewcontents & FTECONTENTS_WATER)))
+	if ((r_waterwarp.value>0 && (r_viewcontents & FTECONTENTS_WATER)))
 	{
 		if (scenepp_waterwarp)
 		{

@@ -100,17 +100,17 @@ typedef struct entity_s
 
 	struct player_info_s	*scoreboard;	// identify player
 
-	struct efrag_s			*efrag;			// linked list of efrags (FIXME)
-	int						visframe;		// last frame this entity was
+//	struct efrag_s			*efrag;			// linked list of efrags (FIXME)
+//	int						visframe;		// last frame this entity was
 											// found in an active leaf
 											// only used for static objects
 											
-	int						dlightframe;	// dynamic lighting
-	int						dlightbits;
+//	int						dlightframe;	// dynamic lighting
+//	int						dlightbits;
 	
 // FIXME: could turn these into a union
-	int						trivial_accept;
-	struct mnode_s			*topnode;		// for bmodels, first world node
+//	int						trivial_accept;
+//	struct mnode_s			*topnode;		// for bmodels, first world node
 											//  that splits bmodel, or NULL if
 											//  not split
 
@@ -301,7 +301,7 @@ texid_t D3D9_LoadTexture (char *identifier, int width, int height, enum uploadfm
 texid_t D3D9_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *data, qbyte *palette24, unsigned int flags);
 texid_t D3D9_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *data, qbyte *palette32, unsigned int flags);
 texid_t D3D9_LoadCompressed (char *name);
-texid_t D3D9_FindTexture (char *identifier);
+texid_t D3D9_FindTexture (char *identifier, unsigned int flags);
 texid_t D3D9_AllocNewTexture(char *ident, int width, int height);
 void    D3D9_Upload (texid_t tex, char *name, enum uploadfmt fmt, void *data, void *palette, int width, int height, unsigned int flags);
 void    D3D9_DestroyTexture (texid_t tex);

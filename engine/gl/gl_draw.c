@@ -598,13 +598,19 @@ void GL_Set2D (qboolean flipped)
 GL_FindTexture
 ================
 */
-texid_t GL_FindTexture (char *identifier)
+texid_t GL_FindTexture (char *identifier, unsigned int flags)
 {
 	gltexture_t	*glt;
 
 	glt = Hash_Get(&gltexturetable, identifier);
-	if (glt)
+	while(glt)
 	{
+		if ((glt->flags ^ flags) & IF_CLAMP)
+		{
+			glt = Hash_GetNext(&gltexturetable, identifier, glt);
+			continue;
+		}
+
 		image_width = glt->width;
 		image_height = glt->height;
 		return glt->texnum;
@@ -613,14 +619,14 @@ texid_t GL_FindTexture (char *identifier)
 	return r_nulltex;
 }
 
-gltexture_t	*GL_MatchTexture (char *identifier, int bits, int width, int height)
+gltexture_t	*GL_MatchTexture (char *identifier, unsigned int flags, int bits, int width, int height)
 {
 	gltexture_t	*glt;
 
 	glt = Hash_Get(&gltexturetable, identifier);
 	while(glt)
 	{
-		if (glt->bpp == bits && width == glt->width && height == glt->height)
+		if (glt->bpp == bits && width == glt->width && height == glt->height && !((glt->flags ^ flags) & IF_CLAMP))
 			return glt;
 
 		glt = Hash_GetNext(&gltexturetable, identifier, glt);
@@ -2145,7 +2151,7 @@ texid_t GL_LoadTexture (char *identifier, int width, int height, qbyte *data, un
 
 	if (identifier[0])
 	{
-		glt = GL_MatchTexture(identifier, 8, width, height);
+		glt = GL_MatchTexture(identifier, flags, 8, width, height);
 		if (glt && !(flags & IF_REPLACE))
 			return glt->texnum;
 	}
@@ -2171,7 +2177,7 @@ texid_t GL_LoadTextureFB (char *identifier, int width, int height, qbyte *data, 
 	// see if the texture is already present
 	if (identifier[0])
 	{
-		glt = GL_MatchTexture(identifier, 8, width, height);
+		glt = GL_MatchTexture(identifier, flags, 8, width, height);
 		if (glt)
 			return glt->texnum;
 	}
@@ -2201,7 +2207,7 @@ texid_t GL_LoadTexture8Pal24 (char *identifier, int width, int height, qbyte *da
 		// see if the texture is already present
 	if (identifier[0])
 	{
-		glt = GL_MatchTexture(identifier, 24, width, height);
+		glt = GL_MatchTexture(identifier, flags, 24, width, height);
 		if (glt)
 			return glt->texnum;
 	}
@@ -2223,7 +2229,7 @@ texid_t GL_LoadTexture8Pal32 (char *identifier, int width, int height, qbyte *da
 		// see if the texture is already present
 	if (identifier[0])
 	{
-		glt = GL_MatchTexture(identifier, 32, width, height);
+		glt = GL_MatchTexture(identifier, flags, 32, width, height);
 		if (glt)
 			return glt->texnum;
 	}
@@ -2248,7 +2254,7 @@ texid_t GL_LoadTexture32 (char *identifier, int width, int height, void *data, u
 	// see if the texture is already present
 	if (identifier[0])
 	{
-		glt = GL_MatchTexture(identifier, 32, width, height);
+		glt = GL_MatchTexture(identifier, flags, 32, width, height);
 		if (glt && !(flags & IF_REPLACE))
 			return glt->texnum;
 	}
@@ -2284,7 +2290,7 @@ texid_t GL_LoadTexture32_BGRA (char *identifier, int width, int height, unsigned
 	// see if the texture is already present
 	if (identifier[0])
 	{
-		glt = GL_MatchTexture(identifier, 32, width, height);
+		glt = GL_MatchTexture(identifier, flags, 32, width, height);
 		if (glt)
 			return glt->texnum;
 	}
@@ -2313,7 +2319,7 @@ texid_t GL_LoadCompressed(char *name)
 	// see if the texture is already present
 	if (name[0])
 	{
-		texid_t num = GL_FindTexture(name);
+		texid_t num = GL_FindTexture(name, 0);
 		if (TEXVALID(num))
 			return num;
 	}
@@ -2347,7 +2353,7 @@ texid_t GL_LoadTexture8Grey (char *identifier, int width, int height, unsigned c
 	// see if the texture is already present
 	if (identifier[0])
 	{
-		glt = GL_MatchTexture(identifier, 8, width, height);
+		glt = GL_MatchTexture(identifier, flags, 8, width, height);
 		if (glt)
 			return glt->texnum;
 	}
@@ -2374,7 +2380,7 @@ texid_t GL_LoadTexture8Bump (char *identifier, int width, int height, unsigned c
 	// see if the texture is already present
 	if (identifier[0])
 	{
-		glt = GL_MatchTexture(identifier, 8, width, height);
+		glt = GL_MatchTexture(identifier, flags, 8, width, height);
 		if (glt)
 		{
 	TRACE(("dbg: GL_LoadTexture8Bump: duplicated %s\n", identifier));

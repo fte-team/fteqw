@@ -14,21 +14,32 @@ enum
 	ter_mixconcentrate = 11,	//figure out which is the strongest mixed texture and make it stronger
 	ter_mixnoise = 12,		//add random noise to the affected samples
 	ter_mixblur = 13,		//blur the texture mixture
+	ter_water_set = 14,		//lower the terrain in a bell (negative value to raise)
+	ter_mesh_add = 15,		//add a mesh
+	ter_mesh_kill = 16,		//remove meshes within the radius
 
 
 
 	ter_blank,
 	ter_radius,
 	ter_quant,
+	ter_strength,
+	ter_mesh,
 	ter_tex,
 	ter_count
 };
 static var float eradius = 256;
 static var float equant = 8;
-static var vector emix = '1 0 0';
+static var float epercent = 80;
 static string tex[8];
+static string meshname;
 static float curtool;
 static int painttex;
+static float mautorepeattime;
+static entity tempent;
+
+vector vidsize;
+float mousedown;
 
 static string toolname[ter_count] =
 {
@@ -46,9 +57,14 @@ static string toolname[ter_count] =
 	"mix concentrate",
 	"mix noise",
 	"mix blur",
+	"water set",
+	"mesh add",
+	"mesh kill",
 	"",
 	"rad",
 	"quant",
+	"str",
+	"mesh",
 	"tex"
 };
 
@@ -56,9 +72,71 @@ static string toolname[ter_count] =
 
 __variant(float action, ...) terrain_edit = #278;
 
+void(vector m) editor_do =
+{
+	vector t = unproject(m + '0 0 8192');
+	vector o = unproject(m);
+	if (vlen(o - t) > 8192)
+		t = o + normalize(t)*8192;
+	traceline(o, t, TRUE, world);
+
+	switch(curtool)
+	{
+	case ter_reload:
+	case ter_save:
+		mautorepeattime = 0;	//don't autorepeat that...
+		terrain_edit(curtool);
+		break;
+	case ter_sethole:	//use view center instead of targetted - you cannot target that which is not there
+		terrain_edit(curtool, trace_endpos, eradius, equant);
+		break;
+
+	case ter_height_smooth:
+		terrain_edit(curtool, trace_endpos, eradius, epercent/100.0);
+		break;
+	case ter_height_set:
+	case ter_height_smooth:
+	case ter_height_raise:
+	case ter_height_lower:
+		terrain_edit(curtool, trace_endpos, eradius, equant);
+		break;
+	case ter_tex_get:
+		strunzone(tex[0]);
+		strunzone(tex[1]);
+		strunzone(tex[2]);
+		strunzone(tex[3]);
+		tex[0] = strzone(terrain_edit(curtool, trace_endpos, 0, 0));
+		tex[1] = strzone(terrain_edit(curtool, trace_endpos, 0, 1));
+		tex[2] = strzone(terrain_edit(curtool, trace_endpos, 0, 2));
+		tex[3] = strzone(terrain_edit(curtool, trace_endpos, 0, 3));
+		break;
+//	case ter_mixset:
+//		terrain_edit(curtool, trace_endpos, eradius, equant, emix);
+//		break;
+	case ter_mixpaint:
+		terrain_edit(curtool, trace_endpos, eradius, epercent/100.0, tex[painttex]);
+		break;
+	case ter_tex_kill:
+		terrain_edit(curtool, trace_endpos, eradius, equant, tex[painttex]);
+		break;
+	case ter_mixconcentrate:
+	case ter_mixnoise:
+	case ter_mixblur:
+		terrain_edit(curtool, trace_endpos, eradius, equant);
+		break;
+
+	case ter_mesh_add:
+		terrain_edit(curtool, tempent);
+		break;
+	case ter_mesh_kill:
+		terrain_edit(curtool, trace_endpos, eradius);
+		break;
+	}
+};
+
 float(float keyc, float unic, vector m) editor_terrain_key =
 {
-	if (curtool == ter_tex)
+	if (curtool >= ter_radius && curtool <= ter_tex)
 	{
 		string txt;
 		float nt = curtool;
@@ -66,6 +144,10 @@ float(float keyc, float unic, vector m) editor_terrain_key =
 			txt = itos((int)eradius);
 		if (curtool == ter_quant)
 			txt = itos((int)equant);
+		if (curtool == ter_strength)
+			txt = itos((int)epercent);
+		if (curtool == ter_mesh)
+			txt = meshname;
 		if (curtool == ter_tex)
 			txt = tex[painttex];
 			
@@ -82,6 +164,14 @@ float(float keyc, float unic, vector m) editor_terrain_key =
 			eradius = stof(txt);
 		if (curtool == ter_quant)
 			equant = stof(txt);
+		if (curtool == ter_strength)
+			epercent = stof(txt);
+		if (curtool == ter_mesh)
+		{
+			txt = strzone(txt);
+			strunzone(meshname);
+			meshname = txt;
+		}
 		if (curtool == ter_tex)
 		{
 			txt = strzone(txt);
@@ -91,64 +181,49 @@ float(float keyc, float unic, vector m) editor_terrain_key =
 
 		curtool = nt;
 	}
-	else if (keyc == 13 || keyc == 512)
+	else if (keyc == 13 || (keyc == 512 && m_x < 128))
 	{
 		if (m_x < 128)
 			curtool = floor((m_y-16) / 8);
-		else
+		else if (keyc == 13)
 		{
-			vector t = unproject(m + '0 0 8192');
-			vector o = unproject(m);
-			if (vlen(o - t) > 8192)
-				t = o + normalize(t)*8192;
-			traceline(o, t, TRUE, world);
-
-			switch(curtool)
-			{
-			case ter_reload:
-			case ter_save:
-				terrain_edit(curtool);
-				break;
-			case ter_sethole:	//use view center instead of targetted - you cannot target that which is not there
-				terrain_edit(curtool, trace_endpos, eradius, equant);
-				break;
-			case ter_height_set:
-			case ter_height_smooth:
-			case ter_height_raise:
-			case ter_height_lower:
-				terrain_edit(curtool, trace_endpos, eradius, equant);
-				break;
-			case ter_tex_get:
-				strunzone(tex[0]);
-				strunzone(tex[1]);
-				strunzone(tex[2]);
-				strunzone(tex[3]);
-				tex[0] = strzone(terrain_edit(curtool, trace_endpos, 0, 0));
-				tex[1] = strzone(terrain_edit(curtool, trace_endpos, 0, 1));
-				tex[2] = strzone(terrain_edit(curtool, trace_endpos, 0, 2));
-				tex[3] = strzone(terrain_edit(curtool, trace_endpos, 0, 3));
-				break;
-//			case ter_mixset:
-//				terrain_edit(curtool, trace_endpos, eradius, equant, emix);
-//				break;
-			case ter_mixpaint:
-				terrain_edit(curtool, trace_endpos, eradius, equant, tex[painttex]);
-				break;
-			case ter_tex_kill:
-				terrain_edit(curtool, trace_endpos, eradius, equant, tex[painttex]);
-				break;
-			case ter_mixconcentrate:
-			case ter_mixnoise:
-			case ter_mixblur:
-				terrain_edit(curtool, trace_endpos, eradius, equant);
-				break;
-			}
+			editor_do(m);
 		}
 	}
 	else if (unic == '+' || unic == '=')
 		eradius += 16;
 	else if (unic == '-')
 		eradius -= 16;
+	else if (curtool == ter_mesh_add && tempent)
+	{
+		if (unic == '[')
+			tempent.angles_y -= 12.5;
+		else if (unic == ']')
+			tempent.angles_y += 12.5;
+		else if (unic == '{')
+			tempent.angles_x -= 12.5;
+		else if (unic == '}')
+			tempent.angles_x += 12.5;
+		else if (unic == '(')
+			tempent.angles_z -= 12.5;
+		else if (unic == ')')
+			tempent.angles_z += 12.5;
+		else if (unic == '@')
+		{
+			tempent.angles_x = gettime(5)*360*360;
+			tempent.angles_y = gettime(5)*360;
+			tempent.angles_z = gettime(5)*360*360*360;
+		}
+		else if (keyc == 127 || keyc == 8)
+		{
+			tempent.angles_x = 0;
+			tempent.angles_y = 0;
+			tempent.angles_z = 0;
+		}
+		else
+			return FALSE;
+		return TRUE;
+	}
 	else if (unic == '[')
 		equant -= 1;
 	else if (unic == ']')
@@ -196,8 +271,20 @@ void(vector mousepos) editor_terrain_add =
 		t = o + normalize(t)*8192;
 	traceline(o, t, TRUE, world);
 
+	if (curtool == ter_mesh_add || curtool == ter_mesh)
+	{
+		if (!tempent)
+			tempent = spawn();
 
-	shaderforname("terrainedit",
+		precache_model(meshname); /*just to silence it*/
+		setmodel(tempent, meshname);
+		setorigin(tempent, trace_endpos);
+		tempent.scale = eradius/256;
+		addentity(tempent);
+	}
+	else
+	{
+		shaderforname("terrainedit",
 		"{"
 			"{\n"
 				"map terrainedit\n"
@@ -207,35 +294,52 @@ void(vector mousepos) editor_terrain_add =
 			"}\n"
 		"}");
 
-	r = eradius;//sqrt(eradius*eradius/2);
+		r = eradius;//sqrt(eradius*eradius/2);
 
-	s = sin(gettime(5)) * r;
-	c = cos(gettime(5)) * r;
+		s = sin(gettime(5)) * r;
+		c = cos(gettime(5)) * r;
 
-	col_x = (sin(gettime(5))+1.5)*0.1;
+		col_x = (sin(gettime(5))+1.5)*0.1;
 
-	R_BeginPolygon("terrainedit");
-	for (a = 0; a < 3.14*2; a += 3.14*2/8)
-	{
-		tx_x = sin(a);
-		tx_y = cos(a);
+		R_BeginPolygon("terrainedit");
+		for (a = 0; a < 3.14*2; a += 3.14*2/8)
+		{
+			tx_x = sin(a);
+			tx_y = cos(a);
 
-		//-1 -1
-		p_x = trace_endpos_x + tx_x*c - tx_y*s;
-		p_y = trace_endpos_y + tx_y*c + tx_x*s;
-		p_z = trace_endpos_z + 5;
-		tx = (tx*0.5)+'0.5 0.5 0';
-		R_PolygonVertex(p, tx, col, 1);
+			//-1 -1
+			p_x = trace_endpos_x + tx_x*c - tx_y*s;
+			p_y = trace_endpos_y + tx_y*c + tx_x*s;
+					p_z = trace_endpos_z + 5;
+			tx = (tx*0.5)+'0.5 0.5 0';
+			R_PolygonVertex(p, tx, col, 1);
+		}
+		R_EndPolygon();
 	}
-	R_EndPolygon();
 };
 
-vector vidsize;
 void(vector mousepos) editor_terrain_overlay =
 {
 	float i;
 	vector pos;
 	vector colour;
+
+	float ctime = gettime(5);
+	if (mautorepeattime)
+	{
+		if (mousedown != 1)
+			mautorepeattime = 0;
+		else if (mautorepeattime < ctime)
+		{
+			mautorepeattime = ctime + 0.05;
+			editor_do(mousepos);
+		}
+	}
+	else if (mousedown == 1)
+	{
+		mautorepeattime = ctime + 0.5;
+		editor_do(mousepos);
+	}
 
 	pos = '128 0 0';
 	pos_y = vidsize_y - 32;
@@ -255,6 +359,10 @@ void(vector mousepos) editor_terrain_overlay =
 			drawstring(pos, sprintf("radius: %g", eradius), '8 8 0', colour, 1, 0);
 		else if (i == ter_quant)
 			drawstring(pos, sprintf("quantity: %g", equant), '8 8 0', colour, 1, 0);
+		else if (i == ter_strength)
+			drawstring(pos, sprintf("percent: %g%%", epercent), '8 8 0', colour, 1, 0);
+		else if (i == ter_mesh)
+			drawstring(pos, sprintf("mesh: %s", meshname), '8 8 0', colour, 1, 0);
 		else if (i == ter_tex)
 		{
 			if (curtool == ter_tex_get)
@@ -266,6 +374,9 @@ void(vector mousepos) editor_terrain_overlay =
 			}
 			else
 				drawstring(pos, sprintf("Tex%1i: %s", painttex, tex[painttex]), '8 8 0', colour, 1, 0);
+			if (tex[painttex] != "" && whichpack(strcat("textures/", tex[painttex], ".tga")) != "")
+				drawpic(pos + '0 8 0', tex[painttex], '128 128 0', '1 1 1', 1);
+		
 		}
 		else
 			drawstring(pos, toolname[i], '8 8 0', colour, 1, 0);

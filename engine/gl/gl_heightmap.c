@@ -2217,13 +2217,13 @@ void Terr_ParseEntityLump(char *data, float *scale, int *minx, int *maxx, int *m
 		if (!strcmp("segmentsize", key))
 			*scale = atof(com_token);
 		else if (!strcmp("minxsegment", key))
-			*minx = atoi(com_token) + CHUNKBIAS;
+			*minx = atoi(com_token);
 		else if (!strcmp("minysegment", key))
-			*miny = atoi(com_token) + CHUNKBIAS;
+			*miny = atoi(com_token);
 		else if (!strcmp("maxxsegment", key))
-			*maxx = atoi(com_token) + CHUNKBIAS;
+			*maxx = atoi(com_token);
 		else if (!strcmp("maxysegment", key))
-			*maxy = atoi(com_token) + CHUNKBIAS;
+			*maxy = atoi(com_token);
 	}
 }
 

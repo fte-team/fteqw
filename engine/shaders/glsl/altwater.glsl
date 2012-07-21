@@ -56,7 +56,7 @@ void main (void)
 	ntc.t = tc.t + sin(tc.s+e_time)*0.125;
 
 	//generate the two wave patterns from the normalmap
-	n = (texture2D(s_t1, TXSCALE*tc + vec2(e_time*0.1, 0)).xyz);
+	n = (texture2D(s_t1, TXSCALE*tc + vec2(e_time*0.1, 0.0)).xyz);
 	n += (texture2D(s_t1, TXSCALE*tc - vec2(0, e_time*0.097)).xyz);
 	n -= 1.0 - 4.0/256.0;
 

@@ -6,6 +6,9 @@
 
 #include "pr_common.h"
 
+//#define STRICTEDGES	//strict (ugly) grid
+#define TERRAINTHICKNESS 16
+
 //heightmaps work thusly:
 //there is one raw heightmap file
 //the file is split to 4*4 sections.
@@ -134,7 +137,25 @@ typedef struct heightmap_s {
 static void ted_dorelight(heightmap_t *hm);
 
 
-
+#ifndef SERVERONLY
+static texid_t Terr_LoadTexture(char *name)
+{
+	extern texid_t missing_texture;
+	texid_t id;
+	if (*name)
+	{
+		id = R_LoadHiResTexture(name, NULL, 0);
+		if (!TEXVALID(id))
+		{
+			id = missing_texture;
+			Con_Printf("Unable to load texture %s\n", name);
+		}
+	}
+	else
+		id = missing_texture;
+	return id;
+}
+#endif
 
 static void Terr_LoadSectionTextures(hmsection_t *s)
 {
@@ -144,10 +165,10 @@ static void Terr_LoadSectionTextures(hmsection_t *s)
 	//CL_CheckOrEnqueDownloadFile(s->texname[1], NULL, 0);
 	//CL_CheckOrEnqueDownloadFile(s->texname[2], NULL, 0);
 	//CL_CheckOrEnqueDownloadFile(s->texname[3], NULL, 0);
-	s->textures.base			= *s->texname[0]?R_LoadHiResTexture(s->texname[0], NULL, 0):missing_texture;
-	s->textures.upperoverlay	= *s->texname[1]?R_LoadHiResTexture(s->texname[1], NULL, 0):missing_texture;
-	s->textures.loweroverlay	= *s->texname[2]?R_LoadHiResTexture(s->texname[2], NULL, 0):missing_texture;
-	s->textures.fullbright		= *s->texname[3]?R_LoadHiResTexture(s->texname[3], NULL, 0):missing_texture;
+	s->textures.base			= Terr_LoadTexture(s->texname[0]);
+	s->textures.upperoverlay	= Terr_LoadTexture(s->texname[1]);
+	s->textures.loweroverlay	= Terr_LoadTexture(s->texname[2]);
+	s->textures.fullbright		= Terr_LoadTexture(s->texname[3]);
 	s->textures.bump			= *s->texname[0]?R_LoadHiResTexture(va("%s_norm", s->texname[0]), NULL, 0):r_nulltex;
 	s->textures.specular		= *s->texname[0]?R_LoadHiResTexture(va("%s_spec", s->texname[0]), NULL, 0):r_nulltex;
 #endif
@@ -293,7 +314,10 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 #ifndef SERVERONLY
 		s->numents = ds->numents;
 		s->maxents = s->numents;
-		s->ents = malloc(sizeof(*s->ents) * s->maxents);
+		if (s->maxents)
+			s->ents = malloc(sizeof(*s->ents) * s->maxents);
+		else
+			s->ents = NULL;
 		if (!s->ents)
 			s->numents = s->maxents = 0;
 		memset(s->ents, 0, sizeof(*s->ents) * s->maxents);
@@ -416,18 +440,19 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 	return s;
 }
 
-static void Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy)
+static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy)
 {
 #ifndef SERVERONLY
 	dsection_t ds;
 	dsmesh_t dm;
+	char *fname;
 	unsigned char *lm;
 	vfsfile_t *f;
 	int nothing = 0;
 	int i;
 	//if its invalid or doesn't contain all the data...
 	if (!s || s->lightmap < 0)
-		return;
+		return true;
 
 	memset(&ds, 0, sizeof(ds));
 	memset(&dm, 0, sizeof(dm));
@@ -465,7 +490,15 @@ static void Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy)
 	ds.numents = s->numents;
 	ds.entsofs = sizeof(ds);
 
-	f = FS_OpenVFS(Terr_DiskSectionName(hm, sx, sy), "wb", FS_GAMEONLY);
+	fname = Terr_DiskSectionName(hm, sx, sy);
+	FS_CreatePath(fname, FS_GAMEONLY);
+
+	f = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
+	if (!f)
+	{
+		Con_Printf("Failed to open %s\n", fname);
+		return false;
+	}
 	VFS_WRITE(f, &ds, sizeof(ds));
 	for (i = 0; i < s->numents; i++)
 	{
@@ -490,6 +523,7 @@ static void Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy)
 	}
 	VFS_CLOSE(f);
 #endif
+	return true;
 }
 
 /*convienience function*/
@@ -541,9 +575,11 @@ int HeightMap_Save(heightmap_t *hm)
 				continue;
 			if (s->flags & TSF_EDITED)
 			{
-				s->flags &= ~TSF_EDITED;
-				Terr_SaveSection(hm, s, x, y);
-				sectionssaved++;
+				if (Terr_SaveSection(hm, s, x, y))
+				{
+					s->flags &= ~TSF_EDITED;
+					sectionssaved++;
+				}
 			}
 		}
 	}
@@ -574,6 +610,7 @@ void Terr_DestroySection(heightmap_t *hm, hmsection_t *s)
 	}
 #endif
 
+	free(s->ents);
 	free(s->mesh.xyz_array);
 	free(s->mesh.indexes);
 #endif
@@ -797,7 +834,10 @@ void Terr_RebuildMesh(hmsection_t *s, int x, int y)
 	{
 		for (vy = 0; vy < SECTHEIGHTSIZE-1; vy++)
 		{
+#ifndef STRICTEDGES
 			float d1,d2;
+#endif
+
 #if SECTHEIGHTSIZE >= 4
 			int holebit;
 
@@ -809,9 +849,9 @@ void Terr_RebuildMesh(hmsection_t *s, int x, int y)
 #endif
 			v = vx + vy*(SECTHEIGHTSIZE);
 
+#ifndef STRICTEDGES
 			d1 = fabs(mesh->xyz_array[v][2] - mesh->xyz_array[v+1+SECTHEIGHTSIZE][2]);
 			d2 = fabs(mesh->xyz_array[v+1][2] - mesh->xyz_array[v+SECTHEIGHTSIZE][2]);
-#if 1
 			if (d1 < d2)
 			{
 				mesh->indexes[mesh->numindexes++] = v+0;
@@ -821,8 +861,8 @@ void Terr_RebuildMesh(hmsection_t *s, int x, int y)
 				mesh->indexes[mesh->numindexes++] = v+1+SECTHEIGHTSIZE;
 				mesh->indexes[mesh->numindexes++] = v+SECTHEIGHTSIZE;
 			}
-#endif
 			else
+#endif
 			{
 				mesh->indexes[mesh->numindexes++] = v+0;
 				mesh->indexes[mesh->numindexes++] = v+1;
@@ -1198,22 +1238,97 @@ typedef struct {
 	int contents;
 } hmtrace_t;
 
+static void Heightmap_Trace_Brush(hmtrace_t *tr, vec4_t *planes, int numplanes)
+{
+	qboolean startout;
+	float *enterplane;
+	double enterfrac, exitfrac, nearfrac=0;
+	double enterdist=0;
+	double dist, d1, d2, f;
+	int i;
+
+	startout = false;
+	enterplane= NULL;
+	enterfrac = -1;
+	exitfrac = 10;
+	for (i = 0; i < numplanes; i++)
+	{
+		/*calculate the distance based upon the shape of the object we're tracing for*/
+		dist = planes[i][3];
+
+
+		d1 = DotProduct (tr->start, planes[i]) - dist;
+		d2 = DotProduct (tr->end, planes[i]) - dist;
+
+		//if we're fully outside any plane, then we cannot possibly enter the brush, skip to the next one
+		if (d1 > 0 && d2 >= d1)
+			goto nextbrush;
+
+		if (d1 > 0)
+			startout = true;
+
+		//if we're fully inside the plane, then whatever is happening is not relevent for this plane
+		if (d1 <= 0 && d2 <= 0)
+			continue;
+
+		f = (d1) / (d1-d2);
+		if (d1 > d2)
+		{
+			//entered the brush. favour the furthest fraction to avoid extended edges (yay for convex shapes)
+			if (enterfrac < f)
+			{
+				enterfrac = f;
+				nearfrac = (d1 - (0.03125)) / (d1-d2);
+				enterplane = planes[i];
+				enterdist = dist;
+			}
+		}
+		else
+		{
+			//left the brush, favour the nearest plane (smallest frac)
+			if (exitfrac > f)
+			{
+				exitfrac = f;
+			}
+		}
+	}
+
+	if (!startout)
+	{
+		tr->frac = -1;
+		return;
+	}
+	if (enterfrac != -1 && enterfrac < exitfrac)
+	{
+		//impact!
+		if (enterfrac < tr->frac)
+		{
+			if (nearfrac < 0)
+				nearfrac = 0;
+			tr->frac = nearfrac;//enterfrac;
+			tr->plane[3] = enterdist;
+			VectorCopy(enterplane, tr->plane);
+		}
+	}
+	nextbrush:
+	;
+}
+
 //sx,sy are the tile coord
 //note that tile SECTHEIGHTSIZE-1 does not exist, as the last sample overlaps the first sample of the next section
-void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
+static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 {
 	vec3_t d[2];
 	vec3_t p[4];
 	vec4_t n[5];
-	int t, i;
+	int t;
 
-	qboolean startout, endout;
-	float *enterplane;
-	float enterfrac, exitfrac, nearfrac=0;
-	float enterdist=0;
-	float dist, d1, d2, f;
+#ifndef STRICTEDGES
+	float d1, d2;
+#endif
 	int sx, sy;
 	hmsection_t *s;
+	unsigned int holebit;
 
 	if (tx < 0 || tx >= CHUNKLIMIT*(SECTHEIGHTSIZE-1))
 		return;
@@ -1221,213 +1336,127 @@ void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 		return;
 	s = Terr_GetSection(tr->hm, tx/(SECTHEIGHTSIZE-1), ty/(SECTHEIGHTSIZE-1), true);
 
-	sx = tx;
-	sy = ty;
+	sx = tx - CHUNKBIAS*(SECTHEIGHTSIZE-1);
+	sy = ty - CHUNKBIAS*(SECTHEIGHTSIZE-1);
 
 	tx = tx % (SECTHEIGHTSIZE-1);
 	ty = ty % (SECTHEIGHTSIZE-1);
+
+	holebit = 1u<<(tx/(SECTHEIGHTSIZE>>2) + (ty/(SECTHEIGHTSIZE>>2))*4);
+	if (!s || (s->holes & holebit))
+		return;	//no collision with holes
 
 	VectorSet(p[0], tr->htilesize*(sx+0), tr->htilesize*(sy+0), s->heights[(tx+0)+(ty+0)*SECTHEIGHTSIZE]);
 	VectorSet(p[1], tr->htilesize*(sx+1), tr->htilesize*(sy+0), s->heights[(tx+1)+(ty+0)*SECTHEIGHTSIZE]);
 	VectorSet(p[2], tr->htilesize*(sx+0), tr->htilesize*(sy+1), s->heights[(tx+0)+(ty+1)*SECTHEIGHTSIZE]);
 	VectorSet(p[3], tr->htilesize*(sx+1), tr->htilesize*(sy+1), s->heights[(tx+1)+(ty+1)*SECTHEIGHTSIZE]);
-//	DebugDrawQuadH(p[0][0], p[0][1], p[3][0], p[3][1], p[0][2], 0, 0, 0.2);
 
-	for (t = 0; t < 2; t++)
+#ifndef STRICTEDGES
+	d1 = fabs(p[0][2] - p[3][2]);
+	d2 = fabs(p[1][2] - p[2][2]);
+	if (d1 < d2)
 	{
-		/*generate the brush (in world space*/
-		if (t == 0)
+		for (t = 0; t < 2; t++)
 		{
-//			continue;
-			VectorSubtract(p[1], p[0], d[0]);
-			VectorSubtract(p[2], p[0], d[1]);
-			//left-most
-			Vector4Set(n[0], -1, 0, 0, -tr->htilesize*(sx+0));
-			//top-most
-			Vector4Set(n[1], 0, -1, 0, -tr->htilesize*(sy+0));
-			//bottom-right
-			VectorSet(n[2], 0.70710678118654752440084436210485, 0.70710678118654752440084436210485, 0);
-			n[2][3] = DotProduct(n[2], p[1]);
-			//top
-			VectorNormalize(d[0]);
-			VectorNormalize(d[1]);
-			CrossProduct(d[0], d[1], n[3]);
-			VectorNormalize(n[3]);
-			n[3][3] = DotProduct(n[3], p[1]);
-			//down
-			Vector4Set(n[4], 0, 0, -1, 0);
-			n[4][3] = DotProduct(n[3], p[1]);
-		}
-		else
-		{
-//			continue;
-			VectorSubtract(p[3], p[2], d[0]);
-			VectorSubtract(p[3], p[1], d[1]);
-
-			//right-most
-			Vector4Set(n[0], 1, 0, 0, tr->htilesize*(sx+1));
-			//bottom-most
-			Vector4Set(n[1], 0, 1, 0, tr->htilesize*(sy+1));
-			//top-left
-			VectorSet(n[2], -0.70710678118654752440084436210485, -0.70710678118654752440084436210485, 0);
-			n[2][3] = DotProduct(n[2], p[1]);
-			//top
-			VectorNormalize(d[0]);
-			VectorNormalize(d[1]);
-			CrossProduct(d[0], d[1], n[3]);
-			VectorNormalize(n[3]);
-			n[3][3] = DotProduct(n[3], p[1]);
-			//down
-			Vector4Set(n[4], 0, 0, -1, 0);
-			n[4][3] = DotProduct(n[3], p[1]);
-		}
-
-		startout = false;
-		endout = false;
-		enterplane= NULL;
-		enterfrac = -1;
-		exitfrac = 10;
-		for (i = 0; i < 4; i++)
-		{
-			/*calculate the distance based upon the shape of the object we're tracing for*/
-			dist = n[i][3];
-
-
-			d1 = DotProduct (tr->start, n[i]) - dist;
-			d2 = DotProduct (tr->end, n[i]) - dist;
-
-			if (d1 > 0)
-				startout = true;
-			if (d2 > 0)
-				endout = true;
-
-			//if we're fully outside any plane, then we cannot possibly enter the brush, skip to the next one
-			if (d1 > 0 && d2 >= 0)
-				goto nextbrush;
-
-			//if we're fully inside the plane, then whatever is happening is not relevent for this plane
-			if (d1 < 0 && d2 <= 0)
-				continue;
-
-			f = (d1) / (d1-d2);
-			if (d1 > d2)
+			/*generate the brush (in world space*/
+			if (t == 0)
 			{
-				//entered the brush. favour the furthest fraction to avoid extended edges (yay for convex shapes)
-				if (enterfrac < f)
-				{
-					enterfrac = f;
-					nearfrac = (d1 - (0.03125)) / (d1-d2);
-					enterplane = n[i];
-					enterdist = dist;
-				}
+				VectorSubtract(p[3], p[2], d[0]);
+				VectorSubtract(p[2], p[0], d[1]);
+				//left-most
+				Vector4Set(n[0], -1, 0, 0, -tr->htilesize*(sx+0));
+				//bottom-most
+				Vector4Set(n[1], 0, 1, 0, tr->htilesize*(sy+1));
+				//top-right
+				VectorSet(n[2], 0.70710678118654752440084436210485, -0.70710678118654752440084436210485, 0);
+				n[2][3] = DotProduct(n[2], p[0]);
+				//top
+				VectorNormalize(d[0]);
+				VectorNormalize(d[1]);
+				CrossProduct(d[0], d[1], n[3]);
+				VectorNormalize(n[3]);
+				n[3][3] = DotProduct(n[3], p[0]);
+				//down
+				VectorNegate(n[3], n[4]);
+				n[4][3] = DotProduct(n[4], p[0]) - n[4][2]*TERRAINTHICKNESS;
 			}
 			else
 			{
-				//left the brush, favour the nearest plane (smallest frac)
-				if (exitfrac > f)
-				{
-					exitfrac = f;
-				}
+				VectorSubtract(p[1], p[0], d[0]);
+				VectorSubtract(p[3], p[1], d[1]);
+
+				//right-most
+				Vector4Set(n[0], 1, 0, 0, tr->htilesize*(sx+1));
+				//top-most
+				Vector4Set(n[1], 0, -1, 0, -tr->htilesize*(sy+0));
+				//bottom-left
+				VectorSet(n[2], -0.70710678118654752440084436210485, 0.70710678118654752440084436210485, 0);
+				n[2][3] = DotProduct(n[2], p[0]);
+				//top
+				VectorNormalize(d[0]);
+				VectorNormalize(d[1]);
+				CrossProduct(d[0], d[1], n[3]);
+				VectorNormalize(n[3]);
+				n[3][3] = DotProduct(n[3], p[0]);
+				//down
+				VectorNegate(n[3], n[4]);
+				n[4][3] = DotProduct(n[4], p[0]) - n[4][2]*TERRAINTHICKNESS;
 			}
-		}
-
-		if (!startout)
-		{
-			tr->frac = -1;
-			return;
-		}
-		if (enterfrac != -1 && enterfrac < exitfrac)
-		{
-			//impact!
-			if (enterfrac < tr->frac)
-			{
-				if (nearfrac < 0)
-					nearfrac = 0;
-				tr->frac = nearfrac;//enterfrac;
-				tr->plane[3] = enterdist;
-				VectorCopy(enterplane, tr->plane);
-			}
-		}
-nextbrush:
-		;
-	}
-#if 0
-	float normf = 0.70710678118654752440084436210485;
-	float pd, sd, ed, bd;
-	int tris, x, y;
-	vec3_t closest;
-	vec3_t point;
-
-
-	pd = normf*(x+y);
-	sd = normf*tr->start[0]+normf*tr->start[1];
-	ed = normf*tr->end[0]+normf*tr->end[1];
-	bd = normf*tr->maxs[0]+normf*tr->maxs[1];	//assume mins is this but negative
-//see which of the two triangles in the square it travels over.
-
-	tris = 0;
-	if (sd<=pd || ed<=pd)
-		tris |= 1;
-	if (sd>=pd || ed>=pd)
-		tris |= 2;
-
-	point[0] = sx+1;
-	point[1] = sy;
-	point[2] = s->heights[sx+1+sy*tr->hm->terrainsize];
-
-	if (tris & 1)
-	{	//triangle with 0, 0
-		vec3_t norm;
-		float d1, d2, dc;
-
-		x = tr->hm->heights[(sx+1)+(sy+0)*tr->hm->terrainsize] - tr->hm->heights[(sx+0)+(sy+0)*tr->hm->terrainsize];
-		y = tr->hm->heights[(sx+0)+(sy+1)*tr->hm->terrainsize] - tr->hm->heights[(sx+0)+(sy+0)*tr->hm->terrainsize];
-
-		norm[0] = (-x)/tr->hm->terrainscale;
-		norm[1] = (-y)/tr->hm->terrainscale;
-		norm[2] = 1.0f/(float)sqrt(norm[0]*norm[0] + norm[1]*norm[1] + 1);
-		Closest(closest, norm, tr->mins, tr->maxs);
-		dc = DotProduct(norm, closest) - DotProduct(norm, point);
-		d1 = DotProduct(norm, tr->start) + dc;
-		d2 = DotProduct(norm, tr->end) + dc;
-
-		if (d1>=0 && d2<=0)
-		{	//intersects
-			tr->contents = FTECONTENTS_SOLID;
-
-			d1 = (d1-d2)/(d1+d2);
-			d2 = 1-d1;
-
-			tr->impact[0] = tr->end[0]*d1+tr->start[0]*d2;
-			tr->impact[1] = tr->end[1]*d1+tr->start[1]*d2;
-			tr->impact[2] = tr->end[2]*d1+tr->start[2]*d2;
+			Heightmap_Trace_Brush(tr, n, 5);
 		}
 	}
-	if (tris & 2)
-	{	//triangle with 1, 1
-		vec3_t norm;
-		float d1, d2, dc;
-		norm[0] = (-x)/tr->hm->terrainscale;
-		norm[1] = (-y)/tr->hm->terrainscale;
-		norm[2] = 1.0f/(float)sqrt(norm[0]*norm[0] + norm[1]*norm[1] + 1);
-		Closest(closest, norm, tr->mins, tr->maxs);
-		dc = DotProduct(norm, closest) - DotProduct(norm, point);
-		d1 = DotProduct(norm, tr->start) + dc;
-		d2 = DotProduct(norm, tr->end) + dc;
-
-		if (d1>=0 && d2<=0)
-		{	//intersects
-			tr->contents = FTECONTENTS_SOLID;
-
-			d1 = (d1-d2)/(d1+d2);
-			d2 = 1-d1;
-
-			tr->impact[0] = tr->end[0]*d1+tr->start[0]*d2;
-			tr->impact[1] = tr->end[1]*d1+tr->start[1]*d2;
-			tr->impact[2] = tr->end[2]*d1+tr->start[2]*d2;
-		}
-	}
+	else
 #endif
+	{
+		for (t = 0; t < 2; t++)
+		{
+			/*generate the brush (in world space*/
+			if (t == 0)
+			{
+				VectorSubtract(p[1], p[0], d[0]);
+				VectorSubtract(p[2], p[0], d[1]);
+				//left-most
+				Vector4Set(n[0], -1, 0, 0, -tr->htilesize*(sx+0));
+				//top-most
+				Vector4Set(n[1], 0, -1, 0, -tr->htilesize*(sy+0));
+				//bottom-right
+				VectorSet(n[2], 0.70710678118654752440084436210485, 0.70710678118654752440084436210485, 0);
+				n[2][3] = DotProduct(n[2], p[1]);
+				//top
+				VectorNormalize(d[0]);
+				VectorNormalize(d[1]);
+				CrossProduct(d[0], d[1], n[3]);
+				VectorNormalize(n[3]);
+				n[3][3] = DotProduct(n[3], p[1]);
+				//down
+				VectorNegate(n[3], n[4]);
+				n[4][3] = DotProduct(n[4], p[1]) - n[4][2]*TERRAINTHICKNESS;
+			}
+			else
+			{
+				VectorSubtract(p[3], p[2], d[0]);
+				VectorSubtract(p[3], p[1], d[1]);
+
+				//right-most
+				Vector4Set(n[0], 1, 0, 0, tr->htilesize*(sx+1));
+				//bottom-most
+				Vector4Set(n[1], 0, 1, 0, tr->htilesize*(sy+1));
+				//top-left
+				VectorSet(n[2], -0.70710678118654752440084436210485, -0.70710678118654752440084436210485, 0);
+				n[2][3] = DotProduct(n[2], p[1]);
+				//top
+				VectorNormalize(d[0]);
+				VectorNormalize(d[1]);
+				CrossProduct(d[0], d[1], n[3]);
+				VectorNormalize(n[3]);
+				n[3][3] = DotProduct(n[3], p[1]);
+				//down
+				VectorNegate(n[3], n[4]);
+				n[4][3] = DotProduct(n[4], p[1]) - n[4][2]*TERRAINTHICKNESS;
+			}
+			Heightmap_Trace_Brush(tr, n, 5);
+		}
+	}
 }
 
 #define DIST_EPSILON 0
@@ -1461,24 +1490,24 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 
 	hmtrace.plane[0] = 0;
 	hmtrace.plane[1] = 0;
-	hmtrace.plane[2] = 1;
+	hmtrace.plane[2] = 0;
 	hmtrace.plane[3] = 0;
 
 	memset(trace, 0, sizeof(*trace));
 	trace->fraction = 1;
 
 	//to tile space
-	hmtrace.start[0] = (start[0] + CHUNKBIAS*hmtrace.hm->sectionsize);
-	hmtrace.start[1] = (start[1] + CHUNKBIAS*hmtrace.hm->sectionsize);
+	hmtrace.start[0] = (start[0]);
+	hmtrace.start[1] = (start[1]);
 	hmtrace.start[2] = (start[2] + mins[2]);
-	hmtrace.end[0] = (end[0] + CHUNKBIAS*hmtrace.hm->sectionsize);
-	hmtrace.end[1] = (end[1] + CHUNKBIAS*hmtrace.hm->sectionsize);
+	hmtrace.end[0] = (end[0]);
+	hmtrace.end[1] = (end[1]);
 	hmtrace.end[2] = (end[2] + mins[2]);
 
 	dir[0] = (hmtrace.end[0] - hmtrace.start[0])/hmtrace.htilesize;
 	dir[1] = (hmtrace.end[1] - hmtrace.start[1])/hmtrace.htilesize;
-	pos[0] = hmtrace.start[0]/hmtrace.htilesize;
-	pos[1] = hmtrace.start[1]/hmtrace.htilesize;
+	pos[0] = (hmtrace.start[0]+CHUNKBIAS*hmtrace.hm->sectionsize)/hmtrace.htilesize;
+	pos[1] = (hmtrace.start[1]+CHUNKBIAS*hmtrace.hm->sectionsize)/hmtrace.htilesize;
 
 	emins[0] = (mins[0]-1)/hmtrace.htilesize;
 	emins[1] = (mins[1]-1)/hmtrace.htilesize;
@@ -2003,7 +2032,7 @@ void QCBUILTIN PF_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_glob
 		tally[0] /= tally[1];
 		if (IS_NAN(tally[0]))
 			tally[0] = 0;
-		ted_itterate(hm, pos, radius, 1, SECTHEIGHTSIZE, ted_heightsmooth, &tally);
+		ted_itterate(hm, pos, radius, quant, SECTHEIGHTSIZE, ted_heightsmooth, &tally);
 		break;
 	case ter_height_spread:
 		tally[0] = 0;
@@ -2225,6 +2254,19 @@ void Terr_ParseEntityLump(char *data, float *scale, int *minx, int *maxx, int *m
 		else if (!strcmp("maxysegment", key))
 			*maxy = atoi(com_token);
 	}
+
+	*minx += CHUNKBIAS;
+	*miny += CHUNKBIAS;
+	*maxx += CHUNKBIAS;
+	*maxy += CHUNKBIAS;
+	if (*minx < 0)
+		*minx = 0;
+	if (*miny < 0)
+		*miny = 0;
+	if (*maxx > CHUNKLIMIT)
+		*maxx = CHUNKLIMIT;
+	if (*maxy > CHUNKLIMIT)
+		*maxy = CHUNKLIMIT;
 }
 
 
@@ -2265,22 +2307,13 @@ qboolean Terr_LoadTerrainModel (model_t *mod, void *buffer)
 	strcpy(mod->entities, buffer);
 
 	hm->sectionsize = sectsize;
-	hm->firstsegx = CHUNKBIAS - 1;
-	hm->firstsegy = CHUNKBIAS - 1;
-	hm->maxsegx = CHUNKBIAS + 1;
-	hm->maxsegy = CHUNKBIAS + 1;
+	hm->firstsegx = -1;
+	hm->firstsegy = -1;
+	hm->maxsegx = +1;
+	hm->maxsegy = +1;
 	hm->exteriorcontents = FTECONTENTS_SOLID;	//sky outside the map
 
 	Terr_ParseEntityLump(mod->entities, &hm->sectionsize, &hm->firstsegx, &hm->maxsegx, &hm->firstsegy, &hm->maxsegy);
-
-	if (hm->firstsegx < 0)
-		hm->firstsegx = 0;
-	if (hm->firstsegy < 0)
-		hm->firstsegy = 0;
-	if (hm->maxsegx > CHUNKLIMIT)
-		hm->maxsegx = CHUNKLIMIT;
-	if (hm->maxsegy > CHUNKLIMIT)
-		hm->maxsegy = CHUNKLIMIT;
 
 	mod->mins[0] = (hm->firstsegx - CHUNKBIAS) * hm->sectionsize;
 	mod->mins[1] = (hm->firstsegy - CHUNKBIAS) * hm->sectionsize;
@@ -2357,20 +2390,6 @@ void *Mod_LoadTerrainInfo(model_t *mod, char *loadname)
 		return NULL;
 
 	Terr_ParseEntityLump(mod->entities, &scale, &bounds[0], &bounds[1], &bounds[2], &bounds[3]);
-
-	bounds[0] += CHUNKBIAS;
-	bounds[1] += CHUNKBIAS;
-	bounds[2] += CHUNKBIAS;
-	bounds[3] += CHUNKBIAS;
-
-	if (bounds[0] < 0)
-		bounds[0] = 0;
-	if (bounds[2] < 0)
-		bounds[2] = 0;
-	if (bounds[1] > CHUNKLIMIT)
-		bounds[1] = CHUNKLIMIT;
-	if (bounds[3] > CHUNKLIMIT)
-		bounds[3] = CHUNKLIMIT;
 
 	if (!scale && (bounds[0] == bounds[1] || bounds[2] == bounds[3]))
 		return NULL;

@@ -338,6 +338,7 @@ cvar_t r_shadow_realtime_world_shadows		= SCVARF ("r_shadow_realtime_world_shado
 cvar_t r_shadow_realtime_dlight				= SCVARF ("r_shadow_realtime_dlight", "1", CVAR_ARCHIVE);
 cvar_t r_shadow_realtime_dlight_shadows		= SCVARF ("r_shadow_realtime_dlight_shadows", "1", CVAR_ARCHIVE);
 cvar_t r_shadow_realtime_world_lightmaps	= SCVARF ("r_shadow_realtime_world_lightmaps", "0", 0);
+cvar_t r_shadow_shadowmapping				= SCVARF ("debug_r_shadow_shadowmapping", "0", 0);
 cvar_t r_sun_dir							= SCVAR ("r_sun_dir", "0.2 0.5 0.8");
 cvar_t r_sun_colour							= SCVARF ("r_sun_colour", "0 0 0", CVAR_ARCHIVE);
 cvar_t r_waterstyle							= CVARF ("r_waterstyle", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM);
@@ -590,6 +591,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_shadow_realtime_dlight, GRAPHICALNICETIES);
 	Cvar_Register (&r_shadow_realtime_dlight_shadows, GRAPHICALNICETIES);
 	Cvar_Register (&r_shadow_realtime_world_lightmaps, GRAPHICALNICETIES);
+	Cvar_Register (&r_shadow_shadowmapping, GRAPHICALNICETIES);
 	Cvar_Register (&r_sun_dir, GRAPHICALNICETIES);
 	Cvar_Register (&r_sun_colour, GRAPHICALNICETIES);
 	Cvar_Register (&r_waterstyle, GRAPHICALNICETIES);

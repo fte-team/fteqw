@@ -662,8 +662,8 @@ void CL_CalcClientTime(void)
 
 			oldst = cl.servertime;
 
-			max = cl.gametime;// - 5;
-			min = cl.oldgametime;// - 5;
+			max = cl.gametime;
+			min = cl.oldgametime;
 
 			cl.servertime += host_frametime;
 
@@ -1028,7 +1028,10 @@ fixedorg:
 		if (cl.gametime == cl.servertime)
 			f = 0;
 		else
-			f = (cl.gametime-cl.servertime)/(cl.gametime-cl.oldgametime);//f = (cl.time-cl.lerpents[state->number].lerptime)/cl.lerpents[state->number].lerprate;
+		{
+			f = (cl.gametime-cl.servertime)/(cl.gametime-cl.oldgametime);
+			//f = (cl.time-cl.lerpents[state->number].lerptime)/cl.lerpents[state->number].lerprate;
+		}
 		if (f<0)
 			f=0;
 		if (f>1)
@@ -1039,8 +1042,8 @@ fixedorg:
 		// calculate origin
 		for (i=0 ; i<3 ; i++)
 		{
-			lrp[i] = to->playerstate[cl.playernum[pnum]].origin[i] +
-			f * (from->playerstate[cl.playernum[pnum]].origin[i] - to->playerstate[cl.playernum[pnum]].origin[i]);
+			lrp[i] = to->playerstate[spec_track[pnum]].origin[i] +
+			f * (from->playerstate[spec_track[pnum]].origin[i] - to->playerstate[cl.playernum[pnum]].origin[i]);
 
 			lrpv[i] = to->playerstate[spec_track[pnum]].velocity[i] +
 			f * (from->playerstate[spec_track[pnum]].velocity[i] - to->playerstate[spec_track[pnum]].velocity[i]);

@@ -172,6 +172,7 @@ void P_InitParticleSystem(void)
 
 void P_Shutdown(void)
 {
+	CL_ClearLerpEntsParticleState();
 	if (pe)
 	{
 		pe->ShutdownParticles();

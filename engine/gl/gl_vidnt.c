@@ -927,6 +927,7 @@ int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 	window_width = DIBWidth;
 	window_height = DIBHeight;
 	VID_UpdateWindowStatus (mainwindow);
+	Cvar_ForceCallback(&vid_conautoscale);
 
 	CDAudio_Resume ();
 	scr_disabled_for_loading = temp;
@@ -1293,9 +1294,8 @@ void GLVID_Recenter_f(void)
 		WindowRect = centerrect(sys_parentleft, sys_parenttop, sys_parentwidth, sys_parentheight, vid_width.value, vid_height.value);
 		MoveWindow(mainwindow, WindowRect.left, WindowRect.top, WindowRect.right - WindowRect.left, WindowRect.bottom - WindowRect.top, FALSE);
 
-		Cvar_ForceCallback(&vid_conautoscale);
-		Cvar_ForceCallback(&vid_conwidth);
 		VID_UpdateWindowStatus (mainwindow);
+		Cvar_ForceCallback(&vid_conautoscale);
 	}
 }
 
@@ -1822,6 +1822,7 @@ LONG WINAPI GLMainWndProc (
 
 		case WM_MOVE:
 			VID_UpdateWindowStatus (hWnd);
+			Cvar_ForceCallback(&vid_conautoscale);
 			break;
 
 		case WM_KEYDOWN:
@@ -1939,9 +1940,8 @@ LONG WINAPI GLMainWndProc (
     	case WM_SIZE:
 			if (!vid_initializing)
 			{
-				Cvar_ForceCallback(&vid_conautoscale);
-				Cvar_ForceCallback(&vid_conwidth);
 				VID_UpdateWindowStatus (hWnd);
+				Cvar_ForceCallback(&vid_conautoscale);
 			}
             break;
 

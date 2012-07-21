@@ -433,6 +433,11 @@ void CLQW_ParseDelta (entity_state_t *from, entity_state_t *to, int bits, qboole
 		if (i & RENDER_EXTERIORMODEL)
 			to->flags |= Q2RF_EXTERNALMODEL;
 	}
+	if (!(cls.fteprotocolextensions & PEXT_DPFLAGS))
+	{
+		if (to->frame)
+			to->dpflags |= RENDER_STEP;
+	}
 	if (morebits & U_TAGINFO)
 	{
 		to->tagentity = MSG_ReadShort();
@@ -878,7 +883,7 @@ void CL_ParsePacketEntities (qboolean delta)
 	{
 		cl.oldgametime = cl.gametime;
 		cl.oldgametimemark = cl.gametimemark;
-		cl.gametime = realtime;
+		cl.gametime = realtime;//cl.frames[newpacket].senttime - cl.frames[(newpacket-1)&UPDATE_MASK].senttime;
 		cl.gametimemark = realtime;
 	}
 
@@ -2856,6 +2861,18 @@ void CL_LinkPacketEntities (void)
 
 		CLQ1_AddShadow(ent);
 		CLQ1_AddPowerupShell(ent, false, state->effects);
+
+		if (r_torch.ival && ent->keynum <= cl.allocated_client_slots)
+		{
+			dlight_t *dl;
+			dl = CL_NewDlight(ent->keynum, ent->origin, 300, r_torch.ival, 0.9, 0.9, 0.6);
+			dl->flags |= LFLAG_SHADOWMAP|LFLAG_FLASHBLEND;
+			dl->fov = 90;
+			angles[0] *= 3;
+//			angles[1] += sin(realtime)*8;
+//			angles[0] += cos(realtime*1.13)*5;
+			AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
+		}
 
 		// add automatic particle trails
 		if (!model || (!(model->flags&~MF_ROTATE) && model->particletrail<0 && model->particleeffect<0 && state->u.q1.traileffectnum==0))

@@ -401,7 +401,7 @@ void RMod_ClearAll (void)
 #ifdef TERRAIN
 		if (mod->terrain)
 		{
-			Terr_PurgeTerrainModel(mod, false);
+			Terr_PurgeTerrainModel(mod, false, false);
 			mod->terrain = NULL;
 		}
 #endif

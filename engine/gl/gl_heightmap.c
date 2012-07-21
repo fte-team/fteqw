@@ -587,10 +587,10 @@ int HeightMap_Save(heightmap_t *hm)
 	return sectionssaved;
 }
 
-void Terr_DestroySection(heightmap_t *hm, hmsection_t *s)
+void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusable)
 {
 #ifndef SERVERONLY
-	if (hm && s->lightmap >= 0)
+	if (lightmapreusable && s->lightmap >= 0)
 	{
 		struct lmsect_s *lms;
 
@@ -623,13 +623,14 @@ lightmaps only are purged whenever the client rudely kills lightmaps
 we'll reload those when its next seen.
 (lightmaps will already have been destroyed, so no poking them)
 */
-void Terr_PurgeTerrainModel(model_t *mod, qboolean lightmapsonly)
+void Terr_PurgeTerrainModel(model_t *mod, qboolean lightmapsonly, qboolean lightmapreusable)
 {
 	heightmap_t *hm = mod->terrain;
 	hmcluster_t *c;
 	hmsection_t *s;
 	int cx, cy;
 	int sx, sy;
+
 	for (cy = 0; cy < MAXSECTIONS; cy++)
 	for (cx = 0; cx < MAXSECTIONS; cx++)
 	{
@@ -654,7 +655,7 @@ void Terr_PurgeTerrainModel(model_t *mod, qboolean lightmapsonly)
 			{
 				c->section[sx+sy*MAXSECTIONS] = NULL;
 
-				Terr_DestroySection(NULL, s);
+				Terr_DestroySection(hm, s, lightmapreusable);
 			}
 		}
 		if (!lightmapsonly)
@@ -664,12 +665,15 @@ void Terr_PurgeTerrainModel(model_t *mod, qboolean lightmapsonly)
 		}
 	}
 #ifndef SERVERONLY
-	while (hm->unusedlmsects)
+	if (!lightmapreusable)
 	{
-		struct lmsect_s *lms;
-		lms = hm->unusedlmsects;
-		hm->unusedlmsects = lms->next;
-		free(lms);
+		while (hm->unusedlmsects)
+		{
+			struct lmsect_s *lms;
+			lms = hm->unusedlmsects;
+			hm->unusedlmsects = lms->next;
+			free(lms);
+		}
 	}
 #endif
 }
@@ -1262,7 +1266,7 @@ static void Heightmap_Trace_Brush(hmtrace_t *tr, vec4_t *planes, int numplanes)
 
 		//if we're fully outside any plane, then we cannot possibly enter the brush, skip to the next one
 		if (d1 > 0 && d2 >= d1)
-			goto nextbrush;
+			return;
 
 		if (d1 > 0)
 			startout = true;
@@ -1310,8 +1314,6 @@ static void Heightmap_Trace_Brush(hmtrace_t *tr, vec4_t *planes, int numplanes)
 			VectorCopy(enterplane, tr->plane);
 		}
 	}
-	nextbrush:
-	;
 }
 
 //sx,sy are the tile coord
@@ -1482,6 +1484,7 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 	int x, y;
 	int axis;
 	int breaklimit = 1000;
+	float wbias;
 	hmtrace_t hmtrace;
 	hmtrace.hm = model->terrain;
 	hmtrace.htilesize = hmtrace.hm->sectionsize / (SECTHEIGHTSIZE-1);
@@ -1508,6 +1511,7 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 	dir[1] = (hmtrace.end[1] - hmtrace.start[1])/hmtrace.htilesize;
 	pos[0] = (hmtrace.start[0]+CHUNKBIAS*hmtrace.hm->sectionsize)/hmtrace.htilesize;
 	pos[1] = (hmtrace.start[1]+CHUNKBIAS*hmtrace.hm->sectionsize)/hmtrace.htilesize;
+	wbias = CHUNKBIAS*hmtrace.hm->sectionsize;
 
 	emins[0] = (mins[0]-1)/hmtrace.htilesize;
 	emins[1] = (mins[1]-1)/hmtrace.htilesize;
@@ -1533,14 +1537,14 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 			{
 				nudge[axis] = false;
 				npos[axis] = pos[axis] + 1-(pos[axis]-(int)pos[axis]);
-				frac[axis] = (npos[axis]*hmtrace.htilesize - hmtrace.start[axis])/(hmtrace.end[axis]-hmtrace.start[axis]);
+				frac[axis] = (npos[axis]*hmtrace.htilesize-wbias - hmtrace.start[axis])/(hmtrace.end[axis]-hmtrace.start[axis]);
 			}
 			else if (dir[axis] < 0)
 			{
 				npos[axis] = pos[axis];
 				nudge[axis] = (float)(int)pos[axis] == pos[axis];
 				npos[axis] = (int)npos[axis];
-				frac[axis] = (npos[axis]*hmtrace.htilesize - hmtrace.start[axis])/(hmtrace.end[axis]-hmtrace.start[axis]);
+				frac[axis] = (npos[axis]*hmtrace.htilesize-wbias - hmtrace.start[axis])/(hmtrace.end[axis]-hmtrace.start[axis]);
 				npos[axis] -= nudge[axis];
 			}
 			else
@@ -1571,7 +1575,7 @@ qboolean Heightmap_Trace(struct model_s *model, int hulloverride, int frame, vec
 		//and make sure our position on the other axis is correct, for the next time around the loop
 		if (frac[axis] > hmtrace.frac)
 			break;
-		pos[!axis] = ((hmtrace.end[!axis] * frac[axis]) + (hmtrace.start[!axis] * (1-frac[axis])))/hmtrace.htilesize;
+		pos[!axis] = ((hmtrace.end[!axis] * frac[axis]) + (hmtrace.start[!axis] * (1-frac[axis])) + CHUNKBIAS*hmtrace.hm->sectionsize)/hmtrace.htilesize;
 	}
 
 	trace->plane.dist = hmtrace.plane[3];
@@ -2002,7 +2006,7 @@ void QCBUILTIN PF_terrain_edit(progfuncs_t *prinst, struct globalvars_s *pr_glob
 	switch(action)
 	{
 	case ter_reload:
-		Terr_PurgeTerrainModel(mod, false);
+		Terr_PurgeTerrainModel(mod, false, true);
 		break;
 	case ter_save:
 		Con_Printf("%i sections saved\n", HeightMap_Save(hm));
@@ -2299,7 +2303,7 @@ qboolean Terr_LoadTerrainModel (model_t *mod, void *buffer)
 
 	mod->type = mod_heightmap;
 
-	hm = BZ_Malloc(sizeof(*hm));
+	hm = Hunk_Alloc(sizeof(*hm));
 	memset(hm, 0, sizeof(*hm));
 	COM_FileBase(mod->name, hm->path, sizeof(hm->path));
 

@@ -2848,7 +2848,7 @@ void Surf_BuildLightmaps (void)
 
 #ifdef TERRAIN
 		if (m->terrain)
-			Terr_PurgeTerrainModel(m, true);
+			Terr_PurgeTerrainModel(m, true, false);
 #endif
 
 		if (m->type != mod_brush)

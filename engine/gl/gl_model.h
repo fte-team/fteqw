@@ -1015,7 +1015,7 @@ qbyte	*Mod_LeafPVS (mleaf_t *leaf, model_t *model);
 #ifdef TERRAIN
 void Terr_DrawTerrainModel (batch_t **batch, entity_t *e);
 qboolean Terr_LoadTerrainModel (model_t *mod, void *buffer);
-void Terr_PurgeTerrainModel(model_t *mod, qboolean lightmapsonly);
+void Terr_PurgeTerrainModel(model_t *mod, int lightmapsonly);
 void *Mod_LoadTerrainInfo(model_t *mod, char *loadname);	//call this after loading a bsp
 qboolean Heightmap_Trace(model_t *model, int forcehullnum, int frame, vec3_t axis[3], vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, unsigned int contentmask, struct trace_s *trace);
 unsigned int Heightmap_PointContents(model_t *model, vec3_t axis[3], vec3_t org);

@@ -8,6 +8,7 @@
 
 //#define STRICTEDGES	//strict (ugly) grid
 #define TERRAINTHICKNESS 16
+#define TERRAINACTIVESECTIONS 1000
 
 //heightmaps work thusly:
 //there is one raw heightmap file
@@ -78,6 +79,9 @@ typedef struct
 } dsection_t;
 typedef struct
 {
+	link_t recycle;
+	int sx, sy;
+
 	float heights[SECTHEIGHTSIZE*SECTHEIGHTSIZE];
 	unsigned short holes;
 	unsigned int flags;
@@ -104,7 +108,8 @@ typedef struct
 {
 	hmsection_t *section[MAXSECTIONS*MAXSECTIONS];
 } hmcluster_t;
-typedef struct heightmap_s {
+typedef struct heightmap_s
+{
 	char path[MAX_QPATH];
 	int firstsegx, firstsegy;
 	int maxsegx, maxsegy; //tex/cull sections
@@ -115,6 +120,9 @@ typedef struct heightmap_s {
 	mesh_t skymesh;
 	mesh_t *askymesh;
 	unsigned int exteriorcontents;
+
+	int activesections;
+	link_t recycle;
 
 #ifndef SERVERONLY
 	struct lmsect_s
@@ -135,6 +143,7 @@ typedef struct heightmap_s {
 
 
 static void ted_dorelight(heightmap_t *hm);
+static void Terr_Collect(heightmap_t *hm);
 
 
 #ifndef SERVERONLY
@@ -256,6 +265,11 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 			return NULL;
 		}
 		memset(s, 0, sizeof(*s));
+
+		InsertLinkBefore(&s->recycle, &hm->recycle);
+		s->sx = sx;
+		s->sy = sy;
+		hm->activesections++;
 		
 #ifndef SERVERONLY
 		s->lightmap = -1;
@@ -554,6 +568,8 @@ static hmsection_t *Terr_GetSection(heightmap_t *hm, int x, int y, qboolean dolo
 	{
 		if (doload)
 		{
+			while (hm->activesections > TERRAINACTIVESECTIONS)
+				Terr_Collect(hm);
 			section = cluster->section[sx + sy*MAXSECTIONS] = Terr_LoadSection(hm, section, x, y);
 		}
 	}
@@ -589,6 +605,7 @@ int HeightMap_Save(heightmap_t *hm)
 
 void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusable)
 {
+	RemoveLink(&s->recycle);
 #ifndef SERVERONLY
 	if (lightmapreusable && s->lightmap >= 0)
 	{
@@ -601,6 +618,9 @@ void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusa
 		lms->next = hm->unusedlmsects;
 		hm->unusedlmsects = lms;
 	}
+
+	if (hm->relight == s)
+		hm->relight = NULL;
 
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
@@ -616,6 +636,34 @@ void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusa
 #endif
 
 	free(s);
+
+	hm->activesections--;
+}
+
+//garbage collect the oldest section, to make space for another
+static void Terr_Collect(heightmap_t *hm)
+{
+	hmcluster_t *c;
+	hmsection_t *s;
+	int cx, cy;
+	int sx, sy;
+
+	link_t *ln = &hm->recycle;
+	for (ln = &hm->recycle; ln->next != &hm->recycle; )
+	{
+		s = (hmsection_t*)ln->next;
+		cx = s->sx/MAXSECTIONS;
+		cy = s->sy/MAXSECTIONS;
+		c = hm->cluster[cx + cy*MAXSECTIONS];
+		sx = s->sx & (MAXSECTIONS-1);
+		sy = s->sy & (MAXSECTIONS-1);
+		if (c->section[sx+sy*MAXSECTIONS] != s)
+			Sys_Error("invalid section collection");
+		c->section[sx+sy*MAXSECTIONS] = NULL;
+
+		Terr_DestroySection(hm, s, true);
+		return;
+	}
 }
 
 /*purge all sections
@@ -1008,7 +1056,6 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 			{
 				if (!hm->relight)
 				{
-					s->flags &= ~TSF_RELIGHT;
 					hm->relight = s;
 					hm->relightidx = 0;
 					hm->relightmin[0] = mins[0];
@@ -1338,6 +1385,18 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 		return;
 	s = Terr_GetSection(tr->hm, tx/(SECTHEIGHTSIZE-1), ty/(SECTHEIGHTSIZE-1), true);
 
+	if (!s)
+	{
+		//you're not allowed to walk into sections that have not loaded.
+		//might as well check the entire section instead of just one tile
+		Vector4Set(n[0],  1, 0, 0, (tx/(SECTHEIGHTSIZE-1) + 1 - CHUNKBIAS)*tr->hm->sectionsize);
+		Vector4Set(n[1], -1, 0, 0, -(tx/(SECTHEIGHTSIZE-1) + 0 - CHUNKBIAS)*tr->hm->sectionsize);
+		Vector4Set(n[2], 0,  1, 0, (ty/(SECTHEIGHTSIZE-1) + 1 - CHUNKBIAS)*tr->hm->sectionsize);
+		Vector4Set(n[3], 0, -1, 0, -(ty/(SECTHEIGHTSIZE-1) + 0 - CHUNKBIAS)*tr->hm->sectionsize);
+		Heightmap_Trace_Brush(tr, n, 4);
+		return;
+	}
+
 	sx = tx - CHUNKBIAS*(SECTHEIGHTSIZE-1);
 	sy = ty - CHUNKBIAS*(SECTHEIGHTSIZE-1);
 
@@ -1345,7 +1404,7 @@ static void Heightmap_Trace_Square(hmtrace_t *tr, int tx, int ty)
 	ty = ty % (SECTHEIGHTSIZE-1);
 
 	holebit = 1u<<(tx/(SECTHEIGHTSIZE>>2) + (ty/(SECTHEIGHTSIZE>>2))*4);
-	if (!s || (s->holes & holebit))
+	if (s->holes & holebit)
 		return;	//no collision with holes
 
 	VectorSet(p[0], tr->htilesize*(sx+0), tr->htilesize*(sy+0), s->heights[(tx+0)+(ty+0)*SECTHEIGHTSIZE]);
@@ -1680,7 +1739,7 @@ static void ted_dorelight(heightmap_t *hm)
 //	float scaletab[EXPAND*2*EXPAND*2];
 	vec3_t ldir = {0.4, 0.7, 2};
 	hmsection_t *s = hm->relight;
-
+	s->flags &= ~TSF_RELIGHT;
 	hm->relight = NULL;
 
 	for (y = -EXPAND; y < SECTTEXSIZE+EXPAND; y++)
@@ -2305,6 +2364,7 @@ qboolean Terr_LoadTerrainModel (model_t *mod, void *buffer)
 
 	hm = Hunk_Alloc(sizeof(*hm));
 	memset(hm, 0, sizeof(*hm));
+	ClearLink(&hm->recycle);
 	COM_FileBase(mod->name, hm->path, sizeof(hm->path));
 
 	mod->entities = Hunk_AllocName(strlen(buffer)+1, mod->name);
@@ -2402,6 +2462,7 @@ void *Mod_LoadTerrainInfo(model_t *mod, char *loadname)
 		scale = 1024;
 
 	hm = Z_Malloc(sizeof(*hm));
+	ClearLink(&hm->recycle);
 	Q_strncpyz(hm->path, loadname, sizeof(hm->path));
 	hm->sectionsize = scale;
 	hm->firstsegx = bounds[0];

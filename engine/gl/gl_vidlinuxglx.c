@@ -1112,16 +1112,15 @@ void IN_MouseMove (float *movements, int pnum)
 		}
 #endif
 	}
-	else
-	{
+
 #ifdef PEXT_CSQC
-		if (CSQC_MouseMove(mx, my, 0))
-		{
-			mx = 0;
-			my = 0;
-		}
-#endif
+	if (mx || my)
+	if (CSQC_MouseMove(mx, my, 0))
+	{
+		mx = 0;
+		my = 0;
 	}
+#endif
 
 	if (m_filter.value)
 	{
@@ -1129,14 +1128,22 @@ void IN_MouseMove (float *movements, int pnum)
 		mouse_x = (mouse_x*(1-fraction) + old_mouse_x*fraction);
 		mouse_y = (mouse_y*(1-fraction) + old_mouse_y*fraction);
 	}
+	else
+	{
+		mouse_x = mx;
+		mouse_y = my;
+	}
 	old_mouse_x = mx;
 	old_mouse_y = my;
 
-	if (m_accel.value) {
+	if (m_accel.value)
+	{
 		float mouse_deltadist = sqrt(mx*mx + my*my);
 		mouse_x *= (mouse_deltadist*m_accel.value + sensitivity.value*in_sensitivityscale);
 		mouse_y *= (mouse_deltadist*m_accel.value + sensitivity.value*in_sensitivityscale);
-	} else {
+	}
+	else
+	{
 		mouse_x *= sensitivity.value*in_sensitivityscale;
 		mouse_y *= sensitivity.value*in_sensitivityscale;
 	}

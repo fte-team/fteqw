@@ -57,6 +57,7 @@ DROID_NDK_PATH?=~/droid/android-ndk-r6b
 DROID_SDK_PATH?=~/droid/android-sdk-linux_x86
 ANT?=ant
 JAVATOOL="$(JAVA_HOME)"/bin/
+ANDROID_SCRIPT=android
 
 ifeq ($(WHOAMI),moodles)
 	ANT_HOME=/home/moodles/apache-ant-1.8.2/
@@ -86,6 +87,7 @@ ifeq ($(FTE_TARGET),droid)
 		else
 			TOOLCHAIN:=$(NDK_PATH)/toolchains/arm-linux-androideabi-4.4.3/prebuilt/windows/bin/arm-linux-androideabi-
 		endif
+		ANDROID_SCRIPT=android.bat
 		#make can't cope with absolute paths in dependancy files
 		NODEPS = 1
 	endif
@@ -1314,8 +1316,7 @@ distclean: clean
 
 #makes an ant project for us
 droid/build.xml:
-	-cd droid && PATH=$$PATH:$(DROID_SDK_PATH)/tools:$(DROID_NDK_PATH) android update project -t android-8 -p . -n FTEDroid
-	-cd droid && PATH=$$PATH:$(DROID_SDK_PATH)/tools:$(DROID_NDK_PATH) android.bat update project -t android-8 -p . -n FTEDroid
+	-cd droid && PATH=$$PATH:$(DROID_SDK_PATH)/tools:$(DROID_NDK_PATH) $(ANDROID_SCRIPT) update project -t android-8 -p . -n FTEDroid
 
 #build FTE as a library, then build the java+package (release)
 droid/ftekeystore:

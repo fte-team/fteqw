@@ -23,7 +23,7 @@ int Surf_NewLightmaps(int count, int width, int height);
 
 #define MAXSECTIONS 64	//this many sections max in each direction
 #define SECTTEXSIZE 64	//this many texture samples per section
-#define SECTHEIGHTSIZE 16 //this many height samples per section
+#define SECTHEIGHTSIZE 17 //this many height samples per section
 
 //each section is this many sections higher in world space, to keep the middle centered at '0 0'
 #define CHUNKBIAS	(MAXSECTIONS*MAXSECTIONS/2)
@@ -34,7 +34,11 @@ int Surf_NewLightmaps(int count, int width, int height);
 #define HMLMSTRIDE (LMCHUNKS*SECTTEXSIZE)
 
 #define SECTION_MAGIC (*(int*)"HMMS")
-#define SECTION_VER	0
+#define SECTION_VER	1
+/*simple version history:
+ver=0
+	SECTHEIGHTSIZE=16
+*/
 
 enum
 {
@@ -253,7 +257,10 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 		if (ds->magic != SECTION_MAGIC)
 			return NULL;
 		if (ds->ver != SECTION_VER)
-			return NULL;
+		{
+			FS_FreeFile(ds);
+			ds = NULL;
+		}
 	}
 
 	if (!s)
@@ -1888,6 +1895,22 @@ static void ted_mixpaint(void *ctx, hmsection_t *s, int idx, float wx, float wy,
 			lm[0] = lm[0]*(1-w) + (255*newval[2]*(w));
 			return;
 		}
+	}
+
+	/*special handling to make a section accept the first texture painted on it as a base texture. no more chessboard*/
+	if (!*s->texname[0] && !*s->texname[1] && !*s->texname[2] && !*s->texname[3])
+	{
+		Q_strncpyz(s->texname[3], texname, sizeof(s->texname[3]));
+		Terr_LoadSectionTextures(s);
+
+		for (idx = 0; idx < SECTTEXSIZE*SECTTEXSIZE; idx++)
+		{
+			lm = ted_getlightmap(s, idx);
+			lm[2] = 0;
+			lm[1] = 0;
+			lm[0] = 0;
+		}
+		return;
 	}
 	for (t = 0; t < 4; t++)
 	{

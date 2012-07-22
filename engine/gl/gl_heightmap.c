@@ -295,7 +295,19 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 	if (ds)
 	{
 		s->flags = ds->flags | TSF_DIRTY;
+
+		/*load the heights*/
+		for (i = 0; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++)
+		{
+			s->heights[i] = LittleFloat(ds->heights[i]);
+		}
+		s->minh = ds->minh;
+		s->maxh = ds->maxh;
+		s->waterheight = ds->waterheight;
+		s->holes = ds->holes;
+
 #ifndef SERVERONLY
+		/*deal with textures*/
 		Q_strncpyz(s->texname[0], ds->texname[0], sizeof(s->texname[0]));
 		Q_strncpyz(s->texname[1], ds->texname[1], sizeof(s->texname[1]));
 		Q_strncpyz(s->texname[2], ds->texname[2], sizeof(s->texname[2]));
@@ -306,6 +318,7 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 		CL_CheckOrEnqueDownloadFile(s->texname[2], NULL, 0);
 		CL_CheckOrEnqueDownloadFile(s->texname[3], NULL, 0);
 
+		/*load in the mixture/lighting*/
 		if (s->lightmap >= 0)
 		{
 			lm = lightmap[s->lightmap]->lightmaps;
@@ -321,18 +334,8 @@ static hmsection_t *Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, in
 			lightmap[s->lightmap]->rectchange.w = HMLMSTRIDE;
 			lightmap[s->lightmap]->rectchange.h = HMLMSTRIDE;
 		}
-#endif
 
-		/*load the heights too*/
-		for (i = 0; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++)
-		{
-			s->heights[i] = LittleFloat(ds->heights[i]);
-		}
-		s->minh = ds->minh;
-		s->maxh = ds->maxh;
-		s->waterheight = ds->waterheight;
-
-#ifndef SERVERONLY
+		/*load any static ents*/
 		s->numents = ds->numents;
 		s->maxents = s->numents;
 		if (s->maxents)
